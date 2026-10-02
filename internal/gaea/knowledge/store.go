@@ -17,9 +17,12 @@ type backend interface {
 	Save(e Entry) error
 	Get(name string) (*Entry, error)
 	Delete(name string) error
-	List() []EntrySummary
+	// List/ReadAll 必须把 DB/文件读取失败如实返回 error（审计 P0#6 GA3-01）：
+	// 「库里真的没有条目」与「库读不出来」不可用同一个空切片表示——吞错会让
+	// 查重/导入预览把库故障判成空库，每行都判「新增」后静默重复入库。
+	List() ([]EntrySummary, error)
 	Index() string
-	ReadAll() []Entry
+	ReadAll() ([]Entry, error)
 }
 
 // Store manages the knowledge base entries. It stays a struct (not an
@@ -85,8 +88,9 @@ func (s *Store) Delete(name string) error {
 	return nil
 }
 
-// List returns all entries with their metadata (without Body).
-func (s *Store) List() []EntrySummary {
+// List returns all entries with their metadata (without Body). 读失败返回
+// error，调用方据此区分「库空」与「库不可读」（审计 P0#6 GA3-01）。
+func (s *Store) List() ([]EntrySummary, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.backend.List()
@@ -100,8 +104,9 @@ func (s *Store) Index() string {
 	return s.backend.Index()
 }
 
-// ReadAll returns all full entries (used by Search and migrations).
-func (s *Store) ReadAll() []Entry {
+// ReadAll returns all full entries (used by Search and migrations). 读失败
+// 返回 error，不再吞成空切片（审计 P0#6 GA3-01）。
+func (s *Store) ReadAll() ([]Entry, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.backend.ReadAll()
@@ -147,14 +152,17 @@ func (b *fileBackend) Delete(name string) error {
 	return b.rebuildIndex()
 }
 
-func (b *fileBackend) List() []EntrySummary {
-	entries := b.ReadAll()
+func (b *fileBackend) List() ([]EntrySummary, error) {
+	entries, err := b.ReadAll()
+	if err != nil {
+		return nil, err
+	}
 	summaries := make([]EntrySummary, 0, len(entries))
 	for _, e := range entries {
 		summaries = append(summaries, e.ToSummary())
 	}
 	SortEntrySummaries(summaries)
-	return summaries
+	return summaries, nil
 }
 
 func (b *fileBackend) Index() string {
@@ -165,28 +173,38 @@ func (b *fileBackend) Index() string {
 	return string(data)
 }
 
-func (b *fileBackend) ReadAll() []Entry {
-	entries, _ := filepath.Glob(filepath.Join(b.dir, "*.md"))
+func (b *fileBackend) ReadAll() ([]Entry, error) {
+	paths, err := filepath.Glob(filepath.Join(b.dir, "*.md"))
+	if err != nil {
+		return nil, fmt.Errorf("glob %s: %w", b.dir, err)
+	}
 	var result []Entry
-	for _, path := range entries {
+	for _, path := range paths {
 		if filepath.Base(path) == "INDEX.md" {
 			continue
 		}
 		data, err := os.ReadFile(path)
 		if err != nil {
-			continue
+			// 读失败（权限/损坏/同名目录）不再静默当空条目跳过：审计 P0#6
+			// GA3-01，「无权限/损坏文件被静默当空条目」会让查重判「全部新增」。
+			return nil, fmt.Errorf("read %s: %w", path, err)
 		}
 		e, err := ParseFrontmatter(string(data))
 		if err != nil || e.Name == "" {
+			// 无 frontmatter/无名的 Markdown 不是条目：按旧口径跳过
+			// （属数据形状，不是读失败）。
 			continue
 		}
 		result = append(result, *e)
 	}
-	return result
+	return result, nil
 }
 
 func (b *fileBackend) rebuildIndex() error {
-	entries := b.ReadAll()
+	entries, err := b.ReadAll()
+	if err != nil {
+		return err
+	}
 	sort.Slice(entries, func(i, j int) bool {
 		return entries[i].Name < entries[j].Name
 	})

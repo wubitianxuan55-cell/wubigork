@@ -383,3 +383,191 @@ func TestGaeaScheduleProjectDeleteCascadesCurrent(t *testing.T) {
 		t.Fatal("未知 rel 应报错")
 	}
 }
+
+// ── 前后端数据契约往返（FE7-01 / FE7-02 回归，2026-10-02 审计）──────────
+//
+// frontendContractProjectJSON 是**前端契约形态**的计划 JSON：字段名/可选性
+// 严格照 frontend/src/schedule/types.ts 声明书写（多基线 baselines[]、活跃
+// 基线 baseline、资源个人日历 calendar、assignment 数值三态）。
+//
+// 契约不变式（本文件三条用例共同守护）：
+//  1. 前端声明的字段经 Go Load→Save 一次往返必须**逐字段存活**——Go 是落盘
+//     权威（GaeaScheduleSave 先 json.Unmarshal 进 schedule.Project 再
+//     json.MarshalIndent 整量覆盖），Go 结构体缺字段 = 静默擦除用户数据。
+//  2. 数值字段的「缺失」与「显式 0」必须可区分：缺失不落键，显式 0 落 0。
+//  3. 槽位数组顺序必须原样保留（baselines 是 FIFO 槽位序，顺序即语义）。
+const frontendContractProjectJSON = `{
+  "name": "契约往返工程",
+  "startDate": "2026-09-07",
+  "tasks": [
+    { "id": "A", "name": "挖土", "duration": 3, "level": 1, "progress": 0 },
+    { "id": "B", "name": "垫层", "duration": 2, "level": 1, "progress": 0 }
+  ],
+  "links": [{ "from": "A", "to": "B", "type": "FS", "lag": 0 }],
+  "calendar": { "workweek": [1, 2, 3, 4, 5], "holidays": [] },
+  "baseline": { "name": "签证B", "savedAt": "2026-09-20 09:30", "duration": 5, "rows": { "A": { "name": "挖土", "es": 0, "ef": 3, "dur": 3, "critical": true } } },
+  "baselines": [
+    { "name": "开工版", "savedAt": "2026-09-07 08:00", "duration": 5, "rows": { "A": { "name": "挖土", "es": 0, "ef": 3, "dur": 3, "critical": true } } },
+    { "name": "签证A", "savedAt": "2026-09-15 14:05", "duration": 5, "rows": { "A": { "name": "挖土", "es": 0, "ef": 3, "dur": 3, "critical": false } } },
+    { "name": "签证B", "savedAt": "2026-09-20 09:30", "duration": 5, "rows": { "A": { "name": "挖土", "es": 1, "ef": 4, "dur": 3, "critical": true } } }
+  ],
+  "resources": [
+    { "id": "r1", "name": "挖机", "type": "work", "standardRate": 800, "costPerUse": 200, "maxUnits": 2, "calendar": { "workweek": [1, 2, 3, 4, 5, 6], "holidays": ["2026-10-01"] } },
+    { "id": "r2", "name": "混凝土", "type": "material", "unit": "m³", "standardRate": 450 },
+    { "id": "r3", "name": "措施费", "type": "cost" }
+  ],
+  "assignments": [
+    { "taskId": "A", "resourceId": "r1" },
+    { "taskId": "A", "resourceId": "r2", "quantity": 0 },
+    { "taskId": "A", "resourceId": "r3" },
+    { "taskId": "B", "resourceId": "r1", "units": 0 }
+  ]
+}`
+
+// contractRoundTripProject 保存前端契约 JSON 再读回，返回读回后的原始 JSON。
+// 走的是板块真实链路（GaeaScheduleSave → GaeaScheduleLoad，绑定层生产函数），
+// 不经过任何测试专用序列化入口。
+func contractRoundTripProject(t *testing.T) []byte {
+	t.Helper()
+	isolateScheduleWorkspace(t)
+	a := &App{}
+	if _, err := a.GaeaScheduleSave(frontendContractProjectJSON, schedule.DefaultRelPath); err != nil {
+		t.Fatalf("保存前端契约计划失败：%v", err)
+	}
+	l, err := a.GaeaScheduleLoad()
+	if err != nil {
+		t.Fatalf("读回前端契约计划失败：%v", err)
+	}
+	if !l.Exists || strings.TrimSpace(l.Project) == "" {
+		t.Fatalf("读回结果为空：%+v", l)
+	}
+	return []byte(l.Project)
+}
+
+// contractBaselineSeen 读回结果的基线/资源/分配视图（RawMessage 保留「键是否
+// 存在」这一信息——三态断言的唯一手段，解进 struct 会把缺失摊成零值）。
+type contractBaselineSeen struct {
+	Baselines []struct {
+		Name     string                     `json:"name"`
+		SavedAt  string                     `json:"savedAt"`
+		Duration int                        `json:"duration"`
+		Rows     map[string]json.RawMessage `json:"rows"`
+	} `json:"baselines"`
+	Baseline *struct {
+		Name string `json:"name"`
+	} `json:"baseline"`
+	Resources   []map[string]json.RawMessage `json:"resources"`
+	Assignments []map[string]json.RawMessage `json:"assignments"`
+}
+
+func decodeContractSeen(t *testing.T, raw []byte) contractBaselineSeen {
+	t.Helper()
+	var seen contractBaselineSeen
+	if err := json.Unmarshal(raw, &seen); err != nil {
+		t.Fatalf("读回 JSON 解析失败：%v", err)
+	}
+	return seen
+}
+
+// contractAssignment 按 (taskId,resourceId) 找分配（唯一键，Validate 保证）。
+func contractAssignment(t *testing.T, seen contractBaselineSeen, taskID, resID string) map[string]json.RawMessage {
+	t.Helper()
+	for _, a := range seen.Assignments {
+		if string(a["taskId"]) == `"`+taskID+`"` && string(a["resourceId"]) == `"`+resID+`"` {
+			return a
+		}
+	}
+	t.Fatalf("读回结果缺少分配 %s↔%s：%v", taskID, resID, seen.Assignments)
+	return nil
+}
+
+// TestGaeaScheduleRoundTripKeepsBaselines 守护 FE7-01：多基线槽位不得被 Go
+// 保存链路静默擦除（CHANGELOG v4.137.0 的「baselines[] 上限 3 FIFO+活跃指针」
+// 必须在文件里真的存在，否则每次 800ms 防抖自动保存都在删用户数据）。
+func TestGaeaScheduleRoundTripKeepsBaselines(t *testing.T) {
+	seen := decodeContractSeen(t, contractRoundTripProject(t))
+
+	if len(seen.Baselines) != 3 {
+		t.Fatalf("多基线槽位丢失：期望 3 条，读回 %d 条（%+v）", len(seen.Baselines), seen.Baselines)
+	}
+	// 顺序即槽位序（FIFO），不是字典序——必须逐位相等
+	want := []string{"开工版", "签证A", "签证B"}
+	for i, name := range want {
+		if seen.Baselines[i].Name != name {
+			t.Fatalf("基线槽位顺序漂移：槽 %d 期望 %q，读回 %q（全量 %+v）", i, name, seen.Baselines[i].Name, seen.Baselines)
+		}
+	}
+	// 内容不只计数：savedAt/rows 必须随行（只留名字也算丢数据）
+	if seen.Baselines[1].SavedAt != "2026-09-15 14:05" {
+		t.Fatalf("基线槽位 savedAt 丢失：%+v", seen.Baselines[1])
+	}
+	if rows := seen.Baselines[1].Rows; len(rows) != 1 || len(rows["A"]) == 0 {
+		t.Fatalf("基线槽位 rows 丢失：%+v", seen.Baselines[1])
+	}
+	// 活跃基线指针（单数 baseline）与槽位并存
+	if seen.Baseline == nil || seen.Baseline.Name != "签证B" {
+		t.Fatalf("活跃基线指针丢失或错位：%+v", seen.Baseline)
+	}
+}
+
+// TestGaeaScheduleRoundTripKeepsAssignmentTriState 守护 FE7-02：assignment
+// 数值字段的「缺失」与「显式 0」往返后必须仍可区分——缺失不落键（前端
+// undefined 语义），显式 0 落 0（前端 numOrUndefined(0)=0 语义）。
+// 0 与缺失在成本/可用性口径上分叉（units/maxUnits 的 ?? 1 缺省），
+// applyDiff.sameScalar 也不把两者当同值。
+func TestGaeaScheduleRoundTripKeepsAssignmentTriState(t *testing.T) {
+	seen := decodeContractSeen(t, contractRoundTripProject(t))
+
+	missing := contractAssignment(t, seen, "A", "r1")
+	if raw, ok := missing["units"]; ok {
+		t.Fatalf("缺失的 units 被写成 %s（应为不落键）", raw)
+	}
+
+	zeroQuantity := contractAssignment(t, seen, "A", "r2")
+	raw, ok := zeroQuantity["quantity"]
+	if !ok {
+		t.Fatal("显式 quantity=0 丢失（键被 omitempty 抹掉），0 与缺失不可区分")
+	}
+	if string(raw) != "0" {
+		t.Fatalf("显式 quantity=0 被改写为 %s", raw)
+	}
+
+	missingAmount := contractAssignment(t, seen, "A", "r3")
+	if raw, ok := missingAmount["amount"]; ok {
+		t.Fatalf("缺失的 amount 被写成 %s（应为不落键）", raw)
+	}
+
+	zeroUnits := contractAssignment(t, seen, "B", "r1")
+	raw, ok = zeroUnits["units"]
+	if !ok {
+		t.Fatal("显式 units=0 丢失（键被 omitempty 抹掉），0 与缺失不可区分")
+	}
+	if string(raw) != "0" {
+		t.Fatalf("显式 units=0 被改写为 %s", raw)
+	}
+}
+
+// TestGaeaScheduleRoundTripKeepsResourceCalendar 守护同类静默丢失（本次核实
+// 新发现，审计 FE7-01 同因）：前端 SchedResource.calendar（v4.137 #13 资源级
+// 日历，ResourcePanel/usage.ts 消费）在 Go Resource 结构体里同样不存在。
+func TestGaeaScheduleRoundTripKeepsResourceCalendar(t *testing.T) {
+	seen := decodeContractSeen(t, contractRoundTripProject(t))
+
+	var r1 map[string]json.RawMessage
+	for _, r := range seen.Resources {
+		if string(r["id"]) == `"r1"` {
+			r1 = r
+			break
+		}
+	}
+	if r1 == nil {
+		t.Fatalf("读回结果缺少资源 r1：%v", seen.Resources)
+	}
+	raw, ok := r1["calendar"]
+	if !ok {
+		t.Fatal("资源个人日历 calendar 被 Go 保存链路静默擦除（ResourcePanel「已自定义」将回落「跟随项目日历」）")
+	}
+	if !strings.Contains(string(raw), "2026-10-01") || !strings.Contains(string(raw), "6") {
+		t.Fatalf("资源个人日历内容丢失：%s", raw)
+	}
+}

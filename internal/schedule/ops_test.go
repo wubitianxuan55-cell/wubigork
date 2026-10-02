@@ -117,7 +117,7 @@ func TestOpsRemoveResourceCascadesAssignments(t *testing.T) {
 	p.Assignments = []Assignment{
 		{TaskID: "A", ResourceID: "r1"},
 		{TaskID: "B", ResourceID: "r1"},
-		{TaskID: "B", ResourceID: "r2", Quantity: 10},
+		{TaskID: "B", ResourceID: "r2", Quantity: floatPtr(10)},
 	}
 	sums, err := ApplyOps(&p, []Op{{Type: "remove_resource", ID: "r1"}})
 	if err != nil {
@@ -149,12 +149,12 @@ func TestOpsSetAssignmentsReplaces(t *testing.T) {
 	}
 	p.Assignments = []Assignment{
 		{TaskID: "A", ResourceID: "r1"},
-		{TaskID: "B", ResourceID: "r1", Quantity: 3},
+		{TaskID: "B", ResourceID: "r1", Quantity: floatPtr(3)},
 	}
 	// 整体替换 A 的分配集：r1 → {r2, r3}；B 的分配原样保留
 	_, err := ApplyOps(&p, []Op{{Type: "set_assignments", TaskID: "A", Assignments: []Assignment{
-		{ResourceID: "r2", Quantity: 10},
-		{ResourceID: "r3", Amount: 300},
+		{ResourceID: "r2", Quantity: floatPtr(10)},
+		{ResourceID: "r3", Amount: floatPtr(300)},
 	}}})
 	if err != nil {
 		t.Fatalf("apply: %v", err)
@@ -165,12 +165,12 @@ func TestOpsSetAssignmentsReplaces(t *testing.T) {
 			aAssign = append(aAssign, a)
 		}
 	}
-	if len(aAssign) != 2 || aAssign[0].ResourceID != "r2" || aAssign[0].Quantity != 10 || aAssign[1].ResourceID != "r3" || aAssign[1].Amount != 300 {
+	if len(aAssign) != 2 || aAssign[0].ResourceID != "r2" || aAssign[0].Quantity == nil || *aAssign[0].Quantity != 10 || aAssign[1].ResourceID != "r3" || aAssign[1].Amount == nil || *aAssign[1].Amount != 300 {
 		t.Fatalf("A 分配集未整体替换：%+v", aAssign)
 	}
 	bKept := 0
 	for _, a := range p.Assignments {
-		if a.TaskID == "B" && a.ResourceID == "r1" && a.Quantity == 3 {
+		if a.TaskID == "B" && a.ResourceID == "r1" && a.Quantity != nil && *a.Quantity == 3 {
 			bKept++
 		}
 	}
@@ -274,7 +274,7 @@ func TestOpsResourceOpsEndToEnd(t *testing.T) {
 		{Type: "upsert_resource", Resource: &Resource{ID: "m1", Name: "钢材", Type: ResMaterial, StandardRate: 55}},
 		{Type: "patch_task", ID: "A", Patch: &patchTask{FixedCost: floatPtr(120.5)}},
 		{Type: "set_assignments", TaskID: "A", Assignments: []Assignment{{ResourceID: "r1"}}},
-		{Type: "set_assignments", TaskID: "B", Assignments: []Assignment{{ResourceID: "m1", Quantity: 10}}},
+		{Type: "set_assignments", TaskID: "B", Assignments: []Assignment{{ResourceID: "m1", Quantity: floatPtr(10)}}},
 	})
 	if err != nil {
 		t.Fatalf("apply: %v", err)

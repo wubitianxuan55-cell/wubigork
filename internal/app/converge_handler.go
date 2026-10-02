@@ -174,17 +174,41 @@ func (a *writingState) NovelChapterConverge(chapterNum int, maxRounds int, targe
 		return map[string]interface{}{"started": true, "alreadyConverged": true, "rounds": 0}, nil
 	}
 
+	// 审计 P0#4（源 AP1-01）：收敛协程与章节生成同族，必须同样登记/可取消/
+	// 计入 chapterGenWG——否则waitGensDone（测试与 Windows T.TempDir 清理的
+	// 竞态收口）等不到它，且收敛进行中可再发起同章生成/收敛互踩写文件。
+	key := chapterGenKey(chapterNum, "")
+	ctx, cancel, err := a.registerChapterGen(key, chapterNum, "")
+	if err != nil {
+		return nil, err
+	}
+
+	a.chapterGenWG.Add(1)
 	go func() {
+		defer a.chapterGenWG.Done()
+		defer a.unregisterChapterGen(key, cancel)
 		cur := beforeFull
 		startTaste := convergeCheck(beforeFull, target).TasteScore
 		for r := 1; r <= maxRounds; r++ {
+			if ctx.Err() != nil {
+				a.emit(convergeStreamChannel, map[string]interface{}{
+					"type": "cancelled", "chapterNum": chapterNum, "round": r,
+				})
+				return
+			}
 			ckStart := convergeCheck(cur, target)
 			a.emit(convergeStreamChannel, map[string]interface{}{
 				"type": "round-start", "chapterNum": chapterNum, "round": r,
 				"taste": ckStart.TasteScore, "s1s2": len(ckStart.S1S2),
 			})
 
-			newText, applied, unitBefore, cerr := a.convergeRound(pm, chapterNum, cur, ckStart, target)
+			newText, applied, unitBefore, cerr := a.convergeRound(ctx, pm, chapterNum, cur, ckStart, target)
+			if ctx.Err() != nil {
+				a.emit(convergeStreamChannel, map[string]interface{}{
+					"type": "cancelled", "chapterNum": chapterNum, "round": r,
+				})
+				return
+			}
 			if cerr != nil {
 				a.emit(convergeStreamChannel, map[string]interface{}{
 					"type": "error", "chapterNum": chapterNum, "round": r, "error": cerr.Error(),
@@ -237,7 +261,10 @@ func (a *writingState) NovelChapterConverge(chapterNum int, maxRounds int, targe
 // convergeRound 一轮修补：定向 LLM 重写（S1/S2 清单+AI 味要点进指令）+ 句级
 // AI 味修补（rewriteUnit 自带安全闸）。返回轮后整章、生效句数与**轮前单元快照**
 // （no-improve 回滚按单元写回，不整章硬对齐——场景章边界不可牺牲）。
-func (a *writingState) convergeRound(pm *project.Manager, chapterNum int, full string, ck ConvergeCheck, target int) (string, int, []convergeUnit, error) {
+// ctx=生成链请求级 context（P0#4）：在飞的定向重写随取消中止，单元循环逐
+// 单元判停——否则取消后下一单元的句级修补链（rewriteUnit 暂走 a.ctx）会重新
+// 发起请求，取消看似无效。ctx 贯通到 rewriteUnit 另刀。
+func (a *writingState) convergeRound(ctx context.Context, pm *project.Manager, chapterNum int, full string, ck ConvergeCheck, target int) (string, int, []convergeUnit, error) {
 	units, err := convergeCollectUnits(pm, chapterNum)
 	if err != nil {
 		return full, 0, nil, err
@@ -250,13 +277,16 @@ func (a *writingState) convergeRound(pm *project.Manager, chapterNum int, full s
 	instr := convergeIssuesInstruction(ck, target)
 	appliedTotal, changed := 0, false
 	for i := range units {
+		if ctx.Err() != nil {
+			return full, appliedTotal, unitBefore, ctx.Err()
+		}
 		if strings.TrimSpace(units[i].text) == "" {
 			continue
 		}
 		text := units[i].text
 		// 步骤1：S1/S2 清单存在 → 整单元定向重写（带单元级安全闸：分须降才采纳）
 		if len(ck.S1S2) > 0 {
-			if nt, rerr := a.convergeRewriteUnit(text, instr); rerr == nil && strings.TrimSpace(nt) != "" && nt != text {
+			if nt, rerr := a.convergeRewriteUnit(ctx, text, instr); rerr == nil && strings.TrimSpace(nt) != "" && nt != text {
 				tb, _ := novelstyle.ScoreTextNoRef(text)
 				ta, _ := novelstyle.ScoreTextNoRef(nt)
 				if ta.Score < tb.Score {
@@ -264,8 +294,15 @@ func (a *writingState) convergeRound(pm *project.Manager, chapterNum int, full s
 				}
 			}
 		}
-		// 步骤2：句级 AI 味修补（自带安全闸：未改善不落盘）
-		if rw, _, _, applied, uerr := a.rewriteUnit(chapterNum, text); uerr == nil && applied > 0 {
+		if ctx.Err() != nil {
+			// 步骤1→步骤2 之间的判停不可省：步骤1 在飞请求被取消中止后，
+			// 若直接落进步骤2，句级修补链（rewriteUnit 走 a.ctx）会重新发起
+			// 一个不受取消约束的请求，收敛协程对其「不可取消」。
+			return full, appliedTotal, unitBefore, ctx.Err()
+		}
+		// 步骤2：句级 AI 味修补（自带安全闸：未改善不落盘）；ctx 贯通后取消
+		// 也能中止在飞请求（P0#4，S1S2 为空时这是本轮唯一的 LLM 调用）。
+		if rw, _, _, applied, uerr := a.rewriteUnit(ctx, chapterNum, text); uerr == nil && applied > 0 {
 			text, changed = rw, true
 			appliedTotal += applied
 		}
@@ -287,7 +324,9 @@ func (a *writingState) convergeRound(pm *project.Manager, chapterNum int, full s
 }
 
 // convergeRewriteUnit 整单元定向重写（rewrite-chapter 模板 + 定向指令）。
-func (a *writingState) convergeRewriteUnit(text, instruction string) (string, error) {
+// ctx 为生成链请求级 context（P0#4）：取消时在飞请求随 ctx 中止（此前用
+// a.ctx——取消后本轮 LLM 请求继续烧完，收敛链对取消无感知）。
+func (a *writingState) convergeRewriteUnit(ctx context.Context, text, instruction string) (string, error) {
 	tmpl := a.eng.Get("rewrite-chapter")
 	if tmpl == nil {
 		return "", fmt.Errorf("缺少 rewrite-chapter 模板文件")
@@ -302,7 +341,9 @@ func (a *writingState) convergeRewriteUnit(text, instruction string) (string, er
 	if model == "" {
 		return "", fmt.Errorf("未找到可用模型（可能离线）")
 	}
-	ctx := a.ctx
+	if ctx == nil {
+		ctx = a.ctx
+	}
 	if ctx == nil {
 		ctx = context.Background()
 	}

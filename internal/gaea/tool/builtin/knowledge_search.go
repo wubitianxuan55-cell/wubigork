@@ -59,7 +59,11 @@ func (knowledgeSearch) Execute(ctx context.Context, args json.RawMessage) (strin
 		return knowledgeOverview(store)
 	}
 
-	results := knowledge.Search(store, p.Query, filter)
+	results, err := knowledge.Search(store, p.Query, filter)
+	if err != nil {
+		// 审计 P0#6 GA3-01：库读失败不得当「搜不到」，要如实报错。
+		return "", fmt.Errorf("知识库暂不可读（读取失败），可重试: %w", err)
+	}
 	// 语义召回：关键词召回不足（<3）时用本地 bge-m3 补召回（别名/口语表达）。
 	if len(results) < 3 && strings.TrimSpace(p.Query) != "" {
 		if sem := semanticKnowledgeRecall(ctx, store, p.Query, results, 10); len(sem) > 0 {
@@ -113,7 +117,11 @@ func semanticKnowledgeRecall(ctx context.Context, store *knowledge.Store, query 
 	if st == nil || !st.Available() {
 		return nil
 	}
-	all := store.ReadAll()
+	all, err := store.ReadAll()
+	if err != nil {
+		// 语义召回是增强面：读失败降级为不补召回（不阻断关键词结果）。
+		return nil
+	}
 	if len(all) == 0 {
 		return nil
 	}
@@ -207,7 +215,11 @@ func knowledgeDocText(e knowledge.Entry) string {
 }
 
 func knowledgeOverview(store *knowledge.Store) (string, error) {
-	list := store.List()
+	list, err := store.List()
+	if err != nil {
+		// 审计 P0#6 GA3-01：读失败要说「暂不可读」，不能报成「知识库为空」。
+		return "", fmt.Errorf("知识库暂不可读（读取失败），可重试: %w", err)
+	}
 	if len(list) == 0 {
 		return "知识库为空。通过对话让 AI 记录：'帮我把这段经验保存到知识库'", nil
 	}

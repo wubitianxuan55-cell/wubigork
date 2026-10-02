@@ -1,0 +1,277 @@
+{
+  "id": "AP9",
+  "module": "app 记忆中枢/brain/herdsman/角色库/看板",
+  "footprint": [
+    "internal/app/brain_*.go",
+    "internal/app/main_brain.go",
+    "internal/app/memory_hub.go",
+    "internal/app/memory_graph.go",
+    "internal/app/herdsman_*.go",
+    "internal/app/board",
+    "internal/app/board_*.go",
+    "internal/app/module_registry.go",
+    "internal/app/gaea_deliverable_registry.go",
+    "internal/app/gaea_deliverable_zip.go",
+    "internal/app/character_portrait_register.go",
+    "internal/app/novel_scene_art.go",
+    "internal/app/characterlib_score.go",
+    "internal/app/characterlib_ref_slot_test.go",
+    "frontend/src/boards/manifests.ts (平行清单交叉验证)",
+    "frontend/src/boards/launcher.test.ts (平行清单交叉验证)"
+  ],
+  "verdict": "这一板块没有万行上帝文件，但『单文件多职责 + 同一事实多份实现』的密度是全仓最高的一处：memory_hub.go 把 5 套互不相干的库（画像/办公 facts/知识库/轻语/cost）塞进一个 811 行文件，配套 brain 层 7 个文件写的是同一件事的三套适配器，registry 层又分裂成 3 份（module/board/deliverable）。最痛的是『静默』：intent 的 handler 被覆盖丢弃、Herdsman 数字生命的读取错误全被吞成 0 或空、CLI 超时只杀父进程留孤儿模型——都不会报错，只是用户看到一个空面板或永远派发不到的分支。第二痛是双源漂移：canonical 板块清单在 Go builtins 与 frontend manifests.ts 各存一份，且已经漂移（breadcrumb/weixin/menuOrder 三处不一致）。",
+  "score": 4,
+  "metrics": {
+    "files_reviewed": 32,
+    "loc_reviewed": 3896,
+    "test_files": 15,
+    "test_loc": 1464
+  },
+  "hotspots": [
+    {
+      "path": "internal/app/memory_hub.go",
+      "loc": 811,
+      "why": "单文件同时是 5 个库的存储工厂 + 聚合总览 + 两种图谱 + cost 全量 CRUD/分页/排序 + 冲突裁决；ProfileFactView/WhisperMemoryView/GraphNode/MemoryGraphView/CostSummary/CostEntry/CostCategoryView 七组视图全在这里。"
+    },
+    {
+      "path": "internal/app/herdsman_digitallife.go",
+      "loc": 268,
+      "why": "9 处 db/rows 错误被吞（digitalCount 完全丢弃 Scan 错误、digitalJSON 忽略 unmarshal 标志），失败与「真的没有数据」不可区分。"
+    },
+    {
+      "path": "internal/app/module_bindings.go",
+      "loc": 140,
+      "why": "moduleOfIntent 5 条映射靠字符串拼接键与 board 声明耦合；gaea 板块声明 chat+create 两个意图而映射把 chat 指向 whisper，最终 chat handler 被静默覆盖。"
+    },
+    {
+      "path": "frontend/src/boards/manifests.ts",
+      "loc": 350,
+      "why": "canonicalBoards 是后端 board/builtins.go 的第二份完整副本（含 nav/space/menuOrder），init 后再被后端数据覆盖；两边已漂移且无契约测试。"
+    },
+    {
+      "path": "internal/app/herdsman_catalog.go",
+      "loc": 265,
+      "why": "herdsmanModelHint 用 16 个「模型名子串 → 用途建议」硬编码分支承载两份 markdown 测评报告的结论，模型换代即静默过期（无版本/时间戳字段）。"
+    },
+    {
+      "path": "internal/app/brain_store.go",
+      "loc": 158,
+      "why": "SearchInSpace 用 *leftBrain 类型断言+注释矩阵实现「空间隔离」，把左/右/主脑三套不一致的过滤语义揉进同一个方法。"
+    },
+    {
+      "path": "internal/app/herdsman_lifecycle.go",
+      "loc": 286,
+      "why": "四个生命周期方法各自重复「校验空名→加全局锁→长超时调 CLI→解析信封」，且包级可替换变量 herdsmanCLI/herdsmanCLIWithTimeout/diskFreeFn 无锁。"
+    },
+    {
+      "path": "internal/app/brain_link_store.go",
+      "loc": 77,
+      "why": "字段名 mu 实际是 map[string][]Ref（不是 Mutex），SQL 与内存两条分支并存，读端在 SQL 路径吞掉了 rows.Close 之外的所有结构问题；命名会诱导后来者误判并发保护。"
+    }
+  ],
+  "findings": [
+    {
+      "fid": "AP9-01",
+      "severity": "P0",
+      "category": "error-swallow",
+      "title": "数字生命读取全吞错：库变了显示 0，记录凭空消失",
+      "file": "internal/app/herdsman_digitallife.go",
+      "line": "105-117",
+      "evidence": "func digitalCount(db *sql.DB, table string) int {\n\tvar n int\n\t_ = db.QueryRow(\"SELECT COUNT(*) FROM \" + table).Scan(&n)\n\treturn n\n}",
+      "why": "9 处 Query/Scan/Unmarshal 错误被丢弃（105-117 digitalCount、143-172 relationships/memory_summaries、174-212 characters、216-245 时间线/世界事件），其中 digitalCount 连 Scan 错误都不看；digitalJSON 的 ok 标志在 222/235 行被显式忽略。",
+      "impact": "Herdsman 升级后表名/列名变化 → 面板静默显示「角色 0 个」而不是报错；characters.data JSON 坏了 → 该角色从列表消失且无任何日志。用户唯一线索是「数据不见了」。",
+      "fix": "digitalCount 改返回 (int, error)，调用方任一失败即 return out, fmt.Errorf(...)；digitalJSON 的失败计入 ParseFailures 字段并由 HerdsmanDigitalLife 回传（前端显示降级提示）；至少 slog.Warn 记录表名与错误。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "AP9-02",
+      "severity": "P0",
+      "category": "concurrency",
+      "title": "Herdsman CLI 超时只杀父进程，模型服务器成孤儿",
+      "file": "internal/app/herdsman_lifecycle.go",
+      "line": "84-97",
+      "evidence": "ctx, cancel := context.WithTimeout(context.Background(), timeout)\n\tdefer cancel()\n\tcmd := exec.CommandContext(ctx, exe, args...)",
+      "why": "exec.CommandContext 超时只会 TerminateProcess 直接子进程；herdsman.exe skill models download/start 拉起的是常驻模型服务/推理进程，不随父进程退出。窗口期由 60min(267行)/20min(239行) 超时触发，超时是常态路径而非异常路径。",
+      "impact": "超时后模型进程仍加载在显存里；用户重试 → 再起一个 → 显存被打满，后续一切本地模型功能失败，而 gaea 端只会显示「CLI 调用失败: context deadline exceeded」。",
+      "fix": "用 Windows Job Object（CREATE_SUSPENDED + AssignProcessToJobObject + JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE）或超时后按父进程 PID 树 taskkill /T /F 清理；至少在超时分支打日志记录被遗弃的 PID。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "AP9-03",
+      "severity": "P1",
+      "category": "consistency",
+      "title": "意图 handler 被静默覆盖：主脑默认分支永远派发失败",
+      "file": "internal/app/module_registry.go",
+      "line": "108-131",
+      "evidence": "d := mods[moduleID]\n\t\t\tif d == nil {\n\t\t\t\td = &modDecl{moduleID: moduleID, name: b.Name()}\n\t\t\t\tmods[moduleID] = d\n\t\t\t}\n\t\t\td.intents = append(d.intents, intent)\n\t\t\td.handle = handler",
+      "why": "装配时同模块多意图只保留最后解析到的 handle（114 行无条件覆盖），不比对也不报错；完整性断言只检查 len(d.intents) != 1，抓不到 handler 被替换。canonical 清单里 gaea 板块同时声明 gaea.chat 与 gaea.create（board/builtins.go:66-69），而 moduleOfIntent 把 gaea.chat→whisper、gaea.create→office，于是 gaea 模块最终只留 office 的 create handler。",
+      "impact": "1) App 内 gaea.chat 意图不可派发；2) 致命的是 main_brain.go 的 default 分支返回 (\"gaea\",\"chat\")，Dispatch 必然走到 module_registry.go:52 的 unknown intent 错误，而 MainBrainChat 把 err 吞进 result[\"error\"]（main_brain.go:53-54）→ 命中不了任何关键词的普通对话，用户在结果里看到一条错误 JSON。3) board_manifest_test.go:39-43 只断言模块存在，这个漏洞没有任何测试覆盖。",
+      "fix": "多意图模块直接 fillFail（除非新增 HandleByIntent 支持）；同时把 classifyMainBrainIntent 的 default 改为 (\"whisper\",\"chat\") 或补全 gaea.chat 注册，并加一条「default 分支可派发」的回归测试。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "AP9-04",
+      "severity": "P1",
+      "category": "perf-smell",
+      "title": "记忆存储每次调用重建，图谱一次请求重构 4 次",
+      "file": "internal/app/memory_hub.go",
+      "line": "82-98",
+      "evidence": "func (a *App) hubProfileStore() *memory.ProfileStore {\n\tuserDir := config.MemoryUserDir()\n\tif userDir == \"\" {\n\t\treturn memory.NewProfileStore(nil)\n\t}\n\treturn memory.NewProfileStore(db.GetDatabase(userDir))\n}",
+      "why": "hubProfileStore/hubOfficeStore 是按调用而非按 App 构造的工厂：GaeaMemoryGraph 在 335/345/432/441 行对同一 store 调 4 次，GaeaMemoryHubOverview 在 229-231 又各调一次，每次都要走 db.GetDatabase 的全局锁 + MemoryUserDir 的 os.UserConfigDir。",
+      "impact": "3D 图谱请求每次多出 4 次存储构造与 4 次全量 List/All（SQLite 全表读），且 profile 没有测试覆盖层（office 有 officeStoreOverride、cost 有 costStoreOverride、profile 没有）→ 画像相关单测会触碰真实用户库 Hephaestus.db，隔离约定在同一文件里只落实了 2/3。",
+      "fix": "App 启动时构造一次并缓存（hubProfileStore/hubOfficeStore 改为读缓存字段，工厂降级为 initHubStores）；同时补 profileStoreOverride 与另两个覆盖层同构。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "AP9-05",
+      "severity": "P1",
+      "category": "duplication",
+      "title": "板块清单双源漂移：Go builtins vs 前端 manifests.ts",
+      "file": "frontend/src/boards/manifests.ts",
+      "line": "244-285",
+      "evidence": " * 板块差集归一（merge 语义 = 后端清单 + 前端 home 壳层）：\n *  - 重叠 id：后端字段优先，缺失字段回填前端静态（icon/page/layout 兜底）；\n *  - knowledge：后端 D7 独立板块**过滤不并入一级导航**",
+      "why": "canonicalBoards（manifests.ts:79-）是 internal/app/board/builtins.go:21-172 的第二份完整副本（label/icon/page/shortcut/menuOrder/space/nav 全量），normalizeManifests 再用后端数据覆盖。builtins.go:154-156 的注释自己承认「与前端 manifests 同步翻，防真机/浏览器分裂」。",
+      "impact": "已实际漂移三处：① breadcrumb：Go=AnchorTo:\"project\"（builtins.go:38）vs TS=anchorTo:'novel'（manifests.ts:90），而前端唯一消费者 deriveProjectAnchorId 只判断真假从不读该值（manifests.ts:187-190）→ 字段是双向死数据；② weixin：Go InMenu:true（builtins.go:137）vs 前端快照 InMenu:false（manifests.ts 路径的 manifests.test.ts:45）；③ menuOrder：builtins.go 里 modelcenter 与 knowledge 同为 8、schedule=12/sin=13 被 MenuOrder 排序后顺序不可预期。每次加板块要改两处且没有 Go↔TS 契约测试。",
+      "fix": "前端默认清单只保留 home 壳层，其余等 GetBoardManifests；补一条读真实后端 JSON fixture 的契约测试，断言 normalizeManifests(builtin) === canonicalBoards；同时给 ValidateAll 加 menuOrder 唯一性校验。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "AP9-06",
+      "severity": "P1",
+      "category": "legacy-residue",
+      "title": "主脑编排入口是死绑定，且注册表与分类器口径打架",
+      "file": "internal/app/main_brain.go",
+      "line": "36-66",
+      "evidence": "// MainBrainChat 主脑统一入口（可选编排）：规则识别意图 → BrainSearch 取两脑材料 → 派发模块 → 汇总。\nfunc (a *App) MainBrainChat(message string) (string, error) {",
+      "why": "MainBrainChat 只由 ChatB 门面暴露（bindings_chat.go:78）并在 frontend/wailsjs/go/app/ChatB.d.ts:56 生成，但 frontend/src 全树无任何调用（grep 0 命中）——唯一使用者是 main_brain_chat_test.go。同时它的默认意图 (\"gaea\",\"chat\") 与 moduleOfIntent 里 gaea.chat→whisper 的模块映射冲突（module_bindings.go:13-19），说明分类器与注册表是两个互不知情的口径。",
+      "impact": "维护者以为有「主脑统一入口」，实际线上从不可达；测试却全绿（测试直接调 App 方法，绕过前端）。三个脑 + 四个分类关键词 + 一个从不运行的派发链，纯负债。",
+      "fix": "二选一：把 MainBrainChat 接进前端（并在 ChatB 里标注唯一入口），或删掉该绑定与分类器、保留 CheckModuleIntegrity；无论哪条，先把 default 分支与 moduleOfIntent 对齐。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "AP9-07",
+      "severity": "P1",
+      "category": "coupling",
+      "title": "app 层直连 whisper 的 db/repos 仓储层",
+      "file": "internal/app/brain_right.go",
+      "line": "13-34",
+      "evidence": "func (r *rightBrain) Read(entity string) ([]Fact, error) {\n\tvar out []Fact\n\tfor _, f := range whisperdb.LoadFactsFromDB(r.dataRoot) {",
+      "why": "internal/app 同时 import internal/whisper（领域层）与 internal/whisper/db/repos（存储层）：brain_right.go:5-6、brain_right.go:15/24/39、memory_hub.go:19 且记忆中枢对外视图直接复用 whisperdb 的行结构（memory_hub.go:172、187、207、232、365、378）。",
+      "impact": "whisper 的 SQL/表结构一变就要跨层改 app；三脑适配器里的右脑成了唯一没有接口抽象的适配器（左脑走 leftSource 接口、主脑走 ProfileStore/knowledge.Store，右脑直连 dataRoot）。无法为右脑写隔离单测，空间隔离规则（brain_store.go:111-113 丢弃 work scope）无法在仓储层收口。",
+      "fix": "在 internal/whisper 暴露 FactsReader 接口（LoadFacts/LoadEpisodes/LoadTriples），app 只依赖该接口；memory_hub 的视图改由 whisper 域的 view 类型构造。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "AP9-08",
+      "severity": "P1",
+      "category": "god-file",
+      "title": "memory_hub 单文件承载 5 套库 + 7 组视图",
+      "file": "internal/app/memory_hub.go",
+      "line": "1-811",
+      "evidence": "// 记忆中枢 = 三脑架构的前端呈现：左脑办公记忆（Hephaestus.db facts）、\n// 主脑全局画像（profile）+ 知识库（knowledge）、右脑轻语记忆（hermes.db 只读）。\n// 成本库等未来库沿用同一\"库管理\"模式扩展。",
+      "why": "811 行里混了：5 个存储工厂（82-98、542-547）、总览聚合（223-249）、两套图谱（293-452 标签图）、cost 全量 CRUD 与分页排序（550-795）、画像冲突裁决（802-810），以及 ProfileFactView/WhisperMemoryView/WhisperEpisodeView/MemoryHubOverview/GraphNode/GraphLink/MemoryGraphView/CostSummary/CostEntry/CostComponentView/CostCategoryView 十一组对外 DTO。",
+      "impact": "改任何一个库（加一个 cost 字段、改一个轻语视图）都要动这同一文件并在 11 组视图里同步字段；文件内已有两条「扩展指引」注释（30 行、462 行）说明作者预期它继续长大。回归面 = 记忆中枢整页。",
+      "fix": "按库拆 internal/app/memoryhub/{profile,office,whisper,cost}.go（各含 store 工厂 + 视图映射），memory_hub.go 只留聚合与图谱；DTO 下沉到对应域包。",
+      "effort": "L",
+      "prior_audit": "docs/gaea-optimization-direction-2026-09.md 记录过 14 模块评分（记忆中枢在其中），本条为该结论的定位证据，仍开放"
+    },
+    {
+      "fid": "AP9-09",
+      "severity": "P2",
+      "category": "consistency",
+      "title": "画像写入两条口径：Title 塞 attribute、Type 硬编码",
+      "file": "internal/app/brain_main.go",
+      "line": "29-36",
+      "evidence": "func (m *mainBrain) Write(entity, attribute, value string) error {\n\tif m.profile == nil {\n\t\treturn nil\n\t}\n\treturn m.profile.Save(memory.Memory{\n\t\tName: entity, Title: attribute, Description: value, Type: \"user\", Body: value,\n\t})",
+      "why": "同一份 profile 有两种写法：GaeaProfileSave（memory_hub.go:148-154）走 NormalizeType/NormalizeKind 且分别填 Title/Description/Kind；mainBrain.Write 把 Title 当 attribute 用、Description=Body、Type 硬编码 \"user\"、Kind 留空。左脑 Write 是静默 no-op（brain_left.go:36-38 return nil），BrainWrite 绑定（brain_bindings.go:26-31）不区分脑别。",
+      "impact": "通过 brain.main 写入的画像事实在前端 ProfileFactView 里 Title 变成属性名、Description 与 Body 重复；跨脑检索命中同一实体会拿到两种形状的 Fact。左脑写入静默成功而实际未落盘，调用方以为写成功。",
+      "fix": "mainBrain.Write 复用与 GaeaProfileSave 相同的构造（抽 newProfileMemory(entity, attribute, value)）；左脑 Write 返回明确的 errors.New(\"brain.left 只读（办公记忆走业务写入）\")。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "AP9-10",
+      "severity": "P2",
+      "category": "consistency",
+      "title": "三套记忆语义重叠，靠人工裁决冲突",
+      "file": "internal/app/memory_hub.go",
+      "line": "161-167",
+      "evidence": "// GaeaProfileConflicts 返回画像与办公 facts 中同名且描述不一致的冲突项\n// （主脑画像 vs 左脑遗留 facts 对同一事实说法不同）。\nfunc (a *App) GaeaProfileConflicts() []string {\n\tps := a.hubProfileStore()\n\tstore := a.hubOfficeStore()\n\treturn ps.DetectConflicts(store.List())",
+      "why": "仓库里同时存在三套「记忆」实现：internal/memory（BM25 章节记忆，由 context_handler.go:21/51/210 使用）、internal/gaea/memory（SQLite facts + profile，即左脑/主脑）、memory_hub（五库聚合面）。左脑 office facts 与主脑 profile 是同一类「用户事实」的两张表，冲突检测+一键裁决（802-810）就是在给这个重叠擦屁股。",
+      "impact": "同一事实可以存在两份且说法不同；用户要在记忆中枢手动点「以画像为准/以 facts 为准」，而删除操作直接 Delete 掉另一边（805/807）不可撤销。任何记忆相关改造都要同时核对三处语义。",
+      "fix": "中期把 office facts 与 profile 收敛为单库单表 + type/kind 区分（profile 只是 Type=user 的视图），DetectConflicts 退化为同表约束；短期把裁决动作改为可撤销（软删标记）。",
+      "effort": "L",
+      "prior_audit": "docs/gaea-optimization-direction-2026-09.md 提及记忆模块多套口径，本条补充 AP9 的可复核定位，仍开放"
+    },
+    {
+      "fid": "AP9-11",
+      "severity": "P2",
+      "category": "consistency",
+      "title": "图谱装配三处并行、引用边重复两段、名称冲突静默遮蔽",
+      "file": "internal/app/memory_hub.go",
+      "line": "430-449",
+      "evidence": "\tfor _, m := range a.hubOfficeStore().List() {\n\t\tif tid, ok := nameID[m.Name]; ok {\n\t\t\tfor _, ref := range refRe.FindAllStringSubmatch(m.Body, -1) {\n\t\t\t\tif rid, ok2 := nameID[strings.TrimSpace(ref[1])]; ok2 {\n\t\t\t\t\taddLink(tid, rid, \"reference\")",
+      "why": "同一段 [[引用]] 解析逻辑在 432-440（office）与 441-449（profile）各写一遍；图谱装配面共有三份实现：memory_hub.go:293-452（标签/分类图）、memory_graph.go:38-105（事件日志投影图）、internal/gaea/memory/graph.go+graphstore.go（物化层）。nameID 是单一 map（298 行），knowledge/profile/office/cost 四类节点按 Name 互相覆盖（324/338/348/397）。",
+      "impact": "同名记忆只有一个能成为引用边端点，另一类的 [[引用]] 静默失效；两类图在 GraphView.tsx 里是两个渲染档（frontend/src/gaea/components/memoryhub/GraphView.tsx:35），节点/边口径不一致。改「引用」规则要改两处。",
+      "fix": "抽 collectRefLinks(storeFacts, nameID) 消除复制；nameID 改 map[string][]string（同名多 id，引用边连到全部命中）；把两套图的节点构造收敛到 internal/gaea/memory 的 GraphNode 投影函数。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "AP9-12",
+      "severity": "P3",
+      "category": "consistency",
+      "title": "displayName 重复实现 memory 包 displayTitle",
+      "file": "internal/app/memory_hub.go",
+      "line": "454-460",
+      "evidence": "// displayName 标题回退为 name（与 memory 包 displayTitle 一致）。\nfunc displayName(title, name string) string {\n\tif t := strings.TrimSpace(title); t != \"\" {\n\t\treturn t\n\t}\n\treturn strings.ReplaceAll(name, \"-\", \" \")\n}",
+      "why": "注释自承「与 memory 包 displayTitle 一致」，说明是故意复制的第二份实现；调用点遍布 memory_hub.go:337/347/396 与 brain_left.go:28/64。",
+      "impact": "回退规则（kebab → space）任一改动都会两侧不一致，且没有测试钉住两边相等。",
+      "fix": "memory 包导出 DisplayTitle，app 侧删除 displayName 并改调用。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "AP9-13",
+      "severity": "P3",
+      "category": "test-smell",
+      "title": "包裹 App 的测试各自重造同样的 fake 双脑",
+      "file": "internal/app/brain_acceptance_test.go",
+      "line": "10-15",
+      "evidence": "func TestBrainAcceptanceRightToLeftScenario(t *testing.T) {\n\trightFake := &fakeRightBrain{rows: map[string]string{}}\n\tleftBrain := &leftBrain{src: &fakeLeftSource{facts: []memory.Memory{\n\t\t{Name: \"soil-bid\", Title: \"土壤修复标书\", Description: \"报价策略见甲方偏好\"},\n\t}}}",
+      "why": "brain_acceptance_test.go 与 brain_store_test.go / brain_left_test.go / brain_right_test.go 各自构造同形的 fakeRightBrain/fakeLeftSource/fakeMainBrain，没有共享的 helper（对比 characterlib_ref_slot_test.go:83-112 已抽出 newRefSlotTestServer/newRefSlotTestApp 的正确做法）。",
+      "impact": "改 brainAdapter 接口要同步改 4 个文件的 fake，容易漏改导致测试假绿/编译失败分散。",
+      "fix": "在 brain_store_test.go 集中定义 fake 三脑与 newBrainStoreForTest() helper，其余测试复用。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "AP9-14",
+      "severity": "P3",
+      "category": "legacy-residue",
+      "title": "可替换包级变量与测试注入无锁",
+      "file": "internal/app/herdsman_catalog.go",
+      "line": "176-179",
+      "evidence": "// herdsmanCLI 执行 herdsman.exe skill 命令（测试可替换；默认 25s 超时）。\nvar herdsmanCLI = func(args ...string) ([]byte, error) {\n\treturn runHerdsmanCLI(25*time.Second, args...)\n}",
+      "why": "herdsmanCLI（此）、herdsmanCLIWithTimeout（herdsman_lifecycle.go:112）、diskFreeFn（herdsman_disk.go:14）都是可变包级函数变量；memory_hub.go:110-113 的 officeStoreOverride/officeStoreOverrideSet 与 527-530 的 costStoreOverride/costStoreOverrideSet 同样是无锁可变全局。",
+      "impact": "当前测试未用 t.Parallel（已确认 0 处），风险是将来任何人加 t.Parallel 或并行包测试即刻成数据竞争；golangci-lint 现在 0 issues 也不会提示。",
+      "fix": "把 CLI/磁盘注入改成 App 结构体字段或依赖结构体（appDeps），测试注入走实例而非包级；过渡期至少在 Set*ForTest 上加注释禁止并行。",
+      "effort": "M",
+      "prior_audit": ""
+    }
+  ],
+  "open_questions": [
+    "board/builtins.go 未声明 Intents 的板块（cost/memoryhub/modelcenter/characterlib/settings/weixin/knowledge/schedule/sin）在 board.AppHost 仍是空接口 `type AppHost interface{}`（board/board.go:10）且 staticBoard.Init 恒返回 nil（board/board.go:45）——这些板块的「装配」目前完全靠 App.Startup 的隐式顺序，未见启动自检覆盖，需主代理确认是否有其它地方断言板块 Init 被调用。",
+    "internal/app/gaea_deliverable_zip.go:25-57 的入参校验只挡 `../` 与绝对路径；`clean` 形如 `a/../../b` 时 filepath.Clean 会先折叠（ToSlash+Clean 在 TrimPrefix 之前），未确认是否有符号链接绕过（工作区内 symlink 指向工作区外）——需要用真实工作区验证一次，故未列为 finding。",
+    "character_portrait_register.go:18-40 里 `p == \"\"` 与 `os.Stat(p)` 失败都是 `return`（直接跳出整个 chars 循环）而非 continue；在 charID 唯一的前提下等价，但如果调用方传入重复 ID 的 chars 是否会漏登后续同名角色，未能确定。",
+    "memory_hub.go:GaeaMemoryGraph 的 addLink 去重是 O(n²) 线性扫描（311-315）且上限 800 边，maxGraphNodes=400；未实测最坏规模下的耗时（需真实用户库），故只作结构债未计入 findings。",
+    "herdsman_stats.go / herdsman_operations.go 直接 os.ReadFile 整个 events.jsonl（无按行尾增量读取与大小上限），events.jsonl 随调用无限增长，长期使用后单次面板请求的内存/耗时曲线未实测。"
+  ]
+}

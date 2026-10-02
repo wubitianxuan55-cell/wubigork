@@ -215,7 +215,9 @@ func (a *writingState) NovelChapterScenesGenerate(chapterNum int, allowMissingCa
 	// 章计划区段（刀1 资产）：逐场景生成以计划为纲
 	planSection := a.sceneGenPlanSection(pm, chapterNum)
 
+	a.chapterGenWG.Add(1)
 	go func() {
+		defer a.chapterGenWG.Done()
 		defer a.unregisterChapterGen(key, cancel)
 		done, skipped := 0, 0
 		for i := range metas {

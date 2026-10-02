@@ -1,6 +1,8 @@
 package app
 
 import (
+	"fmt"
+
 	"github.com/gaea/gaea/internal/gaea/knowledge"
 	"github.com/gaea/gaea/internal/gaea/memory"
 )
@@ -45,7 +47,12 @@ func (m *mainBrain) Search(query string) ([]Hit, error) {
 		}
 	}
 	if m.kb != nil {
-		for _, s := range m.kb.List() {
+		list, err := m.kb.List()
+		if err != nil {
+			// 审计 P0#6 GA3-01：知识库读失败不得静默当成「没有条目」。
+			return nil, fmt.Errorf("知识库暂不可读（读取失败），可重试: %w", err)
+		}
+		for _, s := range list {
 			if matchAny(query, s.Name, s.Title, s.Category) {
 				out = append(out, Hit{Brain: BrainMain, Entity: s.Name, Text: s.Title})
 			}

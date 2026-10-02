@@ -274,7 +274,9 @@ func (c *Controller) beginMemoryReloadLocked() (memory.Options, uint64) {
 
 // finishMemoryReload 锁外重载后的提交点：代号守卫仅当代号 ≥ 已换入代号时
 // 换入（两个写者并发时，慢的旧 Load 不得把新快照回退；被跳过的写必然已被
-// 更新一代的 Load 读到——Load 起点晚于该写）。搜索索引与快照同点换入。
+// 更新一代的 Load 读到——Load 起点晚于该写）。搜索索引与快照同点换入（审计
+// P0#7：按 c.space 分槽换入，work 的刷新不再覆盖 play 的槽位；正常会话路径
+// 走 MemorySearchIndexForSpace 的实例索引，不依赖这层兜底）。
 // 调用方不得持有 c.mu。
 func (c *Controller) finishMemoryReload(opts memory.Options, gen uint64) {
 	next := memory.Load(opts)
@@ -282,9 +284,32 @@ func (c *Controller) finishMemoryReload(opts memory.Options, gen uint64) {
 	if gen >= c.memLoadedGen {
 		c.mem = next
 		c.memLoadedGen = gen
-		builtin.SetMemorySearchIndex(next.Search)
+		builtin.SetMemorySearchIndexForSpace(c.space, next.Search)
 	}
 	c.mu.Unlock()
+}
+
+// MemorySearchIndexForSpace 返回本控制器持有的检索索引，供 memory_search 工具
+// 经工具调用 ctx 上的会话钩子取用（审计 P0#7/源 GA3-02：索引从进程级全局改为
+// 控制器实例持有——work/play 两个控制器各持自己那份空间快照索引，互相覆盖的
+// 语义随之消失，双空间硬隔离红线在工具侧成立）。返回 nil 只表示「本控制器
+// 不供」（记忆未启用），工具会退回 builtin 的空间分槽兜底。
+//
+// 为什么不用 space 做相等校验（入参保留为能力接口契约的一部分）：
+//   - 工具 ctx 上的空间来自「路径归属」折算的会话自描述（control.applySpace →
+//     writeSpaceForLocked → session.Space()，execute_one 再经 memory.WithSpace
+//     盖章），而本控制器的快照索引按「配置生效空间」c.space 收窄（boot 的
+//     memory.Load(opts.Space=space)）。「play 配置 + 恢复 work 存量会话」这类
+//     场景下两者合法地不同，硬校验会把合法会话判成「索引不可用」；
+//   - 实例所有权本身已是不跨空间串味的结构性保证（ctx 上只会出现本会话的
+//     控制器），故此处不做拒绝式校验。
+func (c *Controller) MemorySearchIndexForSpace(_ string) *memory.SearchIndex {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.mem == nil {
+		return nil
+	}
+	return c.mem.Search
 }
 
 // refreshMemory 强制重载记忆快照（测试与诊断用）：等价一次「锁内取参→

@@ -82,6 +82,7 @@ func newCreateChapterSuspendingApp(t *testing.T, ready chan<- struct{}, firstChu
 	a.writingState = &writingState{core: a.core, app: a, eng: prompt.NewEngine("../../prompts"), mu: sync.RWMutex{}}
 	a.ctx = context.Background()
 	a.setPM(pm)
+	waitGensBeforeTempDirRemove(t, a)
 	return a, pm, dir
 }
 
@@ -119,6 +120,26 @@ func waitGensDone(t *testing.T, a *App) {
 	case <-time.After(5 * time.Second):
 		t.Fatalf("章节生成协程 5s 内未退出")
 	}
+}
+
+// waitGensBeforeTempDirRemove 注册 Cleanup 守卫（审计 P0#24 / 源 X1-02）：先等
+// 在飞生成协程收尾，再放行 t.TempDir() 的目录删除。Windows 上生成协程与
+// TempDir 清理的竞态（unlinkat directory not empty）曾三度打挂 CI（v4.233
+// 在册 flaky 的根因）；根修后所有章节生成协程都计入 chapterGenWG（P0#4/#5
+// 收敛链已补），这里按 WG 终审兜底——测试即使忘了 waitGensDone 也不会竞态。
+// LIFO 保证本清理先于 TempDir 删除执行（TempDir 在构造助手里先注册）；
+// Cleanup 里禁止 Fatal，超时用 Errorf 让竞态以测试失败暴露。
+func waitGensBeforeTempDirRemove(t *testing.T, a *App) {
+	t.Helper()
+	t.Cleanup(func() {
+		done := make(chan struct{})
+		go func() { a.chapterGenWG.Wait(); close(done) }()
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			t.Errorf("生成协程 5s 未收尾，TempDir 清理将与写盘竞态（P0#24 守卫）")
+		}
+	})
 }
 
 // TestCreateChapter_SameChapterConcurrentRejected 并发写同一章节仅一次成功：

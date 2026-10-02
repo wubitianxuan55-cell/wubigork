@@ -1,0 +1,303 @@
+{
+  "id": "GA4",
+  "module": "gaea 控制面与运行时（control/boot/jobs/proc/permission/sandbox/secure/event/hook/plugin/provider/cache/backup/archive）",
+  "footprint": [
+    "internal/gaea/control",
+    "internal/gaea/boot",
+    "internal/gaea/jobs",
+    "internal/gaea/proc",
+    "internal/gaea/permission",
+    "internal/gaea/sandbox",
+    "internal/gaea/secure",
+    "internal/gaea/event",
+    "internal/gaea/hook",
+    "internal/gaea/plugin",
+    "internal/gaea/provider",
+    "internal/gaea/cache",
+    "internal/gaea/backup",
+    "internal/gaea/archive"
+  ],
+  "verdict": "控制面不是烂代码，是「叠了太多层补丁的好代码」：注释密度极高、生命周期/锁纪律大多有据可查，但同一件事往往有 2~3 个入口在跑——权限闸门有 Gate.AlwaysAsk 与 control.hardAsk 两套集、会话树有 cache 与 context 两份 L1~L4、全局单例（Profiles / builtin.*Runtime / bridge.client）代替依赖注入。真正会咬人的是三处：boot 把 Effort 配在 NewProvider 之后（静默失效）、plugin 的 30s 连接超时会撤下一个正在连接的 server（子进程泄漏）、hook 的 Sandbox 字段全仓零填充（命令实际不沙箱）。其余是让每次改动成本倍增的结构债：963 行 controller.go + 40+ 字段的上帝对象、同名集/同名桩函数散落三处、8 行中文注释已成乱码。",
+  "score": 5,
+  "metrics": {
+    "files_reviewed": 62,
+    "loc_reviewed": 12942,
+    "test_files": 75,
+    "test_loc": 10865
+  },
+  "hotspots": [
+    {
+      "path": "internal/gaea/control/controller.go",
+      "loc": 963,
+      "why": "40+ 字段的上帝对象：消息流/工具注册表/记忆/后台作业/计费/上下文管理全挂在一个 struct 上，另有两个重复的「V3.0 Phase 5」注释块与 4 处错位文档注释"
+    },
+    {
+      "path": "internal/gaea/plugin/plugin.go",
+      "loc": 799,
+      "why": "Host/Client/tool 适配器/JSON-RPC 线型/描述压缩挤在一个文件；StartAll 与 StartAvailable 是两条并行连接入口，超时撤下路径与 host 写锁竞态"
+    },
+    {
+      "path": "internal/gaea/boot/boot.go",
+      "loc": 908,
+      "why": "单一装配根却含 190 行直线脚本式装配 + 8 组 builtin.SetXxx 全局注入；190-196 行赋值/检查顺序错误让 Agent.Effort 静默失效"
+    },
+    {
+      "path": "internal/gaea/backup/backup.go",
+      "loc": 727,
+      "why": "备份/恢复/回滚/pending 三阶段状态机单文件；Create 对缺失源静默 continue、RollbackBefore 对 rename 失败静默 continue，备份动作没有留痕"
+    },
+    {
+      "path": "internal/gaea/control/controller_memory.go",
+      "loc": 579,
+      "why": "记忆写路径 9 个方法各自重复「锁内取参→锁外 Load→finishMemoryReload」三段式样板，并在 reload 完成时写 builtin 全局搜索索引"
+    },
+    {
+      "path": "internal/gaea/cache/skill.go",
+      "loc": 223,
+      "why": "导出的全局可变 Profiles map 无锁；5 个 no-op 兼容桩（PromoteVersion/RecordOutcome/DemoteVersion）把「Learner 已删除」的历史留在生产代码里"
+    },
+    {
+      "path": "internal/gaea/security-permission 三套闸",
+      "loc": 0,
+      "why": "permission.Gate.AlwaysAsk / control.gateApprover 的 hardAskSet / boot 的 PermissionsForSpace 三处各持一份「必须逐条确认」判定"
+    },
+    {
+      "path": "internal/gaea/provider/provider.go",
+      "loc": 418,
+      "why": "SanitizeToolPairing 全族带 8 行 GBK 乱码中文注释（全仓唯一乱码文件），且 CanonicalizeSchema 的文档注释被下一个变量的注释顶掉"
+    }
+  ],
+  "findings": [
+    {
+      "fid": "GA4-01",
+      "severity": "P1",
+      "category": "consistency",
+      "title": "boot 把 Effort 配在 NewProvider 之后，静默失效",
+      "file": "internal/gaea/boot/boot.go",
+      "line": "190-196",
+      "evidence": "\texecProv, err := NewProvider(entry)\n\tif cfg.Agent.Effort != \"\" {\n\t\tentry.Effort = cfg.Agent.Effort\n\t}",
+      "why": "NewProvider 已经把 entry.Effort 塞进 provider.Config.Extra[\"effort\"]，此处的赋值发生在构造之后，没有任何代码再把新 Effort 回灌给已造好的 executor provider；紧随其后的 if err != nil 检查的也是上一语句的陈旧 err（相当于对 NewProvider 的错误做了无意义判空）。",
+      "impact": "用户在 gaea.toml 写 [agent] effort = \"high\"/\"max\" 时主 agent 的推理深度不生效，且无任何日志或 Notice 提示；子代理路径（boot.go:300-309）顺序是正确的，于是出现「子代理 obeyed、主 agent 静默忽略」的不一致行为。",
+      "fix": "把 if cfg.Agent.Effort != \"\" 块整体上移到 NewProvider(entry) 之前；顺手改成 execProv, err := NewProvider(entry); if err != nil { return nil, fmt.Errorf(\"provider %s: %w\", entry.Kind, err) }。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "GA4-02",
+      "severity": "P1",
+      "category": "god-file",
+      "title": "controller.go 963 行 + 40 字段上帝对象",
+      "file": "internal/gaea/control/controller.go",
+      "line": "41-148",
+      "evidence": "type Controller struct {\n\trunner   agent.Runner\n\texecutor *agent.Agent\n\tsink     event.Sink\n\tpolicy   permission.Policy",
+      "why": "单个 struct 同时持有：会话持久化（logFormat/space/sessionPath/sessionDir）、权限五件套（policy/permLevel/granted/grantedRules/hardAskTools/autoApprove/approvalTimeout/persistAllowRule）、记忆（mem/memGen/memLoadedGen/pendingMemory/sessionFacts/memoryEnabled）、后台作业、MCP host、计费三字段、上下文管理器。字段注释里已经出现「由 mu 保护」「构造后不可变」等互相矛盾的并发契约。",
+      "impact": "任何一处改动都要判断 40+ 字段里哪些受影响；mu 保护范围与不走锁的字段（systemPrompt/sessionDir/label）混在一起，新代码极易踩到未保护字段（见 GA4-16）。控制器构造函数已膨胀到 55 行，测试只能靠整 struct 构造。",
+      "fix": "先做零行为拆分：把权限状态收进 permState 结构（policy/permLevel/granted/grantedRules/hardAskTools/autoApprove/approvalTimeout，自带 mu），把记忆状态收进 memState；Controller 只留组合字段。",
+      "effort": "M",
+      "prior_audit": "延续 docs/gaea-optimization-direction-2026-09.md §评分「扣分＝上帝包、平行实现分叉」（架构与可维护性 6.0）"
+    },
+    {
+      "fid": "GA4-03",
+      "severity": "P1",
+      "category": "duplication",
+      "title": "「必须逐条确认」集合存在两份并行真相",
+      "file": "internal/gaea/control/controller_approval.go",
+      "line": "21-28",
+      "evidence": "var hardAskTools = map[string]bool{\n\t\"cost_save\":             true,\n\t\"remember\":              true,\n\t\"forget\":                true,",
+      "why": "control 包级 hardAskTools（6 项硬编码）与 Gate.AlwaysAsk（由 boot 从各空间 [permissions].hard_ask 列表转来，boot.go:617）是同一语义的两份集合；判定点又有三处：gateApprover.Approve 先查 c.hardAskSet()、Gate.Check 再查 g.AlwaysAsk[toolName]、RequestPermission 第三次查 c.hardAskSet()。三处口径靠注释「与 controller.go 三个挂点一致」人工同步。",
+      "impact": "新增一个「必须逐条确认」工具要同时改 control 包级 map（或全部空间配置）+ 理解三处判定顺序；漏掉任一处即出现「某个入口静默自动放行」。permission 包作为闸门真相源却拿不到默认集，control 反向依赖自己的私有 map。",
+      "fix": "把默认集移入 permission 包（permission.DefaultHardAsk），Gate.AlwaysAsk 是唯一读点；删除 gateApprover/RequestPermission 里的重复 hardAskSet 查询，改为读 Gate 暴露的 IsAlwaysAsk(tool)。",
+      "effort": "M",
+      "prior_audit": "延续 docs/gaea-optimization-direction-2026-09.md P1-3「收敛已分叉的平行实现」"
+    },
+    {
+      "fid": "GA4-04",
+      "severity": "P1",
+      "category": "coupling",
+      "title": "Gate.AlwaysAsk 与 gateApprover 重复且语义分叉",
+      "file": "internal/gaea/permission/permission.go",
+      "line": "257-270",
+      "evidence": "\tif g.AlwaysAsk[toolName] {\n\t\tif g.Approver == nil {\n\t\t\treturn true, \"\", nil // 非交互：保持自治\n\t\t}\n\t\tallow, _, err := g.Approver.Approve(ctx, toolName, Subject(args), args)",
+      "why": "该分支与 control/controller_approval.go:44 的 g.c.hardAskSet()[tool] 分支判同一个条件，但两处对记忆的处理不同：Gate 侧丢弃 Approver 返回的 remember（allow, _），control 侧显式传 alwaysPrompt=true 以禁用 granted。而 Gate.OnRemember 回调在全仓无任何赋值点（grep OnRemember 只有声明与 Check 内读），意味着普通 ask 路径的「记住此选择」永远回写不到策略文件。",
+      "impact": "权限持久化存在两条互不相同的路径：Gate.OnRemember（恒 nil，失效）与 Controller.persistAllowRule（经 request_permission/persist_allow，有效）。读者必须读完 permission + control 两个包才能判断「用户选记住到底会不会落盘」，且 AlwaysAsk 工具被双份判定，任一处改口径就分叉。",
+      "fix": "删掉 Gate.AlwaysAsk 字段与其分支，把「逐条确认」唯一实现留在 control.gateApprover（它已掌握 alwaysPrompt 语义）；或反向把 control 的三处判定收敛为 Gate 方法。同时给 OnRemember 补 boot 装配点或直接删除该字段。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "GA4-05",
+      "severity": "P1",
+      "category": "concurrency",
+      "title": "MCP 连接超时会撤下一个正在连接的 server",
+      "file": "internal/gaea/plugin/plugin.go",
+      "line": "240-256",
+      "evidence": "\t\t\tsctx, cancel := context.WithCancel(ctx)\n\t\t\ttimer := time.AfterFunc(mcpConnectTimeout, cancel)\n\t\t\tts, err := h.addConnected(sctx, s)\n\t\t\tfired := !timer.Stop()\n\t\t\tif err != nil || fired {",
+      "why": "timer.Stop() 返回 false 只表示定时器已到期或已触发，不保证 cancel 与 addConnected 之间有 happens-before。addConnected 的最后一段是「h.mu.Lock(); h.clients = append(...); h.mu.Unlock()」（plugin.go:450-455），若回调恰在此刻触发，fired=true 走 h.Remove(s.Name) 会在 append 之前执行、找不到条目；随后 append 仍把 client 挂进 h.clients，而失败被上报、客户端无人接管。",
+      "impact": "超时边缘（≈30s）连接成功的 MCP server 会留下已 spawn 的 stdio 子进程 + reader goroutine，既不在 /mcp 状态里也无法经 RemoveMCPServer 回收（Close 到会话结束才收）；对本地常驻 MCP server 表现为进程随会话重建累积。",
+      "fix": "改为在 sctx 上判定成功：加载完成后 if sctx.Err() != nil { c.close(); return failure }；或把「注册」与「超时判定」放进同一把 h.mu 临界区（addConnected 返回后用 h.mu 重查 sctx.Err() 再决定 append）。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "GA4-06",
+      "severity": "P1",
+      "category": "safety",
+      "title": "hook 的 Sandbox 字段全仓零填充，命令实际不沙箱",
+      "file": "internal/gaea/hook/hook.go",
+      "line": "300-304",
+      "evidence": "\t// Sandbox, when non-nil and Mode==\"enforce\", wraps the command in an OS-level\n\t// sandbox (bubblewrap on Linux, Seatbelt on macOS) matching the bash tool's\n\t// confinement: read-only filesystem, writes confined to WriteRoots, network\n\t// denied unless allowed. nil means run unwrapped (backward compatible).\n\tSandbox *sandbox.Spec",
+      "why": "SpawnInput.Sandbox 只在 hook_test.go 出现，生产侧唯一的构造点 hook.go:344（r.spawner(ctx, SpawnInput{Command:..., Cwd:..., Stdin:..., Timeout:...})）从不填该字段，hook.NewRunner 也不接收 sandbox.Spec。DefaultSpawner 里 for Sandbox 分支因此不可达。",
+      "impact": "README/注释承诺「项目 hooks 与 bash 工具同等 confinement」，实际 settings.json 里的 hook 命令在 bash 已被 sandbox.Spec{Mode:\"enforce\"} 约束的会话里仍以完整权限运行（任意写、任意网络）。这是「文档声明与实际执行不一致」的安全面。",
+      "fix": "二选一：① 给 hook.Runner 增加 sandbox.Spec 参数并在 boot.Build（boot.go:272-276）传入与 bash 同源的 bashSpec；② 若有意不沙箱，删除 SpawnInput.Sandbox 字段与 DefaultSpawner 分支，并把注释改为「hooks run unconfined by design」。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "GA4-07",
+      "severity": "P1",
+      "category": "coupling",
+      "title": "记忆索引与画像快照走包级全局单例",
+      "file": "internal/gaea/tool/builtin/memory_search.go",
+      "line": "16-19",
+      "evidence": "// SetMemorySearchIndex injects the search index for the memory_search tool.\n//\n//\nfunc SetMemorySearchIndex(idx *memory.SearchIndex) { memorySearchIndex = idx }",
+      "why": "boot/sysprompt.go:109 与 control/controller_memory.go:285 两处从不同层写同一个进程级变量；boot/sysprompt.go 另有 7 个同类全局注入（SetSearchConfig/SetSearchProxy/SetSearchEngineOrder/SetRetrievalRuntime/SetMarkdownConverterRuntime/vision.SetVisionRuntime + pins），全部是「装配期改全局」。controller_memory 的 finishMemoryReload 甚至在控制器的热路径里写全局。",
+      "impact": "同一进程内两个 Controller（多工作空间/重建生效）会互相覆盖对方的记忆索引与检索后端配置；并发重建时是数据竞态（这些 setter 无锁）。依赖注入退化成服务定位器，单测必须靠全局状态清理。",
+      "fix": "短期：给 builtin 的每个 SetXxx 加 RWMutex 并让 boot 记录「本次装配写入的值」，控制器改为只读；中期：把 SearchIndex 作为 memory_search 工具的构造参数（像 NewSummarizeTool(execProv) 那样），移除全局 setter。",
+      "effort": "M",
+      "prior_audit": "延续 docs/gaea-optimization-direction-2026-09.md「app 单一组装根」相关架构扣分"
+    },
+    {
+      "fid": "GA4-08",
+      "severity": "P1",
+      "category": "dead-code",
+      "title": "cache/spawn.go 的 SpawnPolicy 全族仅测试引用",
+      "file": "internal/gaea/cache/spawn.go",
+      "line": "116-148",
+      "evidence": "type SpawnPolicy struct {\n\tmu          sync.Mutex\n\tforkCount   int\n\tmaxForks    int",
+      "why": "NewSpawnPolicy / BuildSpawnPrompt / buildSpawnDomain / hashDomain / recordHit / SpawnReport / ForkConfig / ForkMode 全族在全仓的生产代码里零调用（grep 命中仅 cache/spawn_test.go:62,83,85）。生产路径改由 boot 的 lookupSubagentTemplatePrefix + RegisterSpawnTemplate 承担（boot.go:434-436, 877-887）。",
+      "impact": "读代码的人会以为子代理 prompt 由 SpawnPolicy 构造（含 maxForks=8、minTaskLen=10 等看似生效的配额），实际这些配额没有任何执行力；三份「spawn domain 拼装」实现里两份是死码。",
+      "fix": "删除 SpawnPolicy/buildSpawnDomain/hashDomain/recordHit/SpawnReport/ForkConfig/ForkMode 与对应测试；若确实需要 maxForks 配额，改为在 boot 的 skillRunner 里显式限流并保留一份实现。",
+      "effort": "S",
+      "prior_audit": "延续 docs/gaea-whisper-deadcode-survey-20260925.md「仅测试引用」口径"
+    },
+    {
+      "fid": "GA4-09",
+      "severity": "P1",
+      "category": "legacy-residue",
+      "title": "SkillLayer 的 Learner 桩与版本晋升全是空壳",
+      "file": "internal/gaea/cache/skill.go",
+      "line": "136-154",
+      "evidence": "// resolveVersion returns the profile version to use (V5.0: always v1, Learner removed).\nfunc (l *SkillLayer) resolveVersion(kind TaskKind) int {\n\tif l.IsLocked() && l.lockedKind == kind {\n\t\treturn l.lockedVer\n\t}\n\treturn 1",
+      "why": "Profiles 里为 KindFixBug/KindWriteFeature/KindResearch/KindDataAnalysis 各定义了 2~3 个版本，但 resolveVersion 恒返回 1，PromoteVersion/RecordOutcome/RecordOutcomeWithReason/DemoteVersion 全是空函数体，LockVersion 也无任何生产调用点。",
+      "impact": "多版本 profile 与晋升逻辑是 100 行的死重量：任何人想改「简单任务用 v1、失败升 v2」都会以为机制已存在。context/manager.go:110 仍在转发 RecordOutcome 到空实现，掩盖了「反馈回路已删除」的事实。",
+      "fix": "删除 v2/v3 profile 条目、PromoteVersion/RecordOutcome*/DemoteVersion/LockVersion/IsLocked/resolveVersion 与 context.Manager.RecordOutcome；若保留版本概念，至少让 resolveVersion 读一个真实配置键。",
+      "effort": "M",
+      "prior_audit": "延续 docs/gaea-whisper-deadcode-survey-20260925.md"
+    },
+    {
+      "fid": "GA4-10",
+      "severity": "P1",
+      "category": "concurrency",
+      "title": "stdio 传输的 notify/write 不受 ctx 约束",
+      "file": "internal/gaea/plugin/transport_stdio.go",
+      "line": "180-193",
+      "evidence": "func (t *stdioTransport) notify(_ context.Context, method string, params any) error {\n\treturn t.write(rpcRequest{JSONRPC: \"2.0\", Method: method, Params: params})\n}",
+      "why": "与 call 不同（call 有 callMu + ctx select，transport_stdio.go:141-177），notify 丢弃 ctx，write 直接 t.stdin.Write；对端不读 stdin 时管道写满会永久阻塞。initialize 收尾的 notifications/initialized（plugin.go:567）走的正是 notify。",
+      "impact": "一个吞 stdin 的坏 MCP server 能让 StartAvailable 的 goroutine 永久卡住：30s 定时器虽会 cancel sctx，但 write 阻塞在 syscall 上不响应取消，该作业与 client 都收不掉，会话 Close 也无法回收 reader goroutine（readLoop 只在循环起点查 ctx，不中断阻塞中的 ReadBytes）。",
+      "fix": "notify 接受 ctx 并在写前 select ctx.Done；write 走一个「写 goroutine + select」包装，或对 stdin 设置写 deadline（Windows 命名管道受限时退化为 close stdin 触发退出）。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "GA4-11",
+      "severity": "P2",
+      "category": "error-swallow",
+      "title": "备份对缺失源静默跳过、回滚失败静默 continue",
+      "file": "internal/gaea/backup/backup.go",
+      "line": "133-137",
+      "evidence": "\tfor _, s := range p.Sources {\n\t\tinfo, err := os.Stat(s.Abs)\n\t\tif err != nil {\n\t\t\tcontinue // 源不存在则跳过（首次运行无库等）",
+      "why": "注释只覆盖「首次运行无库」这一良性情形，但同一分支吞掉了权限错误/路径写错/磁盘掉线等一切 os.Stat 失败；RollbackBefore 的两处失败路径更直接 continue 丢弃错误（backup.go:510, 515 的 if err := os.Rename(...); err != nil { continue } 与 copyTree 失败 continue），moved 计数照旧，返回 (true,nil)。",
+      "impact": "备份 zip 可能静默缺少用户以为已备份的数据（manifest.Warnings 不记这条），而清单 EntryCount 正常；回滚「部分成功」被报成成功，用户以为数据已还原——备份/恢复是最后一道防线，静默失败代价最高。",
+      "fix": "os.Stat 失败区分 os.IsNotExist（continue + Warnings 追加「源缺失」）与其他错误（返回错误）；RollbackBefore 收集失败项并在返回里带上（返回值加 []error 或 aggregated error），不复用 moved>0 作为成功标志。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "GA4-12",
+      "severity": "P2",
+      "category": "consistency",
+      "title": "plugin 超时判定把 ctx 取消误报为 connect timeout",
+      "file": "internal/gaea/plugin/plugin.go",
+      "line": "243-253",
+      "evidence": "\t\t\tfired := !timer.Stop()\n\t\t\tif err != nil || fired {\n\t\t\t\tif fired {\n\t\t\t\t\t// 超时统一按 timeout 上报（底层可能是取消竞态的\n\t\t\t\t\t// context canceled）；连接若已成功，transport 绑定\n\t\t\t\t\t// 在已取消的 sctx 上，撤下。",
+      "why": "fired 为真时无条件把 err 覆写为 \"connect timeout after 30s\"，即便失败真因是父 ctx 被取消（会话关闭）或 ctx deadline 由上游设置；StartAvailable 只返回 (host, tools)，失败只进 h.failures 文本。",
+      "impact": "会话关闭/上游超时被展示成「MCP server 连接超时」，用户按提示去查 server 配置而真因是宿主取消；错误归因链断在装配层。",
+      "fix": "区分三者：sctx.Err()==context.DeadlineExceeded → timeout；context.Canceled 且父 ctx 已取消 → 透传父 ctx.Err() 并跳过 RecordFailure 的 timeout 文案；否则用原始 err。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "GA4-13",
+      "severity": "P2",
+      "category": "doc-drift",
+      "title": "provider.go 8 行中文注释已成 GBK 乱码",
+      "file": "internal/gaea/provider/provider.go",
+      "line": "81-83",
+      "evidence": "// V5.11: 鍗囩骇鑷?Kun model-history-repair.ts锛屾柊澧炴ˉ鎺ユ秷鎭鐞嗐€?\n// tool_call 鍜?tool_result 涔嬮棿鐨?assistant 鏂囨湰/reasoning 绛?",
+      "why": "该段（及 108/113/115/124/145 共 8 行）是 UTF-8 字节被按 GBK 解码后重新保存的产物：所有中文与其后的标点一起被替换，「升级自」变成「鍗囩骇鑷」且尾部出现 ? 占位。全仓足迹内仅此一文件存在该问题。",
+      "impact": "SanitizeToolPairing 这个修复 API 不兼容 400 的关键函数，其设计出处（Kun model-history-repair.ts 蒸馏）与桥接消息语义的说明不可读；后续维护者无法从注释复原改写意图，只能反推代码。",
+      "fix": "仅对 provider.go 执行一次 LaTeX 无关的 mojibake 修复：以 GBK->UTF-8 往返重新转码该 8 行（或用 git 历史取回原文），并在仓库加 .gitattributes/.editorconfig 声明 UTF-8 防复发。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "GA4-14",
+      "severity": "P2",
+      "category": "doc-drift",
+      "title": "拆文件后遗留的孤儿与错位文档注释",
+      "file": "internal/gaea/control/controller.go",
+      "line": "914-918",
+      "evidence": "// NewSession snapshots the current conversation, rotates to a fresh file, and\n// resets the executor to a clean session carrying the same system prompt. It\n// ends the old session and starts the new one for lifecycle hooks.\n// resumed frontend's view).\nfunc (c *Controller) History() []provider.Message {",
+      "why": "P5 专项把 controller.go 拆出 controller_*.go（controller_session.go 头部自陈「搬移零功能变更」）时留下三类残渣：① NewSession/Dream/TCCAStats 的文档注释留在 controller.go 却挂在 History/maybeSessionStart 上（914-918、848-852、869-870），并混入半句「// resumed frontend's view).」；② 489 与 487-488 重复的「V3.0 Phase 5: ContextManager handles first-turn orchestration.」；③ controller_memory.go:207-209 ForgetMemory 注释整段重复两遍。",
+      "impact": "go doc 会把 NewSession 的行为描述显示在 History 下，读者对 API 的预期被系统性带偏；重复注释块让 diff 噪声增大，且掩盖真正的改动。",
+      "fix": "把 NewSession/Dream/TCCAStats 的注释块移到 controller_session.go 对应函数上方，删除残句与重复块；顺带在 CI 加 gofmt/doc 检查无法覆盖的这一类，靠 review 清单约束拆文件时同步搬注释。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "GA4-15",
+      "severity": "P2",
+      "category": "dead-code",
+      "title": "L2 hints 通道双侧死码且永不清理",
+      "file": "internal/gaea/cache/runtime.go",
+      "line": "252-260",
+      "evidence": "// AppendHint adds a corrective hint from the FailureDetector. Allowed after lock.\nfunc (rc *RuntimeLayer) AppendHint(hint string) {\n\tif hint == \"\" {\n\t\treturn\n\t}\n\trc.mu.Lock()\n\tdefer rc.mu.Unlock()\n\trc.hints = append(rc.hints, hint)",
+      "why": "注释宣称的 FailureDetector 在全仓不存在；AppendHint 与 TurnTailHints（runtime.go:426）在生产代码零调用，只有 runtime_test.go 用。同一文件还有 ForkReadOnlyWhitelist（runtime.go:64，仅测试写、无读）与 verboseSystemPrompt（runtime.go:306，是否走紧凑格式由 sysprompt.go:163 恒设 true 决定）。",
+      "impact": "hints 切片只增不减（append 无上限、无清理）——一旦未来接线就是无界增长；当前则是「注释描述了一个不存在的机制」，维护者会去寻找 FailureDetector。同文件三处 V3.x/V5.25/V5.30 注释相互矛盾（hints 到底在哪注入）。",
+      "fix": "删除 AppendHint/TurnTailHints/hints 字段、ForkReadOnlyWhitelist、verboseSystemPrompt 与对应测试；若要保留 turn-tail 纠正提示，补上真实调用点并给 hints 加上上限（如保留最近 N 条）。",
+      "effort": "S",
+      "prior_audit": "延续 docs/gaea-whisper-deadcode-survey-20260925.md「挂死字段 deadcode 看不见」"
+    },
+    {
+      "fid": "GA4-16",
+      "severity": "P2",
+      "category": "concurrency",
+      "title": "hook 派发与 sandbox 两套 shell 决议分叉",
+      "file": "internal/gaea/hook/hook.go",
+      "line": "387-393",
+      "evidence": "\tif in.Sandbox != nil && in.Sandbox.Mode == \"enforce\" {\n\t\tsh := sandbox.ResolveShell()\n\t\targv, _ := sandbox.Command(*in.Sandbox, sh, in.Command)\n\t\tcmd = exec.CommandContext(cctx, argv[0], argv[1:]...)\n\t} else {\n\t\tname, args := shellInvocation(in.Command)",
+      "why": "同一次 hook 执行有两条解释器决议：沙箱分支走 sandbox.ResolveShell()（探测 bash/Windows Git 路径/pwsh，含 3s probeBash），非沙箱分支走 hook 私有的 shellInvocation()（恒 cmd /c 或 sh -c，不看 ResolveShell）。sandbox.Command 内部还会再调 sh.argv() 拼一次 argv，形成第二个独立分支。",
+      "impact": "hook 在沙箱开/关两种情况下跑在不同解释器上（bash vs cmd），命令语义（引号、&&、$VAR、路径分隔）不一致；hook 作者在「沙箱打开」时测试通过、关掉后失败（反之亦然）。shellInvocation 与 sandbox.Shell.argv 是同一语义的两份实现。",
+      "fix": "删除 hook.shellInvocation，非沙箱路径也走 sandbox.ResolveShell().argv(command)（或引入 sandbox.UnconfinedCommand(spec, cmd)），使解释器决议单点化。",
+      "effort": "S",
+      "prior_audit": ""
+    }
+  ],
+  "open_questions": [
+    "control/controller.go:870 TCCAStats 用硬编码汇率 r.SavedUSD*7.25 折算人民币，但 7.25 无配置来源、无注释出处；本单元无计费口径的权威文档可对照，未敢定为 finding（需 billing 单元交叉确认是否另有汇率真相源）。",
+    "boot.Build 单函数 550 行、内联 8 组 builtin.SetXxx 全局注入，是否应作为独立 P1「god-func」上报取决于 app 侧组装根（internal/app）的边界，本单元足迹外，未深究。",
+    "sandbox 在 Windows 上依赖 WSL2（seatbelt_windows.go:15-24），WSL2 不可用时 Available()=false 并把命令 unconfined 执行；boot.go:219-223 只发一次 warning。契约上「mode=enforce 即必须沙箱」与「不可用则放行」是否已有拍板，未在足迹内找到记录。",
+    "plugin.remoteTool.Schema() 每次调用都重跑 canonicalizeSchema（provider/schema_canonicalize.go 带递归 + json.Marshal），而 Schema() 在每回合构造请求头时被调用；是否已在 agent 侧缓存未确认（agent 单元足迹）。",
+    "enc/dec secure 包在 Windows 用 DPAPI、其他平台用 AES-256-GCM 本机密钥文件，前缀统一 \"dpapi:\"，历史明文按明文读（secure.go:33-35）。这一「密文前缀 + 明文降级」的兼容读是否会掩盖密钥文件损坏，需要 auth/token 使用侧证据，本单元未覆盖。"
+  ]
+}

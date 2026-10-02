@@ -129,12 +129,18 @@ FROM knowledge_history WHERE name=? ORDER BY changed_at DESC, id DESC LIMIT 30`,
 }
 
 // GaeaKnowledgeFindSimilar 查重：返回与 title 模糊相似（≥0.65）的既有条目。
+// 注意：本绑定无 error 出口，库读失败只能降级为空 + 留痕（见审计 P0#6 残余）。
 func (a *App) GaeaKnowledgeFindSimilar(title string) []SimilarView {
 	store, err := a.hubKnowledgeStore()
 	if err != nil {
+		slog.Warn("knowledge: 查重打开知识库失败", "error", err)
 		return nil
 	}
-	hits := knowledgeimport.FindSimilar(store, title, 0.65)
+	hits, err := knowledgeimport.FindSimilar(store, title, 0.65)
+	if err != nil {
+		slog.Warn("knowledge: 查重读取失败，结果降级为空（绑定无 error 出口）", "error", err)
+		return nil
+	}
 	out := make([]SimilarView, 0, len(hits))
 	for _, h := range hits {
 		out = append(out, SimilarView{Name: h.Name, Title: h.Title, Score: h.Score})
@@ -158,7 +164,11 @@ func (a *App) GaeaKnowledgeExport(dir string) (int, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return 0, err
 	}
-	entries := store.ReadAll()
+	entries, err := store.ReadAll()
+	if err != nil {
+		// 审计 P0#6 GA3-01：读失败中止导出并报错，不得导出「0 条」冒充空库。
+		return 0, fmt.Errorf("知识库暂不可读（读取失败），可重试: %w", err)
+	}
 	n := 0
 	for _, e := range entries {
 		content := knowledge.RenderFrontmatter(e) + e.Body

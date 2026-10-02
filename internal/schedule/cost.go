@@ -42,18 +42,28 @@ func round2(n float64) float64 {
 }
 
 // assignmentCost 单条分配的原始成本（元，未舍入）。资源类型未知返回 false（跳过）。
+// 数值字段指针三态（v4.166 契约对齐）：nil=未设置→按各自缺省口径（units=1、
+// quantity=0、amount=0），非 nil 的 0=显式 0（与前端 `a.units ?? 1` 逐位一致）。
 func assignmentCost(a Assignment, res Resource, dur int) (float64, bool) {
 	units := 1.0
 	if a.Units != nil {
 		units = *a.Units
 	}
+	quantity := 0.0
+	if a.Quantity != nil {
+		quantity = *a.Quantity
+	}
+	amount := 0.0
+	if a.Amount != nil {
+		amount = *a.Amount
+	}
 	switch res.Type {
 	case ResWork:
 		return float64(dur)*units*res.StandardRate + res.CostPerUse, true
 	case ResMaterial:
-		return a.Quantity*res.StandardRate + res.CostPerUse, true
+		return quantity*res.StandardRate + res.CostPerUse, true
 	case ResCost:
-		return a.Amount, true
+		return amount, true
 	default:
 		return 0, false
 	}

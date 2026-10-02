@@ -1,0 +1,6894 @@
+{
+ "files": [
+  {
+   "file": "internal/gaea/boot/boot.go",
+   "loc": 909,
+   "funcs": 15,
+   "max_func": 551,
+   "max_func_at": "internal/gaea/boot/boot.go:108"
+  },
+  {
+   "file": "internal/gaea/agent/agent_run.go",
+   "loc": 582,
+   "funcs": 6,
+   "max_func": 449,
+   "max_func_at": "internal/gaea/agent/agent_run.go:23"
+  },
+  {
+   "file": "internal/config/config.go",
+   "loc": 540,
+   "funcs": 5,
+   "max_func": 449,
+   "max_func_at": "internal/config/config.go:27"
+  },
+  {
+   "file": "internal/schedule/ops.go",
+   "loc": 636,
+   "funcs": 11,
+   "max_func": 434,
+   "max_func_at": "internal/schedule/ops.go:106"
+  },
+  {
+   "file": "internal/whisper/orchestrator.go",
+   "loc": 1034,
+   "funcs": 18,
+   "max_func": 357,
+   "max_func_at": "internal/whisper/orchestrator.go:129"
+  },
+  {
+   "file": "internal/gaea/agent/execute_one.go",
+   "loc": 564,
+   "funcs": 12,
+   "max_func": 338,
+   "max_func_at": "internal/gaea/agent/execute_one.go:21"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/bash.go",
+   "loc": 620,
+   "funcs": 18,
+   "max_func": 289,
+   "max_func_at": "internal/gaea/tool/builtin/bash.go:86"
+  },
+  {
+   "file": "internal/app/create_chapter_handler.go",
+   "loc": 1019,
+   "funcs": 20,
+   "max_func": 279,
+   "max_func_at": "internal/app/create_chapter_handler.go:488"
+  },
+  {
+   "file": "internal/gaea/control/controller_submit.go",
+   "loc": 309,
+   "funcs": 2,
+   "max_func": 268,
+   "max_func_at": "internal/gaea/control/controller_submit.go:39"
+  },
+  {
+   "file": "internal/app/sin_handler.go",
+   "loc": 885,
+   "funcs": 23,
+   "max_func": 265,
+   "max_func_at": "internal/app/sin_handler.go:268"
+  },
+  {
+   "file": "internal/schedule/cpm.go",
+   "loc": 442,
+   "funcs": 14,
+   "max_func": 256,
+   "max_func_at": "internal/schedule/cpm.go:148"
+  },
+  {
+   "file": "internal/office/xlsxedit/xlsxedit.go",
+   "loc": 778,
+   "funcs": 15,
+   "max_func": 253,
+   "max_func_at": "internal/office/xlsxedit/xlsxedit.go:330"
+  },
+  {
+   "file": "internal/app/app.go",
+   "loc": 888,
+   "funcs": 12,
+   "max_func": 239,
+   "max_func_at": "internal/app/app.go:329"
+  },
+  {
+   "file": "internal/gaea/skill/builtins.go",
+   "loc": 257,
+   "funcs": 1,
+   "max_func": 239,
+   "max_func_at": "internal/gaea/skill/builtins.go:18"
+  },
+  {
+   "file": "internal/app/shelf.go",
+   "loc": 402,
+   "funcs": 6,
+   "max_func": 224,
+   "max_func_at": "internal/app/shelf.go:122"
+  },
+  {
+   "file": "internal/schedule/xlsx.go",
+   "loc": 652,
+   "funcs": 17,
+   "max_func": 216,
+   "max_func_at": "internal/schedule/xlsx.go:427"
+  },
+  {
+   "file": "internal/gaea/config/render.go",
+   "loc": 310,
+   "funcs": 7,
+   "max_func": 213,
+   "max_func_at": "internal/gaea/config/render.go:13"
+  },
+  {
+   "file": "internal/app/image_handler.go",
+   "loc": 1096,
+   "funcs": 35,
+   "max_func": 206,
+   "max_func_at": "internal/app/image_handler.go:442"
+  },
+  {
+   "file": "internal/ai/image_comfyui.go",
+   "loc": 1052,
+   "funcs": 24,
+   "max_func": 197,
+   "max_func_at": "internal/ai/image_comfyui.go:204"
+  },
+  {
+   "file": "internal/app/consistency_deep_handler.go",
+   "loc": 871,
+   "funcs": 25,
+   "max_func": 191,
+   "max_func_at": "internal/app/consistency_deep_handler.go:670"
+  },
+  {
+   "file": "internal/gaea/agent/agent_stream.go",
+   "loc": 278,
+   "funcs": 6,
+   "max_func": 181,
+   "max_func_at": "internal/gaea/agent/agent_stream.go:29"
+  },
+  {
+   "file": "internal/app/sin_insight.go",
+   "loc": 474,
+   "funcs": 15,
+   "max_func": 179,
+   "max_func_at": "internal/app/sin_insight.go:185"
+  },
+  {
+   "file": "internal/gaea/agent/compact_summary.go",
+   "loc": 236,
+   "funcs": 3,
+   "max_func": 176,
+   "max_func_at": "internal/gaea/agent/compact_summary.go:14"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/readfile.go",
+   "loc": 389,
+   "funcs": 16,
+   "max_func": 173,
+   "max_func_at": "internal/gaea/tool/builtin/readfile.go:62"
+  },
+  {
+   "file": "internal/app/gaea_preview.go",
+   "loc": 357,
+   "funcs": 8,
+   "max_func": 163,
+   "max_func_at": "internal/app/gaea_preview.go:125"
+  },
+  {
+   "file": "internal/app/memory_hub.go",
+   "loc": 812,
+   "funcs": 36,
+   "max_func": 160,
+   "max_func_at": "internal/app/memory_hub.go:293"
+  },
+  {
+   "file": "internal/app/story_spine_handler.go",
+   "loc": 417,
+   "funcs": 7,
+   "max_func": 159,
+   "max_func_at": "internal/app/story_spine_handler.go:69"
+  },
+  {
+   "file": "internal/ai/client.go",
+   "loc": 1430,
+   "funcs": 48,
+   "max_func": 158,
+   "max_func_at": "internal/ai/client.go:789"
+  },
+  {
+   "file": "internal/booksource/rule.go",
+   "loc": 442,
+   "funcs": 7,
+   "max_func": 153,
+   "max_func_at": "internal/booksource/rule.go:183"
+  },
+  {
+   "file": "internal/app/whisper_state.go",
+   "loc": 227,
+   "funcs": 3,
+   "max_func": 150,
+   "max_func_at": "internal/app/whisper_state.go:65"
+  },
+  {
+   "file": "internal/outline/outline.go",
+   "loc": 677,
+   "funcs": 24,
+   "max_func": 150,
+   "max_func_at": "internal/outline/outline.go:129"
+  },
+  {
+   "file": "internal/analysis/story_memory.go",
+   "loc": 192,
+   "funcs": 1,
+   "max_func": 149,
+   "max_func_at": "internal/analysis/story_memory.go:43"
+  },
+  {
+   "file": "internal/app/whisper_handler.go",
+   "loc": 1020,
+   "funcs": 46,
+   "max_func": 144,
+   "max_func_at": "internal/app/whisper_handler.go:151"
+  },
+  {
+   "file": "internal/gaea/costinquiry/scan.go",
+   "loc": 199,
+   "funcs": 3,
+   "max_func": 141,
+   "max_func_at": "internal/gaea/costinquiry/scan.go:41"
+  },
+  {
+   "file": "internal/office/docxedit/docxedit.go",
+   "loc": 828,
+   "funcs": 25,
+   "max_func": 140,
+   "max_func_at": "internal/office/docxedit/docxedit.go:619"
+  },
+  {
+   "file": "internal/gaea/agent/batch_executor.go",
+   "loc": 393,
+   "funcs": 7,
+   "max_func": 137,
+   "max_func_at": "internal/gaea/agent/batch_executor.go:15"
+  },
+  {
+   "file": "internal/characterstate/characterstate.go",
+   "loc": 393,
+   "funcs": 10,
+   "max_func": 136,
+   "max_func_at": "internal/characterstate/characterstate.go:74"
+  },
+  {
+   "file": "internal/gaea/cost/repair.go",
+   "loc": 506,
+   "funcs": 9,
+   "max_func": 136,
+   "max_func_at": "internal/gaea/cost/repair.go:35"
+  },
+  {
+   "file": "internal/auth/oauth.go",
+   "loc": 368,
+   "funcs": 8,
+   "max_func": 135,
+   "max_func_at": "internal/auth/oauth.go:59"
+  },
+  {
+   "file": "internal/app/novel_bookcover.go",
+   "loc": 220,
+   "funcs": 3,
+   "max_func": 135,
+   "max_func_at": "internal/app/novel_bookcover.go:37"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/schedule_tools.go",
+   "loc": 575,
+   "funcs": 30,
+   "max_func": 134,
+   "max_func_at": "internal/gaea/tool/builtin/schedule_tools.go:213"
+  },
+  {
+   "file": "internal/whisper/memory_graph.go",
+   "loc": 331,
+   "funcs": 10,
+   "max_func": 134,
+   "max_func_at": "internal/whisper/memory_graph.go:197"
+  },
+  {
+   "file": "internal/schedule/project.go",
+   "loc": 244,
+   "funcs": 4,
+   "max_func": 134,
+   "max_func_at": "internal/schedule/project.go:75"
+  },
+  {
+   "file": "internal/gaea/agent/task.go",
+   "loc": 1002,
+   "funcs": 47,
+   "max_func": 132,
+   "max_func_at": "internal/gaea/agent/task.go:578"
+  },
+  {
+   "file": "internal/gaea/boot/sysprompt.go",
+   "loc": 174,
+   "funcs": 1,
+   "max_func": 131,
+   "max_func_at": "internal/gaea/boot/sysprompt.go:43"
+  },
+  {
+   "file": "internal/app/novel_rewrite_handler.go",
+   "loc": 533,
+   "funcs": 11,
+   "max_func": 129,
+   "max_func_at": "internal/app/novel_rewrite_handler.go:155"
+  },
+  {
+   "file": "internal/app/herdsman_digitallife.go",
+   "loc": 269,
+   "funcs": 6,
+   "max_func": 128,
+   "max_func_at": "internal/app/herdsman_digitallife.go:120"
+  },
+  {
+   "file": "internal/modelengine/engine_models.go",
+   "loc": 307,
+   "funcs": 8,
+   "max_func": 128,
+   "max_func_at": "internal/modelengine/engine_models.go:39"
+  },
+  {
+   "file": "internal/channels/weixin/clawbot.go",
+   "loc": 1135,
+   "funcs": 45,
+   "max_func": 126,
+   "max_func_at": "internal/channels/weixin/clawbot.go:529"
+  },
+  {
+   "file": "internal/app/gaea_resync.go",
+   "loc": 278,
+   "funcs": 3,
+   "max_func": 125,
+   "max_func_at": "internal/app/gaea_resync.go:147"
+  },
+  {
+   "file": "internal/docmd/office.go",
+   "loc": 463,
+   "funcs": 9,
+   "max_func": 125,
+   "max_func_at": "internal/docmd/office.go:338"
+  },
+  {
+   "file": "internal/gaea/control/controller_approval.go",
+   "loc": 494,
+   "funcs": 13,
+   "max_func": 125,
+   "max_func_at": "internal/gaea/control/controller_approval.go:233"
+  },
+  {
+   "file": "internal/app/gaea_handler.go",
+   "loc": 842,
+   "funcs": 35,
+   "max_func": 124,
+   "max_func_at": "internal/app/gaea_handler.go:689"
+  },
+  {
+   "file": "internal/gaea/agent/render/sink.go",
+   "loc": 303,
+   "funcs": 13,
+   "max_func": 124,
+   "max_func_at": "internal/gaea/agent/render/sink.go:57"
+  },
+  {
+   "file": "internal/office/pptxedit/pptxedit.go",
+   "loc": 690,
+   "funcs": 15,
+   "max_func": 124,
+   "max_func_at": "internal/office/pptxedit/pptxedit.go:515"
+  },
+  {
+   "file": "internal/modelengine/engine.go",
+   "loc": 284,
+   "funcs": 2,
+   "max_func": 121,
+   "max_func_at": "internal/modelengine/engine.go:163"
+  },
+  {
+   "file": "internal/gaea/backup/backup.go",
+   "loc": 728,
+   "funcs": 20,
+   "max_func": 121,
+   "max_func_at": "internal/gaea/backup/backup.go:119"
+  },
+  {
+   "file": "internal/app/gaea_benchmark.go",
+   "loc": 543,
+   "funcs": 12,
+   "max_func": 120,
+   "max_func_at": "internal/app/gaea_benchmark.go:388"
+  },
+  {
+   "file": "internal/office/xlsxpreview/xlsxpreview.go",
+   "loc": 301,
+   "funcs": 8,
+   "max_func": 118,
+   "max_func_at": "internal/office/xlsxpreview/xlsxpreview.go:153"
+  },
+  {
+   "file": "internal/booksource/websearch.go",
+   "loc": 336,
+   "funcs": 9,
+   "max_func": 118,
+   "max_func_at": "internal/booksource/websearch.go:197"
+  },
+  {
+   "file": "internal/gaea/trajectory/agentnet.go",
+   "loc": 222,
+   "funcs": 6,
+   "max_func": 118,
+   "max_func_at": "internal/gaea/trajectory/agentnet.go:12"
+  },
+  {
+   "file": "internal/gaea/cost/cost.go",
+   "loc": 883,
+   "funcs": 25,
+   "max_func": 117,
+   "max_func_at": "internal/gaea/cost/cost.go:374"
+  },
+  {
+   "file": "internal/app/gaea_stream_probe.go",
+   "loc": 157,
+   "funcs": 1,
+   "max_func": 116,
+   "max_func_at": "internal/app/gaea_stream_probe.go:41"
+  },
+  {
+   "file": "internal/app/character_states_section.go",
+   "loc": 178,
+   "funcs": 3,
+   "max_func": 114,
+   "max_func_at": "internal/app/character_states_section.go:35"
+  },
+  {
+   "file": "internal/docmd/pdf.go",
+   "loc": 706,
+   "funcs": 25,
+   "max_func": 113,
+   "max_func_at": "internal/docmd/pdf.go:193"
+  },
+  {
+   "file": "internal/whisper/emotion.go",
+   "loc": 291,
+   "funcs": 7,
+   "max_func": 113,
+   "max_func_at": "internal/whisper/emotion.go:151"
+  },
+  {
+   "file": "internal/schedule/mpp.go",
+   "loc": 925,
+   "funcs": 32,
+   "max_func": 113,
+   "max_func_at": "internal/schedule/mpp.go:119"
+  },
+  {
+   "file": "internal/gaea/control/dream.go",
+   "loc": 403,
+   "funcs": 7,
+   "max_func": 113,
+   "max_func_at": "internal/gaea/control/dream.go:49"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/websearch.go",
+   "loc": 922,
+   "funcs": 48,
+   "max_func": 112,
+   "max_func_at": "internal/gaea/tool/builtin/websearch.go:180"
+  },
+  {
+   "file": "internal/voice/voice_manager.go",
+   "loc": 1268,
+   "funcs": 47,
+   "max_func": 111,
+   "max_func_at": "internal/voice/voice_manager.go:566"
+  },
+  {
+   "file": "internal/app/gaea_dag.go",
+   "loc": 793,
+   "funcs": 38,
+   "max_func": 110,
+   "max_func_at": "internal/app/gaea_dag.go:531"
+  },
+  {
+   "file": "internal/app/scene_cards_handler.go",
+   "loc": 569,
+   "funcs": 10,
+   "max_func": 110,
+   "max_func_at": "internal/app/scene_cards_handler.go:176"
+  },
+  {
+   "file": "internal/app/gaea_verify.go",
+   "loc": 297,
+   "funcs": 6,
+   "max_func": 109,
+   "max_func_at": "internal/app/gaea_verify.go:110"
+  },
+  {
+   "file": "internal/app/eval_baseline_handler.go",
+   "loc": 417,
+   "funcs": 10,
+   "max_func": 109,
+   "max_func_at": "internal/app/eval_baseline_handler.go:114"
+  },
+  {
+   "file": "internal/gaea/wssearch/wssearch.go",
+   "loc": 413,
+   "funcs": 10,
+   "max_func": 108,
+   "max_func_at": "internal/gaea/wssearch/wssearch.go:230"
+  },
+  {
+   "file": "internal/export/html.go",
+   "loc": 276,
+   "funcs": 3,
+   "max_func": 107,
+   "max_func_at": "internal/export/html.go:63"
+  },
+  {
+   "file": "internal/app/gaea_subagent_promote.go",
+   "loc": 368,
+   "funcs": 11,
+   "max_func": 106,
+   "max_func_at": "internal/app/gaea_subagent_promote.go:44"
+  },
+  {
+   "file": "internal/whisper/desktop_router.go",
+   "loc": 307,
+   "funcs": 7,
+   "max_func": 106,
+   "max_func_at": "internal/whisper/desktop_router.go:41"
+  },
+  {
+   "file": "internal/app/novel_import_ai.go",
+   "loc": 434,
+   "funcs": 11,
+   "max_func": 106,
+   "max_func_at": "internal/app/novel_import_ai.go:195"
+  },
+  {
+   "file": "internal/novelcontext/novelcontext.go",
+   "loc": 1037,
+   "funcs": 38,
+   "max_func": 106,
+   "max_func_at": "internal/novelcontext/novelcontext.go:144"
+  },
+  {
+   "file": "internal/app/image_comfyui_proc.go",
+   "loc": 553,
+   "funcs": 16,
+   "max_func": 105,
+   "max_func_at": "internal/app/image_comfyui_proc.go:64"
+  },
+  {
+   "file": "internal/gaea/filewatch/filewatch.go",
+   "loc": 272,
+   "funcs": 11,
+   "max_func": 105,
+   "max_func_at": "internal/gaea/filewatch/filewatch.go:159"
+  },
+  {
+   "file": "internal/character/character.go",
+   "loc": 825,
+   "funcs": 30,
+   "max_func": 105,
+   "max_func_at": "internal/character/character.go:135"
+  },
+  {
+   "file": "internal/whisper/time_depth_calculator.go",
+   "loc": 166,
+   "funcs": 4,
+   "max_func": 104,
+   "max_func_at": "internal/whisper/time_depth_calculator.go:49"
+  },
+  {
+   "file": "internal/gaea/agent/session/projection.go",
+   "loc": 137,
+   "funcs": 2,
+   "max_func": 103,
+   "max_func_at": "internal/gaea/agent/session/projection.go:26"
+  },
+  {
+   "file": "internal/app/sin_export_epub.go",
+   "loc": 236,
+   "funcs": 5,
+   "max_func": 103,
+   "max_func_at": "internal/app/sin_export_epub.go:38"
+  },
+  {
+   "file": "internal/analysis/foreshadow_prompt.go",
+   "loc": 148,
+   "funcs": 2,
+   "max_func": 103,
+   "max_func_at": "internal/analysis/foreshadow_prompt.go:37"
+  },
+  {
+   "file": "internal/modelengine/stats.go",
+   "loc": 759,
+   "funcs": 26,
+   "max_func": 102,
+   "max_func_at": "internal/modelengine/stats.go:545"
+  },
+  {
+   "file": "internal/app/characterlib_gen_handler.go",
+   "loc": 894,
+   "funcs": 31,
+   "max_func": 102,
+   "max_func_at": "internal/app/characterlib_gen_handler.go:289"
+  },
+  {
+   "file": "internal/whisper/interpreter.go",
+   "loc": 564,
+   "funcs": 13,
+   "max_func": 102,
+   "max_func_at": "internal/whisper/interpreter.go:300"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/diagram_gen.go",
+   "loc": 452,
+   "funcs": 10,
+   "max_func": 102,
+   "max_func_at": "internal/gaea/tool/builtin/diagram_gen.go:350"
+  },
+  {
+   "file": "internal/analysis/foreshadow_sync.go",
+   "loc": 388,
+   "funcs": 11,
+   "max_func": 101,
+   "max_func_at": "internal/analysis/foreshadow_sync.go:221"
+  },
+  {
+   "file": "internal/whisper/memory_consolidator.go",
+   "loc": 185,
+   "funcs": 4,
+   "max_func": 101,
+   "max_func_at": "internal/whisper/memory_consolidator.go:25"
+  },
+  {
+   "file": "internal/gaea/memory/graph.go",
+   "loc": 261,
+   "funcs": 10,
+   "max_func": 100,
+   "max_func_at": "internal/gaea/memory/graph.go:89"
+  },
+  {
+   "file": "internal/modelengine/engine_modelhub.go",
+   "loc": 301,
+   "funcs": 5,
+   "max_func": 99,
+   "max_func_at": "internal/modelengine/engine_modelhub.go:47"
+  },
+  {
+   "file": "internal/app/gaea_cost_import.go",
+   "loc": 493,
+   "funcs": 12,
+   "max_func": 98,
+   "max_func_at": "internal/app/gaea_cost_import.go:99"
+  },
+  {
+   "file": "internal/app/gaea_semantic_search.go",
+   "loc": 172,
+   "funcs": 3,
+   "max_func": 98,
+   "max_func_at": "internal/app/gaea_semantic_search.go:74"
+  },
+  {
+   "file": "internal/whisper/paced_stream.go",
+   "loc": 309,
+   "funcs": 15,
+   "max_func": 98,
+   "max_func_at": "internal/whisper/paced_stream.go:211"
+  },
+  {
+   "file": "internal/gaea/costref/graph.go",
+   "loc": 881,
+   "funcs": 39,
+   "max_func": 98,
+   "max_func_at": "internal/gaea/costref/graph.go:304"
+  },
+  {
+   "file": "internal/gaea/agent/fold_ladder.go",
+   "loc": 205,
+   "funcs": 4,
+   "max_func": 96,
+   "max_func_at": "internal/gaea/agent/fold_ladder.go:109"
+  },
+  {
+   "file": "internal/project/story_spine_store.go",
+   "loc": 147,
+   "funcs": 4,
+   "max_func": 96,
+   "max_func_at": "internal/project/story_spine_store.go:51"
+  },
+  {
+   "file": "internal/gaea/provider/bridge/bridge.go",
+   "loc": 241,
+   "funcs": 9,
+   "max_func": 95,
+   "max_func_at": "internal/gaea/provider/bridge/bridge.go:40"
+  },
+  {
+   "file": "internal/app/herdsman_stats.go",
+   "loc": 188,
+   "funcs": 2,
+   "max_func": 95,
+   "max_func_at": "internal/app/herdsman_stats.go:61"
+  },
+  {
+   "file": "internal/gaea/agent/session/log.go",
+   "loc": 734,
+   "funcs": 24,
+   "max_func": 95,
+   "max_func_at": "internal/gaea/agent/session/log.go:627"
+  },
+  {
+   "file": "internal/whisper/desktop_executor.go",
+   "loc": 415,
+   "funcs": 15,
+   "max_func": 95,
+   "max_func_at": "internal/whisper/desktop_executor.go:40"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/webfetch.go",
+   "loc": 646,
+   "funcs": 38,
+   "max_func": 95,
+   "max_func_at": "internal/gaea/tool/builtin/webfetch.go:112"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/cost_tools.go",
+   "loc": 521,
+   "funcs": 30,
+   "max_func": 95,
+   "max_func_at": "internal/gaea/tool/builtin/cost_tools.go:426"
+  },
+  {
+   "file": "internal/app/sin_tool_notes.go",
+   "loc": 366,
+   "funcs": 19,
+   "max_func": 94,
+   "max_func_at": "internal/app/sin_tool_notes.go:176"
+  },
+  {
+   "file": "internal/app/novel_plan_handler.go",
+   "loc": 849,
+   "funcs": 28,
+   "max_func": 92,
+   "max_func_at": "internal/app/novel_plan_handler.go:162"
+  },
+  {
+   "file": "internal/characterlib/store.go",
+   "loc": 733,
+   "funcs": 30,
+   "max_func": 92,
+   "max_func_at": "internal/characterlib/store.go:494"
+  },
+  {
+   "file": "internal/whisper/state_persistence.go",
+   "loc": 179,
+   "funcs": 6,
+   "max_func": 92,
+   "max_func_at": "internal/whisper/state_persistence.go:87"
+  },
+  {
+   "file": "internal/analysis/evolution.go",
+   "loc": 201,
+   "funcs": 3,
+   "max_func": 91,
+   "max_func_at": "internal/analysis/evolution.go:53"
+  },
+  {
+   "file": "internal/gaea/tasks/tasks.go",
+   "loc": 1245,
+   "funcs": 56,
+   "max_func": 91,
+   "max_func_at": "internal/gaea/tasks/tasks.go:925"
+  },
+  {
+   "file": "internal/app/weixin_reminder.go",
+   "loc": 530,
+   "funcs": 22,
+   "max_func": 91,
+   "max_func_at": "internal/app/weixin_reminder.go:186"
+  },
+  {
+   "file": "internal/app/gaea_pdf.go",
+   "loc": 263,
+   "funcs": 6,
+   "max_func": 91,
+   "max_func_at": "internal/app/gaea_pdf.go:41"
+  },
+  {
+   "file": "internal/app/novel_gate_handler.go",
+   "loc": 218,
+   "funcs": 5,
+   "max_func": 91,
+   "max_func_at": "internal/app/novel_gate_handler.go:28"
+  },
+  {
+   "file": "internal/app/gaea_deliverable_zip.go",
+   "loc": 116,
+   "funcs": 1,
+   "max_func": 91,
+   "max_func_at": "internal/app/gaea_deliverable_zip.go:25"
+  },
+  {
+   "file": "internal/gaea/contextview/fold.go",
+   "loc": 1042,
+   "funcs": 32,
+   "max_func": 91,
+   "max_func_at": "internal/gaea/contextview/fold.go:577"
+  },
+  {
+   "file": "internal/whisper/special_date_detector.go",
+   "loc": 133,
+   "funcs": 1,
+   "max_func": 91,
+   "max_func_at": "internal/whisper/special_date_detector.go:42"
+  },
+  {
+   "file": "internal/whisper/active_recall.go",
+   "loc": 161,
+   "funcs": 6,
+   "max_func": 91,
+   "max_func_at": "internal/whisper/active_recall.go:30"
+  },
+  {
+   "file": "internal/whisper/vector_store.go",
+   "loc": 321,
+   "funcs": 7,
+   "max_func": 90,
+   "max_func_at": "internal/whisper/vector_store.go:73"
+  },
+  {
+   "file": "internal/office/crosslink/crosslink.go",
+   "loc": 285,
+   "funcs": 9,
+   "max_func": 90,
+   "max_func_at": "internal/office/crosslink/crosslink.go:24"
+  },
+  {
+   "file": "internal/app/chapter_handler.go",
+   "loc": 600,
+   "funcs": 18,
+   "max_func": 90,
+   "max_func_at": "internal/app/chapter_handler.go:143"
+  },
+  {
+   "file": "internal/whisper/association_cold_start.go",
+   "loc": 388,
+   "funcs": 9,
+   "max_func": 88,
+   "max_func_at": "internal/whisper/association_cold_start.go:170"
+  },
+  {
+   "file": "internal/gaea/agent/agent.go",
+   "loc": 976,
+   "funcs": 43,
+   "max_func": 88,
+   "max_func_at": "internal/gaea/agent/agent.go:700"
+  },
+  {
+   "file": "internal/gaea/agent/judge.go",
+   "loc": 130,
+   "funcs": 1,
+   "max_func": 88,
+   "max_func_at": "internal/gaea/agent/judge.go:42"
+  },
+  {
+   "file": "internal/herdsman/lancheck.go",
+   "loc": 176,
+   "funcs": 5,
+   "max_func": 88,
+   "max_func_at": "internal/herdsman/lancheck.go:43"
+  },
+  {
+   "file": "internal/gaea/control/controller.go",
+   "loc": 1057,
+   "funcs": 49,
+   "max_func": 88,
+   "max_func_at": "internal/gaea/control/controller.go:463"
+  },
+  {
+   "file": "internal/app/chat_service.go",
+   "loc": 563,
+   "funcs": 25,
+   "max_func": 88,
+   "max_func_at": "internal/app/chat_service.go:164"
+  },
+  {
+   "file": "internal/app/gaea_memory_suggestions.go",
+   "loc": 340,
+   "funcs": 7,
+   "max_func": 88,
+   "max_func_at": "internal/app/gaea_memory_suggestions.go:126"
+  },
+  {
+   "file": "internal/app/character_handler.go",
+   "loc": 585,
+   "funcs": 26,
+   "max_func": 88,
+   "max_func_at": "internal/app/character_handler.go:403"
+  },
+  {
+   "file": "internal/app/gaea_verify_channel_a.go",
+   "loc": 137,
+   "funcs": 3,
+   "max_func": 87,
+   "max_func_at": "internal/app/gaea_verify_channel_a.go:31"
+  },
+  {
+   "file": "internal/gaea/plugin/plugin.go",
+   "loc": 800,
+   "funcs": 38,
+   "max_func": 87,
+   "max_func_at": "internal/gaea/plugin/plugin.go:125"
+  },
+  {
+   "file": "internal/whisper/dispatch_router.go",
+   "loc": 293,
+   "funcs": 6,
+   "max_func": 87,
+   "max_func_at": "internal/whisper/dispatch_router.go:81"
+  },
+  {
+   "file": "internal/app/gaea_dream.go",
+   "loc": 424,
+   "funcs": 12,
+   "max_func": 87,
+   "max_func_at": "internal/app/gaea_dream.go:145"
+  },
+  {
+   "file": "internal/ai/copilot.go",
+   "loc": 378,
+   "funcs": 6,
+   "max_func": 86,
+   "max_func_at": "internal/ai/copilot.go:292"
+  },
+  {
+   "file": "internal/app/wx_agent.go",
+   "loc": 550,
+   "funcs": 16,
+   "max_func": 86,
+   "max_func_at": "internal/app/wx_agent.go:191"
+  },
+  {
+   "file": "internal/app/voice_handler.go",
+   "loc": 735,
+   "funcs": 37,
+   "max_func": 86,
+   "max_func_at": "internal/app/voice_handler.go:502"
+  },
+  {
+   "file": "internal/app/ctx_inventory_handler.go",
+   "loc": 103,
+   "funcs": 1,
+   "max_func": 86,
+   "max_func_at": "internal/app/ctx_inventory_handler.go:17"
+  },
+  {
+   "file": "internal/gaea/agent/compress.go",
+   "loc": 474,
+   "funcs": 14,
+   "max_func": 86,
+   "max_func_at": "internal/gaea/agent/compress.go:162"
+  },
+  {
+   "file": "internal/gaea/costimport/costimport.go",
+   "loc": 1265,
+   "funcs": 48,
+   "max_func": 85,
+   "max_func_at": "internal/gaea/costimport/costimport.go:108"
+  },
+  {
+   "file": "internal/app/tts_handler.go",
+   "loc": 303,
+   "funcs": 15,
+   "max_func": 85,
+   "max_func_at": "internal/app/tts_handler.go:68"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/cost_compose.go",
+   "loc": 131,
+   "funcs": 8,
+   "max_func": 85,
+   "max_func_at": "internal/gaea/tool/builtin/cost_compose.go:46"
+  },
+  {
+   "file": "internal/docmd/ocr.go",
+   "loc": 614,
+   "funcs": 25,
+   "max_func": 85,
+   "max_func_at": "internal/docmd/ocr.go:460"
+  },
+  {
+   "file": "internal/app/gaea_cost_import_vision.go",
+   "loc": 772,
+   "funcs": 26,
+   "max_func": 85,
+   "max_func_at": "internal/app/gaea_cost_import_vision.go:638"
+  },
+  {
+   "file": "internal/whisper/triple_extractor.go",
+   "loc": 221,
+   "funcs": 4,
+   "max_func": 84,
+   "max_func_at": "internal/whisper/triple_extractor.go:137"
+  },
+  {
+   "file": "internal/gaea/agent/compact.go",
+   "loc": 784,
+   "funcs": 28,
+   "max_func": 84,
+   "max_func_at": "internal/gaea/agent/compact.go:670"
+  },
+  {
+   "file": "internal/analysis/analysis_v2.go",
+   "loc": 267,
+   "funcs": 9,
+   "max_func": 84,
+   "max_func_at": "internal/analysis/analysis_v2.go:167"
+  },
+  {
+   "file": "internal/app/gaea_xlsx_chart.go",
+   "loc": 257,
+   "funcs": 5,
+   "max_func": 83,
+   "max_func_at": "internal/app/gaea_xlsx_chart.go:100"
+  },
+  {
+   "file": "internal/app/novel_search_handler.go",
+   "loc": 164,
+   "funcs": 3,
+   "max_func": 83,
+   "max_func_at": "internal/app/novel_search_handler.go:59"
+  },
+  {
+   "file": "internal/whisper/archive_exporter.go",
+   "loc": 276,
+   "funcs": 9,
+   "max_func": 83,
+   "max_func_at": "internal/whisper/archive_exporter.go:48"
+  },
+  {
+   "file": "internal/analysis/analysis.go",
+   "loc": 328,
+   "funcs": 9,
+   "max_func": 83,
+   "max_func_at": "internal/analysis/analysis.go:68"
+  },
+  {
+   "file": "internal/app/create_chapter_context.go",
+   "loc": 768,
+   "funcs": 26,
+   "max_func": 83,
+   "max_func_at": "internal/app/create_chapter_context.go:175"
+  },
+  {
+   "file": "internal/project/project.go",
+   "loc": 1111,
+   "funcs": 73,
+   "max_func": 82,
+   "max_func_at": "internal/project/project.go:749"
+  },
+  {
+   "file": "internal/app/gaea_crosslink.go",
+   "loc": 155,
+   "funcs": 3,
+   "max_func": 82,
+   "max_func_at": "internal/app/gaea_crosslink.go:37"
+  },
+  {
+   "file": "internal/whisper/emotional_emergence.go",
+   "loc": 468,
+   "funcs": 26,
+   "max_func": 81,
+   "max_func_at": "internal/whisper/emotional_emergence.go:175"
+  },
+  {
+   "file": "internal/skill/skill.go",
+   "loc": 191,
+   "funcs": 7,
+   "max_func": 81,
+   "max_func_at": "internal/skill/skill.go:110"
+  },
+  {
+   "file": "internal/app/gaea_cost_compose.go",
+   "loc": 411,
+   "funcs": 9,
+   "max_func": 81,
+   "max_func_at": "internal/app/gaea_cost_compose.go:280"
+  },
+  {
+   "file": "internal/app/imagehub_usage.go",
+   "loc": 149,
+   "funcs": 3,
+   "max_func": 80,
+   "max_func_at": "internal/app/imagehub_usage.go:69"
+  },
+  {
+   "file": "internal/app/converge_handler.go",
+   "loc": 349,
+   "funcs": 10,
+   "max_func": 80,
+   "max_func_at": "internal/app/converge_handler.go:156"
+  },
+  {
+   "file": "internal/app/novel_foreshadow_lint_handler.go",
+   "loc": 223,
+   "funcs": 6,
+   "max_func": 80,
+   "max_func_at": "internal/app/novel_foreshadow_lint_handler.go:67"
+  },
+  {
+   "file": "internal/gaea/costref/costref.go",
+   "loc": 461,
+   "funcs": 15,
+   "max_func": 79,
+   "max_func_at": "internal/gaea/costref/costref.go:287"
+  },
+  {
+   "file": "internal/gaea/memory/graphstore.go",
+   "loc": 289,
+   "funcs": 5,
+   "max_func": 79,
+   "max_func_at": "internal/gaea/memory/graphstore.go:175"
+  },
+  {
+   "file": "internal/stats/dashboard.go",
+   "loc": 285,
+   "funcs": 5,
+   "max_func": 78,
+   "max_func_at": "internal/stats/dashboard.go:162"
+  },
+  {
+   "file": "internal/app/gaea_tools.go",
+   "loc": 174,
+   "funcs": 8,
+   "max_func": 77,
+   "max_func_at": "internal/app/gaea_tools.go:56"
+  },
+  {
+   "file": "internal/channels/weixin/media_download.go",
+   "loc": 423,
+   "funcs": 14,
+   "max_func": 77,
+   "max_func_at": "internal/channels/weixin/media_download.go:99"
+  },
+  {
+   "file": "internal/gaea/control/refs.go",
+   "loc": 335,
+   "funcs": 14,
+   "max_func": 77,
+   "max_func_at": "internal/gaea/control/refs.go:197"
+  },
+  {
+   "file": "internal/app/gaea_tasks.go",
+   "loc": 530,
+   "funcs": 19,
+   "max_func": 77,
+   "max_func_at": "internal/app/gaea_tasks.go:233"
+  },
+  {
+   "file": "internal/whisper/desire.go",
+   "loc": 308,
+   "funcs": 11,
+   "max_func": 77,
+   "max_func_at": "internal/whisper/desire.go:172"
+  },
+  {
+   "file": "internal/modelengine/engine_state.go",
+   "loc": 128,
+   "funcs": 2,
+   "max_func": 77,
+   "max_func_at": "internal/modelengine/engine_state.go:24"
+  },
+  {
+   "file": "internal/tts/edge.go",
+   "loc": 404,
+   "funcs": 18,
+   "max_func": 77,
+   "max_func_at": "internal/tts/edge.go:50"
+  },
+  {
+   "file": "internal/app/foreshadow_context.go",
+   "loc": 267,
+   "funcs": 11,
+   "max_func": 76,
+   "max_func_at": "internal/app/foreshadow_context.go:43"
+  },
+  {
+   "file": "internal/app/gaea_route_suggestions.go",
+   "loc": 207,
+   "funcs": 6,
+   "max_func": 76,
+   "max_func_at": "internal/app/gaea_route_suggestions.go:102"
+  },
+  {
+   "file": "internal/whisper/offline_thought.go",
+   "loc": 116,
+   "funcs": 3,
+   "max_func": 76,
+   "max_func_at": "internal/whisper/offline_thought.go:12"
+  },
+  {
+   "file": "internal/app/gaea_export.go",
+   "loc": 344,
+   "funcs": 9,
+   "max_func": 76,
+   "max_func_at": "internal/app/gaea_export.go:45"
+  },
+  {
+   "file": "internal/ocr/herdsman.go",
+   "loc": 256,
+   "funcs": 8,
+   "max_func": 76,
+   "max_func_at": "internal/ocr/herdsman.go:152"
+  },
+  {
+   "file": "internal/gaea/memory/projectbrief.go",
+   "loc": 126,
+   "funcs": 2,
+   "max_func": 75,
+   "max_func_at": "internal/gaea/memory/projectbrief.go:51"
+  },
+  {
+   "file": "internal/app/gaea_subagents.go",
+   "loc": 309,
+   "funcs": 8,
+   "max_func": 75,
+   "max_func_at": "internal/app/gaea_subagents.go:56"
+  },
+  {
+   "file": "internal/schedule/baseline.go",
+   "loc": 166,
+   "funcs": 2,
+   "max_func": 75,
+   "max_func_at": "internal/schedule/baseline.go:91"
+  },
+  {
+   "file": "internal/app/characterlib_handler.go",
+   "loc": 451,
+   "funcs": 14,
+   "max_func": 75,
+   "max_func_at": "internal/app/characterlib_handler.go:60"
+  },
+  {
+   "file": "internal/promptstore/promptstore.go",
+   "loc": 333,
+   "funcs": 9,
+   "max_func": 75,
+   "max_func_at": "internal/promptstore/promptstore.go:193"
+  },
+  {
+   "file": "internal/intent/intent.go",
+   "loc": 312,
+   "funcs": 5,
+   "max_func": 74,
+   "max_func_at": "internal/intent/intent.go:238"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/cost_indicators.go",
+   "loc": 137,
+   "funcs": 10,
+   "max_func": 74,
+   "max_func_at": "internal/gaea/tool/builtin/cost_indicators.go:63"
+  },
+  {
+   "file": "internal/gaea/memory/injection_eval.go",
+   "loc": 172,
+   "funcs": 4,
+   "max_func": 74,
+   "max_func_at": "internal/gaea/memory/injection_eval.go:60"
+  },
+  {
+   "file": "internal/whisper/emotion_fusion.go",
+   "loc": 434,
+   "funcs": 18,
+   "max_func": 74,
+   "max_func_at": "internal/whisper/emotion_fusion.go:360"
+  },
+  {
+   "file": "internal/gaea/pricefeed/pricefeed.go",
+   "loc": 393,
+   "funcs": 15,
+   "max_func": 74,
+   "max_func_at": "internal/gaea/pricefeed/pricefeed.go:138"
+  },
+  {
+   "file": "internal/app/plot_branch_handler.go",
+   "loc": 453,
+   "funcs": 10,
+   "max_func": 73,
+   "max_func_at": "internal/app/plot_branch_handler.go:188"
+  },
+  {
+   "file": "internal/gaea/knowledge/entry.go",
+   "loc": 246,
+   "funcs": 8,
+   "max_func": 73,
+   "max_func_at": "internal/gaea/knowledge/entry.go:45"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/sidebar_open.go",
+   "loc": 135,
+   "funcs": 9,
+   "max_func": 73,
+   "max_func_at": "internal/gaea/tool/builtin/sidebar_open.go:62"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/grep.go",
+   "loc": 202,
+   "funcs": 10,
+   "max_func": 73,
+   "max_func_at": "internal/gaea/tool/builtin/grep.go:70"
+  },
+  {
+   "file": "internal/export/export.go",
+   "loc": 356,
+   "funcs": 12,
+   "max_func": 73,
+   "max_func_at": "internal/export/export.go:210"
+  },
+  {
+   "file": "internal/gaea/memory/remember.go",
+   "loc": 141,
+   "funcs": 7,
+   "max_func": 73,
+   "max_func_at": "internal/gaea/memory/remember.go:65"
+  },
+  {
+   "file": "internal/style/profile.go",
+   "loc": 215,
+   "funcs": 9,
+   "max_func": 73,
+   "max_func_at": "internal/style/profile.go:59"
+  },
+  {
+   "file": "internal/gaea/memory/search.go",
+   "loc": 284,
+   "funcs": 8,
+   "max_func": 72,
+   "max_func_at": "internal/gaea/memory/search.go:145"
+  },
+  {
+   "file": "internal/whisper/desktop_capability_routing.go",
+   "loc": 290,
+   "funcs": 7,
+   "max_func": 72,
+   "max_func_at": "internal/whisper/desktop_capability_routing.go:28"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/knowledge_add.go",
+   "loc": 138,
+   "funcs": 10,
+   "max_func": 71,
+   "max_func_at": "internal/gaea/tool/builtin/knowledge_add.go:45"
+  },
+  {
+   "file": "internal/whisper/db/repos/memory_facts.go",
+   "loc": 373,
+   "funcs": 16,
+   "max_func": 71,
+   "max_func_at": "internal/whisper/db/repos/memory_facts.go:302"
+  },
+  {
+   "file": "internal/app/gaea_skill_distill.go",
+   "loc": 435,
+   "funcs": 11,
+   "max_func": 71,
+   "max_func_at": "internal/app/gaea_skill_distill.go:318"
+  },
+  {
+   "file": "internal/channels/weixin/media_upload.go",
+   "loc": 292,
+   "funcs": 9,
+   "max_func": 71,
+   "max_func_at": "internal/channels/weixin/media_upload.go:130"
+  },
+  {
+   "file": "internal/app/gaea_memory_eval.go",
+   "loc": 108,
+   "funcs": 1,
+   "max_func": 70,
+   "max_func_at": "internal/app/gaea_memory_eval.go:38"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/movefile.go",
+   "loc": 151,
+   "funcs": 9,
+   "max_func": 70,
+   "max_func_at": "internal/gaea/tool/builtin/movefile.go:51"
+  },
+  {
+   "file": "internal/app/novel_llm_rewrite_handler.go",
+   "loc": 288,
+   "funcs": 7,
+   "max_func": 70,
+   "max_func_at": "internal/app/novel_llm_rewrite_handler.go:72"
+  },
+  {
+   "file": "internal/gaea/archive/archive.go",
+   "loc": 242,
+   "funcs": 5,
+   "max_func": 70,
+   "max_func_at": "internal/gaea/archive/archive.go:91"
+  },
+  {
+   "file": "internal/novelgate/plan_gate.go",
+   "loc": 190,
+   "funcs": 7,
+   "max_func": 70,
+   "max_func_at": "internal/novelgate/plan_gate.go:32"
+  },
+  {
+   "file": "internal/gaea/knowledgeimport/knowledgeimport.go",
+   "loc": 489,
+   "funcs": 14,
+   "max_func": 70,
+   "max_func_at": "internal/gaea/knowledgeimport/knowledgeimport.go:87"
+  },
+  {
+   "file": "internal/gaea/costinquiry/costinquiry.go",
+   "loc": 524,
+   "funcs": 19,
+   "max_func": 69,
+   "max_func_at": "internal/gaea/costinquiry/costinquiry.go:292"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/editlines.go",
+   "loc": 144,
+   "funcs": 10,
+   "max_func": 69,
+   "max_func_at": "internal/gaea/tool/builtin/editlines.go:49"
+  },
+  {
+   "file": "internal/ai/image_glm.go",
+   "loc": 160,
+   "funcs": 4,
+   "max_func": 69,
+   "max_func_at": "internal/ai/image_glm.go:69"
+  },
+  {
+   "file": "internal/app/gaea_usage_overview.go",
+   "loc": 187,
+   "funcs": 6,
+   "max_func": 69,
+   "max_func_at": "internal/app/gaea_usage_overview.go:68"
+  },
+  {
+   "file": "internal/app/gaea_translate.go",
+   "loc": 350,
+   "funcs": 17,
+   "max_func": 69,
+   "max_func_at": "internal/app/gaea_translate.go:209"
+  },
+  {
+   "file": "internal/whisper/rhythm.go",
+   "loc": 171,
+   "funcs": 7,
+   "max_func": 69,
+   "max_func_at": "internal/whisper/rhythm.go:53"
+  },
+  {
+   "file": "internal/gaea/skill/parallel.go",
+   "loc": 211,
+   "funcs": 3,
+   "max_func": 68,
+   "max_func_at": "internal/gaea/skill/parallel.go:143"
+  },
+  {
+   "file": "internal/app/novel_book_health.go",
+   "loc": 187,
+   "funcs": 3,
+   "max_func": 68,
+   "max_func_at": "internal/app/novel_book_health.go:119"
+  },
+  {
+   "file": "internal/promptstore/bundle.go",
+   "loc": 283,
+   "funcs": 9,
+   "max_func": 68,
+   "max_func_at": "internal/promptstore/bundle.go:171"
+  },
+  {
+   "file": "internal/gaea/browser/input.go",
+   "loc": 378,
+   "funcs": 10,
+   "max_func": 68,
+   "max_func_at": "internal/gaea/browser/input.go:177"
+  },
+  {
+   "file": "internal/app/memory_graph.go",
+   "loc": 139,
+   "funcs": 3,
+   "max_func": 68,
+   "max_func_at": "internal/app/memory_graph.go:38"
+  },
+  {
+   "file": "internal/gaea/agent/ask.go",
+   "loc": 161,
+   "funcs": 7,
+   "max_func": 67,
+   "max_func_at": "internal/gaea/agent/ask.go:70"
+  },
+  {
+   "file": "internal/whisper/temporal_date.go",
+   "loc": 144,
+   "funcs": 4,
+   "max_func": 67,
+   "max_func_at": "internal/whisper/temporal_date.go:32"
+  },
+  {
+   "file": "internal/app/gaea_task_inbox.go",
+   "loc": 297,
+   "funcs": 10,
+   "max_func": 67,
+   "max_func_at": "internal/app/gaea_task_inbox.go:153"
+  },
+  {
+   "file": "internal/app/gaea_price_sources.go",
+   "loc": 210,
+   "funcs": 13,
+   "max_func": 67,
+   "max_func_at": "internal/app/gaea_price_sources.go:126"
+  },
+  {
+   "file": "internal/app/gaea_knowledge_import.go",
+   "loc": 352,
+   "funcs": 11,
+   "max_func": 67,
+   "max_func_at": "internal/app/gaea_knowledge_import.go:72"
+  },
+  {
+   "file": "internal/whisper/companion_proactive.go",
+   "loc": 151,
+   "funcs": 4,
+   "max_func": 67,
+   "max_func_at": "internal/whisper/companion_proactive.go:34"
+  },
+  {
+   "file": "internal/gaea/skill/tools.go",
+   "loc": 356,
+   "funcs": 26,
+   "max_func": 66,
+   "max_func_at": "internal/gaea/skill/tools.go:192"
+  },
+  {
+   "file": "internal/app/gaea_cost_projects.go",
+   "loc": 185,
+   "funcs": 14,
+   "max_func": 66,
+   "max_func_at": "internal/app/gaea_cost_projects.go:108"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/knowledge_search.go",
+   "loc": 244,
+   "funcs": 13,
+   "max_func": 66,
+   "max_func_at": "internal/gaea/tool/builtin/knowledge_search.go:38"
+  },
+  {
+   "file": "internal/whisper/agent_loop_runner.go",
+   "loc": 300,
+   "funcs": 8,
+   "max_func": 66,
+   "max_func_at": "internal/whisper/agent_loop_runner.go:42"
+  },
+  {
+   "file": "internal/schedule/analysis.go",
+   "loc": 164,
+   "funcs": 1,
+   "max_func": 66,
+   "max_func_at": "internal/schedule/analysis.go:98"
+  },
+  {
+   "file": "internal/memory/memory.go",
+   "loc": 290,
+   "funcs": 10,
+   "max_func": 66,
+   "max_func_at": "internal/memory/memory.go:179"
+  },
+  {
+   "file": "internal/graph/consistency.go",
+   "loc": 439,
+   "funcs": 12,
+   "max_func": 65,
+   "max_func_at": "internal/graph/consistency.go:321"
+  },
+  {
+   "file": "internal/gaea/cache/profile.go",
+   "loc": 225,
+   "funcs": 5,
+   "max_func": 65,
+   "max_func_at": "internal/gaea/cache/profile.go:160"
+  },
+  {
+   "file": "internal/app/gaea_xlsx_edit.go",
+   "loc": 434,
+   "funcs": 9,
+   "max_func": 65,
+   "max_func_at": "internal/app/gaea_xlsx_edit.go:352"
+  },
+  {
+   "file": "internal/gaea/agent/request_permission.go",
+   "loc": 147,
+   "funcs": 7,
+   "max_func": 65,
+   "max_func_at": "internal/gaea/agent/request_permission.go:74"
+  },
+  {
+   "file": "internal/booksource/clean.go",
+   "loc": 194,
+   "funcs": 8,
+   "max_func": 65,
+   "max_func_at": "internal/booksource/clean.go:129"
+  },
+  {
+   "file": "internal/app/novel_deslop_handler.go",
+   "loc": 155,
+   "funcs": 5,
+   "max_func": 64,
+   "max_func_at": "internal/app/novel_deslop_handler.go:91"
+  },
+  {
+   "file": "internal/visual/visual.go",
+   "loc": 361,
+   "funcs": 6,
+   "max_func": 64,
+   "max_func_at": "internal/visual/visual.go:188"
+  },
+  {
+   "file": "internal/snapshot/snapshot.go",
+   "loc": 295,
+   "funcs": 12,
+   "max_func": 64,
+   "max_func_at": "internal/snapshot/snapshot.go:189"
+  },
+  {
+   "file": "internal/whisper/post_chat_turn.go",
+   "loc": 275,
+   "funcs": 8,
+   "max_func": 64,
+   "max_func_at": "internal/whisper/post_chat_turn.go:36"
+  },
+  {
+   "file": "internal/gaea/trajectory/fold.go",
+   "loc": 492,
+   "funcs": 19,
+   "max_func": 63,
+   "max_func_at": "internal/gaea/trajectory/fold.go:56"
+  },
+  {
+   "file": "internal/app/gaea_ui.go",
+   "loc": 801,
+   "funcs": 39,
+   "max_func": 63,
+   "max_func_at": "internal/app/gaea_ui.go:367"
+  },
+  {
+   "file": "internal/novelgate/gate.go",
+   "loc": 168,
+   "funcs": 6,
+   "max_func": 63,
+   "max_func_at": "internal/novelgate/gate.go:66"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/chart_gen.go",
+   "loc": 326,
+   "funcs": 10,
+   "max_func": 63,
+   "max_func_at": "internal/gaea/tool/builtin/chart_gen.go:250"
+  },
+  {
+   "file": "internal/office/xlsxpreview/condfmt.go",
+   "loc": 293,
+   "funcs": 5,
+   "max_func": 63,
+   "max_func_at": "internal/office/xlsxpreview/condfmt.go:230"
+  },
+  {
+   "file": "internal/ai/image_openai.go",
+   "loc": 334,
+   "funcs": 10,
+   "max_func": 63,
+   "max_func_at": "internal/ai/image_openai.go:106"
+  },
+  {
+   "file": "internal/graph/entity.go",
+   "loc": 222,
+   "funcs": 10,
+   "max_func": 63,
+   "max_func_at": "internal/graph/entity.go:87"
+  },
+  {
+   "file": "internal/novelstyle/digest.go",
+   "loc": 76,
+   "funcs": 1,
+   "max_func": 63,
+   "max_func_at": "internal/novelstyle/digest.go:13"
+  },
+  {
+   "file": "internal/whisper/desktop_agent_loop_messages.go",
+   "loc": 86,
+   "funcs": 1,
+   "max_func": 62,
+   "max_func_at": "internal/whisper/desktop_agent_loop_messages.go:24"
+  },
+  {
+   "file": "internal/app/gaea_whisper_causal.go",
+   "loc": 243,
+   "funcs": 7,
+   "max_func": 62,
+   "max_func_at": "internal/app/gaea_whisper_causal.go:133"
+  },
+  {
+   "file": "internal/novelreview/review.go",
+   "loc": 467,
+   "funcs": 11,
+   "max_func": 62,
+   "max_func_at": "internal/novelreview/review.go:98"
+  },
+  {
+   "file": "internal/whisper/strategy_gate.go",
+   "loc": 132,
+   "funcs": 5,
+   "max_func": 62,
+   "max_func_at": "internal/whisper/strategy_gate.go:70"
+  },
+  {
+   "file": "internal/app/novel_reading_handler.go",
+   "loc": 266,
+   "funcs": 9,
+   "max_func": 62,
+   "max_func_at": "internal/app/novel_reading_handler.go:204"
+  },
+  {
+   "file": "internal/gaea/agent/tool_coherence.go",
+   "loc": 100,
+   "funcs": 3,
+   "max_func": 61,
+   "max_func_at": "internal/gaea/agent/tool_coherence.go:19"
+  },
+  {
+   "file": "internal/search/search.go",
+   "loc": 152,
+   "funcs": 5,
+   "max_func": 61,
+   "max_func_at": "internal/search/search.go:58"
+  },
+  {
+   "file": "internal/gaea/memory/migrate.go",
+   "loc": 87,
+   "funcs": 2,
+   "max_func": 61,
+   "max_func_at": "internal/gaea/memory/migrate.go:26"
+  },
+  {
+   "file": "internal/app/sin_file_refs.go",
+   "loc": 263,
+   "funcs": 9,
+   "max_func": 61,
+   "max_func_at": "internal/app/sin_file_refs.go:61"
+  },
+  {
+   "file": "internal/app/novel_booksource_handler.go",
+   "loc": 717,
+   "funcs": 26,
+   "max_func": 61,
+   "max_func_at": "internal/app/novel_booksource_handler.go:147"
+  },
+  {
+   "file": "internal/gaea/cache/skill.go",
+   "loc": 224,
+   "funcs": 12,
+   "max_func": 61,
+   "max_func_at": "internal/gaea/cache/skill.go:163"
+  },
+  {
+   "file": "internal/novelstyle/fingerprint.go",
+   "loc": 596,
+   "funcs": 25,
+   "max_func": 60,
+   "max_func_at": "internal/novelstyle/fingerprint.go:66"
+  },
+  {
+   "file": "internal/gaea/agent/textutils/text.go",
+   "loc": 273,
+   "funcs": 10,
+   "max_func": 60,
+   "max_func_at": "internal/gaea/agent/textutils/text.go:101"
+  },
+  {
+   "file": "internal/gaea/vision/vision.go",
+   "loc": 246,
+   "funcs": 11,
+   "max_func": 60,
+   "max_func_at": "internal/gaea/vision/vision.go:161"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/multiedit.go",
+   "loc": 110,
+   "funcs": 8,
+   "max_func": 60,
+   "max_func_at": "internal/gaea/tool/builtin/multiedit.go:50"
+  },
+  {
+   "file": "internal/whisper/memory_ingest.go",
+   "loc": 380,
+   "funcs": 14,
+   "max_func": 60,
+   "max_func_at": "internal/whisper/memory_ingest.go:103"
+  },
+  {
+   "file": "internal/app/gaea_whisper_proactive.go",
+   "loc": 370,
+   "funcs": 14,
+   "max_func": 60,
+   "max_func_at": "internal/app/gaea_whisper_proactive.go:181"
+  },
+  {
+   "file": "internal/app/gaea_schedule.go",
+   "loc": 612,
+   "funcs": 22,
+   "max_func": 60,
+   "max_func_at": "internal/app/gaea_schedule.go:312"
+  },
+  {
+   "file": "internal/gaea/memory/memory.go",
+   "loc": 522,
+   "funcs": 18,
+   "max_func": 60,
+   "max_func_at": "internal/gaea/memory/memory.go:346"
+  },
+  {
+   "file": "internal/booksource/toc.go",
+   "loc": 225,
+   "funcs": 5,
+   "max_func": 60,
+   "max_func_at": "internal/booksource/toc.go:113"
+  },
+  {
+   "file": "internal/export/docx.go",
+   "loc": 104,
+   "funcs": 3,
+   "max_func": 60,
+   "max_func_at": "internal/export/docx.go:18"
+  },
+  {
+   "file": "internal/gaea/cost/priceband.go",
+   "loc": 198,
+   "funcs": 6,
+   "max_func": 60,
+   "max_func_at": "internal/gaea/cost/priceband.go:56"
+  },
+  {
+   "file": "internal/app/gaea_ui_extra.go",
+   "loc": 1189,
+   "funcs": 56,
+   "max_func": 60,
+   "max_func_at": "internal/app/gaea_ui_extra.go:518"
+  },
+  {
+   "file": "internal/gaea/knowledge/search.go",
+   "loc": 175,
+   "funcs": 5,
+   "max_func": 60,
+   "max_func_at": "internal/gaea/knowledge/search.go:21"
+  },
+  {
+   "file": "internal/gaea/control/controller_memory.go",
+   "loc": 580,
+   "funcs": 22,
+   "max_func": 60,
+   "max_func_at": "internal/gaea/control/controller_memory.go:408"
+  },
+  {
+   "file": "internal/booksource/fetch.go",
+   "loc": 281,
+   "funcs": 9,
+   "max_func": 59,
+   "max_func_at": "internal/booksource/fetch.go:74"
+  },
+  {
+   "file": "internal/app/intent_llm.go",
+   "loc": 102,
+   "funcs": 2,
+   "max_func": 59,
+   "max_func_at": "internal/app/intent_llm.go:43"
+  },
+  {
+   "file": "internal/gaea/control/input.go",
+   "loc": 149,
+   "funcs": 4,
+   "max_func": 59,
+   "max_func_at": "internal/gaea/control/input.go:14"
+  },
+  {
+   "file": "internal/whisper/relationship.go",
+   "loc": 182,
+   "funcs": 7,
+   "max_func": 59,
+   "max_func_at": "internal/whisper/relationship.go:123"
+  },
+  {
+   "file": "internal/novelstyle/rewrite.go",
+   "loc": 156,
+   "funcs": 4,
+   "max_func": 59,
+   "max_func_at": "internal/novelstyle/rewrite.go:49"
+  },
+  {
+   "file": "internal/whisper/memory_retrieve.go",
+   "loc": 80,
+   "funcs": 1,
+   "max_func": 59,
+   "max_func_at": "internal/whisper/memory_retrieve.go:21"
+  },
+  {
+   "file": "internal/types/foreshadow_match.go",
+   "loc": 166,
+   "funcs": 5,
+   "max_func": 59,
+   "max_func_at": "internal/types/foreshadow_match.go:80"
+  },
+  {
+   "file": "internal/app/gaea_retrieval_eval.go",
+   "loc": 241,
+   "funcs": 7,
+   "max_func": 59,
+   "max_func_at": "internal/app/gaea_retrieval_eval.go:77"
+  },
+  {
+   "file": "internal/whisper/user_activity.go",
+   "loc": 222,
+   "funcs": 7,
+   "max_func": 58,
+   "max_func_at": "internal/whisper/user_activity.go:154"
+  },
+  {
+   "file": "internal/app/platform_handler.go",
+   "loc": 223,
+   "funcs": 7,
+   "max_func": 58,
+   "max_func_at": "internal/app/platform_handler.go:87"
+  },
+  {
+   "file": "internal/app/herdsman_catalog.go",
+   "loc": 266,
+   "funcs": 5,
+   "max_func": 58,
+   "max_func_at": "internal/app/herdsman_catalog.go:87"
+  },
+  {
+   "file": "internal/gaea/agent/session/rewind.go",
+   "loc": 134,
+   "funcs": 2,
+   "max_func": 58,
+   "max_func_at": "internal/gaea/agent/session/rewind.go:40"
+  },
+  {
+   "file": "internal/chapter/chapter.go",
+   "loc": 222,
+   "funcs": 9,
+   "max_func": 57,
+   "max_func_at": "internal/chapter/chapter.go:77"
+  },
+  {
+   "file": "internal/novelstyle/score.go",
+   "loc": 440,
+   "funcs": 20,
+   "max_func": 57,
+   "max_func_at": "internal/novelstyle/score.go:63"
+  },
+  {
+   "file": "internal/app/intent_router.go",
+   "loc": 655,
+   "funcs": 23,
+   "max_func": 57,
+   "max_func_at": "internal/app/intent_router.go:575"
+  },
+  {
+   "file": "internal/gaea/cache/runtime.go",
+   "loc": 433,
+   "funcs": 20,
+   "max_func": 57,
+   "max_func_at": "internal/gaea/cache/runtime.go:306"
+  },
+  {
+   "file": "internal/httpbridge/bridge.go",
+   "loc": 380,
+   "funcs": 20,
+   "max_func": 57,
+   "max_func_at": "internal/httpbridge/bridge.go:323"
+  },
+  {
+   "file": "internal/gaea/jobs/jobs.go",
+   "loc": 496,
+   "funcs": 23,
+   "max_func": 57,
+   "max_func_at": "internal/gaea/jobs/jobs.go:134"
+  },
+  {
+   "file": "internal/gaea/memory/morning.go",
+   "loc": 150,
+   "funcs": 5,
+   "max_func": 57,
+   "max_func_at": "internal/gaea/memory/morning.go:93"
+  },
+  {
+   "file": "internal/app/module_bindings.go",
+   "loc": 149,
+   "funcs": 6,
+   "max_func": 57,
+   "max_func_at": "internal/app/module_bindings.go:25"
+  },
+  {
+   "file": "internal/gaea/agent/model_tool_recorder.go",
+   "loc": 213,
+   "funcs": 7,
+   "max_func": 57,
+   "max_func_at": "internal/gaea/agent/model_tool_recorder.go:156"
+  },
+  {
+   "file": "internal/stats/stats.go",
+   "loc": 83,
+   "funcs": 1,
+   "max_func": 57,
+   "max_func_at": "internal/stats/stats.go:26"
+  },
+  {
+   "file": "internal/whisper/reunion.go",
+   "loc": 374,
+   "funcs": 4,
+   "max_func": 57,
+   "max_func_at": "internal/whisper/reunion.go:37"
+  },
+  {
+   "file": "internal/app/gaea_whisper_anchor.go",
+   "loc": 160,
+   "funcs": 4,
+   "max_func": 56,
+   "max_func_at": "internal/app/gaea_whisper_anchor.go:64"
+  },
+  {
+   "file": "internal/gaea/cost/contentband.go",
+   "loc": 117,
+   "funcs": 3,
+   "max_func": 56,
+   "max_func_at": "internal/gaea/cost/contentband.go:61"
+  },
+  {
+   "file": "internal/whisper/memory_habit.go",
+   "loc": 210,
+   "funcs": 10,
+   "max_func": 56,
+   "max_func_at": "internal/whisper/memory_habit.go:72"
+  },
+  {
+   "file": "internal/whisper/psyche.go",
+   "loc": 209,
+   "funcs": 4,
+   "max_func": 56,
+   "max_func_at": "internal/whisper/psyche.go:95"
+  },
+  {
+   "file": "internal/whisper/db/repos/associations.go",
+   "loc": 139,
+   "funcs": 5,
+   "max_func": 55,
+   "max_func_at": "internal/whisper/db/repos/associations.go:76"
+  },
+  {
+   "file": "internal/gaea/browser/manager.go",
+   "loc": 1069,
+   "funcs": 35,
+   "max_func": 55,
+   "max_func_at": "internal/gaea/browser/manager.go:513"
+  },
+  {
+   "file": "internal/gaea/agent/prune.go",
+   "loc": 80,
+   "funcs": 1,
+   "max_func": 55,
+   "max_func_at": "internal/gaea/agent/prune.go:25"
+  },
+  {
+   "file": "internal/whisper/memory_contradiction.go",
+   "loc": 240,
+   "funcs": 5,
+   "max_func": 55,
+   "max_func_at": "internal/whisper/memory_contradiction.go:159"
+  },
+  {
+   "file": "internal/gaea/tool/tool.go",
+   "loc": 443,
+   "funcs": 19,
+   "max_func": 55,
+   "max_func_at": "internal/gaea/tool/tool.go:388"
+  },
+  {
+   "file": "internal/tts/herdsman.go",
+   "loc": 422,
+   "funcs": 23,
+   "max_func": 55,
+   "max_func_at": "internal/tts/herdsman.go:228"
+  },
+  {
+   "file": "internal/gaea/genui/validate.go",
+   "loc": 180,
+   "funcs": 4,
+   "max_func": 55,
+   "max_func_at": "internal/gaea/genui/validate.go:125"
+  },
+  {
+   "file": "internal/gaea/browser/screenshot.go",
+   "loc": 113,
+   "funcs": 1,
+   "max_func": 55,
+   "max_func_at": "internal/gaea/browser/screenshot.go:53"
+  },
+  {
+   "file": "internal/booksource/search.go",
+   "loc": 314,
+   "funcs": 9,
+   "max_func": 55,
+   "max_func_at": "internal/booksource/search.go:51"
+  },
+  {
+   "file": "internal/gaea/db/database.go",
+   "loc": 156,
+   "funcs": 5,
+   "max_func": 55,
+   "max_func_at": "internal/gaea/db/database.go:28"
+  },
+  {
+   "file": "internal/novelreview/dims.go",
+   "loc": 246,
+   "funcs": 8,
+   "max_func": 55,
+   "max_func_at": "internal/novelreview/dims.go:191"
+  },
+  {
+   "file": "internal/whisper/memory_fact.go",
+   "loc": 485,
+   "funcs": 26,
+   "max_func": 54,
+   "max_func_at": "internal/whisper/memory_fact.go:49"
+  },
+  {
+   "file": "internal/app/gaea_whisper_play.go",
+   "loc": 140,
+   "funcs": 5,
+   "max_func": 54,
+   "max_func_at": "internal/app/gaea_whisper_play.go:42"
+  },
+  {
+   "file": "internal/whisper/memory_self_editor.go",
+   "loc": 156,
+   "funcs": 6,
+   "max_func": 54,
+   "max_func_at": "internal/whisper/memory_self_editor.go:77"
+  },
+  {
+   "file": "internal/gaea/memory/sqlite.go",
+   "loc": 546,
+   "funcs": 27,
+   "max_func": 54,
+   "max_func_at": "internal/gaea/memory/sqlite.go:434"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/completestep.go",
+   "loc": 217,
+   "funcs": 11,
+   "max_func": 54,
+   "max_func_at": "internal/gaea/tool/builtin/completestep.go:82"
+  },
+  {
+   "file": "internal/ai/image_outpaint.go",
+   "loc": 116,
+   "funcs": 3,
+   "max_func": 54,
+   "max_func_at": "internal/ai/image_outpaint.go:36"
+  },
+  {
+   "file": "internal/app/sin_booksource_handler.go",
+   "loc": 374,
+   "funcs": 15,
+   "max_func": 54,
+   "max_func_at": "internal/app/sin_booksource_handler.go:72"
+  },
+  {
+   "file": "internal/app/novel_import_handler.go",
+   "loc": 371,
+   "funcs": 14,
+   "max_func": 54,
+   "max_func_at": "internal/app/novel_import_handler.go:238"
+  },
+  {
+   "file": "internal/gaea/agent/session/subagent_anchor.go",
+   "loc": 105,
+   "funcs": 1,
+   "max_func": 53,
+   "max_func_at": "internal/gaea/agent/session/subagent_anchor.go:52"
+  },
+  {
+   "file": "internal/gaea/agent/tool_dispatch.go",
+   "loc": 106,
+   "funcs": 4,
+   "max_func": 53,
+   "max_func_at": "internal/gaea/agent/tool_dispatch.go:53"
+  },
+  {
+   "file": "internal/routesuggest/suggest.go",
+   "loc": 184,
+   "funcs": 6,
+   "max_func": 53,
+   "max_func_at": "internal/routesuggest/suggest.go:72"
+  },
+  {
+   "file": "internal/gaea/agent/testutil/mock_provider.go",
+   "loc": 199,
+   "funcs": 12,
+   "max_func": 53,
+   "max_func_at": "internal/gaea/agent/testutil/mock_provider.go:65"
+  },
+  {
+   "file": "internal/gaea/provider/provider.go",
+   "loc": 419,
+   "funcs": 15,
+   "max_func": 53,
+   "max_func_at": "internal/gaea/provider/provider.go:84"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/memory_search.go",
+   "loc": 123,
+   "funcs": 10,
+   "max_func": 53,
+   "max_func_at": "internal/gaea/tool/builtin/memory_search.go:51"
+  },
+  {
+   "file": "internal/modelengine/engine_connect.go",
+   "loc": 137,
+   "funcs": 3,
+   "max_func": 52,
+   "max_func_at": "internal/modelengine/engine_connect.go:15"
+  },
+  {
+   "file": "internal/gaea/dag/dag.go",
+   "loc": 417,
+   "funcs": 15,
+   "max_func": 52,
+   "max_func_at": "internal/gaea/dag/dag.go:138"
+  },
+  {
+   "file": "internal/gaea/agent/session/branch.go",
+   "loc": 186,
+   "funcs": 7,
+   "max_func": 52,
+   "max_func_at": "internal/gaea/agent/session/branch.go:134"
+  },
+  {
+   "file": "internal/app/story_memory_recall.go",
+   "loc": 173,
+   "funcs": 6,
+   "max_func": 52,
+   "max_func_at": "internal/app/story_memory_recall.go:107"
+  },
+  {
+   "file": "internal/app/novel_review_handler.go",
+   "loc": 161,
+   "funcs": 4,
+   "max_func": 52,
+   "max_func_at": "internal/app/novel_review_handler.go:109"
+  },
+  {
+   "file": "internal/app/gaea_prompt_store.go",
+   "loc": 484,
+   "funcs": 19,
+   "max_func": 52,
+   "max_func_at": "internal/app/gaea_prompt_store.go:313"
+  },
+  {
+   "file": "internal/app/sin_tool_illustrate.go",
+   "loc": 177,
+   "funcs": 9,
+   "max_func": 52,
+   "max_func_at": "internal/app/sin_tool_illustrate.go:74"
+  },
+  {
+   "file": "internal/assistant/manager.go",
+   "loc": 282,
+   "funcs": 11,
+   "max_func": 52,
+   "max_func_at": "internal/assistant/manager.go:60"
+  },
+  {
+   "file": "internal/screen/screen_windows.go",
+   "loc": 204,
+   "funcs": 9,
+   "max_func": 52,
+   "max_func_at": "internal/screen/screen_windows.go:125"
+  },
+  {
+   "file": "internal/app/novel_fingerprint_handler.go",
+   "loc": 257,
+   "funcs": 8,
+   "max_func": 51,
+   "max_func_at": "internal/app/novel_fingerprint_handler.go:206"
+  },
+  {
+   "file": "internal/app/voice_model_handler.go",
+   "loc": 231,
+   "funcs": 9,
+   "max_func": 51,
+   "max_func_at": "internal/app/voice_model_handler.go:129"
+  },
+  {
+   "file": "internal/rewrite/engine.go",
+   "loc": 208,
+   "funcs": 5,
+   "max_func": 51,
+   "max_func_at": "internal/rewrite/engine.go:93"
+  },
+  {
+   "file": "internal/app/module_registry.go",
+   "loc": 141,
+   "funcs": 7,
+   "max_func": 51,
+   "max_func_at": "internal/app/module_registry.go:84"
+  },
+  {
+   "file": "internal/app/outline_handler.go",
+   "loc": 184,
+   "funcs": 9,
+   "max_func": 51,
+   "max_func_at": "internal/app/outline_handler.go:133"
+  },
+  {
+   "file": "internal/gaea/memory/distill.go",
+   "loc": 87,
+   "funcs": 2,
+   "max_func": 51,
+   "max_func_at": "internal/gaea/memory/distill.go:36"
+  },
+  {
+   "file": "internal/schedule/cost.go",
+   "loc": 115,
+   "funcs": 3,
+   "max_func": 51,
+   "max_func_at": "internal/schedule/cost.go:64"
+  },
+  {
+   "file": "internal/realtime/openai.go",
+   "loc": 379,
+   "funcs": 18,
+   "max_func": 51,
+   "max_func_at": "internal/realtime/openai.go:83"
+  },
+  {
+   "file": "internal/docmd/render.go",
+   "loc": 73,
+   "funcs": 1,
+   "max_func": 51,
+   "max_func_at": "internal/docmd/render.go:22"
+  },
+  {
+   "file": "internal/modelengine/health_probe.go",
+   "loc": 279,
+   "funcs": 9,
+   "max_func": 51,
+   "max_func_at": "internal/modelengine/health_probe.go:130"
+  },
+  {
+   "file": "internal/app/sin_tool_book.go",
+   "loc": 178,
+   "funcs": 12,
+   "max_func": 51,
+   "max_func_at": "internal/app/sin_tool_book.go:54"
+  },
+  {
+   "file": "internal/gaea/agent/subagent_store.go",
+   "loc": 781,
+   "funcs": 36,
+   "max_func": 51,
+   "max_func_at": "internal/gaea/agent/subagent_store.go:339"
+  },
+  {
+   "file": "internal/app/gaea_knowledge_meta.go",
+   "loc": 263,
+   "funcs": 10,
+   "max_func": 51,
+   "max_func_at": "internal/app/gaea_knowledge_meta.go:201"
+  },
+  {
+   "file": "internal/app/sin_tool_loop.go",
+   "loc": 265,
+   "funcs": 10,
+   "max_func": 51,
+   "max_func_at": "internal/app/sin_tool_loop.go:142"
+  },
+  {
+   "file": "internal/gaea/control/controller_rewind.go",
+   "loc": 193,
+   "funcs": 5,
+   "max_func": 50,
+   "max_func_at": "internal/gaea/control/controller_rewind.go:133"
+  },
+  {
+   "file": "internal/gaea/plugin/transport_http.go",
+   "loc": 202,
+   "funcs": 8,
+   "max_func": 50,
+   "max_func_at": "internal/gaea/plugin/transport_http.go:136"
+  },
+  {
+   "file": "internal/gaea/semantic/semantic.go",
+   "loc": 289,
+   "funcs": 12,
+   "max_func": 50,
+   "max_func_at": "internal/gaea/semantic/semantic.go:97"
+  },
+  {
+   "file": "internal/app/foreshadow_cleanup_handler.go",
+   "loc": 222,
+   "funcs": 6,
+   "max_func": 49,
+   "max_func_at": "internal/app/foreshadow_cleanup_handler.go:173"
+  },
+  {
+   "file": "internal/app/gaea_git.go",
+   "loc": 313,
+   "funcs": 13,
+   "max_func": 49,
+   "max_func_at": "internal/app/gaea_git.go:150"
+  },
+  {
+   "file": "internal/herdsman/health.go",
+   "loc": 250,
+   "funcs": 8,
+   "max_func": 49,
+   "max_func_at": "internal/herdsman/health.go:90"
+  },
+  {
+   "file": "internal/gaea/agent/plan_mode.go",
+   "loc": 189,
+   "funcs": 13,
+   "max_func": 49,
+   "max_func_at": "internal/gaea/agent/plan_mode.go:89"
+  },
+  {
+   "file": "internal/app/gaea_schedule_file.go",
+   "loc": 412,
+   "funcs": 14,
+   "max_func": 49,
+   "max_func_at": "internal/app/gaea_schedule_file.go:270"
+  },
+  {
+   "file": "internal/whisper/memory_episode.go",
+   "loc": 128,
+   "funcs": 7,
+   "max_func": 49,
+   "max_func_at": "internal/whisper/memory_episode.go:41"
+  },
+  {
+   "file": "internal/whisper/db/repos/fts.go",
+   "loc": 351,
+   "funcs": 14,
+   "max_func": 48,
+   "max_func_at": "internal/whisper/db/repos/fts.go:14"
+  },
+  {
+   "file": "internal/gaea/agent/param_storm.go",
+   "loc": 155,
+   "funcs": 5,
+   "max_func": 48,
+   "max_func_at": "internal/gaea/agent/param_storm.go:74"
+  },
+  {
+   "file": "internal/app/ocr_model_handler.go",
+   "loc": 69,
+   "funcs": 2,
+   "max_func": 48,
+   "max_func_at": "internal/app/ocr_model_handler.go:13"
+  },
+  {
+   "file": "internal/util/util.go",
+   "loc": 198,
+   "funcs": 11,
+   "max_func": 48,
+   "max_func_at": "internal/util/util.go:19"
+  },
+  {
+   "file": "internal/app/auth_handler.go",
+   "loc": 142,
+   "funcs": 5,
+   "max_func": 48,
+   "max_func_at": "internal/app/auth_handler.go:52"
+  },
+  {
+   "file": "internal/app/feature_model_handler.go",
+   "loc": 191,
+   "funcs": 9,
+   "max_func": 48,
+   "max_func_at": "internal/app/feature_model_handler.go:72"
+  },
+  {
+   "file": "internal/app/office_skill_record.go",
+   "loc": 211,
+   "funcs": 8,
+   "max_func": 47,
+   "max_func_at": "internal/app/office_skill_record.go:152"
+  },
+  {
+   "file": "internal/whisper/web_search.go",
+   "loc": 250,
+   "funcs": 9,
+   "max_func": 47,
+   "max_func_at": "internal/whisper/web_search.go:55"
+  },
+  {
+   "file": "internal/app/app_info.go",
+   "loc": 98,
+   "funcs": 3,
+   "max_func": 47,
+   "max_func_at": "internal/app/app_info.go:26"
+  },
+  {
+   "file": "internal/gaea/retrieval/rerank.go",
+   "loc": 218,
+   "funcs": 8,
+   "max_func": 47,
+   "max_func_at": "internal/gaea/retrieval/rerank.go:96"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/writefile.go",
+   "loc": 89,
+   "funcs": 8,
+   "max_func": 47,
+   "max_func_at": "internal/gaea/tool/builtin/writefile.go:42"
+  },
+  {
+   "file": "internal/app/gaea_ui_meta.go",
+   "loc": 630,
+   "funcs": 26,
+   "max_func": 47,
+   "max_func_at": "internal/app/gaea_ui_meta.go:121"
+  },
+  {
+   "file": "internal/gaea/hook/hook.go",
+   "loc": 471,
+   "funcs": 18,
+   "max_func": 47,
+   "max_func_at": "internal/gaea/hook/hook.go:382"
+  },
+  {
+   "file": "internal/app/sin_tool_cast.go",
+   "loc": 164,
+   "funcs": 9,
+   "max_func": 47,
+   "max_func_at": "internal/app/sin_tool_cast.go:70"
+  },
+  {
+   "file": "internal/booksource/chapter.go",
+   "loc": 213,
+   "funcs": 5,
+   "max_func": 47,
+   "max_func_at": "internal/booksource/chapter.go:44"
+  },
+  {
+   "file": "internal/app/eval_snapshots_list.go",
+   "loc": 67,
+   "funcs": 1,
+   "max_func": 47,
+   "max_func_at": "internal/app/eval_snapshots_list.go:20"
+  },
+  {
+   "file": "internal/app/gaea_cost_rerank.go",
+   "loc": 219,
+   "funcs": 10,
+   "max_func": 46,
+   "max_func_at": "internal/app/gaea_cost_rerank.go:107"
+  },
+  {
+   "file": "internal/app/create_chapter_stage.go",
+   "loc": 143,
+   "funcs": 5,
+   "max_func": 46,
+   "max_func_at": "internal/app/create_chapter_stage.go:46"
+  },
+  {
+   "file": "internal/prompt/prompt.go",
+   "loc": 343,
+   "funcs": 13,
+   "max_func": 46,
+   "max_func_at": "internal/prompt/prompt.go:181"
+  },
+  {
+   "file": "internal/gaea/costproject/costproject.go",
+   "loc": 354,
+   "funcs": 12,
+   "max_func": 46,
+   "max_func_at": "internal/gaea/costproject/costproject.go:283"
+  },
+  {
+   "file": "internal/gaea/pins/pins.go",
+   "loc": 221,
+   "funcs": 10,
+   "max_func": 46,
+   "max_func_at": "internal/gaea/pins/pins.go:147"
+  },
+  {
+   "file": "internal/gaea/memory/activation.go",
+   "loc": 126,
+   "funcs": 4,
+   "max_func": 46,
+   "max_func_at": "internal/gaea/memory/activation.go:47"
+  },
+  {
+   "file": "internal/app/tts_service.go",
+   "loc": 162,
+   "funcs": 7,
+   "max_func": 46,
+   "max_func_at": "internal/app/tts_service.go:111"
+  },
+  {
+   "file": "internal/novelreview/rubric.go",
+   "loc": 228,
+   "funcs": 9,
+   "max_func": 46,
+   "max_func_at": "internal/novelreview/rubric.go:114"
+  },
+  {
+   "file": "internal/app/image_domain.go",
+   "loc": 433,
+   "funcs": 15,
+   "max_func": 46,
+   "max_func_at": "internal/app/image_domain.go:118"
+  },
+  {
+   "file": "internal/app/herdsman_lifecycle.go",
+   "loc": 287,
+   "funcs": 11,
+   "max_func": 46,
+   "max_func_at": "internal/app/herdsman_lifecycle.go:172"
+  },
+  {
+   "file": "internal/ai/image_comfyui_workflows.go",
+   "loc": 320,
+   "funcs": 11,
+   "max_func": 46,
+   "max_func_at": "internal/ai/image_comfyui_workflows.go:189"
+  },
+  {
+   "file": "internal/gaea/contextview/detail.go",
+   "loc": 137,
+   "funcs": 5,
+   "max_func": 46,
+   "max_func_at": "internal/gaea/contextview/detail.go:19"
+  },
+  {
+   "file": "internal/gaea/config/config.go",
+   "loc": 956,
+   "funcs": 38,
+   "max_func": 46,
+   "max_func_at": "internal/gaea/config/config.go:733"
+  },
+  {
+   "file": "internal/app/sin_prompt.go",
+   "loc": 276,
+   "funcs": 7,
+   "max_func": 46,
+   "max_func_at": "internal/app/sin_prompt.go:206"
+  },
+  {
+   "file": "internal/schedule/index.go",
+   "loc": 317,
+   "funcs": 11,
+   "max_func": 46,
+   "max_func_at": "internal/schedule/index.go:209"
+  },
+  {
+   "file": "internal/app/office_skill_capture.go",
+   "loc": 125,
+   "funcs": 3,
+   "max_func": 45,
+   "max_func_at": "internal/app/office_skill_capture.go:39"
+  },
+  {
+   "file": "internal/gaea/skill/index.go",
+   "loc": 141,
+   "funcs": 3,
+   "max_func": 45,
+   "max_func_at": "internal/gaea/skill/index.go:38"
+  },
+  {
+   "file": "internal/whisper/turn_plan_prompt.go",
+   "loc": 239,
+   "funcs": 7,
+   "max_func": 45,
+   "max_func_at": "internal/whisper/turn_plan_prompt.go:115"
+  },
+  {
+   "file": "internal/docmd/pagespec.go",
+   "loc": 165,
+   "funcs": 5,
+   "max_func": 45,
+   "max_func_at": "internal/docmd/pagespec.go:38"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/editfile.go",
+   "loc": 142,
+   "funcs": 10,
+   "max_func": 45,
+   "max_func_at": "internal/gaea/tool/builtin/editfile.go:52"
+  },
+  {
+   "file": "internal/gaea/frontmatter/frontmatter.go",
+   "loc": 65,
+   "funcs": 1,
+   "max_func": 45,
+   "max_func_at": "internal/gaea/frontmatter/frontmatter.go:20"
+  },
+  {
+   "file": "internal/gaea/evidence/evidence.go",
+   "loc": 603,
+   "funcs": 39,
+   "max_func": 45,
+   "max_func_at": "internal/gaea/evidence/evidence.go:181"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/bgjobs.go",
+   "loc": 221,
+   "funcs": 23,
+   "max_func": 45,
+   "max_func_at": "internal/gaea/tool/builtin/bgjobs.go:50"
+  },
+  {
+   "file": "internal/gaea/control/attachments.go",
+   "loc": 272,
+   "funcs": 11,
+   "max_func": 45,
+   "max_func_at": "internal/gaea/control/attachments.go:112"
+  },
+  {
+   "file": "internal/app/gaea_memory_meta.go",
+   "loc": 118,
+   "funcs": 4,
+   "max_func": 45,
+   "max_func_at": "internal/app/gaea_memory_meta.go:48"
+  },
+  {
+   "file": "internal/app/gaea_diagram.go",
+   "loc": 253,
+   "funcs": 14,
+   "max_func": 45,
+   "max_func_at": "internal/app/gaea_diagram.go:81"
+  },
+  {
+   "file": "internal/worldview/worldview.go",
+   "loc": 252,
+   "funcs": 12,
+   "max_func": 44,
+   "max_func_at": "internal/worldview/worldview.go:143"
+  },
+  {
+   "file": "internal/tts/sapi.go",
+   "loc": 101,
+   "funcs": 7,
+   "max_func": 44,
+   "max_func_at": "internal/tts/sapi.go:27"
+  },
+  {
+   "file": "internal/app/sin_store.go",
+   "loc": 267,
+   "funcs": 11,
+   "max_func": 44,
+   "max_func_at": "internal/app/sin_store.go:223"
+  },
+  {
+   "file": "internal/whisper/adult_mode.go",
+   "loc": 295,
+   "funcs": 9,
+   "max_func": 44,
+   "max_func_at": "internal/whisper/adult_mode.go:228"
+  },
+  {
+   "file": "internal/modelengine/glm_catalog.go",
+   "loc": 430,
+   "funcs": 19,
+   "max_func": 44,
+   "max_func_at": "internal/modelengine/glm_catalog.go:286"
+  },
+  {
+   "file": "internal/whisper/strategy_intensity.go",
+   "loc": 55,
+   "funcs": 1,
+   "max_func": 44,
+   "max_func_at": "internal/whisper/strategy_intensity.go:11"
+  },
+  {
+   "file": "internal/app/gaea_memory_lifecycle.go",
+   "loc": 364,
+   "funcs": 12,
+   "max_func": 44,
+   "max_func_at": "internal/app/gaea_memory_lifecycle.go:296"
+  },
+  {
+   "file": "internal/gaea/memory/file_backend.go",
+   "loc": 507,
+   "funcs": 28,
+   "max_func": 43,
+   "max_func_at": "internal/gaea/memory/file_backend.go:316"
+  },
+  {
+   "file": "internal/whisper/db/repos/companion_state.go",
+   "loc": 118,
+   "funcs": 3,
+   "max_func": 43,
+   "max_func_at": "internal/whisper/db/repos/companion_state.go:60"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/workspace.go",
+   "loc": 75,
+   "funcs": 1,
+   "max_func": 43,
+   "max_func_at": "internal/gaea/tool/builtin/workspace.go:32"
+  },
+  {
+   "file": "internal/app/visual_handler.go",
+   "loc": 146,
+   "funcs": 4,
+   "max_func": 43,
+   "max_func_at": "internal/app/visual_handler.go:103"
+  },
+  {
+   "file": "internal/app/context_handler.go",
+   "loc": 230,
+   "funcs": 6,
+   "max_func": 43,
+   "max_func_at": "internal/app/context_handler.go:112"
+  },
+  {
+   "file": "internal/gaea/permission/permission.go",
+   "loc": 310,
+   "funcs": 14,
+   "max_func": 43,
+   "max_func_at": "internal/gaea/permission/permission.go:257"
+  },
+  {
+   "file": "internal/app/ghost_suggest.go",
+   "loc": 78,
+   "funcs": 2,
+   "max_func": 43,
+   "max_func_at": "internal/app/ghost_suggest.go:25"
+  },
+  {
+   "file": "internal/chat/store.go",
+   "loc": 410,
+   "funcs": 19,
+   "max_func": 43,
+   "max_func_at": "internal/chat/store.go:241"
+  },
+  {
+   "file": "internal/gaea/browser/cdp.go",
+   "loc": 243,
+   "funcs": 11,
+   "max_func": 43,
+   "max_func_at": "internal/gaea/browser/cdp.go:86"
+  },
+  {
+   "file": "internal/gaea/bm25/bm25.go",
+   "loc": 212,
+   "funcs": 8,
+   "max_func": 43,
+   "max_func_at": "internal/gaea/bm25/bm25.go:162"
+  },
+  {
+   "file": "internal/gaea/largefile/summary.go",
+   "loc": 273,
+   "funcs": 8,
+   "max_func": 43,
+   "max_func_at": "internal/gaea/largefile/summary.go:230"
+  },
+  {
+   "file": "internal/app/sin_tool_export.go",
+   "loc": 172,
+   "funcs": 10,
+   "max_func": 42,
+   "max_func_at": "internal/app/sin_tool_export.go:70"
+  },
+  {
+   "file": "internal/gaea/agent/tool_precheck.go",
+   "loc": 174,
+   "funcs": 5,
+   "max_func": 42,
+   "max_func_at": "internal/gaea/agent/tool_precheck.go:71"
+  },
+  {
+   "file": "internal/gaea/agent/session/checkpoint.go",
+   "loc": 123,
+   "funcs": 3,
+   "max_func": 42,
+   "max_func_at": "internal/gaea/agent/session/checkpoint.go:81"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/format_convert.go",
+   "loc": 92,
+   "funcs": 8,
+   "max_func": 42,
+   "max_func_at": "internal/gaea/tool/builtin/format_convert.go:50"
+  },
+  {
+   "file": "internal/analysis/annotate.go",
+   "loc": 155,
+   "funcs": 6,
+   "max_func": 42,
+   "max_func_at": "internal/analysis/annotate.go:113"
+  },
+  {
+   "file": "internal/app/gaea_ui_contextview.go",
+   "loc": 323,
+   "funcs": 12,
+   "max_func": 42,
+   "max_func_at": "internal/app/gaea_ui_contextview.go:256"
+  },
+  {
+   "file": "internal/whisper/profiling_user.go",
+   "loc": 112,
+   "funcs": 3,
+   "max_func": 42,
+   "max_func_at": "internal/whisper/profiling_user.go:24"
+  },
+  {
+   "file": "internal/app/gaea_subagent_followup.go",
+   "loc": 67,
+   "funcs": 1,
+   "max_func": 42,
+   "max_func_at": "internal/app/gaea_subagent_followup.go:25"
+  },
+  {
+   "file": "internal/gaea/agent/persisted_run.go",
+   "loc": 75,
+   "funcs": 2,
+   "max_func": 42,
+   "max_func_at": "internal/gaea/agent/persisted_run.go:21"
+  },
+  {
+   "file": "internal/app/gaea_spaces.go",
+   "loc": 292,
+   "funcs": 11,
+   "max_func": 41,
+   "max_func_at": "internal/app/gaea_spaces.go:163"
+  },
+  {
+   "file": "internal/gaea/agent/session/sink.go",
+   "loc": 173,
+   "funcs": 9,
+   "max_func": 41,
+   "max_func_at": "internal/gaea/agent/session/sink.go:96"
+  },
+  {
+   "file": "internal/app/graph_handler.go",
+   "loc": 233,
+   "funcs": 9,
+   "max_func": 41,
+   "max_func_at": "internal/app/graph_handler.go:175"
+  },
+  {
+   "file": "internal/app/gaea_listdir.go",
+   "loc": 94,
+   "funcs": 2,
+   "max_func": 41,
+   "max_func_at": "internal/app/gaea_listdir.go:53"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/todo.go",
+   "loc": 205,
+   "funcs": 12,
+   "max_func": 41,
+   "max_func_at": "internal/gaea/tool/builtin/todo.go:69"
+  },
+  {
+   "file": "internal/app/style_digest_handler.go",
+   "loc": 143,
+   "funcs": 7,
+   "max_func": 41,
+   "max_func_at": "internal/app/style_digest_handler.go:19"
+  },
+  {
+   "file": "internal/skilldistill/distill.go",
+   "loc": 275,
+   "funcs": 13,
+   "max_func": 41,
+   "max_func_at": "internal/skilldistill/distill.go:173"
+  },
+  {
+   "file": "internal/auth/token.go",
+   "loc": 211,
+   "funcs": 9,
+   "max_func": 41,
+   "max_func_at": "internal/auth/token.go:94"
+  },
+  {
+   "file": "internal/gaea/memory/morning_preload.go",
+   "loc": 97,
+   "funcs": 2,
+   "max_func": 41,
+   "max_func_at": "internal/gaea/memory/morning_preload.go:37"
+  },
+  {
+   "file": "internal/whisper/runtime_hints.go",
+   "loc": 68,
+   "funcs": 3,
+   "max_func": 41,
+   "max_func_at": "internal/whisper/runtime_hints.go:22"
+  },
+  {
+   "file": "internal/gaea/largefile/tool.go",
+   "loc": 106,
+   "funcs": 10,
+   "max_func": 41,
+   "max_func_at": "internal/gaea/largefile/tool.go:58"
+  },
+  {
+   "file": "internal/gaea/provider/llm.go",
+   "loc": 131,
+   "funcs": 3,
+   "max_func": 41,
+   "max_func_at": "internal/gaea/provider/llm.go:56"
+  },
+  {
+   "file": "internal/characterlib/import.go",
+   "loc": 120,
+   "funcs": 3,
+   "max_func": 40,
+   "max_func_at": "internal/characterlib/import.go:80"
+  },
+  {
+   "file": "internal/app/logging.go",
+   "loc": 126,
+   "funcs": 5,
+   "max_func": 40,
+   "max_func_at": "internal/app/logging.go:67"
+  },
+  {
+   "file": "internal/app/imagehub_ledger.go",
+   "loc": 166,
+   "funcs": 6,
+   "max_func": 40,
+   "max_func_at": "internal/app/imagehub_ledger.go:126"
+  },
+  {
+   "file": "internal/app/gaea_lint.go",
+   "loc": 56,
+   "funcs": 1,
+   "max_func": 40,
+   "max_func_at": "internal/app/gaea_lint.go:16"
+  },
+  {
+   "file": "internal/app/model_router.go",
+   "loc": 207,
+   "funcs": 14,
+   "max_func": 40,
+   "max_func_at": "internal/app/model_router.go:17"
+  },
+  {
+   "file": "internal/gaea/provider/schema_canonicalize.go",
+   "loc": 127,
+   "funcs": 4,
+   "max_func": 40,
+   "max_func_at": "internal/gaea/provider/schema_canonicalize.go:14"
+  },
+  {
+   "file": "internal/app/novel_state_handler.go",
+   "loc": 109,
+   "funcs": 4,
+   "max_func": 40,
+   "max_func_at": "internal/app/novel_state_handler.go:44"
+  },
+  {
+   "file": "internal/whisper/vector_search.go",
+   "loc": 278,
+   "funcs": 9,
+   "max_func": 40,
+   "max_func_at": "internal/whisper/vector_search.go:89"
+  },
+  {
+   "file": "internal/gaea/memory/recall.go",
+   "loc": 219,
+   "funcs": 7,
+   "max_func": 40,
+   "max_func_at": "internal/gaea/memory/recall.go:29"
+  },
+  {
+   "file": "internal/whisper/memory_graph_persist.go",
+   "loc": 81,
+   "funcs": 2,
+   "max_func": 40,
+   "max_func_at": "internal/whisper/memory_graph_persist.go:19"
+  },
+  {
+   "file": "internal/app/foreshadow_handler.go",
+   "loc": 61,
+   "funcs": 1,
+   "max_func": 40,
+   "max_func_at": "internal/app/foreshadow_handler.go:21"
+  },
+  {
+   "file": "internal/gaea/coststage/coststage.go",
+   "loc": 333,
+   "funcs": 13,
+   "max_func": 40,
+   "max_func_at": "internal/gaea/coststage/coststage.go:218"
+  },
+  {
+   "file": "internal/gaea/control/slash.go",
+   "loc": 174,
+   "funcs": 6,
+   "max_func": 40,
+   "max_func_at": "internal/gaea/control/slash.go:63"
+  },
+  {
+   "file": "internal/characterlib/portrait.go",
+   "loc": 310,
+   "funcs": 17,
+   "max_func": 40,
+   "max_func_at": "internal/characterlib/portrait.go:236"
+  },
+  {
+   "file": "internal/whisper/memory_write_job.go",
+   "loc": 200,
+   "funcs": 7,
+   "max_func": 40,
+   "max_func_at": "internal/whisper/memory_write_job.go:101"
+  },
+  {
+   "file": "internal/gaea/secure/secure_other.go",
+   "loc": 145,
+   "funcs": 5,
+   "max_func": 40,
+   "max_func_at": "internal/gaea/secure/secure_other.go:47"
+  },
+  {
+   "file": "internal/app/scene_gen_handler.go",
+   "loc": 232,
+   "funcs": 7,
+   "max_func": 39,
+   "max_func_at": "internal/app/scene_gen_handler.go:137"
+  },
+  {
+   "file": "internal/tts/xai.go",
+   "loc": 139,
+   "funcs": 9,
+   "max_func": 39,
+   "max_func_at": "internal/tts/xai.go:86"
+  },
+  {
+   "file": "internal/app/gaea_routine_llm.go",
+   "loc": 162,
+   "funcs": 10,
+   "max_func": 39,
+   "max_func_at": "internal/app/gaea_routine_llm.go:54"
+  },
+  {
+   "file": "internal/context/engine.go",
+   "loc": 232,
+   "funcs": 10,
+   "max_func": 39,
+   "max_func_at": "internal/context/engine.go:177"
+  },
+  {
+   "file": "internal/rewrite/partial.go",
+   "loc": 204,
+   "funcs": 5,
+   "max_func": 39,
+   "max_func_at": "internal/rewrite/partial.go:93"
+  },
+  {
+   "file": "internal/app/gaea_pptx.go",
+   "loc": 422,
+   "funcs": 12,
+   "max_func": 39,
+   "max_func_at": "internal/app/gaea_pptx.go:271"
+  },
+  {
+   "file": "internal/scene/scene.go",
+   "loc": 278,
+   "funcs": 16,
+   "max_func": 39,
+   "max_func_at": "internal/scene/scene.go:35"
+  },
+  {
+   "file": "internal/gaea/context/metrics.go",
+   "loc": 213,
+   "funcs": 10,
+   "max_func": 39,
+   "max_func_at": "internal/gaea/context/metrics.go:64"
+  },
+  {
+   "file": "internal/gaea/agent/stop_gate.go",
+   "loc": 161,
+   "funcs": 4,
+   "max_func": 39,
+   "max_func_at": "internal/gaea/agent/stop_gate.go:69"
+  },
+  {
+   "file": "internal/gaea/plugin/transport_stdio.go",
+   "loc": 248,
+   "funcs": 11,
+   "max_func": 39,
+   "max_func_at": "internal/gaea/plugin/transport_stdio.go:41"
+  },
+  {
+   "file": "internal/whisper/memory_temporal.go",
+   "loc": 88,
+   "funcs": 3,
+   "max_func": 39,
+   "max_func_at": "internal/whisper/memory_temporal.go:14"
+  },
+  {
+   "file": "internal/gaea/search/search.go",
+   "loc": 170,
+   "funcs": 5,
+   "max_func": 39,
+   "max_func_at": "internal/gaea/search/search.go:112"
+  },
+  {
+   "file": "internal/gaea/retrieval/embed.go",
+   "loc": 216,
+   "funcs": 8,
+   "max_func": 39,
+   "max_func_at": "internal/gaea/retrieval/embed.go:85"
+  },
+  {
+   "file": "internal/gaea/fileindex/fileindex.go",
+   "loc": 193,
+   "funcs": 7,
+   "max_func": 39,
+   "max_func_at": "internal/gaea/fileindex/fileindex.go:51"
+  },
+  {
+   "file": "internal/whisper/sentence_split.go",
+   "loc": 95,
+   "funcs": 3,
+   "max_func": 39,
+   "max_func_at": "internal/whisper/sentence_split.go:10"
+  },
+  {
+   "file": "internal/app/wx_file_handler.go",
+   "loc": 306,
+   "funcs": 13,
+   "max_func": 39,
+   "max_func_at": "internal/app/wx_file_handler.go:146"
+  },
+  {
+   "file": "internal/herdsman/probe.go",
+   "loc": 324,
+   "funcs": 10,
+   "max_func": 38,
+   "max_func_at": "internal/herdsman/probe.go:151"
+  },
+  {
+   "file": "internal/gaea/textsim/textsim.go",
+   "loc": 80,
+   "funcs": 3,
+   "max_func": 38,
+   "max_func_at": "internal/gaea/textsim/textsim.go:30"
+  },
+  {
+   "file": "internal/app/gaea_data_backup.go",
+   "loc": 309,
+   "funcs": 11,
+   "max_func": 38,
+   "max_func_at": "internal/app/gaea_data_backup.go:27"
+  },
+  {
+   "file": "internal/whisper/db/database.go",
+   "loc": 271,
+   "funcs": 7,
+   "max_func": 38,
+   "max_func_at": "internal/whisper/db/database.go:27"
+  },
+  {
+   "file": "internal/whisper/db/repos/habits.go",
+   "loc": 169,
+   "funcs": 7,
+   "max_func": 37,
+   "max_func_at": "internal/whisper/db/repos/habits.go:104"
+  },
+  {
+   "file": "internal/gaea/agent/toolguard/repair.go",
+   "loc": 260,
+   "funcs": 12,
+   "max_func": 37,
+   "max_func_at": "internal/gaea/agent/toolguard/repair.go:169"
+  },
+  {
+   "file": "internal/gaea/cost/params.go",
+   "loc": 96,
+   "funcs": 4,
+   "max_func": 37,
+   "max_func_at": "internal/gaea/cost/params.go:59"
+  },
+  {
+   "file": "internal/office/standard/registry.go",
+   "loc": 120,
+   "funcs": 6,
+   "max_func": 37,
+   "max_func_at": "internal/office/standard/registry.go:74"
+  },
+  {
+   "file": "internal/netclient/netclient.go",
+   "loc": 311,
+   "funcs": 17,
+   "max_func": 37,
+   "max_func_at": "internal/netclient/netclient.go:250"
+  },
+  {
+   "file": "internal/modelengine/engine_crud.go",
+   "loc": 147,
+   "funcs": 6,
+   "max_func": 37,
+   "max_func_at": "internal/modelengine/engine_crud.go:69"
+  },
+  {
+   "file": "internal/gaea/agent/detector.go",
+   "loc": 96,
+   "funcs": 4,
+   "max_func": 37,
+   "max_func_at": "internal/gaea/agent/detector.go:30"
+  },
+  {
+   "file": "internal/app/gaea_whisper_replay.go",
+   "loc": 93,
+   "funcs": 2,
+   "max_func": 37,
+   "max_func_at": "internal/app/gaea_whisper_replay.go:56"
+  },
+  {
+   "file": "internal/bookimport/parse.go",
+   "loc": 462,
+   "funcs": 16,
+   "max_func": 36,
+   "max_func_at": "internal/bookimport/parse.go:384"
+  },
+  {
+   "file": "internal/ai/image_cutout.go",
+   "loc": 60,
+   "funcs": 2,
+   "max_func": 36,
+   "max_func_at": "internal/ai/image_cutout.go:24"
+  },
+  {
+   "file": "internal/whisper/canon_origin.go",
+   "loc": 66,
+   "funcs": 3,
+   "max_func": 36,
+   "max_func_at": "internal/whisper/canon_origin.go:30"
+  },
+  {
+   "file": "internal/types/foreshadow_urgency.go",
+   "loc": 161,
+   "funcs": 4,
+   "max_func": 36,
+   "max_func_at": "internal/types/foreshadow_urgency.go:125"
+  },
+  {
+   "file": "internal/app/brain_store.go",
+   "loc": 172,
+   "funcs": 8,
+   "max_func": 36,
+   "max_func_at": "internal/app/brain_store.go:100"
+  },
+  {
+   "file": "internal/gaea/contextview/imgrefs.go",
+   "loc": 138,
+   "funcs": 6,
+   "max_func": 36,
+   "max_func_at": "internal/gaea/contextview/imgrefs.go:58"
+  },
+  {
+   "file": "internal/gaea/command/command.go",
+   "loc": 162,
+   "funcs": 5,
+   "max_func": 36,
+   "max_func_at": "internal/gaea/command/command.go:56"
+  },
+  {
+   "file": "internal/novelstyle/segment.go",
+   "loc": 258,
+   "funcs": 7,
+   "max_func": 36,
+   "max_func_at": "internal/novelstyle/segment.go:200"
+  },
+  {
+   "file": "internal/app/gaea_unified_search.go",
+   "loc": 168,
+   "funcs": 6,
+   "max_func": 36,
+   "max_func_at": "internal/app/gaea_unified_search.go:132"
+  },
+  {
+   "file": "internal/whisper/runtime_context.go",
+   "loc": 90,
+   "funcs": 2,
+   "max_func": 36,
+   "max_func_at": "internal/whisper/runtime_context.go:22"
+  },
+  {
+   "file": "internal/gaea/knowledge/sqlite.go",
+   "loc": 206,
+   "funcs": 8,
+   "max_func": 36,
+   "max_func_at": "internal/gaea/knowledge/sqlite.go:98"
+  },
+  {
+   "file": "internal/gaea/skill/skill.go",
+   "loc": 514,
+   "funcs": 19,
+   "max_func": 36,
+   "max_func_at": "internal/gaea/skill/skill.go:347"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/ls.go",
+   "loc": 70,
+   "funcs": 8,
+   "max_func": 36,
+   "max_func_at": "internal/gaea/tool/builtin/ls.go:34"
+  },
+  {
+   "file": "internal/app/novel_scene_art.go",
+   "loc": 58,
+   "funcs": 1,
+   "max_func": 35,
+   "max_func_at": "internal/app/novel_scene_art.go:23"
+  },
+  {
+   "file": "internal/bookimport/skeleton.go",
+   "loc": 118,
+   "funcs": 3,
+   "max_func": 35,
+   "max_func_at": "internal/bookimport/skeleton.go:83"
+  },
+  {
+   "file": "internal/gaea/config/mcpjson.go",
+   "loc": 85,
+   "funcs": 2,
+   "max_func": 35,
+   "max_func_at": "internal/gaea/config/mcpjson.go:32"
+  },
+  {
+   "file": "internal/app/gaea_summarize.go",
+   "loc": 60,
+   "funcs": 1,
+   "max_func": 35,
+   "max_func_at": "internal/app/gaea_summarize.go:25"
+  },
+  {
+   "file": "internal/whisper/desktop_audit_log.go",
+   "loc": 89,
+   "funcs": 3,
+   "max_func": 35,
+   "max_func_at": "internal/whisper/desktop_audit_log.go:54"
+  },
+  {
+   "file": "internal/graph/linker.go",
+   "loc": 143,
+   "funcs": 6,
+   "max_func": 35,
+   "max_func_at": "internal/graph/linker.go:44"
+  },
+  {
+   "file": "internal/gaea/boot/plugins.go",
+   "loc": 62,
+   "funcs": 1,
+   "max_func": 35,
+   "max_func_at": "internal/gaea/boot/plugins.go:27"
+  },
+  {
+   "file": "internal/modelengine/engine_custom.go",
+   "loc": 214,
+   "funcs": 9,
+   "max_func": 35,
+   "max_func_at": "internal/modelengine/engine_custom.go:60"
+  },
+  {
+   "file": "internal/gaea/control/controller_session.go",
+   "loc": 315,
+   "funcs": 18,
+   "max_func": 35,
+   "max_func_at": "internal/gaea/control/controller_session.go:18"
+  },
+  {
+   "file": "internal/gaea/agent/session/save.go",
+   "loc": 394,
+   "funcs": 17,
+   "max_func": 35,
+   "max_func_at": "internal/gaea/agent/session/save.go:228"
+  },
+  {
+   "file": "internal/gaea/agent/reasoning_language.go",
+   "loc": 210,
+   "funcs": 15,
+   "max_func": 35,
+   "max_func_at": "internal/gaea/agent/reasoning_language.go:87"
+  },
+  {
+   "file": "internal/app/model_engine_handler.go",
+   "loc": 464,
+   "funcs": 31,
+   "max_func": 35,
+   "max_func_at": "internal/app/model_engine_handler.go:78"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/hide_window_windows.go",
+   "loc": 157,
+   "funcs": 8,
+   "max_func": 35,
+   "max_func_at": "internal/gaea/tool/builtin/hide_window_windows.go:103"
+  },
+  {
+   "file": "internal/app/sin_refs.go",
+   "loc": 220,
+   "funcs": 8,
+   "max_func": 35,
+   "max_func_at": "internal/app/sin_refs.go:140"
+  },
+  {
+   "file": "internal/modelengine/catalog_remote.go",
+   "loc": 158,
+   "funcs": 5,
+   "max_func": 34,
+   "max_func_at": "internal/modelengine/catalog_remote.go:110"
+  },
+  {
+   "file": "internal/app/chapter_art_manifest.go",
+   "loc": 160,
+   "funcs": 6,
+   "max_func": 34,
+   "max_func_at": "internal/app/chapter_art_manifest.go:103"
+  },
+  {
+   "file": "internal/whisper/db/repos/turn_traces.go",
+   "loc": 115,
+   "funcs": 4,
+   "max_func": 34,
+   "max_func_at": "internal/whisper/db/repos/turn_traces.go:68"
+  },
+  {
+   "file": "internal/gaea/trajectory/deliverable.go",
+   "loc": 135,
+   "funcs": 4,
+   "max_func": 34,
+   "max_func_at": "internal/gaea/trajectory/deliverable.go:64"
+  },
+  {
+   "file": "internal/gaea/agent/cache/toolcache.go",
+   "loc": 128,
+   "funcs": 6,
+   "max_func": 34,
+   "max_func_at": "internal/gaea/agent/cache/toolcache.go:55"
+  },
+  {
+   "file": "internal/app/gaea_pptx_edit.go",
+   "loc": 103,
+   "funcs": 3,
+   "max_func": 34,
+   "max_func_at": "internal/app/gaea_pptx_edit.go:19"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/browser_tools.go",
+   "loc": 603,
+   "funcs": 93,
+   "max_func": 34,
+   "max_func_at": "internal/gaea/tool/builtin/browser_tools.go:431"
+  },
+  {
+   "file": "internal/gaea/pricefeed/store.go",
+   "loc": 262,
+   "funcs": 12,
+   "max_func": 34,
+   "max_func_at": "internal/gaea/pricefeed/store.go:78"
+  },
+  {
+   "file": "internal/gaea/memory/eventlog.go",
+   "loc": 214,
+   "funcs": 6,
+   "max_func": 34,
+   "max_func_at": "internal/gaea/memory/eventlog.go:150"
+  },
+  {
+   "file": "internal/app/gaea_ocr.go",
+   "loc": 162,
+   "funcs": 6,
+   "max_func": 33,
+   "max_func_at": "internal/app/gaea_ocr.go:44"
+  },
+  {
+   "file": "internal/app/gaea_verify_diff.go",
+   "loc": 78,
+   "funcs": 3,
+   "max_func": 33,
+   "max_func_at": "internal/app/gaea_verify_diff.go:28"
+  },
+  {
+   "file": "internal/app/gaea_journal.go",
+   "loc": 47,
+   "funcs": 1,
+   "max_func": 33,
+   "max_func_at": "internal/app/gaea_journal.go:14"
+  },
+  {
+   "file": "internal/gaea/agent/session/derived.go",
+   "loc": 91,
+   "funcs": 2,
+   "max_func": 33,
+   "max_func_at": "internal/gaea/agent/session/derived.go:58"
+  },
+  {
+   "file": "internal/whisper/personality.go",
+   "loc": 485,
+   "funcs": 4,
+   "max_func": 33,
+   "max_func_at": "internal/whisper/personality.go:452"
+  },
+  {
+   "file": "internal/app/gaea_specialist_tools.go",
+   "loc": 169,
+   "funcs": 16,
+   "max_func": 33,
+   "max_func_at": "internal/app/gaea_specialist_tools.go:115"
+  },
+  {
+   "file": "internal/gaea/billing/balance.go",
+   "loc": 200,
+   "funcs": 9,
+   "max_func": 33,
+   "max_func_at": "internal/gaea/billing/balance.go:116"
+  },
+  {
+   "file": "internal/gaea/sessionquery/sessionquery.go",
+   "loc": 297,
+   "funcs": 11,
+   "max_func": 33,
+   "max_func_at": "internal/gaea/sessionquery/sessionquery.go:250"
+  },
+  {
+   "file": "internal/app/characterlib_score.go",
+   "loc": 170,
+   "funcs": 5,
+   "max_func": 33,
+   "max_func_at": "internal/app/characterlib_score.go:99"
+  },
+  {
+   "file": "internal/gaea/agent/canonical_todo.go",
+   "loc": 182,
+   "funcs": 10,
+   "max_func": 33,
+   "max_func_at": "internal/gaea/agent/canonical_todo.go:18"
+  },
+  {
+   "file": "internal/characterlib/db.go",
+   "loc": 175,
+   "funcs": 4,
+   "max_func": 33,
+   "max_func_at": "internal/characterlib/db.go:20"
+  },
+  {
+   "file": "internal/app/analysis_handler.go",
+   "loc": 189,
+   "funcs": 8,
+   "max_func": 33,
+   "max_func_at": "internal/app/analysis_handler.go:96"
+  },
+  {
+   "file": "internal/gaea/config/edit.go",
+   "loc": 303,
+   "funcs": 16,
+   "max_func": 33,
+   "max_func_at": "internal/gaea/config/edit.go:168"
+  },
+  {
+   "file": "internal/booksource/assemble.go",
+   "loc": 118,
+   "funcs": 4,
+   "max_func": 33,
+   "max_func_at": "internal/booksource/assemble.go:38"
+  },
+  {
+   "file": "internal/narrative/journal.go",
+   "loc": 233,
+   "funcs": 10,
+   "max_func": 32,
+   "max_func_at": "internal/narrative/journal.go:98"
+  },
+  {
+   "file": "internal/office/standard/redhead.go",
+   "loc": 140,
+   "funcs": 8,
+   "max_func": 32,
+   "max_func_at": "internal/office/standard/redhead.go:50"
+  },
+  {
+   "file": "internal/gaea/plugin/prompts.go",
+   "loc": 97,
+   "funcs": 3,
+   "max_func": 32,
+   "max_func_at": "internal/gaea/plugin/prompts.go:65"
+  },
+  {
+   "file": "internal/netclient/sysproxy/system_windows.go",
+   "loc": 135,
+   "funcs": 4,
+   "max_func": 32,
+   "max_func_at": "internal/netclient/sysproxy/system_windows.go:57"
+  },
+  {
+   "file": "internal/modelengine/catalog_models.go",
+   "loc": 254,
+   "funcs": 11,
+   "max_func": 32,
+   "max_func_at": "internal/modelengine/catalog_models.go:146"
+  },
+  {
+   "file": "internal/auth/discovery.go",
+   "loc": 59,
+   "funcs": 1,
+   "max_func": 32,
+   "max_func_at": "internal/auth/discovery.go:27"
+  },
+  {
+   "file": "internal/app/novel_scene_bible.go",
+   "loc": 116,
+   "funcs": 2,
+   "max_func": 32,
+   "max_func_at": "internal/app/novel_scene_bible.go:81"
+  },
+  {
+   "file": "internal/config/config_save.go",
+   "loc": 408,
+   "funcs": 3,
+   "max_func": 32,
+   "max_func_at": "internal/config/config_save.go:61"
+  },
+  {
+   "file": "internal/app/gaea_whisper_retell.go",
+   "loc": 115,
+   "funcs": 4,
+   "max_func": 31,
+   "max_func_at": "internal/app/gaea_whisper_retell.go:14"
+  },
+  {
+   "file": "internal/app/gaea_file_index.go",
+   "loc": 136,
+   "funcs": 6,
+   "max_func": 31,
+   "max_func_at": "internal/app/gaea_file_index.go:96"
+  },
+  {
+   "file": "internal/gaea/agent/session/migrate.go",
+   "loc": 106,
+   "funcs": 4,
+   "max_func": 31,
+   "max_func_at": "internal/gaea/agent/session/migrate.go:47"
+  },
+  {
+   "file": "internal/whisper/user_fact_guard.go",
+   "loc": 147,
+   "funcs": 6,
+   "max_func": 31,
+   "max_func_at": "internal/whisper/user_fact_guard.go:83"
+  },
+  {
+   "file": "internal/app/lorebook_handler.go",
+   "loc": 79,
+   "funcs": 3,
+   "max_func": 31,
+   "max_func_at": "internal/app/lorebook_handler.go:28"
+  },
+  {
+   "file": "internal/app/gaea_skill_stats.go",
+   "loc": 94,
+   "funcs": 5,
+   "max_func": 31,
+   "max_func_at": "internal/app/gaea_skill_stats.go:43"
+  },
+  {
+   "file": "internal/gaea/permission/bash_readonly.go",
+   "loc": 202,
+   "funcs": 7,
+   "max_func": 31,
+   "max_func_at": "internal/gaea/permission/bash_readonly.go:73"
+  },
+  {
+   "file": "internal/app/main_brain.go",
+   "loc": 68,
+   "funcs": 3,
+   "max_func": 31,
+   "max_func_at": "internal/app/main_brain.go:37"
+  },
+  {
+   "file": "internal/gaea/memory/store.go",
+   "loc": 396,
+   "funcs": 32,
+   "max_func": 31,
+   "max_func_at": "internal/gaea/memory/store.go:365"
+  },
+  {
+   "file": "internal/whisper/confirm_service.go",
+   "loc": 105,
+   "funcs": 4,
+   "max_func": 31,
+   "max_func_at": "internal/whisper/confirm_service.go:46"
+  },
+  {
+   "file": "internal/narrative/narrative.go",
+   "loc": 162,
+   "funcs": 4,
+   "max_func": 30,
+   "max_func_at": "internal/narrative/narrative.go:132"
+  },
+  {
+   "file": "internal/core/fs.go",
+   "loc": 259,
+   "funcs": 15,
+   "max_func": 30,
+   "max_func_at": "internal/core/fs.go:28"
+  },
+  {
+   "file": "internal/whisper/db/repos/temporal_anchors.go",
+   "loc": 162,
+   "funcs": 8,
+   "max_func": 30,
+   "max_func_at": "internal/whisper/db/repos/temporal_anchors.go:93"
+  },
+  {
+   "file": "internal/whisper/task_plan_store.go",
+   "loc": 273,
+   "funcs": 14,
+   "max_func": 30,
+   "max_func_at": "internal/whisper/task_plan_store.go:176"
+  },
+  {
+   "file": "internal/gaea/proc/kill_windows.go",
+   "loc": 120,
+   "funcs": 6,
+   "max_func": 30,
+   "max_func_at": "internal/gaea/proc/kill_windows.go:56"
+  },
+  {
+   "file": "internal/whisper/task_plan_inject.go",
+   "loc": 39,
+   "funcs": 1,
+   "max_func": 30,
+   "max_func_at": "internal/whisper/task_plan_inject.go:9"
+  },
+  {
+   "file": "internal/gaea/agent/agent_helpers.go",
+   "loc": 91,
+   "funcs": 7,
+   "max_func": 30,
+   "max_func_at": "internal/gaea/agent/agent_helpers.go:19"
+  },
+  {
+   "file": "internal/gaea/evidence/journal.go",
+   "loc": 396,
+   "funcs": 19,
+   "max_func": 30,
+   "max_func_at": "internal/gaea/evidence/journal.go:288"
+  },
+  {
+   "file": "internal/whisper/procedural_habits.go",
+   "loc": 127,
+   "funcs": 7,
+   "max_func": 30,
+   "max_func_at": "internal/whisper/procedural_habits.go:80"
+  },
+  {
+   "file": "internal/app/board/manifest.go",
+   "loc": 152,
+   "funcs": 5,
+   "max_func": 30,
+   "max_func_at": "internal/app/board/manifest.go:84"
+  },
+  {
+   "file": "internal/gaea/knowledge/service.go",
+   "loc": 106,
+   "funcs": 5,
+   "max_func": 30,
+   "max_func_at": "internal/gaea/knowledge/service.go:54"
+  },
+  {
+   "file": "internal/whisper/memory_assoc.go",
+   "loc": 179,
+   "funcs": 13,
+   "max_func": 30,
+   "max_func_at": "internal/whisper/memory_assoc.go:35"
+  },
+  {
+   "file": "internal/gaea/agent/cache_guard.go",
+   "loc": 46,
+   "funcs": 1,
+   "max_func": 30,
+   "max_func_at": "internal/gaea/agent/cache_guard.go:16"
+  },
+  {
+   "file": "internal/gaea/plugin/resources.go",
+   "loc": 82,
+   "funcs": 2,
+   "max_func": 30,
+   "max_func_at": "internal/gaea/plugin/resources.go:52"
+  },
+  {
+   "file": "internal/bookimport/reconstruct.go",
+   "loc": 458,
+   "funcs": 19,
+   "max_func": 30,
+   "max_func_at": "internal/bookimport/reconstruct.go:267"
+  },
+  {
+   "file": "internal/whisper/auto_consolidation_policy.go",
+   "loc": 71,
+   "funcs": 3,
+   "max_func": 30,
+   "max_func_at": "internal/whisper/auto_consolidation_policy.go:41"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/readspill.go",
+   "loc": 67,
+   "funcs": 8,
+   "max_func": 29,
+   "max_func_at": "internal/gaea/tool/builtin/readspill.go:38"
+  },
+  {
+   "file": "internal/gaea/memory/quickadd.go",
+   "loc": 92,
+   "funcs": 3,
+   "max_func": 29,
+   "max_func_at": "internal/gaea/memory/quickadd.go:63"
+  },
+  {
+   "file": "internal/app/gaea_dream_pending.go",
+   "loc": 165,
+   "funcs": 7,
+   "max_func": 29,
+   "max_func_at": "internal/app/gaea_dream_pending.go:88"
+  },
+  {
+   "file": "internal/voice/mood_voice.go",
+   "loc": 74,
+   "funcs": 2,
+   "max_func": 29,
+   "max_func_at": "internal/voice/mood_voice.go:45"
+  },
+  {
+   "file": "internal/whisper/temporal_bridge.go",
+   "loc": 90,
+   "funcs": 3,
+   "max_func": 29,
+   "max_func_at": "internal/whisper/temporal_bridge.go:46"
+  },
+  {
+   "file": "internal/gaea/agent/recall_reminder.go",
+   "loc": 49,
+   "funcs": 1,
+   "max_func": 29,
+   "max_func_at": "internal/gaea/agent/recall_reminder.go:20"
+  },
+  {
+   "file": "internal/novelreview/util.go",
+   "loc": 297,
+   "funcs": 19,
+   "max_func": 29,
+   "max_func_at": "internal/novelreview/util.go:250"
+  },
+  {
+   "file": "internal/novelstyle/whitelist.go",
+   "loc": 85,
+   "funcs": 3,
+   "max_func": 29,
+   "max_func_at": "internal/novelstyle/whitelist.go:56"
+  },
+  {
+   "file": "internal/gaea/memory/get.go",
+   "loc": 69,
+   "funcs": 6,
+   "max_func": 29,
+   "max_func_at": "internal/gaea/memory/get.go:40"
+  },
+  {
+   "file": "internal/gaea/sandbox/seatbelt_darwin.go",
+   "loc": 90,
+   "funcs": 5,
+   "max_func": 29,
+   "max_func_at": "internal/gaea/sandbox/seatbelt_darwin.go:53"
+  },
+  {
+   "file": "internal/channels/weixin/qrlogin.go",
+   "loc": 133,
+   "funcs": 3,
+   "max_func": 29,
+   "max_func_at": "internal/channels/weixin/qrlogin.go:42"
+  },
+  {
+   "file": "internal/app/project_handler.go",
+   "loc": 107,
+   "funcs": 5,
+   "max_func": 28,
+   "max_func_at": "internal/app/project_handler.go:18"
+  },
+  {
+   "file": "internal/gaea/knowledge/search_cache.go",
+   "loc": 121,
+   "funcs": 8,
+   "max_func": 28,
+   "max_func_at": "internal/gaea/knowledge/search_cache.go:75"
+  },
+  {
+   "file": "internal/chat/db.go",
+   "loc": 89,
+   "funcs": 2,
+   "max_func": 28,
+   "max_func_at": "internal/chat/db.go:21"
+  },
+  {
+   "file": "internal/whisper/temporal_anchor_policy.go",
+   "loc": 127,
+   "funcs": 3,
+   "max_func": 28,
+   "max_func_at": "internal/whisper/temporal_anchor_policy.go:65"
+  },
+  {
+   "file": "internal/gaea/sandbox/wsl.go",
+   "loc": 71,
+   "funcs": 3,
+   "max_func": 28,
+   "max_func_at": "internal/gaea/sandbox/wsl.go:21"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/screenshot.go",
+   "loc": 123,
+   "funcs": 11,
+   "max_func": 28,
+   "max_func_at": "internal/gaea/tool/builtin/screenshot.go:46"
+  },
+  {
+   "file": "internal/gaea/cost/composecheck.go",
+   "loc": 65,
+   "funcs": 1,
+   "max_func": 28,
+   "max_func_at": "internal/gaea/cost/composecheck.go:37"
+  },
+  {
+   "file": "internal/gaea/dag/template.go",
+   "loc": 205,
+   "funcs": 10,
+   "max_func": 28,
+   "max_func_at": "internal/gaea/dag/template.go:64"
+  },
+  {
+   "file": "internal/whisper/db/repos/memory_graph.go",
+   "loc": 111,
+   "funcs": 4,
+   "max_func": 28,
+   "max_func_at": "internal/whisper/db/repos/memory_graph.go:27"
+  },
+  {
+   "file": "internal/gaea/config/dotenv.go",
+   "loc": 54,
+   "funcs": 2,
+   "max_func": 28,
+   "max_func_at": "internal/gaea/config/dotenv.go:26"
+  },
+  {
+   "file": "internal/app/gaea_semantic_index.go",
+   "loc": 87,
+   "funcs": 3,
+   "max_func": 28,
+   "max_func_at": "internal/app/gaea_semantic_index.go:59"
+  },
+  {
+   "file": "internal/gaea/outputstyle/outputstyle.go",
+   "loc": 180,
+   "funcs": 6,
+   "max_func": 28,
+   "max_func_at": "internal/gaea/outputstyle/outputstyle.go:83"
+  },
+  {
+   "file": "internal/gaea/agent/cache_shape.go",
+   "loc": 114,
+   "funcs": 6,
+   "max_func": 28,
+   "max_func_at": "internal/gaea/agent/cache_shape.go:70"
+  },
+  {
+   "file": "internal/tts/util.go",
+   "loc": 41,
+   "funcs": 1,
+   "max_func": 27,
+   "max_func_at": "internal/tts/util.go:14"
+  },
+  {
+   "file": "internal/app/whisper_taskplan.go",
+   "loc": 80,
+   "funcs": 3,
+   "max_func": 27,
+   "max_func_at": "internal/app/whisper_taskplan.go:36"
+  },
+  {
+   "file": "internal/gaea/browser/edge.go",
+   "loc": 108,
+   "funcs": 4,
+   "max_func": 27,
+   "max_func_at": "internal/gaea/browser/edge.go:81"
+  },
+  {
+   "file": "internal/intent/llm.go",
+   "loc": 55,
+   "funcs": 1,
+   "max_func": 27,
+   "max_func_at": "internal/intent/llm.go:28"
+  },
+  {
+   "file": "internal/booksource/guess.go",
+   "loc": 131,
+   "funcs": 4,
+   "max_func": 27,
+   "max_func_at": "internal/booksource/guess.go:89"
+  },
+  {
+   "file": "internal/whisper/db/repos/chat_history.go",
+   "loc": 84,
+   "funcs": 3,
+   "max_func": 27,
+   "max_func_at": "internal/whisper/db/repos/chat_history.go:42"
+  },
+  {
+   "file": "internal/gaea/memory/profile.go",
+   "loc": 128,
+   "funcs": 7,
+   "max_func": 27,
+   "max_func_at": "internal/gaea/memory/profile.go:62"
+  },
+  {
+   "file": "internal/voice/tts_model_resolve.go",
+   "loc": 100,
+   "funcs": 4,
+   "max_func": 27,
+   "max_func_at": "internal/voice/tts_model_resolve.go:42"
+  },
+  {
+   "file": "internal/gaea/provider/retry.go",
+   "loc": 147,
+   "funcs": 7,
+   "max_func": 26,
+   "max_func_at": "internal/gaea/provider/retry.go:101"
+  },
+  {
+   "file": "internal/app/gaea_cost_graph.go",
+   "loc": 48,
+   "funcs": 1,
+   "max_func": 26,
+   "max_func_at": "internal/app/gaea_cost_graph.go:22"
+  },
+  {
+   "file": "internal/whisper/user_presence.go",
+   "loc": 78,
+   "funcs": 3,
+   "max_func": 26,
+   "max_func_at": "internal/whisper/user_presence.go:45"
+  },
+  {
+   "file": "internal/app/gaea_docx_edit.go",
+   "loc": 154,
+   "funcs": 5,
+   "max_func": 26,
+   "max_func_at": "internal/app/gaea_docx_edit.go:128"
+  },
+  {
+   "file": "internal/whisper/db/repos/episodes.go",
+   "loc": 185,
+   "funcs": 11,
+   "max_func": 26,
+   "max_func_at": "internal/whisper/db/repos/episodes.go:78"
+  },
+  {
+   "file": "internal/app/gaea_memory_distill.go",
+   "loc": 87,
+   "funcs": 4,
+   "max_func": 26,
+   "max_func_at": "internal/app/gaea_memory_distill.go:33"
+  },
+  {
+   "file": "internal/gaea/factbase/factbase.go",
+   "loc": 195,
+   "funcs": 13,
+   "max_func": 26,
+   "max_func_at": "internal/gaea/factbase/factbase.go:37"
+  },
+  {
+   "file": "internal/app/brain_link_store.go",
+   "loc": 78,
+   "funcs": 3,
+   "max_func": 26,
+   "max_func_at": "internal/app/brain_link_store.go:52"
+  },
+  {
+   "file": "internal/whisper/db/repos/knowledge_triples.go",
+   "loc": 151,
+   "funcs": 9,
+   "max_func": 26,
+   "max_func_at": "internal/whisper/db/repos/knowledge_triples.go:67"
+  },
+  {
+   "file": "internal/app/writing_state.go",
+   "loc": 85,
+   "funcs": 5,
+   "max_func": 26,
+   "max_func_at": "internal/app/writing_state.go:59"
+  },
+  {
+   "file": "internal/gaea/agent/repeat_detect.go",
+   "loc": 129,
+   "funcs": 4,
+   "max_func": 26,
+   "max_func_at": "internal/gaea/agent/repeat_detect.go:74"
+  },
+  {
+   "file": "internal/schedule/calendar.go",
+   "loc": 234,
+   "funcs": 11,
+   "max_func": 26,
+   "max_func_at": "internal/schedule/calendar.go:208"
+  },
+  {
+   "file": "internal/gaea/fileutil/encoding/encoding.go",
+   "loc": 245,
+   "funcs": 10,
+   "max_func": 26,
+   "max_func_at": "internal/gaea/fileutil/encoding/encoding.go:45"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/shellstate.go",
+   "loc": 160,
+   "funcs": 6,
+   "max_func": 26,
+   "max_func_at": "internal/gaea/tool/builtin/shellstate.go:91"
+  },
+  {
+   "file": "internal/gaea/memory/citations.go",
+   "loc": 121,
+   "funcs": 4,
+   "max_func": 26,
+   "max_func_at": "internal/gaea/memory/citations.go:55"
+  },
+  {
+   "file": "internal/netclient/ssrf.go",
+   "loc": 78,
+   "funcs": 4,
+   "max_func": 25,
+   "max_func_at": "internal/netclient/ssrf.go:53"
+  },
+  {
+   "file": "internal/whisper/canon_father_reference.go",
+   "loc": 97,
+   "funcs": 2,
+   "max_func": 25,
+   "max_func_at": "internal/whisper/canon_father_reference.go:61"
+  },
+  {
+   "file": "internal/gaea/secure/secure_windows.go",
+   "loc": 76,
+   "funcs": 2,
+   "max_func": 25,
+   "max_func_at": "internal/gaea/secure/secure_windows.go:51"
+  },
+  {
+   "file": "internal/gaea/spill/spill.go",
+   "loc": 128,
+   "funcs": 5,
+   "max_func": 25,
+   "max_func_at": "internal/gaea/spill/spill.go:85"
+  },
+  {
+   "file": "internal/asr/herdsman_asr.go",
+   "loc": 173,
+   "funcs": 11,
+   "max_func": 25,
+   "max_func_at": "internal/asr/herdsman_asr.go:83"
+  },
+  {
+   "file": "internal/characterlib/model.go",
+   "loc": 122,
+   "funcs": 2,
+   "max_func": 25,
+   "max_func_at": "internal/characterlib/model.go:74"
+  },
+  {
+   "file": "internal/gaea/memory/doc.go",
+   "loc": 257,
+   "funcs": 10,
+   "max_func": 25,
+   "max_func_at": "internal/gaea/memory/doc.go:74"
+  },
+  {
+   "file": "internal/novelstyle/patterns.go",
+   "loc": 168,
+   "funcs": 8,
+   "max_func": 25,
+   "max_func_at": "internal/novelstyle/patterns.go:80"
+  },
+  {
+   "file": "internal/config/config_features.go",
+   "loc": 106,
+   "funcs": 4,
+   "max_func": 25,
+   "max_func_at": "internal/config/config_features.go:7"
+  },
+  {
+   "file": "internal/realtime/resample.go",
+   "loc": 55,
+   "funcs": 2,
+   "max_func": 25,
+   "max_func_at": "internal/realtime/resample.go:25"
+  },
+  {
+   "file": "internal/gaea/fileutil/atomic.go",
+   "loc": 65,
+   "funcs": 2,
+   "max_func": 25,
+   "max_func_at": "internal/gaea/fileutil/atomic.go:19"
+  },
+  {
+   "file": "internal/whisper/age_computer.go",
+   "loc": 87,
+   "funcs": 3,
+   "max_func": 25,
+   "max_func_at": "internal/whisper/age_computer.go:36"
+  },
+  {
+   "file": "internal/app/novel_import_task.go",
+   "loc": 88,
+   "funcs": 3,
+   "max_func": 25,
+   "max_func_at": "internal/app/novel_import_task.go:63"
+  },
+  {
+   "file": "internal/gaea/config/walkthrough.go",
+   "loc": 59,
+   "funcs": 3,
+   "max_func": 24,
+   "max_func_at": "internal/gaea/config/walkthrough.go:35"
+  },
+  {
+   "file": "internal/gaea/command/slashtool.go",
+   "loc": 134,
+   "funcs": 7,
+   "max_func": 24,
+   "max_func_at": "internal/gaea/command/slashtool.go:90"
+  },
+  {
+   "file": "internal/gaea/cache/spawn.go",
+   "loc": 227,
+   "funcs": 8,
+   "max_func": 24,
+   "max_func_at": "internal/gaea/cache/spawn.go:159"
+  },
+  {
+   "file": "internal/gaea/genui/fence.go",
+   "loc": 64,
+   "funcs": 2,
+   "max_func": 24,
+   "max_func_at": "internal/gaea/genui/fence.go:40"
+  },
+  {
+   "file": "internal/voice/wav.go",
+   "loc": 57,
+   "funcs": 4,
+   "max_func": 24,
+   "max_func_at": "internal/voice/wav.go:11"
+  },
+  {
+   "file": "internal/gaea/plugin/ssrf.go",
+   "loc": 62,
+   "funcs": 3,
+   "max_func": 24,
+   "max_func_at": "internal/gaea/plugin/ssrf.go:16"
+  },
+  {
+   "file": "internal/app/character_portrait_register.go",
+   "loc": 42,
+   "funcs": 1,
+   "max_func": 24,
+   "max_func_at": "internal/app/character_portrait_register.go:18"
+  },
+  {
+   "file": "internal/gaea/control/controller_mcp.go",
+   "loc": 174,
+   "funcs": 9,
+   "max_func": 24,
+   "max_func_at": "internal/gaea/control/controller_mcp.go:135"
+  },
+  {
+   "file": "internal/app/herdsman_operations.go",
+   "loc": 92,
+   "funcs": 2,
+   "max_func": 23,
+   "max_func_at": "internal/app/herdsman_operations.go:49"
+  },
+  {
+   "file": "internal/gaea/knowledge/store.go",
+   "loc": 211,
+   "funcs": 15,
+   "max_func": 23,
+   "max_func_at": "internal/gaea/knowledge/store.go:188"
+  },
+  {
+   "file": "internal/voice/voice_config.go",
+   "loc": 190,
+   "funcs": 2,
+   "max_func": 23,
+   "max_func_at": "internal/voice/voice_config.go:116"
+  },
+  {
+   "file": "internal/app/gaea_memory_feedback.go",
+   "loc": 43,
+   "funcs": 1,
+   "max_func": 23,
+   "max_func_at": "internal/app/gaea_memory_feedback.go:20"
+  },
+  {
+   "file": "internal/app/gaea_factbase.go",
+   "loc": 309,
+   "funcs": 31,
+   "max_func": 23,
+   "max_func_at": "internal/app/gaea_factbase.go:107"
+  },
+  {
+   "file": "internal/gaea/agent/file_observation.go",
+   "loc": 80,
+   "funcs": 3,
+   "max_func": 23,
+   "max_func_at": "internal/gaea/agent/file_observation.go:57"
+  },
+  {
+   "file": "internal/whisper/agent_job_manager.go",
+   "loc": 150,
+   "funcs": 9,
+   "max_func": 23,
+   "max_func_at": "internal/whisper/agent_job_manager.go:43"
+  },
+  {
+   "file": "internal/app/gaea_herdsman_health.go",
+   "loc": 61,
+   "funcs": 2,
+   "max_func": 23,
+   "max_func_at": "internal/app/gaea_herdsman_health.go:17"
+  },
+  {
+   "file": "internal/docmd/docmd.go",
+   "loc": 57,
+   "funcs": 3,
+   "max_func": 23,
+   "max_func_at": "internal/docmd/docmd.go:34"
+  },
+  {
+   "file": "internal/app/rewrite_scene.go",
+   "loc": 121,
+   "funcs": 7,
+   "max_func": 23,
+   "max_func_at": "internal/app/rewrite_scene.go:29"
+  },
+  {
+   "file": "internal/gaea/cache/domain.go",
+   "loc": 126,
+   "funcs": 5,
+   "max_func": 23,
+   "max_func_at": "internal/gaea/cache/domain.go:81"
+  },
+  {
+   "file": "internal/schedule/deadline.go",
+   "loc": 56,
+   "funcs": 2,
+   "max_func": 22,
+   "max_func_at": "internal/schedule/deadline.go:34"
+  },
+  {
+   "file": "internal/novelstyle/words.go",
+   "loc": 72,
+   "funcs": 4,
+   "max_func": 22,
+   "max_func_at": "internal/novelstyle/words.go:50"
+  },
+  {
+   "file": "internal/netclient/sysproxy/sysproxy.go",
+   "loc": 73,
+   "funcs": 4,
+   "max_func": 22,
+   "max_func_at": "internal/netclient/sysproxy/sysproxy.go:51"
+  },
+  {
+   "file": "internal/gaea/browser/targets.go",
+   "loc": 101,
+   "funcs": 5,
+   "max_func": 22,
+   "max_func_at": "internal/gaea/browser/targets.go:51"
+  },
+  {
+   "file": "internal/gaea/agent/compile.go",
+   "loc": 168,
+   "funcs": 7,
+   "max_func": 22,
+   "max_func_at": "internal/gaea/agent/compile.go:35"
+  },
+  {
+   "file": "internal/app/gaea_pinned.go",
+   "loc": 55,
+   "funcs": 4,
+   "max_func": 22,
+   "max_func_at": "internal/app/gaea_pinned.go:11"
+  },
+  {
+   "file": "internal/gaea/retrieval/semantic.go",
+   "loc": 36,
+   "funcs": 2,
+   "max_func": 21,
+   "max_func_at": "internal/gaea/retrieval/semantic.go:11"
+  },
+  {
+   "file": "internal/skillstats/skillstats.go",
+   "loc": 83,
+   "funcs": 3,
+   "max_func": 21,
+   "max_func_at": "internal/skillstats/skillstats.go:40"
+  },
+  {
+   "file": "internal/app/herdsman_disk.go",
+   "loc": 49,
+   "funcs": 1,
+   "max_func": 21,
+   "max_func_at": "internal/app/herdsman_disk.go:28"
+  },
+  {
+   "file": "internal/gaea/contextview/imgtoken.go",
+   "loc": 82,
+   "funcs": 4,
+   "max_func": 21,
+   "max_func_at": "internal/gaea/contextview/imgtoken.go:45"
+  },
+  {
+   "file": "internal/gaea/agent/budget/gate.go",
+   "loc": 106,
+   "funcs": 7,
+   "max_func": 21,
+   "max_func_at": "internal/gaea/agent/budget/gate.go:53"
+  },
+  {
+   "file": "internal/gaea/context/store_file.go",
+   "loc": 114,
+   "funcs": 7,
+   "max_func": 21,
+   "max_func_at": "internal/gaea/context/store_file.go:79"
+  },
+  {
+   "file": "internal/gaea/strutil/title_slug.go",
+   "loc": 54,
+   "funcs": 1,
+   "max_func": 21,
+   "max_func_at": "internal/gaea/strutil/title_slug.go:33"
+  },
+  {
+   "file": "internal/whisper/working_memory.go",
+   "loc": 107,
+   "funcs": 8,
+   "max_func": 21,
+   "max_func_at": "internal/whisper/working_memory.go:72"
+  },
+  {
+   "file": "internal/app/gaea_route_ledger.go",
+   "loc": 59,
+   "funcs": 2,
+   "max_func": 21,
+   "max_func_at": "internal/app/gaea_route_ledger.go:38"
+  },
+  {
+   "file": "internal/gaea/context/flow.go",
+   "loc": 229,
+   "funcs": 21,
+   "max_func": 21,
+   "max_func_at": "internal/gaea/context/flow.go:116"
+  },
+  {
+   "file": "internal/app/brain_right.go",
+   "loc": 71,
+   "funcs": 4,
+   "max_func": 20,
+   "max_func_at": "internal/app/brain_right.go:51"
+  },
+  {
+   "file": "internal/office/standard/costtable.go",
+   "loc": 65,
+   "funcs": 3,
+   "max_func": 20,
+   "max_func_at": "internal/office/standard/costtable.go:27"
+  },
+  {
+   "file": "internal/gaea/agent/output_continue.go",
+   "loc": 41,
+   "funcs": 1,
+   "max_func": 20,
+   "max_func_at": "internal/gaea/agent/output_continue.go:21"
+  },
+  {
+   "file": "internal/gaea/contextview/estimate.go",
+   "loc": 58,
+   "funcs": 4,
+   "max_func": 20,
+   "max_func_at": "internal/gaea/contextview/estimate.go:13"
+  },
+  {
+   "file": "internal/project/plan_store.go",
+   "loc": 156,
+   "funcs": 9,
+   "max_func": 20,
+   "max_func_at": "internal/project/plan_store.go:56"
+  },
+  {
+   "file": "internal/app/brain_bindings.go",
+   "loc": 68,
+   "funcs": 4,
+   "max_func": 20,
+   "max_func_at": "internal/app/brain_bindings.go:34"
+  },
+  {
+   "file": "internal/gaea/context/manager.go",
+   "loc": 150,
+   "funcs": 15,
+   "max_func": 20,
+   "max_func_at": "internal/gaea/context/manager.go:66"
+  },
+  {
+   "file": "internal/whisper/canon.go",
+   "loc": 65,
+   "funcs": 4,
+   "max_func": 20,
+   "max_func_at": "internal/whisper/canon.go:22"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/confine.go",
+   "loc": 118,
+   "funcs": 7,
+   "max_func": 20,
+   "max_func_at": "internal/gaea/tool/builtin/confine.go:77"
+  },
+  {
+   "file": "internal/whisper/context_time.go",
+   "loc": 89,
+   "funcs": 9,
+   "max_func": 19,
+   "max_func_at": "internal/whisper/context_time.go:30"
+  },
+  {
+   "file": "internal/app/copilot_handler.go",
+   "loc": 33,
+   "funcs": 1,
+   "max_func": 19,
+   "max_func_at": "internal/app/copilot_handler.go:14"
+  },
+  {
+   "file": "internal/gaea/sandbox/shell.go",
+   "loc": 138,
+   "funcs": 8,
+   "max_func": 19,
+   "max_func_at": "internal/gaea/sandbox/shell.go:94"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/readskill.go",
+   "loc": 72,
+   "funcs": 9,
+   "max_func": 19,
+   "max_func_at": "internal/gaea/tool/builtin/readskill.go:36"
+  },
+  {
+   "file": "internal/gaea/config/recent.go",
+   "loc": 79,
+   "funcs": 4,
+   "max_func": 19,
+   "max_func_at": "internal/gaea/config/recent.go:60"
+  },
+  {
+   "file": "internal/gaea/cache/identity.go",
+   "loc": 131,
+   "funcs": 12,
+   "max_func": 19,
+   "max_func_at": "internal/gaea/cache/identity.go:61"
+  },
+  {
+   "file": "internal/docmd/markitdown.go",
+   "loc": 89,
+   "funcs": 4,
+   "max_func": 19,
+   "max_func_at": "internal/docmd/markitdown.go:27"
+  },
+  {
+   "file": "internal/app/gaea_memory_morning.go",
+   "loc": 82,
+   "funcs": 3,
+   "max_func": 18,
+   "max_func_at": "internal/app/gaea_memory_morning.go:47"
+  },
+  {
+   "file": "internal/booksource/html.go",
+   "loc": 88,
+   "funcs": 6,
+   "max_func": 18,
+   "max_func_at": "internal/booksource/html.go:13"
+  },
+  {
+   "file": "internal/booksource/template.go",
+   "loc": 38,
+   "funcs": 1,
+   "max_func": 18,
+   "max_func_at": "internal/booksource/template.go:20"
+  },
+  {
+   "file": "internal/gaea/config/config_paths.go",
+   "loc": 202,
+   "funcs": 10,
+   "max_func": 18,
+   "max_func_at": "internal/gaea/config/config_paths.go:115"
+  },
+  {
+   "file": "internal/gaea/memory/forget.go",
+   "loc": 58,
+   "funcs": 7,
+   "max_func": 18,
+   "max_func_at": "internal/gaea/memory/forget.go:37"
+  },
+  {
+   "file": "internal/channels/weixin/capture.go",
+   "loc": 82,
+   "funcs": 4,
+   "max_func": 18,
+   "max_func_at": "internal/channels/weixin/capture.go:51"
+  },
+  {
+   "file": "internal/modelengine/user_price.go",
+   "loc": 103,
+   "funcs": 6,
+   "max_func": 18,
+   "max_func_at": "internal/modelengine/user_price.go:75"
+  },
+  {
+   "file": "internal/app/gaea_schedule_mpp.go",
+   "loc": 37,
+   "funcs": 1,
+   "max_func": 18,
+   "max_func_at": "internal/app/gaea_schedule_mpp.go:19"
+  },
+  {
+   "file": "internal/types/character_state.go",
+   "loc": 267,
+   "funcs": 8,
+   "max_func": 18,
+   "max_func_at": "internal/types/character_state.go:102"
+  },
+  {
+   "file": "internal/channels/weixin/rate_limit.go",
+   "loc": 59,
+   "funcs": 3,
+   "max_func": 18,
+   "max_func_at": "internal/channels/weixin/rate_limit.go:41"
+  },
+  {
+   "file": "internal/app/gaea_schedule_xlsx.go",
+   "loc": 50,
+   "funcs": 2,
+   "max_func": 18,
+   "max_func_at": "internal/app/gaea_schedule_xlsx.go:32"
+  },
+  {
+   "file": "internal/gaea/agent/cache/fingerprint.go",
+   "loc": 62,
+   "funcs": 3,
+   "max_func": 18,
+   "max_func_at": "internal/gaea/agent/cache/fingerprint.go:31"
+  },
+  {
+   "file": "internal/app/bindings_manifest.go",
+   "loc": 25,
+   "funcs": 1,
+   "max_func": 18,
+   "max_func_at": "internal/app/bindings_manifest.go:7"
+  },
+  {
+   "file": "internal/gaea/agent/compact_util.go",
+   "loc": 110,
+   "funcs": 6,
+   "max_func": 18,
+   "max_func_at": "internal/gaea/agent/compact_util.go:69"
+  },
+  {
+   "file": "internal/app/brain_main.go",
+   "loc": 56,
+   "funcs": 3,
+   "max_func": 18,
+   "max_func_at": "internal/app/brain_main.go:38"
+  },
+  {
+   "file": "internal/app/eval_snapshot_delete.go",
+   "loc": 37,
+   "funcs": 1,
+   "max_func": 17,
+   "max_func_at": "internal/app/eval_snapshot_delete.go:20"
+  },
+  {
+   "file": "internal/modelengine/engine_keys.go",
+   "loc": 100,
+   "funcs": 10,
+   "max_func": 17,
+   "max_func_at": "internal/modelengine/engine_keys.go:42"
+  },
+  {
+   "file": "internal/gaea/sessionquery/tool.go",
+   "loc": 57,
+   "funcs": 6,
+   "max_func": 17,
+   "max_func_at": "internal/gaea/sessionquery/tool.go:40"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/vision.go",
+   "loc": 60,
+   "funcs": 9,
+   "max_func": 17,
+   "max_func_at": "internal/gaea/tool/builtin/vision.go:43"
+  },
+  {
+   "file": "internal/gaea/hook/runner.go",
+   "loc": 234,
+   "funcs": 19,
+   "max_func": 17,
+   "max_func_at": "internal/gaea/hook/runner.go:168"
+  },
+  {
+   "file": "internal/app/gaea_templates.go",
+   "loc": 113,
+   "funcs": 4,
+   "max_func": 17,
+   "max_func_at": "internal/app/gaea_templates.go:96"
+  },
+  {
+   "file": "internal/whisper/attention_budget.go",
+   "loc": 134,
+   "funcs": 9,
+   "max_func": 17,
+   "max_func_at": "internal/whisper/attention_budget.go:88"
+  },
+  {
+   "file": "internal/app/plot_branch_position.go",
+   "loc": 64,
+   "funcs": 5,
+   "max_func": 17,
+   "max_func_at": "internal/app/plot_branch_position.go:23"
+  },
+  {
+   "file": "internal/gaea/sandbox/seatbelt_other.go",
+   "loc": 57,
+   "funcs": 3,
+   "max_func": 17,
+   "max_func_at": "internal/gaea/sandbox/seatbelt_other.go:40"
+  },
+  {
+   "file": "internal/app/stats_handler.go",
+   "loc": 63,
+   "funcs": 3,
+   "max_func": 17,
+   "max_func_at": "internal/app/stats_handler.go:35"
+  },
+  {
+   "file": "internal/gaea/sandbox/seatbelt_windows.go",
+   "loc": 32,
+   "funcs": 2,
+   "max_func": 17,
+   "max_func_at": "internal/gaea/sandbox/seatbelt_windows.go:9"
+  },
+  {
+   "file": "internal/app/sin_tools.go",
+   "loc": 128,
+   "funcs": 4,
+   "max_func": 17,
+   "max_func_at": "internal/app/sin_tools.go:85"
+  },
+  {
+   "file": "internal/whisper/desktop_confirm_bypass.go",
+   "loc": 102,
+   "funcs": 7,
+   "max_func": 16,
+   "max_func_at": "internal/whisper/desktop_confirm_bypass.go:86"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/genui_validate.go",
+   "loc": 64,
+   "funcs": 8,
+   "max_func": 16,
+   "max_func_at": "internal/gaea/tool/builtin/genui_validate.go:48"
+  },
+  {
+   "file": "internal/gaea/config/expand.go",
+   "loc": 62,
+   "funcs": 3,
+   "max_func": 16,
+   "max_func_at": "internal/gaea/config/expand.go:17"
+  },
+  {
+   "file": "internal/app/gaea_deliverable_registry.go",
+   "loc": 41,
+   "funcs": 1,
+   "max_func": 16,
+   "max_func_at": "internal/app/gaea_deliverable_registry.go:25"
+  },
+  {
+   "file": "internal/gaea/memory/decay.go",
+   "loc": 85,
+   "funcs": 3,
+   "max_func": 16,
+   "max_func_at": "internal/gaea/memory/decay.go:69"
+  },
+  {
+   "file": "internal/app/gaea_cost_ref.go",
+   "loc": 100,
+   "funcs": 9,
+   "max_func": 16,
+   "max_func_at": "internal/app/gaea_cost_ref.go:64"
+  },
+  {
+   "file": "internal/gaea/agent/tokenmeter.go",
+   "loc": 104,
+   "funcs": 6,
+   "max_func": 16,
+   "max_func_at": "internal/gaea/agent/tokenmeter.go:88"
+  },
+  {
+   "file": "internal/gaea/skill/pipeline.go",
+   "loc": 87,
+   "funcs": 4,
+   "max_func": 16,
+   "max_func_at": "internal/gaea/skill/pipeline.go:42"
+  },
+  {
+   "file": "internal/httpbridge/hostguard.go",
+   "loc": 64,
+   "funcs": 3,
+   "max_func": 16,
+   "max_func_at": "internal/httpbridge/hostguard.go:48"
+  },
+  {
+   "file": "internal/channels/weixin/media_crypt.go",
+   "loc": 140,
+   "funcs": 9,
+   "max_func": 15,
+   "max_func_at": "internal/channels/weixin/media_crypt.go:61"
+  },
+  {
+   "file": "internal/app/worldview_handler.go",
+   "loc": 113,
+   "funcs": 8,
+   "max_func": 15,
+   "max_func_at": "internal/app/worldview_handler.go:83"
+  },
+  {
+   "file": "internal/app/brain_left.go",
+   "loc": 105,
+   "funcs": 9,
+   "max_func": 15,
+   "max_func_at": "internal/app/brain_left.go:60"
+  },
+  {
+   "file": "internal/config/walkthrough.go",
+   "loc": 64,
+   "funcs": 3,
+   "max_func": 15,
+   "max_func_at": "internal/config/walkthrough.go:30"
+  },
+  {
+   "file": "internal/taskinbox/taskinbox.go",
+   "loc": 181,
+   "funcs": 9,
+   "max_func": 15,
+   "max_func_at": "internal/taskinbox/taskinbox.go:150"
+  },
+  {
+   "file": "internal/types/interfaces.go",
+   "loc": 363,
+   "funcs": 4,
+   "max_func": 15,
+   "max_func_at": "internal/types/interfaces.go:79"
+  },
+  {
+   "file": "internal/app/bindings_novel.go",
+   "loc": 461,
+   "funcs": 151,
+   "max_func": 15,
+   "max_func_at": "internal/app/bindings_novel.go:153"
+  },
+  {
+   "file": "internal/gaea/boot/skilluse.go",
+   "loc": 48,
+   "funcs": 3,
+   "max_func": 14,
+   "max_func_at": "internal/gaea/boot/skilluse.go:20"
+  },
+  {
+   "file": "internal/gaea/context/store.go",
+   "loc": 72,
+   "funcs": 6,
+   "max_func": 14,
+   "max_func_at": "internal/gaea/context/store.go:39"
+  },
+  {
+   "file": "internal/gaea/agent/session/state.go",
+   "loc": 71,
+   "funcs": 4,
+   "max_func": 14,
+   "max_func_at": "internal/gaea/agent/session/state.go:33"
+  },
+  {
+   "file": "internal/booksource/cache.go",
+   "loc": 52,
+   "funcs": 3,
+   "max_func": 14,
+   "max_func_at": "internal/booksource/cache.go:31"
+  },
+  {
+   "file": "internal/asr/provider.go",
+   "loc": 77,
+   "funcs": 3,
+   "max_func": 14,
+   "max_func_at": "internal/asr/provider.go:53"
+  },
+  {
+   "file": "internal/ai/image_backend.go",
+   "loc": 78,
+   "funcs": 3,
+   "max_func": 14,
+   "max_func_at": "internal/ai/image_backend.go:54"
+  },
+  {
+   "file": "internal/gaea/memory/promote.go",
+   "loc": 71,
+   "funcs": 9,
+   "max_func": 14,
+   "max_func_at": "internal/gaea/memory/promote.go:54"
+  },
+  {
+   "file": "internal/maturecraft/maturecraft.go",
+   "loc": 147,
+   "funcs": 7,
+   "max_func": 14,
+   "max_func_at": "internal/maturecraft/maturecraft.go:116"
+  },
+  {
+   "file": "internal/tts/provider.go",
+   "loc": 142,
+   "funcs": 6,
+   "max_func": 14,
+   "max_func_at": "internal/tts/provider.go:81"
+  },
+  {
+   "file": "internal/realtime/provider.go",
+   "loc": 130,
+   "funcs": 3,
+   "max_func": 14,
+   "max_func_at": "internal/realtime/provider.go:106"
+  },
+  {
+   "file": "internal/whisper/fact_embedding_cache.go",
+   "loc": 76,
+   "funcs": 8,
+   "max_func": 14,
+   "max_func_at": "internal/whisper/fact_embedding_cache.go:27"
+  },
+  {
+   "file": "internal/docmd/ziptest_helpers.go",
+   "loc": 22,
+   "funcs": 1,
+   "max_func": 13,
+   "max_func_at": "internal/docmd/ziptest_helpers.go:9"
+  },
+  {
+   "file": "internal/ai/types.go",
+   "loc": 223,
+   "funcs": 2,
+   "max_func": 13,
+   "max_func_at": "internal/ai/types.go:149"
+  },
+  {
+   "file": "internal/gaea/strutil/strutil.go",
+   "loc": 20,
+   "funcs": 1,
+   "max_func": 13,
+   "max_func_at": "internal/gaea/strutil/strutil.go:7"
+  },
+  {
+   "file": "internal/types/types.go",
+   "loc": 331,
+   "funcs": 3,
+   "max_func": 13,
+   "max_func_at": "internal/types/types.go:104"
+  },
+  {
+   "file": "internal/whisper/canon_creator.go",
+   "loc": 77,
+   "funcs": 5,
+   "max_func": 13,
+   "max_func_at": "internal/whisper/canon_creator.go:35"
+  },
+  {
+   "file": "internal/gaea/i18n/i18n.go",
+   "loc": 240,
+   "funcs": 4,
+   "max_func": 13,
+   "max_func_at": "internal/gaea/i18n/i18n.go:227"
+  },
+  {
+   "file": "internal/core/modes.go",
+   "loc": 53,
+   "funcs": 6,
+   "max_func": 12,
+   "max_func_at": "internal/core/modes.go:16"
+  },
+  {
+   "file": "internal/gaea/nilutil/nil.go",
+   "loc": 18,
+   "funcs": 1,
+   "max_func": 12,
+   "max_func_at": "internal/gaea/nilutil/nil.go:6"
+  },
+  {
+   "file": "internal/types/analysis_v2.go",
+   "loc": 250,
+   "funcs": 4,
+   "max_func": 12,
+   "max_func_at": "internal/types/analysis_v2.go:219"
+  },
+  {
+   "file": "internal/app/chat_handler.go",
+   "loc": 20,
+   "funcs": 1,
+   "max_func": 12,
+   "max_func_at": "internal/app/chat_handler.go:8"
+  },
+  {
+   "file": "internal/whisper/tracer.go",
+   "loc": 51,
+   "funcs": 5,
+   "max_func": 12,
+   "max_func_at": "internal/whisper/tracer.go:20"
+  },
+  {
+   "file": "internal/app/imagegen_pressure.go",
+   "loc": 60,
+   "funcs": 3,
+   "max_func": 12,
+   "max_func_at": "internal/app/imagegen_pressure.go:33"
+  },
+  {
+   "file": "internal/core/routing.go",
+   "loc": 26,
+   "funcs": 1,
+   "max_func": 12,
+   "max_func_at": "internal/core/routing.go:14"
+  },
+  {
+   "file": "internal/gaea/tool/envelope.go",
+   "loc": 99,
+   "funcs": 5,
+   "max_func": 12,
+   "max_func_at": "internal/gaea/tool/envelope.go:53"
+  },
+  {
+   "file": "internal/app/play_guardrails.go",
+   "loc": 142,
+   "funcs": 9,
+   "max_func": 12,
+   "max_func_at": "internal/app/play_guardrails.go:81"
+  },
+  {
+   "file": "internal/whisper/delivery_coordinator.go",
+   "loc": 149,
+   "funcs": 12,
+   "max_func": 12,
+   "max_func_at": "internal/whisper/delivery_coordinator.go:87"
+  },
+  {
+   "file": "internal/voice/emotion_voice_map.go",
+   "loc": 202,
+   "funcs": 6,
+   "max_func": 12,
+   "max_func_at": "internal/voice/emotion_voice_map.go:184"
+  },
+  {
+   "file": "internal/auth/browser.go",
+   "loc": 22,
+   "funcs": 1,
+   "max_func": 12,
+   "max_func_at": "internal/auth/browser.go:10"
+  },
+  {
+   "file": "internal/gaea/config/save.go",
+   "loc": 27,
+   "funcs": 1,
+   "max_func": 11,
+   "max_func_at": "internal/gaea/config/save.go:16"
+  },
+  {
+   "file": "internal/app/handler_search_export.go",
+   "loc": 37,
+   "funcs": 2,
+   "max_func": 11,
+   "max_func_at": "internal/app/handler_search_export.go:26"
+  },
+  {
+   "file": "internal/whisper/memory_binding.go",
+   "loc": 58,
+   "funcs": 4,
+   "max_func": 11,
+   "max_func_at": "internal/whisper/memory_binding.go:21"
+  },
+  {
+   "file": "internal/gaea/agent/budget_alias.go",
+   "loc": 35,
+   "funcs": 1,
+   "max_func": 11,
+   "max_func_at": "internal/gaea/agent/budget_alias.go:24"
+  },
+  {
+   "file": "internal/gaea/hook/trust.go",
+   "loc": 78,
+   "funcs": 6,
+   "max_func": 11,
+   "max_func_at": "internal/gaea/hook/trust.go:38"
+  },
+  {
+   "file": "internal/app/gaea_vision.go",
+   "loc": 57,
+   "funcs": 3,
+   "max_func": 11,
+   "max_func_at": "internal/app/gaea_vision.go:37"
+  },
+  {
+   "file": "internal/gaea/agent/budget/profile.go",
+   "loc": 32,
+   "funcs": 2,
+   "max_func": 10,
+   "max_func_at": "internal/gaea/agent/budget/profile.go:12"
+  },
+  {
+   "file": "internal/gaea/secure/secure.go",
+   "loc": 38,
+   "funcs": 2,
+   "max_func": 10,
+   "max_func_at": "internal/gaea/secure/secure.go:16"
+  },
+  {
+   "file": "internal/core/jobs.go",
+   "loc": 54,
+   "funcs": 4,
+   "max_func": 10,
+   "max_func_at": "internal/core/jobs.go:25"
+  },
+  {
+   "file": "internal/gaea/agent/render/batcher.go",
+   "loc": 97,
+   "funcs": 8,
+   "max_func": 10,
+   "max_func_at": "internal/gaea/agent/render/batcher.go:36"
+  },
+  {
+   "file": "internal/gaea/contextview/types.go",
+   "loc": 274,
+   "funcs": 2,
+   "max_func": 10,
+   "max_func_at": "internal/gaea/contextview/types.go:264"
+  },
+  {
+   "file": "internal/gaea/agent/session/session.go",
+   "loc": 175,
+   "funcs": 18,
+   "max_func": 10,
+   "max_func_at": "internal/gaea/agent/session/session.go:97"
+  },
+  {
+   "file": "internal/types/foreshadow_v2.go",
+   "loc": 240,
+   "funcs": 5,
+   "max_func": 10,
+   "max_func_at": "internal/types/foreshadow_v2.go:59"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/spacetags.go",
+   "loc": 111,
+   "funcs": 3,
+   "max_func": 10,
+   "max_func_at": "internal/gaea/tool/builtin/spacetags.go:101"
+  },
+  {
+   "file": "internal/app/gaea_cost_stage.go",
+   "loc": 53,
+   "funcs": 7,
+   "max_func": 10,
+   "max_func_at": "internal/app/gaea_cost_stage.go:23"
+  },
+  {
+   "file": "internal/app/gaea_cost_inquiry.go",
+   "loc": 68,
+   "funcs": 9,
+   "max_func": 10,
+   "max_func_at": "internal/app/gaea_cost_inquiry.go:23"
+  },
+  {
+   "file": "internal/gaea/spaces/spaces.go",
+   "loc": 99,
+   "funcs": 8,
+   "max_func": 9,
+   "max_func_at": "internal/gaea/spaces/spaces.go:48"
+  },
+  {
+   "file": "internal/core/sessionmode.go",
+   "loc": 30,
+   "funcs": 3,
+   "max_func": 9,
+   "max_func_at": "internal/core/sessionmode.go:21"
+  },
+  {
+   "file": "internal/gaea/context/provider_adapter.go",
+   "loc": 72,
+   "funcs": 3,
+   "max_func": 9,
+   "max_func_at": "internal/gaea/context/provider_adapter.go:42"
+  },
+  {
+   "file": "internal/gaea/agent/single_prompt.go",
+   "loc": 98,
+   "funcs": 1,
+   "max_func": 9,
+   "max_func_at": "internal/gaea/agent/single_prompt.go:89"
+  },
+  {
+   "file": "internal/app/whisper_write_observability.go",
+   "loc": 56,
+   "funcs": 4,
+   "max_func": 9,
+   "max_func_at": "internal/app/whisper_write_observability.go:26"
+  },
+  {
+   "file": "internal/app/gaea_herdsman_sec.go",
+   "loc": 34,
+   "funcs": 2,
+   "max_func": 9,
+   "max_func_at": "internal/app/gaea_herdsman_sec.go:25"
+  },
+  {
+   "file": "internal/app/board/builtins.go",
+   "loc": 199,
+   "funcs": 3,
+   "max_func": 9,
+   "max_func_at": "internal/app/board/builtins.go:184"
+  },
+  {
+   "file": "internal/gaea/proc/kill_other.go",
+   "loc": 46,
+   "funcs": 4,
+   "max_func": 8,
+   "max_func_at": "internal/gaea/proc/kill_other.go:15"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/encoding_helpers.go",
+   "loc": 25,
+   "funcs": 2,
+   "max_func": 8,
+   "max_func_at": "internal/gaea/tool/builtin/encoding_helpers.go:12"
+  },
+  {
+   "file": "internal/app/sin_tool_web.go",
+   "loc": 62,
+   "funcs": 6,
+   "max_func": 8,
+   "max_func_at": "internal/app/sin_tool_web.go:22"
+  },
+  {
+   "file": "internal/whisper/util.go",
+   "loc": 42,
+   "funcs": 6,
+   "max_func": 8,
+   "max_func_at": "internal/whisper/util.go:34"
+  },
+  {
+   "file": "internal/gaea/plugin/canonicalize.go",
+   "loc": 27,
+   "funcs": 2,
+   "max_func": 8,
+   "max_func_at": "internal/gaea/plugin/canonicalize.go:12"
+  },
+  {
+   "file": "internal/gaea/plugin/procattr_windows.go",
+   "loc": 20,
+   "funcs": 1,
+   "max_func": 7,
+   "max_func_at": "internal/gaea/plugin/procattr_windows.go:13"
+  },
+  {
+   "file": "internal/gaea/cache/compiler.go",
+   "loc": 66,
+   "funcs": 10,
+   "max_func": 7,
+   "max_func_at": "internal/gaea/cache/compiler.go:53"
+  },
+  {
+   "file": "internal/app/modelcatalog.go",
+   "loc": 90,
+   "funcs": 2,
+   "max_func": 7,
+   "max_func_at": "internal/app/modelcatalog.go:83"
+  },
+  {
+   "file": "internal/gaea/agent/spill.go",
+   "loc": 44,
+   "funcs": 2,
+   "max_func": 7,
+   "max_func_at": "internal/gaea/agent/spill.go:37"
+  },
+  {
+   "file": "internal/app/gaea_dream_purge.go",
+   "loc": 30,
+   "funcs": 2,
+   "max_func": 7,
+   "max_func_at": "internal/app/gaea_dream_purge.go:13"
+  },
+  {
+   "file": "internal/gaea/proc/hide_windows.go",
+   "loc": 19,
+   "funcs": 1,
+   "max_func": 7,
+   "max_func_at": "internal/gaea/proc/hide_windows.go:12"
+  },
+  {
+   "file": "internal/gaea/trajectory/types.go",
+   "loc": 159,
+   "funcs": 2,
+   "max_func": 6,
+   "max_func_at": "internal/gaea/trajectory/types.go:35"
+  },
+  {
+   "file": "internal/app/office_handler.go",
+   "loc": 29,
+   "funcs": 8,
+   "max_func": 6,
+   "max_func_at": "internal/app/office_handler.go:16"
+  },
+  {
+   "file": "internal/gaea/proc/priority_windows.go",
+   "loc": 20,
+   "funcs": 1,
+   "max_func": 6,
+   "max_func_at": "internal/gaea/proc/priority_windows.go:14"
+  },
+  {
+   "file": "internal/gaea/memory/space_view.go",
+   "loc": 78,
+   "funcs": 19,
+   "max_func": 6,
+   "max_func_at": "internal/gaea/memory/space_view.go:46"
+  },
+  {
+   "file": "internal/gaea/memory/space_ctx.go",
+   "loc": 35,
+   "funcs": 2,
+   "max_func": 6,
+   "max_func_at": "internal/gaea/memory/space_ctx.go:29"
+  },
+  {
+   "file": "internal/modelengine/glm_alias.go",
+   "loc": 33,
+   "funcs": 1,
+   "max_func": 6,
+   "max_func_at": "internal/modelengine/glm_alias.go:27"
+  },
+  {
+   "file": "internal/gaea/event/sync.go",
+   "loc": 33,
+   "funcs": 2,
+   "max_func": 6,
+   "max_func_at": "internal/gaea/event/sync.go:16"
+  },
+  {
+   "file": "internal/whisper/desktop_actions.go",
+   "loc": 103,
+   "funcs": 1,
+   "max_func": 6,
+   "max_func_at": "internal/whisper/desktop_actions.go:97"
+  },
+  {
+   "file": "internal/gaea/agent/session/space.go",
+   "loc": 26,
+   "funcs": 1,
+   "max_func": 6,
+   "max_func_at": "internal/gaea/agent/session/space.go:20"
+  },
+  {
+   "file": "internal/config/config_model.go",
+   "loc": 30,
+   "funcs": 2,
+   "max_func": 6,
+   "max_func_at": "internal/config/config_model.go:24"
+  },
+  {
+   "file": "internal/config/config_prefs.go",
+   "loc": 177,
+   "funcs": 24,
+   "max_func": 5,
+   "max_func_at": "internal/config/config_prefs.go:8"
+  },
+  {
+   "file": "internal/config/config_realtime.go",
+   "loc": 27,
+   "funcs": 3,
+   "max_func": 5,
+   "max_func_at": "internal/config/config_realtime.go:7"
+  },
+  {
+   "file": "internal/netclient/sysproxy/system_other.go",
+   "loc": 14,
+   "funcs": 1,
+   "max_func": 5,
+   "max_func_at": "internal/netclient/sysproxy/system_other.go:9"
+  },
+  {
+   "file": "internal/gaea/agent/trace.go",
+   "loc": 25,
+   "funcs": 2,
+   "max_func": 5,
+   "max_func_at": "internal/gaea/agent/trace.go:15"
+  },
+  {
+   "file": "internal/gaea/event/event.go",
+   "loc": 287,
+   "funcs": 1,
+   "max_func": 5,
+   "max_func_at": "internal/gaea/event/event.go:278"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/websearch_config.go",
+   "loc": 38,
+   "funcs": 3,
+   "max_func": 4,
+   "max_func_at": "internal/gaea/tool/builtin/websearch_config.go:22"
+  },
+  {
+   "file": "internal/whisper/memory_taxonomy.go",
+   "loc": 71,
+   "funcs": 1,
+   "max_func": 4,
+   "max_func_at": "internal/whisper/memory_taxonomy.go:67"
+  },
+  {
+   "file": "internal/gaea/memory/queue.go",
+   "loc": 44,
+   "funcs": 4,
+   "max_func": 4,
+   "max_func_at": "internal/gaea/memory/queue.go:20"
+  },
+  {
+   "file": "internal/types/story_memory.go",
+   "loc": 58,
+   "funcs": 1,
+   "max_func": 3,
+   "max_func_at": "internal/types/story_memory.go:50"
+  },
+  {
+   "file": "internal/whisper/db/paths.go",
+   "loc": 25,
+   "funcs": 2,
+   "max_func": 3,
+   "max_func_at": "internal/whisper/db/paths.go:17"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/hide_window_other.go",
+   "loc": 18,
+   "funcs": 2,
+   "max_func": 3,
+   "max_func_at": "internal/gaea/tool/builtin/hide_window_other.go:15"
+  },
+  {
+   "file": "internal/screen/screen_other.go",
+   "loc": 31,
+   "funcs": 3,
+   "max_func": 3,
+   "max_func_at": "internal/screen/screen_other.go:11"
+  },
+  {
+   "file": "internal/app/bindings_charlib.go",
+   "loc": 65,
+   "funcs": 20,
+   "max_func": 3,
+   "max_func_at": "internal/app/bindings_charlib.go:13"
+  },
+  {
+   "file": "internal/app/bindings_chat.go",
+   "loc": 82,
+   "funcs": 27,
+   "max_func": 3,
+   "max_func_at": "internal/app/bindings_chat.go:14"
+  },
+  {
+   "file": "internal/gaea/tool/builtin/errcode.go",
+   "loc": 12,
+   "funcs": 1,
+   "max_func": 3,
+   "max_func_at": "internal/gaea/tool/builtin/errcode.go:9"
+  },
+  {
+   "file": "internal/app/bindings_core.go",
+   "loc": 119,
+   "funcs": 66,
+   "max_func": 3,
+   "max_func_at": "internal/app/bindings_core.go:17"
+  },
+  {
+   "file": "internal/app/bindings_cost.go",
+   "loc": 133,
+   "funcs": 53,
+   "max_func": 3,
+   "max_func_at": "internal/app/bindings_cost.go:18"
+  },
+  {
+   "file": "internal/app/bindings_image.go",
+   "loc": 93,
+   "funcs": 44,
+   "max_func": 3,
+   "max_func_at": "internal/app/bindings_image.go:10"
+  },
+  {
+   "file": "internal/app/gaea_herdsman_probe.go",
+   "loc": 21,
+   "funcs": 1,
+   "max_func": 3,
+   "max_func_at": "internal/app/gaea_herdsman_probe.go:18"
+  },
+  {
+   "file": "internal/app/gaea_workspace_search.go",
+   "loc": 24,
+   "funcs": 1,
+   "max_func": 3,
+   "max_func_at": "internal/app/gaea_workspace_search.go:21"
+  },
+  {
+   "file": "internal/gaea/proc/proc.go",
+   "loc": 12,
+   "funcs": 1,
+   "max_func": 3,
+   "max_func_at": "internal/gaea/proc/proc.go:9"
+  },
+  {
+   "file": "internal/app/gaea_browser.go",
+   "loc": 32,
+   "funcs": 1,
+   "max_func": 3,
+   "max_func_at": "internal/app/gaea_browser.go:26"
+  },
+  {
+   "file": "internal/whisper/product_identity.go",
+   "loc": 27,
+   "funcs": 2,
+   "max_func": 3,
+   "max_func_at": "internal/whisper/product_identity.go:19"
+  },
+  {
+   "file": "internal/app/bindings_memory.go",
+   "loc": 118,
+   "funcs": 51,
+   "max_func": 3,
+   "max_func_at": "internal/app/bindings_memory.go:15"
+  },
+  {
+   "file": "internal/app/bindings_model.go",
+   "loc": 82,
+   "funcs": 44,
+   "max_func": 3,
+   "max_func_at": "internal/app/bindings_model.go:14"
+  },
+  {
+   "file": "internal/app/bindings_office.go",
+   "loc": 432,
+   "funcs": 209,
+   "max_func": 3,
+   "max_func_at": "internal/app/bindings_office.go:23"
+  },
+  {
+   "file": "internal/app/bindings_sin.go",
+   "loc": 71,
+   "funcs": 26,
+   "max_func": 3,
+   "max_func_at": "internal/app/bindings_sin.go:16"
+  },
+  {
+   "file": "internal/app/bindings_voice.go",
+   "loc": 114,
+   "funcs": 52,
+   "max_func": 3,
+   "max_func_at": "internal/app/bindings_voice.go:16"
+  },
+  {
+   "file": "internal/gaea/context/identity.go",
+   "loc": 37,
+   "funcs": 2,
+   "max_func": 3,
+   "max_func_at": "internal/gaea/context/identity.go:8"
+  },
+  {
+   "file": "internal/app/board/board.go",
+   "loc": 51,
+   "funcs": 9,
+   "max_func": 3,
+   "max_func_at": "internal/app/board/board.go:38"
+  },
+  {
+   "file": "internal/app/board_manifests.go",
+   "loc": 17,
+   "funcs": 1,
+   "max_func": 3,
+   "max_func_at": "internal/app/board_manifests.go:14"
+  },
+  {
+   "file": "internal/gaea/sandbox/sandbox.go",
+   "loc": 31,
+   "funcs": 1,
+   "max_func": 1,
+   "max_func_at": "internal/gaea/sandbox/sandbox.go:30"
+  },
+  {
+   "file": "internal/gaea/agent/textutils_alias.go",
+   "loc": 13,
+   "funcs": 1,
+   "max_func": 1,
+   "max_func_at": "internal/gaea/agent/textutils_alias.go:12"
+  },
+  {
+   "file": "internal/gaea/proc/hide_other.go",
+   "loc": 8,
+   "funcs": 1,
+   "max_func": 1,
+   "max_func_at": "internal/gaea/proc/hide_other.go:7"
+  },
+  {
+   "file": "internal/gaea/plugin/procattr_other.go",
+   "loc": 9,
+   "funcs": 1,
+   "max_func": 1,
+   "max_func_at": "internal/gaea/plugin/procattr_other.go:8"
+  },
+  {
+   "file": "internal/gaea/context/fork.go",
+   "loc": 18,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/gaea/agent/render_alias.go",
+   "loc": 28,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/gaea/db/schema.go",
+   "loc": 534,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/whisper/db/schema_v14.go",
+   "loc": 11,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/schedule/types.go",
+   "loc": 206,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/whisper/openforu_codegen_prompt.go",
+   "loc": 52,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/whisper/openforu_evolve_prompt.go",
+   "loc": 40,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/whisper/openforu_plan_prompt.go",
+   "loc": 61,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/whisper/agent_task_plan.go",
+   "loc": 44,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/whisper/db/schema_v13.go",
+   "loc": 12,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/whisper/params.go",
+   "loc": 289,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/gaea/genui/handbook.go",
+   "loc": 22,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/whisper/plan_document_prompt.go",
+   "loc": 32,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/gaea/tool/builtin/compact.go",
+   "loc": 144,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/types/plan_v1.go",
+   "loc": 74,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/config/config_keys.go",
+   "loc": 149,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/gaea/i18n/messages_en.go",
+   "loc": 170,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/gaea/i18n/messages_zh.go",
+   "loc": 171,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/whisper/db/schema_v2.go",
+   "loc": 77,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/whisper/agent_loop.go",
+   "loc": 50,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/types/plot_v2.go",
+   "loc": 192,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/whisper/db/schema_v3.go",
+   "loc": 7,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/whisper/db/schema_v4.go",
+   "loc": 34,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/whisper/db/schema_v9.go",
+   "loc": 30,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/config/config_types.go",
+   "loc": 285,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/whisper/db/schema_v15.go",
+   "loc": 11,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/whisper/memory_audit.go",
+   "loc": 67,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/whisper/db/schema_v5.go",
+   "loc": 12,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/whisper/llm_client.go",
+   "loc": 89,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/whisper/task_plan_parse.go",
+   "loc": 25,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/whisper/db/schema_v12.go",
+   "loc": 9,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/whisper/db/schema_v11.go",
+   "loc": 25,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/whisper/db/schema_v10.go",
+   "loc": 9,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/whisper/db/schema_v6.go",
+   "loc": 50,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/core/types.go",
+   "loc": 60,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/whisper/tool_def.go",
+   "loc": 36,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/whisper/db/schema_v1.go",
+   "loc": 75,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/whisper/db/schema_v7.go",
+   "loc": 8,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/gaea/agent/toolguard_alias.go",
+   "loc": 10,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/whisper/types.go",
+   "loc": 629,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/office/aliases.go",
+   "loc": 15,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/types/story_spine.go",
+   "loc": 132,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/whisper/ackem_birthday.go",
+   "loc": 12,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/types/style_digest.go",
+   "loc": 22,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/gaea/agent/agent_config.go",
+   "loc": 113,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/gaea/agent/session_alias.go",
+   "loc": 36,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/ai/interface.go",
+   "loc": 20,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/types/style_fingerprint.go",
+   "loc": 14,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  },
+  {
+   "file": "internal/whisper/db/schema_v8.go",
+   "loc": 17,
+   "funcs": 0,
+   "max_func": 0,
+   "max_func_at": ""
+  }
+ ],
+ "long_funcs_ge100": [
+  {
+   "file": "internal/gaea/boot/boot.go",
+   "line": 108,
+   "name": "Build",
+   "recv": "",
+   "loc": 551
+  },
+  {
+   "file": "internal/config/config.go",
+   "line": 27,
+   "name": "Load",
+   "recv": "",
+   "loc": 449
+  },
+  {
+   "file": "internal/gaea/agent/agent_run.go",
+   "line": 23,
+   "name": "runDirect",
+   "recv": "AgentRunner",
+   "loc": 449
+  },
+  {
+   "file": "internal/schedule/ops.go",
+   "line": 106,
+   "name": "applyOne",
+   "recv": "",
+   "loc": 434
+  },
+  {
+   "file": "internal/whisper/orchestrator.go",
+   "line": 129,
+   "name": "PreLLMTurn",
+   "recv": "Orchestrator",
+   "loc": 357
+  },
+  {
+   "file": "internal/gaea/agent/execute_one.go",
+   "line": 21,
+   "name": "executeOne",
+   "recv": "AgentRunner",
+   "loc": 338
+  },
+  {
+   "file": "internal/gaea/tool/builtin/bash.go",
+   "line": 86,
+   "name": "Execute",
+   "recv": "bash",
+   "loc": 289
+  },
+  {
+   "file": "internal/app/create_chapter_handler.go",
+   "line": 488,
+   "name": "streamCreateChapter",
+   "recv": "writingState",
+   "loc": 279
+  },
+  {
+   "file": "internal/gaea/control/controller_submit.go",
+   "line": 39,
+   "name": "dispatchSlash",
+   "recv": "Controller",
+   "loc": 268
+  },
+  {
+   "file": "internal/app/sin_handler.go",
+   "line": 268,
+   "name": "runSinStream",
+   "recv": "App",
+   "loc": 265
+  },
+  {
+   "file": "internal/schedule/cpm.go",
+   "line": 148,
+   "name": "computeCpmFull",
+   "recv": "",
+   "loc": 256
+  },
+  {
+   "file": "internal/office/xlsxedit/xlsxedit.go",
+   "line": 330,
+   "name": "applyOne",
+   "recv": "",
+   "loc": 253
+  },
+  {
+   "file": "internal/gaea/skill/builtins.go",
+   "line": 18,
+   "name": "builtinSkills",
+   "recv": "",
+   "loc": 239
+  },
+  {
+   "file": "internal/app/app.go",
+   "line": 329,
+   "name": "Startup",
+   "recv": "App",
+   "loc": 239
+  },
+  {
+   "file": "internal/app/shelf.go",
+   "line": 122,
+   "name": "SaveConfig",
+   "recv": "App",
+   "loc": 224
+  },
+  {
+   "file": "internal/schedule/xlsx.go",
+   "line": 427,
+   "name": "ImportXlsx",
+   "recv": "",
+   "loc": 216
+  },
+  {
+   "file": "internal/gaea/config/render.go",
+   "line": 13,
+   "name": "RenderTOML",
+   "recv": "",
+   "loc": 213
+  },
+  {
+   "file": "internal/app/create_chapter_handler.go",
+   "line": 44,
+   "name": "createChapter",
+   "recv": "writingState",
+   "loc": 207
+  },
+  {
+   "file": "internal/app/image_handler.go",
+   "line": 442,
+   "name": "GenerateMedia",
+   "recv": "mediaState",
+   "loc": 206
+  },
+  {
+   "file": "internal/ai/image_comfyui.go",
+   "line": 204,
+   "name": "GenerateImage",
+   "recv": "ComfyUIBackend",
+   "loc": 197
+  },
+  {
+   "file": "internal/app/consistency_deep_handler.go",
+   "line": 670,
+   "name": "deepCompareStateLine",
+   "recv": "",
+   "loc": 191
+  },
+  {
+   "file": "internal/gaea/agent/agent_stream.go",
+   "line": 29,
+   "name": "stream",
+   "recv": "AgentRunner",
+   "loc": 181
+  },
+  {
+   "file": "internal/app/sin_insight.go",
+   "line": 185,
+   "name": "foldSinContext",
+   "recv": "",
+   "loc": 179
+  },
+  {
+   "file": "internal/gaea/agent/compact_summary.go",
+   "line": 14,
+   "name": "BuildCompactSummary",
+   "recv": "",
+   "loc": 176
+  },
+  {
+   "file": "internal/gaea/tool/builtin/readfile.go",
+   "line": 62,
+   "name": "Execute",
+   "recv": "readFile",
+   "loc": 173
+  },
+  {
+   "file": "internal/app/gaea_preview.go",
+   "line": 125,
+   "name": "GaeaPreview",
+   "recv": "App",
+   "loc": 163
+  },
+  {
+   "file": "internal/app/memory_hub.go",
+   "line": 293,
+   "name": "GaeaMemoryGraph",
+   "recv": "App",
+   "loc": 160
+  },
+  {
+   "file": "internal/app/story_spine_handler.go",
+   "line": 69,
+   "name": "NovelStoryHealth",
+   "recv": "writingState",
+   "loc": 159
+  },
+  {
+   "file": "internal/ai/client.go",
+   "line": 789,
+   "name": "parseStreamEvents",
+   "recv": "Client",
+   "loc": 158
+  },
+  {
+   "file": "internal/app/image_handler.go",
+   "line": 261,
+   "name": "generateImageInternal",
+   "recv": "mediaState",
+   "loc": 156
+  },
+  {
+   "file": "internal/booksource/rule.go",
+   "line": 183,
+   "name": "Validate",
+   "recv": "Rule",
+   "loc": 153
+  },
+  {
+   "file": "internal/app/whisper_state.go",
+   "line": 65,
+   "name": "startAssistantWx",
+   "recv": "whisperState",
+   "loc": 150
+  },
+  {
+   "file": "internal/outline/outline.go",
+   "line": 129,
+   "name": "Continue",
+   "recv": "Agent",
+   "loc": 150
+  },
+  {
+   "file": "internal/analysis/story_memory.go",
+   "line": 43,
+   "name": "ExtractStoryMemories",
+   "recv": "",
+   "loc": 149
+  },
+  {
+   "file": "internal/app/whisper_handler.go",
+   "line": 151,
+   "name": "whisperChat",
+   "recv": "whisperState",
+   "loc": 144
+  },
+  {
+   "file": "internal/gaea/costinquiry/scan.go",
+   "line": 41,
+   "name": "ScanAnomalies",
+   "recv": "Store",
+   "loc": 141
+  },
+  {
+   "file": "internal/office/docxedit/docxedit.go",
+   "line": 619,
+   "name": "rebuildParagraph",
+   "recv": "",
+   "loc": 140
+  },
+  {
+   "file": "internal/ai/image_comfyui.go",
+   "line": 725,
+   "name": "pollComfyProgress",
+   "recv": "ComfyUIBackend",
+   "loc": 140
+  },
+  {
+   "file": "internal/whisper/orchestrator.go",
+   "line": 866,
+   "name": "buildTierBBlock",
+   "recv": "Orchestrator",
+   "loc": 137
+  },
+  {
+   "file": "internal/gaea/agent/batch_executor.go",
+   "line": 15,
+   "name": "executeBatch",
+   "recv": "AgentRunner",
+   "loc": 137
+  },
+  {
+   "file": "internal/gaea/cost/repair.go",
+   "line": 35,
+   "name": "legacyCategoryTarget",
+   "recv": "",
+   "loc": 136
+  },
+  {
+   "file": "internal/characterstate/characterstate.go",
+   "line": 74,
+   "name": "ApplyChapterDiff",
+   "recv": "",
+   "loc": 136
+  },
+  {
+   "file": "internal/app/novel_bookcover.go",
+   "line": 37,
+   "name": "GaeaGenerateBookCover",
+   "recv": "App",
+   "loc": 135
+  },
+  {
+   "file": "internal/auth/oauth.go",
+   "line": 59,
+   "name": "DoLogin",
+   "recv": "",
+   "loc": 135
+  },
+  {
+   "file": "internal/whisper/memory_graph.go",
+   "line": 197,
+   "name": "QuerySubgraph",
+   "recv": "KnowledgeGraph",
+   "loc": 134
+  },
+  {
+   "file": "internal/gaea/tool/builtin/schedule_tools.go",
+   "line": 213,
+   "name": "Execute",
+   "recv": "scheduleApply",
+   "loc": 134
+  },
+  {
+   "file": "internal/schedule/project.go",
+   "line": 75,
+   "name": "Validate",
+   "recv": "",
+   "loc": 134
+  },
+  {
+   "file": "internal/gaea/agent/task.go",
+   "line": 578,
+   "name": "runSubSession",
+   "recv": "TaskTool",
+   "loc": 132
+  },
+  {
+   "file": "internal/gaea/boot/sysprompt.go",
+   "line": 43,
+   "name": "buildSystemPrompt",
+   "recv": "",
+   "loc": 131
+  },
+  {
+   "file": "internal/app/sin_handler.go",
+   "line": 554,
+   "name": "SinIllustrate",
+   "recv": "App",
+   "loc": 131
+  },
+  {
+   "file": "internal/app/novel_rewrite_handler.go",
+   "line": 155,
+   "name": "novelChapterRewritePartial",
+   "recv": "writingState",
+   "loc": 129
+  },
+  {
+   "file": "internal/modelengine/engine_models.go",
+   "line": 39,
+   "name": "fetchModels",
+   "recv": "Manager",
+   "loc": 128
+  },
+  {
+   "file": "internal/app/herdsman_digitallife.go",
+   "line": 120,
+   "name": "loadHerdsmanDigitalLife",
+   "recv": "",
+   "loc": 128
+  },
+  {
+   "file": "internal/ai/client.go",
+   "line": 463,
+   "name": "chatOnce",
+   "recv": "Client",
+   "loc": 126
+  },
+  {
+   "file": "internal/channels/weixin/clawbot.go",
+   "line": 529,
+   "name": "handle",
+   "recv": "Server",
+   "loc": 126
+  },
+  {
+   "file": "internal/docmd/office.go",
+   "line": 338,
+   "name": "xlsxToMarkdown",
+   "recv": "",
+   "loc": 125
+  },
+  {
+   "file": "internal/app/gaea_resync.go",
+   "line": 147,
+   "name": "foldResyncItems",
+   "recv": "",
+   "loc": 125
+  },
+  {
+   "file": "internal/gaea/control/controller_approval.go",
+   "line": 233,
+   "name": "promptApproval",
+   "recv": "Controller",
+   "loc": 125
+  },
+  {
+   "file": "internal/office/pptxedit/pptxedit.go",
+   "line": 515,
+   "name": "rebuildParagraph",
+   "recv": "",
+   "loc": 124
+  },
+  {
+   "file": "internal/gaea/agent/render/sink.go",
+   "line": 57,
+   "name": "Emit",
+   "recv": "Sink",
+   "loc": 124
+  },
+  {
+   "file": "internal/app/gaea_handler.go",
+   "line": 689,
+   "name": "gaeaEventMap",
+   "recv": "",
+   "loc": 124
+  },
+  {
+   "file": "internal/modelengine/engine.go",
+   "line": 163,
+   "name": "NewManager",
+   "recv": "",
+   "loc": 121
+  },
+  {
+   "file": "internal/gaea/backup/backup.go",
+   "line": 119,
+   "name": "Create",
+   "recv": "Plan",
+   "loc": 121
+  },
+  {
+   "file": "internal/app/gaea_benchmark.go",
+   "line": 388,
+   "name": "renderBenchmarkAnalysis",
+   "recv": "",
+   "loc": 120
+  },
+  {
+   "file": "internal/booksource/websearch.go",
+   "line": 197,
+   "name": "discover",
+   "recv": "WebSearcher",
+   "loc": 118
+  },
+  {
+   "file": "internal/office/xlsxpreview/xlsxpreview.go",
+   "line": 153,
+   "name": "renderSheet",
+   "recv": "",
+   "loc": 118
+  },
+  {
+   "file": "internal/gaea/trajectory/agentnet.go",
+   "line": 12,
+   "name": "FoldAgentNetwork",
+   "recv": "",
+   "loc": 118
+  },
+  {
+   "file": "internal/gaea/cost/cost.go",
+   "line": 374,
+   "name": "Search",
+   "recv": "Store",
+   "loc": 117
+  },
+  {
+   "file": "internal/app/gaea_stream_probe.go",
+   "line": 41,
+   "name": "GaeaBenchmarkStreamProbe",
+   "recv": "App",
+   "loc": 116
+  },
+  {
+   "file": "internal/gaea/backup/backup.go",
+   "line": 540,
+   "name": "ApplyPending",
+   "recv": "",
+   "loc": 116
+  },
+  {
+   "file": "internal/app/novel_rewrite_handler.go",
+   "line": 32,
+   "name": "NovelChapterRewrite",
+   "recv": "writingState",
+   "loc": 114
+  },
+  {
+   "file": "internal/app/character_states_section.go",
+   "line": 35,
+   "name": "buildCharacterStatesSection",
+   "recv": "writingState",
+   "loc": 114
+  },
+  {
+   "file": "internal/whisper/emotion.go",
+   "line": 151,
+   "name": "EmotionStep",
+   "recv": "",
+   "loc": 113
+  },
+  {
+   "file": "internal/schedule/mpp.go",
+   "line": 119,
+   "name": "mppParseFromStreams",
+   "recv": "",
+   "loc": 113
+  },
+  {
+   "file": "internal/docmd/pdf.go",
+   "line": 193,
+   "name": "extractPDFText",
+   "recv": "",
+   "loc": 113
+  },
+  {
+   "file": "internal/gaea/control/dream.go",
+   "line": 49,
+   "name": "dreamText",
+   "recv": "Controller",
+   "loc": 113
+  },
+  {
+   "file": "internal/gaea/tool/builtin/websearch.go",
+   "line": 180,
+   "name": "Execute",
+   "recv": "webSearch",
+   "loc": 112
+  },
+  {
+   "file": "internal/voice/voice_manager.go",
+   "line": 566,
+   "name": "handleReply",
+   "recv": "Manager",
+   "loc": 111
+  },
+  {
+   "file": "internal/app/gaea_dag.go",
+   "line": 531,
+   "name": "dagExecute",
+   "recv": "App",
+   "loc": 110
+  },
+  {
+   "file": "internal/app/scene_cards_handler.go",
+   "line": 176,
+   "name": "NovelChapterScenesGenerate",
+   "recv": "writingState",
+   "loc": 110
+  },
+  {
+   "file": "internal/office/pptxedit/pptxedit.go",
+   "line": 309,
+   "name": "parseSlideParagraphs",
+   "recv": "",
+   "loc": 110
+  },
+  {
+   "file": "internal/app/eval_baseline_handler.go",
+   "line": 114,
+   "name": "buildEvalSnapshot",
+   "recv": "writingState",
+   "loc": 109
+  },
+  {
+   "file": "internal/app/gaea_verify.go",
+   "line": 110,
+   "name": "GaeaVerifyRecord",
+   "recv": "App",
+   "loc": 109
+  },
+  {
+   "file": "internal/gaea/wssearch/wssearch.go",
+   "line": 230,
+   "name": "Search",
+   "recv": "",
+   "loc": 108
+  },
+  {
+   "file": "internal/gaea/cost/repair.go",
+   "line": 299,
+   "name": "RepairCategoryPaths",
+   "recv": "Store",
+   "loc": 108
+  },
+  {
+   "file": "internal/export/html.go",
+   "line": 63,
+   "name": "ExportHTML",
+   "recv": "Manager",
+   "loc": 107
+  },
+  {
+   "file": "internal/office/docxedit/docxedit.go",
+   "line": 406,
+   "name": "parseParagraphs",
+   "recv": "",
+   "loc": 107
+  },
+  {
+   "file": "internal/app/novel_import_ai.go",
+   "line": 195,
+   "name": "NovelOutlineReconstructApply",
+   "recv": "writingState",
+   "loc": 106
+  },
+  {
+   "file": "internal/whisper/desktop_router.go",
+   "line": 41,
+   "name": "ExecuteUseComputer",
+   "recv": "",
+   "loc": 106
+  },
+  {
+   "file": "internal/novelcontext/novelcontext.go",
+   "line": 144,
+   "name": "Render",
+   "recv": "SceneBible",
+   "loc": 106
+  },
+  {
+   "file": "internal/app/gaea_subagent_promote.go",
+   "line": 44,
+   "name": "GaeaPromoteSubagent",
+   "recv": "App",
+   "loc": 106
+  },
+  {
+   "file": "internal/gaea/filewatch/filewatch.go",
+   "line": 159,
+   "name": "loop",
+   "recv": "Watcher",
+   "loc": 105
+  },
+  {
+   "file": "internal/app/image_comfyui_proc.go",
+   "line": 64,
+   "name": "StartComfyUI",
+   "recv": "mediaState",
+   "loc": 105
+  },
+  {
+   "file": "internal/character/character.go",
+   "line": 135,
+   "name": "GeneratePortrait",
+   "recv": "Agent",
+   "loc": 105
+  },
+  {
+   "file": "internal/whisper/time_depth_calculator.go",
+   "line": 49,
+   "name": "ComputeTimeDepth",
+   "recv": "",
+   "loc": 104
+  },
+  {
+   "file": "internal/app/sin_export_epub.go",
+   "line": 38,
+   "name": "SinExportEpub",
+   "recv": "App",
+   "loc": 103
+  },
+  {
+   "file": "internal/gaea/agent/session/projection.go",
+   "line": 26,
+   "name": "ProjectMessages",
+   "recv": "",
+   "loc": 103
+  },
+  {
+   "file": "internal/ai/client.go",
+   "line": 593,
+   "name": "ChatStream",
+   "recv": "Client",
+   "loc": 103
+  },
+  {
+   "file": "internal/analysis/foreshadow_prompt.go",
+   "line": 37,
+   "name": "RenderForeshadowCandidates",
+   "recv": "",
+   "loc": 103
+  },
+  {
+   "file": "internal/app/characterlib_gen_handler.go",
+   "line": 289,
+   "name": "characterGenerate",
+   "recv": "App",
+   "loc": 102
+  },
+  {
+   "file": "internal/modelengine/stats.go",
+   "line": 545,
+   "name": "summary",
+   "recv": "statsRecorder",
+   "loc": 102
+  },
+  {
+   "file": "internal/whisper/interpreter.go",
+   "line": 300,
+   "name": "InterpretInput",
+   "recv": "",
+   "loc": 102
+  },
+  {
+   "file": "internal/app/scene_cards_handler.go",
+   "line": 369,
+   "name": "NovelSceneRewrite",
+   "recv": "writingState",
+   "loc": 102
+  },
+  {
+   "file": "internal/ai/image_comfyui.go",
+   "line": 879,
+   "name": "checkHistory",
+   "recv": "ComfyUIBackend",
+   "loc": 102
+  },
+  {
+   "file": "internal/gaea/tool/builtin/diagram_gen.go",
+   "line": 350,
+   "name": "Execute",
+   "recv": "diagramGen",
+   "loc": 102
+  },
+  {
+   "file": "internal/voice/voice_manager.go",
+   "line": 709,
+   "name": "speak",
+   "recv": "Manager",
+   "loc": 101
+  },
+  {
+   "file": "internal/analysis/foreshadow_sync.go",
+   "line": 221,
+   "name": "syncPlant",
+   "recv": "",
+   "loc": 101
+  },
+  {
+   "file": "internal/whisper/memory_consolidator.go",
+   "line": 25,
+   "name": "Consolidate",
+   "recv": "MemoryConsolidator",
+   "loc": 101
+  },
+  {
+   "file": "internal/gaea/memory/graph.go",
+   "line": 89,
+   "name": "ProjectEvents",
+   "recv": "",
+   "loc": 100
+  },
+  {
+   "file": "internal/gaea/agent/task.go",
+   "line": 263,
+   "name": "ExecuteWithContext",
+   "recv": "TaskTool",
+   "loc": 100
+  }
+ ]
+}

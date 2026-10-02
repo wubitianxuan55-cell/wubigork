@@ -1,0 +1,2624 @@
+{
+ "copy_long_lines_top40": [
+  {
+   "files": [
+    "frontend/src/components/imagegen/AssetStudio.tsx",
+    "frontend/src/components/novel/ChapterAnalysisPanel.tsx",
+    "frontend/src/components/novel/PromptWorkshopPanel.tsx",
+    "frontend/src/components/novel/WorldviewSectionsEditor.tsx",
+    "frontend/src/pages/CharacterPage.tsx",
+    "frontend/src/pages/CreatePage.tsx",
+    "frontend/src/pages/NovelSettingPage.tsx",
+    "frontend/src/pages/OriginalSinPage.tsx",
+    "frontend/src/pages/WeixinPage.tsx"
+   ],
+   "n": 9,
+   "sample": "import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'",
+   "locs": [
+    [
+     "frontend/src/components/imagegen/AssetStudio.tsx",
+     12
+    ],
+    [
+     "frontend/src/components/novel/ChapterAnalysisPanel.tsx",
+     9
+    ],
+    [
+     "frontend/src/components/novel/PromptWorkshopPanel.tsx",
+     11
+    ],
+    [
+     "frontend/src/components/novel/WorldviewSectionsEditor.tsx",
+     5
+    ],
+    [
+     "frontend/src/pages/CharacterPage.tsx",
+     4
+    ],
+    [
+     "frontend/src/pages/CreatePage.tsx",
+     1
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/AgentTree.tsx",
+    "frontend/src/gaea/components/BrowserPanel.tsx",
+    "frontend/src/gaea/components/DeliverableCards.tsx",
+    "frontend/src/gaea/components/SubagentsPanel.tsx",
+    "frontend/src/gaea/components/VersionTimeline.tsx",
+    "frontend/src/gaea/components/deliverables/shared.ts",
+    "frontend/src/gaea/components/verify/VerifyArtifactsThumbs.tsx"
+   ],
+   "n": 7,
+   "sample": "\"flex items-center justify-center w-6 h-6 rounded-md border-0 bg-transparent text-(color:--md-sys-color-text-s",
+   "locs": [
+    [
+     "frontend/src/gaea/components/AgentTree.tsx",
+     101
+    ],
+    [
+     "frontend/src/gaea/components/BrowserPanel.tsx",
+     205
+    ],
+    [
+     "frontend/src/gaea/components/DeliverableCards.tsx",
+     36
+    ],
+    [
+     "frontend/src/gaea/components/SubagentsPanel.tsx",
+     248
+    ],
+    [
+     "frontend/src/gaea/components/VersionTimeline.tsx",
+     84
+    ],
+    [
+     "frontend/src/gaea/components/deliverables/shared.ts",
+     18
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/memoryhub/ComposeModal.tsx",
+    "frontend/src/gaea/components/memoryhub/CostGraphView.tsx",
+    "frontend/src/gaea/components/memoryhub/CostIndicatorsView.tsx",
+    "frontend/src/gaea/components/memoryhub/CostNotesView.tsx",
+    "frontend/src/gaea/components/memoryhub/CostProjectsView.tsx",
+    "frontend/src/gaea/components/memoryhub/FiveCalcPanel.tsx"
+   ],
+   "n": 6,
+   "sample": "\"inline-flex items-center gap-1 px-2.5 h-7 rounded-lg border border-border text-fg-faint hover:text-fg hover:b",
+   "locs": [
+    [
+     "frontend/src/gaea/components/memoryhub/ComposeModal.tsx",
+     18
+    ],
+    [
+     "frontend/src/gaea/components/memoryhub/CostGraphView.tsx",
+     235
+    ],
+    [
+     "frontend/src/gaea/components/memoryhub/CostIndicatorsView.tsx",
+     8
+    ],
+    [
+     "frontend/src/gaea/components/memoryhub/CostNotesView.tsx",
+     11
+    ],
+    [
+     "frontend/src/gaea/components/memoryhub/CostProjectsView.tsx",
+     20
+    ],
+    [
+     "frontend/src/gaea/components/memoryhub/FiveCalcPanel.tsx",
+     29
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/components/imagegen/AssetStudio.tsx",
+    "frontend/src/components/novel/PartialRewriteModal.tsx",
+    "frontend/src/components/novel/PromptWorkshopPanel.tsx",
+    "frontend/src/components/settings/AboutPanel.tsx",
+    "frontend/src/pages/modelcenter/EngineSection.tsx"
+   ],
+   "n": 7,
+   "sample": "<div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>",
+   "locs": [
+    [
+     "frontend/src/components/imagegen/AssetStudio.tsx",
+     297
+    ],
+    [
+     "frontend/src/components/imagegen/AssetStudio.tsx",
+     357
+    ],
+    [
+     "frontend/src/components/novel/PartialRewriteModal.tsx",
+     199
+    ],
+    [
+     "frontend/src/components/novel/PromptWorkshopPanel.tsx",
+     385
+    ],
+    [
+     "frontend/src/components/settings/AboutPanel.tsx",
+     53
+    ],
+    [
+     "frontend/src/components/settings/AboutPanel.tsx",
+     103
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/analysis/analysis.go",
+    "internal/chapter/chapter.go",
+    "internal/character/character.go",
+    "internal/outline/outline.go",
+    "internal/worldview/worldview.go"
+   ],
+   "n": 5,
+   "sample": "func New(client ai.LLMClient, pm *project.Manager, cfg *config.Config, eng *prompt.Engine) *Agent {",
+   "locs": [
+    [
+     "internal/analysis/analysis.go",
+     43
+    ],
+    [
+     "internal/chapter/chapter.go",
+     27
+    ],
+    [
+     "internal/character/character.go",
+     35
+    ],
+    [
+     "internal/outline/outline.go",
+     29
+    ],
+    [
+     "internal/worldview/worldview.go",
+     26
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/chapter/chapter.go",
+    "internal/character/character.go",
+    "internal/outline/outline.go",
+    "internal/whisper/memory_ingest.go"
+   ],
+   "n": 6,
+   "sample": "if err := json.Unmarshal([]byte(util.ExtractJSON(reply)), &result); err != nil {",
+   "locs": [
+    [
+     "internal/chapter/chapter.go",
+     171
+    ],
+    [
+     "internal/chapter/chapter.go",
+     200
+    ],
+    [
+     "internal/character/character.go",
+     386
+    ],
+    [
+     "internal/outline/outline.go",
+     670
+    ],
+    [
+     "internal/whisper/memory_ingest.go",
+     118
+    ],
+    [
+     "internal/whisper/memory_ingest.go",
+     291
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/components/imagegen/ModelDirectory.tsx",
+    "frontend/src/components/imagegen/VisionTrial.tsx",
+    "frontend/src/components/novel/ChapterReviewPanel.tsx",
+    "frontend/src/components/novel/ForeshadowPanel.tsx"
+   ],
+   "n": 6,
+   "sample": "<div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>",
+   "locs": [
+    [
+     "frontend/src/components/imagegen/ModelDirectory.tsx",
+     254
+    ],
+    [
+     "frontend/src/components/imagegen/VisionTrial.tsx",
+     304
+    ],
+    [
+     "frontend/src/components/novel/ChapterReviewPanel.tsx",
+     167
+    ],
+    [
+     "frontend/src/components/novel/ForeshadowPanel.tsx",
+     474
+    ],
+    [
+     "frontend/src/components/novel/ForeshadowPanel.tsx",
+     514
+    ],
+    [
+     "frontend/src/components/novel/ForeshadowPanel.tsx",
+     518
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/components/imagegen/ResultStage.tsx",
+    "frontend/src/components/novel/BookHealthPanel.tsx",
+    "frontend/src/components/novel/ChapterAnalysisPanel.tsx",
+    "frontend/src/components/settings/AppearancePanel.tsx"
+   ],
+   "n": 6,
+   "sample": "<div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>",
+   "locs": [
+    [
+     "frontend/src/components/imagegen/ResultStage.tsx",
+     84
+    ],
+    [
+     "frontend/src/components/novel/BookHealthPanel.tsx",
+     306
+    ],
+    [
+     "frontend/src/components/novel/BookHealthPanel.tsx",
+     339
+    ],
+    [
+     "frontend/src/components/novel/BookHealthPanel.tsx",
+     365
+    ],
+    [
+     "frontend/src/components/novel/ChapterAnalysisPanel.tsx",
+     226
+    ],
+    [
+     "frontend/src/components/settings/AppearancePanel.tsx",
+     97
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/app/gaea_docx_edit.go",
+    "internal/app/gaea_pptx_edit.go",
+    "internal/app/gaea_verify.go",
+    "internal/app/gaea_xlsx_edit.go"
+   ],
+   "n": 4,
+   "sample": "st, err := evidence.OpenJournal(filepath.Join(gaeaCwd(), \".gaea\", \"work\", \"journal\"))",
+   "locs": [
+    [
+     "internal/app/gaea_docx_edit.go",
+     132
+    ],
+    [
+     "internal/app/gaea_pptx_edit.go",
+     81
+    ],
+    [
+     "internal/app/gaea_verify.go",
+     22
+    ],
+    [
+     "internal/app/gaea_xlsx_edit.go",
+     161
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/channels/weixin/media_download.go",
+    "internal/gaea/plugin/ssrf.go",
+    "internal/gaea/tool/builtin/webfetch.go",
+    "internal/netclient/ssrf.go"
+   ],
+   "n": 4,
+   "sample": "return dialer.DialContext(ctx, network, net.JoinHostPort(ips[0].IP.String(), port))",
+   "locs": [
+    [
+     "internal/channels/weixin/media_download.go",
+     80
+    ],
+    [
+     "internal/gaea/plugin/ssrf.go",
+     35
+    ],
+    [
+     "internal/gaea/tool/builtin/webfetch.go",
+     129
+    ],
+    [
+     "internal/netclient/ssrf.go",
+     73
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/components/imagegen/AssetLibrary.tsx",
+    "frontend/src/components/imagegen/AssetStudio.tsx",
+    "frontend/src/components/imagegen/ModelDirectory.tsx",
+    "frontend/src/components/imagegen/VisionTrial.tsx"
+   ],
+   "n": 4,
+   "sample": "style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '10px 12",
+   "locs": [
+    [
+     "frontend/src/components/imagegen/AssetLibrary.tsx",
+     127
+    ],
+    [
+     "frontend/src/components/imagegen/AssetStudio.tsx",
+     167
+    ],
+    [
+     "frontend/src/components/imagegen/ModelDirectory.tsx",
+     167
+    ],
+    [
+     "frontend/src/components/imagegen/VisionTrial.tsx",
+     220
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/BrowserPanel.tsx",
+    "frontend/src/gaea/components/DeliverablesPanel.tsx",
+    "frontend/src/gaea/components/SubagentsPanel.tsx",
+    "frontend/src/gaea/components/TaskCenter.tsx"
+   ],
+   "n": 4,
+   "sample": "<div className=\"flex flex-col h-full min-h-0 text-xs\" style={{ color: \"var(--md-sys-color-text-secondary)\" }}>",
+   "locs": [
+    [
+     "frontend/src/gaea/components/BrowserPanel.tsx",
+     208
+    ],
+    [
+     "frontend/src/gaea/components/DeliverablesPanel.tsx",
+     349
+    ],
+    [
+     "frontend/src/gaea/components/SubagentsPanel.tsx",
+     251
+    ],
+    [
+     "frontend/src/gaea/components/TaskCenter.tsx",
+     212
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/DeliverableCards.tsx",
+    "frontend/src/gaea/components/SubagentsPanel.tsx",
+    "frontend/src/gaea/components/VersionTimeline.tsx",
+    "frontend/src/gaea/components/deliverables/DeliverableRow.tsx"
+   ],
+   "n": 4,
+   "sample": "border: \"1px solid color-mix(in srgb, var(--md-sys-color-warning) 32%, transparent)\",",
+   "locs": [
+    [
+     "frontend/src/gaea/components/DeliverableCards.tsx",
+     194
+    ],
+    [
+     "frontend/src/gaea/components/SubagentsPanel.tsx",
+     286
+    ],
+    [
+     "frontend/src/gaea/components/VersionTimeline.tsx",
+     468
+    ],
+    [
+     "frontend/src/gaea/components/deliverables/DeliverableRow.tsx",
+     137
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/memoryhub/ComposeModal.tsx",
+    "frontend/src/gaea/components/memoryhub/CostInquiryPanel.tsx",
+    "frontend/src/gaea/components/memoryhub/CostNotesView.tsx",
+    "frontend/src/gaea/components/memoryhub/CostProjectsView.tsx"
+   ],
+   "n": 4,
+   "sample": "\"w-full bg-bg border border-border-soft rounded-md text-fg text-[12px] px-2.5 py-1.5 outline-none focus:border",
+   "locs": [
+    [
+     "frontend/src/gaea/components/memoryhub/ComposeModal.tsx",
+     14
+    ],
+    [
+     "frontend/src/gaea/components/memoryhub/CostInquiryPanel.tsx",
+     37
+    ],
+    [
+     "frontend/src/gaea/components/memoryhub/CostNotesView.tsx",
+     9
+    ],
+    [
+     "frontend/src/gaea/components/memoryhub/CostProjectsView.tsx",
+     18
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/memoryhub/ComposeModal.tsx",
+    "frontend/src/gaea/components/memoryhub/CostNotesView.tsx",
+    "frontend/src/gaea/components/memoryhub/CostProjectsView.tsx",
+    "frontend/src/gaea/components/memoryhub/FiveCalcPanel.tsx"
+   ],
+   "n": 4,
+   "sample": "\"inline-flex items-center gap-1 px-2.5 h-7 rounded-lg bg-accent text-accent-fg text-[11.5px] hover:opacity-90 ",
+   "locs": [
+    [
+     "frontend/src/gaea/components/memoryhub/ComposeModal.tsx",
+     16
+    ],
+    [
+     "frontend/src/gaea/components/memoryhub/CostNotesView.tsx",
+     13
+    ],
+    [
+     "frontend/src/gaea/components/memoryhub/CostProjectsView.tsx",
+     22
+    ],
+    [
+     "frontend/src/gaea/components/memoryhub/FiveCalcPanel.tsx",
+     31
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/lib/diff.ts",
+    "frontend/src/gaea/lib/diffRender.ts",
+    "frontend/src/gaea/lib/docxTextDiff.ts",
+    "frontend/src/gaea/lib/pptxTextDiff.ts"
+   ],
+   "n": 4,
+   "sample": "const dp: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));",
+   "locs": [
+    [
+     "frontend/src/gaea/lib/diff.ts",
+     14
+    ],
+    [
+     "frontend/src/gaea/lib/diffRender.ts",
+     94
+    ],
+    [
+     "frontend/src/gaea/lib/docxTextDiff.ts",
+     40
+    ],
+    [
+     "frontend/src/gaea/lib/pptxTextDiff.ts",
+     166
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/memoryhub/OfficeMemoryLibrary.tsx",
+    "frontend/src/gaea/components/memoryhub/ProfileLibrary.tsx",
+    "frontend/src/gaea/components/memoryhub/WhisperMemoryLibrary.tsx"
+   ],
+   "n": 8,
+   "sample": "className=\"inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-border text-fg-faint hover:text-",
+   "locs": [
+    [
+     "frontend/src/gaea/components/memoryhub/OfficeMemoryLibrary.tsx",
+     264
+    ],
+    [
+     "frontend/src/gaea/components/memoryhub/OfficeMemoryLibrary.tsx",
+     273
+    ],
+    [
+     "frontend/src/gaea/components/memoryhub/OfficeMemoryLibrary.tsx",
+     282
+    ],
+    [
+     "frontend/src/gaea/components/memoryhub/OfficeMemoryLibrary.tsx",
+     291
+    ],
+    [
+     "frontend/src/gaea/components/memoryhub/ProfileLibrary.tsx",
+     125
+    ],
+    [
+     "frontend/src/gaea/components/memoryhub/WhisperMemoryLibrary.tsx",
+     233
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/components/VoiceSettingsPanel.tsx",
+    "frontend/src/components/WhisperEmotionPanel.tsx",
+    "frontend/src/components/settings/ChatPanel.tsx"
+   ],
+   "n": 6,
+   "sample": "<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>",
+   "locs": [
+    [
+     "frontend/src/components/VoiceSettingsPanel.tsx",
+     200
+    ],
+    [
+     "frontend/src/components/VoiceSettingsPanel.tsx",
+     225
+    ],
+    [
+     "frontend/src/components/WhisperEmotionPanel.tsx",
+     150
+    ],
+    [
+     "frontend/src/components/settings/ChatPanel.tsx",
+     221
+    ],
+    [
+     "frontend/src/components/settings/ChatPanel.tsx",
+     228
+    ],
+    [
+     "frontend/src/components/settings/ChatPanel.tsx",
+     235
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/DeliverableCards.tsx",
+    "frontend/src/gaea/components/VersionTimeline.tsx",
+    "frontend/src/gaea/components/deliverables/DeliverableRow.tsx"
+   ],
+   "n": 5,
+   "sample": "border: \"1px solid color-mix(in srgb, var(--md-sys-color-success) 32%, transparent)\",",
+   "locs": [
+    [
+     "frontend/src/gaea/components/DeliverableCards.tsx",
+     178
+    ],
+    [
+     "frontend/src/gaea/components/DeliverableCards.tsx",
+     208
+    ],
+    [
+     "frontend/src/gaea/components/VersionTimeline.tsx",
+     482
+    ],
+    [
+     "frontend/src/gaea/components/deliverables/DeliverableRow.tsx",
+     106
+    ],
+    [
+     "frontend/src/gaea/components/deliverables/DeliverableRow.tsx",
+     123
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/DocxOutline.tsx",
+    "frontend/src/gaea/components/DocxPreview.tsx",
+    "frontend/src/gaea/components/FilePreview.tsx"
+   ],
+   "n": 5,
+   "sample": "className=\"flex items-center justify-center w-5 h-5 border-0 bg-transparent text-fg-faint cursor-pointer hover",
+   "locs": [
+    [
+     "frontend/src/gaea/components/DocxOutline.tsx",
+     39
+    ],
+    [
+     "frontend/src/gaea/components/DocxPreview.tsx",
+     654
+    ],
+    [
+     "frontend/src/gaea/components/DocxPreview.tsx",
+     734
+    ],
+    [
+     "frontend/src/gaea/components/DocxPreview.tsx",
+     894
+    ],
+    [
+     "frontend/src/gaea/components/FilePreview.tsx",
+     433
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/memoryhub/DigitalLifeLibrary.tsx",
+    "frontend/src/gaea/components/memoryhub/PriceSourcesPanel.tsx",
+    "frontend/src/gaea/components/memoryhub/PriceSourcesRepository.tsx"
+   ],
+   "n": 4,
+   "sample": "className=\"flex items-center justify-center w-6 h-6 border-0 bg-transparent text-fg-faint cursor-pointer hover",
+   "locs": [
+    [
+     "frontend/src/gaea/components/memoryhub/DigitalLifeLibrary.tsx",
+     127
+    ],
+    [
+     "frontend/src/gaea/components/memoryhub/PriceSourcesPanel.tsx",
+     279
+    ],
+    [
+     "frontend/src/gaea/components/memoryhub/PriceSourcesPanel.tsx",
+     296
+    ],
+    [
+     "frontend/src/gaea/components/memoryhub/PriceSourcesRepository.tsx",
+     95
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/app/create_chapter_handler.go",
+    "internal/app/novel_booksource_handler.go",
+    "internal/project/project.go"
+   ],
+   "n": 3,
+   "sample": "if sc, rerr := sm.Read(meta.ID); rerr == nil && strings.TrimSpace(sc.Content) != \"\" {",
+   "locs": [
+    [
+     "internal/app/create_chapter_handler.go",
+     387
+    ],
+    [
+     "internal/app/novel_booksource_handler.go",
+     656
+    ],
+    [
+     "internal/project/project.go",
+     541
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/app/ghost_suggest.go",
+    "internal/app/novel_reading_handler.go",
+    "internal/app/scene_cards_handler.go"
+   ],
+   "n": 3,
+   "sample": "reply, err := a.client.ChatSimpleStreamWithOptions(ctx, model, system, user, ai.ChatSimpleOptions{",
+   "locs": [
+    [
+     "internal/app/ghost_suggest.go",
+     56
+    ],
+    [
+     "internal/app/novel_reading_handler.go",
+     255
+    ],
+    [
+     "internal/app/scene_cards_handler.go",
+     430
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/channels/weixin/media_download.go",
+    "internal/gaea/plugin/ssrf.go",
+    "internal/netclient/ssrf.go"
+   ],
+   "n": 3,
+   "sample": "DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {",
+   "locs": [
+    [
+     "internal/channels/weixin/media_download.go",
+     66
+    ],
+    [
+     "internal/gaea/plugin/ssrf.go",
+     21
+    ],
+    [
+     "internal/netclient/ssrf.go",
+     59
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/character/character.go",
+    "internal/outline/outline.go",
+    "internal/worldview/worldview.go"
+   ],
+   "n": 3,
+   "sample": "func (a *Agent) chat(ctx context.Context, system, user string) (string, error) {",
+   "locs": [
+    [
+     "internal/character/character.go",
+     717
+    ],
+    [
+     "internal/outline/outline.go",
+     51
+    ],
+    [
+     "internal/worldview/worldview.go",
+     246
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/character/character.go",
+    "internal/outline/outline.go",
+    "internal/worldview/worldview.go"
+   ],
+   "n": 3,
+   "sample": "return a.client.ChatSimpleStreamWithOptions(ctx, model, system, user, ai.ChatSimpleOptions{EngineID: eng})",
+   "locs": [
+    [
+     "internal/character/character.go",
+     721
+    ],
+    [
+     "internal/outline/outline.go",
+     55
+    ],
+    [
+     "internal/worldview/worldview.go",
+     250
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/components/WelcomePage.tsx",
+    "frontend/src/components/settings/ImageGenPanel.tsx",
+    "frontend/src/components/settings/WorkspacePanel.tsx"
+   ],
+   "n": 3,
+   "sample": "background: 'var(--md-sys-color-primary)', borderColor: 'var(--md-sys-color-primary)',",
+   "locs": [
+    [
+     "frontend/src/components/WelcomePage.tsx",
+     56
+    ],
+    [
+     "frontend/src/components/settings/ImageGenPanel.tsx",
+     116
+    ],
+    [
+     "frontend/src/components/settings/WorkspacePanel.tsx",
+     53
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/components/chat/SuggestionCard.tsx",
+    "frontend/src/components/novel/character/CharacterCard.tsx",
+    "frontend/src/components/novel/character/OrganizationCard.tsx"
+   ],
+   "n": 3,
+   "sample": "onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}",
+   "locs": [
+    [
+     "frontend/src/components/chat/SuggestionCard.tsx",
+     11
+    ],
+    [
+     "frontend/src/components/novel/character/CharacterCard.tsx",
+     45
+    ],
+    [
+     "frontend/src/components/novel/character/OrganizationCard.tsx",
+     18
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/components/imagegen/AssetLibrary.tsx",
+    "frontend/src/components/imagegen/AssetStudio.tsx",
+    "frontend/src/components/imagegen/VisionTrial.tsx"
+   ],
+   "n": 3,
+   "sample": "borderRadius: 10, background: 'color-mix(in srgb, var(--color-text) 3%, transparent)',",
+   "locs": [
+    [
+     "frontend/src/components/imagegen/AssetLibrary.tsx",
+     231
+    ],
+    [
+     "frontend/src/components/imagegen/AssetStudio.tsx",
+     211
+    ],
+    [
+     "frontend/src/components/imagegen/VisionTrial.tsx",
+     368
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/components/imagegen/AssetLibrary.tsx",
+    "frontend/src/components/imagegen/AssetStudio.tsx",
+    "frontend/src/components/imagegen/VisionTrial.tsx"
+   ],
+   "n": 3,
+   "sample": "style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', borderRadius: 7, display: 'block' }} />",
+   "locs": [
+    [
+     "frontend/src/components/imagegen/AssetLibrary.tsx",
+     236
+    ],
+    [
+     "frontend/src/components/imagegen/AssetStudio.tsx",
+     387
+    ],
+    [
+     "frontend/src/components/imagegen/VisionTrial.tsx",
+     372
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/components/imagegen/AssetLibrary.tsx",
+    "frontend/src/components/imagegen/AssetStudio.tsx",
+    "frontend/src/components/imagegen/VisionTrial.tsx"
+   ],
+   "n": 3,
+   "sample": "<FileImageOutlined style={{ fontSize: 18, color: C('color-text-secondary'), opacity: 0.6 }} />",
+   "locs": [
+    [
+     "frontend/src/components/imagegen/AssetLibrary.tsx",
+     243
+    ],
+    [
+     "frontend/src/components/imagegen/AssetStudio.tsx",
+     374
+    ],
+    [
+     "frontend/src/components/imagegen/VisionTrial.tsx",
+     335
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/components/imagegen/AssetStudio.tsx",
+    "frontend/src/components/imagegen/ModelDirectory.tsx",
+    "frontend/src/components/imagegen/VisionTrial.tsx"
+   ],
+   "n": 3,
+   "sample": "<div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, flexWrap: 'wrap' }}>",
+   "locs": [
+    [
+     "frontend/src/components/imagegen/AssetStudio.tsx",
+     169
+    ],
+    [
+     "frontend/src/components/imagegen/ModelDirectory.tsx",
+     169
+    ],
+    [
+     "frontend/src/components/imagegen/VisionTrial.tsx",
+     222
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/components/novel/BookSearchEnginesModal.tsx",
+    "frontend/src/components/novel/BookSearchModal.tsx",
+    "frontend/src/components/novel/create/ContextInventoryPanel.tsx"
+   ],
+   "n": 3,
+   "sample": "styles={{ body: { background: 'transparent' }, header: { background: 'transparent' } }}",
+   "locs": [
+    [
+     "frontend/src/components/novel/BookSearchEnginesModal.tsx",
+     139
+    ],
+    [
+     "frontend/src/components/novel/BookSearchModal.tsx",
+     442
+    ],
+    [
+     "frontend/src/components/novel/create/ContextInventoryPanel.tsx",
+     55
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/components/novel/BookSearchModal.tsx",
+    "frontend/src/components/novel/CreateNovelModal.tsx",
+    "frontend/src/components/novel/ImportNovelModal.tsx"
+   ],
+   "n": 3,
+   "sample": "style={{ background: C('color-bg-layout'), borderColor: C('color-border'), color: C('color-text') }}",
+   "locs": [
+    [
+     "frontend/src/components/novel/BookSearchModal.tsx",
+     548
+    ],
+    [
+     "frontend/src/components/novel/CreateNovelModal.tsx",
+     77
+    ],
+    [
+     "frontend/src/components/novel/ImportNovelModal.tsx",
+     53
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/components/settings/DataPanel.tsx",
+    "frontend/src/components/settings/OfficePanel.tsx",
+    "frontend/src/components/settings/SecurityPanel.tsx"
+   ],
+   "n": 3,
+   "sample": "<Typography.Text style={{ fontSize: 12, color: 'var(--md-sys-color-text-secondary)' }}>",
+   "locs": [
+    [
+     "frontend/src/components/settings/DataPanel.tsx",
+     172
+    ],
+    [
+     "frontend/src/components/settings/OfficePanel.tsx",
+     265
+    ],
+    [
+     "frontend/src/components/settings/SecurityPanel.tsx",
+     215
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/ArgMenu.tsx",
+    "frontend/src/gaea/components/FileMenu.tsx",
+    "frontend/src/gaea/components/SlashMenu.tsx"
+   ],
+   "n": 3,
+   "sample": "className={`flex items-baseline gap-2 w-full px-2 py-1.5 bg-transparent border-0 rounded-md text-inherit text-",
+   "locs": [
+    [
+     "frontend/src/gaea/components/ArgMenu.tsx",
+     24
+    ],
+    [
+     "frontend/src/gaea/components/FileMenu.tsx",
+     28
+    ],
+    [
+     "frontend/src/gaea/components/SlashMenu.tsx",
+     36
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/ArgMenu.tsx",
+    "frontend/src/gaea/components/FileMenu.tsx",
+    "frontend/src/gaea/components/SlashMenu.tsx"
+   ],
+   "n": 3,
+   "sample": "i === activeIndex ? \"bg-accent-soft border-l-[2px] border-l-accent pl-[6px]\" : \"border-l-[2px] border-l-transp",
+   "locs": [
+    [
+     "frontend/src/gaea/components/ArgMenu.tsx",
+     25
+    ],
+    [
+     "frontend/src/gaea/components/FileMenu.tsx",
+     29
+    ],
+    [
+     "frontend/src/gaea/components/SlashMenu.tsx",
+     37
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/BrowserPanel.tsx",
+    "frontend/src/gaea/components/DeliverablesPanel.tsx",
+    "frontend/src/gaea/components/SubagentsPanel.tsx"
+   ],
+   "n": 3,
+   "sample": "className=\"inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full px-1.5 py-px text-[10px] leadin",
+   "locs": [
+    [
+     "frontend/src/gaea/components/BrowserPanel.tsx",
+     217
+    ],
+    [
+     "frontend/src/gaea/components/DeliverablesPanel.tsx",
+     384
+    ],
+    [
+     "frontend/src/gaea/components/SubagentsPanel.tsx",
+     296
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/BrowserPanel.tsx",
+    "frontend/src/gaea/components/DeliverablesPanel.tsx",
+    "frontend/src/gaea/components/SubagentsPanel.tsx"
+   ],
+   "n": 3,
+   "sample": "style={{ background: autoOpen ? \"var(--gaea-glow)\" : \"var(--md-sys-color-outline-variant)\" }}",
+   "locs": [
+    [
+     "frontend/src/gaea/components/BrowserPanel.tsx",
+     237
+    ],
+    [
+     "frontend/src/gaea/components/DeliverablesPanel.tsx",
+     404
+    ],
+    [
+     "frontend/src/gaea/components/SubagentsPanel.tsx",
+     316
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/CostLibraryView.tsx",
+    "frontend/src/gaea/components/Transcript.tsx",
+    "frontend/src/genui/GenuiBlock.tsx"
+   ],
+   "n": 3,
+   "sample": "import { memo, useCallback, useEffect, useMemo, useRef, useState } from \"react\";",
+   "locs": [
+    [
+     "frontend/src/gaea/components/CostLibraryView.tsx",
+     1
+    ],
+    [
+     "frontend/src/gaea/components/Transcript.tsx",
+     2
+    ],
+    [
+     "frontend/src/genui/GenuiBlock.tsx",
+     3
+    ]
+   ]
+  }
+ ],
+ "copy_long_lines_count": 287,
+ "dup_blocks_go_top30": [
+  {
+   "files": [
+    "internal/app/gaea_prompt_store.go",
+    "internal/app/gaea_route_suggestions.go",
+    "internal/app/gaea_skill_stats.go",
+    "internal/app/gaea_task_inbox.go"
+   ],
+   "n": 4,
+   "locs": [
+    [
+     "internal/app/gaea_prompt_store.go",
+     76
+    ],
+    [
+     "internal/app/gaea_route_suggestions.go",
+     78
+    ],
+    [
+     "internal/app/gaea_skill_stats.go",
+     55
+    ],
+    [
+     "internal/app/gaea_task_inbox.go",
+     102
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/app/gaea_prompt_store.go",
+    "internal/app/gaea_route_suggestions.go",
+    "internal/app/gaea_skill_stats.go",
+    "internal/app/gaea_task_inbox.go"
+   ],
+   "n": 4,
+   "locs": [
+    [
+     "internal/app/gaea_prompt_store.go",
+     77
+    ],
+    [
+     "internal/app/gaea_route_suggestions.go",
+     79
+    ],
+    [
+     "internal/app/gaea_skill_stats.go",
+     56
+    ],
+    [
+     "internal/app/gaea_task_inbox.go",
+     103
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/app/gaea_prompt_store.go",
+    "internal/app/gaea_route_suggestions.go",
+    "internal/app/gaea_skill_stats.go",
+    "internal/app/gaea_task_inbox.go"
+   ],
+   "n": 4,
+   "locs": [
+    [
+     "internal/app/gaea_prompt_store.go",
+     79
+    ],
+    [
+     "internal/app/gaea_route_suggestions.go",
+     81
+    ],
+    [
+     "internal/app/gaea_skill_stats.go",
+     58
+    ],
+    [
+     "internal/app/gaea_task_inbox.go",
+     105
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/app/gaea_prompt_store.go",
+    "internal/app/gaea_route_suggestions.go",
+    "internal/app/gaea_skill_stats.go",
+    "internal/app/gaea_task_inbox.go"
+   ],
+   "n": 4,
+   "locs": [
+    [
+     "internal/app/gaea_prompt_store.go",
+     80
+    ],
+    [
+     "internal/app/gaea_route_suggestions.go",
+     82
+    ],
+    [
+     "internal/app/gaea_skill_stats.go",
+     59
+    ],
+    [
+     "internal/app/gaea_task_inbox.go",
+     106
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/app/gaea_prompt_store.go",
+    "internal/app/gaea_route_suggestions.go",
+    "internal/app/gaea_skill_stats.go",
+    "internal/app/gaea_task_inbox.go"
+   ],
+   "n": 4,
+   "locs": [
+    [
+     "internal/app/gaea_prompt_store.go",
+     81
+    ],
+    [
+     "internal/app/gaea_route_suggestions.go",
+     83
+    ],
+    [
+     "internal/app/gaea_skill_stats.go",
+     60
+    ],
+    [
+     "internal/app/gaea_task_inbox.go",
+     107
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/chapter/chapter.go",
+    "internal/character/character.go",
+    "internal/outline/outline.go"
+   ],
+   "n": 3,
+   "locs": [
+    [
+     "internal/chapter/chapter.go",
+     12
+    ],
+    [
+     "internal/character/character.go",
+     20
+    ],
+    [
+     "internal/outline/outline.go",
+     14
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/chapter/chapter.go",
+    "internal/character/character.go",
+    "internal/outline/outline.go"
+   ],
+   "n": 3,
+   "locs": [
+    [
+     "internal/chapter/chapter.go",
+     13
+    ],
+    [
+     "internal/character/character.go",
+     21
+    ],
+    [
+     "internal/outline/outline.go",
+     15
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/gaea/costimport/costimport.go",
+    "internal/gaea/knowledgeimport/knowledgeimport.go"
+   ],
+   "n": 3,
+   "locs": [
+    [
+     "internal/gaea/costimport/costimport.go",
+     431
+    ],
+    [
+     "internal/gaea/costimport/costimport.go",
+     778
+    ],
+    [
+     "internal/gaea/knowledgeimport/knowledgeimport.go",
+     285
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/gaea/costimport/costimport.go",
+    "internal/gaea/knowledgeimport/knowledgeimport.go"
+   ],
+   "n": 3,
+   "locs": [
+    [
+     "internal/gaea/costimport/costimport.go",
+     432
+    ],
+    [
+     "internal/gaea/costimport/costimport.go",
+     779
+    ],
+    [
+     "internal/gaea/knowledgeimport/knowledgeimport.go",
+     286
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/analysis/analysis.go",
+    "internal/chapter/chapter.go"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "internal/analysis/analysis.go",
+     12
+    ],
+    [
+     "internal/chapter/chapter.go",
+     10
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/analysis/analysis.go",
+    "internal/chapter/chapter.go"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "internal/analysis/analysis.go",
+     13
+    ],
+    [
+     "internal/chapter/chapter.go",
+     11
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/app/characterlib_gen_handler.go",
+    "internal/character/character.go"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "internal/app/characterlib_gen_handler.go",
+     731
+    ],
+    [
+     "internal/character/character.go",
+     245
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/app/gaea_cost_compose.go",
+    "internal/app/gaea_cost_import.go"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "internal/app/gaea_cost_compose.go",
+     322
+    ],
+    [
+     "internal/app/gaea_cost_import.go",
+     162
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/app/gaea_cost_compose.go",
+    "internal/app/gaea_cost_import.go"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "internal/app/gaea_cost_compose.go",
+     323
+    ],
+    [
+     "internal/app/gaea_cost_import.go",
+     163
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/app/gaea_cost_import.go",
+    "internal/gaea/cost/cost.go"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "internal/app/gaea_cost_import.go",
+     253
+    ],
+    [
+     "internal/gaea/cost/cost.go",
+     249
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/app/gaea_cost_import.go",
+    "internal/gaea/cost/cost.go"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "internal/app/gaea_cost_import.go",
+     254
+    ],
+    [
+     "internal/gaea/cost/cost.go",
+     250
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/app/gaea_cost_rerank.go",
+    "internal/gaea/tool/builtin/cost_tools.go"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "internal/app/gaea_cost_rerank.go",
+     125
+    ],
+    [
+     "internal/gaea/tool/builtin/cost_tools.go",
+     160
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/app/gaea_cost_rerank.go",
+    "internal/gaea/tool/builtin/cost_tools.go"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "internal/app/gaea_cost_rerank.go",
+     126
+    ],
+    [
+     "internal/gaea/tool/builtin/cost_tools.go",
+     161
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/app/gaea_cost_rerank.go",
+    "internal/gaea/tool/builtin/cost_tools.go"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "internal/app/gaea_cost_rerank.go",
+     127
+    ],
+    [
+     "internal/gaea/tool/builtin/cost_tools.go",
+     162
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/app/gaea_cost_rerank.go",
+    "internal/gaea/tool/builtin/cost_tools.go"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "internal/app/gaea_cost_rerank.go",
+     128
+    ],
+    [
+     "internal/gaea/tool/builtin/cost_tools.go",
+     163
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/app/gaea_cost_rerank.go",
+    "internal/app/gaea_knowledge_import.go"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "internal/app/gaea_cost_rerank.go",
+     166
+    ],
+    [
+     "internal/app/gaea_knowledge_import.go",
+     297
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/app/gaea_cost_rerank.go",
+    "internal/gaea/retrieval/semantic.go"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "internal/app/gaea_cost_rerank.go",
+     195
+    ],
+    [
+     "internal/gaea/retrieval/semantic.go",
+     12
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/app/gaea_cost_rerank.go",
+    "internal/gaea/retrieval/semantic.go"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "internal/app/gaea_cost_rerank.go",
+     196
+    ],
+    [
+     "internal/gaea/retrieval/semantic.go",
+     13
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/app/gaea_cost_rerank.go",
+    "internal/gaea/retrieval/semantic.go"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "internal/app/gaea_cost_rerank.go",
+     197
+    ],
+    [
+     "internal/gaea/retrieval/semantic.go",
+     14
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/app/gaea_cost_rerank.go",
+    "internal/gaea/retrieval/semantic.go"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "internal/app/gaea_cost_rerank.go",
+     198
+    ],
+    [
+     "internal/gaea/retrieval/semantic.go",
+     15
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/app/gaea_cost_rerank.go",
+    "internal/gaea/retrieval/semantic.go"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "internal/app/gaea_cost_rerank.go",
+     200
+    ],
+    [
+     "internal/gaea/retrieval/semantic.go",
+     17
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/app/gaea_cost_rerank.go",
+    "internal/gaea/retrieval/semantic.go"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "internal/app/gaea_cost_rerank.go",
+     201
+    ],
+    [
+     "internal/gaea/retrieval/semantic.go",
+     18
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/app/gaea_docx_edit.go",
+    "internal/app/gaea_pptx_edit.go"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "internal/app/gaea_docx_edit.go",
+     129
+    ],
+    [
+     "internal/app/gaea_pptx_edit.go",
+     78
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/app/gaea_docx_edit.go",
+    "internal/app/gaea_pptx_edit.go"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "internal/app/gaea_docx_edit.go",
+     132
+    ],
+    [
+     "internal/app/gaea_pptx_edit.go",
+     81
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/app/gaea_knowledge_import.go",
+    "internal/gaea/tool/builtin/knowledge_search.go"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "internal/app/gaea_knowledge_import.go",
+     272
+    ],
+    [
+     "internal/gaea/tool/builtin/knowledge_search.go",
+     128
+    ]
+   ]
+  }
+ ],
+ "dup_blocks_go_count": 174,
+ "dup_blocks_ts_top30": [
+  {
+   "files": [
+    "frontend/src/gaea/app/usePreviewPanel.ts",
+    "frontend/src/gaea/app/useWorkspaceLayout.ts",
+    "frontend/src/gaea/components/ResizableDrawer.tsx",
+    "frontend/src/gaea/hooks/useSidebar.ts"
+   ],
+   "n": 4,
+   "locs": [
+    [
+     "frontend/src/gaea/app/usePreviewPanel.ts",
+     174
+    ],
+    [
+     "frontend/src/gaea/app/useWorkspaceLayout.ts",
+     80
+    ],
+    [
+     "frontend/src/gaea/components/ResizableDrawer.tsx",
+     128
+    ],
+    [
+     "frontend/src/gaea/hooks/useSidebar.ts",
+     46
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/BrowserPanel.tsx",
+    "frontend/src/gaea/components/DeliverablesPanel.tsx",
+    "frontend/src/gaea/components/SubagentsPanel.tsx"
+   ],
+   "n": 3,
+   "locs": [
+    [
+     "frontend/src/gaea/components/BrowserPanel.tsx",
+     222
+    ],
+    [
+     "frontend/src/gaea/components/DeliverablesPanel.tsx",
+     389
+    ],
+    [
+     "frontend/src/gaea/components/SubagentsPanel.tsx",
+     301
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/BrowserPanel.tsx",
+    "frontend/src/gaea/components/DeliverablesPanel.tsx",
+    "frontend/src/gaea/components/SubagentsPanel.tsx"
+   ],
+   "n": 3,
+   "locs": [
+    [
+     "frontend/src/gaea/components/BrowserPanel.tsx",
+     223
+    ],
+    [
+     "frontend/src/gaea/components/DeliverablesPanel.tsx",
+     390
+    ],
+    [
+     "frontend/src/gaea/components/SubagentsPanel.tsx",
+     302
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/components/ModuleLauncher.tsx",
+    "frontend/src/layouts/MainLayout.tsx"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "frontend/src/components/ModuleLauncher.tsx",
+     71
+    ],
+    [
+     "frontend/src/layouts/MainLayout.tsx",
+     88
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/components/characterlib/CharacterLibEditor.tsx",
+    "frontend/src/pages/sin/SinCastPanel.tsx"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "frontend/src/components/characterlib/CharacterLibEditor.tsx",
+     144
+    ],
+    [
+     "frontend/src/pages/sin/SinCastPanel.tsx",
+     65
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/DeliverableCards.tsx",
+    "frontend/src/gaea/components/deliverables/DeliverableRow.tsx"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "frontend/src/gaea/components/DeliverableCards.tsx",
+     239
+    ],
+    [
+     "frontend/src/gaea/components/deliverables/DeliverableRow.tsx",
+     203
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/DeliverableCards.tsx",
+    "frontend/src/gaea/components/deliverables/DeliverableRow.tsx"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "frontend/src/gaea/components/DeliverableCards.tsx",
+     240
+    ],
+    [
+     "frontend/src/gaea/components/deliverables/DeliverableRow.tsx",
+     204
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/DeliverableCards.tsx",
+    "frontend/src/gaea/components/deliverables/DeliverableRow.tsx"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "frontend/src/gaea/components/DeliverableCards.tsx",
+     242
+    ],
+    [
+     "frontend/src/gaea/components/deliverables/DeliverableRow.tsx",
+     206
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/DeliverableCards.tsx",
+    "frontend/src/gaea/components/deliverables/DeliverableRow.tsx"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "frontend/src/gaea/components/DeliverableCards.tsx",
+     243
+    ],
+    [
+     "frontend/src/gaea/components/deliverables/DeliverableRow.tsx",
+     207
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/DeliverableCards.tsx",
+    "frontend/src/gaea/components/deliverables/DeliverableRow.tsx"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "frontend/src/gaea/components/DeliverableCards.tsx",
+     244
+    ],
+    [
+     "frontend/src/gaea/components/deliverables/DeliverableRow.tsx",
+     208
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/DeliverableCards.tsx",
+    "frontend/src/gaea/components/deliverables/DeliverableRow.tsx"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "frontend/src/gaea/components/DeliverableCards.tsx",
+     245
+    ],
+    [
+     "frontend/src/gaea/components/deliverables/DeliverableRow.tsx",
+     209
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/DeliverableCards.tsx",
+    "frontend/src/gaea/components/deliverables/DeliverableRow.tsx"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "frontend/src/gaea/components/DeliverableCards.tsx",
+     246
+    ],
+    [
+     "frontend/src/gaea/components/deliverables/DeliverableRow.tsx",
+     210
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/DeliverableCards.tsx",
+    "frontend/src/gaea/components/deliverables/DeliverableRow.tsx"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "frontend/src/gaea/components/DeliverableCards.tsx",
+     247
+    ],
+    [
+     "frontend/src/gaea/components/deliverables/DeliverableRow.tsx",
+     211
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/DeliverableCards.tsx",
+    "frontend/src/gaea/components/deliverables/DeliverableRow.tsx"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "frontend/src/gaea/components/DeliverableCards.tsx",
+     248
+    ],
+    [
+     "frontend/src/gaea/components/deliverables/DeliverableRow.tsx",
+     212
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/DeliverableCards.tsx",
+    "frontend/src/gaea/components/deliverables/DeliverableRow.tsx"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "frontend/src/gaea/components/DeliverableCards.tsx",
+     249
+    ],
+    [
+     "frontend/src/gaea/components/deliverables/DeliverableRow.tsx",
+     213
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/DeliverableCards.tsx",
+    "frontend/src/gaea/components/deliverables/DeliverableRow.tsx"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "frontend/src/gaea/components/DeliverableCards.tsx",
+     251
+    ],
+    [
+     "frontend/src/gaea/components/deliverables/DeliverableRow.tsx",
+     215
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/FilePreview.tsx",
+    "frontend/src/gaea/components/FilePreviewModal.tsx"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "frontend/src/gaea/components/FilePreview.tsx",
+     5
+    ],
+    [
+     "frontend/src/gaea/components/FilePreviewModal.tsx",
+     4
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/FilePreview.tsx",
+    "frontend/src/gaea/components/FilePreviewModal.tsx"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "frontend/src/gaea/components/FilePreview.tsx",
+     110
+    ],
+    [
+     "frontend/src/gaea/components/FilePreviewModal.tsx",
+     126
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/FilePreview.tsx",
+    "frontend/src/gaea/components/FilePreviewModal.tsx"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "frontend/src/gaea/components/FilePreview.tsx",
+     111
+    ],
+    [
+     "frontend/src/gaea/components/FilePreviewModal.tsx",
+     127
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/FilePreview.tsx",
+    "frontend/src/gaea/components/FilePreviewModal.tsx"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "frontend/src/gaea/components/FilePreview.tsx",
+     112
+    ],
+    [
+     "frontend/src/gaea/components/FilePreviewModal.tsx",
+     128
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/FilePreview.tsx",
+    "frontend/src/gaea/components/FilePreviewModal.tsx"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "frontend/src/gaea/components/FilePreview.tsx",
+     113
+    ],
+    [
+     "frontend/src/gaea/components/FilePreviewModal.tsx",
+     129
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/FilePreview.tsx",
+    "frontend/src/gaea/components/FilePreviewModal.tsx"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "frontend/src/gaea/components/FilePreview.tsx",
+     114
+    ],
+    [
+     "frontend/src/gaea/components/FilePreviewModal.tsx",
+     130
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/FilePreview.tsx",
+    "frontend/src/gaea/components/FilePreviewModal.tsx"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "frontend/src/gaea/components/FilePreview.tsx",
+     115
+    ],
+    [
+     "frontend/src/gaea/components/FilePreviewModal.tsx",
+     131
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/FilePreview.tsx",
+    "frontend/src/gaea/components/FilePreviewModal.tsx"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "frontend/src/gaea/components/FilePreview.tsx",
+     118
+    ],
+    [
+     "frontend/src/gaea/components/FilePreviewModal.tsx",
+     132
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/FilePreview.tsx",
+    "frontend/src/gaea/components/FilePreviewModal.tsx"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "frontend/src/gaea/components/FilePreview.tsx",
+     119
+    ],
+    [
+     "frontend/src/gaea/components/FilePreviewModal.tsx",
+     133
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/FilePreview.tsx",
+    "frontend/src/gaea/components/FilePreviewModal.tsx"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "frontend/src/gaea/components/FilePreview.tsx",
+     254
+    ],
+    [
+     "frontend/src/gaea/components/FilePreviewModal.tsx",
+     149
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/FilePreview.tsx",
+    "frontend/src/gaea/components/FilePreviewModal.tsx"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "frontend/src/gaea/components/FilePreview.tsx",
+     255
+    ],
+    [
+     "frontend/src/gaea/components/FilePreviewModal.tsx",
+     150
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/FilePreview.tsx",
+    "frontend/src/gaea/components/FilePreviewModal.tsx"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "frontend/src/gaea/components/FilePreview.tsx",
+     256
+    ],
+    [
+     "frontend/src/gaea/components/FilePreviewModal.tsx",
+     151
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/FilePreview.tsx",
+    "frontend/src/gaea/components/FilePreviewModal.tsx"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "frontend/src/gaea/components/FilePreview.tsx",
+     257
+    ],
+    [
+     "frontend/src/gaea/components/FilePreviewModal.tsx",
+     152
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/gaea/components/FilePreview.tsx",
+    "frontend/src/gaea/components/FilePreviewModal.tsx"
+   ],
+   "n": 2,
+   "locs": [
+    [
+     "frontend/src/gaea/components/FilePreview.tsx",
+     270
+    ],
+    [
+     "frontend/src/gaea/components/FilePreviewModal.tsx",
+     177
+    ]
+   ]
+  }
+ ],
+ "dup_blocks_ts_count": 134,
+ "similar_file_pairs_top40": [
+  {
+   "jaccard": 0.462,
+   "a": "frontend/src/gaea/components/memoryhub/CostImportModal.tsx",
+   "b": "frontend/src/gaea/components/memoryhub/KnowledgeImportModal.tsx",
+   "a_loc": 361,
+   "b_loc": 278,
+   "shared": 128
+  },
+  {
+   "jaccard": 0.402,
+   "a": "internal/office/docxedit/docxedit.go",
+   "b": "internal/office/pptxedit/pptxedit.go",
+   "a_loc": 828,
+   "b_loc": 690,
+   "shared": 239
+  }
+ ],
+ "similar_file_pairs_count": 2,
+ "dupe_basenames_count": 102,
+ "dupe_basenames_sample": {
+  "types": [
+   "internal/ai/types.go",
+   "internal/core/types.go",
+   "internal/gaea/contextview/types.go",
+   "internal/gaea/trajectory/types.go",
+   "internal/schedule/types.go",
+   "internal/types/types.go",
+   "internal/whisper/types.go",
+   "frontend/src/boards/types.ts",
+   "frontend/src/components/imagegen/types.ts",
+   "frontend/src/gaea/lib/mock/office/types.ts",
+   "frontend/src/gaea/lib/types.ts",
+   "frontend/src/pages/chat/types.ts",
+   "frontend/src/pages/sin/types.ts",
+   "frontend/src/schedule/types.ts"
+  ],
+  "store": [
+   "internal/characterlib/store.go",
+   "internal/chat/store.go",
+   "internal/gaea/context/store.go",
+   "internal/gaea/knowledge/store.go",
+   "internal/gaea/memory/store.go",
+   "internal/gaea/pricefeed/store.go",
+   "frontend/src/gaea/lib/store.ts",
+   "frontend/src/schedule/store.ts"
+  ],
+  "search": [
+   "internal/booksource/search.go",
+   "internal/gaea/knowledge/search.go",
+   "internal/gaea/memory/search.go",
+   "internal/gaea/search/search.go",
+   "internal/search/search.go",
+   "frontend/src/gaea/lib/types/search.ts"
+  ],
+  "cost": [
+   "internal/gaea/cost/cost.go",
+   "internal/schedule/cost.go",
+   "frontend/src/gaea/lib/bridge/cost.ts",
+   "frontend/src/gaea/lib/mock/cost.ts",
+   "frontend/src/gaea/lib/types/cost.ts",
+   "frontend/src/schedule/cost.ts"
+  ],
+  "memory": [
+   "internal/gaea/memory/memory.go",
+   "internal/memory/memory.go",
+   "frontend/src/gaea/lib/bridge/memory.ts",
+   "frontend/src/gaea/lib/mock/memory.ts",
+   "frontend/src/gaea/lib/types/memory.ts"
+  ],
+  "provider": [
+   "internal/asr/provider.go",
+   "internal/gaea/provider/provider.go",
+   "internal/realtime/provider.go",
+   "internal/tts/provider.go"
+  ],
+  "office": [
+   "internal/docmd/office.go",
+   "frontend/src/gaea/lib/bridge/office.ts",
+   "frontend/src/gaea/lib/mock/office.ts",
+   "frontend/src/gaea/lib/types/office.ts"
+  ],
+  "profile": [
+   "internal/gaea/agent/budget/profile.go",
+   "internal/gaea/cache/profile.go",
+   "internal/gaea/memory/profile.go",
+   "internal/style/profile.go"
+  ],
+  "state": [
+   "internal/gaea/agent/session/state.go",
+   "frontend/src/gaea/lib/mock/office/state.ts",
+   "frontend/src/gaea/lib/mock/state.ts",
+   "frontend/src/genui/blocks/state.ts"
+  ],
+  "index": [
+   "internal/gaea/skill/index.go",
+   "internal/schedule/index.go",
+   "frontend/src/genui/index.ts",
+   "frontend/src/types/index.ts"
+  ],
+  "util": [
+   "internal/novelreview/util.go",
+   "internal/tts/util.go",
+   "internal/util/util.go",
+   "internal/whisper/util.go"
+  ],
+  "memory_graph": [
+   "internal/app/memory_graph.go",
+   "internal/whisper/db/repos/memory_graph.go",
+   "internal/whisper/memory_graph.go"
+  ],
+  "manager": [
+   "internal/assistant/manager.go",
+   "internal/gaea/browser/manager.go",
+   "internal/gaea/context/manager.go"
+  ],
+  "model": [
+   "internal/characterlib/model.go",
+   "frontend/src/gaea/lib/bridge/model.ts",
+   "frontend/src/gaea/lib/mock/model.ts"
+  ],
+  "engine": [
+   "internal/context/engine.go",
+   "internal/modelengine/engine.go",
+   "internal/rewrite/engine.go"
+  ],
+  "fingerprint": [
+   "internal/gaea/agent/cache/fingerprint.go",
+   "internal/novelstyle/fingerprint.go",
+   "frontend/src/genui/fingerprint.ts"
+  ],
+  "session": [
+   "internal/gaea/agent/session/session.go",
+   "frontend/src/gaea/lib/session.ts",
+   "frontend/src/gaea/lib/types/session.ts"
+  ],
+  "skill": [
+   "internal/gaea/cache/skill.go",
+   "internal/gaea/skill/skill.go",
+   "internal/skill/skill.go"
+  ],
+  "tool": [
+   "internal/gaea/largefile/tool.go",
+   "internal/gaea/sessionquery/tool.go",
+   "internal/gaea/tool/tool.go"
+  ],
+  "bridge": [
+   "internal/gaea/provider/bridge/bridge.go",
+   "internal/httpbridge/bridge.go",
+   "frontend/src/gaea/lib/bridge.ts"
+  ],
+  "stats": [
+   "internal/modelengine/stats.go",
+   "internal/stats/stats.go",
+   "frontend/src/gaea/lib/stats.ts"
+  ],
+  "settings": [
+   "frontend/src/api/settings.ts",
+   "frontend/src/gaea/lib/mock/settings.ts",
+   "frontend/src/gaea/lib/types/settings.ts"
+  ],
+  "ui": [
+   "frontend/src/components/imagegen/ui.tsx",
+   "frontend/src/data/templates/ui.ts",
+   "frontend/src/pages/modelcenter/ui.tsx"
+  ],
+  "shared": [
+   "frontend/src/gaea/components/deliverables/shared.ts",
+   "frontend/src/gaea/lib/mock/shared.ts",
+   "frontend/src/gaea/lib/types/shared.ts"
+  ],
+  "utils": [
+   "frontend/src/gaea/components/knowledge/utils.tsx",
+   "frontend/src/pages/chat/utils.ts",
+   "frontend/src/pages/modelcenter/utils.tsx"
+  ],
+  "analysis": [
+   "internal/analysis/analysis.go",
+   "internal/schedule/analysis.go"
+  ],
+  "analysis_v2": [
+   "internal/analysis/analysis_v2.go",
+   "internal/types/analysis_v2.go"
+  ],
+  "story_memory": [
+   "internal/analysis/story_memory.go",
+   "internal/types/story_memory.go"
+  ],
+  "builtins": [
+   "internal/app/board/builtins.go",
+   "internal/gaea/skill/builtins.go"
+  ],
+  "parse": [
+   "internal/bookimport/parse.go",
+   "frontend/src/genui/parse.ts"
+  ],
+  "chapter": [
+   "internal/booksource/chapter.go",
+   "internal/chapter/chapter.go"
+  ],
+  "html": [
+   "internal/booksource/html.go",
+   "internal/export/html.go"
+  ],
+  "template": [
+   "internal/booksource/template.go",
+   "internal/gaea/dag/template.go"
+  ],
+  "websearch": [
+   "internal/booksource/websearch.go",
+   "internal/gaea/tool/builtin/websearch.go"
+  ],
+  "character": [
+   "internal/character/character.go",
+   "frontend/src/components/novel/api/character.ts"
+  ],
+  "db": [
+   "internal/characterlib/db.go",
+   "internal/chat/db.go"
+  ],
+  "portrait": [
+   "internal/characterlib/portrait.go",
+   "frontend/src/data/templates/portrait.ts"
+  ],
+  "config": [
+   "internal/config/config.go",
+   "internal/gaea/config/config.go"
+  ],
+  "walkthrough": [
+   "internal/config/walkthrough.go",
+   "internal/gaea/config/walkthrough.go"
+  ],
+  "jobs": [
+   "internal/core/jobs.go",
+   "internal/gaea/jobs/jobs.go"
+  ]
+ },
+ "god_packages_top30": [
+  [
+   13703,
+   67,
+   "internal/gaea/agent"
+  ],
+  [
+   9391,
+   43,
+   "internal/gaea/tool"
+  ],
+  [
+   5262,
+   28,
+   "internal/gaea/memory"
+  ],
+  [
+   4455,
+   12,
+   "internal/gaea/control"
+  ],
+  [
+   2641,
+   28,
+   "internal/whisper/db"
+  ],
+  [
+   2264,
+   7,
+   "internal/channels/weixin"
+  ],
+  [
+   2137,
+   10,
+   "internal/gaea/config"
+  ],
+  [
+   2012,
+   6,
+   "internal/gaea/browser"
+  ],
+  [
+   1865,
+   6,
+   "internal/gaea/cost"
+  ],
+  [
+   1731,
+   6,
+   "internal/gaea/contextview"
+  ],
+  [
+   1566,
+   6,
+   "internal/gaea/skill"
+  ],
+  [
+   1547,
+   9,
+   "internal/gaea/plugin"
+  ],
+  [
+   1432,
+   7,
+   "internal/gaea/cache"
+  ],
+  [
+   1430,
+   1,
+   "internal/ai/client.go"
+  ],
+  [
+   1342,
+   2,
+   "internal/gaea/costref"
+  ],
+  [
+   1268,
+   1,
+   "internal/voice/voice_manager.go"
+  ],
+  [
+   1265,
+   1,
+   "internal/gaea/costimport"
+  ],
+  [
+   1245,
+   1,
+   "internal/gaea/tasks"
+  ],
+  [
+   1193,
+   4,
+   "internal/gaea/boot"
+  ],
+  [
+   1189,
+   1,
+   "internal/app/gaea_ui_extra.go"
+  ],
+  [
+   1111,
+   1,
+   "internal/project/project.go"
+  ],
+  [
+   1096,
+   1,
+   "internal/app/image_handler.go"
+  ],
+  [
+   1065,
+   6,
+   "internal/gaea/knowledge"
+  ],
+  [
+   1065,
+   5,
+   "internal/gaea/provider"
+  ],
+  [
+   1052,
+   1,
+   "internal/ai/image_comfyui.go"
+  ],
+  [
+   1037,
+   1,
+   "internal/novelcontext/novelcontext.go"
+  ],
+  [
+   1034,
+   1,
+   "internal/whisper/orchestrator.go"
+  ],
+  [
+   1020,
+   1,
+   "internal/app/whisper_handler.go"
+  ],
+  [
+   1019,
+   1,
+   "internal/app/create_chapter_handler.go"
+  ],
+  [
+   1008,
+   4,
+   "internal/gaea/trajectory"
+  ]
+ ]
+}

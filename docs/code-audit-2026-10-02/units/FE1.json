@@ -1,0 +1,310 @@
+{
+  "id": "FE1",
+  "module": "前端 gaea/components 大文件组",
+  "footprint": [
+    "frontend/src/gaea/components（顶层 *.tsx/*.ts）",
+    "frontend/src/gaea/components/composer",
+    "frontend/src/gaea/components/context",
+    "frontend/src/gaea/components/deliverables",
+    "frontend/src/gaea/components/verify",
+    "frontend/src/gaea/components/xlsxpreview",
+    "frontend/src/gaea/components/capabilities"
+  ],
+  "verdict": "屎山程度中等偏重：真正的结构病不在单个文件有多长，而在「同一件事有两份实现」——预览组件的 PDF 懒加载状态机在 FilePreview 与 FilePreviewModal 各抄一份 80 行，context/inspector 把 ContextView 的 NodeRow/CATS/FILE_ACTION_META 重声明一遍，通知条在 Docx/Xlsx/Pptx 三个预览里各写一套 setTimeout 清理，批量删除/改状态在 Knowledge 与 Cost 两库逐条复制。大文件（CostLibraryView 1132、Sidebar 1065、Transcript 1023、DocxPreview 1020）内部以「一个组件 20+ 个 useState + 十来个 useCallback」的形态堆业务编排，改一处要读整文件。另有三处口径静默失效（知识库 phase 过滤永假、ContextView 的节点详情自定义源未下传、成本库全选计数与分页脱钩），属看不见的错，最痛。",
+  "score": 5,
+  "metrics": {
+    "files_reviewed": 22,
+    "loc_reviewed": 7214,
+    "test_files": 3,
+    "test_loc": 859
+  },
+  "hotspots": [
+    {
+      "path": "frontend/src/gaea/components/CostLibraryView.tsx",
+      "loc": 1132,
+      "why": "单组件 20 个 useState + 分类递归树 + 列表/表格双视图 + 批量操作 + 4 个弹窗，且表格全选计数与分页脱钩。"
+    },
+    {
+      "path": "frontend/src/gaea/components/DocxPreview.tsx",
+      "loc": 1020,
+      "why": "渲染/降级/框选即改/批量队列/目录锚点五套关注点在同一个组件里，内联 <style> 与 3 处 setTimeout 清理。"
+    },
+    {
+      "path": "frontend/src/gaea/components/Sidebar.tsx",
+      "loc": 1065,
+      "why": "11 个 useState + 会话行/子代理/归档/事实底座四套子树 + 两种搜索防抖，改搜索逻辑要同时动两处。"
+    },
+    {
+      "path": "frontend/src/gaea/components/context/inspector.tsx",
+      "loc": 872,
+      "why": "NodeRow/CATS/GROUPS/FILE_ACTION_META 自 ContextView 重声明（注释自认「未导出故本地重声明」），调色板与行为必然漂移。"
+    },
+    {
+      "path": "frontend/src/gaea/components/Transcript.tsx",
+      "loc": 1023,
+      "why": "buildSegments/segSig/renderOutsideItems/ProcessCard 四层结构 + 模块级 mentionsCache 全局缓存，import 散落中段。"
+    },
+    {
+      "path": "frontend/src/gaea/components/XlsxPreview.tsx",
+      "loc": 809,
+      "why": "编辑/图表/视图层/行列操作全都塞进一个组件，7 处 setNotice+setTimeout 无清理。"
+    },
+    {
+      "path": "frontend/src/gaea/components/FilePreviewModal.tsx",
+      "loc": 459,
+      "why": "与 FilePreview 逐行同构的 PDF 懒加载状态机（IO 接线/锚点注册/强制页/aspect 测量四件套各一份）。"
+    },
+    {
+      "path": "frontend/src/gaea/components/KnowledgePanel.tsx",
+      "loc": 748,
+      "why": "19 个 useState；doSearch 与 loadList 双取数路径让 phase 过滤恒真失效，类型层未声明 phase 靠强转掩盖。"
+    }
+  ],
+  "findings": [
+    {
+      "fid": "FE1-01",
+      "severity": "P1",
+      "category": "duplication",
+      "title": "PDF 懒加载状态机在预览组件里抄了两份",
+      "file": "frontend/src/gaea/components/FilePreviewModal.tsx",
+      "line": "126-205",
+      "evidence": "const pageElsRef = useRef(new Map<number, HTMLElement>());\n  const pdfObserverRef = useRef<IntersectionObserver | null>(null);\n  const [lazyPdf, setLazyPdf] = useState<{",
+      "why": "lib/pageLazy.ts 只收敛了纯函数，真正的 IO 接线/pdfPageAnchorRef/aspect 测量/scrollToPptxPage 强制页四件套仍以逐行同构形态存在两份——FilePreview.tsx:110-137/254-309 与 FilePreviewModal.tsx:126-216，注释互指（v4.33.0 C「对齐弹窗」）。",
+      "impact": "任何懒加载修复（卸载页回收、rootMargin、aspect 兜底）必须在两处同改；只改一处会让「侧栏预览」与「弹窗预览」行为分叉，而单测两文件各自 Fake IO 自证，分叉不会被红。",
+      "fix": "抽 useLazyPdfPages(containerRef) hook（pageElsRef/observer/lazyPdf/registeredRef/handleLoad/scrollTo），两处各留 5 行调用；pageLazy.ts 保持纯函数不动。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE1-02",
+      "severity": "P1",
+      "category": "duplication",
+      "title": "inspector 重声明 ContextView 的常量与 NodeRow",
+      "file": "frontend/src/gaea/components/context/inspector.tsx",
+      "line": "25-51",
+      "evidence": "// 分类折叠组定义（来源：ContextView.tsx 的 CATS / CAT_BROWSE_LABELS，未导出故本地\n// 重声明；i18n 键复用 contextview.cat*（组行全名）与 contextview.browse*（节点行短名））。\nconst GROUPS: { key: ContextSurfaceNode[\"cat\"]; labelKey: DictKey; rowKey: DictKey }[] = [",
+      "why": "同一批六分类口径在 ContextView.tsx:30-48（CATS/CAT_BROWSE_SHORT）与 inspector.tsx:27-51（GROUPS/ROW_LABELS）各存一份，调色板靠 import 共享但键表靠人眼对齐；FILE_ACTION_META 同样「搬运自 ContextView.tsx…本地重声明」（576-582）。NodeRow（inspector.tsx:213）也是从 ContextView 搬出来的第二份。",
+      "impact": "加一个分类/改一个 i18n 键要同步 4 处（CATS/CAT_BROWSE_SHORT/GROUPS/ROW_LABELS），漏一处表现为某行显示原始 i18n 键或分类缺行；无编译期保护。",
+      "fix": "把 CATS/GROUPS/FILE_ACTION_META 提到 lib/contextCats.ts 单一导出，ContextView 与 inspector 都从它取；NodeRow 只留 inspector 一份并从 ContextView 删除残留。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE1-03",
+      "severity": "P1",
+      "category": "consistency",
+      "title": "知识库 phase 过滤恒真：类型缺字段靠强转掩盖",
+      "file": "frontend/src/gaea/components/KnowledgePanel.tsx",
+      "line": "226",
+      "evidence": "if (phase !== \"all\" && (e as unknown as Record<string, unknown>).phase !== phase) return false;",
+      "why": "KnowledgeSummary（lib/types/knowledge.ts:5-13）未声明 phase，列表数据实际是后端的全量 summary。代码用两层强转取 phase（knowledge/utils.tsx:21-24 亦同），使 TS 无法校验，也让过滤在「列表走 List 路径（无 phase 字段）」时静默不生效。",
+      "impact": "用户选「阶段=施工图」后列表不变（0 条被过滤掉），UI 给出假过滤结果且无任何提示；同类强转（KnowledgePanel.tsx:651-652）在渲染处同样掩盖字段缺失。",
+      "fix": "在 KnowledgeSummary 声明 phase?: string，改 phaseOf 直读；若后端 List 确不返回 phase，则过滤走 doSearch 并在 UI 标注「按阶段筛选需关键词」。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE1-04",
+      "severity": "P1",
+      "category": "consistency",
+      "title": "ContextView 未下传 NodeDetail 自定义源，点开详情串数据源",
+      "file": "frontend/src/gaea/components/ContextView.tsx",
+      "line": "734-740",
+      "evidence": "<ContextBrowserTree\n              nodes={timeline.nodes}\n              archive={timeline.archive}\n              focus={focusNode}\n              sessionPath={sessionPath}\n              fetchNodeDetail={fetchNodeDetail}\n            />",
+      "why": "同一容器的文件活动卡只传 files/sessionPath（ContextView.tsx:745），而 FileActivityTree 内部同样用 useNodeDetails(sessionPath) 处理节点详情懒加载（inspector.tsx:636）。NodeDetailPanel 承载「完整调用」回读，缺 fetchNodeDetail 时回落 app.ContextNodeDetail（默认按当前会话日志）。",
+      "impact": "宿主用 fetchTimeline/fetchNodeDetail 走非当前会话数据源时（如子代理/旧版故事会话，注释自称「原罪复用」），节点行详情仍按 v4.412 口径回读，两卡同页却读不同数据源——用户看到「上下文浏览器」与「文件活动」对同一次调用给出不一致的 OK/error 与正文，且无提示。",
+      "fix": "给 FileActivityTree 增加 fetchNodeDetail 通道并透传（ContextView.tsx:745 一并传入），与 ContextBrowserTree 同源；或在 FileActivityTree 不传 fetchNodeDetail 时禁用详情按钮（诚实降级）。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE1-05",
+      "severity": "P1",
+      "category": "god-file",
+      "title": "CostLibraryView 单组件吞下五个功能域",
+      "file": "frontend/src/gaea/components/CostLibraryView.tsx",
+      "line": "31-58",
+      "evidence": "export function CostLibraryView() {\n  const [entries, setEntries] = useState<CostSummary[]>([]);\n  const [total, setTotal] = useState(0);",
+      "why": "一个组件内同时持有：分页搜索（entries/total/reqSeq/load/loadMore）、分类树 CRUD（categories/expanded/catModal/saveCategory/deleteCategory）、语义索引（index/indexBusy/backfillIndex）、多选批量（selected/batchDelete/batchStatus）、四类弹窗（条目/导入/比价/历史）与列表↔表格双视图，状态声明 20 个（31-58），视图分支延伸至 1132 行。",
+      "impact": "任何一处改动（如给成本条目加字段）都要在同一文件里同时动状态、load 依赖数组、列表行、表格行、弹窗 props 五个位置；memo(CostRow/ListView/TableView) 的收益也被 props 里的 priceText/回调集合稀释，回归面巨大。",
+      "fix": "先按「取数（useCostLibraryData）+ 多选（useCostSelection）+ 分类树（CostCategoryTree 组件）」切三刀纯搬移，视图部分保留；每刀后跑 CostLibraryView.test.tsx。",
+      "effort": "L",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE1-06",
+      "severity": "P2",
+      "category": "complexity",
+      "title": "成本库表格全选计数与分页脱钩：全选后 checkbox 变未选",
+      "file": "frontend/src/gaea/components/CostLibraryView.tsx",
+      "line": "1084",
+      "evidence": "checked={rows.length > 0 && selected.size === rows.length}",
+      "why": "selected（跨页累积）与 rows（当前已载页）用等号比较；loadMore 追加后 selected.size 可能大于 rows.length，且 load() 结束时还会按当前页 prune（91 行）。表头 checkbox 用严格相等表达「全选」，语义上应包含 selected ⊇ rows。",
+      "impact": "「页 1 全选 → 加载更多 → 再全选」这类操作后，表头 checkbox 显示未勾选而行内已勾选；用户再点一次会走 onChange(false) 清空全部选择，等于静默丢掉上一轮选择。",
+      "fix": "改成 checked={rows.length > 0 && rows.every((e) => selected.has(e.name))} 并加 indeterminate={selected.size > 0 && !allChecked}；同时在批量条上标注「已选 N（含未载页）」。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE1-07",
+      "severity": "P2",
+      "category": "duplication",
+      "title": "同一行动作区渲染了两个比价按钮",
+      "file": "frontend/src/gaea/components/CostLibraryView.tsx",
+      "line": "859-886",
+      "evidence": "onClick={() => onCompare(e)}\n          title=\"比价\"\n        >\n          <BarChart3 size={11} />",
+      "why": "CostRow 顶部既有 opacity-0 group-hover 的小比价按钮（859-865），行尾操作区又有一个同样的 title=\"比价\" 按钮（885-887）；两处 onClick 都是 onCompare(e)。",
+      "impact": "同一行两个入口功能重复，行内布局在窄侧栏下多占 20px；后续改比价入口（如加权限/加统计）必然漏改一处。",
+      "fix": "删掉 hover 版小按钮（或反之），保留操作区那一个；两处同名 title 也让测试 queryByTitle 易命中错节点。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE1-08",
+      "severity": "P2",
+      "category": "complexity",
+      "title": "DocxPreview 一个组件扛五种关注点",
+      "file": "frontend/src/gaea/components/DocxPreview.tsx",
+      "line": "91-129",
+      "evidence": "const rootRef = useRef<HTMLDivElement>(null);\n  const containerRef = useRef<HTMLDivElement>(null);\n  const [docDataUrl, setDocDataUrl] = useState(dataUrl);",
+      "why": "docx-preview 渲染与失败降级（166-237）、框选即改 AI 编辑（269-306）、批量修改队列编排（393-469）、Word 目录锚点（204-216/362-388）与 revision 接受/拒绝（330-350）全压在一个函数组件里；文件核心还内联了 <style>（790 起）并用 window.setTimeout 清理 notice（300/342）。",
+      "impact": "队列/目录/框选三套异步编排共享 selected/proposal/applying/queueRunning 互斥判断，读一遍要跨 900 行；改动任一条链路都可能破另一条的互斥（412 行注释已自认「并行会互相打乱摘录定位」）。",
+      "fix": "先抽 useDocxQueue（队列状态 + runQueueItems + retry）与 useDocxOutline（解析 + 锚点），组件保留渲染与框选；内联 <style> 移入 context-view 同级 css 文件。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE1-09",
+      "severity": "P2",
+      "category": "duplication",
+      "title": "通知条 setTimeout 清理在三套预览里各写一遍",
+      "file": "frontend/src/gaea/components/XlsxPreview.tsx",
+      "line": "171-346",
+      "evidence": "setNotice(`已应用：${r.summary}`);\n      window.setTimeout(() => setNotice(\"\"), 6000);",
+      "why": "「setNotice(文案) + window.setTimeout(()=>setNotice(\"\"))」模式在 XlsxPreview.tsx 出现 7 次（171/219/246/275/295/317/346，超时 4000/5000/6000 三种）、DocxPreview.tsx 2 次（300/342），而 PptxEditPanel.tsx:187 用的是带 clearTimeout 的变体（const id = window.setTimeout(...)）。",
+      "impact": "同一交互语义有 3 套实现、3 种时长；无清理的版本在组件卸载后仍会 setState（React 18 不再警告，属静默）；新增一处通知必然再抄一遍。",
+      "fix": "抽 useTransientNotice(timeoutMs) hook（含 useRef + unmount clearTimeout），三处替换；时长收敛为常量。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE1-10",
+      "severity": "P2",
+      "category": "consistency",
+      "title": "Sidebar 同一搜索框两套防抖（200ms 与 250ms）",
+      "file": "frontend/src/gaea/components/Sidebar.tsx",
+      "line": "603-610",
+      "evidence": "useEffect(() => { setLocalQuery(searchQuery); }, [searchQuery]);\n  useEffect(() => {\n    const timer = setTimeout(() => onSearchChange(localQuery), 200);\n    return () => clearTimeout(timer);\n  }, [localQuery, onSearchChange]);",
+      "why": "输入用 localQuery（本地态）→ 200ms 防抖回写父级 searchQuery，父级再回传、由 useEffect 同步回 localQuery；同一份输入值同时存在本地态与父级态两个真相源。同时 610 行又对 localQuery 做 useDebouncedValue(250) 用于过滤。",
+      "impact": "两条防抖路径时延不一致（200 vs 250），父级 searchQuery 的任何外部写入都会被 localQuery 双向同步覆盖，容易出现「输入未停就回跳旧值」；改搜索逻辑必须同时理解三处状态。",
+      "fix": "删掉 200ms 回写 effect，改由 debouncedQuery 单点驱动过滤与父级回调；或让 Sidebar 只受控（value=searchQuery, onChange=onSearchChange），本地防抖只留 useDebouncedValue。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE1-11",
+      "severity": "P2",
+      "category": "complexity",
+      "title": "Transcript 模块级全局缓存跨会话滞留",
+      "file": "frontend/src/gaea/components/Transcript.tsx",
+      "line": "443-453",
+      "evidence": "const mentionsCache = new Map<string, Set<string>>();\nfunction deliverableMentionKeysCached(text: string): Set<string> {\n  let hit = mentionsCache.get(text);",
+      "why": "为省流式期扫描开销引入模块级 Map，以「整段正文文本」为键，仅靠 size>512 全清（447）而无会话边界；Transcript 组件卸载/切会话不清空，相邻段的 segSig/mentionsCache 形成两套内容指纹（32-44 与 170-178 各写一套签名）。",
+      "impact": "缓存键是完整文本，长会话下 512 条即数十 MB 常驻；两条不同会话里出现的相同 assistant 文本会互相命中（键含文本本身，语义上无害但掩盖）；两套签名逻辑改一处漏一处，memo 失效表现为流式卡顿回归。",
+      "fix": "把 mentionsCache 收进组件的 useRef 并在 items.length===0 或 relPath/session 变化时 clear；segSig 与 scrollVersion 合并为一个 contentSig 模块导出。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE1-12",
+      "severity": "P2",
+      "category": "dead-code",
+      "title": "buildSegments 的 _running 形参是死参数",
+      "file": "frontend/src/gaea/components/Transcript.tsx",
+      "line": "129",
+      "evidence": "export function buildSegments(items: Item[], _running = false): Segment[] {",
+      "why": "函数体（131-164）全程不读 _running，两处调用点都传（726 行 buildSegments(merged, running)），测试 Transcript.test.ts 还专门用 true/false 两态断言（34/64/149 行）——但两态结果必然相同，测试实际零区分度。",
+      "impact": "读者会以为运行中/完成态分段口径不同（旧「大过程卡」时代遗留），据此误改分段逻辑；带参数的测试给人「已覆盖两态」的假安全感。",
+      "fix": "删掉形参并同步删测试里的两态断言（或补一条显式断言「running 不影响分段」），把「统一交替」决策留在注释里。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE1-13",
+      "severity": "P2",
+      "category": "duplication",
+      "title": "批量删除/改状态在知识库与成本库各写一套",
+      "file": "frontend/src/gaea/components/KnowledgePanel.tsx",
+      "line": "92-120",
+      "evidence": "const results = await Promise.all(\n      [...selected].map((n) => app.KnowledgeDelete(n).then(() => null as null | unknown).catch((err: unknown) => err)),\n    );",
+      "why": "「逐条 Promise.all → 数失败条数 → 文案 → 清空选择 → 重拉列表」流程在 KnowledgePanel.tsx:92-120 与 CostLibraryView.tsx:232-268 各一份；改状态版同样各一份（KnowledgePanel 串行 for-await、CostLibraryView 并行 Promise.all，口径不同）。注释还标注了各自的 v4.350/v4.361 返工史。",
+      "impact": "同一「失败可见化」需求改了两轮仍分叉：两库的并发度、报文文案（「已删除 N 条」vs「已把 N 条改为…」）、失败计数口径都不一致，第三方库（记忆/画像）再加一份就三份。",
+      "fix": "抽 lib/batchOps.ts 的 batchRun(names, fn) 返回 {ok, failed}，两库共用文案模板；改状态用同样的批量函数 + 单条 patch。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE1-14",
+      "severity": "P2",
+      "category": "duplication",
+      "title": "两个同构的轮询订阅 store（同一模式写两遍）",
+      "file": "frontend/src/gaea/lib/subagentRunsStore.ts",
+      "line": "112-145",
+      "evidence": "export function subscribeSubagentRuns(",
+      "why": "subagentRunsStore（SubagentRunsStatus/SubagentRunsMeta/subscribe/reload/detectNewRunRefs，112-154）与 agentNetworkStore（AgentNetworkStatus/AgentNetworkMeta/subscribeAgentNetwork/reloadAgentNetwork/declarePath，33-166）是同构实现：状态机三态 + declarePath 单轮询 + live 选项 + 订阅计数。Sidebar/SubagentThread 消费前者，ContextView 消费后者。",
+      "impact": "两份 100+ 行的轮询/退订/快照逻辑需同步维护（取消订阅竞态、live 门控、错误态），任一处修 bug 另一处照旧；新增第三类实时面又抄一遍。",
+      "fix": "抽 createPollingStore<T>(fetcher) 工厂，两个 store 改为 20 行配置；先落一份并保留原导出名以避免调用点改动。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE1-15",
+      "severity": "P3",
+      "category": "dead-code",
+      "title": "Sidebar 的 isProjectOpen 声明后从未被读",
+      "file": "frontend/src/gaea/components/Sidebar.tsx",
+      "line": "111-717",
+      "evidence": "isProjectOpen: (g: ProjectGroup) => boolean;",
+      "why": "SessionRowUI 声明该字段（111）、Sidebar 里实现（619）并塞进 ui 对象（717），但 SessionRow 各行分支（140-490）从不读它；真实展开态由 rows useMemo 内的 open 字段预先算好（647/648）。",
+      "impact": "读者会以为行渲染按 isProjectOpen 决定展开态，改这里等于改了个 no-op；也是 ui 对象越滚越大的样板（24 个字段）。",
+      "fix": "删掉 SessionRowUI.isProjectOpen 字段、Sidebar 内实现与 ui 传参三处。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE1-16",
+      "severity": "P3",
+      "category": "legacy-residue",
+      "title": "Transcript 的 import 散落在模块中段",
+      "file": "frontend/src/gaea/components/Transcript.tsx",
+      "line": "432-436",
+      "evidence": "import { deriveProcessStatus, PROCESS_STATUS_META } from \"../lib/processStatus\";\nimport { turnTailSegs } from \"../lib/deliverablesTurn\";\nimport { deliverableMentions } from \"../lib/fileLinks\";",
+      "why": "文件顶部已有 import 区（1-18），但 processStatus/deliverablesTurn/fileLinks/DeliverableCards 四个 import 写在 430-436（ProcessCard 之前），属多次补丁叠加的痕迹；同文件 991-993 还留了三行空行。",
+      "impact": "无功能影响，但让「谁依赖 deliverablesTurn」在文件里要翻两处；新读者容易漏看中段 import 造成的循环依赖风险。",
+      "fix": "把中段 import 上移到文件头 import 区，删多余空行。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE1-17",
+      "severity": "P3",
+      "category": "consistency",
+      "title": "PDF 逐页容器沿用 pptx 命名与两套 handle 名",
+      "file": "frontend/src/gaea/components/FilePreview.tsx",
+      "line": "100-131",
+      "evidence": "const pptxPagesRef = useRef<HTMLDivElement | null>(null);",
+      "why": "同一元素既是 pptx 逐页容器又被 pdf 懒加载用作 IO root 与锚点查询（307 行 querySelector [data-pptx-page]），FilePreviewModal 侧复用同一命名；页图 onLoad 在两文件里分别叫 handlePageImgLoad 与 handlePdfPageLoad，返回的 Set 又都叫 lazyPdf.mounted/forced。",
+      "impact": "读代码要反复确认「这里是 pdf 还是 pptx」；命名误导会在改懒加载时被当成 pptx 专属逻辑而漏改。",
+      "fix": "统一改名为 pageListRef / handlePageImgLoad，data-pptx-page 属性名保留（有测试与样式依赖）但补注释说明 pdf/pptx 共用。",
+      "effort": "S",
+      "prior_audit": ""
+    }
+  ],
+  "open_questions": [
+    "costLibrary 的 selected 跨页语义未在 UI 说明（批量删除作用域是「已选」还是「当前已载」），是否需要产品口径确认？",
+    "ContextView 的 FileActivityTree 是否本就不应支持自定义详情源（注释自称原罪复用），若是则应在组件内诚实禁用详情按钮而非静默回落？",
+    "KnowledgeSummary.phase 是后端 List 真不返回、还是仅前端契约漏声明——需读 internal/app 知识库 handler 确认（本单元只读前端）。",
+    "mentionsCache 512 条上限在长会话下的实际内存占用未实测（需真机数据）。",
+    "subagentRunsStore / agentNetworkStore 的合并是否与 v4.64「共享单轮询」决策冲突，需主代理拍板。"
+  ]
+}

@@ -24,9 +24,13 @@ func TestExtractJSON_NormalCodeBlock(t *testing.T) {
 func TestExtractJSON_MultipleObjects(t *testing.T) {
 	input := `前文{ "a": 1 }中间{ "b": 2 }后文`
 	got := ExtractJSON(input)
-	// 实现取第一个 { 到最后一个 }
-	if got != `{ "a": 1 }中间{ "b": 2 }` {
-		t.Errorf("期望从首个 { 到末个 }, 得到 %q", got)
+	// P0-22 修复后：取第一个完整对象，而不是「首个 { 到末个 }」
+	if got != `{ "a": 1 }` {
+		t.Errorf("期望第一个完整对象 %q, 得到 %q", `{ "a": 1 }`, got)
+	}
+	var obj map[string]interface{}
+	if err := json.Unmarshal([]byte(got), &obj); err != nil {
+		t.Fatalf("提取结果不是合法 JSON: %s\n提取值: %q", err, got)
 	}
 }
 
@@ -63,6 +67,171 @@ func TestExtractJSON_OnlyOpeningBrace(t *testing.T) {
 	got := ExtractJSON(input)
 	if got != input {
 		t.Errorf("无匹配花括号时应返回原串, 得到 %q", got)
+	}
+}
+
+// TestExtractJSON_Table 表驱动覆盖 P0-22：回复中多个 JSON 对象、字符串内花括号、
+// 转义引号、嵌套结构、顶层数组、markdown 围栏、以及「无 JSON 时原样返回」的向后兼容语义。
+func TestExtractJSON_Table(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    string
+		want     string
+		wantJSON bool // want 是否必须是合法 JSON（可被 json.Unmarshal）
+	}{
+		{
+			name:     "正文+完整对象+后文再出现空对象",
+			input:    `说明如下 {"name":"一"} 补充说明：占位 {} 即可`,
+			want:     `{"name":"一"}`,
+			wantJSON: true,
+		},
+		{
+			name:     "回复里两个并列对象取第一个",
+			input:    `{"a":1} {"b":2}`,
+			want:     `{"a":1}`,
+			wantJSON: true,
+		},
+		{
+			name:     "对象之间有解释文字",
+			input:    "第一个：{\"a\":1}\n第二个：{\"b\":2}\n",
+			want:     `{"a":1}`,
+			wantJSON: true,
+		},
+		{
+			name:     "字符串值内含花括号",
+			input:    `{"a":"{not a brace}"}`,
+			want:     `{"a":"{not a brace}"}`,
+			wantJSON: true,
+		},
+		{
+			name:     "字符串值内含右花括号和左花括号",
+			input:    `{"a":"} {"}`,
+			want:     `{"a":"} {"}`,
+			wantJSON: true,
+		},
+		{
+			name:     "转义引号",
+			input:    `{"a":"say \"hi\""}`,
+			want:     `{"a":"say \"hi\""}`,
+			wantJSON: true,
+		},
+		{
+			name:     "转义反斜杠后紧跟引号",
+			input:    `{"a":"back\\","b":2}`,
+			want:     `{"a":"back\\","b":2}`,
+			wantJSON: true,
+		},
+		{
+			name:     "嵌套对象与数组",
+			input:    `{"o":{"i":1},"arr":[1,{"x":2}]}`,
+			want:     `{"o":{"i":1},"arr":[1,{"x":2}]}`,
+			wantJSON: true,
+		},
+		{
+			name:     "顶层数组",
+			input:    `[{"op":1},{"op":2}]`,
+			want:     `[{"op":1},{"op":2}]`,
+			wantJSON: true,
+		},
+		{
+			name:     "正文方括号噪声后跟对象",
+			input:    `提示[附录]内容 {"a":1}`,
+			want:     `{"a":1}`,
+			wantJSON: true,
+		},
+		{
+			name:     "正文里的合法标量数组引用不抢先",
+			input:    `参考[1]的结论 {"a":1}`,
+			want:     `{"a":1}`,
+			wantJSON: true,
+		},
+		{
+			name:     "纯标量数组仍可兜底提取",
+			input:    `结果：[1,2,3]`,
+			want:     `[1,2,3]`,
+			wantJSON: true,
+		},
+		{
+			name:     "字符串数组",
+			input:    `["a","b"]`,
+			want:     `["a","b"]`,
+			wantJSON: true,
+		},
+		{
+			name:     "两个并列顶层结构化数组取第一个",
+			input:    `[{"a":1}] [{"b":2}]`,
+			want:     `[{"a":1}]`,
+			wantJSON: true,
+		},
+		{
+			name:     "两个并列标量数组取第一个",
+			input:    `[1,2] [3,4]`,
+			want:     `[1,2]`,
+			wantJSON: true,
+		},
+		{
+			name:     "引号数组噪声不抢先",
+			input:    `参考["注"]说明 {"a":1}`,
+			want:     `{"a":1}`,
+			wantJSON: true,
+		},
+		{
+			name:     "markdown json 围栏",
+			input:    "结果：\n```json\n{\"a\":1}\n```\n",
+			want:     `{"a":1}`,
+			wantJSON: true,
+		},
+		{
+			name:     "markdown json 围栏内含并列对象",
+			input:    "```json\n{\"a\":1}\n{\"b\":2}\n```",
+			want:     `{"a":1}`,
+			wantJSON: true,
+		},
+		{
+			name:     "纯文本无 JSON 原样返回",
+			input:    `这是一段纯文本，没有花括号也没有方括号`,
+			want:     `这是一段纯文本，没有花括号也没有方括号`,
+			wantJSON: false,
+		},
+		{
+			name:     "空字符串",
+			input:    "",
+			want:     "",
+			wantJSON: false,
+		},
+		{
+			name:     "只有左花括号",
+			input:    `这是不完整的 { 只有左花括号`,
+			want:     `这是不完整的 { 只有左花括号`,
+			wantJSON: false,
+		},
+		{
+			name:     "对象后跟未闭合左花括号",
+			input:    `{"a":1} 尾巴 {`,
+			want:     `{"a":1}`,
+			wantJSON: true,
+		},
+		{
+			name:     "闭合失败的片段原样返回",
+			input:    `{"a":`,
+			want:     `{"a":`,
+			wantJSON: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := ExtractJSON(tc.input)
+			if got != tc.want {
+				t.Fatalf("ExtractJSON(%q) = %q, 期望 %q", tc.input, got, tc.want)
+			}
+			if tc.wantJSON {
+				var v interface{}
+				if err := json.Unmarshal([]byte(got), &v); err != nil {
+					t.Fatalf("期望结果可被 json.Unmarshal: %v (提取值 %q)", err, got)
+				}
+			}
+		})
 	}
 }
 

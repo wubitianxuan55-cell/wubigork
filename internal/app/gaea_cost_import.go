@@ -247,33 +247,6 @@ func (a *App) finishAIParse(abs string, columns []string, raw string) (CostImpor
 	return toCostImportPreview(pv, true), nil
 }
 
-// costEntryUpsertSQL 与 cost.Store.Save 同构的 UPSERT（整批事务内逐条执行，
-// 保证事务内写入与常规 Save 的落盘形态完全一致）。
-const costEntryUpsertSQL = `
-INSERT INTO cost_entries(name, title, code, category, category_path, unit, price, labor_fee, material_fee, machine_fee, management_fee, profit_fee, advance_fee, tax_rate, spec, source, region, price_date, price_type, valid_until, source_row, tags, status, body, created_at, updated_at)
-VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-ON CONFLICT(name) DO UPDATE SET
-  title=excluded.title, code=excluded.code, category=excluded.category, category_path=excluded.category_path, unit=excluded.unit,
-  price=excluded.price, labor_fee=excluded.labor_fee, material_fee=excluded.material_fee,
-  machine_fee=excluded.machine_fee, management_fee=excluded.management_fee,
-  profit_fee=excluded.profit_fee, advance_fee=excluded.advance_fee, tax_rate=excluded.tax_rate,
-  spec=excluded.spec, source=excluded.source,
-  region=excluded.region, price_date=excluded.price_date, price_type=excluded.price_type,
-  valid_until=excluded.valid_until, source_row=excluded.source_row,
-  tags=excluded.tags, status=excluded.status, body=excluded.body,
-  updated_at=excluded.updated_at`
-
-// marshalCostTags 序列化标签 JSON（与 cost.Store.Save 口径一致）。
-func marshalCostTags(tags []string) string {
-	if len(tags) == 0 {
-		return "[]"
-	}
-	if b, err := json.Marshal(tags); err == nil {
-		return string(b)
-	}
-	return "[]"
-}
-
 // normalizeCostEntryForTx 校验并归一化一条导入行；无效行返回 error
 // （整个批次拒绝，不做「跳过部分行」的半批写入）。
 func normalizeCostEntryForTx(e CostEntry) (cost.Entry, error) {
@@ -338,28 +311,10 @@ func (a *App) GaeaCostImportApply(rows []CostEntry, inquirySource ...string) (in
 	}
 	if err := db.WithTransaction(gconfig.MemoryUserDir(), func(tx *sql.Tx) error {
 		for i, e := range entries {
-			if _, err := tx.Exec(costEntryUpsertSQL,
-				e.Name, e.Title, e.Code, e.Category, e.CategoryPath, e.Unit, e.Price,
-				e.LaborFee, e.MaterialFee, e.MachineFee,
-				e.ManagementFee, e.ProfitFee, e.AdvanceFee, e.TaxRate,
-				e.Spec, e.Source,
-				e.Region, e.PriceDate, e.PriceType, e.ValidUntil, e.SourceRow,
-				marshalCostTags(e.Tags), e.Status, e.Body,
-				e.CreatedAt.Format(time.RFC3339), e.UpdatedAt.Format(time.RFC3339)); err != nil {
+			// 审计 P0#11（源 AP4-03）：UPSERT/组成替换唯一实现在 cost.SaveTx
+			//（与 Save 同源），本文件不再持有第二份同构 SQL。
+			if err := a.hubCostStore().SaveTx(tx, e); err != nil {
 				return fmt.Errorf("第 %d 条写入失败: %w", i+1, err)
-			}
-			// 人材机二级组成：整组替换（与 cost.Store.Save 语义一致）。
-			if _, err := tx.Exec("DELETE FROM cost_entry_components WHERE entry_name=?", e.Name); err != nil {
-				return fmt.Errorf("第 %d 条组成清理失败: %w", i+1, err)
-			}
-			for j, c := range e.Components {
-				if _, err := tx.Exec(`
-INSERT INTO cost_entry_components(entry_name, kind, title, unit, quantity, price, amount, note, sort, created_at, updated_at)
-VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
-					e.Name, c.Kind, c.Title, c.Unit, c.Quantity, c.Price, c.Amount, c.Note, j,
-					e.CreatedAt.Format(time.RFC3339), e.UpdatedAt.Format(time.RFC3339)); err != nil {
-					return fmt.Errorf("第 %d 条组成写入失败: %w", i+1, err)
-				}
 			}
 		}
 		return nil

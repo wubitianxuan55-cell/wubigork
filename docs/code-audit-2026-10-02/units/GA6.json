@@ -1,0 +1,297 @@
+{
+  "id": "GA6",
+  "module": "gaea 造价域（cost/costimport/costinquiry/costproject/costref/coststage/pricefeed/billing）",
+  "footprint": [
+    "internal/gaea/cost",
+    "internal/gaea/costimport",
+    "internal/gaea/costinquiry",
+    "internal/gaea/costproject",
+    "internal/gaea/costref",
+    "internal/gaea/coststage",
+    "internal/gaea/pricefeed",
+    "internal/gaea/billing"
+  ],
+  "verdict": "八包 16 个非测试源文件约 6.2k 行（含测试 29 文件 4.3k），单包内部质量尚可（cost/coststage/costinquiry 分层清晰、纯函数多、注释带审计出处），但包之边界是假的：同一件事情在 2~3 处各写一遍。最痛的是「一条成本条目怎么落库」「一个报价表怎么解析」「一次检索怎么召回」三件事各有三套实现（domain / app / tool / 前端 mock），且已经开始漂移（编码列、异常阈值、五算对比口径、整除取整）。其次是 cost.go 的包级 BM25 缓存把「直写 sqlite 必须手动失效」变成了跨包隐式契约，任何人绕开 Store.Save 写库就静默读到脏排序。",
+  "score": 4.5,
+  "metrics": {
+    "files_reviewed": 16,
+    "loc_reviewed": 6159,
+    "test_files": 29,
+    "test_loc": 4351
+  },
+  "hotspots": [
+    {
+      "path": "internal/gaea/costimport/costimport.go",
+      "loc": 1264,
+      "why": "1186 行里塞了两套互不复用的表格解析器（通用列映射 + 《市政成本测算手册》专用列位），启发式阈值 4/5/8 硬编码，findHeaderRow 被重复调用。"
+    },
+    {
+      "path": "internal/gaea/costref/graph.go",
+      "loc": 880,
+      "why": "组图器同时是跨域聚合器：import cost+costinquiry+costproject，自带指标实时聚合，expandCategory 13 参 / expandProject 10 参。"
+    },
+    {
+      "path": "internal/gaea/cost/cost.go",
+      "loc": 882,
+      "why": "Store + 包级 rankers 全局缓存 + 分类树 + 默认分类 100 行字面量 + SlugName 兼容层，一文件五职责；写路径必须记得 bumpRankVersion。"
+    },
+    {
+      "path": "internal/app/gaea_cost_import_vision.go",
+      "loc": 699,
+      "why": "把 costimport 的解析管线按「轻量启发式」重抄一遍（列映射/表头判定/价格解析/行组装），字段集已缺 code 列。"
+    },
+    {
+      "path": "frontend/src/gaea/lib/mock/cost.ts",
+      "loc": 734,
+      "why": "前端 mock 手抄后端指标/调差/库级扫描/五算对比/图谱五套算法，无一致性测试，五算对比口径已与 coststage 不一致。"
+    },
+    {
+      "path": "internal/gaea/cost/repair.go",
+      "loc": 505,
+      "why": "305 行 if/switch 硬编码「旧平铺分类 → 新树路径」规则加 20 项唯一叶名映射表，是历史数据的固化补丁，随分类树演进只增不减。"
+    },
+    {
+      "path": "internal/gaea/pricefeed/pricefeed.go",
+      "loc": 392,
+      "why": "与 costimport 平行的一套 HTML 表解析 + 标题/name 匹配 + 自定义取整，异常阈值 ±20% 自成一代。"
+    },
+    {
+      "path": "internal/gaea/cost/cost.go:130-170",
+      "loc": 41,
+      "why": "包级 rankMu/rankVersion/rankers 全局可变状态 + 16 项整体清空策略；正确性依赖所有写路径记得推进版本。"
+    }
+  ],
+  "findings": [
+    {
+      "fid": "GA6-01",
+      "severity": "P1",
+      "category": "duplication",
+      "title": "成本条目 UPSERT 三份平行实现，直写还要求调用方记得失效缓存",
+      "file": "internal/app/gaea_cost_import.go",
+      "line": "250-264",
+      "evidence": "// costEntryUpsertSQL 与 cost.Store.Save 同构的 UPSERT（整批事务内逐条执行，\nconst costEntryUpsertSQL = `\nINSERT INTO cost_entries(name, title, code, category, category_path, unit, price, labor_fee, material_fee, machine_fee, management_fee, profit_fee, advance_fee, tax_rate, spec, source, region, price_date, price_type, valid_until, source_row, tags, status, body, created_at, updated_at)",
+      "why": "cost.Store.Save（internal/gaea/cost/cost.go:248-290）、app 层 costEntryUpsertSQL（本处）+ gaea_cost_import.go:341 的 tx.Exec、以及 :355-363 的组成行整组替换，是同一段写逻辑的三份拷贝；cost 包没有 Tx 级写入口，app 只能抄 SQL。",
+      "impact": "加一列（如 v4.400 再加 price_unit）要改三处，漏一处则「单条保存」与「批量导入」落盘形态不同；批量导入绕过 Store.Save 后必须靠 cost.InvalidateRankers()（gaea_cost_import.go:371）手动救缓存，忘记即 BM25 排序长期陈旧。",
+      "fix": "在 cost 包加 SaveTx(tx *sql.Tx, e Entry) error，Store.Save 改为 Begin+SaveTx+Commit；app 的 GaeaCostImportApply 只调 cost.SaveTx，删除 costEntryUpsertSQL 与手写组成行 SQL。",
+      "effort": "M",
+      "prior_audit": "docs/gaea-optimization-direction-2026-09.md 记 cost 7 包 6.5k/115 绑定、评分 7.0；未点出写路径三份实现（延续）。"
+    },
+    {
+      "fid": "GA6-02",
+      "severity": "P1",
+      "category": "duplication",
+      "title": "视觉导入把 costimport 表格解析器整套重抄，字段集已缺 code 列",
+      "file": "internal/app/gaea_cost_import_vision.go",
+      "line": "159-170",
+      "evidence": "var visionFieldKeywords = []struct {\n\tfield int\n\tkws   []string\n}{",
+      "why": "visionFieldKeywords/visionMapColumns/visionIsHeader/visionBuildRow/visionParsePrice/visionStripIndex（本文件 :159-502）与 costimport.fieldKeywords/mapColumns/likelyHeader/buildRow/parsePrice/stripListMarker（costimport.go:89-104、490-512、525-592、1132-1149）是同一条管线的两份实现，注释自称「轻量启发式」。",
+      "impact": "同一份报价表走 xlsx 路径与走 PDF/OCR 路径解析结果不同：vision 版字段无 fieldCode（fieldKeywords 有「清单项目编码/定额编号」），价格词缺「除税价/含税价/不含税单价」，又没有 buildVerticalRows 与手册格式分支；编码列在扫描件里直接丢失，导入后无法按编码匹配覆盖。",
+      "fix": "把 cell 级解析抽到 costimport 导出（如 ParseCells(cells []string, header []string) Row / MatchPrice），vision 只负责「文本 → [][]string」，删除 visionField* 一套。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "GA6-03",
+      "severity": "P1",
+      "category": "duplication",
+      "title": "前端 mock 手抄五套造价算法，五算对比口径已与后端不一致",
+      "file": "frontend/src/gaea/lib/mock/cost.ts",
+      "line": "580-599",
+      "evidence": "const prevStage = i > 0 ? stages[i - 1] : \"\";\nconst prevAmount = i > 0 ? amountOf(prevStage) : 0;\nconst chainDiff = i > 0 && prevAmount ? amount - prevAmount : 0;",
+      "why": "mock 自实现 mockIndicators(:100)、CostInquiryScan(:517)、CostInquiryAdjust(:549)、CostStageCompare(:580)、mockGraphView(:630) 五套算法，对应后端 costref.ComputeIndicators、costinquiry.ScanAnomalies、SuggestAdjustments、coststage.ComputeComparison、costref.BuildGraph。",
+      "impact": "同一批数据前端演示与真机出不同数：后端 ComputeComparison 以「上一有值阶段」为环比基准且 Amount<=0 不算有值（coststage.go:218-256），mock 直接把 i-1 当上一阶段、hasPrev=i>0；mock 的 AdjustSuggestion 还缺后端已有的 Level/PredictedNext 字段（costinquiry.go:330-347）。浏览器 dev 里验证过的交互在真机可能给出不同结论，且无任何契约测试约束。",
+      "fix": "mock 只保留种子数据 + 简易 CRUD，派生结果（对比/扫描/调差/指标/图谱）改为调用共享的纯函数 TS 端口，或加一组「同一 fixture 后端 JSON 快照 == mock 输出」的契约测试。",
+      "effort": "L",
+      "prior_audit": "v4.386.0（CHANGELOG:221-224）已要求「mock 同口径实现分页」；本条为其同类问题的更大范围（延续）。"
+    },
+    {
+      "fid": "GA6-04",
+      "severity": "P1",
+      "category": "duplication",
+      "title": "成本检索三路并行：app 管线 / tool 管线 / cost 包内 BM25 各一份",
+      "file": "internal/gaea/tool/builtin/cost_tools.go",
+      "line": "105-122",
+      "evidence": "list := store.Search(p.Query, p.Category, p.Status)\n\tif len(list) < 3 && strings.TrimSpace(p.Query) != \"\" {\n\t\tif sem := semanticCostRecall(ctx, p.Query, list, store, 10); len(sem) > 0 {",
+      "why": "同一管线三份：cost_tools.go:105-122（tool 面）、internal/app/memory_hub.go:567-585 costSearchAll（绑定面）、internal/gaea/cost/cost.go:431-488（包内 BM25 精排）；连文档串也是三份——cost.go:174-176 summaryDocText、gaea_cost_rerank.go:194-214 costDocString、cost_tools.go:340 costDocText。",
+      "impact": "「<3 条才补召回」这类策略阈值、语义召回与精排顺序要改三处；文档串不一致意味着 BM25 打分与 embedding 语义空间对同一条目用不同文本，召回率调优结果无法在两条通道间迁移。",
+      "fix": "把「检索管线」提为 cost 包或独立 retrieval 适配层（输入 query/category/status/limit，输出 []Summary），app 绑定与 tool 都只调它；文档串统一为一个函数。",
+      "effort": "M",
+      "prior_audit": "docs/gaea-cost-domain-survey-2026-09.md 已记三层检索栈在产（勿当欠账）；本条指出的是三份实现并存（延续/新角度）。"
+    },
+    {
+      "fid": "GA6-05",
+      "severity": "P1",
+      "category": "duplication",
+      "title": "标题/名称匹配与价格解析在 4 个包各写一份，行为已分叉",
+      "file": "internal/gaea/pricefeed/pricefeed.go",
+      "line": "308-331",
+      "evidence": "byTitle := map[string]cost.Summary{}\n\tbyName := map[string]cost.Summary{}\n\t\tif t := strings.ToLower(strings.TrimSpace(s.Title)); t != \"\" {",
+      "why": "pricefeed.matchRows 与 costimport.MatchRows（costimport.go:289-344）是同型匹配（byTitle/byName + SlugName 兜底），却各写一份；价格解析有 costimport.parsePrice（:608）、pricefeed.parsePrice（:292）、costinquiry 无而 costref 用 MatchTitle（:448）；归一化有 NormalizeCode（cost.go:190）与 normCompTitle（contentband.go:23）两份仅大小写不同的全角半角实现。",
+      "impact": "同一标题在两条链上的命中结果不同：costimport.MatchRows 先按 code、再 title 小写、再 name；pricefeed 只有 title 小写 + SlugName，没有 code 索引，同码不同标题的条目在抓取链上会被判「新增」而不是「更新」。",
+      "fix": "抽出 cost 包的 MatchIndex（byCode/byTitle/byName 三索引 + Match(row) (Summary, matchedBy, ok)），costimport/pricefeed/attribution 全部复用；价格解析归一化同样收敛为一个 cost.ParsePrice。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "GA6-06",
+      "severity": "P1",
+      "category": "coupling",
+      "title": "包级 BM25 缓存把「直写必须手动失效」变成跨包隐式契约",
+      "file": "internal/gaea/cost/cost.go",
+      "line": "130-145",
+      "evidence": "var (\n\trankMu      sync.Mutex\n\trankVersion atomic.Uint64\n\trankers     = map[string]rankerEntry{}\n)",
+      "why": "rankerFor(:153) 的 key 含版本与过滤形态，写路径靠 bumpRankVersion 推进；但 app 层批量导入直写 cost_entries 不经 Store.Save，只能显式调 cost.InvalidateRankers()（cost.go:143-145 注释自陈），其余任何新写路径（含未来工具面）都不会被编译器或测试强制。",
+      "impact": "任何绕过 Store 的写路径漏调即让搜索排序停留在旧语料，且症状是「排序看起来有点怪」而非报错；缓存满 16 项整体清空（:160-162）也让命中率与库规模、筛选组合耦合，难以观测。",
+      "fix": "把失效点钉在数据层：cost 包提供唯一的写入口（SaveTx/Save/Delete 全覆盖），或让 Search 在语料 SQL 里带上 max(updated_at)/COUNT 作为指纹替代全局版本号，去掉人工失效义务。",
+      "effort": "M",
+      "prior_audit": "docs/gaea-backend-perf-survey-2026-09.md:10-11 与 v4.247.0/v4.357.0 已按「刀 D」接通并做版本戳原子化；本条是其遗留的调用方义务（延续/仍开放）。"
+    },
+    {
+      "fid": "GA6-07",
+      "severity": "P2",
+      "category": "consistency",
+      "title": "价格异常阈值五代并存：±20/±2/5-15/30-50/1.5-2.0",
+      "file": "internal/gaea/pricefeed/pricefeed.go",
+      "line": "362-388",
+      "evidence": "const anomalyJumpPct = 20.0\n...\nif jump >= anomalyJumpPct || jump <= -anomalyJumpPct {\n\t\t\tc.Anomaly = true",
+      "why": "同类「价格异常」判定分散在五处且各持一套阈值与词表：pricefeed ±20%（:363）、costinquiry.SuggestAdjustments 2%（:327）、costinquiry.adjustLevel 5/15%（:364-373）、costinquiry/scan.go 离散 1.5/2.0 + 跳变 30/50（:27-32）、costref.attributionLevel 带宽外 ±10% 兜底（:368-378）；coststage 又有一套 5/15（coststage.go:37-39）。",
+      "impact": "同一批价格在不同面板得到不同结论：调差建议说「关注」，库级扫描说「正常」，价格源抓取说「异常」；用户无法建立「多少算异常」的稳定心智，改阈值要动 5 个文件。",
+      "fix": "在 cost 包建 deviation 阈值集中定义（含词表 正常/关注/异常），其余包引用；扫描类与调差类阈值可各自命名但必须同源导出并在注释里写明关系。",
+      "effort": "S",
+      "prior_audit": "docs/gaea-cost-domain-survey-2026-09.md:11 记录 adjustLevel 三档为既有能力（延续）。"
+    },
+    {
+      "fid": "GA6-08",
+      "severity": "P2",
+      "category": "perf-smell",
+      "title": "检索与价格发布都是全表进内存再 Go 侧过滤/排序",
+      "file": "internal/gaea/cost/cost.go",
+      "line": "390-434",
+      "evidence": "sqlText := \"SELECT name, title, code, ... FROM cost_entries LEFT JOIN (...) cc ON ...\"\n...\nfor gi, e := range all {\n\t\thay := strings.ToLower(e.Name + \"\\x00\" + e.Title + ...)",
+      "why": "Search 每次 SQL 全捞该过滤形态（无 LIMIT），再在 Go 里逐条拼 12 字段大串做 Contains，最后进 BM25；绑定面再全量排序切片分页（memory_hub.go:605-635）。pricefeed.Store 无 GetFetch，GaeaPriceFetchApply 只能 ListFetches(50) 线性找（gaea_price_sources.go:128-134）。",
+      "impact": "v4.386.0 CHANGELOG 记真实库 1553 条；每次击键（250ms 防抖）都要全表回传 + 12 字段拼接 + 排序，分页做的只是「载荷降载」不是「查询降载」；抓取记录超过 50 条后按 id 应用会「记录不存在」。",
+      "fix": "Search 增 limit/offset 下推到 SQL（keyword 过滤已在 Go，可先按 name 分页再过滤并回填）；pricefeed.Store 加 GetFetch(id) 点查。",
+      "effort": "M",
+      "prior_audit": "v4.386.0（CHANGELOG:221-224）已做分页绑定与载荷降载，全表扫描为已知残留（延续）。"
+    },
+    {
+      "fid": "GA6-09",
+      "severity": "P2",
+      "category": "error-swallow",
+      "title": "Search 出错返回 nil：绑定层无法区分「空库」与「查询失败」",
+      "file": "internal/gaea/cost/cost.go",
+      "line": "399-402",
+      "evidence": "rows, err := s.db.Query(sqlText, args...)\n\tif err != nil {\n\t\treturn nil\n\t}",
+      "why": "Store.Search/List 签名无 error（cost.go:368-374、399），查询失败、扫描失败（:410-412 单行 Scan 失败 continue）一律降级为「返回已读到的部分/空」。app 的 costSearchAll 直接把该切片包成 CostSummary 列表返回（memory_hub.go:568-585），链路到前端没有任何失败信号。",
+      "impact": "数据库锁超时/磁盘异常时，成本库界面显示为「无匹配条目」；用户可能据此重新导入或认为条目丢失。单行 Scan 失败还会静默少几行，而 Total 计数用它算分页总数。",
+      "fix": "Search 返回 ([]Summary, error) 或引入 SummaryPage{Items, Total, Truncated/Failed}；至少把 rows.Err 与 Scan 失败计数透出到绑定返回值，前端给「读取失败，可重试」。",
+      "effort": "S",
+      "prior_audit": "v4.357.0/v4.358.0 批量补过 rows.Err（cost.go:417-419 已有 warn）；本条是「无 error 通道」的结构问题（延续/新角度）。"
+    },
+    {
+      "fid": "GA6-10",
+      "severity": "P2",
+      "category": "complexity",
+      "title": "组图器是个上帝函数群：13 参 + 跨三域聚合",
+      "file": "internal/gaea/costref/graph.go",
+      "line": "304-316",
+      "evidence": "func (b *graphBuilder) expandCategory(\n\tfocusPath string,\n\tprojects []costproject.ProjectSummary,\n\titemsByProject map[string][]costproject.Item,\n\tentries []cost.Summary,\n\tentryByName map[string]cost.Summary,",
+      "why": "expandCategory 13 参、expandProject 10 参、BuildGraph 9 参（:99-109），且 costref 同时 import cost + costinquiry + costproject（:25-27），在组图过程中实时调用 costinquiry.MatchTitle 与 ComputeIndicators（:404-417、716-737）——「参考指标」本属 costref 自己的域，却在 graph.go 里第二次实现索引。",
+      "impact": "改一处匹配口径要同时改 graph.go 的三处索引函数与 costref.go 的 ComputeAttribution；新增节点类型/边类型要动 6 个函数签名，且无法单独为「图」写单测（必须构造全五类数据）。",
+      "fix": "把索引构造收进一个类型（type graphInput struct{...} / 或 graphIndexes(projects, items, entries, inquiries)），expandCategory/expandProject 只接 *graphInput；指标索引用 costref 已有函数而不是在 graph.go 重建。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "GA6-11",
+      "severity": "P2",
+      "category": "complexity",
+      "title": "costimport 双解析器与硬编码启发式，findHeaderRow 白跑两遍",
+      "file": "internal/gaea/costimport/costimport.go",
+      "line": "186-190",
+      "evidence": "firstDataRow := 2\n\tif header := findHeaderRow(rows); header >= 0 {\n\t\tfirstDataRow = header + 2\n\t}",
+      "why": "findHeaderRow 在 :161 已算过一次，:187 再算一次；通用路径的 normalizeTable(:427)、likelyHeader(:477)、findHeaderRow(:196) 与手册专用路径 manualRows(:774)、findManualHeaderRow(:804)、manualHeaderCols(:833，含 12 项硬编码列位兜底) 是同功能两套；启发式阈值 4/5/8、`matches < 4`（:223）、`limit := 5`（:197、:805）散落硬编码。",
+      "impact": "表头判定规则改动要在两套里各改一遍且互不影响（同一文件可能一条路径识别成表头、另一条不识别）；列位兜底把「手册固定列」写死，手册改版即静默错列取数（把管理费列当单价）。",
+      "fix": "抽公共 normalizeRows + detectHeader(rows, kws) 供两条路径共用；手册列位兜底改为「找不到关键词列即整表跳过并提示」，不猜列；阈值提为具名常量集中在一处。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "GA6-12",
+      "severity": "P2",
+      "category": "consistency",
+      "title": "同口径取整三种实现，跨模块差 1 分",
+      "file": "internal/gaea/pricefeed/pricefeed.go",
+      "line": "358-360",
+      "evidence": "func round2(v float64) float64 {\n\treturn float64(int64(v*100+0.5)) / 100\n}",
+      "why": "pricefeed.round2 用 int64 截断（负数偏移），costinquiry.round4（:507-509）与 costref.round4（:422-424）用 math.Round，app 又抄了第四份 visionRound2（gaea_cost_import_vision.go:769-771，注释自称「与 pricefeed.round2 一致」）。",
+      "impact": "同一 -0.625 这一档 pricefeed 得 -6.24（int64(-62.0)）、math.Round 得 -6.25：抓取候选的 DiffPct 与调差建议的 DiffPct 在负值上系统性差 0.01，且测试已固化了该差异（gaea_cost_import_vision_test.go 注释「与 pricefeed.round2 一致的截断取整（-625.0+0.5 截断为 -624）」）。",
+      "fix": "统一用一个 cost.RoundTo(v, digits)（math.Round 语义），删除 round2/round4/visionRound2 三份复制，测试期望同步改为真四舍五入。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "GA6-13",
+      "severity": "P2",
+      "category": "consistency",
+      "title": "分类过滤声明支持叶子名，实现只覆盖 category_path 为空的旧数据",
+      "file": "internal/gaea/cost/cost.go",
+      "line": "380-384",
+      "evidence": "// 分类参数支持三种形态：完整路径（含子树）、叶子名（兼容旧数据）、\n\t\t// 以及 category_path 为空但 category 精确匹配的旧条目。\n\t\tconds = append(conds, \"(category_path = ? OR category_path LIKE ? ESCAPE '\\\\' OR (category_path = '' AND category = ?))\")",
+      "why": "第三个分支要求 category_path = ''，所以「叶子名」形态只对未迁移的旧行有效；前端 mock 反而实现了正确语义（frontend/src/gaea/lib/mock/cost.ts:63-64 用 path !== category && !path.startsWith(category+'/') 同时覆盖路径与叶子名），形成前后端两套判定。",
+      "impact": "对已迁移条目（现库主流）传叶子名做过滤会得到空集，且没有错误提示——绑定 GaeaCostSearch(query,\"钢材\",\"\") 与 CostLibraryView 分类树点击在多级路径下结果不一致。",
+      "fix": "把第三个分支改为 (category_path = ? OR category_path LIKE ? OR category_path LIKE ? OR (category_path = '' AND category = ?))，即加上 '/叶子名' 后缀匹配（或统一只允许完整路径，并让前端不再传叶子名）。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "GA6-14",
+      "severity": "P3",
+      "category": "legacy-residue",
+      "title": "分类树默认数据用 [2]string 位置元组，依赖「名称全局唯一」假设",
+      "file": "internal/gaea/cost/cost.go",
+      "line": "515-517",
+      "evidence": "var defaultCategories = [][2]string{\n\t// 资源库层\n\t{\"\", \"人工\"}, {\"\", \"材料\"}, {\"\", \"机械\"}, {\"\", \"运输\"}, {\"\", \"检测\"},",
+      "why": "100 行字面量用位置约定（第三行起才隐含「父名在映射表里」），靠 ids[c[1]] 覆盖实现父链解析（:581-584），并显式依赖「默认分类名全局唯一」注释假设；一旦用户建了同名节点或删了父节点，`continue`（:565-567）会静默跳过整棵子树。",
+      "impact": "默认分类演进（新增专业/分部）时，一处笔误或用户改名会让该分支的子树静默不播种，且没有任何日志；分类树漂移正是 repair.go 305 行补丁的成因。",
+      "fix": "换成显式结构体（{Parent, Name string} 或嵌套树字面量），父链按结构解析而非名字映射；节点缺失时返回错误或 warn 而不是 continue。",
+      "effort": "S",
+      "prior_audit": "cost.go:5-9 记录 2026-08-19 数据库梳理与 SchemaV7 迁移；本条为数据结构的残留（延续）。"
+    },
+    {
+      "fid": "GA6-15",
+      "severity": "P3",
+      "category": "coupling",
+      "title": "billing 与造价域共用「成本」词表但完全无关，同板块语义被污染",
+      "file": "internal/gaea/billing/balance.go",
+      "line": "1-8",
+      "evidence": "// Package billing queries a provider's wallet balance for the status line. The\n// documented shape today is DeepSeek's GET /user/balance — registered as kind\n// \"deepseek\"; other providers register their own shape (3.0 Step 3d #8：",
+      "why": "billing 只有一处能力：provider API 钱包余额（deepseekResp/Info/Display），与 cost/costimport/... 的「工程造价」零交集；二者被同一审计单元归入「成本域」，且包名「billing（计费）」在造价语境下极易被误读为工程费用。",
+      "impact": "检索「billing/cost」时噪声增加；新人（或模型）容易把余额查询当造价计费能力去找、或反向把造价条目写进 billing。",
+      "fix": "把包改名为 providerbalance 或移入 internal/gaea/provider/ 下（如 provider/balance.go），消除同名域歧义；纯改名零逻辑风险。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "GA6-16",
+      "severity": "P3",
+      "category": "dead-code",
+      "title": "legacy 旧平铺分类映射表固化历史，纯靠测试锚定不可再生",
+      "file": "internal/gaea/cost/repair.go",
+      "line": "173-191",
+      "evidence": "var uniqueLeafTargets = map[string]string{\n\t\"水泥及水泥制品\": \"材料/土建材料/水泥及水泥制品\",\n\t\"钢材\":      \"材料/土建材料/钢材\",",
+      "why": "legacyCategoryTarget（:35-170）用 130 行 if/switch + 本表 19 项映射消化 2026-08-19 前的平铺数据；这些旧路径如今只存在于「未修好的历史库」里，新库永远走不到，而且映射正确性只由 repair_test.go 的用例表锚定（无数据来源）。",
+      "impact": "每新增一个专业/分部，唯一叶名表与 switch 分支都要跟着扩（否则历史库条目继续落在树上不可见的位置）；补丁随分类树单调增长，且无法用「还剩几条没修」判断何时可以删。",
+      "fix": "把映射表外置为可覆盖的 JSON 数据资产（同 cost/checkparams.json 先例），并在 SelfHeal 日志里输出「未解决条数」长期看板；连续多版本 left==0 后即可连同 switch 一起删除。",
+      "effort": "M",
+      "prior_audit": "repair.go:5-9 记录该补丁的成因（2026-08-19 梳理，1420 条中 201 条非法路径）；本条为其可退役性（延续）。"
+    }
+  ],
+  "open_questions": [
+    "cost.Store.Search 的「叶子名」形态（GA6-13）在真实库上的命中率无法离线判定：调试器不可用、也不能跑测试；需要一次只读 SQL 统计（category_path 非空且叶子名等于某个一级分类的条目数）才能确定影响面。",
+    "pricefeed.Source.Area 由用户配置写入（gaea_price_sources.go:151-152 取 src.Area 回填条目的 Region），但抓取解析出的地区表头行被 isAreaHeaderRow 整行丢弃（pricefeed.go:278-289），因此「成都市区/天府新区」这类按地区分列的价格表只会取到第一列报价且 Region 记错——需要一份真实价格网页样本才能确认该站点是否是分列形态。",
+    "app 层 gaea_cost_import.go 与 gaea_cost_import_vision.go 的字段集差异（code 列）是否已在真机导入中造成「同一条目重复新增」，需要用户库的 cost_entries 里「同 title 多 name」样本核对；本单元只读范围无法取样。",
+    "costimport.Parse 的 vertical 分支（costimport.go:167-170）在「横向表头识别失败」时会把任意含「元」的参数行当单价条目导入，且 SourceRow 恒为 0；该分支是否有真实误报样本（导入预览里出现非成本条目）待用户反馈确认。",
+    "ExpandGraph 的 limit 参数（app/gaea_cost_graph.go:22-24 把 limit<=0 或 >600 一律设为 600）与 costref.BuildGraph 内部「<=0 取 300、>600 夹到 600」两套默认值并存（graph.go:110-116），前端不传 limit 时实际拿到 600 而非 300——是否有意为之需要绑定层注释或产品口径确认。"
+  ]
+}

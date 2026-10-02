@@ -82,7 +82,7 @@ func goldenBaseResources() Project {
 	}
 	p.Assignments = []Assignment{
 		{TaskID: "A", ResourceID: "r1", Units: gF64Ptr(1.5)},
-		{TaskID: "B", ResourceID: "r2", Quantity: 30},
+		{TaskID: "B", ResourceID: "r2", Quantity: gF64Ptr(30)},
 	}
 	return p
 }
@@ -176,7 +176,7 @@ func goldenCases() []goldenCase {
 		{"patch_resource 无字段", goldenBaseResources(), []Op{{Type: "patch_resource", ID: "r1", ResourcePatch: &patchResource{}}}, nil, nil},
 		{"patch_resource 不存在", goldenBaseResources(), []Op{{Type: "patch_resource", ID: "NOPE", ResourcePatch: &patchResource{Name: gStrPtr("x")}}}, nil, nil},
 		{"remove_resource 级联分配", goldenBaseResources(), []Op{{Type: "remove_resource", ID: "r1"}}, nil, nil},
-		{"set_assignments 整体替换", goldenBaseResources(), []Op{{Type: "set_assignments", TaskID: "A", Assignments: []Assignment{{ResourceID: "r2", Quantity: 10}, {ResourceID: "r1", Units: gF64Ptr(2)}}}}, nil, nil},
+		{"set_assignments 整体替换", goldenBaseResources(), []Op{{Type: "set_assignments", TaskID: "A", Assignments: []Assignment{{ResourceID: "r2", Quantity: gF64Ptr(10)}, {ResourceID: "r1", Units: gF64Ptr(2)}}}}, nil, nil},
 		{"set_assignments 分组行拒绝", goldenBaseGrouped(), []Op{{Type: "set_assignments", TaskID: "G", Assignments: []Assignment{{ResourceID: "r1"}}}}, nil, nil},
 		{"set_assignments 资源不存在", goldenBaseResources(), []Op{{Type: "set_assignments", TaskID: "A", Assignments: []Assignment{{ResourceID: "NOPE"}}}}, nil, nil},
 		{"set_assignments 重复对", goldenBaseResources(), []Op{{Type: "set_assignments", TaskID: "A", Assignments: []Assignment{{ResourceID: "r1"}, {ResourceID: "r1", Units: gF64Ptr(2)}}}}, nil, nil},

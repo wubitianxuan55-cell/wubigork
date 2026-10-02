@@ -12,6 +12,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/gaea/gaea/internal/taskinbox"
@@ -383,6 +384,52 @@ func TestSaveTaskExecSpaceFallback(t *testing.T) {
 	list := a.GaeaTaskInboxList("work")
 	if len(list) != 1 || list[0].Space != "work" {
 		t.Fatalf("空空间应回退 work: %+v", list)
+	}
+}
+
+// TestTaskInboxConcurrentSaveNoLostUpdate 并发新建不丢条（P0-3 回归钉）：
+// N 个 goroutine 各存一条不同 title 的任务——「读→改→写」若无互斥，后写者
+// 拿自己那份旧快照整写覆盖，静默丢卡（修复前必红）。串行化后 List 恰好 N 条、
+// ID 去重无重复、每条新建的 ID 都在盘上。
+func TestTaskInboxConcurrentSaveNoLostUpdate(t *testing.T) {
+	a, _ := taskInboxFixture(t)
+
+	const n = 20
+	var wg sync.WaitGroup
+	errs := make([]error, n)
+	ids := make([]string, n)
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			v, err := a.taskInboxSave(taskInboxSaveInput{
+				Title: fmt.Sprintf("并发任务 %d", i), Space: "work", Source: "voice",
+			})
+			errs[i], ids[i] = err, v.ID
+		}(i)
+	}
+	wg.Wait()
+
+	for i, err := range errs {
+		if err != nil {
+			t.Errorf("并发新建第 %d 条失败: %v", i, err)
+		}
+	}
+	list := a.GaeaTaskInboxList("")
+	if len(list) != n {
+		t.Errorf("并发新建 %d 条后 List 应 %d 条，实得 %d 条（读-改-写丢条）", n, n, len(list))
+	}
+	seen := make(map[string]bool, len(list))
+	for _, v := range list {
+		if seen[v.ID] {
+			t.Errorf("任务 ID 重复: %s", v.ID)
+		}
+		seen[v.ID] = true
+	}
+	for i, id := range ids {
+		if !seen[id] {
+			t.Errorf("第 %d 条新建任务丢失（未落盘）: %s", i, id)
+		}
 	}
 }
 

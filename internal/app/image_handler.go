@@ -88,9 +88,17 @@ func (a *mediaState) WarmComfyUI() map[string]interface{} {
 	return map[string]interface{}{"started": true, "model": model}
 }
 
+// beginImageGen 进入生成区（进度/取消的 单槽 所有权）。审计 P0#14（源 AP7-01）：
+// 改前无条件覆盖 imageGenCancel/imageGenRunning——并发第二个生成会偷走单槽，
+// 先者的取消句柄被顶掉、进度互相串台。现拒绝并发：已在生成中时返回
+// (nil, nil, 0)，调用方须判 genCtx == nil 并给用户中文 busy 回包
+// （endImageGen(0, nil) 对零值幂等无害，defer 收尾写法不变）。
 func (a *mediaState) beginImageGen(parent context.Context) (context.Context, context.CancelFunc, uint64) {
 	a.imageGenMu.Lock()
 	defer a.imageGenMu.Unlock()
+	if a.imageGenRunning {
+		return nil, nil, 0
+	}
 	if parent == nil {
 		parent = context.Background()
 	}
@@ -273,6 +281,9 @@ func (a *mediaState) generateImageInternal(o imageGenInternal) (map[string]inter
 		backendType = o.backendOverride
 	}
 	genCtx, cancel, genID := a.beginImageGen(a.ctx)
+	if genCtx == nil {
+		return map[string]interface{}{"error": "已有图片/视频任务正在生成，请等待完成或先取消当前任务"}, nil
+	}
 	defer a.endImageGen(genID, cancel)
 	if backendType == "comfyui" {
 		a.noteImageGenMemoryPressure()
@@ -444,6 +455,9 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 		return map[string]interface{}{"error": "AI 客户端未初始化，请先登录"}, nil
 	}
 	genCtx, cancel, genID := a.beginImageGen(a.ctx)
+	if genCtx == nil {
+		return map[string]interface{}{"error": "已有图片/视频任务正在生成，请等待完成或先取消当前任务"}, nil
+	}
 	defer a.endImageGen(genID, cancel)
 	if a.cfg.ImageBackend == "comfyui" {
 		a.noteImageGenMemoryPressure()

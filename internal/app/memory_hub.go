@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -224,7 +225,12 @@ func (a *App) GaeaMemoryHubOverview() MemoryHubOverview {
 	ov := MemoryHubOverview{}
 
 	if store, err := knowledge.Global().Store(); err == nil {
-		ov.KnowledgeCount = len(store.List())
+		if list, lerr := store.List(); lerr == nil {
+			ov.KnowledgeCount = len(list)
+		} else {
+			// 审计 P0#6 GA3-01：读失败不得静默报 0 条。
+			slog.Warn("knowledge: 中枢总览读取失败，计数降级", "error", lerr)
+		}
 	}
 	ov.ProfileCount = len(a.hubProfileStore().All())
 	ov.OfficeCount = len(a.hubOfficeStore().List())
@@ -236,10 +242,14 @@ func (a *App) GaeaMemoryHubOverview() MemoryHubOverview {
 	// 后端维护（SQLite updated_at），前端按条目展示。
 	var latest time.Time
 	if store, err := knowledge.Global().Store(); err == nil {
-		for _, s := range store.List() {
-			if s.UpdatedAt.After(latest) {
-				latest = s.UpdatedAt
+		if list, lerr := store.List(); lerr == nil {
+			for _, s := range list {
+				if s.UpdatedAt.After(latest) {
+					latest = s.UpdatedAt
+				}
 			}
+		} else {
+			slog.Warn("knowledge: 中枢总览读取失败，最近更新降级", "error", lerr)
 		}
 	}
 	if !latest.IsZero() {
@@ -318,7 +328,12 @@ func (a *App) GaeaMemoryGraph() MemoryGraphView {
 
 	// 知识条目
 	if store, err := knowledge.Global().Store(); err == nil {
-		for _, e := range store.ReadAll() {
+		entries, rerr := store.ReadAll()
+		if rerr != nil {
+			// 审计 P0#6 GA3-01：读失败不得静默画成「知识库无节点」。
+			slog.Warn("knowledge: 记忆图读取知识条目失败，本次跳过知识节点", "error", rerr)
+		}
+		for _, e := range entries {
 			id := "k:" + e.Name
 			addNode(id, e.Title, "knowledge", e.Category+" · "+e.Discipline, 1)
 			nameID[e.Name] = id

@@ -104,7 +104,10 @@ func TestSimilarity(t *testing.T) {
 func TestFindSimilar(t *testing.T) {
 	store := newTestStore(t)
 	_ = store.Save(knowledge.Entry{Name: "pile", Title: "桩基施工要点", Category: knowledge.CatCase, Body: "要点", Status: "现行"})
-	hits := FindSimilar(store, "桩基施工 要点（修订）", 0.55)
+	hits, err := FindSimilar(store, "桩基施工 要点（修订）", 0.55)
+	if err != nil {
+		t.Fatalf("FindSimilar: %v", err)
+	}
 	if len(hits) != 1 || hits[0].Name != "pile" || hits[0].Score < 0.6 {
 		t.Errorf("FindSimilar = %+v, want pile 高分", hits)
 	}
@@ -113,10 +116,13 @@ func TestFindSimilar(t *testing.T) {
 func TestMatchRowsSimilarNote(t *testing.T) {
 	store := newTestStore(t)
 	_ = store.Save(knowledge.Entry{Name: "pile", Title: "桩基施工要点", Category: knowledge.CatCase, Body: "要点", Status: "现行"})
-	rows := MatchRows([]Row{{
+	rows, err := MatchRows([]Row{{
 		Title: "桩基施工 要点（修订稿）", Category: "工程案例", Status: "现行",
 		Body: "新内容",
 	}}, store)
+	if err != nil {
+		t.Fatalf("MatchRows: %v", err)
+	}
 	if len(rows) != 1 || rows[0].MatchNote != "新增" || rows[0].SimilarName == "" {
 		t.Errorf("expected similar suggestion: %+v", rows[0])
 	}

@@ -1,0 +1,352 @@
+{
+  "id": "FE7",
+  "module": "前端 schedule 板块",
+  "footprint": [
+    "frontend/src/schedule"
+  ],
+  "verdict": "机制堆得很满、注释密度极高，但同一语义在前端内部与前后端之间被实现了 2~4 遍：横道表格窗格与画布行、甘特导出与网络图导出、单代号视图与网络图导出、工作日↔日期换算、路径常量、AOA 分组带，全部是手工同步的平行副本。最痛的一处是前后端类型双写而无生成器：前端 project.baselines（多基线槽）在 Go internal/schedule/types.go 里根本不存在，而 Save 路径是 Go 强制 marshal 落盘，等于每次保存都静默删掉用户的多基线数据；同一通道还有 assignment 数值字段的类型不对称。其次是纯函数层被 store（zustand+persist+bridge）污染，God func updateTask/normalizeProject 各自 ~40 行承担校验+清洗+持久化三职责。",
+  "score": 6,
+  "metrics": {
+    "files_reviewed": 26,
+    "loc_reviewed": 7100,
+    "test_files": 40,
+    "test_loc": 7337
+  },
+  "hotspots": [
+    {
+      "path": "frontend/src/schedule/gantt/GanttTable.tsx",
+      "loc": 340,
+      "why": "全部可编辑单元格（名称/工期/进度/手动开始/前置）挤在一个返回式组件里，组头行逐列硬编码，行派生与 GanttBars 双写"
+    },
+    {
+      "path": "frontend/src/schedule/store.ts",
+      "loc": 745,
+      "why": "单文件同时是状态机、持久化编排、多工程事务、字段归一化层与快照历史；God func updateTask(~40 行)与 normalizeProject(~40 行)职责三重"
+    },
+    {
+      "path": "frontend/src/schedule/GanttView.tsx",
+      "loc": 551,
+      "why": "渲染已拆到 gantt/，但状态/拖拽/缩放/几何/分组配色仍 ~550 行；linkPaths 与 rowMenu/toggleCol 未 memo，每帧重算全表"
+    },
+    {
+      "path": "frontend/src/schedule/ganttExport.ts",
+      "loc": 430,
+      "why": "上报图面列定义 EXP_COLS 与 ganttCols.GANTT_COLS 平行；expFlagSvg/groupSpan 与 networkExport、ganttUtil 各存副本"
+    },
+    {
+      "path": "frontend/src/schedule/opsSim.ts",
+      "loc": 381,
+      "why": "Go internal/schedule/ops.go ApplyOps 的第二份实现（约 380 行逐语义镜像），漂移只能靠 golden fixture 兜"
+    },
+    {
+      "path": "frontend/src/schedule/networkExport.ts",
+      "loc": 394,
+      "why": "整图几何管线重复 AoaView+PdmView 两处渲染逻辑（bandRange/pairCnt/edgeSegs/桥弧），并各带一份 expFlagSvg/isLinkBinding 副本"
+    },
+    {
+      "path": "frontend/src/schedule/aoaLayout.ts",
+      "loc": 351,
+      "why": "过桥/通道/段序列几何与 aoa.ts 布局互相耦合，AoaView 又把 bandRange 算两遍"
+    },
+    {
+      "path": "frontend/src/schedule/AoaView.tsx",
+      "loc": 417,
+      "why": "bandRange 在 useMemo 与渲染体各算一遍；beginDrag 三件套与 GanttView 同构重复；缩放适配四份之一且下限口径不一"
+    },
+    {
+      "path": "frontend/src/schedule/dcma.ts",
+      "loc": 342,
+      "why": "DCMA 14 点体检全量实现，与后端/文档阈值表分叉风险；14 个块内作用域平铺无分派结构"
+    }
+  ],
+  "findings": [
+    {
+      "fid": "FE7-01",
+      "severity": "P0",
+      "category": "safety",
+      "title": "多基线 baselines 被 Go 保存链路静默擦除",
+      "file": "frontend/src/schedule/types.ts",
+      "line": "115-116",
+      "evidence": "/** 基线槽位列表（v4.137 #11 多基线：FIFO 上限 3，支持签证 1→N 场景切换对比；缺省=单基线旧文件零迁移） */\n  baselines?: SchedBaseline[]",
+      "why": "前端 types.ts 定义 baselines[]（BaselinesPanel 槽位切换/更新/删除、gschedSummary.baselineCount 均消费），但 Go internal/schedule/types.go 的 Project 结构体只有单数 Baseline，grep baselines/Baselines 在整个 internal/ 零命中；而落盘权威是 Go：GaeaScheduleSave 先 json.Unmarshal 进 schedule.Project（未知字段丢弃），再 schedule.Save→json.MarshalIndent(p) 整量覆盖写盘。",
+      "impact": "用户保存第 2/3 个基线后，一旦 800ms 防抖自动保存触发（或下一次 agent 写盘/轻扫回读），baselines 槽位全部从文件消失、前端项目状态被文件内容覆盖；CHANGELOG v4.137.0 明写「baselines[] 上限 3 FIFO+活跃指针」却无任何跨语言测试守护，属真实数据丢失而非显示问题。",
+      "fix": "Go types.go 的 Project 加 `Baselines []Baseline \\`json:\"baselines,omitempty\"\\`` 并在 Save 前用前端传入的 baselines 覆盖式回填（或 GaeaScheduleSave 改为校验后原样写回原 JSON 文本、只由 Validate 裁决），同时补一条 Go 侧往返测试断言 baselines 不丢。",
+      "effort": "M",
+      "prior_audit": "延续：docs/gaea-optimization-direction-2026-09.md P1-3「收敛已分叉的平行实现」登记了 frontend mock 手写契约作为第三份契约，但未覆盖 types.ts↔internal/schedule/types.go 这条主类型双写；docs/gaea-backend-perf-survey-2026-09.md §第二遍扫描仅核 schedule 包 goroutine/内存，未查字段完备性"
+    },
+    {
+      "fid": "FE7-02",
+      "severity": "P0",
+      "category": "consistency",
+      "title": "assignment 数值字段 TS 可选/Go 零值，往返往返被改写",
+      "file": "internal/schedule/types.go",
+      "line": "107-111",
+      "evidence": "Units *float64 `json:\"units,omitempty\"`\n\t// Quantity 材料固定总量（type=material：总量×单价，不随时长变）。\n\tQuantity float64 `json:\"quantity,omitempty\"`\n\tAmount   float64 `json:\"amount,omitempty\"`",
+      "why": "前端 SchedAssignment 三字段全是 `units?: number; quantity?: number; amount?: number`（types.ts:86-90），store.setTaskAssignments 用 numOrUndefined 明确把非法/缺失写成 undefined；Go 侧只有 Units 用指针三态，Quantity/Amount 是裸 float64。前端 JSON.stringify 会丢掉 undefined，Go 反序列化为 0，再 marshal 时 0 因 omitempty 也会被省略——看似抵消，但「显式 0」与「缺失」在 Go 侧语义合流，而 TS 侧 numOrUndefined(0)=0 会留下键，两侧对「0 值分配」的相等判定不同。",
+      "impact": "分配字段经一次 Go 往返后 0 与缺失不可区分：前端 normalizeProject 的 validNum 接受 undefined 也接受 0，成本 computeCosts 对 0 与 undefined 分支处理存在差异（材料量 0 与未填）；跨语言 diff（applyDiff.diffProjects 对 assignments 逐字段比 scalar）会把「Go 归一后的 0」报成用户改动，审批卡出现无实质改动的伪 diff。",
+      "fix": "Go 侧 Quantity/Amount 改为 *float64（与 Units 及 patchTask/patchResource 的指针三态口径一致），并在 ops.go set_assignments 里沿用同一三态；或前端归一化统一补 0 并在 diff 层把 0/undefined 视为同值（现状只有 sameScalar 的 undefined/null 归一，未含 0）。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE7-03",
+      "severity": "P1",
+      "category": "coupling",
+      "title": "纯函数模块反向 import zustand store",
+      "file": "frontend/src/schedule/ganttFilter.ts",
+      "line": "10",
+      "evidence": "import { descendantIds } from './store'",
+      "why": "ganttFilter.ts（自述零 DOM 的筛选纯函数）、gantt/ganttUtil.ts:14、ganttExport.ts:20 三个导出/几何纯函数模块都只为取一个 descendantIds（或 isGroupRow）而 import store.ts——后者顶层创建 zustand+persist store、import api.ts（桥接调用）与 8 个域模块。",
+      "impact": "「纯函数层」不再可独立测试与复用：任何 import ganttExport/ganttFilter 的消费方（含 node 侧脚本、导出图面测试、非 React 场景）都会被拉起 React 状态容器与 persist 中间件；同文件 ganttUtil.ts:7-8 的注释「依赖仅指向 schedule/ 根部纯模块…无循环导入」与事实相反（store.ts 本身被 ganttCols 之外的多处反向拉入）。",
+      "fix": "把 descendantIds/isGroupRow 提到新的 schedule/wbs.ts（零依赖纯模块），store.ts 改为从 wbs.ts re-export 保持既有导入面，ganttFilter/ganttUtil/ganttExport 改 import wbs.ts。",
+      "effort": "S",
+      "prior_audit": "延续：docs/gaea-optimization-direction-2026-09.md P2-1 记录「store.ts 745 行 / GanttView 引用 19 个本地模块 / 8 处消费 useScheduleStore」，本次给出具体倒挂边"
+    },
+    {
+      "fid": "FE7-04",
+      "severity": "P1",
+      "category": "duplication",
+      "title": "工作日↔日历日期换算存在第三份自实现",
+      "file": "frontend/src/schedule/TaskInspector.tsx",
+      "line": "61-77",
+      "evidence": "function wdToISO(startISO: string, idx: number, cal?: { workweek: number[]; holidays: string[] }): string {\n  const start = parseISO(startISO)\n  if (!Number.isFinite(idx) || idx < 0) return isoOf(start)\n  const workweek = cal?.workweek && cal.workweek.length > 0 ? cal.workweek : DEFAULT_WORKWEEK",
+      "why": "calendar.ts 的 wdToDate/dateToWd/normalizeCalendar 是已声明的唯一口径（并自称与 Go calendar.go 镜像），TaskInspector 却在自己文件里又写了一份 parseISO/isoOf/wdToISO/fmtWd，并自定 DEFAULT_WORKWEEK=[1,2,3,4,5] 与 SCAN_LIMIT=3650。",
+      "impact": "同一任务在横道表格（ganttUtil.fmtDate→wdToDate）与检查器抽屉（本地 wdToISO）显示的开始/完成日期存在分叉可能（日历归一、越界截断、开工日为非工作日时的顺延行为三处各自实现），检查器号称回答「本任务日期由哪条依赖决定」，却用第二套日期映射，一旦 calendar.ts 调整口径检查器不会同步。",
+      "fix": "删掉本地 parseISO/isoOf/wdToISO/fmtWd，改 import { wdToDate, isoOf } from './calendar'（TaskInspector 已在 schedule 包内，calendar 零 React 依赖，不构成倒挂）。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE7-05",
+      "severity": "P1",
+      "category": "duplication",
+      "title": "表格窗格与画布行各写一套同样的行派生+菜单",
+      "file": "frontend/src/schedule/gantt/GanttTable.tsx",
+      "line": "81-135",
+      "evidence": "let synSeq = -1\n            return rows.map((r, rowIdx) => {\n            if (r.kind === 'group' && !r.key.startsWith('wbs:')) {\n              // 合成组头行（分组模式）：名称+计数+汇总跨度，点击折叠/展开\n              synSeq++",
+      "why": "GanttTable.tsx:81-135 与 GanttBars.tsx:55-103 逐行镜像：同样的 `let synSeq = -1` 闭包、同样的 `if (r.kind === 'group' && !r.key.startsWith('wbs:'))`、同样的 `const i = r.kind === 'task' ? r.idx : Number(r.key.slice(4))`、同样的 t/row/group/span/manual/dur/colorCls/dimCls 派生、同样的 Dropdown(rowMenu) 外壳。",
+      "impact": "新增一种行形态（例如里程碑行、汇总行、折叠占位行）必须同步改两处且无编译期保护；`Number(r.key.slice(4))` 这个 magic slice 在两处各写一遍，key 前缀改法（`wbs:` 长度）时静默错位而不是报错。",
+      "fix": "把行派生提成纯函数（如 gantt/rowDerive.ts 的 deriveRow(rows, project, cpm, rowIdx) 返回 {i,t,row,group,span,manual,dur,colorCls,dimCls}）与统一行外壳组件（Dropdown+row div+onSelect+rowMenu），两个窗格各自只保留窗格专有内容。",
+      "effort": "M",
+      "prior_audit": "延续：docs/gaea-optimization-direction-2026-09.md §2.2 进度计划条目定性「完整闭环 8.0」，未记这条窗格双写"
+    },
+    {
+      "fid": "FE7-06",
+      "severity": "P1",
+      "category": "duplication",
+      "title": "导出层函数副本并自认「不建第三文件」",
+      "file": "frontend/src/schedule/networkExport.ts",
+      "line": "42-53",
+      "evidence": " * 里程碑小旗（与 ganttExport 内 expFlagSvg 同款形状的本文件副本）：旗杆竖线 +\nfunction expFlagSvg(x: number, y: number, poleH: number, fw: number, fh: number, color: string): string {",
+      "why": "networkExport.ts:46-53 复制了 ganttExport.ts:118-125 的 expFlagSvg（同形不同文件），networkExport.ts:63-70 又复制了 PdmView.tsx:32-39 的 isLinkBinding（注释直写「PdmView.isLinkBinding 同构副本」），而 ganttExport.ts 里同类的 esc/fitText 是正常 export 共用的——同一包内两种做法并存。",
+      "impact": "上报图面（PNG/PDF/打印）与工作台视图的里程碑旗、关键线路判定可各自漂移；ganttExport.ts:118 的 expFlagSvg 未 export，导致「共用」只能是复制，任何旗形/颜色调整都要改三处。",
+      "fix": "ganttExport.ts 导出 expFlagSvg（改 `export function`），PdmView.tsx 导出 isLinkBinding，networkExport 删本地副本改 import；两者都是零依赖纯函数，不引入新文件。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE7-07",
+      "severity": "P1",
+      "category": "duplication",
+      "title": "分组汇总跨度/成本两份取数路径",
+      "file": "frontend/src/schedule/ganttExport.ts",
+      "line": "127-142",
+      "evidence": "/** 分组行汇总跨度（子孙叶项 min ES / max EF，与 GanttView.groupSpan 同口径） */\nfunction groupSpan(project: SchedProject, cpm: CpmResult, idx: number): { es: number; ef: number } | null {\n  const ids = descendantIds(project.tasks, project.tasks[idx].id)",
+      "why": "ganttExport.ts:127-142 的 groupSpan 与 ganttUtil.ts:66-72 的 groupCost 各自用 descendantIds 重算子树，而 ganttGroup.ts:83-93 的 minMaxOf 已经按可见叶算过同一份 min(es)/max(ef) 并挂在 GanttRow.minEs/maxEf 上；同一条汇总口径在导出、表格、bar 画布三处按不同输入（全子孙 vs 可见叶）重算。",
+      "impact": "筛选/折叠状态下导出的汇总跨度与画布汇总条会不一致（导出走全子孙，画布走可见叶），用户看到的是一条汇总条两个数字却都叫「汇总」；三份实现无一致性测试。",
+      "fix": "导出层改吃 buildGanttRows 产出的行（或至少复用 minMaxOf），把「汇总=可见叶 minEs/maxEf」固化为唯一口径并补一条导出↔画布同值断言。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE7-08",
+      "severity": "P1",
+      "category": "duplication",
+      "title": "上报列定义与主表格列定义平行",
+      "file": "frontend/src/schedule/ganttExport.ts",
+      "line": "59-67",
+      "evidence": "const EXP_COLS: { key: string; label: string; w: number }[] = [\nconst TABLE_W = EXP_COLS.reduce((s, c) => s + c.w, 0)",
+      "why": "ganttCols.ts:56 已经声明 GANTT_REPORT_KEYS=['no','name','dur','start','finish','preds'] 与 colsByKeys（注释「上报 6 列键序（刀D1 导出图面预设）」），但 ganttExport.ts 另建 EXP_COLS 字面量表并用它排列表格与列宽；grep 显示 colsByKeys/GANTT_REPORT_KEYS 的消费方只有 ganttCols.test.ts 与 ganttExport.test.ts。",
+      "impact": "「上报 6 列」的键序/列宽有两份真源：改 ganttCols 不动导出、改导出不动 colsByKeys，两个测试各自绿；同时 colsByKeys/GANTT_REPORT_KEYS 在生产代码零消费，是 test-only 导出（虚假的单一真源）。",
+      "fix": "ganttExport 的 EXP_COLS 改为由 colsByKeys(GANTT_REPORT_KEYS) 派生（宽度用 GANTT_COLS 的 w 或显式覆盖表），消除第二份键序；若上报列宽与工作台列宽确实要不同，则把宽度做成显式映射并加一条断言两处键序一致。",
+      "effort": "S",
+      "prior_audit": "延续：docs/gaea-optimization-direction-2026-09.md P1-6 提出「引用只来自 *_test.go / *_test.ts 单列一档」，本条是前端 schedule 的一个实例"
+    },
+    {
+      "fid": "FE7-09",
+      "severity": "P1",
+      "category": "consistency",
+      "title": "计划文件默认 rel 四处镜像副本",
+      "file": "frontend/src/schedule/gschedSummary.ts",
+      "line": "21",
+      "evidence": "export const SCHEDULE_FILE_PATH = '进度计划/当前计划.gsched.json'",
+      "why": "同一路径常量分别写在 gschedSummary.ts:21（SCHEDULE_FILE_PATH）、store.ts:43（DEFAULT_SCHEDULE_PATH，档头注释自陈「镜像 gschedSummary 以免模块环」）、gaea/lib/changes.ts:22（SCHEDULE_DEFAULT_REL，注释自陈同款先例）、Go internal/schedule/project.go:21（DefaultRelPath）。",
+      "impact": "改默认计划文件位置需同时改四处且无编译期守卫；三处前端副本靠注释维系，SchedulePage.tsx:136/755 与 ScheduleFileCard.tsx:21/50、ScheduleDiffCard.tsx:5/89 分别从不同副本取值，一旦漏改会出现「状态栏显示路径与卡片判定路径不一致」这类静默错判。",
+      "fix": "新建零依赖常量模块 schedule/paths.ts 只放该常量，gschedSummary/store/changes 全部改为 import（方向上 gschedSummary→paths 与 store→paths 都不构成环），并补一条 source-level 断言四处字面量同值。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE7-10",
+      "severity": "P1",
+      "category": "god-func",
+      "title": "updateTask 单函数兼校验/清洗/历史/持久化",
+      "file": "frontend/src/schedule/store.ts",
+      "line": "382-390",
+      "evidence": "updateTask: (id, patch) => set((s) => {\n        pushHistory('updateTask', id)\n        return {\n          project: {\n            ...s.project,\n            tasks: s.project.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)),\n          },\n        }\n      }),",
+      "why": "updateTask 的 patch 直通 `{...t, ...patch}` 不做任何字段校验（duration 负值/NaN、progress 越界、durationUnit 与分组行冲突都靠调用方自律），而同文件 upsertResource(418-446, 29 行)/normalizeProject(76-113, 38 行)/setTaskAssignments(456-479, 24 行) 各自把「类型判别+数值容错(+ 级联清理+去重)」写在闭包里——同一类校验在四个动作里各写一遍，没有单一 patch 规范化层。",
+      "impact": "任何新入口（agent 工具回写、导入、模板载入）绕开 UI 直接调 updateTask 就能写进非法 duration/progress，落盘被 Go Validate 拒绝后只留 syncError，用户看到「保存失败」而不知道哪个字段非法；字段容错口径随调用点扩散，加字段要改 N 处。",
+      "fix": "抽 `sanitizeTaskPatch(patch, task): Partial<SchedTask>` 纯函数（含 durationUnit 仅叶非里程碑、progress 夹取、数值非负有限），updateTask 与所有入口统一过它；与 normalizeProject 共用同一字段级容错实现。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE7-11",
+      "severity": "P1",
+      "category": "concurrency",
+      "title": "模块级可变游标在 set 更新器内被改写",
+      "file": "frontend/src/schedule/store.ts",
+      "line": "382-384",
+      "evidence": "updateTask: (id, patch) => set((s) => {\n        pushHistory('updateTask', id)\n        return {",
+      "why": "pushHistory(248-262) 读改写模块级 `let lastPush`，而它在 `set((s) => ...)` 的更新器函数体内被调用（同款见 renameProject:308/setCalendar:312/updateTask:383/removeTask:393/setPreds:408/upsertResource:419/setTaskAssignments:457/addTask:357/addGroup:374/setCustomLabel:348/activateBaseline:331/removeBaseline:337）；zustand 的更新器是要求纯的 reducer，React 18 StrictMode 双调用或未来并发特性下同一更新器可能被执行两次。",
+      "impact": "lastPush 的合并窗口（HISTORY_COALESCE_MS=800）在更新器重入时被「续期」，undo 一次回不到整段打字之前；且 pushHistory 内部再调 useScheduleStore.setState（261 行）形成「set 里再 set」的重入，历史栈与 project 可能落在不同批次，undo/redo 出现跳步。",
+      "fix": "把 pushHistory 的游标更新与 setState 移到更新器之外（动作函数体内先 pushHistory、后 set 纯更新；或改 zustand 动作直接 getState() 读旧值再 set 普通对象，不用函数式更新器），并在 store.history.test.ts 增加 StrictMode 双调用断言。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE7-12",
+      "severity": "P1",
+      "category": "duplication",
+      "title": "拖拽三件套与缩放适配在视图间重复",
+      "file": "frontend/src/schedule/AoaView.tsx",
+      "line": "167-205",
+      "evidence": "const beginDrag = (e: React.MouseEvent, nodeId: string) => {\n    const node = nodeById.get(nodeId)\n    if (!node) return",
+      "why": "AoaView.tsx:167-205 的 beginDrag（window mousemove/mouseup/keydown 三件套 + moved 才提交 + Esc 取消）与 GanttView.tsx:320-373 的 beginDrag 结构逐段同构；缩放侧 AoaView.tsx:65-93 与 PdmView.tsx:47-107 各自实现 applyZoom/stepZoom/fitView/首帧自动适配/useWheelZoom 接线，且缩放上下限不一致（AoaView [0.1,2] 下限 0.3；PdmView [0.2,2]；GanttView dayW 2~40px）。",
+      "impact": "手势语义（未移动不提交、Esc 取消、吸附口径、缩放后首帧不抢占）要在三处同步维护；三视图「全览」按钮的极限缩放行为不同，用户报告「全览后看不清/对不齐」时无法定位到统一口径；wheelZoom.ts 只收口了滚轮绑定一小半。",
+      "fix": "抽 gantt/useDragGesture.ts（beginDrag(handler, {onMove,onCommit,onCancel})）与 useFitView.ts（applyZoom/stepZoom/fitView/自动适配 + 每视图注入 min/max），三视图改为注入几何回调。",
+      "effort": "M",
+      "prior_audit": "延续：docs/gaea-optimization-direction-2026-09.md §2.1 与 P2-1 记录前端 schedule 唯一未清性能挂账含「AOA 拖拽帧率」"
+    },
+    {
+      "fid": "FE7-13",
+      "severity": "P2",
+      "category": "complexity",
+      "title": "表格行派生函数未 memo，每帧全表重算",
+      "file": "frontend/src/schedule/GanttView.tsx",
+      "line": "229-249",
+      "evidence": "const rowMenu = (t: SchedTask, group: boolean) => [\n    { key: 'add', label: '在下方添加任务' },",
+      "why": "同文件内 dayNo(247)/colDates(256)/monthRuns(264)/weekRuns(278)/costs(316) 都做了 useMemo，但 rowMenu(229-238)/rowMenuClick(239-245)/toggleCol(172-176)/toggleCollapse(221-228)/rowDim(219)/beginDrag(320)/checkWdIdx(414) 与 linkPaths(377-395) 全部裸写在渲染体：linkPaths 对每条 link 调 visPos.get + cpm.rows 查表并构造字符串，无 memo。",
+      "impact": "Ctrl+滚轮缩放（v4.371 已用 rAF 合并到每帧一次）与选中态变化（select 改 store→GanttView 重渲染）都会走一遍 O(L) 的 linkPaths 与全部闭包重建；drawing 层 GanttBars/GanttTable 的 props 每帧引用变化，React.memo 优化无处落地，与同文件「三窗格重渲染」注释里承认的成本叠加。",
+      "fix": "linkPaths 提 useMemo（依赖 project.links/cpm/visPos/dayW/dayNo）；rowMenu/rowMenuClick 用 useCallback 并让 GanttTable/GanttBars 走 React.memo；闭包依赖用 ref 稳定化。",
+      "effort": "M",
+      "prior_audit": "延续：docs/gaea-optimization-direction-2026-09.md P2-1 记录 GanttView 引用 19 个本地模块、entry chunk 回涨至约 970KB"
+    },
+    {
+      "fid": "FE7-14",
+      "severity": "P2",
+      "category": "error-swallow",
+      "title": "DCMA/摘要/diff 三处失败静默吞",
+      "file": "frontend/src/schedule/DcmaView.tsx",
+      "line": "24-31",
+      "evidence": "        } catch {\n        }\n      .catch(() => {",
+      "why": "DcmaView 加载工作区阈值文件失败走空 catch 且连 .catch(()=>{}) 双层静默；gschedSummary.ts:54 的 parseSchedSummary 失败静默返回 null；ScheduleDiffCard.tsx:82 与 :100 的 before/after 读取失败静默置 null。",
+      "impact": "阈值文件损坏/权限失败时用户看到的是「全部按内置默认跑」而没有任何提示（DCMA 体检结论可能因此与自定义阈值不一致）；审批卡读不到 before 时降级为「意图清单」，用户无法分辨是「无可比内容」还是「读取失败」。",
+      "fix": "至少把失败写进组件态并渲染一行诚实提示（如 DcmaView「阈值文件读取失败，已回落内置默认」/DiffCard「读取原计划失败，仅显示意图」），保持不打断编辑的既有纪律。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE7-15",
+      "severity": "P2",
+      "category": "duplication",
+      "title": "纯函数副本：descendantIds/linkKey/汇总取数",
+      "file": "frontend/src/schedule/opsSim.ts",
+      "line": "58-67",
+      "evidence": "/** remove_task 的子孙集：扁平数组 level 语义（第 idx 行 + 紧随其 level 更深的\n *  连续行），与 Go descendantIDs / 前端 ganttGroup 同口径。 */\nfunction descendantIdsFlat(tasks: SchedTask[], idx: number): Set<string> {",
+      "why": "opsSim.descendantIdsFlat(58-67) 与 store.ts:226-234 descendantIds 是同一算法两套签名（id 版 vs idx 版）；applyDiff.ts:123 的 linkKeyOf=`from\\u0000to` 与 pathDriver.ts:23 的 linkKey=`from>to` 是同一概念两种分隔符（且注释互不引用）；ganttUtil.groupCost(66-72) 与 ganttExport.groupSpan(127-142) 同源不同取数。",
+      "impact": "子孙集口径（是否含自身、level 判据 >base 还是 ===base+1）分散在 3 处，删除任务/筛选/导出三处不一致时表现为「删了父行子行残留」或「导出多一行」；两种 link key 分隔符使跨模块复用链路集合需要转换函数（ganttLinks.ganttLinkPath 与 pathDriver.drivingChain 各用各的 key）。",
+      "fix": "descendantIds 统一为 `(tasks, idx|id)` 的单实现（放 wbs.ts），linkKey 统一到 pathDriver.linkKey 并让 applyDiff 改 import（applyDiff 已依赖多个域模块，无新增耦合）。",
+      "effort": "S",
+      "prior_audit": "延续：docs/gaea-optimization-direction-2026-09.md P1-3 的「同一语义多份实现」论点，本条给出 schedule 域内的具体两例"
+    },
+    {
+      "fid": "FE7-16",
+      "severity": "P2",
+      "category": "consistency",
+      "title": "合成组头行逐列硬编码列宽",
+      "file": "frontend/src/schedule/gantt/GanttTable.tsx",
+      "line": "102-118",
+      "evidence": "{colOn('wbs') && <div style={{ width: W.wbs }} className=\"sched-gantt-cell sched-dim\" />}\n                {colOn('dur') && <div style={{ width: W.dur }} className=\"sched-gantt-cell\"><span className=\"sched-dim\">汇总</span></div>}",
+      "why": "列头行(72-76)与任务行由 cols/GANTT_COLS 驱动，但合成组头行(102-118)把 14 个标准列键逐个手写 `colOn('xx') && <div style={{width: W.xx}}>`；而同文件 145-147 已为「点击折叠/展开」与 gantt 分组耦合。",
+      "impact": "GANTT_COLS 增列（如再加一个标准列或改列序）时列头与任务行自动跟随，组头行不会——表格在分组模式下出现表头/组头/数据行三行错位，且错位只在不同列数下显形（测试用固定列集发现不了）。",
+      "fix": "组头行改为遍历 cols（`cols.map(c => <div key={c.key} style={{width:c.w}} …>{GROUP_CELL[c.key] ?? ''}</div>)`，只对少数列（dur 显「汇总」、start/finish 显跨度）做值映射），消除手写键列举。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE7-17",
+      "severity": "P2",
+      "category": "doc-drift",
+      "title": "types.ts 与 Go 类型「同构」注释已不成立",
+      "file": "internal/schedule/types.go",
+      "line": "3-6",
+      "evidence": "// 与前端 frontend/src/schedule/types.ts 同构（JSON 字段一一对应）：\n// 一套数据模型驱动三种视图（横道图/单代号/双代号），前端引擎为权威口径，\n// 本包是其忠实移植——供 agent 工具（schedule_get/apply/analyze）与\n// 计划文件持久化使用。修改口径必须两侧同步（前端测试与 Go 测试互为镜像）。",
+      "why": "「JSON 字段一一对应」已被两处证伪：前端 Project 有 baselines（Go 无，见 FE7-01）、前端 SchedTask.durationUnit 是 'wd'|'cd' 联合且允许缺省，Go DurationUnit 是 string 常量集（类型系统不阻止任意串）；而「两侧同步」靠人工纪律——仓库有 scripts/gen_bindings 做绑定面漂移闸，但对这套共享数据模型零漂移闸（grep Baselines 零命中即证据）。",
+      "impact": "注释给后续维护者「有编译器/测试兜底」的错觉，实际每次加字段都可能单向丢失；审计与走查结论（「与前端同构」）不可信，同类事故会重复发生（本次 FE7-01 已是第三次改口径未同步的形态：v4.137 多基线、v4.150 双工期、v4.122 资源成本各有 Go 侧补丁而多基线漏补）。",
+      "fix": "① 修 FE7-01 使字段真正对齐；② 加一条「前端 types.ts 字段 ⊆ Go json tag 字段」的机械检查脚本（解析两侧声明做集合比较）并纳入 ci.ps1；③ 注释改为「对齐由 scripts/check-schedule-types 守卫」而非人工纪律。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE7-18",
+      "severity": "P2",
+      "category": "consistency",
+      "title": "TaskCpm/usage 行结构多份近似定义",
+      "file": "frontend/src/schedule/usageTypes.ts",
+      "line": "36-37",
+      "evidence": "  es: number\n  ef: number",
+      "why": "CPM 行语义 {es,ef,ls,lf,tf,ff,critical} 在 types.ts:190-202（TaskCpm）、usageTypes.ts:36-37、layout.ts:10 各声明一次；ganttUtil.frontierWd(76) 与 baseline.rowDur(17) 又各自内联 `{ es: number; ef: number }` 结构化参数类型。",
+      "impact": "CPM 结果结构增删字段（例如未来加最早/最迟的日历等价物）需要逐处同步；内联结构化类型使「传错了行」在编译期不报错（只要形状包含 es/ef），如把基线行当 CPM 行传入。",
+      "fix": "usageTypes 与 layout 改为复用 TaskCpm 子集（Pick<TaskCpm,'es'|'ef'>），内联结构化参数改用具名别名 EsEfRow（定义在 types.ts 或 wbs.ts）。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE7-19",
+      "severity": "P2",
+      "category": "perf-smell",
+      "title": "任务名/行号查找全程 O(n) 线性扫",
+      "file": "frontend/src/schedule/gantt/ganttUtil.ts",
+      "line": "50-56",
+      "evidence": "export function taskNameOf(project: SchedProject, id: string): string {\n  return project.tasks.find((t) => t.id === id)?.name ?? id\n}\n/** 任务 id → 行号（Project 引用文本口径，1-based） */\nexport function noOf(project: SchedProject): (id: string) => number {",
+      "why": "GanttTable 每行的前置(prefs)/后续(succ)列渲染都要 taskNameOf(296,310)+noOf(298,312) 逐 id 线性扫全表，且每个单元格在 title 与正文里各调一次 find（同一断言重复求值）；ganttExport.ts:312 的局部 noOf 与 340 行的 links.filter 前缀串构建同样是 O(T) per row → 导出整体 O(T²)。AoaView/PdmView 已经改成 Map 版本并留下 v4.365 性能注释（AoaView.tsx:97-105），说明「建索引」已是本域公认做法，横道侧未跟进。",
+      "impact": "行数 N 任务数 T 时每次渲染成本 ~O(N×T)（前置/后续列各一次，title 再各一次），且横道每次滚轮缩放/选中态变化都触发全表重渲染（GanttView 未 memo 子组件，见 FE7-13），大计划（数百行）下输入卡顿；导出上报件为 O(T²)。",
+      "fix": "在 GanttView/GanttTable 层一次性 useMemo 建 nameById 与 noById 的 Map 并下传（或把 predsOf/succsOf 结果随行派生缓存），ganttExport 同样建一次 id→行号表；顺带消掉 title 与正文的重复 find。",
+      "effort": "M",
+      "prior_audit": "延续：CHANGELOG v4.365.0 记录 AoaView「nodeById/anchorById/taskName 查找表进 useMemo（原每次渲染重建 Map、taskName 每边线性扫 tasks——O(E×T)/帧）」的同类修复，横道/导出侧未同批处理"
+    },
+    {
+      "fid": "FE7-20",
+      "severity": "P3",
+      "category": "dead-code",
+      "title": "test-only 导出伪装成设置/预设入口",
+      "file": "frontend/src/schedule/ganttCols.ts",
+      "line": "55-62",
+      "evidence": "/** 上报 6 列键序（刀D1 导出图面预设；对标 MS Project 上报件：标识号/任务名称/工期/开始/完成/前置） */\nexport const GANTT_REPORT_KEYS: string[] = ['no', 'name', 'dur', 'start', 'finish', 'preds']",
+      "why": "grep 全仓：GANTT_REPORT_KEYS 与 colsByKeys 的唯一消费方是 ganttCols.test.ts(95-100) 与 ganttExport.test.ts(14,50-52)，生产代码零调用（ganttExport 用自己的 EXP_COLS）；aoaLayout.AOA_PINS_MAX(19) 只在同文件 normalizeAoaLayout 内使用却对外 export。",
+      "impact": "读者与后续刀会被注释误导以为导出列由 GANTT_REPORT_KEYS 驱动（实际由 EXP_COLS），改动落到死路径；knip 类工具持续报 Unused exports 噪声（历史 v4.179 已挂 169 项）。",
+      "fix": "按 FE7-08 把 ganttExport 改为真正消费 colsByKeys(GANTT_REPORT_KEYS)（首选），否则删掉这两个导出与对应的「单一真源」注释；AOA_PINS_MAX 去掉 export。",
+      "effort": "S",
+      "prior_audit": "延续：docs/gaea-optimization-direction-2026-09.md P1-6「引用只来自 *_test 单列一档」；CHANGELOG v4.179.0 记 knip 首扫三发现与 Unused exports 169 项挂账"
+    }
+  ],
+  "open_questions": [
+    "GaeaScheduleSave 采用「解析→Validate→Go marshal 覆盖写」这一形态，是否等同于有意的「Go 侧为唯一真源、前端私有字段不进文件」？如果是，前端 baselines/customLabels 等应显式声明为「会话态不入文件」，否则 FE7-01 与 FE7-02 是真数据丢失。需要用户/设计文档拍板。",
+    "docs/gaea-schedule-multi-project-design-2026-09.md 被 store.ts:10-11、api.ts:6-7、gaea_schedule_file.go:11-14 及 CHANGELOG 多处引用，但 docs/ 目录下不存在该文件（实为 docs/gaea-schedule-diff-confirm-design-2026-09.md 等五份）。是文档被删/改名未回写，还是路径写错？",
+    "store.ts:519 notifyScheduleFileChanged(pollNow) 与 store.ts:611 的 15s setInterval 均只注册不注销；在壳内长驻场景下是否只挂载一次（syncStarted 守卫）？若 SchedulePage 被卸载重建（导航往返），订阅器(575)与 interval 是否重复累积——需要真机/测试确认（本次未跑测试）。",
+    "opsSim.ts 自述是 Go ApplyOps 的逐语义镜像、靠 ops_golden.fixture.json 对拍；但 project 整量通道（args.project 直接替换）与 applyDiff.diffProjects 无对应 golden。Go 侧 project 通道的校验（Validate）是否有前端等价实现，还是完全交给 Go 拒绝后前端只显示 syncError？",
+    "GanttView 的 linkPaths 复杂度是 O(L × visPos/cpm 查表) 还是含 O(L×T)？ganttUtil.taskNameOf/noOf(54-56) 内部仍是 tasks.find/findIndex，GanttTable 每行前置/后续列都调一次（342 行附近在 GanttBars/Table 中各有 predsOf/succsOf 线性过滤），实测行数上限与帧率影响未量化（未跑测试，仅静态判断）。",
+    "dcma-thresholds.json 与 .gaea/skills/schedule-dcma/thresholds.json 的覆盖关系（dcma.ts:12-14 注释）在真机上是否生效？DcmaView 的静默 catch 使失败不可观测，需一次真机走查确认。"
+  ]
+}

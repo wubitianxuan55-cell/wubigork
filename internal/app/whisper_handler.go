@@ -108,6 +108,14 @@ func (a *whisperState) getOrCreateOrch(personalityID string) *whisper.Orchestrat
 	}
 
 	whisperSessionsMu.Lock()
+	if existing, ok := whisperSessions[sessionID]; ok {
+		// 审计 P0#13（源 AP6-02）：查表（RLock）→ 建实例 → 回写三段跨锁，
+		// 并发同键会双建 orchestrator 且后写者覆盖先写者。入库走写锁二次查表：
+		// 先建者让位，已入库的胜出，本地重复品直接丢弃（构建段无全局副作用，
+		// 双建的代价只是浪费一次构建）。
+		whisperSessionsMu.Unlock()
+		return existing
+	}
 	whisperSessions[sessionID] = orch
 	whisperSessionsMu.Unlock()
 

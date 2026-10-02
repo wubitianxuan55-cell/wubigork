@@ -1,0 +1,218 @@
+{
+ "units_total": 27,
+ "units_broken": [],
+ "findings_total": 512,
+ "severity": {
+  "P0": 25,
+  "P1": 216,
+  "P2": 209,
+  "P3": 62
+ },
+ "category": {
+  "concurrency": 34,
+  "complexity": 26,
+  "consistency": 91,
+  "duplication": 135,
+  "perf-smell": 19,
+  "coupling": 34,
+  "legacy-residue": 20,
+  "god-func": 11,
+  "safety": 25,
+  "error-swallow": 36,
+  "dead-code": 32,
+  "god-file": 21,
+  "test-smell": 10,
+  "doc-drift": 18
+ },
+ "scores": [
+  [
+   "AP4",
+   "app 造价/进度/DAG/任务（含 internal/gaea/tasks、internal/taskinbox）",
+   3,
+   "屎山程度偏高，最痛的是「三套编排各立山头」：DAG 文件流水线（gaea_dag.go 792 行 + dag 档文件）、通用任务调度器（gaea_tasks.go 529 行 + tasks 表）、任务收件箱（gaea_task_inbox.go 296 行 + task_inbox.json）各自持有队列、状态机、取消语义与恢复策略，互不知情——加一个横切能力（取消/重试/重启续跑/事件推送）都要写三遍，DAG 节点还会绕过调度器的并发闸口。其次是并行写路径的静默漂移：成本导入自己誊了一份 cost_entries 的 UPSERT SQL，vision 报价单解析又把 costimport 的表头映射/字段关键词/价格归一重写一遍，改一处必漏另一处（已实证 visionRound2 把负跳幅截断到 -624 与 schedule/pricefeed 不一致）。第三是锁与口径不齐：收件",
+   20
+  ],
+  [
+   "GA5",
+   "gaea 上下文与配置（context/contextview/sessionquery/largefile/spill/trajectory/evidence/spaces/pins/config/skill/browser/i18n/outputstyle/strutil/nilutil/fileutil/filewatch/frontmatter）",
+   3,
+   "本板块共 60 个非测试文件、约 13.0k 行，结构性屎山集中在三处：config 包是「多套并行配置口径」的重灾区（gaea/config 的 TOML 与 internal/config 的 JSON 各写各的，且 RenderTOML 只渲染 9 个顶层段却用它整体落盘，memory/dream/session/space/search/network/tasks 等段一存即丢），上下文折叠是「同一份事件日志被三套私有 payload 解析器各折一遍」（contextview 1041 行单体 + trajectory 491 行 + largefile 各一份，4 个 estimateTokens 副本），browser/skill 各有 3 处复制粘贴的连接/定位样板与 2 套并行的技能加载器。最痛的是第一条：用户点一次「始终允许」审批就会静默清空多个配置段，属实际咬人的 P0",
+   20
+  ],
+  [
+   "AP1",
+   "app 小说生成链（章节/角色/大纲/场景/伏笔/分支/计划/评测）",
+   4,
+   "生成链主链路质量参差：create_chapter 系列拆刀后单文件仍近 1800 行（含 context 767 行），单函数 streamCreateChapter 18 参 9 返；真正的屎山在『同一语义多份实现』——大纲树递归查找 5 份、摘要回退链 4 份、章号解析 4 份、全角归一 6 份、S1/S2 阻断判据 5 份、取消残稿三态 3 份，改一处口径必漏另外几处。并发最痛：收敛闭环 NovelChapterConverge 的后台 goroutine 既不入 chapterGenMu 取消登记表、也不入 chapterGenWG，切书后仍往旧 project.Manager 写盘且用户无法取消；逐场景生成 goroutine 只登记 WG 不计账，已在册的 Windows unlinkat flaky 家族会复现。另有 story_spine_handler.go:285 把",
+   18
+  ],
+  [
+   "AP3",
+   "app 办公文档与交付（含 internal/office、internal/docmd）",
+   4,
+   "屎山程度中等偏重：单个 App 上帝类被 26 个 gaea_* 文件按功能横切，同一份「办公能力」同时依赖 internal/office 三套同构 zip 编辑器、internal/docmd 两套 office 解析器、Python 技能脚本目录和 app 包自身的实现，形成四条并行口径。最痛的是「值语义复制」——docx/pptx/xlsx 的基线快照、证据卡落盘、技能脚本定位、子进程执行各有 2~3 份逐字级重复，任一处改动都要同点改 3 处；其次是 ga.cfg/ga.ctrl 这一对全局状态的无锁直读散布全包，设置类写操作存在真实 data race。",
+   17
+  ],
+  [
+   "AP8",
+   "app 绑定面与主干（app.go/bindings/module/logging/chat/context/analysis/graph/model/intent/platform/auth/stats）",
+   4,
+   "绑定面本身是干净的：用 Go AST 实测内部门面 743 个方法、bindingNames.ts 743 条、两侧零差异，门面确为纯委托（无内联逻辑），743/746/1000 的计数争议不存在。真正的债在门面之外：同一份 App 还有 302 个导出方法（合计 1045 个导出名）被 localhost 反射面按名暴露（internal/httpbridge/bridge.go:186），漂移闸只锁 743 条，两种口径并存；另一个 App 实例里有 5 处 a.client = ai.NewClient 无锁替换，而 30+ 处读取点零保护；core 里 18 处 a.app.<Method> 反向跨界调用，全局 var ga 与 3 个 Armed 原子位把「运行态」挂到包级单例。Startup 单函数 240 行串 13 个后台服务、7 组 stop channel 分别配 sy",
+   18
+  ],
+  [
+   "AP9",
+   "app 记忆中枢/brain/herdsman/角色库/看板",
+   4,
+   "这一板块没有万行上帝文件，但『单文件多职责 + 同一事实多份实现』的密度是全仓最高的一处：memory_hub.go 把 5 套互不相干的库（画像/办公 facts/知识库/轻语/cost）塞进一个 811 行文件，配套 brain 层 7 个文件写的是同一件事的三套适配器，registry 层又分裂成 3 份（module/board/deliverable）。最痛的是『静默』：intent 的 handler 被覆盖丢弃、Herdsman 数字生命的读取错误全被吞成 0 或空、CLI 超时只杀父进程留孤儿模型——都不会报错，只是用户看到一个空面板或永远派发不到的分支。第二痛是双源漂移：canonical 板块清单在 Go builtins 与 frontend manifests.ts 各存一份，且已经漂移（breadcrumb/weixin/menuOrder 三处不一致）。",
+   14
+  ],
+  [
+   "FE2",
+   "前端 gaea/components 其余 + memoryhub + knowledge",
+   4,
+   "memoryhub/knowledge 这一片整体处于「拆了一半」的状态：knowledge 目录抽出了 CenterView/EntryRow 等组件，但 KnowledgePanel.tsx 仍保留 modal 变体的整套内联副本（748 行、两套保存/取消按钮）；memoryhub 22 个源文件里价格源、版本快照、金额格式化、卡片样式各有 2~3 份平行实现。最痛的是残留的 CostLibraryView.tsx：1132 行上帝文件里表格视图的「全选」复选框调用了一个不存在的函数 setAllSelected（d33d9c47/v2.12.0 起就错了），点击即抛未捕获 ReferenceError、静默无反应、无任何测试覆盖——这是本单元唯一的 P0。另有 GraphView 用 imperative 图实例 + 手写同步，历史上已因此出现过「图谱空白」，现在仍靠 eslint",
+   18
+  ],
+  [
+   "FE3",
+   "前端桥接与 mock 双实现面",
+   4,
+   "桥接层不是「一个 seam」，而是四层同名路由代理（bridge proxy / legacy app.App proxy / HTTP RPC proxy / 空间门面）叠在一份手工维护的 743 名清单上，另加 1.4 万行只为浏览器 dev 存在的 mock 实现。最痛的是漂移防线只在类型层做「名字有没有被认领」，管不住「认领了却没人调」；而真实运行路径上的错误上报通道自身会在绑定缺失时同步抛异常，直接击穿 fallback。",
+   21
+  ],
+  [
+   "FE5",
+   "前端 pages + layouts + boards",
+   4,
+   "这一层不是烂代码，是「大文件堆结构债」：页面组件把状态、异步编排、桥接调用、业务规则和视图全塞在一个函数里（CreatePage 1500 行 / ChapterPage 1188 / WeixinPage 1034 / CharacterPage 1006），任何一处改动都要在 40+ 个 useState/useRef 和 18 个弹窗标志之间重建立方。最痛的根因是「一个绑定两套入口」：bridge proxy（带空间门控 + BridgeError 归一）与 wailsjs 直连（零门控零归一）在同一页并存，bridge 已经导出好类型（PlanGateReportView / CreateChapterWithOverride 9 参）却被页面本地重写并配 23 行手写窄化，注释还坚称「绑定面未生成」。其次是 keepAlive 后台轮询返祖：WeixinPage 每隔 5 秒打两",
+   20
+  ],
+  [
+   "GA3",
+   "gaea 记忆与检索（memory/factbase/semantic/bm25/retrieval/knowledge/fileindex/search/wssearch）",
+   4,
+   "结构债重、无单点爆炸但静默面很宽。memory 一个包扛了存储/索引/检索/图投影/事件日志/生命周期/注入拼接七种职责（28 个非测试文件），检索侧则平行 4 套打分器（memory BM25 1.2/0.75、bm25 包 1.2/0.75、search TF-IDF 余弦、knowledge 关键词+TFIDF 混合）。最痛的是吞错：knowledge 后端 List/ReadAll 把 db.Query 失败吞成 nil 且接口不给错误出口，直接让 knowledgeimport 的查重全部落空（重复入库）；memory 的 AppendCiteEvents 与 pin 事件把审计留痕失败静默丢弃。",
+   20
+  ],
+  [
+   "IN1",
+   "内部小说领域包（character/characterlib/characterstate/chapter/outline/narrative/novelcontext/novelgate/novelreview/novelstyle/style/worldview/scene/rewrite/project/bookimport/booksource/export/maturecraft）",
+   4,
+   "板块功能闭环、注释密度极高，但结构债集中在「同一件事有两到四套实现」。最痛的是：project.Manager 一个类型兼当项目元数据仓储 + 章节布局 + 世界观迁移 + 摘要扫描 + 记忆 + 改写版本库 + 标注仓，1011 行里 70+ 方法且同时是各域的写盘咽喉；落盘几乎全裸在 project 包内，pkg 私有的 writeFileAtomic 逼出 narrative 的同名复制与 style/scene/export 的非原子写。第二痛是判据与口径分裂：novelreview(S1-S4/段落) 与 novelgate(段落/句子) 对同一章给出互相冲突的结论，novelstyle 又把同一批评据重做一遍（blocker/high/medium 另一套严重度）；style.Profile 与 novelstyle.Fingerprint 两套「文风」互不相识。第三痛是角色域",
+   20
+  ],
+  [
+   "IN4",
+   "internal/whisper",
+   4,
+   "整域 123 个源文件 19,510 行，是 ackem TypeScript 上游的逐文件 Go 转录：111/123 个源文件带 ackem 标记（228 处），人格预设、中文关键词表、情绪标签映射表在 Go 侧各存一遍，形成 Go 与 TS 的双口径。最痛的是「平行实现 + 未接线」叠加：情绪有 emotion.go 与 emotion_fusion.go 两套标签表，情绪涌现有 orchestrator 实例字段与 emotional_emergence.go 包级全局两套状态，桌面助手有 capability/dispatch/confirm 三条路由，其中 dispatch_router.go 与 desktop_capability_routing.go 的入口 0 生产调用点（仅测试可达）——死代码不是散件，而是整条决策路径。安全侧 desktop_executor.go ",
+   19
+  ],
+  [
+   "AP7",
+   "app 绘梦/图像/视觉 + internal/visual",
+   4.5,
+   "屎山程度中等偏高：真正的问题不是单点脏，而是「同一件事在 2~4 处各写一遍」——生成链两条平行循环、ComfyUI 工作流成对逐节点抄写、产物登记两函数逐行复制、保存目录/模型目录/OCR 降级各有多份口径。最痛的一处是正确性而非整洁：绘梦/原罪插图/角色剧照三条链共用包级单槽进度与取消句柄，并发生成必然串台且取消只中断最后一条（P0，仅靠前端串行队列规避）。其次是 image_handler.go 1095 行的六职责上帝文件与半途而废的拆文件（注释错位、悬空），以及 internal/visual 全包 + 4 个绑定零调用方的僵尸资产。",
+   20
+  ],
+  [
+   "GA6",
+   "gaea 造价域（cost/costimport/costinquiry/costproject/costref/coststage/pricefeed/billing）",
+   4.5,
+   "八包 16 个非测试源文件约 6.2k 行（含测试 29 文件 4.3k），单包内部质量尚可（cost/coststage/costinquiry 分层清晰、纯函数多、注释带审计出处），但包之边界是假的：同一件事情在 2~3 处各写一遍。最痛的是「一条成本条目怎么落库」「一个报价表怎么解析」「一次检索怎么召回」三件事各有三套实现（domain / app / tool / 前端 mock），且已经开始漂移（编码列、异常阈值、五算对比口径、整除取整）。其次是 cost.go 的包级 BM25 缓存把「直写 sqlite 必须手动失效」变成了跨包隐式契约，任何人绕开 Store.Save 写库就静默读到脏排序。",
+   16
+  ],
+  [
+   "IN3",
+   "内部办公/解析/日程包（office/docmd/schedule/ocr/screen/export）",
+   4.5,
+   "这一板块不是「脏」而是「八套半个解析器叠在一起」：进度计划域把同一个校验规则（cd 五闸）、同一份日历语义（TS 镜像）、三种工程文件导入口径各写一份；文档域同时存在自研 PDF 文本扫描器、自研 docx/xlsx OOXML 字符串手术、markitdown 子进程、poppler+两个本地 OCR 引擎四路，且每路失败都静默换下一路。最痛的是三处 god-file（mpp.go 924 / docxedit.go 827 / pdf.go 705）与跨包同名复制函数：任何一次格式修正都要在 4~6 个位置同步，漏一处就落到「静默给了另一种口径的结果」这条最难发现的失败带上。",
+   20
+  ],
+  [
+   "AP6",
+   "app 微信/语音/TTS/ASR + internal/voice+tts+asr+realtime+channels+screen",
+   4.6,
+   "本板块屎山程度偏高：四个大件（voice_manager 1267 行、whisper_handler 1019 行、clawbot 1134 行、voice_handler 734 行）各自把状态机 + 会话 + 网络 + 持久化糊在一个类型里，微信一条消息的能力分散在 internal/app 三个文件（whisper_state 路由闭包 / wx_agent 智能体 / wx_file_handler 注入）与 internal/channels/weixin 域包之上，形成四套「回合收尾」平行实现。最痛的是并发口径不统一：voice.Manager 的回调字段无锁写读、whisperSessions 跨锁窗口双建 orchestrator、wx_agent 回合内 60s 不持锁却能回写整份 State——三处都靠注释约定而非锁保证正确。其次是工程基建债：CREATE_NO_WI",
+   20
+  ],
+  [
+   "AP5",
+   "app 记忆/技能/梦想/搜索/校验杂项",
+   5,
+   "没有千行上帝文件，但「同一件事在 N 处再写一遍」是系统性的：截断函数 14 份、原子写 5 份、配置快照 4 份、子代理 ref 校验 2 份、期刊目录常量 8 份、路径归一 15 份、a.ctx 兜底装配 24 份——每改一处口径都要全仓搜一遍，是改动成本倍增的主因。三处会真咬人：子代理追问的并发去重令牌在返回时就释放（跑在后台的 runner 失去单飞保护）、GaeaSubagentFollowUp 的 recover 分支写了两个格式化占位符却只传一个参数（「子代理 panic」日志本身就是坏格式）、GaeaResyncEvents 收了 afterSeq 却永不读（契约性骗人，全量重传）。项目在 common 层已有 fileutil.AtomicWrite/gaeaCfgSnapshot，但本板块多数文件选择本地重写，形成「有标准库却各写各的」的第三套约定。",
+   22
+  ],
+  [
+   "FE1",
+   "前端 gaea/components 大文件组",
+   5,
+   "屎山程度中等偏重：真正的结构病不在单个文件有多长，而在「同一件事有两份实现」——预览组件的 PDF 懒加载状态机在 FilePreview 与 FilePreviewModal 各抄一份 80 行，context/inspector 把 ContextView 的 NodeRow/CATS/FILE_ACTION_META 重声明一遍，通知条在 Docx/Xlsx/Pptx 三个预览里各写一套 setTimeout 清理，批量删除/改状态在 Knowledge 与 Cost 两库逐条复制。大文件（CostLibraryView 1132、Sidebar 1065、Transcript 1023、DocxPreview 1020）内部以「一个组件 20+ 个 useState + 十来个 useCallback」的形态堆业务编排，改一处要读整文件。另有三处口径静默失效（知识库 phase 过",
+   17
+  ],
+  [
+   "FE4",
+   "前端 gaea/lib 工具库 + hooks + app + locales",
+   5,
+   "模块粒度整体偏小、注释密度极高、纯函数化程度好（18339 行非测试代码配 9197 行测试），三语字典键集完全对齐（1553/1553/1553），这部分不该算屎山。真正的问题是「同一件事有 2~5 份平行实现」：LCS diff 四份、工具参数→before/after 两套、相对时间两套、扩展名提取五份、dataURL→bytes 四份、绑定方法名三份手工清单、useDebouncedValue 两份；口径已经开始漂移（extOf 一半带点一半不带点、时间分档不同、防抖默认值不同）。次痛的是层级：lib/ 反向 import components/ 并直接改全局 store，App.tsx 1041 行巨壳被两处 readFileSync 源级断言锁死，无法拆分。第三痛是 1553 键三语字典形同虚设——App、hooks、lib/export、lib/time 里大量中文字面量绕过",
+   19
+  ],
+  [
+   "FE6",
+   "前端 components + genui + 其它基础设施",
+   5,
+   "板块共 209 个非测试源文件 / 34835 行，最痛的不是单个巨文件，而是「同一件事有 2~3 份实现」：genui 的白名单与预算在三处各写一遍（Go validate.go / guard.ts / spec.ts），于是 Go 侧校验器真的把合法 diff 规格判成非法；角色标签、相对时间、复制降级、打字机流、ComfyUI 进度轮询、DOM 式强制刷新各有多份在跑。三个重点文件（ModuleLauncher 1038 / CharacterLibEditor 883 / ChapterEditor 821）都是「一个文件包下整页」，靠 20+ 个 useState 与 5 条并行轮询维持，任何一处改动都要重读全文件。genui 单测 + 对比度守卫测试覆盖是亮点，但 typewriter 取消守卫这类分叉缺陷正说明多份实现迟早会走偏。",
+   20
+  ],
+  [
+   "GA4",
+   "gaea 控制面与运行时（control/boot/jobs/proc/permission/sandbox/secure/event/hook/plugin/provider/cache/backup/archive）",
+   5,
+   "控制面不是烂代码，是「叠了太多层补丁的好代码」：注释密度极高、生命周期/锁纪律大多有据可查，但同一件事往往有 2~3 个入口在跑——权限闸门有 Gate.AlwaysAsk 与 control.hardAsk 两套集、会话树有 cache 与 context 两份 L1~L4、全局单例（Profiles / builtin.*Runtime / bridge.client）代替依赖注入。真正会咬人的是三处：boot 把 Effort 配在 NewProvider 之后（静默失效）、plugin 的 30s 连接超时会撤下一个正在连接的 server（子进程泄漏）、hook 的 Sandbox 字段全仓零填充（命令实际不沙箱）。其余是让每次改动成本倍增的结构债：963 行 controller.go + 40+ 字段的上帝对象、同名集/同名桩函数散落三处、8 行中文注释已成乱码。",
+   16
+  ],
+  [
+   "IN2",
+   "内部底座包（ai/modelengine/config/netclient/httpbridge/auth/core/types/util/prompt/promptstore/intent/context/memory/chat/stats/snapshot/analysis/graph/herdsman/skill*/search/routesuggest/assistant）",
+   5,
+   "底座包整体注释密度高、单包内纪律尚可，但「同一件事有多套实现」和「该在上层的被下沉到底座」两条债非常集中，score=5。最痛的是三层分裂：① 底座反向依赖 CLI 层——ai.Client.buildHTTPClient 每次构造都同步读 internal/gaea/config 的 TOML 文件，auth/assistant/config/modelengine 也各自 import internal/gaea/secure、fileutil、proc，把 CLI 当公共库用，任何 CLI 侧改动都会震到桌面主链路；② 图片后端解析 switch 在 app 层被抄了 5 遍（app.go:609 / image_handler.go:829 / image_handler.go:1027 / characterlib_gen_handler.go:629 / writing_sta",
+   20
+  ],
+  [
+   "X1",
+   "历史审计对账与复发型缺陷（横切）",
+   5,
+   "X1 逐项对账结论：三档历史审计的 P0~P2 大部分确已落地或结论已过时——P0-1 门禁（ci.yml 三 job 修通、golangci v2.14.0、eol=lf）、P0-2 comfy 进程引用收口（comfyProcMu 四方法）、P0-3 release.ps1、slug×5 收敛、perf 普查刀A~E（#1/#5/#6/#10/#16/#18）、P2-3 源码包出 VCS 都能在当前代码里找到落地证据。但『验收线』普遍没守住：internal/app 从审计基线 221 文件/50,136 行涨到 235 文件/≈54.3k 行且仍有 5 个文件超 800 行（P1-1 自定验收线），truncateRunes 从 8 处扩散到 13 处，whisper 的 ConfirmSvc/DeliveryCoord 至今只写不读（P1-6 开放）。最痛的是复发型缺陷无机器守卫：",
+   18
+  ],
+  [
+   "AP2",
+   "app 轻语/原罪/书源/导入/书架",
+   5.5,
+   "本板块功能闭环、防御性注释密度高（fail-closed 守卫、原子写盘、取消口径都写得很清楚），但结构层是典型的「单文件多职责 + 同语义多份实现」：sin_handler.go 用一个 265 行函数把流式、工具环、落库、插图回写、计费串成一条线，书源取书的任务模板被逐段复制三份（小说整本/小说补下/原罪成书），在途取消登记簿全仓已到六套口径。最痛的是「同一件事没有唯一实现」：书封生图绕过绘梦图像域与 play 护栏、两本板块共用一个 job 登记簿却能互相取消、sin 轨迹的 Seq 槽位封顶 8 造成重复编址，改一处必须同时想三处。",
+   20
+  ],
+  [
+   "FE7",
+   "前端 schedule 板块",
+   6,
+   "机制堆得很满、注释密度极高，但同一语义在前端内部与前后端之间被实现了 2~4 遍：横道表格窗格与画布行、甘特导出与网络图导出、单代号视图与网络图导出、工作日↔日期换算、路径常量、AOA 分组带，全部是手工同步的平行副本。最痛的一处是前后端类型双写而无生成器：前端 project.baselines（多基线槽）在 Go internal/schedule/types.go 里根本不存在，而 Save 路径是 Go 强制 marshal 落盘，等于每次保存都静默删掉用户的多基线数据；同一通道还有 assignment 数值字段的类型不对称。其次是纯函数层被 store（zustand+persist+bridge）污染，God func updateTask/normalizeProject 各自 ~40 行承担校验+清洗+持久化三职责。",
+   20
+  ],
+  [
+   "GA1",
+   "gaea/agent（Agent 内核）",
+   6,
+   "工程纪律是真的：闸门原子化、turnMu 竞态修复、TrackProgress「stop 先于终态写」等契约都有注释与测试背书，P0 崩溃类问题基本已被历史审计清掉。但结构债很重：AgentRunner 一个结构体塞了 50+ 字段（闸门/预算/风暴/证据/记忆/泄洪/计划模式/子代理记录全在一个 God 类型里），agent.go 975 行 + agent_run.go 581 行合起来是一条 450 行的 runDirect 状态机；任务「状态机」没有单一所有者——running/completed/failed 的状态、meta 落盘、chat 账本三者被 task.go / subagent_store.go / runDirect 各自直写。最痛的是并发正确性只靠注释声明而非类型强制：asker/permReq/sink/session 指针在下一次加字段时都会静默变成数据竞争",
+   20
+  ],
+  [
+   "GA2",
+   "gaea/tool+genui+command+vision+dag（工具与命令）",
+   6,
+   "工具层骨架本身是有纪律的（Registry 叶锁+快照导出、fail-closed 校验、46 个工具几乎全覆盖测试），但元数据被摊成六份名字表，谁也没法一处核对：新增/改名一个工具要同时改 init 注册、compact.go 两份 map、spacetags.go 空间表、boot 隐藏表、config 白名单与 agent/compress 口名表，漏一处就静默降级。最痛的是 CompactDescriptor 分支无条件生效——46 个工具手写的全量 Schema/Description 永远进不了模型，只有精简版在场且已与描述漂移；由此空间表漏 17 个已注册工具仍按 shared fail-open，genui 校验 6 个上限常量声明后从不执行、对超限规格回假绿灯。其次是复制粘贴型结构债：dag 的 Store/TemplateStore 近逐字两套、splitFrontma",
+   19
+  ]
+ ]
+}

@@ -219,6 +219,33 @@ func (s *Store) Save(e Entry) error {
 	if s.db == nil {
 		return fmt.Errorf("cost store unavailable")
 	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := s.saveTx(tx, e); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	bumpRankVersion()
+	return nil
+}
+
+// SaveTx 在调用方事务内写入/更新一条成本条目（整批导入等「多条目同一事务」
+// 的调用方复用，审计 P0#11/源 AP4-03：UPSERT 与组成替换的唯一实现收编到此，
+// app 层不再持有第二份同构 SQL）。归一化口径与 Save 一致；调用方负责事务
+// 边界与批次级的排序缓存失效（bumpRankVersion/InvalidateRankers）。
+func (s *Store) SaveTx(tx *sql.Tx, e Entry) error {
+	if tx == nil {
+		return fmt.Errorf("cost store unavailable: nil tx")
+	}
+	return s.saveTx(tx, e)
+}
+
+func (s *Store) saveTx(tx *sql.Tx, e Entry) error {
 	if strings.TrimSpace(e.Name) == "" {
 		return fmt.Errorf("cost entry needs a name")
 	}
@@ -240,12 +267,7 @@ func (s *Store) Save(e Entry) error {
 			tags = string(b)
 		}
 	}
-	tx, err := s.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-	_, err = tx.Exec(`
+	_, err := tx.Exec(`
 INSERT INTO cost_entries(name, title, code, category, category_path, unit, price, labor_fee, material_fee, machine_fee, management_fee, profit_fee, advance_fee, tax_rate, spec, source, region, price_date, price_type, valid_until, source_row, tags, status, body, created_at, updated_at)
 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(name) DO UPDATE SET
@@ -282,11 +304,7 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
 			return err
 		}
 	}
-	err = tx.Commit()
-	if err == nil {
-		bumpRankVersion()
-	}
-	return err
+	return nil
 }
 
 // Get 按名读取完整条目。

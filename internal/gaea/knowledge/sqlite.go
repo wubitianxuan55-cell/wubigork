@@ -74,11 +74,12 @@ func (b *sqliteBackend) Delete(name string) error {
 	return nil
 }
 
-func (b *sqliteBackend) List() []EntrySummary {
+func (b *sqliteBackend) List() ([]EntrySummary, error) {
 	rows, err := b.db.Query(
 		`SELECT name, title, category, tags, status, updated_at FROM knowledge ORDER BY updated_at DESC`)
 	if err != nil {
-		return nil
+		// 审计 P0#6 GA3-01：读失败不得吞成空切片（否则与「库空」不可区分）。
+		return nil, fmt.Errorf("query knowledge list: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 	var out []EntrySummary
@@ -86,13 +87,16 @@ func (b *sqliteBackend) List() []EntrySummary {
 		var s EntrySummary
 		var tags, updated string
 		if err := rows.Scan(&s.Name, &s.Title, &s.Category, &tags, &s.Status, &updated); err != nil {
-			continue
+			return nil, fmt.Errorf("scan knowledge list: %w", err)
 		}
 		s.Tags = parseTagsJSON(tags)
 		s.UpdatedAt, _ = time.Parse(time.RFC3339, updated)
 		out = append(out, s)
 	}
-	return out
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate knowledge list: %w", err)
+	}
+	return out, nil
 }
 
 func (b *sqliteBackend) Index() string {
@@ -116,6 +120,10 @@ func (b *sqliteBackend) Index() string {
 		rowsList = append(rowsList, r)
 		empty = false
 	}
+	if err := rows.Err(); err != nil {
+		// 迭代中断不得报成「暂无条目」：中文索引文案要区分「表空」与「读不出来」。
+		return "# 知识库索引\n\n（索引不可用）\n"
+	}
 	if empty {
 		buf.WriteString("（暂无条目。使用 knowledge_add 工具添加。）\n")
 		return buf.String()
@@ -132,12 +140,13 @@ func (b *sqliteBackend) Index() string {
 	return buf.String()
 }
 
-func (b *sqliteBackend) ReadAll() []Entry {
+func (b *sqliteBackend) ReadAll() ([]Entry, error) {
 	rows, err := b.db.Query(`
 SELECT name, title, category, phase, discipline, tags, status, version, author, reviewer, source, body, created_at, updated_at
 FROM knowledge`)
 	if err != nil {
-		return nil
+		// 审计 P0#6 GA3-01：同 List，读失败如实上抛。
+		return nil, fmt.Errorf("query knowledge entries: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 	var out []Entry
@@ -146,7 +155,7 @@ FROM knowledge`)
 		var tags, ver, created, updated string
 		if err := rows.Scan(&e.Name, &e.Title, &e.Category, &e.Phase, &e.Discipline, &tags, &e.Status,
 			&ver, &e.Author, &e.Reviewer, &e.Source, &e.Body, &created, &updated); err != nil {
-			continue
+			return nil, fmt.Errorf("scan knowledge entries: %w", err)
 		}
 		e.Tags = parseTagsJSON(tags)
 		e.Version, _ = strconv.Atoi(ver)
@@ -154,8 +163,11 @@ FROM knowledge`)
 		e.UpdatedAt, _ = time.Parse(time.RFC3339, updated)
 		out = append(out, e)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate knowledge entries: %w", err)
+	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
-	return out
+	return out, nil
 }
 
 func parseTagsJSON(raw string) []string {

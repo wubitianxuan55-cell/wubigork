@@ -1,0 +1,350 @@
+{
+  "id": "IN3",
+  "module": "内部办公/解析/日程包（office/docmd/schedule/ocr/screen/export）",
+  "footprint": [
+    "internal/office",
+    "internal/docmd",
+    "internal/schedule",
+    "internal/ocr",
+    "internal/screen",
+    "internal/export"
+  ],
+  "verdict": "这一板块不是「脏」而是「八套半个解析器叠在一起」：进度计划域把同一个校验规则（cd 五闸）、同一份日历语义（TS 镜像）、三种工程文件导入口径各写一份；文档域同时存在自研 PDF 文本扫描器、自研 docx/xlsx OOXML 字符串手术、markitdown 子进程、poppler+两个本地 OCR 引擎四路，且每路失败都静默换下一路。最痛的是三处 god-file（mpp.go 924 / docxedit.go 827 / pdf.go 705）与跨包同名复制函数：任何一次格式修正都要在 4~6 个位置同步，漏一处就落到「静默给了另一种口径的结果」这条最难发现的失败带上。",
+  "score": 4.5,
+  "metrics": {
+    "files_reviewed": 36,
+    "loc_reviewed": 11510,
+    "test_files": 38,
+    "test_loc": 6840
+  },
+  "hotspots": [
+    {
+      "path": "internal/schedule/mpp.go",
+      "loc": 924,
+      "why": "924 行单体 MPP 二进制逆向解析器，MPP9/12/14/2013+ 四套硬编码字节偏移混在一个文件，任何格式修正都要四支同步"
+    },
+    {
+      "path": "internal/office/docxedit/docxedit.go",
+      "loc": 827,
+      "why": "三套独立 XML 扫描（parseParagraphs/parseChangeSpans/maxWID 正则）叠在 zip 读写与逐 run 字节重建上，无独立单测覆盖"
+    },
+    {
+      "path": "internal/docmd/pdf.go",
+      "loc": 705,
+      "why": "手写 PDF 解析器：自研德压+stream 切分+BT/ET 提取，不支持 xref/ObjStm，页数靠 /Type /Page 字面计数，两份几乎同构的 stream 循环"
+    },
+    {
+      "path": "internal/schedule/ops.go",
+      "loc": 635,
+      "why": "applyOne 单函数 430 行巨型 switch（106-538），内部复制 Validate 与自身 upsert/patch 三份 cd 校验"
+    },
+    {
+      "path": "internal/docmd/ocr.go",
+      "loc": 613,
+      "why": "OCR 编排 + 提供者 seam + 进程管理 + 页循环混合；6 个包级 var 注入点与 registry panic 是测试专用设计"
+    },
+    {
+      "path": "internal/office/pptxedit/pptxedit.go",
+      "loc": 641,
+      "why": "docxedit 的复制粘贴版（textElement/xmlEscape/locateSpan/maxInt/minInt 同名同构），两份独立演进"
+    },
+    {
+      "path": "internal/schedule/xlsx.go",
+      "loc": 651,
+      "why": "导入/导出与 mpp 导入两套平行口径，日期用 time.Local 而全模块用 UTC，序号→id 映射可被重复序号覆盖"
+    },
+    {
+      "path": "internal/screen/screen_windows.go",
+      "loc": 203,
+      "why": "GDI 原语返回码全丢弃（BitBlt/SelectObject），失败帧按成功返回，下游拿到「成功但空白」的截图"
+    }
+  ],
+  "findings": [
+    {
+      "fid": "IN3-01",
+      "severity": "P1",
+      "category": "duplication",
+      "title": "cd 工期五闸校验 3 处复制已漂移",
+      "file": "internal/schedule/ops.go",
+      "line": "129-144",
+      "evidence": "\t\tswitch t.DurationUnit {\n\t\tcase \"\", UnitWd, UnitCd:\n\t\tdefault:\n\t\t\treturn \"\", fmt.Errorf(\"任务 %s 工期单位非法（wd|cd）：%s\", t.ID, t.DurationUnit)",
+      "why": "同一条 durationUnit 规则在 ops.applyOne/upsert_task(129-144)、ops.applyOne/patch_task(177-205)、project.Validate(104-119) 各写一遍（碎片合计 4 段），错误文案逐字复制。",
+      "impact": "新增或修改工期单位约束时极易只改 Validate，ops 通道仍接受 → 同一份计划经对话写入与经文件保存得到不同合法性结论，fail-closed 承诺失效。",
+      "fix": "抽 validateDurationUnit(t Task) error 一处实现，Validate 与 ops 两条分支都调用；ops 只负责包上操作序号。",
+      "effort": "S",
+      "prior_audit": "延续：docs/gaea-optimization-direction-2026-09.md 双工期口径四刀已落，校验重复未收口"
+    },
+    {
+      "fid": "IN3-02",
+      "severity": "P1",
+      "category": "duplication",
+      "title": "日历语义 Go 四处 + 前端 TS 各一份镜像",
+      "file": "internal/schedule/calendar.go",
+      "line": "73-91",
+      "evidence": "func IsWorkingDate(d time.Time, cal Calendar) bool {\n\twd := int(d.Weekday()) // time.Weekday 与 JS getDay 同口径：周日=0\n\tok := false",
+      "why": "calendar.go 自述「前端 calendar.ts 的忠实移植」；同包 mpp.go:507-535 另写一份 mppWeekFromHours 求工作日集合，cost.go:85 与 project.Analyze 再各按自己方式消费 Calendar——工作日判定语义共 4 处。",
+      "impact": "日历规则（工作制/节假日例外）任何修正必须同时改 Go 与前端 TS，且要记住 mpp 那份独立实现；漏改即出现「甘特显示的工作日与 CPM 算的不同」。",
+      "fix": "工作日判定收敛为 IsWorkingDate 唯一入口，mppWeekFromHours 只产出 Workweek 集合；TS↔Go 加双端对拍 golden（双工期已有 golden 先例可扩）。",
+      "effort": "M",
+      "prior_audit": "延续：gaea-optimization-direction-2026-09.md 的 TS↔Go 镜像风险项"
+    },
+    {
+      "fid": "IN3-03",
+      "severity": "P1",
+      "category": "god-file",
+      "title": "mpp.go 924 行含 4 套版本字节布局",
+      "file": "internal/schedule/mpp.go",
+      "line": "310-333",
+      "evidence": "\t\tswitch {\n\t\tcase is2013:\n\t\t\t// 2013+ 变体:行内 var 键整体换 ID 键空间\n\t\t\tt.uid = t.id",
+      "why": "单文件承担 CFB 遍历、CompObj 探测、Props/VarMeta/Var2Data/FixedMeta/FixedData 五原语、MPP9/12/14/2013+ 四套偏移与 26 个魔法常量（38-57、153、226、302 等）。",
+      "impact": "任何偏移修正要同时判断 4 支；无真机样本时只能靠合成流表单测，格式漂移只能等用户报错（v4.154.0 的 2013+ 五处漂移即如此暴露）。",
+      "fix": "按版本拆 mpp9.go/mpp12.go/mpp14.go，字段偏移提成 per-version 表，主流程只查表；至少把 2013+ 变体独立成文件。",
+      "effort": "L",
+      "prior_audit": "延续：CHANGELOG v4.154.0 修 2013+ 五处漂移，结构未拆"
+    },
+    {
+      "fid": "IN3-04",
+      "severity": "P1",
+      "category": "god-func",
+      "title": "applyOne 单函数 430 行巨型 switch",
+      "file": "internal/schedule/ops.go",
+      "line": "106-538",
+      "evidence": "func applyOne(p *Project, op Op) (string, error) {\n\tswitch op.Type {\n\tcase \"upsert_task\":",
+      "why": "12 种 op 类型（53 行注释枚举）全部内联在一个函数，每个 case 自带校验+变更+回执文案，最长 patch_task 占 90 行。",
+      "impact": "新增 op 要改这个函数任意位置；任何 case 都无法被单独测试（只能经 ApplyOps 全链路），diff 冲突面 430 行起。",
+      "fix": "按 op 拆 applyUpsertTask/applyPatchTask/... 到独立函数或文件，用 map[string]func 注册表分派。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "IN3-05",
+      "severity": "P1",
+      "category": "consistency",
+      "title": "xlsx 导入用 time.Local，全模块用 UTC",
+      "file": "internal/schedule/xlsx.go",
+      "line": "414-421",
+      "evidence": "func tryParse(s string) (time.Time, bool) {\n\tfor _, layout := range xlsxDateLayouts {\n\t\tif t, err := time.ParseInLocation(layout, s, time.Local); err == nil {",
+      "why": "calendar.go:49-65 的 parseISO 明确「解析为 UTC 日期」，xlsx 导入却 ParseInLocation(..., time.Local)，两套时区口径在同一 Project.StartDate 上汇合。",
+      "impact": "东八区外或夏令时机器上，Excel 里写的开工日可能被解析成前一天（Format(\"2006-01-02\") 取到昨日），整份导入计划的 ES/EF 全体错一天，且与手工录入的计划对不上。",
+      "fix": "xlsx 日期解析后按 parseISO 同口径做 UTC 归一，或日期算术全程不引入 time.Local。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "IN3-06",
+      "severity": "P1",
+      "category": "duplication",
+      "title": "docxedit↔pptxedit 整套函数复制粘贴",
+      "file": "internal/office/pptxedit/pptxedit.go",
+      "line": "641-691",
+      "evidence": "func textElement(elem, text, attrs string) string {",
+      "why": "textElement(pptxedit:641 / docxedit:762)、xmlEscape(656/779)、maxInt(677/815)、minInt(684/822)、locateSpan(438/539) 在包内各自独立实现，注释都写「同 docxedit」。",
+      "impact": "XML 转义或空白折叠规则的修正只落一处，另一份继续按旧口径输出，产生「Word 修对了 PowerPoint 没修」的隐性分叉。",
+      "fix": "抽 internal/office/ooxml 共用包放这些纯函数，两个 edit 包引用。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "IN3-07",
+      "severity": "P1",
+      "category": "god-file",
+      "title": "docxedit 827 行三套 XML 扫描叠加",
+      "file": "internal/office/docxedit/docxedit.go",
+      "line": "406-512",
+      "evidence": "func parseParagraphs(data []byte) ([]paragraph, error) {\n\tdec := xml.NewDecoder(bytes.NewReader(data))",
+      "why": "同一文件里 parseParagraphs（InputOffset 主扫描 406-512）、parseChangeSpans（313-359 第二遍扫描）、maxWID（805 正则第三遍扫描）三套解析叠加，之下还有 zip 读写与 619-758 的逐 run 字节重建。",
+      "impact": "定位选区、扁平化修订、生成新修订 id 三步基于三份互不共享的解析结果，任何 OOXML 结构变体（嵌套 run/域代码）都要在三处分别理解，且只有端到端测试。",
+      "fix": "合并为一次 token 遍历产出一份段落模型（含 changeSpan 区间），w:id 分配移到模型上。",
+      "effort": "L",
+      "prior_audit": ""
+    },
+    {
+      "fid": "IN3-08",
+      "severity": "P1",
+      "category": "error-swallow",
+      "title": "OCR 四路降级链吞掉全部真实错误",
+      "file": "internal/app/gaea_ocr.go",
+      "line": "28-39",
+      "evidence": "\tif a.activeOCREngine != \"\" || a.activeOCRModel != \"\" {\n\t\tif text, err := a.herdsmanOCRWith(a.activeOCREngine, a.activeOCRModel, imagePath); err == nil && strings.TrimSpace(text) != \"\" {",
+      "why": "GaeaOCRText 依次试 activeOCR → herdsmanOCR → herdsmanParseImage → docmd.OCRImageText，四层只判 err==nil 从不保留 err，最终只返回最后一层的错误。",
+      "impact": "用户看到「OvisOCR2 不可用」，真实原因可能是 herdsman 返回 HTTP 401 或 MinerU 超时；排查必须复现四路，用户与开发者都被最外层文案误导。",
+      "fix": "逐层 errors.Join 收集错误，最终 error 附四层原因（现有 ocrUnavailableError 只保留安装提示）。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "IN3-09",
+      "severity": "P1",
+      "category": "consistency",
+      "title": "三种 OCR 口径各自独立客户端",
+      "file": "internal/ocr/herdsman.go",
+      "line": "23-28",
+      "evidence": "\t// DefaultOCRModel 是 Herdsman /v1/ocr 的默认模型。\n\tDefaultOCRModel = \"paddleocr-ppocrv5-server\"\n\t// DefaultParseModel 是 Herdsman /v1/documents/parse 的默认模型。\n\tDefaultParseModel = \"minerU\"",
+      "why": "internal/ocr（Herdsman 远端 PaddleOCR/MinerU）与 internal/docmd/ocr.go（本地 OvisOCR2 llama-server + tesseract）是两套并行 OCR 体系，各有自己的模型选择、健康探测、超时与错误文案，再由 app/gaea_ocr.go 第三层串起来。",
+      "impact": "「OCR 引擎」在配置层（activeOCREngine / GAEA_OCR_ENGINE / GAEA_OCR_URL）、模型层、启动层三处各有定义，同一句「设置 OCR 引擎」在不同面板含义不同。",
+      "fix": "以 docmd 的 OCRProvider seam 为唯一接口，把 herdsman /v1/ocr 也注册成一个 provider kind，删掉 app 中的四路串联。",
+      "effort": "L",
+      "prior_audit": "延续：docmd/ocr.go 注释自称 seam 三元组范式，herdsman 路径未接入"
+    },
+    {
+      "fid": "IN3-10",
+      "severity": "P1",
+      "category": "duplication",
+      "title": "stream/endstream 扫描在 pdf.go 两份",
+      "file": "internal/docmd/pdf.go",
+      "line": "521-574",
+      "evidence": "func stripNonTextStreams(s string) string {\n\tvar b strings.Builder\n\tpos := 0",
+      "why": "decodeFlateStreams(416-466) 与 stripNonTextStreams(521-574) 各实现一遍「向前找 '>' 判定真 stream、向后找独立 endstream、跳过 body 换行」的同构逻辑，且成功后的 pos 前进方式不同（一处写 s[pos:bodyStart]+dec，一处写 s[pos:i]）。",
+      "impact": "stream 边界规则修正必须改两处，漏改则解压路径与剔除路径对同一 PDF 得出不同 stream 划分，表现为「解压过的 PDF 漏文本或多垃圾」的偶发差异。",
+      "fix": "抽 streamSpans(s) []span 迭代器，两条路径共用。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "IN3-11",
+      "severity": "P1",
+      "category": "duplication",
+      "title": "页数三处口径：字面计数/规格/渲染",
+      "file": "internal/docmd/pdf.go",
+      "line": "92-103",
+      "evidence": "func countPDFPages(content string) int {\n\tn := 0\n\tfor pos := 0; ; {",
+      "why": "countPDFPages 在原始字节里字面数 /Type /Page；pagespec.go:129-137 pageBounds 按页规格算渲染边界；ocr.go:559-565 又用 first+i 推绝对页码。三套都自称「与文本路径一致」，但页数来源互不相同。",
+      "impact": "PDF 内有非法/重复 /Type /Page，或 pdftoppm 跳页时，文本路径的页码与 OCR 路径页码错位（ocr.go:522-523 注释正是为修这个错位而写），按页范围提取会拿到别页内容。",
+      "fix": "totalPages 判定收进单一函数，OCR 路径以 pdftoppm 实际产物为唯一页码来源，文本路径按同一来源对齐；至少加一致性断言与诚实告警。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "IN3-12",
+      "severity": "P1",
+      "category": "duplication",
+      "title": "四种导出的章节循环四份复制",
+      "file": "internal/export/export.go",
+      "line": "118-134",
+      "evidence": "\tfailed := 0\n\tfor _, ch := range m.listChapters() {\n\t\tcontent, err := m.pm.ReadChapterBranch(ch.num, ch.branch)",
+      "why": "ExportTXT(118-134)、ExportMarkdown(163-179)、ExportEPUB(253-273)、ExportDOCX(docx.go:47-68) 各自复制一遍「遍历章节+计数失败+拼 label+slog.Warn+写盘」，ReadWorldview 与 FailedChapters 赋值同样四份。",
+      "impact": "新增格式或改章节命名/失败策略要改四处，漏一处即「EPUB 有分支章节、DOCX 没有」这类跨格式不一致。",
+      "fix": "抽 forEachChapter(fn func(label, content string) error) (failed int, err error)，四个导出只写各自渲染回调。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "IN3-13",
+      "severity": "P1",
+      "category": "consistency",
+      "title": "Markdown 结构识别共 3 份局部实现",
+      "file": "internal/export/html.go",
+      "line": "172-223",
+      "evidence": "func markdownToHTML(md string) string {\n\tlines := strings.Split(md, \"\\n\")",
+      "why": "markdownToHTML(html.go:172) 判 \"### \"/\"## \"/\"# \"；markdownHeading(docx.go:93-103) 用 switch 判同样三个前缀；docmd/office.go:160-186 第三种按 word 样式名映射 #/##/###。三份识别规则各自维护。",
+      "impact": "同一章正文在 HTML 导出、DOCX 导出、预览解析里可能落到不同标题层级，用户看到跨格式标题层级不一致。",
+      "fix": "export 内抽 markdownBlockKind(line) 一处判定供 html/docx 共用；docmd 的样式映射单独成表并加对照测试。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "IN3-14",
+      "severity": "P2",
+      "category": "consistency",
+      "title": "docmd 手写 XML 提取不解实体",
+      "file": "internal/docmd/office.go",
+      "line": "133-158",
+      "evidence": "\t\ttexts = append(texts, remaining[contentStart:contentStart+tEnd])\n\t\tremaining = remaining[contentStart+tEnd+6:]\n\t}\n\ttext := strings.Join(texts, \"\")",
+      "why": "docxToMarkdown 先把 body 反序列化成 InnerXML 字符串，再用 findWt/isSelfClosing/IndexByte 手工切 <w:t>，全程不解 &amp;/&lt;/&#x…;（extractCellText 249-274 同款）。同仓库 xlsxpreview 用 excelize、export/docx.go 用 gooxml，都是真解析器。",
+      "impact": "含 & < 引号或中文实体的 Word 文档经 format_convert/预览/largefile 转 Markdown 时正文出现字面量 &amp;（8 个调用方受影响），而同一文件走 docx 预览面板正常。",
+      "fix": "用 encoding/xml 的 Token 流重写 docxToMarkdown（或复用 docxedit 的 parseParagraphs 模型），至少对 w:t 文本做实体解码。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "IN3-15",
+      "severity": "P2",
+      "category": "safety",
+      "title": "截屏丢弃 GDI 返回码，失败帧按成功返回",
+      "file": "internal/screen/screen_windows.go",
+      "line": "158-159",
+      "evidence": "\t_, _, _ = procSelectObject.Call(hdcMem, hbm)\n\t_, _, _ = procBitBlt.Call(hdcMem, 0, 0, uintptr(w), uintptr(h), hdcScreen, uintptr(x), uintptr(y), srcCopy)",
+      "why": "SelectObject/BitBlt 的返回值与 GetLastError 全部丢弃，随后无条件把 DIB 内存当有效像素读成 image.RGBA 并返回 nil error。",
+      "impact": "BitBlt 失败（DC 丢失、锁定屏、虚拟桌面坐标越界）时返回未初始化或全黑截图且当作成功交给截图工具与视觉链路，下游得到「成功但空白」的图，属典型静默失败。",
+      "fix": "r==0 时用 syscall.GetLastError() 返回 error，SelectObject 失败同样报错并释放资源。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "IN3-16",
+      "severity": "P2",
+      "category": "consistency",
+      "title": "序号→id 映射可被重复序号覆盖",
+      "file": "internal/schedule/xlsx.go",
+      "line": "551-554",
+      "evidence": "\tseqID := make(map[int]string, len(raws))\n\tfor i, r := range raws {\n\t\tid := fmt.Sprintf(\"t%d\", i+1)\n\t\tseqID[r.seq] = id",
+      "why": "r.seq 缺省用 len(raws)+1（496 行），但表里有「序号」列且重复/非递增时同一 key 被后写覆盖；前置引用回链(607)与分组判定(612-617)都按这个 map 查。",
+      "impact": "表里出现重复序号（复制粘贴行常见）时前置引用会指向错误的最后一行，导入出错误的 FS/SS 关系且不报错；612-617 再线性查一遍 q.seq==no 只是重复劳动不纠错。",
+      "fix": "检测到重复 seq 即报错指出行号，或统一用行内 index 作 id、序号列只作显示。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "IN3-17",
+      "severity": "P2",
+      "category": "error-swallow",
+      "title": "办公解析 9 处 err 静默忽略",
+      "file": "internal/docmd/office.go",
+      "line": "33-34",
+      "evidence": "\t\t\trc, _ := f.Open()\n\t\t\tdocXML, _ = io.ReadAll(rc)",
+      "why": "office.go 内 rc,_ / ReadAll(_,_) / xml.Unmarshal(_,_) 忽略散布在 33、34、360、362、402、403、426、438、441；xlsxToMarkdown 明确 `if xml.Unmarshal(sheetXML, &sd) != nil { continue }`，该 sheet 静默消失。",
+      "impact": "zip 项损坏或 worksheet XML 非法时输出「少几张表/几段」的 Markdown 且无告警，format_convert 回执不含丢失信息，用户以为转换完整。",
+      "fix": "忽略处收集为 warnings 随返回值上报，或至少 slog.Warn + Markdown 末尾附「已跳过 N 个无法解析部件」。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "IN3-18",
+      "severity": "P2",
+      "category": "duplication",
+      "title": "整包无共用 OOXML 工具层",
+      "file": "internal/office/xlsxpreview/xlsxpreview.go",
+      "line": "77-85",
+      "evidence": "func renderGuarded(path string) (result string, err error) {\n\tdefer func() {\n\t\tif r := recover(); r != nil {\n\t\t\tresult = \"\"",
+      "why": "excelize 有已知未修 panic（GO-2026-6452），于是复写同一段 recover→可读 error 防线：xlsxpreview/xlsxpreview.go:77-85、xlsxpreview:116-122（NeedsRecalc 再抄一遍）、schedule/xlsx.go:431-436，三份文案各自不同；crosslink/hideWindow(174-178) 与 gaea/proc.HideWindow 也是同类工具的两份实现。",
+      "impact": "同一 excelize 缺陷的防线有三处漂移风险：某处将来删了 recover，恶意 xlsx 在该入口直接 panic（Wails dispatcher 兜住但表现为整次调用失败），排查成本高。",
+      "fix": "在 office 内建 openExcelizeSafe(path) (*excelize.File, error) 统一 recover 与 Options，所有 excelize 入口（含 schedule/xlsx.go）经它打开；hideWindow 统一走 proc.HideWindow。",
+      "effort": "S",
+      "prior_audit": "延续：CHANGELOG v4.370/v4.385 记录两轮 go 扫描发现该 excelize 缺陷并各加一处防线"
+    },
+    {
+      "fid": "IN3-19",
+      "severity": "P3",
+      "category": "dead-code",
+      "title": "crosslink 区间的列 c1 被静默裁剪",
+      "file": "internal/office/crosslink/crosslink.go",
+      "line": "44-55",
+      "evidence": "\tr1, c1, r2, c2 := 1, 1, len(all), 2\n\tif rng != \"\" {\n\t\tif r1, c1, r2, c2, err = parseRange(rng); err != nil {",
+      "why": "显式区间分支解析出 c1/c2，紧接着 53-55 行 `if c2 > 2 { c2 = 2 }` 把列上限无条件压回 2，而 c1 只用于取值不改列宽，parseRange 的列信息实际被丢弃（若 rng 起点写成 C 列，取到的仍是 A/B 列）。",
+      "impact": "用户指定 C1:D6 这类区间时静默只取前两列，图表标签/数值与预期列不符且无任何提示。",
+      "fix": "让 rng 分支的 c1/c2 覆盖默认并去掉 53-55 的硬裁剪（保留 MaxChartRows 行上限），或明确文档「区间仅支持两列」并在越界时报错。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "IN3-20",
+      "severity": "P3",
+      "category": "test-smell",
+      "title": "生产包内 6 个可变 var 作测试夹缝",
+      "file": "internal/docmd/ocr.go",
+      "line": "98-108",
+      "evidence": "// ovisStartWait 是 startOvisServer 等待 llama-server 就绪的时长（默认 60s）；\n// 包级变量便于单测缩短等待。\nvar ovisStartWait = 60 * time.Second",
+      "why": "ovisStartWait(100)、ovisHealthy(104)、ovisBuildCmd(108)、ovisOCRPage(153)、tesseractLookPath/tesseractImage(226-228) 六个包级可变函数值，配合 ocrProviderRegistry 的 init panic，构成一套只为测试存在的接线方式。",
+      "impact": "任何 goroutine 与测试并发写这些 var 即数据竞争；生产路径被测试替身绑死，改探测逻辑要同时改夹具（ocr_seam_test.go 132 行）。",
+      "fix": "改为显式 config 结构体（Wait/Healthy/Build/OCR 字段）由 New 注入，测试构造自己的 config。",
+      "effort": "M",
+      "prior_audit": ""
+    }
+  ],
+  "open_questions": [
+    "internal/docmd/pdf.go 的页数在压缩对象流（ObjStm）PDF 上是否系统性失真？本单元只读代码未跑样本，需用一个 ObjStm 型 PDF 验证 countPDFPages 与 pdftoppm 页数是否一致。",
+    "internal/schedule/mpp.go 的 mppI16/mppI32 在部分分支未见长度前置检查（mppParseVarData 只判 len(metaRaw) < 24 后即按 entrySize 步进读），是否存在可被畸形 MPP 触发的越界 panic 路径？需补样本或 fuzz 确认。",
+    "internal/export/html.go 的 CompileTemplate 三模板与 internal/app 的 sanitizeFilename 是否还有第二处 HTML 导出入口（novel_bookcover 相关）共用同一 CSS 常量？本单元未读 app 侧实现，属跨包待核。",
+    "internal/docmd/office.go 的 docxToMarkdown 与 internal/office/docxedit 的 parseParagraphs 是否存在两条调用链（预览面板 vs format_convert 走不同实现）？AGENTS.md 第 188 行称两者共用 docmd，但 docxedit 自带一套解析，需确认预览面板实际走哪条。"
+  ]
+}

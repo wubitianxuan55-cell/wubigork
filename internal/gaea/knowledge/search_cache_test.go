@@ -6,6 +6,16 @@ import (
 	"testing"
 )
 
+// mustSearch 是 Search 的测试壳：本文件用例都在健康库上跑，读失败即致命。
+func mustSearch(t *testing.T, s *Store, query string, filter Filter) []Entry {
+	t.Helper()
+	out, err := Search(s, query, filter)
+	if err != nil {
+		t.Fatalf("Search(%q): %v", query, err)
+	}
+	return out
+}
+
 // TestSearchCacheReusedAcrossQueries 断言：同一过滤条件下重复 Search 只构建
 // 一次 TF-IDF 索引，且结果与首次完全一致（用构建计数器断言，不做计时断言）。
 func TestSearchCacheReusedAcrossQueries(t *testing.T) {
@@ -21,7 +31,7 @@ func TestSearchCacheReusedAcrossQueries(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	first := Search(s, "化学氧化", Filter{})
+	first := mustSearch(t, s, "化学氧化", Filter{})
 	if len(first) == 0 {
 		t.Fatal("expected results")
 	}
@@ -32,7 +42,7 @@ func TestSearchCacheReusedAcrossQueries(t *testing.T) {
 	// 重复查询（含空查询与带过滤条件查询）都不得触发重建：
 	// 空查询根本不建索引；带过滤条件走不同签名，只建一次。
 	for i := 0; i < 3; i++ {
-		again := Search(s, "化学氧化", Filter{})
+		again := mustSearch(t, s, "化学氧化", Filter{})
 		if len(again) != len(first) {
 			t.Fatalf("repeat search result count = %d, want %d", len(again), len(first))
 		}
@@ -42,19 +52,19 @@ func TestSearchCacheReusedAcrossQueries(t *testing.T) {
 			}
 		}
 	}
-	_ = Search(s, "", Filter{}) // 空查询不触达索引
+	_ = mustSearch(t, s, "", Filter{}) // 空查询不触达索引
 	if got := s.tfidf.buildsCount(); got != 1 {
 		t.Fatalf("builds after repeated searches = %d, want 1", got)
 	}
 
-	results := Search(s, "化学氧化", Filter{Category: CatExperience})
+	results := mustSearch(t, s, "化学氧化", Filter{Category: CatExperience})
 	if got := s.tfidf.buildsCount(); got != 2 {
 		t.Fatalf("builds after first filtered search = %d, want 2 (new filter signature)", got)
 	}
 	if len(results) == 0 || results[0].Name != "a" {
 		t.Errorf("filtered search = %+v, want entry a first", results)
 	}
-	_ = Search(s, "化学氧化", Filter{Category: CatExperience})
+	_ = mustSearch(t, s, "化学氧化", Filter{Category: CatExperience})
 	if got := s.tfidf.buildsCount(); got != 2 {
 		t.Fatalf("builds after repeated filtered search = %d, want 2", got)
 	}
@@ -72,7 +82,7 @@ func TestSearchCacheInvalidatedByWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(Search(s, "化学氧化", Filter{})) == 0 {
+	if len(mustSearch(t, s, "化学氧化", Filter{})) == 0 {
 		t.Fatal("expected results before write")
 	}
 	if got := s.tfidf.buildsCount(); got != 1 {
@@ -83,7 +93,7 @@ func TestSearchCacheInvalidatedByWrite(t *testing.T) {
 	if err := s.Save(Entry{Name: "b", Title: "原位化学氧化案例", Category: CatCase, Body: "某场地原位化学氧化修复工程。"}); err != nil {
 		t.Fatal(err)
 	}
-	results := Search(s, "化学氧化", Filter{})
+	results := mustSearch(t, s, "化学氧化", Filter{})
 	if got := s.tfidf.buildsCount(); got != 2 {
 		t.Fatalf("builds after save+search = %d, want 2", got)
 	}
@@ -101,7 +111,7 @@ func TestSearchCacheInvalidatedByWrite(t *testing.T) {
 	if err := s.Delete("b"); err != nil {
 		t.Fatal(err)
 	}
-	results = Search(s, "化学氧化", Filter{})
+	results = mustSearch(t, s, "化学氧化", Filter{})
 	if got := s.tfidf.buildsCount(); got != 3 {
 		t.Fatalf("builds after delete+search = %d, want 3", got)
 	}
@@ -125,7 +135,7 @@ func TestSearchCacheSeesOutOfBandEdit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if results := Search(s, "旧标题", Filter{}); len(results) != 1 {
+	if results := mustSearch(t, s, "旧标题", Filter{}); len(results) != 1 {
 		t.Fatalf("before edit, results = %+v, want [a]", results)
 	}
 	if got := s.tfidf.buildsCount(); got != 1 {
@@ -140,7 +150,7 @@ func TestSearchCacheSeesOutOfBandEdit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if results := Search(s, "旧标题", Filter{}); len(results) != 0 {
+	if results := mustSearch(t, s, "旧标题", Filter{}); len(results) != 0 {
 		t.Errorf("stale index leaked: results = %+v, want empty after out-of-band edit", results)
 	}
 	if got := s.tfidf.buildsCount(); got != 2 {

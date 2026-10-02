@@ -176,11 +176,11 @@ func Validate(p *Project) error {
 		if a.Units != nil && (*a.Units < 0 || math.IsNaN(*a.Units) || math.IsInf(*a.Units, 0)) {
 			return fmt.Errorf("分配（任务 %s ↔ 资源 %s）units 非法（须为非负有限数）：%v", a.TaskID, a.ResourceID, *a.Units)
 		}
-		if a.Quantity < 0 || math.IsNaN(a.Quantity) || math.IsInf(a.Quantity, 0) {
-			return fmt.Errorf("分配（任务 %s ↔ 资源 %s）数量非法（须为非负有限数）：%v", a.TaskID, a.ResourceID, a.Quantity)
+		if a.Quantity != nil && (*a.Quantity < 0 || math.IsNaN(*a.Quantity) || math.IsInf(*a.Quantity, 0)) {
+			return fmt.Errorf("分配（任务 %s ↔ 资源 %s）数量非法（须为非负有限数）：%v", a.TaskID, a.ResourceID, *a.Quantity)
 		}
-		if a.Amount < 0 || math.IsNaN(a.Amount) || math.IsInf(a.Amount, 0) {
-			return fmt.Errorf("分配（任务 %s ↔ 资源 %s）金额非法（须为非负有限数）：%v", a.TaskID, a.ResourceID, a.Amount)
+		if a.Amount != nil && (*a.Amount < 0 || math.IsNaN(*a.Amount) || math.IsInf(*a.Amount, 0)) {
+			return fmt.Errorf("分配（任务 %s ↔ 资源 %s）金额非法（须为非负有限数）：%v", a.TaskID, a.ResourceID, *a.Amount)
 		}
 	}
 	if p.StartDate != "" && len(p.StartDate) != 10 {

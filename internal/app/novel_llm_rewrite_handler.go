@@ -102,7 +102,7 @@ func (a *writingState) RewriteChapterAiTaste(chapterNum int) (map[string]interfa
 
 	totalApplied, totalBefore, totalAfter := 0, 0, 0
 	for i := range units {
-		rw, before, after, applied, err := a.rewriteUnit(chapterNum, units[i].text)
+		rw, before, after, applied, err := a.rewriteUnit(a.ctx, chapterNum, units[i].text)
 		if err != nil {
 			return nil, err
 		}
@@ -149,7 +149,15 @@ type rewriteUnit struct {
 }
 
 // rewriteUnit 对单个文本单元做「打分→定位命中句→LLM 批量重写→安全替换→复测」。
-func (a *writingState) rewriteUnit(chapterNum int, text string) (string, int, int, int, error) {
+// rewriteUnit 句级 AI 味修补。ctx 为请求级 context（P0#4）：收敛闭环经此调用
+// 时传生成链 ctx，取消须中止在飞请求；批量重写绑定传 a.ctx。
+func (a *writingState) rewriteUnit(ctx context.Context, chapterNum int, text string) (string, int, int, int, error) {
+	if ctx == nil {
+		ctx = a.ctx
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if strings.TrimSpace(text) == "" {
 		return text, 0, 0, 0, nil
 	}
@@ -159,7 +167,7 @@ func (a *writingState) rewriteUnit(chapterNum int, text string) (string, int, in
 	if len(targets) == 0 {
 		return text, 0, 0, 0, nil
 	}
-	rewrites, err := a.llmRewriteSentences(chapterNum, targets)
+	rewrites, err := a.llmRewriteSentences(ctx, chapterNum, targets)
 	if err != nil {
 		return text, 0, 0, 0, err
 	}
@@ -188,7 +196,7 @@ func (a *writingState) rewriteUnit(chapterNum int, text string) (string, int, in
 	return rewritten, before.Score, after.Score, applied, nil
 }
 
-func (a *writingState) llmRewriteSentences(chapterNum int, targets []rewriteSentence) (map[string]string, error) {
+func (a *writingState) llmRewriteSentences(ctx context.Context, chapterNum int, targets []rewriteSentence) (map[string]string, error) {
 	sb := strings.Builder{}
 	for i, t := range targets {
 		sb.WriteString(fmt.Sprintf("%d. %s\n", i+1, t.text))
@@ -202,7 +210,7 @@ func (a *writingState) llmRewriteSentences(chapterNum int, targets []rewriteSent
 	if model == "" {
 		return nil, fmt.Errorf("未找到可用模型（可能离线）")
 	}
-	reply, err := a.client.ChatSimpleStreamWithOptions(context.Background(), model, system, user, ai.ChatSimpleOptions{
+	reply, err := a.client.ChatSimpleStreamWithOptions(ctx, model, system, user, ai.ChatSimpleOptions{
 		EngineID: eng, Feature: "novel", Temperature: 0.7, MaxTokens: 2048,
 	})
 	if err != nil {

@@ -40,8 +40,8 @@ func costProject() *Project {
 		},
 		Assignments: []Assignment{
 			{TaskID: "A", ResourceID: "r1", Units: units2},
-			{TaskID: "B", ResourceID: "r2", Quantity: 10},
-			{TaskID: "B", ResourceID: "r3", Amount: 300},
+			{TaskID: "B", ResourceID: "r2", Quantity: floatPtr(10)},
+			{TaskID: "B", ResourceID: "r3", Amount: floatPtr(300)},
 			{TaskID: "M", ResourceID: "r1"},
 			{TaskID: "G1", ResourceID: "r1"}, // 分组行分配：引擎跳过（闸在 Validate）
 		},
@@ -77,7 +77,7 @@ func TestComputeCostsMaterialAndCost(t *testing.T) {
 		Name: "P", StartDate: "2026-01-05",
 		Tasks:       []Task{costTask("A", 3, nil), costTask("B", 2, nil)},
 		Resources:   []Resource{{ID: "m", Name: "钢材", Type: ResMaterial, StandardRate: 55}, {ID: "c", Name: "差旅", Type: ResCost}},
-		Assignments: []Assignment{{TaskID: "A", ResourceID: "m", Quantity: 10}, {TaskID: "B", ResourceID: "c", Amount: 300}},
+		Assignments: []Assignment{{TaskID: "A", ResourceID: "m", Quantity: floatPtr(10)}, {TaskID: "B", ResourceID: "c", Amount: floatPtr(300)}},
 	}
 	r := ComputeCosts(*p, ComputeCpm(p.Tasks, p.Links))
 	if r.Rows["A"].Assigned != 550 || r.Rows["B"].Assigned != 300 {

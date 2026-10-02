@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -632,6 +633,63 @@ func TestDagNodePanicMarkedFailed(t *testing.T) {
 	for _, want := range []string{"pivot", "report"} {
 		if n := dagNode(t, r, want); n.Status != dag.StatusSkipped {
 			t.Fatalf("下游 %s 应 skipped: %+v", want, n)
+		}
+	}
+}
+
+// TestDagWaveConcurrencyCap 审计 P0#10（源 AP4-04）：[tasks].max_concurrent
+// 显式 >0 时波内节点按同一上限排队——额度 1 时同波两节点不得重叠执行。
+// 缺省不设限的真并发语义由 TestDagParallelWaveAndSessionAttribution 锁定。
+func TestDagWaveConcurrencyCap(t *testing.T) {
+	injectDagEnv(t)
+	// dagWaveSemaphore 经 config.Load() 读 [tasks].max_concurrent（与任务
+	// 调度器同源）；按既有 SetLoader 先例注入显式额度 1。
+	config.SetLoader(func() (*config.Config, error) {
+		return &config.Config{Tasks: config.TasksConfig{MaxConcurrent: 1}}, nil
+	})
+	defer config.SetLoader(nil)
+	tool := dagPlanTool{dir: filepath.Join(".", ".gaea", "work", "dag")}
+	args := map[string]any{
+		"goal": "两个独立节点受并发额度约束",
+		"nodes": []map[string]any{
+			{"id": "a", "title": "任务A", "prompt": "先跑的任务A"},
+			{"id": "b", "title": "任务B", "prompt": "后跑的任务B"},
+		},
+	}
+	b, _ := json.Marshal(args)
+	if _, err := tool.Execute(context.Background(), b); err != nil {
+		t.Fatalf("dag_plan: %v", err)
+	}
+	runs, _ := (&App{}).dagStore().List()
+	id := runs[0].ID
+
+	// 额度=1 时同波两节点不得重叠：先抢到执行权的为「第一」，持额度 300ms；
+	// 第二个必须等它结束才可能起跑。goroutine 调度不保证 a/b 顺序，
+	// 以 CAS 定角色，不依赖节点 ID。
+	var first atomic.Bool
+	firstFinished := make(chan struct{})
+	SetDagRunnerForTest(func(ctx context.Context, prompt string, emit func(ref, text string)) (string, string, error) {
+		if first.CompareAndSwap(false, true) {
+			time.Sleep(300 * time.Millisecond)
+			close(firstFinished)
+			return "ok", "sa_first", nil
+		}
+		select {
+		case <-firstFinished:
+		case <-time.After(500 * time.Millisecond):
+			return "", "sa_second", errors.New("额度=1 时第二节点在第一节点结束前起跑（波内并发未受约束）")
+		}
+		return "ok", "sa_second", nil
+	})
+
+	a := &App{}
+	if _, err := a.GaeaDagRun(id); err != nil {
+		t.Fatalf("GaeaDagRun: %v", err)
+	}
+	r := waitDagDone(t, id)
+	for _, nid := range []string{"a", "b"} {
+		if n := dagNode(t, r, nid); n.Status != dag.StatusDone {
+			t.Fatalf("节点 %s 状态错误: status=%s error=%s", nid, n.Status, n.Error)
 		}
 	}
 }

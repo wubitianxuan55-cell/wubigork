@@ -104,7 +104,11 @@ func TestDeleteRemovesFromIndex(t *testing.T) {
 	}
 
 	// Entry should not appear in List.
-	for _, entry := range s.List() {
+	list, err := s.List()
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	for _, entry := range list {
 		if entry.Name == "delete-me" {
 			t.Error("deleted entry should not appear in List")
 		}
@@ -128,7 +132,10 @@ func TestSearchByCategory(t *testing.T) {
 	s.Save(Entry{Name: "std-1", Title: "标准一", Category: CatStandard, Body: "HJ 25.1 技术要求"})
 	s.Save(Entry{Name: "exp-1", Title: "经验一", Category: CatExperience, Body: "施工经验总结"})
 
-	results := Search(s, "", Filter{Category: CatCase})
+	results, err := Search(s, "", Filter{Category: CatCase})
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
 	if len(results) != 1 {
 		t.Fatalf("expected 1 case entry, got %d", len(results))
 	}
@@ -147,7 +154,10 @@ func TestSearchKeywordTitlePriority(t *testing.T) {
 	s.Save(Entry{Name: "title-match", Title: "化学氧化技术总结", Category: CatExperience, Body: "正文中不提化学氧化"})
 	s.Save(Entry{Name: "body-match", Title: "其他技术", Category: CatExperience, Body: "这里提到化学氧化方法"})
 
-	results := Search(s, "化学氧化", Filter{})
+	results, err := Search(s, "化学氧化", Filter{})
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
 	if len(results) == 0 {
 		t.Fatal("expected results")
 	}
@@ -167,7 +177,10 @@ func TestSearchTagFilter(t *testing.T) {
 	s.Save(Entry{Name: "a", Title: "A", Category: CatOther, Body: "x", Tags: []string{"修复"}})
 	s.Save(Entry{Name: "b", Title: "B", Category: CatOther, Body: "x", Tags: []string{"调查"}})
 
-	results := Search(s, "", Filter{Tag: "修复"})
+	results, err := Search(s, "", Filter{Tag: "修复"})
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result with tag 修复, got %d", len(results))
 	}
@@ -183,7 +196,10 @@ func TestListReturnsAll(t *testing.T) {
 	s.Save(Entry{Name: "e1", Title: "E1", Category: CatOther, Body: "x"})
 	s.Save(Entry{Name: "e2", Title: "E2", Category: CatOther, Body: "x"})
 
-	list := s.List()
+	list, err := s.List()
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
 	if len(list) != 2 {
 		t.Fatalf("expected 2 entries, got %d", len(list))
 	}

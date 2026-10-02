@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/db"
+	"github.com/gaea/gaea/internal/gaea/knowledge"
 	"github.com/gaea/gaea/internal/gaea/retrieval"
 	"github.com/gaea/gaea/internal/gaea/semantic"
 	"github.com/gaea/gaea/internal/gaea/tasks"
@@ -55,6 +56,10 @@ func TestSemanticSearchTool_EndToEnd(t *testing.T) {
 	})
 	SetAppSemanticStoreForTest(semantic.Open(gdb))
 	SetAppEmbedderForTest(retrieval.NewEmbedder(srv.URL, "bge-m3"))
+	// 知识全局服务是进程级单例：早前测试的懒开句柄可能已被其 CloseDatabase
+	// 关闭（P0#6 把「库不可读」如实上抛后暴露）。重置后按本测 HOME 懒开新句柄，
+	// 用例从此与执行顺序无关。
+	knowledge.ResetForTest()
 
 	a := &App{}
 	tool := semanticSearchTool{a: a}

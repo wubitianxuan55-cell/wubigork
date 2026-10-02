@@ -1,0 +1,155 @@
+{
+ "api_files": 8,
+ "rows": [
+  {
+   "file": "api/characterlib.ts",
+   "importers": [
+    "frontend/src/boards/manifests.ts",
+    "frontend/src/components/characterlib/CharacterCard.tsx",
+    "frontend/src/components/characterlib/CharacterLibEditor.tsx",
+    "frontend/src/components/characterlib/CharacterLibInspector.tsx",
+    "frontend/src/components/imagegen/AssetLibrary.tsx",
+    "frontend/src/components/imagegen/TaskCenter.tsx",
+    "frontend/src/components/novel/create/NewCharactersModal.tsx",
+    "frontend/src/gaea/lib/mock/core.ts",
+    "frontend/src/gaea/lib/mock/retrieval.ts",
+    "frontend/src/hooks/useFeatureModel.ts",
+    "frontend/src/hooks/useImageGenConfig.ts",
+    "frontend/src/pages/CharacterLibraryPage.tsx",
+    "frontend/src/pages/CharacterPage.tsx",
+    "frontend/src/pages/OriginalSinPage.tsx",
+    "frontend/src/pages/chat/utils.ts",
+    "frontend/src/pages/modelcenter/StrategySection.tsx",
+    "frontend/src/pages/modelcenter/hooks/useBindState.ts",
+    "frontend/src/pages/modelcenter/utils.tsx"
+   ]
+  },
+  {
+   "file": "api/engines.ts",
+   "importers": [
+    "frontend/src/components/ModuleLauncher.tsx",
+    "frontend/src/components/settings/ImageGenPanel.tsx",
+    "frontend/src/components/settings/ModelPanel.tsx",
+    "frontend/src/gaea/locales/en.ts",
+    "frontend/src/hooks/useImageGenConfig.ts",
+    "frontend/src/layouts/MainLayout.tsx",
+    "frontend/src/pages/modelcenter/AttributionSection.tsx",
+    "frontend/src/pages/modelcenter/BenchmarkSection.tsx",
+    "frontend/src/pages/modelcenter/EngineSection.tsx",
+    "frontend/src/pages/modelcenter/HerdsmanCatalogSection.tsx",
+    "frontend/src/pages/modelcenter/ResourceMonitor.tsx",
+    "frontend/src/pages/modelcenter/SchedulingSection.tsx",
+    "frontend/src/pages/modelcenter/StatsSection.tsx",
+    "frontend/src/pages/modelcenter/context.ts",
+    "frontend/src/pages/modelcenter/hooks/useAttributionState.ts",
+    "frontend/src/pages/modelcenter/hooks/useBindState.ts",
+    "frontend/src/pages/modelcenter/hooks/useEngineState.ts",
+    "frontend/src/pages/modelcenter/hooks/useStatsState.ts",
+    "frontend/src/pages/modelcenter/hooks/useVoiceState.ts",
+    "frontend/src/pages/modelcenter/utils.tsx"
+   ]
+  },
+  {
+   "file": "api/httpToken.ts",
+   "importers": [
+    "frontend/src/api/runtimePolyfill.ts",
+    "frontend/src/gaea/lib/bridge/http.ts"
+   ]
+  },
+  {
+   "file": "api/image.test.ts",
+   "importers": []
+  },
+  {
+   "file": "api/image.ts",
+   "importers": [
+    "frontend/src/components/characterlib/CharacterLibEditor.tsx",
+    "frontend/src/components/imagegen/AssetLibrary.tsx",
+    "frontend/src/components/imagegen/AssetStudio.tsx",
+    "frontend/src/components/imagegen/ControlPanel.tsx",
+    "frontend/src/components/imagegen/CutoutModal.tsx",
+    "frontend/src/components/imagegen/InstructionEditModal.tsx",
+    "frontend/src/components/imagegen/ModelDirectory.tsx",
+    "frontend/src/components/imagegen/StudioUsagePanel.tsx",
+    "frontend/src/components/imagegen/TaskCenter.tsx",
+    "frontend/src/components/imagegen/VariantChainModal.tsx",
+    "frontend/src/components/imagegen/VisionTrial.tsx",
+    "frontend/src/components/imagegen/media.ts",
+    "frontend/src/components/imagegen/meta.ts",
+    "frontend/src/components/imagegen/types.ts",
+    "frontend/src/components/imagegen/useComfyTaskProgress.ts",
+    "frontend/src/gaea/components/ChangesPanel.tsx",
+    "frontend/src/gaea/components/FilePreview.tsx",
+    "frontend/src/gaea/components/FilePreviewModal.tsx",
+    "frontend/src/gaea/components/composer/ComposerAttachmentBar.tsx",
+    "frontend/src/gaea/components/context/inspector.tsx",
+    "frontend/src/gaea/components/memoryhub/CostImportModal.tsx",
+    "frontend/src/gaea/components/verify/VerifyArtifactsThumbs.tsx",
+    "frontend/src/gaea/hooks/useComposerAttachments.ts",
+    "frontend/src/gaea/lib/bridge/appBindings.ts",
+    "frontend/src/gaea/lib/changes.ts",
+    "frontend/src/gaea/lib/mock/imagehub.ts",
+    "frontend/src/gaea/lib/mock/model.ts",
+    "frontend/src/gaea/lib/mock/office/methods_office.ts",
+    "frontend/src/gaea/lib/mock/retrieval.ts",
+    "frontend/src/gaea/lib/mock/sin.ts",
+    "frontend/src/gaea/lib/remarkFileLinks.ts",
+    "frontend/src/gaea/lib/remarkMemCitations.ts",
+    "frontend/src/gaea/lib/types/cost.ts",
+    "frontend/src/gaea/lib/types/files.ts",
+    "frontend/src/gaea/locales/en.ts",
+    "frontend/src/hooks/useImageGenConfig.ts",
+    "frontend/src/hooks/useImageGenHistory.ts",
+    "frontend/src/hooks/useImageGenQueue.ts",
+    "frontend/src/pages/ImageGenPage.tsx",
+    "frontend/src/pages/ModelCenterPage.tsx",
+    "frontend/src/pages/chapter/ChapterIllustration.tsx",
+    "frontend/src/pages/modelcenter/EngineSection.tsx",
+    "frontend/src/pages/modelcenter/ImageSection.tsx",
+    "frontend/src/pages/modelcenter/hooks/useBindState.ts",
+    "frontend/src/pages/modelcenter/hooks/useEngineState.ts",
+    "frontend/src/pages/modelcenter/hooks/useImageState.ts",
+    "frontend/src/pages/modelcenter/utils.tsx",
+    "frontend/src/pages/sin/SinCastPanel.tsx",
+    "frontend/src/pages/sin/SinIllustration.tsx",
+    "frontend/src/pages/sin/SinProcessCard.tsx",
+    "frontend/src/pages/sin/sinThumbCache.ts",
+    "frontend/src/pages/sin/storyText.ts",
+    "frontend/src/utils/loraFilter.ts"
+   ]
+  },
+  {
+   "file": "api/runtimePolyfill.test.ts",
+   "importers": []
+  },
+  {
+   "file": "api/runtimePolyfill.ts",
+   "importers": [
+    "frontend/src/App.tsx"
+   ]
+  },
+  {
+   "file": "api/settings.ts",
+   "importers": [
+    "frontend/src/boards/launcher.ts",
+    "frontend/src/boards/manifests.ts",
+    "frontend/src/components/ModuleLauncher.tsx",
+    "frontend/src/components/settings/AboutPanel.tsx",
+    "frontend/src/components/settings/ChatPanel.tsx",
+    "frontend/src/components/settings/ImageGenPanel.tsx",
+    "frontend/src/components/settings/ModelPanel.tsx",
+    "frontend/src/components/settings/OfficePanel.tsx",
+    "frontend/src/gaea/lib/mock.ts",
+    "frontend/src/gaea/lib/mock/retrieval.ts",
+    "frontend/src/gaea/lib/types.ts",
+    "frontend/src/gaea/locales/en.ts",
+    "frontend/src/gaea/locales/zh-TW.ts",
+    "frontend/src/gaea/locales/zh.ts",
+    "frontend/src/hooks/useImageGenConfig.ts",
+    "frontend/src/layouts/MainLayout.tsx",
+    "frontend/src/pages/chat/constants.ts",
+    "frontend/src/pages/modelcenter/hooks/useImageState.ts"
+   ]
+  }
+ ]
+}

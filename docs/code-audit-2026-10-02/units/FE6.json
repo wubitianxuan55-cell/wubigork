@@ -1,0 +1,351 @@
+{
+  "id": "FE6",
+  "module": "前端 components + genui + 其它基础设施",
+  "footprint": [
+    "frontend/src/components",
+    "frontend/src/genui",
+    "frontend/src/hooks",
+    "frontend/src/utils",
+    "frontend/src/lib",
+    "frontend/src/stores",
+    "frontend/src/types",
+    "frontend/src/data"
+  ],
+  "verdict": "板块共 209 个非测试源文件 / 34835 行，最痛的不是单个巨文件，而是「同一件事有 2~3 份实现」：genui 的白名单与预算在三处各写一遍（Go validate.go / guard.ts / spec.ts），于是 Go 侧校验器真的把合法 diff 规格判成非法；角色标签、相对时间、复制降级、打字机流、ComfyUI 进度轮询、DOM 式强制刷新各有多份在跑。三个重点文件（ModuleLauncher 1038 / CharacterLibEditor 883 / ChapterEditor 821）都是「一个文件包下整页」，靠 20+ 个 useState 与 5 条并行轮询维持，任何一处改动都要重读全文件。genui 单测 + 对比度守卫测试覆盖是亮点，但 typewriter 取消守卫这类分叉缺陷正说明多份实现迟早会走偏。",
+  "score": 5,
+  "metrics": {
+    "files_reviewed": 34,
+    "loc_reviewed": 12400,
+    "test_files": 112,
+    "test_loc": 11541
+  },
+  "hotspots": [
+    {
+      "path": "frontend/src/components/ModuleLauncher.tsx",
+      "loc": 1038,
+      "why": "书斋/闲庭两套首页 + 6 个子组件 + 3s 遥测轮询塞一个文件，DeskHome/GardenHome 各自复制一遍 deriveLauncherModules"
+    },
+    {
+      "path": "frontend/src/genui/renderNode.tsx",
+      "loc": 1097,
+      "why": "33 个 type 的巨大 switch 加 20 个组件在本文件定义，BADGE/CALLOUT/INPUT_TYPES 白名单与 guard.ts 各存一份"
+    },
+    {
+      "path": "frontend/src/components/characterlib/CharacterLibEditor.tsx",
+      "loc": 883,
+      "why": "15 个 useState + 8 个 async handler + 自带 1s ComfyUI 轮询（已有 useComfyTaskProgress）+ 三份重复标签表"
+    },
+    {
+      "path": "frontend/src/components/novel/ChapterEditor.tsx",
+      "loc": 821,
+      "why": "25+ useState 的整章编辑页，8 个 wailsjs 绑定直调，靠 sceneIdOf/sceneContentOf 手写 unknown 收窄"
+    },
+    {
+      "path": "frontend/src/genui/guard.ts",
+      "loc": 826,
+      "why": "白名单校验 + 逐字段修复 switch；validateGenuiSpec/countGenuiNodes 是外部零引用的死代码"
+    },
+    {
+      "path": "frontend/src/components/novel/ChapterPlanCard.tsx",
+      "loc": 738,
+      "why": "为绕过 wailsjs 生成物自建 ChapterPlan/PlanGateReport/PlanDeviation 本地副本类型，与 Go 契约并行两套"
+    },
+    {
+      "path": "frontend/src/hooks/useImageGenConfig.ts",
+      "loc": 357,
+      "why": "返回约 50 个字段的 god hook，内部 4 条 setInterval 轮询（5s/8s/30s/5s）"
+    },
+    {
+      "path": "frontend/src/hooks/useVoiceChat.ts",
+      "loc": 570,
+      "why": "麦克风不可用时静默切「模拟模式」伪造音量输入，用户在页面上看不出自己其实没在说话"
+    }
+  ],
+  "findings": [
+    {
+      "fid": "FE6-01",
+      "severity": "P0",
+      "category": "duplication",
+      "title": "genui_validate 把 diffs/series 当节点，合法规格被判非法",
+      "file": "internal/gaea/genui/validate.go",
+      "line": "113-121",
+      "evidence": "\tfor _, key := range []string{\"items\", \"tabs\", \"steps\", \"options\", \"diffs\", \"series\"} {\n\t\tif arr, ok := obj[key].([]any); ok {\n\t\t\tfor i, child := range arr {",
+      "why": "walk 只认「子是 GenuiNode」的 items/tabs/steps/options，diffs 的元素是 {path,newText}、series 的元素是 {label,data}，都不是节点。这里却对它们递归 walk，于是每个 diff 条与每个 series 条都触发 typ==\"\" 分支报「缺少 type 字段」，并被 v.nodes++ 吃掉节点预算。",
+      "impact": "模型按系统提示词调用 genui_validate 自检时，任何含 diff 或 chart.series 的合法规格都会拿到 ❌（最多 30 条错误刷满），模型会据此反复改写甚至放弃该组件；预算被影子节点侵占还可能让大规格误报「节点预算已耗尽」。validate_test.go 只覆盖 stat/chart(无 series)/callout，没有 diff/series 用例，因此长期未暴露。",
+      "fix": "把 diffs/series 从这条 key 列表移出（保持 items/tabs/steps/options），或对它们改用只计数不要求 type 的轻量检查；补两条用例：{\"items\":[{\"type\":\"diff\",\"diffs\":[{\"path\":\"a\",\"newText\":\"b\"}]}]} 与带 series 的 chart 必须 OK。",
+      "effort": "S",
+      "prior_audit": "docs/gaea-optimization-direction-2026-09.md:164-167（P2-2 GenUI 预算常量单一来源，仍开放）——本条是同一「两套实现」根因下新查出的功能性分叉，非重复项"
+    },
+    {
+      "fid": "FE6-02",
+      "severity": "P0",
+      "category": "error-swallow",
+      "title": "麦克风不可用静默转「模拟模式」，界面无提示",
+      "file": "frontend/src/hooks/useVoiceChat.ts",
+      "line": "380-383",
+      "evidence": "        console.warn('[Voice] 麦克风不可用，使用模拟模式', err)\n        // 模拟音量\n        simTimerRef.current = setInterval(() => {",
+      "why": "getUserMedia 失败只 console.warn，随后起一个定时器伪造音量、装作在听。语音状态机（listen/active/aiSpeaking）与首页状态文案照常显示「聆听中」，没有任何错误位或降级文案暴露给用户。",
+      "impact": "用户戴着没插稳的麦克风说完整段话，页面全程显示在听、AI 也照常「回复」（走文本通道），实际没有采集到任何音频；用户无法从 UI 分辨「真在听」与「在假装听」，属于对用户撒谎式降级，而本仓其它降级路径（如 ChapterEditor 打开失败、CharacterLibEditor 参考图读取失败）都明确 message.error。",
+      "fix": "把模拟模式显式化为 hook 的一个状态位（如 degraded:'mic-unavailable'）并在消费方（ModuleLauncher 命令条 / VoiceChatOrb / VoiceSettingsPanel）渲染可见警示条；或直接 fail-closed 返回错误，不再伪造音量。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE6-03",
+      "severity": "P1",
+      "category": "duplication",
+      "title": "genui 白名单与预算三处各写一遍（Go/guard/spec）",
+      "file": "frontend/src/genui/guard.ts",
+      "line": "723-751",
+      "evidence": "export function validateGenuiSpec(value: unknown): { ok: boolean; errors: string[] } {\n  const errors: string[] = [];\n  const o = obj(value);",
+      "why": "事实源有三份：internal/gaea/genui/validate.go:24-34 的 nodeTypes map、frontend/src/genui/spec.ts:293-300 的 GENUI_NODE_TYPES Set、以及 guard.ts 里 35 个 case 的 repairNode + guard.ts:768-825 的 requiredFields switch。spec.ts:7 的注释「Go 侧 genui_validate 的注释以本表为准」与 Go validate.go:9 的「与 frontend/src/genui/spec.ts GENUI_LIMITS 同源，改动须同步」互相指认却都靠人工同步，Go 侧只有 10 个常量而 TS 侧 19 个，命名也已分叉（maxChartPoint vs maxChartPoints）。",
+      "impact": "新增/改名一个组件类型要改 3 文件 4 张表；漏改一处即出现「工具校验通过但渲染器丢弃」或反之。本轮已确认该根因产出真实缺陷（FE6-01）。prior 审计已把此列为 P2-2 建议用生成器产出 TS 常量，至今未落地。",
+      "fix": "以 Go validate.go 为唯一真相源，加一个 go:generate 产出 frontend/src/genui/generated.ts（nodeTypes + limits），spec.ts/guard.ts 改为 import；再加一条双向断言测试（Go 常量集合 == TS 集合）防回归。",
+      "effort": "M",
+      "prior_audit": "docs/gaea-optimization-direction-2026-09.md:164-167（P2-2，标记仍开放，延续）"
+    },
+    {
+      "fid": "FE6-04",
+      "severity": "P1",
+      "category": "dead-code",
+      "title": "validateGenuiSpec 与 countGenuiNodes 是零消费死代码",
+      "file": "frontend/src/genui/guard.ts",
+      "line": "723-766",
+      "evidence": "export function validateGenuiSpec(value: unknown): { ok: boolean; errors: string[] } {\n  const errors: string[] = [];\n  const o = obj(value);",
+      "why": "全仓（含 internal/ 与 scripts/）搜 validateGenuiSpec / countGenuiNodes，除 genui/index.ts:43-44 的 export 与 genui/guard.test.ts 外无任何调用方；前端的围栏解析走 parse.ts → repairGenuiSpec，模型侧校验走 Go genui_validate，这条前端校验通道整条悬空。",
+      "impact": "826 行的关键安全边界文件里，约 45 行（含 requiredFields 35 行 switch）是没人跑的第三份规则表；改一处白名单要同时照顾它，否则它继续输出过期规则误导后来者。",
+      "fix": "二选一：删掉这两个导出与其测试，或在 parseGenuiFenceBody/模型工具链里真正接上（若接上则必须与 repairNode 合并成同一张校验表）。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE6-05",
+      "severity": "P1",
+      "category": "duplication",
+      "title": "同一条聊天消息有两套 Markdown 渲染通道",
+      "file": "frontend/src/components/ChatMarkdown.tsx",
+      "line": "36-58",
+      "evidence": "function chatMarkdownComponents(fenceKeyFor: ((body: string) => string | undefined) | undefined): Components {\nreturn {\n  pre: ({ children }) => <>{children}</>,",
+      "why": "components/ChatMarkdown.tsx 内联定义 chatMarkdownComponents（code/pre 分支），components/chat/genuiAdapter.tsx:17-49 的 GenuiCode/GenuiPre 是同一段逻辑的第二次实现（仅差一层 data-genui-host div）。消费方分裂：ChatRow 用 genuiAdapter，ChatMarkdown 自带一份，gaea/components/Markdown.tsx:42,434 走第三条路。围栏判定样板（language- 正则 + isGenuiFenceLang + text.replace(/\\n$/)）在 markdownFence.tsx、ChatMarkdown.tsx、genuiAdapter.tsx 里逐字重复。",
+      "impact": "genui 围栏任何行为调整（如 panel chip 或 stateKey 口径）要同步 3 处，漏一处即出现「同一份回答在聊天页渲染、在办公页变代码块」这类只有用户能发现的差异。",
+      "fix": "只保留 genuiAdapter.buildMarkdownGenuiOverrides 一处实现，ChatMarkdown 改为 import 它；把 language- 提取+去尾换行抽成 markdownFence 的一个 extractFence() 供三处共用。",
+      "effort": "M",
+      "prior_audit": "docs/gaea-optimization-direction-2026-09.md:121-125（P1-3 收敛已分叉的平行实现，仍开放，延续）"
+    },
+    {
+      "fid": "FE6-06",
+      "severity": "P1",
+      "category": "duplication",
+      "title": "ComfyUI 进度轮询：有抽出的 hook，CharacterLibEditor 仍手写一份",
+      "file": "frontend/src/components/characterlib/CharacterLibEditor.tsx",
+      "line": "148-158",
+      "evidence": "    const tick = () => {\n      getComfyUITaskProgress()\n        .then(p => {\n          if (live) setComfyProgress({ status: p.status || '', elapsed: p.elapsed || 0, node: p.node || '' })",
+      "why": "components/imagegen/useComfyTaskProgress.ts:1 的注释自称「绘梦 useImageGenQueue 同数据源的抽出版」，而 CharacterLibEditor 与 pages/sin/SinCastPanel.tsx:70 各自又写了一遍 1s 轮询 getComfyUITaskProgress。三份实现能力已经分叉：hook 版有 document.hidden 帧跳过（v4.365）与失败保留上一帧，CharacterLibEditor 版两条都没有。",
+      "impact": "窗口最小化后本面板仍每秒一次 IPC 读帧；读失败会把进度清零闪烁。修一条（如轮询间隔/错误语义）要记得改三处。",
+      "fix": "CharacterLibEditor 与 SinCastPanel 改用 useComfyTaskProgress(active)，只保留一个进度展示组件（GenerationProgress 已有 COMFY_NODE_LABELS 与渲染）。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE6-07",
+      "severity": "P1",
+      "category": "god-file",
+      "title": "ModuleLauncher 1038 行：首页两套变体 + 子组件 + 轮询同一文件",
+      "file": "frontend/src/components/ModuleLauncher.tsx",
+      "line": "394-396",
+      "evidence": "      const m = (await getModelMonitor()) as ModelMonitor\n        if (alive) setMonitor(m)\n      } catch (_) { /* 后端未就绪时静默 */ }",
+      "why": "单文件内含 DeskHome(516-774)、GardenHome(836-927)、SpaceSwitch、CardHead、ModuleCard、GardenBanner、GardenPoster、SectionLabel/KernelRow/Meter/ChatBubble/WritingRing/MemoryPulse/TelemetryBody/TaskInboxEntry/SessionList 共 15 个组件，加 useLauncherData 里三条各自独立、各自静默 catch 的取数 effect。DeskHome:526-530 与 GardenHome:846-850 把 deriveLauncherModules/find(LAUNCHER_FEATURED)/filter(settings) 四行推导各抄一遍。",
+      "impact": "任何首页微调都要在千行文件里定位；两处模块推导已注定分叉（一个用 indexModules 命名一个用 galleryModules）。测试 ModuleLauncher.test.tsx 也靠这一层密集的 data-testid 才敢改。",
+      "fix": "按最小侵入拆：DeskHome/GardenHome 各自成文件；useLauncherData 的 monitor/sessions/memoryHub 三个 effect 抽成 hooks/useLauncherData.ts 并合并成一个 Promise.all + 单一错误出口；SHELL_SPACES+deriveLauncherModules 的推导抽成 useLauncherModules(space) 供两变体共用。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE6-08",
+      "severity": "P1",
+      "category": "god-func",
+      "title": "genui/renderNode 1097 行：33 分支 switch + 20 组件同文件",
+      "file": "frontend/src/genui/renderNode.tsx",
+      "line": "1025-1096",
+      "evidence": "export function renderNode(node: GenuiNode, depth = 0): ReactNode {\n  switch (node.type) {\n    case \"text\":",
+      "why": "从 TextNode 到 QuizNode 共 20 个组件 + 图表手写 SVG + 判卷结果渲染全在本文件；分发 switch（1025-1096）与 guard.ts 的 repairNode switch、spec.ts 的 GENUI_NODE_TYPES 三张 33 项目录并存。文件头 eslint-disable react-refresh 是结果而不是原因。",
+      "impact": "改一个叶子组件（如 CopyNode 的降级）要翻 1000 行；三张目录任何一张漏改即静默丢组件（renderNode 的 default 返回 null，不报错也不降级）。",
+      "fix": "按族拆文件（layout/display/interaction/chart），renderNode 只留 switch 分发；分发表改成 as const 映射对象并从 spec.ts 的类型联合派生，使漏实现变成类型错误而非 default:null。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE6-09",
+      "severity": "P1",
+      "category": "duplication",
+      "title": "打字机流两份，其中一份没有取消守卫",
+      "file": "frontend/src/components/ChatPanel.tsx",
+      "line": "113-122",
+      "evidence": "        await new Promise<void>((resolve) => {\n          let i = 0\n          const tick = () => {\n            i = Math.min(text.length, i + 3)",
+      "why": "ChatPanel.tsx:113-122 与 hooks/useChatStream.ts:216-226 是同一套 rAF 模拟打字流的两份实现（后者的注释还写着 v4.365 的同一段优化说明）。useChatStream 版有 typingCancelRef 取消守卫（切话题/卸载即中止），ChatPanel 版没有；ChatPanel 只被 pages/NovelSettingPage.tsx:14 使用，等于小说设定页自带一套弱化聊天管道。",
+      "impact": "离开小说设定页时 ChatPanel 的 rAF 循环不被中止，仍会对已卸载组件 setStreamText（React 无警告但不回收）；同时两套管道的行为差异（取消、reduced-motion、错误文案）只能靠人肉比对。",
+      "fix": "ChatPanel 复用 useChatStream（或把打字机模拟抽成 genui 之外的共享 util 并统一带取消令牌），删除重复实现。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE6-10",
+      "severity": "P1",
+      "category": "god-func",
+      "title": "ChapterEditor 821 行单组件：25+ useState 包住整章编辑",
+      "file": "frontend/src/components/novel/ChapterEditor.tsx",
+      "line": "64-95",
+      "evidence": "  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; text: string } | null>(null)\n  // 右键菜单键盘可达：开启即聚焦，Esc 关闭，↑↓ 在菜单项间漫游（W3C menu 模式）\n  const ctxMenuRef = React.useRef<HTMLDivElement | null>(null)",
+      "why": "同一组件里并存：右键菜单 + Cmd+K（cmdKTargetRef）+ 场景元数据弹窗（metaDraft 14 字段）+ 逐场景生成（sceneGen map）+ 整章逐场景流（scenesGen + wails 事件订阅）+ 拆卡（cardDrafts）+ 重写草稿 + 上移下移 + POV 抽屉，全部走 props.onUpdate 回喂父层。配套的 pages/ChapterPage.tsx 另有 1117 行做编排。",
+      "impact": "任何一处状态改动都可能影响整章编辑；事件订阅 effect 依赖只有 tab.chapterNum，reloadAllScenes 靠 ref 兜住（325-327），属于「不改则已，一改需重读 800 行」的典型。",
+      "fix": "按交互面切分：场景卡弹窗（含拆卡/重写）→ SceneMetaModal.tsx；整章逐场景流（状态+事件订阅）→ useScenesGenStream(tab.chapterNum)；右键菜单+Cmd+K 桥 → 独立 hook。onUpdate 通道保留不动以降低风险。",
+      "effort": "L",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE6-11",
+      "severity": "P2",
+      "category": "coupling",
+      "title": "frontend/src 与 gaea/ 两套实现各占一半，无边界声明",
+      "file": "frontend/src/components/novel/ChapterEditor.tsx",
+      "line": "4",
+      "evidence": "import { GetChapterScenes, GenerateScene, CreateScene, SaveSceneMeta, ReorderScenes, NovelChapterScenesGenerate, NovelSceneRewrite, NovelSceneCardsPropose } from '../../../wailsjs/go/app/NovelB'",
+      "why": "同一仓两套并存：gaea/lib/bridge.ts（28 行 facade，含 mock 层与三态回退）被 100+ 处 import，而 components/novel/*.tsx、pages/*.tsx 有 8 文件绕过它直连 wailsjs（ChapterEditor:4、NovelInspector:8、CreatePage:4、ChapterPage:54、CharacterCard、CharacterMemoryModal、PersonaPicker、useChatTopics 等）；zustand store 也是 2 个在 stores/、6 个在 gaea/lib 与 gaea/lib/store/。没有 lint 规则或文档声明哪层是允许的入口。",
+      "impact": "直连 wailsjs 的组件在 dev mock 环境整块不可渲染（ChapterPlanCard:14-15 的注释已明确记录这个取舍），且 wailsjs 只在 build 时生成，路径耦合到 7 级相对目录；新代码无法从既有代码推断该用哪条路。",
+      "fix": "加一条 eslint local rule 禁 components/novel 外的新文件直连 wailsjs/go（白名单现有 8 处并登记到期收敛），同时在 .gaea/AGENTS.md 写明「新代码一律走 gaea/lib/bridge」。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE6-12",
+      "severity": "P2",
+      "category": "duplication",
+      "title": "ROLE/GENDER/STATUS 标签在 3~4 处各建一份",
+      "file": "frontend/src/components/characterlib/CharacterLibInspector.tsx",
+      "line": "19-29",
+      "evidence": "const ROLE_LABELS: Record<string, string> = {\n  protagonist: '主角', antagonist: '反派', supporting: '配角', minor: '龙套',\n}",
+      "why": "utils/theme.ts:64-66 已导出权威 ROLE_LABELS，utils/characterStatus.ts:29-34 已导出 CHARACTER_STATUS_LABELS；但 CharacterLibInspector.tsx:19-29（ROLE+GENDER+STATUS 三张）、CharacterLibEditor.tsx:58-64、characterlib/CharacterCard.tsx:24-30、novel/character/CharacterCard.tsx:25-30 又各自建表。语义已分叉：theme 的 minor='次要' 与这三处的 minor='龙套' 不同，novel/character/CharacterCard 的 STATUS_MAP 还并列维护了一套颜色。",
+      "impact": "同一个角色在不同面板上标签不一致（次要/龙套），状态色两套；改文案要改四处。utils/characterStatus.ts 的文件头注释自称「收敛为单一事实来源」，实际只被 2 处消费。",
+      "fix": "删四处本地表，统一从 utils/theme（角色/性别）与 utils/characterStatus（状态）取；颜色统一走 STATUS_COLORS 令牌，novel/character 的 STATUS_MAP 改为 (label, color) 派生。",
+      "effort": "S",
+      "prior_audit": "docs/gaea-optimization-direction-2026-09.md:121-125（P1-3 平行实现，延续）"
+    },
+    {
+      "fid": "FE6-13",
+      "severity": "P2",
+      "category": "duplication",
+      "title": "fmtRel 相对时间同款实现在多处，utils/time.ts 形同虚设",
+      "file": "frontend/src/components/ModuleLauncher.tsx",
+      "line": "116-127",
+      "evidence": "function fmtRel(ms: number, t: Translator): string {\n  if (!ms) return '—'\n  const diff = Date.now() - ms",
+      "why": "gaea/components/TaskInboxPanel.tsx:46 有一份几乎逐字相同的 fmtRel（同签名 (ms, t)）；gaea/components/HistoryPanel.tsx:257、gaea/lib/session.ts:11、gaea/components/Welcome.tsx:24 又各写一份相对/短日期格式化。utils/time.ts 只导出一个 formatRelativeTime(iso: string)，且仅被 ProjectCardItem 消费，签名与其余调用点（ms 数字）不兼容所以没人用。同一模式还有字节数：gaea/lib/bytes.ts 与前端各处内联。",
+      "impact": "时间口径四处漂移（是否显示「刚刚」、多少天转日期、是否带年份），同一列表跨面板显示不一致；新页面作者会再抄第五份。",
+      "fix": "把 utils/time.ts 扩成 { formatRelative(ms|iso, t), formatShortDate(ms) }，ModuleLauncher/TaskInboxPanel/HistoryPanel/Welcome/session 全部改调用它，删本地副本。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE6-14",
+      "severity": "P2",
+      "category": "consistency",
+      "title": "同一个「角色类型→颜色」映射两套色相",
+      "file": "frontend/src/components/RelationGraph.tsx",
+      "line": "25-28",
+      "evidence": "const roleColorTokens: Record<string, string> = {\n  protagonist: 'var(--color-warning)', antagonist: 'var(--color-destructive)',\n  supporting: 'var(--color-primary)', minor: 'var(--color-text-secondary)',",
+      "why": "utils/theme.ts:57-62 的 ROLE_COLORS 里 protagonist=--color-primary、supporting=--color-text-secondary；RelationGraph 自己这套把主角画成 warning、配角画成 primary，正好互换。同类问题还有 graph 渲染分两套技术栈：WhisperGraphPanel.tsx:40-56 用手写 SVG + hash 取 Tailwind fill 类名，RelationGraph.tsx 用 canvas + d3-force + resolveThemeColor 把 var() 解析成具体色值。",
+      "impact": "角色图谱与卡片/列表对同一角色给不同颜色，用户读图会产生错误的身份联想；两套 graph 实现维护两套布局/配色/交互，改动成本翻倍。",
+      "fix": "RelationGraph 的 roleColorTokens 删除，改从 utils/theme ROLE_COLORS 经现有 resolveThemeColor 解析；中期把 WhisperGraphPanel 的 SVG 布局抽成与 RelationGraph 共用的 graphLayout 模块（BFS 环形与 d3-force 作为两种算法）。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE6-15",
+      "severity": "P2",
+      "category": "coupling",
+      "title": "wailsjs 生成的 Record<string, any> 逼出各组件手写收窄",
+      "file": "frontend/src/components/novel/ChapterEditor.tsx",
+      "line": "23-38",
+      "evidence": "function sceneIdOf(scene: unknown): string | undefined {\n  if (typeof scene === 'object' && scene !== null) {\n    const id = (scene as Record<string, unknown>).id",
+      "why": "wailsjs/go/app/NovelB.d.ts 里 GetChapterScenes 返回 Promise<Array<Record<string, any>>>、GenerateScene 返回 Promise<Record<string, any>>（生成器把后端 struct 退化成 any）。eslint 又禁止显式 any（frontend/eslint.config.js:69），于是各组件只能自造 sceneIdOf/sceneContentOf/sceneMetaOf 这类窄化函数，且 metaDraft 的 14 个字段在 saveMeta(143-158) 与 openMeta(107-122) 各写一遍字面量。",
+      "impact": "同一契约的读/写形状分散在两个函数里、没有类型把它们钉在一起；新增字段漏写一处即静默丢数据（openMeta 读 exit_hook、saveMeta 写 exit_hook，全靠人眼对齐）。后端改字段名不会有任何编译错误。",
+      "fix": "在 frontend/src/types 里为场景/元数据定义显式接口（一次），配一个 parseSceneMeta(unknown): SceneMetaDraft 纯函数（可单测），替换两处字面量；长期推动 wails 绑定生成器输出具体 struct 名而非 Record<string, any>。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE6-16",
+      "severity": "P2",
+      "category": "complexity",
+      "title": "useImageGenConfig 一钩子返回约 50 项，内含 4 条轮询",
+      "file": "frontend/src/hooks/useImageGenConfig.ts",
+      "line": "134-166",
+      "evidence": "  useEffect(() => {\n    const isLocal = ['comfyui', 'herdsman', 'ollama'].includes(backend)\n    if (!isLocal) { setEngineRunning(true); setEngineModelCount(0); return }",
+      "why": "25+ useState、20+ useCallback，返回对象 22 行（344-356）；同一 hook 内并行 setInterval 5s（ComfyUI 状态）/8s（其它引擎探测）/30s（LoRA 列表）/5s（系统资源）。错误出口也不一致：初始化与资源轮询用 catch (_) {/* ignore */} 静默，用户动作则 message.error。",
+      "impact": "任何一处状态变化都会让整个 hook 及其 20+ 返回字段的消费者重渲染；轮询间隔与静默策略要在一个文件里同时理解四个数据源；单测很难在不整体 renderHook 的情况下覆盖某个子状态。",
+      "fix": "按数据源拆：useEngineStatus(backend)、useComfyLoras(model)、useSystemStats()、useImageGenParams()，各自独立轮询与错误出口；配置参数用 useReducer 收成一个对象，减少返回面。",
+      "effort": "L",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE6-17",
+      "severity": "P2",
+      "category": "consistency",
+      "title": "appStore.login 4 秒轮询等登录，绕过其它地方的轮询门控",
+      "file": "frontend/src/stores/appStore.ts",
+      "line": "392-401",
+      "evidence": "      for (let i = 0; i < 75; i++) {\n        await new Promise((r) => setTimeout(r, 4000))\n        try {\n          const status = await wailsApp().GetLoginStatus()",
+      "why": "在 zustand store 的动作里做最多 5 分钟的 setTimeout 轮询，与本仓既定的门控约定（hooks/usePollingGate.ts + lib/pollingGate.ts，页面不可见即停）无关；store 还散落 12 处 localStorage 直接读写（182-384），并维护 legacy 键回退（253/261），而 gaea 侧偏好走 gaea/lib/*Prefs.ts 模块。",
+      "impact": "登录窗口最小化后仍在每 4 秒发一次 IPC（窗口可最小化成小时计）；持久化与兼容壳逻辑没有集中出口，新偏好继续新增键与 legacy 分支。",
+      "fix": "改用后端登录完成事件（登录流程已有事件通道：见 gaea/lib/store 的 eventSync）驱动 set({loggedIn:true})，保留一次性超时兜底；偏好存取统一走一个 loadPref/savePref 小工具，legacy 键只在工具里处理一次。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE6-18",
+      "severity": "P2",
+      "category": "coupling",
+      "title": "同一域两套 action 通道：Context 与模块级单例",
+      "file": "frontend/src/gaea/lib/genuiHost.ts",
+      "line": "4-12",
+      "evidence": "let actionHandler: GenuiActionHandler | undefined;\n\nexport function setGenuiActionHandler(handler: GenuiActionHandler | undefined): void {",
+      "why": "genui 交互回传有三条路：genui/GenuiActionContext.tsx 的 React Context（useGenuiAction，GenuiBlock.tsx:54 消费）、gaea/lib/genuiHost.ts 的模块级可变单例、以及 genui/blocks/state.ts 的 BlockApiContext（字段/答案/判卷）。前两者承载同一类型 GenuiActionHandler，却由不同宿主设置（gaea/App.tsx 与聊天页各注册一次）。",
+      "impact": "哪个宿主后注册就覆盖前者，面板 Tab 与消息流的 action 出口可能指向不同会话；模块级单例在测试间不隔离（需手工 reset），也是并行实现最容易再分叉的点。",
+      "fix": "删除 genuiHost 单例，统一由 GenuiActionProvider 在 App 根部挂一次并按 scope 分发（scope 已存在：genui/scope.tsx）；genuiHost 的注册点改为消费 Context。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE6-19",
+      "severity": "P3",
+      "category": "consistency",
+      "title": "「200 节点」预算常量在 genui 内重复硬编码三处",
+      "file": "frontend/src/gaea/lib/genuiPanel.ts",
+      "line": "42-45",
+      "evidence": "function clipItems(items: GenuiSpec[\"items\"]): GenuiSpec[\"items\"] {\n  const budget = 200;\n  return items.slice(0, budget);",
+      "why": "spec.ts:10 已有 GENUI_LIMITS.maxNodes = 200 作为单一权威常量，但 gaea/lib/genuiPanel.ts:43 重写 200、genui/interaction.ts:5 的 MAX_BLOCKS = 200、以及 gaea/lib/genuiPanel.ts:68 的 seen.size > 400 都是同源上限的字面量；genuiPanel 甚至没 import GENUI_LIMITS。",
+      "impact": "调整节点预算时面板追加仍按旧值裁剪，出现「守卫拦下的规格未被裁到、面板却提前截断」的双口径；三处魔法数字不可搜索（200 在仓内高频）。",
+      "fix": "genuiPanel.ts 与 interaction.ts 改 import { GENUI_LIMITS }，budget = GENUI_LIMITS.maxNodes，seen 上限派生成 maxNodes * 2 并加注释说明推导。",
+      "effort": "S",
+      "prior_audit": "docs/gaea-optimization-direction-2026-09.md:164-167（P2-2 的 TS 侧延伸，延续）"
+    },
+    {
+      "fid": "FE6-20",
+      "severity": "P3",
+      "category": "duplication",
+      "title": "剪贴板写入与 execCommand 降级在两处逐字重复",
+      "file": "frontend/src/components/ChatPanel.tsx",
+      "line": "144-159",
+      "evidence": "  const handleCopy = async (content: string, id: string) => {\n    try {\n      await navigator.clipboard.writeText(content)",
+      "why": "ChatPanel.tsx:144-159 与 genui/renderNode.tsx:329-361 是同一「navigator.clipboard → 临时 textarea + execCommand('copy') → 定时复位态」逻辑的两份实现（renderNode 版已抽成模块级 fallbackCopy，ChatPanel 版内联）。",
+      "impact": "降级路径修一次要改两处；execCommand 属废弃 API，收敛后只需在一处替换为 navigator.clipboard 的最终兜底提示。",
+      "fix": "把 renderNode 的 fallbackCopy 提到共享 util（如 utils/clipboard.ts，导出 copyText(text): Promise<boolean>），两处都改为调用它。",
+      "effort": "S",
+      "prior_audit": ""
+    }
+  ],
+  "open_questions": [
+    "pages/ChapterPage.tsx（1117 行）与 pages/CreatePage.tsx、pages/CharacterPage.tsx 属其它单元足迹，但它们是本板块组件的唯一编排层：novel 面板的 chapterNum/onUpdate/sceneTextareaRefs 通道都在那里。若这些页也被评为上帝文件，本单元的「拆组件」结论需要与之合并排期，否则拆完组件页仍是瓶颈。",
+    "genui 的持久化三态（genuiPanel zustand 内存 / interaction.ts localStorage / gaea store 的会话 resync）谁负责在会话删除时清理，我只在 interaction.clearBlockStatesForSession 看到一处接线，未找到 genuiPanel.clear 的调用点，需在会话生命周期单元（估计是 gaea store 单元）确认是否漏接。",
+    "components/imagegen/* 与 pages/sin/*（SinCastPanel/SinIllustration）共用 same 后端与轮询，但 sin 页不在本单元足迹内；本单元只确认了重复模式的 3 个实例，是否应把 sin 页并入同一收敛任务待主代理裁定。"
+  ]
+}

@@ -10,6 +10,13 @@ import (
 // RenderTOML renders the config as annotated TOML in the `gaea setup` house style:
 // comments preserved, system_prompt as a multi-line string, helpful hints. The
 // output round-trips back through Load (see render_test.go).
+//
+// 注意：它是有损的归一化渲染——只覆盖渲染器建模的段（agent/providers/tools/
+// permissions/space_profiles/sandbox/plugins 与 default_model/language）；
+// workspace、session、space、skills、search、network(.proxy)、memory、tasks、
+// retrieval、vision、markdown_converter、dream 等顶层内容不在其中。
+// 落盘（Save/SaveTo/WriteFile）请用 RenderTOMLPreserving(c, existing)，
+// 否则一次整文件重写就会把这些段从磁盘上静默删掉（P0-1）。
 func RenderTOML(c *Config) string {
 	var b strings.Builder
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -171,10 +172,16 @@ func (a *App) finishKnowledgeAIParse(abs, raw string) (KnowledgeImportPreview, e
 	if err != nil {
 		return KnowledgeImportPreview{}, err
 	}
+	// 查重依赖既有条目：知识库读失败必须中止预览（审计 P0#6 GA3-01），
+	// 不能吞成「空库」后把每行判「新增」。
+	matched, err := knowledgeimport.MatchRows(rows, store)
+	if err != nil {
+		return KnowledgeImportPreview{}, err
+	}
 	pv := &knowledgeimport.Preview{
 		Path:     abs,
 		FileName: filepathBase(abs),
-		Rows:     knowledgeimport.MatchRows(rows, store),
+		Rows:     matched,
 		Message:  "AI 智能解析完成，请核对后确认导入。",
 	}
 	return toKnowledgeImportPreview(pv, true), nil
@@ -257,7 +264,12 @@ func (a *App) semanticKnowledgeRecall(query string, have []knowledge.Entry, topN
 	if err != nil {
 		return nil
 	}
-	all := store.ReadAll()
+	all, err := store.ReadAll()
+	if err != nil {
+		// 语义召回是增强面：读失败降级为不补召回，但如实留痕（审计 P0#6）。
+		slog.Warn("knowledge: 语义召回读取失败，已跳过补召回", "error", err)
+		return nil
+	}
 	if len(all) == 0 {
 		return nil
 	}

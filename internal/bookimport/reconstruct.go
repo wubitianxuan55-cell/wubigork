@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/gaea/gaea/internal/util"
 )
 
 // ── t2 P1 · AI 反推编排（规格 docs/distill/02-book-import.md §8.2 / §3.7 / §3.8）──
@@ -215,27 +217,23 @@ func JSONHint(prompt string, attempt int, expected string, failed string) string
 }
 
 // ExtractJSON 从模型回复中取出 JSON（容忍 markdown 代码块包裹与前后解释文字）。
+//
+// 抽取算法复用 internal/util.ExtractJSON（括号配平 + 字符串内花括号/转义处理 +
+// ```json 围栏优先 + 对象优先于纯标量数组），本包不再自带第二份实现，只保留
+// 「解析成 any」与错误约定：util.ExtractJSON 找不到结构时会原样返回输入，
+// 故此处以 json.Unmarshal 是否成功判定，并且**只接受对象或数组**——
+// 标量（含 null）不算 JSON 结构，沿用本包原契约，调用方 CallJSON 的
+// ExpectObject / ExpectArray 依赖这一点。
 func ExtractJSON(resp string) (any, error) {
-	s := strings.TrimSpace(resp)
-	s = stripCodeFence(s)
-	start := strings.IndexAny(s, "{[")
-	if start < 0 {
-		return nil, fmt.Errorf("回复中没有 JSON 结构")
-	}
-	open := s[start]
-	closeCh := byte('}')
-	if open == '[' {
-		closeCh = ']'
-	}
-	end := strings.LastIndexByte(s, closeCh)
-	if end <= start {
-		return nil, fmt.Errorf("JSON 结构不完整")
-	}
 	var v any
-	if err := json.Unmarshal([]byte(s[start:end+1]), &v); err != nil {
+	if err := json.Unmarshal([]byte(util.ExtractJSON(resp)), &v); err != nil {
 		return nil, fmt.Errorf("JSON 解析失败: %w", err)
 	}
-	return v, nil
+	switch v.(type) {
+	case map[string]any, []any:
+		return v, nil
+	}
+	return nil, fmt.Errorf("回复中没有 JSON 结构")
 }
 
 // ExpectedKind 期望类型（对齐 MuMu 的 expected_type，避免「AI 返对象但按数组解包」）。
@@ -327,21 +325,6 @@ func BatchText(batch []ParsedChapter) string {
 }
 
 // ── 内部工具 ──────────────────────────────────────────────────
-
-func stripCodeFence(s string) string {
-	if !strings.HasPrefix(s, "```") {
-		return s
-	}
-	lines := strings.Split(s, "\n")
-	if len(lines) < 2 {
-		return s
-	}
-	lines = lines[1:]
-	if n := len(lines); n > 0 && strings.HasPrefix(strings.TrimSpace(lines[n-1]), "```") {
-		lines = lines[:n-1]
-	}
-	return strings.Join(lines, "\n")
-}
 
 func strField(m map[string]any, key string) string {
 	v, ok := m[key]

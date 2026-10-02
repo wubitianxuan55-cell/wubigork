@@ -149,7 +149,7 @@ func (p Project) CostNarrative(cpm CpmResult) CostNarrative {
 		switch {
 		case res.Type == ResWork && res.StandardRate == 0 && res.CostPerUse == 0:
 			kind = UnpricedWorkNoRate
-		case res.Type == ResCost && a.Amount == 0:
+		case res.Type == ResCost && (a.Amount == nil || *a.Amount == 0):
 			kind = UnpricedCostNoAmount
 		}
 		if kind != "" {

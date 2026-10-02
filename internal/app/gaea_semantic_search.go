@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -111,7 +112,11 @@ func (a *App) semanticSearchHitsOnDemand(query string) ([]SemanticHitView, error
 
 	// 工程知识库
 	if ks, err := knowledge.Global().Store(); err == nil {
-		entries := ks.ReadAll()
+		entries, rerr := ks.ReadAll()
+		if rerr != nil {
+			// 审计 P0#6 GA3-01：读失败如实上抛，不得当「知识库为空」跳过索引。
+			return nil, fmt.Errorf("知识库暂不可读（读取失败），可重试: %w", rerr)
+		}
 		if len(entries) > 0 {
 			docs := make([]semantic.Doc, 0, len(entries))
 			keep := make(map[string]bool, len(entries))

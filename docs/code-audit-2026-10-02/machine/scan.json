@@ -1,0 +1,2444 @@
+{
+ "totals": {
+  "go_files": 1723,
+  "go_src_files": 874,
+  "go_test_files": 849,
+  "go_src_loc": 203872,
+  "go_test_loc": 153259,
+  "ts_files": 1127,
+  "ts_src_files": 713,
+  "ts_test_files": 414,
+  "ts_src_loc": 148135,
+  "ts_test_loc": 60033
+ },
+ "god_files_go_top40": [
+  [
+   1430,
+   "internal/ai/client.go"
+  ],
+  [
+   1268,
+   "internal/voice/voice_manager.go"
+  ],
+  [
+   1265,
+   "internal/gaea/costimport/costimport.go"
+  ],
+  [
+   1245,
+   "internal/gaea/tasks/tasks.go"
+  ],
+  [
+   1189,
+   "internal/app/gaea_ui_extra.go"
+  ],
+  [
+   1135,
+   "internal/channels/weixin/clawbot.go"
+  ],
+  [
+   1111,
+   "internal/project/project.go"
+  ],
+  [
+   1096,
+   "internal/app/image_handler.go"
+  ],
+  [
+   1069,
+   "internal/gaea/browser/manager.go"
+  ],
+  [
+   1057,
+   "internal/gaea/control/controller.go"
+  ],
+  [
+   1052,
+   "internal/ai/image_comfyui.go"
+  ],
+  [
+   1042,
+   "internal/gaea/contextview/fold.go"
+  ],
+  [
+   1037,
+   "internal/novelcontext/novelcontext.go"
+  ],
+  [
+   1034,
+   "internal/whisper/orchestrator.go"
+  ],
+  [
+   1020,
+   "internal/app/whisper_handler.go"
+  ],
+  [
+   1019,
+   "internal/app/create_chapter_handler.go"
+  ],
+  [
+   1002,
+   "internal/gaea/agent/task.go"
+  ],
+  [
+   976,
+   "internal/gaea/agent/agent.go"
+  ],
+  [
+   956,
+   "internal/gaea/config/config.go"
+  ],
+  [
+   925,
+   "internal/schedule/mpp.go"
+  ],
+  [
+   922,
+   "internal/gaea/tool/builtin/websearch.go"
+  ],
+  [
+   909,
+   "internal/gaea/boot/boot.go"
+  ],
+  [
+   894,
+   "internal/app/characterlib_gen_handler.go"
+  ],
+  [
+   888,
+   "internal/app/app.go"
+  ],
+  [
+   885,
+   "internal/app/sin_handler.go"
+  ],
+  [
+   883,
+   "internal/gaea/cost/cost.go"
+  ],
+  [
+   881,
+   "internal/gaea/costref/graph.go"
+  ],
+  [
+   871,
+   "internal/app/consistency_deep_handler.go"
+  ],
+  [
+   849,
+   "internal/app/novel_plan_handler.go"
+  ],
+  [
+   842,
+   "internal/app/gaea_handler.go"
+  ],
+  [
+   828,
+   "internal/office/docxedit/docxedit.go"
+  ],
+  [
+   825,
+   "internal/character/character.go"
+  ],
+  [
+   812,
+   "internal/app/memory_hub.go"
+  ],
+  [
+   801,
+   "internal/app/gaea_ui.go"
+  ],
+  [
+   800,
+   "internal/gaea/plugin/plugin.go"
+  ],
+  [
+   793,
+   "internal/app/gaea_dag.go"
+  ],
+  [
+   784,
+   "internal/gaea/agent/compact.go"
+  ],
+  [
+   781,
+   "internal/gaea/agent/subagent_store.go"
+  ],
+  [
+   778,
+   "internal/office/xlsxedit/xlsxedit.go"
+  ],
+  [
+   772,
+   "internal/app/gaea_cost_import_vision.go"
+  ]
+ ],
+ "god_files_ts_top40": [
+  [
+   1680,
+   "frontend/src/gaea/locales/zh-TW.ts"
+  ],
+  [
+   1678,
+   "frontend/src/gaea/locales/en.ts"
+  ],
+  [
+   1676,
+   "frontend/src/gaea/locales/zh.ts"
+  ],
+  [
+   1501,
+   "frontend/src/pages/CreatePage.tsx"
+  ],
+  [
+   1188,
+   "frontend/src/pages/ChapterPage.tsx"
+  ],
+  [
+   1133,
+   "frontend/src/gaea/components/CostLibraryView.tsx"
+  ],
+  [
+   1098,
+   "frontend/src/genui/renderNode.tsx"
+  ],
+  [
+   1066,
+   "frontend/src/gaea/components/Sidebar.tsx"
+  ],
+  [
+   1041,
+   "frontend/src/gaea/App.tsx"
+  ],
+  [
+   1039,
+   "frontend/src/components/ModuleLauncher.tsx"
+  ],
+  [
+   1035,
+   "frontend/src/pages/WeixinPage.tsx"
+  ],
+  [
+   1030,
+   "frontend/src/gaea/lib/mock/office/methods_office.ts"
+  ],
+  [
+   1024,
+   "frontend/src/gaea/components/Transcript.tsx"
+  ],
+  [
+   1021,
+   "frontend/src/gaea/components/DocxPreview.tsx"
+  ],
+  [
+   1007,
+   "frontend/src/pages/CharacterPage.tsx"
+  ],
+  [
+   884,
+   "frontend/src/components/characterlib/CharacterLibEditor.tsx"
+  ],
+  [
+   875,
+   "frontend/src/gaea/lib/store/controller.ts"
+  ],
+  [
+   873,
+   "frontend/src/gaea/components/context/inspector.tsx"
+  ],
+  [
+   863,
+   "frontend/src/gaea/components/memoryhub/CostProjectsView.tsx"
+  ],
+  [
+   830,
+   "frontend/src/gaea/components/MemoryPanel.tsx"
+  ],
+  [
+   827,
+   "frontend/src/genui/guard.ts"
+  ],
+  [
+   822,
+   "frontend/src/components/novel/ChapterEditor.tsx"
+  ],
+  [
+   812,
+   "frontend/src/layouts/MainLayout.tsx"
+  ],
+  [
+   809,
+   "frontend/src/gaea/components/XlsxPreview.tsx"
+  ],
+  [
+   775,
+   "frontend/src/pages/SchedulePage.tsx"
+  ],
+  [
+   775,
+   "frontend/src/gaea/lib/spaceBindings.ts"
+  ],
+  [
+   772,
+   "frontend/src/gaea/components/ContextView.tsx"
+  ],
+  [
+   748,
+   "frontend/src/gaea/components/KnowledgePanel.tsx"
+  ],
+  [
+   747,
+   "frontend/src/gaea/lib/bindingNames.ts"
+  ],
+  [
+   746,
+   "frontend/src/schedule/store.ts"
+  ],
+  [
+   739,
+   "frontend/src/components/novel/ChapterPlanCard.tsx"
+  ],
+  [
+   735,
+   "frontend/src/gaea/lib/mock/cost.ts"
+  ],
+  [
+   700,
+   "frontend/src/gaea/lib/bridge/novel.ts"
+  ],
+  [
+   681,
+   "frontend/src/gaea/lib/mock/novel.ts"
+  ],
+  [
+   675,
+   "frontend/src/gaea/components/FilePreview.tsx"
+  ],
+  [
+   664,
+   "frontend/src/components/novel/BookSearchModal.tsx"
+  ],
+  [
+   659,
+   "frontend/src/gaea/components/DagPanel.tsx"
+  ],
+  [
+   656,
+   "frontend/src/pages/CostLibraryPage.tsx"
+  ],
+  [
+   652,
+   "frontend/src/pages/MemoryHubPage.tsx"
+  ],
+  [
+   646,
+   "frontend/src/components/imagegen/ControlPanel.tsx"
+  ]
+ ],
+ "long_funcs_top60": [
+  {
+   "file": "internal/channels/weixin/clawbot.go",
+   "line": 338,
+   "name": "isJSONObject",
+   "recv": "",
+   "loc": 799
+  },
+  {
+   "file": "internal/gaea/boot/boot.go",
+   "line": 108,
+   "name": "Build",
+   "recv": "",
+   "loc": 551
+  },
+  {
+   "file": "internal/config/config.go",
+   "line": 27,
+   "name": "Load",
+   "recv": "",
+   "loc": 449
+  },
+  {
+   "file": "internal/gaea/agent/agent_run.go",
+   "line": 23,
+   "name": "runDirect",
+   "recv": "a *AgentRunner",
+   "loc": 449
+  },
+  {
+   "file": "internal/schedule/ops.go",
+   "line": 106,
+   "name": "applyOne",
+   "recv": "",
+   "loc": 434
+  },
+  {
+   "file": "internal/whisper/orchestrator.go",
+   "line": 129,
+   "name": "PreLLMTurn",
+   "recv": "o *Orchestrator",
+   "loc": 357
+  },
+  {
+   "file": "internal/gaea/agent/execute_one.go",
+   "line": 21,
+   "name": "executeOne",
+   "recv": "a *AgentRunner",
+   "loc": 338
+  },
+  {
+   "file": "internal/gaea/tool/builtin/bash.go",
+   "line": 86,
+   "name": "Execute",
+   "recv": "b bash",
+   "loc": 289
+  },
+  {
+   "file": "internal/app/create_chapter_handler.go",
+   "line": 488,
+   "name": "streamCreateChapter",
+   "recv": "a *writingState",
+   "loc": 279
+  },
+  {
+   "file": "internal/gaea/control/controller_submit.go",
+   "line": 39,
+   "name": "dispatchSlash",
+   "recv": "c *Controller",
+   "loc": 268
+  },
+  {
+   "file": "internal/app/sin_handler.go",
+   "line": 268,
+   "name": "runSinStream",
+   "recv": "a *App",
+   "loc": 265
+  },
+  {
+   "file": "internal/schedule/cpm.go",
+   "line": 148,
+   "name": "computeCpmFull",
+   "recv": "",
+   "loc": 256
+  },
+  {
+   "file": "internal/office/xlsxedit/xlsxedit.go",
+   "line": 330,
+   "name": "applyOne",
+   "recv": "",
+   "loc": 253
+  },
+  {
+   "file": "internal/app/app.go",
+   "line": 329,
+   "name": "Startup",
+   "recv": "a *App",
+   "loc": 239
+  },
+  {
+   "file": "internal/gaea/skill/builtins.go",
+   "line": 18,
+   "name": "builtinSkills",
+   "recv": "",
+   "loc": 239
+  },
+  {
+   "file": "internal/app/shelf.go",
+   "line": 122,
+   "name": "SaveConfig",
+   "recv": "a *App",
+   "loc": 224
+  },
+  {
+   "file": "internal/schedule/xlsx.go",
+   "line": 427,
+   "name": "ImportXlsx",
+   "recv": "",
+   "loc": 216
+  },
+  {
+   "file": "internal/gaea/config/render.go",
+   "line": 13,
+   "name": "RenderTOML",
+   "recv": "",
+   "loc": 213
+  },
+  {
+   "file": "internal/app/create_chapter_handler.go",
+   "line": 44,
+   "name": "createChapter",
+   "recv": "a *writingState",
+   "loc": 207
+  },
+  {
+   "file": "internal/app/image_handler.go",
+   "line": 442,
+   "name": "GenerateMedia",
+   "recv": "a *mediaState",
+   "loc": 206
+  },
+  {
+   "file": "internal/ai/image_comfyui.go",
+   "line": 204,
+   "name": "GenerateImage",
+   "recv": "b *ComfyUIBackend",
+   "loc": 197
+  },
+  {
+   "file": "internal/app/consistency_deep_handler.go",
+   "line": 670,
+   "name": "deepCompareStateLine",
+   "recv": "",
+   "loc": 191
+  },
+  {
+   "file": "internal/gaea/agent/agent_stream.go",
+   "line": 29,
+   "name": "stream",
+   "recv": "a *AgentRunner",
+   "loc": 181
+  },
+  {
+   "file": "internal/app/sin_insight.go",
+   "line": 185,
+   "name": "foldSinContext",
+   "recv": "",
+   "loc": 179
+  },
+  {
+   "file": "internal/gaea/agent/compact_summary.go",
+   "line": 14,
+   "name": "BuildCompactSummary",
+   "recv": "",
+   "loc": 176
+  },
+  {
+   "file": "internal/gaea/tool/builtin/readfile.go",
+   "line": 62,
+   "name": "Execute",
+   "recv": "r readFile",
+   "loc": 173
+  },
+  {
+   "file": "internal/promptstore/promptstore.go",
+   "line": 164,
+   "name": "maskDoubleBrace",
+   "recv": "",
+   "loc": 171
+  },
+  {
+   "file": "internal/app/gaea_preview.go",
+   "line": 125,
+   "name": "GaeaPreview",
+   "recv": "a *App",
+   "loc": 163
+  },
+  {
+   "file": "internal/app/memory_hub.go",
+   "line": 293,
+   "name": "GaeaMemoryGraph",
+   "recv": "a *App",
+   "loc": 160
+  },
+  {
+   "file": "internal/app/story_spine_handler.go",
+   "line": 69,
+   "name": "NovelStoryHealth",
+   "recv": "a *writingState",
+   "loc": 159
+  },
+  {
+   "file": "internal/ai/client.go",
+   "line": 789,
+   "name": "parseStreamEvents",
+   "recv": "c *Client",
+   "loc": 158
+  },
+  {
+   "file": "internal/app/image_handler.go",
+   "line": 261,
+   "name": "generateImageInternal",
+   "recv": "a *mediaState",
+   "loc": 156
+  },
+  {
+   "file": "internal/booksource/rule.go",
+   "line": 183,
+   "name": "Validate",
+   "recv": "r *Rule",
+   "loc": 153
+  },
+  {
+   "file": "internal/app/whisper_state.go",
+   "line": 65,
+   "name": "startAssistantWx",
+   "recv": "w *whisperState",
+   "loc": 150
+  },
+  {
+   "file": "internal/outline/outline.go",
+   "line": 129,
+   "name": "Continue",
+   "recv": "a *Agent",
+   "loc": 150
+  },
+  {
+   "file": "internal/analysis/story_memory.go",
+   "line": 43,
+   "name": "ExtractStoryMemories",
+   "recv": "",
+   "loc": 149
+  },
+  {
+   "file": "internal/app/whisper_handler.go",
+   "line": 151,
+   "name": "whisperChat",
+   "recv": "a *whisperState",
+   "loc": 144
+  },
+  {
+   "file": "internal/gaea/costinquiry/scan.go",
+   "line": 41,
+   "name": "ScanAnomalies",
+   "recv": "s *Store",
+   "loc": 141
+  },
+  {
+   "file": "internal/ai/image_comfyui.go",
+   "line": 725,
+   "name": "pollComfyProgress",
+   "recv": "b *ComfyUIBackend",
+   "loc": 140
+  },
+  {
+   "file": "internal/office/docxedit/docxedit.go",
+   "line": 619,
+   "name": "rebuildParagraph",
+   "recv": "",
+   "loc": 140
+  },
+  {
+   "file": "internal/gaea/agent/batch_executor.go",
+   "line": 15,
+   "name": "executeBatch",
+   "recv": "a *AgentRunner",
+   "loc": 137
+  },
+  {
+   "file": "internal/whisper/orchestrator.go",
+   "line": 866,
+   "name": "buildTierBBlock",
+   "recv": "o *Orchestrator",
+   "loc": 137
+  },
+  {
+   "file": "internal/characterstate/characterstate.go",
+   "line": 74,
+   "name": "ApplyChapterDiff",
+   "recv": "",
+   "loc": 136
+  },
+  {
+   "file": "internal/gaea/cost/repair.go",
+   "line": 35,
+   "name": "legacyCategoryTarget",
+   "recv": "",
+   "loc": 136
+  },
+  {
+   "file": "internal/app/novel_bookcover.go",
+   "line": 37,
+   "name": "GaeaGenerateBookCover",
+   "recv": "a *App",
+   "loc": 135
+  },
+  {
+   "file": "internal/auth/oauth.go",
+   "line": 59,
+   "name": "DoLogin",
+   "recv": "",
+   "loc": 135
+  },
+  {
+   "file": "internal/gaea/tool/builtin/schedule_tools.go",
+   "line": 213,
+   "name": "Execute",
+   "recv": "s scheduleApply",
+   "loc": 134
+  },
+  {
+   "file": "internal/schedule/project.go",
+   "line": 75,
+   "name": "Validate",
+   "recv": "",
+   "loc": 134
+  },
+  {
+   "file": "internal/whisper/memory_graph.go",
+   "line": 197,
+   "name": "QuerySubgraph",
+   "recv": "kg *KnowledgeGraph",
+   "loc": 134
+  },
+  {
+   "file": "internal/gaea/agent/task.go",
+   "line": 578,
+   "name": "runSubSession",
+   "recv": "t *TaskTool",
+   "loc": 132
+  },
+  {
+   "file": "internal/app/sin_handler.go",
+   "line": 554,
+   "name": "SinIllustrate",
+   "recv": "a *App",
+   "loc": 131
+  },
+  {
+   "file": "internal/gaea/boot/sysprompt.go",
+   "line": 43,
+   "name": "buildSystemPrompt",
+   "recv": "",
+   "loc": 131
+  },
+  {
+   "file": "internal/app/novel_rewrite_handler.go",
+   "line": 155,
+   "name": "novelChapterRewritePartial",
+   "recv": "a *writingState",
+   "loc": 129
+  },
+  {
+   "file": "internal/app/herdsman_digitallife.go",
+   "line": 120,
+   "name": "loadHerdsmanDigitalLife",
+   "recv": "",
+   "loc": 128
+  },
+  {
+   "file": "internal/modelengine/engine_models.go",
+   "line": 39,
+   "name": "fetchModels",
+   "recv": "m *Manager",
+   "loc": 128
+  },
+  {
+   "file": "internal/ai/client.go",
+   "line": 463,
+   "name": "chatOnce",
+   "recv": "c *Client",
+   "loc": 126
+  },
+  {
+   "file": "internal/app/gaea_resync.go",
+   "line": 147,
+   "name": "foldResyncItems",
+   "recv": "",
+   "loc": 125
+  },
+  {
+   "file": "internal/docmd/office.go",
+   "line": 338,
+   "name": "xlsxToMarkdown",
+   "recv": "",
+   "loc": 125
+  },
+  {
+   "file": "internal/gaea/control/controller_approval.go",
+   "line": 233,
+   "name": "promptApproval",
+   "recv": "c *Controller",
+   "loc": 125
+  },
+  {
+   "file": "internal/app/gaea_handler.go",
+   "line": 689,
+   "name": "gaeaEventMap",
+   "recv": "",
+   "loc": 124
+  }
+ ],
+ "long_funcs_count_ge120": 66,
+ "markers": {
+  "TODO/FIXME/HACK/XXX": {
+   "internal/gaea": 3,
+   "internal/style": 1
+  },
+  "临时/兜底/兼容/废弃/占位(中文注释)": {
+   "frontend/src": 408,
+   "internal/app": 312,
+   "internal/gaea": 185,
+   "internal/channels": 48,
+   "internal/modelengine": 34,
+   "internal/ai": 32,
+   "internal/types": 32,
+   "internal/whisper": 24,
+   "internal/schedule": 17,
+   "internal/config": 16,
+   "internal/novelcontext": 14,
+   "internal/project": 12
+  },
+  "nolint": {
+   "internal/app": 3,
+   "internal/booksource": 2,
+   "internal/gaea": 2,
+   "internal/whisper": 1
+  },
+  "panic(": {
+   "internal/gaea": 19,
+   "internal/novelstyle": 3,
+   "internal/ai": 2,
+   "internal/app": 2,
+   "internal/asr": 2,
+   "internal/channels": 2,
+   "internal/docmd": 2,
+   "internal/novelreview": 2,
+   "internal/realtime": 2,
+   "internal/tts": 2,
+   "internal/util": 2,
+   "internal/netclient": 1
+  },
+  "recover()": {
+   "internal/app": 35,
+   "internal/gaea": 21,
+   "internal/channels": 5,
+   "internal/ai": 3,
+   "internal/voice": 3,
+   "internal/auth": 2,
+   "internal/booksource": 2,
+   "internal/office": 2,
+   "internal/whisper": 2,
+   "internal/httpbridge": 1,
+   "internal/schedule": 1,
+   "internal/util": 1
+  },
+  "time.Sleep": {
+   "internal/app": 7,
+   "internal/gaea": 2,
+   "internal/voice": 2,
+   "internal/docmd": 1,
+   "internal/whisper": 1
+  },
+  "_, _ = / 丢错": {
+   "internal/app": 183,
+   "internal/gaea": 146,
+   "internal/whisper": 26,
+   "internal/channels": 21,
+   "internal/office": 19,
+   "internal/screen": 10,
+   "internal/docmd": 9,
+   "internal/schedule": 9,
+   "internal/ai": 8,
+   "internal/characterlib": 8,
+   "internal/chat": 6,
+   "internal/httpbridge": 6
+  },
+  "interface{}/any 泛滥(go)": {
+   "internal/app": 842,
+   "internal/gaea": 282,
+   "internal/ai": 143,
+   "internal/channels": 47,
+   "internal/whisper": 40,
+   "frontend/src": 25,
+   "internal/bookimport": 18,
+   "internal/httpbridge": 12,
+   "internal/office": 10,
+   "internal/schedule": 7,
+   "internal/characterlib": 5,
+   "internal/docmd": 4
+  },
+  "goroutine 起协程": {
+   "internal/app": 42,
+   "internal/gaea": 26,
+   "internal/voice": 6,
+   "internal/ai": 5,
+   "internal/channels": 3,
+   "internal/whisper": 3,
+   "internal/auth": 2,
+   "internal/booksource": 2,
+   "internal/modelengine": 2,
+   "internal/realtime": 2,
+   "internal/docmd": 1,
+   "internal/httpbridge": 1
+  }
+ },
+ "marker_totals": {
+  "TODO/FIXME/HACK/XXX": 4,
+  "临时/兜底/兼容/废弃/占位(中文注释)": 1244,
+  "nolint": 8,
+  "panic(": 41,
+  "recover()": 78,
+  "time.Sleep": 13,
+  "_, _ = / 丢错": 489,
+  "interface{}/any 泛滥(go)": 1462,
+  "goroutine 起协程": 96
+ },
+ "marker_samples": {
+  "TODO/FIXME/HACK/XXX": [
+   [
+    "internal/gaea/i18n/messages_zh.go",
+    161,
+    "gaea run \"把 main.go 里的 TODO 实现掉\""
+   ],
+   [
+    "internal/gaea/outputstyle/outputstyle.go",
+    43,
+    "Description: \"Collaborate and leave TODO(human) stubs for the user to complete\","
+   ],
+   [
+    "internal/gaea/outputstyle/outputstyle.go",
+    49,
+    "\"`TODO(human)` stub with a one-line description for the user to implement themselves.\","
+   ],
+   [
+    "internal/style/profile.go",
+    102,
+    "context.TODO(),"
+   ]
+  ],
+  "临时/兜底/兼容/废弃/占位(中文注释)": [
+   [
+    "internal/ai/client.go",
+    142,
+    "// 响应头超时兜底「连接 + 首字节等待」：代理或远端黑洞时避免无限挂起"
+   ],
+   [
+    "internal/ai/client.go",
+    807,
+    "var streamUsage *ChatUsage // 流结束块携带的用量（OpenAI 兼容 API 在最后一块带 usage）"
+   ],
+   [
+    "internal/ai/client.go",
+    1067,
+    "// prompt_tokens_details.cached_tokens。命中取 CacheHitTokens()（两者兼容）；"
+   ],
+   [
+    "internal/ai/client.go",
+    1196,
+    "// prepareStreamRequest 装配一轮流式请求：模型名兜底、default 采样、modelhub 让位、"
+   ],
+   [
+    "internal/ai/client.go",
+    1221,
+    "// 维持 0.7 兜底。"
+   ],
+   [
+    "internal/ai/client.go",
+    1355,
+    "// 走注册表 openai 兼容后端（kind = ImageBackendKindOpenAI），保留 xAI 特有参数清理；"
+   ],
+   [
+    "internal/ai/client.go",
+    1369,
+    "// xAI API 只接受 model/prompt/n/response_format，清空不兼容字段"
+   ],
+   [
+    "internal/ai/image_backend.go",
+    17,
+    "// ImageBackendKindOpenAI OpenAI 兼容图片后端（/v1/images/generations）："
+   ],
+   [
+    "internal/ai/image_backend.go",
+    18,
+    "// 覆盖 xAI / Herdsman / Ollama 等兼容服务。"
+   ],
+   [
+    "internal/ai/image_backend.go",
+    25,
+    "// 各 kind 按需读取字段：openai 兼容后端用 BaseURL + APIKey；"
+   ],
+   [
+    "internal/ai/image_backend.go",
+    28,
+    "BaseURL string // API 地址（OpenAI 兼容 /v1 后缀；ComfyUI 根地址）"
+   ],
+   [
+    "internal/ai/image_comfyui.go",
+    170,
+    "// parseLoraNames 解析 object_info 中 lora_name 可选值，兼容多种版本结构："
+   ]
+  ],
+  "nolint": [
+   [
+    "internal/app/image_comfyui_proc.go",
+    98,
+    "if strings.Contains(pythonExe, \"python\\\\python.exe\") || strings.Contains(pythonExe, \"python_embeded\") || strings.Contain"
+   ],
+   [
+    "internal/app/image_comfyui_proc.go",
+    186,
+    "filepath.Join(comfyUIPath, \"python_embeded\", \"python.exe\"),       //nolint:misspell // python_embeded 系上游真实目录名"
+   ],
+   [
+    "internal/app/novel_booksource_handler.go",
+    556,
+    "defer pm.Close() //nolint:errcheck // 元信息时间戳尽力而为"
+   ],
+   [
+    "internal/booksource/fetch.go",
+    101,
+    "httpReq.Header.Set(\"User-Agent\", userAgents[rand.IntN(len(userAgents))]) //nolint:gosec // UA 池随机，非安全用途"
+   ],
+   [
+    "internal/booksource/fetch.go",
+    168,
+    "opt.Rand = rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 1)) //nolint:gosec"
+   ],
+   [
+    "internal/gaea/tasks/tasks.go",
+    226,
+    "lastSeq   int   //nolint:unused // 预留：将来可按 seq 增量拉取（当前整尾回放）"
+   ],
+   [
+    "internal/gaea/tool/builtin/webfetch.go",
+    237,
+    "return ne.Timeout() || ne.Temporary() //nolint:staticcheck // SA1019: Temporary 已弃用但旧错误路径仍依赖，替换候选单独评估"
+   ],
+   [
+    "internal/whisper/paced_stream.go",
+    306,
+    "return //nolint:staticcheck // SA4004: 泵循环各分支显式收束，保留 for-select 骨架"
+   ]
+  ],
+  "panic(": [
+   [
+    "internal/ai/image_backend.go",
+    44,
+    "panic(\"ai: image backend kind must not be empty\")"
+   ],
+   [
+    "internal/ai/image_backend.go",
+    47,
+    "panic(\"ai: duplicate image backend kind \" + kind)"
+   ],
+   [
+    "internal/app/sin_tools.go",
+    63,
+    "panic(\"app: sin tool kind/factory must not be empty\")"
+   ],
+   [
+    "internal/app/sin_tools.go",
+    66,
+    "panic(\"app: duplicate sin tool kind \" + kind)"
+   ],
+   [
+    "internal/asr/provider.go",
+    43,
+    "panic(\"asr: provider kind must not be empty\")"
+   ],
+   [
+    "internal/asr/provider.go",
+    46,
+    "panic(\"asr: duplicate provider kind \" + kind)"
+   ],
+   [
+    "internal/channels/weixin/media_crypt.go",
+    33,
+    "panic(\"crypto/cipher: input not full blocks (ECB)\")"
+   ],
+   [
+    "internal/channels/weixin/media_download.go",
+    41,
+    "panic(err)"
+   ],
+   [
+    "internal/docmd/ocr.go",
+    270,
+    "panic(\"docmd: ocr provider kind must not be empty\")"
+   ],
+   [
+    "internal/docmd/ocr.go",
+    273,
+    "panic(\"docmd: duplicate ocr provider kind \" + kind)"
+   ],
+   [
+    "internal/gaea/agent/session/log.go",
+    443,
+    "panic(err) // 内部固定形状，不可能失败"
+   ],
+   [
+    "internal/gaea/agent/session/log.go",
+    452,
+    "panic(err)"
+   ]
+  ],
+  "recover()": [
+   [
+    "internal/ai/client.go",
+    688,
+    "if r := recover(); r != nil {"
+   ],
+   [
+    "internal/ai/copilot.go",
+    59,
+    "if r := recover(); r != nil {"
+   ],
+   [
+    "internal/ai/copilot.go",
+    332,
+    "if r := recover(); r != nil {"
+   ],
+   [
+    "internal/app/app.go",
+    477,
+    "if r := recover(); r != nil {"
+   ],
+   [
+    "internal/app/app.go",
+    551,
+    "if r := recover(); r != nil {"
+   ],
+   [
+    "internal/app/app.go",
+    591,
+    "if r := recover(); r != nil {"
+   ],
+   [
+    "internal/app/auth_handler.go",
+    56,
+    "if r := recover(); r != nil {"
+   ],
+   [
+    "internal/app/auth_handler.go",
+    86,
+    "if r := recover(); r != nil {"
+   ],
+   [
+    "internal/app/chat_service.go",
+    167,
+    "if r := recover(); r != nil {"
+   ],
+   [
+    "internal/app/create_chapter_handler.go",
+    490,
+    "if r := recover(); r != nil {"
+   ],
+   [
+    "internal/app/gaea_dag.go",
+    292,
+    "if r := recover(); r != nil {"
+   ],
+   [
+    "internal/app/gaea_dag.go",
+    523,
+    "if r := recover(); r != nil {"
+   ]
+  ],
+  "time.Sleep": [
+   [
+    "internal/app/gaea_schedule.go",
+    243,
+    "time.Sleep(preloadDelay)"
+   ],
+   [
+    "internal/app/image_comfyui_proc.go",
+    237,
+    "time.Sleep(2 * time.Second)"
+   ],
+   [
+    "internal/app/image_comfyui_proc.go",
+    243,
+    "time.Sleep(3 * time.Second)"
+   ],
+   [
+    "internal/app/image_comfyui_proc.go",
+    274,
+    "time.Sleep(3 * time.Second)"
+   ],
+   [
+    "internal/app/model_engine_handler.go",
+    42,
+    "time.Sleep(2 * time.Second)"
+   ],
+   [
+    "internal/app/tts_service.go",
+    103,
+    "time.Sleep(delay)"
+   ],
+   [
+    "internal/app/tts_service.go",
+    150,
+    "time.Sleep(3 * time.Second)"
+   ],
+   [
+    "internal/docmd/ocr.go",
+    87,
+    "time.Sleep(time.Second)"
+   ],
+   [
+    "internal/gaea/backup/backup.go",
+    278,
+    "time.Sleep(200 * time.Millisecond)"
+   ],
+   [
+    "internal/gaea/fileutil/atomic.go",
+    57,
+    "time.Sleep(renameRetryBackoff[attempt-1])"
+   ],
+   [
+    "internal/voice/voice_manager.go",
+    668,
+    "time.Sleep(300 * time.Millisecond)"
+   ],
+   [
+    "internal/voice/voice_manager.go",
+    1110,
+    "time.Sleep(300 * time.Millisecond)"
+   ]
+  ],
+  "_, _ = / 丢错": [
+   [
+    "internal/ai/image_comfyui.go",
+    89,
+    "body, _ := io.ReadAll(resp.Body)"
+   ],
+   [
+    "internal/ai/image_comfyui.go",
+    915,
+    "if statusStr, _ := status[\"status_str\"].(string); statusStr == \"error\" {"
+   ],
+   [
+    "internal/ai/image_comfyui.go",
+    921,
+    "if msgType, _ := msgArr[0].(string); msgType == \"execution_error\" {"
+   ],
+   [
+    "internal/ai/image_comfyui.go",
+    923,
+    "if em, _ := details[\"exception_message\"].(string); em != \"\" {"
+   ],
+   [
+    "internal/ai/image_comfyui.go",
+    957,
+    "fn, _ := itemMap[\"filename\"].(string)"
+   ],
+   [
+    "internal/ai/image_comfyui.go",
+    1003,
+    "s, _ := v.(string)"
+   ],
+   [
+    "internal/ai/image_cutout.go",
+    52,
+    "r, _, _, _ := m.At(mb.Min.X+x, mb.Min.Y+y).RGBA()"
+   ],
+   [
+    "internal/ai/image_openai.go",
+    320,
+    "r, _, _, _ := img.At(b.Min.X+x, b.Min.Y+y).RGBA()"
+   ],
+   [
+    "internal/analysis/analysis.go",
+    325,
+    "e, _ := a.featureModel()"
+   ],
+   [
+    "internal/analysis/annotate.go",
+    56,
+    "c, _ := stripPunctWithMap(s)"
+   ],
+   [
+    "internal/analysis/foreshadow_sync.go",
+    137,
+    "// created/skipped 计数直接展示，旧实现 `_ = WriteForeshadows(ff)` 吞掉写盘"
+   ],
+   [
+    "internal/analysis/foreshadow_sync.go",
+    171,
+    "matched, _ := types.MatchForeshadowByContent(hit, *pool, 0.5)"
+   ]
+  ],
+  "interface{}/any 泛滥(go)": [
+   [
+    "internal/ai/client.go",
+    46,
+    "OnEvent func(eventType string, data map[string]interface{})"
+   ],
+   [
+    "internal/ai/client.go",
+    1130,
+    "c.emit(\"response\", map[string]interface{}{"
+   ],
+   [
+    "internal/ai/client.go",
+    1158,
+    "c.emit(\"request\", map[string]interface{}{"
+   ],
+   [
+    "internal/ai/client.go",
+    1248,
+    "req.ChatTemplateKwargs = map[string]any{\"enable_thinking\": opts.EnableThinking}"
+   ],
+   [
+    "internal/ai/client.go",
+    1259,
+    "req.ChatTemplateKwargs = map[string]any{\"enable_thinking\": true}"
+   ],
+   [
+    "internal/ai/client.go",
+    1412,
+    "func (c *Client) emit(eventType string, data map[string]interface{}) {"
+   ],
+   [
+    "internal/ai/image_comfyui.go",
+    308,
+    "var workflow map[string]interface{}"
+   ],
+   [
+    "internal/ai/image_comfyui.go",
+    378,
+    "if nm, ok := n.(map[string]interface{}); ok {"
+   ],
+   [
+    "internal/ai/image_comfyui.go",
+    431,
+    "type txt2imgWorkflowBuilder func(b *ComfyUIBackend, prompt, negative string, width, height, seed int, loras []string) ma"
+   ],
+   [
+    "internal/ai/image_comfyui.go",
+    437,
+    "\"krea2\": func(b *ComfyUIBackend, prompt, negative string, width, height, seed int, loras []string) map[string]interface{"
+   ],
+   [
+    "internal/ai/image_comfyui.go",
+    440,
+    "\"z-image-turbo\": func(b *ComfyUIBackend, prompt, negative string, width, height, seed int, loras []string) map[string]in"
+   ],
+   [
+    "internal/ai/image_comfyui.go",
+    443,
+    "\"flux\": func(b *ComfyUIBackend, prompt, negative string, width, height, seed int, loras []string) map[string]interface{}"
+   ]
+  ],
+  "goroutine 起协程": [
+   [
+    "internal/ai/client.go",
+    686,
+    "go func() {"
+   ],
+   [
+    "internal/ai/copilot.go",
+    57,
+    "go func() {"
+   ],
+   [
+    "internal/ai/copilot.go",
+    330,
+    "go func() {"
+   ],
+   [
+    "internal/ai/image_comfyui.go",
+    642,
+    "go b.pollComfyProgress(pollCtx, promptID, nodeClasses, func(status string, elapsed int, percent int, node string) {"
+   ],
+   [
+    "internal/ai/image_comfyui.go",
+    749,
+    "go func() {"
+   ],
+   [
+    "internal/app/app.go",
+    475,
+    "go func() {"
+   ],
+   [
+    "internal/app/app.go",
+    540,
+    "go a.startFileWatch()"
+   ],
+   [
+    "internal/app/app.go",
+    549,
+    "go func(id string) {"
+   ],
+   [
+    "internal/app/app.go",
+    589,
+    "go func() {"
+   ],
+   [
+    "internal/app/auth_handler.go",
+    54,
+    "go func() {"
+   ],
+   [
+    "internal/app/auth_handler.go",
+    84,
+    "go func() {"
+   ],
+   [
+    "internal/app/chat_service.go",
+    129,
+    "go a.runChatStreamPlain(streamCtx, runID, topicID, message, eng, model, source, searchEnabled, thinking, forceSearch)"
+   ]
+  ]
+ },
+ "dead_export_candidates_count": 235,
+ "dead_export_candidates": [
+  {
+   "name": "ListModels",
+   "file": "internal/ai/client.go",
+   "line": 1308,
+   "recv": "c *Client"
+  },
+  {
+   "name": "GenerateBeats",
+   "file": "internal/ai/copilot.go",
+   "line": 245,
+   "recv": "c *Client"
+  },
+  {
+   "name": "GenerateProseFromBeat",
+   "file": "internal/ai/copilot.go",
+   "line": 292,
+   "recv": "c *Client"
+  },
+  {
+   "name": "EvolveAfterChapter",
+   "file": "internal/analysis/evolution.go",
+   "line": 53,
+   "recv": "a *Agent"
+  },
+  {
+   "name": "CLILogin",
+   "file": "internal/app/app.go",
+   "line": 760,
+   "recv": ""
+  },
+  {
+   "name": "ListFactsInSpace",
+   "file": "internal/app/brain_left.go",
+   "line": 102,
+   "recv": "s *officeFactLeftSource"
+  },
+  {
+   "name": "SetCostStageStoreForTest",
+   "file": "internal/app/gaea_cost_stage.go",
+   "line": 14,
+   "recv": ""
+  },
+  {
+   "name": "ResetCostStageStoreForTest",
+   "file": "internal/app/gaea_cost_stage.go",
+   "line": 20,
+   "recv": ""
+  },
+  {
+   "name": "SetModel",
+   "file": "internal/asr/herdsman_asr.go",
+   "line": 63,
+   "recv": "h *HerdsmanASR"
+  },
+  {
+   "name": "JSONHint",
+   "file": "internal/bookimport/reconstruct.go",
+   "line": 212,
+   "recv": ""
+  },
+  {
+   "name": "CheckExpected",
+   "file": "internal/bookimport/reconstruct.go",
+   "line": 250,
+   "recv": ""
+  },
+  {
+   "name": "LoadFile",
+   "file": "internal/booksource/rule.go",
+   "line": 361,
+   "recv": ""
+  },
+  {
+   "name": "HasILink",
+   "file": "internal/channels/weixin/clawbot.go",
+   "line": 210,
+   "recv": "s *Server"
+  },
+  {
+   "name": "UnmarshalJSON",
+   "file": "internal/channels/weixin/clawbot.go",
+   "line": 346,
+   "recv": "it *imageItem"
+  },
+  {
+   "name": "UnmarshalJSON",
+   "file": "internal/channels/weixin/clawbot.go",
+   "line": 398,
+   "recv": "it *fileItem"
+  },
+  {
+   "name": "CryptBlocks",
+   "file": "internal/channels/weixin/media_crypt.go",
+   "line": 31,
+   "recv": "m ecbBlockMode"
+  },
+  {
+   "name": "BatchGenerate",
+   "file": "internal/character/character.go",
+   "line": 517,
+   "recv": "a *Agent"
+  },
+  {
+   "name": "DataDir",
+   "file": "internal/characterlib/portrait.go",
+   "line": 278,
+   "recv": "s *Store"
+  },
+  {
+   "name": "PortraitsDir",
+   "file": "internal/characterlib/portrait.go",
+   "line": 286,
+   "recv": "s *Store"
+  },
+  {
+   "name": "PortraitFilePath",
+   "file": "internal/characterlib/portrait.go",
+   "line": 294,
+   "recv": "s *Store"
+  },
+  {
+   "name": "ResolveResourceDirForTest",
+   "file": "internal/config/config.go",
+   "line": 518,
+   "recv": ""
+  },
+  {
+   "name": "SetReadScreenSummary",
+   "file": "internal/config/config_prefs.go",
+   "line": 43,
+   "recv": "c *Config"
+  },
+  {
+   "name": "SetReadScreenKeepLast",
+   "file": "internal/config/config_prefs.go",
+   "line": 57,
+   "recv": "c *Config"
+  },
+  {
+   "name": "SetIntentsLLMTimeoutMS",
+   "file": "internal/config/config_prefs.go",
+   "line": 115,
+   "recv": "c *Config"
+  },
+  {
+   "name": "IsWalkthrough",
+   "file": "internal/config/walkthrough.go",
+   "line": 24,
+   "recv": ""
+  },
+  {
+   "name": "ExtractImage",
+   "file": "internal/docmd/ocr.go",
+   "line": 336,
+   "recv": "p *ovisOCRProvider"
+  },
+  {
+   "name": "ExtractImage",
+   "file": "internal/docmd/ocr.go",
+   "line": 385,
+   "recv": "p *tesseractOCRProvider"
+  },
+  {
+   "name": "SetMemoryQueue",
+   "file": "internal/gaea/agent/agent.go",
+   "line": 542,
+   "recv": "a *AgentRunner"
+  },
+  {
+   "name": "SetSink",
+   "file": "internal/gaea/agent/agent.go",
+   "line": 572,
+   "recv": "a *AgentRunner"
+  },
+  {
+   "name": "CacheBreakCount",
+   "file": "internal/gaea/agent/agent.go",
+   "line": 670,
+   "recv": "a *AgentRunner"
+  },
+  {
+   "name": "ProvName",
+   "file": "internal/gaea/agent/agent.go",
+   "line": 892,
+   "recv": "a *AgentRunner"
+  },
+  {
+   "name": "CanonicalTodoState",
+   "file": "internal/gaea/agent/canonical_todo.go",
+   "line": 59,
+   "recv": "a *AgentRunner"
+  },
+  {
+   "name": "SummarizeFrom",
+   "file": "internal/gaea/agent/compact.go",
+   "line": 353,
+   "recv": "a *AgentRunner"
+  },
+  {
+   "name": "SummarizeUpTo",
+   "file": "internal/gaea/agent/compact.go",
+   "line": 380,
+   "recv": "a *AgentRunner"
+  },
+  {
+   "name": "NormalizeReasoningLanguage",
+   "file": "internal/gaea/agent/reasoning_language.go",
+   "line": 14,
+   "recv": ""
+  },
+  {
+   "name": "NormalizeResponseLanguage",
+   "file": "internal/gaea/agent/reasoning_language.go",
+   "line": 27,
+   "recv": ""
+  },
+  {
+   "name": "ResponseLanguageBlock",
+   "file": "internal/gaea/agent/reasoning_language.go",
+   "line": 42,
+   "recv": ""
+  },
+  {
+   "name": "ReasoningLanguageBlock",
+   "file": "internal/gaea/agent/reasoning_language.go",
+   "line": 56,
+   "recv": ""
+  },
+  {
+   "name": "WithResponseLanguage",
+   "file": "internal/gaea/agent/reasoning_language.go",
+   "line": 69,
+   "recv": ""
+  },
+  {
+   "name": "WithReasoningLanguage",
+   "file": "internal/gaea/agent/reasoning_language.go",
+   "line": 79,
+   "recv": ""
+  },
+  {
+   "name": "WithResponseLanguagePreference",
+   "file": "internal/gaea/agent/reasoning_language.go",
+   "line": 134,
+   "recv": ""
+  },
+  {
+   "name": "ResponseLanguageFromContext",
+   "file": "internal/gaea/agent/reasoning_language.go",
+   "line": 142,
+   "recv": ""
+  },
+  {
+   "name": "WithReasoningLanguagePreference",
+   "file": "internal/gaea/agent/reasoning_language.go",
+   "line": 155,
+   "recv": ""
+  },
+  {
+   "name": "ReasoningLanguageFromContext",
+   "file": "internal/gaea/agent/reasoning_language.go",
+   "line": 163,
+   "recv": ""
+  },
+  {
+   "name": "DimText",
+   "file": "internal/gaea/agent/render/sink.go",
+   "line": 286,
+   "recv": ""
+  },
+  {
+   "name": "EphemeralSubagentRun",
+   "file": "internal/gaea/agent/subagent_store.go",
+   "line": 140,
+   "recv": ""
+  },
+  {
+   "name": "CleanupStaleRunning",
+   "file": "internal/gaea/agent/subagent_store.go",
+   "line": 705,
+   "recv": "s *SubagentStore"
+  },
+  {
+   "name": "IsSubagentMetaTool",
+   "file": "internal/gaea/agent/task.go",
+   "line": 126,
+   "recv": ""
+  },
+  {
+   "name": "SetTemplatePrefix",
+   "file": "internal/gaea/agent/task.go",
+   "line": 401,
+   "recv": "t *TaskTool"
+  },
+  {
+   "name": "SubUsage",
+   "file": "internal/gaea/agent/task.go",
+   "line": 403,
+   "recv": "t *TaskTool"
+  },
+  {
+   "name": "LastRequest",
+   "file": "internal/gaea/agent/testutil/mock_provider.go",
+   "line": 130,
+   "recv": "p *MockProvider"
+  },
+  {
+   "name": "SetScript",
+   "file": "internal/gaea/agent/testutil/mock_provider.go",
+   "line": 148,
+   "recv": "p *MockProvider"
+  },
+  {
+   "name": "UsageTurn",
+   "file": "internal/gaea/agent/testutil/mock_provider.go",
+   "line": 180,
+   "recv": ""
+  },
+  {
+   "name": "ErrorTurn",
+   "file": "internal/gaea/agent/testutil/mock_provider.go",
+   "line": 193,
+   "recv": ""
+  },
+  {
+   "name": "HasSignalKeyword",
+   "file": "internal/gaea/agent/textutils/text.go",
+   "line": 163,
+   "recv": ""
+  },
+  {
+   "name": "VisibleWidth",
+   "file": "internal/gaea/agent/textutils/text.go",
+   "line": 254,
+   "recv": ""
+  },
+  {
+   "name": "ValidateManifest",
+   "file": "internal/gaea/backup/backup.go",
+   "line": 106,
+   "recv": ""
+  },
+  {
+   "name": "WithInstructions",
+   "file": "internal/gaea/cache/compiler.go",
+   "line": 53,
+   "recv": "c *Compiler"
+  },
+  {
+   "name": "DetectConflict",
+   "file": "internal/gaea/cache/runtime.go",
+   "line": 181,
+   "recv": "rc *RuntimeLayer"
+  },
+  {
+   "name": "MergeChildEdits",
+   "file": "internal/gaea/cache/runtime.go",
+   "line": 200,
+   "recv": "rc *RuntimeLayer"
+  },
+  {
+   "name": "LockVersion",
+   "file": "internal/gaea/cache/skill.go",
+   "line": 50,
+   "recv": "l *SkillLayer"
+  },
+  {
+   "name": "PromoteVersion",
+   "file": "internal/gaea/cache/skill.go",
+   "line": 145,
+   "recv": "l *SkillLayer"
+  },
+  {
+   "name": "RecordOutcomeWithReason",
+   "file": "internal/gaea/cache/skill.go",
+   "line": 151,
+   "recv": "l *SkillLayer"
+  },
+  {
+   "name": "DemoteVersion",
+   "file": "internal/gaea/cache/skill.go",
+   "line": 154,
+   "recv": "l *SkillLayer"
+  },
+  {
+   "name": "ModelList",
+   "file": "internal/gaea/config/config.go",
+   "line": 633,
+   "recv": "e *ProviderEntry"
+  },
+  {
+   "name": "ShouldAutoStart",
+   "file": "internal/gaea/config/config.go",
+   "line": 713,
+   "recv": "e PluginEntry"
+  },
+  {
+   "name": "SetSubagentModel",
+   "file": "internal/gaea/config/edit.go",
+   "line": 43,
+   "recv": "c *Config"
+  },
+  {
+   "name": "SetSubagentModelForSkill",
+   "file": "internal/gaea/config/edit.go",
+   "line": 59,
+   "recv": "c *Config"
+  },
+  {
+   "name": "RecentWorkspacesPath",
+   "file": "internal/gaea/config/recent.go",
+   "line": 16,
+   "recv": ""
+  },
+  {
+   "name": "SaveRecentWorkspaces",
+   "file": "internal/gaea/config/recent.go",
+   "line": 43,
+   "recv": ""
+  },
+  {
+   "name": "WalkthroughWorkspaceDir",
+   "file": "internal/gaea/config/walkthrough.go",
+   "line": 10,
+   "recv": ""
+  },
+  {
+   "name": "ActiveTools",
+   "file": "internal/gaea/context/manager.go",
+   "line": 137,
+   "recv": "cm *ContextManager"
+  },
+  {
+   "name": "DefaultProviderHint",
+   "file": "internal/gaea/context/provider_adapter.go",
+   "line": 42,
+   "recv": ""
+  },
+  {
+   "name": "TCCAStats",
+   "file": "internal/gaea/control/controller.go",
+   "line": 871,
+   "recv": "c *Controller"
+  },
+  {
+   "name": "TCCAReport",
+   "file": "internal/gaea/control/controller.go",
+   "line": 899,
+   "recv": "c *Controller"
+  },
+  {
+   "name": "HookRunner",
+   "file": "internal/gaea/control/controller.go",
+   "line": 1018,
+   "recv": "c *Controller"
+  },
+  {
+   "name": "ConfiguredMCPNames",
+   "file": "internal/gaea/control/controller_mcp.go",
+   "line": 82,
+   "recv": "c *Controller"
+  },
+  {
+   "name": "DisconnectedMCPNames",
+   "file": "internal/gaea/control/controller_mcp.go",
+   "line": 96,
+   "recv": "c *Controller"
+  },
+  {
+   "name": "SessionRemember",
+   "file": "internal/gaea/control/controller_memory.go",
+   "line": 306,
+   "recv": "c *Controller"
+  },
+  {
+   "name": "SessionFacts",
+   "file": "internal/gaea/control/controller_memory.go",
+   "line": 470,
+   "recv": "c *Controller"
+  },
+  {
+   "name": "HasRefs",
+   "file": "internal/gaea/control/refs.go",
+   "line": 112,
+   "recv": "c *Controller"
+  },
+  {
+   "name": "CategoryPathOf",
+   "file": "internal/gaea/cost/cost.go",
+   "line": 809,
+   "recv": "s *Store"
+  },
+  {
+   "name": "ChangesFrom",
+   "file": "internal/gaea/evidence/journal.go",
+   "line": 184,
+   "recv": ""
+  },
+  {
+   "name": "GlobalSettingsPath",
+   "file": "internal/gaea/hook/hook.go",
+   "line": 134,
+   "recv": ""
+  },
+  {
+   "name": "ProjectSettingsPath",
+   "file": "internal/gaea/hook/hook.go",
+   "line": 139,
+   "recv": ""
+  },
+  {
+   "name": "TrustPath",
+   "file": "internal/gaea/hook/trust.go",
+   "line": 25,
+   "recv": ""
+  },
+  {
+   "name": "DefaultDir",
+   "file": "internal/gaea/knowledge/service.go",
+   "line": 32,
+   "recv": ""
+  },
+  {
+   "name": "DistillNormalizeName",
+   "file": "internal/gaea/memory/distill.go",
+   "line": 29,
+   "recv": ""
+  },
+  {
+   "name": "RebuildGraph",
+   "file": "internal/gaea/memory/graphstore.go",
+   "line": 19,
+   "recv": ""
+  },
+  {
+   "name": "DocBlock",
+   "file": "internal/gaea/memory/memory.go",
+   "line": 166,
+   "recv": "s *Set"
+  },
+  {
+   "name": "ProceduralBlock",
+   "file": "internal/gaea/memory/memory.go",
+   "line": 409,
+   "recv": "s *Set"
+  },
+  {
+   "name": "PromoterFromContext",
+   "file": "internal/gaea/memory/promote.go",
+   "line": 25,
+   "recv": ""
+  },
+  {
+   "name": "Unwrap",
+   "file": "internal/gaea/provider/provider.go",
+   "line": 379,
+   "recv": "e *StreamInterruptedError"
+  },
+  {
+   "name": "GetFirstQueued",
+   "file": "internal/gaea/tasks/tasks.go",
+   "line": 1087,
+   "recv": "m *Manager"
+  },
+  {
+   "name": "RoundTrip",
+   "file": "internal/gaea/tool/builtin/webfetch.go",
+   "line": 87,
+   "recv": "rt webFetchRoundTripper"
+  },
+  {
+   "name": "StartTag",
+   "file": "internal/gaea/tool/builtin/webfetch.go",
+   "line": 410,
+   "recv": "w *htmlTextWriter"
+  },
+  {
+   "name": "SelfClosingTag",
+   "file": "internal/gaea/tool/builtin/webfetch.go",
+   "line": 447,
+   "recv": "w *htmlTextWriter"
+  },
+  {
+   "name": "EndTag",
+   "file": "internal/gaea/tool/builtin/webfetch.go",
+   "line": 453,
+   "recv": "w *htmlTextWriter"
+  },
+  {
+   "name": "StartLink",
+   "file": "internal/gaea/tool/builtin/webfetch.go",
+   "line": 472,
+   "recv": "w *htmlTextWriter"
+  },
+  {
+   "name": "EndLink",
+   "file": "internal/gaea/tool/builtin/webfetch.go",
+   "line": 476,
+   "recv": "w *htmlTextWriter"
+  },
+  {
+   "name": "Hide",
+   "file": "internal/gaea/tool/tool.go",
+   "line": 231,
+   "recv": "r *Registry"
+  },
+  {
+   "name": "Recognize",
+   "file": "internal/gaea/vision/vision.go",
+   "line": 108,
+   "recv": "p *openAIProvider"
+  },
+  {
+   "name": "AddRelation",
+   "file": "internal/graph/entity.go",
+   "line": 199,
+   "recv": "db *EntityDB"
+  },
+  {
+   "name": "GetRelations",
+   "file": "internal/graph/entity.go",
+   "line": 204,
+   "recv": "db *EntityDB"
+  },
+  {
+   "name": "AllEntityNames",
+   "file": "internal/graph/entity.go",
+   "line": 215,
+   "recv": "db *EntityDB"
+  },
+  {
+   "name": "ServeWithToken",
+   "file": "internal/httpbridge/bridge.go",
+   "line": 141,
+   "recv": ""
+  },
+  {
+   "name": "NormalizeMode",
+   "file": "internal/netclient/netclient.go",
+   "line": 58,
+   "recv": ""
+  },
+  {
+   "name": "RecognizeImageBytes",
+   "file": "internal/ocr/herdsman.go",
+   "line": 75,
+   "recv": "c *Client"
+  },
+  {
+   "name": "RecognizeImageBase64",
+   "file": "internal/ocr/herdsman.go",
+   "line": 84,
+   "recv": "c *Client"
+  },
+  {
+   "name": "StyleFingerprintPath",
+   "file": "internal/project/project.go",
+   "line": 239,
+   "recv": "m *Manager"
+  },
+  {
+   "name": "ChapterSummaryPath",
+   "file": "internal/project/project.go",
+   "line": 327,
+   "recv": "m *Manager"
+  },
+  {
+   "name": "LoadContext",
+   "file": "internal/project/project.go",
+   "line": 586,
+   "recv": "m *Manager"
+  },
+  {
+   "name": "ChapterMemoriesPath",
+   "file": "internal/project/project.go",
+   "line": 922,
+   "recv": "m *Manager"
+  },
+  {
+   "name": "RewriteChapterDir",
+   "file": "internal/project/project.go",
+   "line": 987,
+   "recv": "m *Manager"
+  },
+  {
+   "name": "ChapterAnnotationsPath",
+   "file": "internal/project/project.go",
+   "line": 1087,
+   "recv": "m *Manager"
+  },
+  {
+   "name": "StorySpinePath",
+   "file": "internal/project/story_spine_store.go",
+   "line": 16,
+   "recv": "m *Manager"
+  },
+  {
+   "name": "ValidateStorySpine",
+   "file": "internal/project/story_spine_store.go",
+   "line": 51,
+   "recv": ""
+  },
+  {
+   "name": "UpdateMeta",
+   "file": "internal/scene/scene.go",
+   "line": 117,
+   "recv": "m *Manager"
+  },
+  {
+   "name": "IsWorkingDate",
+   "file": "internal/schedule/calendar.go",
+   "line": 73,
+   "recv": ""
+  },
+  {
+   "name": "CriticalChain",
+   "file": "internal/schedule/cpm.go",
+   "line": 418,
+   "recv": "r CpmResult"
+  }
+ ],
+ "dup_go_group_count": 4,
+ "dup_go_top25": [
+  {
+   "files": [
+    "internal/gaea/costinquiry/costinquiry.go",
+    "internal/gaea/db/schema.go"
+   ],
+   "count": 2,
+   "anchor": [
+    [
+     "internal/gaea/costinquiry/costinquiry.go",
+     73
+    ],
+    [
+     "internal/gaea/db/schema.go",
+     353
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/gaea/costinquiry/costinquiry.go",
+    "internal/gaea/db/schema.go"
+   ],
+   "count": 2,
+   "anchor": [
+    [
+     "internal/gaea/costinquiry/costinquiry.go",
+     74
+    ],
+    [
+     "internal/gaea/db/schema.go",
+     354
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/gaea/costinquiry/costinquiry.go",
+    "internal/gaea/db/schema.go"
+   ],
+   "count": 2,
+   "anchor": [
+    [
+     "internal/gaea/costinquiry/costinquiry.go",
+     75
+    ],
+    [
+     "internal/gaea/db/schema.go",
+     355
+    ]
+   ]
+  },
+  {
+   "files": [
+    "internal/gaea/costinquiry/costinquiry.go",
+    "internal/gaea/db/schema.go"
+   ],
+   "count": 2,
+   "anchor": [
+    [
+     "internal/gaea/costinquiry/costinquiry.go",
+     76
+    ],
+    [
+     "internal/gaea/db/schema.go",
+     356
+    ]
+   ]
+  }
+ ],
+ "dup_ts_group_count": 3,
+ "dup_ts_top25": [
+  {
+   "files": [
+    "frontend/src/genui/guard.ts",
+    "frontend/src/genui/renderNode.tsx"
+   ],
+   "count": 2,
+   "anchor": [
+    [
+     "frontend/src/genui/guard.ts",
+     24
+    ],
+    [
+     "frontend/src/genui/renderNode.tsx",
+     17
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/pages/modelcenter/context.ts",
+    "frontend/src/pages/modelcenter/hooks/useEngineState.ts"
+   ],
+   "count": 2,
+   "anchor": [
+    [
+     "frontend/src/pages/modelcenter/context.ts",
+     97
+    ],
+    [
+     "frontend/src/pages/modelcenter/hooks/useEngineState.ts",
+     73
+    ]
+   ]
+  },
+  {
+   "files": [
+    "frontend/src/pages/modelcenter/context.ts",
+    "frontend/src/pages/modelcenter/hooks/useEngineState.ts"
+   ],
+   "count": 2,
+   "anchor": [
+    [
+     "frontend/src/pages/modelcenter/context.ts",
+     98
+    ],
+    [
+     "frontend/src/pages/modelcenter/hooks/useEngineState.ts",
+     74
+    ]
+   ]
+  }
+ ],
+ "ts_skip_markers": [],
+ "ts_skip_count": 0,
+ "go_skip_count": 60,
+ "go_skips": [
+  {
+   "file": "internal/app/cost_preview_test.go",
+   "line": 17,
+   "text": "t.Skip(\"未设置 GAEA_SMOKE_COST\")"
+  },
+  {
+   "file": "internal/app/gaea_crosslink_test.go",
+   "line": 55,
+   "text": "t.Skip(\"未设置 GAEA_SMOKE_CROSS\")"
+  },
+  {
+   "file": "internal/app/gaea_deliverable_zip_test.go",
+   "line": 91,
+   "text": "t.Skip(\"设置 GAEA_SMOKE_CHART=1 运行真实图表 smoke\")"
+  },
+  {
+   "file": "internal/app/gaea_export_test.go",
+   "line": 116,
+   "text": "t.Skip(\"未设置 GAEA_SMOKE_EXPORT\")"
+  },
+  {
+   "file": "internal/app/gaea_git_test.go",
+   "line": 17,
+   "text": "t.Skip(\"环境无 git CLI，跳过 Git 面板测试\")"
+  },
+  {
+   "file": "internal/app/gaea_git_test.go",
+   "line": 151,
+   "text": "t.Skip(\"环境无 git CLI\")"
+  },
+  {
+   "file": "internal/app/gaea_git_test.go",
+   "line": 167,
+   "text": "t.Skip(\"TMP 落入 git 仓库内且无法选址仓库外沙箱：非仓库断言前提不可满足\")"
+  },
+  {
+   "file": "internal/app/gaea_pdf_test.go",
+   "line": 72,
+   "text": "t.Skip(\"设置 GAEA_SMOKE_PDF=1 运行真实 PDF 转换 smoke\")"
+  },
+  {
+   "file": "internal/app/gaea_pdf_test.go",
+   "line": 75,
+   "text": "t.Skip(\"未找到 soffice\")"
+  },
+  {
+   "file": "internal/app/gaea_pipeline_test.go",
+   "line": 76,
+   "text": "t.Skip(\"未设置 GAEA_SMOKE_PIPELINE\")"
+  },
+  {
+   "file": "internal/app/gaea_pptx_test.go",
+   "line": 235,
+   "text": "t.Skip(\"未设置 GAEA_SMOKE_EXPORT\")"
+  },
+  {
+   "file": "internal/app/gaea_selfgen_test.go",
+   "line": 28,
+   "text": "t.Skip(\"未设置 GAEA_SELFGEN（真实模型自生成测试）\")"
+  },
+  {
+   "file": "internal/app/gaea_workspace_test.go",
+   "line": 40,
+   "text": "t.Skip(\"APPDATA 未设置（非 Windows），跳过路径前缀断言\")"
+  },
+  {
+   "file": "internal/app/herdsman_catalog_livecheck_test.go",
+   "line": 13,
+   "text": "t.Skip(\"缺少实时 fixture\")"
+  },
+  {
+   "file": "internal/app/herdsman_cli_error_test.go",
+   "line": 17,
+   "text": "t.Skip(\"Windows 专用（.cmd 假 CLI）\")"
+  },
+  {
+   "file": "internal/app/image_domain_test.go",
+   "line": 324,
+   "text": "t.Skip(\"本测试要求 cfg 快照为 nil（纯绘梦会话形态）\")"
+  },
+  {
+   "file": "internal/app/imagegen_pressure_test.go",
+   "line": 53,
+   "text": "t.Skip(\"仅 Windows\")"
+  },
+  {
+   "file": "internal/auth/token_test.go",
+   "line": 325,
+   "text": "t.Skip(\"DPAPI 不可用（降级模式原样返回），无法构造解密失败场景\")"
+  },
+  {
+   "file": "internal/docmd/markitdown_test.go",
+   "line": 14,
+   "text": "t.Skip(\"markitdown 不可用\")"
+  },
+  {
+   "file": "internal/docmd/ovis_test.go",
+   "line": 81,
+   "text": "t.Skip(\"设置 GAEA_TEST_SCAN_PDF 指向扫描件 PDF 后运行端到端 OCR 测试\")"
+  }
+ ],
+ "big_test_files": [
+  [
+   1218,
+   "internal/gaea/tasks/tasks_test.go"
+  ],
+  [
+   1128,
+   "internal/modelengine/engine_test.go"
+  ],
+  [
+   949,
+   "frontend/src/pages/CreatePage.test.tsx"
+  ],
+  [
+   937,
+   "internal/gaea/browser/manager_test.go"
+  ],
+  [
+   928,
+   "internal/config/config_test.go"
+  ],
+  [
+   874,
+   "internal/booksource/booksource_test.go"
+  ],
+  [
+   857,
+   "internal/app/novel_plan_handler_test.go"
+  ],
+  [
+   842,
+   "internal/channels/weixin/capture_test.go"
+  ],
+  [
+   838,
+   "internal/app/image_handler_test.go"
+  ],
+  [
+   794,
+   "internal/types/compat_test.go"
+  ],
+  [
+   788,
+   "frontend/src/gaea/components/DeliverablesPanel.test.tsx"
+  ],
+  [
+   759,
+   "frontend/src/pages/ChapterPage.test.tsx"
+  ],
+  [
+   750,
+   "internal/whisper/whisper_test.go"
+  ],
+  [
+   677,
+   "internal/app/chat_service_test.go"
+  ],
+  [
+   669,
+   "internal/gaea/contextview/fold_test.go"
+  ],
+  [
+   657,
+   "internal/modelengine/glm_catalog_test.go"
+  ],
+  [
+   653,
+   "frontend/src/gaea/components/ContextView.test.tsx"
+  ],
+  [
+   651,
+   "frontend/src/schedule/GanttView.test.tsx"
+  ],
+  [
+   639,
+   "internal/app/sin_stream_guard_test.go"
+  ],
+  [
+   638,
+   "internal/app/gaea_dag_test.go"
+  ],
+  [
+   631,
+   "internal/channels/weixin/clawbot_test.go"
+  ],
+  [
+   627,
+   "internal/netclient/netclient_test.go"
+  ],
+  [
+   616,
+   "internal/app/create_chapter_plan_gate_test.go"
+  ],
+  [
+   616,
+   "frontend/src/pages/NovelSettingPage.test.tsx"
+  ],
+  [
+   616,
+   "frontend/src/gaea/components/VersionTimeline.test.tsx"
+  ]
+ ],
+ "hygiene_mb": {
+  ".tmp": 210.6,
+  "backups": 120.4,
+  "clones": 623.4,
+  "dist": 10.7,
+  "releases": 596.7,
+  "whisper_data": 49.5,
+  "docs": 7.2,
+  "internal": 11.9,
+  "frontend/src": 9.7,
+  "frontend/node_modules": 645.1,
+  "node_modules": 0.1
+ },
+ "changelog_bytes": 1279289
+}

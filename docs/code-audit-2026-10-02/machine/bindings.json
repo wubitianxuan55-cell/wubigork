@@ -1,0 +1,987 @@
+{
+ "go_names": 743,
+ "ts_names": 743,
+ "drift_go_only": [],
+ "drift_ts_only": [],
+ "zero_frontend_consumer_count": 322,
+ "zero_frontend_consumer": [
+  "AddOutlineNode",
+  "AnalyzeStyle",
+  "BrainCrossRefs",
+  "BrainSearch",
+  "BrainWrite",
+  "BrainstormBranches",
+  "BuildBacklinkIndex",
+  "BuildContextBudget",
+  "BuildRichContext",
+  "ChatCharacter",
+  "ChatCharacterDetail",
+  "ChatGeneral",
+  "ChatOutline",
+  "ChatOutlineNode",
+  "CheckModuleIntegrity",
+  "CloseProject",
+  "ContinueOutline",
+  "CreateSnapshot",
+  "DeleteCharacter",
+  "DeleteLorebookEntry",
+  "ExpandOutlineNode",
+  "ExportHTML",
+  "ExtractCharacterHeatmap",
+  "ExtractEmotionCurve",
+  "ExtractTimeline",
+  "FindLorebookTriggers",
+  "FindUnlinkedMentions",
+  "GaeaAcceptMemorySuggestion",
+  "GaeaAcceptMergeSuggestion",
+  "GaeaAcceptSkillSuggestion",
+  "GaeaAddMCPServer",
+  "GaeaAddPermissionRule",
+  "GaeaApplyUpdate",
+  "GaeaArchiveSession",
+  "GaeaCallTool",
+  "GaeaCapabilities",
+  "GaeaCaptureScreen",
+  "GaeaChangeFactType",
+  "GaeaCommands",
+  "GaeaContextView",
+  "GaeaCostAttribution",
+  "GaeaCostCategories",
+  "GaeaCostCategoryDelete",
+  "GaeaCostCategorySave",
+  "GaeaCostCompare",
+  "GaeaCostComposeApply",
+  "GaeaCostComposeRecords",
+  "GaeaCostDelete",
+  "GaeaCostEstimateItemDelete",
+  "GaeaCostEstimateItemSave",
+  "GaeaCostEstimateItems",
+  "GaeaCostEstimateSediment",
+  "GaeaCostEstimateVersionSave",
+  "GaeaCostEstimateVersions",
+  "GaeaCostGet",
+  "GaeaCostImportAIParse",
+  "GaeaCostImportApply",
+  "GaeaCostImportPreview",
+  "GaeaCostImportVisionPreview",
+  "GaeaCostIndicators",
+  "GaeaCostInquiryAdjust",
+  "GaeaCostInquiryDelete",
+  "GaeaCostInquiryExpiring",
+  "GaeaCostInquiryList",
+  "GaeaCostInquirySave",
+  "GaeaCostInquiryScan",
+  "GaeaCostList",
+  "GaeaCostNoteBumpRef",
+  "GaeaCostNoteDelete",
+  "GaeaCostNoteList",
+  "GaeaCostNoteSave",
+  "GaeaCostProjectDelete",
+  "GaeaCostProjectGet",
+  "GaeaCostProjectList",
+  "GaeaCostProjectSave",
+  "GaeaCostSave",
+  "GaeaCostSearch",
+  "GaeaCostStageCompare",
+  "GaeaCostStageDeviations",
+  "GaeaCostStageSave",
+  "GaeaCostStages",
+  "GaeaCrossEmbed",
+  "GaeaDagGet",
+  "GaeaDagNodeApprove",
+  "GaeaDagNodeRun",
+  "GaeaDagTemplateDelete",
+  "GaeaDagTemplateNew",
+  "GaeaDagTemplateSave",
+  "GaeaDataBackupCancel",
+  "GaeaDataBackupCreate",
+  "GaeaDataBackupInfo",
+  "GaeaDataBackupPending",
+  "GaeaDataBackupRestore",
+  "GaeaDataBackupRestoreResult",
+  "GaeaDataBackupRollback",
+  "GaeaDeleteProvider",
+  "GaeaDismissMemorySuggestion",
+  "GaeaDocxAcceptChanges",
+  "GaeaDocxApplyEdit",
+  "GaeaDreamPurge",
+  "GaeaDreamPurgePreview",
+  "GaeaEngines",
+  "GaeaExportDeliverable",
+  "GaeaFactBaseClear",
+  "GaeaFactBasePromote",
+  "GaeaFileIndexRebuild",
+  "GaeaFileSemanticSearch",
+  "GaeaForget",
+  "GaeaFork",
+  "GaeaGenerateBookCover",
+  "GaeaInit",
+  "GaeaKnowledgeDelete",
+  "GaeaKnowledgeExport",
+  "GaeaKnowledgeFindSimilar",
+  "GaeaKnowledgeGet",
+  "GaeaKnowledgeHistory",
+  "GaeaKnowledgeImportAIParse",
+  "GaeaKnowledgeImportApply",
+  "GaeaKnowledgeImportPreview",
+  "GaeaKnowledgeMerge",
+  "GaeaKnowledgeReview",
+  "GaeaKnowledgeSave",
+  "GaeaKnowledgeSearch",
+  "GaeaListWorkspaces",
+  "GaeaLoginProvider",
+  "GaeaLogoutProvider",
+  "GaeaMaterials",
+  "GaeaMemory",
+  "GaeaMemoryBrief",
+  "GaeaMemoryDuplicates",
+  "GaeaMemoryGraph",
+  "GaeaMemoryHubOverview",
+  "GaeaMemoryLifecycle",
+  "GaeaMemoryMerge",
+  "GaeaMemoryPin",
+  "GaeaMemorySetRetentionDays",
+  "GaeaMemorySuggestions",
+  "GaeaMemoryUnarchive",
+  "GaeaMemoryUnarchiveBatch",
+  "GaeaModel",
+  "GaeaModels",
+  "GaeaMorningPreload",
+  "GaeaOpenDownloadPage",
+  "GaeaOpenLogsDir",
+  "GaeaOpenWorkspacePath",
+  "GaeaPermLevel",
+  "GaeaPickDirectory",
+  "GaeaPickWorkspace",
+  "GaeaPinMaterial",
+  "GaeaPinSession",
+  "GaeaPinnedMaterials",
+  "GaeaPriceFetch",
+  "GaeaPriceFetchAll",
+  "GaeaPriceFetchApply",
+  "GaeaPriceFetchIgnore",
+  "GaeaPriceFetches",
+  "GaeaPriceHistory",
+  "GaeaPriceSourceDelete",
+  "GaeaPriceSourceSave",
+  "GaeaPriceSources",
+  "GaeaProfileConflicts",
+  "GaeaProfileDelete",
+  "GaeaProfileList",
+  "GaeaProfileResolveConflict",
+  "GaeaProfileSave",
+  "GaeaPromoteSubagent",
+  "GaeaReload",
+  "GaeaRemoveMCPServer",
+  "GaeaRemovePermissionRule",
+  "GaeaRenameSession",
+  "GaeaResumeSession",
+  "GaeaRetryMCPServer",
+  "GaeaRevealWorkspacePath",
+  "GaeaRouteIntent",
+  "GaeaSaveAttachmentFile",
+  "GaeaSaveProvider",
+  "GaeaSaveSettings",
+  "GaeaSaveWindowState",
+  "GaeaScheduleExportXlsx",
+  "GaeaScheduleImportXlsx",
+  "GaeaSemanticIndexBackfill",
+  "GaeaSemanticIndexStatus",
+  "GaeaSemanticSearch",
+  "GaeaSessionStats",
+  "GaeaSetAgentParams",
+  "GaeaSetDefaultModel",
+  "GaeaSetDreamMode",
+  "GaeaSetEngine",
+  "GaeaSetMCPServerEnabled",
+  "GaeaSetMemoryBrief",
+  "GaeaSetMemoryEnabled",
+  "GaeaSetModel",
+  "GaeaSetMorningPreload",
+  "GaeaSetPermissionMode",
+  "GaeaSetProviderKey",
+  "GaeaSetSandbox",
+  "GaeaSetSubagentEffort",
+  "GaeaSetSubagentModelForSkill",
+  "GaeaSkillDistillDecide",
+  "GaeaSkillDistillDraft",
+  "GaeaSkillDraftFromSession",
+  "GaeaSkillDraftSave",
+  "GaeaSkills",
+  "GaeaSlashArgs",
+  "GaeaSteer",
+  "GaeaSubagentFollowUp",
+  "GaeaSubagentTranscript",
+  "GaeaSummarizeFile",
+  "GaeaSummarizeFrom",
+  "GaeaSummarizeUpTo",
+  "GaeaSwitchWorkspace",
+  "GaeaTTSVoiceParams",
+  "GaeaTaskCancel",
+  "GaeaTaskKill",
+  "GaeaTaskRetry",
+  "GaeaTaskTemplates",
+  "GaeaTools",
+  "GaeaUnarchiveSession",
+  "GaeaUnpinMaterial",
+  "GaeaUpdateFact",
+  "GaeaVersion",
+  "GaeaWhisperAnchorReplay",
+  "GaeaWhisperAnchors",
+  "GaeaWhisperCausalExplain",
+  "GaeaWhisperEpisodeReplay",
+  "GaeaWhisperEpisodes",
+  "GaeaWhisperExportArchive",
+  "GaeaWhisperGraphSubgraph",
+  "GaeaWhisperMemories",
+  "GaeaWhisperMemoryRetell",
+  "GaeaWhisperProactiveConfig",
+  "GaeaWhisperProactiveNow",
+  "GaeaWhisperSetProactiveConfig",
+  "GaeaWorkspaceSearch",
+  "GaeaWriteFile",
+  "GaeaXlsxApplyEdit",
+  "GaeaXlsxChart",
+  "GaeaXlsxColOps",
+  "GaeaXlsxPlanEdit",
+  "GaeaXlsxRecalc",
+  "GaeaXlsxRowOps",
+  "GaeaXlsxSetCell",
+  "GaeaZipDeliverables",
+  "GenerateCharacters",
+  "GenerateDefaultCanvas",
+  "GenerateOutlineWithDialogue",
+  "GenerateSingleCharacter",
+  "GetActiveASRModel",
+  "GetActiveTTSModel",
+  "GetAllEntityNames",
+  "GetBacklinks",
+  "GetBookData",
+  "GetChatVoiceModel",
+  "GetCompileTemplates",
+  "GetDashboard",
+  "GetEngineList",
+  "GetImageBackend",
+  "GetImageBackendConfig",
+  "GetKeepWarm",
+  "GetLorebookEntries",
+  "GetPreloadPlan",
+  "GetStyleProfile",
+  "GetTTSConfig",
+  "GetTTSStatus",
+  "GetWorldMapImage",
+  "HerdsmanHealth",
+  "HerdsmanProbe",
+  "ImportStyleProfile",
+  "InjectMemories",
+  "ListSnapshots",
+  "LocalTranslate",
+  "MainBrainChat",
+  "MigrateProjectToV4",
+  "OfficeCancelJob",
+  "OfficeExecute",
+  "OfficeGetJobState",
+  "OfficeGetMode",
+  "OfficeIsTask",
+  "OfficeListFolder",
+  "OfficeReadFile",
+  "OfficeSetMode",
+  "ParseLinks",
+  "QueryEntities",
+  "RestoreSnapshot",
+  "ReviewBook",
+  "RunModule",
+  "SaveCharacter",
+  "SaveCharacters",
+  "SaveLorebookEntry",
+  "SaveOutlineNode",
+  "SaveTTSConfig",
+  "SaveToken",
+  "SaveWorldMapImage",
+  "SaveWorldviewSection",
+  "SearchMemories",
+  "SetDistFS",
+  "SetKeepWarm",
+  "SetPreloadPlan",
+  "SetPromptFS",
+  "Shutdown",
+  "StartTTSServer",
+  "Startup",
+  "StopTTSServer",
+  "SyncEntityDB",
+  "TTSSpeak",
+  "VoiceGetState",
+  "VoiceRestartService",
+  "VoiceSetInputChannel",
+  "VoiceSetMode",
+  "WhisperChat",
+  "WhisperChatWithSearch",
+  "WhisperGetConfig",
+  "WhisperGetEngine",
+  "WhisperGetEngines",
+  "WhisperGetImageModel",
+  "WhisperGetModel",
+  "WhisperSetEngine",
+  "WhisperSetImageModel",
+  "WhisperSetModel",
+  "WhisperTaskPlanResume",
+  "WhisperTaskPlanStatus",
+  "WhisperWebSearch"
+ ],
+ "test_only_consumer_count": 31,
+ "test_only_consumer": [
+  {
+   "name": "GaeaAnswer",
+   "files": [
+    "frontend/src/gaea/lib/store.t74.test.ts"
+   ]
+  },
+  {
+   "name": "GaeaBenchmarkDetail",
+   "files": [
+    "frontend/src/gaea/lib/mock-contract-benchmark.test.ts"
+   ]
+  },
+  {
+   "name": "GaeaCancel",
+   "files": [
+    "frontend/src/gaea/lib/store.t74.test.ts"
+   ]
+  },
+  {
+   "name": "GaeaCostSearchPage",
+   "files": [
+    "frontend/src/gaea/components/CostLibraryView.test.tsx"
+   ]
+  },
+  {
+   "name": "GaeaDagAcceptAll",
+   "files": [
+    "frontend/src/gaea/components/DagPanel.test.tsx"
+   ]
+  },
+  {
+   "name": "GaeaDagCancel",
+   "files": [
+    "frontend/src/gaea/components/DagPanel.test.tsx"
+   ]
+  },
+  {
+   "name": "GaeaDagNodeAccept",
+   "files": [
+    "frontend/src/gaea/components/DagPanel.test.tsx"
+   ]
+  },
+  {
+   "name": "GaeaDagNodeSteer",
+   "files": [
+    "frontend/src/gaea/components/DagPanel.test.tsx"
+   ]
+  },
+  {
+   "name": "GaeaDagRun",
+   "files": [
+    "frontend/src/gaea/components/DagPanel.test.tsx"
+   ]
+  },
+  {
+   "name": "GaeaDeleteSession",
+   "files": [
+    "frontend/src/gaea/lib/store.t74.test.ts"
+   ]
+  },
+  {
+   "name": "GaeaKnowledgeList",
+   "files": [
+    "frontend/src/gaea/components/KnowledgePanel.t74.test.tsx"
+   ]
+  },
+  {
+   "name": "GaeaMemoryFeedback",
+   "files": [
+    "frontend/src/gaea/components/Message.test.tsx"
+   ]
+  },
+  {
+   "name": "GaeaNewSession",
+   "files": [
+    "frontend/src/gaea/lib/store.t74.test.ts"
+   ]
+  },
+  {
+   "name": "GaeaRemember",
+   "files": [
+    "frontend/src/gaea/lib/store.t74.test.ts"
+   ]
+  },
+  {
+   "name": "GaeaSaveDoc",
+   "files": [
+    "frontend/src/gaea/lib/store.t74.test.ts"
+   ]
+  },
+  {
+   "name": "GaeaScheduleProjectArchive",
+   "files": [
+    "frontend/src/schedule/store.sync.test.ts"
+   ]
+  },
+  {
+   "name": "GaeaScheduleProjectCopy",
+   "files": [
+    "frontend/src/schedule/store.sync.test.ts"
+   ]
+  },
+  {
+   "name": "GaeaScheduleProjectDelete",
+   "files": [
+    "frontend/src/schedule/store.sync.test.ts"
+   ]
+  },
+  {
+   "name": "GaeaSetPermLevel",
+   "files": [
+    "frontend/src/gaea/lib/store.t74.test.ts"
+   ]
+  },
+  {
+   "name": "GaeaTrajectory",
+   "files": [
+    "frontend/src/gaea/lib/bridge.variadic.test.ts"
+   ]
+  },
+  {
+   "name": "GaeaUnifiedSearch",
+   "files": [
+    "frontend/src/gaea/lib/mock-contract-e5.test.ts"
+   ]
+  },
+  {
+   "name": "ToggleOrgMember",
+   "files": [
+    "frontend/src/gaea/lib/spaceBindings.test.ts"
+   ]
+  },
+  {
+   "name": "GaeaApprove",
+   "files": [
+    "frontend/src/gaea/components/ApprovalModal.test.tsx",
+    "frontend/src/gaea/lib/store.t74.test.ts"
+   ]
+  },
+  {
+   "name": "GaeaDeliverableRegistry",
+   "files": [
+    "frontend/src/gaea/components/DeliverableCards.test.tsx",
+    "frontend/src/gaea/lib/store.invalidate.test.ts"
+   ]
+  },
+  {
+   "name": "GaeaContext",
+   "files": [
+    "frontend/src/gaea/lib/store.host.test.ts",
+    "frontend/src/gaea/lib/store.invalidate.test.ts"
+   ]
+  },
+  {
+   "name": "GaeaFactBase",
+   "files": [
+    "frontend/src/gaea/lib/store.host.test.ts",
+    "frontend/src/gaea/lib/store.invalidate.test.ts"
+   ]
+  },
+  {
+   "name": "GaeaListSessions",
+   "files": [
+    "frontend/src/gaea/components/DeliverableCards.test.tsx",
+    "frontend/src/gaea/components/DeliverablesPanel.test.tsx"
+   ]
+  },
+  {
+   "name": "GaeaBalance",
+   "files": [
+    "frontend/src/gaea/lib/bridge.test.ts",
+    "frontend/src/gaea/lib/store.host.test.ts"
+   ]
+  },
+  {
+   "name": "GaeaHistory",
+   "files": [
+    "frontend/src/gaea/lib/bridge.test.ts",
+    "frontend/src/gaea/lib/store.host.test.ts"
+   ]
+  },
+  {
+   "name": "GaeaJobs",
+   "files": [
+    "frontend/src/gaea/lib/bridge.test.ts",
+    "frontend/src/gaea/lib/store.host.test.ts"
+   ]
+  },
+  {
+   "name": "GaeaMeta",
+   "files": [
+    "frontend/src/gaea/lib/bridge.test.ts",
+    "frontend/src/gaea/lib/store.host.test.ts"
+   ]
+  }
+ ],
+ "single_prod_consumer_count": 287,
+ "single_prod_consumer": [
+  {
+   "name": "AddCustomEngine",
+   "file": "frontend/src/api/engines.ts"
+  },
+  {
+   "name": "AnalyzeChapter",
+   "file": "frontend/src/components/novel/ChapterAnalysisPanel.tsx"
+  },
+  {
+   "name": "ApplyBranch",
+   "file": "frontend/src/stores/outlineStore.ts"
+  },
+  {
+   "name": "BuildNovelStatePatch",
+   "file": "frontend/src/pages/CreatePage.tsx"
+  },
+  {
+   "name": "ChapterArtList",
+   "file": "frontend/src/api/image.ts"
+  },
+  {
+   "name": "CharacterAssociate",
+   "file": "frontend/src/api/characterlib.ts"
+  },
+  {
+   "name": "CharacterAssociateTo",
+   "file": "frontend/src/api/characterlib.ts"
+  },
+  {
+   "name": "CharacterDelete",
+   "file": "frontend/src/api/characterlib.ts"
+  },
+  {
+   "name": "CharacterDissociate",
+   "file": "frontend/src/api/characterlib.ts"
+  },
+  {
+   "name": "CharacterDrawRandom",
+   "file": "frontend/src/api/characterlib.ts"
+  },
+  {
+   "name": "CharacterFillAll",
+   "file": "frontend/src/api/characterlib.ts"
+  },
+  {
+   "name": "CharacterGenerateFill",
+   "file": "frontend/src/api/characterlib.ts"
+  },
+  {
+   "name": "CharacterGeneratePortrait",
+   "file": "frontend/src/api/characterlib.ts"
+  },
+  {
+   "name": "CharacterGeneratePortraitWithRef",
+   "file": "frontend/src/api/characterlib.ts"
+  },
+  {
+   "name": "CharacterGenerateRandom",
+   "file": "frontend/src/api/characterlib.ts"
+  },
+  {
+   "name": "CharacterGenerateSheet",
+   "file": "frontend/src/api/characterlib.ts"
+  },
+  {
+   "name": "CharacterGet",
+   "file": "frontend/src/api/characterlib.ts"
+  },
+  {
+   "name": "CharacterImportPreview",
+   "file": "frontend/src/api/characterlib.ts"
+  },
+  {
+   "name": "CharacterImportProject",
+   "file": "frontend/src/api/characterlib.ts"
+  },
+  {
+   "name": "CharacterListByProject",
+   "file": "frontend/src/api/characterlib.ts"
+  },
+  {
+   "name": "CharacterSave",
+   "file": "frontend/src/api/characterlib.ts"
+  },
+  {
+   "name": "CharacterScoreConsistency",
+   "file": "frontend/src/api/characterlib.ts"
+  },
+  {
+   "name": "CharacterSetProjectState",
+   "file": "frontend/src/api/characterlib.ts"
+  },
+  {
+   "name": "CharacterSyncProject",
+   "file": "frontend/src/api/characterlib.ts"
+  },
+  {
+   "name": "ChatAppendMessages",
+   "file": "frontend/src/hooks/useChatVoice.ts"
+  },
+  {
+   "name": "ChatImportTopic",
+   "file": "frontend/src/pages/chat/utils.ts"
+  },
+  {
+   "name": "ChatMessagesList",
+   "file": "frontend/src/hooks/useChatTopics.ts"
+  },
+  {
+   "name": "ChatMessagesPage",
+   "file": "frontend/src/hooks/useChatTopics.ts"
+  },
+  {
+   "name": "ChatStreamCancel",
+   "file": "frontend/src/hooks/useChatStream.ts"
+  },
+  {
+   "name": "ChatStreamPlain",
+   "file": "frontend/src/hooks/useChatStream.ts"
+  },
+  {
+   "name": "ChatTopicClear",
+   "file": "frontend/src/pages/ChatPage.tsx"
+  },
+  {
+   "name": "ChatTopicCreate",
+   "file": "frontend/src/hooks/useChatTopics.ts"
+  },
+  {
+   "name": "ChatTopicDelete",
+   "file": "frontend/src/hooks/useChatTopics.ts"
+  },
+  {
+   "name": "ChatTopicExportMarkdown",
+   "file": "frontend/src/pages/ChatPage.tsx"
+  },
+  {
+   "name": "ChatTopicRename",
+   "file": "frontend/src/hooks/useChatTopics.ts"
+  },
+  {
+   "name": "ChatTopicSetMode",
+   "file": "frontend/src/hooks/useChatTopics.ts"
+  },
+  {
+   "name": "ChatTopicsList",
+   "file": "frontend/src/hooks/useChatTopics.ts"
+  },
+  {
+   "name": "ChatWorldview",
+   "file": "frontend/src/pages/NovelSettingPage.tsx"
+  },
+  {
+   "name": "CheckConsistency",
+   "file": "frontend/src/components/novel/ConsistencyPanel.tsx"
+  },
+  {
+   "name": "CleanChapterAnalysisForeshadows",
+   "file": "frontend/src/components/novel/ForeshadowPanel.tsx"
+  },
+  {
+   "name": "ClearProjectForeshadowsForReset",
+   "file": "frontend/src/components/novel/ForeshadowPanel.tsx"
+  },
+  {
+   "name": "CmdKEdit",
+   "file": "frontend/src/components/novel/editor/CommandBar.tsx"
+  },
+  {
+   "name": "CreateChapter",
+   "file": "frontend/src/pages/CreatePage.tsx"
+  },
+  {
+   "name": "CreateChapterWithOverride",
+   "file": "frontend/src/pages/CreatePage.tsx"
+  },
+  {
+   "name": "CreateProject",
+   "file": "frontend/src/pages/HomePage.tsx"
+  },
+  {
+   "name": "DeSlopChapterAiTaste",
+   "file": "frontend/src/pages/CreatePage.tsx"
+  },
+  {
+   "name": "DeleteChapterForeshadows",
+   "file": "frontend/src/components/novel/ForeshadowPanel.tsx"
+  },
+  {
+   "name": "DeleteOrganization",
+   "file": "frontend/src/components/novel/api/character.ts"
+  },
+  {
+   "name": "DeleteOutlineNode",
+   "file": "frontend/src/pages/CreatePage.tsx"
+  },
+  {
+   "name": "DeleteProject",
+   "file": "frontend/src/stores/appStore.ts"
+  },
+  {
+   "name": "DeleteRelationship",
+   "file": "frontend/src/components/novel/api/character.ts"
+  },
+  {
+   "name": "ExportAll",
+   "file": "frontend/src/components/novel/ExportPanel.tsx"
+  },
+  {
+   "name": "GaeaBenchmarkExport",
+   "file": "frontend/src/api/engines.ts"
+  },
+  {
+   "name": "GaeaBenchmarkList",
+   "file": "frontend/src/api/engines.ts"
+  },
+  {
+   "name": "GaeaBenchmarkStart",
+   "file": "frontend/src/api/engines.ts"
+  },
+  {
+   "name": "GaeaBenchmarkStreamProbe",
+   "file": "frontend/src/api/engines.ts"
+  },
+  {
+   "name": "GaeaCaptureSkill",
+   "file": "frontend/src/gaea/lib/types/settings.ts"
+  },
+  {
+   "name": "GaeaCheckUpdate",
+   "file": "frontend/src/gaea/lib/types/updater.ts"
+  },
+  {
+   "name": "GaeaConvertToPdf",
+   "file": "frontend/src/gaea/components/FilePreviewModal.tsx"
+  },
+  {
+   "name": "GaeaCostCompose",
+   "file": "frontend/src/gaea/components/memoryhub/ComposeModal.tsx"
+  },
+  {
+   "name": "GaeaCostGraph",
+   "file": "frontend/src/gaea/components/memoryhub/CostGraphView.tsx"
+  },
+  {
+   "name": "GaeaDagTemplateList",
+   "file": "frontend/src/gaea/components/DagPanel.tsx"
+  },
+  {
+   "name": "GaeaDocumentLint",
+   "file": "frontend/src/gaea/lib/types/office.ts"
+  },
+  {
+   "name": "GaeaFileSearch",
+   "file": "frontend/src/gaea/components/FileTree.tsx"
+  },
+  {
+   "name": "GaeaGetUsdCnyRate",
+   "file": "frontend/src/api/engines.ts"
+  },
+  {
+   "name": "GaeaGitCommit",
+   "file": "frontend/src/gaea/components/GitPanel.tsx"
+  },
+  {
+   "name": "GaeaGitDiff",
+   "file": "frontend/src/gaea/components/GitPanel.tsx"
+  },
+  {
+   "name": "GaeaGitDiscard",
+   "file": "frontend/src/gaea/components/GitPanel.tsx"
+  },
+  {
+   "name": "GaeaGitLog",
+   "file": "frontend/src/gaea/components/GitPanel.tsx"
+  },
+  {
+   "name": "GaeaGitStage",
+   "file": "frontend/src/gaea/components/GitPanel.tsx"
+  },
+  {
+   "name": "GaeaGitStatus",
+   "file": "frontend/src/gaea/components/GitPanel.tsx"
+  },
+  {
+   "name": "GaeaGitUnstage",
+   "file": "frontend/src/gaea/components/GitPanel.tsx"
+  },
+  {
+   "name": "GaeaListProjectSessions",
+   "file": "frontend/src/gaea/lib/types/session.ts"
+  },
+  {
+   "name": "GaeaLogFrontendError",
+   "file": "frontend/src/pages/chat/utils.ts"
+  },
+  {
+   "name": "GaeaMemoryCleanupArchived",
+   "file": "frontend/src/gaea/lib/types/memory.ts"
+  },
+  {
+   "name": "GaeaMemoryEvalRun",
+   "file": "frontend/src/gaea/lib/types/memory.ts"
+  },
+  {
+   "name": "GaeaMemoryMorningBrief",
+   "file": "frontend/src/gaea/components/MorningBriefCard.tsx"
+  },
+  {
+   "name": "GaeaModelSwitchEstimate",
+   "file": "frontend/src/gaea/lib/types/tasks.ts"
+  },
+  {
+   "name": "GaeaOfficeEditText",
+   "file": "frontend/src/gaea/components/PptxEditPanel.tsx"
+  },
+  {
+   "name": "GaeaPptxApplyEdit",
+   "file": "frontend/src/gaea/components/PptxEditPanel.tsx"
+  }
+ ],
+ "top_fanout": [
+  [
+   23,
+   "Search"
+  ],
+  [
+   10,
+   "GaeaPreview"
+  ],
+  [
+   9,
+   "GaeaPickFiles"
+  ],
+  [
+   8,
+   "GaeaJournalList"
+  ],
+  [
+   7,
+   "HerdsmanModelCatalog"
+  ],
+  [
+   7,
+   "GaeaSubagentRuns"
+  ],
+  [
+   7,
+   "CharacterList"
+  ],
+  [
+   6,
+   "GaeaSpaceActive"
+  ],
+  [
+   6,
+   "GaeaAgentNetwork"
+  ],
+  [
+   6,
+   "Chat"
+  ],
+  [
+   5,
+   "VoiceApplySettings"
+  ],
+  [
+   5,
+   "SinIllustrate"
+  ],
+  [
+   5,
+   "GaeaScheduleProjects"
+  ],
+  [
+   5,
+   "GaeaScheduleLoad"
+  ],
+  [
+   5,
+   "GaeaReadFileB64"
+  ],
+  [
+   5,
+   "CheckConsistencyDeep"
+  ],
+  [
+   4,
+   "GetCharacters"
+  ],
+  [
+   3,
+   "WhisperGetPersonalities"
+  ],
+  [
+   3,
+   "VoiceGetSettings"
+  ],
+  [
+   3,
+   "UpdateProjectMeta"
+  ]
+ ],
+ "prompt_assets": [
+  "analysis-chapter",
+  "book-import-outline",
+  "book-import-project",
+  "book-review",
+  "chapter-plan",
+  "chapter-review",
+  "chapter-summary",
+  "character",
+  "character-detail",
+  "character-generate-batch",
+  "character-generate-single",
+  "create-chapter",
+  "create-chapter-first",
+  "outline-chat",
+  "outline-chat-node",
+  "outline-continue",
+  "outline-expand",
+  "plot-branch-browser",
+  "rewrite-chapter",
+  "skill-from-journal",
+  "skill-from-session",
+  "stage-recap",
+  "worldview"
+ ],
+ "prompt_unreferenced": [],
+ "prompt_reference_sample": {
+  "analysis-chapter": [
+   "internal/analysis/analysis.go",
+   "internal/app/novel_revolution_axis_test.go",
+   "internal/prompt/prompt_test.go"
+  ],
+  "book-import-outline": [
+   "internal/app/novel_import_ai.go",
+   "internal/prompt/prompt_test.go"
+  ],
+  "book-import-project": [
+   "internal/app/novel_import_ai.go"
+  ],
+  "book-review": [
+   "internal/analysis/analysis.go"
+  ],
+  "chapter-plan": [
+   "internal/app/chapter_plan_position.go",
+   "internal/app/novel_plan_handler.go",
+   "internal/app/novel_plan_handler_test.go",
+   "internal/app/plan_loop_e2e_test.go"
+  ],
+  "chapter-review": [
+   "internal/chapter/chapter.go",
+   "internal/prompt/prompt_test.go"
+  ]
+ }
+}

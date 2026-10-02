@@ -78,21 +78,146 @@ func SafeGo(fn func()) {
 	}()
 }
 
-// ExtractJSON 从 AI 回复中提取第一个完整 JSON 对象
+// ExtractJSON 从 AI 回复中提取第一个完整的 JSON 对象（或顶层数组）。
+//
+// 与旧实现（「第一个 { 到最后一个 }」）相比，语义变化仅限修复 P0-22：
+//   - 按括号深度配平切分，回复里再出现第二个对象、或后文顺带提到 {} 时不再污染结果；
+//   - 字符串字面量内部的花括号与转义引号（\" 与 \\）不计入深度；
+//   - 支持顶层数组（gaea_xlsx_edit.go 等调用方的目标是 []xlsxedit.Op），
+//     但对象优先于纯标量数组，避免正文里的 [1] 这类引用噪声抢先被当成结果；
+//   - 带 ```json 围栏时优先在围栏内提取。
+//
+// 向后兼容：找不到任何完整 JSON 片段时原样返回 s（不 trim、不返回空串），
+// 与旧实现一致；调用方仍可用 json.Unmarshal 的成功与否判断是否真的拿到了 JSON。
 func ExtractJSON(s string) string {
-	start, end := -1, -1
-	for i, ch := range s {
-		if ch == '{' && start == -1 {
-			start = i
-		}
-		if ch == '}' {
-			end = i
-		}
+	if seg, ok := extractFromJSONFence(s); ok {
+		return seg
 	}
-	if start >= 0 && end > start {
-		return s[start : end+1]
+	if seg, ok := extractBalancedJSON(s); ok {
+		return seg
 	}
 	return s
+}
+
+// extractBalancedJSON 从左到右扫描，返回第一个「完整的、合法的、且值得优先返回」的 JSON 片段。
+// 结构完整但非法（例如正文里的 [附录]、{模型胡说}）的候选会被跳过，以免正文噪声抢在真正的
+// JSON 之前；若所有候选都不满足优先级，则退化为返回第一个结构完整片段，保证行为可预期。
+func extractBalancedJSON(s string) (string, bool) {
+	firstComplete := ""
+	hasComplete := false
+	for i := 0; i < len(s); i++ {
+		if c := s[i]; c != '{' && c != '[' {
+			continue
+		}
+		seg, ok := scanBalanced(s, i)
+		if !ok {
+			continue
+		}
+		if json.Valid([]byte(seg)) && isPreferredCandidate(seg) {
+			return seg, true
+		}
+		if !hasComplete {
+			firstComplete, hasComplete = seg, true
+		}
+	}
+	if hasComplete {
+		return firstComplete, true
+	}
+	return "", false
+}
+
+// isPreferredCandidate 判断已配平的片段是否值得优先返回。
+// 对象一律优先；数组只在是「结构化数组」（首元素为对象或数组）时才优先，
+// 这样正文里的 [1]、[2]、["注"] 这类引用噪声不会抢在真正的 JSON 对象之前，
+// 同时 [{"op":1},{"op":2}] 这类真正的顶层数组仍能被正确提取。
+// 被降级的候选不会丢失：若无更优候选，extractBalancedJSON 会兜底返回它，
+// 因此纯标量数组（[1,2,3]）与字符串数组（["a","b"]）单独出现时行为不变。
+func isPreferredCandidate(seg string) bool {
+	if seg == "" {
+		return false
+	}
+	if seg[0] == '{' {
+		return true
+	}
+	for i := 1; i < len(seg); i++ {
+		switch seg[i] {
+		case ' ', '\t', '\n', '\r':
+			continue
+		case '{', '[':
+			return true
+		default:
+			return false
+		}
+	}
+	return false
+}
+
+// scanBalanced 从 s[start]（'{' 或 '['）出发做括号配平扫描，深度归零时返回该完整片段。
+// 字符串内部按「转义优先」状态机处理，因此 "}"、"{" 与 \" 不会影响深度。
+func scanBalanced(s string, start int) (string, bool) {
+	depth := 0
+	inString := false
+	escaped := false
+	for i := start; i < len(s); i++ {
+		c := s[i]
+		if inString {
+			switch {
+			case escaped:
+				escaped = false
+			case c == '\\':
+				escaped = true
+			case c == '"':
+				inString = false
+			}
+			continue
+		}
+		switch c {
+		case '"':
+			inString = true
+		case '{', '[':
+			depth++
+		case '}', ']':
+			depth--
+			if depth <= 0 {
+				return s[start : i+1], true
+			}
+		}
+	}
+	return "", false
+}
+
+// extractFromJSONFence 在带 json 语言标记的 markdown 代码围栏内提取 JSON。
+// 只认 ```json / ```jsonc 这类标记，裸围栏与其它语言围栏交给全局扫描统一处理。
+func extractFromJSONFence(s string) (string, bool) {
+	rest := s
+	for {
+		i := strings.Index(rest, "```")
+		if i < 0 {
+			return "", false
+		}
+		rest = rest[i+3:]
+		nl := strings.IndexByte(rest, '\n')
+		if nl < 0 {
+			return "", false
+		}
+		lang := strings.ToLower(strings.TrimSpace(rest[:nl]))
+		body := rest[nl+1:]
+		end := strings.Index(body, "```")
+		closed := end >= 0
+		block := body
+		if closed {
+			block = body[:end]
+		}
+		if strings.HasPrefix(lang, "json") {
+			if seg, ok := extractBalancedJSON(block); ok {
+				return seg, true
+			}
+		}
+		if !closed {
+			return "", false
+		}
+		rest = body[end+3:]
+	}
 }
 
 // Truncate 按 rune 截断字符串

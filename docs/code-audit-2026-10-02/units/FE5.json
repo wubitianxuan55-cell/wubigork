@@ -1,0 +1,348 @@
+{
+  "id": "FE5",
+  "module": "前端 pages + layouts + boards",
+  "footprint": [
+    "frontend/src/pages",
+    "frontend/src/layouts",
+    "frontend/src/boards"
+  ],
+  "verdict": "这一层不是烂代码，是「大文件堆结构债」：页面组件把状态、异步编排、桥接调用、业务规则和视图全塞在一个函数里（CreatePage 1500 行 / ChapterPage 1188 / WeixinPage 1034 / CharacterPage 1006），任何一处改动都要在 40+ 个 useState/useRef 和 18 个弹窗标志之间重建立方。最痛的根因是「一个绑定两套入口」：bridge proxy（带空间门控 + BridgeError 归一）与 wailsjs 直连（零门控零归一）在同一页并存，bridge 已经导出好类型（PlanGateReportView / CreateChapterWithOverride 9 参）却被页面本地重写并配 23 行手写窄化，注释还坚称「绑定面未生成」。其次是 keepAlive 后台轮询返祖：WeixinPage 每隔 5 秒打两次后端，只判窗口可见、没判板块可见——lib/boardActive 的文件头就是为这个场景写的。局部重复（未保存守卫 ×6、人设选择器两份、errText 两份、项目角色 refs 两份、import 处理器 ×3）和一批「只在 createTabData 里被写、UI 里读不到」的僵尸字段把噪音抬得很高，但每处都有测试或注释锁着，属于可拆可还的债，不是随时会咬人的坑。score 给 4：LOC 结构面明显失守（4 个千行组件、总 22,796 行源码），但错误可见化、脏守卫、epoch 守卫这些纪律性地基是真的，且证据链完整可按行复核。",
+  "score": 4,
+  "metrics": {
+    "files_reviewed": 23,
+    "loc_reviewed": 9560,
+    "test_files": 7,
+    "test_loc": 2381
+  },
+  "hotspots": [
+    {
+      "path": "frontend/src/pages/CreatePage.tsx",
+      "loc": 1500,
+      "why": "18 个弹窗开合标志 + 14 个 useRef + 18 个 useCallback 挤在一个组件里，生成/硬闸/反推三条异步链共用同一片状态，任何改动都是全局风险"
+    },
+    {
+      "path": "frontend/src/pages/ChapterPage.tsx",
+      "loc": 1188,
+      "why": "40+ useState / 25 useEffect / 5 ref 镜像 / 10 个 async handler 同函数，多标签缓冲的脏判定与章号维度交缠，改一处牵连保存与切书两条命脉"
+    },
+    {
+      "path": "frontend/src/pages/WeixinPage.tsx",
+      "loc": 1034,
+      "why": "单页三个平行「状态投影」函数 + 板块不可见时仍每 5 秒两连打后端，且自带一份 PersonaPicker 平行实现"
+    },
+    {
+      "path": "frontend/src/pages/CharacterPage.tsx",
+      "loc": 1006,
+      "why": "1006 行里塞了 3 个 render*Modal() + Drawer 详情 + 组织/关系编辑，测试只覆盖职业区块，主要交互零保护"
+    },
+    {
+      "path": "frontend/src/layouts/MainLayout.tsx",
+      "loc": 811,
+      "why": "壳层、遥测轮询、SVG sparkline、CommandRail 四个职责同文件；manifest 的 shortcut/lazy/keepAlive/nav 在这里被硬编码取代"
+    },
+    {
+      "path": "frontend/src/pages/SchedulePage.tsx",
+      "loc": 774,
+      "why": "onImportFile / onImportXlsx / onImportMpp 三段处理器近逐字重复，第四段 onImportNewFile 再把前三个按扩展名分支复制一遍"
+    },
+    {
+      "path": "frontend/src/pages/CreatePage.test.tsx",
+      "loc": 843,
+      "why": "手工枚举 16 个 NovelB mock，和生产代码绕过 bridge 的 16 个直连 import 一一对应，绑定面一动两处一起改"
+    },
+    {
+      "path": "frontend/src/boards/manifests.ts",
+      "loc": 350,
+      "why": "派生了 shortcut/lazy/keepAlive/nav 四组视图，生产代码只消费其中四成，其余只有测试读"
+    }
+  ],
+  "findings": [
+    {
+      "fid": "FE5-01",
+      "severity": "P1",
+      "category": "coupling",
+      "title": "页面直连 wailsjs 绑定，绕过 bridge 门控与错误归一",
+      "file": "frontend/src/pages/CreatePage.tsx",
+      "line": "3-4",
+      "evidence": "import { app } from '../gaea/lib/bridge'\nimport { GetNovelState, BuildNovelStatePatch, SettleNovelState, DeSlopChapterAiTaste, RewriteChapterAiTaste, GetEntityRelations, CancelCreateChapter, NovelFingerprintStatus, ... } from '../../wailsjs/go/app/NovelB'",
+      "why": "同一页里两套绑定入口并存：app proxy 走 invoke 统一把失败归一成 BridgeError 并上报 gaea.log（gaea/lib/bridge/proxy.ts:126-136），还会按 spaceBindings 做空间门控（proxy.ts:193）；wailsjs 直连这条路径两者都没有，而 bridge/novel.ts 早就把 NovelBindings 接口声明好了（novel.ts:343-452 含 CancelCreateChapter/GetChapterScenes/CreateScene）。",
+      "impact": "这 16 个调用的失败原样抛出（无 code 字段、不进 gaea.log），排查时日志里看不到痕迹；play 空间门控对这些方法完全失效，越界调用不会在 tsc 阶段被挡。",
+      "fix": "把 CreatePage 的 16 个直连 import 全部改为 app.XXX（签名已在 NovelBindings，基本是纯替换），同文件内删除本地收窄 interface。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE5-02",
+      "severity": "P1",
+      "category": "coupling",
+      "title": "ChapterPage 同样直连 NovelB 四个绑定",
+      "file": "frontend/src/pages/ChapterPage.tsx",
+      "line": "54",
+      "evidence": "import { IsProjectV4, GetChapterScenes, SaveScene, CreateScene } from '../../wailsjs/go/app/NovelB'",
+      "why": "与 FE5-01 同源的第二处：GetChapterScenes/CreateScene 已在 bridge/novel.ts:404-406 声明（可零成本切换），IsProjectV4/SaveScene 只列在 bridge/drift.ts:151,188 的 LegacySurfaceNames 里（尚未认领）。导入面的分裂意味着「哪些调用有归一/门控」要靠读 import 才能判断。",
+      "impact": "同一份 bridge 语义在页面间不一致：改动 proxy 的归一化层或空间绑定表时，这两处直连路径静默不生效；测试也只得跟着 mock wailsjs（ChapterPage.test.tsx:33）。",
+      "fix": "GetChapterScenes/CreateScene 先切 app.*；IsProjectV4/SaveScene 补进 NovelBindings + 从 LegacySurfaceNames 移除（drift.ts 双向断言会替你把漏点全查出来）。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE5-03",
+      "severity": "P1",
+      "category": "duplication",
+      "title": "硬闸报告类型与收窄函数重复 bridge 已导出类型",
+      "file": "frontend/src/pages/CreatePage.tsx",
+      "line": "64-104",
+      "evidence": "interface PlanGateBridge {\n  NovelChapterGatePrecheck(chapterNum: number): Promise<unknown>\n}\nfunction toPlanGateReport(value: unknown): PlanGateReport | null {",
+      "why": "bridge/novel.ts:222-238 已导出 PlanProblemView/PlanGateReportView，且 NovelChapterGatePrecheck 的返回类型就是 PlanGateReportView（novel.ts:325）。页面却重定义 PlanGateBridge（Promise<unknown>）+ 23 行手写窄化，再在 guardPlanGate 用 app as unknown as Partial<PlanGateBridge>（CreatePage.tsx:750-754）把类型系统整个关掉。",
+      "impact": "后端给 PlanGateReportView 加字段（如新增判据）前端不会有编译提示；手写窄化里 allowed/hasPlan/blocking 缺省值（false）与实际 json 语义无一处校验，硬闸判断可以静默变成「永远放行」。",
+      "fix": "删除 PlanGateBridge/toPlanGateReport 与本地 PlanGateReport，直接用 app.NovelChapterGatePrecheck(n) 返回的 PlanGateReportView（可选字段按 ?? 兜底）。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE5-04",
+      "severity": "P1",
+      "category": "doc-drift",
+      "title": "CreateChapterWithOverride 本地接口重复且注释断言未生成",
+      "file": "frontend/src/pages/CreatePage.tsx",
+      "line": "68-79",
+      "evidence": "interface CreateChapterBridge {\n  CreateChapterWithOverride(\n    setting: string, prevSummary: string, plotReq: string, chapterNum: number,\n    branchFromNodeID: string, skillName: string, minWords: number, temperature: number,\n    allowOverride: boolean,\n  ): Promise<{ nodeId?: string; chapterNum?: number; branch?: string }>\n}",
+      "why": "同文件顶部注释写「线C 落地绑定、主代理收口时才生成 wails/bridge 类型面，故此处用本地 interface + `app as unknown as ...` 收窄」，但 bridge/novel.ts:356-359 早已声明 CreateChapterWithOverride 九参与注释，CreatePage.test.tsx:104-108 还在模拟「覆盖入口绑定未就绪」分支。",
+      "impact": "注释与事实相反，后来者会继续按「绑定未生成」写防御代码；override 走 app as unknown as Partial<CreateChapterBridge> 的类型旁路，签名一改（如后端换参序）前端零报错，硬闸覆盖会静默失效或传错参。",
+      "fix": "删本地 CreateChapterBridge，改用 app.CreateChapterWithOverride(..., allowOverride)；同步删掉测试里的 noOverrideBinding 桩与运行时的「绑定未就绪」警告分支。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE5-05",
+      "severity": "P1",
+      "category": "perf-smell",
+      "title": "青鸟页每 5 秒两连打后端且无板块可见门控",
+      "file": "frontend/src/pages/WeixinPage.tsx",
+      "line": "271-280",
+      "evidence": "const timer = window.setInterval(() => {\n  if (!isPageVisible()) return\n  loadAssistants()\n  loadReminders()\n}, POLL_MS)",
+      "why": "壳层 keepAlive 让访问过的板块常驻挂载（MainLayout.tsx:771-791 display:none），lib/boardActive.ts 的文件头明确写「需要两个都挡的场合（后台轮询）应各自判一次」，全仓唯一没做这件事的正是这里（modelcenter 的 ResourceMonitor.tsx:22 与 BenchmarkSection.tsx:73 都用了 usePollingGate + 板块门控）。",
+      "impact": "只要进过一次青鸟页，之后停在任意板块（办公/小说/绘图）都以 5 秒节奏持续发 WhisperWeixinStatus + WhisperAssistantList + WeixinReminderList + WeixinReminderConfig 请求，整天挂机场景下是纯浪费的后端与渲染压力。",
+      "fix": "const active = useBoardActive('weixin')，interval 回调里 `if (!activeRef.current || !isPageVisible()) return`；并把 isPageVisible 换成 usePollingGate 以保持与其余页一致的订阅语义。",
+      "effort": "S",
+      "prior_audit": "docs/gaea-optimization-direction-2026-09.md 已把「keepAlive 后台轮询」列为风险项（延续/仍开放：该页是漏网点）"
+    },
+    {
+      "fid": "FE5-06",
+      "severity": "P2",
+      "category": "dead-code",
+      "title": "ChapterTabData 六个僵尸字段只写不读",
+      "file": "frontend/src/pages/chapter/chapterTabData.ts",
+      "line": "15-16",
+      "evidence": "streamSpeed: 0, messages: [], targetWords: 3000,\nskillName: '', retryStatus: null,",
+      "why": "ChapterPage 全页只 update scenes/sceneIds/sceneBacked/saved（ChapterPage.tsx:285-288、523；updateTab 同型），从不写 generating/retryStatus/streamSpeed/messages/skillName；而 ChapterEditor.tsx:446,461 仍在渲染 tab.retryStatus 与 tab.generating 两段流式 UI（永假），ChapterEditor.tsx:257 把恒为 3000 的 tab.targetWords 当 minWords 用，types/index.ts:174-183 仍把 messages 挂到 ChatPanel.Message 上。",
+      "impact": "每个打开的章节标签都要分配这批死字段并参与 join/比较，UI 里存在永远不可能出现的「AI 审稿评分」分支，读代码的人会把它们当成真实状态源去改（改完发现没反应）。",
+      "fix": "删 ChapterTabData 的 generating/streamSpeed/messages/skillName/retryStatus/keyEvents/emotionTone/summary（或按需保留 summary 并补齐消费方），同步删 ChapterEditor.tsx:446-469 两段死分支与 chapterTabData.test.ts:16-17 的断言。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE5-07",
+      "severity": "P2",
+      "category": "duplication",
+      "title": "创作页同一未保存守卫被复制六处",
+      "file": "frontend/src/pages/CreatePage.tsx",
+      "line": "509-517",
+      "evidence": "if (contentRef.current !== loadedSnapshotRef.current) {\n  chooseUnsavedAction({\n    title: '正文有未保存的修改',\n    message: `切到「${node.title || `第${node.order_index || '?'}章`}」会丢弃当前修改。`,",
+      "why": "同样的「脏判定 + chooseUnsavedAction + onSave 里 saveActiveRef.current().then(ok => ...)」脚手架在 selectChapter(509)、handleDelete(858)、startGeneration(782)、openRewriteModal(907)、openRewriteHistory(925)、openPartialRewrite(945) 出现六次，只有消息文案不同；同族还有 refreshEditorAfterServerRewrite(1032) 与 refreshEditorAfterRewriteApplied(1048) 两个近乎相同的刷新闸。",
+      "impact": "每次新增一个「会写回正文」的入口都要再抄一遍，漏抄就是一次静默丢稿（A1/A2a 两条审计缺陷正是这么产生的：入口无脏检查）。",
+      "fix": "抽 requireCleanBody({ message, onProceed }) 一个受控闸门（内部读 ref、调 chooseUnsavedAction、失败即中止），六个调用点各自只剩一句 message。",
+      "effort": "M",
+      "prior_audit": "延续：v4.421.0 逐入口补脏闸的遗留形态"
+    },
+    {
+      "fid": "FE5-08",
+      "severity": "P2",
+      "category": "god-func",
+      "title": "CharacterPage 千行单组件，弹窗靠 render 闭包",
+      "file": "frontend/src/pages/CharacterPage.tsx",
+      "line": "501-517",
+      "evidence": "const renderProjectDetail = () => {\n    if (!projectEdit) return null\n    const ch = projectEdit",
+      "why": "1006 行组件内含 renderProjectDetail(501-674，含 780 宽 Drawer + 职业状态机 + 合并入口)、renderDrawModal(677)、renderMergeModal(735)、组织/关系弹窗(921-943)、回写冲突勾选(951-1001)，全部闭包引用同一组 40+ 状态变量；返回函数组件而不抽组件意味着每次父渲染都新建树、无法 memo、无法单测。",
+      "impact": "改回写弹窗的勾选逻辑必须通读 1000 行；CharacterPage.test.tsx 只有 6 个用例锁住职业区块与错误态，抽卡/合并/回写/组织关系四条主要交互零覆盖，回归全靠人工。",
+      "fix": "按 render* 边界切成 CharacterDetailDrawer / DrawCharacterModal / MergeCharacterModal / WriteBackConflictModal 四个文件，状态经 props 传入（先做纯搬移，零行为变更）。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE5-09",
+      "severity": "P2",
+      "category": "duplication",
+      "title": "人设选择器在青鸟页重写一份平行实现",
+      "file": "frontend/src/pages/WeixinPage.tsx",
+      "line": "869-931",
+      "evidence": "const PersonaPickerPanel: React.FC<{\n  opts: PersonaOption[]\n  query: string\n  sel: string",
+      "why": "components/PersonaPicker.tsx 已实现同一需求（PersonaPicker.tsx:48-54 同样 app.CharacterList('', '', true, 1, 500)，:63-68 同样是「名字 + 标签」过滤）；WeixinPage 又写了 PersonaRow + PersonaPickerPanel 两个私有组件，并用 useMemo 把同一段过滤逻辑再实现一次（WeixinPage.tsx:211-216）。头像侧同样重复：WxPortraitAvatar/WxPortraitImg(24-34) 与 components/PersonaPicker.tsx:14-27 的 PersonaAvatar 注释逐句同源。",
+      "impact": "「可聊天角色」的取数参数（第 3 参 true、上限 500）现在有 4 处副本（CharacterPage.tsx:549、WeixinPage.tsx:190、PersonaPicker.tsx:50 等），后端改分页或改过滤语义时必漏一处，表现为「某一页搜不到角色」。",
+      "fix": "抽 useChattableCharacters() 取数 hook + 一个纯净的过滤函数放进 components/characterlib，PersonaPicker 与青鸟页都改为消费它；青鸟页保留自己的视觉皮肤即可。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE5-10",
+      "severity": "P2",
+      "category": "duplication",
+      "title": "errText 错误取文函数仓库内两份同实现",
+      "file": "frontend/src/pages/CharacterPage.tsx",
+      "line": "19-22",
+      "evidence": "function errText(err: unknown, fallback: string): string {\n  return (err instanceof Error && err.message) || fallback\n}",
+      "why": "pages/chapter/errText.ts:5-7 是逐字相同的实现，CharacterPage 在自己的文件内又定义了一遍（它没在 pages/chapter 目录，所以选择了复制而不是提取）。同族还有大量 `err instanceof Error ? err.message : String(err)` 内联写法（WeixinPage.tsx:324,391,408 等）。",
+      "impact": "错误文案口径分散在两种工具 + 若干内联表达式里，想统一加「错误码前缀」或脱敏时必须全仓搜；新页面作者会找到哪份用哪份。",
+      "fix": "把 errText 提升到 frontend/src/utils/（或 lib/）作为唯一实现，CharacterPage 与 chapter/* 全部改 import。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE5-11",
+      "severity": "P2",
+      "category": "complexity",
+      "title": "创作页状态声明与 useRef 在 1500 行里交错散布",
+      "file": "frontend/src/pages/CreatePage.tsx",
+      "line": "250-334",
+      "evidence": "const [rwOpen, setRwOpen] = useState(false)\n  // 重写版本历史面板（t4-C3 余项：版本库 List/Get 前端消费）\n  const [rwHistOpen, setRwHistOpen] = useState(false)",
+      "why": "18 个弹窗/面板开合标志（rwOpen/rwHistOpen/promptWsOpen/planOpen/analysisOpen/healthOpen/spineOpen/convergeOpen/ctxInvOpen/stateOpen/graphOpen/fpOpen/reviewOpen + planGate）与 14 个 useRef（loadedSnapshotRef/contentRef/activeRef/chapterLoadingRef/finishStreamRef/reconstructAliveRef…）从 250 行一直铺到 391 行，中间夹着 loadGenPrefs、toPlanGateReport、EntityGraphSvg 等模块级定义。",
+      "impact": "「打开哪个弹窗」这件事没有单一数据结构（是 13 个独立 boolean），无法做「同时只允许一个」这类约束，也无法在切书时一次性收口——只能在 projectPath effect 里手写 setReviewReport(null); setReviewOpen(false); setFpStatus(null)...（461-459）逐项复位，漏一个就是跨书残留（B5a 缺陷即此）。",
+      "fix": "把弹窗开合收敛成单个 activeModal state（联合字面量）或一个 useModals() hook，切书/切章时统一 closeAll()。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE5-12",
+      "severity": "P2",
+      "category": "consistency",
+      "title": "通道状态四处独立推导，业务规则无单一来源",
+      "file": "frontend/src/pages/WeixinPage.tsx",
+      "line": "60-73",
+      "evidence": "if (!row.hasToken) return <Tag>未绑定</Tag>\n    if (row.wxSessionExpired) return <Tag color=\"warning\" icon={<WarningOutlined />}>会话过期</Tag>",
+      "why": "statusTag(60-65)、channelStatusOf(68-73)、rowStatus(123-128)、mergeAssistantRows(103-112) 四个函数各自判定「未绑定/过期/运行中/已停止」，注释自称「与 statusTag 同口径」但没有任何结构保证；行数/徽标又走第三套失败口径（assistantsLoadFailed/assistantsLoadedOnce/remindersLoadFailed，575-712 三个分支）。",
+      "impact": "后端加一个通道态（如 needVerify）要同时改 4 处，漏一处就出现「rail 说运行中、详情说已停止」的自相矛盾；mergeAssistantRows 还会为 Status 独有行凭空补一行 UI 数据，掩盖后端数据不一致。",
+      "fix": "只留 channelStatusOf 作为唯一状态投影（kind + text + tone），statusTag/rail 点/详情文案全部由它派生；失败态同理收敛为一个 loadState:'loading'|'ok'|'failed'。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE5-13",
+      "severity": "P2",
+      "category": "dead-code",
+      "title": "manifest 四字段声明后被消费方硬编码取代",
+      "file": "frontend/src/layouts/MainLayout.tsx",
+      "line": "525-533",
+      "evidence": "if (e.key >= '1' && e.key <= '9') {\n        const targets = getActiveMenuBoardsForSpace(space).filter((b) => !b.isHome)\n        const target = targets[parseInt(e.key, 10) - 1]",
+      "why": "boards/manifests.ts:178-180/205/317 完整实现了 deriveShortcutMap/getActiveShortcutMap 与 manifest 的 ctrl+1~4 声明，但生产代码零调用（全仓仅 manifests.test.ts:6,129-132,218,298 引用），MainLayout 改按数组下标硬编码；同理 BoardManifest.lazy（页面在 main.tsx:16-30 无条件 lazy()）、keepAlive（同 main.tsx 全量注册进 visitedPages）、nav.children（NOVEL_NAV/SETTINGS_NAV 等定义后无人读，各页 tab 自带数组）也无生产消费者。",
+      "impact": "后端 GetBoardManifests 下发的 shortcut/lazy/keepAlive/nav 全是「看起来生效其实无效」的字段，测试给了假安全感；改导航顺序或快捷键要先发现下标硬编码这层。",
+      "fix": "二选一并写进注释：要么 MainLayout 改用 getActiveShortcutMap() 解析、页面注册读 manifest.lazy，要么把 lazy/keepAlive/nav 从 BoardManifest 与后端契约删除（cleanup 时同步删派生视图与测试）。",
+      "effort": "M",
+      "prior_audit": "docs/gaea-optimization-direction-2026-09.md 附 B「12 硬编码点收敛」声称已完成（本条=未真正收敛的部分）"
+    },
+    {
+      "fid": "FE5-14",
+      "severity": "P2",
+      "category": "duplication",
+      "title": "SchedulePage 三个导入处理器近逐字重复",
+      "file": "frontend/src/pages/SchedulePage.tsx",
+      "line": "241-272",
+      "evidence": "const onImportXlsx = async (file: File) => {\n    setXlsxBusy(true)\n    try {\n      const p = await importScheduleXlsx(file)",
+      "why": "onImportFile(208-223)、onImportXlsx(242-253)、onImportMpp(260-272) 是同一模板（置 busy → 解析 → importProject → setImportMsg(成功/失败) → finally 清 busy），V4.144 的 onImportNewFile(277-313) 又把三者按扩展名分支重写一遍并各自补 note 文案。",
+      "impact": "「导入」这件事有 4 份实现、4 套文案与 3 个 busy 标志，新增格式（如 .mppx）要改两个地方，且 onImportNewFile 的 finally 会同时清 xlsxBusy/mppBusy（310-311）掩盖真实在途态。",
+      "fix": "抽 importInto(parse: (f:File)=>Promise<SchedProject|null>, opts:{note,busyKey})，四个入口只留解析器与文案。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE5-15",
+      "severity": "P2",
+      "category": "test-smell",
+      "title": "CharPage 1006 行仅 6 例，测试密度严重失衡",
+      "file": "frontend/src/pages/CharacterPage.test.tsx",
+      "line": "71-77",
+      "evidence": "describe('CharacterPage 职业区块（t5 §7.6）', () => {\n  it('渲染主职业当前值与副职业 Tag（含无名快照退 career_id）', async () => {",
+      "why": "133 行用例只覆盖职业区块（3 例）与错误态（2 例）+1 个辅助；同页的抽卡 handleDraw/handleAddAllDrawn(215-251)、回写预览与逐字段覆盖(354-400)、合并(432-445)、组织/关系 CRUD(456-487) 全无断言。对照 ChapterPage 1188 行有 21 例、SchedulePage 774 行有 22 例、CreatePage 1500 行有 35 例。",
+      "impact": "本页「副本→库回写」是唯一会写全局角色库的路径（importProjectCharacters + 覆盖勾选），零测试意味着一次字段名改动就能静默覆盖用户角色库数据。",
+      "fix": "优先补三条：回写冲突勾选只覆盖勾选字段、导入/关联走后 syncProjectCharacters、合并不动目标角色的非空字段。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE5-16",
+      "severity": "P2",
+      "category": "consistency",
+      "title": "测试 mock 面跟着生产 import 面分裂",
+      "file": "frontend/src/pages/CreatePage.test.tsx",
+      "line": "114-131",
+      "evidence": "vi.mock('../../wailsjs/go/app/NovelB', () => ({\n  GetNovelState: mocks.GetNovelState,\n  BuildNovelStatePatch: mocks.BuildNovelStatePatch,",
+      "why": "因为生产代码两套绑定入口（FE5-01/02），测试也必须同时桩 app proxy 与 wailsjs 模块；CreatePage.test.tsx:114-131 手工枚举 16 个 NovelB 方法（另有 100-112 的 app Proxy 桩），ChapterPage.test.tsx:33 又是另一份四方法 mock。绑定面一变，改哪份 mock 取决于页面当初选了哪条路径。",
+      "impact": "mock 与实现同样会漂移：新增绑定忘记加进这份枚举时，调用会落到真实模块上（或 undefined），测试可能假绿；跨页复用的绑定在两份 mock 里语义可以不一致。",
+      "fix": "随 FE5-01/02 落地，统一改成只桩 bridge：vi.mock('../gaea/lib/bridge') 一处搞定，删掉全部 wailsjs mock。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE5-17",
+      "severity": "P3",
+      "category": "complexity",
+      "title": "MainLayout 单文件承担壳层/遥测/图表/轨道四职责",
+      "file": "frontend/src/layouts/MainLayout.tsx",
+      "line": "110-125",
+      "evidence": "function Sparkline({ data, max = 100 }: { data: number[]; max?: number }) {\n  const h = 34\n  const n = Math.max(data.length - 1, 1)",
+      "why": "811 行里同时有模块级 SVG Sparkline/SparkCard(110-136)、TelemetryRail 及其 3 秒轮询与超载告警(139-277)、CommandRail 导出组件(286-389)、MainLayout 导航/空间/快捷键/keepAlive 编排(392-809)。",
+      "impact": "遥测轮询的副作用与导航状态混在一处，改 CSS 类名或改轮询周期都要在同一文件里翻 800 行；CommandRail 已被独立测试引用（CommandRail.test.tsx）却还住在 MainLayout 里。",
+      "fix": "抽 layouts/TelemetryRail.tsx 与 layouts/Sparkline.tsx（CommandRail 移到 layouts/CommandRail.tsx 与既有测试同址），纯搬移。",
+      "effort": "M",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE5-18",
+      "severity": "P3",
+      "category": "dead-code",
+      "title": "CommandRail 的 onSwitchSpace 从头到尾未使用",
+      "file": "frontend/src/layouts/MainLayout.tsx",
+      "line": "290",
+      "evidence": "onSwitchSpace: (s: ShellSpace) => void",
+      "why": "组件签名声明该 prop、MainLayout 两处传值（634、785），但函数体内零引用；同文件注释说明 v4.182 已把空间切换器迁到首页顶栏（MainLayout.tsx:281-282）。CommandRail.test.tsx:15,23 还在传它以维持类型。",
+      "impact": "读代码的人会以为轨道能切空间；测试桩掩盖了它的死状态，将来想删还要先改两处测试。",
+      "fix": "删除 prop（含 MainLayout 两处传参与 CommandRail.test.tsx 的桩），需要时再从 ModuleLauncher 的 SpaceSwitch 复用。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE5-19",
+      "severity": "P3",
+      "category": "legacy-residue",
+      "title": "boards 层残留过渡期注释与重复空间类型",
+      "file": "frontend/src/boards/pageRegistry.ts",
+      "line": "19-22",
+      "evidence": "/** 按 manifest.page 查表；未注册返回 undefined（调用方走旧 pageComponents fallback） */\nexport function getPageComponent(key: string): RegisteredPage | undefined {",
+      "why": "注释指向 MainLayout.tsx:64-66 明确声明「旧 pageComponents lazy 兜底已删」的过渡期产物；同层 boards/types.ts:30 还写「settings/weixin 走隐式入口」，而 manifests.ts:131 的 weixin 已是 inMenu:true；boards/types.ts:36 的 space 字面量联合与 space.ts:21 的 BoardSpace 是同一类型的第二份声明。",
+      "impact": "新人在 boards 层读到的约定有三处与代码不符（fallback 已删、weixin 在菜单里、space 类型有两份），要么绕路求证要么照抄错的。",
+      "fix": "改注释指向真实来源；BoardManifest.space 改为 import type { BoardSpace } 复用（字段语义不变）。",
+      "effort": "S",
+      "prior_audit": ""
+    },
+    {
+      "fid": "FE5-20",
+      "severity": "P3",
+      "category": "coupling",
+      "title": "三页各自内联同族错误文案，未走 errText 工具",
+      "file": "frontend/src/pages/WeixinPage.tsx",
+      "line": "324",
+      "evidence": "message.error(`获取二维码失败：${e instanceof Error ? e.message : String(e)}`)",
+      "why": "同族内联表达式在 WeixinPage(324,391,408,419,474,493,504,513)、CreatePage(346,495,582,725,807,855,893…)、ChapterPage(304,537,768,823) 反复出现，与 CharacterPage/chapter 的 errText 形成三套口径；三页还各自重复 `保存失败：`/`删除失败：`/`载入失败：` 这类前缀拼接。",
+      "impact": "文案风格与兜底值（'生成失败' / '操作失败' / 原始 String(err)）随页面而异，统一错误展示或加日志上报时要逐处改。",
+      "fix": "随 FE5-10 统一导入 errText（或新增 errMsg(e, prefix) 一行封装）后批量替换内联三元。",
+      "effort": "S",
+      "prior_audit": ""
+    }
+  ],
+  "open_questions": [
+    "frontend/src/pages/sin/（SinSidePanel 583 / useSinStory 525 / OriginalSinPage 489 等 20 文件 4,300+ 行）本次时间预算只做了模式扫，未逐字精读；其中 useSinStory 的流式状态管理是否有与 CreatePage 同族的第二套编排，需下个单元核实。",
+    "pages/modelcenter/（23 文件 5,500+ 行，含 12 个独立 hooks）只抽读了 EngineSection/StatsSection/ResourceMonitor 的门控与 useEngineState 命名；其「一 section 一 hook」是否已构成可复制的正向范式（对比 pages 根目录的上帝页），值得单独评估。",
+    "layouts/CommandRail.test.tsx 与 MainLayout 的 visitedPages keepAlive 策略之间是否有第二处「页面被单独渲染时行为不同」的测试假设（active 默认 true 语义），未逐例核对。",
+    "boards/manifests.ts 的 normalizeManifests 是否会把后端异常 manifest（缺 space）静默回填成 work，从而让「独立窗口」板块出现在工位导航里，本次未做后端回包样本比对。",
+    "frontend/src/pages/*.tsx 是否还有第三处绕过 bridge 的 wailsjs 直连（组件层已见 ChapterEditor.tsx:4 / NovelInspector.tsx:8），跨单元去重需要全前端而非本足迹的 import 清单。"
+  ]
+}

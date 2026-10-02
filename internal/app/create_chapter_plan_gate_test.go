@@ -110,6 +110,7 @@ func newChapterGateLLMAppReply(t *testing.T, reply string) (*App, *project.Manag
 	a.writingState = &writingState{core: a.core, app: a, eng: prompt.NewEngine("../../prompts"), mu: sync.RWMutex{}}
 	a.ctx = context.Background()
 	a.setPM(pm)
+	waitGensBeforeTempDirRemove(t, a)
 	return a, pm, requests
 }
 

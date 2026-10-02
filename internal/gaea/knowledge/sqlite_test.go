@@ -29,8 +29,12 @@ func TestSQLiteStoreCRUD(t *testing.T) {
 	if err != nil || got.Title != e.Title || got.Category != CatStandard {
 		t.Fatalf("Get = %+v err=%v", got, err)
 	}
-	if len(st.List()) != 1 {
-		t.Errorf("List = %+v", st.List())
+	list, err := st.List()
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(list) != 1 {
+		t.Errorf("List = %+v", list)
 	}
 	if idx := st.Index(); idx == "" || !containsStr(idx, "gb36600") {
 		t.Errorf("Index = %q", idx)
@@ -38,7 +42,11 @@ func TestSQLiteStoreCRUD(t *testing.T) {
 	if err := st.Delete("gb36600"); err != nil {
 		t.Fatal(err)
 	}
-	if len(st.List()) != 0 {
+	after, err := st.List()
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(after) != 0 {
 		t.Error("entry not deleted")
 	}
 }
@@ -88,7 +96,10 @@ func TestSearchRAGFindsSemantic(t *testing.T) {
 	_ = st.Save(Entry{Name: "voice-chat", Title: "语音陪伴", Category: CatOther, Body: "语音识别与合成实现对话交互。"})
 
 	// 查询"暴露评估 毒性评估"→ risk-assess 应排第一（RAG 语义召回）
-	results := Search(st, "暴露评估 毒性评估", Filter{})
+	results, err := Search(st, "暴露评估 毒性评估", Filter{})
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
 	if len(results) == 0 {
 		t.Fatal("no results")
 	}

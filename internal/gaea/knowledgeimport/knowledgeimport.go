@@ -103,13 +103,17 @@ func Parse(path string, store *knowledge.Store) (*Preview, error) {
 			return nil, err
 		}
 		stem := strings.TrimSuffix(filepath.Base(abs), filepath.Ext(abs))
-		pv.Rows = MatchRows([]Row{{
+		rows, err := MatchRows([]Row{{
 			Title:    stem,
 			Category: guessCategory(text),
 			Status:   "现行",
 			Source:   filepath.Base(abs),
 			Body:     capText(text),
 		}}, store)
+		if err != nil {
+			return nil, err
+		}
+		pv.Rows = rows
 		pv.Message = "md/txt 直接入库，可在预览中修改分类/标题。"
 	case ".docx", ".pdf":
 		text, err := ExtractText(abs)
@@ -117,13 +121,17 @@ func Parse(path string, store *knowledge.Store) (*Preview, error) {
 			return nil, err
 		}
 		stem := strings.TrimSuffix(filepath.Base(abs), filepath.Ext(abs))
-		pv.Rows = MatchRows([]Row{{
+		rows, err := MatchRows([]Row{{
 			Title:    stem,
 			Category: guessCategory(text),
 			Status:   "现行",
 			Source:   filepath.Base(abs),
 			Body:     capText(text),
 		}}, store)
+		if err != nil {
+			return nil, err
+		}
+		pv.Rows = rows
 		pv.Message = "已提取文档正文（可能含多主题，可用 AI 智能解析拆分）。"
 	case ".xlsx", ".xlsm", ".csv", ".tsv", ".et", ".ods":
 		cols, rows, err := tableRows(abs, ext == ".tsv")
@@ -145,7 +153,11 @@ func Parse(path string, store *knowledge.Store) (*Preview, error) {
 			rows = rows[:MaxRows]
 			pv.Message = "仅展示前 300 行，其余请分批导入。"
 		}
-		pv.Rows = MatchRows(buildRows(rows, colMap, filepath.Base(abs)), store)
+		matched, err := MatchRows(buildRows(rows, colMap, filepath.Base(abs)), store)
+		if err != nil {
+			return nil, err
+		}
+		pv.Rows = matched
 		if len(pv.Columns) == 0 {
 			pv.Message = strings.TrimSpace(pv.Message+" ") + "未识别到表头（缺少标题/正文等列）。"
 		}
@@ -155,12 +167,22 @@ func Parse(path string, store *knowledge.Store) (*Preview, error) {
 	return pv, nil
 }
 
+// ErrStoreUnreadable 是知识库读取失败时对外统一的文案前缀：查重/预览必须以
+// 此报错中止，而不是把库故障当空库（审计 P0#6 GA3-01）。
+const ErrStoreUnreadable = "知识库暂不可读（读取失败），可重试"
+
 // MatchRows 补全 Name/Status/MatchNote/Existing*，并按标题做既有匹配。
-func MatchRows(rows []Row, store *knowledge.Store) []Row {
+// 知识库读失败时返回 error 并中止预览：不得把失败当空表，否则每行都判
+// 「新增」、用户确认后按同名覆盖写库形成静默重复入库（审计 P0#6 GA3-01）。
+func MatchRows(rows []Row, store *knowledge.Store) ([]Row, error) {
 	byTitle := map[string]knowledge.EntrySummary{}
 	var allTitles []knowledge.EntrySummary
 	if store != nil {
-		for _, s := range store.List() {
+		list, err := store.List()
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", ErrStoreUnreadable, err)
+		}
+		for _, s := range list {
 			if t := strings.ToLower(strings.TrimSpace(s.Title)); t != "" {
 				byTitle[t] = s
 			}
@@ -205,7 +227,7 @@ func MatchRows(rows []Row, store *knowledge.Store) []Row {
 		}
 		out = append(out, r)
 	}
-	return out
+	return out, nil
 }
 
 // SimilarHit 是查重命中的相似条目。
@@ -216,12 +238,17 @@ type SimilarHit struct {
 }
 
 // FindSimilar 返回与 title 模糊相似（≥min）的既有条目，按相似度降序。
-func FindSimilar(store *knowledge.Store, title string, min float64) []SimilarHit {
+// 知识库读失败时返回 error：不得恒返回空命中让查重静默失效。
+func FindSimilar(store *knowledge.Store, title string, min float64) ([]SimilarHit, error) {
 	if store == nil || strings.TrimSpace(title) == "" {
-		return nil
+		return nil, nil
+	}
+	list, err := store.List()
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", ErrStoreUnreadable, err)
 	}
 	var out []SimilarHit
-	for _, e := range store.List() {
+	for _, e := range list {
 		if strings.EqualFold(strings.TrimSpace(e.Title), strings.TrimSpace(title)) {
 			continue
 		}
@@ -230,7 +257,7 @@ func FindSimilar(store *knowledge.Store, title string, min float64) []SimilarHit
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Score > out[j].Score })
-	return out
+	return out, nil
 }
 
 // Similarity 标题相似度（0~1）：委托 textsim（CJK 二元组集合 Dice）。

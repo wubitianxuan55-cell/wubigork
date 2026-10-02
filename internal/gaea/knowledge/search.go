@@ -18,8 +18,12 @@ type Filter struct {
 // Ranking blends the keyword score (title/tag/category/body) with TF-IDF
 // vector similarity (RAG) so semantically related entries surface even when
 // they share no exact keywords. Returns up to 20 results (descending).
-func Search(s *Store, query string, filter Filter) []Entry {
-	entries := s.ReadAll()
+// 读失败如实返回 error（审计 P0#6 GA3-01）：不得把库故障当「搜不到结果」。
+func Search(s *Store, query string, filter Filter) ([]Entry, error) {
+	entries, err := s.ReadAll()
+	if err != nil {
+		return nil, err
+	}
 	query = strings.TrimSpace(query)
 
 	var candidates []Entry
@@ -76,7 +80,7 @@ func Search(s *Store, query string, filter Filter) []Entry {
 	for i, se := range scored {
 		result[i] = se.Entry
 	}
-	return result
+	return result, nil
 }
 
 type scoredEntry struct {

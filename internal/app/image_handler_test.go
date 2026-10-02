@@ -150,6 +150,24 @@ func TestGetImageBackendInfo_FullConfig(t *testing.T) {
 
 // ── T6-4.1 取消真实生效 ────────────────────────────────────────
 
+// TestBeginImageGen_BusyRejected 审计 P0#14（源 AP7-01）：生成链是单槽（进度/
+// 取消全局单份），第二个并发生成必须被拒绝（genCtx=nil 哨兵），不得覆盖先者
+// 的取消句柄；先者收尾后槽位恢复可用。
+func TestBeginImageGen_BusyRejected(t *testing.T) {
+	ms := &mediaState{core: &core{cfg: &config.Config{}}}
+	ctx1, cancel1, id1 := ms.beginImageGen(context.Background())
+	if ctx1 == nil || cancel1 == nil || id1 == 0 {
+		t.Fatalf("首个生成应拿到槽位（ctx=%v id=%d）", ctx1 != nil, id1)
+	}
+	if ctx2, cancel2, id2 := ms.beginImageGen(context.Background()); ctx2 != nil || cancel2 != nil || id2 != 0 {
+		t.Fatalf("并发第二生成应被拒绝（busy），实得 id=%d", id2)
+	}
+	ms.endImageGen(id1, cancel1)
+	if ctx3, _, id3 := ms.beginImageGen(context.Background()); ctx3 == nil || id3 == 0 {
+		t.Fatal("先者收尾后槽位应恢复可用")
+	}
+}
+
 // TestCancelImageGeneration_Idempotent 重复取消不报错、第二次返回 false（幂等）。
 func TestCancelImageGeneration_Idempotent(t *testing.T) {
 	ms := &mediaState{core: &core{cfg: &config.Config{}}}

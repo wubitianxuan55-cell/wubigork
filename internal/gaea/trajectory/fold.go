@@ -14,7 +14,7 @@ const (
 
 // FoldTrajectory 把会话日志条目折叠为轨迹快照。纯函数：同输入必同输出。
 func FoldTrajectory(entries []session.LogEntry) Trajectory {
-	f := &folding{}
+	f := &folding{assistantIdx: -1}
 	for _, e := range entries {
 		f.apply(e)
 	}
@@ -47,10 +47,19 @@ type folding struct {
 	lastSystem string // 上一个 request_header 的 system（change 检测）
 	lastTools  int
 
-	headerTs  int64
-	assistant *Record            // 正在累积的 assistant 记录
-	toolByID  map[string]*Record // tool ID → 记录
-	toolStart map[string]int64   // tool ID → dispatch ts（duration 计算）
+	headerTs int64
+	// assistantIdx / toolByID 存「f.cur.Records 下标」而不是 *Record：Records
+	// 每次增长都会重新分配底层数组，早先取出的元素指针会指向旧数组——之后经
+	// 它写 Record 自身字段（DurationMs 等）会静默写进废弃数组而丢失（Tool /
+	// Assistant 是堆上指针，内容写才侥幸可见）。下标 + 取值时重算与切片增长无关。
+	assistantIdx int              // 正在累积的 assistant 记录下标（-1 = 无）
+	toolByID     map[string]int   // tool ID → f.cur.Records 下标
+	toolStart    map[string]int64 // tool ID → dispatch ts（duration 计算）
+
+	// betweenSealed 标记「轮间 assistant 累积已在回合边界封口」：下一段无回合
+	// 增量另起一条轮间记录，不与上一段（另一个被截断的尾部）合并——否则两轮
+	// 之间的 usage 会互相覆盖成一条，用量失真。
+	betweenSealed bool
 }
 
 func (f *folding) apply(e session.LogEntry) {
@@ -61,23 +70,28 @@ func (f *folding) apply(e session.LogEntry) {
 		}
 		f.cur = &Turn{Turn: len(f.turns) + 1, StartedAt: e.Ts}
 		f.step = 0
-		f.assistant = nil
+		f.assistantIdx = -1
 		f.toolByID = nil
 		f.toolStart = nil
 		f.headerTs = 0
+		f.betweenSealed = true
 	case "user_message":
 		f.applyUser(e)
 	case "request_header":
 		f.applyHeader(e)
 	case "reasoning":
 		if text := ePayloadText(e); text != "" {
-			r := f.assistantRecord(e)
-			r.Assistant.Reasoning = joinPreview(r.Assistant.Reasoning, text, maxTextPreview)
+			// assistantRecord 永不返回 nil（无回合时降级到轮间区段）；判空是
+			// 防后续改动的兜底，绝不让 nil 走到解引用。
+			if r := f.assistantRecord(e); r != nil {
+				r.Assistant.Reasoning = joinPreview(r.Assistant.Reasoning, text, maxTextPreview)
+			}
 		}
 	case "text", "message":
 		if text := ePayloadText(e); text != "" {
-			r := f.assistantRecord(e)
-			r.Assistant.Text = joinPreview(r.Assistant.Text, text, maxTextPreview)
+			if r := f.assistantRecord(e); r != nil {
+				r.Assistant.Text = joinPreview(r.Assistant.Text, text, maxTextPreview)
+			}
 		}
 	case "assistant_message":
 		// 迁移/投影产物的完整 assistant 消息（ToLogEntries 内嵌工具调用），
@@ -110,9 +124,10 @@ func (f *folding) apply(e session.LogEntry) {
 			f.cur.End = &TurnEnd{Seq: e.Seq, Ts: e.Ts, Err: payloadTurnErr(e)}
 			f.turns = append(f.turns, *f.cur)
 			f.cur = nil
-			f.assistant = nil
+			f.assistantIdx = -1
 			f.toolByID = nil
 			f.toolStart = nil
+			f.betweenSealed = true
 		}
 	}
 }
@@ -135,33 +150,33 @@ func (f *folding) applyAssistantMessage(e session.LogEntry) {
 		return
 	}
 	if p.Text != "" {
-		r := f.assistantRecord(e)
-		r.Assistant.Text = joinPreview(r.Assistant.Text, p.Text, maxTextPreview)
+		if r := f.assistantRecord(e); r != nil {
+			r.Assistant.Text = joinPreview(r.Assistant.Text, p.Text, maxTextPreview)
+		}
 	}
 	if p.Reasoning != "" {
-		r := f.assistantRecord(e)
-		r.Assistant.Reasoning = joinPreview(r.Assistant.Reasoning, p.Reasoning, maxTextPreview)
+		if r := f.assistantRecord(e); r != nil {
+			r.Assistant.Reasoning = joinPreview(r.Assistant.Reasoning, p.Reasoning, maxTextPreview)
+		}
 	}
 	for _, tc := range p.ToolCalls {
 		if f.cur == nil || tc.ID == "" {
 			continue
 		}
 		if f.toolByID == nil {
-			f.toolByID = map[string]*Record{}
+			f.toolByID = map[string]int{}
 			f.toolStart = map[string]int64{}
 		}
-		r, ok := f.toolByID[tc.ID]
-		if !ok {
-			r = &Record{
+		r := f.toolRecordAt(tc.ID)
+		if r == nil {
+			r = f.appendRecord(Record{
 				Seq:  e.Seq,
 				Kind: "tool",
 				Ts:   e.Ts,
 				Step: f.step,
 				Tool: &ToolRec{ID: tc.ID, Name: tc.Name, Status: "running"},
-			}
-			f.appendRecord(*r)
-			r = &f.cur.Records[len(f.cur.Records)-1]
-			f.toolByID[tc.ID] = r
+			})
+			f.toolByID[tc.ID] = len(f.cur.Records) - 1
 			f.toolStart[tc.ID] = e.Ts
 		}
 		r.Tool.Name = tc.Name
@@ -210,7 +225,7 @@ func (f *folding) applyHeader(e session.LogEntry) {
 	f.lastSystem = p.System
 	f.lastTools = len(p.Tools)
 	f.headerTs = e.Ts
-	f.assistant = nil
+	f.assistantIdx = -1
 	var tokens int64
 	tokens += estimateTokens(p.System)
 	for _, t := range p.Tools {
@@ -251,21 +266,19 @@ func (f *folding) applyToolDispatch(e session.LogEntry) {
 		return
 	}
 	if f.toolByID == nil {
-		f.toolByID = map[string]*Record{}
+		f.toolByID = map[string]int{}
 		f.toolStart = map[string]int64{}
 	}
-	r, ok := f.toolByID[p.ID]
-	if !ok {
-		r = &Record{
+	r := f.toolRecordAt(p.ID)
+	if r == nil {
+		r = f.appendRecord(Record{
 			Seq:  e.Seq,
 			Kind: "tool",
 			Ts:   e.Ts,
 			Step: f.step,
 			Tool: &ToolRec{ID: p.ID, Name: p.Name, Status: "running", ParentID: p.ParentID},
-		}
-		f.appendRecord(*r)
-		r = &f.cur.Records[len(f.cur.Records)-1]
-		f.toolByID[p.ID] = r
+		})
+		f.toolByID[p.ID] = len(f.cur.Records) - 1
 		f.toolStart[p.ID] = e.Ts
 	}
 	r.Tool.Name = p.Name
@@ -290,15 +303,12 @@ func (f *folding) applyToolResult(e session.LogEntry) {
 	if f.cur == nil {
 		return
 	}
-	var r *Record
-	if f.toolByID != nil {
-		r = f.toolByID[p.ID]
-	}
+	r := f.toolRecordAt(p.ID)
 	if r == nil {
-		r = &Record{Seq: e.Seq, Kind: "tool", Ts: e.Ts, Step: f.step, Tool: &ToolRec{ID: p.ID, Name: p.Name, Status: "ok"}}
-		f.appendRecord(*r)
-		r = &f.cur.Records[len(f.cur.Records)-1]
-		f.toolByID = map[string]*Record{p.ID: r}
+		r = f.appendRecord(Record{Seq: e.Seq, Kind: "tool", Ts: e.Ts, Step: f.step, Tool: &ToolRec{ID: p.ID, Name: p.Name, Status: "ok"}})
+		// 既有口径（本条未动）：结果先于派发到达、或该 ID 从未派发时整体重建
+		// 两张表——保持原行为，避免本条坐标外的语义漂移。
+		f.toolByID = map[string]int{p.ID: len(f.cur.Records) - 1}
 		f.toolStart = map[string]int64{p.ID: e.Ts}
 	}
 	if p.Name != "" {
@@ -330,6 +340,9 @@ func (f *folding) applyUsage(e session.LogEntry) {
 		return
 	}
 	r := f.assistantRecord(e)
+	if r == nil { // 永不发生（assistantRecord 不下传 nil）；兜底绝不解引用 nil
+		return
+	}
 	r.Assistant.Usage = &Usage{
 		PromptTokens:     p.PromptTokens,
 		CompletionTokens: p.CompletionTokens,
@@ -436,21 +449,79 @@ func (f *folding) applySubagentMessage(e session.LogEntry) {
 	}
 }
 
-// assistantRecord 返回（必要时新建）当前累积的 assistant 记录。
+// assistantRecord 返回（必要时新建）当前累积的 assistant 记录，**永不返回 nil**。
+//
+// 有回合时按 f.assistantIdx 定位。无回合——即残缺/迁移/被截断的日志：首条即
+// usage / reasoning / text 增量，或整段缺 turn_started——时如实降级：记录落进
+// 轮间区段 f.between，与 applyHeader / applyCompaction / applyAsk /
+// applyApproval / applySubagentMessage 的既有分流同款，而不是把 nil 交给调用点
+// 去解引用（审计 GA5-03：轨迹看板 panic）。
+//
+// 连续多条无回合的 assistant 增量（推理 → 正文 → usage）合并进同一条轮间记录：
+// 只看轮间区段尾部，不跨 header/compact/ask 等记录合并——与「一次请求一条
+// assistant 记录」的轮内口径一致。
 func (f *folding) assistantRecord(e session.LogEntry) *Record {
 	if f.cur == nil {
-		return nil
+		if !f.betweenSealed {
+			if n := len(f.between); n > 0 && f.between[n-1].Kind == "assistant" {
+				return &f.between[n-1]
+			}
+		}
+		f.betweenSealed = false
+		return f.appendRecord(Record{
+			Seq: e.Seq, Kind: "assistant", Ts: e.Ts, Step: f.step, Assistant: &AssistantRec{},
+		})
 	}
-	if f.assistant == nil {
-		r := Record{Seq: e.Seq, Kind: "assistant", Ts: e.Ts, Step: f.step, Assistant: &AssistantRec{}}
-		f.appendRecord(r)
-		f.assistant = &f.cur.Records[len(f.cur.Records)-1]
+	if r := f.curAssistant(); r != nil {
+		return r
 	}
-	return f.assistant
+	r := f.appendRecord(Record{
+		Seq: e.Seq, Kind: "assistant", Ts: e.Ts, Step: f.step, Assistant: &AssistantRec{},
+	})
+	f.assistantIdx = len(f.cur.Records) - 1
+	return r
 }
 
-func (f *folding) appendRecord(r Record) {
+// curAssistant 按下标取当前累积的 assistant 记录。下标越界、错位（零值 folding
+// 或后续改动）或指向的不是 assistant 记录时返回 nil，由调用点走新建分支——
+// 绝不解引用失效下标。
+func (f *folding) curAssistant() *Record {
+	if f.cur == nil || f.assistantIdx < 0 || f.assistantIdx >= len(f.cur.Records) {
+		return nil
+	}
+	if f.cur.Records[f.assistantIdx].Kind != "assistant" {
+		return nil
+	}
+	return &f.cur.Records[f.assistantIdx]
+}
+
+// toolRecordAt 按 ID 取当前回合里对应的工具记录。toolByID 存的是下标而不是
+// *Record（见 folding 字段注释：切片增长会让元素指针失效）；下标越界或指向的
+// 不是工具记录时返回 nil，由调用点走新建分支。
+func (f *folding) toolRecordAt(id string) *Record {
+	if f.cur == nil || f.toolByID == nil {
+		return nil
+	}
+	i, ok := f.toolByID[id]
+	if !ok || i < 0 || i >= len(f.cur.Records) {
+		return nil
+	}
+	if f.cur.Records[i].Kind != "tool" {
+		return nil
+	}
+	return &f.cur.Records[i]
+}
+
+// appendRecord 追加记录并返回它——调用方直接用返回值，不要再自己取
+// `f.cur.Records[len(f.cur.Records)-1]` 下标（长度依赖会随改动失效）。
+// 无当前回合（残缺日志）时不解引用 nil：如实降级到轮间区段。
+func (f *folding) appendRecord(r Record) *Record {
+	if f.cur == nil {
+		f.between = append(f.between, r)
+		return &f.between[len(f.between)-1]
+	}
 	f.cur.Records = append(f.cur.Records, r)
+	return &f.cur.Records[len(f.cur.Records)-1]
 }
 
 func preview(s string, max int) string {

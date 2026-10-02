@@ -26,7 +26,7 @@ func narrativeProject() *Project {
 		Assignments: []Assignment{
 			{TaskID: "A", ResourceID: "r1"},
 			{TaskID: "B", ResourceID: "r2", Units: floatPtr(2)},
-			{TaskID: "B", ResourceID: "m1", Quantity: 4},
+			{TaskID: "B", ResourceID: "m1", Quantity: floatPtr(4)},
 			{TaskID: "C", ResourceID: "c1"},
 		},
 	}
@@ -62,7 +62,7 @@ func TestCostNarrativeUnpriced(t *testing.T) {
 	}
 	// 补价后未定价清零（费率×工期生效；成本资源补金额）
 	p.Resources[0].StandardRate = 100
-	p.Assignments[3].Amount = 250
+	p.Assignments[3].Amount = floatPtr(250)
 	n = p.CostNarrative(ComputeCpm(p.Tasks, p.Links))
 	if len(n.Unpriced) != 0 || n.Total != 3450 { // 2×100 + 3000 + 250
 		t.Errorf("补价后 Unpriced/Total = %+v/%v, want 0/3450", n.Unpriced, n.Total)

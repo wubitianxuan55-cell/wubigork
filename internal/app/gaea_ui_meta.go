@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 	"time"
@@ -487,13 +488,18 @@ type KnowledgeEntry struct {
 	UpdatedAt  time.Time `json:"updatedAt"`
 }
 
-// GaeaKnowledgeList 返回知识条目摘要列表。
+// GaeaKnowledgeList 返回知识条目摘要列表。绑定无 error 出口：库读失败只能
+// 降级为空 + slog 留痕（审计 P0#6 GA3-01 残余，见回报）。
 func (a *App) GaeaKnowledgeList() []KnowledgeSummary {
 	store, err := knowledge.Global().Store()
 	if err != nil {
 		return []KnowledgeSummary{}
 	}
-	list := store.List()
+	list, err := store.List()
+	if err != nil {
+		slog.Warn("knowledge: 列表读取失败，绑定降级为空列表", "error", err)
+		return []KnowledgeSummary{}
+	}
 	out := make([]KnowledgeSummary, 0, len(list))
 	for _, s := range list {
 		out = append(out, KnowledgeSummary{Name: s.Name, Title: s.Title, Category: s.Category, Tags: s.Tags, Status: s.Status, UpdatedAt: s.UpdatedAt})
@@ -518,7 +524,12 @@ func (a *App) GaeaKnowledgeSearch(query, category, phase, status string) []Knowl
 	if filter.Status == "all" {
 		filter.Status = ""
 	}
-	results := knowledge.Search(store, query, filter)
+	results, err := knowledge.Search(store, query, filter)
+	if err != nil {
+		// 审计 P0#6 GA3-01：库读失败不得报成「没有匹配条目」。
+		slog.Warn("knowledge: 检索读取失败，绑定降级为空结果", "error", err)
+		return []KnowledgeSummary{}
+	}
 	// 语义召回：关键词召回不足（<3）时用本地 bge-m3 补召回。
 	if len(results) < 3 && strings.TrimSpace(query) != "" {
 		if sem := a.semanticKnowledgeRecall(query, results, 10); len(sem) > 0 {

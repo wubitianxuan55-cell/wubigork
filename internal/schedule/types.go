@@ -95,20 +95,36 @@ type Resource struct {
 	CostPerUse float64 `json:"costPerUse,omitempty"`
 	// MaxUnits 工时资源可用上限（默认 1；v1 仅承载与 mspdi 往返，不做平衡）。
 	MaxUnits float64 `json:"maxUnits,omitempty"`
+	// Calendar 资源级日历（v4.137 #13 镜像前端 types.ts SchedResource.calendar：
+	// 个人周工作制+休假例外；缺省=跟随项目日历。影响使用视图可用性/超载口径，
+	// 不改 CPM 排程——Go 侧不消费，仅承载与前端落盘往返，防保存链路静默擦除）。
+	Calendar *Calendar `json:"calendar,omitempty"`
 }
 
 // Assignment 分配（任务↔资源；(TaskID,ResourceID) 唯一，无独立 id）。
+//
+// 数值字段一律指针三态（v4.166 契约对齐，审计 FE7-02）：前端 types.ts 三个
+// 字段都是可选（undefined 合法），落盘权威在 Go——裸 float64 + omitempty 会把
+// 「显式 0」与「未设置」合流（0 被 omitempty 抹成缺失，反过来缺失也读成 0），
+// 而 0 在成本口径上与缺失分叉（units：显式 0=零成本，缺失=按缺省 1 计），
+// applyDiff.sameScalar(0, undefined) 亦判为不等。nil=不落键，非 nil 的 0=落 0。
+//
+// 同类残留（本轮按「只在确实需要处改」未动，登记在案不静默）：Resource 数值
+// 字段与 Task.ManualStart/FixedCost 仍是裸值+omitempty，0 会被抹成缺失；其中
+// 只有 MaxUnits 存在真实分叉——前端 usage.ts 走 `res.maxUnits ?? 1`，显式
+// maxUnits=0（=该资源完全不可用）经一次 Go 往返被放大为 1，超载判定随之偏移。
 type Assignment struct {
 	// TaskID 叶任务 id（分组行禁止分配，fail-closed）。
 	TaskID string `json:"taskId"`
 	// ResourceID 资源 id。
 	ResourceID string `json:"resourceId"`
-	// Units 工时资源投入强度（默认 1；成本=工期×units×费率）。
+	// Units 工时资源投入强度（缺省 1，nil=未设置；成本=工期×units×费率）。
 	Units *float64 `json:"units,omitempty"`
-	// Quantity 材料固定总量（type=material：总量×单价，不随时长变）。
-	Quantity float64 `json:"quantity,omitempty"`
-	// Amount 成本资源金额（type=cost：该分配的固定金额，元）。
-	Amount float64 `json:"amount,omitempty"`
+	// Quantity 材料固定总量（缺省 0，nil=未设置；type=material：总量×单价，
+	// 不随时长变）。
+	Quantity *float64 `json:"quantity,omitempty"`
+	// Amount 成本资源金额（缺省 0，nil=未设置；type=cost：该分配的固定金额，元）。
+	Amount *float64 `json:"amount,omitempty"`
 }
 
 // Calendar 工作日历（对齐 Project 基准日历）：Workweek 为 JS getDay 口径 0=周日..6=周六。
@@ -129,6 +145,14 @@ type Project struct {
 	Calendar  *Calendar `json:"calendar,omitempty"`
 	// Baseline 基线（v4.116 刀7：保存时的排程快照，缺省=尚未保存）。
 	Baseline *Baseline `json:"baseline,omitempty"`
+	// Baselines 基线槽位列表（v4.137 #11 多基线镜像前端 types.ts：FIFO 上限 3，
+	// 支持签证 1→N 场景切换对比；缺省=单基线旧文件零迁移）。
+	//
+	// v4.166 契约对齐（审计 FE7-01）：此前 Go 无此字段，而 GaeaScheduleSave 是
+	// 「Unmarshal 进本结构体 → MarshalIndent 整量覆盖写盘」，等于每次板块防抖
+	// 自动保存都静默删掉用户第 2/3 条基线。本字段是**透传承载**：Go 侧不改写
+	// 槽位顺序/条目，FIFO 裁剪与同名原位替换的唯一口径在前端 baseline.ts。
+	Baselines []Baseline `json:"baselines,omitempty"`
 	// Deadline 目标竣工日期（v4.117 刀8：YYYY-MM-DD，倒排校核用，缺省=未设）。
 	Deadline string `json:"deadline,omitempty"`
 	// Resources 资源表（v4.122 资源成本刀1：缺省=无资源维度，旧文件零迁移可读）。

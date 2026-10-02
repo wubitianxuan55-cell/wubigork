@@ -1,0 +1,63 @@
+{
+  "schema": "gaea-contract-baseline/1",
+  "generatedAt": "2026-10-02T05:03:47.307Z",
+  "generatedBy": "node scripts/check-contract-drift.mjs --write-baseline",
+  "head": "3d0210d180d6",
+  "audit": {
+    "doc": "docs/code-audit-2026-10-02/round-1-p0-status.md",
+    "family": "FE7-01 / FE7-02 / P0#14 / P0#15（进度计划域跨语言契约漂移）"
+  },
+  "inputs": {
+    "typesPath": "frontend/src/schedule/types.ts",
+    "goPaths": [
+      "internal/schedule/types.go",
+      "internal/schedule/baseline.go"
+    ],
+    "interfacesParsed": 14,
+    "interfacesPaired": 14,
+    "fieldsParsed": 88,
+    "goStructsParsed": 15,
+    "goTagsParsed": 88
+  },
+  "aliases": {
+    "explicit": {
+      "AoaPin": "AoaPt",
+      "BaselineDrift": "Drift",
+      "BaselineDriftRow": "DriftRow"
+    },
+    "autoPrefixStrip": [
+      "Sched",
+      "Gaea"
+    ]
+  },
+  "exemptInterfaces": [],
+  "exemptFields": [],
+  "triStateHints": [
+    {
+      "key": "SchedResource.standardRate",
+      "goType": "float64",
+      "note": "Go 裸数值+omitempty：显式 0 与未设置合流（要三态需 *float64/*int）"
+    },
+    {
+      "key": "SchedResource.costPerUse",
+      "goType": "float64",
+      "note": "Go 裸数值+omitempty：显式 0 与未设置合流（要三态需 *float64/*int）"
+    },
+    {
+      "key": "SchedResource.maxUnits",
+      "goType": "float64",
+      "note": "Go 裸数值+omitempty：显式 0 与未设置合流（要三态需 *float64/*int）"
+    },
+    {
+      "key": "SchedTask.manualStart",
+      "goType": "int",
+      "note": "Go 裸数值+omitempty：显式 0 与未设置合流（要三态需 *float64/*int）"
+    },
+    {
+      "key": "SchedTask.fixedCost",
+      "goType": "float64",
+      "note": "Go 裸数值+omitempty：显式 0 与未设置合流（要三态需 *float64/*int）"
+    }
+  ],
+  "reverseOnlyCount": 0
+}

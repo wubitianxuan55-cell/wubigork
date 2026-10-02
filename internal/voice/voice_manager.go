@@ -19,6 +19,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gaea/gaea/internal/asr"
@@ -54,10 +55,9 @@ type TTSSynthesizeFn func(text string, voiceDescription string) (audio []byte, m
 
 // Manager 语音管道管理器（对齐 Ackem voiceManager.ts）
 type Manager struct {
-	config  VoiceRuntimeConfig
-	emitter EventEmitter
-	ctx     context.Context
-	cancel  context.CancelFunc
+	config VoiceRuntimeConfig
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	// 状态
 	mu    sync.RWMutex
@@ -85,9 +85,20 @@ type Manager struct {
 	rtActive           realtime.RealtimeSession
 	rtAudioSinceCommit bool
 
-	// 回调
-	whisperChatFn WhisperChatFn
-	ttsSynthFn    TTSSynthesizeFn
+	// 回调（2026-10-02 审计 P0#12 / AP6-01）：三个回调字段一律经 atomic.Pointer
+	// 存取。写侧是启动末尾刷新与运行时重接线（app 侧 initVoice 链：
+	// SetWhisperChatFn/SetTTSSynthesizeFn 由 GUI/绑定 goroutine 调用），读侧是
+	// 语音回合（handleReply/speak/HealthCheck/WhisperReady），两侧分处不同
+	// goroutine——修复前是裸字段写读，即 Go 内存模型意义上的 data race。
+	// 读侧口径：一次原子载入 + 解引用，无锁、零分配；且可在持有 m.mu 的临界区
+	// （processVAD）内读取而不与 m.mu 自锁（这是选 atomic 而非 m.mu 快照的原因）。
+	// 全部存取点：
+	//	emitterPtr     ← NewManager（构造期，发布前）   → currentEmitter()
+	//	whisperChatPtr ← SetWhisperChatFn              → currentWhisperChatFn()
+	//	ttsSynthPtr    ← SetTTSSynthesizeFn            → currentTTSSynthFn()
+	emitterPtr     atomic.Pointer[EventEmitter]
+	whisperChatPtr atomic.Pointer[WhisperChatFn]
+	ttsSynthPtr    atomic.Pointer[TTSSynthesizeFn]
 
 	// 打断与轮次控制
 	playbackDoneCh chan struct{} // 当前句播放完成信号（前端回调）
@@ -104,14 +115,54 @@ func NewManager(emitter EventEmitter, config VoiceRuntimeConfig) *Manager {
 	config.Validate()
 	ctx, cancel := context.WithCancel(context.Background())
 
-	return &Manager{
+	m := &Manager{
 		config:         config,
-		emitter:        emitter,
 		ctx:            ctx,
 		cancel:         cancel,
 		state:          StateIdle,
 		playbackDoneCh: make(chan struct{}, 1),
 	}
+	m.emitterPtr.Store(&emitter) // 构造期一次写入（指针发布前完成，读侧另见 currentEmitter）
+	return m
+}
+
+// ── 回调字段的并发存取（P0#12 / AP6-01）──
+//
+// 三个回调字段全部经 atomic.Pointer 读写：写点唯一（上面的构造期 Store 与下面两个
+// setter），读点全部经下列访问器取一次快照后使用——**禁止**直接读字段本身，
+// 也禁止在同一回合内对同一字段取两次快照（「检查 → 调用」两次载入就是 TOCTOU：
+// 回合中途重接线会让第二次载入落到另一个回调或 nil）。
+
+// currentEmitter 原子载入事件发射器（未设置返回 nil）。
+func (m *Manager) currentEmitter() EventEmitter {
+	if p := m.emitterPtr.Load(); p != nil {
+		return *p
+	}
+	return nil
+}
+
+// currentWhisperChatFn 原子载入 whisper 对话回调（未设置返回 nil）。
+func (m *Manager) currentWhisperChatFn() WhisperChatFn {
+	if p := m.whisperChatPtr.Load(); p != nil {
+		return *p
+	}
+	return nil
+}
+
+// currentTTSSynthFn 原子载入 TTS 合成回调（未设置返回 nil）。
+func (m *Manager) currentTTSSynthFn() TTSSynthesizeFn {
+	if p := m.ttsSynthPtr.Load(); p != nil {
+		return *p
+	}
+	return nil
+}
+
+// currentContext 锁内快照本轮 context（Stop 会重建 m.ctx：原先 Stop :306 在锁外写、
+// speak :729 在锁外读，与回调字段同族的无锁写读，本轮一并纳入 m.mu）。
+func (m *Manager) currentContext() context.Context {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.ctx
 }
 
 // ── 配置与回调设置 ──
@@ -209,14 +260,16 @@ func (m *Manager) degradeRealtime(sess realtime.RealtimeSession) {
 }
 
 // SetWhisperChatFn 设置 whisper 对话回调（seam 消费者：函数注入，由 app 层接线到对话引擎）。
+// P0#12：写侧走 atomic（见 currentWhisperChatFn 的并发纪律注释），不再裸写字段。
 func (m *Manager) SetWhisperChatFn(fn WhisperChatFn) {
-	m.whisperChatFn = fn
+	m.whisperChatPtr.Store(&fn)
 }
 
 // SetTTSSynthesizeFn 设置 TTS 合成回调（seam 消费者：函数注入，携带情感音色描述；
 // app 层经 TTS 提供者注册表统一路由）。
+// P0#12：写侧走 atomic（见 currentTTSSynthFn 的并发纪律注释），不再裸写字段。
 func (m *Manager) SetTTSSynthesizeFn(fn TTSSynthesizeFn) {
-	m.ttsSynthFn = fn
+	m.ttsSynthPtr.Store(&fn)
 }
 
 // ApplyConfig 应用配置变更（对齐 Ackem voice:apply-settings）
@@ -251,8 +304,8 @@ func (m *Manager) setState(state VoiceState) {
 
 	if old != state {
 		slog.Info("语音状态变更", "from", old, "to", state)
-		if m.emitter != nil {
-			m.emitter.EmitVoiceState(state)
+		if em := m.currentEmitter(); em != nil {
+			em.EmitVoiceState(state)
 		}
 	}
 }
@@ -270,6 +323,7 @@ func (m *Manager) Start() error {
 	m.vadSilenceMs = 0
 	m.vadSpeechDetected = false
 	m.ttsActive = false
+	cfg := m.config // P0#12 同族顺带：原先下方启动日志在锁外读 m.config，与 ApplyConfig 写侧构成无锁写读
 	m.mu.Unlock()
 
 	// S2 realtime：会话已注入且未激活 → 拨号 + 启动事件泵；失败保持拼接管线
@@ -280,17 +334,25 @@ func (m *Manager) Start() error {
 	m.mu.Unlock()
 
 	m.setState(StateListening)
-	if m.emitter != nil {
-		m.emitter.EmitVoiceListening(true)
+	if em := m.currentEmitter(); em != nil {
+		em.EmitVoiceListening(true)
 	}
 
-	slog.Info("语音管道启动", "mode", m.config.VoiceMode, "input", m.config.InputChannel)
+	slog.Info("语音管道启动", "mode", cfg.VoiceMode, "input", cfg.InputChannel)
 	return nil
 }
 
 // Stop 停止语音管道
 func (m *Manager) Stop() {
-	m.cancel() // 取消所有 goroutine
+	// P0#12 同族顺带：m.cancel/m.ctx 原先在本函数锁外写（原 Stop 内 :306）、在 speak
+	// 锁外裸读（原 :729）——与回调字段同族的无锁写读，一并纳入 m.mu。取消先取快照
+	// 再调用，不在锁内执行取消（取消会驱动下游回调）。
+	m.mu.Lock()
+	cancel := m.cancel
+	m.mu.Unlock()
+	if cancel != nil {
+		cancel() // 取消所有 goroutine
+	}
 
 	// S2：关闭 realtime 会话（事件泵随事件通道关闭自动退出并降级收尾）
 	m.mu.Lock()
@@ -302,11 +364,9 @@ func (m *Manager) Stop() {
 		_ = rtSess.Close()
 	}
 
-	// 重建 context
-	m.ctx, m.cancel = context.WithCancel(context.Background())
-
-	// 清空
+	// 清空 + 重建 context（同锁写入；读侧唯一入口 currentContext）
 	m.mu.Lock()
+	m.ctx, m.cancel = context.WithCancel(context.Background())
 	m.vadBuffer = nil
 	m.vadSilenceMs = 0
 	m.vadSpeechDetected = false
@@ -321,9 +381,9 @@ func (m *Manager) Stop() {
 	m.mu.Unlock()
 
 	m.setState(StateIdle)
-	if m.emitter != nil {
-		m.emitter.EmitVoiceListening(false)
-		m.emitter.EmitVoiceThinking(false)
+	if em := m.currentEmitter(); em != nil {
+		em.EmitVoiceListening(false)
+		em.EmitVoiceThinking(false)
 	}
 
 	slog.Info("语音管道停止")
@@ -429,8 +489,8 @@ func (m *Manager) processVAD(chunk []byte, config VoiceRuntimeConfig) error {
 			if m.speechFrames >= MinSpeechFrames {
 				m.vadSpeechDetected = true
 				slog.Debug("VAD: 检测到语音", "energy", energy, "threshold", threshold)
-				if m.emitter != nil {
-					m.emitter.EmitVoiceListening(true)
+				if em := m.currentEmitter(); em != nil {
+					em.EmitVoiceListening(true)
 				}
 			}
 		}
@@ -509,24 +569,24 @@ func (m *Manager) handleSpeechEnd(audioData []byte) {
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Error("语音回合 panic（handleSpeechEnd）", "recover", r)
-			if m.emitter != nil {
-				m.emitter.EmitVoiceError(fmt.Errorf("语音处理异常，已恢复监听"))
+			if em := m.currentEmitter(); em != nil {
+				em.EmitVoiceError(fmt.Errorf("语音处理异常，已恢复监听"))
 			}
 			m.setState(StateIdle)
 		}
 	}()
 	m.setState(StateThinking)
-	if m.emitter != nil {
-		m.emitter.EmitVoiceThinking(true)
-		m.emitter.EmitVoiceListening(false)
+	if em := m.currentEmitter(); em != nil {
+		em.EmitVoiceThinking(true)
+		em.EmitVoiceListening(false)
 	}
 
 	// 1. ASR 转文字
 	text, err := m.transcribe(audioData)
 	if err != nil {
 		slog.Error("ASR 识别失败", "error", err)
-		if m.emitter != nil {
-			m.emitter.EmitVoiceError(fmt.Errorf("语音识别失败: %w", err))
+		if em := m.currentEmitter(); em != nil {
+			em.EmitVoiceError(fmt.Errorf("语音识别失败: %w", err))
 		}
 		m.setState(StateIdle)
 		return
@@ -552,8 +612,8 @@ func (m *Manager) runReply(text string) {
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Error("语音回合 panic（runReply）", "recover", r)
-			if m.emitter != nil {
-				m.emitter.EmitVoiceError(fmt.Errorf("语音处理异常，已恢复监听"))
+			if em := m.currentEmitter(); em != nil {
+				em.EmitVoiceError(fmt.Errorf("语音处理异常，已恢复监听"))
 			}
 			m.setState(StateIdle)
 		}
@@ -565,6 +625,13 @@ func (m *Manager) runReply(text string) {
 // 同时被 handleSpeechEnd（后端 ASR）与 HandleUserText（浏览器端识别）复用。
 func (m *Manager) handleReply(text string) {
 	config := m.GetConfig()
+
+	// P0#12：本轮回调快照。两个 seam 回调（whisper 对话 / TTS 合成）在回合内
+	// 必须只用**同一次原子载入**的结果——「nil 判定」与「调用点」若各自载入一次，
+	// 启动末尾刷新或运行时重接线（app.initVoice 链）插在中间即让本回合丢回复或
+	// 换用别人的接线（TOCTOU）。快照点在本轮首个事件发射之前 = 回合开始时。
+	chatFn := m.currentWhisperChatFn()
+	synthFn := m.currentTTSSynthFn()
 
 	// 防重入：若上一轮仍在说话/思考（例如浏览器连续识别），先停掉旧语音
 	m.mu.RLock()
@@ -587,18 +654,18 @@ func (m *Manager) handleReply(text string) {
 	}()
 
 	m.setState(StateThinking)
-	if m.emitter != nil {
-		m.emitter.EmitVoiceThinking(true)
-		m.emitter.EmitVoiceListening(false)
+	if em := m.currentEmitter(); em != nil {
+		em.EmitVoiceThinking(true)
+		em.EmitVoiceListening(false)
 	}
 
 	// 发送识别文本到前端（用于对话显示）
-	if m.emitter != nil {
-		m.emitter.EmitVoiceTranscript(text, true)
+	if em := m.currentEmitter(); em != nil {
+		em.EmitVoiceTranscript(text, true)
 	}
 
 	// Whisper 对话
-	if m.whisperChatFn == nil {
+	if chatFn == nil {
 		slog.Warn("whisper 对话回调未设置")
 		m.setState(StateIdle)
 		return
@@ -610,11 +677,11 @@ func (m *Manager) handleReply(text string) {
 		userMsg = "[注意：用户打断了你上一轮未说完的语音回复。] " + text
 	}
 
-	reply, emotionLabel, mood, err := m.whisperChatFn(userMsg, config.PersonalityPresetID)
+	reply, emotionLabel, mood, err := chatFn(userMsg, config.PersonalityPresetID)
 	if err != nil {
 		slog.Error("whisper 对话失败", "error", err)
-		if m.emitter != nil {
-			m.emitter.EmitVoiceError(fmt.Errorf("对话失败: %w", err))
+		if em := m.currentEmitter(); em != nil {
+			em.EmitVoiceError(fmt.Errorf("对话失败: %w", err))
 		}
 		m.setState(StateIdle)
 		return
@@ -625,16 +692,16 @@ func (m *Manager) handleReply(text string) {
 	case <-turnCancel:
 		slog.Debug("生成期间被打断，跳过播放旧回复")
 		m.setState(StateIdle)
-		if m.emitter != nil {
-			m.emitter.EmitVoiceThinking(false)
+		if em := m.currentEmitter(); em != nil {
+			em.EmitVoiceThinking(false)
 		}
 		return
 	default:
 	}
 
 	// 发送回复文本到前端（用于对话显示）
-	if m.emitter != nil {
-		m.emitter.EmitVoiceReply(reply)
+	if em := m.currentEmitter(); em != nil {
+		em.EmitVoiceReply(reply)
 	}
 
 	// 获取带人格修饰的语音指令。v4.6 Mood→TTS 闭环：中性轮次（CALM_RATIONAL
@@ -648,19 +715,20 @@ func (m *Manager) handleReply(text string) {
 		}
 	}
 
-	// 流式 TTS：逐句合成并播放（支持 barge-in 打断）
-	if config.TTSEnabled && m.ttsSynthFn != nil {
-		m.speak(reply, voiceDesc)
+	// 流式 TTS：逐句合成并播放（支持 barge-in 打断）。synthFn 是本轮快照，
+	// 判定与合成侧调用同源，不再各自载入一次（P0#12）。
+	if config.TTSEnabled && synthFn != nil {
+		m.speak(reply, voiceDesc, synthFn)
 	} else {
 		// 仅文本模式：通知前端用浏览器 TTS
-		if m.emitter != nil {
-			m.emitter.EmitVoiceTTSSpeakText(reply)
+		if em := m.currentEmitter(); em != nil {
+			em.EmitVoiceTTSSpeakText(reply)
 		}
 	}
 
 	m.setState(StateIdle)
-	if m.emitter != nil {
-		m.emitter.EmitVoiceThinking(false)
+	if em := m.currentEmitter(); em != nil {
+		em.EmitVoiceThinking(false)
 	}
 
 	// 自动恢复监听（如果是连续对话模式）
@@ -706,7 +774,12 @@ type sentenceAudio struct {
 // 合成侧 goroutine 预合成下一句，播放侧等当前句播放完成（前端回调
 // PlaybackDone）后再取下一句，从而隐藏合成延迟；打断时 close(speakStopCh)，
 // 合成与播放两侧立即退出，不再播后续句子。
-func (m *Manager) speak(text string, voiceDesc string) {
+// speak 的 synthFn 由 handleReply 在本轮开始时快照并传入（P0#12）：整轮只用一份
+// 接线，回合中途重接线（SetTTSSynthesizeFn）不得让本轮的合成换实现。
+func (m *Manager) speak(text string, voiceDesc string, synthFn TTSSynthesizeFn) {
+	if synthFn == nil { // 防御：调用方已判定非 nil，此处只为杜绝 nil 回调调用
+		return
+	}
 	m.mu.Lock()
 	m.ttsActive = true
 	m.speakStopCh = make(chan struct{})
@@ -726,7 +799,7 @@ func (m *Manager) speak(text string, voiceDesc string) {
 		sentences = []string{text}
 	}
 
-	ctx := m.ctx // 捕获：Stop() 会替换 m.ctx，避免读到新 context 而不退出
+	ctx := m.currentContext() // 捕获：Stop() 会替换 m.ctx，避免读到新 context 而不退出（P0#12 同族：原为锁外裸读）
 	audioCh := make(chan sentenceAudio, 1)
 	seen := make(map[string]struct{})
 
@@ -752,12 +825,12 @@ func (m *Manager) speak(text string, voiceDesc string) {
 			}
 			seen[cleaned] = struct{}{}
 
-			audio, mimeType, err := m.ttsSynthFn(cleaned, voiceDesc)
+			audio, mimeType, err := synthFn(cleaned, voiceDesc)
 			if err != nil {
 				slog.Error("TTS 合成失败", "error", err)
-				if m.emitter != nil {
-					m.emitter.EmitVoiceError(fmt.Errorf("语音合成失败: %w", err))
-					m.emitter.EmitVoiceTTSSpeakText(sentence) // fallback 浏览器 TTS
+				if em := m.currentEmitter(); em != nil {
+					em.EmitVoiceError(fmt.Errorf("语音合成失败: %w", err))
+					em.EmitVoiceTTSSpeakText(sentence) // fallback 浏览器 TTS
 				}
 				return
 			}
@@ -792,8 +865,8 @@ func (m *Manager) speak(text string, voiceDesc string) {
 			m.playbackDoneCh = ackCh
 			m.mu.Unlock()
 
-			if m.emitter != nil {
-				m.emitter.EmitVoiceTTSAudio(sa.audio, sa.mimeType)
+			if em := m.currentEmitter(); em != nil {
+				em.EmitVoiceTTSAudio(sa.audio, sa.mimeType)
 			}
 
 			select {
@@ -851,8 +924,8 @@ func (m *Manager) CancelTTS() {
 		close(stop) // 让 speak 的合成/播放循环立即退出
 	}
 
-	if wasActive && m.emitter != nil {
-		m.emitter.EmitVoiceTTSCancel()
+	if em := m.currentEmitter(); wasActive && em != nil {
+		em.EmitVoiceTTSCancel()
 	}
 
 	// S2 realtime 叠加：会话在位且可能有进行中的 response（speaking/thinking）
@@ -973,8 +1046,8 @@ func (m *Manager) runRealtimePump(sess realtime.RealtimeSession) {
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Error("语音回合 panic（runRealtimePump）", "recover", r)
-			if m.emitter != nil {
-				m.emitter.EmitVoiceError(fmt.Errorf("语音处理异常，已恢复监听"))
+			if em := m.currentEmitter(); em != nil {
+				em.EmitVoiceError(fmt.Errorf("语音处理异常，已恢复监听"))
 			}
 			m.setState(StateIdle)
 		}
@@ -988,9 +1061,9 @@ func (m *Manager) runRealtimePump(sess realtime.RealtimeSession) {
 		case realtime.EventResponseCreated:
 			agg = rtAggregator{} // 新 response：重置聚合器（被打断的残留不冲入）
 			m.setState(StateThinking)
-			if m.emitter != nil {
-				m.emitter.EmitVoiceThinking(true)
-				m.emitter.EmitVoiceListening(false)
+			if em := m.currentEmitter(); em != nil {
+				em.EmitVoiceThinking(true)
+				em.EmitVoiceListening(false)
 			}
 
 		case realtime.EventResponseAudioDelta:
@@ -1009,14 +1082,16 @@ func (m *Manager) runRealtimePump(sess realtime.RealtimeSession) {
 				agg.transcript.Reset()
 				agg.transcript.WriteString(text)
 			}
-			if text := agg.transcript.String(); text != "" && m.emitter != nil {
-				m.emitter.EmitVoiceReply(text) // 对话显示（与 handleReply 同口）
+			em := m.currentEmitter()
+			if text := agg.transcript.String(); text != "" && em != nil {
+				em.EmitVoiceReply(text) // 对话显示（与 handleReply 同口）
 			}
 			agg.transcript.Reset()
 
 		case realtime.EventInputAudioTranscriptionCompleted:
-			if text := jsonStringField(ev.DataJSON, "transcript"); text != "" && m.emitter != nil {
-				m.emitter.EmitVoiceTranscript(text, true) // 用户侧文本
+			em := m.currentEmitter()
+			if text := jsonStringField(ev.DataJSON, "transcript"); text != "" && em != nil {
+				em.EmitVoiceTranscript(text, true) // 用户侧文本
 			}
 
 		case realtime.EventInputAudioTranscriptionFailed:
@@ -1033,8 +1108,8 @@ func (m *Manager) runRealtimePump(sess realtime.RealtimeSession) {
 				continue
 			}
 			slog.Error("Realtime 协议错误，降级回拼接管线", "json", ev.DataJSON)
-			if m.emitter != nil {
-				m.emitter.EmitVoiceError(fmt.Errorf("实时语音会话错误: %s", msg))
+			if em := m.currentEmitter(); em != nil {
+				em.EmitVoiceError(fmt.Errorf("实时语音会话错误: %s", msg))
 			}
 			m.degradeRealtime(sess)
 			return
@@ -1063,8 +1138,8 @@ func (m *Manager) onRealtimeSpeechStarted() {
 	m.CancelTTS()
 	// realtime 模式回复音频由前端播放环消费（response.done 冲洗的 WAV），
 	// speak() 未运行、ttsActive 恒为 false——停播放必须显式发取消事件。
-	if m.emitter != nil {
-		m.emitter.EmitVoiceTTSCancel()
+	if em := m.currentEmitter(); em != nil {
+		em.EmitVoiceTTSCancel()
 	}
 	m.setState(StateListening)
 }
@@ -1088,21 +1163,21 @@ func (m *Manager) onRealtimeResponseDone(agg *rtAggregator, raw string) {
 		if s := m.GetState(); s == StateSpeaking || s == StateThinking {
 			// 无 speech_started 参与的打断（如 UI 打断/文本插话）：复位状态机
 			m.setState(StateIdle)
-			if m.emitter != nil {
-				m.emitter.EmitVoiceThinking(false)
+			if em := m.currentEmitter(); em != nil {
+				em.EmitVoiceThinking(false)
 			}
 		}
 		return
 	}
 
-	if len(agg.audio) > 0 && m.emitter != nil {
-		m.emitter.EmitVoiceTTSAudio(wrapPCMAsWAV24k(agg.audio), "audio/wav")
+	if em := m.currentEmitter(); len(agg.audio) > 0 && em != nil {
+		em.EmitVoiceTTSAudio(wrapPCMAsWAV24k(agg.audio), "audio/wav")
 	}
 	*agg = rtAggregator{}
 
 	m.setState(StateIdle)
-	if m.emitter != nil {
-		m.emitter.EmitVoiceThinking(false)
+	if em := m.currentEmitter(); em != nil {
+		em.EmitVoiceThinking(false)
 	}
 
 	// 自动续听（连续对话模式；对齐 handleReply 尾部自动恢复监听）
@@ -1149,7 +1224,7 @@ func rtErrorInfo(raw string) (typ, code, msg string) {
 // HealthCheck 健康检查（对齐 Ackem voice:health）
 func (m *Manager) HealthCheck() map[string]interface{} {
 	asrReady := m.currentASRProvider() != nil
-	ttsReady := m.ttsSynthFn != nil
+	ttsReady := m.currentTTSSynthFn() != nil
 
 	return map[string]interface{}{
 		"asrReady":  asrReady,
@@ -1263,5 +1338,5 @@ func (m *Manager) ASRReady() bool {
 
 // WhisperReady reports whether the whisper chat callback has been configured.
 func (m *Manager) WhisperReady() bool {
-	return m.whisperChatFn != nil
+	return m.currentWhisperChatFn() != nil
 }

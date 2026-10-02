@@ -833,8 +833,12 @@ func mergeFile(cfg *Config, path string) error {
 	return nil
 }
 
+// WriteFile writes the configuration to path as annotated TOML.
+//
+// P0-1 刀：与 SaveTo 同口径——走 RenderTOMLPreserving 保留渲染器不负责的顶层内容，
+// 避免整文件重写把未建模的段（[memory]/[dream]/[network]/…）从磁盘上删掉。
 func (c *Config) WriteFile(path string) error {
-	return os.WriteFile(path, []byte(RenderTOML(c)), 0o644)
+	return os.WriteFile(path, []byte(RenderTOMLPreserving(c, readFileOrEmpty(path))), 0o644)
 }
 
 // Provider returns the named provider entry.

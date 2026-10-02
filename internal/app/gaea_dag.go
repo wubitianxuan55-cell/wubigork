@@ -20,6 +20,7 @@ import (
 	"time"
 
 	gaeaAgent "github.com/gaea/gaea/internal/gaea/agent"
+	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/dag"
 	"github.com/gaea/gaea/internal/gaea/evidence"
 	"github.com/gaea/gaea/internal/gaea/memory"
@@ -528,6 +529,18 @@ func (a *App) dagStart(id string, waves [][]dag.Node) {
 	}()
 }
 
+// dagWaveSemaphore 波内并发额度：gaea.toml 的 [tasks].max_concurrent 显式 >0
+// 时按同一上限约束（与任务调度器/任务闸口同源口径，审计 P0#10——不再绕过
+// 任务闸口无上界并发拉子代理）；配置缺失/未设置返回 nil = 不设限（v4.221
+// 波内并行语义不变）。读失败与未配置同待遇：守卫不拦截流水线起跑。
+func (a *App) dagWaveSemaphore() chan struct{} {
+	cfg, err := gaeaConfig.Load()
+	if err != nil || cfg == nil || cfg.Tasks.MaxConcurrent <= 0 {
+		return nil
+	}
+	return make(chan struct{}, cfg.Tasks.MaxConcurrent)
+}
+
 func (a *App) dagExecute(ctx context.Context, id string, waves [][]dag.Node) {
 
 	runner := gaDagRunner()
@@ -536,6 +549,13 @@ func (a *App) dagExecute(ctx context.Context, id string, waves [][]dag.Node) {
 		return
 	}
 	emit := a.dagEmit()
+	// 审计 P0#10（源 AP4-04）：波内并发此前=波宽、无任何上界，绕过任务闸口——
+	// 本地 herdsman 模型一次只服务一个会话（local_concurrency=1），宽波全并行
+	// 只是把排队藏进模型层并制造「多个任务在跑」的假象。[tasks].max_concurrent
+	// 显式 >0 时波内节点按同一上限排队（节点保持 pending 直至拿到额度，取消
+	// 优先于排队）；缺省 0 = 不设限，保持 v4.221 波内并行产品语义（云端模型
+	// 受益于真并发，行为与既有测试锁定一致）。
+	sem := a.dagWaveSemaphore()
 	for wi, wave := range waves {
 		failed := false
 		held := false
@@ -582,6 +602,18 @@ func (a *App) dagExecute(ctx context.Context, id string, waves [][]dag.Node) {
 					})
 					slog.Info("流水线高风险节点挂起待审批", "run", id, "node", node.ID)
 					return
+				}
+				if sem != nil {
+					select {
+					case sem <- struct{}{}:
+						defer func() { <-sem }()
+					case <-ctx.Done():
+						_ = a.dagMarkNode(id, node.ID, func(n *dag.Node) {
+							n.Status = dag.StatusSkipped
+							n.Error = "已取消"
+						})
+						return
+					}
 				}
 				seen := dagJournalIDs() // 窗口回退基线（ref 为空时归因用）
 				startErr := a.dagMarkNode(id, node.ID, func(n *dag.Node) {

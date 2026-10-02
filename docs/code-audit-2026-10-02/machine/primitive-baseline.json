@@ -1,0 +1,555 @@
+{
+  "schema": "gaea-primitive-baseline/1",
+  "generatedAt": "2026-10-02T04:24:12.446Z",
+  "generatedBy": "node scripts/check-primitives.mjs --write-baseline",
+  "head": "3d0210d180d6",
+  "audit": {
+    "source": "docs/code-audit-2026-10-02/06-横切面-重复实现与死代码分册.md",
+    "truncateCountAsAudited": 41,
+    "truncateCountCaseSensitiveGrep": 37,
+    "truncateConvergeTarget": "≤5（审计附录 A / 刀4 验收线）",
+    "atomicWriteInternalAppAsEnumerated": 13,
+    "frontendDownloadAssignProduction": 2
+  },
+  "scan": {
+    "goFiles": 1728,
+    "tsFiles": 1127,
+    "skipDirs": "node_modules/clones/backups/dist/build/wailsjs/.tmp"
+  },
+  "regexes": {
+    "truncateFunc": "/^func[ \\t]+(?<name>(?:truncate|clip)[A-Za-z0-9_]*)(?:[ \\t]*\\[[^\\]]*\\])?[ \\t]*\\(/i",
+    "truncateMethod": "/^func[ \\t]*\\([^)]*\\)[ \\t]*(?<name>(?:truncate|clip)[A-Za-z0-9_]*)(?:[ \\t]*\\[[^\\]]*\\])?[ \\t]*\\(/",
+    "atomicWrite": "/\\b(?:os\\.CreateTemp|ioutil\\.TempFile)[ \\t]*\\(/g",
+    "downloadAssign": "/\\ba\\.download[ \\t]*=/",
+    "atob": "/\\batob[ \\t]*\\(/",
+    "exemptFrontend": [
+      "frontend/src/gaea/lib/saveFile.ts",
+      "frontend/src/gaea/lib/bytes.ts"
+    ]
+  },
+  "categories": {
+    "truncate": {
+      "count": 42,
+      "freeCount": 41,
+      "methodCount": 1,
+      "items": [
+        {
+          "file": "internal/analysis/foreshadow_sync.go",
+          "line": 381,
+          "name": "truncateRunes",
+          "form": "func",
+          "text": "func truncateRunes(s string, n int) string {",
+          "key": "internal/analysis/foreshadow_sync.go::func::truncateRunes"
+        },
+        {
+          "file": "internal/app/create_chapter_context.go",
+          "line": 98,
+          "name": "truncateBudget",
+          "form": "func",
+          "text": "func truncateBudget(s string, budget int) string {",
+          "key": "internal/app/create_chapter_context.go::func::truncateBudget"
+        },
+        {
+          "file": "internal/app/gaea_cost_import.go",
+          "line": 89,
+          "name": "truncateModelInput",
+          "form": "func",
+          "text": "func truncateModelInput(s string) string {",
+          "key": "internal/app/gaea_cost_import.go::func::truncateModelInput"
+        },
+        {
+          "file": "internal/app/gaea_diagram.go",
+          "line": 244,
+          "name": "truncateStr",
+          "form": "func",
+          "text": "func truncateStr(s string, n int) string {",
+          "key": "internal/app/gaea_diagram.go::func::truncateStr"
+        },
+        {
+          "file": "internal/app/gaea_pptx.go",
+          "line": 246,
+          "name": "truncateRunesEllipsis",
+          "form": "func",
+          "text": "func truncateRunesEllipsis(s string, n int) string {",
+          "key": "internal/app/gaea_pptx.go::func::truncateRunesEllipsis"
+        },
+        {
+          "file": "internal/app/gaea_subagents.go",
+          "line": 302,
+          "name": "truncateRunes",
+          "form": "func",
+          "text": "func truncateRunes(s string, n int) string {",
+          "key": "internal/app/gaea_subagents.go::func::truncateRunes"
+        },
+        {
+          "file": "internal/app/image_domain.go",
+          "line": 385,
+          "name": "truncatePromptForView",
+          "form": "func",
+          "text": "func truncatePromptForView(p string, n int) string {",
+          "key": "internal/app/image_domain.go::func::truncatePromptForView"
+        },
+        {
+          "file": "internal/app/novel_reading_handler.go",
+          "line": 34,
+          "name": "truncateChapterBody",
+          "form": "func",
+          "text": "func truncateChapterBody(body string) string {",
+          "key": "internal/app/novel_reading_handler.go::func::truncateChapterBody"
+        },
+        {
+          "file": "internal/app/style_digest_handler.go",
+          "line": 121,
+          "name": "truncateCtxStyle",
+          "form": "func",
+          "text": "func truncateCtxStyle(merged string) string {",
+          "key": "internal/app/style_digest_handler.go::func::truncateCtxStyle"
+        },
+        {
+          "file": "internal/bookimport/parse.go",
+          "line": 429,
+          "name": "truncateRunes",
+          "form": "func",
+          "text": "func truncateRunes(s string, max int) string {",
+          "key": "internal/bookimport/parse.go::func::truncateRunes"
+        },
+        {
+          "file": "internal/channels/weixin/clawbot.go",
+          "line": 821,
+          "name": "truncateRunes",
+          "form": "func",
+          "text": "func truncateRunes(s string, n int) string {",
+          "key": "internal/channels/weixin/clawbot.go::func::truncateRunes"
+        },
+        {
+          "file": "internal/channels/weixin/clawbot.go",
+          "line": 831,
+          "name": "truncateTextBytes",
+          "form": "func",
+          "text": "func truncateTextBytes(s string, max int) string {",
+          "key": "internal/channels/weixin/clawbot.go::func::truncateTextBytes"
+        },
+        {
+          "file": "internal/characterstate/characterstate.go",
+          "line": 386,
+          "name": "truncateRunes",
+          "form": "func",
+          "text": "func truncateRunes(s string, n int) string {",
+          "key": "internal/characterstate/characterstate.go::func::truncateRunes"
+        },
+        {
+          "file": "internal/gaea/agent/agent_helpers.go",
+          "line": 10,
+          "name": "truncateStr",
+          "form": "func",
+          "text": "func truncateStr(s string, maxLen int) string {",
+          "key": "internal/gaea/agent/agent_helpers.go::func::truncateStr"
+        },
+        {
+          "file": "internal/gaea/agent/compact_summary.go",
+          "line": 191,
+          "name": "truncateText",
+          "form": "func",
+          "text": "func truncateText(s string, maxChars int) string {",
+          "key": "internal/gaea/agent/compact_summary.go::func::truncateText"
+        },
+        {
+          "file": "internal/gaea/agent/fold_ladder.go",
+          "line": 109,
+          "name": "truncateRescue",
+          "form": "method",
+          "text": "func (a *AgentRunner) truncateRescue() bool {",
+          "key": "internal/gaea/agent/fold_ladder.go::method::truncateRescue"
+        },
+        {
+          "file": "internal/gaea/agent/session/log.go",
+          "line": 467,
+          "name": "truncateForError",
+          "form": "func",
+          "text": "func truncateForError(raw json.RawMessage) string {",
+          "key": "internal/gaea/agent/session/log.go::func::truncateForError"
+        },
+        {
+          "file": "internal/gaea/agent/textutils/text.go",
+          "line": 44,
+          "name": "TruncateToolOutput",
+          "form": "func",
+          "text": "func TruncateToolOutput(s string) (string, string) {",
+          "key": "internal/gaea/agent/textutils/text.go::func::TruncateToolOutput"
+        },
+        {
+          "file": "internal/gaea/agent/textutils/text.go",
+          "line": 49,
+          "name": "TruncateToolOutputWith",
+          "form": "func",
+          "text": "func TruncateToolOutputWith(s string, maxLines, maxBytes int) (string, string) {",
+          "key": "internal/gaea/agent/textutils/text.go::func::TruncateToolOutputWith"
+        },
+        {
+          "file": "internal/gaea/agent/toolguard/repair.go",
+          "line": 209,
+          "name": "truncateOversizedStrings",
+          "form": "func",
+          "text": "func truncateOversizedStrings(value map[string]any, maxBytes int) (map[string]any, bool) {",
+          "key": "internal/gaea/agent/toolguard/repair.go::func::truncateOversizedStrings"
+        },
+        {
+          "file": "internal/gaea/archive/archive.go",
+          "line": 236,
+          "name": "truncate",
+          "form": "func",
+          "text": "func truncate(s string, max int) string {",
+          "key": "internal/gaea/archive/archive.go::func::truncate"
+        },
+        {
+          "file": "internal/gaea/control/controller.go",
+          "line": 599,
+          "name": "truncateSummary",
+          "form": "func",
+          "text": "func truncateSummary(s string) string {",
+          "key": "internal/gaea/control/controller.go::func::truncateSummary"
+        },
+        {
+          "file": "internal/gaea/control/refs.go",
+          "line": 177,
+          "name": "truncateVision",
+          "form": "func",
+          "text": "func truncateVision(s string) string {",
+          "key": "internal/gaea/control/refs.go::func::truncateVision"
+        },
+        {
+          "file": "internal/gaea/control/refs.go",
+          "line": 302,
+          "name": "truncateUTF8",
+          "form": "func",
+          "text": "func truncateUTF8(s string, maxBytes int) string {",
+          "key": "internal/gaea/control/refs.go::func::truncateUTF8"
+        },
+        {
+          "file": "internal/gaea/costimport/costimport.go",
+          "line": 1258,
+          "name": "truncateRunes",
+          "form": "func",
+          "text": "func truncateRunes(s string, n int) string {",
+          "key": "internal/gaea/costimport/costimport.go::func::truncateRunes"
+        },
+        {
+          "file": "internal/gaea/hook/runner.go",
+          "line": 224,
+          "name": "clipRunes",
+          "form": "func",
+          "text": "func clipRunes(s string, max int) string {",
+          "key": "internal/gaea/hook/runner.go::func::clipRunes"
+        },
+        {
+          "file": "internal/gaea/memory/activation.go",
+          "line": 119,
+          "name": "truncatePinnedBody",
+          "form": "func",
+          "text": "func truncatePinnedBody(body string) string {",
+          "key": "internal/gaea/memory/activation.go::func::truncatePinnedBody"
+        },
+        {
+          "file": "internal/gaea/memory/doc.go",
+          "line": 129,
+          "name": "truncateDoc",
+          "form": "func",
+          "text": "func truncateDoc(body, path string) string {",
+          "key": "internal/gaea/memory/doc.go::func::truncateDoc"
+        },
+        {
+          "file": "internal/gaea/memory/memory.go",
+          "line": 226,
+          "name": "truncateIndexByLines",
+          "form": "func",
+          "text": "func truncateIndexByLines(s string, budgetBytes int) string {",
+          "key": "internal/gaea/memory/memory.go::func::truncateIndexByLines"
+        },
+        {
+          "file": "internal/gaea/memory/morning.go",
+          "line": 57,
+          "name": "truncateMorningDesc",
+          "form": "func",
+          "text": "func truncateMorningDesc(s string) string {",
+          "key": "internal/gaea/memory/morning.go::func::truncateMorningDesc"
+        },
+        {
+          "file": "internal/gaea/pins/pins.go",
+          "line": 211,
+          "name": "truncateRunes",
+          "form": "func",
+          "text": "func truncateRunes(s string, n int) string {",
+          "key": "internal/gaea/pins/pins.go::func::truncateRunes"
+        },
+        {
+          "file": "internal/gaea/skill/index.go",
+          "line": 128,
+          "name": "clipRunes",
+          "form": "func",
+          "text": "func clipRunes(s string, max int) string {",
+          "key": "internal/gaea/skill/index.go::func::clipRunes"
+        },
+        {
+          "file": "internal/gaea/tool/builtin/bash.go",
+          "line": 520,
+          "name": "truncateStream",
+          "form": "func",
+          "text": "func truncateStream(s string, maxBytes int) (string, bool) {",
+          "key": "internal/gaea/tool/builtin/bash.go::func::truncateStream"
+        },
+        {
+          "file": "internal/gaea/tool/builtin/websearch.go",
+          "line": 908,
+          "name": "truncate",
+          "form": "func",
+          "text": "func truncate(s string, maxLen int) string {",
+          "key": "internal/gaea/tool/builtin/websearch.go::func::truncate"
+        },
+        {
+          "file": "internal/gaea/wssearch/wssearch.go",
+          "line": 159,
+          "name": "truncateRunes",
+          "form": "func",
+          "text": "func truncateRunes(s string, n int) string {",
+          "key": "internal/gaea/wssearch/wssearch.go::func::truncateRunes"
+        },
+        {
+          "file": "internal/novelcontext/novelcontext.go",
+          "line": 258,
+          "name": "clipToRunes",
+          "form": "func",
+          "text": "func clipToRunes(s string, budget, room int) string {",
+          "key": "internal/novelcontext/novelcontext.go::func::clipToRunes"
+        },
+        {
+          "file": "internal/office/crosslink/crosslink.go",
+          "line": 188,
+          "name": "truncate",
+          "form": "func",
+          "text": "func truncate(s string, n int) string {",
+          "key": "internal/office/crosslink/crosslink.go::func::truncate"
+        },
+        {
+          "file": "internal/office/xlsxedit/xlsxedit.go",
+          "line": 772,
+          "name": "truncate",
+          "form": "func",
+          "text": "func truncate(s string, n int) string {",
+          "key": "internal/office/xlsxedit/xlsxedit.go::func::truncate"
+        },
+        {
+          "file": "internal/util/util.go",
+          "line": 197,
+          "name": "Truncate",
+          "form": "func",
+          "text": "func Truncate(s string, maxLen int) string {",
+          "key": "internal/util/util.go::func::Truncate"
+        },
+        {
+          "file": "internal/util/util.go",
+          "line": 225,
+          "name": "TruncateRef",
+          "form": "func",
+          "text": "func TruncateRef(s string) (string, bool) {",
+          "key": "internal/util/util.go::func::TruncateRef"
+        },
+        {
+          "file": "internal/whisper/post_chat_turn.go",
+          "line": 231,
+          "name": "truncateStr",
+          "form": "func",
+          "text": "func truncateStr(s string, maxLen int) string {",
+          "key": "internal/whisper/post_chat_turn.go::func::truncateStr"
+        },
+        {
+          "file": "internal/whisper/working_memory.go",
+          "line": 100,
+          "name": "truncateString",
+          "form": "func",
+          "text": "func truncateString(s string, max int) string {",
+          "key": "internal/whisper/working_memory.go::func::truncateString"
+        }
+      ]
+    },
+    "atomicWrite": {
+      "count": 13,
+      "items": [
+        {
+          "file": "internal/app/chapter_art_manifest.go",
+          "line": 76,
+          "api": "os.CreateTemp",
+          "name": "os.CreateTemp",
+          "form": "os.CreateTemp",
+          "key": "internal/app/chapter_art_manifest.go::os.CreateTemp#1",
+          "text": "tmp, err := os.CreateTemp(filepath.Dir(p), \"chapter-art-*.tmp\")"
+        },
+        {
+          "file": "internal/app/characterlib_score.go",
+          "line": 34,
+          "api": "os.CreateTemp",
+          "name": "os.CreateTemp",
+          "form": "os.CreateTemp",
+          "key": "internal/app/characterlib_score.go::os.CreateTemp#1",
+          "text": "tmp, err := os.CreateTemp(\"\", \"gaea-score-*.png\")"
+        },
+        {
+          "file": "internal/app/gaea_benchmark.go",
+          "line": 286,
+          "api": "os.CreateTemp",
+          "name": "os.CreateTemp",
+          "form": "os.CreateTemp",
+          "key": "internal/app/gaea_benchmark.go::os.CreateTemp#1",
+          "text": "tmp, err := os.CreateTemp(dir, \"herdsman-benchmark-*.md.tmp\")"
+        },
+        {
+          "file": "internal/app/gaea_pptx.go",
+          "line": 159,
+          "api": "os.CreateTemp",
+          "name": "os.CreateTemp",
+          "form": "os.CreateTemp",
+          "key": "internal/app/gaea_pptx.go::os.CreateTemp#1",
+          "text": "tmp, err := os.CreateTemp(\"\", \"gaea-pptx-outline-*.py\")"
+        },
+        {
+          "file": "internal/app/gaea_prompt_store.go",
+          "line": 75,
+          "api": "os.CreateTemp",
+          "name": "os.CreateTemp",
+          "form": "os.CreateTemp",
+          "key": "internal/app/gaea_prompt_store.go::os.CreateTemp#1",
+          "text": "tmp, err := os.CreateTemp(dir, \"prompt-overrides-*.tmp\")"
+        },
+        {
+          "file": "internal/app/gaea_route_suggestions.go",
+          "line": 77,
+          "api": "os.CreateTemp",
+          "name": "os.CreateTemp",
+          "form": "os.CreateTemp",
+          "key": "internal/app/gaea_route_suggestions.go::os.CreateTemp#1",
+          "text": "tmp, err := os.CreateTemp(dir, \"route-suggest-*.tmp\")"
+        },
+        {
+          "file": "internal/app/gaea_skill_distill.go",
+          "line": 122,
+          "api": "os.CreateTemp",
+          "name": "os.CreateTemp",
+          "form": "os.CreateTemp",
+          "key": "internal/app/gaea_skill_distill.go::os.CreateTemp#1",
+          "text": "tmp, err := os.CreateTemp(dir, \"skill-distill-*.tmp\")"
+        },
+        {
+          "file": "internal/app/gaea_skill_stats.go",
+          "line": 54,
+          "api": "os.CreateTemp",
+          "name": "os.CreateTemp",
+          "form": "os.CreateTemp",
+          "key": "internal/app/gaea_skill_stats.go::os.CreateTemp#1",
+          "text": "tmp, err := os.CreateTemp(dir, \"skill-stats-*.tmp\")"
+        },
+        {
+          "file": "internal/app/gaea_task_inbox.go",
+          "line": 136,
+          "api": "os.CreateTemp",
+          "name": "os.CreateTemp",
+          "form": "os.CreateTemp",
+          "key": "internal/app/gaea_task_inbox.go::os.CreateTemp#1",
+          "text": "tmp, err := os.CreateTemp(dir, \"task-inbox-*.tmp\")"
+        },
+        {
+          "file": "internal/app/gaea_ui_extra.go",
+          "line": 651,
+          "api": "os.CreateTemp",
+          "name": "os.CreateTemp",
+          "form": "os.CreateTemp",
+          "key": "internal/app/gaea_ui_extra.go::os.CreateTemp#1",
+          "text": "tmp, err := os.CreateTemp(dir, \".gaea-edit-*\")"
+        },
+        {
+          "file": "internal/app/imagehub_ledger.go",
+          "line": 136,
+          "api": "os.CreateTemp",
+          "name": "os.CreateTemp",
+          "form": "os.CreateTemp",
+          "key": "internal/app/imagehub_ledger.go::os.CreateTemp#1",
+          "text": "tmp, err := os.CreateTemp(filepath.Dir(p), \"assets-*.tmp\")"
+        },
+        {
+          "file": "internal/app/intent_router.go",
+          "line": 494,
+          "api": "os.CreateTemp",
+          "name": "os.CreateTemp",
+          "form": "os.CreateTemp",
+          "key": "internal/app/intent_router.go::os.CreateTemp#1",
+          "text": "tmp, err := os.CreateTemp(\"\", \"gaea-screen-*.png\")"
+        },
+        {
+          "file": "internal/app/sin_booksource_handler.go",
+          "line": 266,
+          "api": "os.CreateTemp",
+          "name": "os.CreateTemp",
+          "form": "os.CreateTemp",
+          "key": "internal/app/sin_booksource_handler.go::os.CreateTemp#1",
+          "text": "tmp, err := os.CreateTemp(filepath.Dir(epubPath), filepath.Base(epubPath)+\".*.tmp\")"
+        }
+      ]
+    },
+    "frontendBypass": {
+      "count": 5,
+      "downloadCount": 3,
+      "atobCount": 2,
+      "testScopeCount": 1,
+      "items": [
+        {
+          "file": "frontend/src/components/characterlib/usePortraitUrl.ts",
+          "line": 28,
+          "kind": "atob",
+          "name": "atob",
+          "form": "atob",
+          "test": false,
+          "key": "atob:frontend/src/components/characterlib/usePortraitUrl.ts#1",
+          "text": "const bin = atob(dataUrl.slice(comma + 1))"
+        },
+        {
+          "file": "frontend/src/gaea/lib/mock/office/schedule.ts",
+          "line": 147,
+          "kind": "atob",
+          "name": "atob",
+          "form": "atob",
+          "test": false,
+          "key": "atob:frontend/src/gaea/lib/mock/office/schedule.ts#1",
+          "text": "return decodeURIComponent(escape(atob(xlsxBase64)));"
+        },
+        {
+          "file": "frontend/src/gaea/lib/saveFile.test.ts",
+          "line": 47,
+          "kind": "download-assign",
+          "name": "download-assign",
+          "form": "download-assign",
+          "test": true,
+          "key": "download-assign:frontend/src/gaea/lib/saveFile.test.ts#1",
+          "text": "it('浏览器：回退 <a download>（createObjectURL + a.download=name + click + revoke）', async () => {"
+        },
+        {
+          "file": "frontend/src/hooks/useImageGenHistory.ts",
+          "line": 76,
+          "kind": "download-assign",
+          "name": "download-assign",
+          "form": "download-assign",
+          "test": false,
+          "key": "download-assign:frontend/src/hooks/useImageGenHistory.ts#1",
+          "text": "a.download = name"
+        },
+        {
+          "file": "frontend/src/pages/ImageGenPage.tsx",
+          "line": 171,
+          "kind": "download-assign",
+          "name": "download-assign",
+          "form": "download-assign",
+          "test": false,
+          "key": "download-assign:frontend/src/pages/ImageGenPage.tsx#1",
+          "text": "a.download = name"
+        }
+      ]
+    }
+  }
+}
