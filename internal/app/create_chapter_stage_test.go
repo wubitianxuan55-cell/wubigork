@@ -9,12 +9,12 @@ import (
 	"github.com/gaea/gaea/internal/types"
 )
 
-// TestIsStageOpener 阶段开篇判定：第 21/41/… 章为阶段开篇；第 1 章是全书开篇
-// 走 create-chapter-first，不算阶段开篇。
+// TestIsStageOpener 阶段开篇判定（v4.452.0 起 10 章一阶段）：第 11/21/… 章为
+// 阶段开篇；第 1 章是全书开篇走 create-chapter-first，不算阶段开篇。
 func TestIsStageOpener(t *testing.T) {
 	cases := map[int]bool{
-		0: false, 1: false, 2: false, 20: false,
-		21: true, 40: false, 41: true, 61: true,
+		0: false, 1: false, 2: false, 10: false,
+		11: true, 20: false, 21: true, 31: true,
 	}
 	for num, want := range cases {
 		if got := isStageOpener(num); got != want {
@@ -23,13 +23,13 @@ func TestIsStageOpener(t *testing.T) {
 	}
 }
 
-// TestStageRange 阶段开篇章对应的上一阶段区间。
+// TestStageRange 阶段开篇章对应的上一阶段区间（10 章一阶段）。
 func TestStageRange(t *testing.T) {
-	if s, e := stageRange(21); s != 1 || e != 20 {
-		t.Errorf("stageRange(21) = (%d,%d), want (1,20)", s, e)
+	if s, e := stageRange(11); s != 1 || e != 10 {
+		t.Errorf("stageRange(11) = (%d,%d), want (1,10)", s, e)
 	}
-	if s, e := stageRange(41); s != 21 || e != 40 {
-		t.Errorf("stageRange(41) = (%d,%d), want (21,40)", s, e)
+	if s, e := stageRange(21); s != 11 || e != 20 {
+		t.Errorf("stageRange(21) = (%d,%d), want (11,20)", s, e)
 	}
 }
 
@@ -37,7 +37,7 @@ func TestStageRange(t *testing.T) {
 func TestStageRecapSection_NonStageEmpty(t *testing.T) {
 	pm := newStatesTestProject(t)
 	a := &writingState{core: &core{}}
-	for _, num := range []int{1, 5, 20, 22, 40} {
+	for _, num := range []int{1, 5, 10, 12, 20} {
 		if got := a.stageRecapSection(pm, num); got != "" {
 			t.Errorf("第%d章不应注入阶段总结，got:\n%s", num, got)
 		}
@@ -48,8 +48,8 @@ func TestStageRecapSection_NonStageEmpty(t *testing.T) {
 // 不可用，回落逐章摘要清单——注入段仍完整（总结头 + 逐章行 + 开篇纪律）。
 func TestStageRecapSection_FallbackDigest(t *testing.T) {
 	pm := newStatesTestProject(t)
-	nodes := make([]types.OutlineNode, 0, 20)
-	for i := 1; i <= 20; i++ {
+	nodes := make([]types.OutlineNode, 0, 10)
+	for i := 1; i <= 10; i++ {
 		nodes = append(nodes, types.OutlineNode{
 			ID:         fmt.Sprintf("ch-%02d", i),
 			Title:      "第" + strconv.Itoa(i) + "章",
@@ -62,11 +62,11 @@ func TestStageRecapSection_FallbackDigest(t *testing.T) {
 	}
 
 	a := &writingState{core: &core{}} // client==nil → 回落路径
-	got := a.stageRecapSection(pm, 21)
+	got := a.stageRecapSection(pm, 11)
 	if got == "" {
-		t.Fatal("第21章应注入阶段总结段")
+		t.Fatal("第11章应注入阶段总结段")
 	}
-	for _, want := range []string{"【上一阶段总结（第1~20章）】", "第1章：第1章剧情摘要", "第20章：第20章剧情摘要", "【新阶段开篇（第21章）纪律】"} {
+	for _, want := range []string{"【上一阶段总结（第1~10章）】", "第1章：第1章剧情摘要", "第10章：第10章剧情摘要", "【新阶段开篇（第11章）纪律】"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("注入段缺 %q:\n%s", want, got)
 		}
@@ -78,7 +78,7 @@ func TestStageRecapSection_FallbackDigest(t *testing.T) {
 func TestStageRecapSection_NoMaterial(t *testing.T) {
 	pm := newStatesTestProject(t)
 	a := &writingState{core: &core{}}
-	if got := a.stageRecapSection(pm, 21); got != "" {
+	if got := a.stageRecapSection(pm, 11); got != "" {
 		t.Errorf("无素材应返回空串，got:\n%s", got)
 	}
 }

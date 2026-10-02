@@ -1,10 +1,12 @@
 package app
 
-// ── 阶段（幕）边界：每 stageLength 章为一阶段，阶段开篇章先合账再开新账 ──
+// ── 阶段边界：每 stageLength 章为一阶段，阶段开篇章先合账再开新账 ──
 //
-// 作者口径：每 20 章剧情进入下一个阶段。阶段开篇章（第 21/41/…章）生成时
-// 注入两段：①上一阶段总结（LLM 合成，素材取自大纲节点摘要+章节摘要文件，
-// 失败回落逐章摘要清单）②新阶段开篇纪律（静态约束）。非阶段开篇章零注入。
+// 作者口径（v4.452.0 起）：每 10 章剧情进入下一个阶段，阶段内按 起承转合
+// 推进（见 plot_branch_position.go 的 stagePhaseOf——分支与章节计划共用同一
+// 阶段模型）。阶段开篇章（第 11/21/…章）生成时注入两段：①上一阶段总结
+// （LLM 合成，素材取自大纲节点摘要+章节摘要文件，失败回落逐章摘要清单）
+// ②新阶段开篇纪律（静态约束）。非阶段开篇章零注入。
 // 与既有增强区段同一纪律：任何失败都降级（回落摘要清单/空串），绝不因注入
 // 失败中断章节生成主链路。
 
@@ -18,8 +20,56 @@ import (
 	"github.com/gaea/gaea/internal/types"
 )
 
-// stageLength 每阶段章数（作者口径：每 20 章一幕）。
-const stageLength = 20
+// stageLength 每阶段章数（作者口径 v4.452.0：每 10 章一阶段，阶段内起承转合）。
+const stageLength = 10
+
+// stagePhase 10 章一阶段内的位置段（起承转合 + 三个特殊位）。
+type stagePhase int
+
+const (
+	phaseUnknown    stagePhase = iota // 章号未知（chapterNum<=0）
+	phaseOpening                      // 全书开篇（第1章）
+	phaseStageStart                   // 新阶段开篇（第11/21/…章）
+	phaseQi                           // 起：阶段内 2-3（布局）
+	phaseCheng                        // 承：阶段内 4-6（推进升级）
+	phaseZhuan                        // 转：阶段内 7-9（反转高压）
+	phaseHe                           // 合：阶段内 10（阶段收官）
+)
+
+// stagePhaseOf 章号 → (阶段序, 阶段内位置, 位置段)。10 章一阶段内的起承转合：
+// 第1章=阶段开篇（首阶段第1章为全书开篇），2-3=起（布局），4-6=承（推进），
+// 7-9=转（反转），10=合（阶段收官）。chapterNum<=0 返回 phaseUnknown。
+//
+// 分支位置注入（branchPositionContext）与章节计划位置注入（planPositionContext）
+// 共用本模型——阶段节奏只有一份真相。
+func stagePhaseOf(chapterNum int) (stage, pos int, phase stagePhase) {
+	if chapterNum <= 0 {
+		return 0, 0, phaseUnknown
+	}
+	if chapterNum == 1 {
+		return 1, 1, phaseOpening
+	}
+	stage = (chapterNum-1)/stageLength + 1
+	pos = chapterNum - (stage-1)*stageLength
+	switch {
+	case pos == 1:
+		phase = phaseStageStart
+	case pos <= 3:
+		phase = phaseQi
+	case pos <= 6:
+		phase = phaseCheng
+	case pos <= 9:
+		phase = phaseZhuan
+	default:
+		phase = phaseHe
+	}
+	return stage, pos, phase
+}
+
+// stageBounds 第 N 阶段的章号区间 [start, end]。
+func stageBounds(stage int) (int, int) {
+	return (stage-1)*stageLength + 1, stage * stageLength
+}
 
 // stageRecapBudgetRunes 阶段总结注入与摘要素材的合计预算（rune）。
 const stageRecapBudgetRunes = 2000

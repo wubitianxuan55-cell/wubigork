@@ -434,13 +434,15 @@ func TestNovelChapterPlanPropose_ParsesSevenFieldsAndSlots(t *testing.T) {
 	// 模板槽位装配：已有 key_events 列表作为输入段传入（规格 §7.2 Propose）
 	promptText := env.userPrompt()
 	for _, want := range []string{
-		"秦昭潜入听风阁",   // 其它章已有关键事件（去重输入）
-		"沈砚断指明誓",    // 同上
-		"秦昭查清灭门旧案",  // OutlineFile.StoryThread（线A 修复写入路径后的主线）
-		"第三章 摊牌",    // 本章大纲节点
-		"听风阁令牌",     // 章节分析载荷摘要（chapter_analysis 槽位）
-		"已有章节的关键事件", // 模板槽位标签（证明走的是 chapter-plan 模板）
-		"沈砚承认旧案",    // 大纲 KeyPoints
+		"秦昭潜入听风阁",     // 其它章已有关键事件（去重输入）
+		"沈砚断指明誓",      // 同上
+		"秦昭查清灭门旧案",    // OutlineFile.StoryThread（线A 修复写入路径后的主线）
+		"第三章 摊牌",      // 本章大纲节点
+		"听风阁令牌",       // 章节分析载荷摘要（chapter_analysis 槽位）
+		"已有章节的关键事件",   // 模板槽位标签（证明走的是 chapter-plan 模板）
+		"本章阶段位置与计划任务", // v4.452.0：位置段（10 章一阶段起承转合）
+		"阶段之「起」",      // 第3章=阶段内第3章 → 起（布局段）
+		"沈砚承认旧案",      // 大纲 KeyPoints
 	} {
 		if !strings.Contains(promptText, want) {
 			t.Fatalf("Propose user prompt 应包含 %q，实际:\n%s", want, promptText)
@@ -527,6 +529,9 @@ func TestNovelChapterPlanPropose_Direction(t *testing.T) {
 		}
 		if plan.SubIndex != 9 {
 			t.Fatalf("SubIndex 应为章号: %d", plan.SubIndex)
+		}
+		if !strings.Contains(env.userPrompt(), "阶段之「转」") {
+			t.Fatalf("第9章计划应携带转教义，实际:%s", env.userPrompt())
 		}
 		if got, err := env.a.NovelChapterPlanGet(9); err != nil || got != nil {
 			t.Fatalf("Propose 不得落盘: plan=%+v err=%v", got, err)

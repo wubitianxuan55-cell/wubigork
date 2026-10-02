@@ -395,8 +395,8 @@ func (b *NovelB) PromptTemplateSave(key string, reqJSON string) (PromptSaveResul
 func (b *NovelB) QueryEntities(entityType string) ([]map[string]interface{}, error) {
 	return b.a.QueryEntities(entityType)
 }
-func (b *NovelB) QuickBrainstormBranches(setting string, prevSummary string, charactersJSON string) (map[string]interface{}, error) {
-	return b.a.QuickBrainstormBranches(setting, prevSummary, charactersJSON)
+func (b *NovelB) QuickBrainstormBranches(setting string, prevSummary string, charactersJSON string, chapterNum int) (map[string]interface{}, error) {
+	return b.a.QuickBrainstormBranches(setting, prevSummary, charactersJSON, chapterNum)
 }
 func (b *NovelB) RemoveCharacterCareer(charID string, reqJSON string) error {
 	return b.a.RemoveCharacterCareer(charID, reqJSON)

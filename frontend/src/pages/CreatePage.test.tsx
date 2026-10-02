@@ -251,7 +251,8 @@ describe('CreatePage 生成控制（T6-7.2 停止按钮 + cancelled 事件）', 
     fireEvent.click(screen.getByRole('button', { name: /构思分支/ }))
     await waitFor(() => expect(screen.queryByRole('dialog', { name: /剧情方向/ })).toBeNull())
     await waitFor(() => {
-      expect(mocks.QuickBrainstormBranches).toHaveBeenCalledWith(expect.any(String), '', '[]')
+      // 第4参=分支目标章（v4.452.0 位置注入）：空大纲 → prevChapter 0+1=第1章
+      expect(mocks.QuickBrainstormBranches).toHaveBeenCalledWith(expect.any(String), '', '[]', 1)
     })
 
     // 构思完成自动弹回分支步

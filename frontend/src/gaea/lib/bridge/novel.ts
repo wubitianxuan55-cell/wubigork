@@ -346,12 +346,13 @@ export interface NovelBindings {
   SaveChapterBranchContent(num: number, branch: string, content: string): Promise<void>;
   // ── 批次三c wailsjsCompat 双轨退役转正（Go NovelB 门面 bindings_novel.go，
   // 同名前缀；CreatePage 创作间消费）──
-  // 分支构思（Go QuickBrainstormBranches(setting, prevSummary, charactersJSON)
-  // 返回 map 含 branches；charactersJSON=作者圈定的登场角色 JSON 数组，空=全量
-  // 名册不设限）、创建章节（Go CreateChapter 8 参，返回 map 含 nodeId/chapterNum/
-  // branch——预创建节点信息，正文经流式事件推送）、大纲节点删除（Go
-  // DeleteOutlineNode(nodeID) 仅 error）。
-  QuickBrainstormBranches(setting: string, prevSummary: string, charactersJSON?: string): Promise<Record<string, unknown>>;
+  // 分支构思（Go QuickBrainstormBranches(setting, prevSummary, charactersJSON,
+  // chapterNum) 返回 map 含 branches；charactersJSON=作者圈定的登场角色 JSON 数组，
+  // 空=全量名册不设限；chapterNum=分支目标章（下一章），v4.452.0 起驱动每10章一
+  // 阶段的起承转合位置注入，0=位置未知走旧兜底）、创建章节（Go CreateChapter 8 参，
+  // 返回 map 含 nodeId/chapterNum/branch——预创建节点信息，正文经流式事件推送）、
+  // 大纲节点删除（Go DeleteOutlineNode(nodeID) 仅 error）。
+  QuickBrainstormBranches(setting: string, prevSummary: string, charactersJSON?: string, chapterNum?: number): Promise<Record<string, unknown>>;
   CreateChapter(setting: string, prevSummary: string, plotReq: string, chapterNum: number, branchFromNodeID: string, skillName: string, minWords: number, temperature: number): Promise<Record<string, unknown>>;
   // CreateChapterWithOverride = 同族入口 + 写前硬闸显式覆盖开关（v4.422 刀1）。
   // 第 9 参 allowOverride=true 表示作者显式承担「本章没有计划也照写」；默认 false 时

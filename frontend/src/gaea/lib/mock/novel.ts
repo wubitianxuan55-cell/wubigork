@@ -260,7 +260,7 @@ export function buildNovel(): NovelMethods {
       // mock: no-op。
     },
     // 批次三c（CreatePage 创作间）：分支构思中性空态/创建章节占位/删除节点 no-op。
-    async QuickBrainstormBranches(_setting: string, _prevSummary: string, _charactersJSON?: string) {
+    async QuickBrainstormBranches(_setting: string, _prevSummary: string, _charactersJSON?: string, _chapterNum?: number) {
       return { branches: [] };
     },
     async CreateChapter(_setting: string, _prevSummary: string, _plotReq: string, _chapterNum: number, _branchFromNodeID: string, _skillName: string, _minWords: number, _temperature: number) {

@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -30,6 +32,16 @@ type plotBranchTestEnv struct {
 	a     *App
 	pm    *project.Manager
 	calls *int32 // AI 请求计数
+
+	mu   sync.Mutex
+	user string // 最近一次请求的 user prompt（位置注入断言用）
+}
+
+// userPrompt 返回最近一次请求的 user prompt。
+func (e *plotBranchTestEnv) userPrompt() string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.user
 }
 
 // newPlotBranchTestEnv replies 按调用次序回放；超出后重复最后一条。
@@ -41,10 +53,27 @@ func newPlotBranchTestEnv(t *testing.T, replies []string) *plotBranchTestEnv {
 	t.Setenv("HOME", home)
 
 	var calls int32
+	env := &plotBranchTestEnv{calls: &calls}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		idx := int(atomic.AddInt32(&calls, 1)) - 1
 		if idx >= len(replies) {
 			idx = len(replies) - 1
+		}
+		var req struct {
+			Messages []struct {
+				Role    string `json:"role"`
+				Content string `json:"content"`
+			} `json:"messages"`
+		}
+		if raw, err := io.ReadAll(r.Body); err == nil {
+			_ = json.Unmarshal(raw, &req)
+			for _, m := range req.Messages {
+				if m.Role == "user" {
+					env.mu.Lock()
+					env.user = m.Content
+					env.mu.Unlock()
+				}
+			}
 		}
 		payload, _ := json.Marshal(map[string]interface{}{
 			"choices": []map[string]interface{}{{
@@ -90,7 +119,9 @@ func newPlotBranchTestEnv(t *testing.T, replies []string) *plotBranchTestEnv {
 	a.ctx = ctx
 	a.setPM(pm)
 
-	return &plotBranchTestEnv{a: a, pm: pm, calls: &calls}
+	env.a = a
+	env.pm = pm
+	return env
 }
 
 // seedOutlineNode 写入一个可供分支应用的大纲节点
@@ -328,5 +359,28 @@ func TestParsePlotBranchReplyClampsPitch(t *testing.T) {
 	}
 	if want := "雨夜断桥，林晚截杀叛徒。"; got != want {
 		t.Fatalf("预算内有句读应句界截断: got=%q want=%q", got, want)
+	}
+}
+
+// ── v4.452.0 位置感知接通：QuickBrainstormBranches 携带目标章号 → 起承转合教义进 prompt ──
+
+// TestQuickBrainstormBranchesPosition 向导主链路的位置注入：章号>0 按阶段位置
+// 切换教义（第8章=转）；章号 0 保持旧兜底（有前文=常规推进）。
+func TestQuickBrainstormBranchesPosition(t *testing.T) {
+	env := newPlotBranchTestEnv(t, []string{branchReply("A")})
+	if _, err := env.a.QuickBrainstormBranches("设定", "前文摘要", "[]", 8); err != nil {
+		t.Fatalf("构思失败: %v", err)
+	}
+	prompt := env.userPrompt()
+	if !strings.Contains(prompt, "阶段之「转」") || !strings.Contains(prompt, "第1~10章") {
+		t.Fatalf("第8章构思应携带转教义（第1~10章），实际:%s", prompt)
+	}
+
+	env0 := newPlotBranchTestEnv(t, []string{branchReply("B")})
+	if _, err := env0.a.QuickBrainstormBranches("设定", "前文摘要", "[]", 0); err != nil {
+		t.Fatalf("构思失败: %v", err)
+	}
+	if !strings.Contains(env0.userPrompt(), "常规推进") {
+		t.Fatalf("章号未知应回落常规推进，实际:%s", env0.userPrompt())
 	}
 }

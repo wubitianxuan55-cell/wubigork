@@ -262,7 +262,10 @@ func (a *writingState) ApplyBranch(nodeID string, branchIndex int, userInput str
 // QuickBrainstormBranches 轻量分支构思——直接接收小说设定和前文摘要，不需要大纲节点。
 // charactersJSON 可选：作者在分支向导里圈定的登场角色（JSON 字符串数组）——
 // 空缺/未命中退回全量名册（分支围绕谁走由作者圈定，不圈定就不设限）。
-func (a *writingState) QuickBrainstormBranches(setting, prevSummary, charactersJSON string) (map[string]interface{}, error) {
+// chapterNum 为分支目标章（下一章）：v4.452.0 起接通位置感知（每10章一阶段的
+// 起承转合）——此前向导主链路恒传 0，位置教义形同虚设；<=0 保持旧兜底
+// （无前文=开篇/有前文=常规）。
+func (a *writingState) QuickBrainstormBranches(setting, prevSummary, charactersJSON string, chapterNum int) (map[string]interface{}, error) {
 	pm := a.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
@@ -275,7 +278,7 @@ func (a *writingState) QuickBrainstormBranches(setting, prevSummary, charactersJ
 
 	systemPrompt := tmpl.BuildSystemPrompt("")
 	userPrompt := tmpl.BuildUserPrompt(map[string]string{
-		"story_position":            branchPositionContext(0, prevSummary),
+		"story_position":            branchPositionContext(chapterNum, prevSummary),
 		"current_outline_node":      "（请根据小说设定和前文摘要构思下一章方向）",
 		"previous_chapters_summary": prevSummary,
 		"worldview":                 setting,

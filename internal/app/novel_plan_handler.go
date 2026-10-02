@@ -209,8 +209,9 @@ func (a *writingState) NovelChapterPlanPropose(chapterNum int, direction string)
 
 	userPrompt := tmpl.BuildUserPrompt(map[string]string{
 		"story_thread":        strings.TrimSpace(of.StoryThread),
-		"chapter_outline":     string(nodeJSON), // 无节点 + 有方向：空槽位不渲染，由 direction 兜底
-		"direction":           direction,        // 作者创作方向（分支意向/剧情要求），计划走向必须服从
+		"story_position":      planPositionContext(chapterNum), // v4.452.0：10 章一阶段的起承转合，计划任务随位置切换
+		"chapter_outline":     string(nodeJSON),                // 无节点 + 有方向：空槽位不渲染，由 direction 兜底
+		"direction":           direction,                       // 作者创作方向（分支意向/剧情要求），计划走向必须服从
 		"prev_summary":        buildPrevSummaryWindow(of.Nodes, chapterNum, prevSummaryResolver(pm)),
 		"existing_key_events": planExistingKeyEventsText(others),
 		"chapter_analysis":    planAnalysisDigest(pm, chapterNum),

@@ -518,12 +518,14 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
     void loadChapter(node)
   }, [loadChapter])
 
-  // 向导拉取 AI 构思分支（注入最新设定与前文摘要；cast=选角会议结果）
-  const fetchWizardBranches = useCallback(async (prevChapter: number, cast: BranchCastEntry[] = []): Promise<Branch[]> => {
+  // 向导拉取 AI 构思分支（注入最新设定与前文摘要；cast=选角会议结果）。
+  // v4.452.0：targetChapter=分支目标章（下一章）——驱动后端每10章一阶段的
+  // 起承转合位置注入；0=位置未知走旧兜底。
+  const fetchWizardBranches = useCallback(async (prevChapter: number, cast: BranchCastEntry[] = [], targetChapter = 0): Promise<Branch[]> => {
     const freshSetting = (await refreshSetting()).text
     const prevSummary = prevChapter > 0 ? buildPrevSummary(outlines, prevChapter) : ''
     const payload = (cast ?? []).map(e => ({ name: e.name, relation: e.relation || '', note: e.note || '' }))
-    const res = (await app.QuickBrainstormBranches(freshSetting, prevSummary || '', JSON.stringify(payload))) as { branches?: Array<{ title?: string; summary?: string }> }
+    const res = (await app.QuickBrainstormBranches(freshSetting, prevSummary || '', JSON.stringify(payload), targetChapter)) as { branches?: Array<{ title?: string; summary?: string }> }
     const list = res?.branches || []
     return list.map((b: { title?: string; summary?: string }) => ({ title: b.title ?? '', pitch: b.summary ?? '' }))
   }, [refreshSetting, outlines])
@@ -571,7 +573,11 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
     message.open({ key: BRAINSTORM_MSG_KEY, content: 'AI 正在构思剧情分支，你可以继续操作…', duration: 0 })
     void (async () => {
       try {
-        const list = await fetchWizardBranches(req.prevChapter, cast)
+        // 分支目标章：覆盖=被覆盖章；其余=下一章（前端不读 store 顺延口径，
+        // prevChapter+1 与后端「最大章号+1」在日常流一致；位置注入只影响教义段，
+        // 不影响章号事实源）
+        const targetChapter = req.overwriteChapter > 0 ? req.overwriteChapter : req.prevChapter + 1
+        const list = await fetchWizardBranches(req.prevChapter, cast, targetChapter)
         if (list.length === 0) {
           message.warning('AI 未构思出剧情分支，可重新打开向导调整选角再试')
           return // 不重开弹窗：保持收起，选角已留在页面层
