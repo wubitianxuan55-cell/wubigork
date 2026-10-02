@@ -14,6 +14,20 @@ import (
 // GaeaOCRText 提取图片中的文字（办公板块「提取文字」用）。
 // 优先使用 Herdsman /v1/ocr（PaddleOCR），其次 /v1/documents/parse（MinerU），
 // 都不可用时回退本地 OvisOCR2。
+//
+// 四腿编排（审计 U54/IN3-09：本函数是远端 internal/ocr 与本地 docmd 两链的
+// 唯一汇合点——是编排不是第三套 OCR 客户端，自身无 HTTP 代码。腿序与配置源
+// 已由 gaea_ocr_chain_test.go 钉死；把前腿折进 docmd seam 会改道本地-only
+// 消费方，勿动，理由见 docmd/ocr.go seam 注释的口径边界段）：
+//   - 腿 1 指定引擎：activeOCREngine/activeOCRModel（模型中心「设为 OCR」，
+//     config active_ocr_engine/active_ocr_model）→ herdsmanOCRWith，模型名
+//     含 mineru/parse 走 /v1/documents/parse，否则 /v1/ocr；
+//   - 腿 2 herdsman /v1/ocr，模型取 HERDSMAN_OCR_MODEL 或引擎 OCR 模型；
+//   - 腿 3 herdsman /v1/documents/parse（HERDSMAN_PARSE_MODEL/_MODE）；
+//   - 腿 4 docmd.OCRImageText 本地链，引擎顺序归 GAEA_OCR_ENGINE 管
+//     （auto=OvisOCR2→tesseract）——两链配置口径互不越界。
+//
+// 腿间「错误或空文本即穿透」+ IN3-08 逐腿错误收集（errors.Join）。
 func (a *App) GaeaOCRText(imagePath string) (string, error) {
 	// T0 图像域试点：识图-读 先经域能力注册表校验（可用性恒定，行为不变）。
 	if _, err := imageDomainEntry(CapabilityVisionRead); err != nil {

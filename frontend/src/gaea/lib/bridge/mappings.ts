@@ -157,8 +157,9 @@ export const gaeaToGaea = {
   RemovePermissionRule: "GaeaRemovePermissionRule",
   SetSandbox: "GaeaSetSandbox",
   SetAgentParams: "GaeaSetAgentParams",
-  // SetSubagentTemperature/SetEffort/SetSubagentModel 无 Go 对应绑定（mock-only，
-  // 见文件末尾 MockOnlyNames），不映射，按原名查找。
+  // FE3-04：SetSubagentTemperature/SetEffort/SetSubagentModel 三个 mock-only 死名
+  // 已整体摘除（Go 侧从无绑定、前端零调用者；MOCK_ONLY_NAMES 收缩后只剩
+  // Compact）。推理强度/子代理模型的写口走下面两个真实 Go 绑定（同名直调）。
   SetSubagentEffort: "GaeaSetSubagentEffort",
   SetSubagentModelForSkill: "GaeaSetSubagentModelForSkill",
   SetPermLevel: "GaeaSetPermLevel",

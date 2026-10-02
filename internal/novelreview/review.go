@@ -12,9 +12,15 @@ package novelreview
 //     判断的维度（核心卖点是否成立、伏笔是否回收）不在此下结论，只做可核对的
 //     结构性检查；外部数据缺失时**显式 skip 并说明原因**，不静默给 PASS。
 //   - 每条 finding 一律附原文证据（rune 区间 + 段落号），对应黄金三问第三问。
+//
+// 注（审计 IN1-04）：句级节奏判据（电报体/平均句长）不在本引擎——由 internal/novelgate
+// 的写后质量闸按**句**粒度承担（S2 阻断级）；本引擎 format_readability 按段粒度给
+// 建议（dimParagraphPace，含段级碎段判据）。两套门槛各自独立、粒度刻意不同，见该函数注释。
 
 import (
 	"fmt"
+
+	"github.com/gaea/gaea/internal/noveltext"
 )
 
 // Options 评审上下文（外部数据由 app 层注入；缺省即跳过对应维度）。
@@ -88,13 +94,6 @@ var dimensionLabels = map[string]string{
 	"stated_length_accuracy":  "字数表述核对",
 }
 
-// paragraph 段落（1-based 序号 + rune 区间 [start,end)）。
-type paragraph struct {
-	idx        int
-	start, end int
-	text       string
-}
-
 // Review 对一段正文做确定性质量评审；platformID 为空或未知时回落 general 档。
 func Review(text, platformID string, opts Options) (*Report, error) {
 	runes := []rune(text)
@@ -106,7 +105,7 @@ func Review(text, platformID string, opts Options) (*Report, error) {
 		return nil, err
 	}
 	r := currentRubric()
-	paras := splitParagraphs(runes)
+	paras := noveltext.SplitParagraphs(runes)
 	words := countNonSpaceRunes(runes)
 
 	dims := make([]Dimension, 0, 16)
@@ -222,8 +221,8 @@ func dimOpeningHook(p Platform, r *Rubric, paras []paragraph) Dimension {
 	head := paras[:n]
 	hasDialog, hasConflict, hasSuspense := false, false, false
 	for _, pa := range head {
-		rs := []rune(pa.text)
-		if containsQuote(pa.text) {
+		rs := []rune(pa.Text)
+		if containsQuote(pa.Text) {
 			hasDialog = true
 		}
 		if len(findMarkerStarts(rs, r.Markers.Conflict)) > 0 {
@@ -233,7 +232,7 @@ func dimOpeningHook(p Platform, r *Rubric, paras []paragraph) Dimension {
 			hasSuspense = true
 		}
 	}
-	d.Evidence = []EvidenceSpan{{Start: head[0].start, End: head[0].end, Paragraph: head[0].idx}}
+	d.Evidence = []EvidenceSpan{{Start: head[0].Start, End: head[0].End, Paragraph: head[0].Idx}}
 	switch {
 	case hasConflict || hasDialog:
 		d.Verdict = verdictPass
@@ -274,7 +273,7 @@ func dimEndingHook(p Platform, r *Rubric, paras []paragraph) Dimension {
 		return d
 	}
 	last := paras[len(paras)-1]
-	text := last.text
+	text := last.Text
 	var signals []string
 	if containsAny(text, "？?") {
 		signals = append(signals, "疑问")
@@ -292,7 +291,7 @@ func dimEndingHook(p Platform, r *Rubric, paras []paragraph) Dimension {
 	if len(findMarkerStarts(rs, r.Markers.Conflict)) > 0 {
 		signals = append(signals, "冲突")
 	}
-	d.Evidence = []EvidenceSpan{{Start: last.start, End: last.end, Paragraph: last.idx}}
+	d.Evidence = []EvidenceSpan{{Start: last.Start, End: last.End, Paragraph: last.Idx}}
 	if len(signals) > 0 {
 		d.Verdict = verdictPass
 		d.Detail = "章尾有翻页动力（" + joinCN(signals) + "）"
@@ -326,7 +325,7 @@ func dimTrailer(p Platform, r *Rubric, paras []paragraph) Dimension {
 	var ev []EvidenceSpan
 	seen := map[string]bool{}
 	for _, pa := range tail {
-		rs := []rune(pa.text)
+		rs := []rune(pa.Text)
 		for _, m := range markers {
 			if seen[m] {
 				continue
@@ -337,7 +336,7 @@ func dimTrailer(p Platform, r *Rubric, paras []paragraph) Dimension {
 			}
 			seen[m] = true
 			hits = append(hits, m)
-			ev = append(ev, EvidenceSpan{Start: pa.start + starts[0], End: pa.start + starts[0] + len([]rune(m)), Paragraph: pa.idx})
+			ev = append(ev, EvidenceSpan{Start: pa.Start + starts[0], End: pa.Start + starts[0] + len([]rune(m)), Paragraph: pa.Idx})
 		}
 	}
 	if len(hits) == 0 {
@@ -404,7 +403,17 @@ func dimPowerDensity(p Platform, r *Rubric, runes []rune, words int) Dimension {
 	return d
 }
 
-// dimParagraphPace 段落节奏：长段占比 + 段落匀称度 + 电报体（碎句）。
+// 段级碎段（电报体）判据阈值：段数下限 × 平均段长上限（整章「一段一句」碎到底才命中）。
+// 注（审计 IN1-04）：这是**段**粒度的建议级判据，阈值留在 Go 常量（登记进 rubric.json
+// 数据资产评估后留池：现有覆盖文件无此字段，入库会破坏 fail-closed 兼容）；与 novelgate
+// 的**句**级电报体判据（短句占比 >40% 且平均句长 <10 → S2 阻断）是同域不同粒度，
+// 两处门槛各自独立，勿顺手对齐。
+const (
+	telegraphMinParagraphs   = 12 // 段数下限
+	telegraphAvgParaRunesMax = 12 // 平均段长上限（rune）
+)
+
+// dimParagraphPace 段落节奏：长段占比 + 段落匀称度 + 电报体（碎段）。
 func dimParagraphPace(p Platform, paras []paragraph) Dimension {
 	d := Dimension{ID: "format_readability", Label: labelOf("format_readability"), Severity: severityOf(p, "format_readability")}
 	if len(paras) < 3 {
@@ -415,7 +424,7 @@ func dimParagraphPace(p Platform, paras []paragraph) Dimension {
 	longCount, longest, sum := 0, 0, 0
 	longestIdx := 0
 	for i, pa := range paras {
-		l := len([]rune(pa.text))
+		l := len([]rune(pa.Text))
 		sum += l
 		if l > longest {
 			longest, longestIdx = l, i
@@ -430,16 +439,23 @@ func dimParagraphPace(p Platform, paras []paragraph) Dimension {
 	if len(paras) >= 5 && avg > 0 {
 		within := 0
 		for _, pa := range paras {
-			l := float64(len([]rune(pa.text)))
+			l := float64(len([]rune(pa.Text)))
 			if absFloat(l-avg) <= avg*0.2 {
 				within++
 			}
 		}
 		uniform = float64(within)/float64(len(paras)) >= p.ParaUniformRatioWarn
 	}
-	telegraph := len(paras) >= 12 && avg <= 12
+	// 段级电报体：碎段判据（≥telegraphMinParagraphs 段且平均段长 ≤telegraphAvgParaRunes 字）。
+	// 注（审计 IN1-04）：与 novelgate.ChapterQualityIssues 的句级电报体判据（按句切分统计
+	// 短句占比与平均句长 → S2 阻断）**同域不同粒度**：本处按段（上游 quality-rubric 的
+	// 「格式可读性」行）、gate 按句（上游「句长节奏」行），故同一正文完全可能「gate 报 S2、
+	// 本维 pass、整体 APPROVE」——这是刻意分层（阻断信号 vs 建议信号），非门槛漂移，
+	// 对照事实钉在 internal/novelgate/telegraph_granularity_test.go。判据常量就近命名集中，
+	// 勿与 gate 侧互相对齐。
+	telegraph := len(paras) >= telegraphMinParagraphs && avg <= telegraphAvgParaRunesMax
 
-	d.Evidence = []EvidenceSpan{{Start: paras[longestIdx].start, End: paras[longestIdx].end, Paragraph: paras[longestIdx].idx}}
+	d.Evidence = []EvidenceSpan{{Start: paras[longestIdx].Start, End: paras[longestIdx].End, Paragraph: paras[longestIdx].Idx}}
 	switch {
 	case longRatio > 0.5:
 		d.Verdict = verdictFail

@@ -637,21 +637,21 @@ func startDebugServer() {
 func (a *App) initImageBackend() {
 	r, err := resolveImageBackend(a.cfg.ImageBackend, a.cfg, a.engineMgr)
 	if err != nil {
-		if r.Kind == "glm" {
-			a.clientRef().SetImageBackend(nil, "xai")
+		if r.Kind == ai.ImageBackendTypeGLM {
+			a.clientRef().SetImageBackend(nil, ai.ImageBackendTypeXAI)
 			slog.Warn("图片后端: GLM 不可用（引擎未启用或 Key 未配置），回退 xAI")
 		}
 		return
 	}
 	a.clientRef().SetImageBackend(r.Backend, r.Kind)
 	switch r.Kind {
-	case "comfyui":
+	case ai.ImageBackendTypeComfyUI:
 		slog.Info("图片后端: ComfyUI", "url", a.cfg.ComfyUIURL)
-	case "herdsman":
+	case ai.ImageBackendTypeHerdsman:
 		slog.Info("图片后端: Herdsman", "url", r.BaseURL)
-	case "ollama":
+	case ai.ImageBackendTypeOllama:
 		slog.Info("图片后端: Ollama", "url", r.BaseURL)
-	case "glm":
+	case ai.ImageBackendTypeGLM:
 		slog.Info("图片后端: GLM", "url", r.BaseURL)
 	default:
 		slog.Info("图片后端: xAI")

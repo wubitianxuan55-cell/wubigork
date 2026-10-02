@@ -79,10 +79,9 @@ export const GAEA_METHOD_FACETS = {
   RemovePermissionRule: "shared",
   SetSandbox: "shared",
   SetAgentParams: "shared",
-  SetSubagentTemperature: "shared",
-  SetEffort: "shared",
+  // FE3-04：SetSubagentTemperature/SetEffort/SetSubagentModel 三名已随 AppBindings
+  // 摘除（Go 从无绑定、零调用者的 mock-only 死面），facets 同步收缩。
   SetSubagentEffort: "shared",
-  SetSubagentModel: "shared",
   SetSubagentModelForSkill: "shared",
   SetPermLevel: "shared",
   KeepWarmGet: "shared",

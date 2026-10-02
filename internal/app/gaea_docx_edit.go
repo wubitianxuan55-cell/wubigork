@@ -133,14 +133,15 @@ func docxBaselineSnapshot(path string) string {
 	return baseline
 }
 
-// appendDocxEvidence 把一次 docx 编辑（docx_apply 应用 / docx_accept 接受修订）
-// 写入 work 空间 Journal（JSONL）。
-// v4.157 小刀：对齐 pptx_apply/xlsx_apply 证据链口径，回滚走
-// GaeaRollbackRecord（VersionTimeline kind "docx" 已支持）。
-// 红线：非 work 空间（play）不落证据链；journal 目录不可用/写失败静默
-// （对齐 appendPptxEvidence/appendXlsxEvidence 口径）。
-func appendDocxEvidence(rel, tool, beforeSummary, afterSummary, baseline string) {
-	if gaeaEffectiveSpace() != "work" {
+// appendOfficeEvidence office 三件套（docx/pptx/xlsx）证据落账单点（AP3-03
+// 单源）：空间守卫与 ChangeRecord.Space 同取 gaeaEffectiveSpace() 一处——
+// 旧实现「守卫读空间、落库写死 work」两源并存，守卫语义一旦变化记录仍标
+// work 且从数据侧无从发现。红线不变：非 work 空间（play）不落证据链；
+// journal 目录不可用/写失败静默。opsJSON 仅 xlsx 通道携带（v4.9.1 通道 A
+// 引用级比对原料；截断会切坏 JSON，超限不落宁漏勿误），docx/pptx 传空。
+func appendOfficeEvidence(tool, target, beforeSummary, afterSummary, baseline, opsJSON string) {
+	space := gaeaEffectiveSpace()
+	if space != "work" {
 		return
 	}
 	st, err := evidence.OpenJournal(filepath.Join(gaeaCwd(), ".gaea", "work", "journal"))
@@ -156,12 +157,21 @@ func appendDocxEvidence(rel, tool, beforeSummary, afterSummary, baseline string)
 	}
 	_ = st.Append(evidence.ChangeRecord{
 		SessionID:     sid,
-		Space:         "work",
+		Space:         space,
 		Tool:          tool,
-		Target:        rel,
+		Target:        target,
 		BeforeSummary: beforeSummary,
 		AfterSummary:  afterSummary,
 		BaselinePath:  baseline,
+		OpsJSON:       opsJSON,
 		Status:        evidence.StatusPendingVerify,
 	})
+}
+
+// appendDocxEvidence 把一次 docx 编辑（docx_apply 应用 / docx_accept 接受修订）
+// 写入 work 空间 Journal（JSONL）。
+// v4.157 小刀：对齐 pptx_apply/xlsx_apply 证据链口径，回滚走
+// GaeaRollbackRecord（VersionTimeline kind "docx" 已支持）。
+func appendDocxEvidence(rel, tool, beforeSummary, afterSummary, baseline string) {
+	appendOfficeEvidence(tool, rel, beforeSummary, afterSummary, baseline, "")
 }

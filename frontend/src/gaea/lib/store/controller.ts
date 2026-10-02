@@ -795,7 +795,17 @@ export function useController() {
     }
     return n;
   }, [dispatch, refreshFactBase]);
-  const compact = useCallback(() => { app.Compact().catch((err) => failWrite(dispatch, "压缩上下文", err)); }, [dispatch]);
+  // FE3-04：Compact 是 mock-only 绑定（Go 侧无对应绑定，drift.ts MOCK_ONLY_NAMES
+  // 单源），真机上下文压缩由后端会话事件自动执行、无手动入口。真机调用现在从
+  // proxy 拿到显式 BridgeError（MockOnlyBinding），失败**不可重试**——不走
+  // failWrite（其固定追加「请重试」会误导），诚实提示一次性原因。dev mock 下
+  // Compact 正常 resolve，本 catch 不触发，行为不变。
+  const compact = useCallback(() => {
+    app.Compact().catch((err) => {
+      logBridgeError("compact", err);
+      dispatch({ type: "event", e: { kind: "notice", level: "warn", text: `压缩上下文失败：${errText(err)}` } });
+    });
+  }, [dispatch]);
   const setModel = useCallback(async (name: string) => {
     await app.SetModel(name).catch((err) => failWrite(dispatch, "切换模型", err));
     try {

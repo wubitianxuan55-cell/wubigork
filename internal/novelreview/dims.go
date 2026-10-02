@@ -119,7 +119,7 @@ func dimPerspective(p Platform, runes []rune, paras []paragraph) Dimension {
 	me := countRune(runes, '我')
 	third := countRune(runes, '他') + countRune(runes, '她')
 	if len(paras) > 0 {
-		d.Evidence = []EvidenceSpan{{Start: paras[0].start, End: paras[0].end, Paragraph: paras[0].idx}}
+		d.Evidence = []EvidenceSpan{{Start: paras[0].Start, End: paras[0].End, Paragraph: paras[0].Idx}}
 	}
 	switch {
 	case me == 0:
@@ -163,7 +163,7 @@ func dimProtagonist(p Platform, runes []rune, paras []paragraph, names []string)
 		d.Detail = "本章没有出现主角（" + joinCN(names) + "）"
 		d.Advice = "起点口径：主角连续 2 章不出场或无推进即掉追读——让主角在本章做一次选择。"
 		if len(paras) > 0 {
-			d.Evidence = []EvidenceSpan{{Start: paras[0].start, End: paras[0].end, Paragraph: paras[0].idx}}
+			d.Evidence = []EvidenceSpan{{Start: paras[0].Start, End: paras[0].End, Paragraph: paras[0].Idx}}
 		}
 		return d
 	}

@@ -410,3 +410,64 @@ func TestGaeaDocxAcceptChanges_EvidenceChain(t *testing.T) {
 		t.Errorf("docx_accept 记录数 = %d, want 1（拒绝分支不得新增）", acceptCount)
 	}
 }
+
+// AP3-03 钉子（批 20）：空间守卫与 ChangeRecord.Space 同源 appendOfficeEvidence
+// 一处。两个方向：
+//  1. play 空间（space.mode=on + session.space=play）→ 守卫拒绝，零证据卡；
+//  2. work 空间 → 记录的 Space 字段 == gaeaEffectiveSpace()（同源断言：
+//     守卫语义变化后记录跟着走，不再出现「守卫放行、记录仍标 work」的静默漂移）。
+func TestGaeaDocxApplyEdit_SpaceSingleSourced(t *testing.T) {
+	rel := filepath.Join(".gaea", "uploads", "evidence-space.docx")
+
+	// 方向 1：play 空间不落证据链。
+	t.Run("play空间零证据卡", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		orig := ga.cfg
+		ga.cfg = &gaeaConfig.Config{
+			Session: gaeaConfig.SessionConfig{Space: "play"},
+		}
+		t.Cleanup(func() { ga.cfg = orig })
+		if got := gaeaEffectiveSpace(); got != "play" {
+			t.Fatalf("前置：gaeaEffectiveSpace = %q, want play", got)
+		}
+		if err := os.MkdirAll(filepath.Dir(rel), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(rel, docxWithText(t, "期限 30 天。"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		a := &App{}
+		if _, perr := a.GaeaDocxApplyEdit(filepath.ToSlash(rel), "30 天", "60 天"); perr != nil {
+			t.Fatalf("apply 本身不应失败: %v", perr)
+		}
+		if recs := readDocxJournal(t); len(recs) != 0 {
+			t.Errorf("play 空间证据卡数 = %d, want 0（红线：非 work 不落证据链）", len(recs))
+		}
+	})
+
+	// 方向 2：work 空间记录的 Space 与 gaeaEffectiveSpace() 同源。
+	t.Run("work空间记录Space同源", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		injectWorkSpace(t)
+		if err := os.MkdirAll(filepath.Dir(rel), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(rel, docxWithText(t, "期限 30 天。"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		a := &App{}
+		if _, perr := a.GaeaDocxApplyEdit(filepath.ToSlash(rel), "30 天", "60 天"); perr != nil {
+			t.Fatalf("apply 本身不应失败: %v", perr)
+		}
+		rec := findDocxRecord(readDocxJournal(t), "docx_apply", filepath.ToSlash(rel))
+		if rec == nil {
+			t.Fatal("journal 缺少 docx_apply 记录")
+		}
+		if rec.Space != "work" {
+			t.Errorf("记录 Space = %q, want work（守卫与落库同源 gaeaEffectiveSpace）", rec.Space)
+		}
+		if rec.Space != gaeaEffectiveSpace() {
+			t.Errorf("记录 Space %q != 生效空间 %q（两源漂移）", rec.Space, gaeaEffectiveSpace())
+		}
+	})
+}

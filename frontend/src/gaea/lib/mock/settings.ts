@@ -10,8 +10,9 @@ type SettingsMethods = Pick<
   | "LoginProvider" | "LogoutProvider"
   | "SetPermissionMode" | "AddPermissionRule" | "RemovePermissionRule"
   | "SetSandbox" | "SetAgentParams"
-  | "SetSubagentModel" | "SetSubagentModelForSkill" | "SetSubagentTemperature"
-  | "SetEffort" | "SetSubagentEffort" | "SetPermLevel"
+  // FE3-04：SetSubagentModel/SetSubagentTemperature/SetEffort 三名已摘除（Go 从无
+  // 绑定、零调用者）；写口走 SetSubagentModelForSkill / SetSubagentEffort。
+  | "SetSubagentModelForSkill" | "SetSubagentEffort" | "SetPermLevel"
   // v4.171 批次一 legacy 直调转正（Go OfficeB.GaeaSaveSettings）：设置整体写回。
   | "SaveSettings"
 >;
@@ -65,18 +66,9 @@ export function buildSettings(s: MakeMockState): SettingsMethods {
     async SetAgentParams(temperature: number, maxSteps: number, systemPrompt: string) {
       settings.agent = { ...settings.agent, temperature, maxSteps, systemPrompt };
     },
-    async SetSubagentModel(ref: string) {
-      settings.subagentModel = ref;
-    },
     async SetSubagentModelForSkill(_skill: string, ref: string) {
       if (!settings.subagentModels) settings.subagentModels = {};
       settings.subagentModels[_skill] = ref;
-    },
-    async SetSubagentTemperature(temp: number) {
-      settings.agent.subagentTemperature = temp;
-    },
-    async SetEffort(effort: string) {
-      settings.agent.effort = effort;
     },
     async SetSubagentEffort(effort: string) {
       settings.agent.subagentEffort = effort;

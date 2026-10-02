@@ -41,12 +41,14 @@ type AppBindingTarget = {
 }[keyof AppBindings];
 
 /** AppBindings mock-only：Go 侧无对应绑定方法（仅 dev mock 提供）。
- *  导出运行时清单供 spaceBindings.test.ts 的推导断言复用（单源）。 */
+ *  导出运行时清单供 spaceBindings.test.ts 的推导断言复用（单源）。
+ *  FE3-04：真机路径对清单内名字由 bridge/proxy.ts fail-fast 显式拒绝
+ *  （BridgeError code=MockOnlyBinding），不再 undefined→TypeError→假可重试。 */
 export const MOCK_ONLY_NAMES = [
-  "Compact", // 无 Go 绑定；上下文压缩由后端会话事件驱动，无独立绑定
-  "SetSubagentTemperature", // 声明但 Go 侧从未实现（仅 GaeaSetSubagentEffort 存在）
-  "SetEffort", // 同上：Go 侧无 SetEffort，推理强度实际走 GaeaSetSubagentEffort
-  "SetSubagentModel", // 同上：Go 侧无 SetSubagentModel，实际走 GaeaSetSubagentModelForSkill
+  "Compact", // 无 Go 绑定；上下文压缩由后端会话事件自动执行，无手动压缩绑定
+  // FE3-04 摘除三名（零前端调用者，已从 AppBindings/GAEA_METHOD_FACETS/mock
+  // 三处整体移除）：SetSubagentTemperature（Go 从未实现）、SetEffort（实际走
+  // GaeaSetSubagentEffort）、SetSubagentModel（实际走 GaeaSetSubagentModelForSkill）。
 ] as const;
 
 /** AppBindings mock-only：Go 侧无对应绑定方法（仅 dev mock 提供）。 */

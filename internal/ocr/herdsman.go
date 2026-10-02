@@ -3,6 +3,15 @@
 // 端点：
 //   - POST /v1/ocr           PaddleOCR PP-OCRv5 文本检测与识别
 //   - POST /v1/documents/parse MinerU Pipeline/Hybrid 文档解析
+//
+// 分工边界（审计 U54/IN3-09，与 internal/docmd/ocr.go seam 注释的「口径边界」
+// 段互锁）：本包是远端 Herdsman 文档解析/OCR 专用客户端，唯一消费方是
+// app/gaea_ocr.go 的 GaeaOCRText 四腿编排（办公「提取文字」及其兜底链）。
+// 刻意不接入 docmd 的 OCRProvider seam——那是本地链（OvisOCR2/tesseract：
+// 扫描件 PDF、报价单图片等离线用例）的接口，kind 取值域只有 ovis/tesseract；
+// 本包无健康探测（外部常驻服务，HTTP 即错误），URL/模型源（引擎配置
+// BaseURL + HERDSMAN_OCR_MODEL/HERDSMAN_PARSE_MODEL）在 app 层解析。两链
+// 配置名词对照与「不许顺手接入」的完整理由见 docmd/ocr.go 口径边界段。
 package ocr
 
 import (

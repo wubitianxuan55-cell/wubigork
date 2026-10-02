@@ -21,6 +21,33 @@ const (
 	ImageBackendKindComfyUI = "comfyui"
 )
 
+// ── 运行时后端类型名（第二套口径，与注册表 kind 对照）─────────────
+//
+// ImageBackendType* 是运行时「图片后端类型名」的取值域：Client.SetImageBackend
+// 第二参数 / GetImageBackendType 返回值 / 配置 image_backend 落盘值 / 前端
+// backend 字段，全部是这一套。它与上面的注册表 kind 是两套口径（IN2-07）：
+// 构造实例用 kind，对外标识用类型名。对照关系如下（唯一对照表，改任一侧
+// 先改这里）：
+//
+//	类型名      | 注册表 kind             | 实例构造                       | 主要消费方
+//	-----------|-------------------------|-------------------------------|----------
+//	xai（含空）| ImageBackendKindOpenAI  | 无实例（client 内置 xAI 管线） | 前端默认出图/页签
+//	comfyui    | ImageBackendKindComfyUI | NewComfyUIBackend             | ComfyUI 预热/进度/中断
+//	herdsman   | ImageBackendKindOpenAI  | NewOpenAIImageBackend         | 模型目录/图生图分支
+//	ollama     | ImageBackendKindOpenAI  | NewOpenAIImageBackend         | 同上（herdsman/ollama 仅靠类型名区分）
+//	glm        | ImageBackendKindGLM     | NewGLMImageBackend            | GLM 模型归位/面板分支
+//
+// 彻底统一两套口径（herdsman/ollama 并入 openai + 显式 engineID 承载）会改
+// 配置文件字段值、前端分支与绑定返回值，需配置迁移拍板后另立批次；本批只
+// 收敛常量来源与判据单点（IN2-07 最小收窄路线）。
+const (
+	ImageBackendTypeXAI      = "xai"      // 兼容服务原生管线（含空值回退）
+	ImageBackendTypeComfyUI  = "comfyui"  // = ImageBackendKindComfyUI
+	ImageBackendTypeHerdsman = "herdsman" // OpenAI 兼容引擎，kind 归 ImageBackendKindOpenAI
+	ImageBackendTypeOllama   = "ollama"   // OpenAI 兼容引擎，kind 归 ImageBackendKindOpenAI
+	ImageBackendTypeGLM      = "glm"      // = ImageBackendKindGLM
+)
+
 // ImageBackendConfig 图片后端实例配置（注册表 New 入参）。
 // 各 kind 按需读取字段：openai 兼容后端用 BaseURL + APIKey；
 // comfyui 只用 BaseURL（本地服务无需认证）。

@@ -165,22 +165,7 @@ func (a *App) GaeaXlsxApplyEdit(rel, opsJSON string) (XlsxEditResult, error) {
 }
 
 // appendXlsxEvidence 把一次 xlsx 应用写入 work 空间 Journal（JSONL）。
-// 红线：非 work 空间（play）不落证据链；journal 目录不可用/写失败静默。
 func appendXlsxEvidence(rel string, ops []xlsxedit.Op, summary []string, baseline string) {
-	if gaeaEffectiveSpace() != "work" {
-		return
-	}
-	st, err := evidence.OpenJournal(filepath.Join(gaeaCwd(), ".gaea", "work", "journal"))
-	if err != nil {
-		return
-	}
-	sid := ""
-	if c := gaeaCtrl(); c != nil {
-		sid = c.SessionPath()
-	}
-	if sid == "" {
-		sid = "unsaved"
-	}
 	var before strings.Builder
 	for _, op := range ops {
 		fmt.Fprintf(&before, "%s!%s %s=%v", op.Sheet, op.Target, op.Type, op.Value)
@@ -195,17 +180,7 @@ func appendXlsxEvidence(rel string, ops []xlsxedit.Op, summary []string, baselin
 	if b, err := json.Marshal(ops); err == nil && len(b) <= evidence.SummaryLimit {
 		opsJSON = string(b)
 	}
-	_ = st.Append(evidence.ChangeRecord{
-		SessionID:     sid,
-		Space:         "work",
-		Tool:          "xlsx_apply",
-		Target:        rel,
-		BeforeSummary: strings.TrimSpace(before.String()),
-		AfterSummary:  strings.Join(summary, "；"),
-		BaselinePath:  baseline,
-		OpsJSON:       opsJSON,
-		Status:        evidence.StatusPendingVerify,
-	})
+	appendOfficeEvidence("xlsx_apply", rel, strings.TrimSpace(before.String()), strings.Join(summary, "；"), baseline, opsJSON)
 }
 
 func firstSheetName(path string) string {

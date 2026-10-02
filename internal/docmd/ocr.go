@@ -240,6 +240,29 @@ var (
 //     显式指定 = 仅该引擎，不可用即 fail-closed 报错，不静默降级）
 //
 // 验收：切换 OCR 引擎只改配置项（GAEA_OCR_ENGINE），代码零改动。
+//
+// ── 口径边界（审计 U54/IN3-09 权威口径，改动前必读） ─────────────────────
+//
+// 本 seam 的 kind 取值域 = 本地 OCR 引擎（auto/ovis/tesseract），消费方三组
+// 都是「本地、离线、文件不出机」用例：扫描件 PDF（ocrPDFRange）、成本库报价
+// 单图片（app visionOCRImage → OCRImageText）、办公提取文字兜底腿（app
+// GaeaOCRText 第四腿）。远端 herdsman 链（internal/ocr 的 PaddleOCR /v1/ocr
+// 与 MinerU /v1/documents/parse，由 app/gaea_ocr.go 前三腿编排）刻意不注册
+// 为本 seam 的 provider kind（取值域钉子：ocr_kind_domain_test.go）：
+//   - 接入即改道：herdsman 进 auto 链或显式可选，上述本地用例的流量就被远
+//     端接管（结果/延迟/隐私面全变）；不进 auto 链则是永远没人走的死 kind。
+//   - 装不进 provider 形状：其 URL/模型源是引擎配置 BaseURL + 模型中心
+//     active_ocr_engine 绑定 + HERDSMAN_* env，本包无参 factory 解析不到；
+//     MinerU 是文档解析（mode/dpi/formula），不是单图 OCR。
+//   - 探测模型不同构：本 seam 按需拉起进程 + /health 探测 + 冷却；herdsman
+//     外部常驻、无探测，HTTP 即错误。
+// 两链是分工不是重复，配置名词同名不同物（勿「顺手统一」）：
+//   GAEA_OCR_ENGINE — 本 seam 引擎 kind（auto/ovis/tesseract），本文件唯一解析点；
+//   active_ocr_engine/active_ocr_model — 模型中心「设为 OCR」绑定（引擎/模型
+//     ID 域），只影响 app GaeaOCRText 前三腿，本 seam 不读它；
+//   GAEA_OCR_URL/GAEA_OCR_PORT — 本地 OvisOCR2 llama-server 地址（默认 8137）；
+//   HERDSMAN_OCR_MODEL/HERDSMAN_PARSE_MODEL — 远端模型 ID，与 GAEA_OCR_MODEL
+//     （本地 gguf 文件路径）同名词不同物。
 
 // OCRProvider 单图 OCR 提供者（seam 定义）。
 type OCRProvider interface {

@@ -36,7 +36,7 @@ type Client struct {
 
 	// 本地图片生成后端（nil 时使用 xAI）
 	imageBackend     ImageBackend
-	imageBackendType string // "xai" | "comfyui" | "herdsman" | "ollama"
+	imageBackendType string // 取值域 ImageBackendType*（含 "glm"）；与注册表 kind 两套口径，对照表见 image_backend.go
 
 	// 多引擎支持
 	engineMgr      *modelengine.Manager
@@ -1284,10 +1284,12 @@ func (c *Client) prepareStreamRequest(model string, messages []ChatMessage, opts
 	return req
 }
 
-// SetImageBackend 设置图片生成后端（nil + backendType 回退到 xAI）
+// SetImageBackend 设置图片生成后端（nil + backendType 回退到 xAI）。
+// backendType 取值域是 ImageBackendType* 运行时类型名（非注册表 kind，
+// 两套口径对照表见 image_backend.go）。
 func (c *Client) SetImageBackend(backend ImageBackend, backendType string) {
 	if backendType == "" {
-		backendType = "xai"
+		backendType = ImageBackendTypeXAI
 	}
 	c.mu.Lock()
 	c.imageBackend = backend
@@ -1295,13 +1297,14 @@ func (c *Client) SetImageBackend(backend ImageBackend, backendType string) {
 	c.mu.Unlock()
 }
 
-// GetImageBackendType 获取当前图片后端类型
+// GetImageBackendType 获取当前图片后端类型（ImageBackendType* 取值域，
+// 空值回退 xAI；经 app GetImageBackend 绑定下发前端与配置恢复）。
 func (c *Client) GetImageBackendType() string {
 	c.mu.RLock()
 	t := c.imageBackendType
 	c.mu.RUnlock()
 	if t == "" {
-		return "xai"
+		return ImageBackendTypeXAI
 	}
 	return t
 }

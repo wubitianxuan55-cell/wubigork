@@ -51,7 +51,7 @@ func (a *mediaState) WarmComfyUI() map[string]interface{} {
 	if !comfyWarmArmed.Load() {
 		return map[string]interface{}{"started": false, "reason": "unarmed"}
 	}
-	if a.cfg == nil || a.cfg.ImageBackend != "comfyui" {
+	if a.cfg == nil || a.cfg.ImageBackend != ai.ImageBackendTypeComfyUI {
 		return map[string]interface{}{"started": false, "reason": "backend-not-comfyui"}
 	}
 	model := a.cfg.ImageModel
@@ -152,7 +152,7 @@ func (a *mediaState) CancelImageGeneration() bool {
 // 失败仅记录日志，不掩盖（context 取消已令轮询退出，中断失败意味着
 // ComfyUI 端任务会继续跑完，日志便于排查）。
 func (a *mediaState) interruptComfyUI() {
-	if a.cfg == nil || a.cfg.ImageBackend != "comfyui" || a.clientRef() == nil {
+	if a.cfg == nil || a.cfg.ImageBackend != ai.ImageBackendTypeComfyUI || a.clientRef() == nil {
 		return
 	}
 	ib, ok := a.clientRef().GetImageBackend().(interface{ Interrupt(context.Context) error })
@@ -170,7 +170,7 @@ func (a *mediaState) interruptComfyUI() {
 // resetComfyCancel 新一轮生成开始时清除 ComfyUI 本地取消标记（T6-4.1），
 // 保证取消后用户可正常发起新任务。
 func (a *mediaState) resetComfyCancel() {
-	if a.cfg == nil || a.cfg.ImageBackend != "comfyui" || a.clientRef() == nil {
+	if a.cfg == nil || a.cfg.ImageBackend != ai.ImageBackendTypeComfyUI || a.clientRef() == nil {
 		return
 	}
 	if ib, ok := a.clientRef().GetImageBackend().(interface{ ResetCancel() }); ok {
@@ -341,19 +341,19 @@ func (a *mediaState) runImageGenLoop(spec imageGenLoopSpec) ([]imageItem, string
 		imgReq := spec.reqTemplate
 		imgReq.Model = imgModel
 		imgReq.Seed = genSeed
-		if spec.backend == "comfyui" {
+		if spec.backend == ai.ImageBackendTypeComfyUI {
 			imgReq.ProgressCallback = a.updateComfyTaskProgress
 		}
 		// xAI / Ollama 后端不接受 size 参数（xAI 返回 400）；herdsman 文档明确支持
 		// size；GLM 官方 schema 同样接受 size（glm-image 默认 1280x1280）
-		if spec.backend != "comfyui" && spec.backend != "herdsman" && spec.backend != "glm" {
+		if spec.backend != ai.ImageBackendTypeComfyUI && spec.backend != ai.ImageBackendTypeHerdsman && spec.backend != ai.ImageBackendTypeGLM {
 			imgReq.Size = ""
 		}
 		start := time.Now()
 		resp, err := spec.client.GenerateImage(spec.genCtx, &imgReq)
 		// 孤儿 ComfyUI 实例（stderr 失效）会在执行时报 [Errno 22]：
 		// 自动重启一次后重试，避免用户手动处理（能力开关：仅 internal 链）
-		if spec.comfyRetries && err != nil && !comfyRecovered && spec.backend == "comfyui" && strings.Contains(err.Error(), "[Errno 22]") {
+		if spec.comfyRetries && err != nil && !comfyRecovered && spec.backend == ai.ImageBackendTypeComfyUI && strings.Contains(err.Error(), "[Errno 22]") {
 			slog.Warn("ComfyUI stderr 失效（疑似孤儿实例），自动重启后重试", "error", err)
 			a.recoverComfyUI(spec.genCtx)
 			comfyRecovered = true
@@ -361,7 +361,7 @@ func (a *mediaState) runImageGenLoop(spec imageGenLoopSpec) ([]imageItem, string
 		}
 		// ComfyUI 压根没跑（dial 连接被拒）且配置了安装路径：自动拉起+就绪
 		// 等待后重试一次（本轮一次）。（能力开关：仅 internal 链）
-		if spec.comfyRetries && err != nil && !comfyBooted && spec.backend == "comfyui" && strings.Contains(err.Error(), "连接 ComfyUI 失败") {
+		if spec.comfyRetries && err != nil && !comfyBooted && spec.backend == ai.ImageBackendTypeComfyUI && strings.Contains(err.Error(), "连接 ComfyUI 失败") {
 			comfyBooted = true
 			if a.ensureComfyUIRunning(spec.genCtx) {
 				slog.Info("ComfyUI 未运行，已自动拉起，重试生成")
@@ -430,7 +430,7 @@ func (a *mediaState) generateImageInternal(o imageGenInternal) (map[string]inter
 		return map[string]interface{}{"error": "已有图片/视频任务正在生成，请等待完成或先取消当前任务"}, nil
 	}
 	defer a.endImageGen(genID, cancel)
-	if backendType == "comfyui" {
+	if backendType == ai.ImageBackendTypeComfyUI {
 		a.noteImageGenMemoryPressure()
 		a.updateComfyTaskProgress("queued", 0, 0, "")
 		a.resetComfyCancel()
@@ -543,7 +543,7 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 		return map[string]interface{}{"error": "已有图片/视频任务正在生成，请等待完成或先取消当前任务"}, nil
 	}
 	defer a.endImageGen(genID, cancel)
-	if a.cfg.ImageBackend == "comfyui" {
+	if a.cfg.ImageBackend == ai.ImageBackendTypeComfyUI {
 		a.noteImageGenMemoryPressure()
 		a.updateComfyTaskProgress("queued", 0, 0, "")
 		a.resetComfyCancel()
@@ -556,10 +556,10 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 	if mode == "" {
 		mode = "txt2img"
 	}
-	if mode == "t2v" && a.cfg.ImageBackend != "comfyui" {
+	if mode == "t2v" && a.cfg.ImageBackend != ai.ImageBackendTypeComfyUI {
 		return map[string]interface{}{"error": "文生视频目前仅支持 ComfyUI 本地后端，请先在左侧切换引擎"}, nil
 	}
-	if mode == "img2img" && a.cfg.ImageBackend != "comfyui" && a.cfg.ImageBackend != "herdsman" {
+	if mode == "img2img" && a.cfg.ImageBackend != ai.ImageBackendTypeComfyUI && a.cfg.ImageBackend != ai.ImageBackendTypeHerdsman {
 		return map[string]interface{}{"error": "图生图目前支持 ComfyUI / Herdsman 本地后端，请先在左侧切换引擎"}, nil
 	}
 	if mode == "img2img" && strings.TrimSpace(p.InitImage) == "" && len(p.RefImages) == 0 {
@@ -631,7 +631,7 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 		// 转发同一编辑引擎，同口径。（收敛为 modelForced 传入共享循环）
 		modelForced := ""
 		if mode == "edit" || mode == "outpaint" || (mode == "txt2img" && p.RefMethod == "qedit") {
-			if a.cfg.ImageBackend == "comfyui" {
+			if a.cfg.ImageBackend == ai.ImageBackendTypeComfyUI {
 				modelForced = "qwen-image-edit"
 			}
 		}
@@ -798,7 +798,7 @@ func (a *mediaState) GetImageBackend() string {
 	if a.clientRef() != nil {
 		return a.clientRef().GetImageBackendType()
 	}
-	return "xai"
+	return ai.ImageBackendTypeXAI
 }
 
 // GetImageBackendInfo 获取当前图片后端类型和模型（供前端显示）。
@@ -813,9 +813,9 @@ func isGLMImageModel(model string) bool {
 func (a *mediaState) GetImageBackendInfo() map[string]string {
 	imageModel := a.cfg.ImageModel
 	switch {
-	case a.cfg.ImageBackend == "comfyui" && imageModel == "":
+	case a.cfg.ImageBackend == ai.ImageBackendTypeComfyUI && imageModel == "":
 		imageModel = "krea2"
-	case a.cfg.ImageBackend == "glm":
+	case a.cfg.ImageBackend == ai.ImageBackendTypeGLM:
 		// 空模型或上一后端残留（如 grok-imagine-*）都归位 GLM 默认生图模型，
 		// 避免表单带非官方模型名去请求（官方会报 model 不存在）。
 		if !isGLMImageModel(imageModel) {
@@ -905,26 +905,26 @@ func (a *mediaState) SetImageBackend(backend string, comfyUIURL string, imageMod
 	// 原顺序）再落配置——校验失败不动任何配置。xai 无实例（client 内置管线）。
 	var r resolvedImageBackend
 	switch backend {
-	case "comfyui":
-		a.cfg.ImageBackend = "comfyui"
+	case ai.ImageBackendTypeComfyUI:
+		a.cfg.ImageBackend = ai.ImageBackendTypeComfyUI
 		if comfyUIURL != "" {
 			a.cfg.ComfyUIURL = comfyUIURL
 		}
 		if imageModel != "" {
 			a.cfg.ImageModel = imageModel
 		}
-		rr, rerr := resolveImageBackend("comfyui", a.cfg, a.engineMgr)
+		rr, rerr := resolveImageBackend(ai.ImageBackendTypeComfyUI, a.cfg, a.engineMgr)
 		if rerr != nil {
 			// 收敛前此处无前置校验（URL 空也照常构造，生成时才暴露）；现按
 			// 其余四份副本的并集口径 fail-fast（行为差异见 IN2-03 报告）。
 			return fmt.Errorf("未配置 ComfyUI 地址")
 		}
 		r = rr
-	case "xai":
-		a.cfg.ImageBackend = "xai"
+	case ai.ImageBackendTypeXAI:
+		a.cfg.ImageBackend = ai.ImageBackendTypeXAI
 		a.cfg.ImageModel = "grok-imagine-image-quality" // 角色剧照默认高质量模型
-		r = resolvedImageBackend{Kind: "xai"}
-	case "herdsman", "ollama", "glm":
+		r = resolvedImageBackend{Kind: ai.ImageBackendTypeXAI}
+	case ai.ImageBackendTypeHerdsman, ai.ImageBackendTypeOllama, ai.ImageBackendTypeGLM:
 		rr, rerr := resolveImageBackend(backend, a.cfg, a.engineMgr)
 		if rerr != nil {
 			var re *imageBackendResolveError
@@ -974,7 +974,7 @@ func (a *mediaState) SetImageBackend(backend string, comfyUIURL string, imageMod
 func (a *mediaState) GetImageBackendConfig() map[string]interface{} {
 	backend := a.cfg.ImageBackend
 	if backend == "" {
-		backend = "xai"
+		backend = ai.ImageBackendTypeXAI
 	}
 	currentModel := a.cfg.ImageModel
 	if currentModel == "" {
@@ -1022,7 +1022,7 @@ func (a *mediaState) GetImageBackendConfig() map[string]interface{} {
 
 	// 3. 根据当前后端补充默认模型列表
 	switch backend {
-	case "comfyui":
+	case ai.ImageBackendTypeComfyUI:
 		hasCurrent := false
 		for _, m := range availableModels {
 			if m["model"] == currentModel {
@@ -1036,7 +1036,7 @@ func (a *mediaState) GetImageBackendConfig() map[string]interface{} {
 				"model":  currentModel,
 			})
 		}
-	case "xai":
+	case ai.ImageBackendTypeXAI:
 		availableModels = append(availableModels,
 			map[string]string{"engine": "xAI", "model": "grok-imagine-image"},
 			map[string]string{"engine": "xAI", "model": "grok-imagine-image-quality"},
@@ -1082,7 +1082,7 @@ func (a *mediaState) GetComfyUILoras() ([]string, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	r, err := resolveImageBackend("comfyui", a.cfg, a.engineMgr)
+	r, err := resolveImageBackend(ai.ImageBackendTypeComfyUI, a.cfg, a.engineMgr)
 	if err != nil {
 		return nil, fmt.Errorf("ComfyUI 地址未配置")
 	}

@@ -4,6 +4,7 @@
 // realApp 为 events 模块共享的内部接缝（非入口公开面，bridge.ts 不 re-export）。
 import type { AppBindings } from "./appBindings";
 import { gaeaToGaea } from "./mappings";
+import { MOCK_ONLY_NAMES } from "./drift";
 import {
   isBindingAllowedInSpace,
   isSharedBinding,
@@ -19,13 +20,38 @@ import {
 // 门面（go.app.CoreB/OfficeB/MemoryB/CostB/ModelB/VoiceB/ChatB/NovelB/
 // ImageB/CharLibB）。这里返回一个按方法名路由到对应门面的代理，前端调用点
 // （app.Submit 等）零改动。
+// ── FE3-04：mock-only 绑定真机路径 fail-fast ────────────────────────────
+// MOCK_ONLY_NAMES（drift.ts 单源）是「AppBindings 认领、mock 实现、Go 侧从无对应
+// 绑定」的名字。真机路径旧行为：get 找不到绑定 → 返回 undefined → 调用方
+// TypeError（"not a function"）→ invoke 归一成「××失败：…，请重试」的假可重试
+// 错误（重试永不成功），与 dev mock 下成功形成双实现掩盖。现真机 get 直接返回
+// 显式拒绝函数：BridgeError code=MockOnlyBinding + 文案说明真机不可用与真实生效
+// 路径。mock 路径（浏览器 dev / vitest，realApp() 为 undefined）不受影响。
+const MOCK_ONLY_SET = new Set<string>(MOCK_ONLY_NAMES);
+
+// 逐名理由（写进错误文案，用户可读；新名入清单时必须配理由）。
+const MOCK_ONLY_REASONS: Record<string, string> = {
+  Compact: "上下文压缩由后端会话事件自动执行",
+};
+
+function mockOnlyBindingRejection(method: string): () => Promise<never> {
+  const why = MOCK_ONLY_REASONS[method];
+  const message =
+    `${method} 为 mock-only 绑定，真机不可用（无对应 Go 绑定` +
+    `${why ? `；${why}` : ""}）`;
+  return () => Promise.reject(new BridgeError("MockOnlyBinding", message));
+}
+
 export function realApp(): AppBindings | undefined {
   if (typeof window === "undefined") return undefined;
   const goApp = (window as unknown as { go?: { app?: Record<string, unknown> } }).go?.app;
   if (!goApp || typeof goApp !== "object") return undefined;
   return new Proxy({} as AppBindings, {
     get(_t, prop) {
-      const key = (gaeaToGaea as Record<string, string>)[String(prop)] ?? String(prop);
+      const name = String(prop);
+      const key = (gaeaToGaea as Record<string, string>)[name] ?? name;
+      // FE3-04 fail-fast：mock-only 名在真机无绑定可路由，显式拒绝（见上块注释）。
+      if (MOCK_ONLY_SET.has(key)) return mockOnlyBindingRejection(key);
       for (const ns of Object.values(goApp)) {
         if (ns === null || typeof ns !== "object") continue;
         const rec = ns as Record<string, unknown>;

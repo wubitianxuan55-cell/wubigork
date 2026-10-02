@@ -3,6 +3,12 @@
 // 蒸馏来源：oh-story-claudecode（MIT）的 deslop-gates.md / quality-rubric.md 中
 // **可机械判定**的维度（机制重推导，非代码搬运）；语义维度（卖点/动机/伏笔回收）
 // 仍由 LLM 评审负责，见 .gaea/skills/novel-review/。
+//
+// 注（审计 IN1-04）：本包的句级节奏判据（电报体/平均句长，源自上游 quality-rubric
+// 「句长节奏」行的 FAIL 口径）与 internal/novelreview 的段级段落判据（format_readability，
+// 上游「格式可读性」行）是**同一上游 rubric 的两个维度分两路落地**：本包句级、阻断级
+// （S2 进 app 的 severityBlocking 收敛链），review 段级、建议级（面板结论）。粒度与
+// 门槛各自独立，见 ChapterQualityIssues ② 处互引注释。
 package novelgate
 
 import (
@@ -10,6 +16,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/gaea/gaea/internal/noveltext"
 	"github.com/gaea/gaea/internal/types"
 )
 
@@ -33,8 +40,7 @@ const (
 )
 
 var (
-	sentenceSplitRe = regexp.MustCompile(`[。！？!?…]+`)
-	ellipsisRe      = regexp.MustCompile(`(?:…{2,}|\.{3,})`)
+	ellipsisRe = regexp.MustCompile(`(?:…{2,}|\.{3,})`)
 	// RE2 不支持反向引用，用「同类标点连续 3 个以上」表达堆砌。
 	repeatPunctRe = regexp.MustCompile(`[！？!?]{3,}`)
 )
@@ -71,11 +77,12 @@ func ChapterQualityIssues(text string) []Issue {
 	}
 	var out []Issue
 
-	// ① 段落堆叠
+	// ① 段落堆叠（切分单源 noveltext.SplitParagraphs；证据行号用 Line 口径=源行号，
+	// 空行也占号——与旧内联 strings.Split(body, "\n") 逐字段一致）。
 	longest, longestNo := 0, 0
-	for i, p := range strings.Split(body, "\n") {
-		if n := utf8.RuneCountInString(strings.TrimSpace(p)); n > longest {
-			longest, longestNo = n, i+1
+	for _, pa := range noveltext.SplitParagraphs([]rune(body)) {
+		if n := len([]rune(pa.Text)); n > longest {
+			longest, longestNo = n, pa.Line
 		}
 	}
 	if longest > paragraphMaxRunes {
@@ -84,8 +91,15 @@ func ChapterQualityIssues(text string) []Issue {
 			Evidence: "第 " + itoa(longestNo) + " 行"})
 	}
 
-	// ② 句长节奏（电报体）
-	sentences := splitSentences(body)
+	// ② 句长节奏（电报体）——**句级**判据，源自上游 quality-rubric「句长节奏」行的
+	// FAIL 口径（「逗号之间连着都是 ≤5 字、通篇超短句像提纲」；资产镜像
+	// .gaea/skills/novel-review/rubrics/generic.json 的 sentence_rhythm 维度）。
+	// 注（审计 IN1-04）：novelreview 的 format_readability 另有**段级**碎段判据
+	// （dimParagraphPace：≥12 段且平均段长 ≤12 字 → WARN 建议级）——同域不同粒度：
+	// 本处句级、阻断级（S2 进 app 的 severityBlocking 收敛链），review 段级、建议级。
+	// 两处门槛各自独立、粒度刻意分层，勿顺手对齐；「同一正文本处报 S2、review 整体
+	// APPROVE」是既证事实，对照样本钉在 telegraph_granularity_test.go。
+	sentences := noveltext.SplitSentences(body)
 	if len(sentences) >= minSentences {
 		short, total := 0, 0
 		for _, s := range sentences {
@@ -128,18 +142,7 @@ func ChapterQualityIssues(text string) []Issue {
 	return out
 }
 
-// splitSentences 按句末标点切句并去空白。
-func splitSentences(text string) []string {
-	parts := sentenceSplitRe.Split(text, -1)
-	out := make([]string, 0, len(parts))
-	for _, p := range parts {
-		if s := strings.TrimSpace(p); s != "" {
-			out = append(out, s)
-		}
-	}
-	return out
-}
-
+// firstShort 第一处短句（电报体证据）。
 func firstShort(sentences []string) string {
 	for _, s := range sentences {
 		if utf8.RuneCountInString(s) <= shortSentenceRunes {

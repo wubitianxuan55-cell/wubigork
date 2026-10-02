@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gaea/gaea/internal/gaea/evidence"
 	"github.com/gaea/gaea/internal/gaea/wspath"
 	"github.com/gaea/gaea/internal/office/pptxedit"
 )
@@ -79,31 +78,9 @@ func (a *App) GaeaPptxSlideText(rel string) ([]pptxedit.SlideText, error) {
 }
 
 // appendPptxEvidence 把一次 pptx 编辑写入 work 空间 Journal（JSONL）。
-// 红线：非 work 空间（play）不落证据链；journal 目录不可用/写失败静默
-// （对齐 appendXlsxEvidence 口径）。
 func appendPptxEvidence(rel string, slideIdx int, target, replacement, summary, baseline string) {
-	if gaeaEffectiveSpace() != "work" {
-		return
-	}
-	st, err := evidence.OpenJournal(filepath.Join(gaeaCwd(), ".gaea", "work", "journal"))
-	if err != nil {
-		return
-	}
-	sid := ""
-	if c := gaeaCtrl(); c != nil {
-		sid = c.SessionPath()
-	}
-	if sid == "" {
-		sid = "unsaved"
-	}
-	_ = st.Append(evidence.ChangeRecord{
-		SessionID:     sid,
-		Space:         "work",
-		Tool:          "pptx_apply",
-		Target:        rel,
-		BeforeSummary: fmt.Sprintf("p%d %q", slideIdx, target),
-		AfterSummary:  fmt.Sprintf("p%d → %q（%s）", slideIdx, replacement, summary),
-		BaselinePath:  baseline,
-		Status:        evidence.StatusPendingVerify,
-	})
+	appendOfficeEvidence("pptx_apply", rel,
+		fmt.Sprintf("p%d %q", slideIdx, target),
+		fmt.Sprintf("p%d → %q（%s）", slideIdx, replacement, summary),
+		baseline, "")
 }

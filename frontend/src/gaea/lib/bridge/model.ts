@@ -24,16 +24,11 @@ export interface ModelBindings {
   RemovePermissionRule(list: string, rule: string): Promise<void>;
   SetSandbox(bash: string, network: boolean, workspaceRoot: string, allowWrite: string[]): Promise<void>;
   SetAgentParams(temperature: number, maxSteps: number, systemPrompt: string): Promise<void>;
-  // SetSubagentTemperature sets the subagent-specific temperature override.
-  // 0 means "use the global temperature".
-  SetSubagentTemperature(temp: number): Promise<void>;
-  // SetEffort sets the reasoning effort for the executor. "" = provider default.
-  SetEffort(effort: string): Promise<void>;
+  // FE3-04：SetSubagentTemperature/SetEffort/SetSubagentModel 三个 mock-only 死名
+  // 已整体摘除——Go 侧从无对应绑定（bindingSignatures 744 名可证），前端亦零调用
+  // 者；推理强度/子代理模型的实际写口见下两个真实绑定（Gaea 前缀同名直调）。
   // SetSubagentEffort sets the reasoning effort for sub-agents. "" = inherit from Effort.
   SetSubagentEffort(effort: string): Promise<void>;
-  // SetSubagentModel sets the default model for spawned sub-agents. An empty string
-  // clears it so sub-agents inherit the parent's provider.
-  SetSubagentModel(ref: string): Promise<void>;
   // SetSubagentModelForSkill sets a per-skill sub-agent model override.
   // skill is one of explore|research|review|security-review. Empty ref = inherit.
   SetSubagentModelForSkill(skill: string, ref: string): Promise<void>;

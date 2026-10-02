@@ -6,6 +6,8 @@ package novelreview
 import (
 	"strings"
 	"testing"
+
+	"github.com/gaea/gaea/internal/noveltext"
 )
 
 // assertValidSpans 断言证据区间非空、非越界、且 start < end。
@@ -34,7 +36,7 @@ func TestDimWordcountExpr_BeforeBranchKeepsCoordinates(t *testing.T) {
 	// 窗口的一半，使 after 分支必然落空），再是「这三个字」表述。
 	text := "「甲」" + strings.Repeat("垫", 15) + "这三个字。"
 	runes := []rune(text)
-	d := dimWordcountExpr(p, runes, splitParagraphs(runes))
+	d := dimWordcountExpr(p, runes, noveltext.SplitParagraphs(runes))
 
 	if d.Verdict != verdictWarn || len(d.Evidence) == 0 {
 		t.Fatalf("应命中字数表述不符并给出证据: %+v", d)
@@ -62,14 +64,14 @@ func TestDimWordcountExpr_SpansValidAcrossPhrasings(t *testing.T) {
 		strings.Repeat("前", 25) + "他写下「甲」稍远" + strings.Repeat("垫", 25) + "这三个字。",
 	} {
 		runes := []rune(text)
-		d := dimWordcountExpr(p, runes, splitParagraphs(runes))
+		d := dimWordcountExpr(p, runes, noveltext.SplitParagraphs(runes))
 		assertValidSpans(t, runes, d.Evidence)
 	}
 
 	// 反向守卫：字数相符（「甲乙丙」= 3 字，表述「这三个字」）不给证据。
 	okText := "他写下「甲乙丙」这三个字。"
 	okRunes := []rune(okText)
-	if d := dimWordcountExpr(p, okRunes, splitParagraphs(okRunes)); len(d.Evidence) != 0 {
+	if d := dimWordcountExpr(p, okRunes, noveltext.SplitParagraphs(okRunes)); len(d.Evidence) != 0 {
 		t.Fatalf("字数相符不应给证据: %+v", d.Evidence)
 	}
 }

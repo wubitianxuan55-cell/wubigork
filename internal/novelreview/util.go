@@ -1,38 +1,21 @@
 package novelreview
 
 // 文本结构助手（纯函数；中文一律 rune 计数，与 internal/novelstyle 同口径）。
+//
+// 段落切分已单源到 internal/noveltext（审计 IN1-04，与 novelgate 共用一份实现）；
+// 本包保留 paragraph 别名，维度实现的读法不变。
 
 import (
 	"sort"
 	"strings"
 	"unicode"
+
+	"github.com/gaea/gaea/internal/noveltext"
 )
 
-// splitParagraphs 按换行切段（空行不算段落，但保留其分隔语义）。
-func splitParagraphs(runes []rune) []paragraph {
-	var out []paragraph
-	start := 0
-	idx := 0
-	flush := func(end int) {
-		if end <= start {
-			return
-		}
-		text := strings.TrimSpace(string(runes[start:end]))
-		if text == "" {
-			return
-		}
-		idx++
-		out = append(out, paragraph{idx: idx, start: start, end: end, text: text})
-	}
-	for i, r := range runes {
-		if r == '\n' {
-			flush(i)
-			start = i + 1
-		}
-	}
-	flush(len(runes))
-	return out
-}
+// paragraph 段落（noveltext.Paragraph 的包内别名；Idx=非空段序号、Line=源行号、
+// Start/End=rune 区间、Text=去空白段文）。
+type paragraph = noveltext.Paragraph
 
 // countNonSpaceRunes 非空白字数。
 func countNonSpaceRunes(runes []rune) int {
@@ -173,8 +156,8 @@ func spanAt(runes []rune, paras []paragraph, pos int) EvidenceSpan {
 // paragraphIndexOf 定位 rune 下标所属段落号（1-based，0=未命中）。
 func paragraphIndexOf(paras []paragraph, pos int) int {
 	for _, pa := range paras {
-		if pos >= pa.start && pos < pa.end {
-			return pa.idx
+		if pos >= pa.Start && pos < pa.End {
+			return pa.Idx
 		}
 	}
 	return 0
