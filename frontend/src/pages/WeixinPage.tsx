@@ -12,7 +12,8 @@ import type { whisper, characterlib } from '../../wailsjs/go/models'
 import type {
   WeixinAssistantStatusRow, WeixinAssistantView, WeixinReminderConfigView, WeixinReminderView,
 } from '../gaea/lib/types'
-import { isPageVisible } from '../lib/pollingGate'
+import { usePollingGate } from '../hooks/usePollingGate'
+import { useBoardActive } from '../lib/boardActive'
 import { FRONTEND_EVENTS } from '../events'
 import { takeWxFocusAssistant } from './wxFocus'
 import { usePortraitUrl } from '../components/characterlib/usePortraitUrl'
@@ -267,17 +268,25 @@ const WeixinPage: React.FC = () => {
     if (config !== null) setCfg(config)
   }, [])
 
-  // 可见时轮询助手管理数据 + 提醒列表（keepAlive 页面隐藏时空转）
+  // 可见时轮询助手管理数据 + 提醒列表（keepAlive 页面隐藏时空转）。
+  // FE5-05：门控要判两个正交维度（lib/boardActive.ts 文件头约定「后台轮询应
+  // 各自判一次」）——①窗口不可见（usePollingGate，最小化/切走）；②本板块被
+  // 壳层 keepAlive 切到后台（useBoardActive('weixin')：MainLayout 对访问过的
+  // 板块只 display:none，组件不卸载）。此前只判 ①，于是进过一次青鸟页后停在
+  // 任意板块都会每 5s 打 WhisperWeixinStatus/WhisperAssistantList/
+  // WeixinReminderList/WeixinReminderConfig。形态照 modelcenter/ResourceMonitor。
+  const pollable = usePollingGate()
+  const boardVisible = useBoardActive('weixin')
   useEffect(() => {
-    loadAssistants()
-    loadReminders()
-    const timer = window.setInterval(() => {
-      if (!isPageVisible()) return
+    const tick = () => {
+      if (!pollable || !boardVisible) return
       loadAssistants()
       loadReminders()
-    }, POLL_MS)
+    }
+    tick()
+    const timer = window.setInterval(tick, POLL_MS)
     return () => window.clearInterval(timer)
-  }, [loadAssistants, loadReminders])
+  }, [loadAssistants, loadReminders, pollable, boardVisible])
 
   // 扫码轮询：waiting → scanned → confirmed（携带 token）/ need_verifycode
   useEffect(() => {

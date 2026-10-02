@@ -5,6 +5,7 @@ package app
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/gaea/gaea/internal/gaea/costproject"
 	"github.com/gaea/gaea/internal/gaea/costref"
@@ -30,10 +31,16 @@ func (a *App) GaeaCostGraph(scope, focus string, limit int) (string, error) {
 	for _, p := range projects {
 		itemsByProject[p.ID] = projStore.ListItems(p.ID)
 	}
+	// 审计 GA6-09：成本条目读取失败如实上抛——组图器无错误通道，静默传空
+	// 切片会渲染出「成本库为空」的假图。
+	summaries, serr := costStore.List()
+	if serr != nil {
+		return "", fmt.Errorf("成本库读取失败，图谱不完整: %w", serr)
+	}
 	view := costref.BuildGraph(
 		projects,
 		itemsByProject,
-		costStore.List(),
+		summaries,
 		costStore.Categories(),
 		a.hubCostInquiryStore().List("", 1000),
 		a.hubCostRefStore().List("", ""),

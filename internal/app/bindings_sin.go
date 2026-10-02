@@ -53,7 +53,7 @@ func (b *SinB) SinMessages(topicID string) ([]chat.Message, error) { return b.a.
 func (b *SinB) SinMessagesPage(topicID string, beforeSeq int64, limit int) (SinMessagesPageResult, error) {
 	return b.a.SinMessagesPage(topicID, beforeSeq, limit)
 }
-func (b *SinB) SinNotesGet(topicID string) (SinNotesView, error)   { return b.a.SinNotesGet(topicID) }
+func (b *SinB) SinNotesGet(topicID string) (SinNotesView, error) { return b.a.SinNotesGet(topicID) }
 func (b *SinB) SinNotesSave(topicID string, baseline string, outline string, notes string, force bool) (SinNotesView, error) {
 	return b.a.SinNotesSave(topicID, baseline, outline, notes, force)
 }

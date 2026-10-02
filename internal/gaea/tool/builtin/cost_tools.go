@@ -91,7 +91,7 @@ func (costSearch) Execute(ctx context.Context, args json.RawMessage) (string, er
 	}
 
 	if strings.TrimSpace(p.Query) == "" && strings.TrimSpace(p.Category) == "" && strings.TrimSpace(p.Status) == "" {
-		return costOverview(store), nil
+		return costOverview(store)
 	}
 
 	limit := p.Limit
@@ -102,7 +102,12 @@ func (costSearch) Execute(ctx context.Context, args json.RawMessage) (string, er
 		limit = 50
 	}
 
-	list := store.Search(p.Query, p.Category, p.Status)
+	list, serr := store.Search(p.Query, p.Category, p.Status)
+	if serr != nil {
+		// 审计 GA6-09：语料读取失败不得回「未找到匹配的成本条目」——模型会
+		// 据此判定库中无此科目而自行估价，用户看不到真实原因。
+		return "", fmt.Errorf("成本库检索失败（结果可能不完整），请重试: %w", serr)
+	}
 	// 语义召回：关键词召回不足（<3）时用本地 bge-m3 补召回，覆盖别名/口语
 	// 表达（如「液压振动锤」→ hp300），避免漏检。纯本地，不消耗云端 token。
 	if len(list) < 3 && strings.TrimSpace(p.Query) != "" {
@@ -143,7 +148,12 @@ func semanticCostRecall(ctx context.Context, query string, have []cost.Summary, 
 	if e == nil {
 		return nil
 	}
-	full := store.List()
+	// 审计 GA6-09：本辅助函数签名不带 error，读失败只能降级（返回 nil 让
+	// 调用方保留关键词结果）——但必须留痕，不静默吞掉。
+	full, lerr := store.List()
+	if lerr != nil {
+		slog.Warn("cost: 语义召回读取成本库失败，降级为关键词结果", "error", lerr)
+	}
 	if len(full) == 0 {
 		return nil
 	}
@@ -360,10 +370,14 @@ func costDocText(e cost.Summary) string {
 }
 
 // costOverview 成本库概览：按分类计数，引导模型测算前先引用。
-func costOverview(store *cost.Store) string {
-	list := store.List()
+// 读取失败如实返回 error（GA6-09）——否则「库为空」的空态文案会掩盖故障。
+func costOverview(store *cost.Store) (string, error) {
+	list, lerr := store.List()
+	if lerr != nil {
+		return "", fmt.Errorf("成本库读取失败，概览不可用，请重试: %w", lerr)
+	}
 	if len(list) == 0 {
-		return "成本库为空。测算完成后用 cost_save 把采用的单价沉淀进来，下次即可直接引用。"
+		return "成本库为空。测算完成后用 cost_save 把采用的单价沉淀进来，下次即可直接引用。", nil
 	}
 
 	catCount := make(map[string]int)
@@ -383,7 +397,7 @@ func costOverview(store *cost.Store) string {
 	}
 	fmt.Fprintf(&b, "| **合计** | **%d** |\n\n", total)
 	b.WriteString("测算前用 `cost_search` 按科目查单价；沉淀新单价须先经用户确认（`cost_save`）。")
-	return b.String()
+	return b.String(), nil
 }
 
 // cell 表格单元格转义：竖线替换为斜杠，避免破坏 Markdown 表。

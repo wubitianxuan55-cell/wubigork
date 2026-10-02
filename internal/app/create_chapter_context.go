@@ -242,23 +242,18 @@ func (a *writingState) planPrecheck(chapterNum int) (*types.PlanGateReport, erro
 
 	// 阻断判定：计划问题 + 大纲问题合并；S1/S2 阻断（与 types.PlanProblem 注释一致）。
 	for _, p := range report.PlanProblems {
-		if planSeverityBlocking(p.Severity) {
+		if severityBlocking(p.Severity) {
 			report.Blocking = true
 		}
 	}
 	for _, p := range report.OutlineIssues {
-		if planSeverityBlocking(p.Severity) {
+		if severityBlocking(p.Severity) {
 			report.Blocking = true
 		}
 	}
 	report.Allowed = !report.Blocking
 	report.Missing = planMissingLabels(report)
 	return report, nil
-}
-
-// planSeverityBlocking S1/S2 视为阻断（S3/S4 仅提示）。
-func planSeverityBlocking(severity string) bool {
-	return severity == "S1" || severity == "S2"
 }
 
 // planFieldLabels 问题码 → 缺失项中文标签（前端「一键补计划」按这些词给入口）。
@@ -310,12 +305,12 @@ func planGateError(report *types.PlanGateReport) error {
 	}
 	var details []string
 	for _, p := range report.PlanProblems {
-		if planSeverityBlocking(p.Severity) {
+		if severityBlocking(p.Severity) {
 			details = append(details, p.Message)
 		}
 	}
 	for _, p := range report.OutlineIssues {
-		if planSeverityBlocking(p.Severity) {
+		if severityBlocking(p.Severity) {
 			details = append(details, p.Message)
 		}
 	}

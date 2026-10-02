@@ -8,7 +8,7 @@
 // Save 合并 viewOf 携带新名字/人格与原 token）⑪-⑭ 深链聚焦（v4.51：角色库
 // 「创建青鸟助手」→ 跳青鸟自动选中 + 未绑定直进扫码 + 降级分支）。
 
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 
 // 屏蔽 bridge seam（vi.hoisted 避免 mock 提升导致的初始化顺序问题）
@@ -32,6 +32,7 @@ vi.mock('../gaea/lib/bridge', () => ({ app: mocks }))
 
 import WeixinPage from './WeixinPage'
 import { WX_FOCUS_KEY } from './wxFocus'
+import { notifyBoardActive, resetBoardActive } from '../lib/boardActive'
 
 // 负载 flake 治理（重组件用例通用先例）：RTL 默认 1s 超时在全量套件
 // 高负载下不够，显式放宽到 5s（仍有上界，不会掩盖真回归）。
@@ -368,5 +369,80 @@ describe('青鸟工作台 · 深链聚焦（角色库创建 → 跳青鸟直进�
     expect(await screen.findByText('人格 gaea', undefined, LOAD)).toBeTruthy()
     expect(mocks.WhisperAssistantList.mock.calls.length).toBeGreaterThanOrEqual(2)
     expect(mocks.WhisperWeixinGetQR).not.toHaveBeenCalled()
+  })
+})
+
+// ── FE5-05：轮询双门控（窗口可见性 + 板块可见性）────────────────────────
+// 壳层 keepAlive 对访问过的板块只 display:none（组件不卸载），故「窗口可见」
+// 不等于「本板块可见」：本页必须自己判 useBoardActive('weixin')，否则进过一次
+// 青鸟页后停在任意板块都会每 5s 打 4 个绑定。
+describe('青鸟工作台 · 轮询门控（FE5-05）', () => {
+  const POLL_MS = 5000
+
+  beforeEach(() => {
+    // 轮询按 5s 表推进：假表让「空转 3 个周期」在本用例内可断言。
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'] })
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    resetBoardActive() // 板块可见性复位（模块级状态，避免污染其他用例）
+    vi.restoreAllMocks()
+  })
+
+  it('⑮ 板块不可见（壳层已切到别的板块）：首拉与 5s 轮询都不触达绑定；切回后立即恢复', async () => {
+    notifyBoardActive('novel') // 壳层声明当前可见板块=小说，青鸟仍挂着（keepAlive）
+    render(<WeixinPage />)
+    await flushAsync()
+
+    // 板块不可见：连挂载首拉都不发（比「只停轮询」更严）
+    expect(mocks.WhisperWeixinStatus).not.toHaveBeenCalled()
+    expect(mocks.WhisperAssistantList).not.toHaveBeenCalled()
+    expect(mocks.WeixinReminderList).not.toHaveBeenCalled()
+    expect(mocks.WeixinReminderConfig).not.toHaveBeenCalled()
+
+    // 空转三个周期：改坏锚点=去掉 boardVisible 判据 → 这里会发起轮询调用，断言 FAIL
+    await act(async () => {
+      vi.advanceTimersByTime(POLL_MS * 3)
+    })
+    expect(mocks.WhisperWeixinStatus).not.toHaveBeenCalled()
+    expect(mocks.WhisperAssistantList).not.toHaveBeenCalled()
+    expect(mocks.WeixinReminderList).not.toHaveBeenCalled()
+    expect(mocks.WeixinReminderConfig).not.toHaveBeenCalled()
+
+    // 正控：壳层切回青鸟 → effect 重跑，立即补拉（证明门控是「暂停」而非「断了」）
+    await act(async () => {
+      notifyBoardActive('weixin')
+    })
+    await flushAsync()
+    expect(mocks.WhisperWeixinStatus).toHaveBeenCalled()
+    expect(mocks.WhisperAssistantList).toHaveBeenCalled()
+    expect(mocks.WeixinReminderList).toHaveBeenCalled()
+    expect(mocks.WeixinReminderConfig).toHaveBeenCalled()
+
+    // 恢复后再空转一个周期：轮询照常（门控没把定时器也拆掉）
+    const after = mocks.WhisperWeixinStatus.mock.calls.length
+    await act(async () => {
+      vi.advanceTimersByTime(POLL_MS)
+    })
+    expect(mocks.WhisperWeixinStatus.mock.calls.length).toBeGreaterThan(after)
+  })
+
+  it('⑯ 窗口不可见（visibilityState=hidden）：轮询不触达绑定（usePollingGate 维度）', async () => {
+    render(<WeixinPage />)
+    await flushAsync()
+    const before = mocks.WhisperWeixinStatus.mock.calls.length
+    expect(before).toBeGreaterThan(0) // 正控：窗口可见时首拉已发生
+
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+    const hiddenAt = mocks.WhisperWeixinStatus.mock.calls.length
+    await act(async () => {
+      vi.advanceTimersByTime(POLL_MS * 3)
+    })
+    // 改坏锚点=去掉 pollable 判据 → 这里会出现新的轮询调用，断言 FAIL
+    expect(mocks.WhisperWeixinStatus.mock.calls.length).toBe(hiddenAt)
+    expect(mocks.WeixinReminderList.mock.calls.length).toBeGreaterThan(0)
   })
 })

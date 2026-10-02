@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -309,7 +310,14 @@ func matchRows(rows []Row, store *cost.Store) []Candidate {
 	byTitle := map[string]cost.Summary{}
 	byName := map[string]cost.Summary{}
 	if store != nil && store.Available() {
-		for _, s := range store.List() {
+		existing, lerr := store.List()
+		if lerr != nil {
+			// 审计 GA6-09：本函数签名不带 error，读失败只能按已读到部分匹配
+			// （部分数据仍返回），但必须留痕——否则会把「读不到」当成
+			// 「库里没有同名条目」而全部标成新增。
+			slog.Warn("pricefeed: 成本库读取失败，匹配按已读到部分", "error", lerr)
+		}
+		for _, s := range existing {
 			if t := strings.ToLower(strings.TrimSpace(s.Title)); t != "" {
 				byTitle[t] = s
 			}

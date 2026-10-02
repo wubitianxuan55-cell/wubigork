@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
@@ -504,7 +505,9 @@ func ocrPDFRange(path, pages string, first, last, total int, progress func(done,
 		return "", fmt.Errorf("pdftoppm 执行失败: %w\n输出: %s", err, string(out))
 	}
 
-	// 收集生成的 PNG 文件并按页码排序
+	// 收集生成的 PNG 文件：页码唯一来源 = pdftoppm **实际产物**文件名后缀
+	// （<prefix>-<n>.png，与 render.go 视觉 diff 渲染同一解析实现，IN3-11），
+	// 不再用「first+i」假设每页都渲染成功、也不依赖目录读取顺序。
 	entries, err := os.ReadDir(tmpDir)
 	if err != nil {
 		return "", fmt.Errorf("读取临时目录失败: %w", err)
@@ -518,9 +521,23 @@ func ocrPDFRange(path, pages string, first, last, total int, progress func(done,
 	if len(pngFiles) == 0 {
 		return "", fmt.Errorf("pdftoppm 未生成页面图片")
 	}
+	renderedJobs, fromArtifacts := renderedPageJobs(pngFiles, first)
+	// 不可解析 → 回退 first+i：告警由 ocrPageLoop 在同一判定点统一发出（避免重复日志）。
+	if fromArtifacts {
+		nums := make([]int, 0, len(renderedJobs))
+		for _, j := range renderedJobs {
+			nums = append(nums, j.num)
+		}
+		// 产物侧对账（IN3-11）：渲染页码不连续（pdftoppm 跳页/损坏页）或末页
+		// 超出声明总页数时，文本路径页码与 OCR 路径页码会错位 → 诚实告警。
+		if nums[0] != first || nums[len(nums)-1] > total || len(nums) != nums[len(nums)-1]-nums[0]+1 {
+			slog.Warn("docmd: OCR 渲染产物页码与声明页数/连续性不一致（页码可能错位）",
+				"path", path, "firstRendered", nums[0], "lastRendered", nums[len(nums)-1],
+				"renderedPages", len(nums), "declaredTotal", total, "requestedFirst", first)
+		}
+	}
 
-	// 逐页 OCR：pdftoppm 从 first 页起渲染，PNG 按序对应绝对页码 first+i。
-	// 页范围过滤用绝对页码（与文本路径一致），避免 pdftoppm 偏移后的错位。
+	// 逐页 OCR：页码取上一步的产物页码（绝对页码，与文本路径 pageInRange 同口径）。
 	// 单页失败跳过继续（失败页计入 failed 列表，在结果尾部注明），全部失败才报错。
 	pageOCR := func(pageNum int, pngPath string) (string, error) {
 		// 逐引擎尝试（auto 链 = OvisOCR2 常驻服务优先，失败/截断退回 tesseract）；
@@ -543,25 +560,78 @@ func ocrPDFRange(path, pages string, first, last, total int, progress func(done,
 	return fmt.Sprintf("（以下内容由 OCR 识别，可能存在误差）\n\n%s", result), nil
 }
 
+// ocrPageJob 一页待识别的渲染产物：num = 绝对页码（来自实际产物文件名）。
+type ocrPageJob struct {
+	num int
+	png string
+}
+
+// renderedPageJobs 把 pdftoppm 产物路径列表转成按绝对页码升序的待识别页列表。
+//
+// IN3-11：页码唯一来源 = **实际产物**文件名后缀 <prefix>-<n>.png 的 n（与
+// render.go 的 RenderPDFPages 共用 parseRenderedPageNumber）。全部文件名可解析时
+// 使用产物页码并按数值排序 —— pdftoppm 跳过损坏页（例如只生成 -1/-2/-4）时页号
+// 仍然正确，且 page-10.png 不会因字典序排在 page-2.png 之前。
+//
+// 仅当存在不可解析的文件名时整体回退「first+i 顺序编号」（历史口径；真实
+// pdftoppm 产物不会出现这种名字，测试注入的合成名会走到这里），返回值
+// fromArtifacts=false 供调用方诚实告警。
+func renderedPageJobs(pngFiles []string, first int) (jobs []ocrPageJob, fromArtifacts bool) {
+	if len(pngFiles) == 0 {
+		return nil, false
+	}
+	type cand struct {
+		num int
+		png string
+	}
+	cands := make([]cand, 0, len(pngFiles))
+	for _, p := range pngFiles {
+		n, ok := parseRenderedPageNumber(filepath.Base(p))
+		if !ok {
+			fromArtifacts = false
+			break
+		}
+		cands = append(cands, cand{num: n, png: p})
+		fromArtifacts = true
+	}
+	if !fromArtifacts {
+		out := make([]ocrPageJob, 0, len(pngFiles))
+		for i, p := range pngFiles {
+			out = append(out, ocrPageJob{num: first + i, png: p})
+		}
+		return out, false
+	}
+	sort.Slice(cands, func(i, j int) bool { return cands[i].num < cands[j].num })
+	out := make([]ocrPageJob, 0, len(cands))
+	for _, c := range cands {
+		out = append(out, ocrPageJob{num: c.num, png: c.png})
+	}
+	return out, true
+}
+
 // ocrPageLoop 逐页调用 pageOCR 识别（单页失败跳过继续，全部失败才报错）。
 // 返回识别文本列表、实际 OCR 页数（按页范围过滤后，即 progress 的 total）、
 // 失败页码列表与错误（仅全部失败时非 nil）。progress 回调 (done, total)，
 // total 为实际 OCR 页数而非渲染页数，保证进度条反映真实工作量。
+//
+// 页码来自 renderedPageJobs（IN3-11：实际产物页码优先，不可解析时回退
+// first+i 并告警），页范围过滤用绝对页码（与文本路径 pageInRange 同口径）。
 func ocrPageLoop(pngFiles []string, first int, pages string,
 	pageOCR func(pageNum int, pngPath string) (string, error),
 	progress func(done, total int)) ([]string, int, []int, error) {
 
-	type pageJob struct {
-		num int
-		png string
+	jobs, fromArtifacts := renderedPageJobs(pngFiles, first)
+	if !fromArtifacts && len(pngFiles) > 0 {
+		slog.Warn("docmd: OCR 产物文件名不可解析页码，回退 first+i 顺序编号", "first", first, "files", len(pngFiles))
 	}
-	var jobs []pageJob
-	for i, pngPath := range pngFiles {
-		pageNum := first + i
-		if pages != "" && !pageInRange(pageNum, pages) {
-			continue
+	if pages != "" {
+		kept := jobs[:0]
+		for _, j := range jobs {
+			if pageInRange(j.num, pages) {
+				kept = append(kept, j)
+			}
 		}
-		jobs = append(jobs, pageJob{num: pageNum, png: pngPath})
+		jobs = kept
 	}
 	total := len(jobs)
 	if total == 0 {

@@ -73,38 +73,38 @@ func TestCostStoreCRUD(t *testing.T) {
 
 	// 搜索：关键词命中规格；分类过滤
 	_ = s.Save(Entry{Name: "cement", Title: "P.O 42.5 水泥", Category: "材料", Unit: "吨", Price: 480, Source: "定额"})
-	res := s.Search("振动锤", "", "")
+	res, _ := s.Search("振动锤", "", "")
 	if len(res) != 1 || res[0].Name != "hp300" {
 		t.Errorf("keyword search = %+v", res)
 	}
-	res = s.Search("", "材料", "")
+	res, _ = s.Search("", "材料", "")
 	if len(res) != 1 || res[0].Name != "cement" {
 		t.Errorf("category filter = %+v", res)
 	}
 	// 关键词命中 name / tags（别名信号）。
-	res = s.Search("hp300", "", "")
+	res, _ = s.Search("hp300", "", "")
 	if len(res) != 1 || res[0].Name != "hp300" {
 		t.Errorf("name keyword search = %+v", res)
 	}
-	res = s.Search("桩基", "", "")
+	res, _ = s.Search("桩基", "", "")
 	if len(res) != 1 || res[0].Name != "hp300" {
 		t.Errorf("tags keyword search = %+v", res)
 	}
-	res = s.Search("台班", "", "")
+	res, _ = s.Search("台班", "", "")
 	if len(res) != 1 || res[0].Name != "hp300" {
 		t.Errorf("unit keyword search = %+v", res)
 	}
 	// 蒸馏检索：按地区/期数/口径关键词召回（价格三要素可检索）。
-	res = s.Search("成都", "", "")
+	res, _ = s.Search("成都", "", "")
 	if len(res) != 1 || res[0].Name != "hp300" || res[0].Region != "成都市区" {
 		t.Errorf("region keyword search = %+v", res)
 	}
-	res = s.Search("2026-08", "", "")
+	res, _ = s.Search("2026-08", "", "")
 	if len(res) != 1 || res[0].PriceDate != "2026-08" {
 		t.Errorf("price period keyword search = %+v", res)
 	}
 	// 多词查询：词间 AND，跨字段命中（标题含振动锤 + 单位=台班）。
-	res = s.Search("液压振动锤 台班", "", "")
+	res, _ = s.Search("液压振动锤 台班", "", "")
 	if len(res) != 1 || res[0].Name != "hp300" {
 		t.Errorf("multi-term search = %+v", res)
 	}
@@ -112,7 +112,7 @@ func TestCostStoreCRUD(t *testing.T) {
 	if err := s.Delete("hp300"); err != nil {
 		t.Fatal(err)
 	}
-	if len(s.List()) != 1 {
+	if all, _ := s.List(); len(all) != 1 {
 		t.Error("entry not deleted")
 	}
 }
@@ -130,7 +130,7 @@ func TestCostSearchBM25Order(t *testing.T) {
 	_ = s.Save(Entry{Name: "hp300", Title: "HP300 高频液压振动锤", Category: "机械", Unit: "台班", Price: 3200, Status: "现行"})
 	_ = s.Save(Entry{Name: "vib2", Title: "液压振动锤 液压振动锤配件", Category: "机械", Unit: "件", Price: 100, Status: "现行"})
 
-	res := s.Search("液压振动锤", "", "")
+	res, _ := s.Search("液压振动锤", "", "")
 	if len(res) != 2 {
 		t.Fatalf("expected 2 matches, got %d: %+v", len(res), res)
 	}
@@ -198,20 +198,20 @@ func TestCostCategoriesTree(t *testing.T) {
 	}
 
 	// 子树过滤：选「道路工程」应命中土方条目（含后代），不命中雨污。
-	res := s.Search("", "综合单价/道路工程", "")
+	res, _ := s.Search("", "综合单价/道路工程", "")
 	if len(res) != 2 {
 		t.Fatalf("path subtree search = %d, want 2: %+v", len(res), res)
 	}
 	// 叶子路径精确过滤（三级）。
-	res = s.Search("", "综合单价/道路工程/土方工程", "")
+	res, _ = s.Search("", "综合单价/道路工程/土方工程", "")
 	if len(res) != 2 {
 		t.Fatalf("leaf path search = %d, want 2", len(res))
 	}
-	res = s.Search("", "综合单价/道路工程", "")
+	res, _ = s.Search("", "综合单价/道路工程", "")
 	if len(res) != 2 {
 		t.Fatalf("二级 path search = %d, want 2", len(res))
 	}
-	res = s.Search("", "综合单价/雨污工程", "")
+	res, _ = s.Search("", "综合单价/雨污工程", "")
 	if len(res) != 1 || res[0].Name != "road-pipe" {
 		t.Fatalf("雨污 path search = %+v", res)
 	}
@@ -244,7 +244,7 @@ func TestCostCategoriesTree(t *testing.T) {
 	if _, err := s.SaveCategory(roadID, "场地平整", 0, earthID); err != nil {
 		t.Fatal(err)
 	}
-	res = s.Search("", "综合单价/道路工程/场地平整", "")
+	res, _ = s.Search("", "综合单价/道路工程/场地平整", "")
 	if len(res) != 2 {
 		t.Fatalf("after rename path search = %d, want 2", len(res))
 	}
@@ -312,7 +312,7 @@ func TestCostStoreUnavailable(t *testing.T) {
 	if err := s.Save(Entry{Name: "x"}); err == nil {
 		t.Error("save on nil db should error")
 	}
-	if got := s.Search("", "", ""); got != nil {
+	if got, _ := s.Search("", "", ""); got != nil {
 		t.Errorf("search on nil db should be nil, got %+v", got)
 	}
 }

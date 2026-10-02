@@ -7,15 +7,33 @@
 // 前批：书源取书 +4（NovelBookSourceSearch/Toc/Import/ImportCancel，书源→拆书导入
 // t1，NovelB 门面，play 数据面；t3 失败章补下 +1：NovelBookSourceImportChapters，v4.284）→ 481。前批：平台质量评审 +2（NovelReviewPlatforms/
 // NovelChapterReview，v4.282 oh-story 蒸馏 T1，NovelB 门面，play 数据面）→ 472。
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   GAEA_METHOD_FACETS,
   WORK_BINDING_NAMES,
   PLAY_BINDING_NAMES,
   SHARED_BINDING_NAMES,
+  UNKNOWN_BINDING_SPACE,
   bindingSpaceOf,
   isBindingAllowedInSpace,
+  isSharedBinding,
+  resetUnknownBindingWarningsForTest,
 } from "./spaceBindings";
+
+// 未登记名告警去重是模块级状态：每个用例前复位，避免用例间互相掩盖告警。
+// 同时把留痕通道捕获下来（不打印），供「未登记名告警一次」与「已登记名零告警」
+// 双向断言使用。
+const warnCalls: string[] = [];
+beforeEach(() => {
+  resetUnknownBindingWarningsForTest();
+  warnCalls.length = 0;
+  vi.spyOn(console, "warn").mockImplementation((...a: unknown[]) => {
+    warnCalls.push(a.map(String).join(" "));
+  });
+});
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("spaceBindings 分类表（S2.3 bridge 分面）", () => {
   it("AppBindings 全部方法被显式分类（satisfies 编译期已兜底；此处锁数量）", () => {
@@ -64,7 +82,52 @@ describe("spaceBindings 分类表（S2.3 bridge 分面）", () => {
     expect(isBindingAllowedInSpace("WhisperMemories", "work")).toBe(false);
     expect(isBindingAllowedInSpace("GaeaSpaceList", "work")).toBe(true);
     expect(isBindingAllowedInSpace("GaeaSpaceList", "play")).toBe(true);
-    // 未知名方法兜底 work（合法调用面已由编译期覆盖）
+    // 未知名方法：fail-closed（FE3-06）——未登记 ≠ work，两空间一律拒绝
     expect(isBindingAllowedInSpace("NoSuchMethod", "play")).toBe(false);
+    expect(isBindingAllowedInSpace("NoSuchMethod", "work")).toBe(false);
+  });
+
+  // ── FE3-06：未登记名 fail-closed（原兜底 work，是门面代理唯一运行时防线）──
+  it("bindingSpaceOf：已登记名原值返回，未登记名返回哨兵 unknown（不再兜底 work）", () => {
+    expect(bindingSpaceOf("XlsxPlanEdit")).toBe("work");
+    expect(bindingSpaceOf("WhisperMemories")).toBe("play");
+    expect(bindingSpaceOf("GaeaSpaceList")).toBe("shared");
+    // 未登记：哨兵，不是 work（改坏锚点：兜底 `?? "work"` → 本断言 FAIL）
+    expect(bindingSpaceOf("NoSuchMethod")).toBe(UNKNOWN_BINDING_SPACE);
+    expect(bindingSpaceOf("NoSuchMethod")).not.toBe("work");
+    // Go 侧真实存在的 184 个未登记绑定之一（audit 名单样本）：同样必须判 unknown
+    expect(bindingSpaceOf("AddCustomEngine")).toBe(UNKNOWN_BINDING_SPACE);
+    expect(bindingSpaceOf("ApplyBranch")).toBe(UNKNOWN_BINDING_SPACE);
+  });
+
+  it("isBindingAllowedInSpace：未登记名在 work/play 两空间都被拒（未知≠白名单）", () => {
+    for (const name of ["NoSuchMethod", "AddCustomEngine", "BrainSearch", "ChatGeneral", "notEvenCamelCase"]) {
+      expect(isBindingAllowedInSpace(name, "work")).toBe(false);
+      expect(isBindingAllowedInSpace(name, "play")).toBe(false);
+    }
+  });
+
+  it("isSharedBinding：未登记名不得进 sharedApp 门面", () => {
+    expect(isSharedBinding("GaeaSpaceList")).toBe(true);
+    expect(isSharedBinding("XlsxPlanEdit")).toBe(false);
+    expect(isSharedBinding("NoSuchMethod")).toBe(false);
+    expect(isSharedBinding("AddCustomEngine")).toBe(false);
+  });
+
+  it("未登记名留痕：console.warn 一次（同名字只告警一次）", () => {
+    bindingSpaceOf("NoSuchMethodForWarnTest");
+    bindingSpaceOf("NoSuchMethodForWarnTest");
+    isBindingAllowedInSpace("NoSuchMethodForWarnTest", "work");
+    expect(warnCalls.filter((w) => w.includes("NoSuchMethodForWarnTest"))).toHaveLength(1);
+    expect(warnCalls[0]).toContain("未登记");
+  });
+
+  // 反证：已登记名的门控路径零告警（否则「留痕」会退化为满屏噪声，日志失效）。
+  it("已登记名零告警：work/play/shared 三门面解析都不打 warn", () => {
+    expect(bindingSpaceOf("XlsxPlanEdit")).toBe("work");
+    expect(isBindingAllowedInSpace("WhisperMemories", "play")).toBe(true);
+    expect(isBindingAllowedInSpace("GaeaSpaceList", "work")).toBe(true);
+    expect(isSharedBinding("GaeaSpaceList")).toBe(true);
+    expect(warnCalls).toEqual([]);
   });
 });

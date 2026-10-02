@@ -10,6 +10,7 @@ import (
 
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/characterlib"
+	"github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/util"
 )
 
@@ -558,6 +559,28 @@ func (a *App) attachComfyProgress(req *ai.ImageGenerationRequest, backend string
 	req.ProgressCallback = a.updateComfyTaskProgress
 }
 
+// portraitImageBinding 剧照/角色资产生效生图绑定（审计 AP7-05 收口）：
+// 生效后端 = PortraitBackend（空=全局绘梦后端 ImageBackend）；
+// 生效模型 = 显式入参 model 优先，其次 PortraitModel，最后全局 ImageModel。
+// 本函数同时是「请求下发值」与「台账登记值」的唯一来源——此前登记侧传空
+// backend/空 model，导致消耗报表按 {model,backend} 分组时角色剧照被单独拆行。
+func portraitImageBinding(cfg *config.Config, model string) (backend, effModel string) {
+	if cfg != nil {
+		backend = cfg.PortraitBackend
+		if backend == "" {
+			backend = cfg.ImageBackend
+		}
+		effModel = cfg.PortraitModel
+		if effModel == "" {
+			effModel = cfg.ImageModel
+		}
+	}
+	if strings.TrimSpace(model) != "" {
+		effModel = model // 显式传入的模型优先
+	}
+	return backend, effModel
+}
+
 // characterGeneratePortrait 剧照生成核心实现：无参考图走 txt2img（原行为），
 // 有参考图（refImageDataURL 非空）走 img2img 低 denoise 重绘。
 func (a *App) characterGeneratePortrait(chJSON, model, refImageDataURL string) (string, error) {
@@ -569,14 +592,7 @@ func (a *App) characterGeneratePortrait(chJSON, model, refImageDataURL string) (
 		return "", fmt.Errorf("角色名称不能为空")
 	}
 
-	backend := a.cfg.PortraitBackend // 空 = 跟随绘梦
-	imgModel := a.cfg.PortraitModel
-	if imgModel == "" {
-		imgModel = a.cfg.ImageModel
-	}
-	if model != "" {
-		imgModel = model // 显式传入的模型优先
-	}
+	backend, imgModel := portraitImageBinding(a.cfg, model)
 
 	if refImageDataURL != "" {
 		if err := checkPortraitRefSupport(backend, imgModel); err != nil {
@@ -616,10 +632,7 @@ func (a *App) characterGeneratePortrait(chJSON, model, refImageDataURL string) (
 // buildPortraitClient 为角色剧照构建独立图片客户端（不改变绘梦当前后端）。
 // backend 解析：剧照绑定（空=绘梦全局后端）。
 func (a *App) buildPortraitClient() (*ai.Client, error) {
-	backend := a.cfg.PortraitBackend
-	if backend == "" {
-		backend = a.cfg.ImageBackend
-	}
+	backend, _ := portraitImageBinding(a.cfg, "")
 	return a.buildImageClientFor(backend, "剧照")
 }
 
@@ -824,10 +837,7 @@ func (a *App) CharacterGenerateSheet(chJSON, variant string) (string, error) {
 	if !validCharSheetVariant(variant) {
 		return "", fmt.Errorf("未知设定卡模板：%s（可选：%s）", variant, strings.Join(charSheetVariantKeyList(), "、"))
 	}
-	backend := a.cfg.PortraitBackend
-	if backend == "" {
-		backend = a.cfg.ImageBackend
-	}
+	backend, _ := portraitImageBinding(a.cfg, "")
 	if backend != "comfyui" {
 		return "", fmt.Errorf("设定卡生成（Qwen 参考编辑）当前仅 ComfyUI 本地档（当前后端：%s）", backend)
 	}

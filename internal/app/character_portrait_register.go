@@ -15,7 +15,14 @@ import (
 )
 
 // registerCharacterPortraitAsset 把角色最新剧照登记进图像域 ledger。
-func registerCharacterPortraitAsset(cwd string, chars []types.Character, charID string) {
+//
+// backend/model（审计 AP7-05）：剧照的实际生成后端/模型由角色库绑定解析
+// （portraitImageBinding：PortraitBackend/PortraitModel 空则回落全局绘梦），
+// 由调用方传入。此前固定登记空 backend + 空 model，消耗报表按 {model,backend}
+// 分组时角色剧照被拆成独立行（同后端被拆成多行）。拿到的是**绑定配置**值而非
+// 该次生成的历史值：剧照可能是更早用别的配置生成的，台账只能记当前生效绑定——
+// 这一点如实登记为余量（历史值未落盘，无法回溯）。
+func registerCharacterPortraitAsset(cwd string, chars []types.Character, charID, backend, model string) {
 	for _, ch := range chars {
 		if ch.ID != charID {
 			continue
@@ -30,7 +37,8 @@ func registerCharacterPortraitAsset(cwd string, chars []types.Character, charID 
 		if _, err := os.Stat(p); err != nil {
 			return
 		}
-		err := recordImageHubGeneratedAsset(cwd, "play", "characterlib", "", "", "",
+		err := recordImageHubGeneratedAsset(cwd, "play", "characterlib", backend, model,
+			"",
 			map[string]interface{}{"character_id": charID},
 			imageHubAsset{Kind: ImageHubAssetKindImage, Path: p}, nil, "")
 		if err != nil {

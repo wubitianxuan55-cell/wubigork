@@ -159,6 +159,8 @@ export function buildCost(_s: MakeMockState): CostMethods {
     },
     // v4.386 分页检索：与 Go GaeaCostSearchPage 同口径——过滤后排序
     // （title/price/updatedAt，name tie-break）再切片，total=过滤后总数。
+    // GA6-09 契约：error 仅在读取失败时非空；mock 恒可读，故不设该字段
+    //（omitempty 语义等价于空串），前端消费面按「缺省=无错误」处理。
     async CostSearchPage(query: string, category: string, status: string, sortKey: string, sortDir: number, limit: number, offset: number) {
       const all = filterCostMock(query, category, status);
       if (sortKey === "title" || sortKey === "price" || sortKey === "updatedAt") {

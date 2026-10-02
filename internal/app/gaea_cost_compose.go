@@ -80,7 +80,12 @@ func (a *App) GaeaCostCompose(desc, unit string) (CostComposeView, error) {
 	}
 
 	// 1. 相似清单检索:关键词 + 语义补召回 + 本地精排(与 GaeaCostSearch 同款组合)。
-	similar := store.Search(desc, "", "现行")
+	similar, serr := store.Search(desc, "", "现行")
+	if serr != nil {
+		// 审计 GA6-09：语料读取失败时不得按「无相似条目」静默给空建议——
+		// 价格带推荐依赖完整语料，读不全就如实报错让用户重试。
+		return CostComposeView{}, fmt.Errorf("成本库检索失败，无法测算: %w", serr)
+	}
 	if len(similar) < 3 {
 		if sem := a.semanticCostRecall(desc, similar, 10); len(sem) > 0 {
 			similar = sem

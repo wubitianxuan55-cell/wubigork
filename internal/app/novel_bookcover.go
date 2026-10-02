@@ -29,8 +29,8 @@ import (
 	"github.com/gaea/gaea/internal/util"
 )
 
-// coverImageModel 与章节插图同一图片模型（Aurora）。
-const coverImageModel = "grok-imagine-image-quality"
+// 书封生效模型统一由 effectiveSceneIllustrationModel 解析（审计 AP7-05：
+// 登记与请求必须同源，不得各自写死常量）——此处不再留本地别名常量。
 
 // GaeaGenerateBookCover 生成项目书封（3:4），落盘 .gaea/play/exports/cover-<projectID>.png，
 // 返回封面文件绝对路径。promptHint 可选补充提示词（如风格/元素）。
@@ -110,8 +110,11 @@ func (a *App) GaeaGenerateBookCover(projectID, promptHint string) (string, error
 		ctx = context.Background()
 	}
 	// 严格 3:4（768x1024）；后端若不支持该尺寸会报错，透传错误，不做尺寸兜底。
+	// 生效模型（审计 AP7-05）：ImageModel 配置优先，未配置回落 Aurora 档——
+	// 登记侧必须与这里下发的模型同源。
+	coverModel := effectiveSceneIllustrationModel(a.cfg)
 	req := &ai.ImageGenerationRequest{
-		Model:  coverImageModel,
+		Model:  coverModel,
 		Prompt: b.String(),
 		N:      1,
 		Size:   "768x1024",
@@ -160,8 +163,10 @@ func (a *App) GaeaGenerateBookCover(projectID, promptHint string) (string, error
 	}
 	slog.Info("书封已生成", "project", pm.Meta.Title, "path", abs)
 	// T0 图像域试点：书封产物登记（play/novel/media.generate，失败只 warn）。
+	// 后端/模型记**生效值**（审计 AP7-05）：请求由 a.clientRef() 按全局
+	// ImageBackend 发出，模型是上面解析出的 coverModel。
 	asset := imageHubAsset{Kind: ImageHubAssetKindImage, Path: abs, MIME: "image/png"}
-	if err := recordImageHubGeneratedAsset(gaeaCwd(), "play", "novel", "", coverImageModel,
+	if err := recordImageHubGeneratedAsset(gaeaCwd(), "play", "novel", a.cfg.ImageBackend, coverModel,
 		b.String(),
 		map[string]interface{}{"project_id": id, "size": "768x1024", "n": 1},
 		asset, []string{playExports}, ""); err != nil {

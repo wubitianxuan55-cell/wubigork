@@ -8,6 +8,7 @@ package cost
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -383,15 +384,28 @@ func (s *Store) Delete(name string) error {
 }
 
 // List 返回全部摘要（按 name 排序）。
-func (s *Store) List() []Summary {
+//
+// 第二个返回值语义（审计 GA6-09，与 Search 同一契约）：
+//   - 未配置库（db == nil）不是错误，返回 (nil, nil)；
+//   - 部分行读取失败时**部分数据仍要返回**（out, err），err 说明少了几行；
+//   - 只有完全取不到（Query 本身失败）才 (nil, err)。
+func (s *Store) List() ([]Summary, error) {
 	return s.Search("", "", "")
 }
 
 // Search 检索成本条目：关键词匹配名称/标题/规格/来源/标签/正文，
 // category/status 过滤。
-func (s *Store) Search(query, category, status string) []Summary {
+//
+// 错误通道（审计 GA6-09）：此前 Query 失败静默 return nil、单行 Scan 失败
+// 静默 continue、rows.Err() 只打日志——界面表现为「无匹配条目」，用户会
+// 误判条目丢失。现在：
+//   - db == nil（未配置库）= (nil, nil)，不是错误；
+//   - Query 失败 = (nil, err)（完全取不到）；
+//   - Scan 失败 = 计数 + 首条错误（errors.Join 包装），部分数据照常返回；
+//   - rows.Err() = 包进 error，部分数据照常返回。
+func (s *Store) Search(query, category, status string) ([]Summary, error) {
 	if s.db == nil {
-		return nil
+		return nil, nil
 	}
 	var conds []string
 	var args []interface{}
@@ -416,24 +430,41 @@ func (s *Store) Search(query, category, status string) []Summary {
 	corpusVer := rankVersion.Load()
 	rows, err := s.db.Query(sqlText, args...)
 	if err != nil {
-		return nil
+		// 完全取不到：连数据一起空，错误交给调用方上报。
+		return nil, fmt.Errorf("cost: 检索查询失败: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 	var all []Summary
+	var scanFails int
+	var firstScanErr error
 	for rows.Next() {
 		var sm Summary
 		var tags, updated string
 		if err := rows.Scan(&sm.Name, &sm.Title, &sm.Code, &sm.Category, &sm.CategoryPath, &sm.Unit, &sm.Price,
 			&sm.LaborFee, &sm.MaterialFee, &sm.MachineFee, &sm.ComponentCount, &sm.Spec, &sm.Source,
 			&sm.Region, &sm.PriceDate, &sm.PriceType, &sm.ValidUntil, &sm.SourceRow, &tags, &sm.Status, &updated); err != nil {
+			// 单行解析失败：跳过该行但计数，最终作为「少了几行」上报。
+			scanFails++
+			if firstScanErr == nil {
+				firstScanErr = err
+			}
 			continue
 		}
 		sm.Tags = parseTagsJSON(tags)
 		sm.UpdatedAt, _ = time.Parse(time.RFC3339, updated)
 		all = append(all, sm)
 	}
+	// 部分失败收口：Scan 失败与迭代中断都不再静默（部分数据仍返回）。
+	var readErrs []error
+	if firstScanErr != nil {
+		readErrs = append(readErrs, fmt.Errorf("cost: 检索有 %d 行解析失败，结果少了几行: %w", scanFails, firstScanErr))
+	}
 	if err := rows.Err(); err != nil {
-		slog.Warn("cost: 检索语料迭代中断，返回部分数据", "error", err)
+		readErrs = append(readErrs, fmt.Errorf("cost: 检索语料迭代中断，结果可能不完整: %w", err))
+	}
+	readErr := errors.Join(readErrs...)
+	if readErr != nil {
+		slog.Warn("cost: 检索部分数据读取失败，返回部分数据", "error", readErr)
 	}
 	// 关键词在 Go 侧做包含过滤：按词拆分（词间 AND、字段间 OR），
 	// 精确子串匹配。刻意不在 SQL 里拼 6 列 OR LIKE 链——modernc/sqlite
@@ -444,7 +475,7 @@ func (s *Store) Search(query, category, status string) []Summary {
 		out = all
 		// 空查询保持 name 排序（SQL 已 ORDER BY name，此处仅为兜底保证确定性）。
 		sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
-		return out
+		return out, readErr
 	}
 	terms := strings.Fields(q)
 	gis := make([]int, 0, len(all)) // 命中条目在 all（name 序语料）中的下标
@@ -504,7 +535,7 @@ func (s *Store) Search(query, category, status string) []Summary {
 			}
 		}
 	}
-	return out
+	return out, readErr
 }
 
 func parseTagsJSON(raw string) []string {

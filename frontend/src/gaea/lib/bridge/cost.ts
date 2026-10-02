@@ -141,3 +141,21 @@ export interface CostBindings {
   CostStageCompare(projectId: string): Promise<CostStageCompareRow[]>;
   CostStageDeviations(projectId: string): Promise<CostStageDeviation[]>;
 }
+
+/**
+ * costReadErrorText — CostSearchPage.Error（Go GA6-09）在前端的提示条文案。
+ *
+ * 契约：`GaeaCostSearchPage` 读取成本库失败时 `Error` 为「<scope>读取失败（<原因>），
+ * 结果可能不完整」类文案，`Items/Total` 仍是已读到的部分；成功路径 Error 空
+ * （omitempty）。消费端必须把非空 Error 显形为「读取失败 + 可重试」，绝不当作
+ * 「无匹配条目」——已读到的部分照常渲染，只是标注结果可能不完整。
+ *
+ * 去重前缀的原因：Go 侧文案自带「读取失败」字样，若前端再无脑加前缀会出现
+ * 「读取失败：读取失败（…）」。此处保证返回文案**恒含**「读取失败」且不重复。
+ * 空串/空白视为无错误（返回空串，调用方按无提示条处理）。
+ */
+export function costReadErrorText(err: string | undefined | null): string {
+  const msg = String(err ?? "").trim();
+  if (!msg) return "";
+  return msg.includes("读取失败") ? msg : `读取失败：${msg}`;
+}

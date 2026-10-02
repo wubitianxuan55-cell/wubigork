@@ -744,18 +744,74 @@ export const SHARED_BINDING_NAMES = Object.keys(GAEA_METHOD_FACETS).filter(
   (k) => GAEA_METHOD_FACETS[k as keyof typeof GAEA_METHOD_FACETS] === "shared",
 ) as SharedBindingName[];
 
-/** 方法空间归属解析（未知名兜底 work——合法调用面均已被编译期覆盖，运行期仅防呆）。 */
-export function bindingSpaceOf(method: string): BindingSpace {
-  return (GAEA_METHOD_FACETS as Record<string, BindingSpace>)[method] ?? "work";
+/**
+ * 未登记方法的空间归属哨兵（FE3-06 fail-closed）。
+ *
+ * 语义上「未登记」与「work」是两回事：本表是门面代理唯一的运行时防线
+ * （bridge/proxy.ts isBindingAllowedInSpace），若把未登记名兜底成 work，
+ * 则任何未登记方法在**工位空间**被放行、且乐园空间也不会拦到 work 兜底值
+ * 之外的语义——门控退化为「类型提示 + 无日志」。故此处显式立哨兵：
+ * 未知一律**不属于任何空间**，由 isBindingAllowedInSpace 拒绝并留痕。
+ *
+ * 与 BindingSpace 分开成独立类型，是为了让 `facet === space` 这类比较在编译期
+ * 就不可能把哨兵当成普通空间（哨兵不参与 ShellSpace 联合）。
+ */
+export const UNKNOWN_BINDING_SPACE = "unknown" as const;
+export type UnknownBindingSpace = typeof UNKNOWN_BINDING_SPACE;
+/** bindingSpaceOf 的返回：已登记空间 或 未登记哨兵。 */
+export type BindingSpaceLookup = BindingSpace | UnknownBindingSpace;
+
+// 未登记名告警去重集：门面 get 陷阱可能被高频探测（如 React 渲染期属性访问），
+// 同一名字只告警一次，避免刷屏；进程内生命周期足够（名字集合编译期固定）。
+const WARNED_UNKNOWN_BINDINGS = new Set<string>();
+
+/** 测试用：回到「未告警」初始态（仅 spaceBindings.test.ts 使用）。 */
+export function resetUnknownBindingWarningsForTest(): void {
+  WARNED_UNKNOWN_BINDINGS.clear();
 }
 
-/** gaea 方法在指定壳层空间是否可调用：shared/independent 两空间可达，其余仅所属空间。 */
+/** 测试用：当前已告警过的未登记名快照。 */
+export function unknownBindingWarnings(): string[] {
+  return [...WARNED_UNKNOWN_BINDINGS];
+}
+
+/**
+ * FE3-06：未登记名留痕。走 console.warn（空间门控是运行时防线，失败必须可见），
+ * 同名前缀便于日志检索；只告警不抛错——门面 get 返回 undefined 已足以拒绝调用，
+ * 抛错会改变 ESLint/类型探针（如 `if (facade.SomeName)`) 的语义。
+ */
+function warnUnknownBinding(method: string): void {
+  if (WARNED_UNKNOWN_BINDINGS.has(method)) return;
+  WARNED_UNKNOWN_BINDINGS.add(method);
+  console.warn(
+    `[spaceBindings] 未登记的 gaea 绑定方法「${method}」：空间门控按 fail-closed 拒绝` +
+      `（未登记 ≠ work）。若该方法确属某空间，请在 GAEA_METHOD_FACETS 显式分类。`,
+  );
+}
+
+/**
+ * 方法空间归属解析（FE3-06：**未登记一律返回哨兵 unknown**，不再兜底 work）。
+ *
+ * 历史：v4.454 之前兜底 work——理由「合法调用面均已被编译期覆盖，运行期仅防呆」。
+ * 实测证伪：Go 侧 744 个绑定中 184 个（AddCustomEngine/ApplyBranch/… 见
+ * .tmp 审计脚本）不在 AppBindings/本表内，运行期若被门面访问即按 work 放行，
+ * 空间隔离从门控退化为类型提示且无任何日志。现改 fail-closed + 一次性告警。
+ */
+export function bindingSpaceOf(method: string): BindingSpaceLookup {
+  const known = (GAEA_METHOD_FACETS as Record<string, BindingSpace | undefined>)[method];
+  if (known !== undefined) return known;
+  warnUnknownBinding(method);
+  return UNKNOWN_BINDING_SPACE;
+}
+
+/** gaea 方法在指定壳层空间是否可调用：shared/independent 两空间可达，其余仅所属空间；未登记一律拒绝。 */
 export function isBindingAllowedInSpace(method: string, space: ShellSpace): boolean {
   const facet = bindingSpaceOf(method);
+  if (facet === UNKNOWN_BINDING_SPACE) return false;
   return facet === "shared" || facet === "independent" || facet === space;
 }
 
-/** 是否共用绑定（sharedApp 门面只暴露 shared 方法）。 */
+/** 是否共用绑定（sharedApp 门面只暴露 shared 方法）；未登记名一律 false（FE3-06 fail-closed）。 */
 export function isSharedBinding(method: string): boolean {
   return bindingSpaceOf(method) === "shared";
 }

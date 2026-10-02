@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -109,7 +110,12 @@ func (a *App) semanticCostRecall(query string, have []cost.Summary, topN int) []
 	if e == nil {
 		return nil
 	}
-	full := a.hubCostStore().List()
+	// 审计 GA6-09：本函数是纯召回/排序辅助，签名不带 error，读失败只能
+	// 降级（返回 nil 让调用方保留关键词结果）——但必须留痕，不静默吞掉。
+	full, lerr := a.hubCostStore().List()
+	if lerr != nil {
+		slog.Warn("cost: 语义召回读取成本库失败，降级为关键词结果", "error", lerr)
+	}
 	if len(full) == 0 {
 		return nil
 	}

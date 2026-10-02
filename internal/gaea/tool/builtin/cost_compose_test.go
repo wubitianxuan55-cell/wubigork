@@ -63,8 +63,8 @@ func TestCostComposeBandAndEvidence(t *testing.T) {
 	}
 
 	// 只读：库不被写（条目数不变）。
-	if got := len(store.List()); got != 4 {
-		t.Errorf("cost_compose 应只读，条目数 %d != 4", got)
+	if all, _ := store.List(); len(all) != 4 {
+		t.Errorf("cost_compose 应只读，条目数 %d != 4", len(all))
 	}
 }
 

@@ -16,13 +16,15 @@ import (
 )
 
 // costIndexDocs 成本条目 → 向量文档（与 semanticCostRecall 的构建完全一致）。
-func (a *App) costIndexDocs() []semantic.Doc {
-	full := a.hubCostStore().List()
+// 第二个返回值是成本库读取错误（GA6-09）：建索引/报覆盖前必须能上报，
+// 否则读取失败会被当成「库为空」静默清空索引面。
+func (a *App) costIndexDocs() ([]semantic.Doc, error) {
+	full, err := a.hubCostStore().List()
 	docs := make([]semantic.Doc, len(full))
 	for i, s := range full {
 		docs[i] = semantic.Doc{ID: s.Name, Text: retrieval.DocText(s)}
 	}
-	return docs
+	return docs, err
 }
 
 // CostIndexView 成本条目向量索引覆盖视图（GaeaSemanticIndexStatus 的扩展字段）。
@@ -34,7 +36,11 @@ type CostIndexView struct {
 // costIndexCoverage 成本类索引覆盖（供 GaeaSemanticIndexStatus 扩展字段；
 // 非导出=不成绑定，仅状态汇报内部消费）。
 func (a *App) costIndexCoverage() (CostIndexView, error) {
-	docs := a.costIndexDocs()
+	docs, err := a.costIndexDocs()
+	if err != nil {
+		// GA6-09：读失败不得上报「覆盖 0/0」这种静默假象。
+		return CostIndexView{}, fmt.Errorf("成本库读取失败，索引覆盖不可判定: %w", err)
+	}
 	view := CostIndexView{}
 	for _, d := range docs {
 		if strings.TrimSpace(d.Text) != "" {
@@ -43,7 +49,6 @@ func (a *App) costIndexCoverage() (CostIndexView, error) {
 	}
 	st := a.hubSemanticStore()
 	if st != nil && st.Available() {
-		var err error
 		view.Indexed, err = st.Coverage("cost", docs)
 		if err != nil {
 			return view, err
@@ -67,7 +72,11 @@ func (a *App) GaeaSemanticIndexBackfill() (map[string]interface{}, error) {
 	if st == nil || !st.Available() {
 		return nil, fmt.Errorf("向量索引存储不可用")
 	}
-	docs := a.costIndexDocs()
+	docs, err := a.costIndexDocs()
+	if err != nil {
+		// GA6-09：读失败必须如实报错——否则会把「读不到」补齐成「清空索引」。
+		return nil, fmt.Errorf("成本库读取失败，补齐已中止: %w", err)
+	}
 	total := len(docs)
 	updated, err := st.Ensure(ctx, e, "cost", docs)
 	if err != nil {

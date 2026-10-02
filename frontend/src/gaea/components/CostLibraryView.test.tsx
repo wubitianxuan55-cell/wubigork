@@ -282,3 +282,57 @@ describe("批量改状态失败可见化（v4.361）", () => {
     infoSpy.mockRestore();
   });
 });
+
+// ── GA6-09：CostSearchPage.Error 非空 → 读取失败可见（不得伪装成「无匹配条目」）──
+describe("成本库读取失败可见化（GA6-09）", () => {
+  it("error 非空：提示条含「读取失败」+ 可重试，已读到部分照常渲染且不显「暂无成本条目」", async () => {
+    pageSpy.mockImplementation(() =>
+      Promise.resolve({
+        items: [ENTRIES[0]],
+        total: 1,
+        error: "成本库读取失败（disk io error），结果可能不完整",
+      }),
+    );
+    render(<CostLibraryView />);
+
+    // 已读到的部分照常渲染（Go 契约：Items/Total 仍为已读到部分）
+    expect(await screen.findByText("H 型钢")).toBeTruthy();
+    const bar = await screen.findByTestId("cost-read-error");
+    expect(bar.getAttribute("role")).toBe("alert");
+    expect(bar.textContent).toContain("读取失败");
+    expect(bar.textContent).toContain("已读到的部分");
+    // 不把「读坏了」装成「空库」
+    expect(screen.queryByText(/暂无成本条目/)).toBeNull();
+
+    // 可重试路径：点「重试」→ 重新发起分页检索
+    const calls = pageSpy.mock.calls.length;
+    fireEvent.click(screen.getByTestId("cost-read-error-retry"));
+    await waitFor(() => expect(pageSpy.mock.calls.length).toBeGreaterThan(calls));
+  });
+
+  it("error 空串：零提示条（成功态行为不变）", async () => {
+    pageSpy.mockImplementation((_q: string, _c: string, _s: string, _k: string, _d: number, limit: number, offset: number) =>
+      Promise.resolve({ items: ENTRIES.slice(offset, offset + limit), total: ENTRIES.length, error: "" }),
+    );
+    render(<CostLibraryView />);
+    expect(await screen.findByText("H 型钢")).toBeTruthy();
+    expect(screen.queryByTestId("cost-read-error")).toBeNull();
+  });
+
+  it("error 非空且零条目：空态文案说明读取失败而非「暂无成本条目」", async () => {
+    pageSpy.mockImplementation(() => Promise.resolve({ items: [], total: 0, error: "读取失败（后端未就绪）" }));
+    render(<CostLibraryView />);
+    const bar = await screen.findByTestId("cost-read-error");
+    expect(bar.textContent).toContain("读取失败");
+    expect(await screen.findByText(/成本库读取失败，暂无可显示条目/)).toBeTruthy();
+    expect(screen.queryByText(/暂无成本条目/)).toBeNull();
+  });
+
+  it("整调用被拒：读坏同样显形提示条（不再静默当空库）", async () => {
+    pageSpy.mockImplementation(() => Promise.reject(new Error("bridge down")));
+    render(<CostLibraryView />);
+    const bar = await screen.findByTestId("cost-read-error");
+    expect(bar.textContent).toContain("读取失败"); // 非 Go 文案 → 前端补前缀
+    expect(bar.textContent).toContain("bridge down");
+  });
+});

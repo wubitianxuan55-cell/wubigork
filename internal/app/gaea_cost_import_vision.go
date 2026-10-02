@@ -647,7 +647,13 @@ func (a *App) GaeaCostCompare(name string) ([]CostCompareRow, error) {
 
 	// 1) 库内现价（title 或 name 匹配）→ kind=current（跳幅基准）。
 	if costStore := a.hubCostStore(); costStore.Available() {
-		for _, s := range costStore.List() {
+		summaries, lerr := costStore.List()
+		if lerr != nil {
+			// 审计 GA6-09：读失败如实上抛——比价的跳幅基准取自库内现价，
+			// 语料不全算出的跳幅会误导采购判断。
+			return nil, fmt.Errorf("成本库读取失败，比价不完整: %w", lerr)
+		}
+		for _, s := range summaries {
 			if visionTitleMatch(s.Title, query) || visionNameMatch(s.Name, query) {
 				rows = append(rows, CostCompareRow{
 					Source:    s.Source,

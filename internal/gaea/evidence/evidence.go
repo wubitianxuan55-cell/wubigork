@@ -48,6 +48,7 @@ type Receipt struct {
 type Ledger struct {
 	mu           sync.Mutex
 	receipts     []Receipt
+	lastTodoSeq  int  // 最近一条成功 todo_write 的下标+1（0 = 本回合还没有）
 	strictVerify bool // V10.8: only enforce complete_step evidence in Plan Mode
 }
 
@@ -82,6 +83,7 @@ func (l *Ledger) Reset() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.receipts = nil
+	l.lastTodoSeq = 0
 }
 
 // Record appends a receipt. Failed receipts are retained for auditability but
@@ -102,12 +104,20 @@ func (l *Ledger) Record(r Receipt) {
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	// 持锁路径上只做一次 O(len(todos)) 的匹配：最近一条成功 todo_write 的位置由
+	// lastTodoSeq 维护，不再反向扫全部 receipts（原实现每来一条 complete_step
+	// 就回扫一遍 receipts，回合越长越贵）。
 	if r.Success && r.ToolName == "complete_step" && r.Step != "" && r.TodoStep == nil {
-		if match := latestTodoStep(r.Step, l.receipts); match.Found {
-			r.TodoStep = &match
+		if n := l.lastTodoSeq; n > 0 && n <= len(l.receipts) {
+			if match := matchTodoStep(r.Step, l.receipts[n-1].Todos); match.Found {
+				r.TodoStep = &match
+			}
 		}
 	}
 	l.receipts = append(l.receipts, r)
+	if r.Success && r.ToolName == "todo_write" {
+		l.lastTodoSeq = len(l.receipts)
+	}
 }
 
 func (l *Ledger) HasSuccessfulCommand(command string) bool {
@@ -202,6 +212,11 @@ func (l *Ledger) UnverifiedCompletedTodos(current []TodoItem) (missing []TodoSte
 		return nil, false
 	}
 
+	// 命中集合一次建好再做集合差：对 receipts 只遍历一遍、每条 receipt 只匹配
+	// 一次当前 todo 列表（原实现对每个 completed todo 重跑一遍全 receipts 扫描，
+	// 复杂度随回合长度平方增长）。
+	covered := completeStepCoveredIndices(receipts, current)
+
 	for i, t := range current {
 		if todoStatus(t.Status) != "completed" {
 			continue
@@ -210,7 +225,7 @@ func (l *Ledger) UnverifiedCompletedTodos(current []TodoItem) (missing []TodoSte
 		if previousTodoCompleted(index, t, previous) {
 			continue
 		}
-		if hasSuccessfulCompleteStepForTodo(receipts, index, current) {
+		if covered[index] {
 			continue
 		}
 		missing = append(missing, TodoStepMatch{
@@ -482,34 +497,36 @@ func sameTodoIdentity(a, b TodoItem) bool {
 	return sameStepText(a.Content, b.Content) || sameStepText(a.ActiveForm, b.ActiveForm)
 }
 
-func hasSuccessfulCompleteStepForTodo(receipts []Receipt, index int, current []TodoItem) bool {
+// completeStepCoveredIndices 单遍扫描 receipts，返回「被某条成功 complete_step
+// 覆盖」的 todo 序号集合（1-based）。口径与旧的逐 todo 判据
+// hasSuccessfulCompleteStepForTodo 逐条等价（等价性由
+// TestUnverifiedCompletedTodosLegacyEquivalence 以穷举矩阵钉住）：
+//   - 只认 Success && ToolName=="complete_step" && Step 非空；
+//   - receipt 已缓存 TodoStep（Record 填充）时按 sameTodoMatch 在当前列表里
+//     重新定位——缓存的序号是「当时」todo 列表的序号，可能已经位移；
+//   - 未缓存时回退 matchTodoStep(r.Step, current)，取它命中的那一个序号。
+func completeStepCoveredIndices(receipts []Receipt, current []TodoItem) map[int]bool {
+	covered := make(map[int]bool)
+	if len(current) == 0 {
+		return covered
+	}
 	for _, r := range receipts {
 		if !r.Success || r.ToolName != "complete_step" || strings.TrimSpace(r.Step) == "" {
 			continue
 		}
 		if r.TodoStep != nil && r.TodoStep.Found {
-			if index >= 1 && index <= len(current) && sameTodoMatch(current[index-1], *r.TodoStep) {
-				return true
+			for i := range current {
+				if sameTodoMatch(current[i], *r.TodoStep) {
+					covered[i+1] = true
+				}
 			}
 			continue
 		}
-		match := matchTodoStep(r.Step, current)
-		if match.Found && match.Index == index {
-			return true
+		if match := matchTodoStep(r.Step, current); match.Found {
+			covered[match.Index] = true
 		}
 	}
-	return false
-}
-
-func latestTodoStep(step string, receipts []Receipt) TodoStepMatch {
-	for i := len(receipts) - 1; i >= 0; i-- {
-		r := receipts[i]
-		if !r.Success || r.ToolName != "todo_write" {
-			continue
-		}
-		return matchTodoStep(step, r.Todos)
-	}
-	return TodoStepMatch{}
+	return covered
 }
 
 func sameTodoMatch(todo TodoItem, match TodoStepMatch) bool {

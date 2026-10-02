@@ -60,7 +60,7 @@ func BenchmarkSearch(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				if got := s.Search("液压振动锤 台班", "", ""); len(got) == 0 {
+				if got, _ := s.Search("液压振动锤 台班", "", ""); len(got) == 0 {
 					b.Fatal("no hits")
 				}
 			}
@@ -77,7 +77,7 @@ func BenchmarkSearchNoQuery(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				if got := s.List(); len(got) != n {
+				if got, _ := s.List(); len(got) != n {
 					b.Fatalf("got %d want %d", len(got), n)
 				}
 			}

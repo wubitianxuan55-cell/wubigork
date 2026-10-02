@@ -175,7 +175,7 @@ func TestGaeaCostImportApply_AllRowsCommit(t *testing.T) {
 	if n != 3 {
 		t.Errorf("写入条数 = %d, want 3", n)
 	}
-	list := a.hubCostStore().List()
+	list, _ := a.hubCostStore().List()
 	if len(list) != 3 {
 		t.Fatalf("库内条目 = %d, want 3: %+v", len(list), list)
 	}
@@ -216,7 +216,7 @@ func TestGaeaCostImportApply_InvalidRowRollsBackAll(t *testing.T) {
 		t.Errorf("错误应指明第 2 行: %v", err)
 	}
 
-	list := a.hubCostStore().List()
+	list, _ := a.hubCostStore().List()
 	if len(list) != 1 {
 		t.Fatalf("回滚后库内应只剩基线条目, got %d: %+v", len(list), list)
 	}
@@ -235,7 +235,7 @@ func TestGaeaCostImportApply_EmptyTitleRollsBackAll(t *testing.T) {
 	if err == nil {
 		t.Fatal("空标题行应使整批失败")
 	}
-	if len(a.hubCostStore().List()) != 0 {
+	if left, _ := a.hubCostStore().List(); len(left) != 0 {
 		t.Fatal("整批应回滚，无任何条目写入")
 	}
 }
@@ -247,7 +247,7 @@ func TestGaeaCostImportApply_EmptyBatchNoop(t *testing.T) {
 	if err != nil || n != 0 {
 		t.Fatalf("空批次应返回 (0,nil), got (%d,%v)", n, err)
 	}
-	if len(a.hubCostStore().List()) != 0 {
+	if left, _ := a.hubCostStore().List(); len(left) != 0 {
 		t.Fatal("空批次不应写库")
 	}
 }

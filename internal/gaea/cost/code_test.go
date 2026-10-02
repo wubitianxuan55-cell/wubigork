@@ -53,7 +53,7 @@ func TestCodeRoundtripAndSearch(t *testing.T) {
 		t.Fatalf("空编码应保持空串, got %q", got.Code)
 	}
 	// 关键词按编码命中（haystack 含 code）。
-	hits := s.Search("a1-12", "", "")
+	hits, _ := s.Search("a1-12", "", "")
 	if len(hits) != 1 || hits[0].Name != "a112" {
 		t.Fatalf("Search(编码) 命中 = %v, want [a112]", names(hits))
 	}

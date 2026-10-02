@@ -66,7 +66,11 @@ func (costCompose) Execute(ctx context.Context, args json.RawMessage) (string, e
 	}
 
 	// 相似检索：与 cost_search 同款组合（SQL → 语义补召回 → 本地精排）。
-	similar := store.Search(desc, "", "现行")
+	similar, serr := store.Search(desc, "", "现行")
+	if serr != nil {
+		// 审计 GA6-09：读失败不得回「没有相似条目」——会诱导模型自行估价。
+		return "", fmt.Errorf("成本库检索失败，无法组价，请重试: %w", serr)
+	}
 	if len(similar) < 3 {
 		if sem := semanticCostRecall(ctx, desc, similar, store, 10); len(sem) > 0 {
 			similar = sem

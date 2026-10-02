@@ -98,24 +98,10 @@ func Validate(p *Project) error {
 		if t.Mode != "" && t.Mode != ModeAuto && t.Mode != ModeManual {
 			return fmt.Errorf("任务 %s 模式非法：%s", t.ID, t.Mode)
 		}
-		// 工期单位（v4.150 双工期刀1）：非空须 wd|cd；cd 仅限叶任务非里程碑
-		//（里程碑 effDur=0 口径不动，分组行汇总唯一口径为子孙求和）；数值上限
-		// 3650（与 calendar 扫描上限同源防呆）。
-		switch t.DurationUnit {
-		case "", UnitWd, UnitCd:
-		default:
-			return fmt.Errorf("任务 %s 工期单位非法（wd|cd）：%s", t.ID, t.DurationUnit)
-		}
-		if t.DurationUnit == UnitCd {
-			if t.Level == 0 {
-				return fmt.Errorf("分组行 %s 禁止日历天（cd）工期（汇总唯一口径为子孙求和）", t.ID)
-			}
-			if t.IsMilestone {
-				return fmt.Errorf("里程碑 %s 禁止日历天（cd）工期", t.ID)
-			}
-			if t.Duration > 3650 {
-				return fmt.Errorf("任务 %s 日历天工期超上限（3650）：%d", t.ID, t.Duration)
-			}
+		// 工期单位（v4.150 双工期刀1）：规则判定收敛到 validateDurationUnit
+		//（IN3-01：文件保存路径与 ops 对话路径共用唯一实现）。
+		if err := validateDurationUnit(t, true); err != nil {
+			return err
 		}
 		if t.FixedCost < 0 || math.IsNaN(t.FixedCost) || math.IsInf(t.FixedCost, 0) {
 			return fmt.Errorf("任务 %s 固定成本非法（须为非负有限数）：%v", t.ID, t.FixedCost)
@@ -202,6 +188,49 @@ func Validate(p *Project) error {
 			if pt.X < 0 || pt.Y < 0 || pt.X > 100000 || pt.Y > 100000 {
 				return fmt.Errorf("布点 %s 坐标越界（0~100000）：(%d,%d)", key, pt.X, pt.Y)
 			}
+		}
+	}
+	return nil
+}
+
+// validateDurationUnit 工期单位规则的**唯一实现**（v4.150 双工期刀1 + v4.151 刀2；
+// 批次十二 IN3-01 收敛）：非空须 wd|cd；cd 仅限叶任务非里程碑（里程碑 effDur=0
+// 口径不动，分组行汇总唯一口径为子孙求和）；cd 工期数值上限 3650（与 calendar
+// 扫描上限同源防呆）。
+//
+// 三条调用路径共用本函数，保证「对话写入」与「文件保存」对同一计划给出同一
+// 合法性结论：
+//   - Validate：文件装载/保存（fail-closed 闸）；
+//   - ops.applyOne / upsert_task：对话路径整任务写入；
+//   - ops.applyOne / patch_task：对话路径部分更新（先投射「生效态」再校验，
+//     避免「先改单位后改层级」的组合绕过 cd 约束）。
+//
+// idInMsg 只控制错误文案是否带「任务 <id>」前缀（判定规则完全一致）：
+// true = 「任务 X 工期单位非法…」（Validate 与 upsert 原文，agent 回执口径）；
+// false = 不带前缀（patch 通道历史文案，被 frontend/src/schedule/ops_golden.fixture.json
+// 的 Go/TS 对拍冻结，本线足迹不含 frontend 故保持原样）。这是本次收敛后仅存的
+// 文案差异，已登记为余量。
+func validateDurationUnit(t Task, idInMsg bool) error {
+	switch t.DurationUnit {
+	case "", UnitWd, UnitCd:
+	default:
+		if idInMsg {
+			return fmt.Errorf("任务 %s 工期单位非法（wd|cd）：%s", t.ID, t.DurationUnit)
+		}
+		return fmt.Errorf("工期单位非法（wd|cd）：%s", t.DurationUnit)
+	}
+	if t.DurationUnit == UnitCd {
+		if t.Level == 0 {
+			return fmt.Errorf("分组行 %s 禁止日历天（cd）工期（汇总唯一口径为子孙求和）", t.ID)
+		}
+		if t.IsMilestone {
+			return fmt.Errorf("里程碑 %s 禁止日历天（cd）工期", t.ID)
+		}
+		if t.Duration > 3650 {
+			if idInMsg {
+				return fmt.Errorf("任务 %s 日历天工期超上限（3650）：%d", t.ID, t.Duration)
+			}
+			return fmt.Errorf("日历天工期超上限（3650）：%d", t.Duration)
 		}
 	}
 	return nil

@@ -542,7 +542,7 @@ func planBlockingMessage(problems []types.PlanProblem) string {
 	var blocking []types.PlanProblem
 	var dups []string
 	for _, p := range problems {
-		if !planBlockingSeverity(p.Severity) {
+		if !severityBlocking(p.Severity) {
 			continue // S3/S4 仅提示，不阻断落盘
 		}
 		blocking = append(blocking, p)
@@ -571,12 +571,6 @@ func planBlockingMessage(problems []types.PlanProblem) string {
 		msg += "。重复事件：" + strings.Join(planDedupStrings(dups), "、")
 	}
 	return msg
-}
-
-// planBlockingSeverity S1/S2 视为阻断（与 types.PlanGateReport.Blocking 口径一致）。
-func planBlockingSeverity(sev string) bool {
-	s := strings.ToUpper(strings.TrimSpace(sev))
-	return s == "S1" || s == "S2"
 }
 
 // planDuplicateEvents 复用 PlanContractIssues 的去重判据口径，只取重复事件问题，

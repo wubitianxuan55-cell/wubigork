@@ -141,13 +141,13 @@ func (a *writingState) RunBookHealthCheck() (BookHealthReport, error) {
 		}
 		for _, is := range gateOutlineIssues(pm, i) {
 			row.OutlineIssues++
-			if is.Severity == "S1" || is.Severity == "S2" {
+			if severityBlocking(is.Severity) {
 				row.OutlineErrors++
 			}
 		}
 		for _, is := range novelgate.ChapterQualityIssues(content) {
 			row.QualityIssues++
-			if is.Severity == "S1" || is.Severity == "S2" {
+			if severityBlocking(is.Severity) {
 				row.QualityErrors++
 			}
 		}

@@ -23,20 +23,42 @@ jobs:
 
       - run: go vet ./...
 
+      # 分类器夹具自测（2026-10-02）：分类逻辑本身也要有守卫——把真回归错判成 flaky
+      # 比不分类更糟。9 组夹具（14 条断言）秒级跑完，windows-latest 自带 node。
+      - name: Go flaky classifier selftest
+        run: node scripts/classify-go-failures.mjs --selftest
+
       # internal/tts 的 TestEdgeTTS 依赖外部网络，暂时排除
-      # flaky 治理（2026-08-27）：整体失败后重试一次——filewatch 等时间敏感测试
-      # 在 windows-latest 高负载下偶发假红（本地复跑即绿），重试可消除环境抖动；
-      # 重试后仍失败则正常红，不掩盖真实缺陷。
-      # 残项（docs/gaea-optimization-direction-2026-09.md P0-1）：整批重试仍可能
-      # 洗白真回归，迁移到与前端同款的在册 flaky 分类器候选。
-      - name: Go tests (with flaky retry)
+      # 假红治理（2026-10-02，审计 X1-12 收口）：原先对全量「失败整批重试一次」——
+      # 原注释自认「整批重试仍可能洗白真回归」，红灯因此不可信。现在只允许**在册
+      # flaky 包**隔离复跑，判据在 scripts/go-known-flaky.txt（当前为空）：
+      #   失败包集合 ⊆ 清单 → 只复跑这些包（绿则过、红则红）；
+      #   出现清单外失败包 → 直接红，不重试。
+      # 分类器：scripts/classify-go-failures.mjs（--selftest 9 组夹具），与前端 job 同款形态；
+      # 首跑非零时带 --expect-failure：归不出失败包也不许静默放行（exit 1）。
+      # 产物 go-test.json / go-test.err / scripts/go-retry-pkgs.txt 不入库（见 .gitignore）。
+      - name: Go tests (registered flaky only)
         shell: bash
         run: |
           pkgs=$(go list ./... | grep -v /internal/tts)
-          if ! go test $pkgs -count=1; then
-            echo "first run failed (possibly flaky), retrying once..."
-            go test $pkgs -count=1
+          if [ -z "$pkgs" ]; then
+            echo "go list 无输出（模块解析失败？）——按红处理"
+            exit 1
           fi
+          set +e
+          go test -json -count=1 $pkgs > go-test.json 2> go-test.err
+          code=$?
+          set -e
+          if [ $code -eq 0 ]; then
+            echo "go test 全绿"
+            exit 0
+          fi
+          tail -n 100 go-test.err
+          node scripts/classify-go-failures.mjs go-test.json scripts/go-known-flaky.txt scripts/go-retry-pkgs.txt --expect-failure || exit 1
+          echo "在册 flaky 隔离复跑："
+          cat scripts/go-retry-pkgs.txt
+          # shellcheck disable=SC2046
+          go test -count=1 $(tr '\n' ' ' < scripts/go-retry-pkgs.txt)
 
       # internal/app 竞态用例 -race（审计 P0-2：comfyUI 进程引用三路并发写收口）。
       # internal/app 整包尚未跨平台（kernel32 原生采集/x/sys/windows），故 -race

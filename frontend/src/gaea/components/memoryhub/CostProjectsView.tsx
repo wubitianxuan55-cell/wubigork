@@ -5,6 +5,7 @@ import {
   Plus, RefreshCw, Rollback, Save, Search, Sparkles, Trash2, X,
 } from "../../icons";
 import { app } from "../../lib/bridge";
+import { costReadErrorText } from "../../lib/bridge/cost";
 import { useToast } from "../Toast";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import type { CostComponent, CostComposeEvidence, CostEstimateItem, CostEstimateVersion, CostProject, CostProjectSummary, CostSummary } from "../../lib/types";
@@ -706,28 +707,60 @@ function ItemRow({
 function EntryPicker({ query, onPick }: { query: string; onPick: (e: CostSummary) => void }) {
   const [q] = useState(query);
   const [results, setResults] = useState<CostSummary[]>([]);
+  // GA6-09：Go GaeaCostSearchPage 读取失败时 error 非空、items 仍是已读到的部分
+  // ——非空即显形提示条（含重试），绝不把「读坏了」装成「无匹配条目」。
+  const [readError, setReadError] = useState("");
+  const seqRef = useRef(0);
   const debounced = useDebouncedValue(q, 250);
-  useEffect(() => {
+  const runSearch = useCallback(() => {
     if (!debounced.trim()) {
       setResults([]);
-      return;
+      setReadError("");
+      return () => {};
     }
+    const seq = ++seqRef.current;
     let alive = true;
     // v4.386 切分页绑定：只要 top 8，不再全表拉回后客户端截断。
     app
       .CostSearchPage(debounced, "", "", "", 1, 8, 0)
       .then((r) => {
-        if (alive) setResults(r?.items ?? []);
+        if (!alive || seq !== seqRef.current) return;
+        setResults(r?.items ?? []);
+        setReadError(costReadErrorText(r?.error));
       })
-      .catch(() => {});
+      .catch((e: unknown) => {
+        if (!alive || seq !== seqRef.current) return;
+        setResults([]);
+        setReadError(costReadErrorText(e instanceof Error ? e.message : String(e)));
+      });
     return () => {
       alive = false;
     };
   }, [debounced]);
+  useEffect(() => runSearch(), [runSearch]);
   return (
     <div className="absolute z-20 left-0 right-0 top-full mt-0.5 rounded-lg border border-border bg-bg-elev shadow-xl overflow-hidden">
+      {readError && (
+        <div
+          role="alert"
+          data-testid="cost-picker-read-error"
+          className="flex items-center gap-2 px-2.5 py-1.5 border-b border-amber-400/30 bg-amber-400/10 text-amber-200 text-[10.5px]"
+        >
+          <span className="flex-1 min-w-0">{readError}——结果可能不完整。</span>
+          <button
+            type="button"
+            data-testid="cost-picker-read-error-retry"
+            onClick={() => runSearch()}
+            className="shrink-0 px-1.5 h-5 rounded border border-amber-400/40 hover:bg-amber-400/20 transition-colors"
+          >
+            重试
+          </button>
+        </div>
+      )}
       {results.length === 0 ? (
-        <div className="px-2.5 py-2 text-[10.5px] text-fg-faint">输入关键词搜索成本库单价…</div>
+        <div className="px-2.5 py-2 text-[10.5px] text-fg-faint">
+          {readError ? "成本库读取失败，未取到条目——点上方「重试」重新读取" : "输入关键词搜索成本库单价…"}
+        </div>
       ) : (
         results.map((e) => (
           <button

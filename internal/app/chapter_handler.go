@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/types"
 )
@@ -116,6 +117,24 @@ func (a *writingState) markChapterWritten(num int, branch string) {
 	}
 }
 
+// auroraSceneImageModel 章节配图/书封共用的默认图片模型（Aurora 档，
+// ImageModel 未配置时的回落值；与 chapter.GenerateSceneIllustrationV2 的
+// 既有下发模型一致——该函数体是独立包，无法引用本常量，改动时需同步）。
+const auroraSceneImageModel = "grok-imagine-image-quality"
+
+// effectiveSceneIllustrationModel 章节配图/书封生效模型（审计 AP7-05）：
+// 配置值优先，未配置回落到 Aurora 档。登记与请求必须同源——此前登记侧写死
+// "grok-imagine-image-quality"，ImageModel 配成 krea2 时台账与请求就对不上，
+// ComfyUI 后端下更是必然记出「不支持的模型」那条假记录。
+func effectiveSceneIllustrationModel(cfg *config.Config) string {
+	if cfg != nil {
+		if m := strings.TrimSpace(cfg.ImageModel); m != "" {
+			return m
+		}
+	}
+	return auroraSceneImageModel
+}
+
 func markNodeWritten(node *types.OutlineNode, num int, branch string) bool {
 	if node.OrderIndex == num && node.Branch == branch {
 		node.Status = types.OutlineDone
@@ -208,8 +227,13 @@ func (a *writingState) GenerateSceneIllustration(chapterNum int, optsJSON string
 			Path: outPath,
 			MIME: "image/png",
 		}
-		regErr := recordImageHubGeneratedAsset(gaeaCwd(), "play", "novel", "",
-			"grok-imagine-image-quality", revised,
+		// 登记如实记生效后端/模型（审计 AP7-05）：请求由 chapterAgent 按
+		// a.ctx/client 走**全局**图片后端发出，下发模型即 effectiveSceneIllustrationModel
+		// （此处与 chapter.GenerateSceneIllustrationV2 的请求模型同源）。
+		// 此前写死 "", "grok-imagine-image-quality"：ComfyUI 后端下配图登记必然
+		// 记成不存在的后端+错误模型（复用真机症状「不支持的模型」的同源失真）。
+		regErr := recordImageHubGeneratedAsset(gaeaCwd(), "play", "novel",
+			a.cfg.ImageBackend, effectiveSceneIllustrationModel(a.cfg), revised,
 			map[string]interface{}{"chapter": chapterNum, "size": "1024x576", "n": 1},
 			asset, nil, "")
 		if regErr != nil {

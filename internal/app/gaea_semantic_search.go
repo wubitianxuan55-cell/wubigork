@@ -95,7 +95,11 @@ func (a *App) semanticSearchHitsOnDemand(query string, topN int) ([]SemanticHitV
 	}
 
 	// 成本库
-	costList := a.hubCostStore().List()
+	costList, cerr := a.hubCostStore().List()
+	if cerr != nil {
+		// 审计 GA6-09：读失败如实上抛——按空库跳过会把索引面静默清空。
+		return nil, fmt.Errorf("成本库暂不可读（读取失败），可重试: %w", cerr)
+	}
 	if len(costList) > 0 {
 		docs := make([]semantic.Doc, 0, len(costList))
 		keep := make(map[string]bool, len(costList))

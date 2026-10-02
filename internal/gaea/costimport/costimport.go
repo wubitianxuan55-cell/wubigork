@@ -8,6 +8,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"os"
 	"path/filepath"
@@ -292,7 +293,14 @@ func MatchRows(rows []Row, store *cost.Store) []Row {
 	byName := map[string]cost.Summary{}
 	byCode := map[string]cost.Summary{}
 	if store != nil && store.Available() {
-		for _, s := range store.List() {
+		existing, lerr := store.List()
+		if lerr != nil {
+			// 审计 GA6-09：本函数签名不带 error，读失败只能按已读到部分匹配
+			// （部分数据仍返回），但必须留痕——否则会把「读不到」当成
+			// 「库里没有同名条目」而全部标成新增，用户重复入库。
+			slog.Warn("costimport: 成本库读取失败，匹配按已读到部分", "error", lerr)
+		}
+		for _, s := range existing {
 			if c := cost.NormalizeCode(s.Code); c != "" {
 				byCode[c] = s
 			}

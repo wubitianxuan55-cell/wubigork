@@ -40,7 +40,40 @@ type method struct {
 	Results   string // "" | "R" | "R, error" 等（不含括号）… 见下
 	HasParens bool   // 结果是否有括号（多返回值）
 	Receiver  string
+	File      string // 声明所在文件（含 internal/app/ 前缀，供遮蔽基线报点）
+	Line      int    // 声明行号
 }
+
+// shadowPair 一处「内嵌接收者版本的实现被 App 同名声明遮蔽」——该实现不进
+// 绑定门面，但仍编译、仍可被包内代码直接调用（绕过 App 版本里的修复）。
+type shadowPair struct {
+	Name     string // 方法名
+	Receiver string // 被遮蔽方的接收者类型（core/writingState/…）
+	File     string // 被遮蔽方声明所在文件（含 internal/app/ 前缀）
+	Line     int    // 被遮蔽方声明行号
+}
+
+// shadowBaselineMax 在册基线：脚本解析口径下允许存在的「被遮蔽内嵌实现」条数上限。
+//
+// 口径（与 collectMethods 的去重逻辑同源，别处统计的数字不可直接对比）：
+//
+//	① 只解析 internal/app 顶层、非 _test.go、非 bindings_*.go 的文件；
+//	② 接收者必须是绑定面白名单 receiverTypes（App/core/writingState/mediaState/
+//	   whisperState/officeState）——**门面类型（CoreB/ModelB/…）不计**，它们在
+//	   shadow-diag 里也会被算成一组，那会把数字抬高到 4 倍以上（实测 455）；
+//	③ 只数「App 声明了同名方法、内嵌类型的实现因此被去重丢弃」的那些实现。
+//
+// 计数口径超基线即 exit 1（新增遮蔽必须显式抬基线并写明理由，不得静默通过）。
+//
+// 基线来源 / 日期：2026-10-02 批次十二 round 14 实测（线 4）。
+//
+//	当次实测 = 2：SetFeatureModel / SetFeatureModelEnabled
+//	（core，internal/app/feature_model_handler.go:79 / :147）。
+//
+// 与审计描述的关系：审计 X1-13 提到的「约 281 份被遮蔽实现」不是本口径——它对
+// 应的是全仓同名对（含门面重复），本口径只数真正被丢掉的实现；归零仍是余量
+// （需逐条改名/加说明，见 docs/code-audit-2026-10-02/ 分册）。
+const shadowBaselineMax = 2
 
 // mapMethod 方法 → 板块。规则按优先级：显式覆盖表 → 前缀规则 → 接收者默认。
 func mapMethod(m method) string {
@@ -200,19 +233,40 @@ var explicitOverrides = map[string]string{
 	"GaeaRouteSuggestionIgnore": "model",
 }
 
-func main() {
-	namesOnly := flag.Bool("names", false, "只输出全部导出方法名（一行一个，稳定排序），不写任何生成文件")
-	flag.Parse()
+func main() { os.Exit(run(os.Args[1:])) }
+
+func run(args []string) int {
+	fs := flag.NewFlagSet("gen_bindings", flag.ContinueOnError)
+	namesOnly := fs.Bool("names", false, "只输出全部导出方法名（一行一个，稳定排序），不写任何生成文件")
+	shadowCheck := fs.Bool("shadow-check", false, "只校验遮蔽基线与新增遮蔽（不写任何生成文件）")
+	shadowDiag := fs.Bool("shadow-diag", false, "只打印遮蔽基线/实测数/全量遮蔽对（不写任何生成文件）")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
 
 	dir := "internal/app"
-	methods, err := collectMethods(dir)
+	methods, shadow, err := collectMethods(dir)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "collect:", err)
-		os.Exit(1)
+		return 1
 	}
 	if len(methods) == 0 {
 		fmt.Fprintln(os.Stderr, "no methods collected")
-		os.Exit(1)
+		return 1
+	}
+
+	// 遮蔽基线闸（X1-13）：任何新增遮蔽在写生成物之前就红，且不落盘——生成物
+	// 只在闸门通过后才写，避免半截产物污染工作树。
+	if *shadowCheck || *shadowDiag {
+		printShadowReport(shadow, *shadowDiag)
+		rc := checkShadowBaseline(shadow)
+		if rc != 0 {
+			return rc
+		}
+		return 0
+	}
+	if rc := checkShadowBaseline(shadow); rc != 0 {
+		return rc
 	}
 
 	// -names：仅输出方法名清单（供前端 bindingNames.ts 与 CI 漂移检查对照），
@@ -226,7 +280,7 @@ func main() {
 		for _, n := range names {
 			fmt.Println(n)
 		}
-		return
+		return 0
 	}
 
 	// 按板块分组
@@ -235,7 +289,7 @@ func main() {
 		f := mapMethod(m)
 		if f == "" {
 			fmt.Fprintf(os.Stderr, "方法 %s 未映射到板块\n", m.Name)
-			os.Exit(1)
+			return 1
 		}
 		groups[f] = append(groups[f], m)
 	}
@@ -253,27 +307,61 @@ func main() {
 		}
 		if err := writeFacade(facade, ms); err != nil {
 			fmt.Fprintln(os.Stderr, "write facade:", err)
-			os.Exit(1)
+			return 1
 		}
 		fmt.Printf("%-10s %3d 个方法\n", facade, len(ms))
 	}
 	if err := writeManifest(groups); err != nil {
 		fmt.Fprintln(os.Stderr, "write manifest:", err)
-		os.Exit(1)
+		return 1
 	}
 	if err := writeCompletenessTest(groups); err != nil {
 		fmt.Fprintln(os.Stderr, "write test:", err)
-		os.Exit(1)
+		return 1
 	}
 	fmt.Printf("合计 %d 个导出方法 → %d 个绑定门面\n", len(methods), len(groups))
+	return 0
+}
+
+// printShadowReport 打印遮蔽基线与实测数（-shadow-check / -shadow-diag 用）。
+func printShadowReport(shadow []shadowPair, full bool) {
+	fmt.Printf("遮蔽基线（在册上限）= %d；本次实测 = %d\n", shadowBaselineMax, len(shadow))
+	if !full {
+		return
+	}
+	for _, s := range shadow {
+		fmt.Printf("  %s ← %s %s:%d\n", s.Name, s.Receiver, s.File, s.Line)
+	}
+}
+
+// checkShadowBaseline 遮蔽基线闸：实测数 ≤ 在册基线 → 0（并把存量遮蔽告警）；
+// 超基线 → 1，逐条列出**新增**遮蔽（方法名 + 文件:行），信息可直接照抄登记。
+func checkShadowBaseline(shadow []shadowPair) int {
+	if len(shadow) <= shadowBaselineMax {
+		if len(shadow) > 0 {
+			fmt.Fprintf(os.Stderr,
+				"gen_bindings: %d 个方法被 App 同名声明遮蔽（在册基线 %d，未超——设计内委托；清单脚本 scripts/gen_bindings -shadow-diag）\n",
+				len(shadow), shadowBaselineMax)
+		}
+		return 0
+	}
+	extra := shadow[shadowBaselineMax:]
+	fmt.Fprintf(os.Stderr, "gen_bindings: 遮蔽数 %d 超过在册基线 %d（新增 %d 处）——新增遮蔽会让内嵌实现绕过 App 版本的修复，必须显式处置：\n",
+		len(shadow), shadowBaselineMax, len(extra))
+	for _, s := range extra {
+		fmt.Fprintf(os.Stderr, "  - %s（被遮蔽实现：%s，%s:%d）\n", s.Name, s.Receiver, s.File, s.Line)
+	}
+	fmt.Fprintf(os.Stderr, "gen_bindings: 处置二选一：①消除遮蔽（改名/删内嵌重复实现）②确有设计理由则在 scripts/gen_bindings/main.go 抬 shadowBaselineMax 到 %d 并写明来源与理由。\n", len(shadow))
+	return 1
 }
 
 // collectMethods 解析 internal/app 下所有非测试 .go 文件，收集绑定面方法的签名。
-// 同时收集 import 名→路径映射（生成门面文件需要）。
-func collectMethods(dir string) ([]method, error) {
+// 同时收集 import 名→路径映射（生成门面文件需要），并返回被 App 遮蔽的内嵌
+// 实现清单（按方法名排序，供遮蔽基线闸使用——见 shadowBaselineMax）。
+func collectMethods(dir string) ([]method, []shadowPair, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var out []method
 	imports := map[string]string{}
@@ -289,7 +377,7 @@ func collectMethods(dir string) ([]method, error) {
 		}
 		f, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %w", path, err)
+			return nil, nil, fmt.Errorf("%s: %w", path, err)
 		}
 		// 收集 import 别名 → 路径
 		for _, imp := range f.Imports {
@@ -322,7 +410,12 @@ func collectMethods(dir string) ([]method, error) {
 			if !fd.Name.IsExported() {
 				continue
 			}
-			m := method{Name: fd.Name.Name, Receiver: ident.Name}
+			m := method{
+				Name:     fd.Name.Name,
+				Receiver: ident.Name,
+				File:     filepath.ToSlash(path), // 报点统一 '/'（跨平台一致，便于照抄登记）
+				Line:     fset.Position(fd.Pos()).Line,
+			}
 			// 参数
 			var params, args []string
 			usedNames := map[string]bool{}
@@ -391,23 +484,26 @@ func collectMethods(dir string) ([]method, error) {
 	}
 	seen := map[string]bool{}
 	dedup := make([]method, 0, len(out))
-	shadowed := 0 // P1-2：遮蔽计数显式报告（原静默去重——诊断脚本可列全量对）
+	var shadow []shadowPair // P1-2/X1-13：遮蔽不再静默去重——计数进基线闸，明细可诊断
 	for _, m := range out {
 		if seen[m.Name] {
 			continue
 		}
 		if hasApp[m.Name] && m.Receiver != "App" {
-			shadowed++
+			shadow = append(shadow, shadowPair{Name: m.Name, Receiver: m.Receiver, File: m.File, Line: m.Line})
 			continue // 被 App 版本 shadow；不标记 seen，App 版本随后占用
 		}
 		seen[m.Name] = true
 		dedup = append(dedup, m)
 	}
-	if shadowed > 0 {
-		fmt.Fprintf(os.Stderr, "gen_bindings: %d 个方法被 App 同名声明遮蔽（设计内委托；诊断脚本 scripts/gen_bindings/shadow-diag 列全量对）\n", shadowed)
-	}
+	sort.Slice(shadow, func(i, j int) bool {
+		if shadow[i].Name != shadow[j].Name {
+			return shadow[i].Name < shadow[j].Name
+		}
+		return shadow[i].File < shadow[j].File
+	})
 	globalImports = imports
-	return dedup, nil
+	return dedup, shadow, nil
 }
 
 // globalImports 收集到的 import 名→路径（写门面文件时按需引用）。

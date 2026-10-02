@@ -6,6 +6,7 @@ import {
   Pencil, Plus, RefreshCw, Table, Trash2,
 } from "../icons";
 import { app } from "../lib/bridge";
+import { costReadErrorText } from "../lib/bridge/cost";
 import type { CostCategory, CostSummary, FilePickResult, PriceHistory, SemanticIndexStatus } from "../lib/types";
 import { EmptyState } from "./EmptyState";
 import { CostEntryModal } from "./memoryhub/CostEntryModal";
@@ -31,6 +32,8 @@ const PAGE_SIZE = 100;
 export function CostLibraryView() {
   const [entries, setEntries] = useState<CostSummary[]>([]);
   const [total, setTotal] = useState(0);
+  // GA6-09：分页检索的读取失败文案（空=无错误）；非空时列表区上方显形提示条。
+  const [readError, setReadError] = useState("");
   const [categories, setCategories] = useState<CostCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [moreBusy, setMoreBusy] = useState(false);
@@ -88,12 +91,17 @@ export function CostLibraryView() {
         const items = r?.items ?? [];
         setEntries(items);
         setTotal(r?.total ?? items.length);
+        // GA6-09：Go 侧读取成本库失败时 Items/Total 仍是已读到的部分，
+        // 错误在 error 字段——非空即显形提示条，不得静默当「无匹配条目」。
+        setReadError(costReadErrorText(r?.error));
         setSelected((prev) => new Set([...prev].filter((n) => items.some((e) => e.name === n))));
       })
-      .catch(() => {
+      .catch((e: unknown) => {
         if (seq !== reqSeq.current) return;
         setEntries([]);
         setTotal(0);
+        // 整调用失败（桥/后端异常）同样不能伪装成空库：复用同一条提示条。
+        setReadError(costReadErrorText(e instanceof Error ? e.message : String(e)));
       })
       .finally(() => {
         if (seq === reqSeq.current) setLoading(false);
@@ -115,6 +123,8 @@ export function CostLibraryView() {
           return [...prev, ...items.filter((e) => !seen.has(e.name))];
         });
         setTotal(r?.total ?? entries.length);
+        // 追加页同样上报读取失败（部分页读坏时不能只因首页成功就吞掉）。
+        setReadError(costReadErrorText(r?.error));
       })
       .catch(() => {})
       .finally(() => setMoreBusy(false));
@@ -520,6 +530,25 @@ export function CostLibraryView() {
           )}
         </div>
 
+        {/* GA6-09 读取失败提示条：error 非空时显形（含可重试路径），不静默当空库 */}
+        {readError && (
+          <div
+            role="alert"
+            data-testid="cost-read-error"
+            className="flex items-center gap-2 px-3 py-2 border-b border-amber-400/30 bg-amber-400/10 text-amber-200 text-[11.5px]"
+          >
+            <span className="flex-1 min-w-0">{readError}——下方为已读到的部分，结果可能不完整。</span>
+            <button
+              type="button"
+              data-testid="cost-read-error-retry"
+              onClick={load}
+              className="shrink-0 px-2 h-6 rounded-md border border-amber-400/40 hover:bg-amber-400/20 transition-colors"
+            >
+              重试
+            </button>
+          </div>
+        )}
+
         {/* 内容区 */}
         <div className="flex-1 min-h-0 overflow-y-auto">
           {loading ? (
@@ -530,7 +559,13 @@ export function CostLibraryView() {
             </div>
           ) : entries.length === 0 ? (
             <div className="h-full flex items-center justify-center">
-              <EmptyState message="暂无成本条目 — 新建、导入报价单，或测算完成后沉淀到成本库" />
+              <EmptyState
+                message={
+                  readError
+                    ? "成本库读取失败，暂无可显示条目——点上方提示条「重试」重新读取"
+                    : "暂无成本条目 — 新建、导入报价单，或测算完成后沉淀到成本库"
+                }
+              />
             </div>
           ) : view === "table" ? (
             <TableView

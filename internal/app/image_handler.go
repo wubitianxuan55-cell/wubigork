@@ -405,12 +405,15 @@ func (a *mediaState) generateImageInternal(o imageGenInternal) (map[string]inter
 			item.FilePath = a.saveToNovelImages(imageData, fullPrompt)
 		}
 		// T0 图像域试点：落盘后登记（失败只 warn）；模式与角色 ID 如实登记，
-		// 供画室按来源/角色回溯（参考槽生成标 img2img）。
+		// 供画室按来源/角色回溯（参考槽生成标 img2img）。后端/模型传**生效值**
+		// （审计 AP7-05）：backendType 是 override 客户端通道的解析结果，imgModel
+		// 是本轮真正下发的模型名——此前登记固定取全局 ImageBackend，会把独立绑定
+		// 的产物记成全局后端，消耗报表按 {model,backend} 分组即失真。
 		modeLabel := o.mode
 		if modeLabel == "" {
 			modeLabel = "txt2img"
 		}
-		a.recordImageHubGeneratedFor(item, modeLabel, o.characterID, sourceBoard, "")
+		a.recordImageHubGeneratedFor(item, modeLabel, o.characterID, sourceBoard, backendType, "")
 		images = append(images, item)
 	}
 

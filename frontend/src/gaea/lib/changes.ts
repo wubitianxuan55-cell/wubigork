@@ -1,4 +1,5 @@
 import type { Item } from "./store";
+import { SCHEDULE_DEFAULT_REL } from "../../schedule/paths";
 
 export interface SessionChange {
   path: string;
@@ -16,10 +17,9 @@ export const WRITE_TOOL_NAMES = new Set([
   "schedule_apply",
 ]);
 
-/** 与 schedule/gschedSummary 的 SCHEDULE_FILE_PATH、Go DefaultRelPath 同源镜像
- *  （schedule/store DEFAULT_SCHEDULE_PATH 同款先例）：本文件不反向拉起进度
- *  计划 store 图谱。 */
-const SCHEDULE_DEFAULT_REL = "进度计划/当前计划.gsched.json";
+// 缺省计划 rel 单源在 schedule/paths.ts（零依赖常量模块，FE7-09）——
+// 原先此处自带一份字面量镜像，与 gschedSummary/store 两处共三份副本；
+// paths 不 import 任何模块，转引它不会把进度计划 store 图谱拉进本文件。
 
 function pushPath(out: string[], v: unknown): void {
   if (typeof v === "string" && v.trim() !== "") out.push(v.trim());

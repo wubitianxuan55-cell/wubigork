@@ -9,33 +9,39 @@
 
 - `vX.Y.Z.md` — 版本发布说明（根因/修复/验证/产物，按版本可检索）
 - `SHA256SUMS-vX.Y.Z.txt` — 当版产物校验和（`gaea-vX.Y.Z.exe` 的 SHA256）
-- 仓库根 `gaea-vX.Y.Z.exe` — 本地构建产物，**不入库**（gitignore）
+- `releases/gaea-vX.Y.Z.exe` — 本地构建产物，**不入库**（gitignore；非当前 5 版的旧件进
+  `releases/archive/`。仓库根不放 exe——`.gitignore` 的根目录规则是防误落的兜底）
 
 ## 本地产物保留策略（2026-09-10 用户拍板）
 
-**只保留最近 5 个版本的 exe**（当前实存二进制 = v4.454.0 / v4.453.0 / v4.452.0 / v4.451.0 / v4.450.0），
+**只保留最近 5 个版本的 exe**（当前实存二进制 = v4.454.0 / v4.453.0 / v4.452.0 / v4.451.0 / v4.450.0；
+`releases/archive/` 另有 4 个极早期快照 v4.95.0 ~ v4.98.0，非发布渠道），
 更早版本的二进制已删除——**身份以 `SHA256SUMS-vX.Y.Z.txt` 为准**（哈希可核对，二进制不再留存；
-`releases/` 现有 **422 份校验和**（2026-09-29 增 v4.428.1），覆盖到 v4.99.0 及更早的散落批次）。
+`releases/` 现有 **447 份校验和**（截至 2026-10-02 实测：根目录 427 + `archive/` 20；
+`node scripts/check-docs.mjs` 对账），覆盖到 v4.99.0 及更早的散落批次）。
 下次构建发版后，把新产物放入本目录并删掉第 6 新的那一版即可（旧 exe 不入库，纯本地磁盘操作）。
 
 ## 源码包归档（v4.355 起惯例）
 
-里程碑版本随发版打源码包入库：`git archive --format=tar.gz v<X.Y.Z> -- . ':(exclude)releases/wubigork-*'`
+里程碑版本随发版打源码包**归档**（P2-3 后不入库，只留在磁盘）：`git archive --format=tar.gz v<X.Y.Z> -- . ':(exclude)releases/wubigork-*'`
 → `wubigork-vX.Y.Z-source.tar.gz`，在当版 `SHA256SUMS-vX.Y.Z.txt` 双行登记
-（exe 行 + source 行含大小/文件数）。已有 11 个：v4.219 / v4.292 / v4.304 / v4.323 /
+（exe 行 + source 行含大小/文件数）。已有 11 个（截至 2026-10-02 实测，
+`node scripts/check-docs.mjs` 对账；源码包不入库，只在与包同机的环境对账）：
+v4.219 / v4.292 / v4.304 / v4.323 /
 v4.333 / v4.345 / v4.355 / v4.372 / v4.399 / v4.411（2026-09-23 补打：画室编辑力八连发
 v4.392~v4.399 里程碑）+ v5.18.0（早期品牌期随手归档）。
 注：`releases/archive/` 只放「非当前 5 版」的历史件，`releases/` 根放最新一版。
 
-> **体积注记（2026-09-26 审计）**：这 11 个源码包合计 **166.5 MB**，占仓库 git 跟踪体积的约 83%
-> （`.git` 目录 256 MB）。保留决定不变（里程碑快照有归档价值），但若要回收磁盘，
-> 候选动作是「移出 VCS + `.gitignore`」（历史仍可 `git checkout` 找回），
-> 真要缩 `.git` 需 filter-repo 重写历史且涉及已推送 remote —— 需单独拍板。
-> 见 `docs/gaea-optimization-direction-2026-09.md` §3 P2-3。
+> **体积注记（2026-10-02 复测）**：这 11 个源码包合计 **166.5 MiB**；已按 P2-3 出 VCS
+> 跟踪（`.gitignore: releases/*-source.tar.gz`），但历史 blob 仍留在 `.git` 里
+> （`.git` 实测 244 MiB，其中约 68% 是这些包的历史对象）。保留决定不变（里程碑快照有
+> 归档价值），但若要回收磁盘，候选动作是 filter-repo 重写历史且涉及已推送 remote
+> —— 需单独拍板。见 `docs/gaea-optimization-direction-2026-09.md` §3 P2-3。
 
 ## 当前版本线（v4，2026-08 起）
 
-615 个发布说明（2026-09-26 实数校正，此前误记 445），最近 34 版：
+本目录共 636 份发布说明（截至 2026-10-02 实测：根目录 619 + `archive/` 17；口径为
+`vX.Y.Z.md` 形态，`v5.52.0-summary.md` 变体不计；`node scripts/check-docs.mjs` 对账），最近 34 版：
 
 <!-- V4_RECENT:start -->
 
@@ -80,9 +86,10 @@ v4.392~v4.399 里程碑）+ v5.18.0（早期品牌期随手归档）。
 
 ## 历史版本线（v2 / v3 / v5 时代遗留）
 
-- `v2.*.md` / `v3.*.md` / `v5.*.md` — 旧版本号体系的发布说明（221 个 md 中
-  除 v4 外均属此类），保留原样供追溯；
-- `CHANGELOG-v2.*.txt` — v2 时代逐版变更日志（33 个）；
+- `v2.*.md` / `v3.*.md` / `v5.*.md` — 旧版本号体系的说明文档（122 份，2026-10-02 实测：
+  v2 = 85 / v3 = 7 / v5 = 30；另 17 份 v3/v4 早期说明在 `archive/`），保留原样供追溯；
+- `CHANGELOG-v2.*.txt` — v2 时代逐版变更日志（24 个；`CHANGELOG-*.txt` 全族 33 个，
+  含 v3.0.x / v5.18~v5.20 的零散批次）；
 - `SHA256SUMS-v2/v3/v5*.txt` — 旧线产物校验；
 - `gaea-*.exe` / `wubigork-v5.18.0-source.tar.gz` — 极早期随手归档的二进制/
   源码包（**历史快照，非当前发布渠道**，当前产物在仓库根且不入库）；
@@ -93,4 +100,26 @@ v4.392~v4.399 里程碑）+ v5.18.0（早期品牌期随手归档）。
 1. 每次发版新增 `vX.Y.Z.md` + `SHA256SUMS-vX.Y.Z.txt`（发布纪律见
    `.gaea/AGENTS.md`）；
 2. 发布「最近 15 版」清单由维护者随发版更新（上方 V4_RECENT 区块）；
-3. 本 README 是索引，不承担版本记录职责——版本事实以 `CHANGELOG.md` 为准。
+3. 本 README 是索引，不承担版本记录职责——版本事实以 `CHANGELOG.md` 为准；
+4. 本 README 的**计数类陈述**由 `node scripts/check-docs.mjs` 对账（校验和份数 /
+   发布说明份数 / V4_RECENT 区块条数 / 实存 exe 清单 / 源码包份数）——改数字请按既有
+   措辞改，别换语序或去掉数量词，否则守卫会因「认不出计数」而红（口径见
+   `scripts/check-docs.mjs` §⑤）。**未纳入对账的余量**（改了仍需人工核）：旧线
+   v2/v3/v5 的 122 份分布、`CHANGELOG-*.txt` 的 24/33 个、体积类数字
+   （166.5 MiB / `.git` 244 MiB）。
+
+## 版本源清单（就三处，别再加第四处）
+
+产品版本只维护三处，由 `scripts/sync-version.ps1` 同步、`scripts/check-version-drift.ps1` 对账：
+
+1. `internal/app/app_info.go` — `const AppVersion`；
+2. `wails.json` — `info.productVersion`；
+3. `versioninfo.rc` — `FILEVERSION` / `PRODUCTVERSION` / `VALUE "FileVersion"`。
+
+`frontend/package.json` 的 `"version": "4.128.0"` **刻意不纳入同步**（2026-10-02 查证）：
+全仓无任何消费方——`scripts/release.ps1`、`scripts/sync-version.ps1`、
+`scripts/check-version-drift.ps1`、`.github/workflows/ci.yml`、`frontend/vite.config.ts`
+都不读它，前端 bundle 也不注入 `npm_package_version`（grep 证据见
+`docs/code-audit-2026-10-02/` X1-10 条）。它是 npm 包元数据残留，值无意义；
+**余量**：不修（改它只会制造「改了却没生效」的错觉）。若将来前端需要版本号，
+应先接入构建期注入（vite `define`）再谈同步，届时本段改成真同步。

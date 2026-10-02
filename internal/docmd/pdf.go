@@ -11,6 +11,7 @@ import (
 	"compress/zlib"
 	"encoding/hex"
 	"io"
+	"log/slog"
 	"os"
 	"strings"
 	"unicode/utf16"
@@ -40,13 +41,9 @@ func pdfToMarkdownLimit(path, pages string, maxPages int, progress func(done, to
 	// 混入正文（真实文本流含 BT，会被保留）。
 	content := stripNonTextStreams(decoded)
 
-	// 解析 PDF 页数信息：/Type /Page 每出现一次即一页。精确匹配排除 /Type /Pages
-	//（页树数组对象声明），避免总页数恒多 ≥1；页对象位于对象字典（流外），
-	// 不受流压缩影响，故对原始字节计数即可。
-	totalPages := countPDFPages(raw)
-	if totalPages == 0 {
-		totalPages = 1
-	}
+	// 页数单一判定点（IN3-11）：口径=页对象声明计数，取值面=原始字节（历史对外
+	// 口径，保持行为）；文本流视图的同一计数由该函数一并比对并诚实告警。
+	totalPages := pdfTotalPages(raw, content)
 
 	// 页数上限保护：把 pages 规格收敛到 maxPages 内（空规格 → 1-maxPages），
 	// 超限部分不再进入正文；OCR 路径用同一规格只渲染需要的页。
@@ -59,6 +56,14 @@ func pdfToMarkdownLimit(path, pages string, maxPages int, progress func(done, to
 	// 不再由 BT 块自增（页内可有多个 BT..ET 块，BT 与页对象也非一一对应），
 	// 页范围过滤因此不会错位。
 	pageTexts := pdfPageTexts(content)
+	// 一致性断言（IN3-11）：文本路径页码来自「文本流视图」的页对象序列，若它
+	// 超出了声明的对外总页数，说明两套口径的页码空间已经分叉（对外总数偏小），
+	// 渲染/OCR 与文本路径的页号可能错位 → 诚实告警，不假装合一。
+	if len(pageTexts) > totalPages {
+		slog.Warn("docmd: 文本路径页对象数超过声明总页数（页数口径分叉）",
+			"path", path, "declaredTotal", totalPages, "textViewPages", len(pageTexts),
+			"说明", "对外总页数取原始字节计数，文本路径页码取文本流视图计数")
+	}
 	var texts []string
 	for pageIdx, text := range pageTexts {
 		pageNum := pageIdx + 1
@@ -86,9 +91,38 @@ func pdfToMarkdownLimit(path, pages string, maxPages int, progress func(done, to
 	return result, totalPages, truncated, nil
 }
 
+// pdfTotalPages PDF 对外总页数的**唯一判定点**（IN3-11）：
+//
+//   - 口径：页对象声明计数 countPDFPages（/Type /Page 精确匹配，排除 /Type /Pages）；
+//   - 取值面：原始字节 raw —— 历史对外口径，capPageSpec / pageBounds / OCR 渲染
+//     范围（first,last）全部由它驱动，本刀保持行为不变；
+//   - 差异检测：同时取「文本流视图」（decodeFlateStreams + stripNonTextStreams
+//     之后，即文本提取路径 pdfPageTexts 生成页码所用的那个字符串）的同一计数。
+//     两视图不等（压缩/二进制流里的伪 /Type /Page 会让字面计数虚高，或反之）时
+//     slog.Warn 诚实告警：对外总数与文本路径页码可能错位，OCR 路径另有产物侧
+//     对账（见 ocrPDFRange）。
+//   - 下限 1：无任何页对象声明的退化 PDF 按 1 页处理（历史行为）。
+func pdfTotalPages(raw, content string) int {
+	rawCount := countPDFPages(raw)
+	textCount := countPDFPages(content)
+	total := rawCount
+	if total == 0 {
+		total = 1
+	}
+	if textCount != rawCount {
+		slog.Warn("docmd: PDF 页数口径不一致（原始字节 vs 文本流视图）",
+			"rawPages", rawCount, "textViewPages", textCount,
+			"说明", "对外总页数/渲染范围取原始字节计数，文本路径页码取文本流视图计数")
+	}
+	return total
+}
+
 // countPDFPages 统计 PDF 页对象数：/Type /Page 精确匹配（排除 /Type /Pages 数组
 // 对象声明，避免总页数恒多 ≥1）。只统计未压缩对象字典；压缩对象流（ObjStm）不在
 // 本实现支持范围内，与文本提取（仅未压缩文本流）保持一致。
+//
+// IN3-11：这是全仓唯一的页对象计数实现，raw 与文本流视图两个取值面都调用它；
+// 调用方请勿再就地字符串统计 /Type /Page。
 func countPDFPages(content string) int {
 	n := 0
 	for pos := 0; ; {

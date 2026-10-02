@@ -125,22 +125,10 @@ func applyOne(p *Project, op Op) (string, error) {
 		if badMoney(t.FixedCost) {
 			return "", fmt.Errorf("任务 %s 固定成本非法（须为非负有限数）：%v", t.ID, t.FixedCost)
 		}
-		// 工期单位（v4.151 双工期刀2）：校验同 Validate（枚举/分组行/里程碑/上限）。
-		switch t.DurationUnit {
-		case "", UnitWd, UnitCd:
-		default:
-			return "", fmt.Errorf("任务 %s 工期单位非法（wd|cd）：%s", t.ID, t.DurationUnit)
-		}
-		if t.DurationUnit == UnitCd {
-			if t.Level == 0 {
-				return "", fmt.Errorf("分组行 %s 禁止日历天（cd）工期（汇总唯一口径为子孙求和）", t.ID)
-			}
-			if t.IsMilestone {
-				return "", fmt.Errorf("里程碑 %s 禁止日历天（cd）工期", t.ID)
-			}
-			if t.Duration > 3650 {
-				return "", fmt.Errorf("任务 %s 日历天工期超上限（3650）：%d", t.ID, t.Duration)
-			}
+		// 工期单位（v4.151 双工期刀2；IN3-01）：规则判定走 Validate 的同一实现
+		//（枚举/分组行/里程碑/上限），本处只负责包上操作序号（ApplyOps）。
+		if err := validateDurationUnit(*t, true); err != nil {
+			return "", err
 		}
 		at := len(p.Tasks)
 		if op.AfterID != "" {
@@ -174,23 +162,31 @@ func applyOne(p *Project, op Op) (string, error) {
 				t.Name = *pt.Name
 				changes = append(changes, fmt.Sprintf("改名「%s」", *pt.Name))
 			}
+			// 工期口径（v4.151 刀2；IN3-01）：先把本 patch 的 durationUnit/
+			// level/isMilestone/duration 投射成「生效态」，再走 validateDurationUnit
+			//（与 Validate 同一实现）——「先改单位后改层级/里程碑」不再绕过 cd
+			// 约束，且校验先于任何赋值（失败不留半改状态）。
+			if pt.DurationUnit != nil || pt.Duration != nil || pt.Level != nil || pt.IsMilestone != nil {
+				eff := *t
+				if pt.DurationUnit != nil && *pt.DurationUnit != "" {
+					eff.DurationUnit = *pt.DurationUnit
+				}
+				if pt.Level != nil {
+					eff.Level = *pt.Level
+				}
+				if pt.IsMilestone != nil {
+					eff.IsMilestone = *pt.IsMilestone
+				}
+				if pt.Duration != nil {
+					eff.Duration = *pt.Duration
+				}
+				if err := validateDurationUnit(eff, false); err != nil {
+					return "", err
+				}
+			}
 			if pt.DurationUnit != nil && *pt.DurationUnit != "" {
-				if *pt.DurationUnit != UnitWd && *pt.DurationUnit != UnitCd {
-					return "", fmt.Errorf("工期单位非法（wd|cd）：%s", *pt.DurationUnit)
-				}
-				if *pt.DurationUnit == UnitCd {
-					if t.Level == 0 {
-						return "", fmt.Errorf("分组行 %s 禁止日历天（cd）工期（汇总唯一口径为子孙求和）", t.ID)
-					}
-					if t.IsMilestone {
-						return "", fmt.Errorf("里程碑 %s 禁止日历天（cd）工期", t.ID)
-					}
-				}
 				t.DurationUnit = *pt.DurationUnit
 				if *pt.DurationUnit == UnitCd {
-					if t.Duration > 3650 {
-						return "", fmt.Errorf("任务 %s 日历天工期超上限（3650）：%d", t.ID, t.Duration)
-					}
 					changes = append(changes, "工期口径→日历天（自然日定时）")
 				} else {
 					changes = append(changes, "工期口径→工作日")
@@ -199,9 +195,6 @@ func applyOne(p *Project, op Op) (string, error) {
 			if pt.Duration != nil {
 				if *pt.Duration < 0 {
 					return "", fmt.Errorf("工期为负")
-				}
-				if t.DurationUnit == UnitCd && *pt.Duration > 3650 {
-					return "", fmt.Errorf("日历天工期超上限（3650）：%d", *pt.Duration)
 				}
 				unit := "工作日"
 				if t.DurationUnit == UnitCd {

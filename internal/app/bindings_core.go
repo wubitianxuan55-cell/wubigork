@@ -64,7 +64,7 @@ func (b *CoreB) GetOpencodeGoKeyStatus() map[string]interface{}   { return b.a.G
 func (b *CoreB) GetOpencodeZenKeyStatus() map[string]interface{} {
 	return b.a.GetOpencodeZenKeyStatus()
 }
-func (b *CoreB) GetPreloadPlan() bool { return b.a.GetPreloadPlan() }
+func (b *CoreB) GetPreloadPlan() bool                             { return b.a.GetPreloadPlan() }
 func (b *CoreB) GetProjectInfo() map[string]interface{}           { return b.a.GetProjectInfo() }
 func (b *CoreB) GetStats() map[string]interface{}                 { return b.a.GetStats() }
 func (b *CoreB) GetStyleProfile() (map[string]interface{}, error) { return b.a.GetStyleProfile() }

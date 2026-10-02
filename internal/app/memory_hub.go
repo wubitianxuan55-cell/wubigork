@@ -13,6 +13,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/db"
+	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/knowledge"
 	"github.com/gaea/gaea/internal/gaea/memory"
 	"github.com/gaea/gaea/internal/gaea/pins"
@@ -234,7 +235,12 @@ func (a *App) GaeaMemoryHubOverview() MemoryHubOverview {
 	}
 	ov.ProfileCount = len(a.hubProfileStore().All())
 	ov.OfficeCount = len(a.hubOfficeStore().List())
-	ov.CostCount = len(a.hubCostStore().List())
+	// 审计 GA6-09：成本库读失败不得静默按空库计数（部分数据仍计入，错误留痕）。
+	costList, costErr := a.hubCostStore().List()
+	if costErr != nil {
+		slog.Warn("cost: 中枢总览成本库读取失败，计数按已读到部分", "error", costErr)
+	}
+	ov.CostCount = len(costList)
 	ov.WhisperCount = len(whisperdb.LoadFactsFromDB(a.whisperDataRoot))
 	ov.PinnedCount = hubPinnedCount()
 
@@ -405,7 +411,12 @@ func (a *App) GaeaMemoryGraph() MemoryGraphView {
 	}
 
 	// 成本条目：分类/标签与知识、办公记忆共享边索引（同分类/同标签可互连）
-	for _, s := range a.hubCostStore().List() {
+	// 审计 GA6-09：读取失败时用已读到的部分数据建图并留痕，不静默变空图。
+	costSummaries, costGraphErr := a.hubCostStore().List()
+	if costGraphErr != nil {
+		slog.Warn("cost: 图谱成本条目读取失败，按已读到部分建图", "error", costGraphErr)
+	}
+	for _, s := range costSummaries {
 		id := "c:" + s.Name
 		desc := strings.TrimSpace(s.Category + " · " + s.Unit + " · ¥" + strconv.FormatFloat(s.Price, 'f', -1, 64))
 		addNode(id, displayName(s.Title, s.Name), "cost", desc, 1)
@@ -562,8 +573,12 @@ func (a *App) hubCostStore() *cost.Store {
 }
 
 // GaeaCostList 返回成本条目摘要列表。
+//
+// 签名保持裸切片（绑定面零变更）：读取失败经 slog.Warn + 既有 gaea-event
+// notice 通道上报（审计 GA6-09：此前完全静默，用户会误判条目丢失）。
 func (a *App) GaeaCostList() []CostSummary {
-	list := a.hubCostStore().List()
+	list, err := a.hubCostStore().List()
+	a.reportCostReadError("成本库列表", err)
 	out := make([]CostSummary, 0, len(list))
 	for _, s := range list {
 		out = append(out, toCostSummary(s))
@@ -572,15 +587,41 @@ func (a *App) GaeaCostList() []CostSummary {
 }
 
 // GaeaCostSearch 检索成本条目（关键词 + 分类/状态过滤）。
+// 同 GaeaCostList：签名不变，失败走 slog.Warn + gaea-event notice。
 func (a *App) GaeaCostSearch(query, category, status string) []CostSummary {
-	return a.costSearchAll(query, category, status)
+	out, err := a.costSearchAll(query, category, status)
+	a.reportCostReadError("成本库检索", err)
+	return out
+}
+
+// reportCostReadError 把成本库读取失败经 **既有** gaea-event/notice 通道
+// 上报用户（审计 GA6-09：GaeaCostList/GaeaCostSearch 返回裸切片无法携带
+// error，且绑定面签名不得变更）。通道与后台 panic 通知同路，不新造通道。
+func (a *App) reportCostReadError(scope string, err error) {
+	if err == nil {
+		return
+	}
+	slog.Warn("cost: 读取失败，结果可能不完整", "scope", scope, "error", err)
+	payload := gaeaEventMap(event.Event{
+		Kind:  event.Notice,
+		Level: event.LevelWarn,
+		Text:  fmt.Sprintf("%s读取失败（%v），结果可能不完整", scope, err),
+	})
+	if gaeaNoticeSink != nil {
+		gaeaNoticeSink("gaea-event", payload)
+		return
+	}
+	a.emit("gaea-event", payload)
 }
 
 // costSearchAll 完整检索管线（全量）：SQL 过滤 → 关键词包含过滤 →
 // 语义召回补召回 → 本地语义精排。分页绑定（GaeaCostSearchPage）复用
 // 本管线后再排序切片，保证分页结果与非分页口径一致。
-func (a *App) costSearchAll(query, category, status string) []CostSummary {
-	list := a.hubCostStore().Search(query, category, status)
+//
+// 第二个返回值是成本库读取错误（GA6-09）：部分数据照常返回，错误只作
+// 「结果可能不完整」的上报依据（语义补召回/精排自身的降级不在此列）。
+func (a *App) costSearchAll(query, category, status string) ([]CostSummary, error) {
+	list, err := a.hubCostStore().Search(query, category, status)
 	// 语义召回：关键词召回不足（<3）时用本地 bge-m3 补召回（别名/口语表达）。
 	if len(list) < 3 && strings.TrimSpace(query) != "" {
 		if sem := a.semanticCostRecall(query, list, 10); len(sem) > 0 {
@@ -596,13 +637,16 @@ func (a *App) costSearchAll(query, category, status string) []CostSummary {
 	for _, s := range list {
 		out = append(out, toCostSummary(s))
 	}
-	return out
+	return out, err
 }
 
 // CostSearchPage 分页检索结果（v4.386 造价库分页绑定）。
 type CostSearchPage struct {
 	Items []CostSummary `json:"items"`
 	Total int           `json:"total"`
+	// Error 非空表示成本库读取失败，Items/Total 可能不完整（审计 GA6-09）。
+	// 成功路径恒为空串（omitempty ⇒ 旧前端零行为变化）。
+	Error string `json:"error,omitempty"`
 }
 
 // 分页与排序钳制常量：limit 缺省/非法=100，上限 200（成本行摘要 ~300B，
@@ -618,8 +662,12 @@ const (
 // 数据不漂移的前提是全序确定。limit 钳制 [1,200]（<=0 → 100），offset
 // 负数归零。Total 为过滤后总数（与分页无关）。
 func (a *App) GaeaCostSearchPage(query, category, status, sortKey string, sortDir, limit, offset int) CostSearchPage {
-	all := a.costSearchAll(query, category, status)
+	all, readErr := a.costSearchAll(query, category, status)
 	page := CostSearchPage{Items: []CostSummary{}, Total: len(all)}
+	// 审计 GA6-09：读取失败如实进 Error 字段（结果可能不完整），不静默当空结果。
+	if readErr != nil {
+		page.Error = readErr.Error()
+	}
 	if cmp := costSummaryComparator(sortKey); cmp != nil {
 		dir := 1
 		if sortDir < 0 {

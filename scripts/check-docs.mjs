@@ -90,24 +90,82 @@ if (bomLess.length) fails.push(`.ps1 缺 BOM：\n      ` + bomLess.join('\n     
     }
   }
 }
-// b) releases/README.md 的「校验和 N 份」与「发布说明 N 份」
+// b) releases/README.md 的计数陈述（P1-7 立项；2026-10-02 审计 X1-10 加固）
+//    加固点：原正则只认「校验和 422 份」这一种语序，而 README 写的是「422 份校验和」，
+//    整段守卫静默失效（自述 422 / 实存 427 一直没人发现）。现在两种语序都认，且
+//    「一处都认不出」本身判 FAIL——措辞被改掉时守卫会红，不再静默。
 {
   const rm = fs.readFileSync('releases/README.md', 'utf8')
-  const sums = fs.readdirSync('releases').filter(f => /^SHA256SUMS-/.test(f)).length
-  const notes = fs.readdirSync('releases').filter(f => /^v\d+\.\d+\.\d+\.md$/.test(f)).length
-  for (const [re, actual, label] of [
-    [/校验和\s*(\d+)\s*份/, sums, `校验和（实存 SHA256SUMS-* ${sums} 份）`],
-    [/发布说明\s*(\d+)\s*份/, notes, `发布说明（实存 v*.md ${notes} 份）`],
-  ]) {
-    const m = rm.match(re)
-    if (m && Number(m[1]) !== actual) {
-      fails.push(`releases/README.md 自述${label.replace(/（.*/, '')} ${m[1]} 份，实际 ${actual} 份——跑 release.ps1 后手补或改口径`)
+  const walk = (dir) =>
+    fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)])
+  const relFiles = walk('releases')
+  const sums = relFiles.filter((f) => /SHA256SUMS-/.test(path.basename(f))).length
+  const notes = relFiles.filter((f) => /^v\d+\.\d+\.\d+\.md$/.test(path.basename(f))).length
+  const tarballs = relFiles.filter((f) => /-source\.tar\.gz$/.test(f)).length
+  const exeRoot = fs.readdirSync('releases').filter((f) => /^gaea-v\d+\.\d+\.\d+\.exe$/.test(f))
+  const claims = (text, word) => {
+    const out = []
+    for (const re of [
+      new RegExp(`${word}\\s*(\\d+)\\s*[份个]`, 'g'),
+      new RegExp(`(\\d+)\\s*[份个]${word}`, 'g'),
+    ]) {
+      for (const m of text.matchAll(re)) out.push(Number(m[1]))
+    }
+    return out
+  }
+  const checkCount = (word, actual, detail) => {
+    const got = claims(rm, word)
+    if (got.length === 0) {
+      fails.push(
+        `releases/README.md 找不到可对账的「${word}」计数措辞——守卫会静默失效，请写成「${word} N 份」或「N 份${word}」（${detail}；实测 ${actual}）`,
+      )
+    } else if (got.some((n) => n !== actual)) {
+      fails.push(`releases/README.md 自述${word} ${got.join(' / ')} 与实测 ${actual} 不符（${detail}）——改 README 计数或补口径`)
+    }
+  }
+  checkCount('校验和', sums, 'releases/ 全目录（含 archive/）的 SHA256SUMS-*')
+  checkCount('发布说明', notes, 'releases/ 全目录（含 archive/）的 vX.Y.Z.md')
+  // V4_RECENT 区块条数 vs README 自述「最近 N 版」（区块是机器维护的，条数可数）。
+  {
+    const block = rm.split('<!-- V4_RECENT:start -->')[1]?.split('<!-- V4_RECENT:end -->')[0]
+    const entries = block ? (block.match(/^- \[v/gm) ?? []).length : 0
+    const claimed = rm.match(/最近\s*(\d+)\s*版/)
+    if (block && !claimed) {
+      fails.push(`releases/README.md 有 V4_RECENT 区块但找不到「最近 N 版」计数——守卫会静默失效（区块现有 ${entries} 条）`)
+    } else if (claimed && Number(claimed[1]) !== entries) {
+      fails.push(`releases/README.md 自述最近 ${claimed[1]} 版，V4_RECENT 区块实际 ${entries} 条——随发版同步（本项对账靠区块条数）`)
+    }
+  }
+  // 以下两类产物不入库（.gitignore）：只在本机确有文件时对账，新克隆/CI 上跳过。
+  if (tarballs > 0) checkCount('已有', tarballs, 'releases/ 本机 *-source.tar.gz')
+  if (exeRoot.length > 0) {
+    const m = rm.match(/当前实存二进制\s*=\s*([^\n）)]+)/)
+    const listed = m ? [...m[1].matchAll(/v\d+\.\d+\.\d+/g)].map((x) => x[0].replace(/^v/, '')) : []
+    const actual = exeRoot.map((f) => f.replace(/^gaea-v/, '').replace(/\.exe$/, '')).sort()
+    const missing = actual.filter((v) => !listed.includes(v))
+    const stale = listed.filter((v) => !actual.includes(v))
+    if (listed.length === 0 || missing.length || stale.length) {
+      fails.push(
+        `releases/README.md「当前实存二进制 = …」与实存 exe 不符——实存 ${actual.join(', ')}；README 列 ${listed.join(', ') || '（无）'}`,
+      )
     }
   }
 }
 
 // ── 汇总 ───────────────────────────────────────────────────────────────
 console.log(`docs 顶层文档 ${topDocs.length} 份；.gaea/AGENTS.md ${agentsBytes} B / 预算 ${BUDGET} B；.ps1 编码检查 ${walkPs1('scripts').length + walkPs1('.gaea/skills').length} 份`)
+{
+  const walkRel = (dir) =>
+    fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory() ? walkRel(path.join(dir, e.name)) : [path.join(dir, e.name)])
+  const rel = walkRel('releases')
+  console.log(
+    `releases/ 校验和 ${rel.filter((f) => /SHA256SUMS-/.test(path.basename(f))).length} 份；` +
+      `发布说明 ${rel.filter((f) => /^v\d+\.\d+\.\d+\.md$/.test(path.basename(f))).length} 份；` +
+      `exe（本机，含 archive/）${rel.filter((f) => /\.exe$/.test(f)).length} 个；源码包（本机）${rel.filter((f) => /-source\.tar\.gz$/.test(f)).length} 个`,
+  )
+}
 for (const w of warns) console.log('  WARN  ' + w)
 if (fails.length) {
   for (const f of fails) console.log('  FAIL  ' + f)

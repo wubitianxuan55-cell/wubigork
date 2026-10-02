@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -86,12 +87,35 @@ type speakerCacheEntry struct {
 	fetched  time.Time
 }
 
+// speakerFlight 一次进行中的 /v1/audio/info 探测（single-flight）：HTTP 在锁外
+// 执行，跟随者等 done 关闭后读 speakers（close 前写入 → 读取安全）。
+type speakerFlight struct {
+	done     chan struct{}
+	speakers []string
+}
+
 var (
 	speakerCacheMu sync.Mutex
 	speakerCache   = map[string]speakerCacheEntry{}
+	// speakerFlights 进行中的探测（键与缓存同源：model）。同一模型同一时刻只有
+	// 一个探测在跑（其余等待/复用结果），不同模型互不阻塞——锁只在读写这两张表
+	// 时持有，绝不包住 HTTP（AP6-10）。
+	speakerFlights = map[string]*speakerFlight{}
 )
 
 const speakerCacheTTL = 10 * time.Minute
+
+// speakerProbeWait 跟随者（single-flight 等待方）的有界等待上限：探测本身受
+// client 超时约束（ttsTimeoutForModel：30s/180s），跟随者多给 5s 容错。
+// SupportedSpeakers 没有 ctx 形参（导出面被 internal/app/voice_model_handler.go
+// 直接调用，改动签名会越出本线足迹），故用有界等待而非 ctx 取消；到期按
+// 「探测未完成」诚实降级返回 nil（调用方回退 defaultVoiceForModel）。
+func speakerProbeWait(model string) time.Duration {
+	return ttsTimeoutForModel(model) + 5*time.Second
+}
+
+// speakerProbeWaitFn 等待上限取值点（测试可缩短以验证有界等待）。
+var speakerProbeWaitFn = speakerProbeWait
 
 // preferredSpeakers qwen3-tts 音色回退优先级（在服务端 supported_speakers 内选择）
 var preferredSpeakers = []string{"serena", "vivian", "sohee", "aiden", "ryan", "eric"}
@@ -350,34 +374,84 @@ func (h *HerdsmanTTS) resolveVoice() string {
 	return speakers[0]
 }
 
-// SupportedSpeakers 获取模型支持音色列表（带 10 分钟缓存）
+// SupportedSpeakers 获取模型支持音色列表（带 10 分钟缓存）。
+//
+// 并发口径（AP6-10）：锁内只读写缓存与 in-flight 标记，`/v1/audio/info` 的
+// HTTP 探测在锁外执行；同一模型的并发调用是 single-flight（只发一次探测，
+// 其余等待并复用结果），不同模型互不阻塞。失败不写缓存（保持可重试）。
 func (h *HerdsmanTTS) SupportedSpeakers() []string {
 	if isVoiceCloneModel(h.model) || strings.TrimSpace(h.voiceDescription) != "" {
 		return nil
 	}
-	speakerCacheMu.Lock()
-	defer speakerCacheMu.Unlock()
-	if e, ok := speakerCache[h.model]; ok && time.Since(e.fetched) < speakerCacheTTL {
-		return e.speakers
-	}
 
-	var speakers []string
-	u := h.infoEndpoint() + "?model=" + url.QueryEscape(h.model)
-	resp, err := h.client.Get(u)
-	if err == nil {
-		defer resp.Body.Close()
-		if resp.StatusCode == 200 {
-			var info audioInfoResponse
-			if decErr := json.NewDecoder(resp.Body).Decode(&info); decErr == nil && len(info.SupportedSpeakers) > 0 {
-				speakers = info.SupportedSpeakers
-			}
-		}
+	// ── 锁内：命中缓存直接返回；否则认领探测或跟随在跑的探测 ──
+	speakerCacheMu.Lock()
+	if e, ok := speakerCache[h.model]; ok && time.Since(e.fetched) < speakerCacheTTL {
+		speakers := e.speakers
+		speakerCacheMu.Unlock()
+		return speakers
 	}
-	if len(speakers) == 0 {
+	if fl, ok := speakerFlights[h.model]; ok {
+		speakerCacheMu.Unlock()
+		return waitSpeakerFlight(fl, speakerProbeWaitFn(h.model))
+	}
+	fl := &speakerFlight{done: make(chan struct{})}
+	speakerFlights[h.model] = fl
+	speakerCacheMu.Unlock()
+
+	// ── 锁外：唯一的 HTTP 探测（语音合成与模型中心诊断不再互相排队） ──
+	speakers := h.fetchSupportedSpeakers()
+
+	// ── 锁内：成功才回填缓存，并唤醒跟随者（失败不缓存 = 下次仍会重试） ──
+	speakerCacheMu.Lock()
+	if len(speakers) > 0 {
+		speakerCache[h.model] = speakerCacheEntry{speakers: speakers, fetched: time.Now()}
+	}
+	delete(speakerFlights, h.model)
+	fl.speakers = speakers
+	close(fl.done)
+	speakerCacheMu.Unlock()
+	return speakers
+}
+
+// waitSpeakerFlight 有界等待同一模型的 in-flight 探测结果（上限见 speakerProbeWaitFn）；
+// 到期返回 nil（诚实降级：调用方回退默认音色，不把整条合成链挂死在探测上）。
+func waitSpeakerFlight(fl *speakerFlight, bound time.Duration) []string {
+	timer := time.NewTimer(bound)
+	defer timer.Stop()
+	select {
+	case <-fl.done:
+		return fl.speakers
+	case <-timer.C:
 		return nil
 	}
-	speakerCache[h.model] = speakerCacheEntry{speakers: speakers, fetched: time.Now()}
-	return speakers
+}
+
+// fetchSupportedSpeakers 执行一次 /v1/audio/info 探测；必须在 speakerCacheMu
+// 之外调用（AP6-10：HTTP 不得在锁内）。失败/空列表返回 nil 并诚实告警，
+// 由调用方决定不缓存（可重试）。
+func (h *HerdsmanTTS) fetchSupportedSpeakers() []string {
+	u := h.infoEndpoint() + "?model=" + url.QueryEscape(h.model)
+	resp, err := h.client.Get(u)
+	if err != nil {
+		slog.Warn("tts: 查询模型支持音色失败（不缓存，可重试）", "model", h.model, "url", u, "err", err)
+		return nil
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		slog.Warn("tts: 查询模型支持音色非 200（不缓存，可重试）", "model", h.model, "url", u, "status", resp.StatusCode)
+		return nil
+	}
+	var info audioInfoResponse
+	if decErr := json.NewDecoder(resp.Body).Decode(&info); decErr != nil {
+		slog.Warn("tts: 支持音色响应解析失败（不缓存，可重试）", "model", h.model, "err", decErr)
+		return nil
+	}
+	if len(info.SupportedSpeakers) == 0 {
+		slog.Warn("tts: 服务端未返回任何支持音色（不缓存，可重试）", "model", h.model, "url", u)
+		return nil
+	}
+	return info.SupportedSpeakers
 }
 
 // defaultVoiceForModel 返回各类模型的默认音色

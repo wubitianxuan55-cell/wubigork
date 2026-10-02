@@ -59,6 +59,10 @@ if ($Quick) {
     & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'test-related.ps1')
     if ($LASTEXITCODE -ne 0) { throw "test-related failed (exit $LASTEXITCODE)" }
 } else {
+    # 口径对齐（2026-10-02，审计 X1-12）：本地快闸是**单次** go test，本就没有
+    # 「整批重试」这一步；远端 .github/workflows/ci.yml 的 backend job 已改为
+    # 「失败包集合 ⊆ scripts/go-known-flaky.txt 才隔离复跑」
+    # （scripts/classify-go-failures.mjs）。此处刻意不引入重试——本地红即红。
     Invoke-Native 'go test' 'go' @('test', './...', '-count=1')
 }
 

@@ -49,14 +49,8 @@ func RenderPDFPages(pdfPath, prefix string, dpi int) ([]string, error) {
 		if e.IsDir() || !strings.HasSuffix(strings.ToLower(e.Name()), ".png") {
 			continue
 		}
-		name := strings.ToLower(e.Name())
 		// pdftoppm 输出形如 <prefix>-1.png / -10.png；从尾部数字段解析页码。
-		stem := strings.TrimSuffix(name, ".png")
-		idx := strings.LastIndexByte(stem, '-')
-		if idx < 0 || idx == len(stem)-1 {
-			continue
-		}
-		if n, perr := strconv.Atoi(stem[idx+1:]); perr == nil && n > 0 {
+		if n, ok := parseRenderedPageNumber(e.Name()); ok {
 			pages = append(pages, pageFile{num: n, abs: filepath.Join(dir, e.Name())})
 		}
 	}
@@ -69,4 +63,24 @@ func RenderPDFPages(pdfPath, prefix string, dpi int) ([]string, error) {
 		out = append(out, p.abs)
 	}
 	return out, nil
+}
+
+// parseRenderedPageNumber 从 pdftoppm 产物文件名解析绝对页码：<prefix>-<n>.png
+// （大小写不敏感；无 "-数字" 后缀或数字非正返回 false）。渲染路径（本文件）与
+// OCR 路径（ocr.go，IN3-11：以实际产物为唯一页码来源）共用这一个解析实现。
+func parseRenderedPageNumber(name string) (int, bool) {
+	lower := strings.ToLower(name)
+	if !strings.HasSuffix(lower, ".png") {
+		return 0, false
+	}
+	stem := strings.TrimSuffix(lower, ".png")
+	idx := strings.LastIndexByte(stem, '-')
+	if idx < 0 || idx == len(stem)-1 {
+		return 0, false
+	}
+	n, err := strconv.Atoi(stem[idx+1:])
+	if err != nil || n <= 0 {
+		return 0, false
+	}
+	return n, true
 }

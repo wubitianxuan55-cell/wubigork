@@ -37,6 +37,10 @@ export interface CostSummary {
 export interface CostSearchPageResult {
   items: CostSummary[];
   total: number;
+  // GA6-09（Go CostSearchPage.Error，json:"error,omitempty"）：非空=成本库读取
+  // 失败，items/total 仍为已读到的部分（结果可能不完整）。消费端必须显形为
+  // 「读取失败 + 可重试」，不得当作「无匹配条目」；成功路径缺省/空串。
+  error?: string;
 }
   // 综合单价子目的人材机组成明细行（二级）。
   export interface CostComponent {

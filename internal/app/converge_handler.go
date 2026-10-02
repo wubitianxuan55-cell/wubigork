@@ -50,7 +50,7 @@ func convergeCheck(text string, target int) ConvergeCheck {
 	}
 	ck := ConvergeCheck{TasteScore: score, S1S2: []novelgate.Issue{}, S3: []novelgate.Issue{}}
 	for _, is := range novelgate.ChapterQualityIssues(text) {
-		if is.Severity == "S1" || is.Severity == "S2" {
+		if severityBlocking(is.Severity) {
 			ck.S1S2 = append(ck.S1S2, is)
 		} else {
 			ck.S3 = append(ck.S3, is)

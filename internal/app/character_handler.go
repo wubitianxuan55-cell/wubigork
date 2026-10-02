@@ -253,8 +253,10 @@ func (a *writingState) SetCharacterPortrait(charID string, imageData string) err
 		return err
 	}
 	// T1：剧照保存成功后登记进图像域 ledger（失败只 warn，不影响主流程）。
+	// 后端/模型记角色库生效绑定（审计 AP7-05；此前固定空 backend/空 model）。
 	if cf := a.characterAgent.GetCharacters(); cf != nil {
-		registerCharacterPortraitAsset(gaeaCwd(), cf.Characters, charID)
+		pBackend, pModel := portraitImageBinding(a.cfg, "")
+		registerCharacterPortraitAsset(gaeaCwd(), cf.Characters, charID, pBackend, pModel)
 	}
 	return nil
 }

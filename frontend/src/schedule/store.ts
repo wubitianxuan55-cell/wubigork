@@ -30,17 +30,17 @@ import {
 import type { ScheduleProjectSummary } from './api'
 import { snapshotBaseline, upsertBaseline } from './baseline'
 import { normalizeAoaLayout } from './aoaLayout'
+import { SCHEDULE_DEFAULT_REL } from './paths'
 
 /**
  * 缺省工程文件 rel（v4.139 #15 刀1 起语义降级为「缺省值」）：单工程老用户/
  * 指针未切换时 currentPath 即此值；水合后一律以 LoadResult.path 为准，展示
  * 口径（状态栏 title/办公卡 isCurrentPlan 等）应读 store 的 currentPath 而
- * 不再直读常量。此处镜像 gschedSummary.ts 的 SCHEDULE_FILE_PATH（常量本体
- * 不动）而不直接转引，是因为 gschedSummary 已 import 本模块的 normalizeProject
- * ——再加 store→gschedSummary 一条边即成模块环，gschedSummary 先于本模块
- * 求值时该 const 尚未初始化（TDZ），会在其先加载的入口（如办公卡）崩溃。
+ * 不再直读常量。字面量单源在 schedule/paths.ts（零依赖常量模块，FE7-09）：
+ * 当年「镜像而不转引」是为躲 gschedSummary → store 的模块环 + TDZ，而转引
+ * 零依赖的 paths 不产生任何模块边，环的前提消失。
  */
-export const DEFAULT_SCHEDULE_PATH = '进度计划/当前计划.gsched.json'
+export const DEFAULT_SCHEDULE_PATH = SCHEDULE_DEFAULT_REL
 
 export type ScheduleView = 'gantt' | 'pdm' | 'aoa' | 'usage' | 'dcma' | 'monte' | 'evm'
 

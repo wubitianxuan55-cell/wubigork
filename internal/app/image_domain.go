@@ -224,8 +224,10 @@ func imageHubMIMEByExt(path string) string {
 }
 
 // recordImageHubGenerated 绘梦工作台/媒体落盘后的登记（mediaState 便捷方法）。
+// 本路径恒走全局绘梦后端（GenerateMedia/generateImageInternal 无 override 通道），
+// 故 backend 取全局配置——与改造前逐字节一致。
 func (m *mediaState) recordImageHubGenerated(item imageItem, mode, characterID, parentID string) {
-	m.recordImageHubGeneratedFor(item, mode, characterID, "imagegen", parentID)
+	m.recordImageHubGeneratedFor(item, mode, characterID, "imagegen", m.cfg.ImageBackend, parentID)
 }
 
 // imageHubAssetIDByPath 按产物路径在台账同空间查最近条目 ID（变体簇溯源键，
@@ -243,11 +245,17 @@ func imageHubAssetIDByPath(cwd, space, path string) string {
 	return ""
 }
 
-// recordImageHubGeneratedFor 与 recordImageHubGenerated 同语义，但把来源板块
-// 参数化：绘梦/媒体走 "imagegen"（原行为逐字节），原罪板块走 "sin"。
+// recordImageHubGeneratedFor 与 recordImageHubGenerated 同语义，但把来源板块与
+// **生效后端** 参数化：绘梦/媒体走 "imagegen"（原行为逐字节），原罪板块走 "sin"。
 // 动机（v4.257 硬隔离刀）：一个产物只登记一条——生成链内部登记，调用方
 // 不得再补第二条（否则画室同一张图会以两个来源重复出现）。
-func (m *mediaState) recordImageHubGeneratedFor(item imageItem, mode, characterID, sourceBoard, parentID string) {
+//
+// backend（审计 AP7-05）：此前固定取全局 m.cfg.ImageBackend，但生成侧存在
+// 独立绑定（原罪的 clientOverride/backendOverride）与其它后端消费方——记错后端
+// 会让 imagehub_usage 的 {model,backend} 分组把同一后端拆成多行 / 把绑定后端的
+// 产物记成全局后端。生效后端由调用方（生成链）传入，本函数不再自行猜测。
+// 模型沿用 item.Model（生成链内 imgModel 的解析结果，即真正下发的模型名）。
+func (m *mediaState) recordImageHubGeneratedFor(item imageItem, mode, characterID, sourceBoard, backend, parentID string) {
 	if item.FilePath == "" {
 		return
 	}
@@ -264,7 +272,7 @@ func (m *mediaState) recordImageHubGeneratedFor(item imageItem, mode, characterI
 		params["character_id"] = characterID
 	}
 	space := gaeaEffectiveSpace()
-	if err := recordImageHubGeneratedAsset(gaeaCwd(), space, sourceBoard, m.cfg.ImageBackend,
+	if err := recordImageHubGeneratedAsset(gaeaCwd(), space, sourceBoard, backend,
 		item.Model, item.Prompt,
 		params,
 		imageHubAsset{Kind: kind, Path: item.FilePath}, nil, parentID); err != nil {
@@ -412,9 +420,12 @@ func (m *mediaState) ImageCutout(initImage, maskData string) map[string]interfac
 	if path == "" {
 		return map[string]interface{}{"error": "抠图产物落盘失败（保存目录不可写）"}
 	}
-	// 台账登记（mode=cutout 入 params；asset_id 按路径回填——v4.395 链路复用）
+	// 台账登记（mode=cutout 入 params；asset_id 按路径回填——v4.395 链路复用）。
+	// 抠图不走模型调用（本地 ComposeCutout），backend 记全局绘梦后端、model 记
+	// "cutout" 哨兵值——二者都不是生成档位，仅作来源标记（AP7-05 语义：这里的
+	// backend 是「哪个绘梦后端下的产物」，不是「用了哪个模型」）。
 	item := imageItem{Image: png, Prompt: "抠图-透明底", Model: "cutout", Kind: "image", FilePath: path}
-	m.recordImageHubGeneratedFor(item, "cutout", "", "imagegen", "")
+	m.recordImageHubGeneratedFor(item, "cutout", "", "imagegen", m.cfg.ImageBackend, "")
 	return map[string]interface{}{
 		"path":     path,
 		"asset_id": imageHubAssetIDByPath(gaeaCwd(), gaeaEffectiveSpace(), path),

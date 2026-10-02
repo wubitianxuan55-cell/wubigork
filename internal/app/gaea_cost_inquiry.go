@@ -52,12 +52,17 @@ func (a *App) GaeaCostInquiryExpiring(days int) []costinquiry.Record {
 }
 
 // GaeaCostInquiryAdjust 调差建议：成本库条目 vs 最新询价数据点（差幅 > 2%）。
+//
+// 签名保持裸切片（绑定面零变更）：成本库读取失败经 slog.Warn + 既有
+// gaea-event notice 通道上报，已读到的部分条目照常参与调差（GA6-09）。
 func (a *App) GaeaCostInquiryAdjust() []costinquiry.AdjustSuggestion {
 	store := a.hubCostStore()
 	if !store.Available() {
 		return nil
 	}
-	return a.hubCostInquiryStore().SuggestAdjustments(store.List())
+	entries, err := store.List()
+	a.reportCostReadError("成本库调差", err)
+	return a.hubCostInquiryStore().SuggestAdjustments(entries)
 }
 
 // GaeaCostInquiryScan 库级异常扫描（只读）：询价库内部自洽体检——

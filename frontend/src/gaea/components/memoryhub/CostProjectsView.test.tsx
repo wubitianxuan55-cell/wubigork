@@ -11,6 +11,8 @@ const state = vi.hoisted(() => {
     projects: [] as CostProject[],
     items: [] as CostEstimateItem[],
     versions: [] as CostEstimateVersion[],
+    // GA6-09：成本库单价搜索下拉（EntryPicker）的分页检索桩
+    searchPage: vi.fn(),
     seq,
     reset() {
       this.projects = [];
@@ -84,6 +86,8 @@ vi.mock("../../lib/bridge", () => ({
       return state.items.filter((i) => i.projectId === projectId && idset.has(i.id ?? -1) && (i.price || 0) > 0).length;
     },
     CostSearch: async () => [],
+    // GA6-09：EntryPicker 走的 CostSearchPage（返回 {items,total,error?}）
+    CostSearchPage: (...args: unknown[]) => state.searchPage(...args),
     // v4.2 五算对比（FiveCalcPanel 挂载即调）：空实现不干扰既有用例。
     CostStages: async (): Promise<CostStageValue[]> => [],
     CostStageSave: async () => {},
@@ -96,6 +100,8 @@ const wrap = (node: React.ReactNode) => <ToastProvider>{node}</ToastProvider>;
 
 beforeEach(() => {
   state.reset();
+  state.searchPage.mockReset();
+  state.searchPage.mockResolvedValue({ items: [], total: 0, error: "" });
 });
 
 describe("CostProjectsView 测算项目", () => {
@@ -174,5 +180,48 @@ describe("CostProjectsView 测算项目", () => {
 
     fireEvent.click(screen.getByText("沉淀选中(1)"));
     expect(await screen.findByText("已沉淀 1 条明细到成本库")).toBeTruthy();
+  });
+});
+
+// ── GA6-09：引用成本库下拉（EntryPicker）消费 CostSearchPage.Error ──
+describe("测算项目 · 成本库引用读取失败可见化（GA6-09）", () => {
+  /** 建一个含一行的项目，返回「引用成本库单价」搜索输入。 */
+  async function openRowWithPicker() {
+    render(wrap(<CostProjectsView />));
+    fireEvent.click(await screen.findByText("新建项目"));
+    fireEvent.change(await screen.findByPlaceholderText("如：XX 市政道路土方测算"), { target: { value: "土方测算" } });
+    fireEvent.click([...screen.getAllByRole("button", { name: /^保\s*存$/ })].pop()!);
+    await screen.findByText("编辑信息");
+    fireEvent.click(screen.getByText("加行"));
+    return await screen.findByPlaceholderText("引用成本库单价（搜索）或留空手动估价");
+  }
+
+  it("error 空：下拉无提示条（行为零变化）", async () => {
+    const ref = await openRowWithPicker();
+    state.searchPage.mockResolvedValue({ items: [], total: 0, error: "" });
+    fireEvent.change(ref, { target: { value: "钢" } });
+    ref.focus();
+    await waitFor(() => expect(state.searchPage).toHaveBeenCalled());
+    expect(screen.queryByTestId("cost-picker-read-error")).toBeNull();
+    expect(screen.getByText("输入关键词搜索成本库单价…")).toBeTruthy();
+  });
+
+  it("error 非空：下拉内提示条含「读取失败」+ 重试，不显示「输入关键词…」空态", async () => {
+    const ref = await openRowWithPicker();
+    state.searchPage.mockResolvedValue({ items: [], total: 0, error: "读取失败（磁盘 IO），结果可能不完整" });
+    fireEvent.change(ref, { target: { value: "钢" } });
+    ref.focus();
+
+    const bar = await screen.findByTestId("cost-picker-read-error");
+    expect(bar.getAttribute("role")).toBe("alert");
+    expect(bar.textContent).toContain("读取失败");
+    // 不把「读坏了」当「没搜到」
+    expect(screen.getByText(/成本库读取失败，未取到条目/)).toBeTruthy();
+    expect(screen.queryByText("输入关键词搜索成本库单价…")).toBeNull();
+
+    // 可重试：点「重试」重新检索（改坏锚点：去掉 error 消费 → 本断言链全 FAIL）
+    const calls = state.searchPage.mock.calls.length;
+    fireEvent.click(screen.getByTestId("cost-picker-read-error-retry"));
+    await waitFor(() => expect(state.searchPage.mock.calls.length).toBeGreaterThan(calls));
   });
 });
