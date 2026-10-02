@@ -559,21 +559,32 @@ const DeskHome: React.FC<{
     } catch { setAiReply('发送失败，请稍后再试') }
   }, [typedText])
 
-  const voiceStateLabel = voice.aiSpeaking
-    ? t('shell.launcher.voiceReplying')
-    : voice.listening
-      ? t('shell.launcher.voiceListening')
-      : voice.active
-        ? t('shell.launcher.voiceStandby')
-        : t('shell.launcher.voiceIdle')
+  // FE6-02：麦克风不可用时命令条绝不再显示「聆听中」——降级位优先于一切
+  // 状态文案。此处中文直写而非走 t()：与同区块 voice.error 同口径（壳内运行时
+  // 状态/错误串本就由 hook 以中文给出，属内容层运行时状态而非壳层 chrome 标签），
+  // 也避免在并行波次里改动三语字典这份契约文件。
+  const micDegraded = voice.degraded === 'mic-unavailable'
+  const voiceStateLabel = micDegraded
+    ? '麦克风不可用'
+    : voice.aiSpeaking
+      ? t('shell.launcher.voiceReplying')
+      : voice.listening
+        ? t('shell.launcher.voiceListening')
+        : voice.active
+          ? t('shell.launcher.voiceStandby')
+          : t('shell.launcher.voiceIdle')
 
   const voiceTone = voice.aiSpeaking
     ? 'is-speaking'
-    : voice.listening
-      ? 'is-listening'
-      : voice.active
-        ? 'is-active'
-        : ''
+    : micDegraded
+      // 降级时不套任何「在听/在说」的动效类名（is-listening 的呼吸动画本身就是
+      // 「正在聆听」的视觉语义，正是要根除的那句谎）
+      ? ''
+      : voice.listening
+        ? 'is-listening'
+        : voice.active
+          ? 'is-active'
+          : ''
 
   const hasChat = !!userText || !!aiReply
 
@@ -659,6 +670,15 @@ const DeskHome: React.FC<{
           <div className="w-voice-status" aria-label={t('home.voiceStatusAria', { state: voiceStateLabel })}>
             <span className={`w-status-dot${voiceTone ? ` ${voiceTone}` : ''}`} aria-hidden="true" />
             <span className="w-status-label">{voiceStateLabel}</span>
+            {micDegraded && (
+              <span
+                role="alert"
+                data-testid="voice-mic-degraded"
+                className="ml-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-2 py-0.5 text-amber-500 text-[11px] leading-relaxed"
+              >
+                麦克风不可用，未在采集音频，本回合走文本输入
+              </span>
+            )}
             {voice.error && <span className="w-voice-err" role="alert">{voice.error}</span>}
             {voice.active && voice.aiSpeaking && (
               <button className="w-interrupt-btn" onClick={interrupt} type="button">

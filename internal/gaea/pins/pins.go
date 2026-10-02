@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/gaea/gaea/internal/gaea/strutil"
 )
 
 const (
@@ -174,9 +176,9 @@ func Block(cwd string) string {
 			continue
 		}
 		wroteAny = true
-		body = truncateRunes(body, maxFileRunes)
+		body = strutil.TruncateRunes(body, maxFileRunes)
 		if total+utf8.RuneCountInString(body) > maxTotalRunes {
-			body = truncateRunes(body, maxTotalRunes-total)
+			body = strutil.TruncateRunes(body, maxTotalRunes-total)
 		}
 		b.WriteString("\n### " + name + "（" + rel + "）\n")
 		b.WriteString(body + "\n")
@@ -206,15 +208,4 @@ func readText(abs string) (string, bool) {
 		s = strings.ToValidUTF8(s, "\ufffd")
 	}
 	return s, true
-}
-
-func truncateRunes(s string, n int) string {
-	r := []rune(s)
-	if len(r) <= n {
-		return s
-	}
-	if n <= 0 {
-		return ""
-	}
-	return string(r[:n])
 }

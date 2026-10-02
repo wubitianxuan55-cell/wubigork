@@ -1,8 +1,12 @@
 package app
 
 import (
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -107,4 +111,182 @@ func TestHerdsmanLifecycleHandlers(t *testing.T) {
 	if _, err := a.HerdsmanModelStop("bge-m3"); err == nil {
 		t.Fatal("CLI 失败应透出")
 	}
+}
+
+// ─── AP9-02：超时必须杀整棵进程树（真实进程树，Windows）───────────
+//
+// 探针形态：Go 测试进程 → cmd.exe(/c 包装) → cmd.exe(内层) → ping.exe(孙进程)。
+// ping 命令行带唯一 `-w <随机值>` 作 marker（-n 60 保证存活够久），孙进程按
+// 「PING.EXE + marker」在 Win32_Process 里精确识别。
+
+// probePingArgs 返回带唯一 marker 的 ping 参数与 marker 文本。
+func probePingArgs() (args []string, marker string) {
+	waitMS := 4000 + int(time.Now().UnixNano()%4000)
+	marker = fmt.Sprintf("-w %d", waitMS)
+	return []string{"-n", "60", "-w", strconv.Itoa(waitMS), "127.0.0.1"}, marker
+}
+
+// probeGrandchildPIDs 返回命令行命中 marker 的 ping.exe PID 列表。
+func probeGrandchildPIDs(t *testing.T, marker string) []int {
+	t.Helper()
+	script := fmt.Sprintf(
+		`Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'PING.EXE' -and $_.CommandLine -like '*%s*' } | ForEach-Object { $_.ProcessId }`,
+		marker)
+	out, err := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script).Output()
+	if err != nil {
+		t.Fatalf("查询进程失败: %v", err)
+	}
+	var pids []int
+	for _, f := range strings.Fields(strings.TrimSpace(string(out))) {
+		if n, err := strconv.Atoi(f); err == nil {
+			pids = append(pids, n)
+		}
+	}
+	return pids
+}
+
+// processAlive 判断 PID 是否仍存活。
+func processAlive(t *testing.T, pid int) bool {
+	t.Helper()
+	out, _ := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command",
+		fmt.Sprintf(`if (Get-Process -Id %d -ErrorAction SilentlyContinue) { 'alive' } else { 'dead' }`, pid)).Output()
+	return strings.Contains(string(out), "alive")
+}
+
+// waitProbeGrandchild 轮询等孙进程出现（CIM 查询与进程创建都有延迟）。
+func waitProbeGrandchild(t *testing.T, marker string, timeout time.Duration) []int {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for {
+		if pids := probeGrandchildPIDs(t, marker); len(pids) > 0 {
+			return pids
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("探针孙进程未出现（marker=%q）", marker)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+// waitProcessesGone 轮询等这批 PID 全部消失（taskkill 同步返回，但进程退出有
+// 微小时延；有界轮询避免把时延误判成清理失败）。
+func waitProcessesGone(t *testing.T, pids []int, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for {
+		alive := 0
+		for _, pid := range pids {
+			if processAlive(t, pid) {
+				alive++
+			}
+		}
+		if alive == 0 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("进程 %v 在 %s 内未消失（清理失败）", pids, timeout)
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+}
+
+// startProbeTree 起一棵真实三层进程树，返回父进程 PID 与孙进程 marker。
+// Cleanup 用 taskkill /T 收拾残局（含未被断言的中间 cmd.exe）。
+func startProbeTree(t *testing.T) (parentPID int, marker string) {
+	t.Helper()
+	pingArgs, marker := probePingArgs()
+	parent := exec.Command("cmd", append([]string{"/c", "cmd", "/c", "ping"}, pingArgs...)...)
+	if err := parent.Start(); err != nil {
+		t.Fatalf("起探针进程树失败: %v", err)
+	}
+	go func() { _ = parent.Wait() }() // 立刻回收，避免僵尸进程与重复 Wait
+	pid := parent.Process.Pid
+	t.Cleanup(func() {
+		_ = killProcessTree(pid)
+		for _, g := range probeGrandchildPIDs(t, marker) {
+			_ = killProcessTree(g)
+		}
+	})
+	return pid, marker
+}
+
+// TestKillProcessTree_KillsGrandchild：killProcessTree 必须连孙进程一起清掉。
+func TestKillProcessTree_KillsGrandchild(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("进程树清理走 taskkill /T，仅 Windows 实现")
+	}
+	parentPID, marker := startProbeTree(t)
+	grandchildren := waitProbeGrandchild(t, marker, 15*time.Second)
+	if err := killProcessTree(parentPID); err != nil {
+		t.Fatalf("killProcessTree: %v", err)
+	}
+	waitProcessesGone(t, grandchildren, 10*time.Second)
+	for _, p := range probeGrandchildPIDs(t, marker) {
+		if processAlive(t, p) {
+			t.Fatalf("孙进程 %d 仍在（marker=%q）", p, marker)
+		}
+	}
+}
+
+// TestParentOnlyKillLeavesGrandchild 钉死 AP9-02 的机理现场：只杀直接子进程
+// （exec.CommandContext 超时的原行为）时孙进程继续存活——这正是必须 taskkill /T
+// 的原因，也是本批把 CommandContext 换成「Start + 超时杀树」的依据。本用例
+// 刻意不调用 killProcessTree（残局由 startProbeTree 的 Cleanup 收拾）。
+func TestParentOnlyKillLeavesGrandchild(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("进程树清理走 taskkill /T，仅 Windows 实现")
+	}
+	parentPID, marker := startProbeTree(t)
+	grandchildren := waitProbeGrandchild(t, marker, 15*time.Second)
+	if err := exec.Command("taskkill", "/F", "/PID", strconv.Itoa(parentPID)).Run(); err != nil {
+		t.Fatalf("单进程 kill: %v", err)
+	}
+	time.Sleep(time.Second) // 等父子关系解体
+	survivors := 0
+	for _, p := range grandchildren {
+		if processAlive(t, p) {
+			survivors++
+		}
+	}
+	if survivors == 0 {
+		t.Fatal("前置失败：单进程 kill 后孙进程也消失了，无法锁定 AP9-02 现场")
+	}
+}
+
+// TestRunHerdsmanCLI_TimeoutKillsProcessTree 端到端：把 HERDSMAN_EXE 指向
+// cmd.exe 起一棵真实进程树，超时分支必须①返回「超时」文案②整棵树（含孙进程
+// ping）消失。这条路径故意让杀树成功、进程很快退出（-race 下覆盖超时清理的
+// 正常路径，5 秒兜底分支不触发）。
+func TestRunHerdsmanCLI_TimeoutKillsProcessTree(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("进程树清理走 taskkill /T，仅 Windows 实现")
+	}
+	comspec := os.Getenv("COMSPEC")
+	if comspec == "" {
+		comspec = "cmd.exe"
+	}
+	t.Setenv("HERDSMAN_EXE", comspec)
+
+	pingArgs, marker := probePingArgs()
+	args := append([]string{"/c", "cmd", "/c", "ping"}, pingArgs...)
+	done := make(chan error, 1)
+	go func() {
+		_, err := runHerdsmanCLI(5*time.Second, args...)
+		done <- err
+	}()
+
+	grandchildren := waitProbeGrandchild(t, marker, 4*time.Second)
+	var err error
+	select {
+	case err = <-done:
+	case <-time.After(30 * time.Second):
+		t.Fatal("runHerdsmanCLI 未在超时后返回")
+	}
+	if err == nil {
+		t.Fatal("超时分支必须返回错误")
+	}
+	if !strings.Contains(err.Error(), "超时") {
+		t.Fatalf("错误文案要继续说明是超时: %v", err)
+	}
+	waitProcessesGone(t, grandchildren, 10*time.Second)
 }

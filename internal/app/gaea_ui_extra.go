@@ -17,6 +17,7 @@ import (
 	"github.com/gaea/gaea/internal/config"
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/fileutil"
+	"github.com/gaea/gaea/internal/gaea/wspath"
 	"github.com/gaea/gaea/internal/modelengine"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -446,10 +447,18 @@ type FileSearchHit struct {
 }
 
 // searchSkipDirs 工作区搜索跳过的噪音目录（依赖/构建/运行时缓存等）。
-var searchSkipDirs = map[string]bool{
-	".git": true, "node_modules": true, "dist": true, "build": true,
-	".cache": true, ".codegraph": true, ".tianxuan": true, ".reasonix": true,
-}
+//
+// 审计 GA5-17：清单下沉 internal/gaea/wspath 单源（新增产物目录只改那里）。
+// 本处增量 SearchExtra 与 wssearch 逐项相同 ⇒ 合并结果与收敛前那份 8 项清单
+// **逐项一致**，扫描范围零变化。`:484` / `:539` 两处 map 查询与 `.tmp` 前缀
+// 判断保持原样。
+var searchSkipDirs = func() map[string]bool {
+	m := make(map[string]bool)
+	for _, d := range wspath.Merge(wspath.CoreSkipDirs, wspath.SearchExtra) {
+		m[d] = true
+	}
+	return m
+}()
 
 // GaeaFileSearch 工作区文件名搜索（跨目录定位资料）：按名称子串匹配、
 // 不区分大小写，限制深度与数量，跳过噪音目录。供 @ 菜单的「搜一下」使用。

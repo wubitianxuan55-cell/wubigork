@@ -16,6 +16,8 @@ import (
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/encoding/traditionalchinese"
+
+	"github.com/gaea/gaea/internal/gaea/strutil"
 )
 
 // ParsedChapter 解析出的原始章节（未编号、未裁剪）。
@@ -303,7 +305,7 @@ func cleanTitle(line string) string {
 	if t == "" {
 		t = strings.TrimSpace(line)
 	}
-	return truncateRunes(t, titleMaxRunes)
+	return strutil.TruncateRunes(t, titleMaxRunes)
 }
 
 // windowSplit 兜底窗口切分（规格 §8.1 第 5 条 / §3.2）：
@@ -409,7 +411,7 @@ func buildWarnings(chapters []ParsedChapter) []Warning {
 		if t != "" && titleCount[t] > 1 {
 			out = append(out, Warning{
 				Code:    WarningDuplicateTitle,
-				Message: "章节标题「" + truncateRunes(t, 40) + "」重复出现 " + itoa(titleCount[t]) + " 次",
+				Message: "章节标题「" + strutil.TruncateRunes(t, 40) + "」重复出现 " + itoa(titleCount[t]) + " 次",
 				Level:   "warning",
 			})
 			titleCount[t] = 1 // 只报一次
@@ -423,18 +425,7 @@ func displayTitle(t string) string {
 	if t == "" {
 		return "未命名章"
 	}
-	return truncateRunes(t, 40)
-}
-
-func truncateRunes(s string, max int) string {
-	if max <= 0 {
-		return ""
-	}
-	r := []rune(s)
-	if len(r) <= max {
-		return s
-	}
-	return string(r[:max])
+	return strutil.TruncateRunes(t, 40)
 }
 
 // itoa 小整数转十进制（避免为几处格式化引入 strconv 依赖噪音）。

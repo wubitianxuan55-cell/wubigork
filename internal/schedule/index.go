@@ -17,10 +17,21 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/fileutil"
 )
+
+// scheduleIndexSaveMu 串行化同一进程内的索引写入。
+//
+// 审计 2026-10-02 批次一（AP4-08，`12aeaf6d`）引入
+// `TestSaveScheduleIndexConcurrentNoTmpClash` 时只解决了「临时文件名唯一」，
+// 但 16 路并发对**同一目标**做覆盖式 rename 在 Windows 上仍会撞 ACCESS_DENIED
+// ——`fileutil.RenameWithRetry` 的 5/10/20ms 退避在 16 路争用下会穷尽（实测本机
+// 三次独立复跑 2 次失败，非偶发）。索引是单文件资源，进程内串行写入即消除该争用；
+// 跨进程仍由 `RenameWithRetry` 兜底（AV/索引器瞬时持锁那一类）。
+var scheduleIndexSaveMu sync.Mutex
 
 // ScheduleProjectsDir 工程文件目录（工作区相对，canonical 用 / 分隔）。
 const ScheduleProjectsDir = "进度计划"
@@ -78,6 +89,10 @@ func SaveScheduleIndex(dir string, idx ScheduleIndex) error {
 		return err
 	}
 	raw = append(raw, '\n')
+	// 进程内串行：临时名唯一只解决「互抢同一临时文件」，同目标的并发覆盖式
+	// rename 才是 Windows 上真实的 ACCESS_DENIED 来源（见 scheduleIndexSaveMu）。
+	scheduleIndexSaveMu.Lock()
+	defer scheduleIndexSaveMu.Unlock()
 	target := filepath.Join(dir, filepath.FromSlash(IndexRelPath))
 	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 		return fmt.Errorf("创建索引目录失败：%w", err)
@@ -90,7 +105,7 @@ func SaveScheduleIndex(dir string, idx ScheduleIndex) error {
 	}
 	tmpName := tmp.Name()
 	if _, err := tmp.Write(raw); err != nil {
-		tmp.Close()
+		_ = tmp.Close()
 		_ = os.Remove(tmpName)
 		return fmt.Errorf("写入索引临时文件失败：%w", err)
 	}

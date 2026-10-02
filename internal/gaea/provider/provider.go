@@ -63,7 +63,7 @@ type Request struct {
 	MaxTokens   int
 }
 
-// interruptedToolResult stands in for a tool result that never landed 鈥?an
+// interruptedToolResult stands in for a tool result that never landed — an
 // assistant tool_calls turn whose execution was cut short (interrupt, crash) and
 // later resumed. Sending such a turn unanswered trips the OpenAI/DeepSeek 400
 // "An assistant message with 'tool_calls' must be followed by tool messages
@@ -78,9 +78,9 @@ const interruptedToolResult = "[no result: the previous turn was interrupted bef
 // pass through unchanged (results stay in call order). Callers send the result;
 // the stored session keeps the original.
 //
-// V5.11: 鍗囩骇鑷?Kun model-history-repair.ts锛屾柊澧炴ˉ鎺ユ秷鎭鐞嗐€?
-// tool_call 鍜?tool_result 涔嬮棿鐨?assistant 鏂囨湰/reasoning 绛?
-// 妗ユ帴娑堟伅涓嶅啀闃绘柇閰嶅鎵弿銆?
+// V5.11: 升级自 Kun model-history-repair.ts，新增桥接消息处理。
+// tool_call 和 tool_result 之间的 assistant 文本/reasoning 等
+// 桥接消息不再阻断配对扫描。
 func SanitizeToolPairing(msgs []Message) []Message {
 	// V10.0 Fast Path: skip repair when no assistant tool_calls or orphan tools.
 	needsRepair := false
@@ -105,28 +105,28 @@ func SanitizeToolPairing(msgs []Message) []Message {
 	for i := 0; i < len(msgs); {
 		m := msgs[i]
 		if m.Role == RoleAssistant && len(m.ToolCalls) > 0 {
-			// 鎵弿 tool results锛岃烦杩囨ˉ鎺ユ秷鎭紙assistant 鏂囨湰绛夛級
+			// 扫描 tool results，跳过桥接消息（assistant 文本等）
 			j := i + 1
 			var bridge []Message
 			for j < len(msgs) && isToolResultOrBridge(msgs[j]) {
 				if msgs[j].Role == RoleTool {
-					// 鏀堕泦 tool result
+					// 收集 tool result
 				} else {
-					// 妗ユ帴娑堟伅鈥斺€斾繚鐣欎絾缁х画鎵弿
+					// 桥接消息——保留但继续扫描
 					bridge = append(bridge, msgs[j])
 				}
 				j++
 			}
-			// 浠庢壂鎻忚寖鍥翠腑鎻愬彇 tool results
+			// 从扫描范围中提取 tool results
 			toolResults := extractToolResults(msgs[i+1 : j])
 			out = append(out, m)
 			out = append(out, pairToolResults(m.ToolCalls, toolResults)...)
-			out = append(out, bridge...) // 妗ユ帴娑堟伅鏀惧湪 tool results 涔嬪悗
+			out = append(out, bridge...) // 桥接消息放在 tool results 之后
 			i = j
 			continue
 		}
 		if m.Role == RoleTool {
-			i++ // orphan tool message (no preceding assistant tool_calls) 鈥?drop
+			i++ // orphan tool message (no preceding assistant tool_calls) — drop
 			continue
 		}
 		out = append(out, m)
@@ -142,7 +142,7 @@ func isToolResultOrBridge(m Message) bool {
 	if m.Role == RoleTool {
 		return true
 	}
-	// 妗ユ帴娑堟伅锛歛ssistant 鏂囨湰锛堟棤 tool calls锛夈€乺easoning 绛?
+	// 桥接消息：assistant 文本（无 tool calls）、reasoning 等
 	if m.Role == RoleAssistant && len(m.ToolCalls) == 0 && m.Content != "" {
 		return true
 	}
@@ -163,7 +163,7 @@ func extractToolResults(msgs []Message) []Message {
 // pairToolResults answers each tool_call with its result, backfilling a
 // placeholder for any unanswered one. Distinct non-empty ids pair by id (so
 // reordered results re-sort to call order); empty or duplicate ids pair by
-// position instead 鈥?some gateways stream tool calls by index with no id, and a
+// position instead — some gateways stream tool calls by index with no id, and a
 // map keyed on id would collapse those results into one (call order is preserved
 // because the loop appends results in call order).
 func pairToolResults(calls []ToolCall, avail []Message) []Message {
@@ -195,7 +195,7 @@ func pairToolResults(calls []ToolCall, avail []Message) []Message {
 }
 
 // idDistinct reports whether every call carries a non-empty id unique within the
-// batch 鈥?the condition under which id-keyed pairing is safe.
+// batch — the condition under which id-keyed pairing is safe.
 func idDistinct(calls []ToolCall) bool {
 	seen := make(map[string]struct{}, len(calls))
 	for _, tc := range calls {
@@ -225,7 +225,7 @@ const (
 
 // Usage reports token accounting for a completion. Cache hit/miss come from
 // either DeepSeek's top-level prompt_cache_{hit,miss}_tokens or the OpenAI/MiMo
-// standard prompt_tokens_details.cached_tokens 鈥?the openai provider normalises
+// standard prompt_tokens_details.cached_tokens — the openai provider normalises
 // both shapes into these fields. ReasoningTokens is the thinking-mode subset of
 // CompletionTokens reported by thinking-capable models. FinishReason carries
 // the model's last reported choices[0].finish_reason so the agent can surface
@@ -239,11 +239,11 @@ type Usage struct {
 	ReasoningTokens        int    // subset of CompletionTokens spent on chain-of-thought
 	SessionCacheHitTokens  int    // cumulative cache hit tokens across the session
 	SessionCacheMissTokens int    // cumulative cache miss tokens across the session
-	FinishReason           string // "stop", "tool_calls", "length", "content_filter", "repetition_truncation", 鈥?
+	FinishReason           string // "stop", "tool_calls", "length", "content_filter", "repetition_truncation", …
 }
 
 // Pricing is a provider's per-1M-token rates, used to estimate spend. Currency
-// is just a display symbol (default "楼"). toml tags let config decode it.
+// is just a display symbol (default "¥"). toml tags let config decode it.
 type Pricing struct {
 	CacheHit float64 `toml:"cache_hit"` // per 1M cached prompt tokens
 	Input    float64 `toml:"input"`     // per 1M uncached prompt tokens
@@ -261,10 +261,10 @@ func (p *Pricing) Cost(u *Usage) float64 {
 		float64(u.CompletionTokens)*p.Output) / 1e6
 }
 
-// Symbol returns the currency display symbol, defaulting to "楼".
+// Symbol returns the currency display symbol, defaulting to "¥".
 func (p *Pricing) Symbol() string {
 	if p == nil || p.Currency == "" {
-		return "楼"
+		return "¥"
 	}
 	return p.Currency
 }
@@ -300,8 +300,8 @@ type Config struct {
 }
 
 // AuthError reports that a provider rejected the API key (HTTP 401/403). Its
-// message is already user-facing and actionable 鈥?it names the provider and,
-// when known, the environment variable the key comes from 鈥?so the CLI can
+// message is already user-facing and actionable — it names the provider and,
+// when known, the environment variable the key comes from — so the CLI can
 // surface it verbatim instead of dumping a raw status body. Providers should
 // return this (rather than a generic status error) for auth failures.
 type AuthError struct {
@@ -317,7 +317,7 @@ func (e *AuthError) Error() string {
 	if e.KeyEnv != "" {
 		key = e.KeyEnv
 	}
-	return fmt.Sprintf("authentication failed for provider %q (HTTP %d): %s is invalid or expired 鈥?update it (in .env or your environment) and retry, or run `gaea setup`",
+	return fmt.Sprintf("authentication failed for provider %q (HTTP %d): %s is invalid or expired — update it (in .env or your environment) and retry, or run `gaea setup`",
 		e.Provider, e.Status, key)
 }
 

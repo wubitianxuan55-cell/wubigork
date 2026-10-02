@@ -36,6 +36,9 @@ interface Props {
   aiSpeaking: boolean
   transcript: string
   size?: number
+  /** FE6-02：麦克风不可用（hook 降级位）——此时绝不显示「正在聆听/准备聆听」，
+   *  否则语音主视觉继续宣称在听。可选参数：不传 = 既有行为零变化。 */
+  micUnavailable?: boolean
 }
 
 const N = 90          // 球面粒子数
@@ -44,7 +47,7 @@ const LINK_MAX = 74   // 连线距离阈值（像素）
 const ORBIT_N = 26    // 每圈轨道粒子数
 
 const VoiceChatOrb: React.FC<Props> = ({
-  volume, listening, speaking, aiSpeaking, transcript, size = 360,
+  volume, listening, speaking, aiSpeaking, transcript, size = 360, micUnavailable = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const particlesRef = useRef<Particle[]>([])
@@ -225,8 +228,8 @@ const VoiceChatOrb: React.FC<Props> = ({
         </div>
       )}
 
-      <div style={{ position: 'absolute', top: -10, left: '50%', transform: 'translateX(-50%)', color: aiSpeaking ? '#64b5f6' : speaking ? '#ff8a65' : C('color-text-secondary'), fontSize: 12, fontWeight: 500, opacity: listening || aiSpeaking ? 0.9 : 0, transition: 'opacity 0.3s' }}> {/* hex-exempt 语音双方品牌识别色 */}
-        {aiSpeaking ? 'AI 回复中...' : speaking ? '正在聆听...' : listening ? '准备聆听' : ''}
+      <div style={{ position: 'absolute', top: -10, left: '50%', transform: 'translateX(-50%)', color: aiSpeaking ? '#64b5f6' : speaking ? '#ff8a65' : C('color-text-secondary'), fontSize: 12, fontWeight: 500, opacity: listening || aiSpeaking || micUnavailable ? 0.9 : 0, transition: 'opacity 0.3s' }}> {/* hex-exempt 语音双方品牌识别色 */}
+        {aiSpeaking ? 'AI 回复中...' : micUnavailable ? '麦克风不可用' : speaking ? '正在聆听...' : listening ? '准备聆听' : ''}
       </div>
     </div>
   )

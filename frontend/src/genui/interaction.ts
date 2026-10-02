@@ -1,8 +1,11 @@
 // 交互状态持久化：答案/锁定/字段值，按 stateKey 存取，LRU 有界。
 // 与上游语义一致：只存交互值，不存正文/spec；password 值永不落库。
 
+import { GENUI_LIMITS } from "./spec";
+
 const STORE_KEY = "gaea.genui.interaction";
-const MAX_BLOCKS = 200;
+// 节点上限与守卫/面板同源（FE6-19：原为字面量 200，调预算时会与守卫口径漂移）。
+const MAX_BLOCKS = GENUI_LIMITS.maxNodes;
 
 export interface BlockInteractionState {
   /** radio group → 选中项 label。 */

@@ -7,6 +7,8 @@ package whisper
 import (
 	"regexp"
 	"strings"
+
+	"github.com/gaea/gaea/internal/gaea/strutil"
 )
 
 // TripleRow 三元组行
@@ -106,7 +108,7 @@ func ExtractTriples(subject, summary, factID string, subcategory string, birthda
 	cleanSubject = strings.ReplaceAll(cleanSubject, "他", "用户")
 	cleanSubject = strings.ReplaceAll(cleanSubject, "她", "用户")
 	cleanSubject = strings.ReplaceAll(cleanSubject, "我", "用户")
-	cleanSubject = truncateStr(cleanSubject, 30)
+	cleanSubject = strutil.TruncateRunesSuffix(cleanSubject, 30, "…")
 
 	for _, p := range triplePatterns {
 		matches := p.re.FindAllStringSubmatch(text, -1)

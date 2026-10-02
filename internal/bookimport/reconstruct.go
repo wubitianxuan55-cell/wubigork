@@ -7,6 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/gaea/gaea/internal/gaea/strutil"
 	"github.com/gaea/gaea/internal/util"
 )
 
@@ -132,13 +133,13 @@ func NormalizeProjectSuggestion(raw map[string]any, fallback ProjectSuggestion) 
 	out := fallback
 	out.Title = fallback.Title // 强制输入书名
 	if v := strField(raw, "description"); v != "" {
-		out.Description = truncateRunes(v, 1000)
+		out.Description = strutil.TruncateRunes(v, 1000)
 	}
 	if v := strField(raw, "theme"); v != "" {
-		out.Theme = truncateRunes(v, 100)
+		out.Theme = strutil.TruncateRunes(v, 100)
 	}
 	if v := strField(raw, "genre"); v != "" {
-		out.Genre = truncateRunes(v, 60)
+		out.Genre = strutil.TruncateRunes(v, 60)
 	}
 	if v := NormalizePerspective(strField(raw, "narrative_perspective")); v != "" {
 		out.NarrativePerspective = v
@@ -185,9 +186,9 @@ func NormalizeOutlineBatch(raw any, batch []ParsedChapter, startNumber int) []Ou
 func normalizeOneStructure(obj map[string]any, fb OutlineStructure) OutlineStructure {
 	out := fb // chapter_number / title 强制用输入值
 	if v := strField(obj, "summary"); v != "" {
-		out.Summary = truncateRunes(v, summaryMaxRunes)
+		out.Summary = strutil.TruncateRunes(v, summaryMaxRunes)
 	} else if v := strField(obj, "content"); v != "" {
-		out.Summary = truncateRunes(v, summaryMaxRunes)
+		out.Summary = strutil.TruncateRunes(v, summaryMaxRunes)
 	}
 	if scenes := stringListField(obj, "scenes", scenesMax); len(scenes) > 0 {
 		out.Scenes = scenes
@@ -199,10 +200,10 @@ func normalizeOneStructure(obj map[string]any, fb OutlineStructure) OutlineStruc
 		out.KeyPoints = keys
 	}
 	if v := strField(obj, "emotion"); v != "" {
-		out.Emotion = truncateRunes(v, emotionMaxRunes)
+		out.Emotion = strutil.TruncateRunes(v, emotionMaxRunes)
 	}
 	if v := strField(obj, "goal"); v != "" {
-		out.Goal = truncateRunes(v, goalMaxRunes)
+		out.Goal = strutil.TruncateRunes(v, goalMaxRunes)
 	}
 	return out
 }
@@ -307,7 +308,7 @@ func SampledText(chapters []ParsedChapter, maxChapters, maxRunes int) string {
 			break
 		}
 		sb.WriteString("### " + strings.TrimSpace(ch.Title) + "\n")
-		sb.WriteString(truncateRunes(strings.TrimSpace(ch.Content), maxRunes))
+		sb.WriteString(strutil.TruncateRunes(strings.TrimSpace(ch.Content), maxRunes))
 		sb.WriteString("\n\n")
 	}
 	return strings.TrimSpace(sb.String())
@@ -405,7 +406,7 @@ func characterListField(m map[string]any, key string) []OutlineCharacter {
 		if t != "organization" {
 			t = "character" // 其余一律 character（含空/未知）
 		}
-		out = append(out, OutlineCharacter{Name: truncateRunes(name, charNameMaxRunes), Type: t})
+		out = append(out, OutlineCharacter{Name: strutil.TruncateRunes(name, charNameMaxRunes), Type: t})
 	}
 	return out
 }

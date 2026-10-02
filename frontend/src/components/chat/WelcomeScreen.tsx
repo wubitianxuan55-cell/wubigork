@@ -43,10 +43,30 @@ export interface WelcomeScreenProps {
   onSuggestion: (label: string) => void
 }
 
+/** 语音降级警示条（FE6-02）：麦克风不可用时必须可见——此前页面照旧显示
+ *  「聆听中」而实际零采集，是对用户撒谎。文案属页面内容层（chat 等页面
+ *  内容层保持 zh 单语，见 .gaea/AGENTS.md i18n 决策），故直接中文。
+ *  样式照抄仓内既有诚实降级提示条（FilePreview/FilePreviewModal 同款琥珀条）。 */
+const MIC_DEGRADED_TEXT = '麦克风不可用，未在采集音频，本回合走文本输入'
+
+const MicDegradedNotice: React.FC = () => (
+  <div
+    role="alert"
+    className="mb-2 px-3 py-2 rounded-md border border-amber-500/30 bg-amber-500/5 text-amber-500 text-[11px] leading-relaxed"
+  >
+    {MIC_DEGRADED_TEXT}
+  </div>
+)
+
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   mode, personaLabel, companionName, voice, emoColor,
   activePersonality, onSwitchPersonality, onNavigateLib, onFillInput, onSuggestion,
 }) => {
+  // 遥测行文案：降级时不得显示 LISTEN（麦克风不可用时宣称在听=同一条谎），
+  // 与上方警示条口径一致；非降级时逐字零变化。
+  const voiceTelemetry = voice.degraded === 'mic-unavailable'
+    ? 'MIC OFF'
+    : voice.listening ? 'LISTEN' : voice.aiSpeaking ? 'SPEAK' : 'STANDBY'
   if (mode !== 'plain') {
     return (
       <div className="chat-welcome">
@@ -58,6 +78,8 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         </div>
 
         <span className="chat-wel-kicker">// COMPANION · {personaLabel}</span>
+
+        {voice.degraded === 'mic-unavailable' && <MicDegradedNotice />}
 
         <div className="chat-wel-orb chat-wel-orb-sm">
           <span className="chat-wel-ring chat-wel-ring-1" aria-hidden="true" />
@@ -76,7 +98,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           <span className="chat-wel-dot" />
           BOND <b>ACTIVE</b>
           <span className="chat-wel-sep" />
-          VOICE <b>{voice.listening ? 'LISTEN' : voice.aiSpeaking ? 'SPEAK' : 'STANDBY'}</b>
+          VOICE <b>{voiceTelemetry}</b>
           <span className="chat-wel-sep" />
           INPUT <b>READY</b>
         </div>
@@ -112,6 +134,8 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
       <span className="chat-wel-kicker">// GAEA CORE · 语音就绪</span>
 
+      {voice.degraded === 'mic-unavailable' && <MicDegradedNotice />}
+
       <div className="chat-wel-orb">
         <span className="chat-wel-ring chat-wel-ring-1" aria-hidden="true" />
         <span className="chat-wel-ring chat-wel-ring-2" aria-hidden="true" />
@@ -122,6 +146,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           aiSpeaking={voice.aiSpeaking}
           transcript={voice.transcript}
           size={188}
+          micUnavailable={voice.degraded === 'mic-unavailable'}
         />
       </div>
 
@@ -130,7 +155,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
       <div className="chat-wel-telemetry">
         <span className="chat-wel-dot" />
-        VOICE <b>{voice.listening ? 'LISTEN' : voice.aiSpeaking ? 'SPEAK' : 'STANDBY'}</b>
+        VOICE <b>{voiceTelemetry}</b>
         <span className="chat-wel-sep" />
         CORE <b>ONLINE</b>
         <span className="chat-wel-sep" />

@@ -89,6 +89,9 @@ export function ScheduleDiffCard({ args }: { args: string | null }) {
   const isDefaultPath = !parsed?.path || parsed.path === SCHEDULE_FILE_PATH
   // before 文件实况：仅缺省路径可得（绑定口径）；非缺省/读取失败 → null=降级
   const [before, setBefore] = useState<SchedProject | null>(null)
+  // FE7-14：读取失败与「无可比内容」必须可分辨——此前两者都静默置 null，
+  // 用户看到「意图清单」不知道是文件本来为空还是读不出来。
+  const [beforeReadError, setBeforeReadError] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(false)
 
   const projectKey = parsed?.project ? JSON.stringify(parsed.project).length + (parsed.project.name ?? '') : ''
@@ -96,8 +99,16 @@ export function ScheduleDiffCard({ args }: { args: string | null }) {
     if (!parsed || (!parsed.project && !parsed.ops) || !isDefaultPath) return
     let alive = true
     loadScheduleFile()
-      .then((r) => { if (alive) setBefore(r.exists && r.project ? r.project : null) })
-      .catch(() => { if (alive) setBefore(null) })
+      .then((r) => {
+        if (!alive) return
+        setBefore(r.exists && r.project ? r.project : null)
+        setBeforeReadError(null) // exists=false = 确实无现状文件（非失败）
+      })
+      .catch((e: unknown) => {
+        if (!alive) return
+        setBefore(null)
+        setBeforeReadError(e instanceof Error ? (e.message || String(e)) : String(e ?? '未知错误'))
+      })
     return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- parsed 是 useMemo 派生对象，展开依赖会每帧重读文件；projectKey 已代表其内容变化
   }, [parsed?.project, parsed?.ops, isDefaultPath, projectKey])
@@ -117,7 +128,13 @@ export function ScheduleDiffCard({ args }: { args: string | null }) {
   let degrade: string | null = null
   if (parsed.project) {
     diff = before ? diffProjects(before, parsed.project) : null
-    if (!before) degrade = isDefaultPath ? '现状读取失败，无对比' : '非当前计划文件，无现状对比'
+    if (!before) {
+      degrade = isDefaultPath
+        ? (beforeReadError
+          ? `原计划文件读取失败（${beforeReadError}），仅显示意图`
+          : '非当前计划文件，无现状对比')
+        : '非当前计划文件，无现状对比'
+    }
   } else if (before) {
     const sim = simulateOps(before, (parsed.ops ?? []) as SimOp[])
     if (sim.ok) {
@@ -128,7 +145,10 @@ export function ScheduleDiffCard({ args }: { args: string | null }) {
   } else if (!isDefaultPath) {
     degrade = '非当前计划文件，无现状对比（ops 意图见参数折叠区）'
   } else {
-    degrade = '现状读取失败，无对比'
+    // FE7-14：读失败与「无可比内容」可分辨（此前一律「现状读取失败，无对比」）
+    degrade = beforeReadError
+      ? `原计划文件读取失败（${beforeReadError}），仅显示意图`
+      : '当前计划尚无可比内容（现状文件为空）'
   }
   if (!parsed.project && !before) {
     // ops 通道降级形态：意图清单 + 原因

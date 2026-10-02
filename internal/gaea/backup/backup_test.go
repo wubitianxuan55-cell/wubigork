@@ -353,3 +353,90 @@ func TestSafeZipRelRejectsDriveLetter(t *testing.T) {
 		}
 	}
 }
+
+// TestCreateMissingSourceRecordedAsWarning 审计 GA4-11：源缺失（首次运行无库
+// 等良性情形）跳过，但必须记进 manifest.Warnings——不记就等于「清单完整，
+// 数据其实没备份」。
+func TestCreateMissingSourceRecordedAsWarning(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "keep.txt"), []byte("hi"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	absent := filepath.Join(root, "absent.db")
+	plan := NewPlan(root, []Source{
+		{ZipRel: "keep.txt", Abs: filepath.Join(root, "keep.txt")},
+		{ZipRel: "absent.db", Abs: absent},
+	}, nil)
+	m, err := plan.Create(filepath.Join(t.TempDir(), "b.zip"), "test")
+	if err != nil {
+		t.Fatalf("源缺失是良性跳过，不应报错: %v", err)
+	}
+	warned := false
+	for _, w := range m.Warnings {
+		if strings.Contains(w, "源缺失") && strings.Contains(w, "absent.db") {
+			warned = true
+		}
+	}
+	if !warned {
+		t.Errorf("缺失源必须记入 manifest.Warnings，实际 %+v", m.Warnings)
+	}
+}
+
+// TestCreateStatErrorAborts 审计 GA4-11：os.Stat 的非「不存在」失败（权限/
+// 路径非法/磁盘掉线）必须中止备份并返回 error，不得当作「源缺失」静默跳过。
+func TestCreateStatErrorAborts(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "keep.txt"), []byte("hi"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// 含 NUL 的路径：os.Stat 返回 EINVAL（非 fs.ErrNotExist），跨平台稳定。
+	bad := filepath.Join(root, "bad\x00name.db")
+	if _, serr := os.Stat(bad); serr == nil || os.IsNotExist(serr) {
+		t.Skipf("本平台 stat(%q) = %v，无法用它注入非「不存在」失败", bad, serr)
+	}
+	plan := NewPlan(root, []Source{
+		{ZipRel: "keep.txt", Abs: filepath.Join(root, "keep.txt")},
+		{ZipRel: "bad.db", Abs: bad},
+	}, nil)
+	zipPath := filepath.Join(t.TempDir(), "b.zip")
+	if _, err := plan.Create(zipPath, "test"); err == nil {
+		t.Fatal("stat 非「不存在」失败必须中止备份并返回 error（旧实现一律 continue）")
+	} else if !strings.Contains(err.Error(), "检查备份源") {
+		t.Errorf("错误须点名失败的源路径，实际: %v", err)
+	}
+	if _, serr := os.Stat(zipPath); serr == nil {
+		t.Error("中止时不应留下半成品 zip")
+	}
+}
+
+// TestRollbackBeforeAllSucceed 对照：全部条目回滚成功 → (true, nil) 并清掉
+// .restore-before。
+func TestRollbackBeforeAllSucceed(t *testing.T) {
+	root := t.TempDir()
+	before := filepath.Join(root, ".restore-before")
+	if err := os.MkdirAll(before, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(before, "a.txt"), []byte("旧数据"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ok, err := RollbackBefore(root)
+	if err != nil || !ok {
+		t.Fatalf("全部成功应返回 (true, nil)，实际 ok=%v err=%v", ok, err)
+	}
+	if data, rerr := os.ReadFile(filepath.Join(root, "a.txt")); rerr != nil || string(data) != "旧数据" {
+		t.Errorf("数据未回滚: %q err=%v", data, rerr)
+	}
+	if _, serr := os.Stat(before); serr == nil {
+		t.Error("全部成功后应清理 .restore-before")
+	}
+}
+
+// TestRollbackBeforeNoBeforeDir 对照：无 .restore-before → (false, nil)，
+// 不把「没得回滚」报成错误。
+func TestRollbackBeforeNoBeforeDir(t *testing.T) {
+	ok, err := RollbackBefore(t.TempDir())
+	if err != nil || ok {
+		t.Fatalf("无 .restore-before 应返回 (false, nil)，实际 ok=%v err=%v", ok, err)
+	}
+}

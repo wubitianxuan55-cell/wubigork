@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/proc"
+	"github.com/gaea/gaea/internal/gaea/strutil"
 )
 
 // PptxSlideOutline 是单页大纲：Index 为 1-based 页码（与逐页预览的页锚点、
@@ -243,12 +244,13 @@ func parsePptxOutline(out string) PptxOutlineView {
 }
 
 // truncateRunesEllipsis 按 rune 截断（UTF-8 安全），截断处附省略号。
+//
+// 审计 X1-06 / X1-18：切片逻辑下沉 strutil 单源（本处语义 = 保留前 n 个 rune
+// 再追加「…」，总长 ≤ n+1）。与 strutil.TruncateRunesSuffix 的唯一差别在不可达
+// 边界：n<0 时旧实现切片越界 panic、原语返回「…」。调用点实参为
+// pptxOutlineTextLimit（正数常量），故差异不可达。
 func truncateRunesEllipsis(s string, n int) string {
-	r := []rune(s)
-	if len(r) <= n {
-		return s
-	}
-	return string(r[:n]) + "…"
+	return strutil.TruncateRunesSuffix(s, n, "…")
 }
 
 // ── .pptx 预览：soffice→PDF（缓存）+ poppler 逐页缩略 ────────────────────

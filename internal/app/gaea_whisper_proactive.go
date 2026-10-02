@@ -102,30 +102,49 @@ func inQuietWindow(now time.Time, startHour, endHour int) bool {
 // startProactiveTicker 启动主动关心定时推送循环：先评估一轮（幂等，会话按需
 // 创建、启动时通常为空），之后按配置间隔循环。间隔每次从配置读取，改配置
 // 下一轮生效。幂等：首次调用启动，Shutdown 时停止。
+//
+// 审计 P2 AP5-16：recover 此前在循环**外层**——任一轮评估 panic 即 return，
+// 主动关心永久停摆；且 proactiveOnce 已被消耗，没有任何路径能重启它（用户侧
+// 表现为「开关开着但再也不主动关心」）。现在把 panic 防线放进循环体内
+// （proactiveLoop 的 runTick），单次 panic 只丢这一轮。
 func (a *whisperState) startProactiveTicker() {
 	a.proactiveOnce.Do(func() {
 		stop := make(chan struct{})
 		a.proactiveStop = stop
-		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					slog.Error("proactive ticker panic recovered", "panic", r)
-				}
-			}()
-			a.tickProactive(time.Now())
-			for {
-				interval := time.Duration(a.getProactiveCfg().IntervalMin) * time.Minute
-				timer := time.NewTimer(interval)
-				select {
-				case <-stop:
-					timer.Stop()
-					return
-				case <-timer.C:
-					a.tickProactive(time.Now())
-				}
+		go a.proactiveLoop(stop, a.proactiveInterval, a.tickProactive)
+	})
+}
+
+// proactiveInterval 返回当前评估间隔（每轮现读配置，改配置下一轮生效）。
+func (a *whisperState) proactiveInterval() time.Duration {
+	return time.Duration(a.getProactiveCfg().IntervalMin) * time.Minute
+}
+
+// proactiveLoop 定时推送循环骨架：interval/tick 可注入——测试用小间隔 + 首轮
+// 必 panic 的 tick，验证「单次 panic 不终止循环」。每轮一个 panic 防线（不是
+// 每个循环一个），这是 AP5-16 的根修点。
+func (a *whisperState) proactiveLoop(stop <-chan struct{}, interval func() time.Duration, tick func(time.Time) int) {
+	runTick := func(now time.Time) {
+		defer func() {
+			if r := recover(); r != nil {
+				a.gaeaBackgroundPanicNotice("轻语主动关心定时推送", r, map[string]interface{}{
+					"at": now.Format(time.RFC3339),
+				})
 			}
 		}()
-	})
+		tick(now)
+	}
+	runTick(time.Now())
+	for {
+		timer := time.NewTimer(interval())
+		select {
+		case <-stop:
+			timer.Stop()
+			return
+		case <-timer.C:
+			runTick(time.Now())
+		}
+	}
 }
 
 // tickProactive 一轮评估：快照全部轻语会话 → 逐个评估 → 合成成功即推事件并

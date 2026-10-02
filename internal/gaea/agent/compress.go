@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/strutil"
+	"github.com/gaea/gaea/internal/gaea/wspath"
 )
 
 // grepMatch 表示一条 grep 匹配行。
@@ -265,12 +266,8 @@ func formatGrepPassthrough(matches []grepMatch) string {
 
 // ─── tree 压缩器 ────────────────────────────────────────────────
 
-// 已知噪声目录——这些在树输出中应被折叠。
-var noiseDirs = []string{
-	"node_modules", ".git", "dist", "build", "target",
-	"__pycache__", ".next", ".nuxt", ".cache", ".venv",
-	"venv", "coverage", "out", ".turbo", ".devenv",
-}
+// 已知噪声目录口径见 internal/gaea/wspath（唯一真相源）：树压缩器与 grep
+// 工具共用 GrepExtra 增量，不再自建清单。
 
 // compressTree 压缩目录树输出。
 // 折叠已知噪声目录，其余内容原样保留。
@@ -288,11 +285,8 @@ func compressTree(raw string) string {
 		trimmed := strings.TrimSpace(line)
 		// 去除尾部斜杠
 		name := strings.TrimRight(trimmed, "/")
-		for _, nd := range noiseDirs {
-			if name == nd {
-				hasNoise = true
-				break
-			}
+		if wspath.IsSkippedIn(name, wspath.GrepExtra) {
+			hasNoise = true
 		}
 		if hasNoise {
 			break
@@ -319,13 +313,7 @@ func compressTree(raw string) string {
 		trimmed := strings.TrimSpace(line)
 		name := strings.TrimRight(trimmed, "/")
 
-		isNoise := false
-		for _, nd := range noiseDirs {
-			if name == nd {
-				isNoise = true
-				break
-			}
-		}
+		isNoise := wspath.IsSkippedIn(name, wspath.GrepExtra)
 
 		if isNoise {
 			depth := indentDepth(line)

@@ -18,6 +18,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/gaea/gaea/internal/gaea/strutil"
 )
 
 // BriefItem 是晨报里的一条记忆（前端渲染名称 + 描述摘要）。
@@ -54,13 +56,16 @@ func morningRankTime(m Memory) time.Time {
 
 // truncateMorningDesc 按 rune 边界截断描述（不切开多字节 UTF-8 字符）：
 // 超预算时取前 119 rune 追加 "…"（共 120 rune，对齐项目既有 "…" 截断惯例）。
+// truncateMorningDesc 先压成单行并去首尾空白，再按 rune 截断到
+// morningDescRunes（未超长不补省略号，超长时总长恰为 morningDescRunes）。
+// X1-06 收敛：截断口径见 strutil.TruncateRunesEllipsis；本包装保留
+// oneLine+TrimSpace 前置政策，长度判断与 strutil 内部口径一致。
 func truncateMorningDesc(s string) string {
 	s = strings.TrimSpace(oneLine(s))
 	if utf8.RuneCountInString(s) <= morningDescRunes {
 		return s
 	}
-	rs := []rune(s)
-	return string(rs[:morningDescRunes-1]) + "\u2026"
+	return strutil.TruncateRunesEllipsis(s, morningDescRunes)
 }
 
 // morningRecencySort 按 max(UpdatedAt,LastUsedAt) 降序稳定排序，同刻按

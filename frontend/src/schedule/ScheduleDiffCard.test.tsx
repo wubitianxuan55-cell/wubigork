@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { ScheduleDiffCard } from './ScheduleDiffCard'
 import { scheduleApplyArgsOf } from './applyDiff'
 import type { SchedProject } from './types'
@@ -82,6 +82,33 @@ describe('ScheduleDiffCard（schedule_apply 审批卡 diff 卡体，刀B）', ()
   it('args 为 null（参数未就绪）→ 提示且不崩', () => {
     render(<ScheduleDiffCard args={null} />)
     expect(screen.getByText(/参数尚未就绪或解析失败/)).toBeTruthy()
+  })
+
+  // FE7-14：before 读取失败与「无可比内容」必须可分辨——此前两者都静默置 null，
+  // 用户看到「意图清单」无从判断是文件本来为空还是读不出来。
+  it('before 读取失败（project 通道）→ 汇总行明说「读取失败，仅显示意图」', async () => {
+    mocks.load.mockRejectedValue(new Error('EACCES: permission denied'))
+    render(<ScheduleDiffCard args={JSON.stringify({ project: after })} />)
+    const card = await screen.findByTestId('sched-diff-card')
+    await waitFor(() => expect(card.textContent).toContain('原计划文件读取失败'))
+    expect(card.textContent).toContain('仅显示意图')
+    expect(card.textContent).toContain('EACCES')
+  })
+
+  it('before 文件确不存在（exists=false）→ 不谎报读取失败', async () => {
+    mocks.load.mockResolvedValue({ exists: false, path: '进度计划/当前计划.gsched.json' })
+    render(<ScheduleDiffCard args={JSON.stringify({ ops: [{ type: 'patch_task', id: 'A', patch: { duration: 9 } }] })} />)
+    const card = await screen.findByTestId('sched-diff-card')
+    await waitFor(() => expect(card.textContent).toContain('当前计划尚无可比内容'))
+    expect(card.textContent).not.toContain('读取失败')
+  })
+
+  it('before 读取失败（ops 通道）→ 意图清单里说明读取失败原因', async () => {
+    mocks.load.mockRejectedValue(new Error('EACCES: permission denied'))
+    render(<ScheduleDiffCard args={JSON.stringify({ ops: [{ type: 'patch_task', id: 'A', patch: { duration: 9 } }] })} />)
+    const card = await screen.findByTestId('sched-diff-card')
+    await waitFor(() => expect(card.textContent).toContain('原计划文件读取失败'))
+    expect(card.textContent).toContain('EACCES')
   })
 
   it('scheduleApplyArgsOf：取最后一条 running 的 schedule_apply args', () => {

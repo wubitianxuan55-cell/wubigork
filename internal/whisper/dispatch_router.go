@@ -10,6 +10,8 @@ import (
 	"math"
 	"strings"
 	"time"
+
+	"github.com/gaea/gaea/internal/gaea/strutil"
 )
 
 // ─── 类型 ──────────────────────────────────────────────────────
@@ -196,7 +198,7 @@ func extractComplexTopic(msg string) string {
 			return rest
 		}
 	}
-	return truncateStr(msg, 60)
+	return strutil.TruncateRunesSuffix(msg, 60, "…")
 }
 
 // ─── 内置候选 ──────────────────────────────────────────────────
@@ -258,13 +260,13 @@ func buildDispatchLlmPrompt(
 	parts = append(parts, fmt.Sprintf("时间：%s", now.Format(time.RFC3339)))
 	parts = append(parts, fmt.Sprintf("情绪：%s", emotionLabel))
 	if recentCtx != "" {
-		parts = append(parts, fmt.Sprintf("最近对话：%s", truncateStr(recentCtx, 400)))
+		parts = append(parts, fmt.Sprintf("最近对话：%s", strutil.TruncateRunesSuffix(recentCtx, 400, "…")))
 	}
 	if activityHint != "" {
 		parts = append(parts, fmt.Sprintf("用户场景：%s", activityHint))
 	}
 	if memoryBlock != "" {
-		parts = append(parts, fmt.Sprintf("相关记忆：%s", truncateStr(memoryBlock, 1200)))
+		parts = append(parts, fmt.Sprintf("相关记忆：%s", strutil.TruncateRunesSuffix(memoryBlock, 1200, "…")))
 	}
 	parts = append(parts, "")
 	parts = append(parts, "候选功能：")

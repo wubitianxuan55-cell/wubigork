@@ -6,6 +6,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -68,6 +69,12 @@ func (c *core) featureModel(feature string) (engine, model string) {
 	return c.cfg.GetFeatureModel(feature)
 }
 
+// featureModelSave 是 config.Save 的调用缝（生产恒为 config.Save；测试注入
+// 落盘失败用）。审计 P2 AP8-16 的行为契约——「持久化失败即回滚内存 + 返回
+// error」——需要在测试里稳定制造落盘失败：Windows 上「只读目录」拦不住写
+// （目录 ACL 仍允许创建文件），故用调用缝而非真实只读目录。
+var featureModelSave = config.Save
+
 // SetFeatureModel 设置功能绑定的引擎 + 模型（持久化，重启不丢）
 func (c *core) SetFeatureModel(feature, engineID, modelName string) error {
 	if c.engineMgr == nil {
@@ -99,17 +106,34 @@ func (c *core) SetFeatureModel(feature, engineID, modelName string) error {
 		}
 	}
 
+	// 记下保存前的内存值：任一处持久化失败即整体回滚（审计 P2 AP8-16）。
+	prevEngine, prevModel := c.cfg.GetFeatureModel(feature)
+	prevEnabled := c.cfg.GetFeatureModelEnabled(feature)
+
 	c.cfg.SetFeatureModel(feature, engineID, modelName)
 	c.cfg.SetFeatureModelEnabled(feature, true) // 绑定即启用
-	if err := config.Save(engineKey, engineID); err != nil {
-		slog.Warn("保存功能引擎失败", "feature", feature, "error", err)
+	// 三处落盘错误全部收集（errors.Join），任一失败即回滚内存并透传错误——
+	// 此前只 slog.Warn 且 return nil：用户以为绑定已保存，重启后回退到旧值，
+	// 且「建议已应用」之类的审计记录与磁盘实况不符。参考 SaveToken/Logout 的
+	// 错误透传纪律（正确先例）。
+	var saveErrs []error
+	if err := featureModelSave(engineKey, engineID); err != nil {
+		saveErrs = append(saveErrs, fmt.Errorf("保存功能引擎失败: %w", err))
 	}
-	if err := config.Save(modelKey, modelName); err != nil {
-		slog.Warn("保存功能模型失败", "feature", feature, "error", err)
+	if err := featureModelSave(modelKey, modelName); err != nil {
+		saveErrs = append(saveErrs, fmt.Errorf("保存功能模型失败: %w", err))
 	}
 	enabledKey, _ := featureModelEnabledKey(feature)
-	if err := config.Save(enabledKey, "1"); err != nil {
-		slog.Warn("保存功能启用状态失败", "feature", feature, "error", err)
+	if err := featureModelSave(enabledKey, "1"); err != nil {
+		saveErrs = append(saveErrs, fmt.Errorf("保存功能启用状态失败: %w", err))
+	}
+	if len(saveErrs) > 0 {
+		c.cfg.SetFeatureModel(feature, prevEngine, prevModel)
+		c.cfg.SetFeatureModelEnabled(feature, prevEnabled)
+		err := errors.Join(saveErrs...)
+		slog.Error("功能模型绑定落盘失败，已回滚内存配置",
+			"feature", feature, "engine", engineID, "model", modelName, "error", err)
+		return err
 	}
 	c.emit("feature-model-changed", map[string]interface{}{
 		"feature": feature, "engine": engineID, "model": modelName, "enabled": true,
@@ -125,9 +149,13 @@ func (c *core) SetFeatureModelEnabled(feature string, enabled bool) error {
 	if !ok {
 		return &appError{"未知功能: " + feature}
 	}
+	prevEnabled := c.cfg.GetFeatureModelEnabled(feature)
 	c.cfg.SetFeatureModelEnabled(feature, enabled)
-	if err := config.Save(key, strconv.FormatBool(enabled)); err != nil {
-		slog.Warn("保存功能启用状态失败", "feature", feature, "error", err)
+	if err := featureModelSave(key, strconv.FormatBool(enabled)); err != nil {
+		// 同 AP8-16 纪律：落盘失败即回滚内存（否则内存已停用、磁盘仍是启用，
+		// 重启后状态回跳，用户看到的开关与实际路由不一致）。
+		c.cfg.SetFeatureModelEnabled(feature, prevEnabled)
+		slog.Error("功能启停落盘失败，已回滚内存配置", "feature", feature, "enabled", enabled, "error", err)
 		return err
 	}
 	c.emit("feature-model-changed", map[string]interface{}{

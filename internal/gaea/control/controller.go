@@ -485,8 +485,6 @@ func (c *Controller) runTurnWithRaw(ctx context.Context, input, raw string) erro
 	}()
 
 	// V3.0 Phase 5: ContextManager handles first-turn orchestration.
-
-	// V3.0 Phase 5: ContextManager handles first-turn orchestration.
 	// ProcessFirstTurn locks the runtime (idempotent). On the first turn,
 	// also push the L2 system prompt into the agent so the model gets
 	// project/task context. Subsequent turns reuse the cached L2 bytes.
@@ -845,8 +843,6 @@ func (c *Controller) Compact(ctx context.Context, instructions string) error {
 	return nil
 }
 
-// Dream extracts knowledge from the current session into project memory.
-// Uses deterministic session summary (no LLM call). V6.0 Feature.
 // maybeSessionStart fires the SessionStart hook exactly once per session, lazily
 // on the first turn — by then the sink/notify is wired, and a resumed session
 // fires it too (its first post-resume turn).
@@ -911,9 +907,7 @@ func (c *Controller) SystemPrompt() string {
 	return c.systemPrompt
 }
 
-// NewSession snapshots the current conversation, rotates to a fresh file, and
-// resets the executor to a clean session carrying the same system prompt. It
-// ends the old session and starts the new one for lifecycle hooks.
+// History returns the executor's current message log (for repopulating a
 // resumed frontend's view).
 func (c *Controller) History() []provider.Message {
 	if c.executor == nil {

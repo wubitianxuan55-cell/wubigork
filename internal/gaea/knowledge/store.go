@@ -3,6 +3,7 @@ package knowledge
 import (
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -168,6 +169,9 @@ func (b *fileBackend) List() ([]EntrySummary, error) {
 func (b *fileBackend) Index() string {
 	data, err := os.ReadFile(filepath.Join(b.dir, "INDEX.md"))
 	if err != nil {
+		// 索引读取失败不能在字符串里悄悄降级（审计 GA3-13）：日志留痕，
+		// 便于区分「索引文件真的不可读」与「索引为空」。
+		slog.Warn("knowledge: 读取 INDEX.md 失败，索引不可用", "dir", b.dir, "error", err)
 		return "# 知识库索引\n\n（索引不可用）\n"
 	}
 	return string(data)

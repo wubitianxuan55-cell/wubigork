@@ -1,11 +1,93 @@
 package app
 
 import (
+	"fmt"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
+	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/provider"
 )
+
+// captureGaeaNotices 注入 notice 发射缝，返回已捕获的 notice 文案读取函数。
+// 只收 gaea-event 且 kind=notice 的载荷（后台 panic 的可见通道）。
+func captureGaeaNotices(t *testing.T) func() []string {
+	t.Helper()
+	orig := gaeaNoticeSink
+	t.Cleanup(func() { gaeaNoticeSink = orig })
+	var mu sync.Mutex
+	var texts []string
+	gaeaNoticeSink = func(name string, data map[string]interface{}) {
+		if name != "gaea-event" {
+			return
+		}
+		if kind, _ := data["kind"].(string); kind != "notice" {
+			return
+		}
+		mu.Lock()
+		texts = append(texts, fmt.Sprint(data["text"]))
+		mu.Unlock()
+	}
+	return func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+		return append([]string(nil), texts...)
+	}
+}
+
+// TestMaybeDreamAfterTurn_PanicResetsStateAndNotifies 审计 P2 AP5-16：后台整理
+// panic 后必须（1）复位单飞状态位 running（否则自动做梦永久停摆）、（2）发一条
+// 前端可见的 notice（此前只 slog.Error 就吞掉，用户侧「功能开着但再也不工作」）。
+func TestMaybeDreamAfterTurn_PanicResetsStateAndNotifies(t *testing.T) {
+	oldCfg := ga.cfg
+	ga.cfg = &gaeaConfig.Config{
+		Dream:  gaeaConfig.DreamConfig{Mode: "suggest"},
+		Memory: gaeaConfig.MemoryConfig{Enabled: true},
+	}
+	t.Cleanup(func() { ga.cfg = oldCfg })
+
+	origRun := gaeaDreamRun
+	t.Cleanup(func() { gaeaDreamRun = origRun })
+	gaeaDreamRun = func(*App, string) error { panic("dream boom") }
+
+	notices := captureGaeaNotices(t)
+
+	a := &App{core: &core{}}
+	a.maybeDreamAfterTurn("work")
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		gaeaDreamState.Lock()
+		running := gaeaDreamState.running
+		gaeaDreamState.Unlock()
+		if !running && len(notices()) > 0 {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	gaeaDreamState.Lock()
+	running := gaeaDreamState.running
+	gaeaDreamState.Unlock()
+	if running {
+		t.Fatal("panic 后单飞位 running 未复位——自动做梦将永久停摆")
+	}
+	got := notices()
+	if len(got) == 0 {
+		t.Fatal("panic 后未发前端可见 notice（AP5-16 要求可见化）")
+	}
+	if !strings.Contains(got[0], "自动做梦") || !strings.Contains(got[0], "dream boom") {
+		t.Fatalf("notice 文案应含任务名与 panic 值: %q", got[0])
+	}
+}
+
+// TestGaeaBackgroundPanicNotice_DefaultsToGaeaEvent 不注入缝时走真实 emit 通道，
+// 且不 panic（生产路径冒烟：core.ctx 为 nil 时 emit 内部自守）。
+func TestGaeaBackgroundPanicNotice_DefaultsToGaeaEvent(t *testing.T) {
+	c := &core{}
+	c.gaeaBackgroundPanicNotice("测试任务", "boom", map[string]interface{}{"k": "v"})
+}
 
 func TestParseDreamOutput(t *testing.T) {
 	cases := []struct {

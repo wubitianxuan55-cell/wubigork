@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isScheduleFilePath, parseSchedSummary, SCHEDULE_FILE_PATH } from './gschedSummary'
+import { isScheduleFilePath, parseSchedSummary, parseSchedSummaryDetail, SCHEDULE_FILE_PATH } from './gschedSummary'
 import type { SchedLink, SchedProject, SchedTask } from './types'
 
 function t(id: string, duration: number, extra?: Partial<SchedTask>): SchedTask {
@@ -106,5 +106,28 @@ describe('parseSchedSummary 摘要解析', () => {
     expect(s!.ok).toBe(true)
     expect(s!.taskCount).toBe(0)
     expect(s!.finishDate).toBeNull()
+  })
+})
+
+// FE7-14：解析失败不再只返 null 就完事——detail 变体把「为什么没有摘要」
+// 如实交出，调用方（FilePreview 分发点）据此上屏一行诚实提示。
+describe('parseSchedSummaryDetail 失败原因可见（FE7-14）', () => {
+  it('坏 JSON → reason 指出 JSON 不合法（不再静默 null）', () => {
+    const d = parseSchedSummaryDetail('not json{')
+    expect(d.summary).toBeNull()
+    expect(d.reason).toContain('JSON 不合法')
+  })
+
+  it('JSON 合法但非计划形状 → reason 区分「不是计划文件」而非「解析坏了」', () => {
+    const d = parseSchedSummaryDetail(JSON.stringify({ foo: 1 }))
+    expect(d.summary).toBeNull()
+    expect(d.reason).toContain('不是计划工程形状')
+  })
+
+  it('解析成功 → reason 为 null，summary 与 parseSchedSummary 同源同值', () => {
+    const raw = JSON.stringify(project())
+    const d = parseSchedSummaryDetail(raw)
+    expect(d.reason).toBeNull()
+    expect(d.summary).toEqual(parseSchedSummary(raw))
   })
 })

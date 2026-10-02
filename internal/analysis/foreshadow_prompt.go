@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gaea/gaea/internal/gaea/strutil"
 	"github.com/gaea/gaea/internal/types"
 )
 
@@ -88,9 +89,9 @@ func RenderForeshadowCandidates(items []types.Foreshadow, chapterNum int) string
 			fs := c.fs
 			b.WriteString(fmt.Sprintf("%d. 【ID: %s】%s\n", i+1, fs.ID, displayTitle(fs)))
 			b.WriteString(fmt.Sprintf("   埋入章节：第%d章\n", c.plantNo))
-			b.WriteString(fmt.Sprintf("   伏笔内容：%s\n", truncateRunes(fs.Description, candidateContentMax)))
+			b.WriteString(fmt.Sprintf("   伏笔内容：%s\n", strutil.TruncateRunesSuffix(fs.Description, candidateContentMax, "...")))
 			if hint := strings.TrimSpace(fs.HintText); hint != "" {
-				b.WriteString(fmt.Sprintf("   埋入暗示：%s\n", truncateRunes(hint, candidateHintMax)))
+				b.WriteString(fmt.Sprintf("   埋入暗示：%s\n", strutil.TruncateRunesSuffix(hint, candidateHintMax, "...")))
 			}
 			b.WriteString(fmt.Sprintf("   ⚠️ 回收时 reference_stable_id 填写: %s\n", fs.ID))
 		}
@@ -143,5 +144,5 @@ func displayTitle(f types.Foreshadow) string {
 	if t := strings.TrimSpace(f.Title); t != "" {
 		return t
 	}
-	return truncateRunes(f.Description, candidateTitleMax)
+	return strutil.TruncateRunesSuffix(f.Description, candidateTitleMax, "...")
 }

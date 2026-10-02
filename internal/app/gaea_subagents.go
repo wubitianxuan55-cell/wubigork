@@ -12,6 +12,7 @@ import (
 
 	gaeaAgent "github.com/gaea/gaea/internal/gaea/agent"
 	"github.com/gaea/gaea/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/strutil"
 )
 
 // SubagentRunView 是「多智能体分工」面板的单条子代理视图（P2，对标
@@ -281,11 +282,13 @@ func oneLineHead(s string, n int) string {
 	return string(r[:n]) + "…"
 }
 
-// truncateRunes 按 rune 截断字符串（中文字符按字符计）。
+// truncateRunes 按 rune 截断字符串（中文字符按字符计），总长恰为 n。
+//
+// 审计 X1-06 / X1-18：切片逻辑下沉 strutil 单源，本函数退化为一行委托。
+// 与 strutil.TruncateRunesEllipsis 的唯一差别在**不可达边界**：n==1 时旧实现给
+// 「…」（r[:0]+省略号）、原语给首个 rune；n<0 时旧实现切片越界 panic、原语返回
+// ""。packages 内全部调用点实参均为 ≥20 的字面量或具名 rune 预算常量（同批
+// strutil.truncate_test.go 对 app 站点登记的可达域为 n≥2），故两处差异不可达。
 func truncateRunes(s string, n int) string {
-	r := []rune(s)
-	if len(r) <= n {
-		return s
-	}
-	return string(r[:n-1]) + "…"
+	return strutil.TruncateRunesEllipsis(s, n)
 }

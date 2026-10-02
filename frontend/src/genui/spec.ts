@@ -4,21 +4,21 @@
 // 校验/修复后由 GenuiBlock 渲染为白名单组件。规格语言只在本文件声明，
 // guard 与渲染器共享同一份类型与上限常量。
 
-/** 统一资源上限（单一权威常量；Go 侧 genui_validate 的注释以本表为准）。 */
+import { GENUI_GO_LIMITS, GENUI_GO_NODE_TYPES } from "./limits";
+
+/**
+ * 统一资源上限。
+ *
+ * 与 Go 侧（internal/gaea/genui/limits.go）**共用的那部分**来自生成的
+ * ./limits.ts（单一真相源在 Go，审计 X1-07；改 Go 常量后按 limits.ts 头部命令
+ * 重新生成，漂移会被 Go 侧 TestGenuiLimitsSync 逐字节拦下）。本表只额外声明
+ * 渲染器独有的上限——它们没有 Go 侧校验对应物，改动不影响 genui_validate。
+ */
 export const GENUI_LIMITS = {
-  maxDepth: 8,
-  maxNodes: 200,
-  maxString: 2000,
-  maxCode: 12000,
-  maxFenceBody: 65536,
-  maxGridCols: 12,
+  ...GENUI_GO_LIMITS,
   maxTabs: 12,
   maxAccordionItems: 24,
   maxListItems: 50,
-  maxOptions: 50,
-  maxTableRows: 50,
-  maxTableCols: 12,
-  maxChartPoints: 60,
   maxTimelineItems: 24,
   maxSteps: 24,
   maxKeyValuePairs: 24,
@@ -289,14 +289,13 @@ export interface GenuiSpec {
   items: GenuiNode[];
 }
 
-/** 全部合法 type（guard 与 validate 共用）。 */
-export const GENUI_NODE_TYPES: ReadonlySet<string> = new Set([
-  "text", "row", "col", "grid", "card", "divider", "spacer",
-  "stat", "badge", "progress", "keyvalue", "list", "table", "timeline",
-  "callout", "steps", "avatar", "copy",
-  "chart", "code", "json", "diff",
-  "button", "input", "select", "checkbox", "switch", "radio", "slider",
-  "textarea", "submit", "tabs", "accordion", "quiz",
-]);
+/**
+ * 全部合法 type（guard 与 renderNode 共用）。
+ *
+ * 来自生成的 ./limits.ts（单一真相源是 Go 侧 limits.go 的 nodeTypes 表，审计
+ * X1-07/FE6-03）：新增/改名组件只改 Go 侧并重新生成，本文件不再手写清单
+ * （收敛前这份清单在 Go validate.go / spec.ts / guard.ts 各写一遍）。
+ */
+export const GENUI_NODE_TYPES: ReadonlySet<string> = new Set(GENUI_GO_NODE_TYPES);
 
 export const GENUI_FENCE_LANGS: ReadonlySet<string> = new Set(["genui", "dsh-ui"]);

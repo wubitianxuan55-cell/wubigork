@@ -15,6 +15,8 @@ import (
 
 	"github.com/gaea/gaea/internal/docmd"
 	"github.com/gaea/gaea/internal/gaea/search"
+	"github.com/gaea/gaea/internal/gaea/strutil"
+	"github.com/gaea/gaea/internal/gaea/wspath"
 )
 
 // Hit 是工作区全文搜索的一条命中。
@@ -41,12 +43,6 @@ var textExts = map[string]bool{
 // 索引收录的办公类扩展名（docmd 转 Markdown 提取正文）。
 var officeExts = map[string]bool{
 	".docx": true, ".doc": true, ".xlsx": true, ".xls": true, ".pdf": true,
-}
-
-// skipDirs 是工作区搜索跳过的噪音目录（与 app 层资料概览保持一致）。
-var skipDirs = map[string]bool{
-	".git": true, "node_modules": true, "dist": true, "build": true,
-	".cache": true, ".codegraph": true, ".tianxuan": true, ".reasonix": true,
 }
 
 // isNoiseRel 判断路径是否属于搜索噪音：.gaea 下跳过会话/归档/缓存与**整个
@@ -134,7 +130,7 @@ func extractText(abs string) (string, bool, bool) {
 	}
 	truncated = runeCount(text) > maxDocRunes
 	if truncated {
-		text = truncateRunes(text, maxDocRunes)
+		text = strutil.TruncateRunes(text, maxDocRunes)
 	}
 	cacheMu.Lock()
 	if _, known := textCache[key]; !known && len(textCache) >= textCacheCap {
@@ -154,14 +150,6 @@ func toValidUTF8(s string) string {
 		return s
 	}
 	return strings.ToValidUTF8(s, "\ufffd")
-}
-
-func truncateRunes(s string, n int) string {
-	r := []rune(s)
-	if len(r) <= n {
-		return s
-	}
-	return string(r[:n])
 }
 
 // ─── 扫描 ────────────────────────────────────────────────────────
@@ -195,7 +183,7 @@ func scan(root string) []doc {
 				if rel != "" {
 					dirRel = rel + "/" + name
 				}
-				if skipDirs[name] || strings.HasPrefix(name, ".tmp") || isNoiseRel(dirRel) {
+				if wspath.IsSkippedIn(name, wspath.SearchExtra) || strings.HasPrefix(name, ".tmp") || isNoiseRel(dirRel) {
 					continue
 				}
 				walk(filepath.Join(dir, name), dirRel, depth+1)
@@ -381,7 +369,7 @@ func makeSnippet(text, query string) string {
 		}
 	}
 	if pos < 0 {
-		return collapseWhitespace(truncateRunes(text, 120))
+		return collapseWhitespace(strutil.TruncateRunes(text, 120))
 	}
 
 	const half = 60

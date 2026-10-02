@@ -34,6 +34,8 @@ interface DigitalLife {
   available: boolean;
   source: string;
   error?: string;
+  /** Go 侧 HerdsmanDigitalLife 降级/告警（契约字段，可能缺省=旧后端） */
+  warnings?: string[];
   character_count: number;
   timeline_events: number;
   state_commits: number;
@@ -154,10 +156,29 @@ export function DigitalLifeLibrary() {
     );
   }
 
+  // Go 侧 warnings 契约（本批只读取展示，不动既有 snake_case 契约层）；
+  // 旧后端无该字段时 ?? [] 零变化。
+  const warnings = life.warnings ?? [];
+
   return (
     <div className="h-full flex flex-col">
       {header}
       <div className="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-3">
+        {/* 降级提示（Go 侧 warnings 契约）：非空时逐条列出——部分数据源不可读时
+            上方统计条会偏小，不提示用户会以为「就是没数据」。样式沿用本仓降级
+            提示条（amber）与下方空态的圆角边框口径。 */}
+        {warnings.length > 0 && (
+          <div
+            role="alert"
+            data-testid="digital-life-warnings"
+            className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-amber-500 text-[11px] leading-relaxed"
+          >
+            数字生命数据降级 {warnings.length} 项（部分数据可能不完整）：
+            <ul className="mt-0.5 list-disc pl-4">
+              {warnings.map((w, i) => <li key={i}>{w}</li>)}
+            </ul>
+          </div>
+        )}
         {/* 统计条 */}
         <div className="flex flex-wrap gap-1.5">
           {[

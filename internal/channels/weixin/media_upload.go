@@ -33,6 +33,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gaea/gaea/internal/gaea/strutil"
 	"github.com/gaea/gaea/internal/netclient"
 )
 
@@ -162,7 +163,7 @@ func (s *Server) uploadMediaBytes(data []byte, toUserID, probeFile string, media
 		if err != nil {
 			capture("upload_probe", map[string]interface{}{"stage": "file_getuploadurl", "file": probeFile, "err": err.Error()})
 		} else {
-			capture("upload_probe", map[string]interface{}{"stage": "file_getuploadurl", "file": probeFile, "resp": truncateRunes(string(respBody), 512)})
+			capture("upload_probe", map[string]interface{}{"stage": "file_getuploadurl", "file": probeFile, "resp": strutil.TruncateRunesSuffix(string(respBody), 512, "…")})
 		}
 	}
 	if err != nil {
@@ -178,7 +179,7 @@ func (s *Server) uploadMediaBytes(data []byte, toUserID, probeFile string, media
 	uploadURL := strings.TrimSpace(resp.UploadFullURL)
 	if uploadURL == "" {
 		if resp.UploadParam == "" {
-			return "", nil, 0, fmt.Errorf("getuploadurl 未返回 upload_param/upload_full_url: %s", truncateRunes(string(respBody), 200))
+			return "", nil, 0, fmt.Errorf("getuploadurl 未返回 upload_param/upload_full_url: %s", strutil.TruncateRunesSuffix(string(respBody), 200, "…"))
 		}
 		uploadURL = wxCDNBaseURL + "/upload?encrypted_query_param=" +
 			url.QueryEscape(resp.UploadParam) + "&filekey=" + url.QueryEscape(fileKey)
@@ -218,11 +219,11 @@ func (s *Server) uploadCiphertext(uploadURL string, ciphertext []byte) (string, 
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4*1024))
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("HTTP %d: %s", resp.StatusCode, truncateRunes(string(body), 120))
+		return "", fmt.Errorf("HTTP %d: %s", resp.StatusCode, strutil.TruncateRunesSuffix(string(body), 120, "…"))
 	}
 	param := resp.Header.Get("x-encrypted-param")
 	if param == "" {
-		return "", fmt.Errorf("CDN 响应缺 x-encrypted-param 头: %s", truncateRunes(string(body), 120))
+		return "", fmt.Errorf("CDN 响应缺 x-encrypted-param 头: %s", strutil.TruncateRunesSuffix(string(body), 120, "…"))
 	}
 	return param, nil
 }
@@ -247,7 +248,7 @@ func (s *Server) sendFileCardViaUpload(item map[string]interface{}, file string)
 		capture("upload_probe", map[string]interface{}{"stage": "file_send_file_card", "file": file, "err": err.Error()})
 		return err
 	}
-	capture("upload_probe", map[string]interface{}{"stage": "file_send_file_card", "file": file, "resp": truncateRunes(string(respBody), 512)})
+	capture("upload_probe", map[string]interface{}{"stage": "file_send_file_card", "file": file, "resp": strutil.TruncateRunesSuffix(string(respBody), 512, "…")})
 	return sendAckErr(respBody)
 }
 

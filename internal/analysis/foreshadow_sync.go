@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gaea/gaea/internal/gaea/strutil"
 	"github.com/gaea/gaea/internal/types"
 )
 
@@ -233,7 +234,7 @@ func syncPlant(ff *types.ForeshadowFile, chapterFile, now string, hit types.Fore
 	// ② 标题缺省：内容前 50 字（MuMu :1375-1377）
 	title := strings.TrimSpace(hit.Title)
 	if title == "" {
-		title = truncateRunes(content, 50)
+		title = strutil.TruncateRunesSuffix(content, 50, "...")
 	}
 	// ③ 稳定 ID（gaea 唯一实现 GenerateStableID）
 	stableID := GenerateStableID(hit.Category, chapterFile, content)
@@ -376,12 +377,3 @@ func minFloat(a, b float64) float64 {
 }
 
 func boolPtr(v bool) *bool { return &v }
-
-// truncateRunes 按 rune 截断（超长补省略号，未超长不加——D14 口径）。
-func truncateRunes(s string, n int) string {
-	r := []rune(s)
-	if len(r) <= n {
-		return s
-	}
-	return string(r[:n]) + "..."
-}

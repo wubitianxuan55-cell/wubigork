@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/gaea/gaea/internal/gaea/strutil"
 )
 
 // ─── ContradictionDetector ────────────────────────────────────
@@ -66,8 +68,8 @@ func (cd *ContradictionDetector) CheckBatch(
 
 	var pairLines []string
 	for i, p := range pairs {
-		existingSummary := truncateStr(p.Existing.Summary, 120)
-		newSummary := truncateStr(p.NewFact.Summary, 120)
+		existingSummary := strutil.TruncateRunesSuffix(p.Existing.Summary, 120, "…")
+		newSummary := strutil.TruncateRunesSuffix(p.NewFact.Summary, 120, "…")
 		pairLines = append(pairLines, fmt.Sprintf(
 			"[%d] 旧 · %s · %s：%s\n   新 · %s · %s：%s",
 			i+1,

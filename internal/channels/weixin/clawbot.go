@@ -22,6 +22,8 @@ import (
 	"unicode/utf8"
 
 	"context"
+
+	"github.com/gaea/gaea/internal/gaea/strutil"
 	"github.com/gaea/gaea/internal/netclient"
 )
 
@@ -716,7 +718,7 @@ func (s *Server) recognizeImage(it imageItem, fromUser string) (string, bool) {
 	if rawURL == "" {
 		return "", false
 	}
-	urlForLog := truncateRunes(rawURL, 120)
+	urlForLog := strutil.TruncateRunesSuffix(rawURL, 120, "…")
 	if aesKeyHex != "" {
 		// 加密 CDN：下载→AES-128-ECB 解密→临时文件→file:// 交识别器
 		path, cleanup, err := DownloadImageEncrypted(rawURL, aesKeyHex)
@@ -810,7 +812,7 @@ func (s *Server) invokeFileHandler(localPath, fileName string, sizeBytes int64, 
 
 // recognizedImageLabel 已识别图片的提示行：识别内容截前 300 rune（超长加省略号）。
 func recognizedImageLabel(it imageItem, desc string) string {
-	content := truncateRunes(desc, 300)
+	content := strutil.TruncateRunesSuffix(desc, 300, "…")
 	if it.Name != "" {
 		return "（用户发来图片「" + it.Name + "」，识别内容：" + content + "）"
 	}
@@ -818,14 +820,6 @@ func recognizedImageLabel(it imageItem, desc string) string {
 }
 
 // truncateRunes 按 rune 数截断，超长追加省略号。
-func truncateRunes(s string, n int) string {
-	rs := []rune(s)
-	if len(rs) <= n {
-		return s
-	}
-	return string(rs[:n]) + "…"
-}
-
 // truncateTextBytes 按字节上限截断文本（不撕裂 UTF-8 多字节序列），截断时
 // 追加固定标记，让模型与用户都知道内容不完整。
 func truncateTextBytes(s string, max int) string {

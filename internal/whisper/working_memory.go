@@ -4,6 +4,8 @@ package whisper
 import (
 	"strings"
 	"sync"
+
+	"github.com/gaea/gaea/internal/gaea/strutil"
 )
 
 // ─── Exchange 对话交换 ────────────────────────────────────────
@@ -79,8 +81,8 @@ func (wm *WorkingMemory) BuildContextBlock(sessionID string) string {
 	lines = append(lines, "【近期对话上下文（最近几轮）】")
 	chars := 0
 	for _, ex := range recent {
-		userLine := truncateString(ex.UserText, 200)
-		asstLine := truncateString(ex.AssistantText, 200)
+		userLine := strutil.TruncateRunesSuffix(ex.UserText, 200, "…")
+		asstLine := strutil.TruncateRunesSuffix(ex.AssistantText, 200, "…")
 		block := "用户：" + userLine + "\ngaea：" + asstLine
 		if chars+len([]rune(block)) > WorkingMemoryCharBudget {
 			break
@@ -95,12 +97,4 @@ func (wm *WorkingMemory) Clear(sessionID string) {
 	wm.mu.Lock()
 	defer wm.mu.Unlock()
 	delete(wm.sessions, sessionID)
-}
-
-func truncateString(s string, max int) string {
-	runes := []rune(s)
-	if len(runes) <= max {
-		return s
-	}
-	return string(runes[:max]) + "…"
 }

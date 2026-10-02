@@ -3,6 +3,8 @@ package skill
 import (
 	"fmt"
 	"strings"
+
+	"github.com/gaea/gaea/internal/gaea/strutil"
 )
 
 // IndexMaxChars caps the pinned skills-index block so it can't bloat the
@@ -123,18 +125,13 @@ func indexLineAt(sk Skill, width int) string {
 	return "- " + sk.Name + tag + " — " + clipped
 }
 
-// clipRunes truncates s to at most max runes (ellipsis included), never
-// splitting a multi-byte rune.
+// clipRunes 截断 s 到最多 max 个 rune（省略号计入总长），绝不切裂多字节 rune。
+// X1-06 收敛：口径见 strutil.TruncateRunesEllipsis；本包装只保留站点的
+// max<1 → 按 1 处理（调用点 base 可为负；钳到 1 后仍产出 1 个 rune，而非
+// strutil 在 n≤0 时返回的 ""）。
 func clipRunes(s string, max int) string {
 	if max < 1 {
 		max = 1
 	}
-	r := []rune(s)
-	if len(r) <= max {
-		return s
-	}
-	if max-1 < 1 {
-		return string(r[:1])
-	}
-	return string(r[:max-1]) + "…"
+	return strutil.TruncateRunesEllipsis(s, max)
 }

@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  countGenuiNodes,
-  repairGenuiSpec,
-  repairSingleComponent,
-  validateGenuiSpec,
-} from "./guard";
+import { repairGenuiSpec, repairSingleComponent } from "./guard";
 import { GENUI_LIMITS } from "./spec";
 
 describe("guard.repairGenuiSpec", () => {
@@ -108,31 +103,3 @@ describe("guard.repairSingleComponent", () => {
   });
 });
 
-describe("guard.countGenuiNodes", () => {
-  it("统计嵌套节点数", () => {
-    const spec = {
-      type: "card",
-      items: [{ type: "stat", label: "a", value: "1" }, { type: "text", content: "b" }],
-    };
-    expect(countGenuiNodes(spec)).toBe(3);
-  });
-});
-
-describe("guard.validateGenuiSpec", () => {
-  it("报告未知 type 与缺必填字段", () => {
-    const v = validateGenuiSpec({
-      items: [
-        { type: "evil" },
-        { type: "stat", label: "x" },
-        { type: "text", content: "ok" },
-      ],
-    });
-    expect(v.ok).toBe(false);
-    expect(v.errors.join("\n")).toContain("未知组件 type");
-    expect(v.errors.join("\n")).toContain("stat 缺少必填字段 value");
-  });
-
-  it("合法规格 ok", () => {
-    expect(validateGenuiSpec({ items: [{ type: "divider" }] }).ok).toBe(true);
-  });
-});

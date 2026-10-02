@@ -205,8 +205,6 @@ func (c *Controller) ChangeFactType(name, newType string) error {
 }
 
 // ForgetMemory deletes a saved auto-memory by name — the panel/TUI delete action,
-
-// ForgetMemory deletes a saved auto-memory by name — the panel/TUI delete action,
 // the manual counterpart to the model's `forget` tool. It queues a turn-tail note
 // so the deletion applies this session (the cached prefix still lists the fact
 // until the next session re-folds the index).

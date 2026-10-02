@@ -152,15 +152,15 @@ func TestPricingCostZeroTokens(t *testing.T) {
 
 func TestPricingSymbolDefault(t *testing.T) {
 	p := &Pricing{}
-	if got := p.Symbol(); got != "楼" {
-		t.Errorf("empty Currency.Symbol() = %q, want 楼", got)
+	if got := p.Symbol(); got != "¥" {
+		t.Errorf("empty Currency.Symbol() = %q, want ¥", got)
 	}
 }
 
 func TestPricingSymbolNil(t *testing.T) {
 	var p *Pricing
-	if got := p.Symbol(); got != "楼" {
-		t.Errorf("nil.Symbol() = %q, want 楼", got)
+	if got := p.Symbol(); got != "¥" {
+		t.Errorf("nil.Symbol() = %q, want ¥", got)
 	}
 }
 

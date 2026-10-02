@@ -16,6 +16,9 @@ export interface VoiceChatState {
   volume: number
   error: string | null
   mode: 'vad' | 'ptt' | 'off'
+  /** 显式降级位（FE6-02）：麦克风不可用时置 'mic-unavailable'——
+   *  绝不伪造成「正在聆听」，消费方据此渲染可见警示条。 */
+  degraded: 'mic-unavailable' | null
 }
 
 interface Options {
@@ -80,6 +83,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
   const [state, setState] = useState<VoiceChatState>({
     active: false, listening: false, speaking: false, aiSpeaking: false,
     transcript: '', finalTranscript: '', volume: 0, error: null, mode: 'vad',
+    degraded: null,
   })
 
   // ── Refs ──
@@ -95,7 +99,6 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
   const pendingSpeechRef = useRef(0)
   const volSmoothRef = useRef(0)
   const volTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const simTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const stateRef = useRef<VoiceChatState>(state)
   // S2 realtime 模式（后端注入了 Realtime 会话 = realtimeProvider 非空）：
   // 强制推送 PCM + 抑制本地识别路径（防双输入）。start 时经 VoiceGetSettings 刷新。
@@ -318,7 +321,9 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
 
   // ── 音频采集 ──
 
-  const startCapture = useCallback(async () => {
+  /** 启动本地采集。返回是否真正采到音频（FE6-02 复审）：调用方据此决定要不要
+   *  起本地识别，不依赖 React eager state 的时序（stateRef 在 updater 内赋值）。 */
+  const startCapture = useCallback(async (): Promise<boolean> => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -328,7 +333,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
           noiseSuppression: true,
         },
       })
-      if (abortRef.current) { stream.getTracks().forEach(t => t.stop()); return }
+      if (abortRef.current) { stream.getTracks().forEach(t => t.stop()); return false }
 
       streamRef.current = stream
 
@@ -374,16 +379,17 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
         }
       }
 
-      // 消除模拟音量
-      if (simTimerRef.current) { clearInterval(simTimerRef.current); simTimerRef.current = null }
+      // 采集成功：清降级位（用户重新插稳麦克风/授予权限后重启即恢复）
+      setState2({ degraded: null })
+      return true
     } catch (err) {
-      console.warn('[Voice] 麦克风不可用，使用模拟模式', err)
-      // 模拟音量
-      let t = 0
-      simTimerRef.current = setInterval(() => {
-        t += 0.1
-        setState2({ volume: 0.12 + Math.sin(t * 2.5) * 0.08 + Math.sin(t * 5) * 0.04, speaking: Math.sin(t * 2.5) > 0.5 })
-      }, 120)
+      // FE6-02：getUserMedia 失败绝不伪造「正在聆听」。此前在此起定时器
+      // 造正弦假音量 + speaking 置真，用户戴着没插稳的麦克风说完整段话，
+      // 页面全程显示聆听中、却一个字节都没采到——对用户撒谎式降级。
+      // 现改为显式降级位 + 音量归零，由消费方渲染可见警示条。
+      console.warn('[Voice] 麦克风不可用，未采集音频，本回合走文本输入', err)
+      setState2({ degraded: 'mic-unavailable', volume: 0, speaking: false })
+      return false
     }
   }, [setState2])
 
@@ -457,7 +463,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     volSmoothRef.current = 0
     setState2({
       active: true, listening: false, speaking: false, aiSpeaking: false,
-      transcript: '', finalTranscript: '', volume: 0, error: null,
+      transcript: '', finalTranscript: '', volume: 0, error: null, degraded: null,
     })
 
     // S2：启动前刷新 realtime 模式判定（决定 PCM 强制推送与本地识别抑制）
@@ -472,11 +478,15 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     }
 
     // 启动本地音频采集（音量可视化）
-    await startCapture()
+    const captured = await startCapture()
 
     // 浏览器端自带识别：直接出文本，不需要后端 ASR 模型。
     // realtime 模式抑制（服务端转写经 voice:transcript 事件回传，防双输入）。
-    if (browserASRAvailable && !realtimeModeRef.current) {
+    // FE6-02：麦克风不可用（采集失败）时不起本地识别——否则识别器只报
+    // not-allowed 空转，UI 仍显「聆听中」，同一撒谎式降级换条路径复现。
+    // 用 startCapture 的返回值判定，不读 stateRef（其赋值发生在 setState
+    // updater 内，靠 eager state 才同步，队列里有别的更新时会读到旧值）。
+    if (captured && browserASRAvailable && !realtimeModeRef.current) {
       startBrowserRecognition()
     }
   }, [startCapture, setState2, startBrowserRecognition, refreshRealtimeMode])
@@ -493,7 +503,6 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     // 停止采集
     volSmoothRef.current = 0
     if (volTimerRef.current) { clearInterval(volTimerRef.current); volTimerRef.current = null }
-    if (simTimerRef.current) { clearInterval(simTimerRef.current); simTimerRef.current = null }
     if (processorRef.current) {
       try { processorRef.current.disconnect() } catch (_) {}
       processorRef.current = null
@@ -513,7 +522,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
 
     setState2({
       active: false, listening: false, speaking: false, aiSpeaking: false,
-      transcript: '', finalTranscript: '', volume: 0, error: null,
+      transcript: '', finalTranscript: '', volume: 0, error: null, degraded: null,
     })
   }, [stopPlayback, setState2, stopBrowserRecognition])
 
@@ -543,7 +552,6 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
         recognitionRef.current = null
       }
       if (volTimerRef.current) clearInterval(volTimerRef.current)
-      if (simTimerRef.current) clearInterval(simTimerRef.current)
       if (processorRef.current) { try { processorRef.current.disconnect() } catch (_) {} }
       if (captureCtxRef.current) { captureCtxRef.current.close().catch(() => {}) }
       if (playbackCtxRef.current) { playbackCtxRef.current.close().catch(() => {}) }

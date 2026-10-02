@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import ModuleLauncher from './ModuleLauncher'
@@ -34,9 +34,13 @@ const bridgeMocks = vi.hoisted(() => ({
 }))
 
 vi.mock('../gaea/lib/bridge', () => ({ app: bridgeMocks.app }))
+// FE6-02：语音 hook 可切换降级位（默认 null = 既有用例口径不变）
+const voiceMock = vi.hoisted(() => ({
+  state: { active: false, listening: false, aiSpeaking: false, error: null, degraded: null as string | null },
+}))
 vi.mock('../hooks/useVoiceChat', () => ({
   useVoiceChat: () => ({
-    state: { active: false, listening: false, aiSpeaking: false, error: null },
+    state: voiceMock.state,
     start: vi.fn(),
     stop: vi.fn(),
     interrupt: vi.fn(),
@@ -268,6 +272,31 @@ describe('ModuleLauncher 首页形态分支（7.3-2 层跃升）', () => {
     expect(screen.queryByTestId('desk-task-inbox')).toBeNull()
     expect(screen.getByTestId('home-layout-back-classic')).toBeTruthy()
     useAppStore.setState({ homeLayout: 'classic' })
+  })
+})
+
+// ── FE6-02：主壳命令条不得在麦克风不可用时宣称「聆听中」 ──
+describe('ModuleLauncher 语音降级可见化（FE6-02）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    voiceMock.state = { active: true, listening: false, aiSpeaking: false, error: null, degraded: 'mic-unavailable' }
+  })
+  afterEach(() => {
+    voiceMock.state = { active: false, listening: false, aiSpeaking: false, error: null, degraded: null }
+  })
+
+  it('degraded=mic-unavailable → 命令条出现中文警示，且不再显示「聆听中」', () => {
+    render(wrap(<ModuleLauncher onNavigate={vi.fn()} space="work" onSwitchSpace={vi.fn()} />))
+    const warn = screen.getByTestId('voice-mic-degraded')
+    expect(warn.textContent).toContain('麦克风不可用，未在采集音频，本回合走文本输入')
+    expect(screen.getByText('麦克风不可用')).toBeTruthy()
+    expect(screen.queryByText('正在聆听')).toBeNull()
+  })
+
+  it('未降级 → 不出现警示（反向验证：不是恒亮）', () => {
+    voiceMock.state = { active: false, listening: false, aiSpeaking: false, error: null, degraded: null }
+    render(wrap(<ModuleLauncher onNavigate={vi.fn()} space="work" onSwitchSpace={vi.fn()} />))
+    expect(screen.queryByTestId('voice-mic-degraded')).toBeNull()
   })
 })
 })

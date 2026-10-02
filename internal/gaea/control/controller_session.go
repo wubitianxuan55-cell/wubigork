@@ -15,6 +15,9 @@ import (
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
+// NewSession snapshots the current conversation, rotates to a fresh file, and
+// resets the executor to a clean session carrying the same system prompt. It
+// ends the old session and starts the new one for lifecycle hooks.
 func (c *Controller) NewSession() error {
 	if c.executor == nil {
 		return nil

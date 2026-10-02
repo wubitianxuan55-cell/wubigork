@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/gaea/gaea/internal/gaea/strutil"
 )
 
 // Runner binds a set of resolved hooks to a session: a working directory, the
@@ -221,13 +223,14 @@ func FormatOutcome(o Outcome) string {
 	return head
 }
 
+// clipRunes 按 rune 截断到 max 个 rune 并补 "…"（总长 max+1）。
+// X1-06 收敛：切片与后缀口径见 strutil.TruncateRunesSuffix；本包装只保留
+// 站点的 max<1 → "" 特例（原实现该守卫在长度判断之后，故 max<1 一律返回 ""，
+// 而 strutil.TruncateRunesSuffix 在 n≤0 时返回 suffix）。唯一调用点传字面量
+// 60，该守卫实为防御性；保留以维持逐字节等价。
 func clipRunes(s string, max int) string {
-	r := []rune(s)
-	if len(r) <= max {
-		return s
-	}
 	if max < 1 {
 		return ""
 	}
-	return string(r[:max]) + "…"
+	return strutil.TruncateRunesSuffix(s, max, "…")
 }

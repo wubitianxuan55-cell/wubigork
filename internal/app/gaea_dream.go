@@ -102,6 +102,43 @@ func gaeaSessionSpace() string {
 	return gaeaEffectiveSpace()
 }
 
+// gaeaDreamRun 是后台整理体的调用缝（测试注入 panic 验证 AP5-16 防线；生产
+// 恒为真实 runDream）。与 herdsmanCLI 等既有注入缝同型。
+var gaeaDreamRun = func(a *App, space string) error { return a.runDream(space) }
+
+// gaeaNoticeSink 是后台任务可见 notice 的发射缝（测试注入；nil = 走内核 emit →
+// gaea-event 通道，与其他 gaea 事件同路，**不新造通道**）。
+var gaeaNoticeSink func(eventName string, data map[string]interface{})
+
+// gaeaBackgroundPanicNotice 是「后台任务 panic」的统一收口（审计 P2 AP5-16，
+// 三处后台 goroutine 共用：自动做梦 / 轻语主动关心 / 子代理追问）：
+//
+//	① slog.Error 留痕（保留原有行为）；
+//	② 复位各自的单飞/运行中状态位——由调用方的 defer 负责（本函数不碰状态，
+//	   避免跨文件争用同一把锁时产生复位顺序歧义）；
+//	③ 经既有 gaea-event 通道发一条 Notice（LevelWarn），前端/面板可见——此前
+//	   recover 只写日志就吞掉，用户看到的是「功能开着但再也不工作」，只能重启
+//	   进程（轻语 ticker 的原实现更是命中一次即永久退出循环）。
+//
+// task 为中文任务名（直接进用户可见文案）；fields 只进日志，便于事后定位。
+func (c *core) gaeaBackgroundPanicNotice(task string, r any, fields map[string]interface{}) {
+	attrs := []any{"task", task, "panic", r}
+	for k, v := range fields {
+		attrs = append(attrs, k, v)
+	}
+	slog.Error("后台任务 panic（已复位状态并通知前端）", attrs...)
+	payload := gaeaEventMap(event.Event{
+		Kind:  event.Notice,
+		Level: event.LevelWarn,
+		Text:  fmt.Sprintf("后台任务「%s」发生异常已中断（%v），状态已复位，稍后可重试", task, r),
+	})
+	if gaeaNoticeSink != nil {
+		gaeaNoticeSink("gaea-event", payload)
+		return
+	}
+	c.emit("gaea-event", payload)
+}
+
 // maybeDreamAfterTurn 在轮次成功后触发后台「自动做梦」（单飞）。space 是触发
 // 会话的空间（gaeaSessionSpace()）：整轮整理（指纹、落库、notes 分流）都限定
 // 在该空间内进行，防 play 会话内容写进 work 记忆。
@@ -120,15 +157,18 @@ func (a *App) maybeDreamAfterTurn(space string) {
 
 	go func() {
 		defer func() {
-			if r := recover(); r != nil {
-				slog.Error("回合做梦 panic", "recover", r)
-			}
+			r := recover()
+			// 单飞位与时间戳无条件复位（成功/失败/panic 三态同形），否则一次
+			// panic 就让 running 永久为真——此后自动做梦再也不跑（AP5-16）。
 			gaeaDreamState.Lock()
 			gaeaDreamState.running = false
 			gaeaDreamState.last = time.Now()
 			gaeaDreamState.Unlock()
+			if r != nil {
+				a.gaeaBackgroundPanicNotice("自动做梦（后台记忆整理）", r, map[string]interface{}{"space": space})
+			}
 		}()
-		if err := a.runDream(space); err != nil {
+		if err := gaeaDreamRun(a, space); err != nil {
 			slog.Debug("gaea dream skipped", "err", err)
 		}
 	}()

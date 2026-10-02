@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, cleanup } from "@testing-library/react";
 import { DigitalLifeLibrary } from "./DigitalLifeLibrary";
 
 const { lifeMock, opsMock } = vi.hoisted(() => ({ lifeMock: vi.fn(), opsMock: vi.fn() }));
@@ -85,5 +85,32 @@ describe("DigitalLifeLibrary 数字生命库", () => {
     opsMock.mockResolvedValue({ total: 0, items: [], source: "x" });
     render(<DigitalLifeLibrary />);
     await waitFor(() => expect(screen.getByText(/数字生命库不存在/)).toBeTruthy());
+  });
+
+  // 线1 新契约 warnings（Go HerdsmanDigitalLife 降级告警）：非空必须可见，
+  // 否则统计条偏小时用户会以为「就是没数据」。
+  it("warnings 非空 → 渲染降级提示条，含条数与逐条内容", async () => {
+    lifeMock.mockResolvedValue({ ...LIFE, warnings: ["时间线数据库不可读", "世界事件索引缺失"] });
+    opsMock.mockResolvedValue({ total: 0, items: [], source: "x" });
+    render(<DigitalLifeLibrary />);
+
+    const warn = await screen.findByTestId("digital-life-warnings");
+    expect(warn.textContent).toContain("数字生命数据降级 2 项");
+    expect(warn.textContent).toContain("时间线数据库不可读");
+    expect(warn.textContent).toContain("世界事件索引缺失");
+  });
+
+  it("warnings 缺省或空数组 → 不渲染提示条（旧后端零变化）", async () => {
+    lifeMock.mockResolvedValue(LIFE);
+    opsMock.mockResolvedValue({ total: 0, items: [], source: "x" });
+    render(<DigitalLifeLibrary />);
+    await screen.findByText("数字生命 · Herdsman");
+    expect(screen.queryByTestId("digital-life-warnings")).toBeNull();
+
+    cleanup();
+    lifeMock.mockResolvedValue({ ...LIFE, warnings: [] });
+    render(<DigitalLifeLibrary />);
+    await screen.findByText("数字生命 · Herdsman");
+    expect(screen.queryByTestId("digital-life-warnings")).toBeNull();
   });
 });

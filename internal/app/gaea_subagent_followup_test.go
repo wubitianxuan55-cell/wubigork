@@ -8,6 +8,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -51,5 +52,48 @@ func TestGaeaSubagentFollowUp_ClearsStaleError(t *testing.T) {
 	}
 	if strings.Contains(string(b), "上一枪的失败") {
 		t.Fatal("stale followUpError should be cleared synchronously on dispatch")
+	}
+}
+
+// TestGaeaSubagentFollowUp_PanicReleasesClaimAndNotifies 审计 P2 AP5-16：追问
+// 后台 panic 后必须（1）释放单飞令牌（否则该 ref 永久卡在「已有追问正在运行」，
+// 后续追问全被拒）、（2）发一条前端可见 notice（此前只 slog.Error 就吞掉，
+// 前端只能看到「已受理但无进展」的僵态）。
+func TestGaeaSubagentFollowUp_PanicReleasesClaimAndNotifies(t *testing.T) {
+	ga.mu.Lock()
+	prev := ga.followUp
+	ga.followUp = func(context.Context, string, string) error { panic("followup boom") }
+	ga.mu.Unlock()
+	t.Cleanup(func() {
+		ga.mu.Lock()
+		ga.followUp = prev
+		ga.mu.Unlock()
+	})
+
+	notices := captureGaeaNotices(t)
+	ref := fmt.Sprintf("sa_20260902_100000_%012d_abcdef01", time.Now().UnixNano()%1000000000000)
+	a := &App{core: &core{}}
+	if _, err := a.GaeaSubagentFollowUp("", ref, "追问：再展开第二点"); err != nil {
+		t.Fatalf("GaeaSubagentFollowUp: %v", err)
+	}
+	t.Cleanup(func() { followUpClaims.Delete(ref) })
+
+	// 等后台 goroutine 的 defer 落定（复位 + notice）。
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, loaded := followUpClaims.Load(ref); !loaded && len(notices()) > 0 {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if _, loaded := followUpClaims.Load(ref); loaded {
+		t.Fatal("panic 后单飞令牌未释放——该 ref 的追问将永久被拒")
+	}
+	got := notices()
+	if len(got) == 0 {
+		t.Fatal("panic 后未发前端可见 notice（AP5-16 要求可见化）")
+	}
+	if !strings.Contains(got[0], "子代理追问") || !strings.Contains(got[0], "followup boom") {
+		t.Fatalf("notice 文案应含任务名与 panic 值: %q", got[0])
 	}
 }

@@ -13,6 +13,7 @@ import (
 
 	"github.com/gaea/gaea/internal/docmd"
 	"github.com/gaea/gaea/internal/gaea/semantic"
+	"github.com/gaea/gaea/internal/gaea/wspath"
 )
 
 const (
@@ -28,12 +29,6 @@ const (
 type FileDoc struct {
 	Path string // 工作区相对路径（/ 分隔）
 	Text string
-}
-
-// skipDirs 扫描时跳过的目录（内部状态/构建产物/依赖）。
-var skipDirs = map[string]bool{
-	".git": true, "node_modules": true, "dist": true, "build": true,
-	".venv": true, "vendor": true, ".gaea": true, "releases": true,
 }
 
 // Supported 报告扩展名是否支持文本提取。
@@ -56,7 +51,7 @@ func Scan(root string) ([]FileDoc, int, error) {
 			return nil
 		}
 		if d.IsDir() {
-			if path != root && skipDirs[d.Name()] {
+			if path != root && wspath.IsSkippedIn(d.Name(), wspath.IndexExtra) {
 				return filepath.SkipDir
 			}
 			return nil

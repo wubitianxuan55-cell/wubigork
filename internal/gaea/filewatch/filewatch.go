@@ -16,13 +16,16 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+
+	"github.com/gaea/gaea/internal/gaea/wspath"
 )
 
-// DefaultSkipDirs 扫描/监听时跳过的内部与产物目录（与 fileindex 保持一致）。
-var DefaultSkipDirs = []string{
-	".git", "node_modules", "dist", "build", ".venv", "vendor",
-	".gaea", "releases", ".tmp", "backups",
-}
+// DefaultSkipDirs 扫描/监听时跳过的内部与产物目录。
+//
+// 口径唯一真相源在 internal/gaea/wspath：本清单 = 内核 CoreSkipDirs ∪ 监听增量
+// WatchExtra，顺序与收敛前逐位一致（监听与文件索引的差异——.tmp/backups 只有
+// 监听要跳过——由增量表达，六份历史清单的逐项对照见 wspath 的测试）。
+var DefaultSkipDirs = wspath.Merge(wspath.CoreSkipDirs, wspath.WatchExtra)
 
 // Event 是一次去抖合并后的事件批次。
 type Event struct {

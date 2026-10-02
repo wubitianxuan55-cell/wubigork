@@ -48,14 +48,29 @@ export interface GschedSummary {
 
 /** 解析计划 JSON → 摘要；坏 JSON / 非 Project 形状返回 null */
 export function parseSchedSummary(raw: string): GschedSummary | null {
+  return parseSchedSummaryDetail(raw).summary
+}
+
+/** FE7-14：把「为什么没摘要」如实交给调用方（此前 parseSchedSummary 失败只
+ *  静默返 null，调用点无法区分「本来就不是计划文件」与「计划文件坏了」）。
+ *  reason 为 null = 解析成功；非 null = 中文原因，调用方可据此渲染诚实提示。
+ *  注意 reason 串不参与渲染去重（同一原因每次都新建，禁止拿它当 key 比较）。 */
+export function parseSchedSummaryDetail(raw: string): { summary: GschedSummary | null; reason: string | null } {
   let data: unknown
   try {
     data = JSON.parse(raw)
-  } catch {
-    return null
+  } catch (e: unknown) {
+    const why = e instanceof Error ? e.message : String(e)
+    return { summary: null, reason: `进度计划解析失败：JSON 不合法（${why}）` }
   }
-  if (!data || typeof data !== 'object' || !Array.isArray((data as SchedProject).tasks)) return null
-  const project = normalizeProject(data as SchedProject)
+  if (!data || typeof data !== 'object' || !Array.isArray((data as SchedProject).tasks)) {
+    return { summary: null, reason: '进度计划解析失败：JSON 合法但不是计划工程形状（缺 tasks 数组）' }
+  }
+  return { summary: buildSchedSummary(data as SchedProject), reason: null }
+}
+
+function buildSchedSummary(data: SchedProject): GschedSummary {
+  const project = normalizeProject(data)
   const cpm = computeCpm(project.tasks, project.links, { planFinish: planFinishOf(project), calendar: project.calendar, startDate: project.startDate })
   const leaf = project.tasks.filter((t) => t.level > 0)
   const hasSchedule = cpm.ok && leaf.length > 0 && /^\d{4}-\d{2}-\d{2}$/.test(project.startDate)

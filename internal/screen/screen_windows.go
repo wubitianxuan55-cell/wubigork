@@ -40,7 +40,24 @@ const (
 	dibRGBColors      = 0
 
 	monitorInfofPrimary = 0x1 // MONITORINFOF_PRIMARY
+
+	// hgdiError 是 GDI 约定的失败返回值 (HGDIOBJ)-1（SelectObject 常规失败
+	// 返回 NULL=0，区域选择失败返回 HGDI_ERROR）。
+	hgdiError = ^uintptr(0)
 )
+
+// gdiCallError 归一化 GDI 调用失败原因：优先取 syscall.GetLastError()（本
+// 线程最近一次失败的错误码），退化用 LazyProc.Call 返回的错误。GDI 成功时
+// 错误码常是残留值，故只在 r==0 的失败分支调用。
+func gdiCallError(callErr error) error {
+	if e := syscall.GetLastError(); e != nil {
+		return e
+	}
+	if callErr != nil {
+		return callErr
+	}
+	return errors.New("未知 GDI 错误")
+}
 
 type bitmapInfoHeader struct {
 	BiSize          uint32
@@ -126,6 +143,17 @@ func CaptureArea(x, y, w, h int) (image.Image, error) {
 	if w <= 0 || h <= 0 {
 		return nil, fmt.Errorf("截图：无效屏幕尺寸 %dx%d", w, h)
 	}
+	// 源矩形必须与虚拟桌面相交。GDI 对被完全裁剪到桌面外的源矩形会「成功」
+	// 返回一张全黑位图（BitBlt 返回非 0），只看返回码查不出这种「成功但
+	// 空白」（审计 IN3-15 点名的坐标越界一例，实测非黑像素恒为 0）。
+	vx := int(sysMetrics(smXVirtualScreen))
+	vy := int(sysMetrics(smYVirtualScreen))
+	vw := int(sysMetrics(smCxVirtualScreen))
+	vh := int(sysMetrics(smCyVirtualScreen))
+	if vw > 0 && vh > 0 && (x+w <= vx || x >= vx+vw || y+h <= vy || y >= vy+vh) {
+		return nil, fmt.Errorf("截图：区域 (%d,%d %dx%d) 与虚拟桌面 (%d,%d %dx%d) 无交集",
+			x, y, w, h, vx, vy, vw, vh)
+	}
 
 	hdcScreen := getDC(0)
 	if hdcScreen == 0 {
@@ -155,8 +183,18 @@ func CaptureArea(x, y, w, h int) (image.Image, error) {
 	}
 	defer deleteObject(hbm)
 
-	_, _, _ = procSelectObject.Call(hdcMem, hbm)
-	_, _, _ = procBitBlt.Call(hdcMem, 0, 0, uintptr(w), uintptr(h), hdcScreen, uintptr(x), uintptr(y), srcCopy)
+	// SelectObject/BitBlt 的返回码必须检查：失败时下方把 DIB 内存当有效像素
+	// 读出来会得到未初始化/全黑图像，却按成功返回（审计 IN3-15）。资源释放
+	// 仍由上方 defer 负责（deleteObject/deleteDC/releaseDC）。
+	hOld, _, selErr := procSelectObject.Call(hdcMem, hbm)
+	if hOld == 0 || hOld == hgdiError {
+		return nil, fmt.Errorf("截图：选择 DIB 到内存 DC 失败: %v", gdiCallError(selErr))
+	}
+	r, _, bltErr := procBitBlt.Call(hdcMem, 0, 0, uintptr(w), uintptr(h), hdcScreen, uintptr(x), uintptr(y), srcCopy)
+	if r == 0 {
+		return nil, fmt.Errorf("截图：BitBlt 拷贝屏幕区域 (%d,%d %dx%d) 失败: %v",
+			x, y, w, h, gdiCallError(bltErr))
+	}
 
 	stride := w * 4
 	img := image.NewRGBA(image.Rect(0, 0, w, h))

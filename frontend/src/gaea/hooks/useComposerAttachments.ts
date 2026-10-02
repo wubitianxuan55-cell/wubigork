@@ -28,6 +28,14 @@ function dataUrlBytes(dataUrl: string): number {
   return Math.floor((body.length * 3) / 4);
 }
 
+// FE4-12：附件落盘失败的可见化文案（此前三处 catch {} 只归零 pendingPaste，
+// 用户拖入大文件后界面毫无变化，无法分辨后端拒绝/体积超限/读失败）。
+// 前缀点明是哪个文件、哪一步失败，否则多个文件连拖时分不清谁挂了。
+function attachFailText(step: string, file: File | null, e: unknown): string {
+  const why = e instanceof Error ? (e.message || String(e)) : String(e ?? "未知错误");
+  return `${step}${file ? `「${file.name}」` : ""}：${why}`;
+}
+
 export function useComposerAttachments({ setText, running, onSend }: UseComposerAttachmentsOptions) {
   const toast = useToast()
   const [attachments, setAttachments] = useState<Attachment[]>([])
@@ -75,7 +83,10 @@ export function useComposerAttachments({ setText, running, onSend }: UseComposer
         // AttachmentDataURL 把同一份 base64 从盘上读回（大截图=两次全量跨桥）。
         const previewUrl = dataUrl
         setAttachments((prev) => [...prev, { path, previewUrl, type: "image", size: file.size || dataUrlBytes(dataUrl) }])
-      } catch {} finally { setPendingPaste((n) => Math.max(0, n - 1)) }
+      } catch (e: unknown) {
+        // FE4-12：不静默——失败必须可见（文件读取 / SavePastedImage 落盘）
+        toast.show(attachFailText("图片附件失败", file, e), "warn")
+      } finally { setPendingPaste((n) => Math.max(0, n - 1)) }
     }
     // 处理非图片文件（P0-1 chip 化）：不再注入裸 @路径 文本，而是进入
     // attachments 数组渲染为 chip（图标 + 文件名 + 扩展名 badge + 移除），
@@ -91,12 +102,18 @@ export function useComposerAttachments({ setText, running, onSend }: UseComposer
         const b64 = btoa(bin)
         const path = await app.SaveAttachmentFile(file.name, b64)
         setAttachments((prev) => [...prev, { path, previewUrl: "", type: "file", size: file.size }])
-      } catch {} finally { setPendingPaste((n) => Math.max(0, n - 1)) }
+      } catch (e: unknown) {
+        // FE4-12：不静默——文件读取 / SaveAttachmentFile 落盘失败一律上报
+        toast.show(attachFailText("文件附件失败", file, e), "warn")
+      } finally { setPendingPaste((n) => Math.max(0, n - 1)) }
     }
   }
 
   // 导入文件：通过原生对话框选择文件
   const handlePickFiles = async () => {
+    // FE4-12：旧后端/HTTP 桥不暴露 PickFiles 时才静默（绑定不存在 ≠ 调用失败）。
+    // 其余错误（对话框异常、后端拒绝）必须可见。
+    if (typeof app.PickFiles !== "function") return
     try {
       const files = await app.PickFiles()
       if (!files || files.length === 0) return
@@ -108,8 +125,8 @@ export function useComposerAttachments({ setText, running, onSend }: UseComposer
           setAttachments((prev) => [...prev, { path: f.path, previewUrl: "", type: "file" as const, size: f.size }])
         }
       }
-    } catch {
-      // 静默处理（旧后端不支持）
+    } catch (e: unknown) {
+      toast.show(attachFailText("选择附件失败", null, e), "warn")
     }
   }
 

@@ -9,10 +9,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -72,10 +75,41 @@ func herdsmanErrorHint(msg string) string {
 	return msg
 }
 
+// killProcessTree 强制终止整棵进程树（含全部子孙进程），返回清理结果。
+//
+// Windows：走 `taskkill /T /F`。**必须在父进程仍存活时调用**——/T 依赖活动的
+// 父子关系枚举子孙；父进程一死，herdsman.exe 拉起的常驻模型/推理服务就成了
+// 孤儿（不再有可回收句柄），显存只能手工排查。
+// 非 Windows（跨平台构建/单测）：无 taskkill，退化为杀单进程。
+func killProcessTree(pid int) error {
+	if pid <= 0 {
+		return fmt.Errorf("非法 PID: %d", pid)
+	}
+	if runtime.GOOS != "windows" {
+		p, err := os.FindProcess(pid)
+		if err != nil {
+			return err
+		}
+		return p.Kill()
+	}
+	out, err := exec.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(pid)).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("taskkill /T /F /PID %d 失败: %w（输出: %s）", pid, err, truncateRunes(strings.TrimSpace(string(out)), 200))
+	}
+	return nil
+}
+
 // runHerdsmanCLI 执行 herdsman.exe 子命令。非零退出时优先透出 stdout JSON 里的
 // 结构化错误（CLI 把 ok=false + error 写 stdout 后 exit 3 等）——此前用
 // Output() 在失败路径丢弃 stdout，模型中心只显示「exit status 3」，真实原因
 // 全被吞掉。
+//
+// 超时清理（审计 P0 AP9-02）：刻意**不用** exec.CommandContext——它的超时只会
+// TerminateProcess 直接子进程，而 `skill models download/start` 拉起的是常驻
+// 模型服务（子孙进程），父进程被单独杀掉后服务仍在占显存；用户重试再起一个，
+// 显存打满、后续本地模型功能全失败。改为自行 Start + 等 ctx：超时时趁父进程
+// 还在，用 taskkill /T 杀整棵树，随后回收句柄，并把「超时 + 清理结果」写进
+// 返回的 error 文案与日志。
 func runHerdsmanCLI(timeout time.Duration, args ...string) ([]byte, error) {
 	exe := herdsmanExePath()
 	if exe == "" {
@@ -83,20 +117,60 @@ func runHerdsmanCLI(timeout time.Duration, args ...string) ([]byte, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, exe, args...)
+	cmd := exec.Command(exe, args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		if msg := herdsmanEnvelopeError(stdout.Bytes()); msg != "" {
-			return nil, fmt.Errorf("herdsman CLI 失败: %s", herdsmanErrorHint(msg))
-		}
-		if s := strings.TrimSpace(stderr.String()); s != "" {
-			return nil, fmt.Errorf("herdsman CLI 调用失败: %w（stderr: %s）", err, truncateRunes(s, 200))
-		}
+	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("herdsman CLI 调用失败: %w", err)
 	}
-	return stdout.Bytes(), nil
+	// 带缓冲通道：超时分支即使不等 Wait 也不泄漏收尾 goroutine。
+	waited := make(chan error, 1)
+	go func() { waited <- cmd.Wait() }()
+
+	select {
+	case err := <-waited:
+		if err != nil {
+			if msg := herdsmanEnvelopeError(stdout.Bytes()); msg != "" {
+				return nil, fmt.Errorf("herdsman CLI 失败: %s", herdsmanErrorHint(msg))
+			}
+			if s := strings.TrimSpace(stderr.String()); s != "" {
+				return nil, fmt.Errorf("herdsman CLI 调用失败: %w（stderr: %s）", err, truncateRunes(s, 200))
+			}
+			return nil, fmt.Errorf("herdsman CLI 调用失败: %w", err)
+		}
+		return stdout.Bytes(), nil
+	case <-ctx.Done():
+		pid := cmd.Process.Pid
+		cleanup := "已清理整棵进程树"
+		if killErr := killProcessTree(pid); killErr != nil {
+			cleanup = "进程树清理失败: " + killErr.Error()
+			slog.Error("herdsman CLI 超时清理进程树失败（模型服务可能仍在占显存）",
+				"pid", pid, "timeout", timeout.String(), "error", killErr)
+		} else {
+			slog.Warn("herdsman CLI 超时，已清理整棵进程树", "pid", pid, "timeout", timeout.String(), "args", args)
+		}
+		// 回收：杀树成功后 Wait 立即返回；清理失败时不无限等（进程可能还要跑
+		// 几十分钟），只做有界等待，句柄由带缓冲通道兜底不泄漏。
+		//
+		// 纪律：**只有 Wait 返回后**才允许读 stdout/stderr。cmd.Stdout/Stderr
+		// 不是 *os.File，os/exec 会各起一个拷贝 goroutine 写这两个 bytes.Buffer
+		// 并由 Wait join；5 秒兜底分支胜出时拷贝可能仍在写，此时读缓冲既是
+		// data race、也只会拿到半截输出（进程未退出，输出本来就不完整）。
+		select {
+		case <-waited:
+			if msg := herdsmanEnvelopeError(stdout.Bytes()); msg != "" {
+				return nil, fmt.Errorf("herdsman CLI 超时（%s，PID %d，%s）: %s", timeout, pid, cleanup, herdsmanErrorHint(msg))
+			}
+			if s := strings.TrimSpace(stderr.String()); s != "" {
+				return nil, fmt.Errorf("herdsman CLI 超时（%s，PID %d，%s）: %w（stderr: %s）", timeout, pid, cleanup, ctx.Err(), truncateRunes(s, 200))
+			}
+			return nil, fmt.Errorf("herdsman CLI 超时（%s，PID %d，%s）: %w", timeout, pid, cleanup, ctx.Err())
+		case <-time.After(5 * time.Second):
+			slog.Error("herdsman CLI 超时清理后进程仍未退出", "pid", pid, "args", args)
+			return nil, fmt.Errorf("herdsman CLI 超时（%s，PID %d，%s）：进程在清理后仍未退出，输出不可用", timeout, pid, cleanup)
+		}
+	}
 }
 
 type herdsmanLaunchRecord struct {

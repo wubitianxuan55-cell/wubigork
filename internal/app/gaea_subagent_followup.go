@@ -56,9 +56,12 @@ func (a *App) GaeaSubagentFollowUp(sessionPath, ref, prompt string) (string, err
 	ctx := gaeaAgent.WithSpace(context.Background(), gaeaSessionSpace())
 	go func() {
 		defer func() {
+			r := recover()
+			// 单飞位复位无条件先做（AP5-16 的「状态位复位」）：否则一次 panic
+			// 就让该 ref 永久卡在「已有追问正在运行」，后续追问全被拒。
 			followUpClaims.Delete(claimKey)
-			if r := recover(); r != nil {
-				slog.Error("子代理追问 panic", "ref", ref, "panic", r)
+			if r != nil {
+				a.gaeaBackgroundPanicNotice("子代理追问", r, map[string]interface{}{"ref": ref})
 			}
 		}()
 		if err := runner(ctx, ref, prompt); err != nil {

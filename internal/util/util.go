@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+
+	"github.com/gaea/gaea/internal/gaea/strutil"
 )
 
 // ── JSON 解析重试（蒸馏自 MM-StoryAgent 的 success_check_fn + retry loop）──
@@ -220,13 +222,13 @@ func extractFromJSONFence(s string) (string, bool) {
 	}
 }
 
-// Truncate 按 rune 截断字符串
+// Truncate 按 rune 截断字符串到至多 maxLen 个 rune，超长追加 "..."（总长
+// ≤ maxLen+3；未超长则原样返回，不追加；maxLen<0 时返回 "..."，不 panic）。
+//
+// 实现已下沉到 internal/gaea/strutil（X1-06 单一源），此处只保留导出签名，
+// 仓内既有调用点无需改动。
 func Truncate(s string, maxLen int) string {
-	runes := []rune(s)
-	if len(runes) <= maxLen {
-		return s
-	}
-	return string(runes[:maxLen]) + "..."
+	return strutil.TruncateRunesSuffix(s, maxLen, "...")
 }
 
 // Max 返回两个 int 中较大值

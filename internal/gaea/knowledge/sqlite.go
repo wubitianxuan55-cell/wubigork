@@ -3,7 +3,9 @@ package knowledge
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -102,6 +104,9 @@ func (b *sqliteBackend) List() ([]EntrySummary, error) {
 func (b *sqliteBackend) Index() string {
 	rows, err := b.db.Query(`SELECT name, title, category, status, updated_at FROM knowledge ORDER BY name`)
 	if err != nil {
+		// 索引不可用必须留痕（审计 GA3-13）：返回文案里写了「索引不可用」，
+		// 但错误本身不能只停在字符串里。
+		slog.Warn("knowledge: 索引渲染查询失败", "error", err)
 		return "# 知识库索引\n\n（索引不可用）\n"
 	}
 	defer func() { _ = rows.Close() }()
@@ -115,6 +120,8 @@ func (b *sqliteBackend) Index() string {
 	for rows.Next() {
 		var r row
 		if err := rows.Scan(&r.name, &r.title, &r.cat, &r.status, &r.updated); err != nil {
+			// 单行解析失败会让该条目从索引里消失：不能静默 continue。
+			slog.Warn("knowledge: 索引跳过解析失败的行", "error", err)
 			continue
 		}
 		rowsList = append(rowsList, r)
@@ -181,31 +188,50 @@ func parseTagsJSON(raw string) []string {
 
 // MigrateLegacyKnowledge 将旧 Markdown 知识库（dir 下的 *.md）幂等迁移到
 // Hephaestus.db knowledge 表。完成后写 profile 标记跳过后续启动。旧文件保留。
+//
+// 标记的三种状态必须区分（审计 GA3-13）：行存在且非空=已迁移（返回 0）；
+// sql.ErrNoRows=标记不存在（正常，本次迁移）；其余读取失败（profile 表缺失/
+// 库损坏/锁超时）=异常，返回 error 而**不得**当作「未迁移」重跑——否则每次
+// 启动都重复迁移，把真实故障掩盖成「一直在迁移」。
 func MigrateLegacyKnowledge(gdb *sql.DB, dir string) (int, error) {
 	if gdb == nil {
 		return 0, nil
 	}
 	var marker string
 	err := gdb.QueryRow("SELECT value FROM profile WHERE key = ?", migrateMarker).Scan(&marker)
-	if err == nil && marker != "" {
+	switch {
+	case err == nil && marker != "":
 		return 0, nil // 已迁移
+	case err != nil && !errors.Is(err, sql.ErrNoRows):
+		return 0, fmt.Errorf("读取迁移标记 %q 失败: %w", migrateMarker, err)
 	}
 
-	entries, _ := filepath.Glob(filepath.Join(dir, "*.md"))
-	n := 0
+	entries, err := filepath.Glob(filepath.Join(dir, "*.md"))
+	if err != nil {
+		// Glob 失败（模式非法/目录不可用）此前被 _ 丢弃，迁移静默变成「没条目」。
+		return 0, fmt.Errorf("扫描旧知识库目录 %s 失败: %w", dir, err)
+	}
+	n, skipped := 0, 0
 	for _, path := range entries {
 		data, err := os.ReadFile(path)
 		if err != nil {
+			skipped++
+			slog.Warn("knowledge: 旧知识库文件读取失败，已跳过", "path", path, "error", err)
 			continue
 		}
 		e, err := ParseFrontmatter(string(data))
 		if err != nil || e.Name == "" {
+			skipped++
+			slog.Warn("knowledge: 旧知识库文件无 frontmatter/名称，已跳过", "path", path, "error", err)
 			continue
 		}
 		if err := (&sqliteBackend{db: gdb}).Save(*e); err != nil {
 			return n, fmt.Errorf("migrate %s: %w", e.Name, err)
 		}
 		n++
+	}
+	if skipped > 0 {
+		slog.Warn("knowledge: 旧知识库迁移完成但有条目被跳过（部分迁移）", "migrated", n, "skipped", skipped)
 	}
 
 	_, err = gdb.Exec("INSERT OR REPLACE INTO profile(key, value, source, confidence, updated_at) VALUES(?,?,?,?,datetime('now'))",

@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gaea/gaea/internal/gaea/strutil"
 	"github.com/gaea/gaea/internal/types"
 )
 
@@ -112,7 +113,7 @@ func ApplyChapterDiff(cf *types.CharacterFile, chapterNum int,
 				res.StateUpdated++
 				line := fmt.Sprintf("%s %s", d.Name, desc)
 				if d.KeyEvent != "" {
-					line += "：" + truncateRunes(d.KeyEvent, 50)
+					line += "：" + strutil.TruncateRunes(d.KeyEvent, 50)
 				}
 				res.Changes = append(res.Changes, line)
 				cascadeSurvival(cf, c, chapterNum, desc, res)
@@ -383,10 +384,3 @@ func appendRelNote(desc string, chapterNum int, note string) string {
 }
 
 // truncateRunes rune 截断（本包局部，避免与 analysis 包重名冲突）。
-func truncateRunes(s string, n int) string {
-	r := []rune(s)
-	if len(r) <= n {
-		return s
-	}
-	return string(r[:n])
-}

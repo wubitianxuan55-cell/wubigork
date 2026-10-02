@@ -14,6 +14,7 @@ import (
 
 	fileenc "github.com/gaea/gaea/internal/gaea/fileutil/encoding"
 	"github.com/gaea/gaea/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/gaea/wspath"
 )
 
 func init() { tool.RegisterBuiltin(grepTool{}) }
@@ -56,16 +57,9 @@ func (grepTool) ReadOnly() bool { return true }
 func (grepTool) CompactDescription() string     { return compactDesc["grep"] }
 func (grepTool) CompactSchema() json.RawMessage { return compactSchema["grep"] }
 
-// grepNoiseDirs mirrors agent/compress.go noiseDirs — the directories whose
-// contents are never useful grep hits (dependencies, build output, VCS
-// internals). Duplicated here because builtin must not import the agent
-// package (agent sits above tool in the layering).
-var grepNoiseDirs = map[string]bool{
-	"node_modules": true, ".git": true, "dist": true, "build": true,
-	"target": true, "__pycache__": true, ".next": true, ".nuxt": true,
-	".cache": true, ".venv": true, "venv": true, "coverage": true,
-	"out": true, ".turbo": true, ".devenv": true,
-}
+// 噪声目录口径见 internal/gaea/wspath（唯一真相源）：本工具用 GrepExtra 增量，
+// 与 agent/compress.go 的树压缩器逐项一致（收敛前两份 15 项清单逐字相同）。
+// 此处不再自建清单——builtin 不能 import agent，但两者都可以 import 叶子包 wspath。
 
 func (g grepTool) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p struct {
@@ -111,7 +105,7 @@ func (g grepTool) Execute(ctx context.Context, args json.RawMessage) (string, er
 			return ctx.Err()
 		}
 		if d.IsDir() {
-			if path != root && grepNoiseDirs[d.Name()] {
+			if path != root && wspath.IsSkippedIn(d.Name(), wspath.GrepExtra) {
 				return fs.SkipDir
 			}
 			return nil

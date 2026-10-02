@@ -133,7 +133,15 @@ func (p *Plan) Create(zipPath, appVersion string) (Manifest, error) {
 	for _, s := range p.Sources {
 		info, err := os.Stat(s.Abs)
 		if err != nil {
-			continue // 源不存在则跳过（首次运行无库等）
+			// 「首次运行无库」是良性缺失：记 Warning 后跳过（清单要如实带上
+			// 这行，否则用户以为该数据已备份）。其余 stat 失败（权限、路径
+			// 写错、磁盘掉线）必须中止——静默跳过会让 zip 少数据而
+			// manifest.EntryCount 看起来正常（审计 GA4-11）。
+			if os.IsNotExist(err) {
+				m.Warnings = append(m.Warnings, "源缺失: "+s.Abs)
+				continue
+			}
+			return m, fmt.Errorf("检查备份源 %s 失败: %w", s.Abs, err)
 		}
 		if info.IsDir() {
 			err := filepath.WalkDir(s.Abs, func(path string, d os.DirEntry, err error) error {
@@ -481,7 +489,10 @@ func ClearPending(dataRoot string) error {
 }
 
 // RollbackBefore 把恢复前的数据备份目录（.restore-before）整体移回数据根（#7）。
-// 用于恢复失败/取消后用户选择回滚到恢复前状态。返回是否执行了回滚。
+// 用于恢复失败/取消后用户选择回滚到恢复前状态。返回是否**完整**回滚：
+// 任一子项失败都返回 false + 聚合 error（逐条点名失败项与原因），绝不把
+// 「部分成功」报成成功（审计 GA4-11：原实现用 moved>0 当成功标志）。失败时
+// 保留 .restore-before 目录供重试。
 func RollbackBefore(dataRoot string) (bool, error) {
 	beforeDir := filepath.Join(dataRoot, ".restore-before")
 	info, err := os.Stat(beforeDir)
@@ -499,6 +510,7 @@ func RollbackBefore(dataRoot string) (bool, error) {
 		return false, err
 	}
 	moved := 0
+	var failures []string
 	for _, e := range entries {
 		src := filepath.Join(beforeDir, e.Name())
 		dst := filepath.Join(dataRoot, e.Name())
@@ -507,21 +519,28 @@ func RollbackBefore(dataRoot string) (bool, error) {
 			keep := filepath.Join(dataRoot, ".restore-new-keep-"+e.Name())
 			_ = os.RemoveAll(keep)
 			if err := os.Rename(dst, keep); err != nil {
+				failures = append(failures, fmt.Sprintf("%s: 移开现有数据失败: %v", e.Name(), err))
 				continue
 			}
 		}
 		if err := os.Rename(src, dst); err != nil {
 			if err2 := copyTree(src, dst); err2 != nil {
+				failures = append(failures, fmt.Sprintf("%s: 移回失败: %v；复制回退失败: %v", e.Name(), err, err2))
 				continue
 			}
 			_ = os.RemoveAll(src)
 		}
 		moved++
 	}
+	if len(failures) > 0 {
+		return false, fmt.Errorf("回滚未完成：%d/%d 项失败（已回滚 %d 项）: %s",
+			len(failures), len(entries), moved, strings.Join(failures, "；"))
+	}
 	if moved > 0 {
 		_ = os.RemoveAll(beforeDir)
+		return true, nil
 	}
-	return moved > 0, nil
+	return false, nil
 }
 
 // ApplyResult 一次恢复应用的结果（写回 .restore-result.json 供前端提示）。

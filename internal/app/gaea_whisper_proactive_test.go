@@ -3,11 +3,83 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/gaea/gaea/internal/whisper"
 )
+
+// ─── AP5-16：ticker 循环的 panic 防线 ─────────────────────────
+
+// TestProactiveLoop_ContinuesAfterPanic 审计 P2 AP5-16：panic 防线必须在 ticker
+// 循环**体内**——此前 recover 在循环外层，任一轮评估 panic 即 return，主动关心
+// 永久停摆且 proactiveOnce 已消耗、无法重启。本用例注入「首轮必 panic」的 tick，
+// 断言第二轮照跑、notice 已发。
+func TestProactiveLoop_ContinuesAfterPanic(t *testing.T) {
+	a := &whisperState{core: &core{}}
+	notices := captureGaeaNotices(t)
+
+	var calls int32
+	second := make(chan struct{})
+	stop := make(chan struct{})
+	var stopOnce sync.Once
+	t.Cleanup(func() { stopOnce.Do(func() { close(stop) }) })
+
+	go a.proactiveLoop(stop, func() time.Duration { return 5 * time.Millisecond }, func(time.Time) int {
+		if atomic.AddInt32(&calls, 1) == 1 {
+			panic("tick boom")
+		}
+		select {
+		case <-second:
+		default:
+			close(second)
+		}
+		return 0
+	})
+
+	select {
+	case <-second:
+	case <-time.After(5 * time.Second):
+		t.Fatal("首轮 panic 后循环未继续（recover 仍在循环外层？）")
+	}
+	// notice 已在 panic 分支发出（轮询等 goroutine 落定）。
+	deadline := time.Now().Add(3 * time.Second)
+	for len(notices()) == 0 && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	got := notices()
+	if len(got) == 0 {
+		t.Fatal("tick panic 后未发前端可见 notice")
+	}
+	if !strings.Contains(got[0], "主动关心") || !strings.Contains(got[0], "tick boom") {
+		t.Fatalf("notice 文案应含任务名与 panic 值: %q", got[0])
+	}
+}
+
+// TestProactiveLoop_StopsOnSignal 退出信号仍然有效（防线改造不得破坏停机路径）。
+func TestProactiveLoop_StopsOnSignal(t *testing.T) {
+	a := &whisperState{core: &core{}}
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	var calls int32
+	go func() {
+		a.proactiveLoop(stop, func() time.Duration { return time.Millisecond }, func(time.Time) int {
+			atomic.AddInt32(&calls, 1)
+			return 0
+		})
+		close(done)
+	}()
+	time.Sleep(30 * time.Millisecond)
+	close(stop)
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("stop 信号后循环未退出")
+	}
+}
 
 // registerProactiveOrch 注册一个已就绪（有历史回合）的轻语会话到进程级会话表，
 // 并保证测试结束清理，避免污染其他用例。

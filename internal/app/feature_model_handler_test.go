@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -202,6 +203,96 @@ func TestGetModelMonitor(t *testing.T) {
 	}
 	if got["comfyRunning"] != false {
 		t.Errorf("comfyRunning = %v, want false（测试环境未启动 ComfyUI）", got["comfyRunning"])
+	}
+}
+
+// TestSetFeatureModel_SaveFailureRollsBack 审计 P2 AP8-16：三处落盘任一失败时
+// 必须收集错误、回滚内存并把 error 透传（此前只 slog.Warn 且 return nil——
+// 用户以为绑定已保存，重启后回退到旧值）。
+func TestSetFeatureModel_SaveFailureRollsBack(t *testing.T) {
+	c := newTestCore(t)
+	// 前置：一份可回滚的旧绑定 + 功能停用（验证 enabled 也参与回滚）。
+	if err := c.SetFeatureModel("novel", "herdsman", "qwen3-8b"); err != nil {
+		t.Fatalf("前置绑定: %v", err)
+	}
+	if err := c.SetFeatureModelEnabled("novel", false); err != nil {
+		t.Fatalf("前置停用: %v", err)
+	}
+
+	origSave := featureModelSave
+	t.Cleanup(func() { featureModelSave = origSave })
+	calls := 0
+	featureModelSave = func(key, value string) error {
+		calls++
+		return errors.New("模拟落盘失败：配置目录不可写")
+	}
+
+	err := c.SetFeatureModel("novel", "herdsman", "whisper-base")
+	if err == nil {
+		t.Fatal("落盘失败必须返回 error（此前 return nil 伪成功）")
+	}
+	for _, want := range []string{"保存功能引擎失败", "保存功能模型失败", "保存功能启用状态失败"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("返回错误应收集到 %q: %v", want, err)
+		}
+	}
+	if calls != 3 {
+		t.Errorf("三处 Save 都应被尝试并收集错误，got %d 次", calls)
+	}
+	// 内存 cfg 必须回到保存前的值（旧绑定 + 停用位）。
+	if eng, model := c.featureModel("novel"); eng != "herdsman" || model != "qwen3-8b" {
+		t.Errorf("内存绑定未回滚: (%q,%q)，期望 (herdsman,qwen3-8b)", eng, model)
+	}
+	if c.GetFeatureModelEnabled("novel") {
+		t.Error("内存启用位未回滚（保存前为停用）")
+	}
+}
+
+// TestSetFeatureModelEnabled_SaveFailureRollsBack 同一条纪律的启停面：
+// 落盘失败即回滚内存（否则内存已停用、磁盘仍是启用，重启后状态回跳）。
+func TestSetFeatureModelEnabled_SaveFailureRollsBack(t *testing.T) {
+	c := newTestCore(t)
+	if err := c.SetFeatureModel("novel", "herdsman", "qwen3-8b"); err != nil {
+		t.Fatalf("前置绑定（绑定即启用）: %v", err)
+	}
+	if !c.GetFeatureModelEnabled("novel") {
+		t.Fatal("前置：绑定后应为启用")
+	}
+
+	origSave := featureModelSave
+	t.Cleanup(func() { featureModelSave = origSave })
+	featureModelSave = func(key, value string) error { return errors.New("模拟落盘失败") }
+
+	if err := c.SetFeatureModelEnabled("novel", false); err == nil {
+		t.Fatal("落盘失败必须返回 error")
+	}
+	if !c.GetFeatureModelEnabled("novel") {
+		t.Error("内存启用位未回滚（保存前为启用）")
+	}
+}
+
+// TestSetFeatureModel_SaveSuccessKeepsBinding 反向锚点：落盘成功时内存值保持
+// 新绑定且启用，且三处 Save 都被调用（防「回滚逻辑」把成功路径也回滚）。
+func TestSetFeatureModel_SaveSuccessKeepsBinding(t *testing.T) {
+	c := newTestCore(t)
+	origSave := featureModelSave
+	t.Cleanup(func() { featureModelSave = origSave })
+	var keys []string
+	featureModelSave = func(key, value string) error {
+		keys = append(keys, key)
+		return nil
+	}
+	if err := c.SetFeatureModel("office", "herdsman", "qwen3-8b"); err != nil {
+		t.Fatalf("SetFeatureModel: %v", err)
+	}
+	if eng, model := c.featureModel("office"); eng != "herdsman" || model != "qwen3-8b" {
+		t.Errorf("成功路径不应回滚: (%q,%q)", eng, model)
+	}
+	if !c.GetFeatureModelEnabled("office") {
+		t.Error("绑定即启用：成功路径应为启用")
+	}
+	if len(keys) != 3 {
+		t.Errorf("应落盘 engine/model/enabled 三处，got %v", keys)
 	}
 }
 

@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gaea/gaea/internal/gaea/strutil"
 	"github.com/gaea/gaea/internal/graph"
 	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/style"
@@ -266,7 +267,7 @@ func clipToRunes(s string, budget, room int) string {
 	if len([]rune(s)) <= limit {
 		return s
 	}
-	return util.Truncate(s, limit-3)
+	return strutil.TruncateRunesSuffix(s, limit-3, "...")
 }
 
 // ── 世界观 / 风格 / 主线 / 伏笔 ────────────────────────────

@@ -16,6 +16,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/gaea/gaea/internal/gaea/strutil"
 )
 
 const (
@@ -104,7 +106,7 @@ func DownloadImage(rawURL string) (string, func(), error) {
 	}
 	u, err := url.Parse(rawURL)
 	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
-		return "", nil, fmt.Errorf("图片 URL 非法（须为绝对 http/https 地址）: %s", truncateRunes(rawURL, 120))
+		return "", nil, fmt.Errorf("图片 URL 非法（须为绝对 http/https 地址）: %s", strutil.TruncateRunesSuffix(rawURL, 120, "…"))
 	}
 
 	client := &http.Client{Timeout: wxImageTimeout, Transport: mediaTransport()}
@@ -208,7 +210,7 @@ func fetchMediaBytes(rawURL string) ([]byte, error) {
 func fetchMediaBytesLimit(rawURL string, maxBytes int64) ([]byte, error) {
 	u, err := url.Parse(rawURL)
 	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
-		return nil, fmt.Errorf("媒体 URL 非法（须为绝对 http/https 地址）: %s", truncateRunes(rawURL, 120))
+		return nil, fmt.Errorf("媒体 URL 非法（须为绝对 http/https 地址）: %s", strutil.TruncateRunesSuffix(rawURL, 120, "…"))
 	}
 	client := &http.Client{Timeout: wxImageTimeout, Transport: mediaTransport()}
 	req, err := http.NewRequest(http.MethodGet, rawURL, nil)

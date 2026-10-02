@@ -463,6 +463,7 @@ const ChatPage: React.FC = () => {
           inputRef={inputRef}
           voiceOn={voiceOn}
           voiceTranscript={voice.transcript}
+          voiceDegraded={voice.degraded === 'mic-unavailable'}
           onToggleVoice={toggleVoice}
           sending={sending}
           forceSearch={forceSearch}

@@ -22,11 +22,16 @@ export function onEvent(cb: (e: WireEvent) => void): () => void {
   const shared = mockEventSharedSync();
   if (shared) return shared.mockSubscribe(cb);
   let off: (() => void) | null = null;
+  // FE3-10：同 tick 挂载又卸载时 cleanup 先跑（此时 off 仍为 null），异步 then 之后
+  // 才真正 add——闭包里的 off 已无人再读，监听者永久残留、重复 dispatch。cancelled
+  // 置位后 then 里直接 return，绝不 add（与「事件绑定恰好一次」纪律同口径）。
+  let cancelled = false;
   void waitMockReady().then(() => {
+    if (cancelled) return;
     const s = mockEventSharedSync();
     if (s) off = s.mockSubscribe(cb);
   });
-  return () => { off?.(); };
+  return () => { cancelled = true; off?.(); };
 }
 
 // Must match desktop/app.go's eventChannel constant.
@@ -58,11 +63,14 @@ export function onSubagentText(cb: (e: SubagentTextEvent) => void): () => void {
   const shared = mockEventSharedSync();
   if (!shared) {
     let off: (() => void) | null = null;
+    // FE3-10：同 onEvent——cleanup 先于 chunk 就绪时不得再 add（否则永久残留）
+    let cancelled = false;
     void waitMockReady().then(() => {
+      if (cancelled) return;
       const s = mockEventSharedSync();
       if (s) off = s.mockSubscribe(cb as unknown as (e: WireEvent) => void);
     });
-    return () => { off?.(); };
+    return () => { cancelled = true; off?.(); };
   }
   return shared.mockSubscribe(cb as unknown as (e: WireEvent) => void);
 }
@@ -83,14 +91,18 @@ export function onUpdaterProgress(cb: (p: UpdateProgress) => void): () => void {
   const shared = mockEventSharedSync();
   if (!shared) {
     let off: (() => void) | null = null;
+    // FE3-10：同 onEvent——cleanup 先于 chunk 就绪时不得再 add（否则 updater
+    // 监听者永久残留，升级进度被重复回调）
+    let cancelled = false;
     void waitMockReady().then(() => {
+      if (cancelled) return;
       const s = mockEventSharedSync();
       if (s) {
         s.updaterListeners.add(cb);
         off = () => s.updaterListeners.delete(cb);
       }
     });
-    return () => { off?.(); };
+    return () => { cancelled = true; off?.(); };
   }
   shared.updaterListeners.add(cb);
   return () => {
@@ -123,11 +135,15 @@ export function onTaskEvent(cb: (t: TaskView) => void, space?: string): () => vo
   const shared = mockEventSharedSync();
   if (!shared) {
     let off: (() => void) | null = null;
+    // FE3-10：cleanup 先于 chunk 就绪时不得再 add（否则任务监听者永久残留：
+    // 同一 tick 挂载又卸载的面板退订后仍在收事件，角标/自动激活重复触发）
+    let cancelled = false;
     void waitMockReady().then(() => {
+      if (cancelled) return;
       const s = mockEventSharedSync();
       if (s) off = s.mockTaskSubscribe(handler);
     });
-    return () => { off?.(); };
+    return () => { cancelled = true; off?.(); };
   }
   return shared.mockTaskSubscribe(handler);
 }

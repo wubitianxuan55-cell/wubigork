@@ -4,38 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"unicode/utf16"
 )
 
-// 上限常量与 frontend/src/genui/spec.ts GENUI_LIMITS 同源，改动须同步。
-const (
-	maxDepth      = 8
-	maxNodes      = 200
-	maxString     = 2000
-	maxCode       = 12000
-	maxFenceBody  = 65536
-	maxGridCols   = 12
-	maxTableRows  = 50
-	maxTableCols  = 12
-	maxOptions    = 50
-	maxChartPoint = 60
-)
-
-// maxErrors 是单次校验的错误条数上限（防刷屏）。TS 侧 validateGenuiSpec 用 50，
-// 属已知口径分叉；工具契约以本值为准。
-const maxErrors = 30
-
-// nodeTypes 与 TS GENUI_NODE_TYPES 同源（未知 type 一律报错）。
-var nodeTypes = map[string]bool{
-	"text": true, "row": true, "col": true, "grid": true, "card": true,
-	"divider": true, "spacer": true,
-	"stat": true, "badge": true, "progress": true, "keyvalue": true,
-	"list": true, "table": true, "timeline": true, "callout": true,
-	"steps": true, "avatar": true, "copy": true,
-	"chart": true, "code": true, "json": true, "diff": true,
-	"button": true, "input": true, "select": true, "checkbox": true,
-	"switch": true, "radio": true, "slider": true, "textarea": true,
-	"submit": true, "tabs": true, "accordion": true, "quiz": true,
-}
+// 上限常量、错误预算与合法 type 白名单都定义在同包的 limits.go —— 那是
+// Go/TS 两侧的唯一真相源（审计 X1-07），并由 limits_sync_test.go 生成并校验
+// frontend/src/genui/limits.ts。本文件只放校验逻辑。
 
 // Validation 是结构校验结果（只做结构检查；渲染器仍是最终权威）。
 type Validation struct {
@@ -192,11 +166,26 @@ func (v *validator) arrayAt(path string, value any) []any {
 	return arr
 }
 
-// checkData 只做数据数组的字段/形状校验（与 guard.ts 消费的字段对齐）。
+// checkData 只做数据数组的字段/形状校验（与 guard.ts 消费的字段对齐）；
+// 同时执行 GA2-05 补齐的数量上限，使 Go 侧校验与前端渲染器同强度。
 func (v *validator) checkData(path, typ string, obj map[string]any) {
 	switch typ {
+	case "text", "callout":
+		// 前端 guard.ts 用 str(o.content)（cap = maxString）截断，此处同强度拦截。
+		v.checkUTF16Limit(path, typ, "content", obj["content"], maxString)
+	case "code":
+		// 前端 guard.ts 用 str(o.code, MAX.maxCode) 截断。
+		v.checkUTF16Limit(path, typ, "code", obj["code"], maxCode)
+	case "table":
+		// 前端按 maxTableCols 截列、maxTableRows 裁行。
+		v.checkArrayLimit(path+".columns", typ, "columns", obj["columns"], maxTableCols)
+		v.checkArrayLimit(path+".rows", typ, "rows", obj["rows"], maxTableRows)
 	case "select", "radio":
-		for i, raw := range v.arrayAt(path+".options", obj["options"]) {
+		opts := v.arrayAt(path+".options", obj["options"])
+		if len(opts) > maxOptions {
+			v.add(path, fmt.Sprintf("%s 的 options 有 %d 项，超过上限 %d", typ, len(opts), maxOptions))
+		}
+		for i, raw := range opts {
 			if v.full() {
 				return
 			}
@@ -271,9 +260,15 @@ func (v *validator) checkStringField(path, typ, kind, field string, row map[stri
 }
 
 // checkChartPoints 校验 chart.data 与 chart.series[].data 的数据点：
-// 必须是对象且含字符串 label 与数字 value（guard.ts chartPoint 同口径）。
+// 必须是对象且含字符串 label 与数字 value（guard.ts chartPoint 同口径），
+// 并执行数据点数量上限（前端按 maxChartPoints 截断，此处同强度拦截）。
 func (v *validator) checkChartPoints(base, typ string, value any) {
-	for i, raw := range v.arrayAt(base, value) {
+	arr := v.arrayAt(base, value)
+	if len(arr) > maxChartPoints {
+		v.add(base, fmt.Sprintf("%s 数据点 %d 个，超过上限 %d（前端只渲染前 %d 个）",
+			typ, len(arr), maxChartPoints, maxChartPoints))
+	}
+	for i, raw := range arr {
 		if v.full() {
 			return
 		}
@@ -291,6 +286,33 @@ func (v *validator) checkChartPoints(base, typ string, value any) {
 			v.add(p, fmt.Sprintf("%s 数据点必填字段 value 应为数字", typ))
 		}
 	}
+}
+
+// checkArrayLimit 报告数据数组的元素个数超限（value 缺失/类型错由 arrayAt 负责报，
+// 此处不重复报错）。
+func (v *validator) checkArrayLimit(path, typ, key string, value any, max int) {
+	if arr := v.arrayAt(path, value); len(arr) > max {
+		v.add(path, fmt.Sprintf("%s 的 %s 有 %d 项，超过上限 %d", typ, key, len(arr), max))
+	}
+}
+
+// checkUTF16Limit 报告字符串字段按 UTF-16 码元计的超限：口径与前端 JS
+// String.length（guard.ts 的 str(v, cap) 截断点）逐值一致，避免 emoji/增补
+// 平面字符上出现「后端放行、前端截断」。
+func (v *validator) checkUTF16Limit(path, typ, key string, value any, max int) {
+	s, ok := value.(string)
+	if !ok {
+		return // 缺失/类型错由 checkRequired 报，不重复
+	}
+	if n := utf16Len(s); n > max {
+		v.add(path, fmt.Sprintf("%s 的 %s 长 %d（UTF-16 码元），超过上限 %d；前端会截断",
+			typ, key, n, max))
+	}
+}
+
+// utf16Len 返回 s 的 UTF-16 码元数（代理对计 2），与 JS String.length 逐值一致。
+func utf16Len(s string) int {
+	return len(utf16.Encode([]rune(s)))
 }
 
 func (v *validator) checkRequired(path, typ string, obj map[string]any) {

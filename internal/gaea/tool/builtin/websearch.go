@@ -15,6 +15,7 @@ import (
 
 	nethtml "golang.org/x/net/html"
 
+	"github.com/gaea/gaea/internal/gaea/strutil"
 	"github.com/gaea/gaea/internal/gaea/tool"
 	"github.com/gaea/gaea/internal/netclient"
 )
@@ -905,12 +906,15 @@ func fetchSearchPage(ctx context.Context, rawURL string) (string, error) {
 	return fmt.Sprintf("[web_search · url=%s · as of %s]\n%s", rawURL, date, text), nil
 }
 
+// truncate 先 TrimSpace 再按 rune 截断到 maxLen 个 rune，不补后缀。
+//
+// GA2-10 修正：原实现按**字节**切（`s[:maxLen]`），中文摘要被切在 rune 中间，
+// JSON 编码后变成 U+FFFD。核心切片口径见 strutil.TruncateRunes；本包装保留
+// 站点的 TrimSpace 前置政策。保留函数名是因为同包内 knowledge_search.go:254
+// 与 websearch_live_test.go 也在调用它，而这两个文件不在本批「线 4」的文件
+// 归属清单内（不动归属外文件），故只把实现下沉、不改名。
 func truncate(s string, maxLen int) string {
-	s = strings.TrimSpace(s)
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen]
+	return strutil.TruncateRunes(strings.TrimSpace(s), maxLen)
 }
 
 type SearchResult struct {

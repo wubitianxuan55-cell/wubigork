@@ -155,8 +155,12 @@ func (a *App) GaeaRouteSuggestions() (RouteSuggestionsView, error) {
 }
 
 // GaeaRouteSuggestionApply 采纳建议：显式用户动作，走 SetFeatureModel 既有链路
-// （校验引擎存在/启用/模型在列，gaea 域即时 applyOfficeFeatureModel）。改绑成功后
-// 状态落盘失败只告警不回滚——改绑本身已生效。
+// （校验引擎存在/启用/模型在列，gaea 域即时 applyOfficeFeatureModel）。
+//
+// 审计 AP8-16 后语义已变（本注释同步更正）：SetFeatureModel 在**落盘失败**时会
+// 回滚内存绑定并返回 error，故本入口在 :168 一并失败——不再出现「界面显示已改绑、
+// 重启后回退」的静默不一致。仍只告警的一处是 :171 的建议记录落盘：改绑本身已
+// 生效，此处失败只会让该建议在下次重算时再次出现（重算幂等），不谎报失败。
 func (a *App) GaeaRouteSuggestionApply(id string) error {
 	feature, _, _, toEng, toModel, ok := routesuggest.ParseSuggestionID(id)
 	if !ok {

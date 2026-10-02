@@ -2,6 +2,7 @@
 // 内容随会话隔离（内存）；历史重放按消息顺序重发即可收敛终态。
 import { create } from "zustand";
 import type { GenuiSpec } from "../../genui";
+import { GENUI_LIMITS } from "../../genui/spec";
 import { fingerprint } from "../../genui/fingerprint";
 
 export interface GenuiPanelSession {
@@ -40,7 +41,8 @@ function mergeAppend(existing: GenuiSpec | undefined, add: GenuiSpec): GenuiSpec
 }
 
 function clipItems(items: GenuiSpec["items"]): GenuiSpec["items"] {
-  const budget = 200;
+  // FE6-19：原为字面量 200，与 GENUI_LIMITS.maxNodes/spec 双口径；改为同源。
+  const budget = GENUI_LIMITS.maxNodes;
   return items.slice(0, budget);
 }
 
@@ -65,7 +67,9 @@ export const useGenuiPanelStore = create<GenuiPanelState>()((set) => ({
       if (prev.seen.has(dedupeKey)) return s;
       const seen = new Set(prev.seen);
       seen.add(dedupeKey);
-      if (seen.size > 400) {
+      // seen 只是发布指纹的去重窗口：每个节点对应一条指纹，取节点预算的 2 倍
+      // 让"整块替换 + 一次追加"都还能命中（FE6-19：原为字面量 400）。
+      if (seen.size > GENUI_LIMITS.maxNodes * 2) {
         const oldest = seen.values().next().value;
         if (oldest !== undefined) seen.delete(oldest);
       }

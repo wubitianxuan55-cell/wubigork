@@ -599,14 +599,14 @@ func (a *App) dagExecute(ctx context.Context, id string, waves [][]dag.Node) {
 						failMu.Lock()
 						failed = true
 						failMu.Unlock()
-						_ = a.dagMarkNode(id, node.ID, func(n *dag.Node) {
+						a.dagMarkNodeLogged(id, node.ID, func(n *dag.Node) {
 							n.Status = dag.StatusFailed
 							n.Error = fmt.Sprintf("节点执行 panic: %v", r)
 						})
 					}
 				}()
 				if ctx.Err() != nil {
-					_ = a.dagMarkNode(id, node.ID, func(n *dag.Node) {
+					a.dagMarkNodeLogged(id, node.ID, func(n *dag.Node) {
 						n.Status = dag.StatusSkipped
 						n.Error = "已取消"
 					})
@@ -619,7 +619,7 @@ func (a *App) dagExecute(ctx context.Context, id string, waves [][]dag.Node) {
 					holdMu.Lock()
 					held = true
 					holdMu.Unlock()
-					_ = a.dagMarkNode(id, node.ID, func(n *dag.Node) {
+					a.dagMarkNodeLogged(id, node.ID, func(n *dag.Node) {
 						n.Status = dag.StatusHold
 						n.Error = "高风险节点待审批"
 					})
@@ -631,7 +631,7 @@ func (a *App) dagExecute(ctx context.Context, id string, waves [][]dag.Node) {
 					case sem <- struct{}{}:
 						defer func() { <-sem }()
 					case <-ctx.Done():
-						_ = a.dagMarkNode(id, node.ID, func(n *dag.Node) {
+						a.dagMarkNodeLogged(id, node.ID, func(n *dag.Node) {
 							n.Status = dag.StatusSkipped
 							n.Error = "已取消"
 						})
@@ -662,7 +662,7 @@ func (a *App) dagExecute(ctx context.Context, id string, waves [][]dag.Node) {
 					failed = true
 					failMu.Unlock()
 				}
-				_ = a.dagMarkNode(id, node.ID, func(n *dag.Node) {
+				a.dagMarkNodeLogged(id, node.ID, func(n *dag.Node) {
 					n.Status = status
 					n.Error = errMsg
 					n.Ref = ref
@@ -681,7 +681,7 @@ func (a *App) dagExecute(ctx context.Context, id string, waves [][]dag.Node) {
 		if failed {
 			for _, later := range waves[wi+1:] {
 				for _, node := range later {
-					_ = a.dagMarkNode(id, node.ID, func(n *dag.Node) {
+					a.dagMarkNodeLogged(id, node.ID, func(n *dag.Node) {
 						if n.Status == dag.StatusPending || n.Status == dag.StatusRunning || n.Status == dag.StatusHold {
 							n.Status = dag.StatusSkipped
 							n.Error = "上游失败跳过"
@@ -738,10 +738,20 @@ func (a *App) dagMarkNode(id, nodeID string, fn func(n *dag.Node)) error {
 	return a.dagStore().Save(r)
 }
 
+// dagMarkNodeLogged 与 dagMarkNode 同形，但把落盘失败留痕（审计：流水线内 7 处
+// 状态落盘此前是 `_ = a.dagMarkNode(...)`，失败时节点状态与磁盘实况静默不一致，
+// 排障无任何线索）。只加日志，不改任何函数签名/返回类型（绑定面形状变更不在本
+// 批范围）。
+func (a *App) dagMarkNodeLogged(id, nodeID string, fn func(n *dag.Node)) {
+	if err := a.dagMarkNode(id, nodeID, fn); err != nil {
+		slog.Warn("流水线节点状态落盘失败", "run", id, "node", nodeID, "error", err)
+	}
+}
+
 func (a *App) dagFailAll(id string, waves [][]dag.Node, reason string) {
 	for _, wave := range waves {
 		for _, node := range wave {
-			_ = a.dagMarkNode(id, node.ID, func(n *dag.Node) {
+			a.dagMarkNodeLogged(id, node.ID, func(n *dag.Node) {
 				n.Status = dag.StatusFailed
 				n.Error = reason
 			})

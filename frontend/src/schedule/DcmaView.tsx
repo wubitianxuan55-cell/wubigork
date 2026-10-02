@@ -7,12 +7,25 @@ import { dcmaAudit, type DcmaThresholds } from './dcma'
  *  体检单形态）。展示 + 阈值覆盖加载：审计在 dcmaAudit 纯函数内完成（同一输入
  *  同一结论）；阈值表是数据资产（v4.226 规范知识出内核）——挂载时尝试读工作区
  *  覆盖文件 .gaea/skills/schedule-dcma/thresholds.json（部分字段可覆盖），缺失
- *  或解析失败静默用内置默认（增强面不挡主功能），数据不足的点诚实显示「不可
- *  评估」+原因，绝不伪造。 */
+ *  或解析失败回落内置默认（增强面不挡主功能），数据不足的点诚实显示「不可
+ *  评估」+原因，绝不伪造。
+ *  FE7-14：回落不再静默——文件存在但读/解析失败时上屏一行「已回落内置默认」，
+ *  否则用户看到的是全按内置默认跑而无提示，体检结论可能与自定义阈值不一致。 */
 const THRESHOLDS_OVERRIDE_REL = '.gaea/skills/schedule-dcma/thresholds.json'
+
+/** 「文件不存在」判定：ReadFile 对缺失文件一律 reject（与 ScheduleDiffCard /
+ *  FilePreview 同口径），按错误码/文案识别，避免把默认路径当降级刷提示。 */
+function isFileMissing(e: unknown): boolean {
+  const code = (e as { code?: unknown } | null)?.code
+  const msg = e instanceof Error ? e.message : String(e ?? '')
+  if (code === 'ENOENT') return true
+  return /no such file|ENOENT|does not exist|cannot find the file|系统找不到指定的文件|不存在/i.test(msg)
+}
 
 export function DcmaView({ project, cpm, dataDate }: { project: SchedProject; cpm: CpmResult; dataDate?: number | null }) {
   const [thresholds, setThresholds] = useState<Partial<DcmaThresholds> | null>(null)
+  // 阈值覆盖读取/解析失败原因（非空 → 渲染诚实提示行，不打断体检）
+  const [thresholdFail, setThresholdFail] = useState<string | null>(null)
 
   useEffect(() => {
     let alive = true
@@ -20,15 +33,24 @@ export function DcmaView({ project, cpm, dataDate }: { project: SchedProject; cp
       .ReadFile(THRESHOLDS_OVERRIDE_REL)
       .then((f) => {
         if (!alive) return
+        // 空内容 = 没有覆盖（部分后端对缺失文件返回空 body 而非 reject），
+        // 属内置默认的预期路径，不提示。
+        if (!f.markdown || !f.markdown.trim()) return
         try {
           const t = JSON.parse(f.markdown) as Partial<DcmaThresholds>
-          if (t && typeof t === 'object') setThresholds(t)
-        } catch {
-          // 覆盖文件解析失败：保内置默认，不打断体检
+          if (t && typeof t === 'object' && !Array.isArray(t)) setThresholds(t)
+          else setThresholdFail('阈值文件内容不是对象（已回落内置默认）')
+        } catch (e: unknown) {
+          // 覆盖文件解析失败：保内置默认，不打断体检——但原因必须可见
+          setThresholdFail(`阈值文件 JSON 解析失败（${e instanceof Error ? e.message : String(e)}）`)
         }
       })
-      .catch(() => {
-        // 无覆盖文件：内置默认
+      .catch((e: unknown) => {
+        // 无覆盖文件 = 内置默认为预期行为（ReadFile 对不存在的文件是 reject，
+        // 与 ScheduleDiffCard/FilePreview 同口径），不提示；权限/IO 等真读失败
+        // 才是需要上屏的降级。
+        if (!alive || isFileMissing(e)) return
+        setThresholdFail(`阈值文件读取失败（${e instanceof Error ? e.message : String(e)}）`)
       })
     return () => {
       alive = false
@@ -61,6 +83,16 @@ export function DcmaView({ project, cpm, dataDate }: { project: SchedProject; cp
           {report.checks.length - report.evaluable > 0 && ` · 不可评估 ${report.checks.length - report.evaluable}`}
         </span>
       </div>
+      {/* FE7-14：阈值回落诚实提示（不打断体检、不弹窗；失败态才渲染） */}
+      {thresholdFail && (
+        <div
+          role="alert"
+          data-testid="dcma-threshold-degraded"
+          className="mb-3 px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-500/5 text-amber-500 text-[11px] leading-relaxed max-w-[860px]"
+        >
+          {`阈值文件读取失败，已回落内置默认：${thresholdFail}。体检结论按内置默认阈值给出，可能与工作区自定义阈值不一致。`}
+        </div>
+      )}
       <div className="space-y-1.5 max-w-[860px]">
         {report.checks.map((c) => (
           <div

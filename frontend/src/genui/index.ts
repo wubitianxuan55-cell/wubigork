@@ -37,12 +37,7 @@ export type {
   ButtonTone,
   ChartKind,
 } from "./spec";
-export {
-  repairGenuiSpec,
-  repairSingleComponent,
-  validateGenuiSpec,
-  countGenuiNodes,
-} from "./guard";
+export { repairGenuiSpec, repairSingleComponent } from "./guard";
 export {
   splitGenuiFences,
   parseGenuiFenceBody,

@@ -20,6 +20,7 @@ import (
 
 	"github.com/gaea/gaea/internal/gaea/cost"
 	fileenc "github.com/gaea/gaea/internal/gaea/fileutil/encoding"
+	"github.com/gaea/gaea/internal/gaea/strutil"
 )
 
 // MaxRows 导入预览上限：超大表格截断并提示，避免 IPC/上下文失控。
@@ -1255,10 +1256,10 @@ func round3(v float64) float64 {
 	return math.Round(v*1000) / 1000
 }
 
+// truncateRunes 先去掉首尾空白，再按 rune 截断到 n 个 rune（不补后缀）。
+// X1-06 收敛：切片口径见 strutil.TruncateRunes；本包装只保留站点的
+// TrimSpace 前置政策——收敛前未超长时返回的也是 TrimSpace 后的串，故该政策
+// 必须留在调用方才能逐字节等价（7 个调用点沿用原名）。
 func truncateRunes(s string, n int) string {
-	rs := []rune(strings.TrimSpace(s))
-	if len(rs) <= n {
-		return string(rs)
-	}
-	return string(rs[:n])
+	return strutil.TruncateRunes(strings.TrimSpace(s), n)
 }

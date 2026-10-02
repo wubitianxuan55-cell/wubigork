@@ -1,15 +1,15 @@
 {
   "schema": "gaea-test-ctors-baseline/1",
-  "generatedAt": "2026-10-02T06:40:49.932Z",
+  "generatedAt": "2026-10-02T12:11:36.655Z",
   "generatedBy": "node scripts/check-test-ctors.mjs --write-baseline",
-  "head": "3d0210d180d6",
+  "head": "6fe5befa96c8",
   "audit": {
     "doc": "docs/code-audit-2026-10-02/round-1-p0-status.md",
     "finding": "P0#25 / 源 X1-03（三重以上 *core 嵌入 → nil 嵌入 panic 三犯）"
   },
   "inputs": {
     "root": "internal/app",
-    "testFiles": 272,
+    "testFiles": 273,
     "appPath": "internal/app/app.go",
     "embedded": [
       "core",
@@ -19,18 +19,18 @@
       "officeState"
     ],
     "embeddedSource": "internal/app/app.go 解析",
-    "totalHits": 356,
+    "totalHits": 359,
     "prodRefHits": 1
   },
   "classCounts": {
-    "bare": 225,
-    "core-only": 87,
+    "bare": 226,
+    "core-only": 89,
     "partial": 44,
     "full": 0
   },
   "classCountsLiteralOnly": {
-    "bare": 225,
-    "core-only": 114,
+    "bare": 226,
+    "core-only": 116,
     "partial": 17,
     "full": 0
   },
@@ -156,6 +156,26 @@
       "file": "internal/app/board_manifest_test.go",
       "line": 150,
       "func": "TestGetBoardManifestsCanonical",
+      "class": "bare",
+      "classLiteralOnly": "bare",
+      "postAssigned": [],
+      "inHelper": false,
+      "helperAmplifier": false,
+      "embeddedSet": [],
+      "embeddedMissing": [
+        "core",
+        "writingState",
+        "mediaState",
+        "whisperState",
+        "officeState"
+      ],
+      "text": "a := &App{}"
+    },
+    {
+      "key": "internal/app/board_manifest_test.go::TestMainBrainDefaultBranchDispatchable#1",
+      "file": "internal/app/board_manifest_test.go",
+      "line": 242,
+      "func": "TestMainBrainDefaultBranchDispatchable",
       "class": "bare",
       "classLiteralOnly": "bare",
       "postAssigned": [],
@@ -762,7 +782,7 @@
     {
       "key": "internal/app/feature_model_handler_test.go::TestAppSetFeatureModel_GaeaBindingApplies#1",
       "file": "internal/app/feature_model_handler_test.go",
-      "line": 35,
+      "line": 36,
       "func": "TestAppSetFeatureModel_GaeaBindingApplies",
       "class": "core-only",
       "classLiteralOnly": "core-only",
@@ -783,7 +803,7 @@
     {
       "key": "internal/app/feature_model_handler_test.go::TestSetActiveASRModel_Validation#1",
       "file": "internal/app/feature_model_handler_test.go",
-      "line": 162,
+      "line": 163,
       "func": "TestSetActiveASRModel_Validation",
       "class": "bare",
       "classLiteralOnly": "bare",
@@ -803,7 +823,7 @@
     {
       "key": "internal/app/feature_model_handler_test.go::TestGetModelMonitor#1",
       "file": "internal/app/feature_model_handler_test.go",
-      "line": 175,
+      "line": 176,
       "func": "TestGetModelMonitor",
       "class": "core-only",
       "classLiteralOnly": "core-only",
@@ -2274,6 +2294,27 @@
         "officeState"
       ],
       "text": "a := &App{}"
+    },
+    {
+      "key": "internal/app/gaea_dream_test.go::TestMaybeDreamAfterTurn_PanicResetsStateAndNotifies#1",
+      "file": "internal/app/gaea_dream_test.go",
+      "line": 57,
+      "func": "TestMaybeDreamAfterTurn_PanicResetsStateAndNotifies",
+      "class": "core-only",
+      "classLiteralOnly": "core-only",
+      "postAssigned": [],
+      "inHelper": false,
+      "helperAmplifier": false,
+      "embeddedSet": [
+        "core"
+      ],
+      "embeddedMissing": [
+        "writingState",
+        "mediaState",
+        "whisperState",
+        "officeState"
+      ],
+      "text": "a := &App{core: &core{}}"
     },
     {
       "key": "internal/app/gaea_export_test.go::TestGaeaExportDeliverable_MD#1",
@@ -5182,8 +5223,29 @@
     {
       "key": "internal/app/gaea_subagent_followup_test.go::TestGaeaSubagentFollowUp_ClearsStaleError#1",
       "file": "internal/app/gaea_subagent_followup_test.go",
-      "line": 42,
+      "line": 43,
       "func": "TestGaeaSubagentFollowUp_ClearsStaleError",
+      "class": "core-only",
+      "classLiteralOnly": "core-only",
+      "postAssigned": [],
+      "inHelper": false,
+      "helperAmplifier": false,
+      "embeddedSet": [
+        "core"
+      ],
+      "embeddedMissing": [
+        "writingState",
+        "mediaState",
+        "whisperState",
+        "officeState"
+      ],
+      "text": "a := &App{core: &core{}}"
+    },
+    {
+      "key": "internal/app/gaea_subagent_followup_test.go::TestGaeaSubagentFollowUp_PanicReleasesClaimAndNotifies#1",
+      "file": "internal/app/gaea_subagent_followup_test.go",
+      "line": 75,
+      "func": "TestGaeaSubagentFollowUp_PanicReleasesClaimAndNotifies",
       "class": "core-only",
       "classLiteralOnly": "core-only",
       "postAssigned": [],
@@ -6096,7 +6158,7 @@
     {
       "key": "internal/app/herdsman_digitallife_test.go::TestHerdsmanDigitalLife_Missing#1",
       "file": "internal/app/herdsman_digitallife_test.go",
-      "line": 78,
+      "line": 227,
       "func": "TestHerdsmanDigitalLife_Missing",
       "class": "bare",
       "classLiteralOnly": "bare",
@@ -6116,7 +6178,7 @@
     {
       "key": "internal/app/herdsman_digitallife_test.go::TestHerdsmanOperations_FromDisk#1",
       "file": "internal/app/herdsman_digitallife_test.go",
-      "line": 117,
+      "line": 266,
       "func": "TestHerdsmanOperations_FromDisk",
       "class": "bare",
       "classLiteralOnly": "bare",
@@ -6196,7 +6258,7 @@
     {
       "key": "internal/app/herdsman_lifecycle_test.go::TestHerdsmanLifecycleHandlers#1",
       "file": "internal/app/herdsman_lifecycle_test.go",
-      "line": 87,
+      "line": 91,
       "func": "TestHerdsmanLifecycleHandlers",
       "class": "bare",
       "classLiteralOnly": "bare",
@@ -6772,7 +6834,7 @@
     {
       "key": "internal/app/novel_writeback_test.go::mustRewriteMockApp#1",
       "file": "internal/app/novel_writeback_test.go",
-      "line": 245,
+      "line": 252,
       "func": "mustRewriteMockApp",
       "class": "partial",
       "classLiteralOnly": "core-only",

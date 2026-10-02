@@ -18,7 +18,7 @@ import { PptxEditPanel } from "./PptxEditPanel";
 import { FileVersionStrip } from "./FileVersionStrip";
 import { XlsxPreview } from "./XlsxPreview";
 import { ScheduleFileCard } from "./ScheduleFileCard";
-import { isScheduleFilePath, parseSchedSummary } from "../../schedule/gschedSummary";
+import { isScheduleFilePath, parseSchedSummaryDetail } from "../../schedule/gschedSummary";
 import { usePreviewProgress } from "../hooks/usePreviewProgress";
 import { useToast } from "./Toast";
 // 3a：CodeMirror 编辑器懒加载 chunk；chunk 加载失败（Suspense 之外的
@@ -547,11 +547,22 @@ export function FilePreview({
         {!loading && preview?.kind === "text" && (() => {
           // v4.121 刀12 办公联动：.gsched.json 走进度计划摘要卡（解析失败回落原始
           // 文本视图，宁回落勿误报）；其余文本文件行为完全不变。
-          const sched = isScheduleFilePath(relPath) ? parseSchedSummary(preview.body) : null;
-          return sched ? (
-            <ScheduleFileCard relPath={relPath} summary={sched} raw={preview.body} />
+          // FE7-14：解析失败不再静默——原因上屏一行，用户能分辨「读取/解析坏了」
+          // 与「本来就不是计划文件」。
+          const detail = isScheduleFilePath(relPath)
+            ? parseSchedSummaryDetail(preview.body)
+            : { summary: null, reason: null };
+          return detail.summary ? (
+            <ScheduleFileCard relPath={relPath} summary={detail.summary} raw={preview.body} />
           ) : (
-            <pre className="p-3 text-[12px] text-fg-dim font-mono leading-relaxed whitespace-pre-wrap overflow-x-auto">{preview.body}</pre>
+            <>
+              {detail.reason && (
+                <div className="mb-2 px-3 py-2 rounded-md border border-amber-500/30 bg-amber-500/5 text-amber-500 text-[11px] leading-relaxed">
+                  {detail.reason}，已回落原始文本视图。
+                </div>
+              )}
+              <pre className="p-3 text-[12px] text-fg-dim font-mono leading-relaxed whitespace-pre-wrap overflow-x-auto">{preview.body}</pre>
+            </>
           );
         })()}
         {!loading && preview?.kind === "html" && (

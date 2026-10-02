@@ -600,7 +600,6 @@ func stripNonTextStreams(s string) string {
 			// 非文本流：字典保留，stream 关键字到 endstream 整块剔除。
 			b.WriteString(s[sc.trim:span.kwStart])
 		}
-		pos = span.end + len("endstream")
 	}
 	b.WriteString(s[pos:])
 	return b.String()

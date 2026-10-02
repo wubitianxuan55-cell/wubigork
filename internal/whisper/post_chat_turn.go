@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/genui"
+	"github.com/gaea/gaea/internal/gaea/strutil"
 )
 
 // ─── 纠正触发词 ──────────────────────────────────────────────
@@ -146,7 +147,7 @@ func writeSyncLightFacts(orch *Orchestrator, ctx PostTurnContext) []string {
 			Domain:           "user_behavior",
 			Subcategory:      "PRAISE",
 			Subject:          "用户",
-			Summary:          "用户表达了赞赏：" + truncateStr(ctx.UserMsg, 100),
+			Summary:          "用户表达了赞赏：" + strutil.TruncateRunesSuffix(ctx.UserMsg, 100, "…"),
 			Weight:           0.5,
 			Confidence:       0.7,
 			SelfRelevance:    0.6,
@@ -163,7 +164,7 @@ func writeSyncLightFacts(orch *Orchestrator, ctx PostTurnContext) []string {
 			Domain:           "user_state",
 			Subcategory:      "VULNERABILITIES",
 			Subject:          "用户",
-			Summary:          "用户表达了脆弱情绪：" + truncateStr(ctx.UserMsg, 100),
+			Summary:          "用户表达了脆弱情绪：" + strutil.TruncateRunesSuffix(ctx.UserMsg, 100, "…"),
 			Weight:           0.8,
 			Confidence:       0.6,
 			SelfRelevance:    0.8,
@@ -181,7 +182,7 @@ func writeSyncLightFacts(orch *Orchestrator, ctx PostTurnContext) []string {
 			Domain:           "user_behavior",
 			Subcategory:      "MOOD",
 			Subject:          "用户",
-			Summary:          "用户表达了负面情绪：" + truncateStr(ctx.UserMsg, 100),
+			Summary:          "用户表达了负面情绪：" + strutil.TruncateRunesSuffix(ctx.UserMsg, 100, "…"),
 			Weight:           0.4,
 			Confidence:       0.7,
 			SelfRelevance:    0.7,
@@ -214,7 +215,7 @@ func writeCompanionReplyLog(orch *Orchestrator, ctx PostTurnContext) []string {
 		Domain:           "companion_reply",
 		Subcategory:      "SELF_NARRATIVE",
 		Subject:          "gaea",
-		Summary:          "gaea回复：" + truncateStr(reply, 200),
+		Summary:          "gaea回复：" + strutil.TruncateRunesSuffix(reply, 200, "…"),
 		Weight:           0.3,
 		Confidence:       1.0,
 		SelfRelevance:    1.0,
@@ -228,14 +229,6 @@ func writeCompanionReplyLog(orch *Orchestrator, ctx PostTurnContext) []string {
 }
 
 // truncateStr 截断字符串（rune-safe）
-func truncateStr(s string, maxLen int) string {
-	runes := []rune(s)
-	if len(runes) <= maxLen {
-		return s
-	}
-	return string(runes[:maxLen]) + "…"
-}
-
 // ─── v5.40: 自动巩固 ─────────────────────────────────────────
 // ─── v5.40: 自动巩固 ─────────────────────────────────────────
 

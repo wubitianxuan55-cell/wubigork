@@ -72,3 +72,50 @@ func TestCaptureArea(t *testing.T) {
 		t.Error("CaptureArea(0,0,0,0) 应返回错误")
 	}
 }
+
+// TestCaptureAreaOffVirtualScreenErrors 审计 IN3-15：完全落在虚拟桌面外的
+// 源矩形会被 GDI 裁剪成全黑位图、BitBlt 返回非 0，只看返回码查不出「成功但
+// 空白」。修复前这里返回 err=nil 的全黑图（探针实测非黑像素 0/256）。
+func TestCaptureAreaOffVirtualScreenErrors(t *testing.T) {
+	if _, err := CaptureArea(1<<20, 1<<20, 16, 16); err == nil {
+		t.Error("区域与虚拟桌面无交集时必须返回错误，实际 err=nil（全黑图被当成成功）")
+	}
+	if _, err := CaptureArea(-(1 << 20), -(1 << 20), 16, 16); err == nil {
+		t.Error("负向桌面外区域必须返回错误，实际 err=nil")
+	}
+}
+
+// TestCaptureAreaPartialOverlapAllowed 对照：与桌面只是部分相交（一半在外）
+// 的区域仍照旧捕获——越界保护只拒绝「零交集」，不缩小既有可行路径。
+func TestCaptureAreaPartialOverlapAllowed(t *testing.T) {
+	vx := int(sysMetrics(smXVirtualScreen))
+	vy := int(sysMetrics(smYVirtualScreen))
+	img, err := CaptureArea(vx-8, vy-8, 16, 16)
+	if err != nil {
+		t.Fatalf("部分相交区域应可捕获: %v", err)
+	}
+	if b := img.Bounds(); b.Dx() != 16 || b.Dy() != 16 {
+		t.Errorf("捕获尺寸 = %dx%d, want 16x16", b.Dx(), b.Dy())
+	}
+}
+
+// TestGdiFailureYieldsError 钉死 CaptureArea 里 r==0 分支的形状：无法靠
+// CaptureArea 的参数稳定注入 GDI 失败（源矩形越界实测 BitBlt 返回非 0 的
+// 全黑帧），故直接对空 DC 调用同两个 GDI 函数——r==0 时 gdiCallError 必须
+// 给出非 nil 错误，而不是把 DIB 内存当有效像素返回（审计 IN3-15）。
+func TestGdiFailureYieldsError(t *testing.T) {
+	r, _, selErr := procSelectObject.Call(0, 0)
+	if r != 0 {
+		t.Fatalf("空 DC 上 SelectObject 应失败，实际 r=%d", r)
+	}
+	if gdiCallError(selErr) == nil {
+		t.Error("SelectObject 失败必须产出非 nil 错误")
+	}
+	br, _, bltErr := procBitBlt.Call(0, 0, 0, 1, 1, 0, 0, 0, srcCopy)
+	if br != 0 {
+		t.Fatalf("空 DC 上 BitBlt 应失败，实际 r=%d", br)
+	}
+	if gdiCallError(bltErr) == nil {
+		t.Error("BitBlt 失败必须产出非 nil 错误")
+	}
+}
