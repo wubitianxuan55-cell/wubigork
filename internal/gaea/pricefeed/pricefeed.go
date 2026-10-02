@@ -8,7 +8,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -290,50 +289,21 @@ func isAreaHeaderRow(row []string) bool {
 }
 
 // parsePrice 解析价格文本：去掉 ￥/元/千分位，支持 "￥3181.00"、"3,200 元"。
+// 实现=cost.ParsePriceWithOpts（审计 GA6-05 收敛，全角半角归一唯一实现）；
+// pricefeed 方言=必须含数字字符 + 结果四舍五入两位（发布价精度）。
 func parsePrice(s string) (float64, bool) {
-	if !strings.ContainsAny(s, "0123456789") {
-		return 0, false
-	}
-	clean := strings.NewReplacer(",", "", "，", "", "￥", "", "¥", "", "元", "", " ", "", "\u00a0", "").Replace(strings.TrimSpace(s))
-	if clean == "" {
-		return 0, false
-	}
-	v, err := strconv.ParseFloat(clean, 64)
-	if err != nil || v <= 0 {
-		return 0, false
-	}
-	return round2(v), true
+	return cost.ParsePriceWithOpts(s, cost.PriceOpts{RequireDigit: true, Round2: true})
 }
 
 // matchRows 把解析行与成本库匹配，产出「更新/无变化/新增」候选。
+// 索引构建与键归一=cost.LoadMatchIndex/MatchByTitle（审计 GA6-05 收敛）。
 func matchRows(rows []Row, store *cost.Store) []Candidate {
-	byTitle := map[string]cost.Summary{}
-	byName := map[string]cost.Summary{}
-	if store != nil && store.Available() {
-		existing, lerr := store.List()
-		if lerr != nil {
-			// 审计 GA6-09：本函数签名不带 error，读失败只能按已读到部分匹配
-			// （部分数据仍返回），但必须留痕——否则会把「读不到」当成
-			// 「库里没有同名条目」而全部标成新增。
-			slog.Warn("pricefeed: 成本库读取失败，匹配按已读到部分", "error", lerr)
-		}
-		for _, s := range existing {
-			if t := strings.ToLower(strings.TrimSpace(s.Title)); t != "" {
-				byTitle[t] = s
-			}
-			if n := strings.TrimSpace(s.Name); n != "" {
-				byName[n] = s
-			}
-		}
-	}
+	ix := cost.LoadMatchIndex(store, "pricefeed")
 
 	out := make([]Candidate, 0, len(rows))
 	for _, r := range rows {
 		c := Candidate{Title: r.Title, Spec: r.Spec, Unit: r.Unit, Price: r.Price, Tax: r.Tax}
-		if e, ok := byTitle[strings.ToLower(strings.TrimSpace(r.Title))]; ok {
-			c.ExistingName = e.Name
-			c.ExistingPrice = e.Price
-		} else if e, ok := byName[cost.SlugName(r.Title)]; ok {
+		if e, ok := ix.MatchByTitle(r.Title); ok {
 			c.ExistingName = e.Name
 			c.ExistingPrice = e.Price
 		}
@@ -363,9 +333,9 @@ func periodFromURL(raw string) string {
 	return ""
 }
 
-func round2(v float64) float64 {
-	return float64(int64(v*100+0.5)) / 100
-}
+// round2 四舍五入两位（实现=cost.Round2，审计 GA6-05 收敛：价差/环比与
+// 发布价解析共用同一公式）。
+func round2(v float64) float64 { return cost.Round2(v) }
 
 // anomalyJumpPct 是单期跳幅的异常阈值（±20%）。
 const anomalyJumpPct = 20.0

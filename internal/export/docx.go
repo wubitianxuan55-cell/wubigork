@@ -2,7 +2,6 @@ package export
 
 import (
 	"fmt"
-	"log/slog"
 	"strings"
 
 	"github.com/carmel/gooxml/document"
@@ -32,10 +31,7 @@ func (m *Manager) ExportDOCX(outPath string) (string, error) {
 	addPara("", fmt.Sprintf("题材: %s  文风: %s", m.pm.Meta.Genre, m.pm.Meta.Style))
 
 	// 世界观（与 TXT / Markdown / EPUB 对齐）
-	worldview, err := m.pm.ReadWorldview()
-	if err != nil {
-		slog.Warn("exportDOCX: 读取世界观失败", "error", err)
-	}
+	worldview := m.readWorldviewWarned("exportDOCX")
 	if worldview != "" {
 		addPara("Heading1", "世界观")
 		for _, line := range contentLines(worldview) {
@@ -43,19 +39,8 @@ func (m *Manager) ExportDOCX(outPath string) (string, error) {
 		}
 	}
 
-	// 各章节（章节遍历与分支过滤同 TXT/Markdown/EPUB）
-	failed := 0
-	for _, ch := range m.listChapters() {
-		content, err := m.pm.ReadChapterBranch(ch.num, ch.branch)
-		if err != nil {
-			failed++
-			slog.Warn("exportDOCX: 读取章节失败，跳过", "num", ch.num, "branch", ch.branch, "error", err)
-			continue
-		}
-		label := fmt.Sprintf("第 %d 章", ch.num)
-		if ch.branch != "" {
-			label += " " + ch.branch
-		}
+	// 各章节（章节遍历与分支过滤同 TXT/Markdown/EPUB，循环骨架共用 forEachChapter）
+	failed, err := m.forEachChapter("exportDOCX", func(_ chapterEntry, label, content string) error {
 		addPara("Heading1", label)
 		for _, line := range contentLines(content) {
 			if text, ok := markdownHeading(line); ok {
@@ -64,6 +49,10 @@ func (m *Manager) ExportDOCX(outPath string) (string, error) {
 				addPara("", line)
 			}
 		}
+		return nil
+	})
+	if err != nil {
+		return "", err // DOCX 回调不产生错误，此处仅为形态对齐
 	}
 	m.FailedChapters = failed
 
@@ -89,15 +78,13 @@ func contentLines(s string) []string {
 }
 
 // markdownHeading 识别 markdown 标题行（#/##/### 带空格前缀，与 markdownToHTML
-// 的判定一致），返回去掉井号后的标题文本。列表行等其余内容按正文段落处理。
+// 的判定共用 markdownBlockKind，IN3-13），返回去掉井号后的标题文本。
+// 列表行等其余内容按正文段落处理。
 func markdownHeading(line string) (string, bool) {
-	switch {
-	case strings.HasPrefix(line, "### "):
-		return strings.TrimPrefix(line, "### "), true
-	case strings.HasPrefix(line, "## "):
-		return strings.TrimPrefix(line, "## "), true
-	case strings.HasPrefix(line, "# "):
-		return strings.TrimPrefix(line, "# "), true
+	kind, text := markdownBlockKind(line)
+	switch kind {
+	case blockHeading1, blockHeading2, blockHeading3:
+		return text, true
 	}
 	return "", false
 }

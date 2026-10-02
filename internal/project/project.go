@@ -622,6 +622,53 @@ func leadDigits(s string) int {
 	return n
 }
 
+// ParseChapterFileName 解析章节正稿文件名（chapters/ 下 NNN.md / NNN[a-z].md 家族），
+// 返回章号、分支字母（无分支为空串）与是否为合法章文件名。口径与历史正则
+// `^(\d{3})([a-z]?)\.md$`（原 export.listChapters / stats.Collect /
+// internal/graph/consistency.go 三处重复）逐字段一致：恰好三位十进制章号
+// （"000.md" 合法，章号 0）+ 至多一个小写字母分支 + 严格 ".md" 结尾。
+//
+// 这是仓库内章节文件名解析的**正稿家族唯一实现**（审计 IN1-03）。其余四套
+// 口径因文件族/容忍度差异**刻意保留**（行为逐字段不变优先，见对照表）：
+//   - mainChapterSummaryNum：NNN[a-z]-summary.json 家族，纯数字主干、分支刻意
+//     排除（N5：分支剧情不得混入主线前情），谓词保留；
+//   - leadDigits：前导数字宽口径（maxChapterNumMatching 接受 "001a.md"/"12.md"
+//     等任意形状），谓词保留；
+//   - v4 迁移 fmt.Sscanf(name, "%03d.md")：实测容忍 1-3 位数字、拒绝分支文件、
+//     容忍首个 ".md" 之后的尾随内容——与本函数互不包含，保留；
+//   - novelcontext.chapterNumFromFile：首段连续数字（容忍非数字前缀，大纲
+//     ChapterFile 宽容口径），保留。
+func ParseChapterFileName(name string) (num int, branch string, ok bool) {
+	// 章号：恰好三位十进制数字（与 ChapterPath 的 fmt.Sprintf("%03d") 落盘口径对齐）
+	if len(name) < 3 || !isASCIIDigits(name[:3]) {
+		return 0, "", false
+	}
+	num = int(name[0]-'0')*100 + int(name[1]-'0')*10 + int(name[2]-'0')
+	rest := name[3:]
+	// 分支：至多一个小写字母
+	if len(rest) > 1 && rest[0] >= 'a' && rest[0] <= 'z' {
+		branch = rest[:1]
+		rest = rest[1:]
+	}
+	if rest != ".md" {
+		return 0, "", false
+	}
+	return num, branch, true
+}
+
+// isASCIIDigits 判断 s 是否为非空的纯 ASCII 十进制数字串。
+func isASCIIDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 // ── Lorebook ──────────────────────────────────────────────
 
 // ReadLorebook 读取 lorebook.json（不存在时返回空）

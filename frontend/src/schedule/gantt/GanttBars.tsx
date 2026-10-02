@@ -3,14 +3,18 @@
  *
  * 逐可见行渲染：合成组头行=组汇总条（点击折叠/展开）；任务行=基线灰条、
  * 里程碑黑菱形、关键/手动/进度覆盖条形、拖拽期手势预览、右缘缩放把手、
- * 总时差尾巴与拖拽提示。几何量（dayNo/以像素为单位）由调用方注入，本组件纯渲染。
+ * 总时差尾巴与拖拽提示。几何量（dayNo/以像素为单位）由调用方注入，本组件纯渲染；
+ * 逐行派生与行外壳单源自 rowDerive.deriveRows + GanttRowShell（FE7-05，
+ * 与 GanttTable 共用，本组件只留画布专有内容）。
  */
 import React from 'react'
-import { Dropdown, type MenuProps } from 'antd'
+import { type MenuProps } from 'antd'
 import type { CpmResult, SchedProject, SchedTask } from '../types'
 import { isCd } from '../cpm'
 import { ROW_H, fmtDate, type GanttDragState } from './ganttUtil'
 import type { GanttRow } from '../ganttGroup'
+import { deriveRows } from './rowDerive'
+import { GanttRowShell } from './GanttRowShell'
 
 interface GanttBarsProps {
   rows: GanttRow[]
@@ -53,14 +57,16 @@ export const GanttBars: React.FC<GanttBarsProps> = ({
   return (
     <>
       {(() => {
-      let synSeq = -1
-      return rows.map((r) => {
-      if (r.kind === 'group' && !r.key.startsWith('wbs:')) {
-        synSeq++
+      // 逐行派生单源（FE7-05）：synSeq/判定/字段派生在 rowDerive.deriveRows，
+      // 本组件只渲染画布窗格专有内容（基线/条形/里程碑/时差尾/拖拽预览）
+      const derived = deriveRows(rows, project, cpm, groupColorSeq, rowDim)
+      return derived.map((d) => {
+      if (d.syn) {
+        const r = d.r
         return (
           <div
             key={r.key}
-            className={`sched-gantt-row sched-group-row sched-group-c${synSeq % 6}`}
+            className={`sched-gantt-row sched-group-row sched-group-c${d.synSeq % 6}`}
             style={{ height: ROW_H }}
             onClick={() => onToggleCollapse(r.key)}
           >
@@ -76,16 +82,8 @@ export const GanttBars: React.FC<GanttBarsProps> = ({
           </div>
         )
       }
-      const i = r.kind === 'task' ? r.idx : Number(r.key.slice(4))
-      const t = project.tasks[i]
-      const row = cpm.rows[t.id]
-      const group = r.kind === 'group'
-      const span = group ? { es: r.minEs, ef: r.maxEf } : null
+      const { t, row, group, span, manual, dur, colorCls, dimCls } = d
       const crit = !group && t.mode !== 'manual' && row?.critical
-      const manual = t.mode === 'manual'
-      const dur = t.isMilestone ? 0 : Math.max(0, Math.round(t.duration))
-      const colorCls = group ? ` sched-group-c${groupColorSeq[i]}` : ''
-      const dimCls = !group && rowDim(t.id) ? ' sched-row-dim' : ''
       const baseRow = showBase && !group ? project.baseline?.rows[t.id] : undefined
       const isDrag = drag?.id === t.id
       const movePreview = isDrag && drag!.kind === 'move' ? drag!.preview : null
@@ -100,11 +98,16 @@ export const GanttBars: React.FC<GanttBarsProps> = ({
             6,
           )
       return (
-        <Dropdown key={t.id} trigger={['contextMenu']} menu={{ items: rowMenu(t, group), onClick: (e) => onRowMenuClick(e.key, t) }}>
-        <div
-          className={`sched-gantt-row${group ? ' sched-group-row' : ''}${colorCls}${dimCls}${selectedId === t.id ? ' sched-row-selected' : ''}`}
-          style={{ height: ROW_H }}
-          onClick={() => onSelect(t.id)}
+        <GanttRowShell
+          key={t.id}
+          t={t}
+          group={group}
+          colorCls={colorCls}
+          dimCls={dimCls}
+          selected={selectedId === t.id}
+          onSelect={onSelect}
+          rowMenu={rowMenu}
+          onRowMenuClick={onRowMenuClick}
         >
           <div className="sched-bar-lane" style={{ width: chartW }}>
             {baseRow && (
@@ -173,8 +176,7 @@ export const GanttBars: React.FC<GanttBarsProps> = ({
               )
             )}
           </div>
-        </div>
-        </Dropdown>
+        </GanttRowShell>
       )
       }
     )

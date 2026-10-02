@@ -45,6 +45,13 @@ func NewTfidfIndex() *TfidfIndex {
 }
 
 // Tokenize 中文分词：CJK 标点分割后取整词（≥2 字）与相邻 bigram，去重。
+//
+// 口径归属（审计 GA3-04，2026-10 收敛复核）：本函数与 internal/gaea/bm25
+// 的分词是**不同算法族**——特定标点集分字段（连字符/下划线等不是分隔符）、
+// 字段内含符号 bigram、全局去重、**不小写化**，无法在行为冻结前提下并入
+// bm25.Options 开关组合，刻意保留。TF-IDF 消费方（knowledge/wssearch）
+// 的分词输出由 internal/gaea/bm25 冻结快照逐字节钉死。完整对照表见
+// bm25.Options 文档注释。
 func Tokenize(text string) []string {
 	var tokens []string
 	seen := make(map[string]bool)

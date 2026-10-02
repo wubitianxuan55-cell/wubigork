@@ -4,10 +4,12 @@
  * 列头行（宽=可见列合计，收纳时多余列裁剪不压缩）+ 表体逐行渲染：
  * 合成组头行（颜色标记/折叠态/汇总跨度）与任务行（名称内联编辑/工期+单位 chip/
  * 进度/手动开始/六时参/模式/前置右键编辑/后续/成本/自定义字段单元格）。
- * 列宽 W、行高 ROW_H、格式口径 fmtDate 等来自 ganttUtil，与画布行同源。
+ * 列宽 W、行高 ROW_H、格式口径 fmtDate 等来自 ganttUtil，与画布行同源；
+ * 逐行派生与行外壳单源自 rowDerive.deriveRows + GanttRowShell（FE7-05，
+ * 与 GanttBars 共用，本组件只留表格专有内容）。
  */
 import React from 'react'
-import { Button, Dropdown, Input, InputNumber, Popover, type MenuProps } from 'antd'
+import { Button, Input, InputNumber, Popover, type MenuProps } from 'antd'
 import { TeamOutlined } from '@ant-design/icons'
 import type { CpmResult, SchedProject, SchedTask } from '../types'
 import type { CostResult } from '../cost'
@@ -17,6 +19,8 @@ import { fmtCost } from '../costUi'
 import { GANTT_CUSTOM_KEYS, type GanttCol } from '../ganttCols'
 import type { GanttRow } from '../ganttGroup'
 import { ROW_H, W, CUSTOM_FIELD_BY_KEY, fmtDate, groupCost, noOf, predsOf, succsOf, taskNameOf } from './ganttUtil'
+import { deriveRows } from './rowDerive'
+import { GanttRowShell } from './GanttRowShell'
 import { PredEditor } from './PredEditor'
 import { CustomFieldCell } from './CustomFieldCell'
 import { TaskResourceEditor } from '../ResourcePanel'
@@ -77,17 +81,19 @@ export const GanttTable: React.FC<GanttTableProps> = ({
       <div className="sched-gantt-tbody" ref={tbodyRef}>
         <div style={{ width: leftW }}>
           {(() => {
-            let synSeq = -1
-            return rows.map((r, rowIdx) => {
-            if (r.kind === 'group' && !r.key.startsWith('wbs:')) {
+            // 逐行派生单源（FE7-05）：synSeq/判定/字段派生在 rowDerive.deriveRows，
+            // 本组件只渲染表格窗格专有内容
+            const derived = deriveRows(rows, project, cpm, groupColorSeq, rowDim)
+            return derived.map((d, rowIdx) => {
+            if (d.syn) {
               // 合成组头行（分组模式）：名称+计数+汇总跨度，点击折叠/展开
-              synSeq++
+              const r = d.r
               const open = !collapsedKeys.has(r.key)
               return (
               <div
                 key={r.key}
                 data-testid={`sched-group-row-${rowIdx}`}
-                className={`sched-gantt-row sched-group-row sched-group-c${synSeq % 6}`}
+                className={`sched-gantt-row sched-group-row sched-group-c${d.synSeq % 6}`}
                 style={{ height: ROW_H }}
                 onClick={() => onToggleCollapse(r.key)}
                 title="点击折叠/展开该组"
@@ -119,23 +125,20 @@ export const GanttTable: React.FC<GanttTableProps> = ({
               </div>
               )
             }
-            const i = r.kind === 'task' ? r.idx : Number(r.key.slice(4))
-            const t = project.tasks[i]
-            const row = cpm.rows[t.id]
-            const group = r.kind === 'group'
-            const span = group ? { es: r.minEs, ef: r.maxEf } : null
-            const manual = t.mode === 'manual'
-            const dur = t.isMilestone ? 0 : Math.max(0, Math.round(t.duration))
-            const colorCls = group ? ` sched-group-c${groupColorSeq[i]}` : ''
-            const dimCls = !group && rowDim(t.id) ? ' sched-row-dim' : ''
+            const { i, t, row, group, span, manual, dur, colorCls, dimCls } = d
             const groupKey = `wbs:${i}`
             const groupOpen = !collapsedKeys.has(groupKey)
             return (
-              <Dropdown key={t.id} trigger={['contextMenu']} menu={{ items: rowMenu(t, group), onClick: (e) => onRowMenuClick(e.key, t) }}>
-              <div
-                className={`sched-gantt-row${group ? ' sched-group-row' : ''}${colorCls}${dimCls}${selectedId === t.id ? ' sched-row-selected' : ''}`}
-                style={{ height: ROW_H }}
-                onClick={() => onSelect(t.id)}
+              <GanttRowShell
+                key={t.id}
+                t={t}
+                group={group}
+                colorCls={colorCls}
+                dimCls={dimCls}
+                selected={selectedId === t.id}
+                onSelect={onSelect}
+                rowMenu={rowMenu}
+                onRowMenuClick={onRowMenuClick}
               >
                 <div style={{ width: W.no }} className="sched-gantt-cell sched-row-no">{i + 1}</div>
                 <div style={{ width: W.name }} className="sched-gantt-cell">
@@ -329,8 +332,7 @@ export const GanttTable: React.FC<GanttTableProps> = ({
                     {!group && <CustomFieldCell task={t} field={CUSTOM_FIELD_BY_KEY[ck]} />}
                   </div>
                 ))}
-              </div>
-              </Dropdown>
+              </GanttRowShell>
             )
             }
           )

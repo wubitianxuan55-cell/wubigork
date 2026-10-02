@@ -33,6 +33,7 @@ import { GANTT_FILTER_DEFAULT, filterGanttRows, type GanttFilter } from './gantt
 import { buildGanttRows, wbsOf, type GanttGroupField, type GanttSort } from './ganttGroup'
 import { drivingChain, linkKey } from './pathDriver'
 import { loadChatPrefs, saveChatPrefs } from './chatPrefs'
+import { beginWindowDrag } from './gantt/useDragGesture'
 import {
   ROW_H,
   DAY_W_MIN,
@@ -316,7 +317,9 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
   const costs = useMemo(() => computeCosts(project, cpm), [project, cpm])
   const costShown = hasCostData(project) && costs.ok
 
-  /** 开始拖拽：拖移（转手动锁定）或右缘缩放（改工期）。循环依赖/分组行/里程碑缩放禁用。 */
+  /** 开始拖拽：拖移（转手动锁定）或右缘缩放（改工期）。循环依赖/分组行/里程碑缩放禁用。
+   *  window 监听三件套单源 beginWindowDrag（FE7-12，与 AoaView 同壳）；本视图只注入
+   *  位移折算（dropToWd/resizeToDuration，cd 行=自然日口径刀3）与提交落库。 */
   const beginDrag = (e: React.MouseEvent, t: SchedTask, kind: 'move' | 'resize') => {
     if (!cpm.ok || t.level === 0) return
     if (kind === 'resize' && t.isMilestone) return
@@ -336,40 +339,28 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
       preview: kind === 'move' ? origEs : origDur,
       moved: false,
     }
-    const onMove = (ev: MouseEvent) => {
-      const dx = ev.clientX - startX
-      if (dx !== 0) st.moved = true
-      st.preview = kind === 'move'
-        ? dropToWd(wdOffsets, dayNo(origEs), dx, dayW)
-        : cdTask
-          ? resizeToNaturalDuration(wdOffsets, origEs, dayNo(origEf), dx, dayW)
-          : resizeToDuration(wdOffsets, origEs, dayNo(origEf), dx, dayW)
-      setDrag({ ...st })
-    }
-    const onUp = () => {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-      window.removeEventListener('keydown', onKey)
-      if (st.moved) {
-        if (kind === 'move') {
+    beginWindowDrag({
+      move: (st, ev) => {
+        const dx = ev.clientX - startX
+        if (dx !== 0) st.moved = true
+        st.preview = kind === 'move'
+          ? dropToWd(wdOffsets, dayNo(origEs), dx, dayW)
+          : cdTask
+            ? resizeToNaturalDuration(wdOffsets, origEs, dayNo(origEf), dx, dayW)
+            : resizeToDuration(wdOffsets, origEs, dayNo(origEf), dx, dayW)
+        setDrag({ ...st })
+      },
+      moved: (st) => st.moved,
+      commit: (st) => {
+        if (st.kind === 'move') {
           if (t.mode === 'manual') updateTask(t.id, { manualStart: st.preview })
           else updateTask(t.id, { mode: 'manual', manualStart: st.preview })
         } else {
           updateTask(t.id, { duration: st.preview })
         }
-      }
-      setDrag(null)
-    }
-    const onKey = (ev: KeyboardEvent) => {
-      if (ev.key !== 'Escape') return
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-      window.removeEventListener('keydown', onKey)
-      setDrag(null) // 未 moved 提交逻辑不触发=取消
-    }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-    window.addEventListener('keydown', onKey)
+      },
+      end: () => setDrag(null),
+    }, st)
   }
 
   /** 依赖线（刀B）：按四种搭接类型取各自锚点画正交折线；两端均可见才画，

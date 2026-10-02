@@ -281,10 +281,11 @@ func Open(gdb *sql.DB) *Store {
 	return s
 }
 
-// NormalizeCode 归一化条目编码：全角转半角、去全部空白、转大写。
-// 定额/清单编码在不同表格中写作「A-1-12」「ａ1 12」「a1-12」等形态，
-// 归一化后同码可精确命中；空串原样返回（未录入语义不变）。
-func NormalizeCode(s string) string {
+// normASCIIKey 编码/组件标题共用的匹配键核心（审计 GA6-05：NormalizeCode 与
+// normCompTitle 原两份实现仅大小写折叠不同——折叠经 fold 参数化，其余逐字
+// 共用）：全角 ASCII 区→半角、去全部空白（含全角空格/nbsp/制表）、按 fold
+// 折叠大小写；空串原样返回（未录入语义不变）。
+func normASCIIKey(s string, fold func(rune) rune) string {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return ""
@@ -297,9 +298,16 @@ func NormalizeCode(s string) string {
 		case r >= '！' && r <= '～': // 全角 ASCII 区 → 半角
 			r -= 0xFEE0
 		}
-		b.WriteRune(unicode.ToUpper(r))
+		b.WriteRune(fold(r))
 	}
 	return b.String()
+}
+
+// NormalizeCode 归一化条目编码：全角转半角、去全部空白、转大写。
+// 定额/清单编码在不同表格中写作「A-1-12」「ａ1 12」「a1-12」等形态，
+// 归一化后同码可精确命中；空串原样返回（未录入语义不变）。
+func NormalizeCode(s string) string {
+	return normASCIIKey(s, unicode.ToUpper)
 }
 
 // Available 报告存储是否可用。

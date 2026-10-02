@@ -13,7 +13,7 @@
  *  - v4.130 刀H G1：连线改段序列（aoaLayout.segs）共用过桥法——竖直段垂直
  *    穿越他边水平段处画半圆跨过（findBridgeArcs/segsToPath 与双代号同源）。
  */
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useMemo, useRef } from 'react'
 /* eslint-disable react-refresh/only-export-components -- isLinkBinding 是 FE7-06
    单源收敛的零依赖纯函数（networkExport 构图同口径复用），随唯一语义宿主导出；
    与 genui/markdownFence.tsx 同款先例 */
@@ -22,6 +22,7 @@ import { AimOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons'
 import type { CpmResult, LinkType, SchedProject } from './types'
 import { layerByTopology } from './layout'
 import { findBridgeArcs, segsToPath, type Seg } from './aoaLayout'
+import { useAutoFitZoom, useFitView } from './gantt/useFitView'
 import { useScheduleStore } from './store'
 import { useWheelZoom } from './wheelZoom'
 
@@ -45,16 +46,11 @@ export function isLinkBinding(type: LinkType, lag: number, f: { es: number; ef: 
 export const PdmView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({ project, cpm }) => {
   const selectedId = useScheduleStore((s) => s.selectedId)
   const select = useScheduleStore((s) => s.select)
-  // v4.127 刀E：缩放/一图适配——链式计划整网一行展开时也能整屏读完
+  // v4.127 刀E：缩放/一图适配——链式计划整网一行展开时也能整屏读完。
+  // 外壳单源 useFitView（FE7-12）：PDM 钳域 [0.2,2]、适配下限 0.2/上限 1、
+  // 高度项 clientHeight-40——参数刻意不与 AoaView 统一（AOA 更密）。
   const scrollRef = useRef<HTMLDivElement | null>(null)
-  const [zoom, setZoom] = useState(1)
-  const zoomRef = useRef(1)
-  const touchedRef = useRef(false)
-  const applyZoom = (z: number) => {
-    const c = Math.min(2, Math.max(0.2, Math.round(z * 100) / 100))
-    zoomRef.current = c
-    setZoom(c)
-  }
+  const { zoom, zoomRef, touchedRef, applyZoom, stepZoom, fitView } = useFitView(scrollRef, 0.2, 2)
   // 滚轮缩放（v4.159）：普通滚轮=以光标为锚缩放，Shift+滚轮=横向滚动
   useWheelZoom(scrollRef, zoomRef, applyZoom)
 
@@ -102,28 +98,30 @@ export const PdmView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({ p
   // 布局尺寸变化（切工程/增删任务）且用户未手动缩放时，自动适配一次
   // （hooks 顺序纪律：必须在下方 early return 之前；clientWidth=0（jsdom/未布局）
   // 不误适配——v4.143 同款纪律，0 宽会让 min() 取负值把 zoom 压到下限）
-  useEffect(() => {
-    if (!layout || touchedRef.current || layout.w === 0 || layout.h === 0) return
-    const el = scrollRef.current
-    if (!el || el.clientWidth <= 0) return
-    const z = Math.min(el.clientWidth / layout.w, (el.clientHeight - 40) / layout.h, 1)
-    applyZoom(Math.max(0.2, Math.round(z * 100) / 100))
-  }, [layout])
+  useAutoFitZoom(
+    scrollRef,
+    touchedRef,
+    applyZoom,
+    (el) => {
+      if (!layout || layout.w === 0 || layout.h === 0 || el.clientWidth <= 0) return null
+      const z = Math.min(el.clientWidth / layout.w, (el.clientHeight - 40) / layout.h, 1)
+      return Math.max(0.2, Math.round(z * 100) / 100)
+    },
+    layout,
+    !!layout && layout.w > 0 && layout.h > 0,
+  )
 
   if (!layout) {
     return <div className="sched-empty">暂无任务或计划存在循环依赖，无法绘制单代号网络图</div>
   }
 
-  /** 适配：整网缩放到当前视口（手动缩放过后不再自动抢占） */
-  const fitView = () => {
-    const el = scrollRef.current
-    if (!el || layout.w === 0 || layout.h === 0) return
-    const z = Math.min(el.clientWidth / layout.w, (el.clientHeight - 40) / layout.h, 1)
-    applyZoom(Math.max(0.2, Math.round(z * 100) / 100))
-  }
-  const stepZoom = (k: number) => {
-    touchedRef.current = true
-    applyZoom(zoomRef.current * k)
+  /** 适配：整网缩放到当前视口（手动缩放过后不再自动抢占；touched 由按钮先置） */
+  const fitPdm = () => {
+    fitView((el) => {
+      if (layout.w === 0 || layout.h === 0) return null
+      const z = Math.min(el.clientWidth / layout.w, (el.clientHeight - 40) / layout.h, 1)
+      return Math.max(0.2, Math.round(z * 100) / 100)
+    })
   }
 
   const links = project.links.filter((l) => layout.pos.has(l.from) && layout.pos.has(l.to))
@@ -191,7 +189,7 @@ export const PdmView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({ p
           <Button size="small" icon={<ZoomOutOutlined />} onClick={() => stepZoom(1 / 1.2)} title="缩小" />
           <span className="sched-pdm-zoom" data-testid="sched-pdm-zoom">{Math.round(zoom * 100)}%</span>
           <Button size="small" icon={<ZoomInOutlined />} onClick={() => stepZoom(1.2)} title="放大" />
-          <Button size="small" icon={<AimOutlined />} onClick={() => { touchedRef.current = true; fitView() }} title="适配全图" data-testid="sched-pdm-fit" />
+          <Button size="small" icon={<AimOutlined />} onClick={() => { touchedRef.current = true; fitPdm() }} title="适配全图" data-testid="sched-pdm-fit" />
           <span className="sched-net-hint">滚轮缩放 · Shift+滚轮横移</span>
         </span>
         {/* 进度统计牌（斑马口径：红字大数字，挂图例行右端避免遮挡节点） */}

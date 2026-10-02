@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -59,31 +58,29 @@ func ensureParentDir(outPath string) error {
 }
 
 // listChapters 扫描 chapters/ 下的主线和分支章节，主线在前，分支按 a/b/c 顺序。
-// mainlineOnly 模式下跳过分支章节文件（正则与 internal/graph/consistency.go 一致）。
+// 文件名解析统一走 project.ParseChapterFileName（正稿家族唯一实现，IN1-03），
+// 口径与原正则 `^(\d{3})([a-z]?)\.md$` 逐字段一致（stats.Collect 与
+// internal/graph/consistency.go 尚持同型正则，属足迹外留池项）。
+// mainlineOnly 模式下跳过分支章节文件。
 func (m *Manager) listChapters() []chapterEntry {
 	dir := filepath.Join(m.pm.Dir, "chapters")
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil
 	}
-	re := regexp.MustCompile(`^(\d{3})([a-z]?)\.md$`)
 	var out []chapterEntry
 	for _, e := range entries {
 		if e.IsDir() {
 			continue
 		}
-		match := re.FindStringSubmatch(e.Name())
-		if len(match) != 3 {
+		num, branch, ok := project.ParseChapterFileName(e.Name())
+		if !ok {
 			continue
 		}
-		var num int
-		if _, err := fmt.Sscanf(match[1], "%d", &num); err != nil {
+		if m.mainlineOnly && branch != "" {
 			continue
 		}
-		if m.mainlineOnly && match[2] != "" {
-			continue
-		}
-		out = append(out, chapterEntry{num: num, branch: match[2]})
+		out = append(out, chapterEntry{num: num, branch: branch})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].num != out[j].num {
@@ -92,6 +89,41 @@ func (m *Manager) listChapters() []chapterEntry {
 		return out[i].branch < out[j].branch
 	})
 	return out
+}
+
+// readWorldviewWarned 读取世界观；失败时记 slog.Warn（"<scope>: 读取世界观失败"）
+// 并返回空串继续导出——四格式导出的共同历史行为：世界观缺失不阻断导出（IN3-12）。
+func (m *Manager) readWorldviewWarned(scope string) string {
+	worldview, err := m.pm.ReadWorldview()
+	if err != nil {
+		slog.Warn(scope+": 读取世界观失败", "error", err)
+	}
+	return worldview
+}
+
+// forEachChapter 按导出顺序遍历章节并回调渲染（IN3-12：TXT/MD/EPUB/DOCX
+// 共用的章节循环骨架）。逐章 ReadChapterBranch；读取失败记 slog.Warn
+// （"<scope>: 读取章节失败，跳过"）计入失败数后继续，不中断导出；
+// 回调返回错误则立即中止。返回失败章数与回调错误。
+// 注意：m.FailedChapters 由调用方在成功走完全程后自行赋值——EPUB 中途失败的
+// 历史行为是保留上一次导出的计数，不得在此代写。
+func (m *Manager) forEachChapter(scope string, fn func(ch chapterEntry, label, content string) error) (failed int, err error) {
+	for _, ch := range m.listChapters() {
+		content, rerr := m.pm.ReadChapterBranch(ch.num, ch.branch)
+		if rerr != nil {
+			failed++
+			slog.Warn(scope+": 读取章节失败，跳过", "num", ch.num, "branch", ch.branch, "error", rerr)
+			continue
+		}
+		label := fmt.Sprintf("第 %d 章", ch.num)
+		if ch.branch != "" {
+			label += " " + ch.branch
+		}
+		if err = fn(ch, label, content); err != nil {
+			return failed, err
+		}
+	}
+	return failed, nil
 }
 
 // ExportTXT 导出为纯文本
@@ -105,31 +137,21 @@ func (m *Manager) ExportTXT(outPath string) (string, error) {
 	sb.WriteString(fmt.Sprintf("题材: %s  文风: %s\n", m.pm.Meta.Genre, m.pm.Meta.Style))
 	sb.WriteString(strings.Repeat("=", 50) + "\n\n")
 
-	worldview, err := m.pm.ReadWorldview()
-	if err != nil {
-		slog.Warn("exportTXT: 读取世界观失败", "error", err)
-	}
+	worldview := m.readWorldviewWarned("exportTXT")
 	if worldview != "" {
 		sb.WriteString("【世界观】\n")
 		sb.WriteString(worldview)
 		sb.WriteString("\n\n" + strings.Repeat("=", 50) + "\n\n")
 	}
 
-	failed := 0
-	for _, ch := range m.listChapters() {
-		content, err := m.pm.ReadChapterBranch(ch.num, ch.branch)
-		if err != nil {
-			failed++
-			slog.Warn("exportTXT: 读取章节失败，跳过", "num", ch.num, "branch", ch.branch, "error", err)
-			continue
-		}
-		label := fmt.Sprintf("第 %d 章", ch.num)
-		if ch.branch != "" {
-			label += " " + ch.branch
-		}
+	failed, err := m.forEachChapter("exportTXT", func(_ chapterEntry, label, content string) error {
 		sb.WriteString(label + "\n\n")
 		sb.WriteString(content)
 		sb.WriteString("\n\n" + strings.Repeat("-", 30) + "\n\n")
+		return nil
+	})
+	if err != nil {
+		return "", err // TXT 回调不产生错误，此处仅为形态对齐
 	}
 	m.FailedChapters = failed
 
@@ -150,31 +172,21 @@ func (m *Manager) ExportMarkdown(outPath string) (string, error) {
 	sb.WriteString(fmt.Sprintf("> 题材: %s | 文风: %s\n\n", m.pm.Meta.Genre, m.pm.Meta.Style))
 
 	// 与 TXT 导出对齐：世界观同样进入 Markdown 合集
-	worldview, err := m.pm.ReadWorldview()
-	if err != nil {
-		slog.Warn("exportMarkdown: 读取世界观失败", "error", err)
-	}
+	worldview := m.readWorldviewWarned("exportMarkdown")
 	if worldview != "" {
 		sb.WriteString("## 世界观\n\n")
 		sb.WriteString(worldview)
 		sb.WriteString("\n\n---\n\n")
 	}
 
-	failed := 0
-	for _, ch := range m.listChapters() {
-		content, err := m.pm.ReadChapterBranch(ch.num, ch.branch)
-		if err != nil {
-			failed++
-			slog.Warn("exportMarkdown: 读取章节失败，跳过", "num", ch.num, "branch", ch.branch, "error", err)
-			continue
-		}
-		label := fmt.Sprintf("第 %d 章", ch.num)
-		if ch.branch != "" {
-			label += " " + ch.branch
-		}
+	failed, err := m.forEachChapter("exportMarkdown", func(_ chapterEntry, label, content string) error {
 		sb.WriteString(fmt.Sprintf("## %s\n\n", label))
 		sb.WriteString(content)
 		sb.WriteString("\n\n")
+		return nil
+	})
+	if err != nil {
+		return "", err // Markdown 回调不产生错误，此处仅为形态对齐
 	}
 	m.FailedChapters = failed
 
@@ -237,10 +249,7 @@ func (m *Manager) ExportEPUB(outPath string) (string, error) {
 	}
 
 	// 世界观
-	worldview, err := m.pm.ReadWorldview()
-	if err != nil {
-		slog.Warn("exportEPUB: 读取世界观失败", "error", err)
-	}
+	worldview := m.readWorldviewWarned("exportEPUB")
 	if worldview != "" {
 		wvHTML := fmt.Sprintf("<html><body><h2>世界观</h2><pre>%s</pre></body></html>",
 			escapeHTML(worldview))
@@ -250,25 +259,20 @@ func (m *Manager) ExportEPUB(outPath string) (string, error) {
 	}
 
 	// 各章节（与 HTML 导出共用 markdownToHTML 分段器，保证两格式段落行为一致）
-	failed := 0
-	for _, ch := range m.listChapters() {
-		content, err := m.pm.ReadChapterBranch(ch.num, ch.branch)
-		if err != nil {
-			failed++
-			slog.Warn("exportEPUB: 读取章节失败，跳过", "num", ch.num, "branch", ch.branch, "error", err)
-			continue
-		}
-		label := fmt.Sprintf("第 %d 章", ch.num)
+	failed, err := m.forEachChapter("exportEPUB", func(ch chapterEntry, label, content string) error {
 		filename := fmt.Sprintf("chapter_%03d", ch.num)
 		if ch.branch != "" {
-			label += " " + ch.branch
 			filename += ch.branch
 		}
 		chHTML := fmt.Sprintf("<html><body><h2>%s</h2>%s</body></html>",
 			label, markdownToHTML(content))
 		if _, err := e.AddSection(chHTML, label, filename+".xhtml", ""); err != nil {
-			return "", fmt.Errorf("添加章节 %s 失败: %w", label, err)
+			return fmt.Errorf("添加章节 %s 失败: %w", label, err)
 		}
+		return nil
+	})
+	if err != nil {
+		return "", err
 	}
 	m.FailedChapters = failed
 

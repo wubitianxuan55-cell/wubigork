@@ -168,6 +168,39 @@ body {
 	return fullHTML, nil
 }
 
+// markdownBlockKind 行的 markdown 块类型（IN3-13：markdownToHTML 与
+// docx.markdownHeading 共用同一判定，原两处各自维护 #/##/### 前缀 switch）。
+type markdownBlock int
+
+const (
+	blockParagraph markdownBlock = iota // 普通正文
+	blockBlank                          // 空行（段落边界）
+	blockHeading1                       // "# " 一级标题
+	blockHeading2                       // "## " 二级标题
+	blockHeading3                       // "### " 三级标题
+	blockListItem                       // "- " 列表项
+)
+
+// markdownBlockKind 判定一行（须已去首尾空白）的 markdown 块类型，返回类型与
+// 剥掉前缀后的文本。前缀按 "### " → "## " → "# " 长者优先；"#### " 等四级
+// 及更深前缀不构成标题（落入正文，与历史行为一致）。
+func markdownBlockKind(trimmed string) (markdownBlock, string) {
+	switch {
+	case strings.HasPrefix(trimmed, "### "):
+		return blockHeading3, strings.TrimPrefix(trimmed, "### ")
+	case strings.HasPrefix(trimmed, "## "):
+		return blockHeading2, strings.TrimPrefix(trimmed, "## ")
+	case strings.HasPrefix(trimmed, "# "):
+		return blockHeading1, strings.TrimPrefix(trimmed, "# ")
+	case trimmed == "":
+		return blockBlank, ""
+	case strings.HasPrefix(trimmed, "- "):
+		return blockListItem, strings.TrimPrefix(trimmed, "- ")
+	default:
+		return blockParagraph, trimmed
+	}
+}
+
 // markdownToHTML 简单的 Markdown → HTML 转换
 func markdownToHTML(md string) string {
 	lines := strings.Split(md, "\n")
@@ -177,42 +210,43 @@ func markdownToHTML(md string) string {
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 
-		switch {
-		case strings.HasPrefix(trimmed, "### "):
+		kind, text := markdownBlockKind(trimmed)
+		switch kind {
+		case blockHeading3:
 			if inParagraph {
 				result = append(result, "</p>")
 				inParagraph = false
 			}
-			result = append(result, "<h3>"+html.EscapeString(strings.TrimPrefix(trimmed, "### "))+"</h3>")
-		case strings.HasPrefix(trimmed, "## "):
+			result = append(result, "<h3>"+html.EscapeString(text)+"</h3>")
+		case blockHeading2:
 			if inParagraph {
 				result = append(result, "</p>")
 				inParagraph = false
 			}
-			result = append(result, "<h2>"+html.EscapeString(strings.TrimPrefix(trimmed, "## "))+"</h2>")
-		case strings.HasPrefix(trimmed, "# "):
+			result = append(result, "<h2>"+html.EscapeString(text)+"</h2>")
+		case blockHeading1:
 			if inParagraph {
 				result = append(result, "</p>")
 				inParagraph = false
 			}
-			result = append(result, "<h1>"+html.EscapeString(strings.TrimPrefix(trimmed, "# "))+"</h1>")
-		case trimmed == "":
+			result = append(result, "<h1>"+html.EscapeString(text)+"</h1>")
+		case blockBlank:
 			if inParagraph {
 				result = append(result, "</p>")
 				inParagraph = false
 			}
-		case strings.HasPrefix(trimmed, "- "):
+		case blockListItem:
 			if inParagraph {
 				result = append(result, "</p>")
 				inParagraph = false
 			}
-			result = append(result, "<li>"+html.EscapeString(strings.TrimPrefix(trimmed, "- "))+"</li>")
+			result = append(result, "<li>"+html.EscapeString(text)+"</li>")
 		default:
 			if !inParagraph {
 				result = append(result, "<p>")
 				inParagraph = true
 			}
-			result = append(result, html.EscapeString(trimmed)+" ")
+			result = append(result, html.EscapeString(text)+" ")
 		}
 	}
 	if inParagraph {

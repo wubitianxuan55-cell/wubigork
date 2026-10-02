@@ -8,7 +8,6 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
-	"log/slog"
 	"math"
 	"os"
 	"path/filepath"
@@ -288,30 +287,10 @@ func isNumeric(s string) bool {
 // 匹配），补全 Name/Status/MatchNote/Existing* 字段；缺少名称或有效单价的
 // 行标记 Skip。带编码的行命中即覆盖、未命中即新增（同标题不同编码=不同
 // 子目，不做标题兜底，避免误覆盖）。
+// 索引构建与键归一=cost.LoadMatchIndex/MatchByCode/MatchByTitle（审计
+// GA6-05 收敛）；本函数只留行级策略（Skip 规则与带码未命中不回退语义）。
 func MatchRows(rows []Row, store *cost.Store) []Row {
-	byTitle := map[string]cost.Summary{}
-	byName := map[string]cost.Summary{}
-	byCode := map[string]cost.Summary{}
-	if store != nil && store.Available() {
-		existing, lerr := store.List()
-		if lerr != nil {
-			// 审计 GA6-09：本函数签名不带 error，读失败只能按已读到部分匹配
-			// （部分数据仍返回），但必须留痕——否则会把「读不到」当成
-			// 「库里没有同名条目」而全部标成新增，用户重复入库。
-			slog.Warn("costimport: 成本库读取失败，匹配按已读到部分", "error", lerr)
-		}
-		for _, s := range existing {
-			if c := cost.NormalizeCode(s.Code); c != "" {
-				byCode[c] = s
-			}
-			if t := strings.ToLower(strings.TrimSpace(s.Title)); t != "" {
-				byTitle[t] = s
-			}
-			if n := strings.TrimSpace(s.Name); n != "" {
-				byName[n] = s
-			}
-		}
-	}
+	ix := cost.LoadMatchIndex(store, "costimport")
 
 	out := make([]Row, 0, len(rows))
 	for _, row := range rows {
@@ -328,18 +307,14 @@ func MatchRows(rows []Row, store *cost.Store) []Row {
 			row.Name = cost.SlugName(row.Title)
 			row.Status = "现行"
 			if code := cost.NormalizeCode(row.Code); code != "" {
-				if existing, ok := byCode[code]; ok {
+				if existing, ok := ix.MatchByCode(code); ok {
 					row.ExistingName = existing.Name
 					row.ExistingPrice = existing.Price
 					row.MatchNote = fmt.Sprintf("编码命中，将覆盖更新（现价 ¥%s）", fmtPrice(existing.Price))
 				} else {
 					row.MatchNote = "新增"
 				}
-			} else if existing, ok := byTitle[strings.ToLower(strings.TrimSpace(row.Title))]; ok {
-				row.ExistingName = existing.Name
-				row.ExistingPrice = existing.Price
-				row.MatchNote = fmt.Sprintf("将覆盖更新（现价 ¥%s）", fmtPrice(existing.Price))
-			} else if existing, ok := byName[row.Name]; ok {
+			} else if existing, ok := ix.MatchByTitle(row.Title); ok {
 				row.ExistingName = existing.Name
 				row.ExistingPrice = existing.Price
 				row.MatchNote = fmt.Sprintf("将覆盖更新（现价 ¥%s）", fmtPrice(existing.Price))
@@ -614,16 +589,10 @@ func parseZeroPrice(s string) (float64, bool) {
 }
 
 // parsePrice 归一化价格：去掉 ¥/元/逗号/空格，支持 "3,200.00"、"3200 元"。
+// 实现=cost.ParsePrice（审计 GA6-05 收敛，全角半角归一唯一实现）；本包方言
+// =不取整、无数字预检（见 cost.PriceOpts 注记）。
 func parsePrice(s string) (float64, bool) {
-	clean := strings.NewReplacer(",", "", "，", "", "¥", "", "￥", "", "元", "", " ", "", "\u00a0", "").Replace(strings.TrimSpace(s))
-	if clean == "" {
-		return 0, false
-	}
-	v, err := strconv.ParseFloat(clean, 64)
-	if err != nil || v <= 0 {
-		return 0, false
-	}
-	return v, true
+	return cost.ParsePrice(s)
 }
 
 func normalizeCategory(s string) string {

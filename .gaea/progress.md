@@ -1,3 +1,14 @@
+## 非版本刀：全仓审计第 21 批·duplication 余量四线（14 条收敛）· 2026-10-03
+
+- **刀型**：接续批 20（`a3cd2ba7`）。对账地图「duplication 余量 ~15」中取 **14 条，四条互斥并行子代理线**（export+project / BM25 分词族 / Go 杂项 / 前端 schedule 族）。**不抬版本**。
+- **交付**：`docs/code-audit-2026-10-02/round-23-p1-batch21.md`。
+- **收敛 12 条+证伪修正 4 处**：①**IN1-03** 章节号解析实为六处（复核新增 graph 第三份正则；bookimport 证伪非消费方）→ `project.ParseChapterFileName` 骨架单源+四保留站点口径对照表（迁移 Sscanf 与正则**双向不包含**探针实测）；②**IN3-12** 导出循环四份→`forEachChapter`+`readWorldviewWarned`（EPUB 中途失败不写 FailedChapters 语义逐字保留；ExportHTML 第五循环结构不同未并入）；③**IN3-13** Markdown 块判定→`markdownBlockKind`（docmd 对照钉）；④**GA3-03/04+IN2-11 BM25/分词族**——分词 6 套/BM25 3 套实测成表→**公式单源** `Params.TermScore`（三套 IDF 逐位一致数学证明：log(1+x) vs log(x+1) IEEE 可交换）+**分词开关单源** `TokenizeOpts`（gaea/memory SearchIndex 整体薄封装）；**异族三种证伪出族**（internal/memory k1=1.5 不同算法族不接分词只委托公式、search.Tokenize 不小写化、textsim Dice 集合语义、novelstyle 写作统计）；**数学发现入册：固定 b 下 k1 不可能改变两两排序**（g(a,n)=g(b,n′)⟺a·n′=b·n 与 k1 无关+scratch 实证）——k1 回归防护=分值快照非顺序；⑤**GA2-06** dag 双套→泛型 `fileStore[T]`（钩子先于 MkdirAll；空集 `[]T{}` 单点）；⑥**AP5-06** 主代理「输出一致则映射」前提**被现场修正**（蒸馏=确定性宁漏勿误 vs 面板=模糊 textsim，**输出不等价**）⇒冻结第三路：口径差异注释+对照测试钉成机器事实，收敛与否=拍板；⑦**GA6-05** 「4 包收敛」重画（costinquiry/costref 是第三方言单点已收敛不动）→真同型两副本收 `cost.MatchIndex/LoadMatchIndex`（GA6-09 留痕逐字）+`cost.ParsePrice/ParsePriceWithOpts`（全角归一单点；Inf/NaN 方言差异 PriceOpts 参数化钉住）；⑧**FE7-05** 行派生镜像→`rowDerive`+`GanttRowShell`（synGroupOf 收窄变体防布尔假窄化）；⑨**FE7-07** 汇总口径量化（筛选下差 **3 个工作日**）→**冻结**（导出面无筛选输入，统一必改字节；口径对照表+无筛选同值断言）；⑩**FE7-08** EXP_COLS→`colsByKeys` 派生+**键序长位断言**（附带发现 colsByKeys 入参序无关=键序断言必须存在的实证）；⑪**FE7-12** `useDragGesture`+`useFitView`（**参数值全冻结**：AOA [0.1,2] vs PDM [0.2,2]；GanttView dayW 另套单位不并）；⑫**FE5-03** CreatePage 类型重复 −60 行（直接用已导出 PlanGateReportView）。
+- **行为冻结三形态本批齐备**：参数化复现（线 2 开关）/骨架单源+谓词保留（线 1）/冻结+口径对照表+差异钉死（AP5-06、FE7-07）——「统一」不是默认答案。**字节/快照冻结证据**：线 1 金样（导出四格式 diff 除 EPUB 运行时钟外逐字节）；线 2 快照先钉现状改动后一字不改全绿（token 流+检索顺序+分值逐字节）。
+- **反向证据（主代理亲手各重做一组，全红→绿）**：线1 分支解析删段→MainlineOnly 红/线3 空集返回 nil→TemplateStore 红线/线2 K1 1.5→1.2→分值快照红（顺序不变=数学性质实证）/线4 EXP_COLS 键序反转→收集期红。
+- **门禁**：前台 CI OK / exit 0（golangci 0 issues · vitest **433 文件 3752 例** · E 系列 · 卫生四查）；守卫四份全绿（bindings@744+死绑定 109 在册 / test-ctors 364 零新增 / primitives / contract）。**过程事故再犯**：ci 日志删在 Tests 终值抄录前（**批 19 教训第二次违犯**）——文件数取自日志残句、例数单独复跑实测补齐；教训升级=**rm 清理必须放台账终值写完之后，抄数与清理不许同一条命令**。
+- **坑/教训（进在册）**：①行为冻结三形态按条目性质选（参数化复现/骨架单源+谓词/冻结+对照表）——「统一」不是默认答案；②主代理任务书路线的前提同样要被现场复核（AP5-06 输出不等价、GA6-05「4 包」重画）；③数学性质实证入册（k1 排序不变性）让回归防护精确化（分值快照非顺序快照）；④镜像仓金样与快照先钉的组合=重构行为冻结的最强证据组合。
+- **留池/下一批**：对账地图更新——**duplication 收敛余量 ~15→~4**（FE2-06 价格源两份、AP5-06/GA6-05 收敛裁决=拍板、章节号 stats/graph 改调一行事、BM25 族已毕）；**剩余大头=god-file 大拆 ~27（每条独立刀）+coupling ~20（拍板）**。拍板池累计十项+本批新增（AP5-06 两套收敛/GA6-05 Inf-NaN 方言）。下一批候选：duplication 零散收尾+god-file 大拆试水（挑最小一条立刀验证配方）或转拍板池批量裁决。
+
 ## 非版本刀：全仓审计第 20 批·语义冲突五条（4 线 + 主代理直做 1）· 2026-10-03
 
 - **刀型**：接续批 19（`182c672e`）。对账地图「语义冲突 ~5 条（潜在真 bug）」整簇吃掉：**4 条互斥并行子代理线 + 主代理直做 1**（AP3-03 押后至线 1 交回，守同包不并行）。**不抬版本**。

@@ -10,7 +10,6 @@ package cost
 import (
 	"fmt"
 	"sort"
-	"strings"
 	"unicode"
 )
 
@@ -20,22 +19,10 @@ import (
 
 // normCompTitle 组件标题匹配键:全角→半角、去全部空白、转小写。
 // 「C32.5 水泥」「ｃ３２．５水泥」「c32.5  水泥」归一后同键;空串原样返回。
+// 实现与 NormalizeCode 共用 normASCIIKey 核心（审计 GA6-05：两份仅大小写
+// 折叠不同），本包只留小写折叠口径。
 func normCompTitle(s string) string {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return ""
-	}
-	var b strings.Builder
-	for _, r := range s {
-		switch {
-		case r == ' ' || r == '\u00a0' || r == '\u3000' || r == '\t':
-			continue
-		case r >= '！' && r <= '～': // 全角 ASCII 区 → 半角
-			r -= 0xFEE0
-		}
-		b.WriteRune(unicode.ToLower(r))
-	}
-	return b.String()
+	return normASCIIKey(s, unicode.ToLower)
 }
 
 // normCompUnit 组件单位匹配键:去空白+小写(「m³/M³/m3」的语义差异不在本刀

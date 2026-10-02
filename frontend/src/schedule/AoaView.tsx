@@ -25,6 +25,8 @@ import type { AoaGraph } from './aoa'
 import { AOA_COL_W, AOA_MARGIN, AOA_R, AOA_ROW_H } from './aoa'
 import { applyPins, assignChannels, edgeSegs, findBridgeArcs, prunePins, segsToPathSplit, snapPt, summarySegs } from './aoaLayout'
 import { buildAoaRuler } from './aoaRuler'
+import { beginWindowDrag } from './gantt/useDragGesture'
+import { useAutoFitZoom, useFitView } from './gantt/useFitView'
 import { useScheduleStore } from './store'
 import type { AoaPin, SchedTask } from './types'
 import { useWheelZoom } from './wheelZoom'
@@ -49,48 +51,46 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
   const pins = aoaLayout?.pins ?? {} // 派生放渲染体：selector 必须返回稳定引用（getSnapshot 缓存纪律）
   // 布局开关是视图态（mode 不入文件）：默认 pins 非空→手动
   const [mode, setMode] = useState<'auto' | 'manual'>(() => (Object.keys(pins).length > 0 ? 'manual' : 'auto'))
-  // 拖拽中状态：只动本体（节点跟随+吸附位 tip），提交在 mouseup
+  // 拖拽中状态：只动本体（节点跟随+吸附位 tip），提交在 mouseup。
+  // 三件套外壳单源 beginWindowDrag（FE7-12）；载荷对象 move 原地推进。
   const [drag, setDrag] = useState<{ anchor: string; x: number; y: number; moved: boolean } | null>(null)
-  const dragRef = useRef<{ anchor: string; startX: number; startY: number; orig: { x: number; y: number }; x: number; y: number; moved: boolean } | null>(null)
   // 图面尺寸（提前派生供自动适配用）
   const shownEarly = mode === 'manual' ? applyPins(graph, pins) : graph
   const wEarly = shownEarly.nodes.length > 0 ? Math.max(...shownEarly.nodes.map((n) => n.x)) + AOA_MARGIN + AOA_COL_W / 2 : 0
   const hEarly = shownEarly.nodes.length > 0 ? Math.max(...shownEarly.nodes.map((n) => n.y)) + AOA_MARGIN + AOA_ROW_H / 2 : 0
   // 缩放/全览（v4.142，对齐单代号刀E 范式）：长计划 110px/天 展开上万像素，
-  // 没有缩放根本读不了——首帧自动适配一次，用户手动缩放后不再抢占
+  // 没有缩放根本读不了——首帧自动适配一次，用户手动缩放后不再抢占。
+  // 外壳单源 useFitView（FE7-12）：AOA 钳域 [0.1,2]、全览下限 0.3（整图入窗也
+  // 不缩成蚂蚁，再小读不出字）、自动适配下限 0.5=可读优先（装不下就横向滚动，
+  // 参考斑马/Project 显示口径，绝不把整图无脑缩到看不清）、上限 1.5、高度项
+  // max(160, clientHeight-24)——参数刻意不与 PdmView 统一（AOA 更密）。
   const scrollRef = useRef<HTMLDivElement | null>(null)
-  const [zoom, setZoom] = useState(1)
-  const zoomRef = useRef(1)
-  const touchedRef = useRef(false)
-  const applyZoom = (z: number) => {
-    const c = Math.min(2, Math.max(0.1, Math.round(z * 100) / 100))
-    zoomRef.current = c
-    setZoom(c)
-  }
-  const stepZoom = (f: number) => {
-    touchedRef.current = true
-    applyZoom(zoomRef.current * f)
-  }
-  const fitView = () => {
-    touchedRef.current = true
-    const el = scrollRef.current
-    if (!el || el.clientWidth <= 0) return
-    // 全览下限 0.3：整图入窗也不缩成蚂蚁（再小读不出字）
-    applyZoom(Math.max(0.3, Math.min(el.clientWidth / wEarly, Math.max(160, el.clientHeight - 24) / hEarly, 1.5)))
-  }
+  const { zoom, zoomRef, touchedRef, applyZoom, stepZoom, fitView } = useFitView(scrollRef, 0.1, 2)
   // 滚轮缩放（v4.159）：普通滚轮=以光标为锚缩放，Shift+滚轮=横向滚动；
   // 与按钮/全览共用 touchedRef（手动缩放后首帧自动适配不再抢占）
   useWheelZoom(scrollRef, zoomRef, applyZoom)
-  // 图面尺寸变化（切工程/增删任务）且用户未手动缩放时，自动适配一次。
-  // 下限 0.5=可读优先：装不下就横向滚动（参考斑马/Project 显示口径），
-  // 绝不把整图无脑缩到看不清
-  React.useEffect(() => {
-    if (touchedRef.current) return
-    const el = scrollRef.current
-    if (!el || wEarly <= 0 || el.clientWidth <= 0) return // clientWidth=0（jsdom/未布局）不误适配
-    const z = Math.max(0.5, Math.min(el.clientWidth / wEarly, Math.max(160, el.clientHeight - 24) / hEarly, 1.5))
-    if (Number.isFinite(z) && z > 0) applyZoom(z)
-  }, [wEarly, hEarly])
+  // 图面尺寸变化（切工程/增删任务）且用户未手动缩放时，自动适配一次
+  useAutoFitZoom(
+    scrollRef,
+    touchedRef,
+    applyZoom,
+    (el) => {
+      if (el.clientWidth <= 0) return null // clientWidth=0（jsdom/未布局）不误适配
+      const z = Math.max(0.5, Math.min(el.clientWidth / wEarly, Math.max(160, el.clientHeight - 24) / hEarly, 1.5))
+      return Number.isFinite(z) && z > 0 ? z : null
+    },
+    `${wEarly}|${hEarly}`,
+    wEarly > 0,
+  )
+  /** 全览（按钮）：整网适配当前视口 */
+  const fitAoa = () => {
+    touchedRef.current = true
+    fitView((el) =>
+      el.clientWidth <= 0
+        ? null
+        : Math.max(0.3, Math.min(el.clientWidth / wEarly, Math.max(160, el.clientHeight - 24) / hEarly, 1.5)),
+    )
+  }
 
   const manual = mode === 'manual'
   const shown = manual ? applyPins(graph, pins) : graph
@@ -170,38 +170,21 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
     e.preventDefault()
     e.stopPropagation()
     const anchor = anchorById.get(nodeId)!
-    dragRef.current = { anchor, startX: e.clientX, startY: e.clientY, orig: { x: node.x, y: node.y }, x: node.x, y: node.y, moved: false }
-    const onMove = (ev: MouseEvent) => {
-      const d = dragRef.current
-      if (!d) return
-      const k = zoomRef.current || 1 // 缩放下拖拽：屏幕位移折算回图面坐标
-      const snapped = snapPt(d.orig.x + (ev.clientX - d.startX) / k, d.orig.y + (ev.clientY - d.startY) / k)
-      const moved = d.orig.x !== snapped.x || d.orig.y !== snapped.y
-      dragRef.current = { ...d, x: snapped.x, y: snapped.y, moved }
-      setDrag({ anchor, x: snapped.x, y: snapped.y, moved })
-    }
-    const onUp = () => {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-      window.removeEventListener('keydown', onKey)
-      const d = dragRef.current
-      dragRef.current = null
-      setDrag(null)
-      if (d?.moved) commitPin(d.anchor, { x: d.x, y: d.y }) // 提交在渲染期外（updater 不得带副作用）
-    }
-    const onKey = (ev: KeyboardEvent) => {
-      if (ev.key === 'Escape') {
-        // Esc 取消：不提交，回原位（回调内自清理，避免与 onUp 双跑）
-        window.removeEventListener('mousemove', onMove)
-        window.removeEventListener('mouseup', onUp)
-        window.removeEventListener('keydown', onKey)
-        dragRef.current = null
-        setDrag(null)
-      }
-    }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-    window.addEventListener('keydown', onKey)
+    // 载荷对象（move 原地推进；渲染态预览走 drag state）
+    const st = { anchor, startX: e.clientX, startY: e.clientY, orig: { x: node.x, y: node.y }, x: node.x, y: node.y, moved: false }
+    beginWindowDrag({
+      move: (st, ev) => {
+        const k = zoomRef.current || 1 // 缩放下拖拽：屏幕位移折算回图面坐标
+        const snapped = snapPt(st.orig.x + (ev.clientX - st.startX) / k, st.orig.y + (ev.clientY - st.startY) / k)
+        st.x = snapped.x
+        st.y = snapped.y
+        st.moved = st.orig.x !== snapped.x || st.orig.y !== snapped.y
+        setDrag({ anchor: st.anchor, x: st.x, y: st.y, moved: st.moved })
+      },
+      moved: (st) => st.moved,
+      commit: (st) => commitPin(st.anchor, { x: st.x, y: st.y }), // 提交在渲染期外（updater 不得带副作用）
+      end: () => setDrag(null),
+    }, st)
   }
 
   return (
@@ -254,7 +237,7 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
           <button type="button" className="sched-aoa-mode-btn" data-testid="sched-aoa-zoomout" title="缩小" onClick={() => stepZoom(1 / 1.2)}>−</button>
           <span className="sched-pdm-zoom" data-testid="sched-aoa-zoom">{Math.round(zoom * 100)}%</span>
           <button type="button" className="sched-aoa-mode-btn" data-testid="sched-aoa-zoomin" title="放大" onClick={() => stepZoom(1.2)}>＋</button>
-          <button type="button" className="sched-aoa-mode-btn" data-testid="sched-aoa-fit" title="全览：整网适配当前视口" onClick={() => { touchedRef.current = true; fitView() }}>
+          <button type="button" className="sched-aoa-mode-btn" data-testid="sched-aoa-fit" title="全览：整网适配当前视口" onClick={fitAoa}>
             全览
           </button>
           <span className="sched-net-hint">滚轮缩放 · Shift+滚轮横移</span>

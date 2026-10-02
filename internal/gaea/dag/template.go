@@ -7,16 +7,10 @@ package dag
 // （goal+节点指令+依赖），状态/产物/运行痕迹一律剥掉。
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
-	"sort"
 	"strings"
 	"sync/atomic"
 	"time"
-
-	"github.com/gaea/gaea/internal/gaea/fileutil"
 )
 
 // NameMaxRune 模板名上限（rune 计，中文友好）；超限报错不静默截断。
@@ -113,92 +107,40 @@ func Instantiate(t Template) Run {
 }
 
 // TemplateStore 模板档文件存储（无状态；并发读改写由调用方串行化）。
-type TemplateStore struct{ dir string }
+// 存储内核与 Store 共用 fileStore[T]（审计 GA2-06 收敛）；本类型只留模板侧
+// 差异：Save 的落盘前全量校验（goal/节点/依赖/成环）+ 模板名归一——模板是
+// 「可重建」的承诺，坏形状不能入库。
+type TemplateStore struct{ fileStore[Template] }
 
-func NewTemplateStore(dir string) *TemplateStore { return &TemplateStore{dir: dir} }
-
-func (s *TemplateStore) path(id string) string { return filepath.Join(s.dir, id+".json") }
+func NewTemplateStore(dir string) *TemplateStore {
+	return &TemplateStore{fileStore[Template]{
+		dir:       dir,
+		label:     "模板",
+		id:        func(t Template) string { return t.ID },
+		createdAt: func(t Template) string { return t.CreatedAt },
+		beforeSave: func(t *Template) error {
+			if err := Validate(t.Goal, t.Nodes); err != nil {
+				return err
+			}
+			nm, err := normalizeName(t.Name, t.Goal)
+			if err != nil {
+				return err
+			}
+			t.Name = nm
+			return nil
+		},
+	}}
+}
 
 // Save 原子落盘（临时文件+改名）；落盘前全量校验（goal/节点/依赖/成环）——
 // 模板是「可重建」的承诺，坏形状不能入库。
-func (s *TemplateStore) Save(t Template) error {
-	if err := safeID(t.ID); err != nil {
-		return err
-	}
-	if err := Validate(t.Goal, t.Nodes); err != nil {
-		return err
-	}
-	nm, err := normalizeName(t.Name, t.Goal)
-	if err != nil {
-		return err
-	}
-	t.Name = nm
-	if err := os.MkdirAll(s.dir, 0o755); err != nil {
-		return fmt.Errorf("创建模板目录: %w", err)
-	}
-	b, err := json.MarshalIndent(t, "", "  ")
-	if err != nil {
-		return err
-	}
-	tmp := s.path(t.ID) + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
-		return err
-	}
-	return fileutil.RenameWithRetry(tmp, s.path(t.ID))
-}
+func (s *TemplateStore) Save(t Template) error { return s.save(t) }
 
 // Get 读单条；不存在报错（fail-closed）。
-func (s *TemplateStore) Get(id string) (Template, error) {
-	if err := safeID(id); err != nil {
-		return Template{}, err
-	}
-	b, err := os.ReadFile(s.path(id))
-	if err != nil {
-		return Template{}, fmt.Errorf("读取模板 %s: %w", id, err)
-	}
-	var t Template
-	if err := json.Unmarshal(b, &t); err != nil {
-		return Template{}, fmt.Errorf("解析模板 %s: %w", id, err)
-	}
-	return t, nil
-}
+func (s *TemplateStore) Get(id string) (Template, error) { return s.get(id) }
 
 // List 全部模板（创建时间倒序）；损坏文件跳过（只读兼容，镜像 Store.List）。
-func (s *TemplateStore) List() ([]Template, error) {
-	entries, err := os.ReadDir(s.dir)
-	if os.IsNotExist(err) {
-		// 目录不存在=空集语义：nil slice 经 JSON 序列化成 null，会把前端
-		// 非空断言的消费方（DagPanel tpls.length）炸掉（v4.234 真机走查实锤）。
-		return []Template{}, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	var out []Template
-	for _, e := range entries {
-		if e.IsDir() || filepath.Ext(e.Name()) != ".json" {
-			continue
-		}
-		b, err := os.ReadFile(filepath.Join(s.dir, e.Name()))
-		if err != nil {
-			continue
-		}
-		var t Template
-		if json.Unmarshal(b, &t) == nil && t.ID != "" {
-			out = append(out, t)
-		}
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt > out[j].CreatedAt })
-	return out, nil
-}
+func (s *TemplateStore) List() ([]Template, error) { return s.list() }
 
 // Delete 删档即弃；不存在报错（fail-closed，不静默成功）。
-func (s *TemplateStore) Delete(id string) error {
-	if err := safeID(id); err != nil {
-		return err
-	}
-	if err := os.Remove(s.path(id)); err != nil {
-		return fmt.Errorf("删除模板 %s: %w", id, err)
-	}
-	return nil
-}
+func (s *TemplateStore) Delete(id string) error { return s.del(id) }

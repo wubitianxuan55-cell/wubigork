@@ -197,6 +197,13 @@ func rebuildVocab() {
 
 // tokenize 用词表贪心最长匹配对文本做确定性分词。
 // 只输出 CJK 词/字与 ASCII 字母数字 token；标点与空白跳过，并作为词间边界。
+//
+// 审计 GA3-04 出族结论（2026-10 复核）：本函数是**写作统计分词**而非检索
+// 分词——词表贪心最长匹配服务于 TTR、词频熵、函数词 z 值、作者签名词等
+// 文体统计，与 bm25/gaea-memory/search 的检索分词（bigram 倒排口径）不同
+// 用途、不同算法族，且词表可被 .gaea/skills/novel-deslop/words.json 整体
+// 替换（运行时可变口径）。并入检索分词器会破坏统计语义与可替换性，证伪
+// 出族、刻意保留；完整口径对照表见 internal/gaea/bm25 的 Options 注释。
 func tokenize(text string) []string {
 	rs := []rune(text)
 	n := len(rs)

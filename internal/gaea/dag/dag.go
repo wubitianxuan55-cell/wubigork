@@ -6,16 +6,12 @@
 package dag
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"sync/atomic"
 	"time"
-
-	"github.com/gaea/gaea/internal/gaea/fileutil"
 )
 
 // 节点状态机：pending→running→done|failed→（steer 续跑→done|failed）→accepted。
@@ -315,12 +311,8 @@ func sameDeps(a, b []string) bool {
 	return true
 }
 
-// Store run 档文件存储（无状态；并发读改写由调用方串行化）。
-type Store struct{ dir string }
-
-func NewStore(dir string) *Store { return &Store{dir: dir} }
-
 // safeID run id 必须是文件名安全 slug——Get/List 用 id 拼路径，拒绝穿越。
+// run 档与模板档共用（fileStore 内核，审计 GA2-06）。
 func safeID(id string) error {
 	if id == "" || len(id) > 128 {
 		return fmt.Errorf("非法 run id")
@@ -335,27 +327,26 @@ func safeID(id string) error {
 	return nil
 }
 
-func (s *Store) path(id string) string { return filepath.Join(s.dir, id+".json") }
+// Store run 档文件存储（无状态；并发读改写由调用方串行化）。
+// 存储内核与 TemplateStore 共用 fileStore[T]（审计 GA2-06 收敛）；本类型只留
+// run 侧差异：SaveNew 冲突后缀与 Save 的 UpdatedAt 刷新钩子。
+type Store struct{ fileStore[Run] }
+
+func NewStore(dir string) *Store {
+	return &Store{fileStore[Run]{
+		dir:       dir,
+		label:     "流水线",
+		id:        func(r Run) string { return r.ID },
+		createdAt: func(r Run) string { return r.CreatedAt },
+		beforeSave: func(r *Run) error {
+			r.UpdatedAt = time.Now().Format(time.RFC3339)
+			return nil
+		},
+	}}
+}
 
 // Save 原子落盘（临时文件+改名），顺带刷新 UpdatedAt。
-func (s *Store) Save(r Run) error {
-	if err := safeID(r.ID); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(s.dir, 0o755); err != nil {
-		return fmt.Errorf("创建流水线目录: %w", err)
-	}
-	r.UpdatedAt = time.Now().Format(time.RFC3339)
-	b, err := json.MarshalIndent(r, "", "  ")
-	if err != nil {
-		return err
-	}
-	tmp := s.path(r.ID) + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
-		return err
-	}
-	return fileutil.RenameWithRetry(tmp, s.path(r.ID))
-}
+func (s *Store) Save(r Run) error { return s.save(r) }
 
 // SaveNew 唯一化落盘：id 冲突（同一秒重复规划）时追加 -2/-3 后缀，绝不覆盖
 // 已有 run。用于 dag_plan 落盘路径；重跑/状态更新走 Save。
@@ -371,46 +362,7 @@ func (s *Store) SaveNew(r *Run) error {
 }
 
 // Get 读单条；不存在报错（fail-closed，不静默空值）。
-func (s *Store) Get(id string) (Run, error) {
-	if err := safeID(id); err != nil {
-		return Run{}, err
-	}
-	b, err := os.ReadFile(s.path(id))
-	if err != nil {
-		return Run{}, fmt.Errorf("读取流水线 %s: %w", id, err)
-	}
-	var r Run
-	if err := json.Unmarshal(b, &r); err != nil {
-		return Run{}, fmt.Errorf("解析流水线 %s: %w", id, err)
-	}
-	return r, nil
-}
+func (s *Store) Get(id string) (Run, error) { return s.get(id) }
 
 // List 全部 run（创建时间倒序）；损坏文件跳过（只读兼容）。
-func (s *Store) List() ([]Run, error) {
-	entries, err := os.ReadDir(s.dir)
-	if os.IsNotExist(err) {
-		// 目录不存在=空集语义：nil slice 经 JSON 序列化成 null，会把前端
-		// 非空断言的消费方（DagPanel tpls.length）炸掉（v4.234 真机走查实锤）。
-		return []Run{}, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	var runs []Run
-	for _, e := range entries {
-		if e.IsDir() || filepath.Ext(e.Name()) != ".json" {
-			continue
-		}
-		b, err := os.ReadFile(filepath.Join(s.dir, e.Name()))
-		if err != nil {
-			continue
-		}
-		var r Run
-		if json.Unmarshal(b, &r) == nil && r.ID != "" {
-			runs = append(runs, r)
-		}
-	}
-	sort.Slice(runs, func(i, j int) bool { return runs[i].CreatedAt > runs[j].CreatedAt })
-	return runs, nil
-}
+func (s *Store) List() ([]Run, error) { return s.list() }

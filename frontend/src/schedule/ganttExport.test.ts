@@ -7,11 +7,12 @@
  * left=dayNo×14/width=ΔdayNo×14，DAY_W=14）；循环依赖 fail-closed。
  */
 import { describe, expect, it } from 'vitest'
-import { buildGanttExportSvg, EXP_COLORS, EXP_MARGIN } from './ganttExport'
+import { buildGanttExportSvg, EXP_COLORS, EXP_COLS, EXP_MARGIN } from './ganttExport'
 import { computeCpm } from './cpm'
 import { wdToDate } from './calendar'
 import type { SchedProject, SchedTask } from './types'
 import { GANTT_COLS, GANTT_REPORT_KEYS, colsByKeys } from './ganttCols'
+import { buildGanttRows } from './ganttGroup'
 
 const START = '2026-09-07' // 周一
 
@@ -52,6 +53,20 @@ describe('buildGanttExportSvg 结构', () => {
     expect(cols.map((c) => c.key)).toEqual(GANTT_REPORT_KEYS)
     expect(cols).toHaveLength(6)
     expect(cols.every((c) => GANTT_COLS.includes(c))).toBe(true)
+  })
+
+  it('FE7-08 单源：EXP_COLS 键序=GANTT_REPORT_KEYS（colsByKeys 派生），发布物覆盖表只改文案/列宽', () => {
+    // 键序唯一源断言：派生列序与 GANTT_REPORT_KEYS 逐位一致（反向证据用例的靶心）
+    expect(EXP_COLS.map((c) => c.key)).toEqual(GANTT_REPORT_KEYS)
+    // 未覆盖字段的 label 回落 GANTT_COLS 原定义（与工作台列定义同源）
+    const workbench = new Map(GANTT_COLS.map((c) => [c.key, c]))
+    for (const c of EXP_COLS) {
+      const ov = c.label === '序号' || c.label === '工期(天)' // 显式覆盖的两处
+      if (!ov) expect(c.label, c.key).toBe(workbench.get(c.key)?.label)
+    }
+    // 发布物覆盖表：上报件可读口径（与拆分前字面量逐字段一致）
+    expect(EXP_COLS.map((c) => c.label)).toEqual(['序号', '任务名称', '工期(天)', '开始', '完成', '前置'])
+    expect(EXP_COLS.map((c) => c.w)).toEqual([44, 200, 64, 84, 84, 80])
   })
 
   it('循环依赖 fail-closed：抛错不出坏图面', () => {
@@ -262,5 +277,64 @@ describe('编制说明注（meta.notes）', () => {
     const bodyLine = Array.from(parse(long.svg).querySelectorAll('.sched-exp-notes text'))[1]
     expect(bodyLine.textContent!, '截到块宽内并加省略号').toContain('…')
     expect(bodyLine.textContent!.length).toBeLessThanOrEqual(35)
+  })
+})
+
+// ── 汇总口径对照（FE7-07，裁决=冻结现状）────────────────────────────
+// 口径对照表（代码锚点 ganttExport.groupSpan 注释）：
+//   导出图面   = 全子孙叶 min(es)/max(ef)（descendantIds，无筛选/折叠概念）
+//   表格/画布 = 可见叶 min(es)/max(ef)（buildGanttRows → GanttRow.minEs/maxEf）
+// 统一到「可见叶」必须把筛选/折叠态传入导出面 = 改变导出字节 = 行为变化，
+// 故冻结；本组用例钉死「无筛选时同值 + 筛选时差异量化」两个事实。
+describe('汇总口径对照（FE7-07 冻结：导出=全子孙叶，表格/画布=可见叶）', () => {
+  // G 组下 A(3)→B(2)→C(4)→D(1) 串联：全子孙 es=0/ef=10；
+  // 筛掉 A 后可见叶 minEs=3（差异=3 工作日，量化钉死）
+  const gProj = proj(
+    [
+      t('G', 0, 0),
+      t('A', 3),
+      t('B', 2),
+      t('C', 4),
+      t('D', 1),
+    ],
+    [
+      { from: 'A', to: 'B' },
+      { from: 'B', to: 'C' },
+      { from: 'C', to: 'D' },
+    ],
+  )
+  /** 表格第 row 行的单元格文本（y=HEAD_H+row×ROW_H+ROW_H/2+4 的全部 text） */
+  const rowTexts = (doc: Document, row: number): string[] =>
+    Array.from(doc.querySelectorAll('text'))
+      .filter((n) => n.getAttribute('y') === String(44 + row * 30 + 19))
+      .map((n) => n.textContent ?? '')
+  const headerOf = (rows: ReturnType<typeof buildGanttRows>): { minEs: number; maxEf: number } => {
+    const h = rows.find((r): r is Extract<typeof r, { kind: 'group' }> => r.kind === 'group')
+    if (!h) throw new Error('无组头行')
+    return h
+  }
+
+  it('无筛选无折叠：导出组汇总=画布组头统计（同值断言，两口径的公共点）', () => {
+    const cpm = computeCpm(gProj.tasks, gProj.links)
+    const doc = parse(buildGanttExportSvg(gProj, cpm).svg)
+    // 导出面（全子孙叶）：es=0 → 2026/9/7、ef=10 → 2026/9/21
+    expect(rowTexts(doc, 0), '导出组行开始/完成').toEqual(expect.arrayContaining(['2026/9/7', '2026/9/21']))
+    // 画布口径（可见直接子叶=全部 4 叶）：minEs=0、maxEf=10 → 同值
+    const header = headerOf(buildGanttRows(gProj.tasks, cpm))
+    expect(header.minEs).toBe(0)
+    expect(header.maxEf).toBe(10)
+  })
+
+  it('筛选隐藏 A：导出仍含 A（全子孙 es=0），画布组头只计可见叶（minEs=3）——差异=3 工作日，冻结不统一', () => {
+    const cpm = computeCpm(gProj.tasks, gProj.links)
+    const doc = parse(buildGanttExportSvg(gProj, cpm).svg)
+    expect(rowTexts(doc, 0), '导出（发布物不随筛选漂移）：仍含隐藏叶 A 的 es=0').toContain('2026/9/7')
+    const visibleIdx = gProj.tasks.map((_, i) => i).filter((i) => gProj.tasks[i].id !== 'A')
+    const header = headerOf(buildGanttRows(gProj.tasks, cpm, { visibleIdx }))
+    expect(header.minEs, '画布（工作台口径）：A 被筛掉 → 组头从 B.es=3 起算').toBe(3)
+    expect(header.maxEf).toBe(10)
+    // 差异量化：minEs 0（导出）vs 3（画布）= 3 工作日 = 9/7 vs 9/10 三个自然日列
+    expect(wdToDate(gProj.startDate, 0, gProj.calendar).getUTCDate()).toBe(7)
+    expect(wdToDate(gProj.startDate, 3, gProj.calendar).getUTCDate()).toBe(10)
   })
 })

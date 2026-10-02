@@ -8,6 +8,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/gaea/gaea/internal/gaea/bm25"
 	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/util"
 )
@@ -24,26 +25,38 @@ type Memory struct {
 	Score      float64 `json:"score"`    // BM25 相关度分数（检索时填充）
 }
 
-// Index BM25 索引
+// Index BM25 检索索引（故事记忆口径）。
+//
+// 审计 IN2-11 收敛（2026-10）：打分公式委托 bm25.Params.TermScore（仓库唯一
+// BM25 公式实现，k1/b 参数化——本库 k1=1.5、b=0.75 是真实参数口径，与成本库
+// /gaea 记忆的 1.2 不同，透传错误会打破 TestIndexRetrievalFreezeSnapshot 的
+// 分值快照）。索引结构与分词**刻意保留本地**，无法以 bm25.Ranker 整体替代：
+//   - 分词口径不同族：本库为「字母数字连排整串 token（CJK 属字母）+ 非
+//     space/punct 单 rune token + 全文 Han 相邻二元组后置追加」，与 bm25 的
+//     「CJK 串拆整串+行内 bigram」token 流不同（docLen/tf/df 随之不同），
+//     换用即检索回归；
+//   - 索引为公开 Add 增量构建（avgDocLen 全量文档均值，含零 token 文档），
+//     与 Ranker「非空文档均值」口径不同；
+//   - 检索为插入序线性扫（无 tie-break 的 sort.Slice）+ Score 两位舍入，
+//     语义与 Ranker（epsilon tie-break + ID 升序）不同。
 type Index struct {
 	memories   []Memory
 	docFreq    map[string]int // 词 → 包含该词的文档数
 	docLengths []int          // 每个文档的长度
 	avgDocLen  float64
-	k1         float64 // BM25 参数
-	b          float64
+	params     bm25.Params // BM25 参数（k1=1.5, b=0.75）
 }
 
 // NewIndex 创建 BM25 索引
 func NewIndex() *Index {
 	return &Index{
 		docFreq: make(map[string]int),
-		k1:      1.5,
-		b:       0.75,
+		params:  bm25.Params{K1: 1.5, B: 0.75},
 	}
 }
 
-// tokenize 中文友好分词：按 Unicode 类别切分
+// tokenize 中文友好分词（本库独门口径，刻意保留——见 Index 注释）：
+// 按 Unicode 类别切分。
 func tokenize(text string) []string {
 	var tokens []string
 	var current []rune
@@ -210,14 +223,11 @@ func (idx *Index) Search(query string, k int) []Memory {
 			}
 			df := float64(idx.docFreq[qt])
 			if df == 0 {
-				df = 0.5 // 平滑
+				df = 0.5 // 平滑（f>0 时 df≥1，此分支不可达；保留以防状态外破坏）
 			}
 
-			// BM25 公式
-			idf := math.Log(1 + (N-df+0.5)/(df+0.5))
-			numerator := f * (idx.k1 + 1)
-			denominator := f + idx.k1*(1-idx.b+idx.b*float64(idx.docLengths[i])/idx.avgDocLen)
-			score += idf * numerator / denominator
+			// BM25 公式（唯一实现：bm25.Params.TermScore，k1=1.5/b=0.75 口径）
+			score += idx.params.TermScore(f, float64(idx.docLengths[i]), idx.avgDocLen, df, N)
 		}
 
 		if score > 0 {

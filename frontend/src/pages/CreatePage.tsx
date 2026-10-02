@@ -9,7 +9,7 @@ import { buildTree, flattenTree, buildPrevSummary, flattenChapters } from '../co
 import { useChapterStream } from '../components/novel/create/useChapterStream'
 import { useChapterGateNotice } from '../components/novel/create/useChapterGateNotice'
 import type { AiTasteResult } from '../components/novel/create/chapterStreamTypes'
-import type { ChapterReviewPayload, FingerprintScorePayload, FingerprintStatusPayload, ReviewPlatform, ChapterAnnotation } from '../gaea/lib/bridge/novel'
+import type { ChapterReviewPayload, FingerprintScorePayload, FingerprintStatusPayload, ReviewPlatform, ChapterAnnotation, PlanGateReportView } from '../gaea/lib/bridge/novel'
 import StyleFingerprintPanel from '../components/novel/StyleFingerprintPanel'
 import ChapterReviewPanel from '../components/novel/ChapterReviewPanel'
 import ChapterTreePanel from '../components/novel/create/ChapterTreePanel'
@@ -27,7 +27,7 @@ import type { EditorPanelHandle } from '../components/novel/create/EditorPanel'
 import CreateInspector from '../components/novel/create/CreateInspector'
 import NewCharactersModal from '../components/novel/create/NewCharactersModal'
 import BranchWizardModal, { type Branch, type BranchCastEntry } from '../components/novel/create/BranchWizardModal'
-import ChapterPlanCard, { type ChapterPlan, type PlanGateReport, type PlanProblem } from '../components/novel/ChapterPlanCard'
+import ChapterPlanCard, { type ChapterPlan } from '../components/novel/ChapterPlanCard'
 import { chooseAction, chooseUnsavedAction } from '../components/novel/unsavedGuard'
 import { registerNovelDirtyProvider, takeDiscardConfirmed } from '../components/novel/novelSwitchGuard'
 
@@ -58,50 +58,11 @@ function loadGenPrefs(): NovelGenPrefs {
 }
 
 // ── 章节计划硬闸（刀1 线D，规格 docs/gaea-longform-novel-system-2026-09.md §7.2/§7.6）──
-// 生成前预检 NovelChapterGatePrecheck 是硬闸唯一判据来源；线C 落地绑定、主代理收口时
-// 才生成 wails/bridge 类型面，故此处用本地 interface + `app as unknown as ...` 收窄
-// （同 ChapterPlanCard.tsx；不碰 bridge/**、wailsjs/**、bindingNames.ts）。
-interface PlanGateBridge {
-  NovelChapterGatePrecheck(chapterNum: number): Promise<unknown>
-}
-
-/**
- * 写前硬闸的显式覆盖入口（Go NovelB.CreateChapterWithOverride，9 参 allowOverride）。
- * 线B 落地：CreateChapter 保持 8 参且恒等于 allowOverride=false（internal/app/
- * create_chapter_handler.go），覆盖必须走本入口，否则后端硬闸照样拒绝。
- */
-interface CreateChapterBridge {
-  CreateChapterWithOverride(
-    setting: string, prevSummary: string, plotReq: string, chapterNum: number,
-    branchFromNodeID: string, skillName: string, minWords: number, temperature: number,
-    allowOverride: boolean,
-  ): Promise<{ nodeId?: string; chapterNum?: number; branch?: string }>
-}
-
-/** 防御式收窄 PlanGateReport（json tag 见 internal/types/plan_v1.go:44-52）；非对象 → null。 */
-function toPlanGateReport(value: unknown): PlanGateReport | null {
-  if (typeof value !== 'object' || value === null) return null
-  const rec = value as Record<string, unknown>
-  const problems = (raw: unknown): PlanProblem[] => Array.isArray(raw)
-    ? raw
-      .filter((x): x is Record<string, unknown> => typeof x === 'object' && x !== null)
-      .map((x) => ({
-        code: typeof x.code === 'string' ? x.code : '',
-        severity: typeof x.severity === 'string' ? x.severity : '',
-        message: typeof x.message === 'string' ? x.message : '',
-        ...(typeof x.evidence === 'string' ? { evidence: x.evidence } : {}),
-      }))
-    : []
-  return {
-    chapterNum: typeof rec.chapterNum === 'number' ? rec.chapterNum : 0,
-    allowed: rec.allowed === true,
-    hasPlan: rec.hasPlan === true,
-    missing: Array.isArray(rec.missing) ? rec.missing.filter((x): x is string => typeof x === 'string') : [],
-    planProblems: problems(rec.planProblems),
-    outlineIssues: problems(rec.outlineIssues),
-    blocking: rec.blocking === true,
-  }
-}
+// 生成前预检 NovelChapterGatePrecheck 是硬闸唯一判据来源。绑定面已收口
+// （bridge/novel.ts：NovelChapterGatePrecheck → PlanGateReportView、
+// CreateChapterWithOverride 9 参 allowOverride 均已入 AppBindings 类型面），
+// 直接用已导出类型消费（可选字段 ?? 兜底），不再本地重定义/手写窄化（FE5-03）；
+// 运行时 typeof 守卫保留——绑定未就绪的降级提示口径不变。
 
 // ── 全文脑图：实体关系图类型 + 纯 SVG 渲染（零依赖、零硬编码 hex）──
 interface EntityGraphNode { id?: string; name?: string; type?: string; group?: string | number }
@@ -695,19 +656,17 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
       if (!settingReadOk) throw new Error('小说设定读取失败，请稍后重试（本次未开始生成）')
       if (!freshSetting.trim()) throw new Error('小说设定为空，请先在「设定」页填写世界观')
       // 硬闸覆盖意图（刀1 线D）：作者在硬闸弹窗点「仍然生成（跳过硬闸）」后落此标志。
-      // 线B 已落地专用入口 CreateChapterWithOverride(..., allowOverride)（旧 CreateChapter
-      // 保持 8 参、恒等于 allowOverride=false）——覆盖必须走它，否则后端写前硬闸照样拒绝。
-      // 绑定面（AppBindings / wailsjs 生成物）由主代理收口，故此处仍用本地 interface 收窄；
-      // 真机上两者都不会缺，缺的只可能是「收口前的构建」——那时如实提示并走普通入口。
+      // CreateChapterWithOverride（9 参 allowOverride）已在 bridge/novel.ts 类型面
+      // （AppBindings），直接类型化调用；运行时 typeof 守卫保留——绑定未就绪的降级
+      // 提示口径不变（缺绑定时如实警告并走普通入口）。
       const allowOverride = planOverrideRef.current
       planOverrideRef.current = false
-      const overrideBridge = app as unknown as Partial<CreateChapterBridge>
       let result: { nodeId?: string; chapterNum?: number; branch?: string }
-      if (allowOverride && typeof overrideBridge.CreateChapterWithOverride === 'function') {
+      if (allowOverride && typeof app.CreateChapterWithOverride === 'function') {
         message.info('已按你的选择跳过章节计划硬闸')
-        result = await overrideBridge.CreateChapterWithOverride(
+        result = (await app.CreateChapterWithOverride(
           freshSetting, '', plotReq, overwriteChapter, branchFromID, selectedSkill || '', minWords, temperature, true,
-        )
+        )) as { nodeId?: string; chapterNum?: number; branch?: string }
       } else {
         if (allowOverride) {
           message.warning('跳过计划硬闸的绑定未就绪（CreateChapterWithOverride），本次仍走后端硬闸判定')
@@ -751,13 +710,12 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
       : branchFromID
         ? (useOutlineStore.getState().outlines.find(n => n.id === branchFromID)?.order_index || 0)
         : 0
-    let report: PlanGateReport | null = null
+    let report: PlanGateReportView | null = null
     try {
-      const bridge = app as unknown as Partial<PlanGateBridge>
-      if (typeof bridge.NovelChapterGatePrecheck !== 'function') {
+      if (typeof app.NovelChapterGatePrecheck !== 'function') {
         throw new Error('章节计划预检接口未就绪')
       }
-      report = toPlanGateReport(await bridge.NovelChapterGatePrecheck(target))
+      report = await app.NovelChapterGatePrecheck(target)
     } catch (err: unknown) {
       message.warning(`章节计划预检未执行（${err instanceof Error ? err.message : String(err)}），本次生成未做硬闸检查`)
       proceed()
@@ -768,8 +726,8 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
     setPlanChapterOverride(report.chapterNum || target)
     setPlanGate({
       chapterNum: report.chapterNum || target,
-      missing: report.missing,
-      problems: [...report.planProblems, ...report.outlineIssues].map(p => `[${p.severity}] ${p.message}`),
+      missing: report.missing ?? [],
+      problems: [...(report.planProblems ?? []), ...(report.outlineIssues ?? [])].map(p => `[${p.severity}] ${p.message}`),
       proceed,
     })
   }

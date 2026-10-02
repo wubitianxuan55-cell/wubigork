@@ -18,6 +18,7 @@ import type { CpmResult, SchedProject } from './types'
 import { isWorkingDate, normalizeCalendar, wdToDate } from './calendar'
 import { ganttLinkPath } from './ganttLinks'
 import { descendantIds, isGroupRow } from './store'
+import { GANTT_REPORT_KEYS, colsByKeys } from './ganttCols'
 
 /** 图签/标题带信息（空字段诚实留白：图签空格=签章位） */
 export interface ExportMeta {
@@ -55,15 +56,26 @@ const ROW_H = 30
 const FOOT_H = 76 // 图例 + 图签 + 底边距（编制说明注高度另加，见 exportNotesBlockH）
 const DAY_W = 14 // 图面固定刻度（发布物可读口径，不随工作台缩放）
 
-/** 上报 6 列的图面列宽（发布物专用，比工作台列宽：长日期/前置引用完整可读） */
-const EXP_COLS: { key: string; label: string; w: number }[] = [
-  { key: 'no', label: '序号', w: 44 },
-  { key: 'name', label: '任务名称', w: 200 },
-  { key: 'dur', label: '工期(天)', w: 64 },
-  { key: 'start', label: '开始', w: 84 },
-  { key: 'finish', label: '完成', w: 84 },
-  { key: 'preds', label: '前置', w: 80 },
-]
+/**
+ * 上报 6 列（FE7-08 单源）：键序唯一源 = ganttCols.GANTT_REPORT_KEYS（经
+ * colsByKeys 保序派生，与工作台列定义同源），导出面不再私养一份键序字面量。
+ * 发布物专用覆盖表：表头文案与列宽按上报件可读口径显式覆盖（序号/工期(天)
+ * 有独立文案；列宽比工作台宽——长日期/前置引用完整可读）；未覆盖字段回落
+ * GANTT_COLS 原定义。键序一致性由 ganttExport.test.ts 的 EXP_COLS 键序断言钉死。
+ */
+const EXP_COL_OVERRIDE: Partial<Record<string, { label?: string; w: number }>> = {
+  no: { label: '序号', w: 44 },
+  name: { w: 200 },
+  dur: { label: '工期(天)', w: 64 },
+  start: { w: 84 },
+  finish: { w: 84 },
+  preds: { w: 80 },
+}
+export const EXP_COLS: { key: string; label: string; w: number }[] = colsByKeys(GANTT_REPORT_KEYS).map((c) => ({
+  key: c.key,
+  label: EXP_COL_OVERRIDE[c.key]?.label ?? c.label,
+  w: EXP_COL_OVERRIDE[c.key]?.w ?? c.w,
+}))
 const TABLE_W = EXP_COLS.reduce((s, c) => s + c.w, 0)
 
 export const EXP_COLORS = {
@@ -125,7 +137,21 @@ export function expFlagSvg(x: number, y: number, poleH: number, fw: number, fh: 
   )
 }
 
-/** 分组行汇总跨度（子孙叶项 min ES / max EF，与 GanttView.groupSpan 同口径） */
+/**
+ * 分组行汇总跨度（FE7-07 口径对照表，裁决=冻结现状，量化对照见 ganttExport.test.ts）：
+ *
+ *  ┌──────────┬────────────────────────┬──────────────────────────────────┐
+ *  │ 消费面     │ 汇总口径                 │ 输入                              │
+ *  ├──────────┼────────────────────────┼──────────────────────────────────┤
+ *  │ 导出图面   │ 全子孙叶 min(es)/max(ef) │ descendantIds（无筛选/折叠概念）    │
+ *  │ 表格/画布  │ 可见叶 min(es)/max(ef)   │ buildGanttRows → GanttRow.min/max │
+ *  └──────────┴────────────────────────┴──────────────────────────────────┘
+ *
+ * 两口径在「无筛选+全展开」时同值（同值断言钉在测试里）；筛选/折叠激活时导出
+ * 值 ≠ 画布值——这是刻意的：图面是发布物，不随工作台交互态（列显隐/折叠/筛选）
+ * 漂移（见本文件头），统一到「可见叶」必须把筛选/折叠态传入导出面 = 改变导出
+ * 字节 = 行为变化，故冻结现状。groupCost（ganttUtil，成本汇总）同为全子孙口径。
+ */
 function groupSpan(project: SchedProject, cpm: CpmResult, idx: number): { es: number; ef: number } | null {
   const ids = descendantIds(project.tasks, project.tasks[idx].id)
   let es = Number.POSITIVE_INFINITY

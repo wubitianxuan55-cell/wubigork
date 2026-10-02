@@ -20,6 +20,17 @@ type MemoryDuplicateView struct {
 
 // GaeaMemoryDuplicates 返回办公记忆中疑似重复的事实对（相似度 ≥ min，
 // 默认 0.55），按相似度降序；每对建议保留较早创建/名称靠前的一项。
+//
+// 与 memory.DistillMergeCandidates 是两套口径（审计 AP5-06 现场钉死，非同源
+// 复制，行为冻结中）：本函数=模糊相似度（textsim 对 描述+正文/标题 ≥ 阈值
+// 即报，人审建议面板，不设上限、不分区 space、保留方向=名称靠前）；
+// DistillMergeCandidates=确定性检测（归一化同名异写/同类型同描述逐字相等，
+// 仅同 space 内成对，上限 8，保留方向=UpdatedAt 较新），其「宁漏勿误」纪律
+// 刻意拒绝模糊相似度——误合并记忆是不可逆伤害，故两套输出必然有交集之外
+// 的互斥区（近似文面板报/蒸馏不报；同名异写两套都报但保留方向可相反）。
+// 对同输入的差异已由 gaea_memory_meta_compare_test.go 钉成机器可见事实；
+// 是否把本函数收敛为 DistillMergeCandidates 的映射（改绑定输出）或从绑定面
+// 移除（改绑定面）在拍板池，未拍板前维持现状。
 func (a *App) GaeaMemoryDuplicates(min float64) []MemoryDuplicateView {
 	if min <= 0 {
 		min = 0.55
