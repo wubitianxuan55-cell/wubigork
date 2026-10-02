@@ -425,8 +425,10 @@ func (a *whisperState) WhisperGetState(personalityID string) map[string]interfac
 }
 
 func (a *whisperState) WhisperSetEngine(engineID string) error {
-	whisperSessionsMu.RLock()
-	defer whisperSessionsMu.RUnlock()
+	// 写改字段必须持写锁（审计 P1 AP6-06：RLock 下改写 orchestrator 字段，
+	// 并发回合读到撕裂值，race 必红）。
+	whisperSessionsMu.Lock()
+	defer whisperSessionsMu.Unlock()
 	for _, orch := range whisperSessions {
 		orch.EngineID = engineID
 	}
@@ -445,8 +447,8 @@ func (a *whisperState) WhisperGetEngine() string {
 }
 
 func (a *whisperState) WhisperSetModel(engineID, modelName string) error {
-	whisperSessionsMu.RLock()
-	defer whisperSessionsMu.RUnlock()
+	whisperSessionsMu.Lock()
+	defer whisperSessionsMu.Unlock()
 	for _, orch := range whisperSessions {
 		orch.EngineID = engineID
 		orch.ModelName = modelName
@@ -466,8 +468,8 @@ func (a *whisperState) WhisperGetModel() string {
 }
 
 func (a *whisperState) WhisperSetImageModel(modelName string) error {
-	whisperSessionsMu.RLock()
-	defer whisperSessionsMu.RUnlock()
+	whisperSessionsMu.Lock()
+	defer whisperSessionsMu.Unlock()
 	for _, orch := range whisperSessions {
 		orch.ImageModelName = modelName
 	}

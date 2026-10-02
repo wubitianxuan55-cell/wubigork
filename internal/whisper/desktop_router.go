@@ -5,6 +5,7 @@ package whisper
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,6 +38,15 @@ type UseComputerResult struct {
 	MemoryHint string `json:"memoryHint,omitempty"`
 }
 
+// appendAuditOrFail 安全审计留痕失败必须留痕（审计 P1 IN4-07）：审计写盘
+// 失败时把失败本身记入 slog——安全审计「静默没写」等于审计不存在，被拦截
+// 的危险操作不能因为落盘失败就无迹可查。
+func appendAuditOrFail(dataRoot string, e DesktopAgentAuditEntry) {
+	if err := AppendDesktopAgentAudit(dataRoot, e); err != nil {
+		slog.Error("desktop agent audit write failed", "action", e.Action, "result", e.Result, "error", err)
+	}
+}
+
 // ExecuteUseComputer 执行 use_computer 的 4 层安全管道
 func ExecuteUseComputer(args UseComputerArgs, ctx RouterContext) UseComputerResult {
 	action := args.Action
@@ -45,7 +55,7 @@ func ExecuteUseComputer(args UseComputerArgs, ctx RouterContext) UseComputerResu
 
 	// 第1层：设置级拦截
 	if blockReason := checkActionSettings(action, ctx); blockReason != "" {
-		_ = AppendDesktopAgentAudit(ctx.DataRoot, DesktopAgentAuditEntry{
+		appendAuditOrFail(ctx.DataRoot, DesktopAgentAuditEntry{
 			TS: now, Action: string(action),
 			Path: args.Path, PathTo: args.PathTo, Target: args.Target, URL: args.URL,
 			Result: "blocked", Summary: blockReason,
@@ -61,7 +71,7 @@ func ExecuteUseComputer(args UseComputerArgs, ctx RouterContext) UseComputerResu
 		}
 		if isBlockedCloseTarget(strings.TrimSpace(target)) {
 			msg := "系统关键进程不可关闭"
-			_ = AppendDesktopAgentAudit(ctx.DataRoot, DesktopAgentAuditEntry{
+			appendAuditOrFail(ctx.DataRoot, DesktopAgentAuditEntry{
 				TS: now, Action: string(action), Target: target,
 				Result: "blocked", Summary: msg,
 			})
@@ -72,7 +82,7 @@ func ExecuteUseComputer(args UseComputerArgs, ctx RouterContext) UseComputerResu
 	// 第3层：路径策略评估
 	policy := evaluatePathPolicy(action, args.Path, args.PathTo, ctx.CWD)
 	if !policy.OK {
-		_ = AppendDesktopAgentAudit(ctx.DataRoot, DesktopAgentAuditEntry{
+		appendAuditOrFail(ctx.DataRoot, DesktopAgentAuditEntry{
 			TS: now, Action: string(action),
 			Path: args.Path, PathTo: args.PathTo,
 			Result: "blocked", Summary: policy.HardBlockReason,
@@ -89,7 +99,7 @@ func ExecuteUseComputer(args UseComputerArgs, ctx RouterContext) UseComputerResu
 		allowed := ctx.RequestConfirm(label, policy.NormalizedPath, args.Target, policy.SensitiveWarning)
 		if !allowed {
 			msg := "用户未允许该操作"
-			_ = AppendDesktopAgentAudit(ctx.DataRoot, DesktopAgentAuditEntry{
+			appendAuditOrFail(ctx.DataRoot, DesktopAgentAuditEntry{
 				TS: now, Action: string(action),
 				Path: policy.NormalizedPath, PathTo: policy.NormalizedPathTo,
 				Target: args.Target, URL: args.URL,
@@ -123,7 +133,7 @@ func ExecuteUseComputer(args UseComputerArgs, ctx RouterContext) UseComputerResu
 		CWD:         ctx.CWD,
 	})
 
-	_ = AppendDesktopAgentAudit(ctx.DataRoot, DesktopAgentAuditEntry{
+	appendAuditOrFail(ctx.DataRoot, DesktopAgentAuditEntry{
 		TS: now, Action: string(action),
 		Path: execPath, PathTo: execPathTo,
 		Target: args.Target, URL: args.URL,

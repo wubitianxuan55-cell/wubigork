@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strings"
 	"time"
@@ -198,16 +199,25 @@ func (l *EventLog) MaxEventSeq() (int64, error) {
 // 一条（Touch 触达已有挂钩记 touch，这里补「回复引用了它」这一事件事实），
 // 每个悬空键也一条（Refs 带 dangling 标记语义：投影不给悬空键建实体节点，
 // 但事件与来源边保留——悬空可追溯，这就是「悬空拒写」的留痕侧）。尽力而为：
-// 日志不可用静默跳过，绝不影响回合。
+// 写失败不阻断回合，但必须 slog 留痕（审计 P1 GA3-06——引用留痕静默丢弃
+// 等于审计侧「这轮引用过什么」整体失真）。
 func (l *EventLog) AppendCiteEvents(resolved, dangling []string, space string) {
 	if l == nil || l.DB == nil {
 		return
 	}
 	now := time.Now().UnixMilli()
+	failed := 0
 	for _, name := range resolved {
-		_ = l.AppendEvent(Event{At: now, Op: OpCite, Name: name, Space: space})
+		if err := l.AppendEvent(Event{At: now, Op: OpCite, Name: name, Space: space}); err != nil {
+			failed++
+		}
 	}
 	for _, name := range dangling {
-		_ = l.AppendEvent(Event{At: now, Op: OpCite, Name: name, Space: space, Refs: []string{"dangling"}})
+		if err := l.AppendEvent(Event{At: now, Op: OpCite, Name: name, Space: space, Refs: []string{"dangling"}}); err != nil {
+			failed++
+		}
+	}
+	if failed > 0 {
+		slog.Warn("memory: cite 事件落账部分失败（留痕缺口）", "failed", failed, "resolved", len(resolved), "dangling", len(dangling))
 	}
 }

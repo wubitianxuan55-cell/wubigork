@@ -11,6 +11,7 @@ package schedule
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path"
 	"path/filepath"
@@ -81,12 +82,24 @@ func SaveScheduleIndex(dir string, idx ScheduleIndex) error {
 	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 		return fmt.Errorf("创建索引目录失败：%w", err)
 	}
-	tmp := target + ".tmp"
-	if err := os.WriteFile(tmp, raw, 0o644); err != nil {
+	// 审计 P1 AP4-08：临时名必须唯一（固定 `index.json.tmp` 会让两个并发
+	// 写者互抢同一文件，Windows 上「读列表」撞上别人的临时写直接报错）。
+	tmp, err := os.CreateTemp(filepath.Dir(target), "schedule-index-*.tmp")
+	if err != nil {
+		return fmt.Errorf("创建索引临时文件失败：%w", err)
+	}
+	tmpName := tmp.Name()
+	if _, err := tmp.Write(raw); err != nil {
+		tmp.Close()
+		_ = os.Remove(tmpName)
 		return fmt.Errorf("写入索引临时文件失败：%w", err)
 	}
-	if err := fileutil.RenameWithRetry(tmp, target); err != nil {
-		_ = os.Remove(tmp)
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpName)
+		return fmt.Errorf("关闭索引临时文件失败：%w", err)
+	}
+	if err := fileutil.RenameWithRetry(tmpName, target); err != nil {
+		_ = os.Remove(tmpName)
 		return fmt.Errorf("替换索引文件失败：%w", err)
 	}
 	return nil
@@ -246,8 +259,10 @@ func adoptIndex(dir string, idx ScheduleIndex) (ScheduleIndex, error) {
 		changed = true
 	}
 	if changed {
+		// 审计 P1 AP4-08：读路径的自愈写回是 best-effort——写失败只留痕，
+		// 不影响本次返回的索引（调用方拿到的索引仍然可用；下次 Load 再收编）。
 		if err := SaveScheduleIndex(dir, idx); err != nil {
-			return idx, err
+			slog.Warn("schedule: 索引自愈写回失败（读路径 best-effort）", "dir", dir, "error", err)
 		}
 	}
 	return idx, nil

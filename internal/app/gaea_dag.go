@@ -163,12 +163,17 @@ func (a *App) GaeaDagList() ([]dag.RunView, error) {
 	}
 	out := make([]dag.RunView, 0, len(runs))
 	for _, r := range runs {
+		// 审计 P1 AP4-10：清扫「读档→改→回存」必须与 dagMarkNode 同一临界区
+		//——锁外回存会把并发收跑刚写入的节点状态用旧快照盖回去（done 被改回
+		// failed）。dagSweep 本体只读在途登记表（atomic），锁内重入安全。
+		ga.dagMu.Lock()
 		if dagSweep(&r) {
 			// sweep 幂等（下次 List/Get 会重扫重存），失败 warn 留痕即可。
 			if err := a.dagStore().Save(r); err != nil {
 				slog.Warn("dag 懒清扫结果落盘失败", "id", r.ID, "error", err)
 			}
 		}
+		ga.dagMu.Unlock()
 		out = append(out, dag.View(r))
 	}
 	return out, nil
@@ -180,11 +185,13 @@ func (a *App) GaeaDagGet(id string) (*dag.RunView, error) {
 	if err != nil {
 		return nil, err
 	}
+	ga.dagMu.Lock()
 	if dagSweep(&r) {
 		if err := a.dagStore().Save(r); err != nil {
 			slog.Warn("dag 懒清扫结果落盘失败", "id", r.ID, "error", err)
 		}
 	}
+	ga.dagMu.Unlock()
 	v := dag.View(r)
 	return &v, nil
 }

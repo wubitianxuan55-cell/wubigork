@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -237,5 +238,41 @@ func TestSafeSlugNameCases(t *testing.T) {
 	}
 	if got := SafeSlugName("计划", existing); got != "计划-3" {
 		t.Fatalf("连续取号应递增：%q", got)
+	}
+}
+
+// TestSaveScheduleIndexConcurrentNoTmpClash 审计 P1 AP4-08：临时名必须唯一
+// （os.CreateTemp）——固定 `index.json.tmp` 时两个并发写者互抢同一文件，
+// Windows 上 rename 撞占用直接报错。N 个 goroutine 并发保存全部须成功，
+// 且目录里不残留 *.tmp。
+func TestSaveScheduleIndexConcurrentNoTmpClash(t *testing.T) {
+	dir := t.TempDir()
+	var wg sync.WaitGroup
+	errs := make(chan error, 16)
+	for i := 0; i < 16; i++ {
+		wg.Add(1)
+		go func(n int) {
+			defer wg.Done()
+			idx := ScheduleIndex{Version: 1, Current: "", Projects: []ScheduleIndexEntry{
+				{Rel: "工程A.gsched.json", Name: "A"},
+			}}
+			if err := SaveScheduleIndex(dir, idx); err != nil {
+				errs <- err
+			}
+		}(i)
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatalf("并发保存失败: %v", err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if strings.HasSuffix(e.Name(), ".tmp") {
+			t.Fatalf("并发保存后残留临时文件: %s", e.Name())
+		}
 	}
 }

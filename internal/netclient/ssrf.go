@@ -70,7 +70,20 @@ func GuardedClient(timeout time.Duration) *http.Client {
 						return nil, fmt.Errorf("refusing to fetch internal address %s (resolves to %s)", host, ip.IP)
 					}
 				}
-				return dialer.DialContext(ctx, network, net.JoinHostPort(ips[0].IP.String(), port))
+				// 审计 P1 IN2-04：拨号目标必须取自已校验集合，逐个尝试——
+				// 此前固定拨 ips[0]，单一目标连接失败即整体失败（无回退）。
+				var lastErr error
+				for _, ip := range ips {
+					conn, derr := dialer.DialContext(ctx, network, net.JoinHostPort(ip.IP.String(), port))
+					if derr == nil {
+						return conn, nil
+					}
+					lastErr = derr
+				}
+				if lastErr != nil {
+					return nil, lastErr
+				}
+				return nil, fmt.Errorf("no usable address to dial for %s", host)
 			},
 		},
 	}

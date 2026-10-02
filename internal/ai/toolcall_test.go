@@ -45,7 +45,12 @@ func TestParseStreamEvents_ToolCalls(t *testing.T) {
 		t.Fatalf("acquireSem: %v", err)
 	}
 	chunks := make(chan SSEChunk, 16)
-	go c.parseStreamEvents(context.Background(), resp, chunks, "xai", "grok-4.20", "", time.Now())
+	// close 责任已在 ChatStream 包装层（IN2-10）；直调 parseStreamEvents 时
+	// 由包装 goroutine close（保持原「解析完再关」语义）。
+	go func() {
+		defer close(chunks)
+		c.parseStreamEvents(context.Background(), resp, chunks, "xai", "grok-4.20", "", time.Now())
+	}()
 
 	var got []SSEChunk
 	for ch := range chunks {

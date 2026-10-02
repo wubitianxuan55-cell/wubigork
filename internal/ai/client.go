@@ -680,14 +680,20 @@ func (c *Client) ChatStream(ctx context.Context, req *ChatRequest) (<-chan SSECh
 	// 若把 streamCtx 传入，超时后 send 的 ctx.Done 分支就绪会随机抢占，
 	// 导致超时错误分块被丢弃。
 	chunks := make(chan SSEChunk, 64)
-	// 解析协程 panic 防线：每轮 LLM 调用必经；parseStreamEvents 自身 defer
-	// close(chunks) 在 panic 路径照常执行（消费方收到收帧不悬挂），本层只
-	// 负责不带崩进程。
+	// 解析协程 panic 防线：每轮 LLM 调用必经。通道 close 的责任在本层（不在
+	// parseStreamEvents）：panic 时先补发错误块再 close——此前 recover 只写
+	// 日志、close 已由被调方执行，消费方按「正常收帧」处理拿到的部分内容，
+	// 收到的是空成功（审计 P1 IN2-10）。
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				slog.Error("SSE 流解析 panic", "engine", reqEngine, "model", reqModel, "recover", r)
+				select {
+				case chunks <- SSEChunk{Error: fmt.Sprintf("SSE 流解析异常，请求中断: %v", r)}:
+				case <-ctx.Done():
+				}
 			}
+			close(chunks)
 		}()
 		c.parseStreamEvents(ctx, resp, chunks, reqEngine, reqModel, req.Feature, start)
 	}()
@@ -788,7 +794,8 @@ func (c *Client) doStreamRequest(ctx context.Context, endpoint, apiKey string, b
 // feature 为账目功能域标签（7.1-2 A 线，由 ChatStream 从 req.Feature 透传）。
 func (c *Client) parseStreamEvents(ctx context.Context, resp *http.Response, chunks chan SSEChunk, reqEngine, reqModel, feature string, start time.Time) {
 	defer resp.Body.Close()
-	defer close(chunks)
+	// close(chunks) 由 ChatStream 的解析协程包装层负责（panic 路径要先补发
+	// 错误块再 close，IN2-10）；本函数被测试直接调用时由调用方 close。
 	defer c.releaseSem()
 
 	// send 在 ctx 取消或通道关闭时安全退出，避免消费者提前返回后永久阻塞泄漏

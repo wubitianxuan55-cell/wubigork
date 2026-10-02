@@ -72,6 +72,10 @@ type core struct {
 	// 全局统一角色库（小说 × 聊天共享的角色资产）
 	charLib *characterlib.Store
 
+	// 技能加载器懒构造守卫（审计 P1 AP8-05）：绑定方法体不得裸写共享字段，
+	// 懒构造一律 sync.Once（并发首调只构造一次）。
+	skillLoaderOnce sync.Once
+
 	// 前端静态资源
 	distFS fs.FS
 }

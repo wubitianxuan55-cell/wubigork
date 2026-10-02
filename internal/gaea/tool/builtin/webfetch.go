@@ -126,7 +126,20 @@ func ssrfGuardedTransport(proxyURL string) *http.Transport {
 				return nil, fmt.Errorf("refusing to fetch internal address %s (resolves to %s)", host, ip.IP)
 			}
 		}
-		return dialer.DialContext(ctx, network, net.JoinHostPort(ips[0].IP.String(), port))
+		// 审计 P1 IN2-04：拨号目标取自已校验集合逐个尝试（与 netclient.GuardedClient
+		// 同口径）——固定拨 ips[0] 时单目标失败无回退。
+		var lastErr error
+		for _, ip := range ips {
+			conn, derr := dialer.DialContext(ctx, network, net.JoinHostPort(ip.IP.String(), port))
+			if derr == nil {
+				return conn, nil
+			}
+			lastErr = derr
+		}
+		if lastErr != nil {
+			return nil, lastErr
+		}
+		return nil, fmt.Errorf("no usable address to dial for %s", host)
 	}
 
 	tr := &http.Transport{DialContext: directDialContext}

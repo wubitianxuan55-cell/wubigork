@@ -13,9 +13,15 @@ import (
 
 // ListSkills 列出所有 Skill
 func (a *App) ListSkills() []map[string]interface{} {
-	if a.skillLoader == nil {
-		a.skillLoader = skill.NewLoader(filepath.Join(a.cfg.ResourceDir, "skills"))
-	}
+	// 审计 P1 AP8-05：懒构造走 sync.Once——此前并发首调会双重构造并互相覆盖
+	// skillLoader 指针（绑定方法体不得裸写共享字段）。
+	a.skillLoaderOnce.Do(func() {
+		dir := ""
+		if a.cfg != nil {
+			dir = a.cfg.ResourceDir
+		}
+		a.skillLoader = skill.NewLoader(filepath.Join(dir, "skills"))
+	})
 	skills := a.skillLoader.List()
 	result := make([]map[string]interface{}, len(skills))
 	for i, s := range skills {

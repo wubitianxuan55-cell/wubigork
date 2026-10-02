@@ -66,7 +66,9 @@ func (a *Agent) ChatWithAutoSave(ctx context.Context, userMsg string) (string, e
 	if err != nil {
 		return "", fmt.Errorf("AI 调用失败: %w", err)
 	}
-	a.applyUpdates(reply)
+	if err := a.applyUpdates(reply); err != nil {
+		return "", err
+	}
 	return reply, nil
 }
 
@@ -111,23 +113,32 @@ func (a *Agent) ChatCharacterDetail(ctx context.Context, charID, userMsg string)
 	if err != nil {
 		return "", err
 	}
-	a.applyUpdates(reply)
+	if err := a.applyUpdates(reply); err != nil {
+		return "", err
+	}
 	return reply, nil
 }
 
-func (a *Agent) applyUpdates(reply string) {
+// applyUpdates 解析回复里的角色更新并写回。失败必须上抛（审计 P1 IN1-10）：
+// 写盘失败仍报成功=用户以为角色已更新而磁盘没变；读失败不再退化为「空文件
+// +增量」写回——那会把既有角色全部清掉。
+func (a *Agent) applyUpdates(reply string) error {
 	updates := extractCharacterUpdates(reply)
-	if len(updates) > 0 {
-		cf, err := a.pm.ReadCharacters()
-		if err != nil {
-			slog.Warn("character: 读取角色失败", "error", err)
-		}
-		if cf == nil {
-			cf = &types.CharacterFile{}
-		}
-		a.mergeCharacters(cf, updates)
-		_ = a.pm.WriteCharacters(cf)
+	if len(updates) == 0 {
+		return nil
 	}
+	cf, err := a.pm.ReadCharacters()
+	if err != nil {
+		return fmt.Errorf("角色更新未保存（读取角色失败，不写回以免清空既有角色）: %w", err)
+	}
+	if cf == nil {
+		cf = &types.CharacterFile{}
+	}
+	a.mergeCharacters(cf, updates)
+	if err := a.pm.WriteCharacters(cf); err != nil {
+		return fmt.Errorf("角色更新写入失败: %w", err)
+	}
+	return nil
 }
 
 // GeneratePortrait 生成角色剧照（通过图像 AI）
