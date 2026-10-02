@@ -34,6 +34,11 @@ type DesktopExecContext struct {
 	DataRoot    string
 	DownloadDir string
 	CWD         string
+	// Confirmed 表示调用方已走完确认层（desktop_router.go 第 4 层）。
+	// download_and_install / run_installer 会执行远端下载物或本地安装包，
+	// 未置位时执行器直接拒绝——纵深防御，避免绕过 ExecuteUseComputer 的
+	// 调用方获得「无确认即安装」的能力。
+	Confirmed bool
 }
 
 // ExecuteDesktopAgentAction 主分发入口
@@ -104,6 +109,9 @@ func ExecuteDesktopAgentAction(action DesktopAgentAction, path, pathTo, target, 
 		}
 		return downloadHTTPS(url, dest)
 	case ActionDownloadAndInstall:
+		if !ctx.Confirmed {
+			return ExecuteResult{OK: false, Content: "未经确认层批准的安装操作被拒绝", Summary: "安装操作需要确认"}
+		}
 		dir := defaultDownloadDir(ctx.DownloadDir)
 		_ = os.MkdirAll(dir, 0755)
 		fileName := filepath.Base(url)
@@ -119,6 +127,9 @@ func ExecuteDesktopAgentAction(action DesktopAgentAction, path, pathTo, target, 
 		run := shellOpen(dest)
 		return ExecuteResult{OK: run.OK, Content: dl.Content + "\n" + run.Content, Summary: "已下载并开始安装 " + fileName}
 	case ActionRunInstaller:
+		if !ctx.Confirmed {
+			return ExecuteResult{OK: false, Content: "未经确认层批准的安装操作被拒绝", Summary: "安装操作需要确认"}
+		}
 		return shellOpen(path)
 	case ActionImportToAckem:
 		importsDir := filepath.Join(ctx.DataRoot, "imports")
@@ -326,9 +337,19 @@ func openAppTarget(target string) ExecuteResult {
 }
 
 func closeAppTarget(target string) ExecuteResult {
-	name := strings.TrimSuffix(strings.ToLower(target), ".exe")
+	// 与 desktop_router.go:isBlockedCloseTarget 的判据同源（批次十三 AP4-07 教训）：
+	// 执行侧过去用 `Get-Process -Name '<name>'`，-Name 支持 `*`/`?`/`[..]` 通配符，
+	// 于是判据里的精确黑名单被 `explorer*`、`*` 绕过（实测：`Get-Process -Name '*'`
+	// 返回本机全部进程名）。这里拒绝一切通配符/路径形态，并改用逐名字面比较。
+	name := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(target)), ".exe")
+	if hasProcessNameWildcard(name) {
+		return ExecuteResult{OK: false, Content: "非法的进程名（含通配符或路径分隔符）", Summary: "拒绝关闭 " + target}
+	}
+	if name == "" {
+		return ExecuteResult{OK: false, Content: "缺少进程名", Summary: "未能关闭 " + target}
+	}
 	script := fmt.Sprintf(
-		"$p = Get-Process -Name '%s' -ErrorAction SilentlyContinue; if (-not $p) { exit 2 }; $p | ForEach-Object { $_.CloseMainWindow() | Out-Null }; exit 0",
+		"$p = Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -ieq '%s' }; if (-not $p) { exit 2 }; $p | ForEach-Object { $_.CloseMainWindow() | Out-Null }; exit 0",
 		strings.ReplaceAll(name, "'", "''"),
 	)
 	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script)

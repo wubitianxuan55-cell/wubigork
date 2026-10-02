@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/ai"
+	"github.com/gaea/gaea/internal/gaea/wspath"
 )
 
 // ImageCapability 图像域能力原语。
@@ -162,31 +163,26 @@ func recordImageHubGeneratedAsset(cwd, space, sourceBoard, backend, model, promp
 	return led.record(meta.Space, imageHubLedgerRecord{Meta: meta, Asset: asset})
 }
 
-// imagePathWithinAny 判断 path 是否落在任一允许根内（filepath.Rel 防穿越口径）。
+// imagePathWithinAny 判断 path 是否落在任一允许根内（唯一原语 wspath.Within：
+// Clean + filepath.Rel 口径，跨盘符不可比即不在内，Windows 大小写不敏感）。
+// 审计 2026-10-02 AP5-09：判据改调单源——此处曾是全仓唯一「必须落在允许根内」
+// 的手写实现（Rel + rel==".." 前缀），与 builtin.within / withinReadRoots /
+// withinWriteRoots 三份同类判据并存。
+//
+// 边界差异（唯一一处，已核不可达）：path == root 时旧实现返回 false，新口径
+// 返回 true（与 withinWriteRoots 的 root==abs 条款一致）；allowRoots 的语义是
+// 「产物文件落点目录」，而 path 恒为文件，故该分支实际不可达。
 func imagePathWithinAny(path string, roots []string) bool {
 	if strings.TrimSpace(path) == "" {
-		return false
-	}
-	abs, err := filepath.Abs(path)
-	if err != nil {
 		return false
 	}
 	for _, r := range roots {
 		if strings.TrimSpace(r) == "" {
 			continue
 		}
-		ra, err := filepath.Abs(r)
-		if err != nil {
-			continue
+		if wspath.Within(r, path) {
+			return true
 		}
-		rel, err := filepath.Rel(ra, abs)
-		if err != nil {
-			continue
-		}
-		if rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-			continue
-		}
-		return true
 	}
 	return false
 }

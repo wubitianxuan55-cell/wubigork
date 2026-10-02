@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gaea/gaea/internal/gaea/wspath"
 	"github.com/gaea/gaea/internal/schedule"
 )
 
@@ -75,7 +76,13 @@ type ScheduleCreateResult struct {
 // DefaultRelPath）。文件不存在返回 Exists=false（不视为错误）。
 func (a *App) GaeaScheduleLoad() (ScheduleLoadResult, error) {
 	rel := scheduleCurrentRel(gaeaCwd())
-	path := filepath.Join(gaeaCwd(), filepath.FromSlash(rel))
+	// 审计 2026-10-02 AP5-09：rel 来自索引指针（.gaea/schedule/index.json，
+	// 磁盘文件=不可信面），改调唯一原语——越界不再被 Join 静默清洗成工作区外
+	// 路径后读取；按读取失败口径如实回报。
+	path, perr := wspath.ResolveRelWithin(gaeaCwd(), rel)
+	if perr != nil {
+		return ScheduleLoadResult{}, fmt.Errorf("非法计划文件路径（越出工作区）：%s", rel)
+	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -110,7 +117,14 @@ func (a *App) GaeaScheduleSave(projectJSON, rel string) (ScheduleSaveResult, err
 		rel = scheduleCurrentRel(cwd)
 	}
 	rel = filepath.ToSlash(rel)
-	if err := schedule.Save(filepath.Join(cwd, filepath.FromSlash(rel)), p); err != nil {
+	// 审计 2026-10-02 AP5-09：落盘路径改调唯一原语。checkScheduleRel 仍是更严的
+	// 段级前置门（`a/../b` 形态它拒、Clean 口径允许），本原语补上「归一后必须
+	// 落在工作区内」这一条，堵索引 current 指针/rel 变体走私工作区外路径。
+	absPath, perr := wspath.ResolveRelWithin(cwd, rel)
+	if perr != nil {
+		return ScheduleSaveResult{}, fmt.Errorf("非法计划文件路径（越出工作区）：%s", rel)
+	}
+	if err := schedule.Save(absPath, p); err != nil {
 		return ScheduleSaveResult{}, err
 	}
 	// 保存成功后更新索引该条目 updatedAt（索引不存在则顺带建）；索引是缓存

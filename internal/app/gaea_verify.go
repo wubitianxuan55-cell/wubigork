@@ -14,6 +14,7 @@ import (
 
 	"github.com/gaea/gaea/internal/docmd"
 	"github.com/gaea/gaea/internal/gaea/evidence"
+	"github.com/gaea/gaea/internal/gaea/wspath"
 	"github.com/gaea/gaea/internal/office/xlsxedit"
 	"github.com/xuri/excelize/v2"
 )
@@ -26,11 +27,23 @@ func journalStore() *evidence.JournalStore {
 	return st
 }
 
-func resolveTarget(rel string) string {
+// resolveTarget 证据卡目标路径解析（读/写两方向共用）。
+//
+// 审计 2026-10-02 AP5-09：相对分支改调唯一原语 wspath.ResolveRelWithin——
+// 证据卡 Target 是工具参数落库值，Journal 是磁盘文件（不可信输入面），
+// `..` 逃逸此前被 Join 静默清洗成工作区外路径并参与复核与**回滚写盘**。
+// 绝对路径分支保留：agent 经 permission 引擎写工作区外文件（allow_write）是
+// 既有合法能力，证据卡必须还能复核/回滚那些目标。返回值改为 (string, error)：
+// 越界不再静默指向工作区外，调用方如实回报。
+func resolveTarget(rel string) (string, error) {
 	if filepath.IsAbs(rel) {
-		return rel
+		return rel, nil
 	}
-	return filepath.Join(gaeaCwd(), rel)
+	p, err := wspath.ResolveRelWithin(gaeaCwd(), rel)
+	if err != nil {
+		return "", fmt.Errorf("非法工作区相对路径: %s", rel)
+	}
+	return p, nil
 }
 
 // v4.6 Verifier 通道 B 渲染/比对 seam（测试注入）：
@@ -116,7 +129,10 @@ func (a *App) GaeaVerifyRecord(id string) (evidence.Verdict, error) {
 	if !ok {
 		return evidence.Verdict{}, fmt.Errorf("证据卡 %s 不存在", id)
 	}
-	target := resolveTarget(rec.Target)
+	target, terr := resolveTarget(rec.Target)
+	if terr != nil {
+		return evidence.Verdict{}, fmt.Errorf("证据卡目标路径非法：%w", terr)
+	}
 	v := evidence.Verdict{ID: id, At: time.Now().UnixMilli()}
 
 	// ── 通道 A：结构 / 引用完整性 ──
@@ -243,7 +259,10 @@ func rollbackRecord(st *evidence.JournalStore, rec evidence.ChangeRecord) error 
 	if _, err := os.Stat(rec.BaselinePath); err != nil {
 		return fmt.Errorf("基线快照缺失：%v", err)
 	}
-	target := resolveTarget(rec.Target)
+	target, terr := resolveTarget(rec.Target)
+	if terr != nil {
+		return fmt.Errorf("证据卡目标路径非法：%w", terr)
+	}
 	cur, curErr := os.ReadFile(target)
 	if curErr == nil {
 		curS := string(cur)

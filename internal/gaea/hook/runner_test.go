@@ -3,8 +3,11 @@ package hook
 import (
 	"context"
 	"encoding/json"
+	"runtime"
 	"testing"
 	"time"
+
+	"github.com/gaea/gaea/internal/gaea/sandbox"
 )
 
 // --- Runner construction ---
@@ -188,6 +191,247 @@ func TestRunnerPostLLMCallKeepsOriginal(t *testing.T) {
 				t.Fatalf("PostLLMCall = %q, want original reasoning preserved", got)
 			}
 		})
+	}
+}
+
+// --- GA4-06: hook sandbox wiring ---
+
+// enforceSpec is the spec a production boot hands the Runner (same source as the
+// bash tool's).
+func enforceSpec() sandbox.Spec {
+	return sandbox.Spec{Mode: "enforce", WriteRoots: []string{`C:\ws`}, Network: true}
+}
+
+// TestRunnerSandboxInjectedIntoEveryEvent is the GA4-06 red-when-reverted case:
+// with enforce + a platform that can confine, every event path must deliver the
+// spec to the spawner inside SpawnInput. Deleting the injection line in
+// Runner.spawn makes this fail on all five events.
+func TestRunnerSandboxInjectedIntoEveryEvent(t *testing.T) {
+	want := enforceSpec()
+	hooks := []ResolvedHook{
+		{HookConfig: HookConfig{Command: "gate"}, Event: PreToolUse},
+		{HookConfig: HookConfig{Command: "post"}, Event: PostToolUse},
+		{HookConfig: HookConfig{Command: "prompt"}, Event: UserPromptSubmit},
+		{HookConfig: HookConfig{Command: "stop"}, Event: Stop},
+		{HookConfig: HookConfig{Command: "start"}, Event: SessionStart},
+	}
+	events := []string{}
+	spawner := func(_ context.Context, in SpawnInput) SpawnResult {
+		events = append(events, in.Command)
+		if in.Sandbox == nil {
+			t.Errorf("hook %q: SpawnInput.Sandbox = nil, want the enforce spec", in.Command)
+			return SpawnResult{ExitCode: 0}
+		}
+		if in.Sandbox.Mode != want.Mode || in.Sandbox.Network != want.Network {
+			t.Errorf("hook %q: Sandbox = %+v, want Mode=%q Network=%v", in.Command, *in.Sandbox, want.Mode, want.Network)
+		}
+		if len(in.Sandbox.WriteRoots) != len(want.WriteRoots) {
+			t.Fatalf("hook %q: WriteRoots = %v, want %v", in.Command, in.Sandbox.WriteRoots, want.WriteRoots)
+		}
+		for i := range want.WriteRoots {
+			if in.Sandbox.WriteRoots[i] != want.WriteRoots[i] {
+				t.Errorf("hook %q: WriteRoots[%d] = %q, want %q", in.Command, i, in.Sandbox.WriteRoots[i], want.WriteRoots[i])
+			}
+		}
+		return SpawnResult{ExitCode: 0}
+	}
+	// Availability is injected: this test must not depend on a real WSL2/bwrap.
+	r := NewRunner(hooks, "/tmp", spawner, nil).WithSandbox(want)
+	r.sandboxAvailable = func() bool { return true }
+
+	ctx := context.Background()
+	r.PreToolUse(ctx, "bash", nil)
+	r.PostToolUse(ctx, "bash", nil, "ok")
+	r.PromptSubmit(ctx, "hi", 1)
+	r.Stop(ctx, "done", 1)
+	r.SessionStart(ctx)
+	if len(events) != 5 {
+		t.Fatalf("spawner saw %d events (%v), want 5", len(events), events)
+	}
+}
+
+// TestRunnerSandboxNotInjectedWithoutEnforce is the backward-compatibility half:
+// nil spec (no WithSandbox at all) or Mode != "enforce" must leave
+// SpawnInput.Sandbox nil, i.e. the pre-GA4-06 behaviour for every existing
+// caller/test is byte-for-byte preserved.
+func TestRunnerSandboxNotInjectedWithoutEnforce(t *testing.T) {
+	hooks := []ResolvedHook{{HookConfig: HookConfig{Command: "gate"}, Event: PreToolUse}}
+	spawner := func(_ context.Context, in SpawnInput) SpawnResult {
+		if in.Sandbox != nil {
+			t.Errorf("SpawnInput.Sandbox = %+v, want nil when not enforce", *in.Sandbox)
+		}
+		return SpawnResult{ExitCode: 0}
+	}
+	cases := []struct {
+		name string
+		spec *sandbox.Spec
+	}{
+		{"no WithSandbox (zero spec)", nil},
+		{"mode off", &sandbox.Spec{Mode: "off", WriteRoots: []string{`C:\ws`}}},
+		{"mode empty", &sandbox.Spec{}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := NewRunner(hooks, "/tmp", spawner, nil)
+			if tc.spec != nil {
+				r = r.WithSandbox(*tc.spec)
+			}
+			if _, msg := r.PreToolUse(context.Background(), "bash", nil); msg != "" {
+				t.Errorf("non-enforce spec should not warn, got %q", msg)
+			}
+		})
+	}
+}
+
+// TestRunnerSandboxUnavailableWarnsOnce: enforce + platform cannot confine ⇒ the
+// hook still runs (SpawnInput.Sandbox stays nil, no lying) and the user is told
+// exactly once, even across many events.
+func TestRunnerSandboxUnavailableWarnsOnce(t *testing.T) {
+	hooks := []ResolvedHook{
+		{HookConfig: HookConfig{Command: "gate"}, Event: PreToolUse},
+		{HookConfig: HookConfig{Command: "post"}, Event: PostToolUse},
+		{HookConfig: HookConfig{Command: "stop"}, Event: Stop},
+	}
+	var notified []string
+	spawner := func(_ context.Context, in SpawnInput) SpawnResult {
+		if in.Sandbox != nil {
+			t.Errorf("unavailable platform must not get a sandbox spec, got %+v", *in.Sandbox)
+		}
+		return SpawnResult{ExitCode: 0}
+	}
+	r := NewRunner(hooks, "/tmp", spawner, func(m string) { notified = append(notified, m) })
+	r = r.WithSandbox(enforceSpec())
+	r.sandboxAvailable = func() bool { return false }
+
+	ctx := context.Background()
+	for i := 0; i < 3; i++ {
+		r.PreToolUse(ctx, "bash", nil)
+		r.PostToolUse(ctx, "bash", nil, "ok")
+		r.Stop(ctx, "done", i)
+	}
+	if len(notified) != 1 {
+		t.Fatalf("notify called %d times (%q), want exactly once", len(notified), notified)
+	}
+	if !contains(notified[0], "unconfined") || !contains(notified[0], "sandbox") {
+		t.Errorf("warning %q should say the sandbox is not applied and commands run unconfined", notified[0])
+	}
+}
+
+// TestRunnerSandboxAppliedFlagFalseWarns covers the other false signal from
+// sandbox.Command: the platform probed available (so the spec *is* injected) but
+// the spawner reports it could not actually confine. The wrap's bool must not be
+// swallowed (hook.go previously discarded it with `argv, _ :=`).
+func TestRunnerSandboxAppliedFlagFalseWarns(t *testing.T) {
+	hooks := []ResolvedHook{{HookConfig: HookConfig{Command: "gate"}, Event: PreToolUse}}
+	var notified []string
+	spawner := func(_ context.Context, in SpawnInput) SpawnResult {
+		if in.Sandbox == nil {
+			t.Error("available platform should still receive the spec")
+		}
+		// sandboxApplied defaults to false = "not actually confined".
+		return SpawnResult{ExitCode: 0}
+	}
+	r := NewRunner(hooks, "/tmp", spawner, func(m string) { notified = append(notified, m) })
+	r = r.WithSandbox(enforceSpec())
+	r.sandboxAvailable = func() bool { return true }
+
+	r.PreToolUse(context.Background(), "bash", nil)
+	r.PreToolUse(context.Background(), "bash", nil)
+	if len(notified) != 1 {
+		t.Fatalf("notify called %d times (%q), want exactly once", len(notified), notified)
+	}
+	if !contains(notified[0], "unconfined") {
+		t.Errorf("warning %q should state the command ran unconfined", notified[0])
+	}
+}
+
+// TestRunnerSandboxWarnNoNotify: the warning path must be nil-safe (many callers
+// pass nil notify) and must not panic on a nil Runner.
+func TestRunnerSandboxWarnNoNotify(t *testing.T) {
+	hooks := []ResolvedHook{{HookConfig: HookConfig{Command: "gate"}, Event: PreToolUse}}
+	r := NewRunner(hooks, "/tmp", func(context.Context, SpawnInput) SpawnResult { return SpawnResult{ExitCode: 0} }, nil)
+	r = r.WithSandbox(enforceSpec())
+	r.sandboxAvailable = func() bool { return false }
+	r.PreToolUse(context.Background(), "bash", nil) // must not panic
+
+	var nilRunner *Runner
+	nilRunner.WithSandbox(enforceSpec()).warnSandboxUnavailableOnce()
+	if nilRunner.sandboxUsable() {
+		t.Error("nil Runner must not claim sandbox availability")
+	}
+}
+
+// stubSandboxCommand replaces the sandbox seam for one test. ok=true returns a
+// portable "wrap" that really runs (a harmless no-op executable) so the spawn is
+// exercised end to end; ok=false reports "cannot confine", exactly as the
+// platform implementations do when WSL2/bwrap/sandbox-exec is missing or
+// WrapCommand fails (seatbelt_windows.go:15-24). Never touches the real
+// sandbox.Available, so no test depends on a real WSL2 distro.
+func stubSandboxCommand(t *testing.T, ok bool) {
+	t.Helper()
+	old := hookSandboxCommand
+	hookSandboxCommand = func(_ sandbox.Spec, _ sandbox.Shell, command string) ([]string, bool) {
+		if !ok {
+			return []string{command}, false
+		}
+		if runtime.GOOS == "windows" {
+			return []string{"rundll32.exe", "advapi32.dll,ProcessIdleTasks"}, true
+		}
+		return []string{"true"}, true
+	}
+	t.Cleanup(func() { hookSandboxCommand = old })
+}
+
+// TestDefaultSpawnerHonoursCommandBool pins the `argv, _ :=` regression at the
+// spawner: when the wrap fails (bool false) the result must say so, because
+// sandboxApplied is the only evidence that the command was confined. With the
+// bool discarded the hook reports "confined" while running naked.
+func TestDefaultSpawnerHonoursCommandBool(t *testing.T) {
+	for _, ok := range []bool{true, false} {
+		stubSandboxCommand(t, ok)
+		spec := sandbox.Spec{Mode: "enforce", WriteRoots: []string{t.TempDir()}}
+		res := DefaultSpawner(context.Background(), SpawnInput{
+			Command: "exit 0", Timeout: 5 * time.Second, Sandbox: &spec,
+		})
+		if res.sandboxApplied != ok {
+			t.Errorf("Command ok=%v → sandboxApplied=%v, want %v", ok, res.sandboxApplied, ok)
+		}
+	}
+}
+
+// TestDefaultSpawnerUnappliedSandboxStillRuns: an unapplied wrap must not turn
+// into a skipped or failed hook — it runs unconfined (a hook that silently stops
+// running would be a worse failure than an unconfined hook).
+func TestDefaultSpawnerUnappliedSandboxStillRuns(t *testing.T) {
+	stubSandboxCommand(t, false)
+	spec := sandbox.Spec{Mode: "enforce", WriteRoots: []string{t.TempDir()}}
+	res := DefaultSpawner(context.Background(), SpawnInput{Command: "exit 0", Timeout: 5 * time.Second, Sandbox: &spec})
+	if res.ExitCode != 0 || res.SpawnErr != nil {
+		t.Errorf("unconfined fallback should still run the hook: code=%d err=%v", res.ExitCode, res.SpawnErr)
+	}
+}
+
+// TestRunnerSandboxUnappliedWarnsThroughDefaultSpawner is the end-to-end twin of
+// TestRunnerSandboxAppliedFlagFalseWarns: probe says "available", the real
+// DefaultSpawner reaches Runner.spawn, and the wrap fails — the user must be
+// told, exactly once, that the hook ran unconfined. This is the case that the
+// discarded bool used to hide.
+func TestRunnerSandboxUnappliedWarnsThroughDefaultSpawner(t *testing.T) {
+	stubSandboxCommand(t, false)
+	hooks := []ResolvedHook{{HookConfig: HookConfig{Command: "exit 0"}, Event: PreToolUse}}
+	var notified []string
+	r := NewRunner(hooks, t.TempDir(), nil, func(m string) { notified = append(notified, m) })
+	r = r.WithSandbox(sandbox.Spec{Mode: "enforce", WriteRoots: []string{t.TempDir()}})
+	r.sandboxAvailable = func() bool { return true }
+
+	ctx := context.Background()
+	r.PreToolUse(ctx, "bash", nil)
+	r.PreToolUse(ctx, "bash", nil)
+	if len(notified) != 1 {
+		t.Fatalf("notify called %d times (%q), want exactly once", len(notified), notified)
+	}
+	if !contains(notified[0], "unconfined") {
+		t.Errorf("warning %q should state the hook ran unconfined", notified[0])
 	}
 }
 

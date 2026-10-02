@@ -215,7 +215,11 @@ func (w *Watcher) loop() {
 				return
 			}
 			rel, relErr := filepath.Rel(w.root, ev.Name)
-			if relErr != nil || strings.HasPrefix(rel, "..") {
+			// 审计 2026-10-02 AP5-09：根内判据改调唯一原语 wspath.Within。
+			// 原判据 strings.HasPrefix(rel, "..") 把合法文件「..foo」也当越界
+			// 静默丢弃（Rel 对 w.root/..foo 返回 "..foo"）；Within 按 Rel 语义
+			// 精确判定，只挡真正的 `..` 越界。
+			if relErr != nil || !wspath.Within(w.root, ev.Name) {
 				continue
 			}
 			rel = filepath.ToSlash(rel)

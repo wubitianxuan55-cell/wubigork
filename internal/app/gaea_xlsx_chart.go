@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gaea/gaea/internal/gaea/wspath"
 	"github.com/xuri/excelize/v2"
 )
 
@@ -41,9 +42,14 @@ func (a *App) GaeaXlsxChart(in XlsxChartInput) (XlsxChartResult, error) {
 	if in.Rel == "" {
 		return XlsxChartResult{}, fmt.Errorf("缺少 xlsx 文件路径")
 	}
+	// 审计 2026-10-02 AP5-09：相对路径判据改调唯一原语（原为无校验 Join）。
 	xlsxPath := in.Rel
 	if !filepath.IsAbs(in.Rel) {
-		xlsxPath = filepath.Join(gaeaCwd(), in.Rel)
+		p, perr := wspath.ResolveRelWithin(gaeaCwd(), in.Rel)
+		if perr != nil {
+			return XlsxChartResult{}, fmt.Errorf("非法工作区相对路径: %s", in.Rel)
+		}
+		xlsxPath = p
 	}
 	if _, err := os.Stat(xlsxPath); err != nil {
 		return XlsxChartResult{}, fmt.Errorf("xlsx 不存在：%s", in.Rel)

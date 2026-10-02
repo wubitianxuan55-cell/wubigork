@@ -592,10 +592,16 @@ func (a *App) GaeaMaterials(limit int) []FileSearchHit {
 func (a *App) GaeaReadFile(rel string) FilePreview {
 	rel = strings.TrimSpace(rel)
 	clean := filepath.Clean(filepath.FromSlash(rel))
-	if rel == "" || filepath.IsAbs(clean) || clean == "." || strings.HasPrefix(clean, "..") || strings.Contains(clean, ".."+string(filepath.Separator)) {
+	if rel == "" || clean == "." {
 		return FilePreview{Path: rel, Markdown: "非法工作区相对路径: " + rel}
 	}
-	abs := filepath.Join(gaeaCwd(), clean)
+	// 审计 2026-10-02 AP5-09：判据改调唯一原语（原为手写 IsAbs + Clean +
+	// `..` 前缀/片段，与 GaeaWriteFile 逐字重复的两份之一）；绝对/卷相对/
+	// 穿越一律由原语拒绝，措辞不变。
+	abs, err := wspath.ResolveRelWithin(gaeaCwd(), rel)
+	if err != nil {
+		return FilePreview{Path: rel, Markdown: "非法工作区相对路径: " + rel}
+	}
 	if !withinWriteRoots(abs) {
 		return FilePreview{Path: rel, Markdown: "路径不在可读范围内（工作区/allow_write）: " + rel}
 	}
@@ -637,10 +643,15 @@ const maxTextEditBytes = 2 * 1024 * 1024
 func (a *App) GaeaWriteFile(rel string, content string) error {
 	rel = strings.TrimSpace(rel)
 	clean := filepath.Clean(filepath.FromSlash(rel))
-	if rel == "" || filepath.IsAbs(clean) || clean == "." || strings.HasPrefix(clean, "..") || strings.Contains(clean, ".."+string(filepath.Separator)) {
+	if rel == "" || clean == "." {
 		return fmt.Errorf("非法工作区相对路径: %s", rel)
 	}
-	abs := filepath.Join(gaeaCwd(), clean)
+	// 审计 2026-10-02 AP5-09：判据改调唯一原语（与 GaeaReadFile 同源；写侧
+	// 越界此前靠手写清单挡住，口径与读侧各自漂移）。
+	abs, err := wspath.ResolveRelWithin(gaeaCwd(), rel)
+	if err != nil {
+		return fmt.Errorf("非法工作区相对路径: %s", rel)
+	}
 	if !withinWriteRoots(abs) {
 		return fmt.Errorf("路径不在可写范围内（工作区/allow_write）: %s", rel)
 	}
@@ -712,8 +723,10 @@ func (a *App) withinReadRoots(abs string) bool {
 	}
 	abs = resolveAgainstWorkspace(abs)
 	for _, r := range roots {
-		root := filepath.Clean(filepath.FromSlash(r))
-		if strings.HasPrefix(abs, root+string(filepath.Separator)) {
+		// 审计 2026-10-02 AP5-09：包含性判据改调唯一原语 wspath.Within
+		// （原为 strings.HasPrefix(abs, root+sep) 手写前缀法——大小写敏感，
+		// Windows 上 `c:\ws\x` 会被误拒；Rel 口径与文件系统语义一致）。
+		if wspath.Within(r, abs) {
 			return true
 		}
 	}
@@ -729,11 +742,8 @@ func withinWriteRoots(abs string) bool {
 	}
 	abs = resolveAgainstWorkspace(abs)
 	for _, r := range roots {
-		root := filepath.Clean(filepath.FromSlash(r))
-		if root == abs {
-			return true
-		}
-		if strings.HasPrefix(abs, root+string(filepath.Separator)) {
+		// 审计 2026-10-02 AP5-09：同读侧，改调 wspath.Within（root 本身仍算内）。
+		if wspath.Within(r, abs) {
 			return true
 		}
 	}

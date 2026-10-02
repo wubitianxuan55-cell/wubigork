@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/evidence"
+	"github.com/gaea/gaea/internal/gaea/wspath"
 	"github.com/gaea/gaea/internal/office/pptxedit"
 )
 
@@ -26,9 +27,15 @@ func (a *App) GaeaPptxApplyEdit(rel string, slideIdx int, target string, replace
 	if strings.TrimSpace(target) == "" {
 		return PreviewResult{}, fmt.Errorf("替换目标为空")
 	}
+	// 审计 2026-10-02 AP5-09：相对路径判据改调唯一原语（原为无校验 Join，可写
+	// 工作区外 pptx）。绝对路径分支保留原样。
 	path := rel
 	if !filepath.IsAbs(rel) {
-		path = filepath.Join(gaeaCwd(), rel)
+		p, perr := wspath.ResolveRelWithin(gaeaCwd(), rel)
+		if perr != nil {
+			return PreviewResult{}, fmt.Errorf("非法工作区相对路径: %s", rel)
+		}
+		path = p
 	}
 	if _, err := os.Stat(path); err != nil {
 		return PreviewResult{}, fmt.Errorf("文件不存在：%s", rel)

@@ -272,11 +272,16 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// a Notice through the shared sink. The runner fires PreToolUse/PostToolUse in
 	// the agent loop and UserPromptSubmit/Stop at the controller's turn boundary.
 	hooksTrusted := hook.IsTrusted(cwd, "")
+	// GA4-06：hook 命令沿用与 bash 工具同源的 bashSpec，装配到 Runner 上（唯一
+	// 注入点在其 spawn 包装层，事件路径无需逐个填）。mode=enforce 而平台不可用时
+	// hook 侧经 notify 发一次性诚实警告（自持 sync.Once，不抢本包 sandboxWarnOnce：
+	// 本包那次讲的是 bash，hook 有自己的用户可见通道）。未 enforce 时 Runner 让
+	// SpawnInput.Sandbox 保持 nil，与既有行为逐字节一致。
 	hookRunner := hook.NewRunner(
 		hook.Load(hook.LoadOptions{ProjectRoot: cwd, Trusted: hooksTrusted}),
 		cwd, nil,
 		func(msg string) { sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelWarn, Text: msg}) },
-	)
+	).WithSandbox(bashSpec)
 	if hook.ProjectDefinesHooks(cwd) && !hooksTrusted {
 		sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelInfo,
 			Text: "this project defines hooks but they are not trusted — run /hooks trust to enable them"})

@@ -256,6 +256,15 @@ func (r *AgentLoopRunner) executeToolBatch(actions []AgentAction) []ToolResultFo
 					Name:    "use_computer",
 					Content: result.Content,
 				})
+			} else {
+				// Router 未接线时过去什么都不追加：模型拿到空结果集，
+				// shouldContinue 判 false → 直接以 AllPassed 收尾，用户侧
+				// 完全看不到「这个动作根本没执行」。按本仓诚实降级口径补一条
+				// 明确的工具回执（不新增事件通道、不新增绑定）。
+				results = append(results, ToolResultForFollowUp{
+					Name:    "use_computer",
+					Content: "电脑助手未启用（Router 未接线），该动作未执行：" + act.Args["action"],
+				})
 			}
 		case "web_search":
 			query := ""

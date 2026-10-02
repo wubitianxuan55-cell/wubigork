@@ -20,7 +20,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
+
+	"github.com/gaea/gaea/internal/gaea/wspath"
 )
 
 // GAEADIR_* 结构化错误码：前端据此路由恢复路径（不存在/非目录 → 降级
@@ -57,11 +58,13 @@ func listDirEntries(rel string) ([]DirEntry, error) {
 		if filepath.IsAbs(rel) {
 			dir = filepath.Clean(rel)
 		} else {
-			cleanRel := filepath.Clean(filepath.FromSlash(rel))
-			if strings.HasPrefix(cleanRel, "..") || strings.Contains(cleanRel, ".."+string(filepath.Separator)) {
+			// 审计 2026-10-02 AP5-09：相对分支改调唯一原语（原为手写
+			// Clean + `..` 前缀/片段判据，第五份同族实现）。
+			p, err := wspath.ResolveRelWithin(root, rel)
+			if err != nil {
 				return nil, listDirError(errCodeDirRead, "路径越出工作区: %s", rel)
 			}
-			dir = filepath.Join(root, cleanRel)
+			dir = p
 		}
 	}
 	info, err := osStat(dir)

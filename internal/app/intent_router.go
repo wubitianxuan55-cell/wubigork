@@ -32,6 +32,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/provider"
 	"github.com/gaea/gaea/internal/gaea/spaces"
 	"github.com/gaea/gaea/internal/gaea/trajectory"
+	"github.com/gaea/gaea/internal/gaea/wspath"
 	"github.com/gaea/gaea/internal/intent"
 	"github.com/gaea/gaea/internal/screen"
 	"github.com/gaea/gaea/internal/taskinbox"
@@ -331,9 +332,10 @@ func resolveWorkspacePath(cwd, p string) string {
 	if filepath.IsAbs(p) {
 		return filepath.Clean(p)
 	}
-	clean := filepath.Clean(filepath.Join(cwd, p))
-	rel, err := filepath.Rel(cwd, clean)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+	// 审计 2026-10-02 AP5-09：判据改调唯一原语（原为手写 Clean+Join+Rel+".."
+	// 前缀；口径不变，越界仍返回空串让调用方跳过该登记条目）。
+	clean, err := wspath.ResolveRelWithin(cwd, p)
+	if err != nil {
 		return ""
 	}
 	return clean

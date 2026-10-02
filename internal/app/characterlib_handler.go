@@ -11,6 +11,7 @@ import (
 
 	"github.com/gaea/gaea/internal/assistant"
 	"github.com/gaea/gaea/internal/characterlib"
+	"github.com/gaea/gaea/internal/gaea/wspath"
 	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/types"
 )
@@ -258,8 +259,9 @@ func (a *App) CharacterAssociateTo(projectDir, charID, role string) error {
 	if err != nil {
 		return fmt.Errorf("书架目录解析失败: %w", err)
 	}
-	rel, err := filepath.Rel(novelsDir, abs)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+	// 审计 2026-10-02 AP5-09：包含性判据改调唯一原语 wspath.Within（原为手写
+	// filepath.Rel + ".." 前缀，与全仓「必须落在根内」同族）。
+	if !wspath.Within(novelsDir, abs) {
 		return fmt.Errorf("项目必须在书架目录内")
 	}
 	if _, err := os.Stat(filepath.Join(abs, "project.json")); err != nil {

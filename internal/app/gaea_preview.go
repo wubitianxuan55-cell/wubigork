@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/docmd"
+	"github.com/gaea/gaea/internal/gaea/wspath"
 	"github.com/gaea/gaea/internal/office/xlsxedit"
 	"github.com/gaea/gaea/internal/office/xlsxpreview"
 )
@@ -79,13 +80,19 @@ func resolvePreviewPath(rel string) (path, displayRel string) {
 	}
 	// 相对路径拒 .. 穿越（2026-09-19 审计 P1：Join(root, rel) 此前直通；
 	// 绝对路径分支保留——附件/素材预览有合法绝对路径用途，文件大小由各
-	// 分支封顶）。落点在 root 外的路径让后续 os.Stat 自然报「文件不存在」。
-	cleanRel := filepath.Clean(filepath.FromSlash(rel))
-	if strings.HasPrefix(cleanRel, "..") || strings.Contains(cleanRel, ".."+string(filepath.Separator)) {
-		return filepath.Join(root, cleanRel), rel
+	// 分支封顶）。
+	//
+	// 审计 2026-10-02 AP5-09 修复：原实现「拒 ..」分支返回的是
+	// filepath.Join(root, cleanRel)（= 工作区**外**的逃逸路径），只是赌
+	// 后续 os.Stat 失败——逃逸目标真实存在时预览会照读照渲染（真穿越）。
+	// 现改调唯一原语：越界即返回空路径，GaeaPreview 的 os.Stat("") 必失败
+	// → 前端得到既有「文件不存在」降级，逃逸路径不进任何读口。
+	p, err := wspath.ResolveRelWithin(root, rel)
+	if err != nil {
+		return "", rel
 	}
 	display := filepath.ToSlash(rel)
-	joined := filepath.Join(root, rel)
+	joined := p
 	if fileExists(joined) {
 		return joined, display
 	}

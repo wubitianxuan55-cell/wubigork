@@ -131,6 +131,9 @@ func ExecuteUseComputer(args UseComputerArgs, ctx RouterContext) UseComputerResu
 		DataRoot:    ctx.DataRoot,
 		DownloadDir: ctx.DownloadDir,
 		CWD:         ctx.CWD,
+		// 此处已在第 4 层确认之后（或用户已开启自动批准），执行器的
+		// Confirmed 门是对「绕过本管线直接调用执行器」的纵深防御。
+		Confirmed: true,
 	})
 
 	appendAuditOrFail(ctx.DataRoot, DesktopAgentAuditEntry{
@@ -195,8 +198,17 @@ type PolicyCheck struct {
 	HardBlockReason  string
 }
 
-// isBlockedCloseTarget 检查是否为禁止关闭的系统进程
+// isBlockedCloseTarget 检查是否为禁止关闭的系统进程。
+//
+// 判据必须与执行侧同源：closeAppTarget 过去走 PowerShell 的
+// `Get-Process -Name '<name>'`，而 -Name 支持 `*`/`?`/`[..]` 通配符，本函数却是
+// 精确 map 匹配 ⇒ `explorer*`、`*` 不命中黑名单，却能在执行侧展开成
+// 「explorer 进程」或「本机全部进程」。因此这里先做名字形状拒绝
+// （hasProcessNameWildcard），再接原有黑名单。
 func isBlockedCloseTarget(target string) bool {
+	if hasProcessNameWildcard(target) {
+		return true
+	}
 	blocked := map[string]bool{
 		"csrss.exe": true, "winlogon.exe": true, "lsass.exe": true,
 		"services.exe": true, "smss.exe": true, "system": true,
@@ -213,6 +225,18 @@ func isBlockedCloseTarget(target string) bool {
 		return blocked[name+".exe"]
 	}
 	return false
+}
+
+// hasProcessNameWildcard 判定目标名不是「合法进程名」，而是路径或通配符形态。
+// 合法进程名只含字母数字与 `._-`；出现通配符（`*` `?` `[` `]`）或路径分隔符
+// （`\` `/`）即拒绝——这类名字在判据里永远匹配不到黑名单，但执行侧若把它交给
+// 支持通配符的接口就会展开成别的进程（批次十三 AP4-07 同族坑：判据空间与执行
+// 空间必须同源）。
+func hasProcessNameWildcard(target string) bool {
+	if strings.TrimSpace(target) == "" {
+		return false
+	}
+	return strings.ContainsAny(target, `*?[]\/`)
 }
 
 func evaluatePathPolicy(action DesktopAgentAction, path, pathTo, cwd string) PolicyCheck {
@@ -237,6 +261,13 @@ func evaluatePathPolicy(action DesktopAgentAction, path, pathTo, cwd string) Pol
 		normalizedTo = normalizePath(pathTo, cwd)
 	}
 
+	// 需要 pathTo 的写类操作缺参必须硬阻断：copy/move 的 pathTo 为空时
+	// filepath.Dir("") == "."，执行侧会静默把源文件写到「进程当前目录」下的同名
+	// 文件（实测 CWD=internal/whisper），既不落点明确也无任何告警。
+	if WriteActions[action] && (action == ActionCopyPath || action == ActionMovePath) && strings.TrimSpace(pathTo) == "" {
+		return PolicyCheck{OK: false, HardBlockReason: "缺少目标路径参数"}
+	}
+
 	result := PolicyCheck{OK: true, NormalizedPath: normalized, NormalizedPathTo: normalizedTo}
 
 	// 检查路径是否存在
@@ -253,6 +284,16 @@ func evaluatePathPolicy(action DesktopAgentAction, path, pathTo, cwd string) Pol
 
 	// 硬阻断：System32 写入
 	if WriteActions[action] && isHardBlockedWritePath(normalized) {
+		result.OK = false
+		result.HardBlockReason = "禁止写入系统目录"
+	}
+
+	// 硬阻断：下载类操作的落点同样受写入硬阻断约束。
+	// action 自身在 AppActions 之外，但执行侧（desktop_executor.go:100-120）会把
+	// 下载物写到 path 或默认下载目录——这是实打实的文件写入，不能因为「action 不在
+	// WriteActions 里」而漏过系统目录硬阻断（实测：evaluatePathPolicy(
+	// ActionDownloadAndInstall,"C:\Windows\System32\evil.exe") 曾返回 OK=true）。
+	if DownloadActions[action] && normalized != "" && isHardBlockedWritePath(normalized) {
 		result.OK = false
 		result.HardBlockReason = "禁止写入系统目录"
 	}
@@ -292,29 +333,103 @@ func normalizePath(p, cwd string) string {
 	return clean
 }
 
+// ─── 前缀判据的形态归一 ──────────────────────────────────────────
+//
+// 「路径前缀」判据必须先把路径归一到同一个词法形态，否则判据空间与执行空间分叉：
+// Windows 的 `\\?\C:\Windows\System32\x`（扩展长度前缀）、`\\.\C:\...`（设备前缀）、
+// `//localhost/C$/Windows/System32/x`（本机管理共享 UNC）、`C:/Windows/System32/x`
+// （正斜杠）在文件系统眼里都是同一个位置，但字面 `strings.HasPrefix` 全部不命中。
+// 实测（2026-10-02，非管理员）：这些形态下 isHardBlockedWritePath/isSensitivePath
+// 均为 false，即「既不拦也不告警」。
+//
+// 已知残留限制（诚实登记，不假装覆盖）：8.3 短名（`C:\PROGRA~1\...`）与符号链接
+// 需要访问文件系统才能解析，本函数只做词法归一，不用 EvalSymlinks（避免在纯策略
+// 函数里做 IO）。
+
+// canonicalizeForMatch 把路径归一到「盘符 + 反斜杠 + 小写」的可比较形态。
+func canonicalizeForMatch(p string) string {
+	if p == "" {
+		return ""
+	}
+	s := strings.ToLower(strings.ReplaceAll(p, "/", `\`))
+	// 扩展长度前缀：\\?\C:\... → C:\...
+	if strings.HasPrefix(s, `\\?\`) {
+		s = s[4:]
+		for strings.HasPrefix(s, `\`) {
+			s = s[1:]
+		}
+	}
+	// 设备前缀：\\.\C:\... → C:\...
+	if strings.HasPrefix(s, `\\.\`) {
+		s = s[4:]
+		for strings.HasPrefix(s, `\`) {
+			s = s[1:]
+		}
+	}
+	// 本机管理共享：\\localhost\c$\... / \\<本机名>\c$\... → c:\...
+	if strings.HasPrefix(s, `\\`) {
+		if i := strings.Index(s[2:], `\`); i >= 0 {
+			host := s[2 : 2+i]
+			rest := s[2+i+1:]
+			local := strings.ToLower(os.Getenv("COMPUTERNAME"))
+			if host == "localhost" || host == "." || (local != "" && host == local) {
+				if len(rest) >= 2 && rest[1] == '$' {
+					s = rest[0:1] + `:` + rest[2:]
+				}
+			}
+		}
+	}
+	// 折叠剩余重复分隔符
+	for strings.Contains(s, `\\`) {
+		s = strings.ReplaceAll(s, `\\`, `\`)
+	}
+	// 去掉末段的尾随空格与点（Win32 会截断：`System32 ` 与 `System32.` 都是 System32）
+	if i := strings.LastIndex(s, `\`); i >= 0 {
+		head, tail := s[:i+1], s[i+1:]
+		tail = strings.TrimRight(tail, " .")
+		s = head + tail
+	} else {
+		s = strings.TrimRight(s, " .")
+	}
+	return s
+}
+
+// withinRoot 判断 p 是否落在 root 之内（按路径段边界，避免 `c:\windows\system32foo`
+// 被 `c:\windows\system32` 误判为命中）。
+func withinRoot(p, root string) bool {
+	c := canonicalizeForMatch(p)
+	r := strings.TrimRight(canonicalizeForMatch(root), `\`)
+	if r == "" || c == "" {
+		return false
+	}
+	return c == r || strings.HasPrefix(c, r+`\`)
+}
+
+// isSensitivePath 目标位于系统目录（只产出一句确认提示，不阻断）。
 func isSensitivePath(p string) bool {
-	lower := strings.ToLower(p)
 	sensitive := []string{
-		"c:\\windows",
-		"c:\\program files",
-		"c:\\program files (x86)",
+		`c:\windows`,
+		`c:\program files`,
+		`c:\program files (x86)`,
 	}
 	for _, s := range sensitive {
-		if strings.HasPrefix(lower, s) {
+		if withinRoot(p, s) {
 			return true
 		}
 	}
 	return false
 }
 
+// isHardBlockedWritePath 写类操作的硬阻断清单。清单只有两个根（`C:\Windows\System32`
+// 与 `C:\Windows\SysWOW64`）——`C:\Windows\Temp` 这类「允许 + 敏感告警」的既有设计
+// 由 desktop_test.go:79 钉死，不在此处扩大。
 func isHardBlockedWritePath(p string) bool {
-	lower := strings.ToLower(p)
 	blocked := []string{
-		"c:\\windows\\system32",
-		"c:\\windows\\syswow64",
+		`c:\windows\system32`,
+		`c:\windows\syswow64`,
 	}
 	for _, b := range blocked {
-		if strings.HasPrefix(lower, b) {
+		if withinRoot(p, b) {
 			return true
 		}
 	}

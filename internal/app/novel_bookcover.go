@@ -113,9 +113,27 @@ func (a *App) GaeaGenerateBookCover(projectID, promptHint string) (string, error
 	// 生效模型（审计 AP7-05）：ImageModel 配置优先，未配置回落 Aurora 档——
 	// 登记侧必须与这里下发的模型同源。
 	coverModel := effectiveSceneIllustrationModel(a.cfg)
+	// S1.5-B play 内容护栏（审计 2026-10-02 AP2-04）：书封此前直接
+	// clientRef().GenerateImage，绕过 applyImageSafeMode 的三个生产注入点
+	// （gaea_tools.go / image_handler.go 统一入口两处），play 空间「小说」书封
+	// 提示词不受 image_safe_mode 约束（同板块章节插图、原罪插图都受）。
+	//
+	// 为什么是「同处补 applyImageSafeMode」而不是改走 mediaState.generateImageInternal
+	// （审计给的首选方案，理由必须写明，勿日后误改）：
+	//  1) 统一入口顺带接管 size 策略（非 comfyui/herdsman/glm 后端清空 size）、
+	//     落盘目录（saveDir）与并发槽（beginImageGen）——书封的严格 3:4 契约
+	//     （TestGaeaGenerateBookCoverSuccessB64 断言 Size=="768x1024"）、
+	//     <项目根>/.gaea/play/exports 落点、单条台账登记都会随之改变，属真实
+	//     行为回归而非「把不安全行为当期望的用例」，不能拿它换护栏；
+	//  2) 书封是单图原语，play 护栏里与生图相关的只有 image_safe_mode 一项
+	//     （persona_lock / temperature_max / max_output_tokens 是文本生成参数）。
+	// 口径与统一入口逐字对齐：安全段只进请求，台账仍记原始提示词
+	// （image_handler.go 的 item.Prompt=fullPrompt 同款）；关闭安全模式时提示词
+	// 逐字节不变（applyImageSafeMode 对 safe=false 原样返回）。
+	safePrompt := applyImageSafeMode(b.String(), playGuardrails().ImageSafeMode)
 	req := &ai.ImageGenerationRequest{
 		Model:  coverModel,
-		Prompt: b.String(),
+		Prompt: safePrompt,
 		N:      1,
 		Size:   "768x1024",
 	}

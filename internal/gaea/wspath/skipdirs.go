@@ -18,6 +18,10 @@
 //
 //	IsSkipped(name)           并集口径：新调用方的默认（不含历史包袱）；
 //	IsSkippedIn(name, extra)  内核口径：CoreSkipDirs ∪ extra，历史站点唯一入口。
+//
+// 本包另外持有「工作区路径归一 / 穿越防护」两个原语（Within / ResolveRelWithin，
+// 审计 2026-10-02 AP5-09 收口），见 resolve.go——同属工作区路径语义，故合包而非
+// 另立 leaf 包。本包仍是叶子包：不得反向 import internal/app 等大包（防依赖倒挂）。
 package wspath
 
 // SkipDirs 是全部已知噪声目录（六份历史清单的并集，23 项，去重）。

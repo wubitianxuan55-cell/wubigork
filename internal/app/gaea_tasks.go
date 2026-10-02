@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -26,6 +25,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/semantic"
 	"github.com/gaea/gaea/internal/gaea/spaces"
 	"github.com/gaea/gaea/internal/gaea/tasks"
+	"github.com/gaea/gaea/internal/gaea/wspath"
 )
 
 // taskMgr 返回全局任务调度器（nil 安全：测试环境 officeState 可能未装配）。
@@ -553,7 +553,12 @@ func (a *App) applyIncrementalFileIndex(ev filewatch.Event) {
 		}
 	}
 	for _, rel := range ev.Changed {
-		abs := filepath.Join(gaeaCwd(), rel)
+		// 审计 2026-10-02 AP5-09：rel 来自监听事件（filewatch 侧已判根内），此处
+		// 仍过唯一原语做同源二次防线；越界直接跳过（不索引工作区外文件）。
+		abs, rerr := wspath.ResolveRelWithin(gaeaCwd(), rel)
+		if rerr != nil {
+			continue
+		}
 		info, err := os.Stat(abs)
 		if err != nil || !info.Mode().IsRegular() || info.Size() > fileindex.MaxFileBytes {
 			continue

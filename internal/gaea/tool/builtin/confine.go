@@ -7,6 +7,7 @@ import (
 
 	"github.com/gaea/gaea/internal/gaea/sandbox"
 	"github.com/gaea/gaea/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/gaea/wspath"
 )
 
 // ConfineBash returns the bash built-in bound to an OS-sandbox spec, overriding
@@ -96,16 +97,12 @@ func realPath(path string) (string, error) {
 }
 
 // within reports whether path is at or below root. Both must be absolute,
-// cleaned, symlink-free. It uses filepath.Rel so it is correct across volumes
-// and is not fooled by a prefix that only matches a partial path component
-// (e.g. /work-other is not within /work).
-func within(root, path string) bool {
-	rel, err := filepath.Rel(root, path)
-	if err != nil {
-		return false
-	}
-	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
-}
+// cleaned, symlink-free. It is a thin alias of the single-source judgment
+// wspath.Within (审计 2026-10-02 AP5-09): filepath.Rel semantics, correct
+// across volumes, never fooled by a prefix that only matches a partial path
+// component (e.g. /work-other is not within /work), and case-insensitive on
+// Windows like the filesystem itself.
+func within(root, path string) bool { return wspath.Within(root, path) }
 
 // resolveIn resolves a path relative to workDir if the path is relative.
 // workDir defaults to cwd when empty.

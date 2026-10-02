@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/spaces"
+	"github.com/gaea/gaea/internal/gaea/wspath"
 )
 
 // ZipDeliverableResult 是会话产物打包结果（工作区相对路径）。
@@ -45,7 +46,12 @@ func (a *App) GaeaZipDeliverables(paths []string) (ZipDeliverableResult, error) 
 			continue
 		}
 		seen[clean] = true
-		abs := filepath.Join(gaeaCwd(), clean)
+		// 审计 2026-10-02 AP5-09：相对条目改调唯一原语（原为手写 ../ 前缀 +
+		// IsAbs 判据；归一后越界的条目静默跳过，与既有「缺失条目跳过」语义一致）。
+		abs, rerr := wspath.ResolveRelWithin(gaeaCwd(), clean)
+		if rerr != nil {
+			continue
+		}
 		info, err := os.Stat(abs)
 		if err != nil || info.IsDir() {
 			continue

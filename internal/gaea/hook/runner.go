@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 
+	"github.com/gaea/gaea/internal/gaea/sandbox"
 	"github.com/gaea/gaea/internal/gaea/strutil"
 )
 
@@ -19,12 +21,109 @@ type Runner struct {
 	cwd     string
 	spawner Spawner
 	notify  func(string) // surface a non-blocking (warn/error) hook message; may be nil
+	// sandbox confines every hook command when its Mode is "enforce" (zero Spec
+	// = run unconfined). Wired by boot via WithSandbox so the Runner stays the
+	// single object the rest of the program holds; see spawn for the injection
+	// point and its honest-degradation warning.
+	sandbox sandbox.Spec
+	// sandboxAvailable is the platform probe ("can an OS sandbox actually be
+	// applied here?"). It is a field — not a direct sandbox.Available() call —
+	// purely as a test seam: unit tests must not depend on a real WSL2/bwrap.
+	// nil means sandbox.Available(). GA4-06 (XIV-2).
+	sandboxAvailable func() bool
+	// sandboxWarnOnce keeps the "requested but unavailable" notice to one per
+	// Runner instead of one per hook per turn. GA4-06 (XIV-2).
+	sandboxWarnOnce sync.Once
 }
 
 // NewRunner builds a Runner. spawner nil uses DefaultSpawner; notify nil drops
-// non-blocking messages.
+// non-blocking messages. Hooks run unconfined until WithSandbox is called.
 func NewRunner(hooks []ResolvedHook, cwd string, spawner Spawner, notify func(string)) *Runner {
 	return &Runner{hooks: hooks, cwd: cwd, spawner: spawner, notify: notify}
+}
+
+// WithSandbox confines every hook command in spec (Mode "enforce"; any other
+// Mode, including the zero value, means unconfined). The spec is normally the
+// same one the bash tool uses, so hooks and the shell tool share one boundary.
+//
+// It is additive — NewRunner's signature is unchanged on purpose: the
+// constructor has ~16 existing call sites (all tests) and every production
+// reader benefits from "no WithSandbox ⇒ no confinement" being visible at the
+// construction site rather than hidden in a positional argument. Returns the
+// receiver so a call can be chained onto NewRunner.
+func (r *Runner) WithSandbox(spec sandbox.Spec) *Runner {
+	if r == nil {
+		return r
+	}
+	r.sandbox = spec
+	return r
+}
+
+// spawn runs one hook command through the runner's spawner, injecting the
+// configured sandbox spec into SpawnInput. This is the single injection point
+// for every event path (PreToolUse/PostToolUse/PromptSubmit/Stop/…) — filling it
+// at the ~10 individual Run call sites is the same bug waiting to be missed
+// again (GA4-06: the only production constructor never filled it at all).
+//
+// Honest degradation (GA4-06, aligning with boot.go's bash warning): when the
+// spec asks for "enforce" but this platform cannot confine, the command still
+// runs — hooks must not be silently skipped — but it runs *unconfined*, so
+// SpawnInput.Sandbox is deliberately left nil for that spawn and a one-time
+// warning goes out through notify. When the platform *can* confine but the wrap
+// still failed (sandbox.Command's bool is false), the spec was passed, so the
+// spawner reports it via SpawnResult.sandboxApplied and the same one-time
+// warning fires. Either way: never claim a boundary we do not have.
+func (r *Runner) spawn(ctx context.Context, in SpawnInput) SpawnResult {
+	injected := false
+	if in.Sandbox == nil && r.sandbox.Mode == "enforce" {
+		if r.sandboxUsable() {
+			spec := r.sandbox
+			in.Sandbox = &spec
+			injected = true
+		} else {
+			// Tell the user before the hook runs, not only when it fails.
+			r.warnSandboxUnavailableOnce()
+		}
+	}
+	sp := r.spawner
+	if sp == nil {
+		sp = DefaultSpawner
+	}
+	res := sp(ctx, in)
+	// Confinement was requested (or handed in) but the spawner did not actually
+	// apply it — DefaultSpawner's sandboxApplied is sandbox.Command's bool, which
+	// hook.go used to discard. `injected && !applied` means the wrap itself
+	// failed ("false result signals not sandboxed" per the sandbox package).
+	if in.Sandbox != nil && !res.sandboxApplied && injected {
+		r.warnSandboxUnavailableOnce()
+	}
+	return res
+}
+
+// sandboxUsable reports whether an enforce-mode spec can actually be applied on
+// this machine. Callers must have checked Mode=="enforce" first.
+func (r *Runner) sandboxUsable() bool {
+	if r == nil {
+		return false
+	}
+	if r.sandboxAvailable != nil {
+		return r.sandboxAvailable()
+	}
+	return sandbox.Available()
+}
+
+// warnSandboxUnavailableOnce emits one warning per Runner when confinement was
+// requested but could not be applied. The check is guarded by sandboxWarnOnce so
+// it evaluates the probe at most once and the message is never repeated, and it
+// is silent-but-not-skipped only in the sense that the caller still runs the
+// hook — the point is that the *user* can see the boundary is not there.
+func (r *Runner) warnSandboxUnavailableOnce() {
+	if r == nil || r.notify == nil {
+		return
+	}
+	r.sandboxWarnOnce.Do(func() {
+		r.notify("hook sandbox requested but unavailable on this platform — hook commands run unconfined")
+	})
 }
 
 // Hooks returns the resolved hooks (for `/hooks` listing).
@@ -66,7 +165,7 @@ func (r *Runner) PermissionRequest(ctx context.Context, name string, args json.R
 	if !r.Enabled() {
 		return true, args, ""
 	}
-	rep := Run(ctx, Payload{Event: PermissionRequest, Cwd: r.cwd, ToolName: name, ToolArgs: args}, r.hooks, r.spawner)
+	rep := Run(ctx, Payload{Event: PermissionRequest, Cwd: r.cwd, ToolName: name, ToolArgs: args}, r.hooks, r.spawn)
 	block, msg := r.handle(rep)
 	// For now, args pass through unchanged. Future: parse modified args from rep output.
 	return !block, args, msg
@@ -75,7 +174,7 @@ func (r *Runner) PreToolUse(ctx context.Context, name string, args json.RawMessa
 	if !r.Enabled() {
 		return false, ""
 	}
-	rep := Run(ctx, Payload{Event: PreToolUse, Cwd: r.cwd, ToolName: name, ToolArgs: args}, r.hooks, r.spawner)
+	rep := Run(ctx, Payload{Event: PreToolUse, Cwd: r.cwd, ToolName: name, ToolArgs: args}, r.hooks, r.spawn)
 	return r.handle(rep)
 }
 
@@ -85,7 +184,7 @@ func (r *Runner) PostToolUse(ctx context.Context, name string, args json.RawMess
 	if !r.Enabled() {
 		return
 	}
-	rep := Run(ctx, Payload{Event: PostToolUse, Cwd: r.cwd, ToolName: name, ToolArgs: args, ToolResult: result}, r.hooks, r.spawner)
+	rep := Run(ctx, Payload{Event: PostToolUse, Cwd: r.cwd, ToolName: name, ToolArgs: args, ToolResult: result}, r.hooks, r.spawn)
 	r.handle(rep)
 }
 
@@ -95,7 +194,7 @@ func (r *Runner) PromptSubmit(ctx context.Context, prompt string, turn int) (blo
 	if !r.Enabled() {
 		return false, ""
 	}
-	rep := Run(ctx, Payload{Event: UserPromptSubmit, Cwd: r.cwd, Prompt: prompt, Turn: turn}, r.hooks, r.spawner)
+	rep := Run(ctx, Payload{Event: UserPromptSubmit, Cwd: r.cwd, Prompt: prompt, Turn: turn}, r.hooks, r.spawn)
 	return r.handle(rep)
 }
 
@@ -104,7 +203,7 @@ func (r *Runner) Stop(ctx context.Context, lastAssistant string, turn int) {
 	if !r.Enabled() {
 		return
 	}
-	rep := Run(ctx, Payload{Event: Stop, Cwd: r.cwd, LastAssistant: lastAssistant, Turn: turn}, r.hooks, r.spawner)
+	rep := Run(ctx, Payload{Event: Stop, Cwd: r.cwd, LastAssistant: lastAssistant, Turn: turn}, r.hooks, r.spawn)
 	r.handle(rep)
 }
 
@@ -114,7 +213,7 @@ func (r *Runner) SessionStart(ctx context.Context) {
 	if !r.Enabled() {
 		return
 	}
-	r.handle(Run(ctx, Payload{Event: SessionStart, Cwd: r.cwd}, r.hooks, r.spawner))
+	r.handle(Run(ctx, Payload{Event: SessionStart, Cwd: r.cwd}, r.hooks, r.spawn))
 }
 
 // SessionEnd fires when a session is closed or rotated (/new). It can't block.
@@ -122,7 +221,7 @@ func (r *Runner) SessionEnd(ctx context.Context) {
 	if !r.Enabled() {
 		return
 	}
-	r.handle(Run(ctx, Payload{Event: SessionEnd, Cwd: r.cwd}, r.hooks, r.spawner))
+	r.handle(Run(ctx, Payload{Event: SessionEnd, Cwd: r.cwd}, r.hooks, r.spawn))
 }
 
 // SubagentStop fires when a `task` sub-agent finishes. It can't block; last is
@@ -131,7 +230,7 @@ func (r *Runner) SubagentStop(ctx context.Context, last string) {
 	if !r.Enabled() {
 		return
 	}
-	r.handle(Run(ctx, Payload{Event: SubagentStop, Cwd: r.cwd, LastAssistant: last}, r.hooks, r.spawner))
+	r.handle(Run(ctx, Payload{Event: SubagentStop, Cwd: r.cwd, LastAssistant: last}, r.hooks, r.spawn))
 }
 
 // Notification fires when the agent needs the user's attention (e.g. a pending
@@ -140,7 +239,7 @@ func (r *Runner) Notification(ctx context.Context, message string) {
 	if !r.Enabled() {
 		return
 	}
-	r.handle(Run(ctx, Payload{Event: Notification, Cwd: r.cwd, Message: message}, r.hooks, r.spawner))
+	r.handle(Run(ctx, Payload{Event: Notification, Cwd: r.cwd, Message: message}, r.hooks, r.spawn))
 }
 
 // PostLLMCall fires after every model turn completes but before the
@@ -152,7 +251,7 @@ func (r *Runner) PostLLMCall(ctx context.Context, reasoning string, turn int) st
 	if !r.Has(PostLLMCall) {
 		return reasoning
 	}
-	rep := Run(ctx, Payload{Event: PostLLMCall, Cwd: r.cwd, Reasoning: reasoning, Turn: turn}, r.hooks, r.spawner)
+	rep := Run(ctx, Payload{Event: PostLLMCall, Cwd: r.cwd, Reasoning: reasoning, Turn: turn}, r.hooks, r.spawn)
 	r.handle(rep)
 	for _, o := range rep.Outcomes {
 		if o.Decision == DecisionPass {
@@ -171,7 +270,7 @@ func (r *Runner) PreCompact(ctx context.Context, trigger string) string {
 	if !r.Enabled() {
 		return ""
 	}
-	rep := Run(ctx, Payload{Event: PreCompact, Cwd: r.cwd, Trigger: trigger}, r.hooks, r.spawner)
+	rep := Run(ctx, Payload{Event: PreCompact, Cwd: r.cwd, Trigger: trigger}, r.hooks, r.spawn)
 	r.handle(rep)
 	var b strings.Builder
 	for _, o := range rep.Outcomes {

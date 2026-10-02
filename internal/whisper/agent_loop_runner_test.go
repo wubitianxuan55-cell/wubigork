@@ -127,11 +127,18 @@ func TestExecuteToolBatch_AppendMemory(t *testing.T) {
 	}
 }
 
+// TestExecuteToolBatch_UseComputerNilRouter Router 未接线时必须产出**诚实回执**
+// （线3 IN4-05 现场复核：旧行为「什么都不追加」= 模型拿到空结果集、用户侧看不到
+// 动作没执行；旧断言把该静默失败当期望，已随缺口修复一并更新）。
 func TestExecuteToolBatch_UseComputerNilRouter(t *testing.T) {
 	r := &AgentLoopRunner{}
 	results := r.executeToolBatch([]AgentAction{{Name: "use_computer", Args: map[string]string{"action": "list_folder"}}})
-	if len(results) != 0 {
-		t.Errorf("Router 为 nil 时应跳过 use_computer, got %v", results)
+	if len(results) != 1 {
+		t.Fatalf("Router 为 nil 时应产出 1 条诚实回执, got %v", results)
+	}
+	if results[0].Name != "use_computer" || !strings.Contains(results[0].Content, "未启用") ||
+		!strings.Contains(results[0].Content, "未执行") {
+		t.Errorf("回执应经既有 use_computer 通道说明「未启用/未执行」, got %+v", results[0])
 	}
 }
 
@@ -158,16 +165,42 @@ func TestDefaultAgentLoopRunner(t *testing.T) {
 	}
 }
 
+// recordingLlm 记录送入 LLM 的 user prompt，供「诚实回执是否真的回传给模型」断言。
+type recordingLlm struct {
+	reply string
+	seen  []string
+}
+
+func (m *recordingLlm) Chat(systemPrompt, userPrompt string) (string, error) {
+	m.seen = append(m.seen, userPrompt)
+	return m.reply, nil
+}
+
 func TestRunAgentLoop_FinalReplyBranch(t *testing.T) {
-	// Router == nil → use_computer 无结果 → shouldContinue=false → 生成最终总结
-	innerArgs, _ := json.Marshal(map[string]string{"action": "list_folder", "path": "C:\\x"})
+	// Router == nil → use_computer 产出诚实回执 → 回执进入下一轮 prompt（旧行为是
+	// 空结果集 + 静默 AllPassed 收尾；线3 已按诚实降级口径修正，本用例随之更新）。
+	innerArgs, _ := json.Marshal(map[string]string{"action": "list_folder", "path": `C:\x`})
 	block, _ := json.Marshal(map[string]interface{}{"name": "use_computer", "arguments": string(innerArgs)})
 	reply := "```tool_call\n" + string(block) + "\n```\n"
-	r := &AgentLoopRunner{Llm: llmStub{reply: reply}, MaxRounds: 3}
-	// 第一轮返回工具块；最终总结调用返回纯文本
+	llm := &recordingLlm{reply: reply}
+	r := &AgentLoopRunner{Llm: llm, MaxRounds: 3}
 	result := r.RunAgentLoop(context.Background(), "帮我看看", nil)
-	if !result.AllPassed {
-		t.Errorf("应标记完成: %+v", result)
+	if result.TotalResults == 0 {
+		t.Fatalf("诚实回执应计入工具结果, got %+v", result)
+	}
+	// 第 2 轮及之后的 prompt 必须带上这条回执（用户/模型可见「没执行」）
+	found := false
+	for i, p := range llm.seen {
+		if i == 0 {
+			continue
+		}
+		if strings.Contains(p, "未启用") && strings.Contains(p, "未执行") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("诚实回执应回传给模型, prompts=%v", llm.seen)
 	}
 }
 

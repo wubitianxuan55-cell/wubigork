@@ -69,6 +69,24 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const listRef = useRef<HTMLDivElement>(null)
   const sendRef = useRef<(() => void) | undefined>(undefined)
   const inputRef = useRef<React.ComponentRef<typeof Input.TextArea>>(null)
+  // T6-3.3 同口径（hooks/useChatStream.ts:49-50）：模拟打字循环取消标志——
+  // 切话题/卸载即置 true 中止循环，新回合开始复位；不打字时恒 false。
+  const typingCancelRef = useRef(false)
+  // 本会话写入过的消息 id：父层把消息列表整体换成不含这些 id 的新列表 = 换了话题
+  // （宿主 NovelSettingPage 在切书时 setMessages([])，组件不重挂载）。
+  const ownedIdsRef = useRef<Set<string>>(new Set())
+
+  // 卸载中止在途打字循环（旧循环不再 setStreamText / 不再覆盖外部消息）
+  useEffect(() => () => { typingCancelRef.current = true }, [])
+
+  // 切话题（父层整体替换消息列表）中止在途打字循环：口径同 useChatStream T6-3.3
+  // 「切话题即中止模拟打字流」。判据用 id 归属而非数组引用，父层重建同内容数组不误判。
+  useEffect(() => {
+    const owned = ownedIdsRef.current
+    if (owned.size === 0) return
+    if (messages.some((m) => owned.has(m.id))) return
+    typingCancelRef.current = true
+  }, [messages])
 
   // 当监听到外部 autoSend → 展开面板 → 设输入 → 自动发送
   useEffect(() => {
@@ -92,19 +110,26 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   async function handleSendImpl() {
     const msg = input.trim()
     if (!msg || loading) return
+    // 新回合：复位取消标志（旧循环已在切话题/卸载时中止；不复位则后续回合不打字）
+    typingCancelRef.current = false
     setInput('')
     setLoading(true)
 
-    const newMessages = [...messages, { id: nextId(), role: 'user' as const, content: msg }]
+    const userMsg: Message = { id: nextId(), role: 'user', content: msg }
+    const newMessages = [...messages, userMsg]
+    ownedIdsRef.current.add(userMsg.id)
     onMessagesChange?.(newMessages)
 
     const aiMsg: Message = { id: nextId(), role: 'assistant', content: '', streaming: true }
     const withAi = [...newMessages, aiMsg]
+    ownedIdsRef.current.add(aiMsg.id)
 
     try {
       onMessagesChange?.(withAi)
 
       const result = await onSend(msg)
+      // 回合已被取消（卸载/切话题）：不进入打字流，也不再写任何状态
+      if (typingCancelRef.current) return
       if (typeof result === 'string') {
         const text = result
         setStreamText('')
@@ -113,6 +138,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         await new Promise<void>((resolve) => {
           let i = 0
           const tick = () => {
+            // T6-3.3：切话题/卸载即中止模拟打字流（避免过期 setStreamText 持续写入）
+            if (typingCancelRef.current) { resolve(); return }
             i = Math.min(text.length, i + 3)
             setStreamText(text.slice(0, i))
             if (i >= text.length) { resolve(); return }
@@ -120,12 +147,17 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           }
           requestAnimationFrame(tick)
         })
+        // 循环被取消（切话题/卸载）→ 不再更新消息与最终态，否则旧回合快照会
+        // 覆盖切话题后父层刚重置的消息列表。
+        if (typingCancelRef.current) return
         aiMsg.content = text
         aiMsg.streaming = false
         setStreamText('')
         onMessagesChange?.([...withAi])
       }
     } catch (err: unknown) {
+      // 回合已取消：错误文案同样不得写进新会话
+      if (typingCancelRef.current) return
       const last = withAi[withAi.length - 1]
       if (last && last.role === 'assistant') {
         last.content = `错误: ${err instanceof Error ? err.message : String(err)}`

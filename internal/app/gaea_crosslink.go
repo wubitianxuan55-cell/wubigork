@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/spaces"
+	"github.com/gaea/gaea/internal/gaea/wspath"
 	"github.com/gaea/gaea/internal/office/crosslink"
 )
 
@@ -53,9 +54,14 @@ func (a *App) GaeaCrossEmbed(in CrossEmbedInput) (CrossEmbedResult, error) {
 		return CrossEmbedResult{}, fmt.Errorf("不支持的图表类型 %q（bar/line/pie/scatter）", in.ChartType)
 	}
 
+	// 审计 2026-10-02 AP5-09：xlsx 源相对路径改调唯一原语（原为无校验 Join）。
 	xlsxPath := in.XlsxRel
 	if !filepath.IsAbs(in.XlsxRel) {
-		xlsxPath = filepath.Join(gaeaCwd(), in.XlsxRel)
+		p, perr := wspath.ResolveRelWithin(gaeaCwd(), in.XlsxRel)
+		if perr != nil {
+			return CrossEmbedResult{}, fmt.Errorf("非法工作区相对路径: %s", in.XlsxRel)
+		}
+		xlsxPath = p
 	}
 	if _, err := os.Stat(xlsxPath); err != nil {
 		return CrossEmbedResult{}, fmt.Errorf("xlsx 不存在：%s", in.XlsxRel)
@@ -82,11 +88,17 @@ func (a *App) GaeaCrossEmbed(in CrossEmbedInput) (CrossEmbedResult, error) {
 		return CrossEmbedResult{}, err
 	}
 
+	// 审计 2026-10-02 AP5-09：输出路径原为无校验 Join + MkdirAll——可借
+	// `..\..\x` 在工作区外建目录并落盘；改调唯一原语。绝对路径分支保留原样。
 	outPath := in.Output
 	if outPath == "" {
 		outPath = filepath.Join(exportsDir, base+"-"+stamp+"."+into)
 	} else if !filepath.IsAbs(outPath) {
-		outPath = filepath.Join(gaeaCwd(), outPath)
+		p, perr := wspath.ResolveRelWithin(gaeaCwd(), outPath)
+		if perr != nil {
+			return CrossEmbedResult{}, fmt.Errorf("非法工作区相对路径: %s", in.Output)
+		}
+		outPath = p
 	}
 	if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
 		return CrossEmbedResult{}, err

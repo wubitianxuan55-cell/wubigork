@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/evidence"
+	"github.com/gaea/gaea/internal/gaea/wspath"
 	"github.com/gaea/gaea/internal/office/docxedit"
 )
 
@@ -50,9 +51,16 @@ func (a *App) GaeaDocxApplyEdit(rel, selectedText, replacement string) (PreviewR
 	if rel == "" {
 		return PreviewResult{}, fmt.Errorf("缺少文件路径")
 	}
+	// 审计 2026-10-02 AP5-09：相对路径判据改调唯一原语（原为无校验 Join，可逃逸
+	// 工作区后按修订模式**写**工作区外 docx）。绝对路径分支保留原样（文档族绑定
+	// 允许前端/用户传已绝对化的合法路径）。
 	path := rel
 	if !filepath.IsAbs(rel) {
-		path = filepath.Join(gaeaCwd(), rel)
+		p, perr := wspath.ResolveRelWithin(gaeaCwd(), rel)
+		if perr != nil {
+			return PreviewResult{}, fmt.Errorf("非法工作区相对路径: %s", rel)
+		}
+		path = p
 	}
 	// v4.157 小刀：落盘前基线快照（同 pptx_apply/xlsx_apply 口径；Verifier
 	// 通道 B 对有快照的写盘记录复核）。快照失败不阻断编辑（BaselinePath 如实
@@ -79,9 +87,15 @@ func (a *App) GaeaDocxAcceptChanges(rel string, accept bool) (PreviewResult, err
 	if rel == "" {
 		return PreviewResult{}, fmt.Errorf("缺少文件路径")
 	}
+	// 审计 2026-10-02 AP5-09：与 GaeaDocxApplyEdit 同款判据改调（accept=true
+	// 是不可逆整理，可写工作区外 docx）。绝对路径分支保留原样。
 	path := rel
 	if !filepath.IsAbs(rel) {
-		path = filepath.Join(gaeaCwd(), rel)
+		p, perr := wspath.ResolveRelWithin(gaeaCwd(), rel)
+		if perr != nil {
+			return PreviewResult{}, fmt.Errorf("非法工作区相对路径: %s", rel)
+		}
+		path = p
 	}
 	if accept {
 		baseline := docxBaselineSnapshot(path)

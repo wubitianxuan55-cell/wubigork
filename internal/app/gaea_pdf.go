@@ -13,6 +13,7 @@ import (
 
 	"github.com/gaea/gaea/internal/gaea/proc"
 	"github.com/gaea/gaea/internal/gaea/spaces"
+	"github.com/gaea/gaea/internal/gaea/wspath"
 )
 
 // ── PDF 导出：LibreOffice 无头转换 ──────────────────────────
@@ -44,13 +45,13 @@ func (a *App) GaeaConvertToPdf(rel string) (ConvertPdfResult, error) {
 	}
 	path := rel
 	if !filepath.IsAbs(rel) {
-		// v4.363：相对路径拒 .. 穿越——Join 会 Clean 掉 ..，..\..\x.docx 可
-		// 逃逸工作区；对齐 GaeaReadFile 口径。
-		clean := filepath.Clean(filepath.FromSlash(rel))
-		if clean == "." || strings.HasPrefix(clean, "..") || strings.Contains(clean, ".."+string(filepath.Separator)) {
+		// v4.363：相对路径拒 .. 穿越；审计 2026-10-02 AP5-09：判据改调唯一原语
+		// wspath.ResolveRelWithin（Clean + 包含性检查，与全仓同类站点同源）。
+		p, err := wspath.ResolveRelWithin(gaeaCwd(), rel)
+		if err != nil {
 			return ConvertPdfResult{}, fmt.Errorf("非法工作区相对路径: %s", rel)
 		}
-		path = filepath.Join(gaeaCwd(), clean)
+		path = p
 	}
 	// v4.363：读侧收口——本绑定是「读任意路径喂外部转换进程」的原语，此前
 	// 绝对路径直通无约束（v4.358 审计挂池）。统一门 = 工作区/数据根白名单

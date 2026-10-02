@@ -297,10 +297,13 @@ type SpawnInput struct {
 	Cwd     string
 	Stdin   string
 	Timeout time.Duration
-	// Sandbox, when non-nil and Mode=="enforce", wraps the command in an OS-level
-	// sandbox (bubblewrap on Linux, Seatbelt on macOS) matching the bash tool's
-	// confinement: read-only filesystem, writes confined to WriteRoots, network
-	// denied unless allowed. nil means run unwrapped (backward compatible).
+	// Sandbox, when non-nil and Mode=="enforce", wraps the command in an
+	// OS-level sandbox (bubblewrap on Linux, WSL2 on Windows, Seatbelt on macOS)
+	// matching the bash tool's confinement: read-only filesystem, writes
+	// confined to WriteRoots, network denied unless allowed. nil means run
+	// unwrapped. Runner.spawn fills this from the Runner's spec for every event
+	// path; on a platform that cannot confine, spawn leaves it nil *and* warns
+	// once via notify rather than claiming confinement (GA4-06).
 	Sandbox *sandbox.Spec
 }
 
@@ -311,9 +314,23 @@ type SpawnResult struct {
 	TimedOut  bool
 	SpawnErr  error
 	Truncated bool
+	// sandboxApplied records whether the requested sandbox wrap actually
+	// happened (sandbox.Command's bool). DefaultSpawner sets it on the sandbox
+	// path; false there means "ran unconfined", which Runner.spawn reports
+	// (GA4-06). Unexported: it is spawner→runner signalling, not public API.
+	sandboxApplied bool
 }
 
 type Spawner func(ctx context.Context, in SpawnInput) SpawnResult
+
+// hookSandboxCommand is sandbox.Command behind a variable so tests can drive the
+// "spec asks for a wrap, wrapping is possible, wrapping happens/fails" decision
+// without depending on a real WSL2 distro, bwrap, or sandbox-exec — and without
+// having to stand up a runnable shell stub for the resolved interpreter. It has
+// the same signature as sandbox.Command, so the only thing it changes is
+// injectability; returning false means "not confined" and is never swallowed
+// (GA4-06). Test seam only: no production caller assigns it.
+var hookSandboxCommand = sandbox.Command
 
 // outputCapBytes bounds per-stream capture so a runaway child can't blow up the
 // heap between spawn and timeout.
@@ -384,11 +401,23 @@ func DefaultSpawner(ctx context.Context, in SpawnInput) SpawnResult {
 	defer cancel()
 
 	var cmd *exec.Cmd
+	// Wrap only when the spec asks for confinement. sandbox.Command decides
+	// whether a wrap is actually possible *and* whether it succeeded; its bool is
+	// the only evidence we have that the command really is confined, so it — not
+	// sandbox.Available() — sets sandboxApplied. (Windows with WSL2 present can
+	// still return false from WrapCommand, seatbelt_windows.go:15-24.) Discarding
+	// that bool was the GA4-06 silent failure.
+	sandboxed := false
 	if in.Sandbox != nil && in.Sandbox.Mode == "enforce" {
-		sh := sandbox.ResolveShell()
-		argv, _ := sandbox.Command(*in.Sandbox, sh, in.Command)
-		cmd = exec.CommandContext(cctx, argv[0], argv[1:]...)
-	} else {
+		argv, ok := hookSandboxCommand(*in.Sandbox, sandbox.ResolveShell(), in.Command)
+		if ok {
+			cmd = exec.CommandContext(cctx, argv[0], argv[1:]...)
+			sandboxed = true
+		}
+	}
+	if cmd == nil {
+		// !ok / no spec / Mode != "enforce": run unwrapped with sandboxed=false,
+		// which is what Runner.spawn reports as "hook commands run unconfined".
 		name, args := shellInvocation(in.Command)
 		cmd = exec.CommandContext(cctx, name, args...)
 	}
@@ -404,10 +433,11 @@ func DefaultSpawner(ctx context.Context, in SpawnInput) SpawnResult {
 
 	err := cmd.Run()
 	res := SpawnResult{
-		ExitCode:  -1,
-		Stdout:    strings.TrimSpace(outBuf.String()),
-		Stderr:    strings.TrimSpace(errBuf.String()),
-		Truncated: outBuf.truncated || errBuf.truncated,
+		ExitCode:       -1,
+		Stdout:         strings.TrimSpace(outBuf.String()),
+		Stderr:         strings.TrimSpace(errBuf.String()),
+		Truncated:      outBuf.truncated || errBuf.truncated,
+		sandboxApplied: sandboxed,
 	}
 	switch {
 	case cctx.Err() == context.DeadlineExceeded:

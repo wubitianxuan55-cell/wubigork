@@ -1,15 +1,15 @@
 {
   "schema": "gaea-test-ctors-baseline/1",
-  "generatedAt": "2026-10-02T14:11:18.202Z",
+  "generatedAt": "2026-10-02T14:43:04.044Z",
   "generatedBy": "node scripts/check-test-ctors.mjs --write-baseline",
-  "head": "03e0fc0cf47f",
+  "head": "a08e91299047",
   "audit": {
     "doc": "docs/code-audit-2026-10-02/round-1-p0-status.md",
     "finding": "P0#25 / 源 X1-03（三重以上 *core 嵌入 → nil 嵌入 panic 三犯）"
   },
   "inputs": {
     "root": "internal/app",
-    "testFiles": 280,
+    "testFiles": 281,
     "appPath": "internal/app/app.go",
     "embedded": [
       "core",
@@ -19,22 +19,22 @@
       "officeState"
     ],
     "embeddedSource": "internal/app/app.go 解析",
-    "totalHits": 363,
+    "totalHits": 364,
     "prodRefHits": 1
   },
   "classCounts": {
     "bare": 228,
-    "core-only": 91,
+    "core-only": 92,
     "partial": 44,
     "full": 0
   },
   "classCountsLiteralOnly": {
     "bare": 228,
-    "core-only": 118,
+    "core-only": 119,
     "partial": 17,
     "full": 0
   },
-  "inHelperCount": 31,
+  "inHelperCount": 32,
   "amplifierCount": 4,
   "rescuedByPostAssign": 27,
   "constructorHelpers": [
@@ -42,6 +42,7 @@
     "bsTestApp",
     "costAIParseApp",
     "countingEmbedEnv",
+    "matrixApp",
     "modelHubPreloadTestApp",
     "modelsTestApp",
     "mustRewriteMockApp",
@@ -7478,6 +7479,27 @@
         "officeState"
       ],
       "text": "app := &App{core: &core{cfg: cfg}}"
+    },
+    {
+      "key": "internal/app/wspath_guard_matrix_test.go::matrixApp#1",
+      "file": "internal/app/wspath_guard_matrix_test.go",
+      "line": 99,
+      "func": "matrixApp",
+      "class": "core-only",
+      "classLiteralOnly": "core-only",
+      "postAssigned": [],
+      "inHelper": true,
+      "helperAmplifier": false,
+      "embeddedSet": [
+        "core"
+      ],
+      "embeddedMissing": [
+        "writingState",
+        "mediaState",
+        "whisperState",
+        "officeState"
+      ],
+      "text": "func matrixApp() *App { return &App{core: &core{}} }"
     },
     {
       "key": "internal/app/wx_agent_test.go::newWxAgentTestApp#1",

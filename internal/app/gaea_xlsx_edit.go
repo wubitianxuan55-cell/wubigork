@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/evidence"
+	"github.com/gaea/gaea/internal/gaea/wspath"
 	"github.com/gaea/gaea/internal/office/xlsxedit"
 	"github.com/gaea/gaea/internal/office/xlsxpreview"
 	"github.com/gaea/gaea/internal/util"
@@ -41,9 +42,15 @@ func (a *App) GaeaXlsxPlanEdit(rel, sheet, instruction, selection string) (XlsxP
 	if rel == "" {
 		return XlsxPlanResult{}, fmt.Errorf("缺少文件路径")
 	}
+	// 审计 2026-10-02 AP5-09：相对路径判据改调唯一原语（本文件的 6 处同款分支
+	// 原为逐处手写无校验 Join）。绝对路径分支保留原样（文档族绑定合法用途）。
 	path := rel
 	if !filepath.IsAbs(rel) {
-		path = filepath.Join(gaeaCwd(), rel)
+		p, perr := wspath.ResolveRelWithin(gaeaCwd(), rel)
+		if perr != nil {
+			return XlsxPlanResult{}, fmt.Errorf("非法工作区相对路径: %s", rel)
+		}
+		path = p
 	}
 	if _, err := os.Stat(path); err != nil {
 		return XlsxPlanResult{}, fmt.Errorf("文件不存在：%s", rel)
@@ -101,9 +108,14 @@ func (a *App) GaeaXlsxApplyEdit(rel, opsJSON string) (XlsxEditResult, error) {
 	if rel == "" {
 		return XlsxEditResult{}, fmt.Errorf("缺少文件路径")
 	}
+	// 审计 2026-10-02 AP5-09：同 GaeaXlsxPlanEdit，判据改调唯一原语。
 	path := rel
 	if !filepath.IsAbs(rel) {
-		path = filepath.Join(gaeaCwd(), rel)
+		p, perr := wspath.ResolveRelWithin(gaeaCwd(), rel)
+		if perr != nil {
+			return XlsxEditResult{}, fmt.Errorf("非法工作区相对路径: %s", rel)
+		}
+		path = p
 	}
 	if _, err := os.Stat(path); err != nil {
 		return XlsxEditResult{}, fmt.Errorf("文件不存在：%s", rel)
@@ -214,9 +226,15 @@ func (a *App) GaeaXlsxSetCell(rel, sheet, ref, value string) (XlsxEditResult, er
 	if rel == "" || ref == "" {
 		return XlsxEditResult{}, fmt.Errorf("缺少文件路径或单元格")
 	}
+	// 审计 2026-10-02 AP5-09：判据改调唯一原语（SetCell/RowOps/ColOps 三处
+	// 逐字相同的无校验 Join 分支）。
 	path := rel
 	if !filepath.IsAbs(rel) {
-		path = filepath.Join(gaeaCwd(), rel)
+		p, perr := wspath.ResolveRelWithin(gaeaCwd(), rel)
+		if perr != nil {
+			return XlsxEditResult{}, fmt.Errorf("非法工作区相对路径: %s", rel)
+		}
+		path = p
 	}
 	if _, err := os.Stat(path); err != nil {
 		return XlsxEditResult{}, fmt.Errorf("文件不存在：%s", rel)
@@ -266,9 +284,14 @@ func (a *App) GaeaXlsxRecalc(rel string) (XlsxEditResult, error) {
 	if rel == "" {
 		return XlsxEditResult{}, fmt.Errorf("缺少文件路径")
 	}
+	// 审计 2026-10-02 AP5-09：判据改调唯一原语（同 GaeaXlsxPlanEdit）。
 	path := rel
 	if !filepath.IsAbs(rel) {
-		path = filepath.Join(gaeaCwd(), rel)
+		p, perr := wspath.ResolveRelWithin(gaeaCwd(), rel)
+		if perr != nil {
+			return XlsxEditResult{}, fmt.Errorf("非法工作区相对路径: %s", rel)
+		}
+		path = p
 	}
 	if _, err := os.Stat(path); err != nil {
 		return XlsxEditResult{}, fmt.Errorf("文件不存在：%s", rel)
@@ -303,9 +326,14 @@ func (a *App) GaeaXlsxRowOps(rel, sheet, action, ref string) (res XlsxEditResult
 	if err != nil {
 		return XlsxEditResult{}, fmt.Errorf("无效单元格引用：%s", ref)
 	}
+	// 审计 2026-10-02 AP5-09：判据改调唯一原语（原为无校验 Join）。
 	path := rel
 	if !filepath.IsAbs(rel) {
-		path = filepath.Join(gaeaCwd(), rel)
+		p, perr := wspath.ResolveRelWithin(gaeaCwd(), rel)
+		if perr != nil {
+			return XlsxEditResult{}, fmt.Errorf("非法工作区相对路径: %s", rel)
+		}
+		path = p
 	}
 	if _, err := os.Stat(path); err != nil {
 		return XlsxEditResult{}, fmt.Errorf("文件不存在：%s", rel)
@@ -368,9 +396,14 @@ func (a *App) GaeaXlsxColOps(rel, sheet, action, ref string) (res XlsxEditResult
 	if err != nil {
 		return XlsxEditResult{}, fmt.Errorf("无效单元格引用：%s", ref)
 	}
+	// 审计 2026-10-02 AP5-09：判据改调唯一原语（原为无校验 Join）。
 	path := rel
 	if !filepath.IsAbs(rel) {
-		path = filepath.Join(gaeaCwd(), rel)
+		p, perr := wspath.ResolveRelWithin(gaeaCwd(), rel)
+		if perr != nil {
+			return XlsxEditResult{}, fmt.Errorf("非法工作区相对路径: %s", rel)
+		}
+		path = p
 	}
 	if _, err := os.Stat(path); err != nil {
 		return XlsxEditResult{}, fmt.Errorf("文件不存在：%s", rel)

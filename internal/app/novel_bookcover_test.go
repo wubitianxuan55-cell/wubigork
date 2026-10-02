@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/gaea/gaea/internal/ai"
+	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/project"
 )
 
@@ -178,6 +179,45 @@ func TestGaeaGenerateBookCoverSuccessURL(t *testing.T) {
 	}
 	if string(got) != string(want) {
 		t.Fatal("下载落盘字节与服务端不一致")
+	}
+}
+
+// TestGaeaGenerateBookCoverSafeModePrompt 是 AP2-04 的护栏契约锁
+// （审计 2026-10-02 批次十四）：
+//   - 安全模式**关闭**（零配置）→ 请求提示词不含安全段（改造前逐字节形态）；
+//   - 安全模式**开启** → 请求提示词 == 『关闭时的基线提示词 + imageSafePromptSuffix』
+//     逐字节相等——既证明注入了安全段，也证明注入是改造前后的**唯一**差异
+//     （没有顺手改动书封 prompt 其它部分）；
+//   - 3:4 尺寸契约不受护栏影响（防止日后为接护栏改走统一入口而悄悄丢 size）。
+func TestGaeaGenerateBookCoverSafeModePrompt(t *testing.T) {
+	a, _ := newTestAppWithProject(t, "novel-safe")
+	fb := installFakeBackend(t, a, &ai.ImageGenerationResponse{
+		Data: []ai.ImageData{{B64JSON: tinyPNG}},
+	}, nil)
+
+	// ① 关闭（playGuardrails 零值）：基线提示词。
+	if _, err := a.GaeaGenerateBookCover("novel-safe", "夜色蓝调"); err != nil {
+		t.Fatalf("生成书封失败: %v", err)
+	}
+	offPrompt := fb.lastReq.Prompt
+	if strings.Contains(offPrompt, "内容安全要求") {
+		t.Fatalf("安全模式关闭时不得注入安全段: %s", offPrompt)
+	}
+
+	// ② 开启：安全段注入。
+	withGaeaCfg(t, guardrailsCfg(gaeaConfig.PlayGuardrails{Enabled: true, ImageSafeMode: true}))
+	if _, err := a.GaeaGenerateBookCover("novel-safe", "夜色蓝调"); err != nil {
+		t.Fatalf("生成书封失败: %v", err)
+	}
+	onPrompt := fb.lastReq.Prompt
+	if want := offPrompt + imageSafePromptSuffix; onPrompt != want {
+		t.Fatalf("安全模式提示词应为「基线+安全段」逐字节相等:\ngot  %q\nwant %q", onPrompt, want)
+	}
+	if fb.callN != 2 {
+		t.Fatalf("两次调用应各发一次请求，got %d", fb.callN)
+	}
+	if fb.lastReq.Size != "768x1024" {
+		t.Fatalf("护栏不得改变严格 3:4 尺寸契约，got %q", fb.lastReq.Size)
 	}
 }
 

@@ -305,12 +305,15 @@ export const useScheduleStore = create<ScheduleState>()(
 
       setView: (view) => set({ view }),
       select: (selectedId) => set({ selectedId }),
-      renameProject: (name) => set((s) => { pushHistory('rename'); return { project: { ...s.project, name } } }),
-      setStartDate: (startDate) => set((s) => { pushHistory('startDate'); return { project: { ...s.project, startDate } } }),
+      // FE7-11：pushHistory 是模块级副作用的入口（读写合并游标 lastPush + 内部再调
+      // setState），newId 会推进模块级 idSeq——一律先在动作体内执行，动作传给 set 的
+      // 更新器保持纯函数（重放/双跑不再推进游标、不再多消费 id、不再重入 setState）。
+      renameProject: (name) => { pushHistory('rename'); set((s) => ({ project: { ...s.project, name } })) },
+      setStartDate: (startDate) => { pushHistory('startDate'); set((s) => ({ project: { ...s.project, startDate } })) },
       importProject: (p) => { pushHistory(); set({ project: normalizeProject(p), selectedId: null }) },
       importAsProject: (p) => importThenSwitch(p),
-      setCalendar: (calendar) => set((s) => { pushHistory('calendar'); return { project: { ...s.project, calendar: normalizeCalendar(calendar) } } }),
-      setDeadline: (d) => set((s) => { pushHistory('deadline'); return { project: { ...s.project, deadline: d } } }),
+      setCalendar: (calendar) => { pushHistory('calendar'); set((s) => ({ project: { ...s.project, calendar: normalizeCalendar(calendar) } })) },
+      setDeadline: (d) => { pushHistory('deadline'); set((s) => ({ project: { ...s.project, deadline: d } })) },
 
       setBaseline: (name) => {
         pushHistory('baseline')
@@ -323,127 +326,147 @@ export const useScheduleStore = create<ScheduleState>()(
         useScheduleStore.setState({ project: { ...project, baseline: r.baseline, baselines } })
         return null
       },
-      clearBaseline: () => set((s) => { pushHistory('baseline'); return { project: { ...s.project, baseline: null } } }),
-      /** 切换活跃基线（v4.137 #11）：必须是槽位里已有的名字，否则无害 no-op */
-      activateBaseline: (name) => set((s) => {
-        const b = s.project.baselines?.find((x) => x.name === name)
-        if (!b || s.project.baseline?.name === name) return {}
+      clearBaseline: () => { pushHistory('baseline'); set((s) => ({ project: { ...s.project, baseline: null } })) },
+      /** 切换活跃基线（v4.137 #11）：必须是槽位里已有的名字，否则无害 no-op（不入史） */
+      activateBaseline: (name) => {
+        const { project } = useScheduleStore.getState()
+        const b = project.baselines?.find((x) => x.name === name)
+        if (!b || project.baseline?.name === name) return
         pushHistory('baseline')
-        return { project: { ...s.project, baseline: b } }
-      }),
+        set((s) => ({ project: { ...s.project, baseline: b } }))
+      },
       /** 删除基线槽（v4.137 #11）：删的是活跃槽时活跃指针一并置空（横道基线条消失，诚实） */
-      removeBaseline: (name) => set((s) => {
-        if (!s.project.baselines?.some((b) => b.name === name)) return {}
+      removeBaseline: (name) => {
+        if (!useScheduleStore.getState().project.baselines?.some((b) => b.name === name)) return
         pushHistory('baseline')
-        return {
+        set((s) => ({
           project: {
             ...s.project,
             baselines: s.project.baselines!.filter((b) => b.name !== name),
             baseline: s.project.baseline?.name === name ? null : s.project.baseline,
           },
-        }
-      }),
+        }))
+      },
       /** 改自定义字段列名（v4.138 #14）：空串=恢复缺省（删覆盖键） */
-      setCustomLabel: (key, label) => set((s) => {
+      setCustomLabel: (key, label) => {
         pushHistory('customLabel')
-        const next = { ...(s.project.customLabels ?? {}) }
-        const trimmed = label.trim()
-        if (trimmed === '') delete next[key]
-        else next[key] = trimmed
-        return { project: { ...s.project, customLabels: next } }
-      }),
+        set((s) => {
+          const next = { ...(s.project.customLabels ?? {}) }
+          const trimmed = label.trim()
+          if (trimmed === '') delete next[key]
+          else next[key] = trimmed
+          return { project: { ...s.project, customLabels: next } }
+        })
+      },
 
-      addTask: (afterId) => set((s) => {
+      addTask: (afterId) => {
+        // id 在 set 之前生成：newId 推进模块级 idSeq，不得留在更新器内
+        const id = newId('t')
         pushHistory('addTask')
-        const tasks = [...s.project.tasks]
-        const task: SchedTask = { id: newId('t'), name: '新任务', duration: 3, level: 1, progress: 0 }
-        let at = tasks.length
-        if (afterId) {
-          const i = tasks.findIndex((x) => x.id === afterId)
-          if (i >= 0) {
-            at = i + 1
-            // 插到选中行同级（若选中是分组行，则插入为其子级行位置，level 取下一行）
-            task.level = Math.min(1, tasks[i].level === 0 ? 1 : tasks[i].level)
+        set((s) => {
+          const tasks = [...s.project.tasks]
+          const task: SchedTask = { id, name: '新任务', duration: 3, level: 1, progress: 0 }
+          let at = tasks.length
+          if (afterId) {
+            const i = tasks.findIndex((x) => x.id === afterId)
+            if (i >= 0) {
+              at = i + 1
+              // 插到选中行同级（若选中是分组行，则插入为其子级行位置，level 取下一行）
+              task.level = Math.min(1, tasks[i].level === 0 ? 1 : tasks[i].level)
+            }
           }
-        }
-        tasks.splice(at, 0, task)
-        return { project: { ...s.project, tasks }, selectedId: task.id }
-      }),
+          tasks.splice(at, 0, task)
+          return { project: { ...s.project, tasks }, selectedId: task.id }
+        })
+      },
 
-      addGroup: () => set((s) => {
+      addGroup: () => {
+        // 同 addTask：两个 id 均在 set 之前生成（保持 g→t 的 idSeq 消费顺序）
+        const gid = newId('g')
+        const tid = newId('t')
         pushHistory('addGroup')
-        const tasks = [...s.project.tasks]
-        const group: SchedTask = { id: newId('g'), name: '新分组', duration: 0, level: 0, progress: 0 }
-        const child: SchedTask = { id: newId('t'), name: '新任务', duration: 3, level: 1, progress: 0 }
-        tasks.push(group, child)
-        return { project: { ...s.project, tasks }, selectedId: group.id }
-      }),
+        set((s) => {
+          const tasks = [...s.project.tasks]
+          const group: SchedTask = { id: gid, name: '新分组', duration: 0, level: 0, progress: 0 }
+          const child: SchedTask = { id: tid, name: '新任务', duration: 3, level: 1, progress: 0 }
+          tasks.push(group, child)
+          return { project: { ...s.project, tasks }, selectedId: group.id }
+        })
+      },
 
-      updateTask: (id, patch) => set((s) => {
+      updateTask: (id, patch) => {
         pushHistory('updateTask', id)
-        return {
+        set((s) => ({
           project: {
             ...s.project,
             tasks: s.project.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)),
           },
-        }
-      }),
+        }))
+      },
 
-      removeTask: (id) => set((s) => {
+      removeTask: (id) => {
         pushHistory('removeTask')
-        const kill = descendantIds(s.project.tasks, id)
-        return {
-          project: {
-            ...s.project,
-            tasks: s.project.tasks.filter((t) => !kill.has(t.id)),
-            links: s.project.links.filter((l) => !kill.has(l.from) && !kill.has(l.to)),
-            // 级联删分配（v4.124 刀3）：悬空分配会被 Go Validate 拒收，须随任务一并清除
-            assignments: s.project.assignments?.filter((a) => !kill.has(a.taskId)),
-          },
-          selectedId: s.selectedId === id ? null : s.selectedId,
-        }
-      }),
+        set((s) => {
+          const kill = descendantIds(s.project.tasks, id)
+          return {
+            project: {
+              ...s.project,
+              tasks: s.project.tasks.filter((t) => !kill.has(t.id)),
+              links: s.project.links.filter((l) => !kill.has(l.from) && !kill.has(l.to)),
+              // 级联删分配（v4.124 刀3）：悬空分配会被 Go Validate 拒收，须随任务一并清除
+              assignments: s.project.assignments?.filter((a) => !kill.has(a.taskId)),
+            },
+            selectedId: s.selectedId === id ? null : s.selectedId,
+          }
+        })
+      },
 
-      setPreds: (taskId, preds) => set((s) => {
+      setPreds: (taskId, preds) => {
         pushHistory('preds', taskId)
-        const kept = s.project.links.filter((l) => l.to !== taskId)
-        const added = preds
-          .filter((p) => p.from && p.from !== taskId)
-          .map((p): SchedLink => ({ from: p.from, to: taskId, type: p.type, lag: Math.round(p.lag) || 0 }))
-        return { project: { ...s.project, links: [...kept, ...added] } }
-      }),
+        set((s) => {
+          const kept = s.project.links.filter((l) => l.to !== taskId)
+          const added = preds
+            .filter((p) => p.from && p.from !== taskId)
+            .map((p): SchedLink => ({ from: p.from, to: taskId, type: p.type, lag: Math.round(p.lag) || 0 }))
+          return { project: { ...s.project, links: [...kept, ...added] } }
+        })
+      },
 
       // ── 资源成本（v4.124 刀3）：提交即写 project.resources/assignments，
       // 走既有防抖自动保存链路（编辑 → dirty → 800ms → GaeaScheduleSave）。
-      upsertResource: (r) => set((s) => {
+      upsertResource: (r) => {
         pushHistory('resource')
-        const type = r.type === 'material' || r.type === 'cost' ? r.type : 'work'
-        const id = typeof r.id === 'string' ? r.id : ''
-        const clean: SchedResource = {
-          id: id || newId('r'),
-          name: typeof r.name === 'string' && r.name ? r.name : '未命名资源',
-          type,
-          // 类型切换联动清理：cost 无费率/每次使用（金额在分配上）；unit 仅材料；maxUnits 仅工时
-          standardRate: type === 'cost' ? undefined : numOrUndefined(r.standardRate),
-          costPerUse: type === 'cost' ? undefined : numOrUndefined(r.costPerUse),
-          unit: type === 'material' && typeof r.unit === 'string' && r.unit ? r.unit : undefined,
-          maxUnits: type === 'work' ? numOrUndefined(r.maxUnits) : undefined,
-          // 个人日历（v4.137 #13）：仅工时资源有按天可用性语义；周历至少一项+字段逐项容错
-          calendar: type === 'work' && r.calendar && Array.isArray(r.calendar.workweek) && r.calendar.workweek.length > 0
-            ? {
-                workweek: [...new Set(r.calendar.workweek.filter((n) => Number.isInteger(n) && n >= 0 && n <= 6))].sort((a, b) => a - b),
-                holidays: Array.isArray(r.calendar.holidays)
-                  ? [...new Set(r.calendar.holidays.filter((h) => typeof h === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(h)))].sort()
-                  : [],
-              }
-            : undefined,
-        }
-        const resources = s.project.resources ?? []
-        const next = resources.some((x) => x.id === clean.id)
-          ? resources.map((x) => (x.id === clean.id ? clean : x))
-          : [...resources, clean]
-        return { project: { ...s.project, resources: next } }
-      }),
+        // 新资源 id 在 set 之前生成：newId 推进模块级 idSeq；短路顺序与原先一致
+        // （已有 id 时不消费 idSeq）。
+        const rid = (typeof r.id === 'string' ? r.id : '') || newId('r')
+        set((s) => {
+          const type = r.type === 'material' || r.type === 'cost' ? r.type : 'work'
+          const clean: SchedResource = {
+            id: rid,
+            name: typeof r.name === 'string' && r.name ? r.name : '未命名资源',
+            type,
+            // 类型切换联动清理：cost 无费率/每次使用（金额在分配上）；unit 仅材料；maxUnits 仅工时
+            standardRate: type === 'cost' ? undefined : numOrUndefined(r.standardRate),
+            costPerUse: type === 'cost' ? undefined : numOrUndefined(r.costPerUse),
+            unit: type === 'material' && typeof r.unit === 'string' && r.unit ? r.unit : undefined,
+            maxUnits: type === 'work' ? numOrUndefined(r.maxUnits) : undefined,
+            // 个人日历（v4.137 #13）：仅工时资源有按天可用性语义；周历至少一项+字段逐项容错
+            calendar: type === 'work' && r.calendar && Array.isArray(r.calendar.workweek) && r.calendar.workweek.length > 0
+              ? {
+                  workweek: [...new Set(r.calendar.workweek.filter((n) => Number.isInteger(n) && n >= 0 && n <= 6))].sort((a, b) => a - b),
+                  holidays: Array.isArray(r.calendar.holidays)
+                    ? [...new Set(r.calendar.holidays.filter((h) => typeof h === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(h)))].sort()
+                    : [],
+                }
+              : undefined,
+          }
+          const resources = s.project.resources ?? []
+          const next = resources.some((x) => x.id === clean.id)
+            ? resources.map((x) => (x.id === clean.id ? clean : x))
+            : [...resources, clean]
+          return { project: { ...s.project, resources: next } }
+        })
+      },
 
       removeResource: (id) => set((s) => ({
         project: {
@@ -453,32 +476,35 @@ export const useScheduleStore = create<ScheduleState>()(
         },
       })),
 
-      setTaskAssignments: (taskId, list) => set((s) => {
+      setTaskAssignments: (taskId, list) => {
+        // 分组行禁挂分配（fail-closed：汇总唯一口径=子孙求和，UI 入口已隐藏）：
+        // 判据在 pushHistory 之前——拒绝路径不得压栈、不得清空 redo 栈。
+        const task = useScheduleStore.getState().project.tasks.find((t) => t.id === taskId)
+        if (!task || task.level === 0) return
         pushHistory('assign', taskId)
-        // 分组行禁挂分配（fail-closed：汇总唯一口径=子孙求和，UI 入口已隐藏）
-        const task = s.project.tasks.find((t) => t.id === taskId)
-        if (!task || task.level === 0) return {}
-        const resIds = new Set((s.project.resources ?? []).map((r) => r.id))
-        const seen = new Set<string>()
-        const next: SchedAssignment[] = []
-        for (const a of list) {
-          // 整体替换前清洗：悬空资源/重复 (taskId,resourceId)/非法数值条目丢弃（同 normalize 容错口径）
-          if (!a || typeof a.resourceId !== 'string' || !resIds.has(a.resourceId)) continue
-          if (seen.has(a.resourceId)) continue
-          seen.add(a.resourceId)
-          next.push({
-            taskId,
-            resourceId: a.resourceId,
-            units: numOrUndefined(a.units),
-            quantity: numOrUndefined(a.quantity),
-            amount: numOrUndefined(a.amount),
-          })
-        }
-        const kept = (s.project.assignments ?? []).filter((a) => a.taskId !== taskId)
-        return { project: { ...s.project, assignments: [...kept, ...next] } }
-      }),
+        set((s) => {
+          const resIds = new Set((s.project.resources ?? []).map((r) => r.id))
+          const seen = new Set<string>()
+          const next: SchedAssignment[] = []
+          for (const a of list) {
+            // 整体替换前清洗：悬空资源/重复 (taskId,resourceId)/非法数值条目丢弃（同 normalize 容错口径）
+            if (!a || typeof a.resourceId !== 'string' || !resIds.has(a.resourceId)) continue
+            if (seen.has(a.resourceId)) continue
+            seen.add(a.resourceId)
+            next.push({
+              taskId,
+              resourceId: a.resourceId,
+              units: numOrUndefined(a.units),
+              quantity: numOrUndefined(a.quantity),
+              amount: numOrUndefined(a.amount),
+            })
+          }
+          const kept = (s.project.assignments ?? []).filter((a) => a.taskId !== taskId)
+          return { project: { ...s.project, assignments: [...kept, ...next] } }
+        })
+      },
 
-      setAoaPins: (pins) => set((s) => { pushHistory('aoaPins'); return { project: { ...s.project, aoaLayout: { pins } } } }),
+      setAoaPins: (pins) => { pushHistory('aoaPins'); set((s) => ({ project: { ...s.project, aoaLayout: { pins } } })) },
 
       loadSample: () => { pushHistory(); set({ project: makeSampleProject(), selectedId: null }) },
       clearAll: () => { pushHistory(); set({ project: makeEmptyProject(), selectedId: null }) },
