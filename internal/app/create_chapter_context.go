@@ -568,6 +568,10 @@ func characterSummaryLine(ch types.Character, relDigest map[string]string) strin
 	if rel := relDigest[ch.ID]; rel != "" {
 		line += "·关系：" + rel
 	}
+	// v4.454 与主角的关系（项目级字段）注入名册：非空才渲染，旧数据零变化。
+	if pr := strings.TrimSpace(ch.ProtagonistRelation); pr != "" {
+		line += "·与主角：" + util.Truncate(pr, charFieldLen)
+	}
 	line += "·" + ch.Status
 	return line
 }

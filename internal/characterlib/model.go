@@ -43,9 +43,6 @@ type Character struct {
 	Status          string   `json:"status,omitempty"` // Alive / Dead / Missing / Transformed
 	Notes           string   `json:"notes,omitempty"`
 	DialogueSamples []string `json:"dialogueSamples,omitempty"`
-	// v4.453 与主角的关系：2-8 字关系短语（如 师妹/宿敌/结拜兄弟），锚定库内
-	// RoleType=protagonist 的角色；AI 可随机生成（单字段/批量全部/剩余全部）。
-	ProtagonistRelation string `json:"protagonistRelation,omitempty"`
 
 	// ── 聊天侧 ──
 	ChatEnabled   bool                     `json:"chatEnabled"`

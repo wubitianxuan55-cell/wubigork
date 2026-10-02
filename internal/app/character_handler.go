@@ -391,6 +391,8 @@ func (a *writingState) GenerateProjectCharacterFill(chJSON string) (string, erro
 	}
 	updated := libCharToProject(next)
 	updated.ID = ch.ID // 保护身份，AI 不得改名/换 ID
+	// 项目级字段不随库投影丢失（v4.454 与主角关系只落本书，AI 补全链路原样保留）
+	updated.ProtagonistRelation = ch.ProtagonistRelation
 	if err := a.characterAgent.SaveCharacter(updated); err != nil {
 		return "", fmt.Errorf("保存角色失败: %w", err)
 	}

@@ -4,7 +4,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Typography, Button, Input, Modal, InputNumber, Drawer,
-  Select, message, Tabs, Tag, Switch, Popconfirm, Checkbox,
+  Select, message, Tabs, Tag, Switch, Popconfirm, Checkbox, Dropdown,
 } from 'antd'
 import {
   ThunderboltOutlined, PlusOutlined, ExperimentOutlined, CameraOutlined, MergeCellsOutlined,
@@ -33,7 +33,9 @@ import {
   getCharacters, saveOrganization, deleteOrganization, setCharacterCareer, removeCharacterCareer,
   saveRelationship, deleteRelationship,
   generateCharacterFill, generateCharacterPortrait, mergeCharacters,
+  generateProtagonistRelations,
 } from '../components/novel/api/character'
+import { subscribeWailsEvent } from '../gaea/lib/wailsEvents'
 import {
   listProjectCharacters, associateToProject, dissociateFromProject,
   syncProjectCharacters, importProjectCharacters, previewProjectImport,
@@ -101,6 +103,9 @@ const CharacterPage: React.FC = () => {
   // 同貌——用户会以为角色全丢了；给出原因 + 重试入口（对齐 HomePage v4.349 口径）。
   const [loadError, setLoadError] = useState('')
 
+  // v4.454 AI 主角关系（全部/剩余全部/个人）：项目级字段，只写本书 characters.json
+  const [relBusy, setRelBusy] = useState(false)
+  const [relProgress, setRelProgress] = useState('')
   // 抽卡
   const [drawOpen, setDrawOpen] = useState(false)
   const [drawCount, setDrawCount] = useState(5)
@@ -338,6 +343,59 @@ const CharacterPage: React.FC = () => {
     }
   }
 
+  // ── AI 主角关系：批量生成「与主角的关系」短语（项目级，进度独立通道）──
+  const runProtagonistRelations = async (mode: 'all' | 'missing' | 'one', name = '') => {
+    const onProgress = (ev: unknown) => {
+      const raw = ev as { detail?: unknown } | null | undefined
+      const d = (raw && typeof raw === 'object' && 'detail' in raw && raw.detail ? raw.detail : raw) as { current?: number; total?: number; name?: string } | null | undefined
+      if (d && d.current && d.total) setRelProgress(`正在生成 ${d.current}/${d.total}：${d.name || ''}`)
+    }
+    const off = window.runtime?.EventsOn
+      ? subscribeWailsEvent(window.runtime, 'protagonist-relation-progress', onProgress)
+      : () => { /* 无 wails runtime（浏览器 mock/测试）：不订阅也不报错 */ }
+    try {
+      setRelBusy(true)
+      setRelProgress('准备中…')
+      const res = await generateProtagonistRelations(mode, name)
+      const { updated, failed, failNames } = res || {}
+      if (failed > 0) {
+        message.warning(
+          `主角关系生成完成：更新 ${updated} 位，失败 ${failed} 位` +
+          (failNames?.length ? `（${failNames.slice(0, 3).join('、')}${failNames.length > 3 ? '…' : ''}）` : ''),
+        )
+      } else if (updated === 0) {
+        message.info('没有需要生成的角色（剩余全部=已都有主角关系；或仅主角本人）')
+      } else {
+        message.success(`已生成 ${updated} 位角色的主角关系`)
+      }
+      await refreshAll()
+      // 抽屉打开时同步其快照（复用职业链的 reloadProjectEdit，取最新 characters.json 值）
+      if (projectEdit?.id) await reloadProjectEdit(projectEdit.id)
+    } catch (err: unknown) {
+      message.error(`主角关系生成失败：${errText(err, String(err))}`)
+    } finally {
+      off()
+      setRelBusy(false)
+      setRelProgress('')
+    }
+  }
+
+  /** 批量入口：全部=覆盖重写须确认；剩余全部只补空白直接跑 */
+  const handleGenRelations = (mode: 'all' | 'missing') => {
+    if (!characters.length) return
+    if (mode === 'all') {
+      Modal.confirm({
+        title: 'AI 重写全部角色的主角关系？',
+        content: '将为除主角本人外的全部本书角色重新随机「与主角的关系」（已有关系会被覆盖）。角色较多时耗时较长。',
+        okText: '开始生成',
+        cancelText: '取消',
+        onOk: () => { void runProtagonistRelations('all') },
+      })
+      return
+    }
+    void runProtagonistRelations('missing')
+  }
+
   const handleSync = async () => {
     setSyncing(true)
     try {
@@ -550,6 +608,9 @@ const CharacterPage: React.FC = () => {
               <div className="char-detail-chips">
                 <Tag color={roleColor}>{roleLabel}</Tag>
                 <Tag>{statusLabel}</Tag>
+                {ch.protagonist_relation && (
+                  <Tag color="gold" data-testid="char-detail-relation">与主角：{ch.protagonist_relation}</Tag>
+                )}
                 <span className="char-detail-meta">{genderText}{ch.age ? ` · ${ch.age}岁` : ''}</span>
                 <span className="char-detail-meta"><LinkOutlined aria-hidden /> {relCount} 个关系</span>
                 {orgs.length > 0 && (
@@ -558,6 +619,14 @@ const CharacterPage: React.FC = () => {
               </div>
             </div>
             <div className="char-detail-head-actions">
+              {ch.role_type !== 'protagonist' && (
+                <Button size="small" icon={<UserOutlined />} loading={relBusy}
+                  data-testid="char-detail-gen-relation"
+                  onClick={() => void runProtagonistRelations('one', ch.name)}
+                  title="AI 随机生成该角色与主角的关系短语（覆盖重写；只写本书）">
+                  AI 主角关系
+                </Button>
+              )}
               {!projectRefs.has(ch.id) && (
                 <>
                   <Button size="small" icon={<ExperimentOutlined />} loading={filling}
@@ -889,6 +958,12 @@ const CharacterPage: React.FC = () => {
         </div>
       )}
 
+      {relBusy && relProgress && (
+        <div className="char-migration-banner" data-testid="char-rel-progress">
+          <span style={{ color: C('color-text') }}>{relProgress}（AI 逐个生成主角关系中，可继续操作）</span>
+        </div>
+      )}
+
       {/* 头部信息栏（收敛：无重复板块标题，保留统计与操作） */}
       <div className="char-panel-header">
         <div className="char-panel-stats">
@@ -900,6 +975,21 @@ const CharacterPage: React.FC = () => {
           )}
         </div>
         <div className="char-panel-actions">
+          <Dropdown
+            menu={{
+              items: [
+                { key: 'all', label: '全部角色（覆盖重写）' },
+                { key: 'missing', label: '剩余全部（只补空白）' },
+              ],
+              onClick: ({ key }) => handleGenRelations(key as 'all' | 'missing'),
+            }}
+            trigger={['click']}
+          >
+            <Button size="small" icon={<UserOutlined />} loading={relBusy} data-testid="char-gen-relations"
+              title="AI 随机生成各角色与主角的关系短语（锚定本书「主角」定位的角色；只写本书，不进通用角色库）">
+              AI 主角关系
+            </Button>
+          </Dropdown>
           <Button size="small" icon={<TeamOutlined />} onClick={navigateToCharacterLib}>去角色库</Button>
           <Button size="small" icon={<ImportOutlined />} onClick={handleImportLegacy} loading={wbBusy}
             title="把本书副本的设定回写到角色库：空缺自动补全，非空冲突逐字段确认后才覆盖">回写</Button>

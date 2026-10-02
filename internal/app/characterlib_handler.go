@@ -420,6 +420,19 @@ func (a *App) CharacterSyncProject() error {
 	if len(legacy) > 0 {
 		return fmt.Errorf("项目还有 %d 个角色未入库（%s），请先在角色库「导入项目」完成一次性迁移", len(legacy), strings.Join(legacy[:min(len(legacy), 3)], "、"))
 	}
+	// v4.454 项目级字段保护：「与主角的关系」只落本书，库投影不含它——按 ID
+	// 从旧工作副本回带，防止同步把已生成的关系清掉。
+	prevRel := make(map[string]string, len(cf.Characters))
+	for _, ch := range cf.Characters {
+		if r := strings.TrimSpace(ch.ProtagonistRelation); r != "" {
+			prevRel[ch.ID] = r
+		}
+	}
+	for i := range chars {
+		if r, ok := prevRel[chars[i].ID]; ok {
+			chars[i].ProtagonistRelation = r
+		}
+	}
 	cf.Characters = chars
 	return pm.WriteCharacters(cf)
 }

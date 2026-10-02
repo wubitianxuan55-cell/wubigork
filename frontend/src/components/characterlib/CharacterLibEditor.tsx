@@ -79,7 +79,6 @@ const FIELD_LABELS: Record<string, string> = {
   voiceGuide: '口吻指南',
   behaviorRules: '行为规则',
   emotionLogic: '情感逻辑',
-  protagonistRelation: '与主角关系',
 }
 
 // 本地即时随机的年龄池（无需 AI）
@@ -208,8 +207,7 @@ const CharacterLibEditor: React.FC<Props> = ({
       const wasDimsDefault = !form.dims || (['T', 'I', 'S', 'O', 'R'] as const).every(k => form.dims![k] === 50)
       let filledCount = 0
       const textKeys = ['roleType', 'gender', 'age', 'personality', 'appearance', 'figure',
-        'background', 'motivation', 'arc', 'status', 'notes', 'behaviorRules', 'emotionLogic',
-        'protagonistRelation'] as const
+        'background', 'motivation', 'arc', 'status', 'notes', 'behaviorRules', 'emotionLogic'] as const
       for (const k of textKeys) {
         const f = form[k] as string | undefined
         const g = filled[k] as string | undefined
@@ -752,12 +750,10 @@ const CharacterLibEditor: React.FC<Props> = ({
                     { key: 'figure' as const, label: '身材体型', rows: 1 },
                     { key: 'motivation' as const, label: '动机', rows: 2 },
                     { key: 'arc' as const, label: '角色弧线', rows: 2 },
-                    { key: 'protagonistRelation' as const, label: '与主角关系', rows: 1, ph: '与主角的关系短语（2-8 字），↻ 可 AI 随机' },
                   ].map(f => (
                     <div key={f.key} className="cd-field">
                       {fieldLabel(f.label, f.key)}
                       <TextArea className="cd-area" size="small" rows={f.rows} value={form[f.key] ?? ''}
-                        placeholder={f.ph ?? ''} autoSize={f.rows === 1 ? { minRows: 1, maxRows: 2 } : undefined}
                         onChange={e => patch({ [f.key]: e.target.value })} />
                     </div>
                   ))}

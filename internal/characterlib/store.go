@@ -192,8 +192,8 @@ func upsertOn(x execer, c *Character) error {
 			reference_images, gallery_images, reference_scores,
 			role_type, personality, background, appearance, figure, motivation, arc, status, notes, dialogue_samples,
 			chat_enabled, dims, voice_guide, behavior_rules, emotion_logic, hidden_persona,
-			assistant_id, hidden, created_at, updated_at, protagonist_relation
-		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+			assistant_id, hidden, created_at, updated_at
+		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET
 			name=excluded.name, kind=excluded.kind, gender=excluded.gender, age=excluded.age,
 			tags=excluded.tags, portrait_url=excluded.portrait_url,
@@ -205,13 +205,12 @@ func upsertOn(x execer, c *Character) error {
 			chat_enabled=excluded.chat_enabled, dims=excluded.dims, voice_guide=excluded.voice_guide,
 			behavior_rules=excluded.behavior_rules, emotion_logic=excluded.emotion_logic,
 			hidden_persona=excluded.hidden_persona, assistant_id=excluded.assistant_id,
-			hidden=excluded.hidden, updated_at=excluded.updated_at,
-			protagonist_relation=excluded.protagonist_relation`,
+			hidden=excluded.hidden, updated_at=excluded.updated_at`,
 		c.ID, c.Name, c.Kind, c.Gender, c.Age, string(tags), c.PortraitURL,
 		refs, gallery, marshalIntList(c.ReferenceScores),
 		c.RoleType, c.Personality, c.Background, c.Appearance, c.Figure, c.Motivation, c.Arc, c.Status, c.Notes, string(samples),
 		boolInt(c.ChatEnabled), string(dims), c.VoiceGuide, c.BehaviorRules, c.EmotionLogic, string(hidden),
-		c.AssistantID, boolInt(c.Hidden), c.CreatedAt, c.UpdatedAt, c.ProtagonistRelation,
+		c.AssistantID, boolInt(c.Hidden), c.CreatedAt, c.UpdatedAt,
 	)
 	return err
 }
@@ -291,7 +290,7 @@ func getOn(x execer, id string) (*Character, error) {
 			reference_images, gallery_images, reference_scores,
 			role_type, personality, background, appearance, figure, motivation, arc, status, notes, dialogue_samples,
 			chat_enabled, dims, voice_guide, behavior_rules, emotion_logic, hidden_persona,
-			assistant_id, hidden, created_at, updated_at, protagonist_relation
+			assistant_id, hidden, created_at, updated_at
 		FROM characters WHERE id = ?`, id)
 	c, err := scanCharacter(row)
 	if err == sql.ErrNoRows {
@@ -310,7 +309,7 @@ func (s *Store) FindByName(name string) (*Character, error) {
 			reference_images, gallery_images, reference_scores,
 			role_type, personality, background, appearance, figure, motivation, arc, status, notes, dialogue_samples,
 			chat_enabled, dims, voice_guide, behavior_rules, emotion_logic, hidden_persona,
-			assistant_id, hidden, created_at, updated_at, protagonist_relation
+			assistant_id, hidden, created_at, updated_at
 		FROM characters WHERE name = ? AND hidden = 0 ORDER BY updated_at DESC LIMIT 1`, name)
 	c, err := scanCharacter(row)
 	if err == sql.ErrNoRows {
@@ -375,7 +374,7 @@ func (s *Store) List(query, kind string, chatOnly bool, limit, offset int) ([]Ch
 			reference_images, gallery_images, reference_scores,
 			role_type, personality, background, appearance, figure, motivation, arc, status, notes, dialogue_samples,
 			chat_enabled, dims, voice_guide, behavior_rules, emotion_logic, hidden_persona,
-			assistant_id, hidden, created_at, updated_at, protagonist_relation
+			assistant_id, hidden, created_at, updated_at
 		FROM characters WHERE `+cond+` ORDER BY updated_at DESC LIMIT ? OFFSET ?`,
 		append(args, limit, offset)...)
 	if err != nil {
@@ -613,7 +612,7 @@ func (s *Store) DrawRandom(count int, gender, tags string, chatOnly bool) ([]Cha
 			reference_images, gallery_images, reference_scores,
 			role_type, personality, background, appearance, figure, motivation, arc, status, notes, dialogue_samples,
 			chat_enabled, dims, voice_guide, behavior_rules, emotion_logic, hidden_persona,
-			assistant_id, hidden, created_at, updated_at, protagonist_relation
+			assistant_id, hidden, created_at, updated_at
 		FROM characters WHERE `+cond+` ORDER BY RANDOM() LIMIT ?`,
 		append(args, count)...)
 	if err != nil {
@@ -695,7 +694,7 @@ func scanCharacter(row interface{ Scan(...any) error }) (*Character, error) {
 		&refs, &gallery, &scores,
 		&c.RoleType, &c.Personality, &c.Background, &c.Appearance, &c.Figure, &c.Motivation, &c.Arc, &c.Status, &c.Notes, &samples,
 		&chatEnabled, &dims, &c.VoiceGuide, &c.BehaviorRules, &c.EmotionLogic, &hidden,
-		&c.AssistantID, &hiddenFlag, &c.CreatedAt, &c.UpdatedAt, &c.ProtagonistRelation,
+		&c.AssistantID, &hiddenFlag, &c.CreatedAt, &c.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err

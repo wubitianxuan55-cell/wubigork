@@ -100,6 +100,12 @@ func (b *NovelB) GenerateOutlineWithDialogue(storyPrompt string, numChapters int
 func (b *NovelB) GenerateProjectCharacterFill(chJSON string) (string, error) {
 	return b.a.GenerateProjectCharacterFill(chJSON)
 }
+
+// GenerateProjectProtagonistRelations 本书角色「与主角的关系」AI 随机生成
+// （v4.454）：mode=all/missing/one，项目级字段只写 characters.json，不进通用库。
+func (b *NovelB) GenerateProjectProtagonistRelations(mode string, name string) (map[string]interface{}, error) {
+	return b.a.GenerateProjectProtagonistRelations(mode, name)
+}
 func (b *NovelB) GenerateScene(chapterNum int, sceneID string, plotReq string, minWords int) (map[string]interface{}, error) {
 	return b.a.GenerateScene(chapterNum, sceneID, plotReq, minWords)
 }

@@ -42,7 +42,7 @@ type NovelMethods = Pick<
   | "GetNovelState" | "BuildNovelStatePatch" | "SettleNovelState"
   | "DeSlopChapterAiTaste" | "RewriteChapterAiTaste" | "GetEntityRelations"
   | "GetChapterScenes" | "GenerateScene" | "CreateScene" | "SaveSceneMeta" | "CancelCreateChapter"
-  | "GenerateProjectCharacterFill" | "GenerateCharacterPortrait" | "MergeCharacters"
+  | "GenerateProjectCharacterFill" | "GenerateProjectProtagonistRelations" | "GenerateCharacterPortrait" | "MergeCharacters"
   | "SaveOrganization" | "DeleteOrganization" | "ToggleOrgMember"
   | "SetCharacterCareer" | "RemoveCharacterCareer"
   | "SaveRelationship" | "DeleteRelationship"
@@ -310,6 +310,9 @@ export function buildNovel(): NovelMethods {
       return false;
     },
     // 项目角色族：样例 JSON/占位（真实实现读写项目 characters.json）。
+    async GenerateProjectProtagonistRelations(_mode: string, _name: string) {
+      throw new Error("dev mock：主角关系生成需本地模型调用");
+    },
     async GenerateProjectCharacterFill(_chJSON: string) {
       return '{"id":"c1"}';
     },

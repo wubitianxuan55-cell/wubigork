@@ -28,10 +28,6 @@ export interface CharLibBindings {
   CharacterGenerateFill(chJSON: string): Promise<string>;
   CharacterGenerateRandom(chJSON: string, fields: string): Promise<string>;
   CharacterFillAll(): Promise<Record<string, unknown>>;
-  // CharacterGenerateProtagonistRelations 批量 AI 生成「与主角的关系」：
-  // mode=all 全部（覆盖）/missing 剩余全部（只补空白）/one 个人（name 指定）；
-  // 主角锚定库内 roleType=protagonist 卡，无主角卡 reject；逐角色 character-fill-progress 进度。
-  CharacterGenerateProtagonistRelations(mode: string, name: string): Promise<Record<string, unknown>>;
   CharacterGeneratePortrait(chJSON: string, model: string): Promise<string>;
   CharacterGeneratePortraitWithRef(chJSON: string, model: string, refImageDataURL: string): Promise<string>;
   // CharacterGenerateSheet 角色设定卡（qedit 参考编辑，阶段三刀 C）：

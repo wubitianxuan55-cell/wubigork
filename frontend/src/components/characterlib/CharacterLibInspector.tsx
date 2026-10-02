@@ -5,7 +5,7 @@ import React from 'react'
 import { Button, Popconfirm } from 'antd'
 import {
   IdcardOutlined, LeftOutlined, RightOutlined, EditOutlined, SwapOutlined,
-  DatabaseOutlined, ReadOutlined, DeleteOutlined, InboxOutlined, ThunderboltOutlined,
+  DatabaseOutlined, ReadOutlined, DeleteOutlined, InboxOutlined,
 } from '@ant-design/icons'
 import type { LibraryCharacter } from '../../api/characterlib'
 import { PortraitImg } from './PortraitImg'
@@ -42,15 +42,11 @@ interface Props {
   onAssociate: (c: LibraryCharacter) => void
   onDissociate: (c: LibraryCharacter) => void
   onDelete: (c: LibraryCharacter) => void
-  /** v4.453 个人入口：AI 生成该角色与主角的关系（覆盖重写） */
-  relBusy?: boolean
-  onGenRelationOne?: (c: LibraryCharacter) => void
 }
 
 const CharacterLibInspector: React.FC<Props> = ({
   character: c, index, inProject = false, isCurrentPersona = false, hasProject = false,
   collapsed, onToggleCollapse, onEdit, onSetPersona, onMemory, onAssociate, onDissociate, onDelete,
-  relBusy = false, onGenRelationOne,
 }) => {
   if (collapsed) {
     return (
@@ -141,14 +137,6 @@ const CharacterLibInspector: React.FC<Props> = ({
                 title={c.chatEnabled ? '设为当前聊天人格' : '该角色未开启聊天通道'}>设为人格</Button>
               {c.chatEnabled && (
                 <Button size="small" icon={<DatabaseOutlined />} onClick={() => onMemory(c)}>状态 / 记忆</Button>
-              )}
-              {onGenRelationOne && (
-                <Button size="small" icon={<ThunderboltOutlined />} loading={relBusy}
-                  data-testid="clib-insp-relation"
-                  onClick={() => onGenRelationOne(c)}
-                  title="AI 随机生成该角色与主角的关系短语（锚定库内「主角」定位的角色，覆盖重写）">
-                  AI 主角关系
-                </Button>
               )}
               {inProject ? (
                 hasProject && (

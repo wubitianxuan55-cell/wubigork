@@ -455,6 +455,11 @@ export interface NovelBindings {
   // 覆盖——同 Go NovelB.GetCharacters（map），无需重复）：AI 补全/剧照/合并/
   // 组织/关系。MergeCharacters 实测返回 map（非 void），Bridge 按 Record 暴露。
   GenerateProjectCharacterFill(chJSON: string): Promise<string>;
+  // GenerateProjectProtagonistRelations 本书角色「与主角的关系」AI 随机生成
+  // （v4.454，项目级字段只写 characters.json）：mode=all 全部（除主角本人，覆盖）/
+  // missing 剩余全部（只补空白）/one 个人（name 指定）；锚定本书 role_type=protagonist
+  // 卡，无主角 reject；逐角色 protagonist-relation-progress 进度。
+  GenerateProjectProtagonistRelations(mode: string, name: string): Promise<Record<string, unknown>>;
   GenerateCharacterPortrait(charID: string, model: string): Promise<string>;
   MergeCharacters(keepID: string, mergeID: string): Promise<Record<string, unknown>>;
   SaveOrganization(orgJSON: string): Promise<void>;

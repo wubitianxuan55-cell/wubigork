@@ -31,6 +31,8 @@ export interface CharacterData {
   motivation: string
   arc: string
   status: string
+  /** 与主角的关系（v4.454 项目级字段：2-8 字短语，AI 可随机生成） */
+  protagonist_relation?: string
   portrait_url?: string
   // ── v2 状态机（t5；GetCharacters 已返回，前端此前未消费）──
   current_state?: string

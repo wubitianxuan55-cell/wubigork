@@ -77,7 +77,11 @@ type Character struct {
 	Arc         string `json:"arc,omitempty"` // 角色弧光轨迹
 	Status      string `json:"status"`        // Alive / Dead / Missing / Transformed
 	Notes       string `json:"notes,omitempty"`
-	PortraitURL string `json:"portrait_url,omitempty"` // 角色剧照 URL 或 data URL
+	// 与主角的关系（v4.454）：2-8 字关系短语（如 师妹/宿敌/结拜兄弟），项目级
+	// 字段——通用角色库不固化关系，只落本书 characters.json。AI 可随机生成
+	// （范围：全部/剩余全部/个人），并注入章节生成的角色名册。
+	ProtagonistRelation string `json:"protagonist_relation,omitempty"`
+	PortraitURL         string `json:"portrait_url,omitempty"` // 角色剧照 URL 或 data URL
 
 	// ── v2 状态机（全部可选 + omitempty，旧 characters.json 零迁移）──
 	// 口径：docs/distill/05-character-career.md §7.1 与 09-impl-handoff.md §3-1/§3-2。
