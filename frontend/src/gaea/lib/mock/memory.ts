@@ -5,6 +5,7 @@ import type {
   KnowledgeSaveRequest,
   KnowledgeSummary,
   MemorySuggestion,
+  ProfileFactView,
   SkillSuggestion,
 } from "../types";
 import { emit, pinnedMock } from "./shared";
@@ -178,16 +179,18 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
     async ProfileList() {
       return [];
     },
-    async ProfileSave() {
+    // ── 以下族形参对齐 Go 门面签名（X1-11 契约测试）：浏览器 dev 回退为固定
+    // 空态/no-op，实参只收不用（_ 前缀）。行为零变化。──
+    async ProfileSave(_f: ProfileFactView) {
       // mock: no-op——浏览器开发环境无人物档案库（真实实现写入记忆中枢 profile 表）。
     },
-    async ProfileDelete() {
+    async ProfileDelete(_name: string) {
       // mock: no-op——同上，无档案可删。
     },
     async ProfileConflicts() {
       return [];
     },
-    async ProfileResolveConflict() {
+    async ProfileResolveConflict(_name: string, _prefer: string) {
       // mock: no-op——无冲突档案可仲裁。
     },
     async WhisperMemories() {
@@ -213,10 +216,10 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
         replayable: false,
       };
     },
-    async WhisperMemoryRetell() {
+    async WhisperMemoryRetell(_kind: "episode" | "anchor", _id: string, _personalityId: string) {
       return "（mock）那天的雨声、你说话的样子，我都还记得。";
     },
-    async WhisperCausalExplain() {
+    async WhisperCausalExplain(_entity: string, _personalityId: string) {
       return "（mock）看起来是最近的加班让睡眠变差了。";
     },
     async MemoryGraph() {
@@ -225,14 +228,14 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
     async MemoryBrief() {
       return true;
     },
-    async SetMemoryBrief() {
+    async SetMemoryBrief(_enabled: boolean) {
       // mock：开关写回即成功（面板 toast 由调用方提示）。
     },
-    async MemoryFeedback() {
+    async MemoryFeedback(_messageID: string, _rating: string, _excerpt: string, _space: string) {
       // mock：反馈即成功（真机落 memory_events 事件，事件图谱可查）。
       return undefined;
     },
-    async MemoryPin() {
+    async MemoryPin(_name: string, _pinned: boolean) {
       // mock：固化切换成功即回（面板 reload 后 pinned 徽标随 mock 数据展示）。
     },
     async MemoryLifecycle() {
@@ -377,7 +380,7 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
       pv.message = "AI 智能解析完成，请核对后确认导入。";
       return pv;
     },
-    async KnowledgeImportApply() {
+    async KnowledgeImportApply(_rows: KnowledgeEntry[]) {
       return 0;
     },
     async KnowledgeHistory(name: string) {
@@ -395,16 +398,16 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
       if (!title.trim()) return [];
       return [{ name: "pile", title: "桩基施工要点", score: 0.87 }];
     },
-    async KnowledgeExport() {
+    async KnowledgeExport(_dir: string) {
       return 4;
     },
-    async KnowledgeReview() {
+    async KnowledgeReview(_name: string, _approve: boolean, _reviewer: string) {
       // mock: no-op——浏览器开发环境无审核流状态（真实实现更新条目 review 状态）。
     },
     async KnowledgeMerge(_target: string, _sources: string[]) {
       return _target;
     },
-    async MemoryDuplicates() {
+    async MemoryDuplicates(_min: number) {
       return [
         {
           keep: "pile", keepTitle: "桩基施工要点",
@@ -413,8 +416,8 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
         },
       ];
     },
-    async MemoryMerge(target: string) {
-      return target;
+    async MemoryMerge(targetName: string, _sourceNames: string[]) {
+      return targetName;
     },
     async MemoryMorningBrief() {
       // mock: 返回「今日晨报」JSON 串（对齐 Go 侧 GaeaMemoryMorningBrief 契约，

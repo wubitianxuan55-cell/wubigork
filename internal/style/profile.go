@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/gaea/gaea/internal/ai"
@@ -15,7 +13,15 @@ import (
 
 // ── 风格档案 ─────────────────────────────────────────────────
 
-// Profile 作者风格档案
+// Profile 作者风格档案（.gaea/style-profile.json）。
+//
+// 边界声明（审计 IN1-05）：Profile=生成注入口径（ToStyleGuide 注入写作
+// prompt），与 project 层 StyleFingerprint/StyleDigest（fingerprint.json /
+// style_digest.json）=评分口径互为独立真相源，刻意分层，勿顺手合并；另见
+// project.Manager.StyleFingerprintPath 上的对偶声明。路径与品牌兼容
+// （.wubigork 回退）单源收口在 project.Manager
+// （StyleProfilePath / ReadStyleProfileFile / WriteStyleProfileFile），
+// 本包不再自带第二份路径/兼容分支。
 type Profile struct {
 	Name        string            `json:"name"`
 	Description string            `json:"description"`
@@ -130,26 +136,23 @@ func (a *Analyzer) Analyze() (*Profile, error) {
 	return &profile, nil
 }
 
-// SaveProfile 保存风格档案
-func SaveProfile(projectDir string, profile *Profile) error {
-	dir := filepath.Join(projectDir, ".gaea")
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
-	}
+// SaveProfile 保存风格档案。路径构造与目录创建收口在 project 层
+// （Manager.WriteStyleProfileFile），本函数只做 JSON 编码；JSON 字节
+// （MarshalIndent 两空格）、落点（.gaea/style-profile.json）与权限
+// （0644）同收口前逐字节不变。
+func SaveProfile(pm *project.Manager, profile *Profile) error {
 	data, err := json.MarshalIndent(profile, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(dir, "style-profile.json"), data, 0644)
+	return pm.WriteStyleProfileFile(data)
 }
 
-// LoadProfile 加载风格档案
-func LoadProfile(projectDir string) (*Profile, error) {
-	// 兼容旧品牌：优先 .gaea/，旧项目回退 .wubigork/
-	data, err := os.ReadFile(filepath.Join(projectDir, ".gaea", "style-profile.json"))
-	if err != nil && os.IsNotExist(err) {
-		data, err = os.ReadFile(filepath.Join(projectDir, ".wubigork", "style-profile.json"))
-	}
+// LoadProfile 加载风格档案。兼容回退（.wubigork）已单源收口在 project 层
+// （Manager.ReadStyleProfileFile，仅 os.IsNotExist 时回退），此处不再保留
+// 第二份分支；读取与 JSON 解码错误均原样透传（不包装，与收口前一致）。
+func LoadProfile(pm *project.Manager) (*Profile, error) {
+	data, err := pm.ReadStyleProfileFile()
 	if err != nil {
 		return nil, err
 	}

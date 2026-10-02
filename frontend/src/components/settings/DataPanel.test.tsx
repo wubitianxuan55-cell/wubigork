@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 
 // 屏蔽 bridge 绑定（vi.hoisted 避免 mock 提升导致的初始化顺序问题）；
 // DataPanel 经 ../../gaea/lib/bridge 的 app 调用，importOriginal 保全集 + 覆写 app。
@@ -117,9 +117,15 @@ describe('DataPanel 数据备份/恢复', () => {
     )
     await clickRollback()
 
-    // 即时 toast + 持久提示条 description 两条通道都带后端原文
-    const rawMentions = await screen.findAllByText(/回滚未完成：1\/3 项失败（已回滚 2 项）/)
-    expect(rawMentions.length).toBeGreaterThanOrEqual(2)
+    // 即时 toast（antd .ant-message 容器）+ 持久提示条两条通道都带后端原文。
+    // 分容器断言（批 17）：findAllByText 拿到任一匹配即提前返回，全量满载下
+    // toast 晚渲染会被漏数成 1 条（CI 实测红一次、单跑恒绿）；分容器各自
+    // waitFor 无早退竞态，断言意图不变（两条通道都带后端原文）。
+    const rawRe = /回滚未完成：1\/3 项失败（已回滚 2 项）/
+    await waitFor(() => {
+      expect(document.querySelector('.ant-message')?.textContent ?? '').toMatch(rawRe)
+    })
+    expect(within(screen.getByTestId('settings-rollback-failure')).getByText(rawRe)).toBeTruthy()
     // 持久提示条：点名「部分回滚失败 N/M 项」，并给出可重试的余量说明
     expect(await screen.findByText('部分回滚失败：1/3 项失败（已回滚 2 项）')).toBeTruthy()
     expect(screen.getByText(/恢复前数据仍保留在 \.restore-before/)).toBeTruthy()

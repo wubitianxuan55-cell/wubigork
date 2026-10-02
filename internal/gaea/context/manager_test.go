@@ -150,8 +150,6 @@ func TestContextManagerRecordMetrics(t *testing.T) {
 	if r.SavedByCompact != 100 || r.SavedByFork != 50 {
 		t.Errorf("metrics = %+v, want compact 100 fork 50", r)
 	}
-	// no-op RecordOutcome must not panic
-	cm.RecordOutcome(KindFixBug, true)
 }
 
 func TestIdentityFingerprint(t *testing.T) {

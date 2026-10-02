@@ -78,7 +78,12 @@ type NovelMethods = Pick<
 
 export function buildNovel(): NovelMethods {
   return {
-    async ImportNovelBookEx() {
+    // 形参对齐 Go 门面签名（X1-11 契约测试）：mock 如实拒绝（需桌面端文件系统），
+    // 实参只收不用。
+    async ImportNovelBookEx(
+      _filePath: string, _title: string, _genre: string, _style: string,
+      _extractMode: string, _tailChapters: number,
+    ) {
       throw new Error("dev mock：导入需桌面端文件系统");
     },
     async NovelSearch(_query: string) {
@@ -463,13 +468,17 @@ export function buildNovel(): NovelMethods {
     async NovelBookSourceToc(_source: string, _detailURL: string) {
       return { total: 0, sample: [], truncated: false };
     },
-    async NovelBookSourceImport(): Promise<{ jobId: string }> {
+    // 形参对齐 Go 门面签名（X1-11 契约测试）：mock 如实拒绝（无网络与书源规则）。
+    async NovelBookSourceImport(
+      _source: string, _detailURL: string, _start: number, _end: number,
+      _title: string, _genre: string, _style: string,
+    ): Promise<{ jobId: string }> {
       throw new Error("浏览器 mock 模式不支持在线导入（无网络与书源规则），请在应用内使用");
     },
     async NovelBookSourceImportCancel(_jobId: string): Promise<boolean> {
       return false;
     },
-    async NovelBookSourceImportChapters(): Promise<{ jobId: string }> {
+    async NovelBookSourceImportChapters(_source: string, _projectPath: string, _chaptersJSON: string): Promise<{ jobId: string }> {
       throw new Error("浏览器 mock 模式不支持失败章补下（无网络与书源规则），请在应用内使用");
     },
     async NovelBookSourceEnginesGet() {

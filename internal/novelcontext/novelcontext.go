@@ -298,7 +298,7 @@ func buildSetting(pm *project.Manager) string {
 
 // buildStyle 加载风格档案并转成风格指导文本（截断）。读取失败返回空串。
 func buildStyle(pm *project.Manager) string {
-	profile, err := style.LoadProfile(pm.Dir)
+	profile, err := style.LoadProfile(pm)
 	if err != nil || profile == nil {
 		return ""
 	}

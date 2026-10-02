@@ -9,7 +9,8 @@ export const xlsxMethods = {
   async OfficeEditText(selectedText: string, instruction: string) {
     return { edited: `${selectedText}（mock 编辑：${instruction}）` };
   },
-  async DocxApplyEdit(rel: string) {
+  // 形参对齐 Go 门面签名（X1-11 契约测试）：mock 固定返回样例文档，编辑实参只收不用。
+  async DocxApplyEdit(rel: string, _selectedText: string, _replacement: string) {
     return {
       path: rel, name: rel.split("/").pop() ?? rel, ext: ".docx",
       size: 1728, kind: "docx" as const,

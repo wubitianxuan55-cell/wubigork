@@ -297,7 +297,8 @@ export function buildModel(s: MakeMockState): ModelMethods {
         { ref: "deepseek/deepseek-v4-pro", provider: "deepseek", model: "deepseek-v4-pro", current: true },
       ];
     },
-    async SetModel() {},
+    // 形参对齐 Go 门面签名（X1-11 契约测试）：实参只收不用，行为零变化。
+    async SetModel(_name: string) {},
     async KeepWarmGet() {
       return s.keepWarm;
     },

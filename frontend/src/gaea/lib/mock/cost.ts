@@ -233,10 +233,11 @@ export function buildCost(_s: MakeMockState): CostMethods {
       const e = costMock.find((c) => c.name === name);
       return e ? { ...e, body: "", createdAt: "" } : null;
     },
-    async CostSave() {
+    // 形参对齐 Go 门面签名（X1-11 契约测试）：实参只收不用，行为零变化。
+    async CostSave(_e: CostEntry) {
       // mock: no-op——浏览器开发环境无持久化成本库（真实实现写 CostLibrary 表）。
     },
-    async CostDelete() {
+    async CostDelete(_name: string) {
       // mock: no-op——同上，无库可删。
     },
     // ── 成本库导入（mock：对已知文件返回样例候选）──
@@ -606,7 +607,7 @@ export function buildCost(_s: MakeMockState): CostMethods {
     // ── v4.158 组价确认记录（mock）：Compose/ComposeApply 在 mock 域本无桩
     // （dev 浏览器模式无 AI 组价演示数据），Records 只给空数组桩 = 条目详情
     // 「组价依据」折叠区零噪音，不编造历史记录（诚实纪律）。
-    async CostComposeRecords() {
+    async CostComposeRecords(_entryName: string) {
       return [];
     },
     // ── v4.8 成本知识图谱（mock：与后端同形 JSON 串，tree/entry 两种 scope 演示）──

@@ -243,7 +243,9 @@ func (m *Manager) WriteForeshadows(ff *types.ForeshadowFile) error {
 	return writeJSON(filepath.Join(m.Dir, "foreshadows.json"), ff)
 }
 
-// StyleFingerprintPath 文风指纹参考档路径（fingerprint.json）
+// StyleFingerprintPath 文风指纹参考档路径（fingerprint.json）。
+// 边界声明（审计 IN1-05）：Fingerprint=评分口径，与 StyleProfile
+// （.gaea/style-profile.json，生成注入口径）互为独立真相源，勿顺手合并。
 func (m *Manager) StyleFingerprintPath() string {
 	return filepath.Join(m.Dir, "fingerprint.json")
 }
@@ -282,6 +284,55 @@ func (m *Manager) ClearStyleDigest() error {
 
 func (m *Manager) WriteStyleFingerprint(sf *types.StyleFingerprintFile) error {
 	return writeJSON(m.StyleFingerprintPath(), sf)
+}
+
+// ── StyleProfile（作者风格档案，.gaea/style-profile.json）─────────────────
+//
+// 边界声明（审计 IN1-05）：本块与上方 StyleFingerprint/StyleDigest 是两套
+// 互不相识的文风真相源——StyleProfile=生成注入口径（style.Profile，注入写作
+// prompt），StyleFingerprint/StyleDigest=评分口径（fingerprint.json /
+// style_digest.json，评审参考档）。刻意分层，互为独立真相源，勿顺手合并；
+// 另见 internal/style 包 Profile 类型上的对偶声明。
+//
+// 为什么这里只有 []byte 读写而非 (*style.Profile, error)：style 包 import
+// 本包（style→project），本包反向持有 style 类型即成环。故路径与品牌兼容
+// 收口在本包，JSON 编解码留在 style 包薄壳。
+
+// legacyBrandDir 旧品牌配置目录（.wubigork）。品牌兼容回退只允许出现在
+// 本包（IsV4 / ReadStyleProfileFile 同源共用这一处目录名），其它包一律
+// 经由本包读写，勿再各自手拼第二份兼容分支（审计 IN1-05）。
+func legacyBrandDir(projectDir string) string {
+	return filepath.Join(projectDir, ".wubigork")
+}
+
+// StyleProfilePath 作者风格档案路径（.gaea/style-profile.json）。
+// 命名与 StyleFingerprintPath 同风格；落点单源，勿在他处手拼。
+func (m *Manager) StyleProfilePath() string {
+	return filepath.Join(m.Dir, ".gaea", "style-profile.json")
+}
+
+// ReadStyleProfileFile 读作者风格档案原始字节。
+// 兼容旧品牌：优先 .gaea/，仅当缺失（os.IsNotExist）时回退旧品牌
+// .wubigork/——档案级品牌回退全仓唯一收口点。错误原样透传，不包装。
+func (m *Manager) ReadStyleProfileFile() ([]byte, error) {
+	data, err := os.ReadFile(m.StyleProfilePath())
+	if err != nil && os.IsNotExist(err) {
+		data, err = os.ReadFile(filepath.Join(legacyBrandDir(m.Dir), "style-profile.json"))
+	}
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+// WriteStyleProfileFile 写作者风格档案原始字节（固定落 .gaea/，目录缺则建；
+// 权限 0755/0644、非原子写，与历史 style.SaveProfile 行为逐字节一致——
+// 勿顺手升级为原子写，评分口径的 writeJSON 才是原子语义）。
+func (m *Manager) WriteStyleProfileFile(data []byte) error {
+	if err := os.MkdirAll(filepath.Join(m.Dir, ".gaea"), 0755); err != nil {
+		return err
+	}
+	return os.WriteFile(m.StyleProfilePath(), data, 0644)
 }
 
 // WriteChapter 写章节文件 chapters/NNN.md（自动补零，原子写）
@@ -717,10 +768,11 @@ func DefaultSections() []types.WorldviewSection {
 // IsV4 检测项目是否为 v4 目录结构
 func (m *Manager) IsV4() bool {
 	// 兼容旧品牌：新标记 .gaea/v4，旧项目 .wubigork/v4 同样识别
+	// （旧品牌目录名单源 legacyBrandDir，与本包档案级回退同源）
 	if _, err := os.Stat(filepath.Join(m.Dir, ".gaea", "v4")); err == nil {
 		return true
 	}
-	_, err := os.Stat(filepath.Join(m.Dir, ".wubigork", "v4"))
+	_, err := os.Stat(filepath.Join(legacyBrandDir(m.Dir), "v4"))
 	return err == nil
 }
 

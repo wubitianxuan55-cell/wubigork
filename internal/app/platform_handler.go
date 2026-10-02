@@ -165,7 +165,7 @@ func (a *App) AnalyzeStyle() (map[string]interface{}, error) {
 		return nil, err
 	}
 
-	if err := style.SaveProfile(pm.Dir, profile); err != nil {
+	if err := style.SaveProfile(pm, profile); err != nil {
 		return nil, err
 	}
 
@@ -189,7 +189,7 @@ func (a *App) GetStyleProfile() (map[string]interface{}, error) {
 		return nil, fmt.Errorf("请先打开项目")
 	}
 
-	profile, err := style.LoadProfile(pm.Dir)
+	profile, err := style.LoadProfile(pm)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +211,7 @@ func (a *App) ImportStyleProfile(markdownContent string, profileName string) (ma
 	profile := style.ImportProfileFromMarkdown(markdownContent)
 	profile.Name = profileName
 
-	if err := style.SaveProfile(pm.Dir, profile); err != nil {
+	if err := style.SaveProfile(pm, profile); err != nil {
 		return nil, err
 	}
 

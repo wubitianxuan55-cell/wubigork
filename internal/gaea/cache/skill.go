@@ -28,47 +28,28 @@ type SkillProfile struct {
 	Verification     VerificationPolicy
 }
 
-// SkillLayer is the L3 cache domain — intent classification with adaptive
-// version promotion. It replaces GoalRouter's monolithic Route() with a
-// two-stage process: classify → select profile version → optionally promote.
+// SkillLayer is the L3 cache domain — intent classification with static,
+// versioned profiles. It replaces GoalRouter's monolithic Route() with
+// classify → select profile.
 //
-// Profiles are indexed by [TaskKind][version] starting at version 1.
-// Consecutive failures trigger PromoteVersion() which moves to the next
-// version (broader tool set, more aggressive strategy).
-//
-// V3.3: FailReason classification prevents false upgrades from environment
-// errors. Manual lock lets users pin a profile version.
+// Profiles are indexed by [TaskKind][version]. V5.0 removed the Learner
+// (adaptive version promotion), so every kind defines exactly one profile
+// (version 1) and Route() always selects it; the [TaskKind][int] shape is
+// kept only because Route's defensive fallback reads it that way.
 type SkillLayer struct {
-	current    SkillProfile
-	version    int
-	lockedVer  int // V3.3: 0 = unlocked; >0 = locked to this version
-	lockedKind TaskKind
+	current SkillProfile
+	version int
 }
 
-// LockVersion pins the profile to a specific version, disabling auto
-// upgrade/downgrade. Pass 0 to unlock. V3.3: user-controlled via /skill lock.
-func (l *SkillLayer) LockVersion(kind TaskKind, version int) {
-	l.lockedKind = kind
-	l.lockedVer = version
-}
-
-// IsLocked reports whether the profile is manually locked.
-func (l *SkillLayer) IsLocked() bool { return l.lockedVer > 0 }
-
-// Profiles defines the versioned skill profiles for each task kind.
-// Version 1 = conservative (fewer tools, lower risk).
-// Version 2 = expanded (add shell tools).
-// Version 3 = maximum (add subagent tools).
+// Profiles defines the skill profile for each task kind. V5.0: exactly one
+// version (1) per kind — the v2/v3 entries died with the Learner and are
+// pinned unreachable by TestProfilesSingleVersionPerKind.
 var Profiles = map[TaskKind]map[int]SkillProfile{
 	KindFixBug: {
 		1: {Kind: KindFixBug, Tools: merge(readTools, editTools, shellTools, metaTools), PromptHint: "Reproduce first. Batch all file reads and searches in one response. Read → isolate → fix → verify.", Temperature: 0.3, MaxSteps: 20, RetryLimit: 3, Verification: VerificationPolicy{RequireBuild: true}},
-		2: {Kind: KindFixBug, Tools: merge(readTools, editTools, shellTools, metaTools), PromptHint: "Write a test to reproduce. Batch reads together. Fix → verify with tests.", Temperature: 0.3, MaxSteps: 30, RetryLimit: 5, Verification: VerificationPolicy{RequireTests: true, RequireBuild: true}},
-		3: {Kind: KindFixBug, Tools: merge(readTools, editTools, shellTools, metaTools, subagentTools), PromptHint: "Decompose into parallel sub-tasks. Batch reads per sub-task.", Temperature: 0.3, MaxSteps: 50, RetryLimit: 5, Verification: VerificationPolicy{RequireTests: true, RequireBuild: true, AutoReview: true}},
 	},
 	KindWriteFeature: {
 		1: {Kind: KindWriteFeature, Tools: merge(readTools, editTools, shellTools, metaTools), PromptHint: "Design first. Read all relevant files in one batch. Keep changes minimal.", Temperature: 0.5, MaxSteps: 20, RetryLimit: 3, Verification: VerificationPolicy{RequireBuild: true}},
-		2: {Kind: KindWriteFeature, Tools: merge(readTools, editTools, shellTools, metaTools), PromptHint: "Implement and test. Batch reads and searches in one step per phase.", Temperature: 0.5, MaxSteps: 30, RetryLimit: 5, Verification: VerificationPolicy{RequireTests: true, RequireBuild: true}},
-		3: {Kind: KindWriteFeature, Tools: merge(readTools, editTools, shellTools, metaTools, subagentTools), PromptHint: "Decompose into sub-tasks. Batch reads per sub-task.", Temperature: 0.5, MaxSteps: 60, RetryLimit: 5, Verification: VerificationPolicy{RequireTests: true, RequireBuild: true, AutoReview: true}},
 	},
 	KindReview: {
 		1: {Kind: KindReview, Tools: merge(readTools, metaTools), PromptHint: "Read all changed files at once. Check correctness, security, tests. Do NOT edit.", Temperature: 0, MaxSteps: 5, Verification: VerificationPolicy{AutoReview: true}},
@@ -78,7 +59,6 @@ var Profiles = map[TaskKind]map[int]SkillProfile{
 	},
 	KindResearch: {
 		1: {Kind: KindResearch, Tools: merge(readTools, metaTools), PromptHint: "Search broadly first. Batch web searches and reads together. Cite sources.", Temperature: 0.7, MaxSteps: 30, Verification: VerificationPolicy{RequireCitation: true}},
-		2: {Kind: KindResearch, Tools: merge(readTools, metaTools, subagentTools), PromptHint: "Use sub-agents for parallel exploration. Batch reads per sub-task.", Temperature: 0.7, MaxSteps: 60, Verification: VerificationPolicy{RequireCitation: true}},
 	},
 	KindDefault: {
 		1: {Kind: KindDefault, Tools: nil, PromptHint: "Batch independent tool calls in a single response.", Temperature: 0.5, MaxSteps: 20, RetryLimit: 3},
@@ -86,7 +66,6 @@ var Profiles = map[TaskKind]map[int]SkillProfile{
 	// V4.0: non-code task kinds
 	KindDataAnalysis: {
 		1: {Kind: KindDataAnalysis, Tools: merge(readTools, shellTools, metaTools), PromptHint: "Load then explore. Batch independent data reads together. Load → explore → transform.", Temperature: 0.3, MaxSteps: 25, RetryLimit: 3, Verification: VerificationPolicy{RequireCitation: true}},
-		2: {Kind: KindDataAnalysis, Tools: merge(readTools, shellTools, metaTools, subagentTools), PromptHint: "Use sub-agents for parallel exploration. Batch reads per sub-task.", Temperature: 0.3, MaxSteps: 50, RetryLimit: 5, Verification: VerificationPolicy{RequireCitation: true, AutoReview: true}},
 	},
 	KindWriting: {
 		1: {Kind: KindWriting, Tools: merge(readTools, editTools, metaTools), PromptHint: "Read references first. Batch research in one step. Draft → revise → polish.", Temperature: 0.7, MaxSteps: 15},
@@ -104,54 +83,24 @@ func NewSkillLayer() *SkillLayer {
 	return &SkillLayer{version: 1}
 }
 
-// Route classifies the input and returns the appropriate SkillProfile.
-// It selects version 1 by default; if the Learner has recorded a promoted
-// version for this kind, that version is used instead.
+// Route classifies the input and returns the matching SkillProfile.
+// V5.0: the Learner is gone — version 1 is the only version defined, so
+// the lookup can never select anything else (pinned by
+// TestRouteAlwaysSelectsVersionOne).
 func (l *SkillLayer) Route(input string) SkillProfile {
 	kind := classifyIntent(input)
 
-	// Resolve version: Learner may have promoted it.
-	version := l.resolveVersion(kind)
+	const version = 1
 	profile, ok := Profiles[kind][version]
 	if !ok {
-		// Fallback: highest available version.
-		for v := version; v >= 1; v-- {
-			if p, ok2 := Profiles[kind][v]; ok2 {
-				profile = p
-				break
-			}
-		}
-		// Ultimate fallback: default.
-		if profile.Kind == "" {
-			profile = Profiles[KindDefault][1]
-		}
+		// Unknown kind: fall back to the default profile.
+		profile = Profiles[KindDefault][version]
 	}
 
-	// V5.0: Learner removed — no dynamic tool adjustment.
 	l.current = profile
 	l.version = version
 	return profile
 }
-
-// resolveVersion returns the profile version to use (V5.0: always v1, Learner removed).
-func (l *SkillLayer) resolveVersion(kind TaskKind) int {
-	if l.IsLocked() && l.lockedKind == kind {
-		return l.lockedVer
-	}
-	return 1
-}
-
-// PromoteVersion is a no-op in V5.0 (Learner removed).
-func (l *SkillLayer) PromoteVersion() {}
-
-// RecordOutcome is a no-op in V5.0 (Learner removed).
-func (l *SkillLayer) RecordOutcome(kind TaskKind, success bool) {}
-
-// RecordOutcomeWithReason is a no-op in V5.0 (Learner removed).
-func (l *SkillLayer) RecordOutcomeWithReason(kind TaskKind, success bool, errMsg string) {}
-
-// DemoteVersion is a no-op in V5.0 (Learner removed).
-func (l *SkillLayer) DemoteVersion() {}
 
 // CurrentProfile returns the currently active profile.
 func (l *SkillLayer) CurrentProfile() SkillProfile { return l.current }

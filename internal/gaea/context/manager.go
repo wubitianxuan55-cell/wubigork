@@ -106,11 +106,6 @@ func (cm *ContextManager) Fork(mode ForkMode, taskPrompt string) *ContextManager
 	return child
 }
 
-// RecordOutcome feeds execution results back to the SkillLayer's Learner.
-func (cm *ContextManager) RecordOutcome(kind TaskKind, success bool) {
-	cm.skill.RecordOutcome(kind, success)
-}
-
 // OnFileEdited tracks a file edit in the RuntimeLayer's session state.
 func (cm *ContextManager) OnFileEdited(path string) {
 	cm.runtime.TrackEdit(path)

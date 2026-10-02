@@ -33,7 +33,9 @@ export function buildSettings(s: MakeMockState): SettingsMethods {
     async DeleteProvider(name: string) {
       settings.providers = settings.providers.filter((p) => p.name !== name);
     },
-    async SetProviderKey(apiKeyEnv: string) {
+    // value 形参对齐 Go 门面 GaeaSetProviderKey(apiKeyEnv, value)（X1-11 契约测试）：
+    // mock 不落真实密钥（keySet 徽标语义），实参只收不用。
+    async SetProviderKey(apiKeyEnv: string, _value: string) {
       settings.providers.forEach((p) => {
         if (p.apiKeyEnv === apiKeyEnv) p.keySet = true;
       });

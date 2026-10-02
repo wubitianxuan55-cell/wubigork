@@ -410,32 +410,33 @@ export function buildSin(): SinMethods {
       notesDocs.set(topicID, next);
       return { notes: next.notes.slice(), outline: next.outline };
     },
-    // ── sin 书源 t2：浏览器无书源规则目录与真网络，走查只验版面——诚实空态/拒绝 ──
-    async SinBookSourceSearch() {
+    // ── sin 书源 t2：浏览器无书源规则目录与真网络，走查只验版面——诚实空态/拒绝。
+    // 形参对齐 Go 门面签名（X1-11 契约测试），实参只收不用。──
+    async SinBookSourceSearch(_keyword: string) {
       return {
         candidates: [],
         warnings: ["dev mock：书源搜索需真实网络与规则目录，浏览器走查仅验版面"],
       };
     },
-    async SinBookSourceToc() {
+    async SinBookSourceToc(_source: string, _detailURL: string) {
       return { total: 0, sample: [], truncated: false };
     },
-    async SinBookSourceDownload() {
+    async SinBookSourceDownload(_source: string, _detailURL: string, _start: number, _end: number, _title: string) {
       throw new Error("dev mock：下载成书需真实网络与书源规则");
     },
-    async SinBookSourceDownloadCancel() {
+    async SinBookSourceDownloadCancel(_jobId: string) {
       return false;
     },
     async SinBookSourceBooksList() {
       return [];
     },
-    async SinBookSourceBookDelete() {
+    async SinBookSourceBookDelete(_path: string) {
       /* mock 无成书可删：如实 no-op */
     },
-    async SinBookSourceBookExportEpub() {
+    async SinBookSourceBookExportEpub(_path: string) {
       throw new Error("dev mock：EPUB 导出需桌面端文件系统");
     },
-    async SinExportEpub() {
+    async SinExportEpub(_topicID: string) {
       throw new Error("dev mock：EPUB 导出需桌面端文件系统");
     },
     async SinCastSet(topicID: string, ids: string[]) {

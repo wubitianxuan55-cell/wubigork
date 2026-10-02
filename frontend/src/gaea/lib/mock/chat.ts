@@ -349,10 +349,11 @@ export function buildChat(s: MakeMockState): ChatMethods {
       const i = list.findIndex((x) => x.id === id);
       if (i >= 0) list.splice(i, 1);
     },
-    async Rewind() {},
-    async Fork() {},
-    async SummarizeFrom() {},
-    async SummarizeUpTo() {},
+    // 形参对齐 Go 门面签名（X1-11 契约测试）：浏览器 dev 回退为 no-op，实参只收不用。
+    async Rewind(_turn: number, _scope: string) {},
+    async Fork(_turn: number) {},
+    async SummarizeFrom(_turn: number) {},
+    async SummarizeUpTo(_turn: number) {},
     async History() {
       return [];
     },

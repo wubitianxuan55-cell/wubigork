@@ -60,6 +60,7 @@ func (knowledgeSearch) Execute(ctx context.Context, args json.RawMessage) (strin
 	}
 
 	results, err := knowledge.Search(store, p.Query, filter)
+	// 合分口径（关键词/向量权重与淘汰线）单源于 knowledge 包常量与 combineScore。
 	if err != nil {
 		// 审计 P0#6 GA3-01：库读失败不得当「搜不到」，要如实报错。
 		return "", fmt.Errorf("知识库暂不可读（读取失败），可重试: %w", err)

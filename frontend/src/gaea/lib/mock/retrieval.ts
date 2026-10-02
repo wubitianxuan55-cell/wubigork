@@ -191,7 +191,8 @@ export function buildRetrieval(_s: MakeMockState): RetrievalMethods {
     async FileIndexRebuild() {
       return taskView("file_index", "工作区语义索引", { total: 3, skipped: 0 });
     },
-    async FileSemanticSearch(query: string) {
+    // topN 形参对齐 Go 门面签名（X1-11 契约测试）：mock 固定两条样例，只收不用。
+    async FileSemanticSearch(query: string, _topN: number) {
       if (!query.trim()) return [];
       return [
         {

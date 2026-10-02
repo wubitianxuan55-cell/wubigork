@@ -53,10 +53,19 @@ type ContextualTool interface {
 	ExecuteWithContext(ctx context.Context, tc ToolContext, args json.RawMessage) (string, error)
 }
 
-// CompactDescriptor is an optional capability a Tool may implement. When present,
-// CompactDescription replaces Description and CompactSchema replaces Schema in
-// the provider-facing tool list, significantly reducing per-turn prompt tokens.
-// Tools that don't implement this fall back to their full Description + Schema.
+// CompactDescriptor is an optional capability a Tool may implement. When a
+// tool implements it, CompactDescription/CompactSchema UNCONDITIONALLY replace
+// Description/Schema in every provider-facing schema export (Schemas and
+// FilteredSchemas) — the switch is the interface assertion itself; there is no
+// runtime toggle. cfg.Tools.Compact is unrelated to this interface: it only
+// decides which tools boot hides from the schema list (boot's compact-toolset
+// Hide pass), not which description/schema variant is served.
+//
+// Because the compact variant is what the model always sees, the full
+// Description()/Schema() of a CompactDescriptor tool are dead as served output
+// — they live on as the source of truth the compact variants are derived from
+// by hand. Keep them in sync: compact_drift_test.go pins that every
+// production CompactSchema's field set stays a subset of the full Schema's.
 type CompactDescriptor interface {
 	CompactDescription() string
 	CompactSchema() json.RawMessage
@@ -367,7 +376,8 @@ func (r *Registry) PersistWriteNames() []string {
 
 // Schemas exports tool definitions in stable name order for the provider.
 // When a tool implements CompactDescriptor, the compact versions are used
-// instead of the full Description + Schema, reducing per-turn prompt tokens.
+// instead of the full Description + Schema — unconditionally (no runtime
+// switch; cfg.Tools.Compact only drives which tools are hidden at boot).
 // V6.0 P8: hidden tools are excluded from the schema list.
 // V10.0: standard schemas use pre-canonicalized cache from Add().
 func (r *Registry) Schemas() []provider.ToolSchema {
@@ -421,6 +431,8 @@ func (r *Registry) FilteredSchemas(names []string) []provider.ToolSchema {
 	for _, s := range snaps {
 		desc := s.t.Description()
 		if cd, ok := s.t.(CompactDescriptor); ok {
+			// Unconditional: implementing CompactDescriptor is itself the
+			// switch — the compact variant is always what the model sees.
 			desc = cd.CompactDescription()
 			schema := cd.CompactSchema()
 			// Compact schemas are context-dependent — canonicalize inline.

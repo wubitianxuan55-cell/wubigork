@@ -14,6 +14,46 @@ type Filter struct {
 	Status   string
 }
 
+// 检索合分口径（GA3-07 单源）：Search 的榜单顺序由这组常数经 combineScore
+// 唯一决定。改动任何一个都会改变检索结果顺序，search_golden_test.go 的
+// golden 榜单会将其捕获 —— 调参前先看那份冻结的期望顺序。
+const (
+	// vecScale 向量分放大系数：TF-IDF 余弦相似度取值 0~1，乘以该系数后与
+	// 关键词分（整数，0~10+）直接相加 —— 关键词主导，语义召回只做增强，
+	// 不致语义项压过精确命中。
+	vecScale = 8
+	// irrelevantVecCutoff 无关条目淘汰线：关键词零命中且向量相似度低于该值
+	// 的候选不进入结果（见 isIrrelevant；空查询不淘汰）。
+	irrelevantVecCutoff = 0.1
+	// indexMinScore TF-IDF 索引检索的最低相似度：刻意低于 gaea/search 包
+	// 内置默认 0.05，放宽召回让低分语义候选进入合分，由淘汰线二次过滤。
+	indexMinScore = 0.02
+	// maxSearchResults 单次检索返回条数的硬上限。
+	maxSearchResults = 20
+)
+
+// scoreEntry 的字段权重：标题命中最强，标签次之，分类/阶段再次，正文最弱。
+const (
+	weightTitle      = 10
+	weightTag        = 5
+	weightField      = 3 // category 与 phase 各计一次
+	weightBody       = 1
+	weightEmptyQuery = 1 // 空查询的保底分：返回全部候选
+)
+
+// combineScore 是检索合分的唯一口径：关键词分（0~10+）为主，向量分
+// （TF-IDF 余弦，0~1）×vecScale 增强语义召回。Search 及包内其它需要
+// 关键词/向量合分的路径都必须经它取总分，禁止内联裸常数。
+func combineScore(kw int, vec float64) float64 {
+	return float64(kw) + vec*vecScale
+}
+
+// isIrrelevant 报告候选是否与查询无关：关键词零命中且向量相似度低于
+// 淘汰线 irrelevantVecCutoff。边界口径：vec 恰等于淘汰线时不淘汰（<）。
+func isIrrelevant(kw int, vec float64) bool {
+	return kw == 0 && vec < irrelevantVecCutoff
+}
+
 // Search searches the store for entries matching the query and filter.
 // Ranking blends the keyword score (title/tag/category/body) with TF-IDF
 // vector similarity (RAG) so semantically related entries surface even when
@@ -48,7 +88,7 @@ func Search(s *Store, query string, filter Filter) ([]Entry, error) {
 	vecScores := map[string]float64{}
 	if query != "" && len(candidates) > 0 {
 		idx := s.tfidfIndexFor(candidates, filter)
-		for _, r := range idx.Search(query, len(candidates), 0.02) {
+		for _, r := range idx.Search(query, len(candidates), indexMinScore) {
 			vecScores[r.ID] = r.Score
 		}
 	}
@@ -57,9 +97,9 @@ func Search(s *Store, query string, filter Filter) ([]Entry, error) {
 	for _, e := range candidates {
 		kw := scoreEntry(e, query)
 		vec := vecScores[e.Name]
-		// 关键词分（0~10+）为主，向量分（0~1）×8 增强语义召回。
-		total := float64(kw) + vec*8
-		if query != "" && kw == 0 && vec < 0.1 {
+		// 合分与淘汰口径单源（GA3-07）：见 combineScore / isIrrelevant。
+		total := combineScore(kw, vec)
+		if query != "" && isIrrelevant(kw, vec) {
 			continue // 无关条目（无关键词且向量极低）
 		}
 		scored = append(scored, scoredEntry{Entry: e, score: total})
@@ -72,8 +112,8 @@ func Search(s *Store, query string, filter Filter) ([]Entry, error) {
 		return scored[i].Name < scored[j].Name
 	})
 
-	if len(scored) > 20 {
-		scored = scored[:20]
+	if len(scored) > maxSearchResults {
+		scored = scored[:maxSearchResults]
 	}
 
 	result := make([]Entry, len(scored))
@@ -89,10 +129,11 @@ type scoredEntry struct {
 }
 
 // scoreEntry computes a relevance score for an entry against a query.
-// Scoring: title match +10, tag match +5, category/phase match +3, body match +1.
+// Scoring: title match +weightTitle, tag match +weightTag per tag,
+// category/phase match +weightField each, body match +weightBody.
 func scoreEntry(e Entry, query string) int {
 	if query == "" {
-		return 1 // return all entries with default score
+		return weightEmptyQuery // return all entries with default score
 	}
 
 	q := strings.ToLower(query)
@@ -100,27 +141,27 @@ func scoreEntry(e Entry, query string) int {
 
 	// Title match (highest priority).
 	if containsFold(e.Title, q) {
-		score += 10
+		score += weightTitle
 	}
 
 	// Tag match.
 	for _, t := range e.Tags {
 		if containsFold(t, q) {
-			score += 5
+			score += weightTag
 		}
 	}
 
 	// Category/Phase match.
 	if containsFold(e.Category, q) {
-		score += 3
+		score += weightField
 	}
 	if containsFold(e.Phase, q) {
-		score += 3
+		score += weightField
 	}
 
 	// Body match.
 	if containsFold(e.Body, q) {
-		score += 1
+		score += weightBody
 	}
 
 	return score
