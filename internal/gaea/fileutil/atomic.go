@@ -16,7 +16,20 @@ import (
 //
 // This is the single shared implementation for the many places that need
 // crash-safe persistence (session files, config, memory store, …).
+// 需要断电级 durability（落盘后才 rename）的站点改用 AtomicWriteSync。
 func AtomicWrite(path string, data []byte, perm os.FileMode) error {
+	return atomicWrite(path, data, perm, false)
+}
+
+// AtomicWriteSync 是 AtomicWrite 的断电级变体（A7 fsync 决策落地，2026-10-03）：
+// rename 前对临时件 fsync——崩溃/断电后目标要么是旧完整内容、要么是新完整
+// 内容，绝不出现「rename 成功但数据仍在页缓存」的空窗。默认关闭（性能），
+// 显式 Sync 的站点（报告/编辑器写盘）走本变体。
+func AtomicWriteSync(path string, data []byte, perm os.FileMode) error {
+	return atomicWrite(path, data, perm, true)
+}
+
+func atomicWrite(path string, data []byte, perm os.FileMode, sync bool) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("mkdir %s: %w", dir, err)
@@ -30,6 +43,13 @@ func AtomicWrite(path string, data []byte, perm os.FileMode) error {
 		_ = tmp.Close()
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("write temp: %w", err)
+	}
+	if sync {
+		if err := tmp.Sync(); err != nil {
+			_ = tmp.Close()
+			_ = os.Remove(tmpPath)
+			return fmt.Errorf("sync temp: %w", err)
+		}
 	}
 	if err := tmp.Close(); err != nil {
 		_ = os.Remove(tmpPath)

@@ -137,3 +137,23 @@ func TestAtomicWrite_CreatesMissingParentDirs(t *testing.T) {
 		}
 	}
 }
+
+// TestAtomicWriteSyncSmoke Sync 变体烟测（批 54 A7）：fsync 效果本身不可观测，
+// 本用例钉「Sync 代码路径全平台可走通 + 落盘内容正确」，权限断言仅 POSIX
+// （Windows 不模拟权限位，但 Sync 分支同样被本用例执行覆盖）。
+func TestAtomicWriteSyncSmoke(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "report.md")
+	if err := AtomicWriteSync(path, []byte("# 报告"), 0o600); err != nil {
+		t.Fatalf("写入: %v", err)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil || string(got) != "# 报告" {
+		t.Fatalf("内容不符: %q err=%v", got, err)
+	}
+	if runtime.GOOS != "windows" {
+		if fi, err := os.Stat(path); err != nil || fi.Mode().Perm() != 0o600 {
+			t.Fatalf("权限应为 0600: mode=%v err=%v", fi.Mode(), err)
+		}
+	}
+}

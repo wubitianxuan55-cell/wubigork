@@ -281,33 +281,10 @@ func (a *App) GaeaBenchmarkExport(id, dir string) (string, error) {
 		shortID = shortID[:8]
 	}
 	path := filepath.Join(dir, fmt.Sprintf("herdsman-benchmark-%s-%s.md", ts, shortID))
-	// T7-2 原子写：同目录临时文件 → 写入 → 落盘 → rename 覆盖，
-	// 中途失败清理临时文件，绝不留下半截报告。
-	// 刻意不并入 fileutil.AtomicWrite：本站点的 tmp.Sync()（fsync）是 AtomicWrite
-	// 没有的能力——是否统一 fsync=全仓 fsync 决策，归拍板池（批 48 收口注记）。
-	tmp, err := os.CreateTemp(dir, "herdsman-benchmark-*.md.tmp")
-	if err != nil {
-		return "", fmt.Errorf("创建临时报告失败: %w", err)
-	}
-	tmpName := tmp.Name()
-	cleanup := func() {
-		_ = tmp.Close()
-		_ = os.Remove(tmpName)
-	}
-	if _, err := tmp.Write([]byte(md)); err != nil {
-		cleanup()
-		return "", fmt.Errorf("写入报告失败: %w", err)
-	}
-	if err := tmp.Sync(); err != nil {
-		cleanup()
-		return "", fmt.Errorf("写入报告失败: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		_ = os.Remove(tmpName)
-		return "", fmt.Errorf("写入报告失败: %w", err)
-	}
-	if err := fileutil.RenameWithRetry(tmpName, path); err != nil {
-		_ = os.Remove(tmpName)
+	// T7-2 原子写（批 54 A7 收编 AtomicWriteSync 单源）：写入 → fsync → rename
+	// 覆盖，中途失败清理临时文件，绝不留下半截报告。权限 0600 与 CreateTemp
+	// 历史口径一致。
+	if err := fileutil.AtomicWriteSync(path, []byte(md), 0o600); err != nil {
 		return "", fmt.Errorf("写入报告失败: %w", err)
 	}
 	return path, nil

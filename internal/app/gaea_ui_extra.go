@@ -666,29 +666,11 @@ func (a *App) GaeaWriteFile(rel string, content string) error {
 	if err != nil || !info.Mode().IsRegular() {
 		return fmt.Errorf("目标不是已存在的文本文件: %s", rel)
 	}
-	// 原子写：同目录临时文件 → fsync → rename（失败清理临时文件、保留原文件）。
-	// 刻意不并入 fileutil.AtomicWrite：本站点的 tmp.Sync()（fsync）是 AtomicWrite
-	// 没有的能力——是否统一 fsync=全仓 fsync 决策，归拍板池（批 48 收口注记）。
-	dir := filepath.Dir(abs)
-	tmp, err := os.CreateTemp(dir, ".gaea-edit-*")
-	if err != nil {
-		return fmt.Errorf("创建临时文件失败: %w", err)
-	}
-	tmpName := tmp.Name()
-	defer func() { _ = os.Remove(tmpName) }()
-	if _, err := tmp.WriteString(content); err != nil {
-		_ = tmp.Close()
+	// 原子写（批 54 A7 收编 AtomicWriteSync 单源）：写入 → fsync → rename，
+	// 失败清理临时文件、保留原文件。权限 0600 与 CreateTemp 历史口径一致；
+	// 失败时 AtomicWriteSync 自清理临时件，原文件只被原子替换。
+	if err := fileutil.AtomicWriteSync(abs, []byte(content), 0o600); err != nil {
 		return fmt.Errorf("写入失败: %w", err)
-	}
-	if err := tmp.Sync(); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("落盘失败: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("关闭临时文件失败: %w", err)
-	}
-	if err := fileutil.RenameWithRetry(tmpName, abs); err != nil {
-		return fmt.Errorf("替换原文件失败: %w", err)
 	}
 	return nil
 }
