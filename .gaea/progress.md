@@ -1,3 +1,11 @@
+## 非版本刀：全仓审计第 29 批·god-file 对账收窄（GA1-03/GA4-02 降级）+ 留池 gofmt 清账 · 2026-10-03
+
+- **刀型**：接续批 28（`2f6947c3`）。拆分价值判定批：两条候选降级出池+一项留池清账，主代理直做。**不抬版本**。
+- **交付**：`docs/code-audit-2026-10-02/round-31-p1-batch29.md`。
+- **判定**：GA1-03 agent.go 与 GA4-02 controller.go 所在包均已高度分解（agent 80+ 文件 / control 30+ 文件），剩余行数=God 类型结构体本体+一行式访问器——再拆收益近零，**字段收敛属设计拍板**；两条移入「拆分价值低/拍板候选」，**Go 侧可拆池清零**。留池关账：scripts/test_image_models.go 补 `//go:build ignore`（scripts/ 不在 golangci 覆盖=假阴性存量五批）。
+- **god-file 余 ~13 全在前端**（CostLibraryView×2/CostProjectsView/controller.ts/App.tsx/ModuleLauncher/methods_office.ts 等）；前端拆分=状态上提+import 穿线**不同型**，下批先立前端配方（FE3-15 methods_office.ts 最接近机械形态，contract 744 绑定测试=现成金样）。
+- **门禁**：gofmt -l scripts/ 归零；树干净+HEAD 可编译复验。
+
 ## 非版本刀：全仓审计第 28 批·god-file 续拆（IN1-01 project.go 五分）· 2026-10-03
 
 - **刀型**：接续批 27（`0492001f`）。god-file 同配方单线（同包纯文件拆分零逻辑改动），主代理直做。预核判定：核心 Manager 但同包分家对消费方零影响（API 不动）——「接口分域两步走」先做零风险第一步。**不抬版本**。
