@@ -14,6 +14,8 @@ type ChatMethods = Pick<
   | "SkillDistillCandidates" | "SkillDistillDraft" | "SkillDistillDecide" | "SkillStats"
   | "GaeaTaskInboxList" | "GaeaTaskInboxSave" | "GaeaTaskInboxSetStatus" | "GaeaTaskInboxDelete"
   | "SummarizeFrom" | "SummarizeUpTo" | "History"
+  // 事件序号防线补拉面（批 45 NOT_MOCKED 续刀三）。
+  | "ResyncEvents"
   | "ListSessions" | "ListProjectSessions" | "ArchiveSession" | "UnarchiveSession"
   | "PinSession" | "ResumeSession" | "DeleteSession" | "RenameSession"
   | "SessionStats"
@@ -356,6 +358,12 @@ export function buildChat(s: MakeMockState): ChatMethods {
     async SummarizeUpTo(_turn: number) {},
     async History() {
       return [];
+    },
+    async ResyncEvents(_afterSeq: number) {
+      // 事件序号防线补拉面（批 45 NOT_MOCKED 续刀三）：mock 会话非事件溯源
+      // （ChatStreamPlain 是组件内脚本流，不经 wire 事件总线），快照恒空集。
+      // Go 契约 Items 非 nil（nil 序列化成 null，前端按数组消费会崩），Seq=0。
+      return { seq: 0, items: [] };
     },
     async ListSessions() {
       return sessions.map((s) => ({ ...s }));

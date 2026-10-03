@@ -131,12 +131,8 @@ const NOT_MOCKED: Record<string, string> = {
   CharacterScoreConsistency: "角色一致性评分（AI）；同上待补",
   // 对话流。
   ChatStreamCancel: "取消对话流（P1-5）；mock ChatStreamPlain 不产 runID、无可取消流，待补",
-  // 子代理/事件族。
-  GaeaBrowserObserve: "子代理浏览器观察；浏览器 dev 无浏览器实例，待补空态（Available=false）",
-  GaeaPromoteSubagent: "子代理 transcript 提升；待补",
-  GaeaResyncEvents: "事件重同步；待补",
-  GaeaSubagentContextView: "子代理上下文视图；待补空态",
-  GaeaSubagentFollowUp: "子代理追问（主回合运行中拒绝）；待补",
+  // 子代理/事件族：ResyncEvents/BrowserObserve/PromoteSubagent/ContextView/
+  // FollowUp 已补 mock（批 45），锁删条目。
   // 成本组价（AI 组件化估价）。
   GaeaCostCompose: "AI 组价；浏览器 dev 无 LLM，待补",
   GaeaCostComposeApply: "AI 组价应用；同上待补",

@@ -20,6 +20,7 @@ type CoreMethods = Pick<
   | "ListWorkspaces" | "PickWorkspace" | "SwitchWorkspace"
   | "GaeaSpaceList" | "GaeaSpaceActive" | "GaeaSpaceActivate" | "GaeaSpaceProfiles" | "GaeaSpaceProfileSet"
   | "ContextUsage" | "ContextView" | "ContextNodeDetail" | "Trajectory" | "AgentNetwork" | "Jobs"
+  | "GaeaBrowserObserve" | "GaeaSubagentContextView"
   | "Meta" | "Commands" | "Capabilities"
   | "AddMCPServer" | "RemoveMCPServer" | "RetryMCPServer" | "SetMCPServerEnabled"
   | "SlashArgs"
@@ -191,6 +192,27 @@ export function buildCore(s: MakeMockState): CoreMethods {
         };
       }
       throw new Error("mock: 未找到 seq=" + seq + " 的可展开节点");
+    },
+    async GaeaBrowserObserve() {
+      // 浏览器观察窗单帧（v4.28 A2；批 45 NOT_MOCKED 续刀三）：浏览器未运行是
+      // 观察窗的正常态（Go 不返回 error，前端按空态渲染）——mock 恒空态。
+      return { available: false, url: "", title: "", image: "", width: 0, height: 0, updatedAt: 0 };
+    },
+    async GaeaSubagentContextView(_sessionPath: string, _ref: string) {
+      // 子代理上下文时间线（批 45 NOT_MOCKED 续刀三）：mock 无子代理持久档，
+      // 恒空时间线（ok=true 空集 + 零值类目，面板空态渲染路径走查用；行形状
+      // 与 ContextView 同源）。
+      return {
+        ok: true,
+        window: 1_000_000,
+        current: { system: 0, tools: 0, user: 0, inject: 0, assistant: 0, tool: 0 },
+        stats: { turns: 0, steps: 0, injects: 0, compacts: 0, prunes: 0, toolCalls: 0, images: 0, cacheHitPercent: 0, costEstimate: 0 },
+        requests: [],
+        events: [],
+        nodes: [],
+        archive: [],
+        files: [],
+      };
     },
     async Trajectory(_sessionPath?: string) {
       // 浏览器开发 mock：固定一份与后端折叠形态一致的轨迹快照。

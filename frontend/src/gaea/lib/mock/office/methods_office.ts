@@ -427,6 +427,26 @@ export const officeMethods: Partial<Omit<OfficeMethods, "PinnedMaterials">> &
       ],
     };
   },
+  async PromoteSubagent(sessionPath: string, ref: string) {
+    // 提升（批 45 NOT_MOCKED 续刀三；契约：仅 sa_ 前缀可提升、运行中拒绝）。
+    // mock 会话族 refs 与 SubagentRuns 同源（a.jsonl 两 ref 均 completed）；
+    // 返回新顶层会话路径——mock 会话区无持久档，不真复制 transcript。
+    const known =
+      sessionPath === "/mock/sessions/a.jsonl"
+        ? ["sa_20260903_100000_0000000011_a1a1a1a1", "sa_20260903_090000_0000000012_b3b3b3b3"]
+        : [];
+    if (!ref.startsWith("sa_")) throw new Error(`仅子代理运行（sa_ 前缀）可提升: ${JSON.stringify(ref)}`);
+    if (!known.includes(ref)) throw new Error(`子代理不存在或无档: ${ref}`);
+    return `/mock/sessions/from-${ref}.jsonl`;
+  },
+  async SubagentFollowUp(sessionPath: string, ref: string, _prompt: string) {
+    // 追问受理（批 45 NOT_MOCKED 续刀三）：Go 受理即回 "follow-up started"，
+    // 引擎执行在后台 goroutine——mock 无引擎，回执照给、不执行（诚实注记）。
+    if (!sessionPath || !ref.startsWith("sa_")) {
+      throw new Error(`仅子代理运行（sa_ 前缀）可追问: ${JSON.stringify(ref)}`);
+    }
+    return "follow-up started（mock 受理不执行）";
+  },
   async DeliverableRegistry(_sessionPath: string) {
     // 浏览器开发 mock：模拟会话权威产物登记表（写类 + 生成/导出类工具落盘）。
     return {
