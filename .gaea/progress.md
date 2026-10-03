@@ -1,3 +1,12 @@
+## 非版本刀：全仓审计第 25 批·god-file 大拆（GA2-01 websearch + IN2-12 stats 计价分家）· 2026-10-03
+
+- **刀型**：接续批 24（`60b2fc36`）。god-func 三刀收官转 god-file：**两线同包纯文件拆分**（原位搬移零逻辑改动），主代理直做。**不抬版本**。
+- **交付**：`docs/code-audit-2026-10-02/round-27-p1-batch25.md`。
+- **线 1 GA2-01**：websearch.go 925 → 三文件（websearch.go 331 工具本体 / websearch_engine.go 456 引擎 seam+6 引擎+共享 HTTP / websearch_html.go 171 SERP 解析+节点工具）；**线 2 IN2-12**：stats.go 758 → 计价域 modelprice.go 182（定价表+归一化+估算口径+默认汇率，专用正则随行）+ stats.go 588（记录器+Manager 接线）。
+- **方法与等价证明**：`sed 行号抽取+cat 拼`（字节精确，行数对账闭合）替代手抄；**双证零漂移**=符号清单 before/after diff 空 + `go doc -all` 全包逐字节一致（两包各验）；包测试绿（builtin 12.6s 含计价/注册表/策略套件，modelengine 3.0s 含 estimate_cost 用例）。
+- **门禁**：前台 ci **exit 0**（golangci 0 issues / go test 全绿 / vitest 435 文件 3762 例 / 卫生守卫）；新文件三枚进显式 add 清单，提交后复验树干净+HEAD 可编译。
+- **god-file 余 ~19**（browser manager 1068/fold.go 1041/App.tsx 1041/mpp.go 1035/project.go 1011/controller.go 963/agent.go 975 等）；下一批候选=同配方续拆（GA5-08/GA5-04/IN3-03 待预核）；coupling ~20 与零散死码等拍板。
+
 ## 非版本刀：全仓审计第 24 批·god-func 大拆第三刀（AP2-01 runSinStream 三段拆）· 2026-10-03
 
 - **刀型**：接续批 23（`65baace6`）。**单线主代理直做**：AP2-01 `runSinStream` 265 行串六职责 → 「装配/循环/收尾」三段拆（`buildSinTurn`/`runSinRounds`/`persistSinTurn`，审计修法落地）。**不抬版本**。
