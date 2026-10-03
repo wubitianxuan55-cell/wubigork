@@ -33,6 +33,15 @@ const (
 )
 
 // Status 任务生命周期状态。
+//
+// ── 任务身份三系统对照表（A2① 统一语义口径，批 55；格式由各包格式钉测试把守）──
+// | 系统 | ID 格式 | 生成动因 | 状态词汇 | 取消/重试/续跑 |
+// | 任务调度器 | tsk_+32hex（rand 失败退 tsk_<nanos>） | 长寿命 store，碰撞域大 | queued/running/stopping/succeeded/failed/cancelled | 取消两段式（running→stopping→cancelled）；重试=re-enqueue |
+// | DAG 流水线 | dag_<yyyymmdd_hhmmss>_<seq> | 每个 run 一个 <id>.json，时间戳 slug=文件名字典序即时间序 | 节点 pending/hold/running/done/failed/skipped/accepted；run 派生 draft/running/failed/ready/accepted | 取消=级联终止（在跑 ctx 取消+未起跑 skipped）；重试=单节点重跑（runCount++）；续跑=已完成集跳过 |
+// | 任务收件箱 | ti-+12hex | 单文件 JSON 数组的建议队列，短 id 足够 | pending/doing/done/abandoned | 无执行语义（建议队列）：仅 CanTransition 状态迁移 |
+// 三套是**三种域**（执行引擎/流水线编排/建议队列），词汇差异是语义差异——
+// 不合并枚举；跨系统引用统一走既有命名空间（DAG 节点 Ref→sa_ 子代理运行、
+// 收件箱 Session→会话档）。格式漂移由 tasks/dag/taskinbox 三处 ID 格式钉抓。
 type Status string
 
 const (

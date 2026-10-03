@@ -458,3 +458,18 @@ func TestGaeaRouteIntentSaveTaskPreview(t *testing.T) {
 		t.Fatalf("执行应落盘 1 条 voice 任务: %+v", list)
 	}
 }
+
+// TestTaskInboxIDFormatPin 收件箱 ID 格式钉（A2① 任务身份对照表）：ti-+12hex，
+// rand 失败如实报错（对照口径见 tasks 包对照表与 newTaskInboxID 注释）。
+func TestTaskInboxIDFormatPin(t *testing.T) {
+	pin := regexp.MustCompile(`^ti-[0-9a-f]{12}$`)
+	for i := 0; i < 8; i++ {
+		id, err := newTaskInboxID()
+		if err != nil {
+			t.Fatalf("生成失败: %v", err)
+		}
+		if !pin.MatchString(id) {
+			t.Fatalf("收件箱 ID 格式漂移: %q（want ti-+12hex）", id)
+		}
+	}
+}

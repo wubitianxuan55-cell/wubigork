@@ -83,6 +83,9 @@ type RunView struct {
 var dagSeq atomic.Uint64
 
 // NewID 运行 id：时间戳+进程内序号 slug。
+// 身份口径见 tasks 包对照表（A2①）：前缀命名空间 dag_、时间戳 slug 使
+// run 档（<id>.json，safeID 校验）文件名字典序即时间序——格式由
+// TestDagIDFormatPin 把守，漂移会破坏「按名排序=按时间排序」的隐含契约。
 func NewID() string {
 	return fmt.Sprintf("dag_%s_%d", time.Now().Format("20060102_150405"), dagSeq.Add(1))
 }

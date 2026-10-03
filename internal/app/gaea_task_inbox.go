@@ -133,6 +133,9 @@ func saveTaskInbox(dataRoot string, tasks []taskinbox.Task) error {
 
 // newTaskInboxID 生成任务 ID："ti-"+12 小写十六进制（crypto/rand 6 字节，
 // 实体非重算候选——与 routesuggest.ParseSuggestionID 同款防御口径）。
+// newTaskInboxID 身份口径见 tasks 包对照表（A2①）：单文件建议队列，短 id
+// （ti-+12hex）碰撞域足够；rand 失败如实报错（与 tasks 的 nanos 兜底不同——
+// 队列条目可重试生成，无兜底必要）。格式由 TestTaskInboxIDFormatPin 把守。
 func newTaskInboxID() (string, error) {
 	var buf [6]byte
 	if _, err := rand.Read(buf[:]); err != nil {

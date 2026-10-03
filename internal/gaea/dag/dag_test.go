@@ -3,6 +3,7 @@ package dag
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 )
 
@@ -234,5 +235,17 @@ func TestApplyEditReconcile(t *testing.T) {
 		{ID: "report", Title: "出报告", Prompt: "p", DependsOn: []string{"read"}},
 	}); err == nil {
 		t.Fatal("移除仍被依赖的 read 应悬空拒绝")
+	}
+}
+
+// TestDagNewIDFormatPin 运行 ID 格式钉（A2① 任务身份对照表）：时间戳 slug 使
+// run 档文件名字典序=时间序（存储动因见 NewID 注释），格式漂移即红。
+func TestDagNewIDFormatPin(t *testing.T) {
+	pin := regexp.MustCompile(`^dag_\d{8}_\d{6}_\d+$`)
+	for i := 0; i < 4; i++ {
+		id := NewID()
+		if !pin.MatchString(id) {
+			t.Fatalf("DAG run ID 格式漂移: %q（want dag_yyyymmdd_hhmmss_seq）", id)
+		}
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1213,5 +1214,17 @@ func TestExitCodeClearedOnRetry(t *testing.T) {
 	}
 	if done.ExitCode != nil {
 		t.Fatalf("重跑后旧退出码应清空，实际 %v", *done.ExitCode)
+	}
+}
+
+// TestTaskIDFormatPin 任务身份对照表格式钉（A2①，批 55）：ID 格式是跨系统
+// 对照表的锚（见 tasks.go Status 上方对照表），格式漂移即红。
+func TestTaskIDFormatPin(t *testing.T) {
+	pin := regexp.MustCompile(`^tsk_[0-9a-f]{32}$`)
+	for i := 0; i < 8; i++ {
+		id := newID()
+		if !pin.MatchString(id) {
+			t.Fatalf("任务 ID 格式漂移: %q（want tsk_+32hex）", id)
+		}
 	}
 }
