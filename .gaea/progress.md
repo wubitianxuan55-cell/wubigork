@@ -1,3 +1,13 @@
+## 非版本刀：全仓审计第 26 批·god-file 续拆（GA5-08 browser 四分 + GA5-04 耗时域分家）· 2026-10-03
+
+- **刀型**：接续批 25（`486959f7`）。god-file 同配方续拆两线（同包纯文件拆分零逻辑改动），主代理直做。**不抬版本**。
+- **交付**：`docs/code-audit-2026-10-02/round-28-p1-batch26.md`。
+- **线 1 GA5-08**：browser/manager.go 1068 → 四文件（manager.go ~320 核心生命周期 / manager_tabs.go 196 多标签页 / manager_actions.go 370 页面操作 / manager_evaluate.go 196 evaluate+JS 片段）——文件自带分节注释即切口，最低风险形态。**线 2 GA5-04**：contextview/fold.go 1041 → fold.go 874 + fold_timing.go 180（耗时折叠域整体分家，与专属 timing_test.go 同域对位；**结构不动、方法分家**，比拆结构体低一档风险）。
+- **方法要点**：import 图谱两轮 grep（别名调用与注释内包名分清），**终审是编译器**（evaluate 段误带 time 被 build 裁掉）；fold.go import 零改动（json/sort 双侧共用、time 注释性命中先证伪）。
+- **等价证明**：双证零漂移（符号清单 diff 空 + go doc -all 逐字节一致，两包各验）+ 行数对账闭合 + 包测试绿（browser 5.3s / contextview 0.4s 含 timing 专属用例）。
+- **门禁**：前台 ci **exit 0**（golangci 0 issues / go test 全绿 / vitest 435 文件 3762 例 / 卫生守卫）；新文件四枚显式 add；提交后复验树干净+HEAD 可编译。
+- **god-file 余 ~17**（App.tsx 1041/mpp.go 1035/project.go 1011/controller.go 963/agent.go 975/CostLibraryView 1132 等）；下一批候选=IN3-03 mpp.go 分家或 IN1-01 project.go（动核心需更厚预核）；coupling ~20 与零散死码等拍板。
+
 ## 非版本刀：全仓审计第 25 批·god-file 大拆（GA2-01 websearch + IN2-12 stats 计价分家）· 2026-10-03
 
 - **刀型**：接续批 24（`60b2fc36`）。god-func 三刀收官转 god-file：**两线同包纯文件拆分**（原位搬移零逻辑改动），主代理直做。**不抬版本**。
