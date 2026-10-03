@@ -24,11 +24,13 @@ import (
 	"github.com/gaea/gaea/internal/chat"
 	"github.com/gaea/gaea/internal/gaea/contextview"
 	"github.com/gaea/gaea/internal/gaea/trajectory"
+	"github.com/gaea/gaea/internal/util"
 )
 
-// sinEstTokens 按仓库既有口径估算文本 token（bytes×0.25）。
+// sinEstTokens 按仓库既有口径估算文本 token（bytes÷4 floor；批 52 收口转调
+// util.EstimateTokensLen 单源）。
 func sinEstTokens(s string) int64 {
-	return int64(float64(len(s)) * 0.25)
+	return util.EstimateTokensLen(s)
 }
 
 // sinBrief 单行截断预览（与 contextview briefOf 同语义：取首行、按 rune 截断）。

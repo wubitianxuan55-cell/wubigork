@@ -9,7 +9,7 @@ import type { HistoryMessage, QuestionAnswer } from "../types";
 type ChatMethods = Pick<
   AppBindings,
   | "Submit" | "SubmitDisplay" | "Cancel" | "Steer" | "Approve" | "AnswerQuestion"
-  | "GaeaRunning" | "Compact" | "NewSession"
+  | "GaeaRunning" | "NewSession"
   | "Reload" | "CaptureSkill" | "SkillDraftFromSession" | "SkillDraftSave" | "Rewind" | "Fork"
   | "SkillDistillCandidates" | "SkillDistillDraft" | "SkillDistillDecide" | "SkillStats"
   | "GaeaTaskInboxList" | "GaeaTaskInboxSave" | "GaeaTaskInboxSetStatus" | "GaeaTaskInboxDelete"
@@ -233,7 +233,6 @@ export function buildChat(s: MakeMockState): ChatMethods {
       emit({ kind: "turn_done" });
     },
     async GaeaRunning() { return false; },
-    async Compact() {},
     async NewSession() {},
     async Reload() {
       // mock: 无真实内核，返回空结果

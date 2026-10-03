@@ -97,6 +97,9 @@ func CompareShape(prev, cur PrefixShape, usage *provider.Usage) CacheDiagnostics
 }
 
 // estimateTokens gives a rough token count from byte length.
+// ceil 方言刻意保留（批 52 estimateTokens 收口注记）：本口径服务缓存预留上限，
+// 向上取整保守；与 util.EstimateTokensLen（展示估算 floor）、util.EstimateTokens
+// （语言学口径）三家族互钉，跨型不许「顺手对齐」。
 func estimateTokens(s string) int {
 	if len(s) == 0 {
 		return 0

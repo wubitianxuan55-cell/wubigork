@@ -173,6 +173,10 @@ gaea 是 Windows 桌面端「通用办公」AI 助手（Wails v2：Go 1.26 后�
 ## 技术栈与关键约定
 
 - 桌面框架 Wails v2.13（Go + WebView2）；后端事件总线 + 前端 zustand 桥接（bridge.ts → window.go.app.App）
+- **God 类型冻结约定（2026-10-03 批 52，A3③ 裁决）**：`App`/`mediaState`/`writingState` 等历史巨结构体
+  维持现状不拆（嵌入地层已稳定，再拆收益近零——round-31 判定）；**新增字段必须挂子结构体**
+  （如 cfg/media 子域），不得继续往顶层铺平；相关拍板项（X1-03/AgentRunner 收敛）按
+  docs/code-audit-2026-10-02/decision-brief-2026-10-03.md §A3 处置
 - **绑定面（v2.17.0 起）**：App 不再直接绑定 Wails；429 个导出方法拆 10 个板块门面
   （internal/app/bindings_*.go：CoreB/OfficeB/MemoryB/CostB/ModelB/VoiceB/ChatB/NovelB/ImageB/CharlibB，
   纯委托零逻辑改动）。改绑定面方法后用 `go run ./scripts/gen_bindings` 重新生成 +

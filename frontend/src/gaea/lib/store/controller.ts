@@ -119,11 +119,11 @@ export function useController() {
 
   const { send, steer, cancel, approve, answerQuestion, setPermLevel } = useTurnActions(dispatch, store);
   const { newSession, listSessions, listProjectSessions, fetchSessionStats, resumeSession, archiveSession, unarchiveSession, pinSession, deleteSession, renameSession, refreshMeta } = useSessionActions(dispatch, loadItemsFoldedFirst, refreshFactBase);
-  const { pickWorkspace, switchWorkspace, compact, setModel } = useWorkspaceActions(dispatch, refreshFactBase);
+  const { pickWorkspace, switchWorkspace, setModel } = useWorkspaceActions(dispatch, refreshFactBase);
   const { fetchMemory, remember, forget, saveDoc, updateFact, changeFactType, clearFactBase, promoteFactBase } = useMemoryActions(dispatch, refreshFactBase);
   const { rewind, regenerate } = useRewindActions(dispatch, loadItemsFoldedFirst, store, send);
 
-  return { state, send, steer, cancel, approve, answerQuestion, setPermLevel, newSession, listSessions, listProjectSessions, resumeSession, archiveSession, unarchiveSession, pinSession, deleteSession, renameSession, refreshMeta, pickWorkspace, switchWorkspace, compact, rewind, setModel, fetchMemory, remember, forget, saveDoc, updateFact, changeFactType, clearFactBase, promoteFactBase, fetchSessionStats, regenerate };
+  return { state, send, steer, cancel, approve, answerQuestion, setPermLevel, newSession, listSessions, listProjectSessions, resumeSession, archiveSession, unarchiveSession, pinSession, deleteSession, renameSession, refreshMeta, pickWorkspace, switchWorkspace, rewind, setModel, fetchMemory, remember, forget, saveDoc, updateFact, changeFactType, clearFactBase, promoteFactBase, fetchSessionStats, regenerate };
 }
 
 // useItems 订阅 items 数组，与 useController 分离。

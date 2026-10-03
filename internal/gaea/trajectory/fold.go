@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/gaea/gaea/internal/gaea/agent/session"
+	"github.com/gaea/gaea/internal/util"
 )
 
 // 预览上限：轨迹是浏览视图，正文/推理/输出做展示级截断（全文在日志里）。
@@ -557,6 +558,8 @@ func payloadTurnErr(e session.LogEntry) string {
 	return p.Err
 }
 
+// estimateTokens 按仓库既有口径估算文本 token 数（bytes÷4 floor；批 52 收口
+// 转调 util.EstimateTokensLen 单源）。
 func estimateTokens(s string) int64 {
-	return int64(float64(len(s)) * 0.25)
+	return util.EstimateTokensLen(s)
 }

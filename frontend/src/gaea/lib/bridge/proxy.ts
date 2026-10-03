@@ -30,9 +30,9 @@ import {
 const MOCK_ONLY_SET = new Set<string>(MOCK_ONLY_NAMES);
 
 // 逐名理由（写进错误文案，用户可读；新名入清单时必须配理由）。
-const MOCK_ONLY_REASONS: Record<string, string> = {
-  Compact: "上下文压缩由后端会话事件自动执行",
-};
+// Compact 已随批 52 摘除（零调用者+自动压缩已在，B6① 裁决）；清单暂空，
+// 机制保留供未来 mock-only 名登记。
+const MOCK_ONLY_REASONS: Record<string, string> = {};
 
 function mockOnlyBindingRejection(method: string): () => Promise<never> {
   const why = MOCK_ONLY_REASONS[method];

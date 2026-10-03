@@ -292,6 +292,15 @@ func EstimateTokens(text string) int {
 	return int(float64(chineseCount)*1.5 + float64(englishWords)*1.3)
 }
 
+// EstimateTokensLen 按固定密度启发式（约 4 字节 ≈ 1 token，向下取整）估算文本
+// token 数。bytes÷4 家族单源（批 52 estimateTokens 收口）：contextview/sin_insight/
+// trajectory 三处 floor 同型转调本函数。两处刻意不并入的方言：agent/cache_shape
+// 的 (len+3)/4 = **ceil**（缓存预留上限取保守口径）；本文件 EstimateTokens =
+// **语言学口径**（context 引擎预算）——三家族服务不同面，跨型不许「顺手对齐」。
+func EstimateTokensLen(s string) int64 {
+	return int64(len(s)) / 4
+}
+
 // MarkedSection 标记区段结果
 type MarkedSection struct {
 	RawJSON string

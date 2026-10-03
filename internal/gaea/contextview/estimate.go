@@ -1,11 +1,12 @@
 package contextview
 
-// fallbackTokPerChar 与 agent 包的口径一致：约 4 字符/token。
-const fallbackTokPerChar = 0.25
+import "github.com/gaea/gaea/internal/util"
 
-// estimateTokens 按仓库既有口径估算文本 token 数（字节 × 0.25）。
+// estimateTokens 按仓库既有口径估算文本 token 数（字节 × 0.25 = bytes÷4 floor）。
+// 批 52 estimateTokens 收口：实现转调 util.EstimateTokensLen 单源；与 agent 包
+// ceil 方言的差异由该处注释钉（本口径服务折叠展示，不服务缓存预留）。
 func estimateTokens(s string) int64 {
-	return int64(float64(len(s)) * fallbackTokPerChar)
+	return util.EstimateTokensLen(s)
 }
 
 // scaleCategory 把估算分类按实际 promptTokens 等比缩放（锚定真实用量，

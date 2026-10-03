@@ -71,7 +71,6 @@ export interface CoreBindings {
   GaeaRunning(): Promise<boolean>;
   Approve(id: string, decision: "allow_once" | "allow_session" | "persist_allow" | "deny" | "abort"): Promise<void>;
   AnswerQuestion(id: string, answers: QuestionAnswer[]): Promise<void>;
-  Compact(): Promise<void>;
   NewSession(): Promise<void>;
   // Reload 热加载办公引擎：重新读取磁盘上的持久化配置并重建 controller，
   // 使技能/工具/插件/参数变更无需重启即生效；返回重建后的工具/技能数量。

@@ -351,7 +351,6 @@ export const GAEA_METHOD_FACETS = {
   SubagentFollowUp: "work",
   Approve: "work",
   AnswerQuestion: "work",
-  Compact: "work",
   NewSession: "work",
   Reload: "work",
   History: "work",
