@@ -157,3 +157,85 @@ func TestCostComposeMode(t *testing.T) {
 		t.Errorf("未知 mode 应回落中位数: %s", unk)
 	}
 }
+
+// TestCostComposeRecallBelowThreshold <3 补召回编排（批 18 留池收口）：关键词
+// 命中 < cost.RecallBelow 时 Enhance 触发 Recall 钩子并把召回结果并入候选。
+// 注入 semanticCostRecall 桩验证双向口径：<3 必触发且合并（证据链出现召回
+// 条目）、≥3 不触发；触发次数恒 1（单次编排单次召回）。
+func TestCostComposeRecallBelowThreshold(t *testing.T) {
+	dir := t.TempDir()
+	gdb := db.GetDatabase(dir)
+	if gdb == nil {
+		t.Fatal("GetDatabase nil")
+	}
+	defer db.CloseDatabase(dir)
+	store := cost.Open(gdb)
+	SetCostStoreForTest(store)
+	defer SetCostStoreForTest(nil)
+
+	// 语料：HP300×2（<RecallBelow=3 的命中组）、塔吊×2（不命中，召回桩货源）、
+	// C30×3（≥3 的命中组，反向用）。
+	seed := []struct {
+		name, title, spec string
+		price             float64
+	}{
+		{"hp300-0", "HP300 高频液压振动锤", "300kW", 3000},
+		{"hp300-1", "HP300 高频液压振动锤", "300kW", 3200},
+		{"tower-0", "塔式起重机", "QTZ80", 800},
+		{"tower-1", "塔式起重机", "QTZ80", 900},
+		{"c30-0", "C30 混凝土", "P.O 42.5", 380},
+		{"c30-1", "C30 混凝土", "P.O 42.5", 400},
+		{"c30-2", "C30 混凝土", "P.O 42.5", 420},
+	}
+	for i, e := range seed {
+		if err := store.Save(cost.Entry{
+			Name: e.name, Title: e.title, Category: "机械", Unit: "台班",
+			Price: e.price, Spec: e.spec, Source: "历史项目", Status: "现行",
+			Body: strings.Repeat("x", i+1),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	calls := 0
+	orig := semanticCostRecall
+	t.Cleanup(func() { semanticCostRecall = orig })
+	semanticCostRecall = func(ctx context.Context, query string, have []cost.Summary, store *cost.Store, topN int) []cost.Summary {
+		calls++
+		out := append([]cost.Summary{}, have...)
+		out = append(out,
+			cost.Summary{Name: "tower-0", Title: "塔式起重机", Unit: "台班", Price: 800, Source: "历史项目"},
+			cost.Summary{Name: "tower-1", Title: "塔式起重机", Unit: "台班", Price: 900, Source: "历史项目"})
+		return out
+	}
+
+	cc := costCompose{}
+	// 正向：命中 2 < 3 → 触发召回，塔吊条目并入证据链。
+	out, err := cc.Execute(context.Background(), composeToJSON(t, map[string]interface{}{
+		"description": "HP300 高频液压振动锤", "unit": "台班",
+	}))
+	if err != nil {
+		t.Fatalf("cost_compose failed: %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("命中 <3 应触发补召回恰 1 次, got %d", calls)
+	}
+	if !strings.Contains(out, "塔式起重机") {
+		t.Fatalf("召回结果未并入候选（证据链无塔吊条目）:\n%s", out)
+	}
+
+	// 反向：命中 3 ≥ 3 → 不触发（阈值下界不抖动）。
+	calls = 0
+	out, err = cc.Execute(context.Background(), composeToJSON(t, map[string]interface{}{
+		"description": "C30 混凝土", "unit": "台班",
+	}))
+	if err != nil {
+		t.Fatalf("cost_compose(C30) failed: %v", err)
+	}
+	if calls != 0 {
+		t.Fatalf("命中 ≥3 不应触发补召回, got %d 次", calls)
+	}
+	if strings.Contains(out, "塔式起重机") {
+		t.Fatalf("未触发时召回桩条目不应出现:\n%s", out)
+	}
+}

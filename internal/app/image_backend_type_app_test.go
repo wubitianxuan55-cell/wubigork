@@ -89,3 +89,27 @@ func TestMediaSetImageBackend_XAIBranchPersistsTypeName(t *testing.T) {
 		t.Errorf("GetImageBackendType = %q, want %q", got, ai.ImageBackendTypeXAI)
 	}
 }
+
+// TestWarmComfyUIArmedGate :54 暖启武装位闸（round-22 线 1 登记收口）：未武装
+// （服务启动未完成）恒 "unarmed"；武装后按后端/引擎状态分流（非 comfyui 后端
+// → "backend-not-comfyui"；comfyui 后端引擎不在跑 → "comfyui-not-running"，
+// mock 环境无引擎即走此分支）。包级 atomic 复位保序，防污染其他用例。
+func TestWarmComfyUIArmedGate(t *testing.T) {
+	prev := comfyWarmArmed.Load()
+	t.Cleanup(func() { comfyWarmArmed.Store(prev) })
+
+	comfyWarmArmed.Store(false)
+	ms := &mediaState{core: &core{cfg: &config.Config{ImageBackend: ai.ImageBackendTypeComfyUI, ImageModel: "krea2"}}}
+	if got := ms.WarmComfyUI(); got["started"] != false || got["reason"] != "unarmed" {
+		t.Fatalf("未武装应 unarmed: %v", got)
+	}
+
+	comfyWarmArmed.Store(true)
+	if got := ms.WarmComfyUI(); got["started"] != false || got["reason"] != "comfyui-not-running" {
+		t.Fatalf("武装+comfyui 后端+引擎不在跑应 comfyui-not-running: %v", got)
+	}
+	xai := &mediaState{core: &core{cfg: &config.Config{ImageBackend: ai.ImageBackendTypeXAI, ImageModel: "grok-imagine-image-quality"}}}
+	if got := xai.WarmComfyUI(); got["started"] != false || got["reason"] != "backend-not-comfyui" {
+		t.Fatalf("武装+非 comfyui 后端应 backend-not-comfyui: %v", got)
+	}
+}

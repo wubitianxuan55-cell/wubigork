@@ -406,27 +406,43 @@ func TestMppSyntheticMPP9(t *testing.T) {
 
 // ── 真实样本门控测试(git-ignored clones 样例,缺失即 Skip) ─────────
 
+// TestMppRealSamples MPP9 族真实样本门控（硬断言版，round-21 盲区①收口）：
+// 此前只断言 >0 类弱判据，V9 偏移变异把总工期 344→1275769 天仍绿——弱判据对
+// 字节级漂移是盲的。三样本真值按 2026-10-03 解析快照钉死（与 2013 硬断言门控
+// 同款先例）；任务名全空护栏保留（名称解码类变异由它兜底）。
 func TestMppRealSamples(t *testing.T) {
-	samples := []string{
-		"../../clones/projectlibre/projectlibre_build/resources/samples/Commercial construction project plan.mpp",
-		"../../clones/projectlibre/projectlibre_build/resources/samples/New Product.mpp",
-		"../../clones/projectlibre/projectlibre_build/resources/samples/Microsoft Office Project 2003 deployment.mpp",
+	samples := []struct {
+		path                                 string
+		tasks, links, resources, assign, dur int
+	}{
+		{
+			"../../clones/projectlibre/projectlibre_build/resources/samples/Commercial construction project plan.mpp",
+			146, 176, 32, 158, 344,
+		},
+		{
+			"../../clones/projectlibre/projectlibre_build/resources/samples/New Product.mpp",
+			43, 37, 8, 28, 83,
+		},
+		{
+			"../../clones/projectlibre/projectlibre_build/resources/samples/Microsoft Office Project 2003 deployment.mpp",
+			323, 138, 12, 317, 30,
+		},
 	}
 	any := false
-	for _, path := range samples {
-		data, err := os.ReadFile(filepath.FromSlash(path))
+	for _, s := range samples {
+		data, err := os.ReadFile(filepath.FromSlash(s.path))
 		if err != nil {
 			continue
 		}
 		any = true
+		name := filepath.Base(s.path)
 		p, err := ParseMpp(data)
 		if err != nil {
-			t.Errorf("%s:ParseMpp 失败:%v", filepath.Base(path), err)
+			t.Errorf("%s:ParseMpp 失败:%v", name, err)
 			continue
 		}
-		if len(p.Tasks) == 0 {
-			t.Errorf("%s:0 任务", filepath.Base(path))
-			continue
+		if len(p.Tasks) != s.tasks {
+			t.Errorf("%s:任务 %d, want %d", name, len(p.Tasks), s.tasks)
 		}
 		named := 0
 		for _, task := range p.Tasks {
@@ -434,19 +450,28 @@ func TestMppRealSamples(t *testing.T) {
 				named++
 			}
 		}
-		if named == 0 {
-			t.Errorf("%s:任务名全空(名称解码失败)", filepath.Base(path))
+		if named != s.tasks {
+			t.Errorf("%s:任务名不全(%d/%d)(名称解码失败)", name, named, s.tasks)
+		}
+		if len(p.Links) != s.links {
+			t.Errorf("%s:搭接 %d, want %d", name, len(p.Links), s.links)
+		}
+		if len(p.Resources) != s.resources {
+			t.Errorf("%s:资源 %d, want %d", name, len(p.Resources), s.resources)
+		}
+		if len(p.Assignments) != s.assign {
+			t.Errorf("%s:分配 %d, want %d", name, len(p.Assignments), s.assign)
 		}
 		r := ComputeCpm(p.Tasks, p.Links)
 		if !r.OK {
-			t.Errorf("%s:CPM 未通过:%s(任务 %d/搭接 %d)", filepath.Base(path), r.Error, len(p.Tasks), len(p.Links))
+			t.Errorf("%s:CPM 未通过:%s(任务 %d/搭接 %d)", name, r.Error, len(p.Tasks), len(p.Links))
 			continue
 		}
-		if r.Duration <= 0 {
-			t.Errorf("%s:总工期=%d", filepath.Base(path), r.Duration)
+		if r.Duration != s.dur {
+			t.Errorf("%s:总工期=%d, want %d(字节级漂移即红)", name, r.Duration, s.dur)
 		}
 		t.Logf("%s:任务 %d(有名 %d)/搭接 %d/资源 %d/分配 %d/总工期 %d 天",
-			filepath.Base(path), len(p.Tasks), named, len(p.Links), len(p.Resources), len(p.Assignments), r.Duration)
+			name, len(p.Tasks), named, len(p.Links), len(p.Resources), len(p.Assignments), r.Duration)
 	}
 	if !any {
 		t.Skip("真实 MPP 样本不存在(clones/projectlibre 样例目录未就位)")

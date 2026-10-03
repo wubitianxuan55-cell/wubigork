@@ -143,8 +143,9 @@ func (costSearch) Execute(ctx context.Context, args json.RawMessage) (string, er
 }
 
 // semanticCostRecall 语义召回：持久化向量索引（Ensure 增量向量化 + 查询只嵌
-// query），候选库规模不影响单次查询成本。
-func semanticCostRecall(ctx context.Context, query string, have []cost.Summary, store *cost.Store, topN int) []cost.Summary {
+// query），候选库规模不影响单次查询成本。var 钩子形态（visionExtractPDF 同款
+// 测试接缝）：cost_compose 的 <3 补召回用例注入桩验证触发与合并双向口径。
+var semanticCostRecall = func(ctx context.Context, query string, have []cost.Summary, store *cost.Store, topN int) []cost.Summary {
 	e := costEmbedder()
 	if e == nil {
 		return nil
