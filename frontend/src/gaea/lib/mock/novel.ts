@@ -18,6 +18,36 @@ const mockFingerprintStatus: FingerprintStatusPayload = { exists: false };
 // 提示词工坊演示态（模块级：Save 保存次数自增，模拟覆盖 Version 递增）。
 let mockPromptSaveCount = 0;
 
+// 评测基线批次内存态（批 43 NOT_MOCKED 首刀）：快照/基线两槽 + 零值快照构造。
+// mock 工程无真实分析链产物，确定性指标恒为零值快照；promptSetHash 恒 "mock0"
+// （对比恒非 stale）。三流程（设基线→快照→对比/删除）在内存闭环可走查。
+type MockEvalBody = {
+  chapters: number; chars: number; prompt_set_hash: string;
+  taste: { mean: number; max: number; p90: number; worst_chapter: number };
+  quality: { s1: number; s2: number; s3: number };
+  foreshadow: { items: number; planted: number; hinted: number; revealed: number; recall: number; findings: number };
+  story: { findings: number; by_code: Record<string, number> };
+  style_delta: number | null;
+  tension: { mean: number; p90: number; swing: number; covered: number };
+  context_total_runes: number;
+};
+const mockEvalBody = (): MockEvalBody => ({
+  chapters: 0, chars: 0, prompt_set_hash: "mock0",
+  taste: { mean: 0, max: 0, p90: 0, worst_chapter: 0 },
+  quality: { s1: 0, s2: 0, s3: 0 },
+  foreshadow: { items: 0, planted: 0, hinted: 0, revealed: 0, recall: 0, findings: 0 },
+  story: { findings: 0, by_code: {} },
+  style_delta: null,
+  tension: { mean: 0, p90: 0, swing: 0, covered: 0 },
+  context_total_runes: 0,
+});
+const mockEvalSnapshotName = () =>
+  new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z"); // UTC 20060102T150405Z 同形
+const mockEvalSnapshots: Array<{ name: string; body: MockEvalBody }> = [];
+let mockEvalBaseline: MockEvalBody | null = null;
+// 故事脊椎内存单槽（未保存时 {version:1} 空骨架，与 Go ReadStorySpine 缺档口径一致）。
+let mockStorySpine: Record<string, unknown> = { version: 1 };
+
 type NovelMethods = Pick<
   AppBindings,
   | "NovelSearch"
@@ -74,6 +104,15 @@ type NovelMethods = Pick<
   | "NovelSceneBibleView"
   // GenerationGate 闭环：全书体检（触发式全量编译，零 LLM）。
   | "RunBookHealthCheck"
+  // 评测基线批次（长篇刀7；CreatePage「书健康」面板评测区）。
+  | "NovelEvalSnapshot" | "NovelEvalSnapshotsList" | "NovelEvalSnapshotDelete"
+  | "NovelEvalBaselineSet" | "NovelEvalCompare"
+  // 故事层骨架批次（长篇刀3；「故事脊椎」面板 + 骨架体检）。
+  | "NovelStorySpineGet" | "NovelStorySpineSave" | "NovelStoryHealth"
+  // 风格摘要读/清批次（长篇刀5；「风格摘要」面板读态）。
+  | "NovelStyleDigestGet" | "NovelStyleDigestClear"
+  // 上下文盘点批次（刀6 可见性；「上下文」页签）。
+  | "NovelContextInventory"
 >;
 
 export function buildNovel(): NovelMethods {
@@ -687,6 +726,93 @@ export function buildNovel(): NovelMethods {
           summary: "本章以敲门声开局，信物将主角由旁观推入局中，冲突升至 7 且未解。",
         },
       };
+    },
+
+    // ── 评测基线批次（长篇刀7；CreatePage「书健康」面板评测区）────────────
+    async NovelEvalSnapshot(persist: boolean) {
+      const body = mockEvalBody();
+      if (persist) mockEvalSnapshots.push({ name: mockEvalSnapshotName(), body });
+      return body;
+    },
+    async NovelEvalSnapshotsList() {
+      // 行键同 Go NovelEvalSnapshotsList 投影（新→旧=push 序倒排）。
+      return [...mockEvalSnapshots].reverse().map(({ name, body }) => ({
+        name,
+        chapters: body.chapters, chars: body.chars, tasteMean: body.taste.mean,
+        s1: body.quality.s1, s2: body.quality.s2, s3: body.quality.s3,
+        recall: body.foreshadow.recall, tensionMean: body.tension.mean, tensionCover: body.tension.covered,
+      }));
+    },
+    async NovelEvalSnapshotDelete(name: string) {
+      const i = mockEvalSnapshots.findIndex((s) => s.name === name);
+      if (i < 0) throw new Error(`快照不存在: ${name}`);
+      mockEvalSnapshots.splice(i, 1);
+    },
+    async NovelEvalBaselineSet() {
+      mockEvalBaseline = mockEvalBody();
+      return { ok: true, promptSetHash: "mock0" };
+    },
+    async NovelEvalCompare(baseName: string, curName: string) {
+      // 同 Go NovelEvalCompare 口径：base 空=基线（无则如实拒绝）；给名=读内存
+      // 快照；两名相同拒绝；指标行集与方向（lowerIsBetter）逐行同源。
+      const named = (n: string) => mockEvalSnapshots.find((s) => s.name === n)?.body;
+      if (baseName && baseName === curName) throw new Error("两份快照相同，对比无意义");
+      const base = baseName ? named(baseName) : mockEvalBaseline;
+      if (!base) throw new Error("尚无基线：先「设为基线」再做对比");
+      const cur = curName ? named(curName) : null;
+      if (curName && !cur) throw new Error(`快照不存在: ${curName}`);
+      const curBody = cur ?? mockEvalBody();
+      const rows: Array<[string, number, number, boolean]> = [
+        ["AI 味均值", base.taste.mean, curBody.taste.mean, true],
+        ["AI 味 P90", base.taste.p90, curBody.taste.p90, true],
+        ["S1 信号", base.quality.s1, curBody.quality.s1, true],
+        ["S2 信号", base.quality.s2, curBody.quality.s2, true],
+        ["S3 提示", base.quality.s3, curBody.quality.s3, true],
+        ["伏笔回收率", base.foreshadow.recall, curBody.foreshadow.recall, false],
+        ["未回收伏笔 findings", base.foreshadow.findings, curBody.foreshadow.findings, true],
+        ["结构体检 findings", base.story.findings, curBody.story.findings, true],
+        ["上下文合计 rune", base.context_total_runes, curBody.context_total_runes, true],
+      ];
+      const items = rows.map(([metric, from, to, lowerIsBetter]) => {
+        const delta = Math.round((to - from) * 100) / 100;
+        const dir = delta === 0 ? "flat" : (delta < 0) === lowerIsBetter ? "better" : "worse";
+        return { metric, from, to, delta, dir };
+      });
+      return { stale: false, items, baseName, curName };
+    },
+
+    // ── 故事层骨架批次（长篇刀3；「故事脊椎」面板 + 骨架体检）────────────
+    async NovelStorySpineGet() {
+      return mockStorySpine;
+    },
+    async NovelStorySpineSave(spineJSON: string) {
+      try {
+        mockStorySpine = JSON.parse(spineJSON) as Record<string, unknown>;
+      } catch (e) {
+        throw new Error(`故事骨架解析失败: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    },
+    async NovelStoryHealth() {
+      // 零 spine/零章=空报告不算错（新书正常态；Go 口径同）。
+      return { current_chapter: 0, findings: [], counts: {} };
+    },
+
+    // ── 风格摘要读/清批次（长篇刀5；「风格摘要」面板读态）────────────────
+    async NovelStyleDigestGet() {
+      return { exists: false }; // 未构建口径同 Go 缺档
+    },
+    async NovelStyleDigestClear() {},
+
+    // ── 上下文盘点批次（刀6 可见性；「上下文」页签）─────────────────────
+    // 恒列固定面四行（setting 预算口径/章节计划/大纲要点/成人向档位回显），
+    // 数据行全空——mock 工程无分析链产物；行键 {name,runes,note,preview} 同 Go。
+    async NovelContextInventory(_chapterNum: number) {
+      return [
+        { name: "setting（小说设定）", runes: 0, note: "由编辑区传入；超过预算 rune 截断并附提示", preview: "" },
+        { name: "章节计划", runes: 0, note: "刀1 意图注入", preview: "" },
+        { name: "大纲要点", runes: 0, note: "刀1 意图注入", preview: "" },
+        { name: "成人向工艺区段", runes: 0, note: "档位=未启用；非成人向零注入（创作页「本书定位」或建档时可选）", preview: "" },
+      ];
     },
   };
 }
