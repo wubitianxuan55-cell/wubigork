@@ -89,6 +89,31 @@ func TestAtomicWrite_UsesRetryPath(t *testing.T) {
 	}
 }
 
+// perm 参数生效（审计上报未动池收口）：CreateTemp 恒 0600，此前 rename 后
+// 目标权限恒为 0600、调用方传入的 perm 被静默忽略。收口后目标权限=perm，
+// 覆盖写同样带新 perm（editfile 工具「保持原权限位」依赖该路径）。
+// 断言仅 POSIX 有意义——Windows 的 Mode() 不模拟权限位（只反映只读属性），
+// 但 Windows 下其他用例仍会实际执行 chmod 代码路径。
+func TestAtomicWrite_PermTakesEffect(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows 不模拟 POSIX 权限位")
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "cfg.json")
+	if err := AtomicWrite(path, []byte(`{"a":1}`), 0o600); err != nil {
+		t.Fatalf("写入 0600: %v", err)
+	}
+	if fi, err := os.Stat(path); err != nil || fi.Mode().Perm() != 0o600 {
+		t.Fatalf("目标权限应为 0600: mode=%v err=%v", fi.Mode(), err)
+	}
+	if err := AtomicWrite(path, []byte(`{"a":2}`), 0o644); err != nil {
+		t.Fatalf("覆盖写入 0644: %v", err)
+	}
+	if fi, err := os.Stat(path); err != nil || fi.Mode().Perm() != 0o644 {
+		t.Fatalf("覆盖后目标权限应为 0644: mode=%v err=%v", fi.Mode(), err)
+	}
+}
+
 // AtomicWrite 自带 MkdirAll：父目录缺失时自动创建（幂等、多层），写入成功。
 // project/narrative 收敛到本实现后全仓都依赖该性质。
 func TestAtomicWrite_CreatesMissingParentDirs(t *testing.T) {

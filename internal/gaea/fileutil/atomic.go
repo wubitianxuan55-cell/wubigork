@@ -35,6 +35,16 @@ func AtomicWrite(path string, data []byte, perm os.FileMode) error {
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("close temp: %w", err)
 	}
+	// perm 参数生效（审计 512 条·上报未动池收口）：CreateTemp 恒以 0600 创建，
+	// 直接 rename 会把调用方传入的权限位静默失真为 0600（editfile 工具「保持
+	// 原文件权限位」的文档承诺此前实际未兑现）。rename 前对仍在己手的临时件
+	// chmod，不产生错权限的可见中间态；Unix 上精确生效（不经 umask——调用方
+	// 全部传显式值，无 umask 依赖语义要保留），Windows 上 Chmod 仅切换只读位
+	// （0600/0644 均可写，等效 no-op）。
+	if err := os.Chmod(tmpPath, perm.Perm()); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("chmod %s: %w", tmpPath, err)
+	}
 	if err := RenameWithRetry(tmpPath, path); err != nil {
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("rename %s: %w", path, err)
