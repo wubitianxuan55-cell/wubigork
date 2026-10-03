@@ -31,7 +31,7 @@ export function failWrite(dispatch: (a: Action) => void, what: string, err: unkn
   dispatch({ type: "event", e: { kind: "notice", level: "warn", text: `${what}失败：${errText(err)}，请重试` } });
 }
 
-// isFinalAnswerRendered：最终回答是否已完整渲染（T7-4 完整文本比较）。
+// useMemoryActions：记忆/画像族八件（跨族依赖 refreshFactBase 注入）。
 export function useMemoryActions(dispatch: (a: Action) => void, refreshFactBase: () => void) {
   const fetchMemory = useCallback((): Promise<MemoryView> => app.Memory().catch((err) => {
     logBridgeError("fetchMemory", err);

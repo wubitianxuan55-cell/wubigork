@@ -9,10 +9,11 @@ import { useShallow } from "zustand/shallow";
 import { app, onEvent, onReady } from "../bridge";
 import { noteEventSeq, resetEventSync } from "../eventSync";
 import { errText, failWrite, logBridgeError, useMemoryActions } from "./controller_actions_memory";
+import { useSessionActions } from "./controller_actions_session";
 import { parseTodos } from "../tools";
 import type {
   BalanceInfo, ContextInfo, FactBaseView, HistoryMessage, JobView,
-  Meta, ProjectGroup, QuestionAnswer, SessionMeta, SessionStatsView, WireApproval, WireAsk,
+  Meta, QuestionAnswer, SessionStatsView, WireApproval, WireAsk,
   WireEvent, WireUsage,
 } from "../types";
 export * from "./controller_state";
@@ -231,56 +232,7 @@ export function useController() {
       .catch((err) => failWrite(dispatch, "回答提交", err));
   }, [dispatch]);
   const setPermLevel = useCallback((level: string) => { app.SetPermLevel(level).catch((err) => failWrite(dispatch, "切换权限级别", err)); }, [dispatch]);
-  const newSession = useCallback(async () => {
-    try {
-      await app.NewSession();
-      dispatch({ type: "reset" });
-      resetEventSync(); // v4.26：新会话事件 seq 从 1 重新单调递增，补拉防线基线归零
-      refreshFactBase();
-    } catch (err) {
-      // 新建失败不重置界面（后端会话未切换），给出可见提示。
-      failWrite(dispatch, "新建会话", err);
-    }
-  }, [dispatch, refreshFactBase]);
-  const listSessions = useCallback((): Promise<SessionMeta[]> =>
-    app.ListSessions().catch((err) => { logBridgeError("listSessions", err); return [] as SessionMeta[]; }), []);
-  const listProjectSessions = useCallback((): Promise<ProjectGroup[]> =>
-    app.ListProjectSessions().catch((err) => { logBridgeError("listProjectSessions", err); return [] as ProjectGroup[]; }), []);
-  // fetchSessionStats 拉取会话级派生统计并写入 store；失败/无日志标记为不可用
-  // （不阻塞恢复流程，仅影响统计面板的历史成本展示）。
-  const fetchSessionStats = useCallback((path: string) => {
-    app.SessionStats(path)
-      .then((stats) => dispatch({ type: "sessionStats", stats }))
-      .catch((err) => { logBridgeError("fetchSessionStats", err); dispatch({ type: "sessionStats", stats: undefined }); });
-  }, [dispatch]);
-  const resumeSession = useCallback(async (path: string) => {
-    await app.ResumeSession(path).catch((e: unknown) => {
-      // 恢复失败不要静默清空：给用户明确提示
-      dispatch({
-        type: "event",
-        e: { kind: "notice", level: "warn", text: `恢复会话失败：${e instanceof Error ? e.message : String(e)}` },
-      });
-      return [] as HistoryMessage[];
-    });
-    dispatch({ type: "reset" });
-    resetEventSync(); // v4.26：恢复会话同样归零 seq 基线
-    await loadItemsFoldedFirst(); // §8-5：折叠快照优先（日志序 id），History 保底
-    // 恢复后回填会话级派生统计（成本/用量历史，评审缺陷 11 根治）
-    void fetchSessionStats(path);
-    app.ContextUsage().then(c => dispatch({ type: "context", context: c })).catch((err) => logBridgeError("resumeSession ContextUsage", err));
-    refreshFactBase();
-  }, [dispatch, loadItemsFoldedFirst, refreshFactBase, fetchSessionStats]);
-  const archiveSession = useCallback((path: string) => app.ArchiveSession(path).catch((err) => failWrite(dispatch, "归档会话", err)), [dispatch]);
-  const unarchiveSession = useCallback((path: string): Promise<string> => app.UnarchiveSession(path).catch((err) => { failWrite(dispatch, "取消归档", err); return ""; }), [dispatch]);
-  const pinSession = useCallback((path: string, pinned: boolean) => app.PinSession(path, pinned).catch((err) => failWrite(dispatch, "更新固定状态", err)), [dispatch]);
-  const deleteSession = useCallback((path: string) => app.DeleteSession(path).catch((err) => failWrite(dispatch, "删除会话", err)), [dispatch]);
-  const renameSession = useCallback((path: string, title: string) => app.RenameSession(path, title).catch((err) => failWrite(dispatch, "重命名会话", err)), [dispatch]);
-  const refreshMeta = useCallback(async () => {
-    try {
-      dispatch({ type: "meta", meta: await app.Meta() });
-      dispatch({ type: "context", context: await app.ContextUsage() });
-    } catch (err) { logBridgeError("refreshMeta", err); }
-  }, [dispatch]);
+  const { newSession, listSessions, listProjectSessions, fetchSessionStats, resumeSession, archiveSession, unarchiveSession, pinSession, deleteSession, renameSession, refreshMeta } = useSessionActions(dispatch, loadItemsFoldedFirst, refreshFactBase);
   const pickWorkspace = useCallback(async (): Promise<string> => {
     const p = await app.PickWorkspace().catch((err: unknown) => { failWrite(dispatch, "打开工作区", err); return ""; });
     if (p) {
