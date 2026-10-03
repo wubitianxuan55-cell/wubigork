@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 )
 
 // maxRecentWorkspaces 限制侧边栏「项目」分组里保留的工作区数量，
@@ -52,7 +54,7 @@ func SaveRecentWorkspaces(paths []string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(p, b, 0o644)
+	return fileutil.AtomicWrite(p, b, 0o644)
 }
 
 // TouchRecentWorkspace 把工作区置顶到最近列表（去重、截断）并持久化，

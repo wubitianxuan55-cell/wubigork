@@ -14,6 +14,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/gaea/strutil"
 )
 
@@ -55,7 +56,7 @@ func Save(cwd string, paths []string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(Path(cwd), b, 0o644)
+	return fileutil.AtomicWrite(Path(cwd), b, 0o644)
 }
 
 // Add 固定一个文件并持久化，返回更新后的清单。

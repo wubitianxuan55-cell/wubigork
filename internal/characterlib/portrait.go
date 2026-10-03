@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 )
 
 // portraitFileDir 返回角色库剧照文件目录。
@@ -111,7 +113,7 @@ func writePortraitBytes(dataDir, base, ext string, data []byte) string {
 	if !strings.HasPrefix(path, dir+string(filepath.Separator)) {
 		return ""
 	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := fileutil.AtomicWrite(path, data, 0o644); err != nil {
 		return ""
 	}
 	return path

@@ -14,6 +14,7 @@ import (
 
 	"github.com/gaea/gaea/internal/docmd"
 	"github.com/gaea/gaea/internal/gaea/evidence"
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/gaea/wspath"
 	"github.com/gaea/gaea/internal/office/xlsxedit"
 	"github.com/xuri/excelize/v2"
@@ -295,7 +296,7 @@ func rollbackRecord(st *evidence.JournalStore, rec evidence.ChangeRecord) error 
 	if curErr == nil {
 		snapshot = evidence.StageBaselineTo(filepath.Dir(rec.BaselinePath), target, cur)
 	}
-	if err := os.WriteFile(target, baseline, 0o644); err != nil {
+	if err := fileutil.AtomicWrite(target, baseline, 0o644); err != nil {
 		return err
 	}
 	newRec := evidence.ChangeRecord{

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/types"
 )
 
@@ -110,7 +111,7 @@ func (m *Manager) Write(scene *types.Scene) error {
 		return err
 	}
 
-	return os.WriteFile(m.contentPath(scene.Meta.ID), []byte(scene.Content), 0644)
+	return fileutil.AtomicWrite(m.contentPath(scene.Meta.ID), []byte(scene.Content), 0644)
 }
 
 // UpdateMeta 仅更新场景元数据
@@ -255,7 +256,7 @@ func (m *Manager) writeMeta(meta *types.SceneMeta) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(m.metaPath(meta.ID), data, 0644)
+	return fileutil.AtomicWrite(m.metaPath(meta.ID), data, 0644)
 }
 
 // sanitizeSlug 清理 slug 为安全的文件名片段

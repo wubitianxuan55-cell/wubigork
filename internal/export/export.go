@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/bmaupin/go-epub"
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/project"
 )
 
@@ -155,7 +156,7 @@ func (m *Manager) ExportTXT(outPath string) (string, error) {
 	}
 	m.FailedChapters = failed
 
-	if err := os.WriteFile(outPath, []byte(sb.String()), 0644); err != nil {
+	if err := fileutil.AtomicWrite(outPath, []byte(sb.String()), 0644); err != nil {
 		return "", fmt.Errorf("写入 TXT 失败: %w", err)
 	}
 	return outPath, nil
@@ -190,7 +191,7 @@ func (m *Manager) ExportMarkdown(outPath string) (string, error) {
 	}
 	m.FailedChapters = failed
 
-	if err := os.WriteFile(outPath, []byte(sb.String()), 0644); err != nil {
+	if err := fileutil.AtomicWrite(outPath, []byte(sb.String()), 0644); err != nil {
 		return "", fmt.Errorf("写入 Markdown 失败: %w", err)
 	}
 	return outPath, nil
