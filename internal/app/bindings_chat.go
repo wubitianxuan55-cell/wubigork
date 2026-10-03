@@ -10,27 +10,14 @@ import (
 // 方法体零改动——纯委托给 App 实例（b.a.<Method>）。
 type ChatB struct{ a *App }
 
-func (b *ChatB) BrainCrossRefs(entity string) (string, error) { return b.a.BrainCrossRefs(entity) }
 func (b *ChatB) BrainSearch(query string, brains string) (string, error) {
 	return b.a.BrainSearch(query, brains)
-}
-func (b *ChatB) BrainWrite(brain string, entity string, attribute string, value string) error {
-	return b.a.BrainWrite(brain, entity, attribute, value)
-}
-func (b *ChatB) BrainstormBranches(nodeID string) (map[string]interface{}, error) {
-	return b.a.BrainstormBranches(nodeID)
 }
 func (b *ChatB) Chat(systemPrompt string, userPrompt string) (string, error) {
 	return b.a.Chat(systemPrompt, userPrompt)
 }
 func (b *ChatB) ChatAppendMessages(topicID string, messages []ChatMessageInput) error {
 	return b.a.ChatAppendMessages(topicID, messages)
-}
-func (b *ChatB) ChatCharacter(userMsg string) (map[string]interface{}, error) {
-	return b.a.ChatCharacter(userMsg)
-}
-func (b *ChatB) ChatCharacterDetail(charID string, userMsg string) (map[string]interface{}, error) {
-	return b.a.ChatCharacterDetail(charID, userMsg)
 }
 func (b *ChatB) ChatGeneral(userMsg string) (map[string]interface{}, error) {
 	return b.a.ChatGeneral(userMsg)
@@ -44,22 +31,12 @@ func (b *ChatB) ChatMessagesList(topicID string) ([]chat.Message, error) {
 func (b *ChatB) ChatMessagesPage(topicID string, limit int, beforeSeq int64) (ChatMessagesPageResult, error) {
 	return b.a.ChatMessagesPage(topicID, limit, beforeSeq)
 }
-func (b *ChatB) ChatOutline(userMsg string) (map[string]interface{}, error) {
-	return b.a.ChatOutline(userMsg)
-}
-func (b *ChatB) ChatOutlineNode(nodeID string, userMsg string) (map[string]interface{}, error) {
-	return b.a.ChatOutlineNode(nodeID, userMsg)
-}
 func (b *ChatB) ChatSend(topicID string, message string, mode string, searchEnabled bool, thinking bool, forceSearch bool) (map[string]interface{}, error) {
 	return b.a.ChatSend(topicID, message, mode, searchEnabled, thinking, forceSearch)
 }
+func (b *ChatB) ChatStreamCancel(runID string) bool { return b.a.ChatStreamCancel(runID) }
 func (b *ChatB) ChatStreamPlain(topicID string, message string, searchEnabled bool, thinking bool, forceSearch bool) (string, error) {
 	return b.a.ChatStreamPlain(topicID, message, searchEnabled, thinking, forceSearch)
-}
-
-// ChatStreamCancel 取消进行中的对话流（P1-5：已生成部分落库并以 cancelled 收尾）。
-func (b *ChatB) ChatStreamCancel(runID string) bool {
-	return b.a.ChatStreamCancel(runID)
 }
 func (b *ChatB) ChatTopicClear(id string) error { return b.a.ChatTopicClear(id) }
 func (b *ChatB) ChatTopicCreate(title string, mode string) (chat.Topic, error) {
@@ -74,8 +51,4 @@ func (b *ChatB) ChatTopicSetMode(id string, mode string) error { return b.a.Chat
 func (b *ChatB) ChatTopicsList() ([]chat.Topic, error)         { return b.a.ChatTopicsList() }
 func (b *ChatB) ChatWorldview(userMsg string, currentContent string) (map[string]interface{}, error) {
 	return b.a.ChatWorldview(userMsg, currentContent)
-}
-func (b *ChatB) MainBrainChat(message string) (string, error) { return b.a.MainBrainChat(message) }
-func (b *ChatB) RunModule(moduleID string, intent string, inputJSON string) (string, error) {
-	return b.a.RunModule(moduleID, intent, inputJSON)
 }

@@ -177,10 +177,10 @@ gaea 是 Windows 桌面端「通用办公」AI 助手（Wails v2：Go 1.26 后�
   维持现状不拆（嵌入地层已稳定，再拆收益近零——round-31 判定）；**新增字段必须挂子结构体**
   （如 cfg/media 子域），不得继续往顶层铺平；相关拍板项（X1-03/AgentRunner 收敛）按
   docs/code-audit-2026-10-02/decision-brief-2026-10-03.md §A3 处置
-- **绑定面（v2.17.0 起）**：App 不再直接绑定 Wails；429 个导出方法拆 10 个板块门面
-  （internal/app/bindings_*.go：CoreB/OfficeB/MemoryB/CostB/ModelB/VoiceB/ChatB/NovelB/ImageB/CharlibB，
+- **绑定面（v2.17.0 起；A1① 后 635 个导出方法）**：App 不再直接绑定 Wails；导出方法拆 11 个板块门面
+  （internal/app/bindings_*.go：CoreB/OfficeB/MemoryB/CostB/ModelB/VoiceB/ChatB/NovelB/ImageB/CharlibB/SinB，
   纯委托零逻辑改动）。改绑定面方法后用 `go run ./scripts/gen_bindings` 重新生成 +
-  `TestBindingsCompleteness` 兜底；前端调用经 gaea/lib/bridge.ts（按方法名路由门面）或
+  `TestBindingsCompleteness` 兜底；摘除绑定走生成器 excludedBindings 清单（A1① 109 名在册）；前端调用经 gaea/lib/bridge.ts（按方法名路由门面）或
   api/bridge.ts 的 window.go.app.App 兼容代理；旧 wailsjs 导入走 src/wailsjsCompat 重导出；
   wails build 会重生成 wailsjs/go/app/<门面>.js
 - 单模型架构：一个 executor 完成规划与执行，无独立规划器；任务/技能子代理走 `task` / `run_skill`

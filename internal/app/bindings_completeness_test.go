@@ -8,13 +8,63 @@ import (
 	"testing"
 )
 
+// excludedBindings：A1① 零调用摘除名单（与生成器 excludedBindings 同源物化，
+// 2026-10-03）——测试在 app 包内，无法引用 scripts 包，落字面量。
+var excludedBindings = map[string]bool{
+	"AddOutlineNode": true, "AnalyzeStyle": true, "BrainCrossRefs": true,
+	"BrainWrite": true, "BrainstormBranches": true, "BuildBacklinkIndex": true,
+	"BuildContextBudget": true, "BuildRichContext": true, "ChatCharacter": true,
+	"ChatCharacterDetail": true, "ChatOutline": true, "ChatOutlineNode": true,
+	"CheckModuleIntegrity": true, "CloseProject": true, "ContinueOutline": true,
+	"CreateSnapshot": true, "DeleteCharacter": true, "DeleteLorebookEntry": true,
+	"ExpandOutlineNode": true, "ExportHTML": true, "ExtractCharacterHeatmap": true,
+	"ExtractEmotionCurve": true, "ExtractTimeline": true, "FindLorebookTriggers": true,
+	"FindUnlinkedMentions": true, "GaeaCallTool": true, "GaeaDataBackupPending": true,
+	"GaeaEngines": true, "GaeaInit": true, "GaeaModel": true,
+	"GaeaPermLevel": true, "GaeaSetEngine": true, "GaeaSkills": true,
+	"GaeaTools": true, "GenerateCharacters": true, "GenerateDefaultCanvas": true,
+	"GenerateOutlineWithDialogue": true, "GenerateSingleCharacter": true, "GetActiveASRModel": true,
+	"GetActiveTTSModel": true, "GetAllEntityNames": true, "GetBacklinks": true,
+	"GetBookData": true, "GetChatVoiceModel": true, "GetCompileTemplates": true,
+	"GetDashboard": true, "GetEngineList": true, "GetImageBackend": true,
+	"GetImageBackendConfig": true, "GetLorebookEntries": true, "GetStyleProfile": true,
+	"GetTTSConfig": true, "GetTTSStatus": true, "GetWorldMapImage": true,
+	"HerdsmanHealth": true, "HerdsmanProbe": true, "ImportStyleProfile": true,
+	"InjectMemories": true, "ListSnapshots": true, "LocalTranslate": true,
+	"MainBrainChat": true, "MigrateProjectToV4": true, "OfficeCancelJob": true,
+	"OfficeExecute": true, "OfficeGetJobState": true, "OfficeGetMode": true,
+	"OfficeIsTask": true, "OfficeListFolder": true, "OfficeReadFile": true,
+	"OfficeSetMode": true, "ParseLinks": true, "QueryEntities": true,
+	"RestoreSnapshot": true, "ReviewBook": true, "RunModule": true,
+	"SaveCharacter": true, "SaveCharacters": true, "SaveLorebookEntry": true,
+	"SaveOutlineNode": true, "SaveTTSConfig": true, "SaveToken": true,
+	"SaveWorldMapImage": true, "SaveWorldviewSection": true, "SearchMemories": true,
+	"SetDistFS": true, "SetPromptFS": true, "Shutdown": true,
+	"StartTTSServer": true, "Startup": true, "StopTTSServer": true,
+	"SyncEntityDB": true, "TTSSpeak": true, "VoiceGetState": true,
+	"VoiceRestartService": true, "VoiceSetInputChannel": true, "VoiceSetMode": true,
+	"WhisperChat": true, "WhisperChatWithSearch": true, "WhisperGetConfig": true,
+	"WhisperGetEngine": true, "WhisperGetEngines": true, "WhisperGetImageModel": true,
+	"WhisperGetModel": true, "WhisperSetEngine": true, "WhisperSetImageModel": true,
+	"WhisperSetModel": true, "WhisperTaskPlanResume": true, "WhisperTaskPlanStatus": true,
+	"WhisperWebSearch": true,
+}
+
 // TestBindingsCompleteness S2-3 测试兜底：绑定门面集合的方法集必须与
-// App（含嵌入子状态提升）的导出方法集完全一致——不多、不少、无遗漏。
+// App（含嵌入子状态提升）的导出方法集与门面一致——不多、不少、无遗漏；
+// excludedBindings（A1① 零调用摘除，2026-10-03）不在门面面、从 want 剔除。
 func TestBindingsCompleteness(t *testing.T) {
 	app := &App{}
 	var want, got []string
 	// *App 的完整方法集（含 core/writingState/mediaState/whisperState/officeState 提升）
 	collectExported(reflect.TypeOf(app), &want)
+	var kept []string
+	for _, n := range want {
+		if !excludedBindings[n] {
+			kept = append(kept, n)
+		}
+	}
+	want = kept
 	for _, bnd := range NewBindings(app) {
 		collectExported(reflect.TypeOf(bnd), &got)
 	}

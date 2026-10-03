@@ -3,7 +3,6 @@
 package app
 
 import (
-	officecore "github.com/gaea/gaea/internal/core"
 	"github.com/gaea/gaea/internal/gaea/browser"
 	"github.com/gaea/gaea/internal/gaea/contextview"
 	"github.com/gaea/gaea/internal/gaea/dag"
@@ -50,12 +49,9 @@ func (b *OfficeB) GaeaBenchmarkStreamProbe(model string) (StreamProbeResult, err
 	return b.a.GaeaBenchmarkStreamProbe(model)
 }
 func (b *OfficeB) GaeaBrowserObserve() browser.ObserveView { return b.a.GaeaBrowserObserve() }
-func (b *OfficeB) GaeaCallTool(name string, argsJSON string) (string, error) {
-	return b.a.GaeaCallTool(name, argsJSON)
-}
-func (b *OfficeB) GaeaCancel()                        { b.a.GaeaCancel() }
-func (b *OfficeB) GaeaCapabilities() CapabilitiesView { return b.a.GaeaCapabilities() }
-func (b *OfficeB) GaeaCaptureScreen() (string, error) { return b.a.GaeaCaptureScreen() }
+func (b *OfficeB) GaeaCancel()                             { b.a.GaeaCancel() }
+func (b *OfficeB) GaeaCapabilities() CapabilitiesView      { return b.a.GaeaCapabilities() }
+func (b *OfficeB) GaeaCaptureScreen() (string, error)      { return b.a.GaeaCaptureScreen() }
 func (b *OfficeB) GaeaCaptureSkill(in SkillCaptureInput) (SkillCaptureResult, error) {
 	return b.a.GaeaCaptureSkill(in)
 }
@@ -108,8 +104,7 @@ func (b *OfficeB) GaeaDataBackupCancel() error { return b.a.GaeaDataBackupCancel
 func (b *OfficeB) GaeaDataBackupCreate(destDir string) (map[string]interface{}, error) {
 	return b.a.GaeaDataBackupCreate(destDir)
 }
-func (b *OfficeB) GaeaDataBackupInfo() map[string]interface{}    { return b.a.GaeaDataBackupInfo() }
-func (b *OfficeB) GaeaDataBackupPending() map[string]interface{} { return b.a.GaeaDataBackupPending() }
+func (b *OfficeB) GaeaDataBackupInfo() map[string]interface{} { return b.a.GaeaDataBackupInfo() }
 func (b *OfficeB) GaeaDataBackupRestore(zipPath string) (map[string]interface{}, error) {
 	return b.a.GaeaDataBackupRestore(zipPath)
 }
@@ -161,7 +156,6 @@ func (b *OfficeB) GaeaGitStage(paths []string) error             { return b.a.Ga
 func (b *OfficeB) GaeaGitStatus() GitStatus                      { return b.a.GaeaGitStatus() }
 func (b *OfficeB) GaeaGitUnstage(paths []string) error           { return b.a.GaeaGitUnstage(paths) }
 func (b *OfficeB) GaeaHistory() []HistoryMessage                 { return b.a.GaeaHistory() }
-func (b *OfficeB) GaeaInit() error                               { return b.a.GaeaInit() }
 func (b *OfficeB) GaeaJobs() []JobView                           { return b.a.GaeaJobs() }
 func (b *OfficeB) GaeaJournalList(limit int) []evidence.ChangeRecord {
 	return b.a.GaeaJournalList(limit)
@@ -184,7 +178,6 @@ func (b *OfficeB) GaeaOfficeEditText(selectedText string, instruction string) (m
 func (b *OfficeB) GaeaOpenDownloadPage() error                   { return b.a.GaeaOpenDownloadPage() }
 func (b *OfficeB) GaeaOpenLogsDir() error                        { return b.a.GaeaOpenLogsDir() }
 func (b *OfficeB) GaeaOpenWorkspacePath(rel string) error        { return b.a.GaeaOpenWorkspacePath(rel) }
-func (b *OfficeB) GaeaPermLevel() string                         { return b.a.GaeaPermLevel() }
 func (b *OfficeB) GaeaPickDirectory() string                     { return b.a.GaeaPickDirectory() }
 func (b *OfficeB) GaeaPickFiles(filters string) []FilePickResult { return b.a.GaeaPickFiles(filters) }
 func (b *OfficeB) GaeaPickWorkspace() string                     { return b.a.GaeaPickWorkspace() }
@@ -331,7 +324,6 @@ func (b *OfficeB) GaeaSkillDraftSave(d SkillDraft) (SkillCaptureResult, error) {
 	return b.a.GaeaSkillDraftSave(d)
 }
 func (b *OfficeB) GaeaSkillStats() []skillstats.StatView      { return b.a.GaeaSkillStats() }
-func (b *OfficeB) GaeaSkills() []map[string]interface{}       { return b.a.GaeaSkills() }
 func (b *OfficeB) GaeaSlashArgs(input string) SlashArgsResult { return b.a.GaeaSlashArgs(input) }
 func (b *OfficeB) GaeaSteer(input string)                     { b.a.GaeaSteer(input) }
 func (b *OfficeB) GaeaSubagentContextView(sessionPath string, ref string) (contextview.ContextTimeline, error) {
@@ -368,7 +360,6 @@ func (b *OfficeB) GaeaTaskList(space string) []tasks.Task           { return b.a
 func (b *OfficeB) GaeaTaskOutput(id string) (TaskOutputView, error) { return b.a.GaeaTaskOutput(id) }
 func (b *OfficeB) GaeaTaskRetry(id string) error                    { return b.a.GaeaTaskRetry(id) }
 func (b *OfficeB) GaeaTaskTemplates() []TaskTemplate                { return b.a.GaeaTaskTemplates() }
-func (b *OfficeB) GaeaTools() []map[string]interface{}              { return b.a.GaeaTools() }
 func (b *OfficeB) GaeaTrajectory(sessionPath string) (trajectory.Trajectory, error) {
 	return b.a.GaeaTrajectory(sessionPath)
 }
@@ -398,14 +389,14 @@ func (b *OfficeB) GaeaXlsxApplyEdit(rel string, opsJSON string) (XlsxEditResult,
 func (b *OfficeB) GaeaXlsxChart(in XlsxChartInput) (XlsxChartResult, error) {
 	return b.a.GaeaXlsxChart(in)
 }
-func (b *OfficeB) GaeaXlsxColOps(rel string, sheet string, action string, ref string) (XlsxEditResult, error) {
+func (b *OfficeB) GaeaXlsxColOps(rel string, sheet string, action string, ref string) (res XlsxEditResult, err error) {
 	return b.a.GaeaXlsxColOps(rel, sheet, action, ref)
 }
 func (b *OfficeB) GaeaXlsxPlanEdit(rel string, sheet string, instruction string, selection string) (XlsxPlanResult, error) {
 	return b.a.GaeaXlsxPlanEdit(rel, sheet, instruction, selection)
 }
 func (b *OfficeB) GaeaXlsxRecalc(rel string) (XlsxEditResult, error) { return b.a.GaeaXlsxRecalc(rel) }
-func (b *OfficeB) GaeaXlsxRowOps(rel string, sheet string, action string, ref string) (XlsxEditResult, error) {
+func (b *OfficeB) GaeaXlsxRowOps(rel string, sheet string, action string, ref string) (res XlsxEditResult, err error) {
 	return b.a.GaeaXlsxRowOps(rel, sheet, action, ref)
 }
 func (b *OfficeB) GaeaXlsxSetCell(rel string, sheet string, ref string, value string) (XlsxEditResult, error) {
@@ -414,18 +405,3 @@ func (b *OfficeB) GaeaXlsxSetCell(rel string, sheet string, ref string, value st
 func (b *OfficeB) GaeaZipDeliverables(paths []string) (ZipDeliverableResult, error) {
 	return b.a.GaeaZipDeliverables(paths)
 }
-func (b *OfficeB) LocalTranslate(req LocalTranslateRequest) (LocalTranslateResult, error) {
-	return b.a.LocalTranslate(req)
-}
-func (b *OfficeB) OfficeCancelJob(s string) { b.a.OfficeCancelJob(s) }
-func (b *OfficeB) OfficeExecute(act string, path string, tgt string, q string, url string, content string) officecore.ExecResult {
-	return b.a.OfficeExecute(act, path, tgt, q, url, content)
-}
-func (b *OfficeB) OfficeGetJobState(s string) *officecore.AgentJobState {
-	return b.a.OfficeGetJobState(s)
-}
-func (b *OfficeB) OfficeGetMode(s string) bool                     { return b.a.OfficeGetMode(s) }
-func (b *OfficeB) OfficeIsTask(text string) bool                   { return b.a.OfficeIsTask(text) }
-func (b *OfficeB) OfficeListFolder(p string) officecore.ExecResult { return b.a.OfficeListFolder(p) }
-func (b *OfficeB) OfficeReadFile(p string) officecore.ExecResult   { return b.a.OfficeReadFile(p) }
-func (b *OfficeB) OfficeSetMode(s string, e bool)                  { b.a.OfficeSetMode(s, e) }

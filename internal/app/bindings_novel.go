@@ -3,7 +3,6 @@
 package app
 
 import (
-	"encoding/json"
 	"github.com/gaea/gaea/internal/promptstore"
 	"github.com/gaea/gaea/internal/types"
 )
@@ -12,24 +11,14 @@ import (
 // 方法体零改动——纯委托给 App 实例（b.a.<Method>）。
 type NovelB struct{ a *App }
 
-func (b *NovelB) AddOutlineNode(nodeJSON string) error { return b.a.AddOutlineNode(nodeJSON) }
 func (b *NovelB) AnalyzeChapter(chapterNum int) (map[string]interface{}, error) {
 	return b.a.AnalyzeChapter(chapterNum)
 }
 func (b *NovelB) ApplyBranch(nodeID string, branchIndex int, userInput string) (map[string]interface{}, error) {
 	return b.a.ApplyBranch(nodeID, branchIndex, userInput)
 }
-func (b *NovelB) BuildBacklinkIndex() (map[string]interface{}, error) {
-	return b.a.BuildBacklinkIndex()
-}
-func (b *NovelB) BuildContextBudget(systemPrompt string, currentScene string, previousScene string, characterInfo string, memoryInfo string, modelCapacity int) (map[string]interface{}, error) {
-	return b.a.BuildContextBudget(systemPrompt, currentScene, previousScene, characterInfo, memoryInfo, modelCapacity)
-}
 func (b *NovelB) BuildNovelStatePatch(chapterNum int) (map[string]interface{}, error) {
 	return b.a.BuildNovelStatePatch(chapterNum)
-}
-func (b *NovelB) BuildRichContext(systemPrompt string, userText string) (map[string]interface{}, error) {
-	return b.a.BuildRichContext(systemPrompt, userText)
 }
 func (b *NovelB) CancelCreateChapter(chapterNum int, branch string) bool {
 	return b.a.CancelCreateChapter(chapterNum, branch)
@@ -48,23 +37,14 @@ func (b *NovelB) ClearProjectForeshadowsForReset() (ForeshadowCleanupResult, err
 func (b *NovelB) CmdKEdit(selectedText string, instruction string, styleProfile string) (map[string]interface{}, error) {
 	return b.a.CmdKEdit(selectedText, instruction, styleProfile)
 }
-func (b *NovelB) ContinueOutline(count int) (map[string]interface{}, error) {
-	return b.a.ContinueOutline(count)
-}
 func (b *NovelB) CreateChapter(setting string, prevSummary string, plotReq string, chapterNum int, branchFromNodeID string, skillName string, minWords int, temperature float64) (map[string]interface{}, error) {
 	return b.a.CreateChapter(setting, prevSummary, plotReq, chapterNum, branchFromNodeID, skillName, minWords, temperature)
 }
-
-// CreateChapterWithOverride 章节生成 + 写前硬闸显式覆盖开关（v4.422 刀1：缺计划时
-// 默认拒绝生成；allowOverride=true 由作者显式承担「无计划开写」）。
 func (b *NovelB) CreateChapterWithOverride(setting string, prevSummary string, plotReq string, chapterNum int, branchFromNodeID string, skillName string, minWords int, temperature float64, allowOverride bool) (map[string]interface{}, error) {
 	return b.a.CreateChapterWithOverride(setting, prevSummary, plotReq, chapterNum, branchFromNodeID, skillName, minWords, temperature, allowOverride)
 }
 func (b *NovelB) CreateScene(chapterNum int, slug string, title string) (map[string]interface{}, error) {
 	return b.a.CreateScene(chapterNum, slug, title)
-}
-func (b *NovelB) CreateSnapshot(sceneID string, chapterNum int, label string) (map[string]interface{}, error) {
-	return b.a.CreateSnapshot(sceneID, chapterNum, label)
 }
 func (b *NovelB) DeSlopChapterAiTaste(chapterNum int) (map[string]interface{}, error) {
 	return b.a.DeSlopChapterAiTaste(chapterNum)
@@ -72,171 +52,26 @@ func (b *NovelB) DeSlopChapterAiTaste(chapterNum int) (map[string]interface{}, e
 func (b *NovelB) DeleteChapterForeshadows(chapterFile string, onlyAnalysisSource bool) (ForeshadowCleanupResult, error) {
 	return b.a.DeleteChapterForeshadows(chapterFile, onlyAnalysisSource)
 }
-func (b *NovelB) DeleteCharacter(id string) error       { return b.a.DeleteCharacter(id) }
-func (b *NovelB) DeleteLorebookEntry(key string) error  { return b.a.DeleteLorebookEntry(key) }
 func (b *NovelB) DeleteOrganization(id string) error    { return b.a.DeleteOrganization(id) }
 func (b *NovelB) DeleteOutlineNode(nodeID string) error { return b.a.DeleteOutlineNode(nodeID) }
 func (b *NovelB) DeleteRelationship(fromID string, toID string) error {
 	return b.a.DeleteRelationship(fromID, toID)
 }
-func (b *NovelB) ExpandOutlineNode(nodeID string, subCount int) (map[string]interface{}, error) {
-	return b.a.ExpandOutlineNode(nodeID, subCount)
-}
-func (b *NovelB) FindLorebookTriggers(text string) ([]map[string]interface{}, error) {
-	return b.a.FindLorebookTriggers(text)
-}
-func (b *NovelB) FindUnlinkedMentions(content string, entityNames []string) []string {
-	return b.a.FindUnlinkedMentions(content, entityNames)
-}
 func (b *NovelB) GaeaGenerateBookCover(projectID string, promptHint string) (string, error) {
 	return b.a.GaeaGenerateBookCover(projectID, promptHint)
-}
-func (b *NovelB) GenerateCharacters(count int) (map[string]interface{}, error) {
-	return b.a.GenerateCharacters(count)
-}
-func (b *NovelB) GenerateOutlineWithDialogue(storyPrompt string, numChapters int, maxTurns int) (map[string]interface{}, error) {
-	return b.a.GenerateOutlineWithDialogue(storyPrompt, numChapters, maxTurns)
 }
 func (b *NovelB) GenerateProjectCharacterFill(chJSON string) (string, error) {
 	return b.a.GenerateProjectCharacterFill(chJSON)
 }
-
-// GenerateProjectProtagonistRelations 本书角色「与主角的关系」AI 随机生成
-// （v4.454）：mode=all/missing/one，项目级字段只写 characters.json，不进通用库。
 func (b *NovelB) GenerateProjectProtagonistRelations(mode string, name string) (map[string]interface{}, error) {
 	return b.a.GenerateProjectProtagonistRelations(mode, name)
 }
 func (b *NovelB) GenerateScene(chapterNum int, sceneID string, plotReq string, minWords int) (map[string]interface{}, error) {
 	return b.a.GenerateScene(chapterNum, sceneID, plotReq, minWords)
 }
-
-// NovelGhostSuggest 场景编辑器内联续写建议（v4.444 GhostText 接线）。
-func (b *NovelB) NovelGhostSuggest(textBefore string) (string, error) {
-	return b.a.NovelGhostSuggest(textBefore)
-}
-
-// NovelEvalSnapshotsList 评测历史快照索引（v4.447；新→旧，坏档跳过）。
-func (b *NovelB) NovelEvalSnapshotsList() ([]map[string]interface{}, error) {
-	return b.a.NovelEvalSnapshotsList()
-}
-
-// NovelEvalSnapshotDelete 删除一份历史快照（v4.448；文件名白名单护栏）。
-func (b *NovelB) NovelEvalSnapshotDelete(name string) error {
-	return b.a.NovelEvalSnapshotDelete(name)
-}
 func (b *NovelB) GenerateSceneIllustration(chapterNum int, optsJSON string) (map[string]interface{}, error) {
 	return b.a.GenerateSceneIllustration(chapterNum, optsJSON)
 }
-
-// NovelChapterScenesGenerate 整章按场景卡逐场景生成（长篇刀2）。
-func (b *NovelB) NovelChapterScenesGenerate(chapterNum int, allowMissingCard bool) (map[string]interface{}, error) {
-	return b.a.NovelChapterScenesGenerate(chapterNum, allowMissingCard)
-}
-
-// NovelSceneRewrite 单场景 whole 重写（他场不动；版本库 mode=scene 留痕）。
-func (b *NovelB) NovelSceneRewrite(chapterNum int, sceneID string, instruction string) (map[string]interface{}, error) {
-	return b.a.NovelSceneRewrite(chapterNum, sceneID, instruction)
-}
-
-// NovelSceneCardsPropose 从章计划拆场景卡骨架（提案不落盘，确认制）。
-func (b *NovelB) NovelSceneCardsPropose(chapterNum int) ([]map[string]interface{}, error) {
-	return b.a.NovelSceneCardsPropose(chapterNum)
-}
-
-// ── 长篇刀3：故事层骨架 ──
-
-// NovelStorySpineGet 读故事脊椎（story_spine.json；缺失=空骨架）。
-func (b *NovelB) NovelStorySpineGet() (map[string]interface{}, error) {
-	return b.a.NovelStorySpineGet()
-}
-
-// NovelStorySpineSave 整表保存（确定性校验失败整单拒绝）。
-func (b *NovelB) NovelStorySpineSave(spineJSON string) error {
-	return b.a.NovelStorySpineSave(spineJSON)
-}
-
-// NovelStoryHealth 故事骨架结构体检（七维度确定性零 LLM）。
-func (b *NovelB) NovelStoryHealth() (map[string]interface{}, error) {
-	r, err := b.a.NovelStoryHealth()
-	if err != nil {
-		return nil, err
-	}
-	raw, mErr := json.Marshal(r)
-	if mErr != nil {
-		return nil, mErr
-	}
-	var out map[string]interface{}
-	if uErr := json.Unmarshal(raw, &out); uErr != nil {
-		return nil, uErr
-	}
-	return out, nil
-}
-
-// NovelStorySpinePropose AI 提炼骨架初稿（提案不落盘）。
-func (b *NovelB) NovelStorySpinePropose() (map[string]interface{}, error) {
-	return b.a.NovelStorySpinePropose()
-}
-
-// ── 长篇刀4：质量收敛闭环 ──
-
-// NovelChapterConvergePreview 收敛预检（dry-run：当前判据状态+计划轮次，零修补）。
-func (b *NovelB) NovelChapterConvergePreview(chapterNum int, targetTaste int) (map[string]interface{}, error) {
-	return b.a.NovelChapterConvergePreview(chapterNum, targetTaste)
-}
-
-// NovelChapterConverge 收敛闭环（流式 converge-stream；三态判停，每轮版本留痕）。
-func (b *NovelB) NovelChapterConverge(chapterNum int, maxRounds int, targetTaste int) (map[string]interface{}, error) {
-	return b.a.NovelChapterConverge(chapterNum, maxRounds, targetTaste)
-}
-
-// ── 长篇刀5：风格学习回灌 ──
-
-// NovelStyleDigestBuild 从成稿章节构建风格摘要档（可执行写作指令，生成时注入）。
-func (b *NovelB) NovelStyleDigestBuild() (map[string]interface{}, error) {
-	return b.a.NovelStyleDigestBuild()
-}
-
-// NovelStyleDigestGet 读风格摘要档（未构建 exists:false）。
-func (b *NovelB) NovelStyleDigestGet() (map[string]interface{}, error) {
-	return b.a.NovelStyleDigestGet()
-}
-
-// NovelStyleDigestClear 清除风格摘要档（指纹体检档不受影响）。
-func (b *NovelB) NovelStyleDigestClear() error {
-	return b.a.NovelStyleDigestClear()
-}
-
-// NovelContextInventory 本章生成将注入的上下文区段清单（dry-run，刀6 可见性）。
-func (b *NovelB) NovelContextInventory(chapterNum int) ([]map[string]interface{}, error) {
-	return b.a.NovelContextInventory(chapterNum)
-}
-
-// ── 长篇刀7：评测基线 ──
-
-// NovelEvalSnapshot 产出确定性指标快照（persist=true 落 eval/snapshots/ 留史）。
-func (b *NovelB) NovelEvalSnapshot(persist bool) (map[string]interface{}, error) {
-	return b.a.NovelEvalSnapshot(persist)
-}
-
-// NovelEvalBaselineSet 把当前状态快照设为基线（eval/baseline.json）。
-func (b *NovelB) NovelEvalBaselineSet() (map[string]interface{}, error) {
-	return b.a.NovelEvalBaselineSet()
-}
-
-// NovelEvalCompare 最近快照 vs 基线逐指标 Δ（promptSetHash 不一致标 stale）。
-func (b *NovelB) NovelEvalCompare(baseName string, curName string) (map[string]interface{}, error) {
-	return b.a.NovelEvalCompare(baseName, curName)
-}
-func (b *NovelB) GenerateSingleCharacter(chJSON string) (map[string]interface{}, error) {
-	return b.a.GenerateSingleCharacter(chJSON)
-}
-func (b *NovelB) GetAllEntityNames() ([]map[string]interface{}, error) {
-	return b.a.GetAllEntityNames()
-}
-func (b *NovelB) GetBacklinks(entityName string) ([]map[string]interface{}, error) {
-	return b.a.GetBacklinks(entityName)
-}
-func (b *NovelB) GetBookData() map[string]interface{}                { return b.a.GetBookData() }
 func (b *NovelB) GetChapter(num int) (map[string]interface{}, error) { return b.a.GetChapter(num) }
 func (b *NovelB) GetChapterBranch(num int, branch string) (map[string]interface{}, error) {
 	return b.a.GetChapterBranch(num, branch)
@@ -255,10 +90,8 @@ func (b *NovelB) GetForeshadows() map[string]interface{} { return b.a.GetForesha
 func (b *NovelB) GetLastForeshadowSync() (map[string]interface{}, error) {
 	return b.a.GetLastForeshadowSync()
 }
-func (b *NovelB) GetLorebookEntries() map[string]interface{}     { return b.a.GetLorebookEntries() }
 func (b *NovelB) GetNovelState() (map[string]interface{}, error) { return b.a.GetNovelState() }
 func (b *NovelB) GetOutlines() map[string]interface{}            { return b.a.GetOutlines() }
-func (b *NovelB) GetWorldMapImage() string                       { return b.a.GetWorldMapImage() }
 func (b *NovelB) GetWorldview() string                           { return b.a.GetWorldview() }
 func (b *NovelB) GetWorldviewSections() (map[string]interface{}, error) {
 	return b.a.GetWorldviewSections()
@@ -269,18 +102,11 @@ func (b *NovelB) ImportNovelBook(filePath string, title string, genre string, st
 func (b *NovelB) ImportNovelBookEx(filePath string, title string, genre string, style string, extractMode string, tailChapters int) (NovelImportResult, error) {
 	return b.a.ImportNovelBookEx(filePath, title, genre, style, extractMode, tailChapters)
 }
-func (b *NovelB) InjectMemories(currentContext string, maxMemories int, maxTokens int) (map[string]interface{}, error) {
-	return b.a.InjectMemories(currentContext, maxMemories, maxTokens)
-}
 func (b *NovelB) IsProjectV4() bool                              { return b.a.IsProjectV4() }
 func (b *NovelB) LintForeshadows() (ForeshadowLintReport, error) { return b.a.LintForeshadows() }
-func (b *NovelB) ListSnapshots(sceneID string, chapterNum int) ([]map[string]interface{}, error) {
-	return b.a.ListSnapshots(sceneID, chapterNum)
-}
 func (b *NovelB) MergeCharacters(keepID string, mergeID string) (map[string]interface{}, error) {
 	return b.a.MergeCharacters(keepID, mergeID)
 }
-func (b *NovelB) MigrateProjectToV4() error { return b.a.MigrateProjectToV4() }
 func (b *NovelB) NovelApplyRewriteVersion(chapterNum int, versionID string) (map[string]interface{}, error) {
 	return b.a.NovelApplyRewriteVersion(chapterNum, versionID)
 }
@@ -311,9 +137,12 @@ func (b *NovelB) NovelChapterAnalysisV2(chapterNum int) (types.ChapterAnalysisRe
 func (b *NovelB) NovelChapterAnnotations(chapterNum int) ([]types.Annotation, error) {
 	return b.a.NovelChapterAnnotations(chapterNum)
 }
-
-// ── 章节计划闭环（v4.422 刀1：故事脊椎 + 章节计划；规格 docs/gaea-longform-novel-system-2026-09.md）──
-// 计划=生成前的意图输入 + 写前硬闸唯一判据来源；Get 无计划返回 (nil,nil) 正常态。
+func (b *NovelB) NovelChapterConverge(chapterNum int, maxRounds int, targetTaste int) (map[string]interface{}, error) {
+	return b.a.NovelChapterConverge(chapterNum, maxRounds, targetTaste)
+}
+func (b *NovelB) NovelChapterConvergePreview(chapterNum int, targetTaste int) (map[string]interface{}, error) {
+	return b.a.NovelChapterConvergePreview(chapterNum, targetTaste)
+}
 func (b *NovelB) NovelChapterGatePrecheck(chapterNum int) (*types.PlanGateReport, error) {
 	return b.a.NovelChapterGatePrecheck(chapterNum)
 }
@@ -323,9 +152,6 @@ func (b *NovelB) NovelChapterPlanDeviation(chapterNum int) (*types.PlanDeviation
 func (b *NovelB) NovelChapterPlanGet(chapterNum int) (*types.ChapterPlan, error) {
 	return b.a.NovelChapterPlanGet(chapterNum)
 }
-
-// NovelChapterPlanPropose AI 计划草案（不落盘）；direction=作者创作方向
-// （分支意向/剧情要求），空串=既有口径，无节点时以 direction 兜底编译（v4.450.0）。
 func (b *NovelB) NovelChapterPlanPropose(chapterNum int, direction string) (*types.ChapterPlan, error) {
 	return b.a.NovelChapterPlanPropose(chapterNum, direction)
 }
@@ -338,11 +164,30 @@ func (b *NovelB) NovelChapterReview(chapterNum int, platform string) (ChapterRev
 func (b *NovelB) NovelChapterRewrite(chapterNum int, reqJSON string) (map[string]interface{}, error) {
 	return b.a.NovelChapterRewrite(chapterNum, reqJSON)
 }
+func (b *NovelB) NovelChapterScenesGenerate(chapterNum int, allowMissingCard bool) (map[string]interface{}, error) {
+	return b.a.NovelChapterScenesGenerate(chapterNum, allowMissingCard)
+}
 func (b *NovelB) NovelChapterSuggestions(chapterNum int) ([]string, error) {
 	return b.a.NovelChapterSuggestions(chapterNum)
 }
+func (b *NovelB) NovelContextInventory(chapterNum int) ([]map[string]interface{}, error) {
+	return b.a.NovelContextInventory(chapterNum)
+}
 func (b *NovelB) NovelDiscardRewriteVersion(chapterNum int, versionID string) error {
 	return b.a.NovelDiscardRewriteVersion(chapterNum, versionID)
+}
+func (b *NovelB) NovelEvalBaselineSet() (map[string]interface{}, error) {
+	return b.a.NovelEvalBaselineSet()
+}
+func (b *NovelB) NovelEvalCompare(baseName string, curName string) (map[string]interface{}, error) {
+	return b.a.NovelEvalCompare(baseName, curName)
+}
+func (b *NovelB) NovelEvalSnapshot(persist bool) (map[string]interface{}, error) {
+	return b.a.NovelEvalSnapshot(persist)
+}
+func (b *NovelB) NovelEvalSnapshotDelete(name string) error { return b.a.NovelEvalSnapshotDelete(name) }
+func (b *NovelB) NovelEvalSnapshotsList() ([]map[string]interface{}, error) {
+	return b.a.NovelEvalSnapshotsList()
 }
 func (b *NovelB) NovelFingerprintBuild() (FingerprintStatusPayload, error) {
 	return b.a.NovelFingerprintBuild()
@@ -355,6 +200,9 @@ func (b *NovelB) NovelFingerprintStatus() (FingerprintStatusPayload, error) {
 }
 func (b *NovelB) NovelGetRewriteVersion(chapterNum int, versionID string) (*types.RewriteVersion, error) {
 	return b.a.NovelGetRewriteVersion(chapterNum, versionID)
+}
+func (b *NovelB) NovelGhostSuggest(textBefore string) (string, error) {
+	return b.a.NovelGhostSuggest(textBefore)
 }
 func (b *NovelB) NovelListRewriteVersions(chapterNum int) ([]types.RewriteVersionIndex, error) {
 	return b.a.NovelListRewriteVersions(chapterNum)
@@ -381,9 +229,31 @@ func (b *NovelB) NovelReviewPlatforms() []ReviewPlatformView { return b.a.NovelR
 func (b *NovelB) NovelSceneBibleView(chapterNum int, sceneID string) (SceneBibleView, error) {
 	return b.a.NovelSceneBibleView(chapterNum, sceneID)
 }
+func (b *NovelB) NovelSceneCardsPropose(chapterNum int) ([]map[string]interface{}, error) {
+	return b.a.NovelSceneCardsPropose(chapterNum)
+}
+func (b *NovelB) NovelSceneRewrite(chapterNum int, sceneID string, instruction string) (map[string]interface{}, error) {
+	return b.a.NovelSceneRewrite(chapterNum, sceneID, instruction)
+}
 func (b *NovelB) NovelSearch(query string) ([]NovelSearchHit, error) { return b.a.NovelSearch(query) }
-func (b *NovelB) ParseLinks(content string) []string                 { return b.a.ParseLinks(content) }
-func (b *NovelB) PromptBundleExport() (string, error)                { return b.a.PromptBundleExport() }
+func (b *NovelB) NovelStoryHealth() (StoryHealthReport, error)       { return b.a.NovelStoryHealth() }
+func (b *NovelB) NovelStorySpineGet() (map[string]interface{}, error) {
+	return b.a.NovelStorySpineGet()
+}
+func (b *NovelB) NovelStorySpinePropose() (map[string]interface{}, error) {
+	return b.a.NovelStorySpinePropose()
+}
+func (b *NovelB) NovelStorySpineSave(spineJSON string) error {
+	return b.a.NovelStorySpineSave(spineJSON)
+}
+func (b *NovelB) NovelStyleDigestBuild() (map[string]interface{}, error) {
+	return b.a.NovelStyleDigestBuild()
+}
+func (b *NovelB) NovelStyleDigestClear() error { return b.a.NovelStyleDigestClear() }
+func (b *NovelB) NovelStyleDigestGet() (map[string]interface{}, error) {
+	return b.a.NovelStyleDigestGet()
+}
+func (b *NovelB) PromptBundleExport() (string, error) { return b.a.PromptBundleExport() }
 func (b *NovelB) PromptBundleImport(bundleJSON string) (promptstore.BundleImportResult, error) {
 	return b.a.PromptBundleImport(bundleJSON)
 }
@@ -398,9 +268,6 @@ func (b *NovelB) PromptTemplateReset(key string) error { return b.a.PromptTempla
 func (b *NovelB) PromptTemplateSave(key string, reqJSON string) (PromptSaveResult, error) {
 	return b.a.PromptTemplateSave(key, reqJSON)
 }
-func (b *NovelB) QueryEntities(entityType string) ([]map[string]interface{}, error) {
-	return b.a.QueryEntities(entityType)
-}
 func (b *NovelB) QuickBrainstormBranches(setting string, prevSummary string, charactersJSON string, chapterNum int) (map[string]interface{}, error) {
 	return b.a.QuickBrainstormBranches(setting, prevSummary, charactersJSON, chapterNum)
 }
@@ -410,10 +277,6 @@ func (b *NovelB) RemoveCharacterCareer(charID string, reqJSON string) error {
 func (b *NovelB) ReorderScenes(chapterNum int, sceneIDs []string) error {
 	return b.a.ReorderScenes(chapterNum, sceneIDs)
 }
-func (b *NovelB) RestoreSnapshot(snapshotID string, sceneID string, chapterNum int) error {
-	return b.a.RestoreSnapshot(snapshotID, sceneID, chapterNum)
-}
-func (b *NovelB) ReviewBook() (map[string]interface{}, error) { return b.a.ReviewBook() }
 func (b *NovelB) RewriteChapterAiTaste(chapterNum int) (map[string]interface{}, error) {
 	return b.a.RewriteChapterAiTaste(chapterNum)
 }
@@ -430,37 +293,25 @@ func (b *NovelB) SaveChapterBranchContent(num int, branch string, content string
 func (b *NovelB) SaveChapterContent(num int, content string) error {
 	return b.a.SaveChapterContent(num, content)
 }
-func (b *NovelB) SaveCharacter(chJSON string) error  { return b.a.SaveCharacter(chJSON) }
-func (b *NovelB) SaveCharacters(cfJSON string) error { return b.a.SaveCharacters(cfJSON) }
 func (b *NovelB) SaveCharactersBatch(namesJSON string) (map[string]interface{}, error) {
 	return b.a.SaveCharactersBatch(namesJSON)
 }
-func (b *NovelB) SaveForeshadows(itemsJSON string) error   { return b.a.SaveForeshadows(itemsJSON) }
-func (b *NovelB) SaveLorebookEntry(entryJSON string) error { return b.a.SaveLorebookEntry(entryJSON) }
-func (b *NovelB) SaveOrganization(orgJSON string) error    { return b.a.SaveOrganization(orgJSON) }
-func (b *NovelB) SaveOutlineNode(nodeJSON string) error    { return b.a.SaveOutlineNode(nodeJSON) }
-func (b *NovelB) SaveRelationship(relJSON string) error    { return b.a.SaveRelationship(relJSON) }
+func (b *NovelB) SaveForeshadows(itemsJSON string) error { return b.a.SaveForeshadows(itemsJSON) }
+func (b *NovelB) SaveOrganization(orgJSON string) error  { return b.a.SaveOrganization(orgJSON) }
+func (b *NovelB) SaveRelationship(relJSON string) error  { return b.a.SaveRelationship(relJSON) }
 func (b *NovelB) SaveScene(chapterNum int, sceneID string, content string) error {
 	return b.a.SaveScene(chapterNum, sceneID, content)
 }
 func (b *NovelB) SaveSceneMeta(chapterNum int, sceneID string, metaJSON string) error {
 	return b.a.SaveSceneMeta(chapterNum, sceneID, metaJSON)
 }
-func (b *NovelB) SaveWorldMapImage(imageData string) error { return b.a.SaveWorldMapImage(imageData) }
-func (b *NovelB) SaveWorldview(content string) error       { return b.a.SaveWorldview(content) }
-func (b *NovelB) SaveWorldviewSection(sectionID string, content string) error {
-	return b.a.SaveWorldviewSection(sectionID, content)
-}
-func (b *NovelB) SearchMemories(query string, maxResults int) ([]map[string]interface{}, error) {
-	return b.a.SearchMemories(query, maxResults)
-}
+func (b *NovelB) SaveWorldview(content string) error { return b.a.SaveWorldview(content) }
 func (b *NovelB) SetCharacterCareer(charID string, reqJSON string) error {
 	return b.a.SetCharacterCareer(charID, reqJSON)
 }
 func (b *NovelB) SettleNovelState(patchJSON string, approved bool) (map[string]interface{}, error) {
 	return b.a.SettleNovelState(patchJSON, approved)
 }
-func (b *NovelB) SyncEntityDB() (map[string]interface{}, error) { return b.a.SyncEntityDB() }
 func (b *NovelB) ToggleOrgMember(charID string, orgID string) error {
 	return b.a.ToggleOrgMember(charID, orgID)
 }

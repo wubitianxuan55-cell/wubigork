@@ -7,18 +7,8 @@ package app
 type ImageB struct{ a *App }
 
 func (b *ImageB) CancelImageGeneration() bool { return b.a.CancelImageGeneration() }
-func (b *ImageB) ExtractCharacterHeatmap() (map[string]interface{}, error) {
-	return b.a.ExtractCharacterHeatmap()
-}
-func (b *ImageB) ExtractEmotionCurve() ([]map[string]interface{}, error) {
-	return b.a.ExtractEmotionCurve()
-}
-func (b *ImageB) ExtractTimeline() (map[string]interface{}, error) { return b.a.ExtractTimeline() }
 func (b *ImageB) GenerateCharacterPortrait(charID string, model string) (string, error) {
 	return b.a.GenerateCharacterPortrait(charID, model)
-}
-func (b *ImageB) GenerateDefaultCanvas() (map[string]interface{}, error) {
-	return b.a.GenerateDefaultCanvas()
 }
 func (b *ImageB) GenerateDiagram(prompt string) (map[string]interface{}, error) {
 	return b.a.GenerateDiagram(prompt)
@@ -29,25 +19,17 @@ func (b *ImageB) GenerateFreeImage(prompt string, negative string, size string, 
 func (b *ImageB) GenerateMedia(paramsJSON string) (map[string]interface{}, error) {
 	return b.a.GenerateMedia(paramsJSON)
 }
-func (b *ImageB) ImageCutout(initImage string, maskData string) map[string]interface{} {
-	return b.a.ImageCutout(initImage, maskData)
-}
-func (b *ImageB) GetActiveASRModel() map[string]string           { return b.a.GetActiveASRModel() }
-func (b *ImageB) GetActiveTTSModel() map[string]string           { return b.a.GetActiveTTSModel() }
-func (b *ImageB) GetChatVoiceModel() map[string]string           { return b.a.GetChatVoiceModel() }
 func (b *ImageB) GetComfyUILoras() ([]string, error)             { return b.a.GetComfyUILoras() }
 func (b *ImageB) GetComfyUIStatus() map[string]interface{}       { return b.a.GetComfyUIStatus() }
 func (b *ImageB) GetComfyUITaskProgress() map[string]interface{} { return b.a.GetComfyUITaskProgress() }
-func (b *ImageB) GetImageBackend() string                        { return b.a.GetImageBackend() }
-func (b *ImageB) GetImageBackendConfig() map[string]interface{}  { return b.a.GetImageBackendConfig() }
 func (b *ImageB) GetImageBackendInfo() map[string]string         { return b.a.GetImageBackendInfo() }
 func (b *ImageB) GetPortraitConfig() map[string]string           { return b.a.GetPortraitConfig() }
-func (b *ImageB) GetSinImageConfig() map[string]string           { return b.a.GetSinImageConfig() }
 func (b *ImageB) GetSystemStats() map[string]interface{}         { return b.a.GetSystemStats() }
-func (b *ImageB) GetTTSConfig() map[string]interface{}           { return b.a.GetTTSConfig() }
 func (b *ImageB) GetTTSSpeakers(model string) ([]string, error)  { return b.a.GetTTSSpeakers(model) }
-func (b *ImageB) GetTTSStatus() map[string]interface{}           { return b.a.GetTTSStatus() }
 func (b *ImageB) GetVoicePipelineConfig() map[string]interface{} { return b.a.GetVoicePipelineConfig() }
+func (b *ImageB) ImageCutout(initImage string, maskData string) map[string]interface{} {
+	return b.a.ImageCutout(initImage, maskData)
+}
 func (b *ImageB) ImageHubAssets(space string, sourceBoard string, limit int) []imageHubAssetView {
 	return b.a.ImageHubAssets(space, sourceBoard, limit)
 }
@@ -56,9 +38,6 @@ func (b *ImageB) ImageHubMonthlyUsage(space string) (ImageHubMonthlyUsageReport,
 }
 func (b *ImageB) OpenImageSaveDir() error   { return b.a.OpenImageSaveDir() }
 func (b *ImageB) OpenNovelImagesDir() error { return b.a.OpenNovelImagesDir() }
-func (b *ImageB) SaveTTSConfig(modelPath string, serverPath string, port int, backend string, speed float64) error {
-	return b.a.SaveTTSConfig(modelPath, serverPath, port, backend, speed)
-}
 func (b *ImageB) SetActiveASRModel(engineID string, modelID string) error {
 	return b.a.SetActiveASRModel(engineID, modelID)
 }
@@ -77,16 +56,9 @@ func (b *ImageB) SetImageBackend(backend string, comfyUIURL string, imageModel s
 func (b *ImageB) SetPortraitConfig(backend string, model string) error {
 	return b.a.SetPortraitConfig(backend, model)
 }
-func (b *ImageB) SetSinImageConfig(backend string, model string) error {
-	return b.a.SetSinImageConfig(backend, model)
-}
 func (b *ImageB) StartComfyUI() error { return b.a.StartComfyUI() }
 func (b *ImageB) StartLocalTTSService(engineID string) map[string]interface{} {
 	return b.a.StartLocalTTSService(engineID)
 }
-func (b *ImageB) StartTTSServer(modelPath string, port int, backend string) error {
-	return b.a.StartTTSServer(modelPath, port, backend)
-}
 func (b *ImageB) StopComfyUI() error                  { return b.a.StopComfyUI() }
-func (b *ImageB) StopTTSServer() error                { return b.a.StopTTSServer() }
 func (b *ImageB) WarmComfyUI() map[string]interface{} { return b.a.WarmComfyUI() }

@@ -31,14 +31,11 @@ func (b *CharlibB) CharacterGeneratePortrait(chJSON string, model string) (strin
 func (b *CharlibB) CharacterGeneratePortraitWithRef(chJSON string, model string, refImageDataURL string) (string, error) {
 	return b.a.CharacterGeneratePortraitWithRef(chJSON, model, refImageDataURL)
 }
-func (b *CharlibB) CharacterGenerateSheet(chJSON string, variant string) (string, error) {
-	return b.a.CharacterGenerateSheet(chJSON, variant)
-}
-func (b *CharlibB) CharacterScoreConsistency(chJSON string, image string) (string, error) {
-	return b.a.CharacterScoreConsistency(chJSON, image)
-}
 func (b *CharlibB) CharacterGenerateRandom(chJSON string, fields string) (string, error) {
 	return b.a.CharacterGenerateRandom(chJSON, fields)
+}
+func (b *CharlibB) CharacterGenerateSheet(chJSON string, variant string) (string, error) {
+	return b.a.CharacterGenerateSheet(chJSON, variant)
 }
 func (b *CharlibB) CharacterGet(id string) (map[string]interface{}, error) {
 	return b.a.CharacterGet(id)
@@ -57,6 +54,9 @@ func (b *CharlibB) CharacterListByProject() []characterlib.ProjectCharacter {
 }
 func (b *CharlibB) CharacterSave(cJSON string) (characterlib.Character, error) {
 	return b.a.CharacterSave(cJSON)
+}
+func (b *CharlibB) CharacterScoreConsistency(chJSON string, image string) (string, error) {
+	return b.a.CharacterScoreConsistency(chJSON, image)
 }
 func (b *CharlibB) CharacterSetProjectState(charID string, role string, arcState string, status string) error {
 	return b.a.CharacterSetProjectState(charID, role, arcState, status)

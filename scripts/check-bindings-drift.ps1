@@ -70,34 +70,12 @@ Write-Host "OK：bindingNames.ts 与 Go 绑定面一致（$($goSorted.Count) 个
 # ── 4. 死绑定检测（FE3-03）：legacy 面逐名文本命中 ────────────────────────
 $legacyPath = Join-Path $root 'frontend/src/gaea/lib/legacyBindings.ts'
 if (Test-Path $legacyPath) {
-  # 在册死名单 = 2026-10-03 首轮普查（FE3-03 守卫首次全量实测）：下述 109 名
-  # 后端仍在导出、frontend/src（排除生成物/守卫/类型声明/mock 后）零文本命中。
-  # 处置留拍板（删除=绑定面 744→641 候选，v4.429 时代在册口径「零调用者绑定
-  # 删除需拍板」）；本守卫只拦**普查之外的新增死绑定**（新导出即失联=接线漏），
-  # 并在在册条目复活时提示清册。逐名排查/删除走拍板后的独立一刀。
+  # 在册死名单机制（首轮普查 109 名已于 A1① 清册——绑定面 744→635，见生成器
+  # excludedBindings 与 round-54）：本守卫拦**普查之外的新增死绑定**（新导出即
+  # 失联=接线漏），并在在册条目复活时提示清册。清单暂空，未来新死绑定照旧
+  # 在此登记（附理由）。
   $knownDead = @(
-    'AddOutlineNode', 'AnalyzeStyle', 'BrainCrossRefs', 'BrainWrite', 'BrainstormBranches',
-    'BuildBacklinkIndex', 'BuildContextBudget', 'BuildRichContext', 'ChatCharacter', 'ChatCharacterDetail',
-    'ChatOutline', 'ChatOutlineNode', 'CheckModuleIntegrity', 'CloseProject', 'ContinueOutline',
-    'CreateSnapshot', 'DeleteCharacter', 'DeleteLorebookEntry', 'ExpandOutlineNode', 'ExportHTML',
-    'ExtractCharacterHeatmap', 'ExtractEmotionCurve', 'ExtractTimeline', 'FindLorebookTriggers', 'FindUnlinkedMentions',
-    'GaeaDataBackupPending', 'GaeaModel', 'GaeaSetEngine', 'GenerateCharacters', 'GenerateDefaultCanvas',
-    'GenerateOutlineWithDialogue', 'GenerateSingleCharacter', 'GetActiveASRModel', 'GetActiveTTSModel', 'GetAllEntityNames',
-    'GetBacklinks', 'GetBookData', 'GetChatVoiceModel', 'GetCompileTemplates', 'GetDashboard',
-    'GetEngineList', 'GetImageBackend', 'GetImageBackendConfig', 'GetLorebookEntries', 'GetStyleProfile',
-    'GetTTSConfig', 'GetTTSStatus', 'GetWorldMapImage', 'HerdsmanHealth', 'HerdsmanProbe',
-    'ImportStyleProfile', 'InjectMemories', 'ListSnapshots', 'LocalTranslate', 'MainBrainChat',
-    'MigrateProjectToV4', 'OfficeCancelJob', 'OfficeExecute', 'OfficeGetJobState', 'OfficeGetMode',
-    'OfficeIsTask', 'OfficeListFolder', 'OfficeReadFile', 'OfficeSetMode', 'ParseLinks',
-    'QueryEntities', 'RestoreSnapshot', 'ReviewBook', 'RunModule', 'SaveCharacter',
-    'SaveCharacters', 'SaveLorebookEntry', 'SaveOutlineNode', 'SaveTTSConfig', 'SaveToken',
-    'SaveWorldMapImage', 'SaveWorldviewSection', 'SearchMemories', 'SetDistFS', 'SetPromptFS',
-    'Shutdown', 'StartTTSServer', 'Startup', 'StopTTSServer', 'SyncEntityDB',
-    'TTSSpeak', 'VoiceGetState', 'VoiceRestartService', 'VoiceSetInputChannel', 'VoiceSetMode',
-    'WhisperChat', 'WhisperChatWithSearch', 'WhisperGetConfig', 'WhisperGetEngine', 'WhisperGetEngines',
-    'WhisperGetImageModel', 'WhisperGetModel', 'WhisperSetEngine', 'WhisperSetImageModel', 'WhisperSetModel',
-    'WhisperTaskPlanResume', 'WhisperTaskPlanStatus', 'WhisperWebSearch',
-    'GaeaCallTool', 'GaeaEngines', 'GaeaInit', 'GaeaPermLevel', 'GaeaSkills', 'GaeaTools'
+    # （空——A1① 已清册）
   )
 
   # 4a. legacy 名单（生成物，勿手改）。行尾可能挂版本注释（生成器

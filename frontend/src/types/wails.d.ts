@@ -158,7 +158,6 @@ export interface AppAPI {
   CreateProject(dir: string, title: string, genre: string, style: string): Promise<unknown>
   BootstrapProject(dir: string, title: string, genre: string, style: string, reference: string): Promise<unknown>
   OpenProject(dir: string): Promise<unknown>
-  CloseProject(): Promise<void>
   GetProjectInfo(): unknown
   /** v4.439 更新当前项目元信息（标题/题材/文风/成人向档位）；mature 非法值后端拒绝。 */
   UpdateProjectMeta(title: string, genre: string, style: string, mature: string): Promise<void>
@@ -174,20 +173,13 @@ export interface AppAPI {
 
   // ── 大纲 ──
   GetOutlines(): { nodes: OutlineNode[]; story_thread?: string }
-  SaveOutlineNode(nodeJSON: string): Promise<void>
-  AddOutlineNode(nodeJSON: string): Promise<void>
   DeleteOutlineNode(nodeID: string): Promise<void>
   GenerateOutlineNodeDetail(nodeID: string): Promise<unknown>
-  ContinueOutline(count: number): Promise<unknown>
-  ExpandOutlineNode(nodeID: string, subCount: number): Promise<unknown>
   SaveStoryThread(storyThread: string): Promise<void>
   GetStoryThread(): string
   GenerateStoryThread(userHint: string): Promise<unknown>
   ChatStoryThread(userMsg: string): Promise<unknown>
-  ChatOutline(userMsg: string): Promise<unknown>
-  ChatOutlineNode(nodeID: string, userMsg: string): Promise<unknown>
   ImportStoryThreadFile(): Promise<unknown>
-  GenerateOutlineWithDialogue(storyPrompt: string, numChapters: number, maxTurns: number): Promise<unknown>
 
   // ── 章节 ──
   GenerateChapter(outlineNodeID: string, skillName: string, targetWords: number): Promise<unknown>
@@ -201,26 +193,15 @@ export interface AppAPI {
   GetChapterScenes(chapterNum: number): Promise<unknown[]>
   SaveScene(chapterNum: number, sceneID: string, content: string): Promise<void>
   ReorderScenes(chapterNum: number, sceneIDs: string[]): Promise<void>
-  CreateSnapshot(sceneID: string, chapterNum: number, label: string): Promise<unknown>
-  ListSnapshots(sceneID: string, chapterNum: number): Promise<unknown[]>
-  RestoreSnapshot(snapshotID: string, sceneID: string, chapterNum: number): Promise<void>
-  MigrateProjectToV4(): Promise<void>
   IsProjectV4(): boolean
 
   // ── 角色 ──
   GetCharacters(): { characters?: CharacterData[]; organizations?: OrganizationData[]; relationships?: RelationshipData[] }
-  GenerateCharacters(count: number): Promise<unknown>
-  SaveCharacter(chJSON: string): Promise<void>
-  DeleteCharacter(id: string): Promise<void>
-  GenerateSingleCharacter(chJSON: string): Promise<unknown>
-  ChatCharacter(userMsg: string): Promise<unknown>
-  ChatCharacterDetail(charID: string, userMsg: string): Promise<unknown>
   SaveOrganization(orgJSON: string): Promise<void>
   DeleteOrganization(id: string): Promise<void>
   ToggleOrgMember(charID: string, orgID: string): Promise<void>
   SaveRelationship(relJSON: string): Promise<void>
   DeleteRelationship(fromID: string, toID: string): Promise<void>
-  SaveCharacters(cfJSON: string): Promise<void>
   GenerateCharacterPortrait(charID: string, model: string): Promise<string>
   GenerateProjectCharacterFill(chJSON: string): Promise<string>
   MergeCharacters(keepID: string, mergeID: string): Promise<void>
@@ -230,7 +211,6 @@ export interface AppAPI {
   GetWorldviewSections(): Promise<WorldviewSectionData[]>
   ChatWorldview(userMsg: string): Promise<unknown>
   ChatWorldviewSection(sectionID: string, userMsg: string): Promise<unknown>
-  SaveWorldviewSection(sectionID: string, content: string): Promise<void>
   SaveAllWorldviewSections(sectionsJSON: string): Promise<void>
   CheckWorldviewConsistency(): Promise<ConsistencyReportData>
   GenerateWorldviewSections(): Promise<unknown>
@@ -248,7 +228,6 @@ export interface AppAPI {
   GenerateFreeImage(prompt: string, negative: string, size: string, style: string, model: string, seed: number, n: number): Promise<unknown>
   CancelImageGeneration(): Promise<boolean>
   GetComfyUITaskProgress(): Promise<{ status?: string; elapsed?: number }>
-  GetImageBackend(): string
   GetImageBackendInfo(): {
     backend?: string
     model?: string
@@ -263,8 +242,6 @@ export interface AppAPI {
   // ── 分析/审稿 ──
   AnalyzeChapter(chapterNum: number): Promise<unknown>
   GetForeshadows(): unknown
-  ReviewBook(): Promise<unknown>
-  GetBookData(): unknown
 
   // ── 伏笔登记（闭环：登记→埋设→回收）──
   // 全量写回 foreshadows.json，手工登记/状态流转/描述编辑/删除的统一入口。
@@ -278,25 +255,15 @@ export interface AppAPI {
   GetConfig(): Record<string, string>
   SaveConfig(key: string, value: string): Promise<void>
   ListSkills(): SkillData[]
-  GetDashboard(dailyGoal: number): Promise<unknown>
 
   // ── TTS ──
-  StartTTSServer(modelPath: string, port: number, backend: string): Promise<void>
-  StopTTSServer(): Promise<void>
   TTSSpeakStreaming(text: string): Promise<void>
-  GetTTSStatus(): TTSStatus
-  GetTTSConfig(): TTSConfig
-  SaveTTSConfig(modelPath: string, serverPath: string, port: number, backend: string, speed: number): Promise<void>
 
   // ── 导出 ──
   // onlyMainline: 传 true 仅导出主线章节（跳过分支）；不传/false = 含分支（默认，历史行为）。
   ExportAll(onlyMainline: boolean): Promise<Record<string, string>>
 
   // ── 知识图谱 ──
-  BuildBacklinkIndex(): Promise<unknown>
-  GetBacklinks(entityName: string): Promise<unknown[]>
-  GetAllEntityNames(): Promise<unknown[]>
-  BuildContextBudget(systemPrompt: string, currentScene: string, previousScene: string, characterInfo: string, memoryInfo: string, modelCapacity: number): Promise<unknown>
   CheckConsistency(): Promise<unknown>
   GetEntityRelations(): Promise<unknown>
 
@@ -305,10 +272,6 @@ export interface AppAPI {
   CheckConsistencyDeep(maxChapters: number): Promise<unknown>
 
   // ── 可视化 ──
-  ExtractTimeline(): Promise<unknown>
-  ExtractEmotionCurve(): Promise<unknown[]>
-  ExtractCharacterHeatmap(): Promise<unknown>
-  GenerateDefaultCanvas(): Promise<unknown>
 
   // ── 搜索 ──
   Search(query: string): Promise<Record<string, SearchResultData[]>>
@@ -323,12 +286,9 @@ export interface AppAPI {
 
   // ── 脑暴 ──
   BrainstormIdeas(genre: string): Promise<BrainstormIdea[]>
-  BrainstormBranches(nodeID: string): Promise<{ branches?: PlotBranch[] }>
   ApplyBranch(nodeID: string, branchIndex: number, userInput: string): Promise<void>
 
   // ── Lorebook ──
-  GetLorebookEntries(): LorebookEntry[]
-  SaveLorebookEntry(entryJSON: string): Promise<void>
 
   // ── Herdsman 安全检测（S2-1）──
   // 解析 herdsman config.yaml 的 api 段，返回 LAN 暴露检测结果（H0-4）。

@@ -21,9 +21,7 @@ func (b *ModelB) GaeaBenchmarkList() ([]BenchmarkRunSummary, error) { return b.a
 func (b *ModelB) GaeaBenchmarkStart(req BenchmarkRequest) (string, error) {
 	return b.a.GaeaBenchmarkStart(req)
 }
-func (b *ModelB) GaeaEngines() []modelengine.EngineConfig { return b.a.GaeaEngines() }
-func (b *ModelB) GaeaGetUsdCnyRate() float64              { return b.a.GaeaGetUsdCnyRate() }
-func (b *ModelB) GaeaModel() string                       { return b.a.GaeaModel() }
+func (b *ModelB) GaeaGetUsdCnyRate() float64 { return b.a.GaeaGetUsdCnyRate() }
 func (b *ModelB) GaeaModelSwitchEstimate(engineID string, model string) ModelSwitchEstimate {
 	return b.a.GaeaModelSwitchEstimate(engineID, model)
 }
@@ -34,7 +32,6 @@ func (b *ModelB) GaeaRouteSuggestionIgnore(id string) error { return b.a.GaeaRou
 func (b *ModelB) GaeaRouteSuggestions() (RouteSuggestionsView, error) {
 	return b.a.GaeaRouteSuggestions()
 }
-func (b *ModelB) GaeaSetEngine(engineID string) error               { return b.a.GaeaSetEngine(engineID) }
 func (b *ModelB) GaeaSetModel(name string) error                    { return b.a.GaeaSetModel(name) }
 func (b *ModelB) GaeaSetUsdCnyRate(rate float64) error              { return b.a.GaeaSetUsdCnyRate(rate) }
 func (b *ModelB) GaeaUsageOverview() UsageOverview                  { return b.a.GaeaUsageOverview() }
@@ -48,7 +45,6 @@ func (b *ModelB) GetOfficeLocal() bool                              { return b.a
 func (b *ModelB) GetOfflineMode() bool                              { return b.a.GetOfflineMode() }
 func (b *ModelB) GetSensitiveLocal() bool                           { return b.a.GetSensitiveLocal() }
 func (b *ModelB) HerdsmanDigitalLife() (HerdsmanDigitalLife, error) { return b.a.HerdsmanDigitalLife() }
-func (b *ModelB) HerdsmanHealth() herdsman.HealthResult             { return b.a.HerdsmanHealth() }
 func (b *ModelB) HerdsmanLaunchPresets() ([]HerdsmanLaunchPreset, error) {
 	return b.a.HerdsmanLaunchPresets()
 }
@@ -67,7 +63,6 @@ func (b *ModelB) HerdsmanModelUninstall(model string) (HerdsmanOpResult, error) 
 	return b.a.HerdsmanModelUninstall(model)
 }
 func (b *ModelB) HerdsmanOperations() (HerdsmanOperations, error) { return b.a.HerdsmanOperations() }
-func (b *ModelB) HerdsmanProbe() herdsman.Probe                   { return b.a.HerdsmanProbe() }
 func (b *ModelB) HerdsmanSecurityCheck() herdsman.LanExposure     { return b.a.HerdsmanSecurityCheck() }
 func (b *ModelB) SetEngineFailover(enabled bool) error            { return b.a.SetEngineFailover(enabled) }
 func (b *ModelB) SetFeatureModel(feature string, engineID string, modelName string) error {

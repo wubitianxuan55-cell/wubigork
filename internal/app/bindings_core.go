@@ -3,11 +3,9 @@
 package app
 
 import (
-	"context"
 	"github.com/gaea/gaea/internal/app/board"
 	"github.com/gaea/gaea/internal/modelengine"
 	"github.com/gaea/gaea/internal/search"
-	"io/fs"
 )
 
 // CoreB 核心（认证/项目/设置/杂项）绑定门面（S2-3「App 绑定面拆分」）：仅暴露核心（认证/项目/设置/杂项）的方法，
@@ -17,18 +15,12 @@ type CoreB struct{ a *App }
 func (b *CoreB) AddCustomEngine(name string, baseURL string, apiKey string) (string, error) {
 	return b.a.AddCustomEngine(name, baseURL, apiKey)
 }
-func (b *CoreB) AnalyzeStyle() (map[string]interface{}, error) { return b.a.AnalyzeStyle() }
-func (b *CoreB) CheckModuleIntegrity() error                   { return b.a.CheckModuleIntegrity() }
-func (b *CoreB) CloseProject() error                           { return b.a.CloseProject() }
 func (b *CoreB) CreateProject(dir string, title string, genre string, style string) (map[string]interface{}, error) {
 	return b.a.CreateProject(dir, title, genre, style)
 }
 func (b *CoreB) DeleteProject(dir string) error { return b.a.DeleteProject(dir) }
 func (b *CoreB) ExportAll(onlyMainline bool) (map[string]string, error) {
 	return b.a.ExportAll(onlyMainline)
-}
-func (b *CoreB) ExportHTML(templateName string) (map[string]interface{}, error) {
-	return b.a.ExportHTML(templateName)
 }
 func (b *CoreB) GaeaSpaceActivate(space string) (SpaceActiveView, error) {
 	return b.a.GaeaSpaceActivate(space)
@@ -38,15 +30,11 @@ func (b *CoreB) GaeaSpaceList() []SpaceOption     { return b.a.GaeaSpaceList() }
 func (b *CoreB) GaeaSpaceProfileSet(space string, key string, ref string) ([]SpaceProfileView, error) {
 	return b.a.GaeaSpaceProfileSet(space, key, ref)
 }
-func (b *CoreB) GaeaSpaceProfiles() []SpaceProfileView         { return b.a.GaeaSpaceProfiles() }
-func (b *CoreB) GetActiveOCRModel() map[string]string          { return b.a.GetActiveOCRModel() }
-func (b *CoreB) GetAppInfo() map[string]interface{}            { return b.a.GetAppInfo() }
-func (b *CoreB) GetBoardManifests() []board.Manifest           { return b.a.GetBoardManifests() }
-func (b *CoreB) GetCompileTemplates() []map[string]interface{} { return b.a.GetCompileTemplates() }
-func (b *CoreB) GetConfig() map[string]string                  { return b.a.GetConfig() }
-func (b *CoreB) GetDashboard(dailyGoal int) (map[string]interface{}, error) {
-	return b.a.GetDashboard(dailyGoal)
-}
+func (b *CoreB) GaeaSpaceProfiles() []SpaceProfileView        { return b.a.GaeaSpaceProfiles() }
+func (b *CoreB) GetActiveOCRModel() map[string]string         { return b.a.GetActiveOCRModel() }
+func (b *CoreB) GetAppInfo() map[string]interface{}           { return b.a.GetAppInfo() }
+func (b *CoreB) GetBoardManifests() []board.Manifest          { return b.a.GetBoardManifests() }
+func (b *CoreB) GetConfig() map[string]string                 { return b.a.GetConfig() }
 func (b *CoreB) GetDeepseekKeyStatus() map[string]interface{} { return b.a.GetDeepseekKeyStatus() }
 func (b *CoreB) GetFeatureModel(feature string) map[string]string {
 	return b.a.GetFeatureModel(feature)
@@ -64,13 +52,10 @@ func (b *CoreB) GetOpencodeGoKeyStatus() map[string]interface{}   { return b.a.G
 func (b *CoreB) GetOpencodeZenKeyStatus() map[string]interface{} {
 	return b.a.GetOpencodeZenKeyStatus()
 }
-func (b *CoreB) GetPreloadPlan() bool                             { return b.a.GetPreloadPlan() }
-func (b *CoreB) GetProjectInfo() map[string]interface{}           { return b.a.GetProjectInfo() }
-func (b *CoreB) GetStats() map[string]interface{}                 { return b.a.GetStats() }
-func (b *CoreB) GetStyleProfile() (map[string]interface{}, error) { return b.a.GetStyleProfile() }
-func (b *CoreB) ImportStyleProfile(markdownContent string, profileName string) (map[string]interface{}, error) {
-	return b.a.ImportStyleProfile(markdownContent, profileName)
-}
+func (b *CoreB) GetPreloadPlan() bool                                   { return b.a.GetPreloadPlan() }
+func (b *CoreB) GetProjectInfo() map[string]interface{}                 { return b.a.GetProjectInfo() }
+func (b *CoreB) GetSinImageConfig() map[string]string                   { return b.a.GetSinImageConfig() }
+func (b *CoreB) GetStats() map[string]interface{}                       { return b.a.GetStats() }
 func (b *CoreB) ListProjects() ([]ProjectCard, error)                   { return b.a.ListProjects() }
 func (b *CoreB) ListSkills() []map[string]interface{}                   { return b.a.ListSkills() }
 func (b *CoreB) Login() error                                           { return b.a.Login() }
@@ -83,36 +68,32 @@ func (b *CoreB) RemoveCustomEngine(engineID string) error                { retur
 func (b *CoreB) ResetModelCallStats()                                    { b.a.ResetModelCallStats() }
 func (b *CoreB) SaveConfig(key string, value string) error               { return b.a.SaveConfig(key, value) }
 func (b *CoreB) SaveEngine(cfg modelengine.EngineConfig) error           { return b.a.SaveEngine(cfg) }
-func (b *CoreB) SaveToken(rawJSON string) error                          { return b.a.SaveToken(rawJSON) }
 func (b *CoreB) Search(query string) (map[string][]search.Result, error) { return b.a.Search(query) }
 func (b *CoreB) SetActiveEngine(engineID string) error                   { return b.a.SetActiveEngine(engineID) }
 func (b *CoreB) SetActiveOCRModel(engineID string, modelID string) error {
 	return b.a.SetActiveOCRModel(engineID, modelID)
 }
 func (b *CoreB) SetDeepseekKey(apiKey string) error { return b.a.SetDeepseekKey(apiKey) }
-func (b *CoreB) SetDistFS(fsys fs.FS)               { b.a.SetDistFS(fsys) }
 func (b *CoreB) SetEngineDefaultModel(engineID string, modelName string) error {
 	return b.a.SetEngineDefaultModel(engineID, modelName)
 }
-func (b *CoreB) SetGlmEndpoint(family string) error      { return b.a.SetGlmEndpoint(family) }
-func (b *CoreB) SetGlmKey(apiKey string) error           { return b.a.SetGlmKey(apiKey) }
-func (b *CoreB) SetKeepWarm(enabled bool) error          { return b.a.SetKeepWarm(enabled) }
-func (b *CoreB) SetModelHubKey(apiKey string) error      { return b.a.SetModelHubKey(apiKey) }
-func (b *CoreB) SetOpencodeGoKey(apiKey string) error    { return b.a.SetOpencodeGoKey(apiKey) }
-func (b *CoreB) SetOpencodeZenKey(apiKey string) error   { return b.a.SetOpencodeZenKey(apiKey) }
-func (b *CoreB) SetPreloadPlan(enabled bool) error       { return b.a.SetPreloadPlan(enabled) }
-func (b *CoreB) SetPromptFS(fsys fs.FS)                  { b.a.SetPromptFS(fsys) }
-func (b *CoreB) Shutdown(ctx context.Context)            { b.a.Shutdown(ctx) }
+func (b *CoreB) SetGlmEndpoint(family string) error    { return b.a.SetGlmEndpoint(family) }
+func (b *CoreB) SetGlmKey(apiKey string) error         { return b.a.SetGlmKey(apiKey) }
+func (b *CoreB) SetKeepWarm(enabled bool) error        { return b.a.SetKeepWarm(enabled) }
+func (b *CoreB) SetModelHubKey(apiKey string) error    { return b.a.SetModelHubKey(apiKey) }
+func (b *CoreB) SetOpencodeGoKey(apiKey string) error  { return b.a.SetOpencodeGoKey(apiKey) }
+func (b *CoreB) SetOpencodeZenKey(apiKey string) error { return b.a.SetOpencodeZenKey(apiKey) }
+func (b *CoreB) SetPreloadPlan(enabled bool) error     { return b.a.SetPreloadPlan(enabled) }
+func (b *CoreB) SetSinImageConfig(backend string, model string) error {
+	return b.a.SetSinImageConfig(backend, model)
+}
 func (b *CoreB) StartModelHubModel(modelID string) error { return b.a.StartModelHubModel(modelID) }
-func (b *CoreB) Startup(ctx context.Context)             { b.a.Startup(ctx) }
 func (b *CoreB) TestEngineConnection(engineID string) (*modelengine.EngineStatus, error) {
 	return b.a.TestEngineConnection(engineID)
 }
 func (b *CoreB) UpdateCustomEngine(engineID string, name string, baseURL string, apiKey string) error {
 	return b.a.UpdateCustomEngine(engineID, name, baseURL, apiKey)
 }
-
-// UpdateProjectMeta 更新当前项目元信息（v4.439：标题/题材/文风/成人向档位可编辑）。
 func (b *CoreB) UpdateProjectMeta(title string, genre string, style string, mature string) error {
 	return b.a.UpdateProjectMeta(title, genre, style, mature)
 }

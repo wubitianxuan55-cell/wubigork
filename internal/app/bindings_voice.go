@@ -4,7 +4,6 @@ package app
 
 import (
 	"github.com/gaea/gaea/internal/assistant"
-	"github.com/gaea/gaea/internal/modelengine"
 	"github.com/gaea/gaea/internal/tts"
 	"github.com/gaea/gaea/internal/whisper"
 )
@@ -16,8 +15,6 @@ type VoiceB struct{ a *App }
 func (b *VoiceB) GaeaTTSVoiceParams(emotion string) tts.TTSParams {
 	return b.a.GaeaTTSVoiceParams(emotion)
 }
-func (b *VoiceB) GetEngineList() []string              { return b.a.GetEngineList() }
-func (b *VoiceB) TTSSpeak(text string) (string, error) { return b.a.TTSSpeak(text) }
 func (b *VoiceB) TTSSpeakBase64(text string) (map[string]interface{}, error) {
 	return b.a.TTSSpeakBase64(text)
 }
@@ -28,19 +25,15 @@ func (b *VoiceB) TTSSpeakStreaming(text string) error { return b.a.TTSSpeakStrea
 func (b *VoiceB) VoiceApplySettings(settings map[string]interface{}) error {
 	return b.a.VoiceApplySettings(settings)
 }
-func (b *VoiceB) VoiceCancelTTS() error                     { return b.a.VoiceCancelTTS() }
-func (b *VoiceB) VoiceChatText(text string) error           { return b.a.VoiceChatText(text) }
-func (b *VoiceB) VoiceGetSettings() map[string]interface{}  { return b.a.VoiceGetSettings() }
-func (b *VoiceB) VoiceGetState() map[string]interface{}     { return b.a.VoiceGetState() }
-func (b *VoiceB) VoiceHealth() map[string]interface{}       { return b.a.VoiceHealth() }
-func (b *VoiceB) VoicePlaybackDone() error                  { return b.a.VoicePlaybackDone() }
-func (b *VoiceB) VoicePushAudio(chunk []byte) error         { return b.a.VoicePushAudio(chunk) }
-func (b *VoiceB) VoiceRestartService() error                { return b.a.VoiceRestartService() }
-func (b *VoiceB) VoiceSetInputChannel(channel string) error { return b.a.VoiceSetInputChannel(channel) }
-func (b *VoiceB) VoiceSetMode(mode string) error            { return b.a.VoiceSetMode(mode) }
-func (b *VoiceB) VoiceSetPTTActive(active bool) error       { return b.a.VoiceSetPTTActive(active) }
-func (b *VoiceB) VoiceStart(browserASR bool) error          { return b.a.VoiceStart(browserASR) }
-func (b *VoiceB) VoiceStop() error                          { return b.a.VoiceStop() }
+func (b *VoiceB) VoiceCancelTTS() error                    { return b.a.VoiceCancelTTS() }
+func (b *VoiceB) VoiceChatText(text string) error          { return b.a.VoiceChatText(text) }
+func (b *VoiceB) VoiceGetSettings() map[string]interface{} { return b.a.VoiceGetSettings() }
+func (b *VoiceB) VoiceHealth() map[string]interface{}      { return b.a.VoiceHealth() }
+func (b *VoiceB) VoicePlaybackDone() error                 { return b.a.VoicePlaybackDone() }
+func (b *VoiceB) VoicePushAudio(chunk []byte) error        { return b.a.VoicePushAudio(chunk) }
+func (b *VoiceB) VoiceSetPTTActive(active bool) error      { return b.a.VoiceSetPTTActive(active) }
+func (b *VoiceB) VoiceStart(browserASR bool) error         { return b.a.VoiceStart(browserASR) }
+func (b *VoiceB) VoiceStop() error                         { return b.a.VoiceStop() }
 func (b *VoiceB) WeixinReminderAdd(text string, fireAtRFC3339 string) (map[string]interface{}, error) {
 	return b.a.WeixinReminderAdd(text, fireAtRFC3339)
 }
@@ -57,26 +50,15 @@ func (b *VoiceB) WhisperAssistantList() []assistant.Assistant { return b.a.Whisp
 func (b *VoiceB) WhisperAssistantSave(ast assistant.Assistant) error {
 	return b.a.WhisperAssistantSave(ast)
 }
-func (b *VoiceB) WhisperChat(userMsg string, personalityID string, thinking bool) (result map[string]interface{}, err error) {
-	return b.a.WhisperChat(userMsg, personalityID, thinking)
-}
-func (b *VoiceB) WhisperChatWithSearch(userMsg string, personalityID string, thinking bool, forceSearch bool) (map[string]interface{}, error) {
-	return b.a.WhisperChatWithSearch(userMsg, personalityID, thinking, forceSearch)
-}
 func (b *VoiceB) WhisperClearSession(personalityID string) error {
 	return b.a.WhisperClearSession(personalityID)
 }
 func (b *VoiceB) WhisperDeleteFact(personalityID string, factID string) error {
 	return b.a.WhisperDeleteFact(personalityID, factID)
 }
-func (b *VoiceB) WhisperGetConfig() map[string]interface{}      { return b.a.WhisperGetConfig() }
-func (b *VoiceB) WhisperGetEngine() string                      { return b.a.WhisperGetEngine() }
-func (b *VoiceB) WhisperGetEngines() []modelengine.EngineConfig { return b.a.WhisperGetEngines() }
 func (b *VoiceB) WhisperGetFacts(personalityID string) []map[string]interface{} {
 	return b.a.WhisperGetFacts(personalityID)
 }
-func (b *VoiceB) WhisperGetImageModel() string { return b.a.WhisperGetImageModel() }
-func (b *VoiceB) WhisperGetModel() string      { return b.a.WhisperGetModel() }
 func (b *VoiceB) WhisperGetPersonalities() []whisper.PersonalityPreset {
 	return b.a.WhisperGetPersonalities()
 }
@@ -86,20 +68,8 @@ func (b *VoiceB) WhisperGetState(personalityID string) map[string]interface{} {
 func (b *VoiceB) WhisperGetTraces(personalityID string) []whisper.TurnTrace {
 	return b.a.WhisperGetTraces(personalityID)
 }
-func (b *VoiceB) WhisperSetEngine(engineID string) error { return b.a.WhisperSetEngine(engineID) }
-func (b *VoiceB) WhisperSetImageModel(modelName string) error {
-	return b.a.WhisperSetImageModel(modelName)
-}
-func (b *VoiceB) WhisperSetModel(engineID string, modelName string) error {
-	return b.a.WhisperSetModel(engineID, modelName)
-}
-func (b *VoiceB) WhisperTaskPlanResume() bool                   { return b.a.WhisperTaskPlanResume() }
-func (b *VoiceB) WhisperTaskPlanStatus() map[string]interface{} { return b.a.WhisperTaskPlanStatus() }
 func (b *VoiceB) WhisperUpdateFact(personalityID string, factID string, updates map[string]interface{}) error {
 	return b.a.WhisperUpdateFact(personalityID, factID, updates)
-}
-func (b *VoiceB) WhisperWebSearch(query string) (map[string]interface{}, error) {
-	return b.a.WhisperWebSearch(query)
 }
 func (b *VoiceB) WhisperWeixinGetQR() (map[string]interface{}, error) {
 	return b.a.WhisperWeixinGetQR()
