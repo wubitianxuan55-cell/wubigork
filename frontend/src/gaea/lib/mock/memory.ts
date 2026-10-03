@@ -273,9 +273,8 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
     },
     async WhisperGraphSubgraph(_personalityID: string, _entity: string, _hops: number) {
       // 只读空态（批 46 NOT_MOCKED 收尾刀）：Go 口径「entity 不存在返回空子图
-      // （非 nil，空 slice）」。键名遵从 bridge 契约面 WhisperSubgraph（小写）——
-      // 观察池：Go whisper.Subgraph 无 json 标签（原始序列化为 Nodes/Edges 大写），
-      // 真机是否经归一待证（mock 不编造第三种口径）。
+      // （非 nil，空 slice）」。批 50 已在 Go 侧补 json 标签对齐契约小写键
+      // （此前无标签序列化大写键，真机面板读契约字段恒空图——观察池疑点收口）。
       return { nodes: [], edges: [] };
     },
     async WhisperProactiveNow(_personalityID: string) {

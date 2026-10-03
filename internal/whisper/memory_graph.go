@@ -168,27 +168,31 @@ func (kg *KnowledgeGraph) ListAll() []Triple {
 
 // ─── 子图召回(v4.3b)────────────────────────────────────────────
 
-// GraphNode 子图节点(实体)
+// GraphNode 子图节点(实体)。json 标签对齐前端契约 WhisperGraphNode（批 50
+// 观察池收口：无标签时 Wails 序列化大写键名，真机图谱面板读小写契约字段恒
+// undefined→空图——面板不崩但功能死的静默分叉，mock 侧批 46 已按契约小写）。
 type GraphNode struct {
-	ID     string  // 节点 ID(实体名;KG 无独立实体 ID)
-	Name   string  // 实体名(与 ID 相同)
-	Type   string  // 实体类型(KG 无实体类型概念,恒为空串)
-	Weight float64 // 节点权重:关联边(去重后)最大权重;无关联边时为 1
+	ID     string  `json:"id"`     // 节点 ID(实体名;KG 无独立实体 ID)
+	Name   string  `json:"name"`   // 实体名(与 ID 相同)
+	Type   string  `json:"type"`   // 实体类型(KG 无实体类型概念,恒为空串)
+	Weight float64 `json:"weight"` // 节点权重:关联边(去重后)最大权重;无关联边时为 1
 }
 
-// GraphEdge 子图边(三元组)
+// GraphEdge 子图边(三元组)。json 标签对齐前端契约 WhisperGraphEdge。
 type GraphEdge struct {
-	From         string  // 主语实体
-	To           string  // 宾语实体
-	Type         string  // 关系标签(三元组谓词)
-	Weight       float64 // 边权重:三元组 confidence;无权重(<=0)时为 1
-	EmotionLabel string  // 边情绪标签(正面/负面/中性;v4.9 图谱情绪维度)
+	From         string  `json:"from"`                   // 主语实体
+	To           string  `json:"to"`                     // 宾语实体
+	Type         string  `json:"type"`                   // 关系标签(三元组谓词)
+	Weight       float64 `json:"weight"`                 // 边权重:三元组 confidence;无权重(<=0)时为 1
+	EmotionLabel string  `json:"emotionLabel,omitempty"` // 边情绪标签(正面/负面/中性;v4.9 图谱情绪维度;空=中性)
 }
 
-// Subgraph 以 entity 为中心、hops 跳内的邻接子图。
+// Subgraph 以 entity 为中心、hops 跳内的邻接子图。json 标签对齐前端契约
+// WhisperSubgraph（QuerySubgraph「entity 不存在返回空子图(非 nil,空 slice)」
+// 与契约注释同口径）。
 type Subgraph struct {
-	Nodes []GraphNode
-	Edges []GraphEdge
+	Nodes []GraphNode `json:"nodes"`
+	Edges []GraphEdge `json:"edges"`
 }
 
 // QuerySubgraph 返回以 entity 为中心、hops 跳内(含 hops=0 时仅自身节点)的邻接子图。

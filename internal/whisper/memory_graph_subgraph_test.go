@@ -3,7 +3,10 @@
 
 package whisper
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 // ─── 辅助 ──────────────────────────────────────────────────────
 
@@ -298,5 +301,46 @@ func TestQuerySubgraph_CaseInsensitive(t *testing.T) {
 	}
 	if len(sg2.Nodes) != 2 {
 		t.Errorf("Bob 一跳应含 2 个节点,实际 %d: %+v", len(sg2.Nodes), sg2.Nodes)
+	}
+}
+
+// TestSubgraphJSONKeysContract 子图 JSON 键名契约钉（批 50 观察池收口）：
+// Subgraph/GraphNode/GraphEdge 此前无 json 标签，Wails 序列化大写键名
+// （Nodes/Edges/ID/From…），而前端契约面 WhisperSubgraph 为小写——真机图谱
+// 面板读契约字段恒 undefined→空图（不崩但功能死）。钉死小写键防回退。
+func TestSubgraphJSONKeysContract(t *testing.T) {
+	raw, err := json.Marshal(Subgraph{
+		Nodes: []GraphNode{{ID: "Alice", Name: "Alice", Type: "", Weight: 1}},
+		Edges: []GraphEdge{{From: "Alice", To: "Bob", Type: "likes", Weight: 0.9, EmotionLabel: "正面"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]interface{}
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"nodes", "edges"} {
+		if _, ok := m[key]; !ok {
+			t.Errorf("子图 JSON 缺小写键 %q: %s", key, raw)
+		}
+	}
+	node, ok := m["nodes"].([]interface{})[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("nodes[0] 形状异常: %s", raw)
+	}
+	for _, key := range []string{"id", "name", "type", "weight"} {
+		if _, ok := node[key]; !ok {
+			t.Errorf("节点 JSON 缺小写键 %q: %s", key, raw)
+		}
+	}
+	edge, ok := m["edges"].([]interface{})[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("edges[0] 形状异常: %s", raw)
+	}
+	for _, key := range []string{"from", "to", "type", "weight", "emotionLabel"} {
+		if _, ok := edge[key]; !ok {
+			t.Errorf("边 JSON 缺小写键 %q: %s", key, raw)
+		}
 	}
 }
