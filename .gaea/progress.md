@@ -1,3 +1,12 @@
+## 非版本刀：全仓审计第 32 批·FE6-07 ModuleLauncher 拆分（展示件+轮询 hook 出仓）· 2026-10-03
+
+- **刀型**：接续批 31（`221b73ee`）。前端配方第三刀：ModuleLauncher.tsx 1058→684+launcher_parts.tsx 391（九个纯展示子组件+useLauncherData 轮询 hook+最小类型整段出仓；主文件留双空间首页主体+两套变体）。主代理直做。**不抬版本**。
+- **交付**：`docs/code-audit-2026-10-02/round-34-p1-batch32.md`。
+- **双向接口**：两轮依赖普查（出仓段依赖/主段反向消费 9 符号）+外部消费通道核查（TasksFirstHome/useChatVoice/MainLayout）——SessionList/LauncherData 经主文件 re-export，外部导入路径零改动；SessionList/LauncherData 原文自带 export 关键字，尾部集中导出只列其余 7 符号（重复声明 tsc 抓，即平）。
+- **源级守卫随迁（本批关键动作）**：perf-guards.test.ts 源级断言在首轮 ci 拦下 1 红——订阅用法已随段出仓；守卫意图不变、读源范围扩为主文件+展示件并集（头注写明缘由）。**教训：源级断言守卫必须与其守卫的代码同批随迁**（App.tsx 源级锁同家族）。
+- **门禁**：tsc 绿 / ModuleLauncher+TasksFirstHome 21 例绿 / 前台 ci **exit 0**（vitest 435 文件 3762 例全绿）；提交后树干净+HEAD 可编译。
+- **FE6-07 部分收敛**：两套变体渲染分叉仍在主文件（设计型）。下一批候选=FE3-11 controller.ts（预核判定=useController 280 行单 hook 36 回调属 hook 分域设计型非机械，需先立 hook 分域配方）；coupling ~20 与零散死码等拍板。
+
 ## 非版本刀：全仓审计第 31 批·FE3-15 续刀（Git/任务/证据链/备份 → methods_ops.ts）· 2026-10-03
 
 - **刀型**：接续批 30（`10f8ee5c`）。前端配方第二刀：四域连排块（Git 7 件/任务 5 件/证据链+WriteFile 4 件/数据备份 6 件）整域抽取至 methods_ops.ts（222 行），`Pick<OfficeMethods,22 键>`+`...opsMethods` 原位展开。主代理直做。**不抬版本**。
