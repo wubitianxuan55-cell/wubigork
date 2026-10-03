@@ -158,15 +158,10 @@ func (a *writingState) recallStoryMemories(pm *project.Manager, node *types.Outl
 }
 
 // findOutlineNodeByID 在大纲树（含分支子节点）中按 ID 找节点（召回 query 需要
-// 节点的结构化字段；找不到返回 nil，调用方降级）。
+// 节点的结构化字段；找不到返回 nil，调用方降级）。AP1-06 同型收敛（批 19 超清单
+// 残留收口）：前序遍历骨架单源 findOutlineNode，「按 ID 认」语义在谓词显式化。
 func findOutlineNodeByID(nodes []types.OutlineNode, id string) *types.OutlineNode {
-	for i := range nodes {
-		if nodes[i].ID == id {
-			return &nodes[i]
-		}
-		if got := findOutlineNodeByID(nodes[i].Children, id); got != nil {
-			return got
-		}
-	}
-	return nil
+	return findOutlineNode(nodes, func(n *types.OutlineNode) bool {
+		return n.ID == id
+	})
 }

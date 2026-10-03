@@ -298,9 +298,9 @@ type imageGenLoopSpec struct {
 	// 带 mode 字段；字段顺序 mode→attempt→error 与改前一致）。
 	logPrefix string
 	logAttrs  []any
-	// 能力开关（行为冻结，审计 AP7-02）：comfyRetries 仅 internal 链开——
-	// Errno22 孤儿实例 recover 重试 + 未运行自动拉起重试（各一次/整轮）。
-	// media 链历史无此防线；要不要补齐=行为新增，只申报不实施。
+	// 能力开关（行为冻结，审计 AP7-02）：comfyRetries——Errno22 孤儿实例
+	// recover 重试 + 未运行自动拉起重试（各一次/整轮）。批 48 起两链同开
+	// （round-21 留池申报项实施：同后端同失败模式，media 链补齐同款防线）。
 	comfyRetries bool
 	// 能力开关：wantKind 仅 media 链开——提取 resp.Data[0].Kind（空→"image"）
 	// 写 item.Kind（json kind,omitempty，internal 不置即不出键，改前一致）。
@@ -664,8 +664,9 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 		}
 		// AP7-02 收敛：循环骨架（种子派生→模型覆盖→size 清空→提交→落盘→登记）
 		// 与 generateImageInternal 共用 runImageGenLoop；本链差异面=无 override
-		// 客户端、comfyui 错误重试防线历史不存在（能力开关关，要不要补=行为新增
-		// 只申报）/Kind 提取/两路落盘/台账按 mode 登记+变体簇回填。
+		// 客户端/Kind 提取/两路落盘/台账按 mode 登记+变体簇回填。comfyui 错误
+		// 重试防线批 48 补齐（round-21 留池申报项实施）：两链同后端同失败模式，
+		// Errno22 孤儿实例 recover + 未运行自动拉起（各一次/整轮）同 internal 语义。
 		return a.runImageGenLoop(imageGenLoopSpec{
 			client: a.clientRef(), backend: a.cfg.ImageBackend, genCtx: genCtx,
 			reqTemplate:   reqTemplate,
@@ -677,7 +678,7 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 			size:          size,
 			logPrefix:     "媒体生成失败",
 			logAttrs:      []any{"mode", mode},
-			comfyRetries:  false,
+			comfyRetries:  true,
 			wantKind:      true,
 			save: func(imageData string) string {
 				if a.cfg.ImageSaveDir != "" {

@@ -711,16 +711,12 @@ func maxOutlineChapterNum(nodes []types.OutlineNode) int {
 }
 
 // findOutlineNodeByNumAny 在（可能嵌套的）大纲树中按章号查找节点（不限分支）。
+// AP1-06 同型收敛（批 19 超清单残留收口）：前序遍历骨架单源 findOutlineNode，
+// 「不限分支」语义在谓词显式化（相对 findOutlineNodeByNum 的 Branch=="" 收窄）。
 func findOutlineNodeByNumAny(nodes []types.OutlineNode, num int) *types.OutlineNode {
-	for i := range nodes {
-		if nodes[i].OrderIndex == num {
-			return &nodes[i]
-		}
-		if child := findOutlineNodeByNumAny(nodes[i].Children, num); child != nil {
-			return child
-		}
-	}
-	return nil
+	return findOutlineNode(nodes, func(n *types.OutlineNode) bool {
+		return n.OrderIndex == num
+	})
 }
 
 // chapterNumOfFile 从章节文件名（"006.md" / "006a.md"）解析前导章号；无数字返回 0。

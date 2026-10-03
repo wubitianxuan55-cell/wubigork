@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import { ensureKatexCss, hasMathContent, normalizeMath } from '../gaea/lib/mathText'
+import { extractFence } from '../genui/markdownFence'
 import { ChatCodeBlock } from './ChatCodeBlock'
 
 /** Markdown 渲染（GFM：表格/删除线/任务列表等，基于 react-markdown） */
@@ -13,14 +14,13 @@ import { ChatCodeBlock } from './ChatCodeBlock'
 // 直用面与聊天线同款：块级代码走 ChatCodeBlock 暗色面板+hljs 高亮+复制头，
 // 行内代码交还 .md-content code 默认样式；pre 透传防双层包裹。传了
 // components（聊天 GenUI 缝）则完全尊重调用方，零变化。模块级常量保证
-// 引用稳定，不破坏 memo。
+// 引用稳定，不破坏 memo。围栏样板（language- 提取/去尾换行/块级判定）批 48
+// 起接 extractFence 单源——与 ChatMarkdown/genuiAdapter/Markdown 三缝同出处。
 const defaultComponents: Components = {
   pre: ({ children }) => (isValidElement(children) ? <>{children}</> : <pre>{children}</pre>),
   code: ({ className, children }) => {
-    const text = String(children ?? '').replace(/\n$/, '')
-    const match = /language-([\w-]+)/.exec(className ?? '')
-    const isBlock = match !== null || text.includes('\n')
-    if (isBlock) return <ChatCodeBlock language={match?.[1]} text={text} />
+    const { text, lang, isBlock } = extractFence(className, children)
+    if (isBlock) return <ChatCodeBlock language={lang} text={text} />
     return <code className={className}>{children}</code>
   },
 }
