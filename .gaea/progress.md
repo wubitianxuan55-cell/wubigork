@@ -1,3 +1,8 @@
+## 发版 v4.455.0：全仓审计修复收官（512 条审计 50 批清账 + 绑定面 744→635）· 2026-10-03
+
+- 2026-10-02 全仓审计修复线程收官（批 11~56）：P0 25 全清；四簇/duplication/god-file 族/留池/上报未动池/观察池全清或归拍板；拍板池 16 项中 14 项已执行或零动作确认。**绑定面 744→635**（A1① 109 零调用摘除，生成器 excludedBindings 管线）。要点：AtomicWrite perm 生效/WhisperSubgraph 真机空图根修/AtomicWriteSync fsync 变体/任务身份三系统对照表/NOT_MOCKED 45→0 fail-closed/controller.ts 884→141 hook 分域六文件/estimateTokens 五处收敛/反向变异三组+ID 格式钉三件。发布前 ci.ps1 全量档首次联合通过（前端 vitest 3760/435；app 全包 135s 绿）。
+- 产物：releases/gaea-v4.455.0.exe（冒烟 200 过；删 v4.450.0.exe）+ wubigork-v4.455.0-source.tar.gz（tag 归档）。台账：docs/code-audit-2026-10-02/round-1~56 + decision-brief。
+
 ## 非版本刀：全仓审计第 36 批·FE3-11 续刀（hook 分域配方首刀：记忆/画像族出仓）· 2026-10-03
 
 - **刀型**：接续批 35（`51b81793`）。**hook 分域配方首刀**：controller.ts 414→376+controller_actions_memory.ts 54——记忆/画像族八回调（useCallback 依赖数组逐字保留，clearFactBase 跨族依赖 refreshFactBase 显式注入）+ 桥接错误三助手出仓（**随动作域走防 controller→actions→controller 环**）；useMemoryActions 原位替换保 hook 调用顺序。主代理直做。**不抬版本**。
