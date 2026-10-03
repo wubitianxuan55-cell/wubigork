@@ -133,33 +133,18 @@ func (l *imageHubLedger) pruneIfNeeded(p string) error {
 		return nil
 	}
 	keep := lines[len(lines)-imageHubLedgerMaxLines:]
-	tmp, err := os.CreateTemp(filepath.Dir(p), "assets-*.tmp")
-	if err != nil {
-		return fmt.Errorf("创建折叠临时文件失败: %w", err)
-	}
-	tmpName := tmp.Name()
+	var b strings.Builder
 	for _, ln := range keep {
 		if strings.TrimSpace(ln) == "" {
 			continue
 		}
-		if _, err := tmp.WriteString(strings.TrimSpace(ln) + "\n"); err != nil {
-			_ = tmp.Close()
-			_ = os.Remove(tmpName)
-			return fmt.Errorf("折叠写入失败: %w", err)
-		}
+		b.WriteString(strings.TrimSpace(ln) + "\n")
 	}
-	if err := tmp.Close(); err != nil {
-		_ = os.Remove(tmpName)
-		return fmt.Errorf("折叠关闭失败: %w", err)
-	}
-	// Windows 下 os.Rename 不能覆盖已存在文件：先移除旧文件再替换（记录折叠窗口极短）。
-	if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
-		_ = os.Remove(tmpName)
-		return fmt.Errorf("折叠移除旧文件失败: %w", err)
-	}
-	if err := fileutil.RenameWithRetry(tmpName, p); err != nil {
-		_ = os.Remove(tmpName)
-		return fmt.Errorf("折叠替换失败: %w", err)
+	// 折叠重写走 AtomicWrite 单源（批 48 收口）：旧「临时件+先移除旧文件再替换」
+	// 在移除与替换之间留有台账缺失的可见中间态（此处即崩溃/并发读空窗），单源
+	// rename 原语消灭该窗口；权限 0644 与追加路径 OpenFile 口径一致。
+	if err := fileutil.AtomicWrite(p, []byte(b.String()), 0o644); err != nil {
+		return fmt.Errorf("折叠写入失败: %w", err)
 	}
 	return nil
 }

@@ -283,6 +283,8 @@ func (a *App) GaeaBenchmarkExport(id, dir string) (string, error) {
 	path := filepath.Join(dir, fmt.Sprintf("herdsman-benchmark-%s-%s.md", ts, shortID))
 	// T7-2 原子写：同目录临时文件 → 写入 → 落盘 → rename 覆盖，
 	// 中途失败清理临时文件，绝不留下半截报告。
+	// 刻意不并入 fileutil.AtomicWrite：本站点的 tmp.Sync()（fsync）是 AtomicWrite
+	// 没有的能力——是否统一 fsync=全仓 fsync 决策，归拍板池（批 48 收口注记）。
 	tmp, err := os.CreateTemp(dir, "herdsman-benchmark-*.md.tmp")
 	if err != nil {
 		return "", fmt.Errorf("创建临时报告失败: %w", err)

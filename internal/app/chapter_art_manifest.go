@@ -63,7 +63,9 @@ func loadChapterArtManifest(pm *project.Manager) chapterArtManifest {
 	return m
 }
 
-// saveChapterArtManifest 原子写清单（临时文件 + 替换；Windows 下先移除旧文件）。
+// saveChapterArtManifest 原子写清单（fileutil.AtomicWrite 单源，批 48 收口）。
+// 旧手搓「临时件+先移除旧文件再替换」在移除与替换之间留有清单缺失的可见中间态
+// （崩溃/并发读即空窗），单源 rename 原语（RenameWithRetry 直接覆盖）消灭该窗口。
 func saveChapterArtManifest(pm *project.Manager, m chapterArtManifest) error {
 	p := chapterArtManifestPath(pm)
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
@@ -73,27 +75,8 @@ func saveChapterArtManifest(pm *project.Manager, m chapterArtManifest) error {
 	if err != nil {
 		return fmt.Errorf("章节插图清单序列化失败: %w", err)
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(p), "chapter-art-*.tmp")
-	if err != nil {
-		return fmt.Errorf("创建清单临时文件失败: %w", err)
-	}
-	tmpName := tmp.Name()
-	if _, err := tmp.Write(raw); err != nil {
-		_ = tmp.Close()
-		_ = os.Remove(tmpName)
-		return fmt.Errorf("写入清单失败: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		_ = os.Remove(tmpName)
-		return fmt.Errorf("关闭清单失败: %w", err)
-	}
-	if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
-		_ = os.Remove(tmpName)
-		return fmt.Errorf("移除旧清单失败: %w", err)
-	}
-	if err := fileutil.RenameWithRetry(tmpName, p); err != nil {
-		_ = os.Remove(tmpName)
-		return fmt.Errorf("替换清单失败: %w", err)
+	if err := fileutil.AtomicWrite(p, raw, 0o644); err != nil {
+		return fmt.Errorf("写入章节插图清单失败: %w", err)
 	}
 	return nil
 }

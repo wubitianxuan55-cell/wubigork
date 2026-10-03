@@ -666,7 +666,9 @@ func (a *App) GaeaWriteFile(rel string, content string) error {
 	if err != nil || !info.Mode().IsRegular() {
 		return fmt.Errorf("目标不是已存在的文本文件: %s", rel)
 	}
-	// 原子写：同目录临时文件 → fsync → rename（失败清理临时文件、保留原文件）
+	// 原子写：同目录临时文件 → fsync → rename（失败清理临时文件、保留原文件）。
+	// 刻意不并入 fileutil.AtomicWrite：本站点的 tmp.Sync()（fsync）是 AtomicWrite
+	// 没有的能力——是否统一 fsync=全仓 fsync 决策，归拍板池（批 48 收口注记）。
 	dir := filepath.Dir(abs)
 	tmp, err := os.CreateTemp(dir, ".gaea-edit-*")
 	if err != nil {
