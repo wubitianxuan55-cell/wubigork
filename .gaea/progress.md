@@ -1,3 +1,11 @@
+## 非版本刀：全仓审计第 35 批·FE2-04 CostProjectsView 拆分（明细件+样式常量出仓）· 2026-10-03
+
+- **刀型**：接续批 34（`93db2bfd`）。前端配方第六刀：CostProjectsView.tsx 895→~570+cost_projects_parts.tsx ~318——明细件层（ItemRow/EntryPicker/ProjectForm+Field/SnapshotTable/小工具四件，八件全为主段消费）出仓；五共享样式常量（fmtPrice/fieldCls/ghostBtn/solidBtn/iconBtn）落 parts 单源导出。主代理直做。**不抬版本**。
+- **交付**：`docs/code-audit-2026-10-02/round-37-p1-batch35.md`。
+- **要点**：外部仅注释提及、测试只导主件→parts 无需 re-export；**X 单字母图标首轮正则双侧漏报（grep -w 精确定位归 parts）**；批 34 教训执行=样式常量从原文件拷字节插值，iconBtn 跨行值被行号切片切断按位置拼接修复（**CRLF/LF 混排下禁锚点串匹配，用 find 定位拼接**）。
+- **门禁**：tsc 绿 / 6 例绿 / 前台 ci **exit 0**（vitest 435 文件 3762 例）；提交后树干净+HEAD 可编译。
+- **memoryhub god-file 族现状**：CostLibraryView 1167→726+455、CostProjectsView 895→~570+~318。剩余=设计型（useController 36 回调 hook 分域/弹窗上提）。下一批候选=设计型配方刀或对账地图其他活池；coupling ~20 与零散死码等拍板。
+
 ## 非版本刀：全仓审计第 34 批·FE2-02/FE1-05 CostLibraryView 拆分（展示件层出仓）· 2026-10-03
 
 - **刀型**：接续批 33（`64ec4f81`）。前端配方第五刀：CostLibraryView.tsx 1167→726+cost_library_parts.tsx 455——展示件层（CategoryNode/四 props 接口/CostRow+ListView+TableRow+TableView 四 memo 件/MiniCompositionBar，依赖极瘦无 antd/bridge/hooks）出仓；主组件留状态+5 弹窗编排（弹窗内联属设计型不动）。主代理直做。**不抬版本**。
