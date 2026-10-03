@@ -113,6 +113,14 @@ type NovelMethods = Pick<
   | "NovelStyleDigestGet" | "NovelStyleDigestClear"
   // 上下文盘点批次（刀6 可见性；「上下文」页签）。
   | "NovelContextInventory"
+  // 书封生成 + 小说 AI 创作流 12 件（批 46 NOT_MOCKED 收尾刀；诚实拒=dev 无 LLM）。
+  | "GenerateBookCover"
+  | "NovelChapterAnnotations" | "NovelChapterConverge" | "NovelChapterConvergePreview"
+  | "NovelChapterScenesGenerate"
+  | "NovelOutlineReconstruct" | "NovelOutlineReconstructApply"
+  | "NovelOutlineReconstructStart" | "NovelOutlineReconstructTaskGet"
+  | "NovelSceneCardsPropose" | "NovelSceneRewrite"
+  | "NovelStorySpinePropose" | "NovelStyleDigestBuild"
 >;
 
 export function buildNovel(): NovelMethods {
@@ -813,6 +821,49 @@ export function buildNovel(): NovelMethods {
         { name: "大纲要点", runes: 0, note: "刀1 意图注入", preview: "" },
         { name: "成人向工艺区段", runes: 0, note: "档位=未启用；非成人向零注入（创作页「本书定位」或建档时可选）", preview: "" },
       ];
+    },
+
+    // ── 书封生成 + 小说 AI 创作流 12 件（批 46 NOT_MOCKED 收尾刀）─────────
+    // 浏览器 dev 无 LLM 内核，一律诚实拒绝（按钮触发面，真实后端失败同样以
+    // 错误呈现——优于原 TypeError，且漏 mock 锁从此全面接管绑定面）。
+    async GenerateBookCover(_projectID: string, _promptHint: string) {
+      throw new Error("dev mock：书封生成需真实绘图引擎");
+    },
+    async NovelChapterAnnotations(_chapterNum: number) {
+      throw new Error("dev mock：章节批注（AI）需真实 LLM 内核");
+    },
+    async NovelChapterConverge(_chapterNum: number, _maxRounds: number, _targetTaste: number) {
+      throw new Error("dev mock：章节聚敛（AI）需真实 LLM 内核");
+    },
+    async NovelChapterConvergePreview(_chapterNum: number, _targetTaste: number) {
+      throw new Error("dev mock：聚敛预检需真实分析链产物（当前章节无 V2 分析档）");
+    },
+    async NovelChapterScenesGenerate(_chapterNum: number, _allowMissingCard: boolean) {
+      throw new Error("dev mock：整章场景生成（AI）需真实 LLM 内核");
+    },
+    async NovelOutlineReconstruct() {
+      throw new Error("dev mock：大纲反推（AI）需真实 LLM 内核");
+    },
+    async NovelOutlineReconstructApply(_itemsJSON: string) {
+      throw new Error("dev mock：大纲反推应用需先有反推结果（AI 面不可用）");
+    },
+    async NovelOutlineReconstructStart() {
+      throw new Error("dev mock：大纲反推任务化（AI）需真实 LLM 内核");
+    },
+    async NovelOutlineReconstructTaskGet() {
+      throw new Error("dev mock：无反推任务可查（AI 面不可用，从未启动过任务）");
+    },
+    async NovelSceneCardsPropose(_chapterNum: number) {
+      throw new Error("dev mock：场景卡片提议（AI）需真实 LLM 内核");
+    },
+    async NovelSceneRewrite(_chapterNum: number, _sceneID: string, _instruction: string) {
+      throw new Error("dev mock：场景重写（AI）需真实 LLM 内核");
+    },
+    async NovelStorySpinePropose() {
+      throw new Error("dev mock：故事脊椎提炼（AI）需真实 LLM 内核");
+    },
+    async NovelStyleDigestBuild() {
+      throw new Error("dev mock：风格摘要构建（AI）需真实 LLM 内核");
     },
   };
 }

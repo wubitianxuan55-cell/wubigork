@@ -447,6 +447,16 @@ export const officeMethods: Partial<Omit<OfficeMethods, "PinnedMaterials">> &
     }
     return "follow-up started（mock 受理不执行）";
   },
+  async DocumentLint(rel: string) {
+    // 文档规范体检（批 46 NOT_MOCKED 收尾刀）：standard.LintReport 空报告——
+    // mock 无文档解析链，0 处问题如实通过（确定性 lint 的诚实退化态）。
+    if (!rel) throw new Error("缺少文件路径");
+    return { path: rel, issues: [], passed: true, summary: "（mock）0 处问题" };
+  },
+  async PptxOutline(_rel: string) {
+    // PPT 大纲生成（批 46 NOT_MOCKED 收尾刀）：需真实 LLM 内核，诚实拒。
+    throw new Error("dev mock：PPT 大纲生成需真实 LLM 内核");
+  },
   async DeliverableRegistry(_sessionPath: string) {
     // 浏览器开发 mock：模拟会话权威产物登记表（写类 + 生成/导出类工具落盘）。
     return {

@@ -33,6 +33,8 @@ type CostMethods = Pick<
   | "CostInquirySave" | "CostInquiryList" | "CostInquiryDelete" | "CostInquiryExpiring" | "CostInquiryAdjust"
   | "CostInquiryScan"
   | "CostStageSave" | "CostStages" | "CostStageCompare" | "CostStageDeviations"
+  // AI 组价双件（批 46 NOT_MOCKED 收尾刀；诚实拒=dev 无 LLM 内核）。
+  | "CostCompose" | "CostComposeApply"
 >;
 
 // ── 测算项目 mock 状态（浏览器开发环境内存态，无持久化）──
@@ -624,6 +626,13 @@ export function buildCost(_s: MakeMockState): CostMethods {
         edges,
         stats: { truncated, nodeCount: nodes.length, edgeCount: edges.length, countsByType: countByType(nodes) },
       } satisfies CostGraphView);
+    },
+    // ── AI 组价双件（批 46 NOT_MOCKED 收尾刀）：浏览器 dev 无 LLM 内核，诚实拒。──
+    async CostCompose(_desc: string, _unit: string) {
+      throw new Error("dev mock：AI 组价需真实 LLM 内核");
+    },
+    async CostComposeApply(_v: unknown) {
+      throw new Error("dev mock：AI 组价应用需真实 LLM 内核（先组价成功才有可应用结果）");
     },
   };
 }

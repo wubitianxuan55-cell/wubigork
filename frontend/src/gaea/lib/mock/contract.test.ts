@@ -120,49 +120,13 @@ const ARITY_ALLOWANCES: Record<string, string> = {
   GaeaSend: "SubmitDisplay 桥接面双参 vs Go GaeaSend 单参（既存口径分歧，mock 跟随调用方；处置归桥接面线）",
 };
 
-// ── 有意不 mock 白名单（清单内、legacy 面外、mock 缺失的名字，带理由逐条）────
-// 共同背景：以下名字均被 AppBindings 认领（spaceBindings facets 在册），但 dev
-// mock 从未实现——浏览器 dev 调用即抛 TypeError。这正是 X1-11「已实际分叉咬人」
-// 的实证清单。按本批「mock 行为冻结、只修形参错位」纪律，补实现属行为新增，
-// 逐条登记待补；谁补上 mock 谁删条目（条目被实现后本测试会红，见过期锁）。
-const NOT_MOCKED: Record<string, string> = {
-  // 角色库（charlib）AI 流：需真实 LLM。
-  CharacterGenerateSheet: "角色设定表 AI 生成；浏览器 dev 无 LLM 内核，待补 mock 空态",
-  CharacterScoreConsistency: "角色一致性评分（AI）；同上待补",
-  // 对话流。
-  ChatStreamCancel: "取消对话流（P1-5）；mock ChatStreamPlain 不产 runID、无可取消流，待补",
-  // 子代理/事件族：ResyncEvents/BrowserObserve/PromoteSubagent/ContextView/
-  // FollowUp 已补 mock（批 45），锁删条目。
-  // 成本组价（AI 组件化估价）。
-  GaeaCostCompose: "AI 组价；浏览器 dev 无 LLM，待补",
-  GaeaCostComposeApply: "AI 组价应用；同上待补",
-  // 办公 DAG 验收：DagNodeApprove/DagAcceptAll 已补 mock（批 44），锁删条目。
-  // 文档 lint / 封面 / PPT 大纲。
-  GaeaDocumentLint: "文档标准 lint；待补空报告",
-  GaeaGenerateBookCover: "书封生成；浏览器 dev 无绘图引擎，待补",
-  GaeaPptxOutline: "PPT 大纲生成；待补",
-  // 语音。
-  GaeaTTSVoiceParams: "TTS 参数预览；浏览器 dev 无语音引擎（引擎零值语义），待补",
-  // 轻语主动式频控配置对已补 mock（批 44）；图谱子图/立即评估待补。
-  GaeaWhisperGraphSubgraph: "轻语图谱子图查询（只读）；待补空态",
-  GaeaWhisperProactiveNow: "轻语主动式立即评估；待补",
-  // 绘图。
-  ImageCutout: "图像抠图；浏览器 dev 无绘图引擎，待补",
-  WarmComfyUI: "ComfyUI 预热（前端 UI 不展示，供测试/日志）；待补",
-  // 小说 AI 创作流（v4.3xx-4.4xx 新增面，mock 未跟进——分叉主舞台）。
-  NovelChapterAnnotations: "章节批注（AI）；待补",
-  NovelChapterConverge: "章节聚敛（AI）；待补",
-  NovelChapterConvergePreview: "章节聚敛预览；待补",
-  NovelChapterScenesGenerate: "章节场景生成（AI）；待补",
-  NovelOutlineReconstruct: "大纲反推（AI）；待补",
-  NovelOutlineReconstructApply: "大纲反推应用；待补",
-  NovelOutlineReconstructStart: "大纲反推任务化启动；待补",
-  NovelOutlineReconstructTaskGet: "大纲反推任务查询；待补",
-  NovelSceneCardsPropose: "场景卡片提议（AI）；待补",
-  NovelSceneRewrite: "场景重写（AI）；待补",
-  NovelStorySpinePropose: "故事脊椎提议（AI）；待补",
-  NovelStyleDigestBuild: "风格摘要构建（AI）；待补",
-};
+// ── 有意不 mock 白名单（批 46 清空）──────────────────────────────────
+// 历史语义：曾登记「被 AppBindings 认领但 dev mock 未实现」的名字（X1-11 实证
+// 清单，浏览器调用即 TypeError）。批 43~46 分四刀补齐全部绑定（AI 面为诚实
+// 拒绝 mock，读/状态面为 Go 口径空态/退化值），白名单清空——此后**漏 mock 锁
+// 全量接管**：任何新绑定不补 mock 直接红（fail-closed），例外须在此重新登记
+// 并写明理由。
+const NOT_MOCKED: Record<string, string> = {};
 
 describe("dev mock × Go 绑定签名契约（X1-11）", () => {
   it("签名清单与 bindingNames 同源同步（清单过期/漏再生即红）", () => {

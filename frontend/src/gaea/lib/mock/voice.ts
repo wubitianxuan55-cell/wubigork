@@ -20,6 +20,8 @@ type VoiceMethods = Pick<
   // 批次四 bridge 双轨退役终局（VoiceB 门面 bindings_voice.go:27）：语音服务
   // 健康状态（语音设置面板「检测」按钮消费，同 Voice 运行时族就近）。
   | "VoiceHealth"
+  // TTS 参数预览（批 46 NOT_MOCKED 收尾刀；引擎零值语义=不指定）。
+  | "TTSVoiceParams"
 >;
 
 export function buildVoice(): VoiceMethods {
@@ -87,6 +89,10 @@ export function buildVoice(): VoiceMethods {
     async VoiceHealth() {
       // 浏览器开发无语音服务实例：按「未就绪/空闲」形状返回，面板图标不谎报就绪。
       return { asrReady: false, ttsReady: false, state: "idle", error: "" };
+    },
+    async TTSVoiceParams(_emotion: string) {
+      // tts.TTSParams 零值语义（0/空串=不指定），与 Go 引擎未接语义一致。
+      return { speed: 0, pitch: 0, style: "", emotion: "" };
     },
   };
 }

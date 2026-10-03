@@ -22,6 +22,8 @@ type ImagegenMethods = Pick<
   // 批次四 bridge 双轨退役终局（ImageB 门面 bindings_image.go:37/38/40）：
   // 语音模型设置写口（激活识别/合成模型 + 功能绑定聊天语音），同批转正。
   | "SetActiveASRModel" | "SetActiveTTSModel" | "SetChatVoiceModel"
+  // 绘图引擎双件（批 46 NOT_MOCKED 收尾刀）：Cutout 诚实拒、Warm 空转回执。
+  | "ImageCutout" | "WarmComfyUI"
 >;
 
 export function buildImagegenTools(): ImagegenMethods {
@@ -119,6 +121,14 @@ export function buildImagegenTools(): ImagegenMethods {
     },
     async SetChatVoiceModel(_engineID: string, _modelID: string) {
       // mock: 同上 no-op（功能绑定「聊天语音」设置/清除均空转，不编造落盘）。
+    },
+    // ── 绘图引擎双件（批 46 NOT_MOCKED 收尾刀）──
+    async ImageCutout(_initImage: string, _maskData: string) {
+      throw new Error("dev mock：图像抠图需真实绘图引擎（ComfyUI）");
+    },
+    async WarmComfyUI() {
+      // Go 口径 {started, reason}：mock 无 ComfyUI 实例，预热如实未启动。
+      return { started: false, reason: "mock-no-comfyui" };
     },
   };
 }

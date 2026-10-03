@@ -16,6 +16,8 @@ export type OfficeMethods = Pick<
   | "ScheduleLoad" | "ScheduleSave" | "ScheduleExportXlsx" | "ScheduleImportXlsx" | "ScheduleImportMpp"
   | "ScheduleProjects" | "ScheduleProjectOpen" | "ScheduleProjectCreate" | "ScheduleProjectArchive" | "ScheduleProjectDelete" | "ScheduleProjectCopy"
   | "XlsxChart" | "ZipDeliverables" | "SubagentRuns" | "SubagentTranscript" | "PromoteSubagent" | "SubagentFollowUp" | "DeliverableRegistry" | "WriteFile"
+  // 文档 lint / PPT 大纲（批 46 NOT_MOCKED 收尾刀；Gaea 前缀经 mappings 映射）。
+  | "DocumentLint" | "PptxOutline"
   | "ExportDeliverable" | "ConvertToPdf" | "CrossEmbed" | "RevealWorkspacePath"
   | "SavePastedImage" | "SaveAttachmentFile" | "AttachmentDataURL"
   | "CaptureScreen" | "RecognizeImage" | "OCRText"

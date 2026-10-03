@@ -15,6 +15,8 @@ type CharlibMethods = Pick<
   | "CharacterSetProjectState" | "CharacterDissociate" | "CharacterSyncProject"
   | "CharacterDrawRandom" | "CharacterGenerateFill" | "CharacterGenerateRandom"
   | "CharacterFillAll" | "CharacterGeneratePortrait" | "CharacterGeneratePortraitWithRef"
+  // 角色 AI 双件（批 46 NOT_MOCKED 收尾刀；诚实拒=dev 无 LLM 内核）。
+  | "CharacterGenerateSheet" | "CharacterScoreConsistency"
 >;
 
 export function buildCharlib(): CharlibMethods {
@@ -73,6 +75,14 @@ export function buildCharlib(): CharlibMethods {
     },
     async CharacterGeneratePortraitWithRef(_chJSON: string, _model: string, _refImageDataURL: string) {
       return "";
+    },
+    // ── 角色 AI 双件（批 46 NOT_MOCKED 收尾刀）：浏览器 dev 无 LLM 内核，
+    // 诚实拒绝（按钮触发面，真实后端失败同样以错误呈现）。──
+    async CharacterGenerateSheet(_chJSON: string, _variant: string) {
+      throw new Error("dev mock：角色设定表 AI 生成需真实 LLM 内核");
+    },
+    async CharacterScoreConsistency(_chJSON: string, _image: string) {
+      throw new Error("dev mock：角色一致性评分需真实 LLM 内核");
     },
   };
 }

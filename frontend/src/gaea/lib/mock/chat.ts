@@ -22,7 +22,7 @@ type ChatMethods = Pick<
   | "ChatTopicsList" | "ChatMessagesList" | "ChatMessagesPage" | "ChatAppendMessages"
   // 批次二 legacy 直调转正（ChatB 门面）：话题管理 + 发送 + 导出。
   | "ChatTopicCreate" | "ChatTopicDelete" | "ChatTopicRename" | "ChatTopicSetMode"
-  | "ChatImportTopic" | "ChatSend" | "ChatStreamPlain"
+  | "ChatImportTopic" | "ChatSend" | "ChatStreamPlain" | "ChatStreamCancel"
   | "ChatTopicClear" | "ChatTopicExportMarkdown"
 >;
 
@@ -488,6 +488,12 @@ export function buildChat(s: MakeMockState): ChatMethods {
     async ChatStreamPlain(_topicID: string, _message: string, _searchEnabled: boolean, _thinking: boolean, _forceSearch: boolean) {
       // mock: 纯文本通道返回空串（真实实现经流式聚合返回最终文本）。
       return "";
+    },
+    async ChatStreamCancel(_runID: string) {
+      // P1-5 取消面（批 46 NOT_MOCKED 收尾刀）：Go 对未知 runID 返回 false
+      // 不算错——mock 永无在跑流（ChatStreamPlain 即返回、无事件流），
+      // 恒 false 是每个可能输入的忠实答案（前端零消费，绑定面完整性收口）。
+      return false;
     },
     async ChatTopicClear(_id: string) {
       // mock: no-op（真实实现清空话题消息并保留话题）。

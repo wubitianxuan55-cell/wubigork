@@ -35,6 +35,8 @@ type MemoryMethods = Pick<
 | "WhisperMemories" | "WhisperEpisodes" | "WhisperEpisodeReplay" | "WhisperAnchors" | "WhisperAnchorReplay" | "WhisperMemoryRetell" | "WhisperCausalExplain" | "WhisperExportArchive" | "MemoryGraph"
   // 轻语主动式频控配置对（v4.3c play 空间；批 44 NOT_MOCKED 续刀）。
   | "WhisperProactiveConfig" | "WhisperProactiveSetConfig"
+  // 轻语图谱子图/立即评估（批 46 NOT_MOCKED 收尾刀）。
+  | "WhisperGraphSubgraph" | "WhisperProactiveNow"
   | "KnowledgeList" | "KnowledgeSearch" | "KnowledgeGet" | "KnowledgeSave" | "KnowledgeDelete"
   | "KnowledgeImportPreview" | "KnowledgeImportAIParse" | "KnowledgeImportApply"
   | "KnowledgeHistory" | "KnowledgeFindSimilar" | "KnowledgeExport" | "KnowledgeReview" | "KnowledgeMerge"
@@ -268,6 +270,18 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
     },
     async MemoryGraph() {
       return { nodes: [], links: [] };
+    },
+    async WhisperGraphSubgraph(_personalityID: string, _entity: string, _hops: number) {
+      // 只读空态（批 46 NOT_MOCKED 收尾刀）：Go 口径「entity 不存在返回空子图
+      // （非 nil，空 slice）」。键名遵从 bridge 契约面 WhisperSubgraph（小写）——
+      // 观察池：Go whisper.Subgraph 无 json 标签（原始序列化为 Nodes/Edges 大写），
+      // 真机是否经归一待证（mock 不编造第三种口径）。
+      return { nodes: [], edges: [] };
+    },
+    async WhisperProactiveNow(_personalityID: string) {
+      // 立即评估（批 46 NOT_MOCKED 收尾刀）：mock 无轻语会话状态机，恒门控
+      // 未过（Go 合法返回 {shouldSend:false}，非错误）。
+      return { shouldSend: false };
     },
     async MemoryBrief() {
       return true;
