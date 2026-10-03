@@ -1,3 +1,12 @@
+## 非版本刀：全仓审计第 28 批·god-file 续拆（IN1-01 project.go 五分）· 2026-10-03
+
+- **刀型**：接续批 27（`0492001f`）。god-file 同配方单线（同包纯文件拆分零逻辑改动），主代理直做。预核判定：核心 Manager 但同包分家对消费方零影响（API 不动）——「接口分域两步走」先做零风险第一步。**不抬版本**。
+- **交付**：`docs/code-audit-2026-10-02/round-30-p1-batch28.md`。
+- **IN1-01**：project.go 1194（审计时 1011，继续增长）→ 五文件（project.go ~222 核心+生命周期+上下文构建 / project_files.go ~229 固定资产读写 / project_chapters.go ~348 章节与文件名单源 / project_migrate.go ~160 迁移+writeJSON/loadJSON〔全包共用落点组织性，头注写明〕 / project_stores.go ~290 逐章派生存储）。
+- **等价证明**：双证零漂移（符号清单 diff 空——**对称口径教训复训：两侧 glob 都含测试文件**，首轮漏侧出 27 行假删除；go doc -all 逐字节一致）+ 行数对账闭合（1170+5 seam+19 旧头=1194）+ 包测试 0.6s 绿。
+- **门禁**：前台 ci **exit 0**（golangci 0 issues / go test 全绿 / vitest 435 文件 3762 例 / 卫生守卫）；新文件四枚显式 add；提交后复验树干净+HEAD 可编译。
+- **god-file 余 ~15，重心转前端组件族**（CostLibraryView 1132×2/CostProjectsView 862/controller.ts 963/App.tsx 1041/ModuleLauncher 1038）——组件拆分=状态上提+prop 穿线不同型，需先立前端配方（金样 DOM 断言先行）。下一批候选=前端试水或 Go 侧续拆（GA4-02 controller.go 40 字段上帝对象/GA1-03 agent.go）；coupling ~20 与零散死码等拍板。
+
 ## 非版本刀：全仓审计第 27 批·god-file 续拆（IN3-03 mpp.go 三分）· 2026-10-03
 
 - **刀型**：接续批 26（`022f1405`）。god-file 同配方单线（同包纯文件拆分零逻辑改动），主代理直做。**不抬版本**。
