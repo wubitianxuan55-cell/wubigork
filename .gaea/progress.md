@@ -1,3 +1,12 @@
+## 非版本刀：全仓审计第 34 批·FE2-02/FE1-05 CostLibraryView 拆分（展示件层出仓）· 2026-10-03
+
+- **刀型**：接续批 33（`64ec4f81`）。前端配方第五刀：CostLibraryView.tsx 1167→726+cost_library_parts.tsx 455——展示件层（CategoryNode/四 props 接口/CostRow+ListView+TableRow+TableView 四 memo 件/MiniCompositionBar，依赖极瘦无 antd/bridge/hooks）出仓；主组件留状态+5 弹窗编排（弹窗内联属设计型不动）。主代理直做。**不抬版本**。
+- **交付**：`docs/code-audit-2026-10-02/round-36-p1-batch34.md`。
+- **双向消费**：测试从原路径导 CostRow/ListView → 主文件 re-export 保路径；CategoryNode 主段要用补 export；TableView 原无 export 补导出；SortKey 两段共用落 parts 单源；genius 守卫命中为 maxTableRows 假阳性。
+- **一次自伤被金样当场抓获（教训入册）**：STATUSES 补插时 python 手工 UTF-8 转义把「草稿」错编成「草案」（一字之差）——13 例当场 1 红。**python 字节级插值禁手编中文转义（须从源文件拷字节或走 Edit），文案常量搬移后必须 diff 原文逐字节核对**。
+- **门禁**：tsc 绿 / 13 例绿 / 前台 ci **exit 0**（vitest 435 文件 3762 例）；提交后树干净+HEAD 可编译。
+- **下一批候选**：FE3-11 续刀（hook 分域）或 CostLibraryView 弹窗上提或 CostProjectsView 862；coupling ~20 与零散死码等拍板。
+
 ## 非版本刀：全仓审计第 33 批·FE3-11 controller.ts 第一刀（状态机纯函数层出仓）· 2026-10-03
 
 - **刀型**：接续批 32（`5346e60a`）。前端配方第四刀：controller.ts 884→415+controller_state.ts 484——纯状态机层（types/取号 slot 口径/历史重建/applyEvent/reducer/initialState，零闭包）出仓，`export *` 原路 re-export 外部导入路径不变；React 编排层留守。主代理直做。**不抬版本**。
