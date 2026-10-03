@@ -11,6 +11,16 @@ import type {
 import { emit, pinnedMock } from "./shared";
 import type { MakeMockState } from "./state";
 
+// 轻语主动式频控配置槽（批 44 NOT_MOCKED 续刀；默认值同 Go defaultProactivePushCfg：
+// enabled=true/limitPerHour=3/intervalMin=30/时窗 -1=未启用）。
+const whisperProactiveCfg = {
+  enabled: true,
+  limitPerHour: 3,
+  intervalMin: 30,
+  quietStartHour: -1,
+  quietEndHour: -1,
+};
+
 type MemoryMethods = Pick<
   AppBindings,
   | "Memory" | "MemoryArchivedList" | "MemoryCleanupArchived" | "MemoryUnarchive"
@@ -23,6 +33,8 @@ type MemoryMethods = Pick<
   | "MemoryHubOverview" | "ProfileList" | "ProfileSave" | "ProfileDelete"
   | "ProfileConflicts" | "ProfileResolveConflict"
 | "WhisperMemories" | "WhisperEpisodes" | "WhisperEpisodeReplay" | "WhisperAnchors" | "WhisperAnchorReplay" | "WhisperMemoryRetell" | "WhisperCausalExplain" | "WhisperExportArchive" | "MemoryGraph"
+  // 轻语主动式频控配置对（v4.3c play 空间；批 44 NOT_MOCKED 续刀）。
+  | "WhisperProactiveConfig" | "WhisperProactiveSetConfig"
   | "KnowledgeList" | "KnowledgeSearch" | "KnowledgeGet" | "KnowledgeSave" | "KnowledgeDelete"
   | "KnowledgeImportPreview" | "KnowledgeImportAIParse" | "KnowledgeImportApply"
   | "KnowledgeHistory" | "KnowledgeFindSimilar" | "KnowledgeExport" | "KnowledgeReview" | "KnowledgeMerge"
@@ -221,6 +233,38 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
     },
     async WhisperCausalExplain(_entity: string, _personalityId: string) {
       return "（mock）看起来是最近的加班让睡眠变差了。";
+    },
+
+    // ── 轻语主动式频控配置对（v4.3c play 空间；批 44 NOT_MOCKED 续刀）──────
+    // 模块级配置槽 + Go 同款校验（limitPerHour ≥ 1；intervalMin 10–120；时窗
+    // -1 或 0–23），部分字段更新缺省保持原值——面板读写往返可走查。
+    async WhisperProactiveConfig() {
+      return { ...whisperProactiveCfg };
+    },
+    async WhisperProactiveSetConfig(cfgJSON: string) {
+      let raw: {
+        enabled?: boolean; limitPerHour?: number; intervalMin?: number;
+        quietStartHour?: number; quietEndHour?: number;
+      };
+      try {
+        raw = JSON.parse(cfgJSON) as typeof raw;
+      } catch (e) {
+        throw new Error(`解析主动关心配置失败: ${e instanceof Error ? e.message : String(e)}`);
+      }
+      if (raw.limitPerHour !== undefined) {
+        if (raw.limitPerHour < 1) throw new Error("limitPerHour 必须 ≥ 1（关闭请用 enabled=false）");
+        whisperProactiveCfg.limitPerHour = raw.limitPerHour;
+      }
+      if (raw.intervalMin !== undefined) {
+        if (raw.intervalMin < 10 || raw.intervalMin > 120) throw new Error("intervalMin 必须在 10–120 分钟");
+        whisperProactiveCfg.intervalMin = raw.intervalMin;
+      }
+      for (const v of [raw.quietStartHour, raw.quietEndHour]) {
+        if (v !== undefined && (v < -1 || v > 23)) throw new Error("时窗小时必须为 -1（未启用）或 0–23");
+      }
+      if (raw.quietStartHour !== undefined) whisperProactiveCfg.quietStartHour = raw.quietStartHour;
+      if (raw.quietEndHour !== undefined) whisperProactiveCfg.quietEndHour = raw.quietEndHour;
+      if (raw.enabled !== undefined) whisperProactiveCfg.enabled = raw.enabled;
     },
     async MemoryGraph() {
       return { nodes: [], links: [] };

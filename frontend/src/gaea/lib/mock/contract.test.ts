@@ -140,20 +140,16 @@ const NOT_MOCKED: Record<string, string> = {
   // 成本组价（AI 组件化估价）。
   GaeaCostCompose: "AI 组价；浏览器 dev 无 LLM，待补",
   GaeaCostComposeApply: "AI 组价应用；同上待补",
-  // 办公 DAG 验收。
-  GaeaDagAcceptAll: "DAG 全部验收；待补",
-  GaeaDagNodeApprove: "DAG 节点验收；待补",
+  // 办公 DAG 验收：DagNodeApprove/DagAcceptAll 已补 mock（批 44），锁删条目。
   // 文档 lint / 封面 / PPT 大纲。
   GaeaDocumentLint: "文档标准 lint；待补空报告",
   GaeaGenerateBookCover: "书封生成；浏览器 dev 无绘图引擎，待补",
   GaeaPptxOutline: "PPT 大纲生成；待补",
   // 语音。
   GaeaTTSVoiceParams: "TTS 参数预览；浏览器 dev 无语音引擎（引擎零值语义），待补",
-  // 轻语主动式/图谱。
+  // 轻语主动式频控配置对已补 mock（批 44）；图谱子图/立即评估待补。
   GaeaWhisperGraphSubgraph: "轻语图谱子图查询（只读）；待补空态",
-  GaeaWhisperProactiveConfig: "轻语主动式配置读；待补",
   GaeaWhisperProactiveNow: "轻语主动式立即评估；待补",
-  GaeaWhisperSetProactiveConfig: "轻语主动式配置写；待补",
   // 绘图。
   ImageCutout: "图像抠图；浏览器 dev 无绘图引擎，待补",
   WarmComfyUI: "ComfyUI 预热（前端 UI 不展示，供测试/日志）；待补",

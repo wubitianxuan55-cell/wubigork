@@ -200,6 +200,8 @@ export const dagMethods: Pick<
   | "DagNodeRun"
   | "DagNodeSteer"
   | "DagNodeAccept"
+  | "DagNodeApprove"
+  | "DagAcceptAll"
   | "DagCancel"
   | "DagTemplateList"
   | "DagTemplateSave"
@@ -250,6 +252,41 @@ export const dagMethods: Pick<
     run.updatedAt = node.acceptedAt;
     run.derived = dagDerive(run);
     return `节点「${node.title}」已验收，产物回流记忆（mock 不落盘）`;
+  },
+  async DagNodeApprove(id: string, nodeID: string) {
+    // 审批放行（危险操作分级审批的人拍板侧；批 44 NOT_MOCKED 续刀）：hold→
+    // pending 并置 approved——后续起跑/续跑/单跑放行；非 hold 节点拒绝（Go 同口径）。
+    const run = dagState().runs.find((r) => r.id === id);
+    const node = run?.nodes.find((n) => n.id === nodeID);
+    if (!run || !node) throw new Error(`节点不存在: ${nodeID}`);
+    if (node.status !== "hold") throw new Error(`只审批待审批（hold）的节点（当前 ${node.status}）`);
+    node.status = "pending";
+    node.approved = true;
+    node.error = undefined;
+    run.updatedAt = new Date().toISOString();
+    return `节点 ${nodeID} 已批准放行（待跑），可起跑/续跑/单跑执行。`;
+  },
+  async DagAcceptAll(id: string) {
+    // 一键验收（成品直出首刀；批 44 NOT_MOCKED 续刀）：run 内全部 done 节点
+    // 一次置 accepted；无可验收返回明确信息非错误（Go 同口径）。mock 无记忆
+    // 回写面，产物计数按 outputs 口径如实统计。
+    const run = dagState().runs.find((r) => r.id === id);
+    if (!run) throw new Error(`dag run not found: ${id}`);
+    const now = new Date().toISOString();
+    let flipped = 0;
+    let files = 0;
+    for (const n of run.nodes) {
+      if (n.status === "done") {
+        n.status = "accepted";
+        n.acceptedAt = now;
+        flipped++;
+        files += n.outputs?.length ?? 0;
+      }
+    }
+    run.derived = dagDerive(run);
+    run.updatedAt = now;
+    if (flipped === 0) return "没有可一键验收的节点（只有「完成」态节点可验收）";
+    return `已一键验收 ${flipped} 个节点、${files} 件产物回流记忆。（mock 不落盘）`;
   },
   async DagCancel(id: string) {
     const st = dagState();

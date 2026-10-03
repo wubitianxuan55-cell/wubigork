@@ -28,7 +28,7 @@ export type OfficeMethods = Pick<
   | "DataBackupInfo" | "DataBackupCreate" | "DataBackupRestore"
   | "DataBackupCancel" | "DataBackupRollback" | "DataBackupRestoreResult"
   // 6.3 办公多文件 DAG（Go OfficeB.GaeaDag*，Gaea 前缀经 mappings 映射）。
-  | "DagList" | "DagGet" | "DagRun" | "DagNodeRun" | "DagNodeSteer" | "DagNodeAccept" | "DagCancel"
+  | "DagList" | "DagGet" | "DagRun" | "DagNodeRun" | "DagNodeSteer" | "DagNodeAccept" | "DagNodeApprove" | "DagAcceptAll" | "DagCancel"
   // 6.3 余项：流水线模板库（存模板一键重建）。
   | "DagTemplateList" | "DagTemplateSave" | "DagTemplateNew" | "DagTemplateDelete"
 >;
