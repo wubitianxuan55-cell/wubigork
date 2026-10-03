@@ -1,3 +1,11 @@
+## 非版本刀：全仓审计第 36 批·FE3-11 续刀（hook 分域配方首刀：记忆/画像族出仓）· 2026-10-03
+
+- **刀型**：接续批 35（`51b81793`）。**hook 分域配方首刀**：controller.ts 414→376+controller_actions_memory.ts 54——记忆/画像族八回调（useCallback 依赖数组逐字保留，clearFactBase 跨族依赖 refreshFactBase 显式注入）+ 桥接错误三助手出仓（**随动作域走防 controller→actions→controller 环**）；useMemoryActions 原位替换保 hook 调用顺序。主代理直做。**不抬版本**。
+- **交付**：`docs/code-audit-2026-10-02/round-38-p1-batch36.md`。
+- **配方要点（进在册）**：六域盘点→首刀选最小内聚组立配方；跨族依赖经子 hook 签名显式注入；锚点按当前文件实测取（跨批改写后头部形态已变，旧形态断言失败即中止未写盘）。
+- **门禁**：tsc 绿 / 53 例绿 / 前台 ci **exit 0**（vitest 435 文件 3762 例）；提交后树干净+HEAD 可编译。
+- **FE3-11 累计 884→376+484+54**：余五族同配方续刀。下一批候选=FE3-11 续刀（会话管理族 13 件/轮次控制族/回退族）或对账其他活池；coupling ~20 与零散死码等拍板。
+
 ## 非版本刀：全仓审计第 35 批·FE2-04 CostProjectsView 拆分（明细件+样式常量出仓）· 2026-10-03
 
 - **刀型**：接续批 34（`93db2bfd`）。前端配方第六刀：CostProjectsView.tsx 895→~570+cost_projects_parts.tsx ~318——明细件层（ItemRow/EntryPicker/ProjectForm+Field/SnapshotTable/小工具四件，八件全为主段消费）出仓；五共享样式常量（fmtPrice/fieldCls/ghostBtn/solidBtn/iconBtn）落 parts 单源导出。主代理直做。**不抬版本**。

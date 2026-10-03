@@ -8,9 +8,10 @@ import { create } from "zustand";
 import { useShallow } from "zustand/shallow";
 import { app, onEvent, onReady } from "../bridge";
 import { noteEventSeq, resetEventSync } from "../eventSync";
+import { errText, failWrite, logBridgeError, useMemoryActions } from "./controller_actions_memory";
 import { parseTodos } from "../tools";
 import type {
-  BalanceInfo, ContextInfo, FactBaseView, HistoryMessage, JobView, MemoryView,
+  BalanceInfo, ContextInfo, FactBaseView, HistoryMessage, JobView,
   Meta, ProjectGroup, QuestionAnswer, SessionMeta, SessionStatsView, WireApproval, WireAsk,
   WireEvent, WireUsage,
 } from "../types";
@@ -21,29 +22,6 @@ export const useStore = create<ControllerState>()((set) => ({ ...initialState, _
 
 // logBridgeError 记录 bridge 调用失败（bridge 已把后端错误归一为
 // BridgeError）到 gaea.log；日志通道自身故障不向上抛（.catch 吞掉），
-// 避免掩盖业务错误。T6-1.2 去静默 catch：错误必须可见。
-function logBridgeError(where: string, err: unknown): void {
-  const e = (err ?? {}) as { code?: unknown; message?: unknown };
-  const code = typeof e.code === "string" ? e.code : "BridgeError";
-  const message = typeof e.message === "string" ? e.message : String(err);
-  const lfe = app.LogFrontendError;
-  if (typeof lfe !== "function") return;
-  void Promise.resolve(lfe(`[${code}] ${where}: ${message}`)).catch(() => {});
-}
-
-// errText 提取用户可读的错误信息（BridgeError/Error/其他值统一字符串化）。
-function errText(err: unknown): string {
-  return err instanceof Error ? err.message : String(err ?? "未知错误");
-}
-
-// failWrite 写路径失败出口（T7-4）：bridge 层 invoke 已把错误记录到 gaea.log，
-// 这里再补一条用户可见的 warn notice，保证写/提交/审批失败绝不静默、用户可重试。
-function failWrite(dispatch: (a: Action) => void, what: string, err: unknown): void {
-  logBridgeError(what, err);
-  dispatch({ type: "event", e: { kind: "notice", level: "warn", text: `${what}失败：${errText(err)}，请重试` } });
-}
-
-// isFinalAnswerRendered：最终回答是否已完整渲染（T7-4 完整文本比较）。
 // 旧实现用「前 120 字前缀是否包含在渲染文本里」判断，流式事件丢尾（后端
 // 正文更长、前端只收到前半段）时前缀命中但正文缺失，最终回答依然看不到。
 // 新实现要求渲染文本以完整正文结尾才算已渲染：正文为空（纯推理/纯工具轮）
@@ -343,23 +321,7 @@ export function useController() {
       dispatch({ type: "context", context: await app.ContextUsage() });
     } catch (err) { logBridgeError("setModel refresh", err); }
   }, [dispatch]);
-  const fetchMemory = useCallback((): Promise<MemoryView> => app.Memory().catch((err) => {
-    logBridgeError("fetchMemory", err);
-    return { docs: [], facts: [], scopes: [], storeDir: "", available: false } as MemoryView;
-  }), []);
-  const remember = useCallback(async (scope: string, note: string) => { await app.Remember(scope, note).catch((err) => failWrite(dispatch, "保存记忆", err)); }, [dispatch]);
-  const forget = useCallback(async (name: string) => { await app.Forget(name).catch((err) => failWrite(dispatch, "删除记忆", err)); }, [dispatch]);
-  const saveDoc = useCallback(async (path: string, body: string) => { await app.SaveDoc(path, body).catch((err) => failWrite(dispatch, "保存文档", err)); }, [dispatch]);
-  const updateFact = useCallback(async (name: string, body: string) => { await app.UpdateFact(name, body).catch((err) => failWrite(dispatch, "更新画像", err)); }, [dispatch]);
-  const changeFactType = useCallback(async (name: string, typ: string) => { await app.ChangeFactType(name, typ).catch((err) => failWrite(dispatch, "修改画像类型", err)); }, [dispatch]);
-  const clearFactBase = useCallback(async () => {
-    await app.FactBaseClear().catch((err) => failWrite(dispatch, "清空事实库", err));
-    refreshFactBase();
-  }, [dispatch, refreshFactBase]);
-  const promoteFactBase = useCallback(async (): Promise<number> => {
-    const n = await app.FactBasePromote().catch((err) => { failWrite(dispatch, "写入永久记忆", err); return 0; });
-    return n;
-  }, [dispatch]);
+  const { fetchMemory, remember, forget, saveDoc, updateFact, changeFactType, clearFactBase, promoteFactBase } = useMemoryActions(dispatch, refreshFactBase);
   const rewind = useCallback(async (turn: number, scope: string): Promise<boolean> => {
     // T7-4：回退失败不再静默，且不触发 reset——保留当前对话现场（否则刚
     // 弹的失败提示会被 reset 清空，用户连发生了什么都看不到）。
