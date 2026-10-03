@@ -28,6 +28,10 @@ type goldenCase struct {
 	Ops   []Op     `json:"ops"`
 	Err   *string  `json:"error,omitempty"`
 	After *Project `json:"after,omitempty"`
+	// Summary 成功用例的逐条回执文案（批 23 IN3-04 表驱动化前冻结：applyOne
+	// 的第三个输出面——Err/After 已冻结、summary 此前未冻结，是拆分重构唯一
+	// 可能静默漂移的面。TS 侧只消费 error/after，本字段对 vitest 惰性）。
+	Summary []string `json:"summary,omitempty"`
 }
 
 type goldenFile struct {
@@ -119,86 +123,86 @@ func goldenCases() []goldenCase {
 	return []goldenCase{
 		// ── upsert_task ──
 		{Name: "upsert 追加表尾", Base: goldenBase(), Ops: []Op{{Type: "upsert_task", Task: &Task{ID: "C", Name: "基础", Duration: 2, Level: 1}}}},
-		{"upsert afterId 插入", goldenBase(), []Op{{Type: "upsert_task", AfterID: "A", Task: &Task{ID: "C", Name: "基础", Duration: 2, Level: 1}}}, nil, nil},
-		{"upsert 同 id 整量替换", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "A", Name: "挖土方", Duration: 5, Level: 1, Progress: 20}}}, nil, nil},
-		{"upsert 零值语义（缺字段=0/分组）", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "Z"}}}, nil, nil},
-		{"upsert afterId 不存在", goldenBase(), []Op{{Type: "upsert_task", AfterID: "NOPE", Task: &Task{ID: "C", Name: "x", Duration: 1, Level: 1}}}, nil, nil},
-		{"upsert 层级非法", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "C", Name: "x", Duration: 1, Level: 2}}}, nil, nil},
-		{"upsert 分组行禁固定成本", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "G", Name: "分组", Level: 0, FixedCost: 100}}}, nil, nil},
-		{"upsert 负固定成本", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "C", Name: "x", Duration: 1, Level: 1, FixedCost: -5}}}, nil, nil},
+		{"upsert afterId 插入", goldenBase(), []Op{{Type: "upsert_task", AfterID: "A", Task: &Task{ID: "C", Name: "基础", Duration: 2, Level: 1}}}, nil, nil, nil},
+		{"upsert 同 id 整量替换", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "A", Name: "挖土方", Duration: 5, Level: 1, Progress: 20}}}, nil, nil, nil},
+		{"upsert 零值语义（缺字段=0/分组）", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "Z"}}}, nil, nil, nil},
+		{"upsert afterId 不存在", goldenBase(), []Op{{Type: "upsert_task", AfterID: "NOPE", Task: &Task{ID: "C", Name: "x", Duration: 1, Level: 1}}}, nil, nil, nil},
+		{"upsert 层级非法", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "C", Name: "x", Duration: 1, Level: 2}}}, nil, nil, nil},
+		{"upsert 分组行禁固定成本", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "G", Name: "分组", Level: 0, FixedCost: 100}}}, nil, nil, nil},
+		{"upsert 负固定成本", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "C", Name: "x", Duration: 1, Level: 1, FixedCost: -5}}}, nil, nil, nil},
 		// 批次十三 round15：upsert 整任务写入的负工期闸（批次十二 D5 实测缺口）。
-		{"upsert 负工期", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "C", Name: "x", Duration: -5, Level: 1}}}, nil, nil},
+		{"upsert 负工期", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "C", Name: "x", Duration: -5, Level: 1}}}, nil, nil, nil},
 		// ── patch_task ──
-		{"patch 多字段", goldenBase(), []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{Name: gStrPtr("挖土方"), Duration: gIntPtr(4), Progress: gIntPtr(50)}}}, nil, nil},
-		{"patch 模式手动+锁定开始", goldenBase(), []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{Mode: (*TaskMode)(gStrPtr("manual")), ManualStart: gIntPtr(2)}}}, nil, nil},
-		{"patch 里程碑", goldenBase(), []Op{{Type: "patch_task", ID: "B", Patch: &patchTask{IsMilestone: gBoolPtr(true), Duration: gIntPtr(0)}}}, nil, nil},
-		{"patch 固定成本", goldenBase(), []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{FixedCost: gF64Ptr(120.5)}}}, nil, nil},
-		{"patch 无字段", goldenBase(), []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{}}}, nil, nil},
-		{"patch 任务不存在", goldenBase(), []Op{{Type: "patch_task", ID: "NOPE", Patch: &patchTask{Duration: gIntPtr(1)}}}, nil, nil},
-		{"patch 分组行禁固定成本", goldenBaseGrouped(), []Op{{Type: "patch_task", ID: "G", Patch: &patchTask{FixedCost: gF64Ptr(9)}}}, nil, nil},
-		{"patch 负工期", goldenBase(), []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{Duration: gIntPtr(-1)}}}, nil, nil},
+		{"patch 多字段", goldenBase(), []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{Name: gStrPtr("挖土方"), Duration: gIntPtr(4), Progress: gIntPtr(50)}}}, nil, nil, nil},
+		{"patch 模式手动+锁定开始", goldenBase(), []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{Mode: (*TaskMode)(gStrPtr("manual")), ManualStart: gIntPtr(2)}}}, nil, nil, nil},
+		{"patch 里程碑", goldenBase(), []Op{{Type: "patch_task", ID: "B", Patch: &patchTask{IsMilestone: gBoolPtr(true), Duration: gIntPtr(0)}}}, nil, nil, nil},
+		{"patch 固定成本", goldenBase(), []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{FixedCost: gF64Ptr(120.5)}}}, nil, nil, nil},
+		{"patch 无字段", goldenBase(), []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{}}}, nil, nil, nil},
+		{"patch 任务不存在", goldenBase(), []Op{{Type: "patch_task", ID: "NOPE", Patch: &patchTask{Duration: gIntPtr(1)}}}, nil, nil, nil},
+		{"patch 分组行禁固定成本", goldenBaseGrouped(), []Op{{Type: "patch_task", ID: "G", Patch: &patchTask{FixedCost: gF64Ptr(9)}}}, nil, nil, nil},
+		{"patch 负工期", goldenBase(), []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{Duration: gIntPtr(-1)}}}, nil, nil, nil},
 		// 批次十三 round15 闸宽边界（主代理预审）：既有负工期 + 只改 level 的无关
 		// 补丁两侧都放行（既有非法态由调用方 Validate/Save 兜底）——这是有意收窄到
 		// 「与 D5 缺口同宽」，不是漏判；同一计划改 duration 仍被拒（上一条）。
-		{"patch 既有负工期只改 level（不误伤）", goldenBaseBroken(), []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{Level: gIntPtr(0)}}}, nil, nil},
+		{"patch 既有负工期只改 level（不误伤）", goldenBaseBroken(), []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{Level: gIntPtr(0)}}}, nil, nil, nil},
 		// ── 双工期（v4.151 刀2）：durationUnit ──
-		{"patch 单位→cd+工期", goldenBase(), []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{DurationUnit: (*DurationUnit)(gStrPtr("cd")), Duration: gIntPtr(28)}}}, nil, nil},
-		{"patch 单位→wd 显式", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "H", Name: "养护", Duration: 28, Level: 1, DurationUnit: UnitCd}}, {Type: "patch_task", ID: "H", Patch: &patchTask{DurationUnit: (*DurationUnit)(gStrPtr("wd"))}}}, nil, nil},
-		{"patch 单位非法", goldenBase(), []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{DurationUnit: (*DurationUnit)(gStrPtr("week"))}}}, nil, nil},
-		{"patch 单位空串=no-op", goldenBase(), []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{DurationUnit: (*DurationUnit)(gStrPtr(""))}}}, nil, nil},
-		{"patch cd 分组行拒绝", goldenBaseGrouped(), []Op{{Type: "patch_task", ID: "G", Patch: &patchTask{DurationUnit: (*DurationUnit)(gStrPtr("cd"))}}}, nil, nil},
-		{"patch cd 里程碑拒绝", goldenBase(), []Op{{Type: "patch_task", ID: "B", Patch: &patchTask{IsMilestone: gBoolPtr(true)}}, {Type: "patch_task", ID: "B", Patch: &patchTask{DurationUnit: (*DurationUnit)(gStrPtr("cd"))}}}, nil, nil},
-		{"patch 单位cd+工期超上限", goldenBase(), []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{DurationUnit: (*DurationUnit)(gStrPtr("cd")), Duration: gIntPtr(3651)}}}, nil, nil},
-		{"upsert cd 任务", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "H", Name: "养护", Duration: 28, Level: 1, DurationUnit: UnitCd}}}, nil, nil},
-		{"upsert cd 里程碑拒绝", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "M", Name: "m", Level: 1, IsMilestone: true, DurationUnit: UnitCd}}}, nil, nil},
-		{"upsert cd 分组行拒绝", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "G2", Name: "g", Level: 0, DurationUnit: UnitCd}}}, nil, nil},
-		{"upsert cd 超上限", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "H", Name: "x", Duration: 4000, Level: 1, DurationUnit: UnitCd}}}, nil, nil},
-		{"upsert 单位非法", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "H", Name: "x", Duration: 1, Level: 1, DurationUnit: "week"}}}, nil, nil},
-		{"cd 全链 upsert+FS+基线", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "H", Name: "养护", Duration: 28, Level: 1, DurationUnit: UnitCd}}, {Type: "set_links", ToID: "H", Links: []opLink{{From: "B"}}}, {Type: "set_baseline", SavedAt: "2026-09-07 08:00", BaselineName: "含养护"}}, nil, nil},
+		{"patch 单位→cd+工期", goldenBase(), []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{DurationUnit: (*DurationUnit)(gStrPtr("cd")), Duration: gIntPtr(28)}}}, nil, nil, nil},
+		{"patch 单位→wd 显式", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "H", Name: "养护", Duration: 28, Level: 1, DurationUnit: UnitCd}}, {Type: "patch_task", ID: "H", Patch: &patchTask{DurationUnit: (*DurationUnit)(gStrPtr("wd"))}}}, nil, nil, nil},
+		{"patch 单位非法", goldenBase(), []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{DurationUnit: (*DurationUnit)(gStrPtr("week"))}}}, nil, nil, nil},
+		{"patch 单位空串=no-op", goldenBase(), []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{DurationUnit: (*DurationUnit)(gStrPtr(""))}}}, nil, nil, nil},
+		{"patch cd 分组行拒绝", goldenBaseGrouped(), []Op{{Type: "patch_task", ID: "G", Patch: &patchTask{DurationUnit: (*DurationUnit)(gStrPtr("cd"))}}}, nil, nil, nil},
+		{"patch cd 里程碑拒绝", goldenBase(), []Op{{Type: "patch_task", ID: "B", Patch: &patchTask{IsMilestone: gBoolPtr(true)}}, {Type: "patch_task", ID: "B", Patch: &patchTask{DurationUnit: (*DurationUnit)(gStrPtr("cd"))}}}, nil, nil, nil},
+		{"patch 单位cd+工期超上限", goldenBase(), []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{DurationUnit: (*DurationUnit)(gStrPtr("cd")), Duration: gIntPtr(3651)}}}, nil, nil, nil},
+		{"upsert cd 任务", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "H", Name: "养护", Duration: 28, Level: 1, DurationUnit: UnitCd}}}, nil, nil, nil},
+		{"upsert cd 里程碑拒绝", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "M", Name: "m", Level: 1, IsMilestone: true, DurationUnit: UnitCd}}}, nil, nil, nil},
+		{"upsert cd 分组行拒绝", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "G2", Name: "g", Level: 0, DurationUnit: UnitCd}}}, nil, nil, nil},
+		{"upsert cd 超上限", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "H", Name: "x", Duration: 4000, Level: 1, DurationUnit: UnitCd}}}, nil, nil, nil},
+		{"upsert 单位非法", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "H", Name: "x", Duration: 1, Level: 1, DurationUnit: "week"}}}, nil, nil, nil},
+		{"cd 全链 upsert+FS+基线", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "H", Name: "养护", Duration: 28, Level: 1, DurationUnit: UnitCd}}, {Type: "set_links", ToID: "H", Links: []opLink{{From: "B"}}}, {Type: "set_baseline", SavedAt: "2026-09-07 08:00", BaselineName: "含养护"}}, nil, nil, nil},
 		// ── 双工期欠账放开（v4.155）：cd 涉 SS/FF/SF 全搭接成功例 ──
-		{"set_links cd 任务挂 SS", goldenBaseCd(), []Op{{Type: "set_links", ToID: "H", Links: []opLink{{From: "A", Type: SS, Lag: 2}}}}, nil, nil},
-		{"set_links cd 任务挂 SF", goldenBaseCd(), []Op{{Type: "set_links", ToID: "H", Links: []opLink{{From: "A", Type: SF, Lag: 1}}}}, nil, nil},
-		{"upsert cd 任务+FF 搭接", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "H", Name: "养护", Duration: 28, Level: 1, DurationUnit: UnitCd}}, {Type: "set_links", ToID: "B", Links: []opLink{{From: "H", Type: FF, Lag: 0}}}}, nil, nil},
+		{"set_links cd 任务挂 SS", goldenBaseCd(), []Op{{Type: "set_links", ToID: "H", Links: []opLink{{From: "A", Type: SS, Lag: 2}}}}, nil, nil, nil},
+		{"set_links cd 任务挂 SF", goldenBaseCd(), []Op{{Type: "set_links", ToID: "H", Links: []opLink{{From: "A", Type: SF, Lag: 1}}}}, nil, nil, nil},
+		{"upsert cd 任务+FF 搭接", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "H", Name: "养护", Duration: 28, Level: 1, DurationUnit: UnitCd}}, {Type: "set_links", ToID: "B", Links: []opLink{{From: "H", Type: FF, Lag: 0}}}}, nil, nil, nil},
 		// ── remove_task ──
-		{"remove 分组级联子孙与搭接", goldenBaseGrouped(), []Op{{Type: "remove_task", ID: "G"}}, nil, nil},
-		{"remove 叶任务清相关搭接", goldenBase(), []Op{{Type: "remove_task", ID: "A"}}, nil, nil},
-		{"remove 不存在", goldenBase(), []Op{{Type: "remove_task", ID: "NOPE"}}, nil, nil},
+		{"remove 分组级联子孙与搭接", goldenBaseGrouped(), []Op{{Type: "remove_task", ID: "G"}}, nil, nil, nil},
+		{"remove 叶任务清相关搭接", goldenBase(), []Op{{Type: "remove_task", ID: "A"}}, nil, nil, nil},
+		{"remove 不存在", goldenBase(), []Op{{Type: "remove_task", ID: "NOPE"}}, nil, nil, nil},
 		// ── set_links ──
-		{"set_links 整体替换+缺省 FS", goldenBase(), []Op{{Type: "set_links", ToID: "B", Links: []opLink{{From: "A", Lag: 1}, {From: "B", Type: SS, Lag: 0}}}}, nil, nil},
-		{"set_links 自前置", goldenBase(), []Op{{Type: "set_links", ToID: "B", Links: []opLink{{From: "B"}}}}, nil, nil},
-		{"set_links 前置不存在", goldenBase(), []Op{{Type: "set_links", ToID: "B", Links: []opLink{{From: "NOPE"}}}}, nil, nil},
+		{"set_links 整体替换+缺省 FS", goldenBase(), []Op{{Type: "set_links", ToID: "B", Links: []opLink{{From: "A", Lag: 1}, {From: "B", Type: SS, Lag: 0}}}}, nil, nil, nil},
+		{"set_links 自前置", goldenBase(), []Op{{Type: "set_links", ToID: "B", Links: []opLink{{From: "B"}}}}, nil, nil, nil},
+		{"set_links 前置不存在", goldenBase(), []Op{{Type: "set_links", ToID: "B", Links: []opLink{{From: "NOPE"}}}}, nil, nil, nil},
 		// ── set_meta ──
-		{"set_meta 全字段含日历归一", goldenBase(), []Op{{Type: "set_meta", Name: "新名", StartDate: "2026-10-01", Calendar: &Calendar{Workweek: []int{1, 2, 3, 4, 5, 6}}, Deadline: gStrPtr("2026-10-31")}}, nil, nil},
-		{"set_meta 空串清竣工", goldenBase(), []Op{{Type: "set_meta", Deadline: gStrPtr("")}}, nil, nil},
-		{"set_meta null 竣工=不动", goldenBase(), []Op{{Type: "set_meta", Name: "只改名", Deadline: nil}}, nil, nil},
-		{"set_meta 日期口径错", goldenBase(), []Op{{Type: "set_meta", StartDate: "2026-9-1"}}, nil, nil},
-		{"set_meta 无字段", goldenBase(), []Op{{Type: "set_meta"}}, nil, nil},
+		{"set_meta 全字段含日历归一", goldenBase(), []Op{{Type: "set_meta", Name: "新名", StartDate: "2026-10-01", Calendar: &Calendar{Workweek: []int{1, 2, 3, 4, 5, 6}}, Deadline: gStrPtr("2026-10-31")}}, nil, nil, nil},
+		{"set_meta 空串清竣工", goldenBase(), []Op{{Type: "set_meta", Deadline: gStrPtr("")}}, nil, nil, nil},
+		{"set_meta null 竣工=不动", goldenBase(), []Op{{Type: "set_meta", Name: "只改名", Deadline: nil}}, nil, nil, nil},
+		{"set_meta 日期口径错", goldenBase(), []Op{{Type: "set_meta", StartDate: "2026-9-1"}}, nil, nil, nil},
+		{"set_meta 无字段", goldenBase(), []Op{{Type: "set_meta"}}, nil, nil, nil},
 		// ── auto_chain ──
-		{"auto_chain 三叶补二", goldenBaseGrouped(), []Op{{Type: "upsert_task", Task: &Task{ID: "C", Name: "钢筋", Duration: 2, Level: 1}}, {Type: "auto_chain"}}, nil, nil},
-		{"auto_chain 跳过手动", goldenBaseGrouped(), []Op{{Type: "patch_task", ID: "B", Patch: &patchTask{Mode: (*TaskMode)(gStrPtr("manual"))}}, {Type: "auto_chain"}}, nil, nil},
-		{"auto_chain 无可补", goldenBase(), []Op{{Type: "auto_chain"}}, nil, nil},
+		{"auto_chain 三叶补二", goldenBaseGrouped(), []Op{{Type: "upsert_task", Task: &Task{ID: "C", Name: "钢筋", Duration: 2, Level: 1}}, {Type: "auto_chain"}}, nil, nil, nil},
+		{"auto_chain 跳过手动", goldenBaseGrouped(), []Op{{Type: "patch_task", ID: "B", Patch: &patchTask{Mode: (*TaskMode)(gStrPtr("manual"))}}, {Type: "auto_chain"}}, nil, nil, nil},
+		{"auto_chain 无可补", goldenBase(), []Op{{Type: "auto_chain"}}, nil, nil, nil},
 		// ── set_baseline / clear_baseline ──
-		{"set_baseline 固化", goldenBase(), []Op{{Type: "set_baseline", SavedAt: "2026-09-07 08:00", BaselineName: "对拍版"}}, nil, nil},
-		{"set_baseline 缺 savedAt", goldenBase(), []Op{{Type: "set_baseline", BaselineName: "x"}}, nil, nil},
-		{"set_baseline CPM 拒绝", Project{Name: "环", StartDate: "2026-09-07", Tasks: []Task{{ID: "A", Name: "a", Duration: 1, Level: 1}, {ID: "B", Name: "b", Duration: 1, Level: 1}}, Links: []Link{{From: "A", To: "B", Type: FS}, {From: "B", To: "A", Type: FS}}}, []Op{{Type: "set_baseline", SavedAt: "2026-09-07 08:00"}}, nil, nil},
-		{"clear_baseline 清除", goldenWithBaseline(), []Op{{Type: "clear_baseline"}}, nil, nil},
-		{"clear_baseline 无基线", goldenBase(), []Op{{Type: "clear_baseline"}}, nil, nil},
+		{"set_baseline 固化", goldenBase(), []Op{{Type: "set_baseline", SavedAt: "2026-09-07 08:00", BaselineName: "对拍版"}}, nil, nil, nil},
+		{"set_baseline 缺 savedAt", goldenBase(), []Op{{Type: "set_baseline", BaselineName: "x"}}, nil, nil, nil},
+		{"set_baseline CPM 拒绝", Project{Name: "环", StartDate: "2026-09-07", Tasks: []Task{{ID: "A", Name: "a", Duration: 1, Level: 1}, {ID: "B", Name: "b", Duration: 1, Level: 1}}, Links: []Link{{From: "A", To: "B", Type: FS}, {From: "B", To: "A", Type: FS}}}, []Op{{Type: "set_baseline", SavedAt: "2026-09-07 08:00"}}, nil, nil, nil},
+		{"clear_baseline 清除", goldenWithBaseline(), []Op{{Type: "clear_baseline"}}, nil, nil, nil},
+		{"clear_baseline 无基线", goldenBase(), []Op{{Type: "clear_baseline"}}, nil, nil, nil},
 		// ── 资源与分配 ──
-		{"upsert_resource 新增", goldenBaseResources(), []Op{{Type: "upsert_resource", Resource: &Resource{ID: "r3", Name: "吊车", Type: ResCost, CostPerUse: 500}}}, nil, nil},
-		{"upsert_resource 整量替换", goldenBaseResources(), []Op{{Type: "upsert_resource", Resource: &Resource{ID: "r1", Name: "挖机2", Type: ResWork, StandardRate: 900}}}, nil, nil},
-		{"upsert_resource 类型非法", goldenBaseResources(), []Op{{Type: "upsert_resource", Resource: &Resource{ID: "r9", Name: "x", Type: "nope"}}}, nil, nil},
-		{"patch_resource 多字段含清单位", goldenBaseResources(), []Op{{Type: "patch_resource", ID: "r2", ResourcePatch: &patchResource{Unit: gStrPtr("t"), StandardRate: gF64Ptr(500)}}}, nil, nil},
-		{"patch_resource 无字段", goldenBaseResources(), []Op{{Type: "patch_resource", ID: "r1", ResourcePatch: &patchResource{}}}, nil, nil},
-		{"patch_resource 不存在", goldenBaseResources(), []Op{{Type: "patch_resource", ID: "NOPE", ResourcePatch: &patchResource{Name: gStrPtr("x")}}}, nil, nil},
-		{"remove_resource 级联分配", goldenBaseResources(), []Op{{Type: "remove_resource", ID: "r1"}}, nil, nil},
-		{"set_assignments 整体替换", goldenBaseResources(), []Op{{Type: "set_assignments", TaskID: "A", Assignments: []Assignment{{ResourceID: "r2", Quantity: gF64Ptr(10)}, {ResourceID: "r1", Units: gF64Ptr(2)}}}}, nil, nil},
-		{"set_assignments 分组行拒绝", goldenBaseGrouped(), []Op{{Type: "set_assignments", TaskID: "G", Assignments: []Assignment{{ResourceID: "r1"}}}}, nil, nil},
-		{"set_assignments 资源不存在", goldenBaseResources(), []Op{{Type: "set_assignments", TaskID: "A", Assignments: []Assignment{{ResourceID: "NOPE"}}}}, nil, nil},
-		{"set_assignments 重复对", goldenBaseResources(), []Op{{Type: "set_assignments", TaskID: "A", Assignments: []Assignment{{ResourceID: "r1"}, {ResourceID: "r1", Units: gF64Ptr(2)}}}}, nil, nil},
-		{"set_assignments 外来 taskId", goldenBaseResources(), []Op{{Type: "set_assignments", TaskID: "A", Assignments: []Assignment{{TaskID: "B", ResourceID: "r1"}}}}, nil, nil},
+		{"upsert_resource 新增", goldenBaseResources(), []Op{{Type: "upsert_resource", Resource: &Resource{ID: "r3", Name: "吊车", Type: ResCost, CostPerUse: 500}}}, nil, nil, nil},
+		{"upsert_resource 整量替换", goldenBaseResources(), []Op{{Type: "upsert_resource", Resource: &Resource{ID: "r1", Name: "挖机2", Type: ResWork, StandardRate: 900}}}, nil, nil, nil},
+		{"upsert_resource 类型非法", goldenBaseResources(), []Op{{Type: "upsert_resource", Resource: &Resource{ID: "r9", Name: "x", Type: "nope"}}}, nil, nil, nil},
+		{"patch_resource 多字段含清单位", goldenBaseResources(), []Op{{Type: "patch_resource", ID: "r2", ResourcePatch: &patchResource{Unit: gStrPtr("t"), StandardRate: gF64Ptr(500)}}}, nil, nil, nil},
+		{"patch_resource 无字段", goldenBaseResources(), []Op{{Type: "patch_resource", ID: "r1", ResourcePatch: &patchResource{}}}, nil, nil, nil},
+		{"patch_resource 不存在", goldenBaseResources(), []Op{{Type: "patch_resource", ID: "NOPE", ResourcePatch: &patchResource{Name: gStrPtr("x")}}}, nil, nil, nil},
+		{"remove_resource 级联分配", goldenBaseResources(), []Op{{Type: "remove_resource", ID: "r1"}}, nil, nil, nil},
+		{"set_assignments 整体替换", goldenBaseResources(), []Op{{Type: "set_assignments", TaskID: "A", Assignments: []Assignment{{ResourceID: "r2", Quantity: gF64Ptr(10)}, {ResourceID: "r1", Units: gF64Ptr(2)}}}}, nil, nil, nil},
+		{"set_assignments 分组行拒绝", goldenBaseGrouped(), []Op{{Type: "set_assignments", TaskID: "G", Assignments: []Assignment{{ResourceID: "r1"}}}}, nil, nil, nil},
+		{"set_assignments 资源不存在", goldenBaseResources(), []Op{{Type: "set_assignments", TaskID: "A", Assignments: []Assignment{{ResourceID: "NOPE"}}}}, nil, nil, nil},
+		{"set_assignments 重复对", goldenBaseResources(), []Op{{Type: "set_assignments", TaskID: "A", Assignments: []Assignment{{ResourceID: "r1"}, {ResourceID: "r1", Units: gF64Ptr(2)}}}}, nil, nil, nil},
+		{"set_assignments 外来 taskId", goldenBaseResources(), []Op{{Type: "set_assignments", TaskID: "A", Assignments: []Assignment{{TaskID: "B", ResourceID: "r1"}}}}, nil, nil, nil},
 		// ── 组合与fail-closed ──
-		{"未知操作类型", goldenBase(), []Op{{Type: "nope"}}, nil, nil},
-		{"多 op 中途失败（半途状态不外泄）", goldenBase(), []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{Duration: gIntPtr(9)}}, {Type: "patch_task", ID: "NOPE", Patch: &patchTask{Duration: gIntPtr(1)}}}, nil, nil},
+		{"未知操作类型", goldenBase(), []Op{{Type: "nope"}}, nil, nil, nil},
+		{"多 op 中途失败（半途状态不外泄）", goldenBase(), []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{Duration: gIntPtr(9)}}, {Type: "patch_task", ID: "NOPE", Patch: &patchTask{Duration: gIntPtr(1)}}}, nil, nil, nil},
 	}
 }
 
@@ -207,12 +211,13 @@ func TestApplyOpsGoldenFixture(t *testing.T) {
 	file := goldenFile{Cases: make([]goldenCase, 0, len(cases))}
 	for _, tc := range cases {
 		p := cloneProject(tc.Base)
-		_, err := ApplyOps(&p, tc.Ops)
+		sums, err := ApplyOps(&p, tc.Ops)
 		gc := goldenCase{Name: tc.Name, Base: tc.Base, Ops: tc.Ops}
 		if err != nil {
 			msg := err.Error()
 			gc.Err = &msg
 		} else {
+			gc.Summary = sums
 			after := cloneProject(p)
 			gc.After = &after
 		}
@@ -253,6 +258,9 @@ func TestApplyOpsGoldenFixture(t *testing.T) {
 		}
 		if !reflect.DeepEqual(w.Err, got.Err) {
 			t.Errorf("case %q 错误口径漂移：\n fixture=%v\n computed=%v", got.Name, w.Err, got.Err)
+		}
+		if !reflect.DeepEqual(w.Summary, got.Summary) {
+			t.Errorf("case %q 回执文案漂移：\n fixture=%v\n computed=%v", got.Name, w.Summary, got.Summary)
 		}
 		if !reflect.DeepEqual(w.After, got.After) {
 			wb, _ := json.Marshal(w.After)

@@ -103,453 +103,485 @@ func ApplyOps(p *Project, ops []Op) ([]string, error) {
 	return summary, nil
 }
 
-func applyOne(p *Project, op Op) (string, error) {
-	switch op.Type {
-	case "upsert_task":
-		t := op.Task
-		if t == nil {
-			return "", fmt.Errorf("upsert_task 缺少 task")
-		}
-		if strings.TrimSpace(t.ID) == "" {
-			return "", fmt.Errorf("upsert_task 缺少任务 id")
-		}
-		if t.Level != 0 && t.Level != 1 {
-			return "", fmt.Errorf("任务 %s 层级非法（仅 0/1）：%d", t.ID, t.Level)
-		}
-		// 负工期（批次十三 round15；批次十二 D5 实测真缺口）：旧实现整任务写入
-		// 路径完全没有这道闸——ApplyOps(upsert_task{Duration:-5}) → err=nil 且把
-		// -5 落进计划，同一计划走 Save→Validate 才报「任务 N 工期为负」。判定与
-		// 文案收敛到 Validate 的同一实现 validateDuration（idInMsg=true）。
-		if err := validateDuration(*t, true); err != nil {
-			return "", err
-		}
-		if t.Progress < 0 || t.Progress > 100 {
-			return "", fmt.Errorf("任务 %s 进度超出 0-100", t.ID)
-		}
-		if t.Level == 0 && t.FixedCost != 0 {
-			return "", fmt.Errorf("分组行 %s 禁止固定成本（汇总唯一口径为子孙求和）", t.ID)
-		}
-		if badMoney(t.FixedCost) {
-			return "", fmt.Errorf("任务 %s 固定成本非法（须为非负有限数）：%v", t.ID, t.FixedCost)
-		}
-		// 工期单位（v4.151 双工期刀2；IN3-01）：规则判定走 Validate 的同一实现
-		//（枚举/分组行/里程碑/上限），本处只负责包上操作序号（ApplyOps）。
-		if err := validateDurationUnit(*t, true); err != nil {
-			return "", err
-		}
-		at := len(p.Tasks)
-		if op.AfterID != "" {
-			idx := indexOfTask(p.Tasks, op.AfterID)
-			if idx < 0 {
-				return "", fmt.Errorf("afterId 不存在：%s", op.AfterID)
-			}
-			at = idx + 1
-		}
-		if idx := indexOfTask(p.Tasks, t.ID); idx >= 0 {
-			p.Tasks[idx] = *t
-			return fmt.Sprintf("更新任务「%s」", t.Name), nil
-		}
-		unit := "工作日"
-		if t.DurationUnit == UnitCd {
-			unit = "日历天"
-		}
-		p.Tasks = append(p.Tasks[:at], append([]Task{*t}, p.Tasks[at:]...)...)
-		return fmt.Sprintf("新增任务「%s」（工期 %d %s）", t.Name, t.Duration, unit), nil
+// opHandlers op 类型 → 处理函数注册表（批 23 IN3-04：原 applyOne 430 行巨型
+// switch 按 op 拆为独立函数——每种 op 可单独测试、新增 op 只实现+注册一行，
+// diff 冲突面从全函数缩到单函数。表内键集与 Op.Type 文档枚举的一致性由
+// ops_dispatch_test.go 双向锁死）。
+var opHandlers = map[string]func(p *Project, op Op) (string, error){
+	"upsert_task":     applyUpsertTask,
+	"patch_task":      applyPatchTask,
+	"remove_task":     applyRemoveTask,
+	"set_links":       applySetLinks,
+	"set_meta":        applySetMeta,
+	"auto_chain":      applyAutoChain,
+	"set_baseline":    applySetBaseline,
+	"clear_baseline":  applyClearBaseline,
+	"upsert_resource": applyUpsertResource,
+	"patch_resource":  applyPatchResource,
+	"remove_resource": applyRemoveResource,
+	"set_assignments": applySetAssignments,
+}
 
-	case "patch_task":
-		idx := indexOfTask(p.Tasks, op.ID)
+// applyOne 逐条分派；未知类型 fail-closed（与拆分前 default 分支同文案）。
+func applyOne(p *Project, op Op) (string, error) {
+	if h, ok := opHandlers[op.Type]; ok {
+		return h(p, op)
+	}
+	return "", fmt.Errorf("不支持的操作类型：%s", op.Type)
+}
+
+func applyUpsertTask(p *Project, op Op) (string, error) {
+	t := op.Task
+	if t == nil {
+		return "", fmt.Errorf("upsert_task 缺少 task")
+	}
+	if strings.TrimSpace(t.ID) == "" {
+		return "", fmt.Errorf("upsert_task 缺少任务 id")
+	}
+	if t.Level != 0 && t.Level != 1 {
+		return "", fmt.Errorf("任务 %s 层级非法（仅 0/1）：%d", t.ID, t.Level)
+	}
+	// 负工期（批次十三 round15；批次十二 D5 实测真缺口）：旧实现整任务写入
+	// 路径完全没有这道闸——ApplyOps(upsert_task{Duration:-5}) → err=nil 且把
+	// -5 落进计划，同一计划走 Save→Validate 才报「任务 N 工期为负」。判定与
+	// 文案收敛到 Validate 的同一实现 validateDuration（idInMsg=true）。
+	if err := validateDuration(*t, true); err != nil {
+		return "", err
+	}
+	if t.Progress < 0 || t.Progress > 100 {
+		return "", fmt.Errorf("任务 %s 进度超出 0-100", t.ID)
+	}
+	if t.Level == 0 && t.FixedCost != 0 {
+		return "", fmt.Errorf("分组行 %s 禁止固定成本（汇总唯一口径为子孙求和）", t.ID)
+	}
+	if badMoney(t.FixedCost) {
+		return "", fmt.Errorf("任务 %s 固定成本非法（须为非负有限数）：%v", t.ID, t.FixedCost)
+	}
+	// 工期单位（v4.151 双工期刀2；IN3-01）：规则判定走 Validate 的同一实现
+	//（枚举/分组行/里程碑/上限），本处只负责包上操作序号（ApplyOps）。
+	if err := validateDurationUnit(*t, true); err != nil {
+		return "", err
+	}
+	at := len(p.Tasks)
+	if op.AfterID != "" {
+		idx := indexOfTask(p.Tasks, op.AfterID)
 		if idx < 0 {
-			return "", fmt.Errorf("任务不存在：%s", op.ID)
+			return "", fmt.Errorf("afterId 不存在：%s", op.AfterID)
 		}
-		t := &p.Tasks[idx]
-		changes := make([]string, 0, 4)
-		if op.Patch != nil {
-			pt := op.Patch
-			if pt.Name != nil {
-				t.Name = *pt.Name
-				changes = append(changes, fmt.Sprintf("改名「%s」", *pt.Name))
-			}
-			// 工期口径（v4.151 刀2；IN3-01）：先把本 patch 的 durationUnit/
-			// level/isMilestone/duration 投射成「生效态」，再走 validateDurationUnit
-			//（与 Validate 同一实现）——「先改单位后改层级/里程碑」不再绕过 cd
-			// 约束，且校验先于任何赋值（失败不留半改状态）。
-			if pt.DurationUnit != nil || pt.Duration != nil || pt.Level != nil || pt.IsMilestone != nil {
-				eff := *t
-				if pt.DurationUnit != nil && *pt.DurationUnit != "" {
-					eff.DurationUnit = *pt.DurationUnit
-				}
-				if pt.Level != nil {
-					eff.Level = *pt.Level
-				}
-				if pt.IsMilestone != nil {
-					eff.IsMilestone = *pt.IsMilestone
-				}
-				if pt.Duration != nil {
-					eff.Duration = *pt.Duration
-				}
-				if err := validateDurationUnit(eff, false); err != nil {
-					return "", err
-				}
-				// 负工期（批次十三 round15）：与 Validate/upsert 共用同一判据
-				// validateDuration。放在生效态块内=先于任何赋值（含上面的
-				// DurationUnit），失败不留半改状态；文案沿用 patch 通道历史原文
-				//（idInMsg=false，被 ops_golden.fixture.json「patch 负工期」冻结）。
-				//
-				// **闸宽=本次 op 是否触及 duration**（与 D5 缺口同宽，不外溢）：
-				// 计划里已有一个 Duration<0 的任务、本次 patch 只改 level/isMilestone/
-				// 名称时**不在此拒绝**——那种「既有非法态」不是本次改动造成的，
-				// 按本文件头注的契约（ops 只校验自己的改动，「应用后由调用方统一
-				// 校验 + CPM fail-closed」）由调用方的 Validate/Save 兜底。否则一条
-				// 与工期无关的补丁会被无关字段绊住，且错误文案指向用户没碰的字段。
-				if pt.Duration != nil {
-					if err := validateDuration(eff, false); err != nil {
-						return "", err
-					}
-				}
-			}
+		at = idx + 1
+	}
+	if idx := indexOfTask(p.Tasks, t.ID); idx >= 0 {
+		p.Tasks[idx] = *t
+		return fmt.Sprintf("更新任务「%s」", t.Name), nil
+	}
+	unit := "工作日"
+	if t.DurationUnit == UnitCd {
+		unit = "日历天"
+	}
+	p.Tasks = append(p.Tasks[:at], append([]Task{*t}, p.Tasks[at:]...)...)
+	return fmt.Sprintf("新增任务「%s」（工期 %d %s）", t.Name, t.Duration, unit), nil
+}
+
+func applyPatchTask(p *Project, op Op) (string, error) {
+	idx := indexOfTask(p.Tasks, op.ID)
+	if idx < 0 {
+		return "", fmt.Errorf("任务不存在：%s", op.ID)
+	}
+	t := &p.Tasks[idx]
+	changes := make([]string, 0, 4)
+	if op.Patch != nil {
+		pt := op.Patch
+		if pt.Name != nil {
+			t.Name = *pt.Name
+			changes = append(changes, fmt.Sprintf("改名「%s」", *pt.Name))
+		}
+		// 工期口径（v4.151 刀2；IN3-01）：先把本 patch 的 durationUnit/
+		// level/isMilestone/duration 投射成「生效态」，再走 validateDurationUnit
+		//（与 Validate 同一实现）——「先改单位后改层级/里程碑」不再绕过 cd
+		// 约束，且校验先于任何赋值（失败不留半改状态）。
+		if pt.DurationUnit != nil || pt.Duration != nil || pt.Level != nil || pt.IsMilestone != nil {
+			eff := *t
 			if pt.DurationUnit != nil && *pt.DurationUnit != "" {
-				t.DurationUnit = *pt.DurationUnit
-				if *pt.DurationUnit == UnitCd {
-					changes = append(changes, "工期口径→日历天（自然日定时）")
-				} else {
-					changes = append(changes, "工期口径→工作日")
-				}
-			}
-			if pt.Duration != nil {
-				// 负工期已在上面生效态块内校验（validateDuration，统一判据）。
-				unit := "工作日"
-				if t.DurationUnit == UnitCd {
-					unit = "日历天"
-				}
-				changes = append(changes, fmt.Sprintf("工期 %d→%d %s", t.Duration, *pt.Duration, unit))
-				t.Duration = *pt.Duration
-			}
-			if pt.Progress != nil {
-				if *pt.Progress < 0 || *pt.Progress > 100 {
-					return "", fmt.Errorf("进度超出 0-100")
-				}
-				changes = append(changes, fmt.Sprintf("进度 %d→%d%%", t.Progress, *pt.Progress))
-				t.Progress = *pt.Progress
+				eff.DurationUnit = *pt.DurationUnit
 			}
 			if pt.Level != nil {
-				if *pt.Level != 0 && *pt.Level != 1 {
-					return "", fmt.Errorf("层级非法（仅 0/1）")
-				}
-				t.Level = *pt.Level
-				changes = append(changes, fmt.Sprintf("层级→%d", *pt.Level))
+				eff.Level = *pt.Level
 			}
 			if pt.IsMilestone != nil {
-				t.IsMilestone = *pt.IsMilestone
-				if *pt.IsMilestone {
-					changes = append(changes, "设为里程碑")
-				}
+				eff.IsMilestone = *pt.IsMilestone
 			}
-			if pt.Mode != nil && *pt.Mode != "" {
-				if *pt.Mode != ModeAuto && *pt.Mode != ModeManual {
-					return "", fmt.Errorf("模式非法：%s", *pt.Mode)
-				}
-				t.Mode = *pt.Mode
-				changes = append(changes, fmt.Sprintf("模式→%s", *pt.Mode))
+			if pt.Duration != nil {
+				eff.Duration = *pt.Duration
 			}
-			if pt.ManualStart != nil {
-				t.ManualStart = *pt.ManualStart
-				changes = append(changes, fmt.Sprintf("锁定开始→第 %d 工作日", *pt.ManualStart))
+			if err := validateDurationUnit(eff, false); err != nil {
+				return "", err
 			}
-			if pt.FixedCost != nil {
-				if badMoney(*pt.FixedCost) {
-					return "", fmt.Errorf("固定成本非法（须为非负有限数）：%v", *pt.FixedCost)
-				}
-				if t.Level == 0 {
-					return "", fmt.Errorf("分组行 %s 禁止固定成本（汇总唯一口径为子孙求和）", t.ID)
-				}
-				changes = append(changes, fmt.Sprintf("固定成本 %v→%v 元", t.FixedCost, *pt.FixedCost))
-				t.FixedCost = *pt.FixedCost
-			}
-		}
-		if len(changes) == 0 {
-			return "", fmt.Errorf("patch_task 未提供任何字段")
-		}
-		return fmt.Sprintf("调整「%s」：%s", t.Name, strings.Join(changes, "、")), nil
-
-	case "remove_task":
-		idx := indexOfTask(p.Tasks, op.ID)
-		if idx < 0 {
-			return "", fmt.Errorf("任务不存在：%s", op.ID)
-		}
-		kill := descendantIDs(p.Tasks, idx)
-		remaining := make([]Task, 0, len(p.Tasks))
-		for _, t := range p.Tasks {
-			if !kill[t.ID] {
-				remaining = append(remaining, t)
-			}
-		}
-		name := p.Tasks[idx].Name
-		links := make([]Link, 0, len(p.Links))
-		for _, l := range p.Links {
-			if !kill[l.From] && !kill[l.To] {
-				links = append(links, l)
-			}
-		}
-		removed := len(p.Tasks) - len(remaining)
-		p.Tasks = remaining
-		p.Links = links
-		return fmt.Sprintf("移除「%s」及子孙共 %d 行", name, removed), nil
-
-	case "set_links":
-		idx := indexOfTask(p.Tasks, op.ToID)
-		if idx < 0 {
-			return "", fmt.Errorf("任务不存在：%s", op.ToID)
-		}
-		toName := p.Tasks[idx].Name
-		kept := make([]Link, 0, len(p.Links))
-		for _, l := range p.Links {
-			if l.To != op.ToID {
-				kept = append(kept, l)
-			}
-		}
-		byID := make(map[string]bool, len(p.Tasks))
-		for _, t := range p.Tasks {
-			byID[t.ID] = true
-		}
-		for _, nl := range op.Links {
-			if nl.From == op.ToID {
-				return "", fmt.Errorf("任务不能以自身为前置")
-			}
-			if !byID[nl.From] {
-				return "", fmt.Errorf("前置任务不存在：%s", nl.From)
-			}
-			typ := nl.Type
-			if typ == "" {
-				typ = FS
-			}
-			kept = append(kept, Link{From: nl.From, To: op.ToID, Type: typ, Lag: nl.Lag})
-		}
-		p.Links = kept
-		return fmt.Sprintf("更新「%s」前置关系（共 %d 条）", toName, len(op.Links)), nil
-
-	case "set_meta":
-		changes := make([]string, 0, 3)
-		if op.Name != "" {
-			p.Name = op.Name
-			changes = append(changes, fmt.Sprintf("工程名→「%s」", op.Name))
-		}
-		if op.StartDate != "" {
-			if len(op.StartDate) != 10 {
-				return "", fmt.Errorf("开工日期口径应为 YYYY-MM-DD：%s", op.StartDate)
-			}
-			p.StartDate = op.StartDate
-			changes = append(changes, fmt.Sprintf("开工日期→%s", op.StartDate))
-		}
-		if op.Calendar != nil {
-			p.Calendar = ptr(NormalizeCalendar(op.Calendar))
-			changes = append(changes, "更新工作日历")
-		}
-		if op.Deadline != nil {
-			d := strings.TrimSpace(*op.Deadline)
-			if d != "" {
-				if len(d) != 10 {
-					return "", fmt.Errorf("目标竣工日期口径应为 YYYY-MM-DD：%s", d)
-				}
-				p.Deadline = d
-				changes = append(changes, fmt.Sprintf("目标竣工→%s", d))
-			} else {
-				p.Deadline = ""
-				changes = append(changes, "清除目标竣工")
-			}
-		}
-		if len(changes) == 0 {
-			return "", fmt.Errorf("set_meta 未提供任何字段")
-		}
-		return strings.Join(changes, "、"), nil
-
-	case "auto_chain":
-		// 推荐逻辑关系的确定性缺省：仅对【无前置】的叶任务按 WBS 顺序补
-		// FS 串联（上一个叶任务→当前；全程首个叶不补）。已有逻辑/手动
-		// 任务不动（手动=有意定位；并行例外由 AI 用 set_links 覆写）。
-		hasIn := make(map[string]bool, len(p.Links))
-		for _, l := range p.Links {
-			hasIn[l.To] = true
-		}
-		added := 0
-		lastLeaf := ""
-		for i := range p.Tasks {
-			t := p.Tasks[i]
-			if t.Level == 0 {
-				continue
-			}
-			if t.Mode == ModeManual {
-				continue // 手动=有意定位：不补、也不作链源（manual 忽略入边，链它无意义）
-			}
-			if lastLeaf != "" && !hasIn[t.ID] {
-				p.Links = append(p.Links, Link{From: lastLeaf, To: t.ID, Type: FS, Lag: 0})
-				added++
-			}
-			lastLeaf = t.ID
-		}
-		if added == 0 {
-			return "", fmt.Errorf("auto_chain 没有可补的任务（无前置的叶任务不足两个，或均已手动定位）")
-		}
-		return fmt.Sprintf("自动补全 %d 条缺省串联逻辑（仅无前置任务，FS lag=0）", added), nil
-
-	case "set_baseline":
-		// 基线快照：固化此刻排程（ops 序列中的当前位置），供后续漂移对比。
-		// CPM 不过/无叶任务 fail-closed 拒绝；savedAt 必须由调用方标注
-		// （引擎是纯函数不取时钟）。
-		if strings.TrimSpace(op.SavedAt) == "" {
-			return "", fmt.Errorf("set_baseline 缺少 savedAt（YYYY-MM-DD HH:mm，由工具层标注）")
-		}
-		b, err := SnapshotBaseline(p, op.SavedAt, op.BaselineName)
-		if err != nil {
-			return "", err
-		}
-		p.Baseline = b
-		return fmt.Sprintf("保存基线「%s」（%d 项工作，总工期 %d 天）", b.Name, len(b.Rows), b.Duration), nil
-
-	case "clear_baseline":
-		if p.Baseline == nil {
-			return "", fmt.Errorf("当前没有基线可清除")
-		}
-		p.Baseline = nil
-		return "清除基线", nil
-
-	case "upsert_resource":
-		// 整量新增或按 id 替换资源（v4.122 资源成本刀2）。
-		r := op.Resource
-		if r == nil {
-			return "", fmt.Errorf("upsert_resource 缺少 resource")
-		}
-		if err := checkResource(*r); err != nil {
-			return "", err
-		}
-		for i := range p.Resources {
-			if p.Resources[i].ID == r.ID {
-				p.Resources[i] = *r
-				return fmt.Sprintf("更新资源「%s」（%s）", r.Name, resourceTypeLabel(r.Type)), nil
-			}
-		}
-		p.Resources = append(p.Resources, *r)
-		return fmt.Sprintf("新增资源「%s」（%s）", r.Name, resourceTypeLabel(r.Type)), nil
-
-	case "patch_resource":
-		// 部分更新（指针三态：nil=不动），对齐 patch_task 范式。
-		idx := indexOfResource(p.Resources, op.ID)
-		if idx < 0 {
-			return "", fmt.Errorf("资源不存在：%s", op.ID)
-		}
-		r := &p.Resources[idx]
-		changes := make([]string, 0, 3)
-		if op.ResourcePatch != nil {
-			pr := op.ResourcePatch
-			if pr.Name != nil {
-				r.Name = *pr.Name
-				changes = append(changes, fmt.Sprintf("改名「%s」", *pr.Name))
-			}
-			if pr.Type != nil {
-				if err := checkResourceType(*pr.Type); err != nil {
+			// 负工期（批次十三 round15）：与 Validate/upsert 共用同一判据
+			// validateDuration。放在生效态块内=先于任何赋值（含上面的
+			// DurationUnit），失败不留半改状态；文案沿用 patch 通道历史原文
+			//（idInMsg=false，被 ops_golden.fixture.json「patch 负工期」冻结）。
+			//
+			// **闸宽=本次 op 是否触及 duration**（与 D5 缺口同宽，不外溢）：
+			// 计划里已有一个 Duration<0 的任务、本次 patch 只改 level/isMilestone/
+			// 名称时**不在此拒绝**——那种「既有非法态」不是本次改动造成的，
+			// 按本文件头注的契约（ops 只校验自己的改动，「应用后由调用方统一
+			// 校验 + CPM fail-closed」）由调用方的 Validate/Save 兜底。否则一条
+			// 与工期无关的补丁会被无关字段绊住，且错误文案指向用户没碰的字段。
+			if pt.Duration != nil {
+				if err := validateDuration(eff, false); err != nil {
 					return "", err
 				}
-				r.Type = *pr.Type
-				changes = append(changes, fmt.Sprintf("类型→%s", resourceTypeLabel(r.Type)))
-			}
-			if pr.Unit != nil {
-				r.Unit = *pr.Unit
-				if *pr.Unit == "" {
-					changes = append(changes, "清除计量单位")
-				} else {
-					changes = append(changes, fmt.Sprintf("计量单位→%s", *pr.Unit))
-				}
-			}
-			if pr.StandardRate != nil {
-				if badMoney(*pr.StandardRate) {
-					return "", fmt.Errorf("标准费率非法（须为非负有限数）：%v", *pr.StandardRate)
-				}
-				changes = append(changes, fmt.Sprintf("标准费率 %v→%v %s", r.StandardRate, *pr.StandardRate, rateUnit(r.Type)))
-				r.StandardRate = *pr.StandardRate
-			}
-			if pr.CostPerUse != nil {
-				if badMoney(*pr.CostPerUse) {
-					return "", fmt.Errorf("每次使用成本非法（须为非负有限数）：%v", *pr.CostPerUse)
-				}
-				changes = append(changes, fmt.Sprintf("每次使用成本 %v→%v 元", r.CostPerUse, *pr.CostPerUse))
-				r.CostPerUse = *pr.CostPerUse
-			}
-			if pr.MaxUnits != nil {
-				if badMoney(*pr.MaxUnits) {
-					return "", fmt.Errorf("可用上限非法（须为非负有限数）：%v", *pr.MaxUnits)
-				}
-				changes = append(changes, fmt.Sprintf("可用上限 %v→%v", r.MaxUnits, *pr.MaxUnits))
-				r.MaxUnits = *pr.MaxUnits
 			}
 		}
-		if len(changes) == 0 {
-			return "", fmt.Errorf("patch_resource 未提供任何字段")
-		}
-		return fmt.Sprintf("调整资源「%s」：%s", r.Name, strings.Join(changes, "、")), nil
-
-	case "remove_resource":
-		// 删除资源并级联删除其全部分配（悬空引用不过夜）。
-		idx := indexOfResource(p.Resources, op.ID)
-		if idx < 0 {
-			return "", fmt.Errorf("资源不存在：%s", op.ID)
-		}
-		name := p.Resources[idx].Name
-		p.Resources = append(p.Resources[:idx], p.Resources[idx+1:]...)
-		kept := make([]Assignment, 0, len(p.Assignments))
-		cascaded := 0
-		for _, a := range p.Assignments {
-			if a.ResourceID == op.ID {
-				cascaded++
-				continue
-			}
-			kept = append(kept, a)
-		}
-		p.Assignments = kept
-		if cascaded > 0 {
-			return fmt.Sprintf("移除资源「%s」及其 %d 条分配", name, cascaded), nil
-		}
-		return fmt.Sprintf("移除资源「%s」（无分配）", name), nil
-
-	case "set_assignments":
-		// 整体替换某任务的分配集（set_links「整体替换入边」同范式）。
-		idx := indexOfTask(p.Tasks, op.TaskID)
-		if idx < 0 {
-			return "", fmt.Errorf("任务不存在：%s", op.TaskID)
-		}
-		if p.Tasks[idx].Level == 0 {
-			return "", fmt.Errorf("分组行 %s 禁止挂分配（汇总唯一口径为子孙求和）", op.TaskID)
-		}
-		taskName := p.Tasks[idx].Name
-		pairSeen := make(map[string]bool, len(op.Assignments))
-		for _, a := range op.Assignments {
-			if a.TaskID != "" && a.TaskID != op.TaskID {
-				return "", fmt.Errorf("set_assignments 只允许目标任务 %s 的分配，出现 %s", op.TaskID, a.TaskID)
-			}
-			if indexOfResource(p.Resources, a.ResourceID) < 0 {
-				return "", fmt.Errorf("资源不存在：%s", a.ResourceID)
-			}
-			pair := op.TaskID + "\x00" + a.ResourceID
-			if pairSeen[pair] {
-				return "", fmt.Errorf("分配重复（任务 %s ↔ 资源 %s）", op.TaskID, a.ResourceID)
-			}
-			pairSeen[pair] = true
-		}
-		// 只换该任务的入边，其他任务的分配原样保留。
-		kept := make([]Assignment, 0, len(p.Assignments)+len(op.Assignments))
-		for _, a := range p.Assignments {
-			if a.TaskID != op.TaskID {
-				kept = append(kept, a)
+		if pt.DurationUnit != nil && *pt.DurationUnit != "" {
+			t.DurationUnit = *pt.DurationUnit
+			if *pt.DurationUnit == UnitCd {
+				changes = append(changes, "工期口径→日历天（自然日定时）")
+			} else {
+				changes = append(changes, "工期口径→工作日")
 			}
 		}
-		for _, a := range op.Assignments {
-			a.TaskID = op.TaskID
-			kept = append(kept, a)
+		if pt.Duration != nil {
+			// 负工期已在上面生效态块内校验（validateDuration，统一判据）。
+			unit := "工作日"
+			if t.DurationUnit == UnitCd {
+				unit = "日历天"
+			}
+			changes = append(changes, fmt.Sprintf("工期 %d→%d %s", t.Duration, *pt.Duration, unit))
+			t.Duration = *pt.Duration
 		}
-		p.Assignments = kept
-		return fmt.Sprintf("更新「%s」资源分配（共 %d 条）", taskName, len(op.Assignments)), nil
-
-	default:
-		return "", fmt.Errorf("不支持的操作类型：%s", op.Type)
+		if pt.Progress != nil {
+			if *pt.Progress < 0 || *pt.Progress > 100 {
+				return "", fmt.Errorf("进度超出 0-100")
+			}
+			changes = append(changes, fmt.Sprintf("进度 %d→%d%%", t.Progress, *pt.Progress))
+			t.Progress = *pt.Progress
+		}
+		if pt.Level != nil {
+			if *pt.Level != 0 && *pt.Level != 1 {
+				return "", fmt.Errorf("层级非法（仅 0/1）")
+			}
+			t.Level = *pt.Level
+			changes = append(changes, fmt.Sprintf("层级→%d", *pt.Level))
+		}
+		if pt.IsMilestone != nil {
+			t.IsMilestone = *pt.IsMilestone
+			if *pt.IsMilestone {
+				changes = append(changes, "设为里程碑")
+			}
+		}
+		if pt.Mode != nil && *pt.Mode != "" {
+			if *pt.Mode != ModeAuto && *pt.Mode != ModeManual {
+				return "", fmt.Errorf("模式非法：%s", *pt.Mode)
+			}
+			t.Mode = *pt.Mode
+			changes = append(changes, fmt.Sprintf("模式→%s", *pt.Mode))
+		}
+		if pt.ManualStart != nil {
+			t.ManualStart = *pt.ManualStart
+			changes = append(changes, fmt.Sprintf("锁定开始→第 %d 工作日", *pt.ManualStart))
+		}
+		if pt.FixedCost != nil {
+			if badMoney(*pt.FixedCost) {
+				return "", fmt.Errorf("固定成本非法（须为非负有限数）：%v", *pt.FixedCost)
+			}
+			if t.Level == 0 {
+				return "", fmt.Errorf("分组行 %s 禁止固定成本（汇总唯一口径为子孙求和）", t.ID)
+			}
+			changes = append(changes, fmt.Sprintf("固定成本 %v→%v 元", t.FixedCost, *pt.FixedCost))
+			t.FixedCost = *pt.FixedCost
+		}
 	}
+	if len(changes) == 0 {
+		return "", fmt.Errorf("patch_task 未提供任何字段")
+	}
+	return fmt.Sprintf("调整「%s」：%s", t.Name, strings.Join(changes, "、")), nil
+}
+
+func applyRemoveTask(p *Project, op Op) (string, error) {
+	idx := indexOfTask(p.Tasks, op.ID)
+	if idx < 0 {
+		return "", fmt.Errorf("任务不存在：%s", op.ID)
+	}
+	kill := descendantIDs(p.Tasks, idx)
+	remaining := make([]Task, 0, len(p.Tasks))
+	for _, t := range p.Tasks {
+		if !kill[t.ID] {
+			remaining = append(remaining, t)
+		}
+	}
+	name := p.Tasks[idx].Name
+	links := make([]Link, 0, len(p.Links))
+	for _, l := range p.Links {
+		if !kill[l.From] && !kill[l.To] {
+			links = append(links, l)
+		}
+	}
+	removed := len(p.Tasks) - len(remaining)
+	p.Tasks = remaining
+	p.Links = links
+	return fmt.Sprintf("移除「%s」及子孙共 %d 行", name, removed), nil
+}
+
+func applySetLinks(p *Project, op Op) (string, error) {
+	idx := indexOfTask(p.Tasks, op.ToID)
+	if idx < 0 {
+		return "", fmt.Errorf("任务不存在：%s", op.ToID)
+	}
+	toName := p.Tasks[idx].Name
+	kept := make([]Link, 0, len(p.Links))
+	for _, l := range p.Links {
+		if l.To != op.ToID {
+			kept = append(kept, l)
+		}
+	}
+	byID := make(map[string]bool, len(p.Tasks))
+	for _, t := range p.Tasks {
+		byID[t.ID] = true
+	}
+	for _, nl := range op.Links {
+		if nl.From == op.ToID {
+			return "", fmt.Errorf("任务不能以自身为前置")
+		}
+		if !byID[nl.From] {
+			return "", fmt.Errorf("前置任务不存在：%s", nl.From)
+		}
+		typ := nl.Type
+		if typ == "" {
+			typ = FS
+		}
+		kept = append(kept, Link{From: nl.From, To: op.ToID, Type: typ, Lag: nl.Lag})
+	}
+	p.Links = kept
+	return fmt.Sprintf("更新「%s」前置关系（共 %d 条）", toName, len(op.Links)), nil
+}
+
+func applySetMeta(p *Project, op Op) (string, error) {
+	changes := make([]string, 0, 3)
+	if op.Name != "" {
+		p.Name = op.Name
+		changes = append(changes, fmt.Sprintf("工程名→「%s」", op.Name))
+	}
+	if op.StartDate != "" {
+		if len(op.StartDate) != 10 {
+			return "", fmt.Errorf("开工日期口径应为 YYYY-MM-DD：%s", op.StartDate)
+		}
+		p.StartDate = op.StartDate
+		changes = append(changes, fmt.Sprintf("开工日期→%s", op.StartDate))
+	}
+	if op.Calendar != nil {
+		p.Calendar = ptr(NormalizeCalendar(op.Calendar))
+		changes = append(changes, "更新工作日历")
+	}
+	if op.Deadline != nil {
+		d := strings.TrimSpace(*op.Deadline)
+		if d != "" {
+			if len(d) != 10 {
+				return "", fmt.Errorf("目标竣工日期口径应为 YYYY-MM-DD：%s", d)
+			}
+			p.Deadline = d
+			changes = append(changes, fmt.Sprintf("目标竣工→%s", d))
+		} else {
+			p.Deadline = ""
+			changes = append(changes, "清除目标竣工")
+		}
+	}
+	if len(changes) == 0 {
+		return "", fmt.Errorf("set_meta 未提供任何字段")
+	}
+	return strings.Join(changes, "、"), nil
+}
+
+func applyAutoChain(p *Project, op Op) (string, error) {
+	// 推荐逻辑关系的确定性缺省：仅对【无前置】的叶任务按 WBS 顺序补
+	// FS 串联（上一个叶任务→当前；全程首个叶不补）。已有逻辑/手动
+	// 任务不动（手动=有意定位；并行例外由 AI 用 set_links 覆写）。
+	hasIn := make(map[string]bool, len(p.Links))
+	for _, l := range p.Links {
+		hasIn[l.To] = true
+	}
+	added := 0
+	lastLeaf := ""
+	for i := range p.Tasks {
+		t := p.Tasks[i]
+		if t.Level == 0 {
+			continue
+		}
+		if t.Mode == ModeManual {
+			continue // 手动=有意定位：不补、也不作链源（manual 忽略入边，链它无意义）
+		}
+		if lastLeaf != "" && !hasIn[t.ID] {
+			p.Links = append(p.Links, Link{From: lastLeaf, To: t.ID, Type: FS, Lag: 0})
+			added++
+		}
+		lastLeaf = t.ID
+	}
+	if added == 0 {
+		return "", fmt.Errorf("auto_chain 没有可补的任务（无前置的叶任务不足两个，或均已手动定位）")
+	}
+	return fmt.Sprintf("自动补全 %d 条缺省串联逻辑（仅无前置任务，FS lag=0）", added), nil
+}
+
+func applySetBaseline(p *Project, op Op) (string, error) {
+	// 基线快照：固化此刻排程（ops 序列中的当前位置），供后续漂移对比。
+	// CPM 不过/无叶任务 fail-closed 拒绝；savedAt 必须由调用方标注
+	// （引擎是纯函数不取时钟）。
+	if strings.TrimSpace(op.SavedAt) == "" {
+		return "", fmt.Errorf("set_baseline 缺少 savedAt（YYYY-MM-DD HH:mm，由工具层标注）")
+	}
+	b, err := SnapshotBaseline(p, op.SavedAt, op.BaselineName)
+	if err != nil {
+		return "", err
+	}
+	p.Baseline = b
+	return fmt.Sprintf("保存基线「%s」（%d 项工作，总工期 %d 天）", b.Name, len(b.Rows), b.Duration), nil
+}
+
+func applyClearBaseline(p *Project, op Op) (string, error) {
+	if p.Baseline == nil {
+		return "", fmt.Errorf("当前没有基线可清除")
+	}
+	p.Baseline = nil
+	return "清除基线", nil
+}
+
+func applyUpsertResource(p *Project, op Op) (string, error) {
+	// 整量新增或按 id 替换资源（v4.122 资源成本刀2）。
+	r := op.Resource
+	if r == nil {
+		return "", fmt.Errorf("upsert_resource 缺少 resource")
+	}
+	if err := checkResource(*r); err != nil {
+		return "", err
+	}
+	for i := range p.Resources {
+		if p.Resources[i].ID == r.ID {
+			p.Resources[i] = *r
+			return fmt.Sprintf("更新资源「%s」（%s）", r.Name, resourceTypeLabel(r.Type)), nil
+		}
+	}
+	p.Resources = append(p.Resources, *r)
+	return fmt.Sprintf("新增资源「%s」（%s）", r.Name, resourceTypeLabel(r.Type)), nil
+}
+
+func applyPatchResource(p *Project, op Op) (string, error) {
+	// 部分更新（指针三态：nil=不动），对齐 patch_task 范式。
+	idx := indexOfResource(p.Resources, op.ID)
+	if idx < 0 {
+		return "", fmt.Errorf("资源不存在：%s", op.ID)
+	}
+	r := &p.Resources[idx]
+	changes := make([]string, 0, 3)
+	if op.ResourcePatch != nil {
+		pr := op.ResourcePatch
+		if pr.Name != nil {
+			r.Name = *pr.Name
+			changes = append(changes, fmt.Sprintf("改名「%s」", *pr.Name))
+		}
+		if pr.Type != nil {
+			if err := checkResourceType(*pr.Type); err != nil {
+				return "", err
+			}
+			r.Type = *pr.Type
+			changes = append(changes, fmt.Sprintf("类型→%s", resourceTypeLabel(r.Type)))
+		}
+		if pr.Unit != nil {
+			r.Unit = *pr.Unit
+			if *pr.Unit == "" {
+				changes = append(changes, "清除计量单位")
+			} else {
+				changes = append(changes, fmt.Sprintf("计量单位→%s", *pr.Unit))
+			}
+		}
+		if pr.StandardRate != nil {
+			if badMoney(*pr.StandardRate) {
+				return "", fmt.Errorf("标准费率非法（须为非负有限数）：%v", *pr.StandardRate)
+			}
+			changes = append(changes, fmt.Sprintf("标准费率 %v→%v %s", r.StandardRate, *pr.StandardRate, rateUnit(r.Type)))
+			r.StandardRate = *pr.StandardRate
+		}
+		if pr.CostPerUse != nil {
+			if badMoney(*pr.CostPerUse) {
+				return "", fmt.Errorf("每次使用成本非法（须为非负有限数）：%v", *pr.CostPerUse)
+			}
+			changes = append(changes, fmt.Sprintf("每次使用成本 %v→%v 元", r.CostPerUse, *pr.CostPerUse))
+			r.CostPerUse = *pr.CostPerUse
+		}
+		if pr.MaxUnits != nil {
+			if badMoney(*pr.MaxUnits) {
+				return "", fmt.Errorf("可用上限非法（须为非负有限数）：%v", *pr.MaxUnits)
+			}
+			changes = append(changes, fmt.Sprintf("可用上限 %v→%v", r.MaxUnits, *pr.MaxUnits))
+			r.MaxUnits = *pr.MaxUnits
+		}
+	}
+	if len(changes) == 0 {
+		return "", fmt.Errorf("patch_resource 未提供任何字段")
+	}
+	return fmt.Sprintf("调整资源「%s」：%s", r.Name, strings.Join(changes, "、")), nil
+}
+
+func applyRemoveResource(p *Project, op Op) (string, error) {
+	// 删除资源并级联删除其全部分配（悬空引用不过夜）。
+	idx := indexOfResource(p.Resources, op.ID)
+	if idx < 0 {
+		return "", fmt.Errorf("资源不存在：%s", op.ID)
+	}
+	name := p.Resources[idx].Name
+	p.Resources = append(p.Resources[:idx], p.Resources[idx+1:]...)
+	kept := make([]Assignment, 0, len(p.Assignments))
+	cascaded := 0
+	for _, a := range p.Assignments {
+		if a.ResourceID == op.ID {
+			cascaded++
+			continue
+		}
+		kept = append(kept, a)
+	}
+	p.Assignments = kept
+	if cascaded > 0 {
+		return fmt.Sprintf("移除资源「%s」及其 %d 条分配", name, cascaded), nil
+	}
+	return fmt.Sprintf("移除资源「%s」（无分配）", name), nil
+}
+
+func applySetAssignments(p *Project, op Op) (string, error) {
+	// 整体替换某任务的分配集（set_links「整体替换入边」同范式）。
+	idx := indexOfTask(p.Tasks, op.TaskID)
+	if idx < 0 {
+		return "", fmt.Errorf("任务不存在：%s", op.TaskID)
+	}
+	if p.Tasks[idx].Level == 0 {
+		return "", fmt.Errorf("分组行 %s 禁止挂分配（汇总唯一口径为子孙求和）", op.TaskID)
+	}
+	taskName := p.Tasks[idx].Name
+	pairSeen := make(map[string]bool, len(op.Assignments))
+	for _, a := range op.Assignments {
+		if a.TaskID != "" && a.TaskID != op.TaskID {
+			return "", fmt.Errorf("set_assignments 只允许目标任务 %s 的分配，出现 %s", op.TaskID, a.TaskID)
+		}
+		if indexOfResource(p.Resources, a.ResourceID) < 0 {
+			return "", fmt.Errorf("资源不存在：%s", a.ResourceID)
+		}
+		pair := op.TaskID + "\x00" + a.ResourceID
+		if pairSeen[pair] {
+			return "", fmt.Errorf("分配重复（任务 %s ↔ 资源 %s）", op.TaskID, a.ResourceID)
+		}
+		pairSeen[pair] = true
+	}
+	// 只换该任务的入边，其他任务的分配原样保留。
+	kept := make([]Assignment, 0, len(p.Assignments)+len(op.Assignments))
+	for _, a := range p.Assignments {
+		if a.TaskID != op.TaskID {
+			kept = append(kept, a)
+		}
+	}
+	for _, a := range op.Assignments {
+		a.TaskID = op.TaskID
+		kept = append(kept, a)
+	}
+	p.Assignments = kept
+	return fmt.Sprintf("更新「%s」资源分配（共 %d 条）", taskName, len(op.Assignments)), nil
 }
 
 func indexOfTask(tasks []Task, id string) int {

@@ -1,3 +1,11 @@
+## 非版本刀：全仓审计第 23 批·god-func 大拆第二刀（IN3-04 applyOne 表驱动化）· 2026-10-03
+
+- **刀型**：接续批 22（`e7d1768d`）。**单线主代理直做**：IN3-04 `internal/schedule/ops.go` `applyOne` 430 行巨型 switch → 12 个 `applyXxx` 独立函数 + `opHandlers` map 注册表分派（批 22 配方第二刀）。**不抬版本**。
+- **交付**：`docs/code-audit-2026-10-02/round-25-p1-batch23.md`。
+- **三步配方**：①**契约先行**——golden fixture 补冻结**回执文案（summary）**（Err/After 已冻结、summary 是 applyOne 第三输出面也是拆分唯一可能静默漂移的面；TS 只消费 error/after，加法字段惰性实测 71 例绿）；②**表驱动拆分**——12 case 逐字搬运（含注释）dedent 一层 + 分派器未命中同 default 文案 + `ops_dispatch_test.go` 新守卫（注册表键集↔Op.Type 枚举双向锁+未知类型 fail-closed 逐字图钉）；③**零编辑复跑**——金样测试零编辑全绿=三输出面逐字节等价。绑定面零变更（ApplyOps/Op 签名不动，唯一生产调用方 schedule_tools.go 只读 summaries）。
+- **门禁**：前台 CI：golangci 0 issues + `go test ./... -count=1` 137 包全绿；vitest 3760/3762（2 红=OriginalSinPage.tabs 零交集 flaky，单文件复跑 4/4 绿定性环境瞬时）；前端 build exit 0 补跑。提交后复验「树干净+HEAD 可编译」。
+- **大拆配方进在册**：AP2-05+IN3-04 两刀实证「契约先行→表驱动→零编辑复跑」对 **switch 型** god-func=零行为差异形态；对照测试缺的面必须先补冻结再动手。下一刀候选 **AP2-01 runSinStream（非 switch 型，语义拆分，需独立预核）**；余量=god-file ~26+coupling ~20（拍板）+零散死码（等 109 拍板）。
+
 ## 非版本刀：全仓审计第 22 批·零散收尾 + 大拆试水（3 线 + 主代理直做 1）· 2026-10-03
 
 - **刀型**：接续批 21（`8dc9f021`）。duplication 零散收尾 + **god-func 大拆试水首刀** + 死码删除：**3 条互斥并行子代理线**（internal/app 双条 / frontend memoryhub / gaea/cache）+ 主代理直做（章节号正则改调收尾+AP3-03 式押后惯例）。**不抬版本**。
