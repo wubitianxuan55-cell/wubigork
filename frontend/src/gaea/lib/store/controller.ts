@@ -7,13 +7,16 @@ import { invalidateTurnCaches } from "../deliverablesTurn";
 import { create } from "zustand";
 import { useShallow } from "zustand/shallow";
 import { app, onEvent, onReady } from "../bridge";
-import { noteEventSeq, resetEventSync } from "../eventSync";
-import { errText, failWrite, logBridgeError, useMemoryActions } from "./controller_actions_memory";
+import { noteEventSeq } from "../eventSync";
+import { logBridgeError, useMemoryActions } from "./controller_actions_memory";
 import { useSessionActions } from "./controller_actions_session";
+import { useTurnActions } from "./controller_actions_turn";
+import { useWorkspaceActions } from "./controller_actions_workspace";
+import { useRewindActions } from "./controller_actions_rewind";
 import { parseTodos } from "../tools";
 import type {
   BalanceInfo, ContextInfo, FactBaseView, HistoryMessage, JobView,
-  Meta, QuestionAnswer, SessionStatsView, WireApproval, WireAsk,
+  Meta, SessionStatsView, WireApproval, WireAsk,
   WireEvent, WireUsage,
 } from "../types";
 export * from "./controller_state";
@@ -193,122 +196,11 @@ export function useController() {
     return () => { window.clearInterval(watchdog); };
   }, [loadSessionData, refreshFactBase, reconcileFinalAnswer, store, dispatch]);
 
-  // T7-4：send 失败不再静默——保留已上屏的用户消息（可复制重发），
-  // 记录 bridge 日志并给出用户可见的失败提示。
-  const send = useCallback((displayText: string, submitText = displayText) => {
-    dispatch({ type: "user", text: displayText });
-    const display = displayText.trim(); const submit = submitText.trim();
-    const p = display !== submit ? app.SubmitDisplay(display, submit) : app.Submit(submit);
-    p.catch((err) => failWrite(dispatch, "发送消息", err));
-  }, [dispatch]);
-
-  // 运行中插话调整（2026-08-28，对齐豆包工作「边跑边改」）：消息注入当前
-  // 回合作为补充指引，不打断执行、不开新回合；不落用户气泡（后端以 notice
-  // 回显）。未运行时后端 Steer 内部兜底走 Submit 排队。
-  const steer = useCallback((text: string) => {
-    const t = text.trim();
-    if (!t) return;
-    app.Steer(t).catch((err) => failWrite(dispatch, "插话调整", err));
-  }, [dispatch]);
-
-  const cancel = useCallback((): string | undefined => {
-    const cur = store.getState();
-    const onFail = (err: unknown) => failWrite(dispatch, "取消", err);
-    if (cur.running && cur.pendingUser !== undefined) { const text = cur.pendingUser; dispatch({ type: "unsend" }); app.Cancel().catch(onFail); return text; }
-    if (cur.running) dispatch({ type: "localCancel" }); // 事件丢失时仍能复位本地运行态
-    app.Cancel().catch(onFail); return undefined;
-  }, [store, dispatch]);
-
-  // T7-4：approve/answerQuestion 失败时不清掉弹窗（保留审批/提问界面），
-  // 记录日志并提示用户重试；成功后才清除。
-  const approve = useCallback((id: string, decision: "allow_once" | "allow_session" | "persist_allow" | "deny" | "abort") => {
-    app.Approve(id, decision)
-      .then(() => dispatch({ type: "clearApproval" }))
-      .catch((err) => failWrite(dispatch, "审批提交", err));
-  }, [dispatch]);
-  const answerQuestion = useCallback((id: string, answers: QuestionAnswer[]) => {
-    app.AnswerQuestion(id, answers)
-      .then(() => dispatch({ type: "clearAsk" }))
-      .catch((err) => failWrite(dispatch, "回答提交", err));
-  }, [dispatch]);
-  const setPermLevel = useCallback((level: string) => { app.SetPermLevel(level).catch((err) => failWrite(dispatch, "切换权限级别", err)); }, [dispatch]);
+  const { send, steer, cancel, approve, answerQuestion, setPermLevel } = useTurnActions(dispatch, store);
   const { newSession, listSessions, listProjectSessions, fetchSessionStats, resumeSession, archiveSession, unarchiveSession, pinSession, deleteSession, renameSession, refreshMeta } = useSessionActions(dispatch, loadItemsFoldedFirst, refreshFactBase);
-  const pickWorkspace = useCallback(async (): Promise<string> => {
-    const p = await app.PickWorkspace().catch((err: unknown) => { failWrite(dispatch, "打开工作区", err); return ""; });
-    if (p) {
-      dispatch({ type: "reset" }); resetEventSync(); refreshFactBase();
-      try {
-        dispatch({ type: "meta", meta: await app.Meta() });
-        dispatch({ type: "context", context: await app.ContextUsage() });
-      } catch (err) { logBridgeError("pickWorkspace refresh", err); }
-    }
-    return p;
-  }, [dispatch, refreshFactBase]);
-  const switchWorkspace = useCallback(async (path: string): Promise<string> => {
-    const n = await app.SwitchWorkspace(path).catch((err: unknown) => { failWrite(dispatch, "切换工作区", err); return ""; });
-    if (n) {
-      dispatch({ type: "reset" }); resetEventSync(); refreshFactBase();
-      try {
-        dispatch({ type: "meta", meta: await app.Meta() });
-        dispatch({ type: "context", context: await app.ContextUsage() });
-      } catch (err) { logBridgeError("switchWorkspace refresh", err); }
-    }
-    return n;
-  }, [dispatch, refreshFactBase]);
-  // FE3-04：Compact 是 mock-only 绑定（Go 侧无对应绑定，drift.ts MOCK_ONLY_NAMES
-  // 单源），真机上下文压缩由后端会话事件自动执行、无手动入口。真机调用现在从
-  // proxy 拿到显式 BridgeError（MockOnlyBinding），失败**不可重试**——不走
-  // failWrite（其固定追加「请重试」会误导），诚实提示一次性原因。dev mock 下
-  // Compact 正常 resolve，本 catch 不触发，行为不变。
-  const compact = useCallback(() => {
-    app.Compact().catch((err) => {
-      logBridgeError("compact", err);
-      dispatch({ type: "event", e: { kind: "notice", level: "warn", text: `压缩上下文失败：${errText(err)}` } });
-    });
-  }, [dispatch]);
-  const setModel = useCallback(async (name: string) => {
-    await app.SetModel(name).catch((err) => failWrite(dispatch, "切换模型", err));
-    try {
-      dispatch({ type: "meta", meta: await app.Meta() });
-      dispatch({ type: "context", context: await app.ContextUsage() });
-    } catch (err) { logBridgeError("setModel refresh", err); }
-  }, [dispatch]);
+  const { pickWorkspace, switchWorkspace, compact, setModel } = useWorkspaceActions(dispatch, refreshFactBase);
   const { fetchMemory, remember, forget, saveDoc, updateFact, changeFactType, clearFactBase, promoteFactBase } = useMemoryActions(dispatch, refreshFactBase);
-  const rewind = useCallback(async (turn: number, scope: string): Promise<boolean> => {
-    // T7-4：回退失败不再静默，且不触发 reset——保留当前对话现场（否则刚
-    // 弹的失败提示会被 reset 清空，用户连发生了什么都看不到）。
-    // 返回是否成功（v4.232：regenerate 编排需要据此决定是否重发）。
-    const act = (p: Promise<unknown>): Promise<boolean> =>
-      p.then(() => true).catch((err) => { failWrite(dispatch, "回退对话", err); return false; });
-    let ok = false;
-    if (scope === "fork") ok = await act(app.Fork(turn));
-    else if (scope === "summ-from") ok = await act(app.SummarizeFrom(turn));
-    else if (scope === "summ-upto") ok = await act(app.SummarizeUpTo(turn));
-    else ok = await act(app.Rewind(turn, scope));
-    if (!ok) return false;
-    dispatch({ type: "reset" });
-    resetEventSync(); // v4.26：回退重载历史，seq 基线归零
-    await loadItemsFoldedFirst(); // §8-5：折叠快照优先（日志序 id），History 保底
-    app.ContextUsage().then(c => dispatch({ type: "context", context: c })).catch((err) => logBridgeError("rewind ContextUsage", err));
-    return true;
-  }, [dispatch, loadItemsFoldedFirst]);
-
-  // 重新生成（v4.232，对齐同类产品 ChatGPT 式 regenerate）：丢弃最后一轮
-  // （含用户消息），用同一文本原样重发。复用 GaeaRewind+GaeaSend 既有原语
-  // （零新绑定），编排层保证「先截断成功、再重发」，失败不动现场。
-  // 只对最后一轮开放：更早的轮次要先生成中间轮才有意义，语义上交给回退。
-  const regenerate = useCallback(async (turn: number): Promise<boolean> => {
-    const cur = store.getState();
-    if (cur.running || cur.pendingUser !== undefined) return false;
-    const users = cur.items.filter((i): i is Extract<Item, { kind: "user" }> => i.kind === "user");
-    if (turn < 0 || turn !== users.length - 1) return false;
-    const target = users[turn];
-    if (!target || !target.text.trim()) return false;
-    const ok = await rewind(turn, "conversation");
-    if (!ok) return false;
-    send(target.text);
-    return true;
-  }, [store, rewind, send]);
+  const { rewind, regenerate } = useRewindActions(dispatch, loadItemsFoldedFirst, store, send);
 
   return { state, send, steer, cancel, approve, answerQuestion, setPermLevel, newSession, listSessions, listProjectSessions, resumeSession, archiveSession, unarchiveSession, pinSession, deleteSession, renameSession, refreshMeta, pickWorkspace, switchWorkspace, compact, rewind, setModel, fetchMemory, remember, forget, saveDoc, updateFact, changeFactType, clearFactBase, promoteFactBase, fetchSessionStats, regenerate };
 }
