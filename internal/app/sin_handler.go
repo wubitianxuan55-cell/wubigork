@@ -265,6 +265,11 @@ func (a *App) SinStream(topicID, message string) (string, error) {
 	return runID, nil
 }
 
+// runSinStream 单轮故事流（原 265 行串六职责单函数，批 24 AP2-01 拆三段）：
+// buildSinTurn 装配（历史窗口/角色/底稿/护栏/工具集/附件展开）→ runSinRounds
+// 工具轮循环（可变状态圈死在循环函数内）→ persistSinTurn 收尾（落库/回写定位/
+// 插图产物/成本/done 帧）。行搬语义不改：abort 哨兵=原循环内「整轮失败零正文」
+// 分支的 emit+落库上提到本层执行（帧序与原实现一致）。
 func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source string, runCtx context.Context, run *sinRun) {
 	defer unregisterSinRun(topicID, run)
 	defer func() {
@@ -274,6 +279,32 @@ func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source strin
 		}
 	}()
 
+	out := a.runSinRounds(runCtx, runID, model, a.buildSinTurn(runCtx, runID, topicID, userMessage, eng), run)
+	if out.abort != nil {
+		a.emit("sin-stream:"+runID, map[string]interface{}{"type": "error", "error": out.abort.Error()})
+		// 整轮失败也要把用户指令落库（镜像零正文取消的口径）：不然这轮
+		// 指令只活在内存里，刷新即消失；且失败前工具可能已写过底稿，
+		// 没有任何消息记录这轮轨迹就是状态单向漂移。
+		if _, err := a.chatStore.AppendMessage(topicID, "user", userMessage, ""); err != nil {
+			slog.Error("原罪故事落库失败（失败轮仅用户消息）", "runID", runID, "topicID", topicID, "error", err)
+		}
+		return
+	}
+	a.persistSinTurn(runID, topicID, userMessage, eng, model, source, out, run)
+}
+
+// sinTurnPlan 装配段产物：循环的静态输入（消息窗口/请求参数/工具集与 schemas）。
+type sinTurnPlan struct {
+	messages []ai.ChatMessage
+	opts     ai.ChatSimpleOptions
+	tools    []sinTool
+	schemas  []ai.ChatToolSchema
+}
+
+// buildSinTurn 装配段（原 runSinStream 前半行搬）：历史窗口/角色注入/底稿
+// 直注/play 护栏/工具集/附件 @引用展开。无失败出口——历史读取失败按无历史
+// 继续（Warn），装配恒成功。
+func (a *App) buildSinTurn(runCtx context.Context, runID, topicID, userMessage, eng string) sinTurnPlan {
 	// 前情装配：历史消息在写入本轮交换之前读取（本轮用户消息由 userMessage
 	// 直接带入提示，避免重复）。只取提示词窗口（最近 sinHistoryTurns 条，
 	// buildSinUserPrompt 也只用这段）——千回合老故事不再整表加载。
@@ -330,6 +361,29 @@ func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source strin
 		{Role: "system", Content: sinSystemPrompt()},
 		{Role: "user", Content: userPrompt},
 	}
+	return sinTurnPlan{messages: messages, opts: opts, tools: tools, schemas: schemas}
+}
+
+// sinRoundOutcome 循环段产物：reply/reasoning/usage/trace + abort 哨兵。
+type sinRoundOutcome struct {
+	reply     string
+	reasoning string
+	usage     *ai.ChatUsage
+	trace     []sinToolTrace
+	// abort 非 nil = 整轮失败零正文（原循环内 default 分支）：error 帧+仅用户
+	// 消息落库由 runSinStream 统一执行，循环自身不再带收尾副作用。
+	abort error
+}
+
+// runSinRounds 工具轮循环（原 runSinStream 中段行搬）：轮次上限/收尾轮 nudge/
+// 取消与中途错误正文并入/工具降级/收尾轮工具调用拒执/工具执行接回。可变状态
+// （messages/reply/reasoning/usage/trace/round/useTools/budget/nudged）全部
+// 圈死在本函数，调用方只拿产物。
+func (a *App) runSinRounds(runCtx context.Context, runID, model string, plan sinTurnPlan, run *sinRun) sinRoundOutcome {
+	messages := plan.messages
+	opts := plan.opts
+	schemas := plan.schemas
+	tools := plan.tools
 	var (
 		reply, reasoning strings.Builder
 		usage            *ai.ChatUsage
@@ -386,14 +440,9 @@ func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source strin
 					"type": "notice", "message": "生成中断，已保留已生成的部分",
 				})
 			default:
-				a.emit("sin-stream:"+runID, map[string]interface{}{"type": "error", "error": err.Error()})
-				// 整轮失败也要把用户指令落库（镜像零正文取消的口径）：不然这轮
-				// 指令只活在内存里，刷新即消失；且失败前工具可能已写过底稿，
-				// 没有任何消息记录这轮轨迹就是状态单向漂移。
-				if _, err := a.chatStore.AppendMessage(topicID, "user", userMessage, ""); err != nil {
-					slog.Error("原罪故事落库失败（失败轮仅用户消息）", "runID", runID, "topicID", topicID, "error", err)
-				}
-				return
+				// 整轮失败零正文：error 帧+仅用户消息落库的收尾副作用上提
+				// runSinStream 统一执行（批 24 拆分行搬，帧序与原实现一致）。
+				return sinRoundOutcome{reply: reply.String(), reasoning: reasoning.String(), usage: usage, trace: trace, abort: err}
 			}
 			break
 		}
@@ -433,10 +482,20 @@ func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source strin
 			messages = append(messages, a.sinRunToolCall(runCtx, runID, tools, call, &trace, budget))
 		}
 	}
+	return sinRoundOutcome{reply: reply.String(), reasoning: reasoning.String(), usage: usage, trace: trace}
+}
+
+// persistSinTurn 收尾段（原 runSinStream 后半行搬）：空回复兜底/零正文取消/
+// extra 序列化/落库/回写定位/插图产物回写/成本估算/done 帧。落库失败必须
+// 透传（消息已生成但未持久化 = 用户可见的失败，不静默吞错）。
+func (a *App) persistSinTurn(runID, topicID, userMessage, eng, model, source string, out sinRoundOutcome, run *sinRun) {
+	replyStr := out.reply
+	reasoningStr := out.reasoning
+	cancelled := run.cancelled.Load()
 
 	// 兜底：全程只吐工具调用、没有任何正文时，不落一条空消息（用户看到的是
 	// 「没有内容」而不是「失败」）。取消不算——那是有意的部分保留。
-	if strings.TrimSpace(reply.String()) == "" && !run.cancelled.Load() {
+	if strings.TrimSpace(replyStr) == "" && !cancelled {
 		a.emit("sin-stream:"+runID, map[string]interface{}{
 			"type": "error", "error": "模型没有返回内容，请重试",
 		})
@@ -447,10 +506,6 @@ func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source strin
 		return
 	}
 
-	replyStr := reply.String()
-	reasoningStr := reasoning.String()
-	cancelled := run.cancelled.Load()
-
 	// 零正文取消：不落一条空 assistant 消息（历史/导出/轨迹都会被空行污染），
 	// 只保留用户指令落库——残稿一个字没有，「保留部分」无从谈起。
 	if cancelled && strings.TrimSpace(replyStr) == "" {
@@ -459,7 +514,7 @@ func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source strin
 		}
 		a.emit("sin-stream:"+runID, map[string]interface{}{
 			"type": "done", "reply": "", "reasoning": reasoningStr, "topicID": topicID,
-			"message_id": int64(0), "cancelled": true, "tools": trace,
+			"message_id": int64(0), "cancelled": true, "tools": out.trace,
 			"answered_by": map[string]interface{}{"engine": eng, "model": model, "source": source, "cost_cny": 0.0},
 		})
 		return
@@ -467,9 +522,9 @@ func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source strin
 
 	extra := ""
 	extraMap := map[string]interface{}{"reasoning": reasoningStr}
-	if len(trace) > 0 {
+	if len(out.trace) > 0 {
 		// 工具轨迹与 done.tools 同一形态：前端单点解析，流式与重开同一条渲染路径。
-		extraMap["tools"] = trace
+		extraMap["tools"] = out.trace
 	}
 	if cancelled {
 		extraMap["cancelled"] = true
@@ -477,7 +532,6 @@ func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source strin
 	if b, err := json.Marshal(extraMap); err == nil {
 		extra = string(b)
 	}
-	// 落库失败必须透传（消息已生成但未持久化 = 用户可见的失败，不静默吞错）。
 	if err := a.appendChatExchange(topicID, userMessage, replyStr, extra); err != nil {
 		slog.Error("原罪故事落库失败", "runID", runID, "topicID", topicID, "error", err)
 		a.emit("sin-stream:"+runID, map[string]interface{}{
@@ -506,15 +560,15 @@ func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source strin
 	// 工具插图产物回写（v4.270）：本轮落库后把 sin_illustrate 的产物按
 	// tool0..toolN 写进 extra.illustrations——画廊/导出与正文标记图同一存储。
 	// cue 用 toolN 前缀：正文标记的 cue 是数字键，避免同键互踩。
-	a.sinPersistToolArtifacts(topicID, messageID, trace)
+	a.sinPersistToolArtifacts(topicID, messageID, out.trace)
 
 	costCNY := 0.0
-	if usage != nil {
+	if out.usage != nil {
 		usdCny := 0.0
 		if a.cfg != nil {
 			usdCny = a.cfg.UsdCnyRate
 		}
-		costCNY = modelengine.EstimateCostCNY(eng, model, usage.PromptTokens, usage.CompletionTokens, usdCny)
+		costCNY = modelengine.EstimateCostCNY(eng, model, out.usage.PromptTokens, out.usage.CompletionTokens, usdCny)
 	}
 	a.emit("sin-stream:"+runID, map[string]interface{}{
 		"type":       "done",
@@ -524,7 +578,7 @@ func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source strin
 		"message_id": messageID,
 		"cancelled":  cancelled,
 		// 本轮工具轨迹（无工具时为空数组/ null，前端按「无卡片」处理）。
-		"tools": trace,
+		"tools": out.trace,
 		"answered_by": map[string]interface{}{
 			"engine": eng, "model": model, "source": source, "cost_cny": costCNY,
 		},

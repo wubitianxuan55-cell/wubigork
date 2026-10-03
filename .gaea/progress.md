@@ -1,3 +1,12 @@
+## 非版本刀：全仓审计第 24 批·god-func 大拆第三刀（AP2-01 runSinStream 三段拆）· 2026-10-03
+
+- **刀型**：接续批 23（`65baace6`）。**单线主代理直做**：AP2-01 `runSinStream` 265 行串六职责 → 「装配/循环/收尾」三段拆（`buildSinTurn`/`runSinRounds`/`persistSinTurn`，审计修法落地）。**不抬版本**。
+- **交付**：`docs/code-audit-2026-10-02/round-26-p1-batch24.md`。
+- **关键判定**：非 switch 型不适用表驱动配方；「先搬行不改语义」+ **abort 哨兵上提**（循环内「整轮失败零正文」的 emit+仅用户落库 inline 出口移到分派层，帧序逐帧一致）；循环 8 个可变态圈死在 `runSinRounds` 内；`sinTurnPlan`/`sinRoundOutcome` 两个产物结构体。预核漏项自查：buildSinTurn 漏 eng 参数编译期抓到即补。
+- **等价证明**：测试零编辑（sin 族 20+ 用例+app 全包 117s 绿）；**反向变异一组**（abort 落库 topicID 加 TEMP-MUTATE→TestSinStreamPlainErrorSavesUserMessage 红→还原绿→全仓 0 残留）；vitest 435 文件 3762 例全绿（顺带证批 23 两红=环境瞬时）。
+- **顺手对账**：ci 尾段卫生守卫拦下 `releases/README.md` 源码包计数漂移（11 vs 12，e48c1c56 归档漏更新与本批无关）→ 单修 `341da99d`（12 个/181.0 MiB）。
+- **god-func 大拆三刀结论进在册**：switch 型=表驱动（AP2-05/IN3-04）、状态圈死型=三段拆+哨兵上提（AP2-01）；等价证明统一形态=「契约/测试先行→搬行→零编辑复跑绿+反向变异抽查」。god-func 簇余量=god-file ~26+coupling ~20（拍板）+零散死码（等 109 拍板）。
+
 ## 非版本刀：全仓审计第 23 批·god-func 大拆第二刀（IN3-04 applyOne 表驱动化）· 2026-10-03
 
 - **刀型**：接续批 22（`e7d1768d`）。**单线主代理直做**：IN3-04 `internal/schedule/ops.go` `applyOne` 430 行巨型 switch → 12 个 `applyXxx` 独立函数 + `opHandlers` map 注册表分派（批 22 配方第二刀）。**不抬版本**。
