@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
-import { Input, Modal, Popconfirm, message } from "antd";
+import { Popconfirm, message } from "antd";
 import {
-  ChevronDown, Clock, CloudUpload, Coins, FolderPlus, List,
+  ChevronDown, CloudUpload, Coins, FolderPlus, List,
   Plus, RefreshCw, Table,
 } from "../icons";
 import { app } from "../lib/bridge";
@@ -13,6 +13,7 @@ import { CostEntryModal } from "./memoryhub/CostEntryModal";
 import { CostImportModal } from "./memoryhub/CostImportModal";
 import { CostCompareModal } from "./memoryhub/CostCompareModal";
 import { CategoryNode, CostRow, ListView, TableRow, TableView, type SortKey } from "./cost_library_parts";
+import { CategoryModal, DeleteCostModal, PriceHistoryModal } from "./cost_library_modals";
 
 export { CostRow, ListView, TableRow, TableView };
 
@@ -648,81 +649,20 @@ export function CostLibraryView() {
       />
 
       {/* 删除条目确认 */}
-      <Modal
-        title="删除成本"
-        open={!!deleteName}
-        onCancel={() => setDeleteName(null)}
-        onOk={handleDelete}
-        okText="删除"
-        destroyOnHidden
-        transitionName=""
-        maskTransitionName=""
-        okButtonProps={{ danger: true }}
-        cancelText="取消"
-        width={440}
-      >
-        <p className="text-[13px] text-fg-dim">确定删除成本条目「{deleteName}」吗？</p>
-      </Modal>
+      <DeleteCostModal name={deleteName} onCancel={() => setDeleteName(null)} onOk={handleDelete} />
 
       {/* 分类 新建/重命名 */}
-      <Modal
-        title={catModal?.mode === "rename" ? "重命名分类" : "新建分类"}
-        open={!!catModal}
+      <CategoryModal
+        catModal={catModal}
+        name={catName}
+        onNameChange={setCatName}
+        onSave={saveCategory}
         onCancel={() => setCatModal(null)}
-        onOk={saveCategory}
-        okText={catModal?.mode === "rename" ? "保存" : "创建"}
-        destroyOnHidden
-        transitionName=""
-        maskTransitionName=""
-        cancelText="取消"
-        width={420}
-      >
-        <div className="space-y-2 py-1">
-          {catModal && catModal.mode === "create" && catModal.parentId > 0 && (
-            <div className="text-[11.5px] text-fg-faint">
-              父分类：<span className="text-fg">{pathById.get(catModal.parentId) ?? "—"}</span>
-            </div>
-          )}
-          <Input
-            value={catName}
-            onChange={(e) => setCatName(e.target.value)}
-            placeholder="分类名称，如 钢材 / 桩基机械"
-            autoFocus
-            onPressEnter={saveCategory}
-            className="!text-[13px]"
-          />
-        </div>
-      </Modal>
+        parentPath={catModal && catModal.mode === "create" && catModal.parentId > 0 ? (pathById.get(catModal.parentId) ?? "—") : ""}
+      />
 
       {/* 价格历史 */}
-      <Modal
-        title={`价格历史：${historyName}`}
-        open={historyOpen}
-        onCancel={() => setHistoryOpen(false)}
-        footer={null}
-        destroyOnHidden
-        transitionName=""
-        maskTransitionName=""
-        width={520}
-      >
-        {historyRows.length === 0 ? (
-          <div className="py-6 text-center text-fg-faint text-[12px]">暂无价格历史（保存时内容变化会自动留档）</div>
-        ) : (
-          <div className="space-y-1.5 max-h-[46vh] overflow-auto">
-            {historyRows.map((h, i) => (
-              <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-bg-soft/40 text-[12px]">
-                <Clock size={12} className="text-fg-faint shrink-0" />
-                <span className="text-fg font-medium tabular-nums">{priceText(h.price)}{h.unit ? `/${h.unit}` : ""}</span>
-                {h.period && <span className="text-fg-faint">{h.period}</span>}
-                {h.source && <span className="text-fg-faint truncate">来源：{h.source}</span>}
-                <span className="ml-auto text-fg-faint text-[10.5px] shrink-0">
-                  {h.fetchedAt ? new Date(h.fetchedAt).toLocaleString("zh-CN", { hour12: false }) : ""}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </Modal>
+      <PriceHistoryModal open={historyOpen} name={historyName} rows={historyRows} onClose={() => setHistoryOpen(false)} priceText={priceText} />
     </div>
   );
 }
