@@ -1,3 +1,11 @@
+## 非版本刀：全仓审计第 33 批·FE3-11 controller.ts 第一刀（状态机纯函数层出仓）· 2026-10-03
+
+- **刀型**：接续批 32（`5346e60a`）。前端配方第四刀：controller.ts 884→415+controller_state.ts 484——纯状态机层（types/取号 slot 口径/历史重建/applyEvent/reducer/initialState，零闭包）出仓，`export *` 原路 re-export 外部导入路径不变；React 编排层留守。主代理直做。**不抬版本**。
+- **交付**：`docs/code-audit-2026-10-02/round-35-p1-batch33.md`。
+- **预核要点**：logBridgeError 触 app.LogFrontendError 判归编排侧（防纯函数偷桥）；useController 36 回调 hook 分域=设计型另立刀。**编译期迭代三次**：漏 type import 级联出测试 TS7006 假象（根因单一致）；`Action` 原私有跨层要用逼出 export 决策（拆分的正向收益=纯/编排契约显式化）；CRLF 下 python 需 wb 字节替换。
+- **门禁**：tsc 绿 / store+contract 12 文件 105 例绿 / 前台 ci **exit 0**（vitest 435 文件 3762 例）；提交后树干净+HEAD 可编译。
+- **FE3-11 部分收敛（884→415+484）**：下一批候选=FE3-11 续刀（hook 分域配方）或 CostLibraryView/CostProjectsView 组件族；coupling ~20 与零散死码等拍板。
+
 ## 非版本刀：全仓审计第 32 批·FE6-07 ModuleLauncher 拆分（展示件+轮询 hook 出仓）· 2026-10-03
 
 - **刀型**：接续批 31（`221b73ee`）。前端配方第三刀：ModuleLauncher.tsx 1058→684+launcher_parts.tsx 391（九个纯展示子组件+useLauncherData 轮询 hook+最小类型整段出仓；主文件留双空间首页主体+两套变体）。主代理直做。**不抬版本**。
