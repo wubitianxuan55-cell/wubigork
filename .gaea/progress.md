@@ -1,3 +1,10 @@
+## 非版本刀：CharacterPage hook 分域七刀（1092→650+7 hook，16 例金样零编辑复绿）· 2026-10-04
+
+- **拆分落地**（`facb8835`，controller.ts 配方）：状态与 handler 群迁 `pages/character/` 七 hook——useCharacterData（数据根：三表加载+代际守卫+同步事件）/useCharFilters（筛选持久化）/useProjectCharacterEdit（抽屉本书局部设定域，CharacterDataSlice 显式注入）/useProtagonistRelations（关系批量域）/useCharDraw（抽卡）/useLegacyWriteBack（两段式回写）/useOrgRelation（组织+关系）；页面 1092→650 纯接线+JSX 逐字节保留。
+- **等价证明**：16 例金样零编辑复绿 + tsc 0 + eslint 0 error + knip 无新发现 + vitest 全量 3769/3769。
+- **配方复训**：跨域依赖全部显式注入（防 hook 间环，批 36 同款）；hook 变量命名避正文局部名冲突（orgRel）；重组脚本行号切片须核尾随空行（1092 wc vs 1093 split）。
+- **不抬版本**。下一候选：CharacterPage 渲染函数出仓（renderProjectDetail/renderDrawModal/renderMergeModal → 子组件，可再减 ~300 行）或 CreatePage（宜缓）。
+
 ## 非版本刀：CharacterPage 域刻画测试 11 例（hook 拆分前置契约）· 2026-10-04
 
 - **测试网 5→16 例**（`22ccb1e9`）：新增 domains.test 覆盖同步/回写（零冲突直写路径）/抽卡（默认参数+roleType 回退+pending 过滤+可变引用表 mock）/AI 主角关系（missing 直跑/all 须确认/三态消息/单角色点名）/合并（**参数序 A 并入 B 锁定**）/组织保存。手法=vi.mock 两个 API 门面+antd message 间谍+重型子组件桩。
