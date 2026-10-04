@@ -468,66 +468,19 @@ func isWML(name xml.Name, local string) bool {
 // rebuildParagraph 重建命中段落的 run 序列：被选区覆盖的文本包进 w:del，
 // 之后插入 w:ins（新文本），其余 run 原样保留。
 func rebuildParagraph(data []byte, p paragraph, s, e int, replacement, author string) ([]byte, error) {
-	// 按 run 分组：runTagStart → segs
-	type runGroup struct {
-		tagStart, tagEnd, end int
-		rPrStart, rPrEnd      int
-		tAttrs                string
-		segs                  []textSeg
+	// 分组与受影响区间计算走 ooxml 共享核心（与 pptxedit 同一出处，
+	// 2026-10-04 收敛）；w:del/w:ins 修订记号发射是 docx 方言。
+	core := make([]ooxml.TextSegCore, len(p.segs))
+	for i, seg := range p.segs {
+		core[i] = ooxml.TextSegCore{Text: seg.text, RunTagStart: seg.runTagStart, RunTagEnd: seg.runTagEnd,
+			RunEnd: seg.runEnd, RPrStart: seg.rPrStart, RPrEnd: seg.rPrEnd, TAttrs: seg.tAttrs}
 	}
-	var groups []*runGroup
-	groupByRun := map[[2]int]*runGroup{}
-	for _, seg := range p.segs {
-		key := [2]int{seg.runTagStart, seg.runTagEnd}
-		g := groupByRun[key]
-		if g == nil {
-			g = &runGroup{tagStart: seg.runTagStart, tagEnd: seg.runTagEnd, end: seg.runEnd,
-				rPrStart: -1, rPrEnd: seg.rPrEnd, tAttrs: seg.tAttrs}
-			groupByRun[key] = g
-			groups = append(groups, g)
-		}
-		g.segs = append(g.segs, seg)
-		if seg.runEnd > g.end {
-			g.end = seg.runEnd
-		}
-		if seg.rPrStart >= 0 && (g.rPrStart < 0 || seg.rPrStart < g.rPrStart) {
-			g.rPrStart = seg.rPrStart
-		}
-		if seg.rPrEnd > g.rPrEnd {
-			g.rPrEnd = seg.rPrEnd
-		}
-	}
-
-	// 计算每个 run 在段落文本中的字符区间，找出被选区覆盖的 run。
-	type runSpan struct {
-		g       *runGroup
-		start   int // run 文本起点（rune 偏移，基于 p.text）
-		end     int // run 文本终点
-		delFrom int // run 内删除起点（run 内 rune 偏移）
-		delTo   int // run 内删除终点
-	}
-	var affected []*runSpan
-	cursor := 0
-	for _, g := range groups {
-		runText := ""
-		for _, seg := range g.segs {
-			runText += seg.text
-		}
-		runLen := len([]rune(runText))
-		rs := runSpan{g: g, start: cursor, end: cursor + runLen}
-		// 与 [s,e) 求交
-		df := ooxml.MaxInt(rs.start, s) - rs.start
-		dt := ooxml.MinInt(rs.end, e) - rs.start
-		if dt > df {
-			rs.delFrom, rs.delTo = df, dt
-			affected = append(affected, &rs)
-		}
-		cursor += runLen
-	}
-	if len(affected) == 0 {
+	groups := ooxml.GroupRuns(core)
+	affected, ok := ooxml.AffectedSpans(groups, s, e)
+	if !ok {
 		return nil, fmt.Errorf("选区未命中任何文本")
 	}
-	lastAffectedGroup := affected[len(affected)-1].g
+	lastAffectedGroup := affected[len(affected)-1].G
 
 	maxID := maxWID(data)
 	delID := maxID + 1
@@ -540,24 +493,24 @@ func rebuildParagraph(data []byte, p paragraph, s, e int, replacement, author st
 	insInserted := false
 	for _, g := range groups {
 		runText := ""
-		for _, seg := range g.segs {
-			runText += seg.text
+		for _, seg := range g.Segs {
+			runText += seg.Text
 		}
 		runRunes := []rune(runText)
 		var delFrom, delTo int
 		isAffected := false
 		for _, rs := range affected {
-			if rs.g == g {
-				delFrom, delTo, isAffected = rs.delFrom, rs.delTo, true
+			if rs.G == g {
+				delFrom, delTo, isAffected = rs.DelFrom, rs.DelTo, true
 				break
 			}
 		}
 		// 拷贝 run 之前的内容（含未分组的 run：图片等原样保留）
-		out.Write(data[pos:g.tagStart])
+		out.Write(data[pos:g.TagStart])
 		if !isAffected {
 			// 原样拷贝
-			out.Write(data[g.tagStart:g.end])
-			pos = g.end
+			out.Write(data[g.TagStart:g.End])
+			pos = g.End
 			continue
 		}
 
@@ -565,11 +518,11 @@ func rebuildParagraph(data []byte, p paragraph, s, e int, replacement, author st
 		deleted := string(runRunes[delFrom:delTo])
 		after := string(runRunes[delTo:])
 		rPrRaw := ""
-		if g.rPrStart >= 0 && g.rPrEnd > g.rPrStart {
-			rPrRaw = string(data[g.rPrStart:g.rPrEnd])
+		if g.RPrStart >= 0 && g.RPrEnd > g.RPrStart {
+			rPrRaw = string(data[g.RPrStart:g.RPrEnd])
 		}
-		attrs := g.tAttrs
-		runTag := string(data[g.tagStart:g.tagEnd])
+		attrs := g.TAttrs
+		runTag := string(data[g.TagStart:g.TagEnd])
 
 		// 删除前的剩余文本：独立 run
 		if before != "" {
@@ -602,7 +555,7 @@ func rebuildParagraph(data []byte, p paragraph, s, e int, replacement, author st
 			out.WriteString(ooxml.TextElement("w:t", after, attrs, true))
 			out.WriteString("</w:r>")
 		}
-		pos = g.end
+		pos = g.End
 	}
 	out.Write(data[pos:p.end])
 	return out.Bytes(), nil
