@@ -1,3 +1,10 @@
+## 非版本刀：第三轮全仓审计收敛批 + §3.2 重复收敛批（净 −2017 行）· 2026-10-04
+
+- **第三轮审计收敛批（`0c09977e`）**：今晨 11 子代理分域扫描→双证据复核的改动落库（净删 ~1937 行：TS6133 清单 38 条/死文件 2/死本地化键 26×3/死类型/死 CSS ~676 行两路交叉验证/Go 零调用方法 12 个+precheck 死分支/round4 收敛 cost.Round4）；**守卫开闸** tsconfig.app.json noUnusedLocals/Parameters（反向探针 TS6133 验证生效）+ wails.json npm→pnpm + .audit/ 入 gitignore；拦下 15 组「看着像死实则活」误报未删。交接验证全亲跑：go build/vet/lint 0 issues、go test 全量零 FAIL、tsc/eslint 绿、vitest 3752/3752（基线 3760−8=有意删的死测试，账平）、pnpm build、docs/绑定 635/locale 死键三门禁。**审计报告归档 docs/code-audit-2026-10-04/**（README+reports 10 份，docs/README 登记防孤儿）。
+- **§3.2 重复收敛批（`da89ca89`）**：errText 方言 A（err, fallback）14 份逐字相同 → utils/errText.ts 单源+3 测试（方言 B 无 fallback 语义不同未并）；EMO_COLORS/EMOTION_COLORS 9 色全等 → chat/constants.ts 再导出；Go strutil 增 ParseTagsJSON（cost+knowledge 5 调用点）+ ContainsHan（hasHan/isCJStr 名不符实收敛）。**等价性测试反抓两处我的注释错误**：假名串含汉字（日本語）=true；尾部垃圾 Unmarshal 实测不部分填充返回 nil——语义按实测冻结。sortedKeys 3 份签名各异=方言不硬并。
+- **发版判定**：纯内部清理零行为变化，按 README 发版约定（用户可感能力才抬版本）**不抬版本**，记入 CHANGELOG 随下一版。
+- **余池**：§3.1 结构性（config.Load 449 行/xlsxedit applyOne 253/rebuildParagraph 双份 140 行/boot.Build 559/client.go 1160/CreatePage 1403）；§3.2 余（拖拽清理块 ×4 抽 hook、*Prefs localStorage 系列 14 文件、测试 fixture 17 份、novelModelName ×4）；§3.3 待拍板（SummarizeFrom 拒绝桩/SuspendPrefix 未接线/reasoning_language no-op/SetMemoryQueue 不可达/幽灵工具名 4 个 HideUnlessOnly 永久 no-op/types/interfaces.go 22 类型 ~240 行/provider retry.go 整文件+SSRF 判据 weixin 副本漏 IN2-04）；§3.4 补测（schedule ops.go TestApplyOpsEachKind 表驱动）；§3.5 守卫残余（eslint 未用变量 warn/knip 未装）。
+
 ## 发版 v4.455.0：全仓审计修复收官（512 条审计 50 批清账 + 绑定面 744→635）· 2026-10-03
 
 - 2026-10-02 全仓审计修复线程收官（批 11~56）：P0 25 全清；四簇/duplication/god-file 族/留池/上报未动池/观察池全清或归拍板；拍板池 16 项中 14 项已执行或零动作确认。**绑定面 744→635**（A1① 109 零调用摘除，生成器 excludedBindings 管线）。要点：AtomicWrite perm 生效/WhisperSubgraph 真机空图根修/AtomicWriteSync fsync 变体/任务身份三系统对照表/NOT_MOCKED 45→0 fail-closed/controller.ts 884→141 hook 分域六文件/estimateTokens 五处收敛/反向变异三组+ID 格式钉三件。发布前 ci.ps1 全量档首次联合通过（前端 vitest 3760/435；app 全包 135s 绿）。
