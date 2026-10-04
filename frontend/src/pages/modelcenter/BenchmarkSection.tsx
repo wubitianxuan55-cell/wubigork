@@ -1,14 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { errText } from '../../utils/errText'
 import { Button, Input, InputNumber, message, Select, Space, Tag } from 'antd'
 import { ExperimentOutlined, ExportOutlined, PlayCircleOutlined, ReloadOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { EmptyState, KpiTile, SectionHead, StatusChip } from './ui'
 import type { AppFacade } from '../../types/wails'
 import { usePollingGate } from '../../hooks/usePollingGate'
-
-/** 提取错误消息（unknown 收窄；无 message 用 fallback） */
-function errText(err: unknown, fallback: string): string {
-  return (err instanceof Error && err.message) || fallback
-}
 import {
   exportBenchmark, getBenchmarkList, getHerdsmanCatalog, startBenchmark, streamProbe,
   type BenchmarkPromptRequest, type BenchmarkRequest, type BenchmarkRunSummary, type StreamProbeResult,

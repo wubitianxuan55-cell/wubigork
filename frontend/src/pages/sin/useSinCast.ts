@@ -6,6 +6,7 @@
 // 提示词侧：后端 SinStream 会把这些角色的设定注入故事上下文（见 sin_prompt.go）。
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { errText } from '../../utils/errText'
 import { app } from '../../gaea/lib/bridge'
 
 /** 角色库角色最小展示面（对齐 characterlib.Character 的 JSON 字段）。 */
@@ -23,10 +24,6 @@ export interface SinCastCharacter {
 }
 
 const LIBRARY_PAGE_SIZE = 200
-
-function errText(err: unknown, fallback: string): string {
-  return (err instanceof Error && err.message) || fallback
-}
 
 /** 归一化 CharacterList 的条目（缺字段诚实留空，不编造）。 */
 function toCharacter(raw: Record<string, unknown>): SinCastCharacter {

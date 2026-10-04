@@ -59,7 +59,7 @@ import { C } from '../utils/theme'
 // 瘦身 P3 拆分（沿用 v4.170 分批搬移先例）：阅读/编辑 chrome、阅读正文面板、
 // 划词工具条与想法/问书弹窗、errText 均已抽至 pages/chapter/ 子目录（纯受控展示
 // 组件，状态与回调经 props 传入），主文件仅保留状态/接线与空态等骨架 JSX。
-import { errText } from './chapter/errText'
+import { errText } from '../utils/errText'
 import ReadingChrome from './chapter/readingChrome'
 import EditChrome from './chapter/editChrome'
 import RewriteModal from '../components/novel/RewriteModal'

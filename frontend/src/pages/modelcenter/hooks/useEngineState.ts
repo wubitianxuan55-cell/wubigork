@@ -10,6 +10,7 @@
  * 时 effect 清理会作废在途刷新的结果；5s 定时器随 category 重置。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { errText } from '../../../utils/errText'
 import type { Dispatch, SetStateAction } from 'react'
 import { message } from 'antd'
 import { app } from '../../../gaea/lib/bridge'
@@ -23,11 +24,6 @@ import {
   type EngineConfig, type EngineStatus,
 } from '../../../api/engines'
 import { kindOf, engineLabel, modelMeta, type Category, type ModelCardData } from '../utils'
-
-/** 提取错误消息（unknown 收窄；无 message 用 fallback） */
-function errText(err: unknown, fallback: string): string {
-  return (err instanceof Error && err.message) || fallback
-}
 
 // MH2（蒸馏 unsloth §三）：Studio 加载是异步长任务（冷加载实测 50s+，
 // 内存挤占时可超 2min），轮询上限给 3 分钟、5s 一拍，超时诚实失败。

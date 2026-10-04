@@ -2,6 +2,7 @@
 // 角色是独立资产：不绑定任何一本小说，小说只是引用；聊天直接把角色当人格用。
 // 布局：细条头部（统计 + 新建主操作）→ 左检索/筛选栏 + 中档案卡网格 + 右详情 inspector。
 import React, { useCallback, useEffect, useState } from 'react'
+import { errText } from '../utils/errText'
 import {
   Button, message, Pagination, Modal, Spin,
 } from 'antd'
@@ -23,11 +24,6 @@ import {
 } from '../api/characterlib'
 import '../components/characterlib/character-library.css'
 import { subscribeWailsEvent } from '../gaea/lib/wailsEvents'
-
-/** 提取错误消息（unknown 收窄；无 message 用 fallback） */
-function errText(err: unknown, fallback: string): string {
-  return (err instanceof Error && err.message) || fallback
-}
 
 const PAGE_SIZE = 24
 const PERSONALITY_KEY = 'gaea_whisper_personality'

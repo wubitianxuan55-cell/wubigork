@@ -6,6 +6,7 @@
  * 用于计算剧照的可用模型选项（跨分类共享）。
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { errText } from '../../../utils/errText'
 import type { Dispatch, SetStateAction } from 'react'
 import { message } from 'antd'
 import { app } from '../../../gaea/lib/bridge'
@@ -13,11 +14,6 @@ import { getPortraitConfig, setPortraitConfig, getSinImageConfig, setSinImageCon
 import { FEATURES, imageModelOptionsFor } from '../utils'
 import type { EngineConfig } from '../../../api/engines'
 import type { AppFacade } from '../../../types/wails'
-
-/** 提取错误消息（unknown 收窄；无 message 用 fallback） */
-function errText(err: unknown, fallback: string): string {
-  return (err instanceof Error && err.message) || fallback
-}
 
 export interface BindState {
   featureCfg: Record<string, { engine: string; model: string }>

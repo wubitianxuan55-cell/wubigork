@@ -7,6 +7,7 @@
 // 浏览器 dev mock 下为诚实空态（mock/sin.ts）。
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { errText } from '../../utils/errText'
 import { Button, Input, InputNumber, Popconfirm, Progress, message } from 'antd'
 import { DeleteOutlined, ExportOutlined, SearchOutlined, SendOutlined } from '@ant-design/icons'
 import { app } from '../../gaea/lib/bridge'
@@ -19,10 +20,6 @@ import type { NovelBookSourceCandidate } from '../../gaea/lib/bridge/novel'
 import type { SinBookSourceBook, SinBookSourceDownloadStart } from '../../gaea/lib/bridge/sin'
 import type { NovelBookSourceTocPreview } from '../../gaea/lib/bridge/novel'
 import V3Empty from '../../components/V3Empty'
-
-function errText(err: unknown, fallback: string): string {
-  return (err instanceof Error && err.message) || fallback
-}
 
 function fmtSize(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`

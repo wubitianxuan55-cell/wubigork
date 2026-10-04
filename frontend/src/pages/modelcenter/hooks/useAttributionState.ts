@@ -7,6 +7,7 @@
  * 事件自动刷新，前端不手动刷绑定区（建议制红线：不自动改绑，采纳=用户动作）。
  */
 import { useCallback, useEffect, useState } from 'react'
+import { errText } from '../../../utils/errText'
 import { message } from 'antd'
 import {
   applyRouteSuggestion,
@@ -16,11 +17,6 @@ import {
   type RouteLedgerView,
   type RouteSuggestion,
 } from '../../../api/engines'
-
-/** 提取错误消息（unknown 收窄；无 message 用 fallback） */
-function errText(err: unknown, fallback: string): string {
-  return (err instanceof Error && err.message) || fallback
-}
 
 export interface AttributionState {
   ledger: RouteLedgerView | null

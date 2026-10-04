@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gaea/gaea/internal/gaea/strutil"
 )
 
 // migrateMarker 是 Hephaestus.db profile 表中的知识库迁移标记。
@@ -62,7 +64,7 @@ FROM knowledge WHERE name=?`, name).Scan(
 		}
 		return nil, err
 	}
-	e.Tags = parseTagsJSON(tags)
+	e.Tags = strutil.ParseTagsJSON(tags)
 	e.Version, _ = strconv.Atoi(ver)
 	e.CreatedAt, _ = time.Parse(time.RFC3339, created)
 	e.UpdatedAt, _ = time.Parse(time.RFC3339, updated)
@@ -91,7 +93,7 @@ func (b *sqliteBackend) List() ([]EntrySummary, error) {
 		if err := rows.Scan(&s.Name, &s.Title, &s.Category, &s.Phase, &tags, &s.Status, &updated); err != nil {
 			return nil, fmt.Errorf("scan knowledge list: %w", err)
 		}
-		s.Tags = parseTagsJSON(tags)
+		s.Tags = strutil.ParseTagsJSON(tags)
 		s.UpdatedAt, _ = time.Parse(time.RFC3339, updated)
 		out = append(out, s)
 	}
@@ -164,7 +166,7 @@ FROM knowledge`)
 			&ver, &e.Author, &e.Reviewer, &e.Source, &e.Body, &created, &updated); err != nil {
 			return nil, fmt.Errorf("scan knowledge entries: %w", err)
 		}
-		e.Tags = parseTagsJSON(tags)
+		e.Tags = strutil.ParseTagsJSON(tags)
 		e.Version, _ = strconv.Atoi(ver)
 		e.CreatedAt, _ = time.Parse(time.RFC3339, created)
 		e.UpdatedAt, _ = time.Parse(time.RFC3339, updated)
@@ -175,15 +177,6 @@ FROM knowledge`)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out, nil
-}
-
-func parseTagsJSON(raw string) []string {
-	var tags []string
-	if strings.TrimSpace(raw) == "" || raw == "[]" {
-		return nil
-	}
-	_ = json.Unmarshal([]byte(raw), &tags)
-	return tags
 }
 
 // MigrateLegacyKnowledge 将旧 Markdown 知识库（dir 下的 *.md）幂等迁移到

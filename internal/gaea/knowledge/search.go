@@ -3,7 +3,8 @@ package knowledge
 import (
 	"sort"
 	"strings"
-	"unicode"
+
+	"github.com/gaea/gaea/internal/gaea/strutil"
 )
 
 // Filter constrains search results.
@@ -187,7 +188,7 @@ func containsFold(s, substr string) bool {
 	}
 
 	// For CJK queries, check each character.
-	if isCJStr(substr) {
+	if strutil.ContainsHan(substr) {
 		runes := []rune(s)
 		subRunes := []rune(substr)
 		for i := 0; i <= len(runes)-len(subRunes); i++ {
@@ -206,14 +207,4 @@ func containsFold(s, substr string) bool {
 	}
 
 	return strings.Contains(s, substr)
-}
-
-// isCJStr returns true if the string contains CJK characters.
-func isCJStr(s string) bool {
-	for _, r := range s {
-		if unicode.Is(unicode.Han, r) {
-			return true
-		}
-	}
-	return false
 }

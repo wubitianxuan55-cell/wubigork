@@ -2,6 +2,7 @@
 // 约束：小说只引用角色库的角色，不自行生成、不回写全局角色；
 // 面板内可改的只有项目内覆盖（定位 / 弧线状态 / 状态），全局设定一律去角色库。
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { errText } from '../utils/errText'
 import {
   Typography, Button, Input, Modal, InputNumber, Drawer,
   Select, message, Tabs, Tag, Switch, Popconfirm, Checkbox, Dropdown,
@@ -15,11 +16,6 @@ import {
 import RelationGraph from '../components/RelationGraph'
 import V3Empty from '../components/V3Empty'
 import type { CharacterData, OrganizationData, RelationshipData } from '../types'
-
-/** 提取错误消息（unknown 收窄；无 message 用 fallback） */
-function errText(err: unknown, fallback: string): string {
-  return (err instanceof Error && err.message) || fallback
-}
 import { useAppStore } from '../stores/appStore'
 import { C, ROLE_COLORS as roleColors, ROLE_LABELS as roleLabels } from '../utils/theme'
 import { CHARACTER_STATUS_OPTIONS, characterStatusLabel, normalizeCharacterStatus } from '../utils/characterStatus'

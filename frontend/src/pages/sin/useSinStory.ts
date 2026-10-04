@@ -9,6 +9,7 @@
 // 卸载/切故事必收尾，不留悬挂订阅与定时器。
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { errText } from '../../utils/errText'
 import { app } from '../../gaea/lib/bridge'
 import { subscribe, sinStreamChannel } from '../../events'
 import {
@@ -19,10 +20,6 @@ import type { SinMessageView, SinStoryView, SinStreamPayload, SinToolTraceView }
 
 /** 无帧超时：故事单次输出可长达数千字，比聊天（30s）放宽到 90s。 */
 export const SIN_STREAM_SILENCE_TIMEOUT_MS = 90_000
-
-function errText(err: unknown, fallback: string): string {
-  return (err instanceof Error && err.message) || fallback
-}
 
 function nowStr(): string {
   const d = new Date()

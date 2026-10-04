@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { errText } from '../../utils/errText'
 import { Button, Checkbox, Input, Modal, Spin } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'
 import { app } from '../../gaea/lib/bridge'
@@ -28,10 +29,6 @@ interface ChapterIllustrationProps {
   chapterNum: number
   /** 关闭弹窗（父组件负责卸载本组件） */
   onClose: () => void
-}
-
-function errText(err: unknown, fallback: string): string {
-  return (err instanceof Error && err.message) || fallback
 }
 
 export function ChapterIllustration({ chapterNum, onClose }: ChapterIllustrationProps) {

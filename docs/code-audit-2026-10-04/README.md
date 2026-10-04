@@ -79,6 +79,11 @@
 | `client.go` 1160 行 / `CreatePage.tsx` 1403 行 | `internal/ai/client.go`、`frontend/src/pages/CreatePage.tsx` | 20 个 >300 行前端组件函数（`CharacterPage` 单函数 1011 行） |
 
 ### 3.2 重复实现收敛（逐组低风险）
+
+> 2026-10-04 收敛批进度：✅=已实施（勿重复立项）。
+> 已实施：errText 方言 A 14 份 → `utils/errText.ts`（+测试；方言 B 语义不同未并）；`EMO_COLORS` → `utils/emotionColors.ts` 再导出；Go `parseTagsJSON` ×2 + `hasHan`/`isCJStr` ×2 → `internal/gaea/strutil`（`ParseTagsJSON`/`ContainsHan`，等价性测试钉住）。
+> 判定降级：`sortedKeys` 3 份**签名各异**=不同方言，不硬并（批 52 两方言钉先例）。
+
 | 组 | 份数 | 位置 |
 |---|---|---|
 | `errText()` | **14 份逐字相同** | `pages/chapter/errText.ts:5` + 13 处抄本（`pages/modelcenter/hooks/*`、`pages/sin/*`、`hooks/useImageGenConfig.ts` …）⇒ 上移到 `utils/errText.ts`，省 ~42 行 |

@@ -1,5 +1,6 @@
 // ImageGenPage 拆分产物：生成配置/引擎/模型状态机（行为零变化，T6-10.1）
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { errText } from '../utils/errText'
 import { message } from 'antd'
 import {
   getImageBackendInfo, getCharacters, getComfyUIStatus, getSystemStats,
@@ -16,11 +17,6 @@ import {
 } from '../components/imagegen/meta'
 import type { ImageMode } from '../components/imagegen/types'
 import { usePollingGate } from './usePollingGate'
-
-/** 提取错误消息（unknown 收窄后统一取 message；无则用 fallback） */
-function errText(err: unknown, fallback: string): string {
-  return (err instanceof Error && err.message) || fallback
-}
 
 export function useImageGenConfig() {
   // ── 核心状态 ──

@@ -7,6 +7,7 @@
 // 覆盖（冲突返回 conflict=true，调用方确认后 force 重试）。
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { errText } from '../../utils/errText'
 import { app } from '../../gaea/lib/bridge'
 
 export interface SinNotesDoc {
@@ -18,10 +19,6 @@ export interface SinNotesDoc {
 export const SIN_CONFLICT_PREFIX = '底稿冲突：'
 
 const EMPTY: SinNotesDoc = { notes: [], outline: '' }
-
-function errText(err: unknown, fallback: string): string {
-  return (err instanceof Error && err.message) || fallback
-}
 
 export interface UseSinNotesResult {
   doc: SinNotesDoc

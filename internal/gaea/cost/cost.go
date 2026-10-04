@@ -435,7 +435,7 @@ FROM cost_entries WHERE name=?`, name).Scan(
 		}
 		return nil, err
 	}
-	e.Tags = parseTagsJSON(tags)
+	e.Tags = strutil.ParseTagsJSON(tags)
 	e.CreatedAt, _ = time.Parse(time.RFC3339, created)
 	e.UpdatedAt, _ = time.Parse(time.RFC3339, updated)
 	e.Components = s.componentsOf(name)
@@ -570,7 +570,7 @@ func (s *Store) Search(query, category, status string) ([]Summary, error) {
 			}
 			continue
 		}
-		sm.Tags = parseTagsJSON(tags)
+		sm.Tags = strutil.ParseTagsJSON(tags)
 		sm.UpdatedAt, _ = time.Parse(time.RFC3339, updated)
 		all = append(all, sm)
 	}
@@ -655,15 +655,6 @@ func (s *Store) Search(query, category, status string) ([]Summary, error) {
 		}
 	}
 	return out, readErr
-}
-
-func parseTagsJSON(raw string) []string {
-	var tags []string
-	if strings.TrimSpace(raw) == "" || raw == "[]" {
-		return nil
-	}
-	_ = json.Unmarshal([]byte(raw), &tags)
-	return tags
 }
 
 // ── 多级分类树（按分类分级保存）──────────────────────────────────

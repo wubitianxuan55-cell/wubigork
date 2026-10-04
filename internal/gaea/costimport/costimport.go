@@ -1038,7 +1038,7 @@ func parseAnalysisComponents(text string) []cost.Component {
 			continue // 纯说明/续行：金额缺失无法成行
 		}
 		title := componentTitle(stripped)
-		if !hasHan(title) && pendingTitle != "" {
+		if !strutil.ContainsHan(title) && pendingTitle != "" {
 			title = strings.TrimRightFunc(pendingTitle, func(r rune) bool {
 				return unicode.IsDigit(r) || r == ' ' || r == '\t' || r == '.' || r == '（' || r == '('
 			})
@@ -1069,16 +1069,6 @@ func parseAnalysisComponents(text string) []cost.Component {
 		out = append(out, c)
 	}
 	return out
-}
-
-// hasHan 判断字符串是否含汉字（纯表达式行如「170Kg/m³*0.2m」无汉字）。
-func hasHan(s string) bool {
-	for _, r := range s {
-		if unicode.Is(unicode.Han, r) {
-			return true
-		}
-	}
-	return false
 }
 
 // analysisSectionHeader 判断行是否为 人工费/材料费/机械费 段头（含合并段）。

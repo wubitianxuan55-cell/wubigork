@@ -6,6 +6,7 @@
  * 以及 xAI 固定音色选项（XAI_VOICES 单一来源自 ../utils）。
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { errText } from '../../../utils/errText'
 import type { Dispatch, SetStateAction } from 'react'
 import { message } from 'antd'
 import { app } from '../../../gaea/lib/bridge'
@@ -19,11 +20,6 @@ interface VoicePipelineCfg {
   llm?: { engine?: string; model?: string }
   tts?: { engine?: string; model?: string; voice?: string }
   chatTts?: { engine?: string; model?: string }
-}
-
-/** 提取错误消息（unknown 收窄；无 message 用 fallback） */
-function errText(err: unknown, fallback: string): string {
-  return (err instanceof Error && err.message) || fallback
 }
 
 export interface VoiceState {
