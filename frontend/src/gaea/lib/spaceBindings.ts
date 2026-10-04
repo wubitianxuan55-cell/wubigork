@@ -773,11 +773,6 @@ export function resetUnknownBindingWarningsForTest(): void {
   WARNED_UNKNOWN_BINDINGS.clear();
 }
 
-/** 测试用：当前已告警过的未登记名快照。 */
-export function unknownBindingWarnings(): string[] {
-  return [...WARNED_UNKNOWN_BINDINGS];
-}
-
 /**
  * FE3-06：未登记名留痕。走 console.warn（空间门控是运行时防线，失败必须可见），
  * 同名前缀便于日志检索；只告警不抛错——门面 get 返回 undefined 已足以拒绝调用，

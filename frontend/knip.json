@@ -2,22 +2,14 @@
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "ignoreExportsUsedInFile": true,
   "entry": [
-    "src/main.tsx",
-    "src/gaea/lib/mock/index.ts",
     "src/gaea/lib/mock/*.ts",
     "src/gaea/lib/mock/office/*.ts",
     "scripts/**/*.mjs",
-    "src/test/setup.ts",
     "src/**/*.test.ts",
     "src/**/*.test.tsx"
   ],
   "ignore": [
     "src/genui/index.ts",
-    "src/gaea/icons.ts",
-    "src/gaea/lib/bindingNames.ts",
-    "src/gaea/lib/bridge/drift.ts"
-  ],
-  "ignoreDependencies": [
-    "@types/node"
+    "src/gaea/icons.ts"
   ]
 }

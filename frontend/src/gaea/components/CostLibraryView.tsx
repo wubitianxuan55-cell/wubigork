@@ -12,10 +12,10 @@ import { EmptyState } from "./EmptyState";
 import { CostEntryModal } from "./memoryhub/CostEntryModal";
 import { CostImportModal } from "./memoryhub/CostImportModal";
 import { CostCompareModal } from "./memoryhub/CostCompareModal";
-import { CategoryNode, CostRow, ListView, TableRow, TableView, type SortKey } from "./cost_library_parts";
+import { CategoryNode, CostRow, ListView, TableView, type SortKey } from "./cost_library_parts";
 import { CategoryModal, DeleteCostModal, PriceHistoryModal } from "./cost_library_modals";
 
-export { CostRow, ListView, TableRow, TableView };
+export { CostRow, ListView, TableView };
 
 const STATUSES = ["现行", "草稿", "已归档"];
 

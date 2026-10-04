@@ -71,6 +71,8 @@ Push-Location frontend
 # npm install 无锁可依＝依赖树漂移风险；改 pnpm --frozen-lockfile 与 ci.yml 同口径。
 if (-not (Test-Path node_modules)) { Invoke-Native 'frontend install' 'pnpm.cmd' @('install', '--frozen-lockfile') }
 Invoke-Native 'frontend lint' 'npm.cmd' @('run', 'lint')
+# 2026-10-04 (round-3 audit 3.5): knip guard - unused exports/files/deps, findings regressed from clean baseline must fail
+Invoke-Native 'frontend knip (unused exports guard)' 'npm.cmd' @('run', 'knip')
 if (-not $Quick) {
     Invoke-Native 'frontend build' 'npm.cmd' @('run', 'build')
     Invoke-Native 'frontend tests (vitest)' 'npm.cmd' @('run', 'test')
