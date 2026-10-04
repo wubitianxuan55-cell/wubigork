@@ -1,3 +1,11 @@
+## 非版本刀：knip 守卫武装（第三轮审计 §3.5 关账）· 2026-10-04
+
+- **knip 6.39 安装 + 首跑清账 + 入 ci.ps1 常驻**（`424481cd`）：knip.json 已在而工具未装=审计指认的守卫缺口。pnpm add -D + scripts.knip + ci.ps1 lint 后常驻（ASCII 注释保 BOM）。
+- knip.json 按 6.39 收紧：删 mock/index.ts（文件不存在）/main.tsx/setup.ts（自动探测冗余）/ignore bindingNames.ts+drift.ts（新分析器不误报）/@types/node；留 genui/index.ts+icons.ts。
+- **首跑发现清账 2 处**：CostLibraryView TableRow 遗留 re-export（批 34 拆分后零消费者）、spaceBindings.unknownBindingWarnings（注释称测试用实无引用）。
+- **接受 3 条 duplicate-export**（双侧皆活逐条核实）：CharacterCard named←自测/default←库页；emitMock←外部/emit←mock 域内 chat.ts；CostLibraryPage named←测试/default←pageRegistry lazy。
+- 门禁：tsc 0/eslint 0 error/vitest 3758 全绿/check-docs OK。**不抬版本**。
+
 ## 非版本刀：第三轮审计 §3.1 续刀（ai client.go 四分）+ 两组判定关账 · 2026-10-04
 
 - **ai client.go 1447 行 god-file 按域四分**（`fb79d92f`，批 25 配方）：client.go 502（骨架/auth/image）+ client_failover.go 79 + client_chat.go 333（非流式/用量/请求准备）+ client_stream.go 579（流式/SSE/idleTimeoutBody/ChatSimple*）。等价双证=符号清单对称+go doc -all 逐字节一致；导入按消费重算编译器终审；internal/ai 全包测试零编辑绿。脚本 .audit/split-client.mjs（注释归属锚定 decl+限定标识符用法筛导入）。
