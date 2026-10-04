@@ -1,3 +1,10 @@
+## 非版本刀：第三轮审计 §3.1 续刀（ai client.go 四分）+ 两组判定关账 · 2026-10-04
+
+- **ai client.go 1447 行 god-file 按域四分**（`fb79d92f`，批 25 配方）：client.go 502（骨架/auth/image）+ client_failover.go 79 + client_chat.go 333（非流式/用量/请求准备）+ client_stream.go 579（流式/SSE/idleTimeoutBody/ChatSimple*）。等价双证=符号清单对称+go doc -all 逐字节一致；导入按消费重算编译器终审；internal/ai 全包测试零编辑绿。脚本 .audit/split-client.mjs（注释归属锚定 decl+限定标识符用法筛导入）。
+- **boot.Build 559 行判定组合根留池**：24 相位、共享态网状（reg×5 簇/executor×4/sink×6），长度大半是接线决策注释；审计该行亦未给拆法（"—"）。候选设计=装配态结构体/相位函数，属重设计非机械刀——留设计批，不做 vanity knife。
+- **测试 fixture 组（§3.2 末组）关账**：novel/create stubRuntime 审计称 3 份实测仅剩 1（移动靶）；sin vi.mock(bridge) ×4=按消费者显式列绑定面，是 NOT_MOCKED fail-closed（v4.455）的镜像设计，收敛反有害；schedule 无重复命名 fixture。
+- 门禁：vet/golangci 0 issues；ai/config/boot 三包测试绿。**不抬版本**。
+
 ## 非版本刀：第三轮审计 §3.1/§3.2 续刀两件（config.Load 层装配拆分 + 拖拽手势单源）· 2026-10-04
 
 - **config.Load 449 行 → 三层装配拆分**（`13665baf`）：按优先级层拆（默认值/环境变量/配置文件——域字段横切三层，层是自然缝，比审计建议的按域拆更贴合代码本体）；loadDefaults/applyEnvOverrides/applyConfigFile 逐字搬迁 config_load.go（含旧品牌回退+损坏备份恢复），Load() 收窄 35 行装配器；config.go 539→116；config 包 30 测试零编辑全绿。
