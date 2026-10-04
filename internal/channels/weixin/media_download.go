@@ -79,10 +79,35 @@ func mediaTransport() *http.Transport {
 					return nil, fmt.Errorf("拒绝下载内网/本机地址的媒体 %s（解析到 %s）", host, ip.IP)
 				}
 			}
-			return dialer.DialContext(ctx, network, net.JoinHostPort(ips[0].IP.String(), port))
+			return dialVerifiedIPs(ctx, dialer, network, ips, port)
 		},
 		TLSHandshakeTimeout: wxImageTimeout,
 	}
+}
+
+// contextDialer 抽出拨号面，测试注入假 dialer（生产传 *net.Dialer）。
+type contextDialer interface {
+	DialContext(ctx context.Context, network, addr string) (net.Conn, error)
+}
+
+// dialVerifiedIPs 逐个已验 IP 尝试建连，首个成功即返回；全败返回最后一个
+// 错误。调用方必须已对 ips 全量过 blockedMediaIP（本函数不复检——拨号目标
+// 严格取自已校验集合）。审计 P1 IN2-04 同口径（netclient.GuardedClient 与
+// webfetch directDialContext 已修，本副本漏：固定拨 ips[0]，单一目标连接
+// 失败即整体失败，无回退）——2026-10-04 第三轮审计补齐。
+func dialVerifiedIPs(ctx context.Context, dialer contextDialer, network string, ips []net.IPAddr, port string) (net.Conn, error) {
+	var lastErr error
+	for _, ip := range ips {
+		conn, derr := dialer.DialContext(ctx, network, net.JoinHostPort(ip.IP.String(), port))
+		if derr == nil {
+			return conn, nil
+		}
+		lastErr = derr
+	}
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return nil, fmt.Errorf("no usable address to dial for port %s", port)
 }
 
 // DownloadImage 下载 iLink 下发的图片 URL 到临时文件，返回 (本地路径, cleanup, 错误)。

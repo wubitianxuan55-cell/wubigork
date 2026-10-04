@@ -2,6 +2,8 @@ package weixin
 
 import (
 	"bytes"
+	"context"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -229,4 +231,73 @@ func TestBlockedMediaIP(t *testing.T) {
 	if !blockedMediaIP(net.ParseIP("10.0.0.1")) {
 		t.Error("放行回环后私网仍应被拒")
 	}
+}
+
+// fakeConn 空壳连接（dialVerifiedIPs 只验建连成败，不收发数据）。
+type fakeConn struct{ net.Conn }
+
+// seqDialer 按序执行预设拨号结果（nil=成功）：记录每次拨号目标，供
+// failover 断言「逐个尝试」与「成功即停」。
+type seqDialer struct {
+	results []error
+	dialed  []string
+}
+
+func (d *seqDialer) DialContext(_ context.Context, _, addr string) (net.Conn, error) {
+	d.dialed = append(d.dialed, addr)
+	n := len(d.dialed) - 1
+	if d.results[n] != nil {
+		return nil, d.results[n]
+	}
+	return fakeConn{}, nil
+}
+
+// TestDialVerifiedIPs 防线单元表（IN2-04 同口径）：
+// 逐个已验 IP 尝试建连——成功即停 / 前败后备 / 全败回最后一个错 / 空集诚实报错。
+func TestDialVerifiedIPs(t *testing.T) {
+	ips := []net.IPAddr{
+		{IP: net.ParseIP("8.8.8.8")},
+		{IP: net.ParseIP("1.1.1.1")},
+		{IP: net.ParseIP("9.9.9.9")},
+	}
+
+	t.Run("成功即停", func(t *testing.T) {
+		d := &seqDialer{results: []error{nil, nil, nil}}
+		conn, err := dialVerifiedIPs(t.Context(), d, "tcp", ips[:2], "443")
+		if err != nil {
+			t.Fatalf("首目标成功不应报错: %v", err)
+		}
+		_ = conn
+		if len(d.dialed) != 1 || !strings.HasPrefix(d.dialed[0], "8.8.8.8:") {
+			t.Fatalf("应只拨首个已验 IP，实际 %v", d.dialed)
+		}
+	})
+
+	t.Run("前败后备", func(t *testing.T) {
+		firstErr := fmt.Errorf("first down")
+		d := &seqDialer{results: []error{firstErr, nil}}
+		conn, err := dialVerifiedIPs(t.Context(), d, "tcp", ips[:2], "443")
+		if err != nil {
+			t.Fatalf("后备目标成功不应报错: %v", err)
+		}
+		_ = conn
+		if len(d.dialed) != 2 || !strings.HasPrefix(d.dialed[1], "1.1.1.1:") {
+			t.Fatalf("应按序拨两个已验 IP，实际 %v", d.dialed)
+		}
+	})
+
+	t.Run("全败回最后错误", func(t *testing.T) {
+		lastErr := fmt.Errorf("last down")
+		d := &seqDialer{results: []error{fmt.Errorf("a"), lastErr}}
+		if _, err := dialVerifiedIPs(t.Context(), d, "tcp", ips[:2], "443"); err != lastErr {
+			t.Fatalf("应回最后一个拨号错误，实际 %v", err)
+		}
+	})
+
+	t.Run("空集诚实报错", func(t *testing.T) {
+		d := &seqDialer{}
+		if _, err := dialVerifiedIPs(t.Context(), d, "tcp", nil, "443"); err == nil {
+			t.Fatal("空已验集应报错而非静默成功")
+		}
+	})
 }
