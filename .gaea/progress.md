@@ -1,3 +1,10 @@
+## 非版本刀：第三轮审计 §3.1/§3.2 续刀两件（config.Load 层装配拆分 + 拖拽手势单源）· 2026-10-04
+
+- **config.Load 449 行 → 三层装配拆分**（`13665baf`）：按优先级层拆（默认值/环境变量/配置文件——域字段横切三层，层是自然缝，比审计建议的按域拆更贴合代码本体）；loadDefaults/applyEnvOverrides/applyConfigFile 逐字搬迁 config_load.go（含旧品牌回退+损坏备份恢复），Load() 收窄 35 行装配器；config.go 539→116；config 包 30 测试零编辑全绿。
+- **拖拽改宽手势 ×4 → startColumnResizeGesture 单源**（`99e257d3`）：usePreviewPanel/useWorkspaceLayout/ResizableDrawer/useSidebar 的 listener 三件套+body 手势态设置还原收敛 utils/resizeGesture.ts（onDone 先于清理=对齐既有顺序）；三例单测（启动态/up 收尾取消订阅/pointercancel 同义）；vitest 3758/436 全绿。
+- ***Prefs 系列勘察判定（§3.2 余池）**：browserPrefs/mdViewPref/paneTabs 抽样=**三种语义方言**（boolean 显式关值/枚举/zustand 状态机）且各有文档化取值判据，非逐字同型——硬收敛属设计题（方言参数化+对照钉），留池待设计批。
+- 门禁：Go vet/golangci 0+全量零 FAIL；eslint 0 error；vitest 436 文件 3758 例（+1 文件+3 例=resizeGesture）。**不抬版本**（纯结构收敛零行为）。
+
 ## 发版 v4.456.0：微信媒体下载 SSRF 守卫对齐 + 第三轮审计结构收敛 · 2026-10-04
 
 - 上午两批非版本刀（第三轮审计收敛 `0c09977e` + §3.2 重复收敛 `da89ca89`）后，续刀三批（weixin SSRF failover `cf7d0cbb` / xlsxedit applyOne 表驱动 `0777f5b0` / rebuildParagraph 收敛 ooxml `2da28d15`），批次 A 为用户可感修复（媒体下载可用性+守卫三副本对齐）⇒ 抬版本。
