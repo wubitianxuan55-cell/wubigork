@@ -1,11 +1,14 @@
 // CharacterPage.tsx — 小说角色面板（单向使用角色库）
 // 约束：小说只引用角色库的角色，不自行生成、不回写全局角色；
 // 面板内可改的只有项目内覆盖（定位 / 弧线状态 / 状态），全局设定一律去角色库。
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { errText } from '../utils/errText'
+// 2026-10-04 hook 分域首刀：状态与 handler 群迁 ./character/ 七个分域 hook
+// （useCharacterData/useCharFilters/useProjectCharacterEdit/useProtagonistRelations/
+// useCharDraw/useLegacyWriteBack/useOrgRelation），本文件只做接线与渲染，
+// JSX 与渲染函数逐字节保留（拆分等价证明 = 16 例金样零编辑复绿）。
+import React, { useMemo, useState } from 'react'
 import {
   Typography, Button, Input, Modal, InputNumber, Drawer,
-  Select, message, Tabs, Tag, Switch, Popconfirm, Checkbox, Dropdown,
+  Select, Tabs, Tag, Switch, Popconfirm, Checkbox, Dropdown,
 } from 'antd'
 import {
   ThunderboltOutlined, PlusOutlined, ExperimentOutlined, CameraOutlined, MergeCellsOutlined,
@@ -15,29 +18,22 @@ import {
 } from '@ant-design/icons'
 import RelationGraph from '../components/RelationGraph'
 import V3Empty from '../components/V3Empty'
-import type { CharacterData, OrganizationData, RelationshipData } from '../types'
-import { useAppStore } from '../stores/appStore'
 import { C, ROLE_COLORS as roleColors, ROLE_LABELS as roleLabels } from '../utils/theme'
-import { CHARACTER_STATUS_OPTIONS, characterStatusLabel, normalizeCharacterStatus } from '../utils/characterStatus'
+import { CHARACTER_STATUS_OPTIONS, characterStatusLabel } from '../utils/characterStatus'
 import CharacterCard from '../components/novel/character/CharacterCard'
 import OrganizationCard from '../components/novel/character/OrganizationCard'
 import RelationshipModal from '../components/novel/character/RelationshipModal'
 import OrganizationEditModal from '../components/novel/character/OrganizationEditModal'
 import PortraitLightbox from '../components/novel/character/PortraitLightbox'
 import { PortraitImg } from '../components/characterlib/PortraitImg'
-import {
-  getCharacters, saveOrganization, deleteOrganization, setCharacterCareer, removeCharacterCareer,
-  saveRelationship, deleteRelationship,
-  generateCharacterFill, generateCharacterPortrait, mergeCharacters,
-  generateProtagonistRelations,
-} from '../components/novel/api/character'
-import { subscribeWailsEvent } from '../gaea/lib/wailsEvents'
-import {
-  listProjectCharacters, associateToProject, dissociateFromProject,
-  syncProjectCharacters, importProjectCharacters, previewProjectImport,
-  drawRandom, setProjectState,
-  type LibraryCharacter, type ImportPreview, type ImportFieldConflict,
-} from '../api/characterlib'
+import type { ImportFieldConflict } from '../api/characterlib'
+import { useCharacterData } from './character/useCharacterData'
+import { useCharFilters } from './character/useCharFilters'
+import { useProjectCharacterEdit } from './character/useProjectCharacterEdit'
+import { useProtagonistRelations } from './character/useProtagonistRelations'
+import { useCharDraw } from './character/useCharDraw'
+import { useLegacyWriteBack } from './character/useLegacyWriteBack'
+import { useOrgRelation } from './character/useOrgRelation'
 import './character-page.css'
 
 // 角色状态枚举统一来自 utils/characterStatus（T6-7.5 状态收敛：非法值回退默认）
@@ -47,498 +43,59 @@ const roleOptions = [
   { value: 'supporting', label: '配角' }, { value: 'minor', label: '龙套' },
 ]
 
-const CHAR_FILTER_KEY = 'gaea.novel.charFilters.'
-
-interface CharFilterState {
-  gender: string
-  role: string
-  status: string
-  org: string
-}
-
-function readCharFilters(projectPath: string): CharFilterState {
-  try {
-    const raw = localStorage.getItem(CHAR_FILTER_KEY + projectPath)
-    if (!raw) return { gender: '', role: '', status: '', org: '' }
-    const value = JSON.parse(raw) as CharFilterState
-    return value || { gender: '', role: '', status: '', org: '' }
-  } catch {
-    return { gender: '', role: '', status: '', org: '' }
-  }
-}
-
-function writeCharFilters(projectPath: string, state: CharFilterState) {
-  try {
-    if (projectPath) localStorage.setItem(CHAR_FILTER_KEY + projectPath, JSON.stringify(state))
-  } catch { /* ignore */ }
-}
-
 function navigateToCharacterLib() {
   window.dispatchEvent(new CustomEvent('navigate', { detail: { page: 'characterlib' } }))
 }
 
 const CharacterPage: React.FC = () => {
-  const [characters, setCharacters] = useState<CharacterData[]>([])
-  const [organizations, setOrganizations] = useState<OrganizationData[]>([])
-  const [relationships, setRelationships] = useState<RelationshipData[]>([])
-  const [projectRefs, setProjectRefs] = useState<Set<string>>(new Set())
-
-  const [modalOrg, setModalOrg] = useState<OrganizationData | null>(null)
-  const [editOrg, setEditOrg] = useState<OrganizationData | null>(null)
-  const [relTargetId, setRelTargetId] = useState<string>('')
-  const [relFromId, setRelFromId] = useState<string>('')
-  const [relType, setRelType] = useState<string>('friend')
-  const [relModalOpen, setRelModalOpen] = useState(false)
   const [portraitFullscreen, setPortraitFullscreen] = useState('')
-  const [filterGender, setFilterGender] = useState<string>('')
-  const [filterRole, setFilterRole] = useState<string>('')
-  const [filterStatus, setFilterStatus] = useState<string>('')
-  const [filterOrg, setFilterOrg] = useState<string>('')
-  const [loading, setLoading] = useState(true)
-  // 读取失败的诚实错误态：此前失败仅 console 静默吞掉，列表空态与「本书没有角色」
-  // 同貌——用户会以为角色全丢了；给出原因 + 重试入口（对齐 HomePage v4.349 口径）。
-  const [loadError, setLoadError] = useState('')
+  const data = useCharacterData()
+  const filters = useCharFilters()
+  const edit = useProjectCharacterEdit(data)
+  const relations = useProtagonistRelations({
+    characters: data.characters,
+    refreshAll: data.refreshAll,
+    projectEdit: edit.projectEdit,
+    reloadProjectEdit: edit.reloadProjectEdit,
+  })
+  const draw = useCharDraw({ projectRefs: data.projectRefs, refreshAll: data.refreshAll })
+  const writeBack = useLegacyWriteBack({ loadRefs: data.loadRefs })
+  const orgRel = useOrgRelation({
+    characters: data.characters,
+    organizations: data.organizations,
+    loadData: data.loadData,
+  })
 
-  // v4.454 AI 主角关系（全部/剩余全部/个人）：项目级字段，只写本书 characters.json
-  const [relBusy, setRelBusy] = useState(false)
-  const [relProgress, setRelProgress] = useState('')
-  // 抽卡
-  const [drawOpen, setDrawOpen] = useState(false)
-  const [drawCount, setDrawCount] = useState(5)
-  const [drawGender, setDrawGender] = useState('')
-  const [drawTags, setDrawTags] = useState('')
-  const [drawChatOnly, setDrawChatOnly] = useState(false)
-  const [drawResult, setDrawResult] = useState<LibraryCharacter[]>([])
-  const [drawLoading, setDrawLoading] = useState(false)
-  const [syncing, setSyncing] = useState(false)
-
-  // 副本→库回写：非空冲突逐字段确认（预览只读；不勾选=保持库内原值）
-  const [wbOpen, setWbOpen] = useState(false)
-  const [wbBusy, setWbBusy] = useState(false)
-  const [wbPreview, setWbPreview] = useState<ImportPreview | null>(null)
-  const [wbChecked, setWbChecked] = useState<Record<string, true>>({})
-
-  // 项目内状态编辑（唯一允许的小说侧写入）
-  const [projectEdit, setProjectEdit] = useState<CharacterData | null>(null)
-  const [filling, setFilling] = useState(false)
-  const [genPortrait, setGenPortrait] = useState(false)
-  const [mergeOpen, setMergeOpen] = useState(false)
-  const [mergeTargetId, setMergeTargetId] = useState('')
-  const [peRole, setPeRole] = useState('')
-  const [peArc, setPeArc] = useState('')
-  const [peStatus, setPeStatus] = useState('')
-  // 职业编辑（t5 §7.6：即时保存，不随「保存本书状态」）
-  const [peCareerMain, setPeCareerMain] = useState('')
-  const [peCareerMainStage, setPeCareerMainStage] = useState(1)
-  const [peNewSub, setPeNewSub] = useState('')
-  const [peNewSubStage, setPeNewSubStage] = useState(1)
-
-  const projectPath = useAppStore(s => s.projectPath)
-  const dataLoadToken = useRef(0)
-  const refsLoadToken = useRef(0)
-
-  // 项目切换时恢复/重置筛选条件
-  useEffect(() => {
-    const saved = readCharFilters(projectPath)
-    setFilterGender(saved.gender || '')
-    setFilterRole(saved.role || '')
-    setFilterStatus(saved.status || '')
-    setFilterOrg(saved.org || '')
-  }, [projectPath])
-
-  // 筛选变化按项目记忆
-  useEffect(() => {
-    if (!projectPath) return
-    writeCharFilters(projectPath, {
-      gender: filterGender,
-      role: filterRole,
-      status: filterStatus,
-      org: filterOrg,
-    })
-  }, [projectPath, filterGender, filterRole, filterStatus, filterOrg])
-
-  const loadData = useCallback(async () => {
-    const token = ++dataLoadToken.current
-    const requestedPath = useAppStore.getState().projectPath
-    setLoading(true)
-    try {
-      const data = await getCharacters()
-      if (token !== dataLoadToken.current || requestedPath !== useAppStore.getState().projectPath) return
-      setCharacters(data.characters || [])
-      setOrganizations(data.organizations || [])
-      setRelationships(data.relationships || [])
-      setLoadError('')
-    } catch (err) {
-      console.error('[CharacterPage] loadData:', err)
-      if (token === dataLoadToken.current) setLoadError(errText(err, '角色数据读取失败'))
-    } finally {
-      if (token === dataLoadToken.current) setLoading(false)
-    }
-  }, [])
-
-  const loadRefs = useCallback(async () => {
-    const token = ++refsLoadToken.current
-    if (!projectPath) { setProjectRefs(new Set()); return }
-    try {
-      const refs = await listProjectCharacters()
-      if (token !== refsLoadToken.current || projectPath !== useAppStore.getState().projectPath) return
-      setProjectRefs(new Set(refs.map(r => r.characterId)))
-    } catch (_) {
-      if (token === refsLoadToken.current && projectPath === useAppStore.getState().projectPath) setProjectRefs(new Set())
-    }
-  }, [projectPath])
-
-  useEffect(() => {
-    setCharacters([]); setOrganizations([]); setRelationships([])
-    setLoadError('')
-    if (projectPath) { loadData(); loadRefs() }
-  }, [projectPath, loadData, loadRefs])
-
-  // 旧项目数据检测：characters.json 里有未入库角色（未关联）
-  const unimported = useMemo(
-    () => characters.filter(c => !projectRefs.has(c.id)),
-    [characters, projectRefs],
-  )
-
-  const refreshAll = useCallback(async () => {
-    await loadData()
-    await loadRefs()
-  }, [loadData, loadRefs])
-
-  // 角色库侧移出本书后，已挂载的本面板保持同步刷新（MainLayout 不销毁组件）
-  useEffect(() => {
-    const handler = () => { refreshAll() }
-    window.addEventListener('gaea-project-chars-changed', handler)
-    return () => window.removeEventListener('gaea-project-chars-changed', handler)
-  }, [refreshAll])
-
-  // ── 抽卡：从角色库随机抽取，加入当前项目 ──
-  const handleDraw = async () => {
-    setDrawLoading(true)
-    try {
-      const items = await drawRandom(drawCount, drawGender, drawTags.trim(), drawChatOnly)
-      setDrawResult(items || [])
-      if (!items?.length) message.info('没有抽到符合条件的角色，换个条件试试')
-    } catch (err: unknown) {
-      message.error(errText(err, '抽卡失败'))
-    } finally {
-      setDrawLoading(false)
-    }
-  }
-
-  const handleAddDrawn = async (c: LibraryCharacter) => {
-    try {
-      await associateToProject(c.id, c.roleType || 'supporting')
-      await syncProjectCharacters()
-      await refreshAll()
-      message.success(`「${c.name}」已加入本书`)
-    } catch (err: unknown) {
-      message.error(errText(err, '加入失败'))
-    }
-  }
-
-  const handleAddAllDrawn = async () => {
-    const pending = drawResult.filter(c => !projectRefs.has(c.id))
-    if (!pending.length) return
-    try {
-      for (const c of pending) await associateToProject(c.id, c.roleType || 'supporting')
-      await syncProjectCharacters()
-      await refreshAll()
-      message.success(`已加入 ${pending.length} 个角色`)
-      setDrawResult([])
-    } catch (err: unknown) {
-      message.error(errText(err, '加入失败'))
-    }
-  }
-
-  // ── 项目内状态编辑（只写关联表）──
-  // 职业操作后刷新全量并同步 Drawer 内快照（即时保存语义）
-  const reloadProjectEdit = useCallback(async (charID: string) => {
-    const data = await getCharacters()
-    setCharacters(data.characters || [])
-    setOrganizations(data.organizations || [])
-    setRelationships(data.relationships || [])
-    const fresh = (data.characters || []).find(c => c.id === charID)
-    if (fresh) setProjectEdit(fresh)
-  }, [])
-
-  const handleSetMainCareer = async () => {
-    if (!projectEdit) return
-    const name = peCareerMain.trim()
-    if (!name) { message.warning('请填写职业名称（名称即 ID）'); return }
-    try {
-      await setCharacterCareer(projectEdit.id, { is_main: true, career_name: name, stage: peCareerMainStage })
-      message.success(`主职业已设为「${name}·${peCareerMainStage}阶」`)
-      await reloadProjectEdit(projectEdit.id)
-    } catch (err) { message.error(errText(err, '设置主职业失败')) }
-  }
-
-  const handleRemoveMainCareer = async () => {
-    if (!projectEdit) return
-    try {
-      await removeCharacterCareer(projectEdit.id, { is_main: true })
-      message.success('主职业已移除')
-      await reloadProjectEdit(projectEdit.id)
-    } catch (err) { message.error(errText(err, '移除主职业失败')) }
-  }
-
-  const handleAddSubCareer = async () => {
-    if (!projectEdit) return
-    const name = peNewSub.trim()
-    if (!name) { message.warning('请填写副职业名称'); return }
-    try {
-      await setCharacterCareer(projectEdit.id, { is_main: false, career_name: name, stage: peNewSubStage })
-      message.success(`副职业已添加「${name}·${peNewSubStage}阶」`)
-      setPeNewSub('')
-      await reloadProjectEdit(projectEdit.id)
-    } catch (err) { message.error(errText(err, '添加副职业失败')) }
-  }
-
-  const handleRemoveSubCareer = async (name: string) => {
-    if (!projectEdit) return
-    try {
-      await removeCharacterCareer(projectEdit.id, { is_main: false, career_name: name })
-      message.success(`副职业「${name}」已移除`)
-      await reloadProjectEdit(projectEdit.id)
-    } catch (err) { message.error(errText(err, '移除副职业失败')) }
-  }
-
-  const openProjectEdit = (ch: CharacterData) => {
-    setProjectEdit(ch)
-    setPeRole(ch.role_type || 'supporting')
-    setPeArc(ch.arc || '')
-    setPeStatus(normalizeCharacterStatus(ch.status))
-    setPeCareerMain(ch.main_career_id || '')
-    setPeCareerMainStage(ch.main_career_stage || 1)
-    setPeNewSub('')
-    setPeNewSubStage(1)
-  }
-
-  const handleSaveProjectState = async () => {
-    if (!projectEdit) return
-    try {
-      await setProjectState(projectEdit.id, peRole, peArc, peStatus)
-      await syncProjectCharacters()
-      await loadData()
-      message.success(`已更新「${projectEdit.name}」在本书的状态（全局角色未动）`)
-      setProjectEdit(null)
-    } catch (err: unknown) {
-      message.error(errText(err, '保存失败'))
-    }
-  }
-
-  const handleRemoveFromProject = async (ch: CharacterData) => {
-    try {
-      await dissociateFromProject(ch.id)
-      await syncProjectCharacters()
-      await refreshAll()
-      message.success(`「${ch.name}」已从本书移除（角色保留在角色库）`)
-      setProjectEdit(null)
-    } catch (err: unknown) {
-      message.error(errText(err, '移除失败'))
-    }
-  }
-
-  // ── AI 主角关系：批量生成「与主角的关系」短语（项目级，进度独立通道）──
-  const runProtagonistRelations = async (mode: 'all' | 'missing' | 'one', name = '') => {
-    const onProgress = (ev: unknown) => {
-      const raw = ev as { detail?: unknown } | null | undefined
-      const d = (raw && typeof raw === 'object' && 'detail' in raw && raw.detail ? raw.detail : raw) as { current?: number; total?: number; name?: string } | null | undefined
-      if (d && d.current && d.total) setRelProgress(`正在生成 ${d.current}/${d.total}：${d.name || ''}`)
-    }
-    const off = window.runtime?.EventsOn
-      ? subscribeWailsEvent(window.runtime, 'protagonist-relation-progress', onProgress)
-      : () => { /* 无 wails runtime（浏览器 mock/测试）：不订阅也不报错 */ }
-    try {
-      setRelBusy(true)
-      setRelProgress('准备中…')
-      const res = await generateProtagonistRelations(mode, name)
-      const { updated, failed, failNames } = res || {}
-      if (failed > 0) {
-        message.warning(
-          `主角关系生成完成：更新 ${updated} 位，失败 ${failed} 位` +
-          (failNames?.length ? `（${failNames.slice(0, 3).join('、')}${failNames.length > 3 ? '…' : ''}）` : ''),
-        )
-      } else if (updated === 0) {
-        message.info('没有需要生成的角色（剩余全部=已都有主角关系；或仅主角本人）')
-      } else {
-        message.success(`已生成 ${updated} 位角色的主角关系`)
-      }
-      await refreshAll()
-      // 抽屉打开时同步其快照（复用职业链的 reloadProjectEdit，取最新 characters.json 值）
-      if (projectEdit?.id) await reloadProjectEdit(projectEdit.id)
-    } catch (err: unknown) {
-      message.error(`主角关系生成失败：${errText(err, String(err))}`)
-    } finally {
-      off()
-      setRelBusy(false)
-      setRelProgress('')
-    }
-  }
-
-  /** 批量入口：全部=覆盖重写须确认；剩余全部只补空白直接跑 */
-  const handleGenRelations = (mode: 'all' | 'missing') => {
-    if (!characters.length) return
-    if (mode === 'all') {
-      Modal.confirm({
-        title: 'AI 重写全部角色的主角关系？',
-        content: '将为除主角本人外的全部本书角色重新随机「与主角的关系」（已有关系会被覆盖）。角色较多时耗时较长。',
-        okText: '开始生成',
-        cancelText: '取消',
-        onOk: () => { void runProtagonistRelations('all') },
-      })
-      return
-    }
-    void runProtagonistRelations('missing')
-  }
-
-  const handleSync = async () => {
-    setSyncing(true)
-    try {
-      await syncProjectCharacters()
-      await loadData()
-      message.success('已把本书引用的角色同步到 characters.json')
-    } catch (err: unknown) {
-      message.error(errText(err, '同步失败'))
-    } finally {
-      setSyncing(false)
-    }
-  }
-
-  const handleImportLegacy = async () => {
-    setWbBusy(true)
-    try {
-      // 两段式回写：先只读预览——有非空冲突才弹逐字段确认，否则直接安全回写
-      const pv = await previewProjectImport()
-      if (pv.conflicts.length === 0) {
-        await doWriteBack({})
-        return
-      }
-      setWbChecked({})
-      setWbPreview(pv)
-      setWbOpen(true)
-    } catch (err: unknown) {
-      message.error(errText(err, '回写预览失败'))
-    } finally {
-      setWbBusy(false)
-    }
-  }
-
-  const doWriteBack = async (overwrites: Record<string, string[]>) => {
-    try {
-      const { imported, filled, overwritten } = await importProjectCharacters(overwrites)
-      await loadRefs()
-      if (imported === 0 && filled === 0 && overwritten === 0) {
-        message.info('本书角色与角色库已一致，无需回写')
-        return
-      }
-      const parts = [`新迁入 ${imported} 个`]
-      if (filled > 0) parts.push(`补全 ${filled} 个角色的空缺设定`)
-      if (overwritten > 0) parts.push(`按确认覆盖 ${overwritten} 处已有设定`)
-      message.success(`回写完成：${parts.join('，')}（本书此后只引用角色库）`)
-    } catch (err: unknown) {
-      message.error(errText(err, '回写失败'))
-    }
-  }
-
-  /** 弹窗里逐字段勾选 → 覆盖清单；只统计勾选键，未勾选一律保持库内原值 */
-  const collectOverwrites = (): Record<string, string[]> => {
-    const ov: Record<string, string[]> = {}
-    for (const c of wbPreview?.conflicts ?? []) {
-      if (wbChecked[`${c.characterId}::${c.field}`]) {
-        if (!ov[c.characterId]) ov[c.characterId] = []
-        ov[c.characterId].push(c.field)
-      }
-    }
-    return ov
-  }
-
-  // ── 章节捕获角色的补齐 / 剧照 / 合并（未入库时可用，只写本书） ──
-  const handleProjectFill = async (ch: CharacterData) => {
-    if (filling) return
-    setFilling(true)
-    try {
-      const updated = await generateCharacterFill(ch)
-      setProjectEdit(updated)
-      await loadData()
-      message.success('已补齐空缺字段（只写本书，未动角色库）')
-    } catch (err: unknown) {
-      message.error(errText(err, '补齐失败'))
-    } finally {
-      setFilling(false)
-    }
-  }
-
-  const handleProjectPortrait = async (ch: CharacterData) => {
-    if (genPortrait) return
-    setGenPortrait(true)
-    try {
-      await generateCharacterPortrait(ch.id)
-      await loadData()
-      message.success('剧照已生成')
-    } catch (err: unknown) {
-      message.error(errText(err, '剧照生成失败'))
-    } finally {
-      setGenPortrait(false)
-    }
-  }
-
-  const handleMergeConfirm = async () => {
-    if (!projectEdit || !mergeTargetId) return
-    try {
-      // 当前角色（A）并入目标角色（B），保留 B
-      await mergeCharacters(mergeTargetId, projectEdit.id)
-      setMergeOpen(false)
-      setMergeTargetId('')
-      setProjectEdit(null)
-      await refreshAll()
-      message.success('已合并：空缺信息已补充，关系与组织引用已重定向')
-    } catch (err: unknown) {
-      message.error(errText(err, '合并失败'))
-    }
-  }
-
-  // ── 组织 / 关系（项目内数据，保留原能力）──
-  const getCharName = (id: string) =>
-    characters.find(c => c.id === id)?.name || organizations.find(o => o.id === id)?.name || id
-
-  const handleNewOrg = () => {
-    const blank: OrganizationData = { id: 'org_' + Date.now(), name: '新组织', type: '', description: '', power_level: '' }
-    setModalOrg(blank); setEditOrg({ ...blank })
-  }
-
-  const handleSaveOrg = async () => {
-    if (!editOrg) return
-    try {
-      await saveOrganization(editOrg)
-      await loadData()
-      message.success('组织已保存')
-      setModalOrg(null)
-    } catch { message.error('保存失败') }
-  }
-  const handleDeleteOrg = async (id: string) => {
-    try {
-      await deleteOrganization(id)
-      await loadData()
-      message.success('组织已删除')
-    } catch { message.error('删除失败') }
-  }
-  const handleAddRel = async () => {
-    if (!relFromId || !relTargetId) return
-    const rel: RelationshipData = { from_id: relFromId, to_id: relTargetId, relation_type: relType, description: '', intimacy: 0 }
-    try {
-      await saveRelationship(rel)
-      await loadData()
-      message.success('关系已建立')
-      setRelModalOpen(false)
-    } catch { message.error('建立关系失败') }
-  }
-  const handleDeleteRel = async (rel: RelationshipData) => {
-    try {
-      await deleteRelationship(rel.from_id, rel.to_id)
-      await loadData()
-    } catch { message.error('删除关系失败') }
-  }
+  const { characters, organizations, relationships, projectRefs, loading, setLoading, loadError, unimported, syncing, loadData, handleSync } = data
+  const { filterGender, setFilterGender, filterRole, setFilterRole, filterStatus, setFilterStatus, filterOrg, setFilterOrg } = filters
+  const {
+    projectEdit, setProjectEdit, openProjectEdit,
+    peRole, setPeRole, peArc, setPeArc, peStatus, setPeStatus,
+    peCareerMain, setPeCareerMain, peCareerMainStage, setPeCareerMainStage,
+    peNewSub, setPeNewSub, peNewSubStage, setPeNewSubStage,
+    filling, genPortrait, mergeOpen, setMergeOpen, mergeTargetId, setMergeTargetId,
+    handleSetMainCareer, handleRemoveMainCareer, handleAddSubCareer, handleRemoveSubCareer,
+    handleSaveProjectState, handleRemoveFromProject,
+    handleProjectFill, handleProjectPortrait, handleMergeConfirm,
+  } = edit
+  const { relBusy, relProgress, runProtagonistRelations, handleGenRelations } = relations
+  const {
+    drawOpen, setDrawOpen,
+    drawCount, setDrawCount,
+    drawGender, setDrawGender,
+    drawTags, setDrawTags,
+    drawChatOnly, setDrawChatOnly,
+    drawResult, drawLoading,
+    handleDraw, handleAddDrawn, handleAddAllDrawn,
+  } = draw
+  const { wbOpen, setWbOpen, wbBusy, wbPreview, wbChecked, setWbChecked, handleImportLegacy, doWriteBack, collectOverwrites } = writeBack
+  const {
+    modalOrg, setModalOrg, editOrg, setEditOrg,
+    relTargetId, setRelTargetId, relFromId, setRelFromId,
+    relType, setRelType, relModalOpen, setRelModalOpen,
+    getCharName, handleNewOrg, handleSaveOrg, handleDeleteOrg,
+    handleAddRel, handleDeleteRel,
+  } = orgRel
 
   const filteredCharacters = useMemo(() => characters.filter(ch => {
     if (filterGender && ch.gender !== filterGender) return false
@@ -1090,3 +647,4 @@ const CharacterPage: React.FC = () => {
 }
 
 export default CharacterPage
+
