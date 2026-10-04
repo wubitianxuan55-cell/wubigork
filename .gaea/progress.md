@@ -1,3 +1,10 @@
+## 非版本刀：CharacterPage 域刻画测试 11 例（hook 拆分前置契约）· 2026-10-04
+
+- **测试网 5→16 例**（`22ccb1e9`）：新增 domains.test 覆盖同步/回写（零冲突直写路径）/抽卡（默认参数+roleType 回退+pending 过滤+可变引用表 mock）/AI 主角关系（missing 直跑/all 须确认/三态消息/单角色点名）/合并（**参数序 A 并入 B 锁定**）/组织保存。手法=vi.mock 两个 API 门面+antd message 间谍+重型子组件桩。
+- **CharacterPage hook 分域拆分前置条件达成**：16 例刻画测试垫底，下一刀可按 controller.ts 配方开拆（1092 行单函数）。
+- **坑复训新增**：①Bash `node -e` 内 `\\s` 二次降级（在册坑第四次实证）——测试批量转换一律 Edit 手写；②antd 两字按钮插空格从按钮扩展到 Modal OK 钮与带计数的 tab label（`/^组织 \(/` 锚定）；③antd Select 的 placeholder 是渲染节点（`.ant-select-selection-placeholder`）非 attribute，getByPlaceholderText 查不到。
+- 门禁：tsc 0/eslint 0 error/新旧 16 例全绿。**不抬版本**。
+
 ## 非版本刀：knip 守卫武装（第三轮审计 §3.5 关账）· 2026-10-04
 
 - **knip 6.39 安装 + 首跑清账 + 入 ci.ps1 常驻**（`424481cd`）：knip.json 已在而工具未装=审计指认的守卫缺口。pnpm add -D + scripts.knip + ci.ps1 lint 后常驻（ASCII 注释保 BOM）。
