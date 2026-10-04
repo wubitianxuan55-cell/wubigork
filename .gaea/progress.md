@@ -1,3 +1,10 @@
+## 非版本刀：布尔偏好四域收敛 booleanPref 工厂（第三轮审计 §3.2 *Prefs 线关账）· 2026-10-04
+
+- **收敛落地**（`e7094920`）：browserPrefs/subagentPrefs/tasksPrefs/deliverablePrefs 四份逐字同形读写样板 → `createBooleanPref(key, defaultValue)` 单一方言（垃圾值回落默认、只认显式反向值翻转、恒写 "1"/"0"、降级静默）；四域文件 172→166（含工厂+新测试 8 例），拍板史注释与导出名全保留、调用方零改动。
+- **方言保真证明**：四域既有 16 例测试零编辑复绿 + 工厂方言矩阵 6 例（双向 null/显式/垃圾值+往返+存储禁用降级）。vitest 全量 3777/3777。
+- **判定不动**（非同型）：contextPrefs/layoutPreferences（JSON 逐字段校验域）、mdViewPref（单文件枚举）、paneTabs（zustand）。*Prefs 线整体关账。
+- 坑补训：jsdom 的 localStorage 不经 Storage.prototype 分派——实例级 `vi.spyOn(window.localStorage, 'getItem')` 才拦得住。**不抬版本**。
+
 ## 非版本刀：CharacterPage hook 分域七刀（1092→650+7 hook，16 例金样零编辑复绿）· 2026-10-04
 
 - **拆分落地**（`facb8835`，controller.ts 配方）：状态与 handler 群迁 `pages/character/` 七 hook——useCharacterData（数据根：三表加载+代际守卫+同步事件）/useCharFilters（筛选持久化）/useProjectCharacterEdit（抽屉本书局部设定域，CharacterDataSlice 显式注入）/useProtagonistRelations（关系批量域）/useCharDraw（抽卡）/useLegacyWriteBack（两段式回写）/useOrgRelation（组织+关系）；页面 1092→650 纯接线+JSX 逐字节保留。
