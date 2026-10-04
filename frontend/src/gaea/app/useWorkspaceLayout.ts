@@ -2,6 +2,7 @@
 // v4.23 宽度是布局偏好而非会话内容（全局键胜出、会话快照兜底）；v4.27 视口
 // 感知重钳；会话记录随存快照。执行顺序与 deps 原样迁自 App.tsx。
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { startColumnResizeGesture } from '../../utils/resizeGesture'
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { CHAT_MIN_WIDTH } from "./layout";
 import {
@@ -74,20 +75,10 @@ export function useWorkspaceLayout({ initialPanelState, rightTab, currentSession
       workspaceWidthRef.current = next;
       setWorkspaceWidth(next);
     };
-    const onDone = () => {
+    startColumnResizeGesture(onMove, () => {
       saveWorkspaceWidth(workspaceWidthRef.current);
       setWorkspaceResizing(false);
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onDone);
-      window.removeEventListener("pointercancel", onDone);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onDone);
-    window.addEventListener("pointercancel", onDone);
+    });
   }, [effectiveSidebarWidth]);
 
   return {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { startColumnResizeGesture } from '../../utils/resizeGesture'
 import type { CSSProperties, KeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { useT } from "../lib/i18n";
 import { loadLayoutSize, saveLayoutSize, type LayoutSizeKey } from "../lib/layoutPreferences";
@@ -121,21 +122,11 @@ export function ResizableDrawer({
         nextWidth = clampDrawerWidth(window.innerWidth - moveEvent.clientX, wide, window.innerWidth);
         setWidth(nextWidth);
       };
-      const onDone = () => {
+      startColumnResizeGesture(onMove, () => {
         setWidth(nextWidth);
         saveLayoutSize(config.key, nextWidth);
         setResizing(false);
-        window.removeEventListener("pointermove", onMove);
-        window.removeEventListener("pointerup", onDone);
-        window.removeEventListener("pointercancel", onDone);
-        document.body.style.cursor = "";
-        document.body.style.userSelect = "";
-      };
-      document.body.style.cursor = "col-resize";
-      document.body.style.userSelect = "none";
-      window.addEventListener("pointermove", onMove);
-      window.addEventListener("pointerup", onDone);
-      window.addEventListener("pointercancel", onDone);
+      });
     },
     [config.key, effectiveWidth, wide],
   );

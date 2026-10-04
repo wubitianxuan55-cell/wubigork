@@ -3,6 +3,7 @@
 // pane 打开/文件 tab 辅助、预览拖拽/最大化、工作台面板开关。states/effects/
 // callbacks 的声明顺序与 deps 数组全部原样保留。
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { startColumnResizeGesture } from '../../utils/resizeGesture'
 import type { PointerEvent as ReactPointerEvent } from "react";
 import {
   PREVIEW_MAX_WIDTH, PREVIEW_MIN_WIDTH, clampPreviewWidth,
@@ -167,21 +168,11 @@ export function usePreviewPanel({ effectiveSidebarWidth, setRightTab, handleWork
       next = clampPreviewWidth(Math.max(minW, Math.min(maxW, window.innerWidth - me.clientX)));
       setPreviewWidth(next);
     };
-    const onDone = () => {
+    startColumnResizeGesture(onMove, () => {
       setPreviewWidth(next);
       savePreviewWidth(next);
       setPreviewResizing(false);
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onDone);
-      window.removeEventListener("pointercancel", onDone);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onDone);
-    window.addEventListener("pointercancel", onDone);
+    });
   }, [previewWidth, effectiveSidebarWidth]);
 
   return {

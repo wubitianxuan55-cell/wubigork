@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import { startColumnResizeGesture } from '../../utils/resizeGesture'
 import type { KeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import {
   SIDEBAR_COLLAPSED_WIDTH, SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH,
@@ -39,21 +40,11 @@ export function useSidebar() {
         nextWidth = clampSidebarWidth(me.clientX);
         setSidebarWidth(nextWidth);
       };
-      const onDone = () => {
+      startColumnResizeGesture(onMove, () => {
         setSidebarWidth(nextWidth);
         saveSidebarWidth(nextWidth);
         setSidebarResizing(false);
-        window.removeEventListener("pointermove", onMove);
-        window.removeEventListener("pointerup", onDone);
-        window.removeEventListener("pointercancel", onDone);
-        document.body.style.cursor = "";
-        document.body.style.userSelect = "";
-      };
-      document.body.style.cursor = "col-resize";
-      document.body.style.userSelect = "none";
-      window.addEventListener("pointermove", onMove);
-      window.addEventListener("pointerup", onDone);
-      window.addEventListener("pointercancel", onDone);
+      });
     },
     [sidebarCollapsed, sidebarWidth],
   );
