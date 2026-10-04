@@ -435,50 +435,6 @@ func (s *Set) ProceduralBlock() string {
 	return b.String()
 }
 
-// EpisodicMatches finds episodic memories whose tags match any tokens in the
-// input text. Used to inject relevant past experiences as few-shot context.
-// Returns at most 3 matches, sorted by tag overlap count.
-func (s *Set) EpisodicMatches(input string) []Memory {
-	if s == nil || input == "" {
-		return nil
-	}
-	memories := s.Store.List()
-	inputLower := strings.ToLower(input)
-	type scored struct {
-		m     Memory
-		score int
-	}
-	var candidates []scored
-	for _, m := range memories {
-		if m.Kind != KindEpisodic || len(m.Tags) == 0 {
-			continue
-		}
-		overlap := 0
-		for _, tag := range m.Tags {
-			if strings.Contains(inputLower, strings.ToLower(tag)) {
-				overlap++
-			}
-		}
-		if overlap > 0 {
-			candidates = append(candidates, scored{m, overlap})
-		}
-	}
-	if len(candidates) == 0 {
-		return nil
-	}
-	sort.Slice(candidates, func(i, j int) bool {
-		return candidates[i].score > candidates[j].score
-	})
-	if len(candidates) > 3 {
-		candidates = candidates[:3]
-	}
-	out := make([]Memory, len(candidates))
-	for i, c := range candidates {
-		out[i] = c.m
-	}
-	return out
-}
-
 // InitDefaults creates default memory files when a project or user config has
 // none. It writes AGENTS.md at both the user-global level (shared across all
 // projects) and the project level (project-specific). Existing files are never

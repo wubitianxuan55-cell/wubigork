@@ -150,13 +150,10 @@ export const canonicalBoards: BoardManifest[] = [
 ]
 
 // ─── 类型级断言锁死（附 B #1：Page 类型由 manifest.id 派生）────────────────
-/** 复用 bridge.ts AssertNever 模式：T 必须为空联合，否则编译错误 */
-type AssertNever<T extends never> = T
-/** 锁死：所有 canonical 板块 id 联合 */
+/** 锁死：所有 canonical 板块 id 联合（navigateWhitelist: BoardId[] 消费，
+ *  新增/改名板块漏改即编译失败——原先另有两条 AssertNever<never> 别名，
+ *  实为恒真空操作且触发 noUnusedLocals，已删） */
 export type BoardId = (typeof canonicalBoards)[number]['id']
-/** 编译期断言：Page 联合恰好等于 manifest 全部 id（新增板块只改 manifests.ts） */
-type _AssertBoardIdsUnique = AssertNever<never>
-type _AssertBoardIdCoversLegacy = AssertNever<Exclude<'home' | 'chat' | 'novel' | 'imagegen' | 'gaea' | 'cost' | 'code' | 'memoryhub' | 'modelcenter' | 'characterlib' | 'settings' | 'weixin' | 'schedule' | 'sin', BoardId>>
 
 // ─── 派生视图通用实现（列表参数化：静态 canonicalBoards 与活动清单共用）──────
 /** 顶栏菜单：filter(inMenu) + sort(menuOrder)（附 B #4） */

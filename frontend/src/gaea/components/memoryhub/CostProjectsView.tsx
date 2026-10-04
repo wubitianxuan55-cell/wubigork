@@ -9,7 +9,7 @@ import { useToast } from "../Toast";
 import type { CostComponent, CostComposeEvidence, CostEstimateItem, CostEstimateVersion, CostProject, CostProjectSummary } from "../../lib/types";
 import { ComposeModal } from "./ComposeModal";
 import { FiveCalcPanel } from "./FiveCalcPanel";
-import { EntryPicker, ItemRow, ProjectForm, SnapshotTable, StatusBadge, emptyProject, fmtTime, slug, fieldCls, fmtPrice, ghostBtn, solidBtn, iconBtn } from "./cost_projects_parts";
+import { ItemRow, ProjectForm, SnapshotTable, StatusBadge, emptyProject, fmtTime, fieldCls, fmtPrice, ghostBtn, solidBtn, iconBtn } from "./cost_projects_parts";
 
 export function CostProjectsView({ onChanged }: { onChanged?: () => void }) {
   const toast = useToast();

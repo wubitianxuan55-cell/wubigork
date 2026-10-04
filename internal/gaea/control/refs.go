@@ -107,12 +107,6 @@ func (c *Controller) detectRefs(line string) []ref {
 	return refs
 }
 
-// HasRefs reports whether a line contains any resolvable @references, so a
-// frontend can decide to resolve off its event loop only when needed.
-func (c *Controller) HasRefs(line string) bool {
-	return len(c.detectRefs(line)) > 0
-}
-
 // ResolveRefs resolves the @references in a line into a single tagged context
 // block (file/dir contents, MCP resource bodies), plus per-reference error
 // strings for any that failed. An empty block means no references resolved.

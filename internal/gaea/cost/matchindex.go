@@ -12,6 +12,7 @@ package cost
 
 import (
 	"log/slog"
+	"math"
 	"strconv"
 	"strings"
 )
@@ -132,4 +133,11 @@ func ParsePriceWithOpts(s string, opts PriceOpts) (float64, bool) {
 // 的 round2 逐字一致）。
 func Round2(v float64) float64 {
 	return float64(int64(v*100+0.5)) / 100
+}
+
+// Round4 四舍五入四位（消除 (diff/entry*100) 之类比值的浮点噪声，
+// 如 2.0000000000000004→2）。costref/costinquiry 此前各持一份逐字抄本，
+// 此处收敛为单一源（成本口径）。
+func Round4(v float64) float64 {
+	return math.Round(v*1e4) / 1e4
 }

@@ -503,10 +503,8 @@ func parsePriceDate(s string) (time.Time, bool) {
 	return time.Time{}, false
 }
 
-// round4 四舍五入保留 4 位小数(消除 (diff/entry*100) 的浮点噪声,如 2.0000000000000004→2)。
-func round4(v float64) float64 {
-	return math.Round(v*1e4) / 1e4
-}
+// round4 四舍五入保留 4 位小数（收敛到 cost.Round4 单一源，审计 GA6-05 同口径）。
+func round4(v float64) float64 { return cost.Round4(v) }
 
 // scanRecord 由 Scan 函数填充 Record,时间列 RFC3339 字符串解析为 UTC time.Time。
 func scanRecord(scan func(dest ...any) error) (Record, bool) {

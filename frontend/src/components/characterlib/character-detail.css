@@ -382,11 +382,6 @@
   background: linear-gradient(90deg, var(--md-sys-color-outline-variant), transparent);
 }
 
-.cd-sec-action {
-  border-radius: 999px;
-  height: 24px;
-  font-size: 11px;
-}
 
 .cd-fields {
   display: flex;

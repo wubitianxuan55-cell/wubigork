@@ -17,7 +17,6 @@
  * `cleanup()` 卸载，用例 afterEach 必须 `Modal.destroyAll()` + 清
  * `.ant-modal-root` 残留根节点，否则跨用例误报。
  */
-import React from 'react'
 import { Button, Modal } from 'antd'
 import { ExclamationCircleOutlined } from '@ant-design/icons'
 

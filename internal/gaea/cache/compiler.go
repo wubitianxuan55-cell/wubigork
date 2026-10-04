@@ -40,22 +40,9 @@ func (c *Compiler) FilteredSchemas(names []string) []provider.ToolSchema {
 func (c *Compiler) SetRegistry(reg *tool.Registry) { c.l1.SetRegistry(reg) }
 
 // Fork creates a child Compiler for a sub-agent that shares the
-// same L1 identity bytes. Call WithInstructions to add custom instructions
-// (e.g. SingleModelPrompt) that come after the L1 prefix in the system prompt.
+// same L1 identity bytes.
 func (c *Compiler) Fork() *Compiler {
 	return &Compiler{l1: c.l1.Fork()}
-}
-
-// WithInstructions returns a system prompt with the compiler's L1 prefix
-// followed by domain-specific instructions. The L1 prefix stays byte-identical
-// to the parent compiler's output so DeepSeek can cache it across both.
-// Pass "" to get the raw L1 (same as SystemPrompt).
-func (c *Compiler) WithInstructions(instructions string) string {
-	l1 := c.SystemPrompt()
-	if instructions == "" {
-		return l1
-	}
-	return l1 + "\n\n" + instructions
 }
 
 // Registry returns the tool registry.

@@ -584,9 +584,6 @@ body {
 @keyframes anim-fade-in {
   to { opacity: 1; }
 }
-.msg--assistant {
-  animation: anim-fade-in 0.34s var(--ease-out) forwards;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    BEM semantic message layer
@@ -599,37 +596,8 @@ body {
 }
 
 /* ── user message bubble ───────────────────────────────────────────────── */
-.msg--user {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-}
-.msg--user .msg__body {
-  max-width: 82%;
-  background: var(--bg-elev-2);
-  border: 1px solid var(--border-soft);
-  border-radius: 14px;
-  padding: 6px 12px;
-}
-.msg--user .msg__text {
-  white-space: pre-wrap;
-  word-break: break-word;
-  line-height: 1.65;
-  font-size: 14px;
-}
 
 /* ── assistant message card ────────────────────────────────────────────── */
-.msg--assistant {
-  color: var(--fg);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.msg--assistant .msg__body {
-  line-height: 1.68;
-  user-select: text;
-  -webkit-user-select: text;
-}
 
 /* ── reasoning panel ───────────────────────────────────────────────────── */
 .reasoning {
@@ -724,89 +692,9 @@ body {
   color: var(--accent);
 }
 
-.ds-card {
-  border: 1px solid var(--border);
-  background: var(--bg-elev);
-  border-radius: var(--ds-radius-lg);
-  box-shadow: var(--ds-shadow-card);
-}
-.ds-input {
-  width: 100%;
-  border: 1px solid var(--border);
-  border-radius: var(--ds-radius-lg);
-  background: var(--bg-elev);
-  padding: 8px 12px;
-  font-size: 13px;
-  color: var(--fg);
-  outline: none;
-  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
-}
-.ds-input:focus {
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-  box-shadow: 0 0 0 1px var(--accent-soft);
-}
-.ds-input::placeholder {
-  color: var(--fg-faint);
-}
-.ds-kbd {
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--fg-dim);
-  background: var(--bg-elev-2);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 1px 5px;
-}
 
 /* ── button recipes (DESIGN.md §7) ───────────────────────────────────────── */
-.btn-primary {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border-radius: var(--ds-radius-pill);
-  border: none;
-  background: var(--accent);
-  color: var(--accent-fg);
-  padding: 8px 16px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: filter var(--dur-fast), transform var(--dur-fast);
-}
-.btn-primary:hover {
-  filter: brightness(1.1);
-}
-.btn-primary:active {
-  transform: scale(0.97);
-}
-.btn-primary:disabled {
-  opacity: 0.4;
-  cursor: default;
-  filter: none;
-  transform: none;
-}
 
-.btn-secondary {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border-radius: var(--ds-radius-lg);
-  border: 1px solid var(--border);
-  background: var(--bg-elev);
-  color: var(--fg);
-  padding: 8px 12px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background var(--dur-fast);
-}
-.btn-secondary:hover {
-  background: var(--bg-soft);
-}
-.btn-secondary:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
 
 /* Card recipe — matches DESIGN.md §7 */
 .card {
@@ -817,44 +705,8 @@ body {
 }
 
 /* ── inline code / code block (Kun patterns) ────────────────────────────── */
-.ds-code-inline {
-  border-radius: var(--ds-radius-sm);
-  background: color-mix(in srgb, var(--bg-soft) 60%, var(--bg-elev));
-  padding: 1px 5px;
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--fg);
-}
-.ds-code-block {
-  border-radius: var(--ds-radius-xl);
-  border: 1px solid var(--border-soft);
-  background: color-mix(in srgb, var(--bg-soft) 50%, var(--bg));
-  padding: 12px;
-  font-family: var(--mono);
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--fg-dim);
-}
 
 /* ── dialog / modal (Kun pattern) ────────────────────────────────────────── */
-.ds-modal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--ds-overlay);
-}
-.ds-modal {
-  width: 100%;
-  max-width: 28rem;
-  border-radius: var(--ds-radius-3xl);
-  border: 1px solid var(--border);
-  background: var(--bg-elev-2);
-  padding: 24px;
-  box-shadow: var(--ds-shadow-panel);
-}
 
 /* ── chip / pill button / secondary button recipes ──────────────────────── */
 .ds-chip {
@@ -891,56 +743,12 @@ body {
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
-.badge--accent {
-  background: var(--accent-soft);
-  color: var(--accent);
-  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
-}
 .badge--muted {
   background: var(--bg-soft);
   color: var(--fg-dim);
   border: 1px solid var(--border-soft);
 }
-.badge--success {
-  background: var(--ds-success-soft);
-  color: var(--ds-success);
-  border: 1px solid color-mix(in srgb, var(--ds-success) 20%, transparent);
-}
-.badge--danger {
-  background: var(--ds-danger-soft);
-  color: var(--ds-danger);
-  border: 1px solid color-mix(in srgb, var(--ds-danger) 18%, transparent);
-}
-.badge--warning {
-  background: var(--ds-warning-soft);
-  color: var(--ds-warning);
-  border: 1px solid color-mix(in srgb, var(--ds-warning) 20%, transparent);
-}
 
-.ds-button-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border-radius: var(--ds-radius-pill);
-  border: 1px solid var(--border);
-  padding: 6px 12px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--fg-dim);
-  background: color-mix(in srgb, var(--bg-elev) 70%, var(--bg-soft));
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--fg) 6%, transparent);
-  cursor: pointer;
-  transition: all var(--dur-fast);
-}
-.ds-button-pill:hover {
-  color: var(--fg);
-  background: var(--bg-elev);
-  border-color: var(--fg-faint);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--fg) 8%, transparent), var(--ds-shadow-card);
-}
-.ds-button-pill:active {
-  transform: scale(0.985);
-}
 
 /* ── focus ring ──────────────────────────────────────────────────────────── */
 *:focus-visible {
@@ -966,10 +774,6 @@ select:focus-visible,
   text-align: center;
   color: var(--fg-faint);
   font-size: 13px;
-}
-.empty-state__icon {
-  margin-bottom: 12px;
-  opacity: 0.35;
 }
 
 /* ── composer glow + body glaze ──────────────────────────────────────────── */
@@ -1234,15 +1038,6 @@ body::after {
 .mem-card {
   transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
 }
-.mem-suggestion {
-  transition: border-color var(--dur-fast);
-}
-.mem-suggestion:hover {
-  border-color: var(--accent);
-}
-.mem-doc {
-  transition: border-color var(--dur-fast);
-}
 
 /* ── shared drawer panels ────────────────────────────────────────────────── */
 .drawer-backdrop {
@@ -1263,45 +1058,6 @@ body::after {
   border-left: 1px solid var(--border);
   box-shadow: var(--ds-shadow-panel);
   animation: drawer-in 0.25s var(--ease-out);
-}
-.drawer--wide {
-  width: min(640px, 94vw);
-}
-.drawer__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--border-soft);
-  flex-shrink: 0;
-}
-.drawer__title {
-  font-size: 15px;
-  font-weight: 650;
-  color: var(--fg);
-}
-.drawer__summary {
-  margin-top: 2px;
-  font-size: 11px;
-  color: var(--fg-faint);
-}
-.drawer__close {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--fg-faint);
-  font-size: 18px;
-  cursor: pointer;
-  transition: color var(--dur-fast), background var(--dur-fast);
-}
-.drawer__close:hover {
-  color: var(--fg);
-  background: var(--bg-soft);
 }
 @keyframes drawer-in {
   from { transform: translateX(24px); opacity: 0; }
@@ -1348,68 +1104,7 @@ body::after {
 }
 
 /* -- ContextMenu ------------------------------------------------------------- */
-.context-menu {
-  padding: 4px 0;
-  background: var(--bg-elev);
-  border: 1px solid var(--border);
-  border-radius: var(--radius, 9px);
-  box-shadow: var(--ds-shadow-dropdown, 0 18px 52px rgba(0,0,0,.35));
-  overflow: hidden;
-}
-.context-menu__sep {
-  height: 1px;
-  margin: 3px 8px;
-  background: var(--border-soft);
-}
-.context-menu__item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 6px 12px;
-  font-size: 12.5px;
-  color: var(--fg-dim);
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-  text-align: left;
-  white-space: nowrap;
-}
 .context-menu__item:hover:not(:disabled),
-.context-menu__item:focus-visible:not(:disabled) {
-  color: var(--fg);
-  background: var(--bg-elev-2);
-  outline: none;
-}
-.context-menu__item:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-.context-menu__item--danger {
-  color: var(--err);
-}
-.context-menu__item--danger:hover:not(:disabled) {
-  color: var(--err);
-  background: var(--button-danger-bg, color-mix(in srgb, var(--err) 10%, var(--bg-elev)));
-}
-.context-menu__item--section {
-  font-size: 10.5px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--fg-faint);
-  pointer-events: none;
-}
-.context-menu__icon {
-  display: inline-flex;
-  align-items: center;
-  width: 16px;
-  flex-shrink: 0;
-  opacity: 0.7;
-}
-.context-menu__label {
-  flex: 1;
-}
 
 /* ── FactCard 容器：展开/折叠过渡动画 ───────────────────────────────── */
 .fact-card-wrapper {
@@ -1425,9 +1120,6 @@ body::after {
 
 /* ── PWA standalone 模式下隐藏标题栏 ───────────────────────────────── */
 @media (display-mode: standalone) {
-  .pwa-titlebar {
-    display: none;
-  }
 }
 
 /* ── antd 布局壳适配：Layout 跟随 gaea 主题变量 ── */
@@ -1459,14 +1151,7 @@ body::after {
   }
 }
 
-.msg--user .msg__body {
-  border-radius: 16px 16px 4px 16px;
-  padding: 8px 14px;
-}
 
-.msg--assistant .msg__body {
-  line-height: 1.72;
-}
 
 .phase,
 .notice {

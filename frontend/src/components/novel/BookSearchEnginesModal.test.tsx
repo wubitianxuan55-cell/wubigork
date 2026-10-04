@@ -4,7 +4,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { Modal } from 'antd'
-import React from 'react'
 
 vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../gaea/lib/bridge')>()

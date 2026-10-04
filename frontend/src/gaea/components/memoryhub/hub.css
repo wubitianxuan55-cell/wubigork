@@ -540,53 +540,12 @@
 }
 
 /* ── 玻璃拟态模块卡片（旧首页卡片，ModuleCard 保留兼容） ───────── */
-.hub-card {
-  position: relative;
-  background: linear-gradient(150deg, color-mix(in srgb, var(--bg-elev) 55%, transparent), color-mix(in srgb, var(--bg-soft) 40%, transparent));
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
-  border-radius: 14px;
-  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
-  cursor: pointer;
-  overflow: hidden;
-}
-.hub-card::before {
-  /* 顶部霓虹高光条 */
-  content: "";
-  position: absolute;
-  top: 0; left: 12%; right: 12%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--hub-color, var(--accent)), transparent);
-  opacity: 0.7;
-}
-.hub-card:hover {
-  transform: translateY(-3px);
-  border-color: color-mix(in srgb, var(--hub-color, var(--accent)) 55%, transparent);
-  box-shadow:
-    0 0 22px color-mix(in srgb, var(--hub-color, var(--accent)) 28%, transparent),
-    0 10px 30px color-mix(in srgb, var(--color-text) 20%, transparent);
-}
-.hub-card:active { transform: translateY(-1px); }
 
 /* 卡片图标霓虹发光 */
-.hub-card-icon {
-  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--hub-color, var(--accent)) 65%, transparent));
-}
 
 /* 数据角标 */
-.hub-badge {
-  background: color-mix(in srgb, var(--hub-color, var(--accent)) 16%, transparent);
-  border: 1px solid color-mix(in srgb, var(--hub-color, var(--accent)) 35%, transparent);
-  color: color-mix(in srgb, var(--hub-color, var(--accent)) 85%, var(--fg));
-}
 
 /* 进入动画（stagger，delay 由内联 style 控制） */
-.hub-enter {
-  opacity: 0;
-  transform: translateY(12px);
-  animation: hub-rise 0.5s ease forwards;
-}
 @keyframes hub-rise {
   to { opacity: 1; transform: translateY(0); }
 }
@@ -604,8 +563,6 @@
   .hub-hit,
   .hub-inspector-toggle,
   .hub-detail-action { transition: none; }
-  .hub-enter { animation: none; opacity: 1; transform: none; }
-  .hub-card:hover { transform: none; }
 }
 .ui-reduced-motion .hub-scanline { animation: none; }
 .ui-reduced-motion .hub-enter { animation: none; opacity: 1; transform: none; }

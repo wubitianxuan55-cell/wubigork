@@ -1,6 +1,6 @@
 // VoiceSettingsPanel.tsx — 聊天语音设置面板
 
-import React, { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Card, Switch, Select, Slider, Button, Typography, Tag, Input, message } from 'antd'
 import { AudioOutlined, ReloadOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons'
 import { app } from '../gaea/lib/bridge'

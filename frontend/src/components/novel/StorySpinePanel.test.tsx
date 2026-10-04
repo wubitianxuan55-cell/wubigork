@@ -1,6 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import React from 'react'
 
 // StorySpinePanel 经 gaea/lib/bridge 的 app 调用刀3 绑定（NovelB 门面）。
 const mocks = vi.hoisted(() => ({

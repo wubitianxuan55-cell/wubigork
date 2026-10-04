@@ -1342,7 +1342,6 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
       {/* A8：本弹窗常驻挂载，事件通道一直在听——不按 active 门控就会在别的子页上盖出遮罩 */}
       <NewCharactersModal active={active} />
       <BranchWizardModal open={!!wizard}
-        prevChapter={wizard?.prevChapter ?? 0}
         overwriteChapter={wizard?.overwriteChapter ?? 0}
         branchFromID={wizard?.branchFromID ?? ''} characters={wizardCast}
         libraryCharacters={wizardLibCast} prevChapterCast={wizardPrevCast}

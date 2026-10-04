@@ -1,4 +1,3 @@
-import React from 'react'
 import GaeaApp from '../gaea/App'
 import { LocaleProvider } from '../gaea/lib/i18n'
 import '../gaea/styles.css'

@@ -3,7 +3,6 @@
 // 写后硬信号 deterministic）与 AI 四路并列直显；四路缺省仍按「未启用」诚实降级。
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import React from 'react'
 
 const mocks = vi.hoisted(() => ({ RunChapterGate: vi.fn() }))
 vi.mock('../../../wailsjs/go/app/NovelB', () => ({ RunChapterGate: mocks.RunChapterGate }))

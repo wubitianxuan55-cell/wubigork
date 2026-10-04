@@ -6,7 +6,7 @@
 // v4.340：情感曲线区（t7 观察池）——按需逐章拉分析 V2 的情感弧线强度，
 // 纯 SVG 折线（零新依赖）；未分析章诚实跳过并计数。
 import { softTextStyle } from '../../utils/uiStyles'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, Button, Empty, Modal, Popconfirm, Select, Spin, Table, Tag, Typography, message } from 'antd'
 import { app } from '../../gaea/lib/bridge'
 import { useAppStore } from '../../stores/appStore'

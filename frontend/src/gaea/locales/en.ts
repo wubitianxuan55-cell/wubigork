@@ -265,7 +265,6 @@ export const en = {
 
 
   "settings.subagentInherit": "(inherit from parent)",
-  "settings.config": "config: {path}",
 
   // todo bar
   "todo.title": "To-dos",
@@ -490,11 +489,6 @@ export const en = {
   "deliverPanel.thumbsMissingSide": "Page missing",
 
   // software update
-  "updater.title": "Software update",
-  "updater.currentVersion": "Current version: {v}",
-  "updater.checkButton": "Check for updates",
-  "updater.checking": "Checking for updates…",
-  "updater.upToDate": "You're on the latest version.",
   "updater.available": "A new version is available: {v}",
   "updater.installNow": "Update now",
   "updater.goToDownload": "Go to download page",
@@ -503,7 +497,6 @@ export const en = {
   "updater.verifying": "Verifying signature…",
   "updater.applying": "Installing…",
   "updater.done": "Update complete — restarting…",
-  "updater.failed": "Update failed: {msg}",
   "updater.dismiss": "Later",
 
   // command palette
@@ -628,11 +621,8 @@ export const en = {
   "shell.tele.overloadModels": "⚠ Too many models running",
   "shell.tele.overloadModelsDesc": "{count} engines enabled — consider disabling unused ones (⚡ toggle in each window)",
   "shell.launcher.statModel": "Active model",
-  "shell.launcher.statModelNone": "Not set",
-  "shell.launcher.statModelSub": "Current conversation model",
   "shell.launcher.statEngines": "Enabled engines",
   "shell.launcher.statEnginesSub": "{local} local · {cloud} cloud",
-  "shell.launcher.statIdle": "Telemetry idle",
   "shell.launcher.statWriting": "Writing progress",
   "shell.launcher.statWritingSub": "{chapters} chapters · {words} words",
   "shell.launcher.statLoading": "Loading stats…",
@@ -1245,7 +1235,6 @@ export const en = {
   "subagent.statusError": "Error",
   "subagent.statusDone": "Completed",
   "subagent.statusFailed": "Failed",
-  "subagent.statusActive": "Running",
   "subagent.durSec": "{n} s",
   "subagent.durMin": "{n} min",
   "subagent.durHour": "{n} h",
@@ -1273,23 +1262,8 @@ export const en = {
   "subagent.followUpSend": "Send follow-up",
   "subagent.followUpFail": "Follow-up failed: {msg}",
   "subagent.followUpFailLabel": "Follow-up failed",
-  "subagent.netTitle": "Agent network",
-  "subagent.netSubtitle": "{n} subagents · ring = context token share",
-  "subagent.netLoadFail": "Load failed: {msg}",
   "subagent.runsLoadFail": "Failed to load the subagent list — click to retry",
-  "subagent.rootGlyph": "M",
-  "subagent.modelLabel": "model {model}",
-  "subagent.toolCount": "tools {n}",
-  "subagent.errCountLong": "errors {n}",
-  "subagent.hoverHint": "Hover for node details · click a node to pin subagent details",
   "subagent.close": "Close",
-  "subagent.toolCalls": "tool calls {n}",
-  "subagent.stLabel": "status {status}",
-  "subagent.collapseTranscript": "Collapse full transcript",
-  "subagent.viewTranscript": "View full transcript",
-  "subagent.searchMsg": "Search messages",
-  "subagent.msgFilterCount": "{shown}/{total} msgs",
-  "subagent.noMatchMsg": "No matching messages",
   "subagent.modelToolLabel": "Local model",
   "subagent.modelToolSection": "Local model tools",
   // ── 6.3 Office pipelines (DagPanel section in the tasks view; GaeaDag* bindings) ──

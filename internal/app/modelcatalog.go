@@ -10,12 +10,11 @@ package app
 
 import "strings"
 
-// 档位常量。
+// 档位常量（仅保留有消费者的档位；free_fallback / remote_heavy 无任何引用
+// 亦无目录条目使用，已删）。
 const (
-	imageTierLocalFree    = "local_free"
-	imageTierCloudPaid    = "cloud_paid"
-	imageTierFreeFallback = "free_fallback"
-	imageTierRemoteHeavy  = "remote_heavy"
+	imageTierLocalFree = "local_free"
+	imageTierCloudPaid = "cloud_paid"
 )
 
 // imageModelCatalogMeta 单模型目录元数据（T0 最小字段）。

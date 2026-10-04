@@ -129,10 +129,6 @@ func (cm *ContextManager) Skill() *SkillLayer       { return cm.skill }
 func (cm *ContextManager) Flow() *FlowLayer         { return cm.flow }
 func (cm *ContextManager) Metrics() CacheReport     { return cm.metrics.Report() }
 
-func (cm *ContextManager) ActiveTools() []provider.ToolSchema {
-	return cm.identity.FilteredSchemas(cm.skill.CurrentProfile().Tools)
-}
-
 // TurnContext is the assembled context for one agent turn.
 type TurnContext struct {
 	SystemPrompt []provider.Message

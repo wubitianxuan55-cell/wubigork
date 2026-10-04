@@ -146,15 +146,6 @@ body {
 }
 
 /* ═══ 分区标题 ═══ */
-.section-title {
-  font-size: var(--font-size-xs);
-  font-weight: 500;
-  letter-spacing: 0.05em;
-  color: var(--md-sys-color-on-surface-variant);
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
-}
 
 /* ═══ 写作编辑器 ═══ */
 .writing-textarea {
@@ -181,15 +172,6 @@ body {
 }
 
 /* ═══ 主题色发光按钮 ═══ */
-.btn-primary-glow {
-  background: var(--md-sys-color-primary) !important;
-  border-color: var(--md-sys-color-primary) !important;
-  box-shadow: 0 2px 8px rgba(from var(--md-sys-color-primary) r g b / 0.3);
-  transition: box-shadow var(--md-sys-transition-slow);
-}
-.btn-primary-glow:hover {
-  box-shadow: 0 4px 16px rgba(from var(--md-sys-color-primary) r g b / 0.4);
-}
 
 /* ═══ 动画 ═══ */
 @keyframes slideInRight {
@@ -218,19 +200,7 @@ body {
   from { opacity: 0; transform: translateY(14px) scale(0.97); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
-.launcher-card {
-  animation: launcherFadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) backwards,
-             floatSoft 5.5s ease-in-out 0.7s infinite;
-}
 /* hover：暂停浮游，发光描边 + 图标放大（悬浮静止感） */
-.launcher-card:hover {
-  animation-play-state: paused, running;
-  box-shadow: var(--md-sys-elevation-3);
-}
-.launcher-card:focus-visible {
-  outline: 2px solid var(--md-sys-color-primary);
-  outline-offset: 2px;
-}
 /* 卡片常驻轻微上下浮游（悬浮感） */
 @keyframes floatSoft {
   0%, 100% { transform: translateY(0); }
@@ -238,44 +208,11 @@ body {
 }
 
 /* ── 透明虚空卡片（深空悬浮，对齐 Modern Dark Cinema 玻璃配方）── */
-.void-card {
-  background: rgba(255, 255, 255, 0.04);
-  -webkit-backdrop-filter: blur(10px) saturate(120%);
-  backdrop-filter: blur(10px) saturate(120%);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06),
-              0 10px 36px rgba(0, 0, 0, 0.28);
-}
 /* 顶部扫光高光（悬浮层质感） */
-.void-card::after {
-  content: '';
-  position: absolute;
-  left: 8%; right: 8%; top: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-  opacity: 0.7;
-  pointer-events: none;
-}
-.void-card:hover {
-  border-color: color-mix(in srgb, var(--gaea-glow) 40%, rgba(255, 255, 255, 0.1));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08),
-              0 0 26px color-mix(in srgb, var(--gaea-glow) 24%, transparent);
-}
 
 /* ── 首页语音卡片（language-core）：边框透明，融入虚空，只留背景玻璃感 ── */
-.language-core {
-  border-color: transparent !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05),
-              0 10px 36px rgba(0, 0, 0, 0.25);
-}
-.language-core.neon-card::before {
-  opacity: 0 !important;
-}
 
 /* 语音激活按钮呼吸脉冲 */
-.voice-btn-active {
-  animation: voiceBtnPulse 1.6s ease-in-out infinite;
-}
 @keyframes voiceBtnPulse {
   0%, 100% {
     box-shadow: 0 0 18px color-mix(in srgb, var(--gaea-glow) 30%, transparent),
@@ -287,11 +224,6 @@ body {
   }
 }
 
-.writing-cursor::after {
-  content: '▌';
-  color: var(--md-sys-color-primary);
-  animation: pulseCursor 0.8s ease-in-out infinite;
-}
 .cursor-blink {
   display: inline-block;
   width: 2px; height: 1.1em;
@@ -355,19 +287,10 @@ body {
 .typing-dot:nth-child(3) {
   animation-delay: 0.3s;
 }
-.page-transition-enter {
-  animation: pageEnter 0.25s cubic-bezier(0.2, 0, 0, 1);
-}
 
 /* ═══ 悬浮输入框 — Ant Design TextArea 无边框聚焦覆盖 ═══ */
 .chat-input-textarea,
 .chat-input-textarea:focus,
-.chat-input-textarea-focused {
-  border: none !important;
-  box-shadow: none !important;
-  outline: none !important;
-  background: transparent !important;
-}
 
 /* ═══ M3 Navigation (Ant Design 覆盖) ═══ */
 .ant-menu-horizontal {
@@ -438,12 +361,6 @@ body {
 }
 
 /* ═══ Bento Grid 响应式 ═══ */
-.bento-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  grid-auto-rows: minmax(160px, auto);
-  gap: 16px;
-}
 @media (max-width: 1200px) { .bento-grid { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 768px)  { .bento-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 480px)  { .bento-grid { grid-template-columns: 1fr; } }
@@ -572,13 +489,6 @@ body {
 
 /* ── 玻璃拟态工具类 ── */
 /* gp-panel = 3.0 设计系统玻璃容器基座（§2.1）：氛围层之上的容器层，信息层用实底卡不叠玻璃 */
-.gp-panel {
-  background: var(--gaea-glass-bg, var(--md-sys-color-surface-container));
-  -webkit-backdrop-filter: blur(24px) saturate(150%);
-  backdrop-filter: blur(24px) saturate(150%);
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--md-sys-radius-lg);
-}
 .md-glass {
   background: var(--gaea-glass-bg, var(--md-sys-color-surface-container));
   -webkit-backdrop-filter: blur(20px) saturate(140%);
@@ -597,50 +507,8 @@ body {
   color: var(--md-sys-color-text);
   text-shadow: 0 0 18px var(--gaea-glow), 0 0 42px var(--gaea-glow);
 }
-.neon-glow-icon {
-  filter: drop-shadow(0 0 8px var(--gaea-glow));
-}
 
 /* ── 霓虹渐变描边卡片（hover 时发光） ── */
-.neon-card {
-  position: relative;
-  background: var(--md-sys-color-surface-container);
-  border-radius: var(--md-sys-radius-xl);
-  box-shadow: var(--md-sys-elevation-1);
-  cursor: pointer;
-  transition: transform var(--md-sys-transition-normal),
-              box-shadow var(--md-sys-transition-normal);
-  overflow: hidden;
-}
-.neon-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(135deg,
-    var(--gaea-glow) 0%,
-    transparent 30%,
-    transparent 70%,
-    var(--gaea-glow) 100%);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  mask-composite: exclude;
-  opacity: 0.35;
-  transition: opacity var(--md-sys-transition-normal);
-  pointer-events: none;
-}
-.neon-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 0 0 1px var(--gaea-glow),
-              0 10px 34px rgba(from var(--gaea-glow) r g b / 0.22);
-}
-.neon-card:hover::before { opacity: 1; }
-.neon-card:focus-visible {
-  outline: 2px solid var(--gaea-glow);
-  outline-offset: 2px;
-}
 
 /* ── 发光圆点（在线/运行状态）── */
 .live-dot {
@@ -663,10 +531,6 @@ body {
 }
 
 /* ── 品牌文字霓虹 ── */
-.gaea-brand-text {
-  text-shadow: 0 0 12px var(--gaea-glow), 0 0 32px var(--gaea-glow);
-  letter-spacing: 0.02em;
-}
 
 /* ── antd 顶栏 Menu 未来感定制 ── */
 .ant-menu-horizontal {
@@ -691,14 +555,6 @@ body {
 }
 
 /* ── 启动器卡片 hover 微交互 ── */
-.launcher-card:hover .launcher-icon {
-  transform: scale(1.08);
-  box-shadow: 0 0 22px color-mix(in srgb, var(--gaea-glow) 45%, transparent);
-}
-.launcher-card:hover .launcher-arrow {
-  opacity: 1 !important;
-  transform: translateX(0) !important;
-}
 
 /* ── 欢迎页登录按钮 hover ── */
 .welcome-login-btn:hover {
@@ -717,12 +573,6 @@ body {
 }
 
 /* ── 聊天输入栏聚焦霓虹 ── */
-.chat-input-wrap:focus-within {
-  border-color: var(--gaea-glow) !important;
-  box-shadow: 0 0 0 1px var(--gaea-glow),
-              0 0 22px color-mix(in srgb, var(--gaea-glow) 22%, transparent),
-              0 8px 32px rgba(0,0,0,0.12) !important;
-}
 
 /* ── 绘梦画廊卡片 hover ── */
 .img-card:hover {

@@ -10,7 +10,6 @@ export interface BranchCastEntry { name: string; relation?: string; note?: strin
 
 interface BranchWizardModalProps {
   open: boolean
-  prevChapter: number
   overwriteChapter: number
   branchFromID: string
   /** 项目角色名册（选角候选） */
@@ -38,7 +37,7 @@ interface BranchWizardModalProps {
  * 操作其他内容；构思完成自动弹回分支步。分支步改选角会提示重新构思。
  */
 const BranchWizardModal: React.FC<BranchWizardModalProps> = ({
-  open, prevChapter, overwriteChapter, branchFromID, characters, libraryCharacters, prevChapterCast,
+  open, overwriteChapter, branchFromID, characters, libraryCharacters, prevChapterCast,
   cast, onCastChange, preloadedBranches, onStartBrainstorm, onClose, onStart,
 }) => {
   const [selectedBranch, setSelectedBranch] = useState<number | null>(null)

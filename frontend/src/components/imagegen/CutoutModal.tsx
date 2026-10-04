@@ -4,7 +4,7 @@
 // 「涂=重绘」相反——蒙版产物同组件，语义由消费方定义）。导出产物不进画布
 // results（透明图在结果流的展示语义挂观察池），成功态显示路径。
 import { softTextStyle } from '../../utils/uiStyles'
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { Alert, Button, Modal, Typography, message } from 'antd'
 import { imageCutout } from '../../api/image'
 import MaskBrushEditor from './MaskBrushEditor'

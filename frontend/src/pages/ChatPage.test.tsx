@@ -87,27 +87,6 @@ const bindingsBridge = vi.hoisted(() => ({
   TTSSpeakBase64: vi.fn(),
   TTSSpeakBase64WithParams: vi.fn(),
 }))
-vi.mock('../../src/wailsjsCompat', () => ({
-  ChatTopicsList: bindingsBridge.ChatTopicsList,
-  ChatMessagesList: bindingsBridge.ChatMessagesList,
-  ChatMessagesPage: bindingsBridge.ChatMessagesPage,
-  ChatAppendMessages: bindingsBridge.ChatAppendMessages,
-  ChatStreamPlain: bindingsBridge.ChatStreamPlain,
-  ChatSend: bindingsBridge.ChatSend,
-  ChatImportTopic: bindingsBridge.ChatImportTopic,
-  ChatTopicCreate: bindingsBridge.ChatTopicCreate,
-  ChatTopicDelete: bindingsBridge.ChatTopicDelete,
-  ChatTopicRename: bindingsBridge.ChatTopicRename,
-  ChatTopicSetMode: bindingsBridge.ChatTopicSetMode,
-  ChatTopicClear: bindingsBridge.ChatTopicClear,
-  ChatTopicExportMarkdown: bindingsBridge.ChatTopicExportMarkdown,
-  WhisperGetPersonalities: bindingsBridge.WhisperGetPersonalities,
-  WhisperClearSession: bindingsBridge.WhisperClearSession,
-  VoiceApplySettings: bindingsBridge.VoiceApplySettings,
-  TTSSpeakBase64: bindingsBridge.TTSSpeakBase64,
-  TTSSpeakBase64WithParams: bindingsBridge.TTSSpeakBase64WithParams,
-  GaeaLogFrontendError: bindingsBridge.LogFrontendError,
-}))
 vi.mock('../gaea/lib/bridge', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../gaea/lib/bridge')>()
   return {

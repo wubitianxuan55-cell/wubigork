@@ -26,7 +26,6 @@ const (
 	ctxForeshadowBudget   = 1600 // 伏笔区正文上限
 	ctxWorldviewBudget    = 1600 // 世界观区正文上限
 	ctxStyleBudget        = 1200 // 书级文风档案区上限（T6：偏好宜精不宜多）
-	ctxForeshadowLineLen  = 100  // 单条伏笔描述截断
 	ctxForeshadowMaxItems = 15   // 最多注入的伏笔条数
 	ctxWorldviewDimLen    = 150  // 世界观单维度截断
 	ctxSceneBibleBudget   = 2200 // 场景圣经（POV 感知上下文）注入上限（rune）

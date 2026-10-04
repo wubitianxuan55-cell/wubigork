@@ -4,7 +4,6 @@
 // progress/done/error 三路事件、取消、成书清单渲染与删除确认。
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import React from 'react'
 
 vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../gaea/lib/bridge')>()

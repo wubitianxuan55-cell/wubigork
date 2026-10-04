@@ -365,7 +365,7 @@ function fallbackCopy(text: string): void {
 
 const DEFAULT_SERIES = ["var(--gaea-glow)", "var(--color-primary)", "var(--color-success)", "var(--color-warning)"];
 
-function seriesColor(chart: GenuiChart, s: { color?: string }, i: number): string {
+function seriesColor(s: { color?: string }, i: number): string {
   return s.color ?? DEFAULT_SERIES[i % DEFAULT_SERIES.length] ?? "var(--gaea-glow)";
 }
 
@@ -397,7 +397,7 @@ function ChartNode({ node }: { node: GenuiChart }) {
         <div className="gui-chart-legend">
           {series.map((s, i) => (
             <span key={s.label} className="gui-chart-legend-item">
-              <span className="gui-chart-legend-swatch" style={{ background: seriesColor(node, s, i) }} />
+              <span className="gui-chart-legend-swatch" style={{ background: seriesColor(s, i) }} />
               {s.label}
             </span>
           ))}
@@ -407,9 +407,9 @@ function ChartNode({ node }: { node: GenuiChart }) {
         {kind === "bars" && (
           <g>
             {series.map((s, si) => {
-              const color = seriesColor(node, s, si);
+              const color = seriesColor(s, si);
               const n = s.data.length;
-              const groupW = hasSeries ? plotW / Math.max(1, n) : plotW / Math.max(1, n);
+              const groupW = plotW / Math.max(1, n);
               const barW = Math.max(4, groupW / (hasSeries ? series.length + 1 : 1) - 4);
               return s.data.map((d, i) => {
                 const y = baseline(d.value);
@@ -444,7 +444,7 @@ function ChartNode({ node }: { node: GenuiChart }) {
         )}
         {kind === "line" &&
           series.map((s, si) => {
-            const color = seriesColor(node, s, si);
+            const color = seriesColor(s, si);
             const n = s.data.length;
             const pts = s.data.map((d, i) => `${x(i, n).toFixed(1)},${baseline(d.value).toFixed(1)}`);
             return (

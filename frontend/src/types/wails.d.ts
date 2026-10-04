@@ -9,7 +9,7 @@
  */
 import type {
   OutlineNode, CharacterData, OrganizationData, RelationshipData,
-  WorldviewSectionData, ConsistencyReportData, TTSConfig, TTSStatus, BrainstormIdea,
+  WorldviewSectionData, ConsistencyReportData, BrainstormIdea,
 } from './index'
 
 /**
@@ -120,25 +120,6 @@ export interface NovelSearchHitData {
   total_hits: number
   /** 命中章节总数（每行冗余携带） */
   chapter_count: number
-}
-
-/** 剧情分支（对齐 internal/app/plot_branch_handler.go PlotBranch） */
-interface PlotBranch {
-  id: string
-  title: string
-  summary: string
-  characters_involved: string[]
-  core_conflict: string
-  foreshadow_impact: string
-  tone: string
-}
-
-/** Lorebook 词条 */
-interface LorebookEntry {
-  key: string
-  name?: string
-  content?: string
-  enabled?: boolean
 }
 
 /** gaea 后端 App 接口（legacy 单一绑定面；S2-3 后由 gaea/lib/bridge.ts 兼容代理路由） */

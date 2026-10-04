@@ -5,8 +5,8 @@
 //   ④迟到响应（序号作废）不显示。
 // mock 口径照 SkillModal.test.tsx（wailsApp 半桩）。
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import React, { useRef, useState } from 'react'
+import { act, fireEvent, render, screen} from '@testing-library/react'
+import { useRef, useState } from 'react'
 import GhostText from './GhostText'
 import { wailsApp } from '../../../lib/wailsApp'
 

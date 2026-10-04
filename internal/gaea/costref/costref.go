@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/costproject"
 )
 
@@ -418,10 +419,8 @@ func trimZero(v float64) string {
 	return strings.TrimRight(strings.TrimRight(s, "0"), ".")
 }
 
-// round4 四舍五入保留 4 位小数（消除浮点噪声；与 coststage 同口径）。
-func round4(v float64) float64 {
-	return math.Round(v*10000) / 10000
-}
+// round4 四舍五入保留 4 位小数（收敛到 cost.Round4 单一源，审计 GA6-05 同口径）。
+func round4(v float64) float64 { return cost.Round4(v) }
 
 func firstCategory(path string) string {
 	for _, p := range strings.Split(path, "/") {

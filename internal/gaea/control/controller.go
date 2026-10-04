@@ -862,43 +862,6 @@ func (c *Controller) maybeSessionStart(ctx context.Context) {
 	c.hooks.SessionStart(ctx)
 }
 
-// TCCAStats returns a formatted cache metrics report (V3.0).
-// Returns empty string when ctxMgr is not wired.
-func (c *Controller) TCCAStats() string {
-	if c.ctxMgr == nil {
-		return "TCCA not available (ContextManager not wired)"
-	}
-	r := c.ctxMgr.Metrics()
-	return fmt.Sprintf(
-		"TCCA Session Cache Report\n"+
-			"========================\n"+
-			"Layers:\n"+
-			"  L1 Identity:  %d bytes\n"+
-			"  L2 Runtime:   %d bytes\n"+
-			"  L3 Skill:     v%d\n"+
-			"  L4 Flow:      %d messages\n"+
-			"\n"+
-			"Savings (session):\n"+
-			"  Compaction:   %d tokens saved (%d passes)\n"+
-			"  Fork reuse:   %d tokens saved (%d forks)\n"+
-			"  节省:         ¥%.4f\n"+
-			"  Latency:      %d ms\n",
-		r.L1Size, r.L2Size, r.L3Version, r.L4Messages,
-		r.SavedByCompact, r.CompactionCount,
-		r.SavedByFork, r.ForkCount,
-		r.SavedUSD*7.25, r.SavedLatencyMs,
-	)
-}
-
-// TCCAReport returns the structured cache metrics report (V3.0).
-// Returns zero-value CacheReport when ctxMgr is not wired.
-func (c *Controller) TCCAReport() tiancontext.CacheReport {
-	if c.ctxMgr == nil {
-		return tiancontext.CacheReport{}
-	}
-	return c.ctxMgr.Metrics()
-}
-
 // SystemPrompt returns the L1 system prompt.
 func (c *Controller) SystemPrompt() string {
 	if c.ctxMgr != nil {
@@ -1006,10 +969,6 @@ func (c *Controller) Tools() []tool.Tool {
 	}
 	return out
 }
-
-// HookRunner returns the session's hook runner (nil-safe; may hold zero hooks),
-// so a frontend can list the active hooks via `/hooks`.
-func (c *Controller) HookRunner() *hook.Runner { return c.hooks }
 
 // AddMCPServer connects an MCP server live and persists it to the config file. Its
 // tools are registered immediately and become available on the next turn (the

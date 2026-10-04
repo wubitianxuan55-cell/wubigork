@@ -126,10 +126,8 @@ const runNew: SubagentRunView = {
 
 const runsA: SubagentRunView[] = [runCompleted, runModelTool];
 
-const _metaLoading: SubagentRunsMeta = { status: "loading", total: 0, running: 0 };
 const metaReady = (running: number): SubagentRunsMeta => ({ status: "ready", available: true, total: 2, running });
 const metaError = (running: number): SubagentRunsMeta => ({ status: "error", total: 2, running });
-const _netLoadingM: AgentNetworkMeta = { status: "loading" };
 const netReadyM: AgentNetworkMeta = { status: "ready" };
 const netErrorM: AgentNetworkMeta = { status: "error" };
 

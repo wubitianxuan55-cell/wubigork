@@ -2,7 +2,7 @@
 // v4.304 版本库的 List/Get 绑定此前零 UI 消费——跨会话找回历史版本用户到不了。
 // 动作按后端状态机门控原样镜像（Apply: completed|discarded|applied 幂等；
 // Discard: 仅 completed；Restore: 仅 applied），前端不重复裁决只禁用不可用项。
-import React, { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Button, Collapse, Empty, Modal, Popconfirm, Spin, Tag, message } from 'antd'
 import { app } from '../../gaea/lib/bridge'
 import type { RewriteVersionIndex } from '../../gaea/lib/bridge/novel'

@@ -1,7 +1,7 @@
 // WhisperTracePanel.tsx — 对话追踪面板（对齐 Ackem TracePanel）
 // 增强：四列网格布局、MiniBar四色、信任/aff着色、轮数选择
 
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { AudioMutedOutlined, CheckCircleOutlined, LineChartOutlined, ToolOutlined } from '@ant-design/icons'
 
 interface TraceEntry {

@@ -270,7 +270,6 @@ export const zhTW: Record<DictKey, string> = {
 
 
   "settings.subagentInherit": "（繼承主模型）",
-  "settings.config": "設定檔：{path}",
 
   // todo bar
   "todo.title": "待辦事項",
@@ -495,11 +494,6 @@ export const zhTW: Record<DictKey, string> = {
   "deliverPanel.thumbsMissingSide": "無此頁",
 
   // software update
-  "updater.title": "軟體更新",
-  "updater.currentVersion": "目前版本：{v}",
-  "updater.checkButton": "檢查更新",
-  "updater.checking": "正在檢查更新…",
-  "updater.upToDate": "已是最新版本。",
   "updater.available": "新版本可用：{v}",
   "updater.installNow": "立即更新",
   "updater.goToDownload": "前往下載頁面",
@@ -508,7 +502,6 @@ export const zhTW: Record<DictKey, string> = {
   "updater.verifying": "正在驗證簽章…",
   "updater.applying": "正在安裝…",
   "updater.done": "更新完成——正在重新啟動…",
-  "updater.failed": "更新失敗：{msg}",
   "updater.dismiss": "稍後再說",
 
   // command palette
@@ -633,11 +626,8 @@ export const zhTW: Record<DictKey, string> = {
   "shell.tele.overloadModels": "⚠ 已啟動模型過多",
   "shell.tele.overloadModelsDesc": "已啟用 {count} 個引擎，建議停用不用的模型（各功能視窗 ⚡ 一鍵啟停）",
   "shell.launcher.statModel": "活躍模型",
-  "shell.launcher.statModelNone": "未設定",
-  "shell.launcher.statModelSub": "目前對話模型",
   "shell.launcher.statEngines": "已啟用引擎",
   "shell.launcher.statEnginesSub": "{local} 本機 · {cloud} 雲端",
-  "shell.launcher.statIdle": "遙測待機",
   "shell.launcher.statWriting": "專案寫作進度",
   "shell.launcher.statWritingSub": "{chapters} 章 · {words} 字",
   "shell.launcher.statLoading": "統計載入中…",
@@ -1250,7 +1240,6 @@ export const zhTW: Record<DictKey, string> = {
   "subagent.statusError": "出錯",
   "subagent.statusDone": "已完成",
   "subagent.statusFailed": "失敗",
-  "subagent.statusActive": "執行中",
   "subagent.durSec": "{n} 秒",
   "subagent.durMin": "{n} 分",
   "subagent.durHour": "{n} 小時",
@@ -1278,23 +1267,8 @@ export const zhTW: Record<DictKey, string> = {
   "subagent.followUpSend": "發送追問",
   "subagent.followUpFail": "追問失敗：{msg}",
   "subagent.followUpFailLabel": "追問發送失敗",
-  "subagent.netTitle": "Agent 網路",
-  "subagent.netSubtitle": "{n} 個子代理 · 環 = 上下文 token 佔比",
-  "subagent.netLoadFail": "載入失敗：{msg}",
   "subagent.runsLoadFail": "子代理清單載入失敗，點擊重試",
-  "subagent.rootGlyph": "主",
-  "subagent.modelLabel": "模型 {model}",
-  "subagent.toolCount": "工具 {n}",
-  "subagent.errCountLong": "錯誤 {n}",
-  "subagent.hoverHint": "懸停查看節點詳情 · 點擊節點釘選子代理詳情",
   "subagent.close": "關閉",
-  "subagent.toolCalls": "工具呼叫 {n}",
-  "subagent.stLabel": "狀態 {status}",
-  "subagent.collapseTranscript": "收起完整 transcript",
-  "subagent.viewTranscript": "查看完整 transcript",
-  "subagent.searchMsg": "搜尋訊息",
-  "subagent.msgFilterCount": "{shown}/{total} 則",
-  "subagent.noMatchMsg": "沒有符合的訊息",
   "subagent.modelToolLabel": "本地模型",
   "subagent.modelToolSection": "本地模型工具",
   // ── 6.3 辦公流水線（DagPanel 任務視圖區塊，GaeaDag* 綁定消費面）──

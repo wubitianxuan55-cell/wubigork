@@ -2,7 +2,6 @@
 // 受控 presentational：断言提取范围选项渲染与回调透传，落库语义在 Go 侧锁定。
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import React from 'react'
 
 import ImportNovelModal from './ImportNovelModal'
 import { EXTRACT_OPTIONS } from './novelOptions'

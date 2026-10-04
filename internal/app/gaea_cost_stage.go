@@ -10,15 +10,6 @@ import (
 var costStageStoreOverride *coststage.Store
 var costStageStoreOverrideSet bool
 
-// SetCostStageStoreForTest 注入隔离的五算存储（测试用）。
-func SetCostStageStoreForTest(s *coststage.Store) {
-	costStageStoreOverride = s
-	costStageStoreOverrideSet = true
-}
-
-// ResetCostStageStoreForTest 清除测试注入。
-func ResetCostStageStoreForTest() { costStageStoreOverrideSet = false }
-
 // hubCostStageStore 构造五算存储（Hephaestus.db，与成本库同库）。
 func (a *App) hubCostStageStore() *coststage.Store {
 	if costStageStoreOverrideSet {

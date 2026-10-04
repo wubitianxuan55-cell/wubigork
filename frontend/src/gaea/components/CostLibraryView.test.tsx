@@ -76,7 +76,7 @@ describe("CostLibraryView 多级分类 + 列表/表格", () => {
     // name tie-break）→ 切片，返回 {items,total}（对齐 Go GaeaCostSearchPage）。
     pageSpy.mockReset();
     pageSpy.mockImplementation(
-      (query: string, category: string, status: string, sortKey: string, sortDir: number, limit: number, offset: number) => {
+      (_query: string, category: string, status: string, sortKey: string, sortDir: number, limit: number, offset: number) => {
         let all = ENTRIES.filter((e) => {
           const path = e.categoryPath || e.category || "";
           if (category && category !== "all" && path !== category && !path.startsWith(category + "/")) return false;

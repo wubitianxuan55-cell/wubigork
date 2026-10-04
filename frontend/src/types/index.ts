@@ -185,20 +185,6 @@ export interface ChapterTabData {
   retryStatus?: { score: number; target: number } | null
 }
 
-// ── TTS 语音朗读 ────────────────────────────────────────
-export interface TTSConfig {
-  modelPath: string
-  serverPath: string
-  port: number
-  backend: string
-  speed: number
-}
-
-export interface TTSStatus {
-  running: boolean
-  port: number
-}
-
 // ── 书架 ────────────────────────────────────────────────
 /** BrainstormIdea — AI 脑暴生成的小说创意 */
 export interface BrainstormIdea {

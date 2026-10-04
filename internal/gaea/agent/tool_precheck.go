@@ -20,8 +20,6 @@ func (a *AgentRunner) precheckTool(name string, args json.RawMessage) string {
 		return a.precheckEditFile(args)
 	case "multi_edit":
 		return a.precheckMultiEdit(args)
-	case "delete_range":
-		return a.precheckDeleteRange(args)
 	}
 	return ""
 }
@@ -109,43 +107,6 @@ func (a *AgentRunner) precheckMultiEdit(raw json.RawMessage) string {
 		}
 	}
 	return ""
-}
-
-// precheckDeleteRange verifies that start_anchor and end_anchor both exist in
-// the target file.
-func (a *AgentRunner) precheckDeleteRange(raw json.RawMessage) string {
-	var p struct {
-		Path        string `json:"path"`
-		StartAnchor string `json:"start_anchor"`
-		EndAnchor   string `json:"end_anchor"`
-	}
-	if err := json.Unmarshal(raw, &p); err != nil || p.Path == "" {
-		return ""
-	}
-	if p.StartAnchor == "" || p.EndAnchor == "" {
-		return ""
-	}
-
-	content, ok := a.readFileForPrecheck(p.Path)
-	if !ok {
-		return ""
-	}
-
-	missing := []string{}
-	if !strings.Contains(content, p.StartAnchor) {
-		missing = append(missing, "start_anchor")
-	}
-	if !strings.Contains(content, p.EndAnchor) {
-		missing = append(missing, "end_anchor")
-	}
-	if len(missing) == 0 {
-		return ""
-	}
-
-	return fmt.Sprintf(
-		"precheck blocked: %s not found in %s. Re-read the file and retry.",
-		strings.Join(missing, " and "), p.Path,
-	)
 }
 
 // readFileForPrecheck returns file content for precheck purposes. Uses the

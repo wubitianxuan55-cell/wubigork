@@ -95,8 +95,6 @@ function GenuiBlockInstance({ spec, stateKey }: GenuiBlockProps) {
     setSecretFields((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
   }, []);
 
-  const isSecret = useCallback((id: string): boolean => secretFields.has(id), [secretFields]);
-
   const reset = useCallback((notifyAction?: string): void => {
     setAnswers({});
     setLocked(false);
@@ -116,14 +114,13 @@ function GenuiBlockInstance({ spec, stateKey }: GenuiBlockProps) {
       setField,
       registerMeta,
       registerSecret,
-      isSecret,
       lock: () => setLocked(true),
       reset,
       emit: (action, payload) => {
         emitRaw?.(action, payload);
       },
     }),
-    [answers, fields, meta, locked, round, onAction, setAnswer, setField, registerMeta, registerSecret, isSecret, reset, emitRaw],
+    [answers, fields, meta, locked, round, onAction, setAnswer, setField, registerMeta, registerSecret, reset, emitRaw],
   );
 
   useEffect(() => {

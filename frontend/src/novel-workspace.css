@@ -1230,21 +1230,6 @@
     color-mix(in srgb, var(--color-primary) 46%, var(--color-surface-container)),
     color-mix(in srgb, var(--color-primary) 12%, var(--color-surface-container)));
 }
-.novel-cover-tone-success {
-  background: linear-gradient(135deg,
-    color-mix(in srgb, var(--color-success) 40%, var(--color-surface-container)),
-    color-mix(in srgb, var(--color-success) 10%, var(--color-surface-container)));
-}
-.novel-cover-tone-warning {
-  background: linear-gradient(135deg,
-    color-mix(in srgb, var(--color-warning) 40%, var(--color-surface-container)),
-    color-mix(in srgb, var(--color-warning) 10%, var(--color-surface-container)));
-}
-.novel-cover-tone-destructive {
-  background: linear-gradient(135deg,
-    color-mix(in srgb, var(--color-destructive) 36%, var(--color-surface-container)),
-    color-mix(in srgb, var(--color-destructive) 9%, var(--color-surface-container)));
-}
 .novel-cover-title {
   position: relative;
   z-index: 1;

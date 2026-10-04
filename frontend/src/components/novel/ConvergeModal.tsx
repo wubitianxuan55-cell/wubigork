@@ -1,7 +1,7 @@
 // ConvergeModal.tsx — 质量收敛修补（长篇刀4：体检→定向修补→复检→三态判停）。
 // 预览（dry-run 判据状态）→ 执行（converge-stream 逐轮轨迹）→ 终态如实
 // （达标 / 无改善已回滚 / 轮次上限+剩余项）。每轮版本库留痕可恢复。
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, Button, InputNumber, Modal, Space, Spin, Tag, Typography, message } from 'antd'
 import { subscribeWailsEvent } from '../../gaea/lib/wailsEvents'
 import { app } from '../../gaea/lib/bridge'

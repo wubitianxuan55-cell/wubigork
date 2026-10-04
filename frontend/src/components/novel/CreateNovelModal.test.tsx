@@ -4,7 +4,6 @@
 // 坑复训：antd 两字按钮自动插空格（「创 建」）→ 按钮名一律正则。
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
-import React from 'react'
 
 import CreateNovelModal from './CreateNovelModal'
 

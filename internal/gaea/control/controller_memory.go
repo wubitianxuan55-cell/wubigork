@@ -323,15 +323,6 @@ func (c *Controller) refreshMemory() {
 	c.finishMemoryReload(opts, gen)
 }
 
-// SessionRemember saves a fact to session-only memory (not written to disk).
-// Session facts persist across turns within the session, are injected into
-// every turn's context, and can be promoted to permanent storage later.
-func (c *Controller) SessionRemember(m memory.Memory) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.sessionFacts = append(c.sessionFacts, m)
-}
-
 // PromoteSessionFacts saves all current session facts to permanent storage.
 // Each fact is deduplicated against existing permanent memories by name:
 // if a permanent memory with the same name exists, it is updated; otherwise
@@ -487,15 +478,6 @@ func (c *Controller) DistillMerge(keep, archive string) (string, error) {
 		slog.Warn("distill merge audit write failed", "error", err)
 	}
 	return "merged:" + older + "->" + newer, nil
-}
-
-// SessionFacts returns the current session-only facts (for the memory panel).
-func (c *Controller) SessionFacts() []memory.Memory {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	out := make([]memory.Memory, len(c.sessionFacts))
-	copy(out, c.sessionFacts)
-	return out
 }
 
 // DreamAutoWritten 返回「自动做梦」旧直写路径（source=auto_dream）写过的、

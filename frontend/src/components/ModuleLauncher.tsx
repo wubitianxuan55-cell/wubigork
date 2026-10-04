@@ -26,7 +26,7 @@
 import React, { useState, useCallback, useSyncExternalStore } from 'react'
 import {
   ArrowRightOutlined, AudioOutlined, SendOutlined,
-  StopOutlined, RobotOutlined, UserOutlined, ThunderboltOutlined,
+  StopOutlined, RobotOutlined, ThunderboltOutlined,
   FileTextOutlined, ClockCircleOutlined, HeartOutlined, ApiOutlined,
   CheckSquareOutlined,
 } from '@ant-design/icons'

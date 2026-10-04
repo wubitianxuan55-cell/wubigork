@@ -175,55 +175,6 @@ func (rc *RuntimeLayer) TrackEdit(path string) {
 	})
 }
 
-// DetectConflict checks whether a sub-agent's edit conflicts with the
-// parent's edits. Returns the conflicting path and true if a conflict exists.
-// V3.4: called when a forked sub-agent returns to merge its session state.
-func (rc *RuntimeLayer) DetectConflict(child *RuntimeLayer) (string, bool) {
-	rc.mu.Lock()
-	defer rc.mu.Unlock()
-	child.mu.Lock()
-	defer child.mu.Unlock()
-
-	for _, ce := range child.session.RecentEdits {
-		for _, pe := range rc.session.RecentEdits {
-			if ce.Path == pe.Path && pe.Version > ce.Version {
-				return ce.Path, true
-			}
-		}
-	}
-	return "", false
-}
-
-// MergeChildEdits merges a sub-agent's RecentEdits into the parent.
-// Non-conflicting entries are appended; conflicting ones trigger a notice.
-// V3.4: returns the list of conflicting paths (empty = clean merge).
-func (rc *RuntimeLayer) MergeChildEdits(child *RuntimeLayer) []string {
-	rc.mu.Lock()
-	defer rc.mu.Unlock()
-	child.mu.Lock()
-	defer child.mu.Unlock()
-
-	var conflicts []string
-	for _, ce := range child.session.RecentEdits {
-		conflict := false
-		for i, pe := range rc.session.RecentEdits {
-			if ce.Path == pe.Path {
-				if pe.Version > ce.Version {
-					conflicts = append(conflicts, ce.Path)
-				} else {
-					rc.session.RecentEdits[i] = ce
-				}
-				conflict = true
-				break
-			}
-		}
-		if !conflict {
-			rc.session.RecentEdits = append(rc.session.RecentEdits, ce)
-		}
-	}
-	return conflicts
-}
-
 func init() {
 	timeNowUnix = func() int64 { return time.Now().UnixNano() }
 }

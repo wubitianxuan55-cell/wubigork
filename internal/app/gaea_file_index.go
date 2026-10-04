@@ -10,13 +10,6 @@ import (
 	"github.com/gaea/gaea/internal/gaea/tasks"
 )
 
-// FileIndexStatus 是工作区文件语义索引状态。
-type FileIndexStatus struct {
-	Total   int    `json:"total"`   // 已索引文件数
-	Skipped int    `json:"skipped"` // 跳过（不支持/超限/空文本）
-	Error   string `json:"error"`
-}
-
 // FileSemanticHit 是文件语义检索命中。
 type FileSemanticHit struct {
 	Path    string  `json:"path"`

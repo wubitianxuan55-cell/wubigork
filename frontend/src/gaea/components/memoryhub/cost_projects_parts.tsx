@@ -4,7 +4,6 @@
 // 快照表格 SnapshotTable、StatusBadge/fmtTime/slug/emptyProject 小工具。
 // 主组件经命名导入回接（八件全部为主段消费）；无外部消费者，测试只导主件。
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { message } from "antd";
 import { Search, X } from "../../icons";
 import { app } from "../../lib/bridge";
 import { costReadErrorText } from "../../lib/bridge/cost";

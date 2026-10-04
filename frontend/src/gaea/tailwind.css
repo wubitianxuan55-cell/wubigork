@@ -225,14 +225,6 @@
   resize: none;
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
-.dream-input:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-soft);
-}
-.dream-input::placeholder {
-  color: var(--fg-faint);
-}
 
 /* ── dream-label — 区块标签 ──────────────────────────────────────────── */
 @utility dream-label {
@@ -256,15 +248,6 @@
   cursor: pointer;
   transition: all var(--transition-fast);
   user-select: none;
-}
-.dream-tag:hover {
-  border-color: var(--accent);
-  color: var(--fg);
-}
-.dream-tag--active {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  color: var(--accent);
 }
 
 /* Drawer resizing cursor lock */

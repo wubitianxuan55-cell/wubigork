@@ -268,7 +268,6 @@ export const zh: Record<DictKey, string> = {
 
 
   "settings.subagentInherit": "（继承主模型）",
-  "settings.config": "配置文件：{path}",
 
   // 待办栏
   "todo.title": "待办",
@@ -493,11 +492,6 @@ export const zh: Record<DictKey, string> = {
   "deliverPanel.thumbsMissingSide": "无此页",
 
   // 软件更新
-  "updater.title": "软件更新",
-  "updater.currentVersion": "当前版本：{v}",
-  "updater.checkButton": "检查更新",
-  "updater.checking": "正在检查更新…",
-  "updater.upToDate": "已是最新版本。",
   "updater.available": "发现新版本：{v}",
   "updater.installNow": "立即更新",
   "updater.goToDownload": "前往下载页",
@@ -506,7 +500,6 @@ export const zh: Record<DictKey, string> = {
   "updater.verifying": "正在验证签名…",
   "updater.applying": "正在安装…",
   "updater.done": "更新完成，正在重启…",
-  "updater.failed": "更新失败：{msg}",
   "updater.dismiss": "稍后",
 
   // command palette
@@ -629,11 +622,8 @@ export const zh: Record<DictKey, string> = {
   "shell.tele.overloadModels": "⚠ 已启动模型过多",
   "shell.tele.overloadModelsDesc": "已启用 {count} 个引擎，建议停用不用的模型（各功能窗口 ⚡ 一键启停）",
   "shell.launcher.statModel": "活跃模型",
-  "shell.launcher.statModelNone": "未设置",
-  "shell.launcher.statModelSub": "当前对话模型",
   "shell.launcher.statEngines": "已启用引擎",
   "shell.launcher.statEnginesSub": "{local} 本地 · {cloud} 云端",
-  "shell.launcher.statIdle": "遥测待机",
   "shell.launcher.statWriting": "项目写作进度",
   "shell.launcher.statWritingSub": "{chapters} 章 · {words} 字",
   "shell.launcher.statLoading": "统计加载中…",
@@ -1246,7 +1236,6 @@ export const zh: Record<DictKey, string> = {
   "subagent.statusError": "出错",
   "subagent.statusDone": "已完成",
   "subagent.statusFailed": "失败",
-  "subagent.statusActive": "运行中",
   "subagent.durSec": "{n} 秒",
   "subagent.durMin": "{n} 分",
   "subagent.durHour": "{n} 小时",
@@ -1274,23 +1263,8 @@ export const zh: Record<DictKey, string> = {
   "subagent.followUpSend": "发送追问",
   "subagent.followUpFail": "追问失败：{msg}",
   "subagent.followUpFailLabel": "追问发送失败",
-  "subagent.netTitle": "Agent 网络",
-  "subagent.netSubtitle": "{n} 个子代理 · 环 = 上下文 token 占比",
-  "subagent.netLoadFail": "加载失败：{msg}",
   "subagent.runsLoadFail": "子代理列表加载失败，点击重试",
-  "subagent.rootGlyph": "主",
-  "subagent.modelLabel": "模型 {model}",
-  "subagent.toolCount": "工具 {n}",
-  "subagent.errCountLong": "错误 {n}",
-  "subagent.hoverHint": "悬停查看节点详情 · 点击节点固定子代理详情",
   "subagent.close": "关闭",
-  "subagent.toolCalls": "工具调用 {n}",
-  "subagent.stLabel": "状态 {status}",
-  "subagent.collapseTranscript": "收起完整 transcript",
-  "subagent.viewTranscript": "查看完整 transcript",
-  "subagent.searchMsg": "搜索消息",
-  "subagent.msgFilterCount": "{shown}/{total} 条",
-  "subagent.noMatchMsg": "没有匹配的消息",
   "subagent.modelToolLabel": "本地模型",
   "subagent.modelToolSection": "本地模型工具",
   // ── 6.3 办公流水线（DagPanel 任务视图区块，GaeaDag* 绑定消费面）──

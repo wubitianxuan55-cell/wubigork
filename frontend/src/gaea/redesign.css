@@ -143,21 +143,8 @@ aside[aria-label="gaea navigation"] .sidebar-session-scroll {
 }
 
 /* ── 消息（保持既有收敛；消息层视觉由 chat 子代理在组件内升级） ── */
-.msg--assistant {
-  padding: 5px 0;
-}
 
-.msg--assistant .msg__body {
-  font-size: 14px;
-  line-height: 1.72;
-}
 
-.msg--user .msg__body {
-  background: color-mix(in srgb, var(--accent) 12%, var(--bg-elev-2));
-  border-color: color-mix(in srgb, var(--accent) 24%, transparent);
-  border-radius: 16px 16px 4px 16px;
-  padding: 8px 14px;
-}
 
 /* 推理面板：安静、细线引导 */
 .reasoning__head {
@@ -221,28 +208,10 @@ aside[aria-label="gaea navigation"] .sidebar-session-scroll {
 }
 
 /* 标签条收敛为 v3 panel head（玻璃微底 + 分区线） */
-.workspace-tabs {
-  background: color-mix(in srgb, var(--bg) 45%, transparent);
-  border-bottom: var(--v3-split);
-}
-.workspace-tabs button {
-  transition: color var(--dur-fast), background var(--dur-fast), border-color var(--dur-fast);
-}
-.workspace-tabs button:hover {
-  background: var(--color-surface-container-high, var(--md-sys-color-surface-container-high));
-}
 /* 激活 tab：primary-container 弱化底 + 主色 ink 条（v3 轨道语言，
    不只靠下边框颜色——色 + 底双重传达，12 主题下可区分）。
    !important：Tailwind 类冲突（text-fg-dim 覆盖 text-accent、border-transparent
    覆盖 border-accent）导致激活态此前实际未生效，这里显式收复。 */
-.workspace-tabs button[class*="text-accent"] {
-  color: var(--md-sys-color-primary) !important;
-  border-bottom-color: var(--md-sys-color-primary) !important;
-  background: color-mix(in srgb, var(--color-primary-container, var(--md-sys-color-primary-container)) 42%, transparent);
-}
-.workspace-tabs button[class*="text-accent"]:hover {
-  background: color-mix(in srgb, var(--color-primary-container, var(--md-sys-color-primary-container)) 60%, transparent);
-}
 
 /* 主区域预览：信息层实底，左缘分区线 */
 .preview-pane {
@@ -256,9 +225,6 @@ aside[aria-label="gaea navigation"] .sidebar-session-scroll {
   border-radius: 12px;
 }
 
-.welcome-stagger-3 button[class*="rounded-xl"] {
-  border-radius: 14px;
-}
 
 /* 欢迎页渐次入场：每组内容依次升起，克制且不干扰阅读 */
 .welcome-rise {

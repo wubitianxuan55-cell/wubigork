@@ -77,42 +77,6 @@ func spaceAllowedTools(tools []tool.Tool, space string) []tool.Tool {
 	return out
 }
 
-// ConfiguredMCPNames returns the names of all MCP servers declared in the config
-// file (whether connected or not).
-func (c *Controller) ConfiguredMCPNames() []string {
-	cfg, err := config.Load()
-	if err != nil {
-		return nil
-	}
-	names := make([]string, 0, len(cfg.Plugins))
-	for _, p := range cfg.Plugins {
-		names = append(names, p.Name)
-	}
-	return names
-}
-
-// DisconnectedMCPNames returns configured MCP server names that are not currently
-// connected in this session.
-func (c *Controller) DisconnectedMCPNames() []string {
-	cfg, err := config.Load()
-	if err != nil {
-		return nil
-	}
-	connected := map[string]bool{}
-	if c.host != nil {
-		for _, name := range c.host.ServerNames() {
-			connected[name] = true
-		}
-	}
-	var names []string
-	for _, p := range cfg.Plugins {
-		if !connected[p.Name] {
-			names = append(names, p.Name)
-		}
-	}
-	return names
-}
-
 // ConnectConfiguredMCPServer looks up `name` in the config and connects it.
 func (c *Controller) ConnectConfiguredMCPServer(name string) (int, error) {
 	cfg, err := config.Load()

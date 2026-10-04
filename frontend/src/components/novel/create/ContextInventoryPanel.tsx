@@ -2,7 +2,7 @@
 // 的用户可见面（v4.434 绑定首发时零前端消费，「同样信息量下 prompt 更短」至此
 // 可量化可看）。恒列「成人向工艺区段」行如实回显档位生效面（v4.439 注入在模板
 // 槽里，作者须有处确认）。零生成零写盘。
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Modal, Table, Typography, message } from 'antd'
 import { C } from '../../../utils/theme'
 import { app } from '../../../gaea/lib/bridge'

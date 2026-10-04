@@ -19,7 +19,6 @@ export interface BlockApi {
   setField: (id: string, value: string) => void;
   registerMeta: (group: string, meta: QuestionMeta) => void;
   registerSecret: (id: string) => void;
-  isSecret: (id: string) => boolean;
   lock: () => void;
   reset: (notifyAction?: string) => void;
   emit: (action: string, payload: Record<string, unknown>) => void;

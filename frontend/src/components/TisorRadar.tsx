@@ -1,6 +1,6 @@
 // TisorRadar.tsx — 五维环形雷达图 (T/I/S/O/R)
 // Liquid Glass 风格 SVG 实现
-import React, { useState } from 'react'
+import { useState } from 'react'
 
 interface Props {
   dims?: { T: number; I: number; S: number; O: number; R: number }

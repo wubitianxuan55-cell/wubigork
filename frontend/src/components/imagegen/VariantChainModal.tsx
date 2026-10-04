@@ -3,7 +3,7 @@
 // 上溯成链（根→…→当前），每项缩略图+模型/时间/指令摘要；「用到画布」把任一
 // 祖先并入画布=回到该变体继续改。链断（祖先缺档/导入图）如实标注不造假。
 import { softTextStyle } from '../../utils/uiStyles'
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Alert, Button, Modal, Spin, Tag, Typography } from 'antd'
 import { imageHubAssets, readFileAsDataURL } from '../../api/image'
 import type { GenResult } from './types'

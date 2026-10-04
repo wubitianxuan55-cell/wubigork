@@ -4,7 +4,6 @@
 // 与既有事件→弹窗→保存链路零变化。
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
-import React from 'react'
 
 const mocks = vi.hoisted(() => ({
   SaveCharactersBatch: vi.fn().mockResolvedValue({}),
