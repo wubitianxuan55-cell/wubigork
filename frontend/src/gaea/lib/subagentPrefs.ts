@@ -8,28 +8,18 @@
 //
 // 模式对齐 lib/layoutPreferences：localStorage 直读 + try/catch 静默降级
 // （隐私模式/存储禁用时不影响面板主功能），读不到或值损坏时回落默认关。
+// 2026-10-04 起读写样板收敛到 lib/booleanPref 工厂，本文件只保留域语义。
 
-const STORAGE_KEY = "gaea.subagentAutoOpen";
+import { createBooleanPref } from "./booleanPref";
+
+const pref = createBooleanPref("gaea.subagentAutoOpen", false);
 
 /** 读取「新子代理自动展开」偏好；未设置/损坏/无 window 时默认关。 */
 export function loadSubagentAutoOpen(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw === null) return false;
-    // 只认显式开启值；其余（"0"/"false"/损坏垃圾值）一律默认关。
-    return raw === "1" || raw === "true";
-  } catch {
-    return false;
-  }
+  return pref.load();
 }
 
 /** 持久化「新子代理自动展开」偏好（"1"/"0"，可读可手改）。 */
 export function saveSubagentAutoOpen(enabled: boolean): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, enabled ? "1" : "0");
-  } catch {
-    /* 存储失败静默降级：开关是增强项，不阻塞面板 */
-  }
+  pref.save(enabled);
 }

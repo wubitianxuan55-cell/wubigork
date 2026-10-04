@@ -12,34 +12,21 @@
 // 由主代理接线）。开关 UI 在 DeliverablesPanel 头部「自动弹出」胶囊，
 // 持久化键 gaea.deliverableAutoOpen。
 //
-// 模式对齐 lib/browserPrefs（同源先例 lib/subagentPrefs）：localStorage 直读
-// + try/catch 静默降级（隐私模式/存储禁用不影响面板主功能）。默认值语义与
-// browserPrefs 相反：默认关 → 只有显式开启值（"1"/"true"）视为开，
-// 其余（未设置/"0"/"false"/损坏垃圾值）一律回落关。
+// 2026-10-04 起读写样板收敛到 lib/booleanPref 工厂（四域单一方言），本文件
+// 只保留域语义（键、默认关）与 App 接线入口。
 
-const STORAGE_KEY = "gaea.deliverableAutoOpen";
+import { createBooleanPref } from "./booleanPref";
+
+const pref = createBooleanPref("gaea.deliverableAutoOpen", false);
 
 /** 读取「自动弹出」偏好；未设置/损坏/无 window 时默认关。 */
 export function loadDeliverableAutoOpen(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw === null) return false;
-    // 默认关：只认显式开启值，其余（"0"/"false"/损坏垃圾值）一律回落关。
-    return raw === "1" || raw === "true";
-  } catch {
-    return false;
-  }
+  return pref.load();
 }
 
 /** 持久化「自动弹出」偏好（"1"/"0"，可读可手改）。 */
 export function saveDeliverableAutoOpen(enabled: boolean): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, enabled ? "1" : "0");
-  } catch {
-    /* 存储失败静默降级：开关是增强项，不阻塞面板 */
-  }
+  pref.save(enabled);
 }
 
 /**

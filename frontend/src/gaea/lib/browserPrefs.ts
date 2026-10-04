@@ -6,33 +6,21 @@
 // 开关 UI 在 BrowserPanel 头部（自动弹出胶囊），持久化键 gaea.browserAutoOpen。
 //
 // 模式对齐 lib/subagentPrefs（分工面板「新子代理自动展开」同款交互）：
-// localStorage 直读 + try/catch 静默降级（隐私模式/存储禁用不影响面板主功能），
-// 读不到或值损坏时回落默认开；只有显式关闭值（"0"/"false"）视为关，
-// 其余（"1"/"true"/垃圾值）一律回落默认开。
+// 2026-10-04 起读写样板收敛到 lib/booleanPref 工厂（四域单一方言），本文件
+// 只保留域语义（键、默认开）与 App 接线入口。
 
-const STORAGE_KEY = "gaea.browserAutoOpen";
+import { createBooleanPref } from "./booleanPref";
+
+const pref = createBooleanPref("gaea.browserAutoOpen", true);
 
 /** 读取「自动弹出」偏好；未设置/损坏/无 window 时默认开。 */
 export function loadBrowserAutoOpen(): boolean {
-  if (typeof window === "undefined") return true;
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw === null) return true;
-    // 只认显式关闭值；其余（"1"/"true"/损坏垃圾值）一律回落默认开。
-    return !(raw === "0" || raw === "false");
-  } catch {
-    return true;
-  }
+  return pref.load();
 }
 
 /** 持久化「自动弹出」偏好（"1"/"0"，可读可手改）。 */
 export function saveBrowserAutoOpen(enabled: boolean): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, enabled ? "1" : "0");
-  } catch {
-    /* 存储失败静默降级：开关是增强项，不阻塞面板 */
-  }
+  pref.save(enabled);
 }
 
 /**

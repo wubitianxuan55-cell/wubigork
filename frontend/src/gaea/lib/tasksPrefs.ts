@@ -11,30 +11,18 @@
 // 时机处 inline localStorage 直读，2026-09-27 起与 App 侧同口径：只认显式
 // 开启值 "1"/"true" 为开，其余一律默认关）。
 //
-// 模式对齐 lib/subagentPrefs：localStorage 直读 + try/catch 静默降级
-// （隐私模式/存储禁用不影响主功能），读不到或值损坏时回落默认关。
+// 2026-10-04 起读写样板收敛到 lib/booleanPref 工厂，本文件只保留域语义。
 
-const STORAGE_KEY = "gaea.tasks.autoOpenSubagent";
+import { createBooleanPref } from "./booleanPref";
+
+const pref = createBooleanPref("gaea.tasks.autoOpenSubagent", false);
 
 /** 读取「新任务自动切任务视图」偏好；未设置/损坏/无 window 时默认关。 */
 export function loadTasksAutoOpenSubagent(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw === null) return false;
-    // 与 App.tsx 触发端约定一致：只认显式开启值，其余默认关。
-    return raw === "1" || raw === "true";
-  } catch {
-    return false;
-  }
+  return pref.load();
 }
 
 /** 持久化「新任务自动切任务视图」偏好（"1"/"0"，可读可手改）。 */
 export function saveTasksAutoOpenSubagent(enabled: boolean): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, enabled ? "1" : "0");
-  } catch {
-    /* 存储失败静默降级：开关是增强项，不阻塞主功能 */
-  }
+  pref.save(enabled);
 }
