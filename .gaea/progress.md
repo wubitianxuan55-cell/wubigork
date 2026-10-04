@@ -1,3 +1,10 @@
+## 发版 v4.456.0：微信媒体下载 SSRF 守卫对齐 + 第三轮审计结构收敛 · 2026-10-04
+
+- 上午两批非版本刀（第三轮审计收敛 `0c09977e` + §3.2 重复收敛 `da89ca89`）后，续刀三批（weixin SSRF failover `cf7d0cbb` / xlsxedit applyOne 表驱动 `0777f5b0` / rebuildParagraph 收敛 ooxml `2da28d15`），批次 A 为用户可感修复（媒体下载可用性+守卫三副本对齐）⇒ 抬版本。
+- 修复=weixin mediaTransport 补齐 IN2-04「逐个已验 IP 尝试建连」（此前固定拨 ips[0] 无回退），安全语义零变化；xlsxedit applyOne 253 行→opHandlers 表驱动（summary 契约 11 例先行+unmerge_cells 补测+键集冻结）；rebuildParagraph 分组+区间计算收敛 ooxml.GroupRuns/AffectedSpans（发射端 w:/a: 两方言保留）。
+- 审计证伪两项入册：novelModelName ×4（函数已不存在）、§3.4 ops.go 零覆盖（12 op 全有测试命中）。
+- 门禁：Go vet/golangci 0 + 全量零 FAIL；前端 vitest 3755/435 全绿；三门禁绿。产物 releases/gaea-v4.456.0.exe 52,047,360B（冒烟 200 过；删 v4.451.0.exe，实存 452~456 五版）；速览迁 1 条（453 入 archive）。
+
 ## 非版本刀：第三轮全仓审计收敛批 + §3.2 重复收敛批（净 −2017 行）· 2026-10-04
 
 - **第三轮审计收敛批（`0c09977e`）**：今晨 11 子代理分域扫描→双证据复核的改动落库（净删 ~1937 行：TS6133 清单 38 条/死文件 2/死本地化键 26×3/死类型/死 CSS ~676 行两路交叉验证/Go 零调用方法 12 个+precheck 死分支/round4 收敛 cost.Round4）；**守卫开闸** tsconfig.app.json noUnusedLocals/Parameters（反向探针 TS6133 验证生效）+ wails.json npm→pnpm + .audit/ 入 gitignore；拦下 15 组「看着像死实则活」误报未删。交接验证全亲跑：go build/vet/lint 0 issues、go test 全量零 FAIL、tsc/eslint 绿、vitest 3752/3752（基线 3760−8=有意删的死测试，账平）、pnpm build、docs/绑定 635/locale 死键三门禁。**审计报告归档 docs/code-audit-2026-10-04/**（README+reports 10 份，docs/README 登记防孤儿）。
