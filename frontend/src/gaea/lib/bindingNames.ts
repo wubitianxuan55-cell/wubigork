@@ -385,6 +385,7 @@ export const bindingNames = [
   "GaeaWorkcostBillItems",
   "GaeaWorkcostBillProjects",
   "GaeaWorkcostBillProjectRatesSave",
+  "GaeaWorkcostBillProjectDelete",
   "GaeaWorkcostRecompose",
   "GaeaWorkcostResourceDelete",
   "GaeaWorkcostResourceGet",

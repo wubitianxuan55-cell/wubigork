@@ -220,6 +220,9 @@ export interface CostBindings {
     profitIncludesRegulatory: boolean,
     controlPrice: number,
   ): Promise<void>;
+  // WorkcostBillProjectDelete 整体删除导入的项目（封面+清单+独占定额；
+  // 共享定额与资源保留）。返回删除的独占定额数。
+  WorkcostBillProjectDelete(id: number): Promise<number>;
   WorkcostRecompose(): Promise<WorkcostRecomposeResult>;
   // WorkcostProjectParse 解析五表项目工作簿（只解析不落库）。
   WorkcostProjectParse(path: string): Promise<WorkcostProjectBundle>;

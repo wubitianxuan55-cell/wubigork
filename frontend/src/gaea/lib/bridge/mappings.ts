@@ -282,6 +282,7 @@ export const gaeaToGaea = {
   WorkcostBillItemSave: "GaeaWorkcostBillItemSave",
   WorkcostBillItemDelete: "GaeaWorkcostBillItemDelete",
   WorkcostBillProjectRatesSave: "GaeaWorkcostBillProjectRatesSave",
+  WorkcostBillProjectDelete: "GaeaWorkcostBillProjectDelete",
   CostProjectSave: "GaeaCostProjectSave",
   CostProjectList: "GaeaCostProjectList",
   CostProjectGet: "GaeaCostProjectGet",

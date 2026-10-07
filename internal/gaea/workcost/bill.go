@@ -261,3 +261,61 @@ func (s *Store) UpdateBillProjectRates(id int64, rates RateSet, profitIncludesRe
 		boolToInt(profitIncludesRegulatory), controlPrice, time.Now().Format(time.RFC3339), id)
 	return err
 }
+
+// DeleteBillProject 整体删除导入的项目：项目 + 其全部分部分项清单 + **独占
+// 定额**（source 指向本项目且删除清单后不再被任何清单项引用）。资源不删——
+// 工料机是全局主数据，可能被他项目定额引用。
+func (s *Store) DeleteBillProject(id int64) (int, error) {
+	if err := s.requireDB(); err != nil {
+		return 0, err
+	}
+	var fileName string
+	if err := s.db.QueryRow(`SELECT file_name FROM gf_projects WHERE id=?`, id).Scan(&fileName); err != nil {
+		return 0, fmt.Errorf("项目 %d 不存在", id)
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	// ① 清单项。
+	if _, err := tx.Exec(`DELETE FROM gf_bill_items WHERE project_id=?`, id); err != nil {
+		return 0, err
+	}
+	// ② 独占定额：本项目导入、且删完清单后已无任何清单项引用（他项目引用
+	// 的共享定额——编码统一复用的产物——保留）。
+	rows, err := tx.Query(`SELECT code FROM gf_quotas WHERE source=? AND code NOT IN
+  (SELECT quota_code FROM gf_bill_items WHERE COALESCE(quota_code,'') != '')`,
+		fmt.Sprintf("项目导入：%s", fileName))
+	if err != nil {
+		return 0, err
+	}
+	var orphans []string
+	for rows.Next() {
+		var code string
+		if err := rows.Scan(&code); err == nil {
+			orphans = append(orphans, code)
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	for _, code := range orphans {
+		if _, err := tx.Exec(`DELETE FROM gf_quota_items WHERE quota_code=?`, code); err != nil {
+			return 0, err
+		}
+		if _, err := tx.Exec(`DELETE FROM gf_quotas WHERE code=?`, code); err != nil {
+			return 0, err
+		}
+	}
+	// ③ 项目封面。
+	if _, err := tx.Exec(`DELETE FROM gf_projects WHERE id=?`, id); err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return len(orphans), nil
+}

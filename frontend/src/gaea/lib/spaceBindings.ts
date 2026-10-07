@@ -554,6 +554,7 @@ export const GAEA_METHOD_FACETS = {
   WorkcostBillItemSave: "work",
   WorkcostBillItemDelete: "work",
   WorkcostBillProjectRatesSave: "work",
+  WorkcostBillProjectDelete: "work",
   CostEstimateItemSave: "work",
   CostEstimateItemDelete: "work",
   CostEstimateItems: "work",

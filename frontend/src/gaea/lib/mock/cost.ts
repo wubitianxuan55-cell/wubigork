@@ -59,6 +59,7 @@ type CostMethods = Pick<
   | "WorkcostSeedPreview" | "WorkcostSeedApply" | "WorkcostRecompose"
   | "WorkcostProjectParse" | "WorkcostProjectApply" | "WorkcostProjectExport" | "WorkcostProjectExportToWorkspace"
   | "WorkcostBillProjects" | "WorkcostBillItems" | "WorkcostBillItemSave" | "WorkcostBillItemDelete" | "WorkcostBillProjectRatesSave"
+  | "WorkcostBillProjectDelete"
 >;
 
 // ── 工料法 mock 状态（工料机资源库 + 消耗定额库，浏览器内存态）──
@@ -946,6 +947,13 @@ export function buildCost(_s: MakeMockState): CostMethods {
     async WorkcostBillItemDelete(id: number): Promise<void> {
       ensureWorkcostSeed();
       mockBillItems = mockBillItems.filter((b) => b.id !== id);
+    },
+    async WorkcostBillProjectDelete(id: number): Promise<number> {
+      ensureWorkcostSeed();
+      const before = mockBillProjects.length;
+      mockBillProjects = mockBillProjects.filter((p) => p.id !== id);
+      mockBillItems = mockBillItems.filter((b) => b.projectId !== id);
+      return before - mockBillProjects.length >= 0 ? 0 : 0;
     },
     async WorkcostBillProjectRatesSave(
       id: number,

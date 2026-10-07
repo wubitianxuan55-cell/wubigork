@@ -194,6 +194,12 @@ func (a *App) GaeaWorkcostBillItemDelete(id int64) error {
 	return a.hubWorkcostStore().DeleteBillItem(id)
 }
 
+// GaeaWorkcostBillProjectDelete 整体删除导入的项目（封面+清单+独占定额；
+// 共享定额与资源保留）。返回删除的独占定额数。
+func (a *App) GaeaWorkcostBillProjectDelete(id int64) (int, error) {
+	return a.hubWorkcostStore().DeleteBillProject(id)
+}
+
 // GaeaWorkcostBillProjectRatesSave 保存项目费率（企管/规费/利润/税率 + 利润
 // 基数含规费开关 + 控制价）——录入数据，随取随改，不参与任何库内计算。
 func (a *App) GaeaWorkcostBillProjectRatesSave(id int64, rates workcost.RateSet, profitIncludesRegulatory bool, controlPrice float64) error {

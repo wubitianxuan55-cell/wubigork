@@ -127,7 +127,7 @@ describe('CostLibraryPage 造价数据库全新设计（v4.459 工料法 IA）',
       ['分部分项工程量清单 · 项目费率（录入数据）', '清单视图桩'],
       ['消耗定额 · 工料机现算综合单价（只含人材机）· 导入/导出五表', '单价分析视图桩'],
       ['工料机主数据 · 现行价/基准价 · 调价历史 · 存量资源化', '资源库视图桩'],
-      ['案例分位数对标（不落表实时聚合）', '造价参考视图桩'],
+      ['资料条目分位数对标（旧价格手册沉淀，不落表实时聚合）——与分部分项清单是两套数据', '造价参考视图桩'],
     ] as const) {
       fireEvent.click(screen.getByTitle(hint))
       expect(await screen.findByText(marker, {}, LOAD)).toBeTruthy()
@@ -213,7 +213,7 @@ describe('CostLibraryPage 造价数据库全新设计（v4.459 工料法 IA）',
 
   it('非概览模块显示回到概览，点击回数据概览', async () => {
     await renderPage()
-    fireEvent.click(screen.getByTitle('案例分位数对标（不落表实时聚合）'))
+    fireEvent.click(screen.getByTitle(/资料条目分位数对标/))
     fireEvent.click(screen.getByTitle('回到概览'))
     expect(await screen.findByText('快捷入口', {}, LOAD)).toBeTruthy()
   })

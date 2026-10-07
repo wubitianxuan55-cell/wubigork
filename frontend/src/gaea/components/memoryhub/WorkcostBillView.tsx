@@ -24,21 +24,32 @@ const solidBtn =
 const iconBtn =
   "inline-flex items-center justify-center w-6 h-6 rounded-md border border-border text-fg-faint hover:text-fg hover:bg-bg-soft transition-colors";
 
+/** 带项目归属的清单行（累计视图的行模型）。 */
+interface BillRowItem extends WorkcostBillItem {
+  projectName: string;
+}
+
 /**
- * WorkcostBillView — 清单项目与分部分项清单管理。
+ * WorkcostBillView — 分部分项清单（**所有项目累计** + 筛分）。
  *
- * 左：项目列表（导入即建项目）；右：清单表（工程量/引用定额可编辑落库）+
- * 费率录入区。全部是数据操作——不出现任何合计/费用链。
+ * 用户定调（2026-10-07）：清单是「所有累计的清单项的显示，且可以筛分」——
+ * 主表 = 全部项目的清单项汇总，按 项目/分部/关键字 筛选；选中具体项目时
+ * 显示其封面与费率录入，并可整体删除该项目（封面+清单+独占定额）。
+ * 全部是数据操作——不出现任何合计/费用链。
  */
 export function WorkcostBillView() {
   const [projects, setProjects] = useState<WorkcostBillProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [readError, setReadError] = useState("");
+  // 项目筛选：0 = 全部项目（累计视图）；>0 = 只看该项目（并显示封面费率）。
   const [selected, setSelected] = useState<number>(0);
-  const [items, setItems] = useState<WorkcostBillItem[]>([]);
+  const [division, setDivision] = useState("");
+  const [keyword, setKeyword] = useState("");
+  const [allItems, setAllItems] = useState<BillRowItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<WorkcostBillProject | null>(null);
   // 清单分析：点定额 chip 打开该清单项的综合单价分析（工料机明细+三费）。
   const [analyzeCode, setAnalyzeCode] = useState("");
 
@@ -48,7 +59,6 @@ export function WorkcostBillView() {
     try {
       const r = (await app.WorkcostBillProjects()) ?? [];
       setProjects(r);
-      setSelected((prev) => (prev && r.some((p) => p.id === prev) ? prev : (r[0]?.id ?? 0)));
     } catch (e) {
       setProjects([]);
       setReadError(e instanceof Error ? e.message : String(e));
@@ -57,28 +67,51 @@ export function WorkcostBillView() {
     }
   }, []);
 
-  useEffect(() => {
-    loadProjects();
-  }, [loadProjects]);
-
-  const current = useMemo(() => projects.find((p) => p.id === selected) ?? null, [projects, selected]);
-
-  const loadItems = useCallback(async (projectID: number) => {
-    if (!projectID) {
-      setItems([]);
-      return;
-    }
+  // 累计清单：全部项目的清单项一次拉平（各自带项目名）。
+  const loadItems = useCallback(async (projs: WorkcostBillProject[]) => {
     try {
-      setItems((await app.WorkcostBillItems(projectID)) ?? []);
+      const batches = await Promise.all(
+        projs.map(async (p) =>
+          ((await app.WorkcostBillItems(p.id)) ?? []).map((it) => ({ ...it, projectName: p.name })),
+        ),
+      );
+      setAllItems(batches.flat());
     } catch (e) {
-      setItems([]);
+      setAllItems([]);
       setToast(`清单读取失败：${e instanceof Error ? e.message : String(e)}`);
     }
   }, []);
 
+  const reload = useCallback(async () => {
+    await loadProjects();
+  }, [loadProjects]);
+
   useEffect(() => {
-    loadItems(selected);
-  }, [selected, loadItems]);
+    loadProjects();
+  }, [loadProjects]);
+
+  useEffect(() => {
+    loadItems(projects);
+  }, [projects, loadItems]);
+
+  const current = useMemo(() => projects.find((p) => p.id === selected) ?? null, [projects, selected]);
+
+  // 筛分：项目 → 分部 → 关键字（名称/编码/特征）。
+  const divisions = useMemo(() => {
+    const s = new Set<string>();
+    for (const it of allItems) if (it.division) s.add(it.division);
+    return [...s].sort();
+  }, [allItems]);
+
+  const visible = useMemo(() => {
+    const kw = keyword.trim().toLowerCase();
+    return allItems.filter((it) => {
+      if (selected && it.projectId !== selected) return false;
+      if (division && it.division !== division) return false;
+      if (kw && ![it.title, it.code, it.feature, it.quotaCode].some((v) => (v ?? "").toLowerCase().includes(kw))) return false;
+      return true;
+    });
+  }, [allItems, selected, division, keyword]);
 
   // 导入项目表：解析→落库（资源+定额+**清单+费率**）→ 刷新项目列表。
   const importWorkbook = useCallback(async () => {
@@ -94,7 +127,7 @@ export function WorkcostBillView() {
       const bundle = await app.WorkcostProjectParse(path);
       const res = await app.WorkcostProjectApply(path);
       await loadProjects();
-      await loadItems(selected);
+      await loadItems((await app.WorkcostBillProjects()) ?? []);
       const warn = bundle.warnings.length ? `；${bundle.warnings.length} 条告警` : "";
       setToast(
         `已录入「${bundle.project || bundle.fileName}」：清单 ${bundle.items.length} 条、` +
@@ -107,7 +140,8 @@ export function WorkcostBillView() {
     }
   }, [loadProjects, loadItems, selected]);
 
-  // addManualRow 手填清单行（外委包干类：无定额，可手填单价）。
+  // addManualRow 手填清单行（外委包干类：无定额，可手填单价）。仅在选中具体
+  // 项目时可用（累计视图没有「落点项目」）。
   const addManualRow = useCallback(async () => {
     if (!selected) return;
     setBusy(true);
@@ -116,40 +150,58 @@ export function WorkcostBillView() {
         id: 0, projectId: selected, code: "", title: "新清单项", unit: "", division: "",
         quantity: 0, quantityExpr: "", quotaCode: "", feature: "", priceOverride: 0, sort: 0,
       });
-      await loadItems(selected);
-      await loadProjects();
+      await reload();
+      await loadItems(projects);
     } catch (e) {
       setToast(`新增失败：${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }
-  }, [selected, loadItems, loadProjects]);
+  }, [selected, reload, loadItems, projects]);
 
   const patchItem = useCallback(
     async (item: WorkcostBillItem, patch: Partial<WorkcostBillItem>) => {
-      setItems((ls) => ls.map((x) => (x.id === item.id ? { ...x, ...patch } : x)));
+      setAllItems((ls) => ls.map((x) => (x.id === item.id ? { ...x, ...patch } : x)));
       try {
         await app.WorkcostBillItemSave({ ...item, ...patch });
       } catch (e) {
         setToast(`保存失败：${e instanceof Error ? e.message : String(e)}`);
-        await loadItems(item.projectId);
+        await loadItems(projects);
       }
     },
-    [loadItems],
+    [loadItems, projects],
   );
 
   const removeItem = useCallback(
     async (item: WorkcostBillItem) => {
       try {
         await app.WorkcostBillItemDelete(item.id);
-        await loadItems(item.projectId);
-        await loadProjects();
+        await loadItems(projects);
+        await reload();
       } catch (e) {
         setToast(`删除失败：${e instanceof Error ? e.message : String(e)}`);
       }
     },
-    [loadItems, loadProjects],
+    [loadItems, reload, projects],
   );
+
+  // deleteProject 整体删除导入的项目（封面+清单+独占定额；共享定额与资源保留）。
+  const deleteProject = useCallback(async () => {
+    if (!confirmDelete) return;
+    setBusy(true);
+    try {
+      const removed = await app.WorkcostBillProjectDelete(confirmDelete.id);
+      setConfirmDelete(null);
+      setSelected(0);
+      await reload();
+      await loadItems(projects);
+      setToast(`已删除项目「${confirmDelete.name}」（连带独占定额 ${removed} 条；共享定额与资源保留）`);
+    } catch (e) {
+      setToast(`删除失败：${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }, [confirmDelete, reload, loadItems, projects]);
 
   return (
     <div className="h-full flex flex-col min-h-0 text-[12.5px]">
@@ -165,13 +217,13 @@ export function WorkcostBillView() {
           <button type="button" className={ghostBtn} onClick={importWorkbook} disabled={busy} title="导入五表工作簿：清单+费率+资源+定额一次录入">
             <FolderOpen size={12} /> 导入项目表
           </button>
-          <button type="button" className={ghostBtn} onClick={addManualRow} disabled={busy || !selected} title="手填一条清单项（外委包干类，可无定额）">
+          <button type="button" className={ghostBtn} onClick={addManualRow} disabled={busy || !selected} title={selected ? "手填一条清单项（外委包干类，可无定额）" : "先在下方选择具体项目"}>
             <Plus size={12} /> 手填行
           </button>
-          <button type="button" className={solidBtn} onClick={() => setPickerOpen(true)} disabled={busy || !selected} title="从定额库选一条，作为清单项录入">
+          <button type="button" className={solidBtn} onClick={() => setPickerOpen(true)} disabled={busy || !selected} title={selected ? "从定额库选一条，作为清单项录入" : "先在下方选择具体项目"}>
             <FileSpreadsheet size={12} /> 从定额库添加
           </button>
-          <button type="button" className={ghostBtn} onClick={() => { loadProjects(); }} title="刷新">
+          <button type="button" className={ghostBtn} onClick={reload} title="刷新">
             <RefreshCw size={12} />
           </button>
         </div>
@@ -193,105 +245,145 @@ export function WorkcostBillView() {
         </div>
       )}
 
-      <div className="flex-1 min-h-0 flex">
-        {/* 左：项目列表 */}
-        <div className="w-64 shrink-0 border-r border-border-soft/60 overflow-y-auto">
-          {loading ? (
-            <div className="p-3 space-y-2 animate-pulse">
-              <div className="v3-panel rounded-lg h-10" />
-              <div className="v3-panel rounded-lg h-10" />
-            </div>
-          ) : projects.length === 0 ? (
-            <div className="p-3 text-[11.5px] text-fg-faint leading-relaxed">
-              {readError ? "读取失败。" : "还没有清单项目。点「导入项目表」选一份五表成本测算工作簿，封面、清单、费率、资源、定额一次录入。"}
-            </div>
-          ) : (
-            <ul data-testid="workcost-bill-projects">
-              {projects.map((p) => (
-                <li key={p.id}>
-                  <button
-                    type="button"
-                    className={`w-full text-left px-3 py-2 border-b border-border-soft/25 transition-colors ${
-                      p.id === selected ? "bg-accent/10" : "hover:bg-bg-elev/40"
-                    }`}
-                    onClick={() => setSelected(p.id)}
-                  >
-                    <span className="block truncate text-[12px] text-fg font-medium">{p.name}</span>
-                    <span className="block truncate text-[10px] text-fg-faint mt-0.5">
-                      {p.itemCount} 条清单{p.location ? ` · ${p.location}` : ""}{p.duration ? ` · ${p.duration}` : ""}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+      <div className="flex-1 min-h-0 flex flex-col">
+        {/* 筛选工具条：项目 / 分部 / 关键字（累计视图的筛分） */}
+        <div className="shrink-0 flex flex-wrap items-center gap-2 px-5 py-2 border-b border-border-soft/60">
+          <select
+            className={`${fieldCls} !w-auto min-w-[14rem]`}
+            value={selected}
+            aria-label="筛选项目"
+            data-testid="workcost-bill-project-filter"
+            onChange={(e) => { setSelected(Number(e.target.value)); setDivision(""); }}
+          >
+            <option value={0}>全部项目（{projects.length} 个累计）</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}（{p.itemCount} 条）</option>
+            ))}
+          </select>
+          <select className={`${fieldCls} !w-auto`} value={division} aria-label="筛选分部" onChange={(e) => setDivision(e.target.value)}>
+            <option value="">全部分部</option>
+            {divisions.map((d) => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+          <div className="relative">
+            <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-fg-faint" />
+            <input
+              className={`${fieldCls} !pl-6 !w-56`}
+              value={keyword}
+              placeholder="搜索名称/编码/特征/定额"
+              aria-label="搜索清单"
+              onChange={(e) => setKeyword(e.target.value)}
+            />
+          </div>
+          {current && (
+            <>
+              <span className="text-[10.5px] text-fg-faint hidden md:inline">
+                {current.location ? `${current.location} · ` : ""}{current.fileName}
+              </span>
+              <button
+                type="button"
+                className="ml-auto inline-flex items-center gap-1 px-2.5 h-7 rounded-lg border border-err/40 text-err hover:bg-err/10 transition-colors text-[11.5px]"
+                onClick={() => setConfirmDelete(current)}
+                title="整体删除该项目：封面+清单+独占定额（共享定额与资源保留）"
+              >
+                <Trash2 size={12} /> 删除该项目
+              </button>
+            </>
           )}
+          <span className={`text-[10.5px] text-fg-faint ${current ? "" : "ml-auto"}`} data-testid="workcost-bill-count">
+            {visible.length}/{allItems.length} 条
+          </span>
         </div>
 
-        {/* 右：清单 + 费率 */}
-        <div className="flex-1 min-w-0 overflow-y-auto px-5 py-4 space-y-3">
-          {!current ? (
-            <Empty
-              title="选择或导入一个清单项目"
-              hint="左边选择项目；没有项目时点「导入项目表」——五表工作簿的封面、分部分项清单、取费费率、工料机价格、消耗定额会一次录入数据库。"
-            />
-          ) : (
-            <>
-              {/* 项目封面 + 费率录入（数据，不是计算） */}
-              <section className="v3-panel rounded-2xl p-4">
-                <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                  <span className="text-[14px] text-fg font-semibold">{current.name}</span>
-                  {current.location && <span className="text-[11px] text-fg-faint">地点：{current.location}</span>}
-                  {current.duration && <span className="text-[11px] text-fg-faint">工期：{current.duration}</span>}
-                  {current.fileName && <span className="text-[11px] text-fg-faint font-mono">{current.fileName}</span>}
-                </div>
-                {current.pricing && (
-                  <p className="mt-1.5 text-[10.5px] text-fg-faint leading-relaxed" title={current.pricing}>
-                    口径：{current.pricing}
-                  </p>
-                )}
-                <RatesEditor project={current} onSaved={() => { loadProjects(); setToast("费率已保存"); }} />
-              </section>
+        {/* 项目封面 + 费率（选中具体项目时显示） */}
+        {current && (
+          <div className="shrink-0 px-5 pt-3">
+            <section className="v3-panel rounded-2xl p-4">
+              <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                <span className="text-[14px] text-fg font-semibold">{current.name}</span>
+                {current.location && <span className="text-[11px] text-fg-faint">地点：{current.location}</span>}
+                {current.duration && <span className="text-[11px] text-fg-faint">工期：{current.duration}</span>}
+              </div>
+              {current.pricing && (
+                <p className="mt-1.5 text-[10.5px] text-fg-faint leading-relaxed" title={current.pricing}>
+                  口径：{current.pricing}
+                </p>
+              )}
+              <RatesEditor project={current} onSaved={() => { reload(); setToast("费率已保存"); }} />
+            </section>
+          </div>
+        )}
 
-              {/* 分部分项清单表 */}
-              <section className="v3-panel rounded-2xl p-4" data-testid="workcost-bill-items">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-fg text-[12.5px] font-semibold">分部分项清单（{items.length} 条）</span>
-                  <span className="text-[10.5px] text-fg-faint">工程量可编辑，自动保存 · 单价为定额现算参考</span>
-                </div>
-                {items.length === 0 ? (
-                  <div className="py-8 text-center text-[11.5px] text-fg-faint">
-                    该项目还没有清单项。「从定额库添加」或「手填行」录入。
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-[11.5px]">
-                      <thead>
-                        <tr className="text-left text-[10px] text-fg-faint border-b border-border-soft/50">
-                          <th className="py-2 px-2 w-16">编码</th>
-                          <th className="py-2 px-2">名称</th>
-                          <th className="py-2 px-2">项目特征</th>
-                          <th className="py-2 px-2 w-14">单位</th>
-                          <th className="py-2 px-2 w-28 text-right">工程量</th>
-                          <th className="py-2 px-2 w-24">引用定额</th>
-                          <th className="py-2 px-2 w-28 text-right">单价参考</th>
-                          <th className="py-2 px-2 w-8" />
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {items.map((it) => (
-                          <BillRow key={it.id} item={it} onPatch={patchItem} onRemove={removeItem} onAnalyze={setAnalyzeCode} />
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </section>
-            </>
+        {/* 累计清单表 */}
+        <div className="flex-1 min-h-0 overflow-y-auto px-5 py-3">
+          {loading ? (
+            <div className="space-y-2 animate-pulse">
+              <div className="v3-panel rounded-xl h-10" />
+              <div className="v3-panel rounded-xl h-64" />
+            </div>
+          ) : readError ? (
+            <div role="alert" className="v3-panel rounded-xl px-4 py-3 text-amber-200 text-[11.5px]">
+              项目读取失败：{readError}
+              <button type="button" className={ghostBtn + " ml-3"} onClick={reload}>重试</button>
+            </div>
+          ) : projects.length === 0 ? (
+            <Empty
+              title="还没有清单项目"
+              hint="点「导入项目表」选一份五表成本测算工作簿——封面、分部分项清单、取费费率、工料机价格、消耗定额一次录入数据库。"
+            />
+          ) : visible.length === 0 ? (
+            <Empty title="没有匹配的清单项" hint="调整上方筛选（项目/分部/关键字）后重试。" />
+          ) : (
+            <section className="v3-panel rounded-2xl p-4" data-testid="workcost-bill-items">
+              <table className="w-full text-[11.5px]">
+                <thead>
+                  <tr className="text-left text-[10px] text-fg-faint border-b border-border-soft/50">
+                    <th className="py-2 px-2 w-24">项目</th>
+                    <th className="py-2 px-2 w-16">编码</th>
+                    <th className="py-2 px-2">名称</th>
+                    <th className="py-2 px-2">项目特征</th>
+                    <th className="py-2 px-2 w-14">单位</th>
+                    <th className="py-2 px-2 w-24 text-right">工程量</th>
+                    <th className="py-2 px-2 w-24">引用定额</th>
+                    <th className="py-2 px-2 w-24 text-right">单价参考</th>
+                    <th className="py-2 px-2 w-10" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {visible.map((it) => (
+                    <BillRow key={it.id} item={it} showProject={!selected} onPatch={patchItem} onRemove={removeItem} onAnalyze={setAnalyzeCode} />
+                  ))}
+                </tbody>
+              </table>
+            </section>
           )}
         </div>
       </div>
 
       {analyzeCode && <QuotaAnalysisModal quotaCode={analyzeCode} onClose={() => setAnalyzeCode("")} />}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setConfirmDelete(null)}>
+          <div className="v3-panel rounded-2xl p-5 space-y-3 w-[28rem]" onClick={(e) => e.stopPropagation()}>
+            <div className="text-[13px] text-fg font-semibold">删除清单项目</div>
+            <p className="text-[11.5px] text-fg-faint leading-relaxed">
+              将删除项目「{confirmDelete.name}」的封面、全部分部分项清单，以及本项目导入且不被
+              其他项目引用的定额。共享定额与工料机资源**保留**。该操作不可撤销。
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button type="button" className={ghostBtn} onClick={() => setConfirmDelete(null)} disabled={busy}>取消</button>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 px-2.5 h-7 rounded-lg bg-err text-white text-[11.5px] hover:opacity-90 disabled:opacity-50"
+                onClick={() => void deleteProject()}
+                disabled={busy}
+              >
+                {busy ? "删除中…" : "确认删除"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {pickerOpen && current && (
         <QuotaPickerModal
           onCancel={() => setPickerOpen(false)}
@@ -301,8 +393,8 @@ export function WorkcostBillView() {
               { id: 0, projectId: current.id, code: q.code, title: q.title, unit: q.unit, division: "", quantity: 1, quantityExpr: "", quotaCode: q.code, feature: "", priceOverride: 0, sort: 0 },
               {},
             ).then(() => {
-              loadItems(current.id);
-              loadProjects();
+              loadItems(projects);
+              reload();
             });
           }}
         />
@@ -314,11 +406,13 @@ export function WorkcostBillView() {
 // BillRow 一条清单行：工程量/单位/定额引用可编辑（失焦保存）；单价=定额现算参考。
 function BillRow({
   item,
+  showProject,
   onPatch,
   onRemove,
   onAnalyze,
 }: {
-  item: WorkcostBillItem;
+  item: WorkcostBillItem & { projectName?: string };
+  showProject?: boolean;
   onPatch: (item: WorkcostBillItem, patch: Partial<WorkcostBillItem>) => void;
   onRemove: (item: WorkcostBillItem) => void;
   onAnalyze: (quotaCode: string) => void;
@@ -344,6 +438,11 @@ function BillRow({
 
   return (
     <tr className="border-b border-border-soft/25 last:border-0 hover:bg-bg-elev/30">
+      {showProject && (
+        <td className="py-1.5 px-2 max-w-[9rem]" title={item.projectName}>
+          <span className="block truncate text-[10px] text-fg-faint">{item.projectName}</span>
+        </td>
+      )}
       <td className="py-1.5 px-2 font-mono text-[10px] text-fg-faint">{item.code}</td>
       <td className="py-1.5 px-2">
         <input

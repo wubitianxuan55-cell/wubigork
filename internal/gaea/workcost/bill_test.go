@@ -148,3 +148,52 @@ func TestResolveQuotaCodeUnification(t *testing.T) {
 		t.Fatalf("第三个冲突应 WP02-3，得到 %s（err=%v）", got, err)
 	}
 }
+
+// TestDeleteBillProject 整体删除：项目+清单+独占定额；他项目引用的共享定额
+// 与资源保留（编码统一复用的产物不动）。
+func TestDeleteBillProject(t *testing.T) {
+	s, cleanup := newWorkcostStore(t)
+	defer cleanup()
+
+	idA, _ := s.UpsertBillProject("项目A", "a.xlsx", "", "", "", "", nil, false, 0)
+	idB, _ := s.UpsertBillProject("项目B", "b.xlsx", "", "", "", "", nil, false, 0)
+
+	// A 的独占定额 QA1；A、B 共享的定额 QSH（内容全等复用场景：B 的清单引用它）。
+	if _, err := s.SaveQuota(Quota{Code: "QA1", OrigCode: "QA1", Title: "A独有", Unit: "项", Source: "项目导入：a.xlsx"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SaveQuota(Quota{Code: "QSH", OrigCode: "QSH", Title: "共享便道", Unit: "m", Source: "项目导入：a.xlsx"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, it := range []BillItem{
+		{ProjectID: idA, Code: "C1", Title: "A独有项", QuotaCode: "QA1"},
+		{ProjectID: idA, Code: "C2", Title: "A共享项", QuotaCode: "QSH"},
+		{ProjectID: idB, Code: "C1", Title: "B共享项", QuotaCode: "QSH"},
+	} {
+		if _, err := s.SaveBillItem(it); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	removed, err := s.DeleteBillProject(idA)
+	if err != nil {
+		t.Fatalf("删除失败: %v", err)
+	}
+	if removed != 1 {
+		t.Errorf("应删 1 条独占定额（QA1），得到 %d", removed)
+	}
+	if _, err := s.GetQuota("QA1"); err == nil {
+		t.Error("独占定额 QA1 应被删除")
+	}
+	if _, err := s.GetQuota("QSH"); err != nil {
+		t.Errorf("共享定额 QSH 应保留（B 仍引用）: %v", err)
+	}
+	projects, _ := s.BillProjects()
+	if len(projects) != 1 || projects[0].ID != idB {
+		t.Errorf("应只剩项目 B: %+v", projects)
+	}
+	items, _ := s.BillItems(idB)
+	if len(items) != 1 || items[0].QuotaCode != "QSH" {
+		t.Errorf("项目 B 清单应完好: %+v", items)
+	}
+}

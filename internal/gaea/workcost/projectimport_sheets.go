@@ -245,7 +245,22 @@ func parseUnitPriceSheet(f *excelize.File, sheet string, b *ProjectBundle) {
 	cResCode := colIndex(header, false, "资源编码", "工料机编码")
 	cResTitle := colIndex(header, false, "资源名称", "工料机名称")
 	cUnitQ := colIndex(header, false, "消耗量单位", "消耗单位")
-	cQty := colIndex(header, false, "消耗量")
+	// 消耗量列必须**精确匹配**：「消耗量单位」也含「消耗量」子串且常排在其前，
+	// 子串匹配会劫持到文本列 → 含量全零（宁丰/百锦路实测踩坑：68/68、114/114
+	// 行 quantity=0，而单价正常）。精确未命中再回退子串（排除单位列）。
+	cQty := colIndex(header, true, "消耗量")
+	if cQty == 0 {
+		for i, h := range header {
+			hn := strings.TrimSpace(h)
+			if hn == "" || hn == "消耗量单位" || hn == "消耗单位" {
+				continue
+			}
+			if strings.Contains(hn, "消耗量") || strings.Contains(hn, "含量") || hn == "数量" {
+				cQty = i + 1
+				break
+			}
+		}
+	}
 	cPrice := colIndex(header, false, "单价")
 	cAmount := colIndex(header, false, "合价", "人材机合价")
 
@@ -266,6 +281,12 @@ func parseUnitPriceSheet(f *excelize.File, sheet string, b *ProjectBundle) {
 		if kind == "汇总" || kind == "" {
 			// 汇总行 = 清单项（综合单价的载体）。工程量在费用汇总里，此处只收身份。
 			if itemCode == "" {
+				continue
+			}
+			// 「小计/合计」行是汇总的汇总：其「编码」列常直接写中文标题
+			// （宁丰实测产出 4 条孤儿定额如「3污染土修复小计」），必须跳过。
+			if strings.Contains(itemTitle, "小计") || strings.Contains(itemTitle, "合计") ||
+				strings.Contains(itemCode, "小计") || strings.Contains(itemCode, "合计") {
 				continue
 			}
 			if seenItems[itemCode] {
@@ -336,6 +357,12 @@ func parseSummarySheet(f *excelize.File, sheet string, b *ProjectBundle) {
 			// 下半段取费区以「费用名称」类文本起始，跳出清单区。
 			if strings.Contains(title, "直接费合计") || strings.Contains(title, "费用名称") {
 				break
+			}
+			// 「小计/合计」行不是清单项（其编码列常直接写中文标题），
+			// 与综合单价表同规则跳过——否则产出孤儿定额。
+			if strings.Contains(title, "小计") || strings.Contains(title, "合计") ||
+				strings.Contains(code, "小计") || strings.Contains(code, "合计") {
+				continue
 			}
 			div := strings.TrimSpace(cellAt(f, sheet, r, cDiv))
 			cellQty, _ := excelize.CoordinatesToCellName(cQty, r)

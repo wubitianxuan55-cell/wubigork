@@ -41,6 +41,7 @@ const state = vi.hoisted(() => ({
   billSaved: null as WorkcostBillItem | null,
   billDeleted: 0,
   ratesSaved: null as { id: number; rates: WorkcostRateSet; inclReg: boolean; control: number } | null,
+  projectDeleted: 0,
 }));
 
 vi.mock("../../lib/bridge", () => ({
@@ -89,6 +90,12 @@ vi.mock("../../lib/bridge", () => ({
     },
     WorkcostBillProjectRatesSave: async (id: number, rates: WorkcostRateSet, inclReg: boolean, control: number): Promise<void> => {
       state.ratesSaved = { id, rates, inclReg, control };
+    },
+    WorkcostBillProjectDelete: async (id: number): Promise<number> => {
+      state.projectDeleted = id;
+      state.billProjects = state.billProjects.filter((p) => p.id !== id);
+      state.billItems = state.billItems.filter((b) => b.projectId !== id);
+      return 3;
     },
     WorkcostSeedPreview: async (): Promise<WorkcostSeedPreview> => {
       if (!state.seedPreview) throw new Error("预览失败");
@@ -149,6 +156,7 @@ beforeEach(() => {
   state.billSaved = null;
   state.billDeleted = 0;
   state.ratesSaved = null;
+  state.projectDeleted = 0;
 });
 
 describe("WorkcostResourceView 工料机资源库", () => {
@@ -470,6 +478,8 @@ describe("WorkcostBillView 分部分项清单", () => {
     state.billProjects = [proj];
     state.billItems = items;
     render(<WorkcostBillView />);
+    // 先选中具体项目（费率卡只在选中时显示）。
+    fireEvent.change(await screen.findByTestId("workcost-bill-project-filter"), { target: { value: "1" } });
     const mgmt = await screen.findByLabelText("企管 %");
     expect((mgmt as HTMLInputElement).value).toBe("10"); // 导入的费率已落库回显
     fireEvent.change(mgmt, { target: { value: "12" } });
@@ -490,11 +500,49 @@ describe("WorkcostBillView 分部分项清单", () => {
       },
     ];
     render(<WorkcostBillView />);
+    fireEvent.change(await screen.findByTestId("workcost-bill-project-filter"), { target: { value: "1" } });
     fireEvent.click(await screen.findByRole("button", { name: /从定额库添加/ }));
     fireEvent.click(await screen.findByText("录入清单"));
     await waitFor(() => expect(state.billSaved?.quotaCode).toBe("WP02"));
     expect(state.billSaved?.title).toBe("场地平整");
     expect(state.billSaved?.quantity).toBe(1);
+  });
+
+it("累计视图：全部项目清单拉平显示（带项目列），项目筛选收窄", async () => {
+    const p2 = { ...proj, id: 2, name: "什邡项目", itemCount: 1 };
+    state.billProjects = [proj, p2];
+    state.billItems = [
+      ...items,
+      { id: 31, projectId: 2, code: "SF01", title: "垂直运输", unit: "t", division: "B运输", quantity: 60, quantityExpr: "", quotaCode: "SF01", feature: "", priceOverride: 0, sort: 1 },
+    ];
+    render(<WorkcostBillView />);
+    expect((await screen.findByTestId("workcost-bill-count")).textContent).toBe("3/3 条");
+    expect(screen.getAllByText("旺平矿业修复").length).toBeGreaterThanOrEqual(2); // 项目列+下拉
+    fireEvent.change(screen.getByTestId("workcost-bill-project-filter"), { target: { value: "2" } });
+    expect(screen.getByTestId("workcost-bill-count").textContent).toBe("1/3 条");
+    expect(screen.getByDisplayValue("垂直运输")).toBeTruthy();
+    expect(screen.queryByDisplayValue("施工便道")).toBeNull();
+  });
+
+  it("关键字筛分：按特征与名称匹配", async () => {
+    state.billProjects = [proj];
+    state.billItems = items;
+    render(<WorkcostBillView />);
+    fireEvent.change(await screen.findByLabelText("搜索清单"), { target: { value: "外委" } });
+    expect(screen.getByTestId("workcost-bill-count").textContent).toBe("1/2 条");
+    expect(screen.getByDisplayValue("外委监测化验")).toBeTruthy();
+  });
+
+  it("删除项目：二次确认 → WorkcostBillProjectDelete（共享定额保留语义显形）", async () => {
+    state.billProjects = [proj];
+    state.billItems = items;
+    render(<WorkcostBillView />);
+    fireEvent.change(await screen.findByTestId("workcost-bill-project-filter"), { target: { value: "1" } });
+    fireEvent.click(await screen.findByRole("button", { name: /删除该项目/ }));
+    expect(screen.getByText(/共享定额与工料机资源/)).toBeTruthy();
+    expect(state.projectDeleted).toBe(0);
+    fireEvent.click(screen.getByText("确认删除"));
+    await waitFor(() => expect(state.projectDeleted).toBe(1));
   });
 
 it("特征描述显形于清单表（含计算式 tooltip），定额 chip 点开综合单价分析", async () => {
@@ -552,6 +600,7 @@ it("特征描述显形于清单表（含计算式 tooltip），定额 chip 点�
     state.billProjects = [proj];
     state.billItems = items;
     render(<WorkcostBillView />);
+    fireEvent.change(await screen.findByTestId("workcost-bill-project-filter"), { target: { value: "1" } });
     fireEvent.click(await screen.findByRole("button", { name: /手填行/ }));
     await waitFor(() => expect(state.billSaved?.title).toBe("新清单项"));
     fireEvent.click(screen.getAllByTitle("删除本行")[0]);
