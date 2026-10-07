@@ -262,10 +262,10 @@ export function WorkcostComposeView() {
       {/* 工具条 */}
       <div className="shrink-0 flex flex-wrap items-center gap-2 px-5 min-h-12 py-2 border-b border-border-soft/60">
         <span className="text-fg font-semibold text-[13px] flex items-center gap-1.5">
-          <Calculator size={14} className="text-accent" /> 综合单价分析
+          <Calculator size={14} className="text-accent" /> 企业定额库
         </span>
         <span className="text-[11px] text-fg-faint hidden lg:inline">
-          综合单价 = Σ(消耗量 × 资源价)，只含人材机 · 管理费/利润/税在项目合计层单列
+          定额积累自项目案例与手工录入 · 综合单价 = Σ(消耗量×资源价) 只含人材机 · 取费在项目合计层
         </span>
         <div className="ml-auto flex items-center gap-1.5">
           <button
@@ -385,6 +385,8 @@ export function WorkcostComposeView() {
                     <span className="block truncate text-[11.5px] text-fg mt-0.5">{q.title}</span>
                     <span className="block truncate text-[10px] text-fg-faint">
                       {q.unit || "-"} · {q.items?.length ?? 0} 条工料机
+                      {(q.usageCount ?? 0) > 0 && <span className="ml-1 text-accent">· 被 {q.usageCount} 条清单引用</span>}
+                      {q.source && !q.source.startsWith("项目导入") && <span className="ml-1 text-accent">· 手工</span>}
                     </span>
                   </button>
                 </li>

@@ -179,10 +179,10 @@ export function WorkcostResourceView() {
       {/* 工具条 */}
       <div className="shrink-0 flex flex-wrap items-center gap-2 px-5 h-auto min-h-12 py-2 border-b border-border-soft/60">
         <span className="text-fg font-semibold text-[13px] flex items-center gap-1.5">
-          <Layers size={14} className="text-accent" /> 工料机资源库
+          <Layers size={14} className="text-accent" /> 工料机库
         </span>
         <span className="text-[11px] text-fg-faint hidden lg:inline">
-          工料法第①层：独立主数据 · 核算取用价 = 现行价优先、为 0 回退基准价
+          工料法第①层主数据 · 与信息价联动（发布自动推进现行价）· 核算取用价 = 现行价优先、为 0 回退基准价
         </span>
         <div className="ml-auto flex items-center gap-1.5">
           <div className="flex items-center rounded-lg border border-border bg-bg p-0.5 text-[11px]">

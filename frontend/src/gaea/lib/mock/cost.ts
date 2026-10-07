@@ -853,16 +853,21 @@ export function buildCost(_s: MakeMockState): CostMethods {
     },
     async WorkcostQuotaGet(code: string): Promise<WorkcostQuota | null> {
       ensureWorkcostSeed();
-      return mockQuotas.find((x) => x.code === code) ?? null;
+      const q = mockQuotas.find((x) => x.code === code);
+      if (!q) return null;
+      return { ...q, usageCount: mockBillItems.filter((b) => b.quotaCode === code).length };
     },
     async WorkcostQuotaList(specialty: string, keyword: string): Promise<WorkcostQuota[]> {
       ensureWorkcostSeed();
       const kw = keyword.trim().toLowerCase();
-      return mockQuotas.filter((q) => {
-        if (specialty && specialty !== "全部" && q.specialty !== specialty) return false;
-        if (!kw) return true;
-        return [q.title, q.code, q.chapter].some((v) => (v ?? "").toLowerCase().includes(kw));
-      });
+      const usage = (code: string) => mockBillItems.filter((b) => b.quotaCode === code).length;
+      return mockQuotas
+        .filter((q) => {
+          if (specialty && specialty !== "全部" && q.specialty !== specialty) return false;
+          if (!kw) return true;
+          return [q.title, q.code, q.chapter].some((v) => (v ?? "").toLowerCase().includes(kw));
+        })
+        .map((q) => ({ ...q, usageCount: usage(q.code) }));
     },
     async WorkcostQuotaDelete(code: string): Promise<void> {
       ensureWorkcostSeed();

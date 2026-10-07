@@ -527,6 +527,54 @@ describe("WorkcostBillView 分部分项清单", () => {
     expect(screen.getByText(/综合单价（人材机）/)).toBeTruthy();
   });
 
+  it("清单库归并视图：同名同特征跨项目聚合，显示 N 个项目与定额码", async () => {
+    const p2 = { ...proj, id: 2, name: "什邡项目", itemCount: 1 };
+    state.billProjects = [proj, p2];
+    state.billItems = [
+      ...items,
+      { id: 41, projectId: 2, code: "WP01", title: "测量放线", unit: "项", division: "A临建", quantity: 1, quantityExpr: "", quotaCode: "WP01", feature: "拐点、分层标高", priceOverride: 0, sort: 1 },
+    ];
+    render(<WorkcostBillView />);
+    fireEvent.click(await screen.findByText("按库项归并"));
+    // 测量放线在两个项目都出现 → 聚合为一条库项，2 项目 2 条。
+    const badge = await screen.findByText("2 项目 · 2 条");
+    expect(badge).toBeTruthy();
+    expect(screen.getAllByText(/被 2 个项目使用/).length).toBe(1);
+    expect(screen.getAllByText(/定额 WP01/).length).toBeGreaterThanOrEqual(1);
+    // 展开看成员明细。
+    fireEvent.click(screen.getAllByText(/测量放线/)[0]);
+    expect(await screen.findByText("什邡项目")).toBeTruthy();
+    // 外委监测化验只在 1 个项目 → 1 项目 1 条。
+    expect(screen.getByText("1 项目 · 1 条")).toBeTruthy();
+  });
+
+  it("企业定额库：左列表显示来源徽标（手工）与引用计数", async () => {
+    state.quotas = [
+      {
+        id: 1, code: "WP02", title: "施工便道", specialty: "土壤修复", chapter: "A临建", unit: "m",
+        categoryPath: "", baseLabor: 0, baseMaterial: 0, baseMachine: 0,
+        source: "项目导入：旺平.xlsx", region: "", priceDate: "", note: "", status: "现行",
+        items: [{ quotaCode: "WP02", resourceCode: "P001", kind: "材料", title: "级配碎石", unit: "m³", quantity: 0.75, lossRate: 0 }],
+        usageCount: 3,
+      },
+      {
+        id: 2, code: "SD01", title: "手工定额", specialty: "", chapter: "", unit: "项",
+        categoryPath: "", baseLabor: 0, baseMaterial: 0, baseMachine: 0,
+        source: "手工录入", region: "", priceDate: "", note: "", status: "现行",
+        items: [], usageCount: 0,
+      },
+    ];
+    state.compose = {
+      laborFee: 9, materialFee: 213.75, machineFee: 7.23, outsourcedFee: 0, otherFee: 0,
+      subtotal: 229.98, compositePrice: 229.98, zeroLines: 0, lines: [], warnings: [],
+    };
+    render(<WorkcostComposeView />);
+    expect(await screen.findByText("施工便道")).toBeTruthy();
+    expect(screen.getByText(/被 3 条清单引用/)).toBeTruthy();
+    expect(screen.getByText(/· 手工/)).toBeTruthy(); // SD01 来源徽标
+    expect(screen.queryByText(/项目导入：旺平.xlsx · 手工/)).toBeNull(); // 案例积累不标手工
+  });
+
   it("编码统一溯源：orig_code 与统一码不同时显示「原码」徽标", async () => {
     state.billProjects = [proj];
     state.billItems = [

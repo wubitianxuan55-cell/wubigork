@@ -29,11 +29,13 @@ interface BillRowItem extends WorkcostBillItem {
 }
 
 /**
- * WorkcostBillView — 分部分项清单（**所有项目累计的清单列表** + 筛分）。
+ * WorkcostBillView — **清单库**（所有项目累计的分部分项清单 + 筛分）。
  *
- * 只读列表：项目 / 编码 / 名称 / 项目特征 / 单位 / 引用定额 / 单价参考
- * （定额现算）。筛选：项目 / 分部 / 关键字。点定额编码看综合单价分析。
- * 项目文件的导入、费率录入、项目删除 → 「造价参考」的项目案例区。
+ * 双视图：
+ *   明细 = 每个项目的清单项逐条陈列（项目/编码/名称/特征/单位/定额/单价参考）；
+ *   库项归并 = 同名+同特征+同单位的清单项聚合成一条库项，显形「被 N 个项目
+ *   使用」与引用的定额码——这是企业清单积累的主数据视角。
+ * 点定额编码看综合单价分析。项目文件的导入/费率/删除 → 「造价参考」。
  */
 export function WorkcostBillView() {
   const [projects, setProjects] = useState<WorkcostBillProject[]>([]);
@@ -44,6 +46,9 @@ export function WorkcostBillView() {
   const [division, setDivision] = useState("");
   const [keyword, setKeyword] = useState("");
   const [allItems, setAllItems] = useState<BillRowItem[]>([]);
+  // 视图：detail=按项目明细；grouped=按库项归并（同名+同特征+同单位聚合）。
+  const [mode, setMode] = useState<"detail" | "grouped">("detail");
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState("");
   // 清单分析：点定额 chip 打开该清单项的综合单价分析（工料机明细+三费）。
   const [analyzeCode, setAnalyzeCode] = useState("");
@@ -107,16 +112,64 @@ export function WorkcostBillView() {
     });
   }, [allItems, selected, division, keyword]);
 
+  // 库项归并：同名+同特征+同单位 → 一条库项（跨项目复用的企业清单积累）。
+  const groups = useMemo(() => {
+    const m = new Map<string, BillRowItem[]>();
+    for (const it of visible) {
+      const k = `${it.title}|${it.unit}|${it.feature}`;
+      const arr = m.get(k);
+      if (arr) arr.push(it);
+      else m.set(k, [it]);
+    }
+    return [...m.entries()]
+      .map(([key, items]) => ({
+        key,
+        title: items[0].title,
+        feature: items[0].feature,
+        unit: items[0].unit,
+        projects: [...new Set(items.map((x) => x.projectName))],
+        quotaCodes: [...new Set(items.map((x) => x.quotaCode).filter(Boolean))],
+        items,
+      }))
+      .sort((a, b) => b.projects.length - a.projects.length);
+  }, [visible]);
+
+  const toggleGroup = useCallback((key: string) => {
+    setExpandedGroups((s) => {
+      const n = new Set(s);
+      if (n.has(key)) n.delete(key);
+      else n.add(key);
+      return n;
+    });
+  }, []);
+
   return (
     <div className="h-full flex flex-col min-h-0 text-[12.5px]">
       {/* 工具条 */}
       <div className="shrink-0 flex flex-wrap items-center gap-2 px-5 h-auto min-h-12 py-2 border-b border-border-soft/60">
         <span className="text-fg font-semibold text-[13px] flex items-center gap-1.5">
-          <ListTree size={14} className="text-accent" /> 分部分项清单
+          <ListTree size={14} className="text-accent" /> 清单库
         </span>
         <span className="text-[11px] text-fg-faint hidden lg:inline">
-          所有项目累计的清单项 · 项目文件导入与费率在「造价参考」· 加总由五表活公式算
+          所有项目累计的分部分项清单 · 项目文件导入与费率在「造价参考」· 加总由五表活公式算
         </span>
+        <div className="ml-auto flex items-center rounded-lg border border-border bg-bg p-0.5 text-[11px]">
+          <button
+            type="button"
+            className={`px-2 h-6 rounded-md transition-colors ${mode === "detail" ? "bg-accent text-accent-fg" : "text-fg-faint hover:text-fg"}`}
+            onClick={() => setMode("detail")}
+          >
+            按明细
+          </button>
+          <button
+            type="button"
+            className={`px-2 h-6 rounded-md transition-colors ${mode === "grouped" ? "bg-accent text-accent-fg" : "text-fg-faint hover:text-fg"}`}
+            onClick={() => setMode("grouped")}
+            title="同名+同特征+同单位聚合为一条库项"
+          >
+            按库项归并
+          </button>
+        </div>
         <button type="button" className={ghostBtn + " ml-auto"} onClick={reload} title="刷新">
           <RefreshCw size={12} />
         </button>
@@ -196,26 +249,67 @@ export function WorkcostBillView() {
             <p className="mt-1.5 text-[11.5px] text-fg-faint">调整上方筛选（项目/分部/关键字）后重试。</p>
           </div>
         ) : (
-          <section className="v3-panel rounded-2xl p-4" data-testid="workcost-bill-items">
-            <table className="w-full text-[11.5px]">
-              <thead>
-                <tr className="text-left text-[10px] text-fg-faint border-b border-border-soft/50">
-                  <th className="py-2 px-2 w-24">项目</th>
-                  <th className="py-2 px-2 w-16">编码</th>
-                  <th className="py-2 px-2">名称</th>
-                  <th className="py-2 px-2">项目特征</th>
-                  <th className="py-2 px-2 w-14">单位</th>
-                  <th className="py-2 px-2 w-24">引用定额</th>
-                  <th className="py-2 px-2 w-24 text-right">单价参考</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map((it) => (
-                  <BillRow key={it.id} item={it} showProject={!selected} onAnalyze={setAnalyzeCode} />
-                ))}
-              </tbody>
-            </table>
-          </section>
+          mode === "detail" ? (
+            <section className="v3-panel rounded-2xl p-4" data-testid="workcost-bill-items">
+              <table className="w-full text-[11.5px]">
+                <thead>
+                  <tr className="text-left text-[10px] text-fg-faint border-b border-border-soft/50">
+                    <th className="py-2 px-2 w-24">项目</th>
+                    <th className="py-2 px-2 w-16">编码</th>
+                    <th className="py-2 px-2">名称</th>
+                    <th className="py-2 px-2">项目特征</th>
+                    <th className="py-2 px-2 w-14">单位</th>
+                    <th className="py-2 px-2 w-24">引用定额</th>
+                    <th className="py-2 px-2 w-24 text-right">单价参考</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visible.map((it) => (
+                    <BillRow key={it.id} item={it} showProject={!selected} onAnalyze={setAnalyzeCode} />
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          ) : (
+            <section className="space-y-2" data-testid="workcost-bill-grouped">
+              {groups.map((g) => {
+                const open = expandedGroups.has(g.key);
+                return (
+                  <div key={g.key} className="v3-panel rounded-xl">
+                    <button
+                      type="button"
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-bg-elev/30 transition-colors"
+                      onClick={() => toggleGroup(g.key)}
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[12px] text-fg font-medium">
+                          {g.title}
+                          {g.feature && <span className="ml-2 text-[10.5px] text-fg-faint font-normal">{g.feature}</span>}
+                        </span>
+                        <span className="block truncate text-[10px] text-fg-faint mt-0.5">
+                          {g.unit || "—"} · 被 {g.projects.length} 个项目使用 · {g.quotaCodes.length > 0 ? `定额 ${g.quotaCodes.join(" / ")}` : "未套定额"}
+                        </span>
+                      </span>
+                      <span className="shrink-0 px-1.5 py-px rounded bg-accent/10 text-accent text-[10px]">
+                        {g.projects.length} 项目 · {g.items.length} 条
+                      </span>
+                    </button>
+                    {open && (
+                      <ul className="px-6 pb-3 space-y-1 text-[11px]">
+                        {g.items.map((it) => (
+                          <li key={it.id} className="flex items-center gap-2 border-t border-border-soft/20 pt-1 first:border-0">
+                            <span className="text-fg-faint w-40 truncate" title={it.projectName}>{it.projectName}</span>
+                            <span className="font-mono text-[10px] text-fg-faint">{it.code}</span>
+                            {it.quantityExpr && <span className="text-fg-faint truncate">计算式：{it.quantityExpr}</span>}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
+            </section>
+          )
         )}
       </div>
 

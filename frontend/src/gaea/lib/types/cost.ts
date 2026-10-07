@@ -589,6 +589,8 @@ export interface WorkcostQuota {
   note: string;
   status: string;
   items?: WorkcostQuotaItem[];
+  /** 被多少条清单项引用（读时聚合）——企业定额库复用度。 */
+  usageCount?: number;
   createdAt?: string;
   updatedAt?: string;
 }

@@ -572,11 +572,12 @@ func (s *Store) GetQuota(code string) (*Quota, error) {
 	var q Quota
 	err := s.db.QueryRow(`
 SELECT id, code, COALESCE(orig_code,''), title, specialty, chapter, unit, category_path,
-  base_labor, base_material, base_machine, source, region, price_date, note, status, created_at, updated_at
+  base_labor, base_material, base_machine, source, region, price_date, note, status, created_at, updated_at,
+  (SELECT COUNT(*) FROM gf_bill_items b WHERE b.quota_code=gf_quotas.code)
 FROM gf_quotas WHERE code=?`, code).Scan(
 		&q.ID, &q.Code, &q.OrigCode, &q.Title, &q.Specialty, &q.Chapter, &q.Unit, &q.CategoryPath,
 		&q.BaseLabor, &q.BaseMaterial, &q.BaseMachine, &q.Source, &q.Region, &q.PriceDate,
-		&q.Note, &q.Status, &q.CreatedAt, &q.UpdatedAt)
+		&q.Note, &q.Status, &q.CreatedAt, &q.UpdatedAt, &q.UsageCount)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("消耗定额 %q 不存在", code)
@@ -620,7 +621,8 @@ func (s *Store) ListQuotas(specialty, keyword string) ([]Quota, error) {
 	}
 	q := `
 SELECT id, code, COALESCE(orig_code,''), title, specialty, chapter, unit, category_path,
-  base_labor, base_material, base_machine, source, region, price_date, note, status, created_at, updated_at
+  base_labor, base_material, base_machine, source, region, price_date, note, status, created_at, updated_at,
+  (SELECT COUNT(*) FROM gf_bill_items b WHERE b.quota_code=gf_quotas.code)
 FROM gf_quotas WHERE 1=1`
 	var args []any
 	if sp := strings.TrimSpace(specialty); sp != "" && sp != "全部" {
@@ -643,7 +645,7 @@ FROM gf_quotas WHERE 1=1`
 		var it Quota
 		if e := rows.Scan(&it.ID, &it.Code, &it.OrigCode, &it.Title, &it.Specialty, &it.Chapter, &it.Unit,
 			&it.CategoryPath, &it.BaseLabor, &it.BaseMaterial, &it.BaseMachine, &it.Source,
-			&it.Region, &it.PriceDate, &it.Note, &it.Status, &it.CreatedAt, &it.UpdatedAt); e != nil {
+			&it.Region, &it.PriceDate, &it.Note, &it.Status, &it.CreatedAt, &it.UpdatedAt, &it.UsageCount); e != nil {
 			continue
 		}
 		out = append(out, it)

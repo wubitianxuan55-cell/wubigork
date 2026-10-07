@@ -130,6 +130,9 @@ type Quota struct {
 	Note         string      `json:"note"`
 	Status       string      `json:"status"`
 	Items        []QuotaItem `json:"items"`
+	// UsageCount 被多少条清单项引用（读时聚合，不入列）——企业定额库的
+	// 「复用度」显形：积累的定额被越多项目清单套用，价值越高。
+	UsageCount   int         `json:"usageCount"`
 	CreatedAt    string      `json:"createdAt"`
 	UpdatedAt    string      `json:"updatedAt"`
 }

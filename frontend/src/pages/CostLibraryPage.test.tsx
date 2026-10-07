@@ -103,7 +103,7 @@ describe('CostLibraryPage 造价数据库全新设计（v4.459 工料法 IA）',
   it('导航 6 模块齐全有序；测算项目/复盘笔记退役，成本条目降为价格数据段', async () => {
     await renderPage()
     const nav = screen.getByRole('navigation', { name: '造价数据库模块' })
-    const labels = ['清单', '单价分析', '资源库', '价格数据', '造价参考', '概览']
+    const labels = ['清单库', '企业定额库', '工料机库', '价格数据', '造价参考', '概览']
     let cursor = -1
     for (const label of labels) {
       const btns = Array.from(nav.querySelectorAll('button'))
@@ -124,9 +124,9 @@ describe('CostLibraryPage 造价数据库全新设计（v4.459 工料法 IA）',
   it('模块切换：费用汇总/单价分析/资源库/造价参考各渲染对应视图', async () => {
     await renderPage()
     for (const [hint, marker] of [
-      ['分部分项工程量清单 · 项目费率（录入数据）', '清单视图桩'],
-      ['消耗定额 · 工料机现算综合单价（只含人材机）· 导入/导出五表', '单价分析视图桩'],
-      ['工料机主数据 · 现行价/基准价 · 调价历史 · 存量资源化', '资源库视图桩'],
+      ['所有项目累计的分部分项清单 · 明细/库项归并双视图', '清单视图桩'],
+      ['企业定额积累 · 单价分析（只含人材机）· 导入/导出五表', '单价分析视图桩'],
+      ['工料机主数据 · 现行价/基准价 · 与信息价联动 · 调价历史', '资源库视图桩'],
       ['项目案例（导入项目文件）+ 资料条目分位数对标——与分部分项清单是两套数据', '造价参考视图桩'],
     ] as const) {
       fireEvent.click(screen.getByTitle(hint))
