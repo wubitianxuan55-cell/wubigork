@@ -1,3 +1,6 @@
+## v4.467.1 · 真机崩溃根修：绑定面 nil 切片 JSON null 崩前端（2026-10-07）
+> 用户报「点清单无法查看组价明细/定额库打开失败」，日志实锤=CostLibraryPage `null.length` TypeError 进 ErrorBoundary。根因=Go 绑定结果 struct 切片字段 append-only，空定额等空态下为 nil，Wails 序列化成 JSON null，前端 `lines.lines.length` 崩。双层修复：Go 四处结果 struct（Compose/ProjectBundle/ApplyResult/SeedPreview）切片构造即非 nil；前端四个视图全部数组消费点 `?? []`（对旧构建 Go 产物免疫）。回归钉=Go 空定额非 nil 断言 + 前端 null lines 空态渲染例；全量 ci 绿。教训=**Wails 绑定面 nil 切片=null 是系统性契约，结果 struct 切片必须构造即非 nil，前端消费一律兜底**。详见 `releases/v4.467.1.md`。
+
 ## v4.467.0 · 造价概览「数据备份」卡：一键全库快照（2026-10-07）
 > 用户拍板「数据库不需要导出5表，但需要数据备份」——三期 3.1 按库组卷导出从刀路移除，四期 4.3 提前落地。备份能力复用 P4-3 全库链（Hephaestus.db VACUUM INTO 一致性快照 + 轻语/配置/会话 → zip，恢复走 设置→数据），本刀只做入口：造价概览新增「数据备份」卡（体量速览 + 立即备份 + SHA256 回执 + 恢复指引），零新绑定（绑定面 639 不变）。顺带清 v4.466 门禁债：golangci 8（gofmt 3/errcheck 2/ineffassign 1/unused 2）+ eslint 3（mock 退役残留改 const）+ knip 重复导出 3（emit 统一 emitMock；CharacterCard/CostLibraryPage 删 named 保 default）+ releases 13 个待填标题回填与计数 648 修正。全量 ci 绿（vitest 3793/436，drift PASS@639）。详见 `releases/v4.467.0.md`。
 
