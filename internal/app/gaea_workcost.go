@@ -89,9 +89,9 @@ func (a *App) GaeaWorkcostResourceGet(id int64) *workcost.Resource {
 func (a *App) GaeaWorkcostResourceList(kind string, keyword string) []workcost.Resource {
 	list, err := a.hubWorkcostStore().ListResources(kind, keyword)
 	if err != nil {
-		return nil
+		return []workcost.Resource{}
 	}
-	return list
+	return nonNilSlice(list)
 }
 
 // GaeaWorkcostResourceDelete 删除资源。
@@ -112,9 +112,9 @@ func (a *App) GaeaWorkcostResourceSetPrice(id int64, price float64, period strin
 func (a *App) GaeaWorkcostResourcePrices(id int64) []workcost.ResourcePrice {
 	list, err := a.hubWorkcostStore().ResourcePrices(id)
 	if err != nil {
-		return nil
+		return []workcost.ResourcePrice{}
 	}
-	return list
+	return nonNilSlice(list)
 }
 
 // ── 消耗定额库 ──────────────────────────────────────────────────────
@@ -127,9 +127,11 @@ func (a *App) GaeaWorkcostQuotaSave(q workcost.Quota) (*workcost.Quota, error) {
 // GaeaWorkcostQuotaGet 按编码读取定额（含含量行）；不存在返回 nil。
 func (a *App) GaeaWorkcostQuotaGet(code string) *workcost.Quota {
 	q, err := a.hubWorkcostStore().GetQuota(code)
-	if err != nil {
+	if err != nil || q == nil {
 		return nil
 	}
+	// 空定额（无含量行）Items 归一非 nil：nil 切片序列化 JSON null 崩前端。
+	q.Items = nonNilSlice(q.Items)
 	return q
 }
 
@@ -137,9 +139,9 @@ func (a *App) GaeaWorkcostQuotaGet(code string) *workcost.Quota {
 func (a *App) GaeaWorkcostQuotaList(specialty string, keyword string) []workcost.Quota {
 	list, err := a.hubWorkcostStore().ListQuotas(specialty, keyword)
 	if err != nil {
-		return nil
+		return []workcost.Quota{}
 	}
-	return list
+	return nonNilSlice(list)
 }
 
 // GaeaWorkcostQuotaDelete 删除定额及其含量行。
@@ -172,18 +174,18 @@ func (a *App) GaeaWorkcostQuotaComposeMany(codes []string) (map[string]*workcost
 func (a *App) GaeaWorkcostBillProjects() []workcost.BillProject {
 	list, err := a.hubWorkcostStore().BillProjects()
 	if err != nil {
-		return nil
+		return []workcost.BillProject{}
 	}
-	return list
+	return nonNilSlice(list)
 }
 
 // GaeaWorkcostBillItems 某项目的分部分项清单（编码/名称/单位/工程量/引用定额）。
 func (a *App) GaeaWorkcostBillItems(projectID int64) []workcost.BillItem {
 	list, err := a.hubWorkcostStore().BillItems(projectID)
 	if err != nil {
-		return nil
+		return []workcost.BillItem{}
 	}
-	return list
+	return nonNilSlice(list)
 }
 
 // GaeaWorkcostBillItemSave 新增/更新一条清单项（同项目同编码走更新；code 空
@@ -211,7 +213,8 @@ func (a *App) GaeaWorkcostBillProjectDelete(id int64) (int, error) {
 
 // GaeaWorkcostBillQuotaLinks 清单项挂接的定额引用（1:N；构造即非 nil）。
 func (a *App) GaeaWorkcostBillQuotaLinks(billItemID int64) ([]workcost.BillQuotaLink, error) {
-	return a.hubWorkcostStore().BillQuotaLinks(billItemID)
+	links, err := a.hubWorkcostStore().BillQuotaLinks(billItemID)
+	return nonNilSlice(links), err
 }
 
 // GaeaWorkcostBillQuotaAttach 挂接一条定额到清单项（同清单同定额幂等更新；

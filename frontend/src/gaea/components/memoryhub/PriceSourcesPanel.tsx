@@ -58,7 +58,7 @@ export function PriceSourcesPanel({ onChanged }: { onChanged?: () => void }) {
           .filter((f) => f.sourceId === sourceId && f.status === "pending")
           .sort((a, b) => b.fetchedAt.localeCompare(a.fetchedAt))[0];
         if (latest) {
-          setChecked((prev) => ({ ...prev, [latest.id]: defaultChecked(latest.candidates) }));
+          setChecked((prev) => ({ ...prev, [latest.id]: defaultChecked(latest.candidates ?? []) }));
         }
       } catch {
         // 列表刷新失败不阻断主流程
@@ -179,7 +179,7 @@ export function PriceSourcesPanel({ onChanged }: { onChanged?: () => void }) {
 
   const applyFetch = useCallback(
     async (f: PriceFetchRecord) => {
-      const titles = [...(checked[f.id] ?? defaultChecked(f.candidates))];
+      const titles = [...(checked[f.id] ?? defaultChecked(f.candidates ?? []))];
       if (titles.length === 0) return;
       try {
         // 价格单一真相链：发布时同步推进匹配到的工料机资源现行价（默认开）。
@@ -283,15 +283,18 @@ export function PriceSourcesPanel({ onChanged }: { onChanged?: () => void }) {
 
             {/* 抓取结果 */}
             {pendingFirst.map((f) => {
-              const selected = checked[f.id] ?? defaultChecked(f.candidates);
-              const shown = f.candidates.slice(0, DISPLAY_LIMIT);
+              // 旧构建 Go 产物对空候选抓取记录序列化 candidates:null（在册契约），
+              // 此处统一兜底；发布/勾选读数全部走 cands。
+              const cands = f.candidates ?? [];
+              const selected = checked[f.id] ?? defaultChecked(cands);
+              const shown = cands.slice(0, DISPLAY_LIMIT);
               return (
                 <div key={f.id} className={`p-2 rounded-lg border ${f.status === "pending" ? "border-amber-400/30 bg-amber-400/5" : "border-border-soft/60 bg-bg-soft/20 opacity-70"}`}>
                   <div className="flex items-center gap-1.5">
                     <span className="truncate text-fg text-[12px] font-medium">{f.sourceName}</span>
                     {f.period && <span className="px-1.5 py-px rounded bg-bg-elev text-fg-faint text-[9.5px]">期 {f.period}</span>}
                     <span className="px-1.5 py-px rounded bg-bg-elev text-fg-faint text-[9.5px]">
-                      ↑{countBy(f.candidates, "更新")} 新{countBy(f.candidates, "新增")} 同{countBy(f.candidates, "无变化")}
+                      ↑{countBy(cands, "更新")} 新{countBy(cands, "新增")} 同{countBy(cands, "无变化")}
                     </span>
                     <span className="ml-auto text-fg-faint text-[10px]">{timeText(f.fetchedAt)}</span>
                     {f.status === "pending" ? (
@@ -361,7 +364,7 @@ export function PriceSourcesPanel({ onChanged }: { onChanged?: () => void }) {
                         )}
                       </label>
                     ))}
-                    {f.candidates.length > DISPLAY_LIMIT && (
+                    {cands.length > DISPLAY_LIMIT && (
                       <div className="text-[10px] text-fg-faint">仅显示前 {DISPLAY_LIMIT} 条，其余请分批处理</div>
                     )}
                   </div>

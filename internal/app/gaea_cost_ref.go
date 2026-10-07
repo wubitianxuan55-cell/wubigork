@@ -53,7 +53,7 @@ func (a *App) GaeaCostIndicators(group string) []costref.Indicator {
 		}
 		items = append(items, projStore.ListItems(p.ID)...)
 	}
-	return costref.ComputeIndicators(items, group)
+	return nonNilSlice(costref.ComputeIndicators(items, group))
 }
 
 // GaeaCostAttribution 归因对标（v4.6.1 补课：审计 §C ④「成本知识图谱+归因

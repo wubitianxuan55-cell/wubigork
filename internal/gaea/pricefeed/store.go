@@ -32,7 +32,7 @@ func (s *Store) ListSources() []Source {
 		return nil
 	}
 	defer func() { _ = rows.Close() }()
-	var out []Source
+	out := make([]Source, 0, 8)
 	for rows.Next() {
 		var src Source
 		var headers string
@@ -41,6 +41,9 @@ func (s *Store) ListSources() []Source {
 			continue
 		}
 		_ = json.Unmarshal([]byte(headers), &src.Headers)
+		if src.Headers == nil {
+			src.Headers = map[string]string{}
+		}
 		src.Enabled = enabled != 0
 		out = append(out, src)
 	}
@@ -156,6 +159,10 @@ func (s *Store) SaveFetch(f FetchRecord) error {
 	if f.Status == "" {
 		f.Status = "pending"
 	}
+	// 写入前归一：nil Candidates 落库为字面 null，读回即 nil，再序列化仍 null。
+	if f.Candidates == nil {
+		f.Candidates = []Candidate{}
+	}
 	sum, _ := json.Marshal(f.Candidates)
 	_, err := s.db.Exec(`
 INSERT INTO price_fetch(id,source_id,source_name,url,period,fetched_at,status,summary)
@@ -177,7 +184,7 @@ func (s *Store) ListFetches(limit int) []FetchRecord {
 		return nil
 	}
 	defer func() { _ = rows.Close() }()
-	var out []FetchRecord
+	out := make([]FetchRecord, 0, 8)
 	for rows.Next() {
 		var f FetchRecord
 		var sum string
@@ -185,6 +192,11 @@ func (s *Store) ListFetches(limit int) []FetchRecord {
 			continue
 		}
 		_ = json.Unmarshal([]byte(sum), &f.Candidates)
+		// 存量记录 summary 可能是字面 null（SaveFetch 归一前写入）：
+		// 读回 nil 序列化成 JSON null，前端 f.candidates.length 即崩。
+		if f.Candidates == nil {
+			f.Candidates = []Candidate{}
+		}
 		out = append(out, f)
 	}
 	if err := rows.Err(); err != nil {

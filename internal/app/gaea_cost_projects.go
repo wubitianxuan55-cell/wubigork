@@ -48,7 +48,7 @@ func (a *App) GaeaCostProjectSave(p costproject.Project) (string, error) {
 
 // GaeaCostProjectList 返回测算项目列表（含条目数/合计/版本数）。
 func (a *App) GaeaCostProjectList() []costproject.ProjectSummary {
-	return a.hubCostProjectStore().ListProjects()
+	return nonNilSlice(a.hubCostProjectStore().ListProjects())
 }
 
 // GaeaCostProjectGet 返回单个测算项目（不存在返回 nil）。

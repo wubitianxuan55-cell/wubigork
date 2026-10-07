@@ -67,7 +67,7 @@ func (a *App) tickPriceCron() {
 
 // GaeaPriceSources 返回全部价格源订阅。
 func (a *App) GaeaPriceSources() []pricefeed.Source {
-	return a.hubPriceStore().ListSources()
+	return nonNilSlice(a.hubPriceStore().ListSources())
 }
 
 // GaeaPriceSourceSave 保存/更新价格源订阅。
@@ -118,7 +118,7 @@ func (a *App) GaeaPriceFetchAll() (*tasks.Task, error) {
 
 // GaeaPriceFetches 返回最近抓取记录（含 pending 待确认）。
 func (a *App) GaeaPriceFetches() []pricefeed.FetchRecord {
-	return a.hubPriceStore().ListFetches(30)
+	return nonNilSlice(a.hubPriceStore().ListFetches(30))
 }
 
 // GaeaPriceFetchApply 确认发布抓取结果：把选中的候选写回成本库并记录价格历史；
@@ -211,7 +211,7 @@ func (a *App) GaeaPriceFetchIgnore(fetchID string) error {
 
 // GaeaPriceHistory 返回某条目的价格历史（新→旧）。
 func (a *App) GaeaPriceHistory(name string) []pricefeed.History {
-	return a.hubPriceStore().ListHistory(name, 30)
+	return nonNilSlice(a.hubPriceStore().ListHistory(name, 30))
 }
 
 // priceHistoryLookup 供价格异常识别读取某条目的最近历史价格。

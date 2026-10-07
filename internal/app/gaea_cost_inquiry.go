@@ -48,7 +48,7 @@ func (a *App) GaeaCostInquiryDelete(id int64) error {
 
 // GaeaCostInquiryExpiring 到期预警：valid_until 非空且 <= today+days 的数据点。
 func (a *App) GaeaCostInquiryExpiring(days int) []costinquiry.Record {
-	return a.hubCostInquiryStore().ListExpiring(days)
+	return nonNilSlice(a.hubCostInquiryStore().ListExpiring(days))
 }
 
 // GaeaCostInquiryAdjust 调差建议：成本库条目 vs 最新询价数据点（差幅 > 2%）。
@@ -58,15 +58,15 @@ func (a *App) GaeaCostInquiryExpiring(days int) []costinquiry.Record {
 func (a *App) GaeaCostInquiryAdjust() []costinquiry.AdjustSuggestion {
 	store := a.hubCostStore()
 	if !store.Available() {
-		return nil
+		return []costinquiry.AdjustSuggestion{}
 	}
 	entries, err := store.List()
 	a.reportCostReadError("成本库调差", err)
-	return a.hubCostInquiryStore().SuggestAdjustments(entries)
+	return nonNilSlice(a.hubCostInquiryStore().SuggestAdjustments(entries))
 }
 
 // GaeaCostInquiryScan 库级异常扫描（只读）：询价库内部自洽体检——
 // 离散/跳变/过期未标记/陈旧四类发现，与调差建议的单点比对互补。
 func (a *App) GaeaCostInquiryScan() []costinquiry.ScanFinding {
-	return a.hubCostInquiryStore().ScanAnomalies()
+	return nonNilSlice(a.hubCostInquiryStore().ScanAnomalies())
 }

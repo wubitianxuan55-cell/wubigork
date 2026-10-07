@@ -146,6 +146,17 @@ func nonNilStrings(s []string) []string {
 	return s
 }
 
+// nonNilSlice 是 nonNilStrings 的泛型版：绑定面无 error 出口的列表返回值
+// 构造即非 nil——Wails 把 nil 切片序列化成 JSON null，前端裸读 .length/.map
+// 即崩（v4.467.1 造价清单弹窗、v4.469.2 知识库面板两次真机发作后的
+// 造价族按契约扫收敛）。
+func nonNilSlice[T any](s []T) []T {
+	if s == nil {
+		return []T{}
+	}
+	return s
+}
+
 // GaeaProfileSave 保存一条主脑画像事实（同名覆盖）。
 func (a *App) GaeaProfileSave(f ProfileFactView) error {
 	return a.hubProfileStore().Save(memory.Memory{

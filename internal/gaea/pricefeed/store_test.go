@@ -91,3 +91,27 @@ func TestStoreUnavailable(t *testing.T) {
 		t.Error("SaveSource on nil db should error")
 	}
 }
+
+// nil Candidates 回归钉（绑定面 null 契约族）：nil 落库读回非 nil；
+// SaveFetch 归一前的存量字面 null summary 行同样在读侧归一——否则 Wails
+// 序列化 candidates:null，价格源面板 f.candidates.slice/.length 即崩。
+func TestFetchRecordCandidatesNeverNil(t *testing.T) {
+	s := newTestStoreDB(t)
+	if err := s.SaveFetch(FetchRecord{ID: "f-nil", SourceID: "s1", SourceName: "四川信息价", Status: "pending"}); err != nil {
+		t.Fatal(err)
+	}
+	// 模拟存量行：summary 为字面 null（归一前写入的形态）。
+	if _, err := s.db.Exec(`INSERT INTO price_fetch(id,source_id,source_name,url,period,fetched_at,status,summary)
+VALUES('f-legacy','s1','重庆站','http://x','758','2026-10-07T00:00:00Z','pending','null')`); err != nil {
+		t.Fatal(err)
+	}
+	recs := s.ListFetches(10)
+	if len(recs) != 2 {
+		t.Fatalf("ListFetches = %d 条, want 2", len(recs))
+	}
+	for _, f := range recs {
+		if f.Candidates == nil {
+			t.Errorf("fetch %s Candidates = nil, want 非 nil 空切片", f.ID)
+		}
+	}
+}
