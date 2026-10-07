@@ -491,20 +491,20 @@ func (s *Store) SaveQuota(q Quota, idx map[string]Resource) (*Quota, error) {
 		if _, err := tx.Exec(`
 UPDATE gf_quotas SET title=?, specialty=?, chapter=?, unit=?, category_path=?,
   base_labor=?, base_material=?, base_machine=?, source=?, region=?, price_date=?,
-  note=?, status=?, updated_at=? WHERE id=?`,
+  note=?, status=?, orig_code=?, updated_at=? WHERE id=?`,
 			q.Title, q.Specialty, q.Chapter, q.Unit, q.CategoryPath,
 			q.BaseLabor, q.BaseMaterial, q.BaseMachine, q.Source, q.Region, q.PriceDate,
-			q.Note, q.Status, now, q.ID); err != nil {
+			q.Note, q.Status, q.OrigCode, now, q.ID); err != nil {
 			return nil, err
 		}
 	case sql.ErrNoRows:
 		res, e2 := tx.Exec(`
 INSERT INTO gf_quotas(code, title, specialty, chapter, unit, category_path,
-  base_labor, base_material, base_machine, source, region, price_date, note, status, created_at, updated_at)
-VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+  base_labor, base_material, base_machine, source, region, price_date, note, status, orig_code, created_at, updated_at)
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			q.Code, q.Title, q.Specialty, q.Chapter, q.Unit, q.CategoryPath,
 			q.BaseLabor, q.BaseMaterial, q.BaseMachine, q.Source, q.Region, q.PriceDate,
-			q.Note, q.Status, now, now)
+			q.Note, q.Status, q.OrigCode, now, now)
 		if e2 != nil {
 			return nil, e2
 		}
@@ -571,10 +571,10 @@ func (s *Store) GetQuota(code string) (*Quota, error) {
 	code = strings.TrimSpace(code)
 	var q Quota
 	err := s.db.QueryRow(`
-SELECT id, code, title, specialty, chapter, unit, category_path,
+SELECT id, code, COALESCE(orig_code,''), title, specialty, chapter, unit, category_path,
   base_labor, base_material, base_machine, source, region, price_date, note, status, created_at, updated_at
 FROM gf_quotas WHERE code=?`, code).Scan(
-		&q.ID, &q.Code, &q.Title, &q.Specialty, &q.Chapter, &q.Unit, &q.CategoryPath,
+		&q.ID, &q.Code, &q.OrigCode, &q.Title, &q.Specialty, &q.Chapter, &q.Unit, &q.CategoryPath,
 		&q.BaseLabor, &q.BaseMaterial, &q.BaseMachine, &q.Source, &q.Region, &q.PriceDate,
 		&q.Note, &q.Status, &q.CreatedAt, &q.UpdatedAt)
 	if err != nil {
@@ -619,7 +619,7 @@ func (s *Store) ListQuotas(specialty, keyword string) ([]Quota, error) {
 		return nil, err
 	}
 	q := `
-SELECT id, code, title, specialty, chapter, unit, category_path,
+SELECT id, code, COALESCE(orig_code,''), title, specialty, chapter, unit, category_path,
   base_labor, base_material, base_machine, source, region, price_date, note, status, created_at, updated_at
 FROM gf_quotas WHERE 1=1`
 	var args []any
@@ -641,7 +641,7 @@ FROM gf_quotas WHERE 1=1`
 	var out []Quota
 	for rows.Next() {
 		var it Quota
-		if e := rows.Scan(&it.ID, &it.Code, &it.Title, &it.Specialty, &it.Chapter, &it.Unit,
+		if e := rows.Scan(&it.ID, &it.Code, &it.OrigCode, &it.Title, &it.Specialty, &it.Chapter, &it.Unit,
 			&it.CategoryPath, &it.BaseLabor, &it.BaseMaterial, &it.BaseMachine, &it.Source,
 			&it.Region, &it.PriceDate, &it.Note, &it.Status, &it.CreatedAt, &it.UpdatedAt); e != nil {
 			continue

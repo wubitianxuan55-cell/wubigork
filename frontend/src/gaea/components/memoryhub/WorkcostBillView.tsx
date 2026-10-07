@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Coins, FileSpreadsheet, FolderOpen, ListTree, Plus, RefreshCw, Search, Trash2, X } from "../../icons";
 import { app } from "../../lib/bridge";
-import type { WorkcostBillItem, WorkcostBillProject, WorkcostQuota } from "../../lib/types";
+import type { WorkcostBillItem, WorkcostBillProject, WorkcostCompose, WorkcostQuota } from "../../lib/types";
 
 const fmt = new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 });
 const fmtPrice = (p: number) => "¥" + fmt.format(p);
@@ -39,6 +39,8 @@ export function WorkcostBillView() {
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
+  // 清单分析：点定额 chip 打开该清单项的综合单价分析（工料机明细+三费）。
+  const [analyzeCode, setAnalyzeCode] = useState("");
 
   const loadProjects = useCallback(async () => {
     setLoading(true);
@@ -267,6 +269,7 @@ export function WorkcostBillView() {
                         <tr className="text-left text-[10px] text-fg-faint border-b border-border-soft/50">
                           <th className="py-2 px-2 w-16">编码</th>
                           <th className="py-2 px-2">名称</th>
+                          <th className="py-2 px-2">项目特征</th>
                           <th className="py-2 px-2 w-14">单位</th>
                           <th className="py-2 px-2 w-28 text-right">工程量</th>
                           <th className="py-2 px-2 w-24">引用定额</th>
@@ -276,7 +279,7 @@ export function WorkcostBillView() {
                       </thead>
                       <tbody>
                         {items.map((it) => (
-                          <BillRow key={it.id} item={it} onPatch={patchItem} onRemove={removeItem} />
+                          <BillRow key={it.id} item={it} onPatch={patchItem} onRemove={removeItem} onAnalyze={setAnalyzeCode} />
                         ))}
                       </tbody>
                     </table>
@@ -288,6 +291,7 @@ export function WorkcostBillView() {
         </div>
       </div>
 
+      {analyzeCode && <QuotaAnalysisModal quotaCode={analyzeCode} onClose={() => setAnalyzeCode("")} />}
       {pickerOpen && current && (
         <QuotaPickerModal
           onCancel={() => setPickerOpen(false)}
@@ -312,10 +316,12 @@ function BillRow({
   item,
   onPatch,
   onRemove,
+  onAnalyze,
 }: {
   item: WorkcostBillItem;
   onPatch: (item: WorkcostBillItem, patch: Partial<WorkcostBillItem>) => void;
   onRemove: (item: WorkcostBillItem) => void;
+  onAnalyze: (quotaCode: string) => void;
 }) {
   // 单价参考：挂定额的行按当前资源价现算（异步、带缓存不需要——行组件内自查）。
   const [refPrice, setRefPrice] = useState<number | null>(null);
@@ -350,6 +356,18 @@ function BillRow({
         />
       </td>
       <td className="py-1.5 px-2">
+        {item.feature || item.quantityExpr ? (
+          <span
+            className="block truncate max-w-[14rem] text-[10.5px] text-fg-faint"
+            title={item.quantityExpr ? `${item.feature}｜计算式：${item.quantityExpr}` : item.feature}
+          >
+            {item.feature || `计算式：${item.quantityExpr}`}
+          </span>
+        ) : (
+          <span className="text-fg-faint/50 text-[10.5px]">—</span>
+        )}
+      </td>
+      <td className="py-1.5 px-2">
         <input
           className="w-12 bg-transparent border-0 outline-none text-fg-faint focus:border-b focus:border-accent"
           defaultValue={item.unit}
@@ -375,9 +393,14 @@ function BillRow({
       </td>
       <td className="py-1.5 px-2">
         {item.quotaCode ? (
-          <span className="font-mono text-[10px] px-1.5 py-px rounded bg-accent/10 text-accent" title="引用消耗定额（工程量×定额含量→工料机）">
+          <button
+            type="button"
+            className="font-mono text-[10px] px-1.5 py-px rounded bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
+            title={`引用定额 ${item.quotaCode}——点开综合单价分析（工料机明细+三费）`}
+            onClick={() => onAnalyze(item.quotaCode)}
+          >
             {item.quotaCode}
-          </span>
+          </button>
         ) : (
           <span className="text-[10px] text-fg-faint" title="未套定额：可在下方手填单价（录入数据）">手填</span>
         )}
@@ -566,6 +589,135 @@ function Empty({ title, hint }: { title: string; hint: string }) {
       <ListTree size={26} className="mx-auto text-fg-faint" />
       <div className="mt-3 text-[13px] text-fg font-medium">{title}</div>
       <p className="mt-1.5 text-[11.5px] text-fg-faint leading-relaxed max-w-md mx-auto">{hint}</p>
+    </div>
+  );
+}
+
+// QuotaAnalysisModal 清单项的综合单价分析（「清单分析」入口）：
+// 定额头 + 工料机明细行（含量×单价=金额）+ 人材机三费汇总 + 综合单价（只含
+// 人材机）。数据全部现算（WorkcostQuotaCompose），资源调价即最新口径。
+function QuotaAnalysisModal({ quotaCode, onClose }: { quotaCode: string; onClose: () => void }) {
+  const [quota, setQuota] = useState<WorkcostQuota | null>(null);
+  const [lines, setLines] = useState<WorkcostCompose | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    app
+      .WorkcostQuotaGet(quotaCode)
+      .then((q) => {
+        if (alive) setQuota(q);
+      })
+      .catch(() => {
+        /* 定额头缺失不阻塞分析表 */
+      });
+    app
+      .WorkcostQuotaCompose(quotaCode, null)
+      .then((c) => {
+        if (alive) setLines(c);
+      })
+      .catch((e) => {
+        if (alive) setError(e instanceof Error ? e.message : String(e));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [quotaCode]);
+
+  const f = new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 });
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div
+        className="v3-panel rounded-2xl p-5 space-y-3 w-[46rem] max-h-[84vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-[13px] text-fg font-semibold flex-1 min-w-0 truncate">
+            综合单价分析：{quota?.title ?? quotaCode}
+          </span>
+          {quota?.origCode && quota.origCode !== quotaCode && (
+            <span className="font-mono text-[10px] px-1.5 py-px rounded bg-bg-soft text-fg-faint" title="工作簿原始编码（定额编码统一前的溯源）">
+              原码 {quota.origCode}
+            </span>
+          )}
+          <button type="button" className={iconBtn} onClick={onClose} title="关闭">
+            <X size={11} />
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-fg-faint">
+          <span className="font-mono text-accent">{quotaCode}</span>
+          {quota?.unit && <span>单位：{quota.unit}</span>}
+          {quota?.specialty && <span>专业：{quota.specialty}</span>}
+          {quota?.note && <span className="max-w-[24rem] truncate" title={quota.note}>特征：{quota.note}</span>}
+        </div>
+        {error ? (
+          <div role="alert" className="text-[11px] text-amber-300 border border-amber-400/30 bg-amber-400/10 rounded-lg px-2.5 py-2">
+            核算失败：{error}
+          </div>
+        ) : !lines ? (
+          <div className="space-y-2 animate-pulse">
+            <div className="v3-panel rounded-lg h-16" />
+            <div className="v3-panel rounded-lg h-40" />
+          </div>
+        ) : (
+          <>
+            <div className="v3-panel rounded-lg overflow-x-auto">
+              <table className="w-full text-[11.5px]">
+                <thead>
+                  <tr className="text-left text-[10px] text-fg-faint border-b border-border-soft/50">
+                    <th className="py-1.5 px-2 w-14">行类</th>
+                    <th className="py-1.5 px-2">资源</th>
+                    <th className="py-1.5 px-2 w-14">单位</th>
+                    <th className="py-1.5 px-2 w-20 text-right">含量</th>
+                    <th className="py-1.5 px-2 w-20 text-right">单价</th>
+                    <th className="py-1.5 px-2 w-24 text-right">金额</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lines.lines.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-6 text-center text-fg-faint text-[11.5px]">
+                        该定额没有工料机消耗行——综合单价为 0。
+                      </td>
+                    </tr>
+                  ) : (
+                    lines.lines.map((l, i) => (
+                      <tr key={i} className="border-b border-border-soft/20 last:border-0">
+                        <td className="py-1 px-2 text-fg-dim">{l.kind}</td>
+                        <td className="py-1 px-2 text-fg-dim">{l.title || "-"}</td>
+                        <td className="py-1 px-2 text-fg-faint">{l.unit || "-"}</td>
+                        <td className="py-1 px-2 text-right tabular-nums">{l.quantity > 0 ? f.format(l.quantity) : "—"}</td>
+                        <td className="py-1 px-2 text-right tabular-nums">
+                          {l.price > 0 ? fmtPrice(l.price) : <span className="text-amber-300">缺价</span>}
+                        </td>
+                        <td className="py-1 px-2 text-right tabular-nums">{fmtPrice(l.amount)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-[11.5px] text-fg-dim px-1">
+              <span>人工 <span className="tabular-nums text-sky-400">{fmtPrice(lines.laborFee)}</span></span>
+              <span>材料 <span className="tabular-nums text-ok">{fmtPrice(lines.materialFee)}</span></span>
+              <span>机械 <span className="tabular-nums text-violet-400">{fmtPrice(lines.machineFee)}</span></span>
+              <span className="text-fg font-semibold">
+                综合单价（人材机）<span className="tabular-nums text-accent ml-1">{fmtPrice(lines.compositePrice)}</span>
+              </span>
+            </div>
+            {lines.warnings.length > 0 && (
+              <div role="alert" className="text-[10.5px] text-amber-300 border border-amber-400/30 bg-amber-400/10 rounded-lg px-2.5 py-1.5">
+                {lines.warnings.map((w, i) => (
+                  <div key={i}>· {w}</div>
+                ))}
+              </div>
+            )}
+            <p className="text-[10px] text-fg-faint">
+              按当前资源价现算（参考口径）；清单工程量 × 此单价 = 合价，由导出的五表工作簿活公式计算。
+            </p>
+          </>
+        )}
+      </div>
     </div>
   );
 }

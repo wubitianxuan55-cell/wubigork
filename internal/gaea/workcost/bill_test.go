@@ -102,3 +102,49 @@ func TestBillItemSaveAndAutoCode(t *testing.T) {
 		t.Errorf("itemCount 聚合应 2，得到 %d", projects[0].ItemCount)
 	}
 }
+
+// TestResolveQuotaCodeUnification 定额编码统一规则四态（V29）：
+// 空库直用 / 同源重导入复用 / 内容全等跨项目复用 / 冲突消歧。
+func TestResolveQuotaCodeUnification(t *testing.T) {
+	s, cleanup := newWorkcostStore(t)
+	defer cleanup()
+
+	// ① 空库：原码直用。
+	got, err := s.ResolveQuotaCode("WP02", "施工便道", "m", "3m宽", "项目导入：A.xlsx")
+	if err != nil || got != "WP02" {
+		t.Fatalf("空库应直用原码，得到 %s（err=%v）", got, err)
+	}
+	if _, err := s.SaveQuota(Quota{Code: "WP02", OrigCode: "WP02", Title: "施工便道", Unit: "m", Note: "3m宽", Source: "项目导入：A.xlsx"}, nil); err != nil {
+		t.Fatalf("建定额失败: %v", err)
+	}
+
+	// ② 同源重导入：复用。
+	got, err = s.ResolveQuotaCode("WP02", "施工便道", "m", "3m宽", "项目导入：A.xlsx")
+	if err != nil || got != "WP02" {
+		t.Fatalf("同源重导入应复用，得到 %s（err=%v）", got, err)
+	}
+
+	// ③ 他项目内容全等：复用（真统一）。
+	got, err = s.ResolveQuotaCode("WP02", "施工便道", "m", "3m宽", "项目导入：B.xlsx")
+	if err != nil || got != "WP02" {
+		t.Fatalf("内容全等应跨项目复用，得到 %s（err=%v）", got, err)
+	}
+
+	// ④ 他项目内容不同：消歧 WP02-2，且 orig_code 保留原码。
+	got, err = s.ResolveQuotaCode("WP02", "施工便道", "m", "5m宽双车道", "项目导入：C.xlsx")
+	if err != nil || got != "WP02-2" {
+		t.Fatalf("内容不同应消歧 WP02-2，得到 %s（err=%v）", got, err)
+	}
+	if _, err := s.SaveQuota(Quota{Code: got, OrigCode: "WP02", Title: "施工便道", Unit: "m", Note: "5m宽双车道", Source: "项目导入：C.xlsx"}, nil); err != nil {
+		t.Fatalf("消歧定额落库失败: %v", err)
+	}
+	q, err := s.GetQuota("WP02-2")
+	if err != nil || q.OrigCode != "WP02" {
+		t.Fatalf("消歧定额应保留 orig_code=WP02，得到 %q（err=%v）", q.OrigCode, err)
+	}
+	// 第三次冲突：WP02-3。
+	got, err = s.ResolveQuotaCode("WP02", "施工便道", "m", "6m宽", "项目导入：D.xlsx")
+	if err != nil || got != "WP02-3" {
+		t.Fatalf("第三个冲突应 WP02-3，得到 %s（err=%v）", got, err)
+	}
+}

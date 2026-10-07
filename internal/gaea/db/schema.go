@@ -741,3 +741,12 @@ CREATE TABLE IF NOT EXISTS gf_bill_items (
 CREATE INDEX IF NOT EXISTS idx_bill_items_project ON gf_bill_items(project_id);
 CREATE INDEX IF NOT EXISTS idx_bill_items_quota ON gf_bill_items(quota_code);
 `
+
+// SchemaV29 定额编码统一溯源列：gf_quotas.orig_code 保存工作簿里的原始清单
+// 编码。统一规则（applyBillItems 前的定额落库段）：原码全局未用→直接用；
+// 同源重导入（orig_code+源文件相同）→复用更新；标题+单位+工序特征全等
+// →跨项目复用同一条定额（真统一——同内容共享全局标准）；否则原码-N 消歧。
+// 没有它，「同项目重导入」与「他项目占用」无法区分，索引与引用都会漂。
+const SchemaV29 = `
+ALTER TABLE gf_quotas ADD COLUMN orig_code TEXT NOT NULL DEFAULT '';
+`

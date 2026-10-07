@@ -114,6 +114,8 @@ type ResourcePrice struct {
 type Quota struct {
 	ID           int64       `json:"id"`
 	Code         string      `json:"code"`
+	// OrigCode 工作簿里的原始清单编码（编码统一可能改写 Code，溯源靠它）。
+	OrigCode     string      `json:"origCode"`
 	Title        string      `json:"title"`
 	Specialty    string      `json:"specialty"`
 	Chapter      string      `json:"chapter"`

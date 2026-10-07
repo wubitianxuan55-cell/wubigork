@@ -446,7 +446,8 @@ describe("WorkcostBillView 分部分项清单", () => {
     expect(screen.getByDisplayValue("施工便道")).toBeTruthy();
     expect(screen.getByDisplayValue("850")).toBeTruthy(); // 工程量是录入数据
     // 引用定额 chip（WP01 同时是清单编码列，按 title 精确定位 chip）。
-    expect(screen.getByTitle("引用消耗定额（工程量×定额含量→工料机）").textContent).toBe("WP01");
+    const chip = screen.getByTitle(/引用定额 WP01——点开综合单价分析/);
+    expect(chip.textContent).toBe("WP01");
     expect(await screen.findByText("¥229.98")).toBeTruthy(); // 单价参考（定额现算）
     expect(screen.getByDisplayValue("12000")).toBeTruthy(); // 手填单价行
     // 数据库不做加总：不出现任何合计/费用链文案。
@@ -494,6 +495,57 @@ describe("WorkcostBillView 分部分项清单", () => {
     await waitFor(() => expect(state.billSaved?.quotaCode).toBe("WP02"));
     expect(state.billSaved?.title).toBe("场地平整");
     expect(state.billSaved?.quantity).toBe(1);
+  });
+
+it("特征描述显形于清单表（含计算式 tooltip），定额 chip 点开综合单价分析", async () => {
+    state.billProjects = [{ ...proj, itemCount: 1 }];
+    state.billItems = [
+      { id: 21, projectId: 1, code: "WP02", title: "施工便道", unit: "m", division: "A临建", quantity: 350,
+        quantityExpr: "长350×宽3", quotaCode: "WP02", feature: "3m宽，20cm碎石+15cm混凝土", priceOverride: 0, sort: 1 },
+    ];
+    state.getQuota = {
+      id: 5, code: "WP02", origCode: "WP02", title: "施工便道", specialty: "土壤修复", chapter: "A临建", unit: "m",
+      categoryPath: "", baseLabor: 0, baseMaterial: 0, baseMachine: 0, source: "项目导入", region: "",
+      priceDate: "", note: "3m宽，20cm碎石+15cm混凝土", status: "现行", items: [],
+    };
+    state.compose = {
+      laborFee: 9, materialFee: 213.75, machineFee: 7.23, outsourcedFee: 0, otherFee: 0,
+      subtotal: 229.98, compositePrice: 229.98, zeroLines: 0,
+      lines: [
+        { kind: "人工", title: "普通工", unit: "工日", quantity: 0.03, price: 300, lossRate: 0, amount: 9, sharePct: 3.9 },
+        { kind: "材料", title: "级配碎石", unit: "m³", quantity: 0.75, price: 78, lossRate: 0, amount: 58.5, sharePct: 25.4 },
+      ],
+      warnings: [],
+    };
+    render(<WorkcostBillView />);
+    // 特征列显形（清单不缺特征描述）。
+    expect(await screen.findByText("3m宽，20cm碎石+15cm混凝土")).toBeTruthy();
+    // 定额 chip 是按钮——点开分析弹窗（清单分析不再「打不开」）。
+    fireEvent.click(screen.getByTitle(/点开综合单价分析/));
+    expect(await screen.findByText(/综合单价分析：施工便道/)).toBeTruthy();
+    expect(await screen.findByText("级配碎石")).toBeTruthy();
+    expect(screen.getByText(/综合单价（人材机）/)).toBeTruthy();
+  });
+
+  it("编码统一溯源：orig_code 与统一码不同时显示「原码」徽标", async () => {
+    state.billProjects = [{ ...proj, itemCount: 1 }];
+    state.billItems = [
+      { id: 22, projectId: 1, code: "WP02", title: "施工便道", unit: "m", division: "", quantity: 1,
+        quantityExpr: "", quotaCode: "WP02-2", feature: "", priceOverride: 0, sort: 1 },
+    ];
+    state.getQuota = {
+      id: 6, code: "WP02-2", origCode: "WP02", title: "施工便道", specialty: "", chapter: "", unit: "m",
+      categoryPath: "", baseLabor: 0, baseMaterial: 0, baseMachine: 0, source: "", region: "",
+      priceDate: "", note: "", status: "现行", items: [],
+    };
+    state.compose = {
+      laborFee: 0, materialFee: 0, machineFee: 0, outsourcedFee: 0, otherFee: 0,
+      subtotal: 0, compositePrice: 0, zeroLines: 0, lines: [], warnings: [],
+    };
+    render(<WorkcostBillView />);
+    fireEvent.click(await screen.findByTitle(/点开综合单价分析/));
+    expect(await screen.findByText(/综合单价分析：施工便道/)).toBeTruthy();
+    expect(screen.getByText(/原码 WP02/)).toBeTruthy(); // 溯源徽标
   });
 
   it("手填行与删除行：save/delete 走库", async () => {

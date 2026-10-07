@@ -156,9 +156,11 @@ func (s *Store) ApplyProjectBundle(b *ProjectBundle) ApplyProjectResult {
 		}
 	}
 
+	// 统一码解析结果：原码 → 全局唯一定额编码。清单层的 quota_code 引用统一码。
+	resolved := map[string]string{}
 	for _, it := range items {
-		code := QuotaCodeForItem(it)
-		if code == "" {
+		origCode := QuotaCodeForItem(it)
+		if origCode == "" {
 			res.Errors = append(res.Errors, fmt.Sprintf("清单项「%s」无法生成定额编码，已跳过", it.Title))
 			continue
 		}
@@ -170,8 +172,40 @@ func (s *Store) ApplyProjectBundle(b *ProjectBundle) ApplyProjectResult {
 		if unit == "" {
 			unit = itemUnit[it.Code]
 		}
+		code, err := s.ResolveQuotaCode(origCode, title, unit, it.Feature, fmt.Sprintf("项目导入：%s", b.FileName))
+		if err != nil {
+			res.Errors = append(res.Errors, fmt.Sprintf("定额编码解析失败 %s（%s）: %v", origCode, title, err))
+			continue
+		}
+		resolved[it.Code] = code
+		reused := code != origCode
+		sameSource := false
+		if !reused {
+			// 原码直用也要区分「新建」与「同源更新」（e2e 幂等计数依赖）。
+			var n int
+			if err := s.db.QueryRow(`SELECT COUNT(*) FROM gf_quotas WHERE code=? AND orig_code=? AND source=?`,
+				code, origCode, fmt.Sprintf("项目导入：%s", b.FileName)).Scan(&n); err == nil && n > 0 {
+				sameSource = true
+			}
+		}
+		if reused || sameSource {
+			res.QuotaUpd++
+		} else {
+			res.QuotaNew++
+		}
+
+		// 内容全等复用：既有定额是全局标准，若已有消耗行则**保持不动**（不因
+		// 新项目的同名项覆盖标准）；空定额则采用本项目的消耗行补齐。
+		if reused {
+			existing, err := s.GetQuota(code)
+			if err == nil && len(existing.Items) > 0 {
+				continue
+			}
+		}
+
 		q := Quota{
 			Code:         code,
+			OrigCode:     origCode,
 			Title:        title,
 			Specialty:    "土壤修复",
 			Unit:         unit,
@@ -180,13 +214,17 @@ func (s *Store) ApplyProjectBundle(b *ProjectBundle) ApplyProjectResult {
 			Note:         it.Feature,
 			Items:        grouped[it.Code],
 		}
-		existed, err := s.quotaExists(code)
-		if err != nil {
-			res.Errors = append(res.Errors, fmt.Sprintf("查询定额 %s 是否存在失败: %v", code, err))
-		} else if existed {
-			res.QuotaUpd++
-		} else {
-			res.QuotaNew++
+		if reused {
+			// 复用且既有定额为空：保留既有 orig_code（它的原始编码也是溯源数据），
+			// 只补消耗行与缺失的标题信息。
+			if existing, err := s.GetQuota(code); err == nil {
+				if existing.OrigCode != "" {
+					q.OrigCode = existing.OrigCode
+				}
+				if q.CategoryPath == "" {
+					q.CategoryPath = existing.CategoryPath
+				}
+			}
 		}
 		if _, err := s.SaveQuota(q, idx); err != nil {
 			res.Errors = append(res.Errors, fmt.Sprintf("定额 %s（%s）落库失败: %v", code, title, err))
@@ -196,13 +234,13 @@ func (s *Store) ApplyProjectBundle(b *ProjectBundle) ApplyProjectResult {
 	// ④ 清单层落库（SchemaV28）：分部分项清单（编码/名称/单位/**工程量**）
 	// 是工程实体的一等数据——此前只活在 xlsx 里，费用汇总面板只能空手试算。
 	// 工程量优先取综合单价表的 Items.Quantity，为 0 时回退工程量计算表。
-	s.applyBillItems(b, items, &res)
+	s.applyBillItems(b, items, resolved, &res)
 	return res
 }
 
 // applyBillItems 落项目封面+费率+分部分项清单（幂等：同项目同编码走更新）。
 // 费率来自模版「费用汇总」取费区（录入数据落库，不做任何加总）。
-func (s *Store) applyBillItems(b *ProjectBundle, items []ProjectItem, res *ApplyProjectResult) {
+func (s *Store) applyBillItems(b *ProjectBundle, items []ProjectItem, resolved map[string]string, res *ApplyProjectResult) {
 	projectName := strings.TrimSpace(b.Project)
 	if projectName == "" {
 		projectName = strings.TrimSuffix(b.FileName, ".xlsx")
@@ -242,7 +280,7 @@ func (s *Store) applyBillItems(b *ProjectBundle, items []ProjectItem, res *Apply
 			Division:     it.Division,
 			Quantity:     qty,
 			QuantityExpr: it.QuantityExpr,
-			QuotaCode:    QuotaCodeForItem(it),
+			QuotaCode:    firstNonEmpty(resolved[it.Code], it.Code), // 统一码（与定额库锚点一致，便于索引引用）
 			Feature:      it.Feature,
 			Sort:         i + 1,
 		}
@@ -259,4 +297,39 @@ func (s *Store) quotaExists(code string) (bool, error) {
 		return false, err
 	}
 	return n > 0, nil
+}
+
+// ResolveQuotaCode 定额编码统一规则（导入链专用，索引/引用友好的根基）：
+//
+//  1. 原码全局未用 → 直接用原码（最常见：各工作簿前缀不同 WP/SF/BJ…）；
+//  2. 原码被同源占用（orig_code 与源文件都相同 = 同项目重导入）→ 复用（幂等）；
+//  3. 原码被他项目占用，但 标题+单位+工序特征 全等 → 复用同一条定额
+//     （真统一：同内容共享全局标准，多项目引用同一锚点）；
+//  4. 其余冲突 → 原码-N 消歧（N 从 2 起），orig_code 保留原码可溯源。
+func (s *Store) ResolveQuotaCode(origCode, title, unit, feature, source string) (string, error) {
+	var (
+		id                    int64
+		orig, src, et, eu, en string
+	)
+	err := s.db.QueryRow(`SELECT id, COALESCE(orig_code,''), source, title, unit, COALESCE(note,'')
+FROM gf_quotas WHERE code=?`, origCode).Scan(&id, &orig, &src, &et, &eu, &en)
+	if err == nil {
+		if orig == origCode && src == source {
+			return origCode, nil // 同项目重导入
+		}
+		if et == title && eu == unit && en == feature {
+			return origCode, nil // 内容全等 → 统一复用
+		}
+		for n := 2; ; n++ {
+			cand := fmt.Sprintf("%s-%d", origCode, n)
+			var dummy int64
+			if err := s.db.QueryRow(`SELECT id FROM gf_quotas WHERE code=?`, cand).Scan(&dummy); err != nil {
+				return cand, nil // 空位 → 消歧码
+			}
+		}
+	}
+	if strings.Contains(err.Error(), "no rows") {
+		return origCode, nil
+	}
+	return "", err
 }
