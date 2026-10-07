@@ -60,9 +60,10 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
     setLoading(true);
     setListError(null);
     app.KnowledgeList().then((list) => {
-      setEntries(list);
+      const rows = list ?? [];
+      setEntries(rows);
       setSelected((prev) => {
-        const names = new Set(list.map((e) => e.name));
+        const names = new Set(rows.map((e) => e.name));
         return new Set([...prev].filter((n) => names.has(n)));
       });
       setLoading(false);
@@ -197,7 +198,7 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
       const list = q.trim()
         ? await app.KnowledgeSearch(q, cat, ph, st)
         : await app.KnowledgeList();
-      setEntries(list);
+      setEntries(list ?? []);
     } catch (err) {
       // T7-4：搜索失败不再静默保持原列表——给出可见错误，重试按钮可重新拉取。
       setListError(err instanceof Error ? err.message : String(err));
@@ -652,9 +653,9 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
                           {(entry as unknown as Record<string, string>).phase && <span>·</span>}
                           {entry.status && <span>{entry.status}</span>}
                         </div>
-                        {entry.tags.length > 0 && (
+                        {(entry.tags ?? []).length > 0 && (
                           <div className="flex flex-wrap gap-1">
-                            {entry.tags.map((tag) => (
+                            {(entry.tags ?? []).map((tag) => (
                               <span key={tag} className="text-[10px] text-fg-faint px-1.5 py-0.5 rounded-full bg-bg-soft">
                                 {normalizedQuery ? highlightText(tag, normalizedQuery) : tag}
                               </span>

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/knowledge"
+	"github.com/gaea/gaea/internal/modelengine"
 )
 
 func newKnowledgeMetaEnv(t *testing.T) *knowledge.Store {
@@ -122,5 +124,48 @@ func TestGaeaKnowledgeMerge(t *testing.T) {
 	hist := a.GaeaKnowledgeHistory("a")
 	if len(hist) != 1 || !strings.Contains(hist[0].Note, "合并自") {
 		t.Errorf("history = %+v, want 合并自 留档", hist)
+	}
+}
+
+// 知识库绑定面 nil 切片回归钉（对齐 v4.467.1 造价同款契约）：无标签条目的
+// Tags 在 store 内为 nil，Wails 序列化成 JSON null，前端 entry.tags.length
+// 崩进 ErrorBoundary（2026-10-06 真机日志实锤）。所有知识库绑定出口切片
+// 构造即非 nil；此处同时钉 Go 值与 JSON 序列化两层。
+func TestKnowledgeBindingsNonNilSlices(t *testing.T) {
+	store := newKnowledgeMetaEnv(t)
+	// 检索族地雷：裸 &App{} 的 core 为 nil，语义召回读提升字段 engineMgr 即崩；
+	// 空 engine manager = herdsman 断通道，召回/精排自然降级跳过。
+	a := &App{core: &core{engineMgr: modelengine.NewManager("", "")}}
+
+	if err := store.Save(knowledge.Entry{Name: "notags", Title: "桩基施工要点", Category: knowledge.CatCase, Body: "正文", Status: "现行"}); err != nil {
+		t.Fatal(err)
+	}
+
+	list := a.GaeaKnowledgeList()
+	if len(list) != 1 || list[0].Tags == nil {
+		t.Fatalf("GaeaKnowledgeList Tags = nil, want 非 nil 空切片（JSON null 崩前端）")
+	}
+	search := a.GaeaKnowledgeSearch("桩基", "all", "all", "all")
+	if len(search) != 1 || search[0].Tags == nil {
+		t.Fatalf("GaeaKnowledgeSearch Tags = nil, want 非 nil 空切片")
+	}
+	entry := a.GaeaKnowledgeGet("notags")
+	if entry == nil || entry.Tags == nil {
+		t.Fatalf("GaeaKnowledgeGet Tags = nil, want 非 nil 空切片")
+	}
+	if hist := a.GaeaKnowledgeHistory("notags"); hist == nil {
+		t.Error("GaeaKnowledgeHistory 空历史 = nil, want 非 nil 空切片")
+	}
+	if sim := a.GaeaKnowledgeFindSimilar("毫不相关的标题xyz"); sim == nil {
+		t.Error("GaeaKnowledgeFindSimilar 无命中 = nil, want 非 nil 空切片")
+	}
+
+	// JSON 序列化层：绑定出口不得再出现 "tags":null
+	blob, err := json.Marshal(list)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(blob), `"tags":null`) {
+		t.Errorf("序列化出现 tags:null: %s", blob)
 	}
 }

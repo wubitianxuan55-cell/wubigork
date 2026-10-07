@@ -13,6 +13,7 @@ export function EntryRow({ entry, active, selected, normalizedQuery, onToggle, o
   onSelect: (name: string) => void;
 }) {
   const phaseVal = phaseOf(entry);
+  const tags = entry.tags ?? [];
   return (
     <div className="relative">
       <div
@@ -53,14 +54,14 @@ export function EntryRow({ entry, active, selected, normalizedQuery, onToggle, o
             {entry.status && <span>{entry.status}</span>}
             {entry.updatedAt && <span className="ml-auto tabular-nums">{new Date(entry.updatedAt).toLocaleDateString()}</span>}
           </span>
-          {entry.tags.length > 0 && (
+          {tags.length > 0 && (
             <span className="flex flex-wrap gap-1">
-              {entry.tags.slice(0, 3).map((tag) => (
+              {tags.slice(0, 3).map((tag) => (
                 <span key={tag} className="text-[9.5px] text-fg-faint px-1.5 py-0.5 rounded-full bg-bg-soft">
                   {normalizedQuery ? highlightText(tag, normalizedQuery) : tag}
                 </span>
               ))}
-              {entry.tags.length > 3 && <span className="text-[9.5px] text-fg-faint">+{entry.tags.length - 3}</span>}
+              {tags.length > 3 && <span className="text-[9.5px] text-fg-faint">+{tags.length - 3}</span>}
             </span>
           )}
         </button>

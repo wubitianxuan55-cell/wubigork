@@ -103,15 +103,15 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 func (a *App) GaeaKnowledgeHistory(name string) []KnowledgeHistoryView {
 	gdb := knowledgeHistoryDB()
 	if gdb == nil {
-		return nil
+		return []KnowledgeHistoryView{}
 	}
 	rows, err := gdb.Query(`SELECT name,title,version,category,phase,discipline,tags,status,author,reviewer,source,body,changed_at,note
 FROM knowledge_history WHERE name=? ORDER BY changed_at DESC, id DESC LIMIT 30`, name)
 	if err != nil {
-		return nil
+		return []KnowledgeHistoryView{}
 	}
 	defer func() { _ = rows.Close() }()
-	var out []KnowledgeHistoryView
+	out := make([]KnowledgeHistoryView, 0, 8)
 	for rows.Next() {
 		var v KnowledgeHistoryView
 		var tags string
@@ -120,6 +120,7 @@ FROM knowledge_history WHERE name=? ORDER BY changed_at DESC, id DESC LIMIT 30`,
 			continue
 		}
 		_ = json.Unmarshal([]byte(tags), &v.Tags)
+		v.Tags = nonNilStrings(v.Tags)
 		out = append(out, v)
 	}
 	if err := rows.Err(); err != nil {
@@ -134,12 +135,12 @@ func (a *App) GaeaKnowledgeFindSimilar(title string) []SimilarView {
 	store, err := a.hubKnowledgeStore()
 	if err != nil {
 		slog.Warn("knowledge: 查重打开知识库失败", "error", err)
-		return nil
+		return []SimilarView{}
 	}
 	hits, err := knowledgeimport.FindSimilar(store, title, 0.65)
 	if err != nil {
 		slog.Warn("knowledge: 查重读取失败，结果降级为空（绑定无 error 出口）", "error", err)
-		return nil
+		return []SimilarView{}
 	}
 	out := make([]SimilarView, 0, len(hits))
 	for _, h := range hits {

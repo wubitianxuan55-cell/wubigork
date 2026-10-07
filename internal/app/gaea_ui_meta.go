@@ -503,7 +503,7 @@ func (a *App) GaeaKnowledgeList() []KnowledgeSummary {
 	}
 	out := make([]KnowledgeSummary, 0, len(list))
 	for _, s := range list {
-		out = append(out, KnowledgeSummary{Name: s.Name, Title: s.Title, Category: s.Category, Phase: s.Phase, Tags: s.Tags, Status: s.Status, UpdatedAt: s.UpdatedAt})
+		out = append(out, KnowledgeSummary{Name: s.Name, Title: s.Title, Category: s.Category, Phase: s.Phase, Tags: nonNilStrings(s.Tags), Status: s.Status, UpdatedAt: s.UpdatedAt})
 	}
 	return out
 }
@@ -545,7 +545,7 @@ func (a *App) GaeaKnowledgeSearch(query, category, phase, status string) []Knowl
 	}
 	out := make([]KnowledgeSummary, 0, len(results))
 	for _, e := range results {
-		out = append(out, KnowledgeSummary{Name: e.Name, Title: e.Title, Category: e.Category, Tags: e.Tags, Status: e.Status, UpdatedAt: e.UpdatedAt})
+		out = append(out, KnowledgeSummary{Name: e.Name, Title: e.Title, Category: e.Category, Tags: nonNilStrings(e.Tags), Status: e.Status, UpdatedAt: e.UpdatedAt})
 	}
 	return out
 }
@@ -560,7 +560,7 @@ func (a *App) GaeaKnowledgeGet(name string) *KnowledgeEntry {
 	if err != nil || e == nil {
 		return nil
 	}
-	return &KnowledgeEntry{Name: e.Name, Title: e.Title, Category: e.Category, Phase: e.Phase, Discipline: e.Discipline, Tags: e.Tags, Status: e.Status, Version: e.Version, Author: e.Author, Reviewer: e.Reviewer, Source: e.Source, Body: e.Body, CreatedAt: e.CreatedAt, UpdatedAt: e.UpdatedAt}
+	return &KnowledgeEntry{Name: e.Name, Title: e.Title, Category: e.Category, Phase: e.Phase, Discipline: e.Discipline, Tags: nonNilStrings(e.Tags), Status: e.Status, Version: e.Version, Author: e.Author, Reviewer: e.Reviewer, Source: e.Source, Body: e.Body, CreatedAt: e.CreatedAt, UpdatedAt: e.UpdatedAt}
 }
 
 // GaeaKnowledgeSave 保存知识条目。

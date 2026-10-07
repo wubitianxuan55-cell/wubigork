@@ -221,14 +221,14 @@ func (a *App) GaeaKnowledgeImportApply(rows []KnowledgeEntry) (int, error) {
 
 func toKnowledgeImportPreview(pv *knowledgeimport.Preview, aiUsed bool) KnowledgeImportPreview {
 	out := KnowledgeImportPreview{
-		Path: pv.Path, FileName: pv.FileName, Columns: pv.Columns,
-		Unmapped: pv.Unmapped, Message: pv.Message, AIUsed: aiUsed,
+		Path: pv.Path, FileName: pv.FileName, Columns: nonNilStrings(pv.Columns),
+		Unmapped: nonNilStrings(pv.Unmapped), Message: pv.Message, AIUsed: aiUsed,
 		Rows: make([]KnowledgeImportRowView, 0, len(pv.Rows)),
 	}
 	for _, r := range pv.Rows {
 		out.Rows = append(out.Rows, KnowledgeImportRowView{
 			Name: r.Name, Title: r.Title, Category: r.Category, Phase: r.Phase,
-			Discipline: r.Discipline, Tags: r.Tags, Status: r.Status, Source: r.Source,
+			Discipline: r.Discipline, Tags: nonNilStrings(r.Tags), Status: r.Status, Source: r.Source,
 			Body: r.Body, ExistingName: r.ExistingName, MatchNote: r.MatchNote,
 			SimilarName: r.SimilarName, SimilarNote: r.SimilarNote,
 			Raw: r.Raw, Skip: r.Skip, SkipReason: r.SkipReason,

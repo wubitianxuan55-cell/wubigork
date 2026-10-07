@@ -42,7 +42,7 @@ export function KnowledgeImportModal({
       .KnowledgeImportPreview(path)
       .then((pv) => {
         setPreview(pv);
-        setRows(pv.rows);
+        setRows(pv.rows ?? []);
       })
       .catch((e) => {
         setError(String(e));
@@ -57,7 +57,7 @@ export function KnowledgeImportModal({
     try {
       const pv = await app.KnowledgeImportAIParse(path);
       setPreview(pv);
-      setRows(pv.rows);
+      setRows(pv.rows ?? []);
       setError(null);
       toast.show("AI 智能解析完成，请核对后确认导入", "info");
     } catch (e) {
