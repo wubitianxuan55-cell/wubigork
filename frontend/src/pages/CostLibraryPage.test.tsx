@@ -109,7 +109,7 @@ describe('CostLibraryPage 造价数据库化繁为简（8→6 模块，2026-10 �
       cursor = idx
     }
     // 顶级模块按钮恰好 7 个（带 hint title；概览右侧 数据概览/关联图谱 胶囊不带 title）
-    // ——「工料机」为 2026-10 工料法重塑新增：工料机资源库 + 综合单价分析。
+    // ——「工料机」为 2026-10 工料法重塑新增：资源库 + 单价分析 + 取费汇总。
     expect(nav.querySelectorAll('button[title]').length).toBe(7)
     expect(nav.textContent).not.toContain('知识图谱')
     expect(nav.textContent).not.toContain('价格仓库')

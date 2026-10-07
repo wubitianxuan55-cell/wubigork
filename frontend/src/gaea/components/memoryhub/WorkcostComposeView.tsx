@@ -6,12 +6,16 @@
 //   外委是独立行类，但三费归集并入材料桶（材料 = SUMIF(材料)+SUMIF(外委)）。
 //
 // 左侧列定额，右侧展示该定额的综合单价分析表：汇总行（人材机小计 + 综合单价）
-// 下挂工料机明细行（含量 × 单价 = 金额），逐行可追溯。项目级覆盖（调量/调价）
-// 直接体现在同一张表上——这正是「全局定额 + 项目级覆盖」的可见形态。
+// 下挂工料机明细行（含量 × 单价 = 金额），逐行可追溯。定额可新建/编辑/删除
+// （QuotaModal——消耗定额是全局标准，本视图就是它的管理面）；项目级覆盖
+// （调量/调价）直接体现在同一张表上——这正是「全局定额 + 项目级覆盖」的可见形态。
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Calculator, FileSpreadsheet, FolderOpen, ListTree, RefreshCw, Search, X } from "../../icons";
+import {
+  Calculator, FileSpreadsheet, FolderOpen, ListTree, Pencil, Plus, RefreshCw, Search, Trash2, X,
+} from "../../icons";
 import { app } from "../../lib/bridge";
 import type { WorkcostCompose, WorkcostQuota } from "../../lib/types";
+import { QuotaModal } from "./WorkcostQuotaModal";
 
 const fmtPrice = (p: number) => "¥" + new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(p);
 const fmtQty = (q: number) => new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 4 }).format(q);
@@ -19,6 +23,10 @@ const fieldCls =
   "w-full bg-bg border border-border-soft rounded-md text-fg text-[12px] px-2.5 py-1.5 outline-none focus:border-accent transition-colors placeholder:text-fg-faint/50";
 const ghostBtn =
   "inline-flex items-center gap-1 px-2.5 h-7 rounded-lg border border-border text-fg-faint hover:text-fg hover:bg-bg-soft transition-colors text-[11.5px]";
+const solidBtn =
+  "inline-flex items-center gap-1 px-2.5 h-7 rounded-lg bg-accent text-accent-fg text-[11.5px] hover:opacity-90 transition-opacity disabled:opacity-50";
+const iconBtn =
+  "inline-flex items-center justify-center w-6 h-6 rounded-md border border-border text-fg-faint hover:text-fg hover:bg-bg-soft transition-colors";
 
 function kindTone(kind: string): string {
   switch (kind) {
@@ -31,6 +39,15 @@ function kindTone(kind: string): string {
     default:
       return "text-ok bg-ok/10";
   }
+}
+
+// emptyQuota 新建定额初值（编码/名称由用户填，落库时后端校验唯一）。
+function emptyQuota(): WorkcostQuota {
+  return {
+    id: 0, code: "", title: "", specialty: "", chapter: "", unit: "",
+    categoryPath: "", baseLabor: 0, baseMaterial: 0, baseMachine: 0,
+    source: "手工录入", region: "", priceDate: "", note: "", status: "现行", items: [],
+  };
 }
 
 /**
@@ -54,6 +71,13 @@ export function WorkcostComposeView() {
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState("");
   const [importedPath, setImportedPath] = useState("");
+  // 定额管理：编辑/新建弹窗与删除确认。编辑必须先 QuotaGet 取全量——
+  // ListQuotas 是轻量查询不含含量行，直接拿列表对象编辑会把含量行清空。
+  const [editing, setEditing] = useState<WorkcostQuota | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<WorkcostQuota | null>(null);
+  // composeTick 定额保存后自增——selected 编码不变时核算 effect 不会重跑，
+  // 靠它强制按新含量行重算（改价场景同理）。
+  const [composeTick, setComposeTick] = useState(0);
 
   // load 必须在导入/导出回调之前定义——那两个回调依赖它刷新列表。
   // （早期顺序写反过：`await load()` 引用了 const 声明前的 TDZ 变量，tsc 直接拦下。）
@@ -105,20 +129,94 @@ export function WorkcostComposeView() {
     }
   }, [load]);
 
-  // exportWorkbook 按导入源的口径重新导出五表到工作区 exports（活公式）。
-  const exportWorkbook = useCallback(async () => {
+  // exportWorkbookAs 选目录导出五表（活公式）：用户挑位置，文件名 = 源名+时间戳。
+  // 取消对话框（空串）静默返回——不是错误。
+  const exportWorkbookAs = useCallback(async () => {
     if (!importedPath) return;
     setBusy(true);
     setToast("");
     try {
-      const out = await app.WorkcostProjectExportToWorkspace(importedPath, "成本测算表");
-      setToast(`已导出五表工作簿：${out}`);
+      const dir = await app.PickDirectory();
+      if (!dir) {
+        setBusy(false);
+        return;
+      }
+      const srcBase = importedPath.replace(/\\/g, "/").split("/").pop() ?? "成本测算表";
+      const base = srcBase.replace(/\.xlsx$/i, "");
+      const n = new Date();
+      const p2 = (v: number) => String(v).padStart(2, "0");
+      const stamp = `${n.getFullYear()}${p2(n.getMonth() + 1)}${p2(n.getDate())}-${p2(n.getHours())}${p2(n.getMinutes())}${p2(n.getSeconds())}`;
+      const out = `${dir.replace(/[\\/]+$/, "")}/${base}-${stamp}.xlsx`;
+      const written = await app.WorkcostProjectExport(importedPath, out, "", "", "");
+      setToast(`已导出五表工作簿：${written}`);
     } catch (e) {
       setToast(`导出失败：${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }
   }, [importedPath]);
+
+  // exportToWorkspace 导出到工作区 .gaea/exports（固定约定位置的快捷路径）。
+  const exportToWorkspace = useCallback(async () => {
+    if (!importedPath) return;
+    setBusy(true);
+    setToast("");
+    try {
+      const out = await app.WorkcostProjectExportToWorkspace(importedPath, "成本测算表");
+      setToast(`已导出到工作区：${out}`);
+    } catch (e) {
+      setToast(`导出失败：${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }, [importedPath]);
+
+  // openEdit 编辑定额：先取全量（含含量行），读取失败如实显形不装成空定额。
+  const openEdit = useCallback(async () => {
+    if (!selected) return;
+    setBusy(true);
+    try {
+      const full = await app.WorkcostQuotaGet(selected);
+      if (full) {
+        setEditing(full);
+      } else {
+        setToast(`定额 ${selected} 读取失败（不存在）——请刷新列表`);
+      }
+    } catch (e) {
+      setToast(`读取定额失败：${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }, [selected]);
+
+  // onQuotaSaved 保存后的统一收尾：刷新列表 + 强制重算当前选中。
+  const onQuotaSaved = useCallback(
+    async (saved: WorkcostQuota) => {
+      setEditing(null);
+      setToast(`已保存定额「${saved.title}」（${saved.code}）`);
+      await load();
+      setSelected(saved.code);
+      setComposeTick((t) => t + 1);
+    },
+    [load],
+  );
+
+  // deleteQuota 删除定额（二次确认后）。
+  const deleteQuota = useCallback(async () => {
+    if (!confirmDelete) return;
+    setBusy(true);
+    try {
+      await app.WorkcostQuotaDelete(confirmDelete.code);
+      setToast(`已删除定额 ${confirmDelete.code}`);
+      setConfirmDelete(null);
+      await load();
+      setComposeTick((t) => t + 1);
+    } catch (e) {
+      setToast(`删除失败：${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }, [confirmDelete, load]);
 
   useEffect(() => {
     load();
@@ -150,7 +248,7 @@ export function WorkcostComposeView() {
     return () => {
       alive = false;
     };
-  }, [selected]);
+  }, [selected, composeTick]);
 
   const current = useMemo(() => quotas.find((q) => q.code === selected) ?? null, [quotas, selected]);
   const specialties = useMemo(() => {
@@ -182,11 +280,29 @@ export function WorkcostComposeView() {
           <button
             type="button"
             className={ghostBtn}
-            onClick={exportWorkbook}
+            onClick={exportWorkbookAs}
             disabled={busy || !importedPath}
-            title="按当前工料法口径重新导出五表模版工作簿到 .gaea/exports（活公式）"
+            title="选择目录，按当前工料法口径导出五表模版工作簿（活公式）"
           >
-            <FileSpreadsheet size={12} /> 导出五表
+            <FileSpreadsheet size={12} /> 导出五表到…
+          </button>
+          <button
+            type="button"
+            className={ghostBtn}
+            onClick={exportToWorkspace}
+            disabled={busy || !importedPath}
+            title="导出到工作区 .gaea/exports（文件名带时间戳，活公式）"
+          >
+            <FileSpreadsheet size={12} /> → 工作区
+          </button>
+          <button
+            type="button"
+            className={solidBtn}
+            onClick={() => setEditing(emptyQuota())}
+            disabled={busy}
+            title="新建消耗定额（编码 + 工料机含量行）"
+          >
+            <Plus size={12} /> 新建定额
           </button>
           {specialties.length > 1 && (
             <select className={`${fieldCls} !w-28`} value={specialty} onChange={(e) => setSpecialty(e.target.value)}>
@@ -292,10 +408,36 @@ export function WorkcostComposeView() {
               <div className="v3-panel rounded-xl h-64" />
             </div>
           ) : (
-            <AnalysisTable quota={current} compose={compose} />
+            <AnalysisTable quota={current} compose={compose} onEdit={openEdit} onDelete={() => current && setConfirmDelete(current)} />
           )}
         </div>
       </div>
+
+      {editing && <QuotaModal value={editing} onCancel={() => setEditing(null)} onSaved={onQuotaSaved} />}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setConfirmDelete(null)}>
+          <div className="v3-panel rounded-2xl p-5 space-y-3 w-[26rem]" onClick={(e) => e.stopPropagation()}>
+            <div className="text-[13px] text-fg font-semibold">删除消耗定额</div>
+            <p className="text-[11.5px] text-fg-faint leading-relaxed">
+              将删除定额 <span className="font-mono text-fg-dim">{confirmDelete.code}</span>「{confirmDelete.title}」
+              及其全部工料机含量行。该操作不可撤销；引用它的费用汇总试算行会失去现算依据。
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button type="button" className={ghostBtn} onClick={() => setConfirmDelete(null)} disabled={busy}>
+                取消
+              </button>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 px-2.5 h-7 rounded-lg bg-err text-white text-[11.5px] hover:opacity-90 transition-opacity disabled:opacity-50"
+                onClick={() => void deleteQuota()}
+                disabled={busy}
+              >
+                {busy ? "删除中…" : "确认删除"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -304,9 +446,13 @@ export function WorkcostComposeView() {
 function AnalysisTable({
   quota,
   compose,
+  onEdit,
+  onDelete,
 }: {
   quota: WorkcostQuota | null;
   compose: WorkcostCompose;
+  onEdit: () => void;
+  onDelete: () => void;
 }) {
   return (
     <div className="space-y-3">
@@ -318,6 +464,16 @@ function AnalysisTable({
         {quota?.code && <span className="font-mono text-[11px] text-fg-faint">{quota.code}</span>}
         {quota?.unit && <span className="text-[11px] text-fg-faint">计量单位：{quota.unit}</span>}
         {quota?.chapter && <span className="text-[11px] text-fg-faint">章节：{quota.chapter}</span>}
+        {quota && (
+          <span className="ml-auto flex items-center gap-1">
+            <button type="button" className={iconBtn} title="编辑定额与含量行" onClick={onEdit}>
+              <Pencil size={11} />
+            </button>
+            <button type="button" className={`${iconBtn} hover:text-err`} title="删除定额" onClick={onDelete}>
+              <Trash2 size={11} />
+            </button>
+          </span>
+        )}
       </div>
 
       {compose.warnings.length > 0 && (

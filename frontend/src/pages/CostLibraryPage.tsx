@@ -17,6 +17,7 @@ import { CostNotesView } from "../gaea/components/memoryhub/CostNotesView";
 import { CostGraphView } from "../gaea/components/memoryhub/CostGraphView";
 import { WorkcostResourceView } from "../gaea/components/memoryhub/WorkcostResourceView";
 import { WorkcostComposeView } from "../gaea/components/memoryhub/WorkcostComposeView";
+import { WorkcostFeePanel } from "../gaea/components/memoryhub/WorkcostFeePanel";
 import "../gaea/styles.css";
 import "../gaea/tailwind.css";
 import "../gaea/components/memoryhub/hub.css";
@@ -34,13 +35,13 @@ import "../gaea/components/memoryhub/hub.css";
 type CostModule = "overview" | "entries" | "workcost" | "projects" | "prices" | "refs" | "notes";
 type OverviewView = "data" | "graph";
 type PriceView = "sources" | "repository" | "inquiry";
-// 工料法子视图：资源库（主数据）| 单价分析（核算）。
-type WorkcostView = "resources" | "compose";
+// 工料法子视图：资源库（主数据）| 单价分析（核算）| 取费汇总（项目合计层）。
+type WorkcostView = "resources" | "compose" | "fees";
 
 const MODULES: { key: CostModule; label: string; icon: ReactNode; hint: string }[] = [
   { key: "overview", label: "概览", icon: <Gauge size={14} />, hint: "库规模 · 人材机构成 · 数据健康 · 关联图谱" },
   { key: "entries", label: "成本条目", icon: <Coins size={14} />, hint: "分类树 + 列表/表格管理" },
-  { key: "workcost", label: "工料机", icon: <Layers size={14} />, hint: "工料机资源库 · 综合单价分析（只含人材机）" },
+  { key: "workcost", label: "工料机", icon: <Layers size={14} />, hint: "工料机资源库 · 单价分析 · 取费汇总（项目层）" },
   { key: "projects", label: "测算项目", icon: <Calculator size={14} />, hint: "报价/测算工作 · 版本留痕 · 沉淀回库" },
   { key: "prices", label: "价格数据", icon: <CloudUpload size={14} />, hint: "价格源 · 价格仓库 · 询价库" },
   { key: "refs", label: "造价参考", icon: <TrendingUp size={14} />, hint: "案例分位数对标（不落表实时聚合）" },
@@ -50,6 +51,7 @@ const MODULES: { key: CostModule; label: string; icon: ReactNode; hint: string }
 const WORKCOST_VIEWS: { key: WorkcostView; label: string }[] = [
   { key: "resources", label: "资源库" },
   { key: "compose", label: "单价分析" },
+  { key: "fees", label: "取费汇总" },
 ];
 
 const PRICE_VIEWS: { key: PriceView; label: string }[] = [
@@ -298,6 +300,7 @@ export function CostLibraryPage() {
             <div className="flex-1 min-h-0">
               {workcostView === "resources" && <WorkcostResourceView />}
               {workcostView === "compose" && <WorkcostComposeView />}
+              {workcostView === "fees" && <WorkcostFeePanel />}
             </div>
           </div>
         )}
