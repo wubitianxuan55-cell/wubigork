@@ -1,3 +1,6 @@
+## v4.468.0 · 清单库整行可点开组价明细 + 参考价批量核算（2026-10-07）
+> 真机反馈「单击清单行没反应，必须去点引用的定额」——CDP 实诊弹窗功能正常、可点面只有 10px 徽章。整行可点（手填行除外）+ 归并成员行补徽章；首屏参考价从每行一次核算（63 行=63 次全资源扫描，longtask ~700ms）改为新绑定 WorkcostQuotaComposeMany 一次批量（**绑定面 639→640**）。回归钉=前端整行可点用例 + Go 批量缺失跳过；全量 ci 绿。留池=用户同场提出的**清单↔定额 1:N 组合模型**（gf_bill_quota_links 引用表，已立项下一刀）。详见 `releases/v4.468.0.md`。
+
 ## v4.467.1 · 真机崩溃根修：绑定面 nil 切片 JSON null 崩前端（2026-10-07）
 > 用户报「点清单无法查看组价明细/定额库打开失败」，日志实锤=CostLibraryPage `null.length` TypeError 进 ErrorBoundary。根因=Go 绑定结果 struct 切片字段 append-only，空定额等空态下为 nil，Wails 序列化成 JSON null，前端 `lines.lines.length` 崩。双层修复：Go 四处结果 struct（Compose/ProjectBundle/ApplyResult/SeedPreview）切片构造即非 nil；前端四个视图全部数组消费点 `?? []`（对旧构建 Go 产物免疫）。回归钉=Go 空定额非 nil 断言 + 前端 null lines 空态渲染例；全量 ci 绿。教训=**Wails 绑定面 nil 切片=null 是系统性契约，结果 struct 切片必须构造即非 nil，前端消费一律兜底**。详见 `releases/v4.467.1.md`。
 
