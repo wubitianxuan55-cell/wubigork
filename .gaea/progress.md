@@ -1,3 +1,13 @@
+## v4.466.0 发布：二期·退役清理（21 死绑定退役，660→639）· 2026-10-07
+
+- **退役 21 全走 excludedBindings**（批 53 先例：方法体保留——ProjectSave/EstimateItemSave 是 graph/indicators 测试种子、笔记/归因有行为测试；门面/bindingNames/mock 收缩；复活=除名重跑）：旧测算项目写路径 9+复盘笔记 4+五算 4+归因 1+CostList 1+WorkcostBillItemSave/Delete 2。
+- **前端**：FiveCalcPanel+test 删除（−1315 行）；types 孤儿接口 6 个删（knip 零孤儿）；bridge/mock/mappings/spaceBindings/bindingNames 五文件同步。
+- **表处置**：退役表数据全 0 → 保留不迁移+冻结声明；V27 退役表 19 列冻结。
+- **发版事故**：pathspec fatal 后误 amend 已推送的 release 提交——reset --mixed 回远程位置重新提交修复，tag 未动。**教训：amend 前必须确认 HEAD 未推送；pathspec fatal 后先 git status。**
+- **测试**：全量 vitest 3788/436（−9 例=死组件删除）；Go 三包绿；drift **PASS@639**。
+- **产物**：releases/gaea-v4.466.0.exe（冒烟 200；删 v4.461.0.exe 实存 462~466）；桌面补拷双验 ca5a04d5…。
+- **下期**：三期·按库组卷导出五表（最高价值）→ AI 组价复活对接定额 → 对标扩到项目案例 → 资源调价批量导入。
+
 ## v4.465.0 发布：三库立骨架（清单库/企业定额库/工料机库）· 2026-10-07
 
 - **用户定调**：「做企业定额库，清单库、工料机库，其中工料机库与信息价联动」——三库升格为 IA 骨架：清单库（双视图=按明细/按库项归并〔同名+同特征+同单位聚合，被 N 个项目使用+定额码汇总+可展开成员〕）/企业定额库（引用计数 Quota.UsageCount 读时聚合+来源徽标：非项目导入前缀=手工）/工料机库（改名+信息价联动显形——v4.464 链路的界面落名）。

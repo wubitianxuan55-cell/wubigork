@@ -1,3 +1,6 @@
+## v4.466.0 · 二期·退役清理：21 个零 UI 消费绑定退役（2026-10-07）
+> 规划文档二期落地，用户产品视角零变化，系统变诚实。**退役 21（全走 excludedBindings 管线——方法体保留〔测试种子+行为测试〕，门面/bindingNames/mock 全收缩，复活=除名重跑生成器）**：旧测算项目写路径 9（ProjectSave/Get/Delete、EstimateItemSave/Delete/Items、VersionSave/Versions、EstimateSediment）+复盘笔记 4+五算 4（FiveCalcPanel 死组件连带删除 −1315 行）+归因 1+CostList 1（被分页 CostSearchPage 取代）+清单项增删 2（清单库只读定调）。前端 types 孤儿接口 6 个删除，knip 零孤儿。表处置=退役表数据全 0 保留不迁移+冻结声明，V27 退役表 19 列一并冻结。绑定面 **660→639**（drift PASS@639）；全量 vitest **3788/436**（−9 例=FiveCalcPanel 删除）；Go app/coststage/costref 绿。【发版事故】add pathspec fatal 后误 amend 到已推送的 release 提交——当场 reset --mixed 回远程位置重新独立提交，tag 未受影响；教训=amend 前必须确认 HEAD 未推送。详见 `releases/v4.466.0.md`。
+
 ## v4.465.0 · 三库立骨架：清单库/企业定额库/工料机库（2026-10-07）
 > 用户定调「做企业定额库，清单库、工料机库，其中工料机库与信息价联动」——三库升格为板块 IA 骨架。【清单库】双视图：按明细 + **按库项归并**（同名+同特征+同单位聚合，显形「被 N 个项目使用」+定额码汇总+可展开成员明细，按复用数降序）=企业清单积累主数据视角。【企业定额库】改名落位 + 左列表**引用计数**（Quota.UsageCount 读时聚合：ListQuotas/GetQuota 子查询 gf_bill_items）+来源徽标（非项目导入前缀=手工录入显形）；单价分析原位保留。【工料机库】改名+头部显形「与信息价联动（发布自动推进现行价）」——v4.464 联动链路界面落名。零新绑定 660 恒定。测试：+2 归并/引用计数用例，页面 10 例适配；全量 vitest **3797/437**；drift PASS@660。详见 `releases/v4.465.0.md`。
 
