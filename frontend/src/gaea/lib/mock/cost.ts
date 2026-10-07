@@ -12,6 +12,18 @@ import {
   taskView,
 } from "./shared";
 import type { MakeMockState } from "./state";
+import type {
+  WorkcostCompose,
+  WorkcostComposeOverride,
+  WorkcostComposeLineView,
+  WorkcostFeeResult,
+  WorkcostKind,
+  WorkcostQuota,
+  WorkcostQuotaItem,
+  WorkcostRateSet,
+  WorkcostResource,
+  WorkcostResourcePrice,
+} from "../types";
 
 type CostMethods = Pick<
   AppBindings,
@@ -35,8 +47,123 @@ type CostMethods = Pick<
   | "CostStageSave" | "CostStages" | "CostStageCompare" | "CostStageDeviations"
   // AI 组价双件（批 46 NOT_MOCKED 收尾刀；诚实拒=dev 无 LLM 内核）。
   | "CostCompose" | "CostComposeApply"
+  // 工料法成本数据库（工料机资源库 + 消耗定额库 + 综合单价核算）：
+  // 浏览器 dev 态给可交互的内存实现（资源增删改/调价/按定额核算），
+  // 使「工料机」模块在无 Go 后端时仍可用。
+  | "WorkcostResourceSave" | "WorkcostResourceGet" | "WorkcostResourceList" | "WorkcostResourceDelete"
+  | "WorkcostResourceSetPrice" | "WorkcostResourcePrices"
+  | "WorkcostQuotaSave" | "WorkcostQuotaGet" | "WorkcostQuotaList" | "WorkcostQuotaDelete"
+  | "WorkcostQuotaCompose" | "WorkcostProjectFees"
+  | "WorkcostSeedPreview" | "WorkcostSeedApply" | "WorkcostRecompose"
+  | "WorkcostProjectParse" | "WorkcostProjectApply" | "WorkcostProjectExport" | "WorkcostProjectExportToWorkspace"
 >;
 
+// ── 工料法 mock 状态（工料机资源库 + 消耗定额库，浏览器内存态）──
+//
+// 演示数据刻意取自实测模版口径（旺平矿业/什邡五表产物）：
+// 资源编码用助记码（L01/L02/EXC/C20/HDPE），综合单价只含人材机。
+let mockResources: WorkcostResource[] = [];
+let mockResourceSeq = 1;
+let mockResourcePrices: WorkcostResourcePrice[] = [];
+let mockResourcePriceSeq = 1;
+let mockQuotas: WorkcostQuota[] = [];
+
+// ensureWorkcostSeed 首次访问时播种演示数据（幂等）。
+function ensureWorkcostSeed(): void {
+  if (mockResources.length > 0) return;
+  const add = (code: string, kind: WorkcostKind, title: string, spec: string, unit: string, price: number, source: string): void => {
+    mockResources.push({
+      id: mockResourceSeq++, code, kind, title, spec, unit,
+      basePrice: price, currentPrice: price, categoryPath: `工料机/${kind}`,
+      source, supplier: "", region: "乐山", priceDate: "2026年第7期", priceType: "到场价",
+      validUntil: "", lossRate: 0, note: "", tags: [], status: "现行",
+    });
+  };
+  add("L01", "人工", "普通工", "清底砌筑铺装巡井", "工日", 300, "成本库");
+  add("L02", "人工", "技术工/带班", "测量焊接指挥", "工日", 350, "成本库");
+  add("EXC", "机械", "挖掘机1.0m³台班", "折旧900+柴油×90L+司机", "台班", 1773.3, "台班公式");
+  add("LDR", "机械", "装载机50型台班", "折旧700+柴油×70L+司机", "台班", 1445.9, "台班公式");
+  add("C20", "材料", "C20商品混凝土", "泵送到场", "m³", 345, "商品混凝土C30减20");
+  add("AGG", "材料", "级配碎石", "便道基层到场", "m³", 78, "估价");
+  add("HDPE", "材料", "HDPE防渗膜1.5mm", "双光面", "m²", 12, "成本库");
+  add("GT", "材料", "土工布400g", "非织造", "m²", 5, "成本库");
+  add("KILN", "外委", "水泥窑协同处置", "不含运（用户确认价）", "t", 190, "外委");
+
+  const byCode = (c: string): WorkcostResource | undefined => mockResources.find((r) => r.code === c);
+  const item = (code: string, qty: number): WorkcostQuotaItem => {
+    const r = byCode(code);
+    return {
+      quotaCode: "", resourceCode: code, kind: r?.kind ?? "材料",
+      title: r?.title ?? code, unit: r?.unit ?? "", quantity: qty, resourcePrice: 0, lossRate: 0,
+    };
+  };
+  mockQuotas = [
+    {
+      id: 1, code: "WP02", title: "施工便道", specialty: "土壤修复", chapter: "A临建", unit: "m",
+      categoryPath: "综合单价/A临建", baseLabor: 0, baseMaterial: 0, baseMachine: 0,
+      source: "项目导入（演示）", region: "", priceDate: "", note: "3m宽，20cm碎石+15cm混凝土",
+      status: "现行",
+      items: [item("L01", 0.03), item("AGG", 0.75), item("C20", 0.45), item("LDR", 0.005)],
+    },
+    {
+      id: 2, code: "WP01", title: "测量放线", specialty: "土壤修复", chapter: "A临建", unit: "项",
+      categoryPath: "综合单价/A临建", baseLabor: 0, baseMaterial: 0, baseMachine: 0,
+      source: "项目导入（演示）", region: "", priceDate: "", note: "拐点、分层标高",
+      status: "现行",
+      items: [item("L02", 20), item("L01", 20)],
+    },
+    {
+      id: 3, code: "WP19", title: "水泥窑协同处置", specialty: "土壤修复", chapter: "D外运处置", unit: "t",
+      categoryPath: "综合单价/D外运处置", baseLabor: 0, baseMaterial: 0, baseMachine: 0,
+      source: "项目导入（演示）", region: "", priceDate: "", note: "不含运 190 元/t",
+      status: "现行",
+      items: [item("KILN", 1)],
+    },
+  ];
+}
+
+// composeMock 按定额核算综合单价（只含人材机；外委并入材料桶）。
+function composeMock(code: string): WorkcostCompose {
+  ensureWorkcostSeed();
+  const q = mockQuotas.find((x) => x.code === code);
+  const lines: WorkcostComposeLineView[] = [];
+  let labor = 0;
+  let material = 0;
+  let machine = 0;
+  let outsourced = 0;
+  for (const it of q?.items ?? []) {
+    const r = mockResources.find((x) => x.code === it.resourceCode);
+    const price = r ? (r.currentPrice > 0 ? r.currentPrice : r.basePrice) : (it.resourcePrice ?? 0);
+    const amount = it.quantity > 0 && price > 0 ? it.quantity * price * (1 + (it.lossRate ?? 0)) : 0;
+    switch (it.kind) {
+      case "人工":
+        labor += amount;
+        break;
+      case "机械":
+        machine += amount;
+        break;
+      case "外委":
+        outsourced += amount;
+        material += amount;
+        break;
+      default:
+        material += amount;
+    }
+    lines.push({
+      kind: it.kind, title: it.title, unit: it.unit,
+      quantity: it.quantity, price, lossRate: it.lossRate ?? 0, amount, sharePct: 0,
+    });
+  }
+  const subtotal = labor + material + machine;
+  for (const l of lines) l.sharePct = subtotal > 0 ? (l.amount / subtotal) * 100 : 0;
+  const r2 = (v: number) => Math.round(v * 100) / 100;
+  return {
+    laborFee: r2(labor), materialFee: r2(material), machineFee: r2(machine),
+    outsourcedFee: r2(outsourced), otherFee: 0, subtotal: r2(subtotal),
+    compositePrice: r2(subtotal), zeroLines: lines.filter((l) => l.quantity === 0 || l.price === 0).length,
+    lines, warnings: [],
+  };
+}
 // ── 测算项目 mock 状态（浏览器开发环境内存态，无持久化）──
 let mockProjects: CostProject[] = [];
 let mockProjectSeq = 1;
@@ -633,6 +760,142 @@ export function buildCost(_s: MakeMockState): CostMethods {
     },
     async CostComposeApply(_v: unknown) {
       throw new Error("dev mock：AI 组价应用需真实 LLM 内核（先组价成功才有可应用结果）");
+    },
+
+    // ── 工料法：工料机资源库 ──────────────────────────────────────
+    async WorkcostResourceSave(r: WorkcostResource): Promise<WorkcostResource> {
+      ensureWorkcostSeed();
+      const idx = mockResources.findIndex((x) => x.id > 0 && x.id === r.id);
+      if (idx >= 0) {
+        // 同身份（类别+名称+规格+单位）改价复用编码，对齐 Go 侧身份唯一语义。
+        const saved = { ...mockResources[idx], ...r, id: mockResources[idx].id };
+        mockResources[idx] = saved;
+        return saved;
+      }
+      const code = r.code || `P${String(mockResourceSeq).padStart(3, "0")}`;
+      const saved: WorkcostResource = { ...r, id: mockResourceSeq++, code };
+      mockResources.push(saved);
+      return saved;
+    },
+    async WorkcostResourceGet(id: number): Promise<WorkcostResource | null> {
+      ensureWorkcostSeed();
+      return mockResources.find((x) => x.id === id) ?? null;
+    },
+    async WorkcostResourceList(kind: string, keyword: string): Promise<WorkcostResource[]> {
+      ensureWorkcostSeed();
+      const kw = keyword.trim().toLowerCase();
+      return mockResources.filter((r) => {
+        if (kind && kind !== "全部" && r.kind !== kind) return false;
+        if (!kw) return true;
+        return [r.title, r.spec, r.code, r.categoryPath].some((v) => (v ?? "").toLowerCase().includes(kw));
+      });
+    },
+    async WorkcostResourceDelete(id: number, force: boolean): Promise<void> {
+      ensureWorkcostSeed();
+      const r = mockResources.find((x) => x.id === id);
+      if (!r) return;
+      // 引用完整性：被定额引用时拒绝（与 Go 侧同语义），force=true 才删。
+      const refs = mockQuotas.filter((q) => (q.items ?? []).some((i) => i.resourceCode === r.code));
+      if (refs.length > 0 && !force) {
+        throw new Error(`资源「${r.title}」仍被 ${refs.length} 条消耗定额引用，不能删除（可改为归档）`);
+      }
+      mockResources = mockResources.filter((x) => x.id !== id);
+      mockResourcePrices = mockResourcePrices.filter((p) => p.resourceId !== id);
+    },
+    async WorkcostResourceSetPrice(id: number, price: number, period: string, region: string, priceType: string, source: string, note: string): Promise<WorkcostResource> {
+      ensureWorkcostSeed();
+      const r = mockResources.find((x) => x.id === id);
+      if (!r) throw new Error("资源不存在");
+      if (price <= 0) throw new Error("调价须为正数");
+      const now = new Date().toISOString();
+      mockResourcePrices.push({
+        id: mockResourcePriceSeq++, resourceId: id, price, period, region, priceType,
+        source: source || "手动调价", fetchedAt: now, note,
+      });
+      r.currentPrice = price;
+      r.updatedAt = now;
+      return r;
+    },
+    async WorkcostResourcePrices(id: number): Promise<WorkcostResourcePrice[]> {
+      ensureWorkcostSeed();
+      return mockResourcePrices.filter((p) => p.resourceId === id).reverse();
+    },
+
+    // ── 工料法：消耗定额库与核算 ──────────────────────────────────
+    async WorkcostQuotaSave(q: WorkcostQuota): Promise<WorkcostQuota> {
+      ensureWorkcostSeed();
+      const idx = mockQuotas.findIndex((x) => x.code === q.code);
+      const saved: WorkcostQuota = { ...q, id: idx >= 0 ? mockQuotas[idx].id : mockQuotas.length + 1 };
+      if (idx >= 0) mockQuotas[idx] = saved;
+      else mockQuotas.push(saved);
+      return saved;
+    },
+    async WorkcostQuotaGet(code: string): Promise<WorkcostQuota | null> {
+      ensureWorkcostSeed();
+      return mockQuotas.find((x) => x.code === code) ?? null;
+    },
+    async WorkcostQuotaList(specialty: string, keyword: string): Promise<WorkcostQuota[]> {
+      ensureWorkcostSeed();
+      const kw = keyword.trim().toLowerCase();
+      return mockQuotas.filter((q) => {
+        if (specialty && specialty !== "全部" && q.specialty !== specialty) return false;
+        if (!kw) return true;
+        return [q.title, q.code, q.chapter].some((v) => (v ?? "").toLowerCase().includes(kw));
+      });
+    },
+    async WorkcostQuotaDelete(code: string): Promise<void> {
+      ensureWorkcostSeed();
+      mockQuotas = mockQuotas.filter((q) => q.code !== code);
+    },
+    async WorkcostQuotaCompose(code: string, _overrides: Record<string, WorkcostComposeOverride> | null): Promise<WorkcostCompose> {
+      // dev mock 不实现项目级覆盖（真机由 Go 侧 ComposeOverride 生效）。
+      return composeMock(code);
+    },
+    async WorkcostProjectFees(directFee: number, rates: WorkcostRateSet, profitIncludesRegulatory: boolean, measures: number, contingency: number, controlPrice: number): Promise<WorkcostFeeResult> {
+      // 与 Go 侧 ComposeProjectFees 同口径：取费只在项目合计层跑一次。
+      const r2 = (v: number) => Math.round(v * 100) / 100;
+      const managementFee = r2(directFee * rates.managementRate);
+      const regulatoryFee = r2(directFee * rates.regulatoryRate);
+      const profitBase = directFee + managementFee + (profitIncludesRegulatory ? regulatoryFee : 0);
+      const profitFee = r2(profitBase * rates.profitRate);
+      const preTaxTotal = r2(directFee + managementFee + profitFee + regulatoryFee + measures + contingency);
+      const taxFee = r2(preTaxTotal * rates.taxRate);
+      const total = r2(preTaxTotal + taxFee);
+      const cp = r2(controlPrice);
+      return {
+        directFee: r2(directFee), managementFee, profitFee, regulatoryFee,
+        measuresFee: r2(measures), contingency: r2(contingency),
+        preTaxTotal, taxFee, total,
+        controlPrice: cp,
+        controlDiff: cp > 0 ? r2(total - cp) : 0,
+        controlUtilPct: cp > 0 ? r2((total / cp) * 100) : 0,
+      };
+    },
+
+    // ── 工料法：存量资源化与核算缓存化 ────────────────────────────
+    // dev mock 无真实成本库（costMock 是静态演示数据），资源化与核算缓存化
+    // 需要真机数据库，故诚实拒绝——不用假数据假装成功。
+    async WorkcostSeedPreview(_includeComposite: boolean) {
+      throw new Error("dev mock：存量资源化需真实成本库（Go 后端）");
+    },
+    async WorkcostSeedApply(_includeComposite: boolean) {
+      throw new Error("dev mock：存量资源化需真实成本库（Go 后端）");
+    },
+    async WorkcostRecompose() {
+      throw new Error("dev mock：核算缓存化需真实成本库（Go 后端）");
+    },
+    // 项目工作簿解析/落库/导出均依赖真实 xlsx 与文件系统 → dev mock 诚实拒。
+    async WorkcostProjectParse(_path: string) {
+      throw new Error("dev mock：项目工作簿解析需真实文件系统与 Go 后端");
+    },
+    async WorkcostProjectApply(_path: string) {
+      throw new Error("dev mock：项目工作簿落库需真实数据库与 Go 后端");
+    },
+    async WorkcostProjectExport(_srcPath: string, _outPath: string, _project: string, _location: string, _duration: string) {
+      throw new Error("dev mock：五表导出需真实文件系统与 Go 后端");
+    },
+    async WorkcostProjectExportToWorkspace(_srcPath: string, _fileName: string) {
+      throw new Error("dev mock：五表导出需真实文件系统与 Go 后端");
     },
   };
 }

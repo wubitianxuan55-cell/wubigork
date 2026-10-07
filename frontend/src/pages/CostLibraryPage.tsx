@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   BookOpen, Box, Calculator, ChevronRight, CloudUpload, Coins, FileSpreadsheet, FolderPlus,
-  FolderTree, Gauge, PieChart, Plus, Shield, TrendingUp,
+  FolderTree, Gauge, Layers, PieChart, Plus, Shield, TrendingUp,
 } from "../gaea/icons";
 import { app } from "../gaea/lib/bridge";
 import type { CostCategory, CostSummary, FilePickResult } from "../gaea/lib/types";
@@ -15,6 +15,8 @@ import { CostProjectsView } from "../gaea/components/memoryhub/CostProjectsView"
 import { CostIndicatorsView } from "../gaea/components/memoryhub/CostIndicatorsView";
 import { CostNotesView } from "../gaea/components/memoryhub/CostNotesView";
 import { CostGraphView } from "../gaea/components/memoryhub/CostGraphView";
+import { WorkcostResourceView } from "../gaea/components/memoryhub/WorkcostResourceView";
+import { WorkcostComposeView } from "../gaea/components/memoryhub/WorkcostComposeView";
 import "../gaea/styles.css";
 import "../gaea/tailwind.css";
 import "../gaea/components/memoryhub/hub.css";
@@ -29,17 +31,25 @@ import "../gaea/components/memoryhub/hub.css";
  * - 重组零删减：所有功能保留，只改归属与可见性。
  * 数据模型不变：综合单价=一级，人材机=二级组成。
  */
-type CostModule = "overview" | "entries" | "projects" | "prices" | "refs" | "notes";
+type CostModule = "overview" | "entries" | "workcost" | "projects" | "prices" | "refs" | "notes";
 type OverviewView = "data" | "graph";
 type PriceView = "sources" | "repository" | "inquiry";
+// 工料法子视图：资源库（主数据）| 单价分析（核算）。
+type WorkcostView = "resources" | "compose";
 
 const MODULES: { key: CostModule; label: string; icon: ReactNode; hint: string }[] = [
   { key: "overview", label: "概览", icon: <Gauge size={14} />, hint: "库规模 · 人材机构成 · 数据健康 · 关联图谱" },
   { key: "entries", label: "成本条目", icon: <Coins size={14} />, hint: "分类树 + 列表/表格管理" },
+  { key: "workcost", label: "工料机", icon: <Layers size={14} />, hint: "工料机资源库 · 综合单价分析（只含人材机）" },
   { key: "projects", label: "测算项目", icon: <Calculator size={14} />, hint: "报价/测算工作 · 版本留痕 · 沉淀回库" },
   { key: "prices", label: "价格数据", icon: <CloudUpload size={14} />, hint: "价格源 · 价格仓库 · 询价库" },
   { key: "refs", label: "造价参考", icon: <TrendingUp size={14} />, hint: "案例分位数对标（不落表实时聚合）" },
   { key: "notes", label: "复盘笔记", icon: <BookOpen size={14} />, hint: "结论/边界/风险/证据沉淀判断" },
+];
+
+const WORKCOST_VIEWS: { key: WorkcostView; label: string }[] = [
+  { key: "resources", label: "资源库" },
+  { key: "compose", label: "单价分析" },
 ];
 
 const PRICE_VIEWS: { key: PriceView; label: string }[] = [
@@ -110,6 +120,7 @@ export function CostLibraryPage() {
   const [module, setModule] = useState<CostModule>("overview");
   const [overviewView, setOverviewView] = useState<OverviewView>("data");
   const [priceView, setPriceView] = useState<PriceView>("sources");
+  const [workcostView, setWorkcostView] = useState<WorkcostView>("resources");
   const [stats, setStats] = useState<CostOverviewStats>(EMPTY_STATS);
   const [loading, setLoading] = useState(true);
   // v4.361：全源读取失败不再伪装成「空库新手引导」——失败是数据库读不到，
@@ -274,6 +285,22 @@ export function CostLibraryPage() {
       {/* 主区 */}
       <div className="flex-1 min-h-0">
         {module === "entries" && <CostLibraryView />}
+        {module === "workcost" && (
+          <div className="h-full flex flex-col min-h-0">
+            <div className="shrink-0 flex items-center gap-1.5 px-4 py-2 border-b border-border-soft/50" role="tablist" aria-label="工料法子视图">
+              {WORKCOST_VIEWS.map((v) => (
+                <SegChip key={v.key} active={workcostView === v.key} onClick={() => setWorkcostView(v.key)}>{v.label}</SegChip>
+              ))}
+              <span className="ml-auto text-fg-faint text-[10.5px] hidden md:inline">
+                工料法：资源库（工料机主数据）→ 消耗定额 → 综合单价（只含人材机）
+              </span>
+            </div>
+            <div className="flex-1 min-h-0">
+              {workcostView === "resources" && <WorkcostResourceView />}
+              {workcostView === "compose" && <WorkcostComposeView />}
+            </div>
+          </div>
+        )}
         {module === "projects" && <CostProjectsView onChanged={loadStats} />}
         {module === "refs" && <CostIndicatorsView />}
         {module === "notes" && <CostNotesView />}

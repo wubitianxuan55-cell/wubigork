@@ -7,58 +7,30 @@ package app
 type ImageB struct{ a *App }
 
 func (b *ImageB) CancelImageGeneration() bool { return b.a.CancelImageGeneration() }
-func (b *ImageB) GenerateCharacterPortrait(charID string, model string) (string, error) {
-	return b.a.GenerateCharacterPortrait(charID, model)
-}
-func (b *ImageB) GenerateDiagram(prompt string) (map[string]interface{}, error) {
-	return b.a.GenerateDiagram(prompt)
-}
-func (b *ImageB) GenerateFreeImage(prompt string, negative string, size string, style string, model string, seed int, n int, lora string) (map[string]interface{}, error) {
-	return b.a.GenerateFreeImage(prompt, negative, size, style, model, seed, n, lora)
-}
-func (b *ImageB) GenerateMedia(paramsJSON string) (map[string]interface{}, error) {
-	return b.a.GenerateMedia(paramsJSON)
-}
-func (b *ImageB) GetComfyUILoras() ([]string, error)             { return b.a.GetComfyUILoras() }
-func (b *ImageB) GetComfyUIStatus() map[string]interface{}       { return b.a.GetComfyUIStatus() }
+func (b *ImageB) GenerateCharacterPortrait(charID string, model string) (string, error) { return b.a.GenerateCharacterPortrait(charID, model) }
+func (b *ImageB) GenerateDiagram(prompt string) (map[string]interface{}, error) { return b.a.GenerateDiagram(prompt) }
+func (b *ImageB) GenerateFreeImage(prompt string, negative string, size string, style string, model string, seed int, n int, lora string) (map[string]interface{}, error) { return b.a.GenerateFreeImage(prompt, negative, size, style, model, seed, n, lora) }
+func (b *ImageB) GenerateMedia(paramsJSON string) (map[string]interface{}, error) { return b.a.GenerateMedia(paramsJSON) }
+func (b *ImageB) GetComfyUILoras() ([]string, error) { return b.a.GetComfyUILoras() }
+func (b *ImageB) GetComfyUIStatus() map[string]interface{} { return b.a.GetComfyUIStatus() }
 func (b *ImageB) GetComfyUITaskProgress() map[string]interface{} { return b.a.GetComfyUITaskProgress() }
-func (b *ImageB) GetImageBackendInfo() map[string]string         { return b.a.GetImageBackendInfo() }
-func (b *ImageB) GetPortraitConfig() map[string]string           { return b.a.GetPortraitConfig() }
-func (b *ImageB) GetSystemStats() map[string]interface{}         { return b.a.GetSystemStats() }
-func (b *ImageB) GetTTSSpeakers(model string) ([]string, error)  { return b.a.GetTTSSpeakers(model) }
+func (b *ImageB) GetImageBackendInfo() map[string]string { return b.a.GetImageBackendInfo() }
+func (b *ImageB) GetPortraitConfig() map[string]string { return b.a.GetPortraitConfig() }
+func (b *ImageB) GetSystemStats() map[string]interface{} { return b.a.GetSystemStats() }
+func (b *ImageB) GetTTSSpeakers(model string) ([]string, error) { return b.a.GetTTSSpeakers(model) }
 func (b *ImageB) GetVoicePipelineConfig() map[string]interface{} { return b.a.GetVoicePipelineConfig() }
-func (b *ImageB) ImageCutout(initImage string, maskData string) map[string]interface{} {
-	return b.a.ImageCutout(initImage, maskData)
-}
-func (b *ImageB) ImageHubAssets(space string, sourceBoard string, limit int) []imageHubAssetView {
-	return b.a.ImageHubAssets(space, sourceBoard, limit)
-}
-func (b *ImageB) ImageHubMonthlyUsage(space string) (ImageHubMonthlyUsageReport, error) {
-	return b.a.ImageHubMonthlyUsage(space)
-}
-func (b *ImageB) OpenImageSaveDir() error   { return b.a.OpenImageSaveDir() }
+func (b *ImageB) ImageCutout(initImage string, maskData string) map[string]interface{} { return b.a.ImageCutout(initImage, maskData) }
+func (b *ImageB) ImageHubAssets(space string, sourceBoard string, limit int) []imageHubAssetView { return b.a.ImageHubAssets(space, sourceBoard, limit) }
+func (b *ImageB) ImageHubMonthlyUsage(space string) (ImageHubMonthlyUsageReport, error) { return b.a.ImageHubMonthlyUsage(space) }
+func (b *ImageB) OpenImageSaveDir() error { return b.a.OpenImageSaveDir() }
 func (b *ImageB) OpenNovelImagesDir() error { return b.a.OpenNovelImagesDir() }
-func (b *ImageB) SetActiveASRModel(engineID string, modelID string) error {
-	return b.a.SetActiveASRModel(engineID, modelID)
-}
-func (b *ImageB) SetActiveTTSModel(engineID string, modelID string) error {
-	return b.a.SetActiveTTSModel(engineID, modelID)
-}
-func (b *ImageB) SetCharacterPortrait(charID string, imageData string) error {
-	return b.a.SetCharacterPortrait(charID, imageData)
-}
-func (b *ImageB) SetChatVoiceModel(engineID string, modelID string) error {
-	return b.a.SetChatVoiceModel(engineID, modelID)
-}
-func (b *ImageB) SetImageBackend(backend string, comfyUIURL string, imageModel string, imageSaveDir string) error {
-	return b.a.SetImageBackend(backend, comfyUIURL, imageModel, imageSaveDir)
-}
-func (b *ImageB) SetPortraitConfig(backend string, model string) error {
-	return b.a.SetPortraitConfig(backend, model)
-}
+func (b *ImageB) SetActiveASRModel(engineID string, modelID string) error { return b.a.SetActiveASRModel(engineID, modelID) }
+func (b *ImageB) SetActiveTTSModel(engineID string, modelID string) error { return b.a.SetActiveTTSModel(engineID, modelID) }
+func (b *ImageB) SetCharacterPortrait(charID string, imageData string) error { return b.a.SetCharacterPortrait(charID, imageData) }
+func (b *ImageB) SetChatVoiceModel(engineID string, modelID string) error { return b.a.SetChatVoiceModel(engineID, modelID) }
+func (b *ImageB) SetImageBackend(backend string, comfyUIURL string, imageModel string, imageSaveDir string) error { return b.a.SetImageBackend(backend, comfyUIURL, imageModel, imageSaveDir) }
+func (b *ImageB) SetPortraitConfig(backend string, model string) error { return b.a.SetPortraitConfig(backend, model) }
 func (b *ImageB) StartComfyUI() error { return b.a.StartComfyUI() }
-func (b *ImageB) StartLocalTTSService(engineID string) map[string]interface{} {
-	return b.a.StartLocalTTSService(engineID)
-}
-func (b *ImageB) StopComfyUI() error                  { return b.a.StopComfyUI() }
+func (b *ImageB) StartLocalTTSService(engineID string) map[string]interface{} { return b.a.StartLocalTTSService(engineID) }
+func (b *ImageB) StopComfyUI() error { return b.a.StopComfyUI() }
 func (b *ImageB) WarmComfyUI() map[string]interface{} { return b.a.WarmComfyUI() }

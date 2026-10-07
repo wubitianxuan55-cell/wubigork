@@ -11,66 +11,42 @@ import (
 // 方法体零改动——纯委托给 App 实例（b.a.<Method>）。
 type ModelB struct{ a *App }
 
-func (b *ModelB) GaeaBenchmarkDetail(id string) (BenchmarkRunDetail, error) {
-	return b.a.GaeaBenchmarkDetail(id)
-}
-func (b *ModelB) GaeaBenchmarkExport(id string, dir string) (string, error) {
-	return b.a.GaeaBenchmarkExport(id, dir)
-}
+func (b *ModelB) GaeaBenchmarkDetail(id string) (BenchmarkRunDetail, error) { return b.a.GaeaBenchmarkDetail(id) }
+func (b *ModelB) GaeaBenchmarkExport(id string, dir string) (string, error) { return b.a.GaeaBenchmarkExport(id, dir) }
 func (b *ModelB) GaeaBenchmarkList() ([]BenchmarkRunSummary, error) { return b.a.GaeaBenchmarkList() }
-func (b *ModelB) GaeaBenchmarkStart(req BenchmarkRequest) (string, error) {
-	return b.a.GaeaBenchmarkStart(req)
-}
+func (b *ModelB) GaeaBenchmarkStart(req BenchmarkRequest) (string, error) { return b.a.GaeaBenchmarkStart(req) }
 func (b *ModelB) GaeaGetUsdCnyRate() float64 { return b.a.GaeaGetUsdCnyRate() }
-func (b *ModelB) GaeaModelSwitchEstimate(engineID string, model string) ModelSwitchEstimate {
-	return b.a.GaeaModelSwitchEstimate(engineID, model)
-}
-func (b *ModelB) GaeaModels() []ModelInfo                   { return b.a.GaeaModels() }
+func (b *ModelB) GaeaModelSwitchEstimate(engineID string, model string) ModelSwitchEstimate { return b.a.GaeaModelSwitchEstimate(engineID, model) }
+func (b *ModelB) GaeaModels() []ModelInfo { return b.a.GaeaModels() }
 func (b *ModelB) GaeaRouteLedger() (RouteLedgerView, error) { return b.a.GaeaRouteLedger() }
-func (b *ModelB) GaeaRouteSuggestionApply(id string) error  { return b.a.GaeaRouteSuggestionApply(id) }
+func (b *ModelB) GaeaRouteSuggestionApply(id string) error { return b.a.GaeaRouteSuggestionApply(id) }
 func (b *ModelB) GaeaRouteSuggestionIgnore(id string) error { return b.a.GaeaRouteSuggestionIgnore(id) }
-func (b *ModelB) GaeaRouteSuggestions() (RouteSuggestionsView, error) {
-	return b.a.GaeaRouteSuggestions()
-}
-func (b *ModelB) GaeaSetModel(name string) error                    { return b.a.GaeaSetModel(name) }
-func (b *ModelB) GaeaSetUsdCnyRate(rate float64) error              { return b.a.GaeaSetUsdCnyRate(rate) }
-func (b *ModelB) GaeaUsageOverview() UsageOverview                  { return b.a.GaeaUsageOverview() }
-func (b *ModelB) GetActiveEngine() string                           { return b.a.GetActiveEngine() }
-func (b *ModelB) GetActiveModel() string                            { return b.a.GetActiveModel() }
-func (b *ModelB) GetEngineFailover() bool                           { return b.a.GetEngineFailover() }
-func (b *ModelB) GetEngines() []modelengine.EngineConfig            { return b.a.GetEngines() }
-func (b *ModelB) GetModelMonitor() map[string]interface{}           { return b.a.GetModelMonitor() }
-func (b *ModelB) GetModelRoute(feature string) (string, error)      { return b.a.GetModelRoute(feature) }
-func (b *ModelB) GetOfficeLocal() bool                              { return b.a.GetOfficeLocal() }
-func (b *ModelB) GetOfflineMode() bool                              { return b.a.GetOfflineMode() }
-func (b *ModelB) GetSensitiveLocal() bool                           { return b.a.GetSensitiveLocal() }
+func (b *ModelB) GaeaRouteSuggestions() (RouteSuggestionsView, error) { return b.a.GaeaRouteSuggestions() }
+func (b *ModelB) GaeaSetModel(name string) error { return b.a.GaeaSetModel(name) }
+func (b *ModelB) GaeaSetUsdCnyRate(rate float64) error { return b.a.GaeaSetUsdCnyRate(rate) }
+func (b *ModelB) GaeaUsageOverview() UsageOverview { return b.a.GaeaUsageOverview() }
+func (b *ModelB) GetActiveEngine() string { return b.a.GetActiveEngine() }
+func (b *ModelB) GetActiveModel() string { return b.a.GetActiveModel() }
+func (b *ModelB) GetEngineFailover() bool { return b.a.GetEngineFailover() }
+func (b *ModelB) GetEngines() []modelengine.EngineConfig { return b.a.GetEngines() }
+func (b *ModelB) GetModelMonitor() map[string]interface{} { return b.a.GetModelMonitor() }
+func (b *ModelB) GetModelRoute(feature string) (string, error) { return b.a.GetModelRoute(feature) }
+func (b *ModelB) GetOfficeLocal() bool { return b.a.GetOfficeLocal() }
+func (b *ModelB) GetOfflineMode() bool { return b.a.GetOfflineMode() }
+func (b *ModelB) GetSensitiveLocal() bool { return b.a.GetSensitiveLocal() }
 func (b *ModelB) HerdsmanDigitalLife() (HerdsmanDigitalLife, error) { return b.a.HerdsmanDigitalLife() }
-func (b *ModelB) HerdsmanLaunchPresets() ([]HerdsmanLaunchPreset, error) {
-	return b.a.HerdsmanLaunchPresets()
-}
+func (b *ModelB) HerdsmanLaunchPresets() ([]HerdsmanLaunchPreset, error) { return b.a.HerdsmanLaunchPresets() }
 func (b *ModelB) HerdsmanModelCatalog() (HerdsmanCatalog, error) { return b.a.HerdsmanModelCatalog() }
-func (b *ModelB) HerdsmanModelDownload(model string) (HerdsmanOpResult, error) {
-	return b.a.HerdsmanModelDownload(model)
-}
-func (b *ModelB) HerdsmanModelStart(model string) (HerdsmanOpResult, error) {
-	return b.a.HerdsmanModelStart(model)
-}
+func (b *ModelB) HerdsmanModelDownload(model string) (HerdsmanOpResult, error) { return b.a.HerdsmanModelDownload(model) }
+func (b *ModelB) HerdsmanModelStart(model string) (HerdsmanOpResult, error) { return b.a.HerdsmanModelStart(model) }
 func (b *ModelB) HerdsmanModelStats() (HerdsmanModelStats, error) { return b.a.HerdsmanModelStats() }
-func (b *ModelB) HerdsmanModelStop(model string) (HerdsmanOpResult, error) {
-	return b.a.HerdsmanModelStop(model)
-}
-func (b *ModelB) HerdsmanModelUninstall(model string) (HerdsmanOpResult, error) {
-	return b.a.HerdsmanModelUninstall(model)
-}
+func (b *ModelB) HerdsmanModelStop(model string) (HerdsmanOpResult, error) { return b.a.HerdsmanModelStop(model) }
+func (b *ModelB) HerdsmanModelUninstall(model string) (HerdsmanOpResult, error) { return b.a.HerdsmanModelUninstall(model) }
 func (b *ModelB) HerdsmanOperations() (HerdsmanOperations, error) { return b.a.HerdsmanOperations() }
-func (b *ModelB) HerdsmanSecurityCheck() herdsman.LanExposure     { return b.a.HerdsmanSecurityCheck() }
-func (b *ModelB) SetEngineFailover(enabled bool) error            { return b.a.SetEngineFailover(enabled) }
-func (b *ModelB) SetFeatureModel(feature string, engineID string, modelName string) error {
-	return b.a.SetFeatureModel(feature, engineID, modelName)
-}
-func (b *ModelB) SetFeatureModelEnabled(feature string, enabled bool) error {
-	return b.a.SetFeatureModelEnabled(feature, enabled)
-}
-func (b *ModelB) SetOfficeLocal(enabled bool) error    { return b.a.SetOfficeLocal(enabled) }
-func (b *ModelB) SetOfflineMode(enabled bool) error    { return b.a.SetOfflineMode(enabled) }
+func (b *ModelB) HerdsmanSecurityCheck() herdsman.LanExposure { return b.a.HerdsmanSecurityCheck() }
+func (b *ModelB) SetEngineFailover(enabled bool) error { return b.a.SetEngineFailover(enabled) }
+func (b *ModelB) SetFeatureModel(feature string, engineID string, modelName string) error { return b.a.SetFeatureModel(feature, engineID, modelName) }
+func (b *ModelB) SetFeatureModelEnabled(feature string, enabled bool) error { return b.a.SetFeatureModelEnabled(feature, enabled) }
+func (b *ModelB) SetOfficeLocal(enabled bool) error { return b.a.SetOfficeLocal(enabled) }
+func (b *ModelB) SetOfflineMode(enabled bool) error { return b.a.SetOfflineMode(enabled) }
 func (b *ModelB) SetSensitiveLocal(enabled bool) error { return b.a.SetSensitiveLocal(enabled) }

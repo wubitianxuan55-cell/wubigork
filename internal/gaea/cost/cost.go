@@ -465,6 +465,54 @@ FROM cost_entry_components WHERE entry_name=? ORDER BY sort, id`, name)
 	return out
 }
 
+// SaveRecomposed 写入一条**核算重算后**的成本条目：除常规 UPSERT 外，额外把
+// price_derived 置 1，声明该 price 是「由工料机 × 消耗量核算得出的缓存」，
+// 而非人工录入/导入的当期价（SchemaV27）。
+//
+// 为什么单独开一个方法而不是给 Save 加参数：price_derived 是**来源声明**，
+// 只有核算路径有资格置位。若并入 Save 的默认行为，任何一次普通编辑都会把
+// 条目误标成「核算价」，语义就废了。
+//
+// 人材机三级金额由调用方（核算层）算好传入——本包不做工料法算式，避免与
+// workcost 包形成循环依赖。
+func (s *Store) SaveRecomposed(e Entry) error {
+	if s.db == nil {
+		return fmt.Errorf("cost store unavailable")
+	}
+	if strings.TrimSpace(e.Name) == "" {
+		return fmt.Errorf("cost entry needs a name")
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := s.saveTx(tx, e); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE cost_entries SET price_derived=1 WHERE name=?`, e.Name); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	bumpRankVersion()
+	return nil
+}
+
+// PriceDerived 报告条目的 price 是否为核算缓存价（SchemaV27 的 price_derived）。
+func (s *Store) PriceDerived(name string) (bool, error) {
+	if s.db == nil {
+		return false, fmt.Errorf("cost store unavailable")
+	}
+	var flag int
+	err := s.db.QueryRow(`SELECT price_derived FROM cost_entries WHERE name=?`, name).Scan(&flag)
+	if err != nil {
+		return false, err
+	}
+	return flag != 0, nil
+}
+
 // Delete 删除条目。
 func (s *Store) Delete(name string) error {
 	if s.db == nil {

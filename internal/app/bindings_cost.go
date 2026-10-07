@@ -9,120 +9,82 @@ import (
 	"github.com/gaea/gaea/internal/gaea/coststage"
 	"github.com/gaea/gaea/internal/gaea/pricefeed"
 	"github.com/gaea/gaea/internal/gaea/tasks"
+	"github.com/gaea/gaea/internal/gaea/workcost"
 )
 
 // CostB 成本库与价格源绑定门面（S2-3「App 绑定面拆分」）：仅暴露成本库与价格源的方法，
 // 方法体零改动——纯委托给 App 实例（b.a.<Method>）。
 type CostB struct{ a *App }
 
-func (b *CostB) GaeaCostAttribution(projectID string) (costref.Attribution, error) {
-	return b.a.GaeaCostAttribution(projectID)
-}
+func (b *CostB) GaeaCostAttribution(projectID string) (costref.Attribution, error) { return b.a.GaeaCostAttribution(projectID) }
 func (b *CostB) GaeaCostCategories() []CostCategoryView { return b.a.GaeaCostCategories() }
-func (b *CostB) GaeaCostCategoryDelete(id int) error    { return b.a.GaeaCostCategoryDelete(id) }
-func (b *CostB) GaeaCostCategorySave(parentID int, name string, sort int, id int) (int, error) {
-	return b.a.GaeaCostCategorySave(parentID, name, sort, id)
-}
-func (b *CostB) GaeaCostCompare(name string) ([]CostCompareRow, error) {
-	return b.a.GaeaCostCompare(name)
-}
-func (b *CostB) GaeaCostCompose(desc string, unit string) (CostComposeView, error) {
-	return b.a.GaeaCostCompose(desc, unit)
-}
-func (b *CostB) GaeaCostComposeApply(v CostComposeView) (string, error) {
-	return b.a.GaeaCostComposeApply(v)
-}
-func (b *CostB) GaeaCostComposeRecords(entryName string) ([]CostComposeRecord, error) {
-	return b.a.GaeaCostComposeRecords(entryName)
-}
-func (b *CostB) GaeaCostDelete(name string) error          { return b.a.GaeaCostDelete(name) }
+func (b *CostB) GaeaCostCategoryDelete(id int) error { return b.a.GaeaCostCategoryDelete(id) }
+func (b *CostB) GaeaCostCategorySave(parentID int, name string, sort int, id int) (int, error) { return b.a.GaeaCostCategorySave(parentID, name, sort, id) }
+func (b *CostB) GaeaCostCompare(name string) ([]CostCompareRow, error) { return b.a.GaeaCostCompare(name) }
+func (b *CostB) GaeaCostCompose(desc string, unit string) (CostComposeView, error) { return b.a.GaeaCostCompose(desc, unit) }
+func (b *CostB) GaeaCostComposeApply(v CostComposeView) (string, error) { return b.a.GaeaCostComposeApply(v) }
+func (b *CostB) GaeaCostComposeRecords(entryName string) ([]CostComposeRecord, error) { return b.a.GaeaCostComposeRecords(entryName) }
+func (b *CostB) GaeaCostDelete(name string) error { return b.a.GaeaCostDelete(name) }
 func (b *CostB) GaeaCostEstimateItemDelete(id int64) error { return b.a.GaeaCostEstimateItemDelete(id) }
-func (b *CostB) GaeaCostEstimateItemSave(i costproject.Item) (int64, error) {
-	return b.a.GaeaCostEstimateItemSave(i)
-}
-func (b *CostB) GaeaCostEstimateItems(projectID string) []costproject.Item {
-	return b.a.GaeaCostEstimateItems(projectID)
-}
-func (b *CostB) GaeaCostEstimateSediment(projectID string, itemIDs []int64) (int, error) {
-	return b.a.GaeaCostEstimateSediment(projectID, itemIDs)
-}
-func (b *CostB) GaeaCostEstimateVersionSave(projectID string, note string) (*costproject.Version, error) {
-	return b.a.GaeaCostEstimateVersionSave(projectID, note)
-}
-func (b *CostB) GaeaCostEstimateVersions(projectID string) []costproject.Version {
-	return b.a.GaeaCostEstimateVersions(projectID)
-}
+func (b *CostB) GaeaCostEstimateItemSave(i costproject.Item) (int64, error) { return b.a.GaeaCostEstimateItemSave(i) }
+func (b *CostB) GaeaCostEstimateItems(projectID string) []costproject.Item { return b.a.GaeaCostEstimateItems(projectID) }
+func (b *CostB) GaeaCostEstimateSediment(projectID string, itemIDs []int64) (int, error) { return b.a.GaeaCostEstimateSediment(projectID, itemIDs) }
+func (b *CostB) GaeaCostEstimateVersionSave(projectID string, note string) (*costproject.Version, error) { return b.a.GaeaCostEstimateVersionSave(projectID, note) }
+func (b *CostB) GaeaCostEstimateVersions(projectID string) []costproject.Version { return b.a.GaeaCostEstimateVersions(projectID) }
 func (b *CostB) GaeaCostGet(name string) *CostEntry { return b.a.GaeaCostGet(name) }
-func (b *CostB) GaeaCostGraph(scope string, focus string, limit int) (string, error) {
-	return b.a.GaeaCostGraph(scope, focus, limit)
-}
-func (b *CostB) GaeaCostImportAIParse(path string) (CostImportPreview, error) {
-	return b.a.GaeaCostImportAIParse(path)
-}
-func (b *CostB) GaeaCostImportApply(rows []CostEntry, inquirySource string) (int, error) {
-	return b.a.GaeaCostImportApply(rows, inquirySource)
-}
-func (b *CostB) GaeaCostImportPreview(path string) (CostImportPreview, error) {
-	return b.a.GaeaCostImportPreview(path)
-}
-func (b *CostB) GaeaCostImportVisionPreview(path string) (CostImportPreview, error) {
-	return b.a.GaeaCostImportVisionPreview(path)
-}
-func (b *CostB) GaeaCostIndicators(group string) []costref.Indicator {
-	return b.a.GaeaCostIndicators(group)
-}
-func (b *CostB) GaeaCostInquiryAdjust() []costinquiry.AdjustSuggestion {
-	return b.a.GaeaCostInquiryAdjust()
-}
+func (b *CostB) GaeaCostGraph(scope string, focus string, limit int) (string, error) { return b.a.GaeaCostGraph(scope, focus, limit) }
+func (b *CostB) GaeaCostImportAIParse(path string) (CostImportPreview, error) { return b.a.GaeaCostImportAIParse(path) }
+func (b *CostB) GaeaCostImportApply(rows []CostEntry, inquirySource string) (int, error) { return b.a.GaeaCostImportApply(rows, inquirySource) }
+func (b *CostB) GaeaCostImportPreview(path string) (CostImportPreview, error) { return b.a.GaeaCostImportPreview(path) }
+func (b *CostB) GaeaCostImportVisionPreview(path string) (CostImportPreview, error) { return b.a.GaeaCostImportVisionPreview(path) }
+func (b *CostB) GaeaCostIndicators(group string) []costref.Indicator { return b.a.GaeaCostIndicators(group) }
+func (b *CostB) GaeaCostInquiryAdjust() []costinquiry.AdjustSuggestion { return b.a.GaeaCostInquiryAdjust() }
 func (b *CostB) GaeaCostInquiryDelete(id int64) error { return b.a.GaeaCostInquiryDelete(id) }
-func (b *CostB) GaeaCostInquiryExpiring(days int) []costinquiry.Record {
-	return b.a.GaeaCostInquiryExpiring(days)
-}
-func (b *CostB) GaeaCostInquiryList(query string, limit int) []costinquiry.Record {
-	return b.a.GaeaCostInquiryList(query, limit)
-}
-func (b *CostB) GaeaCostInquirySave(r costinquiry.Record) (int64, error) {
-	return b.a.GaeaCostInquirySave(r)
-}
+func (b *CostB) GaeaCostInquiryExpiring(days int) []costinquiry.Record { return b.a.GaeaCostInquiryExpiring(days) }
+func (b *CostB) GaeaCostInquiryList(query string, limit int) []costinquiry.Record { return b.a.GaeaCostInquiryList(query, limit) }
+func (b *CostB) GaeaCostInquirySave(r costinquiry.Record) (int64, error) { return b.a.GaeaCostInquirySave(r) }
 func (b *CostB) GaeaCostInquiryScan() []costinquiry.ScanFinding { return b.a.GaeaCostInquiryScan() }
-func (b *CostB) GaeaCostList() []CostSummary                    { return b.a.GaeaCostList() }
-func (b *CostB) GaeaCostNoteBumpRef(id int64) error             { return b.a.GaeaCostNoteBumpRef(id) }
-func (b *CostB) GaeaCostNoteDelete(id int64) error              { return b.a.GaeaCostNoteDelete(id) }
-func (b *CostB) GaeaCostNoteList(query string, status string) []costref.Note {
-	return b.a.GaeaCostNoteList(query, status)
-}
-func (b *CostB) GaeaCostNoteSave(n costref.Note) (int64, error)    { return b.a.GaeaCostNoteSave(n) }
-func (b *CostB) GaeaCostProjectDelete(id string) error             { return b.a.GaeaCostProjectDelete(id) }
+func (b *CostB) GaeaCostList() []CostSummary { return b.a.GaeaCostList() }
+func (b *CostB) GaeaCostNoteBumpRef(id int64) error { return b.a.GaeaCostNoteBumpRef(id) }
+func (b *CostB) GaeaCostNoteDelete(id int64) error { return b.a.GaeaCostNoteDelete(id) }
+func (b *CostB) GaeaCostNoteList(query string, status string) []costref.Note { return b.a.GaeaCostNoteList(query, status) }
+func (b *CostB) GaeaCostNoteSave(n costref.Note) (int64, error) { return b.a.GaeaCostNoteSave(n) }
+func (b *CostB) GaeaCostProjectDelete(id string) error { return b.a.GaeaCostProjectDelete(id) }
 func (b *CostB) GaeaCostProjectGet(id string) *costproject.Project { return b.a.GaeaCostProjectGet(id) }
 func (b *CostB) GaeaCostProjectList() []costproject.ProjectSummary { return b.a.GaeaCostProjectList() }
-func (b *CostB) GaeaCostProjectSave(p costproject.Project) (string, error) {
-	return b.a.GaeaCostProjectSave(p)
-}
+func (b *CostB) GaeaCostProjectSave(p costproject.Project) (string, error) { return b.a.GaeaCostProjectSave(p) }
 func (b *CostB) GaeaCostSave(e CostEntry) error { return b.a.GaeaCostSave(e) }
-func (b *CostB) GaeaCostSearch(query string, category string, status string) []CostSummary {
-	return b.a.GaeaCostSearch(query, category, status)
-}
-func (b *CostB) GaeaCostSearchPage(query string, category string, status string, sortKey string, sortDir int, limit int, offset int) CostSearchPage {
-	return b.a.GaeaCostSearchPage(query, category, status, sortKey, sortDir, limit, offset)
-}
-func (b *CostB) GaeaCostStageCompare(projectID string) []coststage.CompareRow {
-	return b.a.GaeaCostStageCompare(projectID)
-}
-func (b *CostB) GaeaCostStageDeviations(projectID string) []coststage.Deviation {
-	return b.a.GaeaCostStageDeviations(projectID)
-}
+func (b *CostB) GaeaCostSearch(query string, category string, status string) []CostSummary { return b.a.GaeaCostSearch(query, category, status) }
+func (b *CostB) GaeaCostSearchPage(query string, category string, status string, sortKey string, sortDir int, limit int, offset int) CostSearchPage { return b.a.GaeaCostSearchPage(query, category, status, sortKey, sortDir, limit, offset) }
+func (b *CostB) GaeaCostStageCompare(projectID string) []coststage.CompareRow { return b.a.GaeaCostStageCompare(projectID) }
+func (b *CostB) GaeaCostStageDeviations(projectID string) []coststage.Deviation { return b.a.GaeaCostStageDeviations(projectID) }
 func (b *CostB) GaeaCostStageSave(v coststage.StageValue) error { return b.a.GaeaCostStageSave(v) }
-func (b *CostB) GaeaCostStages(projectID string) []coststage.StageValue {
-	return b.a.GaeaCostStages(projectID)
-}
+func (b *CostB) GaeaCostStages(projectID string) []coststage.StageValue { return b.a.GaeaCostStages(projectID) }
 func (b *CostB) GaeaPriceFetch(id string) (*tasks.Task, error) { return b.a.GaeaPriceFetch(id) }
-func (b *CostB) GaeaPriceFetchAll() (*tasks.Task, error)       { return b.a.GaeaPriceFetchAll() }
-func (b *CostB) GaeaPriceFetchApply(fetchID string, titles []string) (int, error) {
-	return b.a.GaeaPriceFetchApply(fetchID, titles)
-}
-func (b *CostB) GaeaPriceFetchIgnore(fetchID string) error        { return b.a.GaeaPriceFetchIgnore(fetchID) }
-func (b *CostB) GaeaPriceFetches() []pricefeed.FetchRecord        { return b.a.GaeaPriceFetches() }
+func (b *CostB) GaeaPriceFetchAll() (*tasks.Task, error) { return b.a.GaeaPriceFetchAll() }
+func (b *CostB) GaeaPriceFetchApply(fetchID string, titles []string) (int, error) { return b.a.GaeaPriceFetchApply(fetchID, titles) }
+func (b *CostB) GaeaPriceFetchIgnore(fetchID string) error { return b.a.GaeaPriceFetchIgnore(fetchID) }
+func (b *CostB) GaeaPriceFetches() []pricefeed.FetchRecord { return b.a.GaeaPriceFetches() }
 func (b *CostB) GaeaPriceHistory(name string) []pricefeed.History { return b.a.GaeaPriceHistory(name) }
-func (b *CostB) GaeaPriceSourceDelete(id string) error            { return b.a.GaeaPriceSourceDelete(id) }
-func (b *CostB) GaeaPriceSourceSave(src pricefeed.Source) error   { return b.a.GaeaPriceSourceSave(src) }
-func (b *CostB) GaeaPriceSources() []pricefeed.Source             { return b.a.GaeaPriceSources() }
+func (b *CostB) GaeaPriceSourceDelete(id string) error { return b.a.GaeaPriceSourceDelete(id) }
+func (b *CostB) GaeaPriceSourceSave(src pricefeed.Source) error { return b.a.GaeaPriceSourceSave(src) }
+func (b *CostB) GaeaPriceSources() []pricefeed.Source { return b.a.GaeaPriceSources() }
+func (b *CostB) GaeaWorkcostProjectApply(path string) (workcost.ApplyProjectResult, error) { return b.a.GaeaWorkcostProjectApply(path) }
+func (b *CostB) GaeaWorkcostProjectExport(srcPath string, outPath string, project string, location string, duration string) (string, error) { return b.a.GaeaWorkcostProjectExport(srcPath, outPath, project, location, duration) }
+func (b *CostB) GaeaWorkcostProjectExportToWorkspace(srcPath string, fileName string) (string, error) { return b.a.GaeaWorkcostProjectExportToWorkspace(srcPath, fileName) }
+func (b *CostB) GaeaWorkcostProjectFees(directFee float64, rates workcost.RateSet, profitIncludesRegulatory bool, measures float64, contingency float64, controlPrice float64) workcost.FeeResult { return b.a.GaeaWorkcostProjectFees(directFee, rates, profitIncludesRegulatory, measures, contingency, controlPrice) }
+func (b *CostB) GaeaWorkcostProjectParse(path string) (*workcost.ProjectBundle, error) { return b.a.GaeaWorkcostProjectParse(path) }
+func (b *CostB) GaeaWorkcostQuotaCompose(code string, overrides map[string]workcost.ComposeOverride) (*workcost.Compose, error) { return b.a.GaeaWorkcostQuotaCompose(code, overrides) }
+func (b *CostB) GaeaWorkcostQuotaDelete(code string) error { return b.a.GaeaWorkcostQuotaDelete(code) }
+func (b *CostB) GaeaWorkcostQuotaGet(code string) *workcost.Quota { return b.a.GaeaWorkcostQuotaGet(code) }
+func (b *CostB) GaeaWorkcostQuotaList(specialty string, keyword string) []workcost.Quota { return b.a.GaeaWorkcostQuotaList(specialty, keyword) }
+func (b *CostB) GaeaWorkcostQuotaSave(q workcost.Quota) (*workcost.Quota, error) { return b.a.GaeaWorkcostQuotaSave(q) }
+func (b *CostB) GaeaWorkcostRecompose() (workcost.RecomposeResult, error) { return b.a.GaeaWorkcostRecompose() }
+func (b *CostB) GaeaWorkcostResourceDelete(id int64, force bool) error { return b.a.GaeaWorkcostResourceDelete(id, force) }
+func (b *CostB) GaeaWorkcostResourceGet(id int64) *workcost.Resource { return b.a.GaeaWorkcostResourceGet(id) }
+func (b *CostB) GaeaWorkcostResourceList(kind string, keyword string) []workcost.Resource { return b.a.GaeaWorkcostResourceList(kind, keyword) }
+func (b *CostB) GaeaWorkcostResourcePrices(id int64) []workcost.ResourcePrice { return b.a.GaeaWorkcostResourcePrices(id) }
+func (b *CostB) GaeaWorkcostResourceSave(r workcost.Resource) (*workcost.Resource, error) { return b.a.GaeaWorkcostResourceSave(r) }
+func (b *CostB) GaeaWorkcostResourceSetPrice(id int64, price float64, period string, region string, priceType string, source string, note string) (*workcost.Resource, error) { return b.a.GaeaWorkcostResourceSetPrice(id, price, period, region, priceType, source, note) }
+func (b *CostB) GaeaWorkcostSeedApply(includeComposite bool) (workcost.SeedResult, error) { return b.a.GaeaWorkcostSeedApply(includeComposite) }
+func (b *CostB) GaeaWorkcostSeedPreview(includeComposite bool) workcost.SeedPreview { return b.a.GaeaWorkcostSeedPreview(includeComposite) }

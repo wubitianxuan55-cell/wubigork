@@ -13,58 +13,28 @@ import (
 type SinB struct{ a *App }
 
 func (b *SinB) SinBookSourceBookDelete(path string) error { return b.a.SinBookSourceBookDelete(path) }
-func (b *SinB) SinBookSourceBookExportEpub(path string) (string, error) {
-	return b.a.SinBookSourceBookExportEpub(path)
-}
-func (b *SinB) SinBookSourceBooksList() ([]SinBookSourceBook, error) {
-	return b.a.SinBookSourceBooksList()
-}
-func (b *SinB) SinBookSourceDownload(source string, detailURL string, start int, end int, title string) (SinBookSourceDownloadStart, error) {
-	return b.a.SinBookSourceDownload(source, detailURL, start, end, title)
-}
-func (b *SinB) SinBookSourceDownloadCancel(jobID string) bool {
-	return b.a.SinBookSourceDownloadCancel(jobID)
-}
-func (b *SinB) SinBookSourceSearch(keyword string) (NovelBookSourceSearchResult, error) {
-	return b.a.SinBookSourceSearch(keyword)
-}
-func (b *SinB) SinBookSourceToc(source string, detailURL string) (NovelBookSourceTocPreview, error) {
-	return b.a.SinBookSourceToc(source, detailURL)
-}
-func (b *SinB) SinCancel(topicID string) error              { return b.a.SinCancel(topicID) }
+func (b *SinB) SinBookSourceBookExportEpub(path string) (string, error) { return b.a.SinBookSourceBookExportEpub(path) }
+func (b *SinB) SinBookSourceBooksList() ([]SinBookSourceBook, error) { return b.a.SinBookSourceBooksList() }
+func (b *SinB) SinBookSourceDownload(source string, detailURL string, start int, end int, title string) (SinBookSourceDownloadStart, error) { return b.a.SinBookSourceDownload(source, detailURL, start, end, title) }
+func (b *SinB) SinBookSourceDownloadCancel(jobID string) bool { return b.a.SinBookSourceDownloadCancel(jobID) }
+func (b *SinB) SinBookSourceSearch(keyword string) (NovelBookSourceSearchResult, error) { return b.a.SinBookSourceSearch(keyword) }
+func (b *SinB) SinBookSourceToc(source string, detailURL string) (NovelBookSourceTocPreview, error) { return b.a.SinBookSourceToc(source, detailURL) }
+func (b *SinB) SinCancel(topicID string) error { return b.a.SinCancel(topicID) }
 func (b *SinB) SinCastGet(topicID string) ([]string, error) { return b.a.SinCastGet(topicID) }
-func (b *SinB) SinCastSet(topicID string, ids []string) ([]string, error) {
-	return b.a.SinCastSet(topicID, ids)
-}
-func (b *SinB) SinContextNodeDetail(topicID string, seq int64) (contextview.NodeDetail, error) {
-	return b.a.SinContextNodeDetail(topicID, seq)
-}
-func (b *SinB) SinContextView(topicID string) (contextview.ContextTimeline, error) {
-	return b.a.SinContextView(topicID)
-}
+func (b *SinB) SinCastSet(topicID string, ids []string) ([]string, error) { return b.a.SinCastSet(topicID, ids) }
+func (b *SinB) SinContextNodeDetail(topicID string, seq int64) (contextview.NodeDetail, error) { return b.a.SinContextNodeDetail(topicID, seq) }
+func (b *SinB) SinContextView(topicID string) (contextview.ContextTimeline, error) { return b.a.SinContextView(topicID) }
 func (b *SinB) SinExportEpub(topicID string) (string, error) { return b.a.SinExportEpub(topicID) }
-func (b *SinB) SinExportMarkdown(topicID string) (string, error) {
-	return b.a.SinExportMarkdown(topicID)
-}
-func (b *SinB) SinIllustrate(topicID string, messageID int64, cue string, prompt string, size string) (map[string]interface{}, error) {
-	return b.a.SinIllustrate(topicID, messageID, cue, prompt, size)
-}
+func (b *SinB) SinExportMarkdown(topicID string) (string, error) { return b.a.SinExportMarkdown(topicID) }
+func (b *SinB) SinIllustrate(topicID string, messageID int64, cue string, prompt string, size string) (map[string]interface{}, error) { return b.a.SinIllustrate(topicID, messageID, cue, prompt, size) }
 func (b *SinB) SinMessages(topicID string) ([]chat.Message, error) { return b.a.SinMessages(topicID) }
-func (b *SinB) SinMessagesPage(topicID string, beforeSeq int64, limit int) (SinMessagesPageResult, error) {
-	return b.a.SinMessagesPage(topicID, beforeSeq, limit)
-}
+func (b *SinB) SinMessagesPage(topicID string, beforeSeq int64, limit int) (SinMessagesPageResult, error) { return b.a.SinMessagesPage(topicID, beforeSeq, limit) }
 func (b *SinB) SinNotesGet(topicID string) (SinNotesView, error) { return b.a.SinNotesGet(topicID) }
-func (b *SinB) SinNotesSave(topicID string, baseline string, outline string, notes string, force bool) (SinNotesView, error) {
-	return b.a.SinNotesSave(topicID, baseline, outline, notes, force)
-}
-func (b *SinB) SinStream(topicID string, message string) (string, error) {
-	return b.a.SinStream(topicID, message)
-}
-func (b *SinB) SinTopicClear(id string) error                   { return b.a.SinTopicClear(id) }
+func (b *SinB) SinNotesSave(topicID string, baseline string, outline string, notes string, force bool) (SinNotesView, error) { return b.a.SinNotesSave(topicID, baseline, outline, notes, force) }
+func (b *SinB) SinStream(topicID string, message string) (string, error) { return b.a.SinStream(topicID, message) }
+func (b *SinB) SinTopicClear(id string) error { return b.a.SinTopicClear(id) }
 func (b *SinB) SinTopicCreate(title string) (chat.Topic, error) { return b.a.SinTopicCreate(title) }
-func (b *SinB) SinTopicDelete(id string) error                  { return b.a.SinTopicDelete(id) }
-func (b *SinB) SinTopicRename(id string, title string) error    { return b.a.SinTopicRename(id, title) }
-func (b *SinB) SinTopicsList() ([]chat.Topic, error)            { return b.a.SinTopicsList() }
-func (b *SinB) SinTrajectory(topicID string) (trajectory.Trajectory, error) {
-	return b.a.SinTrajectory(topicID)
-}
+func (b *SinB) SinTopicDelete(id string) error { return b.a.SinTopicDelete(id) }
+func (b *SinB) SinTopicRename(id string, title string) error { return b.a.SinTopicRename(id, title) }
+func (b *SinB) SinTopicsList() ([]chat.Topic, error) { return b.a.SinTopicsList() }
+func (b *SinB) SinTrajectory(topicID string) (trajectory.Trajectory, error) { return b.a.SinTrajectory(topicID) }

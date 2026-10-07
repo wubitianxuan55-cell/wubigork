@@ -201,7 +201,11 @@ func mapMethod(m method) string {
 // mapGaea Gaea 前缀方法按功能细分（办公引擎为默认）。
 func mapGaea(n string) string {
 	switch {
-	case strings.HasPrefix(n, "GaeaCost"), strings.HasPrefix(n, "GaeaPrice"):
+	// GaeaWorkcost* 是工料法成本数据库（工料机资源库/消耗定额/综合单价核算），
+	// 属造价域 → CostB。漏掉这条前缀会静默落进默认的 office 门面：调用仍能
+	// 成功（前端 proxy 按方法名全域搜索 ns），但门面语义错位、类型面归错域。
+	case strings.HasPrefix(n, "GaeaCost"), strings.HasPrefix(n, "GaeaPrice"),
+		strings.HasPrefix(n, "GaeaWorkcost"):
 		return "cost"
 	case strings.HasPrefix(n, "GaeaKnowledge"), strings.HasPrefix(n, "GaeaMemory"),
 		strings.HasPrefix(n, "GaeaProfile"), strings.HasPrefix(n, "GaeaSemantic"),
@@ -952,10 +956,22 @@ var legacyTSAnnotations = map[string]string{
 // facetKeyLineRe spaceBindings.ts 分面键的行格式（FE4-04 机器可读约定，该文件头
 // 有同款文字）：两空格缩进、裸标识符键、work/play/shared/independent 四值字面量、
 // 逗号可有可无、行尾可带 // 注释。锚定行首防误吞其它构造。
-var facetKeyLineRe = regexp.MustCompile(`(?m)^[ \t]{2}([A-Za-z_][A-Za-z0-9_]*):[ \t]*"(?:work|play|shared|independent)",?(?:[ \t]+//.*)?$`)
+// 行尾容错（2026-10 实测踩到）：两个正则都用 `$` 锚行尾，而 Go 的 (?m) 下 `$`
+// 只匹配 `\n` 之前——**CRLF 文件的行尾 `\r` 会让整行失配**。症状极具欺骗性：
+// 带 `// 注释` 的行因 `(?:[ \t]+//.*)?` 里的 `.*` 顺手吞掉 `\r` 仍能匹配，只有
+// **光秃秃无注释的行**失配——于是「新加的最后一行偏偏没被认领」，legacy 清单
+// 被吹胀、tsc 的重叠锁才红。此处显式允许 `\r`，两种行尾都吃得下。
+const (
+	// 逗号可省；行尾可带 // 注释；末尾显式吃掉可选 `\r`（CRLF 容错）。
+	facetKeyLinePat   = `(?m)^[ \t]{2}([A-Za-z_][A-Za-z0-9_]*):[ \t]*"(?:work|play|shared|independent)",?(?:[ \t]+//[^\r\n]*)?[ \t]*\r?$`
+	gaeaToGaeaLinePat = `(?m)^[ \t]{2}([A-Za-z_][A-Za-z0-9_]*):[ \t]*"([A-Za-z_][A-Za-z0-9_]*)",[ \t]*\r?$`
+)
+
+var facetKeyLineRe = regexp.MustCompile(facetKeyLinePat)
 
 // gaeaToGaeaLineRe bridge/mappings.ts 的 gaeaToGaea 条目行（`短名: "Go名",`）。
-var gaeaToGaeaLineRe = regexp.MustCompile(`(?m)^[ \t]{2}([A-Za-z_][A-Za-z0-9_]*):[ \t]*"([A-Za-z_][A-Za-z0-9_]*)",`)
+// 行尾同样容错 `\r`（见上）。
+var gaeaToGaeaLineRe = regexp.MustCompile(gaeaToGaeaLinePat)
 
 // minFacetKeys / minMappingEntries 解析下限闸：两文件都是扁平键值行，正则失配
 // （格式被改/编码变化）会**静默少解析**——认领集变小、legacy 清单被吹胀。tsc 的

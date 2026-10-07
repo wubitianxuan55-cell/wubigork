@@ -28,6 +28,18 @@ import type {
   SemanticHitView,
   SemanticIndexStatus,
   TaskView,
+  WorkcostApplyProjectResult,
+  WorkcostCompose,
+  WorkcostComposeOverride,
+  WorkcostFeeResult,
+  WorkcostProjectBundle,
+  WorkcostQuota,
+  WorkcostRateSet,
+  WorkcostRecomposeResult,
+  WorkcostResource,
+  WorkcostResourcePrice,
+  WorkcostSeedPreview,
+  WorkcostSeedResult,
 } from "../types";
 
 export interface CostBindings {
@@ -140,6 +152,72 @@ export interface CostBindings {
   CostStages(projectId: string): Promise<CostStageValue[]>;
   CostStageCompare(projectId: string): Promise<CostStageCompareRow[]>;
   CostStageDeviations(projectId: string): Promise<CostStageDeviation[]>;
+  // ── 工料法成本数据库（工料机资源库 + 消耗定额库 + 综合单价核算）──
+  // 口径：综合单价 = Σ(消耗量×资源价)，**只含人材机**；管理费/利润/税只在
+  // 项目合计层跑一次（WorkcostProjectFees）。外委独立行类但并入材料桶。
+  WorkcostResourceSave(r: WorkcostResource): Promise<WorkcostResource>;
+  // WorkcostResourceGet 按 id 读资源；不存在返回 null。
+  WorkcostResourceGet(id: number): Promise<WorkcostResource | null>;
+  // WorkcostResourceList 资源列表（kind/keyword 可空 = 不过滤）。
+  WorkcostResourceList(kind: string, keyword: string): Promise<WorkcostResource[]>;
+  // WorkcostResourceDelete force=false 时拒绝删除仍被定额引用的资源。
+  WorkcostResourceDelete(id: number, force: boolean): Promise<void>;
+  // WorkcostResourceSetPrice 登记调价（写历史 + 推进现行价）——信息价一涨，
+  // 引用该资源的综合单价在下次核算时同步重算。
+  WorkcostResourceSetPrice(
+    id: number,
+    price: number,
+    period: string,
+    region: string,
+    priceType: string,
+    source: string,
+    note: string,
+  ): Promise<WorkcostResource>;
+  WorkcostResourcePrices(id: number): Promise<WorkcostResourcePrice[]>;
+  // WorkcostQuotaSave 新建/更新消耗定额（含工料机含量行，整组替换）。
+  WorkcostQuotaSave(q: WorkcostQuota): Promise<WorkcostQuota>;
+  WorkcostQuotaGet(code: string): Promise<WorkcostQuota | null>;
+  WorkcostQuotaList(specialty: string, keyword: string): Promise<WorkcostQuota[]>;
+  WorkcostQuotaDelete(code: string): Promise<void>;
+  // WorkcostQuotaCompose 按定额核算综合单价（只含人材机）。overrides 支持项目级
+  // 覆盖含量/单价（key=资源编码；负值表示不覆盖该项）。
+  WorkcostQuotaCompose(
+    code: string,
+    overrides: Record<string, WorkcostComposeOverride> | null,
+  ): Promise<WorkcostCompose>;
+  // WorkcostProjectFees 项目合计层取费：直接费 → 企管/利润/规费 → 税前合计 →
+  // 增值税 → 含税总造价（含招标控制价对照）。
+  // profitIncludesRegulatory 决定利润基数是否含规费（百锦路=false，市政道路=true）。
+  WorkcostProjectFees(
+    directFee: number,
+    rates: WorkcostRateSet,
+    profitIncludesRegulatory: boolean,
+    measures: number,
+    contingency: number,
+    controlPrice: number,
+  ): Promise<WorkcostFeeResult>;
+  // WorkcostSeedPreview 存量成本条目 → 资源库的干跑预览（不写库）。
+  WorkcostSeedPreview(includeComposite: boolean): Promise<WorkcostSeedPreview>;
+  // WorkcostSeedApply 应用资源化（幂等：同身份资源走更新）。
+  WorkcostSeedApply(includeComposite: boolean): Promise<WorkcostSeedResult>;
+  // WorkcostRecompose 把带工料机组成的成本条目 price 重算为核算结果并置
+  // price_derived=1（无组成的纯资源条目不参与）。
+  WorkcostRecompose(): Promise<WorkcostRecomposeResult>;
+  // WorkcostProjectParse 解析五表项目工作簿（只解析不落库）。
+  WorkcostProjectParse(path: string): Promise<WorkcostProjectBundle>;
+  // WorkcostProjectApply 把解析结果落库（工料机价格→资源库，综合单价表→定额库）。
+  WorkcostProjectApply(path: string): Promise<WorkcostApplyProjectResult>;
+  // WorkcostProjectExport 重新导出为五表模版工作簿（活公式），返回输出路径。
+  WorkcostProjectExport(
+    srcPath: string,
+    outPath: string,
+    project: string,
+    location: string,
+    duration: string,
+  ): Promise<string>;
+  // WorkcostProjectExportToWorkspace 导出到工作区 .gaea/exports（文件名带时间戳），
+  // 返回写出路径——前端无文件系统能力，由后端按工作区约定落盘。
+  WorkcostProjectExportToWorkspace(srcPath: string, fileName: string): Promise<string>;
 }
 
 /**

@@ -531,3 +531,160 @@ CREATE TABLE IF NOT EXISTS session_index_meta (
   mtime INTEGER NOT NULL
 );
 `
+
+// SchemaV25 工料法成本数据库①：工料机资源库。
+//
+// 用户定调（2026-10）：工料机（人材机）是**基本数据**，综合单价分析表是靠
+// 「工料机 × 消耗定额」核算出来的——即建立工料法成本数据库。此前工料机只
+// 作为 cost_entry_components 的从属行挂在某个综合单价下，不能独立检索/维护/
+// 调价；本迁移把它升格为独立主数据。
+//
+// 设计要点：
+//   - code 唯一（人工/材料/机械前缀 + 序号），作为定额引用锚点；改址不改引用。
+//   - base_price=基准价（编制口径），current_price=现行价（信息价更新后）；
+//     两者分离才能做「基准价 vs 现行价」调差。
+//   - kind 三分类（人工/材料/机械）与既有 Component.Kind 口径一致；不建严格
+//     CHECK 以容忍源文件合并段标签（如「人工+机械」）。
+//   - 唯一索引建在 (kind,title,spec,unit)——工料机的身份就是「什么类别、什么
+//     名称、什么规格、什么单位」，同规格同单位重复入库没有语义。
+const SchemaV25 = `
+CREATE TABLE IF NOT EXISTS gf_resources (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  code           TEXT NOT NULL DEFAULT '',
+  kind           TEXT NOT NULL DEFAULT '材料',
+  title          TEXT NOT NULL DEFAULT '',
+  spec           TEXT NOT NULL DEFAULT '',
+  unit           TEXT NOT NULL DEFAULT '',
+  base_price     REAL NOT NULL DEFAULT 0,
+  current_price  REAL NOT NULL DEFAULT 0,
+  category_path  TEXT NOT NULL DEFAULT '',
+  source         TEXT NOT NULL DEFAULT '',
+  supplier       TEXT NOT NULL DEFAULT '',
+  region         TEXT NOT NULL DEFAULT '',
+  price_date     TEXT NOT NULL DEFAULT '',
+  price_type     TEXT NOT NULL DEFAULT '',
+  valid_until    TEXT NOT NULL DEFAULT '',
+  loss_rate      REAL NOT NULL DEFAULT 0,
+  note           TEXT NOT NULL DEFAULT '',
+  tags           TEXT NOT NULL DEFAULT '[]',
+  status         TEXT NOT NULL DEFAULT '现行',
+  created_at     TEXT NOT NULL DEFAULT '',
+  updated_at     TEXT NOT NULL DEFAULT ''
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_gf_resources_code ON gf_resources(code);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_gf_resources_ident ON gf_resources(kind, title, spec, unit);
+CREATE INDEX IF NOT EXISTS idx_gf_resources_kind ON gf_resources(kind);
+CREATE INDEX IF NOT EXISTS idx_gf_resources_title ON gf_resources(title);
+CREATE TABLE IF NOT EXISTS gf_resource_prices (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  resource_id INTEGER NOT NULL DEFAULT 0,
+  price       REAL NOT NULL DEFAULT 0,
+  period      TEXT NOT NULL DEFAULT '',
+  region      TEXT NOT NULL DEFAULT '',
+  price_type  TEXT NOT NULL DEFAULT '',
+  source      TEXT NOT NULL DEFAULT '',
+  fetched_at  TEXT NOT NULL DEFAULT '',
+  note        TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_gf_resource_prices_rid ON gf_resource_prices(resource_id);
+`
+
+// SchemaV26 工料法成本数据库②：消耗定额库。
+//
+// 定额 = 「每单位该子目消耗多少工料机」的标准含量（工料法内核）。全局共享
+// （按专业/章节分层），项目层可覆盖含量与资源价（cost_estimate_item_components
+// 承载，见 SchemaV27）。
+//
+// 设计要点：
+//   - quota_items.resource_code 引用 gf_resources.code：资源改名改价不破坏引用，
+//     资源删除时该行成为孤立引用（读取侧按 resource_code 回查，缺失显形为
+//     「资源已删除」而非静默归零）。
+//   - amount 不入列：金额=quantity×resource_price 是核算派生量，读时用当前
+//     资源价重算（这正是「资源价一涨、所有引用子目同步重算」的落点）。
+//   - loss_rate 为行级损耗率（如沥青 3%），与资源级 loss_rate 并存，行级优先。
+const SchemaV26 = `
+CREATE TABLE IF NOT EXISTS gf_quotas (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  code           TEXT NOT NULL DEFAULT '',
+  title          TEXT NOT NULL DEFAULT '',
+  specialty      TEXT NOT NULL DEFAULT '',
+  chapter        TEXT NOT NULL DEFAULT '',
+  unit           TEXT NOT NULL DEFAULT '',
+  category_path  TEXT NOT NULL DEFAULT '',
+  base_labor     REAL NOT NULL DEFAULT 0,
+  base_material  REAL NOT NULL DEFAULT 0,
+  base_machine   REAL NOT NULL DEFAULT 0,
+  source         TEXT NOT NULL DEFAULT '',
+  region         TEXT NOT NULL DEFAULT '',
+  price_date     TEXT NOT NULL DEFAULT '',
+  note           TEXT NOT NULL DEFAULT '',
+  status         TEXT NOT NULL DEFAULT '现行',
+  created_at     TEXT NOT NULL DEFAULT '',
+  updated_at     TEXT NOT NULL DEFAULT ''
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_gf_quotas_code ON gf_quotas(code);
+CREATE INDEX IF NOT EXISTS idx_gf_quotas_specialty ON gf_quotas(specialty);
+CREATE INDEX IF NOT EXISTS idx_gf_quotas_title ON gf_quotas(title);
+CREATE TABLE IF NOT EXISTS gf_quota_items (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  quota_code    TEXT NOT NULL DEFAULT '',
+  resource_code TEXT NOT NULL DEFAULT '',
+  kind          TEXT NOT NULL DEFAULT '材料',
+  title         TEXT NOT NULL DEFAULT '',
+  spec          TEXT NOT NULL DEFAULT '',
+  unit          TEXT NOT NULL DEFAULT '',
+  quantity      REAL NOT NULL DEFAULT 0,
+  resource_price REAL NOT NULL DEFAULT 0,
+  loss_rate     REAL NOT NULL DEFAULT 0,
+  note          TEXT NOT NULL DEFAULT '',
+  sort          INTEGER NOT NULL DEFAULT 0,
+  created_at    TEXT NOT NULL DEFAULT '',
+  updated_at    TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_gf_quota_items_quota ON gf_quota_items(quota_code);
+CREATE INDEX IF NOT EXISTS idx_gf_quota_items_resource ON gf_quota_items(resource_code);
+`
+
+// SchemaV27 工料法成本数据库③：综合单价降级为核算结果 + 测算项贯通工料机。
+//
+// ① cost_entries 增 price_derived：0=手填/导入价（旧语义，默认，存量零变化）、
+//    1=由工料机×消耗定额核算而来（核算缓存）。price 列名与对外契约不变，只是
+//    语义从「唯一真值」降为「最近一次核算结果缓存」——成本库既有消费方
+//    （PriceBand 分位 / contentband 含量对标 / matchindex / 检索 / 图谱 /
+//    归因对标）零改动。
+// ② cost_entry_components 增 quantity_source / price_source：标记该组成行的
+//    含量与价格来源（global 定额 / project 项目覆盖 / manual 手工 / derived
+//    核算派生），项目级覆盖留痕的落点。
+// ③ cost_estimate_items 增 spec/labor_fee/material_fee/machine_fee/
+//    management_fee/profit_fee/tax_rate/quota_code/override_*：测算项自带
+//    工料机汇总与定额引用，综合单价不再进模版就退化成裸 price。
+// ④ cost_projects 增取费参数（企管/规费/利润/税率 + 取费基数 + 计量基数）与
+//    编制说明四段：模版「成本测算」表 13-18 行与「编制说明」sheet 的结构化落点。
+const SchemaV27 = `
+ALTER TABLE cost_entries ADD COLUMN price_derived INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE cost_entry_components ADD COLUMN quantity_source TEXT NOT NULL DEFAULT '';
+ALTER TABLE cost_entry_components ADD COLUMN price_source TEXT NOT NULL DEFAULT '';
+ALTER TABLE cost_estimate_items ADD COLUMN spec TEXT NOT NULL DEFAULT '';
+ALTER TABLE cost_estimate_items ADD COLUMN labor_fee REAL NOT NULL DEFAULT 0;
+ALTER TABLE cost_estimate_items ADD COLUMN material_fee REAL NOT NULL DEFAULT 0;
+ALTER TABLE cost_estimate_items ADD COLUMN machine_fee REAL NOT NULL DEFAULT 0;
+ALTER TABLE cost_estimate_items ADD COLUMN management_fee REAL NOT NULL DEFAULT 0;
+ALTER TABLE cost_estimate_items ADD COLUMN profit_fee REAL NOT NULL DEFAULT 0;
+ALTER TABLE cost_estimate_items ADD COLUMN tax_rate REAL NOT NULL DEFAULT 0;
+ALTER TABLE cost_estimate_items ADD COLUMN quota_code TEXT NOT NULL DEFAULT '';
+ALTER TABLE cost_estimate_items ADD COLUMN override_quantity INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE cost_estimate_items ADD COLUMN override_price INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE cost_projects ADD COLUMN management_rate REAL NOT NULL DEFAULT 0.1;
+ALTER TABLE cost_projects ADD COLUMN regulatory_rate REAL NOT NULL DEFAULT 0.02;
+ALTER TABLE cost_projects ADD COLUMN profit_rate REAL NOT NULL DEFAULT 0.07;
+ALTER TABLE cost_projects ADD COLUMN tax_rate REAL NOT NULL DEFAULT 0.09;
+ALTER TABLE cost_projects ADD COLUMN base_amount REAL NOT NULL DEFAULT 0;
+ALTER TABLE cost_projects ADD COLUMN measure_area REAL NOT NULL DEFAULT 0;
+ALTER TABLE cost_projects ADD COLUMN code_std TEXT NOT NULL DEFAULT '';
+ALTER TABLE cost_projects ADD COLUMN basis_note TEXT NOT NULL DEFAULT '';
+ALTER TABLE cost_projects ADD COLUMN fee_note TEXT NOT NULL DEFAULT '';
+ALTER TABLE cost_projects ADD COLUMN scope_note TEXT NOT NULL DEFAULT '';
+ALTER TABLE cost_projects ADD COLUMN review_note TEXT NOT NULL DEFAULT '';
+CREATE INDEX IF NOT EXISTS idx_cost_entries_derived ON cost_entries(price_derived);
+CREATE INDEX IF NOT EXISTS idx_estimate_items_quota ON cost_estimate_items(quota_code);
+`

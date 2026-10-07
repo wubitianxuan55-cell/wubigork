@@ -11,307 +11,121 @@ import (
 // 方法体零改动——纯委托给 App 实例（b.a.<Method>）。
 type NovelB struct{ a *App }
 
-func (b *NovelB) AnalyzeChapter(chapterNum int) (map[string]interface{}, error) {
-	return b.a.AnalyzeChapter(chapterNum)
-}
-func (b *NovelB) ApplyBranch(nodeID string, branchIndex int, userInput string) (map[string]interface{}, error) {
-	return b.a.ApplyBranch(nodeID, branchIndex, userInput)
-}
-func (b *NovelB) BuildNovelStatePatch(chapterNum int) (map[string]interface{}, error) {
-	return b.a.BuildNovelStatePatch(chapterNum)
-}
-func (b *NovelB) CancelCreateChapter(chapterNum int, branch string) bool {
-	return b.a.CancelCreateChapter(chapterNum, branch)
-}
-func (b *NovelB) ChapterArtList(chapter int) []chapterArtEntry      { return b.a.ChapterArtList(chapter) }
+func (b *NovelB) AnalyzeChapter(chapterNum int) (map[string]interface{}, error) { return b.a.AnalyzeChapter(chapterNum) }
+func (b *NovelB) ApplyBranch(nodeID string, branchIndex int, userInput string) (map[string]interface{}, error) { return b.a.ApplyBranch(nodeID, branchIndex, userInput) }
+func (b *NovelB) BuildNovelStatePatch(chapterNum int) (map[string]interface{}, error) { return b.a.BuildNovelStatePatch(chapterNum) }
+func (b *NovelB) CancelCreateChapter(chapterNum int, branch string) bool { return b.a.CancelCreateChapter(chapterNum, branch) }
+func (b *NovelB) ChapterArtList(chapter int) []chapterArtEntry { return b.a.ChapterArtList(chapter) }
 func (b *NovelB) CheckConsistency() (map[string]interface{}, error) { return b.a.CheckConsistency() }
-func (b *NovelB) CheckConsistencyDeep(maxChapters int) (map[string]interface{}, error) {
-	return b.a.CheckConsistencyDeep(maxChapters)
-}
-func (b *NovelB) CleanChapterAnalysisForeshadows(chapterFile string) (ForeshadowCleanupResult, error) {
-	return b.a.CleanChapterAnalysisForeshadows(chapterFile)
-}
-func (b *NovelB) ClearProjectForeshadowsForReset() (ForeshadowCleanupResult, error) {
-	return b.a.ClearProjectForeshadowsForReset()
-}
-func (b *NovelB) CmdKEdit(selectedText string, instruction string, styleProfile string) (map[string]interface{}, error) {
-	return b.a.CmdKEdit(selectedText, instruction, styleProfile)
-}
-func (b *NovelB) CreateChapter(setting string, prevSummary string, plotReq string, chapterNum int, branchFromNodeID string, skillName string, minWords int, temperature float64) (map[string]interface{}, error) {
-	return b.a.CreateChapter(setting, prevSummary, plotReq, chapterNum, branchFromNodeID, skillName, minWords, temperature)
-}
-func (b *NovelB) CreateChapterWithOverride(setting string, prevSummary string, plotReq string, chapterNum int, branchFromNodeID string, skillName string, minWords int, temperature float64, allowOverride bool) (map[string]interface{}, error) {
-	return b.a.CreateChapterWithOverride(setting, prevSummary, plotReq, chapterNum, branchFromNodeID, skillName, minWords, temperature, allowOverride)
-}
-func (b *NovelB) CreateScene(chapterNum int, slug string, title string) (map[string]interface{}, error) {
-	return b.a.CreateScene(chapterNum, slug, title)
-}
-func (b *NovelB) DeSlopChapterAiTaste(chapterNum int) (map[string]interface{}, error) {
-	return b.a.DeSlopChapterAiTaste(chapterNum)
-}
-func (b *NovelB) DeleteChapterForeshadows(chapterFile string, onlyAnalysisSource bool) (ForeshadowCleanupResult, error) {
-	return b.a.DeleteChapterForeshadows(chapterFile, onlyAnalysisSource)
-}
-func (b *NovelB) DeleteOrganization(id string) error    { return b.a.DeleteOrganization(id) }
+func (b *NovelB) CheckConsistencyDeep(maxChapters int) (map[string]interface{}, error) { return b.a.CheckConsistencyDeep(maxChapters) }
+func (b *NovelB) CleanChapterAnalysisForeshadows(chapterFile string) (ForeshadowCleanupResult, error) { return b.a.CleanChapterAnalysisForeshadows(chapterFile) }
+func (b *NovelB) ClearProjectForeshadowsForReset() (ForeshadowCleanupResult, error) { return b.a.ClearProjectForeshadowsForReset() }
+func (b *NovelB) CmdKEdit(selectedText string, instruction string, styleProfile string) (map[string]interface{}, error) { return b.a.CmdKEdit(selectedText, instruction, styleProfile) }
+func (b *NovelB) CreateChapter(setting string, prevSummary string, plotReq string, chapterNum int, branchFromNodeID string, skillName string, minWords int, temperature float64) (map[string]interface{}, error) { return b.a.CreateChapter(setting, prevSummary, plotReq, chapterNum, branchFromNodeID, skillName, minWords, temperature) }
+func (b *NovelB) CreateChapterWithOverride(setting string, prevSummary string, plotReq string, chapterNum int, branchFromNodeID string, skillName string, minWords int, temperature float64, allowOverride bool) (map[string]interface{}, error) { return b.a.CreateChapterWithOverride(setting, prevSummary, plotReq, chapterNum, branchFromNodeID, skillName, minWords, temperature, allowOverride) }
+func (b *NovelB) CreateScene(chapterNum int, slug string, title string) (map[string]interface{}, error) { return b.a.CreateScene(chapterNum, slug, title) }
+func (b *NovelB) DeSlopChapterAiTaste(chapterNum int) (map[string]interface{}, error) { return b.a.DeSlopChapterAiTaste(chapterNum) }
+func (b *NovelB) DeleteChapterForeshadows(chapterFile string, onlyAnalysisSource bool) (ForeshadowCleanupResult, error) { return b.a.DeleteChapterForeshadows(chapterFile, onlyAnalysisSource) }
+func (b *NovelB) DeleteOrganization(id string) error { return b.a.DeleteOrganization(id) }
 func (b *NovelB) DeleteOutlineNode(nodeID string) error { return b.a.DeleteOutlineNode(nodeID) }
-func (b *NovelB) DeleteRelationship(fromID string, toID string) error {
-	return b.a.DeleteRelationship(fromID, toID)
-}
-func (b *NovelB) GaeaGenerateBookCover(projectID string, promptHint string) (string, error) {
-	return b.a.GaeaGenerateBookCover(projectID, promptHint)
-}
-func (b *NovelB) GenerateProjectCharacterFill(chJSON string) (string, error) {
-	return b.a.GenerateProjectCharacterFill(chJSON)
-}
-func (b *NovelB) GenerateProjectProtagonistRelations(mode string, name string) (map[string]interface{}, error) {
-	return b.a.GenerateProjectProtagonistRelations(mode, name)
-}
-func (b *NovelB) GenerateScene(chapterNum int, sceneID string, plotReq string, minWords int) (map[string]interface{}, error) {
-	return b.a.GenerateScene(chapterNum, sceneID, plotReq, minWords)
-}
-func (b *NovelB) GenerateSceneIllustration(chapterNum int, optsJSON string) (map[string]interface{}, error) {
-	return b.a.GenerateSceneIllustration(chapterNum, optsJSON)
-}
+func (b *NovelB) DeleteRelationship(fromID string, toID string) error { return b.a.DeleteRelationship(fromID, toID) }
+func (b *NovelB) GaeaGenerateBookCover(projectID string, promptHint string) (string, error) { return b.a.GaeaGenerateBookCover(projectID, promptHint) }
+func (b *NovelB) GenerateProjectCharacterFill(chJSON string) (string, error) { return b.a.GenerateProjectCharacterFill(chJSON) }
+func (b *NovelB) GenerateProjectProtagonistRelations(mode string, name string) (map[string]interface{}, error) { return b.a.GenerateProjectProtagonistRelations(mode, name) }
+func (b *NovelB) GenerateScene(chapterNum int, sceneID string, plotReq string, minWords int) (map[string]interface{}, error) { return b.a.GenerateScene(chapterNum, sceneID, plotReq, minWords) }
+func (b *NovelB) GenerateSceneIllustration(chapterNum int, optsJSON string) (map[string]interface{}, error) { return b.a.GenerateSceneIllustration(chapterNum, optsJSON) }
 func (b *NovelB) GetChapter(num int) (map[string]interface{}, error) { return b.a.GetChapter(num) }
-func (b *NovelB) GetChapterBranch(num int, branch string) (map[string]interface{}, error) {
-	return b.a.GetChapterBranch(num, branch)
-}
-func (b *NovelB) GetChapterScenes(chapterNum int) ([]map[string]interface{}, error) {
-	return b.a.GetChapterScenes(chapterNum)
-}
+func (b *NovelB) GetChapterBranch(num int, branch string) (map[string]interface{}, error) { return b.a.GetChapterBranch(num, branch) }
+func (b *NovelB) GetChapterScenes(chapterNum int) ([]map[string]interface{}, error) { return b.a.GetChapterScenes(chapterNum) }
 func (b *NovelB) GetCharacters() map[string]interface{} { return b.a.GetCharacters() }
-func (b *NovelB) GetEntityRelations() (map[string]interface{}, error) {
-	return b.a.GetEntityRelations()
-}
-func (b *NovelB) GetForeshadowStats(currentChapter int) (ForeshadowStatsReport, error) {
-	return b.a.GetForeshadowStats(currentChapter)
-}
+func (b *NovelB) GetEntityRelations() (map[string]interface{}, error) { return b.a.GetEntityRelations() }
+func (b *NovelB) GetForeshadowStats(currentChapter int) (ForeshadowStatsReport, error) { return b.a.GetForeshadowStats(currentChapter) }
 func (b *NovelB) GetForeshadows() map[string]interface{} { return b.a.GetForeshadows() }
-func (b *NovelB) GetLastForeshadowSync() (map[string]interface{}, error) {
-	return b.a.GetLastForeshadowSync()
-}
+func (b *NovelB) GetLastForeshadowSync() (map[string]interface{}, error) { return b.a.GetLastForeshadowSync() }
 func (b *NovelB) GetNovelState() (map[string]interface{}, error) { return b.a.GetNovelState() }
-func (b *NovelB) GetOutlines() map[string]interface{}            { return b.a.GetOutlines() }
-func (b *NovelB) GetWorldview() string                           { return b.a.GetWorldview() }
-func (b *NovelB) GetWorldviewSections() (map[string]interface{}, error) {
-	return b.a.GetWorldviewSections()
-}
-func (b *NovelB) ImportNovelBook(filePath string, title string, genre string, style string) (NovelImportResult, error) {
-	return b.a.ImportNovelBook(filePath, title, genre, style)
-}
-func (b *NovelB) ImportNovelBookEx(filePath string, title string, genre string, style string, extractMode string, tailChapters int) (NovelImportResult, error) {
-	return b.a.ImportNovelBookEx(filePath, title, genre, style, extractMode, tailChapters)
-}
-func (b *NovelB) IsProjectV4() bool                              { return b.a.IsProjectV4() }
+func (b *NovelB) GetOutlines() map[string]interface{} { return b.a.GetOutlines() }
+func (b *NovelB) GetWorldview() string { return b.a.GetWorldview() }
+func (b *NovelB) GetWorldviewSections() (map[string]interface{}, error) { return b.a.GetWorldviewSections() }
+func (b *NovelB) ImportNovelBook(filePath string, title string, genre string, style string) (NovelImportResult, error) { return b.a.ImportNovelBook(filePath, title, genre, style) }
+func (b *NovelB) ImportNovelBookEx(filePath string, title string, genre string, style string, extractMode string, tailChapters int) (NovelImportResult, error) { return b.a.ImportNovelBookEx(filePath, title, genre, style, extractMode, tailChapters) }
+func (b *NovelB) IsProjectV4() bool { return b.a.IsProjectV4() }
 func (b *NovelB) LintForeshadows() (ForeshadowLintReport, error) { return b.a.LintForeshadows() }
-func (b *NovelB) MergeCharacters(keepID string, mergeID string) (map[string]interface{}, error) {
-	return b.a.MergeCharacters(keepID, mergeID)
-}
-func (b *NovelB) NovelApplyRewriteVersion(chapterNum int, versionID string) (map[string]interface{}, error) {
-	return b.a.NovelApplyRewriteVersion(chapterNum, versionID)
-}
-func (b *NovelB) NovelBookSourceEnginesGet() (NovelBookSourceEnginesPayload, error) {
-	return b.a.NovelBookSourceEnginesGet()
-}
-func (b *NovelB) NovelBookSourceEnginesSave(rulesJSON string) (int, error) {
-	return b.a.NovelBookSourceEnginesSave(rulesJSON)
-}
-func (b *NovelB) NovelBookSourceImport(source string, detailURL string, start int, end int, title string, genre string, style string) (NovelBookSourceImportStart, error) {
-	return b.a.NovelBookSourceImport(source, detailURL, start, end, title, genre, style)
-}
-func (b *NovelB) NovelBookSourceImportCancel(jobID string) bool {
-	return b.a.NovelBookSourceImportCancel(jobID)
-}
-func (b *NovelB) NovelBookSourceImportChapters(source string, projectPath string, chaptersJSON string) (NovelBookSourceImportStart, error) {
-	return b.a.NovelBookSourceImportChapters(source, projectPath, chaptersJSON)
-}
-func (b *NovelB) NovelBookSourceSearch(keyword string) (NovelBookSourceSearchResult, error) {
-	return b.a.NovelBookSourceSearch(keyword)
-}
-func (b *NovelB) NovelBookSourceToc(source string, detailURL string) (NovelBookSourceTocPreview, error) {
-	return b.a.NovelBookSourceToc(source, detailURL)
-}
-func (b *NovelB) NovelChapterAnalysisV2(chapterNum int) (types.ChapterAnalysisResult, error) {
-	return b.a.NovelChapterAnalysisV2(chapterNum)
-}
-func (b *NovelB) NovelChapterAnnotations(chapterNum int) ([]types.Annotation, error) {
-	return b.a.NovelChapterAnnotations(chapterNum)
-}
-func (b *NovelB) NovelChapterConverge(chapterNum int, maxRounds int, targetTaste int) (map[string]interface{}, error) {
-	return b.a.NovelChapterConverge(chapterNum, maxRounds, targetTaste)
-}
-func (b *NovelB) NovelChapterConvergePreview(chapterNum int, targetTaste int) (map[string]interface{}, error) {
-	return b.a.NovelChapterConvergePreview(chapterNum, targetTaste)
-}
-func (b *NovelB) NovelChapterGatePrecheck(chapterNum int) (*types.PlanGateReport, error) {
-	return b.a.NovelChapterGatePrecheck(chapterNum)
-}
-func (b *NovelB) NovelChapterPlanDeviation(chapterNum int) (*types.PlanDeviation, error) {
-	return b.a.NovelChapterPlanDeviation(chapterNum)
-}
-func (b *NovelB) NovelChapterPlanGet(chapterNum int) (*types.ChapterPlan, error) {
-	return b.a.NovelChapterPlanGet(chapterNum)
-}
-func (b *NovelB) NovelChapterPlanPropose(chapterNum int, direction string) (*types.ChapterPlan, error) {
-	return b.a.NovelChapterPlanPropose(chapterNum, direction)
-}
-func (b *NovelB) NovelChapterPlanSave(chapterNum int, planJSON string) error {
-	return b.a.NovelChapterPlanSave(chapterNum, planJSON)
-}
-func (b *NovelB) NovelChapterReview(chapterNum int, platform string) (ChapterReviewPayload, error) {
-	return b.a.NovelChapterReview(chapterNum, platform)
-}
-func (b *NovelB) NovelChapterRewrite(chapterNum int, reqJSON string) (map[string]interface{}, error) {
-	return b.a.NovelChapterRewrite(chapterNum, reqJSON)
-}
-func (b *NovelB) NovelChapterScenesGenerate(chapterNum int, allowMissingCard bool) (map[string]interface{}, error) {
-	return b.a.NovelChapterScenesGenerate(chapterNum, allowMissingCard)
-}
-func (b *NovelB) NovelChapterSuggestions(chapterNum int) ([]string, error) {
-	return b.a.NovelChapterSuggestions(chapterNum)
-}
-func (b *NovelB) NovelContextInventory(chapterNum int) ([]map[string]interface{}, error) {
-	return b.a.NovelContextInventory(chapterNum)
-}
-func (b *NovelB) NovelDiscardRewriteVersion(chapterNum int, versionID string) error {
-	return b.a.NovelDiscardRewriteVersion(chapterNum, versionID)
-}
-func (b *NovelB) NovelEvalBaselineSet() (map[string]interface{}, error) {
-	return b.a.NovelEvalBaselineSet()
-}
-func (b *NovelB) NovelEvalCompare(baseName string, curName string) (map[string]interface{}, error) {
-	return b.a.NovelEvalCompare(baseName, curName)
-}
-func (b *NovelB) NovelEvalSnapshot(persist bool) (map[string]interface{}, error) {
-	return b.a.NovelEvalSnapshot(persist)
-}
+func (b *NovelB) MergeCharacters(keepID string, mergeID string) (map[string]interface{}, error) { return b.a.MergeCharacters(keepID, mergeID) }
+func (b *NovelB) NovelApplyRewriteVersion(chapterNum int, versionID string) (map[string]interface{}, error) { return b.a.NovelApplyRewriteVersion(chapterNum, versionID) }
+func (b *NovelB) NovelBookSourceEnginesGet() (NovelBookSourceEnginesPayload, error) { return b.a.NovelBookSourceEnginesGet() }
+func (b *NovelB) NovelBookSourceEnginesSave(rulesJSON string) (int, error) { return b.a.NovelBookSourceEnginesSave(rulesJSON) }
+func (b *NovelB) NovelBookSourceImport(source string, detailURL string, start int, end int, title string, genre string, style string) (NovelBookSourceImportStart, error) { return b.a.NovelBookSourceImport(source, detailURL, start, end, title, genre, style) }
+func (b *NovelB) NovelBookSourceImportCancel(jobID string) bool { return b.a.NovelBookSourceImportCancel(jobID) }
+func (b *NovelB) NovelBookSourceImportChapters(source string, projectPath string, chaptersJSON string) (NovelBookSourceImportStart, error) { return b.a.NovelBookSourceImportChapters(source, projectPath, chaptersJSON) }
+func (b *NovelB) NovelBookSourceSearch(keyword string) (NovelBookSourceSearchResult, error) { return b.a.NovelBookSourceSearch(keyword) }
+func (b *NovelB) NovelBookSourceToc(source string, detailURL string) (NovelBookSourceTocPreview, error) { return b.a.NovelBookSourceToc(source, detailURL) }
+func (b *NovelB) NovelChapterAnalysisV2(chapterNum int) (types.ChapterAnalysisResult, error) { return b.a.NovelChapterAnalysisV2(chapterNum) }
+func (b *NovelB) NovelChapterAnnotations(chapterNum int) ([]types.Annotation, error) { return b.a.NovelChapterAnnotations(chapterNum) }
+func (b *NovelB) NovelChapterConverge(chapterNum int, maxRounds int, targetTaste int) (map[string]interface{}, error) { return b.a.NovelChapterConverge(chapterNum, maxRounds, targetTaste) }
+func (b *NovelB) NovelChapterConvergePreview(chapterNum int, targetTaste int) (map[string]interface{}, error) { return b.a.NovelChapterConvergePreview(chapterNum, targetTaste) }
+func (b *NovelB) NovelChapterGatePrecheck(chapterNum int) (*types.PlanGateReport, error) { return b.a.NovelChapterGatePrecheck(chapterNum) }
+func (b *NovelB) NovelChapterPlanDeviation(chapterNum int) (*types.PlanDeviation, error) { return b.a.NovelChapterPlanDeviation(chapterNum) }
+func (b *NovelB) NovelChapterPlanGet(chapterNum int) (*types.ChapterPlan, error) { return b.a.NovelChapterPlanGet(chapterNum) }
+func (b *NovelB) NovelChapterPlanPropose(chapterNum int, direction string) (*types.ChapterPlan, error) { return b.a.NovelChapterPlanPropose(chapterNum, direction) }
+func (b *NovelB) NovelChapterPlanSave(chapterNum int, planJSON string) error { return b.a.NovelChapterPlanSave(chapterNum, planJSON) }
+func (b *NovelB) NovelChapterReview(chapterNum int, platform string) (ChapterReviewPayload, error) { return b.a.NovelChapterReview(chapterNum, platform) }
+func (b *NovelB) NovelChapterRewrite(chapterNum int, reqJSON string) (map[string]interface{}, error) { return b.a.NovelChapterRewrite(chapterNum, reqJSON) }
+func (b *NovelB) NovelChapterScenesGenerate(chapterNum int, allowMissingCard bool) (map[string]interface{}, error) { return b.a.NovelChapterScenesGenerate(chapterNum, allowMissingCard) }
+func (b *NovelB) NovelChapterSuggestions(chapterNum int) ([]string, error) { return b.a.NovelChapterSuggestions(chapterNum) }
+func (b *NovelB) NovelContextInventory(chapterNum int) ([]map[string]interface{}, error) { return b.a.NovelContextInventory(chapterNum) }
+func (b *NovelB) NovelDiscardRewriteVersion(chapterNum int, versionID string) error { return b.a.NovelDiscardRewriteVersion(chapterNum, versionID) }
+func (b *NovelB) NovelEvalBaselineSet() (map[string]interface{}, error) { return b.a.NovelEvalBaselineSet() }
+func (b *NovelB) NovelEvalCompare(baseName string, curName string) (map[string]interface{}, error) { return b.a.NovelEvalCompare(baseName, curName) }
+func (b *NovelB) NovelEvalSnapshot(persist bool) (map[string]interface{}, error) { return b.a.NovelEvalSnapshot(persist) }
 func (b *NovelB) NovelEvalSnapshotDelete(name string) error { return b.a.NovelEvalSnapshotDelete(name) }
-func (b *NovelB) NovelEvalSnapshotsList() ([]map[string]interface{}, error) {
-	return b.a.NovelEvalSnapshotsList()
-}
-func (b *NovelB) NovelFingerprintBuild() (FingerprintStatusPayload, error) {
-	return b.a.NovelFingerprintBuild()
-}
-func (b *NovelB) NovelFingerprintScore(chapterNum int) (FingerprintScorePayload, error) {
-	return b.a.NovelFingerprintScore(chapterNum)
-}
-func (b *NovelB) NovelFingerprintStatus() (FingerprintStatusPayload, error) {
-	return b.a.NovelFingerprintStatus()
-}
-func (b *NovelB) NovelGetRewriteVersion(chapterNum int, versionID string) (*types.RewriteVersion, error) {
-	return b.a.NovelGetRewriteVersion(chapterNum, versionID)
-}
-func (b *NovelB) NovelGhostSuggest(textBefore string) (string, error) {
-	return b.a.NovelGhostSuggest(textBefore)
-}
-func (b *NovelB) NovelListRewriteVersions(chapterNum int) ([]types.RewriteVersionIndex, error) {
-	return b.a.NovelListRewriteVersions(chapterNum)
-}
-func (b *NovelB) NovelOutlineReconstruct() (OutlineReconstructPreview, error) {
-	return b.a.NovelOutlineReconstruct()
-}
-func (b *NovelB) NovelOutlineReconstructApply(itemsJSON string) (int, error) {
-	return b.a.NovelOutlineReconstructApply(itemsJSON)
-}
-func (b *NovelB) NovelOutlineReconstructStart() (NovelOutlineReconstructTaskState, error) {
-	return b.a.NovelOutlineReconstructStart()
-}
-func (b *NovelB) NovelOutlineReconstructTaskGet() (NovelOutlineReconstructTaskState, error) {
-	return b.a.NovelOutlineReconstructTaskGet()
-}
-func (b *NovelB) NovelReadingAsk(kind string, title string, chapterText string, selection string, question string, historyJSON string) (string, error) {
-	return b.a.NovelReadingAsk(kind, title, chapterText, selection, question, historyJSON)
-}
-func (b *NovelB) NovelRestoreRewriteVersion(chapterNum int, versionID string) (map[string]interface{}, error) {
-	return b.a.NovelRestoreRewriteVersion(chapterNum, versionID)
-}
+func (b *NovelB) NovelEvalSnapshotsList() ([]map[string]interface{}, error) { return b.a.NovelEvalSnapshotsList() }
+func (b *NovelB) NovelFingerprintBuild() (FingerprintStatusPayload, error) { return b.a.NovelFingerprintBuild() }
+func (b *NovelB) NovelFingerprintScore(chapterNum int) (FingerprintScorePayload, error) { return b.a.NovelFingerprintScore(chapterNum) }
+func (b *NovelB) NovelFingerprintStatus() (FingerprintStatusPayload, error) { return b.a.NovelFingerprintStatus() }
+func (b *NovelB) NovelGetRewriteVersion(chapterNum int, versionID string) (*types.RewriteVersion, error) { return b.a.NovelGetRewriteVersion(chapterNum, versionID) }
+func (b *NovelB) NovelGhostSuggest(textBefore string) (string, error) { return b.a.NovelGhostSuggest(textBefore) }
+func (b *NovelB) NovelListRewriteVersions(chapterNum int) ([]types.RewriteVersionIndex, error) { return b.a.NovelListRewriteVersions(chapterNum) }
+func (b *NovelB) NovelOutlineReconstruct() (OutlineReconstructPreview, error) { return b.a.NovelOutlineReconstruct() }
+func (b *NovelB) NovelOutlineReconstructApply(itemsJSON string) (int, error) { return b.a.NovelOutlineReconstructApply(itemsJSON) }
+func (b *NovelB) NovelOutlineReconstructStart() (NovelOutlineReconstructTaskState, error) { return b.a.NovelOutlineReconstructStart() }
+func (b *NovelB) NovelOutlineReconstructTaskGet() (NovelOutlineReconstructTaskState, error) { return b.a.NovelOutlineReconstructTaskGet() }
+func (b *NovelB) NovelReadingAsk(kind string, title string, chapterText string, selection string, question string, historyJSON string) (string, error) { return b.a.NovelReadingAsk(kind, title, chapterText, selection, question, historyJSON) }
+func (b *NovelB) NovelRestoreRewriteVersion(chapterNum int, versionID string) (map[string]interface{}, error) { return b.a.NovelRestoreRewriteVersion(chapterNum, versionID) }
 func (b *NovelB) NovelReviewPlatforms() []ReviewPlatformView { return b.a.NovelReviewPlatforms() }
-func (b *NovelB) NovelSceneBibleView(chapterNum int, sceneID string) (SceneBibleView, error) {
-	return b.a.NovelSceneBibleView(chapterNum, sceneID)
-}
-func (b *NovelB) NovelSceneCardsPropose(chapterNum int) ([]map[string]interface{}, error) {
-	return b.a.NovelSceneCardsPropose(chapterNum)
-}
-func (b *NovelB) NovelSceneRewrite(chapterNum int, sceneID string, instruction string) (map[string]interface{}, error) {
-	return b.a.NovelSceneRewrite(chapterNum, sceneID, instruction)
-}
+func (b *NovelB) NovelSceneBibleView(chapterNum int, sceneID string) (SceneBibleView, error) { return b.a.NovelSceneBibleView(chapterNum, sceneID) }
+func (b *NovelB) NovelSceneCardsPropose(chapterNum int) ([]map[string]interface{}, error) { return b.a.NovelSceneCardsPropose(chapterNum) }
+func (b *NovelB) NovelSceneRewrite(chapterNum int, sceneID string, instruction string) (map[string]interface{}, error) { return b.a.NovelSceneRewrite(chapterNum, sceneID, instruction) }
 func (b *NovelB) NovelSearch(query string) ([]NovelSearchHit, error) { return b.a.NovelSearch(query) }
-func (b *NovelB) NovelStoryHealth() (StoryHealthReport, error)       { return b.a.NovelStoryHealth() }
-func (b *NovelB) NovelStorySpineGet() (map[string]interface{}, error) {
-	return b.a.NovelStorySpineGet()
-}
-func (b *NovelB) NovelStorySpinePropose() (map[string]interface{}, error) {
-	return b.a.NovelStorySpinePropose()
-}
-func (b *NovelB) NovelStorySpineSave(spineJSON string) error {
-	return b.a.NovelStorySpineSave(spineJSON)
-}
-func (b *NovelB) NovelStyleDigestBuild() (map[string]interface{}, error) {
-	return b.a.NovelStyleDigestBuild()
-}
+func (b *NovelB) NovelStoryHealth() (StoryHealthReport, error) { return b.a.NovelStoryHealth() }
+func (b *NovelB) NovelStorySpineGet() (map[string]interface{}, error) { return b.a.NovelStorySpineGet() }
+func (b *NovelB) NovelStorySpinePropose() (map[string]interface{}, error) { return b.a.NovelStorySpinePropose() }
+func (b *NovelB) NovelStorySpineSave(spineJSON string) error { return b.a.NovelStorySpineSave(spineJSON) }
+func (b *NovelB) NovelStyleDigestBuild() (map[string]interface{}, error) { return b.a.NovelStyleDigestBuild() }
 func (b *NovelB) NovelStyleDigestClear() error { return b.a.NovelStyleDigestClear() }
-func (b *NovelB) NovelStyleDigestGet() (map[string]interface{}, error) {
-	return b.a.NovelStyleDigestGet()
-}
+func (b *NovelB) NovelStyleDigestGet() (map[string]interface{}, error) { return b.a.NovelStyleDigestGet() }
 func (b *NovelB) PromptBundleExport() (string, error) { return b.a.PromptBundleExport() }
-func (b *NovelB) PromptBundleImport(bundleJSON string) (promptstore.BundleImportResult, error) {
-	return b.a.PromptBundleImport(bundleJSON)
-}
-func (b *NovelB) PromptTemplateGet(key string) (PromptTemplateDetail, error) {
-	return b.a.PromptTemplateGet(key)
-}
+func (b *NovelB) PromptBundleImport(bundleJSON string) (promptstore.BundleImportResult, error) { return b.a.PromptBundleImport(bundleJSON) }
+func (b *NovelB) PromptTemplateGet(key string) (PromptTemplateDetail, error) { return b.a.PromptTemplateGet(key) }
 func (b *NovelB) PromptTemplateList() []PromptTemplateMeta { return b.a.PromptTemplateList() }
-func (b *NovelB) PromptTemplatePreview(reqJSON string, varsJSON string) (PromptPreviewResult, error) {
-	return b.a.PromptTemplatePreview(reqJSON, varsJSON)
-}
+func (b *NovelB) PromptTemplatePreview(reqJSON string, varsJSON string) (PromptPreviewResult, error) { return b.a.PromptTemplatePreview(reqJSON, varsJSON) }
 func (b *NovelB) PromptTemplateReset(key string) error { return b.a.PromptTemplateReset(key) }
-func (b *NovelB) PromptTemplateSave(key string, reqJSON string) (PromptSaveResult, error) {
-	return b.a.PromptTemplateSave(key, reqJSON)
-}
-func (b *NovelB) QuickBrainstormBranches(setting string, prevSummary string, charactersJSON string, chapterNum int) (map[string]interface{}, error) {
-	return b.a.QuickBrainstormBranches(setting, prevSummary, charactersJSON, chapterNum)
-}
-func (b *NovelB) RemoveCharacterCareer(charID string, reqJSON string) error {
-	return b.a.RemoveCharacterCareer(charID, reqJSON)
-}
-func (b *NovelB) ReorderScenes(chapterNum int, sceneIDs []string) error {
-	return b.a.ReorderScenes(chapterNum, sceneIDs)
-}
-func (b *NovelB) RewriteChapterAiTaste(chapterNum int) (map[string]interface{}, error) {
-	return b.a.RewriteChapterAiTaste(chapterNum)
-}
+func (b *NovelB) PromptTemplateSave(key string, reqJSON string) (PromptSaveResult, error) { return b.a.PromptTemplateSave(key, reqJSON) }
+func (b *NovelB) QuickBrainstormBranches(setting string, prevSummary string, charactersJSON string, chapterNum int) (map[string]interface{}, error) { return b.a.QuickBrainstormBranches(setting, prevSummary, charactersJSON, chapterNum) }
+func (b *NovelB) RemoveCharacterCareer(charID string, reqJSON string) error { return b.a.RemoveCharacterCareer(charID, reqJSON) }
+func (b *NovelB) ReorderScenes(chapterNum int, sceneIDs []string) error { return b.a.ReorderScenes(chapterNum, sceneIDs) }
+func (b *NovelB) RewriteChapterAiTaste(chapterNum int) (map[string]interface{}, error) { return b.a.RewriteChapterAiTaste(chapterNum) }
 func (b *NovelB) RunBookHealthCheck() (BookHealthReport, error) { return b.a.RunBookHealthCheck() }
-func (b *NovelB) RunChapterGate(chapterNum int) (map[string]interface{}, error) {
-	return b.a.RunChapterGate(chapterNum)
-}
-func (b *NovelB) SaveAllWorldviewSections(sectionsJSON string) error {
-	return b.a.SaveAllWorldviewSections(sectionsJSON)
-}
-func (b *NovelB) SaveChapterBranchContent(num int, branch string, content string) error {
-	return b.a.SaveChapterBranchContent(num, branch, content)
-}
-func (b *NovelB) SaveChapterContent(num int, content string) error {
-	return b.a.SaveChapterContent(num, content)
-}
-func (b *NovelB) SaveCharactersBatch(namesJSON string) (map[string]interface{}, error) {
-	return b.a.SaveCharactersBatch(namesJSON)
-}
+func (b *NovelB) RunChapterGate(chapterNum int) (map[string]interface{}, error) { return b.a.RunChapterGate(chapterNum) }
+func (b *NovelB) SaveAllWorldviewSections(sectionsJSON string) error { return b.a.SaveAllWorldviewSections(sectionsJSON) }
+func (b *NovelB) SaveChapterBranchContent(num int, branch string, content string) error { return b.a.SaveChapterBranchContent(num, branch, content) }
+func (b *NovelB) SaveChapterContent(num int, content string) error { return b.a.SaveChapterContent(num, content) }
+func (b *NovelB) SaveCharactersBatch(namesJSON string) (map[string]interface{}, error) { return b.a.SaveCharactersBatch(namesJSON) }
 func (b *NovelB) SaveForeshadows(itemsJSON string) error { return b.a.SaveForeshadows(itemsJSON) }
-func (b *NovelB) SaveOrganization(orgJSON string) error  { return b.a.SaveOrganization(orgJSON) }
-func (b *NovelB) SaveRelationship(relJSON string) error  { return b.a.SaveRelationship(relJSON) }
-func (b *NovelB) SaveScene(chapterNum int, sceneID string, content string) error {
-	return b.a.SaveScene(chapterNum, sceneID, content)
-}
-func (b *NovelB) SaveSceneMeta(chapterNum int, sceneID string, metaJSON string) error {
-	return b.a.SaveSceneMeta(chapterNum, sceneID, metaJSON)
-}
+func (b *NovelB) SaveOrganization(orgJSON string) error { return b.a.SaveOrganization(orgJSON) }
+func (b *NovelB) SaveRelationship(relJSON string) error { return b.a.SaveRelationship(relJSON) }
+func (b *NovelB) SaveScene(chapterNum int, sceneID string, content string) error { return b.a.SaveScene(chapterNum, sceneID, content) }
+func (b *NovelB) SaveSceneMeta(chapterNum int, sceneID string, metaJSON string) error { return b.a.SaveSceneMeta(chapterNum, sceneID, metaJSON) }
 func (b *NovelB) SaveWorldview(content string) error { return b.a.SaveWorldview(content) }
-func (b *NovelB) SetCharacterCareer(charID string, reqJSON string) error {
-	return b.a.SetCharacterCareer(charID, reqJSON)
-}
-func (b *NovelB) SettleNovelState(patchJSON string, approved bool) (map[string]interface{}, error) {
-	return b.a.SettleNovelState(patchJSON, approved)
-}
-func (b *NovelB) ToggleOrgMember(charID string, orgID string) error {
-	return b.a.ToggleOrgMember(charID, orgID)
-}
+func (b *NovelB) SetCharacterCareer(charID string, reqJSON string) error { return b.a.SetCharacterCareer(charID, reqJSON) }
+func (b *NovelB) SettleNovelState(patchJSON string, approved bool) (map[string]interface{}, error) { return b.a.SettleNovelState(patchJSON, approved) }
+func (b *NovelB) ToggleOrgMember(charID string, orgID string) error { return b.a.ToggleOrgMember(charID, orgID) }

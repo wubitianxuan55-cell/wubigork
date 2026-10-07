@@ -12,72 +12,36 @@ import (
 // 方法体零改动——纯委托给 App 实例（b.a.<Method>）。
 type VoiceB struct{ a *App }
 
-func (b *VoiceB) GaeaTTSVoiceParams(emotion string) tts.TTSParams {
-	return b.a.GaeaTTSVoiceParams(emotion)
-}
-func (b *VoiceB) TTSSpeakBase64(text string) (map[string]interface{}, error) {
-	return b.a.TTSSpeakBase64(text)
-}
-func (b *VoiceB) TTSSpeakBase64WithParams(text string, params tts.TTSParams) (map[string]interface{}, error) {
-	return b.a.TTSSpeakBase64WithParams(text, params)
-}
+func (b *VoiceB) GaeaTTSVoiceParams(emotion string) tts.TTSParams { return b.a.GaeaTTSVoiceParams(emotion) }
+func (b *VoiceB) TTSSpeakBase64(text string) (map[string]interface{}, error) { return b.a.TTSSpeakBase64(text) }
+func (b *VoiceB) TTSSpeakBase64WithParams(text string, params tts.TTSParams) (map[string]interface{}, error) { return b.a.TTSSpeakBase64WithParams(text, params) }
 func (b *VoiceB) TTSSpeakStreaming(text string) error { return b.a.TTSSpeakStreaming(text) }
-func (b *VoiceB) VoiceApplySettings(settings map[string]interface{}) error {
-	return b.a.VoiceApplySettings(settings)
-}
-func (b *VoiceB) VoiceCancelTTS() error                    { return b.a.VoiceCancelTTS() }
-func (b *VoiceB) VoiceChatText(text string) error          { return b.a.VoiceChatText(text) }
+func (b *VoiceB) VoiceApplySettings(settings map[string]interface{}) error { return b.a.VoiceApplySettings(settings) }
+func (b *VoiceB) VoiceCancelTTS() error { return b.a.VoiceCancelTTS() }
+func (b *VoiceB) VoiceChatText(text string) error { return b.a.VoiceChatText(text) }
 func (b *VoiceB) VoiceGetSettings() map[string]interface{} { return b.a.VoiceGetSettings() }
-func (b *VoiceB) VoiceHealth() map[string]interface{}      { return b.a.VoiceHealth() }
-func (b *VoiceB) VoicePlaybackDone() error                 { return b.a.VoicePlaybackDone() }
-func (b *VoiceB) VoicePushAudio(chunk []byte) error        { return b.a.VoicePushAudio(chunk) }
-func (b *VoiceB) VoiceSetPTTActive(active bool) error      { return b.a.VoiceSetPTTActive(active) }
-func (b *VoiceB) VoiceStart(browserASR bool) error         { return b.a.VoiceStart(browserASR) }
-func (b *VoiceB) VoiceStop() error                         { return b.a.VoiceStop() }
-func (b *VoiceB) WeixinReminderAdd(text string, fireAtRFC3339 string) (map[string]interface{}, error) {
-	return b.a.WeixinReminderAdd(text, fireAtRFC3339)
-}
-func (b *VoiceB) WeixinReminderConfig() (map[string]interface{}, error) {
-	return b.a.WeixinReminderConfig()
-}
-func (b *VoiceB) WeixinReminderDelete(id string) error         { return b.a.WeixinReminderDelete(id) }
+func (b *VoiceB) VoiceHealth() map[string]interface{} { return b.a.VoiceHealth() }
+func (b *VoiceB) VoicePlaybackDone() error { return b.a.VoicePlaybackDone() }
+func (b *VoiceB) VoicePushAudio(chunk []byte) error { return b.a.VoicePushAudio(chunk) }
+func (b *VoiceB) VoiceSetPTTActive(active bool) error { return b.a.VoiceSetPTTActive(active) }
+func (b *VoiceB) VoiceStart(browserASR bool) error { return b.a.VoiceStart(browserASR) }
+func (b *VoiceB) VoiceStop() error { return b.a.VoiceStop() }
+func (b *VoiceB) WeixinReminderAdd(text string, fireAtRFC3339 string) (map[string]interface{}, error) { return b.a.WeixinReminderAdd(text, fireAtRFC3339) }
+func (b *VoiceB) WeixinReminderConfig() (map[string]interface{}, error) { return b.a.WeixinReminderConfig() }
+func (b *VoiceB) WeixinReminderDelete(id string) error { return b.a.WeixinReminderDelete(id) }
 func (b *VoiceB) WeixinReminderList() []map[string]interface{} { return b.a.WeixinReminderList() }
-func (b *VoiceB) WeixinReminderSetConfig(cfgJSON string) error {
-	return b.a.WeixinReminderSetConfig(cfgJSON)
-}
-func (b *VoiceB) WhisperAssistantDelete(id string) error      { return b.a.WhisperAssistantDelete(id) }
+func (b *VoiceB) WeixinReminderSetConfig(cfgJSON string) error { return b.a.WeixinReminderSetConfig(cfgJSON) }
+func (b *VoiceB) WhisperAssistantDelete(id string) error { return b.a.WhisperAssistantDelete(id) }
 func (b *VoiceB) WhisperAssistantList() []assistant.Assistant { return b.a.WhisperAssistantList() }
-func (b *VoiceB) WhisperAssistantSave(ast assistant.Assistant) error {
-	return b.a.WhisperAssistantSave(ast)
-}
-func (b *VoiceB) WhisperClearSession(personalityID string) error {
-	return b.a.WhisperClearSession(personalityID)
-}
-func (b *VoiceB) WhisperDeleteFact(personalityID string, factID string) error {
-	return b.a.WhisperDeleteFact(personalityID, factID)
-}
-func (b *VoiceB) WhisperGetFacts(personalityID string) []map[string]interface{} {
-	return b.a.WhisperGetFacts(personalityID)
-}
-func (b *VoiceB) WhisperGetPersonalities() []whisper.PersonalityPreset {
-	return b.a.WhisperGetPersonalities()
-}
-func (b *VoiceB) WhisperGetState(personalityID string) map[string]interface{} {
-	return b.a.WhisperGetState(personalityID)
-}
-func (b *VoiceB) WhisperGetTraces(personalityID string) []whisper.TurnTrace {
-	return b.a.WhisperGetTraces(personalityID)
-}
-func (b *VoiceB) WhisperUpdateFact(personalityID string, factID string, updates map[string]interface{}) error {
-	return b.a.WhisperUpdateFact(personalityID, factID, updates)
-}
-func (b *VoiceB) WhisperWeixinGetQR() (map[string]interface{}, error) {
-	return b.a.WhisperWeixinGetQR()
-}
-func (b *VoiceB) WhisperWeixinQRStatus(qrcode string) (map[string]interface{}, error) {
-	return b.a.WhisperWeixinQRStatus(qrcode)
-}
-func (b *VoiceB) WhisperWeixinQRStatusWithCode(qrcode string, verifyCode string) (map[string]interface{}, error) {
-	return b.a.WhisperWeixinQRStatusWithCode(qrcode, verifyCode)
-}
+func (b *VoiceB) WhisperAssistantSave(ast assistant.Assistant) error { return b.a.WhisperAssistantSave(ast) }
+func (b *VoiceB) WhisperClearSession(personalityID string) error { return b.a.WhisperClearSession(personalityID) }
+func (b *VoiceB) WhisperDeleteFact(personalityID string, factID string) error { return b.a.WhisperDeleteFact(personalityID, factID) }
+func (b *VoiceB) WhisperGetFacts(personalityID string) []map[string]interface{} { return b.a.WhisperGetFacts(personalityID) }
+func (b *VoiceB) WhisperGetPersonalities() []whisper.PersonalityPreset { return b.a.WhisperGetPersonalities() }
+func (b *VoiceB) WhisperGetState(personalityID string) map[string]interface{} { return b.a.WhisperGetState(personalityID) }
+func (b *VoiceB) WhisperGetTraces(personalityID string) []whisper.TurnTrace { return b.a.WhisperGetTraces(personalityID) }
+func (b *VoiceB) WhisperUpdateFact(personalityID string, factID string, updates map[string]interface{}) error { return b.a.WhisperUpdateFact(personalityID, factID, updates) }
+func (b *VoiceB) WhisperWeixinGetQR() (map[string]interface{}, error) { return b.a.WhisperWeixinGetQR() }
+func (b *VoiceB) WhisperWeixinQRStatus(qrcode string) (map[string]interface{}, error) { return b.a.WhisperWeixinQRStatus(qrcode) }
+func (b *VoiceB) WhisperWeixinQRStatusWithCode(qrcode string, verifyCode string) (map[string]interface{}, error) { return b.a.WhisperWeixinQRStatusWithCode(qrcode, verifyCode) }
 func (b *VoiceB) WhisperWeixinStatus() []map[string]interface{} { return b.a.WhisperWeixinStatus() }

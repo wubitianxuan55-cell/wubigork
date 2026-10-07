@@ -12,88 +12,58 @@ import (
 // 方法体零改动——纯委托给 App 实例（b.a.<Method>）。
 type CoreB struct{ a *App }
 
-func (b *CoreB) AddCustomEngine(name string, baseURL string, apiKey string) (string, error) {
-	return b.a.AddCustomEngine(name, baseURL, apiKey)
-}
-func (b *CoreB) CreateProject(dir string, title string, genre string, style string) (map[string]interface{}, error) {
-	return b.a.CreateProject(dir, title, genre, style)
-}
+func (b *CoreB) AddCustomEngine(name string, baseURL string, apiKey string) (string, error) { return b.a.AddCustomEngine(name, baseURL, apiKey) }
+func (b *CoreB) CreateProject(dir string, title string, genre string, style string) (map[string]interface{}, error) { return b.a.CreateProject(dir, title, genre, style) }
 func (b *CoreB) DeleteProject(dir string) error { return b.a.DeleteProject(dir) }
-func (b *CoreB) ExportAll(onlyMainline bool) (map[string]string, error) {
-	return b.a.ExportAll(onlyMainline)
-}
-func (b *CoreB) GaeaSpaceActivate(space string) (SpaceActiveView, error) {
-	return b.a.GaeaSpaceActivate(space)
-}
+func (b *CoreB) ExportAll(onlyMainline bool) (map[string]string, error) { return b.a.ExportAll(onlyMainline) }
+func (b *CoreB) GaeaSpaceActivate(space string) (SpaceActiveView, error) { return b.a.GaeaSpaceActivate(space) }
 func (b *CoreB) GaeaSpaceActive() SpaceActiveView { return b.a.GaeaSpaceActive() }
-func (b *CoreB) GaeaSpaceList() []SpaceOption     { return b.a.GaeaSpaceList() }
-func (b *CoreB) GaeaSpaceProfileSet(space string, key string, ref string) ([]SpaceProfileView, error) {
-	return b.a.GaeaSpaceProfileSet(space, key, ref)
-}
-func (b *CoreB) GaeaSpaceProfiles() []SpaceProfileView        { return b.a.GaeaSpaceProfiles() }
-func (b *CoreB) GetActiveOCRModel() map[string]string         { return b.a.GetActiveOCRModel() }
-func (b *CoreB) GetAppInfo() map[string]interface{}           { return b.a.GetAppInfo() }
-func (b *CoreB) GetBoardManifests() []board.Manifest          { return b.a.GetBoardManifests() }
-func (b *CoreB) GetConfig() map[string]string                 { return b.a.GetConfig() }
+func (b *CoreB) GaeaSpaceList() []SpaceOption { return b.a.GaeaSpaceList() }
+func (b *CoreB) GaeaSpaceProfileSet(space string, key string, ref string) ([]SpaceProfileView, error) { return b.a.GaeaSpaceProfileSet(space, key, ref) }
+func (b *CoreB) GaeaSpaceProfiles() []SpaceProfileView { return b.a.GaeaSpaceProfiles() }
+func (b *CoreB) GetActiveOCRModel() map[string]string { return b.a.GetActiveOCRModel() }
+func (b *CoreB) GetAppInfo() map[string]interface{} { return b.a.GetAppInfo() }
+func (b *CoreB) GetBoardManifests() []board.Manifest { return b.a.GetBoardManifests() }
+func (b *CoreB) GetConfig() map[string]string { return b.a.GetConfig() }
 func (b *CoreB) GetDeepseekKeyStatus() map[string]interface{} { return b.a.GetDeepseekKeyStatus() }
-func (b *CoreB) GetFeatureModel(feature string) map[string]string {
-	return b.a.GetFeatureModel(feature)
-}
-func (b *CoreB) GetFeatureModelEnabled(feature string) bool {
-	return b.a.GetFeatureModelEnabled(feature)
-}
-func (b *CoreB) GetGlmKeyStatus() map[string]interface{}          { return b.a.GetGlmKeyStatus() }
-func (b *CoreB) GetKeepWarm() bool                                { return b.a.GetKeepWarm() }
-func (b *CoreB) GetLoginStatus() bool                             { return b.a.GetLoginStatus() }
+func (b *CoreB) GetFeatureModel(feature string) map[string]string { return b.a.GetFeatureModel(feature) }
+func (b *CoreB) GetFeatureModelEnabled(feature string) bool { return b.a.GetFeatureModelEnabled(feature) }
+func (b *CoreB) GetGlmKeyStatus() map[string]interface{} { return b.a.GetGlmKeyStatus() }
+func (b *CoreB) GetKeepWarm() bool { return b.a.GetKeepWarm() }
+func (b *CoreB) GetLoginStatus() bool { return b.a.GetLoginStatus() }
 func (b *CoreB) GetModelCallStats() modelengine.ModelStatsSummary { return b.a.GetModelCallStats() }
-func (b *CoreB) GetModelHubKeyStatus() map[string]interface{}     { return b.a.GetModelHubKeyStatus() }
-func (b *CoreB) GetNovelsDir() string                             { return b.a.GetNovelsDir() }
-func (b *CoreB) GetOpencodeGoKeyStatus() map[string]interface{}   { return b.a.GetOpencodeGoKeyStatus() }
-func (b *CoreB) GetOpencodeZenKeyStatus() map[string]interface{} {
-	return b.a.GetOpencodeZenKeyStatus()
-}
-func (b *CoreB) GetPreloadPlan() bool                                   { return b.a.GetPreloadPlan() }
-func (b *CoreB) GetProjectInfo() map[string]interface{}                 { return b.a.GetProjectInfo() }
-func (b *CoreB) GetSinImageConfig() map[string]string                   { return b.a.GetSinImageConfig() }
-func (b *CoreB) GetStats() map[string]interface{}                       { return b.a.GetStats() }
-func (b *CoreB) ListProjects() ([]ProjectCard, error)                   { return b.a.ListProjects() }
-func (b *CoreB) ListSkills() []map[string]interface{}                   { return b.a.ListSkills() }
-func (b *CoreB) Login() error                                           { return b.a.Login() }
-func (b *CoreB) Logout() error                                          { return b.a.Logout() }
+func (b *CoreB) GetModelHubKeyStatus() map[string]interface{} { return b.a.GetModelHubKeyStatus() }
+func (b *CoreB) GetNovelsDir() string { return b.a.GetNovelsDir() }
+func (b *CoreB) GetOpencodeGoKeyStatus() map[string]interface{} { return b.a.GetOpencodeGoKeyStatus() }
+func (b *CoreB) GetOpencodeZenKeyStatus() map[string]interface{} { return b.a.GetOpencodeZenKeyStatus() }
+func (b *CoreB) GetPreloadPlan() bool { return b.a.GetPreloadPlan() }
+func (b *CoreB) GetProjectInfo() map[string]interface{} { return b.a.GetProjectInfo() }
+func (b *CoreB) GetSinImageConfig() map[string]string { return b.a.GetSinImageConfig() }
+func (b *CoreB) GetStats() map[string]interface{} { return b.a.GetStats() }
+func (b *CoreB) ListProjects() ([]ProjectCard, error) { return b.a.ListProjects() }
+func (b *CoreB) ListSkills() []map[string]interface{} { return b.a.ListSkills() }
+func (b *CoreB) Login() error { return b.a.Login() }
+func (b *CoreB) Logout() error { return b.a.Logout() }
 func (b *CoreB) OpenProject(dir string) (map[string]interface{}, error) { return b.a.OpenProject(dir) }
-func (b *CoreB) RefreshEngineModels(engineID string) ([]modelengine.ModelInfo, error) {
-	return b.a.RefreshEngineModels(engineID)
-}
-func (b *CoreB) RemoveCustomEngine(engineID string) error                { return b.a.RemoveCustomEngine(engineID) }
-func (b *CoreB) ResetModelCallStats()                                    { b.a.ResetModelCallStats() }
-func (b *CoreB) SaveConfig(key string, value string) error               { return b.a.SaveConfig(key, value) }
-func (b *CoreB) SaveEngine(cfg modelengine.EngineConfig) error           { return b.a.SaveEngine(cfg) }
+func (b *CoreB) RefreshEngineModels(engineID string) ([]modelengine.ModelInfo, error) { return b.a.RefreshEngineModels(engineID) }
+func (b *CoreB) RemoveCustomEngine(engineID string) error { return b.a.RemoveCustomEngine(engineID) }
+func (b *CoreB) ResetModelCallStats() { b.a.ResetModelCallStats() }
+func (b *CoreB) SaveConfig(key string, value string) error { return b.a.SaveConfig(key, value) }
+func (b *CoreB) SaveEngine(cfg modelengine.EngineConfig) error { return b.a.SaveEngine(cfg) }
 func (b *CoreB) Search(query string) (map[string][]search.Result, error) { return b.a.Search(query) }
-func (b *CoreB) SetActiveEngine(engineID string) error                   { return b.a.SetActiveEngine(engineID) }
-func (b *CoreB) SetActiveOCRModel(engineID string, modelID string) error {
-	return b.a.SetActiveOCRModel(engineID, modelID)
-}
+func (b *CoreB) SetActiveEngine(engineID string) error { return b.a.SetActiveEngine(engineID) }
+func (b *CoreB) SetActiveOCRModel(engineID string, modelID string) error { return b.a.SetActiveOCRModel(engineID, modelID) }
 func (b *CoreB) SetDeepseekKey(apiKey string) error { return b.a.SetDeepseekKey(apiKey) }
-func (b *CoreB) SetEngineDefaultModel(engineID string, modelName string) error {
-	return b.a.SetEngineDefaultModel(engineID, modelName)
-}
-func (b *CoreB) SetGlmEndpoint(family string) error    { return b.a.SetGlmEndpoint(family) }
-func (b *CoreB) SetGlmKey(apiKey string) error         { return b.a.SetGlmKey(apiKey) }
-func (b *CoreB) SetKeepWarm(enabled bool) error        { return b.a.SetKeepWarm(enabled) }
-func (b *CoreB) SetModelHubKey(apiKey string) error    { return b.a.SetModelHubKey(apiKey) }
-func (b *CoreB) SetOpencodeGoKey(apiKey string) error  { return b.a.SetOpencodeGoKey(apiKey) }
+func (b *CoreB) SetEngineDefaultModel(engineID string, modelName string) error { return b.a.SetEngineDefaultModel(engineID, modelName) }
+func (b *CoreB) SetGlmEndpoint(family string) error { return b.a.SetGlmEndpoint(family) }
+func (b *CoreB) SetGlmKey(apiKey string) error { return b.a.SetGlmKey(apiKey) }
+func (b *CoreB) SetKeepWarm(enabled bool) error { return b.a.SetKeepWarm(enabled) }
+func (b *CoreB) SetModelHubKey(apiKey string) error { return b.a.SetModelHubKey(apiKey) }
+func (b *CoreB) SetOpencodeGoKey(apiKey string) error { return b.a.SetOpencodeGoKey(apiKey) }
 func (b *CoreB) SetOpencodeZenKey(apiKey string) error { return b.a.SetOpencodeZenKey(apiKey) }
-func (b *CoreB) SetPreloadPlan(enabled bool) error     { return b.a.SetPreloadPlan(enabled) }
-func (b *CoreB) SetSinImageConfig(backend string, model string) error {
-	return b.a.SetSinImageConfig(backend, model)
-}
+func (b *CoreB) SetPreloadPlan(enabled bool) error { return b.a.SetPreloadPlan(enabled) }
+func (b *CoreB) SetSinImageConfig(backend string, model string) error { return b.a.SetSinImageConfig(backend, model) }
 func (b *CoreB) StartModelHubModel(modelID string) error { return b.a.StartModelHubModel(modelID) }
-func (b *CoreB) TestEngineConnection(engineID string) (*modelengine.EngineStatus, error) {
-	return b.a.TestEngineConnection(engineID)
-}
-func (b *CoreB) UpdateCustomEngine(engineID string, name string, baseURL string, apiKey string) error {
-	return b.a.UpdateCustomEngine(engineID, name, baseURL, apiKey)
-}
-func (b *CoreB) UpdateProjectMeta(title string, genre string, style string, mature string) error {
-	return b.a.UpdateProjectMeta(title, genre, style, mature)
-}
+func (b *CoreB) TestEngineConnection(engineID string) (*modelengine.EngineStatus, error) { return b.a.TestEngineConnection(engineID) }
+func (b *CoreB) UpdateCustomEngine(engineID string, name string, baseURL string, apiKey string) error { return b.a.UpdateCustomEngine(engineID, name, baseURL, apiKey) }
+func (b *CoreB) UpdateProjectMeta(title string, genre string, style string, mature string) error { return b.a.UpdateProjectMeta(title, genre, style, mature) }

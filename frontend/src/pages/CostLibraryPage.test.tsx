@@ -96,11 +96,11 @@ beforeEach(() => {
   mocks.PickFiles.mockResolvedValue([])
 })
 
-describe('CostLibraryPage 造价数据库化繁为简（8→6 模块）', () => {
-  it('导航六模块齐全有序，旧平级 价格源/价格仓库/知识图谱/询价 不再是顶级模块', async () => {
+describe('CostLibraryPage 造价数据库化繁为简（8→6 模块，2026-10 增「工料机」为 7）', () => {
+  it('导航模块齐全有序，旧平级 价格源/价格仓库/知识图谱/询价 不再是顶级模块', async () => {
     await renderPage()
     const nav = screen.getByRole('navigation', { name: '造价数据库模块' })
-    const labels = ['概览', '成本条目', '测算项目', '价格数据', '造价参考', '复盘笔记']
+    const labels = ['概览', '成本条目', '工料机', '测算项目', '价格数据', '造价参考', '复盘笔记']
     let cursor = -1
     for (const label of labels) {
       const btns = Array.from(nav.querySelectorAll('button'))
@@ -108,8 +108,9 @@ describe('CostLibraryPage 造价数据库化繁为简（8→6 模块）', () => 
       expect(idx, `导航缺少 ${label}`).toBeGreaterThan(cursor)
       cursor = idx
     }
-    // 顶级模块按钮恰好 6 个（带 hint title；概览右侧 数据概览/关联图谱 胶囊不带 title）
-    expect(nav.querySelectorAll('button[title]').length).toBe(6)
+    // 顶级模块按钮恰好 7 个（带 hint title；概览右侧 数据概览/关联图谱 胶囊不带 title）
+    // ——「工料机」为 2026-10 工料法重塑新增：工料机资源库 + 综合单价分析。
+    expect(nav.querySelectorAll('button[title]').length).toBe(7)
     expect(nav.textContent).not.toContain('知识图谱')
     expect(nav.textContent).not.toContain('价格仓库')
     expect(nav.textContent).not.toContain('询价')
