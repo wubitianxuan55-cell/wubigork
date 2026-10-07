@@ -46,7 +46,7 @@ vi.mock('../gaea/components/memoryhub/CostInquiryPanel', () => ({
   CostInquiryPanel: () => <div>询价库面板桩</div>,
 }))
 
-import { CostLibraryPage } from './CostLibraryPage'
+import CostLibraryPage from './CostLibraryPage'
 
 const LOAD = { timeout: 5000 }
 

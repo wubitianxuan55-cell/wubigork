@@ -13,6 +13,7 @@ import { WorkcostResourceView } from "../gaea/components/memoryhub/WorkcostResou
 import { WorkcostComposeView } from "../gaea/components/memoryhub/WorkcostComposeView";
 import { WorkcostBillView } from "../gaea/components/memoryhub/WorkcostBillView";
 import { CostGraphView } from "../gaea/components/memoryhub/CostGraphView";
+import { CostBackupCard } from "../gaea/components/memoryhub/CostBackupCard";
 import "../gaea/styles.css";
 import "../gaea/tailwind.css";
 import "../gaea/components/memoryhub/hub.css";
@@ -94,7 +95,7 @@ function SegChip({ active, onClick, children }: { active: boolean; onClick: () =
   );
 }
 
-export function CostLibraryPage() {
+function CostLibraryPage() {
   // v4.459：默认落点=费用汇总（清单测算工作台首屏）。
   const [module, setModule] = useState<CostModule>("bill");
   const [overviewView, setOverviewView] = useState<OverviewView>("data");
@@ -387,6 +388,9 @@ export function CostLibraryPage() {
                     </ul>
                   </section>
                 </div>
+
+                {/* 数据备份：一键全库快照（用户 2026-10-07 定调「不需要导出5表，但需要数据备份」） */}
+                <CostBackupCard />
               </>
             )}
           </div>
