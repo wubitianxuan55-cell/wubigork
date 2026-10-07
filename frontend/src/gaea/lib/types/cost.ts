@@ -608,6 +608,44 @@ export interface WorkcostCompose {
   warnings: string[];
 }
 
+// WorkcostBillProject 清单项目（五表封面 + 录入费率；一次导入=一个项目）。
+// 费率是录入数据——加总计算不在库里发生，导出五表活公式工作簿由 Excel 算。
+export interface WorkcostBillProject {
+  id: number;
+  name: string;
+  fileName: string;
+  source: string;
+  location: string;
+  duration: string;
+  pricing: string;
+  managementRate: number;
+  regulatoryRate: number;
+  profitRate: number;
+  taxRate: number;
+  profitIncludesRegulatory: boolean;
+  controlPrice: number;
+  itemCount: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// WorkcostBillItem 分部分项清单项：编码/名称/单位/工程量 × 引用定额。
+// quotaCode 非空=套定额（综合单价导出时现算参考）；priceOverride>0=手填单价。
+export interface WorkcostBillItem {
+  id: number;
+  projectId: number;
+  code: string;
+  title: string;
+  unit: string;
+  division: string;
+  quantity: number;
+  quantityExpr: string;
+  quotaCode: string;
+  feature: string;
+  priceOverride: number;
+  sort: number;
+}
+
 // WorkcostRateSet 取费参数（项目级）。
 export interface WorkcostRateSet {
   managementRate: number;

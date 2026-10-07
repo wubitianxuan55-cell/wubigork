@@ -69,6 +69,11 @@ func (b *CostB) GaeaPriceHistory(name string) []pricefeed.History { return b.a.G
 func (b *CostB) GaeaPriceSourceDelete(id string) error { return b.a.GaeaPriceSourceDelete(id) }
 func (b *CostB) GaeaPriceSourceSave(src pricefeed.Source) error { return b.a.GaeaPriceSourceSave(src) }
 func (b *CostB) GaeaPriceSources() []pricefeed.Source { return b.a.GaeaPriceSources() }
+func (b *CostB) GaeaWorkcostBillItemDelete(id int64) error { return b.a.GaeaWorkcostBillItemDelete(id) }
+func (b *CostB) GaeaWorkcostBillItemSave(item workcost.BillItem) (*workcost.BillItem, error) { return b.a.GaeaWorkcostBillItemSave(item) }
+func (b *CostB) GaeaWorkcostBillItems(projectID int64) []workcost.BillItem { return b.a.GaeaWorkcostBillItems(projectID) }
+func (b *CostB) GaeaWorkcostBillProjectRatesSave(id int64, rates workcost.RateSet, profitIncludesRegulatory bool, controlPrice float64) error { return b.a.GaeaWorkcostBillProjectRatesSave(id, rates, profitIncludesRegulatory, controlPrice) }
+func (b *CostB) GaeaWorkcostBillProjects() []workcost.BillProject { return b.a.GaeaWorkcostBillProjects() }
 func (b *CostB) GaeaWorkcostProjectApply(path string) (workcost.ApplyProjectResult, error) { return b.a.GaeaWorkcostProjectApply(path) }
 func (b *CostB) GaeaWorkcostProjectExport(srcPath string, outPath string, project string, location string, duration string) (string, error) { return b.a.GaeaWorkcostProjectExport(srcPath, outPath, project, location, duration) }
 func (b *CostB) GaeaWorkcostProjectExportToWorkspace(srcPath string, fileName string) (string, error) { return b.a.GaeaWorkcostProjectExportToWorkspace(srcPath, fileName) }

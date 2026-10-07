@@ -13,6 +13,8 @@ import {
 } from "./shared";
 import type { MakeMockState } from "./state";
 import type {
+  WorkcostBillItem,
+  WorkcostBillProject,
   WorkcostCompose,
   WorkcostComposeOverride,
   WorkcostComposeLineView,
@@ -56,6 +58,7 @@ type CostMethods = Pick<
   | "WorkcostQuotaCompose" | "WorkcostProjectFees"
   | "WorkcostSeedPreview" | "WorkcostSeedApply" | "WorkcostRecompose"
   | "WorkcostProjectParse" | "WorkcostProjectApply" | "WorkcostProjectExport" | "WorkcostProjectExportToWorkspace"
+  | "WorkcostBillProjects" | "WorkcostBillItems" | "WorkcostBillItemSave" | "WorkcostBillItemDelete" | "WorkcostBillProjectRatesSave"
 >;
 
 // ── 工料法 mock 状态（工料机资源库 + 消耗定额库，浏览器内存态）──
@@ -67,6 +70,10 @@ let mockResourceSeq = 1;
 let mockResourcePrices: WorkcostResourcePrice[] = [];
 let mockResourcePriceSeq = 1;
 let mockQuotas: WorkcostQuota[] = [];
+// 工料法④清单层：项目与清单项（内存态演示）。
+let mockBillProjects: WorkcostBillProject[] = [];
+let mockBillItems: WorkcostBillItem[] = [];
+let mockBillSeq = 1;
 
 // ensureWorkcostSeed 首次访问时播种演示数据（幂等）。
 function ensureWorkcostSeed(): void {
@@ -82,6 +89,18 @@ function ensureWorkcostSeed(): void {
   add("L01", "人工", "普通工", "清底砌筑铺装巡井", "工日", 300, "成本库");
   add("L02", "人工", "技术工/带班", "测量焊接指挥", "工日", 350, "成本库");
   add("EXC", "机械", "挖掘机1.0m³台班", "折旧900+柴油×90L+司机", "台班", 1773.3, "台班公式");
+  // 清单层演示种子：一个项目 + 两条清单项（工程量是录入数据）。
+  mockBillProjects = [{
+    id: 1, name: "旺平矿业修复（演示）", fileName: "旺平矿业修复项目成本测算表.xlsx",
+    source: "", location: "乐山", duration: "180 天", pricing: "综合单价只含人材机，管理费/利润/税金不进综合单价",
+    managementRate: 0.1, regulatoryRate: 0.02, profitRate: 0.07, taxRate: 0.09,
+    profitIncludesRegulatory: false, controlPrice: 0, itemCount: 2,
+    createdAt: "2026-10-07T10:00:00Z", updatedAt: "2026-10-07T10:00:00Z",
+  }];
+  mockBillItems = [
+    { id: mockBillSeq++, projectId: 1, code: "WP01", title: "施工便道（铺筑压实）", unit: "m", division: "A临建", quantity: 850, quantityExpr: "长850×宽1", quotaCode: "WP01", feature: "泥结碎石", priceOverride: 0, sort: 1 },
+    { id: mockBillSeq++, projectId: 1, code: "WP02", title: "场地平整", unit: "m²", division: "A临建", quantity: 12000, quantityExpr: "", quotaCode: "WP02", feature: "", priceOverride: 0, sort: 2 },
+  ];
   add("LDR", "机械", "装载机50型台班", "折旧700+柴油×70L+司机", "台班", 1445.9, "台班公式");
   add("C20", "材料", "C20商品混凝土", "泵送到场", "m³", 345, "商品混凝土C30减20");
   add("AGG", "材料", "级配碎石", "便道基层到场", "m³", 78, "估价");
@@ -896,6 +915,53 @@ export function buildCost(_s: MakeMockState): CostMethods {
     },
     async WorkcostProjectExportToWorkspace(_srcPath: string, _fileName: string) {
       throw new Error("dev mock：五表导出需真实文件系统与 Go 后端");
+    },
+
+    // ── 工料法④：分部分项清单（内存态，刷新即清——演示录入形态）────
+    async WorkcostBillProjects(): Promise<WorkcostBillProject[]> {
+      ensureWorkcostSeed();
+      return mockBillProjects.map((p) => ({
+        ...p,
+        itemCount: mockBillItems.filter((b) => b.projectId === p.id).length,
+      }));
+    },
+    async WorkcostBillItems(projectId: number): Promise<WorkcostBillItem[]> {
+      ensureWorkcostSeed();
+      return mockBillItems.filter((b) => b.projectId === projectId);
+    },
+    async WorkcostBillItemSave(item: WorkcostBillItem): Promise<WorkcostBillItem> {
+      ensureWorkcostSeed();
+      const idx = mockBillItems.findIndex(
+        (b) => b.projectId === item.projectId && b.code === item.code && item.code !== "",
+      );
+      if (idx >= 0) {
+        mockBillItems[idx] = { ...mockBillItems[idx], ...item, id: mockBillItems[idx].id };
+        return mockBillItems[idx];
+      }
+      const saved: WorkcostBillItem = { ...item, id: mockBillSeq++ };
+      if (!saved.code) saved.code = `M${String(mockBillSeq).padStart(3, "0")}`;
+      mockBillItems.push(saved);
+      return saved;
+    },
+    async WorkcostBillItemDelete(id: number): Promise<void> {
+      ensureWorkcostSeed();
+      mockBillItems = mockBillItems.filter((b) => b.id !== id);
+    },
+    async WorkcostBillProjectRatesSave(
+      id: number,
+      rates: WorkcostRateSet,
+      profitIncludesRegulatory: boolean,
+      controlPrice: number,
+    ): Promise<void> {
+      ensureWorkcostSeed();
+      const idx = mockBillProjects.findIndex((p) => p.id === id);
+      if (idx < 0) throw new Error("dev mock：项目不存在");
+      mockBillProjects[idx] = {
+        ...mockBillProjects[idx],
+        ...rates,
+        profitIncludesRegulatory,
+        controlPrice,
+      };
     },
   };
 }

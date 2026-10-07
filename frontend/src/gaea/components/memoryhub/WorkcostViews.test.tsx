@@ -2,11 +2,12 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { WorkcostResourceView } from "./WorkcostResourceView";
 import { WorkcostComposeView } from "./WorkcostComposeView";
-import { WorkcostFeePanel } from "./WorkcostFeePanel";
+import { WorkcostBillView } from "./WorkcostBillView";
 import { QuotaModal } from "./WorkcostQuotaModal";
 import type {
+  WorkcostBillItem,
+  WorkcostBillProject,
   WorkcostCompose,
-  WorkcostFeeResult,
   WorkcostProjectBundle,
   WorkcostQuota,
   WorkcostQuotaItem,
@@ -28,13 +29,18 @@ const state = vi.hoisted(() => ({
   listError: "",
   seedPreview: null as WorkcostSeedPreview | null,
   seedApplied: 0,
-  // 取费面板 / 定额管理 / 导出（本刀扩展）。
+  // 定额管理 / 导出 / 清单层（v4.460）。
   quotaSaved: null as WorkcostQuota | null,
   quotaDeleted: "" as string,
   getQuota: null as WorkcostQuota | null,
   pickedDir: "" as string,
   exportCalls: [] as string[][],
   applyBundle: null as WorkcostProjectBundle | null,
+  billProjects: [] as WorkcostBillProject[],
+  billItems: [] as WorkcostBillItem[],
+  billSaved: null as WorkcostBillItem | null,
+  billDeleted: 0,
+  ratesSaved: null as { id: number; rates: WorkcostRateSet; inclReg: boolean; control: number } | null,
 }));
 
 vi.mock("../../lib/bridge", () => ({
@@ -63,32 +69,26 @@ vi.mock("../../lib/bridge", () => ({
     WorkcostQuotaDelete: async (code: string): Promise<void> => {
       state.quotaDeleted = code;
     },
-    WorkcostProjectFees: async (
-      directFee: number,
-      rates: WorkcostRateSet,
-      profitIncludesRegulatory: boolean,
-      measures: number,
-      contingency: number,
-      controlPrice: number,
-    ): Promise<WorkcostFeeResult> => {
-      // 与 Go 侧 ComposeProjectFees / mock/cost.ts 同口径。
-      const r2 = (v: number) => Math.round(v * 100) / 100;
-      const managementFee = r2(directFee * rates.managementRate);
-      const regulatoryFee = r2(directFee * rates.regulatoryRate);
-      const profitBase = directFee + managementFee + (profitIncludesRegulatory ? regulatoryFee : 0);
-      const profitFee = r2(profitBase * rates.profitRate);
-      const preTaxTotal = r2(directFee + managementFee + profitFee + regulatoryFee + measures + contingency);
-      const taxFee = r2(preTaxTotal * rates.taxRate);
-      const total = r2(preTaxTotal + taxFee);
-      const cp = r2(controlPrice);
-      return {
-        directFee: r2(directFee), managementFee, profitFee, regulatoryFee,
-        measuresFee: r2(measures), contingency: r2(contingency),
-        preTaxTotal, taxFee, total,
-        controlPrice: cp,
-        controlDiff: cp > 0 ? r2(total - cp) : 0,
-        controlUtilPct: cp > 0 ? r2((total / cp) * 100) : 0,
-      };
+    WorkcostBillProjects: async (): Promise<WorkcostBillProject[]> => state.billProjects,
+    WorkcostBillItems: async (projectId: number): Promise<WorkcostBillItem[]> =>
+      state.billItems.filter((b) => b.projectId === projectId),
+    WorkcostBillItemSave: async (item: WorkcostBillItem): Promise<WorkcostBillItem> => {
+      state.billSaved = item;
+      const idx = state.billItems.findIndex((b) => b.projectId === item.projectId && b.code === item.code && item.code !== "");
+      if (idx >= 0) {
+        state.billItems[idx] = { ...state.billItems[idx], ...item };
+        return state.billItems[idx];
+      }
+      const saved = { ...item, id: item.id || 990 + state.billItems.length };
+      state.billItems = [...state.billItems, saved];
+      return saved;
+    },
+    WorkcostBillItemDelete: async (id: number): Promise<void> => {
+      state.billDeleted = id;
+      state.billItems = state.billItems.filter((b) => b.id !== id);
+    },
+    WorkcostBillProjectRatesSave: async (id: number, rates: WorkcostRateSet, inclReg: boolean, control: number): Promise<void> => {
+      state.ratesSaved = { id, rates, inclReg, control };
     },
     WorkcostSeedPreview: async (): Promise<WorkcostSeedPreview> => {
       if (!state.seedPreview) throw new Error("预览失败");
@@ -144,8 +144,11 @@ beforeEach(() => {
   state.pickedDir = "";
   state.exportCalls = [];
   state.applyBundle = null;
-  // FeePanel 草稿持久化会跨测试泄漏——每个用例从干净草稿开始。
-  localStorage.removeItem("workcost-fee-draft");
+  state.billProjects = [];
+  state.billItems = [];
+  state.billSaved = null;
+  state.billDeleted = 0;
+  state.ratesSaved = null;
 });
 
 describe("WorkcostResourceView 工料机资源库", () => {
@@ -267,103 +270,6 @@ describe("WorkcostComposeView 综合单价分析表", () => {
     };
     render(<WorkcostComposeView />);
     expect(await screen.findByText(/含量\/单价不得为负/)).toBeTruthy();
-  });
-});
-
-// ── 取费汇总（WorkcostFeePanel）────────────────────────────────────
-// 计算链钉子（默认率 10%/2%/7%/9%，利润基数不含规费）：
-//   直接费 1000 → 企管 100 → 利润 77（1100×7%）→ 规费 20
-//   → 税前 1197 → 增值税 107.73 → 含税总造价 1304.73。
-describe("WorkcostFeePanel 取费汇总", () => {
-  it("默认费率与空清单引导（试算不落库口径）", async () => {
-    render(<WorkcostFeePanel />);
-    expect((screen.getByLabelText("企业管理费 %") as HTMLInputElement).value).toBe("10");
-    expect((screen.getByLabelText("规费 %") as HTMLInputElement).value).toBe("2");
-    expect((screen.getByLabelText("利润 %") as HTMLInputElement).value).toBe("7");
-    expect((screen.getByLabelText("增值税 %") as HTMLInputElement).value).toBe("9");
-    expect(screen.getByText(/还没有清单行/)).toBeTruthy();
-    expect(screen.getByText(/试算不落库/)).toBeTruthy();
-  });
-
-  it("手填行 → 直接费 → 取费链全链数值（口径钉子）", async () => {
-    render(<WorkcostFeePanel />);
-    fireEvent.click(screen.getByRole("button", { name: /手填行/ }));
-    fireEvent.change(screen.getByLabelText("清单项名称"), { target: { value: "外委处置" } });
-    fireEvent.change(screen.getByLabelText("工程量"), { target: { value: "10" } });
-    fireEvent.change(screen.getByLabelText("综合单价"), { target: { value: "100" } });
-    // 取费链完成标志：含税总造价出现（链是异步核算的）。
-    expect(await screen.findByText("¥1,304.73")).toBeTruthy();
-    // 直接费 = 10 × 100（合价/直接费合计/费用链首行三处同值，全部渲染才对）。
-    expect(screen.getAllByText("¥1,000").length).toBe(3);
-    // 取费链各行（金额互不相同，可直接匹配）。
-    expect(screen.getByText("¥100")).toBeTruthy(); // 企管
-    expect(screen.getByText("¥77")).toBeTruthy(); // 利润（基数 1100，不含规费）
-    expect(screen.getByText("¥20")).toBeTruthy(); // 规费
-    expect(screen.getByText("¥1,197")).toBeTruthy(); // 税前
-    expect(screen.getByText("¥107.73")).toBeTruthy(); // 增值税
-  });
-
-  it("利润基数含规费开关：77 → 78.4（两份实测产物的真实口径差异）", async () => {
-    render(<WorkcostFeePanel />);
-    fireEvent.click(screen.getByRole("button", { name: /手填行/ }));
-    fireEvent.change(screen.getByLabelText("工程量"), { target: { value: "10" } });
-    fireEvent.change(screen.getByLabelText("综合单价"), { target: { value: "100" } });
-    expect(await screen.findByText("¥77")).toBeTruthy();
-    fireEvent.click(screen.getByText(/利润基数含规费/));
-    await waitFor(() => expect(screen.getByText("¥78.4")).toBeTruthy());
-    // 基数 = 1000+100+20 = 1120 × 7% = 78.4。
-  });
-
-  it("招标控制价对照：差额与利用率（超 100% 显形）", async () => {
-    render(<WorkcostFeePanel />);
-    fireEvent.click(screen.getByRole("button", { name: /手填行/ }));
-    fireEvent.change(screen.getByLabelText("工程量"), { target: { value: "10" } });
-    fireEvent.change(screen.getByLabelText("综合单价"), { target: { value: "100" } });
-    expect(await screen.findByText("¥1,304.73")).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("招标控制价（元）"), { target: { value: "1200" } });
-    expect(await screen.findByText("¥104.73")).toBeTruthy(); // 差额
-    expect(screen.getByText("108.73%")).toBeTruthy(); // 利用率
-    expect(screen.getByText("正数 = 超控制价")).toBeTruthy();
-  });
-
-  it("从定额库添加：现算综合单价回填 → 合价 → 直接费", async () => {
-    state.quotas = [
-      {
-        id: 1, code: "WP02", title: "施工便道", specialty: "土壤修复", chapter: "A临建", unit: "m",
-        categoryPath: "综合单价/A临建", baseLabor: 0, baseMaterial: 0, baseMachine: 0,
-        source: "项目导入", region: "", priceDate: "", note: "", status: "现行",
-        items: [],
-      },
-    ];
-    state.compose = {
-      laborFee: 9, materialFee: 213.75, machineFee: 7.23, outsourcedFee: 0, otherFee: 0,
-      subtotal: 229.98, compositePrice: 229.98, zeroLines: 0,
-      lines: [], warnings: [],
-    };
-    render(<WorkcostFeePanel />);
-    fireEvent.click(screen.getByRole("button", { name: /从定额库添加/ }));
-    fireEvent.click(await screen.findByText("添加"));
-    // 行自动带入定额名称与现算单价，工程量默认 1。
-    expect(await screen.findByDisplayValue("施工便道")).toBeTruthy();
-    expect(await screen.findByDisplayValue("229.98")).toBeTruthy();
-    // 合价/直接费/费用链首行三处同值。
-    expect((await screen.findAllByText("¥229.98")).length).toBe(3);
-    expect(screen.getByTestId("workcost-fee-direct").textContent).toBe("¥229.98");
-  });
-
-  it("草稿持久化：改动入 localStorage，重挂载恢复；清空草稿回到默认", async () => {
-    const { unmount } = render(<WorkcostFeePanel />);
-    fireEvent.click(screen.getByRole("button", { name: /手填行/ }));
-    fireEvent.change(screen.getByLabelText("清单项名称"), { target: { value: "跨会话行" } });
-    await waitFor(() =>
-      expect(JSON.parse(localStorage.getItem("workcost-fee-draft") ?? "{}").lines[0].title).toBe("跨会话行"),
-    );
-    unmount();
-    const { container } = render(<WorkcostFeePanel />);
-    expect(container).toBeTruthy();
-    expect(await screen.findByDisplayValue("跨会话行")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /清空草稿/ }));
-    expect(await screen.findByText(/还没有清单行/)).toBeTruthy();
   });
 });
 
@@ -505,5 +411,98 @@ describe("WorkcostComposeView 定额管理与导出", () => {
     fireEvent.click(screen.getByRole("button", { name: /→ 工作区/ }));
     await waitFor(() => expect(state.exportCalls).toHaveLength(1));
     expect(state.exportCalls[0][1]).toBe("workspace");
+  });
+});
+
+// ── 分部分项清单（WorkcostBillView，v4.460「数据库不是计算器」）───────
+describe("WorkcostBillView 分部分项清单", () => {
+  const proj: WorkcostBillProject = {
+    id: 1, name: "旺平矿业修复", fileName: "旺平.xlsx", source: "", location: "乐山",
+    duration: "180 天", pricing: "综合单价只含人材机，管理费/利润/税金不进综合单价",
+    managementRate: 0.1, regulatoryRate: 0.02, profitRate: 0.07, taxRate: 0.09,
+    profitIncludesRegulatory: false, controlPrice: 0, itemCount: 2,
+  };
+  const items: WorkcostBillItem[] = [
+    { id: 11, projectId: 1, code: "WP01", title: "施工便道", unit: "m", division: "A临建", quantity: 850, quantityExpr: "", quotaCode: "WP01", feature: "", priceOverride: 0, sort: 1 },
+    { id: 12, projectId: 1, code: "M001", title: "外委监测化验", unit: "项", division: "", quantity: 1, quantityExpr: "", quotaCode: "", feature: "", priceOverride: 12000, sort: 2 },
+  ];
+
+  it("无项目时引导「导入项目表」（清单+费率+资源+定额一次录入）", async () => {
+    render(<WorkcostBillView />);
+    expect(await screen.findByText(/还没有清单项目/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /导入项目表/ })).toBeTruthy();
+  });
+
+  it("渲染项目列表与清单表：工程量、定额引用、单价参考（现算）与手填行", async () => {
+    state.billProjects = [proj];
+    state.billItems = items;
+    state.compose = {
+      laborFee: 9, materialFee: 213.75, machineFee: 7.23, outsourcedFee: 0, otherFee: 0,
+      subtotal: 229.98, compositePrice: 229.98, zeroLines: 0, lines: [], warnings: [],
+    };
+    render(<WorkcostBillView />);
+    // 项目名在左列表与右侧项目头两处渲染。
+    expect((await screen.findAllByText("旺平矿业修复")).length).toBe(2);
+    expect(screen.getByDisplayValue("施工便道")).toBeTruthy();
+    expect(screen.getByDisplayValue("850")).toBeTruthy(); // 工程量是录入数据
+    // 引用定额 chip（WP01 同时是清单编码列，按 title 精确定位 chip）。
+    expect(screen.getByTitle("引用消耗定额（工程量×定额含量→工料机）").textContent).toBe("WP01");
+    expect(await screen.findByText("¥229.98")).toBeTruthy(); // 单价参考（定额现算）
+    expect(screen.getByDisplayValue("12000")).toBeTruthy(); // 手填单价行
+    // 数据库不做加总：不出现任何合计/费用链文案。
+    expect(screen.queryByText(/直接费/)).toBeNull();
+    expect(screen.queryByText(/含税总造价/)).toBeNull();
+  });
+
+  it("工程量编辑失焦即保存（WorkcostBillItemSave 带新量落库）", async () => {
+    state.billProjects = [proj];
+    state.billItems = items;
+    render(<WorkcostBillView />);
+    const qty = (await screen.findAllByLabelText("工程量"))[0]; // WP01 行
+    fireEvent.change(qty, { target: { value: "900" } });
+    fireEvent.blur(qty);
+    await waitFor(() => expect(state.billSaved?.quantity).toBe(900));
+    expect(state.billSaved?.code).toBe("WP01");
+  });
+
+  it("费率是录入数据：改企管率保存走 WorkcostBillProjectRatesSave", async () => {
+    state.billProjects = [proj];
+    state.billItems = items;
+    render(<WorkcostBillView />);
+    const mgmt = await screen.findByLabelText("企管 %");
+    expect((mgmt as HTMLInputElement).value).toBe("10"); // 导入的费率已落库回显
+    fireEvent.change(mgmt, { target: { value: "12" } });
+    fireEvent.click(screen.getByText("保存费率"));
+    await waitFor(() => expect(state.ratesSaved).toBeTruthy());
+    expect(state.ratesSaved!.rates.managementRate).toBe(0.12);
+    expect(state.ratesSaved!.rates.taxRate).toBe(0.09);
+  });
+
+  it("从定额库添加清单项：定额编码套上（工程量默认 1）", async () => {
+    state.billProjects = [proj];
+    state.billItems = [];
+    state.quotas = [
+      {
+        id: 1, code: "WP02", title: "场地平整", specialty: "土壤修复", chapter: "A临建", unit: "m²",
+        categoryPath: "", baseLabor: 0, baseMaterial: 0, baseMachine: 0,
+        source: "项目导入", region: "", priceDate: "", note: "", status: "现行", items: [],
+      },
+    ];
+    render(<WorkcostBillView />);
+    fireEvent.click(await screen.findByRole("button", { name: /从定额库添加/ }));
+    fireEvent.click(await screen.findByText("录入清单"));
+    await waitFor(() => expect(state.billSaved?.quotaCode).toBe("WP02"));
+    expect(state.billSaved?.title).toBe("场地平整");
+    expect(state.billSaved?.quantity).toBe(1);
+  });
+
+  it("手填行与删除行：save/delete 走库", async () => {
+    state.billProjects = [proj];
+    state.billItems = items;
+    render(<WorkcostBillView />);
+    fireEvent.click(await screen.findByRole("button", { name: /手填行/ }));
+    await waitFor(() => expect(state.billSaved?.title).toBe("新清单项"));
+    fireEvent.click(screen.getAllByTitle("删除本行")[0]);
+    await waitFor(() => expect(state.billDeleted).toBe(11));
   });
 });

@@ -29,6 +29,8 @@ import type {
   SemanticIndexStatus,
   TaskView,
   WorkcostApplyProjectResult,
+  WorkcostBillItem,
+  WorkcostBillProject,
   WorkcostCompose,
   WorkcostComposeOverride,
   WorkcostFeeResult,
@@ -202,6 +204,22 @@ export interface CostBindings {
   WorkcostSeedApply(includeComposite: boolean): Promise<WorkcostSeedResult>;
   // WorkcostRecompose 把带工料机组成的成本条目 price 重算为核算结果并置
   // price_derived=1（无组成的纯资源条目不参与）。
+  // ── 分部分项清单（录入数据，不做加总）──
+  // WorkcostBillProjects 清单项目列表（含封面、费率与清单项数）。
+  WorkcostBillProjects(): Promise<WorkcostBillProject[]>;
+  // WorkcostBillItems 某项目的分部分项清单。
+  WorkcostBillItems(projectId: number): Promise<WorkcostBillItem[]>;
+  // WorkcostBillItemSave 新增/更新清单项（同项目同编码走更新；code 空自动 M 序号）。
+  WorkcostBillItemSave(item: WorkcostBillItem): Promise<WorkcostBillItem>;
+  // WorkcostBillItemDelete 删除一条清单项。
+  WorkcostBillItemDelete(id: number): Promise<void>;
+  // WorkcostBillProjectRatesSave 保存项目费率（录入数据）。
+  WorkcostBillProjectRatesSave(
+    id: number,
+    rates: WorkcostRateSet,
+    profitIncludesRegulatory: boolean,
+    controlPrice: number,
+  ): Promise<void>;
   WorkcostRecompose(): Promise<WorkcostRecomposeResult>;
   // WorkcostProjectParse 解析五表项目工作簿（只解析不落库）。
   WorkcostProjectParse(path: string): Promise<WorkcostProjectBundle>;

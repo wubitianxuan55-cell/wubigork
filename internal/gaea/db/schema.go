@@ -688,3 +688,56 @@ ALTER TABLE cost_projects ADD COLUMN review_note TEXT NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS idx_cost_entries_derived ON cost_entries(price_derived);
 CREATE INDEX IF NOT EXISTS idx_estimate_items_quota ON cost_estimate_items(quota_code);
 `
+
+// SchemaV28 工料法④：**清单层落库**（分部分项工程量清单 + 项目费率）。
+//
+// 用户定调（2026-10-07）：「造价数据库只是一个数据库，你可以录入**费率、
+// 清单、测算模版**，但不是把它们加起来」+「清单、定额、工料机是什么关系？
+// 我让你录入的清单呢？」——
+//   工料机=资源价格（基本数据）→ 定额=每单位子目消耗多少工料机 →
+//   **清单=工程实体的分部分项列表（编码/名称/单位/工程量），每条套定额**；
+//   费率=项目的取费参数（录入数据）。加总计算不在库里发生——导出五表
+//   工作簿（活公式）时由 Excel 算，gaea 只存数据。
+// V25/26/27 只落了前两层与定额骨架，清单与费率没有落库——本版补齐。
+//
+// ① gf_projects：一次导入=一个项目（五表封面 + 取费区费率：企管/规费/
+//    利润/税率/利润基数含规费开关/控制价——全部是录入数据，不是计算结果）。
+// ② gf_bill_items：清单项 × 工程量 × 引用定额（quota_code 套定额）。
+//    UNIQUE(project_id, code)：同项目同编码走更新（幂等导入）。
+const SchemaV28 = `
+CREATE TABLE IF NOT EXISTS gf_projects (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  file_name TEXT NOT NULL DEFAULT '',
+  source_path TEXT NOT NULL DEFAULT '',
+  location TEXT NOT NULL DEFAULT '',
+  duration TEXT NOT NULL DEFAULT '',
+  pricing TEXT NOT NULL DEFAULT '',
+  management_rate REAL NOT NULL DEFAULT 0.1,
+  regulatory_rate REAL NOT NULL DEFAULT 0.02,
+  profit_rate REAL NOT NULL DEFAULT 0.07,
+  tax_rate REAL NOT NULL DEFAULT 0.09,
+  profit_includes_regulatory INTEGER NOT NULL DEFAULT 0,
+  control_price REAL NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL DEFAULT '',
+  UNIQUE(name)
+);
+CREATE TABLE IF NOT EXISTS gf_bill_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id INTEGER NOT NULL,
+  code TEXT NOT NULL DEFAULT '',
+  title TEXT NOT NULL,
+  unit TEXT NOT NULL DEFAULT '',
+  division TEXT NOT NULL DEFAULT '',
+  quantity REAL NOT NULL DEFAULT 0,
+  quantity_expr TEXT NOT NULL DEFAULT '',
+  quota_code TEXT NOT NULL DEFAULT '',
+  feature TEXT NOT NULL DEFAULT '',
+  price_override REAL NOT NULL DEFAULT 0,
+  sort INTEGER NOT NULL DEFAULT 0,
+  UNIQUE(project_id, code)
+);
+CREATE INDEX IF NOT EXISTS idx_bill_items_project ON gf_bill_items(project_id);
+CREATE INDEX IF NOT EXISTS idx_bill_items_quota ON gf_bill_items(quota_code);
+`

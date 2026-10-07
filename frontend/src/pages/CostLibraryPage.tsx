@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
-  Calculator, ChevronRight, CloudUpload, Coins, FileSpreadsheet, Gauge, Layers, ListTree,
+  ChevronRight, CloudUpload, Coins, FileSpreadsheet, Gauge, Layers, ListTree,
   PieChart, TrendingUp,
 } from "../gaea/icons";
 import { app } from "../gaea/lib/bridge";
@@ -11,7 +11,7 @@ import { CostInquiryPanel } from "../gaea/components/memoryhub/CostInquiryPanel"
 import { CostIndicatorsView } from "../gaea/components/memoryhub/CostIndicatorsView";
 import { WorkcostResourceView } from "../gaea/components/memoryhub/WorkcostResourceView";
 import { WorkcostComposeView } from "../gaea/components/memoryhub/WorkcostComposeView";
-import { WorkcostFeePanel } from "../gaea/components/memoryhub/WorkcostFeePanel";
+import { WorkcostBillView } from "../gaea/components/memoryhub/WorkcostBillView";
 import { CostGraphView } from "../gaea/components/memoryhub/CostGraphView";
 import "../gaea/styles.css";
 import "../gaea/tailwind.css";
@@ -24,7 +24,8 @@ import "../gaea/components/memoryhub/hub.css";
  * 核算出来」+「对造价数据库进行全新设计，该删除就删除」。造价数据库的主人
  * 是**清单测算**——五表模版（费用汇总/综合单价/工料机价格）的软件形态：
  *
- *   费用汇总（首屏：分部分项清单 + 取费链）→ 单价分析（定额 × 资源价现算）→
+ *   清单（首屏：分部分项工程量清单 + 项目费率，v4.460 定调「数据库不是
+ *   计算器」——录入费率/清单/模版，不做加总）→ 单价分析（定额 × 资源价）→
  *   资源库（工料机主数据 + 调价）→ 价格数据（信息价飞轮 + 资料条目）→
  *   造价参考（分位对标）→ 概览（工料法仪表盘 / 关联图谱）。
  *
@@ -34,12 +35,12 @@ import "../gaea/components/memoryhub/hub.css";
  * - 旧「成本条目」（价格手册形态）降为「价格数据 → 资料条目」段——检索/导入/
  *   AI 解析全保留，它仍是资源库与询价的沉淀池，只是不再是板块主角。
  */
-type CostModule = "fees" | "compose" | "resources" | "prices" | "refs" | "overview";
+type CostModule = "bill" | "compose" | "resources" | "prices" | "refs" | "overview";
 type OverviewView = "data" | "graph";
 type PriceView = "sources" | "repository" | "inquiry" | "entries";
 
 const MODULES: { key: CostModule; label: string; icon: ReactNode; hint: string }[] = [
-  { key: "fees", label: "费用汇总", icon: <Calculator size={14} />, hint: "分部分项清单 · 工程量×综合单价 · 取费链（测算工作台）" },
+  { key: "bill", label: "清单", icon: <ListTree size={14} />, hint: "分部分项工程量清单 · 项目费率（录入数据）" },
   { key: "compose", label: "单价分析", icon: <FileSpreadsheet size={14} />, hint: "消耗定额 · 工料机现算综合单价（只含人材机）· 导入/导出五表" },
   { key: "resources", label: "资源库", icon: <Layers size={14} />, hint: "工料机主数据 · 现行价/基准价 · 调价历史 · 存量资源化" },
   { key: "prices", label: "价格数据", icon: <CloudUpload size={14} />, hint: "价格源 · 价格仓库 · 询价库 · 资料条目" },
@@ -95,7 +96,7 @@ function SegChip({ active, onClick, children }: { active: boolean; onClick: () =
 
 export function CostLibraryPage() {
   // v4.459：默认落点=费用汇总（清单测算工作台首屏）。
-  const [module, setModule] = useState<CostModule>("fees");
+  const [module, setModule] = useState<CostModule>("bill");
   const [overviewView, setOverviewView] = useState<OverviewView>("data");
   const [priceView, setPriceView] = useState<PriceView>("sources");
   const [stats, setStats] = useState<CostOverviewStats>(EMPTY_STATS);
@@ -158,7 +159,7 @@ export function CostLibraryPage() {
           工料法：工料机 × 消耗定额 → 综合单价（只含人材机）
         </span>
         <span className="text-fg-faint text-[11.5px] hidden lg:inline">
-          清单测算工作台 · 价格沉淀与复用
+          录入清单 · 费率 · 模版——加总由五表活公式算
         </span>
       </div>
 
@@ -203,7 +204,7 @@ export function CostLibraryPage() {
 
       {/* 主区 */}
       <div className="flex-1 min-h-0">
-        {module === "fees" && <WorkcostFeePanel />}
+        {module === "bill" && <WorkcostBillView />}
         {module === "compose" && <WorkcostComposeView />}
         {module === "resources" && <WorkcostResourceView />}
         {module === "refs" && <CostIndicatorsView />}
@@ -325,17 +326,17 @@ export function CostLibraryPage() {
                       </>
                     ) : (
                       <>
-                        <div className="mt-3 text-[12px] text-fg">清单测算就绪</div>
+                        <div className="mt-3 text-[12px] text-fg">清单数据就绪</div>
                         <p className="mt-1.5 text-[11px] text-fg-faint leading-relaxed">
                           资源 {stats.resourceTotal} 条、定额 {stats.quotaTotal} 条都在位。
-                          费用汇总工作台支持从定额库选行现算综合单价，取费链（企管/利润/规费/税）一次出含税总造价。
+                          清单挂定额×工程量，费率随项目录入——导出五表工作簿（活公式）即得完整费用汇总。
                         </p>
                         <button
                           type="button"
-                          onClick={() => setModule("fees")}
+                          onClick={() => setModule("bill")}
                           className="mt-auto pt-4 inline-flex items-center gap-1 text-[12px] text-accent hover:opacity-80"
                         >
-                          开始清单测算 <ChevronRight size={12} />
+                          查看分部分项清单 <ChevronRight size={12} />
                         </button>
                       </>
                     )}
@@ -351,10 +352,10 @@ export function CostLibraryPage() {
                     </div>
                     <div className="grid grid-cols-2 gap-1.5">
                       <QuickAction
-                        label="费用汇总"
-                        hint="清单测算工作台（清单+取费）"
-                        icon={<Calculator size={14} className="text-accent" />}
-                        onClick={() => setModule("fees")}
+                        label="分部分项清单"
+                        hint="清单项目 · 工程量 · 费率录入"
+                        icon={<ListTree size={14} className="text-accent" />}
+                        onClick={() => setModule("bill")}
                       />
                       <QuickAction
                         label="导入项目表"
@@ -474,7 +475,7 @@ function GettingStarted({
           <StepCard
             step="01"
             title="导入项目表"
-            desc="选一份五表成本测算工作簿，工料机价格与综合单价两表一次落成资源库与消耗定额库"
+            desc="选一份五表成本测算工作簿，封面、清单、费率、资源、定额一次录入数据库"
             icon={<FileSpreadsheet size={16} className="text-sky-400" />}
             onClick={onImportProject}
             cta="去单价分析"

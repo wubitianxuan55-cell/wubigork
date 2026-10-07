@@ -192,7 +192,64 @@ func (s *Store) ApplyProjectBundle(b *ProjectBundle) ApplyProjectResult {
 			res.Errors = append(res.Errors, fmt.Sprintf("定额 %s（%s）落库失败: %v", code, title, err))
 		}
 	}
+
+	// ④ 清单层落库（SchemaV28）：分部分项清单（编码/名称/单位/**工程量**）
+	// 是工程实体的一等数据——此前只活在 xlsx 里，费用汇总面板只能空手试算。
+	// 工程量优先取综合单价表的 Items.Quantity，为 0 时回退工程量计算表。
+	s.applyBillItems(b, items, &res)
 	return res
+}
+
+// applyBillItems 落项目封面+费率+分部分项清单（幂等：同项目同编码走更新）。
+// 费率来自模版「费用汇总」取费区（录入数据落库，不做任何加总）。
+func (s *Store) applyBillItems(b *ProjectBundle, items []ProjectItem, res *ApplyProjectResult) {
+	projectName := strings.TrimSpace(b.Project)
+	if projectName == "" {
+		projectName = strings.TrimSuffix(b.FileName, ".xlsx")
+	}
+	if projectName == "" {
+		res.Errors = append(res.Errors, "清单落库跳过：工作簿无项目名（封面未解析到）")
+		return
+	}
+	rates := RateSet{
+		ManagementRate: b.Fee.ManagementRate,
+		RegulatoryRate: b.Fee.RegulatoryRate,
+		ProfitRate:     b.Fee.ProfitRate,
+		TaxRate:        b.Fee.TaxRate,
+	}
+	projID, err := s.UpsertBillProject(projectName, b.FileName, b.Path, b.Location, b.Duration, b.Pricing,
+		&rates, false, b.Fee.ControlPrice)
+	if err != nil {
+		res.Errors = append(res.Errors, fmt.Sprintf("项目 %q 落库失败: %v", projectName, err))
+		return
+	}
+	qtyByCode := map[string]float64{}
+	for _, q := range b.Quantities {
+		if q.Code != "" && q.Value > 0 {
+			qtyByCode[q.Code] = q.Value
+		}
+	}
+	for i, it := range items {
+		qty := it.Quantity
+		if qty == 0 {
+			qty = qtyByCode[it.Code]
+		}
+		bill := BillItem{
+			ProjectID:    projID,
+			Code:         it.Code,
+			Title:        firstNonEmpty(it.Title, "（未命名清单项）"),
+			Unit:         it.Unit,
+			Division:     it.Division,
+			Quantity:     qty,
+			QuantityExpr: it.QuantityExpr,
+			QuotaCode:    QuotaCodeForItem(it),
+			Feature:      it.Feature,
+			Sort:         i + 1,
+		}
+		if _, err := s.SaveBillItem(bill); err != nil {
+			res.Errors = append(res.Errors, fmt.Sprintf("清单项 %s（%s）落库失败: %v", it.Code, it.Title, err))
+		}
+	}
 }
 
 // quotaExists 判断定额编码是否已存在。

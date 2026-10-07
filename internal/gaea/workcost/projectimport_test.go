@@ -246,6 +246,42 @@ func TestApplyProjectBundleEndToEnd(t *testing.T) {
 		t.Errorf("重复导入应全部更新：资源更新%d 定额更新%d", again.ResourceUpd, again.QuotaUpd)
 	}
 
+	// ④ 清单层（SchemaV28）：分部分项清单随导入落库——「我让你录入的清单」。
+	projects, err := s.BillProjects()
+	if err != nil || len(projects) != 1 {
+		t.Fatalf("应落 1 个清单项目，得到 %d 个（err=%v）", len(projects), err)
+	}
+	proj := projects[0]
+	if proj.ItemCount != 32 {
+		t.Errorf("清单项应 32 条（与定额同骨架），得到 %d", proj.ItemCount)
+	}
+	if proj.TaxRate <= 0 {
+		t.Errorf("项目费率应随导入落库（增值税率 %.4f）", proj.TaxRate)
+	}
+	bills, err := s.BillItems(proj.ID)
+	if err != nil {
+		t.Fatalf("读清单失败: %v", err)
+	}
+	withQty, withQuota := 0, 0
+	for _, it := range bills {
+		if it.Quantity > 0 {
+			withQty++
+		}
+		if it.QuotaCode != "" {
+			withQuota++
+		}
+	}
+	if withQuota != len(bills) {
+		t.Errorf("每条清单项都应套定额，%d/%d 套上", withQuota, len(bills))
+	}
+	t.Logf("清单 %d 条落库，其中带工程量 %d 条（其余待工程量计算表补录）", len(bills), withQty)
+	// 幂等：重复导入后清单不翻倍。
+	s.ApplyProjectBundle(b)
+	again2, _ := s.BillItems(proj.ID)
+	if len(again2) != len(bills) {
+		t.Errorf("重复导入清单应幂等：%d → %d", len(bills), len(again2))
+	}
+
 	// 按落库后的定额核算综合单价：WP02 施工便道 = 人工 + 级配碎石 + C20 + 装载机 + 压路机。
 	c, q, err := s.ComposeQuota("WP02", nil)
 	if err != nil {

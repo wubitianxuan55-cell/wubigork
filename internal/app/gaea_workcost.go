@@ -158,6 +158,48 @@ func (a *App) GaeaWorkcostQuotaCompose(code string, overrides map[string]workcos
 	return c, nil
 }
 
+// ── 分部分项清单（工料法第④层：录入数据，不做加总）─────────────────
+
+// GaeaWorkcostBillProjects 清单项目列表（含封面、费率与清单项数）。
+// 造价数据库是数据库：清单/费率/模版都是录入数据，加总计算不在库里发生。
+func (a *App) GaeaWorkcostBillProjects() []workcost.BillProject {
+	list, err := a.hubWorkcostStore().BillProjects()
+	if err != nil {
+		return nil
+	}
+	return list
+}
+
+// GaeaWorkcostBillItems 某项目的分部分项清单（编码/名称/单位/工程量/引用定额）。
+func (a *App) GaeaWorkcostBillItems(projectID int64) []workcost.BillItem {
+	list, err := a.hubWorkcostStore().BillItems(projectID)
+	if err != nil {
+		return nil
+	}
+	return list
+}
+
+// GaeaWorkcostBillItemSave 新增/更新一条清单项（同项目同编码走更新；code 空
+// 自动生成 M 序号）。工程量与引用定额都是录入数据——合价导出时由 Excel 算。
+func (a *App) GaeaWorkcostBillItemSave(item workcost.BillItem) (*workcost.BillItem, error) {
+	saved, err := a.hubWorkcostStore().SaveBillItem(item)
+	if err != nil {
+		return nil, err
+	}
+	return &saved, nil
+}
+
+// GaeaWorkcostBillItemDelete 删除一条清单项。
+func (a *App) GaeaWorkcostBillItemDelete(id int64) error {
+	return a.hubWorkcostStore().DeleteBillItem(id)
+}
+
+// GaeaWorkcostBillProjectRatesSave 保存项目费率（企管/规费/利润/税率 + 利润
+// 基数含规费开关 + 控制价）——录入数据，随取随改，不参与任何库内计算。
+func (a *App) GaeaWorkcostBillProjectRatesSave(id int64, rates workcost.RateSet, profitIncludesRegulatory bool, controlPrice float64) error {
+	return a.hubWorkcostStore().UpdateBillProjectRates(id, rates, profitIncludesRegulatory, controlPrice)
+}
+
 // ── 项目层取费 ──────────────────────────────────────────────────────
 
 // GaeaWorkcostProjectFees 项目合计层取费（直接费 → 企管/利润/规费 → 税前合计

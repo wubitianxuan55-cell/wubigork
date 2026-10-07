@@ -18,8 +18,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../gaea/lib/bridge', () => ({ app: mocks }))
 
 // 子视图桩：IA 测试只关心「切换到某模块渲染对应视图」，各视图内部有自己的测试。
-vi.mock('../gaea/components/memoryhub/WorkcostFeePanel', () => ({
-  WorkcostFeePanel: () => <div>费用汇总视图桩</div>,
+vi.mock('../gaea/components/memoryhub/WorkcostBillView', () => ({
+  WorkcostBillView: () => <div>清单视图桩</div>,
 }))
 vi.mock('../gaea/components/memoryhub/WorkcostComposeView', () => ({
   WorkcostComposeView: () => <div>单价分析视图桩</div>,
@@ -77,7 +77,7 @@ function mockFull() {
 async function renderPage() {
   const view = render(<CostLibraryPage />)
   // 默认落点=费用汇总工作台（不再等待概览数据——概览按需拉取）。
-  await waitFor(() => expect(screen.getByText('费用汇总视图桩')).toBeTruthy(), LOAD)
+  await waitFor(() => expect(screen.getByText('清单视图桩')).toBeTruthy(), LOAD)
   return view
 }
 
@@ -94,16 +94,16 @@ beforeEach(() => {
 })
 
 describe('CostLibraryPage 造价数据库全新设计（v4.459 工料法 IA）', () => {
-  it('默认落点=费用汇总工作台，不再是概览', async () => {
+  it('默认落点=分部分项清单（录入数据面），不再是概览', async () => {
     await renderPage()
-    expect(screen.getByText('费用汇总视图桩')).toBeTruthy()
+    expect(screen.getByText('清单视图桩')).toBeTruthy()
     expect(screen.queryByText('数据概览')).toBeNull()
   })
 
   it('导航 6 模块齐全有序；测算项目/复盘笔记退役，成本条目降为价格数据段', async () => {
     await renderPage()
     const nav = screen.getByRole('navigation', { name: '造价数据库模块' })
-    const labels = ['费用汇总', '单价分析', '资源库', '价格数据', '造价参考', '概览']
+    const labels = ['清单', '单价分析', '资源库', '价格数据', '造价参考', '概览']
     let cursor = -1
     for (const label of labels) {
       const btns = Array.from(nav.querySelectorAll('button'))
@@ -124,7 +124,7 @@ describe('CostLibraryPage 造价数据库全新设计（v4.459 工料法 IA）',
   it('模块切换：费用汇总/单价分析/资源库/造价参考各渲染对应视图', async () => {
     await renderPage()
     for (const [hint, marker] of [
-      ['分部分项清单 · 工程量×综合单价 · 取费链（测算工作台）', '费用汇总视图桩'],
+      ['分部分项工程量清单 · 项目费率（录入数据）', '清单视图桩'],
       ['消耗定额 · 工料机现算综合单价（只含人材机）· 导入/导出五表', '单价分析视图桩'],
       ['工料机主数据 · 现行价/基准价 · 调价历史 · 存量资源化', '资源库视图桩'],
       ['案例分位数对标（不落表实时聚合）', '造价参考视图桩'],
@@ -165,7 +165,7 @@ describe('CostLibraryPage 造价数据库全新设计（v4.459 工料法 IA）',
     expect(screen.getByText('机械 1')).toBeTruthy()
     expect(screen.getByText('外委 1')).toBeTruthy()
     // 定额就绪态指路清单测算。
-    expect(screen.getByText('清单测算就绪')).toBeTruthy()
+    expect(screen.getByText('清单数据就绪')).toBeTruthy()
   })
 
   it('概览引导：有资源但定额为 0 时，指路「去导入项目表」', async () => {
