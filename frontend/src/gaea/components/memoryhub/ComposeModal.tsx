@@ -9,7 +9,7 @@ import { useToast } from "../Toast";
 const fmtPrice = new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 });
 const fmtPct = new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 1 });
 
-// 与 CostProjectsView / CostEntryModal 一致的内联样式（全部 Tailwind token 类，无 raw hex）。
+// 与 CostEntryModal / CostInquiryPanel 一致的内联样式（全部 Tailwind token 类，无 raw hex）。
 const fieldCls =
   "w-full bg-bg border border-border-soft rounded-md text-fg text-[12px] px-2.5 py-1.5 outline-none focus:border-accent transition-colors placeholder:text-fg-faint/50";
 const solidBtn =

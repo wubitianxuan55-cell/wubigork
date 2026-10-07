@@ -32,7 +32,7 @@ const diffClass = (p: number) => {
   return p >= 0 ? "text-red-400/80" : "text-emerald-400";
 };
 
-// 与 CostLibraryView / CostProjectsView 一致的 Tailwind class 常量。
+// 与 CostLibraryView / CostEntryModal 一致的 Tailwind class 常量。
 const fieldCls =
   "w-full bg-bg border border-border-soft rounded-md text-fg text-[12px] px-2.5 py-1.5 outline-none focus:border-accent transition-colors placeholder:text-fg-faint/50";
 const solidBtn =
