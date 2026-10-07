@@ -304,3 +304,53 @@ func TestBillQuotaLinksCRUD(t *testing.T) {
 		t.Fatalf("解挂后应只剩 WP01，得到 %v", items[0].QuotaCodes)
 	}
 }
+
+// TestV31BackfillAutoConvertsQuotaCodes 存量清单主定额自动转引用（V31）：
+// 旧库清单只有单值 quota_code 时，开库迁移后引用表自动出现该定额（用户零
+// 操作，「原综合单价分析表自动转换成定额」）；BillQuotaLinks 读侧对迁移前
+// 窗口期有合成兜底（ID=-1）。
+func TestV31BackfillAutoConvertsQuotaCodes(t *testing.T) {
+	s, cleanup := newWorkcostStore(t)
+	defer cleanup()
+
+	idx, err := s.ResourceIndex()
+	if err != nil {
+		t.Fatalf("建资源索引失败: %v", err)
+	}
+	if _, err := s.SaveQuota(Quota{Code: "WP01", OrigCode: "WP01", Title: "施工便道", Specialty: "土壤修复", Unit: "m", Source: "测试"}, idx); err != nil {
+		t.Fatalf("建定额失败: %v", err)
+	}
+	projID, _ := s.UpsertBillProject("项目B31", "b.xlsx", "", "", "", "", nil, false, 0)
+	saved, err := s.SaveBillItem(BillItem{ProjectID: projID, Code: "WP01", Title: "施工便道", Unit: "m", Quantity: 200, QuotaCode: "WP01"})
+	if err != nil {
+		t.Fatalf("建清单项失败: %v", err)
+	}
+
+	// SaveBillItem 不写引用表（模拟 V30 前旧数据路径：单值列有码、引用表空）。
+	if _, err := s.db.Exec(`DELETE FROM gf_bill_quota_links WHERE bill_item_id=?`, saved.ID); err != nil {
+		t.Fatalf("清引用失败: %v", err)
+	}
+
+	// 读侧兜底：引用空但主码非空 → 合成引用（负 ID）。
+	links, err := s.BillQuotaLinks(saved.ID)
+	if err != nil {
+		t.Fatalf("读引用失败: %v", err)
+	}
+	if len(links) != 1 || links[0].QuotaCode != "WP01" || links[0].ID != -1 {
+		t.Fatalf("兜底应合成 WP01 引用（ID=-1），得到 %+v", links)
+	}
+
+	// V31 回填口径：INSERT ... SELECT 后引用落表（幂等 NOT IN）。
+	if _, err := s.db.Exec(`INSERT INTO gf_bill_quota_links (bill_item_id, quota_code, quantity, sort)
+SELECT id, quota_code, quantity, 1 FROM gf_bill_items
+WHERE COALESCE(quota_code,'') != '' AND id NOT IN (SELECT bill_item_id FROM gf_bill_quota_links)`); err != nil {
+		t.Fatalf("回填失败: %v", err)
+	}
+	links, _ = s.BillQuotaLinks(saved.ID)
+	if len(links) != 1 || links[0].QuotaCode != "WP01" || links[0].ID <= 0 {
+		t.Fatalf("回填后应为落表引用，得到 %+v", links)
+	}
+	if links[0].Quantity != 200 {
+		t.Errorf("回填 quantity 应=清单工程量 200，得到 %.2f", links[0].Quantity)
+	}
+}

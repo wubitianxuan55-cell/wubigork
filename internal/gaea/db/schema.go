@@ -785,3 +785,17 @@ CREATE TABLE IF NOT EXISTS gf_bill_quota_links (
 CREATE INDEX IF NOT EXISTS idx_bill_quota_links_item ON gf_bill_quota_links(bill_item_id);
 CREATE INDEX IF NOT EXISTS idx_bill_quota_links_quota ON gf_bill_quota_links(quota_code);
 `
+
+// SchemaV31 存量清单主定额**自动回填**引用表：v4.469.0 只建了空表（引用靠
+// 重导入双写），存量清单点开弹窗看不到定额（用户真机反馈「点击所有清单都
+// 看不到定额了，原综合单价分析表应该自动转换成定额」）。开库迁移即自动把
+// 每条清单项的主定额（单值 quota_code）转成引用表的一条引用——用户零操作。
+// sort=1（主定额排首）；quantity=清单工程量（与导入链双写口径一致）；
+// NOT IN 防重入（幂等，已有引用的清单不动）。
+const SchemaV31 = `
+INSERT INTO gf_bill_quota_links (bill_item_id, quota_code, quantity, sort)
+SELECT id, quota_code, quantity, 1
+FROM gf_bill_items
+WHERE COALESCE(quota_code,'') != ''
+  AND id NOT IN (SELECT bill_item_id FROM gf_bill_quota_links);
+`

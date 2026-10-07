@@ -48,7 +48,18 @@ FROM gf_bill_quota_links WHERE bill_item_id=? ORDER BY sort, id`, billItemID)
 		}
 		out = append(out, l)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	// 兜底：引用表空但清单项有主定额（V31 迁移前的窗口期/未迁移库）——合成
+	// 一条引用返回（不落库；跟随清单工程量语义）。
+	if len(out) == 0 {
+		var code string
+		if err := s.db.QueryRow(`SELECT quota_code FROM gf_bill_items WHERE id=? AND COALESCE(quota_code,'')!=''`, billItemID).Scan(&code); err == nil {
+			out = append(out, BillQuotaLink{ID: -1, BillItemID: billItemID, QuotaCode: code, Quantity: 0, Sort: 1})
+		}
+	}
+	return out, nil
 }
 
 // AttachBillQuotaLink 挂接一条定额（同清单同定额走更新——幂等；quantity≤0
