@@ -1,3 +1,6 @@
+## v4.467.0 · 造价概览「数据备份」卡：一键全库快照（2026-10-07）
+> 用户拍板「数据库不需要导出5表，但需要数据备份」——三期 3.1 按库组卷导出从刀路移除，四期 4.3 提前落地。备份能力复用 P4-3 全库链（Hephaestus.db VACUUM INTO 一致性快照 + 轻语/配置/会话 → zip，恢复走 设置→数据），本刀只做入口：造价概览新增「数据备份」卡（体量速览 + 立即备份 + SHA256 回执 + 恢复指引），零新绑定（绑定面 639 不变）。顺带清 v4.466 门禁债：golangci 8（gofmt 3/errcheck 2/ineffassign 1/unused 2）+ eslint 3（mock 退役残留改 const）+ knip 重复导出 3（emit 统一 emitMock；CharacterCard/CostLibraryPage 删 named 保 default）+ releases 13 个待填标题回填与计数 648 修正。全量 ci 绿（vitest 3793/436，drift PASS@639）。详见 `releases/v4.467.0.md`。
+
 ## v4.466.0 · 二期·退役清理：21 个零 UI 消费绑定退役（2026-10-07）
 > 规划文档二期落地，用户产品视角零变化，系统变诚实。**退役 21（全走 excludedBindings 管线——方法体保留〔测试种子+行为测试〕，门面/bindingNames/mock 全收缩，复活=除名重跑生成器）**：旧测算项目写路径 9（ProjectSave/Get/Delete、EstimateItemSave/Delete/Items、VersionSave/Versions、EstimateSediment）+复盘笔记 4+五算 4（FiveCalcPanel 死组件连带删除 −1315 行）+归因 1+CostList 1（被分页 CostSearchPage 取代）+清单项增删 2（清单库只读定调）。前端 types 孤儿接口 6 个删除，knip 零孤儿。表处置=退役表数据全 0 保留不迁移+冻结声明，V27 退役表 19 列一并冻结。绑定面 **660→639**（drift PASS@639）；全量 vitest **3788/436**（−9 例=FiveCalcPanel 删除）；Go app/coststage/costref 绿。【发版事故】add pathspec fatal 后误 amend 到已推送的 release 提交——当场 reset --mixed 回远程位置重新独立提交，tag 未受影响；教训=amend 前必须确认 HEAD 未推送。详见 `releases/v4.466.0.md`。
 
