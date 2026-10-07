@@ -15,6 +15,7 @@ import type { MakeMockState } from "./state";
 import type {
   WorkcostBillItem,
   WorkcostBillProject,
+  WorkcostBillQuotaLink,
   WorkcostCompose,
   WorkcostComposeOverride,
   WorkcostComposeLineView,
@@ -55,6 +56,7 @@ type CostMethods = Pick<
   | "WorkcostProjectParse" | "WorkcostProjectApply" | "WorkcostProjectExport" | "WorkcostProjectExportToWorkspace"
   | "WorkcostBillProjects" | "WorkcostBillItems" | "WorkcostBillProjectRatesSave"
   | "WorkcostBillProjectDelete"
+  | "WorkcostBillQuotaLinks" | "WorkcostBillQuotaAttach" | "WorkcostBillQuotaDetach"
 >;
 
 // ── 工料法 mock 状态（工料机资源库 + 消耗定额库，浏览器内存态）──
@@ -69,6 +71,8 @@ let mockQuotas: WorkcostQuota[] = [];
 // 工料法④清单层：项目与清单项（内存态演示）。
 let mockBillProjects: WorkcostBillProject[] = [];
 let mockBillItems: WorkcostBillItem[] = [];
+// 清单↔定额 1:N 引用（内存态；导入种子走单值列兜底，这里只存显式挂接）。
+const mockBillLinks: Record<number, WorkcostBillQuotaLink[]> = {};
 let mockBillSeq = 1;
 
 // ensureWorkcostSeed 首次访问时播种演示数据（幂等）。
@@ -795,6 +799,29 @@ export function buildCost(_s: MakeMockState): CostMethods {
     async WorkcostBillItems(projectId: number): Promise<WorkcostBillItem[]> {
       ensureWorkcostSeed();
       return mockBillItems.filter((b) => b.projectId === projectId);
+    },
+    async WorkcostBillQuotaLinks(billItemId: number): Promise<WorkcostBillQuotaLink[]> {
+      return (mockBillLinks[billItemId] ?? []).slice().sort((a, b) => a.sort - b.sort);
+    },
+    async WorkcostBillQuotaAttach(billItemId: number, quotaCode: string, quantity: number): Promise<WorkcostBillQuotaLink> {
+      const links = (mockBillLinks[billItemId] ??= []);
+      const found = links.find((l) => l.quotaCode === quotaCode);
+      if (found) {
+        found.quantity = quantity;
+        found.updatedAt = new Date().toISOString();
+        return found;
+      }
+      const link: WorkcostBillQuotaLink = {
+        id: Math.max(0, ...links.map((l) => l.id)) + 1,
+        billItemId, quotaCode, quantity,
+        sort: links.length + 1,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      };
+      links.push(link);
+      return link;
+    },
+    async WorkcostBillQuotaDetach(billItemId: number, linkId: number): Promise<void> {
+      mockBillLinks[billItemId] = (mockBillLinks[billItemId] ?? []).filter((l) => l.id !== linkId);
     },
     async WorkcostBillProjectDelete(id: number): Promise<number> {
       ensureWorkcostSeed();

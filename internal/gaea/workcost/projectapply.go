@@ -285,8 +285,18 @@ func (s *Store) applyBillItems(b *ProjectBundle, items []ProjectItem, resolved m
 			Feature:      it.Feature,
 			Sort:         i + 1,
 		}
-		if _, err := s.SaveBillItem(bill); err != nil {
+		saved, err := s.SaveBillItem(bill)
+		if err != nil {
 			res.Errors = append(res.Errors, fmt.Sprintf("清单项 %s（%s）落库失败: %v", it.Code, it.Title, err))
+			continue
+		}
+		// 1:N 引用表双写（SchemaV30）：单值 quota_code 仍是主定额锚点，link 表
+		// 是引用事实全量——挂接编辑/多定额组合以此为准。quantity=清单工程量
+		// （各定额自身工程量后续在挂接面调整）。
+		if saved.QuotaCode != "" {
+			if _, err := s.AttachBillQuotaLink(saved.ID, saved.QuotaCode, saved.Quantity); err != nil {
+				res.Errors = append(res.Errors, fmt.Sprintf("清单项 %s 挂接定额 %s 失败: %v", it.Code, saved.QuotaCode, err))
+			}
 		}
 	}
 }

@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ListTree, RefreshCw, Search, X } from "../../icons";
 import { app } from "../../lib/bridge";
-import type { WorkcostBillItem, WorkcostBillProject, WorkcostCompose, WorkcostQuota } from "../../lib/types";
+import type { WorkcostBillItem, WorkcostBillProject, WorkcostBillQuotaLink, WorkcostCompose, WorkcostQuota } from "../../lib/types";
 
 export const fmtPrice = (p: number) =>
   "¥" + new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(p);
@@ -50,8 +50,8 @@ export function WorkcostBillView() {
   const [mode, setMode] = useState<"detail" | "grouped">("detail");
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState("");
-  // 清单分析：点清单行打开该清单项的综合单价分析（工料机明细+三费）。
-  const [analyzeCode, setAnalyzeCode] = useState("");
+  // 清单分析：点清单行打开该清单项的综合单价分析（按挂接定额分组，1:N）。
+  const [analyzeItem, setAnalyzeItem] = useState<WorkcostBillItem | null>(null);
   // 参考价批量缓存：一次 ComposeMany（key=定额编码），替代每行一次核算——
   // 逐行调用在 63 行清单上=63 次全资源扫描，真机首屏 longtask ~700ms。
   const [refPrices, setRefPrices] = useState<Record<string, number>>({});
@@ -282,7 +282,7 @@ export function WorkcostBillView() {
                 </thead>
                 <tbody>
                   {visible.map((it) => (
-                    <BillRow key={it.id} item={it} showProject={!selected} onAnalyze={setAnalyzeCode} refPrice={it.quotaCode ? refPrices[it.quotaCode] : undefined} />
+                    <BillRow key={it.id} item={it} showProject={!selected} onAnalyze={setAnalyzeItem} refPrice={it.quotaCode ? refPrices[it.quotaCode] : undefined} />
                   ))}
                 </tbody>
               </table>
@@ -322,8 +322,8 @@ export function WorkcostBillView() {
                               <button
                                 type="button"
                                 className="ml-auto font-mono text-[10px] px-1.5 py-px rounded bg-accent/10 text-accent hover:bg-accent/20 transition-colors shrink-0"
-                                title={`引用定额 ${it.quotaCode}——点开综合单价分析（工料机明细+三费）`}
-                                onClick={() => setAnalyzeCode(it.quotaCode)}
+                                title={`引用定额 ${it.quotaCode}——点开综合单价分析（按挂接定额分组）`}
+                                onClick={() => setAnalyzeItem(it)}
                               >
                                 {it.quotaCode}
                               </button>
@@ -340,7 +340,7 @@ export function WorkcostBillView() {
         )}
       </div>
 
-      {analyzeCode && <QuotaAnalysisModal quotaCode={analyzeCode} onClose={() => setAnalyzeCode("")} />}
+      {analyzeItem && <QuotaAnalysisModal item={analyzeItem} onClose={() => setAnalyzeItem(null)} />}
     </div>
   );
 }
@@ -356,15 +356,15 @@ function BillRow({
 }: {
   item: WorkcostBillItem & { projectName?: string };
   showProject?: boolean;
-  onAnalyze: (quotaCode: string) => void;
+  onAnalyze: (item: WorkcostBillItem) => void;
   refPrice?: number;
 }) {
   const clickable = Boolean(item.quotaCode);
   return (
     <tr
       className={`border-b border-border-soft/25 last:border-0 hover:bg-bg-elev/30 ${clickable ? "cursor-pointer" : ""}`}
-      onClick={clickable ? () => onAnalyze(item.quotaCode) : undefined}
-      title={clickable ? `点开综合单价分析：${item.title}（工料机明细+三费）` : "未套定额（手填项）——单价即行内手填价"}
+      onClick={clickable ? () => onAnalyze(item) : undefined}
+      title={clickable ? `点开综合单价分析：${item.title}（按挂接定额分组展示工料机明细）` : "未套定额（手填项）——单价即行内手填价"}
     >
       {showProject && (
         <td className="py-1.5 px-2 max-w-[9rem]" title={item.projectName}>
@@ -391,8 +391,8 @@ function BillRow({
           <button
             type="button"
             className="font-mono text-[10px] px-1.5 py-px rounded bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
-            title={`引用定额 ${item.quotaCode}——点开综合单价分析（工料机明细+三费）`}
-            onClick={() => onAnalyze(item.quotaCode)}
+            title={`引用定额 ${item.quotaCode}——点开综合单价分析（按挂接定额分组）`}
+            onClick={() => onAnalyze(item)}
           >
             {item.quotaCode}
           </button>
@@ -419,42 +419,122 @@ function BillRow({
   );
 }
 
-// QuotaAnalysisModal 清单项的综合单价分析（「清单分析」入口）：
-// 定额头 + 工料机明细行（含量×单价=金额）+ 人材机三费汇总 + 综合单价（只含
-// 人材机）。数据全部现算（WorkcostQuotaCompose），资源调价即最新口径。
-export function QuotaAnalysisModal({ quotaCode, onClose }: { quotaCode: string; onClose: () => void }) {
-  const [quota, setQuota] = useState<WorkcostQuota | null>(null);
-  const [lines, setLines] = useState<WorkcostCompose | null>(null);
+// ── 综合单价分析（1:N 多定额组合）──────────────────────────────────
+
+// QuotaAnalysisModal 清单项的综合单价分析（「清单分析」入口，SchemaV30 1:N）：
+// 按挂接的定额分组展示——每条定额一个区块（定额头 + 工料机明细 + 该定额综合
+// 单价）；底部「挂接定额」区支持从定额库搜索挂接/解挂/改工程量。数据全部现算
+// （WorkcostQuotaCompose），资源调价即最新口径；加总仍归五表 Excel。
+export function QuotaAnalysisModal({ item, onClose }: { item: WorkcostBillItem; onClose: () => void }) {
+  const [links, setLinks] = useState<WorkcostBillQuotaLink[]>([]);
+  const [composes, setComposes] = useState<Record<string, WorkcostCompose>>({});
+  const [quotaHeads, setQuotaHeads] = useState<Record<string, WorkcostQuota>>({});
+  const [linksLoading, setLinksLoading] = useState(true);
   const [error, setError] = useState("");
+  const [kw, setKw] = useState("");
+  const [candidates, setCandidates] = useState<WorkcostQuota[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useState("");
+
+  const reloadLinks = useCallback(async () => {
+    try {
+      const ls = (await app.WorkcostBillQuotaLinks(item.id)) ?? [];
+      setLinks(ls);
+      return ls;
+    } catch (e) {
+      setError(`定额引用读取失败：${e instanceof Error ? e.message : String(e)}`);
+      setLinks([]);
+      return [];
+    } finally {
+      setLinksLoading(false);
+    }
+  }, [item.id]);
 
   useEffect(() => {
+    void reloadLinks();
+  }, [reloadLinks]);
+
+  // 引用变化 → 批量现算各定额明细 + 拉定额头。
+  useEffect(() => {
+    if (links.length === 0) {
+      setComposes({});
+      setQuotaHeads({});
+      return;
+    }
     let alive = true;
-    app
-      .WorkcostQuotaGet(quotaCode)
-      .then((q) => {
-        if (alive) setQuota(q);
-      })
-      .catch(() => {
-        /* 定额头缺失不阻塞分析表 */
+    Promise.all(links.map((l) => app.WorkcostQuotaCompose(l.quotaCode, null).catch(() => null)))
+      .then((cs) => {
+        if (!alive) return;
+        const m: Record<string, WorkcostCompose> = {};
+        cs.forEach((c, i) => {
+          if (c) m[links[i].quotaCode] = c;
+        });
+        setComposes(m);
       });
-    app
-      .WorkcostQuotaCompose(quotaCode, null)
-      .then((c) => {
-        if (alive) setLines(c);
-      })
-      .catch((e) => {
-        if (alive) setError(e instanceof Error ? e.message : String(e));
+    Promise.all(links.map((l) => Promise.resolve(app.WorkcostQuotaGet(l.quotaCode)).catch(() => null)))
+      .then((qs) => {
+        if (!alive) return;
+        const m: Record<string, WorkcostQuota> = {};
+        qs.forEach((q, i) => {
+          if (q) m[links[i].quotaCode] = q;
+        });
+        setQuotaHeads(m);
       });
     return () => {
       alive = false;
     };
-  }, [quotaCode]);
+  }, [links]);
+
+  const attach = useCallback(async (code: string) => {
+    setBusy(true);
+    try {
+      await app.WorkcostBillQuotaAttach(item.id, code, 0);
+      await reloadLinks();
+      setToast(`已挂接定额 ${code}`);
+    } catch (e) {
+      setToast(`挂接失败：${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }, [item.id, reloadLinks]);
+
+  const detach = useCallback(async (linkId: number, code: string) => {
+    setBusy(true);
+    try {
+      await app.WorkcostBillQuotaDetach(item.id, linkId);
+      await reloadLinks();
+      setToast(`已解挂定额 ${code}`);
+    } catch (e) {
+      setToast(`解挂失败：${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }, [item.id, reloadLinks]);
+
+  const setQuantity = useCallback(async (code: string, quantity: number) => {
+    try {
+      await app.WorkcostBillQuotaAttach(item.id, code, quantity);
+      await reloadLinks();
+    } catch (e) {
+      setToast(`工程量保存失败：${e instanceof Error ? e.message : String(e)}`);
+    }
+  }, [item.id, reloadLinks]);
+
+  const search = useCallback(async () => {
+    const k = kw.trim();
+    if (!k) {
+      setCandidates([]);
+      return;
+    }
+    try {
+      const list = (await app.WorkcostQuotaList("", k)) ?? [];
+      setCandidates(list.slice(0, 8));
+    } catch {
+      setCandidates([]);
+    }
+  }, [kw]);
 
   const f = new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 });
-  // 绑定面 nil 切片经 JSON 序列化是 null（旧构建的 Go 侧仍可能返回 null），
-  // 消费一律兜底——真机实证 null.length 直接崩进 ErrorBoundary。
-  const detailRows = lines?.lines ?? [];
-  const warns = lines?.warnings ?? [];
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div
@@ -462,91 +542,172 @@ export function QuotaAnalysisModal({ quotaCode, onClose }: { quotaCode: string; 
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2">
-          <span className="text-[13px] text-fg font-semibold flex-1 min-w-0 truncate">
-            综合单价分析：{quota?.title ?? quotaCode}
+          <span className="text-[13px] text-f font-semibold flex-1 min-w-0 truncate">
+            综合单价分析：{item.title}
           </span>
-          {quota?.origCode && quota.origCode !== quotaCode && (
-            <span className="font-mono text-[10px] px-1.5 py-px rounded bg-bg-soft text-fg-faint" title="工作簿原始编码（定额编码统一前的溯源）">
-              原码 {quota.origCode}
-            </span>
-          )}
           <button type="button" className={iconBtn} onClick={onClose} title="关闭">
             <X size={11} />
           </button>
         </div>
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-fg-faint">
-          <span className="font-mono text-accent">{quotaCode}</span>
-          {quota?.unit && <span>单位：{quota.unit}</span>}
-          {quota?.specialty && <span>专业：{quota.specialty}</span>}
-          {quota?.note && <span className="max-w-[24rem] truncate" title={quota.note}>特征：{quota.note}</span>}
+          <span className="font-mono text-accent">{item.code}</span>
+          {item.unit && <span>单位：{item.unit}</span>}
+          {item.quantity > 0 && <span>工程量：{f.format(item.quantity)}</span>}
+          {item.feature && <span className="max-w-[24rem] truncate" title={item.feature}>特征：{item.feature}</span>}
         </div>
         {error ? (
           <div role="alert" className="text-[11px] text-amber-300 border border-amber-400/30 bg-amber-400/10 rounded-lg px-2.5 py-2">
-            核算失败：{error}
+            {error}
           </div>
-        ) : !lines ? (
+        ) : linksLoading ? (
           <div className="space-y-2 animate-pulse">
             <div className="v3-panel rounded-lg h-16" />
             <div className="v3-panel rounded-lg h-40" />
           </div>
+        ) : links.length === 0 ? (
+          <div className="v3-panel rounded-xl px-4 py-6 text-center text-[11.5px] text-fg-faint">
+            该清单项还没有挂接定额——下方搜索定额库挂接后，这里按定额展示工料机明细。
+          </div>
         ) : (
-          <>
-            <div className="v3-panel rounded-lg overflow-x-auto">
-              <table className="w-full text-[11.5px]">
-                <thead>
-                  <tr className="text-left text-[10px] text-fg-faint border-b border-border-soft/50">
-                    <th className="py-1.5 px-2 w-14">行类</th>
-                    <th className="py-1.5 px-2">资源</th>
-                    <th className="py-1.5 px-2 w-14">单位</th>
-                    <th className="py-1.5 px-2 w-20 text-right">含量</th>
-                    <th className="py-1.5 px-2 w-20 text-right">单价</th>
-                    <th className="py-1.5 px-2 w-24 text-right">金额</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {detailRows.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="py-6 text-center text-fg-faint text-[11.5px]">
-                        该定额没有工料机消耗行——综合单价为 0。
-                      </td>
-                    </tr>
+          <div className="space-y-3">
+            {links.map((l, idx) => {
+              const c = composes[l.quotaCode];
+              const head = quotaHeads[l.quotaCode];
+              const rows = c?.lines ?? [];
+              const qty = l.quantity > 0 ? l.quantity : item.quantity;
+              return (
+                <div key={l.id} className="v3-panel rounded-xl p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-[11px] text-fg-faint shrink-0">定额 {idx + 1}</span>
+                    <span className="font-mono text-[11px] text-accent shrink-0">{l.quotaCode}</span>
+                    <span className="text-[11.5px] text-fg font-medium truncate flex-1 min-w-0">{head?.title ?? ""}</span>
+                    {head?.origCode && head.origCode !== l.quotaCode && (
+                      <span className="font-mono text-[10px] px-1.5 py-px rounded bg-bg-soft text-fg-faint shrink-0" title="工作簿原始编码（定额编码统一前的溯源）">
+                        原码 {head.origCode}
+                      </span>
+                    )}
+                    <label className="text-[10px] text-fg-faint shrink-0" title="该定额参与合价的工程量；0 = 跟随清单工程量">
+                      {"工程量 "}
+                      <input
+                        className="w-20 px-1.5 h-6 rounded-md bg-bg-elev border border-border text-[11px] tabular-nums text-fg"
+                        defaultValue={l.quantity}
+                        onBlur={(e) => {
+                          const v = Number(e.target.value);
+                          if (!Number.isNaN(v) && v !== l.quantity) void setQuantity(l.quotaCode, v);
+                        }}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className={iconBtn}
+                      title={`解挂定额 ${l.quotaCode}`}
+                      disabled={busy}
+                      onClick={() => void detach(l.id, l.quotaCode)}
+                    >
+                      <X size={11} />
+                    </button>
+                  </div>
+                  {!c ? (
+                    <div className="text-[11px] text-fg-faint animate-pulse">现算中…</div>
+                  ) : rows.length === 0 ? (
+                    <div className="text-[11px] text-fg-faint">该定额没有工料机消耗行——综合单价为 0，需先录入消耗量。</div>
                   ) : (
-                    detailRows.map((l, i) => (
-                      <tr key={i} className="border-b border-border-soft/20 last:border-0">
-                        <td className="py-1 px-2 text-fg-dim">{l.kind}</td>
-                        <td className="py-1 px-2 text-fg-dim">{l.title || "-"}</td>
-                        <td className="py-1 px-2 text-fg-faint">{l.unit || "-"}</td>
-                        <td className="py-1 px-2 text-right tabular-nums">{l.quantity > 0 ? f.format(l.quantity) : "—"}</td>
-                        <td className="py-1 px-2 text-right tabular-nums">
-                          {l.price > 0 ? fmtPrice(l.price) : <span className="text-amber-300">缺价</span>}
-                        </td>
-                        <td className="py-1 px-2 text-right tabular-nums">{fmtPrice(l.amount)}</td>
-                      </tr>
-                    ))
+                    <>
+                      <div className="v3-panel rounded-lg overflow-x-auto">
+                        <table className="w-full text-[11px]">
+                          <thead>
+                            <tr className="text-left text-[10px] text-fg-faint border-b border-border-soft/50">
+                              <th className="py-1 px-2 w-14">行类</th>
+                              <th className="py-1 px-2">资源</th>
+                              <th className="py-1 px-2 w-12">单位</th>
+                              <th className="py-1 px-2 w-20 text-right">含量</th>
+                              <th className="py-1 px-2 w-20 text-right">单价</th>
+                              <th className="py-1 px-2 w-24 text-right">金额</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {rows.map((row, i) => (
+                              <tr key={i} className="border-b border-border-soft/20 last:border-0">
+                                <td className="py-1 px-2 text-fg-dim">{row.kind}</td>
+                                <td className="py-1 px-2 text-fg-dim">{row.title || "-"}</td>
+                                <td className="py-1 px-2 text-fg-faint">{row.unit || "-"}</td>
+                                <td className="py-1 px-2 text-right tabular-nums">{row.quantity > 0 ? f.format(row.quantity) : "—"}</td>
+                                <td className="py-1 px-2 text-right tabular-nums">
+                                  {row.price > 0 ? fmtPrice(row.price) : <span className="text-amber-300">缺价</span>}
+                                </td>
+                                <td className="py-1 px-2 text-right tabular-nums">{fmtPrice(row.amount)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="mt-1.5 flex flex-wrap items-center justify-end gap-x-3 text-[11px] text-fg-dim px-1">
+                        <span>
+                          该定额综合单价（人材机）
+                          <span className="tabular-nums text-accent ml-1">{fmtPrice(c.compositePrice)}</span>
+                        </span>
+                        <span className="text-fg-faint">
+                          合价参考 <span className="tabular-nums">{fmtPrice(c.compositePrice * (qty > 0 ? qty : 0))}</span>
+                          （{f.format(qty)} × 单价，导出后由 Excel 重算）
+                        </span>
+                      </div>
+                    </>
                   )}
-                </tbody>
-              </table>
-            </div>
-            <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-[11.5px] text-fg-dim px-1">
-              <span>人工 <span className="tabular-nums text-sky-400">{fmtPrice(lines.laborFee)}</span></span>
-              <span>材料 <span className="tabular-nums text-ok">{fmtPrice(lines.materialFee)}</span></span>
-              <span>机械 <span className="tabular-nums text-violet-400">{fmtPrice(lines.machineFee)}</span></span>
-              <span className="text-fg font-semibold">
-                综合单价（人材机）<span className="tabular-nums text-accent ml-1">{fmtPrice(lines.compositePrice)}</span>
-              </span>
-            </div>
-            {warns.length > 0 && (
-              <div role="alert" className="text-[10.5px] text-amber-300 border border-amber-400/30 bg-amber-400/10 rounded-lg px-2.5 py-1.5">
-                {warns.map((w, i) => (
-                  <div key={i}>· {w}</div>
-                ))}
-              </div>
-            )}
-            <p className="text-[10px] text-fg-faint">
-              按当前资源价现算（参考口径）；工程量 × 此单价 = 合价，由导出的五表工作簿活公式计算。
-            </p>
-          </>
+                </div>
+              );
+            })}
+          </div>
         )}
+
+        {/* 挂接定额：从定额库搜索 */}
+        <div className="v3-panel rounded-xl p-3 space-y-2">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11.5px] text-fg font-medium">挂接定额</span>
+            <span className="text-[10px] text-fg-faint">从定额库搜索后挂接到本清单项（可挂多条，各带工程量）</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <input
+              className={`${fieldCls} !w-64`}
+              value={kw}
+              placeholder="搜定额编码/名称"
+              aria-label="搜索定额"
+              onChange={(e) => setKw(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void search();
+              }}
+            />
+            <button type="button" className={ghostBtn} onClick={() => void search()}>搜索</button>
+          </div>
+          {candidates.length > 0 && (
+            <ul className="space-y-1">
+              {candidates.map((q) => (
+                <li key={q.code} className="flex items-center gap-2 text-[11px]">
+                  <span className="font-mono text-accent shrink-0">{q.code}</span>
+                  <span className="text-fg-dim truncate flex-1 min-w-0">{q.title}</span>
+                  <span className="text-fg-faint shrink-0">{q.unit || "-"}</span>
+                  <button
+                    type="button"
+                    className="inline-flex items-center px-2 h-6 rounded-md bg-accent text-accent-fg text-[10.5px] hover:opacity-90 disabled:opacity-50 shrink-0"
+                    disabled={busy || links.some((l) => l.quotaCode === q.code)}
+                    onClick={() => void attach(q.code)}
+                  >
+                    {links.some((l) => l.quotaCode === q.code) ? "已挂接" : "挂接"}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {toast && (
+          <div className="v3-panel rounded-xl px-3 py-2 text-[11px] text-fg-dim">
+            {toast}
+            <button type="button" className={ghostBtn + " ml-2"} onClick={() => setToast("")}>关闭</button>
+          </div>
+        )}
+        <p className="text-[10px] text-fg-faint">
+          按当前资源价现算（参考口径）；清单合价 = Σ(定额工程量 × 定额单价)，由导出的五表工作簿活公式计算。
+        </p>
       </div>
     </div>
   );

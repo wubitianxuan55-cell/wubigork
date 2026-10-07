@@ -55,6 +55,9 @@ type BillItem struct {
 	Feature       string  `json:"feature"`       // 工序特征
 	PriceOverride float64 `json:"priceOverride"` // 0=按定额现算；>0=手填单价优先
 	Sort          int     `json:"sort"`
+	// QuotaCodes 该清单项挂接的全部定额码（gf_bill_quota_links 聚合，1:N 组合；
+	// 单值 QuotaCode 是主定额=旧锚点）。构造即非 nil（JSON null 崩前端）。
+	QuotaCodes []string `json:"quotaCodes"`
 }
 
 // UpsertBillProject 落项目封面与费率（同名更新），返回项目 ID。
@@ -211,16 +214,29 @@ FROM gf_bill_items WHERE project_id=? ORDER BY sort, id`, projectID)
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
-	var out []BillItem
+	out := []BillItem{}
+	var ids []int64
+	fallback := map[int64]string{}
 	for rows.Next() {
 		var it BillItem
 		if err := rows.Scan(&it.ID, &it.ProjectID, &it.Code, &it.Title, &it.Unit, &it.Division,
 			&it.Quantity, &it.QuantityExpr, &it.QuotaCode, &it.Feature, &it.PriceOverride, &it.Sort); err != nil {
 			continue
 		}
+		it.QuotaCodes = []string{}
+		ids = append(ids, it.ID)
+		fallback[it.ID] = it.QuotaCode
 		out = append(out, it)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	// 1:N 引用聚合（link 表全量事实；单值列兜底）。
+	links := s.quotaLinksByItems(ids, fallback)
+	for i := range out {
+		out[i].QuotaCodes = links[out[i].ID]
+	}
+	return out, nil
 }
 
 // BillProjects 项目列表（含费率与清单项数，最新在前）。

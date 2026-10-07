@@ -23,6 +23,7 @@ import type {
   TaskView,
   WorkcostApplyProjectResult,
   WorkcostBillItem,
+  WorkcostBillQuotaLink,
   WorkcostBillProject,
   WorkcostCompose,
   WorkcostComposeOverride,
@@ -196,6 +197,12 @@ export interface CostBindings {
   // WorkcostBillProjectDelete 整体删除导入的项目（封面+清单+独占定额；
   // 共享定额与资源保留）。返回删除的独占定额数。
   WorkcostBillProjectDelete(id: number): Promise<number>;
+  // WorkcostBillQuotaLinks 清单项挂接的定额引用（1:N 组合，SchemaV30）。
+  WorkcostBillQuotaLinks(billItemId: number): Promise<WorkcostBillQuotaLink[]>;
+  // WorkcostBillQuotaAttach 挂接定额（同清单同定额幂等更新；quantity≤0=跟随清单工程量）。
+  WorkcostBillQuotaAttach(billItemId: number, quotaCode: string, quantity: number): Promise<WorkcostBillQuotaLink>;
+  // WorkcostBillQuotaDetach 解挂一条定额引用。
+  WorkcostBillQuotaDetach(billItemId: number, linkId: number): Promise<void>;
   WorkcostRecompose(): Promise<WorkcostRecomposeResult>;
   // WorkcostProjectParse 解析五表项目工作簿（只解析不落库）。
   WorkcostProjectParse(path: string): Promise<WorkcostProjectBundle>;

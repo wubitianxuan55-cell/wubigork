@@ -207,6 +207,24 @@ func (a *App) GaeaWorkcostBillProjectDelete(id int64) (int, error) {
 	return a.hubWorkcostStore().DeleteBillProject(id)
 }
 
+// ── 清单↔定额 1:N 组合（SchemaV30 gf_bill_quota_links）──────────────
+
+// GaeaWorkcostBillQuotaLinks 清单项挂接的定额引用（1:N；构造即非 nil）。
+func (a *App) GaeaWorkcostBillQuotaLinks(billItemID int64) ([]workcost.BillQuotaLink, error) {
+	return a.hubWorkcostStore().BillQuotaLinks(billItemID)
+}
+
+// GaeaWorkcostBillQuotaAttach 挂接一条定额到清单项（同清单同定额幂等更新；
+// 定额必须存在）。quantity≤0 表示跟随清单工程量。
+func (a *App) GaeaWorkcostBillQuotaAttach(billItemID int64, quotaCode string, quantity float64) (workcost.BillQuotaLink, error) {
+	return a.hubWorkcostStore().AttachBillQuotaLink(billItemID, quotaCode, quantity)
+}
+
+// GaeaWorkcostBillQuotaDetach 解挂一条定额引用。
+func (a *App) GaeaWorkcostBillQuotaDetach(billItemID int64, linkID int64) error {
+	return a.hubWorkcostStore().DetachBillQuotaLink(billItemID, linkID)
+}
+
 // GaeaWorkcostBillProjectRatesSave 保存项目费率（企管/规费/利润/税率 + 利润
 // 基数含规费开关 + 控制价）——录入数据，随取随改，不参与任何库内计算。
 func (a *App) GaeaWorkcostBillProjectRatesSave(id int64, rates workcost.RateSet, profitIncludesRegulatory bool, controlPrice float64) error {

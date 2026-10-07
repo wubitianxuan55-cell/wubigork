@@ -762,3 +762,26 @@ CREATE INDEX IF NOT EXISTS idx_bill_items_quota ON gf_bill_items(quota_code);
 const SchemaV29 = `
 ALTER TABLE gf_quotas ADD COLUMN orig_code TEXT NOT NULL DEFAULT '';
 `
+
+// SchemaV30 工料法⑤：**清单↔定额 1:N 组合**（用户拍板 2026-10-07「如果一个
+// 清单是几个定额组成的呢？」）。标准清单计价一条清单项可套多条定额子目
+// （各带自身工程量），综合单价是几条定额的加权和——此前 gf_bill_items.
+// quota_code 单值只能表达 1:1。
+//
+// gf_bill_quota_links 是引用事实全量表；单值 quota_code 列保留为「主定额」
+// （旧展示/导出锚点不动），link 表在导入链双写。quantity=该定额参与合价的
+// 工程量（0=跟随清单工程量）——录入数据，加总仍归五表 Excel。
+const SchemaV30 = `
+CREATE TABLE IF NOT EXISTS gf_bill_quota_links (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  bill_item_id INTEGER NOT NULL,
+  quota_code TEXT NOT NULL,
+  quantity REAL NOT NULL DEFAULT 0,
+  sort INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL DEFAULT '',
+  UNIQUE(bill_item_id, quota_code)
+);
+CREATE INDEX IF NOT EXISTS idx_bill_quota_links_item ON gf_bill_quota_links(bill_item_id);
+CREATE INDEX IF NOT EXISTS idx_bill_quota_links_quota ON gf_bill_quota_links(quota_code);
+`

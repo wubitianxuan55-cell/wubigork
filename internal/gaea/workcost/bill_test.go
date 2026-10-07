@@ -232,3 +232,75 @@ func TestComposeQuotasBatchSkipsMissing(t *testing.T) {
 		t.Fatalf("WP01 应有 1 行明细且非 nil: %+v", c.Lines)
 	}
 }
+
+// TestBillQuotaLinksCRUD 清单↔定额 1:N 组合（SchemaV30）：挂接/幂等更新/解挂/
+// 定额存在性校验 + BillItems 聚合 QuotaCodes + 导入链双写。
+func TestBillQuotaLinksCRUD(t *testing.T) {
+	s, cleanup := newWorkcostStore(t)
+	defer cleanup()
+
+	idx, err := s.ResourceIndex()
+	if err != nil {
+		t.Fatalf("建资源索引失败: %v", err)
+	}
+	for _, code := range []string{"WP01", "WP02"} {
+		if _, err := s.SaveQuota(Quota{Code: code, OrigCode: code, Title: "定额" + code, Specialty: "土壤修复", Unit: "m", Source: "测试"}, idx); err != nil {
+			t.Fatalf("建定额 %s 失败: %v", code, err)
+		}
+	}
+	projID, _ := s.UpsertBillProject("项目L", "l.xlsx", "", "", "", "", nil, false, 0)
+	saved, err := s.SaveBillItem(BillItem{ProjectID: projID, Code: "WP01", Title: "施工便道", Unit: "m", Quantity: 100, QuotaCode: "WP01"})
+	if err != nil {
+		t.Fatalf("建清单项失败: %v", err)
+	}
+
+	// 挂接两条定额（1:N）。
+	if _, err := s.AttachBillQuotaLink(saved.ID, "WP01", 100); err != nil {
+		t.Fatalf("挂接 WP01 失败: %v", err)
+	}
+	if _, err := s.AttachBillQuotaLink(saved.ID, "WP02", 0); err != nil {
+		t.Fatalf("挂接 WP02 失败: %v", err)
+	}
+	links, err := s.BillQuotaLinks(saved.ID)
+	if err != nil || len(links) != 2 {
+		t.Fatalf("应挂接 2 条，得到 %d 条: %v", len(links), err)
+	}
+
+	// 同码再挂接 = 幂等更新（数量改写，不新增行）。
+	if _, err := s.AttachBillQuotaLink(saved.ID, "WP01", 55); err != nil {
+		t.Fatalf("幂等挂接失败: %v", err)
+	}
+	links, _ = s.BillQuotaLinks(saved.ID)
+	if len(links) != 2 {
+		t.Fatalf("同码挂接应更新而非新增，得到 %d 条", len(links))
+	}
+	if links[0].Quantity != 55 {
+		t.Errorf("WP01 工程量应更新为 55，得到 %.2f", links[0].Quantity)
+	}
+
+	// 不存在的定额拒挂。
+	if _, err := s.AttachBillQuotaLink(saved.ID, "NOPE", 0); err == nil {
+		t.Fatal("挂接不存在的定额应报错")
+	}
+
+	// BillItems 聚合 QuotaCodes（link 表全量，构造即非 nil）。
+	items, err := s.BillItems(projID)
+	if err != nil || len(items) != 1 {
+		t.Fatalf("清单读取失败: %v", err)
+	}
+	if len(items[0].QuotaCodes) != 2 {
+		t.Fatalf("QuotaCodes 应聚合 2 条，得到 %v", items[0].QuotaCodes)
+	}
+
+	// 解挂 + 归属校验。
+	if err := s.DetachBillQuotaLink(saved.ID, links[1].ID); err != nil {
+		t.Fatalf("解挂失败: %v", err)
+	}
+	if err := s.DetachBillQuotaLink(saved.ID+999, links[0].ID); err == nil {
+		t.Fatal("跨清单解挂应报错")
+	}
+	items, _ = s.BillItems(projID)
+	if len(items[0].QuotaCodes) != 1 || items[0].QuotaCodes[0] != "WP01" {
+		t.Fatalf("解挂后应只剩 WP01，得到 %v", items[0].QuotaCodes)
+	}
+}

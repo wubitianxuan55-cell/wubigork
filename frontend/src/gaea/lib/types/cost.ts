@@ -574,6 +574,20 @@ export interface WorkcostBillItem {
   feature: string;
   priceOverride: number;
   sort: number;
+  /** 挂接的全部定额码（1:N 组合，gf_bill_quota_links 聚合；quotaCode 是主定额）。 */
+  quotaCodes?: string[];
+}
+
+/** WorkcostBillQuotaLink 清单项挂接的一条定额引用（1:N 组合）。 */
+export interface WorkcostBillQuotaLink {
+  id: number;
+  billItemId: number;
+  quotaCode: string;
+  /** 该定额参与合价的工程量；0 = 跟随清单工程量。 */
+  quantity: number;
+  sort: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // WorkcostRateSet 取费参数（项目级）。
