@@ -1,3 +1,6 @@
+## v4.469.1 · 存量清单主定额自动转引用（2026-10-07）
+> v4.469.0 只建了空引用表（引用靠重导入双写），存量清单点弹窗看不到定额。**SchemaV31 开库迁移自动回填**（单值 quota_code → 引用表，quantity=清单工程量，NOT IN 幂等）+ 读侧合成兜底（ID=-1）——用户零操作，升级即全部恢复可见。测试 TestV31BackfillAutoConvertsQuotaCodes；全量 ci 绿。教训=**新表+回填要同一版出，存量可见性不能寄托于用户重导入**。详见 `releases/v4.469.1.md`。
+
 ## v4.469.0 · 清单↔定额 1:N 组合（2026-10-07）
 > 用户拍板「如果一个清单是几个定额组成的呢？」——SchemaV30 gf_bill_quota_links 引用表（bill_item_id/quota_code/quantity/sort，幂等），单值 quota_code 保留主定额锚点+导入链双写（存量重导入自动补齐）；**绑定 640→643**（Links/Attach/Detach，存在性与归属校验）。分析弹窗 1:N 改版：按挂接定额分组（定额头+工料机明细+该定额单价+合价参考）+「挂接定额」区（搜索挂接/解挂/改工程量）——亦是三期 3.2 AI 组价的落点预备。Go/前端双侧测试（27 例）；全量 ci 绿。观察池=app 包 price_fetch 族 count=3 连跑 UNIQUE 冲突（干净 HEAD 亦红=既有泄漏）。详见 `releases/v4.469.0.md`。
 
