@@ -689,6 +689,35 @@ func (s *Store) ComposeQuota(code string, overrides map[string]ComposeOverride) 
 	return &c, q, nil
 }
 
+// ComposeQuotas 批量核算（清单库参考价列专用）：一次建资源索引，逐码复用——
+// 逐行调用 ComposeQuota 时每个编码都全量扫资源表建索引（63 行清单 = 63 次全扫，
+// 真机首屏 longtask ~700ms）。不存在的编码不写入结果（调用方按缺失回退显示）。
+func (s *Store) ComposeQuotas(codes []string) (map[string]*Compose, error) {
+	if err := s.requireDB(); err != nil {
+		return nil, err
+	}
+	idx, err := s.ResourceIndex()
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]*Compose, len(codes))
+	for _, code := range codes {
+		code = strings.TrimSpace(code)
+		if code == "" {
+			continue
+		}
+		q, err := s.GetQuota(code)
+		if err != nil {
+			continue // 不存在/读失败：缺失即回退信号，不中断整批
+		}
+		lines, warnings := q.ComposeLines(idx, nil)
+		c := ComposeUnitPrice(lines)
+		c.Warnings = append(warnings, c.Warnings...)
+		out[code] = &c
+	}
+	return out, nil
+}
+
 // ComposeLines 把定额含量行解析为核算组成行（资源现行价优先，缺失回退快照价）。
 // 返回的 warnings 记录孤立引用（资源已删除）——不静默归零，让「单价偏低」有据可查。
 func (q *Quota) ComposeLines(idx map[string]Resource, overrides map[string]ComposeOverride) ([]ComposeLine, []string) {

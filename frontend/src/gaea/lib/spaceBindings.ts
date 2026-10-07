@@ -533,6 +533,7 @@ export const GAEA_METHOD_FACETS = {
   WorkcostQuotaList: "work",
   WorkcostQuotaDelete: "work",
   WorkcostQuotaCompose: "work",
+  WorkcostQuotaComposeMany: "work",
   WorkcostProjectFees: "work",
   WorkcostSeedPreview: "work",
   WorkcostSeedApply: "work",

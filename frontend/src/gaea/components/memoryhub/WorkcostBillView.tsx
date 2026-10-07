@@ -6,7 +6,7 @@
 // 案例区。综合单价按当前资源价现算（参考口径），加总由导出的五表活公式算。
 //
 // 三层关系：工料机=资源价格 → 定额=每单位消耗 → 清单=工程实体分项（套定额）。
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ListTree, RefreshCw, Search, X } from "../../icons";
 import { app } from "../../lib/bridge";
 import type { WorkcostBillItem, WorkcostBillProject, WorkcostCompose, WorkcostQuota } from "../../lib/types";
@@ -50,8 +50,11 @@ export function WorkcostBillView() {
   const [mode, setMode] = useState<"detail" | "grouped">("detail");
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState("");
-  // 清单分析：点定额 chip 打开该清单项的综合单价分析（工料机明细+三费）。
+  // 清单分析：点清单行打开该清单项的综合单价分析（工料机明细+三费）。
   const [analyzeCode, setAnalyzeCode] = useState("");
+  // 参考价批量缓存：一次 ComposeMany（key=定额编码），替代每行一次核算——
+  // 逐行调用在 63 行清单上=63 次全资源扫描，真机首屏 longtask ~700ms。
+  const [refPrices, setRefPrices] = useState<Record<string, number>>({});
 
   const loadProjects = useCallback(async () => {
     setLoading(true);
@@ -66,7 +69,7 @@ export function WorkcostBillView() {
     }
   }, []);
 
-  // 累计清单：全部项目的清单项一次拉平（各自带项目名）。
+  // 累计清单：全部项目的清单项一次拉平（各自带项目名），参考价一次批量核算。
   const loadItems = useCallback(async (projs: WorkcostBillProject[]) => {
     try {
       const batches = await Promise.all(
@@ -74,7 +77,21 @@ export function WorkcostBillView() {
           ((await app.WorkcostBillItems(p.id)) ?? []).map((it) => ({ ...it, projectName: p.name })),
         ),
       );
-      setAllItems(batches.flat());
+      const items = batches.flat();
+      setAllItems(items);
+      const codes = [...new Set(items.map((it) => it.quotaCode).filter(Boolean))];
+      if (codes.length > 0) {
+        try {
+          const many = (await app.WorkcostQuotaComposeMany(codes)) ?? {};
+          const prices: Record<string, number> = {};
+          for (const [code, c] of Object.entries(many)) prices[code] = c.compositePrice;
+          setRefPrices(prices);
+        } catch {
+          setRefPrices({}); // 参考价失败不拦清单列表——单价列回退占位
+        }
+      } else {
+        setRefPrices({});
+      }
     } catch (e) {
       setAllItems([]);
       setToast(`清单读取失败：${e instanceof Error ? e.message : String(e)}`);
@@ -265,7 +282,7 @@ export function WorkcostBillView() {
                 </thead>
                 <tbody>
                   {visible.map((it) => (
-                    <BillRow key={it.id} item={it} showProject={!selected} onAnalyze={setAnalyzeCode} />
+                    <BillRow key={it.id} item={it} showProject={!selected} onAnalyze={setAnalyzeCode} refPrice={it.quotaCode ? refPrices[it.quotaCode] : undefined} />
                   ))}
                 </tbody>
               </table>
@@ -301,6 +318,16 @@ export function WorkcostBillView() {
                             <span className="text-fg-faint w-40 truncate" title={it.projectName}>{it.projectName}</span>
                             <span className="font-mono text-[10px] text-fg-faint">{it.code}</span>
                             {it.quantityExpr && <span className="text-fg-faint truncate">计算式：{it.quantityExpr}</span>}
+                            {it.quotaCode && (
+                              <button
+                                type="button"
+                                className="ml-auto font-mono text-[10px] px-1.5 py-px rounded bg-accent/10 text-accent hover:bg-accent/20 transition-colors shrink-0"
+                                title={`引用定额 ${it.quotaCode}——点开综合单价分析（工料机明细+三费）`}
+                                onClick={() => setAnalyzeCode(it.quotaCode)}
+                              >
+                                {it.quotaCode}
+                              </button>
+                            )}
                           </li>
                         ))}
                       </ul>
@@ -318,37 +345,27 @@ export function WorkcostBillView() {
   );
 }
 
-// BillRow 一条清单项（只读）：单价=定额现算参考；定额编码点开综合单价分析。
+// BillRow 一条清单项（只读）：**整行可点**开综合单价分析（用户心智=「点击清单
+// 看组价明细」，此前只有 10px 定额码徽章可点，真机反馈「点击清单无法查看组价
+// 明细」——可点面太小）；徽章保留为视觉锚点。手填行（未套定额）不可点。
 function BillRow({
   item,
   showProject,
   onAnalyze,
+  refPrice,
 }: {
   item: WorkcostBillItem & { projectName?: string };
   showProject?: boolean;
   onAnalyze: (quotaCode: string) => void;
+  refPrice?: number;
 }) {
-  // 单价参考：挂定额的行按当前资源价现算。
-  const [refPrice, setRefPrice] = useState<number | null>(null);
-  const seq = useRef(0);
-  useEffect(() => {
-    if (!item.quotaCode) {
-      setRefPrice(null);
-      return;
-    }
-    const my = ++seq.current;
-    app
-      .WorkcostQuotaCompose(item.quotaCode, null)
-      .then((c) => {
-        if (my === seq.current) setRefPrice(c.compositePrice);
-      })
-      .catch(() => {
-        if (my === seq.current) setRefPrice(null);
-      });
-  }, [item.quotaCode]);
-
+  const clickable = Boolean(item.quotaCode);
   return (
-    <tr className="border-b border-border-soft/25 last:border-0 hover:bg-bg-elev/30">
+    <tr
+      className={`border-b border-border-soft/25 last:border-0 hover:bg-bg-elev/30 ${clickable ? "cursor-pointer" : ""}`}
+      onClick={clickable ? () => onAnalyze(item.quotaCode) : undefined}
+      title={clickable ? `点开综合单价分析：${item.title}（工料机明细+三费）` : "未套定额（手填项）——单价即行内手填价"}
+    >
       {showProject && (
         <td className="py-1.5 px-2 max-w-[9rem]" title={item.projectName}>
           <span className="block truncate text-[10px] text-fg-faint">{item.projectName}</span>
@@ -385,7 +402,7 @@ function BillRow({
       </td>
       <td className="py-1.5 px-2 text-right">
         {item.quotaCode ? (
-          refPrice === null ? (
+          refPrice === undefined ? (
             <span className="text-fg-faint">…</span>
           ) : (
             <span className="tabular-nums text-fg-dim" title="按当前资源价现算的综合单价（人材机）——参考值，导出后由 Excel 活公式重算">

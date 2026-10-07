@@ -265,6 +265,7 @@ export const gaeaToGaea = {
   WorkcostQuotaList: "GaeaWorkcostQuotaList",
   WorkcostQuotaDelete: "GaeaWorkcostQuotaDelete",
   WorkcostQuotaCompose: "GaeaWorkcostQuotaCompose",
+  WorkcostQuotaComposeMany: "GaeaWorkcostQuotaComposeMany",
   WorkcostProjectFees: "GaeaWorkcostProjectFees",
   WorkcostSeedPreview: "GaeaWorkcostSeedPreview",
   WorkcostSeedApply: "GaeaWorkcostSeedApply",

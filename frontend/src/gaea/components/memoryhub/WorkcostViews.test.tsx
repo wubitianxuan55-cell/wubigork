@@ -27,6 +27,7 @@ const state = vi.hoisted(() => ({
   resources: [] as WorkcostResource[],
   quotas: [] as WorkcostQuota[],
   compose: null as WorkcostCompose | null,
+  composeMany: null as Record<string, WorkcostCompose> | null,
   listError: "",
   seedPreview: null as WorkcostSeedPreview | null,
   seedApplied: 0,
@@ -63,6 +64,14 @@ vi.mock("../../lib/bridge", () => ({
     WorkcostQuotaCompose: async (): Promise<WorkcostCompose> => {
       if (!state.compose) throw new Error("核算失败");
       return state.compose;
+    },
+    WorkcostQuotaComposeMany: async (codes: string[]): Promise<Record<string, WorkcostCompose>> => {
+      // 与 Go 同：缺失编码不写键；参考价取 compositePrice（WorkcostBillView 映射）。
+      const out: Record<string, WorkcostCompose> = {};
+      for (const code of codes) {
+        if (state.composeMany && state.composeMany[code]) out[code] = state.composeMany[code];
+      }
+      return out;
     },
     WorkcostQuotaGet: async (code: string): Promise<WorkcostQuota | null> => state.getQuota ?? state.quotas.find((q) => q.code === code) ?? null,
     WorkcostQuotaSave: async (q: WorkcostQuota): Promise<WorkcostQuota> => {
@@ -467,6 +476,7 @@ describe("WorkcostBillView 分部分项清单", () => {
       laborFee: 9, materialFee: 213.75, machineFee: 7.23, outsourcedFee: 0, otherFee: 0,
       subtotal: 229.98, compositePrice: 229.98, zeroLines: 0, lines: [], warnings: [],
     };
+    state.composeMany = { WP01: state.compose! }; // 参考价走批量核算（v4.468）
     render(<WorkcostBillView />);
     expect(await screen.findByText("测量放线")).toBeTruthy();
     expect(screen.getByText("拐点、分层标高")).toBeTruthy(); // 特征显形
@@ -514,6 +524,23 @@ describe("WorkcostBillView 分部分项清单", () => {
     expect(await screen.findByText(/该定额没有工料机消耗行/)).toBeTruthy();
   });
 
+  it("点击清单行任意处打开组价明细（v4.467 真机反馈「必须去点引用的定额」——整行可点回归钉）；参考价走批量核算", async () => {
+    state.billProjects = [proj];
+    state.billItems = items;
+    state.composeMany = {
+      WP01: {
+        laborFee: 9, materialFee: 213.75, machineFee: 7.23, outsourcedFee: 0, otherFee: 0,
+        subtotal: 229.98, compositePrice: 229.98, zeroLines: 0, lines: [], warnings: [],
+      },
+    };
+    render(<WorkcostBillView />);
+    expect(await screen.findByText("测量放线")).toBeTruthy();
+    expect(await screen.findByText("¥229.98")).toBeTruthy(); // 参考价来自 ComposeMany 批量
+    // 点行的名称单元格（非定额徽章）也能打开弹窗。
+    fireEvent.click(screen.getByText("测量放线"));
+    expect(await screen.findByText(/综合单价分析：/)).toBeTruthy();
+  });
+
   it("特征描述显形于清单表（含计算式 tooltip），定额 chip 点开综合单价分析", async () => {
     state.billProjects = [proj];
     state.billItems = [
@@ -534,9 +561,10 @@ describe("WorkcostBillView 分部分项清单", () => {
       ],
       warnings: [],
     };
+    state.composeMany = { WP02: state.compose! }; // 参考价走批量核算（v4.468）
     render(<WorkcostBillView />);
     expect(await screen.findByText("3m宽，20cm碎石+15cm混凝土")).toBeTruthy();
-    fireEvent.click(screen.getByTitle(/点开综合单价分析/));
+    fireEvent.click(screen.getByTitle(/引用定额 .*——点开综合单价分析/));
     expect(await screen.findByText(/综合单价分析：施工便道/)).toBeTruthy();
     expect(await screen.findByText("级配碎石")).toBeTruthy();
     expect(screen.getByText(/综合单价（人材机）/)).toBeTruthy();
@@ -549,6 +577,7 @@ describe("WorkcostBillView 分部分项清单", () => {
       ...items,
       { id: 41, projectId: 2, code: "WP01", title: "测量放线", unit: "项", division: "A临建", quantity: 1, quantityExpr: "", quotaCode: "WP01", feature: "拐点、分层标高", priceOverride: 0, sort: 1 },
     ];
+    state.composeMany = { WP01: { ...(state.compose ?? { laborFee: 0, materialFee: 0, machineFee: 0, outsourcedFee: 0, otherFee: 0, subtotal: 0, compositePrice: 0, zeroLines: 0, lines: [], warnings: [] }) } };
     render(<WorkcostBillView />);
     fireEvent.click(await screen.findByText("按库项归并"));
     // 测量放线在两个项目都出现 → 聚合为一条库项，2 项目 2 条。
@@ -605,8 +634,9 @@ describe("WorkcostBillView 分部分项清单", () => {
       laborFee: 0, materialFee: 0, machineFee: 0, outsourcedFee: 0, otherFee: 0,
       subtotal: 0, compositePrice: 0, zeroLines: 0, lines: [], warnings: [],
     };
+    state.composeMany = { "WP02-2": state.compose! };
     render(<WorkcostBillView />);
-    fireEvent.click(await screen.findByTitle(/点开综合单价分析/));
+    fireEvent.click(await screen.findByTitle(/引用定额 .*——点开综合单价分析/));
     expect(await screen.findByText(/综合单价分析：施工便道/)).toBeTruthy();
     expect(screen.getByText(/原码 WP02/)).toBeTruthy();
   });

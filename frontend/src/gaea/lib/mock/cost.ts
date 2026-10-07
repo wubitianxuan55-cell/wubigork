@@ -50,7 +50,7 @@ type CostMethods = Pick<
   | "WorkcostResourceSave" | "WorkcostResourceGet" | "WorkcostResourceList" | "WorkcostResourceDelete"
   | "WorkcostResourceSetPrice" | "WorkcostResourcePrices"
   | "WorkcostQuotaSave" | "WorkcostQuotaGet" | "WorkcostQuotaList" | "WorkcostQuotaDelete"
-  | "WorkcostQuotaCompose" | "WorkcostProjectFees"
+  | "WorkcostQuotaCompose" | "WorkcostQuotaComposeMany" | "WorkcostProjectFees"
   | "WorkcostSeedPreview" | "WorkcostSeedApply" | "WorkcostRecompose"
   | "WorkcostProjectParse" | "WorkcostProjectApply" | "WorkcostProjectExport" | "WorkcostProjectExportToWorkspace"
   | "WorkcostBillProjects" | "WorkcostBillItems" | "WorkcostBillProjectRatesSave"
@@ -727,6 +727,15 @@ export function buildCost(_s: MakeMockState): CostMethods {
     async WorkcostQuotaCompose(code: string, _overrides: Record<string, WorkcostComposeOverride> | null): Promise<WorkcostCompose> {
       // dev mock 不实现项目级覆盖（真机由 Go 侧 ComposeOverride 生效）。
       return composeMock(code);
+    },
+    async WorkcostQuotaComposeMany(codes: string[]): Promise<Record<string, WorkcostCompose>> {
+      ensureWorkcostSeed();
+      const out: Record<string, WorkcostCompose> = {};
+      for (const code of codes) {
+        if (!mockQuotas.some((x) => x.code === code)) continue; // 与 Go 同：缺失不写键
+        out[code] = composeMock(code);
+      }
+      return out;
     },
     async WorkcostProjectFees(directFee: number, rates: WorkcostRateSet, profitIncludesRegulatory: boolean, measures: number, contingency: number, controlPrice: number): Promise<WorkcostFeeResult> {
       // 与 Go 侧 ComposeProjectFees 同口径：取费只在项目合计层跑一次。

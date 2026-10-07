@@ -161,6 +161,9 @@ export interface CostBindings {
     code: string,
     overrides: Record<string, WorkcostComposeOverride> | null,
   ): Promise<WorkcostCompose>;
+  // WorkcostQuotaComposeMany 批量核算（清单库参考价列专用）：一次资源索引复用，
+  // key=定额编码；不存在的编码不在结果里。
+  WorkcostQuotaComposeMany(codes: string[]): Promise<Record<string, WorkcostCompose>>;
   // WorkcostProjectFees 项目合计层取费：直接费 → 企管/利润/规费 → 税前合计 →
   // 增值税 → 含税总造价（含招标控制价对照）。
   // profitIncludesRegulatory 决定利润基数是否含规费（百锦路=false，市政道路=true）。

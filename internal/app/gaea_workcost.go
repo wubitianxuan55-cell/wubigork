@@ -158,6 +158,13 @@ func (a *App) GaeaWorkcostQuotaCompose(code string, overrides map[string]workcos
 	return c, nil
 }
 
+// GaeaWorkcostQuotaComposeMany 批量核算综合单价（清单库参考价列专用）：一次
+// 资源索引复用，替代逐行调用（63 行清单=63 次全资源扫描，真机首屏 longtask
+// ~700ms）。key=定额编码；不存在的编码不在结果里（前端按缺失回退显示）。
+func (a *App) GaeaWorkcostQuotaComposeMany(codes []string) (map[string]*workcost.Compose, error) {
+	return a.hubWorkcostStore().ComposeQuotas(codes)
+}
+
 // ── 分部分项清单（工料法第④层：录入数据，不做加总）─────────────────
 
 // GaeaWorkcostBillProjects 清单项目列表（含封面、费率与清单项数）。

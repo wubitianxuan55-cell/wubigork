@@ -197,3 +197,38 @@ func TestDeleteBillProject(t *testing.T) {
 		t.Errorf("项目 B 清单应完好: %+v", items)
 	}
 }
+
+// TestComposeQuotasBatchSkipsMissing 批量核算（清单库参考价列专用）：一次资源
+// 索引逐码复用；不存在的编码不写入结果（前端按缺失回退显示），整批不中断。
+func TestComposeQuotasBatchSkipsMissing(t *testing.T) {
+	s, cleanup := newWorkcostStore(t)
+	defer cleanup()
+
+	idx, err := s.ResourceIndex()
+	if err != nil {
+		t.Fatalf("建资源索引失败: %v", err)
+	}
+	if _, err := s.SaveQuota(Quota{
+		Code: "WP01", OrigCode: "WP01", Title: "施工便道", Specialty: "土壤修复", Unit: "m",
+		Source: "测试", Items: []QuotaItem{
+			{QuotaCode: "WP01", ResourceCode: "R1", Kind: KindMaterial, Title: "级配碎石", Unit: "m³", Quantity: 0.75},
+		},
+	}, idx); err != nil {
+		t.Fatalf("建定额失败: %v", err)
+	}
+
+	out, err := s.ComposeQuotas([]string{"WP01", "不存在", " "})
+	if err != nil {
+		t.Fatalf("批量核算失败: %v", err)
+	}
+	if len(out) != 1 {
+		t.Fatalf("应只返回存在的 1 条，得到 %d 条: %v", len(out), out)
+	}
+	c, ok := out["WP01"]
+	if !ok {
+		t.Fatal("WP01 应在结果中")
+	}
+	if c.Lines == nil || len(c.Lines) != 1 {
+		t.Fatalf("WP01 应有 1 行明细且非 nil: %+v", c.Lines)
+	}
+}

@@ -59,6 +59,7 @@ func (b *CostB) GaeaWorkcostProjectExportToWorkspace(srcPath string, fileName st
 func (b *CostB) GaeaWorkcostProjectFees(directFee float64, rates workcost.RateSet, profitIncludesRegulatory bool, measures float64, contingency float64, controlPrice float64) workcost.FeeResult { return b.a.GaeaWorkcostProjectFees(directFee, rates, profitIncludesRegulatory, measures, contingency, controlPrice) }
 func (b *CostB) GaeaWorkcostProjectParse(path string) (*workcost.ProjectBundle, error) { return b.a.GaeaWorkcostProjectParse(path) }
 func (b *CostB) GaeaWorkcostQuotaCompose(code string, overrides map[string]workcost.ComposeOverride) (*workcost.Compose, error) { return b.a.GaeaWorkcostQuotaCompose(code, overrides) }
+func (b *CostB) GaeaWorkcostQuotaComposeMany(codes []string) (map[string]*workcost.Compose, error) { return b.a.GaeaWorkcostQuotaComposeMany(codes) }
 func (b *CostB) GaeaWorkcostQuotaDelete(code string) error { return b.a.GaeaWorkcostQuotaDelete(code) }
 func (b *CostB) GaeaWorkcostQuotaGet(code string) *workcost.Quota { return b.a.GaeaWorkcostQuotaGet(code) }
 func (b *CostB) GaeaWorkcostQuotaList(specialty string, keyword string) []workcost.Quota { return b.a.GaeaWorkcostQuotaList(specialty, keyword) }
