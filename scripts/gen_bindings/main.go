@@ -55,6 +55,16 @@ var facadeOrder = []string{"core", "office", "memory", "cost", "model", "voice",
 // 仅不再生成门面转发——bindingNames/legacyBindings/signatures 同步收缩。
 // 复活方式：从本清单除名 + 重跑生成器 + check-bindings-drift §4 复检。
 var excludedBindings = map[string]bool{
+	// 二期·退役清理（2026-10-07，规划 §二期）：测算项目写路径 9 + 复盘笔记 4 +
+	// 五算 4 + 归因 1 + CostList 1 + 清单项增删 2 = 21 个零 UI 消费绑定。
+	// 方法体保留（graph/indicators 测试种子 + 行为测试），复活=除名重跑生成器。
+	"GaeaCostProjectSave": true, "GaeaCostProjectGet": true, "GaeaCostProjectDelete": true,
+	"GaeaCostEstimateItemSave": true, "GaeaCostEstimateItemDelete": true, "GaeaCostEstimateItems": true,
+	"GaeaCostEstimateVersionSave": true, "GaeaCostEstimateVersions": true, "GaeaCostEstimateSediment": true,
+	"GaeaCostNoteSave": true, "GaeaCostNoteList": true, "GaeaCostNoteDelete": true, "GaeaCostNoteBumpRef": true,
+	"GaeaCostStageSave": true, "GaeaCostStages": true, "GaeaCostStageCompare": true, "GaeaCostStageDeviations": true,
+	"GaeaCostAttribution": true, "GaeaCostList": true,
+	"GaeaWorkcostBillItemSave": true, "GaeaWorkcostBillItemDelete": true,
 	"AddOutlineNode": true, "AnalyzeStyle": true, "BrainCrossRefs": true,
 	"BrainWrite": true, "BrainstormBranches": true, "BuildBacklinkIndex": true,
 	"BuildContextBudget": true, "BuildRichContext": true, "ChatCharacter": true,

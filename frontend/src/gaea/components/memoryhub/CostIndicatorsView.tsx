@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { BarChart3, ChevronDown, ChevronRight, FolderOpen, RefreshCw, Trash2, TrendingUp } from "../../icons";
 import { app } from "../../lib/bridge";
-import type { CostIndicator, WorkcostBillProject, WorkcostRateSet } from "../../lib/types";
+import type { CostIndicator, WorkcostBillProject } from "../../lib/types";
 import { RatesEditor } from "./WorkcostRatesEditor";
 
 const fmtPrice = (p: number) => "¥" + new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(p);
@@ -321,4 +321,3 @@ export function ProjectCasesSection() {
   );
 }
 
-export type { WorkcostRateSet };

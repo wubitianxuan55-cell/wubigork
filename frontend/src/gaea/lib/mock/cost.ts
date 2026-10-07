@@ -1,6 +1,6 @@
 // mock/cost.ts — 成本库/价格域（T6-10.1 拆分自 lib/mock.ts，方法体零改动）。
 import type { AppBindings } from "../bridge";
-import type { CostCategory, CostEntry, CostEstimateItem, CostEstimateVersion, CostGraphView, CostIndicator, CostProject, CostProjectSummary, CostReviewNote, CostInquiryRecord, CostAdjustSuggestion, CostInquiryScanFinding, CostStageValue, CostStageCompareRow, CostStageDeviation, PriceApplyResult, PriceFetchRecord, PriceSource, CostSummary } from "../types";
+import type { CostCategory, CostEntry, CostEstimateItem, CostEstimateVersion, CostGraphView, CostIndicator, CostProject, CostProjectSummary, CostInquiryRecord, CostAdjustSuggestion, CostInquiryScanFinding, PriceApplyResult, PriceFetchRecord, PriceSource, CostSummary } from "../types";
 import {
   costCategoriesMock,
   costMock,
@@ -28,25 +28,20 @@ import type {
 } from "../types";
 
 type CostMethods = Pick<
-  AppBindings,
-  | "CostList" | "CostSearch" | "CostSearchPage" | "CostCategories" | "CostCategorySave" | "CostCategoryDelete"
+  AppBindings, | "CostSearch" | "CostSearchPage" | "CostCategories" | "CostCategorySave" | "CostCategoryDelete"
   | "SemanticIndexStatus" | "SemanticIndexBackfill"
   | "CostGet" | "CostSave" | "CostDelete"
   | "CostImportPreview" | "CostImportAIParse" | "CostImportVisionPreview" | "CostImportApply"
   | "PriceSources" | "PriceSourceSave" | "PriceSourceDelete"
   | "PriceFetch" | "PriceFetchAll" | "PriceFetches" | "PriceFetchApply" | "PriceFetchIgnore"
-  | "PriceHistory" | "CostCompare"
-  | "CostProjectSave" | "CostProjectList" | "CostProjectGet" | "CostProjectDelete"
-  | "CostEstimateItemSave" | "CostEstimateItemDelete" | "CostEstimateItems"
-  | "CostEstimateVersionSave" | "CostEstimateVersions" | "CostEstimateSediment"
-  | "CostIndicators" | "CostAttribution" | "CostNoteSave" | "CostNoteList" | "CostNoteDelete" | "CostNoteBumpRef"
+  | "PriceHistory" | "CostCompare" | "CostProjectList"
+  | "CostIndicators"
   | "CostGraph"
   // v4.158 组价复核闭环：确认记录回看（条目详情「组价依据」折叠区取数）。
   | "CostComposeRecords"
   // v4.50 询价飞轮 + 五算对比域补 mock（此前缺失，询价库视图在浏览器 dev 直接崩）
   | "CostInquirySave" | "CostInquiryList" | "CostInquiryDelete" | "CostInquiryExpiring" | "CostInquiryAdjust"
   | "CostInquiryScan"
-  | "CostStageSave" | "CostStages" | "CostStageCompare" | "CostStageDeviations"
   // AI 组价双件（批 46 NOT_MOCKED 收尾刀；诚实拒=dev 无 LLM 内核）。
   | "CostCompose" | "CostComposeApply"
   // 工料法成本数据库（工料机资源库 + 消耗定额库 + 综合单价核算）：
@@ -58,7 +53,7 @@ type CostMethods = Pick<
   | "WorkcostQuotaCompose" | "WorkcostProjectFees"
   | "WorkcostSeedPreview" | "WorkcostSeedApply" | "WorkcostRecompose"
   | "WorkcostProjectParse" | "WorkcostProjectApply" | "WorkcostProjectExport" | "WorkcostProjectExportToWorkspace"
-  | "WorkcostBillProjects" | "WorkcostBillItems" | "WorkcostBillItemSave" | "WorkcostBillItemDelete" | "WorkcostBillProjectRatesSave"
+  | "WorkcostBillProjects" | "WorkcostBillItems" | "WorkcostBillProjectRatesSave"
   | "WorkcostBillProjectDelete"
 >;
 
@@ -186,19 +181,12 @@ function composeMock(code: string): WorkcostCompose {
 }
 // ── 测算项目 mock 状态（浏览器开发环境内存态，无持久化）──
 let mockProjects: CostProject[] = [];
-let mockProjectSeq = 1;
 let mockItems: CostEstimateItem[] = [];
-let mockItemSeq = 1;
 let mockVersions: CostEstimateVersion[] = [];
-let mockVersionSeq = 1;
-let mockNotes: CostReviewNote[] = [];
-let mockNoteSeq = 1;
 
 // ── 询价库 mock 状态（v4.50 补域：内存态，种子覆盖到期预警 + 调差两场景）──
 let mockInquiries: CostInquiryRecord[] = [];
 let mockInquirySeq = 1;
-let mockStageValues: CostStageValue[] = [];
-let mockStageSeq = 1;
 
 function isoDaysFromNow(days: number): string {
   const d = new Date(Date.now() + days * 86400000);
@@ -293,9 +281,6 @@ function mockIndicators(group: string): CostIndicator[] {
 
 export function buildCost(_s: MakeMockState): CostMethods {
   return {
-    async CostList() {
-      return costMock;
-    },
     async SemanticIndexStatus() {
       // 浏览器演示态：模型不可用（无本地引擎），诚实提示。
       return { total: costMock.length, indexed: costMock.length, modelOk: false, modelNote: "浏览器演示态无本地语义模型——真机启用 Herdsman bge-m3 后可用" };
@@ -524,115 +509,14 @@ export function buildCost(_s: MakeMockState): CostMethods {
       ];
     },
     // ── 测算项目与沉淀闭环（mock：内存态）──
-    async CostProjectSave(p: CostProject) {
-      if (!p.name?.trim()) throw new Error("测算项目需要名称");
-      if (!p.id) {
-        p = { ...p, id: `proj-mock-${mockProjectSeq++}`, createdAt: new Date().toISOString() };
-        mockProjects.push(p);
-      } else {
-        mockProjects = mockProjects.map((x) => (x.id === p.id ? { ...x, ...p, updatedAt: new Date().toISOString() } : x));
-      }
-      return p.id;
-    },
     async CostProjectList() {
       return mockProjectSummaries();
-    },
-    async CostProjectGet(id: string) {
-      return mockProjects.find((p) => p.id === id) ?? null;
-    },
-    async CostProjectDelete(id: string) {
-      mockProjects = mockProjects.filter((p) => p.id !== id);
-      mockItems = mockItems.filter((i) => i.projectId !== id);
-      mockVersions = mockVersions.filter((v) => v.projectId !== id);
-    },
-    async CostEstimateItemSave(i: CostEstimateItem) {
-      if (!i.title?.trim()) throw new Error("明细行需要标题");
-      const item: CostEstimateItem = {
-        ...i,
-        amount: (i.quantity ?? 0) * (i.price ?? 0),
-        updatedAt: new Date().toISOString(),
-      };
-      if (!item.id) {
-        item.id = mockItemSeq++;
-        item.createdAt = new Date().toISOString();
-        mockItems.push(item);
-      } else {
-        mockItems = mockItems.map((x) => (x.id === item.id ? { ...x, ...item } : x));
-      }
-      return item.id;
-    },
-    async CostEstimateItemDelete(id: number) {
-      mockItems = mockItems.filter((i) => i.id !== id);
-    },
-    async CostEstimateItems(projectId: string) {
-      return mockItems.filter((i) => i.projectId === projectId);
-    },
-    async CostEstimateVersionSave(projectId: string, note: string) {
-      const items = mockItems.filter((i) => i.projectId === projectId);
-      if (items.length === 0) throw new Error("项目没有明细行，无法保存版本");
-      const versions = mockVersions.filter((v) => v.projectId === projectId);
-      const v: CostEstimateVersion = {
-        id: mockVersionSeq++,
-        projectId,
-        version: versions.length + 1,
-        total: items.reduce((s, i) => s + (i.amount ?? 0), 0),
-        snapshot: JSON.stringify(items),
-        note,
-        createdAt: new Date().toISOString(),
-      };
-      mockVersions.push(v);
-      return v;
-    },
-    async CostEstimateVersions(projectId: string) {
-      return mockVersions.filter((v) => v.projectId === projectId).sort((a, b) => b.version - a.version);
-    },
-    async CostEstimateSediment(projectId: string, itemIds: number[]) {
-      // mock：与 CostSave 同口径 no-op，仅按缺单价过滤后返回条数。
-      return mockItems.filter((i) => i.projectId === projectId && itemIds.includes(i.id ?? -1) && (i.price ?? 0) > 0).length;
     },
     // ── 造价参考与复盘笔记（mock）──
     async CostIndicators(group: string) {
       return mockIndicators(group);
     },
     // v4.6.1 归因对标 mock：无参考样本时的空报告（dev 演示不编造数据）。
-    async CostAttribution(projectId: string) {
-      const p = mockProjects.find((x) => x.id === projectId);
-      return {
-        projectId,
-        projectName: p?.name ?? projectId,
-        totalAmount: 0,
-        refTotal: 0,
-        totalDiff: 0,
-        totalDiffPct: 0,
-        items: [],
-        topDrivers: [],
-        summary: "暂无归因数据（需要参考项目与明细行）",
-      };
-    },
-    async CostNoteSave(n: CostReviewNote) {
-      if (!n.title?.trim()) throw new Error("复盘笔记需要标题");
-      const now = new Date().toISOString();
-      if (!n.id) {
-        n = { ...n, id: mockNoteSeq++, status: n.status || "草稿", confidence: n.confidence || "中", createdAt: now, updatedAt: now };
-        mockNotes.push(n);
-      } else {
-        mockNotes = mockNotes.map((x) => (x.id === n.id ? { ...x, ...n, updatedAt: now } : x));
-      }
-      return n.id!;
-    },
-    async CostNoteList(query: string, status: string) {
-      const q = (query ?? "").toLowerCase();
-      return mockNotes
-        .filter((n) => (status && status !== "all" ? n.status === status : true))
-        .filter((n) => !q || [n.title, n.conclusion, n.boundary, n.risk, n.evidence].some((s) => (s ?? "").toLowerCase().includes(q)))
-        .sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""));
-    },
-    async CostNoteDelete(id: number) {
-      mockNotes = mockNotes.filter((n) => n.id !== id);
-    },
-    async CostNoteBumpRef(id: number) {
-      mockNotes = mockNotes.map((n) => (n.id === id ? { ...n, refCount: (n.refCount ?? 0) + 1 } : n));
-    },
     // ── v4.50 询价飞轮 mock（四源归一数据点：种子含 15 天内到期 + 水泥调差场景）──
     async CostInquiryList(query: string, limit: number): Promise<CostInquiryRecord[]> {
       seedInquiries();
@@ -720,40 +604,6 @@ export function buildCost(_s: MakeMockState): CostMethods {
       return rows;
     },
     // ── v4.50 五算对比 mock（浏览器 dev 空态：阶段值经 CostStageSave 内存累积）──
-    async CostStageSave(v: CostStageValue) {
-      if (!v.projectId || !v.stage) return;
-      mockStageValues = [
-        ...mockStageValues.filter((s) => !(s.projectId === v.projectId && s.stage === v.stage)),
-        { ...v, id: mockStageSeq++, updatedAt: new Date().toISOString() },
-      ];
-    },
-    async CostStages(projectId: string): Promise<CostStageValue[]> {
-      return mockStageValues.filter((s) => s.projectId === projectId);
-    },
-    async CostStageCompare(projectId: string): Promise<CostStageCompareRow[]> {
-      const stages = ["估算", "概算", "预算", "结算", "决算"];
-      const amountOf = (st: string) => mockStageValues.find((s) => s.projectId === projectId && s.stage === st)?.amount ?? 0;
-      let base = 0;
-      return stages.map((stage, i) => {
-        const amount = amountOf(stage);
-        if (i === 0) base = amount;
-        const prevStage = i > 0 ? stages[i - 1] : "";
-        const prevAmount = i > 0 ? amountOf(prevStage) : 0;
-        const chainDiff = i > 0 && prevAmount ? amount - prevAmount : 0;
-        const baseDiff = i > 0 && base ? amount - base : 0;
-        return {
-          stage, amount,
-          hasValue: mockStageValues.some((s) => s.projectId === projectId && s.stage === stage),
-          prevStage, hasPrev: i > 0,
-          chainDiff, chainDiffPct: i > 0 && prevAmount ? Math.round((chainDiff / prevAmount) * 1000) / 10 : 0,
-          baseDiff, baseDiffPct: i > 0 && base ? Math.round((baseDiff / base) * 1000) / 10 : 0,
-        };
-      });
-    },
-    async CostStageDeviations(projectId: string): Promise<CostStageDeviation[]> {
-      void projectId;
-      return [];
-    },
     // ── v4.158 组价确认记录（mock）：Compose/ComposeApply 在 mock 域本无桩
     // （dev 浏览器模式无 AI 组价演示数据），Records 只给空数组桩 = 条目详情
     // 「组价依据」折叠区零噪音，不编造历史记录（诚实纪律）。
@@ -935,24 +785,6 @@ export function buildCost(_s: MakeMockState): CostMethods {
     async WorkcostBillItems(projectId: number): Promise<WorkcostBillItem[]> {
       ensureWorkcostSeed();
       return mockBillItems.filter((b) => b.projectId === projectId);
-    },
-    async WorkcostBillItemSave(item: WorkcostBillItem): Promise<WorkcostBillItem> {
-      ensureWorkcostSeed();
-      const idx = mockBillItems.findIndex(
-        (b) => b.projectId === item.projectId && b.code === item.code && item.code !== "",
-      );
-      if (idx >= 0) {
-        mockBillItems[idx] = { ...mockBillItems[idx], ...item, id: mockBillItems[idx].id };
-        return mockBillItems[idx];
-      }
-      const saved: WorkcostBillItem = { ...item, id: mockBillSeq++ };
-      if (!saved.code) saved.code = `M${String(mockBillSeq).padStart(3, "0")}`;
-      mockBillItems.push(saved);
-      return saved;
-    },
-    async WorkcostBillItemDelete(id: number): Promise<void> {
-      ensureWorkcostSeed();
-      mockBillItems = mockBillItems.filter((b) => b.id !== id);
     },
     async WorkcostBillProjectDelete(id: number): Promise<number> {
       ensureWorkcostSeed();

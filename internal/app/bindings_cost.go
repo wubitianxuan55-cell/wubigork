@@ -6,7 +6,6 @@ import (
 	"github.com/gaea/gaea/internal/gaea/costinquiry"
 	"github.com/gaea/gaea/internal/gaea/costproject"
 	"github.com/gaea/gaea/internal/gaea/costref"
-	"github.com/gaea/gaea/internal/gaea/coststage"
 	"github.com/gaea/gaea/internal/gaea/pricefeed"
 	"github.com/gaea/gaea/internal/gaea/tasks"
 	"github.com/gaea/gaea/internal/gaea/workcost"
@@ -16,7 +15,6 @@ import (
 // 方法体零改动——纯委托给 App 实例（b.a.<Method>）。
 type CostB struct{ a *App }
 
-func (b *CostB) GaeaCostAttribution(projectID string) (costref.Attribution, error) { return b.a.GaeaCostAttribution(projectID) }
 func (b *CostB) GaeaCostCategories() []CostCategoryView { return b.a.GaeaCostCategories() }
 func (b *CostB) GaeaCostCategoryDelete(id int) error { return b.a.GaeaCostCategoryDelete(id) }
 func (b *CostB) GaeaCostCategorySave(parentID int, name string, sort int, id int) (int, error) { return b.a.GaeaCostCategorySave(parentID, name, sort, id) }
@@ -25,12 +23,6 @@ func (b *CostB) GaeaCostCompose(desc string, unit string) (CostComposeView, erro
 func (b *CostB) GaeaCostComposeApply(v CostComposeView) (string, error) { return b.a.GaeaCostComposeApply(v) }
 func (b *CostB) GaeaCostComposeRecords(entryName string) ([]CostComposeRecord, error) { return b.a.GaeaCostComposeRecords(entryName) }
 func (b *CostB) GaeaCostDelete(name string) error { return b.a.GaeaCostDelete(name) }
-func (b *CostB) GaeaCostEstimateItemDelete(id int64) error { return b.a.GaeaCostEstimateItemDelete(id) }
-func (b *CostB) GaeaCostEstimateItemSave(i costproject.Item) (int64, error) { return b.a.GaeaCostEstimateItemSave(i) }
-func (b *CostB) GaeaCostEstimateItems(projectID string) []costproject.Item { return b.a.GaeaCostEstimateItems(projectID) }
-func (b *CostB) GaeaCostEstimateSediment(projectID string, itemIDs []int64) (int, error) { return b.a.GaeaCostEstimateSediment(projectID, itemIDs) }
-func (b *CostB) GaeaCostEstimateVersionSave(projectID string, note string) (*costproject.Version, error) { return b.a.GaeaCostEstimateVersionSave(projectID, note) }
-func (b *CostB) GaeaCostEstimateVersions(projectID string) []costproject.Version { return b.a.GaeaCostEstimateVersions(projectID) }
 func (b *CostB) GaeaCostGet(name string) *CostEntry { return b.a.GaeaCostGet(name) }
 func (b *CostB) GaeaCostGraph(scope string, focus string, limit int) (string, error) { return b.a.GaeaCostGraph(scope, focus, limit) }
 func (b *CostB) GaeaCostImportAIParse(path string) (CostImportPreview, error) { return b.a.GaeaCostImportAIParse(path) }
@@ -44,22 +36,10 @@ func (b *CostB) GaeaCostInquiryExpiring(days int) []costinquiry.Record { return 
 func (b *CostB) GaeaCostInquiryList(query string, limit int) []costinquiry.Record { return b.a.GaeaCostInquiryList(query, limit) }
 func (b *CostB) GaeaCostInquirySave(r costinquiry.Record) (int64, error) { return b.a.GaeaCostInquirySave(r) }
 func (b *CostB) GaeaCostInquiryScan() []costinquiry.ScanFinding { return b.a.GaeaCostInquiryScan() }
-func (b *CostB) GaeaCostList() []CostSummary { return b.a.GaeaCostList() }
-func (b *CostB) GaeaCostNoteBumpRef(id int64) error { return b.a.GaeaCostNoteBumpRef(id) }
-func (b *CostB) GaeaCostNoteDelete(id int64) error { return b.a.GaeaCostNoteDelete(id) }
-func (b *CostB) GaeaCostNoteList(query string, status string) []costref.Note { return b.a.GaeaCostNoteList(query, status) }
-func (b *CostB) GaeaCostNoteSave(n costref.Note) (int64, error) { return b.a.GaeaCostNoteSave(n) }
-func (b *CostB) GaeaCostProjectDelete(id string) error { return b.a.GaeaCostProjectDelete(id) }
-func (b *CostB) GaeaCostProjectGet(id string) *costproject.Project { return b.a.GaeaCostProjectGet(id) }
 func (b *CostB) GaeaCostProjectList() []costproject.ProjectSummary { return b.a.GaeaCostProjectList() }
-func (b *CostB) GaeaCostProjectSave(p costproject.Project) (string, error) { return b.a.GaeaCostProjectSave(p) }
 func (b *CostB) GaeaCostSave(e CostEntry) error { return b.a.GaeaCostSave(e) }
 func (b *CostB) GaeaCostSearch(query string, category string, status string) []CostSummary { return b.a.GaeaCostSearch(query, category, status) }
 func (b *CostB) GaeaCostSearchPage(query string, category string, status string, sortKey string, sortDir int, limit int, offset int) CostSearchPage { return b.a.GaeaCostSearchPage(query, category, status, sortKey, sortDir, limit, offset) }
-func (b *CostB) GaeaCostStageCompare(projectID string) []coststage.CompareRow { return b.a.GaeaCostStageCompare(projectID) }
-func (b *CostB) GaeaCostStageDeviations(projectID string) []coststage.Deviation { return b.a.GaeaCostStageDeviations(projectID) }
-func (b *CostB) GaeaCostStageSave(v coststage.StageValue) error { return b.a.GaeaCostStageSave(v) }
-func (b *CostB) GaeaCostStages(projectID string) []coststage.StageValue { return b.a.GaeaCostStages(projectID) }
 func (b *CostB) GaeaPriceFetch(id string) (*tasks.Task, error) { return b.a.GaeaPriceFetch(id) }
 func (b *CostB) GaeaPriceFetchAll() (*tasks.Task, error) { return b.a.GaeaPriceFetchAll() }
 func (b *CostB) GaeaPriceFetchApply(fetchID string, titles []string, syncResources bool) (PriceApplyResult, error) { return b.a.GaeaPriceFetchApply(fetchID, titles, syncResources) }
@@ -69,8 +49,6 @@ func (b *CostB) GaeaPriceHistory(name string) []pricefeed.History { return b.a.G
 func (b *CostB) GaeaPriceSourceDelete(id string) error { return b.a.GaeaPriceSourceDelete(id) }
 func (b *CostB) GaeaPriceSourceSave(src pricefeed.Source) error { return b.a.GaeaPriceSourceSave(src) }
 func (b *CostB) GaeaPriceSources() []pricefeed.Source { return b.a.GaeaPriceSources() }
-func (b *CostB) GaeaWorkcostBillItemDelete(id int64) error { return b.a.GaeaWorkcostBillItemDelete(id) }
-func (b *CostB) GaeaWorkcostBillItemSave(item workcost.BillItem) (*workcost.BillItem, error) { return b.a.GaeaWorkcostBillItemSave(item) }
 func (b *CostB) GaeaWorkcostBillItems(projectID int64) []workcost.BillItem { return b.a.GaeaWorkcostBillItems(projectID) }
 func (b *CostB) GaeaWorkcostBillProjectDelete(id int64) (int, error) { return b.a.GaeaWorkcostBillProjectDelete(id) }
 func (b *CostB) GaeaWorkcostBillProjectRatesSave(id int64, rates workcost.RateSet, profitIncludesRegulatory bool, controlPrice float64) error { return b.a.GaeaWorkcostBillProjectRatesSave(id, rates, profitIncludesRegulatory, controlPrice) }

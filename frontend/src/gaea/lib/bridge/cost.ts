@@ -1,27 +1,19 @@
 // cost.ts — CostBindings（AppBindings 分域接口之一，Go CostB 门面）：
 // 成本库/价格源/组价/询价飞轮/五算对比/造价参考与复盘笔记域。
 import type {
+  CostSummary,
   CostAdjustSuggestion,
-  CostAttribution,
   CostCategory,
   CostCompareRow,
   CostComposeRecord,
   CostComposeView,
   CostEntry,
-  CostEstimateItem,
-  CostEstimateVersion,
   CostImportPreview,
   CostIndicator,
   CostInquiryRecord,
   CostInquiryScanFinding,
-  CostProject,
   CostProjectSummary,
-  CostReviewNote,
   CostSearchPageResult,
-  CostStageCompareRow,
-  CostStageDeviation,
-  CostStageValue,
-  CostSummary,
   PriceApplyResult,
   PriceFetchRecord,
   PriceHistory,
@@ -47,7 +39,6 @@ import type {
 
 export interface CostBindings {
   // ── 成本库 ──
-  CostList(): Promise<CostSummary[]>;
   CostSearch(query: string, category: string, status: string): Promise<CostSummary[]>;
   // CostSearchPage 分页检索（v4.386）：全量管线排序后切片，total=过滤后总数。
   // sortKey："" 管线序 | title | price | updatedAt；sortDir：1 升 / -1 降。
@@ -105,27 +96,12 @@ export interface CostBindings {
   // CostCompare 返回某成本条目的多来源比价明细（现价/历史/价格源抓取候选）。
   CostCompare(name: string): Promise<CostCompareRow[]>;
   // ── 测算项目与沉淀闭环（我的项目/工程量清单/版本留痕 → 沉淀回成本库）──
-  CostProjectSave(p: CostProject): Promise<string>;
   CostProjectList(): Promise<CostProjectSummary[]>;
-  CostProjectGet(id: string): Promise<CostProject | null>;
-  CostProjectDelete(id: string): Promise<void>;
-  CostEstimateItemSave(i: CostEstimateItem): Promise<number>;
-  CostEstimateItemDelete(id: number): Promise<void>;
-  CostEstimateItems(projectId: string): Promise<CostEstimateItem[]>;
-  CostEstimateVersionSave(projectId: string, note: string): Promise<CostEstimateVersion>;
-  CostEstimateVersions(projectId: string): Promise<CostEstimateVersion[]>;
-  // CostEstimateSediment 沉淀选中明细行回成本库（UPSERT cost_entries），返回条数。
-  CostEstimateSediment(projectId: string, itemIds: number[]): Promise<number>;
   // ── 造价参考与复盘笔记（案例指标 + 经验沉淀）──
   // CostIndicators 造价参考指标：group=title（按科目）| category（按一级分类）。
   CostIndicators(group: string): Promise<CostIndicator[]>;
   // CostAttribution 归因对标（v4.6.1）：项目明细 vs 参考指标带宽，产出
   // 差幅等级/贡献金额/主因 TopDrivers（参考池排除本项目）。
-  CostAttribution(projectId: string): Promise<CostAttribution>;
-  CostNoteSave(n: CostReviewNote): Promise<number>;
-  CostNoteList(query: string, status: string): Promise<CostReviewNote[]>;
-  CostNoteDelete(id: number): Promise<void>;
-  CostNoteBumpRef(id: number): Promise<void>;
   // CostGraph 成本知识图谱（v4.8）：scope=tree 分类聚合总览（默认）| entry 条目
   // 展开（focus=分类路径或项目 ID）；limit=节点上限（<=0 或 >600 归一 600）。
   // 返回 JSON 串（CostGraphView），由前端 JSON.parse（与 CostImportApply 等先例
@@ -152,10 +128,6 @@ export interface CostBindings {
   // CostInquiryAdjust 调差建议：成本库条目 vs 最新询价数据点（|差幅|>2%）。
   CostInquiryAdjust(): Promise<CostAdjustSuggestion[]>;
   // ── 五算对比（估/概/预/结/决）──
-  CostStageSave(v: CostStageValue): Promise<void>;
-  CostStages(projectId: string): Promise<CostStageValue[]>;
-  CostStageCompare(projectId: string): Promise<CostStageCompareRow[]>;
-  CostStageDeviations(projectId: string): Promise<CostStageDeviation[]>;
   // ── 工料法成本数据库（工料机资源库 + 消耗定额库 + 综合单价核算）──
   // 口径：综合单价 = Σ(消耗量×资源价)，**只含人材机**；管理费/利润/税只在
   // 项目合计层跑一次（WorkcostProjectFees）。外委独立行类但并入材料桶。
@@ -211,10 +183,6 @@ export interface CostBindings {
   WorkcostBillProjects(): Promise<WorkcostBillProject[]>;
   // WorkcostBillItems 某项目的分部分项清单。
   WorkcostBillItems(projectId: number): Promise<WorkcostBillItem[]>;
-  // WorkcostBillItemSave 新增/更新清单项（同项目同编码走更新；code 空自动 M 序号）。
-  WorkcostBillItemSave(item: WorkcostBillItem): Promise<WorkcostBillItem>;
-  // WorkcostBillItemDelete 删除一条清单项。
-  WorkcostBillItemDelete(id: number): Promise<void>;
   // WorkcostBillProjectRatesSave 保存项目费率（录入数据）。
   WorkcostBillProjectRatesSave(
     id: number,

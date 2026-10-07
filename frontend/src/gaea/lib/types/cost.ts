@@ -141,53 +141,6 @@ export interface CostIndicator {
   p75: number;
 }
 
-// v4.6.1 归因对标（CostAttribution）：项目明细 vs 参考指标带宽的逐行对标。
-export interface CostAttributionItem {
-  title: string;
-  unit: string;
-  quantity: number;
-  price: number;
-  amount: number;
-  refSamples: number;
-  refMedian: number;
-  refP25: number;
-  refP75: number;
-  diffPct: number;
-  level: string; // 高/正常/低/无参考
-  contribution: number; // (price-refMedian)×quantity
-}
-
-export interface CostAttribution {
-  projectId: string;
-  projectName: string;
-  totalAmount: number;
-  refTotal: number;
-  totalDiff: number;
-  totalDiffPct: number;
-  items: CostAttributionItem[];
-  topDrivers: CostAttributionItem[];
-  summary: string;
-}
-
-// CostReviewNote 复盘笔记（结论/边界/风险/证据/可信度/有效期/复核状态）。
-export interface CostReviewNote {
-  id?: number;
-  title: string;
-  conclusion: string;
-  boundary: string;
-  risk: string;
-  evidence: string;
-  confidence: string; // 高/中/低
-  validUntil?: string;
-  status: string; // 草稿 / 已确认
-  category?: string;
-  projectType?: string;
-  craft?: string;
-  refCount?: number;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
 // ── v4.8 成本知识图谱（CostGraph，后端返回 JSON 串前端解析）──────────
 
 // CostGraphNode 图节点：type ∈ category|entry|project|item|indicator|inquiry|note。
@@ -466,43 +419,6 @@ export interface CostAdjustSuggestion {
   predictedNext?: number;
   predictionNote?: string;
 }
-// ── 五算对比（估/概/预/结/决，coststage）──
-export interface CostStageValue {
-  id: number;
-  projectId: string;
-  stage: string;
-  amount: number;
-  date: string;
-  note: string;
-  /** 响应里有值；保存载荷必须省略（空串会让 Wails time.Time 解析失败）。 */
-  createdAt?: string;
-  updatedAt?: string;
-}
-// CostStageCompareRow 五算对比行：固定 5 阶段顺序，缺阶段 hasValue=false。
-export interface CostStageCompareRow {
-  stage: string;
-  amount: number;
-  hasValue: boolean;
-  prevStage: string;
-  hasPrev: boolean;
-  chainDiff: number;
-  chainDiffPct: number;
-  baseDiff: number;
-  baseDiffPct: number;
-}
-// CostStageDeviation 相邻阶段偏差特征（level: 正常/关注/异常，供复盘诊断）。
-export interface CostStageDeviation {
-  fromStage: string;
-  toStage: string;
-  fromAmount: number;
-  toAmount: number;
-  diff: number;
-  diffPct: number;
-  direction: string;
-  level: string;
-  suggestion: string;
-}
-
 // ── 工料法成本数据库（工料机资源库 + 消耗定额库 + 综合单价核算）──────────
 //
 // 口径（实测模版，旺平矿业/什邡五表产物）：

@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 660 名（原生变参 7 名已收窄标注）。
+// 共 639 名（原生变参 7 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -109,7 +109,6 @@ export const bindingSignatures = {
   GaeaContextNodeDetail: { argc: 2, variadic: true, params: "seq int64, sessionPath string" }, // 原生变参已收窄：门面单值透传（原始 ...T）
   GaeaContextView: { argc: 1, variadic: true, params: "sessionPath string" }, // 原生变参已收窄：门面单值透传（原始 ...T）
   GaeaConvertToPdf: { argc: 1, variadic: false, params: "rel string" },
-  GaeaCostAttribution: { argc: 1, variadic: false, params: "projectID string" },
   GaeaCostCategories: { argc: 0, variadic: false, params: "" },
   GaeaCostCategoryDelete: { argc: 1, variadic: false, params: "id int" },
   GaeaCostCategorySave: { argc: 4, variadic: false, params: "parentID int, name string, sort int, id int" },
@@ -118,12 +117,6 @@ export const bindingSignatures = {
   GaeaCostComposeApply: { argc: 1, variadic: false, params: "v CostComposeView" },
   GaeaCostComposeRecords: { argc: 1, variadic: false, params: "entryName string" },
   GaeaCostDelete: { argc: 1, variadic: false, params: "name string" },
-  GaeaCostEstimateItemDelete: { argc: 1, variadic: false, params: "id int64" },
-  GaeaCostEstimateItemSave: { argc: 1, variadic: false, params: "i costproject.Item" },
-  GaeaCostEstimateItems: { argc: 1, variadic: false, params: "projectID string" },
-  GaeaCostEstimateSediment: { argc: 2, variadic: false, params: "projectID string, itemIDs []int64" },
-  GaeaCostEstimateVersionSave: { argc: 2, variadic: false, params: "projectID string, note string" },
-  GaeaCostEstimateVersions: { argc: 1, variadic: false, params: "projectID string" },
   GaeaCostGet: { argc: 1, variadic: false, params: "name string" },
   GaeaCostGraph: { argc: 3, variadic: false, params: "scope string, focus string, limit int" },
   GaeaCostImportAIParse: { argc: 1, variadic: false, params: "path string" },
@@ -137,22 +130,10 @@ export const bindingSignatures = {
   GaeaCostInquiryList: { argc: 2, variadic: false, params: "query string, limit int" },
   GaeaCostInquirySave: { argc: 1, variadic: false, params: "r costinquiry.Record" },
   GaeaCostInquiryScan: { argc: 0, variadic: false, params: "" },
-  GaeaCostList: { argc: 0, variadic: false, params: "" },
-  GaeaCostNoteBumpRef: { argc: 1, variadic: false, params: "id int64" },
-  GaeaCostNoteDelete: { argc: 1, variadic: false, params: "id int64" },
-  GaeaCostNoteList: { argc: 2, variadic: false, params: "query string, status string" },
-  GaeaCostNoteSave: { argc: 1, variadic: false, params: "n costref.Note" },
-  GaeaCostProjectDelete: { argc: 1, variadic: false, params: "id string" },
-  GaeaCostProjectGet: { argc: 1, variadic: false, params: "id string" },
   GaeaCostProjectList: { argc: 0, variadic: false, params: "" },
-  GaeaCostProjectSave: { argc: 1, variadic: false, params: "p costproject.Project" },
   GaeaCostSave: { argc: 1, variadic: false, params: "e CostEntry" },
   GaeaCostSearch: { argc: 3, variadic: false, params: "query string, category string, status string" },
   GaeaCostSearchPage: { argc: 7, variadic: false, params: "query string, category string, status string, sortKey string, sortDir int, limit int, offset int" },
-  GaeaCostStageCompare: { argc: 1, variadic: false, params: "projectID string" },
-  GaeaCostStageDeviations: { argc: 1, variadic: false, params: "projectID string" },
-  GaeaCostStageSave: { argc: 1, variadic: false, params: "v coststage.StageValue" },
-  GaeaCostStages: { argc: 1, variadic: false, params: "projectID string" },
   GaeaCrossEmbed: { argc: 1, variadic: false, params: "in CrossEmbedInput" },
   GaeaDagAcceptAll: { argc: 1, variadic: false, params: "id string" },
   GaeaDagCancel: { argc: 1, variadic: false, params: "id string" },
@@ -389,8 +370,6 @@ export const bindingSignatures = {
   GaeaWhisperProactiveConfig: { argc: 0, variadic: false, params: "" },
   GaeaWhisperProactiveNow: { argc: 1, variadic: false, params: "personalityID string" },
   GaeaWhisperSetProactiveConfig: { argc: 1, variadic: false, params: "cfgJSON string" },
-  GaeaWorkcostBillItemDelete: { argc: 1, variadic: false, params: "id int64" },
-  GaeaWorkcostBillItemSave: { argc: 1, variadic: false, params: "item workcost.BillItem" },
   GaeaWorkcostBillItems: { argc: 1, variadic: false, params: "projectID int64" },
   GaeaWorkcostBillProjectDelete: { argc: 1, variadic: false, params: "id int64" },
   GaeaWorkcostBillProjectRatesSave: { argc: 4, variadic: false, params: "id int64, rates workcost.RateSet, profitIncludesRegulatory bool, controlPrice float64" },
@@ -681,5 +660,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 660。
-export const bindingSignatureCount = 660;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 639。
+export const bindingSignatureCount = 639;
