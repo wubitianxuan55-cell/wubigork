@@ -257,7 +257,10 @@ type ComposeLineView struct {
 // 实测产物「综合单价」表的口径：K = Σ(I×J) = 人材机合价，P = K = 综合单价；
 // L/M/N = SUMIF(行类) 拆分三费。本函数就是这三步，**不含任何取费**。
 func ComposeUnitPrice(lines []ComposeLine) Compose {
-	var c Compose
+	// Lines/Warnings 构造即非 nil：空定额（无含量行）是合法输入，nil 切片经
+	// Wails 序列化成 JSON null，前端 `lines.length` 会直接崩（v4.467 真机实证：
+	// 点清单分析弹窗报 Cannot read properties of null）。空表语义=综合单价 0。
+	c := Compose{Lines: []ComposeLineView{}, Warnings: []string{}}
 	byKind := map[string]float64{}
 	outsourced := 0.0
 	for _, l := range lines {

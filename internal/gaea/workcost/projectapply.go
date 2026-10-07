@@ -66,7 +66,8 @@ func SlugFromTitle(title string) string {
 // 会以零价补建并记入 Errors——不静默丢弃，因为丢一条资源等于让某条工序的
 // 综合单价偏低而无人知晓。
 func (s *Store) ApplyProjectBundle(b *ProjectBundle) ApplyProjectResult {
-	res := ApplyProjectResult{Project: b.Project, Lines: len(b.Lines)}
+	// Errors 构造即非 nil：nil 切片经 Wails JSON 序列化成 null，前端 res.errors.length 会崩。
+	res := ApplyProjectResult{Project: b.Project, Lines: len(b.Lines), Errors: []string{}}
 	if err := s.requireDB(); err != nil {
 		res.Errors = append(res.Errors, err.Error())
 		return res

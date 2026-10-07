@@ -160,6 +160,14 @@ func ParseProjectWorkbook(path string) (*ProjectBundle, error) {
 		Path:     filepath.ToSlash(path),
 		FileName: filepath.Base(path),
 		Sheets:   f.GetSheetList(),
+		// 切片构造即非 nil：nil 经 Wails 序列化成 JSON null，前端
+		// `bundle.warnings.length` / `bundle.items.length` 会崩（与 Compose 同根）。
+		Resources:  []ProjectResource{},
+		Items:      []ProjectItem{},
+		Lines:      []ProjectConsumption{},
+		Quantities: []ProjectQuantity{},
+		Skipped:    []SkippedRow{},
+		Warnings:   []string{},
 	}
 	if !DetectedFiveSheet(b.Sheets) {
 		return nil, fmt.Errorf("不是五表模版（需要「%s」与「%s」两张表），实得表：%v",

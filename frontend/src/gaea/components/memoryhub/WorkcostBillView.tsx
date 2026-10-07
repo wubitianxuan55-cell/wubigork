@@ -434,6 +434,10 @@ export function QuotaAnalysisModal({ quotaCode, onClose }: { quotaCode: string; 
   }, [quotaCode]);
 
   const f = new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 });
+  // 绑定面 nil 切片经 JSON 序列化是 null（旧构建的 Go 侧仍可能返回 null），
+  // 消费一律兜底——真机实证 null.length 直接崩进 ErrorBoundary。
+  const detailRows = lines?.lines ?? [];
+  const warns = lines?.warnings ?? [];
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div
@@ -483,14 +487,14 @@ export function QuotaAnalysisModal({ quotaCode, onClose }: { quotaCode: string; 
                   </tr>
                 </thead>
                 <tbody>
-                  {lines.lines.length === 0 ? (
+                  {detailRows.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="py-6 text-center text-fg-faint text-[11.5px]">
                         该定额没有工料机消耗行——综合单价为 0。
                       </td>
                     </tr>
                   ) : (
-                    lines.lines.map((l, i) => (
+                    detailRows.map((l, i) => (
                       <tr key={i} className="border-b border-border-soft/20 last:border-0">
                         <td className="py-1 px-2 text-fg-dim">{l.kind}</td>
                         <td className="py-1 px-2 text-fg-dim">{l.title || "-"}</td>
@@ -514,9 +518,9 @@ export function QuotaAnalysisModal({ quotaCode, onClose }: { quotaCode: string; 
                 综合单价（人材机）<span className="tabular-nums text-accent ml-1">{fmtPrice(lines.compositePrice)}</span>
               </span>
             </div>
-            {lines.warnings.length > 0 && (
+            {warns.length > 0 && (
               <div role="alert" className="text-[10.5px] text-amber-300 border border-amber-400/30 bg-amber-400/10 rounded-lg px-2.5 py-1.5">
-                {lines.warnings.map((w, i) => (
+                {warns.map((w, i) => (
                   <div key={i}>· {w}</div>
                 ))}
               </div>

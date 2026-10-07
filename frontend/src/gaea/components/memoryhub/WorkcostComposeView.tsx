@@ -86,7 +86,7 @@ export function WorkcostComposeView() {
     setReadError("");
     try {
       const r = (await app.WorkcostQuotaList(specialty, keyword)) ?? [];
-      setQuotas(r);
+      setQuotas(r ?? []);
       setSelected((prev) => (prev && r.some((q) => q.code === prev) ? prev : (r[0]?.code ?? "")));
     } catch (e) {
       setQuotas([]);
@@ -119,8 +119,8 @@ export function WorkcostComposeView() {
           `资源 新建 ${res.resourceNew}/更新 ${res.resourceUpd}、` +
           `定额 新建 ${res.quotaNew}/更新 ${res.quotaUpd}、消耗行 ${res.lines}${warn}`,
       );
-      if (res.errors.length) {
-        setToast((t) => `${t}；${res.errors.length} 条失败：${res.errors[0]}`);
+      if ((res.errors ?? []).length) {
+        setToast((t) => `${t}；${(res.errors ?? []).length} 条失败：${(res.errors ?? [])[0]}`);
       }
     } catch (e) {
       setToast(`导入失败：${e instanceof Error ? e.message : String(e)}`);
@@ -478,9 +478,9 @@ function AnalysisTable({
         )}
       </div>
 
-      {compose.warnings.length > 0 && (
+      {(compose.warnings ?? []).length > 0 && (
         <div role="alert" className="v3-panel rounded-lg px-3 py-2 border border-amber-400/30 bg-amber-400/10 text-amber-200 text-[11px] space-y-0.5">
-          {compose.warnings.map((w, i) => (
+          {(compose.warnings ?? []).map((w, i) => (
             <div key={i}>· {w}</div>
           ))}
         </div>
@@ -501,14 +501,14 @@ function AnalysisTable({
             </tr>
           </thead>
           <tbody>
-            {compose.lines.length === 0 ? (
+            {(compose.lines ?? []).length === 0 ? (
               <tr>
                 <td colSpan={7} className="py-8 text-center text-fg-faint text-[11.5px]">
                   该定额没有工料机消耗行——综合单价为 0，需先录入消耗量。
                 </td>
               </tr>
             ) : (
-              compose.lines.map((l, i) => (
+              (compose.lines ?? []).map((l, i) => (
                 <tr key={i} className="border-b border-border-soft/25 last:border-0 hover:bg-bg-elev/30">
                   <td className="py-1.5 px-3">
                     <span className={`px-1.5 py-px rounded text-[10px] ${kindTone(l.kind)}`}>{l.kind}</span>

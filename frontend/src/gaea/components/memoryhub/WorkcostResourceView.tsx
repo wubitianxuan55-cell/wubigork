@@ -165,7 +165,7 @@ export function WorkcostResourceView() {
       await load();
       setToast(
         `资源化完成：新建 ${res.created} / 更新 ${res.updated}` +
-          (res.errors.length ? ` / 失败 ${res.errors.length}` : ""),
+          ((res.errors ?? []).length ? ` / 失败 ${(res.errors ?? []).length}` : ""),
       );
     } catch (e) {
       setToast(`资源化失败：${e instanceof Error ? e.message : String(e)}`);
@@ -539,7 +539,7 @@ function SeedPreviewModal({
         <Stat label="外委" value={preview.counts.outsourced} tone="text-amber-400" />
       </div>
       <p className="text-[11.5px] text-fg-dim">
-        共扫描 {preview.total} 条 → 可资源化 <span className="text-fg font-semibold">{preview.candidates.length}</span> 条
+        共扫描 {preview.total} 条 → 可资源化 <span className="text-fg font-semibold">{(preview.candidates ?? []).length}</span> 条
         {skipEntries.length > 0 && (
           <>
             ，跳过 {skipEntries.reduce((s, [, n]) => s + n, 0)} 条（
@@ -559,7 +559,7 @@ function SeedPreviewModal({
             </tr>
           </thead>
           <tbody>
-            {preview.candidates.slice(0, 200).map((c, i) => (
+            {(preview.candidates ?? []).slice(0, 200).map((c, i) => (
               <tr key={`${c.title}-${i}`} className="border-b border-border-soft/20 last:border-0">
                 <td className="py-1 px-2">
                   <span className={`px-1.5 py-px rounded text-[10px] ${kindTone(c.kind)}`}>{c.kind}</span>
@@ -573,15 +573,15 @@ function SeedPreviewModal({
           </tbody>
         </table>
       </div>
-      {preview.candidates.length > 200 && (
+      {(preview.candidates ?? []).length > 200 && (
         <p className="text-[11px] text-fg-faint">仅预览前 200 条，入库会处理全部 {preview.candidates.length} 条。</p>
       )}
       <ModalActions
         busy={busy}
-        canSave={preview.candidates.length > 0}
+        canSave={(preview.candidates ?? []).length > 0}
         onCancel={onCancel}
         onSave={onApply}
-        saveLabel={`确认入库 ${preview.candidates.length} 条`}
+        saveLabel={`确认入库 ${(preview.candidates ?? []).length} 条`}
       />
     </Modal>
   );

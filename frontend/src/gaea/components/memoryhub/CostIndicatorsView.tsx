@@ -162,9 +162,9 @@ export function ProjectImportButton({ onDone }: { onDone: () => void }) {
       const bundle = await app.WorkcostProjectParse(path);
       const res = await app.WorkcostProjectApply(path);
       onDone();
-      const warn = bundle.warnings.length ? `；${bundle.warnings.length} 条告警` : "";
+      const warn = (bundle.warnings ?? []).length ? `；${(bundle.warnings ?? []).length} 条告警` : "";
       setToast(
-        `已导入「${bundle.project || bundle.fileName}」：清单 ${bundle.items.length} 条、` +
+        `已导入「${bundle.project || bundle.fileName}」：清单 ${(bundle.items ?? []).length} 条、` +
           `资源 新建 ${res.resourceNew}/更新 ${res.resourceUpd}、定额 新建 ${res.quotaNew}/更新 ${res.quotaUpd}${warn}`,
       );
     } catch (e) {

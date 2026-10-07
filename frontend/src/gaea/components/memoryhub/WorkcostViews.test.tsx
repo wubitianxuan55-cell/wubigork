@@ -499,6 +499,21 @@ describe("WorkcostBillView 分部分项清单", () => {
     expect(screen.getByText("外委监测化验")).toBeTruthy();
   });
 
+  it("清单分析弹窗：Go 旧构建返回 null lines/warnings 不崩，显「没有消耗行」空态（v4.467 真机崩溃回归钉）", async () => {
+    state.billProjects = [proj];
+    state.billItems = items;
+    state.compose = {
+      laborFee: 0, materialFee: 0, machineFee: 0, outsourcedFee: 0, otherFee: 0,
+      subtotal: 0, compositePrice: 0, zeroLines: 0,
+      lines: null as unknown as WorkcostCompose["lines"],
+      warnings: null as unknown as WorkcostCompose["warnings"],
+    };
+    render(<WorkcostBillView />);
+    fireEvent.click(await screen.findByTitle(/引用定额 WP01——点开综合单价分析/));
+    expect(await screen.findByText("综合单价分析：WP01")).toBeTruthy(); // 定额头缺失时标题回退编码
+    expect(await screen.findByText(/该定额没有工料机消耗行/)).toBeTruthy();
+  });
+
   it("特征描述显形于清单表（含计算式 tooltip），定额 chip 点开综合单价分析", async () => {
     state.billProjects = [proj];
     state.billItems = [

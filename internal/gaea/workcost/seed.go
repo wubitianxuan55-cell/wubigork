@@ -324,6 +324,12 @@ type SeedPreview struct {
 // PreviewSeed 从条目输入构建干跑预览。
 func PreviewSeed(inputs []SeedInput, opt SeedOptions) SeedPreview {
 	cands, skipped := BuildSeedCandidates(inputs, opt)
+	if cands == nil {
+		cands = []SeedCandidate{}
+	}
+	if skipped == nil {
+		skipped = map[string]int{}
+	}
 	return SeedPreview{
 		Candidates: cands,
 		Counts:     CountKinds(cands),

@@ -51,6 +51,23 @@ func TestComposeUnitPriceOnlyLaborMaterialMachine(t *testing.T) {
 	}
 }
 
+// TestComposeUnitPriceEmptyQuotaNonNullSlices 空定额（无含量行）是合法输入：
+// Lines/Warnings 必须构造即非 nil——nil 切片经 Wails JSON 序列化成 null，前端
+// `lines.length` 直接崩（v4.467 真机实证：清单分析弹窗整页进 ErrorBoundary，
+// 用户表述为「无法查看组价明细/定额库打开失败」）。
+func TestComposeUnitPriceEmptyQuotaNonNullSlices(t *testing.T) {
+	c := ComposeUnitPrice(nil)
+	if c.Lines == nil || c.Warnings == nil {
+		t.Fatal("空定额的 Lines/Warnings 必须是空切片而非 nil（JSON null 会崩前端）")
+	}
+	if len(c.Lines) != 0 || len(c.Warnings) != 0 {
+		t.Fatalf("空定额不应有行/告警，得到 %d 行 %d 告警", len(c.Lines), len(c.Warnings))
+	}
+	if c.CompositePrice != 0 {
+		t.Fatalf("空定额综合单价应为 0，得到 %v", c.CompositePrice)
+	}
+}
+
 // TestComposeProjectFeesSoilRemediation 取费链金样：百锦路地块土壤修复成本测算表
 // 「费用汇总」52-66 行实测口径（企管 5%、利润 0、规费不计列、增值税 3%）。
 //
