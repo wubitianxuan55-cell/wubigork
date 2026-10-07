@@ -2,7 +2,7 @@
 import type { AppBindings } from "../bridge";
 // chat 板块契约类型（wails 生成物；AppBindings 契约同步 T6-3）。
 import type { app as AppModels, chat } from "../../../../wailsjs/go/models";
-import { delay, emit, mockScenario } from "./shared";
+import { delay, emitMock as emit, mockScenario } from "./shared";
 import type { MakeMockState } from "./state";
 import type { HistoryMessage, QuestionAnswer } from "../types";
 

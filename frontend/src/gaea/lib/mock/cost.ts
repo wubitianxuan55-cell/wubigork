@@ -179,10 +179,11 @@ function composeMock(code: string): WorkcostCompose {
     lines, warnings: [],
   };
 }
-// ── 测算项目 mock 状态（浏览器开发环境内存态，无持久化）──
-let mockProjects: CostProject[] = [];
-let mockItems: CostEstimateItem[] = [];
-let mockVersions: CostEstimateVersion[] = [];
+// ── 测算项目 mock 状态（退役残留：v4.459 测算项目 UI 退役后无写入方，恒空；
+// CostProjectList/mockIndicators 只做空集兜底。深度清账待二期 2.5 mock 收尾刀）──
+const mockProjects: CostProject[] = [];
+const mockItems: CostEstimateItem[] = [];
+const mockVersions: CostEstimateVersion[] = [];
 
 // ── 询价库 mock 状态（v4.50 补域：内存态，种子覆盖到期预警 + 调差两场景）──
 let mockInquiries: CostInquiryRecord[] = [];

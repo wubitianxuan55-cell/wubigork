@@ -112,8 +112,8 @@ type ResourcePrice struct {
 // BaseLabor/BaseMaterial/BaseMachine 是定额本本身的基价拆分（编制口径留痕），
 // 与实际核算价无关——实际价由 QuotaItem × 资源现行价重算得出。
 type Quota struct {
-	ID           int64       `json:"id"`
-	Code         string      `json:"code"`
+	ID   int64  `json:"id"`
+	Code string `json:"code"`
 	// OrigCode 工作簿里的原始清单编码（编码统一可能改写 Code，溯源靠它）。
 	OrigCode     string      `json:"origCode"`
 	Title        string      `json:"title"`
@@ -132,9 +132,9 @@ type Quota struct {
 	Items        []QuotaItem `json:"items"`
 	// UsageCount 被多少条清单项引用（读时聚合，不入列）——企业定额库的
 	// 「复用度」显形：积累的定额被越多项目清单套用，价值越高。
-	UsageCount   int         `json:"usageCount"`
-	CreatedAt    string      `json:"createdAt"`
-	UpdatedAt    string      `json:"updatedAt"`
+	UsageCount int    `json:"usageCount"`
+	CreatedAt  string `json:"createdAt"`
+	UpdatedAt  string `json:"updatedAt"`
 }
 
 // QuotaItem 定额子目的一条工料机消耗行。

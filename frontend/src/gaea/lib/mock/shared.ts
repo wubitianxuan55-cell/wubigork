@@ -160,8 +160,6 @@ export function emitMock(e: WireEvent) {
   mockListeners.forEach((l) => l(e));
 }
 
-// 内部别名 — 各域 mock（如 chat.ts）经此名调用；外部消费方走 emitMock
-export const emit = emitMock;
 
 // ── 任务中心 mock：内存任务表（TaskList/TaskCancel/TaskRetry + gaea-task 事件）──
 export const taskMock: TaskView[] = [];

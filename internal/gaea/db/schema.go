@@ -648,18 +648,25 @@ CREATE INDEX IF NOT EXISTS idx_gf_quota_items_resource ON gf_quota_items(resourc
 // SchemaV27 工料法成本数据库③：综合单价降级为核算结果 + 测算项贯通工料机。
 //
 // ① cost_entries 增 price_derived：0=手填/导入价（旧语义，默认，存量零变化）、
-//    1=由工料机×消耗定额核算而来（核算缓存）。price 列名与对外契约不变，只是
-//    语义从「唯一真值」降为「最近一次核算结果缓存」——成本库既有消费方
-//    （PriceBand 分位 / contentband 含量对标 / matchindex / 检索 / 图谱 /
-//    归因对标）零改动。
+//
+//	1=由工料机×消耗定额核算而来（核算缓存）。price 列名与对外契约不变，只是
+//	语义从「唯一真值」降为「最近一次核算结果缓存」——成本库既有消费方
+//	（PriceBand 分位 / contentband 含量对标 / matchindex / 检索 / 图谱 /
+//	归因对标）零改动。
+//
 // ② cost_entry_components 增 quantity_source / price_source：标记该组成行的
-//    含量与价格来源（global 定额 / project 项目覆盖 / manual 手工 / derived
-//    核算派生），项目级覆盖留痕的落点。
+//
+//	含量与价格来源（global 定额 / project 项目覆盖 / manual 手工 / derived
+//	核算派生），项目级覆盖留痕的落点。
+//
 // ③ cost_estimate_items 增 spec/labor_fee/material_fee/machine_fee/
-//    management_fee/profit_fee/tax_rate/quota_code/override_*：测算项自带
-//    工料机汇总与定额引用，综合单价不再进模版就退化成裸 price。
+//
+//	management_fee/profit_fee/tax_rate/quota_code/override_*：测算项自带
+//	工料机汇总与定额引用，综合单价不再进模版就退化成裸 price。
+//
 // ④ cost_projects 增取费参数（企管/规费/利润/税率 + 取费基数 + 计量基数）与
-//    编制说明四段：模版「成本测算」表 13-18 行与「编制说明」sheet 的结构化落点。
+//
+//	编制说明四段：模版「成本测算」表 13-18 行与「编制说明」sheet 的结构化落点。
 const SchemaV27 = `
 ALTER TABLE cost_entries ADD COLUMN price_derived INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE cost_entry_components ADD COLUMN quantity_source TEXT NOT NULL DEFAULT '';
@@ -694,16 +701,21 @@ CREATE INDEX IF NOT EXISTS idx_estimate_items_quota ON cost_estimate_items(quota
 // 用户定调（2026-10-07）：「造价数据库只是一个数据库，你可以录入**费率、
 // 清单、测算模版**，但不是把它们加起来」+「清单、定额、工料机是什么关系？
 // 我让你录入的清单呢？」——
-//   工料机=资源价格（基本数据）→ 定额=每单位子目消耗多少工料机 →
-//   **清单=工程实体的分部分项列表（编码/名称/单位/工程量），每条套定额**；
-//   费率=项目的取费参数（录入数据）。加总计算不在库里发生——导出五表
-//   工作簿（活公式）时由 Excel 算，gaea 只存数据。
+//
+//	工料机=资源价格（基本数据）→ 定额=每单位子目消耗多少工料机 →
+//	**清单=工程实体的分部分项列表（编码/名称/单位/工程量），每条套定额**；
+//	费率=项目的取费参数（录入数据）。加总计算不在库里发生——导出五表
+//	工作簿（活公式）时由 Excel 算，gaea 只存数据。
+//
 // V25/26/27 只落了前两层与定额骨架，清单与费率没有落库——本版补齐。
 //
 // ① gf_projects：一次导入=一个项目（五表封面 + 取费区费率：企管/规费/
-//    利润/税率/利润基数含规费开关/控制价——全部是录入数据，不是计算结果）。
+//
+//	利润/税率/利润基数含规费开关/控制价——全部是录入数据，不是计算结果）。
+//
 // ② gf_bill_items：清单项 × 工程量 × 引用定额（quota_code 套定额）。
-//    UNIQUE(project_id, code)：同项目同编码走更新（幂等导入）。
+//
+//	UNIQUE(project_id, code)：同项目同编码走更新（幂等导入）。
 const SchemaV28 = `
 CREATE TABLE IF NOT EXISTS gf_projects (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

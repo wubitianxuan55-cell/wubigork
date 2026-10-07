@@ -253,21 +253,6 @@ func (s *Store) nextPrefixSeq(prefix string) (int, error) {
 	return maxSeq + 1, rows.Err()
 }
 
-func isAllDigits(s string) bool {
-	if s == "" {
-		return false
-	}
-	for _, r := range s {
-		if r < '0' || r > '9' {
-			return false
-		}
-	}
-	return true
-}
-
-// 注：isAllDigits 目前无调用点，保留为编码规则的自文档化辅助（助记码不许是
-// 纯数字）。若后续确无需要应删除——留池。
-
 // GetResource 按 id 读取资源。
 func (s *Store) GetResource(id int64) (*Resource, error) {
 	if err := s.requireDB(); err != nil {

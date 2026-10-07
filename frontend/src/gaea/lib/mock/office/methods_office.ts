@@ -10,7 +10,7 @@
 // 以 `...opsMethods` 原位展开（键序不变）。
 import {
   delay,
-  emit,
+  emitMock as emit,
   MOCK_DOCX_DATA_URL,
   mockScenario,
   pinnedMock,

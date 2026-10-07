@@ -290,15 +290,6 @@ func (s *Store) applyBillItems(b *ProjectBundle, items []ProjectItem, resolved m
 	}
 }
 
-// quotaExists 判断定额编码是否已存在。
-func (s *Store) quotaExists(code string) (bool, error) {
-	var n int
-	if err := s.db.QueryRow(`SELECT COUNT(*) FROM gf_quotas WHERE code=?`, code).Scan(&n); err != nil {
-		return false, err
-	}
-	return n > 0, nil
-}
-
 // ResolveQuotaCode 定额编码统一规则（导入链专用，索引/引用友好的根基）：
 //
 //  1. 原码全局未用 → 直接用原码（最常见：各工作簿前缀不同 WP/SF/BJ…）；

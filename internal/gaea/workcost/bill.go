@@ -17,24 +17,24 @@ import (
 // 同名走更新（幂等导入）。费率只是数据：加总计算不在库里发生（导出五表
 // 活公式工作簿由 Excel 算），这里只负责存取。
 type BillProject struct {
-	ID        int64  `json:"id"`
-	Name      string `json:"name"`
-	FileName  string `json:"fileName"`
-	Source    string `json:"source"`
-	Location  string `json:"location"`
-	Duration  string `json:"duration"`
-	Pricing   string `json:"pricing"`
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	FileName string `json:"fileName"`
+	Source   string `json:"source"`
+	Location string `json:"location"`
+	Duration string `json:"duration"`
+	Pricing  string `json:"pricing"`
 	// 费率（录入数据）：企管/规费/利润/增值税 + 利润基数含规费开关 + 控制价。
 	// 零值语义与 workcost.RateSet 一致：任一费率 ≤0 = 显式不计取该段。
-	ManagementRate             float64 `json:"managementRate"`
-	RegulatoryRate             float64 `json:"regulatoryRate"`
-	ProfitRate                 float64 `json:"profitRate"`
-	TaxRate                    float64 `json:"taxRate"`
-	ProfitIncludesRegulatory   bool    `json:"profitIncludesRegulatory"`
-	ControlPrice               float64 `json:"controlPrice"`
-	ItemCount                  int     `json:"itemCount"` // 清单项数（读时聚合）
-	CreatedAt                  string  `json:"createdAt"`
-	UpdatedAt                  string  `json:"updatedAt"`
+	ManagementRate           float64 `json:"managementRate"`
+	RegulatoryRate           float64 `json:"regulatoryRate"`
+	ProfitRate               float64 `json:"profitRate"`
+	TaxRate                  float64 `json:"taxRate"`
+	ProfitIncludesRegulatory bool    `json:"profitIncludesRegulatory"`
+	ControlPrice             float64 `json:"controlPrice"`
+	ItemCount                int     `json:"itemCount"` // 清单项数（读时聚合）
+	CreatedAt                string  `json:"createdAt"`
+	UpdatedAt                string  `json:"updatedAt"`
 }
 
 // BillItem 一条清单项：工程量 × 引用定额（或手填单价）→ 合价。
@@ -299,7 +299,7 @@ func (s *Store) DeleteBillProject(id int64) (int, error) {
 			orphans = append(orphans, code)
 		}
 	}
-	rows.Close()
+	_ = rows.Close()
 	if err := rows.Err(); err != nil {
 		return 0, err
 	}

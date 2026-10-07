@@ -40,7 +40,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "打开 Hephaestus.db 失败")
 		os.Exit(1)
 	}
-	defer db.CloseDatabase(userDir)
+	defer func() { _ = db.CloseDatabase(userDir) }()
 
 	// 迁移是否已落地（工料法三表是否可用）。
 	if err := checkWorkcostTables(gdb); err != nil {

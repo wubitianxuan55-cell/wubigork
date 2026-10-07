@@ -8,7 +8,7 @@ import type {
   ProfileFactView,
   SkillSuggestion,
 } from "../types";
-import { emit, pinnedMock } from "./shared";
+import { emitMock as emit, pinnedMock } from "./shared";
 import type { MakeMockState } from "./state";
 
 // 轻语主动式频控配置槽（批 44 NOT_MOCKED 续刀；默认值同 Go defaultProactivePushCfg：

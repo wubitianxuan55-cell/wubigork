@@ -409,7 +409,6 @@ func writeSummarySheet(f *excelize.File, b *ProjectBundle, layout unitPriceLayou
 		setCell(f, sheet, 5, row, "—")
 	}
 	setCell(f, sheet, 6, row, "投标不得超过，否则废标")
-	row++
 	applyStyle(f, sheet, 5, sl.ControlRow, money)
 	return sl
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import * as antd from 'antd'
-import { CharacterCard } from './CharacterCard'
+import CharacterCard from './CharacterCard'
 import type { LibraryCharacter } from '../../api/characterlib'
 import { FRONTEND_EVENTS } from '../../events'
 import { WX_FOCUS_KEY } from '../../pages/wxFocus'

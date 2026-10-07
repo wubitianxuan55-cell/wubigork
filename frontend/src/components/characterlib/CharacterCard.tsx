@@ -50,7 +50,7 @@ interface CharacterCardProps {
   onAssistantCreated?: (c: LibraryCharacter) => void
 }
 
-export const CharacterCard: React.FC<CharacterCardProps> = ({
+const CharacterCard: React.FC<CharacterCardProps> = ({
   character: c,
   index,
   inProject = false,
