@@ -132,7 +132,9 @@ $relReadme = [regex]::Replace($relReadme,
     "**只保留最近 $RecentExeKeep 个版本的 exe**（当前实存二进制 = $keepNames）")
 
 # 6b. 校验和计数 + 发布说明计数（实数，勿在文中硬写）
-$sumsCount  = (Get-ChildItem (Join-Path $root 'releases') -Filter 'SHA256SUMS-*.txt').Count
+#     校验和按**全目录递归**（releases/ 根 + archive/）——check-docs 就是这样对账的；
+#     早期写成非递归只数根目录，重生成后文中数字（429）与实测（449）不符、卫生守卫红。
+$sumsCount  = (Get-ChildItem (Join-Path $root 'releases') -Recurse -Filter 'SHA256SUMS-*.txt').Count
 $notesCount = (Get-ChildItem (Join-Path $root 'releases') -Filter 'v*.md' |
     Where-Object { $_.Name -match '^v\d' }).Count
 $relReadme = [regex]::Replace($relReadme, '现有 \*\*\d+ 份校验和\*\*', "现有 **$sumsCount 份校验和**")
