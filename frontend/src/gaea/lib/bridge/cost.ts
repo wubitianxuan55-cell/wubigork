@@ -22,6 +22,7 @@ import type {
   CostStageDeviation,
   CostStageValue,
   CostSummary,
+  PriceApplyResult,
   PriceFetchRecord,
   PriceHistory,
   PriceSource,
@@ -89,8 +90,9 @@ export interface CostBindings {
   // 失败明细在任务结果/消息里。
   PriceFetchAll(): Promise<TaskView>;
   PriceFetches(): Promise<PriceFetchRecord[]>;
-  // PriceFetchApply 确认发布抓取结果（按标题选择），返回写入条数。
-  PriceFetchApply(fetchId: string, titles: string[]): Promise<number>;
+  // PriceFetchApply 确认发布抓取结果（按标题选择）；syncResources=true 时
+  // 对预匹配到工料机资源的候选同步推进现行价（写调价历史）。
+  PriceFetchApply(fetchId: string, titles: string[], syncResources: boolean): Promise<PriceApplyResult>;
   PriceFetchIgnore(fetchId: string): Promise<void>;
   // PriceHistory 返回某成本条目的价格历史（新→旧）。
   PriceHistory(name: string): Promise<PriceHistory[]>;

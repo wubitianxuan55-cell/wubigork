@@ -121,9 +121,11 @@ func (a *App) GaeaPriceFetches() []pricefeed.FetchRecord {
 	return a.hubPriceStore().ListFetches(30)
 }
 
-// GaeaPriceFetchApply 确认发布抓取结果：把选中的候选写回成本库并记录价格历史，
-// 然后整条抓取记录标记 applied；返回实际写入条数。
-func (a *App) GaeaPriceFetchApply(fetchID string, titles []string) (int, error) {
+// GaeaPriceFetchApply 确认发布抓取结果：把选中的候选写回成本库并记录价格历史；
+// syncResources=true 时，对预匹配到工料机资源的候选**同步推进资源现行价**
+// （写调价历史，价格单一真相链的落点）。返回发布与资源同步统计。
+func (a *App) GaeaPriceFetchApply(fetchID string, titles []string, syncResources bool) (PriceApplyResult, error) {
+	var out PriceApplyResult
 	store := a.hubPriceStore()
 	var rec pricefeed.FetchRecord
 	for _, f := range store.ListFetches(50) {
@@ -133,10 +135,10 @@ func (a *App) GaeaPriceFetchApply(fetchID string, titles []string) (int, error) 
 		}
 	}
 	if rec.ID == "" {
-		return 0, fmt.Errorf("抓取记录不存在: %s", fetchID)
+		return out, fmt.Errorf("抓取记录不存在: %s", fetchID)
 	}
 	if rec.Status != "pending" {
-		return 0, fmt.Errorf("该抓取记录已处理（%s）", rec.Status)
+		return out, fmt.Errorf("该抓取记录已处理（%s）", rec.Status)
 	}
 
 	want := map[string]bool{}
@@ -144,7 +146,7 @@ func (a *App) GaeaPriceFetchApply(fetchID string, titles []string) (int, error) 
 		want[strings.TrimSpace(t)] = true
 	}
 	costStore := a.hubCostStore()
-	applied := 0
+	ws := a.hubWorkcostStore()
 	// 抓价来源的地区（造价信息网价格表通常按城市/区发布），写回条目时作为
 	// 价格三要素的「地区」维度（zaojia-database 蒸馏）。
 	var area string
@@ -177,7 +179,7 @@ func (a *App) GaeaPriceFetchApply(fetchID string, titles []string) (int, error) 
 			}
 		}
 		if err := costStore.Save(entry); err != nil {
-			return applied, fmt.Errorf("写入 %s 失败: %w", c.Title, err)
+			return out, fmt.Errorf("写入 %s 失败: %w", c.Title, err)
 		}
 		_ = store.AddHistory(pricefeed.History{
 			Name: name, Title: c.Title, Unit: c.Unit, Price: c.Price,
@@ -185,10 +187,21 @@ func (a *App) GaeaPriceFetchApply(fetchID string, titles []string) (int, error) 
 			Region: entry.Region, PriceType: entry.PriceType, FetchedAt: rec.FetchedAt,
 			Note: "价格源更新",
 		})
-		applied++
+		out.Applied++
+		// 资源联动：预匹配到唯一工料机资源 → 推进现行价 + 写调价历史。
+		if syncResources && c.ResourceCode != "" {
+			if r, err := ws.MatchResourceByTitleSpec(c.Title, c.Spec, c.Unit); err == nil && r != nil {
+				if _, err := ws.UpdateResourcePrice(r.ID, c.Price, rec.Period, area,
+					"信息价", "信息价发布", fmt.Sprintf("%s（期数 %s）", rec.SourceName, rec.Period)); err == nil {
+					out.ResourceSynced++
+				}
+			}
+		} else {
+			out.ResourceUnmatched++
+		}
 	}
 	_ = store.SetFetchStatus(fetchID, "applied")
-	return applied, nil
+	return out, nil
 }
 
 // GaeaPriceFetchIgnore 忽略整条抓取结果（不写库）。
@@ -206,4 +219,28 @@ func (a *App) priceHistoryLookup() func(string) []pricefeed.History {
 	return func(name string) []pricefeed.History {
 		return a.hubPriceStore().ListHistory(name, 8)
 	}
+}
+
+// enrichResourceMatches 为抓取候选预匹配工料机资源（唯一命中才有值）。
+// 价格单一真相链的第一环：候选列表直接显形「↔ 资源」，发布确认时可同步
+// 推进资源现行价。价格源抓取与确认发布两条路径共用。
+func (a *App) enrichResourceMatches(res *pricefeed.Result) {
+	if res == nil {
+		return
+	}
+	ws := a.hubWorkcostStore()
+	for i := range res.Candidates {
+		c := &res.Candidates[i]
+		if r, err := ws.MatchResourceByTitleSpec(c.Title, c.Spec, c.Unit); err == nil && r != nil {
+			c.ResourceCode = r.Code
+			c.ResourceTitle = r.Title
+		}
+	}
+}
+
+// PriceApplyResult 发布确认结果（含资源同步统计）。
+type PriceApplyResult struct {
+	Applied           int `json:"applied"`
+	ResourceSynced    int `json:"resourceSynced"`
+	ResourceUnmatched int `json:"resourceUnmatched"`
 }

@@ -299,6 +299,16 @@ export interface PriceCandidate {
   diffPct: number;
   anomaly: boolean; // 偏离历史价格区间（价格异常）
   anomalyReason: string;
+  /** 预匹配到的工料机资源（唯一命中才有值）——发布时可同步推进现行价。 */
+  resourceCode?: string;
+  resourceTitle?: string;
+}
+
+/** PriceApplyResult 发布确认结果（含资源同步统计）。 */
+export interface PriceApplyResult {
+  applied: number;
+  resourceSynced: number;
+  resourceUnmatched: number;
 }
 
 export interface PriceFetchRecord {

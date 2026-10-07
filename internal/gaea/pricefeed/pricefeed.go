@@ -63,6 +63,10 @@ type Candidate struct {
 	DiffPct       float64 `json:"diffPct"`
 	Anomaly       bool    `json:"anomaly"`       // 偏离历史价格区间（价格异常）
 	AnomalyReason string  `json:"anomalyReason"` // 如 "单期跳幅 +22.5%"
+	// ResourceCode/ResourceTitle 预匹配到的工料机资源（唯一命中才有值）。
+	// 发布确认时可同步推进资源现行价（价格单一真相链）。
+	ResourceCode  string `json:"resourceCode,omitempty"`
+	ResourceTitle string `json:"resourceTitle,omitempty"`
 }
 
 // Result 是一次抓取的完整结果。

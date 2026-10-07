@@ -27,7 +27,7 @@ describe("PriceSourcesPanel 价格源", () => {
     expect(badge.getAttribute("title")).toContain("单期跳幅 +25.0%");
 
     fireEvent.click(screen.getByText("发布 2 条"));
-    await waitFor(() => expect(screen.getByText("已发布 2 条价格更新")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/已发布 2 条价格更新/)).toBeTruthy());
     expect(screen.getByText("已发布")).toBeTruthy();
   });
 

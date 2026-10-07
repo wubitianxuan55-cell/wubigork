@@ -264,7 +264,7 @@ export const bindingSignatures = {
   GaeaPreview: { argc: 1, variadic: false, params: "rel string" },
   GaeaPriceFetch: { argc: 1, variadic: false, params: "id string" },
   GaeaPriceFetchAll: { argc: 0, variadic: false, params: "" },
-  GaeaPriceFetchApply: { argc: 2, variadic: false, params: "fetchID string, titles []string" },
+  GaeaPriceFetchApply: { argc: 3, variadic: false, params: "fetchID string, titles []string, syncResources bool" },
   GaeaPriceFetchIgnore: { argc: 1, variadic: false, params: "fetchID string" },
   GaeaPriceFetches: { argc: 0, variadic: false, params: "" },
   GaeaPriceHistory: { argc: 1, variadic: false, params: "name string" },

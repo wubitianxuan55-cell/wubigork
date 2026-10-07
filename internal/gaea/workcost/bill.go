@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 )
 
 // BillProject 一次导入=一个项目（五表封面 + 取费区费率——录入数据）。
@@ -318,4 +319,54 @@ func (s *Store) DeleteBillProject(id int64) (int, error) {
 		return 0, err
 	}
 	return len(orphans), nil
+}
+
+// NormalizeText 价格匹配用的文本归一：去空白 + 转小写（中文不变形）。
+func NormalizeText(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		switch r {
+		case ' ', '\t', '\n', '\r', '　':
+			continue
+		}
+		b.WriteRune(unicode.ToLower(r))
+	}
+	return b.String()
+}
+
+// MatchResourceByTitleSpec 按（归一化标题+规格+单位）匹配工料机资源。
+// 信息价发布联动资源现行价的匹配入口。多条命中视为歧义返回 nil（宁缺勿误
+// ——把价推进到错的资源比不推进更糟）。
+func (s *Store) MatchResourceByTitleSpec(title, spec, unit string) (*Resource, error) {
+	if err := s.requireDB(); err != nil {
+		return nil, err
+	}
+	nt, ns, nu := NormalizeText(title), NormalizeText(spec), NormalizeText(unit)
+	if nt == "" {
+		return nil, nil
+	}
+	rows, err := s.db.Query(`SELECT id, code, kind, title, spec, unit FROM gf_resources WHERE status != '停用'`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var hit *Resource
+	for rows.Next() {
+		var r Resource
+		if err := rows.Scan(&r.ID, &r.Code, &r.Kind, &r.Title, &r.Spec, &r.Unit); err != nil {
+			continue
+		}
+		rt, rs := NormalizeText(r.Title), NormalizeText(r.Spec)
+		if rt != nt || (ns != "" && rs != ns) {
+			continue
+		}
+		if nu != "" && NormalizeText(r.Unit) != nu {
+			continue
+		}
+		if hit != nil {
+			return nil, nil // 歧义：多条同身份
+		}
+		hit = &r
+	}
+	return hit, rows.Err()
 }

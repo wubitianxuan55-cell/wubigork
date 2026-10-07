@@ -62,7 +62,7 @@ func (b *CostB) GaeaCostStageSave(v coststage.StageValue) error { return b.a.Gae
 func (b *CostB) GaeaCostStages(projectID string) []coststage.StageValue { return b.a.GaeaCostStages(projectID) }
 func (b *CostB) GaeaPriceFetch(id string) (*tasks.Task, error) { return b.a.GaeaPriceFetch(id) }
 func (b *CostB) GaeaPriceFetchAll() (*tasks.Task, error) { return b.a.GaeaPriceFetchAll() }
-func (b *CostB) GaeaPriceFetchApply(fetchID string, titles []string) (int, error) { return b.a.GaeaPriceFetchApply(fetchID, titles) }
+func (b *CostB) GaeaPriceFetchApply(fetchID string, titles []string, syncResources bool) (PriceApplyResult, error) { return b.a.GaeaPriceFetchApply(fetchID, titles, syncResources) }
 func (b *CostB) GaeaPriceFetchIgnore(fetchID string) error { return b.a.GaeaPriceFetchIgnore(fetchID) }
 func (b *CostB) GaeaPriceFetches() []pricefeed.FetchRecord { return b.a.GaeaPriceFetches() }
 func (b *CostB) GaeaPriceHistory(name string) []pricefeed.History { return b.a.GaeaPriceHistory(name) }

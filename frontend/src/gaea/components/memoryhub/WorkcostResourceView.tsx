@@ -66,6 +66,7 @@ export function WorkcostResourceView() {
   const [readError, setReadError] = useState("");
   const [editing, setEditing] = useState<WorkcostResource | null>(null);
   const [pricing, setPricing] = useState<WorkcostResource | null>(null);
+  const [historyOf, setHistoryOf] = useState<WorkcostResource | null>(null);
   const [preview, setPreview] = useState<WorkcostSeedPreview | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState("");
@@ -319,6 +320,14 @@ export function WorkcostResourceView() {
                           <button
                             type="button"
                             className={iconBtn}
+                            title="调价历史（历次价格/期数/来源）"
+                            onClick={() => setHistoryOf(r)}
+                          >
+                            <TrendingUp size={11} />
+                          </button>
+                          <button
+                            type="button"
+                            className={iconBtn}
                             title="调价（写调价历史并推进现行价）"
                             onClick={() => setPricing(r)}
                           >
@@ -362,6 +371,7 @@ export function WorkcostResourceView() {
       {pricing && (
         <PriceModal value={pricing} busy={busy} onCancel={() => setPricing(null)} onSave={setPrice} />
       )}
+      {historyOf && <PriceHistoryModal resource={historyOf} onClose={() => setHistoryOf(null)} />}
       {preview && (
         <SeedPreviewModal
           preview={preview}
@@ -654,15 +664,14 @@ function Stat({ label, value, tone }: { label: string; value: number; tone: stri
   );
 }
 
-// 供测试导入（资源价历史视图用）。
-export { PriceHistoryInline };
-
-function PriceHistoryInline({ resourceId }: { resourceId: number }) {
-  const [rows, setRows] = useState<WorkcostResourcePrice[]>([]);
+// PriceHistoryModal 资源调价历史（新→旧）：价格/期数/地区/来源/时间。
+// 价格单一真相链的可见面——信息价发布/询价调差/手动调价都会留痕在这里。
+function PriceHistoryModal({ resource, onClose }: { resource: WorkcostResource; onClose: () => void }) {
+  const [rows, setRows] = useState<WorkcostResourcePrice[] | null>(null);
   useEffect(() => {
     let alive = true;
     app
-      .WorkcostResourcePrices(resourceId)
+      .WorkcostResourcePrices(resource.id)
       .then((r) => {
         if (alive) setRows(r ?? []);
       })
@@ -672,18 +681,46 @@ function PriceHistoryInline({ resourceId }: { resourceId: number }) {
     return () => {
       alive = false;
     };
-  }, [resourceId]);
-  if (rows.length === 0) return <div className="text-[11px] text-fg-faint">暂无调价记录</div>;
+  }, [resource.id]);
   return (
-    <ul className="text-[11px] space-y-0.5">
-      {rows.map((p) => (
-        <li key={p.id} className="flex items-center gap-2">
-          <span className="tabular-nums text-fg">{fmtPrice(p.price)}</span>
-          <span className="text-fg-faint">{p.period || "-"}</span>
-          <span className="text-fg-faint">{p.region}</span>
-          <span className="text-fg-faint ml-auto">{p.fetchedAt}</span>
-        </li>
-      ))}
-    </ul>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div
+        className="v3-panel rounded-2xl p-5 space-y-3 w-[34rem] max-h-[80vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-[13px] text-fg font-semibold flex-1 min-w-0 truncate">
+            调价历史：{resource.title}
+          </span>
+          <button type="button" className={iconBtn} onClick={onClose} title="关闭">
+            <X size={11} />
+          </button>
+        </div>
+        <p className="text-[11px] text-fg-faint leading-relaxed">
+          现行价 {fmtPrice(resource.currentPrice > 0 ? resource.currentPrice : resource.basePrice)} / 基准价{" "}
+          {fmtPrice(resource.basePrice)}。信息价发布、询价调差、手动调价都会在这里留痕。
+        </p>
+        {rows === null ? (
+          <div className="space-y-2 animate-pulse">
+            <div className="v3-panel rounded-lg h-8" />
+            <div className="v3-panel rounded-lg h-8" />
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="py-6 text-center text-[11.5px] text-fg-faint">暂无调价记录——资源价来自初始录入，尚未调过价。</div>
+        ) : (
+          <ul className="v3-panel rounded-lg divide-y divide-border-soft/25 text-[11px]" data-testid="workcost-price-history">
+            {rows.map((p) => (
+              <li key={p.id} className="flex items-center gap-2 px-3 py-2">
+                <span className="tabular-nums text-fg font-medium">{fmtPrice(p.price)}</span>
+                <span className="text-fg-faint">{p.period || "—"}</span>
+                <span className="text-fg-faint">{p.region}</span>
+                <span className="px-1 py-px rounded bg-bg-soft text-fg-faint text-[9.5px]">{p.priceType || "调价"}</span>
+                <span className="ml-auto text-fg-faint" title={p.source}>{p.fetchedAt.slice(0, 10)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
   );
 }

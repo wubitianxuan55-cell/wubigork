@@ -1,6 +1,6 @@
 // mock/cost.ts — 成本库/价格域（T6-10.1 拆分自 lib/mock.ts，方法体零改动）。
 import type { AppBindings } from "../bridge";
-import type { CostCategory, CostEntry, CostEstimateItem, CostEstimateVersion, CostGraphView, CostIndicator, CostProject, CostProjectSummary, CostReviewNote, CostInquiryRecord, CostAdjustSuggestion, CostInquiryScanFinding, CostStageValue, CostStageCompareRow, CostStageDeviation, PriceFetchRecord, PriceSource, CostSummary } from "../types";
+import type { CostCategory, CostEntry, CostEstimateItem, CostEstimateVersion, CostGraphView, CostIndicator, CostProject, CostProjectSummary, CostReviewNote, CostInquiryRecord, CostAdjustSuggestion, CostInquiryScanFinding, CostStageValue, CostStageCompareRow, CostStageDeviation, PriceApplyResult, PriceFetchRecord, PriceSource, CostSummary } from "../types";
 import {
   costCategoriesMock,
   costMock,
@@ -482,10 +482,11 @@ export function buildCost(_s: MakeMockState): CostMethods {
     async PriceFetches() {
       return priceFetchMock;
     },
-    async PriceFetchApply(fetchId: string, titles: string[]) {
+    async PriceFetchApply(fetchId: string, titles: string[], syncResources: boolean): Promise<PriceApplyResult> {
       const rec = priceFetchMock.find((f) => f.id === fetchId);
       if (rec) rec.status = "applied";
-      return titles.length;
+      // dev mock：候选未做资源预匹配，syncResources 统计为 0 同步/全部未匹配。
+      return { applied: titles.length, resourceSynced: 0, resourceUnmatched: syncResources ? titles.length : 0 };
     },
     async PriceFetchIgnore(fetchId: string) {
       const rec = priceFetchMock.find((f) => f.id === fetchId);

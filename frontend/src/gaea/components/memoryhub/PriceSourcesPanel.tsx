@@ -34,6 +34,8 @@ export function PriceSourcesPanel({ onChanged }: { onChanged?: () => void }) {
   const { sources, fetches, loading, loadFailed, load } = usePriceSources({ withFetches: true });
   const [fetchingId, setFetchingId] = useState<string | null>(null);
   const [fetchingAll, setFetchingAll] = useState(false);
+  // 发布时同步推进工料机资源现行价（价格单一真相链，默认开）。
+  const [syncResources, setSyncResources] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<PriceSource | null>(null);
   const [deleting, setDeleting] = useState<PriceSource | null>(null);
@@ -180,15 +182,19 @@ export function PriceSourcesPanel({ onChanged }: { onChanged?: () => void }) {
       const titles = [...(checked[f.id] ?? defaultChecked(f.candidates))];
       if (titles.length === 0) return;
       try {
-        const n = await app.PriceFetchApply(f.id, titles);
-        toast.show(`已发布 ${n} 条价格更新`, "info");
+        // 价格单一真相链：发布时同步推进匹配到的工料机资源现行价（默认开）。
+        const r = await app.PriceFetchApply(f.id, titles, syncResources);
+        const sync = syncResources
+          ? ` · 同步资源 ${r.resourceSynced} 个` + (r.resourceUnmatched > 0 ? `（${r.resourceUnmatched} 条无匹配资源）` : "")
+          : "";
+        toast.show(`已发布 ${r.applied} 条价格更新${sync}`, "info");
         load();
         onChanged?.();
       } catch (e) {
         toast.show(`发布失败：${String(e)}`, "warn");
       }
     },
-    [checked, defaultChecked, load, onChanged, toast],
+    [checked, defaultChecked, syncResources, load, onChanged, toast],
   );
 
   const ignoreFetch = useCallback(
@@ -290,6 +296,10 @@ export function PriceSourcesPanel({ onChanged }: { onChanged?: () => void }) {
                     <span className="ml-auto text-fg-faint text-[10px]">{timeText(f.fetchedAt)}</span>
                     {f.status === "pending" ? (
                       <>
+                        <label className="shrink-0 flex items-center gap-1 text-[10px] text-fg-faint cursor-pointer select-none" title="发布时同步推进匹配到的工料机资源现行价（写调价历史）">
+                          <input type="checkbox" checked={syncResources} onChange={(e) => setSyncResources(e.target.checked)} />
+                          同步资源
+                        </label>
                         <button
                           className="shrink-0 px-2 h-6 rounded-md bg-accent/15 text-accent text-[11px] cursor-pointer hover:bg-accent/25 transition-colors"
                           onClick={() => void applyFetch(f)}
@@ -318,6 +328,11 @@ export function PriceSourcesPanel({ onChanged }: { onChanged?: () => void }) {
                           {c.title}
                           {c.spec && <span className="text-fg-faint"> · {c.spec}</span>}
                           {c.unit && <span className="text-fg-faint"> /{c.unit}</span>}
+                          {c.resourceCode && (
+                            <span className="ml-1.5 px-1 py-px rounded bg-accent/10 text-accent text-[9.5px]" title={`预匹配到工料机资源 ${c.resourceTitle}（${c.resourceCode}）——发布时同步推进现行价`}>
+                              ↔ {c.resourceTitle}
+                            </span>
+                          )}
                         </span>
                         {c.status === "更新" && c.existingPrice > 0 && (
                           <span className="shrink-0 text-fg-faint line-through">¥{c.existingPrice}</span>

@@ -208,7 +208,8 @@ func (a *App) priceFetchTaskHandler(ctx context.Context, t *tasks.Task, p *tasks
 		return err
 	}
 	res.Candidates = pricefeed.DetectAnomalies(res.Candidates, a.priceHistoryLookup())
-	p.Output(fmt.Sprintf("[%s] 解析出 %d 条候选价格，异常检测完成", time.Now().Format("15:04:05"), len(res.Candidates)))
+	a.enrichResourceMatches(res)
+	p.Output(fmt.Sprintf("[%s] 解析出 %d 条候选价格，异常检测与资源匹配完成", time.Now().Format("15:04:05"), len(res.Candidates)))
 	rec := pricefeed.FetchRecord{
 		ID:       fmt.Sprintf("fetch-%d", time.Now().UnixNano()), // SaveFetch 按值拷贝，ID 须先预生成
 		SourceID: src.ID, SourceName: src.Name, URL: src.URL,

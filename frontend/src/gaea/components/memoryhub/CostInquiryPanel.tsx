@@ -203,7 +203,23 @@ export function CostInquiryPanel() {
           return;
         }
         await app.CostSave({ ...entry, price: s.latestPrice });
-        toast.show(`已更新成本库：${s.entryTitle} ¥${fmtPrice.format(s.latestPrice)}`, "info");
+        // 价格单一真相链：同名工料机资源唯一命中时同步推进现行价（宁缺勿误）。
+        let syncNote = "";
+        try {
+          const hits = (await app.WorkcostResourceList("", s.entryTitle)) ?? [];
+          const exact = hits.filter(
+            (r) => r.title.replace(/\s+/g, "") === s.entryTitle.replace(/\s+/g, "") && (!s.unit || !r.unit || r.unit === s.unit),
+          );
+          if (exact.length === 1) {
+            await app.WorkcostResourceSetPrice(exact[0].id, s.latestPrice, "", exact[0].region, "信息价", "询价调差", "询价库调差建议同步");
+            syncNote = `，已同步资源「${exact[0].title}」现行价`;
+          } else if (exact.length > 1) {
+            syncNote = `；${exact.length} 条同名资源待人工确认，未同步`;
+          }
+        } catch {
+          /* 资源联动失败不阻断成本库更新 */
+        }
+        toast.show(`已更新成本库：${s.entryTitle} ¥${fmtPrice.format(s.latestPrice)}${syncNote}`, "info");
         reloadMeta();
       } catch (e) {
         toast.show(String(e), "error");

@@ -13,6 +13,7 @@ import type {
   WorkcostQuotaItem,
   WorkcostRateSet,
   WorkcostResource,
+  WorkcostResourcePrice,
   WorkcostSeedPreview,
 } from "../../lib/types";
 
@@ -42,6 +43,7 @@ const state = vi.hoisted(() => ({
   billDeleted: 0,
   ratesSaved: null as { id: number; rates: WorkcostRateSet; inclReg: boolean; control: number } | null,
   projectDeleted: 0,
+  priceHistory: [] as WorkcostResourcePrice[],
 }));
 
 vi.mock("../../lib/bridge", () => ({
@@ -53,7 +55,7 @@ vi.mock("../../lib/bridge", () => ({
     WorkcostResourceSave: async (r: WorkcostResource) => r,
     WorkcostResourceDelete: async () => undefined,
     WorkcostResourceSetPrice: async () => state.resources[0],
-    WorkcostResourcePrices: async () => [],
+    WorkcostResourcePrices: async () => state.priceHistory,
     WorkcostQuotaList: async (): Promise<WorkcostQuota[]> => {
       if (state.listError) throw new Error(state.listError);
       return state.quotas;
@@ -157,6 +159,7 @@ beforeEach(() => {
   state.billDeleted = 0;
   state.ratesSaved = null;
   state.projectDeleted = 0;
+  state.priceHistory = [];
 });
 
 describe("WorkcostResourceView 工料机资源库", () => {
@@ -194,6 +197,22 @@ describe("WorkcostResourceView 工料机资源库", () => {
     expect(alert.textContent).toContain("读取失败");
     expect(alert.textContent).toContain("database is locked");
     expect(screen.getByText("重试")).toBeTruthy();
+  });
+
+it("调价历史 Modal：显示历次调价（价格/期数/来源类型）", async () => {
+    state.resources = [res({})];
+    state.priceHistory = [
+      { id: 1, resourceId: 1, price: 358, period: "2026年第8期", region: "乐山", priceType: "信息价", source: "信息价发布", fetchedAt: "2026-10-07T10:00:00Z", note: "" },
+      { id: 2, resourceId: 1, price: 345, period: "", region: "乐山", priceType: "", source: "初始录入", fetchedAt: "2026-09-01T10:00:00Z", note: "" },
+    ];
+    render(<WorkcostResourceView />);
+    fireEvent.click(await screen.findByTitle("调价历史（历次价格/期数/来源）"));
+    expect(await screen.findByText(/调价历史：C20商品混凝土/)).toBeTruthy();
+    expect(screen.getByText("¥358")).toBeTruthy();
+    expect(screen.getByText("2026年第8期")).toBeTruthy();
+    // 「信息价」与 ¥345 同时出现在资源表与历史弹窗多处——断言存在即可。
+    expect(screen.getAllByText("信息价").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("¥345").length).toBeGreaterThanOrEqual(1);
   });
 
   it("存量资源化：先出干跑预览（归类分布 + 跳过原因），确认后才入库", async () => {
