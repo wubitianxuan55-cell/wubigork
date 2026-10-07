@@ -1,3 +1,6 @@
+## v4.469.2 · 知识库面板真机崩溃根修（2026-10-07）
+> 真机日志实锤 KnowledgePanel TypeError: Cannot read properties of null (reading 'length')（2026-10-06 19:57 ErrorBoundary）。根因=无标签知识条目的 `Tags` 在 store 内为 nil，Wails 绑定面序列化成 JSON null，前端 `entry.tags.length` 崩——v4.467.1 造价侧同款系统性契约第二次发作。**双层修复对齐先例**：Go 根修（List/Search/Get 投影、History 三出口与历史行 Tags、FindSimilar 降级出口、ImportPreview Columns/Unmapped/行 Tags，全部 `nonNilStrings` 构造即非 nil）+ 前端兜底（KnowledgePanel 双变体/EntryRow/EditForm/KnowledgeImportModal 数组消费点 `?? []`，对旧构建 Go 产物同样免疫）。回归钉双侧：Go TestKnowledgeBindingsNonNilSlices（Go 值 + JSON 序列化两层断言，顺带钉检索族测试须 `&App{core:&core{engineMgr:…}}` 断通道）；前端 null tags/null 列表三态渲染例。全量 ci 绿。
+
 ## v4.469.1 · 存量清单主定额自动转引用（2026-10-07）
 > v4.469.0 只建了空引用表（引用靠重导入双写），存量清单点弹窗看不到定额。**SchemaV31 开库迁移自动回填**（单值 quota_code → 引用表，quantity=清单工程量，NOT IN 幂等）+ 读侧合成兜底（ID=-1）——用户零操作，升级即全部恢复可见。测试 TestV31BackfillAutoConvertsQuotaCodes；全量 ci 绿。教训=**新表+回填要同一版出，存量可见性不能寄托于用户重导入**。详见 `releases/v4.469.1.md`。
 
