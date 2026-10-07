@@ -44,7 +44,7 @@ const MODULES: { key: CostModule; label: string; icon: ReactNode; hint: string }
   { key: "compose", label: "单价分析", icon: <FileSpreadsheet size={14} />, hint: "消耗定额 · 工料机现算综合单价（只含人材机）· 导入/导出五表" },
   { key: "resources", label: "资源库", icon: <Layers size={14} />, hint: "工料机主数据 · 现行价/基准价 · 调价历史 · 存量资源化" },
   { key: "prices", label: "价格数据", icon: <CloudUpload size={14} />, hint: "价格源 · 价格仓库 · 询价库 · 资料条目" },
-  { key: "refs", label: "造价参考", icon: <TrendingUp size={14} />, hint: "资料条目分位数对标（旧价格手册沉淀，不落表实时聚合）——与分部分项清单是两套数据" },
+  { key: "refs", label: "造价参考", icon: <TrendingUp size={14} />, hint: "项目案例（导入项目文件）+ 资料条目分位数对标——与分部分项清单是两套数据" },
   { key: "overview", label: "概览", icon: <Gauge size={14} />, hint: "工料法规模 · 资料库速览 · 关联图谱" },
 ];
 

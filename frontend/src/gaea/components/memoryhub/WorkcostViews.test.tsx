@@ -422,7 +422,7 @@ describe("WorkcostComposeView 定额管理与导出", () => {
   });
 });
 
-// ── 分部分项清单（WorkcostBillView，v4.460「数据库不是计算器」）───────
+// ── 分部分项清单（WorkcostBillView，累计只读列表）─────────────────────
 describe("WorkcostBillView 分部分项清单", () => {
   const proj: WorkcostBillProject = {
     id: 1, name: "旺平矿业修复", fileName: "旺平.xlsx", source: "", location: "乐山",
@@ -431,17 +431,17 @@ describe("WorkcostBillView 分部分项清单", () => {
     profitIncludesRegulatory: false, controlPrice: 0, itemCount: 2,
   };
   const items: WorkcostBillItem[] = [
-    { id: 11, projectId: 1, code: "WP01", title: "施工便道", unit: "m", division: "A临建", quantity: 850, quantityExpr: "", quotaCode: "WP01", feature: "", priceOverride: 0, sort: 1 },
+    { id: 11, projectId: 1, code: "WP01", title: "测量放线", unit: "项", division: "A临建", quantity: 1, quantityExpr: "拐点", quotaCode: "WP01", feature: "拐点、分层标高", priceOverride: 0, sort: 1 },
     { id: 12, projectId: 1, code: "M001", title: "外委监测化验", unit: "项", division: "", quantity: 1, quantityExpr: "", quotaCode: "", feature: "", priceOverride: 12000, sort: 2 },
   ];
 
-  it("无项目时引导「导入项目表」（清单+费率+资源+定额一次录入）", async () => {
+  it("无清单时引导到「造价参考」导入项目文件", async () => {
     render(<WorkcostBillView />);
-    expect(await screen.findByText(/还没有清单项目/)).toBeTruthy();
-    expect(screen.getByRole("button", { name: /导入项目表/ })).toBeTruthy();
+    expect(await screen.findByText(/还没有清单/)).toBeTruthy();
+    expect(screen.getByText(/到「造价参考」导入项目文件/)).toBeTruthy();
   });
 
-  it("渲染项目列表与清单表：工程量、定额引用、单价参考（现算）与手填行", async () => {
+  it("累计列表：项目列/编码/名称/特征/单位/定额/单价参考——无工程量列", async () => {
     state.billProjects = [proj];
     state.billItems = items;
     state.compose = {
@@ -449,66 +449,19 @@ describe("WorkcostBillView 分部分项清单", () => {
       subtotal: 229.98, compositePrice: 229.98, zeroLines: 0, lines: [], warnings: [],
     };
     render(<WorkcostBillView />);
-    // 项目名在左列表与右侧项目头两处渲染。
-    expect((await screen.findAllByText("旺平矿业修复")).length).toBe(2);
-    expect(screen.getByDisplayValue("施工便道")).toBeTruthy();
-    expect(screen.getByDisplayValue("850")).toBeTruthy(); // 工程量是录入数据
-    // 引用定额 chip（WP01 同时是清单编码列，按 title 精确定位 chip）。
+    expect(await screen.findByText("测量放线")).toBeTruthy();
+    expect(screen.getByText("拐点、分层标高")).toBeTruthy(); // 特征显形
     const chip = screen.getByTitle(/引用定额 WP01——点开综合单价分析/);
     expect(chip.textContent).toBe("WP01");
     expect(await screen.findByText("¥229.98")).toBeTruthy(); // 单价参考（定额现算）
-    expect(screen.getByDisplayValue("12000")).toBeTruthy(); // 手填单价行
-    // 数据库不做加总：不出现任何合计/费用链文案。
+    expect(screen.getByText("¥12,000")).toBeTruthy(); // 手填单价
+    // 清单不需要工程量：无工程量列头，也无任何合计/费用链。
+    expect(screen.queryByText("工程量")).toBeNull();
     expect(screen.queryByText(/直接费/)).toBeNull();
     expect(screen.queryByText(/含税总造价/)).toBeNull();
   });
 
-  it("工程量编辑失焦即保存（WorkcostBillItemSave 带新量落库）", async () => {
-    state.billProjects = [proj];
-    state.billItems = items;
-    render(<WorkcostBillView />);
-    const qty = (await screen.findAllByLabelText("工程量"))[0]; // WP01 行
-    fireEvent.change(qty, { target: { value: "900" } });
-    fireEvent.blur(qty);
-    await waitFor(() => expect(state.billSaved?.quantity).toBe(900));
-    expect(state.billSaved?.code).toBe("WP01");
-  });
-
-  it("费率是录入数据：改企管率保存走 WorkcostBillProjectRatesSave", async () => {
-    state.billProjects = [proj];
-    state.billItems = items;
-    render(<WorkcostBillView />);
-    // 先选中具体项目（费率卡只在选中时显示）。
-    fireEvent.change(await screen.findByTestId("workcost-bill-project-filter"), { target: { value: "1" } });
-    const mgmt = await screen.findByLabelText("企管 %");
-    expect((mgmt as HTMLInputElement).value).toBe("10"); // 导入的费率已落库回显
-    fireEvent.change(mgmt, { target: { value: "12" } });
-    fireEvent.click(screen.getByText("保存费率"));
-    await waitFor(() => expect(state.ratesSaved).toBeTruthy());
-    expect(state.ratesSaved!.rates.managementRate).toBe(0.12);
-    expect(state.ratesSaved!.rates.taxRate).toBe(0.09);
-  });
-
-  it("从定额库添加清单项：定额编码套上（工程量默认 1）", async () => {
-    state.billProjects = [proj];
-    state.billItems = [];
-    state.quotas = [
-      {
-        id: 1, code: "WP02", title: "场地平整", specialty: "土壤修复", chapter: "A临建", unit: "m²",
-        categoryPath: "", baseLabor: 0, baseMaterial: 0, baseMachine: 0,
-        source: "项目导入", region: "", priceDate: "", note: "", status: "现行", items: [],
-      },
-    ];
-    render(<WorkcostBillView />);
-    fireEvent.change(await screen.findByTestId("workcost-bill-project-filter"), { target: { value: "1" } });
-    fireEvent.click(await screen.findByRole("button", { name: /从定额库添加/ }));
-    fireEvent.click(await screen.findByText("录入清单"));
-    await waitFor(() => expect(state.billSaved?.quotaCode).toBe("WP02"));
-    expect(state.billSaved?.title).toBe("场地平整");
-    expect(state.billSaved?.quantity).toBe(1);
-  });
-
-it("累计视图：全部项目清单拉平显示（带项目列），项目筛选收窄", async () => {
+  it("筛选：项目下拉/关键字筛分（计数 N/M 条）", async () => {
     const p2 = { ...proj, id: 2, name: "什邡项目", itemCount: 1 };
     state.billProjects = [proj, p2];
     state.billItems = [
@@ -516,37 +469,19 @@ it("累计视图：全部项目清单拉平显示（带项目列），项目筛�
       { id: 31, projectId: 2, code: "SF01", title: "垂直运输", unit: "t", division: "B运输", quantity: 60, quantityExpr: "", quotaCode: "SF01", feature: "", priceOverride: 0, sort: 1 },
     ];
     render(<WorkcostBillView />);
-    expect((await screen.findByTestId("workcost-bill-count")).textContent).toBe("3/3 条");
-    expect(screen.getAllByText("旺平矿业修复").length).toBeGreaterThanOrEqual(2); // 项目列+下拉
+    expect((await screen.findByTestId("workcost-bill-count")).textContent).toContain("3/3");
     fireEvent.change(screen.getByTestId("workcost-bill-project-filter"), { target: { value: "2" } });
-    expect(screen.getByTestId("workcost-bill-count").textContent).toBe("1/3 条");
-    expect(screen.getByDisplayValue("垂直运输")).toBeTruthy();
-    expect(screen.queryByDisplayValue("施工便道")).toBeNull();
+    expect(screen.getByTestId("workcost-bill-count").textContent).toContain("1/3");
+    expect(screen.getByText("垂直运输")).toBeTruthy();
+    expect(screen.queryByText("测量放线")).toBeNull();
+    fireEvent.change(screen.getByLabelText("筛选项目"), { target: { value: "0" } });
+    fireEvent.change(screen.getByLabelText("搜索清单"), { target: { value: "外委" } });
+    expect(screen.getByTestId("workcost-bill-count").textContent).toContain("1/3");
+    expect(screen.getByText("外委监测化验")).toBeTruthy();
   });
 
-  it("关键字筛分：按特征与名称匹配", async () => {
+  it("特征描述显形于清单表（含计算式 tooltip），定额 chip 点开综合单价分析", async () => {
     state.billProjects = [proj];
-    state.billItems = items;
-    render(<WorkcostBillView />);
-    fireEvent.change(await screen.findByLabelText("搜索清单"), { target: { value: "外委" } });
-    expect(screen.getByTestId("workcost-bill-count").textContent).toBe("1/2 条");
-    expect(screen.getByDisplayValue("外委监测化验")).toBeTruthy();
-  });
-
-  it("删除项目：二次确认 → WorkcostBillProjectDelete（共享定额保留语义显形）", async () => {
-    state.billProjects = [proj];
-    state.billItems = items;
-    render(<WorkcostBillView />);
-    fireEvent.change(await screen.findByTestId("workcost-bill-project-filter"), { target: { value: "1" } });
-    fireEvent.click(await screen.findByRole("button", { name: /删除该项目/ }));
-    expect(screen.getByText(/共享定额与工料机资源/)).toBeTruthy();
-    expect(state.projectDeleted).toBe(0);
-    fireEvent.click(screen.getByText("确认删除"));
-    await waitFor(() => expect(state.projectDeleted).toBe(1));
-  });
-
-it("特征描述显形于清单表（含计算式 tooltip），定额 chip 点开综合单价分析", async () => {
-    state.billProjects = [{ ...proj, itemCount: 1 }];
     state.billItems = [
       { id: 21, projectId: 1, code: "WP02", title: "施工便道", unit: "m", division: "A临建", quantity: 350,
         quantityExpr: "长350×宽3", quotaCode: "WP02", feature: "3m宽，20cm碎石+15cm混凝土", priceOverride: 0, sort: 1 },
@@ -566,9 +501,7 @@ it("特征描述显形于清单表（含计算式 tooltip），定额 chip 点�
       warnings: [],
     };
     render(<WorkcostBillView />);
-    // 特征列显形（清单不缺特征描述）。
     expect(await screen.findByText("3m宽，20cm碎石+15cm混凝土")).toBeTruthy();
-    // 定额 chip 是按钮——点开分析弹窗（清单分析不再「打不开」）。
     fireEvent.click(screen.getByTitle(/点开综合单价分析/));
     expect(await screen.findByText(/综合单价分析：施工便道/)).toBeTruthy();
     expect(await screen.findByText("级配碎石")).toBeTruthy();
@@ -576,7 +509,7 @@ it("特征描述显形于清单表（含计算式 tooltip），定额 chip 点�
   });
 
   it("编码统一溯源：orig_code 与统一码不同时显示「原码」徽标", async () => {
-    state.billProjects = [{ ...proj, itemCount: 1 }];
+    state.billProjects = [proj];
     state.billItems = [
       { id: 22, projectId: 1, code: "WP02", title: "施工便道", unit: "m", division: "", quantity: 1,
         quantityExpr: "", quotaCode: "WP02-2", feature: "", priceOverride: 0, sort: 1 },
@@ -593,17 +526,6 @@ it("特征描述显形于清单表（含计算式 tooltip），定额 chip 点�
     render(<WorkcostBillView />);
     fireEvent.click(await screen.findByTitle(/点开综合单价分析/));
     expect(await screen.findByText(/综合单价分析：施工便道/)).toBeTruthy();
-    expect(screen.getByText(/原码 WP02/)).toBeTruthy(); // 溯源徽标
-  });
-
-  it("手填行与删除行：save/delete 走库", async () => {
-    state.billProjects = [proj];
-    state.billItems = items;
-    render(<WorkcostBillView />);
-    fireEvent.change(await screen.findByTestId("workcost-bill-project-filter"), { target: { value: "1" } });
-    fireEvent.click(await screen.findByRole("button", { name: /手填行/ }));
-    await waitFor(() => expect(state.billSaved?.title).toBe("新清单项"));
-    fireEvent.click(screen.getAllByTitle("删除本行")[0]);
-    await waitFor(() => expect(state.billDeleted).toBe(11));
+    expect(screen.getByText(/原码 WP02/)).toBeTruthy();
   });
 });
