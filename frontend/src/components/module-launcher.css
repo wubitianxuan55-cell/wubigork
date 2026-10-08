@@ -717,11 +717,39 @@ html[data-hl='light'] .ml .w-mod.is-featured {
   box-shadow: var(--shadow-sm);
 }
 .w-stat-row .w-stat {
-  padding: 10px 16px 12px;
+  padding: 7px 14px;
   border: 0;
   background: transparent;
   box-shadow: none;
+  /* v4.474 单行化：卡头（图标+标签）与卡体同一行，四节各一句——
+     信息零删（testid/aria/数据全留），段高 ~150px → ~40px，首页回一屏 */
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
+.w-stat-row .w-stat .ml-card-head { margin: 0; flex-shrink: 0; }
+.w-stat-row .w-stat .ml-card-head .ml-card-icon { width: 20px; height: 20px; font-size: 10px; }
+.w-stat-row .w-stat .ml-panel-body { flex-direction: row; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.w-stat-row .ml-krow { display: flex; align-items: baseline; gap: 7px; }
+.w-stat-row .ml-krow-icon { display: none; } /* 段头图标已表意，体图标为重复 */
+.w-stat-row .ml-krow-body { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; }
+.w-stat-row .ml-krow-value { margin: 0; }
+.w-stat-row .ml-krow-sub { margin: 0; }
+.w-stat-row .ml-memory { flex-direction: row; align-items: baseline; gap: 8px; }
+.w-stat-row .ml-panel-empty { padding: 0; }
+/* 状态带内会话：横排单行，多会话横向滚动（数据不删，带高恒定） */
+.w-stat-row ul.ml-sess {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 18px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  min-width: 0;
+}
+.w-stat-row .ml-sess-item { display: inline-flex; border-top: 0; padding: 0; flex-shrink: 0; }
 /* 底座仪表带列分隔线：一档可感知的 hairline（比卡内行线略淡） */
 .w-stat-row .w-stat + .w-stat,
 .p-stat-row .p-stat + .p-stat { border-left: 1px solid color-mix(in srgb, var(--color-text) 8.5%, transparent); }
@@ -1230,11 +1258,27 @@ html[data-hl='light'] .ml .w-mod.is-featured {
   box-shadow: var(--shadow-sm);
 }
 .p-stat-row .p-stat {
-  padding: 10px 16px 12px;
+  padding: 7px 14px;
   border: 0;
   background: transparent;
   box-shadow: none;
+  /* v4.474 单行化：与书斋 w-stat 同款（卡头+卡体同一行） */
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
+.p-stat-row .p-stat .ml-card-head { margin: 0; flex-shrink: 0; }
+.p-stat-row .p-stat .ml-card-head .ml-card-icon { width: 20px; height: 20px; font-size: 10px; }
+.p-stat-row .p-stat .ml-panel-body { flex-direction: row; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.p-stat-row .ml-krow { display: flex; align-items: baseline; gap: 7px; }
+.p-stat-row .ml-krow-icon { display: none; }
+.p-stat-row .ml-krow-body { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; }
+.p-stat-row .ml-krow-value { margin: 0; }
+.p-stat-row .ml-krow-sub { margin: 0; }
+.p-stat-row .ml-memory { flex-direction: row; align-items: baseline; gap: 8px; }
+.p-stat-row .ml-panel-empty { padding: 0; }
 .p-stat-row .p-stat + .p-stat { border-left: 1px solid color-mix(in srgb, var(--color-text) 8.5%, transparent); }
 /* 仪表带内的进度环收一档（64px），与带内行高匹配 */
 .w-stat-row .ml-ring, .p-stat-row .ml-ring { width: 64px; height: 64px; }
