@@ -179,25 +179,8 @@ html[data-hl='light'] .ml .w-mod.is-featured {
 }
 .ml-strip-spacer { flex: 1; }
 
-.ml-model-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  max-width: 260px;
-  padding: 5px 12px 5px 10px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--color-text) 5%, transparent);
-  font-size: 11.5px;
-  color: var(--w-ink-2);
-}
-.ml-model-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--color-success, var(--w-accent));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success, var(--w-accent)) 16%, transparent);
-}
-.ml-model-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* v4.473 退役：ml-model-chip/dot/name 随首页顶栏模型 chip 一并退役（与壳层
+   strip 模型 pill 同屏双显去重），模型信息恒由 pill 承载。 */
 
 /* 空间 chip（书斋 masthead 内；title 说明「不影响办公引擎空间」）—— 去边框纯底 */
 .ml-space-chip {
@@ -272,31 +255,8 @@ html[data-hl='light'] .ml .w-mod.is-featured {
   color: color-mix(in srgb, var(--w-accent) 88%, var(--w-ink));
 }
 
+/* v4.473 退役：CPU/MEM/GPU 仪表条与壳层底部遥测轨同屏两份，卡片侧只留 ComfyUI 行 */
 .ml-meters { display: flex; flex-direction: column; gap: 7px; }
-.ml-meter { display: grid; grid-template-columns: 34px 1fr 40px; align-items: center; gap: 9px; }
-.ml-meter-label { font-family: var(--w-mono); font-size: 10px; letter-spacing: 0.1em; color: var(--w-ink-3); }
-.ml-meter-track {
-  position: relative;
-  height: 3px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--color-text) 9%, transparent);
-  overflow: hidden;
-}
-.ml-meter-fill {
-  position: absolute;
-  inset: 0 auto 0 0;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--w-accent) 85%, transparent);
-  transition: width var(--transition-normal, 300ms) cubic-bezier(0.22, 1, 0.36, 1);
-}
-.ml-meter-fill.is-hot { background: var(--color-warning, var(--w-accent)); }
-.ml-meter-val {
-  font-family: var(--w-mono);
-  font-size: 11px;
-  color: var(--w-ink-2);
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
 .ml-comfy { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; color: var(--w-ink-2); }
 .ml-comfy-dot {
   width: 6px; height: 6px; border-radius: 50%;
@@ -523,7 +483,10 @@ html[data-hl='light'] .ml .w-mod.is-featured {
   min-height: 0;
   overflow-y: auto;
 }
-.w-docs-row { border-top: 1px solid var(--ml-card-line-soft); flex: 1 1 auto; min-height: 0; display: flex; }
+/* v4.473 重叠根修：flex-shrink:0 + min-height 下限——旧行 `1 1 auto; min-height:0`
+   在文档数多时被压到内容高以下，文件名互相叠印（真机走查实锤）。行保持
+   flex-grow 均分富余高；超高时交给列表内部滚动（.w-docs-list overflow-y 已在）。 */
+.w-docs-row { border-top: 1px solid var(--ml-card-line-soft); flex: 1 0 auto; min-height: 38px; display: flex; }
 .w-docs-row:first-child { border-top: 0; }
 .w-docs-btn {
   appearance: none;

@@ -1,6 +1,6 @@
 import { wailsApp } from '../lib/wailsApp';
 import React, { useState, useEffect, useRef, Suspense, useReducer, useCallback } from 'react'
-import { Layout, Button, Space, Typography, Tooltip, Spin, Progress, notification } from 'antd'
+import { Layout, Button, Space, Typography, Tooltip, Spin, Progress, notification, Popover } from 'antd'
 import {
   SunOutlined, MoonOutlined, SearchOutlined, SettingOutlined, LoginOutlined,
   HomeOutlined, FileTextOutlined, UpOutlined, DownOutlined, ThunderboltOutlined,
@@ -414,6 +414,8 @@ const MainLayout: React.FC = () => {
   const loadStats = useAppStore((s) => s.loadStats)
 
   const [searchOpen, setSearchOpen] = useState(false)
+  // 简化批：strip 常驻主题色点 7 颗收进单钮弹出（触发钮=当前主题色）
+  const [themeOpen, setThemeOpen] = useState(false)
   // 附 B #10：visitedPages 初始 home = manifest.isHome
   const [visitedPages, setVisitedPages] = useState<Set<Page>>(new Set([getActiveHomeBoard().id]))
 
@@ -689,34 +691,66 @@ const MainLayout: React.FC = () => {
                 <span className="v3-pill-label">{pillModel || '选择模型'}</span>
               </button>
             </Tooltip>
-            {/* 主题色点（键盘可达） */}
-            <Space size={5}>
-              {themeKeys.map((t) => {
-                const active = t === baseTheme
-                return (
-                  <Tooltip key={t} title={themeLabels[t]}>
-                    <span
-                      className="theme-dot"
-                      role="button"
-                      tabIndex={0}
-                      aria-label={`切换主题 ${themeLabels[t]}`}
-                      onClick={() => setTheme(t)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTheme(t) } }}
-                      style={{
-                        width: 16, height: 16, borderRadius: '50%',
-                        background: `radial-gradient(circle at 35% 30%, ${themeDots[t]}, color-mix(in srgb, ${themeDots[t]} 55%, #000))`,
-                        cursor: 'pointer',
-                        border: active ? '2px solid var(--gaea-glow)' : '2px solid transparent',
-                        boxShadow: active ? `0 0 10px ${themeDots[t]}, 0 0 20px color-mix(in srgb, ${themeDots[t]} 45%, transparent)` : `0 0 6px color-mix(in srgb, ${themeDots[t]} 30%, transparent)`,
-                        opacity: active ? 1 : 0.55,
-                        transform: active ? 'scale(1.1)' : 'scale(1)',
-                        transition: 'opacity 0.15s, border 0.15s, transform 0.2s, box-shadow 0.2s',
-                      }}
-                    />
-                  </Tooltip>
-                )
-              })}
-            </Space>
+            {/* 主题（简化批）：7 颗常驻色点收进单钮弹出——触发钮即当前主题色，
+                弹层内色点的切换行为/键盘可达逐字保留，功能零删除。 */}
+            <Popover
+              open={themeOpen}
+              onOpenChange={setThemeOpen}
+              trigger="click"
+              placement="bottomRight"
+              title="主题"
+              content={
+                <Space size={10} wrap style={{ padding: '2px 2px 4px' }}>
+                  {themeKeys.map((t) => {
+                    const active = t === baseTheme
+                    return (
+                      <Tooltip key={t} title={themeLabels[t]}>
+                        <span
+                          className="theme-dot"
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`切换主题 ${themeLabels[t]}`}
+                          aria-pressed={active}
+                          onClick={() => { setTheme(t); setThemeOpen(false) }}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTheme(t); setThemeOpen(false) } }}
+                          style={{
+                            width: 16, height: 16, borderRadius: '50%',
+                            background: `radial-gradient(circle at 35% 30%, ${themeDots[t]}, color-mix(in srgb, ${themeDots[t]} 55%, #000))`,
+                            cursor: 'pointer',
+                            border: active ? '2px solid var(--gaea-glow)' : '2px solid transparent',
+                            boxShadow: active ? `0 0 10px ${themeDots[t]}, 0 0 20px color-mix(in srgb, ${themeDots[t]} 45%, transparent)` : `0 0 6px color-mix(in srgb, ${themeDots[t]} 30%, transparent)`,
+                            opacity: active ? 1 : 0.55,
+                            transform: active ? 'scale(1.1)' : 'scale(1)',
+                            transition: 'opacity 0.15s, border 0.15s, transform 0.2s, box-shadow 0.2s',
+                          }}
+                        />
+                      </Tooltip>
+                    )
+                  })}
+                </Space>
+              }
+            >
+              <Tooltip title={`主题：${themeLabels[baseTheme]}`}>
+                <span
+                  className="theme-dot"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`切换主题（当前 ${themeLabels[baseTheme]}）`}
+                  aria-haspopup="true"
+                  aria-expanded={themeOpen}
+                  onClick={() => setThemeOpen((o) => !o)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setThemeOpen((o) => !o) } }}
+                  style={{
+                    width: 16, height: 16, borderRadius: '50%',
+                    background: `radial-gradient(circle at 35% 30%, ${themeDots[baseTheme]}, color-mix(in srgb, ${themeDots[baseTheme]} 55%, #000))`,
+                    cursor: 'pointer',
+                    border: '2px solid var(--gaea-glow)',
+                    boxShadow: `0 0 8px color-mix(in srgb, ${themeDots[baseTheme]} 40%, transparent)`,
+                    transition: 'box-shadow 0.2s',
+                  }}
+                />
+              </Tooltip>
+            </Popover>
             {/* 搜索 */}
             {projectOpen && (
               <Tooltip title={t('shell.strip.searchTip')}>

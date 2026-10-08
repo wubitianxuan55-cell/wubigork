@@ -26,7 +26,7 @@
 import React, { useState, useCallback, useSyncExternalStore } from 'react'
 import {
   ArrowRightOutlined, AudioOutlined, SendOutlined,
-  StopOutlined, RobotOutlined, ThunderboltOutlined,
+  StopOutlined, ThunderboltOutlined,
   FileTextOutlined, ClockCircleOutlined, HeartOutlined, ApiOutlined,
   CheckSquareOutlined,
 } from '@ant-design/icons'
@@ -96,8 +96,10 @@ const HomeLayoutToggle: React.FC = () => {
 export const SpaceSwitch: React.FC<{
   space: ShellSpace
   onSwitchSpace: (s: ShellSpace) => void
+  /** v4.473 退役渲染：顶栏模型 chip 与壳层 strip 模型 pill 同屏双显（信息完全重复，
+   * pill 恒可见）。prop 保留兼容两空间首页与 TasksFirstHome 调用方，不再渲染。 */
   activeModel?: string
-}> = ({ space, onSwitchSpace, activeModel }) => {
+}> = ({ space, onSwitchSpace }) => {
   const t = useT()
   return (
     <div className="ml-strip v3-rise v3-rise-1">
@@ -124,14 +126,6 @@ export const SpaceSwitch: React.FC<{
       <HomeLayoutToggle />
       <span className="ml-strip-rule" aria-hidden="true" />
       <span className="ml-strip-date" aria-hidden="true">{new Date().toLocaleDateString()}</span>
-      <span className="ml-strip-spacer" aria-hidden="true" />
-      {activeModel && (
-        <span className="ml-model-chip" title={t('shell.launcher.statModel')}>
-          <span className="ml-model-dot" aria-hidden="true" />
-          <RobotOutlined aria-hidden="true" />
-          <span className="ml-model-name">{activeModel}</span>
-        </span>
-      )}
     </div>
   )
 }

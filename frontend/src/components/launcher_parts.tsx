@@ -1,6 +1,6 @@
 // launcher_parts.tsx — 首页启动器展示件与数据轮询（批 32 FE6-07 拆分自
 // ModuleLauncher.tsx，原位搬移零逻辑改动）：遥测/会话/记忆最小类型、fmt 助手、
-// 纯展示子组件（SectionLabel/KernelRow/Meter/ChatBubble/WritingRing/MemoryPulse/
+// 纯展示子组件（SectionLabel/KernelRow/ChatBubble/WritingRing/MemoryPulse/
 // TaskInboxEntry/TelemetryBody/SessionList）+ useLauncherData 轮询 hook。
 // 主文件以命名导入回接；外部消费（TasksFirstHome）经 ModuleLauncher.tsx 的
 // SessionList/LauncherData re-export 通道，导入路径不变。
@@ -108,30 +108,6 @@ const KernelRow: React.FC<{
     </div>
   </div>
 )
-
-/** 资源细轨（≥85% 转 warning 色：色 + 数值双传达） */
-const Meter: React.FC<{ label: string; pct: number | null }> = ({ label, pct }) => {
-  const hot = pct != null && pct >= 85
-  return (
-    <div className="ml-meter">
-      <span className="ml-meter-label">{label}</span>
-      <span
-        className="ml-meter-track"
-        role="meter"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={pct ?? undefined}
-        aria-label={`${label} ${pct != null ? `${pct}%` : '--'}`}
-      >
-        <span
-          className={`ml-meter-fill${hot ? ' is-hot' : ''}`}
-          style={{ width: `${Math.max(0, Math.min(100, pct ?? 0))}%` }}
-        />
-      </span>
-      <span className="ml-meter-val">{pct != null ? `${pct}%` : '--'}</span>
-    </div>
-  )
-}
 
 /** 语音/对话气泡 */
 const ChatBubble: React.FC<{ role: 'user' | 'assistant'; text: string }> = ({ role, text }) => {
@@ -243,11 +219,6 @@ const TaskInboxEntry: React.FC<{
 /** 遥测三表内容（书斋右栏 / 闲庭信息带共用；engineCount=0 时主行为 —） */
 const TelemetryBody: React.FC<{ data: LauncherData }> = ({ data }) => {
   const t = useT()
-  const ms = data.monitor?.stats
-  const memPct = ms?.memTotal ? Math.round((ms.memUsed || 0) / ms.memTotal * 100) : null
-  const vramPct = ms?.vramTotal ? Math.round((ms.vramUsed || 0) / ms.vramTotal * 100) : null
-  const cpuPct = ms && ms.cpu != null && ms.cpu >= 0 ? Math.round(ms.cpu) : null
-  const gpuPct = (ms?.gpuUsage ?? 0) > 0 ? Math.round(ms?.gpuUsage ?? 0) : vramPct
   const engines = data.monitor?.engines || []
   const engineCount = engines.length
   const localCount = engines.filter((e) => e.isLocal).length
@@ -264,19 +235,17 @@ const TelemetryBody: React.FC<{ data: LauncherData }> = ({ data }) => {
         /* 零引擎时不渲染孤零零的「—」仪表行，直接给空态文案（v11 降噪） */
         <div className="ml-panel-empty">{t('shell.launcher.statNoEngines')}</div>
       )}
-      {ms ? (
+      {/* 简化批（v4.473）：CPU/MEM/GPU 仪表条退役——壳层底部遥测轨恒常驻同屏展示
+          同三项（MainLayout TelemetryRail），一屏两份属纯重复；仅保留卡内独有的
+          ComfyUI 运行中指示。 */}
+      {data.monitor?.comfyRunning && (
         <div className="ml-meters">
-          <Meter label="CPU" pct={cpuPct} />
-          <Meter label="MEM" pct={memPct} />
-          <Meter label="GPU" pct={gpuPct} />
-          {data.monitor?.comfyRunning && (
-            <div className="ml-comfy">
-              <span className="ml-comfy-dot" aria-hidden="true" />
-              <span>{t('home.comfyRunning')}</span>
-            </div>
-          )}
+          <div className="ml-comfy">
+            <span className="ml-comfy-dot" aria-hidden="true" />
+            <span>{t('home.comfyRunning')}</span>
+          </div>
         </div>
-      ) : null}
+      )}
       {/* v11：statIdle 兜底行退役——零引擎时 statNoEngines 已表达待机语义，
           原先两行空态（「暂无引擎运行」+「遥测待机」）语义重复 */}
     </div>
