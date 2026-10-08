@@ -140,6 +140,17 @@ $notesCount = (Get-ChildItem (Join-Path $root 'releases') -Filter 'v*.md' |
 $relReadme = [regex]::Replace($relReadme, '现有 \*\*\d+ 份校验和\*\*', "现有 **$sumsCount 份校验和**")
 $relReadme = [regex]::Replace($relReadme, '\d+ 个发布说明', "$notesCount 个发布说明")
 
+# 6b-2. 「共 N 份发布说明」自述行与「最近 N 版」——卫生守卫对账口径（v4.471 发版实测
+#       两处不随版同步会挂守卫：共数=全目录递归含 archive/；最近 N 版=V4_RECENT 席位）。
+$notesRoot = @((Get-ChildItem (Join-Path $root 'releases') -Filter 'v*.md') | Where-Object { $_.Name -match '^v\d+\.\d+\.\d+\.md$' }).Count
+$notesArch = @((Get-ChildItem (Join-Path $root 'releases\archive') -Filter 'v*.md' -ErrorAction SilentlyContinue) | Where-Object { $_.Name -match '^v\d+\.\d+\.\d+\.md$' }).Count
+$notesTotal = $notesRoot + $notesArch
+$today = (Get-Date).ToString('yyyy-MM-dd')
+$relReadme = [regex]::Replace($relReadme,
+    '本目录共 \d+ 份发布说明（截至 \d{4}-\d{2}-\d{2} 实测：根目录 \d+ \+ `archive/` \d+',
+    "本目录共 $notesTotal 份发布说明（截至 $today 实测：根目录 $notesRoot + ``archive/`` $notesArch")
+$relReadme = [regex]::Replace($relReadme, '对账），最近 \d+ 版', "对账），最近 $RecentSeats 版")
+
 # 6c. V4_RECENT 表：插新行（已存在则跳过）并裁到 $RecentSeats 席
 $startM = '<!-- V4_RECENT:start -->'; $endM = '<!-- V4_RECENT:end -->'
 $sx = $relReadme.IndexOf($startM); $ex = $relReadme.IndexOf($endM)

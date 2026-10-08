@@ -1,14 +1,16 @@
 /**
  * EditChrome — 编辑模式顶部 chrome（章节 Tab / 保存状态 / 章节导航 / 朗读 /
- * 阅读模式 / 专注模式 / 配图 / 保存），自 ChapterPage 原样搬移：纯受控展示组件，
+ * 阅读模式 / 专注模式 / 章节工具 / 保存），自 ChapterPage 原样搬移：纯受控展示组件，
  * 全部状态与回调经 props 传入；classNames/data-testid 与拆分前逐字节一致。
+ * 简化批（v4.471）：配图/整章重写/重写历史三件低频加工收进「工具」菜单（功能零删除）；
+ * 整章重写/重写历史仍仅场景章渲染（v3 blob 章 CreatePage 已有入口，不重复挂）。
  */
 import React from 'react'
-import { Button, Tabs, Tooltip } from 'antd'
-import type { TabsProps } from 'antd'
+import { Button, Dropdown, Tabs, Tooltip } from 'antd'
+import type { MenuProps, TabsProps } from 'antd'
 import {
   SaveOutlined, LeftOutlined, RightOutlined,
-  ReadOutlined, ShrinkOutlined, ExpandOutlined, PictureOutlined,
+  ReadOutlined, ShrinkOutlined, ExpandOutlined, DownOutlined,
 } from '@ant-design/icons'
 import TTSPlayer from '../../components/TTSPlayer'
 
@@ -57,7 +59,19 @@ const EditChrome: React.FC<EditChromeProps> = ({
   onRewriteHistory,
   onSave,
   canSave,
-}) => (
+}) => {
+  // 简化批：低频加工三件收「工具」菜单——成员随章型（重写两件仅场景章）
+  const toolItems: MenuProps['items'] = [
+    { key: 'illustrate', label: '生成配图', disabled: !canIllustrate },
+    ...(canRewrite && onRewrite ? [{ key: 'rewrite', label: '整章重写' }] : []),
+    ...(canRewrite && onRewriteHistory ? [{ key: 'history', label: '重写历史' }] : []),
+  ]
+  const onToolMenu: MenuProps['onClick'] = ({ key }) => {
+    if (key === 'illustrate') onIllustrate()
+    else if (key === 'rewrite') onRewrite?.()
+    else if (key === 'history') onRewriteHistory?.()
+  }
+  return (
   <>
     <Tabs
       className="novel-editor-tabs"
@@ -89,27 +103,14 @@ const EditChrome: React.FC<EditChromeProps> = ({
     <Tooltip title={focusMode ? '退出专注模式' : '专注模式 F11'}>
       <Button size="small" icon={focusMode ? <ShrinkOutlined /> : <ExpandOutlined />} onClick={onToggleFocus} type="text" aria-label="专注模式" />
     </Tooltip>
-    <Tooltip title="为当前章节生成配图">
-      <Button
-        size="small"
-        icon={<PictureOutlined />}
-        onClick={onIllustrate}
-        disabled={!canIllustrate}
-        aria-label="生成配图"
-      >
-        配图
-      </Button>
-    </Tooltip>
-    {canRewrite && onRewrite && (
-      <Button size="small" onClick={onRewrite}>整章重写</Button>
-    )}
-    {canRewrite && onRewriteHistory && (
-      <Button size="small" onClick={onRewriteHistory}>重写历史</Button>
-    )}
+    <Dropdown trigger={['click']} menu={{ items: toolItems, onClick: onToolMenu }}>
+      <Button size="small" icon={<DownOutlined />} iconPosition="end" aria-label="章节工具">工具</Button>
+    </Dropdown>
     <Tooltip title="Ctrl+S">
       <Button size="small" icon={<SaveOutlined />} onClick={onSave} disabled={!canSave}>保存</Button>
     </Tooltip>
   </>
-)
+  )
+}
 
 export default EditChrome

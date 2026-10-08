@@ -415,9 +415,9 @@ describe('窗口级快捷键按 active 门控（隐藏常驻页不抢键）', ()
   })
 })
 
-// ── v4 场景章整章重写入口（t4-C3 收官）──
+// ── v4 场景章整章重写入口（t4-C3 收官；简化批改走「章节工具」菜单）──
 describe('ChapterPage 场景章重写入口', () => {
-  it('v4 场景章：chrome 渲染「整章重写」「重写历史」按钮', async () => {
+  it('v4 场景章：chrome「工具」菜单含「整章重写」「重写历史」', async () => {
     novelB.IsProjectV4.mockResolvedValue(true)
     novelB.GetChapterScenes.mockResolvedValue([
       { id: '001-s1', content: '场景一正文。' },
@@ -432,18 +432,20 @@ describe('ChapterPage 场景章重写入口', () => {
     window.dispatchEvent(new CustomEvent('novel:open-chapter', { detail: { node: leaf } }))
     await screen.findByTestId('chapter-editor-stub')
     await screen.findByText('已保存')
-    expect(screen.getByText('整章重写')).toBeTruthy()
-    expect(screen.getByText('重写历史')).toBeTruthy()
+    const tools = await openToolsMenu()
+    expect(tools.getByRole('menuitem', { name: '整章重写' })).toBeTruthy()
+    expect(tools.getByRole('menuitem', { name: '重写历史' })).toBeTruthy()
   })
 
-  it('v3 blob 章不渲染重写入口（CreatePage 已有入口，不重复挂）', async () => {
+  it('v3 blob 章「工具」菜单不含重写入口（CreatePage 已有入口，不重复挂）', async () => {
     useOutlineStore.setState({ outlines: [leaf] })
     render(<ChapterPage />)
     window.dispatchEvent(new CustomEvent('novel:open-chapter', { detail: { node: leaf } }))
     expect(await screen.findByRole('tab', { name: /第一回 风雪夜归人/ })).toBeTruthy()
     expect(await screen.findByTestId('chapter-editor-stub')).toBeTruthy()
-    expect(screen.queryByText('整章重写')).toBeNull()
-    expect(screen.queryByText('重写历史')).toBeNull()
+    const tools = await openToolsMenu()
+    expect(tools.queryByRole('menuitem', { name: '整章重写' })).toBeNull()
+    expect(tools.queryByRole('menuitem', { name: '重写历史' })).toBeNull()
   })
 })
 
@@ -464,6 +466,13 @@ async function clickAndAwaitConfirm(trigger: () => void) {
   trigger()
   await waitFor(() => expect(confirms().length).toBeGreaterThan(before))
   return latestConfirm()
+}
+
+/** 简化批：配图/整章重写/重写历史收进「章节工具」菜单——开菜单并取最后挂载的 overlay。 */
+async function openToolsMenu() {
+  fireEvent.click(await screen.findByRole('button', { name: '章节工具' }))
+  const menus = await screen.findAllByRole('menu')
+  return within(menus[menus.length - 1])
 }
 
 // ── A2b（P1）：重写历史应用/恢复原文不问脏 ──
@@ -503,7 +512,8 @@ describe('重写历史（A2b）：打开前过脏闸、应用后脏则不重载'
     fireEvent.click(screen.getByTestId('chapter-editor-type'))
     expect(await screen.findByText('未保存')).toBeTruthy()
 
-    const box = await clickAndAwaitConfirm(() => fireEvent.click(screen.getByText('重写历史')))
+    const tools1 = await openToolsMenu()
+    const box = await clickAndAwaitConfirm(() => fireEvent.click(tools1.getByRole('menuitem', { name: '重写历史' })))
     // 三选齐备 + 面板没被打开
     expect(box.getByRole('button', { name: /先\s*保\s*存/ })).toBeTruthy()
     expect(box.getByRole('button', { name: /放\s*弃\s*修\s*改/ })).toBeTruthy()
@@ -517,7 +527,8 @@ describe('重写历史（A2b）：打开前过脏闸、应用后脏则不重载'
     expect(screen.getByText('未保存')).toBeTruthy()
 
     // 「放弃修改」＝继续打开；本地缓冲随后仍由 onApplied 的脏判保留
-    const box2 = await clickAndAwaitConfirm(() => fireEvent.click(screen.getByText('重写历史')))
+    const tools2 = await openToolsMenu()
+    const box2 = await clickAndAwaitConfirm(() => fireEvent.click(tools2.getByRole('menuitem', { name: '重写历史' })))
     fireEvent.click(box2.getByRole('button', { name: /放\s*弃\s*修\s*改/ }))
     expect(await screen.findByTestId('rw-hist-panel')).toBeTruthy()
   })
@@ -530,7 +541,7 @@ describe('重写历史（A2b）：打开前过脏闸、应用后脏则不重载'
 
     // 打开面板时缓冲是干净的（所以不弹脏闸）；打开期间该章标签转脏（本轮由编辑器桩构造，
     // 真实来源包括面板打开时仍在途的场景写入 / 程序化更新）——onApplied 必须再判一次。
-    fireEvent.click(screen.getByText('重写历史'))
+    fireEvent.click((await openToolsMenu()).getByRole('menuitem', { name: '重写历史' }))
     expect(await screen.findByTestId('rw-hist-panel')).toBeTruthy()
     fireEvent.click(screen.getByTestId('chapter-editor-type'))
     expect(await screen.findByText('未保存')).toBeTruthy()
@@ -615,7 +626,7 @@ describe('章节载入在途（A10）：编辑区只读 loading，不静默覆�
     await waitFor(() => expect(screen.getByTestId('chapter-editor-scenes').textContent).toBe('第一章场景正文。'))
 
     // 面板操作的是第 1 章 → 不该拿第 2 章的脏拦本章（判脏按章号，不看「缓冲里有没有脏」）
-    fireEvent.click(screen.getByText('重写历史'))
+    fireEvent.click((await openToolsMenu()).getByRole('menuitem', { name: '重写历史' }))
     expect(await screen.findByTestId('rw-hist-panel')).toBeTruthy()
     await new Promise((r) => setTimeout(r, 0))
     expect(confirms().length).toBe(0)
