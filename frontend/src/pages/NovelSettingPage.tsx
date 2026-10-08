@@ -32,8 +32,10 @@ type EditorMode = 'edit' | 'split' | 'preview' | 'sections'
 /** 下行「伏笔 + 一致性」折叠态持久化键（本域 gaea.novel.* 命名风格） */
 const PANELS_COLLAPSED_KEY = 'gaea.novel.settingPanelsCollapsed'
 
+/** 简化批：默认收起（设定页主体是编辑器，300px 双面板不该常驻占屏）；
+ * 显式展开过（'0'）的用户保持展开。畸形值一律按收起。 */
 function loadPanelsCollapsed(): boolean {
-  try { return localStorage.getItem(PANELS_COLLAPSED_KEY) === '1' } catch { return false }
+  try { return localStorage.getItem(PANELS_COLLAPSED_KEY) !== '0' } catch { return true }
 }
 
 interface NovelSettingPageProps {
@@ -55,7 +57,7 @@ const NovelSettingPage: React.FC<NovelSettingPageProps> = ({ active = true }) =>
   const [loadFailed, setLoadFailed] = useState(false)
   const [saving, setSaving] = useState(false)
   const [mode, setMode] = useState<EditorMode>('split')
-  // v4.421 体验项：下行双面板可收起（默认展开，仅持久化折叠态）
+  // 简化批：下行双面板默认收起（显式展开态持久化），见 loadPanelsCollapsed
   const [panelsCollapsed, setPanelsCollapsed] = useState(loadPanelsCollapsed)
   const [messages, setMessages] = useState<Message[]>([])
   const [lastSavedAt, setLastSavedAt] = useState('')

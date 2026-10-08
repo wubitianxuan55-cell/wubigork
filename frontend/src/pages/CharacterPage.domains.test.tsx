@@ -91,10 +91,17 @@ afterEach(() => {
 })
 
 describe('CharacterPage 同步与回写', () => {
-  it('「同步」逐序调用 syncProjectCharacters → loadData，并报成功话术', async () => {
+  /** 简化批：同步/回写收进「更多」菜单——开菜单并取最后挂载的 overlay */
+  async function openMoreMenu() {
+    fireEvent.click(await screen.findByRole('button', { name: '更多角色操作' }))
+    const menus = await screen.findAllByRole('menu')
+    return within(menus[menus.length - 1])
+  }
+
+  it('「同步角色」逐序调用 syncProjectCharacters → loadData，并报成功话术', async () => {
     render(<CharacterPage />)
     await screen.findByText('林晚')
-    fireEvent.click(screen.getByText('同步'))
+    fireEvent.click((await openMoreMenu()).getByRole('menuitem', { name: '同步角色' }))
     await waitFor(() => expect(libApi.syncProjectCharacters).toHaveBeenCalledTimes(1))
     await waitFor(() => {
       expect(messageSpies.success).toHaveBeenCalledWith('已把本书引用的角色同步到 characters.json')
@@ -103,12 +110,13 @@ describe('CharacterPage 同步与回写', () => {
     expect(charApi.getCharacters.mock.calls.length).toBeGreaterThanOrEqual(2)
   })
 
-  it('存在未入库角色时「同步」禁用且迁移横幅出现；「一次性迁移」零冲突直写', async () => {
+  it('存在未入库角色时「同步角色」禁用且迁移横幅出现；「一次性迁移」零冲突直写', async () => {
     libApi.listProjectCharacters.mockResolvedValue([{ characterId: 'mc' }])
     render(<CharacterPage />)
     await screen.findByText(/检测到 1 个旧项目角色尚未进入角色库/)
-    const syncBtn = (screen.getByText('同步') as HTMLElement).closest('button') as HTMLButtonElement
-    expect(syncBtn.disabled).toBe(true)
+    // 菜单项禁用态（antd 菜单项无 .disabled，用 aria-disabled 表达）
+    const syncItem = (await openMoreMenu()).getByRole('menuitem', { name: '同步角色' })
+    expect(syncItem.getAttribute('aria-disabled')).toBe('true')
     fireEvent.click(screen.getByText('一次性迁移'))
     // 零冲突：preview 后直接 importProjectCharacters({})，不弹确认弹窗
     await waitFor(() => expect(libApi.previewProjectImport).toHaveBeenCalledTimes(1))

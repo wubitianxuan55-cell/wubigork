@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import React from 'react'
 
 // NovelB 门面具名导入 mock（与 CreatePage.test 同风格：只 mock 用到的三件）
@@ -79,12 +79,19 @@ function renderEditor(initial: ChapterTabData) {
     return (icon?.closest('button') ?? null) as HTMLButtonElement | null
   }
   const genBtns = () => screen.getAllByRole('button', { name: /AI 生成/ }) as HTMLButtonElement[]
-  const moveBtns = (i: number) => ({
-    up: container.querySelector(`button[aria-label="场景 ${i + 1} 上移"]`) as HTMLButtonElement | null,
-    down: container.querySelector(`button[aria-label="场景 ${i + 1} 下移"]`) as HTMLButtonElement | null,
-  })
+  // 简化批：每场景 6 图标收进「⋯」菜单——先开菜单，再在其 overlay 内取项。
+  // jsdom 里前一个菜单退场动画可能残留 overlay，取「最后挂载」的那个 menu。
+  const sceneMenu = async (i: number) => {
+    const trigger = container.querySelector(`button[aria-label="场景 ${i + 1} 操作"]`) as HTMLElement | null
+    if (!trigger) throw new Error(`场景 ${i + 1} 操作菜单触发钮不存在`)
+    fireEvent.click(trigger)
+    const menus = await screen.findAllByRole('menu')
+    return within(menus[menus.length - 1])
+  }
+  /** 菜单项禁用态（antd 菜单项无 .disabled，用 aria-disabled 表达） */
+  const itemDisabled = (el: HTMLElement | null) => el?.getAttribute('aria-disabled') === 'true'
   const disabledOf = (b: HTMLButtonElement | null) => (b ? b.disabled : true)
-  return { onUpdate, addBtn, genBtns, moveBtns, disabledOf }
+  return { onUpdate, addBtn, genBtns, sceneMenu, itemDisabled, disabledOf }
 }
 
 beforeEach(() => {
@@ -137,11 +144,12 @@ describe('ChapterEditor 逐场景生成（阅读页场景化）', () => {
   })
 
   it('场景重排：上移换位本地两序并 ReorderScenes 落盘新 id 序', async () => {
-    const { onUpdate, moveBtns } = renderEditor(makeTab({
+    const { onUpdate, sceneMenu } = renderEditor(makeTab({
       scenes: ['一', '二', '三'],
       sceneIds: ['001-a', '002-b', '003-c'],
     }))
-    fireEvent.click(moveBtns(1).up!) // 第二个场景上移
+    const menu = await sceneMenu(1)
+    fireEvent.click(menu.getByRole('menuitem', { name: '上移' })) // 第二个场景上移
     await waitFor(() => expect(mocks.ReorderScenes).toHaveBeenCalledWith(3, ['002-b', '001-a', '003-c']))
     expect(onUpdate).toHaveBeenCalledWith('scenes', ['二', '一', '三'])
     expect(onUpdate).toHaveBeenCalledWith('sceneIds', ['002-b', '001-a', '003-c'])
@@ -149,11 +157,12 @@ describe('ChapterEditor 逐场景生成（阅读页场景化）', () => {
 
   it('场景重排失败：回滚本地换位并提示', async () => {
     mocks.ReorderScenes.mockRejectedValueOnce(new Error('boom'))
-    const { onUpdate, moveBtns } = renderEditor(makeTab({
+    const { onUpdate, sceneMenu } = renderEditor(makeTab({
       scenes: ['一', '二'],
       sceneIds: ['001-a', '002-b'],
     }))
-    fireEvent.click(moveBtns(0).down!)
+    const menu = await sceneMenu(0)
+    fireEvent.click(menu.getByRole('menuitem', { name: '下移' }))
     await waitFor(() => expect(mocks.ReorderScenes).toHaveBeenCalled())
     // 乐观换位后被回滚还原
     await waitFor(() => expect(onUpdate).toHaveBeenLastCalledWith('sceneIds', ['001-a', '002-b']))
@@ -161,17 +170,21 @@ describe('ChapterEditor 逐场景生成（阅读页场景化）', () => {
   })
 
   it('重排边界与 blob 模式：首行无上移/末行无下移；非场景制章禁用', async () => {
-    const { moveBtns, disabledOf } = renderEditor(makeTab({
+    const { sceneMenu, itemDisabled } = renderEditor(makeTab({
       scenes: ['一', '二'],
       sceneIds: ['001-a', '002-b'],
     }))
-    expect(disabledOf(moveBtns(0).up)).toBe(true)
-    expect(disabledOf(moveBtns(0).down)).toBe(false)
-    expect(disabledOf(moveBtns(1).up)).toBe(false)
-    expect(disabledOf(moveBtns(1).down)).toBe(true)
-    // blob/分支章：无场景 API 语义，重排禁用
-    const blob = renderEditor(makeTab({ sceneBacked: false, scenes: ['一', '二'], sceneIds: [] }))
-    expect(disabledOf(blob.moveBtns(0).down)).toBe(true)
+    const disabledOfItem = async (i: number, label: string) =>
+      itemDisabled((await sceneMenu(i)).getByRole('menuitem', { name: label }))
+    expect(await disabledOfItem(0, '上移')).toBe(true)
+    expect(await disabledOfItem(0, '下移')).toBe(false)
+    expect(await disabledOfItem(1, '上移')).toBe(false)
+    expect(await disabledOfItem(1, '下移')).toBe(true)
+    // blob/分支章：无场景 API 语义，重排禁用（用 blob 实例自己的菜单取项）
+    const { sceneMenu: blobMenu } = renderEditor(makeTab({ sceneBacked: false, scenes: ['一', '二'], sceneIds: [] }))
+    const blobDisabled = async (label: string) =>
+      itemDisabled((await blobMenu(0)).getByRole('menuitem', { name: label }))
+    expect(await blobDisabled('下移')).toBe(true)
   })
 })
 
@@ -223,8 +236,8 @@ describe('ChapterEditor 场景卡（长篇刀2）', () => {
   })
 
   it('ⓘ 卡字段编辑保存：payload 带 goal/exit_hook（Go 白名单 patch 六字段）', async () => {
-    renderEditor(makeTab())
-    fireEvent.click(screen.getByRole('button', { name: '场景 1 信息' }))
+    const { sceneMenu } = renderEditor(makeTab())
+    fireEvent.click((await sceneMenu(0)).getByRole('menuitem', { name: '场景信息' }))
     const goal = await screen.findByTestId('card-goal')
     fireEvent.change(goal, { target: { value: '拿到账本' } })
     const conflict = screen.getByTestId('card-conflict')
@@ -275,8 +288,8 @@ describe('ChapterEditor 场景卡（长篇刀2）', () => {
 
   it('AI 重写本场景：指令空则提示，填写后调 NovelSceneRewrite', async () => {
     mocks.NovelSceneRewrite.mockResolvedValue({ versionId: 'v1' })
-    renderEditor(makeTab())
-    fireEvent.click(screen.getByRole('button', { name: '场景 1 信息' }))
+    const { sceneMenu } = renderEditor(makeTab())
+    fireEvent.click((await sceneMenu(0)).getByRole('menuitem', { name: '场景信息' }))
     const instr = await screen.findByTestId('scene-rewrite-instr')
     fireEvent.click(screen.getByTestId('scene-rewrite-run'))
     // 指令为空：不发起（NovelSceneRewrite 零调用）

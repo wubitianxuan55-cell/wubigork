@@ -3,7 +3,7 @@
 // 只锁：Drawer 职业区块渲染（主职业当前值/副职业 Tag）、「设定」逐参调用、
 // 副职业达上限 2 时「添加」禁用、移除逐参。全程不抛错。
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 
 const bindings = vi.hoisted(() => ({
   GetCharacters: vi.fn(),
@@ -129,5 +129,21 @@ describe('CharacterPage 诚实错误态（v4.415.0）', () => {
     expect(screen.queryByText(/角色数据读取失败/)).toBeNull()
     // 初次失败 + 重试 = 至少两次调用
     expect(bindings.GetCharacters.mock.calls.length).toBeGreaterThanOrEqual(2)
+  })
+})
+
+// 简化批：头部低频运维三件（去角色库/回写/同步）收进「更多」菜单——功能零删除，
+// 菜单成员与原直钮一一对应（防后续收丢）。
+describe('CharacterPage 头部动作收敛（简化批）', () => {
+  it('高频直钮（AI 主角关系 / 抽卡）在册；「更多」菜单三成员齐全', async () => {
+    render(<CharacterPage />)
+    expect(await screen.findByTestId('char-gen-relations')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /抽\s*卡/ })).toBeTruthy()
+    fireEvent.click(await screen.findByRole('button', { name: '更多角色操作' }))
+    const menus = await screen.findAllByRole('menu')
+    const menu = within(menus[menus.length - 1])
+    for (const label of ['去角色库', '回写到角色库', '同步角色']) {
+      expect(menu.getByRole('menuitem', { name: label })).toBeTruthy()
+    }
   })
 })

@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, Button, message, Modal } from 'antd'
+import { Alert, Button, Dropdown, message, Modal } from 'antd'
+import type { MenuProps } from 'antd'
+import { DownOutlined } from '@ant-design/icons'
 import { app } from '../gaea/lib/bridge'
 import { GetNovelState, BuildNovelStatePatch, SettleNovelState, DeSlopChapterAiTaste, RewriteChapterAiTaste, GetEntityRelations, CancelCreateChapter, NovelFingerprintStatus, NovelFingerprintBuild, NovelFingerprintScore, NovelOutlineReconstruct, NovelOutlineReconstructApply, NovelOutlineReconstructStart, NovelOutlineReconstructTaskGet, NovelReviewPlatforms, NovelChapterReview } from '../../wailsjs/go/app/NovelB'
 import { useOutlineStore } from '../stores/outlineStore'
@@ -147,15 +149,11 @@ const EntityGraphSvg: React.FC<{ graph: EntityGraph }> = ({ graph }) => {
 }
 
 /**
- * 创作工具轨分组（v4.421.0）：12 个按钮平铺无层次 → 三组语义（质检 / 文本 / 结构）。
- * 只做视觉分组：功能零删除、零点击成本（刻意不做折叠菜单）。
+ * 创作工具轨（简化批）：17 钮平铺 → 高频直钮（章节计划 / 章节分析 / 一键去味）
+ * + 三个分组菜单（质检 / 文本 / 结构），功能零删除——低频入口收进菜单，仍一次点击可达。
+ * v4.421.0 的「刻意不做折叠菜单」随钮数涨到 17 退役：菜单不增加触达成本，
+ * 却把默认视觉噪音从 17 钮压到 6 控件。每组成员由 CreatePage.test「工具轨分组」锁定。
  */
-const RailGroup: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingRight: 10 }}>
-    <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>{label}</span>
-    {children}
-  </div>
-)
 
 // T6-7.5 拆分后的编排层（≤300 行）：持有页面状态与生成编排；视图拆到 5 个子组件；
 // 流式事件经 useChapterStream + chapterStreamTypes 判别联合分发（T6-7.2 停止按钮 + cancelled）。
@@ -1215,6 +1213,53 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
     return () => window.removeEventListener('novel:auto-reconstruct', handler)
   }, [reconstructOutlines])
 
+  // ── 工具轨分组菜单（简化批）：成员与直钮分工见 RailGroup 位置的设计注释 ──
+  const railQualityItems: MenuProps['items'] = [
+    { key: 'health', label: '全书体检' },
+    { key: 'spine', label: '故事骨架' },
+    { key: 'converge', label: '收敛修补', disabled: !activeChapterNum },
+    { key: 'ctxinv', label: '上下文清单' },
+    { key: 'review', label: '平台评审' },
+    { key: 'fingerprint', label: '文风指纹' },
+  ]
+  const onRailQuality: MenuProps['onClick'] = ({ key }) => {
+    if (key === 'health') setHealthOpen(true)
+    else if (key === 'spine') setSpineOpen(true)
+    else if (key === 'converge') setConvergeOpen(true)
+    else if (key === 'ctxinv') setCtxInvOpen(true)
+    else if (key === 'review') void openReview()
+    else if (key === 'fingerprint') void openFingerprint()
+  }
+
+  const railTextItems: MenuProps['items'] = [
+    { key: 'llmdeslop', label: '高级去味（AI）', disabled: stateBusy || generating },
+    { type: 'divider' },
+    { key: 'rewrite', label: '整章重写', disabled: generating },
+    { key: 'history', label: '重写历史', disabled: generating },
+  ]
+  const onRailText: MenuProps['onClick'] = ({ key }) => {
+    if (key === 'llmdeslop') void llmDeslop()
+    else if (key === 'rewrite') openRewriteModal()
+    else if (key === 'history') openRewriteHistory()
+  }
+
+  const railStructItems: MenuProps['items'] = [
+    {
+      key: 'reconstruct',
+      label: reconstructBusy && reconstructElapsed > 0 ? `AI 反推大纲（已等待 ${reconstructElapsed}s）` : 'AI 反推大纲',
+      disabled: reconstructBusy,
+    },
+    { key: 'state', label: '叙事状态' },
+    { key: 'graph', label: graphBusy ? '全文脑图（构建中…）' : '全文脑图', disabled: graphBusy },
+    { key: 'promptws', label: '提示词工坊' },
+  ]
+  const onRailStruct: MenuProps['onClick'] = ({ key }) => {
+    if (key === 'reconstruct') void reconstructOutlines()
+    else if (key === 'state') { setStateOpen(true); void loadState() }
+    else if (key === 'graph') void openGraph()
+    else if (key === 'promptws') setPromptWsOpen(true)
+  }
+
   return (
     <div className="novel-create-root">
       {aiTaste && (
@@ -1232,35 +1277,24 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
         </div>
       )}
       <div className="novel-create-rail">
-        <RailGroup label="质检">
-          <Button size="small" onClick={() => setAnalysisOpen(true)}>章节分析</Button>
-          <Button size="small" onClick={() => setHealthOpen(true)}>全书体检</Button>
-          <Button size="small" onClick={() => setSpineOpen(true)}>故事骨架</Button>
-          <Button size="small" onClick={() => setConvergeOpen(true)} disabled={!activeChapterNum}>收敛修补</Button>
-          <Button size="small" onClick={() => setCtxInvOpen(true)}>上下文清单</Button>
-          <Button size="small" onClick={() => void openReview()}>平台评审</Button>
-          <Button size="small" onClick={() => void openFingerprint()}>文风指纹</Button>
-        </RailGroup>
-        <RailGroup label="文本">
-          <Button size="small" loading={stateBusy} disabled={generating} onClick={() => void deslopChapter()}>一键去味</Button>
-          <Button size="small" loading={stateBusy} disabled={generating} onClick={() => void llmDeslop()}>高级去味</Button>
-          <Button size="small" disabled={generating} onClick={openRewriteModal}>整章重写</Button>
-          <Button size="small" disabled={generating} onClick={openRewriteHistory}>重写历史</Button>
-        </RailGroup>
-        <RailGroup label="结构">
-          {/* 手动展开不带方向种子/覆盖章号——那两类状态只属于硬闸弹窗那一次 */}
-          <Button size="small" onClick={() => { setPlanSeed(''); setPlanChapterOverride(0); setPlanOpen(v => !v) }}>章节计划</Button>
-          <Button size="small" loading={reconstructBusy} onClick={() => void reconstructOutlines()}>
-            {reconstructBusy && reconstructElapsed > 0 ? `AI 反推大纲（已等待 ${reconstructElapsed}s）` : 'AI 反推大纲'}
-          </Button>
-          {reconstructCancellable && (
-            <Button size="small" danger data-testid="reconstruct-cancel"
-              onClick={() => { reconstructCancelRef.current = true }}>取消反推</Button>
-          )}
-          <Button size="small" onClick={() => { setStateOpen(true); void loadState() }}>叙事状态</Button>
-          <Button size="small" loading={graphBusy} onClick={() => void openGraph()}>全文脑图</Button>
-          <Button size="small" onClick={() => setPromptWsOpen(true)}>提示词工坊</Button>
-        </RailGroup>
+        {/* 高频直钮：每章写作循环（计划→分析→去味）零菜单直达 */}
+        <Button size="small" onClick={() => { setPlanSeed(''); setPlanChapterOverride(0); setPlanOpen(v => !v) }}>章节计划</Button>
+        <Button size="small" onClick={() => setAnalysisOpen(true)}>章节分析</Button>
+        <Button size="small" loading={stateBusy} disabled={generating} onClick={() => void deslopChapter()}>一键去味</Button>
+        {/* 低频分组菜单：成员清单见 railQualityItems 等定义处 */}
+        <Dropdown trigger={['click']} menu={{ items: railQualityItems, onClick: onRailQuality }}>
+          <Button size="small" icon={<DownOutlined />} iconPosition="end" aria-label="质检">质检</Button>
+        </Dropdown>
+        <Dropdown trigger={['click']} menu={{ items: railTextItems, onClick: onRailText }}>
+          <Button size="small" icon={<DownOutlined />} iconPosition="end" aria-label="文本">文本</Button>
+        </Dropdown>
+        <Dropdown trigger={['click']} menu={{ items: railStructItems, onClick: onRailStruct }}>
+          <Button size="small" icon={<DownOutlined />} iconPosition="end" aria-label="结构">结构</Button>
+        </Dropdown>
+        {reconstructCancellable && (
+          <Button size="small" danger data-testid="reconstruct-cancel"
+            onClick={() => { reconstructCancelRef.current = true }}>取消反推</Button>
+        )}
         {stateMsg ? <span className="novel-create-rail-msg">{stateMsg}</span> : null}
       </div>
       {/* 章节计划卡（刀1 线D）：工具轨展开位；章号 = 硬闸覆盖章号 > 当前激活章 > 下一章。

@@ -14,7 +14,7 @@ import {
   ThunderboltOutlined, PlusOutlined, ExperimentOutlined, CameraOutlined, MergeCellsOutlined,
   UserOutlined, ApartmentOutlined, LinkOutlined, TeamOutlined,
   ImportOutlined, SyncOutlined, EditOutlined, SwapOutlined, DeleteOutlined,
-  GlobalOutlined, BookOutlined, CloseOutlined,
+  GlobalOutlined, BookOutlined, CloseOutlined, DownOutlined,
 } from '@ant-design/icons'
 import RelationGraph from '../components/RelationGraph'
 import V3Empty from '../components/V3Empty'
@@ -543,11 +543,26 @@ const CharacterPage: React.FC = () => {
               AI 主角关系
             </Button>
           </Dropdown>
-          <Button size="small" icon={<TeamOutlined />} onClick={navigateToCharacterLib}>去角色库</Button>
-          <Button size="small" icon={<ImportOutlined />} onClick={handleImportLegacy} loading={wbBusy}
-            title="把本书副本的设定回写到角色库：空缺自动补全，非空冲突逐字段确认后才覆盖">回写</Button>
-          <Button size="small" icon={<SyncOutlined />} onClick={handleSync} loading={syncing} disabled={unimported.length > 0}>同步</Button>
           <Button size="small" type="primary" icon={<ThunderboltOutlined />} onClick={() => setDrawOpen(true)}>抽卡</Button>
+          {/* 简化批：低频运维三件（去角色库 / 回写 / 同步）收进「更多」菜单，功能零删除；
+              原 loading 态以菜单项 disabled 表达 */}
+          <Dropdown
+            trigger={['click']}
+            menu={{
+              items: [
+                { key: 'lib', label: '去角色库' },
+                { key: 'writeback', label: '回写到角色库', disabled: wbBusy },
+                { key: 'sync', label: '同步角色', disabled: syncing || unimported.length > 0 },
+              ],
+              onClick: ({ key }) => {
+                if (key === 'lib') navigateToCharacterLib()
+                else if (key === 'writeback') void handleImportLegacy()
+                else if (key === 'sync') void handleSync()
+              },
+            }}
+          >
+            <Button size="small" icon={<DownOutlined />} iconPosition="end" aria-label="更多角色操作">更多</Button>
+          </Dropdown>
         </div>
       </div>
 

@@ -277,13 +277,16 @@ describe('NovelSettingPage 维度化编辑器（v4.3e）', () => {
 })
 
 describe('NovelSettingPage 伏笔登记表面板（v4.3f）', () => {
+  // 简化批后下行面板默认收起：面板本体的 DOM 断言在「已展开」态下进行
   beforeEach(() => {
+    localStorage.setItem('gaea.novel.settingPanelsCollapsed', '0')
     useAppStore.setState({ projectOpen: true, projectPath: 'C:/novel/test' })
     vi.clearAllMocks()
     vi.mocked(app.GetWorldview).mockResolvedValue('# 世界观\n\n架空中世纪')
     vi.mocked(app.GetForeshadows).mockResolvedValue({ items: [] })
     vi.mocked(app.CheckConsistency).mockResolvedValue({ issues: [], total_issues: 0, summary: '✅ 未发现一致性问题' })
   })
+  afterEach(() => { localStorage.removeItem('gaea.novel.settingPanelsCollapsed') })
 
   it('展示伏笔列表：内容/章节/状态徽标 + 回收率统计', async () => {
     vi.mocked(app.GetForeshadows).mockResolvedValue({
@@ -313,13 +316,16 @@ describe('NovelSettingPage 伏笔登记表面板（v4.3f）', () => {
 })
 
 describe('NovelSettingPage 一致性检查面板（v4.3f）', () => {
+  // 简化批后下行面板默认收起：面板本体的 DOM 断言在「已展开」态下进行
   beforeEach(() => {
+    localStorage.setItem('gaea.novel.settingPanelsCollapsed', '0')
     useAppStore.setState({ projectOpen: true, projectPath: 'C:/novel/test' })
     vi.clearAllMocks()
     vi.mocked(app.GetWorldview).mockResolvedValue('# 世界观\n\n架空中世纪')
     vi.mocked(app.GetForeshadows).mockResolvedValue({ items: [] })
     vi.mocked(app.CheckConsistency).mockResolvedValue({ issues: [], total_issues: 0, summary: '✅ 未发现一致性问题' })
   })
+  afterEach(() => { localStorage.removeItem('gaea.novel.settingPanelsCollapsed') })
 
   it('展示三类规则告警（严重度/描述）并可「重新检查」', async () => {
     vi.mocked(app.CheckConsistency).mockResolvedValue({
@@ -515,8 +521,8 @@ describe('NovelSettingPage Ctrl+S 门控（active，v4.421 跨线契约）', () 
   })
 })
 
-// ── v4.421 体验项：下行「伏笔 + 一致性」区可折叠（默认展开 + 持久化） ──
-describe('NovelSettingPage 下行面板折叠（v4.421）', () => {
+// ── v4.421 体验项 + 简化批：下行「伏笔 + 一致性」区可折叠（默认收起 + 持久化展开态） ──
+describe('NovelSettingPage 下行面板折叠（默认收起）', () => {
   const COLLAPSED_KEY = 'gaea.novel.settingPanelsCollapsed'
 
   beforeEach(() => {
@@ -530,40 +536,43 @@ describe('NovelSettingPage 下行面板折叠（v4.421）', () => {
 
   afterEach(() => { localStorage.removeItem(COLLAPSED_KEY) })
 
-  it('默认展开；点「收起」隐藏双面板并写入 localStorage（aria 齐备）', async () => {
+  it('默认收起（无键＝不占屏）；点「展开」显示双面板并写入 localStorage（aria 齐备）', async () => {
     render(<NovelSettingPage />)
     await screen.findByPlaceholderText(/在此撰写或粘贴小说设定/)
 
-    expect(await screen.findByText('伏笔登记')).toBeTruthy()
-    expect(screen.getByTestId('novel-setting-panels')).toBeTruthy()
+    // 默认收起：双面板不挂载，标题行提示内容仍在
+    expect(screen.queryByTestId('novel-setting-panels')).toBeNull()
+    expect(screen.queryByText('伏笔登记')).toBeNull()
+    expect(screen.getByText('已收起（内容未变）')).toBeTruthy()
     const toggle = screen.getByTestId('novel-setting-panels-toggle')
-    expect(toggle.getAttribute('aria-expanded')).toBe('true')
-    expect(screen.getByLabelText('收起伏笔与一致性面板')).toBeTruthy()
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.getByLabelText('展开伏笔与一致性面板')).toBeTruthy()
 
     fireEvent.click(toggle)
 
-    expect(screen.queryByTestId('novel-setting-panels')).toBeNull()
-    expect(screen.queryByText('伏笔登记')).toBeNull()
-    expect(screen.getByTestId('novel-setting-panels-toggle').getAttribute('aria-expanded')).toBe('false')
-    expect(screen.getByLabelText('展开伏笔与一致性面板')).toBeTruthy()
-    expect(localStorage.getItem(COLLAPSED_KEY)).toBe('1')
+    expect(await screen.findByTestId('novel-setting-panels')).toBeTruthy()
+    expect(await screen.findByText('伏笔登记')).toBeTruthy()
+    expect(screen.getByTestId('novel-setting-panels-toggle').getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByLabelText('收起伏笔与一致性面板')).toBeTruthy()
+    expect(localStorage.getItem(COLLAPSED_KEY)).toBe('0')
   })
 
-  it('折叠态持久化：重新渲染（刷新）后仍保持收起，再点即展开', async () => {
+  it('展开态持久化：重新渲染（刷新）后仍保持展开，再点即收起', async () => {
+    localStorage.setItem(COLLAPSED_KEY, '0')
     const first = render(<NovelSettingPage />)
     await screen.findByPlaceholderText(/在此撰写或粘贴小说设定/)
-    fireEvent.click(screen.getByTestId('novel-setting-panels-toggle'))
-    expect(localStorage.getItem(COLLAPSED_KEY)).toBe('1')
+    expect(await screen.findByTestId('novel-setting-panels')).toBeTruthy()
+    expect(screen.getByTestId('novel-setting-panels-toggle').getAttribute('aria-expanded')).toBe('true')
     first.unmount()
 
     render(<NovelSettingPage />)
     await screen.findByPlaceholderText(/在此撰写或粘贴小说设定/)
-    expect(screen.getByTestId('novel-setting-panels-toggle').getAttribute('aria-expanded')).toBe('false')
-    expect(screen.queryByTestId('novel-setting-panels')).toBeNull()
+    expect(screen.getByTestId('novel-setting-panels-toggle').getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByTestId('novel-setting-panels')).toBeTruthy()
 
     fireEvent.click(screen.getByTestId('novel-setting-panels-toggle'))
-    expect(await screen.findByTestId('novel-setting-panels')).toBeTruthy()
-    expect(localStorage.getItem(COLLAPSED_KEY)).toBe('0')
+    expect(screen.queryByTestId('novel-setting-panels')).toBeNull()
+    expect(localStorage.getItem(COLLAPSED_KEY)).toBe('1')
   })
 })
 

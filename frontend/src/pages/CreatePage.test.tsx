@@ -176,6 +176,16 @@ async function startGeneration() {
   await screen.findByRole('button', { name: /停止生成/ })
 }
 
+/**
+ * 打开创作工具轨分组菜单（简化批：质检/文本/结构收进 Dropdown）。
+ * jsdom 里前一个菜单的退场动画可能残留 overlay，取「最后挂载」的那个 menu。
+ */
+async function openRailMenu(label: '质检' | '文本' | '结构') {
+  fireEvent.click(await screen.findByRole('button', { name: label }))
+  const menus = await screen.findAllByRole('menu')
+  return within(menus[menus.length - 1])
+}
+
 describe('CreatePage 生成控制（T6-7.2 停止按钮 + cancelled 事件）', () => {
   it('默认使用 story-deslop 技能生成章节', async () => {
     await startGeneration()
@@ -275,7 +285,8 @@ describe('CreatePage 生成控制（T6-7.2 停止按钮 + cancelled 事件）', 
 
   it('平台评审：rail 入口打开面板并拉档位清单；无当前章时评审按钮禁用', async () => {
     render(<CreatePage />)
-    fireEvent.click(await screen.findByRole('button', { name: '平台评审' }))
+    const quality = await openRailMenu('质检')
+    fireEvent.click(quality.getByRole('menuitem', { name: '平台评审' }))
     // 面板打开即拉档位（NovelReviewPlatforms 走 NovelB 门面具名导入）。
     await waitFor(() => expect(mocks.NovelReviewPlatforms).toHaveBeenCalledTimes(1))
     expect(await screen.findByText(/确定性评审，零模型调用/)).toBeTruthy()
@@ -314,8 +325,8 @@ describe('CreatePage 反推任务化', () => {
     } as never)
     render(<CreatePage />)
 
-    const btn = await screen.findByRole('button', { name: 'AI 反推大纲' })
-    fireEvent.click(btn)
+    const struct = await openRailMenu('结构')
+    fireEvent.click(struct.getByRole('menuitem', { name: 'AI 反推大纲' }))
 
     expect(await screen.findByText(/篇幅路由（中篇）/)).toBeTruthy()
     expect(screen.getByText(/2 个卷级节点/)).toBeTruthy()
@@ -335,8 +346,8 @@ describe('CreatePage 反推任务化', () => {
     } as never)
     render(<CreatePage />)
 
-    const btn = await screen.findByRole('button', { name: 'AI 反推大纲' })
-    fireEvent.click(btn)
+    const struct = await openRailMenu('结构')
+    fireEvent.click(struct.getByRole('menuitem', { name: 'AI 反推大纲' }))
     expect(await screen.findByText(/这本书还没有已写章节/)).toBeTruthy()
     expect(screen.queryByRole('button', { name: '应用到大纲' })).toBeNull()
   })
@@ -387,8 +398,8 @@ describe('CreatePage 反推取消', () => {
 
   it('轮询期出「取消反推」，点击停止等待并请求取消任务，不弹确认', async () => {
     render(<CreatePage />)
-    const btn = await screen.findByRole('button', { name: 'AI 反推大纲' })
-    fireEvent.click(btn)
+    const struct = await openRailMenu('结构')
+    fireEvent.click(struct.getByRole('menuitem', { name: 'AI 反推大纲' }))
     // taskId 到手后出现取消入口（Start 拿到 tk-c）
     fireEvent.click(await screen.findByTestId('reconstruct-cancel'))
     // 取消后：消息落出 + 后端取消被请求（≤3s 轮询 sleep 在 5s RTL 窗口内）
@@ -400,8 +411,8 @@ describe('CreatePage 反推取消', () => {
   it('同步回落路径（任务队列不可用）不出取消入口、不调 Cancel', async () => {
     vi.mocked(mocks.NovelOutlineReconstructStart).mockRejectedValue(new Error('任务队列不可用，请直接使用同步反推'))
     render(<CreatePage />)
-    const btn = await screen.findByRole('button', { name: 'AI 反推大纲' })
-    fireEvent.click(btn)
+    const struct = await openRailMenu('结构')
+    fireEvent.click(struct.getByRole('menuitem', { name: 'AI 反推大纲' }))
     expect(await screen.findByText(/反推结果为空/)).toBeTruthy()
     expect(screen.queryByTestId('reconstruct-cancel')).toBeNull()
     expect(mocks.taskCancel).not.toHaveBeenCalled()
@@ -521,17 +532,26 @@ describe('CreatePage 未保存保护与体验收口（v4.421.0）', () => {
     expect(screen.getByText(/001\.partial-20260928\.md/)).toBeTruthy()
   })
 
-  it('工具轨分组：三组语义标签在册，13 个入口一个不少', async () => {
+  it('工具轨分组（简化批）：高频直钮在册，三个菜单各自成员一个不少', async () => {
     render(<CreatePage />)
-    expect(await screen.findByText('质检')).toBeTruthy()
-    expect(screen.getByText('文本')).toBeTruthy()
-    expect(screen.getByText('结构')).toBeTruthy()
-    for (const label of [
-      '章节分析', '全书体检', '平台评审', '文风指纹',
-      '一键去味', '高级去味', '整章重写', '重写历史',
-      '章节计划', 'AI 反推大纲', '叙事状态', '全文脑图', '提示词工坊',
-    ]) {
+    // 高频直钮：每章写作循环（计划→分析→去味）零菜单直达
+    for (const label of ['章节计划', '章节分析', '一键去味']) {
       expect(screen.getByRole('button', { name: label })).toBeTruthy()
+    }
+    // 质检菜单 6 项
+    let group = await openRailMenu('质检')
+    for (const label of ['全书体检', '故事骨架', '收敛修补', '上下文清单', '平台评审', '文风指纹']) {
+      expect(group.getByRole('menuitem', { name: label })).toBeTruthy()
+    }
+    // 文本菜单 3 项
+    group = await openRailMenu('文本')
+    for (const label of ['高级去味（AI）', '整章重写', '重写历史']) {
+      expect(group.getByRole('menuitem', { name: label })).toBeTruthy()
+    }
+    // 结构菜单 4 项
+    group = await openRailMenu('结构')
+    for (const label of ['AI 反推大纲', '叙事状态', '全文脑图', '提示词工坊']) {
+      expect(group.getByRole('menuitem', { name: label })).toBeTruthy()
     }
   })
 })
@@ -797,7 +817,8 @@ describe('CreatePage 优化批 2 线2（A1/A2a/A3/A4/A6/A7/A8/B5a）', () => {
     await loadChapterOneWithEdits('手写改动')
 
     const before = confirms().length
-    fireEvent.click(screen.getByRole('button', { name: '重写历史' }))
+    const text = await openRailMenu('文本')
+    fireEvent.click(text.getByRole('menuitem', { name: '重写历史' }))
     const gate = await latestConfirm(before)
     expect(gate.getByText(/应用版本 \/ 恢复原文都会写回本章正文/)).toBeTruthy()
     fireEvent.click(gate.getByRole('button', { name: /放\s*弃\s*修\s*改/ }))
@@ -888,8 +909,11 @@ describe('CreatePage 优化批 2 线2（A1/A2a/A3/A4/A6/A7/A8/B5a）', () => {
   it('A6 生成中：rail 的去味/整章重写/重写历史禁用，重新生成给可见提示（不与流式抢写同一章）', async () => {
     await startDirectGeneration()
 
-    for (const label of ['一键去味', '高级去味', '整章重写', '重写历史']) {
-      expect((screen.getByRole('button', { name: label }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: '一键去味' }) as HTMLButtonElement).disabled).toBe(true)
+    // 菜单族生成中同样禁用（antd 菜单项以 aria-disabled 表达，直钮的 .disabled 断言不适用）
+    const text = await openRailMenu('文本')
+    for (const label of ['高级去味（AI）', '整章重写', '重写历史']) {
+      expect(text.getByRole('menuitem', { name: label }).getAttribute('aria-disabled')).toBe('true')
     }
     // 早退兜底（disabled 只是 UI 门；handler 里也有 generating 早退。React 不向 disabled
     // 按钮派发点击，故这里点不出效果——真正的 UI 门是上面的 disabled 断言）
@@ -935,10 +959,12 @@ describe('CreatePage 优化批 2 线2（A1/A2a/A3/A4/A6/A7/A8/B5a）', () => {
 
   it('B5a 切项目：评审报告与文风指纹状态随书失效（旧实现切书后整屏显示上一本内容）', async () => {
     render(<CreatePage />)
-    fireEvent.click(await screen.findByRole('button', { name: '平台评审' }))
+    let quality = await openRailMenu('质检')
+    fireEvent.click(quality.getByRole('menuitem', { name: '平台评审' }))
     fireEvent.click(await screen.findByRole('button', { name: '评审当前章' }))
     expect(await screen.findByText('逐维结果')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: '文风指纹' }))
+    quality = await openRailMenu('质检')
+    fireEvent.click(quality.getByRole('menuitem', { name: '文风指纹' }))
     expect(await screen.findByText(/3 章 · \d/)).toBeTruthy()
 
     await act(async () => { useAppStore.setState({ projectPath: 'C:/novel/other' }) })

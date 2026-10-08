@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react'
-import { Button, Space, Tag, Input, Select, Modal, Typography, Spin, message } from 'antd'
-import { ArrowUpOutlined, ArrowDownOutlined, PlusOutlined, DeleteOutlined, EditOutlined, ColumnWidthOutlined, RedoOutlined, ThunderboltOutlined, InfoCircleOutlined, EyeOutlined } from '@ant-design/icons'
+import { Button, Tag, Input, Select, Modal, Typography, Spin, Dropdown, message } from 'antd'
+import type { MenuProps } from 'antd'
+import { PlusOutlined, EditOutlined, ColumnWidthOutlined, RedoOutlined, ThunderboltOutlined, MoreOutlined } from '@ant-design/icons'
 import { GetChapterScenes, GenerateScene, CreateScene, SaveSceneMeta, ReorderScenes, NovelChapterScenesGenerate, NovelSceneRewrite, NovelSceneCardsPropose } from '../../../wailsjs/go/app/NovelB'
 import SceneBibleDrawer from './SceneBibleDrawer'
 import { getCharacters } from './api/character'
@@ -231,6 +232,26 @@ const ChapterEditorInner: React.FC<ChapterEditorProps> = ({ tab, onUpdate, scene
     if (tab.scenes.length <= 1) return
     onUpdate('scenes', tab.scenes.filter((_scene: string, j: number) => j !== i))
   }
+
+  // 简化批：每场景操作菜单（原 6 个常驻图标的收拢）。disabled 条件逐项对齐旧按钮；
+  // 纯文案项（不带 icon）——antd 图标的 aria-label 会混入菜单项可访问名。
+  const sceneMenuProps = (i: number): MenuProps => ({
+    items: [
+      { key: 'meta', label: '场景信息', disabled: tab.sceneBacked !== true },
+      { key: 'bible', label: '视角设定', disabled: !sceneIds[i] },
+      { key: 'up', label: '上移', disabled: i === 0 || tab.sceneBacked !== true || moving },
+      { key: 'down', label: '下移', disabled: i === tab.scenes.length - 1 || tab.sceneBacked !== true || moving },
+      { type: 'divider' },
+      { key: 'delete', label: '删除场景', danger: true, disabled: tab.scenes.length <= 1 },
+    ],
+    onClick: ({ key }) => {
+      if (key === 'meta') void openMeta(i)
+      else if (key === 'bible') setBibleScene(i)
+      else if (key === 'up') void moveScene(i, -1)
+      else if (key === 'down') void moveScene(i, 1)
+      else if (key === 'delete') removeScene(i)
+    },
+  })
 
   const updateScene = (i: number, val: string) => {
     const s = [...tab.scenes]
@@ -464,13 +485,16 @@ const ChapterEditorInner: React.FC<ChapterEditorProps> = ({ tab, onUpdate, scene
           </div>
         ) : (
           <div>
-                  {/* 长篇刀2：场景卡工具条——拆卡 / 按卡生成全章 + 逐场景进度 */}
+                  {/* 长篇刀2：场景卡工具条——拆卡 / 按卡生成全章 / 添加场景 + 逐场景进度。
+                      简化批：「添加场景」从每行图标上收到工具条（本就是全局追加语义）。 */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }} data-testid="scene-cards-toolbar">
                     <Button size="small" icon={<ThunderboltOutlined />} disabled={tab.sceneBacked !== true || !!scenesGen?.running}
                       onClick={() => void startScenesGen(false)} data-testid="scene-gen-all">按卡生成全章</Button>
                     <Button size="small" disabled={tab.sceneBacked !== true || !!scenesGen?.running}
                       onClick={() => void proposeCards()} data-testid="scene-cards-propose">AI 拆场景卡</Button>
-                    <Typography.Text style={{ fontSize: 11, color: C('color-text-secondary') }}>场景卡在 ⓘ 弹窗填写（目标/冲突必填才过写前闸）</Typography.Text>
+                    <Button size="small" icon={<PlusOutlined />} loading={addingScene}
+                      onClick={() => void addScene()} data-testid="scene-add">添加场景</Button>
+                    <Typography.Text style={{ fontSize: 11, color: C('color-text-secondary') }}>场景卡在 ⋯ 菜单「场景信息」弹窗填写（目标/冲突必填才过写前闸）</Typography.Text>
                   </div>
                   {scenesGen?.running && (
                     <div style={{ marginBottom: 8, padding: '4px 10px', borderRadius: 6, fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}
@@ -490,24 +514,14 @@ const ChapterEditorInner: React.FC<ChapterEditorProps> = ({ tab, onUpdate, scene
                     : ''
               return (
                 <div key={i} style={{ marginBottom: 16 }}>
+                  {/* 简化批：每场景 6 个常驻图标 → 1 个「⋯」菜单（原 disabled 语义逐项保留，
+                      菜单项纯文案不带图标——antd 图标会污染菜单项可访问名，测试按名取项）。 */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                     <Tag style={{ fontSize: 10 }}>场景 {i + 1}</Tag>
-                    <Space size={2}>
-                      <Button type="text" size="small" icon={<EyeOutlined />} style={{ color: C('color-text-secondary'), fontSize: 10, padding: '0 4px' }}
-                        disabled={!sceneIds[i]}
-                        onClick={() => setBibleScene(i)} aria-label={`场景 ${i + 1} 视角`} title="视角：该场景通过谁的眼睛在看——已知事实 / 不知情约束 / 出场角色 / 伏笔" />
-                      <Button type="text" size="small" icon={<InfoCircleOutlined />} style={{ color: C('color-text-secondary'), fontSize: 10, padding: '0 4px' }}
-                        disabled={tab.sceneBacked !== true}
-                        onClick={() => void openMeta(i)} aria-label={`场景 ${i + 1} 信息`} title="场景信息：标题 / 概要 / POV / 地点 / 时间 / 情感 / 标签 / 状态" />
-                      <Button type="text" size="small" icon={<ArrowUpOutlined />} style={{ color: C('color-text-secondary'), fontSize: 10, padding: '0 4px' }}
-                        disabled={i === 0 || tab.sceneBacked !== true || moving}
-                        onClick={() => void moveScene(i, -1)} aria-label={`场景 ${i + 1} 上移`} title="上移场景" />
-                      <Button type="text" size="small" icon={<ArrowDownOutlined />} style={{ color: C('color-text-secondary'), fontSize: 10, padding: '0 4px' }}
-                        disabled={i === tab.scenes.length - 1 || tab.sceneBacked !== true || moving}
-                        onClick={() => void moveScene(i, 1)} aria-label={`场景 ${i + 1} 下移`} title="下移场景" />
-                      <Button type="text" size="small" icon={<PlusOutlined />} aria-label="添加场景" style={{ color: C('color-text-secondary'), fontSize: 10, padding: '0 4px' }} loading={addingScene} onClick={() => void addScene()} />
-                      <Button type="text" size="small" danger icon={<DeleteOutlined />} aria-label={`删除场景 ${i + 1}`} style={{ fontSize: 10, padding: '0 4px' }} onClick={() => removeScene(i)} disabled={tab.scenes.length <= 1} />
-                    </Space>
+                    <Dropdown trigger={['click']} menu={sceneMenuProps(i)}>
+                      <Button type="text" size="small" icon={<MoreOutlined />} style={{ color: C('color-text-secondary'), fontSize: 10, padding: '0 4px' }}
+                        aria-label={`场景 ${i + 1} 操作`} title="场景操作：信息 / 视角 / 上下移 / 删除" />
+                    </Dropdown>
                   </div>
                   {/* 逐场景 AI 生成：剧情要点（可选） + 生成按钮 + aiTaste/deSlop 简讯 */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
