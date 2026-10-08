@@ -1018,6 +1018,8 @@ export const zh: Record<DictKey, string> = {
   "composer.queueCount": "排队发送 ({n})",
   "composer.screenshot": "截图：捕获屏幕并裁剪附加",
   "composer.recordSkill": "录制技能：把本会话蒸馏为可复用技能",
+  "composer.params": "会话参数（权限级别 · 思考深度）",
+  "composer.permLabel": "权限级别",
   "composer.permAsk": "询问",
   "composer.permAskDesc": "写入前需确认（默认）",
   "composer.permAuto": "自动",

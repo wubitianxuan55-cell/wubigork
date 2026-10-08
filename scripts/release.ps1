@@ -142,8 +142,12 @@ $relReadme = [regex]::Replace($relReadme, '\d+ 个发布说明', "$notesCount �
 
 # 6b-2. 「共 N 份发布说明」自述行与「最近 N 版」——卫生守卫对账口径（v4.471 发版实测
 #       两处不随版同步会挂守卫：共数=全目录递归含 archive/；最近 N 版=V4_RECENT 席位）。
+#       v4.472 再修：脚本跑时 v<tag>.md 尚未写（人手收尾第 1 件），实数天然差 1——
+#       按「收尾完成后」口径计入待写文档（已存在则按实数，重跑/补档幂等）。
 $notesRoot = @((Get-ChildItem (Join-Path $root 'releases') -Filter 'v*.md') | Where-Object { $_.Name -match '^v\d+\.\d+\.\d+\.md$' }).Count
 $notesArch = @((Get-ChildItem (Join-Path $root 'releases\archive') -Filter 'v*.md' -ErrorAction SilentlyContinue) | Where-Object { $_.Name -match '^v\d+\.\d+\.\d+\.md$' }).Count
+$pendingDoc = if (Test-Path (Join-Path $root "releases\$tag.md")) { 0 } else { 1 }
+$notesRoot = $notesRoot + $pendingDoc
 $notesTotal = $notesRoot + $notesArch
 $today = (Get-Date).ToString('yyyy-MM-dd')
 $relReadme = [regex]::Replace($relReadme,

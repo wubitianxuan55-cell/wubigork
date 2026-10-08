@@ -6,7 +6,8 @@ interface WelcomePageProps {
   onLogin: () => void
 }
 
-/** WelcomePage — 未来感品牌欢迎页（深空星云 + 玻璃卡片 + 霓虹） */
+/** WelcomePage — 品牌欢迎页（简化批：glow 层收敛对齐玄墨纪律——单层微光、
+ * 去霓虹描边与呼吸点；结构/文案/交互零变化，信息层级靠排印不靠发光） */
 const WelcomePage: React.FC<WelcomePageProps> = ({ onLogin }) => (
   <div style={{
     position: 'relative', zIndex: 1,
@@ -18,17 +19,16 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onLogin }) => (
       position: 'relative',
       display: 'flex', flexDirection: 'column', alignItems: 'center',
       padding: '48px 64px 40px', borderRadius: 'var(--md-sys-radius-xl)',
-      boxShadow: '0 0 0 1px var(--gaea-glow), 0 24px 80px rgba(0,0,0,0.35)',
+      boxShadow: '0 12px 48px rgba(0,0,0,0.28)',
       maxWidth: 440, width: 'calc(100% - 48px)',
     }}>
       <div style={{ position: 'relative', marginBottom: 24 }}>
         <img src="/favicon.svg" alt="gaea" style={{
           width: 88, height: 88,
-          filter: 'drop-shadow(0 0 18px var(--gaea-glow)) drop-shadow(0 0 48px var(--gaea-glow))',
+          filter: 'drop-shadow(0 0 12px color-mix(in srgb, var(--gaea-glow) 35%, transparent))',
         }} />
-        <span className="live-dot" style={{ position: 'absolute', top: 6, right: 2 }} />
       </div>
-      <Typography.Title level={1} className="neon-glow-text" style={{
+      <Typography.Title level={1} style={{
         color: 'var(--md-sys-color-text)', margin: '0 0 6px', fontSize: 40,
         fontWeight: 700, letterSpacing: '-0.5px',
       }}>
@@ -36,7 +36,6 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onLogin }) => (
       </Typography.Title>
       <Typography.Text style={{
         color: 'var(--gaea-glow)', fontSize: 17, fontWeight: 500, letterSpacing: 3,
-        textShadow: '0 0 14px var(--gaea-glow)',
         marginBottom: 28,
       }}>
         让灵感成为故事
@@ -55,7 +54,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onLogin }) => (
         style={{
           background: 'var(--md-sys-color-primary)', borderColor: 'var(--md-sys-color-primary)',
           padding: '8px 40px', height: 46, fontSize: 15, borderRadius: 12,
-          boxShadow: '0 0 22px color-mix(in srgb, var(--gaea-glow) 45%, transparent)',
+          boxShadow: '0 0 14px color-mix(in srgb, var(--gaea-glow) 22%, transparent)',
           display: 'flex', alignItems: 'center', gap: 8,
           transition: 'box-shadow var(--md-sys-transition-normal), transform var(--md-sys-transition-normal)',
         }}

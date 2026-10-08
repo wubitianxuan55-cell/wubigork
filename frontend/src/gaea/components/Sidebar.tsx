@@ -527,7 +527,9 @@ export function Sidebar({
   const [localQuery, setLocalQuery] = useState(searchQuery);
   const [exportTemplate, setExportTemplate] = useState<"通用" | "公文" | "报告" | "合同">("报告");
   const [factOpen, setFactOpen] = useState(() => {
-    try { return localStorage.getItem(FACT_OPEN_KEY) !== "0"; } catch { return true; }
+    // 简化批：默认收起（侧栏主体是会话列表，事实底座是交付任务的沉淀产物，
+    // 非每会话常驻面）；显式展开过（"1"）的用户保持展开。写侧极性见 toggleFactOpen。
+    try { return localStorage.getItem(FACT_OPEN_KEY) === "1"; } catch { return false; }
   });
   const [projectsOpen, setProjectsOpen] = useState<Record<string, boolean>>(() => {
     try {
@@ -900,7 +902,7 @@ export function Sidebar({
           </section>
         )}
 
-        {/* 事实底座：可折叠，默认展开；交付类任务沉淀的事实底座 */}
+        {/* 事实底座：可折叠，默认收起（简化批）；交付类任务沉淀的事实底座 */}
         {!collapsed && (
           <section className="shrink-0 px-1 pt-1.5 pb-1.5 border-t border-border-soft">
             <button

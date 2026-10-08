@@ -1017,6 +1017,8 @@ export const en = {
   "composer.queueCount": "Queued sends ({n})",
   "composer.screenshot": "Screenshot: capture the screen and attach a crop",
   "composer.recordSkill": "Record skill: distill this session into a reusable skill",
+  "composer.params": "Session params (permission · thinking depth)",
+  "composer.permLabel": "Permission",
   "composer.permAsk": "Ask",
   "composer.permAskDesc": "Confirm before writes (default)",
   "composer.permAuto": "Auto",

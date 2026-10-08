@@ -1,4 +1,9 @@
-// Composer 拆分产物：底部工具栏（工作区/导入/截图/权限级别/思考深度/快捷键提示，行为零变化，T6-10.1）
+// Composer 拆分产物：底部工具栏（工作区/导入/截图/参数/计划/快捷键提示）。
+// 简化批（对标 ExportMenu v4.29「新动作只进菜单不加常驻按钮」先例）：原「询问/自动/YOLO
+// ×3 + 快速/标准/深度 ×3」六个同形态 chip 常驻收进一个「参数」钮 + 上翻弹出层——
+// 弹出层内 chip 的样式/文案/title/onClick 逐字保留（行为零变化，功能零删除），
+// 触发钮文案实时显示当前取值（YOLO 激活时红色高亮，风险状态不藏）。
+import { useEffect, useState } from "react";
 import { Camera, ChevronDown, ClipboardList, FolderGit2, Gauge, Loader, Paperclip, Wand2, Zap } from "../../icons";
 import { useT } from "../../lib/i18n";
 import type { DictKey } from "../../locales/en";
@@ -40,7 +45,25 @@ export function ComposerToolbar({
   running, pendingPaste, captureBusy, onPickFiles, onScreenshot, onRecordSkill,
   permLevel, onSetPermLevel, thinkLevel, onSetThinkLevel, planActive, onTogglePlan,
 }: ComposerToolbarProps) {
-  const t = useT()
+  const t = useT();
+  const [paramsOpen, setParamsOpen] = useState(false);
+
+  // Esc 关闭弹出层（ExportMenu 同款）
+  useEffect(() => {
+    if (!paramsOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setParamsOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [paramsOpen]);
+
+  // 触发钮文案 = 当前取值摘要；显式 aria-label 压平可访问名（防图标 aria-label 混入）
+  const permText = permLevel === "yolo" ? "YOLO" : permLevel ? t(PERM_LABELS[permLevel]) : null;
+  const thinkText = thinkLevel ? t(THINK_LABELS[thinkLevel]) : null;
+  const summary = [permText, thinkText].filter(Boolean).join(" · ");
+  const yoloActive = permLevel === "yolo";
+
   return (
     <div className="flex items-center flex-wrap gap-x-1.5 gap-y-1 min-w-0 px-2.5 py-1.5">
       {cwd && (
@@ -89,51 +112,97 @@ export function ComposerToolbar({
         <Wand2 size={14} />
       </button>
 
-      {/* 权限级别选择器：询问 / 自动 / YOLO */}
-      <div className="flex gap-[3px] shrink-0">
-        {(["ask", "auto", "yolo"] as const).map((level) => {
-          const isYolo = level === "yolo"
-          return (
-            <button key={level} type="button"
-              className={`flex items-center gap-1.5 px-2.5 py-1 border rounded-md bg-transparent text-xs cursor-pointer whitespace-nowrap transition-[color,background,border,transform] duration-[var(--dur-fast)] active:scale-[0.97] ${
-                permLevel === level
-                  ? isYolo ? "text-err bg-err/10 border-err/20 shadow-[0_0_0_1px_var(--err)]" : "text-accent bg-accent-soft border-accent/30 shadow-[0_0_0_1px_var(--accent-soft)]"
-                  : "text-fg-dim border-border-soft hover:text-fg hover:bg-bg-soft hover:border-fg-faint"
-              }`}
-              onClick={() => { if (permLevel !== level && onSetPermLevel) onSetPermLevel(level) }}
-              title={t(PERM_DESCS[level])}
-            >
-              {level === "yolo" ? (
-                <><Zap size={11} className="shrink-0" /><span>YOLO</span></>
-              ) : (
-                t(PERM_LABELS[level])
-              )}
-            </button>
-          )
-        })}
-      </div>
-
-      {/* 思考深度选择器：快速 / 标准 / 深度（映射到 SetAgentParams 温度） */}
-      <div className="flex gap-[3px] shrink-0" aria-label={t("composer.thinkLabel")}>
-        {(["fast", "normal", "deep"] as const).map((level) => (
-          <button key={level} type="button"
-            className={`flex items-center gap-1 px-2 py-1 border rounded-md bg-transparent text-xs cursor-pointer whitespace-nowrap transition-[color,background,border,transform] duration-[var(--dur-fast)] active:scale-[0.97] ${
-              thinkLevel === level
-                ? "text-accent bg-accent-soft border-accent/30 shadow-[0_0_0_1px_var(--accent-soft)]"
-                : "text-fg-faint border-transparent hover:text-fg hover:bg-bg-soft"
+      {/* 参数选择器（简化批）：权限级别 + 思考深度收进一个弹出层；YOLO 激活时触发钮
+          红色高亮（风险状态一眼可见，不因收拢而隐身）。弹出层向上翻（工具栏贴屏底）。 */}
+      {(permLevel || thinkLevel) && (
+        <div className="relative inline-flex shrink-0">
+          <button type="button"
+            className={`flex items-center gap-1.5 px-2 py-1 border rounded-md bg-transparent text-xs cursor-pointer whitespace-nowrap transition-[color,background,border,transform] duration-[var(--dur-fast)] active:scale-[0.97] ${
+              yoloActive
+                ? "text-err bg-err/10 border-err/20 shadow-[0_0_0_1px_var(--err)]"
+                : paramsOpen
+                  ? "text-fg bg-bg-soft border-border-soft"
+                  : "text-fg-dim border-border-soft hover:text-fg hover:bg-bg-soft"
             }`}
-            onClick={() => { if (thinkLevel !== level && onSetThinkLevel) void onSetThinkLevel(level) }}
-            title={t(THINK_DESCS[level])}
-            aria-pressed={thinkLevel === level}
+            onClick={() => setParamsOpen((o) => !o)}
+            title={t("composer.params")}
+            aria-label={t("composer.params")}
+            aria-haspopup="menu"
+            aria-expanded={paramsOpen}
           >
             <Gauge size={11} className="shrink-0" />
-            <span>{t(THINK_LABELS[level])}</span>
+            <span>{summary}</span>
+            <ChevronDown size={11} className={paramsOpen ? "rotate-180 transition-transform" : "transition-transform"} />
           </button>
-        ))}
-      </div>
+          {paramsOpen && (
+            <>
+              {/* 透明遮罩：点击弹出层外部即关闭（ExportMenu 同款交互） */}
+              <span className="fixed inset-0 z-10 cursor-default" aria-hidden onClick={() => setParamsOpen(false)} />
+              <span
+                role="menu"
+                aria-label={t("composer.params")}
+                data-testid="composer-params-menu"
+                className="absolute bottom-[calc(100%+6px)] left-0 z-20 flex min-w-52 flex-col gap-2 rounded-lg border border-border-soft bg-bg-elev p-2"
+                style={{ boxShadow: "var(--ds-shadow-dropdown)" }}
+              >
+                {permLevel && onSetPermLevel && (
+                  <div role="group" aria-label={t("composer.permLabel")}>
+                    <div className="px-1 pb-1 text-[10px] text-fg-faint select-none">{t("composer.permLabel")}</div>
+                    <div className="flex gap-[3px]">
+                      {(["ask", "auto", "yolo"] as const).map((level) => {
+                        const isYolo = level === "yolo"
+                        return (
+                          <button key={level} type="button"
+                            className={`flex items-center gap-1.5 px-2.5 py-1 border rounded-md bg-transparent text-xs cursor-pointer whitespace-nowrap transition-[color,background,border,transform] duration-[var(--dur-fast)] active:scale-[0.97] ${
+                              permLevel === level
+                                ? isYolo ? "text-err bg-err/10 border-err/20 shadow-[0_0_0_1px_var(--err)]" : "text-accent bg-accent-soft border-accent/30 shadow-[0_0_0_1px_var(--accent-soft)]"
+                                : "text-fg-dim border-border-soft hover:text-fg hover:bg-bg-soft hover:border-fg-faint"
+                            }`}
+                            onClick={() => { if (permLevel !== level) onSetPermLevel(level) }}
+                            title={t(PERM_DESCS[level])}
+                          >
+                            {level === "yolo" ? (
+                              <><Zap size={11} className="shrink-0" /><span>YOLO</span></>
+                            ) : (
+                              t(PERM_LABELS[level])
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+                {thinkLevel && onSetThinkLevel && (
+                  <div role="group" aria-label={t("composer.thinkLabel")}>
+                    <div className="px-1 pb-1 text-[10px] text-fg-faint select-none">{t("composer.thinkLabel")}</div>
+                    <div className="flex gap-[3px]">
+                      {(["fast", "normal", "deep"] as const).map((level) => (
+                        <button key={level} type="button"
+                          className={`flex items-center gap-1 px-2 py-1 border rounded-md bg-transparent text-xs cursor-pointer whitespace-nowrap transition-[color,background,border,transform] duration-[var(--dur-fast)] active:scale-[0.97] ${
+                            thinkLevel === level
+                              ? "text-accent bg-accent-soft border-accent/30 shadow-[0_0_0_1px_var(--accent-soft)]"
+                              : "text-fg-faint border-transparent hover:text-fg hover:bg-bg-soft"
+                          }`}
+                          onClick={() => { if (thinkLevel !== level) void onSetThinkLevel(level) }}
+                          title={t(THINK_DESCS[level])}
+                          aria-pressed={thinkLevel === level}
+                        >
+                          <Gauge size={11} className="shrink-0" />
+                          <span>{t(THINK_LABELS[level])}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </span>
+            </>
+          )}
+        </div>
+      )}
 
       {/* 计划模式选择器（v4.420）：非默认、手动选择——点击经 /plan on|off 动词链
-          翻转，状态由最近一条计划回执推导；回合进行中引擎拒绝切换（置灰） */}
+          翻转，状态由最近一条计划回执推导；回合进行中引擎拒绝切换（置灰）。
+          保持独立直钮：模式忘关会改变模型行为，须常驻可见。 */}
       <div className="flex gap-[3px] shrink-0">
         <button type="button"
           className={`flex items-center gap-1 px-2 py-1 border rounded-md bg-transparent text-xs cursor-pointer whitespace-nowrap transition-[color,background,border,transform] duration-[var(--dur-fast)] active:scale-[0.97] ${
