@@ -739,6 +739,10 @@ html[data-hl='light'] .ml .w-mod.is-featured {
 .w-stat-row .ml-krow-sub { margin: 0; }
 .w-stat-row .ml-memory { flex-direction: row; align-items: baseline; gap: 8px; }
 .w-stat-row .ml-panel-empty { padding: 0; }
+/* 单行带内禁折行：计数/元信息/胶囊钮窄列不换行（v4.474 走查实修「待处理 0 项」「打开收件箱」折行） */
+.w-stat-row .ml-krow-strong, .w-stat-row .ml-krow-sub, .w-stat-row .ml-sess-meta,
+.w-stat-row .ml-inline-cta, .p-stat-row .ml-krow-strong, .p-stat-row .ml-krow-sub,
+.p-stat-row .ml-memory, .p-stat-row .ml-inline-cta { white-space: nowrap; }
 /* 状态带内会话：横排单行，多会话横向滚动（数据不删，带高恒定） */
 .w-stat-row ul.ml-sess {
   flex-direction: row;
