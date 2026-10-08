@@ -1,3 +1,6 @@
+## v4.470.0 · 小说界面简化批：创作页工具轨收敛 + 场景行菜单化 + 设定页默认收起 + 角色页更多菜单（2026-10-08）
+> 简化≠删功能（红线）：四刀全是重组/渐进披露/降噪，功能零删除。①创作页工具轨 17 钮→6 控件——高频直钮（章节计划/章节分析/一键去味）+三分组菜单（质检 6/文本 3/结构 4），v4.421.0「刻意不做折叠菜单」随钮数涨到 17 退役，disabled 语义逐项保留，取消反推保持直钮；②阅读页场景行 6 图标→「⋯」菜单（信息/视角/上移/下移/删除），「添加场景」上收工具条；③设定页「伏笔+一致性」300px 双面板默认收起（显式展开持久化）；④角色页头部 5 钮→3：去角色库/回写/同步收「更多」菜单，抽卡升主钮。守卫随刀改版（工具轨新结构锁/场景菜单例/默认收起锁/更多菜单成员锁）；全量 ci 绿（vitest 3801/439），零新绑定。详见 `releases/v4.470.0.md`。
+
 ## v4.469.3 · 造价族绑定面契约扫：价格源抓取记录 nil 候选链根修（2026-10-07）
 > v4.469.2 收尾时标记的「CostLibraryPage 第三发作疑点」经时间线取证**证伪**：当天日志 10 次崩溃全部发生在 v4.467.1（16:45）发布之前的旧构建（v4.460.0×6 / v4.461.0×2 / v4.467.0×2），16:46 升入 v4.467.1 后零崩溃——全是已修的 Compose.Lines 同一 bug，教训=**崩溃取证先对版本↔时刻时间线，别把已修 bug 的旧构建复现当新发作**。契约扫仍有实获：**pricefeed 抓取记录 Candidates nil 链**（失败/空抓取 → `json.Marshal(nil)` 落库字面 null → 读回 nil → 序列化 null → 价格源面板 `f.candidates.slice/.length` 崩）——真地雷只是还没轮到发作。**修复**：store 读写双侧归一（SaveFetch 落库前/ListFetches 读后含存量 null 行）+ 造价族无 error 出口切片绑定 16 处 `nonNilSlice` 构造即非 nil（workcost 七处/price_sources 三处/inquiry 三处/projects/ref/QuotaGet.Items）+ 前端 PriceSourcesPanel 六处裸读 `?? []` 兜底。回归钉三层：store 存量 null 行钉（TestFetchRecordCandidatesNeverNil）、app 层 14 绑定空库非 nil 钉+序列化层断言（TestCostFamilyBindingsNonNilSlices）、前端 null candidates 渲染钉。全量 ci 绿。
 
