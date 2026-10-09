@@ -1,3 +1,6 @@
+## v4.479.1 · 数据库存档细节批：去重防重复统计 + 截断/错误态如实呈现（2026-10-09）
+> 承 v4.479.0「数据库」库细节完善。Go 根修=databaseRoots 归一化去重（Clean+Windows 大小写折叠〔GOOS 分支〕）——recent-workspaces 同路径异斜杠/盘符写法此前会重复统计；前端七处=项目行补最近活动时间（latestMod 此前算了没显）、侧栏 50 条/组上限截断时如实提示（总览计数>行数判定）、删除确认态随刷新复位、上传懒加载失败清占位键可重试、错误横幅可关闭、错误态统计占位「—」、悬浮动作钮 focus-within 可见（键盘可达）。vitest 3798/440 全绿、go test app 包全绿。详见 `releases/v4.479.1.md`。
+
 ## v4.479.0 · 记忆中枢新增「数据库」库：本设备聊天记录与上传文件跨工作区管理（2026-10-09）
 > 用户指令「记忆中枢增加数据库，管理此设备上保存的聊天记录和上传的文件」。新库作用域=当前+最近工作区（与侧边栏项目视图同口径，避免「办公记忆按项目过滤」的旧困惑）：聊天记录=各工作区 `.gaea/sessions/` 的 .jsonl 档（活跃/归档分开计，含 work/play 分区）；上传的文件=`.gaea/uploads/`（attach-* 附件、paste-* 粘贴图）。三新绑定 GaeaDatabaseOverview（按工作区计数/字节/最近活动统计带）/GaeaUploadsList（按项目展开懒加载）/GaeaDeleteUpload（uploads 白名单护栏，双侧 Clean 防历史正斜杠路径误拒），会话删除/定位/预览复用既有绑定与全局 FilePreviewModal；删除一律两段确认+失败横幅可见化；hub 总览加 sessionCount/uploadCount 供 rail 角标。绑定面 646（+3，bindingNames 手工同步、signatures 再生、MemoryB 门面委托、完整性测试核验）。vitest 3796/440 全绿、go test app 包全绿。详见 `releases/v4.479.0.md`。
 
