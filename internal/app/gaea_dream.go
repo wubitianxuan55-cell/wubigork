@@ -249,16 +249,16 @@ func (a *App) runDream(space string) error {
 		}
 	} else {
 		// suggest：入待确认队列，不写记忆/文档（v4.377 口径）。
-		queued, err := dreamEnqueueSuggestions(c.Memory().UserDir, space, res)
+		queued, dropped, err := dreamEnqueueSuggestions(c.Memory().UserDir, space, res)
 		if err != nil {
 			return err
 		}
 		if queued > 0 {
+			text, level := dreamSuggestNotice(queued, dropped)
 			a.emit("gaea-event", gaeaEventMap(event.Event{
 				Kind:  event.Notice,
-				Level: event.LevelInfo,
-				Text: fmt.Sprintf("本轮提炼出 %d 条记忆建议：已放入记忆面板「建议」待确认（未写入记忆）",
-					queued),
+				Level: level,
+				Text:  text,
 			}))
 		}
 	}
@@ -278,10 +278,11 @@ func gaeaDreamMode() string {
 	return "suggest"
 }
 
-// dreamEnqueueSuggestions 把一轮提炼结果转成待确认建议入队，返回入队条数。
+// dreamEnqueueSuggestions 把一轮提炼结果转成待确认建议入队，返回入队条数与
+// 因队列超限被挤出队首的旧条数（调用方如实上报）。
 // play 空间的 notes 不入队（接受路径 QuickAdd 只写 work 项目文档，与旧直写
 // 行为的 play 丢弃纪律一致）；facts 照常（接受走 SaveDreamFacts 按 space 落）。
-func dreamEnqueueSuggestions(userDir, space string, res dreamResult) (int, error) {
+func dreamEnqueueSuggestions(userDir, space string, res dreamResult) (int, int, error) {
 	now := time.Now().Format(time.RFC3339)
 	var items []dreamPendingItem
 	for _, f := range res.Facts {
@@ -306,6 +307,19 @@ func dreamEnqueueSuggestions(userDir, space string, res dreamResult) (int, error
 		}
 	}
 	return dreamPendingAppend(userDir, items)
+}
+
+// dreamSuggestNotice 构造 suggest 入队后的前端 notice 文案与级别：
+// dropped>0 表示有未确认建议被挤出队列（数据丢失），如实说明并升 Warn
+//（v4.478：此前静默丢弃，用户错过入队提示即永远不知道少了内容）。
+func dreamSuggestNotice(queued, dropped int) (string, event.Level) {
+	text := fmt.Sprintf("本轮提炼出 %d 条记忆建议：已放入记忆面板「建议」待确认（未写入记忆）", queued)
+	if dropped > 0 {
+		text += fmt.Sprintf("；待确认队列已满（上限 %d 条），最旧的 %d 条未确认建议已被移出",
+			dreamPendingMax, dropped)
+		return text, event.LevelWarn
+	}
+	return text, event.LevelInfo
 }
 
 // dreamInputHash 返回整理输入的内容指纹（sha256 hex，sha256 无空串歧义）。

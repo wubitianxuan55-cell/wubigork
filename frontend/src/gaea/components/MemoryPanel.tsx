@@ -133,6 +133,36 @@ export function MemoryPanel(p: {
     onRefreshDistill();
   }, [tab, onRefreshDistill]);
 
+  // 建议扫描（加载唯一入口，按钮与首拉共用）：拉待确认建议并归一 null 切片。
+  const scanSuggestions = useCallback(async () => {
+    setSuggestionsBusy(true);
+    try {
+      const result = await onRefreshSuggestions();
+      // v4.354：Go nil slice 序列化为 JSON null（suggestSkillsFromMemories
+      // 在规则类记忆 <2 条时 return nil，skills 无 omitempty）——null.length
+      // 此前整页崩，收窄归一在此统一修，消费侧五处不再逐个防御。
+      if (result) {
+        result.skills ??= [];
+        result.memories ??= [];
+        result.merges ??= [];
+      }
+      setSuggestions(result);
+    } finally {
+      setSuggestionsBusy(false);
+    }
+  }, [onRefreshSuggestions]);
+
+  // 建议首拉（v4.478 建议可见性修复）：面板挂载即静默拉一次待确认建议——
+  // 此前唯一加载入口是「扫描建议」按钮，角标/统计卡在首次手动扫描前恒显示
+  // 0，错过入队 notice 后应用内再无任何可见信号。纯读绑定零 LLM，失败静默
+  //（suggestions 停留 null，建议 tab 内可手动重扫）。
+  const suggestionsFetchedRef = useRef(false);
+  useEffect(() => {
+    if (suggestionsFetchedRef.current) return;
+    suggestionsFetchedRef.current = true;
+    void scanSuggestions();
+  }, [scanSuggestions]);
+
   const toggleMemory = useCallback(() => {
     const next = !memoryEnabled;
     setMemoryEnabled(next);
@@ -646,18 +676,7 @@ export function MemoryPanel(p: {
                   // 流程蒸馏（7.2-2）：扫描/刷新按钮同时触发候选复算（各自
                   // 独立 loading，不互相阻塞；未接线时为 no-op）。
                   void onRefreshDistill?.();
-                  setSuggestionsBusy(true);
-                  const result = await onRefreshSuggestions();
-                  // v4.354：Go nil slice 序列化为 JSON null（suggestSkillsFromMemories
-                  // 在规则类记忆 <2 条时 return nil，skills 无 omitempty）——null.length
-                  // 此前整页崩，收窄归一在此统一修，消费侧五处不再逐个防御。
-                  if (result) {
-                    result.skills ??= [];
-                    result.memories ??= [];
-                    result.merges ??= [];
-                  }
-                  setSuggestions(result);
-                  setSuggestionsBusy(false);
+                  await scanSuggestions();
                 }}
                 disabled={suggestionsBusy}
                 type="button"

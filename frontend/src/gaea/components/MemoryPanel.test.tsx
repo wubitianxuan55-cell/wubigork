@@ -140,8 +140,10 @@ describe("MemoryPanel 记忆主区视图（v4.73）", () => {
   });
 
   // v4.377 建议制：待确认建议可忽略（出队不写库），卡片即时消失。
-  it("记忆建议忽略：队列建议带忽略按钮，点击后调绑定并从列表移除", async () => {
-    await renderPanelWithSuggestions(async () => ({
+  // v4.478 建议可见性：面板挂载即自动首拉（此前必须手动点「扫描建议」，
+  // 角标恒 0——建议制落地三断点之二），打开 tab 直接可见。
+  it("记忆建议忽略：挂载即首拉，队列建议带忽略按钮，点击后调绑定并从列表移除", async () => {
+    const refresh = vi.fn(async () => ({
       memories: [
         {
           id: "d1758000000000000000-1",
@@ -159,15 +161,33 @@ describe("MemoryPanel 记忆主区视图（v4.73）", () => {
       available: true,
       source: "test",
     }));
-    // 打开建议 tab 并扫描
+    await renderPanelWithSuggestions(refresh);
+    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
     fireEvent.click(screen.getByRole("button", { name: /^(建议|Suggestions)(?!s*d)/ }));
-    const scanBtn = await screen.findByRole("button", { name: /扫描|scan/i });
-    fireEvent.click(scanBtn);
     expect(await screen.findByText("user-unit")).toBeTruthy();
     const ignoreBtn = screen.getByRole("button", { name: /^(忽略|Ignore)$/ });
     fireEvent.click(ignoreBtn);
     await waitFor(() => expect(mocks.dismissSuggestion).toHaveBeenCalledWith("d1758000000000000000-1"));
     await waitFor(() => expect(screen.queryByText("user-unit")).toBeNull());
+  });
+
+  // v4.478 建议可见性：挂载首拉后统计卡显示真实计数（无需打开 tab、无需手动扫描）。
+  it("建议首拉：挂载即自动拉取，统计卡显示真实计数", async () => {
+    const refresh = vi.fn(async () => ({
+      memories: [
+        { id: "d1", name: "a", description: "甲", type: "project", body: "", reason: "", evidence: [] },
+        { id: "d2", name: "b", description: "乙", type: "project", body: "", reason: "", evidence: [] },
+      ],
+      skills: [{ id: "s1", name: "workflow-x", description: "技能候选", scope: "project", body: "", reason: "", evidence: [] }],
+      merges: [],
+      generatedAt: new Date().toISOString(),
+      available: true,
+      source: "test",
+    }));
+    await renderPanelWithSuggestions(refresh);
+    await waitFor(() => {
+      expect(screen.getByTestId("memory-kpi-suggestions").textContent).toContain("3");
+    });
   });
 
   // v4.377 清污：两步式——首次拉预览，再点执行删除。
@@ -179,8 +199,6 @@ describe("MemoryPanel 记忆主区视图（v4.73）", () => {
       generatedAt: new Date().toISOString(), available: true, source: "test",
     }));
     fireEvent.click(screen.getByRole("button", { name: /^(建议|Suggestions)(?!s*d)/ }));
-    const scanBtn = await screen.findByRole("button", { name: /扫描|scan/i });
-    fireEvent.click(scanBtn);
     const purgeBtn = await screen.findByTestId("memory-purge-auto-dream");
     fireEvent.click(purgeBtn);
     await waitFor(() => expect(mocks.dreamPurgePreview).toHaveBeenCalledTimes(1));

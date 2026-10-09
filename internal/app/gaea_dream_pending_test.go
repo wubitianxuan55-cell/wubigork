@@ -17,8 +17,8 @@ func TestDreamPendingAppendListTake(t *testing.T) {
 		{ID: newDreamPendingID(), Kind: "fact", Name: "user-unit", Type: "user", Description: "单位", Body: "XX 公司", Space: "work"},
 		{ID: newDreamPendingID(), Kind: "note", NoteScope: "local", Note: "口径：税前", Space: "work"},
 	}
-	if n, err := dreamPendingAppend(dir, items); err != nil || n != 2 {
-		t.Fatalf("append = %d, %v; want 2, nil", n, err)
+	if n, dropped, err := dreamPendingAppend(dir, items); err != nil || n != 2 || dropped != 0 {
+		t.Fatalf("append = %d, %d, %v; want 2, 0, nil", n, dropped, err)
 	}
 	got := dreamPendingList(dir, "work")
 	if len(got) != 2 {
@@ -57,8 +57,8 @@ func TestDreamPendingFIFOCap(t *testing.T) {
 		items := []dreamPendingItem{{
 			ID: newDreamPendingID(), Kind: "note", Note: "note-" + strings.Repeat("x", i+1), Space: "",
 		}}
-		if n, err := dreamPendingAppend(dir, items); err != nil || n != 1 {
-			t.Fatalf("append %d: n=%d err=%v", i, n, err)
+		if n, dropped, err := dreamPendingAppend(dir, items); err != nil || n != 1 {
+			t.Fatalf("append %d: n=%d dropped=%d err=%v", i, n, dropped, err)
 		}
 	}
 	got := dreamPendingList(dir, "")
@@ -68,6 +68,30 @@ func TestDreamPendingFIFOCap(t *testing.T) {
 	// 最旧的 5 条被丢：队首应是第 6 次写入（note 长度 6）
 	if got[0].Note != "note-"+strings.Repeat("x", 6) {
 		t.Fatalf("FIFO dropped wrong end: %q", got[0].Note)
+	}
+	// v4.478：溢出如实上报——最后一笔 append 挤掉 1 条（前面 4 笔各挤 1 条）
+	items := []dreamPendingItem{{ID: newDreamPendingID(), Kind: "note", Note: "note-final", Space: ""}}
+	if _, dropped, err := dreamPendingAppend(dir, items); err != nil || dropped != 1 {
+		t.Fatalf("append overflow: dropped=%d err=%v, want 1, nil", dropped, err)
+	}
+}
+
+// v4.478 建议可见性：入队 notice 文案在队列溢出时如实说明丢失并升 Warn；
+// 无溢出保持 Info。
+func TestDreamSuggestNoticeLevel(t *testing.T) {
+	text, level := dreamSuggestNotice(3, 0)
+	if level != event.LevelInfo {
+		t.Fatalf("level = %v, want info", level)
+	}
+	if !strings.Contains(text, "3 条记忆建议") || strings.Contains(text, "移出") {
+		t.Fatalf("text = %q, want 入队说明且无溢出字样", text)
+	}
+	text, level = dreamSuggestNotice(2, 1)
+	if level != event.LevelWarn {
+		t.Fatalf("level = %v, want warn（溢出=数据丢失）", level)
+	}
+	if !strings.Contains(text, "2 条记忆建议") || !strings.Contains(text, "1 条未确认建议已被移出") {
+		t.Fatalf("text = %q, want 溢出如实说明", text)
 	}
 }
 
@@ -79,13 +103,13 @@ func TestDreamEnqueueSuggestions(t *testing.T) {
 		Facts: []dreamFact{{Name: "user-unit", Type: "user", Kind: "semantic", Description: "单位", Body: "XX 公司"}},
 		Notes: []dreamNote{{Scope: "local", Note: "口径：税前"}},
 	}
-	n, err := dreamEnqueueSuggestions(dir, "work", res)
-	if err != nil || n != 2 {
-		t.Fatalf("work enqueue = %d, %v; want 2, nil", n, err)
+	n, dropped, err := dreamEnqueueSuggestions(dir, "work", res)
+	if err != nil || n != 2 || dropped != 0 {
+		t.Fatalf("work enqueue = %d, %d, %v; want 2, 0, nil", n, dropped, err)
 	}
-	n, err = dreamEnqueueSuggestions(dir, "play", res)
-	if err != nil || n != 1 {
-		t.Fatalf("play enqueue = %d, %v; want 1（notes 不入队）, nil", n, err)
+	n, dropped, err = dreamEnqueueSuggestions(dir, "play", res)
+	if err != nil || n != 1 || dropped != 0 {
+		t.Fatalf("play enqueue = %d, %d, %v; want 1（notes 不入队）, 0, nil", n, dropped, err)
 	}
 	play := dreamPendingList(dir, "play")
 	if len(play) != 1 || play[0].Kind != "fact" {
@@ -96,7 +120,7 @@ func TestDreamEnqueueSuggestions(t *testing.T) {
 // 待确认建议 → 面板视图转换：fact 型带 name/type，note 型 Type="note"。
 func TestDreamPendingViews(t *testing.T) {
 	dir := t.TempDir()
-	_, _ = dreamEnqueueSuggestions(dir, "work", dreamResult{
+	_, _, _ = dreamEnqueueSuggestions(dir, "work", dreamResult{
 		Facts: []dreamFact{{Name: "user-unit", Type: "user", Kind: "semantic", Description: "单位", Body: "XX 公司"}},
 		Notes: []dreamNote{{Scope: "project", Note: "隧道衬砌用 C35"}},
 	})
@@ -152,7 +176,7 @@ func TestAcceptAndDismissPendingSuggestion(t *testing.T) {
 	ga.ctrl = ctrl
 
 	dir2 := userDir // 队列与记忆同目录
-	n, err := dreamEnqueueSuggestions(dir2, "work", dreamResult{
+	n, _, err := dreamEnqueueSuggestions(dir2, "work", dreamResult{
 		Facts: []dreamFact{{Name: "user-unit", Type: "user", Kind: "semantic", Description: "单位", Body: "XX 公司"}},
 	})
 	if err != nil || n != 1 {
@@ -181,7 +205,7 @@ func TestAcceptAndDismissPendingSuggestion(t *testing.T) {
 	}
 
 	// dismiss：出队不写库
-	_, _ = dreamEnqueueSuggestions(dir2, "work", dreamResult{
+	_, _, _ = dreamEnqueueSuggestions(dir2, "work", dreamResult{
 		Facts: []dreamFact{{Name: "tmp-fact", Type: "project", Description: "临时", Body: "内容"}},
 	})
 	v2 := dreamPendingViews(dir2, "work")[0]

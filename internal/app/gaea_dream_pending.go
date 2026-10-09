@@ -84,8 +84,10 @@ func dreamPendingWrite(userDir string, items []dreamPendingItem) error {
 	return fileutil.AtomicWrite(dreamPendingPath(userDir), b, 0o644)
 }
 
-// dreamPendingAppend 把建议追加进队列（FIFO 截断到上限），返回追加条数。
-func dreamPendingAppend(userDir string, add []dreamPendingItem) (int, error) {
+// dreamPendingAppend 把建议追加进队列（FIFO 截断到上限），返回追加条数与
+// 因超限被挤出队首的旧条数——被挤掉的是用户尚未确认的建议，调用方必须如实
+// 上报（v4.478：此前静默丢弃，队列满后用户错过 notice 即永远失去可见性）。
+func dreamPendingAppend(userDir string, add []dreamPendingItem) (int, int, error) {
 	n := 0
 	for _, it := range add {
 		if strings.TrimSpace(it.ID) == "" {
@@ -100,19 +102,21 @@ func dreamPendingAppend(userDir string, add []dreamPendingItem) (int, error) {
 		n++
 	}
 	if n == 0 || userDir == "" {
-		return 0, nil
+		return 0, 0, nil
 	}
 	dreamPendingMu.Lock()
 	defer dreamPendingMu.Unlock()
 	items := dreamPendingRead(userDir)
 	items = append(items, add...)
+	dropped := 0
 	if over := len(items) - dreamPendingMax; over > 0 {
 		items = items[over:]
+		dropped = over
 	}
 	if err := dreamPendingWrite(userDir, items); err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	return n, nil
+	return n, dropped, nil
 }
 
 // dreamPendingList 返回当前空间可见的待确认建议（space 过滤：建议只在
