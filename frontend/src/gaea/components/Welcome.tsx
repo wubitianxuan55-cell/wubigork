@@ -212,14 +212,11 @@ export function Welcome({
         )}
       </div>
 
-      {/* 主视觉：logo + 标题 */}
+      {/* 主视觉：logo + 标题（v4.477 简化：去掉徽记角标，两层排印足够） */}
       <div className="welcome-rise welcome-rise-1 flex flex-col items-center text-center">
         <div className="relative mb-6">
           <img src={logoSvg} className={`rounded-[12px] welcome-logo dark:hidden ${compact ? "w-12 h-12" : "w-14 h-14"}`} alt="gaea" />
           <img src={logoLightSvg} className={`rounded-[12px] welcome-logo hidden dark:block ${compact ? "w-12 h-12" : "w-14 h-14"}`} alt="gaea" />
-          <span className="absolute -right-1 -bottom-1 w-5 h-5 rounded-full bg-accent/15 border border-accent/25 flex items-center justify-center text-accent">
-            <Sparkles size={10} />
-          </span>
         </div>
         <h1
           className={`text-fg font-semibold leading-tight ${compact ? "text-[24px]" : "text-[30px]"}`}
@@ -232,14 +229,11 @@ export function Welcome({
         </p>
       </div>
 
-      {/* 通用办公能力网格 */}
+      {/* 通用办公能力网格（v4.477 简化：去节标右侧提示/悬停渐变线/箭头——Minimalism：必要元素） */}
       <div className="welcome-rise welcome-rise-2 w-full mt-9">
-        <div className={`flex items-center justify-between mb-3 ${compact ? "text-[10px]" : "text-[11px]"}`}>
-          <span className="font-semibold text-fg-faint uppercase tracking-wider flex items-center gap-1.5">
-            <BookOpen size={12} />
-            {t("welcome.coreCaps")}
-          </span>
-          <span className="text-fg-faint/60">{t("welcome.clickToStart")}</span>
+        <div className={`font-semibold text-fg-faint uppercase tracking-wider mb-3 flex items-center gap-1.5 ${compact ? "text-[10px]" : "text-[11px]"}`}>
+          <BookOpen size={12} />
+          {t("welcome.coreCaps")}
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {OFFICE_CAPABILITIES.map((cap) => (
@@ -249,13 +243,11 @@ export function Welcome({
               className="group relative flex flex-col items-start text-left font-[inherit] bg-bg-elev border border-border-soft rounded-xl p-3.5 cursor-pointer transition-all duration-200 hover:border-accent/30 hover:bg-bg-elev hover:-translate-y-0.5 hover:shadow-[var(--ds-shadow-card)] overflow-hidden"
               title={cap.prompt}
             >
-              <span className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/25 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
               <div className="flex items-center gap-2.5 w-full mb-2.5">
                 <span className="w-8 h-8 rounded-lg bg-accent/10 border border-accent/15 text-accent flex items-center justify-center shrink-0 group-hover:bg-accent/15 transition-colors">
                   {cap.icon}
                 </span>
                 <span className={`font-semibold text-fg ${compact ? "text-[12.5px]" : "text-[13.5px]"}`}>{t(cap.nameKey)}</span>
-                <ArrowUpRight size={12} className="ml-auto rotate-45 text-fg-faint/0 group-hover:text-accent transition-all group-hover:translate-x-0 group-hover:translate-y-0 -translate-x-0.5 translate-y-0.5" />
               </div>
               <p className={`text-fg-dim leading-relaxed line-clamp-2 ${compact ? "text-[11px]" : "text-[12px]"}`}>
                 {t(cap.descKey)}
@@ -265,58 +257,59 @@ export function Welcome({
         </div>
       </div>
 
-      {/* 任务模板库：常见办公任务一键发起（与 slash 命令同源） */}
-      {templates.length > 0 && (
-        <div className="welcome-rise welcome-rise-3 w-full mt-6">
-          <div className={`font-semibold text-fg-faint uppercase tracking-wider mb-2.5 flex items-center gap-1.5 ${compact ? "text-[10px]" : "text-[11px]"}`}>
-            <Sparkles size={12} />
-            {t("welcome.templates")}
-            <span className="text-fg-faint/60 normal-case tracking-normal font-normal">{t("welcome.templatesHint")}</span>
+      {/* 更多启动方式（v4.477 简化：任务模板+内置技能收进折叠披露——藏≠删，
+          原生 details 保证无 JS 状态、内容常驻 DOM、键盘可达） */}
+      <details className="welcome-rise welcome-rise-3 w-full mt-6 group">
+        <summary className="flex items-center gap-1.5 cursor-pointer list-none select-none font-semibold text-fg-faint uppercase tracking-wider hover:text-fg-dim transition-colors text-[11px]">
+          <Wand2 size={12} />
+          {t("welcome.more")}
+          <span className="text-fg-faint/60 normal-case tracking-normal font-normal">{t("welcome.moreHint")}</span>
+          <span className="ml-auto text-fg-faint/60 group-open:rotate-180 transition-transform">▾</span>
+        </summary>
+        <div className="mt-4">
+          {templates.length > 0 && (
+            <>
+              <div className={`font-semibold text-fg-faint uppercase tracking-wider mb-2.5 flex items-center gap-1.5 ${compact ? "text-[10px]" : "text-[11px]"}`}>
+                <Sparkles size={12} />
+                {t("welcome.templates")}
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {templates.map((tm) => (
+                  <button
+                    key={tm.name}
+                    onClick={() => onPrompt(tm.prompt)}
+                    className="group flex flex-col items-start text-left font-[inherit] bg-bg-soft border border-border-soft rounded-lg p-2.5 cursor-pointer transition-all duration-200 hover:border-accent/35 hover:bg-bg-elev hover:-translate-y-0.5"
+                    title={tm.prompt}
+                  >
+                    <span className="flex items-center gap-1.5 w-full mb-1">
+                      <span className={`font-semibold text-fg ${compact ? "text-[11.5px]" : "text-[12.5px]"}`}>{tm.title}</span>
+                      <span className="ml-auto font-mono text-[9px] text-accent/80 bg-accent/10 rounded px-1 py-px">/{tm.name}</span>
+                    </span>
+                    <span className="text-fg-faint leading-snug line-clamp-2 text-[10.5px]">{tm.description}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          <div className={`font-semibold text-fg-faint uppercase tracking-wider mb-2.5 flex items-center gap-1.5 ${compact ? "text-[10px]" : "text-[11px]"} ${templates.length > 0 ? "mt-5" : ""}`}>
+            <Wand2 size={12} />
+            {t("welcome.skills")}
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            {templates.map((tm) => (
+          <div className="flex flex-wrap gap-2">
+            {OFFICE_SKILLS.map((skill) => (
               <button
-                key={tm.name}
-                onClick={() => onPrompt(tm.prompt)}
-                className="group flex flex-col items-start text-left font-[inherit] bg-bg-soft border border-border-soft rounded-lg p-2.5 cursor-pointer transition-all duration-200 hover:border-accent/35 hover:bg-bg-elev hover:-translate-y-0.5"
-                title={tm.prompt}
+                key={skill.label}
+                onClick={() => onPrompt(skill.prompt)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border-soft bg-bg-soft text-fg-dim text-[11.5px] font-mono cursor-pointer hover:border-accent/30 hover:bg-accent/5 hover:text-fg transition-all"
+                title={skill.prompt}
               >
-                <span className="flex items-center gap-1.5 w-full mb-1">
-                  <span className={`font-semibold text-fg ${compact ? "text-[11.5px]" : "text-[12.5px]"}`}>{tm.title}</span>
-                  <span className="ml-auto font-mono text-[9px] text-accent/80 bg-accent/10 rounded px-1 py-px">/{tm.name}</span>
-                </span>
-                <span className="text-fg-faint leading-snug line-clamp-2 text-[10.5px]">{tm.description}</span>
+                <span className="text-accent">{skill.label}</span>
+                <span className="text-fg-faint/70 text-[10.5px]">· {t(skill.subKey)}</span>
               </button>
             ))}
           </div>
         </div>
-      )}
-
-      {/* 内置技能 */}
-      <div className="welcome-rise welcome-rise-3 w-full mt-6">
-        <div className={`font-semibold text-fg-faint uppercase tracking-wider mb-2.5 flex items-center gap-1.5 ${compact ? "text-[10px]" : "text-[11px]"}`}>
-          <Wand2 size={12} />
-          {t("welcome.skills")}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {OFFICE_SKILLS.map((skill) => (
-            <button
-              key={skill.label}
-              onClick={() => onPrompt(skill.prompt)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border-soft bg-bg-soft text-fg-dim text-[11.5px] font-mono cursor-pointer hover:border-accent/30 hover:bg-accent/5 hover:text-fg transition-all"
-              title={skill.prompt}
-            >
-              <span className="text-accent">{skill.label}</span>
-              <span className="text-fg-faint/70 text-[10.5px]">· {t(skill.subKey)}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* 自由提问提示 */}
-      <div className={`welcome-rise welcome-rise-3 w-full mt-6 px-3 py-2.5 rounded-lg bg-bg-soft border border-border-soft text-fg-faint text-center ${compact ? "text-[11px]" : "text-[12px]"}`}>
-        {t("welcome.freeInput")}
-      </div>
+      </details>
 
       {/* 最近会话 */}
       {recentSessions.length > 0 && onResumeSession && (
