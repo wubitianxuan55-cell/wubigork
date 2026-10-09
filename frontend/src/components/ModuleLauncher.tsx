@@ -34,7 +34,7 @@ import {
 } from '@ant-design/icons'
 // 板块清单：活动清单（静态 fallback / 后端合并）订阅驱动；图标由 manifest 图标注册表解析（3.0 §5.2）
 import { getActiveBoards, subscribeBoards, resolveBoardIcon } from '../boards/manifests'
-import { deriveLauncherModules, LAUNCHER_DESC, LAUNCHER_FEATURED, type LauncherModule } from '../boards/launcher'
+import { deriveLauncherModules, LAUNCHER_DESC, type LauncherModule } from '../boards/launcher'
 import TasksFirstHome from './TasksFirstHome'
 import { requestSessionResume } from '../gaea/lib/pendingSessionResume'
 import { openPaneFileOrPreview } from '../gaea/lib/paneFileOpen'
@@ -111,11 +111,9 @@ const DeskHome: React.FC<{
 }> = ({ data, onNavigate, onOpenTaskInbox, inboxTick }) => {
   const t = useT()
   const activeBoards = useSyncExternalStore(subscribeBoards, getActiveBoards)
-  // 首页合一（v4.475）：不传 space = 全量板块（书斋+闲庭一屏尽收），menuOrder 序
+  // 首页合一（v4.475）：不传 space = 全量板块（书斋+闲庭一屏尽收），menuOrder 序。
+  // v4.476 模块卡极简化：全卡同权（无旗舰/设置特殊态），不再按旗舰拆组。
   const allModules = deriveLauncherModules(activeBoards, LAUNCHER_DESC)
-  const featuredModule = allModules.find((m) => m.key === LAUNCHER_FEATURED)
-  const indexModules = allModules.filter((m) => m.key !== LAUNCHER_FEATURED && m.key !== 'settings')
-  const settingsModule = allModules.find((m) => m.key === 'settings')
 
   const [typedText, setTypedText] = useState('')
   const [userText, setUserText] = useState('')
@@ -328,20 +326,14 @@ const DeskHome: React.FC<{
               组件与数据管线保留（gaea/components/MorningBriefCard），仅撤书斋侧列入口 */}
         </div>
 
-        {/* ═══ ③ 能力矩阵：节标 + 卡片网格（旗舰=跨列大卡，其余=模块卡）═══ */}
+        {/* ═══ ③ 能力矩阵：节标 + 统一模块卡网格（v4.476 全卡同权极简化）═══ */}
         <section className="w-cap v3-rise v3-rise-3" aria-label={t('home.capTitle')}>
           <SectionLabel icon={<ThunderboltOutlined />} title={t('home.capTitle')} sub={t('home.capSub')} />
           <div className="w-modules">
-            {featuredModule && (
-              <ModuleCard m={featuredModule} featured onOpen={() => onNavigate(featuredModule.key)} />
-            )}
-            {indexModules.map((m) => (
+            {allModules.map((m) => (
               <ModuleCard key={m.key} m={m} onOpen={() => onNavigate(m.key)} />
             ))}
-            {settingsModule && (
-              <ModuleCard m={settingsModule} settings onOpen={() => onNavigate(settingsModule.key)} />
-            )}
-            {indexModules.length === 0 && !featuredModule && !settingsModule && (
+            {allModules.length === 0 && (
               <div className="ml-col-empty v3-rise">{t('shell.launcher.noModules')}</div>
             )}
           </div>
@@ -397,37 +389,30 @@ export const CardHead: React.FC<{
 )
 
 /**
- * 能力卡（v10）：manifest 驱动的板块入口卡。旗舰=跨列大卡（徽记水印 +
- * 进入胶囊），普通=模块卡（图标章 + 名称/描述 + 悬停箭头）；同一 LauncherModule
- * 数据流，交互与 aria 文案沿用 v9（旗舰 enterWorkbench / 普通 enterModule）。
+ * 能力卡（v10 立；v4.476 极简化重画）：manifest 驱动的板块入口卡，全卡同权
+ * ——无旗舰/设置特殊态、无徽记/水印/悬停箭头。卡=图标座 + 名称 + 一行描述
+ * （完整描述进 title 提示，藏≠删）；hover 反馈=抬升 + 图标座点亮（Minimalism
+ * /Swiss 对策：必要元素 + subtle hover，深度靠色阶与投影不靠线）。
+ * aria 文案沿用 enterModule（可访问名不依赖视觉装饰）。
  */
 const ModuleCard: React.FC<{
   m: LauncherModule
-  featured?: boolean
-  /** v11：settings 降权为节尾横条（低频入口不占卡位） */
-  settings?: boolean
   onOpen: () => void
-}> = ({ m, featured, settings, onOpen }) => {
+}> = ({ m, onOpen }) => {
   const Icon = resolveBoardIcon(m.icon)
   const t = useT()
-  const label = t(featured ? 'shell.launcher.enterWorkbench' : 'shell.launcher.enterModule', { name: m.name })
   return (
     <button
       type="button"
-      className={`w-mod${featured ? ' is-featured' : ''}${settings ? ' is-settings' : ''}`}
-      aria-label={label}
+      className="w-mod"
+      aria-label={t('shell.launcher.enterModule', { name: m.name })}
+      title={m.desc || m.name}
       onClick={onOpen}
     >
-      {featured && <span className="w-mod-mark" aria-hidden="true">{Icon ? <Icon /> : null}</span>}
       <span className="w-mod-icon" aria-hidden="true">{Icon ? <Icon /> : null}</span>
       <span className="w-mod-body">
-        {featured && <span className="w-mod-badge">{t('home.featured')}</span>}
         <span className="w-mod-name">{m.name}</span>
         <span className="w-mod-desc">{m.desc}</span>
-      </span>
-      <span className="w-mod-go" aria-hidden="true">
-        {featured && <span className="w-mod-go-label">{label}</span>}
-        <ArrowRightOutlined className="w-mod-arrow" />
       </span>
     </button>
   )

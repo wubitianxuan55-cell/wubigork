@@ -3,7 +3,7 @@ import {
   canonicalBoards, normalizeManifests, resolveBoardIcon,
   loadBoardManifests, subscribeBoards, getActiveBoards, resetActiveBoardsForTest,
 } from './manifests'
-import { deriveLauncherModules, LAUNCHER_DESC, LAUNCHER_FEATURED } from './launcher'
+import { deriveLauncherModules, LAUNCHER_DESC } from './launcher'
 import { app } from '../gaea/lib/bridge'
 
 // 数据源 seam（§5.3 前端侧）：mock 掉 gaea/lib/bridge 的 app.GetBoardManifests，
@@ -94,9 +94,7 @@ describe('deriveLauncherModules（启动器清单纯函数）', () => {
     expect(all.map((m) => m.key)).toContain('gaea')
   })
 
-  it('首页合一（v4.475）：LAUNCHER_FEATURED 收敛为单一旗舰 gaea 办公（不再按空间查表）', () => {
-    expect(LAUNCHER_FEATURED).toBe('gaea')
-  })
+  // 旗舰锚点（LAUNCHER_FEATURED）随 v4.476 模块卡极简化退役，无导出即无契约。
 })
 
 describe('launcher 订阅联动（loadBoardManifests 通知 → 派生结果变化）', () => {

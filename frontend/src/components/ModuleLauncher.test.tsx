@@ -85,22 +85,30 @@ describe('ModuleLauncher 统一台首页（v4.475 书斋/闲庭合一）', () =>
     expect(document.querySelector('.w-cmd')).toBeTruthy()
   })
 
-  it('能力矩阵全板块出卡：闲庭板块（聊天/小说/绘梦/原罪）与书斋板块同屏，恰一张旗舰', () => {
+  it('能力矩阵全板块出卡且全卡同权：闲庭与书斋板块同屏，无旗舰/徽记/箭头（v4.476 极简化）', () => {
     render(wrap(<ModuleLauncher onNavigate={vi.fn()} />))
     expect(document.querySelector('.w-modules')).toBeTruthy()
-    // 静态 canonicalBoards 全量派生：10 业务板块 + settings（旗舰 gaea 也在 .w-mod 内）
+    // 静态 canonicalBoards 全量派生：10 业务板块 + settings，11 张同构卡
     const mods = document.querySelectorAll('.w-mod')
     expect(mods.length).toBe(11)
     mods.forEach((p) => expect(p.tagName.toLowerCase()).toBe('button'))
-    expect(document.querySelectorAll('.w-mod.is-featured').length).toBe(1)
+    // 全卡同权：无旗舰/徽记/水印/悬停箭头，设置也是普通卡
+    expect(document.querySelectorAll('.w-mod.is-featured').length).toBe(0)
+    expect(document.querySelectorAll('.w-mod.is-settings').length).toBe(0)
+    expect(document.querySelectorAll('.w-mod-badge, .w-mod-mark, .w-mod-go, .w-mod-arrow').length).toBe(0)
+    // 每卡=图标座+名称+一行描述三件套
+    mods.forEach((p) => {
+      expect(p.querySelector('.w-mod-icon')).toBeTruthy()
+      expect(p.querySelector('.w-mod-name')).toBeTruthy()
+      expect(p.querySelector('.w-mod-desc')).toBeTruthy()
+    })
     // 闲庭板块卡可见（合一判据：不再按 work/play 过滤）
     expect(screen.getByText('小说')).toBeTruthy()
     expect(screen.getByText('原罪')).toBeTruthy()
     expect(screen.getByText('绘梦')).toBeTruthy()
     expect(screen.getByText('聊天')).toBeTruthy()
-    // 书斋板块卡同屏
+    // 书斋板块卡同屏（办公不再有旗舰待遇，同样是一张普通卡）
     expect(screen.getByText('造价数据库')).toBeTruthy()
-    // 旗舰 = 办公（LAUNCHER_FEATURED 单一锚点）
     expect(screen.getByText('办公')).toBeTruthy()
     // 画廊版式残留不出现（GardenHome 系随合一退役）
     expect(document.querySelector('.garden-banner')).toBeNull()

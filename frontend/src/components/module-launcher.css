@@ -88,9 +88,9 @@ html[data-hl='light'] .ml .ml-card {
   box-shadow: 0 1px 2px color-mix(in srgb, var(--color-text) 9%, transparent),
     0 4px 14px color-mix(in srgb, var(--color-text) 6%, transparent);
 }
-/* 亮态 L1 主角卡（hero/旗舰/展厅）再升一档，层级差在浅色下依然可读 */
-html[data-hl='light'] .ml .w-hero,
-html[data-hl='light'] .ml .w-mod.is-featured {
+/* 亮态 L1 主角卡（hero）再升一档，层级差在浅色下依然可读
+   （v4.476 模块卡全卡同权，旗舰档随 is-featured 退役） */
+html[data-hl='light'] .ml .w-hero {
   box-shadow: 0 2px 4px color-mix(in srgb, var(--color-text) 10%, transparent),
     0 10px 28px color-mix(in srgb, var(--color-text) 8%, transparent);
 }
@@ -528,143 +528,74 @@ html[data-hl='light'] .ml .w-mod.is-featured {
 .w-progress .ml-progress { gap: 16px; }
 .w-progress .ml-progress-body { font-size: 12.5px; }
 
-/* ── ③ 能力矩阵：节标 + 卡片网格（旗舰 8 + 模块 4 列节奏）── */
+/* ── ③ 能力矩阵：节标 + 统一模块卡网格（v4.476 极简化：全卡同权）──
+   Minimalism/Swiss 对策（ui-ux-pro-max 查库）：必要元素 + subtle hover(200-250ms)
+   + 单一点缀色。深度靠色阶（bgContainer 比页底亮一档）+ 投影令牌，不靠线；
+   无旗舰/徽记/水印/箭头/设置横条特殊态（v10 的 8+4 节奏随全卡同权退役）。 */
 .w-cap { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 12px; }
 .w-modules {
   display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  grid-auto-flow: row dense;
-  gap: 12px;
+  /* 内容驱动的均匀网格：≥196px 自适应列（1320 容器 ≈ 6 列，11 卡 6+5 收 tidy） */
+  grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
+  gap: 10px;
 }
 .w-mod {
   appearance: none;
   cursor: pointer;
   position: relative;
-  overflow: hidden;
-  grid-column: span 4;
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 72px;
-  padding: 14px 16px;
+  min-height: 64px;
+  padding: 11px 14px;
   border-radius: var(--ml-card-radius);
   border: 1px solid var(--ml-card-line);
   background: var(--ml-card-bg);
   box-shadow: var(--shadow-sm);
   text-align: left;
   color: inherit;
-  transition: transform 300ms var(--ml-ease),
-    box-shadow 300ms var(--ml-ease),
-    border-color 240ms var(--ml-ease);
+  transition: transform 220ms var(--ml-ease),
+    box-shadow 220ms var(--ml-ease);
 }
 .w-mod:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
-  border-color: color-mix(in srgb, var(--w-accent) 30%, transparent);
 }
-/* 旗舰卡（L1 特权）：跨 8 列 + 全页唯一 wash 面 + 大排印。
-   列节奏 8+4 / 4+4+4：书斋恒 6 模块（旗舰+4 普通+设置横条）恰好铺满两行 */
-.w-mod.is-featured {
-  grid-column: span 8;
-  min-height: 100px;
-  padding: 16px 20px;
-  background:
-    linear-gradient(108deg, color-mix(in srgb, var(--w-accent) 9%, var(--ml-card-bg)), var(--ml-card-bg) 62%);
-  box-shadow: var(--shadow-md);
-}
-/* 旗舰水印：超大徽记压右下（版式记号） */
-.w-mod-mark {
-  position: absolute;
-  right: -30px;
-  bottom: -38px;
-  font-size: 112px;
-  line-height: 1;
-  color: color-mix(in srgb, var(--color-text) 4%, transparent);
-  pointer-events: none;
-}
-/* 图标章：中性墨（去金）——hover 才点亮金 */
+/* 图标座：中性墨软底座——卡片的视觉锚点，hover 才点亮金（金点睛纪律） */
 .w-mod-icon {
-  width: 32px;
-  height: 32px;
+  width: 38px;
+  height: 38px;
   flex-shrink: 0;
   display: grid;
   place-items: center;
-  border-radius: var(--radius-sm, 8px);
-  font-size: 15px;
+  border-radius: 10px;
+  font-size: 17px;
   color: var(--w-ink-2);
   background: color-mix(in srgb, var(--color-text) 5.5%, transparent);
-  transition: color 240ms var(--ml-ease), background 240ms var(--ml-ease);
+  transition: color 220ms var(--ml-ease), background 220ms var(--ml-ease);
 }
 .w-mod:hover .w-mod-icon {
   color: color-mix(in srgb, var(--w-accent) 90%, var(--w-ink));
   background: color-mix(in srgb, var(--w-accent) 12%, transparent);
 }
-.w-mod.is-featured .w-mod-icon { width: 42px; height: 42px; border-radius: 12px; font-size: 19px; }
-.w-mod-body { position: relative; display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
-/* 旗舰 badge：胶囊边框退役 → 纯金色小标（宽字距） */
-.w-mod-badge {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.22em;
-  color: color-mix(in srgb, var(--w-accent) 85%, var(--w-ink));
+.w-mod-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.w-mod-name {
+  font-size: 13.5px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  color: var(--w-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.w-mod-name { font-size: 15px; font-weight: 650; letter-spacing: 0.01em; color: var(--w-ink); }
-.w-mod.is-featured .w-mod-name { font-size: 22px; letter-spacing: -0.02em; }
 .w-mod-desc {
-  font-size: 11.5px;
+  font-size: 11px;
   line-height: 1.5;
   color: var(--w-ink-3);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
-.w-mod.is-featured .w-mod-desc {
-  max-width: 48ch;
-  font-size: 12.5px;
-  color: var(--w-ink-2);
-  white-space: normal;
-}
-.w-mod-go {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-  color: var(--w-ink-3);
-}
-.w-mod-go-label { font-size: 11.5px; font-weight: 600; color: var(--w-ink-2); white-space: nowrap; }
-.w-mod.is-featured .w-mod-go {
-  padding: 7px 14px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--color-text) 5%, transparent);
-}
-.w-mod-arrow {
-  font-size: 11px;
-  opacity: 0;
-  transform: translateX(-4px);
-  transition: opacity var(--transition-fast, 200ms) ease, transform var(--transition-fast, 200ms) ease;
-}
-.w-mod:hover .w-mod-arrow { opacity: 1; transform: none; color: color-mix(in srgb, var(--w-accent) 88%, var(--w-ink)); }
-.w-mod:hover .w-mod-go-label { color: var(--w-ink); }
-
-/* 设置卡：降权为节尾横条（低频入口不占海报位；无边框无投影，hover 微面）。
-   hover 面圆角用小档——46px 高的行继承 20px 卡圆角会成胶囊状 */
-.w-mod.is-settings {
-  grid-column: 1 / -1;
-  min-height: 0;
-  padding: 11px 18px;
-  border: 0;
-  border-radius: var(--radius-md, 12px);
-  box-shadow: none;
-  background: transparent;
-}
-.w-mod.is-settings:hover { transform: none; box-shadow: none; background: color-mix(in srgb, var(--color-text) 4%, transparent); }
-.w-mod.is-settings .w-mod-icon { width: 28px; height: 28px; border-radius: var(--radius-sm, 8px); font-size: 13px; }
-.w-mod.is-settings .w-mod-name { font-size: 13px; }
-.w-mod.is-settings .w-mod-go .w-mod-go-label { display: none; }
-.w-mod.is-settings .w-mod-arrow { opacity: 1; transform: none; }
 
 /* ── ④ 状态仪表带（L3 底座）：通栏一体卡，四节 hairline 分列 ──
    容器自身成为唯一的卡；四张 .w-stat（.ml-card 契约类保留）隐形化为内列。
@@ -915,6 +846,8 @@ html[data-hl='light'] .ml .w-mod.is-featured {
 .w-empty-icon { font-size: 16px; opacity: 0.55; margin-bottom: 0; }
 .w-empty-text { font-size: 13px; line-height: 1.5; color: var(--w-ink); }
 .w-empty-sub { font-size: 11.5px; line-height: 1.5; }
+/* 拉伸行内空态垂直居中：文档卡坐 1fr 行，行高 > 内容时空态吊在卡头下难看 */
+.w-docs > .w-empty { flex: 1 1 auto; align-content: center; }
 .w-empty-cta {
   appearance: none;
   cursor: pointer;
@@ -1013,8 +946,8 @@ html.gaea-raf-degraded .ml .w-status-dot {
 /* 高度档：≤1060px 高的窗口再加一档压缩，1600×1000 及以下最大化同样零滚动 */
 @media (max-height: 1060px) {
   .w-board { grid-template-rows: auto auto minmax(150px, 1fr) auto auto; }
-  .w-mod { min-height: 64px; }
-  .w-mod.is-featured { min-height: 92px; }
+  .w-mod { min-height: 58px; padding: 9px 12px; }
+  .w-mod-icon { width: 32px; height: 32px; border-radius: 8px; font-size: 15px; }
   .w-cmd { height: 48px; }
   .w-hero-title { font-size: 28px; }
   .w-stat-row .w-stat { padding: 8px 16px 10px; }
@@ -1041,8 +974,14 @@ html.gaea-raf-degraded .ml .w-status-dot {
 
 @media (max-width: 1180px) {
   .w-docs { grid-column: 1 / -1; }
-  .w-aside { grid-column: 1 / -1; flex-direction: row; align-items: stretch; }
+  /* 窄幅 aside 独占 auto 行：基域 min-height:0（v11.4 防 1fr 行压瘪）+ 内层
+     flex:1 循环尺寸会把行高算成 0，写作进度卡溢出压进能力矩阵（重叠扫描器
+     920×760 实锤 over=148，v4.475 原状 364 更糟=既有缺陷）——显式地板托住行高；
+     环同步收一档（对齐 ≤1060 高度档），76px 环在 118px 卡内会戳出卡底 */
+  .w-aside { grid-column: 1 / -1; flex-direction: row; align-items: stretch; min-height: 132px; }
   .w-aside > .w-progress { flex: 1 1 58%; }
+  .w-progress .ml-ring { width: 56px; height: 56px; }
+  .w-progress .ml-ring-hole { width: 44px; height: 44px; }
   .t-sessions, .t-caps { grid-column: 1 / -1; }
   /* 仪表带：两列（分列线从左线改为顶线） */
   .w-stat-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1056,9 +995,7 @@ html.gaea-raf-degraded .ml .w-status-dot {
   .w-hero-pill { display: none; }
   .w-hero-title { font-size: 26px; }
   .w-aside { flex-direction: column; }
-  .w-mod.is-featured { grid-column: 1 / -1; }
-  .w-mod { grid-column: span 6; }
-  .w-mod.is-settings { grid-column: 1 / -1; }
+  /* 模块卡 auto-fill 自适应列宽，窄幅不再需要 span 覆盖（v4.476） */
   .w-stat-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
@@ -1068,8 +1005,6 @@ html.gaea-raf-degraded .ml .w-status-dot {
   .ml-card { padding: 16px 16px 18px; }
   .w-hero-head { flex-wrap: wrap; gap: 10px; }
   .w-hero-lede { font-size: 12px; }
-  .w-mod, .w-mod.is-featured { grid-column: 1 / -1; }
-  .w-mod.is-featured { min-height: 0; padding: 18px; }
   /* 仪表带单列：全顶线 */
   .w-stat-row { grid-template-columns: minmax(0, 1fr); }
   .w-stat-row .w-stat + .w-stat { border-left: 0; border-top: 1px solid var(--ml-card-line-soft); }
@@ -1079,6 +1014,5 @@ html.gaea-raf-degraded .ml .w-status-dot {
   .w-cmd { height: auto; flex-wrap: wrap; padding: 10px 10px 10px 14px; gap: 8px; }
   .w-cmd-btn-label { display: none; }
   .w-kbd { display: none; }
-  .w-mod-mark { display: none; }
   .ml-strip-date { display: none; }
 }

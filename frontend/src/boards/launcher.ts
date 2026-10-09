@@ -18,11 +18,7 @@ export interface LauncherModule {
   icon: string
 }
 
-/**
- * 旗舰卡锚点（首页合一 v4.475：书斋/闲庭版式并一张后旗舰不再按空间查表）：
- *   办公工作台（gaea）——与旧版 work 旗舰一致的工作锚点。
- */
-export const LAUNCHER_FEATURED = 'gaea'
+// 旗舰卡锚点（LAUNCHER_FEATURED）随 v4.476 模块卡极简化退役：全卡同权无旗舰。
 
 // 卡片描述为 UI 文案（manifest 契约不含 desc），按板块 id 本地维护；
 // 名称/图标/顺序全部由 manifest 派生（3.0 §5.2，顺带补 memoryhub/characterlib 缺失入口）。
