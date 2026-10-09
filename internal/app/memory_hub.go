@@ -71,13 +71,17 @@ type WhisperEpisodeView struct {
 
 // MemoryHubOverview 记忆中枢聚合总览（各库统计 + 最近条目）。
 type MemoryHubOverview struct {
-	KnowledgeCount int    `json:"knowledgeCount"`
-	ProfileCount   int    `json:"profileCount"`
-	OfficeCount    int    `json:"officeCount"`
-	CostCount      int    `json:"costCount"`
-	WhisperCount   int    `json:"whisperCount"`
-	PinnedCount    int    `json:"pinnedCount"` // 项目资料：工作区固定常用文件数
-	LatestUpdated  string `json:"latestUpdated"`
+	KnowledgeCount int `json:"knowledgeCount"`
+	ProfileCount   int `json:"profileCount"`
+	OfficeCount    int `json:"officeCount"`
+	CostCount      int `json:"costCount"`
+	WhisperCount   int `json:"whisperCount"`
+	PinnedCount    int `json:"pinnedCount"` // 项目资料：工作区固定常用文件数
+	// 数据库存档（v4.479）：本设备聊天会话总数（活跃+归档）与上传附件总数，
+	// 作用域 = 当前 + 最近工作区（GaeaDatabaseOverview 同口径）。
+	SessionCount  int    `json:"sessionCount"`
+	UploadCount   int    `json:"uploadCount"`
+	LatestUpdated string `json:"latestUpdated"`
 }
 
 // hubProfileStore 构造主脑画像存储（nil 表示不可用）。
@@ -254,6 +258,13 @@ func (a *App) GaeaMemoryHubOverview() MemoryHubOverview {
 	ov.CostCount = len(costList)
 	ov.WhisperCount = len(whisperdb.LoadFactsFromDB(a.whisperDataRoot))
 	ov.PinnedCount = hubPinnedCount()
+	// 数据库存档计数（v4.479）：跨工作区走查会话/附件目录，只 stat 不读内容。
+	for _, root := range databaseRoots() {
+		active, archived, _, _ := walkSessionFiles(config.WorkspaceSessionDir(root, ""))
+		ov.SessionCount += active + archived
+		ups, _, _ := statUploadsDir(filepath.Join(root, ".gaea", "uploads"))
+		ov.UploadCount += ups
+	}
 
 	// 最近更新时间：知识库条目带 UpdatedAt；办公 facts/画像的时间由各自
 	// 后端维护（SQLite updated_at），前端按条目展示。

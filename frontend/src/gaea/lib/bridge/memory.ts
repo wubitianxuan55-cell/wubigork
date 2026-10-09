@@ -6,6 +6,7 @@ import type {
   KnowledgeImportPreview,
   KnowledgeSaveRequest,
   KnowledgeSummary,
+  DatabaseOverview,
   MemoryArchivedPage,
   MemoryLifecycleView,
   MemoryEvalReport,
@@ -19,6 +20,7 @@ import type {
   ProfileFactView,
   SimilarView,
   SkillSuggestion,
+  UploadFileRow,
   WeixinAssistantStatusRow,
   WeixinAssistantView,
   WeixinReminderConfigView,
@@ -79,6 +81,13 @@ export interface MemoryBindings {
   ProfileSave(f: ProfileFactView): Promise<void>;
   ProfileDelete(name: string): Promise<void>;
   ProfileConflicts(): Promise<string[]>;
+  // ── 数据库存档（v4.479：本设备聊天记录与上传文件管理）──
+  // DatabaseOverview 跨工作区（当前+最近）统计会话/归档/上传文件与磁盘占用。
+  DatabaseOverview(): Promise<DatabaseOverview>;
+  // UploadsList 指定工作区的上传文件列表（root 须在白名单内，否则空数组）。
+  UploadsList(root: string): Promise<UploadFileRow[]>;
+  // DeleteUpload 删除上传文件（护栏：路径必须落在白名单工作区的 .gaea/uploads 内）。
+  DeleteUpload(path: string): Promise<void>;
   WhisperMemories(): Promise<WhisperMemoryView[]>;
   // ── v4.3 会客厅：关系图谱 + 主动关心 ──
   // WhisperGraphSubgraph 返回指定人格关系图谱中以 entity 为中心、hops 跳内子图。

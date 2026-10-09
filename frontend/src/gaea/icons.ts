@@ -47,6 +47,7 @@ import {
   FolderOutlined,
   FullscreenOutlined,
   FullscreenExitOutlined,
+  DatabaseOutlined,
   GlobalOutlined,
   HolderOutlined,
   HomeOutlined,
@@ -169,6 +170,7 @@ export const Search: Icon = wrap(SearchOutlined);
 export const Shield: Icon = wrap(SafetyCertificateOutlined);
 export const Square: Icon = wrap(AppstoreOutlined);
 export const Trash2: Icon = wrap(DeleteOutlined);
+export const Database: Icon = wrap(DatabaseOutlined);
 export const TrendingUp: Icon = wrap(LineChartOutlined);
 export const User: Icon = wrap(UserOutlined);
 export const Wand2: Icon = wrap(BulbOutlined);

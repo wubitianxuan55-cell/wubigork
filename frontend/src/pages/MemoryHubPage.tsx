@@ -1,6 +1,7 @@
 import React, { Suspense, useEffect, useRef, useState } from "react";
 import {
   CloseOutlined,
+  DatabaseOutlined,
   FileSearchOutlined,
   HeartOutlined,
   HomeOutlined,
@@ -46,6 +47,9 @@ const MaterialsLibrary = React.lazy(() =>
 const DigitalLifeLibrary = React.lazy(() =>
   import("../gaea/components/memoryhub/DigitalLifeLibrary").then((m) => ({ default: m.DigitalLifeLibrary })),
 );
+const DatabaseLibrary = React.lazy(() =>
+  import("../gaea/components/memoryhub/DatabaseLibrary").then((m) => ({ default: m.DatabaseLibrary })),
+);
 const FilePreviewModal = React.lazy(() =>
   import("../gaea/components/FilePreviewModal").then((m) => ({ default: m.FilePreviewModal })),
 );
@@ -60,7 +64,7 @@ function HubViewFallback() {
   );
 }
 
-type LibraryKey = "knowledge" | "profile" | "office" | "materials" | "whisper" | "graph" | "digitallife";
+type LibraryKey = "knowledge" | "profile" | "office" | "materials" | "whisper" | "graph" | "digitallife" | "database";
 
 // 各库霓虹色（与 3D 图谱着色一致：indigo 知识 / amber 成本 / emerald 办公 / pink 聊天记忆）
 const LIB_COLORS: Record<LibraryKey, string> = {
@@ -71,6 +75,7 @@ const LIB_COLORS: Record<LibraryKey, string> = {
   whisper: "#f472b6", // hex-exempt 3D 图谱库着色
   graph: "#22d3ee", // hex-exempt 3D 图谱库着色
   digitallife: "#fb7185", // hex-exempt 3D 图谱库着色
+  database: "#2dd4bf", // hex-exempt 3D 图谱库着色（teal：数据库存档）
 };
 
 interface LibraryDef {
@@ -88,6 +93,7 @@ const LIBRARIES: LibraryDef[] = [
   { key: "whisper", label: "聊天记忆", icon: <HeartOutlined style={{ fontSize: 16 }} />, hint: "轻语人格记忆 · 只读" },
   { key: "graph", label: "记忆图谱", icon: <NodeIndexOutlined style={{ fontSize: 16 }} />, hint: "3D 关系图谱" },
   { key: "digitallife", label: "数字生命", icon: <RobotOutlined style={{ fontSize: 16 }} />, hint: "Herdsman 虚拟人格记忆" },
+  { key: "database", label: "数据库", icon: <DatabaseOutlined style={{ fontSize: 16 }} />, hint: "本设备聊天记录 · 上传文件" },
 ];
 
 // 图谱节点类型 → 语义色/标签/来源（与 GraphView 节点着色同源）
@@ -320,6 +326,7 @@ function MemoryHubPage() {
         office: overview.officeCount,
         materials: overview.pinnedCount,
         whisper: overview.whisperCount,
+        database: overview.sessionCount,
       }
     : { knowledge: "…", profile: "…", office: "…", materials: "…", whisper: "…" };
 
@@ -526,6 +533,7 @@ function MemoryHubPage() {
                   {active === "materials" && <MaterialsLibrary />}
                   {active === "whisper" && <WhisperMemoryLibrary />}
                   {active === "digitallife" && <DigitalLifeLibrary />}
+                  {active === "database" && <DatabaseLibrary />}
                 </LocaleProvider>
               </div>
             )}

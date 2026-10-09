@@ -32,6 +32,8 @@ type MemoryMethods = Pick<
   | "FactBase" | "FactBaseClear" | "FactBasePromote"
   | "MemoryHubOverview" | "ProfileList" | "ProfileSave" | "ProfileDelete"
   | "ProfileConflicts" | "ProfileResolveConflict"
+  // 数据库存档（v4.479：本设备聊天记录与上传文件管理）
+  | "DatabaseOverview" | "UploadsList" | "DeleteUpload"
 | "WhisperMemories" | "WhisperEpisodes" | "WhisperEpisodeReplay" | "WhisperAnchors" | "WhisperAnchorReplay" | "WhisperMemoryRetell" | "WhisperCausalExplain" | "WhisperExportArchive" | "MemoryGraph"
   // 轻语主动式频控配置对（v4.3c play 空间；批 44 NOT_MOCKED 续刀）。
   | "WhisperProactiveConfig" | "WhisperProactiveSetConfig"
@@ -188,7 +190,17 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
     },
     // ── 记忆中枢 Mock ────────────────────────────────────────
     async MemoryHubOverview() {
-      return { knowledgeCount: 4, profileCount: 0, officeCount: 0, costCount: 2, whisperCount: 0, pinnedCount: pinnedMock.length, latestUpdated: "" };
+      return { knowledgeCount: 4, profileCount: 0, officeCount: 0, costCount: 2, whisperCount: 0, pinnedCount: pinnedMock.length, sessionCount: 0, uploadCount: 0, latestUpdated: "" };
+    },
+    // ── 数据库存档 mock（v4.479）：浏览器开发态无设备存档，空态/no-op。──
+    async DatabaseOverview() {
+      return { projects: [], totalSessions: 0, totalArchived: 0, totalUploads: 0, totalBytes: 0 };
+    },
+    async UploadsList(_root: string) {
+      return [];
+    },
+    async DeleteUpload(_path: string) {
+      // mock: no-op——浏览器开发态无文件可删。
     },
     async ProfileList() {
       return [];

@@ -98,6 +98,40 @@ export type ProfileFactView = WireShape<AppModels.ProfileFactView>;
 // MemoryHubOverview 记忆中枢聚合总览。
 export type MemoryHubOverview = WireShape<AppModels.MemoryHubOverview>;
 
+// ── 数据库存档（v4.479：本设备聊天记录与上传文件管理）────────────────
+// 手写接口（MemoryEvalReport 先例：不依赖 wailsjs 生成物，防包环）。
+
+// DatabaseProjectStats 一个工作区的数据库存档统计。
+export interface DatabaseProjectStats {
+  path: string;
+  name: string;
+  current: boolean;
+  sessionCount: number; // 活跃会话（.jsonl，不含归档）
+  archivedCount: number; // 归档会话（archive/ 子树）
+  sessionBytes: number;
+  uploadCount: number; // .gaea/uploads 文件数
+  uploadBytes: number;
+  latestMod: number; // 会话+附件最近 mtime（UnixMilli；0=无记录）
+}
+
+// DatabaseOverview 本设备数据库存档总览。
+export interface DatabaseOverview {
+  projects: DatabaseProjectStats[];
+  totalSessions: number;
+  totalArchived: number;
+  totalUploads: number;
+  totalBytes: number;
+}
+
+// UploadFileRow 一条上传文件（.gaea/uploads 内）。
+export interface UploadFileRow {
+  name: string;
+  path: string;
+  size: number;
+  modTime: number;
+  kind: "attach" | "paste" | "other"; // attach=上传附件 paste=粘贴图片
+}
+
 // ── 记忆图谱 ────────────────────────────────────────────────────────
 export type GraphNode = WireShape<AppModels.GraphNode>;
 export type GraphLink = WireShape<AppModels.GraphLink>;

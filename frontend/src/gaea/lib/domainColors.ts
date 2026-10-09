@@ -15,6 +15,7 @@ export const DOMAIN_COLORS: Record<string, string> = {
   office: "#34d399", // emerald
   whisper: "#f472b6", // pink：聊天/情节记忆
   material: "#38bdf8", // sky：项目资料（固定常用文件）
+  database: "#2dd4bf", // teal：数据库存档（本设备聊天记录/上传文件）
   cost: "#fbbf24", // amber：成本条目
   entity: "#5eead4", // teal：语义图谱·记忆实体（事件日志投影）
   event: "#94a3b8", // slate：语义图谱·记忆事件

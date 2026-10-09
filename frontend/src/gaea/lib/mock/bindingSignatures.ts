@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 643 名（原生变参 7 名已收窄标注）。
+// 共 646 名（原生变参 7 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -154,8 +154,10 @@ export const bindingSignatures = {
   GaeaDataBackupRestore: { argc: 1, variadic: false, params: "zipPath string" },
   GaeaDataBackupRestoreResult: { argc: 0, variadic: false, params: "" },
   GaeaDataBackupRollback: { argc: 0, variadic: false, params: "" },
+  GaeaDatabaseOverview: { argc: 0, variadic: false, params: "" },
   GaeaDeleteProvider: { argc: 1, variadic: false, params: "name string" },
   GaeaDeleteSession: { argc: 1, variadic: false, params: "path string" },
+  GaeaDeleteUpload: { argc: 1, variadic: false, params: "path string" },
   GaeaDeliverableRegistry: { argc: 1, variadic: false, params: "sessionPath string" },
   GaeaDismissMemorySuggestion: { argc: 1, variadic: false, params: "id string" },
   GaeaDocumentLint: { argc: 1, variadic: false, params: "rel string" },
@@ -355,6 +357,7 @@ export const bindingSignatures = {
   GaeaUnifiedSearch: { argc: 3, variadic: true, params: "query string, topN int, scope string" }, // 原生变参已收窄：门面单值透传（原始 ...T）
   GaeaUnpinMaterial: { argc: 1, variadic: false, params: "rel string" },
   GaeaUpdateFact: { argc: 2, variadic: false, params: "name string, body string" },
+  GaeaUploadsList: { argc: 1, variadic: false, params: "root string" },
   GaeaUsageOverview: { argc: 0, variadic: false, params: "" },
   GaeaVerifyRecord: { argc: 1, variadic: false, params: "id string" },
   GaeaVersion: { argc: 0, variadic: false, params: "" },
@@ -664,5 +667,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 643。
-export const bindingSignatureCount = 643;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 646。
+export const bindingSignatureCount = 646;
