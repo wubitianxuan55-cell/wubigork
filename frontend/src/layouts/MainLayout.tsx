@@ -406,6 +406,24 @@ const MainLayout: React.FC = () => {
   const checkLogin = useAppStore((s) => s.checkLogin)
   const baseTheme = useAppStore((s) => s.baseTheme)
   const darkMode = useAppStore((s) => s.darkMode)
+  // 主题色点双态样式（浅色可见性修复，2026-10-09 用户报告「弹窗选择全是一个颜色」）：
+  // 旧样式为暗色系设计——非激活 0.55 透明度 + 辉光阴影，在浅色白底上把七色洗成
+  // 一样的浅灰圈。暗色保持原辉光语言；浅色=满透明度 + 深色描边环 + 无辉光。
+  const themeDotStyle = (color: string, active: boolean): React.CSSProperties => darkMode
+    ? {
+        background: `radial-gradient(circle at 35% 30%, ${color}, color-mix(in srgb, ${color} 55%, #000))`,
+        border: active ? '2px solid var(--gaea-glow)' : '2px solid transparent',
+        boxShadow: active
+          ? `0 0 10px ${color}, 0 0 20px color-mix(in srgb, ${color} 45%, transparent)`
+          : `0 0 6px color-mix(in srgb, ${color} 30%, transparent)`,
+        opacity: active ? 1 : 0.55,
+      }
+    : {
+        background: `radial-gradient(circle at 35% 30%, ${color}, color-mix(in srgb, ${color} 62%, #000))`,
+        border: active ? '2px solid var(--color-text)' : '1px solid color-mix(in srgb, var(--color-text) 24%, transparent)',
+        boxShadow: 'none',
+        opacity: active ? 1 : 0.92,
+      }
   const setTheme = useAppStore((s) => s.setTheme)
   const toggleDarkMode = useAppStore((s) => s.toggleDarkMode)
   const projectOpen = useAppStore((s) => s.projectOpen)
@@ -716,11 +734,8 @@ const MainLayout: React.FC = () => {
                           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTheme(t); setThemeOpen(false) } }}
                           style={{
                             width: 16, height: 16, borderRadius: '50%',
-                            background: `radial-gradient(circle at 35% 30%, ${themeDots[t]}, color-mix(in srgb, ${themeDots[t]} 55%, #000))`,
+                            ...themeDotStyle(themeDots[t], active),
                             cursor: 'pointer',
-                            border: active ? '2px solid var(--gaea-glow)' : '2px solid transparent',
-                            boxShadow: active ? `0 0 10px ${themeDots[t]}, 0 0 20px color-mix(in srgb, ${themeDots[t]} 45%, transparent)` : `0 0 6px color-mix(in srgb, ${themeDots[t]} 30%, transparent)`,
-                            opacity: active ? 1 : 0.55,
                             transform: active ? 'scale(1.1)' : 'scale(1)',
                             transition: 'opacity 0.15s, border 0.15s, transform 0.2s, box-shadow 0.2s',
                           }}
@@ -743,10 +758,8 @@ const MainLayout: React.FC = () => {
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setThemeOpen((o) => !o) } }}
                   style={{
                     width: 16, height: 16, borderRadius: '50%',
-                    background: `radial-gradient(circle at 35% 30%, ${themeDots[baseTheme]}, color-mix(in srgb, ${themeDots[baseTheme]} 55%, #000))`,
+                    ...themeDotStyle(themeDots[baseTheme], true),
                     cursor: 'pointer',
-                    border: '2px solid var(--gaea-glow)',
-                    boxShadow: `0 0 8px color-mix(in srgb, ${themeDots[baseTheme]} 40%, transparent)`,
                     transition: 'box-shadow 0.2s',
                   }}
                 />

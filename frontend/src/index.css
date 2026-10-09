@@ -563,6 +563,12 @@ body {
 }
 
 /* ── 主题色块 hover / focus ── */
+/* display 补丁（2026-10-09 用户报告「主题弹窗选择全是一个颜色」）：span 默认
+   inline，width/height 被忽略——七颗点全部塌成一样的细竖条；inline-block 后
+   16px 圆点才成立。 */
+.theme-dot {
+  display: inline-block;
+}
 .theme-dot:hover {
   transform: scale(1.22) !important;
   opacity: 1 !important;
