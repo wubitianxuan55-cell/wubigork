@@ -145,6 +145,34 @@ func TestGaeaDeleteUpload(t *testing.T) {
 	}
 }
 
+// dedupeRoots：同路径异写法（斜杠/盘符大小写）归一去重、不存在目录过滤、保序。
+func TestDedupeRoots(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "ws"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "other"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	got := dedupeRoots([]string{
+		filepath.Join(dir, "ws"),
+		filepath.Join(dir, "ws") + "/",                                // 同路径异斜杠
+		strings.ToUpper(filepath.Join(dir, "ws")[:3]) + filepath.Join(dir, "ws")[3:], // 盘符大写
+		filepath.Join(dir, "missing"),                                 // 不存在
+		"   ",                                                         // 空白
+		filepath.Join(dir, "other"),
+	})
+	if len(got) != 2 {
+		t.Fatalf("dedupe = %v, want 2（ws+other）", got)
+	}
+	if got[0] != filepath.Join(dir, "ws") || got[1] != filepath.Join(dir, "other") {
+		t.Fatalf("dedupe 顺序/写法 = %v", got)
+	}
+	if r := dedupeRoots(nil); len(r) != 0 {
+		t.Fatalf("nil = %v", r)
+	}
+}
+
 // MemoryHubOverview 新计数：sessionCount/uploadCount 随数据库存档走。
 // 注意：①whisperDataRoot 经 whisperState 指针提升——裸 App 必须构造
 // whisperState（nil 解引用，characterlib_handler_test 同款）；②总览会经

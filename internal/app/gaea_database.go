@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -59,18 +60,32 @@ type UploadFileRow struct {
 
 // databaseRoots 返回数据库存档的作用域 roots：当前工作区 + 最近工作区
 // （去重、仍存在且为目录）。与 GaeaListProjectSessions 的 roots 口径一致。
+// 去重键=Clean+小写归一：recent-workspaces 历史条目可能同路径两种斜杠风格
+// （"C:/AI/x" 与 "C:\AI\x"）甚至盘符大小写不同，原样去重会重复统计。
 func databaseRoots() []string {
 	roots := []string{gaeaCwd()}
-	seen := map[string]bool{roots[0]: true}
-	for _, p := range config.LoadRecentWorkspaces() {
-		if p == "" || seen[p] {
+	roots = append(roots, config.LoadRecentWorkspaces()...)
+	return dedupeRoots(roots)
+}
+
+// dedupeRoots 归一化去重并过滤不存在的目录（保序：首个原始写法胜出，
+// 供前端展示/回传）。大小写折叠仅 Windows（Linux 路径大小写敏感，折叠会
+// 误并不同目录）。
+func dedupeRoots(roots []string) []string {
+	seen := map[string]bool{}
+	out := []string{}
+	for _, r := range roots {
+		if strings.TrimSpace(r) == "" {
 			continue
 		}
-		seen[p] = true
-		roots = append(roots, p)
-	}
-	out := roots[:0]
-	for _, r := range roots {
+		key := filepath.Clean(r)
+		if runtime.GOOS == "windows" {
+			key = strings.ToLower(key)
+		}
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
 		if info, err := os.Stat(r); err == nil && info.IsDir() {
 			out = append(out, r)
 		}

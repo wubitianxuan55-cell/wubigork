@@ -107,13 +107,39 @@ describe("DatabaseLibrary 记忆中枢数据库存档库（v4.479）", () => {
     await waitFor(() => expect(mocks.deleteUpload).toHaveBeenCalledWith("C:/AI/demo/.gaea/uploads/attach-1-report.pdf"));
   });
 
-  it("删除失败可见化：错误横幅显示而非静默", async () => {
+  it("删除失败可见化：错误横幅显示且可关闭", async () => {
     mocks.deleteSession.mockRejectedValue(new Error("当前会话不可删除"));
     render(<DatabaseLibrary />);
     await screen.findByTestId("db-stats");
     const delBtns = screen.getAllByTestId("db-session-delete");
     fireEvent.click(delBtns[0]);
     fireEvent.click(delBtns[0]);
-    expect(await screen.findByTestId("db-error")).toBeTruthy();
+    const banner = await screen.findByTestId("db-error");
+    expect(banner.textContent).toContain("会话删除失败");
+    // 关闭钮可横幅移除
+    fireEvent.click(screen.getByRole("button", { name: "关闭错误提示" }));
+    expect(screen.queryByTestId("db-error")).toBeNull();
+  });
+
+  it("统计带占位：错误态显「—」而非加载态「…」", async () => {
+    mocks.databaseOverview.mockRejectedValue(new Error("绑定不可达"));
+    mocks.listProjectSessions.mockRejectedValue(new Error("绑定不可达"));
+    render(<DatabaseLibrary />);
+    const stats = await screen.findByTestId("db-stats");
+    await screen.findByTestId("db-error");
+    expect(stats.textContent).toContain("—");
+  });
+
+  it("项目超大被侧栏上限截断时如实提示（总览计数 > 行数）", async () => {
+    // 总览报 60 条，列表只回 2 条 = 截断
+    const big: DatabaseOverview = {
+      ...overview,
+      projects: [{ ...overview.projects[0], sessionCount: 59, archivedCount: 1 }],
+      totalSessions: 59,
+    };
+    mocks.databaseOverview.mockResolvedValue(big);
+    render(<DatabaseLibrary />);
+    await screen.findByTestId("db-stats");
+    expect(await screen.findByTestId("db-capped-note")).toBeTruthy();
   });
 });
