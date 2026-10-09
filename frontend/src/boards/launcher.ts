@@ -9,7 +9,6 @@
  * 缺失时兜底 = manifest.label。
  */
 import type { BoardManifest } from './types'
-import { isBoardReachableInSpace, type ShellSpace } from './space'
 
 /** 启动器卡片模块（icon 为图标注册表名，渲染处 resolveBoardIcon 解析） */
 export interface LauncherModule {
@@ -20,12 +19,10 @@ export interface LauncherModule {
 }
 
 /**
- * 每空间旗舰卡（Bento 能力矩阵锚点，瘦身 P2：双空间并列落地）：
- *   work = 办公工作台（gaea，旗舰锚点同旧版），play = 聊天（chat，
- *   「乐园=会客厅」沉浸对话语义）。渲染层按当前壳层空间查表取旗舰；
- *   板块不在当前空间可达清单时自然查不到（undefined）→ 走既有条件渲染兜底。
+ * 旗舰卡锚点（首页合一 v4.475：书斋/闲庭版式并一张后旗舰不再按空间查表）：
+ *   办公工作台（gaea）——与旧版 work 旗舰一致的工作锚点。
  */
-export const LAUNCHER_FEATURED: Record<ShellSpace, string> = { work: 'gaea', play: 'chat' }
+export const LAUNCHER_FEATURED = 'gaea'
 
 // 卡片描述为 UI 文案（manifest 契约不含 desc），按板块 id 本地维护；
 // 名称/图标/顺序全部由 manifest 派生（3.0 §5.2，顺带补 memoryhub/characterlib 缺失入口）。
@@ -47,19 +44,17 @@ export const LAUNCHER_DESC: Record<string, string> = {
 /**
  * 启动器模块清单 = 非 home 且可达（inMenu 或 settings 隐式入口）的板块，
  * 按 menuOrder 升序（undefined 视为无穷大，与 manifests.ts 其它派生视图一致；
- * filter 已产出新数组，sort 不污染入参）。space 可选：传入时按空间过滤
- * （S2.1 双首页，shared + 当前空间）；不传 = 全量（保持旧调用语义）。
+ * filter 已产出新数组，sort 不污染入参）。v4.475 首页合一：不再按壳层空间
+ * 过滤（书斋+闲庭一屏尽收），space 参数随双首页退役。
  * desc 取 descMap 覆盖文案，缺失兜底 = manifest.label；icon 字段透传图标
  * 注册表名（渲染处解析）。
  */
 export function deriveLauncherModules(
   list: BoardManifest[],
   descMap: Record<string, string>,
-  space?: ShellSpace,
 ): LauncherModule[] {
   return list
     .filter((b) => !b.isHome && (b.inMenu || b.id === 'settings'))
-    .filter((b) => !space || isBoardReachableInSpace(b, space))
     .sort((a, b) => (a.menuOrder ?? Number.MAX_SAFE_INTEGER) - (b.menuOrder ?? Number.MAX_SAFE_INTEGER))
     .map((b) => ({
       key: b.id,

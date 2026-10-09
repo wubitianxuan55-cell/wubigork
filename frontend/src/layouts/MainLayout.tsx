@@ -278,8 +278,9 @@ const TelemetryRail: React.FC<{ stats: StatsData | null; info: ProjectInfo | nul
 
 // ─── 指挥轨道（左侧 · OS 极简窄条）────────────────────────────────
 // 固定窄栏、纯图标、hover 微缩放 + 原生 tooltip（title）、激活 = 主色容器 + 底部指示光条。
-// v4.182 空间切换器迁移首页顶栏（ModuleLauncher SpaceSwitch——用户拍板：切换在首页更顺手）；
-// rail 顶部改为当前空间指示徽标（非交互，title 提示切换入口在首页顶栏）。
+// v4.182 空间切换器曾迁移首页顶栏；v4.475 首页合一后手动切换钮退役——切空间
+// 完全由板块导航隐式驱动（navigateBoard 自动切换），rail 顶部保留当前空间
+// 指示徽标（非交互，仅告知所处分域）。
 // rail 主体按当前空间分域（getActiveMenuBoardsForSpace——shared 恒在 / independent
 // 剔除 / settings inMenu:false 不在 rail）；independent 独立窗口板块仅经 foot 单列
 // （v4.439 编程板块删除后该分面暂为空集，foot 段自动隐藏）。
@@ -314,7 +315,7 @@ export const CommandRail: React.FC<{
       <div className="v3-rail-head">
         <img src="/favicon.svg" alt="gaea" />
       </div>
-      {/* v4.182：当前空间指示徽标（非交互；切换入口迁至首页顶栏 SpaceSwitch） */}
+      {/* 当前空间指示徽标（非交互；v4.475 合一后切空间由板块导航隐式驱动） */}
       <div
         className="v3-rail-space is-indicator"
         data-testid="v3-rail-space-indicator"
@@ -814,9 +815,6 @@ const MainLayout: React.FC = () => {
                             {p === getActiveHomeBoard().id
                               ? <ModuleLauncher
                                   onNavigate={(target: LauncherTarget) => navigateBoard(target as Page)}
-                                  activeModel={activeModel || undefined}
-                                  space={space}
-                                  onSwitchSpace={switchSpace}
                                 />
                               : Comp ? <Comp /> : null}
                           </ErrorBoundary>

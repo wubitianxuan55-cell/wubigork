@@ -5,6 +5,7 @@ import { app } from "../lib/bridge";
 import { useT, type Translator } from "../lib/i18n";
 import type { DictKey } from "../locales/en";
 import type { ShellSpace } from "../../boards/space";
+import { SHELL_SPACES } from "../../boards/space";
 import type { TaskInboxStatus, TaskInboxView } from "../lib/types";
 import V3Empty from "../../components/V3Empty";
 
@@ -79,10 +80,16 @@ function nextActions(status: TaskInboxStatus): { to: TaskInboxStatus; labelKey: 
   }
 }
 
+/** 任务归属空间展示名（work/play 之外的历史值如实回退原串） */
+function spaceLabel(space: string): string {
+  return SHELL_SPACES.find((s) => s.id === space)?.label ?? space;
+}
+
 /** 单行任务卡：标题 + 来源 Tag + 相对时间 + note 折叠 + 动作行 */
 function TaskRow({
   task,
   busy,
+  showSpace,
   onSetStatus,
   onDelete,
   onNavigate,
@@ -90,6 +97,8 @@ function TaskRow({
 }: {
   task: TaskInboxView;
   busy: boolean;
+  /** 跨空间混合清单（scope=''）时展示归属空间标（书斋/闲庭），分空间清单不展示 */
+  showSpace?: boolean;
   onSetStatus: (id: string, status: TaskInboxStatus) => void;
   onDelete: (id: string) => void;
   onNavigate?: (boardId: string) => void;
@@ -110,6 +119,11 @@ function TaskRow({
         <Text strong className="!text-[12px]" style={{ color: "var(--md-sys-color-text)" }} ellipsis={{ tooltip: task.title }}>
           {task.title}
         </Text>
+        {showSpace && (
+          <Tag className="!m-0 shrink-0" style={{ fontSize: 10, lineHeight: "16px" }}>
+            {spaceLabel(task.space)}
+          </Tag>
+        )}
         <Tag className="!m-0 shrink-0" style={{ fontSize: 10, lineHeight: "16px" }}>
           {sourceLabel(task.source, t)}
         </Tag>
@@ -180,12 +194,16 @@ export function TaskInboxPanel({
   open,
   onClose,
   space,
+  scope,
   onNavigate,
   onResumeSession,
 }: {
   open: boolean;
   onClose: () => void;
+  /** 新建任务的归属标签（Go ValidSpace 仅收 work|play） */
   space: ShellSpace;
+  /** 列表口径：壳层空间或 ''（跨空间全量）；缺省 = space（首页合一 v4.475 传 ''） */
+  scope?: ShellSpace | "";
   /** 板块级跳转（ModuleLauncher 既有 onNavigate；缺省时跳转按钮不渲染） */
   onNavigate?: (boardId: string) => void;
   /** 会话级回源（7.3-1 收口）：透传 Board。 */
@@ -223,7 +241,7 @@ export function TaskInboxPanel({
         </div>
       }
     >
-      <TaskInboxBoard space={space} active={open} onNavigate={onNavigate} onPendingChange={setPending} onResumeSession={onResumeSession} />
+      <TaskInboxBoard space={space} scope={scope} active={open} onNavigate={onNavigate} onPendingChange={setPending} onResumeSession={onResumeSession} />
     </Modal>
   );
 }
@@ -237,12 +255,16 @@ export function TaskInboxPanel({
  */
 export function TaskInboxBoard({
   space,
+  scope,
   active,
   onNavigate,
   onPendingChange,
   onResumeSession,
 }: {
+  /** 新建任务的归属标签（Go ValidSpace 仅收 work|play） */
   space: ShellSpace;
+  /** 列表口径：壳层空间或 ''（跨空间全量）；缺省 = space（首页合一 v4.475 传 ''） */
+  scope?: ShellSpace | "";
   /** 激活态（false=挂载但不拉取；内嵌首页恒 true） */
   active: boolean;
   onNavigate?: (boardId: string) => void;
@@ -251,6 +273,9 @@ export function TaskInboxBoard({
   onResumeSession?: (path: string) => void;
 }) {
   const t = useT();
+  // 列表口径与保存标签分离：合并清单（scope=''）照常跨空间展示，新建仍落
+  // 当前壳层空间标签（标签=归属元数据，不随展示口径漂移）
+  const listScope = scope ?? space;
   const [tasks, setTasks] = useState<TaskInboxView[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -263,7 +288,7 @@ export function TaskInboxBoard({
     setLoading(true);
     let alive = true;
     app
-      .GaeaTaskInboxList(space)
+      .GaeaTaskInboxList(listScope)
       .then((list: unknown) => {
         if (alive) {
           setTasks((list ?? []) as TaskInboxView[]);
@@ -283,7 +308,7 @@ export function TaskInboxBoard({
     return () => {
       alive = false;
     };
-  }, [space]);
+  }, [listScope]);
 
   useEffect(() => {
     if (!active) return;
@@ -423,6 +448,7 @@ export function TaskInboxBoard({
                 key={task.id}
                 task={task}
                 busy={busyId !== null}
+                showSpace={listScope === ""}
                 onSetStatus={setStatus}
                 onDelete={remove}
                 onNavigate={onNavigate}

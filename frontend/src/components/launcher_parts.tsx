@@ -178,7 +178,8 @@ const MemoryPulse: React.FC<{ memoryHub: MemoryHubLite | null }> = ({ memoryHub 
  * row=true 为闲庭园底信息带的横排形态（全宽第五节），默认纵排对齐记忆脉搏。
  */
 const TaskInboxEntry: React.FC<{
-  space: ShellSpace
+  /** 列表口径：壳层空间或 ''（首页合一 v4.475：首页挂点传 '' = 跨空间全量） */
+  space: ShellSpace | ''
   tick: number
   onOpen: () => void
   row?: boolean

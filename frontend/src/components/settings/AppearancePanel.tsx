@@ -348,7 +348,7 @@ export const MotionPanel: React.FC = () => {
 }
 
 /** HomeLayoutPanel — 首页形态（7.3-2 板块降级为任务视图）：经典 / 任务优先。
- *  回退开关的正式位（首页 SpaceSwitch 条的快捷钮为另一入口，同源 appStore）。 */
+ *  回退开关的正式位（首页顶栏 HomeStrip 的快捷钮为另一入口，同源 appStore）。 */
 export const HomeLayoutPanel: React.FC = () => {
   const t = useT()
   const homeLayout = useAppStore((s) => s.homeLayout)

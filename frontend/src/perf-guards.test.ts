@@ -74,12 +74,7 @@ describe('布局守卫（v4.349）', () => {
     expect(src.match(/whiteSpace: 'nowrap', flexShrink: 0/g)?.length).toBe(2)
   })
 
-  it('海报墙描述有行数上限（overflow:hidden 定高卡不再静默裁切）', () => {
-    const css = read('components/module-launcher.css')
-    const block = css.slice(css.indexOf('.p-poster-desc {'), css.indexOf('.p-poster-go {'))
-    expect(block).toContain('-webkit-line-clamp: 3')
-    expect(block).toContain('overflow: hidden')
-  })
+  // 海报墙描述行数上限守卫随 garden 版式退役（v4.475 首页合一，.p-poster-desc 已删）
 })
 
 describe('可访问性守卫（v4.349）', () => {

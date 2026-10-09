@@ -88,73 +88,14 @@ describe('deriveLauncherModules（启动器清单纯函数）', () => {
     expect(input.map((b) => b.id)).toEqual(before)
   })
 
-  it('S2.1 双首页：按空间过滤（shared + 当前空间），工位不含乐园板块', () => {
-    const work = deriveLauncherModules(canonicalBoards, LAUNCHER_DESC, 'work')
-    const workKeys = work.map((m) => m.key)
-    expect(workKeys).toContain('gaea')
-    expect(workKeys).toContain('cost')
-    expect(workKeys).toContain('memoryhub')
-    expect(workKeys).not.toContain('novel')
-    expect(workKeys).not.toContain('imagegen')
-    expect(workKeys).not.toContain('characterlib')
-    expect(workKeys).not.toContain('sin') // 原罪是闲庭（play）板块
-    expect(workKeys).not.toContain('code') // 编程板块已删除（v4.439），不进双首页
-    expect(workKeys).not.toContain('chat') // P1：对话降为对话流，工位首页不出聊天卡
-  })
-
-  it('S2.1 双首页：乐园不含工位板块，含小说/绘梦/角色', () => {
-    const play = deriveLauncherModules(canonicalBoards, LAUNCHER_DESC, 'play')
-    const playKeys = play.map((m) => m.key)
-    expect(playKeys).toContain('novel')
-    expect(playKeys).toContain('imagegen')
-    expect(playKeys).toContain('characterlib')
-    expect(playKeys).toContain('chat') // 乐园=会客厅沉浸对话
-    expect(playKeys).toContain('sin') // 原罪（图文故事创作）只在乐园
-    expect(playKeys).not.toContain('gaea')
-    expect(playKeys).not.toContain('cost')
-    expect(playKeys).not.toContain('memoryhub')
-    expect(playKeys).not.toContain('code') // 编程板块已删除（v4.439）
-  })
-
-  it('不传 space = 全量（旧调用语义不变）', () => {
+  it('全量派生（v4.475 首页合一：书斋+闲庭一屏尽收）', () => {
     const all = deriveLauncherModules(canonicalBoards, LAUNCHER_DESC)
     expect(all.map((m) => m.key)).toContain('novel')
     expect(all.map((m) => m.key)).toContain('gaea')
   })
 
-  it('瘦身 P2：LAUNCHER_FEATURED 每空间旗舰（work=gaea 办公 / play=chat 会客厅）', () => {
-    expect(LAUNCHER_FEATURED.work).toBe('gaea')
-    expect(LAUNCHER_FEATURED.play).toBe('chat')
-    // 键覆盖双空间全集：每个壳层空间必有旗舰
-    expect(Object.keys(LAUNCHER_FEATURED).sort()).toEqual(['play', 'work'])
-  })
-
-  it('瘦身 P2：工位 Bento = shared（模型/设置）+ work（办公/造价/记忆/青鸟），排除乐园板块', () => {
-    const work = deriveLauncherModules(canonicalBoards, LAUNCHER_DESC, 'work')
-    const keys = work.map((m) => m.key)
-    // 可达：当前空间 work 板块 + shared 板块
-    for (const k of ['gaea', 'cost', 'memoryhub', 'weixin', 'modelcenter', 'settings']) {
-      expect(keys, k).toContain(k)
-    }
-    // 不可达：play 板块（编程 independent 已随板块删除）
-    for (const k of ['chat', 'novel', 'imagegen', 'characterlib', 'code', 'sin']) {
-      expect(keys, k).not.toContain(k)
-    }
-    expect(keys.filter((k) => k === 'settings')).toHaveLength(1)
-  })
-
-  it('瘦身 P2：乐园 Bento = shared（模型/设置）+ play（聊天/小说/绘梦/角色），排除工位板块', () => {
-    const play = deriveLauncherModules(canonicalBoards, LAUNCHER_DESC, 'play')
-    const keys = play.map((m) => m.key)
-    // 可达：当前空间 play 板块 + shared 板块
-    for (const k of ['chat', 'novel', 'imagegen', 'characterlib', 'modelcenter', 'settings', 'sin']) {
-      expect(keys, k).toContain(k)
-    }
-    // 不可达：work 板块（含青鸟；编程 independent 已随板块删除）
-    for (const k of ['gaea', 'cost', 'memoryhub', 'weixin', 'code']) {
-      expect(keys, k).not.toContain(k)
-    }
-    expect(keys.filter((k) => k === 'settings')).toHaveLength(1)
+  it('首页合一（v4.475）：LAUNCHER_FEATURED 收敛为单一旗舰 gaea 办公（不再按空间查表）', () => {
+    expect(LAUNCHER_FEATURED).toBe('gaea')
   })
 })
 
