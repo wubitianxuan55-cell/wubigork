@@ -1,3 +1,6 @@
+## v4.479.0 · 记忆中枢新增「数据库」库：本设备聊天记录与上传文件跨工作区管理（2026-10-09）
+> 用户指令「记忆中枢增加数据库，管理此设备上保存的聊天记录和上传的文件」。新库作用域=当前+最近工作区（与侧边栏项目视图同口径，避免「办公记忆按项目过滤」的旧困惑）：聊天记录=各工作区 `.gaea/sessions/` 的 .jsonl 档（活跃/归档分开计，含 work/play 分区）；上传的文件=`.gaea/uploads/`（attach-* 附件、paste-* 粘贴图）。三新绑定 GaeaDatabaseOverview（按工作区计数/字节/最近活动统计带）/GaeaUploadsList（按项目展开懒加载）/GaeaDeleteUpload（uploads 白名单护栏，双侧 Clean 防历史正斜杠路径误拒），会话删除/定位/预览复用既有绑定与全局 FilePreviewModal；删除一律两段确认+失败横幅可见化；hub 总览加 sessionCount/uploadCount 供 rail 角标。绑定面 646（+3，bindingNames 手工同步、signatures 再生、MemoryB 门面委托、完整性测试核验）。vitest 3796/440 全绿、go test app 包全绿。详见 `releases/v4.479.0.md`。
+
 ## v4.478.0 · 记忆建议可见性三断点修复：挂载即首拉 + 队列溢出如实上报（2026-10-09）
 > 用户追问「建议制为什么不弹窗让我确认」。诊断=v4.377 建议制的拉式交互拉手没接上，三断点叠加成「薛定谔的建议」：①入队提醒只是会话流一行 notice，错过即无痕；②记忆面板「建议」tab 唯一加载入口是手动「扫描建议」按钮，角标/统计卡在首次扫描前恒 0（实盘队列满仓 30 条无人知晓）；③队列 FIFO 满 30 静默丢最旧、无警告。本版修②③：面板挂载即静默首拉 `MemorySuggestions`（纯读零 LLM，角标/统计卡/建议 tab 三面真实计数，失败静默可手动重扫）；`dreamPendingAppend` 返回挤掉条数，溢出 notice 如实说明并升 Warn（数据丢失不再静默）。测试：MemoryPanel 重写 2 例钉旧行为用例+新增挂载首拉/真实计数 2 例；Go 新增 TestDreamSuggestNoticeLevel+FIFO 溢出断言；vitest 3792/439 全绿、go test app 包全绿。详见 `releases/v4.478.0.md`。
 
