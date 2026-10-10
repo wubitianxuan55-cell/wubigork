@@ -42,7 +42,7 @@ func TestPlainChatOfflineFilter(t *testing.T) {
 	}
 
 	// 停用全部本地引擎（仅剩云端 xai）→ 路由为空。
-	for _, id := range []string{"herdsman", "modelhub"} {
+	for _, id := range []string{"herdsman", "modelhub", "strata"} {
 		if e, ok := c.engineMgr.GetEngine(id); ok {
 			e.Enabled = false
 			if err := c.engineMgr.SaveEngine(*e); err != nil {

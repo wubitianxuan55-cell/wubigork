@@ -36,7 +36,9 @@ export interface EngineConfig {
   // custom = 用户自建 OpenAI 兼容服务商（A 刀），id 以 custom- 开头
   // modelhub = Unsloth 本地 Model Hub（Desktop/Studio 选模型下载后 unsloth run/start
   // 暴露 OpenAI 兼容 /v1；Key 为 sk-unsloth-，Unsloth 设置 → API 创建）
-  type: 'xai' | 'ollama' | 'herdsman' | 'deepseek' | 'glm' | 'cosyvoice' | 'opencode-go' | 'opencode-zen' | 'modelhub' | 'custom'
+  // strata = 本地 Strata 推理引擎（Qwen3.8-Flash-Next 125B MoE，默认 127.0.0.1:8091/v1，
+  // 免鉴权；离线模式按本地引擎放行）
+  type: 'xai' | 'ollama' | 'herdsman' | 'deepseek' | 'glm' | 'cosyvoice' | 'opencode-go' | 'opencode-zen' | 'modelhub' | 'custom' | 'strata'
   label?: string
   color?: string
   icon?: string

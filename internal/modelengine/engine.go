@@ -43,6 +43,12 @@ const (
 	// customKeys（落盘走 config 层 custom_engine_keys 密文）。IsLocal=false（云端语义，
 	// 全局离线模式下与其他云端引擎一致被门控）。
 	EngineCustom EngineType = "custom"
+	// EngineStrata 本地 Strata 推理引擎（Windows/Strix Halo gfx1151 路径实测）：
+	// 开源推理引擎，跑 Qwen3.8-Flash-Next 125B MoE（GSQ-RCO 量化包），暴露
+	// OpenAI/Anthropic 兼容 /v1（免鉴权，任意 Key/空 Key 均可）。注意其
+	// /v1/models 的 status 字段是非标对象（{"value":"loaded"}），解码走
+	// engine_models.go 的 flexStatus 宽容层。默认端口 8091（8080 是 herdsman）。
+	EngineStrata EngineType = "strata"
 )
 
 // GLM 官方双端点（docs.bigmodel.cn coding-plan/quick-start）：标准=按量付费，
@@ -54,11 +60,11 @@ const (
 )
 
 // IsLocal 引擎是否本地服务（数据不出本机）——全局离线模式（v4.8）据此
-// 门控路由：offline 开启时只允许本地引擎（ollama/herdsman/cosyvoice/modelhub），
+// 门控路由：offline 开启时只允许本地引擎（ollama/herdsman/cosyvoice/modelhub/strata），
 // 云端（xai/deepseek/opencode-*）一律跳过。
 func (t EngineType) IsLocal() bool {
 	switch t {
-	case EngineOllama, EngineHerdsman, EngineCosyVoice, EngineModelHub:
+	case EngineOllama, EngineHerdsman, EngineCosyVoice, EngineModelHub, EngineStrata:
 		return true
 	}
 	return false
@@ -163,7 +169,7 @@ type Manager struct {
 func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 	m := &Manager{
 		engines:     make(map[string]*EngineConfig),
-		order:       []string{"xai", "ollama", "herdsman", "deepseek", "glm", "cosyvoice", "modelhub", "opencode-go", "opencode-zen"},
+		order:       []string{"xai", "ollama", "herdsman", "deepseek", "glm", "cosyvoice", "modelhub", "strata", "opencode-go", "opencode-zen"},
 		xaiKey:      xaiAPIKey,
 		deepseekKey: deepseekKey,
 		customKeys:  make(map[string]string),
@@ -276,6 +282,21 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 		// 请求需带 Authorization: Bearer。地址框可改（8888 被占用时 Studio
 		// 会漂移到其他端口）。
 		BaseURL: "http://127.0.0.1:8888/v1",
+		Enabled: true,
+	}
+	m.engines["strata"] = &EngineConfig{
+		ID:      "strata",
+		Name:    "Strata",
+		Type:    EngineStrata,
+		Label:   "Strata 本地",
+		Color:   "#34d399",
+		Icon:    "desktop",
+		IsLocal: true,
+		// Strata 开源推理引擎（Qwen3.8-Flash-Next 125B MoE，GSQ-RCO 量化）。
+		// 8080 被 herdsman 占用，setup 装在 8091；免鉴权（Key 留空即不带
+		// Authorization 头）。模型清单随引擎加载状态变化，DefaultModel 留空
+		// 由刷新 /models 后取首个（TestConnection 同口径）。
+		BaseURL: "http://127.0.0.1:8091/v1",
 		Enabled: true,
 	}
 

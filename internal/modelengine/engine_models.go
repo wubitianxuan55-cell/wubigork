@@ -17,11 +17,39 @@ import (
 
 // ── OpenAI 兼容响应结构 ────────────────────────────────────
 
+// flexStatus /v1/models 的 status 字段宽容解码。OpenAI 生态里该字段既有
+// 纯字符串（ollama "running"/xai 无），也有对象形态（Strata：
+// {"value":"loaded"}，同条目还带 meta/architecture 扩展）。统一折叠成
+// 字符串值：两态保真，未知形态归空串——状态缺失好过解析失败拖垮整个
+// 模型清单（v4.480 前该字段按裸 string 解码，Strata 引擎直接炸解析）。
+type flexStatus string
+
+func (s *flexStatus) UnmarshalJSON(b []byte) error {
+	if string(b) == "null" {
+		*s = ""
+		return nil
+	}
+	var str string
+	if err := json.Unmarshal(b, &str); err == nil {
+		*s = flexStatus(str)
+		return nil
+	}
+	var obj struct {
+		Value string `json:"value"`
+	}
+	if err := json.Unmarshal(b, &obj); err == nil {
+		*s = flexStatus(obj.Value)
+		return nil
+	}
+	*s = ""
+	return nil
+}
+
 type modelsListResponse struct {
 	Data []struct {
-		ID      string `json:"id"`
-		OwnedBy string `json:"owned_by"`
-		Status  string `json:"status"`
+		ID      string     `json:"id"`
+		OwnedBy string     `json:"owned_by"`
+		Status  flexStatus `json:"status"`
 		// Unsloth Studio OpenAI 兼容目录扩展（/v1/models）：当前是否已加载。
 		// Studio 固定后端 8888/v1 会同时列出「已加载模型」与「仅缓存/未加载
 		// 条目」（如下载一半的 GGUF）；loaded=false 的条目 gaea 无法调用，
@@ -126,7 +154,7 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 		models[i] = ModelInfo{
 			ID:      d.ID,
 			OwnedBy: d.OwnedBy,
-			Status:  d.Status,
+			Status:  string(d.Status),
 			Kind:    ClassifyModelKind(engine.Type, d.ID),
 		}
 	}

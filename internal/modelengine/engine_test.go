@@ -93,8 +93,8 @@ func TestGetEngine_StripsAPIKey(t *testing.T) {
 func TestGetEngines_CountAndKeys(t *testing.T) {
 	m := NewManager("", "")
 	es := m.GetEngines()
-	if len(es) != 9 {
-		t.Fatalf("GetEngines 数量 = %d, want 9", len(es))
+	if len(es) != 10 {
+		t.Fatalf("GetEngines 数量 = %d, want 10", len(es))
 	}
 	for _, e := range es {
 		if e.APIKey != "" {
@@ -244,6 +244,53 @@ func TestUpdateKeys_AffectBuildChatURL(t *testing.T) {
 }
 
 // ─── HTTP 路径：TestConnection / RefreshModels / fetchModels ─
+
+// TestFetchModels_StrataStatusObject Strata 的 /v1/models 非标形状：status 是
+// 对象（{"value":"loaded"}）且条目带 meta/architecture 扩展字段。flexStatus
+// 宽容解码须把它折叠成 "loaded"，同清单里的字符串 status 保持原样，未知
+// 扩展字段不拖垮解析（修复前：整表 unmarshal 失败 → 引擎永远连不上）。
+func TestFetchModels_StrataStatusObject(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/models" {
+			t.Errorf("path = %q, want /models", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		// v0.1.41 真机实测响应形状逐字取自 strata.exe
+		_, err := io.WriteString(w, `{"object":"list","data":[`+
+			`{"id":"qwen3.8-flash-next-iq2_xs","object":"model","status":{"value":"loaded"},"meta":{"n_ctx":131072},"architecture":{"input_modalities":["text"]}},`+
+			`{"id":"qwen3.8-flash-next-iq3_s","object":"model","status":"stopped"}]}`)
+		if err != nil {
+			t.Errorf("写响应失败: %v", err)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	m := NewManager("", "")
+	if err := m.SaveEngine(EngineConfig{ID: "strata", BaseURL: srv.URL, Enabled: true}); err != nil {
+		t.Fatalf("SaveEngine: %v", err)
+	}
+	models, err := m.RefreshModels(context.Background(), "strata")
+	if err != nil {
+		t.Fatalf("RefreshModels: %v", err)
+	}
+	byID := map[string]ModelInfo{}
+	for _, mo := range models {
+		byID[mo.ID] = mo
+	}
+	got, ok := byID["qwen3.8-flash-next-iq2_xs"]
+	if !ok {
+		t.Fatalf("缺 qwen3.8-flash-next-iq2_xs: %+v", models)
+	}
+	if got.Status != "loaded" {
+		t.Errorf("对象形态 status = %q, want \"loaded\"", got.Status)
+	}
+	if got.Kind != "llm" {
+		t.Errorf("kind = %q, want llm", got.Kind)
+	}
+	if st, ok := byID["qwen3.8-flash-next-iq3_s"]; !ok || st.Status != "stopped" {
+		t.Errorf("字符串形态 status 应原样保留: %+v (ok=%v)", st, ok)
+	}
+}
 
 // newTestManager 返回 Manager + 指向测试服务器的引擎配置
 func newTestManager(t *testing.T, handler http.Handler) *Manager {

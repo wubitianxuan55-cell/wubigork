@@ -21,7 +21,6 @@ import (
 
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/intent"
-	"github.com/gaea/gaea/internal/modelengine"
 )
 
 // classifyIntentFallback 规则未命中时的兜底入口；返回 nil = 走原聊天管道。
@@ -69,9 +68,13 @@ func (a *App) classifyIntentWithLLM(text string) *intent.Intent {
 		slog.Debug("[intent] 兜底分类无可用模型", "err", err)
 		return nil
 	}
-	// 全局离线模式：分类调用只允许本地引擎，云端目标直接放弃（走聊天）。
-	if a.cfg.GetOfflineMode() && engine != string(modelengine.EngineHerdsman) && engine != string(modelengine.EngineOllama) {
-		return nil
+	// 全局离线模式：分类调用只允许本地引擎（Type.IsLocal 单一来源，覆盖
+	// strata/modelhub 等后来者，替代旧硬编码 herdsman/ollama 名单），云端
+	// 目标直接放弃（走聊天）。
+	if a.cfg.GetOfflineMode() {
+		if e, ok := a.engineMgr.GetEngine(engine); !ok || !e.Type.IsLocal() {
+			return nil
+		}
 	}
 
 	sysPrompt := intentFallbackSystemPrompt(a.boardIDList())
