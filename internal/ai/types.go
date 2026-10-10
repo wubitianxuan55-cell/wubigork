@@ -84,6 +84,15 @@ type ChatSimpleOptions struct {
 	MaxTokens       int     // 覆盖默认 max_tokens（0 表示使用默认值）
 	ReasoningEffort string  // 推理深度（"" 表示不开启推理）
 	EnableThinking  bool    // 本地 Qwen3 系模型：开启思考模式（输出 reasoning_content）
+	// DisableThinking 显式关闭思考（思考开关三态语义的「关」侧）。
+	//
+	// 只有带用户可见思考开关的调用方需要置位（聊天页/轻语人格的 thinking 开关）。
+	// 两个字段都为零值 = 调用方未表态，由引擎缺省决定：
+	//   - herdsman/ollama：缺省关，EnableThinking 显式开；
+	//   - strata：缺省开（思考原生引擎），DisableThinking 显式关。
+	// 缺了「关」侧，strata 这种服务端默认开思考的引擎就无法被用户关掉——
+	// 界面上思考开关会变成空钮，推理照跑、预算照烧。
+	DisableThinking bool
 	TopP            float64 // nucleus sampling（0 表示不发送）
 	TimeoutMinutes  int     // 超时分钟数（0 表示使用默认 5 分钟）
 }

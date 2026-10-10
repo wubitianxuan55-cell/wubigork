@@ -50,16 +50,24 @@ func (p *Provider) Stream(ctx context.Context, req provider.Request) (<-chan pro
 	// Qwen3 等本地模型默认不输出推理；开启思考模式（enable_thinking +
 	// chat_template_kwargs）后服务端才会流式下发 reasoning_content，
 	// 前端据此显示思考链。
-	if p.engine == "herdsman" || p.engine == "ollama" {
+	switch p.engine {
+	case "herdsman", "ollama":
 		t := true
 		creq.EnableThinking = &t
 		creq.ChatTemplateKwargs = map[string]any{"enable_thinking": true}
 		// 测评（docs/2026-08-12-herdsman-models-evaluation-report.md §8.1/§9）：
 		// 思考模式与正文共享 max_tokens，预算 <4096 时会出现「只有推理、无正文」。
-		// 守护：显式指定过小预算时抬到 4096。
-		if creq.MaxTokens > 0 && creq.MaxTokens < 4096 {
-			creq.MaxTokens = 4096
-		}
+		// 守护：显式指定过小预算时抬到 4096（常量单一来源在 ai 包，见
+		// ClampThinkingMaxTokens——此前此处与 client_chat.go 各写一遍 4096）。
+		creq.MaxTokens = ai.ClampThinkingMaxTokens(creq.MaxTokens)
+	case "strata":
+		// Strata（Qwen3.8-Flash-Next 125B MoE）：思考原生引擎，服务端默认开
+		// 思考，办公智能体的多轮工具循环同样吃这份共享预算——不守护则小预算
+		// 轮次被推理烧空（正文截断/空，真机实测见 internal/ai/client_chat.go
+		// strata 分支）。通道：顶层 enable_thinking 实测无效（传 false 仍产出
+		// reasoning_content），只有 chat_template_kwargs 有效，故只发 ctk。
+		creq.ChatTemplateKwargs = map[string]any{"enable_thinking": true}
+		creq.MaxTokens = ai.ClampThinkingMaxTokens(creq.MaxTokens)
 	}
 	raw, err := p.client.ChatStream(ctx, creq)
 	if err != nil {

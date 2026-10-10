@@ -49,6 +49,11 @@ func (c *Client) ChatStream(ctx context.Context, req *ChatRequest) (<-chan SSECh
 		req.Model = c.resolveModelName("", req.EngineID)
 	}
 
+	// 思考型引擎的预算兜底：必须落在本函数（流式唯一漏斗）而不是
+	// prepareStreamRequest——后者只覆盖 ChatSimple* 家族，手装 ChatRequest 的
+	// 调用方绕过它（见 applyThinkingBudgetGuard 注释）。放在序列化之前。
+	c.applyThinkingBudgetGuard(req, reqEngine)
+
 	req.Stream = true
 	// 流式接口默认不返回 usage；显式请求 include_usage 以便统计 Token。
 	// 部分服务端不支持该字段（400），会在下方去掉后重试一次。

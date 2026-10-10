@@ -213,7 +213,7 @@ func (a *whisperState) whisperChat(userMsg, personalityID, assistantName string,
 	// S1.5-B play 内容护栏：persona_lock 在人格一致性参数（dims/voiceGuide）
 	// 注入时追加人格锁定段（防系统层覆盖人格段）并锁温度上限；
 	// max_output_tokens 钳制输出。未配置 = 零值 = 请求与现状逐字节一致。
-	opts := ai.ChatSimpleOptions{EngineID: engine, Feature: "chat", EnableThinking: thinking}
+	opts := ai.ChatSimpleOptions{EngineID: engine, Feature: "chat", EnableThinking: thinking, DisableThinking: !thinking}
 	systemPrompt = applyWhisperGuardrails(&opts, systemPrompt, orch.Preset, playGuardrails())
 	slog.Info("[whisper] calling LLM", "engine", engine, "model", model)
 	reply, reasoning, callErr := a.clientRef().ChatSimpleStreamDetailed(a.ctx, model, systemPrompt, userMsg, opts)

@@ -412,12 +412,12 @@ func estimateUnknown(out ModelSwitchEstimate, note string) ModelSwitchEstimate {
 // 未加载模型切过去明明要冷启动却报「引擎已就绪」）：云端引擎常驻恒 hot；
 // 本地引擎查目标 model 的加载态——herdsman 读模型目录（Installed/Running）、
 // ollama 读原生 /api/ps（已加载）与 /api/tags（已安装）、modelhub 探测 Studio
-// /v1/models；服务不可达如实 unknown（宁未知勿假 hot）。model 为空或 "(默认)"
-// 回退引擎默认模型（兼容旧调用）。
+// /v1/models、strata 探测自身 /v1/models（只列已加载集合）；服务不可达如实
+// unknown（宁未知勿假 hot）。model 为空或 "(默认)" 回退引擎默认模型（兼容旧调用）。
 func (a *App) GaeaModelSwitchEstimate(engineID, model string) ModelSwitchEstimate {
 	out := ModelSwitchEstimate{Engine: engineID, Model: model}
 	switch engineID {
-	case "herdsman", "ollama", "modelhub":
+	case "herdsman", "ollama", "modelhub", "strata":
 		// 本地引擎：往下按目标模型查加载态
 	default:
 		out.Status = "hot"
@@ -444,6 +444,8 @@ func (a *App) GaeaModelSwitchEstimate(engineID, model string) ModelSwitchEstimat
 		return a.estimateHerdsmanModelSwitch(model, out)
 	case "ollama":
 		return a.estimateOllamaModelSwitch(eng, model, out)
+	case "strata":
+		return a.estimateStrataModelSwitch(model, out)
 	default:
 		return a.estimateModelHubModelSwitch(model, out)
 	}
@@ -503,6 +505,24 @@ func (a *App) estimateOllamaModelSwitch(eng *modelengine.EngineConfig, model str
 		// 未知，保守按需加载估。
 		out.Status, out.Note = "cold", "模型已安装未加载，切换后首次对话需等待加载"
 	}
+	return out
+}
+
+// estimateStrataModelSwitch 探测 Strata /v1/models 是否已加载目标模型（命中
+// →hot；未命中→cold 不报秒数——125B MoE 的加载/换入以分钟计）；探测失败如实
+// unknown。Strata 的 /v1/models 只列已加载集合，故命中语义与 ModelHub 同。
+func (a *App) estimateStrataModelSwitch(model string, out ModelSwitchEstimate) ModelSwitchEstimate {
+	ctx, cancel := context.WithTimeout(context.Background(), ollamaProbeTimeout)
+	defer cancel()
+	loaded, err := a.engineMgr.StrataModelLoaded(ctx, model)
+	if err != nil {
+		return estimateUnknown(out, "无法连接 Strata，无法确认模型状态")
+	}
+	if loaded {
+		out.Status, out.WaitSeconds, out.Note = "hot", 1, "模型已加载，可直接切换"
+		return out
+	}
+	out.Status, out.Note = "cold", "模型未加载，切换后首次对话需等待加载"
 	return out
 }
 

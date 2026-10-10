@@ -12,6 +12,7 @@ import (
 	"strconv"
 
 	"github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/modelengine"
 )
 
 // featureModelKeys 功能 → 配置键映射
@@ -209,10 +210,11 @@ func (a *App) GetModelMonitor() map[string]interface{} {
 
 // isLocalEngine 判断引擎是否为本地模型（占本机资源，预警统计用）。
 // 云端引擎（xai/deepseek 走 API）不加载到本机，不计入模型加载预警。
+//
+// 按 modelengine 的 Type.IsLocal() 单一真相口判定，不再维护引擎名名单——
+// 此前写死 `case "herdsman", "ollama", "cosyvoice"`，modelhub（Studio 拉起
+// llama-server）与 strata（125B MoE 加载进显存/内存）加入时双双漏改，两个
+// 最吃本机资源的引擎反而被当成云端、不计入加载预警。
 func isLocalEngine(id string) bool {
-	switch id {
-	case "herdsman", "ollama", "cosyvoice":
-		return true
-	}
-	return false
+	return modelengine.BuiltinEngineTypeOf(id).IsLocal()
 }

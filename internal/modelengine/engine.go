@@ -70,6 +70,42 @@ func (t EngineType) IsLocal() bool {
 	return false
 }
 
+// BuiltinEngineTypeOf 内置引擎 ID → 引擎类型（未知/自定义引擎返回空串）。
+//
+// 免 Manager 句柄的类型查证口：连接、统计、预估等无 Manager 可用的纯函数
+// 据此按 Type.IsLocal() 判定「是否本地」，不必各自维护一份引擎名名单——
+// strata/modelhub 加入时 estimatePrice 的 `case "ollama", "herdsman"` 名单
+// 漏改即此类隐患（本地引擎被云端计价口径误判）。自定义引擎（custom-*）不是
+// 内置项，返回空串：其 Type 恒为 EngineCustom，IsLocal() 亦为假，口径一致。
+//
+// 名单必须与 NewManager 的预置种子（m.engines）保持一致——新增内置引擎时
+// 两处同改；engine_test.go 有对账测试钉住这一点。
+func BuiltinEngineTypeOf(id string) EngineType {
+	switch id {
+	case "xai":
+		return EngineXAI
+	case "ollama":
+		return EngineOllama
+	case "herdsman":
+		return EngineHerdsman
+	case "deepseek":
+		return EngineDeepseek
+	case "glm":
+		return EngineGLM
+	case "cosyvoice":
+		return EngineCosyVoice
+	case "opencode-go":
+		return EngineOpencodeGo
+	case "opencode-zen":
+		return EngineOpencodeZen
+	case "modelhub":
+		return EngineModelHub
+	case "strata":
+		return EngineStrata
+	}
+	return ""
+}
+
 // ── 数据结构 ───────────────────────────────────────────────
 
 // ModelInfo 模型信息

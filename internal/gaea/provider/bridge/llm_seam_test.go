@@ -130,3 +130,46 @@ func TestBridge_Stream_EmptyEngineNoThinking(t *testing.T) {
 		t.Errorf("MaxTokens = %d, want 512（空引擎不守护）", mc.gotReq.MaxTokens)
 	}
 }
+
+// TestBridge_Stream_StrataThinkingAndBudget 冻结 strata 分支（办公智能体多轮
+// 工具循环走这条）：思考原生引擎默认开思考，且只走 chat_template_kwargs——
+// 顶层 enable_thinking 真机实测无效（传 false 仍产出 reasoning_content），
+// 发了只会制造「以为关了其实没关」的假象；小预算同样守护到 4096，否则推理把
+// 预算烧光、正文被截断（与 internal/ai 的 strata 分支同源口径）。
+func TestBridge_Stream_StrataThinkingAndBudget(t *testing.T) {
+	mc := &mockClient{chunks: []ai.SSEChunk{{Done: true}}}
+	SetClient(mc)
+	p := &Provider{name: "gaea", model: "m", engine: "strata", client: mc}
+	if _, err := p.Stream(context.Background(), provider.Request{
+		Messages:  []provider.Message{{Role: provider.RoleUser, Content: "hi"}},
+		MaxTokens: 256,
+	}); err != nil {
+		t.Fatalf("Stream: %v", err)
+	}
+	if mc.gotReq == nil {
+		t.Fatal("client 未收到请求")
+	}
+	if mc.gotReq.EnableThinking != nil {
+		t.Errorf("strata 不应发顶层 enable_thinking（实测无效字段）: %+v", mc.gotReq.EnableThinking)
+	}
+	if v, _ := mc.gotReq.ChatTemplateKwargs["enable_thinking"].(bool); !v {
+		t.Errorf("strata 应携带 chat_template_kwargs.enable_thinking=true: %+v", mc.gotReq.ChatTemplateKwargs)
+	}
+	if mc.gotReq.MaxTokens != 4096 {
+		t.Errorf("MaxTokens = %d, want 4096（strata 思考预算守护）", mc.gotReq.MaxTokens)
+	}
+
+	// 显式大预算不被削：守护只抬下限。
+	mc2 := &mockClient{chunks: []ai.SSEChunk{{Done: true}}}
+	SetClient(mc2)
+	p2 := &Provider{name: "gaea", model: "m", engine: "strata", client: mc2}
+	if _, err := p2.Stream(context.Background(), provider.Request{
+		Messages:  []provider.Message{{Role: provider.RoleUser, Content: "hi"}},
+		MaxTokens: 8192,
+	}); err != nil {
+		t.Fatalf("Stream(大预算): %v", err)
+	}
+	if mc2.gotReq.MaxTokens != 8192 {
+		t.Errorf("MaxTokens = %d, want 8192（显式大预算不应被改写）", mc2.gotReq.MaxTokens)
+	}
+}

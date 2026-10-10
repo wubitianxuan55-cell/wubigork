@@ -23,15 +23,17 @@ func TestWhisperCausalOfflineFilter(t *testing.T) {
 	if err := a.SetFeatureModel("chat", "xai", "grok-4.20"); err != nil {
 		t.Fatal(err)
 	}
-	// 停用 ollama/cosyvoice/modelhub，保留 herdsman 作为唯一本地引擎（xai 云端被滤）；
+	// 停用 ollama/cosyvoice/modelhub/strata，保留 herdsman 作为唯一本地引擎（xai 云端被滤）；
 	// 兜底路由取 DefaultModel（夹具默认空，补上才有模型可发本地 mock）
+	// strata 亦为 IsLocal 引擎且预置启用，此前未列入停用集合——夹具靠「strata 无
+	// 默认模型」侥幸成立，一旦其种子带上默认模型即静默改道，故一并显式停用。
 	if e, ok := a.engineMgr.GetEngine("herdsman"); ok {
 		e.DefaultModel = "qwen3-8b"
 		if err := a.engineMgr.SaveEngine(*e); err != nil {
 			t.Fatal(err)
 		}
 	}
-	for _, id := range []string{"ollama", "cosyvoice", "modelhub"} {
+	for _, id := range []string{"ollama", "cosyvoice", "modelhub", "strata"} {
 		if e, ok := a.engineMgr.GetEngine(id); ok {
 			e.Enabled = false
 			if err := a.engineMgr.SaveEngine(*e); err != nil {
@@ -77,7 +79,7 @@ func TestWhisperRetellOfflineFilter(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for _, id := range []string{"ollama", "cosyvoice", "modelhub"} {
+	for _, id := range []string{"ollama", "cosyvoice", "modelhub", "strata"} {
 		if e, ok := a.engineMgr.GetEngine(id); ok {
 			e.Enabled = false
 			if err := a.engineMgr.SaveEngine(*e); err != nil {

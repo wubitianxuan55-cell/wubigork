@@ -97,3 +97,4 @@ gaea-v*.exe
 # P2-3：源码包 tarball 出 VCS（历史提交仍可 checkout 找回；磁盘保留，新包不再入库）
 releases/*-source.tar.gz
 .audit/
+.acl-recovery/

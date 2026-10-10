@@ -193,6 +193,59 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 	return models, nil
 }
 
+// StrataModelLoaded 轻量探测目标模型是否已被 Strata 引擎加载。
+//
+// Strata 的 /v1/models 只列「已加载」集合（真机实测：常驻单条
+// qwen3.8-flash-next-iq2_xs + status.value="loaded"），故命中即已加载，
+// 语义与 ModelHubModelLoaded 一致（换模预估的 hot/cold 判定用）。
+// 返回 (false, nil) = 引擎可达但目标未加载；(false, err) = 不可达/地址非法。
+//
+// 解码走 modelsListResponse（含 flexStatus 宽容层）：Strata 的 status 是非标
+// 对象形态，裸 string 解码会整表炸解析（见 flexStatus 注释）。
+func (m *Manager) StrataModelLoaded(ctx context.Context, modelID string) (bool, error) {
+	m.mu.RLock()
+	engine, ok := m.engines["strata"]
+	m.mu.RUnlock()
+	if !ok {
+		return false, fmt.Errorf("引擎 strata 不存在")
+	}
+	if !engine.Enabled {
+		return false, fmt.Errorf("Strata 引擎未启用")
+	}
+	base := strings.TrimRight(strings.TrimSpace(engine.BaseURL), "/")
+	if !validBaseURL(base) {
+		return false, fmt.Errorf("引擎地址无效：需要 http:// 或 https:// 前缀")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/models", nil)
+	if err != nil {
+		return false, fmt.Errorf("创建探测请求失败: %w", err)
+	}
+	// Strata 免鉴权（任意 Key/空 Key 均可）：刻意不发 Authorization 头，
+	// 与 fetchModels 的 Strata 分支同口径。
+	resp, err := m.httpClient.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("Strata 不可达: %w", err)
+	}
+	defer netclient.DrainAndClose(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("Strata 探测失败（HTTP %d）", resp.StatusCode)
+	}
+	var list modelsListResponse
+	if err := json.NewDecoder(resp.Body).Decode(&list); err != nil {
+		return false, fmt.Errorf("解析已加载模型列表失败: %w", err)
+	}
+	for _, d := range list.Data {
+		if d.ID != modelID {
+			continue
+		}
+		// 状态缺失（空串）按已加载处理（与 ModelHubModelLoaded 的
+		// Loaded==nil 同理）；显式给出非 loaded/loading 状态则不算就绪。
+		s := string(d.Status)
+		return s == "" || s == "loaded" || s == "loading", nil
+	}
+	return false, nil
+}
+
 // ClassifyModelKind 按引擎类型与模型名分类（llm/tts/stt/ocr/rerank/embedding/image）。
 // 3.0 Step 3d：模型能力关键词分类的单一来源——语音（voice_handler.go:isSTTModel）、
 // OCR（gaea_ocr.go:pickHerdsmanModel）等消费点委托到本函数，不再各自维护关键词表。
