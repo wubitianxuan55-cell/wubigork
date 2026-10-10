@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -101,6 +102,16 @@ var newChatStreamRunID = func() string {
 	return fmt.Sprintf("cs_%d_%d", time.Now().UnixMilli(), chatStreamRunSeq.Add(1))
 }
 
+// streamTokensPerSecond 生成速度（tok/s）＝ completion tokens ÷ 实测流式耗时，
+// 四舍五入到 0.1；tokens 或耗时非正值返回 0（调用方按 0 = 不下发不落库，
+// 不虚报）。聊天与原罪两条流式链路共用同一口径。
+func streamTokensPerSecond(tokens int64, elapsed time.Duration) float64 {
+	if tokens <= 0 || elapsed <= 0 {
+		return 0
+	}
+	return math.Round(float64(tokens)/elapsed.Seconds()*10) / 10
+}
+
 // ChatStreamPlain 普通对话真实流式入口：立即返回 runID，前端订阅
 // "chat-stream:<runID>" 事件流（delta / reasoning / done / error），完成后落库。
 // 联网搜索注入只进入模型上下文，落库仍保留用户原文。
@@ -184,6 +195,8 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 	// usage 由流结束块携带（OpenAI 兼容 API 最后一块带 usage，SSEChunk.Usage）；
 	// 服务端未带 usage 时保持 nil → 费用诚实记 0。
 	var usage *ai.ChatUsage
+	// 生成速度计时：从首个内容/思考 delta 起表（排队与首字延迟不计入 tok/s）。
+	var genStart time.Time
 	for chunk := range chunks {
 		if chunk.Error != "" {
 			a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": chunk.Error})
@@ -192,6 +205,9 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 		if chunk.Done {
 			usage = chunk.Usage
 			break
+		}
+		if (chunk.Content != "" || chunk.Reasoning != "") && genStart.IsZero() {
+			genStart = time.Now()
 		}
 		if chunk.Content != "" {
 			reply.WriteString(chunk.Content)
@@ -239,14 +255,21 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 	if cancelled {
 		finalType = "cancelled"
 	}
+	// 生成速度（tok/s）随 answered_by 下发：usage 缺失/无正文时不带该键（不虚报）。
+	answeredBy := map[string]interface{}{
+		"engine": eng, "model": model, "source": source, "cost_cny": costCNY,
+	}
+	if usage != nil && !genStart.IsZero() {
+		if s := streamTokensPerSecond(usage.CompletionTokens, time.Since(genStart)); s > 0 {
+			answeredBy["tokens_per_second"] = s
+		}
+	}
 	a.emit("chat-stream:"+runID, map[string]interface{}{
-		"type":      finalType,
-		"reply":     replyStr,
-		"reasoning": reasoningStr,
-		"topicID":   topicID,
-		"answered_by": map[string]interface{}{
-			"engine": eng, "model": model, "source": source, "cost_cny": costCNY,
-		},
+		"type":        finalType,
+		"reply":       replyStr,
+		"reasoning":   reasoningStr,
+		"topicID":     topicID,
+		"answered_by": answeredBy,
 	})
 }
 

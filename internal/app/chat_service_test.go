@@ -79,6 +79,185 @@ func newChatServiceTestAppWithHandler(t *testing.T, handler http.Handler) *App {
 	return a
 }
 
+// TestStreamTokensPerSecond 生成速度口径：tokens/耗时非正值一律 0（不下发不虚报），
+// 正常值四舍五入到 0.1。
+func TestStreamTokensPerSecond(t *testing.T) {
+	cases := []struct {
+		tokens  int64
+		elapsed time.Duration
+		want    float64
+	}{
+		{0, time.Second, 0},
+		{10, 0, 0},
+		{-1, time.Second, 0},
+		{10, time.Second, 10},
+		{1, 100 * time.Millisecond, 10},
+		{23, 3 * time.Second, 7.7}, // 7.666… → 7.7
+	}
+	for _, c := range cases {
+		if got := streamTokensPerSecond(c.tokens, c.elapsed); got != c.want {
+			t.Errorf("streamTokensPerSecond(%d, %v) = %v, want %v", c.tokens, c.elapsed, got, c.want)
+		}
+	}
+}
+
+// captureStreamEvents 先建立 SSE 订阅（先订阅后发流，与前端同纪律），再执行
+// start()，逐帧读取直到终态帧（done/error/cancelled），返回全部事件。
+func captureStreamEvents(t *testing.T, a *App, channel string, start func()) []map[string]interface{} {
+	t.Helper()
+	srv := httptest.NewServer(httpbridge.New(a).Handler())
+	defer srv.Close()
+	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/stream?id="+channel, nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	req = req.WithContext(ctx)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("打开 SSE: %v", err)
+	}
+	defer resp.Body.Close()
+	lines := make(chan string, 64)
+	go func() {
+		br := bufio.NewReader(resp.Body)
+		for {
+			line, err := br.ReadString('\n')
+			if err != nil {
+				close(lines)
+				return
+			}
+			lines <- line
+		}
+	}()
+	// 消费连接帧（event/data/blank 三行）。
+	for i := 0; i < 3; i++ {
+		select {
+		case <-lines:
+		case <-time.After(3 * time.Second):
+			t.Fatal("等待 SSE 连接帧超时")
+		}
+	}
+	start()
+	var events []map[string]interface{}
+	deadline := time.After(5 * time.Second)
+	for {
+		select {
+		case line, ok := <-lines:
+			if !ok {
+				t.Fatal("流在终态帧前关闭")
+			}
+			if !strings.HasPrefix(line, "data: ") {
+				continue
+			}
+			var ev map[string]interface{}
+			if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &ev); err != nil {
+				t.Fatalf("解析事件: %v", err)
+			}
+			switch ev["type"] {
+			case "done", "error", "cancelled":
+				events = append(events, ev)
+				return events
+			default:
+				events = append(events, ev)
+			}
+		case <-deadline:
+			t.Fatal("未在 5s 内收到终态帧")
+		}
+	}
+}
+
+// sseUsageHandler mock LLM：正文 delta + 流结束块带 usage（completion_tokens=10）。
+// delta 与 usage 之间停 30ms：Windows 时钟粒度下两帧同 tick 会让实测耗时恰为 0
+// （口径 0 = 不下发），测试要的是确定性的 > 0。
+func sseUsageHandler(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Write([]byte("data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"你好呀\"}}]}\n\n"))
+	if f, ok := w.(http.Flusher); ok {
+		f.Flush()
+	}
+	time.Sleep(30 * time.Millisecond)
+	w.Write([]byte("data: {\"choices\":[{\"index\":0,\"delta\":{}}],\"usage\":{\"prompt_tokens\":5,\"completion_tokens\":10,\"total_tokens\":15}}\n\n"))
+	w.Write([]byte("data: [DONE]\n\n"))
+	if f, ok := w.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+// TestChatStreamPlain_ReportsTokensPerSecond done 帧 answered_by 携带生成速度
+// （tok/s：流结束块真实 completion tokens ÷ 首字后的实测流式耗时）。
+func TestChatStreamPlain_ReportsTokensPerSecond(t *testing.T) {
+	a := newChatServiceTestAppWithHandler(t, http.HandlerFunc(sseUsageHandler))
+	topic, err := a.ChatTopicCreate("速度回显", "plain")
+	if err != nil {
+		t.Fatalf("ChatTopicCreate: %v", err)
+	}
+	fixed := "cs_tps"
+	orig := newChatStreamRunID
+	newChatStreamRunID = func() string { return fixed }
+	t.Cleanup(func() { newChatStreamRunID = orig })
+
+	events := captureStreamEvents(t, a, "chat-stream:"+fixed, func() {
+		if _, err := a.ChatStreamPlain(topic.ID, "你好", false, false, false); err != nil {
+			t.Errorf("ChatStreamPlain: %v", err)
+		}
+	})
+	var done map[string]interface{}
+	for _, ev := range events {
+		if ev["type"] == "done" {
+			done = ev
+		}
+	}
+	if done == nil {
+		t.Fatalf("未收到 done 帧: %v", events)
+	}
+	ab, ok := done["answered_by"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("answered_by 缺失: %v", done)
+	}
+	tps, ok := ab["tokens_per_second"].(float64)
+	if !ok || tps <= 0 {
+		t.Fatalf("tokens_per_second = %v, want > 0", ab["tokens_per_second"])
+	}
+}
+
+// TestChatStreamPlain_NoUsageNoSpeed 服务端未带 usage（旧引擎/降级流）时
+// done 帧不带 tokens_per_second 键——不虚报。
+func TestChatStreamPlain_NoUsageNoSpeed(t *testing.T) {
+	a := newChatServiceTestApp(t) // mock 无 usage 结束块
+	topic, err := a.ChatTopicCreate("无速度回显", "plain")
+	if err != nil {
+		t.Fatalf("ChatTopicCreate: %v", err)
+	}
+	fixed := "cs_no_tps"
+	orig := newChatStreamRunID
+	newChatStreamRunID = func() string { return fixed }
+	t.Cleanup(func() { newChatStreamRunID = orig })
+
+	events := captureStreamEvents(t, a, "chat-stream:"+fixed, func() {
+		if _, err := a.ChatStreamPlain(topic.ID, "你好", false, false, false); err != nil {
+			t.Errorf("ChatStreamPlain: %v", err)
+		}
+	})
+	var done map[string]interface{}
+	for _, ev := range events {
+		if ev["type"] == "done" {
+			done = ev
+		}
+	}
+	if done == nil {
+		t.Fatalf("未收到 done 帧: %v", events)
+	}
+	ab, ok := done["answered_by"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("answered_by 缺失: %v", done)
+	}
+	if _, exists := ab["tokens_per_second"]; exists {
+		t.Fatalf("无 usage 时不应带 tokens_per_second: %v", ab)
+	}
+}
+
 // TestChatSend_Plain 统一入口 plain 模式：回复 + 话题消息落库。
 func TestChatSend_Plain(t *testing.T) {
 	a := newChatServiceTestApp(t)

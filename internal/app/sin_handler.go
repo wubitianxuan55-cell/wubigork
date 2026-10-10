@@ -370,6 +370,8 @@ type sinRoundOutcome struct {
 	reasoning string
 	usage     *ai.ChatUsage
 	trace     []sinToolTrace
+	// genElapsed 各轮流式生成耗时合计（工具执行不计入）：tok/s 的分母。
+	genElapsed time.Duration
 	// abort 非 nil = 整轮失败零正文（原循环内 default 分支）：error 帧+仅用户
 	// 消息落库由 runSinStream 统一执行，循环自身不再带收尾副作用。
 	abort error
@@ -394,6 +396,8 @@ func (a *App) runSinRounds(runCtx context.Context, runID, model string, plan sin
 		// 拿 web_search 一路查到轮次封顶，正文只剩几十字。
 		budget = &sinToolBudget{}
 		nudged bool
+		// 生成速度分母：各轮流式耗时合计（与 usage 同口径——失败轮两者都不计）。
+		genElapsed time.Duration
 	)
 	// 轮次上限 = 工具轮（sinToolRoundsMax-1）+ 收尾轮；收尾轮若仍被模型拿工具
 	// 顶掉（真机实测），允许一次兜底收尾轮把正文逼出来。
@@ -451,6 +455,7 @@ func (a *App) runSinRounds(runCtx context.Context, runID, model string, plan sin
 		reply.WriteString(res.content)
 		reasoning.WriteString(res.reasoning)
 		usage = sinAccumulateUsage(usage, res.usage)
+		genElapsed += res.genElapsed
 		if len(res.calls) == 0 {
 			break // 没有工具调用 = 这一轮就是正文，自然收尾
 		}
@@ -482,7 +487,7 @@ func (a *App) runSinRounds(runCtx context.Context, runID, model string, plan sin
 			messages = append(messages, a.sinRunToolCall(runCtx, runID, tools, call, &trace, budget))
 		}
 	}
-	return sinRoundOutcome{reply: reply.String(), reasoning: reasoning.String(), usage: usage, trace: trace}
+	return sinRoundOutcome{reply: reply.String(), reasoning: reasoning.String(), usage: usage, trace: trace, genElapsed: genElapsed}
 }
 
 // persistSinTurn 收尾段（原 runSinStream 后半行搬）：空回复兜底/零正文取消/
@@ -529,6 +534,13 @@ func (a *App) persistSinTurn(runID, topicID, userMessage, eng, model, source str
 	if cancelled {
 		extraMap["cancelled"] = true
 	}
+	// 生成速度（tok/s）：与聊天板块同口径（completion tokens ÷ 首字后的流式
+	// 累计耗时，多轮工具循环按轮累加、工具执行不计入）。0 = 不落库不下发。
+	if out.usage != nil {
+		if s := streamTokensPerSecond(out.usage.CompletionTokens, out.genElapsed); s > 0 {
+			extraMap["tokens_per_second"] = s
+		}
+	}
 	if b, err := json.Marshal(extraMap); err == nil {
 		extra = string(b)
 	}
@@ -570,7 +582,7 @@ func (a *App) persistSinTurn(runID, topicID, userMessage, eng, model, source str
 		}
 		costCNY = modelengine.EstimateCostCNY(eng, model, out.usage.PromptTokens, out.usage.CompletionTokens, usdCny)
 	}
-	a.emit("sin-stream:"+runID, map[string]interface{}{
+	doneFrame := map[string]interface{}{
 		"type":       "done",
 		"reply":      replyStr,
 		"reasoning":  reasoningStr,
@@ -582,7 +594,12 @@ func (a *App) persistSinTurn(runID, topicID, userMessage, eng, model, source str
 		"answered_by": map[string]interface{}{
 			"engine": eng, "model": model, "source": source, "cost_cny": costCNY,
 		},
-	})
+	}
+	// 生成速度与 extra 落库同一份（重开故事可还原）。
+	if s, ok := extraMap["tokens_per_second"]; ok {
+		doneFrame["tokens_per_second"] = s
+	}
+	a.emit("sin-stream:"+runID, doneFrame)
 }
 
 // ── 插图 ──────────────────────────────────────────────────────

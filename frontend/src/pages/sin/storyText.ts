@@ -130,6 +130,23 @@ export function parseCancelled(extra: unknown): boolean {
   return (obj as Record<string, unknown>).cancelled === true
 }
 
+/** 从 extra 里取生成速度 tok/s（后端落库的 tokens_per_second；缺失/非法/<=0 返回 undefined）。 */
+export function parseTokensPerSecond(extra: unknown): number | undefined {
+  let obj: unknown = extra
+  if (typeof extra === 'string') {
+    const raw = extra.trim()
+    if (!raw) return undefined
+    try {
+      obj = JSON.parse(raw)
+    } catch {
+      return undefined
+    }
+  }
+  if (!obj || typeof obj !== 'object') return undefined
+  const v = (obj as Record<string, unknown>).tokens_per_second
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : undefined
+}
+
 /**
  * 从 extra 里取工具轨迹（后端落库的 tools 字段）。
  * 容错口径与 parseIllustrations 同源：坏 JSON / 缺字段 / 单条畸形一律跳过，

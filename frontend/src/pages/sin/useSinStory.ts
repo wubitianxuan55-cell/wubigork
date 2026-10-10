@@ -13,8 +13,8 @@ import { errText } from '../../utils/errText'
 import { app } from '../../gaea/lib/bridge'
 import { subscribe, sinStreamChannel } from '../../events'
 import {
-  parseCancelled, parseIllustrationCaptions, parseIllustrations, parseReasoning, parseTools,
-  suggestStoryTitle, toToolViews,
+  parseCancelled, parseIllustrationCaptions, parseIllustrations, parseReasoning, parseTokensPerSecond,
+  parseTools, suggestStoryTitle, toToolViews,
 } from './storyText'
 import type { SinMessageView, SinStoryView, SinStreamPayload, SinToolTraceView } from './types'
 
@@ -62,6 +62,7 @@ function toMessageView(raw: Record<string, unknown>): SinMessageView {
     reasoning: parseReasoning(raw.extra),
     tools: toToolViews(parseTools(raw.extra)),
     cancelled: parseCancelled(raw.extra),
+    tokensPerSecond: parseTokensPerSecond(raw.extra),
     createdAt: typeof raw.created_at === 'string' ? raw.created_at : '',
   }
 }
@@ -525,6 +526,7 @@ export function useSinStory(): UseSinStoryResult {
                 content: reply,
                 streaming: false,
                 reasoning: typeof p.reasoning === 'string' ? p.reasoning : '',
+                tokensPerSecond: typeof p.tokens_per_second === 'number' ? p.tokens_per_second : undefined,
                 ...(doneTools ? { tools: doneTools } : {}),
               })
               finish()

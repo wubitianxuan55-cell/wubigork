@@ -1,12 +1,17 @@
 package app
 
 import (
+	"bufio"
+	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/gaea/gaea/internal/chat"
+	"github.com/gaea/gaea/internal/httpbridge"
 )
 
 // newSinTestApp 复用统一聊天测试 App（mock LLM 返回「你好呀」），并把原罪
@@ -114,6 +119,111 @@ func TestSinStreamPersistsAndKeepsMessageID(t *testing.T) {
 	if msgs[1].ID <= 0 {
 		t.Fatalf("助手消息 id = %d, want > 0", msgs[1].ID)
 	}
+}
+
+// TestSinStreamRejectsUnknownTopic 未注册话题（空/不存在）不得进入生成路径。
+// TestSinStreamReportsTokensPerSecondAndPersistsExtra done 帧与落库 extra
+// 都带生成速度（tok/s，与聊天板块同口径）；重开故事可由 extra 还原。
+// mock 在首个 delta 后停 200ms 再发 usage+DONE：订阅在 SinStream 返回后
+// 建立，仍稳落在 done 之前（runID 内联生成不可注入，用慢终态保证时序）。
+func TestSinStreamReportsTokensPerSecondAndPersistsExtra(t *testing.T) {
+	t.Run("DoneFrameAndExtraCarrySpeed", func(t *testing.T) {
+		a := newChatServiceTestAppWithHandler(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.Write([]byte("data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"夜雨敲窗。\"}}]}\n\n"))
+			if f, ok := w.(http.Flusher); ok {
+				f.Flush()
+			}
+			time.Sleep(200 * time.Millisecond)
+			w.Write([]byte("data: {\"choices\":[{\"index\":0,\"delta\":{}}],\"usage\":{\"prompt_tokens\":20,\"completion_tokens\":40,\"total_tokens\":60}}\n\n"))
+			w.Write([]byte("data: [DONE]\n\n"))
+			if f, ok := w.(http.Flusher); ok {
+				f.Flush()
+			}
+		}))
+		if err := a.core.SetFeatureModel("sin", "herdsman", "qwen3-8b"); err != nil {
+			t.Fatalf("SetFeatureModel(sin): %v", err)
+		}
+		topic, err := a.SinTopicCreate("速度故事")
+		if err != nil {
+			t.Fatalf("SinTopicCreate: %v", err)
+		}
+
+		srv := httptest.NewServer(httpbridge.New(a).Handler())
+		defer srv.Close()
+		runID, err := a.SinStream(topic.ID, "写一个开场")
+		if err != nil {
+			t.Fatalf("SinStream: %v", err)
+		}
+		// SinStream 返回后才订阅：首个 delta 已发出（200ms 缓冲内），done 未到。
+		req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/stream?id=sin-stream:"+runID, nil)
+		if err != nil {
+			t.Fatalf("NewRequest: %v", err)
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		req = req.WithContext(ctx)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("打开 SSE: %v", err)
+		}
+		defer resp.Body.Close()
+		lines := make(chan string, 64)
+		go func() {
+			br := bufio.NewReader(resp.Body)
+			for {
+				line, err := br.ReadString('\n')
+				if err != nil {
+					close(lines)
+					return
+				}
+				lines <- line
+			}
+		}()
+		var done map[string]interface{}
+		deadline := time.After(5 * time.Second)
+		for done == nil {
+			select {
+			case line, ok := <-lines:
+				if !ok {
+					t.Fatal("流在 done 帧前关闭")
+				}
+				if !strings.HasPrefix(line, "data: ") {
+					continue
+				}
+				var ev map[string]interface{}
+				if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &ev); err != nil {
+					t.Fatalf("解析事件: %v", err)
+				}
+				if ev["type"] == "done" {
+					done = ev
+				}
+			case <-deadline:
+				t.Fatal("未在 5s 内收到 done 帧")
+			}
+		}
+		tps, ok := done["tokens_per_second"].(float64)
+		if !ok || tps <= 0 {
+			t.Fatalf("done.tokens_per_second = %v, want > 0", done["tokens_per_second"])
+		}
+
+		// 落库 extra 同源可还原（重开故事后 toMessageView 走这份）。
+		var msgs []chat.Message
+		persistDeadline := time.Now().Add(3 * time.Second)
+		for time.Now().Before(persistDeadline) {
+			msgs, err = a.SinMessages(topic.ID)
+			if err == nil && len(msgs) == 2 {
+				break
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		if len(msgs) != 2 {
+			t.Fatalf("消息数 = %d, want 2", len(msgs))
+		}
+		if !strings.Contains(msgs[1].Extra, "\"tokens_per_second\"") {
+			t.Fatalf("落库 extra 缺 tokens_per_second: %q", msgs[1].Extra)
+		}
+	})
 }
 
 // TestSinStreamRejectsUnknownTopic 未注册话题（空/不存在）不得进入生成路径。

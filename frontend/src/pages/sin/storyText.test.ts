@@ -4,8 +4,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   SIN_CUE_CLOSE, SIN_CUE_OPEN, collectIllustrations, parseCancelled, parseIllustrationCaptions,
-  parseIllustrations, parseReasoning, parseStorySegments, parseTools, pendingIllustrations,
-  sinCueKey, stripCuesForDisplay, suggestStoryTitle, toToolViews,
+  parseIllustrations, parseReasoning, parseStorySegments, parseTokensPerSecond, parseTools,
+  pendingIllustrations, sinCueKey, stripCuesForDisplay, suggestStoryTitle, toToolViews,
 } from './storyText'
 
 describe('parseStorySegments', () => {
@@ -50,6 +50,17 @@ describe('extra 解析', () => {
     expect(parseReasoning('{"reasoning":"想了想"}')).toBe('想了想')
     expect(parseReasoning('{}')).toBe('')
     expect(parseReasoning('not json')).toBe('')
+  })
+
+  it('tokens_per_second：正数认，缺失/0/负数/非数/坏 JSON 返回 undefined（不虚报速度）', () => {
+    expect(parseTokensPerSecond('{"tokens_per_second":18.6}')).toBe(18.6)
+    expect(parseTokensPerSecond({ tokens_per_second: 42 })).toBe(42)
+    expect(parseTokensPerSecond('{}')).toBeUndefined()
+    expect(parseTokensPerSecond('{"tokens_per_second":0}')).toBeUndefined()
+    expect(parseTokensPerSecond('{"tokens_per_second":-1.5}')).toBeUndefined()
+    expect(parseTokensPerSecond('{"tokens_per_second":"12"}')).toBeUndefined()
+    expect(parseTokensPerSecond('not json')).toBeUndefined()
+    expect(parseTokensPerSecond('')).toBeUndefined()
   })
 })
 

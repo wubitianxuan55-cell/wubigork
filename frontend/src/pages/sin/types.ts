@@ -32,6 +32,8 @@ export interface SinMessageView {
   tools?: SinToolTraceView[]
   /** 用户手动停止（extra.cancelled）：重开后与完整回复可区分。 */
   cancelled?: boolean
+  /** 生成速度 tok/s（extra.tokens_per_second，done 帧同名；缺省 = 不显示）。 */
+  tokensPerSecond?: number
   createdAt?: string
 }
 
@@ -88,4 +90,6 @@ export interface SinStreamPayload {
   /** done 帧携带的本轮工具轨迹（权威值：覆盖流式累积结果）。 */
   tools?: SinToolTrace[]
   answered_by?: { engine?: string; model?: string; source?: string; cost_cny?: number }
+  /** done 帧的生成速度 tok/s（与 extra.tokens_per_second 同源；缺省 = 不显示）。 */
+  tokens_per_second?: number
 }

@@ -77,6 +77,9 @@ type sinRoundResult struct {
 	reasoning string
 	calls     []ai.ChatToolCall
 	usage     *ai.ChatUsage
+	// genElapsed 本轮流式生成耗时（首个 delta → 流结束；无 delta 为 0）。
+	// 工具执行发生在轮与轮之间，天然不计入生成速度。
+	genElapsed time.Duration
 }
 
 // sinStreamRound 跑一轮流式请求，把 delta/reasoning 实时下发给前端。
@@ -90,6 +93,8 @@ func (a *App) sinStreamRound(ctx context.Context, runID, model string, opts ai.C
 
 	var res sinRoundResult
 	var content, reasoning strings.Builder
+	// 生成速度计时：从首个内容/思考 delta 起表（排队与首字延迟不计入 tok/s）。
+	var genStart time.Time
 	for chunk := range chunks {
 		if run.cancelled.Load() {
 			break
@@ -110,6 +115,9 @@ func (a *App) sinStreamRound(ctx context.Context, runID, model string, opts ai.C
 			res.usage = chunk.Usage
 			break
 		}
+		if (chunk.Content != "" || chunk.Reasoning != "") && genStart.IsZero() {
+			genStart = time.Now()
+		}
 		if chunk.Content != "" {
 			content.WriteString(chunk.Content)
 			a.emit("sin-stream:"+runID, map[string]interface{}{"type": "delta", "content": chunk.Content})
@@ -121,6 +129,9 @@ func (a *App) sinStreamRound(ctx context.Context, runID, model string, opts ai.C
 	}
 	res.content = content.String()
 	res.reasoning = reasoning.String()
+	if !genStart.IsZero() {
+		res.genElapsed = time.Since(genStart)
+	}
 	return res, nil
 }
 

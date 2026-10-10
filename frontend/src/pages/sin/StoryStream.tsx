@@ -89,6 +89,12 @@ const SinAssistantRow = memo(function SinAssistantRow({
         ))}
         {m.streaming && <span className="sin-caret" aria-hidden="true" />}
         {!m.streaming && m.cancelled && <span className="sin-stopped">已手动停止 · 内容不完整</span>}
+        {/* 生成速度（tok/s）：done 帧下发、extra 落库还原同一份；缺省不渲染 */}
+        {!m.streaming && typeof m.tokensPerSecond === 'number' && m.tokensPerSecond > 0 && (
+          <span className="sin-tokspeed" title="本轮生成速度（模型输出 token/秒）">
+            {m.tokensPerSecond.toFixed(1)} tok/s
+          </span>
+        )}
       </div>
     </div>
   )
