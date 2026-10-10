@@ -5,7 +5,7 @@ import {
   BookOpen, Brain, Calculator, CheckCircle,
   FilePen, FileText, FolderOpen, Globe, Hourglass,
   Layers, List, ListTree, PlusCircle, Search, Sparkles,
-  Table, Trash2, Users, Wrench, Zap, type Icon,
+  Table, Trash2, Users, Wrench, Zap, Ban, type Icon,
 } from "../icons";
 
 export const ICONS: Record<string, Icon> = {
@@ -18,6 +18,7 @@ export const ICONS: Record<string, Icon> = {
   ls: FolderOpen, glob: Search, grep: Search, check: CheckCircle,
   // 项目
   task: ListTree, run_skill: Zap, install_skill: PlusCircle, slash_command: Zap,
+  interrupt_agent: Ban,
   // 图表
   stats: Table, chart: Table,
   chart_gen: Table, "chart-builder": Table,

@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -319,6 +320,10 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		}
 	}
 	reg.Add(taskTool)
+	// interrupt_agent（2026-10 P0-A，dsh 控制面蒸馏）：模型面中断——在跑/排队
+	// 子代理经 subRuns 句柄取消，后台任务转发 jobs.Kill。已入 subagentMetaTools
+	// （子代理不见此工具，中断权只属父代理）。
+	reg.Add(agent.NewInterruptTool())
 	// v4.384 会话检索（dsh ⑧ session-query 蒸馏首刀）：过往会话 user/assistant
 	// 正文的 FTS5 索引（绑定装配空间会话目录——空间隔离由目录构造），模型经
 	// session_search 检索跨会话记忆；搜索时惰性增量索引，零 boot 成本。
@@ -404,6 +409,12 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 			}
 		}
 		subReg := agent.FilterRegistry(reg, sk.AllowedTools, agent.SubagentMetaTools()...)
+		// dsh toolFilter loud-unknown 纪律的技能面（2026-10 P0-B）：技能清单是
+		// 人写的——错名不炸技能（部署差异下清单可以引用本机没有的工具），但
+		// 响亮告警让维护者看得见，不再无声少工具。
+		if unknown := agent.UnknownToolNames(reg, sk.AllowedTools, agent.SubagentMetaTools()...); len(unknown) > 0 {
+			slog.Warn("skill requests unknown tools; skipped", "skill", sk.Name, "unknown", strings.Join(unknown, ","))
+		}
 		steps := maxSteps
 		if steps > 0 {
 			if steps /= 2; steps < 5 {

@@ -52,6 +52,8 @@ export function subjectOf(name: string, args: string): string {
       return str(a, "query");
     case "task":
       return str(a, "description") || str(a, "prompt");
+    case "interrupt_agent":
+      return str(a, "ref");
     case "remember":
       return str(a, "name") || str(a, "description");
       return ""; // dedicated card, not a subject line

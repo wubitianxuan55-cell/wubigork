@@ -107,6 +107,9 @@ var subagentMetaTools = []string{
 	// exit_plan_mode（v4.414 计划审批门）：审批对象是父会话的计划模式闸——
 	// 子代理不该见到审批出口，防其代替父会话退出计划模式。
 	"exit_plan_mode",
+	// interrupt_agent（2026-10 P0-A）：子代理不得打断兄弟/父侧的其它运行，
+	// 中断权只属于父代理。
+	"interrupt_agent",
 }
 
 // SubagentMetaTools returns the tool names that spawned agents should not inherit
@@ -246,8 +249,11 @@ func (t *TaskTool) Schema() json.RawMessage {
 func (t *TaskTool) ReadOnly() bool { return false }
 
 // CompactDescriptor — V10.11: compact task description for prompt efficiency.
+// CompactDescriptor 无条件替换 provider 面描述（tool.go Schemas()），模型只看
+// 这里——并行语义引导（2026-10 有限并行批）必须落在本行；写进 Description
+// 的版本到不了模型面前（该坑已修正）。
 func (t *TaskTool) CompactDescription() string {
-	return "派发隔离子代理执行子任务(可设置output_schema获取结构化JSON)"
+	return fmt.Sprintf("派发隔离子代理执行子任务(可设置output_schema获取结构化JSON)。同一消息里派发多个独立task即并行执行,并发上限%d路、超限自动排队等槽;严格有序的步骤写进同一prompt或同一次调用", SubagentMaxParallel())
 }
 func (t *TaskTool) CompactSchema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{"prompt":{"type":"string"},"description":{"type":"string"},"tools":{"type":"array","items":{"type":"string"}},"max_steps":{"type":"integer"},"run_in_background":{"type":"boolean"},"output_schema":{"type":"object"},"retry_until":{"type":"object","properties":{"check":{"type":"string"},"max_retries":{"type":"integer"}},"required":["check"]},"continue_from":{"type":"string"},"fork":{"type":"boolean"}},"required":["prompt"]}`)
@@ -310,7 +316,10 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 		}
 	}
 
-	subReg := t.buildSubReg(p.Tools)
+	subReg, err := t.buildSubReg(p.Tools)
+	if err != nil {
+		return "", err
+	}
 
 	// V10.29: prepare transcript — continue_from loads existing, otherwise fresh.
 	run, prepErr := t.prepareRun(ctx, p.ContinueFrom, p.RunInBackground)
@@ -323,8 +332,8 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 
 	// retry_until: foreground only (background retry doesn't make sense across turns).
 	if p.RetryUntil != nil && !p.RunInBackground {
-		result, err := t.runForeground(ctx, run, func() (string, error) {
-			return t.runSubWithRetrySession(ctx, p.Prompt, p.RetryUntil, subReg, run, maxSteps, p.OutputSchema, seed)
+		result, err := t.runForeground(ctx, run, func(fgCtx context.Context) (string, error) {
+			return t.runSubWithRetrySession(fgCtx, p.Prompt, p.RetryUntil, subReg, run, maxSteps, p.OutputSchema, seed)
 		})
 		return t.finalizeRun(result, err, run)
 	}
@@ -343,8 +352,8 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 				bgSess   *Session
 				bgErr    error
 			)
-			_, bgErr = t.runForeground(ctx, run, func() (string, error) {
-				bgResult, bgSess, bgErr = t.runSubSession(ctx, p.Prompt, subReg, subSink(ctx, run), run, maxSteps, p.OutputSchema, nil)
+			_, bgErr = t.runForeground(ctx, run, func(fgCtx context.Context) (string, error) {
+				bgResult, bgSess, bgErr = t.runSubSession(fgCtx, p.Prompt, subReg, subSink(fgCtx, run), run, maxSteps, p.OutputSchema, nil)
 				return bgResult, bgErr
 			})
 			_ = bgSess
@@ -375,8 +384,8 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 		subSess   *Session
 		subErr    error
 	)
-	_, subErr = t.runForeground(ctx, run, func() (string, error) {
-		subResult, subSess, subErr = t.runSubSession(ctx, p.Prompt, subReg, subSink(ctx, run), run, maxSteps, p.OutputSchema, seed)
+	_, subErr = t.runForeground(ctx, run, func(fgCtx context.Context) (string, error) {
+		subResult, subSess, subErr = t.runSubSession(fgCtx, p.Prompt, subReg, subSink(fgCtx, run), run, maxSteps, p.OutputSchema, seed)
 		return subResult, subErr
 	})
 	_ = subSess // 前台单发不留用子会话（continue 复用走 run.Session）
@@ -387,11 +396,18 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 // 拿不到槽位的调用先落 queued 侧车（排队可见）再阻塞等槽，ctx 取消则如实
 // 放弃（已落 queued 侧车的补一笔 failed，不留永久排队假态）。槽覆盖整个
 // LLM 循环（retry_until 的多次重试同属一次调用，持一个槽）。
-func (t *TaskTool) runForeground(ctx context.Context, run *SubagentRun, fn func() (string, error)) (string, error) {
+// 中断面（P0-A）：持久 run 在等待期即挂 subRuns{cancel}——interrupt_agent
+// 对排队中的调用同样有效；fn 收到的 ctx 是该派生 ctx，起跑后 cancel 转由
+// runSubAgentInternal 的句柄接管（覆写同键），取消语义全程不断。
+func (t *TaskTool) runForeground(ctx context.Context, run *SubagentRun, fn func(context.Context) (string, error)) (string, error) {
 	// 排队登记：只对持久 run 且尚无真实 meta 的（新鲜派发）生效，MarkQueued
 	// 内部幂等守卫。ephemeral（无 transcript store）没有可见面，直接等槽。
 	if run != nil && run.Ref != "" && t.transcripts != nil {
 		_ = t.transcripts.MarkQueued(run)
+		waitCtx, cancelWait := context.WithCancel(ctx)
+		subRuns.Store(run.Ref, &subRunHandle{cancel: cancelWait})
+		defer func() { cancelWait(); subRuns.Delete(run.Ref) }()
+		ctx = waitCtx
 	}
 	if err := acquireSubSlot(ctx); err != nil {
 		if run != nil && run.Ref != "" && t.transcripts != nil {
@@ -400,11 +416,49 @@ func (t *TaskTool) runForeground(ctx context.Context, run *SubagentRun, fn func(
 		return "", fmt.Errorf("sub-agent queued: %w", err)
 	}
 	defer releaseSubSlot()
-	return fn()
+	return fn(ctx)
 }
 
-func (t *TaskTool) buildSubReg(names []string) *tool.Registry {
-	return FilterRegistry(t.parentReg, names, SubagentMetaTools()...)
+// mustSubReg 是 buildSubReg 的 nil 白名单形态（names 空 ⇒ 恒无未知名，
+// 不可能失败）：RunNew/runFollowUp 等宿主路径用，省一处不可达的 err 分支。
+func mustSubReg(t *TaskTool, names []string) *tool.Registry {
+	reg, err := t.buildSubReg(names)
+	if err != nil {
+		panic(fmt.Sprintf("task: nil whitelist must build cleanly: %v", err))
+	}
+	return reg
+}
+
+func (t *TaskTool) buildSubReg(names []string) (*tool.Registry, error) {
+	// dsh toolFilter 的 loud unknown-name 纪律（2026-10 蒸馏 P0-B）：模型给的
+	// 白名单错名此前被 FilterRegistry 静默跳过——子代理无声少工具、父模型
+	// 无从得知。改为显式报错列出，模型下一回合可自行纠正。
+	if unknown := UnknownToolNames(t.parentReg, names, SubagentMetaTools()...); len(unknown) > 0 {
+		return nil, fmt.Errorf("unknown tools in sub-agent whitelist: %s (check the names; excluded meta-tools like task/run_skill are silently denied by design)", strings.Join(unknown, ", "))
+	}
+	return FilterRegistry(t.parentReg, names, SubagentMetaTools()...), nil
+}
+
+// UnknownToolNames 返回清单里父注册表**完全不存在的**工具名（排除清单按设
+// 计不视为未知——那是「一层深」边界，不是错名）。names 为空返回 nil。
+func UnknownToolNames(parent *tool.Registry, names []string, exclude ...string) []string {
+	if len(names) == 0 {
+		return nil
+	}
+	ex := make(map[string]bool, len(exclude))
+	for _, e := range exclude {
+		ex[e] = true
+	}
+	var unknown []string
+	for _, n := range names {
+		if ex[n] {
+			continue
+		}
+		if _, ok := parent.Get(n); !ok {
+			unknown = append(unknown, n)
+		}
+	}
+	return unknown
 }
 
 func FilterRegistry(parent *tool.Registry, names []string, exclude ...string) *tool.Registry {
@@ -511,7 +565,7 @@ func (t *TaskTool) RunNew(ctx context.Context, prompt string, emit func(ref, tex
 		if maxSteps < 5 {
 			maxSteps = 5
 		}
-		result, _, err := t.runSubSession(ctx, prompt, t.buildSubReg(nil), sink, nil, maxSteps, nil, nil)
+		result, _, err := t.runSubSession(ctx, prompt, mustSubReg(t, nil), sink, nil, maxSteps, nil, nil)
 		return result, "", err
 	}
 	defer run.Release()
@@ -522,7 +576,7 @@ func (t *TaskTool) RunNew(ctx context.Context, prompt string, emit func(ref, tex
 	// stop 必须先于终态写（TrackProgress 契约，见 runFollowUp 同注）。
 	stop()
 
-	subReg := t.buildSubReg(nil)
+	subReg := mustSubReg(t, nil)
 	maxSteps := t.maxSteps / 2
 	if maxSteps < 5 {
 		maxSteps = 5
@@ -577,7 +631,7 @@ func (t *TaskTool) runFollowUp(ctx context.Context, ref, prompt string, sink eve
 	// PrepareContinue 拒绝，tab 状态点也永远转不回完成态。
 	stop()
 
-	subReg := t.buildSubReg(nil)
+	subReg := mustSubReg(t, nil)
 	maxSteps := t.maxSteps / 2
 	if maxSteps < 5 {
 		maxSteps = 5
@@ -913,24 +967,46 @@ func RunSubAgentWithSession(ctx context.Context, prov provider.LLMProvider, reg 
 	return runSubAgentInternal(ctx, prov, reg, sess, prompt, opts, sink, subUsage)
 }
 
-// subRunners 是在跑子代理的 live 登记（ref=SessionID → AgentRunner）：运行中
-// 直穿改向（v4.243）的寻址面——GaeaDagNodeSteer 凭 ref 找到在跑 runner 注入
-// steer 队列（不打断工具执行，下一回合生效）。runSubAgentInternal 起跑登记、
-// defer 注销；查无此 ref=已收跑或 ephemeral 运行，调用方如实报错。
-var subRunners sync.Map
+// subRunHandle 是一个已受理子代理运行（ref=SessionID）的统一句柄：
+// runner 非 nil = LLM 循环在跑（Steer 寻址面）；cancel 恒非 nil = 中断面
+// （interrupt_agent，2026-10 dsh 控制面蒸馏 P0-A）——排队等待期与运行期
+// 都可取消，fire-and-return（信号发出即返回，目标在下一个取消点停）。
+var subRuns sync.Map // ref → *subRunHandle
+
+type subRunHandle struct {
+	runner *AgentRunner
+	cancel context.CancelFunc
+}
 
 // SteerSubagent 向在跑子代理直穿一条补充指引。找不到在跑登记（已收跑/
-// 未起跑/ephemeral）返回错误，绝不静默吞掉改向意图。
+// 排队未起跑/ephemeral）返回错误，绝不静默吞掉改向意图。
 func SteerSubagent(ref, text string) error {
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
 		return fmt.Errorf("ref is required")
 	}
-	v, ok := subRunners.Load(ref)
-	if !ok {
+	v, ok := subRuns.Load(ref)
+	if !ok || v.(*subRunHandle).runner == nil {
 		return fmt.Errorf("子代理 %s 当前不在运行（已收跑请用续跑改向）", ref)
 	}
-	v.(*AgentRunner).Steer(text)
+	v.(*subRunHandle).runner.Steer(text)
+	return nil
+}
+
+// InterruptSubagent 中断一个已受理的子代理（运行中或排队等待并发槽位）。
+// fire-and-return：取消信号发出即返回，目标在其下一个取消点（LLM 采样间/
+// 工具边界）停止，task 结果/侧车终态如实报中断。已收跑/未知 ref 返回错误
+// ——完成态没有「打断」可言，续跑走 continue_from。
+func InterruptSubagent(ref string) error {
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return fmt.Errorf("ref is required")
+	}
+	v, ok := subRuns.Load(ref)
+	if !ok {
+		return fmt.Errorf("子代理 %s 不在运行（未知或已收跑；已收跑请用 continue_from 续跑）", ref)
+	}
+	v.(*subRunHandle).cancel()
 	return nil
 }
 
@@ -949,11 +1025,16 @@ func runSubAgentInternal(ctx context.Context, prov provider.LLMProvider, reg *to
 	// sub-agents don't need orchestrate verify — they execute a single task
 	opts.DisableVerify = true
 	sub := New(prov, reg, sess, opts, sink)
+	// 中断面（P0-A）：持久运行派生可取消 ctx 挂 subRuns——interrupt_agent
+	// 凭 ref 取消；取消的运行走 runErr=ctx.Err 常规收尾（部分结果照常回带）。
+	runCtx := ctx
 	if opts.SessionID != "" {
-		subRunners.Store(opts.SessionID, sub)
-		defer subRunners.Delete(opts.SessionID)
+		var cancelRun context.CancelFunc
+		runCtx, cancelRun = context.WithCancel(ctx)
+		subRuns.Store(opts.SessionID, &subRunHandle{runner: sub, cancel: cancelRun})
+		defer func() { cancelRun(); subRuns.Delete(opts.SessionID) }()
 	}
-	_, runErr := sub.Run(ctx, prompt)
+	_, runErr := sub.Run(runCtx, prompt)
 	// Populate subUsage from the sub-agent's last usage so SubUsage() reflects
 	// real token counts for cost tracking.
 	if subUsage != nil {

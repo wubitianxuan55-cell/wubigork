@@ -20,8 +20,8 @@ func TestSteerSubagentAddressing(t *testing.T) {
 	}
 	// 登记存在：注入成功（用真 AgentRunner 走 Store/Load 全链，不 mock 内部字段）
 	sub := New(nil, nil, nil, Options{}, nil)
-	subRunners.Store("sa_live", sub)
-	defer subRunners.Delete("sa_live")
+	subRuns.Store("sa_live", &subRunHandle{runner: sub, cancel: func() {}})
+	defer subRuns.Delete("sa_live")
 	if err := SteerSubagent("sa_live", "补充指引"); err != nil {
 		t.Fatalf("在跑登记应注入成功: %v", err)
 	}
@@ -31,8 +31,14 @@ func TestSteerSubagentAddressing(t *testing.T) {
 		t.Fatalf("steer 队列内容 = %q ok=%v", text, ok)
 	}
 	// 注销后寻址失败（runSubAgentInternal defer Delete 的语义等价）
-	subRunners.Delete("sa_live")
+	subRuns.Delete("sa_live")
 	if err := SteerSubagent("sa_live", "again"); err == nil {
 		t.Fatal("注销后应寻址失败")
+	}
+	// 排队句柄（runner=nil）：不构成可改向的在跑登记
+	subRuns.Store("sa_queued", &subRunHandle{cancel: func() {}})
+	defer subRuns.Delete("sa_queued")
+	if err := SteerSubagent("sa_queued", "x"); err == nil {
+		t.Fatal("排队句柄（runner=nil）应寻址失败")
 	}
 }

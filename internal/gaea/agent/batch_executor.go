@@ -220,6 +220,10 @@ func getConflictKey(call provider.ToolCall) string {
 	case "install_skill":
 		// 写技能目录，保持全局串行。
 		return "!spawn"
+	case "interrupt_agent":
+		// 中断改变其它运行的执行态（2026-10 P0-A）：与其同批的任何工具
+		// 都不与之并行，保持中断语义的时序确定性。
+		return "!interrupt"
 	case "task", "run_skill":
 		// v4.63 并行子代理：每次调用是独立运行（独立 Session、独立 sa_/mt_
 		// transcript、事件经 syncSink 串行落盘、用量经 usageMu 合并记账），
