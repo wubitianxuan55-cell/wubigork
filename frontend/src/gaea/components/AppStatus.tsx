@@ -86,10 +86,16 @@ export function RunStatus({ running, turnStartAt, turnTokens, used, window: win 
   const elapsed = turnStartAt > 0 ? Math.max(0, now - Math.floor(turnStartAt / 1000)) : 0;
   const elapsedStr = elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed / 60)}m${elapsed % 60}s`;
   const tokStr = turnTokens > 0 ? `↓${fmtTokens(turnTokens)}` : "";
+  // 实时速度（4s 窗口）→ 停顿期退化为回合均速（暗色「均」前缀），保证整个
+  // 回合期间速度始终可见：工具执行/检索阶段 tokens 不涨，实时窗口会归零。
+  const avgSpeed = elapsed > 0 && turnTokens > 0 ? turnTokens / elapsed : 0;
+  const fmtSpd = (v: number) => (v >= 10 ? Math.round(v) : Math.round(v * 10) / 10);
   const spdStr =
     tokSpeed >= 0.5
-      ? `${tokSpeed >= 10 ? Math.round(tokSpeed) : Math.round(tokSpeed * 10) / 10} tok/s`
-      : "";
+      ? `${fmtSpd(tokSpeed)} tok/s`
+      : avgSpeed >= 0.5
+        ? `均 ${fmtSpd(avgSpeed)} tok/s`
+        : "";
   const slowHint =
     elapsed >= 20 && used >= 40000
       ? `处理大上下文中 · ${fmtTokens(used)}`
@@ -104,7 +110,10 @@ export function RunStatus({ running, turnStartAt, turnTokens, used, window: win 
         <span className="font-medium">{elapsedStr}</span>
         {tokStr && <span className="text-fg-faint">{tokStr}</span>}
         {spdStr && (
-          <span className="text-info/80" title="流式输出速度（4s 滚动窗口）">
+          <span
+            className={tokSpeed >= 0.5 ? "text-info/80" : "text-fg-faint"}
+            title={tokSpeed >= 0.5 ? "流式输出速度（4s 滚动窗口）" : "回合平均速度（当前处于工具/思考停顿，无实时流）"}
+          >
             {spdStr}
           </span>
         )}

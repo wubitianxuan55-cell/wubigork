@@ -86,4 +86,12 @@ describe("RunStatus 滚动 tok/s 速度计", () => {
     render(<RunStatus running turnStartAt={Date.now() - 5000} turnTokens={0} used={1000} window={100000} />);
     expect(screen.queryByText(/tok\/s/)).toBeNull();
   });
+
+  it("停顿期（无实时流）显示回合均速（均 前缀）", () => {
+    // turnStartAt 10s 前、已流 500 tokens：实时窗口无样本 → 退化为均速 ~50 tok/s
+    render(
+      <RunStatus running turnStartAt={Date.now() - 10000} turnTokens={500} used={1000} window={100000} />,
+    );
+    expect(screen.getByText(/均 \d+(\.\d+)? tok\/s/)).toBeTruthy();
+  });
 });
