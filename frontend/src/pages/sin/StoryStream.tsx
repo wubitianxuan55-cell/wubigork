@@ -107,7 +107,7 @@ export const StoryStream = forwardRef<HTMLDivElement, StoryStreamProps>(function
     return (
       <div className="sin-stream" ref={ref} onScroll={onScroll}>
         <EmptyState
-          message={emptyHint ?? '还没有开始写 · 在下面说一句：想要什么设定、什么人物、从哪一幕开始——原罪会边写故事边配插图。'}
+          message={emptyHint ?? '还没有开始写 · 在下面说一句：想要什么设定、什么人物、从哪一幕开始——原罪会图文交织地写：文字推进情节，写到有画面的时刻自动配上插图。'}
         />
       </div>
     )

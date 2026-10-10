@@ -337,6 +337,23 @@ func TestSinSystemPromptHasHardBoundaries(t *testing.T) {
 	}
 }
 
+// TestSinSystemPromptEmphasizesInterleaving 图文交织口径锁：插图是板块招牌
+// 而非可选装饰——身份句点名「图文交织」，协议给配图位置清单与 1～2 张节奏
+// （历史回退文案「顺手配」「至多 2 张」「不要每段都配图」= 克制口径，禁再现）。
+func TestSinSystemPromptEmphasizesInterleaving(t *testing.T) {
+	p := sinSystemPrompt()
+	for _, want := range []string{"图文交织", "开篇定场", "场景切换", "1～2 张", "插图不是装饰"} {
+		if !strings.Contains(p, want) {
+			t.Errorf("系统提示词缺少图文交织口径 %q", want)
+		}
+	}
+	for _, banned := range []string{"顺手配", "至多 2 张", "不要每段都配图"} {
+		if strings.Contains(p, banned) {
+			t.Errorf("系统提示词残留克制口径 %q（图文交织已是默认期待）", banned)
+		}
+	}
+}
+
 // TestSinSystemPromptCoversToolRegistry 工具清单同步闸（v4.424）：注册表
 // sinToolOrder 里的每个工具都必须在系统提示词里点名——模型拿到的 schema
 // 集合与提示词教学面不一致时，未教过的工具只剩自身 description 一层约束

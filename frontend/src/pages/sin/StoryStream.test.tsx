@@ -42,3 +42,11 @@ describe('StoryStream 生成速度段', () => {
     }
   })
 })
+
+describe('StoryStream 空态引导', () => {
+  it('默认文案点名图文交织（板块招牌，改文案防回退）', () => {
+    const { getByText } = renderStream([])
+    const hint = getByText(/还没有开始写/)
+    expect(hint.textContent).toContain('图文交织')
+  })
+})
