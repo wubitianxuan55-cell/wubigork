@@ -109,6 +109,9 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 		// 会话空间分流。
 		if e.Kind == event.TurnDone && e.Err == nil {
 			a.maybeDreamAfterTurn(gaeaSessionSpace())
+			// 会话自动命名（dsh session-title 蒸馏）：首个成功回合后给无标题
+			// 会话起名（办公本地路由，单飞；与做梦同槽同纪律）。
+			a.maybeAutoTitleAfterTurn()
 		}
 	})
 	// 构建 controller（单模型 agent）
