@@ -44,6 +44,8 @@ function renderBind(overrides: Partial<ModelCenterContextValue> = {}) {
     handleClearChatVoice: () => {},
     handleSavePortrait: () => {},
     handleSaveSinImage: () => {},
+    handleRefreshModels: () => Promise.resolve(),
+    testingEngine: null,
     ...overrides,
   } as unknown as ModelCenterContextValue
   return render(
@@ -83,6 +85,31 @@ describe('BindSection', () => {
     const option = await screen.findByText('Herdsman 本地')
     fireEvent.click(option)
     expect(setFeatureDraft).toHaveBeenCalled()
+  })
+
+  // 内置引擎种子不预置模型清单：选中 models 为空的引擎时自动拉取一次，
+  // 已有清单的引擎不重复拉取。
+  it('auto-refreshes models when selected engine has none', async () => {
+    const handleRefreshModels = vi.fn().mockResolvedValue(undefined)
+    renderBind({
+      handleRefreshModels,
+      engines: [
+        { id: 'strata', name: 'Strata', enabled: true, label: 'Strata 本地', type: 'strata', base_url: 'http://127.0.0.1:8091/v1', default_model: '', models: [] },
+        { id: 'herdsman', name: 'Herdsman', enabled: true, label: 'Herdsman 本地', type: 'herdsman', base_url: 'http://localhost:8080/v1', default_model: '', models: [{ id: 'qwen3-8b', owned_by: 'herdsman', status: 'running' }] },
+      ],
+    })
+    const selects = document.querySelectorAll('.ant-select-selector')
+    fireEvent.mouseDown(selects[0])
+    const option = await screen.findByText('Strata 本地')
+    fireEvent.click(option)
+    await waitFor(() => {
+      expect(handleRefreshModels).toHaveBeenCalledWith('strata')
+    })
+    // 已有模型清单的引擎不再触发
+    fireEvent.mouseDown(selects[0])
+    const opt2 = await screen.findByText('Herdsman 本地')
+    fireEvent.click(opt2)
+    expect(handleRefreshModels).not.toHaveBeenCalledWith('herdsman')
   })
 
   // v4.388 原罪插图卡：默认跟随全局；绑定后端选择走 setSinImageDraft、保存走 handleSaveSinImage。

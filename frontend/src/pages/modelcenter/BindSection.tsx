@@ -56,6 +56,7 @@ export function BindSection() {
     sinImageSaving,
     llmModels,
     ttsModels,
+    testingEngine,
   } = useModelCenterState()
 
   const {
@@ -70,7 +71,15 @@ export function BindSection() {
     handleSavePortrait,
     setSinImageDraft,
     handleSaveSinImage,
+    handleRefreshModels,
   } = useModelCenterActions()
+
+  // 内置引擎种子不预置模型清单（models 在测试连接/刷新前为空）：绑定选引擎
+  // 时自动拉取一次，否则模型下拉是空的。
+  const autoRefreshModels = (engineId: string) => {
+    const eng = engines.find(e => e.id === engineId)
+    if (eng?.enabled && !(eng.models?.length)) void handleRefreshModels?.(engineId)
+  }
 
   return (
     <section className="mc-section">
@@ -135,14 +144,18 @@ export function BindSection() {
                   placeholder="引擎"
                   value={draft.engine || undefined}
                   getPopupContainer={popupContainer}
-                  onChange={(v: string) => setFeatureDraft(p => ({ ...p, [f.key]: { engine: v, model: '' } }))}
+                  onChange={(v: string) => {
+                    setFeatureDraft(p => ({ ...p, [f.key]: { engine: v, model: '' } }))
+                    autoRefreshModels(v)
+                  }}
                   style={{ flex: 1, minWidth: 0 }}
                   options={engines.filter(e => e.enabled).map(e => ({ value: e.id, label: engineLabel(e) }))}
                 />
                 <Select
                   size="small"
-                  placeholder="模型"
+                  placeholder={testingEngine === draft.engine ? '拉取模型中…' : '模型'}
                   value={draft.model || undefined}
+                  loading={testingEngine === draft.engine}
                   getPopupContainer={popupContainer}
                   onChange={(v: string) => setFeatureDraft(p => ({ ...p, [f.key]: { engine: p[f.key]?.engine || '', model: v } }))}
                   style={{ flex: 1, minWidth: 0 }}
