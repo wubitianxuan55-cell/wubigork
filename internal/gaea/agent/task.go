@@ -218,7 +218,8 @@ func (t *TaskTool) SetSubagentJournalDir(dir string) { t.journalDir = dir }
 func (t *TaskTool) Name() string { return "task" }
 
 func (t *TaskTool) Description() string {
-	return "Spawn a sub-agent for a focused sub-task. The sub-agent runs in its own session with the same provider and a filtered tool list (defaults to every parent tool except subagent/skill meta-tools, so delegation stays one layer deep). Only its final answer is returned. Set output_schema to get structured JSON back (e.g. {files_modified: [...], key_decisions: [...]}). Use this to (a) keep long exploration sequences out of the parent's context budget, or (b) delegate self-contained work like 'find every place that calls X and summarise the patterns'."
+	return "Spawn a sub-agent for a focused sub-task. The sub-agent runs in its own session with the same provider and a filtered tool list (defaults to every parent tool except subagent/skill meta-tools, so delegation stays one layer deep). Only its final answer is returned. Set output_schema to get structured JSON back (e.g. {files_modified: [...], key_decisions: [...]}). Use this to (a) keep long exploration sequences out of the parent's context budget, or (b) delegate self-contained work like 'find every place that calls X and summarise the patterns'. " +
+		"Parallelism: dispatching several task calls in the SAME message runs them concurrently, up to a bounded sub-agent slot limit (" + fmt.Sprintf("%d", SubagentMaxParallel()) + "); extra calls queue transparently and start as slots free up. Batch independent sub-tasks into one message; keep strictly ordered steps inside one prompt (or one call) instead."
 }
 
 func (t *TaskTool) Schema() json.RawMessage {
@@ -322,7 +323,9 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 
 	// retry_until: foreground only (background retry doesn't make sense across turns).
 	if p.RetryUntil != nil && !p.RunInBackground {
-		result, err := t.runSubWithRetrySession(ctx, p.Prompt, p.RetryUntil, subReg, run, maxSteps, p.OutputSchema, seed)
+		result, err := t.runForeground(ctx, run, func() (string, error) {
+			return t.runSubWithRetrySession(ctx, p.Prompt, p.RetryUntil, subReg, run, maxSteps, p.OutputSchema, seed)
+		})
 		return t.finalizeRun(result, err, run)
 	}
 
@@ -335,8 +338,17 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 			// No jobs manager in this context (e.g. headless sub-agent).
 			// Fall back to foreground execution — sub-agents are short-lived
 			// and don't persist across turns.
-			result, _, err := t.runSubSession(ctx, p.Prompt, subReg, subSink(ctx, run), run, maxSteps, p.OutputSchema, nil)
-			return t.finalizeRun(result, err, run)
+			var (
+				bgResult string
+				bgSess   *Session
+				bgErr    error
+			)
+			_, bgErr = t.runForeground(ctx, run, func() (string, error) {
+				bgResult, bgSess, bgErr = t.runSubSession(ctx, p.Prompt, subReg, subSink(ctx, run), run, maxSteps, p.OutputSchema, nil)
+				return bgResult, bgErr
+			})
+			_ = bgSess
+			return t.finalizeRun(bgResult, bgErr, run)
 		}
 		parentID, parent, _, _ := CallContext(ctx)
 		nested := subSinkFor(parentID, parent, func() string { return subagentRunRef(run) })
@@ -358,8 +370,37 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 		return fmt.Sprintf("Started background task %q (%s). It runs across turns; collect its final answer with wait (or wait will return it once done), and you'll be notified when it finishes.", job.ID, label), nil
 	}
 
-	result, _, err := t.runSubSession(ctx, p.Prompt, subReg, subSink(ctx, run), run, maxSteps, p.OutputSchema, seed)
-	return t.finalizeRun(result, err, run)
+	var (
+		subResult string
+		subSess   *Session
+		subErr    error
+	)
+	_, subErr = t.runForeground(ctx, run, func() (string, error) {
+		subResult, subSess, subErr = t.runSubSession(ctx, p.Prompt, subReg, subSink(ctx, run), run, maxSteps, p.OutputSchema, seed)
+		return subResult, subErr
+	})
+	_ = subSess // 前台单发不留用子会话（continue 复用走 run.Session）
+	return t.finalizeRun(subResult, subErr, run)
+}
+
+// runForeground 在子代理并发闸内执行一次前台子代理会话（有限并行）：
+// 拿不到槽位的调用先落 queued 侧车（排队可见）再阻塞等槽，ctx 取消则如实
+// 放弃（已落 queued 侧车的补一笔 failed，不留永久排队假态）。槽覆盖整个
+// LLM 循环（retry_until 的多次重试同属一次调用，持一个槽）。
+func (t *TaskTool) runForeground(ctx context.Context, run *SubagentRun, fn func() (string, error)) (string, error) {
+	// 排队登记：只对持久 run 且尚无真实 meta 的（新鲜派发）生效，MarkQueued
+	// 内部幂等守卫。ephemeral（无 transcript store）没有可见面，直接等槽。
+	if run != nil && run.Ref != "" && t.transcripts != nil {
+		_ = t.transcripts.MarkQueued(run)
+	}
+	if err := acquireSubSlot(ctx); err != nil {
+		if run != nil && run.Ref != "" && t.transcripts != nil {
+			_ = t.transcripts.SaveFailed(run) // 取消/放弃：排队态如实收口为失败
+		}
+		return "", fmt.Errorf("sub-agent queued: %w", err)
+	}
+	defer releaseSubSlot()
+	return fn()
 }
 
 func (t *TaskTool) buildSubReg(names []string) *tool.Registry {

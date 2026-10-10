@@ -19,7 +19,7 @@ import (
 // WorkSwarm 蜂群 / QClaw V2 多 Agent：让用户看到「谁在干什么」）。
 type SubagentRunView struct {
 	Ref    string `json:"ref"`    // sa_YYYYMMDD_HHMMSS_... 稳定引用
-	Status string `json:"status"` // running | completed | failed
+	Status string `json:"status"` // queued | running | completed | failed（queued=有限并行闸排队中）
 	// Kind 区分两类运行：subagent（task/run_skill 派生的真子代理）与
 	// model_tool（vision/summarize_file 等本地模型工具的单轮调用）。旧数据
 	// 缺省补 subagent。

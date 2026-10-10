@@ -29,6 +29,12 @@ func RunPersistedSubAgent(
 	subUsage *provider.Usage,
 ) (string, error) {
 	if store == nil {
+		// ephemeral 路径同样吃并发闸（skill 派生的 LLM 循环是同一类负载）；
+		// 无 store 即无 queued 可见面，直接等槽。
+		if err := acquireSubSlot(ctx); err != nil {
+			return "", fmt.Errorf("sub-agent queued: %w", err)
+		}
+		defer releaseSubSlot()
 		return RunSubAgent(ctx, prov, reg, sysPrompt, prompt, opts, sink, subUsage)
 	}
 	run, err := store.PrepareFreshWithTitle(sysPrompt, SpaceFromContext(ctx), title)
@@ -36,6 +42,14 @@ func RunPersistedSubAgent(
 		return "", fmt.Errorf("prepare subagent transcript: %w", err)
 	}
 	defer run.Release()
+	// 有限并行：排队先落 queued 侧车（分工面板如实显示「排队中」），起跑时
+	// MarkRunning 覆写；等槽期间 ctx 取消则补 failed 收口，不留永久排队态。
+	_ = store.MarkQueued(run)
+	if err := acquireSubSlot(ctx); err != nil {
+		_ = store.SaveFailed(run)
+		return "", fmt.Errorf("sub-agent queued: %w", err)
+	}
+	defer releaseSubSlot()
 	if err := store.MarkRunning(run); err != nil {
 		return "", fmt.Errorf("mark subagent running: %w", err)
 	}

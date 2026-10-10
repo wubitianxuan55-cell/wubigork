@@ -570,6 +570,11 @@ type AgentConfig struct {
 	// 结果全文存会话泄洪库、内联文本附 locator，模型经 read_spill 分页取回，
 	// 大结果不再被截断管线销毁中段。缺省开（nil = true），false 关闭=旧行为。
 	ToolSpill *bool `toml:"tool_spill"`
+	// SubagentMaxParallel 是子代理有限并行上限（2026-10，对标 ZCode 编排的
+	// max_concurrency）：同一回合 task/run_skill 前台派生共享的并发槽位数，
+	// 超出的调用排队等槽（transcript 侧车标 queued，前端可见）。≤0 = 默认 3；
+	// 硬帽 8（与批次并行度对齐），装配在 agent.SetSubagentMaxParallel 钳制。
+	SubagentMaxParallel int `toml:"subagent_max_parallel"`
 }
 
 // ToolSpillEnabled 返回泄洪的生效开关：nil（未配置）= 默认开。

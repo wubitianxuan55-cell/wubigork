@@ -105,6 +105,20 @@ describe("SubagentThread 子代理对话全面板（v4.27）", () => {
     expect(mocks.SubagentTranscript).toHaveBeenCalledTimes(3);
   });
 
+  // 有限并行闸（2026-10）：queued 排队态徽标三语接线 + 同按 live 轮询
+  //（等槽 tab 的状态翻转与起跑内容靠轮询跟上）。
+  it("排队中：头部徽标显示「排队中」且保持 3s 轮询", async () => {
+    vi.useFakeTimers();
+    render(wrap(<SubagentThread sessionPath="s1.jsonl" target="sa_2_b2b2b2b2" task="任务" status="queued" onBack={() => {}} />));
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.getByText("排队中")).toBeTruthy();
+    expect(mocks.SubagentTranscript).toHaveBeenCalledTimes(1);
+    mocks.SubagentTranscript.mockClear();
+    act(() => { vi.advanceTimersByTime(3000); });
+    await act(async () => { await Promise.resolve(); });
+    expect(mocks.SubagentTranscript).toHaveBeenCalledTimes(1);
+  });
+
   it("assistant 正文按主对话同款 Markdown 渲染（加粗/列表/代码块）", async () => {
     mocks.SubagentTranscript.mockResolvedValue({
       ...transcript,

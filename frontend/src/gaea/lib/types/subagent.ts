@@ -1,7 +1,8 @@
 // ── 多智能体分工可见（P2，对标 WorkSwarm 蜂群 / QClaw V2） ──
 export interface SubagentRunView {
   ref: string; // sa_YYYYMMDD_HHMMSS_... / mt_YYYYMMDD_HHMMSS_... 稳定引用
-  status: "running" | "completed" | "failed";
+  // queued：有限并行闸排队中（[agent] subagent_max_parallel，超限派生等槽）
+  status: "queued" | "running" | "completed" | "failed";
   // kind 区分两类运行：subagent（task/run_skill 派生的真子代理）与
   // model_tool（vision/summarize_file 等本地模型工具的单轮调用）。旧数据
   // 缺省按 subagent 解析。

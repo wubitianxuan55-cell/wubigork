@@ -1231,6 +1231,7 @@ export const zh: Record<DictKey, string> = {
   "subagent.statusRunning": "进行中",
   "subagent.statusError": "出错",
   "subagent.statusDone": "已完成",
+  "subagent.statusQueued": "排队中",
   "subagent.statusFailed": "失败",
   "subagent.durSec": "{n} 秒",
   "subagent.durMin": "{n} 分",
@@ -1505,6 +1506,7 @@ export const zh: Record<DictKey, string> = {
   "taskpick.rowAria": "打开子代理任务：{task}",
   "taskpick.statusRunning": "运行中",
   "taskpick.statusCompleted": "已完成",
+  "taskpick.statusQueued": "排队中",
   "taskpick.statusFailed": "失败",
 
   // ── imagegen 画室素材库 T1 收口（独立素材库页 + 轻扫更新）──

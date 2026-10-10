@@ -730,9 +730,11 @@ export default function App() {
               const statusText =
                 x.status === "running"
                   ? t("subagent.statusRunning")
-                  : x.status === "failed"
-                    ? t("subagent.statusFailed")
-                    : t("subagent.statusDone");
+                  : x.status === "queued"
+                    ? t("subagent.statusQueued")
+                    : x.status === "failed"
+                      ? t("subagent.statusFailed")
+                      : t("subagent.statusDone");
               return {
                 id: x.id,
                 label:
@@ -1025,8 +1027,8 @@ export default function App() {
               className="flex w-full cursor-pointer items-center gap-2 rounded-md border border-border-soft bg-bg-soft px-2 py-1.5 text-left transition-colors hover:bg-(color:--md-sys-color-surface-container-high)"
             >
               <span className="inline-flex shrink-0 items-center gap-1 text-[10.5px] text-fg-faint">
-                <span className={`h-1.5 w-1.5 rounded-full ${r.status === "running" ? "animate-pulse bg-accent" : r.status === "failed" ? "bg-err" : "bg-info/70"}`} />
-                {r.status === "running" ? t("taskpick.statusRunning") : r.status === "failed" ? t("taskpick.statusFailed") : t("taskpick.statusCompleted")}
+                <span className={`h-1.5 w-1.5 rounded-full ${r.status === "running" ? "animate-pulse bg-accent" : r.status === "queued" ? "bg-fg-faint/50" : r.status === "failed" ? "bg-err" : "bg-info/70"}`} />
+                {r.status === "running" ? t("taskpick.statusRunning") : r.status === "queued" ? t("taskpick.statusQueued") : r.status === "failed" ? t("taskpick.statusFailed") : t("taskpick.statusCompleted")}
               </span>
               <span className="min-w-0 flex-1 truncate text-[12px] text-fg" title={r.task}>{r.task}</span>
               {r.model && <span className="max-w-[30%] shrink-0 truncate font-mono text-[10.5px] text-fg-faint" title={r.model}>{r.model}</span>}

@@ -28,7 +28,9 @@ import { useLiveReload } from "../hooks/useLiveReload";
 //    v4.62 P1：运行中子代理的助手文本增量经 subagent_text 事件流式实时
 //    渲染（缓冲行 + 快照接管 reconcile，见 streamBuf 注释），不再等快照。
 
-export type SubagentThreadStatus = "running" | "completed" | "failed";
+// queued：有限并行闸排队中（后端 [agent] subagent_max_parallel，超限派生
+// 等槽）——tab 头/状态徽标如实显示，不与 running 混淆。
+export type SubagentThreadStatus = "queued" | "running" | "completed" | "failed";
 
 const THREAD_POLL_MS = 3000;
 
@@ -40,6 +42,13 @@ function statusMeta(status: SubagentThreadStatus, t: Translator): { label: strin
         color: "var(--gaea-glow)",
         bg: "color-mix(in srgb, var(--gaea-glow) 10%, transparent)",
         border: "1px solid color-mix(in srgb, var(--gaea-glow) 30%, transparent)",
+      };
+    case "queued":
+      return {
+        label: t("subagent.statusQueued"),
+        color: "var(--fg-faint)",
+        bg: "color-mix(in srgb, var(--fg-faint) 10%, transparent)",
+        border: "1px solid color-mix(in srgb, var(--fg-faint) 30%, transparent)",
       };
     case "failed":
       return {
@@ -173,16 +182,19 @@ export function SubagentThread({
 
   // 实时：运行中每 3s 轮询（不可见门控空转）+ 事件驱动（turn_done 立即、
   // 运行中事件节流）；running→done 由 useLiveReload 触发一次收尾刷新。
+  // queued 同按 live 轮询：等槽的 tab 状态翻转（queued→running）与起跑后的
+  // 首批内容都靠它跟上，否则排队 tab 会停在旧快照。
   const running = status === "running";
+  const live = running || status === "queued";
 
-  useLiveReload(running, load);
+  useLiveReload(live, load);
   // 事件驱动刷新：子代理的工具活动（nested tool_dispatch/tool_result）会经
   // subSinkFor 转发到主事件流；运行时收到即补拉 transcript（transcript 由
   // 后端 ~1s 快照写盘），把「最多等 3s 轮询」收敛到工具边界即时更新。节流
   // 800ms 防事件风暴，turn_done 由 useLiveReload 兜底。
   const lastEventReloadRef = useRef(0);
   useEffect(() => {
-    if (!running) return;
+    if (!live) return;
     const off = onEvent((e: { kind: string }) => {
       if (e.kind !== "tool_dispatch" && e.kind !== "tool_result") return;
       const now = Date.now();
@@ -191,7 +203,7 @@ export function SubagentThread({
       load();
     });
     return off;
-  }, [running, load]);
+  }, [live, load]);
 
   // P1 流式（v4.62.1 分道）：订阅专用通道 gaea-subagent-text（无 seq、有损
   // 无妨），按 subagentRef 路由到本会话 tab。增量绝不走 gaea-event——那条
@@ -328,10 +340,10 @@ export function SubagentThread({
   // 失败态气泡不算运行中——该次派发没有后台运行，轮询是空转。
   const followUpActive = followUpBusy || (!!followUpPending && !followUpPendingFailed);
   useEffect(() => {
-    if (!running && !followUpActive) return;
+    if (!live && !followUpActive) return;
     const timer = window.setInterval(() => { if (gate) load(); }, THREAD_POLL_MS);
     return () => window.clearInterval(timer);
-  }, [running, followUpActive, gate, load]);
+  }, [live, followUpActive, gate, load]);
 
   return (
     <div className="flex flex-col h-full min-h-0 text-xs" data-testid="agent-thread" style={{ color: "var(--md-sys-color-text-secondary)" }}>

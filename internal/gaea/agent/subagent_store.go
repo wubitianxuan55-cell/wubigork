@@ -37,7 +37,12 @@ import (
 type SubagentStatus string
 
 const (
-	SubagentRunning   SubagentStatus = "running"
+	SubagentRunning SubagentStatus = "running"
+	// SubagentQueued 是有限并行闸（subagent_limit.go）下的排队态：调用已受
+	// 理、transcript 已建档，但并发槽位未到、LLM 循环尚未起跑。起跑时
+	// MarkRunning 覆写为 running；崩溃恢复（CleanupStaleRunning）与 running
+	// 同判为 failed——排队中的进程没了就是没跑成。
+	SubagentQueued    SubagentStatus = "queued"
 	SubagentCompleted SubagentStatus = "completed"
 	SubagentFailed    SubagentStatus = "failed"
 )
@@ -224,6 +229,35 @@ func (s *SubagentStore) MarkRunning(run *SubagentRun) error {
 	return s.saveMetaUnlocked(meta)
 }
 
+// MarkQueued writes the .meta sidecar with Status=queued：有限并行闸的排队
+// 登记（调用已受理、槽位未到）。只对**无既有 meta 的新鲜 run** 生效——
+// continue_from 装载的 run 已有终态 meta，排队登记不得覆盖历史终态（起跑
+// 后 MarkRunning 照旧覆写 running，与本方法无关）。幂等：重复调用重写同值。
+func (s *SubagentStore) MarkQueued(run *SubagentRun) error {
+	if run == nil || run.Ref == "" {
+		return errors.New("mark queued: empty ref")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if existing, err := s.loadMeta(run.Ref); err == nil {
+		if existing.Status != "" && existing.Status != SubagentQueued {
+			return nil // 已有真实状态（续跑的终态/并发双登记）不覆盖
+		}
+	}
+	meta := s.baseMeta(run.Ref)
+	if meta.CreatedAt.IsZero() {
+		meta.CreatedAt = time.Now()
+	}
+	meta.Ref = run.Ref
+	meta.Status = SubagentQueued
+	meta.Kind = kindOr(run.Kind(), meta.Kind)
+	if run.Title != "" {
+		meta.Title = run.Title
+	}
+	meta.Space = spaces.Normalize(run.Space)
+	return s.saveMetaUnlocked(meta)
+}
+
 // Kind returns the run's kind (default subagent for zero-value runs).
 func (r *SubagentRun) Kind() string {
 	if r == nil {
@@ -352,6 +386,11 @@ func (s *SubagentStore) PrepareContinue(ref, space string) (*SubagentRun, error)
 	}
 	if meta.Status == SubagentRunning {
 		return nil, fmt.Errorf("subagent %s is still running; wait for it to complete before continuing", ref)
+	}
+	// queued：并发闸排队中（transcript 尚未起跑）——排队结束起跑后才有可续
+	// 写的历史，显式拒绝比让 session.Load 在空 transcript 上报错更诚实。
+	if meta.Status == SubagentQueued {
+		return nil, fmt.Errorf("subagent %s is still queued (waiting for a concurrency slot); wait for it to start before continuing", ref)
 	}
 	if meta.Kind == SubagentKindModelTool {
 		return nil, fmt.Errorf("subagent %s is a model-tool run and cannot be continued", ref)
@@ -724,7 +763,7 @@ func (s *SubagentStore) CleanupStaleRunning() (int, error) {
 		if err != nil {
 			continue
 		}
-		if meta.Status == SubagentRunning {
+		if meta.Status == SubagentRunning || meta.Status == SubagentQueued {
 			meta.Status = SubagentFailed
 			if err := s.saveMeta(ref, meta); err == nil {
 				count++

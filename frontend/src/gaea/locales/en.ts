@@ -1230,6 +1230,7 @@ export const en = {
   "subagent.statusRunning": "Running",
   "subagent.statusError": "Error",
   "subagent.statusDone": "Completed",
+  "subagent.statusQueued": "Queued",
   "subagent.statusFailed": "Failed",
   "subagent.durSec": "{n} s",
   "subagent.durMin": "{n} min",
@@ -1504,6 +1505,7 @@ export const en = {
   "taskpick.rowAria": "Open subagent task: {task}",
   "taskpick.statusRunning": "Running",
   "taskpick.statusCompleted": "Completed",
+  "taskpick.statusQueued": "Queued",
   "taskpick.statusFailed": "Failed",
 
   // ── imagegen 画室素材库 T1 收口（独立素材库页 + 轻扫更新）──

@@ -13,7 +13,7 @@ export interface ChatSessionTab {
   id: string;
   label: string;
   /** 会话状态（子代理运行态；有值时 tab 前显示实时状态点，与主代理运行态同口径） */
-  status?: "running" | "completed" | "failed";
+  status?: "queued" | "running" | "completed" | "failed";
   /** 悬停详情（任务/状态/模型等完整信息；缺省回退 id） */
   detail?: string;
 }
@@ -117,9 +117,11 @@ export function ChatTabs({ active, onChange, tabs, labelOverrides, className, ex
                   background:
                     s.status === "running"
                       ? "var(--gaea-glow)"
-                      : s.status === "failed"
-                        ? "var(--md-sys-color-destructive)"
-                        : "var(--md-sys-color-success)",
+                      : s.status === "queued"
+                        ? "var(--fg-faint)"
+                        : s.status === "failed"
+                          ? "var(--md-sys-color-destructive)"
+                          : "var(--md-sys-color-success)",
                 }}
                 aria-hidden
               />

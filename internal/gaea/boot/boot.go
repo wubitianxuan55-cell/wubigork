@@ -300,6 +300,9 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	taskTool.SetSubagentJournalDir(filepath.Join(cwd, ".gaea", "work", "journal"))
 	// v4.379 泄洪随父配置：子代理 runner 各持独立泄洪库（read_spill 同注册表可达）。
 	taskTool.SetSpill(cfg.Agent.ToolSpillEnabled())
+	// 有限并行闸（2026-10）：task/run_skill 前台派生共享的并发上限，超出的
+	// 调用排队（queued 侧车可见）。≤0/超帽在 Set 内钳制，boot 一次装配。
+	agent.SetSubagentMaxParallel(cfg.Agent.SubagentMaxParallel)
 
 	// V10.22: resolve subagent model from config. When SubagentModel names a
 	// configured provider, sub-agents use that provider (typically a cheaper
