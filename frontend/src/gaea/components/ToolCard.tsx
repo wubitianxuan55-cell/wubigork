@@ -13,7 +13,15 @@ import { ICONS, mcpOr } from "./tool_icons";
 import { useT } from "../lib/i18n";
 import { useCompact } from "../hooks/useCompact";
 import { useGSAPCollapse } from "../lib/useGSAPCollapse";
-import { boundedOutput, diffStatFor, diffsFor, subjectOf, summarize } from "../lib/tools";
+import {
+  boundedOutput,
+  commandOf,
+  diffStatFor,
+  diffsFor,
+  subjectOf,
+  summarize,
+  TOOL_CARD_OUTPUT_PREVIEW_LINES,
+} from "../lib/tools";
 import { fireTaskCardAmbiguity, getTaskCardActivity, getTaskCardAmbiguity, getTaskCardOpenTarget, hasTaskCardActivityProvider, hasTaskCardAmbiguityHandler, openTaskCardSession, resolveTaskRef, taskResultSummary } from "../lib/taskActivity";
 import { formatElapsed } from "../lib/time";
 import { useNow } from "../lib/useNow";
@@ -121,13 +129,19 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
       : summarize(item.name, item.args, item.output, item.error);
   }, [item.status, item.name, item.args, item.output, item.error, nested.length, t]);
 
-  const hasArgs = diffs.length > 0 || !!item.args;
+  // Codex 式对齐（2026-10）：展开态不再整包摊 JSON args——
+  // ① bash 类把 args.command 直接渲染成终端命令块（多行命令在 JSON 里
+  //    是 \n 转义长串，是「太长」的主源）；
+  // ② 写文件类 diffs 已是 args 的呈现，args JSON 不再重复渲染（此前
+  //    write_file 整文件内容 diff 一遍、JSON 再摊一遍）。
+  const command = useMemo(() => commandOf(item.name, item.args), [item.name, item.args]);
+  const showArgsJson = !command && diffs.length === 0 && !!item.args;
   const hasOutput = !!item.output;
-  const expandable = hasArgs || hasOutput;
+  const expandable = !!command || diffs.length > 0 || showArgsJson || hasOutput;
 
   const [open, setOpen] = useState(false);
-  // P2-2 大工具输出有界预览：超长输出折叠为头部 + 展开全部开关
-  const bounded = useMemo(() => boundedOutput(item.output), [item.output]);
+  // P2-2 大工具输出有界预览：超长输出折叠为头部 + 展开全部开关（12 行）
+  const bounded = useMemo(() => boundedOutput(item.output, TOOL_CARD_OUTPUT_PREVIEW_LINES), [item.output]);
   const [showFullOutput, setShowFullOutput] = useState(false);
 
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -137,7 +151,7 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
     item.readOnly && !hasNested && item.status !== "error" && item.status !== "stopped";
 
   const outputLines = useMemo(() => (item.output ? item.output.split("\n").length : 0), [item.output]);
-  const prettyArgs = useMemo(() => (item.args ? pretty(item.args) : ""), [item.args]);
+  const prettyArgs = useMemo(() => (showArgsJson && item.args ? pretty(item.args) : ""), [showArgsJson, item.args]);
 
   // v4.63 子代理卡片整卡可点：task / run_skill 卡解析出可跳转的子代理 ref
   // 时，点击头部行直接打开对应会话 tab（与右栏任务树同款跳转），不再只是
@@ -248,7 +262,14 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
             </div>
           )}
 
-          {hasArgs && (
+          {/* Codex 式 bash 命令块：$ 前缀终端风格，多行命令原样换行、超长行折行 */}
+          {command && (
+            <div className={`${innerPx} ${innerPb}`}>
+              <pre className="px-3 py-2 font-mono text-[12px] leading-[1.5] whitespace-pre-wrap break-words bg-bg-soft border border-border-soft rounded-md text-fg-dim"><code>{`$ ${command}`}</code></pre>
+            </div>
+          )}
+
+          {showArgsJson && (
             <div className={`${innerPx} ${innerPb}`}>
               {item.args && <pre className="px-3 py-2 font-mono text-[12px] leading-[1.5] overflow-auto whitespace-pre bg-bg-soft border border-border-soft rounded-md text-fg-dim"><code>{prettyArgs}</code></pre>}
             </div>
@@ -256,7 +277,7 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
           {hasOutput && (
             <div className={`${innerPx} ${innerPb}`}>
               <div className="text-[9px] text-fg-faint/60 uppercase tracking-wider mb-0.5 select-none">{t("tool.outputHeader", { n: outputLines })}</div>
-              <pre className="px-3 py-2 font-mono text-[12px] leading-[1.5] overflow-auto whitespace-pre bg-bg-soft border border-border-soft rounded-md text-fg-dim"><code><FileLinkText text={showFullOutput ? bounded.full : bounded.preview} compact /></code></pre>
+              <pre className="px-3 py-2 font-mono text-[12px] leading-[1.5] overflow-auto max-h-72 whitespace-pre-wrap break-words bg-bg-soft border border-border-soft rounded-md text-fg-dim"><code><FileLinkText text={showFullOutput ? bounded.full : bounded.preview} compact /></code></pre>
               {bounded.collapsed && (
                 <button
                   type="button"

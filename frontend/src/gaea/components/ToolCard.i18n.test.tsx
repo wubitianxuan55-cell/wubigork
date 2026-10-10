@@ -59,6 +59,52 @@ describe("ToolCard i18n 冒烟", () => {
   });
 });
 
+// ── Codex 式输出简化（2026-10）：bash 命令块 / 写类去双份 / 输出 12 行预览 ──
+describe("ToolCard Codex 对齐：bash 命令块与输出有界", () => {
+  type ToolItem = Extract<Item, { kind: "tool" }>;
+  const bashItem = (nLines: number): ToolItem => ({
+    kind: "tool",
+    id: "bash-1",
+    name: "bash",
+    args: JSON.stringify({ command: "go test ./...", timeout: 120000 }),
+    readOnly: false,
+    status: "done",
+    output: Array.from({ length: nLines }, (_, i) => `line ${i}`).join("\n"),
+  });
+
+  it("bash 展开态渲染 $ 命令块，不再摊 JSON args（timeout 等字段不可见）", () => {
+    renderT(<ToolCard item={bashItem(3)} />);
+    fireEvent.click(screen.getByText("bash"));
+    expect(screen.getByText("$ go test ./...")).toBeTruthy();
+    expect(screen.queryByText(/"command"/)).toBeNull();
+    expect(screen.queryByText(/timeout/)).toBeNull();
+  });
+
+  it("bash 多行命令原样换行（JSON \\n 转义不再上屏）", () => {
+    const multi: ToolItem = { ...bashItem(0), args: JSON.stringify({ command: "echo a\necho b" }) };
+    renderT(<ToolCard item={multi} />);
+    fireEvent.click(screen.getByText("bash"));
+    expect(screen.getByText(/\$ echo a\s+echo b/)).toBeTruthy();
+  });
+
+  it("输出预览 12 行上限：30 行折叠为头部 + 折叠提示 + 展开全部按钮", () => {
+    renderT(<ToolCard item={bashItem(30)} />);
+    fireEvent.click(screen.getByText("bash"));
+    expect(screen.getByText(/已折叠 18 行/)).toBeTruthy();
+    expect(screen.queryByText(/line 29/)).toBeNull();
+    fireEvent.click(screen.getByText(/展开全部 18 行/));
+    expect(screen.getByText("收起输出")).toBeTruthy();
+    expect(screen.getByText(/line 29/)).toBeTruthy();
+  });
+
+  it("写文件类展开态只出 diff，args JSON 不再重复渲染", () => {
+    renderT(<ToolCard item={toolItem} />);
+    fireEvent.click(screen.getByText("edit_file"));
+    expect(screen.queryByText(/old_string/)).toBeNull();
+    expect(screen.getByText(/输出 · /)).toBeTruthy();
+  });
+});
+
 // ── v4.63 子代理卡片整卡可点：task 卡点击派发「打开会话」跳转 ──
 describe("ToolCard 子代理卡片点击跳转（v4.63）", () => {
   afterEach(() => {

@@ -81,6 +81,14 @@ export function subjectOf(name: string, args: string): string {
   }
 }
 
+// commandOf 提取 shell 类工具的命令文本（bash 的 args.command），供展开态
+// 渲染终端命令块——替代整包 JSON args（多行命令在 JSON 里是 \n 转义长串，
+// 可读性极差）。非 shell 工具返回 ""，回退现有 args JSON 展示。
+export function commandOf(name: string, args: string): string {
+  if (name !== "bash") return "";
+  return str(parse(args), "command");
+}
+
 // diffsFor returns the before/after pairs a writer tool's card renders inline:
 // edit_file is one pair, write_file is an all-add (empty original), multi_edit is
 // one pair per step. Returns [] for non-writers, so the card folds args/output
@@ -338,6 +346,11 @@ export interface BoundedOutput {
 }
 
 export const TOOL_OUTPUT_MAX_PREVIEW_LINES = 60;
+
+// 办公对话流（ToolCard）输出预览上限：Codex 式紧凑——默认只露 12 行，
+// 折叠计数 + 「展开全部」按钮兜底（通用 60 行对 chat 流仍是大墙）。
+// SinProcessCard 维持 60 默认不随动。
+export const TOOL_CARD_OUTPUT_PREVIEW_LINES = 12;
 
 export function boundedOutput(
   output: string | undefined,

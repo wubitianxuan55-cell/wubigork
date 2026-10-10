@@ -3,9 +3,11 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { render } from "@testing-library/react";
 import {
   boundedOutput,
+  commandOf,
   diffStatFor,
   summarize,
   subjectOf,
+  TOOL_CARD_OUTPUT_PREVIEW_LINES,
   TOOL_OUTPUT_MAX_PREVIEW_LINES,
 } from "./tools";
 import { LocaleProvider } from "./i18n";
@@ -84,6 +86,35 @@ describe("boundedOutput 大工具输出有界预览（P2-2）", () => {
     expect(TOOL_OUTPUT_MAX_PREVIEW_LINES).toBe(60);
     const out = Array.from({ length: 61 }, (_, i) => `l${i}`).join("\n");
     expect(boundedOutput(out).collapsed).toBe(true);
+  });
+});
+
+// ── Codex 式输出简化（2026-10）：bash 命令块 + chat 流输出预览 12 行 ──────
+
+describe("commandOf bash 命令提取", () => {
+  it("bash 取 args.command；坏 JSON/缺键返回空串", () => {
+    expect(commandOf("bash", JSON.stringify({ command: "ls -la", timeout: 120000 }))).toBe("ls -la");
+    expect(commandOf("bash", "{broken")).toBe("");
+    expect(commandOf("bash", JSON.stringify({ timeout: 1 }))).toBe("");
+  });
+
+  it("非 shell 工具恒返回空（不劫持其它工具的 args）", () => {
+    expect(commandOf("bash_output", JSON.stringify({ command: "x" }))).toBe("");
+    expect(commandOf("grep", JSON.stringify({ pattern: "x" }))).toBe("");
+    expect(commandOf("task", JSON.stringify({ command: "x" }))).toBe("");
+  });
+});
+
+describe("TOOL_CARD_OUTPUT_PREVIEW_LINES chat 流输出预览上限", () => {
+  it("chat 流 12 行、通用默认维持 60 行（SinProcessCard 不随动）", () => {
+    expect(TOOL_CARD_OUTPUT_PREVIEW_LINES).toBe(12);
+    expect(TOOL_OUTPUT_MAX_PREVIEW_LINES).toBe(60);
+    const out = Array.from({ length: 30 }, (_, i) => `l${i}`).join("\n");
+    const bounded = boundedOutput(out, TOOL_CARD_OUTPUT_PREVIEW_LINES);
+    expect(bounded.collapsed).toBe(true);
+    expect(bounded.hiddenLines).toBe(18);
+    expect(bounded.preview).toContain("l11");
+    expect(bounded.preview).not.toContain("l12");
   });
 });
 
