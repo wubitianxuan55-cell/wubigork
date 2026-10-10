@@ -8,6 +8,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"unicode/utf8"
 
 	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/jobs"
@@ -110,6 +111,9 @@ var subagentMetaTools = []string{
 	// interrupt_agent（2026-10 P0-A）：子代理不得打断兄弟/父侧的其它运行，
 	// 中断权只属于父代理。
 	"interrupt_agent",
+	// subagent_list（2026-10 P1-D）：兄弟运行清单不进子代理上下文（子代理
+	// 无兄弟管理职责），与 interrupt_agent 同一可见性边界。
+	"subagent_list",
 }
 
 // SubagentMetaTools returns the tool names that spawned agents should not inherit
@@ -1045,15 +1049,70 @@ func runSubAgentInternal(ctx context.Context, prov provider.LLMProvider, reg *to
 	// V10.5: even on error, extract partial result from last assistant message
 	lastMsg := extractLastAssistantMessage(sess.Messages)
 	if runErr != nil {
-		if lastMsg != "" {
-			return lastMsg, fmt.Errorf("sub-agent terminated with error (partial result returned): %w", runErr)
+		// 结算语义（P1-C，dsh SubagentStopReason 蒸馏）：父模型必须能分辨
+		// 「被打断」与「真失败」——前者重派有意义（换口径/放大预算），后者
+		// 重派只会原样再炸。诊断走卫生面（≤4096B 截断）。
+		if classifySubagentStop(runCtx, runErr) == StopInterrupted {
+			if lastMsg != "" {
+				return lastMsg, fmt.Errorf("sub-agent interrupted before finishing (via interrupt_agent or turn stop); partial result kept below\n%s", lastMsg)
+			}
+			return "", fmt.Errorf("sub-agent interrupted before finishing (via interrupt_agent or turn stop)")
 		}
-		return "", fmt.Errorf("sub-agent: %w", runErr)
+		diag := sanitizeSubagentDiagnostic(runErr.Error())
+		if lastMsg != "" {
+			return lastMsg, fmt.Errorf("sub-agent error before finishing; partial result kept below\n%s\n[diagnostic] %s", lastMsg, diag)
+		}
+		return "", fmt.Errorf("sub-agent error before finishing: %s", diag)
 	}
 	if lastMsg != "" {
 		return lastMsg, nil
 	}
 	return "", fmt.Errorf("sub-agent finished without producing a final answer")
+}
+
+// ── 结算语义（P1-C，dsh SubagentStopReason 蒸馏）────────────────────
+
+// SubagentStopReason 子代理结算原因词汇表：completed=正常完成；interrupted=
+// 被中断（interrupt_agent 或所在回合被停止，即 dsh 的 aborted）；error=模型/
+// 传输失败。merge-extensible——max-tokens/refusal 上游有、gaea 暂无可靠判据，
+// 宁缺勿虚报。
+type SubagentStopReason string
+
+const (
+	StopCompleted   SubagentStopReason = "completed"
+	StopInterrupted SubagentStopReason = "interrupted"
+	StopError       SubagentStopReason = "error"
+)
+
+// classifySubagentStop 按运行 ctx 与错误分类结算原因：runErr 或运行 ctx 携带
+// context.Canceled（interrupt_agent / 回合停止级联）= interrupted；其余归
+// error（含超时——deadline 到期属失败而非主动打断）。
+func classifySubagentStop(runCtx context.Context, runErr error) SubagentStopReason {
+	if errors.Is(runErr, context.Canceled) {
+		return StopInterrupted
+	}
+	if runCtx != nil && errors.Is(runCtx.Err(), context.Canceled) {
+		return StopInterrupted
+	}
+	return StopError
+}
+
+// subagentDiagnosticCap 是诊断卫生面上限（dsh 纪律：≤4096 UTF-8 字节、
+// 不携带原始协议载荷——provider 错误链可能带响应体片段，截断是下界保障）。
+const subagentDiagnosticCap = 4096
+
+// sanitizeSubagentDiagnostic 把诊断串修整到可回投模型的卫生形态：裁到
+// subagentDiagnosticCap 字节（rune 边界不劈半）+ 省略号标注。
+func sanitizeSubagentDiagnostic(s string) string {
+	s = strings.TrimSpace(s)
+	if len(s) <= subagentDiagnosticCap {
+		return s
+	}
+	cut := subagentDiagnosticCap
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut] + "…(diagnostic truncated)"
 }
 
 // extractLastAssistantMessage finds the last non-empty assistant message

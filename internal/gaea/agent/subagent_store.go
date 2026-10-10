@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -734,6 +735,66 @@ func (s *SubagentStore) loadMeta(ref string) (SubagentMeta, error) {
 		return SubagentMeta{}, fmt.Errorf("corrupt meta: %w", err)
 	}
 	return meta, nil
+}
+
+// ── Model-facing enumeration（P1-D，dsh list_agents 蒸馏）────────────
+
+// SubagentRunInfo 是 ListRuns 的单条摘要（模型面 subagent_list 工具消费）。
+// 字段对齐 dsh list_agents 行（id/label/status）+ kind（区分 mt_ 模型工具
+// 记录，父模型同样该看见它们的存在与状态）。
+type SubagentRunInfo struct {
+	Ref       string
+	Status    SubagentStatus
+	Kind      string
+	Title     string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// listRunsLimit 是单次枚举的条数上限：对话窗口是稀缺资源，模型要找的
+// 目标几乎总在最近的运行里（新优先），超出上限的陈年运行经 continue_from
+// 的 ref 本就可达，不必进上下文。
+const listRunsLimit = 50
+
+// ListRuns 枚举当前会话（store 目录）的子代理运行，CreatedAt 倒序、截
+// listRunsLimit 条。损坏/缺字段的 meta 跳过（不炸整表）；目录不存在（本
+// 会话尚无派发）返回空切片。**不含执行中的工具调用数**——那要逐个读
+// transcript，模型面枚举不值这个成本（UI 面的 GaeaSubagentRuns 已有）。
+func (s *SubagentStore) ListRuns() ([]SubagentRunInfo, error) {
+	dir, err := s.dirResolved()
+	if err != nil {
+		return nil, err
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []SubagentRunInfo{}, nil
+		}
+		return nil, err
+	}
+	runs := make([]SubagentRunInfo, 0, len(entries))
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".meta.json") {
+			continue
+		}
+		meta, err := s.loadMeta(strings.TrimSuffix(e.Name(), ".meta.json"))
+		if err != nil {
+			continue // 损坏 meta：单条跳过，不炸整表（对齐 dsh corrupt 降级）
+		}
+		runs = append(runs, SubagentRunInfo{
+			Ref:       meta.Ref,
+			Status:    meta.Status,
+			Kind:      meta.Kind,
+			Title:     meta.Title,
+			CreatedAt: meta.CreatedAt,
+			UpdatedAt: meta.UpdatedAt,
+		})
+	}
+	sort.Slice(runs, func(i, j int) bool { return runs[i].CreatedAt.After(runs[j].CreatedAt) })
+	if len(runs) > listRunsLimit {
+		runs = runs[:listRunsLimit]
+	}
+	return runs, nil
 }
 
 // ── Startup cleanup ─────────────────────────────────────────────────

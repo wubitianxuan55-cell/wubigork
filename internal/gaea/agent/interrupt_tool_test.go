@@ -98,8 +98,13 @@ func TestInterruptRunningSubagent(t *testing.T) {
 	if err := InterruptSubagent(ref); err != nil {
 		t.Fatalf("InterruptSubagent: %v", err)
 	}
-	if err := <-done; err == nil {
+	err := <-done
+	if err == nil {
 		t.Fatal("被中断的 task 应返回错误（ctx 取消）")
+	}
+	// 结算语义（P1-C）：父模型必须能分辨「被打断」与「真失败」。
+	if !strings.Contains(err.Error(), "interrupted") {
+		t.Fatalf("中断的 task 错误应标明 interrupted，got: %v", err)
 	}
 	waitFor(t, 2*time.Second, "sidecar to settle failed", func() bool {
 		_, failed := countMetas(t, dir, "failed")

@@ -324,6 +324,9 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// 子代理经 subRuns 句柄取消，后台任务转发 jobs.Kill。已入 subagentMetaTools
 	// （子代理不见此工具，中断权只属父代理）。
 	reg.Add(agent.NewInterruptTool())
+	// subagent_list（2026-10 P1-D）：模型面枚举当前会话子代理运行（lazy store
+	// 跟随会话路径），为 interrupt_agent / continue_from 提供 ref 入口。
+	reg.Add(agent.NewSubagentListTool(subagentStore))
 	// v4.384 会话检索（dsh ⑧ session-query 蒸馏首刀）：过往会话 user/assistant
 	// 正文的 FTS5 索引（绑定装配空间会话目录——空间隔离由目录构造），模型经
 	// session_search 检索跨会话记忆；搜索时惰性增量索引，零 boot 成本。
