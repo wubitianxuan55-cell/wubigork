@@ -737,17 +737,6 @@ export interface WorkcostClassifyCount {
 }
 
 // ── 资源价批量调价（三期 3.4，Go workcost.BulkPrice* 镜像）────────
-export interface WorkcostBulkPriceRow {
-  title: string
-  spec?: string
-  unit?: string
-  price: number
-  period?: string
-  region?: string
-  note?: string
-  row: number
-}
-
 export interface WorkcostBulkPriceSkip {
   row: number
   title: string

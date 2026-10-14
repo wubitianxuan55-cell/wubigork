@@ -163,4 +163,3 @@ export function WorkcostBulkPriceModal({ open, onClose, onApplied }: WorkcostBul
   );
 }
 
-export default WorkcostBulkPriceModal;

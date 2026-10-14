@@ -2,17 +2,6 @@
 // 成本库/价格源/组价/询价飞轮/五算对比/造价参考与复盘笔记域。
 
 /** 资源价批量调价一行（Go workcost.BulkPriceRow 镜像）。 */
-export interface CostBulkPriceRow {
-  title: string
-  spec?: string
-  unit?: string
-  price: number
-  period?: string
-  region?: string
-  note?: string
-  row: number
-}
-
 /** 跳过行（人可读原因）。 */
 export interface CostBulkPriceSkip {
   row: number
