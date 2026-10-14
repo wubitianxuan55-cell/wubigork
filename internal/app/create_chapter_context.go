@@ -450,6 +450,14 @@ func findOutlineNodeByNum(nodes []types.OutlineNode, num int) *types.OutlineNode
 	})
 }
 
+// findOutlineNodeByBranch 按章号+分支字母取大纲节点（计划草案分支章取自己的
+// 节点；与 findOutlineNodeByNum 同一骨架，分支维度在谓词显式化）。
+func findOutlineNodeByBranch(nodes []types.OutlineNode, num int, branch string) *types.OutlineNode {
+	return findOutlineNode(nodes, func(n *types.OutlineNode) bool {
+		return n.OrderIndex == num && n.Branch == branch
+	})
+}
+
 // trimPlanItems 去空白并丢弃空条目（渲染与判据共用同一口径）。
 func trimPlanItems(items []string) []string {
 	out := make([]string, 0, len(items))

@@ -638,7 +638,7 @@ describe('CreatePage 章节计划硬闸（刀1 线D）', () => {
     expect(within(card).getByText(/缺失：叙事目标、冲突类型/)).toBeTruthy()
     expect(within(card).getByRole('button', { name: /生成计划草案/ })).toBeTruthy()
     // 计划卡章号与硬闸目标章号同源（空大纲 → 第 1 章）
-    expect(mocks.NovelChapterPlanGet).toHaveBeenCalledWith(1)
+    expect(mocks.NovelChapterPlanGet).toHaveBeenCalledWith(1, '')
     expect(mocks.NovelChapterPlanSave).not.toHaveBeenCalled()
     expect(mocks.CreateChapter).not.toHaveBeenCalled()
   })
@@ -670,7 +670,7 @@ describe('CreatePage 章节计划硬闸（刀1 线D）', () => {
 
     fireEvent.click(within(card).getByRole('button', { name: /生成计划草案/ }))
     await within(card).findByTestId('plan-goal-input')
-    expect(mocks.NovelChapterPlanPropose).toHaveBeenCalledWith(1, '主角觉醒')
+    expect(mocks.NovelChapterPlanPropose).toHaveBeenCalledWith(1, '', '主角觉醒')
 
     fireEvent.click(within(card).getByRole('button', { name: /保存计划/ }))
     const genBtn = await within(card).findByTestId('plan-generate-chapter')

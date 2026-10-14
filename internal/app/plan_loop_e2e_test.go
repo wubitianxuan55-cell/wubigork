@@ -13,7 +13,7 @@ package app
 //     且**未调用模型**（硬闸在副作用之前）；
 //  ③ NovelChapterPlanPropose(2) → 七字段齐备、key_events 2-4 条、**不落盘**；
 //     Propose 输入段含本章大纲节点与故事主线（StoryThread）；
-//  ④ NovelChapterPlanSave(2, planJSON) → 审批落盘，Get 往返一致；
+//  ④ NovelChapterPlanSave(2, "", planJSON) → 审批落盘，Get 往返一致；
 //  ⑤ NovelChapterGatePrecheck(2) → Allowed=true；
 //  ⑥ CreateChapterWithOverride(..., false) → 通过，生成 prompt 含「本章计划」区段，落章 chapters/002.md；
 //  ⑦ 写 analysis-v2 夹具（结尾/情绪与计划不符 + 一条未达成事件 + 注入跨章重复）
@@ -256,7 +256,7 @@ func TestPlanLoopE2E_PlanMissingToDeviation(t *testing.T) {
 	t.Logf("② CreateChapterWithOverride(allowOverride=false) 被拒 → %v；模型调用 0 次", err)
 
 	// ③ AI 草案（不落盘）
-	proposal, err := a.NovelChapterPlanPropose(2, "")
+	proposal, err := a.NovelChapterPlanPropose(2, "", "")
 	if err != nil {
 		t.Fatalf("草案生成失败: %v", err)
 	}
@@ -268,7 +268,7 @@ func TestPlanLoopE2E_PlanMissingToDeviation(t *testing.T) {
 	if len(proposal.KeyEvents) < types.PlanMinKeyEvents || len(proposal.KeyEvents) > 4 {
 		t.Fatalf("key_events 应为 2-4 条: %v", proposal.KeyEvents)
 	}
-	if got, gerr := a.NovelChapterPlanGet(2); gerr != nil || got != nil {
+	if got, gerr := a.NovelChapterPlanGet(2, ""); gerr != nil || got != nil {
 		t.Fatalf("草案不得落盘（审批制）: plan=%+v err=%v", got, gerr)
 	}
 	kinds, prompts := stub.snapshot()
@@ -288,10 +288,10 @@ func TestPlanLoopE2E_PlanMissingToDeviation(t *testing.T) {
 	if merr != nil {
 		t.Fatalf("序列化草案: %v", merr)
 	}
-	if err := a.NovelChapterPlanSave(2, string(planJSONBytes)); err != nil {
+	if err := a.NovelChapterPlanSave(2, "", string(planJSONBytes)); err != nil {
 		t.Fatalf("审批落盘失败: %v", err)
 	}
-	stored, err := a.NovelChapterPlanGet(2)
+	stored, err := a.NovelChapterPlanGet(2, "")
 	if err != nil || stored == nil {
 		t.Fatalf("落盘后应可读回: plan=%+v err=%v", stored, err)
 	}

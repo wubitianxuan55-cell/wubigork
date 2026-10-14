@@ -303,7 +303,7 @@ func sceneCardMissingFields(m *types.SceneMeta) string {
 func (a *writingState) sceneGenPlanSection(pm *project.Manager, chapterNum int) string {
 	out := ""
 	if pf, err := pm.ReadChapterPlans(); err == nil && pf != nil {
-		if plan, ok := pf.Plans[fmt.Sprintf("%d", chapterNum)]; ok {
+		if plan, ok := pf.Plans[project.ChapterPlanKey(chapterNum, "")]; ok { // 场景域主线口径
 			if sec := buildChapterPlanSection(&plan); sec != "" {
 				out = "## 本章计划（所有场景合力完成它，不得遗漏关键事件）\n" + sec
 			}
@@ -489,7 +489,7 @@ func (a *writingState) NovelSceneCardsPropose(chapterNum int) ([]map[string]inte
 	// 章计划（刀1）：拆卡的意图来源；无计划时用大纲节点兜底
 	planJSON := ""
 	if pf, err := pm.ReadChapterPlans(); err == nil && pf != nil {
-		if plan, ok := pf.Plans[fmt.Sprintf("%d", chapterNum)]; ok {
+		if plan, ok := pf.Plans[project.ChapterPlanKey(chapterNum, "")]; ok { // 场景域主线口径
 			if raw, merr := json.Marshal(plan); merr == nil {
 				planJSON = string(raw)
 			}

@@ -96,9 +96,9 @@ export const ENDING_TYPES = ['悬念', '冲突升级', '情节转折', '情感�
 // ── 绑定访问（本地 interface 收窄，不依赖 wails 生成物）───────────────────
 
 interface PlanBridge {
-  NovelChapterPlanGet(chapterNum: number): Promise<unknown>
-  NovelChapterPlanSave(chapterNum: number, planJSON: string): Promise<unknown>
-  NovelChapterPlanPropose(chapterNum: number, direction: string): Promise<unknown>
+  NovelChapterPlanGet(chapterNum: number, branch: string): Promise<unknown>
+  NovelChapterPlanSave(chapterNum: number, branch: string, planJSON: string): Promise<unknown>
+  NovelChapterPlanPropose(chapterNum: number, branch: string, direction: string): Promise<unknown>
   NovelChapterPlanDeviation(chapterNum: number): Promise<unknown>
   NovelChapterGatePrecheck(chapterNum: number): Promise<unknown>
 }
@@ -275,6 +275,11 @@ const Dash: React.FC = () => <span style={{ color: 'var(--color-text-secondary)'
 export interface ChapterPlanCardProps {
   /** 当前章号；null/≤0 = 未选章（空态「先在左侧选择章节」）。 */
   chapterNum: number | null
+  /**
+   * 分支字母（阶段八挂账清偿）：''=主线，'a'/'b'/'c'=分支——计划按「章号+分支」
+   * 分键存取，分支不再覆盖主线同号章计划。缺省=主线。
+   */
+  branch?: string
   /** 硬闸横幅「先补章节计划」动作：由父级决定如何把作者引到补计划处。 */
   onNeedPlan?: () => void
   /** 计划落盘成功回调（父级刷新计划卡/大纲状态）。 */
@@ -299,7 +304,7 @@ export interface ChapterPlanCardProps {
  * 不评判计划质量。
  */
 const ChapterPlanCard: React.FC<ChapterPlanCardProps> = ({
-  chapterNum, onNeedPlan, onPlanSaved, disabled = false, direction = '', onGenerate,
+  chapterNum, branch = '', onNeedPlan, onPlanSaved, disabled = false, direction = '', onGenerate,
 }) => {
   // 切章/刷新共用的序号守卫：seq 不等的迟到响应一律丢弃（见文件头纪律 1）。
   const seqRef = useRef(0)
@@ -330,7 +335,7 @@ const ChapterPlanCard: React.FC<ChapterPlanCardProps> = ({
     try {
       const bridge = planBridge()
       const [rawPlan, rawGate] = await Promise.all([
-        bridge.NovelChapterPlanGet(target),
+        bridge.NovelChapterPlanGet(target, branch),
         bridge.NovelChapterGatePrecheck(target),
       ])
       if (seq !== seqRef.current) return // 迟到响应：已被更新的切章/刷新取代
@@ -384,7 +389,7 @@ const ChapterPlanCard: React.FC<ChapterPlanCardProps> = ({
     if (target === null) return
     setProposing(true); setProposeError(''); setSaveError(''); setNotice('')
     try {
-      const raw = await planBridge().NovelChapterPlanPropose(target, direction.trim())
+      const raw = await planBridge().NovelChapterPlanPropose(target, branch, direction.trim())
       const next = toChapterPlan(raw)
       if (next === null) throw new Error('模型未返回可用的计划草案，可改用手写计划')
       if (numRef.current !== target) return
@@ -423,7 +428,7 @@ const ChapterPlanCard: React.FC<ChapterPlanCardProps> = ({
     setSaving(true); setSaveError(''); setNotice('')
     try {
       const payload = buildPayload()
-      await planBridge().NovelChapterPlanSave(target, JSON.stringify(payload))
+      await planBridge().NovelChapterPlanSave(target, branch, JSON.stringify(payload))
       if (numRef.current !== target) return // 已切章：本次保存结果不回写新章卡片
       setPlan(payload)
       setDraft(draftOf(payload))

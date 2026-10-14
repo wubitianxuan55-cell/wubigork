@@ -109,7 +109,7 @@ func TestNovelChapterPlanSaveConcurrentNoLostUpdate(t *testing.T) {
 				fmt.Sprintf("第%d章独有事件甲", num),
 				fmt.Sprintf("第%d章独有事件乙", num),
 			}
-			if err := a.NovelChapterPlanSave(num, planMustJSON(t, p)); err != nil {
+			if err := a.NovelChapterPlanSave(num, "", planMustJSON(t, p)); err != nil {
 				t.Errorf("并发保存第 %d 章: %v", num, err)
 			}
 		}(i)
@@ -117,7 +117,7 @@ func TestNovelChapterPlanSaveConcurrentNoLostUpdate(t *testing.T) {
 	wg.Wait()
 
 	for i := 1; i <= workers; i++ {
-		got, err := a.NovelChapterPlanGet(i)
+		got, err := a.NovelChapterPlanGet(i, "")
 		if err != nil || got == nil {
 			t.Fatalf("第 %d 章计划丢失: plan=%v err=%v（读-改-写并发覆盖）", i, got, err)
 		}

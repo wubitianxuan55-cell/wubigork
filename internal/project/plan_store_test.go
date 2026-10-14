@@ -74,7 +74,7 @@ func TestChapterPlans_RoundTrip(t *testing.T) {
 	}
 
 	// 窄方法：存在 → (plan, true, nil)
-	one, ok, err := pm.ReadChapterPlan(12)
+	one, ok, err := pm.ReadChapterPlan(12, "")
 	if err != nil || !ok {
 		t.Fatalf("ReadChapterPlan(12): ok=%v err=%v", ok, err)
 	}
@@ -82,7 +82,7 @@ func TestChapterPlans_RoundTrip(t *testing.T) {
 		t.Fatalf("窄方法读回不一致:\n got %+v\nwant %+v", *one, p12)
 	}
 	// 未登记章 → (nil, false, nil)，不靠 error 表达
-	if p, ok, err := pm.ReadChapterPlan(99); err != nil || ok || p != nil {
+	if p, ok, err := pm.ReadChapterPlan(99, ""); err != nil || ok || p != nil {
 		t.Fatalf("未登记章应为 (nil,false,nil): p=%+v ok=%v err=%v", p, ok, err)
 	}
 
@@ -107,7 +107,7 @@ func TestChapterPlans_MissingIsEmptyNormalState(t *testing.T) {
 	if err := pm.WriteChapterPlans(f); err != nil {
 		t.Fatalf("空表写回失败: %v", err)
 	}
-	if p, ok, err := pm.ReadChapterPlan(12); err != nil || ok || p != nil {
+	if p, ok, err := pm.ReadChapterPlan(12, ""); err != nil || ok || p != nil {
 		t.Fatalf("空表应无第12章: p=%+v ok=%v err=%v", p, ok, err)
 	}
 }
@@ -127,7 +127,7 @@ func TestChapterPlans_CorruptFileNotOverwritten(t *testing.T) {
 	if _, err := pm.ReadChapterPlans(); err == nil {
 		t.Fatal("损坏文件必须报错")
 	}
-	if _, _, err := pm.ReadChapterPlan(12); err == nil {
+	if _, _, err := pm.ReadChapterPlan(12, ""); err == nil {
 		t.Fatal("损坏文件下 ReadChapterPlan 必须报错（不得静默当作不存在）")
 	}
 	after, err := os.ReadFile(path)
@@ -176,7 +176,7 @@ func TestChapterPlans_KeyIsDecimalNotPadded(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok, err := pm.ReadChapterPlan(12); err != nil || ok {
+	if _, ok, err := pm.ReadChapterPlan(12, ""); err != nil || ok {
 		t.Fatalf("补零键不应被当作第12章: ok=%v err=%v", ok, err)
 	}
 
@@ -185,9 +185,62 @@ func TestChapterPlans_KeyIsDecimalNotPadded(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	p, ok, err := pm.ReadChapterPlan(12)
+	p, ok, err := pm.ReadChapterPlan(12, "")
 	if err != nil || !ok || p.Title != "第12章" {
 		t.Fatalf("十进制键 12 应命中第12章: p=%+v ok=%v err=%v", p, ok, err)
+	}
+}
+
+// TestChapterPlans_BranchKeysDoNotCollide 阶段八挂账清偿：分支计划分键存取，
+// 与主线同号章互不覆盖；旧档纯章号键保持主线语义（零迁移）；非法分支字母按
+// 主线处理（防御性，调用方已校验）。
+func TestChapterPlans_BranchKeysDoNotCollide(t *testing.T) {
+	dir := t.TempDir()
+	pm := &Manager{Dir: dir}
+
+	if err := pm.WriteChapterPlans(&types.ChapterPlanFile{
+		Plans: map[string]types.ChapterPlan{
+			"5":  {Title: "主线第5章"},
+			"5a": {Title: "分支a第5章"},
+			"5b": {Title: "分支b第5章"},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	cases := []struct {
+		num    int
+		branch string
+		want   string
+	}{
+		{5, "", "主线第5章"},
+		{5, "a", "分支a第5章"},
+		{5, "b", "分支b第5章"},
+	}
+	for _, tc := range cases {
+		p, ok, err := pm.ReadChapterPlan(tc.num, tc.branch)
+		if err != nil || !ok || p.Title != tc.want {
+			t.Fatalf("ReadChapterPlan(%d,%q)=%+v ok=%v err=%v, want %q", tc.num, tc.branch, p, ok, err, tc.want)
+		}
+	}
+	// 分支键写入不动主线键（互覆根因的正向验证）
+	if err := pm.WriteChapterPlans(&types.ChapterPlanFile{
+		Plans: map[string]types.ChapterPlan{
+			"5":  {Title: "主线第5章"},
+			"5a": {Title: "分支a第5章（改写）"},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if p, _, _ := pm.ReadChapterPlan(5, ""); p == nil || p.Title != "主线第5章" {
+		t.Fatalf("分支键写入后主线计划被覆: %+v", p)
+	}
+	// 非法分支字母（防御层）：按主线处理，读得到主线计划
+	if p, ok, err := pm.ReadChapterPlan(5, "z"); err != nil || !ok || p.Title != "主线第5章" {
+		t.Fatalf("非法分支应按主线处理: p=%+v ok=%v err=%v", p, ok, err)
+	}
+	if got := ChapterPlanKey(5, "x"); got != "5" {
+		t.Fatalf("非法分支键应归主线: %q", got)
 	}
 }
 

@@ -65,19 +65,29 @@ const (
 	planSuggestionEventsCap = 8
 )
 
-// NovelChapterPlanGet 读取该章计划。
+// validPlanBranch 分支字母合法性（计划表键分支维度）：""=主线，a/b/c=分支。
+// 其余一律拒收（fail-loud）——分支字母是键的组成部分，静默归主线会再把两套
+// 计划写进同一键（跨分支互覆正是本次要清偿的挂账）。
+func validPlanBranch(branch string) bool {
+	return branch == "" || branch == "a" || branch == "b" || branch == "c"
+}
+
+// NovelChapterPlanGet 读取该章计划（branch="" 主线，"a"/"b"/"c" 分支）。
 //
 // 未制定 = 正常态：返回 (nil, nil)，前端据此显示「未制定」并给「生成草案」入口
 // （不报错——「没计划」是创作的正常起点，不是故障）。
-func (a *writingState) NovelChapterPlanGet(chapterNum int) (*types.ChapterPlan, error) {
+func (a *writingState) NovelChapterPlanGet(chapterNum int, branch string) (*types.ChapterPlan, error) {
 	if chapterNum <= 0 {
 		return nil, fmt.Errorf("章节号无效（%d）：计划按章号索引，需为正整数", chapterNum)
+	}
+	if !validPlanBranch(branch) {
+		return nil, fmt.Errorf("分支字母无效（%q）：仅支持主线（空）与 a/b/c", branch)
 	}
 	pm := a.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}
-	plan, ok, err := pm.ReadChapterPlan(chapterNum)
+	plan, ok, err := pm.ReadChapterPlan(chapterNum, branch)
 	if err != nil {
 		return nil, fmt.Errorf("读取第 %d 章计划失败: %w", chapterNum, err)
 	}
@@ -87,14 +97,17 @@ func (a *writingState) NovelChapterPlanGet(chapterNum int) (*types.ChapterPlan, 
 	return plan, nil
 }
 
-// NovelChapterPlanSave 作者审批落盘：解析 → 确定性校验（齐备性 + 跨章去重）→
-// 整表读-改-写。
+// NovelChapterPlanSave 作者审批落盘（branch="" 主线，"a"/"b"/"c" 分支）：
+// 解析 → 确定性校验（齐备性 + 跨章去重）→ 整表读-改-写。
 //
 // 存在 S1/S2 即拒绝并点名问题（含重复事件原文）；S3/S4 仅提示不阻断（与
 // PlanGateReport 的 Blocking 口径一致）。写失败如实返回，不做「内存成功」假象。
-func (a *writingState) NovelChapterPlanSave(chapterNum int, planJSON string) error {
+func (a *writingState) NovelChapterPlanSave(chapterNum int, branch, planJSON string) error {
 	if chapterNum <= 0 {
 		return fmt.Errorf("章节号无效（%d）：计划按章号索引，需为正整数", chapterNum)
+	}
+	if !validPlanBranch(branch) {
+		return fmt.Errorf("分支字母无效（%q）：仅支持主线（空）与 a/b/c", branch)
 	}
 	if strings.TrimSpace(planJSON) == "" {
 		return fmt.Errorf("计划内容为空：请先填写计划（剧情概要 / 关键事件 / 叙事目标等）再保存")
@@ -130,14 +143,14 @@ func (a *writingState) NovelChapterPlanSave(chapterNum int, planJSON string) err
 	}
 
 	// others = 除本章外的全部计划（跨章去重的确定性输入，含已写章节的既定计划）。
-	others := planOthers(pf, chapterNum)
+	others := planOthers(pf, chapterNum, branch)
 	if problems := novelgate.PlanContractIssues(chapterNum, &plan, others); len(problems) > 0 {
 		if msg := planBlockingMessage(problems); msg != "" {
 			return fmt.Errorf("%s", msg)
 		}
 	}
 
-	key := strconv.Itoa(chapterNum)
+	key := project.ChapterPlanKey(chapterNum, branch)
 	pf.Plans[key] = plan // 整表读-改-写：其它章原样保留
 	if err := pm.WriteChapterPlans(pf); err != nil {
 		return fmt.Errorf("写入计划表失败: %w", err)
@@ -159,9 +172,12 @@ func (a *writingState) NovelChapterPlanSave(chapterNum int, planJSON string) err
 //
 // 生成后先本地跑一遍 PlanContractIssues：不通过即如实报错（**不返回半成品**，
 // 也绝不规则兜底伪造计划）；模型不可用/超时同样如实上抛。
-func (a *writingState) NovelChapterPlanPropose(chapterNum int, direction string) (*types.ChapterPlan, error) {
+func (a *writingState) NovelChapterPlanPropose(chapterNum int, branch, direction string) (*types.ChapterPlan, error) {
 	if chapterNum <= 0 {
 		return nil, fmt.Errorf("章节号无效（%d）：计划按章号索引，需为正整数", chapterNum)
+	}
+	if !validPlanBranch(branch) {
+		return nil, fmt.Errorf("分支字母无效（%q）：仅支持主线（空）与 a/b/c", branch)
 	}
 	pm := a.getPM()
 	if pm == nil {
@@ -178,7 +194,14 @@ func (a *writingState) NovelChapterPlanPropose(chapterNum int, direction string)
 	direction = strings.TrimSpace(direction)
 	// AP1-06 收敛：原 findOutlineNodeByChapter 与 findOutlineNodeByNum 逐行等价
 	// （章号 + Branch=="" 主线），取节点统一走后者一份实现。
+	// 分支章（branch≠""）按「章号+分支」取自己的节点；未建时回落主线节点——
+	// 分支节点常由父节点派生，无独立节点时以主线骨架+分支意向编译草案。
 	node := findOutlineNodeByNum(of.Nodes, chapterNum)
+	if branch != "" {
+		if bn := findOutlineNodeByBranch(of.Nodes, chapterNum, branch); bn != nil {
+			node = bn
+		}
+	}
 	if node == nil && direction == "" {
 		// 指路必须是真实存在的入口：大纲节点目前没有独立创建 UI（自动建于
 		// 首次生成），草案又依赖节点编译——无节点时的两条真路径是手写计划
@@ -199,7 +222,7 @@ func (a *writingState) NovelChapterPlanPropose(chapterNum int, direction string)
 	if pf == nil {
 		pf = &types.ChapterPlanFile{Version: 1, Plans: map[string]types.ChapterPlan{}}
 	}
-	others := planOthers(pf, chapterNum)
+	others := planOthers(pf, chapterNum, branch)
 
 	var nodeJSON []byte
 	if node != nil {
@@ -270,7 +293,7 @@ func (a *writingState) NovelChapterPlanDeviation(chapterNum int) (*types.PlanDev
 		return nil, fmt.Errorf("请先打开项目")
 	}
 
-	plan, ok, err := pm.ReadChapterPlan(chapterNum)
+	plan, ok, err := pm.ReadChapterPlan(chapterNum, "")
 	if err != nil {
 		return nil, fmt.Errorf("读取第 %d 章计划失败: %w", chapterNum, err)
 	}
@@ -292,7 +315,7 @@ func (a *writingState) NovelChapterPlanDeviation(chapterNum int) (*types.PlanDev
 		slog.Warn("计划偏差：读取计划表失败，跳过跨章去重", "chapter", chapterNum, "error", err)
 		pf = nil
 	}
-	others := planOthers(pf, chapterNum)
+	others := planOthers(pf, chapterNum, "")
 
 	// ④ 跨章重复事件：复用 PlanContractIssues 的去重判据口径（同一条判据只有一份实现）。
 	dev.DuplicateEvents = planDuplicateEvents(chapterNum, plan, others)
@@ -371,9 +394,36 @@ func (a *writingState) NovelChapterGatePrecheck(chapterNum int) (*types.PlanGate
 
 // planOthers 汇总「除本章外」的全部计划，按章号升序返回。
 //
+// 排除口径=「同章号全部变体」（键前缀数字==chapterNum，含主线与各分支）：分支
+// 第 5a 章与主线第 5 章是同一节点分岔出的互斥变体，不会共存于一条时间线，二者
+// 事件相似是分支的本质而非重复（阶段八挂账清偿时实证：旧口径下分支计划永远
+// 无法通过跨章去重）。其它章号的分支键照常参与（保守去重，无害）。
+//
 // 升序（而非 map 遍历序）保证：跨章去重问题单的顺序稳定，前端展示与测试断言
 // 不随 map 遍历抖动。
-func planOthers(pf *types.ChapterPlanFile, chapterNum int) []types.ChapterPlan {
+// chapterNumOfPlanKey 计划表键 → 章号（"5"→5，"5a"→5；无前导数字/解析失败→0）。
+func chapterNumOfPlanKey(k string) int {
+	k = strings.TrimSpace(k)
+	for i := 0; i < len(k); i++ {
+		if k[i] < '0' || k[i] > '9' {
+			if i == 0 {
+				return 0
+			}
+			n, err := strconv.Atoi(k[:i])
+			if err != nil {
+				return 0
+			}
+			return n
+		}
+	}
+	n, err := strconv.Atoi(k)
+	if err != nil {
+		return 0
+	}
+	return n
+}
+
+func planOthers(pf *types.ChapterPlanFile, chapterNum int, branch string) []types.ChapterPlan {
 	if pf == nil || len(pf.Plans) == 0 {
 		return nil
 	}
@@ -383,9 +433,9 @@ func planOthers(pf *types.ChapterPlanFile, chapterNum int) []types.ChapterPlan {
 	}
 	entries := make([]entry, 0, len(pf.Plans))
 	for k := range pf.Plans {
-		n, err := strconv.Atoi(strings.TrimSpace(k))
-		if err != nil || n == chapterNum {
-			continue // 非章号键（脏数据）不参与去重，也不阻断读取
+		n := chapterNumOfPlanKey(k)
+		if n == 0 || n == chapterNum {
+			continue // 非章号键（脏数据）/ 本章号变体（主线+分支）：不参与去重，也不阻断读取
 		}
 		entries = append(entries, entry{num: n, key: k})
 	}

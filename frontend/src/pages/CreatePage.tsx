@@ -1303,6 +1303,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
         <div style={{ flexShrink: 0, padding: '0 12px 8px', maxHeight: 340, overflow: 'auto' }}>
           <ChapterPlanCard
             chapterNum={planChapterNum || null}
+            branch={activeNode?.branch || ''}
             disabled={generating}
             onNeedPlan={() => setPlanOpen(true)}
             onPlanSaved={() => { void loadOutlines() }}

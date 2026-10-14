@@ -105,7 +105,7 @@ describe('ChapterPlanCard 计划卡与硬闸（刀1 线D）', () => {
     expect((screen.getByTestId('plan-conflict-input') as HTMLInputElement).value).toBe('人vs人')
     expect(screen.getByText(/未落盘/)).toBeTruthy()
     expect(screen.getByRole('button', { name: /保存计划/ })).toBeTruthy()
-    expect(mocks.NovelChapterPlanPropose).toHaveBeenCalledWith(5, '')
+    expect(mocks.NovelChapterPlanPropose).toHaveBeenCalledWith(5, '', '')
     expect(mocks.NovelChapterPlanSave).not.toHaveBeenCalled() // 草案不落盘
   })
 
@@ -121,7 +121,20 @@ describe('ChapterPlanCard 计划卡与硬闸（刀1 线D）', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /生成计划草案/ }))
     await screen.findByTestId('plan-goal-input')
-    expect(mocks.NovelChapterPlanPropose).toHaveBeenCalledWith(5, '分支意向：雨夜夺符线')
+    expect(mocks.NovelChapterPlanPropose).toHaveBeenCalledWith(5, '', '分支意向：雨夜夺符线')
+  })
+
+  // 阶段八挂账清偿：分支字母透传——分支计划按「章号+分支」分键，不再互覆主线
+  it('分支上下文：Get/Propose/Save 全链携带分支字母', async () => {
+    mocks.NovelChapterPlanGet.mockResolvedValue(FULL_PLAN)
+    mocks.NovelChapterGatePrecheck.mockResolvedValue(OK_GATE)
+    mocks.NovelChapterPlanSave.mockResolvedValue(undefined)
+    render(<ChapterPlanCard chapterNum={5} branch="a" />)
+
+    await waitFor(() => expect(mocks.NovelChapterPlanGet).toHaveBeenCalledWith(5, 'a'))
+    fireEvent.click(await screen.findByRole('button', { name: '编辑计划' }))
+    fireEvent.click(screen.getByRole('button', { name: /保存计划/ }))
+    await waitFor(() => expect(mocks.NovelChapterPlanSave.mock.calls[0]?.[1]).toBe('a'))
   })
 
   // v4.450.0 三点打通的最后一公里：计划落盘后卡片提供「生成本章」出口
@@ -165,7 +178,7 @@ describe('ChapterPlanCard 计划卡与硬闸（刀1 线D）', () => {
     // 会把 "loading" 并进可访问名（精确匹配假红）
     expect(screen.getByRole('button', { name: /保存计划/ })).toBeTruthy()
     // 载荷键名按 Go json tag（snake_case），不含 camelCase 别名
-    const sent = JSON.parse(mocks.NovelChapterPlanSave.mock.calls[0][1] as string) as Record<string, unknown>
+    const sent = JSON.parse(mocks.NovelChapterPlanSave.mock.calls[0][2] as string) as Record<string, unknown>
     expect(mocks.NovelChapterPlanSave.mock.calls[0][0]).toBe(5)
     expect(sent.key_events).toEqual(['夺符'])
     expect(sent.narrative_goal).toBe('逼主角暴露身份')
@@ -190,7 +203,7 @@ describe('ChapterPlanCard 计划卡与硬闸（刀1 线D）', () => {
     fireEvent.click(screen.getByRole('button', { name: /保存计划/ }))
 
     await waitFor(() => expect(onPlanSaved).toHaveBeenCalledTimes(1))
-    const [num, payload] = mocks.NovelChapterPlanSave.mock.calls[0] as [number, string]
+    const [num, , payload] = mocks.NovelChapterPlanSave.mock.calls[0] as [number, string, string]
     expect(num).toBe(5)
     const sent = JSON.parse(payload) as Record<string, unknown>
     expect(sent.narrative_goal).toBe('改过的叙事目标')

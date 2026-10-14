@@ -166,14 +166,14 @@ export function buildNovel(): NovelMethods {
       return [];
     },
     // ── 章节计划闭环（v4.422 刀1）：浏览器走查只验版面，不假装能生成/落盘 ──
-    async NovelChapterPlanGet(_chapterNum: number) {
+    async NovelChapterPlanGet(_chapterNum: number, _branch: string) {
       // 未制定计划 = 正常态（前端据此显示硬闸引导）。
       return null;
     },
-    async NovelChapterPlanSave(_chapterNum: number, _planJSON: string) {
+    async NovelChapterPlanSave(_chapterNum: number, _branch: string, _planJSON: string) {
       throw new Error("dev mock：浏览器演示不写 plans.json");
     },
-    async NovelChapterPlanPropose(_chapterNum: number, _direction: string) {
+    async NovelChapterPlanPropose(_chapterNum: number, _branch: string, _direction: string) {
       throw new Error("dev mock：计划草案需本地模型调用");
     },
     async NovelChapterPlanDeviation(_chapterNum: number) {

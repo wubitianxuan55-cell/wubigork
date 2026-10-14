@@ -33,11 +33,16 @@ func (m *Manager) ChapterPlansPath() string {
 	return filepath.Join(m.Dir, "chapters", "plans.json")
 }
 
-// chapterPlanKey 章节号 → 计划表键（十进制字符串；不做补零——
-// 契约 §plan_v1.go:13 明确 key 是十进制章节号字符串，补零会让 `12` 与 `012`
-// 分裂成两条计划）。
-func chapterPlanKey(num int) string {
-	return strconv.Itoa(num)
+// ChapterPlanKey 章节号+分支 → 计划表键。主线（branch=""）保持十进制章节号
+// 字典序不变（存量档零迁移）；分支章为「章号+分支字母」（如 "5a"）——旧实现
+// 分支与主线共用纯章号键，同号章计划互相覆盖（阶段八挂账清偿：分支章此前
+// 写下的计划本就与主线互覆不可信，不迁移，分支计划从此分键，读 miss 即「未
+// 制定」正常态）。branch 只接受 ""/a/b/c 单字母，其余按主线处理（调用方已校验）。
+func ChapterPlanKey(num int, branch string) string {
+	if branch == "" || len(branch) != 1 || branch < "a" || branch > "c" {
+		return strconv.Itoa(num)
+	}
+	return strconv.Itoa(num) + branch
 }
 
 // emptyChapterPlans 空计划表（非 nil map，调用方可直接 range/写）。
@@ -97,16 +102,17 @@ func (m *Manager) WriteChapterPlans(f *types.ChapterPlanFile) error {
 	return writeJSON(path, &out)
 }
 
-// ReadChapterPlan 读单章计划。存在与否用 bool 表达（不靠 error）：
+// ReadChapterPlan 读单章计划（branch="" 主线，"a"/"b"/"c" 分支）。存在与否用
+// bool 表达（不靠 error）：
 //   - 文件缺失 / 该章未登记 → (nil, false, nil)；
 //   - 该章已登记 → (计划, true, nil)；
 //   - 文件损坏 / IO 失败 → (nil, false, err)。
-func (m *Manager) ReadChapterPlan(num int) (*types.ChapterPlan, bool, error) {
+func (m *Manager) ReadChapterPlan(num int, branch string) (*types.ChapterPlan, bool, error) {
 	f, err := m.ReadChapterPlans()
 	if err != nil {
 		return nil, false, err
 	}
-	plan, ok := f.Plans[chapterPlanKey(num)]
+	plan, ok := f.Plans[ChapterPlanKey(num, branch)]
 	if !ok {
 		return nil, false, nil
 	}

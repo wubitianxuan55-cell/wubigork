@@ -116,11 +116,14 @@ func (a *writingState) createChapter(setting, prevSummary, plotReq string, chapt
 	//    （六项判据字段全量渲染）+ 大纲节点 KeyPoints/Emotion（此前零进入 prompt）。
 	//    两者为空时渲染空串，模板按空跳过（prompt 中不出现空区段）；此时硬闸已在
 	//    上一步拦下（除非显式覆盖）。读计划失败静默跳过注入——绝不因注入失败中断主链路。
+	//    计划键带分支维度（阶段八挂账清偿）：分支章读自己的计划，不再错拿主线同
+	//    号章计划（旧实现分支章生成注入主线计划正是互覆的伤害面）。
 	planSec, outlineSec := "", ""
 	var chapterPlan *types.ChapterPlan
 	if ctxChapterNum > 0 {
+		_, planBranch := deriveBranchLetter(of, chapterNum, branchFromNodeID)
 		if plans, err := readChapterPlansForGate(pm); err == nil && plans != nil {
-			if p, ok := plans.Plans[strconv.Itoa(ctxChapterNum)]; ok {
+			if p, ok := plans.Plans[project.ChapterPlanKey(ctxChapterNum, planBranch)]; ok {
 				planSec = buildChapterPlanSection(&p)
 				chapterPlan = &p
 			}
@@ -805,6 +808,37 @@ func pickCreateChapterTemplate(eng *prompt.Engine, chapterNum int) *prompt.Templ
 //
 // 新建节点时节点落盘失败返回 error（N8）：调用方据此中止本次生成，
 // 绝不把「没写进 outline.json 的章」当成已建好继续生成正文。
+// deriveBranchLetter 分支字母推导（确定性纯函数，ensureChapterNode 与写前意图
+// 注入共用一份真相）：显式章号=主线（""）；分支续写=父节点章号上首个未占用的
+// a/b/c；父节点缺失 / abc 全占 / 无分支语境 = (0, "")。不产生任何副作用。
+func deriveBranchLetter(of *types.OutlineFile, chapterNum int, branchFromNodeID string) (targetNum int, branch string) {
+	if chapterNum > 0 || branchFromNodeID == "" {
+		return 0, ""
+	}
+	var parent *types.OutlineNode
+	for i := range of.Nodes {
+		if of.Nodes[i].ID == branchFromNodeID {
+			parent = &of.Nodes[i]
+			break
+		}
+	}
+	if parent == nil {
+		return 0, ""
+	}
+	used := map[string]bool{}
+	for _, n := range of.Nodes {
+		if n.OrderIndex == parent.OrderIndex && n.Branch != "" {
+			used[n.Branch] = true
+		}
+	}
+	for _, l := range []string{"a", "b", "c"} {
+		if !used[l] {
+			return parent.OrderIndex, l
+		}
+	}
+	return parent.OrderIndex, ""
+}
+
 func (a *writingState) ensureChapterNode(pm *project.Manager, of *types.OutlineFile, chapterNum int, branchFromNodeID string) (targetNum int, nodeID string, branch string, err error) {
 	if chapterNum > 0 {
 		targetNum = chapterNum
@@ -824,30 +858,9 @@ func (a *writingState) ensureChapterNode(pm *project.Manager, of *types.OutlineF
 		return targetNum, nodeID, "", nil
 	}
 	if branchFromNodeID != "" {
-		var parent *types.OutlineNode
-		for i := range of.Nodes {
-			if of.Nodes[i].ID == branchFromNodeID {
-				parent = &of.Nodes[i]
-				break
-			}
-		}
-		if parent == nil {
-			return 0, "", "", nil
-		}
-		targetNum = parent.OrderIndex
-		used := map[string]bool{}
-		for _, n := range of.Nodes {
-			if n.OrderIndex == targetNum && n.Branch != "" {
-				used[n.Branch] = true
-			}
-		}
-		for _, l := range []string{"a", "b", "c"} {
-			if !used[l] {
-				branch = l
-				break
-			}
-		}
+		targetNum, branch = deriveBranchLetter(of, chapterNum, branchFromNodeID)
 		if branch == "" {
+			// 父节点缺失或该章 a/b/c 全占：两种情况原实现同样返回零值降级。
 			return 0, "", "", nil
 		}
 		nodeID = fmt.Sprintf("n_%d", time.Now().UnixMilli())

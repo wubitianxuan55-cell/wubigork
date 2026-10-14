@@ -88,7 +88,7 @@ func planMustJSON(t *testing.T, p types.ChapterPlan) string {
 // planSaveMust 审批落盘一份合法计划（夹具用）。
 func planSaveMust(t *testing.T, a *App, chapterNum int, p types.ChapterPlan) {
 	t.Helper()
-	if err := a.NovelChapterPlanSave(chapterNum, planMustJSON(t, p)); err != nil {
+	if err := a.NovelChapterPlanSave(chapterNum, "", planMustJSON(t, p)); err != nil {
 		t.Fatalf("落盘第%d章计划: %v", chapterNum, err)
 	}
 }
@@ -147,9 +147,9 @@ func TestNovelChapterPlanSaveMatrix(t *testing.T) {
 	t.Run("缺目标被拒", func(t *testing.T) {
 		p := planValidFixture(3)
 		p.NarrativeGoal = ""
-		err := a.NovelChapterPlanSave(3, planMustJSON(t, p))
+		err := a.NovelChapterPlanSave(3, "", planMustJSON(t, p))
 		planWantErrContains(t, err, types.PlanProblemMissingGoal)
-		if got, gerr := a.NovelChapterPlanGet(3); gerr != nil || got != nil {
+		if got, gerr := a.NovelChapterPlanGet(3, ""); gerr != nil || got != nil {
 			t.Fatalf("被拒的计划不得落盘: plan=%+v err=%v", got, gerr)
 		}
 	})
@@ -157,9 +157,9 @@ func TestNovelChapterPlanSaveMatrix(t *testing.T) {
 	t.Run("关键事件不足被拒", func(t *testing.T) {
 		p := planValidFixture(3)
 		p.KeyEvents = []string{"只有一条事件"}
-		err := a.NovelChapterPlanSave(3, planMustJSON(t, p))
+		err := a.NovelChapterPlanSave(3, "", planMustJSON(t, p))
 		planWantErrContains(t, err, types.PlanProblemMissingKeyEvents)
-		if got, _ := a.NovelChapterPlanGet(3); got != nil {
+		if got, _ := a.NovelChapterPlanGet(3, ""); got != nil {
 			t.Fatalf("被拒的计划不得落盘: %+v", got)
 		}
 	})
@@ -168,20 +168,20 @@ func TestNovelChapterPlanSaveMatrix(t *testing.T) {
 		p := planValidFixture(3)
 		// 与第 1 章种子计划的关键事件「秦昭夜探风阁」重复
 		p.KeyEvents = []string{seed.KeyEvents[0], "沈砚交出听风阁令牌"}
-		err := a.NovelChapterPlanSave(3, planMustJSON(t, p))
+		err := a.NovelChapterPlanSave(3, "", planMustJSON(t, p))
 		planWantErrContains(t, err, types.PlanProblemEventDuplicated, seed.KeyEvents[0])
-		if got, _ := a.NovelChapterPlanGet(3); got != nil {
+		if got, _ := a.NovelChapterPlanGet(3, ""); got != nil {
 			t.Fatalf("被拒的计划不得落盘: %+v", got)
 		}
 	})
 
 	t.Run("非法JSON被拒", func(t *testing.T) {
-		err := a.NovelChapterPlanSave(3, "{不是 JSON")
+		err := a.NovelChapterPlanSave(3, "", "{不是 JSON")
 		planWantErrContains(t, err, "解析失败")
 	})
 
 	t.Run("空内容被拒", func(t *testing.T) {
-		err := a.NovelChapterPlanSave(3, "   ")
+		err := a.NovelChapterPlanSave(3, "", "   ")
 		planWantErrContains(t, err, "计划内容为空")
 	})
 
@@ -189,10 +189,10 @@ func TestNovelChapterPlanSaveMatrix(t *testing.T) {
 		p := planValidFixture(3)
 		p.PlotSummary = "秦昭在听风阁顶摊牌，玄铁剑沉井。"
 		p.KeyEvents = []string{"秦昭听风阁摊牌", "沈砚交出听风阁令牌"}
-		if err := a.NovelChapterPlanSave(3, planMustJSON(t, p)); err != nil {
+		if err := a.NovelChapterPlanSave(3, "", planMustJSON(t, p)); err != nil {
 			t.Fatalf("合法计划应落盘: %v", err)
 		}
-		got, err := a.NovelChapterPlanGet(3)
+		got, err := a.NovelChapterPlanGet(3, "")
 		if err != nil || got == nil {
 			t.Fatalf("往返读取失败: plan=%+v err=%v", got, err)
 		}
@@ -205,7 +205,7 @@ func TestNovelChapterPlanSaveMatrix(t *testing.T) {
 		}
 
 		// 其它章原样保留（整表读-改-写）
-		other, err := a.NovelChapterPlanGet(1)
+		other, err := a.NovelChapterPlanGet(1, "")
 		if err != nil || other == nil {
 			t.Fatalf("第1章计划被写坏: %+v err=%v", other, err)
 		}
@@ -224,11 +224,59 @@ func TestNovelChapterPlanSaveMatrix(t *testing.T) {
 	})
 }
 
+// TestNovelChapterPlanBranchKeys 阶段八挂账清偿（app 层调用序）：分支计划写分
+// 支键，主线同号章互不覆盖；非法分支字母 fail-loud 拒收（不静默归主线——那会
+// 把两套计划重新写进同一键）。
+func TestNovelChapterPlanBranchKeys(t *testing.T) {
+	a, pm := newPlanTestApp(t)
+
+	main := planValidFixture(5)
+	if err := a.NovelChapterPlanSave(5, "", planMustJSON(t, main)); err != nil {
+		t.Fatalf("落主线计划: %v", err)
+	}
+	br := planValidFixture(5)
+	br.Title = "第5a章（分支）"
+	br.PlotSummary = "分支线：秦昭选择另一条路，与沈砚结盟。"
+	if err := a.NovelChapterPlanSave(5, "a", planMustJSON(t, br)); err != nil {
+		t.Fatalf("落分支计划: %v", err)
+	}
+
+	// 主线读主线、分支读分支，互不覆盖
+	gotMain, err := a.NovelChapterPlanGet(5, "")
+	if err != nil || gotMain == nil || gotMain.Title != main.Title {
+		t.Fatalf("主线计划被分支写入波及: %+v err=%v", gotMain, err)
+	}
+	gotBr, err := a.NovelChapterPlanGet(5, "a")
+	if err != nil || gotBr == nil || gotBr.Title != br.Title {
+		t.Fatalf("分支计划读回不符: %+v err=%v", gotBr, err)
+	}
+
+	// 非法分支字母拒收（fail-loud）
+	if err := a.NovelChapterPlanSave(5, "z", planMustJSON(t, br)); err == nil {
+		t.Fatal("非法分支字母应拒收")
+	}
+	if _, err := a.NovelChapterPlanGet(5, "z"); err == nil {
+		t.Fatal("非法分支字母 Get 应拒收")
+	}
+
+	// 磁盘键形状：主线纯章号、分支带字母（存量档零迁移的兼容面）
+	pf, err := pm.ReadChapterPlans()
+	if err != nil {
+		t.Fatalf("读计划表: %v", err)
+	}
+	if _, ok := pf.Plans["5"]; !ok {
+		t.Fatalf("主线键应保持纯章号: %+v", pf.Plans)
+	}
+	if _, ok := pf.Plans["5a"]; !ok {
+		t.Fatalf("分支键应为 章号+字母: %+v", pf.Plans)
+	}
+}
+
 // TestNovelChapterPlanGetMissingAndGuards 缺失=正常态；非法章号=报错。
 func TestNovelChapterPlanGetMissingAndGuards(t *testing.T) {
 	a, _ := newPlanTestApp(t)
 
-	got, err := a.NovelChapterPlanGet(7)
+	got, err := a.NovelChapterPlanGet(7, "")
 	if err != nil {
 		t.Fatalf("未制定计划应返回 nil,nil（正常态），得到 err=%v", err)
 	}
@@ -237,10 +285,10 @@ func TestNovelChapterPlanGetMissingAndGuards(t *testing.T) {
 	}
 
 	for _, num := range []int{0, -1} {
-		if _, err := a.NovelChapterPlanGet(num); err == nil {
+		if _, err := a.NovelChapterPlanGet(num, ""); err == nil {
 			t.Fatalf("章号 %d 应报错", num)
 		}
-		if err := a.NovelChapterPlanSave(num, planMustJSON(t, planValidFixture(1))); err == nil {
+		if err := a.NovelChapterPlanSave(num, "", planMustJSON(t, planValidFixture(1))); err == nil {
 			t.Fatalf("章号 %d 保存应报错", num)
 		}
 		if _, err := a.NovelChapterPlanDeviation(num); err == nil {
@@ -408,7 +456,7 @@ func TestNovelChapterPlanPropose_ParsesSevenFieldsAndSlots(t *testing.T) {
 	env := newPlanStubEnv(t, planProposeReply(3))
 	planSeedProposeInputs(t, env)
 
-	plan, err := env.a.NovelChapterPlanPropose(3, "")
+	plan, err := env.a.NovelChapterPlanPropose(3, "", "")
 	if err != nil {
 		t.Fatalf("Propose 失败: %v", err)
 	}
@@ -453,7 +501,7 @@ func TestNovelChapterPlanPropose_ParsesSevenFieldsAndSlots(t *testing.T) {
 	}
 
 	// 草案不落盘（审批制）
-	if got, err := env.a.NovelChapterPlanGet(3); err != nil || got != nil {
+	if got, err := env.a.NovelChapterPlanGet(3, ""); err != nil || got != nil {
 		t.Fatalf("Propose 不得落盘: plan=%+v err=%v", got, err)
 	}
 }
@@ -464,7 +512,7 @@ func TestNovelChapterPlanPropose_RejectsBadReply(t *testing.T) {
 	t.Run("解析失败附原始返回前缀", func(t *testing.T) {
 		env := newPlanStubEnv(t, "不是 JSON，模型跑偏了")
 		planSeedProposeInputs(t, env)
-		_, err := env.a.NovelChapterPlanPropose(3, "")
+		_, err := env.a.NovelChapterPlanPropose(3, "", "")
 		planWantErrContains(t, err, "解析失败", "原始返回前", "不是 JSON")
 	})
 
@@ -474,7 +522,7 @@ func TestNovelChapterPlanPropose_RejectsBadReply(t *testing.T) {
 		b, _ := json.Marshal(p)
 		env := newPlanStubEnv(t, string(b))
 		planSeedProposeInputs(t, env)
-		_, err := env.a.NovelChapterPlanPropose(3, "")
+		_, err := env.a.NovelChapterPlanPropose(3, "", "")
 		planWantErrContains(t, err, types.PlanProblemMissingKeyEvents, "不返回半成品")
 	})
 
@@ -482,13 +530,13 @@ func TestNovelChapterPlanPropose_RejectsBadReply(t *testing.T) {
 		a := &App{core: &core{}}
 		a.writingState = &writingState{core: a.core, app: a, eng: prompt.NewEngine("../../prompts")}
 		a.setPM(newPlanTestProject(t))
-		_, err := a.NovelChapterPlanPropose(3, "")
+		_, err := a.NovelChapterPlanPropose(3, "", "")
 		planWantErrContains(t, err, "AI 客户端未就绪")
 	})
 
 	t.Run("缺大纲节点如实报错", func(t *testing.T) {
 		env := newPlanStubEnv(t, planProposeReply(9))
-		_, err := env.a.NovelChapterPlanPropose(9, "")
+		_, err := env.a.NovelChapterPlanPropose(9, "", "")
 		planWantErrContains(t, err, "未找到第 9 章的大纲节点")
 	})
 }
@@ -502,7 +550,7 @@ func TestNovelChapterPlanPropose_Direction(t *testing.T) {
 	t.Run("有节点：direction 进编译输入", func(t *testing.T) {
 		env := newPlanStubEnv(t, planProposeReply(3))
 		planSeedProposeInputs(t, env)
-		plan, err := env.a.NovelChapterPlanPropose(3, wantDirection)
+		plan, err := env.a.NovelChapterPlanPropose(3, "", wantDirection)
 		if err != nil {
 			t.Fatalf("Propose 失败: %v", err)
 		}
@@ -516,7 +564,7 @@ func TestNovelChapterPlanPropose_Direction(t *testing.T) {
 
 	t.Run("无节点+有 direction：兜底编译成功且不落盘", func(t *testing.T) {
 		env := newPlanStubEnv(t, planProposeReply(9))
-		plan, err := env.a.NovelChapterPlanPropose(9, wantDirection)
+		plan, err := env.a.NovelChapterPlanPropose(9, "", wantDirection)
 		if err != nil {
 			t.Fatalf("direction 应兜底无节点提案: %v", err)
 		}
@@ -533,7 +581,7 @@ func TestNovelChapterPlanPropose_Direction(t *testing.T) {
 		if !strings.Contains(env.userPrompt(), "阶段之「转」") {
 			t.Fatalf("第9章计划应携带转教义，实际:%s", env.userPrompt())
 		}
-		if got, err := env.a.NovelChapterPlanGet(9); err != nil || got != nil {
+		if got, err := env.a.NovelChapterPlanGet(9, ""); err != nil || got != nil {
 			t.Fatalf("Propose 不得落盘: plan=%+v err=%v", got, err)
 		}
 	})
@@ -820,7 +868,7 @@ func TestPlanOthersAndKeyEventsText(t *testing.T) {
 		"2":   {KeyEvents: []string{"二章事件"}},
 		"abc": {KeyEvents: []string{"脏数据"}},
 	}}
-	others := planOthers(pf, 2)
+	others := planOthers(pf, 2, "")
 	if len(others) != 2 {
 		t.Fatalf("应取除本章外的 2 条: %+v", others)
 	}

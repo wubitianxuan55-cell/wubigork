@@ -65,9 +65,9 @@ func (b *NovelB) NovelChapterConverge(chapterNum int, maxRounds int, targetTaste
 func (b *NovelB) NovelChapterConvergePreview(chapterNum int, targetTaste int) (map[string]interface{}, error) { return b.a.NovelChapterConvergePreview(chapterNum, targetTaste) }
 func (b *NovelB) NovelChapterGatePrecheck(chapterNum int) (*types.PlanGateReport, error) { return b.a.NovelChapterGatePrecheck(chapterNum) }
 func (b *NovelB) NovelChapterPlanDeviation(chapterNum int) (*types.PlanDeviation, error) { return b.a.NovelChapterPlanDeviation(chapterNum) }
-func (b *NovelB) NovelChapterPlanGet(chapterNum int) (*types.ChapterPlan, error) { return b.a.NovelChapterPlanGet(chapterNum) }
-func (b *NovelB) NovelChapterPlanPropose(chapterNum int, direction string) (*types.ChapterPlan, error) { return b.a.NovelChapterPlanPropose(chapterNum, direction) }
-func (b *NovelB) NovelChapterPlanSave(chapterNum int, planJSON string) error { return b.a.NovelChapterPlanSave(chapterNum, planJSON) }
+func (b *NovelB) NovelChapterPlanGet(chapterNum int, branch string) (*types.ChapterPlan, error) { return b.a.NovelChapterPlanGet(chapterNum, branch) }
+func (b *NovelB) NovelChapterPlanPropose(chapterNum int, branch string, direction string) (*types.ChapterPlan, error) { return b.a.NovelChapterPlanPropose(chapterNum, branch, direction) }
+func (b *NovelB) NovelChapterPlanSave(chapterNum int, branch string, planJSON string) error { return b.a.NovelChapterPlanSave(chapterNum, branch, planJSON) }
 func (b *NovelB) NovelChapterReview(chapterNum int, platform string) (ChapterReviewPayload, error) { return b.a.NovelChapterReview(chapterNum, platform) }
 func (b *NovelB) NovelChapterRewrite(chapterNum int, reqJSON string) (map[string]interface{}, error) { return b.a.NovelChapterRewrite(chapterNum, reqJSON) }
 func (b *NovelB) NovelChapterScenesGenerate(chapterNum int, allowMissingCard bool) (map[string]interface{}, error) { return b.a.NovelChapterScenesGenerate(chapterNum, allowMissingCard) }

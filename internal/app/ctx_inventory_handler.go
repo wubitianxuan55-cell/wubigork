@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gaea/gaea/internal/maturecraft"
+	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/types"
 )
 
@@ -33,7 +34,7 @@ func (a *writingState) NovelContextInventory(chapterNum int) ([]map[string]inter
 	planSec, outlineSec := "", ""
 	if chapterNum > 0 {
 		if plans, err := readChapterPlansForGate(pm); err == nil && plans != nil {
-			if p, ok := plans.Plans[fmt.Sprintf("%d", chapterNum)]; ok {
+			if p, ok := plans.Plans[project.ChapterPlanKey(chapterNum, "")]; ok { // 主线口径：清单面板无分支语境
 				planSec = buildChapterPlanSection(&p)
 			}
 		}

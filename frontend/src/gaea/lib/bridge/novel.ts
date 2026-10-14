@@ -316,11 +316,11 @@ export interface NovelBindings {
   // 草案**不落盘**（模型不可用如实 reject，不兜底伪造）；Deviation：计划 vs 实际
   // （无计划/未分析返回 hasPlan/analyzed=false 的正常结构）；GatePrecheck：生成前
   // 预检，是硬闸唯一判据来源（blocking=true 时前端不得发起生成，除非作者显式覆盖）。
-  NovelChapterPlanGet(chapterNum: number): Promise<ChapterPlanView | null>;
-  NovelChapterPlanSave(chapterNum: number, planJSON: string): Promise<void>;
+  NovelChapterPlanGet(chapterNum: number, branch: string): Promise<ChapterPlanView | null>;
+  NovelChapterPlanSave(chapterNum: number, branch: string, planJSON: string): Promise<void>;
   // Propose 的 direction=作者创作方向（分支意向/剧情要求；v4.450.0 三点打通），
   // 空串=既有口径；无大纲节点时后端以 direction 兜底编译（分支→计划不再死锁）。
-  NovelChapterPlanPropose(chapterNum: number, direction: string): Promise<ChapterPlanView>;
+  NovelChapterPlanPropose(chapterNum: number, branch: string, direction: string): Promise<ChapterPlanView>;
   NovelChapterPlanDeviation(chapterNum: number): Promise<PlanDeviationView>;
   NovelChapterGatePrecheck(chapterNum: number): Promise<PlanGateReportView>;
   // AnalyzeChapter 触发该章 LLM 分析（原 Legacy 面绑定转正；V1 wire 返回
