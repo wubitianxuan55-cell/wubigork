@@ -9,14 +9,14 @@ import (
 )
 
 // GaeaWhisperGraphSubgraph 返回指定人格关系图谱中以 entity 为中心、hops 跳内
-// 的邻接子图（v4.3b，play 空间会客厅）。会话不存在或图谱为空时返回空子图
-// （只读查询，不创建会话、无副作用）；entity 不存在返回空子图。
+// 的邻接子图（v4.3b，play 空间会客厅）。entity 不存在返回空子图。
+// 懒装载（2026-10-14 真机复走根修）：此前只读已装载会话表，fresh boot 下本
+// run 未开过轻语聊天即查图谱恒得空图——批 50 修 json 键名后实测到的另一半
+// 空图根因。改走 getOrCreateOrch 与因果解释/先开口两兄弟一致：首查即从
+// hermes.db 恢复该人格记忆图谱（只读查询，不改库不写用户数据）。
 func (a *whisperState) GaeaWhisperGraphSubgraph(personalityID, entity string, hops int) (whisper.Subgraph, error) {
-	sessionID := "whisper_" + personalityID
-	whisperSessionsMu.RLock()
-	orch, ok := whisperSessions[sessionID]
-	whisperSessionsMu.RUnlock()
-	if !ok || orch == nil || orch.KG == nil {
+	orch := a.getOrCreateOrch(personalityID)
+	if orch == nil || orch.KG == nil {
 		return whisper.Subgraph{}, nil
 	}
 	sub := orch.KG.QuerySubgraph(entity, hops)
