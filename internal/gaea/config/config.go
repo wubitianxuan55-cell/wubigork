@@ -575,11 +575,39 @@ type AgentConfig struct {
 	// 超出的调用排队等槽（transcript 侧车标 queued，前端可见）。≤0 = 默认 3；
 	// 硬帽 8（与批次并行度对齐），装配在 agent.SetSubagentMaxParallel 钳制。
 	SubagentMaxParallel int `toml:"subagent_max_parallel"`
+	// ── 压缩阈值（阶段九 9.1「双阈值可配置」）────────────────────
+	// 三层水位（占 ContextWindow 比例）：Soft 预警通知 / Ratio 触发压缩 /
+	// Force 强制压缩（高水位）。0 值 = 用 agent 包内置缺省（0.5/0.8/0.9，
+	// Reasonix/dsh 蒸馏实证值；调研建议的 0.75/0.88 经此配置即可达成，不改
+	// 内置缺省——存量实证优先）。非法值（≥1 或 Soft>Ratio>Force 关系破坏）
+	// 由装配侧钳制回落缺省。
+	CompactionSoftRatio  float64 `toml:"compaction_soft_ratio"`
+	CompactionRatio      float64 `toml:"compaction_ratio"`
+	CompactionForceRatio float64 `toml:"compaction_force_ratio"`
 }
 
 // ToolSpillEnabled 返回泄洪的生效开关：nil（未配置）= 默认开。
 func (a AgentConfig) ToolSpillEnabled() bool {
 	return a.ToolSpill == nil || *a.ToolSpill
+}
+
+// CompactionTiers 返回压缩三层水位的生效值（soft, ratio, force，占窗口比例）。
+// 0 值/非法值回落内置缺省（0.5/0.8/0.9）——合法性=三者 ∈ (0,1) 且 soft < ratio
+// < force（等值也拒：水位重叠会让分层语义失效），任一破坏整组回落（不做单值
+// 修补——部分信任的配置比全缺省更难排查）。
+func (a AgentConfig) CompactionTiers() (soft, ratio, force float64) {
+	const (
+		defSoft  = 0.5
+		defRatio = 0.8
+		defForce = 0.9
+	)
+	if a.CompactionSoftRatio <= 0 || a.CompactionSoftRatio >= 1 ||
+		a.CompactionRatio <= 0 || a.CompactionRatio >= 1 ||
+		a.CompactionForceRatio <= 0 || a.CompactionForceRatio >= 1 ||
+		a.CompactionSoftRatio >= a.CompactionRatio || a.CompactionRatio >= a.CompactionForceRatio {
+		return defSoft, defRatio, defForce
+	}
+	return a.CompactionSoftRatio, a.CompactionRatio, a.CompactionForceRatio
 }
 
 // SubagentTemp returns the effective temperature for task-tool sub-agents.

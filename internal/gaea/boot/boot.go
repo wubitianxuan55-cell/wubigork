@@ -439,7 +439,7 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 			Pricing:       price,
 			Gate:          headlessGate,
 			ContextWindow: ctxWin,
-			Compaction:    agent.CompactionConfig{ArchiveDir: config.ArchiveDir()},
+			Compaction:    compactionConfig(cfg),
 			RuntimePrompt: runtimeCtx.SystemPrompt(),
 			// V5.30: 根据技能名查找子代理模板 — 同类子代理共享前缀缓存
 			TemplatePrefix: lookupSubagentTemplatePrefix(sk.Name),
@@ -491,7 +491,7 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		Hooks:         hookRunner,
 		Jobs:          jm,
 		ContextWindow: entry.ContextWindow,
-		Compaction:    agent.CompactionConfig{ArchiveDir: config.ArchiveDir()},
+		Compaction:    compactionConfig(cfg),
 		Dispatcher:    toolDispatcher,
 		// v4.1 证据链 Journal 目录（work 空间；play 回合由 agent 红线过滤不落盘）。
 		JournalDir: filepath.Join(cwd, ".gaea", "work", "journal"),
@@ -930,4 +930,18 @@ func applyCompactToolset(reg *tool.Registry) {
 
 	// File listing: glob is redundant with ls (which supports patterns)
 	reg.HideUnlessOnly([]string{"glob"}, []string{"ls"})
+}
+
+// compactionConfig 压缩配置装配（阶段九 9.1「双阈值可配置」）：三层水位经
+// [agent] compaction_soft_ratio/compaction_ratio/compaction_force_ratio 暴露，
+// 0 值/非法值回落内置缺省（cfg.Agent.CompactionTiers 钳制）。归档目录沿用
+// 全局 ArchiveDir。
+func compactionConfig(cfg *config.Config) agent.CompactionConfig {
+	soft, ratio, force := cfg.Agent.CompactionTiers()
+	return agent.CompactionConfig{
+		ArchiveDir: config.ArchiveDir(),
+		SoftRatio:  soft,
+		Ratio:      ratio,
+		ForceRatio: force,
+	}
 }

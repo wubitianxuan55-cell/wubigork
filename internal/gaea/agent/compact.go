@@ -312,6 +312,12 @@ func (a *AgentRunner) compact(ctx context.Context, trigger, instructions string,
 		summary = mechanicalFoldDigest(len(fold), archived)
 	}
 
+	// 归档指针（阶段九 9.1「摘要后可回溯全量记录」）：LLM 摘要与机械摘要统一
+	// 附归档路径——原文永不丢，摘要只是视图（小说线 8.3 组装器同一口径）。
+	if archived != "" {
+		summary += "\n\nFull transcript of the folded region: " + archived
+	}
+
 	content := summaryTagOpen + "\n" +
 		"Summary of earlier conversation (older messages were compacted to save context):\n" +
 		summary + "\n" +
