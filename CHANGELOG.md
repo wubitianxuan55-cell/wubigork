@@ -1,3 +1,6 @@
+## v4.488.0 · 阶段九 9.4 KV 缓存友好判据收口收官：压缩后首轮覆盖+摘要请求前缀逐字传输面（2026-10-15）
+> 阶段九第四刀收官（9.1~9.4 全清）。盘底：机制面已完整在产——summarize 的 cache-aligned（会话真实 system+折叠区逐字重放+指令作最后一条 user，Letta self_compact 同口径）+前缀字节级稳定判据（5.2 出口）。本刀纯判据补测试收口：①TestPrefixStableAcrossCompaction——真实 CompactNow 链路，压缩后首轮如实判不稳定+RewriteCount 点名（digest 替换=结构性改写，诚实判漂移），次轮恢复 Stable=true 零改写（[system+firstUser+digest] 固定前缀 cache hit 承诺落判据），CompileHash 链全程延续；②TestSummarizeRequestCacheAlignedPrefix——摘要请求中间消息=压缩前会话逐字子序列，指令只允许在最后一条 user（前缀泄漏逐消息断言）。**阶段九出口待验**：50+ 轮长会话压缩后仍能答出早期文件路径与被否决方案（挂用户实弹）。全量 ci 绿。详见 `releases/v4.488.0.md`。
+
 ## v4.487.0 · 阶段九 9.3 记忆时序/失效标记：冲突不删原文，同题自动失效+疑似仅提示（2026-10-15）
 > Memory 加 CreatedAt（既有列暴露回填，同名修订不重置）/InvalidAt（SchemaV33）。失效生命周期：Invalidate（置标记+事件留痕，**原文保留绝不删除**）/RestoreInvalidate（裁决反悔）/编辑复活（同名修订清失效=作者重申）。注入面排除（RecallBlock 硬滤）+面板搜索不过滤+恢复通道=「失效过滤可关」两侧。冲突比对收编建议接受动作双路径：Confirmed=同题旧记忆自动失效（做梦重复提炼典型实态，确定性信号）+人可读告知；Suspected=BM25 相似 top≤3 仅提示不改状态（宁漏勿误）；SubjectKey 单值冲突走既有撞键拒绝互补。Get/listInSpace 双路径回填新列（Get 漏列测试抓）。全量 ci 绿。详见 `releases/v4.487.0.md`。
 
