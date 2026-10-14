@@ -145,33 +145,25 @@ func (a *writingState) createChapter(setting, prevSummary, plotReq string, chapt
 		"outline_points":   outlineSec,                               // 刀1 §7.3（P1）：大纲 KeyPoints/Emotion，空则不渲染
 		"mature_craft":     maturecraft.CraftSection(pm.Meta.Mature), // v4.439 成人向工艺区段（P1）：非成人向为空串零渲染
 	})
-	// 上下文增强：追加分层伏笔调度 + 世界观要点区段。全部容错注入——读取失败或
-	// 无数据时静默跳过（不追加空区段），绝不因增强失败中断章节生成主链路；
-	// 新增区段合计受 ctxBudgetTotal 预算约束，超出逐段截断。
-	// 本章计划/大纲要点两个新区段先按各自上限占用额度，剩余额度再给伏笔/文风/世界观
-	// （同一 ctxBudgetTotal 口径，不叠加成第二套预算）。
-	ctxBudgetLeft := ctxBudgetTotal - runeLen(planSec) - runeLen(outlineSec)
+	// 上下文增强（阶段八 8.3 单一组装器）：伏笔/文风/世界观/故事骨架/阶段合账
+	// 五区段经 assembleViewSections 统一组装——全部容错注入（读取失败静默跳过，
+	// 不追加空区段，绝不因增强失败中断主链路）；合计受统一信封约束，超预算时
+	// 按固定裁剪次序牺牲（世界观→合账→文风→骨架→伏笔，见 assembleViewSections）。
+	// 本章计划/大纲要点两个区段先按各自上限占用 ctxBudgetTotal 额度，骨架/合账
+	// 按各自划拨额度并入同一信封。
+	ctxBudgetLeft := ctxBudgetTotal - runeLen(planSec) - runeLen(outlineSec) + ctxSpineBudget + ctxStageRecapSection
 	// 刀6：hint=计划+大纲要点文本（世界观相关性排序）；digest 指令并入文风区段
 	// （此前独立追加=文风两处的延续，本刀合并为单一区段）。
 	ctxHint := planSec + "\n" + outlineSec
 	digestInstr := a.digestBody(pm)
-	if extra := buildChapterContextSectionsWithin(pm, ctxChapterNum, ctxBudgetLeft, ctxHint, digestInstr); extra != "" {
+	extras := []viewSection{
+		// 刀3：故事层骨架切片（节拍位/活跃线程/未解问题/弧线水位）——空 spine 零注入
+		{Key: "spine", Rank: 1, Body: a.storySpineSection(pm, ctxChapterNum)},
+		// 阶段开篇章（第 21/41/…章）：先合账再开新账——非阶段开篇章零注入
+		{Key: "stage_recap", Rank: 2, Body: a.stageRecapSection(pm, ctxChapterNum)},
+	}
+	if extra := buildChapterContextSectionsWithin(pm, ctxChapterNum, ctxBudgetLeft, ctxHint, digestInstr, extras...); extra != "" {
 		userPrompt += extra + "\n"
-	}
-
-	// 刀3：故事层骨架切片（节拍位/活跃线程/未解问题/弧线水位）——空 spine 零注入，
-	// 读取失败静默跳过（同上容错纪律）。切片短且有独立结构价值：不挤占上方
-	// 伏笔/文风/世界观的 ctxBudget 额度，独立追加在增强区段之后。
-	spineSec := a.storySpineSection(pm, ctxChapterNum)
-	if spineSec != "" {
-		userPrompt += spineSec + "\n"
-	}
-
-	// 阶段开篇章（第 21/41/…章）：先合账再开新账——注入上一阶段总结（LLM 合成、
-	// 失败回落逐章摘要）与新阶段开篇纪律。非阶段开篇章零注入；内部任何失败都
-	// 降级不阻断主链路（同 spine 纪律）。
-	if sec := a.stageRecapSection(pm, ctxChapterNum); sec != "" {
-		userPrompt += "\n" + sec + "\n"
 	}
 
 	systemPrompt := tmpl.BuildSystemPrompt("")

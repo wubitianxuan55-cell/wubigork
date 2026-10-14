@@ -299,7 +299,8 @@ func (a *writingState) storySpineSection(pm interface {
 	if body == "" {
 		return ""
 	}
-	return "## 故事层骨架（纵向结构切片，本章写作要对齐）\n" + body
+	// 阶段八 8.3：spine 并入组装器统一信封，区段自身按划拨额度封顶（此前无上限）
+	return truncateBudget("## 故事层骨架（纵向结构切片，本章写作要对齐）\n"+body, ctxSpineBudget)
 }
 
 func arcStageLabel(s string) string {

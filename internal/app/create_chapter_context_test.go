@@ -129,14 +129,16 @@ func TestChapterContextLegacyWorldviewMarkdown(t *testing.T) {
 // TestChapterContextBudgetTruncation 总预算与分段截断必须生效：
 // 合计 ≤ ctxBudgetTotal；伏笔条数封顶；超长内容被截断。
 func TestChapterContextBudgetTruncation(t *testing.T) {
-	// joinWithBudget：两段各 5000 rune → 合计必须压回 4000 内
-	joined := joinWithBudget(ctxBudgetTotal,
-		strings.Repeat("甲", 5000), strings.Repeat("乙", 5000))
+	// assembleViewSections：两段各 5000 rune → 合计必须压回 4000 内
+	joined := assembleViewSections([]viewSection{
+		{Key: "a", Rank: 0, Body: strings.Repeat("甲", 5000)},
+		{Key: "b", Rank: 1, Body: strings.Repeat("乙", 5000)},
+	}, ctxBudgetTotal)
 	if n := len([]rune(joined)); n > ctxBudgetTotal {
-		t.Errorf("joinWithBudget 超预算: got %d rune, want <= %d", n, ctxBudgetTotal)
+		t.Errorf("组装器超预算: got %d rune, want <= %d", n, ctxBudgetTotal)
 	}
 	if !strings.Contains(joined, "...") {
-		t.Errorf("joinWithBudget 截断应留省略号:\n%s", joined[:80])
+		t.Errorf("组装器截断应留省略号:\n%s", joined[:80])
 	}
 
 	// 伏笔：条数封顶 ctxForeshadowMaxItems，整体不超过 ctxForeshadowBudget
@@ -424,5 +426,111 @@ func TestChapterContextStyleTruncated(t *testing.T) {
 	}
 	if strings.Contains(got, long[:len(long)-100]) {
 		t.Fatal("截断后不应保留全文")
+	}
+}
+
+// TestAssembleViewSections_TrimOrder 阶段八 8.3 出口判据：超预算时按固定裁剪
+// 次序牺牲——Rank 大者先切（世界观 3 → 合账 2 → 文风/骨架 1 → 伏笔 0），
+// Rank 0 最后牺牲，允许部分片段注入。
+func TestAssembleViewSections_TrimOrder(t *testing.T) {
+	sections := []viewSection{
+		{Key: "foreshadow", Rank: 0, Body: "伏笔约束段：" + strings.Repeat("伏", 600)},
+		{Key: "style", Rank: 1, Body: "文风段：" + strings.Repeat("风", 600)},
+		{Key: "spine", Rank: 1, Body: "骨架段：" + strings.Repeat("骨", 600)},
+		{Key: "stage_recap", Rank: 2, Body: "合账段：" + strings.Repeat("账", 600)},
+		{Key: "worldview", Rank: 3, Body: "世界观段：" + strings.Repeat("观", 600)},
+	}
+	// 信封 900：世界观整段牺牲 → 合账整段牺牲 → 同 Rank 内插入序在前的文风
+	// 整段牺牲 → 骨架部分裁剪 → 伏笔（Rank 0）完整存活
+	got := assembleViewSections(sections, 900)
+	if strings.Contains(got, "世界观段") {
+		t.Errorf("Rank 3 世界观应最先整段牺牲:\n%s", got)
+	}
+	if strings.Contains(got, "合账段") {
+		t.Errorf("Rank 2 合账应次先牺牲:\n%s", got)
+	}
+	if strings.Contains(got, "文风段") {
+		t.Errorf("同 Rank 内插入序在前的文风应先于骨架牺牲:\n%s", got)
+	}
+	if !strings.Contains(got, "伏笔约束段：伏伏伏") || !strings.Contains(got, "骨架段：骨骨骨") {
+		t.Errorf("伏笔应完整存活、骨架应部分存活:\n%s", got)
+	}
+	if !strings.Contains(got, "...") {
+		t.Errorf("骨架部分裁剪应留省略号:\n%s", got)
+	}
+	if n := runeLen(got); n > 900 {
+		t.Errorf("装配合计应 ≤ 预算: got %d", n)
+	}
+	// 部分裁剪：溢出量小于最高 Rank 段长度 → 只裁它一段（部分片段+省略号）
+	partial := assembleViewSections([]viewSection{
+		{Key: "keep", Rank: 0, Body: "保留段"},
+		{Key: "worldview", Rank: 3, Body: strings.Repeat("观", 500)},
+	}, 300)
+	if !strings.Contains(partial, "保留段") {
+		t.Errorf("低 Rank 段不应被裁:\n%s", partial)
+	}
+	if !strings.Contains(partial, "...") || !strings.Contains(partial, "观") {
+		t.Errorf("高 Rank 段应部分裁剪保留片段:\n%s", partial)
+	}
+	if n := runeLen(partial); n > 300 {
+		t.Errorf("部分裁剪后仍应 ≤ 预算: got %d", n)
+	}
+	// 确定性：同输入两次装配逐字节一致
+	d1 := assembleViewSections(sections, 900)
+	d2 := assembleViewSections(sections, 900)
+	if d1 != d2 {
+		t.Errorf("同输入装配应逐字节一致")
+	}
+	// 全空输入 → 空串
+	if got := assembleViewSections([]viewSection{{Key: "e", Body: "  "}}, 100); got != "" {
+		t.Errorf("全空区段应返回空串: %q", got)
+	}
+}
+
+// TestChapterContextBundle_TrimOrder 集成：世界观(先切)被裁时伏笔(最后保)完整。
+func TestChapterContextBundle_TrimOrder(t *testing.T) {
+	pm := newContextTestProject(t)
+	if err := pm.WriteForeshadows(&types.ForeshadowFile{Items: []types.Foreshadow{
+		{ID: "f1", Category: "plot", Description: "古剑胎记", PlantedIn: "001.md", Status: types.ForeshadowPlanted},
+	}}); err != nil {
+		t.Fatalf("写入伏笔: %v", err)
+	}
+	if err := pm.WriteWorldviewFile(&types.WorldviewFile{Sections: []types.WorldviewSection{
+		{ID: "era", Title: "时代背景", Content: strings.Repeat("史", 2000), Order: 1},
+	}}); err != nil {
+		t.Fatalf("写入世界观: %v", err)
+	}
+	// 信封压到 500：世界观(Rank 3)先牺牲，伏笔(Rank 0)完整存活
+	got := buildChapterContextSectionsWithin(pm, 1, 500, "", "")
+	if !strings.Contains(got, "古剑胎记") {
+		t.Errorf("伏笔（创作约束）应在裁剪中最后牺牲而完整存活:\n%s", got)
+	}
+	if strings.Contains(got, strings.Repeat("史", 500)) {
+		t.Errorf("世界观应被大幅裁剪:\n%s", got)
+	}
+	if n := runeLen(got); n > 500 {
+		t.Errorf("bundle 合计应 ≤ 预算: got %d", n)
+	}
+}
+
+// TestPrevSummaryWindowBudgetCap 阶段八 8.3：前文回看窗口合计受显式总上限
+// （ctxPrevWindowBudget）约束——双上限口径的回看侧落点。
+func TestPrevSummaryWindowBudgetCap(t *testing.T) {
+	nodes := make([]types.OutlineNode, 0, 12)
+	for i := 1; i <= 12; i++ {
+		n := types.OutlineNode{OrderIndex: i, Summary: strings.Repeat("摘", 200)}
+		nodes = append(nodes, n)
+	}
+	resolve := func(n types.OutlineNode) string { return n.Summary }
+	got := buildPrevSummaryWindow(nodes, 13, resolve)
+	if got == "" {
+		t.Fatalf("窗口不应为空")
+	}
+	if n := runeLen(got); n > ctxPrevWindowBudget {
+		t.Errorf("回看窗口应 ≤ 总上限 %d: got %d", ctxPrevWindowBudget, n)
+	}
+	// 正文永不压缩的回看口径：窗口只装摘要（≤180 rune/章），原文全量在盘
+	if strings.Contains(got, strings.Repeat("摘", 200)) {
+		t.Errorf("窗口内单章摘要应截断到 %d rune", ctxPrevChapterLen)
 	}
 }

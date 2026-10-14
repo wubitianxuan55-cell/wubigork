@@ -50,8 +50,20 @@ const (
 // 前文摘要窗口（t3 首刀，spec docs/distill/03-long-range-consistency.md §12.1，
 // 对齐 MuMu chapter_context_service.py:1375/:1408 的「最近 10 章摘要窗口」）。
 const (
-	ctxPrevWindowChapters = 10  // 只注入本章之前的最近 N 章
+	ctxPrevWindowChapters = 10 // 只注入本章之前的最近 N 章
 	ctxPrevChapterLen     = 180 // 窗口内单章摘要截断（rune）
+	// 阶段八 8.3：回看包总上限显式化（Sudowrite Continuity 双上限口径的 gaea
+	// 对应物——前文窗口合计 ≤ 窗口预算；正文原文永不压缩、全量在盘）。
+	ctxPrevWindowBudget = ctxPrevWindowChapters*ctxPrevChapterLen + 80
+)
+
+// 阶段八 8.3：故事骨架/阶段合账并入组装器统一信封的额度划拨。
+// spine 此前是无预算独立追加；recap 正文受 stageRecapBudgetRunes 约束但标题
+// 与开篇纪律行在其外——信封按「内部预算+结构开销」划拨，超信封由裁剪次序
+// （合账 Rank 2 先于骨架 Rank 1 牺牲）兜底。
+const (
+	ctxSpineBudget       = 1600
+	ctxStageRecapSection = stageRecapBudgetRunes + 400
 )
 
 // buildPrevSummaryWindow 组装「最近 N 章」前文摘要窗口（纯函数，确定性输出）。
@@ -84,7 +96,9 @@ func buildPrevSummaryWindow(nodes []types.OutlineNode, limitChapter int, resolve
 	for _, n := range picked {
 		parts = append(parts, fmt.Sprintf("第%d章：%s", n.OrderIndex, truncateBudget(resolve(n), ctxPrevChapterLen)))
 	}
-	return strings.Join(parts, "\n\n")
+	// 阶段八 8.3：窗口合计显式封顶（双上限口径），正常情况下窗口数学已保证
+	// 不超，此封顶是防上游摘要变更后的最后护栏。
+	return truncateBudget(strings.Join(parts, "\n\n"), ctxPrevWindowBudget)
 }
 
 // runeLen 字符串的 rune 长度
@@ -111,28 +125,114 @@ func buildChapterContextSections(pm *project.Manager, currentChapter int) string
 	return buildChapterContextSectionsWithin(pm, currentChapter, ctxBudgetTotal, "", "")
 }
 
+// ── 上下文组装器（阶段八 8.3，Sudowrite Chapter Continuity 同型）──────────────
+//
+// 章节生成的增强区段统一经 assembleViewSections 装配：合计不超预算时各区段
+// 原文全量拼接（顺序=入参顺序）；超预算时按固定裁剪次序逐段牺牲——Rank 大者
+// 先切（同 Rank 保入参序），每段只裁「刚好够」的量，允许部分片段注入
+// （对齐 Sudowrite Continuity「允许部分片段」口径）。确定性：同输入两次装配
+// 逐字节一致。
+//
+// 章节生成五区段的裁剪次序（先牺牲 → 最后保）：
+//
+//	世界观要点(3) → 阶段合账(2) → 文风档案(1) → 故事骨架(1) → 未回收伏笔(0)
+//
+// 伏笔是「创作约束」（不得矛盾），最后牺牲；世界观是背景板，最先切——
+// 依据竞品调研 §5.1（Sudowrite 裁剪次序表：Worldbuilding 最先、Style 靠后）。
+
+// viewSection 组装器的最小区段单元。
+type viewSection struct {
+	Key  string // 语义键（dump/日志可读；组装器本身不消费）
+	Body string // 区段全文（含标题行）；空串=跳过不占额度
+	Rank int    // 牺牲序：数值越大越先被裁（0=最后牺牲）
+}
+
+// assembleViewSections 固定裁剪次序的上下文组装器（纯函数）。
+// 合计（含 "\n\n" 拼接开销）≤ budget 时全量拼接；超预算时按 Rank 从大到小
+// 逐段裁剪，每段裁到「刚好够」，裁到放不下省略号（3 rune）时整段牺牲。
+func assembleViewSections(sections []viewSection, budget int) string {
+	type liveSec struct {
+		idx, rank, length int
+	}
+	var live []liveSec
+	total := 0
+	for i, s := range sections {
+		if strings.TrimSpace(s.Body) == "" {
+			continue // 空区段（含纯空白）跳过不占额度，也不产生拼接符
+		}
+		l := runeLen(s.Body)
+		live = append(live, liveSec{idx: i, rank: s.Rank, length: l})
+		total += l
+	}
+	if len(live) == 0 {
+		return ""
+	}
+	joiner := 2 * (len(live) - 1)
+	if total+joiner <= budget {
+		parts := make([]string, len(live))
+		for k, ls := range live {
+			parts[k] = sections[ls.idx].Body
+		}
+		return strings.Join(parts, "\n\n")
+	}
+	// 超预算：Rank 大者先牺牲，每段只裁「刚好够」的量
+	order := append([]liveSec(nil), live...)
+	sort.SliceStable(order, func(i, j int) bool { return order[i].rank > order[j].rank })
+	remain := total + joiner - budget
+	caps := make(map[int]int, len(live))
+	for _, ls := range live {
+		caps[ls.idx] = ls.length // 默认全量保留
+	}
+	for _, ls := range order {
+		if remain <= 0 {
+			break
+		}
+		switch {
+		case remain >= ls.length:
+			caps[ls.idx] = 0 // 整段牺牲
+			remain -= ls.length
+		case ls.length > 3: // 部分裁剪（省略号计入预算）
+			caps[ls.idx] = ls.length - remain
+			remain = 0
+		default: // 剩余量连省略号都放不下且整段也不够抵：整段牺牲
+			caps[ls.idx] = 0
+			remain -= ls.length
+		}
+	}
+	parts := make([]string, 0, len(live))
+	for _, ls := range live {
+		if c := caps[ls.idx]; c > 0 {
+			parts = append(parts, truncateBudget(sections[ls.idx].Body, c))
+		}
+	}
+	return strings.Join(parts, "\n\n")
+}
+
 // buildChapterContextSectionsWithin 同 buildChapterContextSections，但预算可调：
 // 刀1 的章节计划/大纲要点区段已经从 ctxBudgetTotal 里先占额度，剩余额度经本函数
 // 传给伏笔/文风/世界观，保证「计划 + 大纲 + 增强区段」合计不超过同一个 ctxBudgetTotal。
-func buildChapterContextSectionsWithin(pm *project.Manager, currentChapter, budget int, relevanceHint, digestInstr string) string {
+// 阶段八 8.3：extraSections（故事骨架/阶段合账）并入同一组装器同一信封——
+// 超预算时按固定裁剪次序牺牲（见 assembleViewSections 注释），不再是无上限独立追加。
+func buildChapterContextSectionsWithin(pm *project.Manager, currentChapter, budget int, relevanceHint, digestInstr string, extraSections ...viewSection) string {
 	if budget <= 0 {
 		return "" // 额度耗尽：不追加任何区段（宁缺毋滥，不写半截截断文本）
 	}
-	sections := make([]string, 0, 3)
+	sections := make([]viewSection, 0, 3+len(extraSections))
 	if body := buildForeshadowSection(pm, currentChapter); body != "" {
-		sections = append(sections, "## 未回收伏笔（创作约束）\n"+
-			"以下伏笔已埋设尚未回收，写作时不得与之矛盾；可自然推进，不要强行揭穿：\n"+body)
+		sections = append(sections, viewSection{Key: "foreshadow", Rank: 0, Body: "## 未回收伏笔（创作约束）\n"+
+			"以下伏笔已埋设尚未回收，写作时不得与之矛盾；可自然推进，不要强行揭穿：\n" + body})
 	}
 	// 刀6 文风去重合并：style.md（显式偏好）与成稿学习指令（刀5 digest）此前
 	// 是两个独立区段两个标题（§1.8「文风两处」的延续）——合并为单一区段，
 	// 偏好优先、学习跟随。
 	if body := joinStyleSections(styleSectionBody(pm), digestInstr); body != "" {
-		sections = append(sections, body)
+		sections = append(sections, viewSection{Key: "style", Rank: 1, Body: body})
 	}
+	sections = append(sections, extraSections...)
 	if body := buildWorldviewSection(pm, relevanceHint); body != "" {
-		sections = append(sections, "## 世界观要点\n"+body)
+		sections = append(sections, viewSection{Key: "worldview", Rank: 3, Body: "## 世界观要点\n" + body})
 	}
-	return joinWithBudget(budget, sections...)
+	return assembleViewSections(sections, budget)
 }
 
 // ── 章节计划写前硬闸与意图注入（刀1 线B，规格 §7.1-3 / §7.3）────────────
@@ -450,24 +550,6 @@ func styleSectionBody(pm *project.Manager) string {
 		body = string([]rune(body)[:ctxStyleBudget]) + "……"
 	}
 	return body
-}
-
-// joinWithBudget 用空行拼接区段；合计超过 budget（rune）时对每段截断至
-// budget/段数（扣除拼接符开销），保证新增上下文不会撑爆生成 prompt。
-func joinWithBudget(budget int, sections ...string) string {
-	if len(sections) == 0 {
-		return ""
-	}
-	joined := strings.Join(sections, "\n\n")
-	if runeLen(joined) > budget {
-		joiner := 2 * (len(sections) - 1) // "\n\n" 拼接开销
-		per := (budget - joiner) / len(sections)
-		for i := range sections {
-			sections[i] = truncateBudget(sections[i], per)
-		}
-		joined = strings.Join(sections, "\n\n")
-	}
-	return joined
 }
 
 // buildWorldviewSection 读世界观并拆分为「维度要点」正文，每维度截断

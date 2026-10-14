@@ -163,3 +163,34 @@ func TestWriteChapterAtomicReplaces(t *testing.T) {
 	}
 	assertNoTempLeftovers(t, filepath.Join(dir, "chapters"))
 }
+
+// TestWriteChapterByteRoundtrip 阶段八 8.3「正文永不压缩」口径：章节正文写入
+// 与读回必须字节级一致（含多字节中文/换行/零宽字符），任何截断或规范化都是
+// 违约——摘要/合账是视图，原文是唯一事实源。
+func TestWriteChapterByteRoundtrip(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "chapters"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	pm := &Manager{Dir: dir}
+	content := "第一行：他望着窗外的雨。\n\n　　第二行（全角空格缩进）。「引号」——破折号……\n\u200b零宽空格不删除\t制表符\n" +
+		strings.Repeat("长段落填充。", 500)
+	if err := pm.WriteChapter(7, content); err != nil {
+		t.Fatalf("写章节: %v", err)
+	}
+	got, err := pm.ReadChapter(7)
+	if err != nil {
+		t.Fatalf("读章节: %v", err)
+	}
+	if got != content {
+		t.Fatalf("章节正文应字节级往返一致: got %d runes, want %d runes", len([]rune(got)), len([]rune(content)))
+	}
+	// 分支变体同口径
+	if err := pm.WriteChapterBranch(7, "a", content); err != nil {
+		t.Fatalf("写分支章节: %v", err)
+	}
+	bg, err := pm.ReadChapterBranch(7, "a")
+	if err != nil || bg != content {
+		t.Fatalf("分支章节应字节级往返一致: %v", err)
+	}
+}
