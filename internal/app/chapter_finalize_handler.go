@@ -184,7 +184,7 @@ type finalizeApplyPayload struct {
 		End   int    `json:"end"`
 		Text  string `json:"text"`
 	} `json:"stage_recap"`
-	Characters []finalizeCharDraft    `json:"characters"`
+	Characters  []finalizeCharDraft   `json:"characters"`
 	Foreshadows []types.ForeshadowHit `json:"foreshadows"`
 }
 
@@ -276,7 +276,7 @@ func (a *writingState) FinalizeChapterApply(chapterNum int, branch, payloadJSON 
 		}
 		entry := types.StageRecapEntry{
 			Start: payload.StageRecap.Start, End: payload.StageRecap.End,
-			Text: strings.TrimSpace(payload.StageRecap.Text),
+			Text:        strings.TrimSpace(payload.StageRecap.Text),
 			FinalizedAt: final.FinalizedAt, SourceChapter: chapterNum,
 		}
 		if entry.Start < 1 {

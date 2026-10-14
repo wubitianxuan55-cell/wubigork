@@ -50,7 +50,7 @@ const (
 // 前文摘要窗口（t3 首刀，spec docs/distill/03-long-range-consistency.md §12.1，
 // 对齐 MuMu chapter_context_service.py:1375/:1408 的「最近 10 章摘要窗口」）。
 const (
-	ctxPrevWindowChapters = 10 // 只注入本章之前的最近 N 章
+	ctxPrevWindowChapters = 10  // 只注入本章之前的最近 N 章
 	ctxPrevChapterLen     = 180 // 窗口内单章摘要截断（rune）
 	// 阶段八 8.3：回看包总上限显式化（Sudowrite Continuity 双上限口径的 gaea
 	// 对应物——前文窗口合计 ≤ 窗口预算；正文原文永不压缩、全量在盘）。
@@ -219,7 +219,7 @@ func buildChapterContextSectionsWithin(pm *project.Manager, currentChapter, budg
 	}
 	sections := make([]viewSection, 0, 3+len(extraSections))
 	if body := buildForeshadowSection(pm, currentChapter); body != "" {
-		sections = append(sections, viewSection{Key: "foreshadow", Rank: 0, Body: "## 未回收伏笔（创作约束）\n"+
+		sections = append(sections, viewSection{Key: "foreshadow", Rank: 0, Body: "## 未回收伏笔（创作约束）\n" +
 			"以下伏笔已埋设尚未回收，写作时不得与之矛盾；可自然推进，不要强行揭穿：\n" + body})
 	}
 	// 刀6 文风去重合并：style.md（显式偏好）与成稿学习指令（刀5 digest）此前

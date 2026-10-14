@@ -142,7 +142,7 @@ func (a *writingState) createChapter(setting, prevSummary, plotReq string, chapt
 		"plot_req":         plotReq,
 		"setting":          setting,
 		"characters":       a.buildChapterCastSection(pm, chapterPlan, planSec+"\n"+outlineSec+"\n"+plotReq, ctxChapterNum), // 焦点分级+实体卡触发注入（8.1）：计划/命中角色给全量档案，其余降名册备查
-		"character_states": a.buildCharacterStatesSection(pm),          // t5 §7.4 状态机回灌（P1，空则不渲染）
+		"character_states": a.buildCharacterStatesSection(pm),                                                               // t5 §7.4 状态机回灌（P1，空则不渲染）
 		"prev_summary":     prevSummary,
 		"chapter_plan":     planSec,                                  // 刀1 §7.3（P0）：本章计划区段，空则不渲染
 		"outline_points":   outlineSec,                               // 刀1 §7.3（P1）：大纲 KeyPoints/Emotion，空则不渲染

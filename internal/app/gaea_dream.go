@@ -311,7 +311,7 @@ func dreamEnqueueSuggestions(userDir, space string, res dreamResult) (int, int, 
 
 // dreamSuggestNotice 构造 suggest 入队后的前端 notice 文案与级别：
 // dropped>0 表示有未确认建议被挤出队列（数据丢失），如实说明并升 Warn
-//（v4.478：此前静默丢弃，用户错过入队提示即永远不知道少了内容）。
+// （v4.478：此前静默丢弃，用户错过入队提示即永远不知道少了内容）。
 func dreamSuggestNotice(queued, dropped int) (string, event.Level) {
 	text := fmt.Sprintf("本轮提炼出 %d 条记忆建议：已放入记忆面板「建议」待确认（未写入记忆）", queued)
 	if dropped > 0 {

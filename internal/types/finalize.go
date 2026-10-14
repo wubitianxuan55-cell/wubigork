@@ -24,7 +24,7 @@ type StageRecapEntry struct {
 
 // StageRecapCacheFile chapters/stage-recaps.json（key = 阶段号十进制字符串）。
 type StageRecapCacheFile struct {
-	Version int                      `json:"version"`
+	Version int                        `json:"version"`
 	Recaps  map[string]StageRecapEntry `json:"recaps"`
 }
 
@@ -40,8 +40,8 @@ type FinalizeForeshadowSync struct {
 // FinalizeApplied 主线章三件套落库回执（分支章为 nil——登记表/合账/状态卡都是
 // 主线口径，分支只标记+留痕，见 ChapterFinalization.Skipped）。
 type FinalizeApplied struct {
-	StageRecap  *StageRecapEntry       `json:"stage_recap,omitempty"` // 本轮落盘的合账（非阶段收官章/未应用=空）
-	Characters  int                    `json:"characters"`            // 追加的状态演进条数
+	StageRecap  *StageRecapEntry        `json:"stage_recap,omitempty"` // 本轮落盘的合账（非阶段收官章/未应用=空）
+	Characters  int                     `json:"characters"`            // 追加的状态演进条数
 	Foreshadows *FinalizeForeshadowSync `json:"foreshadows,omitempty"` // 伏笔同步回执（未应用=空）
 }
 

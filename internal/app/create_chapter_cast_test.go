@@ -345,7 +345,7 @@ func TestResolveProgressions_UnknownFieldFallsBackToAddition(t *testing.T) {
 	ch := types.Character{Progressions: []types.CharacterProgression{
 		{Chapter: 3, Field: "wardrobe", Text: "改穿玄色劲装"},
 		{Chapter: 4, Text: "佩剑换了"},
-		{Chapter: 5, Text: ""},  // 空文本跳过
+		{Chapter: 5, Text: ""},    // 空文本跳过
 		{Chapter: 0, Text: "无章号"}, // 非法章号跳过
 	}}
 	repl, adds := resolveProgressions(ch, 9)

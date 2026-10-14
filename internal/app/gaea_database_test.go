@@ -156,10 +156,10 @@ func TestDedupeRoots(t *testing.T) {
 	}
 	got := dedupeRoots([]string{
 		filepath.Join(dir, "ws"),
-		filepath.Join(dir, "ws") + "/",                                // 同路径异斜杠
+		filepath.Join(dir, "ws") + "/", // 同路径异斜杠
 		strings.ToUpper(filepath.Join(dir, "ws")[:3]) + filepath.Join(dir, "ws")[3:], // 盘符大写
-		filepath.Join(dir, "missing"),                                 // 不存在
-		"   ",                                                         // 空白
+		filepath.Join(dir, "missing"), // 不存在
+		"   ",                         // 空白
 		filepath.Join(dir, "other"),
 	})
 	if len(got) != 2 {

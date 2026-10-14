@@ -102,10 +102,10 @@ type Character struct {
 // CharacterProgression 单条状态演进（阶段八 8.2）：自 Chapter 章起生效。
 // Field 为空=纯增补（追加到档案行尾）；Field ∈ 白名单=替换该字段渲染值。
 type CharacterProgression struct {
-	Chapter int    `json:"chapter"`           // 锚点章号（≥1），自本章起生效
-	Field   string `json:"field,omitempty"`   // 替换目标字段；空=增补
-	Text    string `json:"text"`              // 增补/替换文本
-	Note    string `json:"note,omitempty"`    // 变更说明（可选，仅作者备注不进 prompt）
+	Chapter int    `json:"chapter"`         // 锚点章号（≥1），自本章起生效
+	Field   string `json:"field,omitempty"` // 替换目标字段；空=增补
+	Text    string `json:"text"`            // 增补/替换文本
+	Note    string `json:"note,omitempty"`  // 变更说明（可选，仅作者备注不进 prompt）
 }
 
 // PromptView 返回去除剧照等二进制字段的角色副本（E02：防 base64 剧照泄漏进 LLM prompt）。
