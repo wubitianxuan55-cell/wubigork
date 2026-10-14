@@ -96,8 +96,16 @@ func (a *App) GaeaCostCompose(desc, unit string) (CostComposeView, error) {
 		return CostComposeView{Description: desc, Unit: unit}, nil
 	}
 
-	// 2. 价格带推荐(按单位过滤;单位未知时不过滤)。
-	band := cost.ComputePriceBand(similar, unit)
+	// 2. 价格带推荐(按单位过滤;单位未知时不过滤)。3.3 对标升级：项目案例
+	// 清单综合单价并入带计算（Source=案例，证据链可溯源）——只进带，不进
+	// LLM 拆解/校验的库样本入参（案例行无人材机组成，进提示词是污染）。
+	bandInput := similar
+	if caseSamples := a.casePriceSamples(desc, unit); len(caseSamples) > 0 {
+		bandInput = make([]cost.Summary, len(similar), len(similar)+len(caseSamples))
+		copy(bandInput, similar)
+		bandInput = append(bandInput, caseSamples...)
+	}
+	band := cost.ComputePriceBand(bandInput, unit)
 	if band == nil {
 		return CostComposeView{Description: desc, Unit: unit}, nil
 	}
