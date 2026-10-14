@@ -108,12 +108,20 @@ func (a *writingState) FinalizeChapterDraft(chapterNum int, branch string) (map[
 		out["finalization"] = cf
 		alreadyDrafted = true
 	}
+	// 优先消费生成时过闸的章级变更声明（阶段八 8.5）：生成时模型顺手声明→五类
+	// 门禁→随摘要落盘，定稿草案从这里零 LLM 预填充（角色+伏笔两件）。缺失/空
+	// 草案才走下方 ExtractOnly 现提取（模型在写正文时最清楚改了什么，事后提取
+	// 是兜底不是主路径）。声明路径零模型依赖——无 client 也照出草案。
+	if declOut := draftFromDeclaration(pm, chapterNum, branch, out); declOut != nil {
+		return declOut, nil
+	}
 	if a.analysisAgent == nil || a.clientRef() == nil {
 		if alreadyDrafted {
 			return out, nil
 		}
 		return nil, fmt.Errorf("AI 客户端未就绪：请先在「模型中心」配置可用引擎，再生成定稿草案")
 	}
+
 
 	// 纯提取（零落盘——草案未经作者确认，建议制红线）
 	v2, err := a.analysisAgent.ExtractOnly(a.ctx, chapterNum, content)
@@ -381,4 +389,52 @@ func (a *writingState) ChapterFinalizationGet(chapterNum int, branch string) (*t
 		return nil, nil
 	}
 	return cf, nil
+}
+
+// draftFromDeclaration 从章节摘要里过闸的变更声明草案化（零 LLM）。返回 nil=
+// 无过闸声明或草案两件全空（调用方回落 ExtractOnly 现提取）。
+func draftFromDeclaration(pm *project.Manager, chapterNum int, branch string, out map[string]interface{}) map[string]interface{} {
+	var summary *types.ChapterSummary
+	var err error
+	if branch != "" {
+		summary, err = pm.ReadChapterBranchSummary(chapterNum, branch)
+	} else {
+		summary, err = pm.ReadChapterSummary(chapterNum)
+	}
+	if err != nil || summary == nil || summary.DeclChanges == nil {
+		return nil
+	}
+	decl := summary.DeclChanges
+	charDrafts := make([]finalizeCharDraft, 0, len(decl.CharacterStates))
+	if cf, cerr := pm.ReadCharacters(); cerr == nil && cf != nil {
+		for _, st := range decl.CharacterStates {
+			name := strings.TrimSpace(st.Name)
+			c := types.FindCharacterByName(cf.Characters, name)
+			if c == nil || strings.TrimSpace(st.New) == "" {
+				continue // 门禁已过闸，此处防御性对齐（作者改卡后名字可能漂移）
+			}
+			charDrafts = append(charDrafts, finalizeCharDraft{
+				ID: c.ID, Name: c.Name, Field: "status", Text: strings.TrimSpace(st.New),
+				Note: finalizeProgressionNote(chapterNum),
+			})
+		}
+	}
+	fsDrafts := make([]types.ForeshadowHit, 0, len(decl.Foreshadows))
+	for _, f := range decl.Foreshadows {
+		if strings.TrimSpace(f.Action) == "" {
+			continue
+		}
+		id := strings.TrimSpace(f.ID)
+		fsDrafts = append(fsDrafts, types.ForeshadowHit{
+			Title: f.Title, Content: f.Description, Type: strings.ToLower(f.Action),
+			ReferenceStableID: id,
+		})
+	}
+	if len(charDrafts) == 0 && len(fsDrafts) == 0 {
+		return nil
+	}
+	out["characters"] = charDrafts
+	out["foreshadows"] = fsDrafts
+	out["fromDeclaration"] = true
+	return out
 }

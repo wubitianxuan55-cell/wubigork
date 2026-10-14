@@ -253,6 +253,8 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
   }, [minWords, temperature, selectedSkill])
   // 生成完成后 novelstyle 的 AI 味检测结果（分数 + 命中问题），展示给作者
   const [aiTaste, setAiTaste] = useState<AiTasteResult | null>(null)
+  // 章级变更声明门禁（阶段八 8.5）：拒收时人可读问题清单（重新生成或定稿面板手动修正）
+  const [declGate, setDeclGate] = useState<{ declared: boolean; accepted: boolean; issues: string[] } | null>(null)
   // 叙事状态账本（narrative 审批制结算）UI
   const [stateOpen, setStateOpen] = useState(false)
   const [novelState, setNovelState] = useState<{ version?: number; entities?: Record<string, { name?: string; type?: string; status?: string }> } | null>(null)
@@ -607,6 +609,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
             // 生成完成＝后端已落盘：把当前正文视为已保存（否则切章会误弹「未保存」确认）
             setLoadedSnapshot(contentRef.current)
             setAiTaste(ev.aiTaste ?? null)
+            setDeclGate(ev.declGate ?? null)
             const chNum = ev.chapterNum || 0
             const branch = ev.branch || ''
             message.success(`${branch ? `第${chNum}${branch}章` : `第${chNum}章`} 生成完成（${(ev.total || 0).toLocaleString()} 字）`)
@@ -1262,6 +1265,28 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
 
   return (
     <div className="novel-create-root">
+      {declGate && declGate.declared && !declGate.accepted && (
+        <div className="novel-create-alert">
+          <Alert
+            type="error"
+            showIcon
+            data-testid="decl-gate-banner"
+            message="变更声明未过章级门禁——声明的状态/伏笔更新未落库"
+            description={(
+              <div>
+                {declGate.issues.map((it, i) => <div key={i}>{it}</div>)}
+                <div style={{ marginTop: 4, opacity: 0.8 }}>正文已正常保存；可重新生成，或在定稿时手动修正后确认。</div>
+              </div>
+            )}
+          />
+        </div>
+      )}
+      {declGate && declGate.declared && declGate.accepted && (
+        <div className="novel-create-alert">
+          <Alert type="success" showIcon data-testid="decl-gate-ok"
+            message="变更声明已过章级门禁——定稿时将零成本预填三件套草案" />
+        </div>
+      )}
       {aiTaste && (
         <div className="novel-create-alert">
           <Alert

@@ -39,7 +39,7 @@
   },
   "output": {
     "format": "markdown",
-    "description": "正文（不少于{{word_count}}字，不含章节标题）+ 文末附：\\n---CHAPTER_SUMMARY---\\n关键事件：（一句话）\\n人物变化：（角色关系或状态变化）\\n伏笔/悬念：（本章埋下的伏笔或结尾悬念）"
+    "description": "正文（不少于{{word_count}}字，不含章节标题）+ 文末依序附加两段：\n---CHAPTER_SUMMARY---\n关键事件：（一句话）\n人物变化：（角色关系或状态变化）\n伏笔/悬念：（本章埋下的伏笔或结尾悬念）\n---CHAPTER_CHANGES---\n```json\n{\"character_states\":[{\"name\":\"角色名（须与设定一致）\",\"old\":\"此前状态\",\"new\":\"本章后的状态\",\"kind\":\"survival或留空\"}],\"foreshadows\":[{\"id\":\"既有伏笔ID（回收必填）\",\"action\":\"planted|hinted|resolved\",\"title\":\"伏笔名\",\"description\":\"内容\"}],\"timeline\":\"本章时间推进（一句话）\"}\n```\n变更声明是本章事实账：只写本章真实发生的变更；没有变更的字段给空数组；回收伏笔必须引用登记表中既有 ID；未提及的角色不得声明。"
   },
   "constraints": {
     "must": [

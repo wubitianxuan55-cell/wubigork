@@ -658,9 +658,25 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 
 	summary := ""
 	if idx := strings.Index(fullText, "---CHAPTER_SUMMARY---"); idx >= 0 {
-		summary = strings.TrimSpace(fullText[idx+len("---CHAPTER_SUMMARY---"):])
+		// 变更声明段（---CHAPTER_CHANGES---）在摘要段之后：先切段再取摘要，
+		// 否则声明 JSON 会被当摘要文本吞进 Truncate(100)。
+		summaryRegion := fullText[idx+len("---CHAPTER_SUMMARY---"):]
+		summaryPart, _ := splitDeclSegment(summaryRegion)
+		summary = strings.TrimSpace(summaryPart)
 		summary = util.Truncate(summary, 100)
 	}
+
+	// 章级变更声明（阶段八 8.5）：切段→解析→五类门禁→过闸随摘要落盘。
+	// 未声明/不可解析=软降级（declGate.declared=false）；拒收=DeclChanges 不落盘
+	// +done 事件带人可读问题清单。声明校验不阻断正文落盘（正文是主产物）。
+	decl, declIssues := resolveChapterChanges(
+		func() string {
+			if idx := strings.Index(fullText, "---CHAPTER_SUMMARY---"); idx >= 0 {
+				return fullText[idx+len("---CHAPTER_SUMMARY---"):]
+			}
+			return ""
+		}(), content, readDeclCapableChars(pm), readGateForeshadows(pm), targetNum)
+	declGate := declGateReport(decl, declIssues)
 
 	// 将摘要落盘，分支章节使用独立摘要文件，避免分支复用主线摘要
 	if summary != "" {
@@ -669,6 +685,10 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 			label = fmt.Sprintf("第%d%s章", targetNum, branch)
 		}
 		chapterSummary := &types.ChapterSummary{Title: label, Summary: summary}
+		if attached := attachDeclToSummary(chapterSummary, decl, declIssues); attached {
+			slog.Info("章级变更声明过闸随摘要落盘", "chapter", targetNum, "branch", branch,
+				"states", len(decl.CharacterStates), "foreshadows", len(decl.Foreshadows))
+		}
 		var summaryErr error
 		if branch != "" {
 			summaryErr = pm.WriteChapterBranchSummary(targetNum, branch, chapterSummary)
@@ -736,6 +756,7 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 		"nodeId":     nodeID,
 		"total":      len([]rune(content)),
 		"aiTaste":    aiTaste,
+		"declGate":   declGate,
 	})
 
 	// 异步提取章节角色 + 生成后自动门：两者共用章节生成的 WaitGroup（N7），

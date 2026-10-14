@@ -59,6 +59,8 @@ export interface CreateChapterDoneEvent {
   nodeId?: string
   total?: number
   aiTaste?: AiTasteResult
+  /** 章级变更声明门禁（阶段八 8.5）：declared=false=模型未声明（软降级） */
+  declGate?: { declared: boolean; accepted: boolean; issues: string[] }
 }
 
 export interface CreateChapterErrorEvent {
@@ -167,6 +169,8 @@ export function parseCreateChapterEvent(payload: unknown): CreateChapterStreamEv
         nodeId: str(payload.nodeId),
         total: num(payload.total),
         aiTaste: parseAiTaste(payload.aiTaste),
+        // 章级变更声明门禁（阶段八 8.5）：白名单透传（declared/accepted/issues）
+        declGate: parseDeclGate(payload.declGate),
       }
     case 'error':
       return { type, error: str(payload.error) }
@@ -186,4 +190,12 @@ export function parseCreateChapterEvent(payload: unknown): CreateChapterStreamEv
     default:
       return null
   }
+}
+
+/** 变更声明门禁白名单解析（declared/accepted 布尔 + issues 字符串数组；畸形=undefined）。 */
+function parseDeclGate(raw: unknown): { declared: boolean; accepted: boolean; issues: string[] } | undefined {
+  if (!isRecord(raw)) return undefined
+  if (typeof raw.declared !== 'boolean' || typeof raw.accepted !== 'boolean') return undefined
+  const issues = Array.isArray(raw.issues) ? raw.issues.filter((x): x is string => typeof x === 'string') : []
+  return { declared: raw.declared, accepted: raw.accepted, issues }
 }

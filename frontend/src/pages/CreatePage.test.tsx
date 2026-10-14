@@ -228,6 +228,41 @@ describe('CreatePage 生成控制（T6-7.2 停止按钮 + cancelled 事件）', 
     expect(runtimeOffs).toContain('create-chapter-stream')
   })
 
+  // 阶段八 8.5：章级变更声明门禁横幅三态（拒收红/通过绿/未声明无横幅）
+  it('declGate 三态：拒收人可读清单、通过预填提示、未声明零横幅', async () => {
+    await startGeneration()
+    emit('create-chapter-stream', {
+      type: 'done', chapterNum: 1, branch: '', total: 5000,
+      declGate: { declared: true, accepted: false, issues: ['变更声明的角色「林晚」不在本书角色卡中（名字或别名均未命中）'] },
+    })
+    await waitFor(() => expect(screen.queryByRole('button', { name: /停止生成/ })).toBeNull())
+    const banner = await screen.findByTestId('decl-gate-banner')
+    expect(banner.textContent).toContain('未过章级门禁')
+    expect(banner.textContent).toContain('林晚')
+    expect(banner.textContent).toContain('正文已正常保存')
+  })
+
+  it('declGate 通过：绿色横幅提示定稿预填', async () => {
+    await startGeneration()
+    emit('create-chapter-stream', {
+      type: 'done', chapterNum: 1, branch: '', total: 5000,
+      declGate: { declared: true, accepted: true, issues: [] },
+    })
+    await waitFor(() => expect(screen.queryByRole('button', { name: /停止生成/ })).toBeNull())
+    expect(await screen.findByTestId('decl-gate-ok')).toBeTruthy()
+  })
+
+  it('declGate 未声明：零横幅（软降级）', async () => {
+    await startGeneration()
+    emit('create-chapter-stream', {
+      type: 'done', chapterNum: 1, branch: '', total: 5000,
+      declGate: { declared: false, accepted: false, issues: [] },
+    })
+    await waitFor(() => expect(screen.queryByRole('button', { name: /停止生成/ })).toBeNull())
+    expect(screen.queryByTestId('decl-gate-banner')).toBeNull()
+    expect(screen.queryByTestId('decl-gate-ok')).toBeNull()
+  })
+
   it('生成中卸载组件：流式监听被退订（无悬挂）', async () => {
     const { unmount } = render(<CreatePage />)
     const plot = await screen.findByPlaceholderText(/或直接输入剧情要求/)
