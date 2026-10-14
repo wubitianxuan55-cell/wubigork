@@ -286,3 +286,38 @@ func (s *Store) Stale(kind string, keep map[string]bool) (int, error) {
 	}
 	return len(del), nil
 }
+
+// Timestamps 批量取 (kind+\x00+id) → updated_at（融合层时序 tie-break 输入；
+// 小表全量一次查询）。
+func (s *Store) Timestamps() (map[string]string, error) {
+	out := map[string]string{}
+	if s.db == nil {
+		return out, nil
+	}
+	rows, err := s.db.Query(`SELECT kind, id, updated_at FROM semantic_vectors`)
+	if err != nil {
+		return out, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var kind, id, at string
+		if err := rows.Scan(&kind, &id, &at); err != nil {
+			continue
+		}
+		out[kind+"\x00"+id] = at
+	}
+	return out, rows.Err()
+}
+
+// DocOf 单条正文（融合视图 Text 取用；缓存由调用方掌管——命中集小，直查即可）。
+func (s *Store) DocOf(kind, id string) (string, error) {
+	if s.db == nil {
+		return "", nil
+	}
+	var doc string
+	err := s.db.QueryRow(`SELECT doc FROM semantic_vectors WHERE kind=? AND id=?`, kind, id).Scan(&doc)
+	if err != nil {
+		return "", err
+	}
+	return doc, nil
+}

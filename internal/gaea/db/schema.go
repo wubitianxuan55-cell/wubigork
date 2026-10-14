@@ -799,3 +799,16 @@ FROM gf_bill_items
 WHERE COALESCE(quota_code,'') != ''
   AND id NOT IN (SELECT bill_item_id FROM gf_bill_quota_links);
 `
+
+// SchemaV32 语义检索 FTS5 全文索引（阶段九 9.2 混合召回）：semantic_vectors
+// 的 doc 正文进 FTS（kind/id 作 UNINDEXED 元数据列，免联表）。中文降级：
+// unicode61 不切 CJK 子串，MATCH 零命中回退 LIKE 子串扫描（session_fts/
+// whisper 同款先例）。行维护=惰性重建（semantic 包比对 FTS 行数 vs 向量行数，
+// 不一致全量重灌——1553 条量级毫秒级；不引指纹表，少一张表少一处失步）。
+const SchemaV32 = `
+CREATE VIRTUAL TABLE IF NOT EXISTS semantic_fts USING fts5(
+  doc,
+  kind UNINDEXED,
+  id UNINDEXED
+);
+`

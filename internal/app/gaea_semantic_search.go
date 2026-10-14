@@ -3,7 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
-	"sort"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -77,13 +77,28 @@ func (a *App) semanticSearchHitsOnDemand(query string, topN int) ([]SemanticHitV
 	if strings.TrimSpace(query) == "" {
 		return nil, nil
 	}
-	e := a.localSearchEmbedder()
-	if e == nil {
-		return nil, nil
-	}
 	st := a.hubSemanticStore()
 	if st == nil || !st.Available() {
 		return nil, nil
+	}
+
+	// ── 全文路（阶段九 9.2 混合召回）：零模型依赖，embedding 不可用时独立工作
+	// （降级红利：检索不再被模型可用性绑架）。惰性 FTS 维护失败只 warn 不阻断。
+	if _, err := st.EnsureFTS(); err != nil {
+		slog.Warn("语义 FTS 索引维护失败（全文路降级跳过）", "error", err)
+	}
+	ftHits, ferr := st.FTSSearch(query, topN)
+	if ferr != nil {
+		slog.Warn("语义全文检索失败（全文路降级跳过）", "error", ferr)
+		ftHits = nil
+	}
+
+	e := a.localSearchEmbedder()
+	if e == nil {
+		// 无 embedding：全文+名称两路独立工作（混合召回的降级语义）。
+		ts, _ := st.Timestamps()
+		fused := semantic.FuseSemantic(query, nil, ftHits, ts, topN)
+		return fusedToViews(fused, st), nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
@@ -172,19 +187,34 @@ func (a *App) semanticSearchHitsOnDemand(query string, topN int) ([]SemanticHitV
 	if perKind < 1 {
 		perKind = 1
 	}
-	var all []SemanticHitView
+	var vecHits []semantic.Hit
 	for _, kind := range kinds {
 		hits, err := st.SearchReady(ctx, e, kind, query, perKind)
 		if err != nil {
-			return nil, err
+			// 向量路单 kind 失败：降级继续（全文路已在手），不中断检索
+			slog.Warn("语义向量检索单库失败（该库降级跳过）", "kind", kind, "error", err)
+			continue
 		}
-		for _, h := range hits {
-			all = append(all, SemanticHitView{Kind: h.Kind, Name: h.ID, Score: h.Score, Text: h.Text})
+		vecHits = append(vecHits, hits...)
+	}
+
+	// 三路融合（阶段九 9.2）：向量 cosine + 全文 bm25/LIKE + 名称关键词，
+	// 权重可解释（semantic.FuseWeight*），时序 tie-break。
+	ts, _ := st.Timestamps()
+	fused := semantic.FuseSemantic(query, vecHits, ftHits, ts, topN)
+	return fusedToViews(fused, st), nil
+}
+
+// fusedToViews 融合结果 → wire 视图（Text 从 FTS/向量全文取：FTS 命中走
+// semantic_vectors.doc 单查缓存——条目级 lazy，命中集 ≤topN 小）。
+func fusedToViews(fused []semantic.FusedHit, st *semantic.Store) []SemanticHitView {
+	out := make([]SemanticHitView, 0, len(fused))
+	for _, f := range fused {
+		text := ""
+		if st != nil {
+			text, _ = st.DocOf(f.Kind, f.ID)
 		}
+		out = append(out, SemanticHitView{Kind: f.Kind, Name: f.ID, Score: f.Final, Text: text})
 	}
-	sort.Slice(all, func(i, j int) bool { return all[i].Score > all[j].Score })
-	if len(all) > topN {
-		all = all[:topN]
-	}
-	return all, nil
+	return out
 }
