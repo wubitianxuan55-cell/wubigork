@@ -540,12 +540,60 @@ func worldviewDimHitsHint(dimLine, hint string) bool {
 	return false
 }
 
+// ── 状态演进解析（阶段八 8.2，NovelCrafter Progressions 同型）────────────────
+//
+// 注入按当前章取「锚点 ≤ 当前章」的最新状态：替换字段取章号最大者（同章取
+// 列表靠后者，作者改主意以新条目为准）；增补按章号升序（稳定）拼接。章号
+// ≤0 视为「取最新」（全部生效）——面板/分支等无章号语境的调用方用。
+
+// progressionReplaceFields 可替换字段的渲染白名单（characterSummaryLine 实际
+// 渲染的档案字段）；白名单外的 Field 一律按增补处理（诚实降级，不静默丢弃）。
+var progressionReplaceFields = map[string]bool{
+	"personality": true, "background": true, "motivation": true, "status": true,
+}
+
+// progressionAddition 单条增补的渲染单元。
+type progressionAddition struct {
+	Chapter int
+	Text    string
+}
+
+// resolveProgressions 解析角色在 chapterNum 章生效的状态演进（纯函数、确定性）。
+// 返回替换字段表与增补列表；无演进数据返回零值。
+func resolveProgressions(ch types.Character, chapterNum int) (map[string]string, []progressionAddition) {
+	if len(ch.Progressions) == 0 {
+		return nil, nil
+	}
+	replacements := make(map[string]string)
+	bestChapter := make(map[string]int)
+	var additions []progressionAddition
+	for _, p := range ch.Progressions {
+		if p.Text == "" || p.Chapter <= 0 {
+			continue
+		}
+		if chapterNum > 0 && p.Chapter > chapterNum {
+			continue // 未来章节的演进对当前章不可见（回看旧章同理）
+		}
+		if p.Field != "" && progressionReplaceFields[p.Field] {
+			if p.Chapter >= bestChapter[p.Field] {
+				replacements[p.Field] = p.Text
+				bestChapter[p.Field] = p.Chapter
+			}
+			continue
+		}
+		additions = append(additions, progressionAddition{Chapter: p.Chapter, Text: p.Text})
+	}
+	sort.SliceStable(additions, func(i, j int) bool { return additions[i].Chapter < additions[j].Chapter })
+	return replacements, additions
+}
+
 // buildCharacterSummary 构建角色摘要字符串（用于注入章节生成 prompt）
 // 格式：每角色一行「姓名：身份·性格·身份背景·目标·关系要点·状态」，
 // 各字段按 rune 截断（性格上限 charPersonalityLen），整体不超过
 // charSummaryBudget；无背景/目标/关系的角色保持原有精简形态。
-// never 注入模式的角色全链不可见（阶段八 8.1：AI 看不见这张卡）。
-func (a *writingState) buildCharacterSummary(pm *project.Manager) string {
+// never 注入模式的角色全链不可见（阶段八 8.1）；状态演进按 chapterNum 投影
+// （≤0=取最新，阶段八 8.2）。
+func (a *writingState) buildCharacterSummary(pm *project.Manager, chapterNum int) string {
 	cf, err := pm.ReadCharacters()
 	if err != nil || cf == nil || len(cf.Characters) == 0 {
 		return "（暂无角色设定）"
@@ -556,7 +604,7 @@ func (a *writingState) buildCharacterSummary(pm *project.Manager) string {
 		if normalizeInjectMode(ch.InjectMode) == injectModeNever {
 			continue
 		}
-		lines = append(lines, characterSummaryLine(ch, relDigest))
+		lines = append(lines, characterSummaryLine(ch, relDigest, chapterNum))
 	}
 	if len(lines) == 0 {
 		return "（暂无角色设定）"
@@ -565,14 +613,22 @@ func (a *writingState) buildCharacterSummary(pm *project.Manager) string {
 }
 
 // characterSummaryLine 单角色摘要行（buildCharacterSummary 与焦点分级装配共用）。
-func characterSummaryLine(ch types.Character, relDigest map[string]string) string {
+// chapterNum > 0 时先投影状态演进（替换白名单字段、增补缀「第N章起」）。
+func characterSummaryLine(ch types.Character, relDigest map[string]string, chapterNum int) string {
+	replacements, additions := resolveProgressions(ch, chapterNum)
+	eff := func(field, base string) string {
+		if t, ok := replacements[field]; ok {
+			return t
+		}
+		return base
+	}
 	roleLabel := characterRoleLabel(ch.RoleType)
-	personality := util.Truncate(strings.TrimSpace(ch.Personality), charPersonalityLen)
+	personality := util.Truncate(strings.TrimSpace(eff("personality", ch.Personality)), charPersonalityLen)
 	line := fmt.Sprintf("- %s：%s·%s", ch.Name, roleLabel, personality)
-	if bg := strings.TrimSpace(ch.Background); bg != "" {
+	if bg := strings.TrimSpace(eff("background", ch.Background)); bg != "" {
 		line += "·身份：" + util.Truncate(bg, charFieldLen)
 	}
-	if mo := strings.TrimSpace(ch.Motivation); mo != "" {
+	if mo := strings.TrimSpace(eff("motivation", ch.Motivation)); mo != "" {
 		line += "·目标：" + util.Truncate(mo, charFieldLen)
 	}
 	if rel := relDigest[ch.ID]; rel != "" {
@@ -582,7 +638,11 @@ func characterSummaryLine(ch types.Character, relDigest map[string]string) strin
 	if pr := strings.TrimSpace(ch.ProtagonistRelation); pr != "" {
 		line += "·与主角：" + util.Truncate(pr, charFieldLen)
 	}
-	line += "·" + ch.Status
+	line += "·" + eff("status", ch.Status)
+	// 增补演进缀行尾：告知模型这是「第N章起」的新事实（追加语义，非替换）
+	for _, ad := range additions {
+		line += fmt.Sprintf("·第%d章起：%s", ad.Chapter, util.Truncate(ad.Text, charFieldLen))
+	}
 	return line
 }
 
@@ -663,8 +723,8 @@ func characterDetected(cleanScan string, ch types.Character) bool {
 // = 计划焦点 ∪ 文本命中（名字/别名，never 除外）∪ always 兜底 − muted；其余
 // 角色降为紧凑名册——备查不登场。全档区与名册区双预算封顶
 // （charSummaryBudget/charRosterBudget）。反空窗纪律：全档区为空时退回全量
-// 名册（仅滤 never），绝不因此空窗。
-func (a *writingState) buildChapterCastSection(pm *project.Manager, plan *types.ChapterPlan, scanText string) string {
+// 名册（仅滤 never），绝不因此空窗。状态演进按 chapterNum 投影（≤0=取最新）。
+func (a *writingState) buildChapterCastSection(pm *project.Manager, plan *types.ChapterPlan, scanText string, chapterNum int) string {
 	cf, err := pm.ReadCharacters()
 	if err != nil || cf == nil || len(cf.Characters) == 0 {
 		return "（暂无角色设定）"
@@ -691,15 +751,15 @@ func (a *writingState) buildChapterCastSection(pm *project.Manager, plan *types.
 		}
 	}
 	if len(inFull) == 0 {
-		return a.buildCharacterSummary(pm)
+		return a.buildCharacterSummary(pm, chapterNum)
 	}
 	var focusLines, rosterLines []string
 	for i, ch := range cf.Characters {
 		if inFull[i] {
-			focusLines = append(focusLines, characterSummaryLine(ch, relDigest))
+			focusLines = append(focusLines, characterSummaryLine(ch, relDigest, chapterNum))
 		} else if normalizeInjectMode(ch.InjectMode) != injectModeNever {
 			rosterLines = append(rosterLines,
-				fmt.Sprintf("- %s：%s·%s", ch.Name, characterRoleLabel(ch.RoleType), ch.Status))
+				fmt.Sprintf("- %s：%s·%s", ch.Name, characterRoleLabel(ch.RoleType), effStatusOf(ch, chapterNum)))
 		}
 	}
 	var b strings.Builder
@@ -710,6 +770,15 @@ func (a *writingState) buildChapterCastSection(pm *project.Manager, plan *types.
 		b.WriteString(truncateBudget(strings.Join(rosterLines, "\n"), charRosterBudget))
 	}
 	return b.String()
+}
+
+// effStatusOf 名册紧凑行的状态字段：状态演进有 status 替换时取投影值（8.2）。
+func effStatusOf(ch types.Character, chapterNum int) string {
+	replacements, _ := resolveProgressions(ch, chapterNum)
+	if t, ok := replacements["status"]; ok && t != "" {
+		return t
+	}
+	return ch.Status
 }
 
 // focusMatches 焦点项与角色名宽容匹配（作者手写焦点可能带缀饰，如「林晚（主角）」）。
@@ -769,10 +838,10 @@ func parseBranchCast(charactersJSON string) []branchCastEntry {
 // buildBranchCastSection 分支请求的选角区段：作者在向导里完成「选角会议」后
 // 装配——项目名册命中者给全量档案行并缀主角关系；未命中（角色库挑入/简单
 // 新建）按负载自带信息成行；未被圈定的名册角色不渲染（选角会议是权威名单）。
-// 空负载退回全量名册（不设限语义）。
-func (a *writingState) buildBranchCastSection(pm *project.Manager, cast []branchCastEntry) string {
+// 空负载退回全量名册（不设限语义）。状态演进按 chapterNum 投影（≤0=取最新）。
+func (a *writingState) buildBranchCastSection(pm *project.Manager, cast []branchCastEntry, chapterNum int) string {
 	if len(cast) == 0 {
-		return a.buildCharacterSummary(pm)
+		return a.buildCharacterSummary(pm, chapterNum)
 	}
 	cf, err := pm.ReadCharacters()
 	if err != nil || cf == nil {
@@ -789,7 +858,7 @@ func (a *writingState) buildBranchCastSection(pm *project.Manager, cast []branch
 			}
 		}
 		if hit != nil {
-			line := characterSummaryLine(*hit, relDigest)
+			line := characterSummaryLine(*hit, relDigest, chapterNum)
 			if e.Relation != "" {
 				line += "·与主角关系：" + e.Relation
 			}

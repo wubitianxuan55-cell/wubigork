@@ -239,7 +239,7 @@ func TestProjectProtagonistRelationConsumption(t *testing.T) {
 	if _, err := env.a.GenerateProjectProtagonistRelations("missing", ""); err != nil {
 		t.Fatalf("生成失败: %v", err)
 	}
-	summary := env.a.buildCharacterSummary(env.pm)
+	summary := env.a.buildCharacterSummary(env.pm, 0)
 	if !strings.Contains(summary, "与主角：结拜兄妹") {
 		t.Fatalf("名册应携带与主角关系:\n%s", summary)
 	}

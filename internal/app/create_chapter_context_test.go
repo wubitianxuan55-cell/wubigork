@@ -183,7 +183,7 @@ func TestChapterContextCharacterCardEnhanced(t *testing.T) {
 	a := &writingState{}
 
 	// 无角色：保持原降级文案
-	if got := a.buildCharacterSummary(pm); got != "（暂无角色设定）" {
+	if got := a.buildCharacterSummary(pm, 0); got != "（暂无角色设定）" {
 		t.Errorf("无角色时应返回（暂无角色设定），got: %q", got)
 	}
 
@@ -201,7 +201,7 @@ func TestChapterContextCharacterCardEnhanced(t *testing.T) {
 		t.Fatalf("写入角色: %v", err)
 	}
 
-	got := a.buildCharacterSummary(pm)
+	got := a.buildCharacterSummary(pm, 0)
 	for _, want := range []string{
 		"- 林晚：主角·" + personality, // 性格 50 rune 完整保留（回归：原 20 字截断）
 		"身份：没落剑宗唯一传人",
@@ -223,7 +223,7 @@ func TestChapterContextCharacterCardEnhanced(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("写入角色: %v", err)
 	}
-	got = a.buildCharacterSummary(pm)
+	got = a.buildCharacterSummary(pm, 0)
 	if strings.Contains(got, strings.Repeat("冷", 100)) {
 		t.Errorf("性格超上限应被截断:\n%s", got)
 	}

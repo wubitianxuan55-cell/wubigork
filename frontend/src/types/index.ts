@@ -39,6 +39,8 @@ export interface CharacterData {
   aliases?: string[]
   /** 排除词：命中串只是排除词子串时不触发 */
   exclude_hits?: string[]
+  /** 状态演进（阶段八 8.2 项目级字段：锚点=章节的状态版本列表） */
+  progressions?: CharacterProgressionData[]
   portrait_url?: string
   // ── v2 状态机（t5；GetCharacters 已返回，前端此前未消费）──
   current_state?: string
@@ -52,6 +54,14 @@ export interface CareerRefData {
   career_name?: string
   stage: number
   updated_chapter?: number
+}
+
+/** 单条状态演进（阶段八 8.2）：自 chapter 章起生效；field 空=增补，白名单字段=替换 */
+export interface CharacterProgressionData {
+  chapter: number
+  field?: string
+  text: string
+  note?: string
 }
 
 export interface OrganizationData {

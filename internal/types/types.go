@@ -71,13 +71,18 @@ type Character struct {
 	// 项目级字段（角色库不承载，同步/AI 补全链路按 v4.454 同款回带）。
 	// InjectMode 四态："" 默认=检测注入（本章计划/大纲/剧情要求文本命中名字或
 	// 别名才升全量档案行）；"always"=恒注入；"muted"=检测不注入（命中也不升档，
-	// 仅名册备查）；"never"=不渲染（连名册都不进，AI 不可见）。未知值按 "" 处理。
+	// 仅名册备查）；"never"=不渲染。未知值按 "" 处理。
 	InjectMode string `json:"inject_mode,omitempty"`
-	// Aliases 别名（外号/敬称/乳名），检测命中与名字同权；ExcludeHits 排除词
+	// Aliases 别名（外号/敬称），检测命中与名字同权；ExcludeHits 排除词
 	// （命中串只作为排除词子串出现时不触发，如「老王」排除「王爷」误命中）。
 	Aliases     []string `json:"aliases,omitempty"`
 	ExcludeHits []string `json:"exclude_hits,omitempty"`
-	PortraitURL string   `json:"portrait_url,omitempty"` // 角色剧照 URL 或 data URL
+	// Progressions 状态演进（阶段八 8.2，NovelCrafter Progressions 同型）：锚点=
+	// 章号的状态版本列表。注入按当前章取「锚点 ≤ 当前章」的最新状态——同一
+	// 字段多次声明取章号最大者（同章取列表靠后者）；Field 为空或不在白名单
+	// （personality/background/motivation/status）时按增补处理。项目级字段。
+	Progressions []CharacterProgression `json:"progressions,omitempty"`
+	PortraitURL  string                 `json:"portrait_url,omitempty"` // 角色剧照 URL 或 data URL
 
 	// ── v2 状态机（全部可选 + omitempty，旧 characters.json 零迁移）──
 	// 口径：docs/distill/05-character-career.md §7.1 与 09-impl-handoff.md §3-1/§3-2。
@@ -92,6 +97,15 @@ type Character struct {
 	MainCareerID    string               `json:"main_career_id,omitempty"`
 	MainCareerStage int                  `json:"main_career_stage,omitempty"`
 	SubCareers      []CharacterCareerRef `json:"sub_careers,omitempty"`
+}
+
+// CharacterProgression 单条状态演进（阶段八 8.2）：自 Chapter 章起生效。
+// Field 为空=纯增补（追加到档案行尾）；Field ∈ 白名单=替换该字段渲染值。
+type CharacterProgression struct {
+	Chapter int    `json:"chapter"`           // 锚点章号（≥1），自本章起生效
+	Field   string `json:"field,omitempty"`   // 替换目标字段；空=增补
+	Text    string `json:"text"`              // 增补/替换文本
+	Note    string `json:"note,omitempty"`    // 变更说明（可选，仅作者备注不进 prompt）
 }
 
 // PromptView 返回去除剧照等二进制字段的角色副本（E02：防 base64 剧照泄漏进 LLM prompt）。

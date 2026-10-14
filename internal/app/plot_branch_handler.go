@@ -118,7 +118,7 @@ func (a *writingState) brainstormBranchesForNode(pm *project.Manager, target *ty
 		"current_outline_node":      string(nodeJSON),
 		"previous_chapters_summary": previousCtx,
 		"worldview":                 wv,
-		"characters":                a.buildCharacterSummary(pm),
+		"characters":                a.buildCharacterSummary(pm, target.OrderIndex),
 	})
 
 	eng, model, _ := a.routeModel("novel")
@@ -282,7 +282,7 @@ func (a *writingState) QuickBrainstormBranches(setting, prevSummary, charactersJ
 		"current_outline_node":      "（请根据小说设定和前文摘要构思下一章方向）",
 		"previous_chapters_summary": prevSummary,
 		"worldview":                 setting,
-		"characters":                a.buildBranchCastSection(pm, parseBranchCast(charactersJSON)),
+		"characters":                a.buildBranchCastSection(pm, parseBranchCast(charactersJSON), chapterNum),
 	})
 
 	eng, model, _ := a.routeModel("novel")

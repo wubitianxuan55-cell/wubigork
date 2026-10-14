@@ -29,6 +29,7 @@ const libApi = vi.hoisted(() => ({
   drawRandom: vi.fn(),
   setProjectState: vi.fn(),
   setInjectConfig: vi.fn(),
+  setProgressions: vi.fn(),
 }))
 const messageSpies = vi.hoisted(() => ({
   success: vi.fn(),
@@ -295,6 +296,30 @@ describe('CharacterPage 注入配置（阶段八 8.1）', () => {
     await waitFor(() => expect(libApi.syncProjectCharacters).toHaveBeenCalledTimes(1))
     await waitFor(() => {
       expect(messageSpies.success).toHaveBeenCalledWith('已更新「沈青」在本书的状态（全局角色未动）')
+    })
+  })
+})
+
+describe('CharacterPage 状态演进（阶段八 8.2）', () => {
+  it('添加演进即时落库：章号/字段/内容整表替换并回拉，空内容拒绝', async () => {
+    libApi.setInjectConfig.mockResolvedValue(undefined)
+    libApi.setProgressions.mockResolvedValue(undefined)
+    render(<CharacterPage />)
+    const card = await screen.findByText('沈青')
+    fireEvent.click(card.closest('[class*="char-card"]') || card)
+    await screen.findByText('状态演进')
+    // 空内容点添加：不调用绑定
+    fireEvent.click(screen.getByTestId('char-prog-add'))
+    expect(libApi.setProgressions).not.toHaveBeenCalled()
+    // 填章号+内容（字段保持「增补」）→ 添加 → 整表替换调用
+    fireEvent.change(screen.getByTestId('char-prog-chapter'), { target: { value: '5' } })
+    fireEvent.change(screen.getByTestId('char-prog-text'), { target: { value: '黑化阴沉' } })
+    fireEvent.click(screen.getByTestId('char-prog-add'))
+    await waitFor(() => {
+      expect(libApi.setProgressions).toHaveBeenCalledWith('sc', [{ chapter: 5, field: undefined, text: '黑化阴沉' }])
+    })
+    await waitFor(() => {
+      expect(messageSpies.success).toHaveBeenCalledWith('已记录「第 5 章」状态演进')
     })
   })
 })

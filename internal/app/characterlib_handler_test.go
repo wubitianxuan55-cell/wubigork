@@ -3,6 +3,7 @@ package app
 import (
 	"encoding/json"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -437,5 +438,107 @@ func TestCharacterDrawRandom_ReturnsLibraryCharacters(t *testing.T) {
 	items = a.CharacterDrawRandom(10, "", "", true)
 	if len(items) != 2 {
 		t.Fatalf("可聊天抽卡应返回 2 个: %d", len(items))
+	}
+}
+
+// TestCharacterSetProgressions 阶段八 8.2：状态演进整表替换/校验拒收/清空；
+// 并钉 Sync 投影对 Progressions 的 v4.454 同款回带保护。
+func TestCharacterSetProgressions(t *testing.T) {
+	a := newCharacterLibTestApp(t)
+	dir := filepath.Join(t.TempDir(), "novelP")
+	pm, err := project.Create(dir, "演进测试", "玄幻", "", "")
+	if err != nil {
+		t.Fatalf("创建项目: %v", err)
+	}
+	a.setPM(pm)
+	if err := pm.WriteCharacters(&types.CharacterFile{
+		Characters: []types.Character{{ID: "ch_1", Name: "沈青", RoleType: "supporting", Status: "Alive"}},
+	}); err != nil {
+		t.Fatalf("写角色: %v", err)
+	}
+
+	// 校验拒收：缺章号 / 缺文本 / 坏 JSON
+	if err := a.CharacterSetProgressions("ch_1", `[{"chapter":0,"text":"x"}]`); err == nil {
+		t.Fatalf("缺章号应拒收")
+	}
+	if err := a.CharacterSetProgressions("ch_1", `[{"chapter":5,"text":"  "}]`); err == nil {
+		t.Fatalf("缺文本应拒收")
+	}
+	if err := a.CharacterSetProgressions("ch_1", "not-json"); err == nil {
+		t.Fatalf("坏 JSON 应拒收")
+	}
+	if err := a.CharacterSetProgressions("ghost", `[{"chapter":5,"text":"x"}]`); err == nil || !strings.Contains(err.Error(), "未找到角色") {
+		t.Fatalf("未知角色应报未找到: %v", err)
+	}
+
+	// 整表替换落库
+	if err := a.CharacterSetProgressions("ch_1", `[{"chapter":5,"field":"personality","text":"黑化阴沉","note":"卷一结尾"},{"chapter":8,"text":"左臂被斩断"}]`); err != nil {
+		t.Fatalf("写入失败: %v", err)
+	}
+	cf, err := pm.ReadCharacters()
+	if err != nil || len(cf.Characters) != 1 || len(cf.Characters[0].Progressions) != 2 {
+		t.Fatalf("演进未落库: %v %+v", err, cf)
+	}
+	if cf.Characters[0].Progressions[0].Note != "卷一结尾" {
+		t.Fatalf("备注未落库: %+v", cf.Characters[0].Progressions[0])
+	}
+	// 空数组=清空
+	if err := a.CharacterSetProgressions("ch_1", `[]`); err != nil {
+		t.Fatalf("清空失败: %v", err)
+	}
+	cf, _ = pm.ReadCharacters()
+	if len(cf.Characters[0].Progressions) != 0 {
+		t.Fatalf("空数组应清空: %+v", cf.Characters[0].Progressions)
+	}
+}
+
+// TestSyncProject_CarriesInjectFields 阶段八 8.1/8.2：库投影同步不丢项目级
+// 注入字段（模式/别名/排除词/状态演进，v4.454 主角关系同款回带）。
+func TestSyncProject_CarriesInjectFields(t *testing.T) {
+	a := newCharacterLibTestApp(t)
+	dir := filepath.Join(t.TempDir(), "novelS")
+	pm, err := project.Create(dir, "同步保护", "玄幻", "", "")
+	if err != nil {
+		t.Fatalf("创建项目: %v", err)
+	}
+	a.setPM(pm)
+	if err := pm.WriteCharacters(&types.CharacterFile{
+		Characters: []types.Character{{
+			ID: "ch_1", Name: "沈青", RoleType: "supporting", Status: "Alive",
+			InjectMode:   "always",
+			Aliases:      []string{"青儿"},
+			ExcludeHits:  []string{"王爷"},
+			Progressions: []types.CharacterProgression{{Chapter: 5, Field: "status", Text: "Missing"}},
+		}},
+	}); err != nil {
+		t.Fatalf("写角色: %v", err)
+	}
+	// 无库引用角色 → Sync 会拒（防误清）；改为直接造已关联场景：
+	// 先导入入库建立引用，再改项目副本注入配置，最后同步验证回带。
+	if _, err := a.CharacterImportProject(""); err != nil {
+		t.Fatalf("导入: %v", err)
+	}
+	// 导入后项目副本被库投影覆盖（此时库内无注入配置）——重写项目副本带上注入配置
+	if err := pm.WriteCharacters(&types.CharacterFile{
+		Characters: []types.Character{{
+			ID: "ch_1", Name: "沈青", RoleType: "supporting", Status: "Alive",
+			InjectMode:   "always",
+			Aliases:      []string{"青儿"},
+			ExcludeHits:  []string{"王爷"},
+			Progressions: []types.CharacterProgression{{Chapter: 5, Field: "status", Text: "Missing"}},
+		}},
+	}); err != nil {
+		t.Fatalf("重写角色: %v", err)
+	}
+	if err := a.CharacterSyncProject(); err != nil {
+		t.Fatalf("同步: %v", err)
+	}
+	cf, err := pm.ReadCharacters()
+	if err != nil || len(cf.Characters) != 1 {
+		t.Fatalf("读回失败: %v", err)
+	}
+	ch := cf.Characters[0]
+	if ch.InjectMode != "always" || len(ch.Aliases) != 1 || len(ch.ExcludeHits) != 1 || len(ch.Progressions) != 1 {
+		t.Fatalf("同步后注入字段应原样回带: %+v", ch)
 	}
 }

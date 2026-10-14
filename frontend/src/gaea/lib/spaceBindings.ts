@@ -640,6 +640,7 @@ export const GAEA_METHOD_FACETS = {
   CharacterAssociateTo: "play",
   CharacterSetProjectState: "play",
   CharacterSetInjectConfig: "play",
+  CharacterSetProgressions: "play",
   CharacterDissociate: "play",
   CharacterSyncProject: "play",
   CharacterDrawRandom: "play",

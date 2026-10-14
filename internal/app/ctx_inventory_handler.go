@@ -73,7 +73,7 @@ func (a *writingState) NovelContextInventory(chapterNum int) ([]map[string]inter
 			add("前文摘要窗口", body, "最近 10 章")
 		}
 	}
-	if body := a.buildCharacterSummary(pm); body != "" {
+	if body := a.buildCharacterSummary(pm, chapterNum); body != "" {
 		add("角色摘要", body, "出场角色画像")
 	}
 	// v4.441 成人向档位可见性：档位是用户设置、注入却发生在模板槽里——dry-run

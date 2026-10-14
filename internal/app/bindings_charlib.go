@@ -29,5 +29,6 @@ func (b *CharlibB) CharacterListByProject() []characterlib.ProjectCharacter { re
 func (b *CharlibB) CharacterSave(cJSON string) (characterlib.Character, error) { return b.a.CharacterSave(cJSON) }
 func (b *CharlibB) CharacterScoreConsistency(chJSON string, image string) (string, error) { return b.a.CharacterScoreConsistency(chJSON, image) }
 func (b *CharlibB) CharacterSetInjectConfig(charID string, mode string, aliases string, excludeHits string) error { return b.a.CharacterSetInjectConfig(charID, mode, aliases, excludeHits) }
+func (b *CharlibB) CharacterSetProgressions(charID string, progressionsJSON string) error { return b.a.CharacterSetProgressions(charID, progressionsJSON) }
 func (b *CharlibB) CharacterSetProjectState(charID string, role string, arcState string, status string) error { return b.a.CharacterSetProjectState(charID, role, arcState, status) }
 func (b *CharlibB) CharacterSyncProject() error { return b.a.CharacterSyncProject() }

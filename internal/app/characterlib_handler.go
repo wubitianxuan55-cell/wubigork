@@ -510,6 +510,58 @@ func (a *App) CharacterSetInjectConfig(charID, mode, aliases, excludeHits string
 	return fmt.Errorf("未找到角色：%s", charID)
 }
 
+// CharacterSetProgressions 整表替换角色的状态演进（阶段八 8.2）。progressionsJSON
+// 为 [{"chapter":5,"field":"personality","text":"黑化阴沉","note":""}] 数组；
+// 空数组=清空。校验：chapter ≥1、text 非空、field 空或白名单
+// （personality/background/motivation/status）内——白名单外字段注入时降级为
+// 增补，这里照收不拒（诚实降级在解析侧，不在存储侧设障）。
+func (a *App) CharacterSetProgressions(charID, progressionsJSON string) error {
+	pm := a.getPM()
+	if pm == nil {
+		return fmt.Errorf("请先打开小说项目")
+	}
+	s := strings.TrimSpace(progressionsJSON)
+	var list []types.CharacterProgression
+	if s != "" {
+		if err := json.Unmarshal([]byte(s), &list); err != nil {
+			return fmt.Errorf("解析状态演进失败: %w", err)
+		}
+	}
+	for i := range list {
+		if list[i].Chapter <= 0 {
+			return fmt.Errorf("第 %d 条状态演进缺少章号", i+1)
+		}
+		if strings.TrimSpace(list[i].Text) == "" {
+			return fmt.Errorf("第 %d 条状态演进缺少内容", i+1)
+		}
+		list[i].Field = strings.TrimSpace(list[i].Field)
+		list[i].Text = strings.TrimSpace(list[i].Text)
+		list[i].Note = strings.TrimSpace(list[i].Note)
+	}
+	cf, err := pm.ReadCharacters()
+	if err != nil {
+		return fmt.Errorf("读取角色失败: %w", err)
+	}
+	if cf == nil {
+		return fmt.Errorf("项目角色为空")
+	}
+	for i := range cf.Characters {
+		if cf.Characters[i].ID != charID {
+			continue
+		}
+		if len(list) == 0 {
+			cf.Characters[i].Progressions = nil
+		} else {
+			cf.Characters[i].Progressions = list
+		}
+		if err := pm.WriteCharacters(cf); err != nil {
+			return fmt.Errorf("保存角色失败: %w", err)
+		}
+		return nil
+	}
+	return fmt.Errorf("未找到角色：%s", charID)
+}
+
 // CharacterDrawRandom 从角色库随机抽卡（小说角色面板不再自行生成角色）。
 func (a *App) CharacterDrawRandom(count int, gender, tags string, chatOnly bool) []characterlib.Character {
 	if a.charLib == nil {

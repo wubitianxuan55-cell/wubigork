@@ -9,10 +9,10 @@ import {
   getCharacters, setCharacterCareer, removeCharacterCareer,
   generateCharacterFill, generateCharacterPortrait, mergeCharacters,
 } from '../../components/novel/api/character'
-import { setProjectState, setInjectConfig, syncProjectCharacters, dissociateFromProject } from '../../api/characterlib'
+import { setProjectState, setInjectConfig, setProgressions, syncProjectCharacters, dissociateFromProject } from '../../api/characterlib'
 import { errText } from '../../utils/errText'
 import { normalizeCharacterStatus } from '../../utils/characterStatus'
-import type { CharacterData, OrganizationData, RelationshipData } from '../../types'
+import type { CharacterData, CharacterProgressionData, OrganizationData, RelationshipData } from '../../types'
 
 /** 数据面切片：编辑域写回全量三表并触发刷新（由 useCharacterData 提供）。 */
 export interface CharacterDataSlice {
@@ -36,6 +36,11 @@ export function useProjectCharacterEdit(data: CharacterDataSlice) {
   const [peInjectMode, setPeInjectMode] = useState('')
   const [peAliases, setPeAliases] = useState('')
   const [peExcludeHits, setPeExcludeHits] = useState('')
+  // 阶段八 8.2：状态演进（即时保存语义，同职业体系）——编辑行 + 新增行草稿
+  const [peProgressions, setPeProgressions] = useState<CharacterProgressionData[]>([])
+  const [peNewProgChapter, setPeNewProgChapter] = useState(1)
+  const [peNewProgField, setPeNewProgField] = useState('')
+  const [peNewProgText, setPeNewProgText] = useState('')
   // 职业编辑（t5 §7.6：即时保存，不随「保存本书状态」）
   const [peCareerMain, setPeCareerMain] = useState('')
   const [peCareerMainStage, setPeCareerMainStage] = useState(1)
@@ -93,6 +98,31 @@ export function useProjectCharacterEdit(data: CharacterDataSlice) {
     } catch (err) { message.error(errText(err, '移除副职业失败')) }
   }
 
+  // ── 阶段八 8.2 状态演进（即时保存：每次增删整表替换并回拉）──
+  const handleAddProgression = async () => {
+    if (!projectEdit) return
+    const text = peNewProgText.trim()
+    if (!text) { message.warning('请填写状态内容'); return }
+    if (!peNewProgChapter || peNewProgChapter < 1) { message.warning('章号从第 1 章起'); return }
+    const next = [...peProgressions, { chapter: peNewProgChapter, field: peNewProgField || undefined, text }]
+    try {
+      await setProgressions(projectEdit.id, next)
+      setPeNewProgText('')
+      message.success(`已记录「第 ${peNewProgChapter} 章」状态演进`)
+      await reloadProjectEdit(projectEdit.id)
+    } catch (err) { message.error(errText(err, '添加状态演进失败')) }
+  }
+
+  const handleRemoveProgression = async (idx: number) => {
+    if (!projectEdit) return
+    const next = peProgressions.filter((_, i) => i !== idx)
+    try {
+      await setProgressions(projectEdit.id, next)
+      message.success('已移除该条状态演进')
+      await reloadProjectEdit(projectEdit.id)
+    } catch (err) { message.error(errText(err, '移除状态演进失败')) }
+  }
+
   const openProjectEdit = (ch: CharacterData) => {
     setProjectEdit(ch)
     setPeRole(ch.role_type || 'supporting')
@@ -106,6 +136,11 @@ export function useProjectCharacterEdit(data: CharacterDataSlice) {
     setPeInjectMode(ch.inject_mode || '')
     setPeAliases((ch.aliases || []).join('、'))
     setPeExcludeHits((ch.exclude_hits || []).join('、'))
+    // 阶段八 8.2 状态演进初值
+    setPeProgressions(ch.progressions || [])
+    setPeNewProgChapter(1)
+    setPeNewProgField('')
+    setPeNewProgText('')
   }
 
   const handleSaveProjectState = async () => {
@@ -185,6 +220,8 @@ export function useProjectCharacterEdit(data: CharacterDataSlice) {
     projectEdit, setProjectEdit, openProjectEdit, reloadProjectEdit,
     peRole, setPeRole, peArc, setPeArc, peStatus, setPeStatus,
     peInjectMode, setPeInjectMode, peAliases, setPeAliases, peExcludeHits, setPeExcludeHits,
+    peProgressions, peNewProgChapter, setPeNewProgChapter, peNewProgField, setPeNewProgField,
+    peNewProgText, setPeNewProgText, handleAddProgression, handleRemoveProgression,
     peCareerMain, setPeCareerMain, peCareerMainStage, setPeCareerMainStage,
     peNewSub, setPeNewSub, peNewSubStage, setPeNewSubStage,
     filling, genPortrait, mergeOpen, setMergeOpen, mergeTargetId, setMergeTargetId,

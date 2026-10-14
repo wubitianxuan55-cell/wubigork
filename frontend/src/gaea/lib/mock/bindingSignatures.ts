@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 647 名（原生变参 7 名已收窄标注）。
+// 共 648 名（原生变参 7 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -46,6 +46,7 @@ export const bindingSignatures = {
   CharacterSave: { argc: 1, variadic: false, params: "cJSON string" },
   CharacterScoreConsistency: { argc: 2, variadic: false, params: "chJSON string, image string" },
   CharacterSetInjectConfig: { argc: 4, variadic: false, params: "charID string, mode string, aliases string, excludeHits string" },
+  CharacterSetProgressions: { argc: 2, variadic: false, params: "charID string, progressionsJSON string" },
   CharacterSetProjectState: { argc: 4, variadic: false, params: "charID string, role string, arcState string, status string" },
   CharacterSyncProject: { argc: 0, variadic: false, params: "" },
   Chat: { argc: 2, variadic: false, params: "systemPrompt string, userPrompt string" },
@@ -668,5 +669,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 647。
-export const bindingSignatureCount = 647;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 648。
+export const bindingSignatureCount = 648;

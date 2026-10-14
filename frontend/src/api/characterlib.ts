@@ -3,6 +3,7 @@
  */
 import { app } from '../gaea/lib/bridge'
 import type { characterlib } from '../../wailsjs/go/models'
+import type { CharacterProgressionData } from '../types'
 
 export type LibraryCharacter = characterlib.Character
 export type ProjectCharacter = characterlib.ProjectCharacter
@@ -122,6 +123,11 @@ export async function setProjectState(charID: string, role: string, arcState: st
 /** 更新角色的注入配置（阶段八 8.1：模式/别名/排除词，只落本书 characters.json） */
 export async function setInjectConfig(charID: string, mode: string, aliases: string, excludeHits: string): Promise<void> {
   return app.CharacterSetInjectConfig(charID, mode, aliases, excludeHits)
+}
+
+/** 状态演进的整表替换（阶段八 8.2：锚点=章节的状态版本，空数组=清空） */
+export async function setProgressions(charID: string, progressions: CharacterProgressionData[]): Promise<void> {
+  return app.CharacterSetProgressions(charID, JSON.stringify(progressions))
 }
 
 /** 把角色从当前项目移除（角色保留在全局库） */

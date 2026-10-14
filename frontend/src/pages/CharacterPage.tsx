@@ -49,6 +49,17 @@ const injectModeOptions = [
   { value: 'muted', label: '仅备查（命中也不升全量档案）' },
   { value: 'never', label: '不注入（AI 完全看不到）' },
 ]
+// 状态演进的替换字段白名单（阶段八 8.2；空=纯增补；白名单外后端降级为增补）
+const progressionFieldOptions = [
+  { value: '', label: '增补（不改字段）' },
+  { value: 'personality', label: '性格' },
+  { value: 'background', label: '身份背景' },
+  { value: 'motivation', label: '目标' },
+  { value: 'status', label: '状态' },
+]
+const progressionFieldLabel: Record<string, string> = {
+  personality: '性格', background: '身份', motivation: '目标', status: '状态',
+}
 
 function navigateToCharacterLib() {
   window.dispatchEvent(new CustomEvent('navigate', { detail: { page: 'characterlib' } }))
@@ -79,6 +90,8 @@ const CharacterPage: React.FC = () => {
     projectEdit, setProjectEdit, openProjectEdit,
     peRole, setPeRole, peArc, setPeArc, peStatus, setPeStatus,
     peInjectMode, setPeInjectMode, peAliases, setPeAliases, peExcludeHits, setPeExcludeHits,
+    peProgressions, peNewProgChapter, setPeNewProgChapter, peNewProgField, setPeNewProgField,
+    peNewProgText, setPeNewProgText, handleAddProgression, handleRemoveProgression,
     peCareerMain, setPeCareerMain, peCareerMainStage, setPeCareerMainStage,
     peNewSub, setPeNewSub, peNewSubStage, setPeNewSubStage,
     filling, genPortrait, mergeOpen, setMergeOpen, mergeTargetId, setMergeTargetId,
@@ -309,6 +322,47 @@ const CharacterPage: React.FC = () => {
                 </div>
                 <div className="char-detail-hint">
                   写入本书 characters.json，与章节分析差分同库——章节分析会按剧情自动推进阶段，手工设置定初值或纠偏；章节生成时职业与状态自动注入 Prompt。
+                </div>
+              </div>
+            </section>
+
+            <section className="char-detail-col char-detail-col--local">
+              <div className="char-detail-section-title">
+                <BookOutlined />状态演进
+                <Tag className="char-detail-section-tag">阶段八 8.2 · 即时保存 · 按当前章投影注入</Tag>
+              </div>
+              <div className="char-detail-form">
+                {(peProgressions || []).length > 0 && (
+                  <div className="char-detail-form-item">
+                    <label>已有演进（生成第 N 章时只取「锚点 ≤ N」的最新状态）</label>
+                    {(peProgressions || []).map((p, idx) => (
+                      <div key={`${p.chapter}-${idx}`} style={{ display: 'flex', gap: 6, marginBottom: 4, alignItems: 'center' }}>
+                        <Tag color="gold" style={{ margin: 0 }}>第{p.chapter}章</Tag>
+                        <Tag style={{ margin: 0 }}>{p.field ? `改${progressionFieldLabel[p.field] || p.field}` : '增补'}</Tag>
+                        <span style={{ flex: 1, minWidth: 0, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.text}</span>
+                        <Popconfirm title="移除这条状态演进？" okText="移除" cancelText="取消"
+                          onConfirm={() => void handleRemoveProgression(idx)}>
+                          <Button size="small" type="text" danger icon={<DeleteOutlined />} aria-label="移除状态演进" />
+                        </Popconfirm>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="char-detail-form-item">
+                  <label>新增演进（自该章起生效；替换字段后旧值不再注入）</label>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <InputNumber size="small" min={1} max={9999} value={peNewProgChapter}
+                      onChange={v => setPeNewProgChapter(v || 1)} addonAfter="章" style={{ width: 92 }} data-testid="char-prog-chapter" />
+                    <Select size="small" value={peNewProgField} onChange={setPeNewProgField} style={{ width: 132 }}
+                      options={progressionFieldOptions} data-testid="char-prog-field" />
+                    <Input size="small" value={peNewProgText} onChange={e => setPeNewProgText(e.target.value)}
+                      placeholder="如：黑化阴沉" style={{ flex: 1 }} data-testid="char-prog-text"
+                      onPressEnter={() => void handleAddProgression()} />
+                    <Button size="small" onClick={() => void handleAddProgression()} data-testid="char-prog-add">记一条</Button>
+                  </div>
+                </div>
+                <div className="char-detail-hint">
+                  典型用法：第 5 章黑化→记一条「第5章·改性格·黑化阴沉」；伏笔信物→记一条增补。生成旧章回看时不会看到未来的演进。
                 </div>
               </div>
             </section>

@@ -347,13 +347,14 @@ func projectCharToLib(c types.Character) characterlib.Character {
 	}
 }
 
-// carryProjectInjectFields 把源角色的项目级注入配置（阶段八 8.1）回带到目标——
-// 角色库投影/AI 补全重建角色卡时，注入模式/别名/排除词只落本书，不随投影丢失
-// （v4.454 ProtagonistRelation 同款保护）。
+// carryProjectInjectFields 把源角色的项目级注入配置（阶段八 8.1/8.2）回带到目标——
+// 角色库投影/AI 补全重建角色卡时，注入模式/别名/排除词/状态演进只落本书，不随
+// 投影丢失（v4.454 ProtagonistRelation 同款保护）。
 func carryProjectInjectFields(dst *types.Character, src types.Character) {
 	dst.InjectMode = src.InjectMode
 	dst.Aliases = src.Aliases
 	dst.ExcludeHits = src.ExcludeHits
+	dst.Progressions = src.Progressions
 }
 
 // libCharToProject 角色库字段 → 项目角色。
