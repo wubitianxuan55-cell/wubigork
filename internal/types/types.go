@@ -216,6 +216,11 @@ type ChapterSummary struct {
 	ForeshadowChanges  []ForeshadowChange `json:"foreshadow_changes,omitempty"`
 	EmotionTone        string             `json:"emotion_tone"`
 	QualityEstimate    int                `json:"quality_estimate"` // 1-10
+
+	// DeclChanges 过闸的章级变更声明（阶段八 8.5）：生成时模型声明→五类门禁
+	// 校验通过才随摘要落盘；定稿回写（8.4）草案优先读它（零 LLM 预填充），
+	// 缺失时才走 ExtractOnly 现提取。nil=无过闸声明（模型未声明或被拒收）。
+	DeclChanges *ChapterChangeDeclaration `json:"decl_changes,omitempty"`
 }
 
 // ── 伏笔 ────────────────────────────────────────────────────

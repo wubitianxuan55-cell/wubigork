@@ -780,34 +780,6 @@ func normalizeInjectMode(mode string) string {
 	}
 }
 
-// stripExcludeHits 把 scan 中所有角色排除词的出现处替换为 NUL 占位符——
-// 之后的名字/别名匹配不再命中这些位置（如排除「王爷」后，正文里的「王爷」
-// 不再让「王」命中）。纯函数、确定性。
-func stripExcludeHits(scan string, chars []types.Character) string {
-	for _, ch := range chars {
-		for _, e := range ch.ExcludeHits {
-			if e = strings.TrimSpace(e); e != "" {
-				scan = strings.ReplaceAll(scan, e, "\x00")
-			}
-		}
-	}
-	return scan
-}
-
-// characterDetected 名字或任一别名是否命中（已剔除排除词的）扫描文本。
-// 子串包含即命中（中文无词边界）；空名/空别名跳过。
-func characterDetected(cleanScan string, ch types.Character) bool {
-	if ch.Name != "" && strings.Contains(cleanScan, ch.Name) {
-		return true
-	}
-	for _, a := range ch.Aliases {
-		if a = strings.TrimSpace(a); a != "" && strings.Contains(cleanScan, a) {
-			return true
-		}
-	}
-	return false
-}
-
 // buildChapterCastSection 按本章计划角色焦点 + 实体卡触发注入装配两级角色区段
 // （用户实测教训：全量名册灌进第一章会让模型把所有角色一次性写登场）。全档区
 // = 计划焦点 ∪ 文本命中（名字/别名，never 除外）∪ always 兜底 − muted；其余
@@ -823,7 +795,7 @@ func (a *writingState) buildChapterCastSection(pm *project.Manager, plan *types.
 	if plan != nil {
 		focus = trimPlanItems(plan.CharacterFocus)
 	}
-	cleanScan := stripExcludeHits(scanText, cf.Characters)
+	cleanScan := types.StripExcludeHits(scanText, cf.Characters)
 	relDigest := buildRelationDigest(cf)
 	inFull := make(map[int]bool, len(cf.Characters))
 	for i, ch := range cf.Characters {
@@ -835,7 +807,7 @@ func (a *writingState) buildChapterCastSection(pm *project.Manager, plan *types.
 		case injectModeMuted:
 			// 检测不注入：命中也不升档（名册备查行在后循环统一渲染）
 		default:
-			if focusMatches(focus, ch.Name) || characterDetected(cleanScan, ch) {
+			if focusMatches(focus, ch.Name) || types.CharacterDetected(cleanScan, ch) {
 				inFull[i] = true
 			}
 		}
