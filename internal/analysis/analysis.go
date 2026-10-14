@@ -64,8 +64,10 @@ type CharacterStateChange struct {
 	NewState string `json:"new_state"`
 }
 
-// Analyze 分析章节，返回分析结果 + 更新伏笔文件
-func (a *Agent) Analyze(ctx context.Context, chapterNum int, chapterContent string) (*AnalysisResult, error) {
+// ExtractOnly 纯提取：一次 LLM 调用产出 V2 载荷，**零落盘零同步**——定稿草案
+// （阶段八 8.4，建议制：AI 产物未经作者确认不写持久化数据）与分析共用同一提取
+// 内核，草案阶段绝不能走 Analyze 的五路落盘。任何失败如实上抛。
+func (a *Agent) ExtractOnly(ctx context.Context, chapterNum int, chapterContent string) (*types.AnalysisResultV2, error) {
 	chars, err := a.pm.ReadCharacters()
 	if err != nil {
 		slog.Warn("分析: 读取角色失败", "error", err)
@@ -115,15 +117,26 @@ func (a *Agent) Analyze(ctx context.Context, chapterNum int, chapterContent stri
 		return nil, fmt.Errorf("解析分析结果 JSON 失败: %w", err)
 	}
 	normalizeAnalysisV2(&v2)
+	return &v2, nil
+}
+
+// Analyze 分析章节，返回分析结果 + 更新伏笔文件
+func (a *Agent) Analyze(ctx context.Context, chapterNum int, chapterContent string) (*AnalysisResult, error) {
+	// 提取内核与定稿草案共用（ExtractOnly 纯提取零落盘；本函数在提取之后做
+	// 五路落盘：analysis-v2 / 记忆 / 标注 / 伏笔同步 / 角色状态差分）。
+	v2, err := a.ExtractOnly(ctx, chapterNum, chapterContent)
+	if err != nil {
+		return nil, err
+	}
 
 	// 落盘 analysis-v2.json（按章号 upsert；容错：失败不影响分析返回）
-	a.persistAnalysisV2(chapterNum, &v2)
+	a.persistAnalysisV2(chapterNum, v2)
 
 	// 记忆生产者（t3-P1）：规则表抽取本章故事记忆落盘（自动回填设定库）
-	a.persistStoryMemories(chapterNum, &v2, chapterContent)
+	a.persistStoryMemories(chapterNum, v2, chapterContent)
 
 	// 标注层（t4-C4）：keyword→正文偏移，落盘供前端内联高亮
-	a.persistAnnotations(chapterNum, chapterContent, &v2)
+	a.persistAnnotations(chapterNum, chapterContent, v2)
 
 	// 同步伏笔到文件（t1-P2：三级匹配 + SyncResult 可追溯，D3 不静默跳过）
 	syncRes := a.SyncForeshadows(chapterNum, v2.Foreshadows)
@@ -143,10 +156,10 @@ func (a *Agent) Analyze(ctx context.Context, chapterNum int, chapterContent stri
 	}
 
 	// 更新角色状态（t5 状态机差分更新器）
-	a.syncCharacterStatesV2(chapterNum, &v2)
+	a.syncCharacterStatesV2(chapterNum, v2)
 
 	// 派生旧 wire 形状：AnalyzeChapter 绑定返回键零变化，前端零改动
-	return deriveLegacyAnalysis(&v2), nil
+	return deriveLegacyAnalysis(v2), nil
 }
 
 // syncCharacterStates 已由 syncCharacterStatesV2 替代（t4-C1 差分载荷），见 analysis_v2.go。

@@ -138,8 +138,9 @@ func buildStageDigest(pm *project.Manager, start, end int) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
-// stageRecapSection 阶段开篇章注入段：上一阶段总结（LLM 三段式合成，失败回落
-// 逐章摘要清单）+ 新阶段开篇纪律。非阶段开篇章或素材为空返回空串（零注入）。
+// stageRecapSection 阶段开篇章注入段：上一阶段总结（优先读定稿回写落盘的合账
+// 缓存——阶段八 8.4；未命中现合成，失败回落逐章摘要清单）+ 新阶段开篇纪律。
+// 非阶段开篇章或素材为空返回空串（零注入）。
 func (a *writingState) stageRecapSection(pm *project.Manager, chapterNum int) string {
 	if !isStageOpener(chapterNum) {
 		return ""
@@ -149,7 +150,22 @@ func (a *writingState) stageRecapSection(pm *project.Manager, chapterNum int) st
 	if digest == "" {
 		return ""
 	}
-	recap := strings.TrimSpace(a.synthesizeStageRecap(start, end, digest))
+	// 缓存优先：阶段收官章定稿时已合成落盘（8.4），不再重烧 LLM。
+	// 区段匹配校验：缓存条目的区间必须就是本章上一阶段（作者跳章定稿旧阶段
+	// 等场景下区间不变——每阶段区间由章号唯一决定，失配即脏数据，弃用现合成）。
+	prevStage, _, _ := stagePhaseOf(chapterNum)
+	recap := ""
+	if prevStage > 1 {
+		if entry, ok, err := pm.ReadStageRecap(prevStage - 1); err == nil && ok && entry != nil {
+			if entry.Start == start && entry.End == end && strings.TrimSpace(entry.Text) != "" {
+				recap = strings.TrimSpace(entry.Text)
+				slog.Info("阶段合账命中定稿缓存", "stage_range", fmt.Sprintf("%d~%d", start, end))
+			}
+		}
+	}
+	if recap == "" {
+		recap = strings.TrimSpace(a.synthesizeStageRecap(start, end, digest))
+	}
 	if recap == "" {
 		recap = digest
 	}

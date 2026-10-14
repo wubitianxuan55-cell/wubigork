@@ -16,6 +16,7 @@ func (b *NovelB) ApplyBranch(nodeID string, branchIndex int, userInput string) (
 func (b *NovelB) BuildNovelStatePatch(chapterNum int) (map[string]interface{}, error) { return b.a.BuildNovelStatePatch(chapterNum) }
 func (b *NovelB) CancelCreateChapter(chapterNum int, branch string) bool { return b.a.CancelCreateChapter(chapterNum, branch) }
 func (b *NovelB) ChapterArtList(chapter int) []chapterArtEntry { return b.a.ChapterArtList(chapter) }
+func (b *NovelB) ChapterFinalizationGet(chapterNum int, branch string) (*types.ChapterFinalization, error) { return b.a.ChapterFinalizationGet(chapterNum, branch) }
 func (b *NovelB) CheckConsistency() (map[string]interface{}, error) { return b.a.CheckConsistency() }
 func (b *NovelB) CheckConsistencyDeep(maxChapters int) (map[string]interface{}, error) { return b.a.CheckConsistencyDeep(maxChapters) }
 func (b *NovelB) CleanChapterAnalysisForeshadows(chapterFile string) (ForeshadowCleanupResult, error) { return b.a.CleanChapterAnalysisForeshadows(chapterFile) }
@@ -29,6 +30,8 @@ func (b *NovelB) DeleteChapterForeshadows(chapterFile string, onlyAnalysisSource
 func (b *NovelB) DeleteOrganization(id string) error { return b.a.DeleteOrganization(id) }
 func (b *NovelB) DeleteOutlineNode(nodeID string) error { return b.a.DeleteOutlineNode(nodeID) }
 func (b *NovelB) DeleteRelationship(fromID string, toID string) error { return b.a.DeleteRelationship(fromID, toID) }
+func (b *NovelB) FinalizeChapterApply(chapterNum int, branch string, payloadJSON string) (map[string]interface{}, error) { return b.a.FinalizeChapterApply(chapterNum, branch, payloadJSON) }
+func (b *NovelB) FinalizeChapterDraft(chapterNum int, branch string) (map[string]interface{}, error) { return b.a.FinalizeChapterDraft(chapterNum, branch) }
 func (b *NovelB) GaeaGenerateBookCover(projectID string, promptHint string) (string, error) { return b.a.GaeaGenerateBookCover(projectID, promptHint) }
 func (b *NovelB) GenerateProjectCharacterFill(chJSON string) (string, error) { return b.a.GenerateProjectCharacterFill(chJSON) }
 func (b *NovelB) GenerateProjectProtagonistRelations(mode string, name string) (map[string]interface{}, error) { return b.a.GenerateProjectProtagonistRelations(mode, name) }

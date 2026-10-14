@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 648 名（原生变参 7 名已收窄标注）。
+// 共 651 名（原生变参 7 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -27,6 +27,7 @@ export const bindingSignatures = {
   CancelCreateChapter: { argc: 2, variadic: false, params: "chapterNum int, branch string" },
   CancelImageGeneration: { argc: 0, variadic: false, params: "" },
   ChapterArtList: { argc: 1, variadic: false, params: "chapter int" },
+  ChapterFinalizationGet: { argc: 2, variadic: false, params: "chapterNum int, branch string" },
   CharacterAssociate: { argc: 2, variadic: false, params: "charID string, role string" },
   CharacterAssociateTo: { argc: 3, variadic: false, params: "projectDir string, charID string, role string" },
   CharacterDelete: { argc: 1, variadic: false, params: "id string" },
@@ -82,6 +83,8 @@ export const bindingSignatures = {
   DeleteProject: { argc: 1, variadic: false, params: "dir string" },
   DeleteRelationship: { argc: 2, variadic: false, params: "fromID string, toID string" },
   ExportAll: { argc: 1, variadic: false, params: "onlyMainline bool" },
+  FinalizeChapterApply: { argc: 3, variadic: false, params: "chapterNum int, branch string, payloadJSON string" },
+  FinalizeChapterDraft: { argc: 2, variadic: false, params: "chapterNum int, branch string" },
   GaeaAcceptMemorySuggestion: { argc: 1, variadic: false, params: "candidate interface{}" },
   GaeaAcceptMergeSuggestion: { argc: 2, variadic: false, params: "keep string, archive string" },
   GaeaAcceptSkillSuggestion: { argc: 1, variadic: false, params: "candidate interface{}" },
@@ -669,5 +672,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 648。
-export const bindingSignatureCount = 648;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 651。
+export const bindingSignatureCount = 651;
