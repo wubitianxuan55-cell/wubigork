@@ -22,9 +22,9 @@ func TestCompactionTiers_Configured(t *testing.T) {
 
 func TestCompactionTiers_InvalidFallsBackAsGroup(t *testing.T) {
 	cases := []AgentConfig{
-		{CompactionRatio: 1.5},                                             // 越界
-		{CompactionSoftRatio: 0.9, CompactionRatio: 0.8, CompactionForceRatio: 0.7}, // 顺序破坏
-		{CompactionRatio: 0.8, CompactionForceRatio: 0.8},                  // 等值（水位重叠）
+		{CompactionRatio: 1.5}, // 越界
+		{CompactionSoftRatio: 0.9, CompactionRatio: 0.8, CompactionForceRatio: 0.7},    // 顺序破坏
+		{CompactionRatio: 0.8, CompactionForceRatio: 0.8},                              // 等值（水位重叠）
 		{CompactionSoftRatio: -0.1, CompactionRatio: 0.75, CompactionForceRatio: 0.88}, // 负值
 	}
 	for i, c := range cases {
