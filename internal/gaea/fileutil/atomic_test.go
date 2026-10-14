@@ -157,3 +157,56 @@ func TestAtomicWriteSyncSmoke(t *testing.T) {
 		}
 	}
 }
+
+// BenchmarkAtomicWrite fsync 换装拍板的量化材料（2026-10-06 断电全零事故后续，
+// 批 56 遗留待办「fsync 基准」）：三体量 × 三变体，两条差值读法——
+//
+//	Plain−Raw = 原子性（temp+rename+chmod+重试）的成本；
+//	Sync−Plain = 断电级 durability（rename 前 FlushFileBuffers）的成本。
+//
+// 体量谱取 gaea 真实写入形态：1KiB=config/清单 meta 类（存量事故面）、
+// 64KiB=会话侧车/报告类、1MiB=导出/转录大件。同一路径覆盖写代表真实替换
+// 语义；每体量内 Raw→Plain→Sync 相邻跑，磁盘状态近似可比。
+// 结论口径（见提交/台账）：差值换算到 gaea 写频（人尺度，日千次量级）判断
+// 换装默认是否可负担；本基准不测并发（gaea 单文件写入串行）。
+// 已知边界：两变体都只 fsync 临时件、不 fsync 父目录——POSIX 上 rename
+// 元数据仍有断电空窗（NTFS $Log 元数据日志默认覆盖 rename）；换装若追求
+// 完整 POSIX durability 需追加 dir fsync（Windows 需 BACKUP_SEMANTICS 句柄，
+// 成本另测）。
+func BenchmarkAtomicWrite(b *testing.B) {
+	sizes := []struct {
+		name string
+		n    int
+	}{
+		{"1KiB", 1 << 10},
+		{"64KiB", 64 << 10},
+		{"1MiB", 1 << 20},
+	}
+	// 确定性载荷（避免全零页对压缩/去重敏感盘的失真）
+	payload := make([]byte, sizes[len(sizes)-1].n)
+	for i := range payload {
+		payload[i] = byte(i*31 + i>>8)
+	}
+	for _, sz := range sizes {
+		for _, variant := range []struct {
+			name string
+			fn   func(string, []byte, os.FileMode) error
+		}{
+			{"Raw", func(p string, d []byte, m os.FileMode) error { return os.WriteFile(p, d, m) }},
+			{"Plain", AtomicWrite},
+			{"Sync", AtomicWriteSync},
+		} {
+			b.Run(sz.name+"/"+variant.name, func(b *testing.B) {
+				path := filepath.Join(b.TempDir(), "bench.bin")
+				b.SetBytes(int64(sz.n))
+				b.ReportAllocs()
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					if err := variant.fn(path, payload[:sz.n], 0o600); err != nil {
+						b.Fatal(err)
+					}
+				}
+			})
+		}
+	}
+}

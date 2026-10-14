@@ -42,6 +42,16 @@
 - **选项**：①AtomicWrite 加 fsync 选项并全量开启（会话/配置持久化落盘更稳，写入变慢）；②加选项但默认关（两站点保留显式 Sync）；③维持现状。
 - **建议**：②——用户数据主链（会话/配置/记忆）值得 fsync 开关且默认开可选关；基准报告类保持现状。
 
+> **2026-10-14 基准注记（断电事故后续，拍板材料更新）**：批 54 按建议②落地（AtomicWriteSync 默认关）。2026-10-06 断电事故（config.toml/recent-workspaces.json 数据块全零——NTFS 元数据落盘而数据仍在页缓存丢失）实证了默认关的代价面。换装拍板所需量化材料已测（`BenchmarkAtomicWrite`，fileutil 包；本机 YMTC PC411 NVMe，三 count 中位数）：
+>
+> | 体量 | 裸写 os.WriteFile | AtomicWrite | AtomicWriteSync | fsync 增量 |
+> |---|---|---|---|---|
+> | 1KiB（config/meta 类） | 147µs | 737µs | 3.06ms | +2.3ms |
+> | 64KiB（会话侧车/报告） | 152µs | 765µs | 3.08ms | +2.3ms |
+> | 1MiB（导出/转录大件） | 304µs | 1.01ms | 3.58ms | +2.6ms |
+>
+> 结论：fsync 成本 **~2.3ms/次且对体量不敏感**（FlushFileBuffers 主导），原子性本身 ~0.6ms。gaea 写频为人尺度（会话按回合、配置按变更，日千次量级），换装全量默认开的日增量 ≈2-3 秒，**可负担**。修订建议：**默认换装 AtomicWriteSync**（①），确有高频循环写的新站点（现无）显式走 Plain 并注明。边界照实：两变体均不 fsync 父目录——POSIX 上 rename 元数据仍有断电空窗（NTFS $Log 元数据日志默认覆盖 rename，本机事故面即数据块，file fsync 已闭）；完整 POSIX durability 需 dir fsync（Windows 需 BACKUP_SEMANTICS 句柄，另测）。配套拍板项「启动期降级不硬弹错」仍待裁。
+
 ## B. 绑定 / UI 小拍板
 
 ### B1. 桌面 agent 接线三件套
