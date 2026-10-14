@@ -23,18 +23,18 @@ import (
 
 // HealthReport 五类扫描报告（wire camelCase）。
 type HealthReport struct {
-	ZeroPrice      []HealthFinding `json:"zeroPrice"`
-	QuotaNoPrice   []HealthFinding `json:"quotaNoPrice"`
-	BrokenRef      []HealthFinding `json:"brokenRef"`
-	Duplicates     []DuplicateGroup `json:"duplicates"`
-	CodeMismatch   []CodeMismatchGroup `json:"codeMismatch"`
-	TotalFindings  int             `json:"totalFindings"`
+	ZeroPrice     []HealthFinding     `json:"zeroPrice"`
+	QuotaNoPrice  []HealthFinding     `json:"quotaNoPrice"`
+	BrokenRef     []HealthFinding     `json:"brokenRef"`
+	Duplicates    []DuplicateGroup    `json:"duplicates"`
+	CodeMismatch  []CodeMismatchGroup `json:"codeMismatch"`
+	TotalFindings int                 `json:"totalFindings"`
 }
 
 // HealthFinding 单条发现（Resource/Quota 两用：Code 为定额码时 Kind 空）。
 type HealthFinding struct {
 	ID    int64  `json:"id"`
-	Code  string `json:"code"`  // 资源 code / 定额 code
+	Code  string `json:"code"` // 资源 code / 定额 code
 	Title string `json:"title"`
 	Kind  string `json:"kind,omitempty"`
 	Unit  string `json:"unit,omitempty"`
@@ -75,7 +75,7 @@ WHERE current_price = 0 AND base_price = 0 ORDER BY kind, title`)
 			rep.ZeroPrice = append(rep.ZeroPrice, f)
 		}
 	}
-	rows.Close()
+	_ = rows.Close()
 
 	// ② 缺价定额子目（含量行单价 ≤0）
 	rows, err = s.db.Query(`
@@ -90,7 +90,7 @@ WHERE qi.resource_price <= 0 ORDER BY qi.quota_code, qi.title`)
 			rep.QuotaNoPrice = append(rep.QuotaNoPrice, f)
 		}
 	}
-	rows.Close()
+	_ = rows.Close()
 
 	// ③ 引用缺失（悬挂 resource_code）
 	rows, err = s.db.Query(`
@@ -106,7 +106,7 @@ WHERE qi.resource_code != '' AND r.id IS NULL ORDER BY qi.resource_code`)
 			rep.BrokenRef = append(rep.BrokenRef, f)
 		}
 	}
-	rows.Close()
+	_ = rows.Close()
 
 	// ④ 重复资源防护：身份唯一索引在位性（V25 起库层面消灭同身份多行）
 	var identCount int
@@ -133,7 +133,7 @@ WHERE qi.resource_code != '' AND r.id IS NULL ORDER BY qi.resource_code`)
 			titles = append(titles, t)
 		}
 	}
-	rows.Close()
+	_ = rows.Close()
 	for _, title := range titles {
 		rows2, err := s.db.Query(`SELECT id, code, kind FROM gf_resources WHERE title=? ORDER BY id`, title)
 		if err != nil {
@@ -148,7 +148,7 @@ WHERE qi.resource_code != '' AND r.id IS NULL ORDER BY qi.resource_code`)
 				items = append(items, f)
 			}
 		}
-		rows2.Close()
+		_ = rows2.Close()
 		if len(styles) > 1 {
 			rep.CodeMismatch = append(rep.CodeMismatch, CodeMismatchGroup{Title: title, Items: items})
 		}
@@ -160,7 +160,7 @@ WHERE qi.resource_code != '' AND r.id IS NULL ORDER BY qi.resource_code`)
 }
 
 // codeStyle 编码风格：助记码（字母 ≥2 连续，如 EXC/HP300 开头段）vs 前缀序号
-//（单字母+数字，如 M001/P012）。
+// （单字母+数字，如 M001/P012）。
 func codeStyle(code string) string {
 	letters := 0
 	for _, r := range code {
@@ -178,10 +178,10 @@ func codeStyle(code string) string {
 
 // DedupeResult 去重回执（4.2）。
 type DedupeResult struct {
-	Kept              string `json:"kept"`              // 保留资源 code
-	Merged            int    `json:"merged"`            // 合并掉的资源数
-	RedirectedItems   int    `json:"redirectedItems"`   // 定额含量引用重定向行数
-	RedirectedPrices  int    `json:"redirectedPrices"`  // 调价历史并入条数
+	Kept             string `json:"kept"`             // 保留资源 code
+	Merged           int    `json:"merged"`           // 合并掉的资源数
+	RedirectedItems  int    `json:"redirectedItems"`  // 定额含量引用重定向行数
+	RedirectedPrices int    `json:"redirectedPrices"` // 调价历史并入条数
 }
 
 // DedupeResources 资源去重：keep 保留，merges 合并掉——定额含量引用重定向到

@@ -9,16 +9,6 @@ import (
 	"github.com/gaea/gaea/internal/gaea/db"
 )
 
-// insertResourceRaw 测试直插资源（绕过 SaveResource 的同身份 upsert——重复组
-// 是历史导入产物的形态）。
-func insertResourceRaw(s *Store, r Resource) error {
-	_, err := s.db.Exec(`
-INSERT INTO gf_resources(code, kind, title, spec, unit, base_price, current_price)
-VALUES(?,?,?,?,?,?,?)`,
-		r.Code, r.Kind, r.Title, r.Spec, r.Unit, r.BasePrice, r.CurrentPrice)
-	return err
-}
-
 // insertQuotaItemRaw 测试直插含量行（绕过 SaveQuota 的资源索引校验——扫描面
 // 要能构造悬挂引用）。
 func insertQuotaItemRaw(s *Store, qi QuotaItem) error {
