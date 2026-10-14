@@ -61,6 +61,8 @@ export interface CreateChapterDoneEvent {
   aiTaste?: AiTasteResult
   /** 章级变更声明门禁（阶段八 8.5）：declared=false=模型未声明（软降级） */
   declGate?: { declared: boolean; accepted: boolean; issues: string[] }
+  /** 阶段收尾提示（阶段八 8.8）：阶段收官章主线生成完成时带上阶段号；非收官章 undefined */
+  stageClosing?: { stage: number }
 }
 
 export interface CreateChapterErrorEvent {
@@ -178,6 +180,9 @@ export function parseCreateChapterEvent(payload: unknown): CreateChapterStreamEv
         aiTaste: parseAiTaste(payload.aiTaste),
         // 章级变更声明门禁（阶段八 8.5）：白名单透传（declared/accepted/issues）
         declGate: parseDeclGate(payload.declGate),
+        stageClosing: isRecord(payload.stageClosing) && typeof payload.stageClosing.stage === 'number'
+          ? { stage: payload.stageClosing.stage }
+          : undefined,
       }
     case 'sampler':
       return { type, sampler: isRecord(payload.sampler) ? { enabled: payload.sampler.enabled === true } : undefined }

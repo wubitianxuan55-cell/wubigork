@@ -256,6 +256,8 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
   // 章级变更声明门禁（阶段八 8.5）：拒收时人可读问题清单（重新生成或定稿面板手动修正）
   const [declGate, setDeclGate] = useState<{ declared: boolean; accepted: boolean; issues: string[] } | null>(null)
   const [samplerNote, setSamplerNote] = useState('')
+  // 阶段收尾提示（阶段八 8.8）：收官章 done 时出现，建议跑体检（建议制，不自动跑）
+  const [stageClosing, setStageClosing] = useState<{ stage: number } | null>(null)
   // 叙事状态账本（narrative 审批制结算）UI
   const [stateOpen, setStateOpen] = useState(false)
   const [novelState, setNovelState] = useState<{ version?: number; entities?: Record<string, { name?: string; type?: string; status?: string }> } | null>(null)
@@ -618,6 +620,8 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
             setLoadedSnapshot(contentRef.current)
             setAiTaste(ev.aiTaste ?? null)
             setDeclGate(ev.declGate ?? null)
+            // 阶段收官章：非收官章 undefined 不提示（零常驻——只在此时机出现）
+            setStageClosing(ev.stageClosing ?? null)
             const chNum = ev.chapterNum || 0
             const branch = ev.branch || ''
             message.success(`${branch ? `第${chNum}${branch}章` : `第${chNum}章`} 生成完成（${(ev.total || 0).toLocaleString()} 字）`)
@@ -1278,6 +1282,22 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
           <Alert type="success" showIcon data-testid="sampler-note" message={samplerNote} />
         </div>
       )}
+      {stageClosing && (
+        <div className="novel-create-alert">
+          <Alert
+            type="info"
+            showIcon
+            data-testid="stage-closing-banner"
+            message={`第 ${stageClosing.stage} 阶段（每 10 章一阶段）收尾——建议跑一次全书体检`}
+            description="体检零 LLM 纯确定性：逐章质量/AI 味/伏笔 Lint 一份报告，帮你确认本阶段没有留下悬空伏笔或质量塌方。"
+            action={
+              <Button size="small" type="primary" data-testid="stage-closing-run" onClick={() => { setHealthOpen(true); setStageClosing(null) }}>
+                立即体检
+              </Button>
+            }
+          />
+        </div>
+      )}
       {declGate && declGate.declared && !declGate.accepted && (
         <div className="novel-create-alert">
           <Alert
@@ -1363,7 +1383,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
         // A2a：应用版本 / 恢复原文都在服务端改了盘，此处再过一道脏闸（脏则保留本地版本）
         onApplied={refreshEditorAfterRewriteApplied}
       />
-      <BookHealthPanel open={healthOpen} onClose={() => setHealthOpen(false)} />
+      <BookHealthPanel open={healthOpen} onClose={() => setHealthOpen(false)} onOpenStyleAnchor={() => setFpOpen(true)} />
       <StorySpinePanel open={spineOpen} onClose={() => setSpineOpen(false)} />
       <ConvergeModal open={convergeOpen} chapterNum={activeChapterNum ? activeChapterNum : null} onClose={() => setConvergeOpen(false)} onFinished={() => { if (activeNode) void loadChapter(activeNode as typeof activeNode) }} />
       <ContextInventoryPanel open={ctxInvOpen} chapterNum={activeChapterNum || 0} onClose={() => setCtxInvOpen(false)} />

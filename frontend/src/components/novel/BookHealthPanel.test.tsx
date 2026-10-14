@@ -397,3 +397,39 @@ describe('BookHealthPanel 任意两份对比（v4.449）', () => {
     await waitFor(() => expect(mocks.evalCmp).toHaveBeenCalledWith('20261002T110000.000Z.json', '20261002T120000.000Z.json'))
   })
 })
+
+// ── hollow 画像预警（阶段八 8.8）：质量问题章占比过半 → 横幅+风格锚入口 ──
+describe('BookHealthPanel hollow 画像预警（阶段八 8.8）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.run.mockResolvedValue({
+      ...REPORT,
+      totalChapters: 5,
+      qualityIssueChapters: 3, // 3/5=60% 过半线
+    })
+  })
+
+  it('占比 ≥60%：横幅出现+诚实标「倾向」+风格锚按钮回调', async () => {
+    const onOpenStyleAnchor = vi.fn()
+    render(<BookHealthPanel open onClose={vi.fn()} onOpenStyleAnchor={onOpenStyleAnchor} />)
+    const banner = await screen.findByTestId('hollow-banner')
+    expect(banner.textContent).toContain('疑似空洞文风')
+    expect(banner.textContent).toContain('3/5')
+    fireEvent.click(screen.getByTestId('hollow-open-style'))
+    expect(onOpenStyleAnchor).toHaveBeenCalledTimes(1)
+  })
+
+  it('占比未过半 / 无回调：零横幅或无按钮', async () => {
+    // 未过半：零横幅
+    mocks.run.mockResolvedValue({ ...REPORT, totalChapters: 5, qualityIssueChapters: 2 })
+    const { unmount } = render(<BookHealthPanel open onClose={vi.fn()} onOpenStyleAnchor={vi.fn()} />)
+    await waitFor(() => expect(screen.getByTestId('book-health-body')).toBeTruthy())
+    expect(screen.queryByTestId('hollow-banner')).toBeNull()
+    unmount()
+    // 过半但无回调：横幅在，按钮不渲染
+    mocks.run.mockResolvedValue({ ...REPORT, totalChapters: 5, qualityIssueChapters: 4 })
+    render(<BookHealthPanel open onClose={vi.fn()} />)
+    await screen.findByTestId('hollow-banner')
+    expect(screen.queryByTestId('hollow-open-style')).toBeNull()
+  })
+})

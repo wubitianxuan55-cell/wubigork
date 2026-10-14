@@ -764,17 +764,27 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 		aiTaste = nil
 	}
 
+	// 阶段收尾提示（阶段八 8.8）：阶段收官章（第10/20/…章）主线生成完成时
+	// 带上阶段号——前端横幅提示「本阶段收尾，建议跑全书体检」（建议制：只提示
+	// 不自动跑；零常驻：只在收官章 done 这一时机出现）。
+	var stageClosing map[string]interface{}
+	if branch == "" && isStageCloser(targetNum) {
+		stageClosing = map[string]interface{}{
+			"stage": (targetNum-1)/stageLength + 1,
+		}
+	}
 	a.emit("create-chapter-stream", map[string]interface{}{
-		"type":       "done",
-		"content":    content,
-		"chapterNum": targetNum,
-		"branch":     branch,
-		"summary":    summary,
-		"nodeId":     nodeID,
-		"total":      len([]rune(content)),
-		"aiTaste":    aiTaste,
-		"declGate":   declGate,
-		"sampler":    samplerSummary,
+		"type":         "done",
+		"content":      content,
+		"chapterNum":   targetNum,
+		"branch":       branch,
+		"summary":      summary,
+		"nodeId":       nodeID,
+		"total":        len([]rune(content)),
+		"aiTaste":      aiTaste,
+		"declGate":     declGate,
+		"sampler":      samplerSummary,
+		"stageClosing": stageClosing,
 	})
 
 	// 异步提取章节角色 + 生成后自动门：两者共用章节生成的 WaitGroup（N7），

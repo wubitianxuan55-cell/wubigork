@@ -252,6 +252,31 @@ describe('CreatePage 生成控制（T6-7.2 停止按钮 + cancelled 事件）', 
     expect(await screen.findByTestId('decl-gate-ok')).toBeTruthy()
   })
 
+  // 阶段八 8.8：阶段收官章 done → 收尾提示横幅（建议制），「立即体检」一键开体检面板
+  it('stageClosing：收官章横幅出现+立即体检一键到报告（≤2 次点击判据）', async () => {
+    await startGeneration()
+    emit('create-chapter-stream', {
+      type: 'done', chapterNum: 10, branch: '', total: 5000,
+      stageClosing: { stage: 1 },
+    })
+    await waitFor(() => expect(screen.queryByRole('button', { name: /停止生成/ })).toBeNull())
+    const banner = await screen.findByTestId('stage-closing-banner')
+    expect(banner.textContent).toContain('第 1 阶段')
+    expect(banner.textContent).toContain('全书体检')
+    // 一次点击：开体检面板（面板 open 即自动跑体检，报告 ≤2 次点击达成）
+    fireEvent.click(screen.getByTestId('stage-closing-run'))
+  })
+
+  it('stageClosing 非收官章：零横幅（零常驻）', async () => {
+    await startGeneration()
+    emit('create-chapter-stream', {
+      type: 'done', chapterNum: 11, branch: '', total: 5000,
+      stageClosing: undefined,
+    })
+    await waitFor(() => expect(screen.queryByRole('button', { name: /停止生成/ })).toBeNull())
+    expect(screen.queryByTestId('stage-closing-banner')).toBeNull()
+  })
+
   it('declGate 未声明：零横幅（软降级）', async () => {
     await startGeneration()
     emit('create-chapter-stream', {

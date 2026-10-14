@@ -70,8 +70,10 @@ function EmotionCurveSvg({ pts }: { pts: CurvePoint[] }) {
   )
 }
 
-export default function BookHealthPanel({ open, onClose }: {
+export default function BookHealthPanel({ open, onClose, onOpenStyleAnchor }: {
   open: boolean
+  /** hollow 预警指向的风格锚入口（阶段八 8.8）：风格指纹面板打开回调；缺省不显示按钮 */
+  onOpenStyleAnchor?: () => void
   onClose: () => void
 }) {
   const [loading, setLoading] = useState(false)
@@ -274,6 +276,14 @@ export default function BookHealthPanel({ open, onClose }: {
             <Alert type="warning" showIcon style={{ marginBottom: 12 }}
               message={`第 ${report.worstAiTaste.chapterNum} 章 AI 味 ${report.worstAiTaste.aiTasteScore} 分`}
               description="建议用「一键去味 / 高级去味」处理后复检（60 分以上视为明显 AI 味）。" />
+          )}
+          {/* hollow 画像预警（阶段八 8.8）：质量问题章占比过半 → 提示校准风格锚。
+               口径诚实标「倾向」——确定性指标不冒充诊断，语义判断仍归作者。 */}
+          {report.totalChapters > 0 && report.qualityIssueChapters / report.totalChapters >= 0.6 && (
+            <Alert type="error" showIcon style={{ marginBottom: 12 }} data-testid="hollow-banner"
+              message={`疑似空洞文风（hollow 画像）：${report.qualityIssueChapters}/${report.totalChapters} 章存在超长段/电报体等质量问题`}
+              description="空洞画像的典型症状=段落失控+句式复读。建议先校准风格锚（风格指纹/词表），再用一键去味定点处理。"
+              action={onOpenStyleAnchor ? <Button size="small" data-testid="hollow-open-style" onClick={onOpenStyleAnchor}>查看风格指纹</Button> : undefined} />
           )}
           {/* 逐章表 */}
           <Table<HealthRow> size="small" rowKey="chapterNum"
