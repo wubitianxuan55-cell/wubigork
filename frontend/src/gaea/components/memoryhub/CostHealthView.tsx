@@ -41,7 +41,7 @@ const Section = ({
       <b style={{ fontSize: 12.5 }}>{title}</b>
       <span
         className="px-1.5 rounded-full text-[10.5px]"
-        style={{ background: count > 0 ? tone : "var(--bg-soft, #f5f5f5)", color: count > 0 ? "#fff" : "var(--color-text-secondary)" }}
+        style={{ background: count > 0 ? tone : "var(--bg-soft, #f5f5f5)", color: count > 0 ? "var(--color-bg, #fff)" : "var(--color-text-secondary)" }}
       >
         {count}
       </span>
@@ -116,7 +116,7 @@ export function CostHealthView() {
         </button>
       </div>
 
-      <Section title="① 零价资源（现行价与基准价均为 0）" count={report.zeroPrice.length} tone="#d46b08">
+      <Section title="① 零价资源（现行价与基准价均为 0）" count={report.zeroPrice.length} tone="var(--color-warning)">
         <div style={rowsStyle}>
           {report.zeroPrice.map((f, i) => (
             <div key={i}>「{f.title}」{f.unit ? `（${f.unit}）` : ""} {f.code}</div>
@@ -124,7 +124,7 @@ export function CostHealthView() {
         </div>
       </Section>
 
-      <Section title="② 缺价定额子目（含量行单价为 0，综合单价按 0 计入）" count={report.quotaNoPrice.length} tone="#d46b08">
+      <Section title="② 缺价定额子目（含量行单价为 0，综合单价按 0 计入）" count={report.quotaNoPrice.length} tone="var(--color-warning)">
         <div style={rowsStyle}>
           {report.quotaNoPrice.map((f, i) => (
             <div key={i}>定额 {f.code}：「{f.title}」</div>
@@ -132,7 +132,7 @@ export function CostHealthView() {
         </div>
       </Section>
 
-      <Section title="③ 悬挂引用（含量行引用的资源编码不在资源表）" count={report.brokenRef.length} tone="#cf1322">
+      <Section title="③ 悬挂引用（含量行引用的资源编码不在资源表）" count={report.brokenRef.length} tone="var(--color-danger)">
         <div style={rowsStyle}>
           {report.brokenRef.map((f, i) => (
             <div key={i}>资源编码 {f.code}（定额子目「{f.title}」）——补建资源或改含量行引用</div>
@@ -140,7 +140,7 @@ export function CostHealthView() {
         </div>
       </Section>
 
-      <Section title="④ 重复资源防护（身份唯一索引在位性）" count={report.duplicates.length} tone="#cf1322">
+      <Section title="④ 重复资源防护（身份唯一索引在位性）" count={report.duplicates.length} tone="var(--color-danger)">
         {report.duplicates.length === 0 ? (
           <div style={{ color: "var(--color-text-secondary)" }}>身份唯一索引在位——同身份多行已被库层防护消灭</div>
         ) : (
@@ -148,7 +148,7 @@ export function CostHealthView() {
         )}
       </Section>
 
-      <Section title="⑤ 编码未统一（同名资源编码风格混用：助记码 vs 前缀序号）" count={report.codeMismatch.length} tone="#1677ff">
+      <Section title="⑤ 编码未统一（同名资源编码风格混用：助记码 vs 前缀序号）" count={report.codeMismatch.length} tone="var(--color-accent)">
         {report.codeMismatch.length === 0 ? (
           <div style={{ color: "var(--color-text-secondary)" }}>无混用</div>
         ) : (
