@@ -60,12 +60,12 @@ func ChangeDeclarationIssues(decl *types.ChapterChangeDeclaration, chars []types
 			if strings.EqualFold(strings.TrimSpace(st.Kind), "survival") {
 				if !types.SurvivalStatusAdvanceAllowed(*c, chapterNum) && c.StatusChangedChapter > chapterNum {
 					issues = append(issues, Issue{Code: "decl_state_regression", Severity: "S2",
-						Message: fmt.Sprintf("角色「%s」的存活状态已在第 %d 章变更，本章（第 %d 章）不得回退改写", name, c.StatusChangedChapter, chapterNum),
+						Message:  fmt.Sprintf("角色「%s」的存活状态已在第 %d 章变更，本章（第 %d 章）不得回退改写", name, c.StatusChangedChapter, chapterNum),
 						Evidence: fmt.Sprintf("水位=%d > 本章=%d", c.StatusChangedChapter, chapterNum)})
 				}
 			} else if !types.StateAdvanceAllowed(*c, chapterNum) && c.StateUpdatedChapter > chapterNum {
 				issues = append(issues, Issue{Code: "decl_state_regression", Severity: "S2",
-					Message: fmt.Sprintf("角色「%s」的心理状态已在第 %d 章变更，本章（第 %d 章）不得回退改写", name, c.StateUpdatedChapter, chapterNum),
+					Message:  fmt.Sprintf("角色「%s」的心理状态已在第 %d 章变更，本章（第 %d 章）不得回退改写", name, c.StateUpdatedChapter, chapterNum),
 					Evidence: fmt.Sprintf("水位=%d > 本章=%d", c.StateUpdatedChapter, chapterNum)})
 			}
 		}

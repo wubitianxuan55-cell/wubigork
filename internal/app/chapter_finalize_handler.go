@@ -122,7 +122,6 @@ func (a *writingState) FinalizeChapterDraft(chapterNum int, branch string) (map[
 		return nil, fmt.Errorf("AI 客户端未就绪：请先在「模型中心」配置可用引擎，再生成定稿草案")
 	}
 
-
 	// 纯提取（零落盘——草案未经作者确认，建议制红线）
 	v2, err := a.analysisAgent.ExtractOnly(a.ctx, chapterNum, content)
 	if err != nil {
