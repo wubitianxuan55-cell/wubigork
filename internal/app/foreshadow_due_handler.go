@@ -34,7 +34,7 @@ type ForeshadowDueItem struct {
 type ForeshadowDueReport struct {
 	ChapterNum int                 `json:"chapterNum"`
 	Urgent     []ForeshadowDueItem `json:"urgent"`
-	Soon     []ForeshadowDueItem `json:"soon"`
+	Soon       []ForeshadowDueItem `json:"soon"`
 }
 
 // ForeshadowDue 伏笔到期预警（计划页/阅读页挂载点）。chapterNum<=0 回退全书
@@ -47,7 +47,7 @@ func (a *writingState) ForeshadowDue(chapterNum int) (ForeshadowDueReport, error
 	report := ForeshadowDueReport{
 		ChapterNum: chapterNum,
 		Urgent:     []ForeshadowDueItem{},
-		Soon:     []ForeshadowDueItem{},
+		Soon:       []ForeshadowDueItem{},
 	}
 	ff, err := pm.ReadForeshadows()
 	if err != nil {
