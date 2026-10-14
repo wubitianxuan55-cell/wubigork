@@ -58,7 +58,7 @@ type BulkPriceMatch struct {
 
 // BulkPricePreview 预览报告：解析行 + 匹配/跳过分区。
 type BulkPricePreview struct {
-	Total    int              `json:"total"`    // 解析到的数据行数
+	Total    int              `json:"total"` // 解析到的数据行数
 	Matched  []BulkPriceMatch `json:"matched"`
 	Skipped  []BulkPriceSkip  `json:"skipped"`
 	RowError []BulkPriceSkip  `json:"rowErrors"` // 解析层错误（列缺失/价格非法）

@@ -97,11 +97,11 @@ func TestParseBulkPriceXlsx_ToleratesCommaAndMissingSheet(t *testing.T) {
 func TestMatchBulkPrices_NoFalsePositive(t *testing.T) {
 	s := bulkTestStore(t)
 	rows := []BulkPriceRow{
-		{Row: 2, Title: "P.O 42.5 水泥", Spec: "散装", Unit: "kg", Price: 0.48},   // 唯一命中
-		{Row: 3, Title: "P.O 42.5 水泥", Unit: "kg", Price: 0.48},                // 无规格→同名双行歧义
-		{Row: 4, Title: "不存在的材料", Unit: "kg", Price: 1},                      // 零命中
+		{Row: 2, Title: "P.O 42.5 水泥", Spec: "散装", Unit: "kg", Price: 0.48}, // 唯一命中
+		{Row: 3, Title: "P.O 42.5 水泥", Unit: "kg", Price: 0.48},             // 无规格→同名双行歧义
+		{Row: 4, Title: "不存在的材料", Unit: "kg", Price: 1},                     // 零命中
 		{Row: 5, Title: "挖掘机 220", Unit: "台班", Price: -5},                   // 价格非法
-		{Row: 6, Title: "普工", Unit: "工日", Price: 180, Period: "2026年3期"}, // 唯一命中
+		{Row: 6, Title: "普工", Unit: "工日", Price: 180, Period: "2026年3期"},    // 唯一命中
 	}
 	matches, skips, err := s.MatchBulkPrices(rows)
 	if err != nil {
