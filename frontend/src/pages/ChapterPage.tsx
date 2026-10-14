@@ -63,6 +63,7 @@ import { errText } from '../utils/errText'
 import ReadingChrome from './chapter/readingChrome'
 import EditChrome from './chapter/editChrome'
 import RewriteModal from '../components/novel/RewriteModal'
+import FinalizeModal from '../components/novel/FinalizeModal'
 import RewriteHistoryPanel from '../components/novel/RewriteHistoryPanel'
 import ReadingPanel from './chapter/readingPanel'
 import ReadingOverlays from './chapter/readingOverlays'
@@ -147,6 +148,8 @@ const ChapterPage: React.FC<ChapterPageProps> = ({ active = true }) => {
   const [illusOpen, setIllusOpen] = useState(false)
   // v4 场景章整章重写（t4-C3 收官）：场景工程章在 ChapterPage 编辑，重写入口挂这里
   const [rwOpen, setRwOpen] = useState(false)
+  const [finOpen, setFinOpen] = useState(false)
+  const [finalizedFlag, setFinalizedFlag] = useState(false)
   const [rwHistOpen, setRwHistOpen] = useState(false)
   const pendingSearch = useRef<{ nodeId: string; query: string; paragraphIndex: number; charOffset: number } | null>(null)
   // 每次点击搜索命中自增：同章内重复点命中时 readMode/readNodeId 均不变，
@@ -1042,6 +1045,13 @@ const ChapterPage: React.FC<ChapterPageProps> = ({ active = true }) => {
                     canRewrite={!!activeTab.sceneBacked && activeTab.chapterNum >= 1}
                     onRewrite={() => setRwOpen(true)}
                     onRewriteHistory={openRewriteHistory}
+                    onFinalize={activeTab.chapterNum >= 1 ? () => {
+                      setFinOpen(true)
+                      const num0 = activeTab.chapterNum
+                      const br0 = activeTab.node.branch || ''
+                      void app.ChapterFinalizationGet(num0, br0).then((f) => setFinalizedFlag(!!f)).catch(() => setFinalizedFlag(false))
+                    } : undefined}
+                    finalized={finalizedFlag}
                   />
                 )}
               </div>
@@ -1168,6 +1178,13 @@ const ChapterPage: React.FC<ChapterPageProps> = ({ active = true }) => {
         chapterNum={activeTab?.chapterNum ?? null}
         onClose={() => setRwOpen(false)}
         onApplied={() => refreshChapterAfterServerRewrite(rwModalChapterRef.current)}
+      />
+      <FinalizeModal
+        open={finOpen}
+        chapterNum={activeTab?.chapterNum ?? null}
+        branch={activeTab?.node.branch || ''}
+        onClose={() => setFinOpen(false)}
+        onFinalized={() => setFinalizedFlag(true)}
       />
       <RewriteHistoryPanel
         open={rwHistOpen}

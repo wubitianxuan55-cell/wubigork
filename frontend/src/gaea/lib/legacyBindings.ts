@@ -11,20 +11,17 @@
 // 消费方：frontend/src/gaea/lib/bridge/drift.ts——LegacySurfaceNames 类型派生 +
 // 「不过期/不重叠」两把编译期锁（手改、漏再生、与 AppBindings 认领重叠都会红）。
 //
-// 共 78 名 = Go 导出 651 − 认领且 Go 存在 573（facets 键 574，其中 mock-only 名无 Go 绑定不计）。
+// 共 75 名 = Go 导出 651 − 认领且 Go 存在 576（facets 键 577，其中 mock-only 名无 Go 绑定不计）。
 
 export const legacyBindings = [
   "AddCustomEngine",
   "ApplyBranch",
   "BrainSearch",
-  "ChapterFinalizationGet",
   "Chat",
   "ChatGeneral",
   "CmdKEdit",
   "CreateProject",
   "DeleteProject",
-  "FinalizeChapterApply",
-  "FinalizeChapterDraft",
   "GaeaBenchmarkDetail",
   "GaeaBenchmarkExport",
   "GaeaBenchmarkList",

@@ -234,6 +234,11 @@ export const GAEA_METHOD_FACETS = {
   NovelChapterPlanPropose: "play",
   NovelChapterPlanDeviation: "play",
   NovelChapterGatePrecheck: "play",
+
+  // 章节定稿回写（阶段八 8.4）：草案→作者确认→三件套落库（建议制）。
+  ChapterFinalizationGet: "play",
+  FinalizeChapterDraft: "play",
+  FinalizeChapterApply: "play",
   ClearProjectForeshadowsForReset: "play",
   DeleteChapterForeshadows: "play",
   GetForeshadowStats: "play",

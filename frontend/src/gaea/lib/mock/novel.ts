@@ -59,6 +59,8 @@ type NovelMethods = Pick<
   | "CheckConsistency" | "CheckConsistencyDeep"
   | "GetForeshadows" | "SaveForeshadows" | "SaveCharactersBatch"
   | "NovelReadingAsk" | "GenerateSceneIllustration"
+  // 章节定稿回写（阶段八 8.4；FinalizeModal 演示口径=空草案/标记定稿）。
+  | "ChapterFinalizationGet" | "FinalizeChapterDraft" | "FinalizeChapterApply"
   // 伏笔一致性体检（ForeshadowPanel「一致性体检」；演示口径允许示范数据）。
   | "LintForeshadows"
   // 伏笔清理/统计/同步结果批次（t1-P3 后端 + t1-P4 面板消费；浏览器演示口径）。
@@ -178,6 +180,15 @@ export function buildNovel(): NovelMethods {
     },
     async NovelChapterPlanDeviation(_chapterNum: number) {
       return { chapterNum: _chapterNum, hasPlan: false, analyzed: false };
+    },
+    async FinalizeChapterDraft(_chapterNum: number, _branch: string) {
+      return { chapterNum: _chapterNum, branch: _branch, finalized: false, characters: [], foreshadows: [], warnings: [] };
+    },
+    async FinalizeChapterApply(_chapterNum: number, _branch: string, _payloadJSON: string) {
+      return { finalized: true, applied: { characters: 0 }, errors: [] };
+    },
+    async ChapterFinalizationGet(_chapterNum: number, _branch: string) {
+      return null;
     },
     async NovelChapterGatePrecheck(_chapterNum: number) {
       // 与真实后端同口径：无计划即硬闸（前端应给"先补章节计划"引导而非发起生成）。

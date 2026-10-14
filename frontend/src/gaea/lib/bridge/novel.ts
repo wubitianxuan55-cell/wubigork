@@ -322,6 +322,10 @@ export interface NovelBindings {
   // 空串=既有口径；无大纲节点时后端以 direction 兜底编译（分支→计划不再死锁）。
   NovelChapterPlanPropose(chapterNum: number, branch: string, direction: string): Promise<ChapterPlanView>;
   NovelChapterPlanDeviation(chapterNum: number): Promise<PlanDeviationView>;
+  // ── 章节定稿回写（阶段八 8.4）：草案→作者确认→落库（建议制红线：确认前零写盘）──
+  FinalizeChapterDraft(chapterNum: number, branch: string): Promise<Record<string, unknown>>;
+  FinalizeChapterApply(chapterNum: number, branch: string, payloadJSON: string): Promise<Record<string, unknown>>;
+  ChapterFinalizationGet(chapterNum: number, branch: string): Promise<unknown | null>;
   NovelChapterGatePrecheck(chapterNum: number): Promise<PlanGateReportView>;
   // AnalyzeChapter 触发该章 LLM 分析（原 Legacy 面绑定转正；V1 wire 返回
   // 面板忽略——真相源是 analysis-v2.json 落盘，完成后重拉 V2；顺带伏笔

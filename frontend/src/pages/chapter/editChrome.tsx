@@ -34,6 +34,9 @@ export interface EditChromeProps {
   canRewrite?: boolean
   onRewrite?: () => void
   onRewriteHistory?: () => void
+  /** 阶段八 8.4：定稿本章（章节工具菜单；已定稿显示重定稿语义） */
+  onFinalize?: () => void
+  finalized?: boolean
   onSave: () => void
   canSave: boolean
 }
@@ -57,6 +60,8 @@ const EditChrome: React.FC<EditChromeProps> = ({
   canRewrite,
   onRewrite,
   onRewriteHistory,
+  onFinalize,
+  finalized,
   onSave,
   canSave,
 }) => {
@@ -65,11 +70,13 @@ const EditChrome: React.FC<EditChromeProps> = ({
     { key: 'illustrate', label: '生成配图', disabled: !canIllustrate },
     ...(canRewrite && onRewrite ? [{ key: 'rewrite', label: '整章重写' }] : []),
     ...(canRewrite && onRewriteHistory ? [{ key: 'history', label: '重写历史' }] : []),
+    ...(onFinalize ? [{ key: 'finalize', label: finalized ? '已定稿·重新定稿' : '定稿本章' }] : []),
   ]
   const onToolMenu: MenuProps['onClick'] = ({ key }) => {
     if (key === 'illustrate') onIllustrate()
     else if (key === 'rewrite') onRewrite?.()
     else if (key === 'history') onRewriteHistory?.()
+    else if (key === 'finalize') onFinalize?.()
   }
   return (
   <>
