@@ -1,3 +1,6 @@
+## v4.487.0 · 阶段九 9.3 记忆时序/失效标记：冲突不删原文，同题自动失效+疑似仅提示（2026-10-15）
+> Memory 加 CreatedAt（既有列暴露回填，同名修订不重置）/InvalidAt（SchemaV33）。失效生命周期：Invalidate（置标记+事件留痕，**原文保留绝不删除**）/RestoreInvalidate（裁决反悔）/编辑复活（同名修订清失效=作者重申）。注入面排除（RecallBlock 硬滤）+面板搜索不过滤+恢复通道=「失效过滤可关」两侧。冲突比对收编建议接受动作双路径：Confirmed=同题旧记忆自动失效（做梦重复提炼典型实态，确定性信号）+人可读告知；Suspected=BM25 相似 top≤3 仅提示不改状态（宁漏勿误）；SubjectKey 单值冲突走既有撞键拒绝互补。Get/listInSpace 双路径回填新列（Get 漏列测试抓）。全量 ci 绿。详见 `releases/v4.487.0.md`。
+
 ## v4.486.0 · 阶段九 9.2 混合召回：FTS5 全文路+名称路+向量路三路融合（2026-10-15）
 > 纯向量单路（bge-m3 cosine）升级三路融合：①FTS5 全文路（SchemaV32 semantic_fts 索引 doc 正文，惰性重建维护；中文降级实证=modernc unicode61 对 CJK 零命中，MATCH 零命中/出错双路回退 LIKE 子串扫描）②名称关键词路（条目名含查询词=最强意图信号）③既有向量路。融合可解释：`final = 0.55*vec + 0.30*ft + 0.15*name`（权重单一声明点，测试常量复算复现），时序 tie-break=同分 updated_at 新者优先。降级红利：embedding 不可用时全文+名称两路独立工作，向量路单库失败降级不再中断（Ensure 读失败如实上抛的 GA6-09 纪律保留）。绑定面零变更（GaeaSemanticSearch 同签名，Score=融合分）。评测跑分挂用户实弹（GaeaRetrievalEvalRun 既有绑定）。全量 ci 绿。详见 `releases/v4.486.0.md`。
 
