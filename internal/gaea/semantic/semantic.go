@@ -298,7 +298,7 @@ func (s *Store) Timestamps() (map[string]string, error) {
 	if err != nil {
 		return out, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var kind, id, at string
 		if err := rows.Scan(&kind, &id, &at); err != nil {

@@ -87,7 +87,7 @@ ORDER BY rank LIMIT ?`, match, topN)
 		}
 		// MATCH 执行成功但零命中（unicode61 不切 CJK）→ 落 LIKE 降级
 	} else {
-		rows.Close() // MATCH 语法错等：落 LIKE 降级，不让连接锁残留
+		_ = rows.Close() // MATCH 语法错等：落 LIKE 降级，不让连接锁残留
 	}
 
 	// LIKE 降级：每词一计，多词全中排前（确定性：同分按 kind+id 字典序）。
@@ -102,7 +102,7 @@ ORDER BY rank LIMIT ?`, match, topN)
 	if err != nil {
 		return nil, err
 	}
-	defer rows2.Close()
+	defer func() { _ = rows2.Close() }()
 	hits := make([]FTSHit, 0, 16)
 	for rows2.Next() {
 		var kind, id, doc, updatedAt string
@@ -155,7 +155,7 @@ func scanFTSHits(rows interface {
 	Scan(...any) error
 	Close() error
 }) ([]FTSHit, error) {
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var hits []FTSHit
 	for rows.Next() {
 		var kind, id, updatedAt string
