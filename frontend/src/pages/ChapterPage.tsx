@@ -64,6 +64,7 @@ import ReadingChrome from './chapter/readingChrome'
 import EditChrome from './chapter/editChrome'
 import RewriteModal from '../components/novel/RewriteModal'
 import FinalizeModal from '../components/novel/FinalizeModal'
+import ForeshadowDueBanner from '../components/novel/ForeshadowDueBanner'
 import RewriteHistoryPanel from '../components/novel/RewriteHistoryPanel'
 import ReadingPanel from './chapter/readingPanel'
 import ReadingOverlays from './chapter/readingOverlays'
@@ -1055,6 +1056,11 @@ const ChapterPage: React.FC<ChapterPageProps> = ({ active = true }) => {
                   />
                 )}
               </div>
+            )}
+
+            {/* 伏笔到期预警（阶段八 8.6）：编辑 chrome 下方薄条，零预警零渲染 */}
+            {!readMode && activeTab && activeTab.chapterNum >= 1 && (
+              <ForeshadowDueBanner chapterNum={activeTab.chapterNum} />
             )}
 
             {/* ── 阅读模式：居中限宽衬线排版 ── */}

@@ -24,6 +24,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, Button, Empty, Input, InputNumber, Select, Space, Spin, Tag, message } from 'antd'
 import { app } from '../../gaea/lib/bridge'
+import ForeshadowDueBanner from './ForeshadowDueBanner'
 
 // ── 契约类型（本地副本；字段名/JSON 键以 Go json tag 为准）─────────────────
 
@@ -487,6 +488,8 @@ const ChapterPlanCard: React.FC<ChapterPlanCardProps> = ({
         padding: 12, fontSize: 13,
       }}
     >
+      {/* 伏笔到期预警（阶段八 8.6）：写计划正是回收决策点——超期/本章应回收在此可见 */}
+      <ForeshadowDueBanner chapterNum={num} refreshKey={num} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <b>章节计划</b>
         <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>第 {num} 章</span>

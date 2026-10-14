@@ -32,6 +32,7 @@ func (b *NovelB) DeleteOutlineNode(nodeID string) error { return b.a.DeleteOutli
 func (b *NovelB) DeleteRelationship(fromID string, toID string) error { return b.a.DeleteRelationship(fromID, toID) }
 func (b *NovelB) FinalizeChapterApply(chapterNum int, branch string, payloadJSON string) (map[string]interface{}, error) { return b.a.FinalizeChapterApply(chapterNum, branch, payloadJSON) }
 func (b *NovelB) FinalizeChapterDraft(chapterNum int, branch string) (map[string]interface{}, error) { return b.a.FinalizeChapterDraft(chapterNum, branch) }
+func (b *NovelB) ForeshadowDue(chapterNum int) (ForeshadowDueReport, error) { return b.a.ForeshadowDue(chapterNum) }
 func (b *NovelB) GaeaGenerateBookCover(projectID string, promptHint string) (string, error) { return b.a.GaeaGenerateBookCover(projectID, promptHint) }
 func (b *NovelB) GenerateProjectCharacterFill(chJSON string) (string, error) { return b.a.GenerateProjectCharacterFill(chJSON) }
 func (b *NovelB) GenerateProjectProtagonistRelations(mode string, name string) (map[string]interface{}, error) { return b.a.GenerateProjectProtagonistRelations(mode, name) }

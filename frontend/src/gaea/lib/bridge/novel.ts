@@ -326,6 +326,9 @@ export interface NovelBindings {
   FinalizeChapterDraft(chapterNum: number, branch: string): Promise<Record<string, unknown>>;
   FinalizeChapterApply(chapterNum: number, branch: string, payloadJSON: string): Promise<Record<string, unknown>>;
   ChapterFinalizationGet(chapterNum: number, branch: string): Promise<unknown | null>;
+  // 伏笔到期预警（阶段八 8.6）：urgent=急需+超期（红），soon=需关注（黄）；
+  // chapterNum<=0 回退全书已写章数。判定单源 types.UrgencyLevel。
+  ForeshadowDue(chapterNum: number): Promise<Record<string, unknown>>;
   NovelChapterGatePrecheck(chapterNum: number): Promise<PlanGateReportView>;
   // AnalyzeChapter 触发该章 LLM 分析（原 Legacy 面绑定转正；V1 wire 返回
   // 面板忽略——真相源是 analysis-v2.json 落盘，完成后重拉 V2；顺带伏笔

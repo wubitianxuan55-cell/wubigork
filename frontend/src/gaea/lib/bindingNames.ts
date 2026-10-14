@@ -394,6 +394,7 @@ export const bindingNames = [
   "GaeaXlsxRowOps",
   "GaeaXlsxSetCell",
   "GaeaZipDeliverables",
+  "ForeshadowDue",
   "FinalizeChapterApply",
   "FinalizeChapterDraft",
   "GenerateCharacterPortrait",

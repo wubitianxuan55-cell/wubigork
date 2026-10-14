@@ -17,6 +17,8 @@ const mocks = vi.hoisted(() => ({
   NovelChapterPlanPropose: vi.fn(),
   NovelChapterPlanDeviation: vi.fn(),
   NovelChapterGatePrecheck: vi.fn(),
+  // 伏笔到期预警（阶段八 8.6）：计划卡内嵌预警条，默认空报告零渲染
+  ForeshadowDue: vi.fn(),
 }))
 vi.mock('../../gaea/lib/bridge', () => ({ app: mocks }))
 
@@ -60,6 +62,7 @@ beforeEach(() => {
   mocks.NovelChapterPlanPropose.mockResolvedValue(null)
   mocks.NovelChapterPlanDeviation.mockResolvedValue(null)
   mocks.NovelChapterGatePrecheck.mockResolvedValue(NO_PLAN_GATE)
+  mocks.ForeshadowDue.mockResolvedValue({ chapterNum: 5, urgent: [], soon: [] })
 })
 
 describe('ChapterPlanCard 计划卡与硬闸（刀1 线D）', () => {
