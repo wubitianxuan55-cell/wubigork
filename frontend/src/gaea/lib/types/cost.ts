@@ -736,6 +736,53 @@ export interface WorkcostClassifyCount {
   outsourced: number;
 }
 
+// ── 资源价批量调价（三期 3.4，Go workcost.BulkPrice* 镜像）────────
+export interface WorkcostBulkPriceRow {
+  title: string
+  spec?: string
+  unit?: string
+  price: number
+  period?: string
+  region?: string
+  note?: string
+  row: number
+}
+
+export interface WorkcostBulkPriceSkip {
+  row: number
+  title: string
+  reason: string
+}
+
+export interface WorkcostBulkPriceMatch {
+  row: number
+  resourceId: number
+  code: string
+  title: string
+  spec?: string
+  unit?: string
+  oldPrice: number
+  newPrice: number
+  period?: string
+  region?: string
+  note?: string
+  resourceKind?: string
+}
+
+export interface WorkcostBulkPricePreview {
+  total: number
+  matched: WorkcostBulkPriceMatch[]
+  skipped: WorkcostBulkPriceSkip[]
+  rowErrors: WorkcostBulkPriceSkip[]
+}
+
+export interface WorkcostBulkPriceResult {
+  updated: number
+  skipped: WorkcostBulkPriceSkip[]
+  total: number
+  applied: WorkcostBulkPriceMatch[]
+}
+
 export interface WorkcostSeedPreview {
   candidates: WorkcostSeedCandidate[];
   counts: WorkcostClassifyCount;

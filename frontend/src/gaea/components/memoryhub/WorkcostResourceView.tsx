@@ -9,6 +9,7 @@
 //   界面上必须把两者都显示出来，不能让用户误判。
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Box, Coins, Layers, Pencil, Plus, RefreshCw, Search, Trash2, TrendingUp, X } from "../../icons";
+import { WorkcostBulkPriceModal } from "./WorkcostBulkPriceModal";
 import { app } from "../../lib/bridge";
 import type {
   WorkcostResource,
@@ -66,6 +67,7 @@ export function WorkcostResourceView() {
   const [readError, setReadError] = useState("");
   const [editing, setEditing] = useState<WorkcostResource | null>(null);
   const [pricing, setPricing] = useState<WorkcostResource | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [historyOf, setHistoryOf] = useState<WorkcostResource | null>(null);
   const [preview, setPreview] = useState<WorkcostSeedPreview | null>(null);
   const [busy, setBusy] = useState(false);
@@ -211,6 +213,9 @@ export function WorkcostResourceView() {
           </div>
           <button type="button" className={ghostBtn} onClick={openSeedPreview} disabled={busy} title="把存量成本条目按类别归入资源库">
             <TrendingUp size={12} /> 存量资源化
+          </button>
+          <button type="button" className={ghostBtn} onClick={() => setBulkOpen(true)} title="Excel 批量调价：按名称+单位精确匹配，写调价历史并推进现行价">
+            批量调价
           </button>
           <button type="button" className={solidBtn} onClick={() => setEditing(emptyResource())} title="新增工料机资源">
             <Plus size={12} /> 新增资源
@@ -366,6 +371,13 @@ export function WorkcostResourceView() {
           busy={busy}
           onCancel={() => setEditing(null)}
           onSave={save}
+        />
+      )}
+      {bulkOpen && (
+        <WorkcostBulkPriceModal
+          open={bulkOpen}
+          onClose={() => setBulkOpen(false)}
+          onApplied={load}
         />
       )}
       {pricing && (

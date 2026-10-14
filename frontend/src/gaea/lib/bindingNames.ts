@@ -93,6 +93,8 @@ export const bindingNames = [
   "GaeaContextNodeDetail",
   "GaeaContextView",
   "GaeaConvertToPdf",
+  "GaeaCostBulkPriceApply",
+  "GaeaCostBulkPricePreview",
   "GaeaCostCategories",
   "GaeaCostCategoryDelete",
   "GaeaCostCategorySave",

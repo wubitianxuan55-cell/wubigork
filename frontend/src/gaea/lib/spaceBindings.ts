@@ -234,6 +234,8 @@ export const GAEA_METHOD_FACETS = {
   NovelChapterPlanPropose: "play",
   NovelChapterPlanDeviation: "play",
   NovelChapterGatePrecheck: "play",
+  CostBulkPricePreview: "play", // 资源价批量维护（三期 3.4）：Excel 预览→确认应用
+  CostBulkPriceApply: "play",
   ForeshadowDue: "play", // 伏笔到期预警（阶段八 8.6）：计划卡/阅读页横幅
 
   // 章节定稿回写（阶段八 8.4）：草案→作者确认→三件套落库（建议制）。

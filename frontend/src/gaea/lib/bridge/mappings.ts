@@ -207,6 +207,8 @@ export const gaeaToGaea = {
   CostGet: "GaeaCostGet",
   CostSave: "GaeaCostSave",
   CostDelete: "GaeaCostDelete",
+  CostBulkPricePreview: "GaeaCostBulkPricePreview",
+  CostBulkPriceApply: "GaeaCostBulkPriceApply",
   CostImportPreview: "GaeaCostImportPreview",
   CostImportAIParse: "GaeaCostImportAIParse",
   CostImportApply: "GaeaCostImportApply",

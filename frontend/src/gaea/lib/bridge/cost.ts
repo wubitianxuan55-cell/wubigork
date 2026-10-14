@@ -1,5 +1,57 @@
 // cost.ts — CostBindings（AppBindings 分域接口之一，Go CostB 门面）：
 // 成本库/价格源/组价/询价飞轮/五算对比/造价参考与复盘笔记域。
+
+/** 资源价批量调价一行（Go workcost.BulkPriceRow 镜像）。 */
+export interface CostBulkPriceRow {
+  title: string
+  spec?: string
+  unit?: string
+  price: number
+  period?: string
+  region?: string
+  note?: string
+  row: number
+}
+
+/** 跳过行（人可读原因）。 */
+export interface CostBulkPriceSkip {
+  row: number
+  title: string
+  reason: string
+}
+
+/** 预览的一条匹配（资源现状速览）。 */
+export interface CostBulkPriceMatch {
+  row: number
+  resourceId: number
+  code: string
+  title: string
+  spec?: string
+  unit?: string
+  oldPrice: number
+  newPrice: number
+  period?: string
+  region?: string
+  note?: string
+  resourceKind?: string
+}
+
+/** 批量调价预览报告。 */
+export interface CostBulkPricePreview {
+  total: number
+  matched: CostBulkPriceMatch[]
+  skipped: CostBulkPriceSkip[]
+  rowErrors: CostBulkPriceSkip[]
+}
+
+/** 批量调价应用回执。 */
+export interface CostBulkPriceResult {
+  updated: number
+  skipped: CostBulkPriceSkip[]
+  total: number
+  applied: CostBulkPriceMatch[]
+}
+
 import type {
   CostSummary,
   CostAdjustSuggestion,
@@ -56,6 +108,11 @@ export interface CostBindings {
   CostGet(name: string): Promise<CostEntry | null>;
   CostSave(e: CostEntry): Promise<void>;
   CostDelete(name: string): Promise<void>;
+  // CostBulkPricePreview 解析资源价批量调价 Excel 并预览匹配结果（三期 3.4，
+  // 宁缺勿误：跳过行带人可读原因）。
+  CostBulkPricePreview(xlsxBase64: string): Promise<CostBulkPricePreview>;
+  // CostBulkPriceApply 作者确认后批量应用（整批事务：写调价历史+推现行价）。
+  CostBulkPriceApply(xlsxBase64: string): Promise<CostBulkPriceResult>;
   // CostImportPreview 解析 xlsx/csv 报价单/测算表为可确认的成本条目。
   CostImportPreview(path: string): Promise<CostImportPreview>;
   // CostImportAIParse 用办公功能模型把表格行归一化为成本条目（AI 解析）。

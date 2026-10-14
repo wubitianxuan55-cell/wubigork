@@ -33,6 +33,7 @@ type CostMethods = Pick<
   | "SemanticIndexStatus" | "SemanticIndexBackfill"
   | "CostGet" | "CostSave" | "CostDelete"
   | "CostImportPreview" | "CostImportAIParse" | "CostImportVisionPreview" | "CostImportApply"
+  | "CostBulkPricePreview" | "CostBulkPriceApply"
   | "PriceSources" | "PriceSourceSave" | "PriceSourceDelete"
   | "PriceFetch" | "PriceFetchAll" | "PriceFetches" | "PriceFetchApply" | "PriceFetchIgnore"
   | "PriceHistory" | "CostCompare" | "CostProjectList"
@@ -378,6 +379,13 @@ export function buildCost(_s: MakeMockState): CostMethods {
     },
     async CostDelete(_name: string) {
       // mock: no-op——同上，无库可删。
+    },
+    // 资源价批量维护（三期 3.4；演示口径=空报告）。
+    async CostBulkPricePreview(_xlsxBase64: string) {
+      return { total: 0, matched: [], skipped: [], rowErrors: [] };
+    },
+    async CostBulkPriceApply(_xlsxBase64: string) {
+      return { updated: 0, skipped: [], total: 0, applied: [] };
     },
     // ── 成本库导入（mock：对已知文件返回样例候选）──
     async CostImportPreview(path: string) {
