@@ -1,3 +1,6 @@
+## v4.489.0 · 阶段十一 11.1 资源价批量维护：Excel 导入批量推进现行价+调价历史（2026-10-15）
+> 阶段十一垂类纵深首刀（cost master plan 三期 3.4 原案）：1486 条规模下调价不再逐条。双段式 GaeaCostBulkPricePreview/Apply（652→654 面）均收 xlsxBase64——Apply 后端重解析+重匹配幂等，Preview 与 Apply 天然一致；列头同义映射（名称/资源名称/材料名称·新价/现行价/调整价·期数/信息价期数）+千分位/元后缀容忍；**宁缺勿误**（名称+单位(+规格)精确匹配，零命中/同身份多行歧义一律跳过带人可读原因）；**整批一个事务**（全部可匹配行写调价历史+推现行价，中途失败整体回滚=干净重试）。前端工料机库工具条「批量调价」→上传→预览分区→确认写入→回执。全量 ci 绿。详见 `releases/v4.489.0.md`。
+
 ## v4.488.0 · 阶段九 9.4 KV 缓存友好判据收口收官：压缩后首轮覆盖+摘要请求前缀逐字传输面（2026-10-15）
 > 阶段九第四刀收官（9.1~9.4 全清）。盘底：机制面已完整在产——summarize 的 cache-aligned（会话真实 system+折叠区逐字重放+指令作最后一条 user，Letta self_compact 同口径）+前缀字节级稳定判据（5.2 出口）。本刀纯判据补测试收口：①TestPrefixStableAcrossCompaction——真实 CompactNow 链路，压缩后首轮如实判不稳定+RewriteCount 点名（digest 替换=结构性改写，诚实判漂移），次轮恢复 Stable=true 零改写（[system+firstUser+digest] 固定前缀 cache hit 承诺落判据），CompileHash 链全程延续；②TestSummarizeRequestCacheAlignedPrefix——摘要请求中间消息=压缩前会话逐字子序列，指令只允许在最后一条 user（前缀泄漏逐消息断言）。**阶段九出口待验**：50+ 轮长会话压缩后仍能答出早期文件路径与被否决方案（挂用户实弹）。全量 ci 绿。详见 `releases/v4.488.0.md`。
 
