@@ -67,7 +67,17 @@ type Character struct {
 	// 字段——通用角色库不固化关系，只落本书 characters.json。AI 可随机生成
 	// （范围：全部/剩余全部/个人），并注入章节生成的角色名册。
 	ProtagonistRelation string `json:"protagonist_relation,omitempty"`
-	PortraitURL         string `json:"portrait_url,omitempty"` // 角色剧照 URL 或 data URL
+	// ── 注入配置（阶段八 8.1，docs/gaea-longterm-plan-2026-10.md）──
+	// 项目级字段（角色库不承载，同步/AI 补全链路按 v4.454 同款回带）。
+	// InjectMode 四态："" 默认=检测注入（本章计划/大纲/剧情要求文本命中名字或
+	// 别名才升全量档案行）；"always"=恒注入；"muted"=检测不注入（命中也不升档，
+	// 仅名册备查）；"never"=不渲染（连名册都不进，AI 不可见）。未知值按 "" 处理。
+	InjectMode string `json:"inject_mode,omitempty"`
+	// Aliases 别名（外号/敬称/乳名），检测命中与名字同权；ExcludeHits 排除词
+	// （命中串只作为排除词子串出现时不触发，如「老王」排除「王爷」误命中）。
+	Aliases     []string `json:"aliases,omitempty"`
+	ExcludeHits []string `json:"exclude_hits,omitempty"`
+	PortraitURL string   `json:"portrait_url,omitempty"` // 角色剧照 URL 或 data URL
 
 	// ── v2 状态机（全部可选 + omitempty，旧 characters.json 零迁移）──
 	// 口径：docs/distill/05-character-career.md §7.1 与 09-impl-handoff.md §3-1/§3-2。

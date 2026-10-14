@@ -347,6 +347,15 @@ func projectCharToLib(c types.Character) characterlib.Character {
 	}
 }
 
+// carryProjectInjectFields 把源角色的项目级注入配置（阶段八 8.1）回带到目标——
+// 角色库投影/AI 补全重建角色卡时，注入模式/别名/排除词只落本书，不随投影丢失
+// （v4.454 ProtagonistRelation 同款保护）。
+func carryProjectInjectFields(dst *types.Character, src types.Character) {
+	dst.InjectMode = src.InjectMode
+	dst.Aliases = src.Aliases
+	dst.ExcludeHits = src.ExcludeHits
+}
+
 // libCharToProject 角色库字段 → 项目角色。
 func libCharToProject(c characterlib.Character) types.Character {
 	return types.Character{
@@ -395,6 +404,7 @@ func (a *writingState) GenerateProjectCharacterFill(chJSON string) (string, erro
 	updated.ID = ch.ID // 保护身份，AI 不得改名/换 ID
 	// 项目级字段不随库投影丢失（v4.454 与主角关系只落本书，AI 补全链路原样保留）
 	updated.ProtagonistRelation = ch.ProtagonistRelation
+	carryProjectInjectFields(&updated, ch)
 	if err := a.characterAgent.SaveCharacter(updated); err != nil {
 		return "", fmt.Errorf("保存角色失败: %w", err)
 	}

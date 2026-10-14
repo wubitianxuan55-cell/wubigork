@@ -544,6 +544,7 @@ func worldviewDimHitsHint(dimLine, hint string) bool {
 // 格式：每角色一行「姓名：身份·性格·身份背景·目标·关系要点·状态」，
 // 各字段按 rune 截断（性格上限 charPersonalityLen），整体不超过
 // charSummaryBudget；无背景/目标/关系的角色保持原有精简形态。
+// never 注入模式的角色全链不可见（阶段八 8.1：AI 看不见这张卡）。
 func (a *writingState) buildCharacterSummary(pm *project.Manager) string {
 	cf, err := pm.ReadCharacters()
 	if err != nil || cf == nil || len(cf.Characters) == 0 {
@@ -552,7 +553,13 @@ func (a *writingState) buildCharacterSummary(pm *project.Manager) string {
 	relDigest := buildRelationDigest(cf)
 	lines := make([]string, 0, len(cf.Characters))
 	for _, ch := range cf.Characters {
+		if normalizeInjectMode(ch.InjectMode) == injectModeNever {
+			continue
+		}
 		lines = append(lines, characterSummaryLine(ch, relDigest))
+	}
+	if len(lines) == 0 {
+		return "（暂无角色设定）"
 	}
 	return truncateBudget(strings.Join(lines, "\n"), charSummaryBudget)
 }
@@ -594,40 +601,110 @@ func characterRoleLabel(roleType string) string {
 // charRosterBudget 焦点外名册区的预算（rune）——名册只做备查提示，不挤占档案。
 const charRosterBudget = 800
 
-// buildChapterCastSection 按本章计划的角色焦点装配两级角色区段（用户实测教训：
-// 全量名册灌进第一章会让模型把所有角色一次性写登场）。焦点角色给全量档案行
-// （本章登场、剧情围绕他们展开）；其余角色降为紧凑名册——备查不登场。计划
-// 缺失或焦点没有命中任何角色时退回全量名册（行为与旧口径一致，绝不因此空窗）。
-func (a *writingState) buildChapterCastSection(pm *project.Manager, plan *types.ChapterPlan) string {
-	if plan == nil || len(trimPlanItems(plan.CharacterFocus)) == 0 {
-		return a.buildCharacterSummary(pm)
+// ── 实体卡触发注入（阶段八 8.1，docs/gaea-longterm-plan-2026-10.md §2）────────
+//
+// 注入模式四态（types.Character.InjectMode，项目级字段）：
+//
+//	"" / "auto"  检测注入——本章计划/大纲要点/剧情要求文本命中名字或别名才升全量档案行
+//	"always"     恒注入——无条件升全量档案行（关键实体兜底）
+//	"muted"      检测不注入——命中也不升档，仅名册备查
+//	"never"      不渲染——全链不可见（名册也不进，AI 看不见这张卡）
+//
+// 检测是纯字符串匹配：中文无词边界，用子串包含——ST 的全词匹配默认开但对
+// 中日文有害，业界共识=中文必须关（竞品调研 §5.1）；命中判定前先剔除排除词
+// 出现处，使「命中串只是排除词子串」不再触发。
+
+const (
+	injectModeAlways = "always"
+	injectModeMuted  = "muted"
+	injectModeNever  = "never"
+)
+
+// normalizeInjectMode 注入模式合法值收敛（未知/空值回退默认检测注入）。
+func normalizeInjectMode(mode string) string {
+	switch mode {
+	case injectModeAlways, injectModeMuted, injectModeNever:
+		return mode
+	default:
+		return ""
 	}
+}
+
+// stripExcludeHits 把 scan 中所有角色排除词的出现处替换为 NUL 占位符——
+// 之后的名字/别名匹配不再命中这些位置（如排除「王爷」后，正文里的「王爷」
+// 不再让「王」命中）。纯函数、确定性。
+func stripExcludeHits(scan string, chars []types.Character) string {
+	for _, ch := range chars {
+		for _, e := range ch.ExcludeHits {
+			if e = strings.TrimSpace(e); e != "" {
+				scan = strings.ReplaceAll(scan, e, "\x00")
+			}
+		}
+	}
+	return scan
+}
+
+// characterDetected 名字或任一别名是否命中（已剔除排除词的）扫描文本。
+// 子串包含即命中（中文无词边界）；空名/空别名跳过。
+func characterDetected(cleanScan string, ch types.Character) bool {
+	if ch.Name != "" && strings.Contains(cleanScan, ch.Name) {
+		return true
+	}
+	for _, a := range ch.Aliases {
+		if a = strings.TrimSpace(a); a != "" && strings.Contains(cleanScan, a) {
+			return true
+		}
+	}
+	return false
+}
+
+// buildChapterCastSection 按本章计划角色焦点 + 实体卡触发注入装配两级角色区段
+// （用户实测教训：全量名册灌进第一章会让模型把所有角色一次性写登场）。全档区
+// = 计划焦点 ∪ 文本命中（名字/别名，never 除外）∪ always 兜底 − muted；其余
+// 角色降为紧凑名册——备查不登场。全档区与名册区双预算封顶
+// （charSummaryBudget/charRosterBudget）。反空窗纪律：全档区为空时退回全量
+// 名册（仅滤 never），绝不因此空窗。
+func (a *writingState) buildChapterCastSection(pm *project.Manager, plan *types.ChapterPlan, scanText string) string {
 	cf, err := pm.ReadCharacters()
 	if err != nil || cf == nil || len(cf.Characters) == 0 {
 		return "（暂无角色设定）"
 	}
-	focus := trimPlanItems(plan.CharacterFocus)
+	var focus []string
+	if plan != nil {
+		focus = trimPlanItems(plan.CharacterFocus)
+	}
+	cleanScan := stripExcludeHits(scanText, cf.Characters)
 	relDigest := buildRelationDigest(cf)
-	inFocus := make(map[int]bool)
-	var focusLines, rosterLines []string
+	inFull := make(map[int]bool, len(cf.Characters))
 	for i, ch := range cf.Characters {
-		if focusMatches(focus, ch.Name) {
-			inFocus[i] = true
-			focusLines = append(focusLines, characterSummaryLine(ch, relDigest))
+		switch normalizeInjectMode(ch.InjectMode) {
+		case injectModeNever:
+			continue
+		case injectModeAlways:
+			inFull[i] = true
+		case injectModeMuted:
+			// 检测不注入：命中也不升档（名册备查行在后循环统一渲染）
+		default:
+			if focusMatches(focus, ch.Name) || characterDetected(cleanScan, ch) {
+				inFull[i] = true
+			}
 		}
 	}
-	if len(focusLines) == 0 {
+	if len(inFull) == 0 {
 		return a.buildCharacterSummary(pm)
 	}
+	var focusLines, rosterLines []string
 	for i, ch := range cf.Characters {
-		if !inFocus[i] {
+		if inFull[i] {
+			focusLines = append(focusLines, characterSummaryLine(ch, relDigest))
+		} else if normalizeInjectMode(ch.InjectMode) != injectModeNever {
 			rosterLines = append(rosterLines,
 				fmt.Sprintf("- %s：%s·%s", ch.Name, characterRoleLabel(ch.RoleType), ch.Status))
 		}
 	}
 	var b strings.Builder
-	b.WriteString("【本章出场角色（按计划角色焦点，剧情围绕他们展开）】\n")
-	b.WriteString(strings.Join(focusLines, "\n"))
+	b.WriteString("【本章出场角色（按本章计划与文本命中装配，剧情围绕他们展开）】\n")
+	b.WriteString(truncateBudget(strings.Join(focusLines, "\n"), charSummaryBudget))
 	if len(rosterLines) > 0 {
 		b.WriteString("\n\n【其余名册（备查——本章不登场：不给戏份、不进对话，至多行文提名，后续章节再出场）】\n")
 		b.WriteString(truncateBudget(strings.Join(rosterLines, "\n"), charRosterBudget))

@@ -119,6 +119,11 @@ export async function setProjectState(charID: string, role: string, arcState: st
   return app.CharacterSetProjectState(charID, role, arcState, status)
 }
 
+/** 更新角色的注入配置（阶段八 8.1：模式/别名/排除词，只落本书 characters.json） */
+export async function setInjectConfig(charID: string, mode: string, aliases: string, excludeHits: string): Promise<void> {
+  return app.CharacterSetInjectConfig(charID, mode, aliases, excludeHits)
+}
+
 /** 把角色从当前项目移除（角色保留在全局库） */
 export async function dissociateFromProject(charID: string): Promise<void> {
   return app.CharacterDissociate(charID)

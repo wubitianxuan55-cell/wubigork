@@ -42,6 +42,13 @@ const roleOptions = [
   { value: 'protagonist', label: '主角' }, { value: 'antagonist', label: '反派' },
   { value: 'supporting', label: '配角' }, { value: 'minor', label: '龙套' },
 ]
+// 注入模式四态（阶段八 8.1）：默认检测注入；always 兜底恒注入；muted 命中也不升档；never 全链不可见
+const injectModeOptions = [
+  { value: '', label: '默认（检测到提及才给全量档案）' },
+  { value: 'always', label: '恒注入（每章都给全量档案）' },
+  { value: 'muted', label: '仅备查（命中也不升全量档案）' },
+  { value: 'never', label: '不注入（AI 完全看不到）' },
+]
 
 function navigateToCharacterLib() {
   window.dispatchEvent(new CustomEvent('navigate', { detail: { page: 'characterlib' } }))
@@ -71,6 +78,7 @@ const CharacterPage: React.FC = () => {
   const {
     projectEdit, setProjectEdit, openProjectEdit,
     peRole, setPeRole, peArc, setPeArc, peStatus, setPeStatus,
+    peInjectMode, setPeInjectMode, peAliases, setPeAliases, peExcludeHits, setPeExcludeHits,
     peCareerMain, setPeCareerMain, peCareerMainStage, setPeCareerMainStage,
     peNewSub, setPeNewSub, peNewSubStage, setPeNewSubStage,
     filling, genPortrait, mergeOpen, setMergeOpen, mergeTargetId, setMergeTargetId,
@@ -236,8 +244,23 @@ const CharacterPage: React.FC = () => {
                     placeholder="如：第一卷结尾黑化；第二卷开始救赎…"
                     style={{ fontSize: 12.5 }} />
                 </div>
+                <div className="char-detail-form-item">
+                  <label>注入模式（章节生成时这张卡怎么进 AI 上下文）</label>
+                  <Select size="small" value={peInjectMode} onChange={setPeInjectMode} style={{ width: '100%' }}
+                    options={injectModeOptions} data-testid="char-inject-mode" />
+                </div>
+                <div className="char-detail-form-item">
+                  <label>别名（顿号分隔：外号/敬称/乳名，计划或剧情提到即视为本章登场）</label>
+                  <Input size="small" value={peAliases} onChange={e => setPeAliases(e.target.value)}
+                    placeholder="如：青儿、沈师叔" style={{ fontSize: 12.5 }} data-testid="char-aliases" />
+                </div>
+                <div className="char-detail-form-item">
+                  <label>排除词（顿号分隔：命中串只是排除词子串时不触发）</label>
+                  <Input size="small" value={peExcludeHits} onChange={e => setPeExcludeHits(e.target.value)}
+                    placeholder="如：鬼手大人" style={{ fontSize: 12.5 }} data-testid="char-exclude-hits" />
+                </div>
                 <div className="char-detail-hint">
-                  未填写项沿用全局值；这里的修改只影响本书，不会改动角色库。
+                  未填写项沿用全局值；这里的修改只影响本书，不会改动角色库。注入配置随「保存本书状态」一并保存。
                 </div>
               </div>
             </section>

@@ -9,7 +9,7 @@ import {
   getCharacters, setCharacterCareer, removeCharacterCareer,
   generateCharacterFill, generateCharacterPortrait, mergeCharacters,
 } from '../../components/novel/api/character'
-import { setProjectState, syncProjectCharacters, dissociateFromProject } from '../../api/characterlib'
+import { setProjectState, setInjectConfig, syncProjectCharacters, dissociateFromProject } from '../../api/characterlib'
 import { errText } from '../../utils/errText'
 import { normalizeCharacterStatus } from '../../utils/characterStatus'
 import type { CharacterData, OrganizationData, RelationshipData } from '../../types'
@@ -32,6 +32,10 @@ export function useProjectCharacterEdit(data: CharacterDataSlice) {
   const [peRole, setPeRole] = useState('')
   const [peArc, setPeArc] = useState('')
   const [peStatus, setPeStatus] = useState('')
+  // 阶段八 8.1：注入配置（模式/别名/排除词）——保存随「保存本书状态」走
+  const [peInjectMode, setPeInjectMode] = useState('')
+  const [peAliases, setPeAliases] = useState('')
+  const [peExcludeHits, setPeExcludeHits] = useState('')
   // 职业编辑（t5 §7.6：即时保存，不随「保存本书状态」）
   const [peCareerMain, setPeCareerMain] = useState('')
   const [peCareerMainStage, setPeCareerMainStage] = useState(1)
@@ -98,11 +102,18 @@ export function useProjectCharacterEdit(data: CharacterDataSlice) {
     setPeCareerMainStage(ch.main_career_stage || 1)
     setPeNewSub('')
     setPeNewSubStage(1)
+    // 阶段八 8.1 注入配置初值（别名/排除词以顿号连接展示）
+    setPeInjectMode(ch.inject_mode || '')
+    setPeAliases((ch.aliases || []).join('、'))
+    setPeExcludeHits((ch.exclude_hits || []).join('、'))
   }
 
   const handleSaveProjectState = async () => {
     if (!projectEdit) return
     try {
+      // 注入配置先落（characters.json），再走状态保存+物化同步（同步链路对注入
+      // 配置有 v4.454 同款回带保护，不会被库投影清掉）
+      await setInjectConfig(projectEdit.id, peInjectMode, peAliases, peExcludeHits)
       await setProjectState(projectEdit.id, peRole, peArc, peStatus)
       await syncProjectCharacters()
       await data.loadData()
@@ -173,6 +184,7 @@ export function useProjectCharacterEdit(data: CharacterDataSlice) {
   return {
     projectEdit, setProjectEdit, openProjectEdit, reloadProjectEdit,
     peRole, setPeRole, peArc, setPeArc, peStatus, setPeStatus,
+    peInjectMode, setPeInjectMode, peAliases, setPeAliases, peExcludeHits, setPeExcludeHits,
     peCareerMain, setPeCareerMain, peCareerMainStage, setPeCareerMainStage,
     peNewSub, setPeNewSub, peNewSubStage, setPeNewSubStage,
     filling, genPortrait, mergeOpen, setMergeOpen, mergeTargetId, setMergeTargetId,

@@ -12,7 +12,7 @@ type CharlibMethods = Pick<
   | "CharacterSave" | "CharacterGet" | "CharacterDelete" | "CharacterImportPreview"
   | "CharacterImportProject"
   | "CharacterListByProject" | "CharacterAssociate" | "CharacterAssociateTo"
-  | "CharacterSetProjectState" | "CharacterDissociate" | "CharacterSyncProject"
+  | "CharacterSetProjectState" | "CharacterSetInjectConfig" | "CharacterDissociate" | "CharacterSyncProject"
   | "CharacterDrawRandom" | "CharacterGenerateFill" | "CharacterGenerateRandom"
   | "CharacterFillAll" | "CharacterGeneratePortrait" | "CharacterGeneratePortraitWithRef"
   // 角色 AI 双件（批 46 NOT_MOCKED 收尾刀；诚实拒=dev 无 LLM 内核）。
@@ -50,6 +50,9 @@ export function buildCharlib(): CharlibMethods {
     },
     async CharacterSetProjectState(_charID: string, _role: string, _arcState: string, _status: string) {
       // mock: no-op。
+    },
+    async CharacterSetInjectConfig(_charID: string, _mode: string, _aliases: string, _excludeHits: string) {
+      // mock: no-op（阶段八 8.1 注入配置）。
     },
     async CharacterDissociate(_charID: string) {
       // mock: no-op。

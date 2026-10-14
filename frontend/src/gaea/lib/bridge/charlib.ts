@@ -22,6 +22,9 @@ export interface CharLibBindings {
   CharacterAssociate(charID: string, role: string): Promise<void>;
   CharacterAssociateTo(projectDir: string, charID: string, role: string): Promise<void>;
   CharacterSetProjectState(charID: string, role: string, arcState: string, status: string): Promise<void>;
+  // CharacterSetInjectConfig 实体卡触发注入配置（阶段八 8.1）：模式（""=默认检测/
+  // always/muted/never）+别名+排除词（顿号/逗号分隔），只落本书 characters.json。
+  CharacterSetInjectConfig(charID: string, mode: string, aliases: string, excludeHits: string): Promise<void>;
   CharacterDissociate(charID: string): Promise<void>;
   CharacterSyncProject(): Promise<void>;
   CharacterDrawRandom(count: number, gender: string, tags: string, chatOnly: boolean): Promise<Array<Record<string, unknown>>>;

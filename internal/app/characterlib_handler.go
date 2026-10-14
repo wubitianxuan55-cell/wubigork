@@ -424,15 +424,23 @@ func (a *App) CharacterSyncProject() error {
 	}
 	// v4.454 项目级字段保护：「与主角的关系」只落本书，库投影不含它——按 ID
 	// 从旧工作副本回带，防止同步把已生成的关系清掉。
+	// 阶段八 8.1：注入配置（模式/别名/排除词）同为项目级，同款回带。
 	prevRel := make(map[string]string, len(cf.Characters))
+	prevInject := make(map[string]types.Character, len(cf.Characters))
 	for _, ch := range cf.Characters {
 		if r := strings.TrimSpace(ch.ProtagonistRelation); r != "" {
 			prevRel[ch.ID] = r
+		}
+		if ch.InjectMode != "" || len(ch.Aliases) > 0 || len(ch.ExcludeHits) > 0 {
+			prevInject[ch.ID] = ch
 		}
 	}
 	for i := range chars {
 		if r, ok := prevRel[chars[i].ID]; ok {
 			chars[i].ProtagonistRelation = r
+		}
+		if prev, ok := prevInject[chars[i].ID]; ok {
+			carryProjectInjectFields(&chars[i], prev)
 		}
 	}
 	cf.Characters = chars
@@ -450,6 +458,56 @@ func (a *App) CharacterSetProjectState(charID, role, arcState, status string) er
 		return fmt.Errorf("角色库未初始化")
 	}
 	return a.charLib.Associate(pm.Dir, charID, role, arcState, status)
+}
+
+// CharacterSetInjectConfig 更新角色的注入配置（阶段八 8.1：模式/别名/排除词）。
+// 项目级字段，只落本书 characters.json（角色库不承载；库投影/AI 补全链路按
+// v4.454 同款回带，见 carryProjectInjectFields）。aliases/excludeHits 以顿号/
+// 逗号分隔的字符串传入，Go 侧拆分、去空白、去重；mode 合法值 = ""（默认检测
+// 注入）/ always / muted / never，未知值报错。
+func (a *App) CharacterSetInjectConfig(charID, mode, aliases, excludeHits string) error {
+	pm := a.getPM()
+	if pm == nil {
+		return fmt.Errorf("请先打开小说项目")
+	}
+	switch mode {
+	case "", injectModeAlways, injectModeMuted, injectModeNever:
+	default:
+		return fmt.Errorf("未知注入模式：%s", mode)
+	}
+	splitList := func(s string) []string {
+		fields := strings.FieldsFunc(s, func(r rune) bool { return r == '、' || r == ',' || r == '，' })
+		out := make([]string, 0, len(fields))
+		seen := make(map[string]bool, len(fields))
+		for _, f := range fields {
+			if f = strings.TrimSpace(f); f == "" || seen[f] {
+				continue
+			}
+			seen[f] = true
+			out = append(out, f)
+		}
+		return out
+	}
+	cf, err := pm.ReadCharacters()
+	if err != nil {
+		return fmt.Errorf("读取角色失败: %w", err)
+	}
+	if cf == nil {
+		return fmt.Errorf("项目角色为空")
+	}
+	for i := range cf.Characters {
+		if cf.Characters[i].ID != charID {
+			continue
+		}
+		cf.Characters[i].InjectMode = mode
+		cf.Characters[i].Aliases = splitList(aliases)
+		cf.Characters[i].ExcludeHits = splitList(excludeHits)
+		if err := pm.WriteCharacters(cf); err != nil {
+			return fmt.Errorf("保存角色失败: %w", err)
+		}
+		return nil
+	}
+	return fmt.Errorf("未找到角色：%s", charID)
 }
 
 // CharacterDrawRandom 从角色库随机抽卡（小说角色面板不再自行生成角色）。

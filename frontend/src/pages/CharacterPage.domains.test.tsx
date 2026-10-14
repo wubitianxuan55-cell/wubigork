@@ -28,6 +28,7 @@ const libApi = vi.hoisted(() => ({
   previewProjectImport: vi.fn(),
   drawRandom: vi.fn(),
   setProjectState: vi.fn(),
+  setInjectConfig: vi.fn(),
 }))
 const messageSpies = vi.hoisted(() => ({
   success: vi.fn(),
@@ -75,6 +76,7 @@ beforeEach(() => {
   charApi.getCharacters.mockResolvedValue({ characters: [protagonist, side], organizations: [], relationships: [] })
   libApi.listProjectCharacters.mockResolvedValue([{ characterId: 'mc' }, { characterId: 'sc' }])
   libApi.syncProjectCharacters.mockResolvedValue(undefined)
+  libApi.setInjectConfig.mockResolvedValue(undefined)
   libApi.associateToProject.mockResolvedValue(undefined)
   libApi.importProjectCharacters.mockResolvedValue({ imported: 1, filled: 0, overwritten: 0 })
   libApi.previewProjectImport.mockResolvedValue({ conflicts: [] })
@@ -271,5 +273,28 @@ describe('CharacterPage 组织保存', () => {
       )
     })
     await waitFor(() => expect(messageSpies.success).toHaveBeenCalledWith('组织已保存'))
+  })
+})
+
+describe('CharacterPage 注入配置（阶段八 8.1）', () => {
+  it('「保存本书状态」先落注入配置（模式/别名/排除词）再保存状态，最后物化同步', async () => {
+    render(<CharacterPage />)
+    const card = await screen.findByText('沈青')
+    fireEvent.click(card.closest('[class*="char-card"]') || card)
+    await screen.findByText('职业体系')
+    // 抽屉「本书局部设定」三控件：别名/排除词手填，注入模式保持默认（''）
+    fireEvent.change(screen.getByTestId('char-aliases'), { target: { value: '青儿、沈师叔' } })
+    fireEvent.change(screen.getByTestId('char-exclude-hits'), { target: { value: '王爷' } })
+    fireEvent.click(screen.getByRole('button', { name: /保\s*存\s*本\s*书\s*状\s*态/ }))
+    await waitFor(() => {
+      expect(libApi.setInjectConfig).toHaveBeenCalledWith('sc', '', '青儿、沈师叔', '王爷')
+    })
+    // 调用序：注入配置先落 characters.json，再走状态保存与物化同步
+    expect(libApi.setInjectConfig.mock.invocationCallOrder[0])
+      .toBeLessThan(libApi.setProjectState.mock.invocationCallOrder[0])
+    await waitFor(() => expect(libApi.syncProjectCharacters).toHaveBeenCalledTimes(1))
+    await waitFor(() => {
+      expect(messageSpies.success).toHaveBeenCalledWith('已更新「沈青」在本书的状态（全局角色未动）')
+    })
   })
 })

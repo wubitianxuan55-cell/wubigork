@@ -26,6 +26,7 @@ export const bindingNames = [
   "CharacterListByProject",
   "CharacterSave",
   "CharacterScoreConsistency",
+  "CharacterSetInjectConfig",
   "CharacterSetProjectState",
   "CharacterSyncProject",
   "Chat",
