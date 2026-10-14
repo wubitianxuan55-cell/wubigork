@@ -11,11 +11,13 @@
 | gaea-nextgen-roadmap-2026.md | 全域路线图（权威；§16 调研回填后近期落地项见 v4.88/4.89） |
 | gaea-next-stage-plan-2026-09.md | 🔄 **下一阶段规划大纲（活跃指导）**：接棒长期规划——阶段五 记忆 OS+上下文编译（主轴）/ 阶段六 书斋纵深（办公主角：可审计默认化·项目本体·DAG；进度 DCMA·蒙特卡洛；跨域 EVM）/ 板块并行池 / 拍板池 / 维持轨 |
 | gaea-stage7-plan-2026-09.md | 🔄 **阶段七规划（平台收口与复利层，2026-09-15 拍板启动）**：7.1 信任地基（记忆评测+路由学习）→7.2 技能结晶双入口（演示式录制+journal 历史蒸馏）→7.3 任务空间制收窄版（多入口收件箱+板块降视图，纯同步零常驻）→7.4 闲庭清欠并行线；红线含「不需要昼夜运转」新拍板 |
+| gaea-longterm-plan-2026-10.md | 🔄 **长期规划 2026-10（阶段八起，v4.479 基线，活跃指导）**：阶段八 一致性即产品（小说 8.1~8.8：实体卡注入/状态化实体卡/组装器/定稿回写/章级门禁/伏笔预警/防重复/评测常驻）→ 九 上下文即预算 → 十 本地智能 → 十一 垂类纵深；在册边界+拍板池 14 天过期 |
 | gaea-slim-masterplan-2026-09.md | 🔄 **瘦身长期总规划（活跃权威）**：七面体检×七轨道×六阶段；**P0–P4 已收官**（v4.167–v4.177）+ 清点刀 v4.179；余 P5 维持与观察池审判 |
 | gaea-convergence-plan-2026-09.md | 🔄 **收敛期叠加层**：W1 卫生刀 ✅（v4.164/165）、W2 知识外化三件 ✅、W3-4 office 枢纽解耦 ✅（v4.197）；冲突时以「不加新板块」为先 |
 | gaea-competitive-landscape-2026.md | 竞品格局与差异化定位（参考基线 2026-08-29，注意时效） |
 | gaea-market-survey-2026-09.md | 🔄 **市场调研增量刷新（v4.240 落地）**：八赛道信号 + 三战略结论（Copilot agentic GA 验证形态/LM Studio Bionic 正面竞品/「本地」已非差异点）+ 候选 4 项交拍板池（已过删除史筛）；候选1 双时间轴已落地（SchemaV21），候选2 记忆可评测为下一刀 |
 | gaea-platform-market-survey-2026-09-15.md | 🔄 **平台级市场调研（阶段七前置，2026-09-15）**：三路并行调研——大厂 agent 任务/技能接口（SKILL.md 成标准·历史蒸馏无人做）+本地生态×记忆×路由（程序性记忆空位·路由不进本地模型）+中文创作/陪伴/图像/监管（网文 AI 检测红线·拟人化新规·成人向刑事执法活跃期）；候选提名表六项交拍板池（①技能结晶②任务收件箱③路由学习④记忆评测⑤自证创作〔挂起〕⑥审计主权口径） |
+| gaea-competitor-survey-2026-10.md | 🔄 **2026-10 竞品深挖两轮（阶段八立项证据档）**：Sudowrite/NovelCrafter/天命/goink 四路+五路参数级 spec 落档（§5.1/5.2 注入与验证两侧）+ 办公/模型/垂类三面（§5.3~5.5）；提案 A-F 组=阶段八~十一刀源 |
 | gaea-mcp-hub-reversal-review-2026-09.md | **MCP 双向枢纽翻案评估（拍板池条2，建议维持排除）**：入方向已在产（boot/plugins.go 配置化挂载+热插拔）；出方向三条独立反对证据同向=工程形态矛盾（GUI 壳 vs 常驻 server）/与自身入口重复/安全暴露面与人设冲突；留单向导出作远期观察不立项 |
 | gaea-whisper-deadcode-survey-20260925.md | ⬜ **whisper 域死代码调研档（2026-09-25，刀4 立项材料入拍板池）**：deadcode -test 基线 590 不可达 func/147 文件/估 6-8k 行，ackem 蒸馏标记 267 处；五簇分解，三方案（a 整域分批 / b 只删 A 簇 / c 定口径预置资产）待拍板；风险=DSH 并发会话+口径之争+体量 |
 | gaea-backend-perf-survey-2026-09.md | 🔄 **Go 后端性能热点普查（2026-09-12，交拍板池刀路 A-E）**：20 项证据 file:line 已核实（回合边界日志全量重读/remember 全局锁内全库重载/cost_search 每查询重建索引/Hephaestus.db 单连接串行读写等）；go vet 全净；与既有条目零重叠；gaea/ai 热路径零 benchmark 需先立基线 |
@@ -55,6 +57,8 @@
 |---|---|
 | gaea-reasonix-v138-distill-2026-09.md | 🔄 Reasonix 真身蒸馏（esengine/DeepSeek-Reasonix v1.15→v1.38）：七刀已落地（v4.374.0：Host 守卫/只读表修正/clean-filter 中和/SSRF 补洞/收尾判定/输出内存上限/stuck 解锁）；留池 9 项（执行序批次/live file observations/采样恢复状态机/压缩救援阶梯/PTY 等） |
 | gaea-dsh-016-distill-2026-09.md | 🔄 dsh（deepseek-harness TS monorepo）蒸馏（原误题 Reasonix，已勘误更名）：五刀已落地（v4.373.0：溢出自愈/缓存对齐摘要/shrink 校验/force 多轮/repeat 分级）；留池 12 项按 dsh 口径有效 |
+| gaea-dsh-021-core-distill-2026-10.md | 🔄 dsh v0.2.1 核心域蒸馏（deepseek-harness@dsh-v0.2.1-alpha.2）：压缩域等价销号/todo/plan/ask 同构；落地 session-title 自动命名（TurnDone 槽+办公本地路由数据不出本机）；未深扫域诚实声明十三域 |
+| gaea-dsh-subagent-distill-2026-10.md | 🔄 dsh 0.2.1 子代理板块蒸馏+刀池：P0 interrupt_agent 模型面中断+白名单 fail-loud（e19543bb）；P1 结算 stopReason+diagnostic 卫生面+subagent_list 枚举（f5aa2892）；P2=session-reference/模型路由/深度记账/send_message 在册 |
 | gaea-dsh-univer-office-distill-plan-2026-09.md | ✅ 已蒸馏收官（U 系落地 v4.97~v4.109；Univer 零引入） |
 | gaea-dsh-genui-distill-plan-2026-09.md | ✅ 已收官（P0–P5 全部发布，止于 v4.97.0） |
 | gaea-dsh-better-sidebar-long-term-distill-plan-2026.md | 🔄 滚动权威：阶段一/二/二.5/三(3a/3b) 已全销账；3c 与阶段四/五维持「拍板后/若做」 |
