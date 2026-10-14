@@ -1,3 +1,6 @@
+//go:build ignore
+// +build ignore
+
 package main
 
 // verify_subagent_parallel.go — 子代理有限并行真机端到端验证（2026-10）。

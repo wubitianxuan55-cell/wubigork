@@ -1,3 +1,6 @@
+//go:build ignore
+// +build ignore
+
 package main
 
 // verify_strata_engine.go — 用 gaea 自己的 modelengine 代码路径验证
