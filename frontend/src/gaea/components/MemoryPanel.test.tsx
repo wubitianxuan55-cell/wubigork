@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MemoryView } from "../lib/types";
 import { LocaleProvider } from "../lib/i18n";
 import { ToastProvider } from "./Toast";
+import { MemoryPanel } from "./MemoryPanel" // 静态 import：动态加载在并发全量下会迟到，render 落进下一用例（Found multiple elements 既坑，setup.ts 注释同款）
 
 vi.setConfig({ testTimeout: 15_000 }); // 全量并行下 import/setup 变慢,既有 2.7s 用例会超默认 5s(ContextView 40s 同配方)
 
@@ -37,7 +38,7 @@ vi.mock("../lib/bridge", () => ({
 
 async function renderPanel() {
   const noop = async () => {};
-  const { MemoryPanel } = await import("./MemoryPanel");
+  // MemoryPanel 已文件顶部静态导入（迟到 render 既坑根修）
   return render(
     <LocaleProvider>
       <ToastProvider>
@@ -61,7 +62,7 @@ async function renderPanel() {
 // v4.377 建议制测试：注入建议返回值（onRefreshSuggestions）。
 async function renderPanelWithSuggestions(refresh: () => Promise<unknown>) {
   const noop = async () => {};
-  const { MemoryPanel } = await import("./MemoryPanel");
+  // MemoryPanel 已文件顶部静态导入（迟到 render 既坑根修）
   return render(
     <LocaleProvider>
       <ToastProvider>
