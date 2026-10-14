@@ -41,7 +41,7 @@ func TestChangeDeclaration_CleanPass(t *testing.T) {
 			{Name: "昭哥", New: "与沈砚决裂", Kind: "survival"}, // 别名命中+正文提及+水位允许
 		},
 		Foreshadows: []types.ChangeDeclForeshadow{
-			{ID: "ab12cd34", Action: "resolved"},            // 挂回既有未回收条目
+			{ID: "ab12cd34", Action: "resolved"},       // 挂回既有未回收条目
 			{Action: "planted", Description: "井底徽记之谜"}, // 新增带描述
 		},
 		Timeline: "三日之后",
