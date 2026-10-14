@@ -1,3 +1,6 @@
+## v4.483.0 · 阶段八 8.7 防重复默认档：写作档 DRY 默认注入+四步自检+重复率基准（2026-10-15）
+> 前置核实（规划条件）：herdsman DRY/XTC 顶层键**真机验证接受**；strata 引擎内核有 DRY/XTC 但服务层只透传 4 键——不注入留观察；云端不保证容忍未知字段——不注入。ai.ChatRequest 加 DRY/XTC 六键（omitempty）；写作生成链本地引擎默认注入 DRY 档（0.8/1.75/2/4096=llama.cpp 缺省语义，XTC 缺省关）；config 两键 `novel_dry_disabled` 一键关/`novel_sampler_json` 全量覆盖（字段级合并，坏 JSON 诚实回落+warn）；四步自检段随首轮注入（句式重复/实体一致/伏笔事实/时间线，self_check 可关）；sampler 流事件+done 回显生效状态。重复率基准=noveltext.TrigramRepeatRate 纯函数+病历夹具基线断言（复读语料 ≥0.8/自然行文 ≤0.05）。全量 ci 绿。详见 `releases/v4.483.0.md`。
+
 ## v4.482.0 · 阶段八 8.6 伏笔超时预警：超期与临期推到计划卡/阅读页可见（2026-10-15）
 > 承 8.1~8.5。超期判定本身早已在产（types.UrgencyLevel 四级+五层调度注入，v4.293），本刀补**作者可见性**——不再要求主动去伏笔面板点 Lint。新绑定 ForeshadowDue(chapterNum)（651→652，判定复用 UrgencyLevel 单源零新阈值）：urgent（急需+超期，红）/soon（需关注，黄）双桶，chapterNum≤0 回退全书已写章数；include_in_context=false 条目照常预警（作者面≠注入面）。ForeshadowDueBanner 双挂载=ChapterPlanCard 顶部（写计划正是回收决策点）+ChapterPage 编辑 chrome 下方薄条；零预警/数据失败零渲染（增强面不打扰写作主链路）；横幅档位=超期红/本章应回收黄/临近 info，明细带状态+原计划章+超期章数。出口判据「超期伏笔有可见预警」满足；「埋设→回收全链可查」由登记表既有面（状态+埋入/回收章+Lint 七类）满足。全量 ci 绿。详见 `releases/v4.482.0.md`。
 
