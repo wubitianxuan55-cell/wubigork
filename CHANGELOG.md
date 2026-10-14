@@ -1,3 +1,6 @@
+## v4.486.0 · 阶段九 9.2 混合召回：FTS5 全文路+名称路+向量路三路融合（2026-10-15）
+> 纯向量单路（bge-m3 cosine）升级三路融合：①FTS5 全文路（SchemaV32 semantic_fts 索引 doc 正文，惰性重建维护；中文降级实证=modernc unicode61 对 CJK 零命中，MATCH 零命中/出错双路回退 LIKE 子串扫描）②名称关键词路（条目名含查询词=最强意图信号）③既有向量路。融合可解释：`final = 0.55*vec + 0.30*ft + 0.15*name`（权重单一声明点，测试常量复算复现），时序 tie-break=同分 updated_at 新者优先。降级红利：embedding 不可用时全文+名称两路独立工作，向量路单库失败降级不再中断（Ensure 读失败如实上抛的 GA6-09 纪律保留）。绑定面零变更（GaeaSemanticSearch 同签名，Score=融合分）。评测跑分挂用户实弹（GaeaRetrievalEvalRun 既有绑定）。全量 ci 绿。详见 `releases/v4.486.0.md`。
+
 ## v4.485.0 · 阶段九 9.1 compact 盘底收口：归档指针统一回显+压缩阈值暴露配置（2026-10-15）
 > 阶段九「上下文即预算」首刀。刀前盘底：9.1 判据大部分已在产——三阈值分层/两级化（prune→摘要）/>5 万字符卸载=Spill 泄洪库（v4.379）/摘要白名单（路径数字逐字保留+已否决方案保留）/事件留痕全数在档。真实缺口两处：①**归档指针统一回显**——archived 此前只在机械摘要出现，LLM 摘要成功路径不带；compact() 现统一注入 `Full transcript of the folded region: <path>`（原文永不丢，摘要只是视图）；②**阈值暴露配置**——`[agent] compaction_soft_ratio/ratio/force_ratio` 三键，0/非法值（越界/顺序破坏/水位重叠）整组回落内置缺省 0.5/0.8/0.9（调研建议 75%/88% 经配置达成，存量实证优先）。全量 ci 绿。详见 `releases/v4.485.0.md`。
 
