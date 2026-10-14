@@ -209,6 +209,8 @@ export const gaeaToGaea = {
   CostDelete: "GaeaCostDelete",
   CostBulkPricePreview: "GaeaCostBulkPricePreview",
   CostBulkPriceApply: "GaeaCostBulkPriceApply",
+  CostHealthScan: "GaeaCostHealthScan",
+  CostDedupeResources: "GaeaCostDedupeResources",
   CostImportPreview: "GaeaCostImportPreview",
   CostImportAIParse: "GaeaCostImportAIParse",
   CostImportApply: "GaeaCostImportApply",

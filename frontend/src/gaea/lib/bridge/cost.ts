@@ -102,6 +102,10 @@ export interface CostBindings {
   CostBulkPricePreview(xlsxBase64: string): Promise<CostBulkPricePreview>;
   // CostBulkPriceApply 作者确认后批量应用（整批事务：写调价历史+推现行价）。
   CostBulkPriceApply(xlsxBase64: string): Promise<CostBulkPriceResult>;
+  // CostHealthScan 数据健康五类扫描（零价/缺价子目/悬挂引用/重复防护/编码混用）。
+  CostHealthScan(): Promise<Record<string, unknown>>;
+  // CostDedupeResources 资源去重（keep 保留，merges 合并+引用重定向）。
+  CostDedupeResources(keepId: number, mergeIds: number[]): Promise<Record<string, unknown>>;
   // CostImportPreview 解析 xlsx/csv 报价单/测算表为可确认的成本条目。
   CostImportPreview(path: string): Promise<CostImportPreview>;
   // CostImportAIParse 用办公功能模型把表格行归一化为成本条目（AI 解析）。

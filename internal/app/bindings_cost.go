@@ -24,9 +24,11 @@ func (b *CostB) GaeaCostCompare(name string) ([]CostCompareRow, error) { return 
 func (b *CostB) GaeaCostCompose(desc string, unit string) (CostComposeView, error) { return b.a.GaeaCostCompose(desc, unit) }
 func (b *CostB) GaeaCostComposeApply(v CostComposeView) (string, error) { return b.a.GaeaCostComposeApply(v) }
 func (b *CostB) GaeaCostComposeRecords(entryName string) ([]CostComposeRecord, error) { return b.a.GaeaCostComposeRecords(entryName) }
+func (b *CostB) GaeaCostDedupeResources(keepID int64, mergeIDs []int64) (*workcost.DedupeResult, error) { return b.a.GaeaCostDedupeResources(keepID, mergeIDs) }
 func (b *CostB) GaeaCostDelete(name string) error { return b.a.GaeaCostDelete(name) }
 func (b *CostB) GaeaCostGet(name string) *CostEntry { return b.a.GaeaCostGet(name) }
 func (b *CostB) GaeaCostGraph(scope string, focus string, limit int) (string, error) { return b.a.GaeaCostGraph(scope, focus, limit) }
+func (b *CostB) GaeaCostHealthScan() (*workcost.HealthReport, error) { return b.a.GaeaCostHealthScan() }
 func (b *CostB) GaeaCostImportAIParse(path string) (CostImportPreview, error) { return b.a.GaeaCostImportAIParse(path) }
 func (b *CostB) GaeaCostImportApply(rows []CostEntry, inquirySource string) (int, error) { return b.a.GaeaCostImportApply(rows, inquirySource) }
 func (b *CostB) GaeaCostImportPreview(path string) (CostImportPreview, error) { return b.a.GaeaCostImportPreview(path) }
