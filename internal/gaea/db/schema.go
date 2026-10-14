@@ -820,4 +820,3 @@ CREATE VIRTUAL TABLE IF NOT EXISTS semantic_fts USING fts5(
 const SchemaV33 = `
 ALTER TABLE facts ADD COLUMN invalid_at TEXT NOT NULL DEFAULT '';
 `
-
