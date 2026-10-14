@@ -3,6 +3,7 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 	"time"
@@ -269,7 +270,15 @@ func (a *App) GaeaAcceptMemorySuggestion(candidate interface{}) (string, error) 
 		if n == 0 {
 			return "", fmt.Errorf("记忆建议内容为空，未写入")
 		}
-		return "saved:" + it.Name, nil
+		msg := "saved:" + it.Name
+		// 冲突比对（阶段九 9.3）：同题旧记忆自动失效（原文保留可恢复），疑似
+		// 相似仅提示——人可读段拼进返回消息，裁决归作者。
+		if rep := acceptDetectConflicts(set, memory.Memory{
+			Name: it.Name, Title: it.Title, Description: it.Description, Body: it.Body,
+		}); rep != "" {
+			msg += "（" + rep + "）"
+		}
+		return msg, nil
 	}
 	// 非队列建议（旧路径，行为保持）：type 缺省 reference、kind 语义记忆。
 	// S1.2 A：显式接受路径与自动做梦同点盖章——按勘察锚点取 gaeaEffectiveSpace()
@@ -289,7 +298,26 @@ func (a *App) GaeaAcceptMemorySuggestion(candidate interface{}) (string, error) 
 	if n == 0 {
 		return "", fmt.Errorf("记忆建议内容为空，未写入")
 	}
-	return "saved:" + c.Name, nil
+	msg := "saved:" + c.Name
+	if rep := acceptDetectConflicts(set, memory.Memory{
+		Name: c.Name, Title: c.Title, Description: c.Description, Body: c.Body,
+	}); rep != "" {
+		msg += "（" + rep + "）"
+	}
+	return msg, nil
+}
+
+// acceptDetectConflicts 冲突比对（阶段九 9.3）：新记忆入库后与既有记忆比对——
+// 同题旧记忆自动置失效（原文保留可恢复，绝不删除），BM25 疑似相似仅提示不改
+// 状态（宁漏勿误）。返回人可读段；空串=无冲突。
+func acceptDetectConflicts(set *memory.Set, m memory.Memory) string {
+	rep := set.Store.DetectConflicts(m)
+	for _, name := range rep.Confirmed {
+		if err := set.Store.Invalidate(name, fmt.Sprintf("被新记忆 %q 推翻（同题）", m.Name)); err != nil {
+			slog.Warn("记忆失效标记失败（保留原状）", "name", name, "error", err)
+		}
+	}
+	return rep.Report()
 }
 
 // GaeaDismissMemorySuggestion 忽略一条待确认建议：出队即丢弃，不写记忆。

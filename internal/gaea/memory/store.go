@@ -92,6 +92,8 @@ type Memory struct {
 	// 生命周期与溯源（SQLite 后端持久化；file 后端不落盘，语义为空）：
 	UpdatedAt     time.Time // 最近一次写入/修订时间（近期排序用）
 	LastUsedAt    time.Time // 最近一次被模型读取/检索的时间（高频排序用）
+	CreatedAt     time.Time // 首次入库时间（SQLite created_at；同名修订不重置）
+	InvalidAt     time.Time // 非空=已被新事实推翻（9.3 失效标记）：原文保留可查可恢复，注入面排除；编辑复活（同名修订清失效）
 	SourceSession string    // 沉淀来源会话（如 session-20260810-xxx.jsonl）
 	SourceMessage string    // 沉淀来源消息/轮次（如 turn 3 或消息摘要）
 	// Pinned 固化态（5.3 三态生命周期，SchemaV19）：免疫衰减归档、豁免归档
@@ -205,6 +207,28 @@ func (s Store) Index() string { return s.engine().Index() }
 // file backend this is the absolute .md path; for SQLite it is a logical
 // "gaea.db:<project>/<name>" reference.
 func (s Store) Path(name string) string { return s.engine().Path(name) }
+
+// Invalidate 失效标记（阶段九 9.3）：置 invalid_at，**原文保留**（绝不删除）——
+// 语义=该事实已被新事实推翻，注入面（RecallBlock）从此排除，面板搜索仍可查到
+// （裁决入口），Restore 可恢复。reason 仅进事件日志（审计）。同名覆盖不受影响
+// （编辑复活：修订清失效，见 sqlite Save 的 ON CONFLICT）。
+// 仅 SQLite 后端支持（生命周期持久化口径与 Pin 一致）；file 后端诚实报错。
+func (s Store) Invalidate(name, reason string) error {
+	b, ok := s.engine().(*sqliteBackend)
+	if !ok {
+		return fmt.Errorf("失效标记仅 SQLite 后端支持（当前后端不支持生命周期持久化）")
+	}
+	return b.invalidate(name, reason)
+}
+
+// RestoreInvalidate 失效恢复（裁决反悔通道）：清 invalid_at，条目重新参与注入。
+func (s Store) RestoreInvalidate(name string) error {
+	b, ok := s.engine().(*sqliteBackend)
+	if !ok {
+		return fmt.Errorf("失效恢复仅 SQLite 后端支持（当前后端不支持生命周期持久化）")
+	}
+	return b.restoreInvalidate(name)
+}
 
 // Save writes (or overwrites) a memory and refreshes the index. It is the
 // single mutation entry point — the `remember` tool, the desktop editor, and

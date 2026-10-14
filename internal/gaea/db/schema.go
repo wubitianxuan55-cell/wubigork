@@ -812,3 +812,12 @@ CREATE VIRTUAL TABLE IF NOT EXISTS semantic_fts USING fts5(
   id UNINDEXED
 );
 `
+
+// SchemaV33 记忆失效标记（阶段九 9.3）：facts.invalid_at 非空=该事实已被新
+// 事实推翻（原文保留可查可恢复——绝不删除；「冲突→标记失效并在建议中提示
+// 用户裁决」）。检索注入面（RecallBlock）默认排除失效条目；面板搜索不过滤
+// （裁决入口要能搜到）。编辑复活：同名保存（修订）清 invalid_at。
+const SchemaV33 = `
+ALTER TABLE facts ADD COLUMN invalid_at TEXT NOT NULL DEFAULT '';
+`
+

@@ -102,6 +102,7 @@ ON CONFLICT(project, name) DO UPDATE SET
   title=excluded.title, description=excluded.description,
   type=excluded.type, kind=excluded.kind, tags=excluded.tags,
   body=excluded.body, archived=0, updated_at=excluded.updated_at,
+  invalid_at='', -- 编辑复活（9.3）：修订=作者重申该事实，清失效标记
   last_used_at=CASE WHEN excluded.last_used_at != '' THEN excluded.last_used_at ELSE facts.last_used_at END,
   source_session=excluded.source_session,
   source_message=excluded.source_message,
@@ -312,6 +313,49 @@ func (b *sqliteBackend) List() []Memory {
 	return b.listInSpace("")
 }
 
+// invalidate 失效标记（9.3）：置 invalid_at（原文保留），落 invalidate 事件。
+// 已失效重标=幂等（刷新时间戳无害）；条目不存在报错。
+func (b *sqliteBackend) invalidate(name, reason string) error {
+	name = slug(name)
+	if name == "" {
+		return fmt.Errorf("memory needs a name")
+	}
+	res, err := b.db.Exec(
+		`UPDATE facts SET invalid_at=? WHERE project=? AND name=? AND archived=0`,
+		fmtTime(time.Now()), b.project, name)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("memory %q not found", name)
+	}
+	return (&EventLog{DB: b.db}).AppendEvent(Event{
+		At: time.Now().UnixMilli(), Op: OpInvalidate, Name: name, Project: b.project,
+		Actor: "dream", Excerpt: reason,
+	})
+}
+
+// restoreInvalidate 清 invalid_at（裁决反悔通道），落 invalidate_restore 事件。
+func (b *sqliteBackend) restoreInvalidate(name string) error {
+	name = slug(name)
+	if name == "" {
+		return fmt.Errorf("memory needs a name")
+	}
+	res, err := b.db.Exec(
+		`UPDATE facts SET invalid_at='' WHERE project=? AND name=? AND archived=0`,
+		b.project, name)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("memory %q not found", name)
+	}
+	return (&EventLog{DB: b.db}).AppendEvent(Event{
+		At: time.Now().UnixMilli(), Op: OpInvalidateRestore, Name: name, Project: b.project,
+		Actor: "panel",
+	})
+}
+
 // ListInSpace 返回活跃事实，按空间过滤（S1 双空间读谓词）：space 为空不过滤
 // （旧行为恒真，既有调用零变化），非空时仅返回该 space_id 下的行。
 func (b *sqliteBackend) ListInSpace(space string) []Memory {
@@ -322,7 +366,7 @@ func (b *sqliteBackend) listInSpace(space string) []Memory {
 	// S1.2 B：SELECT 补回 space_id 列并回填 m.Space（供展示/调试与跨空间
 	// 冲突审计读取）；空间谓词语义不变——space 为空不过滤（旧行为恒真）。
 	// subject_key 一并回填（v4.378 subject keys 单值约束的事实真相）。
-	query := `SELECT name, title, description, type, kind, tags, body, space_id, created_at, updated_at, last_used_at, source_session, source_message, pinned, subject_key
+	query := `SELECT name, title, description, type, kind, tags, body, space_id, created_at, updated_at, last_used_at, source_session, source_message, pinned, subject_key, COALESCE(invalid_at,'')
 		 FROM facts WHERE project=? AND archived=0`
 	args := []any{b.project}
 	if space != "" {
@@ -338,10 +382,10 @@ func (b *sqliteBackend) listInSpace(space string) []Memory {
 	var out []Memory
 	for rows.Next() {
 		var m Memory
-		var typ, kind, tags, created, updated, lastUsed, srcSession, srcMessage string
+		var typ, kind, tags, created, updated, lastUsed, srcSession, srcMessage, invalidAt string
 		var pinned int
 		if err := rows.Scan(&m.Name, &m.Title, &m.Description, &typ, &kind, &tags, &m.Body, &m.Space,
-			&created, &updated, &lastUsed, &srcSession, &srcMessage, &pinned, &m.SubjectKey); err != nil {
+			&created, &updated, &lastUsed, &srcSession, &srcMessage, &pinned, &m.SubjectKey, &invalidAt); err != nil {
 			continue
 		}
 		m.Pinned = pinned != 0
@@ -350,8 +394,10 @@ func (b *sqliteBackend) listInSpace(space string) []Memory {
 		m.Tags = parseTags(tags)
 		m.SourceSession = srcSession
 		m.SourceMessage = srcMessage
+		m.CreatedAt = parseRFC3339(created)
 		m.UpdatedAt = parseRFC3339(updated)
 		m.LastUsedAt = parseRFC3339(lastUsed)
+		m.InvalidAt = parseRFC3339(invalidAt)
 		out = append(out, m)
 	}
 	return out
@@ -502,10 +548,10 @@ func (b *sqliteBackend) GetInSpace(name, space string) (Memory, bool) {
 func (b *sqliteBackend) getInSpace(name, space string) (Memory, bool) {
 	name = slug(name)
 	var m Memory
-	var typ, kind, tags, lastUsed, srcSession, srcMessage string
+	var typ, kind, tags, lastUsed, srcSession, srcMessage, createdAt, invalidAt string
 	// space_id 一并回填（S1.2 B，供跨空间同名冲突审计读取归属）；subject_key
-	// 回填（v4.378 subject keys）。
-	query := `SELECT name, title, description, type, kind, tags, body, space_id, last_used_at, source_session, source_message, pinned, subject_key
+	// 回填（v4.378 subject keys）；created_at/invalid_at 回填（9.3 生命周期）。
+	query := `SELECT name, title, description, type, kind, tags, body, space_id, last_used_at, source_session, source_message, pinned, subject_key, created_at, COALESCE(invalid_at,'')
 		 FROM facts WHERE project=? AND name=? AND archived=0`
 	args := []any{b.project, name}
 	if space != "" {
@@ -514,7 +560,7 @@ func (b *sqliteBackend) getInSpace(name, space string) (Memory, bool) {
 	}
 	var pinned int
 	err := b.db.QueryRow(query, args...).Scan(&m.Name, &m.Title, &m.Description, &typ, &kind, &tags, &m.Body,
-		&m.Space, &lastUsed, &srcSession, &srcMessage, &pinned, &m.SubjectKey)
+		&m.Space, &lastUsed, &srcSession, &srcMessage, &pinned, &m.SubjectKey, &createdAt, &invalidAt)
 	if err != nil {
 		return Memory{}, false
 	}
@@ -524,7 +570,9 @@ func (b *sqliteBackend) getInSpace(name, space string) (Memory, bool) {
 	m.Tags = parseTags(tags)
 	m.SourceSession = srcSession
 	m.SourceMessage = srcMessage
+	m.CreatedAt = parseRFC3339(createdAt)
 	m.LastUsedAt = parseRFC3339(lastUsed)
+	m.InvalidAt = parseRFC3339(invalidAt)
 	return m, true
 }
 

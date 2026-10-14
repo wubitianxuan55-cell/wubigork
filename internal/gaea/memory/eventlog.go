@@ -47,16 +47,18 @@ type Event struct {
 
 // 事件 op 常量（closed set，投影按 op 分派）。
 const (
-	OpSave       = "save"
-	OpArchive    = "archive"
-	OpUnarchive  = "unarchive"
-	OpDelete     = "delete"
-	OpTouch      = "touch"
-	OpChangeType = "change_type"
-	OpCite       = "cite"
-	OpPin        = "pin"      // 固化（5.3 三态生命周期）
-	OpUnpin      = "unpin"    // 解除固化
-	OpFeedback   = "feedback" // 助手回答反馈（点赞/点踩，v4.238 能力层；投影只出事件节点不建实体）
+	OpSave              = "save"
+	OpArchive           = "archive"
+	OpUnarchive         = "unarchive"
+	OpDelete            = "delete"
+	OpTouch             = "touch"
+	OpChangeType        = "change_type"
+	OpCite              = "cite"
+	OpPin               = "pin"   // 固化（5.3 三态生命周期）
+	OpUnpin             = "unpin" // 解除固化
+	OpFeedback          = "feedback"
+	OpInvalidate        = "invalidate"         // 失效标记（9.3：被新事实推翻，原文保留）
+	OpInvalidateRestore = "invalidate_restore" // 失效恢复（裁决反悔） // 助手回答反馈（点赞/点踩，v4.238 能力层；投影只出事件节点不建实体）
 )
 
 // wikiRefRe 匹配 body 中的 wiki 式互引：[[name]] / [[name|别名]]。与 app 层

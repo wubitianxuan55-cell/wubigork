@@ -109,6 +109,11 @@ func (s *Set) RecallBlock(text string, budget int) string {
 	b.WriteString(recallHeader + "\n")
 	written := 0
 	for _, m := range ranked {
+		// 失效条目不注入（阶段九 9.3）：invalid_at 非空=已被新事实推翻——注入
+		// 面永远排除（失效的语义就是不注入），原文仍可面板搜索/恢复（裁决入口）。
+		if !m.InvalidAt.IsZero() {
+			continue
+		}
 		// 非 procedural 且无关键词命中的事实不逐轮注入（靠系统前缀索引兜底）
 		if m.Kind != KindProcedural && !episodicTriggered(text, m) && !keywordHit(text, m) {
 			continue
