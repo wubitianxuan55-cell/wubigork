@@ -102,7 +102,8 @@ describe("MemoryPanel 记忆主区视图（v4.73）", () => {
     mocks.dreamPurge.mockResolvedValue(0);
   });
 
-  it("项目本体开关：读取初始状态 + 点击切换并持久化（6.2 可关闭）", async () => {
+  // timeout 显式声明：两例各自 findBy 轮询近 5s（v4.483 全量并发实测贴线 flaky），给足预算
+  it("项目本体开关：读取初始状态 + 点击切换并持久化（6.2 可关闭）", { timeout: 20000 }, async () => {
     await renderPanel();
     expect(await screen.findByText(/项目本体 开/)).toBeTruthy();
     fireEvent.click(screen.getByTitle(/点击关闭项目本体/));
@@ -110,7 +111,7 @@ describe("MemoryPanel 记忆主区视图（v4.73）", () => {
     expect(await screen.findByText(/项目本体 关/)).toBeTruthy();
   });
 
-  it("晨报预载开关：读取初始状态 + 点击切换并持久化", async () => {
+  it("晨报预载开关：读取初始状态 + 点击切换并持久化", { timeout: 20000 }, async () => {
     await renderPanel();
     expect(screen.getByTestId("memory-view")).toBeTruthy();
     // v4.74：总览三枚统计小卡（事实/文档/建议）
