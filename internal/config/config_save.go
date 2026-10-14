@@ -347,6 +347,15 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 		cf.EngineFailoverEnabled = b
 		return nil
 	},
+	KeyNovelDryDisabled: func(cf *configFile, v string) error {
+		b, err := parseBoolPtr(v)
+		if err != nil {
+			return err
+		}
+		cf.NovelDryDisabled = b
+		return nil
+	},
+	KeyNovelSamplerJSON: func(cf *configFile, v string) error { cf.NovelSamplerJSON = v; return nil },
 	KeyKeepWarm: func(cf *configFile, v string) error {
 		b, err := parseBoolPtr(v)
 		if err != nil {

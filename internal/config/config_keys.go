@@ -97,8 +97,10 @@ const (
 	// 不转移）。默认关闭——关闭即现状，成功路径行为零改动。
 	KeyEngineFailover = "engine_failover_enabled"
 	// 本地模型调度（T5-3a/b）：保活 + 启动自动预载，默认开启。
-	KeyKeepWarm    = "keep_warm_enabled" // 保活：周期性探活已运行的本地模型，防卸载/降温
-	KeyAutoPreload = "auto_preload"      // 启动自动预载：按功能绑定预载 herdsman 模型
+	KeyNovelDryDisabled = "novel_dry_disabled"
+	KeyNovelSamplerJSON = "novel_sampler_json"
+	KeyKeepWarm         = "keep_warm_enabled" // 保活：周期性探活已运行的本地模型，防卸载/降温
+	KeyAutoPreload      = "auto_preload"      // 启动自动预载：按功能绑定预载 herdsman 模型
 	// 晨报预载（v4.16 刀④）：work 空间会话装配时把高频工作记忆确定性聚合为
 	// 「晨报预载」块预装配进 agent 上下文（零 LLM、预算受限、work 只读）。
 	// 只影响上下文注入，与首页晨报卡片（GaeaMemoryMorningBrief）无关。默认开启。

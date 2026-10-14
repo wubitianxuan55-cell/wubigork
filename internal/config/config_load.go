@@ -396,6 +396,12 @@ func applyConfigFile(cfg *Config, home string) {
 			if cf.KeepWarmEnabled != nil {
 				cfg.KeepWarmEnabled = *cf.KeepWarmEnabled
 			}
+			if cf.NovelDryDisabled != nil {
+				cfg.NovelDryDisabled = *cf.NovelDryDisabled
+			}
+			if cf.NovelSamplerJSON != "" {
+				cfg.NovelSamplerJSON = cf.NovelSamplerJSON
+			}
 			if cf.AutoPreload != nil {
 				cfg.AutoPreload = *cf.AutoPreload
 			}

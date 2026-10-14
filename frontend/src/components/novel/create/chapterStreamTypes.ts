@@ -92,10 +92,17 @@ export type CreateChapterStreamEvent =
   | CreateChapterPhaseEvent
   | CreateChapterChunkEvent
   | CreateChapterDoneEvent
+  | CreateChapterSamplerEvent
   | CreateChapterErrorEvent
   | CreateChapterCancelledEvent
 
-const STREAM_EVENT_TYPES = new Set<string>(['phase', 'chunk', 'done', 'error', 'cancelled'])
+const STREAM_EVENT_TYPES = new Set<string>(['phase', 'chunk', 'done', 'error', 'cancelled', 'sampler'])
+
+/** 采样档生效回显（阶段八 8.7）：enabled=false 时带 reason（engine=引擎不支持）。 */
+export interface CreateChapterSamplerEvent {
+  type: 'sampler'
+  sampler?: { enabled: boolean; reason?: string; dry?: boolean; multiplier?: number; xtc?: boolean; selfCheck?: boolean }
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -172,6 +179,8 @@ export function parseCreateChapterEvent(payload: unknown): CreateChapterStreamEv
         // 章级变更声明门禁（阶段八 8.5）：白名单透传（declared/accepted/issues）
         declGate: parseDeclGate(payload.declGate),
       }
+    case 'sampler':
+      return { type, sampler: isRecord(payload.sampler) ? { enabled: payload.sampler.enabled === true } : undefined }
     case 'error':
       return { type, error: str(payload.error) }
     case 'cancelled':

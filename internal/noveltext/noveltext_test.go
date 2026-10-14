@@ -84,3 +84,30 @@ func TestSplitSentences_SplitAndDropEmpty(t *testing.T) {
 		t.Fatalf("空白输入应得 0 句，实际 %v", got)
 	}
 }
+
+// TestTrigramRepeatRate_Baseline 阶段八 8.7 重复率基准：复读文本显著高于自然
+// 行文（复用病历夹具同型语料——flavor 的 Repeat 大段复读 vs healthy 句式轮换）。
+func TestTrigramRepeatRate_Baseline(t *testing.T) {
+	// 空/超短：0
+	if got := TrigramRepeatRate(""); got != 0 {
+		t.Fatalf("空文本: %v", got)
+	}
+	if got := TrigramRepeatRate("十二"); got != 0 {
+		t.Fatalf("短文本: %v", got)
+	}
+	// 复读（flavor 病历同型）：大段 Repeat → 高重复率
+	flavor := strings.Repeat("他感到无比的震惊。此外，值得注意的是。", 8)
+	flavorRate := TrigramRepeatRate(flavor)
+	if flavorRate < 0.8 {
+		t.Fatalf("复读文本重复率应 ≥0.8: %v", flavorRate)
+	}
+	// 自然行文（healthy 同型）：句式轮换 → 低重复率
+	healthy := "落了一夜的雨。他把伞收在门边。「你还回来。」她说，声音没有起伏。他喉头一紧，把到嘴的话咽了回去。灯花跳了一下，两个人都没动。账都清了，屋里只剩灯芯的响。"
+	healthyRate := TrigramRepeatRate(healthy)
+	if healthyRate > 0.05 {
+		t.Fatalf("自然行文重复率应 ≤0.05: %v", healthyRate)
+	}
+	if flavorRate <= healthyRate {
+		t.Fatalf("复读应显著高于自然行文: flavor=%v healthy=%v", flavorRate, healthyRate)
+	}
+}

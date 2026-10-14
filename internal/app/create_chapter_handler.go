@@ -492,6 +492,10 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 	// = 零值 = 请求与现状逐字节一致），每次续写尝试均按同一钳制值下发。
 	g := playGuardrails()
 
+	// 防重复采样生效摘要（done 事件回显；循环内首轮赋值）
+	var samplerSummary map[string]interface{}
+	var selfCheckBlock, samplerWarn string
+
 	for attempt := 0; attempt <= maxContinues; attempt++ {
 		// AP1-07 收敛：三处取消出口（连接前取消 / ctx.Done / error 帧夹带取消）
 		// 的「落盘+return」调用形态原是三份同构的 9 参调用；7 个稳定实参在此
@@ -550,6 +554,19 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 			Messages: []ai.ChatMessage{{Role: "system", Content: systemPrompt}, {Role: "user", Content: currentPrompt}},
 		}
 		applyChapterGuardrails(req, temperature, g)
+		// 防重复默认档（阶段八 8.7）：本地引擎注入 DRY（默认 0.8/1.75/2/4096），
+		// 首轮拼接四步自检段（续写轮不重复拼——自检针对整章收尾，续写是中途）。
+		samplerSummary, selfCheckBlock, samplerWarn = applyNovelSampler(req, a.cfg, a.engineMgr, featEng)
+		if samplerWarn != "" {
+			slog.Warn("小说采样档配置告警", "warn", samplerWarn)
+		}
+		if attempt == 0 && selfCheckBlock != "" {
+			req.Messages[len(req.Messages)-1].Content += selfCheckBlock
+		}
+		if attempt == 0 {
+			// 生效状态回显（作者可见：done 事件也带，这里流式侧即时提示）
+			a.emit("create-chapter-stream", map[string]interface{}{"type": "sampler", "sampler": samplerSummary})
+		}
 		chunks, err := a.clientRef().ChatStream(ctx, req)
 		if err != nil {
 			// 连接建立阶段被取消（用户在流开始前点停止）：ChatStream 返回 ctx.Err()，
@@ -757,6 +774,7 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 		"total":      len([]rune(content)),
 		"aiTaste":    aiTaste,
 		"declGate":   declGate,
+		"sampler":    samplerSummary,
 	})
 
 	// 异步提取章节角色 + 生成后自动门：两者共用章节生成的 WaitGroup（N7），

@@ -77,3 +77,31 @@ func SplitSentences(text string) []string {
 	}
 	return out
 }
+
+// TrigramRepeatRate 字符三元组重复率（0..1）——防重复采样的**离线指标**（阶段
+// 八 8.7 重复率基准）：文本中重复出现的 trigram 占全部 trigram 出现次数的比例。
+// 全新文本 ≈0；句式/段落复读（AI 味典型症状）显著抬高。非生成对比的确定性
+// 度量：不依赖模型，可对任意正文/夹具断言基线。空白与标点参与计数（复读的
+// 「。此外，值得注意的是」正是要抓的对象）；文本短于 3 rune 返回 0。
+func TrigramRepeatRate(text string) float64 {
+	r := []rune(text)
+	if len(r) < 3 {
+		return 0
+	}
+	counts := make(map[string]int, len(r))
+	total := 0
+	for i := 0; i+2 < len(r); i++ {
+		counts[string(r[i:i+3])]++
+		total++
+	}
+	if total == 0 {
+		return 0
+	}
+	repeated := 0
+	for _, n := range counts {
+		if n > 1 {
+			repeated += n // 每个多余出现都算一次重复
+		}
+	}
+	return float64(repeated) / float64(total)
+}

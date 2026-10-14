@@ -67,8 +67,22 @@ type ChatRequest struct {
 	FrequencyPenalty   float64            `json:"frequency_penalty,omitempty"`    // -2.0..2.0，抑制重复
 	PresencePenalty    float64            `json:"presence_penalty,omitempty"`     // -2.0..2.0，鼓励新话题
 	StreamOptions      *ChatStreamOptions `json:"stream_options,omitempty"`       // 流式用量上报（include_usage）
-	skipIncludeUsage   bool               `json:"-"`                              // 内部：重试时不再请求 include_usage
-	failoverDone       bool               `json:"-"`                              // 内部：故障转移重试请求已转移过一次，不再二次转移（C 刀 v0）
+
+	// ── 防重复采样（阶段八 8.7）──
+	// llama.cpp server 顶层键（herdsman 真机验证接受；ollama 兼容层宽容忽略）。
+	// 云端 OpenAI 兼容服务对未知字段不保证容忍——由调用方（app 层）只对本地
+	// 引擎注入，本结构不设引擎门控（传输层保持哑管道）。strata 服务层只透传
+	// temperature/top_p/top_k/seed（前置核实 2026-10-15），这些键发了无效，调用
+	// 方对 strata 不注入。
+	DryMultiplier    float64 `json:"dry_multiplier,omitempty"`     // 0=关；llama.cpp 缺省语义 0.8
+	DryBase          float64 `json:"dry_base,omitempty"`           // 缺省语义 1.75
+	DryAllowedLength int     `json:"dry_allowed_length,omitempty"` // 缺省语义 2
+	DryPenaltyLastN  int     `json:"dry_penalty_last_n,omitempty"` // 上下文窗口（-1=全部）；缺省语义 4096
+	XtcProbability   float64 `json:"xtc_probability,omitempty"`    // 0=关（XTC 激进，缺省关）
+	XtcThreshold     float64 `json:"xtc_threshold,omitempty"`      // 缺省语义 0.1
+
+	skipIncludeUsage bool `json:"-"` // 内部：重试时不再请求 include_usage
+	failoverDone     bool `json:"-"` // 内部：故障转移重试请求已转移过一次，不再二次转移（C 刀 v0）
 }
 
 // ChatStreamOptions OpenAI 兼容流式附加选项。

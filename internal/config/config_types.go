@@ -93,6 +93,10 @@ type configFile struct {
 	AutoPreload     *bool `json:"auto_preload,omitempty"`      // 启动自动预载
 	// 晨报预载开关（v4.16 刀④，nil=默认开启）：只影响上下文注入，与晨报卡片无关。
 	MorningPreload *bool `json:"morning_preload,omitempty"`
+	// 小说写作档防重复采样（阶段八 8.7，nil=默认启用 DRY 档）
+	NovelDryDisabled *bool `json:"novel_dry_disabled,omitempty"`
+	// 全量采样档覆盖（JSON 对象字符串，空=内置 DRY 缺省 0.8/1.75/2/4096）
+	NovelSamplerJSON string `json:"novel_sampler_json,omitempty"`
 	// ProjectBrief 是项目本体注入开关（6.2，默认开）：work 空间新会话装配时
 	// 把固化/项目/反馈决策带 [MEM:] 引用键注入缓存稳定前缀。
 	ProjectBrief *bool `json:"project_brief,omitempty"`
@@ -252,8 +256,11 @@ type Config struct {
 	//                     herdsman 空闲卸载/降温，保持「说用就能用」；
 	//   AutoPreload：启动自动预载——按功能绑定（gaea→office→chat）预载一个
 	//                 herdsman 模型，降低首次对话的冷启动等待。
-	KeepWarmEnabled bool
-	AutoPreload     bool
+	// 小说写作档防重复采样（阶段八 8.7）：DRY 默认档开关 + 全量覆盖
+	NovelDryDisabled bool
+	NovelSamplerJSON string
+	KeepWarmEnabled  bool
+	AutoPreload      bool
 
 	// 晨报预载（v4.16 刀④）：work 空间会话装配时把高频工作记忆预装配进
 	// agent 上下文（零 LLM、预算受限）。默认开启，只影响上下文注入。

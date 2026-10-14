@@ -255,6 +255,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
   const [aiTaste, setAiTaste] = useState<AiTasteResult | null>(null)
   // 章级变更声明门禁（阶段八 8.5）：拒收时人可读问题清单（重新生成或定稿面板手动修正）
   const [declGate, setDeclGate] = useState<{ declared: boolean; accepted: boolean; issues: string[] } | null>(null)
+  const [samplerNote, setSamplerNote] = useState('')
   // 叙事状态账本（narrative 审批制结算）UI
   const [stateOpen, setStateOpen] = useState(false)
   const [novelState, setNovelState] = useState<{ version?: number; entities?: Record<string, { name?: string; type?: string; status?: string }> } | null>(null)
@@ -587,6 +588,13 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
           return
         }
         switch (ev.type) {
+          case 'sampler': {
+            // 防重复采样生效回显（阶段八 8.7）：一次性提示，不打断流
+            if (ev.sampler?.enabled) {
+              setSamplerNote('防重复采样已启用（DRY）' + (ev.sampler.selfCheck ? '，收尾四步自检随行' : ''))
+            }
+            break
+          }
           case 'phase':
             if (ev.phase === 'continuing') {
               setGenPhase(`字数不足，正在续写… 第${ev.attempt || 1}次 · ${(ev.current || 0).toLocaleString()}/${(ev.target || minWords).toLocaleString()} 字`)
@@ -1265,6 +1273,11 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
 
   return (
     <div className="novel-create-root">
+      {samplerNote && (
+        <div className="novel-create-alert">
+          <Alert type="success" showIcon data-testid="sampler-note" message={samplerNote} />
+        </div>
+      )}
       {declGate && declGate.declared && !declGate.accepted && (
         <div className="novel-create-alert">
           <Alert
