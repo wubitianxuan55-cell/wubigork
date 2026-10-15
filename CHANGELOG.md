@@ -1,3 +1,6 @@
+## v4.494.0 · 阶段十 10.3 session-reference：@会话:<关键词> 跨会话引用快照注入（2026-10-15）
+> dsh 021 P2-B 取道（原案=host 文件发现+结构化引用请求+快照注入，label 取最新标题）。refs.go @ 引用机制扩 refSession kind（显式「会话:」前缀避免与 @<路径> 撞车，前缀优先于 exists 检查）：标题注册表包含匹配优先、文件名次之——唯一命中才解析，多命中列候选（宁缺勿误）；投影口径与 sessionquery indexableContent 一致（user_message 全文/assistant 512 rune 截断/其余 kind 折叠），头部 titles 最新标题，尾部 32KB 截断注明（快照是视图非全文）。ResolveRefs 全链接线，既有 @文件/@图片 引用零变化。测试=标题/文件名/未找到/歧义/全链/前缀优先/tool_result 不投影。全量 ci 绿。详见 `releases/v4.494.0.md`。
+
 ## v4.493.0 · 阶段十 10.2 模型推荐位三档+量化适用面标注（2026-10-15）
 > 数据源=survey §5.3 谱系表（2026-10 社区口碑）。模型中心新「推荐位」tab：NSFW 特化（TheDrummer 系 Q4_K_M）/文笔（Magnum·Midnight Miqu·Gemma4）/智力（GLM/Kimi 蒸馏）三档陈列，标注口径诚实（口碑含负面原文：非英语变笨/量化敏感/需越狱）+量化共识声明。QuantSuitability 纯函数（656→657 面）：档位×任务面适用面——**IQ2_XS=「写作可用（低量化写作有实证）；知识/agent 不适用」**（strata 现有写作包规划判据逐字）；LocalModelSuitability 本机已装本地模型逐个标注（getEngines/getQuantSuitability api 封装）。全量 ci 绿。详见 `releases/v4.493.0.md`。
 
