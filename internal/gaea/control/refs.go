@@ -40,6 +40,7 @@ const (
 	refResource refKind = iota // an MCP resource: @<server>:<uri>
 	refFile                    // a local file or directory: @<path>
 	refImage                   // a local image attachment: @.gaea/attachments/<file>
+	refSession                 // a cross-session reference: @会话:<关键词>（10.3）
 )
 
 // ref is a resolved @reference found in a submitted line.
@@ -80,6 +81,9 @@ func classifyRef(token string, known map[string]bool, exists func(string) bool) 
 	}
 	if strings.HasPrefix(filepath.ToSlash(token), ".gaea/attachments/") && exists(token) {
 		return ref{kind: refImage, path: token, raw: token}, true
+	}
+	if looksLikeSessionRef(token) {
+		return ref{kind: refSession, raw: token}, true
 	}
 	if exists(token) {
 		return ref{kind: refFile, path: token, raw: token}, true
@@ -139,6 +143,13 @@ func (c *Controller) ResolveRefs(ctx context.Context, line string) (block string
 			appendRefBlock(&b, "file", `path="`+r.path+`"`, text)
 		case refImage:
 			c.appendImageBlock(ctx, &b, r)
+		case refSession:
+			text, errMsg := c.resolveSessionRef(r.raw)
+			if errMsg != "" {
+				errs = append(errs, "@"+r.raw+" — "+errMsg)
+				continue
+			}
+			appendRefBlock(&b, "referenced-session", `ref="@`+r.raw+`"`, text)
 		}
 	}
 	return b.String(), errs
