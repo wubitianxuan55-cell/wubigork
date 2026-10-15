@@ -1,3 +1,6 @@
+## v4.492.0 · 阶段十 10.1 量化红线：工具调用低比特警告+档位解析纯函数（2026-10-15）
+> 盘底：路由决策可见可覆盖已在产（model.route 事件+GetModelRoute 绑定+五层策略）——真实缺口=工具调用低比特警告。modelengine/quant.go 纯函数：ParseQuantLevel（llama.cpp GGUF 命名法全覆盖：Q2~Q8_K/IQ1~IQ4/F16/BF16；混合标注取最低档保守；无标记 known=false 宁漏勿误）+ToolCallQuantWarning（本地引擎+档位<Q4→中文警告；云端/未识别恒空——Q4 为社区公认工具调用可用下限）。挂点：routeModel emit 顺带检查→model.quant.warn 事件（per feature+model 进程内去重不刷屏）+GetModelRoute 返回 quantWarn 字段（绑定卡可见）。测试=命名法 12 例+警告六用例。全量 ci 绿。详见 `releases/v4.492.0.md`。
+
 ## v4.491.0 · 阶段十一 11.4 进度逻辑纠错建议+关键线路 what-if 推演（2026-10-15）
 > 盘底：DCMA 14 点体检已覆盖检查面、前端 computeCpm 纯函数已在——真实缺口=「给出修复建议」半边+推演。两件纯函数零 LLM：①`scheduleAdvice` 纠错建议（悬空引用/负搭接/孤立任务/冗余搭接四类+循环依赖点名环；单侧缺失占比判定**归 dcmaAudit 第 1 点**不另立第二套——多链工程每链各有合法首尾，advice 再实现必然误报，首版误报被健康链路测试当场抓住后收口）；②`whatIfDuration` 推演（任务 ±N 天→CPM 重算对比：总工期 delta/关键线路变化/新进/脱离关键；里程碑拒推/负 delta 钳 0/原计划不修改）。测试=样例工程四类建议齐出+健康链路零建议+复现性逐字一致+推演八例。schedule 域 608 测试全绿。详见 `releases/v4.491.0.md`。
 
