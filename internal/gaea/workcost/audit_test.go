@@ -105,15 +105,6 @@ func mergeMaps(a, b map[string]string) map[string]string {
 	return out
 }
 
-func findKind(fs []AuditFinding, substr string) *AuditFinding {
-	for i := range fs {
-		if strings.Contains(fs[i].Detail, substr) || strings.Contains(fs[i].Target, substr) {
-			return &fs[i]
-		}
-	}
-	return nil
-}
-
 func TestBillAuditScan_EvalSet(t *testing.T) {
 	s := auditSeedStore(t)
 	projects, err := s.BillProjects()
