@@ -100,10 +100,10 @@ describe('CostLibraryPage 造价数据库全新设计（v4.459 工料法 IA）',
     expect(screen.queryByText('数据概览')).toBeNull()
   })
 
-  it('导航 6 模块齐全有序；测算项目/复盘笔记退役，成本条目降为价格数据段', async () => {
+  it('导航 7 模块齐全有序（v4.490 加数据健康）；测算项目/复盘笔记退役，成本条目降为价格数据段', async () => {
     await renderPage()
     const nav = screen.getByRole('navigation', { name: '造价数据库模块' })
-    const labels = ['清单库', '企业定额库', '工料机库', '价格数据', '造价参考', '概览']
+    const labels = ['清单库', '企业定额库', '工料机库', '数据健康', '价格数据', '造价参考', '概览']
     let cursor = -1
     for (const label of labels) {
       const btns = Array.from(nav.querySelectorAll('button'))
@@ -111,8 +111,8 @@ describe('CostLibraryPage 造价数据库全新设计（v4.459 工料法 IA）',
       expect(idx, `导航缺少 ${label}`).toBeGreaterThan(cursor)
       cursor = idx
     }
-    // 带 hint title 的按钮 = 6 个顶级模块 + 常驻「回到概览」（默认落在费用汇总）。
-    expect(nav.querySelectorAll('button[title]').length).toBe(7)
+    // 带 hint title 的按钮 = 7 个顶级模块 + 常驻「回到概览」（默认落在费用汇总）。
+    expect(nav.querySelectorAll('button[title]').length).toBe(8)
     // 退役模块不再是顶级入口（数据与 Go 绑定保留，仅 UI 退役）。
     expect(nav.textContent).not.toContain('测算项目')
     expect(nav.textContent).not.toContain('复盘笔记')
