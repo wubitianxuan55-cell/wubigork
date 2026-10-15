@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 657 名（原生变参 7 名已收窄标注）。
+// 共 659 名（原生变参 7 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -141,6 +141,8 @@ export const bindingSignatures = {
   GaeaCostInquirySave: { argc: 1, variadic: false, params: "r costinquiry.Record" },
   GaeaCostInquiryScan: { argc: 0, variadic: false, params: "" },
   GaeaCostProjectList: { argc: 0, variadic: false, params: "" },
+  GaeaCostQuotaFlywheelApply: { argc: 1, variadic: false, params: "origCodes []string" },
+  GaeaCostQuotaFlywheelPreview: { argc: 0, variadic: false, params: "" },
   GaeaCostSave: { argc: 1, variadic: false, params: "e CostEntry" },
   GaeaCostSearch: { argc: 3, variadic: false, params: "query string, category string, status string" },
   GaeaCostSearchPage: { argc: 7, variadic: false, params: "query string, category string, status string, sortKey string, sortDir int, limit int, offset int" },
@@ -678,5 +680,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 657。
-export const bindingSignatureCount = 657;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 659。
+export const bindingSignatureCount = 659;

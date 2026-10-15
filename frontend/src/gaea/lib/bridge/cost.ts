@@ -71,6 +71,8 @@ import type {
   WorkcostFeeResult,
   WorkcostProjectBundle,
   WorkcostQuota,
+  WorkcostQuotaFlywheelPreview,
+  WorkcostQuotaFlywheelResult,
   WorkcostRateSet,
   WorkcostRecomposeResult,
   WorkcostResource,
@@ -102,6 +104,12 @@ export interface CostBindings {
   CostBulkPricePreview(xlsxBase64: string): Promise<CostBulkPricePreview>;
   // CostBulkPriceApply 作者确认后批量应用（整批事务：写调价历史+推现行价）。
   CostBulkPriceApply(xlsxBase64: string): Promise<CostBulkPriceResult>;
+  // CostQuotaFlywheelPreview 扫描跨项目定额含量分歧（orig_code 簇），提出
+  // 企业定额候选（11.6；宁缺勿误：不成立簇带人可读原因）。
+  CostQuotaFlywheelPreview(): Promise<WorkcostQuotaFlywheelPreview>;
+  // CostQuotaFlywheelApply 作者点名聚类词干后落 ENT-* 企业定额（含量=各变体
+  // 中位数；只覆写自有命名空间，重生成=飞轮进化）。
+  CostQuotaFlywheelApply(origCodes: string[]): Promise<WorkcostQuotaFlywheelResult>;
   // CostHealthScan 数据健康五类扫描（零价/缺价子目/悬挂引用/重复防护/编码混用）。
   CostHealthScan(): Promise<Record<string, unknown>>;
   // CostDedupeResources 资源去重（keep 保留，merges 合并+引用重定向）。

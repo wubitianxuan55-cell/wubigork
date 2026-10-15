@@ -11,11 +11,12 @@
 // （调量/调价）直接体现在同一张表上——这正是「全局定额 + 项目级覆盖」的可见形态。
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Calculator, FileSpreadsheet, FolderOpen, ListTree, Pencil, Plus, RefreshCw, Search, Trash2, X,
+  Calculator, FileSpreadsheet, FolderOpen, ListTree, Pencil, Plus, RefreshCw, Search, Sparkles, Trash2, X,
 } from "../../icons";
 import { app } from "../../lib/bridge";
 import type { WorkcostCompose, WorkcostQuota } from "../../lib/types";
 import { QuotaModal } from "./WorkcostQuotaModal";
+import { WorkcostQuotaFlywheelModal } from "./WorkcostQuotaFlywheelModal";
 
 const fmtPrice = (p: number) => "¥" + new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(p);
 const fmtQty = (q: number) => new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 4 }).format(q);
@@ -75,6 +76,8 @@ export function WorkcostComposeView() {
   // ListQuotas 是轻量查询不含含量行，直接拿列表对象编辑会把含量行清空。
   const [editing, setEditing] = useState<WorkcostQuota | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<WorkcostQuota | null>(null);
+  // 企业定额自生成（跨项目含量聚合，ENT-* 落库后刷新列表）。
+  const [flywheelOpen, setFlywheelOpen] = useState(false);
   // composeTick 定额保存后自增——selected 编码不变时核算 effect 不会重跑，
   // 靠它强制按新含量行重算（改价场景同理）。
   const [composeTick, setComposeTick] = useState(0);
@@ -298,6 +301,15 @@ export function WorkcostComposeView() {
           <button
             type="button"
             className={solidBtn}
+            onClick={() => setFlywheelOpen(true)}
+            disabled={busy}
+            title="扫描跨项目含量分歧（原码-N 变体），聚合成 ENT-* 企业定额（含量=各变体中位数）"
+          >
+            <Sparkles size={12} /> 自生成
+          </button>
+          <button
+            type="button"
+            className={solidBtn}
             onClick={() => setEditing(emptyQuota())}
             disabled={busy}
             title="新建消耗定额（编码 + 工料机含量行）"
@@ -416,6 +428,7 @@ export function WorkcostComposeView() {
       </div>
 
       {editing && <QuotaModal value={editing} onCancel={() => setEditing(null)} onSaved={onQuotaSaved} />}
+      <WorkcostQuotaFlywheelModal open={flywheelOpen} onClose={() => setFlywheelOpen(false)} onApplied={() => void load()} />
       {confirmDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setConfirmDelete(null)}>
           <div className="v3-panel rounded-2xl p-5 space-y-3 w-[26rem]" onClick={(e) => e.stopPropagation()}>

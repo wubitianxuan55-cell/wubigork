@@ -236,6 +236,8 @@ export const GAEA_METHOD_FACETS = {
   NovelChapterGatePrecheck: "play",
   CostBulkPricePreview: "play", // 资源价批量维护（三期 3.4）：Excel 预览→确认应用
   CostBulkPriceApply: "play",
+  CostQuotaFlywheelPreview: "play", // 企业定额自生成（11.6）：跨项目含量聚合
+  CostQuotaFlywheelApply: "play",
   CostHealthScan: "play",
   CostDedupeResources: "play",
   ForeshadowDue: "play", // 伏笔到期预警（阶段八 8.6）：计划卡/阅读页横幅

@@ -41,6 +41,8 @@ func (b *CostB) GaeaCostInquiryList(query string, limit int) []costinquiry.Recor
 func (b *CostB) GaeaCostInquirySave(r costinquiry.Record) (int64, error) { return b.a.GaeaCostInquirySave(r) }
 func (b *CostB) GaeaCostInquiryScan() []costinquiry.ScanFinding { return b.a.GaeaCostInquiryScan() }
 func (b *CostB) GaeaCostProjectList() []costproject.ProjectSummary { return b.a.GaeaCostProjectList() }
+func (b *CostB) GaeaCostQuotaFlywheelApply(origCodes []string) (*workcost.QuotaFlywheelResult, error) { return b.a.GaeaCostQuotaFlywheelApply(origCodes) }
+func (b *CostB) GaeaCostQuotaFlywheelPreview() (workcost.QuotaFlywheelPreview, error) { return b.a.GaeaCostQuotaFlywheelPreview() }
 func (b *CostB) GaeaCostSave(e CostEntry) error { return b.a.GaeaCostSave(e) }
 func (b *CostB) GaeaCostSearch(query string, category string, status string) []CostSummary { return b.a.GaeaCostSearch(query, category, status) }
 func (b *CostB) GaeaCostSearchPage(query string, category string, status string, sortKey string, sortDir int, limit int, offset int) CostSearchPage { return b.a.GaeaCostSearchPage(query, category, status, sortKey, sortDir, limit, offset) }

@@ -795,3 +795,55 @@ export interface WorkcostRecomposeResult {
   unchanged: number;
   errors: string[];
 }
+
+// ── 企业定额自生成（11.6；roadmap 造价愿景#5）────────────────────
+
+// WorkcostQuotaFlywheelMember 聚类成员（同工作内容的一个定额变体）。
+export interface WorkcostQuotaFlywheelMember {
+  code: string;
+  origCode: string;
+  source: string;
+  itemCount: number;
+}
+
+// WorkcostQuotaFlywheelRow 候选企业定额的一条聚合含量行（数量=各变体中位数）。
+export interface WorkcostQuotaFlywheelRow {
+  resourceCode: string;
+  kind: string;
+  title: string;
+  spec?: string;
+  unit?: string;
+  quantity: number;
+  coverage: number;
+  min: number;
+  max: number;
+  majority: boolean;
+}
+
+// WorkcostQuotaFlywheelCandidate 一个工作内容的企业定额候选。
+export interface WorkcostQuotaFlywheelCandidate {
+  origCode: string;
+  newCode: string;
+  title: string;
+  unit: string;
+  members: WorkcostQuotaFlywheelMember[];
+  rows: WorkcostQuotaFlywheelRow[];
+  sources: number;
+}
+
+export interface WorkcostQuotaFlywheelSkip {
+  key: string;
+  title: string;
+  reason: string;
+}
+
+export interface WorkcostQuotaFlywheelPreview {
+  clusters: number;
+  candidates: WorkcostQuotaFlywheelCandidate[];
+  skipped: WorkcostQuotaFlywheelSkip[];
+}
+
+export interface WorkcostQuotaFlywheelResult {
+  saved: string[];
+  skipped: WorkcostQuotaFlywheelSkip[];
+}
