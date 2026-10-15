@@ -16,13 +16,18 @@ const defaultHerdsmanTTSModel = "qwen3-tts-customvoice"
 
 // herdsmanTTSPriority Herdsman TTS 模型回退优先级（voxcpm2 必须第一：
 // 本机实测唯一可用本地 TTS；其余按可用性从高到低排列）。
+//
+// 11.6 修正（2026-10-15）：cosyvoice 提到 edge-tts 之前——模型中心内置
+// CosyVoice2（app 启动即自动拉起，幂等），回退序必须遵守「本地引擎优先于
+// 云端」口径（监管收紧=全本地成卖点）：配置值不可用时，云端 edge-tts 只在
+// 一个本地引擎都没有时兜底，不得压在任何一个本地引擎前面。
 var herdsmanTTSPriority = []string{
 	"voxcpm2",
 	"qwen3-tts-customvoice",
 	"qwen3-tts-voicedesign",
 	"qwen3-tts-voiceclone",
-	"edge-tts",
 	"cosyvoice",
+	"edge-tts",
 }
 
 // ResolveHerdsmanTTSModel 动态解析实际可用的 Herdsman TTS 模型。

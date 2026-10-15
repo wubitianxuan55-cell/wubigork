@@ -113,23 +113,33 @@ func GetEdgeTTSParams(emotionLabel string) (rate string, pitch string) {
 
 // ── 结构化 TTS 参数（v4.3d 新增） ──
 
-// EmotionTTSParamsMap 情绪标签 → 结构化 TTS 参数默认值（v4.3d）。
+// EmotionTTSParamsMap 情绪标签 → 结构化 TTS 参数默认值（v4.3d 立 2 条，
+// 11.6 补齐全 9 标签）。
 //
-// 映射依据：结合设计文档 §5.3「每情绪标签 → TTSParams 默认值」与本任务契约的
-// 取值约定——仅强情绪标签给非中性参数，其余标签一律中性默认（Speed/Pitch=0，
-// 即引擎默认语速/音高，Style/Emotion 为空），未知/空标签返回零值。
-// 具体数值来源：参考现有 EdgeRate/EdgePitch 数据的情感方向——
-//   - ANGRY_ATTACK（愤怒，EdgeRate "+10%"/EdgePitch "+10Hz"）：加速 + 提音，
-//     Speed 1.1（≈+10% 语速）、Pitch +2 半音、Emotion "angry"（透传引擎情绪）；
-//   - CALM_RATIONAL（冷静，EdgeRate "0%"/EdgePitch "0Hz"）：放缓 + 微降调，
-//     Speed 0.9、Pitch -1 半音、Emotion "calm"。
-//
-// 其余 7 个标签（SWEET_ATTACHMENT/SHY_HEARTBEAT/QUIET_FOND/TSUNDERE/
-// COLD_DETACHED/HURT_GRIEVANCE/FEARFUL_OBEDIENT）暂不指定结构化参数，
-// 走引擎中性默认，避免过度调参；需要时按同一方向增量补表。
+// 映射依据：结构化 Speed/Pitch 从同标签的 EdgeRate/EdgePitch 方向派生
+// （±5% ≈ Speed ±0.05；5Hz ≈ 1 半音，不足半音取整），保证「离散标签静态
+// 预设」与「结构化参数」两条路径情感方向一致；Emotion 词只在有把握的
+// angry/calm 给出（宁缺勿误——透传不支持的情绪词可能被引擎拒或噪声化），
+// 其余标签 Emotion/Style 留空；未知/空标签返回零值。
+//   - ANGRY_ATTACK（+10%/+10Hz）：Speed 1.1、Pitch +2、Emotion "angry"；
+//   - CALM_RATIONAL（0%/-5Hz）：Speed 0.9、Pitch -1、Emotion "calm"；
+//   - SWEET_ATTACHMENT（-10%/+5Hz）：Speed 0.9、Pitch +1；
+//   - SHY_HEARTBEAT（-5%/+3Hz）：Speed 0.95、Pitch +1（0.6 半音取整）；
+//   - QUIET_FOND（-15%/-2Hz）：Speed 0.85、Pitch 0（0.4 半音不标记）；
+//   - TSUNDERE（+5%/+5Hz）：Speed 1.05、Pitch +1；
+//   - COLD_DETACHED（0%/-5Hz）：Speed 0（不指定）、Pitch -1；
+//   - HURT_GRIEVANCE（-10%/-5Hz）：Speed 0.9、Pitch -1；
+//   - FEARFUL_OBEDIENT（-5%/-3Hz）：Speed 0.95、Pitch -1（0.6 半音取整）。
 var EmotionTTSParamsMap = map[string]tts.TTSParams{
-	"ANGRY_ATTACK":  {Speed: 1.1, Pitch: 2, Emotion: "angry"},
-	"CALM_RATIONAL": {Speed: 0.9, Pitch: -1, Emotion: "calm"},
+	"ANGRY_ATTACK":     {Speed: 1.1, Pitch: 2, Emotion: "angry"},
+	"CALM_RATIONAL":    {Speed: 0.9, Pitch: -1, Emotion: "calm"},
+	"SWEET_ATTACHMENT": {Speed: 0.9, Pitch: 1},
+	"SHY_HEARTBEAT":    {Speed: 0.95, Pitch: 1},
+	"QUIET_FOND":       {Speed: 0.85},
+	"TSUNDERE":         {Speed: 1.05, Pitch: 1},
+	"COLD_DETACHED":    {Pitch: -1},
+	"HURT_GRIEVANCE":   {Speed: 0.9, Pitch: -1},
+	"FEARFUL_OBEDIENT": {Speed: 0.95, Pitch: -1},
 }
 
 // GetEmotionVoiceParams 获取情绪标签对应的结构化 TTS 参数（v4.3d）。

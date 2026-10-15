@@ -128,4 +128,10 @@ func TestResolveHerdsmanTTSModel_PriorityOrder(t *testing.T) {
 	if model != "cosyvoice" {
 		t.Errorf("model = %q, want cosyvoice（优先级兜底）", model)
 	}
+	// 11.6：cosyvoice 与 edge-tts 同时已装（无其它本地引擎）→ 选 cosyvoice——
+	// 云端 edge-tts 不得压在任何本地引擎前面（全本地口径）。
+	model, _, _ = ResolveHerdsmanTTSModel("qwen3-tts-customvoice", []string{"edge-tts", "cosyvoice"})
+	if model != "cosyvoice" {
+		t.Errorf("model = %q, want cosyvoice（本地优先于云端）", model)
+	}
 }
