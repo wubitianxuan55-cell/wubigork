@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"log/slog"
 	"strconv"
+	"sync"
 
 	"github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/modelengine"
 )
 
 // routeModel 解析功能域生效的 (engine, model, source)。
@@ -56,6 +58,9 @@ func (c *core) routeModel(feature string) (engine, model, source string) {
 }
 
 // emitModelRoute 发布路由决策（ctx 未启动时跳过，测试安全）。
+// 附带量化红线检查（阶段十 10.1）：本地引擎 + 已识别量化档 <Q4 → 发一次
+// model.quant.warn 警告（per feature+model 去重——routeModel 每次采样都跑，
+// 警告不能刷屏；换模型/换 feature 会重新评估一次）。
 func (c *core) emitModelRoute(feature, engine, model, source string) {
 	if c.ctx == nil {
 		return
@@ -63,6 +68,37 @@ func (c *core) emitModelRoute(feature, engine, model, source string) {
 	c.emit("model.route", map[string]interface{}{
 		"feature": feature, "engine": engine, "model": model, "source": source,
 	})
+	if w := c.quantToolCallWarnOnce(feature, engine, model); w != "" {
+		c.emit("model.quant.warn", map[string]interface{}{
+			"feature": feature, "engine": engine, "model": model, "message": w,
+		})
+	}
+}
+
+// quantWarnOnce 已警告过的 feature+model 组合（进程生命周期内一次——重启后
+// 重评一次无妨，会话中途不刷屏）。
+var quantWarnOnce sync.Map
+
+// quantToolCallWarnOnce 工具调用低比特红线（10.1）：本地引擎 + 量化 <Q4 →
+// 返回警告文案（每 feature+model 一次）；其余返回空。
+func (c *core) quantToolCallWarnOnce(feature, engine, model string) string {
+	if c.engineMgr == nil || model == "" {
+		return ""
+	}
+	e, ok := c.engineMgr.GetEngine(engine)
+	if !ok {
+		return ""
+	}
+	w := modelengine.ToolCallQuantWarning(e.Type, model)
+	if w == "" {
+		return ""
+	}
+	key := feature + "\x00" + engine + "\x00" + model
+	if _, loaded := quantWarnOnce.LoadOrStore(key, true); loaded {
+		return ""
+	}
+	slog.Warn("工具调用低比特量化警告", "feature", feature, "engine", engine, "model", model)
+	return w
 }
 
 // GetModelRoute 返回功能域当前生效路由（Wails 绑定，前端模型中心展示用）。
@@ -70,6 +106,7 @@ func (a *App) GetModelRoute(feature string) (string, error) {
 	eng, model, source := a.routeModel(feature)
 	b, _ := json.Marshal(map[string]string{
 		"feature": feature, "engine": eng, "model": model, "source": source,
+		"quantWarn": a.quantToolCallWarnOnce(feature, eng, model),
 	})
 	return string(b), nil
 }
