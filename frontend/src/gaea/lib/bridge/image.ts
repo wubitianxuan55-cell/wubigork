@@ -4,6 +4,10 @@
 export interface ImageBindings {
   // ── 图像域 legacy 直调族转正（v4.102，api/image.ts 消费收口；从 LegacySurfaceNames 摘除）──
   GenerateFreeImage(prompt: string, negative: string, size: string, initImage: string, model: string, seed: number, count: number, lora: string): Promise<Record<string, unknown>>;
+  // GaeaImageDirector 绘梦导演（11.6）：自然语言需求 → 解析→生成→视觉自评→
+  // 带参重试；回执 {images, plan, verdict, steps, attempts, accepted}（类型面
+  // 在 components/imagegen/DirectorModal 就近声明，图项与 imageItem 同形）。
+  GaeaImageDirector(req: Record<string, unknown>): Promise<Record<string, unknown>>;
   CancelImageGeneration(): Promise<boolean>;
   GenerateMedia(params: string): Promise<Record<string, unknown>>;
   // ImageCutout 抠图/透明底导出（阶段二刀 E，T3 收官）：涂选保留主体（蒙版

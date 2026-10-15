@@ -11,10 +11,11 @@ import { Button, message } from 'antd'
 import {
   PictureOutlined, FolderOpenOutlined,
   SwapOutlined, VideoCameraOutlined,
-  AppstoreOutlined, EyeOutlined, DatabaseOutlined,
+  AppstoreOutlined, EyeOutlined, DatabaseOutlined, BulbOutlined,
 } from '@ant-design/icons'
 import Lightbox from '../components/Lightbox'
 import CustomTemplateModal from '../components/imagegen/CustomTemplateModal'
+import { DirectorModal } from '../components/imagegen/DirectorModal'
 import TemplatePickerModal from '../components/imagegen/TemplatePickerModal'
 import { ControlPanel } from '../components/imagegen/ControlPanel'
 import { ResultStage } from '../components/imagegen/ResultStage'
@@ -118,6 +119,7 @@ const ImageGenPage: React.FC = () => {
   // T1 创作资产面板 + 识图试用：与素材库同模式（轨道 tab，激活时替换工作台）。
   const [assetStudioOpen, setAssetStudioOpen] = useState(false)
   const [visionTrialOpen, setVisionTrialOpen] = useState(false)
+  const [directorOpen, setDirectorOpen] = useState(false)
   // 指令编辑源图（刀 C：结果卡「指令编辑」→ InstructionEditModal）
   const [instructEditSource, setInstructEditSource] = useState<GenResult | null>(null)
   // 抠图源图（刀 E，T3 收官：结果卡「抠图」→ CutoutModal 涂选保留主体）
@@ -333,6 +335,17 @@ const ImageGenPage: React.FC = () => {
           >
             <DatabaseOutlined /> {t('imagehubT1.modelDirNav')}
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={directorOpen}
+            data-testid="director-tab"
+            className={`ig-mode-item${directorOpen ? ' is-active' : ''}`}
+            onClick={() => setDirectorOpen(true)}
+            title="绘梦导演：描述需求，自动解析→生成→自评→带参重试"
+          >
+            <BulbOutlined /> 导演
+          </button>
         </div>
 
         <div className="ig-strip-spacer" />
@@ -502,6 +515,7 @@ const ImageGenPage: React.FC = () => {
         source={cutoutSource}
         onClose={() => setCutoutSource(null)}
       />
+      <DirectorModal open={directorOpen} onClose={() => setDirectorOpen(false)} />
       <CustomTemplateModal
         open={customModalOpen}
         editing={!!editingCustom}

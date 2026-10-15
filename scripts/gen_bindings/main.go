@@ -227,6 +227,10 @@ func mapGaea(n string) string {
 		return "model"
 	case strings.HasPrefix(n, "GaeaCharacter"):
 		return "charlib"
+	// GaeaImage* 是绘梦与媒体域（导演 Agent 等）：默认的 office 门面语义错位
+	// （GaeaWorkcost 前科同款），显式归 ImageB。
+	case strings.HasPrefix(n, "GaeaImage"):
+		return "image"
 	}
 	return "office"
 }

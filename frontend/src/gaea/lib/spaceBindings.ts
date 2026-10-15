@@ -103,6 +103,7 @@ export const GAEA_METHOD_FACETS = {
   // （GetCharacters/SetCharacterPortrait）跨画室参考槽（play）与青鸟/角色域
   // （work）两用 → shared。分类锁同步见 spaceBindings.test.ts。──
   GenerateFreeImage: "play",
+  GaeaImageDirector: "play", // 绘梦导演（11.6）：解析→生成→自评→重试
   CancelImageGeneration: "play",
   GenerateMedia: "play",
   GenerateDiagram: "play",

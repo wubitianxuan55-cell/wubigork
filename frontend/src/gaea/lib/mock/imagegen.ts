@@ -24,6 +24,8 @@ type ImagegenMethods = Pick<
   | "SetActiveASRModel" | "SetActiveTTSModel" | "SetChatVoiceModel"
   // 绘图引擎双件（批 46 NOT_MOCKED 收尾刀）：Cutout 诚实拒、Warm 空转回执。
   | "ImageCutout" | "WarmComfyUI"
+  // 绘梦导演（11.6）：浏览器无生成后端，诚实拒。
+  | "GaeaImageDirector"
 >;
 
 export function buildImagegenTools(): ImagegenMethods {
@@ -39,6 +41,9 @@ export function buildImagegenTools(): ImagegenMethods {
     },
     async GenerateDiagram(_prompt: string) {
       throw new Error("浏览器 dev mock 无图示生成后端，生成不可用（mock）");
+    },
+    async GaeaImageDirector(_req: Record<string, unknown>) {
+      throw new Error("浏览器 dev mock 无图像生成后端，导演不可用（mock）");
     },
     async GetImageBackendInfo() {
       // 未配置后端：消费方按空串降级（绘梦引擎 pill 显示未设置）。

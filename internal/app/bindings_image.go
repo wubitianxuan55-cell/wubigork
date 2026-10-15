@@ -7,6 +7,7 @@ package app
 type ImageB struct{ a *App }
 
 func (b *ImageB) CancelImageGeneration() bool { return b.a.CancelImageGeneration() }
+func (b *ImageB) GaeaImageDirector(req ImageDirectorRequest) (ImageDirectorResult, error) { return b.a.GaeaImageDirector(req) }
 func (b *ImageB) GenerateCharacterPortrait(charID string, model string) (string, error) { return b.a.GenerateCharacterPortrait(charID, model) }
 func (b *ImageB) GenerateDiagram(prompt string) (map[string]interface{}, error) { return b.a.GenerateDiagram(prompt) }
 func (b *ImageB) GenerateFreeImage(prompt string, negative string, size string, style string, model string, seed int, n int, lora string) (map[string]interface{}, error) { return b.a.GenerateFreeImage(prompt, negative, size, style, model, seed, n, lora) }
