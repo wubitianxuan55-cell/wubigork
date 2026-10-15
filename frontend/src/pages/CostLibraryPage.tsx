@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
   CheckCircle, ChevronRight, CloudUpload, Coins, FileSpreadsheet, Gauge, Layers, ListTree,
-  PieChart, TrendingUp,
+  PieChart, Search, TrendingUp,
 } from "../gaea/icons";
 import { app } from "../gaea/lib/bridge";
 import { CostLibraryView } from "../gaea/components/CostLibraryView";
@@ -11,6 +11,7 @@ import { CostInquiryPanel } from "../gaea/components/memoryhub/CostInquiryPanel"
 import { CostIndicatorsView } from "../gaea/components/memoryhub/CostIndicatorsView";
 import { WorkcostResourceView } from "../gaea/components/memoryhub/WorkcostResourceView";
 import { CostHealthView } from "../gaea/components/memoryhub/CostHealthView";
+import { CostAuditView } from "../gaea/components/memoryhub/CostAuditView";
 import { WorkcostComposeView } from "../gaea/components/memoryhub/WorkcostComposeView";
 import { WorkcostBillView } from "../gaea/components/memoryhub/WorkcostBillView";
 import { CostGraphView } from "../gaea/components/memoryhub/CostGraphView";
@@ -37,7 +38,7 @@ import "../gaea/components/memoryhub/hub.css";
  * - 旧「成本条目」（价格手册形态）降为「价格数据 → 资料条目」段——检索/导入/
  *   AI 解析全保留，它仍是资源库与询价的沉淀池，只是不再是板块主角。
  */
-type CostModule = "bill" | "compose" | "resources" | "health" | "prices" | "refs" | "overview";
+type CostModule = "bill" | "compose" | "resources" | "health" | "audit" | "prices" | "refs" | "overview";
 type OverviewView = "data" | "graph";
 type PriceView = "sources" | "repository" | "inquiry" | "entries";
 
@@ -46,6 +47,7 @@ const MODULES: { key: CostModule; label: string; icon: ReactNode; hint: string }
   { key: "compose", label: "企业定额库", icon: <FileSpreadsheet size={14} />, hint: "企业定额积累 · 单价分析（只含人材机）· 导入/导出五表" },
   { key: "resources", label: "工料机库", icon: <Layers size={14} />, hint: "工料机主数据 · 现行价/基准价 · 与信息价联动 · 调价历史" },
   { key: "health", label: "数据健康", icon: <CheckCircle size={14} />, hint: "零价 · 缺价 · 悬挂引用 · 重复防护 · 编码混用" },
+  { key: "audit", label: "对标查漏", icon: <Search size={14} />, hint: "跨项目对标：清单缺项 + 同名定额缺组成（逐条溯源 · 宁缺勿误）" },
   { key: "prices", label: "价格数据", icon: <CloudUpload size={14} />, hint: "价格源 · 价格仓库 · 询价库 · 资料条目" },
   { key: "refs", label: "造价参考", icon: <TrendingUp size={14} />, hint: "项目案例（导入项目文件）+ 资料条目分位数对标——与分部分项清单是两套数据" },
   { key: "overview", label: "概览", icon: <Gauge size={14} />, hint: "工料法规模 · 资料库速览 · 关联图谱" },
@@ -211,6 +213,7 @@ function CostLibraryPage() {
         {module === "compose" && <WorkcostComposeView />}
         {module === "resources" && <WorkcostResourceView />}
         {module === "health" && <CostHealthView />}
+        {module === "audit" && <CostAuditView />}
         {module === "refs" && <CostIndicatorsView />}
         {module === "prices" && (
           <div className="h-full flex flex-col min-h-0">

@@ -15,6 +15,7 @@ import (
 // 方法体零改动——纯委托给 App 实例（b.a.<Method>）。
 type CostB struct{ a *App }
 
+func (b *CostB) GaeaCostAuditScan(projectID int64) (*workcost.AuditReport, error) { return b.a.GaeaCostAuditScan(projectID) }
 func (b *CostB) GaeaCostBulkPriceApply(xlsxBase64 string) (*workcost.BulkPriceResult, error) { return b.a.GaeaCostBulkPriceApply(xlsxBase64) }
 func (b *CostB) GaeaCostBulkPricePreview(xlsxBase64 string) (workcost.BulkPricePreview, error) { return b.a.GaeaCostBulkPricePreview(xlsxBase64) }
 func (b *CostB) GaeaCostCategories() []CostCategoryView { return b.a.GaeaCostCategories() }

@@ -847,3 +847,27 @@ export interface WorkcostQuotaFlywheelResult {
   saved: string[];
   skipped: WorkcostQuotaFlywheelSkip[];
 }
+
+// ── 跨项目对标查漏（11.3；复核增强而非替代）────────────────────
+
+// WorkcostAuditEvidence 一条溯源引用（支撑本结论的项目/定额）。
+export interface WorkcostAuditEvidence {
+  ref: string;
+  source: string;
+  support: string;
+}
+
+// WorkcostAuditFinding 一条查漏线索（kind: bill_gap | quota_gap）。
+export interface WorkcostAuditFinding {
+  kind: string;
+  target: string;
+  detail: string;
+  evidence: WorkcostAuditEvidence[];
+}
+
+export interface WorkcostAuditReport {
+  billGaps: WorkcostAuditFinding[];
+  quotaGaps: WorkcostAuditFinding[];
+  auditedProj: string;
+  projectHits: number;
+}

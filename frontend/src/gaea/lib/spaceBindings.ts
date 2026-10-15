@@ -239,6 +239,7 @@ export const GAEA_METHOD_FACETS = {
   CostBulkPriceApply: "play",
   CostQuotaFlywheelPreview: "play", // 企业定额自生成（11.6）：跨项目含量聚合
   CostQuotaFlywheelApply: "play",
+  CostAuditScan: "play", // 跨项目对标查漏（11.3）：确定性引擎+溯源引用
   CostHealthScan: "play",
   CostDedupeResources: "play",
   ForeshadowDue: "play", // 伏笔到期预警（阶段八 8.6）：计划卡/阅读页横幅

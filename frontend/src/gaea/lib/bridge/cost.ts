@@ -71,6 +71,7 @@ import type {
   WorkcostFeeResult,
   WorkcostProjectBundle,
   WorkcostQuota,
+  WorkcostAuditReport,
   WorkcostQuotaFlywheelPreview,
   WorkcostQuotaFlywheelResult,
   WorkcostRateSet,
@@ -110,6 +111,9 @@ export interface CostBindings {
   // CostQuotaFlywheelApply 作者点名聚类词干后落 ENT-* 企业定额（含量=各变体
   // 中位数；只覆写自有命名空间，重生成=飞轮进化）。
   CostQuotaFlywheelApply(origCodes: string[]): Promise<WorkcostQuotaFlywheelResult>;
+  // CostAuditScan 跨项目对标查漏（11.3）：确定性引擎（宁缺勿误闸）+逐条溯源
+  // 引用；bill_gap 针对被审项目（0=跳过），quota_gap 全语料逐同名组。
+  CostAuditScan(projectID: number): Promise<WorkcostAuditReport>;
   // CostHealthScan 数据健康五类扫描（零价/缺价子目/悬挂引用/重复防护/编码混用）。
   CostHealthScan(): Promise<Record<string, unknown>>;
   // CostDedupeResources 资源去重（keep 保留，merges 合并+引用重定向）。

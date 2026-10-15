@@ -35,6 +35,7 @@ type CostMethods = Pick<
   | "CostImportPreview" | "CostImportAIParse" | "CostImportVisionPreview" | "CostImportApply"
   | "CostBulkPricePreview" | "CostBulkPriceApply"
   | "CostQuotaFlywheelPreview" | "CostQuotaFlywheelApply"
+  | "CostAuditScan"
   | "CostHealthScan" | "CostDedupeResources"
   | "PriceSources" | "PriceSourceSave" | "PriceSourceDelete"
   | "PriceFetch" | "PriceFetchAll" | "PriceFetches" | "PriceFetchApply" | "PriceFetchIgnore"
@@ -401,6 +402,10 @@ export function buildCost(_s: MakeMockState): CostMethods {
     },
     async CostQuotaFlywheelApply(_origCodes: string[]) {
       return { saved: [], skipped: [] };
+    },
+    // 跨项目对标查漏（11.3；演示口径=空报告）。
+    async CostAuditScan(_projectID: number) {
+      return { billGaps: [], quotaGaps: [], auditedProj: "", projectHits: 0 };
     },
     // ── 成本库导入（mock：对已知文件返回样例候选）──
     async CostImportPreview(path: string) {
