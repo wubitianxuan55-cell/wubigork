@@ -116,7 +116,6 @@ func runImageDirectorC(ctx context.Context, req ImageDirectorRequest, models []s
 	if fallbackModel == "" && len(models) > 0 {
 		fallbackModel = models[0]
 	}
-	curModel := fallbackModel
 	curSeed := req.Seed
 	if curSeed == 0 {
 		curSeed = deps.randSeed()
@@ -129,16 +128,16 @@ func runImageDirectorC(ctx context.Context, req ImageDirectorRequest, models []s
 		return res, fmt.Errorf("%s", step.Detail)
 	}
 	res.Plan = plan
-	curModel = plan.Model
 
 	// ── 生成-自评有界循环 ──
+	// 模型解析轮一次选定（plan.Model 已归一），轮间不改。
 	curPrompt := plan.Prompt
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		res.Attempts = attempt
 		res.Steps = append(res.Steps, ImageDirectorStep{Stage: "generate", Attempt: attempt,
-			Detail: fmt.Sprintf("生成中：%s（%s，seed %d）", curModel, size, curSeed)})
+			Detail: fmt.Sprintf("生成中：%s（%s，seed %d）", plan.Model, size, curSeed)})
 
-		images, errMsg := deps.generate(curModel, curPrompt, plan.Negative, plan.Style, plan.Loras, curSeed, size)
+		images, errMsg := deps.generate(plan.Model, curPrompt, plan.Negative, plan.Style, plan.Loras, curSeed, size)
 		if errMsg != "" {
 			res.Steps = append(res.Steps, ImageDirectorStep{Stage: "generate", Attempt: attempt, Detail: errMsg})
 			if attempt < maxAttempts {
