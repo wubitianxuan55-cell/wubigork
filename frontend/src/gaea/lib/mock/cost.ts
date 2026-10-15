@@ -34,6 +34,7 @@ type CostMethods = Pick<
   | "CostGet" | "CostSave" | "CostDelete"
   | "CostImportPreview" | "CostImportAIParse" | "CostImportVisionPreview" | "CostImportApply"
   | "CostBulkPricePreview" | "CostBulkPriceApply"
+  | "CostQuotaFlywheelPreview" | "CostQuotaFlywheelApply"
   | "CostHealthScan" | "CostDedupeResources"
   | "PriceSources" | "PriceSourceSave" | "PriceSourceDelete"
   | "PriceFetch" | "PriceFetchAll" | "PriceFetches" | "PriceFetchApply" | "PriceFetchIgnore"
@@ -393,6 +394,13 @@ export function buildCost(_s: MakeMockState): CostMethods {
     },
     async CostBulkPriceApply(_xlsxBase64: string) {
       return { updated: 0, skipped: [], total: 0, applied: [] };
+    },
+    // 企业定额自生成（11.6；演示口径=无跨项目数据，零候选）。
+    async CostQuotaFlywheelPreview() {
+      return { clusters: 0, candidates: [], skipped: [] };
+    },
+    async CostQuotaFlywheelApply(_origCodes: string[]) {
+      return { saved: [], skipped: [] };
     },
     // ── 成本库导入（mock：对已知文件返回样例候选）──
     async CostImportPreview(path: string) {
