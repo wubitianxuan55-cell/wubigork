@@ -18,6 +18,14 @@ const tuiFormatting = `Keep the final answer compact and terminal-friendly: shor
 func builtinSkills() []Skill {
 	return []Skill{
 		{
+			Name:        "office-gongwen",
+			Description: "GB/T 9704-2012 党政机关公文格式：生成/修改红头公文（通知/请示/报告/函/纪要等）前必读——版面页边距、字体字号表、结构层次序号铁律、版头红头发文字号、主体要素编排、python-docx 落地参数与常见错误清单。",
+			Body:        gongwenBody,
+			Scope:       ScopeBuiltin,
+			Path:        "(builtin)",
+			RunAs:       RunInline,
+		},
+		{
 			Name:        "genui",
 			Description: "生成式 UI 词汇手册：回答中用 ```genui 围栏输出卡片/表格/图表/表单/quiz 前必读，含组件词汇、JSON 自检与纪律。",
 			Body:        genui.Handbook,
