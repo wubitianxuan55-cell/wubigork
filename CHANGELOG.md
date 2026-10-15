@@ -1,3 +1,6 @@
+## v4.493.0 · 阶段十 10.2 模型推荐位三档+量化适用面标注（2026-10-15）
+> 数据源=survey §5.3 谱系表（2026-10 社区口碑）。模型中心新「推荐位」tab：NSFW 特化（TheDrummer 系 Q4_K_M）/文笔（Magnum·Midnight Miqu·Gemma4）/智力（GLM/Kimi 蒸馏）三档陈列，标注口径诚实（口碑含负面原文：非英语变笨/量化敏感/需越狱）+量化共识声明。QuantSuitability 纯函数（656→657 面）：档位×任务面适用面——**IQ2_XS=「写作可用（低量化写作有实证）；知识/agent 不适用」**（strata 现有写作包规划判据逐字）；LocalModelSuitability 本机已装本地模型逐个标注（getEngines/getQuantSuitability api 封装）。全量 ci 绿。详见 `releases/v4.493.0.md`。
+
 ## v4.492.0 · 阶段十 10.1 量化红线：工具调用低比特警告+档位解析纯函数（2026-10-15）
 > 盘底：路由决策可见可覆盖已在产（model.route 事件+GetModelRoute 绑定+五层策略）——真实缺口=工具调用低比特警告。modelengine/quant.go 纯函数：ParseQuantLevel（llama.cpp GGUF 命名法全覆盖：Q2~Q8_K/IQ1~IQ4/F16/BF16；混合标注取最低档保守；无标记 known=false 宁漏勿误）+ToolCallQuantWarning（本地引擎+档位<Q4→中文警告；云端/未识别恒空——Q4 为社区公认工具调用可用下限）。挂点：routeModel emit 顺带检查→model.quant.warn 事件（per feature+model 进程内去重不刷屏）+GetModelRoute 返回 quantWarn 字段（绑定卡可见）。测试=命名法 12 例+警告六用例。全量 ci 绿。详见 `releases/v4.492.0.md`。
 
