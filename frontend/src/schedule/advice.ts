@@ -8,7 +8,7 @@
 // 与 dcmaAudit 的关系：dcmaAudit 管体检单（14 点合规判定），advice 管修复建
 // 议（作者下一步动手清单）；两者同源（同一 CPM 结果+同一关系表），结论必然
 // 一致——建议是检查的下游投影，不另立第二套判定。
-import type { SchedProject, SchedLink } from './types'
+import type { SchedProject } from './types'
 import type { CpmResult } from './types'
 
 export type AdviceKind =
@@ -136,6 +136,3 @@ export function scheduleAdvice(p: SchedProject, cpm: CpmResult): ScheduleAdvice[
 
   return out
 }
-
-/** 冗余检测用的关系引用（导出供测试构造）。 */
-export type AdviceLink = SchedLink
