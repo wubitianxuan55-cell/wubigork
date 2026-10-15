@@ -53,12 +53,6 @@ func sessionRefKey(token string) string {
 	return strings.TrimSpace(k)
 }
 
-// sessionTitleEntry 标题注册表的一项（.titles.json 的 value）。
-type sessionTitleEntry struct {
-	file string // 会话文件 base 名（含 .jsonl）
-	name string // 最新标题
-}
-
 // loadSessionTitlesFor 读会话目录的标题注册表（.titles.json：{文件名: 标题}）。
 // 文件缺失 = 空表正常态；损坏 = 空表（引用匹配是增强面，不因坏档报错）。
 func loadSessionTitlesFor(dir string) map[string]string {

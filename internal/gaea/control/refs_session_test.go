@@ -5,6 +5,7 @@ package control
 // 明）+ dsh 原案「label 取最新标题」。
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -123,7 +124,7 @@ func TestSessionRef_WiredThroughResolveRefs(t *testing.T) {
 	dir, _ := seedSessionRefEnv(t)
 	c := newSessionRefController(dir)
 	// ResolveRefs 全链：@会话:xxx 与 @文件 引用同线解析（会话分支不破坏既有引用）
-	block, errs := c.ResolveRefs(nil, "参考 @会话:部署脚本")
+	block, errs := c.ResolveRefs(context.Background(), "参考 @会话:部署脚本")
 	if len(errs) != 0 {
 		t.Fatalf("errs: %v", errs)
 	}
