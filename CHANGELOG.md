@@ -1,3 +1,6 @@
+## v4.499.0 · 阶段十一 11.6 绘梦导演 Agent：解析→生成→视觉自评→带参重试（2026-10-15）
+> roadmap 绘梦#1。四段全踩既有缝：routeModel×RetryJSON 解析 / generateImageInternal 生成链（台账/落盘/进度全继承）/ vision.RecognizeImage 自评 / 有界重试（种子重掷+issues·fix 入提示词）。循环核心纯函数化（三缝注入，语义全钉纯测试）；诚实口径（自评不可用放行记轨迹/用尽轮次显式未达标/失败原因透出）；模型候选集 ComfyUITxt2imgModels 单源+幻觉回落；gen_bindings 分面规则补 GaeaImage*→image（门面错位前科同款根治）。绑定 659→660；循环 9 例+弹窗 3 例+全量 ci 绿；实弹挂用户（需 ComfyUI+LLM+视觉同在位）。详见 `releases/v4.499.0.md`。
+
 ## v4.498.0 · 阶段十一 11.6 轻语情感×语音收口：TTS 回退本地优先+情感参数表补全 9 标签（2026-10-15）
 > 并行池清欠（原判据：情感状态机 × CosyVoice2 本地语音）。盘底结论：机制面已在产（L2 情绪引擎→描述/结构化双路径→语音对话；Mood 连续韵律 v4.6；统一路由 cosyvoice 先于 Edge；CosyVoice2 内置启动即拉起），本刀收口两处缺口：①回退优先级 cosyvoice 提到云端 edge-tts 之前（全本地口径：云端只配「一个本地引擎都没有」的末端兜底）；②EmotionTTSParamsMap 2/9→9/9（Speed/Pitch 按同标签 Edge 参数方向派生、5Hz≈1 半音不足取整；Emotion 词宁缺勿误只给 angry/calm；双路径键集一致钉）。voice 包全绿；零绑定零前端。实弹听感挂用户。详见 `releases/v4.498.0.md`。
 
