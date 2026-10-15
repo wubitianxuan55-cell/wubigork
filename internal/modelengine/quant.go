@@ -123,3 +123,39 @@ func ToolCallQuantWarning(engineType EngineType, model string) string {
 	return "模型「" + model + "」为 " + q.Label +
 		" 低比特量化：工具调用（结构化输出）在此档位下崩溃率高，建议换用 Q4 及以上档位跑 agent 任务"
 }
+
+// ── 量化档位 × 任务面适用性（阶段十 10.2，survey §5.3 量化共识）──
+//
+// 共识口径（survey §5.3 原文）：
+//   - 「文风对低量化的容忍度远高于知识（知识低量化非线性崩塌）」；
+//   - 「Midnight Miqu IQ2_S 仍出佳品」= IQ2 档写作可行实证；
+//   - 工具调用 <Q4 崩溃率高（见 ToolCallQuantWarning）。
+// 据此三档适用面：
+//   writing  写作/文笔——容忍度最高，IQ2 起可读（低量化写作可行）
+//   knowledge 知识/事实问答——低量化非线性崩塌，建议 ≥Q4
+//   agent    工具调用/agent 编排——<Q4 崩溃率高，建议 ≥Q4（红线见上）
+
+// QuantSuitability 返回模型的任务面适用面标注（人可读，模型中心推荐位/绑定
+// 卡展示用）。known=false 返回空串（无标记不猜测——宁缺勿误）。
+func QuantSuitability(model string) string {
+	q := ParseQuantLevel(model)
+	if !q.Known {
+		return ""
+	}
+	switch {
+	case q.Level >= 8:
+		return "全档位适用（Q8+/全精度无损）"
+	case q.Level >= 6:
+		return "全档位适用（Q6 起接近无损）"
+	case q.Level == 5:
+		return "写作/知识/agent 均适用"
+	case q.Level == 4:
+		return "写作/知识/agent 均适用（Q4 甜点档）；复杂 agent 编排建议 Q5+"
+	case q.Level == 3:
+		return "写作可用；知识问答开始失真、agent 工具调用不适用（建议 ≥Q4）"
+	case q.Level == 2:
+		return "写作可用（低量化写作有实证）；知识/agent 不适用（建议 ≥Q4）"
+	default: // 1
+		return "仅实验用途；各任务面均不可靠"
+	}
+}

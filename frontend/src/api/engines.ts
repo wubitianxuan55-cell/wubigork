@@ -372,6 +372,12 @@ export async function getEngines(): Promise<EngineConfig[]> {
   return result as EngineConfig[]
 }
 
+/** 模型量化档位适用面标注（阶段十 10.2；无标记返回空串） */
+export async function getQuantSuitability(model: string): Promise<string> {
+  const result = await App().QuantSuitability(model)
+  return typeof result === 'string' ? result : ''
+}
+
 /** 本地资源占用遥测（模型中心资源条 / 右舷内核状态 / 首页矩阵共用）。
  *  必须经 App()（window.go.app.App 兼容代理 + bridgeApp mock 兜底）——
  *  wailsjsCompat 直调 window.go.app.ModelB 会绕过 bridge mock，

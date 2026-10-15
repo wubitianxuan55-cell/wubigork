@@ -541,6 +541,7 @@ export const bindingNames = [
   "PromptTemplatePreview",
   "PromptTemplateReset",
   "PromptTemplateSave",
+  "QuantSuitability",
   "QuickBrainstormBranches",
   "RefreshEngineModels",
   "RemoveCharacterCareer",

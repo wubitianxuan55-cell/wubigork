@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react'
 import { Button, Drawer, message } from 'antd'
 import {
   ThunderboltOutlined, PictureOutlined, SoundOutlined, SettingOutlined, LinkOutlined,
-  CheckCircleOutlined, LoginOutlined, LogoutOutlined, DatabaseOutlined, DashboardOutlined, ReloadOutlined, BarChartOutlined,
+  CheckCircleOutlined, LoginOutlined, LogoutOutlined, DatabaseOutlined, DashboardOutlined, ReloadOutlined, BarChartOutlined, StarOutlined,
   AppstoreOutlined, ExperimentOutlined, SearchOutlined, ControlOutlined, PieChartOutlined,
 } from '@ant-design/icons'
 import { useAppStore } from '../stores/appStore'
@@ -18,6 +18,7 @@ import { SpecialtySection } from './modelcenter/SpecialtySection'
 import { OverviewSection } from './modelcenter/OverviewSection'
 import { HerdsmanCatalogSection } from './modelcenter/HerdsmanCatalogSection'
 import { BenchmarkSection } from './modelcenter/BenchmarkSection'
+import { RecommendSection } from './modelcenter/RecommendSection'
 import { RetrievalEvalSection } from './modelcenter/RetrievalEvalSection'
 import { SchedulingSection } from './modelcenter/SchedulingSection'
 import { AttributionSection } from './modelcenter/AttributionSection'
@@ -227,6 +228,7 @@ const ModelCenterPage: React.FC = () => {
     { key: 'image', icon: <PictureOutlined />, label: '图片生成' },
     { key: 'tts', icon: <SoundOutlined />, label: '语音模型' },
     { key: 'specialty', icon: <DatabaseOutlined />, label: '专业模型' },
+    { key: 'recommend', icon: <StarOutlined />, label: '推荐位' },
     { key: 'catalog', icon: <AppstoreOutlined />, label: '模型库' },
     { key: 'benchmark', icon: <ExperimentOutlined />, label: '受控测评' },
     { key: 'retrieval', icon: <SearchOutlined />, label: '检索质量' },
@@ -345,6 +347,7 @@ const ModelCenterPage: React.FC = () => {
             {category === 'image' && <ImageSection />}
             {category === 'tts' && <VoiceSection />}
             {category === 'specialty' && <SpecialtySection />}
+            {category === 'recommend' && <RecommendSection />}
             {category === 'catalog' && <HerdsmanCatalogSection />}
             {category === 'benchmark' && <BenchmarkSection />}
             {category === 'retrieval' && <RetrievalEvalSection />}

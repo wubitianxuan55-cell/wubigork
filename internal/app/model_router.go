@@ -101,6 +101,13 @@ func (c *core) quantToolCallWarnOnce(feature, engine, model string) string {
 	return w
 }
 
+// QuantSuitability 返回模型的任务面适用面标注（Wails 绑定，阶段十 10.2 推荐
+// 位/绑定卡展示用；survey §5.3 量化共识：文风容忍低量化、知识/agent 建议 ≥Q4）。
+// 无量化标记返回空串（宁缺勿误）。零状态纯函数，直调 modelengine。
+func (a *App) QuantSuitability(model string) (string, error) {
+	return modelengine.QuantSuitability(model), nil
+}
+
 // GetModelRoute 返回功能域当前生效路由（Wails 绑定，前端模型中心展示用）。
 func (a *App) GetModelRoute(feature string) (string, error) {
 	eng, model, source := a.routeModel(feature)

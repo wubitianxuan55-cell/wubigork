@@ -73,3 +73,23 @@ func indexOf(s, sub string) int {
 	}
 	return -1
 }
+
+// 10.2 适用面标注：IQ2_XS（strata 现有写作包）标注「写作可用、知识/agent 不
+// 适用」（规划判据逐字）；Q4 甜点；无标记空串。
+func TestQuantSuitability(t *testing.T) {
+	cases := []struct {
+		model string
+		want  string
+	}{
+		{"Qwen3.8-Flash-Next-GSQ-RCO-IQ2_XS", "写作可用（低量化写作有实证）；知识/agent 不适用（建议 ≥Q4）"},
+		{"model-Q4_K_M", "写作/知识/agent 均适用（Q4 甜点档）；复杂 agent 编排建议 Q5+"},
+		{"model-Q8_0", "全档位适用（Q8+/全精度无损）"},
+		{"model-IQ3_M", "写作可用；知识问答开始失真、agent 工具调用不适用（建议 ≥Q4）"},
+		{"grok-4.20", ""},
+	}
+	for _, tc := range cases {
+		if got := QuantSuitability(tc.model); got != tc.want {
+			t.Fatalf("QuantSuitability(%q): got %q want %q", tc.model, got, tc.want)
+		}
+	}
+}
