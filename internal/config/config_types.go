@@ -162,7 +162,7 @@ type Config struct {
 	ImageBackend      string // "xai" (默认) | "comfyui" | "herdsman" | "ollama"
 	ComfyUIURL        string // ComfyUI 服务地址，默认 http://127.0.0.1:8188
 	ImageSaveDir      string // 生成图片存放目录，空字符串=不存盘
-	ImageModel        string // 图片模型: "grok-imagine-image-quality" (xAI默认) | "flux" | "z-image-turbo"
+	ImageModel        string // 图片模型: "grok-imagine-image-quality" (xAI默认) | "krea2" | "z-image-turbo" | "qwen-image-2.1-turbo" | "flux"
 	PortraitBackend   string // 角色库剧照后端（空=跟随绘梦）
 	PortraitModel     string // 角色库剧照模型（空=跟随绘梦）
 	SinImageBackend   string // 原罪插图生图后端（空=跟随全局生图设置）

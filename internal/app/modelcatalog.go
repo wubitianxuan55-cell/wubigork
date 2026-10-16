@@ -39,6 +39,11 @@ var imageModelCatalogByID = map[string]imageModelCatalogMeta{
 		Tier:     imageTierLocalFree,
 		UnitCost: "0",
 	},
+	"qwen-image-2.1-turbo": {
+		Modes:    []string{"txt2img"}, // 官方仅 t2i 模板；img2img 未蒸馏（edit 走 2511 编辑族）
+		Tier:     imageTierLocalFree,
+		UnitCost: "0",
+	},
 	"flux": {
 		Modes:    []string{"txt2img"},
 		Tier:     imageTierLocalFree,

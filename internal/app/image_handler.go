@@ -1007,7 +1007,7 @@ func (a *mediaState) GetImageBackendConfig() map[string]interface{} {
 	}
 
 	// 2. 恒提供 ComfyUI 本地模型（角色剧照等场景可选择本地出图，本机单用户定位）
-	comfyAlways := []string{"krea2", "z-image-turbo", "flux"}
+	comfyAlways := []string{"krea2", "z-image-turbo", "qwen-image-2.1-turbo", "flux"}
 	for _, cm := range comfyAlways {
 		dup := false
 		for _, m := range availableModels {

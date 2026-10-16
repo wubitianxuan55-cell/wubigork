@@ -267,6 +267,77 @@ func (b *ComfyUIBackend) buildQwenImageEditWorkflow(prompt string, seed int, ima
 	return wf
 }
 
+// Qwen-Image-2.1-Turbo 官方模板文件名（comfyui-workflow-templates
+// image_qwen_image_2_1_turbo_t2i 蒸馏，2026-10-16 实读；权重本机
+// ComfyUI-Shared 共享目录已就位）。
+const (
+	qwen21UNET = "qwen_image_2.1_turbo_int8_convrot.safetensors"
+	qwen21CLIP = "qwen3vl_8b_int8_convrot.safetensors"
+	qwen21VAE  = "qwen_image_2.1_vae_bf16.safetensors"
+)
+
+// qwen21Sigmas 官方 turbo 档手写 σ 表（ManualSigmas，9 值 = 8 步）——
+// turbo 权重按该日程蒸馏，步数不开放（同 flux 固定 4 步的先例）。
+const qwen21Sigmas = "1.0, 0.978453, 0.95418, 0.926626, 0.89508, 0.845148, 0.704534, 0.414568, 0"
+
+// buildQwen21Workflow 构建 Qwen-Image-2.1-Turbo 文生图工作流（官方模板
+// API 图还原，取道不取器）：
+//
+//	UNETLoader → [LoRA 链] → QwenImage21Cache(auto/default) → CFGGuider(cfg 1.0)
+//	CLIPLoader(qwen_image) → TextEncodeQwenImage21(prompt + negative_prompt
+//	  同节点双编码，输出 0=正 / 1=负 conditioning)
+//	EmptyLatentImage + RandomNoise + KSamplerSelect(euler) + ManualSigmas
+//	  → SamplerCustomAdvanced → VAEDecode → SaveImage
+//
+// 官方模板的可选件不接：TextGenerate 提示词改写支路（PE 模型
+// qwen3.5_9b_*_pe_t2i 另需 9.5GB，模板默认 switch=false 直通原文，gaea 的
+// 提示词由上层 LLM 组织）；2.1 的 edit 模板不接——指令编辑/参考编辑仍走
+// Qwen-Image-Edit 2511（编辑族单引擎口径，见 buildQwenImageEditWorkflow）。
+// TextEncodeQwenImage21.resolution 只作用于参考图重标，本工作流不传参考图，
+// 保持模板默认 1024（latent 由 EmptyLatentImage 按请求宽高给出）。
+func (b *ComfyUIBackend) buildQwen21Workflow(prompt, negative string, width, height, seed int, loras []string) map[string]interface{} {
+	wf := map[string]interface{}{
+		"4": map[string]interface{}{"class_type": "UNETLoader", "inputs": map[string]interface{}{"unet_name": qwen21UNET, "weight_dtype": "default"}},
+		"5": map[string]interface{}{"class_type": "CLIPLoader", "inputs": map[string]interface{}{"clip_name": qwen21CLIP, "type": "qwen_image", "device": "default"}},
+		"6": map[string]interface{}{"class_type": "VAELoader", "inputs": map[string]interface{}{"vae_name": qwen21VAE}},
+		"7": map[string]interface{}{"class_type": "TextEncodeQwenImage21", "inputs": map[string]interface{}{
+			"clip": []interface{}{"5", 0}, "prompt": prompt, "negative_prompt": negative, "resolution": 1024,
+		}},
+		"9":  map[string]interface{}{"class_type": "EmptyLatentImage", "inputs": map[string]interface{}{"width": width, "height": height, "batch_size": 1}},
+		"41": map[string]interface{}{"class_type": "RandomNoise", "inputs": map[string]interface{}{"noise_seed": seed, "control": "randomize"}},
+		"43": map[string]interface{}{"class_type": "KSamplerSelect", "inputs": map[string]interface{}{"sampler_name": "euler"}},
+		"44": map[string]interface{}{"class_type": "ManualSigmas", "inputs": map[string]interface{}{"sigmas": qwen21Sigmas}},
+	}
+	modelSourceID := injectLoraNodes(wf, "4", loras)
+	wf["40"] = map[string]interface{}{"class_type": "QwenImage21Cache", "inputs": map[string]interface{}{
+		"model": []interface{}{modelSourceID, 0}, "device": "auto", "dtype": "default",
+	}}
+	wf["42"] = map[string]interface{}{"class_type": "CFGGuider", "inputs": map[string]interface{}{
+		"model": []interface{}{"40", 0}, "positive": []interface{}{"7", 0}, "negative": []interface{}{"7", 1}, "cfg": 1.0,
+	}}
+	wf["10"] = map[string]interface{}{"class_type": "SamplerCustomAdvanced", "inputs": map[string]interface{}{
+		"noise": []interface{}{"41", 0}, "guider": []interface{}{"42", 0}, "sampler": []interface{}{"43", 0},
+		"sigmas": []interface{}{"44", 0}, "latent_image": []interface{}{"9", 0},
+	}}
+	wf["11"] = map[string]interface{}{"class_type": "VAEDecode", "inputs": map[string]interface{}{"samples": []interface{}{"10", 0}, "vae": []interface{}{"6", 0}}}
+	wf["12"] = map[string]interface{}{"class_type": "SaveImage", "inputs": map[string]interface{}{"filename_prefix": "gaea", "images": []interface{}{"11", 0}}}
+	return wf
+}
+
+// qwen21MissingModelHint 文生图提交失败时的缺权重提示：gaea 从不自动下载
+// 模型，这里给出三件文件名 + 存放目录（可操作）；错误不含本族权重名时
+// 返回空串零影响（krea2/z-image 的 LoRA 缺失不误伤）。
+func qwen21MissingModelHint(errMsg string) string {
+	if !strings.Contains(errMsg, "qwen_image_2.1") && !strings.Contains(errMsg, "qwen3vl_8b") {
+		return ""
+	}
+	return "\n💡 文生图本地档（Qwen-Image-2.1-Turbo）需要以下模型文件（放入 ComfyUI 对应目录后重试）：\n" +
+		"   models/diffusion_models/" + qwen21UNET + "\n" +
+		"   models/text_encoders/" + qwen21CLIP + "\n" +
+		"   models/vae/" + qwen21VAE + "\n" +
+		"   ← 可在 ComfyUI 模板管理器打开「Qwen Image 2.1 Turbo」模板一键下载，或到 ModelScope/HuggingFace 搜索同名权重"
+}
+
 // preferredKontextResolutions ComfyUI FluxKontextImageScale 的分辨率预设表
 // （本机 ComfyUI 0.36 comfy_extras/nodes_flux.py:105 实读，17 档）。
 var preferredKontextResolutions = [][2]int{

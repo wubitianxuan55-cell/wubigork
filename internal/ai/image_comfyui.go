@@ -23,7 +23,8 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// ComfyUIBackend 通过 ComfyUI REST API 调用本地 Flux / Z-Image-Turbo 模型
+// ComfyUIBackend 通过 ComfyUI REST API 调用本地 Flux / Z-Image-Turbo /
+// Krea2 / Qwen-Image-2.1-Turbo 模型
 type ComfyUIBackend struct {
 	baseURL    string
 	httpClient *http.Client // 可注入（测试用 httptest.Server 客户端替换），默认 30 分钟超时
@@ -353,7 +354,7 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 		// 文生图（默认）：模型 → 工作流显式映射表（T6-4.2），未知模型返回中文错误
 		builder, ok := lookupTxt2imgBuilder(req.Model)
 		if !ok {
-			return nil, fmt.Errorf("不支持的模型: %s（ComfyUI 支持 krea2 / z-image-turbo / flux）", req.Model)
+			return nil, fmt.Errorf("不支持的模型: %s（ComfyUI 支持 krea2 / z-image-turbo / qwen-image-2.1-turbo / flux）", req.Model)
 		}
 		workflow = builder(b, req.Prompt, req.Negative, width, height, seed, 8, loras)
 	}
@@ -363,6 +364,9 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 	if err != nil {
 		if mode == "edit" {
 			return nil, fmt.Errorf("ComfyUI 提交失败（指令编辑本地档）: %w%s", err, qwenEditMissingModelHint(err.Error()))
+		}
+		if hint := qwen21MissingModelHint(err.Error()); hint != "" {
+			return nil, fmt.Errorf("ComfyUI 提交失败: %w%s", err, hint)
 		}
 		return nil, fmt.Errorf("ComfyUI 提交失败: %w", err)
 	}
@@ -440,6 +444,9 @@ var txt2imgWorkflows = map[string]txt2imgWorkflowBuilder{
 	},
 	"z-image-turbo": func(b *ComfyUIBackend, prompt, negative string, width, height, seed, steps int, loras []string) map[string]interface{} {
 		return b.buildZImageWorkflow(prompt, width, height, seed, steps, loras)
+	},
+	"qwen-image-2.1-turbo": func(b *ComfyUIBackend, prompt, negative string, width, height, seed, steps int, loras []string) map[string]interface{} {
+		return b.buildQwen21Workflow(prompt, negative, width, height, seed, loras)
 	},
 	"flux": func(b *ComfyUIBackend, prompt, negative string, width, height, seed, steps int, loras []string) map[string]interface{} {
 		return b.buildFluxWorkflow(prompt, width, height, seed, loras)

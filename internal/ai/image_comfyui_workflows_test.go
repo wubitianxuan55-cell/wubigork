@@ -83,6 +83,75 @@ func TestGoldenZImageTxt2ImgWithLora(t *testing.T) {
 	}
 }
 
+// TestGoldenQwen21Txt2ImgWorkflow Qwen-Image-2.1-Turbo 官方模板蒸馏节点表
+// （image_qwen_image_2_1_turbo_t2i → API 图）：单 TextEncodeQwenImage21 双出
+// 正/负 conditioning；采样栈 Cache→CFGGuider(1.0) + RandomNoise + euler +
+// ManualSigmas 官方 8 σ 表 → SamplerCustomAdvanced。负向词透传（该族模板
+// 原生带 negative_prompt 输入，与 krea2/z-image 的 ZeroOut 口径不同）。
+func TestGoldenQwen21Txt2ImgWorkflow(t *testing.T) {
+	b := &ComfyUIBackend{}
+	wf := b.buildQwen21Workflow("测试 prompt", "坏手", 1024, 1024, 42, nil)
+	want := `{"10":{"class_type":"SamplerCustomAdvanced","inputs":{"guider":["42",0],"latent_image":["9",0],"noise":["41",0],"sampler":["43",0],"sigmas":["44",0]}},"11":{"class_type":"VAEDecode","inputs":{"samples":["10",0],"vae":["6",0]}},"12":{"class_type":"SaveImage","inputs":{"filename_prefix":"gaea","images":["11",0]}},"4":{"class_type":"UNETLoader","inputs":{"unet_name":"qwen_image_2.1_turbo_int8_convrot.safetensors","weight_dtype":"default"}},"40":{"class_type":"QwenImage21Cache","inputs":{"device":"auto","dtype":"default","model":["4",0]}},"41":{"class_type":"RandomNoise","inputs":{"control":"randomize","noise_seed":42}},"42":{"class_type":"CFGGuider","inputs":{"cfg":1,"model":["40",0],"negative":["7",1],"positive":["7",0]}},"43":{"class_type":"KSamplerSelect","inputs":{"sampler_name":"euler"}},"44":{"class_type":"ManualSigmas","inputs":{"sigmas":"1.0, 0.978453, 0.95418, 0.926626, 0.89508, 0.845148, 0.704534, 0.414568, 0"}},"5":{"class_type":"CLIPLoader","inputs":{"clip_name":"qwen3vl_8b_int8_convrot.safetensors","device":"default","type":"qwen_image"}},"6":{"class_type":"VAELoader","inputs":{"vae_name":"qwen_image_2.1_vae_bf16.safetensors"}},"7":{"class_type":"TextEncodeQwenImage21","inputs":{"clip":["5",0],"negative_prompt":"坏手","prompt":"测试 prompt","resolution":1024}},"9":{"class_type":"EmptyLatentImage","inputs":{"batch_size":1,"height":1024,"width":1024}}}`
+	if got := marshalWorkflow(t, wf); got != want {
+		t.Errorf("qwen21 txt2img 节点表漂移:\n got %s\nwant %s", got, want)
+	}
+	// 负向词为空时 negative_prompt 仍显式空串（模板同形），不省键
+	if got := nodeInput(t, b.buildQwen21Workflow("p", "", 64, 64, 0, nil), "7", "negative_prompt"); got != "" {
+		t.Errorf("qwen21 空负向应为空串，got %v", got)
+	}
+}
+
+// TestGoldenQwen21Txt2ImgWithLora LoRA 链插在 UNET 与 QwenImage21Cache 之间：
+// 4 → 20(LoRA) → 40(Cache) → 42(CFGGuider)。
+func TestGoldenQwen21Txt2ImgWithLora(t *testing.T) {
+	b := &ComfyUIBackend{}
+	wf := b.buildQwen21Workflow("p", "", 512, 512, 7, []string{"qwen21\\detail.safetensors"})
+	if got := nodeInput(t, wf, "40", "model"); !equalIface(got.([]interface{}), []interface{}{"20", 0}) {
+		t.Errorf("qwen21 LoRA 链应接 Cache 前，got 40.model = %v", got)
+	}
+	if got := nodeInput(t, wf, "42", "model"); !equalIface(got.([]interface{}), []interface{}{"40", 0}) {
+		t.Errorf("CFGGuider 应接 Cache 输出，got 42.model = %v", got)
+	}
+	lo, ok := wf["20"].(map[string]interface{})
+	if !ok || lo["class_type"] != "LoraLoaderModelOnly" {
+		t.Fatalf("节点 20 应为 LoraLoaderModelOnly: %v", wf["20"])
+	}
+}
+
+// equalIface 逐元素比较 []interface{}（golden 辅助，避免 reflect.DeepEqual
+// 对 int/float64 的类型挑剔——工作流内连接对第二元素恒为字面 0）。
+func equalIface(a, b []interface{}) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// TestQwen21MissingModelHint 缺权重提示只对本族权重名触发：krea2/z-image
+// 的 value_not_in_list（如 LoRA 缺失）不得误挂 qwen21 下载指引。
+func TestQwen21MissingModelHint(t *testing.T) {
+	if qwen21MissingModelHint("value not in list: krea2_turbo_fp8_scaled.safetensors") != "" {
+		t.Errorf("krea2 权重缺失不应触发 qwen21 提示")
+	}
+	if qwen21MissingModelHint("Cannot execute because node LoraLoaderModelOnly missing") != "" {
+		t.Errorf("无关错误不应触发 qwen21 提示")
+	}
+	for _, msg := range []string{
+		`value not in list: qwen_image_2.1_turbo_int8_convrot.safetensors`,
+		`value not in list: qwen3vl_8b_int8_convrot.safetensors`,
+		`value not in list: qwen_image_2.1_vae_bf16.safetensors`,
+	} {
+		if got := qwen21MissingModelHint(msg); !strings.Contains(got, "models/diffusion_models/") {
+			t.Errorf("qwen21 权重缺失应给出三件套指引，msg=%s got %q", msg, got)
+		}
+	}
+}
+
 // TestWarmupDispatchMatchesTxt2imgRegistry AP7-03 行为面：Warmup 改经
 // lookupTxt2imgBuilder 分发后，与历史手写 switch 逐 case 等价——提交的空跑
 // 工作流 == 登记构建器在 (prompt="(warmup)", 64×64, seed 0, steps 1) 的产物。
@@ -110,7 +179,7 @@ func TestWarmupDispatchMatchesTxt2imgRegistry(t *testing.T) {
 	b.pollInterval = 20 * time.Millisecond // 测试提速（生产 2s）
 
 	// krea2 精确名与 krea2-* 前缀都走 krea2 工作流（历史 HasPrefix 语义）
-	for _, model := range []string{"krea2", "krea2-xl", "z-image-turbo", "flux"} {
+	for _, model := range []string{"krea2", "krea2-xl", "z-image-turbo", "qwen-image-2.1-turbo", "flux"} {
 		gotWorkflow = nil
 		if err := b.Warmup(context.Background(), model); err != nil {
 			t.Fatalf("Warmup(%s): %v", model, err)
@@ -140,6 +209,20 @@ func TestWarmupDispatchMatchesTxt2imgRegistry(t *testing.T) {
 	}
 	if got := nodeInput(t, gotWorkflow, "14", "shift"); got != float64(3) {
 		t.Errorf("z-image 预热应带 AuraFlow shift=3，got %v", got)
+	}
+
+	gotWorkflow = nil
+	if err := b.Warmup(context.Background(), "qwen-image-2.1-turbo"); err != nil {
+		t.Fatalf("Warmup(qwen-image-2.1-turbo): %v", err)
+	}
+	if got := nodeInput(t, gotWorkflow, "4", "unet_name"); got != "qwen_image_2.1_turbo_int8_convrot.safetensors" {
+		t.Errorf("qwen21 预热应加载 2.1 turbo 权重，got %v", got)
+	}
+	if got := nodeInput(t, gotWorkflow, "40", "device"); got != "auto" {
+		t.Errorf("qwen21 预热应带 QwenImage21Cache(auto)，got %v", got)
+	}
+	if got := nodeInput(t, gotWorkflow, "42", "cfg"); got != float64(1) {
+		t.Errorf("qwen21 预热 CFGGuider 应 cfg=1，got %v", got)
 	}
 
 	gotWorkflow = nil

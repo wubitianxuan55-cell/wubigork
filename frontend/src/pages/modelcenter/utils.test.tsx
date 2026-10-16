@@ -180,9 +180,10 @@ describe('模型中心 MH3 · UD 动态量化档位', () => {
 })
 
 describe('模型中心 CU2 · ComfyUI 量化档位', () => {
-  it('fp8/scaled checkpoint 判定为量化高效档，bf16/未登记不猜', () => {
+  it('fp8/scaled/int8 checkpoint 判定为量化高效档，bf16/未登记不猜', () => {
     expect(comfyModelQuantFlag('krea2')).toBe(true) // krea2_turbo_fp8_scaled
     expect(comfyModelQuantFlag('z-image-turbo')).toBe(false) // bf16
+    expect(comfyModelQuantFlag('qwen-image-2.1-turbo')).toBe(true) // int8_convrot 官方量化档
     expect(comfyModelQuantFlag('flux')).toBe(false) // 文件名无标记，诚实不猜
     expect(comfyModelQuantFlag('ghost-model')).toBe(false)
   })

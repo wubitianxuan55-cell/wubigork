@@ -252,12 +252,14 @@ export const isImageModel = (m: { id: string; kind?: string }): boolean =>
 export const COMFY_MODEL_CHECKPOINT: Record<string, string> = {
   krea2: 'krea2_turbo_fp8_scaled.safetensors',
   'z-image-turbo': 'z_image_turbo_bf16_完整版_效果最好.safetensors',
+  'qwen-image-2.1-turbo': 'qwen_image_2.1_turbo_int8_convrot.safetensors',
   flux: 'flux1-schnell.safetensors',
 }
 
-// checkpoint 文件名自含量化标记（fp8/scaled）= 显存省/加载快档位（unsloth
-// UD 引导的同款思路：权重侧量化收益该让用户看得见）。
-export const isQuantEfficientCheckpoint = (ckpt: string): boolean => /fp8|scaled/i.test(ckpt)
+// checkpoint 文件名自含量化标记（fp8/scaled/int8）= 显存省/加载快档位（unsloth
+// UD 引导的同款思路：权重侧量化收益该让用户看得见；int8_convrot = 旋转量化重排，
+// Qwen-Image-2.1 官方分发档）。
+export const isQuantEfficientCheckpoint = (ckpt: string): boolean => /fp8|scaled|int8/i.test(ckpt)
 
 // 逻辑模型是否量化高效档（未登记 checkpoint 的模型一律 false，诚实不猜）。
 export const comfyModelQuantFlag = (modelId: string): boolean => {
@@ -274,6 +276,7 @@ export function sortComfyModelsQuantFirst<T extends ModelCardData>(models: T[]):
 export const COMFY_IMAGE_MODELS: ModelCardData[] = [
   { modelId: 'krea2', modelName: 'Krea2 Turbo', engineId: 'comfyui', engineName: 'ComfyUI', engineType: 'comfyui', engineEnabled: true, status: 'running', kind: 'image' },
   { modelId: 'z-image-turbo', modelName: 'Z-Image-Turbo', engineId: 'comfyui', engineName: 'ComfyUI', engineType: 'comfyui', engineEnabled: true, status: 'running', kind: 'image' },
+  { modelId: 'qwen-image-2.1-turbo', modelName: 'Qwen Image 2.1 Turbo', engineId: 'comfyui', engineName: 'ComfyUI', engineType: 'comfyui', engineEnabled: true, status: 'running', kind: 'image' },
 ]
 
 // 图片模型下拉选项：严格按后端过滤，避免「选了 xAI 却列出 krea2」的错配。
