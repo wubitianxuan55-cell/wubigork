@@ -1,3 +1,6 @@
+## v4.501.0 · 绘梦新增 Qwen-Image-2.1-Turbo 文生图：官方模板蒸馏+真机验证（2026-10-16）
+> 用户在 ComfyUI 新装 Qwen-Image-2.1-Turbo 出图模型+官方工作流，接进绘梦。官方模板 image_qwen_image_2_1_turbo_t2i 蒸馏（取道不取器）：TextEncodeQwenImage21 单节点双编码（正/负 conditioning 同出，负向词透传——与 krea2/z-image 的 ZeroOut 口径不同）；采样栈 UNET→[LoRA 链]→QwenImage21Cache(auto)→CFGGuider(cfg 1.0)+RandomNoise+euler+ManualSigmas 官方 8σ 表→SamplerCustomAdvanced；σ 表 turbo 专用步数不开放（同 flux 固定先例）。官方可选件不接：TextGenerate 提示词改写支路（PE 模型另需 9.5GB、模板默认直通原文）；2.1 edit 模板不接——编辑族仍单引擎走 2511。txt2imgWorkflows 登记防静默降级+Warmup 自动继承；缺权重中文三件套提示（只对本族权重名触发）；模型目录/comfyAlways/前端模型列/模型中心两表五处登记；量化档位标记扩 int8_convrot。golden 节点表（纯净+LoRA 链）+warmup 分发+提示词触发域测试；真机验证=本地 ComfyUI 0.41.0 提交蒸馏图 success 出图；全量 vitest 3860 绿；零绑定。详见 `releases/v4.501.0.md`。
+
 ## v4.500.0 · 阶段十一 11.3 跨项目对标查漏：确定性引擎+逐条溯源+评测集钉误报（2026-10-15）
 > longterm plan 11.3（插入点候拍板已自然消解），阶段十一收官刀。复核增强而非替代：只产带证据的线索清单（只读零写入）；确定性统计对标引擎而非 LLM 判读——出口判据（溯源引用/误报率评测集）恰好要求结论可复现。两类发现：bill_gap 清单缺项（缺多数同行都有的分部）+ quota_gap 同名定额缺组成（多数成员都含的资源个别没有）；宁缺勿误闸=语料 ≥3/其它成员 ≥2/覆盖 ≥60%/空项目不进语料；评测集即测试（已知发现全中+健康对照零误报+少数派不报，夹具两处预期写错被引擎当场纠正）。绑定 660→661；造价库新「对标查漏」模块（溯源 details 折叠披露+语料不足诚实提示）。评测集 4+边缘 2+组件 4 例全绿；全量 ci 绿。详见 `releases/v4.500.0.md`。
 
