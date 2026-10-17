@@ -131,7 +131,7 @@
 4. **Windows 缺位=tianxuan 的差异化正身**：Gufo 上游 Linux-only、halogen Linux-only、strata/herdsman 闭源——"第一个一等支持 Windows gfx1151 的开源 Strix Halo 引擎"这个生态位还空着；
 5. MoE4All 降级为参照系：工程纪律/documentation 树/Vulkan 兜底层（若 HIP 链路受挫，它仍是可用的 fallback 基座）。
 
-**修订后批次**：批次 1 = ①跑通 pixmaate fork 的 Windows 预构建包（半天实测）+ 读 docs/WINDOWS.md 摸 TheRock 工具链 ②上游 Gufo Linux 容器冒烟（对照组）→ **基座定夺点**；批次 2 = Windows 链路打磨 + gaea 接入（8092 端口/lifecycle/模型扫描照旧清单）；批次 3 = 本机深度调优（prefill/并发/prompt cache）+ MTP/DFlash2 预设 + 品牌化 tianxuan 发行。
+**修订后批次**：批次 1 = ①跑通 pixmaate fork 的 Windows 预构建包（半天实测）+ 读 fork 的 fork 仓库的 `WINDOWS.md` 摸 TheRock 工具链 ②上游 Gufo Linux 容器冒烟（对照组）→ **基座定夺点**；批次 2 = Windows 链路打磨 + gaea 接入（8094 端口/lifecycle/模型扫描照旧清单）；批次 3 = 本机深度调优（prefill/并发/prompt cache）+ MTP/DFlash2 预设 + 品牌化 tianxuan 发行。
 
 ### 10.4 调研过的引擎全景（截至本日）
 
@@ -169,3 +169,39 @@
 - **⚠️ 命名冲突待用户裁决**：`C:\AI\tianxuan` 已存在用户自己的项目「天璇 · Tianxuan」（DeepSeek Go 编程助手，wubitianxuan55-cell）——引擎命名需换名（如 tianxuan-engine / 天璇引擎归属确认）或用户拍板共用品牌系。
 
 **定夺：Gufo 基座成立。** Windows 链路半天跑通且数据真实，批次 2 = 35B 兼容量化旗舰复测 + fork 仓库结构（upstream=gufo-org/gufo，Windows 分支基线=pixmaate）+ gaea 接入。
+
+## 13. 批次 2 执行记录（2026-10-17 续）
+
+### 13.1 fork 仓库结构（完成）
+
+- **代码基**：`clones/gufo`（原地 git clone，不另复制）。分支布局＝
+  `main`（`upstream/main` 只读镜像，只 fast-forward）／`windows`（`pixmaate/windows-port` @ `2eb0778`，
+  即预构建 tag `windows-2026-10-03`）／`tianxuan`（集成分支，首个提交 `db86aabc`）。
+- **remote**：`upstream` = gufo-org/gufo，`pixmaate` = pixmaate/gufo；`origin` 待 tianxuan 自己的
+  GitHub 仓库建好后补（命令与同步流程写在台账里）。
+- **合规面**：`LICENSE`（MIT）/`NOTICE`/`THIRD_PARTY_NOTICES.md` 一字未动；README 顶部加 fork
+  声明（Gufo 名号与 Logo 留给原作者）；台账 = `clones/gufo` 的 tianxuan 台账（`tianxuan/README.md`）
+  （定位 / 分支与同步 / 许可清单 / Windows 构建与发布 / 批次 / 已知坑）。
+
+### 13.2 gaea 接入补漏（完成，`fa94b269`）
+
+- **思考预算守护漏斗补 tianxuan**（`applyThinkingBudgetGuard`）：接入时只写了
+  `prepareStreamRequest` 的装配分支，手装 ChatRequest 的短预算调用点（copilot 续写 256 /
+  章节护栏 / wx_agent / provider bridge）在 27B 上会复现「推理吃光预算、正文只剩几个字」——
+  与 strata 接入时同一个坑。现在两个漏斗入口（`ChatStream` / `chatOnce`）都守护。
+- **小说防重复采样**（`samplerAppliesToEngine`）：gufo 的 DRY/XTC 通道未验，按未知引擎口径
+  不注入非标键（与 strata 同处理），测试钉住「enabled=false 且请求零脏键」。
+- **启动器** `scripts/tianxuan-serve.ps1`：27b / 35b 两档预设 → 8094，参数固化
+  （`-j 2` / `-c 32768` / `--speculative dflash2|mtp` / `--cache-disk`），stdout/stderr 分落
+  `.tmp/tianxuan/`；PS 5.1 把引擎 stderr 当 `NativeCommandError` 终止脚本的坑写进注释
+  （实测踩过：引擎随包装脚本一起死）。
+- **端口口径**：8094（8080 herdsman / 8091 strata / 8092 MoE4All / 8888 modelhub），免鉴权。
+
+### 13.3 35B 旗舰复测（进行中）
+
+- 兼容量化：`Qwen3.6-35B-A3B-UD-Q8_K_XL`（36.41 GiB，MTP 在 GGUF 内，
+  sha256 `6c6b816537abad90b250a0972b345466028d861ddfe316d5f0de31ca6440f781`），落
+  `D:\gufo-models\35b\`（镜像下载 + 8 路分段续传）。
+- 测量口径：与批次 1 同一对擂脚本（`scripts/verify_engine_compare.go`：gaea 客户端 +
+  聊天页 tok/s 口径、四档 + 并发 x2）。
+- 结果：本轮补测中，数据出来后回填本节。

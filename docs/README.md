@@ -51,6 +51,13 @@
 | gaea-image-domain-t0-contract-design-2026-09.md | ✅ 已落地随 v4.98.0 |
 | gaea-sin-board-design-2026-09.md | ✅ **闲庭·原罪板块（v4.256.0）**：对话式图文混杂故事创作——办公组件复用清单、sin 绑定契约（会话/流式/插图/导出）、cue 编号跨端约定、成人内容边界与验收证据 |
 
+## 引擎线（本地推理引擎：调研 / 基座决策 / 批次台账）
+
+| 文档 | 状态 |
+|---|---|
+| gaea-tianxuan-research-2026-10.md | 🔄 **天璇引擎（tianxuan）立项调研与批次台账（2026-10-17）**：社区/GitHub 调研 + halogen 参照 + 基座定夺（**Gufo 取代 MoE4All**，MIT、同芯片 73/194 tok/s 实测上限）+ 批次 1 真机数据（27B 裸 12.5 / DFlash2 21.2 / 并发聚合 34.9 / prefill 620）+ 批次 2 执行记录（fork 结构 / gaea 接入补漏 / 35B 旗舰复测）；代码基在 `clones/gufo`（分支 `tianxuan`，台账 `clones/gufo` 的 tianxuan 台账（`tianxuan/README.md`）） |
+| gaea-moe4all-engine-assessment-2026-10.md | 🔄 **MoE4All 引擎接入实用性评估（阶段 0 真机全过，2026-10-17）**：v1.0.3 本机 Strix Halo 闸门（工具调用/流式 usage//v1/models/thinking）+ 同模型对擂 Strata + 生命周期面；结论=可接（≈一条引擎种子 + herdsman 式生命周期），但基座决策已选 Gufo，MoE4All 保留为 fallback 与工程纪律参照 |
+
 ## 蒸馏规划（取道不取器）
 
 | 文档 | 状态 |
