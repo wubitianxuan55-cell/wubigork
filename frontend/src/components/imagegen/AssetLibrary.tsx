@@ -6,15 +6,17 @@
 //     字段做客户端过滤（登记视图自带该字段）；
 //   - 懒加载：登记列表一次取 120 条，缩略 dataURL 只转换当前可见页
 //     （12 张/页，「加载更多」递增），已转换结果按 path 缓存不重读文件；
-//   - 溯源元数据：模型/成本/来源/角色(params.character_id)/时间/提示词/路径。
+//   - 溯源元数据：模型/成本/来源/角色(params.character_id)/时间/提示词/路径；
+//   - 删除（v4.502）：选中详情条「删除素材」→ ImageHubAssetDelete（删盘上
+//     文件+移除该空间台账登记；登记守卫在 Go 侧）→ 本地状态摘除该条。
 // 图示（.mmd 代码产物）无位图缩略 → 诚实占位（缩略图不可用），不伪装。
-import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Button, Segmented, Tag, Typography } from 'antd'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Button, Popconfirm, Segmented, Tag, Typography, message } from 'antd'
 import {
-  ArrowLeftOutlined, FileImageOutlined, PlayCircleOutlined,
+  ArrowLeftOutlined, DeleteOutlined, FileImageOutlined, PlayCircleOutlined,
 } from '@ant-design/icons'
 import { C } from '../../utils/theme'
-import { imageHubAssets, readFileAsDataURL, type ImageHubAssetView } from '../../api/image'
+import { imageHubAssets, deleteImageHubAsset, readFileAsDataURL, type ImageHubAssetView } from '../../api/image'
 import { useT } from '../../gaea/lib/i18n'
 import type { DictKey } from '../../gaea/locales/en'
 
@@ -120,6 +122,23 @@ export const AssetLibrary: React.FC<{ onClose: () => void }> = ({ onClose }) => 
     ]
   }, [records, t])
 
+  // v4.502 素材删除：登记守卫在 Go 侧；成功后本地摘除同路径全部登记 + 清缩略缓存。
+  const handleDelete = useCallback(async (rec: ImageHubAssetView) => {
+    const p = rec.path || ''
+    if (!p) return
+    const res = await deleteImageHubAsset(space, p)
+    if (res.error) {
+      message.error(t('imagehubT1.assetDeleteFail', { msg: res.error }))
+      return
+    }
+    setRecords((prev) => prev.filter((r) => r.path !== p))
+    setThumbs((prev) => prev.filter((r) => r.path !== p))
+    urlCacheRef.current.delete(p)
+    setSelected(null)
+    if (res.file_removed) message.success(t('imagehubT1.assetDeleteDone'))
+    else message.success(t('imagehubT1.assetDeleteFileGone'))
+  }, [space, t])
+
   const selectedThumb = thumbs.find((x) => x.path === selected?.path) || null
 
   return (
@@ -182,6 +201,20 @@ export const AssetLibrary: React.FC<{ onClose: () => void }> = ({ onClose }) => 
                 )}
                 {selected.kind === 'video' && <Tag color="orange" style={{ marginInlineEnd: 0 }}>{t('imagehubT1.kindVideo')}</Tag>}
                 {selected.space && <Tag style={{ marginInlineEnd: 0 }}>{selected.space === 'play' ? t('imagehubT1.spacePlay') : t('imagehubT1.spaceWork')}</Tag>}
+                <span style={{ marginLeft: 'auto' }}>
+                  <Popconfirm
+                    title={t('imagehubT1.assetDeleteConfirm')}
+                    description={t('imagehubT1.assetDeleteDesc')}
+                    okText={t('imagehubT1.assetDelete')}
+                    cancelText={t('common.cancel')}
+                    okButtonProps={{ danger: true }}
+                    onConfirm={() => { void handleDelete(selected) }}
+                  >
+                    <Button type="text" size="small" danger icon={<DeleteOutlined />}
+                      title={t('imagehubT1.assetDelete')}
+                      style={{ fontSize: 11, padding: '0 4px' }} />
+                  </Popconfirm>
+                </span>
               </div>
               <span><Typography.Text type="secondary">{t('imagehubT1.metaModel')}: </Typography.Text>{selected.model || '-'}</span>
               <span><Typography.Text type="secondary">{t('imagehubT1.metaCost')}: </Typography.Text>{selected.cost || t('imagehubT1.costUnset')}</span>

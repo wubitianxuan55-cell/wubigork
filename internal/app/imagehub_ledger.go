@@ -122,6 +122,61 @@ func (l *imageHubLedger) list(space string, limit int) []imageHubLedgerRecord {
 	return out
 }
 
+// hasPath 报告路径是否已在该空间台账登记（删除守卫：登记即许可——绑定面
+// 不提供通用文件删除，未登记路径一律拒绝）。
+func (l *imageHubLedger) hasPath(space, path string) bool {
+	for _, rec := range l.list(space, 0) {
+		if rec.Asset.Path == path {
+			return true
+		}
+	}
+	return false
+}
+
+// removeByPath 移除该空间台账中登记路径 == path 的全部行，返回 (是否命中, 移除行数)。
+// 未命中时不动文件（调用方以 hasPath 守卫在前，此处兜底口径一致）。删行是显式
+// 用户动作、不违 append-only 设计初衷——台账定位是「辅助视图，不是文件真相」
+// （文件头注），移除登记与折叠重写同款走 AtomicWrite；坏行原样保留不趁机清洗。
+func (l *imageHubLedger) removeByPath(space, path string) (bool, int, error) {
+	imageHubLedgerMu.Lock()
+	defer imageHubLedgerMu.Unlock()
+
+	p := imageHubLedgerPath(l.cwd, space)
+	raw, err := os.ReadFile(p)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, 0, nil
+		}
+		return false, 0, fmt.Errorf("读取登记文件失败: %w", err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	keep := make([]string, 0, len(lines))
+	removed := 0
+	for _, ln := range lines {
+		ln = strings.TrimSpace(ln)
+		if ln == "" {
+			continue
+		}
+		var rec imageHubLedgerRecord
+		if json.Unmarshal([]byte(ln), &rec) != nil {
+			keep = append(keep, ln) // 坏行原样保留
+			continue
+		}
+		if rec.Asset.Path == path {
+			removed++
+			continue
+		}
+		keep = append(keep, ln)
+	}
+	if removed == 0 {
+		return false, 0, nil
+	}
+	if err := fileutil.AtomicWrite(p, []byte(strings.Join(keep, "\n")+"\n"), 0o644); err != nil {
+		return true, 0, fmt.Errorf("登记重写失败: %w", err)
+	}
+	return true, removed, nil
+}
+
 // pruneIfNeeded 行数超上限时保留最近 imageHubLedgerMaxLines 行（临时文件 + 替换）。
 func (l *imageHubLedger) pruneIfNeeded(p string) error {
 	raw, err := os.ReadFile(p)

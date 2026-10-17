@@ -33,6 +33,9 @@ export interface ImageBindings {
   // ImageHubAssets 图像域登记只读视图（按空间/来源过滤，T1 画室素材库；
   // 原 legacy wailsjsCompat 直调转正，浏览器 dev mock 可达；从 LegacySurfaceNames 摘除）。
   ImageHubAssets(space: string, sourceBoard: string, limit: number): Promise<Array<Record<string, unknown>>>;
+  // ImageHubAssetDelete 素材库删除（v4.502）：删盘上文件+移除该空间台账登记；
+  // 登记守卫在 Go 侧（未登记路径拒绝），返回 {ok, file_removed, removed_entries} 或 {error}。
+  ImageHubAssetDelete(space: string, path: string): Promise<Record<string, unknown>>;
   // ImageHubMonthlyUsage 当月画室消耗聚合（只读台账；刀 E）。
   ImageHubMonthlyUsage(space: string): Promise<StudioUsageView>;
   // ChapterArtList 项目章节配图清单（chapter-art.json 只读取，同批转正）。

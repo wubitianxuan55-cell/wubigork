@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 661 名（原生变参 7 名已收窄标注）。
+// 共 662 名（原生变参 7 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -491,6 +491,7 @@ export const bindingSignatures = {
   HerdsmanOperations: { argc: 0, variadic: false, params: "" },
   HerdsmanSecurityCheck: { argc: 0, variadic: false, params: "" },
   ImageCutout: { argc: 2, variadic: false, params: "initImage string, maskData string" },
+  ImageHubAssetDelete: { argc: 2, variadic: false, params: "space string, path string" },
   ImageHubAssets: { argc: 3, variadic: false, params: "space string, sourceBoard string, limit int" },
   ImageHubMonthlyUsage: { argc: 1, variadic: false, params: "space string" },
   ImportNovelBook: { argc: 4, variadic: false, params: "filePath string, title string, genre string, style string" },
@@ -682,5 +683,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 661。
-export const bindingSignatureCount = 661;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 662。
+export const bindingSignatureCount = 662;

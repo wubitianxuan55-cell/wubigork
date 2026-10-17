@@ -5,14 +5,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../../gaea/lib/i18n'
 import { AssetLibrary } from './AssetLibrary'
-import { imageHubAssets, readFileAsDataURL, type ImageHubAssetView } from '../../api/image'
+import { deleteImageHubAsset, imageHubAssets, readFileAsDataURL, type ImageHubAssetView } from '../../api/image'
 
 vi.mock('../../api/image', () => ({
   imageHubAssets: vi.fn(),
+  deleteImageHubAsset: vi.fn(),
   readFileAsDataURL: vi.fn(),
 }))
 
 const imageHubAssetsMock = vi.mocked(imageHubAssets)
+const deleteAssetMock = vi.mocked(deleteImageHubAsset)
 const readFileMock = vi.mocked(readFileAsDataURL)
 
 function rec(over: Partial<ImageHubAssetView>): ImageHubAssetView {
@@ -36,6 +38,7 @@ function renderLibrary() {
 beforeEach(() => {
   localStorage.setItem('gaea-lang', 'zh')
   imageHubAssetsMock.mockReset()
+  deleteAssetMock.mockReset()
   readFileMock.mockReset()
   // 对齐 GaeaAttachmentDataURL 口径：位图给 dataURL，.mmd 代码产物不给（占位）。
   readFileMock.mockImplementation((path: string) =>
@@ -130,5 +133,69 @@ describe('AssetLibrary 画室素材库独立页', () => {
       expect(text).toContain('提示词: 一只猫')
       expect(text).toContain('路径: C:/ws/.gaea/uploads/a.png')
     })
+  })
+
+  // v4.502 素材删除：Popconfirm 两步确认 → 绑定按 (space, path) 调用 →
+  // 本地摘除该条 → 成功文案按 file_removed 分叉；错误落 message 不改列表。
+  it('删除素材：确认后调绑定并从列表摘除（文件在盘口径）', async () => {
+    deleteAssetMock.mockResolvedValue({ ok: true, file_removed: true, removed_entries: 1 })
+    imageHubAssetsMock.mockResolvedValue([
+      rec({}),
+      rec({ id: 'ih-2', path: 'C:/ws/.gaea/uploads/b.png' }),
+    ])
+    renderLibrary()
+    await waitFor(() => expect(screen.getByTitle('C:/ws/.gaea/uploads/a.png')).toBeTruthy())
+    fireEvent.click(screen.getByTitle('C:/ws/.gaea/uploads/a.png'))
+    const delBtn = await waitFor(() => {
+      const btn = screen.getByTitle('删除素材')
+      expect(btn.closest('.ant-popover') || btn).toBeTruthy()
+      return btn
+    })
+    fireEvent.click(delBtn)
+    // Popconfirm 确认钮在弹层内（.ant-popover 容器），按 okText 找。
+    fireEvent.click(await waitFor(() => {
+      const ok = screen.getAllByRole('button', { name: '删除素材' })
+        .find((el) => !!el.closest('.ant-popover'))
+      expect(ok).toBeTruthy()
+      return ok as HTMLElement
+    }))
+    await waitFor(() => expect(deleteAssetMock).toHaveBeenCalledWith('work', 'C:/ws/.gaea/uploads/a.png'))
+    await waitFor(() => expect(screen.getByText('已删除并移出素材库')).toBeTruthy())
+    // 列表摘除：a.png 卡与详情条消失，b.png 仍在。
+    await waitFor(() => expect(screen.queryByTitle('C:/ws/.gaea/uploads/a.png')).toBeNull())
+    expect(screen.getByText('1 项素材')).toBeTruthy()
+  })
+
+  it('删除素材：文件已不在口径给专属文案，登记照样摘除', async () => {
+    deleteAssetMock.mockResolvedValue({ ok: true, file_removed: false, removed_entries: 1 })
+    imageHubAssetsMock.mockResolvedValue([rec({})])
+    renderLibrary()
+    fireEvent.click(await waitFor(() => screen.getByTitle('C:/ws/.gaea/uploads/a.png')))
+    fireEvent.click(screen.getByTitle('删除素材'))
+    fireEvent.click(await waitFor(() => {
+      const ok = screen.getAllByRole('button', { name: '删除素材' })
+        .find((el) => !!el.closest('.ant-popover'))
+      expect(ok).toBeTruthy()
+      return ok as HTMLElement
+    }))
+    await waitFor(() => expect(screen.getByText('已移出素材库（文件此前已不在）')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('0 项素材')).toBeTruthy())
+  })
+
+  it('删除素材：绑定报错时列表不变', async () => {
+    deleteAssetMock.mockResolvedValue({ error: '素材未在素材库登记，拒绝删除' })
+    imageHubAssetsMock.mockResolvedValue([rec({})])
+    renderLibrary()
+    fireEvent.click(await waitFor(() => screen.getByTitle('C:/ws/.gaea/uploads/a.png')))
+    fireEvent.click(screen.getByTitle('删除素材'))
+    fireEvent.click(await waitFor(() => {
+      const ok = screen.getAllByRole('button', { name: '删除素材' })
+        .find((el) => !!el.closest('.ant-popover'))
+      expect(ok).toBeTruthy()
+      return ok as HTMLElement
+    }))
+    await waitFor(() => expect(screen.getByText('删除失败：素材未在素材库登记，拒绝删除')).toBeTruthy())
+    // 列表与详情条原样保留。
+    expect(screen.getByTitle('C:/ws/.gaea/uploads/a.png')).toBeTruthy()
   })
 })

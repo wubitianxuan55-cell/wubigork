@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 )
 
 // ── 图像能力域 T0 契约单测（设计 docs/gaea-image-domain-t0-contract-design-2026-09.md）──
@@ -226,9 +228,16 @@ func TestImageHubAssetSummariesFilterAndOrder(t *testing.T) {
 		mk("ih-1", "imagegen"),
 		mk("ih-2", "novel"),
 		mk("ih-3", "imagegen"),
+		mk("ih-4", "imagegen"), // 文件不落盘：读侧存在性过滤应剔除（v4.502）
 	} {
 		if err := led.record("play", rec); err != nil {
 			t.Fatalf("record: %v", err)
+		}
+	}
+	// ih-1/2/3 写真文件；ih-4 故意缺文件（盘上已删形态）。
+	for _, id := range []string{"ih-1", "ih-2", "ih-3"} {
+		if err := os.WriteFile(filepath.Join(cwd, id+".png"), []byte("png"), 0o644); err != nil {
+			t.Fatalf("write fixture: %v", err)
 		}
 	}
 	novelOnly := imageHubAssetSummaries(cwd, "play", "novel", "", 0)
@@ -239,9 +248,85 @@ func TestImageHubAssetSummariesFilterAndOrder(t *testing.T) {
 	if len(imagegenLimit2) != 2 || imagegenLimit2[0].ID != "ih-3" || imagegenLimit2[1].ID != "ih-1" {
 		t.Fatalf("倒序/limit 错误: %+v", imagegenLimit2)
 	}
+	// 文件已删除的登记不再返回（v4.502 读侧存在性过滤）。
+	all := imageHubAssetSummaries(cwd, "play", "", "", 0)
+	for _, v := range all {
+		if v.ID == "ih-4" {
+			t.Fatalf("缺文件登记应被读侧过滤: %+v", all)
+		}
+	}
+	if len(all) != 3 {
+		t.Fatalf("应只返回文件在盘的 3 条: %+v", all)
+	}
 	// 未知来源 → 空。
 	if got := imageHubAssetSummaries(cwd, "play", "no-such-board", "", 0); len(got) != 0 {
 		t.Fatalf("未知来源应空: %+v", got)
+	}
+}
+
+// TestImageHubAssetDelete v4.502 素材库删除：登记守卫（未登记路径拒绝——
+// 绑定面不做通用文件删除）+ 先文件后台账 + 文件已不在仍清登记 + 只动本空间。
+func TestImageHubAssetDelete(t *testing.T) {
+	cwd := t.TempDir()
+	led := newImageHubLedger(cwd)
+	mk := func(id string) imageHubLedgerRecord {
+		return imageHubLedgerRecord{
+			Meta: imageHubAssetMeta{
+				Space: "play", SourceBoard: "imagegen", Capability: string(CapabilityMediaGenerate),
+				Model: "krea2", CreatedAt: "2026-09-05T00:00:00Z", AIFlag: true,
+			},
+			Asset: imageHubAsset{ID: id, Kind: ImageHubAssetKindImage, Path: filepath.Join(cwd, id+".png")},
+		}
+	}
+	for _, rec := range []imageHubLedgerRecord{mk("del-1"), mk("del-2")} {
+		if err := led.record("play", rec); err != nil {
+			t.Fatalf("record: %v", err)
+		}
+		if err := os.WriteFile(rec.Asset.Path, []byte("png"), 0o644); err != nil {
+			t.Fatalf("write fixture: %v", err)
+		}
+	}
+	ms := &mediaState{}
+	origCfg := ga.cfg
+	ga.cfg = &gaeaConfig.Config{Workspace: cwd}
+	t.Cleanup(func() { ga.cfg = origCfg })
+
+	// 未登记路径拒绝，文件不动。
+	unregistered := filepath.Join(cwd, "elsewhere.png")
+	if err := os.WriteFile(unregistered, []byte("x"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if res := ms.ImageHubAssetDelete("play", unregistered); res["error"] == "" {
+		t.Fatalf("未登记路径应拒绝: %+v", res)
+	}
+	if _, err := os.Stat(unregistered); err != nil {
+		t.Fatal("未登记路径的文件不得被删")
+	}
+
+	// 正常删除：文件移除 + 登记清零 + 其余记录保留。
+	p1 := filepath.Join(cwd, "del-1.png")
+	res := ms.ImageHubAssetDelete("play", p1)
+	if res["error"] != nil || res["ok"] != true || res["file_removed"] != true {
+		t.Fatalf("删除应成功: %+v", res)
+	}
+	if _, err := os.Stat(p1); !os.IsNotExist(err) {
+		t.Fatal("文件应已删除")
+	}
+	if views := imageHubAssetSummaries(cwd, "play", "", "", 0); len(views) != 1 || views[0].ID != "del-2" {
+		t.Fatalf("删除后视图应只剩 del-2: %+v", views)
+	}
+
+	// 文件已不在（盘上已删形态）：不算错，登记照样移除。
+	p2 := filepath.Join(cwd, "del-2.png")
+	if err := os.Remove(p2); err != nil {
+		t.Fatalf("pre-remove: %v", err)
+	}
+	res = ms.ImageHubAssetDelete("play", p2)
+	if res["error"] != nil || res["file_removed"] != false {
+		t.Fatalf("文件已不在应按清登记成功: %+v", res)
+	}
+	if views := imageHubAssetSummaries(cwd, "play", "", "", 0); len(views) != 0 {
+		t.Fatalf("登记应清空: %+v", views)
 	}
 }
 

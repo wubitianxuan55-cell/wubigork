@@ -330,6 +330,34 @@ func (m *mediaState) ImageHubAssets(space, sourceBoard string, limit int) []imag
 	return imageHubAssetSummaries(gaeaCwd(), space, sourceBoard, "", limit)
 }
 
+// ImageHubAssetDelete 画室素材库删除（v4.502）：删盘上文件 + 移除该空间台账登记。
+//   - 登记守卫：path 必须已在指定空间台账登记，否则拒绝（绑定面不提供通用文件删除）；
+//   - 删除顺序 = 先文件后台账：台账重写失败时读侧存在性过滤已把视图收敛正确
+//     （文件已不在 → 记录不再返回），登记残留无害；
+//   - 文件已不在（用户手工删过/清目录）不算错——登记照样移除；
+//   - 台账重写只动本空间；其它空间若登记了同一路径，其视图经读侧过滤自然隐藏。
+func (m *mediaState) ImageHubAssetDelete(space, path string) map[string]interface{} {
+	if strings.TrimSpace(path) == "" {
+		return map[string]interface{}{"error": "删除需要素材路径"}
+	}
+	sp := normalizeImageHubSpace(space)
+	led := newImageHubLedger(gaeaCwd())
+	if !led.hasPath(sp, path) {
+		return map[string]interface{}{"error": "素材未在素材库登记，拒绝删除"}
+	}
+	fileRemoved := false
+	if err := os.Remove(path); err == nil {
+		fileRemoved = true
+	} else if !os.IsNotExist(err) {
+		return map[string]interface{}{"error": fmt.Sprintf("删除文件失败: %v", err)}
+	}
+	_, removed, err := led.removeByPath(sp, path)
+	if err != nil {
+		return map[string]interface{}{"error": err.Error()}
+	}
+	return map[string]interface{}{"ok": true, "file_removed": fileRemoved, "removed_entries": removed}
+}
+
 // imageHubAssetView 素材库/画室用的登记读取视图（T1 预留；绑定层接入时直接映射）。
 type imageHubAssetView struct {
 	ID             string                 `json:"id"`
@@ -350,6 +378,9 @@ type imageHubAssetView struct {
 
 // imageHubAssetSummaries 读取某空间最近的登记（可按来源板块/能力过滤；按时间倒序）。
 // limit<=0 或超过登记数时返回全部命中（由调用方分页）。
+// 盘上文件已删除的登记不再返回（v4.502）：素材库是登记视图，文件真相在磁盘——
+// 台账 append-only 不回写，读侧按存在性诚实过滤（缩略图读不出的死记录不再占位）。
+// 月度用量聚合直读台账不经此函数，历史消耗口径不受删除影响。
 func imageHubAssetSummaries(cwd, space, sourceBoard string, capability ImageCapability, limit int) []imageHubAssetView {
 	recs := newImageHubLedger(cwd).list(space, 0)
 	out := make([]imageHubAssetView, 0, len(recs))
@@ -360,6 +391,9 @@ func imageHubAssetSummaries(cwd, space, sourceBoard string, capability ImageCapa
 			continue
 		}
 		if capability != "" && r.Meta.Capability != string(capability) {
+			continue
+		}
+		if _, err := os.Stat(r.Asset.Path); err != nil {
 			continue
 		}
 		out = append(out, imageHubAssetView{

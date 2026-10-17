@@ -21,6 +21,7 @@ func (b *ImageB) GetSystemStats() map[string]interface{} { return b.a.GetSystemS
 func (b *ImageB) GetTTSSpeakers(model string) ([]string, error) { return b.a.GetTTSSpeakers(model) }
 func (b *ImageB) GetVoicePipelineConfig() map[string]interface{} { return b.a.GetVoicePipelineConfig() }
 func (b *ImageB) ImageCutout(initImage string, maskData string) map[string]interface{} { return b.a.ImageCutout(initImage, maskData) }
+func (b *ImageB) ImageHubAssetDelete(space string, path string) map[string]interface{} { return b.a.ImageHubAssetDelete(space, path) }
 func (b *ImageB) ImageHubAssets(space string, sourceBoard string, limit int) []imageHubAssetView { return b.a.ImageHubAssets(space, sourceBoard, limit) }
 func (b *ImageB) ImageHubMonthlyUsage(space string) (ImageHubMonthlyUsageReport, error) { return b.a.ImageHubMonthlyUsage(space) }
 func (b *ImageB) OpenImageSaveDir() error { return b.a.OpenImageSaveDir() }
