@@ -223,8 +223,14 @@
   launch_bounds），唯一无本机实证的是 Q4_K/Q5_K 向量 MoE 内核本体（pixmaate 只真机验过 Q8_0/
   IQ4_XS）。已落 `A3B_MOE_SELFTEST=1` 自检钩子（逐内核发射+逐 sync+逐行 stderr 报告+完整 eager
   forward 收尾，结束拒服务），一次 GPU 运行即可点名炸点。
-- **⚠️ 整机风险实录**：核显 UMA 上内核非法访存毒化整个驱动上下文，与 herdsman 活动叠加 = 整机
-  冻结，用户强制重启×2（2026-10-17 晚）。测试纪律：每轮一次、接住 stderr、测试期静默其它引擎。
+- **⚠️ 整机风险实录 → 根因已定（2026-10-17 深夜，重启×4 换来的结论）**：两段式自检实锤
+  **MoE 内核无罪**（合成权重段 ~1.3GB 六步全过，含冻结同款 Q4_K gated n=1）；`=2` 真实段在上传
+  完成后、任何 MoE 内核之前冻结且两轮冻结点不同 = 状态问题。体检实锤根因：**本机 VGM 缺省，
+  专用显存区块仅 4GB**（Win32_VideoController.AdapterRAM=4293918720；注册表无
+  DedicatedSegmentSize）——27B/35B 权重全躺 WDDM 共享页内存，35B 21GB+herdsman 15GB 共存触发
+  工作集修剪→TDR→整机冻结；上传速度 13.8→2.0 GiB/s 为共享页旁证。**修复=AMD Software→
+  Performance→Tuning→Variable Graphics Memory 调固定大值（≥32GB）后重启，再测 35B；
+  调大前禁止任何 35B 整模型运行。** herdsman 的 27B 同样受益（同池）。
 
 ### 13.4 27B 调优实测（本轮主收获）
 
