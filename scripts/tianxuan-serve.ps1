@@ -28,6 +28,9 @@ param(
   [string]$GufoRoot = 'C:\AI\gufo-win\gufo-windows-2026-10-03',
   [string]$ModelDir = 'D:\gufo-models',
   [string]$LogDir = 'C:\AI\wubigrok\.tmp\tianxuan',
+  [int]$DraftTokens = 0,
+  [ValidateSet('', 'adaptive', 'fixed')][string]$DraftPolicy = '',
+  [string[]]$Extra = @(),
   [switch]$NoCacheDisk,
   [switch]$DryRun
 )
@@ -46,6 +49,9 @@ $models = @{
     Draft     = 'C:\AI\gufo-win\Qwen3.8-27B-DFlash2-Q4_K_M.gguf'
     Spec      = 'dflash2'
     ModelName = 'Qwen3.8-27B-DFlash2'
+    # 实测（2026-10-17 gufo bench，Q4 + DFlash2）：AR 12.48 → adaptive d7 20.41 →
+    # adaptive d4 22.44；fixed 策略 17.02（接受率 25.5%，别用）。d4 是最优档。
+    Extra     = @('--draft-tokens', '4')
   }
   '35b' = @{
     Gguf      = (Join-Path $ModelDir '35b\Qwen3.6-35B-A3B-UD-Q8_K_XL.gguf')
@@ -53,6 +59,10 @@ $models = @{
     Draft     = ''
     Spec      = 'mtp'
     ModelName = 'Qwen3.6-35B-A3B'
+    # 上游 35B 文档给的就是这组（docs/models/qwen3.6-35b-a3b）：MTP 内嵌 GGUF、
+    # draft 上限 6、按存活概率截断、prompt lookup 补重复结构。实测口径 76/80/93 tok/s
+    # 来自 96GB carve-out；本机 64GB UMA 用不到 131K ctx，缺省 32K。
+    Extra     = @('--draft-tokens', '6', '--mtp-policy', 'survival', '--prompt-lookup')
   }
 }
 $m = $models[$Model]
@@ -65,6 +75,12 @@ if ($m.Mmproj -and (Test-Path $m.Mmproj)) { $argv += @('--mmproj', $m.Mmproj) }
 if ($Speculative -eq 'dflash2' -and $m.Draft -and (Test-Path $m.Draft)) {
   $argv += @('--dflash-model', $m.Draft)
 }
+# 调优旋钮（批次 3 扫参用）：-DraftTokens / -DraftPolicy / -Extra 原样透传给 gufo；
+# 模型预设自带的 Extra 先上，命令行同名项追加在后（gufo 取最后一个同名选项）。
+if ($m.Extra -and $m.Extra.Count -gt 0) { $argv += $m.Extra }
+if ($DraftTokens -gt 0) { $argv += @('-d', "$DraftTokens") }
+if ($DraftPolicy -ne '') { $argv += @('--draft-policy', $DraftPolicy) }
+if ($Extra.Count -gt 0) { $argv += $Extra }
 if (-not $NoCacheDisk) {
   $cache = Join-Path $env:LOCALAPPDATA 'gufo\cache'
   New-Item -ItemType Directory -Force $cache | Out-Null

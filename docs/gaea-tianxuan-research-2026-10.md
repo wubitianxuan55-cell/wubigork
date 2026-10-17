@@ -197,11 +197,57 @@
   （实测踩过：引擎随包装脚本一起死）。
 - **端口口径**：8094（8080 herdsman / 8091 strata / 8092 MoE4All / 8888 modelhub），免鉴权。
 
-### 13.3 35B 旗舰复测（进行中）
+### 13.3 35B 旗舰复测（本轮未跑完：带宽卡住）
 
 - 兼容量化：`Qwen3.6-35B-A3B-UD-Q8_K_XL`（36.41 GiB，MTP 在 GGUF 内，
-  sha256 `6c6b816537abad90b250a0972b345466028d861ddfe316d5f0de31ca6440f781`），落
-  `D:\gufo-models\35b\`（镜像下载 + 8 路分段续传）。
-- 测量口径：与批次 1 同一对擂脚本（`scripts/verify_engine_compare.go`：gaea 客户端 +
-  聊天页 tok/s 口径、四档 + 并发 x2）。
-- 结果：本轮补测中，数据出来后回填本节。
+  sha256 `6c6b816537abad90b250a0972b345466028d861ddfe316d5f0de31ca6440f781`），落 `D:\gufo-models\35b\`。
+- **本地 Q4_K_M 不兼容的真因已核实（修正批次 1 的记载）**：不是 output.weight 的量化门——
+  本地 27B 的 `output.weight` 就是 **Q6_K**，gufo 正常加载；本地 35B
+  `Qwen3.6-35B-A3B-UD-Q4_K_M`（base 仓库、非 MTP 仓）载入直接报
+  `Error creating Qwen GPU executor: Missing required Qwen tensor: blk.0.ffn_gate.weight`——
+  是**张量布局/版本不匹配**（35B 运行时要求的 dense `ffn_gate` 在该文件里没有）。
+  ⇒「只认 F32/Q8_0/BF16 的 output.weight」的说法作废；必须用 MTP 仓库的 UD-Q8_K_XL。
+- **下载实测**：本机到 HF 只有 3.2 MB/s（8 路分段聚合；单连 4–8 MB/s，ModelScope 4.1 MB/s，
+  hf-xet 0.2 MB/s，USB GbE 网卡是瓶颈）。36.41 GiB 还剩 ~34 GiB ≈ 3 小时——不占着带宽硬等，
+  已保留 1.56 GiB 前缀，续传命令：`powershell -File temp\fetch_35b.ps1 -Parallel 8 -Url https://huggingface.co/unsloth/Qwen3.6-35B-A3B-MTP-GGUF/resolve/main/`。
+- 起服与测量已固化成 `scripts/tianxuan-serve.ps1 -Model 35b`（上游推荐组合
+  `--draft-tokens 6 --mtp-policy survival --prompt-lookup`）；文件到位后一条命令即跑四档。
+
+### 13.4 27B 调优实测（本轮主收获）
+
+配置：Qwen3.8-27B-UD-Q4_K_M（15.33 GiB）+ DFlash2 draft（1.1 GB），Windows gfx1151，64 GB UMA。
+两个口径：`gufo bench`（一次装载、合成提示词、r=2）与 `scripts/verify_engine_compare.go`（gaea 客户端 + 聊天页口径）。
+
+| 指标 | 数值 | 备注 |
+|---|---:|---|
+| AR tg128 | 12.48 tok/s | 基线（无投机） |
+| DFlash2 tg128（adaptive, d7） | **20.41** | 接受率 41.9%，**+63% vs AR** |
+| DFlash2（fixed, d7） | 17.02 | 接受率 25.5%，固定块长明显更差，不要用 |
+| DFlash2（adaptive, d4） | **22.44** | 接受率 47.6%，本轮最优 |
+| DFlash2（adaptive, d10） | 21.30 | 接受率 41.9%，不涨 |
+| pp512 / pp2048 / pp8192 | 354 / 568 / **589** | prefill 随长度走平（官方 656 的 90%） |
+| tg @ d4096 / d16384 | 21.07 / 20.77 | 接受率 42.6% / 45.3%，**深上下文几乎不衰减（-1.4%）** |
+| 服务端四档（client 口径） | 13.1~21.2 | 与 bench 同量级；并发 x2 聚合 **37.4**（双路 24.6 / 26.9，batch_width=2） |
+| 磁盘续跑缓存 | TTFT 4244ms → **179ms** | 同提示词第二次：cached_tokens=29、restore 177ms |
+
+结论（可直接执行）：
+
+1. **投机解码是唯一的大杠杆**：DFlash2 把 decode 从 12.5 拉到 20+（+63%）；固定 draft 块长是负收益。
+2. **draft 深度不是越深越好**：d4 反超 d7（bench +10%，服务端四档在噪声内），27B 默认建议 `-d 4`，
+   按场景扫（列表/代码等重复结构接受率高，收益更大）。
+3. **深上下文不衰减**（4K→16K 只掉 1.4%），gaea 长会话成本主要在 prefill；重复前缀靠磁盘缓存把
+   TTFT 压到 179ms —— 长会话必须开 `--cache-disk`。
+4. prefill 已接近官方（589 vs 656，90%），Windows 侧无需再调；真正待补的是**上游 2 周的性能提交**——
+   我们的二进制停在 2026-10-03，上游 main 已到 0.17.0（含
+   `perf(qwen-flash): cut prefill and decode attention cost at depth` 等）。
+
+### 13.5 批次 3 队列（按性价比排序）
+
+1. **自构建更新的 Windows 二进制**：pixmaate windows-port 已 rebase 到 upstream 0.17.0，构建材料 =
+   TheRock ROCm 10.0.0（gfx1151 tarball）+ vcpkg（icu/curl/openssl/libpng/libjpeg-turbo）+ VS Build Tools +
+   CMake/Ninja，`tools/windows/check.ps1` 一键体检。这一步能吃到上游 2 周的性能提交，是当前最大的单点收益。
+2. 35B UD-Q8_K_XL 真机四档（下载续传 + `-Model 35b` 一条命令）。
+3. 出厂预设定稿：27B（`-d 4` adaptive + `--cache-disk` + 2 sessions）、35B（`-d 6` survival +
+   `--prompt-lookup` + 1 session），写进 `scripts/tianxuan-serve.ps1` 默认值与 README 表格。
+4. 需要改 C++ 的项（排在自构建之后）：统一 KV 池/会话 fork-join、UMA 单预算启动校验（#28 类）、
+   gfx1151 启动自调优。
