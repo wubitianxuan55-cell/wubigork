@@ -209,7 +209,7 @@
   ⇒「只认 F32/Q8_0/BF16 的 output.weight」的说法作废；必须用 MTP 仓库的 UD-Q8_K_XL。
 - **下载实测**：本机到 HF 只有 3.2 MB/s（8 路分段聚合；单连 4–8 MB/s，ModelScope 4.1 MB/s，
   hf-xet 0.2 MB/s，USB GbE 网卡是瓶颈）。36.41 GiB 还剩 ~34 GiB ≈ 3 小时——不占着带宽硬等，
-  已保留 1.56 GiB 前缀，续传命令：`powershell -File temp\fetch_35b.ps1 -Parallel 8 -Url https://huggingface.co/unsloth/Qwen3.6-35B-A3B-MTP-GGUF/resolve/main/`。
+  已保留 1.56 GiB 前缀，续传命令：`powershell -File scripts\tianxuan-fetch-35b.ps1 -Parallel 8 -Url https://huggingface.co/unsloth/Qwen3.6-35B-A3B-MTP-GGUF/resolve/main/`。
 - 起服与测量已固化成 `scripts/tianxuan-serve.ps1 -Model 35b`（上游推荐组合
   `--draft-tokens 6 --mtp-policy survival --prompt-lookup`）；文件到位后一条命令即跑四档。
 
