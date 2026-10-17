@@ -223,14 +223,14 @@
   launch_bounds），唯一无本机实证的是 Q4_K/Q5_K 向量 MoE 内核本体（pixmaate 只真机验过 Q8_0/
   IQ4_XS）。已落 `A3B_MOE_SELFTEST=1` 自检钩子（逐内核发射+逐 sync+逐行 stderr 报告+完整 eager
   forward 收尾，结束拒服务），一次 GPU 运行即可点名炸点。
-- **⚠️ 整机风险实录 → 根因已定（2026-10-17 深夜，重启×4 换来的结论）**：两段式自检实锤
-  **MoE 内核无罪**（合成权重段 ~1.3GB 六步全过，含冻结同款 Q4_K gated n=1）；`=2` 真实段在上传
-  完成后、任何 MoE 内核之前冻结且两轮冻结点不同 = 状态问题。体检实锤根因：**本机 VGM 缺省，
-  专用显存区块仅 4GB**（Win32_VideoController.AdapterRAM=4293918720；注册表无
-  DedicatedSegmentSize）——27B/35B 权重全躺 WDDM 共享页内存，35B 21GB+herdsman 15GB 共存触发
-  工作集修剪→TDR→整机冻结；上传速度 13.8→2.0 GiB/s 为共享页旁证。**修复=AMD Software→
-  Performance→Tuning→Variable Graphics Memory 调固定大值（≥32GB）后重启，再测 35B；
-  调大前禁止任何 35B 整模型运行。** herdsman 的 27B 同样受益（同池）。
+- **⚠️ 整机风险实录 → 根因二次修正（2026-10-17 深夜）**：~~VGM 缺省 4GB~~ 误判（`AdapterRAM`
+  是 32 位 WMI 字段）；dxdiag 实测本机（GMKtec EVO-X3，128GB 物理）**专用显存 65360MB
+  (~64GB)**，用户配置本就最优。MoE 内核仍是无罪（合成段六步全过）。嫌疑收敛为**单笔分配**：
+  GGUF 单文件=单一映射区=一次 hipMalloc 整个 22GB；对照：27B 单笔 15.4GB 稳、35B 单笔 22GB
+  必冻（两套 ROCm 运行时同炸）、合成自检最大单笔仅 285MB（盲区！）、Vulkan 系分桶从不巨量
+  单笔（herdsman 7 月实跑 22GB 35B 稳）。已落 `A3B_ALLOC_LADDER=1` 分配阶梯探针
+  （4→8→12→16→18→20→22GiB 单笔，报告先行）。修法预案 = A3B 装载改逐张量分配（最大单张量
+  ~540MB）。
 
 ### 13.4 27B 调优实测（本轮主收获）
 
