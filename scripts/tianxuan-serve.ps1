@@ -6,7 +6,6 @@
 #
 # 用法：
 #   powershell -File scripts\tianxuan-serve.ps1 -Model 27b          # Qwen3.8-27B + DFlash2
-#   powershell -File scripts\tianxuan-serve.ps1 -Model 35b          # Qwen3.6-35B-A3B（GGUF 内 MTP）
 #   powershell -File scripts\tianxuan-serve.ps1 -Model 27b -DryRun  # 只打印将要执行的命令
 #
 # 约定（与 gaea 侧接线一致）：
@@ -20,9 +19,9 @@
 
 [CmdletBinding()]
 param(
-  [Parameter(Mandatory = $true)][ValidateSet('27b', '35b')][string]$Model,
+  [Parameter(Mandatory = $true)][ValidateSet('27b')][string]$Model,
   [int]$Port = 8094,
-  [int]$Sessions = 0,   # 0 = 模型预设（27b=2，35b=1——A3B 只服务一个会话）
+  [int]$Sessions = 0,   # 0 = 模型预设（27b=2）
   [int]$Context = 32768,
   [ValidateSet('auto', 'dflash2', 'mtp', 'off')][string]$Speculative = 'auto',
   [string]$LogDir = 'C:\AI\wubigrok\.tmp\tianxuan',
@@ -36,7 +35,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# 二进制选择：默认用我们的自构建（TheRock 工具链，含 35B Q6_K/Q4_K 装载支持与后续
+# 二进制选择：默认用我们的自构建（TheRock 工具链，
 # 全部自有改动，与 clones/gufo 工作区同步）；-Binary 显式指定，最后回退 2026-10-03 预构建包。
 $selfBuild = 'C:\AI\wubigrok\clones\gufo\build\release\gufo-server.exe'
 $prebuilt = Join-Path 'C:\AI\gufo-win\gufo-windows-2026-10-03' 'bin\gufo.exe'
@@ -59,34 +58,12 @@ $models = @{
     # adaptive d4 22.44；fixed 策略 17.02（接受率 25.5%，别用）。d4 是最优档。
     Extra     = @('--draft-tokens', '4')
   }
-  '35b' = @{
-    # 本机 herdsman 库已有的那份（不另下载）：除 output.weight 是 Q6_K 外全是 F32/Q8_0/BF16。
-    # 预构建二进制会拒载 Q6_K 的 output.weight；自构建版已加装载期重编码（fn::Q6KRowsToQ8_0）。
-    Gguf      = 'C:\Users\wubi\.herdsman\models\Qwen3.6-35B-A3B-MTP\windows\amd64\amd\Qwen3.6-35B-A3B-UD-Q4_K_M.gguf'
-    Draft     = ''
-    # speculative off：MTP 草稿链的 Argmax 内核与 hipcub top-k 同属「上游从未在
-    # Windows 验证过」的 35B 专属段（hipcub top-k 已实测炸上下文→第 6 次重启的直因，
-    # 已换 CPU top-k）；基座解码先跑通，MTP 之后单独验证再开。
-    Spec      = 'off'
-    ModelName = 'Qwen3.6-35B-A3B'
-    # 视觉投影器（本机已有）：A3B 运行时经 Qwen3.6 mmproj 支持图像输入（上游 windows 分支原生能力）。
-    Mmproj    = 'C:\Users\wubi\.herdsman\models\Qwen3.6-35B-A3B-MTP\windows\amd64\amd\mmproj-F16.gguf'
-    Sessions  = 1
-    # 上游 35B 文档给的就是这组（docs/models/qwen3.6-35b-a3b）：MTP 内嵌 GGUF、
-    # draft 上限 6、按存活概率截断、prompt lookup 补重复结构。实测口径 76/80/93 tok/s
-    # 来自 96GB carve-out；本机 64GB UMA 用不到 131K ctx，缺省 32K。
-    Extra     = @('--draft-tokens', '6', '--mtp-policy', 'survival', '--prompt-lookup')
-    # 专家零拷贝驻留（docs/tianxuan/README.md §7 strata 对照）：专家栈留 pinned host
-    # 内存，内核经 device_alias 按需读 UMA——不申请 ~20GiB 设备提交、不做区域级 SDMA
-    # 拷贝、也不产生全带宽纯设备专家流（35B 五次冻结涉及的两个 pattern 全避开）。
-    Env       = @{ 'A3B_EXPERT_ZEROCOPY' = '1' }
-  }
 }
 $m = $models[$Model]
 if (-not (Test-Path $m.Gguf)) { throw "模型不存在: $($m.Gguf)" }
 if ($Speculative -eq 'auto') { $Speculative = $m.Spec }
 
-# 预设自带的引擎环境变量（如 35b 的 A3B_EXPERT_ZEROCOPY）在 Start-Process 前套用，
+# 预设自带的引擎环境变量（Env 表）在 Start-Process 前套用，
 # 子进程按继承环境取用。
 if ($m.Env) {
   foreach ($k in $m.Env.Keys) { Set-Item -Path ("env:" + $k) -Value ([string]$m.Env[$k]) }
