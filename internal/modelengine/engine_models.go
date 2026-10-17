@@ -246,54 +246,76 @@ func (m *Manager) StrataModelLoaded(ctx context.Context, modelID string) (bool, 
 	return false, nil
 }
 
-// TianxuanModelLoaded 轻量探测目标模型是否已被天璇引擎（gufo）加载。
+// TianxuanServedModels 探测天璇引擎（gufo）当前服务/已加载的模型 id 列表。
 //
 // 天璇的 /v1/models 与 Strata 同语义：只列「已加载」集合（真机实测：
 // {"object":"list","data":[{"id":…,"owned_by":"gufo"}]}，标准形状无
-// flexStatus 异形），命中即已加载，语义与 StrataModelLoaded 一致
-// （换模预估的 hot/cold 判定用）。返回 (false, nil) = 引擎可达但目标
-// 未加载；(false, err) = 不可达/地址非法。
+// flexStatus 异形）。返回 (nil, err) = 不可达/地址非法。
+//
+// 为什么要整个列表而不是只判命中：gufo 的 serve 在启动时把 `-m` 指定的模型
+// 固定下来，请求里 model 名不等于它就直接 404（openai_chat.cpp 的
+// model_not_found）——换模必须重启引擎，不是「首次对话自动加载」。换模预估
+// 据此把「当前服务的是谁、要换得重启」如实告诉用户（见 app 侧
+// estimateTianxuanModelSwitch）。
 //
 // 解码复用 modelsListResponse（含 flexStatus 宽容层——天璇引擎当前是标准
 // 形状，宽容层无害，且未来若引入非标字段不再整表炸）。
-func (m *Manager) TianxuanModelLoaded(ctx context.Context, modelID string) (bool, error) {
+func (m *Manager) TianxuanServedModels(ctx context.Context) ([]string, error) {
 	m.mu.RLock()
 	engine, ok := m.engines["tianxuan"]
 	m.mu.RUnlock()
 	if !ok {
-		return false, fmt.Errorf("引擎 tianxuan 不存在")
+		return nil, fmt.Errorf("引擎 tianxuan 不存在")
 	}
 	if !engine.Enabled {
-		return false, fmt.Errorf("天璇引擎未启用")
+		return nil, fmt.Errorf("天璇引擎未启用")
 	}
 	base := strings.TrimRight(strings.TrimSpace(engine.BaseURL), "/")
 	if !validBaseURL(base) {
-		return false, fmt.Errorf("引擎地址无效：需要 http:// 或 https:// 前缀")
+		return nil, fmt.Errorf("引擎地址无效：需要 http:// 或 https:// 前缀")
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/models", nil)
 	if err != nil {
-		return false, fmt.Errorf("创建探测请求失败: %w", err)
+		return nil, fmt.Errorf("创建探测请求失败: %w", err)
 	}
 	// 天璇免鉴权（gufo serve 默认无 api_key）：刻意不发 Authorization 头，
 	// 与 fetchModels 的 Strata 分支同口径。
 	resp, err := m.httpClient.Do(req)
 	if err != nil {
-		return false, fmt.Errorf("天璇引擎不可达: %w", err)
+		return nil, fmt.Errorf("天璇引擎不可达: %w", err)
 	}
 	defer netclient.DrainAndClose(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		return false, fmt.Errorf("天璇引擎探测失败（HTTP %d）", resp.StatusCode)
+		return nil, fmt.Errorf("天璇引擎探测失败（HTTP %d）", resp.StatusCode)
 	}
 	var list modelsListResponse
 	if err := json.NewDecoder(resp.Body).Decode(&list); err != nil {
-		return false, fmt.Errorf("解析已加载模型列表失败: %w", err)
+		return nil, fmt.Errorf("解析已加载模型列表失败: %w", err)
 	}
+	ids := make([]string, 0, len(list.Data))
 	for _, d := range list.Data {
-		if d.ID != modelID {
-			continue
-		}
+		// 状态缺失（空串）按已加载处理（与 ModelHubModelLoaded 同口径）；
+		// 显式非 loaded/loading 的不算本次服务集合。
 		s := string(d.Status)
-		return s == "" || s == "loaded" || s == "loading", nil
+		if s == "" || s == "loaded" || s == "loading" {
+			ids = append(ids, d.ID)
+		}
+	}
+	return ids, nil
+}
+
+// TianxuanModelLoaded 轻量探测目标模型是否已被天璇引擎（gufo）加载
+// （换模预估的 hot/cold 判定用）。返回 (false, nil) = 引擎可达但目标
+// 未加载；(false, err) = 不可达/地址非法。
+func (m *Manager) TianxuanModelLoaded(ctx context.Context, modelID string) (bool, error) {
+	ids, err := m.TianxuanServedModels(ctx)
+	if err != nil {
+		return false, err
+	}
+	for _, id := range ids {
+		if id == modelID {
+			return true, nil
+		}
 	}
 	return false, nil
 }

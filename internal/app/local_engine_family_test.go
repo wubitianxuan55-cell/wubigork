@@ -9,6 +9,7 @@ package app
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gaea/gaea/internal/ai"
@@ -218,6 +219,14 @@ func TestGaeaModelSwitchEstimate_Tianxuan(t *testing.T) {
 		e := a.GaeaModelSwitchEstimate("tianxuan", "another-model")
 		if e.Status != "cold" || e.WaitSeconds != 0 {
 			t.Errorf("Status/Wait = (%q,%d), want (cold,0)——模型加载不假报秒数", e.Status, e.WaitSeconds)
+		}
+		// 天璇启动即固定模型（gufo 对非本进程模型名直接 404），note 必须说重启，
+		// 不能承诺「首次对话自动加载」。
+		if !strings.Contains(e.Note, "重启") {
+			t.Errorf("cold note 应说明需重启 serve 引擎，got %q", e.Note)
+		}
+		if !strings.Contains(e.Note, "Qwen3.8-27B-UD-Q4_K_M") {
+			t.Errorf("cold note 应点名当前服务的模型，got %q", e.Note)
 		}
 	})
 
