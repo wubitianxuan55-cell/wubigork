@@ -7,8 +7,10 @@ package app
 //     接受**（HTTP 200 正常生成）；
 //   - strata：引擎内核 CUDA 采样链含 DRY+XTC（sampler.cu），但服务层每请求只
 //     透传 temperature/top_p/top_k/seed ——发了无效，不注入（上游加键后接）；
+//   - tianxuan（gufo，Strix Halo 垂直线）：OpenAI 兼容面只承诺标准采样键，
+//     没验过 DRY/XTC 通道——未验证即按未知引擎口径不注入（真机验通道后再接）；
 //   - 云端 OpenAI 兼容服务对未知字段不保证容忍——不注入。
-//   ⇒ 注入条件 = 本地引擎 且 Type != strata。
+//   ⇒ 注入条件 = 本地引擎 且 Type ∉ {strata, tianxuan}。
 //
 // 默认档 = llama.cpp DRY 缺省语义（0.8/1.75/2/4096），XTC 缺省关（激进）。
 // 可配面：config 键 novel_dry_disabled（一键关）/ novel_sampler_json（全量
@@ -81,9 +83,9 @@ func resolveNovelSampler(cfg *config.Config) (novelSampler, string) {
 	return s, ""
 }
 
-// samplerAppliesToEngine 注入条件：本地引擎且非 strata（前置核实口径，见文件头）。
-// engineMgr 不可用/引擎未登记（测试裸 App）时按「不支持」处理——宁缺勿误，
-// 不对未知引擎发非标键。
+// samplerAppliesToEngine 注入条件：本地引擎且非 strata/tianxuan（前置核实口径，
+// 见文件头）。engineMgr 不可用/引擎未登记（测试裸 App）时按「不支持」处理——宁缺
+// 勿误，不对未知引擎发非标键。
 func samplerAppliesToEngine(engineMgr *modelengine.Manager, engineID string) bool {
 	if engineMgr == nil {
 		return false
@@ -92,7 +94,11 @@ func samplerAppliesToEngine(engineMgr *modelengine.Manager, engineID string) boo
 	if !ok {
 		return false
 	}
-	return eng.Type.IsLocal() && eng.Type != modelengine.EngineStrata
+	switch eng.Type {
+	case modelengine.EngineStrata, modelengine.EngineTianxuan:
+		return false
+	}
+	return eng.Type.IsLocal()
 }
 
 // applyNovelSampler 生成链注入：满足条件时把 DRY/XTC 键写入请求 + 返回四步

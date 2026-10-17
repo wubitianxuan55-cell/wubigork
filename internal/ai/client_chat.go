@@ -290,9 +290,16 @@ func ClampThinkingMaxTokens(n int) int {
 // gaea provider bridge（办公智能体多轮工具循环）。这些形态在思考原生引擎上会
 // 稳定复现「推理吃光预算、正文截断或整个为空」。
 //
-// 判据取引擎类型（非引擎名），仅 Strata 一类思考原生引擎需要：它的服务端默认开
-// 思考，调用方不表态就是开。调用方显式 ctk=false 时不抬预算（推理不再抢预算，
+// 判据取引擎类型（非引擎名），思考原生引擎需要：服务端默认开思考，调用方不表态
+// 就是开。目前是 Strata（Qwen3.8-Flash-Next）与 Tianxuan（gufo，Qwen3.8/3.6 系）
+// 两家——同族模板（缺省开思考、reasoning_content 与正文共享 max_tokens），同一条
+// ctk 通道，故同一道守护。调用方显式 ctk=false 时不抬预算（推理不再抢预算，
 // 该尊重调用方自己的上限）。
+//
+// 接入 Tianxuan 时漏掉的正是这里：模型中心的简单对话走 prepareStreamRequest
+// 有守护，可手装 ChatRequest 的几个短预算调用点（章节直连/copilot 续写/wx_agent/
+// provider bridge）没有，表现就是「偶尔正文只有几个字」。新增思考原生本地引擎时
+// 两处一起改（本函数 + prepareStreamRequest 分支），否则只在一条路径上正确。
 //
 // 幂等：经 prepareStreamRequest 装配的请求在此为二次应用，同值。MaxTokens<=0
 // （调用方刻意不发上限）原样保留——真机实测 Strata 无 max_tokens 时按服务端
@@ -302,7 +309,7 @@ func (c *Client) applyThinkingBudgetGuard(req *ChatRequest, engineID string) {
 		return
 	}
 	eng, ok := c.engineMgr.GetEngine(engineID)
-	if !ok || eng.Type != modelengine.EngineStrata {
+	if !ok || (eng.Type != modelengine.EngineStrata && eng.Type != modelengine.EngineTianxuan) {
 		return
 	}
 	// 显式关思考（ctk false）：预算不守护。nil map 读取安全，缺键即「未表态」。

@@ -71,6 +71,13 @@ func TestApplyNovelSampler_EngineGate(t *testing.T) {
 		t.Fatalf("strata 不应注入: %+v %+v", summary2, req2)
 	}
 
+	// tianxuan（gufo）：DRY/XTC 通道未验，按未知引擎口径不注入
+	reqTx := &ai.ChatRequest{}
+	summaryTx, blockTx, _ := applyNovelSampler(reqTx, cfg, mgr, "tianxuan")
+	if summaryTx["enabled"] != false || reqTx.DryMultiplier != 0 || blockTx != "" {
+		t.Fatalf("tianxuan 不应注入: %+v %+v block=%q", summaryTx, reqTx, blockTx)
+	}
+
 	// 一键关
 	req3 := &ai.ChatRequest{}
 	summary3, selfCheck3, _ := applyNovelSampler(req3, &config.Config{NovelDryDisabled: true}, mgr, "herdsman")
