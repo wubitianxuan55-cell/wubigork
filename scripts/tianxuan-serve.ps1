@@ -73,11 +73,21 @@ $models = @{
     # draft 上限 6、按存活概率截断、prompt lookup 补重复结构。实测口径 76/80/93 tok/s
     # 来自 96GB carve-out；本机 64GB UMA 用不到 131K ctx，缺省 32K。
     Extra     = @('--draft-tokens', '6', '--mtp-policy', 'survival', '--prompt-lookup')
+    # 专家零拷贝驻留（docs/tianxuan/README.md §7 strata 对照）：专家栈留 pinned host
+    # 内存，内核经 device_alias 按需读 UMA——不申请 ~20GiB 设备提交、不做区域级 SDMA
+    # 拷贝、也不产生全带宽纯设备专家流（35B 五次冻结涉及的两个 pattern 全避开）。
+    Env       = @{ 'A3B_EXPERT_ZEROCOPY' = '1' }
   }
 }
 $m = $models[$Model]
 if (-not (Test-Path $m.Gguf)) { throw "模型不存在: $($m.Gguf)" }
 if ($Speculative -eq 'auto') { $Speculative = $m.Spec }
+
+# 预设自带的引擎环境变量（如 35b 的 A3B_EXPERT_ZEROCOPY）在 Start-Process 前套用，
+# 子进程按继承环境取用。
+if ($m.Env) {
+  foreach ($k in $m.Env.Keys) { Set-Item -Path ("env:" + $k) -Value ([string]$m.Env[$k]) }
+}
 
 if ($Sessions -le 0) { $Sessions = [int]$m.Sessions }
 $argv = @('serve', 'llm', '-m', $m.Gguf, '-p', "$Port", '-j', "$Sessions", '-c', "$Context",
