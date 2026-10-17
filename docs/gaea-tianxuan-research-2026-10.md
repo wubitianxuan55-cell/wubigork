@@ -213,10 +213,19 @@
 - **量化分布核实**（gguf 头逐张量）：该文件除 `output.weight`（Q6_K，2048×248320）外，
   所有非专家张量都是 F32/Q8_0/BF16 —— 也就是**只差一个张量的类型支持**就能跑，
   不需要下载任何东西。
-- **第一批引擎代码改动（进行中）**：把 Flash-Next 里私有的 `Q6KRowsToQ8_0` 提成公开内核辅助
-  （`fn::Q6KRowsToQ8_0`），A3B 的 `Engine::Get()` 遇到 Q6_K 时在装载期把该张量重编码为 Q8_0 再上传
-  （2-D、列宽 256 对齐；Q8_0 的 1/32 步长只有 Q6_K 1/16 步长的四分之一，重编码误差可忽略）。
-  这样本机 35B 不用换量化、不改 decode 内核就能跑起来。
+- **第一批引擎代码改动（已编译通过，装载破关，解码待修）**：`fn::Q6KRowsToQ8_0` 公开化 +
+  `Engine::UploadQ6KAsQ8_0`（output.weight Q6_K 与 3 层 Q6_K 专家栈装载期重编码）+
+  `GetExpert` 直收 Q4_K/Q5_K/Q5_1 专家栈（MMQ 内核白名单 `MmqExpertType`，prefill WideMoe 同步
+  分派）。实测链：21:15 撞 Q4_K 专家栈 → 加 `GetExpert`；21:19 撞 blk.34 Q6_K down → 专家栈重编码；
+  21:20 **装载通过**（21.1GiB 1.7s 上传，MTP draft_limit=6）。
+- **当前阻塞 = 解码异步非法访存**：首个 forward 即 `A3B decode: stream sync: unspecified launch
+  failure`（AR/MTP 同炸；27B 同二进制正常）。静态排查全部界内（MMVQ 标量点积/fragment/分组分发/
+  launch_bounds），唯一无本机实证的是 Q4_K/Q5_K 向量 MoE 内核本体（pixmaate 只真机验过 Q8_0/
+  IQ4_XS）。已落 `A3B_MOE_SELFTEST=1` 自检钩子（逐内核发射+逐 sync+逐行 stderr 报告+完整 eager
+  forward 收尾，结束拒服务），一次 GPU 运行即可点名炸点。
+- **⚠️ 整机风险实录**：核显 UMA 上内核非法访存毒化整个驱动上下文，与 herdsman 活动叠加 = 整机
+  冻结，用户强制重启×2（2026-10-17 晚）。测试纪律：每轮一次、接住 stderr、测试期静默其它引擎。
+
 ### 13.4 27B 调优实测（本轮主收获）
 
 配置：Qwen3.8-27B-UD-Q4_K_M（15.33 GiB）+ DFlash2 draft（1.1 GB），Windows gfx1151，64 GB UMA。
@@ -245,15 +254,17 @@
    我们的二进制停在 2026-10-03，上游 main 已到 0.17.0（含
    `perf(qwen-flash): cut prefill and decode attention cost at depth` 等）。
 
-### 13.5 批次 3 队列（按性价比排序）
+### 13.5 批次 3 队列（2026-10-17 晚状态）
 
-1. **自构建（进行中，本轮已开工）**：TheRock ROCm 10.0.0（Windows gfx1151 tarball，1.68 GB，
-   下到 `C:\TheRock`）+ vcpkg（icu/curl/openssl/libpng/libjpeg-turbo，x64-windows，装在 `C:\vcpkg`）+
-   已有 VS BuildTools 2022（MSVC 14.44 + Win SDK 10.0.26100）+ CMake（已装）+ Ninja（pip 已装）。
-   目的有两个：吃到上游 0.17.0 两周的性能提交，并且**从现在起每一处改动都能本机验证**。
-2. **第一批 C++ 改动：A3B 吃 Q6_K 的 output.weight（本轮已写）**——`fn::Q6KRowsToQ8_0` 公开化 +
-   A3B `Engine::Get()` 装载期重编码。编译通过后用本机 35B 四档实测（`-Model 35b`，路径改指本机 herdsman 库）。
-3. 出厂预设定稿：27B（`-d 4` adaptive + `--cache-disk` + 2 sessions）、35B（`-d 6` survival +
-   `--prompt-lookup` + 1 session），写进 `scripts/tianxuan-serve.ps1` 默认值与 README 表格。
-4. 需要改 C++ 的下一批：统一 KV 池/会话 fork-join、UMA 单预算启动校验（#28 类，Windows WDDM 预算）、
-   gfx1151 启动自调优（按可用显存自动选 ctx/sessions）。
+1. **自构建（✅ 完成）**：TheRock ROCm 10.0.0 + vcpkg + 已有 MSVC/SDK/CMake/Ninja，`ninja` 出
+   `build/release/gufo-server.exe`；每一处改动可本机验证。
+2. **第一批 C++ 改动（装载✅ 解码❌）**：Q6_K 重编码 + `GetExpert` Q4_K/Q5_K 直收已编译实测——
+   35B 装载通过，解码首个 forward 异步非法访存（详见 §13.3 末尾）；`A3B_MOE_SELFTEST=1`
+   自检钩子已落，下一步=一次自检运行点名炸点→修内核→四档实测。
+3. **出厂预设（✅ 写入启动器；35b 参数待实测校准）**：默认二进制改指自构建（预构建兜底、
+   `-Binary` 覆盖）；27b=dflash2+`-d 4`+mmproj+2 sessions+`--cache-disk`；35b=mtp+survival+
+   `--prompt-lookup`+1 session+mmproj-F16（视觉）+`--cache-disk`。
+4. **下一批 C++（不变）**：统一 KV 池/会话 fork-join、UMA 单预算启动校验（#28 类，Windows WDDM
+   预算）、gfx1151 启动自调优（按可用显存自动选 ctx/sessions）。
+5. **判定（新增）**：Flash-Next 本机出局（68GB+ > 64GB UMA、无本地文件）；上游 184 未移植提交
+   主体是 Flash-Next 内核与 cache 打磨，对 27B 无增量——windows 层移植暂不做。

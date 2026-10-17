@@ -25,20 +25,26 @@ param(
   [int]$Sessions = 0,   # 0 = 模型预设（27b=2，35b=1——A3B 只服务一个会话）
   [int]$Context = 32768,
   [ValidateSet('auto', 'dflash2', 'mtp', 'off')][string]$Speculative = 'auto',
-  [string]$GufoRoot = 'C:\AI\gufo-win\gufo-windows-2026-10-03',
   [string]$LogDir = 'C:\AI\wubigrok\.tmp\tianxuan',
   [int]$DraftTokens = 0,
   [ValidateSet('', 'adaptive', 'fixed')][string]$DraftPolicy = '',
   [string[]]$Extra = @(),
+  [string]$Binary = '',
   [switch]$NoCacheDisk,
   [switch]$DryRun
 )
 
 $ErrorActionPreference = 'Stop'
 
-$gufo = Join-Path $GufoRoot 'bin\gufo.exe'
-if (-not (Test-Path $gufo)) { throw "找不到 gufo.exe: $gufo（预构建包解压到 -GufoRoot）" }
-$env:PATH = (Join-Path $GufoRoot 'bin') + ';' + $env:PATH
+# 二进制选择：默认用我们的自构建（TheRock 工具链，含 35B Q6_K/Q4_K 装载支持与后续
+# 全部自有改动，与 clones/gufo 工作区同步）；-Binary 显式指定，最后回退 2026-10-03 预构建包。
+$selfBuild = 'C:\AI\wubigrok\clones\gufo\build\release\gufo-server.exe'
+$prebuilt = Join-Path 'C:\AI\gufo-win\gufo-windows-2026-10-03' 'bin\gufo.exe'
+if ($Binary -ne '' -and (Test-Path $Binary)) { $gufo = $Binary }
+elseif (Test-Path $selfBuild) { $gufo = $selfBuild }
+elseif (Test-Path $prebuilt) { $gufo = $prebuilt }
+else { throw "找不到 gufo 二进制（自构建 $selfBuild / 预构建 $prebuilt 都不在）" }
+$env:PATH = (Split-Path -Parent $gufo) + ';' + $env:PATH
 
 # 模型与 drafter 路径：27B 用的是 herdsman 目录里已装的那份 UD-Q4_K_M + gufo-win 里的 DFlash2 draft。
 $models = @{
@@ -57,10 +63,11 @@ $models = @{
     # 本机 herdsman 库已有的那份（不另下载）：除 output.weight 是 Q6_K 外全是 F32/Q8_0/BF16。
     # 预构建二进制会拒载 Q6_K 的 output.weight；自构建版已加装载期重编码（fn::Q6KRowsToQ8_0）。
     Gguf      = 'C:\Users\wubi\.herdsman\models\Qwen3.6-35B-A3B-MTP\windows\amd64\amd\Qwen3.6-35B-A3B-UD-Q4_K_M.gguf'
-    Mmproj    = ''
     Draft     = ''
     Spec      = 'mtp'
     ModelName = 'Qwen3.6-35B-A3B'
+    # 视觉投影器（本机已有）：A3B 运行时经 Qwen3.6 mmproj 支持图像输入（上游 windows 分支原生能力）。
+    Mmproj    = 'C:\Users\wubi\.herdsman\models\Qwen3.6-35B-A3B-MTP\windows\amd64\amd\mmproj-F16.gguf'
     Sessions  = 1
     # 上游 35B 文档给的就是这组（docs/models/qwen3.6-35b-a3b）：MTP 内嵌 GGUF、
     # draft 上限 6、按存活概率截断、prompt lookup 补重复结构。实测口径 76/80/93 tok/s
