@@ -64,7 +64,10 @@ $models = @{
     # 预构建二进制会拒载 Q6_K 的 output.weight；自构建版已加装载期重编码（fn::Q6KRowsToQ8_0）。
     Gguf      = 'C:\Users\wubi\.herdsman\models\Qwen3.6-35B-A3B-MTP\windows\amd64\amd\Qwen3.6-35B-A3B-UD-Q4_K_M.gguf'
     Draft     = ''
-    Spec      = 'mtp'
+    # speculative off：MTP 草稿链的 Argmax 内核与 hipcub top-k 同属「上游从未在
+    # Windows 验证过」的 35B 专属段（hipcub top-k 已实测炸上下文→第 6 次重启的直因，
+    # 已换 CPU top-k）；基座解码先跑通，MTP 之后单独验证再开。
+    Spec      = 'off'
     ModelName = 'Qwen3.6-35B-A3B'
     # 视觉投影器（本机已有）：A3B 运行时经 Qwen3.6 mmproj 支持图像输入（上游 windows 分支原生能力）。
     Mmproj    = 'C:\Users\wubi\.herdsman\models\Qwen3.6-35B-A3B-MTP\windows\amd64\amd\mmproj-F16.gguf'
