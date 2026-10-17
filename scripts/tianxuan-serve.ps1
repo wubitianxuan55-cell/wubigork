@@ -22,11 +22,10 @@
 param(
   [Parameter(Mandatory = $true)][ValidateSet('27b', '35b')][string]$Model,
   [int]$Port = 8094,
-  [int]$Sessions = 2,
+  [int]$Sessions = 0,   # 0 = 模型预设（27b=2，35b=1——A3B 只服务一个会话）
   [int]$Context = 32768,
   [ValidateSet('auto', 'dflash2', 'mtp', 'off')][string]$Speculative = 'auto',
   [string]$GufoRoot = 'C:\AI\gufo-win\gufo-windows-2026-10-03',
-  [string]$ModelDir = 'D:\gufo-models',
   [string]$LogDir = 'C:\AI\wubigrok\.tmp\tianxuan',
   [int]$DraftTokens = 0,
   [ValidateSet('', 'adaptive', 'fixed')][string]$DraftPolicy = '',
@@ -49,16 +48,20 @@ $models = @{
     Draft     = 'C:\AI\gufo-win\Qwen3.8-27B-DFlash2-Q4_K_M.gguf'
     Spec      = 'dflash2'
     ModelName = 'Qwen3.8-27B-DFlash2'
+    Sessions  = 2
     # 实测（2026-10-17 gufo bench，Q4 + DFlash2）：AR 12.48 → adaptive d7 20.41 →
     # adaptive d4 22.44；fixed 策略 17.02（接受率 25.5%，别用）。d4 是最优档。
     Extra     = @('--draft-tokens', '4')
   }
   '35b' = @{
-    Gguf      = (Join-Path $ModelDir '35b\Qwen3.6-35B-A3B-UD-Q8_K_XL.gguf')
+    # 本机 herdsman 库已有的那份（不另下载）：除 output.weight 是 Q6_K 外全是 F32/Q8_0/BF16。
+    # 预构建二进制会拒载 Q6_K 的 output.weight；自构建版已加装载期重编码（fn::Q6KRowsToQ8_0）。
+    Gguf      = 'C:\Users\wubi\.herdsman\models\Qwen3.6-35B-A3B-MTP\windows\amd64\amd\Qwen3.6-35B-A3B-UD-Q4_K_M.gguf'
     Mmproj    = ''
     Draft     = ''
     Spec      = 'mtp'
     ModelName = 'Qwen3.6-35B-A3B'
+    Sessions  = 1
     # 上游 35B 文档给的就是这组（docs/models/qwen3.6-35b-a3b）：MTP 内嵌 GGUF、
     # draft 上限 6、按存活概率截断、prompt lookup 补重复结构。实测口径 76/80/93 tok/s
     # 来自 96GB carve-out；本机 64GB UMA 用不到 131K ctx，缺省 32K。
@@ -69,6 +72,7 @@ $m = $models[$Model]
 if (-not (Test-Path $m.Gguf)) { throw "模型不存在: $($m.Gguf)" }
 if ($Speculative -eq 'auto') { $Speculative = $m.Spec }
 
+if ($Sessions -le 0) { $Sessions = [int]$m.Sessions }
 $argv = @('serve', 'llm', '-m', $m.Gguf, '-p', "$Port", '-j', "$Sessions", '-c', "$Context",
           '--served-model-name', $m.ModelName, '--speculative', $Speculative)
 if ($m.Mmproj -and (Test-Path $m.Mmproj)) { $argv += @('--mmproj', $m.Mmproj) }

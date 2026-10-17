@@ -197,22 +197,26 @@
   （实测踩过：引擎随包装脚本一起死）。
 - **端口口径**：8094（8080 herdsman / 8091 strata / 8092 MoE4All / 8888 modelhub），免鉴权。
 
-### 13.3 35B 旗舰复测（本轮未跑完：带宽卡住）
+### 13.3 35B：不下载模型，直接用本机已有的那份（阻塞=代码，不是带宽）
 
-- 兼容量化：`Qwen3.6-35B-A3B-UD-Q8_K_XL`（36.41 GiB，MTP 在 GGUF 内，
-  sha256 `6c6b816537abad90b250a0972b345466028d861ddfe316d5f0de31ca6440f781`），落 `D:\gufo-models\35b\`。
-- **本地 Q4_K_M 不兼容的真因已核实（修正批次 1 的记载）**：不是 output.weight 的量化门——
-  本地 27B 的 `output.weight` 就是 **Q6_K**，gufo 正常加载；本地 35B
-  `Qwen3.6-35B-A3B-UD-Q4_K_M`（base 仓库、非 MTP 仓）载入直接报
-  `Error creating Qwen GPU executor: Missing required Qwen tensor: blk.0.ffn_gate.weight`——
-  是**张量布局/版本不匹配**（35B 运行时要求的 dense `ffn_gate` 在该文件里没有）。
-  ⇒「只认 F32/Q8_0/BF16 的 output.weight」的说法作废；必须用 MTP 仓库的 UD-Q8_K_XL。
-- **下载实测**：本机到 HF 只有 3.2 MB/s（8 路分段聚合；单连 4–8 MB/s，ModelScope 4.1 MB/s，
-  hf-xet 0.2 MB/s，USB GbE 网卡是瓶颈）。36.41 GiB 还剩 ~34 GiB ≈ 3 小时——不占着带宽硬等，
-  已保留 1.56 GiB 前缀，续传命令：`powershell -File scripts\tianxuan-fetch-35b.ps1 -Parallel 8 -Url https://huggingface.co/unsloth/Qwen3.6-35B-A3B-MTP-GGUF/resolve/main/`。
-- 起服与测量已固化成 `scripts/tianxuan-serve.ps1 -Model 35b`（上游推荐组合
-  `--draft-tokens 6 --mtp-policy survival --prompt-lookup`）；文件到位后一条命令即跑四档。
+**用户指令（2026-10-17 续）：本机已有很多模型，不重新下载；要做的是基于本设备开发自己的引擎。**
+据此把「下载 UD-Q8_K_XL」整条撤掉（已删掉 1.56 GiB 前缀与下载器），改成本机已有模型直接验证。
 
+- 本机 35B 在 herdsman 库：`Qwen3.6-35B-A3B-UD-Q4_K_M`（22.6 GB，arch `qwen35moe`，
+  含 `ffn_gate_inh` 无、有 `ffn_gate_exps` / `ffn_gate_inp` / `ffn_gate_shexp` 共享专家布局）。
+- **两只入口不一样（关键）**：`gufo bench -m <35B>` 走通用 Qwen 加载器，报
+  `Missing required Qwen tensor: blk.0.ffn_gate.weight`（误导）；`gufo serve llm -m <35B>`
+  才走 A3B 运行时，真报错是
+  `Failed to create Qwen3.6-35B-A3B model: unsupported type Q6_K for output.weight (this build handles F32/Q8_0/BF16)`
+  （证据：`.tmp/tianxuan/35b-serve-test.err.log`）。A3B 权重上传本身没问题：
+  `a3b: weight upload 21.1 GiB in 10.6 s (1.99 GiB/s)`。
+- **量化分布核实**（gguf 头逐张量）：该文件除 `output.weight`（Q6_K，2048×248320）外，
+  所有非专家张量都是 F32/Q8_0/BF16 —— 也就是**只差一个张量的类型支持**就能跑，
+  不需要下载任何东西。
+- **第一批引擎代码改动（进行中）**：把 Flash-Next 里私有的 `Q6KRowsToQ8_0` 提成公开内核辅助
+  （`fn::Q6KRowsToQ8_0`），A3B 的 `Engine::Get()` 遇到 Q6_K 时在装载期把该张量重编码为 Q8_0 再上传
+  （2-D、列宽 256 对齐；Q8_0 的 1/32 步长只有 Q6_K 1/16 步长的四分之一，重编码误差可忽略）。
+  这样本机 35B 不用换量化、不改 decode 内核就能跑起来。
 ### 13.4 27B 调优实测（本轮主收获）
 
 配置：Qwen3.8-27B-UD-Q4_K_M（15.33 GiB）+ DFlash2 draft（1.1 GB），Windows gfx1151，64 GB UMA。
@@ -243,11 +247,13 @@
 
 ### 13.5 批次 3 队列（按性价比排序）
 
-1. **自构建更新的 Windows 二进制**：pixmaate windows-port 已 rebase 到 upstream 0.17.0，构建材料 =
-   TheRock ROCm 10.0.0（gfx1151 tarball）+ vcpkg（icu/curl/openssl/libpng/libjpeg-turbo）+ VS Build Tools +
-   CMake/Ninja，`tools/windows/check.ps1` 一键体检。这一步能吃到上游 2 周的性能提交，是当前最大的单点收益。
-2. 35B UD-Q8_K_XL 真机四档（下载续传 + `-Model 35b` 一条命令）。
+1. **自构建（进行中，本轮已开工）**：TheRock ROCm 10.0.0（Windows gfx1151 tarball，1.68 GB，
+   下到 `C:\TheRock`）+ vcpkg（icu/curl/openssl/libpng/libjpeg-turbo，x64-windows，装在 `C:\vcpkg`）+
+   已有 VS BuildTools 2022（MSVC 14.44 + Win SDK 10.0.26100）+ CMake（已装）+ Ninja（pip 已装）。
+   目的有两个：吃到上游 0.17.0 两周的性能提交，并且**从现在起每一处改动都能本机验证**。
+2. **第一批 C++ 改动：A3B 吃 Q6_K 的 output.weight（本轮已写）**——`fn::Q6KRowsToQ8_0` 公开化 +
+   A3B `Engine::Get()` 装载期重编码。编译通过后用本机 35B 四档实测（`-Model 35b`，路径改指本机 herdsman 库）。
 3. 出厂预设定稿：27B（`-d 4` adaptive + `--cache-disk` + 2 sessions）、35B（`-d 6` survival +
    `--prompt-lookup` + 1 session），写进 `scripts/tianxuan-serve.ps1` 默认值与 README 表格。
-4. 需要改 C++ 的项（排在自构建之后）：统一 KV 池/会话 fork-join、UMA 单预算启动校验（#28 类）、
-   gfx1151 启动自调优。
+4. 需要改 C++ 的下一批：统一 KV 池/会话 fork-join、UMA 单预算启动校验（#28 类，Windows WDDM 预算）、
+   gfx1151 启动自调优（按可用显存自动选 ctx/sessions）。
