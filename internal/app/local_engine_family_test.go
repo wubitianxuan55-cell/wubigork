@@ -18,9 +18,9 @@ import (
 	"github.com/gaea/gaea/internal/whisper"
 )
 
-// TestIsLocalEngine_LocalFamily 本地族齐五、云端族五个全假。
+// TestIsLocalEngine_LocalFamily 本地族齐六、云端族五个全假。
 func TestIsLocalEngine_LocalFamily(t *testing.T) {
-	for _, id := range []string{"ollama", "herdsman", "cosyvoice", "modelhub", "strata"} {
+	for _, id := range []string{"ollama", "herdsman", "cosyvoice", "modelhub", "strata", "tianxuan"} {
 		if !isLocalEngine(id) {
 			t.Errorf("%s 是本地引擎（占本机资源，应计入加载预警）", id)
 		}
@@ -175,4 +175,93 @@ func TestStrataModelLoaded_NonStandardStatus(t *testing.T) {
 			}
 		})
 	}
+}
+
+// tianxuanModelsJSON 真机形状：天璇引擎（gufo）/v1/models 是标准形状
+// （无 strata 的 flexStatus 异形），只列已加载集合。
+const tianxuanModelsJSON = `{"object":"list","data":[{"id":"Qwen3.8-27B-UD-Q4_K_M","object":"model","created":1792236665,"owned_by":"gufo"}]}`
+
+// newTianxuanScheduleApp 构造 App：tianxuan 引擎指向给定测试服务器。
+func newTianxuanScheduleApp(t *testing.T, baseURL string) *App {
+	t.Helper()
+	a := scheduleTestApp(&config.Config{})
+	if err := a.engineMgr.SaveEngine(modelengine.EngineConfig{
+		ID: "tianxuan", BaseURL: baseURL + "/v1", Enabled: true,
+	}); err != nil {
+		t.Fatalf("SaveEngine(tianxuan): %v", err)
+	}
+	return a
+}
+
+// TestGaeaModelSwitchEstimate_Tianxuan 换模预估：tianxuan 走本地引擎分支
+// （不再恒报 hot），已加载→hot、未加载→cold、不可达→unknown。
+func TestGaeaModelSwitchEstimate_Tianxuan(t *testing.T) {
+	newSrv := func(body string) *httptest.Server {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(body))
+		}))
+		t.Cleanup(srv.Close)
+		return srv
+	}
+
+	t.Run("已加载→hot", func(t *testing.T) {
+		a := newTianxuanScheduleApp(t, newSrv(tianxuanModelsJSON).URL)
+		e := a.GaeaModelSwitchEstimate("tianxuan", "Qwen3.8-27B-UD-Q4_K_M")
+		if e.Status != "hot" || e.WaitSeconds != 1 {
+			t.Errorf("Status/Wait = (%q,%d), want (hot,1)；note=%q", e.Status, e.WaitSeconds, e.Note)
+		}
+	})
+
+	t.Run("未加载→cold", func(t *testing.T) {
+		a := newTianxuanScheduleApp(t, newSrv(tianxuanModelsJSON).URL)
+		e := a.GaeaModelSwitchEstimate("tianxuan", "another-model")
+		if e.Status != "cold" || e.WaitSeconds != 0 {
+			t.Errorf("Status/Wait = (%q,%d), want (cold,0)——模型加载不假报秒数", e.Status, e.WaitSeconds)
+		}
+	})
+
+	t.Run("服务不可达→unknown", func(t *testing.T) {
+		srv := httptest.NewServer(http.NotFoundHandler())
+		url := srv.URL
+		srv.Close()
+		a := newTianxuanScheduleApp(t, url)
+		e := a.GaeaModelSwitchEstimate("tianxuan", "Qwen3.8-27B-UD-Q4_K_M")
+		if e.Status != "unknown" {
+			t.Errorf("不可达应如实 unknown（宁未知勿假 hot），got %q", e.Status)
+		}
+	})
+}
+
+// TestTianxuanModelLoaded_StandardShape 天璇 /v1/models 标准形状的加载判定：
+// 命中即已加载；目标不在已加载集合→false。
+func TestTianxuanModelLoaded_StandardShape(t *testing.T) {
+	t.Run("已加载", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte(tianxuanModelsJSON))
+		}))
+		defer srv.Close()
+		a := newTianxuanScheduleApp(t, srv.URL)
+		got, err := a.engineMgr.TianxuanModelLoaded(t.Context(), "Qwen3.8-27B-UD-Q4_K_M")
+		if err != nil {
+			t.Fatalf("TianxuanModelLoaded: %v", err)
+		}
+		if !got {
+			t.Error("loaded = false, want true")
+		}
+	})
+	t.Run("目标不在集合", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte(tianxuanModelsJSON))
+		}))
+		defer srv.Close()
+		a := newTianxuanScheduleApp(t, srv.URL)
+		got, err := a.engineMgr.TianxuanModelLoaded(t.Context(), "another-model")
+		if err != nil {
+			t.Fatalf("TianxuanModelLoaded: %v", err)
+		}
+		if got {
+			t.Error("loaded = true, want false")
+		}
+	})
 }

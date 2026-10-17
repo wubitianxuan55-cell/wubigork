@@ -417,7 +417,7 @@ func estimateUnknown(out ModelSwitchEstimate, note string) ModelSwitchEstimate {
 func (a *App) GaeaModelSwitchEstimate(engineID, model string) ModelSwitchEstimate {
 	out := ModelSwitchEstimate{Engine: engineID, Model: model}
 	switch engineID {
-	case "herdsman", "ollama", "modelhub", "strata":
+	case "herdsman", "ollama", "modelhub", "strata", "tianxuan":
 		// 本地引擎：往下按目标模型查加载态
 	default:
 		out.Status = "hot"
@@ -446,6 +446,8 @@ func (a *App) GaeaModelSwitchEstimate(engineID, model string) ModelSwitchEstimat
 		return a.estimateOllamaModelSwitch(eng, model, out)
 	case "strata":
 		return a.estimateStrataModelSwitch(model, out)
+	case "tianxuan":
+		return a.estimateTianxuanModelSwitch(model, out)
 	default:
 		return a.estimateModelHubModelSwitch(model, out)
 	}
@@ -517,6 +519,24 @@ func (a *App) estimateStrataModelSwitch(model string, out ModelSwitchEstimate) M
 	loaded, err := a.engineMgr.StrataModelLoaded(ctx, model)
 	if err != nil {
 		return estimateUnknown(out, "无法连接 Strata，无法确认模型状态")
+	}
+	if loaded {
+		out.Status, out.WaitSeconds, out.Note = "hot", 1, "模型已加载，可直接切换"
+		return out
+	}
+	out.Status, out.Note = "cold", "模型未加载，切换后首次对话需等待加载"
+	return out
+}
+
+// estimateTianxuanModelSwitch 探测天璇引擎 /v1/models 是否已加载目标模型
+// （命中→hot；未命中→cold 不报秒数——GGUF 加载以十秒~分钟计）；探测失败
+// 如实 unknown。天璇的 /v1/models 只列已加载集合，故命中语义与 strata 同。
+func (a *App) estimateTianxuanModelSwitch(model string, out ModelSwitchEstimate) ModelSwitchEstimate {
+	ctx, cancel := context.WithTimeout(context.Background(), ollamaProbeTimeout)
+	defer cancel()
+	loaded, err := a.engineMgr.TianxuanModelLoaded(ctx, model)
+	if err != nil {
+		return estimateUnknown(out, "无法连接天璇引擎，无法确认模型状态")
 	}
 	if loaded {
 		out.Status, out.WaitSeconds, out.Note = "hot", 1, "模型已加载，可直接切换"

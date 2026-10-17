@@ -49,6 +49,15 @@ const (
 	// /v1/models 的 status 字段是非标对象（{"value":"loaded"}），解码走
 	// engine_models.go 的 flexStatus 宽容层。默认端口 8091（8080 是 herdsman）。
 	EngineStrata EngineType = "strata"
+	// EngineTianxuan 本地天璇引擎（Tianxuan Engine）：gufo（MIT，gufo-org/gufo）
+	// 的 Strix Halo 垂直推理引擎线——C++20 原生 HIP 内核，专为 Ryzen AI Max+ 395
+	// （gfx1151 / Radeon 8060S）打造，Windows 一等支持（pixmaate/gufo 移植线，
+	// TheRock ROCm）。吃标准 GGUF（Qwen3.8-27B / Qwen3.6-35B-A3B 等），投机解码
+	// 按模型配 drafter（MTP/DFlash2/DSpark），thinking 走 chat_template_kwargs
+	// （真机实测与 strata/modelhub 同通道）。与用户侧「天璇 · Tianxuan」编程
+	// 助手是两个产品，本条目是推理引擎。默认端口 8094（8080 herdsman /
+	// 8091 strata / 8888 modelhub），免鉴权（Key 留空即不带 Authorization 头）。
+	EngineTianxuan EngineType = "tianxuan"
 )
 
 // GLM 官方双端点（docs.bigmodel.cn coding-plan/quick-start）：标准=按量付费，
@@ -60,11 +69,11 @@ const (
 )
 
 // IsLocal 引擎是否本地服务（数据不出本机）——全局离线模式（v4.8）据此
-// 门控路由：offline 开启时只允许本地引擎（ollama/herdsman/cosyvoice/modelhub/strata），
-// 云端（xai/deepseek/opencode-*）一律跳过。
+// 门控路由：offline 开启时只允许本地引擎（ollama/herdsman/cosyvoice/modelhub/
+// strata/tianxuan），云端（xai/deepseek/opencode-*）一律跳过。
 func (t EngineType) IsLocal() bool {
 	switch t {
-	case EngineOllama, EngineHerdsman, EngineCosyVoice, EngineModelHub, EngineStrata:
+	case EngineOllama, EngineHerdsman, EngineCosyVoice, EngineModelHub, EngineStrata, EngineTianxuan:
 		return true
 	}
 	return false
@@ -102,6 +111,8 @@ func BuiltinEngineTypeOf(id string) EngineType {
 		return EngineModelHub
 	case "strata":
 		return EngineStrata
+	case "tianxuan":
+		return EngineTianxuan
 	}
 	return ""
 }
@@ -205,7 +216,7 @@ type Manager struct {
 func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 	m := &Manager{
 		engines:     make(map[string]*EngineConfig),
-		order:       []string{"xai", "ollama", "herdsman", "deepseek", "glm", "cosyvoice", "modelhub", "strata", "opencode-go", "opencode-zen"},
+		order:       []string{"xai", "ollama", "herdsman", "deepseek", "glm", "cosyvoice", "modelhub", "strata", "tianxuan", "opencode-go", "opencode-zen"},
 		xaiKey:      xaiAPIKey,
 		deepseekKey: deepseekKey,
 		customKeys:  make(map[string]string),
@@ -333,6 +344,22 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 		// Authorization 头）。模型清单随引擎加载状态变化，DefaultModel 留空
 		// 由刷新 /models 后取首个（TestConnection 同口径）。
 		BaseURL: "http://127.0.0.1:8091/v1",
+		Enabled: true,
+	}
+	m.engines["tianxuan"] = &EngineConfig{
+		ID:      "tianxuan",
+		Name:    "Tianxuan",
+		Type:    EngineTianxuan,
+		Label:   "天璇引擎 本地",
+		Color:   "#fb923c",
+		Icon:    "desktop",
+		IsLocal: true,
+		// 天璇引擎（gufo 的 Strix Halo 垂直线）：标准 GGUF + MTP/DFlash2 投机
+		// 解码，thinking 走 chat_template_kwargs（client_chat.go tianxuan 分支
+		// 同 strata 口径）。8094 空闲端口（8080 herdsman / 8091 strata /
+		// 8888 modelhub）；免鉴权。模型清单随引擎加载状态变化，DefaultModel
+		// 留空由刷新 /models 后取首个（与 strata 同口径）。
+		BaseURL: "http://127.0.0.1:8094/v1",
 		Enabled: true,
 	}
 

@@ -246,6 +246,58 @@ func (m *Manager) StrataModelLoaded(ctx context.Context, modelID string) (bool, 
 	return false, nil
 }
 
+// TianxuanModelLoaded 轻量探测目标模型是否已被天璇引擎（gufo）加载。
+//
+// 天璇的 /v1/models 与 Strata 同语义：只列「已加载」集合（真机实测：
+// {"object":"list","data":[{"id":…,"owned_by":"gufo"}]}，标准形状无
+// flexStatus 异形），命中即已加载，语义与 StrataModelLoaded 一致
+// （换模预估的 hot/cold 判定用）。返回 (false, nil) = 引擎可达但目标
+// 未加载；(false, err) = 不可达/地址非法。
+//
+// 解码复用 modelsListResponse（含 flexStatus 宽容层——天璇引擎当前是标准
+// 形状，宽容层无害，且未来若引入非标字段不再整表炸）。
+func (m *Manager) TianxuanModelLoaded(ctx context.Context, modelID string) (bool, error) {
+	m.mu.RLock()
+	engine, ok := m.engines["tianxuan"]
+	m.mu.RUnlock()
+	if !ok {
+		return false, fmt.Errorf("引擎 tianxuan 不存在")
+	}
+	if !engine.Enabled {
+		return false, fmt.Errorf("天璇引擎未启用")
+	}
+	base := strings.TrimRight(strings.TrimSpace(engine.BaseURL), "/")
+	if !validBaseURL(base) {
+		return false, fmt.Errorf("引擎地址无效：需要 http:// 或 https:// 前缀")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/models", nil)
+	if err != nil {
+		return false, fmt.Errorf("创建探测请求失败: %w", err)
+	}
+	// 天璇免鉴权（gufo serve 默认无 api_key）：刻意不发 Authorization 头，
+	// 与 fetchModels 的 Strata 分支同口径。
+	resp, err := m.httpClient.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("天璇引擎不可达: %w", err)
+	}
+	defer netclient.DrainAndClose(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("天璇引擎探测失败（HTTP %d）", resp.StatusCode)
+	}
+	var list modelsListResponse
+	if err := json.NewDecoder(resp.Body).Decode(&list); err != nil {
+		return false, fmt.Errorf("解析已加载模型列表失败: %w", err)
+	}
+	for _, d := range list.Data {
+		if d.ID != modelID {
+			continue
+		}
+		s := string(d.Status)
+		return s == "" || s == "loaded" || s == "loading", nil
+	}
+	return false, nil
+}
+
 // ClassifyModelKind 按引擎类型与模型名分类（llm/tts/stt/ocr/rerank/embedding/image）。
 // 3.0 Step 3d：模型能力关键词分类的单一来源——语音（voice_handler.go:isSTTModel）、
 // OCR（gaea_ocr.go:pickHerdsmanModel）等消费点委托到本函数，不再各自维护关键词表。

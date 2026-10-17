@@ -33,7 +33,7 @@ func TestWhisperCausalOfflineFilter(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for _, id := range []string{"ollama", "cosyvoice", "modelhub", "strata"} {
+	for _, id := range []string{"ollama", "cosyvoice", "modelhub", "strata", "tianxuan"} {
 		if e, ok := a.engineMgr.GetEngine(id); ok {
 			e.Enabled = false
 			if err := a.engineMgr.SaveEngine(*e); err != nil {
@@ -79,7 +79,7 @@ func TestWhisperRetellOfflineFilter(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for _, id := range []string{"ollama", "cosyvoice", "modelhub", "strata"} {
+	for _, id := range []string{"ollama", "cosyvoice", "modelhub", "strata", "tianxuan"} {
 		if e, ok := a.engineMgr.GetEngine(id); ok {
 			e.Enabled = false
 			if err := a.engineMgr.SaveEngine(*e); err != nil {

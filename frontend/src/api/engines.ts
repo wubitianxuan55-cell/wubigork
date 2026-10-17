@@ -38,7 +38,9 @@ export interface EngineConfig {
   // 暴露 OpenAI 兼容 /v1；Key 为 sk-unsloth-，Unsloth 设置 → API 创建）
   // strata = 本地 Strata 推理引擎（Qwen3.8-Flash-Next 125B MoE，默认 127.0.0.1:8091/v1，
   // 免鉴权；离线模式按本地引擎放行）
-  type: 'xai' | 'ollama' | 'herdsman' | 'deepseek' | 'glm' | 'cosyvoice' | 'opencode-go' | 'opencode-zen' | 'modelhub' | 'custom' | 'strata'
+  // tianxuan = 本地天璇引擎（gufo 的 Strix Halo 垂直线，默认 127.0.0.1:8094/v1，
+  // 免鉴权；标准 GGUF + MTP/DFlash2 投机解码；与「天璇」编程助手是两个产品）
+  type: 'xai' | 'ollama' | 'herdsman' | 'deepseek' | 'glm' | 'cosyvoice' | 'opencode-go' | 'opencode-zen' | 'modelhub' | 'custom' | 'strata' | 'tianxuan'
   label?: string
   color?: string
   icon?: string

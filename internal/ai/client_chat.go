@@ -403,6 +403,17 @@ func (c *Client) prepareStreamRequest(model string, messages []ChatMessage, opts
 		req.ChatTemplateKwargs = map[string]any{"enable_thinking": wantThinking}
 		clampThinkingBudget(req, wantThinking)
 
+	case engType == modelengine.EngineTianxuan:
+		// 天璇引擎（gufo，Strix Halo 垂直线）：与 strata 同族的「思考原生」
+		// 本地引擎——Qwen3.8/3.6 系模板缺省开思考，reasoning_content 与正文
+		// 共享预算。通道真机实测（8094 27B）：chat_template_kwargs 生效
+		// （enable_thinking=false 时 reasoning_content 缺席、true 时下发），
+		// 与 strata/modelhub 同一 ctk 通道，不发顶层字段。预算守护同 strata
+		// 先例：推理烧穿小预算即正文截断，4096 只升不降。
+		wantThinking := !opts.DisableThinking
+		req.ChatTemplateKwargs = map[string]any{"enable_thinking": wantThinking}
+		clampThinkingBudget(req, wantThinking)
+
 	case opts.EnableThinking:
 		if reqEngine == "herdsman" || reqEngine == "ollama" {
 			t := true

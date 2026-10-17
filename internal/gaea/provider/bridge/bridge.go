@@ -60,12 +60,13 @@ func (p *Provider) Stream(ctx context.Context, req provider.Request) (<-chan pro
 		// 守护：显式指定过小预算时抬到 4096（常量单一来源在 ai 包，见
 		// ClampThinkingMaxTokens——此前此处与 client_chat.go 各写一遍 4096）。
 		creq.MaxTokens = ai.ClampThinkingMaxTokens(creq.MaxTokens)
-	case "strata":
-		// Strata（Qwen3.8-Flash-Next 125B MoE）：思考原生引擎，服务端默认开
-		// 思考，办公智能体的多轮工具循环同样吃这份共享预算——不守护则小预算
-		// 轮次被推理烧空（正文截断/空，真机实测见 internal/ai/client_chat.go
-		// strata 分支）。通道：顶层 enable_thinking 实测无效（传 false 仍产出
-		// reasoning_content），只有 chat_template_kwargs 有效，故只发 ctk。
+	case "strata", "tianxuan":
+		// Strata 与天璇引擎（gufo）：思考原生引擎，服务端默认开思考，办公
+		// 智能体的多轮工具循环同样吃这份共享预算——不守护则小预算轮次被
+		// 推理烧空（正文截断/空，真机实测见 internal/ai/client_chat.go
+		// strata/tianxuan 分支）。通道：顶层 enable_thinking 实测无效（strata
+		// 传 false 仍产出 reasoning_content），只有 chat_template_kwargs 有效
+		// （天璇真机实测同通道），故只发 ctk。
 		creq.ChatTemplateKwargs = map[string]any{"enable_thinking": true}
 		creq.MaxTokens = ai.ClampThinkingMaxTokens(creq.MaxTokens)
 	}
