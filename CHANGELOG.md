@@ -1,3 +1,6 @@
+## v4.502.0 · 绘梦退役「模型目录」视图+素材库删除与已删文件过滤（2026-10-17）
+> 用户拍板「模型目录可删」+素材库两诉求。①删绘梦「模型目录」tab：ModelDirectory 组件+测试+api 包装+三语 modelDir* 38 键全链退役，Go 绑定保留（模型中心 getHerdsmanCatalog 仍在消费）——目录信息不丢，模型中心有更全管理视图；②素材库读侧诚实过滤（imageHubAssetSummaries 按文件存在性剔除盘上已删登记——素材库是登记视图，文件真相在磁盘；月度用量直读台账口径不变）+新增 ImageHubAssetDelete 绑定（661→662：删盘上文件+移除该空间台账登记，登记守卫拒未登记路径，先文件后台账，AtomicWrite 单源）+前端详情条删除钮（Popconfirm 两步+file_removed 双口径文案）+绑定管线全链登记。测试=Go 删除三态+读侧过滤夹具写真文件；前端删除流 3 例；全量 vitest 3855 绿；tsc 0/eslint 0/golangci 0；drift 四锁过。详见 `releases/v4.502.0.md`。
+
 ## v4.501.0 · 绘梦新增 Qwen-Image-2.1-Turbo 文生图：官方模板蒸馏+真机验证（2026-10-16）
 > 用户在 ComfyUI 新装 Qwen-Image-2.1-Turbo 出图模型+官方工作流，接进绘梦。官方模板 image_qwen_image_2_1_turbo_t2i 蒸馏（取道不取器）：TextEncodeQwenImage21 单节点双编码（正/负 conditioning 同出，负向词透传——与 krea2/z-image 的 ZeroOut 口径不同）；采样栈 UNET→[LoRA 链]→QwenImage21Cache(auto)→CFGGuider(cfg 1.0)+RandomNoise+euler+ManualSigmas 官方 8σ 表→SamplerCustomAdvanced；σ 表 turbo 专用步数不开放（同 flux 固定先例）。官方可选件不接：TextGenerate 提示词改写支路（PE 模型另需 9.5GB、模板默认直通原文）；2.1 edit 模板不接——编辑族仍单引擎走 2511。txt2imgWorkflows 登记防静默降级+Warmup 自动继承；缺权重中文三件套提示（只对本族权重名触发）；模型目录/comfyAlways/前端模型列/模型中心两表五处登记；量化档位标记扩 int8_convrot。golden 节点表（纯净+LoRA 链）+warmup 分发+提示词触发域测试；真机验证=本地 ComfyUI 0.41.0 提交蒸馏图 success 出图；全量 vitest 3860 绿；零绑定。详见 `releases/v4.501.0.md`。
 
