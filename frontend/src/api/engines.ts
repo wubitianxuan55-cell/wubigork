@@ -368,6 +368,45 @@ import { app as bridgeApp } from '../gaea/lib/bridge'
 
 const App = (): AppFacade => (window.go?.app?.App ?? bridgeApp) as unknown as AppFacade
 
+// ── 天璇引擎进程生命周期（tianxuan_proc.go，gaea 代启族=comfyui 同款） ──
+
+export interface TianxuanEngineStatusResult {
+  running: boolean
+  port?: number
+  served_models?: string[]
+}
+
+export interface TianxuanEngineStartResult {
+  started: boolean
+  reason?: string // already-running / port-occupied / binary-not-found / model-not-found / exited-early / timeout / spawn-failed
+  waited_ms?: number
+  served_models?: string[]
+  log?: string
+}
+
+export interface TianxuanEngineStopResult {
+  stopped: boolean
+  reason?: string
+}
+
+/** 天璇引擎运行状态（8094 /v1/models 探活） */
+export async function getTianxuanEngineStatus(): Promise<TianxuanEngineStatusResult> {
+  const result = await App().TianxuanEngineStatus()
+  return result as TianxuanEngineStatusResult
+}
+
+/** 启动天璇引擎（27b 预设；幂等——已运行返回 already-running） */
+export async function startTianxuanEngine(): Promise<TianxuanEngineStartResult> {
+  const result = await App().TianxuanEngineStart()
+  return result as TianxuanEngineStartResult
+}
+
+/** 停止天璇引擎（不管谁启动的都能停；空闲时调用——生成中硬杀有 D 状态风险） */
+export async function stopTianxuanEngine(): Promise<TianxuanEngineStopResult> {
+  const result = await App().TianxuanEngineStop()
+  return result as TianxuanEngineStopResult
+}
+
 /** 获取所有引擎配置 */
 export async function getEngines(): Promise<EngineConfig[]> {
   const result = await App().GetEngines()

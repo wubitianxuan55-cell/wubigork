@@ -268,6 +268,10 @@ var explicitOverrides = map[string]string{
 	"GetActiveModel":            "model",
 	"GetEngineStatus":           "model",
 	"GetModelCatalog":           "model",
+	// 天璇引擎进程生命周期（tianxuan_proc.go，gaea 代启族=comfyui 同款）。
+	"TianxuanEngineStatus":      "model",
+	"TianxuanEngineStart":       "model",
+	"TianxuanEngineStop":        "model",
 	"Startup":                   "core",
 	"Shutdown":                  "core",
 	"SetDistFS":                 "core",

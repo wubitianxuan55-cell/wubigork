@@ -50,3 +50,6 @@ func (b *ModelB) SetFeatureModelEnabled(feature string, enabled bool) error { re
 func (b *ModelB) SetOfficeLocal(enabled bool) error { return b.a.SetOfficeLocal(enabled) }
 func (b *ModelB) SetOfflineMode(enabled bool) error { return b.a.SetOfflineMode(enabled) }
 func (b *ModelB) SetSensitiveLocal(enabled bool) error { return b.a.SetSensitiveLocal(enabled) }
+func (b *ModelB) TianxuanEngineStart() map[string]interface{} { return b.a.TianxuanEngineStart() }
+func (b *ModelB) TianxuanEngineStatus() map[string]interface{} { return b.a.TianxuanEngineStatus() }
+func (b *ModelB) TianxuanEngineStop() map[string]interface{} { return b.a.TianxuanEngineStop() }

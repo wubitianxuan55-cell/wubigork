@@ -290,6 +290,10 @@ type App struct {
 
 	modules *ModuleRegistry
 
+	// tianxuanProc 天璇引擎（gufo-server 8094）进程引用——gaea 代启时登记，
+	// 停止/状态走 tianxuan_proc.go。外部启动器起的实例不登记（netstat 停止）。
+	tianxuanProc tianxuanProcRef
+
 	// intentClassifierFn 意图 LLM 兜底分类 seam（v4.8，测试注入点；nil=内置 LLM 分类器）。
 	intentClassifierFn func(text string) *intent.Intent
 }
@@ -461,8 +465,9 @@ func (a *App) Startup(ctx context.Context) {
 	a.engineMgr.StartHealthProbe(a.ctx)
 	// 确保 xAI 引擎始终提供内置语音模型 grok-tts（TTS API 不返回在 /v1/models 列表）
 	a.engineMgr.EnsureModel("xai", "grok-tts")
-	// 确保本地 CosyVoice2 引擎提供语音模型（OpenAI 兼容 TTS 服务）
+	// 确保本地 CosyVoice 引擎同时提供 2.0/3.0 语音模型（OpenAI 兼容 TTS 服务）
 	a.engineMgr.EnsureModel("cosyvoice", "CosyVoice2-0.5B")
+	a.engineMgr.EnsureModel("cosyvoice", "Fun-CosyVoice3-0.5B")
 	if tok, err := auth.NewTokenStore(a.cfg.TokenStorePath).Load(); err == nil && tok != nil && !tok.IsExpired() {
 		a.engineMgr.UpdateXAIKey(tok.AccessToken)
 	}

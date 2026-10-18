@@ -629,6 +629,9 @@ export const bindingNames = [
   "TTSSpeakBase64WithParams",
   "TTSSpeakStreaming",
   "TestEngineConnection",
+  "TianxuanEngineStart",
+  "TianxuanEngineStatus",
+  "TianxuanEngineStop",
   "ToggleOrgMember",
   "UpdateCustomEngine",
   "UpdateProjectMeta",
@@ -662,4 +665,4 @@ export const bindingNames = [
   "WhisperWeixinQRStatus",
   "WhisperWeixinQRStatusWithCode",
   "WhisperWeixinStatus",
-] as const;
+] as const
