@@ -282,5 +282,49 @@
 **35B 线终止**：复验装载/首请求通过后第 7 次整机重启，用户拍板放弃并移除发射路径
 （71e8a122）；gufo 仓 35B 代码封存 git 历史。根因链与处置见 gufo 仓
 `docs/tianxuan/README.md` §7.5/§7.6/§8。**27B 线保留照常服务**（`-Model 27b`，
-d4 22.4tok/s）；本机要跑 35B 级模型走 herdsman（Vulkan 已验证）。本文其余「待办/
-下一刀」条目中涉及 35B 的部分随本节作废。
+d4 22.4tok/s；§14 起默认预设已切换为 3 草稿 + prompt lookup）；本机要跑 35B 级模型走
+herdsman（Vulkan 已验证）。本文其余「待办/下一刀」条目中涉及 35B 的部分随本节作废。
+
+## 14. 批次 4：27B 续写策略与 prompt lookup（2026-10-18）
+
+### 14.1 社区新证据
+
+- [gufo #634](https://github.com/gufo-org/gufo/issues/634) 的 gfx1151 生产验证指出：
+  服务层在 `PreparePrefixReuse` 清空投机解码的接受率历史，缓存续写每轮都要重新学习
+  草稿块宽。gfx1150 报告者进一步指出 DFlash 的同一问题在
+  `SpeculativeVerifier::BeginRequest`，并给出 gfx1151 生产机与 gfx1150 笔记本的复现。
+- Windows 分支已有 `d0e98aa1`：27B DFlash2 prompt lookup 可把会话中重复 ≥12 token 的
+  片段直接作为草稿，目标模型仍做完整验证；greedy 输出不变。上游同时把 MTP 的
+  prompt lookup 合入 #613，社区测试覆盖文件编辑、工具参数与普通 prose。
+- Windows 交互启动器已把「DFlash2 自身 3 草稿 + lookup 7」标为最快实测档，但 gaea
+  的 27B 预设仍停在 d4，未吃到这部分收益。
+
+### 14.2 落地改动
+
+1. **续写保留 DFlash 接受率历史**：`SpeculativeVerifier::BeginRequest(true)` 只在保留
+   前缀续写时传递 `keep_policy`；新请求仍重置。首次采样解码前强制恢复冷启动策略，
+   因此 `seeded DFlash cached replay == cold request` 的质量约束不变。
+2. **27B 默认启用 prompt lookup**：`GUFO_QWEN27_LOOKUP=3`，lookup 最长
+   `--draft-tokens 7`；DFlash2 自身仍最多 3 个草稿。gaea 应用内启停与
+   `scripts/tianxuan-serve.ps1` 使用同一个预设。
+3. **回归**：`speculative_verification_test` 全过；真实 27B + DFlash2 的
+   `qwen_dflash_gpu_test` 全过（含 262K draft context、快照、RNG/采样状态）。
+
+### 14.3 本机 A/B（Windows gfx1151，27B UD-Q4_K_M + DFlash2）
+
+同一二进制（两侧均含续写保留）、仅切换草稿配置；同一段约 400 output token 的代码复述
+请求，流式、greedy、thinking off，热机取 3 次：
+
+| 档位 | decode 中位 | TTFT | 输出哈希 |
+|---|---:|---:|---|
+| DFlash2 adaptive d4（旧预设） | **39.3 tok/s** | 20–37ms | `eb95131c…616e37` |
+| DFlash2 3 + prompt lookup 7（新预设） | **52.6 tok/s** | 14–19ms | `eb95131c…616e37` |
+
+- 重复代码档提升 **+34%**，400 completion tokens、1578 chars 两侧逐字节一致。
+- 普通科普长答（256 tokens、temperature 0.7）热机中位：旧 18.5 vs 新 18.6 tok/s，
+  属噪声内持平；lookup 只在 12-token 以上重复片段命中，不改变常规对话路径。
+- 冷 TTFT 两侧约 1.6–1.8s，热前缀均 ≤20ms；收益集中在 decode 与 agent 复制型输出。
+
+**限制**：lookup 的收益取决于重复内容，纯创作/自由问答不应期待同等提升；无重复时
+只余少量索引开销。当前观察仍是单机、单请求、代码复述专门样本，后续应以 gaea 实际
+工具循环的 token 账继续累计。

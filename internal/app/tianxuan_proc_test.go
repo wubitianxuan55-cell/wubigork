@@ -7,6 +7,7 @@ package app
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -58,4 +59,20 @@ func TestTianxuanEngineStatus_Shape(t *testing.T) {
 		t.Fatalf("unexpected port: %v", st["port"])
 	}
 	// running 的布尔值随本机 8094 真实状态而变，不断言方向。
+}
+
+func TestTianxuanServeArgs_UseLookupPreset(t *testing.T) {
+	args := strings.Join(tianxuanServeArgs(), " ")
+	for _, want := range []string{
+		"--speculative dflash2",
+		"--draft-tokens 7",
+		"--served-model-name Qwen3.8-27B-DFlash2",
+	} {
+		if !strings.Contains(args, want) {
+			t.Fatalf("serve preset missing %q: %s", want, args)
+		}
+	}
+	if tianxuanLookupEnv != "GUFO_QWEN27_LOOKUP=3" {
+		t.Fatalf("unexpected lookup env: %q", tianxuanLookupEnv)
+	}
 }

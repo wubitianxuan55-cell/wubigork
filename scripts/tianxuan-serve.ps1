@@ -5,7 +5,7 @@
 # 本脚本把「模型 → 预设参数 → 8094」固化成一条命令，并落日志供对擂脚本取旁证。
 #
 # 用法：
-#   powershell -File scripts\tianxuan-serve.ps1 -Model 27b          # Qwen3.8-27B + DFlash2
+#   powershell -File scripts\tianxuan-serve.ps1 -Model 27b          # Qwen3.8-27B + DFlash2 + prompt lookup
 #   powershell -File scripts\tianxuan-serve.ps1 -Model 27b -DryRun  # 只打印将要执行的命令
 #
 # 约定（与 gaea 侧接线一致）：
@@ -54,9 +54,11 @@ $models = @{
     Spec      = 'dflash2'
     ModelName = 'Qwen3.8-27B-DFlash2'
     Sessions  = 2
-    # 实测（2026-10-17 gufo bench，Q4 + DFlash2）：AR 12.48 → adaptive d7 20.41 →
-    # adaptive d4 22.44；fixed 策略 17.02（接受率 25.5%，别用）。d4 是最优档。
-    Extra     = @('--draft-tokens', '4')
+    # 2026-10-18 同请求 A/B：DFlash2 自身限 3 草稿 + prompt lookup（最长 7），
+    # 复制代码暖机中位 39.3 → 52.6 tok/s（+34%，贪心输出哈希一致）；普通长答
+    # 18.5 vs 18.6（噪声内持平）。lookup 命中 12+ token 重复片段才生效。
+    Env       = @{ GUFO_QWEN27_LOOKUP = '3' }
+    Extra     = @('--draft-tokens', '7')
   }
 }
 $m = $models[$Model]
@@ -101,7 +103,7 @@ New-Item -ItemType Directory -Force $LogDir | Out-Null
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $log = Join-Path $LogDir ("serve-{0}-{1}.log" -f $Model, $stamp)
 $errLog = Join-Path $LogDir ("serve-{0}-{1}.err.log" -f $Model, $stamp)
-"tianxuan serve: model=$Model spec=$Speculative port=$Port sessions=$Sessions ctx=$Context" | Tee-Object -FilePath $log
+"tianxuan serve: model=$Model spec=$Speculative lookup=$($env:GUFO_QWEN27_LOOKUP) port=$Port sessions=$Sessions ctx=$Context" | Tee-Object -FilePath $log
 Write-Output ("& '{0}' {1}" -f $gufo, ($argv -join ' ')) | Tee-Object -FilePath $log -Append
 Write-Output "stdout: $log"
 Write-Output "stderr: $errLog"

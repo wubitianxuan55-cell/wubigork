@@ -37,7 +37,27 @@ const (
 	tianxuanGGUF         = `C:\Users\wubi\.herdsman\models\Qwen3.8-27B\windows\amd64\amd\Qwen3.8-27B-UD-Q4_K_M.gguf`
 	tianxuanMmproj       = `C:\Users\wubi\.herdsman\models\Qwen3.8-27B\windows\amd64\amd\mmproj-BF16.gguf`
 	tianxuanDraftModel   = `C:\AI\gufo-win\Qwen3.8-27B-DFlash2-Q4_K_M.gguf`
+	// Prompt lookup copies 12+ token repeats from the conversation (code edits,
+	// tool arguments) and keeps DFlash2's own block at three proposals. On this
+	// gfx1151 host it raised repeated-code decode from ~39.3 to ~52.6 tok/s
+	// with an identical greedy output hash; ordinary prose stayed flat.
+	tianxuanLookupEnv = "GUFO_QWEN27_LOOKUP=3"
 )
+
+// tianxuanServeArgs is the single 27B serving preset shared by the in-app
+// lifecycle and mirrored in scripts/tianxuan-serve.ps1.
+func tianxuanServeArgs() []string {
+	return []string{
+		"serve", "llm", "-m", tianxuanGGUF,
+		"-p", strconv.Itoa(tianxuanPort),
+		"-j", "2", "-c", "32768",
+		"--served-model-name", "Qwen3.8-27B-DFlash2",
+		"--speculative", "dflash2",
+		"--mmproj", tianxuanMmproj,
+		"--dflash-model", tianxuanDraftModel,
+		"--draft-tokens", "7",
+	}
+}
 
 // tianxuanProcRef 天璇引擎进程引用（仅登记 gaea 自己拉起的进程；外部启动器起的
 // 实例走 netstat 停止路径）。快停-慢收（Wait goroutine 晚到）用 cmd 指针判身份，
@@ -131,19 +151,10 @@ func (a *App) TianxuanEngineStart() map[string]interface{} {
 	}
 	cacheDir := filepath.Join(os.Getenv("LOCALAPPDATA"), "gufo", "cache")
 	_ = os.MkdirAll(cacheDir, 0o755)
-	argv := []string{
-		"serve", "llm", "-m", tianxuanGGUF,
-		"-p", strconv.Itoa(tianxuanPort),
-		"-j", "2", "-c", "32768",
-		"--served-model-name", "Qwen3.8-27B-DFlash2",
-		"--speculative", "dflash2",
-		"--mmproj", tianxuanMmproj,
-		"--dflash-model", tianxuanDraftModel,
-		"--draft-tokens", "4",
-		"--cache-disk", cacheDir,
-	}
+	argv := append(tianxuanServeArgs(), "--cache-disk", cacheDir)
 	ctx, cancel := context.WithCancel(context.Background())
 	cmd := exec.CommandContext(ctx, bin, argv...)
+	cmd.Env = append(os.Environ(), tianxuanLookupEnv)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	logPath := filepath.Join(config.DataRoot(), "logs", fmt.Sprintf("tianxuan-serve-%s.log", time.Now().Format("20060102-150405")))
 	logFile, err := os.Create(logPath)
