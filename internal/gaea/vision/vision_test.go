@@ -50,7 +50,7 @@ func TestRecognizeImageAt(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	text, err := RecognizeImageAt(context.Background(), srv.URL, "qwen-test", path, "这是什么", 10*time.Second)
+	text, err := RecognizeImageAt(context.Background(), srv.URL, "", "qwen-test", path, "这是什么", 10*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestRecognizeImageAt_Error(t *testing.T) {
 		_, _ = w.Write([]byte("bad gateway"))
 	}))
 	defer srv.Close()
-	if _, err := RecognizeImageAt(context.Background(), srv.URL, "m", path, "p", 5*time.Second); err == nil {
+	if _, err := RecognizeImageAt(context.Background(), srv.URL, "", "m", path, "p", 5*time.Second); err == nil {
 		t.Fatal("期望错误，实际成功")
 	}
 }

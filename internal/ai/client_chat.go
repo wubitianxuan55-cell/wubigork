@@ -254,10 +254,10 @@ func cacheSplitForUsage(u *ChatUsage) (hit, miss int64) {
 
 // minThinkingBudget 思考模式最小生成预算（IN2-14 单点）：思考与正文共享
 // max_tokens，低于该值会出现「只有推理、无正文」（herdsman 模型测评报告
-// §8.1/§9；modelhub Studio 同款表现）。流式请求 max_tokens 的默认值与其同源。
+// §8.1/§9）。流式请求 max_tokens 的默认值与其同源。
 const minThinkingBudget = 4096
 
-// clampThinkingBudget 思考预算守护（modelhub / herdsman / ollama / strata 各
+// clampThinkingBudget 思考预算守护（herdsman / ollama / strata 各
 // 分支共用，IN2-14 收口——原来两处逐字复制）：开启思考且显式给出小预算时抬到
 // minThinkingBudget；未开思考或未显式配置（<=0）不动。
 func clampThinkingBudget(req *ChatRequest, wantThinking bool) {
@@ -319,7 +319,7 @@ func (c *Client) applyThinkingBudgetGuard(req *ChatRequest, engineID string) {
 	req.MaxTokens = ClampThinkingMaxTokens(req.MaxTokens)
 }
 
-// prepareStreamRequest 装配一轮流式请求：模型名兜底、default 采样、modelhub 让位、
+// prepareStreamRequest 装配一轮流式请求：模型名兜底、default 采样、
 // Qwen3 系思考预算守护。ChatStreamChunks 与 ChatStreamMessages 共用同一份实现。
 //
 // 注意：本函数只覆盖 ChatSimple* 家族。手装 ChatRequest 直接调 ChatStream/Chat 的
@@ -335,24 +335,19 @@ func (c *Client) prepareStreamRequest(model string, messages []ChatMessage, opts
 		reqEngine = c.ActiveEngineID()
 	}
 
-	// 引擎类型判定（modelhub / strata 两条本地分支按 Type 而非 ID 查证：自定义
+	// 引擎类型判定（strata/tianxuan 本地思考分支按 Type 而非 ID 查证：自定义
 	// 引擎 Type 恒为 custom，内置同型引擎各只有一个，按 Type 判定可免名单漂移）。
-	// reqEngine 已做活跃引擎兜底（与 resolveChatEndpoint 同口径）——此前用未兜底
-	// 的 opts.EngineID 查表：功能级未指定引擎、而活跃引擎恰是 modelhub 时，
-	// isModelHub 判定为假，采样让位与思考让位双双落空。
+	// reqEngine 已做活跃引擎兜底（与 resolveChatEndpoint 同口径）。
 	var engType modelengine.EngineType
 	if c.engineMgr != nil {
 		if eng, ok := c.engineMgr.GetEngine(reqEngine); ok {
 			engType = eng.Type
 		}
 	}
-	isModelHub := engType == modelengine.EngineModelHub
 
 	temperature := opts.Temperature
-	// MH1 采样让位：modelhub 下用户未显式配置（<=0）时不传 temperature
-	// （零值经 omitempty 丢弃），把默认采样让给 Studio 自动调优；其余引擎
-	// 维持 0.7 兜底。
-	if temperature <= 0 && !isModelHub {
+	if temperature <= 0 {
+		// 用户未显式配置（<=0）时按 0.7 兜底（零值经 omitempty 丢弃）。
 		temperature = 0.7
 	}
 	maxTokens := opts.MaxTokens
@@ -376,15 +371,6 @@ func (c *Client) prepareStreamRequest(model string, messages []ChatMessage, opts
 	}
 
 	switch {
-	case isModelHub:
-		// 实测（蒸馏规划 §七）：unsloth 服务端默认开思考，token 全烧在
-		// reasoning（正文 0 字、finish=length）——gaea 专业秘书人设默认显式
-		// 关思考；显式开启（乐园人格等）时传 true 并同样抬预算守护。只走
-		// chat_template_kwargs（A/B 实测证实的唯一有效通道），不发顶层
-		// enable_thinking。
-		req.ChatTemplateKwargs = map[string]any{"enable_thinking": opts.EnableThinking}
-		clampThinkingBudget(req, opts.EnableThinking)
-
 	case engType == modelengine.EngineStrata:
 		// Strata（Qwen3.8-Flash-Next 125B MoE）：思考原生引擎——服务端默认开
 		// 思考，reasoning_content 与正文共享 max_tokens。与 herdsman/ollama
@@ -403,7 +389,7 @@ func (c *Client) prepareStreamRequest(model string, messages []ChatMessage, opts
 		//
 		// 与 play 护栏的优先序（有意为之，非疏漏）：applyChatSimpleMaxTokens
 		// 以 4096 为基线「只降不升」，本守护在此「只升不降」——两者相对，
-		// 即思考优先于输出上限，与 modelhub/herdsman 的 clampThinkingBudget
+		// 即思考优先于输出上限，与 herdsman/ollama 的 clampThinkingBudget
 		// 同一条先例。要按护栏上限出字须显式关思考（DisableThinking，见下），
 		// 那时本守护不生效、上限被尊重。
 		wantThinking := !opts.DisableThinking
@@ -415,7 +401,7 @@ func (c *Client) prepareStreamRequest(model string, messages []ChatMessage, opts
 		// 本地引擎——Qwen3.8/3.6 系模板缺省开思考，reasoning_content 与正文
 		// 共享预算。通道真机实测（8094 27B）：chat_template_kwargs 生效
 		// （enable_thinking=false 时 reasoning_content 缺席、true 时下发），
-		// 与 strata/modelhub 同一 ctk 通道，不发顶层字段。预算守护同 strata
+		// 与 strata 同一 ctk 通道，不发顶层字段。预算守护同 strata
 		// 先例：推理烧穿小预算即正文截断，4096 只升不降。
 		wantThinking := !opts.DisableThinking
 		req.ChatTemplateKwargs = map[string]any{"enable_thinking": wantThinking}
@@ -427,7 +413,7 @@ func (c *Client) prepareStreamRequest(model string, messages []ChatMessage, opts
 			req.EnableThinking = &t
 			req.ChatTemplateKwargs = map[string]any{"enable_thinking": true}
 			// 守护：思考与正文共享 max_tokens，显式小预算抬到 minThinkingBudget
-			//（同 modelhub 分支，IN2-14 收口）。
+			//（IN2-14 收口）。
 			clampThinkingBudget(req, true)
 		}
 	}

@@ -4,8 +4,8 @@
 // 纯结构拆分（P4 结构刀）：原单文件 55KB 超红线后按域重组到同包多文件，行为零
 // 变化——engine_keys.go（各服务商 API Key）、engine_custom.go（自定义引擎 A 刀）、
 // engine_crud.go（配置查询/保存）、engine_connect.go（连接测试/URL 装配）、
-// engine_models.go（模型列表/分类）、engine_modelhub.go（Unsloth Studio）、
-// engine_state.go（engines.json 持久化）。(本文件瘦身后保留核心类型与预置默认)
+// engine_models.go（模型列表/分类）、engine_state.go（engines.json 持久化）。
+// (本文件瘦身后保留核心类型与预置默认)
 package modelengine
 
 import (
@@ -28,35 +28,32 @@ const (
 	EngineDeepseek EngineType = "deepseek"
 	// EngineGLM 智谱 GLM 云端（OpenAI 兼容 /api/paas/v4）
 	EngineGLM EngineType = "glm"
-	// EngineCosyVoice 本地 CosyVoice2 TTS 服务（OpenAI 兼容 /v1/audio/speech）
+	// EngineCosyVoice 本地 CosyVoice TTS 服务（OpenAI 兼容 /v1/audio/speech；
+	// 目录只留 Fun-CosyVoice3-0.5B，CosyVoice2 已于 2026-10-18 用户拍板删除）
 	EngineCosyVoice EngineType = "cosyvoice"
 	// EngineOpencodeGo OpenCode Go 云端目录（OpenAI 兼容 /chat/completions）
 	EngineOpencodeGo EngineType = "opencode-go"
 	// EngineOpencodeZen OpenCode Zen 云端目录（OpenAI 兼容 /chat/completions 子集）
 	EngineOpencodeZen EngineType = "opencode-zen"
-	// EngineModelHub Unsloth 本地 Model Hub（Desktop/Studio「Model hub」标签页
-	// 选模型下载后，由 unsloth run/start 暴露 OpenAI 兼容 /v1 端点；本地引擎，
-	// 请求带 sk-unsloth- 开头的 Bearer Key——见 unsloth.ai/docs/basics/api）。
-	EngineModelHub EngineType = "modelhub"
 	// EngineCustom 自定义引擎（A 刀）：用户自带的 OpenAI 兼容服务商
 	// （自定义 BaseURL + /chat/completions + /models），Key 只存 Manager 内存
 	// customKeys（落盘走 config 层 custom_engine_keys 密文）。IsLocal=false（云端语义，
 	// 全局离线模式下与其他云端引擎一致被门控）。
 	EngineCustom EngineType = "custom"
 	// EngineStrata 本地 Strata 推理引擎（Windows/Strix Halo gfx1151 路径实测）：
-	// 开源推理引擎，跑 Qwen3.8-Flash-Next 125B MoE（GSQ-RCO 量化包），暴露
+	// 开源推理引擎（独立项目 C:\AI\strata\repo），暴露
 	// OpenAI/Anthropic 兼容 /v1（免鉴权，任意 Key/空 Key 均可）。注意其
 	// /v1/models 的 status 字段是非标对象（{"value":"loaded"}），解码走
 	// engine_models.go 的 flexStatus 宽容层。默认端口 8091（8080 是 herdsman）。
 	EngineStrata EngineType = "strata"
-	// EngineTianxuan 本地天璇引擎（Tianxuan Engine）：gufo（MIT，gufo-org/gufo）
-	// 的 Strix Halo 垂直推理引擎线——C++20 原生 HIP 内核，专为 Ryzen AI Max+ 395
-	// （gfx1151 / Radeon 8060S）打造，Windows 一等支持（pixmaate/gufo 移植线，
-	// TheRock ROCm）。吃标准 GGUF（Qwen3.8-27B / Qwen3.6-35B-A3B 等），投机解码
-	// 按模型配 drafter（MTP/DFlash2/DSpark），thinking 走 chat_template_kwargs
-	// （真机实测与 strata/modelhub 同通道）。与用户侧「天璇 · Tianxuan」编程
-	// 助手是两个产品，本条目是推理引擎。默认端口 8094（8080 herdsman /
-	// 8091 strata / 8888 modelhub），免鉴权（Key 留空即不带 Authorization 头）。
+	// EngineTianxuan 本地天璇引擎（Tianxuan Engine）：V1.0 起以 Strata v0.1.45
+	// 为基座（C:\AI\tianxuan 独立项目），面向 Ryzen AI Max+ 395 / gfx1151 的
+	// Windows HIP 推理线。档位目录为两个 uncensored 档——uncensored（
+	// qwen3.6-35b-a3b-uncensored 主力）与 flash（qwen3.8-flash-next-uncensored，
+	// 177B 消融深度档），由外部项目持有，gaea 只负责 8094 探活、启停与模型
+	// 路由同步。与用户侧「天璇 · Tianxuan」编程助手是两个产品，本条目是推理
+	// 引擎。默认端口 8094（8080 herdsman / 8091 strata），免鉴权（Key 留空即
+	// 不带 Authorization 头）。
 	EngineTianxuan EngineType = "tianxuan"
 )
 
@@ -69,11 +66,11 @@ const (
 )
 
 // IsLocal 引擎是否本地服务（数据不出本机）——全局离线模式（v4.8）据此
-// 门控路由：offline 开启时只允许本地引擎（ollama/herdsman/cosyvoice/modelhub/
-// strata/tianxuan），云端（xai/deepseek/opencode-*）一律跳过。
+// 门控路由：offline 开启时只允许本地引擎（ollama/herdsman/cosyvoice/strata/
+// tianxuan），云端（xai/deepseek/opencode-*）一律跳过。
 func (t EngineType) IsLocal() bool {
 	switch t {
-	case EngineOllama, EngineHerdsman, EngineCosyVoice, EngineModelHub, EngineStrata, EngineTianxuan:
+	case EngineOllama, EngineHerdsman, EngineCosyVoice, EngineStrata, EngineTianxuan:
 		return true
 	}
 	return false
@@ -83,7 +80,7 @@ func (t EngineType) IsLocal() bool {
 //
 // 免 Manager 句柄的类型查证口：连接、统计、预估等无 Manager 可用的纯函数
 // 据此按 Type.IsLocal() 判定「是否本地」，不必各自维护一份引擎名名单——
-// strata/modelhub 加入时 estimatePrice 的 `case "ollama", "herdsman"` 名单
+// strata 加入时 estimatePrice 的 `case "ollama", "herdsman"` 名单
 // 漏改即此类隐患（本地引擎被云端计价口径误判）。自定义引擎（custom-*）不是
 // 内置项，返回空串：其 Type 恒为 EngineCustom，IsLocal() 亦为假，口径一致。
 //
@@ -107,8 +104,6 @@ func BuiltinEngineTypeOf(id string) EngineType {
 		return EngineOpencodeGo
 	case "opencode-zen":
 		return EngineOpencodeZen
-	case "modelhub":
-		return EngineModelHub
 	case "strata":
 		return EngineStrata
 	case "tianxuan":
@@ -198,7 +193,6 @@ type Manager struct {
 	glmKey         string            // 智谱 GLM API key（用户手动配置）
 	opencodeKey    string            // OpenCode Go API key（用户手动配置，订阅后从 console 获取）
 	opencodeZenKey string            // OpenCode Zen API key（按量付费，opencode.ai/auth 获取）
-	modelhubKey    string            // Unsloth Model Hub API key（用户手动配置，sk-unsloth- 前缀）
 	customKeys     map[string]string // 自定义引擎 Key（engineID → 明文，仅内存；落盘走 config 层密文）
 	httpClient     *http.Client
 	statsMu        sync.Mutex     // 保护 statsRec 的懒初始化
@@ -210,13 +204,15 @@ type Manager struct {
 	healthStop   chan struct{}                   // 巡检循环停止通道（nil=未启动）
 	healthNotify func(id string, connected bool) // 状态变化回调（app 接线 emit，Manager 不直接 emit）
 	probeFails   map[string]int                  // 连续探测失败计数（仅内存，重启清零）
+	// ── 活跃记账（见 engine_activity.go）：空闲自动退出机制的「最近真实使用」──
+	activity engineActivityMgr
 }
 
 // NewManager 创建引擎管理器
 func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 	m := &Manager{
 		engines:     make(map[string]*EngineConfig),
-		order:       []string{"xai", "ollama", "herdsman", "deepseek", "glm", "cosyvoice", "modelhub", "strata", "tianxuan", "opencode-go", "opencode-zen"},
+		order:       []string{"xai", "ollama", "herdsman", "deepseek", "glm", "cosyvoice", "strata", "tianxuan", "opencode-go", "opencode-zen"},
 		xaiKey:      xaiAPIKey,
 		deepseekKey: deepseekKey,
 		customKeys:  make(map[string]string),
@@ -283,15 +279,15 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 	}
 	m.engines["cosyvoice"] = &EngineConfig{
 		ID:           "cosyvoice",
-		Name:         "CosyVoice2 (本地)",
+		Name:         "CosyVoice3 (本地)",
 		Type:         EngineCosyVoice,
-		Label:        "CosyVoice2 本地",
+		Label:        "CosyVoice3 本地",
 		Color:        "#f472b6",
 		Icon:         "rocket",
 		IsLocal:      true,
 		BaseURL:      "http://127.0.0.1:8010/v1",
 		Enabled:      true,
-		DefaultModel: "CosyVoice2-0.5B",
+		DefaultModel: "Fun-CosyVoice3-0.5B",
 	}
 	m.engines["opencode-go"] = &EngineConfig{
 		ID:           "opencode-go",
@@ -315,22 +311,6 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 		Enabled:      true,
 		DefaultModel: "deepseek-v4-pro",
 	}
-	m.engines["modelhub"] = &EngineConfig{
-		ID:      "modelhub",
-		Name:    "Unsloth Model Hub",
-		Type:    EngineModelHub,
-		Label:   "Model Hub 本地",
-		Color:   "#fb7185",
-		Icon:    "rocket",
-		IsLocal: true,
-		// Unsloth Studio 后端固定 127.0.0.1:8888，并把 OpenAI 兼容 API 挂在
-		// /v1（转发到当前已加载模型的 llama-server，llama 端口每次加载会变，
-		// 8888/v1 是稳定入口）。鉴权：Settings → API 创建 sk-unsloth- Key，
-		// 请求需带 Authorization: Bearer。地址框可改（8888 被占用时 Studio
-		// 会漂移到其他端口）。
-		BaseURL: "http://127.0.0.1:8888/v1",
-		Enabled: true,
-	}
 	m.engines["strata"] = &EngineConfig{
 		ID:      "strata",
 		Name:    "Strata",
@@ -339,7 +319,8 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 		Color:   "#34d399",
 		Icon:    "desktop",
 		IsLocal: true,
-		// Strata 开源推理引擎（Qwen3.8-Flash-Next 125B MoE，GSQ-RCO 量化）。
+		// Strata 开源推理引擎（独立项目 C:\AI\strata\repo；gaea 侧档位目录
+		// 只留 qwen3.6-35b-a3b-uncensored-q4_k_p 一档，见 app/strata_proc.go）。
 		// 8080 被 herdsman 占用，setup 装在 8091；免鉴权（Key 留空即不带
 		// Authorization 头）。模型清单随引擎加载状态变化，DefaultModel 留空
 		// 由刷新 /models 后取首个（TestConnection 同口径）。
@@ -356,8 +337,8 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 		IsLocal: true,
 		// 天璇引擎（gufo 的 Strix Halo 垂直线）：标准 GGUF + MTP/DFlash2 投机
 		// 解码，thinking 走 chat_template_kwargs（client_chat.go tianxuan 分支
-		// 同 strata 口径）。8094 空闲端口（8080 herdsman / 8091 strata /
-		// 8888 modelhub）；免鉴权。模型清单随引擎加载状态变化，DefaultModel
+		// 同 strata 口径）。8094 空闲端口（8080 herdsman / 8091 strata）；
+		// 免鉴权。模型清单随引擎加载状态变化，DefaultModel
 		// 留空由刷新 /models 后取首个（与 strata 同口径）。
 		BaseURL: "http://127.0.0.1:8094/v1",
 		Enabled: true,

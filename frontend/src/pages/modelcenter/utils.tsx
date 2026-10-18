@@ -146,13 +146,13 @@ export const hasPointsCoef = (meta?: ModelMeta): boolean =>
   !!meta && (meta.points_in != null || meta.points_cached != null || meta.points_out != null)
 
 export const engineIcons: Record<string, ReactNode> = {
-  xai: <CloudOutlined />, ollama: <DesktopOutlined />, herdsman: <RocketOutlined />, deepseek: <KeyOutlined />, glm: <KeyOutlined />, cosyvoice: <RocketOutlined />, 'opencode-go': <GlobalOutlined />, 'opencode-zen': <GlobalOutlined />, modelhub: <RocketOutlined />, strata: <DesktopOutlined />, tianxuan: <DesktopOutlined />, custom: <GlobalOutlined />,
+  xai: <CloudOutlined />, ollama: <DesktopOutlined />, herdsman: <RocketOutlined />, deepseek: <KeyOutlined />, glm: <KeyOutlined />, cosyvoice: <RocketOutlined />, 'opencode-go': <GlobalOutlined />, 'opencode-zen': <GlobalOutlined />, strata: <DesktopOutlined />, tianxuan: <DesktopOutlined />, custom: <GlobalOutlined />,
 }
 export const engineColors: Record<string, string> = {
-  xai: '#60a5fa', ollama: '#f59e0b', herdsman: '#84cc16', deepseek: '#8b5cf6', glm: '#38bdf8', cosyvoice: '#f472b6', 'opencode-go': '#22d3ee', 'opencode-zen': '#a78bfa', modelhub: '#fb7185', strata: '#34d399', tianxuan: '#fb923c', custom: '#94a3b8', // hex-exempt 引擎品牌识别色（模型中心身份色板）
+  xai: '#60a5fa', ollama: '#f59e0b', herdsman: '#84cc16', deepseek: '#8b5cf6', glm: '#38bdf8', cosyvoice: '#f472b6', 'opencode-go': '#22d3ee', 'opencode-zen': '#a78bfa', strata: '#34d399', tianxuan: '#fb923c', custom: '#94a3b8', // hex-exempt 引擎品牌识别色（模型中心身份色板）
 }
 export const engineLabels: Record<string, string> = {
-  xai: 'xAI 云端', ollama: 'Ollama 本地', herdsman: 'Herdsman 本地', deepseek: 'DeepSeek 云端', glm: 'GLM 云端', cosyvoice: 'CosyVoice2 本地', 'opencode-go': 'OpenCode Go 云端', 'opencode-zen': 'OpenCode Zen 云端', modelhub: 'Model Hub 本地', strata: 'Strata 本地', tianxuan: '天璇引擎 本地', custom: '自定义 OpenAI 兼容',
+  xai: 'xAI 云端', ollama: 'Ollama 本地', herdsman: 'Herdsman 本地', deepseek: 'DeepSeek 云端', glm: 'GLM 云端', cosyvoice: 'CosyVoice3 本地', 'opencode-go': 'OpenCode Go 云端', 'opencode-zen': 'OpenCode Zen 云端', strata: 'Strata 本地', tianxuan: '天璇引擎 本地', custom: '自定义 OpenAI 兼容',
 }
 
 // ── 自定义引擎（A 刀：OpenAI 兼容自定义服务商，type=custom / id=custom-*） ──
@@ -171,8 +171,8 @@ export const isValidBaseURL = (url: string): boolean =>
 export const engineLabel = (e: { id?: string; engineId?: string; label?: string; type?: string }) =>
   e.label || engineLabels[e.id || e.engineId || ''] || (e.type === 'custom' ? engineLabels.custom : '') || e.id || e.engineId || ''
 
-/** 引擎模型 ID → 展示名：优先取后端下发的 name（如 Model Hub 的
- *  tinyrick/Qwen3.8-…:Q6_K_P），未找到/无 name 时原样回退 modelId。 */
+/** 引擎模型 ID → 展示名：优先取后端下发的 name，未找到/无 name 时原样回退
+ *  modelId。 */
 export function modelDisplayName(engines: EngineConfig[], engineId?: string, modelId?: string): string {
   if (!modelId) return ''
   const eng = engines.find(e => e.id === engineId)
@@ -211,18 +211,6 @@ export function filterModelsBySearch<T extends ModelCardData>(models: T[], query
 export function sortModelsPinnedFirst<T extends ModelCardData>(models: T[], pinnedIds: string[]): T[] {
   const pinned = new Set(pinnedIds)
   return [...models].sort((a, b) => (pinned.has(b.modelId) ? 1 : 0) - (pinned.has(a.modelId) ? 1 : 0))
-}
-
-// MH3（蒸馏 unsloth §三）：Unsloth UD 动态量化变体判定——模型 id/名含
-// "UD-"（如 …:UD-Q4_K_XL）。动态量化关键层保高精度、其余压低，权重更小
-// → 加载快、显存占用低，是 unsloth 官方主推档位，前端给「推荐」引导。
-export const isUDVariant = (modelId: string): boolean => modelId.includes('UD-')
-
-// modelhub 模型 UD 变体置顶（稳定排序，其余保持原顺序）。
-// 用法：先 UD 置顶、后 sortModelsPinnedFirst——置顶排序稳定，UD 顺序在
-// 置顶组/普通组内部得以保留，用户手动置顶优先于自动推荐。
-export function sortModelHubUDFirst<T extends ModelCardData>(models: T[]): T[] {
-  return [...models].sort((a, b) => Number(isUDVariant(b.modelId)) - Number(isUDVariant(a.modelId)))
 }
 
 // 指定引擎的模型下拉选项；当前模型不在候选中时兜底补一条，避免表单值悬空。
@@ -321,6 +309,7 @@ export const FEATURES: { key: string; label: string; mergeKeys?: string[] }[] = 
   { key: 'chat', label: '聊天' },
   { key: 'novel', label: '小说' },
   { key: 'office', label: '办公', mergeKeys: ['gaea'] },
+  { key: 'vision', label: '识图' },
   { key: 'characterlib', label: '角色库' },
   { key: 'sin', label: '原罪' },
   { key: 'routine', label: '常规办公' },
@@ -388,7 +377,7 @@ export const fmtCompact = (v: number): string => {
   if (v >= 1e3) return `${(v / 1e3).toFixed(1)}k`
   return `${Math.round(v)}`
 }
-export const isLocalEngine = (id: string) => id === 'ollama' || id === 'herdsman' || id === 'cosyvoice' || id === 'modelhub' || id === 'strata' || id === 'tianxuan'
+export const isLocalEngine = (id: string) => id === 'ollama' || id === 'herdsman' || id === 'cosyvoice' || id === 'strata' || id === 'tianxuan'
 export const costToCNY = (cost: number, currency?: string, rate: number = USD_TO_CNY) => (currency === 'USD' ? cost * rate : cost)
 
 // 本地 TTS 引擎的服务端音色兜底：CosyVoice2 4 个内置音色（中文女/男、英文女/男）

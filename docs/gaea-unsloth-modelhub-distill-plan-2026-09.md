@@ -2,7 +2,11 @@
 
 > 触发：用户实测「unsloth 加载本地模型后速度更快」，要求蒸馏 unslothai/unsloth 给 gaea。
 > 方针沿用 Univer 蒸馏先例：**取道不取器**——吸收技术路径与编排思路，不引入 Unsloth 任何形态（含 Studio UI，AGPL）。
-> 状态（2026-09-08 补）：**✅ 主体已落地**——v4.102.0 modelhub 引擎落库（`6cd891df`）→
+> 状态（2026-10-18 补）：**⚠️ modelhub 引擎已整体退役删除**——引擎种子/Key 三绑定/
+> MH1 采样让位/MH4 常驻预热/模型中心 Model Hub 卡全部下线（配置里的 modelhub_api_key
+> 键停止读取）。CU1 ComfyUI 预热、CU2 checkpoint 量化徽标等 ComfyUI 侧蒸馏成果不受
+> 影响，仍在产。本文保留作历史蒸馏记录（§三/§四/§七 的 A/B 结论已被实践吸收）。
+> 前情（2026-09-08）：主体曾落地——v4.102.0 modelhub 引擎落库（`6cd891df`）→
 > MH1–MH3 随 v4.104.0、MH4+CU1+CU2 随 v4.105.0；§六「herdsman 不可蒸馏」与 §七 真机
 > A/B 实测回写随 v4.106.0（结论：迁模型到 unsloth 不推荐）。剩余=真机补验池观察项
 > （CU1 首图收益、CU3 `/free` 支持性——本机 ComfyUI 未配置），非欠账刀。

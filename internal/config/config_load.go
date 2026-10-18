@@ -41,6 +41,7 @@ func loadDefaults(home string) *Config {
 		FuncCharLibEnabled: true,
 		FuncRoutineEnabled: true, // 常规办公默认启用：routine_llm 工具按绑定目标执行
 		FuncSinEnabled:     true, // 原罪（闲庭·图文故事创作）默认启用：绑定即生效
+		FuncVisionEnabled:  true, // 办公识图默认启用：绑定即生效，未绑定走 gaea.toml [vision]
 		// S2-4/D8：敏感域（成本/报价）AI 默认本地优先。
 		SensitiveLocal: true,
 		// 2026-08-28：办公板块功能级 AI 调用默认本地优先（数据不出本机 + 省 token）。
@@ -52,6 +53,8 @@ func loadDefaults(home string) *Config {
 		// 意图 LLM 兜底（v4.8）：默认关（宁漏勿误姿态 + 语音回路延迟）；硬超时 2s。
 		IntentsLLMFallback:  false,
 		IntentsLLMTimeoutMS: 2000,
+		// 外部引擎空闲自动退出（天璇/Strata）：默认 10 分钟无真实使用即停。
+		ModelIdleExitMinutes: 10,
 		// 全局离线模式（v4.8）：默认关（云端引擎可用）。
 		OfflineMode: false,
 		// 引擎故障转移（C 刀 v0）：默认关（关闭=现状逐字节）。
@@ -85,6 +88,10 @@ func loadDefaults(home string) *Config {
 		// 本机单用户定位：ComfyUI 启动位置直接写死（gaea 仅此电脑使用）
 		ComfyUIPath:       `C:\AI\ComfyUI\ComfyUI`,
 		ComfyUIPythonPath: `C:\AI\ComfyUI\standalone-env\python.exe`,
+		// tianxuan 已从 gaea 仓库独立，gaea 以外部项目路径引用。
+		TianxuanPath: DefaultTianxuanPath,
+		// strata 保持上游 repo 目录；gaea 只引用其 serve 入口与档位 JSON。
+		StrataPath: DefaultStrataPath,
 	}
 }
 
@@ -246,6 +253,12 @@ func applyConfigFile(cfg *Config, home string) {
 			if cf.ComfyUIPythonPath != "" {
 				cfg.ComfyUIPythonPath = cf.ComfyUIPythonPath
 			}
+			if cf.TianxuanPath != "" {
+				cfg.TianxuanPath = cf.TianxuanPath
+			}
+			if cf.StrataPath != "" {
+				cfg.StrataPath = cf.StrataPath
+			}
 			if cf.TTSPort != 0 {
 				cfg.TTSPort = cf.TTSPort
 			}
@@ -269,9 +282,6 @@ func applyConfigFile(cfg *Config, home string) {
 			}
 			if cf.OpenCodeZenAPIKey != "" {
 				cfg.OpenCodeZenAPIKey = cf.OpenCodeZenAPIKey
-			}
-			if cf.ModelHubAPIKey != "" {
-				cfg.ModelHubAPIKey = cf.ModelHubAPIKey
 			}
 			if len(cf.CustomEngineKeys) > 0 {
 				cfg.CustomEngineKeys = cf.CustomEngineKeys
@@ -368,6 +378,18 @@ func applyConfigFile(cfg *Config, home string) {
 			}
 			if cf.FuncSinEnabled != nil {
 				cfg.FuncSinEnabled = *cf.FuncSinEnabled
+			}
+			if cf.FuncVisionEngine != "" {
+				cfg.FuncVisionEngine = cf.FuncVisionEngine
+			}
+			if cf.FuncVisionModel != "" {
+				cfg.FuncVisionModel = cf.FuncVisionModel
+			}
+			if cf.FuncVisionEnabled != nil {
+				cfg.FuncVisionEnabled = *cf.FuncVisionEnabled
+			}
+			if cf.ModelIdleExitMinutes != nil {
+				cfg.ModelIdleExitMinutes = *cf.ModelIdleExitMinutes
 			}
 			if cf.SensitiveLocal != nil {
 				cfg.SensitiveLocal = *cf.SensitiveLocal

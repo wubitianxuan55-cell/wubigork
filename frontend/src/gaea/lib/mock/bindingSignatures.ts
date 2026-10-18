@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 665 名（原生变参 7 名已收窄标注）。
+// 共 669 名（原生变参 7 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -459,7 +459,6 @@ export const bindingSignatures = {
   GetLastForeshadowSync: { argc: 0, variadic: false, params: "" },
   GetLoginStatus: { argc: 0, variadic: false, params: "" },
   GetModelCallStats: { argc: 0, variadic: false, params: "" },
-  GetModelHubKeyStatus: { argc: 0, variadic: false, params: "" },
   GetModelMonitor: { argc: 0, variadic: false, params: "" },
   GetModelRoute: { argc: 1, variadic: false, params: "feature string" },
   GetNovelState: { argc: 0, variadic: false, params: "" },
@@ -604,7 +603,6 @@ export const bindingSignatures = {
   SetGlmKey: { argc: 1, variadic: false, params: "apiKey string" },
   SetImageBackend: { argc: 4, variadic: false, params: "backend string, comfyUIURL string, imageModel string, imageSaveDir string" },
   SetKeepWarm: { argc: 1, variadic: false, params: "enabled bool" },
-  SetModelHubKey: { argc: 1, variadic: false, params: "apiKey string" },
   SetOfficeLocal: { argc: 1, variadic: false, params: "enabled bool" },
   SetOfflineMode: { argc: 1, variadic: false, params: "enabled bool" },
   SetOpencodeGoKey: { argc: 1, variadic: false, params: "apiKey string" },
@@ -642,15 +640,21 @@ export const bindingSignatures = {
   SinTrajectory: { argc: 1, variadic: false, params: "topicID string" },
   StartComfyUI: { argc: 0, variadic: false, params: "" },
   StartLocalTTSService: { argc: 1, variadic: false, params: "engineID string" },
-  StartModelHubModel: { argc: 1, variadic: false, params: "modelID string" },
   StopComfyUI: { argc: 0, variadic: false, params: "" },
+  StrataEngineStart: { argc: 1, variadic: false, params: "profile string" },
+  StrataEngineStatus: { argc: 0, variadic: false, params: "" },
+  StrataEngineStop: { argc: 0, variadic: false, params: "" },
+  StrataModelStart: { argc: 1, variadic: false, params: "model string" },
+  StrataModelStop: { argc: 1, variadic: false, params: "model string" },
   TTSSpeakBase64: { argc: 1, variadic: false, params: "text string" },
   TTSSpeakBase64WithParams: { argc: 2, variadic: false, params: "text string, params tts.TTSParams" },
   TTSSpeakStreaming: { argc: 1, variadic: false, params: "text string" },
   TestEngineConnection: { argc: 1, variadic: false, params: "engineID string" },
-  TianxuanEngineStart: { argc: 0, variadic: false, params: "" },
+  TianxuanEngineStart: { argc: 1, variadic: false, params: "profile string" },
   TianxuanEngineStatus: { argc: 0, variadic: false, params: "" },
   TianxuanEngineStop: { argc: 0, variadic: false, params: "" },
+  TianxuanModelStart: { argc: 1, variadic: false, params: "model string" },
+  TianxuanModelStop: { argc: 1, variadic: false, params: "model string" },
   ToggleOrgMember: { argc: 2, variadic: false, params: "charID string, orgID string" },
   UpdateCustomEngine: { argc: 4, variadic: false, params: "engineID string, name string, baseURL string, apiKey string" },
   UpdateProjectMeta: { argc: 4, variadic: false, params: "title string, genre string, style string, mature string" },
@@ -686,5 +690,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 665。
-export const bindingSignatureCount = 665;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 669。
+export const bindingSignatureCount = 669;

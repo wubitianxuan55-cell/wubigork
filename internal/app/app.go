@@ -31,6 +31,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/filewatch"
 	"github.com/gaea/gaea/internal/gaea/secure"
 	"github.com/gaea/gaea/internal/gaea/tasks"
+	"github.com/gaea/gaea/internal/gaea/vision"
 	"github.com/gaea/gaea/internal/httpbridge"
 	"github.com/gaea/gaea/internal/intent"
 	"github.com/gaea/gaea/internal/modelengine"
@@ -290,9 +291,10 @@ type App struct {
 
 	modules *ModuleRegistry
 
-	// tianxuanProc 天璇引擎（gufo-server 8094）进程引用——gaea 代启时登记，
-	// 停止/状态走 tianxuan_proc.go。外部启动器起的实例不登记（netstat 停止）。
-	tianxuanProc tianxuanProcRef
+	// 外部本地引擎进程引用——gaea 代启时登记，停止/状态走 *_proc.go。
+	// 外部启动器起的实例不登记（netstat 停止）。
+	tianxuanProc localEngineProc
+	strataProc   localEngineProc
 
 	// intentClassifierFn 意图 LLM 兜底分类 seam（v4.8，测试注入点；nil=内置 LLM 分类器）。
 	intentClassifierFn func(text string) *intent.Intent
@@ -372,10 +374,6 @@ func (a *App) Startup(ctx context.Context) {
 	// 测试进程不调用 Startup，登记永不落盘。
 	imageHubRuntimeArmed.Store(true)
 
-	// MH4 Model Hub 预热运行态武装（gaea_schedule.go）：同款显式武装位，
-	// 禁「cfg != nil 即运行态」惯性闸。
-	modelHubPreloadArmed.Store(true)
-
 	// CU1 ComfyUI 预热运行态武装（image_handler.go）：同款显式武装位。
 	comfyWarmArmed.Store(true)
 
@@ -424,25 +422,26 @@ func (a *App) Startup(ctx context.Context) {
 	encryptSecretIfLegacy(config.KeyGLMAPIKey, &a.cfg.GLMAPIKey)
 	encryptSecretIfLegacy(config.KeyOpencodeGoAPIKey, &a.cfg.OpenCodeGoAPIKey)
 	encryptSecretIfLegacy(config.KeyOpencodeZenAPIKey, &a.cfg.OpenCodeZenAPIKey)
-	encryptSecretIfLegacy(config.KeyModelHubAPIKey, &a.cfg.ModelHubAPIKey)
 	deepseekKey, _ := secure.DecryptString(a.cfg.DeepseekAPIKey)
 	glmKey, _ := secure.DecryptString(a.cfg.GLMAPIKey)
 	opencodeGoKey, _ := secure.DecryptString(a.cfg.OpenCodeGoAPIKey)
 	opencodeZenKey, _ := secure.DecryptString(a.cfg.OpenCodeZenAPIKey)
-	modelHubKey, _ := secure.DecryptString(a.cfg.ModelHubAPIKey)
 
 	// 初始化模型引擎管理器，尝试恢复已保存的 xAI token
 	a.engineMgr = modelengine.NewManager("", deepseekKey)
 	a.engineMgr.UpdateGLMKey(glmKey)
 	a.engineMgr.UpdateOpencodeKey(opencodeGoKey)
 	a.engineMgr.UpdateOpencodeZenKey(opencodeZenKey)
-	a.engineMgr.UpdateModelHubKey(modelHubKey)
 	// A 刀自定义引擎：custom_engine_keys 密文解密为明文后注入 Manager（Key 只存
 	// 内存；引擎本体由下方 LoadState 从状态文件恢复，Key 与引擎分离存储）。
 	a.engineMgr.SetCustomEngineKeys(decryptCustomEngineKeys(a.cfg.CustomEngineKeys))
 	if err := a.engineMgr.LoadState(filepath.Join(a.whisperDataRoot, "engines.json")); err != nil {
 		slog.Warn("加载引擎状态失败（回退预置默认）", "error", err)
 	}
+	// 办公识图功能绑定（模型中心「识图」卡）：挂动态解析钩子——绑定生效时
+	// 识图改走绑定引擎端点（改绑即生效），未绑定回落 gaea.toml [vision] 静态
+	// 注入（boot 装配，默认本机 herdsman 视觉模型）。
+	vision.SetVisionRuntimeResolver(a.visionBoundRuntime)
 	a.engineMgr.SetStatsPath(modelengine.StatsPathFor(filepath.Join(a.whisperDataRoot, "engines.json")))
 	// T6-6.2 汇率配置：把 ~/.gaea_config.json 的 usd_cny_rate 注入统计折算
 	// （config.Load 含磁盘 IO，只在启动/用户修改时注入一次，避免逐调用读取）。
@@ -463,11 +462,20 @@ func (a *App) Startup(ctx context.Context) {
 		a.emit("engine-health-changed", map[string]interface{}{"id": id, "connected": connected})
 	})
 	a.engineMgr.StartHealthProbe(a.ctx)
+	// 外部引擎空闲自动退出巡检（天璇/Strata；model_idle_exit_minutes，默认 10
+	// 分钟无真实使用即停——不占机器；gaea 退出另有 Job Object 兜底杀整树）。
+	a.startManagedEngineIdleReaper(a.ctx)
 	// 确保 xAI 引擎始终提供内置语音模型 grok-tts（TTS API 不返回在 /v1/models 列表）
 	a.engineMgr.EnsureModel("xai", "grok-tts")
-	// 确保本地 CosyVoice 引擎同时提供 2.0/3.0 语音模型（OpenAI 兼容 TTS 服务）
-	a.engineMgr.EnsureModel("cosyvoice", "CosyVoice2-0.5B")
+	// 本地 CosyVoice 引擎目录只留 Fun-CosyVoice3-0.5B（2026-10-18 用户拍板删除
+	// CosyVoice2：不再常驻占内存；外部 server.py 以 V3 为正牌，CosyVoice2 仅
+	// 其内部回退，不再进 gaea 模型目录）。RemoveModel 清存量 engines.json。
 	a.engineMgr.EnsureModel("cosyvoice", "Fun-CosyVoice3-0.5B")
+	a.engineMgr.RemoveModel("cosyvoice", "CosyVoice2-0.5B")
+	// 外部单模型引擎的完整档位目录（Herdsman 式模型目录）：启动时就写入
+	// 引擎模型列表，语言模型页与功能绑定不必等进程起来才看到候选。
+	_ = a.TianxuanEngineStatus()
+	_ = a.StrataEngineStatus()
 	if tok, err := auth.NewTokenStore(a.cfg.TokenStorePath).Load(); err == nil && tok != nil && !tok.IsExpired() {
 		a.engineMgr.UpdateXAIKey(tok.AccessToken)
 	}
@@ -550,9 +558,9 @@ func (a *App) Startup(ctx context.Context) {
 	a.reportKnowledgeMigrationState()
 	stage("charlib+stores")
 
-	// 本地 TTS 服务保活：模型中心内置 CosyVoice2，gaea 启动即自动拉起（幂等，已就绪零开销）
-	a.ensureLocalTTSService("cosyvoice")
-	stage("tts-kickoff")
+	// 本地 TTS 服务不再开机自动拉起（2026-10-18 用户拍板删除 CosyVoice2 常驻）：
+	// 平时不占内存；合成链路（tts_handler/voice_handler）与模型中心「启动」按钮
+	// 都有幂等兜底，真用语音时按需拉起。
 
 	// 阶段 5 T5-1：通用任务调度器（价格抓取/文件索引等长任务统一异步化）。
 	a.startTaskScheduler()

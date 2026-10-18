@@ -417,7 +417,7 @@ func TestGaeaModelSwitchEstimateUnknown(t *testing.T) {
 	}
 }
 
-// ─── v4.126 刀2：ollama / modelhub 换模预估（按目标模型） ──
+// ─── v4.126 刀2：ollama 换模预估（按目标模型） ──
 
 // ollamaStub 假 Ollama：/api/ps（已加载）与 /api/tags（已安装）两个端点
 // 可独立设置内容或断连，覆盖预估全分支。
@@ -493,50 +493,6 @@ func TestGaeaModelSwitchEstimateOllama(t *testing.T) {
 		e := a.GaeaModelSwitchEstimate("ollama", "q3:8b")
 		if e.Status != "unknown" {
 			t.Errorf("双路不可达应 unknown，got %q", e.Status)
-		}
-	})
-}
-
-// TestGaeaModelSwitchEstimateModelHub 探测 Studio /v1/models loaded 集合：
-// 已加载→hot、未加载→cold（不假报秒数）、Studio 不可达→unknown。
-func TestGaeaModelSwitchEstimateModelHub(t *testing.T) {
-	newApp := func(t *testing.T, hubURL string) *App {
-		t.Helper()
-		a := scheduleTestApp(&config.Config{})
-		if err := a.engineMgr.SaveEngine(modelengine.EngineConfig{
-			ID: "modelhub", BaseURL: hubURL + "/v1", Enabled: true,
-		}); err != nil {
-			t.Fatalf("SaveEngine: %v", err)
-		}
-		return a
-	}
-
-	t.Run("已加载→hot", func(t *testing.T) {
-		st, srv := newModelHubHubStub(t)
-		st.mu.Lock()
-		st.loaded["ollama-manifest:qwen:UD-Q4_K_XL"] = true
-		st.mu.Unlock()
-		a := newApp(t, srv.URL)
-		e := a.GaeaModelSwitchEstimate("modelhub", "ollama-manifest:qwen:UD-Q4_K_XL")
-		if e.Status != "hot" || e.WaitSeconds != 1 {
-			t.Errorf("已加载应 hot/1s，got %q/%d", e.Status, e.WaitSeconds)
-		}
-	})
-
-	t.Run("未加载→cold", func(t *testing.T) {
-		_, srv := newModelHubHubStub(t)
-		a := newApp(t, srv.URL)
-		e := a.GaeaModelSwitchEstimate("modelhub", "ollama-manifest:qwen:UD-Q4_K_XL")
-		if e.Status != "cold" || e.WaitSeconds != 0 {
-			t.Errorf("未加载应 cold/0s（不假报秒数），got %q/%d", e.Status, e.WaitSeconds)
-		}
-	})
-
-	t.Run("Studio 不可达→unknown", func(t *testing.T) {
-		a := newApp(t, "http://127.0.0.1:0")
-		e := a.GaeaModelSwitchEstimate("modelhub", "ollama-manifest:x")
-		if e.Status != "unknown" {
-			t.Errorf("Studio 不可达应 unknown，got %q", e.Status)
 		}
 	})
 }

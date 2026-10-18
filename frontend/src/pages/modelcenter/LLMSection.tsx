@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Button, Input } from 'antd'
 import { CaretRightOutlined, CheckCircleOutlined, LoadingOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { EmptyState, ModelCard, SectionHead, StatusChip } from './ui'
-import { capLabels, engineColor, engineLabel, filterModelsBySearch, formatCtx, formatPrice, glmAliasNote, isUDVariant, modelAvailability, sortModelHubUDFirst, sortModelsPinnedFirst } from './utils'
+import { capLabels, engineColor, engineLabel, filterModelsBySearch, formatCtx, formatPrice, glmAliasNote, modelAvailability, sortModelsPinnedFirst } from './utils'
 import { useModelCenterActions, useModelCenterState } from './context'
 import { usePinnedModels } from './modelPrefs'
 
@@ -12,7 +12,7 @@ export function LLMSection() {
     llmModels,
     engineStatuses,
     testingEngine,
-    hubLoadingIds,
+    savingEngine,
   } = useModelCenterState()
 
   const {
@@ -59,15 +59,12 @@ export function LLMSection() {
         />
       ) : (
         visibleEngines.map(engine => {
-          // MH3：modelhub 组先 UD 动态量化置顶，再应用用户置顶（两排序均稳定，
-          // UD 顺序在置顶组/普通组内部保留，手动置顶优先于自动推荐）。
           const baseModels = filterModelsBySearch(llmModels.filter(m => m.engineId === engine.id), llmSearch)
-          const engineModels = engine.id === 'modelhub'
-            ? sortModelsPinnedFirst(sortModelHubUDFirst(baseModels), pinned)
-            : sortModelsPinnedFirst(baseModels, pinned)
+          const engineModels = sortModelsPinnedFirst(baseModels, pinned)
           if (engineModels.length === 0) return null
           const color = engineColor(engine)
           const status = engineStatuses[engine.id]
+          const managedEngine = engine.id === 'strata' || engine.id === 'tianxuan'
           return (
             <div key={engine.id} className="mc-engine-group">
               <div className="mc-engine-group-head">
@@ -78,9 +75,15 @@ export function LLMSection() {
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <StatusChip>{engineModels.length} 个</StatusChip>
                   {status && (
-                    <StatusChip tone={status.connected ? 'ok' : 'danger'} dot>
-                      {status.connected ? '已连接' : '连接失败'}
-                    </StatusChip>
+                    managedEngine ? (
+                      <StatusChip tone={status.connected ? 'ok' : 'neutral'} dot>
+                        {status.connected ? '引擎运行中' : '引擎未运行'}
+                      </StatusChip>
+                    ) : (
+                      <StatusChip tone={status.connected ? 'ok' : 'danger'} dot>
+                        {status.connected ? '已连接' : '连接失败'}
+                      </StatusChip>
+                    )
                   )}
                   <Button
                     size="small"
@@ -104,18 +107,23 @@ export function LLMSection() {
               <div className="mc-grid">
                 {engineModels.map(card => {
                   const active = isModelActive(card)
-                  const avail = modelAvailability(card, engine.enabled, status?.connected)
-                  const blocked = avail === 'disconnected' || avail === 'disabled'
-                  // MH2：Studio 侧异步加载中（一键加载后轮询收敛期间）
-                  const hubLoading = engine.id === 'modelhub' && hubLoadingIds.includes(card.modelId)
+                  // 天璇/Strata 的模型目录在引擎未运行时依然可启动（启动模型会
+                  // 拉起/切换引擎），不能像云端引擎那样按 disconnected 全禁用。
+                  const avail = managedEngine
+                    ? (engine.enabled ? (card.status === 'running' ? 'ready' : 'stopped') : 'disabled')
+                    : modelAvailability(card, engine.enabled, status?.connected)
+                  const blocked = avail === 'disabled' || (!managedEngine && avail === 'disconnected')
+                  const managedStarting = managedEngine && savingEngine === engine.id
+                  const loading = managedStarting
+                  const loadingText = managedStarting ? '启动中…' : ''
                   // coding 端点套餐旧名自动切换注记（后端 alias_of，std 家族为空）
                   const aliasNote = glmAliasNote((engine.models || []).find(m => m.id === card.modelId))
                   // B 刀：模型元数据徽标（上下文/能力/价格；meta 缺失时不渲染不占位）
                   const meta = card.meta
                   const ctxText = formatCtx(meta?.context_length)
                   const priceText = formatPrice(meta)
-                  const statusText = hubLoading
-                    ? '加载中'
+                  const statusText = loading
+                    ? loadingText
                     : active
                       ? '运行中'
                       : avail === 'disconnected'
@@ -140,9 +148,6 @@ export function LLMSection() {
                           : null,
                         aliasNote
                           ? <StatusChip key="alias" tone="accent" title={aliasNote}>自动切换</StatusChip>
-                          : null,
-                        engine.id === 'modelhub' && isUDVariant(card.modelId)
-                          ? <StatusChip key="ud" tone="accent" title="Unsloth 动态量化（UD）：关键层保高精度，体积更小、加载更快、显存更省">推荐</StatusChip>
                           : null,
                         avail === 'disconnected'
                           ? <StatusChip key="off" tone="danger">未连接</StatusChip>
@@ -174,7 +179,7 @@ export function LLMSection() {
                       pinned={pinned.includes(card.modelId)}
                       onTogglePin={() => togglePin(card.modelId)}
                       status={{
-                        tone: hubLoading
+                        tone: loading
                           ? 'accent'
                           : active || card.status === 'running'
                             ? 'ok'
@@ -189,11 +194,11 @@ export function LLMSection() {
                         <Button
                           type={active ? 'default' : 'primary'}
                           size="small"
-                          icon={hubLoading ? <LoadingOutlined /> : active ? <CheckCircleOutlined /> : <CaretRightOutlined />}
+                          icon={loading ? <LoadingOutlined /> : active ? <CheckCircleOutlined /> : <CaretRightOutlined />}
                           onClick={() => handleStartModel(card)}
-                          disabled={active || blocked || hubLoading}
+                          disabled={active || blocked || loading}
                         >
-                          {hubLoading ? '加载中' : active ? '已启动' : '启动'}
+                          {loading ? loadingText : active ? '已启动' : '启动'}
                         </Button>
                       )}
                     />

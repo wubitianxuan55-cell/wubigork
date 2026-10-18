@@ -249,7 +249,7 @@ export default function VoiceSettingsPanel() {
         )}
         {isCosyvoice && ttsModel && (
           <div style={{ fontSize: 10, color: '#f472b6', marginBottom: 6 }}> {/* hex-exempt 引擎品牌识别色（CosyVoice） */}
-            当前模型：{ttsModel}（本地 CosyVoice2，支持参考音频克隆音色）
+            当前模型：{ttsModel}（本地 CosyVoice，支持参考音频克隆音色）
           </div>
         )}
         <Select

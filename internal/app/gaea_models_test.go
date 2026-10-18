@@ -48,15 +48,15 @@ func TestGaeaModelsExpandsModels(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("SaveEngine ollama: %v", err)
 		}
-		// modelhub（本地）：模型带加载态与展示名。
+		// strata（本地）：模型带加载态与展示名。
 		if err := mgr.SaveEngine(modelengine.EngineConfig{
-			ID: "modelhub", Enabled: true, DefaultModel: "ollama-manifest:tiny",
+			ID: "strata", Enabled: true, DefaultModel: "q3.8-flash-iq2xs",
 			Models: []modelengine.ModelInfo{
-				{ID: "ollama-manifest:tiny", Status: "running", Name: "Tinyrick Q6", Kind: "llm"},
-				{ID: "ollama-manifest:big", Status: "stopped", Name: "Big UD", Kind: "llm"},
+				{ID: "q3.8-flash-iq2xs", Status: "running", Name: "Flash IQ2", Kind: "llm"},
+				{ID: "q3.8-base-iq2xs", Status: "stopped", Name: "Base IQ2", Kind: "llm"},
 			},
 		}); err != nil {
-			t.Fatalf("SaveEngine modelhub: %v", err)
+			t.Fatalf("SaveEngine strata: %v", err)
 		}
 		// xai（云端）：清单含 grok-tts 补充项，只应出现 llm 条目。
 		if err := mgr.SaveEngine(modelengine.EngineConfig{
@@ -72,18 +72,18 @@ func TestGaeaModelsExpandsModels(t *testing.T) {
 	}
 	setEngines()
 
-	a.client.SetActiveEngine("modelhub")
+	a.client.SetActiveEngine("strata")
 	got := a.GaeaModels()
 
-	// 期望序列：本地引擎（ollama→modelhub 注册序）在前、云端在后。
+	// 期望序列：本地引擎（ollama→strata 注册序）在前、云端在后。
 	type want struct {
 		ref     string
 		current bool
 	}
 	wants := []want{
 		{"ollama/q3", false},
-		{"modelhub/ollama-manifest:tiny", true}, // 活跃引擎默认模型
-		{"modelhub/ollama-manifest:big", false},
+		{"strata/q3.8-flash-iq2xs", true}, // 活跃引擎默认模型
+		{"strata/q3.8-base-iq2xs", false},
 		{"xai/grok-4.20", false},
 		{"deepseek/(默认)", false},
 	}
@@ -102,8 +102,8 @@ func TestGaeaModelsExpandsModels(t *testing.T) {
 	if !got[0].Local {
 		t.Error("ollama 条目应标记 Local")
 	}
-	if got[1].Status != "running" || got[1].Label != "Tinyrick Q6" {
-		t.Errorf("modelhub 条目 status/label = %q/%q, want running/Tinyrick Q6", got[1].Status, got[1].Label)
+	if got[1].Status != "running" || got[1].Label != "Flash IQ2" {
+		t.Errorf("strata 条目 status/label = %q/%q, want running/Flash IQ2", got[1].Status, got[1].Label)
 	}
 	if got[4].Model != "(默认)" {
 		t.Errorf("空清单引擎应回退 (默认)，got %q", got[4].Model)

@@ -30,13 +30,13 @@ import (
 )
 
 var (
-	flagBase = flag.String("base", "http://127.0.0.1:8091/v1", "引擎 OpenAI /v1 根地址")
-	flagModel = flag.String("model", "", "模型 id（空=取 /v1/models 首个）")
-	flagLabel = flag.String("label", "engine", "展示标签")
-	flagEngineLog = flag.String("enginelog", "", "引擎日志路径（尾部旁证）")
+	flagBase       = flag.String("base", "http://127.0.0.1:8091/v1", "引擎 OpenAI /v1 根地址")
+	flagModel      = flag.String("model", "", "模型 id（空=取 /v1/models 首个）")
+	flagLabel      = flag.String("label", "engine", "展示标签")
+	flagEngineLog  = flag.String("enginelog", "", "引擎日志路径（尾部旁证）")
 	flagLogPattern = flag.String("logpattern", "generated in", "日志速度行匹配串")
-	flagOut = flag.String("out", "", "结果 JSON 落盘路径")
-	flagSkipConc = flag.Bool("skip-conc", false, "跳过并发 x2 档")
+	flagOut        = flag.String("out", "", "结果 JSON 落盘路径")
+	flagSkipConc   = flag.Bool("skip-conc", false, "跳过并发 x2 档")
 )
 
 type runResult struct {

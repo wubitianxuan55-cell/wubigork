@@ -19,7 +19,10 @@ const WARN_AT = 58000 // 提前预警水位（留 ~7 KB 余量给下一批版本
 const NOT_REPO_DOCS = [
   /^docs\/(architecture|compatibility|external-plugin-guide|univer-turn-projection-and-surfaces|anti-ai-polish)\.md$/,
   /^docs\/(材料价格信息价|投标文件模板)\.md$/,
-  /^docs\/tianxuan\/README\.md$/, // ① clones/gufo（天璇引擎 fork）的台账，gaea 研究文档 §13.6 引用
+  /^docs\/tianxuan\/README\.md$/, // ① C:\AI\tianxuan（天璇引擎独立项目）的台账
+  // 外部引擎项目文档（strata / tianxuan）：不是 gaea 仓库文件。
+  /^docs\/(STRIX_HALO|WINDOWS|QWEN36|BACKENDS|FAQ)\.md$/,
+  /^docs\/models\/qwen3\.6-35b-a3b\/README\.md$/,
 ]
 
 const fails = []

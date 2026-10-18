@@ -148,6 +148,8 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 	KeySinImageModel:     func(cf *configFile, v string) error { cf.SinImageModel = v; return nil },
 	KeyComfyUIPath:       func(cf *configFile, v string) error { cf.ComfyUIPath = v; return nil },
 	KeyComfyUIPythonPath: func(cf *configFile, v string) error { cf.ComfyUIPythonPath = v; return nil },
+	KeyTianxuanPath:      func(cf *configFile, v string) error { cf.TianxuanPath = v; return nil },
+	KeyStrataPath:        func(cf *configFile, v string) error { cf.StrataPath = v; return nil },
 	KeyTTSPort: func(cf *configFile, v string) error {
 		n, err := strconv.Atoi(v)
 		if err != nil {
@@ -186,7 +188,6 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 	KeyGLMAPIKey:         func(cf *configFile, v string) error { cf.GLMAPIKey = v; return nil },
 	KeyOpencodeGoAPIKey:  func(cf *configFile, v string) error { cf.OpenCodeGoAPIKey = v; return nil },
 	KeyOpencodeZenAPIKey: func(cf *configFile, v string) error { cf.OpenCodeZenAPIKey = v; return nil },
-	KeyModelHubAPIKey:    func(cf *configFile, v string) error { cf.ModelHubAPIKey = v; return nil },
 	KeyCustomEngineKeys: func(cf *configFile, v string) error {
 		// 值为 JSON map[string]string（engineID → secure 密文）；空串 = 清空。
 		if v == "" {
@@ -280,6 +281,16 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 		cf.FuncRoutineEnabled = b
 		return nil
 	},
+	KeyFuncVisionEngine: func(cf *configFile, v string) error { cf.FuncVisionEngine = v; return nil },
+	KeyFuncVisionModel:  func(cf *configFile, v string) error { cf.FuncVisionModel = v; return nil },
+	KeyFuncVisionEnabled: func(cf *configFile, v string) error {
+		b, err := parseBoolPtr(v)
+		if err != nil {
+			return err
+		}
+		cf.FuncVisionEnabled = b
+		return nil
+	},
 	KeySensitiveLocal: func(cf *configFile, v string) error {
 		b, err := parseBoolPtr(v)
 		if err != nil {
@@ -329,6 +340,18 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 			return fmt.Errorf("意图兜底超时须在 200-60000 毫秒之间（当前值: %s）", v)
 		}
 		cf.IntentsLLMTimeoutMS = n
+		return nil
+	},
+	KeyModelIdleExitMinutes: func(cf *configFile, v string) error {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return err
+		}
+		// 指针三态落盘：0=显式关闭，1-10080（一周）=空闲分钟数；负数拒绝。
+		if n < 0 || n > 10080 {
+			return fmt.Errorf("空闲自动退出须在 0-10080 分钟之间（0=关闭，当前值: %s）", v)
+		}
+		cf.ModelIdleExitMinutes = &n
 		return nil
 	},
 	KeyOfflineMode: func(cf *configFile, v string) error {

@@ -18,20 +18,28 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { describe, expect, it, vi } from 'vitest'
 import { ModelCenterActionsContext, ModelCenterContext, ModelCenterStateContext, type ModelCenterContextValue } from './context'
 import { EngineSection } from './EngineSection'
-import { getTianxuanEngineStatus, saveEngine, startTianxuanEngine, type EngineConfig } from '../../api/engines'
+import {
+  getStrataEngineStatus, getTianxuanEngineStatus, saveEngine,
+  startStrataEngine, startTianxuanEngine, type EngineConfig, type EngineStatus,
+} from '../../api/engines'
 
 // 价目 v1：价目保存走既有 SaveEngine 通道（不经 context handler），mock 掉
 // api 层以便断言保存载荷（数字=设置、0=清除）。
 vi.mock('../../api/engines', () => ({
   saveEngine: vi.fn(),
-  // 天璇生命周期（EngineSection 挂载即探活）：默认已停止，启停钮不参与本文件断言。
+  // 外部本地引擎生命周期（EngineSection 挂载即探活）：默认已停止。
   getTianxuanEngineStatus: vi.fn(async () => ({ running: false })),
   startTianxuanEngine: vi.fn(async () => ({ started: false, reason: 'already-running' })),
   stopTianxuanEngine: vi.fn(async () => ({ stopped: true })),
+  getStrataEngineStatus: vi.fn(async () => ({ running: false })),
+  startStrataEngine: vi.fn(async () => ({ started: false, reason: 'already-running' })),
+  stopStrataEngine: vi.fn(async () => ({ stopped: true })),
 }))
 const mSaveEngine = vi.mocked(saveEngine)
 const mStartTianxuan = vi.mocked(startTianxuanEngine)
 const mStatusTianxuan = vi.mocked(getTianxuanEngineStatus)
+const mStartStrata = vi.mocked(startStrataEngine)
+const mStatusStrata = vi.mocked(getStrataEngineStatus)
 
 const ENGINES: EngineConfig[] = [
   {
@@ -47,20 +55,27 @@ const ENGINES: EngineConfig[] = [
     id: 'tianxuan', name: 'Tianxuan', type: 'tianxuan',
     base_url: 'http://127.0.0.1:8094/v1', enabled: true, default_model: '', models: [],
   },
+  {
+    id: 'strata', name: 'Strata', type: 'strata',
+    base_url: 'http://127.0.0.1:8091/v1', enabled: true, default_model: '', models: [],
+  },
 ]
 
-function renderSection() {
+function renderSection(opts: { engineStatuses?: Record<string, EngineStatus> } = {}) {
   mSaveEngine.mockClear()
   mSaveEngine.mockResolvedValue(undefined)
   mStartTianxuan.mockClear()
   mStatusTianxuan.mockClear()
   mStatusTianxuan.mockResolvedValue({ running: false })
+  mStartStrata.mockClear()
+  mStatusStrata.mockClear()
+  mStatusStrata.mockResolvedValue({ running: false })
   const handleAddCustomEngine = vi.fn().mockResolvedValue(true)
   const handleUpdateCustomEngine = vi.fn().mockResolvedValue(true)
   const handleRemoveCustomEngine = vi.fn().mockResolvedValue(undefined)
   const value = {
     engines: ENGINES,
-    engineStatuses: {},
+    engineStatuses: opts.engineStatuses ?? {},
     editingURLs: {},
     setEditingURLs: () => {},
     savingEngine: null,
@@ -229,17 +244,25 @@ describe('EngineSection · 自定义引擎', () => {
     )
   })
 
-  it('⑦ 天璇生命周期：停止态显「启动引擎」，点击调 startTianxuanEngine 成功后翻运行中', async () => {
+  it('⑦ 天璇生命周期：默认 uncensored 档，点击启动后翻运行中', async () => {
+    mStatusTianxuan.mockResolvedValue({
+      running: false,
+      default_profile: 'uncensored',
+      profiles: [
+        { id: 'uncensored', label: 'qwen3.6-35b-a3b-uncensored' },
+        { id: 'flash', label: 'qwen3.8-flash-next-uncensored' },
+      ],
+    })
     renderSection()
 
     const txCard = screen.getByText('Tianxuan').closest('.mc-engine-card') as HTMLElement
-    expect(within(txCard).getByText('已停止')).toBeTruthy()
-    const startBtn = within(txCard).getByRole('button', { name: /启\s*动\s*引\s*擎/ })
-    mStartTianxuan.mockResolvedValueOnce({ started: true, waited_ms: 21000 })
+    expect(within(txCard).getByText('引擎已停止')).toBeTruthy()
+    const startBtn = within(txCard).getByRole('button', { name: /启\s*动\s*档\s*位/ })
+    mStartTianxuan.mockResolvedValueOnce({ started: true, waited_ms: 21000, profile: 'uncensored' })
     fireEvent.click(startBtn)
-    await waitFor(() => expect(mStartTianxuan).toHaveBeenCalledTimes(1))
-    await waitFor(() => expect(within(txCard).getByText('运行中')).toBeTruthy())
-    expect(within(txCard).queryByRole('button', { name: /启\s*动\s*引\s*擎/ })).toBeNull()
+    await waitFor(() => expect(mStartTianxuan).toHaveBeenCalledWith('uncensored'))
+    await waitFor(() => expect(within(txCard).getByText(/运行中/)).toBeTruthy())
+    expect(within(txCard).queryByRole('button', { name: /启\s*动\s*档\s*位/ })).toBeNull()
   })
 
   it('⑦b 天璇生命周期：启动返回 already-running 视为运行中（幂等口径）', async () => {
@@ -248,7 +271,44 @@ describe('EngineSection · 自定义引擎', () => {
 
     const txCard = screen.getByText('Tianxuan').closest('.mc-engine-card') as HTMLElement
     mStartTianxuan.mockResolvedValueOnce({ started: false, reason: 'already-running' })
-    fireEvent.click(within(txCard).getByRole('button', { name: /启\s*动\s*引\s*擎/ }))
-    await waitFor(() => expect(within(txCard).getByText('运行中')).toBeTruthy())
+    fireEvent.click(within(txCard).getByRole('button', { name: /启\s*动\s*档\s*位/ }))
+    await waitFor(() => expect(within(txCard).getByText('引擎运行中')).toBeTruthy())
+  })
+
+  it('⑦c Strata 生命周期：默认 uncensored 档，启动成功后显示档位', async () => {
+    mStatusStrata.mockResolvedValue({
+      running: false,
+      default_profile: 'qwen36_uncensored',
+      profiles: [
+        { id: 'qwen36_uncensored', label: 'qwen3.6-35b-a3b-uncensored-q4_k_p' },
+      ],
+    })
+    renderSection()
+    const strataCard = screen.getByText('Strata').closest('.mc-engine-card') as HTMLElement
+    mStartStrata.mockResolvedValueOnce({
+      started: true,
+      waited_ms: 23000,
+      profile: 'qwen36_uncensored',
+      served_models: ['qwen3.6-35b-a3b-uncensored-q4_k_p'],
+    })
+    fireEvent.click(within(strataCard).getByRole('button', { name: /启\s*动\s*档\s*位/ }))
+    await waitFor(() => expect(mStartStrata).toHaveBeenCalledWith('qwen36_uncensored'))
+    await waitFor(() => expect(within(strataCard).getByText(/运行中 · qwen3.6-35b-a3b-uncensored-q4_k_p/)).toBeTruthy())
+  })
+
+  it('⑦d 受管引擎停止态不回显旧连接错误，显示未启动提示', async () => {
+    renderSection({
+      engineStatuses: {
+        tianxuan: {
+          id: 'tianxuan',
+          connected: false,
+          model_count: 0,
+          error: '请求失败: connection refused',
+        },
+      },
+    })
+    const txCard = screen.getByText('Tianxuan').closest('.mc-engine-card') as HTMLElement
+    await waitFor(() => expect(within(txCard).getByText(/引擎未运行/)).toBeTruthy())
+    expect(within(txCard).queryByText(/connection refused/)).toBeNull()
   })
 })

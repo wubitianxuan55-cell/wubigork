@@ -268,10 +268,17 @@ var explicitOverrides = map[string]string{
 	"GetActiveModel":         "model",
 	"GetEngineStatus":        "model",
 	"GetModelCatalog":        "model",
-	// 天璇引擎进程生命周期（tianxuan_proc.go，gaea 代启族=comfyui 同款）。
+	// 外部本地引擎进程生命周期（tianxuan_proc.go / strata_proc.go，外部项目引用族）。
+	"StrataEngineStart":         "model",
+	"StrataEngineStatus":        "model",
+	"StrataEngineStop":          "model",
+	"StrataModelStart":          "model",
+	"StrataModelStop":           "model",
 	"TianxuanEngineStatus":      "model",
 	"TianxuanEngineStart":       "model",
 	"TianxuanEngineStop":        "model",
+	"TianxuanModelStart":        "model",
+	"TianxuanModelStop":         "model",
 	"Startup":                   "core",
 	"Shutdown":                  "core",
 	"SetDistFS":                 "core",
@@ -963,10 +970,7 @@ func writeCompletenessTest(groups map[string][]method) error {
 // 面）时条目消失、注释随之消失，无需手工清理；未命中的注释自动丢弃。
 var legacyTSAnnotations = map[string]string{
 	"CheckModuleIntegrity": "3.0 Step 2：板块装配启动自检（Startup 内部调用，前端不经 AppBindings 消费）",
-	"GetModelHubKeyStatus": "Model Hub（Unsloth 本地引擎）Key 状态（引擎管理经 App() 直调）",
 	"NovelGhostSuggest":    "v4.444 场景编辑器内联续写（GhostText；wailsApp 直调 legacy 面）",
-	"SetModelHubKey":       "Model Hub（Unsloth 本地引擎）Key（Unsloth 设置 → API 创建）",
-	"StartModelHubModel":   "Model Hub：让 Unsloth Studio 加载/切换模型（ollama-manifest 引用）",
 	"UpdateProjectMeta":    "v4.439 项目元信息更新（小说创作间本书定位；wailsApp 直调 legacy 面）",
 	"RunChapterGate":       "章节闸门（v4.7x 小说革命遗留：场景级生成/叙事状态结算族已随批次三b 迁 AppBindings，仅此仍 wailsjsCompat 直调）",
 }

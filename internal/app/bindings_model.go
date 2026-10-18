@@ -50,6 +50,13 @@ func (b *ModelB) SetFeatureModelEnabled(feature string, enabled bool) error { re
 func (b *ModelB) SetOfficeLocal(enabled bool) error { return b.a.SetOfficeLocal(enabled) }
 func (b *ModelB) SetOfflineMode(enabled bool) error { return b.a.SetOfflineMode(enabled) }
 func (b *ModelB) SetSensitiveLocal(enabled bool) error { return b.a.SetSensitiveLocal(enabled) }
-func (b *ModelB) TianxuanEngineStart() map[string]interface{} { return b.a.TianxuanEngineStart() }
+func (b *ModelB) StrataEngineStart(profile string) map[string]interface{} { return b.a.StrataEngineStart(profile) }
+func (b *ModelB) StrataEngineStatus() map[string]interface{} { return b.a.StrataEngineStatus() }
+func (b *ModelB) StrataEngineStop() map[string]interface{} { return b.a.StrataEngineStop() }
+func (b *ModelB) StrataModelStart(model string) map[string]interface{} { return b.a.StrataModelStart(model) }
+func (b *ModelB) StrataModelStop(model string) map[string]interface{} { return b.a.StrataModelStop(model) }
+func (b *ModelB) TianxuanEngineStart(profile string) map[string]interface{} { return b.a.TianxuanEngineStart(profile) }
 func (b *ModelB) TianxuanEngineStatus() map[string]interface{} { return b.a.TianxuanEngineStatus() }
 func (b *ModelB) TianxuanEngineStop() map[string]interface{} { return b.a.TianxuanEngineStop() }
+func (b *ModelB) TianxuanModelStart(model string) map[string]interface{} { return b.a.TianxuanModelStart(model) }
+func (b *ModelB) TianxuanModelStop(model string) map[string]interface{} { return b.a.TianxuanModelStop(model) }

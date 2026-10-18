@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Button, message, Select, Switch } from 'antd'
 import {
-  CommentOutlined, EditOutlined, FireOutlined, LinkOutlined, PictureOutlined,
+  CommentOutlined, EditOutlined, EyeOutlined, FireOutlined, LinkOutlined, PictureOutlined,
   RobotOutlined, SoundOutlined, ToolOutlined, UserOutlined,
 } from '@ant-design/icons'
 import { app } from '../../gaea/lib/bridge'
@@ -16,6 +16,7 @@ const FEATURE_ICONS: Record<string, ReactNode> = {
   chat: <CommentOutlined />,
   novel: <EditOutlined />,
   office: <ToolOutlined />,
+  vision: <EyeOutlined />,
   characterlib: <UserOutlined />,
   sin: <FireOutlined />,
   routine: <RobotOutlined />,
@@ -24,6 +25,7 @@ const FEATURE_ICONS: Record<string, ReactNode> = {
 const FEATURE_NOTES: Record<string, string> = {
   chat: '聊天语音：TTS 与 STT 跟随语音管道，绑定的是对话大模型',
   office: '通用 + 方案 + 知识库',
+  vision: '办公识图（看懂图）：微信图片、图片附件、绘梦/剧照自评等视觉链路；改绑即生效，未绑定时用本地默认视觉模型。纯文字提取（OCR）在语音模型页单独绑定',
   characterlib: '生成 / 补全',
   sin: '原罪（闲庭图文故事）：故事文本生成；未绑定跟随全局；角色库角色随故事走，不读办公工具与办公记忆。插图生图模型在下方「原罪插图」卡独立绑定',
   routine: '纯文本摘要/归一化/抽取/改写等无专业工具覆盖的活，由云端 agent 通过 routine_llm 兜底调用（识图/OCR/检索/转换走各自专业工具）；未绑定默认本地 herdsman',
@@ -57,6 +59,7 @@ export function BindSection() {
     llmModels,
     ttsModels,
     testingEngine,
+    engineStatuses,
   } = useModelCenterState()
 
   const {
@@ -78,7 +81,10 @@ export function BindSection() {
   // 时自动拉取一次，否则模型下拉是空的。
   const autoRefreshModels = (engineId: string) => {
     const eng = engines.find(e => e.id === engineId)
-    if (eng?.enabled && !(eng.models?.length)) void handleRefreshModels?.(engineId)
+    // 天璇/Strata 是单模型进程：切档后 /v1/models 会变，选中时必须重拉；
+    // 其它引擎仍只在空清单时自动拉一次，避免每次切换都打接口。
+    const managed = engineId === 'strata' || engineId === 'tianxuan'
+    if (eng?.enabled && (managed || !(eng.models?.length))) void handleRefreshModels?.(engineId)
   }
 
   return (
@@ -94,6 +100,8 @@ export function BindSection() {
           const cur = featureCfg[f.key]
           const draft = featureDraft[f.key] || { engine: '', model: '' }
           const engineModelOptions = modelOptionsForEngine(draft.engine || '', llmModels, draft.model)
+          const managedSingleModel = draft.engine === 'strata' || draft.engine === 'tianxuan'
+          const managedStopped = managedSingleModel && engineStatuses?.[draft.engine]?.connected === false
           const bound = !!cur?.engine && !!cur?.model
           const enabled = featureEnabled[f.key] !== false
           const state = featureState(bound, enabled)
@@ -162,6 +170,13 @@ export function BindSection() {
                   options={engineModelOptions}
                 />
               </div>
+              {managedSingleModel && (
+                <div className="mc-bind-desc">
+                  该引擎一次只服务一个模型；候选为全部档位（运行中/未启动）。
+                  在「语言模型」启动某个档位即可切换，功能绑定选对应模型。
+                  {managedStopped && ' 当前引擎未运行，启动模型后绑定才会生效。'}
+                </div>
+              )}
               <div className="mc-bind-switch">
                 <span>功能启用（停用后回退全局模型）</span>
                 <Switch

@@ -69,7 +69,7 @@ func (a *App) classifyIntentWithLLM(text string) *intent.Intent {
 		return nil
 	}
 	// 全局离线模式：分类调用只允许本地引擎（Type.IsLocal 单一来源，覆盖
-	// strata/modelhub 等后来者，替代旧硬编码 herdsman/ollama 名单），云端
+	// strata 等后来者，替代旧硬编码 herdsman/ollama 名单），云端
 	// 目标直接放弃（走聊天）。
 	if a.cfg.GetOfflineMode() {
 		if e, ok := a.engineMgr.GetEngine(engine); !ok || !e.Type.IsLocal() {

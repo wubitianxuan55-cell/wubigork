@@ -50,15 +50,6 @@ type modelsListResponse struct {
 		ID      string     `json:"id"`
 		OwnedBy string     `json:"owned_by"`
 		Status  flexStatus `json:"status"`
-		// Unsloth Studio OpenAI 兼容目录扩展（/v1/models）：当前是否已加载。
-		// Studio 固定后端 8888/v1 会同时列出「已加载模型」与「仅缓存/未加载
-		// 条目」（如下载一半的 GGUF）；loaded=false 的条目 gaea 无法调用，
-		// 刷新时直接过滤掉，避免把不可用模型带回默认模型/功能绑定候选。
-		Loaded *bool `json:"loaded,omitempty"`
-		// Studio 某些条目会下发展示名（如 HF 缓存半成品）；已加载的
-		// ollama-manifest 别名没有 display_name，由 modelHubDisplayName
-		// 从别名解析出友好名（tinyrick/…:Q6_K_P）。
-		DisplayName string `json:"display_name,omitempty"`
 	} `json:"data"`
 }
 
@@ -68,12 +59,6 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 	if engine.Type == EngineGLM {
 		// 智谱无 /models 端点：刷新直接返回官方静态目录（零 HTTP）
 		return m.glmCatalogModels(), nil
-	}
-	if engine.Type == EngineModelHub {
-		// Unsloth Studio：OpenAI /v1/models 只暴露「当前已加载」模型，完整
-		// 模型清单要再读 Studio 内部 /api/hub/local（同一把 sk- Key 可访问）。
-		// 合并后两个 Ollama 迁移模型都能被 gaea 识别（运行/停止状态分开）。
-		return m.fetchModelHubModels(ctx, engine)
 	}
 	baseURL := strings.TrimRight(strings.TrimSpace(engine.BaseURL), "/")
 	if !validBaseURL(baseURL) {
@@ -86,7 +71,7 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 		return nil, fmt.Errorf("创建请求失败: %w", err)
 	}
 
-	// xAI / DeepSeek / GLM / OpenCode Go / Model Hub 需要认证（Key 未配置时
+	// xAI / DeepSeek / GLM / OpenCode Go 需要认证（Key 未配置时
 	// 不带 Authorization 头，服务端会回 401 由下方给出对应引擎提示）
 	if engine.Type == EngineXAI && m.xaiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+m.xaiKey)
@@ -98,8 +83,6 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 		req.Header.Set("Authorization", "Bearer "+m.opencodeKey)
 	} else if engine.Type == EngineOpencodeZen && m.opencodeZenKey != "" {
 		req.Header.Set("Authorization", "Bearer "+m.opencodeZenKey)
-	} else if engine.Type == EngineModelHub && m.modelhubKey != "" {
-		req.Header.Set("Authorization", "Bearer "+m.modelhubKey)
 	} else if engine.Type == EngineCustom {
 		// 自定义引擎：Key 在内存 customKeys（KeyStore 同源），空 Key 不带
 		// Authorization 头（兼容无鉴权的本地 OpenAI 兼容服务）。
@@ -126,8 +109,6 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 				return nil, fmt.Errorf("HTTP 401: OpenCode Go API Key 无效或未配置，请先在模型中心配置（opencode.ai 订阅获取）")
 			} else if engine.Type == EngineOpencodeZen {
 				return nil, fmt.Errorf("HTTP 401: OpenCode Zen API Key 无效或未配置，请先在模型中心配置（opencode.ai/auth 获取）")
-			} else if engine.Type == EngineModelHub {
-				return nil, fmt.Errorf("HTTP 401: Model Hub API Key 无效或未配置，请先在模型中心保存 Unsloth 生成的 Key（sk-unsloth- 开头，Unsloth 设置 → API 创建）")
 			} else if engine.Type == EngineCustom {
 				return nil, fmt.Errorf("HTTP 401: 自定义引擎 API Key 无效或未配置，请在模型中心自定义引擎卡片修正")
 			}
@@ -196,8 +177,8 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 // StrataModelLoaded 轻量探测目标模型是否已被 Strata 引擎加载。
 //
 // Strata 的 /v1/models 只列「已加载」集合（真机实测：常驻单条
-// qwen3.8-flash-next-iq2_xs + status.value="loaded"），故命中即已加载，
-// 语义与 ModelHubModelLoaded 一致（换模预估的 hot/cold 判定用）。
+// qwen3.6-35b-a3b-uncensored-q4_k_p + status.value="loaded"），故命中即已加载
+// （换模预估的 hot/cold 判定用）。
 // 返回 (false, nil) = 引擎可达但目标未加载；(false, err) = 不可达/地址非法。
 //
 // 解码走 modelsListResponse（含 flexStatus 宽容层）：Strata 的 status 是非标
@@ -238,8 +219,8 @@ func (m *Manager) StrataModelLoaded(ctx context.Context, modelID string) (bool, 
 		if d.ID != modelID {
 			continue
 		}
-		// 状态缺失（空串）按已加载处理（与 ModelHubModelLoaded 的
-		// Loaded==nil 同理）；显式给出非 loaded/loading 状态则不算就绪。
+		// 状态缺失（空串）按已加载处理；显式给出非 loaded/loading 状态
+		// 则不算就绪。
 		s := string(d.Status)
 		return s == "" || s == "loaded" || s == "loading", nil
 	}
@@ -294,7 +275,7 @@ func (m *Manager) TianxuanServedModels(ctx context.Context) ([]string, error) {
 	}
 	ids := make([]string, 0, len(list.Data))
 	for _, d := range list.Data {
-		// 状态缺失（空串）按已加载处理（与 ModelHubModelLoaded 同口径）；
+		// 状态缺失（空串）按已加载处理；
 		// 显式非 loaded/loading 的不算本次服务集合。
 		s := string(d.Status)
 		if s == "" || s == "loaded" || s == "loading" {

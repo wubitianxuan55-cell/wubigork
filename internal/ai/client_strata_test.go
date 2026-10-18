@@ -129,7 +129,7 @@ func TestStrata_DisableThinkingExplicit(t *testing.T) {
 // TestStrata_DisableThinkingDoesNotLeak 三态「关」侧不外溢：只对 strata 生效，
 // herdsman/ollama 分支的开关语义不受影响（它们缺省关、只认 EnableThinking）。
 func TestStrata_DisableThinkingDoesNotLeak(t *testing.T) {
-	c := &Client{} // engineMgr nil → 非 modelhub/strata，走 herdsman/ollama 分支判定
+	c := &Client{} // engineMgr nil → 非 strata/tianxuan，走 herdsman/ollama 分支判定
 
 	for _, engine := range []string{"herdsman", "ollama"} {
 		req := c.prepareStreamRequest("qwen3-8b", nil, ChatSimpleOptions{EngineID: engine, MaxTokens: 1024, DisableThinking: true})
@@ -148,6 +148,37 @@ func TestStrata_DisableThinkingDoesNotLeak(t *testing.T) {
 	req := c.prepareStreamRequest("m", nil, ChatSimpleOptions{EngineID: "custom-1", MaxTokens: 1024, DisableThinking: true})
 	if req.ChatTemplateKwargs != nil || req.EnableThinking != nil {
 		t.Errorf("云端/自定义引擎不应因 DisableThinking 变化，got ctk=%v top=%v", req.ChatTemplateKwargs, req.EnableThinking)
+	}
+}
+
+// drainChunks 消费完 SSE 通道并确认无流错误。
+func drainChunks(t *testing.T, chunks <-chan SSEChunk, cancel context.CancelFunc) {
+	t.Helper()
+	for ch := range chunks {
+		if ch.Error != "" {
+			t.Fatalf("stream error: %s", ch.Error)
+		}
+	}
+	cancel()
+}
+
+// TestChatStreamChunks_HerdsmanKeepsDefaultTemperature 非思考原生引擎的采样
+// 兜底：未显式配置时维持 0.7，且不携带 chat_template_kwargs（与 strata 分支
+// 「缺省开思考」互为对照，防止分支语义串味）。
+func TestChatStreamChunks_HerdsmanKeepsDefaultTemperature(t *testing.T) {
+	c, snapshot := newStrataTestClient(t)
+	chunks, cancel, err := c.ChatStreamChunks(context.Background(), "", "sys", "hi", ChatSimpleOptions{EngineID: "herdsman"})
+	if err != nil {
+		t.Fatalf("ChatStreamChunks: %v", err)
+	}
+	drainChunks(t, chunks, cancel)
+
+	got := snapshot()
+	if v, _ := got["temperature"].(float64); v != 0.7 {
+		t.Errorf("非思考原生引擎应维持 0.7 兜底，实际 %v", got["temperature"])
+	}
+	if _, present := got["chat_template_kwargs"]; present {
+		t.Errorf("未开思考时不应携带 chat_template_kwargs，实际 %v", got["chat_template_kwargs"])
 	}
 }
 
@@ -182,7 +213,7 @@ func TestStrata_WireBody(t *testing.T) {
 		t.Errorf("线上 chat_template_kwargs.enable_thinking = %v, want true（缺省开思考）", ctk["enable_thinking"])
 	}
 	if v, ok := body["temperature"].(float64); !ok || v != 0.7 {
-		t.Errorf("线上 temperature = %v, want 0.7（strata 不参与 modelhub 采样让位）", body["temperature"])
+		t.Errorf("线上 temperature = %v, want 0.7（思考原生分支不影响采样兜底）", body["temperature"])
 	}
 }
 

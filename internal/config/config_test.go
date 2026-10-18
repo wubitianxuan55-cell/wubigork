@@ -274,6 +274,74 @@ func TestSaveLoad_SinBinding(t *testing.T) {
 	}
 }
 
+// TestSaveLoad_VisionBinding 办公识图功能级绑定往返：func_vision_* 三键写盘
+// 后 Load 可读回，未配置时默认启用（与其余功能级绑定同语义）。
+func TestSaveLoad_VisionBinding(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	if !Load().GetFeatureModelEnabled("vision") {
+		t.Error("未配置时 vision 应默认启用")
+	}
+	if eng, model := Load().GetFeatureModel("vision"); eng != "" || model != "" {
+		t.Errorf("未绑定时 GetFeatureModel(vision) = (%q,%q), want 空（走 gaea.toml [vision]）", eng, model)
+	}
+	if err := Save(KeyFuncVisionEngine, "herdsman"); err != nil {
+		t.Fatalf("Save vision engine 失败: %s", err)
+	}
+	if err := Save(KeyFuncVisionModel, "qwen3.6-vision"); err != nil {
+		t.Fatalf("Save vision model 失败: %s", err)
+	}
+	if err := Save(KeyFuncVisionEnabled, "1"); err != nil {
+		t.Fatalf("Save vision enabled 失败: %s", err)
+	}
+	cfg := Load()
+	eng, model := cfg.GetFeatureModel("vision")
+	if eng != "herdsman" || model != "qwen3.6-vision" {
+		t.Errorf("GetFeatureModel(vision) = (%q,%q), want (herdsman,qwen3.6-vision)", eng, model)
+	}
+	if !cfg.GetFeatureModelEnabled("vision") {
+		t.Error("vision 保存为启用后应保持启用")
+	}
+	if err := Save(KeyFuncVisionEnabled, "0"); err != nil {
+		t.Fatalf("Save vision disabled 失败: %s", err)
+	}
+	if Load().GetFeatureModelEnabled("vision") {
+		t.Error("保存 0 后 vision 应为停用")
+	}
+}
+
+// TestSaveLoad_ModelIdleExitMinutes 外部引擎空闲自动退出分钟数（指针三态）：
+// 未配置=默认 10；显式 0=关闭（0 必须能落盘读回，不得被「未配置」吞掉）；
+// 越界拒绝。
+func TestSaveLoad_ModelIdleExitMinutes(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	if got := Load().ModelIdleExitMinutes; got != 10 {
+		t.Errorf("未配置时 ModelIdleExitMinutes = %d, want 10（默认开启）", got)
+	}
+	if err := Save(KeyModelIdleExitMinutes, "15"); err != nil {
+		t.Fatalf("Save 15: %s", err)
+	}
+	if got := Load().ModelIdleExitMinutes; got != 15 {
+		t.Errorf("保存 15 后 = %d, want 15", got)
+	}
+	if err := Save(KeyModelIdleExitMinutes, "0"); err != nil {
+		t.Fatalf("Save 0（显式关闭）: %s", err)
+	}
+	if got := Load().ModelIdleExitMinutes; got != 0 {
+		t.Errorf("保存 0 后 = %d, want 0（0=机制关闭，必须可持久化）", got)
+	}
+	for _, bad := range []string{"-1", "99999", "abc"} {
+		if err := Save(KeyModelIdleExitMinutes, bad); err == nil {
+			t.Errorf("非法值 %q 应报错", bad)
+		}
+	}
+}
+
 // TestLoad_MigratesWhisperBindingToChat 旧版 func_whisper_* 绑定合并到 func_chat：
 // 老配置文件（只有 func_whisper_*）加载后 chat 绑定接管，whisper 查询别名到 chat。
 func TestLoad_MigratesWhisperBindingToChat(t *testing.T) {
@@ -766,6 +834,38 @@ func TestSave_CosyVoicePathPortRoundTrip(t *testing.T) {
 	// 非法值被拒后文件中的合法值保持不变
 	if cfg := Load(); cfg.CosyVoicePort != 9020 {
 		t.Errorf("非法端口被拒后 = %d, want 保持 9020", cfg.CosyVoicePort)
+	}
+}
+
+func TestSave_TianxuanPathRoundTrip(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	if cfg := Load(); cfg.TianxuanPath != DefaultTianxuanPath {
+		t.Errorf("default tianxuan_path = %q, want %q", cfg.TianxuanPath, DefaultTianxuanPath)
+	}
+	if err := Save(KeyTianxuanPath, `D:\engines\tianxuan`); err != nil {
+		t.Fatalf("Save tianxuan_path: %v", err)
+	}
+	if cfg := Load(); cfg.TianxuanPath != `D:\engines\tianxuan` {
+		t.Errorf("tianxuan_path = %q", cfg.TianxuanPath)
+	}
+}
+
+func TestSave_StrataPathRoundTrip(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	if cfg := Load(); cfg.StrataPath != DefaultStrataPath {
+		t.Errorf("default strata_path = %q, want %q", cfg.StrataPath, DefaultStrataPath)
+	}
+	if err := Save(KeyStrataPath, `D:\engines\strata\repo`); err != nil {
+		t.Fatalf("Save strata_path: %v", err)
+	}
+	if cfg := Load(); cfg.StrataPath != `D:\engines\strata\repo` {
+		t.Errorf("strata_path = %q", cfg.StrataPath)
 	}
 }
 

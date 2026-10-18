@@ -2,7 +2,7 @@ package modelengine
 
 // 内置引擎类型查证口的对账与消费回归。
 //
-// 背景：strata/modelhub 加入「本地引擎」族时，代码里有几处按引擎名硬编码的名单
+// 背景：strata 加入「本地引擎」族时，代码里有几处按引擎名硬编码的名单
 // 漏改（estimatePrice 的 `case "ollama", "herdsman"`、app 的 isLocalEngine
 // `case "herdsman", "ollama", "cosyvoice"`）。本文件钉住单一真相口
 // BuiltinEngineTypeOf 与预置种子的对账、以及本地引擎不计价的消费口径。
@@ -25,7 +25,7 @@ func TestBuiltinEngineTypeOf_MatchesSeeds(t *testing.T) {
 	// 反向：名单不得虚报 NewManager 未种子的 ID。
 	for _, id := range []string{
 		"xai", "ollama", "herdsman", "deepseek", "glm", "cosyvoice",
-		"modelhub", "strata", "tianxuan", "opencode-go", "opencode-zen",
+		"strata", "tianxuan", "opencode-go", "opencode-zen",
 	} {
 		if _, ok := m.engines[id]; !ok {
 			t.Errorf("名单含 %q，但 NewManager 未种子该引擎", id)
@@ -44,12 +44,12 @@ func TestBuiltinEngineTypeOf_MatchesSeeds(t *testing.T) {
 	}
 }
 
-// TestBuiltinEngineTypeOf_LocalFamily 本地引擎族必须齐六：漏一个就会在上述
+// TestBuiltinEngineTypeOf_LocalFamily 本地引擎族必须齐五：漏一个就会在上述
 // 漏项类回归里被误判成云端（离线门控、不计价、加载预警三处同时错）。
 func TestBuiltinEngineTypeOf_LocalFamily(t *testing.T) {
 	local := map[string]bool{
 		"ollama": true, "herdsman": true, "cosyvoice": true,
-		"modelhub": true, "strata": true, "tianxuan": true,
+		"strata": true, "tianxuan": true,
 	}
 	for id, want := range local {
 		if got := BuiltinEngineTypeOf(id).IsLocal(); got != want {
@@ -68,7 +68,7 @@ func TestBuiltinEngineTypeOf_LocalFamily(t *testing.T) {
 // 表」的模型名（gpt-5）作探针，排除「没命中所以为 0」的假绿；末尾用非本地引擎
 // 做反向对照，证明该探针确实会命中。
 func TestEstimatePrice_LocalFamilyFree(t *testing.T) {
-	for _, id := range []string{"ollama", "herdsman", "cosyvoice", "modelhub", "strata", "tianxuan"} {
+	for _, id := range []string{"ollama", "herdsman", "cosyvoice", "strata", "tianxuan"} {
 		if p := estimatePrice(id, "gpt-5"); p.Currency != "" || p.InputPerM != 0 || p.OutputPerM != 0 {
 			t.Errorf("本地引擎 %s 不应计价，got %+v", id, p)
 		}

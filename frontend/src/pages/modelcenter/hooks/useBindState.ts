@@ -1,7 +1,7 @@
 /**
  * useBindState — 模型中心「功能绑定/角色库剧照」状态 Hook（T6-6.4 UI 拆分）
  *
- * 归集功能模型绑定（chat/novel/office/gaea/characterlib/routine）、生效路由
+ * 归集功能模型绑定（chat/novel/office/vision/gaea/characterlib/routine）、生效路由
  * 与角色库剧照（后端/模型）的全部状态与保存处理。engines 由引擎 Hook 传入，
  * 用于计算剧照的可用模型选项（跨分类共享）。
  */
@@ -57,7 +57,7 @@ export function useBindState(engines: EngineConfig[]): BindState {
     const bind = window.go?.app?.App as AppFacade
     if (!bind?.GetModelRoute) return
     const next: Record<string, { engine: string; model: string; source: string }> = {}
-    for (const key of ['chat', 'novel', 'office', 'gaea', 'characterlib', 'routine']) {
+    for (const key of ['chat', 'novel', 'office', 'gaea', 'vision', 'characterlib', 'routine']) {
       try {
         next[key] = JSON.parse(await bind.GetModelRoute(key) as string)
       } catch { /* 单功能失败忽略 */ }

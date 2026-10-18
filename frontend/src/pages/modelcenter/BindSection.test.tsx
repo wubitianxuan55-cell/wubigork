@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ModelCenterActionsContext, ModelCenterContext, ModelCenterStateContext, type ModelCenterContextValue } from './context'
 import { BindSection } from './BindSection'
@@ -128,5 +128,23 @@ describe('BindSection', () => {
     // 已绑定态显示生效后端/模型。
     renderBind({ sinImageCfg: { backend: 'herdsman', model: 'qwen-image' } })
     expect(screen.getByText('herdsman / qwen-image')).toBeTruthy()
+  })
+
+  // 办公识图功能绑定卡（不再固定于本地默认视觉模型）：卡渲染、未绑定态
+  // 显示「跟随全局默认」，卡内「绑定」按钮把 vision 键传给保存动作。
+  it('renders vision binding card and saves via handleSaveFeature (识图)', () => {
+    const handleSaveFeature = vi.fn()
+    renderBind({ handleSaveFeature })
+
+    expect(screen.getByText('识图')).toBeTruthy()
+
+    const visionNote = screen.getByText(/办公识图（看懂图）/)
+    const card = visionNote.closest('.mc-bind-card')
+    expect(card).toBeTruthy()
+    // 未绑定态元信息（收窄到识图卡内——其余功能卡同文案）
+    expect(within(card as HTMLElement).getByText('未绑定，跟随全局默认')).toBeTruthy()
+    const bindBtn = within(card as HTMLElement).getByText(/^绑\s*定$/)
+    fireEvent.click(bindBtn)
+    expect(handleSaveFeature).toHaveBeenCalledWith('vision')
   })
 })

@@ -55,7 +55,8 @@
 
 | 文档 | 状态 |
 |---|---|
-| gaea-tianxuan-research-2026-10.md | 🔄 **天璇引擎（tianxuan）立项调研与批次台账（2026-10-18）**：社区/GitHub 调研 + halogen 参照 + 基座定夺（**Gufo 取代 MoE4All**，MIT、同芯片 73/194 tok/s 实测上限）+ 批次 1/2 真机数据 + **批次 4：27B 缓存续写保留 DFlash 接受率、默认 prompt lookup（代码复述 39.3→52.6 tok/s、输出哈希一致，普通 prose 持平）**；35B 线已终止；代码基在 `clones/gufo`（分支 `tianxuan`，台账 `clones/gufo` 的 tianxuan 台账） |
+| gaea-tianxuan-research-2026-10.md | 🔄 **天璇引擎（tianxuan）立项调研与批次台账（2026-10-18）**：社区/GitHub 调研 + halogen 参照 + 基座定夺（**Gufo 取代 MoE4All**，MIT、同芯片 73/194 tok/s 实测上限）+ 批次 1/2 真机数据 + **批次 4：27B 缓存续写保留 DFlash 接受率、默认 prompt lookup（代码复述 39.3→52.6 tok/s、输出哈希一致，普通 prose 持平）+ 35B-A3B Vulkan MTP 极速档（长答 59–62 tok/s，约 4×，模型中心显式切换）**；35B HIP 线仍终止；**已单独立项到 `C:\AI\tianxuan`**（独立 Git 仓库、`scripts\serve.ps1` 档位入口，gaea 经 `tianxuan_path` 外部引用） |
+| gaea-tianxuan-strata-deepdive-2026-10-18.md | 🔄 **tianxuan × strata 深度调研（2026-10-18）**：27B 带宽墙、35B-A3B 冻结证据链、strata 专家分层/预算/KV 流式拆解、tianxuan 多模型路线与移植优先级 |
 | gaea-moe4all-engine-assessment-2026-10.md | 🔄 **MoE4All 引擎接入实用性评估（阶段 0 真机全过，2026-10-17）**：v1.0.3 本机 Strix Halo 闸门（工具调用/流式 usage//v1/models/thinking）+ 同模型对擂 Strata + 生命周期面；结论=可接（≈一条引擎种子 + herdsman 式生命周期），但基座决策已选 Gufo，MoE4All 保留为 fallback 与工程纪律参照 |
 
 ## 蒸馏规划（取道不取器）
@@ -69,7 +70,7 @@
 | gaea-dsh-univer-office-distill-plan-2026-09.md | ✅ 已蒸馏收官（U 系落地 v4.97~v4.109；Univer 零引入） |
 | gaea-dsh-genui-distill-plan-2026-09.md | ✅ 已收官（P0–P5 全部发布，止于 v4.97.0） |
 | gaea-dsh-better-sidebar-long-term-distill-plan-2026.md | 🔄 滚动权威：阶段一/二/二.5/三(3a/3b) 已全销账；3c 与阶段四/五维持「拍板后/若做」 |
-| gaea-unsloth-modelhub-distill-plan-2026-09.md | ✅ 主体已落地（v4.102~106）；仅真机补验池观察项（CU1 收益/CU3 /free） |
+| gaea-unsloth-modelhub-distill-plan-2026-09.md | ⚠️ 已退役（2026-10-18 modelhub 引擎整体删除：引擎/Key/MH4 预热随 Unsloth 退役下线；CU1/CU2 等 ComfyUI 侧蒸馏成果保留）。本文保留作历史蒸馏记录 |
 
 > dsh-better-sidebar-go-port-plan-2026-09.md（整包 Go 化方案）已归档至 docs/archive/——路线未采纳，被滚动蒸馏规划取代。
 

@@ -19,16 +19,11 @@ import {
   setActiveEngine, getActiveEngine, setDeepseekKey, getDeepseekKeyStatus,
   setGlmKey, getGlmKeyStatus, setGlmEndpoint,
   setOpencodeGoKey, getOpencodeGoKeyStatus, setOpencodeZenKey, getOpencodeZenKeyStatus,
-  setModelHubKey, getModelHubKeyStatus, startModelHubModel,
+  startStrataModel, startTianxuanModel,
   addCustomEngine, updateCustomEngine, removeCustomEngine,
   type EngineConfig, type EngineStatus,
 } from '../../../api/engines'
 import { kindOf, engineLabel, modelMeta, type Category, type ModelCardData } from '../utils'
-
-// MH2（蒸馏 unsloth §三）：Studio 加载是异步长任务（冷加载实测 50s+，
-// 内存挤占时可超 2min），轮询上限给 3 分钟、5s 一拍，超时诚实失败。
-const MODEL_HUB_LOAD_TIMEOUT_MS = 180_000
-const MODEL_HUB_POLL_INTERVAL_MS = 5_000
 
 export interface EngineState {
   loading: boolean
@@ -52,11 +47,6 @@ export interface EngineState {
   opencodeZenKey: string
   setOpencodeZenKeyState: (v: string) => void
   opencodeZenKeyMasked: string
-  modelHubKey: string
-  setModelHubKeyState: (v: string) => void
-  modelHubKeyMasked: string
-  /** MH2：正在 Studio 侧加载的 modelhub 模型 id（模型卡据此显示「加载中」并禁用按钮） */
-  hubLoadingIds: string[]
   settingGlmEndpoint: boolean
   handleSetGlmEndpoint: (family: 'std' | 'coding') => Promise<void>
   loadAll: () => Promise<void>
@@ -78,7 +68,6 @@ export interface EngineState {
   handleSaveGlmKey: () => Promise<void>
   handleSaveOpencodeGoKey: () => Promise<void>
   handleSaveOpencodeZenKey: () => Promise<void>
-  handleSaveModelHubKey: () => Promise<void>
   // A 刀「自定义引擎」：成功返回 true（表单据此关闭）；失败已弹错并返回 false
   handleAddCustomEngine: (name: string, baseURL: string, apiKey: string) => Promise<boolean>
   handleUpdateCustomEngine: (engineID: string, name: string, baseURL: string, apiKey: string) => Promise<boolean>
@@ -103,9 +92,6 @@ export function useEngineState(category: Category): EngineState {
   const [opencodeGoKeyMasked, setOpencodeGoKeyMasked] = useState('')
   const [opencodeZenKey, setOpencodeZenKeyState] = useState('')
   const [opencodeZenKeyMasked, setOpencodeZenKeyMasked] = useState('')
-  const [modelHubKey, setModelHubKeyState] = useState('')
-  const [modelHubKeyMasked, setModelHubKeyMasked] = useState('')
-  const [hubLoadingIds, setHubLoadingIds] = useState<string[]>([])
 
   // T6-6.5 竞态守卫：loadAll 的最新请求序号，晚到的旧响应直接丢弃。
   const loadAllSeq = useRef(0)
@@ -145,10 +131,6 @@ export function useEngineState(category: Category): EngineState {
         const ks = await getOpencodeZenKeyStatus()
         if (ks) { setOpencodeZenKeyMasked(ks.masked || '') }
       } catch (_) {}
-      try {
-        const ks = await getModelHubKeyStatus()
-        if (ks) { setModelHubKeyMasked(ks.masked || '') }
-      } catch (_) {}
     } catch (err: unknown) {
       if (seq === loadAllSeq.current) {
         message.error(errText(err, '加载引擎列表失败，请重试'))
@@ -163,7 +145,7 @@ export function useEngineState(category: Category): EngineState {
   // 返回时序号不匹配即丢弃（不触发 loadAll，避免旧结果覆盖新分类视图）。
   const refreshLocalModels = useCallback(async () => {
     const seq = ++refreshSeq.current
-    await Promise.allSettled(['herdsman', 'ollama', 'cosyvoice', 'modelhub'].map(id => refreshEngineModels(id)))
+    await Promise.allSettled(['herdsman', 'ollama', 'cosyvoice', 'strata', 'tianxuan'].map(id => refreshEngineModels(id)))
     if (seq !== refreshSeq.current) return // 过期刷新结果：切分类后已作废，丢弃
     await loadAll()
   }, [loadAll])
@@ -180,25 +162,6 @@ export function useEngineState(category: Category): EngineState {
   // 首次进入模型中心读取已保存的引擎状态（启动阶段不抢线程，仅读取）。
   useEffect(() => { void loadAll() }, [loadAll])
 
-  // MH2 状态收敛：Studio 加载完成后目标模型才会以 running 出现在模型列表；
-  // 轮询 getEngines 直到命中（顺手把最新列表喂给 UI，让卡片即时翻成运行中）。
-  // 单次轮询失败不终止（Studio 瞬时抖动/降级路径），超时由调用方诚实失败。
-  const waitForModelHubLoaded = async (modelId: string): Promise<boolean> => {
-    const deadline = Date.now() + MODEL_HUB_LOAD_TIMEOUT_MS
-    while (Date.now() < deadline) {
-      await new Promise(r => setTimeout(r, MODEL_HUB_POLL_INTERVAL_MS))
-      try {
-        const list = await getEngines()
-        const m = (list.find(e => e.id === 'modelhub')?.models || []).find(x => x.id === modelId)
-        if (m && (m.status || 'running') === 'running') {
-          setEngines(list)
-          return true
-        }
-      } catch (_) { /* 瞬时失败继续拍 */ }
-    }
-    return false
-  }
-
   const handleStartModel = async (card: ModelCardData) => {
     const kind = kindOf(card)
     if (kind === 'tts') {
@@ -213,24 +176,35 @@ export function useEngineState(category: Category): EngineState {
     }
     if (kind !== 'llm') return
     try {
-      // Model Hub（Unsloth Studio）：模型在 Studio 里未加载（stopped）时先
-      // 触发 Studio 加载/切换（ollama-manifest 引用）。加载是异步的：挂上
-      // 「加载中」徽标并轮询到 running 才算启动成功，超时不设默认模型、
-      // 不谎报已启动（Studio 侧最终加载结果以刷新后的模型列表为准）。
-      if (card.engineId === 'modelhub' && card.status === 'stopped') {
+      // 天璇/Strata：模型目录逐档位启停（Herdsman 式）。启动一个档位会先停掉
+      // 当前档位，再拉起目标档位；成功后只在这里（用户显式点模型「启动」）
+      // 才设置默认模型/活跃引擎，不在引擎进程启动时偷偷改绑定。
+      if (card.engineId === 'tianxuan' || card.engineId === 'strata') {
         setSavingEngine(card.engineId)
-        setHubLoadingIds(prev => prev.includes(card.modelId) ? prev : [...prev, card.modelId])
         try {
-          await startModelHubModel(card.modelId)
-          const loaded = await waitForModelHubLoaded(card.modelId)
-          if (!loaded) {
-            message.warning(`「${card.modelName}」仍在加载（已等待 3 分钟）。大模型冷加载可能更久，稍后刷新模型列表确认；确认运行中后再点「启动」设为默认。`)
+          const r = card.engineId === 'tianxuan'
+            ? await startTianxuanModel(card.modelId)
+            : await startStrataModel(card.modelId)
+          if (!r.started && r.reason !== 'already-running') {
+            const tail = r.error ? `：${r.error.slice(-240)}` : ''
+            message.warning(`启动失败：${r.reason ?? '未知原因'}${tail}`)
             return
           }
+          // 以引擎实际 /v1/models 的 id 为准（fast 档是 GGUF 全路径，可能与
+          // 目录里的展示 id 不同）；先启动，再用实际 id 设默认模型。
+          const startedModelID = r.served_models?.[0] || card.modelId
+          if (activeEngine !== card.engineId) {
+            await setActiveEngine(card.engineId)
+            setActiveEngineState(card.engineId)
+          }
+          await setEngineDefaultModel(card.engineId, startedModelID)
+          await loadAll()
+          setActiveModel(startedModelID)
+          message.success(`已启动${card.modelName}`)
         } finally {
           setSavingEngine(null)
-          setHubLoadingIds(prev => prev.filter(id => id !== card.modelId))
         }
+        return
       }
       if (activeEngine !== card.engineId) { await setActiveEngine(card.engineId); setActiveEngineState(card.engineId) }
       await setEngineDefaultModel(card.engineId, card.modelId)
@@ -330,17 +304,6 @@ export function useEngineState(category: Category): EngineState {
     } catch (err: unknown) { message.error(errText(err, '操作失败')) }
   }
 
-  const handleSaveModelHubKey = async () => {
-    if (!modelHubKey.trim()) { message.warning('请输入 API Key'); return }
-    try {
-      await setModelHubKey(modelHubKey.trim())
-      message.success('Model Hub Key 已保存')
-      const ks = await getModelHubKeyStatus()
-      if (ks) setModelHubKeyMasked(ks.masked || '')
-      setModelHubKeyState('')
-    } catch (err: unknown) { message.error(errText(err, '操作失败')) }
-  }
-
   // ── A 刀「自定义引擎」（OpenAI 兼容，后端 Add/Update/RemoveCustomEngine） ──
   // 表单层已做「名称非空 + 地址 http(s) 前缀」校验（与后端 validBaseURL 同口径
   // 双保险，防 Key 粘进地址框）；这里只负责调用、提示与刷新。
@@ -424,10 +387,6 @@ export function useEngineState(category: Category): EngineState {
     opencodeZenKey,
     setOpencodeZenKeyState,
     opencodeZenKeyMasked,
-    modelHubKey,
-    setModelHubKeyState,
-    modelHubKeyMasked,
-    hubLoadingIds,
     settingGlmEndpoint,
     handleSetGlmEndpoint,
     loadAll,
@@ -445,7 +404,6 @@ export function useEngineState(category: Category): EngineState {
     handleSaveGlmKey,
     handleSaveOpencodeGoKey,
     handleSaveOpencodeZenKey,
-    handleSaveModelHubKey,
     handleAddCustomEngine,
     handleUpdateCustomEngine,
     handleRemoveCustomEngine,

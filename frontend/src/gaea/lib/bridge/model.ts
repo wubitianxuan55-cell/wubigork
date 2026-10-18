@@ -46,7 +46,7 @@ export interface ModelBindings {
   PreloadPlanSet(enabled: boolean): Promise<void>;
   // ModelSwitchEstimate 换模预估：目标本地模型 hot/cold/download/unknown，
   // 前端在非 hot 时提示预计等待并让用户确认是否继续切换。v4.126 刀2 起
-  // 按目标模型口径覆盖全部本地引擎（herdsman/ollama/modelhub）；model 省略
+  // 按目标模型口径覆盖全部本地引擎（herdsman/ollama/strata/tianxuan）；model 省略
   // 时后端回退引擎默认模型。
   ModelSwitchEstimate(engineID: string, model?: string): Promise<ModelSwitchEstimate>;
   // Feature Model 功能级模型绑定（写侧，Go ModelB.SetFeatureModel 3 参 /

@@ -14,6 +14,39 @@ import (
 // visionRecognize 可注入 seam（测试替换；生产恒为 vision.RecognizeImage）。
 var visionRecognize = vision.RecognizeImage
 
+// visionBoundRuntime 办公识图功能绑定（模型中心「识图」卡，func_vision_*）→
+// 视觉后端运行时。绑定生效（功能启用 + 引擎存在且启用 + 有地址 + 离线模式
+// 不拦本地）时返回覆盖运行时（引擎地址 + 绑定模型 + 引擎 Key，改绑即生效
+// 无需重启）；否则返回 false——识图回落 gaea.toml [vision] 静态注入（默认
+// 本机 herdsman Qwen3.6 视觉模型）。经 vision.SetVisionRuntimeResolver 在
+// 启动时挂为动态钩子，每次识图调用执行；只读内存（config + 引擎表），无 IO。
+func (c *core) visionBoundRuntime() (vision.VisionRuntime, bool) {
+	if c.cfg == nil || c.engineMgr == nil {
+		return vision.VisionRuntime{}, false
+	}
+	if !c.cfg.GetFeatureModelEnabled("vision") {
+		return vision.VisionRuntime{}, false
+	}
+	engID, model := c.cfg.GetFeatureModel("vision")
+	if engID == "" || model == "" {
+		return vision.VisionRuntime{}, false
+	}
+	offline := c.cfg.GetOfflineMode()
+	e, ok := c.engineMgr.GetEngine(engID)
+	if !ok || !e.Enabled || e.BaseURL == "" || (offline && !e.Type.IsLocal()) {
+		return vision.VisionRuntime{}, false
+	}
+	// 识图也是「真实使用」：绑定到天璇/Strata 时记账，防识图请求进行中/刚
+	// 结束就被空闲收割器停机。
+	c.engineMgr.TouchEngine(engID)
+	return vision.VisionRuntime{
+		Kind:    vision.VisionProviderKindOpenAI,
+		BaseURL: e.BaseURL,
+		Model:   model,
+		APIKey:  c.engineMgr.EngineAPIKey(engID),
+	}, true
+}
+
 // visionOCRTextPrompt 微信识图提示词：完整解读——文字按版式逐行提取优先
 // （保持原文），画面主体/对象/布局/图表要点随后；两者都要（用户发图后常
 // 用下一条文本追问，注入描述必须足以支撑追问，纯文字提取会丢视觉语境）。

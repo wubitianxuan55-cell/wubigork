@@ -1,6 +1,7 @@
 // Package vision 提供办公板块的本地图片识别（识图）能力。
 // 默认调用本机 herdsman 的 OpenAI 兼容视觉端点（与 ds-vision-skill custom-1
 // 使用同一本地模型）；端点/模型/后端由 config 驱动（SetVisionRuntime 注入），
+// 模型中心「识图」功能绑定经 SetVisionRuntimeResolver 动态覆盖（改绑即生效），
 // 不再读环境变量。
 package vision
 
@@ -44,6 +45,7 @@ const VisionProviderKindOpenAI = "openai"
 type VisionProviderConfig struct {
 	BaseURL string // API 地址（如 "http://127.0.0.1:8080/v1"）
 	Model   string // 视觉模型名
+	APIKey  string // 可选 Bearer 鉴权（云端引擎）；空=不带 Authorization 头
 }
 
 // VisionProviderFactory 按实例配置构建视觉后端（kind → 实例）。
@@ -55,7 +57,7 @@ var visionProviderRegistry = map[string]VisionProviderFactory{}
 
 func init() {
 	RegisterVisionProvider(VisionProviderKindOpenAI, func(cfg VisionProviderConfig) (Provider, error) {
-		return &openAIProvider{baseURL: cfg.BaseURL, model: cfg.Model}, nil
+		return &openAIProvider{baseURL: cfg.BaseURL, model: cfg.Model, apiKey: cfg.APIKey}, nil
 	})
 }
 
@@ -103,13 +105,14 @@ func VisionProviderKinds() []string {
 type openAIProvider struct {
 	baseURL string
 	model   string
+	apiKey  string // 空=本地服务免鉴权，不带 Authorization 头
 }
 
 func (p *openAIProvider) Recognize(ctx context.Context, imagePath, prompt string) (string, error) {
 	if strings.TrimSpace(prompt) == "" {
 		prompt = "请详细描述这张图片的内容，包括所有可见文字、布局和关键细节。"
 	}
-	return RecognizeImageAt(ctx, p.baseURL, p.model, imagePath, prompt, 90*time.Second)
+	return RecognizeImageAt(ctx, p.baseURL, p.apiKey, p.model, imagePath, prompt, 90*time.Second)
 }
 
 // ── 运行时配置注入 ─────────────────────────────────────────────
@@ -120,6 +123,7 @@ type VisionRuntime struct {
 	Kind    string // 注册表 kind（默认 VisionProviderKindOpenAI）
 	BaseURL string // API 地址（默认 DefaultBaseURL）
 	Model   string // 视觉模型（默认 DefaultModel）
+	APIKey  string // 可选 Bearer 鉴权（云端引擎）；空=不带 Authorization 头
 }
 
 // visionRuntime 保存 SetVisionRuntime 注入的视觉后端配置。
@@ -129,10 +133,29 @@ var visionRuntime VisionRuntime
 // 切换视觉后端只改配置（kind/base/model），消费方代码零改动。
 func SetVisionRuntime(cfg VisionRuntime) { visionRuntime = cfg }
 
-// resolveVisionRuntime 返回生效的视觉后端配置：注入值优先，空字段回落默认
-// （等价旧 GAEA_VISION_BASE_URL/MODEL 缺省行为）。
+// visionRuntimeResolver 宿主动态解析钩子（app 装配注入）：返回 (runtime, true)
+// 时优先采用——办公识图功能绑定（func_vision_*）改绑即生效，无需重启；
+// 未注入或返回 false 时回落静态 visionRuntime（gaea.toml 注入值）。
+var visionRuntimeResolver func() (VisionRuntime, bool)
+
+// SetVisionRuntimeResolver 注入动态解析钩子（app 装配调用；nil 撤销）。
+// 钩子每次识图调用都会执行，必须便宜且无 IO 阻塞（读内存配置 + 引擎表）。
+func SetVisionRuntimeResolver(f func() (VisionRuntime, bool)) { visionRuntimeResolver = f }
+
+// resolveVisionRuntime 返回生效的视觉后端配置：动态钩子（功能绑定）优先，
+// 静态注入值次之；空字段统一回落默认（等价旧 GAEA_VISION_BASE_URL/MODEL
+// 缺省行为）。
 func resolveVisionRuntime() VisionRuntime {
-	r := visionRuntime
+	if visionRuntimeResolver != nil {
+		if r, ok := visionRuntimeResolver(); ok {
+			return completeVisionRuntime(r)
+		}
+	}
+	return completeVisionRuntime(visionRuntime)
+}
+
+// completeVisionRuntime 补全空字段为默认值（kind/base/model；APIKey 空=免鉴权）。
+func completeVisionRuntime(r VisionRuntime) VisionRuntime {
 	if r.Kind == "" {
 		r.Kind = VisionProviderKindOpenAI
 	}
@@ -146,10 +169,11 @@ func resolveVisionRuntime() VisionRuntime {
 }
 
 // RecognizeImage 识别本地图片文件内容，返回文本描述。
-// 后端由 config 驱动（SetVisionRuntime 注入），未注入时回落默认值。
+// 后端由 config 驱动（SetVisionRuntime 注入；办公识图功能绑定经动态钩子
+// 覆盖），未注入时回落默认值。
 func RecognizeImage(ctx context.Context, imagePath, prompt string) (string, error) {
 	r := resolveVisionRuntime()
-	p, err := NewVisionProvider(r.Kind, VisionProviderConfig{BaseURL: r.BaseURL, Model: r.Model})
+	p, err := NewVisionProvider(r.Kind, VisionProviderConfig{BaseURL: r.BaseURL, Model: r.Model, APIKey: r.APIKey})
 	if err != nil {
 		// 未知 kind fail-closed：拒绝运行而非静默降级。
 		return "", err
@@ -158,7 +182,8 @@ func RecognizeImage(ctx context.Context, imagePath, prompt string) (string, erro
 }
 
 // RecognizeImageAt 向指定 OpenAI 兼容端点发起视觉识别请求（可测试注入）。
-func RecognizeImageAt(ctx context.Context, baseURL, model, imagePath, prompt string, timeout time.Duration) (string, error) {
+// apiKey 空（本地服务）省略 Authorization 头。
+func RecognizeImageAt(ctx context.Context, baseURL, apiKey, model, imagePath, prompt string, timeout time.Duration) (string, error) {
 	dataURL, err := imageDataURL(imagePath)
 	if err != nil {
 		return "", fmt.Errorf("识图：读取图片失败: %w", err)
@@ -189,6 +214,9 @@ func RecognizeImageAt(ctx context.Context, baseURL, model, imagePath, prompt str
 		return "", fmt.Errorf("识图：创建请求失败: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
 
 	httpClient := &http.Client{}
 	resp, err := httpClient.Do(req)

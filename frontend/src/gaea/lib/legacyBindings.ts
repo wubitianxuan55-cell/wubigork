@@ -11,7 +11,7 @@
 // 消费方：frontend/src/gaea/lib/bridge/drift.ts——LegacySurfaceNames 类型派生 +
 // 「不过期/不重叠」两把编译期锁（手改、漏再生、与 AppBindings 认领重叠都会红）。
 //
-// 共 79 名 = Go 导出 665 − 认领且 Go 存在 586（facets 键 587，其中 mock-only 名无 Go 绑定不计）。
+// 共 83 名 = Go 导出 669 − 认领且 Go 存在 586（facets 键 587，其中 mock-only 名无 Go 绑定不计）。
 
 export const legacyBindings = [
   "AddCustomEngine",
@@ -38,7 +38,6 @@ export const legacyBindings = [
   "GetGlmKeyStatus",
   "GetLoginStatus",
   "GetModelCallStats",
-  "GetModelHubKeyStatus", // Model Hub（Unsloth 本地引擎）Key 状态（引擎管理经 App() 直调）
   "GetModelMonitor",
   "GetModelRoute",
   "GetNovelsDir",
@@ -79,18 +78,23 @@ export const legacyBindings = [
   "SetEngineFailover",
   "SetGlmEndpoint",
   "SetGlmKey",
-  "SetModelHubKey", // Model Hub（Unsloth 本地引擎）Key（Unsloth 设置 → API 创建）
   "SetOfficeLocal",
   "SetOfflineMode",
   "SetOpencodeGoKey",
   "SetOpencodeZenKey",
   "SetSensitiveLocal",
-  "StartModelHubModel", // Model Hub：让 Unsloth Studio 加载/切换模型（ollama-manifest 引用）
+  "StrataEngineStart",
+  "StrataEngineStatus",
+  "StrataEngineStop",
+  "StrataModelStart",
+  "StrataModelStop",
   "TTSSpeakStreaming",
   "TestEngineConnection",
   "TianxuanEngineStart",
   "TianxuanEngineStatus",
   "TianxuanEngineStop",
+  "TianxuanModelStart",
+  "TianxuanModelStop",
   "UpdateCustomEngine",
   "UpdateProjectMeta", // v4.439 项目元信息更新（小说创作间本书定位；wailsApp 直调 legacy 面）
 ] as const;

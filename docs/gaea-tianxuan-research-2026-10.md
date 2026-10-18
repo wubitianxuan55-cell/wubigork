@@ -166,7 +166,8 @@
 - 内存提交 32.3GB（模型+KV+draft）；`/v1/models` 标准形状；thinking 的 `chat_template_kwargs` 接受；API 支持 `--cache-disk`（重启安全 prompt cache）、`--sessions`、Responses API。
 - 工具链盘点（未来自构建）：TheRock ROCm 10.0.0（gfx1151 tarball，仅构建机需要）+ vcpkg（icu/curl/openssl/libpng/libjpeg-turbo）+ VS Build Tools + CMake/Ninja；`tools/windows/check.ps1` 一键预检。
 - **35B 旗舰数字（作者报 76~93 tok/s MTP）待兼容量化验证**：UD-Q8_K_XL（~40GB）或试 unsloth UD-Q4_K_XL——批次 2 项。
-- **⚠️ 命名冲突待用户裁决**：`C:\AI\tianxuan` 已存在用户自己的项目「天璇 · Tianxuan」（DeepSeek Go 编程助手，wubitianxuan55-cell）——引擎命名需换名（如 tianxuan-engine / 天璇引擎归属确认）或用户拍板共用品牌系。
+- **命名已裁决（2026-10-18）**：`C:\AI\tianxuan` 明确归属天璇推理引擎，作为独立 Git
+  工作区使用；gaea 仅通过 `tianxuan_path` 引用，不再在自身仓库内保存引擎源码。
 
 **定夺：Gufo 基座成立。** Windows 链路半天跑通且数据真实，批次 2 = 35B 兼容量化旗舰复测 + fork 仓库结构（upstream=gufo-org/gufo，Windows 分支基线=pixmaate）+ gaea 接入。
 
@@ -174,13 +175,13 @@
 
 ### 13.1 fork 仓库结构（完成）
 
-- **代码基**：`clones/gufo`（原地 git clone，不另复制）。分支布局＝
+- **代码基**：`C:\AI\tianxuan`（独立 git 工作区，原先的 `clones/gufo` 已整体迁出，不另复制）。分支布局＝
   `main`（`upstream/main` 只读镜像，只 fast-forward）／`windows`（`pixmaate/windows-port` @ `2eb0778`，
   即预构建 tag `windows-2026-10-03`）／`tianxuan`（集成分支，首个提交 `db86aabc`）。
 - **remote**：`upstream` = gufo-org/gufo，`pixmaate` = pixmaate/gufo；`origin` 待 tianxuan 自己的
   GitHub 仓库建好后补（命令与同步流程写在台账里）。
 - **合规面**：`LICENSE`（MIT）/`NOTICE`/`THIRD_PARTY_NOTICES.md` 一字未动；README 顶部加 fork
-  声明（Gufo 名号与 Logo 留给原作者）；台账 = `clones/gufo` 的 tianxuan 台账（`tianxuan/README.md`）
+  声明（Gufo 名号与 Logo 留给原作者）；台账 = 独立项目的 `docs/tianxuan/README.md`
   （定位 / 分支与同步 / 许可清单 / Windows 构建与发布 / 批次 / 已知坑）。
 
 ### 13.2 gaea 接入补漏（完成，`fa94b269`）
@@ -191,10 +192,9 @@
   与 strata 接入时同一个坑。现在两个漏斗入口（`ChatStream` / `chatOnce`）都守护。
 - **小说防重复采样**（`samplerAppliesToEngine`）：gufo 的 DRY/XTC 通道未验，按未知引擎口径
   不注入非标键（与 strata 同处理），测试钉住「enabled=false 且请求零脏键」。
-- **启动器** `scripts/tianxuan-serve.ps1`：27b / 35b 两档预设 → 8094，参数固化
-  （`-j 2` / `-c 32768` / `--speculative dflash2|mtp` / `--cache-disk`），stdout/stderr 分落
-  `.tmp/tianxuan/`；PS 5.1 把引擎 stderr 当 `NativeCommandError` 终止脚本的坑写进注释
-  （实测踩过：引擎随包装脚本一起死）。
+- **启动器** `C:\AI\tianxuan\scripts\serve.ps1`：`base` / `uncensored` / `flash` / `fast` 四档预设 → 8094。
+  二进制、模型与参数全部由引擎项目持有；gaea 只传档位、端口与日志路径。PS 5.1 把引擎
+  stderr 当 `NativeCommandError` 终止脚本的坑仍在脚本内处理（实测踩过：引擎随包装脚本一起死）。
 - **端口口径**：8094（8080 herdsman / 8091 strata / 8092 MoE4All / 8888 modelhub），免鉴权。
 
 ### 13.3 35B：不下载模型，直接用本机已有的那份（阻塞=代码，不是带宽）
@@ -306,7 +306,7 @@ herdsman（Vulkan 已验证）。本文其余「待办/下一刀」条目中涉�
    因此 `seeded DFlash cached replay == cold request` 的质量约束不变。
 2. **27B 默认启用 prompt lookup**：`GUFO_QWEN27_LOOKUP=3`，lookup 最长
    `--draft-tokens 7`；DFlash2 自身仍最多 3 个草稿。gaea 应用内启停与
-   `scripts/tianxuan-serve.ps1` 使用同一个预设。
+   `C:\AI\tianxuan\scripts\serve.ps1` 使用同一个预设。
 3. **回归**：`speculative_verification_test` 全过；真实 27B + DFlash2 的
    `qwen_dflash_gpu_test` 全过（含 262K draft context、快照、RNG/采样状态）。
 
@@ -328,3 +328,55 @@ herdsman（Vulkan 已验证）。本文其余「待办/下一刀」条目中涉�
 **限制**：lookup 的收益取决于重复内容，纯创作/自由问答不应期待同等提升；无重复时
 只余少量索引开销。当前观察仍是单机、单请求、代码复述专门样本，后续应以 gaea 实际
 工具循环的 token 账继续累计。
+
+### 14.4 极速档：35B-A3B / Vulkan MTP（2026-10-18）
+
+27B dense 的 profile 已钉死瓶颈：verify ≈105ms/轮、draft ≈13ms/轮，普通长答每轮约
+1.8 token；权重从 15.3GB 读取，继续调 draft 只能得到个位数收益。Q3/XDNA2 也没有
+可用的小批量内核或端到端收益，不能作为“明显更快”的答案。
+
+本机已有且已验证稳定的另一条路是 **Qwen3.6-35B-A3B-UD-Q4_K_M + llama.cpp Vulkan +
+MTP（draft 2）**。它不是 35B HIP 线，不经过曾冻结的 gufo A3B 内核链；35B-A3B 每 token
+只激活约 3B 参数，权重带宽压力远低于 27B dense。
+
+| 同一 512-token 长答 | 27B HIP quality | 35B-A3B Vulkan fast |
+|---|---:|---:|
+| decode 热机 | 14.6–16.8 tok/s | **59.5–62.1 tok/s** |
+| 墙钟 | 29–37s | **9.6–11.4s** |
+| 相对速度 | 1× | **约 4×** |
+
+产品面落为天璇引擎的四个**显式档位**，默认是 base 档：
+
+- `TianxuanEngineStart`：27B HIP + DFlash2 + prompt lookup，模型中心“启动 27B 质量”。
+- `TianxuanEngineStart(profile)`：base / uncensored / flash / fast 四档，模型中心按档位启动。启动成功后
+  自动把天璇的默认模型切到实际 `/v1/models` 返回的 35B id，避免 404。
+- 四档共用 8094 和启停/探活/停止路径，互斥，不能同时驻留；fast 使用 `-np 1`、32K
+  context、`--cache-ram 4096`，适合长答与工具循环，不等同于 27B 的质量/长上下文档。
+
+**边界**：base / uncensored / flash / fast 是不同模型（含 35B MoE 与 Flash-Next），
+质量、风格与长上下文能力各不相同；切档必须重启引擎，模型选择在模型中心显式暴露。
+
+## 15. 单独立项与 gaea 引用边界（2026-10-18）
+
+**工作区**：`C:\AI\tianxuan`，独立 Git 仓库，保留原 Gufo/tianxuan 分支、提交历史与台账。
+gaea 仓库不再承载引擎源码，也不引用 `clones/gufo`。
+
+**文档同步（2026-10-18）**：本台账与 `gaea-tianxuan-strata-deepdive-2026-10-18.md`
+已复制到 `C:\AI\tianxuan\docs\research\`，并附来源/同步说明；gaea 侧继续保留原始台账。
+
+**集成形态（与 ComfyUI 同类）**：
+
+| 层 | 归属 | 内容 |
+|---|---|---|
+| 引擎项目 | `C:\AI\tianxuan` | 源码、构建、模型路径、档位参数、启动脚本、日志 |
+| gaea | `internal/config` + `internal/app/tianxuan_proc.go` | `tianxuan_path` 配置、8094 探活、四档模型目录（running/stopped）、逐模型启动/切换/停止 |
+| 稳定契约 | `scripts\serve.ps1` | `-Profile base / uncensored / flash / fast`、`-Port`、`-StdoutLog`、`-StderrLog` |
+| 服务协议 | `http://127.0.0.1:8094/v1` | OpenAI 兼容；`/v1/models` 返回当前档位，gaea 用档位目录补齐其余 stopped 候选 |
+
+**边界纪律**：
+
+1. 新增/调整模型、量化、投机参数只改 tianxuan 项目；gaea 的 Go 代码不复制引擎参数。
+2. gaea 可以单独启动/停止外部项目实例；停止先结束启动器进程树，再以 8094 监听 PID 兜底。
+3. 四档互斥；启动某个档位模型会先停当前档位再重启。启动只刷新完整模型目录与运行状态，
+   不自动改默认模型/功能绑定——模型由用户在「语言模型」显式启动后绑定。
+4. gaea 的 `tianxuan_path` 可覆盖默认工作区，便于未来换盘或并行检出；不改变端点与档位协议。

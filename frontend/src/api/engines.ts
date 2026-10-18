@@ -34,13 +34,11 @@ export interface EngineConfig {
   id: string
   name: string
   // custom = 用户自建 OpenAI 兼容服务商（A 刀），id 以 custom- 开头
-  // modelhub = Unsloth 本地 Model Hub（Desktop/Studio 选模型下载后 unsloth run/start
-  // 暴露 OpenAI 兼容 /v1；Key 为 sk-unsloth-，Unsloth 设置 → API 创建）
-  // strata = 本地 Strata 推理引擎（Qwen3.8-Flash-Next 125B MoE，默认 127.0.0.1:8091/v1，
-  // 免鉴权；离线模式按本地引擎放行）
-  // tianxuan = 本地天璇引擎（gufo 的 Strix Halo 垂直线，默认 127.0.0.1:8094/v1，
-  // 免鉴权；标准 GGUF + MTP/DFlash2 投机解码；与「天璇」编程助手是两个产品）
-  type: 'xai' | 'ollama' | 'herdsman' | 'deepseek' | 'glm' | 'cosyvoice' | 'opencode-go' | 'opencode-zen' | 'modelhub' | 'custom' | 'strata' | 'tianxuan'
+  // strata = 本地 Strata 推理引擎（默认 127.0.0.1:8091/v1，
+  // 免鉴权；离线模式按本地引擎放行；档位目录现仅 uncensored 一档）
+  // tianxuan = 本地天璇引擎（V1.0 Strata 基座，默认 127.0.0.1:8094/v1，
+  // uncensored/flash 两个 uncensored 档；与「天璇」编程助手是两个产品）
+  type: 'xai' | 'ollama' | 'herdsman' | 'deepseek' | 'glm' | 'cosyvoice' | 'opencode-go' | 'opencode-zen' | 'custom' | 'strata' | 'tianxuan'
   label?: string
   color?: string
   icon?: string
@@ -368,26 +366,54 @@ import { app as bridgeApp } from '../gaea/lib/bridge'
 
 const App = (): AppFacade => (window.go?.app?.App ?? bridgeApp) as unknown as AppFacade
 
-// ── 天璇引擎进程生命周期（tianxuan_proc.go，gaea 代启族=comfyui 同款） ──
+// ── 外部本地引擎进程生命周期（strata_proc.go / tianxuan_proc.go） ──
 
-export interface TianxuanEngineStatusResult {
+export interface EngineProfileOption {
+  id: string
+  label: string
+}
+
+export interface ManagedEngineStatusResult {
   running: boolean
   port?: number
   served_models?: string[]
+  profile?: string
+  default_profile?: string
+  profiles?: EngineProfileOption[]
+  project?: string
+  serve_script?: string
+  config?: string
+  other?: string
+  stdout_log?: string
+  stderr_log?: string
 }
 
-export interface TianxuanEngineStartResult {
+export interface ManagedEngineStartResult {
   started: boolean
-  reason?: string // already-running / port-occupied / binary-not-found / model-not-found / exited-early / timeout / spawn-failed
+  reason?: string // already-running / port-occupied / project-not-found / python-not-found / serve-script-not-found / config-not-found / exited-early / timeout / spawn-failed
   waited_ms?: number
   served_models?: string[]
+  profile?: string
+  model?: string
+  profiles?: EngineProfileOption[]
+  project?: string
+  serve_script?: string
+  config?: string
+  other?: string
+  stdout_log?: string
+  stderr_log?: string
   log?: string
+  error?: string
 }
 
-export interface TianxuanEngineStopResult {
+export interface ManagedEngineStopResult {
   stopped: boolean
   reason?: string
 }
+
+export type TianxuanEngineStatusResult = ManagedEngineStatusResult
+export type TianxuanEngineStartResult = ManagedEngineStartResult
+export type TianxuanEngineStopResult = ManagedEngineStopResult
 
 /** 天璇引擎运行状态（8094 /v1/models 探活） */
 export async function getTianxuanEngineStatus(): Promise<TianxuanEngineStatusResult> {
@@ -395,9 +421,9 @@ export async function getTianxuanEngineStatus(): Promise<TianxuanEngineStatusRes
   return result as TianxuanEngineStatusResult
 }
 
-/** 启动天璇引擎（27b 预设；幂等——已运行返回 already-running） */
-export async function startTianxuanEngine(): Promise<TianxuanEngineStartResult> {
-  const result = await App().TianxuanEngineStart()
+/** 启动天璇引擎指定档位（uncensored/flash 两个 uncensored 档；幂等——已运行返回 already-running） */
+export async function startTianxuanEngine(profile = 'uncensored'): Promise<TianxuanEngineStartResult> {
+  const result = await App().TianxuanEngineStart(profile)
   return result as TianxuanEngineStartResult
 }
 
@@ -405,6 +431,48 @@ export async function startTianxuanEngine(): Promise<TianxuanEngineStartResult> 
 export async function stopTianxuanEngine(): Promise<TianxuanEngineStopResult> {
   const result = await App().TianxuanEngineStop()
   return result as TianxuanEngineStopResult
+}
+
+/** 启动/切换到天璇模型目录中的某个档位模型（会先停掉当前档位） */
+export async function startTianxuanModel(model: string): Promise<ManagedEngineStartResult> {
+  const result = await App().TianxuanModelStart(model)
+  return result as ManagedEngineStartResult
+}
+
+/** 停止天璇模型目录中的某个档位模型（仅在它是当前运行档位时生效） */
+export async function stopTianxuanModel(model: string): Promise<ManagedEngineStopResult> {
+  const result = await App().TianxuanModelStop(model)
+  return result as ManagedEngineStopResult
+}
+
+/** Strata 引擎运行状态（8091 /v1/models 探活） */
+export async function getStrataEngineStatus(): Promise<ManagedEngineStatusResult> {
+  const result = await App().StrataEngineStatus()
+  return result as ManagedEngineStatusResult
+}
+
+/** 启动 Strata 指定档位（目录现仅 qwen36_uncensored 一档；幂等） */
+export async function startStrataEngine(profile = 'qwen36_uncensored'): Promise<ManagedEngineStartResult> {
+  const result = await App().StrataEngineStart(profile)
+  return result as ManagedEngineStartResult
+}
+
+/** 停止 Strata 引擎（不管谁启动的都能停；空闲时调用） */
+export async function stopStrataEngine(): Promise<ManagedEngineStopResult> {
+  const result = await App().StrataEngineStop()
+  return result as ManagedEngineStopResult
+}
+
+/** 启动/切换到 Strata 模型目录中的某个档位模型（会先停掉当前档位） */
+export async function startStrataModel(model: string): Promise<ManagedEngineStartResult> {
+  const result = await App().StrataModelStart(model)
+  return result as ManagedEngineStartResult
+}
+
+/** 停止 Strata 模型目录中的某个档位模型（仅在它是当前运行档位时生效） */
+export async function stopStrataModel(model: string): Promise<ManagedEngineStopResult> {
+  const result = await App().StrataModelStop(model)
+  return result as ManagedEngineStopResult
 }
 
 /** 获取所有引擎配置 */
@@ -535,22 +603,6 @@ export async function setOpencodeZenKey(apiKey: string): Promise<void> {
 export async function getOpencodeZenKeyStatus(): Promise<{ configured: boolean; masked: string }> {
   const result = await App().GetOpencodeZenKeyStatus()
   return result as { configured: boolean; masked: string }
-}
-
-/** 设置 Model Hub (Unsloth) API Key */
-export async function setModelHubKey(apiKey: string): Promise<void> {
-  await App().SetModelHubKey(apiKey)
-}
-
-/** 获取 Model Hub Key 状态（脱敏显示） */
-export async function getModelHubKeyStatus(): Promise<{ configured: boolean; masked: string }> {
-  const result = await App().GetModelHubKeyStatus()
-  return result as { configured: boolean; masked: string }
-}
-
-/** 让 Unsloth Studio 加载指定模型（Model Hub 引擎，modelID 为 ollama-manifest:… 引用） */
-export async function startModelHubModel(modelID: string): Promise<void> {
-  await App().StartModelHubModel(modelID)
 }
 
 /** 获取模型调用统计汇总 */

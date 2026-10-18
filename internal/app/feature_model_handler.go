@@ -38,6 +38,9 @@ func featureModelKeys(feature string) (engineKey, modelKey string, ok bool) {
 	case "sin":
 		// 原罪（闲庭·图文故事创作）：故事文本生成独立绑定
 		return config.KeyFuncSinEngine, config.KeyFuncSinModel, true
+	case "vision":
+		// 办公识图：视觉模型独立绑定（vision 包运行时经动态钩子实时取用）
+		return config.KeyFuncVisionEngine, config.KeyFuncVisionModel, true
 	}
 	return "", "", false
 }
@@ -61,6 +64,8 @@ func featureModelEnabledKey(feature string) (key string, ok bool) {
 		return config.KeyFuncRoutineEnabled, true
 	case "sin":
 		return config.KeyFuncSinEnabled, true
+	case "vision":
+		return config.KeyFuncVisionEnabled, true
 	}
 	return "", false
 }
@@ -212,9 +217,8 @@ func (a *App) GetModelMonitor() map[string]interface{} {
 // 云端引擎（xai/deepseek 走 API）不加载到本机，不计入模型加载预警。
 //
 // 按 modelengine 的 Type.IsLocal() 单一真相口判定，不再维护引擎名名单——
-// 此前写死 `case "herdsman", "ollama", "cosyvoice"`，modelhub（Studio 拉起
-// llama-server）与 strata（125B MoE 加载进显存/内存）加入时双双漏改，两个
-// 最吃本机资源的引擎反而被当成云端、不计入加载预警。
+// 此前写死 `case "herdsman", "ollama", "cosyvoice"`，strata（125B MoE 加载进
+// 显存/内存）加入时漏改，最吃本机资源的引擎反而被当成云端、不计入加载预警。
 func isLocalEngine(id string) bool {
 	return modelengine.BuiltinEngineTypeOf(id).IsLocal()
 }

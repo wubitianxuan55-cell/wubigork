@@ -129,12 +129,12 @@ describe("ModelSwitcher i18n 冒烟", () => {
 
   it("展示名 label 优先渲染，title 保留模型 id", async () => {
     mocks.Models.mockResolvedValue([
-      { ref: "modelhub/ollama-manifest:tiny", provider: "modelhub", model: "ollama-manifest:tiny", label: "Tinyrick Q6", local: true, status: "stopped", current: false },
+      { ref: "strata/qwen3.8-flash:tiny", provider: "strata", model: "qwen3.8-flash:tiny", label: "Tinyrick Q6", local: true, status: "stopped", current: false },
     ]);
     renderT(<ModelSwitcher label="" onPick={() => {}} />);
     fireEvent.click(screen.getByTitle("切换模型"));
     expect(await screen.findByText("Tinyrick Q6")).toBeTruthy();
-    expect(screen.getByTitle("Tinyrick Q6 (ollama-manifest:tiny)")).toBeTruthy();
-    expect(screen.queryByText("ollama-manifest:tiny")).toBeNull();
+    expect(screen.getByTitle("Tinyrick Q6 (qwen3.8-flash:tiny)")).toBeTruthy();
+    expect(screen.queryByText("qwen3.8-flash:tiny")).toBeNull();
   });
 });

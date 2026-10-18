@@ -1,6 +1,6 @@
 package app
 
-// 本地引擎名单族回归：strata/modelhub 加入「本地引擎」族时，按引擎名硬编码的
+// 本地引擎名单族回归：strata/tianxuan 加入「本地引擎」族时，按引擎名硬编码的
 // 名单漏改了两处 —— isLocalEngine（加载预警误把最吃资源的两个引擎当云端）与
 // GaeaModelSwitchEstimate（切到 strata 直接报「引擎已就绪」，冷启动不预警）。
 // 两处现均改走 modelengine.BuiltinEngineTypeOf(...).IsLocal() 单一真相口，
@@ -19,9 +19,9 @@ import (
 	"github.com/gaea/gaea/internal/whisper"
 )
 
-// TestIsLocalEngine_LocalFamily 本地族齐六、云端族五个全假。
+// TestIsLocalEngine_LocalFamily 本地族齐五、云端族五个全假。
 func TestIsLocalEngine_LocalFamily(t *testing.T) {
-	for _, id := range []string{"ollama", "herdsman", "cosyvoice", "modelhub", "strata", "tianxuan"} {
+	for _, id := range []string{"ollama", "herdsman", "cosyvoice", "strata", "tianxuan"} {
 		if !isLocalEngine(id) {
 			t.Errorf("%s 是本地引擎（占本机资源，应计入加载预警）", id)
 		}
@@ -35,7 +35,7 @@ func TestIsLocalEngine_LocalFamily(t *testing.T) {
 
 // strataModelsJSON 真机形状：strata /v1/models 的 status 是非标对象
 // （{"value":"loaded"}），且只列已加载集合。
-const strataModelsJSON = `{"object":"list","data":[{"id":"qwen3.8-flash-next-iq2_xs","object":"model","status":{"value":"loaded"},"meta":{"n_ctx":131072}}]}`
+const strataModelsJSON = `{"object":"list","data":[{"id":"qwen3.6-35b-a3b-uncensored-q4_k_p","object":"model","status":{"value":"loaded"},"meta":{"n_ctx":131072}}]}`
 
 // newStrataScheduleApp 构造 App：strata 引擎指向给定测试服务器。
 func newStrataScheduleApp(t *testing.T, baseURL string) *App {
@@ -88,12 +88,12 @@ func TestGaeaModelSwitchEstimate_Strata(t *testing.T) {
 
 	t.Run("已加载→hot", func(t *testing.T) {
 		a := newStrataScheduleApp(t, newSrv(strataModelsJSON).URL)
-		e := a.GaeaModelSwitchEstimate("strata", "qwen3.8-flash-next-iq2_xs")
+		e := a.GaeaModelSwitchEstimate("strata", "qwen3.6-35b-a3b-uncensored-q4_k_p")
 		if e.Status != "hot" || e.WaitSeconds != 1 {
 			t.Errorf("Status/Wait = (%q,%d), want (hot,1)；note=%q", e.Status, e.WaitSeconds, e.Note)
 		}
-		if e.Model != "qwen3.8-flash-next-iq2_xs" {
-			t.Errorf("Model = %q, want qwen3.8-flash-next-iq2_xs", e.Model)
+		if e.Model != "qwen3.6-35b-a3b-uncensored-q4_k_p" {
+			t.Errorf("Model = %q, want qwen3.6-35b-a3b-uncensored-q4_k_p", e.Model)
 		}
 	})
 
@@ -107,12 +107,12 @@ func TestGaeaModelSwitchEstimate_Strata(t *testing.T) {
 
 	t.Run("空模型回退引擎默认模型", func(t *testing.T) {
 		a := newStrataScheduleApp(t, newSrv(strataModelsJSON).URL)
-		if err := a.engineMgr.SetDefaultModel("strata", "qwen3.8-flash-next-iq2_xs"); err != nil {
+		if err := a.engineMgr.SetDefaultModel("strata", "qwen3.6-35b-a3b-uncensored-q4_k_p"); err != nil {
 			t.Fatalf("SetDefaultModel: %v", err)
 		}
 		for _, arg := range []string{"", "(默认)"} {
 			e := a.GaeaModelSwitchEstimate("strata", arg)
-			if e.Status != "hot" || e.Model != "qwen3.8-flash-next-iq2_xs" {
+			if e.Status != "hot" || e.Model != "qwen3.6-35b-a3b-uncensored-q4_k_p" {
 				t.Errorf("arg=%q 应回退默认模型/hot，got %q/%q", arg, e.Status, e.Model)
 			}
 		}
@@ -123,7 +123,7 @@ func TestGaeaModelSwitchEstimate_Strata(t *testing.T) {
 		url := srv.URL
 		srv.Close() // 关掉：端口必然不可达
 		a := newStrataScheduleApp(t, url)
-		e := a.GaeaModelSwitchEstimate("strata", "qwen3.8-flash-next-iq2_xs")
+		e := a.GaeaModelSwitchEstimate("strata", "qwen3.6-35b-a3b-uncensored-q4_k_p")
 		if e.Status != "unknown" {
 			t.Errorf("不可达应如实 unknown（宁未知勿假 hot），got %q", e.Status)
 		}
@@ -152,7 +152,7 @@ func TestStrataModelLoaded_NonStandardStatus(t *testing.T) {
 		model string
 		want  bool
 	}{
-		{"对象形态 loaded", strataModelsJSON, "qwen3.8-flash-next-iq2_xs", true},
+		{"对象形态 loaded", strataModelsJSON, "qwen3.6-35b-a3b-uncensored-q4_k_p", true},
 		{"裸字符串 loaded", `{"data":[{"id":"m1","status":"loaded"}]}`, "m1", true},
 		{"状态缺失", `{"data":[{"id":"m1"}]}`, "m1", true},
 		{"对象形态 loading", `{"data":[{"id":"m1","status":{"value":"loading"}}]}`, "m1", true},

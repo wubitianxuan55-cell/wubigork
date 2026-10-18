@@ -59,11 +59,12 @@ func NewHerdsmanTTSWithClone(baseURL, model, refAudio, refText string) *Herdsman
 	}
 }
 
-// ttsTimeoutForModel 为本地重模型（Qwen3-TTS / VoxCPM2）放宽 HTTP 超时，
+// ttsTimeoutForModel 为本地重模型（Qwen3-TTS / VoxCPM2 / CosyVoice3）放宽 HTTP 超时，
 // 避免冷启动或较长音频在 30 秒内被误判失败。
 func ttsTimeoutForModel(model string) time.Duration {
 	l := strings.ToLower(model)
-	if strings.Contains(l, "qwen3-tts") || strings.Contains(l, "voxcpm") {
+	if strings.Contains(l, "qwen3-tts") || strings.Contains(l, "voxcpm") ||
+		strings.Contains(l, "cosyvoice3") {
 		return 180 * time.Second
 	}
 	return 30 * time.Second

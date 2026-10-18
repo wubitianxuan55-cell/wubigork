@@ -78,6 +78,18 @@ func (m *Manager) RefreshModels(ctx context.Context, engineID string) ([]ModelIn
 	models, err := m.fetchModels(ctx, engine)
 	latencyMs := time.Since(start).Milliseconds()
 	if err != nil {
+		// 本地引擎停掉后 /models 会直接拒连；刷新失败必须同步状态，否则模型中心
+		// 仍显示上一次的「连接正常」，模型卡也继续可点。
+		m.mu.Lock()
+		engine.Status = EngineStatus{
+			ID:          engineID,
+			Connected:   false,
+			Error:       err.Error(),
+			LastChecked: time.Now().Format("2006-01-02 15:04:05"),
+			LatencyMs:   latencyMs,
+		}
+		m.mu.Unlock()
+		m.saveState()
 		return nil, err
 	}
 
@@ -96,7 +108,9 @@ func (m *Manager) RefreshModels(ctx context.Context, engineID string) ([]ModelIn
 	return models, nil
 }
 
-// buildChatURL 根据引擎类型构建 chat completions URL
+// buildChatURL 根据引擎类型构建 chat completions URL。
+// 每次成功解析端点即记一次「真实使用」（activity 记账，独立小锁）——空闲自动
+// 退出机制据此判定外部引擎是否在忙；探活/拉模型列表不走这里，不会续命。
 func (m *Manager) BuildChatURL(engineID string) (string, string, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -111,26 +125,41 @@ func (m *Manager) BuildChatURL(engineID string) (string, string, error) {
 	}
 
 	chatURL := strings.TrimRight(engine.BaseURL, "/") + "/chat/completions"
-	var apiKey string
-	if engine.Type == EngineXAI {
-		apiKey = m.xaiKey
-	} else if engine.Type == EngineDeepseek {
-		apiKey = m.deepseekKey
-	} else if engine.Type == EngineGLM {
-		apiKey = m.glmKey
-	} else if engine.Type == EngineOpencodeGo {
-		apiKey = m.opencodeKey
-	} else if engine.Type == EngineOpencodeZen {
-		apiKey = m.opencodeZenKey
-	} else if engine.Type == EngineModelHub {
-		// 本地 Model Hub：Key 由 Unsloth 生成（sk-unsloth-），存 Manager 内存
-		// （与 GLMKey/自定义 Key 同口径，不进 EngineConfig.APIKey）。
-		apiKey = m.modelhubKey
-	} else if engine.Type == EngineCustom {
-		// 自定义引擎：Key 在内存 customKeys（已持读锁，直接读 map 防重入死锁）；
-		// 空 Key 原样返回，调用方（ai.Client）为空串时省略 Authorization 头。
-		apiKey = m.customKeys[engine.ID]
-	}
+	m.TouchEngine(engineID)
+	return chatURL, m.apiKeyForLocked(engine), nil
+}
 
-	return chatURL, apiKey, nil
+// EngineAPIKey 返回引擎的 API Key（明文，仅内存；本地引擎恒空串）。
+// Key 统一存 Manager（xai/deepseek/glm/opencode/custom），消费方禁止改读
+// EngineConfig.APIKey（下发前端前已清空）。视觉绑定等非 chat 链路按引擎
+// 取 Key 的单一入口，与 BuildChatURL 同源判定。
+func (m *Manager) EngineAPIKey(engineID string) string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	engine, ok := m.engines[engineID]
+	if !ok {
+		return ""
+	}
+	return m.apiKeyForLocked(engine)
+}
+
+// apiKeyForLocked 按引擎类型取 Key（调用方须已持 Manager 读/写锁）；
+// 自定义引擎 Key 在内存 customKeys——空 Key 原样返回，调用方为空串时
+// 省略 Authorization 头。
+func (m *Manager) apiKeyForLocked(engine *EngineConfig) string {
+	switch engine.Type {
+	case EngineXAI:
+		return m.xaiKey
+	case EngineDeepseek:
+		return m.deepseekKey
+	case EngineGLM:
+		return m.glmKey
+	case EngineOpencodeGo:
+		return m.opencodeKey
+	case EngineOpencodeZen:
+		return m.opencodeZenKey
+	case EngineCustom:
+		return m.customKeys[engine.ID]
+	}
+	return ""
 }

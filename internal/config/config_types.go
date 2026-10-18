@@ -34,7 +34,6 @@ type configFile struct {
 	GLMAPIKey           string            `json:"glm_api_key,omitempty"`            // GLM (智谱) API Key
 	OpenCodeGoAPIKey    string            `json:"opencode_go_api_key,omitempty"`    // OpenCode Go API Key
 	OpenCodeZenAPIKey   string            `json:"opencode_zen_api_key,omitempty"`   // OpenCode Zen API Key
-	ModelHubAPIKey      string            `json:"modelhub_api_key,omitempty"`       // Unsloth Model Hub API Key
 	CustomEngineKeys    map[string]string `json:"custom_engine_keys,omitempty"`     // 自定义引擎 Key 库（engineID → 密文）
 	ActiveASREngine     string            `json:"active_asr_engine,omitempty"`      // 语音识别激活引擎
 	ActiveASRModel      string            `json:"active_asr_model,omitempty"`       // 语音识别激活模型
@@ -72,6 +71,10 @@ type configFile struct {
 	FuncSinEngine  string `json:"func_sin_engine,omitempty"`
 	FuncSinModel   string `json:"func_sin_model,omitempty"`
 	FuncSinEnabled *bool  `json:"func_sin_enabled,omitempty"`
+	// 办公识图（vision）：视觉模型独立绑定 + 启停（未绑定走 gaea.toml [vision]）
+	FuncVisionEngine  string `json:"func_vision_engine,omitempty"`
+	FuncVisionModel   string `json:"func_vision_model,omitempty"`
+	FuncVisionEnabled *bool  `json:"func_vision_enabled,omitempty"`
 	// 敏感域本地化开关（nil=默认开启，true=成本/报价 AI 走本地 Herdsman）
 	SensitiveLocal *bool `json:"sensitive_local,omitempty"`
 	// 办公本地优先开关（nil=默认开启，true=办公功能级 AI 调用走本地 Herdsman）
@@ -84,6 +87,8 @@ type configFile struct {
 	IntentsLLMFallback *bool `json:"intents_llm_fallback,omitempty"`
 	// 意图 LLM 兜底硬超时毫秒（0=未配置回退默认 2000）
 	IntentsLLMTimeoutMS int `json:"intents_llm_timeout_ms,omitempty"`
+	// 外部引擎空闲自动退出分钟数（指针三态：nil=默认 10；0=关闭；N=分钟）
+	ModelIdleExitMinutes *int `json:"model_idle_exit_minutes,omitempty"`
 	// 全局离线模式开关（nil=默认关闭，路由只允许本地引擎）
 	OfflineMode *bool `json:"offline_mode,omitempty"`
 	// 引擎故障转移开关（C 刀 v0，nil=默认关闭）
@@ -109,6 +114,10 @@ type configFile struct {
 	// CosyVoice 本地 TTS 服务（T6-9.5）：路径/端口可配置，空值回退默认。
 	CosyVoiceDir  string `json:"cosyvoice_dir,omitempty"`
 	CosyVoicePort int    `json:"cosyvoice_port,omitempty"`
+	// tianxuan 独立引擎项目根目录（模型、二进制与启动档位由项目自身管理）。
+	TianxuanPath string `json:"tianxuan_path,omitempty"`
+	// strata 独立引擎项目根目录（.venv / serve / 档位 JSON 均在此目录）。
+	StrataPath string `json:"strata_path,omitempty"`
 	// 实时语音 Realtime 档（S1）：provider/model + API Key（存储口径 =
 	// secure.EncryptString 密文，config 层只存取字符串不做加解密）。
 	RealtimeProvider string `json:"realtime_provider,omitempty"`
@@ -169,6 +178,10 @@ type Config struct {
 	SinImageModel     string // 原罪插图生图模型（空=跟随全局生图设置）
 	ComfyUIPath       string // ComfyUI 安装目录（main.py 所在路径），空=需手动启动
 	ComfyUIPythonPath string // Python 解释器路径（留空则自动查找）
+	// tianxuan 独立引擎项目根目录（C:\AI\tianxuan）。
+	TianxuanPath string
+	// strata 独立引擎项目根目录（C:\AI\strata\repo）。
+	StrataPath string
 
 	// 活跃模型引擎 ID（"xai" | "ollama" | "herdsman" | "deepseek"）
 	ActiveEngineID string
@@ -184,9 +197,6 @@ type Config struct {
 
 	// OpenCode Zen API Key（按量付费，opencode.ai/auth 获取）
 	OpenCodeZenAPIKey string
-
-	// Unsloth Model Hub API Key（本地 Model Hub 引擎；Unsloth 设置 → API 创建）
-	ModelHubAPIKey string
 
 	// 自定义引擎 Key 库（A 刀自定义引擎）：engineID → secure.EncryptString
 	// 密文。app 层启动时解密为明文后注入 modelengine.Manager（明文只存内存）。
@@ -225,6 +235,9 @@ type Config struct {
 	// 原罪板块（闲庭·图文故事创作）：故事文本生成的独立引擎/模型绑定。
 	FuncSinEngine string
 	FuncSinModel  string
+	// 办公识图（vision）：视觉模型独立引擎/模型绑定（空=gaea.toml [vision]）。
+	FuncVisionEngine string
+	FuncVisionModel  string
 	// 功能级启停（默认启用；停用后该功能路由回退全局）
 	FuncChatEnabled    bool
 	FuncNovelEnabled   bool
@@ -233,6 +246,7 @@ type Config struct {
 	FuncCharLibEnabled bool
 	FuncRoutineEnabled bool
 	FuncSinEnabled     bool
+	FuncVisionEnabled  bool
 
 	// 敏感域本地化（S2-4/D8）：成本/报价类 AI 操作默认路由本地 Herdsman。
 	// true=本地优先（默认）；false=按常规路由（可回云端）。
@@ -244,6 +258,8 @@ type Config struct {
 	// 意图 LLM 兜底（v4.8）：开关默认关；超时默认 2000ms
 	IntentsLLMFallback  bool
 	IntentsLLMTimeoutMS int
+	// 外部引擎空闲自动退出分钟数（天璇/Strata；默认 10，0=关闭）
+	ModelIdleExitMinutes int
 	// 全局离线模式（v4.8）：默认关；开启后路由只允许本地引擎
 	OfflineMode bool
 

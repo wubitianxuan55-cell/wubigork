@@ -147,7 +147,7 @@ type ModelMethods = Pick<
   // 路由学习四名（阶段七 7.1-2，ModelB 门面）：账本/建议/采纳/忽略。
   | "GaeaRouteLedger" | "GaeaRouteSuggestions" | "GaeaRouteSuggestionApply" | "GaeaRouteSuggestionIgnore"
 > & LegacyModelMethods & LegacyHerdsmanMethods & LegacyBenchmarkMethods &
-  LegacyModelHubMethods & LegacyOpencodeKeyMethods;
+  LegacyOpencodeKeyMethods;
 
 // HerdsmanCatalogModel 本地视图（对齐 internal/app/herdsman_catalog.go 的 json
 // 字段；mock 层不 import Go 侧，字段漂移由 mock-contract-herdsman 兜底）。
@@ -249,16 +249,6 @@ const HERDSMAN_CATALOG_SAMPLE: HerdsmanCatalogModelMock[] = [
   },
 ];
 
-// Model Hub（Unsloth）本地引擎（6cd891df 落库，legacy 直调面同款局部类型补足）。
-// 语义：Set 成功=浏览器内存态联动（makeMockApp 每次新建即回未配置，诚实无持久化）；
-// Start 无本地引擎进程，诚实失败（rejected promise）——照 VoiceStart
-// 「浏览器 mock 无法真启服务」先例。
-type LegacyModelHubMethods = {
-  SetModelHubKey(apiKey: string): Promise<void>;
-  GetModelHubKeyStatus(): Promise<{ configured: boolean; masked: string }>;
-  StartModelHubModel(modelID: string): Promise<void>;
-};
-
 // OpenCode Go/Zen Key（v4.4x 既有的 legacy 直调族，modelcenter 引擎管理同屏消费；
 // 补 mock 消「引擎管理运行态报错」同族欠账）。语义同上：内存态联动、无持久化。
 type LegacyOpencodeKeyMethods = {
@@ -278,7 +268,6 @@ function maskMockKey(key: string): { configured: boolean; masked: string } {
 
 export function buildModel(s: MakeMockState): ModelMethods {
   // Key 内存态（makeMockApp 每次新建=重置；?mock=1 刷新即回未配置，诚实语义）
-  let modelHubKey = "";
   let opencodeGoKey = "";
   let opencodeZenKey = "";
   return {
@@ -286,12 +275,12 @@ export function buildModel(s: MakeMockState): ModelMethods {
       // 契约对齐 Go GaeaModels（internal/app/gaea_ui_meta.go，v4.126 刀1）：
       // 按引擎展开全部对话模型（本地引擎置前、local/status/label 透传），空清单
       // 引擎回退 "(默认)" 一条。ref = 引擎ID + "/" + 模型，current = 活跃引擎
-      // 且为引擎默认模型。演示两个 ollama 模型（一加载一未加载）与 modelhub
-      // stopped 条目，供切换器分组/徽标/预估确认走查。
+      // 且为引擎默认模型。演示两个 ollama 模型（一加载一未加载带展示名），
+      // 供切换器分组/徽标/预估确认走查。
       return [
         { ref: "ollama/qwen3:8b", provider: "ollama", model: "qwen3:8b", current: false, local: true, status: "running" },
         { ref: "ollama/qwen3:14b", provider: "ollama", model: "qwen3:14b", current: false, local: true },
-        { ref: "modelhub/ollama-manifest:tiny", provider: "modelhub", model: "ollama-manifest:tiny", current: false, local: true, status: "stopped", label: "Tinyrick Q6" },
+        { ref: "strata/qwen3.8-flash:tiny", provider: "strata", model: "qwen3.8-flash:tiny", current: false, local: true, status: "stopped", label: "Tinyrick Q6" },
         { ref: "herdsman/(默认)", provider: "herdsman", model: "(默认)", current: false, local: true },
         { ref: "xai/grok-4.20", provider: "xai", model: "grok-4.20", current: false },
         { ref: "deepseek/deepseek-v4-pro", provider: "deepseek", model: "deepseek-v4-pro", current: true },
@@ -324,8 +313,8 @@ export function buildModel(s: MakeMockState): ModelMethods {
       // 契约对齐 Go GaeaModelSwitchEstimate（internal/app/gaea_schedule.go，
       // v4.126 刀2）：云端引擎恒 hot；本地引擎按目标模型演示——ollama 未在
       // 运行列表 → cold（不假报秒数），herdsman → cold 20s（实测口径），
-      // modelhub 未加载 → cold 引导一键加载。
-      if (engineID !== "herdsman" && engineID !== "ollama" && engineID !== "modelhub") {
+      // strata 未加载 → cold。
+      if (engineID !== "herdsman" && engineID !== "ollama" && engineID !== "strata") {
         return { engine: engineID, model, status: "hot", waitSeconds: 1, note: "引擎已就绪" };
       }
       if (engineID === "ollama" && model.endsWith(":8b")) {
@@ -334,7 +323,7 @@ export function buildModel(s: MakeMockState): ModelMethods {
       const notes: Record<string, string> = {
         herdsman: "本地模型需冷启动，实测约 15-20 秒（mock）",
         ollama: "模型已安装未加载，切换后首次对话需等待加载（mock）",
-        modelhub: "模型未加载，切换后首次对话需等待加载（mock）",
+        strata: "模型未加载，切换后首次对话需等待加载（mock）",
       };
       return {
         engine: engineID,
@@ -535,17 +524,7 @@ export function buildModel(s: MakeMockState): ModelMethods {
     async GetModelMonitor(): Promise<ResourceMonitorDataMock> {
       return { engines: [], stats: {}, comfyRunning: false };
     },
-    // ── Model Hub（Unsloth）与 OpenCode Key：浏览器内存态联动，无持久化 ──
-    async SetModelHubKey(apiKey: string): Promise<void> {
-      if (!apiKey || !apiKey.trim()) throw new Error("API Key 不能为空");
-      modelHubKey = apiKey.trim();
-    },
-    async GetModelHubKeyStatus() {
-      return maskMockKey(modelHubKey);
-    },
-    async StartModelHubModel(_modelID: string): Promise<void> {
-      throw new Error("浏览器 dev mock 无本地 Unsloth Studio 进程，模型加载不可用（mock）");
-    },
+    // ── OpenCode Key：浏览器内存态联动，无持久化 ──
     async SetOpencodeGoKey(apiKey: string): Promise<void> {
       if (!apiKey || !apiKey.trim()) throw new Error("API Key 不能为空");
       opencodeGoKey = apiKey.trim();

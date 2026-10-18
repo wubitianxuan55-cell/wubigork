@@ -15,7 +15,7 @@ import (
 
 func TestGetEngines_StableOrder(t *testing.T) {
 	m := NewManager("", "")
-	want := []string{"xai", "ollama", "herdsman", "deepseek", "glm", "cosyvoice", "modelhub", "strata", "tianxuan", "opencode-go", "opencode-zen"}
+	want := []string{"xai", "ollama", "herdsman", "deepseek", "glm", "cosyvoice", "strata", "tianxuan", "opencode-go", "opencode-zen"}
 	for i := 0; i < 5; i++ {
 		got := m.GetEngines()
 		if len(got) != len(want) {
@@ -110,8 +110,8 @@ func TestLoadState_MissingFile(t *testing.T) {
 	}
 	// 预置引擎不受影响
 	es := m.GetEngines()
-	if len(es) != 11 {
-		t.Fatalf("引擎数量 = %d, want 11", len(es))
+	if len(es) != 10 {
+		t.Fatalf("引擎数量 = %d, want 10", len(es))
 	}
 }
 
@@ -173,6 +173,36 @@ func TestRefreshModels_UpdatesStatusCache(t *testing.T) {
 		return
 	}
 	t.Fatal("GetEngines 未返回 ollama")
+}
+
+// TestRefreshModels_FailureMarksDisconnected 本地引擎停掉后刷新失败，状态缓存
+// 必须同步翻成离线；否则模型中心仍显示上一次的「连接正常」。
+func TestRefreshModels_FailureMarksDisconnected(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "down", http.StatusBadGateway)
+	}))
+	t.Cleanup(srv.Close)
+
+	m := NewManager("", "")
+	if err := m.SaveEngine(EngineConfig{ID: "strata", BaseURL: srv.URL, Enabled: true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.RefreshModels(context.Background(), "strata"); err == nil {
+		t.Fatal("expected refresh error")
+	}
+	e, ok := m.GetEngine("strata")
+	if !ok {
+		t.Fatal("strata engine missing")
+	}
+	if e.Status.Connected {
+		t.Error("refresh failure must mark Status.Connected=false")
+	}
+	if e.Status.Error == "" {
+		t.Error("refresh failure must record Status.Error")
+	}
+	if e.Status.LastChecked == "" {
+		t.Error("refresh failure must record LastChecked")
+	}
 }
 
 // TestStatusCache_Persisted 连接状态随状态文件恢复。

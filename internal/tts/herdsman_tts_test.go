@@ -6,7 +6,17 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestTTSTimeoutForModelCosyVoice3(t *testing.T) {
+	if got := ttsTimeoutForModel("Fun-CosyVoice3-0.5B"); got != 180*time.Second {
+		t.Errorf("CosyVoice3 timeout = %v, want 180s", got)
+	}
+	if got := ttsTimeoutForModel("CosyVoice2-0.5B"); got != 30*time.Second {
+		t.Errorf("CosyVoice2 timeout = %v, want 30s", got)
+	}
+}
 
 func TestOpenAIEndpoint(t *testing.T) {
 	cases := []struct{ base, path, want string }{

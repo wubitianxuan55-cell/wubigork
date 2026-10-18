@@ -116,7 +116,7 @@ func (a *App) GaeaMeta() Meta {
 }
 
 // GaeaModels 返回模型中心全部引擎/模型（切换器选项）。v4.126 刀1 起按引擎展开
-// 全部对话模型（旧版只列每引擎默认模型一条，ollama/modelhub 装了多个模型也无法
+// 全部对话模型（旧版只列每引擎默认模型一条，ollama 装了多个模型也无法
 // 在办公切换器里选）：只含 Kind=llm（tts/embedding 等旁支不进聊天切换器）；
 // 本地引擎置前；引擎清单为空或无对话模型时回退单条 "(默认)" 保持旧观感。
 func (a *App) GaeaModels() []ModelInfo {

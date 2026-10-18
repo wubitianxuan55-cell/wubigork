@@ -59,6 +59,11 @@ const (
 	// 无审查/长上下文模型，与聊天/小说互不干扰。
 	KeyFuncSinEngine = "func_sin_engine"
 	KeyFuncSinModel  = "func_sin_model"
+	// 办公识图（vision）：视觉模型独立绑定。未绑定时视觉链路沿用 gaea.toml
+	// [vision] 静态注入（默认本机 herdsman Qwen3.6 视觉模型）；绑定后识图
+	// （看懂图/微信图片/图片附件等）改走绑定引擎的 OpenAI 兼容端点。
+	KeyFuncVisionEngine = "func_vision_engine"
+	KeyFuncVisionModel  = "func_vision_model"
 	// 功能级启停（FeatureModelBar 启停语义：只影响该功能的路由，不影响整个引擎）
 	KeyFuncChatEnabled    = "func_chat_enabled"
 	KeyFuncNovelEnabled   = "func_novel_enabled"
@@ -67,6 +72,7 @@ const (
 	KeyFuncCharLibEnabled = "func_characterlib_enabled"
 	KeyFuncRoutineEnabled = "func_routine_enabled"
 	KeyFuncSinEnabled     = "func_sin_enabled"
+	KeyFuncVisionEnabled  = "func_vision_enabled"
 	// 敏感域本地化（S2-4/D8）：成本/报价类 AI 操作默认路由本地 Herdsman，
 	// 可配置回云端。默认开启。
 	KeySensitiveLocal = "sensitive_local"
@@ -88,7 +94,7 @@ const (
 	// 意图 LLM 兜底硬超时（毫秒，默认 2000）：超时立即走聊天管道不重试。
 	KeyIntentsLLMTimeoutMS = "intents_llm_timeout_ms"
 	// 全局离线模式（v4.8）：开启后所有 AI 路由只允许本地引擎
-	// （ollama/herdsman/cosyvoice/modelhub），云端引擎（xai/deepseek/opencode-*）
+	// （ollama/herdsman/cosyvoice/strata/tianxuan），云端引擎（xai/deepseek/opencode-*）
 	// 一律跳过——数据不出本机的总闸。默认关闭。
 	KeyOfflineMode = "offline_mode"
 	// 引擎故障转移（C 刀 v0）：开启后聊天请求链（流式/非流式）首请求失败且为
@@ -99,8 +105,12 @@ const (
 	// 本地模型调度（T5-3a/b）：保活 + 启动自动预载，默认开启。
 	KeyNovelDryDisabled = "novel_dry_disabled"
 	KeyNovelSamplerJSON = "novel_sampler_json"
-	KeyKeepWarm         = "keep_warm_enabled" // 保活：周期性探活已运行的本地模型，防卸载/降温
+	KeyKeepWarm         = "keep_warm_enabled" // 保活：周期性探活已运行的本地模型，防卸载
 	KeyAutoPreload      = "auto_preload"      // 启动自动预载：按功能绑定预载 herdsman 模型
+	// 外部引擎空闲自动退出（分钟）：天璇/Strata 等 gaea 代启的本地模型进程，
+	// 连续 N 分钟无真实使用（LLM 请求/启动/识图）即自动停止，不占 GPU/内存。
+	// 默认 10；0=关闭。gaea 退出（含崩溃）另有 Job Object 兜底杀整树。
+	KeyModelIdleExitMinutes = "model_idle_exit_minutes"
 	// 晨报预载（v4.16 刀④）：work 空间会话装配时把高频工作记忆确定性聚合为
 	// 「晨报预载」块预装配进 agent 上下文（零 LLM、预算受限、work 只读）。
 	// 只影响上下文注入，与首页晨报卡片（GaeaMemoryMorningBrief）无关。默认开启。
@@ -110,8 +120,6 @@ const (
 	KeyGLMAPIKey         = "glm_api_key"
 	KeyOpencodeGoAPIKey  = "opencode_go_api_key"
 	KeyOpencodeZenAPIKey = "opencode_zen_api_key"
-	// Unsloth Model Hub 本地引擎 Key（模型中心配置；sk-unsloth- 开头）。
-	KeyModelHubAPIKey = "modelhub_api_key"
 	// 自定义引擎 Key 库（A 刀自定义引擎）：值为 JSON map[string]string
 	// （engineID → secure.EncryptString 密文）。config 层只存取字符串/JSON、
 	// 不做加解密（明文↔密文由 app 层 secure 负责，先例 realtime_api_key）。
@@ -130,6 +138,10 @@ const (
 	// CosyVoice 本地 TTS 服务（T6-9.5）：路径/端口可配置，默认与历史硬编码一致。
 	KeyCosyVoiceDir  = "cosyvoice_dir"
 	KeyCosyVoicePort = "cosyvoice_port"
+	// tianxuan 独立引擎工作区：gaea 只引用该路径下的 scripts/serve.ps1。
+	KeyTianxuanPath = "tianxuan_path"
+	// strata 独立引擎工作区：gaea 只引用该路径下的 serve/server.py 与档位配置。
+	KeyStrataPath = "strata_path"
 	// 实时语音 Realtime 档（S1，internal/realtime seam）：provider/model/key
 	// 三项落盘。provider 空字符串 = 未配置（实时语音档关闭，走现拼接管线）；
 	// 非空只允许 "openai"。realtime_api_key 存储口径 = secure.EncryptString
@@ -148,3 +160,9 @@ const (
 	DefaultCosyVoiceDir  = `C:\AI\cosyvoice`
 	DefaultCosyVoicePort = 8010
 )
+
+// tianxuan 引擎独立工作区默认值。引擎源码、启动档位与运行文档均在此目录。
+const DefaultTianxuanPath = `C:\AI\tianxuan`
+
+// strata 引擎独立工作区默认值（repo 根，内含 .venv / serve / 档位 JSON）。
+const DefaultStrataPath = `C:\AI\strata\repo`

@@ -35,6 +35,18 @@ func (c *core) TestEngineConnection(engineID string) (*modelengine.EngineStatus,
 	if c.engineMgr == nil {
 		return nil, errNoEngineMgr
 	}
+	if engineID == "tianxuan" || engineID == "strata" {
+		profiles, served, ok := managedEngineSpec(engineID)
+		profile := managedEngineProfileFromModels(engineID, served)
+		c.syncManagedEngineCatalog(engineID, profiles, served, profile)
+		errMsg := ""
+		if !ok {
+			errMsg = "引擎未运行"
+		}
+		st := managedEngineStatus(engineID, ok, len(served), 0, errMsg)
+		c.engineMgr.SetStatus(engineID, st)
+		return &st, nil
+	}
 	// 本地 TTS 引擎：先确保服务在起（幂等），刚拉起时短暂等待，避免“测试连接”必失败
 	if engineID == "cosyvoice" {
 		c.ensureLocalTTSService(engineID)
@@ -50,7 +62,25 @@ func (c *core) RefreshEngineModels(engineID string) ([]modelengine.ModelInfo, er
 	if c.engineMgr == nil {
 		return nil, errNoEngineMgr
 	}
+	if engineID == "tianxuan" || engineID == "strata" {
+		return c.refreshManagedEngineModels(engineID)
+	}
 	return c.engineMgr.RefreshModels(c.ctx, engineID)
+}
+
+// refreshManagedEngineModels 返回完整档位目录（不是 /v1/models 的单条），
+// 并把运行中的档位标为 running、其余标为 stopped。引擎未启动也返回目录，
+// 这样「语言模型」与「功能绑定」不会因为进程没起而看不到候选。
+func (c *core) refreshManagedEngineModels(engineID string) ([]modelengine.ModelInfo, error) {
+	profiles, served, ok := managedEngineSpec(engineID)
+	profile := managedEngineProfileFromModels(engineID, served)
+	c.syncManagedEngineCatalog(engineID, profiles, served, profile)
+	errMsg := ""
+	if !ok {
+		errMsg = "引擎未运行"
+	}
+	c.engineMgr.SetStatus(engineID, managedEngineStatus(engineID, ok, len(served), 0, errMsg))
+	return managedCatalogModels(profiles, served, profile), nil
 }
 
 func (c *core) SetEngineDefaultModel(engineID, modelName string) error {
@@ -342,48 +372,6 @@ func (c *core) GetOpencodeZenKeyStatus() map[string]interface{} {
 		"configured": hasKey,
 		"masked":     masked,
 	}
-}
-
-// ── Model Hub (Unsloth) API ────────────────────────────────
-
-// SetModelHubKey 设置 Unsloth Model Hub API Key（本地引擎；Unsloth 设置 →
-// API 创建，sk-unsloth- 开头。与云端引擎 Key 同一安全口径：DPAPI 密文落盘、
-// Manager 内存只持明文）。
-func (c *core) SetModelHubKey(apiKey string) error {
-	if c.engineMgr == nil {
-		return errNoEngineMgr
-	}
-	enc, err := secure.EncryptString(apiKey)
-	if err != nil {
-		return &appError{"API Key 加密失败: " + err.Error()}
-	}
-	c.engineMgr.UpdateModelHubKey(apiKey)
-	c.cfg.ModelHubAPIKey = enc
-	if err := config.Save(config.KeyModelHubAPIKey, enc); err != nil {
-		slog.Warn("保存 Model Hub API Key 失败", "error", err)
-		return err
-	}
-	slog.Info("Model Hub API Key 已更新")
-	return nil
-}
-
-// GetModelHubKeyStatus 获取 Model Hub API Key 配置状态（脱敏展示）
-func (c *core) GetModelHubKeyStatus() map[string]interface{} {
-	hasKey, masked := maskKeyStatus(c.cfg.ModelHubAPIKey)
-	return map[string]interface{}{
-		"configured": hasKey,
-		"masked":     masked,
-	}
-}
-
-// StartModelHubModel 让 Unsloth Studio 加载指定模型（modelID 为
-// ollama-manifest:… 引用，来自 Model Hub 引擎刷新出的模型列表）。
-// 调用后 Studio 切换当前加载模型，前端刷新即可看到状态变化。
-func (c *core) StartModelHubModel(modelID string) error {
-	if c.engineMgr == nil {
-		return errNoEngineMgr
-	}
-	return c.engineMgr.StartModelHubModel(c.ctx, modelID)
 }
 
 // maskKeyStatus 解密持久化的密钥并返回脱敏展示。

@@ -81,19 +81,3 @@ func (m *Manager) UpdateOpencodeZenKey(key string) {
 	defer m.mu.Unlock()
 	m.opencodeZenKey = key
 }
-
-// UpdateModelHubKey 更新 Unsloth Model Hub API key（sk-unsloth- 前缀，
-// Unsloth 设置 → API 创建；本地端点每次请求都必须带 Bearer）。
-func (m *Manager) UpdateModelHubKey(key string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.modelhubKey = key
-}
-
-// ModelHubKeyConfigured 报告 Model Hub API Key 是否已配置（MH4 预热前置判定用，
-// 只查布尔不回传明文）。未配置时预热静默跳过，不用等 HTTP 401 才发现。
-func (m *Manager) ModelHubKeyConfigured() bool {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.modelhubKey != ""
-}

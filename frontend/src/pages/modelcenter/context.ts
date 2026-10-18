@@ -27,11 +27,7 @@ export interface ModelCenterStateValue {
   opencodeGoKeyMasked: string
   opencodeZenKey: string
   opencodeZenKeyMasked: string
-  modelHubKey: string
-  modelHubKeyMasked: string
   settingGlmEndpoint: boolean
-  /** MH2：正在 Studio 侧加载的 modelhub 模型 id（模型卡显示「加载中」并禁用按钮） */
-  hubLoadingIds: string[]
   callStats: ModelStatsSummary | null
   loadError: string | null
   statsSort: StatsSort
@@ -82,7 +78,6 @@ export interface ModelCenterActionsValue {
   setGlmKeyState: (v: string) => void
   setOpencodeGoKeyState: (v: string) => void
   setOpencodeZenKeyState: (v: string) => void
-  setModelHubKeyState: (v: string) => void
   setStatsSort: (v: StatsSort) => void
   setTrendRange: (v: TrendRange) => void
   setImageBackend: (v: string) => void
@@ -106,7 +101,6 @@ export interface ModelCenterActionsValue {
   handleSaveGlmKey: () => Promise<void>
   handleSaveOpencodeGoKey: () => Promise<void>
   handleSaveOpencodeZenKey: () => Promise<void>
-  handleSaveModelHubKey: () => Promise<void>
   // A 刀「自定义引擎」：add/update 成功返回 true（表单据此关闭）
   handleAddCustomEngine: (name: string, baseURL: string, apiKey: string) => Promise<boolean>
   handleUpdateCustomEngine: (engineID: string, name: string, baseURL: string, apiKey: string) => Promise<boolean>

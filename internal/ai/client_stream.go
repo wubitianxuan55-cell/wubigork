@@ -562,7 +562,7 @@ func (c *Client) ChatStreamChunks(ctx context.Context, model, systemPrompt, user
 }
 
 // ChatStreamMessages 与 ChatStreamChunks 同一份装配（超时/模型解析/default 采样/
-// modelhub 让位/思考预算守护），但接受完整消息数组与工具定义：多轮工具循环要逐轮
+// 思考预算守护），但接受完整消息数组与工具定义：多轮工具循环要逐轮
 // 追加 assistant(tool_calls) 与 tool 消息，两段式「system + user」表达不了。
 // 装配逻辑只留在 prepareStreamRequest 一处，两条入口不会漂移。
 func (c *Client) ChatStreamMessages(ctx context.Context, model string, messages []ChatMessage, opts ChatSimpleOptions, tools []ChatToolSchema) (<-chan SSEChunk, context.CancelFunc, error) {

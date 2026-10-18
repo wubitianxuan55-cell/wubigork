@@ -27,6 +27,38 @@ func (m *Manager) EnsureModel(engineID, modelID string) {
 	m.saveState()
 }
 
+// RemoveModel 从引擎模型列表移除指定模型（幂等；目录退役清理用——模型从
+// 启动 EnsureModel 名单退役后，持久化 engines.json 里的存量条目由此清掉）。
+// 默认模型指向被删模型时一并清空（防悬空默认）；引擎不存在/模型不在列表
+// 均为静默 no-op。有变更才落盘。
+func (m *Manager) RemoveModel(engineID, modelID string) {
+	m.mu.Lock()
+	engine, ok := m.engines[engineID]
+	if !ok {
+		m.mu.Unlock()
+		return
+	}
+	removed := false
+	models := engine.Models[:0]
+	for _, mdl := range engine.Models {
+		if mdl.ID == modelID {
+			removed = true
+			continue
+		}
+		models = append(models, mdl)
+	}
+	if !removed {
+		m.mu.Unlock()
+		return
+	}
+	engine.Models = models
+	if engine.DefaultModel == modelID {
+		engine.DefaultModel = ""
+	}
+	m.mu.Unlock()
+	m.saveState()
+}
+
 // GetEngines 获取所有引擎配置
 func (m *Manager) GetEngines() []EngineConfig {
 	m.mu.RLock()
@@ -143,4 +175,15 @@ func (m *Manager) GetDefaultModel(engineID string) (string, error) {
 		return "", fmt.Errorf("引擎 %s 不存在", engineID)
 	}
 	return engine.DefaultModel, nil
+}
+
+// SetStatus 只更新最近连接状态缓存（不碰模型列表/默认模型），供 app 层
+// 外部单模型引擎（strata/tianxuan）把目录探活结果写回前端。
+func (m *Manager) SetStatus(engineID string, status EngineStatus) {
+	m.mu.Lock()
+	if engine, ok := m.engines[engineID]; ok {
+		engine.Status = status
+	}
+	m.mu.Unlock()
+	m.saveState()
 }

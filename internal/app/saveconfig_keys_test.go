@@ -1,7 +1,7 @@
 package app
 
 // 审计 AP2-05 键覆盖对照测试（god-func 大拆试水第一刀的现状钉）：
-// SaveConfig 全部 63 个内存同步键逐键 set→断言内存值，另钉「盘上有、内存无」
+// SaveConfig 全部 65 个内存同步键逐键 set→断言内存值，另钉「盘上有、内存无」
 // 键的 default 分支（Warn 文案 + 内存不同步）与非法值错误路径。表驱动化改造
 // 后本文件一字不改全绿 = 逐字段等价证明。
 
@@ -11,8 +11,8 @@ import (
 	"github.com/gaea/gaea/internal/config"
 )
 
-// TestSaveConfig_AllSyncedKeys 现状钉：SaveConfig 支持内存同步的 63 个键
-// （42 字符串直赋 + 5 整数 + 4 浮点 + 10 布尔 + model（SetModelMem）+
+// TestSaveConfig_AllSyncedKeys 现状钉：SaveConfig 支持内存同步的 66 个键
+// （44 字符串直赋 + 6 整数 + 4 浮点 + 10 布尔 + model（SetModelMem）+
 // novels_dir（书架特判）），每键一例 set→断言内存字段精确值。各键用互异值，
 // 键→字段接错（如 tts_port 写进 cosyvoice_port）即红。
 func TestSaveConfig_AllSyncedKeys(t *testing.T) {
@@ -22,7 +22,7 @@ func TestSaveConfig_AllSyncedKeys(t *testing.T) {
 		key, value string
 		check      func(*config.Config) bool
 	}{
-		// ── 字符串直赋键（42）──
+		// ── 字符串直赋键（44）──
 		{config.KeyXaiClientID, "client-xyz-1", func(c *config.Config) bool { return c.XaiClientID == "client-xyz-1" }},
 		{config.KeyReasoningEffort, "low", func(c *config.Config) bool { return c.ReasoningEffort == "low" }},
 		{config.KeyTTSBinaryPath, "C:/tts/bin.exe", func(c *config.Config) bool { return c.TTSBinaryPath == "C:/tts/bin.exe" }},
@@ -38,6 +38,8 @@ func TestSaveConfig_AllSyncedKeys(t *testing.T) {
 		{config.KeySinImageModel, "sin-img-m", func(c *config.Config) bool { return c.SinImageModel == "sin-img-m" }},
 		{config.KeyComfyUIPath, "C:/comfyui", func(c *config.Config) bool { return c.ComfyUIPath == "C:/comfyui" }},
 		{config.KeyComfyUIPythonPath, "C:/python/python.exe", func(c *config.Config) bool { return c.ComfyUIPythonPath == "C:/python/python.exe" }},
+		{config.KeyTianxuanPath, "C:/engines/tianxuan", func(c *config.Config) bool { return c.TianxuanPath == "C:/engines/tianxuan" }},
+		{config.KeyStrataPath, "C:/engines/strata/repo", func(c *config.Config) bool { return c.StrataPath == "C:/engines/strata/repo" }},
 		{config.KeyActiveEngineID, "deepseek", func(c *config.Config) bool { return c.ActiveEngineID == "deepseek" }},
 		{config.KeyDeepseekAPIKey, "sk-deepseek-1", func(c *config.Config) bool { return c.DeepseekAPIKey == "sk-deepseek-1" }},
 		{config.KeyOpencodeGoAPIKey, "sk-ocgo-1", func(c *config.Config) bool { return c.OpenCodeGoAPIKey == "sk-ocgo-1" }},
@@ -65,7 +67,7 @@ func TestSaveConfig_AllSyncedKeys(t *testing.T) {
 		{config.KeyFuncRoutineEngine, "ollama", func(c *config.Config) bool { return c.FuncRoutineEngine == "ollama" }},
 		{config.KeyFuncRoutineModel, "routine-m", func(c *config.Config) bool { return c.FuncRoutineModel == "routine-m" }},
 		{config.KeyCosyVoiceDir, "C:/cosyvoice-x", func(c *config.Config) bool { return c.CosyVoiceDir == "C:/cosyvoice-x" }},
-		// ── 整数键（5；含 0 值一例钉「合法值不得被跳过」）──
+		// ── 整数键（6；含 0 值一例钉「合法值不得被跳过」）──
 		{config.KeyHTTPTimeoutSeconds, "233", func(c *config.Config) bool { return c.HTTPTimeoutSeconds == 233 }},
 		{config.KeyHTTPTimeoutSeconds, "-5", func(c *config.Config) bool { return c.HTTPTimeoutSeconds == -5 }},
 		{config.KeyQualityThreshold, "7", func(c *config.Config) bool { return c.QualityThreshold == 7 }},
@@ -73,6 +75,7 @@ func TestSaveConfig_AllSyncedKeys(t *testing.T) {
 		{config.KeyQualityMaxRetries, "4", func(c *config.Config) bool { return c.QualityMaxRetries == 4 }},
 		{config.KeyTTSPort, "8971", func(c *config.Config) bool { return c.TTSPort == 8971 }},
 		{config.KeyCosyVoicePort, "8023", func(c *config.Config) bool { return c.CosyVoicePort == 8023 }},
+		{config.KeyModelIdleExitMinutes, "15", func(c *config.Config) bool { return c.ModelIdleExitMinutes == 15 }},
 		// ── 浮点键（4）──
 		{config.KeyDefaultTemperature, "0.63", func(c *config.Config) bool { return c.DefaultTemperature == 0.63 }},
 		{config.KeyAnalysisTemperature, "0.17", func(c *config.Config) bool { return c.AnalysisTemperature == 0.17 }},
@@ -124,10 +127,12 @@ func TestSaveConfig_DiskOnlyKeysWarnNoSync(t *testing.T) {
 	a := shelfTestApp(t)
 	// 预置非零值：任何「误加内存同步」都会被断言抓到。
 	a.cfg.GLMAPIKey = "old-glm"
-	a.cfg.ModelHubAPIKey = "old-hub"
 	a.cfg.FuncSinEngine = "old-sin-e"
 	a.cfg.FuncSinModel = "old-sin-m"
 	a.cfg.FuncSinEnabled = true
+	a.cfg.FuncVisionEngine = "old-vis-e"
+	a.cfg.FuncVisionModel = "old-vis-m"
+	a.cfg.FuncVisionEnabled = true
 	a.cfg.OfficeLocal = true
 	a.cfg.ReadScreenSummary = true
 	a.cfg.ReadScreenKeepLast = true
@@ -146,11 +151,15 @@ func TestSaveConfig_DiskOnlyKeysWarnNoSync(t *testing.T) {
 		unchanged  func(*config.Config) bool
 	}{
 		{config.KeyGLMAPIKey, "sk-glm-2", func(c *config.Config) bool { return c.GLMAPIKey == "old-glm" }},
-		{config.KeyModelHubAPIKey, "sk-hub-2", func(c *config.Config) bool { return c.ModelHubAPIKey == "old-hub" }},
 		{config.KeyCustomEngineKeys, `{"e1":"k1"}`, func(c *config.Config) bool { return c.CustomEngineKeys == nil }},
 		{config.KeyFuncSinEngine, "sin-e-2", func(c *config.Config) bool { return c.FuncSinEngine == "old-sin-e" }},
 		{config.KeyFuncSinModel, "sin-m-2", func(c *config.Config) bool { return c.FuncSinModel == "old-sin-m" }},
 		{config.KeyFuncSinEnabled, "false", func(c *config.Config) bool { return c.FuncSinEnabled }},
+		// 办公识图绑定三键：与 sin 同契约——内存同步走 SetFeatureModel 专路，
+		// SaveConfig 只落盘（内存不动 + 记「重启生效」Warn）。
+		{config.KeyFuncVisionEngine, "vis-e-2", func(c *config.Config) bool { return c.FuncVisionEngine == "old-vis-e" }},
+		{config.KeyFuncVisionModel, "vis-m-2", func(c *config.Config) bool { return c.FuncVisionModel == "old-vis-m" }},
+		{config.KeyFuncVisionEnabled, "false", func(c *config.Config) bool { return c.FuncVisionEnabled }},
 		{config.KeyOfficeLocal, "false", func(c *config.Config) bool { return c.OfficeLocal }},
 		{config.KeyReadScreenSummary, "false", func(c *config.Config) bool { return c.ReadScreenSummary }},
 		{config.KeyReadScreenKeepLast, "true", func(c *config.Config) bool { return c.ReadScreenKeepLast }},

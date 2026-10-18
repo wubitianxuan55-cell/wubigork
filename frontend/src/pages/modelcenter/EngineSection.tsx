@@ -1,11 +1,12 @@
-import { useState, useEffect, type CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { Button, Input, InputNumber, message, Popconfirm, Segmented, Space, Switch } from 'antd'
 import { PlusOutlined, SettingOutlined } from '@ant-design/icons'
 import { SectionHead, StatusChip } from './ui'
 import { engineColor, engineIcon, engineLabel, filterEnginesByEnabled, glmEndpointFamily, isCustomEngine, isValidBaseURL, kindOf } from './utils'
 import type { EngineConfig } from '../../api/engines'
-import { getTianxuanEngineStatus, saveEngine, startTianxuanEngine, stopTianxuanEngine } from '../../api/engines'
+import { saveEngine } from '../../api/engines'
 import { useModelCenterActions, useModelCenterState } from './context'
+import { LocalEngineLifecycle } from './LocalEngineLifecycle'
 
 export function EngineSection() {
   const {
@@ -23,8 +24,6 @@ export function EngineSection() {
     opencodeGoKeyMasked,
     opencodeZenKey,
     opencodeZenKeyMasked,
-    modelHubKey,
-    modelHubKeyMasked,
     settingGlmEndpoint,
   } = useModelCenterState()
 
@@ -34,7 +33,6 @@ export function EngineSection() {
     setGlmKeyState,
     setOpencodeGoKeyState,
     setOpencodeZenKeyState,
-    setModelHubKeyState,
     handleSetGlmEndpoint,
     handleTestConnection,
     handleRefreshModels,
@@ -45,7 +43,6 @@ export function EngineSection() {
     handleSaveGlmKey,
     handleSaveOpencodeGoKey,
     handleSaveOpencodeZenKey,
-    handleSaveModelHubKey,
     handleAddCustomEngine,
     handleUpdateCustomEngine,
     handleRemoveCustomEngine,
@@ -53,54 +50,10 @@ export function EngineSection() {
   } = useModelCenterActions()
   const [showEnabledOnly, setShowEnabledOnly] = useState(false)
   const [bulkBusy, setBulkBusy] = useState(false)
-
-  // ── 天璇引擎生命周期（gaea 代启族=comfyui 同款）：状态点 + 启动/停止钮 ──
-  // null=未探测；启动中按钮 loading，120s 上限由后端轮询承担。
-  const [tianxuanRunning, setTianxuanRunning] = useState<boolean | null>(null)
-  const [tianxuanBusy, setTianxuanBusy] = useState<'start' | 'stop' | null>(null)
-  useEffect(() => {
-    let alive = true
-    getTianxuanEngineStatus()
-      .then((s) => { if (alive) setTianxuanRunning(!!s.running) })
-      .catch(() => {})
-    return () => { alive = false }
-  }, [])
-  const handleTianxuanStart = async () => {
-    setTianxuanBusy('start')
-    try {
-      const r = await startTianxuanEngine()
-      if (r.started) {
-        setTianxuanRunning(true)
-        message.success(`天璇引擎已就绪（${Math.round((r.waited_ms ?? 0) / 1000)}s）`)
-      } else if (r.reason === 'already-running') {
-        setTianxuanRunning(true)
-      } else {
-        message.warning(`天璇引擎启动失败：${r.reason ?? '未知原因'}${r.log ? `（日志 ${r.log}）` : ''}`)
-      }
-    } catch {
-      message.error('天璇引擎启动异常')
-    } finally {
-      setTianxuanBusy(null)
-    }
-  }
-  const handleTianxuanStop = async () => {
-    setTianxuanBusy('stop')
-    try {
-      const r = await stopTianxuanEngine()
-      if (r.stopped) {
-        setTianxuanRunning(false)
-        message.success('天璇引擎已停止')
-      } else if (r.reason === 'not-running') {
-        setTianxuanRunning(false)
-      } else {
-        message.warning(`天璇引擎停止失败：${r.reason ?? '未知原因'}`)
-      }
-    } catch {
-      message.error('天璇引擎停止异常')
-    } finally {
-      setTianxuanBusy(null)
-    }
-  }
+  // 受管外部引擎的实时探活结果：停止态不再回显 engines.json 里的旧连接错误。
+  const [managedRunning, setManagedRunning] = useState<Record<string, boolean>>({})
+  const isManagedEngine = (id: string) => id === 'strata' || id === 'tianxuan'
+  const managedStopped = (id: string) => isManagedEngine(id) && managedRunning[id] === false
 
   // ── 自定义引擎（A 刀）：添加/编辑行内表单状态 ─────────────────
   const [showAddForm, setShowAddForm] = useState(false)
@@ -229,13 +182,6 @@ export function EngineSection() {
       placeholder: opencodeZenKeyMasked || 'zen-...（opencode.ai/auth 获取）',
       save: handleSaveOpencodeZenKey,
     },
-    {
-      type: 'modelhub',
-      value: modelHubKey,
-      setter: setModelHubKeyState,
-      placeholder: modelHubKeyMasked || 'sk-unsloth-...（Unsloth 设置 → API 创建）',
-      save: handleSaveModelHubKey,
-    },
   ]
 
   return (
@@ -328,6 +274,11 @@ export function EngineSection() {
           ocr: em.filter(m => kindOf(m) === 'ocr').length,
         }
         const keyField = keyFields.find(k => k.type === engine.type)
+        const managedEngine = isManagedEngine(engine.id)
+        const runningManagedModel = (engine.models || []).find(m => m.status === 'running')
+        const managedModel = managedEngine
+          ? (runningManagedModel?.name || runningManagedModel?.id || '未运行')
+          : ''
         return (
           <div
             key={engine.id}
@@ -340,9 +291,11 @@ export function EngineSection() {
                 <div style={{ minWidth: 0 }}>
                   <div className="mc-engine-name">{engine.name}</div>
                   <div className="mc-engine-sub">
-                    {engineLabel(engine)} · 默认模型 {
-                      (engine.models || []).find(m => m.id === engine.default_model)?.name
-                      || engine.default_model || '未设置'
+                    {engineLabel(engine)} · {managedEngine ? '当前模型' : '默认模型'} {
+                      managedEngine
+                        ? managedModel
+                        : (engine.models || []).find(m => m.id === engine.default_model)?.name
+                          || engine.default_model || '未设置'
                     }
                   </div>
                 </div>
@@ -364,40 +317,26 @@ export function EngineSection() {
                   size="small"
                   onClick={() => handleTestConnection(engine.id)}
                   loading={testingEngine === engine.id}
-                  disabled={!engine.enabled}
+                  disabled={!engine.enabled || managedStopped(engine.id)}
                 >
                   测试连接
                 </Button>
-                {engine.id === 'tianxuan' && (
-                  <>
-                    <StatusChip tone={tianxuanRunning ? 'ok' : 'neutral'} dot={!!tianxuanRunning}>
-                      {tianxuanRunning ? '运行中' : '已停止'}
-                    </StatusChip>
-                    {!tianxuanRunning ? (
-                      <Button
-                        size="small"
-                        type="primary"
-                        loading={tianxuanBusy === 'start'}
-                        onClick={handleTianxuanStart}
-                      >
-                        启动引擎
-                      </Button>
-                    ) : (
-                      <Popconfirm
-                        title="停止天璇引擎？"
-                        description="生成中的请求会被中断（引擎硬杀有 D 状态风险），请确认引擎空闲。"
-                        onConfirm={handleTianxuanStop}
-                      >
-                        <Button size="small" danger loading={tianxuanBusy === 'stop'}>停止引擎</Button>
-                      </Popconfirm>
-                    )}
-                  </>
+                {(engine.id === 'tianxuan' || engine.id === 'strata') && (
+                  <LocalEngineLifecycle
+                    engineId={engine.id}
+                    name={engine.id === 'tianxuan' ? '天璇' : 'Strata'}
+                    onReady={() => handleRefreshModels(engine.id)}
+                    onRunningChange={(running) => {
+                      setManagedRunning(prev => prev[engine.id] === running ? prev : { ...prev, [engine.id]: running })
+                    }}
+                    externalConnected={engineStatuses[engine.id]?.connected}
+                  />
                 )}
                 <Button
                   size="small"
                   onClick={() => handleRefreshModels(engine.id)}
                   loading={testingEngine === engine.id}
-                  disabled={!engine.enabled}
+                  disabled={!engine.enabled || managedStopped(engine.id)}
                 >
                   刷新
                 </Button>
@@ -563,15 +502,15 @@ export function EngineSection() {
               </div>
             )}
 
-            {engine.id === 'modelhub' && (
-              <div style={{ fontSize: 11, color: 'var(--mc-muted)' }}>
-                先在本机 Unsloth Studio「Model hub」加载模型；刷新后只列出已加载模型。
-                Key 在 Unsloth 左下角头像 → 设置 → API 创建（sk-unsloth- 开头）；
-                地址保持 Studio 固定入口 127.0.0.1:8888/v1 即可（llama 内部端口每次加载会变，8888/v1 自动转发当前模型）。
-              </div>
-            )}
-
-            {engineStatuses[engine.id] && (
+            {isManagedEngine(engine.id) ? (
+              managedRunning[engine.id] === false ? (
+                <div className="mc-engine-status">
+                  <span style={{ color: 'var(--mc-muted)' }}>
+                    引擎未运行 · 在「语言模型」逐模型启动（或用上方快捷启动档位）
+                  </span>
+                </div>
+              ) : null
+            ) : engineStatuses[engine.id] && (
               <div className="mc-engine-status">
                 {engineStatuses[engine.id].connected ? (
                   <span style={{ color: 'var(--mc-ok)' }}>

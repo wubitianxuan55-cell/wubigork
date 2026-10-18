@@ -32,7 +32,6 @@ func (b *CoreB) GetGlmKeyStatus() map[string]interface{} { return b.a.GetGlmKeyS
 func (b *CoreB) GetKeepWarm() bool { return b.a.GetKeepWarm() }
 func (b *CoreB) GetLoginStatus() bool { return b.a.GetLoginStatus() }
 func (b *CoreB) GetModelCallStats() modelengine.ModelStatsSummary { return b.a.GetModelCallStats() }
-func (b *CoreB) GetModelHubKeyStatus() map[string]interface{} { return b.a.GetModelHubKeyStatus() }
 func (b *CoreB) GetNovelsDir() string { return b.a.GetNovelsDir() }
 func (b *CoreB) GetOpencodeGoKeyStatus() map[string]interface{} { return b.a.GetOpencodeGoKeyStatus() }
 func (b *CoreB) GetOpencodeZenKeyStatus() map[string]interface{} { return b.a.GetOpencodeZenKeyStatus() }
@@ -59,12 +58,10 @@ func (b *CoreB) SetEngineDefaultModel(engineID string, modelName string) error {
 func (b *CoreB) SetGlmEndpoint(family string) error { return b.a.SetGlmEndpoint(family) }
 func (b *CoreB) SetGlmKey(apiKey string) error { return b.a.SetGlmKey(apiKey) }
 func (b *CoreB) SetKeepWarm(enabled bool) error { return b.a.SetKeepWarm(enabled) }
-func (b *CoreB) SetModelHubKey(apiKey string) error { return b.a.SetModelHubKey(apiKey) }
 func (b *CoreB) SetOpencodeGoKey(apiKey string) error { return b.a.SetOpencodeGoKey(apiKey) }
 func (b *CoreB) SetOpencodeZenKey(apiKey string) error { return b.a.SetOpencodeZenKey(apiKey) }
 func (b *CoreB) SetPreloadPlan(enabled bool) error { return b.a.SetPreloadPlan(enabled) }
 func (b *CoreB) SetSinImageConfig(backend string, model string) error { return b.a.SetSinImageConfig(backend, model) }
-func (b *CoreB) StartModelHubModel(modelID string) error { return b.a.StartModelHubModel(modelID) }
 func (b *CoreB) TestEngineConnection(engineID string) (*modelengine.EngineStatus, error) { return b.a.TestEngineConnection(engineID) }
 func (b *CoreB) UpdateCustomEngine(engineID string, name string, baseURL string, apiKey string) error { return b.a.UpdateCustomEngine(engineID, name, baseURL, apiKey) }
 func (b *CoreB) UpdateProjectMeta(title string, genre string, style string, mature string) error { return b.a.UpdateProjectMeta(title, genre, style, mature) }
