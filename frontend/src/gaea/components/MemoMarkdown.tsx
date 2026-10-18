@@ -32,7 +32,10 @@ function renderPending(text: string): string {
     } else if (inFence) {
       out.push(`<span class="font-mono text-[90%]">${escapeHtml(line)}</span>`);
     } else if (/^#{1,4}\s/.test(line)) {
-      out.push(`<span class="font-bold">${htmlFileLinks(line)}</span>`);
+      // 字号近似 .md 阶梯（h1/h2 1.3/1.16em、h3/h4 同正文），稳定段接管时
+      // 标题不再从纯加粗 14px 跳到 16~18px（v4.503 与 .md 单源对齐）。
+      const big = /^#{1,2}\s/.test(line);
+      out.push(`<span class="font-bold${big ? " text-[1.25em]" : ""}">${htmlFileLinks(line)}</span>`);
     } else if (/^[-*+]\s/.test(line)) {
       out.push(`<span class="text-fg-dim">  · ${htmlFileLinks(line.slice(2))}</span>`);
     } else if (/^\d+\.\s/.test(line)) {

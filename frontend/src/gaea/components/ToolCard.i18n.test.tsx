@@ -57,6 +57,22 @@ describe("ToolCard i18n 冒烟", () => {
     expect(screen.getByTestId("task-live")).toBeTruthy();
     expect(screen.getByText("点击打开子代理会话")).toBeTruthy();
   });
+
+  // v4.503 bash 展开态去重：行内命令主体与 $ 命令块不再同时呈现同一命令
+  // （折叠行 `$ cmd…` mono 截断；展开后行内只留结果摘要，命令由 $ 块独占）。
+  it("bash 展开后行内命令隐藏，$ 命令块独占（zh）", () => {
+    const args = JSON.stringify({ command: "python tools/x.py --flag", timeout: 1 });
+    renderT(
+      <ToolCard
+        item={{ kind: "tool", id: "tb", name: "bash", args, readOnly: false, status: "done", output: "ok\n" }}
+      />,
+    );
+    // 折叠态：行内主体 + $ 命令块各出现一次（$ 块在折叠区常驻 DOM）
+    expect(screen.getAllByText(/python tools\/x\.py --flag/).length).toBe(2);
+    fireEvent.click(screen.getByText("bash"));
+    // 展开态：行内主体隐藏，只剩 $ 命令块一处
+    expect(screen.getAllByText(/python tools\/x\.py --flag/).length).toBe(1);
+  });
 });
 
 // ── Codex 式输出简化（2026-10）：bash 命令块 / 写类去双份 / 输出 12 行预览 ──

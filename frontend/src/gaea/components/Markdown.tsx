@@ -489,29 +489,19 @@ function buildComponents(
     },
     table: ({ children }) => (
       <div className="my-3 overflow-x-auto rounded-lg border border-border-soft">
-        <table className="min-w-full text-[13px]">{children}</table>
+        <table>{children}</table>
       </div>
     ),
-    th: ({ children }) => (
-      <th className="px-3 py-2 text-left text-[11px] font-semibold text-fg-dim bg-bg-soft border-b border-border-soft">
-        {children}
-      </th>
-    ),
-    td: ({ children }) => (
-      <td className="px-3 py-2 border-b border-border-soft/50 text-fg">{children}</td>
-    ),
-    blockquote: ({ children }) => (
-      <blockquote className="my-2 pl-3 border-l-[3px] border-accent/30 text-fg-dim/80 italic">
-        {children}
-      </blockquote>
-    ),
-    hr: () => <hr className="my-4 border-border-soft" />,
-    ol: ({ children }) => <ol className="my-2 pl-5 list-decimal text-fg space-y-0.5">{children}</ol>,
-    ul: ({ children }) => <ul className="my-2 pl-5 list-disc text-fg space-y-0.5">{children}</ul>,
-    h1: ({ children }) => <h1 className="mt-5 mb-2 text-[18px] font-bold text-fg">{children}</h1>,
-    h2: ({ children }) => <h2 className="mt-4 mb-1.5 text-[16px] font-bold text-fg">{children}</h2>,
-    h3: ({ children }) => <h3 className="mt-3 mb-1 text-[14px] font-semibold text-fg">{children}</h3>,
-    p: ({ children }) => <p className="my-1.5 leading-relaxed text-fg">{children}</p>,
+    th: ({ children }) => <th>{children}</th>,
+    td: ({ children }) => <td>{children}</td>,
+    blockquote: ({ children }) => <blockquote>{children}</blockquote>,
+    hr: () => <hr />,
+    // h1-h4 / p / ul / ol 刻意不挂排版工具类：styles.css 的 .md 排版块是
+    // 唯一字级/间距来源（v4.503 收敛——此前两边各写一套、按 CSS 特异度
+    // 逐属性混战：h1 实际 1.45em≈20px、th 11px vs td 13px 失配、引用斜体
+    // 只有工具类有）。这里只保留 preflight 需要的 list-style 补偿。
+    ol: ({ children }) => <ol className="list-decimal">{children}</ol>,
+    ul: ({ children }) => <ul className="list-disc">{children}</ul>,
   };
 }
 

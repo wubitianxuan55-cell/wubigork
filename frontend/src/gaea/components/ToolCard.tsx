@@ -216,8 +216,15 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
         <span className={`font-mono font-medium truncate ${item.status === "error" && !item.recoverable ? "text-err" : item.status === "error" && item.recoverable ? "text-fg-dim/60 line-through" : quiet ? "text-fg-faint/70" : "text-fg"} ${compact ? "text-[11px]" : "text-[12px]"}`}>
           {item.name}
         </span>
-        {subject && (
-          <span className={`text-fg-faint truncate ${summarySize}`}>{subject}</span>
+        {/* bash 的行内主体=命令本身：mono 短字号与工具名同族；展开态下
+            $ 命令块已完整呈现同一命令，行内不再重复（v4.503 去重——此前
+            折叠行一条长命令、展开后又整块复述一遍）。 */}
+        {subject && !(open && command) && (
+          <span
+            className={`truncate ${command ? "font-mono text-[11px]" : `text-fg-faint ${summarySize}`}`}
+          >
+            {command ? `$ ${subject}` : subject}
+          </span>
         )}
         {stat && (stat.add > 0 || stat.del > 0) ? (
           <span
@@ -276,7 +283,7 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
           )}
           {hasOutput && (
             <div className={`${innerPx} ${innerPb}`}>
-              <div className="text-[9px] text-fg-faint/60 uppercase tracking-wider mb-0.5 select-none">{t("tool.outputHeader", { n: outputLines })}</div>
+              <div className="text-[10px] text-fg-faint/60 uppercase tracking-wider mb-0.5 select-none">{t("tool.outputHeader", { n: outputLines })}</div>
               <pre className="px-3 py-2 font-mono text-[12px] leading-[1.5] overflow-auto max-h-72 whitespace-pre-wrap break-words bg-bg-soft border border-border-soft rounded-md text-fg-dim"><code><FileLinkText text={showFullOutput ? bounded.full : bounded.preview} compact /></code></pre>
               {bounded.collapsed && (
                 <button
