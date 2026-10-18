@@ -439,12 +439,6 @@ export async function startTianxuanModel(model: string): Promise<ManagedEngineSt
   return result as ManagedEngineStartResult
 }
 
-/** 停止天璇模型目录中的某个档位模型（仅在它是当前运行档位时生效） */
-export async function stopTianxuanModel(model: string): Promise<ManagedEngineStopResult> {
-  const result = await App().TianxuanModelStop(model)
-  return result as ManagedEngineStopResult
-}
-
 /** Strata 引擎运行状态（8091 /v1/models 探活） */
 export async function getStrataEngineStatus(): Promise<ManagedEngineStatusResult> {
   const result = await App().StrataEngineStatus()
@@ -467,12 +461,6 @@ export async function stopStrataEngine(): Promise<ManagedEngineStopResult> {
 export async function startStrataModel(model: string): Promise<ManagedEngineStartResult> {
   const result = await App().StrataModelStart(model)
   return result as ManagedEngineStartResult
-}
-
-/** 停止 Strata 模型目录中的某个档位模型（仅在它是当前运行档位时生效） */
-export async function stopStrataModel(model: string): Promise<ManagedEngineStopResult> {
-  const result = await App().StrataModelStop(model)
-  return result as ManagedEngineStopResult
 }
 
 /** 获取所有引擎配置 */
