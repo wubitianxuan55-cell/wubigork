@@ -19,6 +19,7 @@ const WARN_AT = 58000 // 提前预警水位（留 ~7 KB 余量给下一批版本
 const NOT_REPO_DOCS = [
   /^docs\/(architecture|compatibility|external-plugin-guide|univer-turn-projection-and-surfaces|anti-ai-polish)\.md$/,
   /^docs\/(材料价格信息价|投标文件模板)\.md$/,
+  /^docs\/tianxuan\/README\.md$/, // ① clones/gufo（天璇引擎 fork）的台账，gaea 研究文档 §13.6 引用
 ]
 
 const fails = []
