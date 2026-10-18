@@ -1,3 +1,6 @@
+## v4.503.0 · 办公对话输出排版单源收敛+bash 卡去重（2026-10-18）
+> 用户实锤「字体大小不一/间距混乱/bash 类一长串」。根修=同一份 markdown 两套排版系统同树混战（styles.css .md 块 vs Markdown.tsx 组件工具类按 CSS 特异度逐属性打架：h1 实际 1.45em≈20px、th 11px vs td 13px 同表失配、引用斜体混入、#### 层级隐形）；组件侧摘除平行工具类只留 preflight 列表符号补偿，.md 块成为字级/间距唯一来源，阶梯压平一档（h1 1.3/h2 1.16/h3 1.06/h4 降色不降级）+节奏收紧（标题 16/6、段后 8）；流式尾部标题字号近似对齐减稳定跳变；bash 卡展开态行内命令去重（折叠行 $ cmd mono 截断，展开后 $ 块独占）+输出标签 9→10px。顺带清 884cdd10 knip 门禁债（stopTianxuanModel/stopStrataModel 零消费 api 包装删除，Go 绑定保留）+.gitignore 收 temp/。全量 ci 绿（vitest 446 文件 3854 例）；ToolCard bash 去重回归 +1。详见 `releases/v4.503.0.md`。
+
 ## v4.502.0 · 绘梦退役「模型目录」视图+素材库删除与已删文件过滤（2026-10-17）
 > 用户拍板「模型目录可删」+素材库两诉求。①删绘梦「模型目录」tab：ModelDirectory 组件+测试+api 包装+三语 modelDir* 38 键全链退役，Go 绑定保留（模型中心 getHerdsmanCatalog 仍在消费）——目录信息不丢，模型中心有更全管理视图；②素材库读侧诚实过滤（imageHubAssetSummaries 按文件存在性剔除盘上已删登记——素材库是登记视图，文件真相在磁盘；月度用量直读台账口径不变）+新增 ImageHubAssetDelete 绑定（661→662：删盘上文件+移除该空间台账登记，登记守卫拒未登记路径，先文件后台账，AtomicWrite 单源）+前端详情条删除钮（Popconfirm 两步+file_removed 双口径文案）+绑定管线全链登记。测试=Go 删除三态+读侧过滤夹具写真文件；前端删除流 3 例；全量 vitest 3855 绿；tsc 0/eslint 0/golangci 0；drift 四锁过。详见 `releases/v4.502.0.md`。
 
