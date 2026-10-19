@@ -145,3 +145,143 @@ func TestVisionBoundRuntime_FeatureModelKeysRegistered(t *testing.T) {
 		t.Errorf("featureModelEnabledKey(vision) = (%q,%v)", key, ok)
 	}
 }
+
+// ── 识图跟随聊天模型（2026-10-19：本地多模态主力在线时不另找第二个识图模型）──
+
+// seedTianxuan 给天璇引擎植入双档目录（syncManagedCatalog 保存形状）。
+func seedTianxuan(t *testing.T, c *core, running string) {
+	t.Helper()
+	models := []modelengine.ModelInfo{
+		{ID: "qwen3.6-35b-a3b-uncensored", Kind: "llm", Status: "stopped"},
+		{ID: "qwen3.8-flash-next-uncensored", Kind: "llm", Status: "stopped"},
+	}
+	if running != "" {
+		for i := range models {
+			if models[i].ID == running {
+				models[i].Status = "running"
+			}
+		}
+	}
+	if err := c.engineMgr.SaveEngine(modelengine.EngineConfig{ID: "tianxuan", Enabled: true, Models: models}); err != nil {
+		t.Fatalf("seedTianxuan: %v", err)
+	}
+}
+
+// TestVisionBoundRuntime_FollowsServedTianxuanProfile 聊天引擎=天璇且 flash
+// 档在服务：识图直接跟随该档（=聊天正用的多模态模型），压过指向别处的
+// func_vision 独立绑定——单模型引擎只认当前服务档，绑另一档必 404。
+func TestVisionBoundRuntime_FollowsServedTianxuanProfile(t *testing.T) {
+	c := newTestCore(t)
+	seedTianxuan(t, c, "qwen3.8-flash-next-uncensored")
+	if err := c.SetFeatureModel("gaea", "tianxuan", "qwen3.8-flash-next-uncensored"); err != nil {
+		t.Fatalf("SetFeatureModel(gaea): %v", err)
+	}
+	// 识图独立绑定到 herdsman 另一模型：跟随优先，不另找第二个识图模型
+	if err := c.SetFeatureModel("vision", "herdsman", "qwen3-8b"); err != nil {
+		t.Fatalf("SetFeatureModel(vision): %v", err)
+	}
+	r, ok := c.visionBoundRuntime()
+	if !ok {
+		t.Fatal("天璇在服务档位时应跟随命中")
+	}
+	e, _ := c.engineMgr.GetEngine("tianxuan")
+	if r.BaseURL != e.BaseURL {
+		t.Errorf("BaseURL = %q, want 天璇端点 %q", r.BaseURL, e.BaseURL)
+	}
+	if r.Model != "qwen3.8-flash-next-uncensored" {
+		t.Errorf("Model = %q, want 当前服务档 qwen3.8-flash-next-uncensored", r.Model)
+	}
+}
+
+// TestVisionBoundRuntime_TianxuanDownFallsToHerdsmanDefault 天璇未运行（无
+// running 档）：herdsman 可用（启用+默认 llm）时以其默认模型兜底——聊天此刻
+// 多半已故障转移到 herdsman，识图就近复用，不再去找未服务的档位。
+func TestVisionBoundRuntime_TianxuanDownFallsToHerdsmanDefault(t *testing.T) {
+	c := newTestCore(t)
+	seedTianxuan(t, c, "")
+	if err := c.SetFeatureModel("gaea", "tianxuan", "qwen3.8-flash-next-uncensored"); err != nil {
+		t.Fatalf("SetFeatureModel(gaea): %v", err)
+	}
+	if err := c.engineMgr.SetDefaultModel("herdsman", "qwen3-8b"); err != nil {
+		t.Fatalf("SetDefaultModel: %v", err)
+	}
+	r, ok := c.visionBoundRuntime()
+	if !ok {
+		t.Fatal("herdsman 主力可用时应兜底命中")
+	}
+	e, _ := c.engineMgr.GetEngine("herdsman")
+	if r.BaseURL != e.BaseURL {
+		t.Errorf("BaseURL = %q, want herdsman 端点", r.BaseURL)
+	}
+	if r.Model != "qwen3-8b" {
+		t.Errorf("Model = %q, want herdsman 默认模型 qwen3-8b", r.Model)
+	}
+}
+
+// TestVisionBoundRuntime_FollowsHerdsmanChatModel 聊天引擎=herdsman：识图
+// 同引擎同模型（已加载零冷启），压过云端识图独立绑定；离线模式不拦本地跟随。
+func TestVisionBoundRuntime_FollowsHerdsmanChatModel(t *testing.T) {
+	c := newTestCore(t)
+	id, err := c.engineMgr.AddCustomEngine("云端识图", "https://api.example.com/v1", "sk-c")
+	if err != nil {
+		t.Fatalf("AddCustomEngine: %v", err)
+	}
+	if err := c.SetFeatureModel("vision", id, "glm-4.5v"); err != nil {
+		t.Fatalf("SetFeatureModel(vision): %v", err)
+	}
+	if err := c.SetFeatureModel("gaea", "herdsman", "qwen3-8b"); err != nil {
+		t.Fatalf("SetFeatureModel(gaea): %v", err)
+	}
+	c.cfg.SetOfflineMode(true)
+	defer c.cfg.SetOfflineMode(false)
+	r, ok := c.visionBoundRuntime()
+	if !ok {
+		t.Fatal("herdsman 聊天应跟随命中")
+	}
+	if r.Model != "qwen3-8b" || r.APIKey != "" {
+		t.Errorf("跟随结果 = (model %q, key %q), want (qwen3-8b, 空)", r.Model, r.APIKey)
+	}
+	if r.BaseURL == "https://api.example.com/v1" {
+		t.Error("不应再去云端识图绑定（本地多模态主力在线）")
+	}
+}
+
+// TestVisionBoundRuntime_HerdsmanChatNoModelAbstains 聊天绑 herdsman 但模型
+// 与引擎默认均空：跟随弃权，回落 func_vision 绑定链。
+func TestVisionBoundRuntime_HerdsmanChatNoModelAbstains(t *testing.T) {
+	c := newTestCore(t)
+	c.cfg.SetFeatureModel("gaea", "herdsman", "")
+	if err := c.SetFeatureModel("vision", "herdsman", "qwen3-8b"); err != nil {
+		t.Fatalf("SetFeatureModel(vision): %v", err)
+	}
+	r, ok := c.visionBoundRuntime()
+	if !ok {
+		t.Fatal("跟随弃权后应由 func_vision 绑定命中")
+	}
+	if r.Model != "qwen3-8b" {
+		t.Errorf("Model = %q, want 绑定模型 qwen3-8b", r.Model)
+	}
+}
+
+// TestVisionBoundRuntime_CloudChatKeepsVisionBinding 聊天在云端引擎：不跟随，
+// func_vision 绑定照常生效（云端聊天时识图独立绑定才有意义）。
+func TestVisionBoundRuntime_CloudChatKeepsVisionBinding(t *testing.T) {
+	c := newTestCore(t)
+	chatID, err := c.engineMgr.AddCustomEngine("云端聊天", "https://api.example.com/v1", "sk-chat")
+	if err != nil {
+		t.Fatalf("AddCustomEngine: %v", err)
+	}
+	if err := c.SetFeatureModel("gaea", chatID, "deepseek-v4-pro"); err != nil {
+		t.Fatalf("SetFeatureModel(gaea): %v", err)
+	}
+	if err := c.SetFeatureModel("vision", "herdsman", "qwen3-8b"); err != nil {
+		t.Fatalf("SetFeatureModel(vision): %v", err)
+	}
+	r, ok := c.visionBoundRuntime()
+	if !ok {
+		t.Fatal("云端聊天时应由 func_vision 绑定命中")
+	}
+	if r.Model != "qwen3-8b" {
+		t.Errorf("Model = %q, want 绑定模型 qwen3-8b", r.Model)
+	}
+}

@@ -20,10 +20,11 @@ import (
 	"time"
 )
 
-// 默认本地视觉端点与模型（本机 herdsman，Qwen3.6 视觉模型）。
+// 默认本地视觉端点与模型（本机 herdsman，Qwen3.6 uncensored 家族多模态主力；
+// 2026-10-19 随 MTP-r2 换装同步，旧名 ...Q4_K_P-2 已退役——曾致识图兜底恒 404）。
 const (
 	DefaultBaseURL = "http://127.0.0.1:8080/v1"
-	DefaultModel   = "Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_P-2"
+	DefaultModel   = "Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_P-MTP-r2"
 )
 
 // ── VisionProvider seam（3.0 Step 3d #4：端点硬编码/环境变量 → 注册表 + config）──

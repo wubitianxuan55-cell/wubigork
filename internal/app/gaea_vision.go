@@ -8,21 +8,28 @@ import (
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/vision"
+	"github.com/gaea/gaea/internal/modelengine"
 	"github.com/gaea/gaea/internal/screen"
 )
 
 // visionRecognize 可注入 seam（测试替换；生产恒为 vision.RecognizeImage）。
 var visionRecognize = vision.RecognizeImage
 
-// visionBoundRuntime 办公识图功能绑定（模型中心「识图」卡，func_vision_*）→
-// 视觉后端运行时。绑定生效（功能启用 + 引擎存在且启用 + 有地址 + 离线模式
-// 不拦本地）时返回覆盖运行时（引擎地址 + 绑定模型 + 引擎 Key，改绑即生效
-// 无需重启）；否则返回 false——识图回落 gaea.toml [vision] 静态注入（默认
-// 本机 herdsman Qwen3.6 视觉模型）。经 vision.SetVisionRuntimeResolver 在
-// 启动时挂为动态钩子，每次识图调用执行；只读内存（config + 引擎表），无 IO。
+// visionBoundRuntime 办公识图后端解析（经 vision.SetVisionRuntimeResolver 挂为
+// 动态钩子，每次识图调用执行；只读内存——配置 + 引擎表，无 IO）。解析顺序：
+//
+//  1. 跟随聊天模型（2026-10-19 用户拍板：聊天用的本地模型本身多模态时，识图
+//     不再另找第二个识图模型——多载一份权重浪费 UMA，单模型引擎上天璇/Strata
+//     只认当前服务档，绑定另一档必 404）。见 visionChatFollowRuntime。
+//  2. 办公识图功能绑定（模型中心「识图」卡，func_vision_*）：引擎地址 + 绑定
+//     模型 + 引擎 Key，改绑即生效（聊天在云端引擎时由此接管）。
+//  3. 均未命中回落 gaea.toml [vision] 静态注入（默认本机 herdsman 多模态主力）。
 func (c *core) visionBoundRuntime() (vision.VisionRuntime, bool) {
 	if c.cfg == nil || c.engineMgr == nil {
 		return vision.VisionRuntime{}, false
+	}
+	if r, ok := c.visionChatFollowRuntime(); ok {
+		return r, true
 	}
 	if !c.cfg.GetFeatureModelEnabled("vision") {
 		return vision.VisionRuntime{}, false
@@ -36,15 +43,90 @@ func (c *core) visionBoundRuntime() (vision.VisionRuntime, bool) {
 	if !ok || !e.Enabled || e.BaseURL == "" || (offline && !e.Type.IsLocal()) {
 		return vision.VisionRuntime{}, false
 	}
-	// 识图也是「真实使用」：绑定到天璇/Strata 时记账，防识图请求进行中/刚
-	// 结束就被空闲收割器停机。
-	c.engineMgr.TouchEngine(engID)
+	return c.visionLocalRuntime(engID, model), true
+}
+
+// visionChatFollowRuntime 识图跟随聊天模型：仅当聊天实际用的引擎是本地引擎
+// 且能就地取到多模态主力时接管（本机天璇/Strata 档位 serve 配置全部带
+// vision、herdsman 目录标 uncensored 家族 type=multimodal——2026-10-19 核实）。
+//   - 天璇/Strata（单模型引擎）：跟随引擎当前实际服务的档位（engines.json
+//     running 条目，syncManagedCatalog 维护）；引擎未运行时若 herdsman 可用
+//     （启用且默认模型判型 llm，按需加载）以 herdsman 默认模型兜底——聊天
+//     此刻多半已故障转移到它。
+//   - herdsman（按需加载引擎）：同引擎同模型（办公聊天绑定模型，未绑则引擎
+//     默认模型）。
+//
+// 聊天在云端引擎 / 本地引擎全停 / 办公未绑定且活跃引擎不可知（client 未装配）
+// 时不接管——回落既有 func_vision 绑定链。
+func (c *core) visionChatFollowRuntime() (vision.VisionRuntime, bool) {
+	chatEng, chatModel := "", ""
+	if c.cfg.GetFeatureModelEnabled("gaea") {
+		chatEng, chatModel = c.cfg.GetFeatureModel("gaea")
+	}
+	if chatEng == "" && c.client != nil {
+		chatEng = c.client.ActiveEngineID()
+		if def, err := c.engineMgr.GetDefaultModel(chatEng); err == nil {
+			chatModel = def
+		}
+	}
+	if chatEng == "" {
+		return vision.VisionRuntime{}, false
+	}
+	switch chatEng {
+	case "tianxuan", "strata":
+		e, ok := c.engineMgr.GetEngine(chatEng)
+		if !ok || !e.Enabled {
+			return vision.VisionRuntime{}, false
+		}
+		for _, m := range e.Models {
+			if m.Kind == "llm" && m.Status == "running" {
+				return c.visionLocalRuntime(chatEng, m.ID), true
+			}
+		}
+		return c.visionHerdsmanFallback()
+	case "herdsman":
+		if chatModel == "" {
+			if def, err := c.engineMgr.GetDefaultModel("herdsman"); err == nil {
+				chatModel = def
+			}
+		}
+		if chatModel == "" {
+			return vision.VisionRuntime{}, false
+		}
+		if e, ok := c.engineMgr.GetEngine("herdsman"); !ok || !e.Enabled {
+			return vision.VisionRuntime{}, false
+		}
+		return c.visionLocalRuntime("herdsman", chatModel), true
+	}
+	return vision.VisionRuntime{}, false
+}
+
+// visionHerdsmanFallback herdsman 主力兜底（聊天引擎未运行时）：启用 + 默认
+// 模型判型 llm 才接管（默认模型经悬空修复不变量保证为 llm 或空）。
+func (c *core) visionHerdsmanFallback() (vision.VisionRuntime, bool) {
+	e, ok := c.engineMgr.GetEngine("herdsman")
+	if !ok || !e.Enabled || e.BaseURL == "" {
+		return vision.VisionRuntime{}, false
+	}
+	def, err := c.engineMgr.GetDefaultModel("herdsman")
+	if err != nil || def == "" || modelengine.ClassifyModelByName(def) != "llm" {
+		return vision.VisionRuntime{}, false
+	}
+	return c.visionLocalRuntime("herdsman", def), true
+}
+
+// visionLocalRuntime 组装本地引擎的视觉运行时（OpenAI 兼容端点 + 引擎 Key，
+// 本地引擎 Key 为空=免鉴权）。识图也是「真实使用」：解析即记账，防识图请求
+// 进行中/刚结束就被空闲收割器停机。
+func (c *core) visionLocalRuntime(engineID, model string) vision.VisionRuntime {
+	c.engineMgr.TouchEngine(engineID)
+	e, _ := c.engineMgr.GetEngine(engineID)
 	return vision.VisionRuntime{
 		Kind:    vision.VisionProviderKindOpenAI,
 		BaseURL: e.BaseURL,
 		Model:   model,
-		APIKey:  c.engineMgr.EngineAPIKey(engID),
-	}, true
+		APIKey:  c.engineMgr.EngineAPIKey(engineID),
+	}
 }
 
 // visionOCRTextPrompt 微信识图提示词：完整解读——文字按版式逐行提取优先
