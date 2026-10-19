@@ -2,6 +2,7 @@
 import { useRef, useState } from 'react'
 import { Modal } from 'antd'
 import { app } from '../lib/bridge'
+import { isImagePath } from '../lib/pickFile'
 import { useToast } from '../components/Toast'
 
 export interface Attachment {
@@ -36,7 +37,27 @@ function attachFailText(step: string, file: File | null, e: unknown): string {
   return `${step}${file ? `「${file.name}」` : ""}：${why}`;
 }
 
-export function useComposerAttachments({ setText, running, onSend }: UseComposerAttachmentsOptions) {
+// bytesToBase64 分块编码（v4.508）：此前逐字节 String.fromCharCode 拼接——
+// 10MB 文件 = 千万次拼接 + 一条 10MB 巨串进 btoa，UI 卡秒级。8KB 块编码
+// 拼接，行为等价（btoa 对分块边界无要求，Latin-1 逐字节语义不变）。
+function bytesToBase64(bytes: Uint8Array): string {
+  const CHUNK = 0x8000
+  let bin = ""
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
+  }
+  return btoa(bin)
+}
+
+// appendUnique 附件去重（v4.508）：同路径重复拖入/选择不再堆叠 chip——
+// 提交时同一 @路径 注入两遍只会白占上下文。
+function appendUnique(prev: Attachment[], next: Attachment): Attachment[] {
+  return prev.some((x) => x.path === next.path) ? prev : [...prev, next]
+}
+
+// v4.508：识图/OCR 不再清草稿后 setText 无消费——不解构（接口字段保留，
+// 调用方签名不变；text/taRef 同为兼容保留）。
+export function useComposerAttachments({ running, onSend }: UseComposerAttachmentsOptions) {
   const toast = useToast()
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [pendingPaste, setPendingPaste] = useState(0)
@@ -82,7 +103,7 @@ export function useComposerAttachments({ setText, running, onSend }: UseComposer
         // v4.365：落盘成功后直接复用内存中的 dataUrl 作预览——原再走一次
         // AttachmentDataURL 把同一份 base64 从盘上读回（大截图=两次全量跨桥）。
         const previewUrl = dataUrl
-        setAttachments((prev) => [...prev, { path, previewUrl, type: "image", size: file.size || dataUrlBytes(dataUrl) }])
+        setAttachments((prev) => appendUnique(prev, { path, previewUrl, type: "image", size: file.size || dataUrlBytes(dataUrl) }))
       } catch (e: unknown) {
         // FE4-12：不静默——失败必须可见（文件读取 / SavePastedImage 落盘）
         toast.show(attachFailText("图片附件失败", file, e), "warn")
@@ -96,14 +117,10 @@ export function useComposerAttachments({ setText, running, onSend }: UseComposer
       setPendingPaste((n) => n + 1)
       try {
         const buf = await new Promise<ArrayBuffer>((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result as ArrayBuffer); r.onerror = () => rej(r.error); r.readAsArrayBuffer(file) })
-        const bytes = new Uint8Array(buf)
-        let bin = ""
-        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i])
-        const b64 = btoa(bin)
-        const path = await app.SaveAttachmentFile(file.name, b64)
-        setAttachments((prev) => [...prev, { path, previewUrl: "", type: "file", size: file.size }])
+        const path = await app.SaveAttachmentFile(file.name, bytesToBase64(new Uint8Array(buf)))
+        setAttachments((prev) => appendUnique(prev, { path, previewUrl: "", type: "file", size: file.size }))
       } catch (e: unknown) {
-        // FE4-12：不静默——文件读取 / SaveAttachmentFile 落盘失败一律上报
+        // FE4-12：不静默——失败必须可见（文件读取 / SaveAttachmentFile 落盘失败一律上报）
         toast.show(attachFailText("文件附件失败", file, e), "warn")
       } finally { setPendingPaste((n) => Math.max(0, n - 1)) }
     }
@@ -118,11 +135,15 @@ export function useComposerAttachments({ setText, running, onSend }: UseComposer
       const files = await app.PickFiles()
       if (!files || files.length === 0) return
       for (const f of files) {
-        if (f.type === "image") {
-          setAttachments((prev) => [...prev, { path: f.path, previewUrl: f.previewUrl ?? "", type: "image" as const, size: f.size }])
+        // v4.508 bug 根修：FilePickResult 无 MIME type 字段，此前按 f.type
+        // 判断对话框选的图片恒 false——图片全被当普通文件（无缩略图/无识图
+        // OCR）。改按扩展名（isImagePath 单源，与 pickImageAsDataUrl 白名单
+        // 同源）；previewUrl 空由附件条图标兜底。
+        if (isImagePath(f.path)) {
+          setAttachments((prev) => appendUnique(prev, { path: f.path, previewUrl: f.previewUrl ?? "", type: "image" as const, size: f.size }))
         } else {
           // P0-1 chip 化：非图片附件进 attachments（提交时统一注入 @路径）
-          setAttachments((prev) => [...prev, { path: f.path, previewUrl: "", type: "file" as const, size: f.size }])
+          setAttachments((prev) => appendUnique(prev, { path: f.path, previewUrl: "", type: "file" as const, size: f.size }))
         }
       }
     } catch (e: unknown) {
@@ -159,6 +180,8 @@ export function useComposerAttachments({ setText, running, onSend }: UseComposer
   }
 
   // ── 识图：本地视觉模型识别附件图片，把结果作为用户消息发给助手 ──
+  // v4.508：不再 setText("") 清空输入框——用户贴图后常先写半句要求再点识图，
+  // 识别结果独立成一条消息发送，草稿必须保留（此前被整段清掉=输入丢失）。
   const handleRecognize = async (att: Attachment) => {
     if (running || recognizingPath) return
     setRecognizingPath(att.path)
@@ -169,7 +192,6 @@ export function useComposerAttachments({ setText, running, onSend }: UseComposer
       )
       const name = att.path.split(/[/\\]/).pop() || att.path
       const msg = `【图片识图：${name}】\n${desc}`
-      setText("")
       setAttachments((prev) => prev.filter((x) => x.path !== att.path))
       onSendRef.current(msg, msg)
       toast.show("识别完成，已发送给助手")
@@ -188,7 +210,6 @@ export function useComposerAttachments({ setText, running, onSend }: UseComposer
       const text = await app.OCRText(att.path)
       const name = att.path.split(/[/\\]/).pop() || att.path
       const msg = `【图片文字提取：${name}】\n${text}`
-      setText("")
       setAttachments((prev) => prev.filter((x) => x.path !== att.path))
       onSendRef.current(msg, msg)
       toast.show("文字提取完成，已发送给助手")

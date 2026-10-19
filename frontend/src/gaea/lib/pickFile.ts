@@ -27,6 +27,20 @@ export function inShellEnv(): boolean {
 /** 图片扩展名白名单（GaeaPickFiles 无过滤器，本层按文件名后缀后置校验） */
 const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp']
 
+/**
+ * 路径是否图片（按扩展名，大小写不敏感）——壳内选图判断的单源。
+ * 背景（v4.508 bug）：GaeaPickFiles 的 FilePickResult 只有 Path/Name/Size，
+ * 无 MIME type 字段——useComposerAttachments 按浏览器 File.type 的判断对
+ * 对话框路径恒 false，选的图片全被当普通文件（无缩略图/无识图 OCR）。
+ * 拖拽路径有 File.type MIME；对话框路径统一走本判断（与 pickImageAsDataUrl
+ * 白名单同源）。
+ */
+export function isImagePath(path: string): boolean {
+  const i = path.lastIndexOf('.')
+  if (i < 0) return false
+  return IMAGE_EXTS.includes(path.slice(i + 1).toLowerCase())
+}
+
 /** 扩展名 → MIME 映射（未知映射诚实降级 application/octet-stream） */
 const MIME_BY_EXT: Record<string, string> = {
   png: 'image/png',

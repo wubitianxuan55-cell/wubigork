@@ -57,6 +57,32 @@ describe("ComposerAttachmentBar 附件预览条", () => {
     expect(removed).toEqual([".gaea/uploads/a.docx"]);
   });
 
+  it("v4.508 图片附件无 previewUrl（PickFiles 路径）：图标 chip 兜底不出裂图，识图/OCR 仍在", () => {
+    const atts: Attachment[] = [
+      { path: ".gaea/uploads/现场.png", previewUrl: "", type: "image", size: 4096 },
+    ];
+    render(
+      <ComposerAttachmentBar attachments={atts} running={false} recognizingPath={null} ocrPath={null} onRecognize={noop} onOCRText={noop} onRemove={noop} />,
+    );
+    // 不渲染空 src 的 img（裂图），走图标+文件名 chip
+    expect(screen.queryByAltText("")).toBeNull();
+    expect(screen.getByRole("button", { name: /预览 现场\.png/ }).textContent).toContain("现场.png");
+    // 识图/OCR 入口保留（PickFiles 图片 bug 的用户面：此前整条丢失）
+    expect(screen.getByTitle(/识图：本地视觉模型/)).toBeTruthy();
+    expect(screen.getByTitle(/提取文字：本地 OvisOCR2/)).toBeTruthy();
+  });
+
+  it("v4.508 有缩略图的图片附件点击缩略图打开预览", () => {
+    const atts: Attachment[] = [
+      { path: ".gaea/uploads/a.png", previewUrl: "data:image/png;base64,AAAA", type: "image" },
+    ];
+    render(
+      <ComposerAttachmentBar attachments={atts} running={false} recognizingPath={null} ocrPath={null} onRecognize={noop} onOCRText={noop} onRemove={noop} />,
+    );
+    fireEvent.click(screen.getByAltText(""));
+    expect(usePreviewStore.getState().previewFile).toBe(".gaea/uploads/a.png");
+  });
+
   it("无 size 的附件不显示大小", () => {
     const atts: Attachment[] = [
       { path: ".gaea/uploads/b.docx", previewUrl: "", type: "file" },

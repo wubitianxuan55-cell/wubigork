@@ -10,7 +10,7 @@
  * （mime 按扩展名映射）。
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { inShellEnv, pickFileAsFile, pickImageAsDataUrl } from './pickFile'
+import { inShellEnv, isImagePath, pickFileAsFile, pickImageAsDataUrl } from './pickFile'
 
 type PickSurface = {
   pickFiles: ReturnType<typeof vi.fn>
@@ -94,5 +94,20 @@ describe('pickFile（壳内文件选取共享 util）', () => {
       'aGVsbG8=',
     )
     await expect(pickImageAsDataUrl()).resolves.toBe('data:image/jpeg;base64,aGVsbG8=')
+  })
+})
+
+describe('isImagePath 扩展名判图（v4.508 PickFiles 图片 bug 根修单源）', () => {
+  it('图片扩展名（大小写不敏感）判定为图', () => {
+    expect(isImagePath('C:/imgs/a.png')).toBe(true)
+    expect(isImagePath('D:\照片\现场.JPG')).toBe(true)
+    expect(isImagePath('scan.jpeg')).toBe(true)
+    expect(isImagePath('x.webp')).toBe(true)
+  })
+  it('非图片扩展名 / 无扩展名 / 目录样式判非图', () => {
+    expect(isImagePath('报告.docx')).toBe(false)
+    expect(isImagePath('data.xlsx')).toBe(false)
+    expect(isImagePath('noext')).toBe(false)
+    expect(isImagePath('.png/')).toBe(false)
   })
 })

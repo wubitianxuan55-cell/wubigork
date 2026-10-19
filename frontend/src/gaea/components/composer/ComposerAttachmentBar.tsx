@@ -1,7 +1,7 @@
 // Composer 拆分产物：附件预览条（识图/OCR/移除，T6-10.1）
 // P0-1 扩展：非图片附件 chip 化 —— file 型附件渲染为「图标 + 文件名 +
 // 扩展名 badge」chip，点击可预览（调研 2026-08-16 P0-1）。
-import { Eye, FileText, Loader, X } from "../../icons";
+import { Eye, File as FileIcon, FileText, Image as ImageIcon, Loader, X } from "../../icons";
 import { extBadge, fileIconName } from "../../lib/fileBadge";
 import { usePreviewStore } from "../../lib/store";
 import type { Attachment } from "../../hooks/useComposerAttachments";
@@ -19,8 +19,8 @@ export interface ComposerAttachmentBarProps {
 function FileTypeIcon({ path, size }: { path: string; size: number }) {
   const name = path.split(/[/\\]/).pop() ?? path;
   switch (fileIconName(name)) {
-    case "FileImage": return <FileText size={size} className="text-accent shrink-0" />;
-    default: return <FileText size={size} className="text-accent shrink-0" />;
+    case "FileImage": return <ImageIcon size={size} className="text-accent shrink-0" />;
+    default: return <FileIcon size={size} className="text-accent shrink-0" />;
   }
 }
 
@@ -45,9 +45,17 @@ export function ComposerAttachmentBar({
         const sizeLabel = formatBytes(a.size);
         return (
           <div className="flex items-center gap-1.5 pl-1.5 pr-1 py-1 bg-bg-elev-2/90 border border-border-soft/70 rounded-lg shadow-[inset_0_1px_0_color-mix(in_srgb,var(--fg)_4%,transparent)] text-xs" key={a.path}>
-            {isImage ? (
+            {isImage && a.previewUrl ? (
               <div className="flex items-center gap-1.5">
-                <img src={a.previewUrl} alt="" className="w-8 h-8 rounded object-cover" />
+                <button
+                  type="button"
+                  className="border-0 bg-transparent rounded p-0 cursor-pointer"
+                  title={`点击预览 ${a.path}`}
+                  aria-label={`预览 ${name}`}
+                  onClick={() => openFilePreview(a.path)}
+                >
+                  <img src={a.previewUrl} alt="" className="w-8 h-8 rounded object-cover" />
+                </button>
                 {sizeLabel && (
                   <span className="text-[9px] text-fg-faint/70 font-mono shrink-0" title="附件占用（进入上下文的体量）">{sizeLabel}</span>
                 )}

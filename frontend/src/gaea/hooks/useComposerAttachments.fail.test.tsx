@@ -12,6 +12,8 @@ const bridgeMocks = vi.hoisted(() => ({
   SavePastedImage: vi.fn(),
   SaveAttachmentFile: vi.fn(),
   PickFiles: vi.fn(),
+  RecognizeImage: vi.fn(),
+  OCRText: vi.fn(),
 }))
 
 vi.mock('../lib/bridge', () => ({
@@ -19,6 +21,8 @@ vi.mock('../lib/bridge', () => ({
     SavePastedImage: bridgeMocks.SavePastedImage,
     SaveAttachmentFile: bridgeMocks.SaveAttachmentFile,
     PickFiles: bridgeMocks.PickFiles,
+    RecognizeImage: bridgeMocks.RecognizeImage,
+    OCRText: bridgeMocks.OCRText,
   },
 }))
 
@@ -26,13 +30,16 @@ function wrapper({ children }: { children: ReactNode }): ReactElement {
   return <ToastProvider>{children}</ToastProvider>
 }
 
-function renderAttachments() {
+function renderAttachments(over?: { setText?: ReturnType<typeof vi.fn>; onSend?: ReturnType<typeof vi.fn> }) {
+  // vi.fn 过 hook 接口签名须 as 窄化（运行时仍是 mock 原件，调用方可断言）
+  const setText = (over?.setText ?? vi.fn()) as unknown as React.Dispatch<React.SetStateAction<string>>
+  const onSend = (over?.onSend ?? vi.fn()) as unknown as (d: string, s?: string) => void
   return renderHook(() => useComposerAttachments({
     text: '',
-    setText: vi.fn(),
+    setText,
     taRef: { current: null } as React.RefObject<HTMLTextAreaElement>,
     running: false,
-    onSend: vi.fn(),
+    onSend,
   }), { wrapper })
 }
 
@@ -97,5 +104,52 @@ describe('useComposerAttachments 附件失败可见化（FE4-12）', () => {
 
     await waitFor(() => expect(screen.getByText(/选择附件失败/)).toBeTruthy())
     expect(screen.getByText(/选择附件失败/).textContent).toContain('对话框不可用')
+  })
+})
+
+describe('useComposerAttachments v4.508 文件交互修复', () => {
+  afterEach(() => { cleanup(); vi.clearAllMocks() })
+
+  it('PickFiles 选的图片（无 type 字段）按扩展名进 image 通道——bug 回归钉', async () => {
+    // 复现契约现场：FilePickResult 只有 path/name/size，无 type 字段
+    bridgeMocks.PickFiles.mockResolvedValue([
+      { path: 'C:/imgs/现场照片.png', name: '现场照片.png', size: 5 },
+      { path: 'C:/docs/报告.docx', name: '报告.docx', size: 7 },
+    ])
+    const { result } = renderAttachments()
+    await act(async () => { await result.current.handlePickFiles() })
+    const atts = result.current.attachments
+    expect(atts).toHaveLength(2)
+    expect(atts[0]).toMatchObject({ path: 'C:/imgs/现场照片.png', type: 'image' })
+    expect(atts[1]).toMatchObject({ path: 'C:/docs/报告.docx', type: 'file' })
+  })
+
+  it('识图发送后输入框草稿保留（此前 setText("") 清用户半句话）', async () => {
+    bridgeMocks.RecognizeImage.mockResolvedValue('图中是施工现场')
+    const setText = vi.fn()
+    const onSend = vi.fn()
+    const { result } = renderAttachments({ setText, onSend })
+    await act(async () => { await result.current.handleRecognize({ path: 'C:/imgs/a.png', previewUrl: '', type: 'image' }) })
+    expect(onSend).toHaveBeenCalledTimes(1)
+    expect(onSend.mock.calls[0][0]).toContain('图中是施工现场')
+    expect(setText).not.toHaveBeenCalled()
+    expect(result.current.attachments).toHaveLength(0)
+  })
+
+  it('重复路径附件去重（拖两次/选两次只留一条）', async () => {
+    bridgeMocks.SavePastedImage.mockResolvedValue('.gaea/uploads/dup.png')
+    const { result } = renderAttachments()
+    await act(async () => { await result.current.attachDroppedFiles([pngFile('dup.png')]) })
+    await act(async () => { await result.current.attachDroppedFiles([pngFile('dup.png')]) })
+    expect(result.current.attachments).toHaveLength(1)
+  })
+
+  it('非图片附件 base64 分块编码等价（SaveAttachmentFile 收到正确 b64）', async () => {
+    bridgeMocks.SaveAttachmentFile.mockResolvedValue('.gaea/uploads/data.bin')
+    const { result } = renderAttachments()
+    // binFile 内容 [4,5,6] → base64 BAUG（分块编码与整段 btoa 等价）
+    await act(async () => { await result.current.attachDroppedFiles([binFile('data.bin')]) })
+    expect(bridgeMocks.SaveAttachmentFile).toHaveBeenCalledWith('data.bin', 'BAUG')
+    expect(result.current.attachments[0]).toMatchObject({ type: 'file', size: 3 })
   })
 })
