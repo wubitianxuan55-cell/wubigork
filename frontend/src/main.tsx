@@ -28,6 +28,8 @@ registerPage('WeixinPage', lazy(() => import('./pages/WeixinPage')))
 registerPage('SchedulePage', lazy(() => import('./pages/SchedulePage')))
 // 闲庭 v4.244：原罪板块（图文混杂的故事创作，复用办公组件；后端 SinB 门面）
 registerPage('OriginalSinPage', lazy(() => import('./pages/OriginalSinPage')))
+// 2026-10-19 运行监测板块（参照 Strata Monitor：系统/引擎/遥测/最近调用仪表盘）
+registerPage('RuntimePage', lazy(() => import('./pages/RuntimePage')))
 
 
 // ═══ WebView2 rAF 节流降级 ═══════════════════════════════════════════

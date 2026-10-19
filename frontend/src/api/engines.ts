@@ -484,6 +484,12 @@ export async function getModelMonitor(): Promise<unknown> {
   return result
 }
 
+/** 运行监测聚合快照（「运行监测」板块；同上必须经 App() 兼容代理）。 */
+export async function getRuntimeMonitor(): Promise<unknown> {
+  const result = await App().RuntimeMonitor()
+  return result
+}
+
 /** 保存引擎配置 */
 export async function saveEngine(cfg: EngineConfig): Promise<void> {
   await App().SaveEngine(cfg)

@@ -150,8 +150,8 @@ func TestFillFromManifestsHappyPath(t *testing.T) {
 func TestGetBoardManifestsCanonical(t *testing.T) {
 	a := &App{}
 	manifests := a.GetBoardManifests()
-	if len(manifests) != 13 {
-		t.Fatalf("GetBoardManifests 应返回 13 个板块（12 canonical + knowledge D7），got %d", len(manifests))
+	if len(manifests) != 14 {
+		t.Fatalf("GetBoardManifests 应返回 14 个板块（13 canonical〔2026-10-19 +runtime〕+ knowledge D7），got %d", len(manifests))
 	}
 	byID := map[string]board.Manifest{}
 	for _, m := range manifests {

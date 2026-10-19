@@ -86,6 +86,9 @@ type LegacyBenchmarkMethods = {
   GaeaBenchmarkExport(id: string, dir: string): Promise<string>;
   GaeaBenchmarkStreamProbe(model: string): Promise<StreamProbeResultMock>;
   GetModelMonitor(): Promise<ResourceMonitorDataMock>;
+  // 运行监测快照（RuntimePage 消费，legacy 面）：浏览器开发环境无引擎/无
+  // 记账——空壳快照（无遥测、无最近调用），页面呈现诚实空态不编造数值。
+  RuntimeMonitor(): Promise<Record<string, unknown>>;
 };
 
 /** 测评运行明细（对齐 api/engines.ts BenchmarkRunDetail 消费方解构字段）。 */
@@ -523,6 +526,19 @@ export function buildModel(s: MakeMockState): ModelMethods {
     // 呈现「无本地引擎」chip + 0% 条，不编造真实 CPU/显存数值。
     async GetModelMonitor(): Promise<ResourceMonitorDataMock> {
       return { engines: [], stats: {}, comfyRunning: false };
+    },
+    // 运行监测空壳快照：系统无读数、引擎表空、两遥测 null、无最近调用——
+    // RuntimePage 各区块走「无遥测/引擎未运行」诚实空态。
+    async RuntimeMonitor(): Promise<Record<string, unknown>> {
+      return {
+        time: "",
+        system: {},
+        engines: [],
+        strata: null,
+        tianxuan: null,
+        recent_calls: [],
+        totals: {},
+      };
     },
     // ── OpenCode Key：浏览器内存态联动，无持久化 ──
     async SetOpencodeGoKey(apiKey: string): Promise<void> {

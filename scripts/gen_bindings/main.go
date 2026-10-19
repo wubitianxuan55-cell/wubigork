@@ -259,6 +259,8 @@ var explicitOverrides = map[string]string{
 	"SetSensitiveLocal":      "model",
 	"SetOfficeLocal":         "model",
 	"GetModelMonitor":        "model",
+	// 运行监测板块快照（runtime_monitor.go）：模型/引擎域聚合，归 ModelB。
+	"RuntimeMonitor": "model",
 	"SetFeatureModel":        "model",
 	"SetFeatureModelEnabled": "model",
 	"GetEngines":             "model",

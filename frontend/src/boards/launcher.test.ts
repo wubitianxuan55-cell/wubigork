@@ -39,10 +39,10 @@ const BACKEND_FIXTURE = [
 ]
 
 describe('deriveLauncherModules（启动器清单纯函数）', () => {
-  it('静态清单 → 11 卡，顺序与 LAUNCHER_DESC 对齐（v4.439 编程板块删除后 11 卡；不含 home/schedule）', () => {
+  it('静态清单 → 12 卡，顺序与 LAUNCHER_DESC 对齐（2026-10-19 +runtime；不含 home/schedule）', () => {
     const modules = deriveLauncherModules(canonicalBoards, LAUNCHER_DESC)
     expect(modules.map((m) => m.key)).toEqual([
-      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin', 'sin',
+      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin', 'sin', 'runtime',
     ])
     expect(modules.map((m) => m.key)).not.toContain('home')
     // 刀1 语义：schedule 并入办公文档面，inMenu=false 移出启动器（办公文件面/命令面板承接）

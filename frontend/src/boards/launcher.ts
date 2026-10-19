@@ -34,6 +34,7 @@ export const LAUNCHER_DESC: Record<string, string> = {
   weixin: '青鸟传信 · 微信遥控器：扫码绑定与离线代办提醒',
   schedule: '工程进度计划：横道图 / 单代号 / 双代号网络图',
   sin: '与 AI 对话写图文故事（含插图与导出）',
+  runtime: '系统资源 / 引擎状态 / 吞吐与最近请求仪表盘',
   settings: '应用偏好与主题外观',
 }
 

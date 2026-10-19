@@ -49,22 +49,22 @@ const BACKEND_FIXTURE = [
 // 3.0 附 B 收敛映射回归：manifest 派生结果必须与旧 MainLayout 硬编码一致（像素级）。
 
 describe('menuBoards（附 B #4：filter(inMenu) + sort(menuOrder)）', () => {
-  it('菜单顺序与现状一致：首页 → 聊天 → 小说 → 绘梦 → 办公 → 造价数据库 → 记忆中枢 → 模型中心 → 角色库 → 青鸟 → 原罪（v4.439 编程板块删除后 11 项）', () => {
+  it('菜单顺序与现状一致：首页 → 聊天 → 小说 → 绘梦 → 办公 → 造价数据库 → 记忆中枢 → 模型中心 → 角色库 → 青鸟 → 原罪 → 运行监测（2026-10-19 +runtime 共 12 项）', () => {
     expect(menuBoards.map((b) => b.id)).toEqual([
-      'home', 'chat', 'novel', 'imagegen', 'gaea', 'cost', 'memoryhub', 'modelcenter', 'characterlib', 'weixin', 'sin',
+      'home', 'chat', 'novel', 'imagegen', 'gaea', 'cost', 'memoryhub', 'modelcenter', 'characterlib', 'weixin', 'sin', 'runtime',
     ])
   })
 
-  it('菜单文案与现状一致（首页/聊天/小说/绘梦/办公/造价数据库/记忆中枢/模型中心/角色库/青鸟/原罪）', () => {
+  it('菜单文案与现状一致（首页/聊天/小说/绘梦/办公/造价数据库/记忆中枢/模型中心/角色库/青鸟/原罪/运行监测）', () => {
     expect(menuBoards.map((b) => b.label)).toEqual([
-      '首页', '聊天', '小说', '绘梦', '办公', '造价数据库', '记忆中枢', '模型中心', '角色库', '青鸟', '原罪',
+      '首页', '聊天', '小说', '绘梦', '办公', '造价数据库', '记忆中枢', '模型中心', '角色库', '青鸟', '原罪', '运行监测',
     ])
   })
 
   it('菜单图标名与现状一致（antd 图标注册表可解析）', () => {
     const expected = ['HomeOutlined', 'MessageOutlined', 'ReadOutlined', 'PictureOutlined',
       'ToolOutlined', 'AccountBookOutlined', 'DatabaseOutlined', 'ApiOutlined', 'TeamOutlined', 'WechatOutlined',
-      'FireOutlined']
+      'FireOutlined', 'MonitorOutlined']
     expect(menuBoards.map((b) => b.icon)).toEqual(expected)
     for (const b of menuBoards) {
       expect(resolveBoardIcon(b.icon), `icon ${b.icon} 可解析`).not.toBeNull()
@@ -81,13 +81,13 @@ describe('menuBoards（附 B #4：filter(inMenu) + sort(menuOrder)）', () => {
 describe('getActiveMenuBoardsForSpace（S2.1 双空间分域：shared 恒在 / independent 剔除 / inMenu 过滤）', () => {
   it('work → 共享 + 工位板块（menuOrder 派生序；shared 不置顶——切换器在 rail 顶部承担空间定位）', () => {
     expect(getActiveMenuBoardsForSpace('work').map((b) => b.id)).toEqual([
-      'home', 'gaea', 'cost', 'memoryhub', 'modelcenter', 'weixin',
+      'home', 'gaea', 'cost', 'memoryhub', 'modelcenter', 'weixin', 'runtime',
     ])
   })
 
   it('play → 共享 + 乐园板块（menuOrder 派生序）', () => {
     expect(getActiveMenuBoardsForSpace('play').map((b) => b.id)).toEqual([
-      'home', 'chat', 'novel', 'imagegen', 'modelcenter', 'characterlib', 'sin',
+      'home', 'chat', 'novel', 'imagegen', 'modelcenter', 'characterlib', 'sin', 'runtime',
     ])
   })
 
@@ -101,13 +101,13 @@ describe('getActiveMenuBoardsForSpace（S2.1 双空间分域：shared 恒在 / i
     }
   })
 
-  it('两空间板块数（work 6 / play 7，含 home 与共享的 modelcenter；v4.244 原罪只在闲庭）且文案为中文便签', () => {
+  it('两空间板块数（work 7 / play 8，含 home 与共享的 modelcenter/runtime；v4.244 原罪只在闲庭）且文案为中文便签', () => {
     const work = getActiveMenuBoardsForSpace('work')
     const play = getActiveMenuBoardsForSpace('play')
-    expect(work).toHaveLength(6)
-    expect(play).toHaveLength(7)
-    expect(work.map((b) => b.label)).toEqual(['首页', '办公', '造价数据库', '记忆中枢', '模型中心', '青鸟'])
-    expect(play.map((b) => b.label)).toEqual(['首页', '聊天', '小说', '绘梦', '模型中心', '角色库', '原罪'])
+    expect(work).toHaveLength(7)
+    expect(play).toHaveLength(8)
+    expect(work.map((b) => b.label)).toEqual(['首页', '办公', '造价数据库', '记忆中枢', '模型中心', '青鸟', '运行监测'])
+    expect(play.map((b) => b.label)).toEqual(['首页', '聊天', '小说', '绘梦', '模型中心', '角色库', '原罪', '运行监测'])
   })
 })
 
@@ -119,7 +119,7 @@ describe('navigateWhitelist（附 B #2：manifest 派生导航白名单）', () 
   // 白名单仍含 schedule（注册即可导航），办公文件面『进度计划』入口承接导航能力。
   it('注册即可导航：全部业务板块（v4.110.0 加 schedule；刀1 后仍含 inMenu=false 的 settings 与 schedule），不含 home', () => {
     expect(navigateWhitelist).toEqual([
-      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin', 'schedule', 'sin',
+      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin', 'schedule', 'sin', 'runtime',
     ])
   })
 })

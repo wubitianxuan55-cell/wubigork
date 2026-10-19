@@ -1,0 +1,227 @@
+/* runtime.css — 运行监测板块（参照 Strata Monitor 仪表盘的分区结构，
+   视觉走 gaea 令牌：玻璃面板 + 描边 + 强调色点睛，亮暗两态自动跟随）。 */
+
+.rt-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* ── 状态条 ─────────────────────────────────────────────── */
+.rt-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: color-mix(in srgb, var(--gaea-glass-bg) 52%, var(--color-surface));
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+}
+
+.rt-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.rt-state-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-text-secondary);
+}
+
+.rt-state-idle .rt-state-dot { background: #52c41a; }
+.rt-state-busy .rt-state-dot {
+  background: var(--glow, #faad14);
+  animation: rt-pulse 1.2s ease-in-out infinite;
+}
+.rt-state-busy { color: var(--glow, #faad14); }
+.rt-state-off .rt-state-dot { background: #d9d9d9; }
+
+@keyframes rt-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.rt-state-toks { color: var(--color-text-secondary); font-weight: 500; }
+
+.rt-header-meta { color: var(--color-text-secondary); font-size: 12.5px; }
+
+.rt-updated { color: var(--color-text-secondary); font-size: 12px; }
+
+.rt-error {
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, #ff4d4f 12%, transparent);
+  color: #ff7875;
+  font-size: 12.5px;
+}
+
+/* ── 指标卡栅格 ─────────────────────────────────────────── */
+.rt-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.rt-card {
+  padding: 12px 14px 8px;
+  background: color-mix(in srgb, var(--gaea-glass-bg) 52%, var(--color-surface));
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.rt-card-empty .rt-card-value { color: var(--color-text-secondary); }
+
+.rt-card-label {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.rt-card-value {
+  font-size: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rt-card-unit { font-size: 12px; font-weight: 400; color: var(--color-text-secondary); }
+
+.rt-spark { width: 100%; height: 26px; display: block; }
+.rt-spark polyline { stroke: var(--glow, #1677ff); stroke-width: 1.5; opacity: 0.55; }
+.rt-spark-active polyline { opacity: 1; }
+.rt-spark-baseline { stroke: var(--color-border); stroke-width: 1; }
+
+.rt-loading {
+  grid-column: 1 / -1;
+  padding: 28px;
+  text-align: center;
+  color: var(--color-text-secondary);
+  background: color-mix(in srgb, var(--gaea-glass-bg) 52%, var(--color-surface));
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+}
+
+/* ── 引擎卡行 ───────────────────────────────────────────── */
+.rt-engines {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+
+.rt-engine {
+  padding: 10px 14px;
+  background: color-mix(in srgb, var(--gaea-glass-bg) 52%, var(--color-surface));
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.rt-engine-disabled { opacity: 0.55; }
+
+.rt-engine-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.rt-engine-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #d9d9d9;
+  flex: none;
+}
+
+.rt-engine-dot.on { background: #52c41a; }
+
+.rt-engine-name { font-weight: 600; font-size: 13.5px; white-space: nowrap; }
+
+.rt-engine-state {
+  font-size: 11.5px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-border) 55%, transparent);
+  color: var(--color-text-secondary);
+  flex: none;
+}
+
+.rt-engine-state.busy {
+  background: color-mix(in srgb, var(--glow, #faad14) 16%, transparent);
+  color: var(--glow, #faad14);
+}
+
+.rt-engine-lat { margin-left: auto; font-size: 11.5px; color: var(--color-text-secondary); flex: none; }
+
+.rt-engine-model {
+  font-size: 12.5px;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rt-engine-queued, .rt-engine-prompt, .rt-engine-elapsed {
+  color: var(--color-text-secondary);
+  font-size: 11.5px;
+}
+
+.rt-engine-cloud-label { font-weight: 600; font-size: 13.5px; }
+
+.rt-engine-models {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.rt-chip {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-border) 45%, transparent);
+  color: var(--color-text-secondary);
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rt-chip.on {
+  background: color-mix(in srgb, #52c41a 16%, transparent);
+  color: #52c41a;
+}
+
+.rt-chip-more { flex: none; }
+
+/* ── 最近请求表 ─────────────────────────────────────────── */
+.rt-requests {
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--gaea-glass-bg) 52%, var(--color-surface));
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+}
+
+.rt-requests-title {
+  font-weight: 600;
+  font-size: 13.5px;
+  margin-bottom: 8px;
+}
+
+.rt-ok { color: #52c41a; }
+.rt-fail { color: #ff7875; cursor: help; }

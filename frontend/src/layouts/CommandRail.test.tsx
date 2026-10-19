@@ -48,9 +48,9 @@ describe('CommandRail 书斋/闲庭双空间分域导航（v4.169）', () => {
     expect(screen.queryByTestId('v3-rail-space-play')).toBeNull()
   })
 
-  it('work 空间：主体 = 共享 + 书斋板块（首页/办公/造价数据库/记忆中枢/模型中心/青鸟）', () => {
+  it('work 空间：主体 = 共享 + 书斋板块（首页/办公/造价数据库/记忆中枢/模型中心/青鸟/运行监测）', () => {
     renderRail()
-    expect(navLabels()).toEqual(['首页', '办公', '造价数据库', '记忆中枢', '模型中心', '青鸟'])
+    expect(navLabels()).toEqual(['首页', '办公', '造价数据库', '记忆中枢', '模型中心', '青鸟', '运行监测'])
   })
 
   it('independent 分面为空（v4.439 编程板块删除）：foot 段不渲染任何独立窗口入口', () => {
@@ -74,7 +74,7 @@ describe('CommandRail 书斋/闲庭双空间分域导航（v4.169）', () => {
         onSwitchSpace={vi.fn()}
       />,
     ))
-    expect(navLabels()).toEqual(['首页', '聊天', '小说', '绘梦', '模型中心', '角色库', '原罪'])
+    expect(navLabels()).toEqual(['首页', '聊天', '小说', '绘梦', '模型中心', '角色库', '原罪', '运行监测'])
     expect(screen.getByTestId('v3-rail-space-indicator').textContent).toBe('闲庭')
     expect(screen.queryAllByLabelText(/编程/)).toHaveLength(0)
   })

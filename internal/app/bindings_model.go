@@ -44,6 +44,7 @@ func (b *ModelB) HerdsmanModelStop(model string) (HerdsmanOpResult, error) { ret
 func (b *ModelB) HerdsmanModelUninstall(model string) (HerdsmanOpResult, error) { return b.a.HerdsmanModelUninstall(model) }
 func (b *ModelB) HerdsmanOperations() (HerdsmanOperations, error) { return b.a.HerdsmanOperations() }
 func (b *ModelB) HerdsmanSecurityCheck() herdsman.LanExposure { return b.a.HerdsmanSecurityCheck() }
+func (b *ModelB) RuntimeMonitor() map[string]interface{} { return b.a.RuntimeMonitor() }
 func (b *ModelB) SetEngineFailover(enabled bool) error { return b.a.SetEngineFailover(enabled) }
 func (b *ModelB) SetFeatureModel(feature string, engineID string, modelName string) error { return b.a.SetFeatureModel(feature, engineID, modelName) }
 func (b *ModelB) SetFeatureModelEnabled(feature string, enabled bool) error { return b.a.SetFeatureModelEnabled(feature, enabled) }

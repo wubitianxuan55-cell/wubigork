@@ -555,6 +555,7 @@ export const bindingNames = [
   "RewriteChapterAiTaste",
   "RunBookHealthCheck",
   "RunChapterGate",
+  "RuntimeMonitor",
   "SaveAllWorldviewSections",
   "SaveChapterBranchContent",
   "SaveChapterContent",
@@ -669,4 +670,4 @@ export const bindingNames = [
   "WhisperWeixinQRStatus",
   "WhisperWeixinQRStatusWithCode",
   "WhisperWeixinStatus",
-] as const
+  ] as const

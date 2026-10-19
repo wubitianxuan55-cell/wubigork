@@ -146,6 +146,9 @@ type statsRecorder struct {
 	lastSave time.Time // 上次落盘时间（节流用）
 	pending  int       // 自上次落盘以来累计的调用数（节流用）
 
+	// recent 近期调用环形缓冲（旧→新，运行监测页数据源；见 stats_recent.go）。
+	recent []ModelCallUsage
+
 	// usdCnyRate 美元→人民币汇率（费用估算折算用；默认 7.2，
 	// 由 app 层按 ~/.gaea_config.json 的 usd_cny_rate 注入/更新）。
 	usdCnyRate float64
@@ -362,6 +365,7 @@ func (r *statsRecorder) record(u ModelCallUsage, billing string) {
 	tp.TotalTokens += u.InputTokens + u.OutputTokens
 	tp.Cost += costCNY
 	r.pruneTrendsLocked()
+	r.appendRecentLocked(u)
 	r.pending++
 	shouldSave := r.lastSave.IsZero() || time.Since(r.lastSave) >= statsSaveInterval || r.pending >= statsSaveBatch
 	r.mu.Unlock()

@@ -88,9 +88,9 @@ describe('ModuleLauncher 统一台首页（v4.475 书斋/闲庭合一）', () =>
   it('能力矩阵全板块出卡且全卡同权：闲庭与书斋板块同屏，无旗舰/徽记/箭头（v4.476 极简化）', () => {
     render(wrap(<ModuleLauncher onNavigate={vi.fn()} />))
     expect(document.querySelector('.w-modules')).toBeTruthy()
-    // 静态 canonicalBoards 全量派生：10 业务板块 + settings，11 张同构卡
+    // 静态 canonicalBoards 全量派生：11 业务板块 + settings，12 张同构卡（2026-10-19 +runtime）
     const mods = document.querySelectorAll('.w-mod')
-    expect(mods.length).toBe(11)
+    expect(mods.length).toBe(12)
     mods.forEach((p) => expect(p.tagName.toLowerCase()).toBe('button'))
     // 全卡同权：无旗舰/徽记/水印/悬停箭头，设置也是普通卡
     expect(document.querySelectorAll('.w-mod.is-featured').length).toBe(0)

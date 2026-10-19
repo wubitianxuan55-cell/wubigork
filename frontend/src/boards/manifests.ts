@@ -19,7 +19,7 @@ import {
   ToolOutlined, DatabaseOutlined, ApiOutlined, TeamOutlined,
   SettingOutlined, WechatOutlined, BookOutlined, AccountBookOutlined,
   ScheduleOutlined,
-  FireOutlined,
+  FireOutlined, MonitorOutlined,
 } from '@ant-design/icons'
 import type { ComponentType } from 'react'
 import type { BoardManifest, BoardNavChild } from './types'
@@ -31,7 +31,7 @@ const ICON_REGISTRY: Record<string, ComponentType> = {
   HomeOutlined, MessageOutlined, ReadOutlined, PictureOutlined,
   ToolOutlined, DatabaseOutlined, ApiOutlined, TeamOutlined,
   SettingOutlined, WechatOutlined, BookOutlined, AccountBookOutlined,
-  ScheduleOutlined, FireOutlined,
+  ScheduleOutlined, FireOutlined, MonitorOutlined,
 }
 
 /** 查表解析 antd 图标；未知图标名返回 null（不抛错，渲染时退化） */
@@ -146,6 +146,13 @@ export const canonicalBoards: BoardManifest[] = [
     lazy: true, keepAlive: true, layout: 'full',
     menuOrder: 13, inMenu: true, space: 'play',
     featureModel: 'sin',
+  },
+  {
+    // 运行监测（2026-10-19，参照 Strata Monitor 仪表盘）：系统资源 + 引擎状态 +
+    // Strata 系引擎 /metrics 遥测 + gaea 侧最近调用记账的聚合仪表盘。
+    id: 'runtime', label: '运行监测', icon: 'MonitorOutlined', page: 'RuntimePage',
+    lazy: true, keepAlive: true, layout: 'padded',
+    menuOrder: 14, inMenu: true, space: 'shared',
   },
 ]
 
