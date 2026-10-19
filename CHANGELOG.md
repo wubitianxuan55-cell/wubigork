@@ -1,3 +1,6 @@
+## v4.504.0 · 办公输出细节轮：diff 视图完成+只读 JSON 降噪+组行截断（2026-10-19）
+> v4.503 排版收敛的细节续刀。①diff 视图完成（观察池关账）：ToolCard 此前只渲染 d.original——write_file 全增空盒（写入内容不可见）、edit_file 只显旧文；改 unifiedRows 行级 ± 视图（复用 diffLines LCS 单源，original 空串特判全 add 防伪 del 行，尾换行归一，400 行上限折叠，零行整块不渲染），着色与 diffstat 芯片同口径；②READER_JSON_TOOLS 只读工具（read_file/ls/glob/grep/web_fetch/web_search）展开态不再渲染 {"path":…} JSON 盒，可展开性由输出块承担；③ToolGroup 组行单条主体截 48 字符（bash ×N 整条命令拼行的一长串）；④删 .md-code 死类。测试 +10；全量 ci 绿（vitest 447 文件 3868 例）。详见 `releases/v4.504.0.md`。
+
 ## v4.503.0 · 办公对话输出排版单源收敛+bash 卡去重（2026-10-18）
 > 用户实锤「字体大小不一/间距混乱/bash 类一长串」。根修=同一份 markdown 两套排版系统同树混战（styles.css .md 块 vs Markdown.tsx 组件工具类按 CSS 特异度逐属性打架：h1 实际 1.45em≈20px、th 11px vs td 13px 同表失配、引用斜体混入、#### 层级隐形）；组件侧摘除平行工具类只留 preflight 列表符号补偿，.md 块成为字级/间距唯一来源，阶梯压平一档（h1 1.3/h2 1.16/h3 1.06/h4 降色不降级）+节奏收紧（标题 16/6、段后 8）；流式尾部标题字号近似对齐减稳定跳变；bash 卡展开态行内命令去重（折叠行 $ cmd mono 截断，展开后 $ 块独占）+输出标签 9→10px。顺带清 884cdd10 knip 门禁债（stopTianxuanModel/stopStrataModel 零消费 api 包装删除，Go 绑定保留）+.gitignore 收 temp/。全量 ci 绿（vitest 446 文件 3854 例）；ToolCard bash 去重回归 +1。详见 `releases/v4.503.0.md`。
 
