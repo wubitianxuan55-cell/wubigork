@@ -9,6 +9,7 @@ import { t } from "./i18n";
 import { extToLang } from "./lang";
 import { parseWriteArgs } from "./toolArgs";
 import type { DictKey } from "../locales/en";
+import type { DiffRow } from "./diff";
 
 export interface ToolDiff {
   original: string;
@@ -125,21 +126,55 @@ export function diffsFor(name: string, args: string): ToolDiff[] {
 
 // diffStatFor 汇总写工具的参数差异为 +N/−N 计数；非编辑类工具返回 null。
 // 与 diffsFor 同一参数口径（toolArgs）：edit_file 一组、multi_edit 逐组累加。
-export function diffStatFor(name: string, args: string): DiffStat | null {
-  if (name !== "edit_file" && name !== "multi_edit") return null;
+export function diffStatFor(name: string, args: string): DiffStat | null {  if (name !== "edit_file" && name !== "multi_edit") return null;
   const p = parseWriteArgs(name, args);
   // edits 字段缺失/非数组 → 不出芯片；edits 为空数组 → 仍出 0/0 芯片（历史口径）
   if (name === "multi_edit" && p.editsCount === null) return null;
   if (p.hunks.length === 0) return name === "multi_edit" ? { add: 0, del: 0 } : null;
   let add = 0;
   let del = 0;
-  for (const h of p.hunks) {
-    const pm = plusMinus(h.old, h.new);
-    add += pm.add;
-    del += pm.del;
-  }
+    for (const h of p.hunks) {
+      const pm = plusMinus(h.old, h.new);
+      add += pm.add;
+      del += pm.del;
+    }
   return { add, del };
 }
+
+// unifiedRows 把一对 before/after 展开成行级 ± 视图（v4.504 diff 完成刀）：
+// 此前 ToolCard 只渲染 d.original——write_file 全增 diff 的 original 是空串，
+// 展开态是一只空盒（写入内容用户看不到）；edit_file 只显旧文不显新文。
+// 现在 del 行来自 original、add 行来自 modified（diffLines LCS 复用）；
+// original 空串（write_file 全增 / edit_file 整段新增）特判全 add——diffLines
+// 会给空串出一行伪 del。两侧各剥一个尾换行防末尾空行噪声。
+export const TOOL_CARD_MAX_DIFF_ROWS = 400;
+
+export function unifiedRows(
+  original: string,
+  modified: string,
+): { rows: DiffRow[]; folded: number } {
+  const stripTail = (s: string) => (s.endsWith("\n") ? s.slice(0, -1) : s);
+  const base =
+    original === ""
+      ? stripTail(modified)
+          .split("\n")
+          .map((l) => ({ type: "add" as const, text: l }))
+      : diffLines(stripTail(original), stripTail(modified));
+  if (base.length <= TOOL_CARD_MAX_DIFF_ROWS) return { rows: base, folded: 0 };
+  return { rows: base.slice(0, TOOL_CARD_MAX_DIFF_ROWS), folded: base.length - TOOL_CARD_MAX_DIFF_ROWS };
+}
+
+// 行内主体已展示关键参数的只读工具：展开态不再渲染 args JSON 盒——read_file
+// 展开是 {"path":…} 纯噪音，卡片可展开性由输出块承担。grep 的 path 字段随之
+// 不在展开态显形（命中列表本就逐行含路径，信息不丢）。
+export const READER_JSON_TOOLS: ReadonlySet<string> = new Set([
+  "read_file",
+  "ls",
+  "glob",
+  "grep",
+  "web_fetch",
+  "web_search",
+]);
 
 export type TodoStatus = "pending" | "in_progress" | "completed";
 

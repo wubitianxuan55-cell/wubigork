@@ -5,10 +5,13 @@ import {
   boundedOutput,
   commandOf,
   diffStatFor,
+  READER_JSON_TOOLS,
   summarize,
   subjectOf,
+  TOOL_CARD_MAX_DIFF_ROWS,
   TOOL_CARD_OUTPUT_PREVIEW_LINES,
   TOOL_OUTPUT_MAX_PREVIEW_LINES,
+  unifiedRows,
 } from "./tools";
 import { LocaleProvider } from "./i18n";
 
@@ -17,6 +20,55 @@ import { LocaleProvider } from "./i18n";
 beforeAll(() => {
   localStorage.setItem("gaea-lang", "zh");
   render(createElement(LocaleProvider, null, createElement("div")));
+});
+
+describe("unifiedRows ±行视图（v4.504 diff 完成刀）", () => {
+  it("edit_file 两侧可见：del 来自 original、add 来自 modified、ctx 共有行", () => {
+    const { rows, folded } = unifiedRows("a\nb\nc\n", "a\nX\nc\n");
+    expect(folded).toBe(0);
+    expect(rows).toEqual([
+      { type: "ctx", text: "a" },
+      { type: "del", text: "b" },
+      { type: "add", text: "X" },
+      { type: "ctx", text: "c" },
+    ]);
+  });
+
+  it("write_file 全增特判：original 空串全 add，不给空串出伪 del 行", () => {
+    const { rows, folded } = unifiedRows("", "# 标题\n正文\n");
+    expect(folded).toBe(0);
+    expect(rows).toEqual([
+      { type: "add", text: "# 标题" },
+      { type: "add", text: "正文" },
+    ]);
+  });
+
+  it("尾换行归一：两侧各剥一个尾换行，不产末尾空行噪声", () => {
+    const { rows } = unifiedRows("x\n", "x\ny\n");
+    expect(rows).toEqual([
+      { type: "ctx", text: "x" },
+      { type: "add", text: "y" },
+    ]);
+  });
+
+  it("超上限截断：rows 截到上限并回报折叠行数", () => {
+    const n = TOOL_CARD_MAX_DIFF_ROWS + 7;
+    const big = Array.from({ length: n }, (_, i) => `line ${i}`).join("\n");
+    const { rows, folded } = unifiedRows("", big);
+    expect(rows.length).toBe(TOOL_CARD_MAX_DIFF_ROWS);
+    expect(folded).toBe(7);
+  });
+});
+
+describe("READER_JSON_TOOLS 只读工具 JSON 盒降噪", () => {
+  it("行内主体已展示关键参数的只读工具在名单内；写类/bash 不在", () => {
+    for (const name of ["read_file", "ls", "glob", "grep", "web_fetch", "web_search"]) {
+      expect(READER_JSON_TOOLS.has(name)).toBe(true);
+    }
+    for (const name of ["write_file", "edit_file", "bash", "task"]) {
+      expect(READER_JSON_TOOLS.has(name)).toBe(false);
+    }
+  });
 });
 
 describe("diffStatFor 编辑类工具 diffstat（v4.27 Codex 式 +N−M 芯片）", () => {

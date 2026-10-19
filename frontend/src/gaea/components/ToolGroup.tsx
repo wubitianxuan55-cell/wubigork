@@ -20,7 +20,11 @@ export const ToolGroup = memo(function ToolGroup({ tools, onCollapse }: { tools:
   if (tools.length === 0) return null;
   const t0 = tools[0];
 
-  // 提取所有工具的操作目标 — 最多 3 个，溢出显示 +N
+  // 提取所有工具的操作目标 — 最多 3 个，溢出显示 +N。
+  // v4.504：单条主体截 48 字符——bash 组的 subject 是整条命令，三条拼一行
+  // 又成「一长串」（与单卡折叠行的截断口径一致，完整命令在子卡 $ 块里）。
+  const SUBJECT_CAP = 48;
+  const cap = (s: string) => (s.length > SUBJECT_CAP ? `${s.slice(0, SUBJECT_CAP)}…` : s);
   const allSubjects = tools
     .map(t => subjectOf(t.name, t.args))
     .filter((s): s is string => !!s);
@@ -54,7 +58,7 @@ export const ToolGroup = memo(function ToolGroup({ tools, onCollapse }: { tools:
         </span>
         {subjects.length > 0 && (
           <span className={`text-fg-faint truncate ml-1 ${compact ? "text-[10px]" : "text-[11px]"}`}>
-            {subjects.join(", ")}
+            {subjects.map(cap).join(", ")}
             {moreSubjects > 0 ? ` +${moreSubjects}` : ""}
           </span>
         )}

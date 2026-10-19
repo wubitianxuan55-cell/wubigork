@@ -73,6 +73,40 @@ describe("ToolCard i18n 冒烟", () => {
     // 展开态：行内主体隐藏，只剩 $ 命令块一处
     expect(screen.getAllByText(/python tools\/x\.py --flag/).length).toBe(1);
   });
+
+  // v4.504 diff 完成刀：write_file 全增 diff 此前渲染空 original 空盒——
+  // 现在展开态直接可见写入内容（+ 行）；edit_file 两侧（− 旧文 / + 新文）。
+  it("write_file 展开态显示写入内容 + 行，不再空盒（zh）", () => {
+    const args = JSON.stringify({ path: "报告/a.md", content: "# 标题\n第一段\n" });
+    renderT(
+      <ToolCard item={{ kind: "tool", id: "tw", name: "write_file", args, readOnly: false, status: "done" }} />,
+    );
+    fireEvent.click(screen.getByText("write_file"));
+    expect(screen.getByText("+ # 标题")).toBeTruthy();
+    expect(screen.getByText("+ 第一段")).toBeTruthy();
+  });
+
+  it("edit_file 展开态 −/+ 两侧同行可见（zh）", () => {
+    const args = JSON.stringify({ path: "a.md", old_string: "旧句", new_string: "新句" });
+    renderT(
+      <ToolCard item={{ kind: "tool", id: "te", name: "edit_file", args, readOnly: false, status: "done" }} />,
+    );
+    fireEvent.click(screen.getByText("edit_file"));
+    expect(screen.getByText("- 旧句")).toBeTruthy();
+    expect(screen.getByText("+ 新句")).toBeTruthy();
+  });
+
+  // v4.504 只读工具 JSON 盒降噪：read_file 展开态不再渲染 {"path":…} 盒，
+  // 可展开性由输出块承担（行内主体本就显示路径）。
+  it("read_file 展开态无 args JSON 盒，输出块仍在（zh）", () => {
+    const args = JSON.stringify({ path: "data/台账.xlsx" });
+    renderT(
+      <ToolCard item={{ kind: "tool", id: "tr", name: "read_file", args, readOnly: true, status: "done", output: "→ 3 行\n" }} />,
+    );
+    fireEvent.click(screen.getByText("read_file"));
+    expect(screen.queryByText(/"path"/)).toBeNull();
+    expect(screen.getByText("→ 3 行")).toBeTruthy();
+  });
 });
 
 // ── Codex 式输出简化（2026-10）：bash 命令块 / 写类去双份 / 输出 12 行预览 ──

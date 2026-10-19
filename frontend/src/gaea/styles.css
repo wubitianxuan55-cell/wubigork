@@ -465,14 +465,6 @@ body {
   border-top: 1px solid var(--border);
   margin: 16px 0;
 }
-.md-code {
-  font-family: var(--mono);
-  font-size: 0.88em;
-  background: var(--bg-elev-2);
-  border: 1px solid var(--border-soft);
-  border-radius: 5px;
-  padding: 1px 5px;
-}
 /* 表格外框/横向滚动由 Markdown.tsx 的包裹层负责，这里只管表格内部：
    Codex 式极简——去掉全网格与斑马纹，只留表头底色 + 行分隔横线。 */
 .md table {

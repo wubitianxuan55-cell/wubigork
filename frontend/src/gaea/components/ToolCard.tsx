@@ -18,10 +18,13 @@ import {
   commandOf,
   diffStatFor,
   diffsFor,
+  READER_JSON_TOOLS,
   subjectOf,
   summarize,
   TOOL_CARD_OUTPUT_PREVIEW_LINES,
+  unifiedRows,
 } from "../lib/tools";
+import type { DiffRow } from "../lib/diff";
 import { fireTaskCardAmbiguity, getTaskCardActivity, getTaskCardAmbiguity, getTaskCardOpenTarget, hasTaskCardActivityProvider, hasTaskCardAmbiguityHandler, openTaskCardSession, resolveTaskRef, taskResultSummary } from "../lib/taskActivity";
 import { formatElapsed } from "../lib/time";
 import { useNow } from "../lib/useNow";
@@ -44,6 +47,28 @@ function StatusGlyph({ status, recoverable }: { status: ToolItem["status"]; reco
   if (status === "error") return <X className={recoverable ? "text-fg-faint/60" : "text-err"} size={12} />;
   if (status === "stopped") return <Ban className="text-fg-faint" size={12} />;
   return <Check className="text-ok" size={12} />;
+}
+
+// v4.504 diff 完成刀：行级 ± 视图替代只显 original 的旧渲染（write_file 全增
+// diff 的 original 是空串→展开态空盒；edit_file 只显旧文）。着色对齐 diffstat
+// 芯片口径：add=text-ok、del=text-err、ctx=text-fg-dim。
+function DiffRowsView({ rows, folded }: { rows: DiffRow[]; folded: number }) {
+  return (
+    <pre className="px-3 py-2 font-mono text-[12px] leading-[1.5] overflow-auto max-h-72 whitespace-pre bg-bg-soft border border-border-soft rounded-md">
+      <code>
+        {rows.map((r, i) => (
+          <span
+            key={i}
+            className={`block ${r.type === "add" ? "text-ok bg-ok/5" : r.type === "del" ? "text-err bg-err/5" : "text-fg-dim"}`}
+          >
+            {r.type === "add" ? "+ " : r.type === "del" ? "- " : "  "}
+            {r.text}
+          </span>
+        ))}
+        {folded > 0 && <span className="block text-fg-faint/60">{`… 已折叠 ${folded} 行`}</span>}
+      </code>
+    </pre>
+  );
 }
 
 // ── TaskLiveRow：task 工具卡运行中的实时活动行（v4.26 对齐 Codex）──────
@@ -135,7 +160,7 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
   // ② 写文件类 diffs 已是 args 的呈现，args JSON 不再重复渲染（此前
   //    write_file 整文件内容 diff 一遍、JSON 再摊一遍）。
   const command = useMemo(() => commandOf(item.name, item.args), [item.name, item.args]);
-  const showArgsJson = !command && diffs.length === 0 && !!item.args;
+  const showArgsJson = !command && diffs.length === 0 && !READER_JSON_TOOLS.has(item.name) && !!item.args;
   const hasOutput = !!item.output;
   const expandable = !!command || diffs.length > 0 || showArgsJson || hasOutput;
 
@@ -254,12 +279,16 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
 
       <div ref={bodyRef} style={{ overflow: "hidden" }}>
         <div>
-          {diffs.map((d, i) => (
-            <div className={`${innerPx} ${innerPb}`} key={i}>
-              {d.label && <div className="text-[10px] text-fg-faint uppercase tracking-wider mb-0.5">{d.label}</div>}
-              <pre className="px-3 py-2 font-mono text-[12px] leading-[1.5] overflow-auto whitespace-pre bg-bg-soft border border-border-soft rounded-md text-fg-dim"><code>{d.original}</code></pre>
-            </div>
-          ))}
+          {diffs.map((d, i) => {
+            const { rows, folded } = unifiedRows(d.original, d.modified);
+            if (rows.length === 0 && folded === 0) return null;
+            return (
+              <div className={`${innerPx} ${innerPb}`} key={i}>
+                {d.label && <div className="text-[10px] text-fg-faint uppercase tracking-wider mb-0.5">{d.label}</div>}
+                <DiffRowsView rows={rows} folded={folded} />
+              </div>
+            );
+          })}
 
           {hasNested && (
             <div className="pl-3 border-l border-border-soft ml-3">
