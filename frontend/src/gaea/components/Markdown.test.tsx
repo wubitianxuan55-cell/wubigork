@@ -221,6 +221,12 @@ describe("Markdown 内嵌 HTML 白名单", () => {
     expect((boxes[0] as HTMLInputElement).checked).toBe(false);
     expect((boxes[1] as HTMLInputElement).checked).toBe(true);
     expect(container.textContent).toContain("待办一");
+    // v4.505 去圆点 CSS 挂钩点=结构（li 直接子级 checkbox，styles.css 用
+    // :has() 选择）——remark-gfm 的 task-list-item 类名会被消毒白名单剥掉，
+    // 这里钉住「checkbox 是 li 直接子级」这一结构前提。
+    for (const b of Array.from(boxes)) {
+      expect(b.parentElement?.tagName).toBe("LI");
+    }
   });
 
   it("style/class/onclick 属性被剥，文本保留", () => {

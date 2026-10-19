@@ -438,6 +438,24 @@ body {
   accent-color: var(--accent);
   margin: 2px 6px 0 0;
 }
+/* 任务清单（GFM `- [ ]`）：li 既有圆点标记又有复选框（「● ☐」双标记）——
+   去圆点留复选框，清单缩进随之收紧（无标记不需要 24px 列位）。消毒白名单
+   会剥 remark-gfm 的 task-list-item 类名（fail-closed），故按结构 :has()
+   选择（WebView2/Chromium 105+）。 */
+.md li:has(> input[type="checkbox"]) {
+  list-style: none;
+}
+.md ul:has(> li > input[type="checkbox"]) {
+  padding-left: 10px;
+}
+/* KaTeX 展示公式超宽时横向滚动兜底，不撑破阅读列（移动窄栏/右栏同开时
+   尤其明显；滚动条随 colorScheme 明暗）。 */
+.md .katex-display {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0;
+}
 .md a {
   color: var(--accent);
   text-decoration: none;
