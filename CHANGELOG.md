@@ -1,3 +1,6 @@
+## v4.506.0 · 办公输出细节轮三：过程卡 todo_write 过滤+输出 ANSI/CRLF 清噪（2026-10-19）
+> ①过程卡 todo_write 过滤：待办有专属面板（useTodoExtractor→TasksWorkbench），外部项渲染线早已滤而过程卡体内漏滤——每轮待办更新以裸 todo_write 卡（展开整包 JSON）堆卡内且计入「N 个工具」；TurnBlock visibleProcess 统一过滤（计数同步摘除，纯 todo_write 段不空壳出卡）；②工具输出 ANSI/CRLF 清噪：引擎不剥转义序列，FORCE_COLOR/--color=always 脚本把 ESC[31m 原样送进输出块、Windows CRLF 在 pre 块出怪相——stripOutputNoise 剥 OSC+CSI+归一 LF，boundedOutput 出口单点生效（ToolCard/SinProcessCard 双面），只影响显示层 store 原文不动。测试 +4；全量 ci 绿。详见 `releases/v4.506.0.md`。
+
 ## v4.505.0 · 办公输出细节轮二：任务清单去双标记+公式滚动兜底（2026-10-19）
 > ①GFM `- [ ]` 任务清单圆点+复选框「● ☐」双标记根除（去圆点留复选框+缩进收紧）；实现注记=remark-gfm 的 task-list-item 类名被消毒白名单剥掉（fail-closed 正确行为），CSS 按结构 :has() 选择（WebView2/Chromium 105+），消毒面零改动，测试钉 checkbox 为 li 直接子级的结构前提；②KaTeX 展示公式超宽横向滚动兜底（.md .katex-display max-width+overflow-x，不撑破阅读列）。全量 ci 绿；目检过。详见 `releases/v4.505.0.md`。
 
