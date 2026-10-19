@@ -1,3 +1,6 @@
+## v4.507.0 · 办公输出细节轮四：bash 折叠行首行化+词界截断+超宽行预览截断（2026-10-19）
+> 用户截图实锤 bash 类工具行仍显示一大串，四处病灶单源收口（lib/tools.ts）：①commandHeadline 多行命令（heredoc/python -c/续行）取首个非空行+空白压单+64 词界截断——整条压平进单行折叠行是一大串主源，完整命令仍在展开态 $ 命令块，subjectOf bash 分支改走此函数（单卡+组行同源）；②truncateSubject 词界截断根除硬 slice 残词（「# 编码」→「# b.」），空格 <60% 处不回退（中文/无空格串硬切），ToolGroup cap 幂等；③grep/glob 主体=正则截 32+路径只留 basename；④boundedOutput 超宽行截断 TOOL_OUTPUT_LINE_CAP=160——[Image: source: C:\…] 绝对路径串/base64 长行不再占满 12 行预览，full 原文不动，lineFolded 计数+「展开完整输出」按钮（纯长行场景也有出口）。测试 +15；tsc/eslint/knip 0；相关 8 套件全绿。详见 `releases/v4.507.0.md`。
+
 ## v4.506.0 · 办公输出细节轮三：过程卡 todo_write 过滤+输出 ANSI/CRLF 清噪（2026-10-19）
 > ①过程卡 todo_write 过滤：待办有专属面板（useTodoExtractor→TasksWorkbench），外部项渲染线早已滤而过程卡体内漏滤——每轮待办更新以裸 todo_write 卡（展开整包 JSON）堆卡内且计入「N 个工具」；TurnBlock visibleProcess 统一过滤（计数同步摘除，纯 todo_write 段不空壳出卡）；②工具输出 ANSI/CRLF 清噪：引擎不剥转义序列，FORCE_COLOR/--color=always 脚本把 ESC[31m 原样送进输出块、Windows CRLF 在 pre 块出怪相——stripOutputNoise 剥 OSC+CSI+归一 LF，boundedOutput 出口单点生效（ToolCard/SinProcessCard 双面），只影响显示层 store 原文不动。测试 +4；全量 ci 绿。详见 `releases/v4.506.0.md`。
 
