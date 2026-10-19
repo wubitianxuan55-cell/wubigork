@@ -1,3 +1,6 @@
+## v4.505.0 · 办公输出细节轮二：任务清单去双标记+公式滚动兜底（2026-10-19）
+> ①GFM `- [ ]` 任务清单圆点+复选框「● ☐」双标记根除（去圆点留复选框+缩进收紧）；实现注记=remark-gfm 的 task-list-item 类名被消毒白名单剥掉（fail-closed 正确行为），CSS 按结构 :has() 选择（WebView2/Chromium 105+），消毒面零改动，测试钉 checkbox 为 li 直接子级的结构前提；②KaTeX 展示公式超宽横向滚动兜底（.md .katex-display max-width+overflow-x，不撑破阅读列）。全量 ci 绿；目检过。详见 `releases/v4.505.0.md`。
+
 ## v4.504.0 · 办公输出细节轮：diff 视图完成+只读 JSON 降噪+组行截断（2026-10-19）
 > v4.503 排版收敛的细节续刀。①diff 视图完成（观察池关账）：ToolCard 此前只渲染 d.original——write_file 全增空盒（写入内容不可见）、edit_file 只显旧文；改 unifiedRows 行级 ± 视图（复用 diffLines LCS 单源，original 空串特判全 add 防伪 del 行，尾换行归一，400 行上限折叠，零行整块不渲染），着色与 diffstat 芯片同口径；②READER_JSON_TOOLS 只读工具（read_file/ls/glob/grep/web_fetch/web_search）展开态不再渲染 {"path":…} JSON 盒，可展开性由输出块承担；③ToolGroup 组行单条主体截 48 字符（bash ×N 整条命令拼行的一长串）；④删 .md-code 死类。测试 +10；全量 ci 绿（vitest 447 文件 3868 例）。详见 `releases/v4.504.0.md`。
 
