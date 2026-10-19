@@ -407,6 +407,19 @@ func (a *mediaState) GetSystemStats() map[string]interface{} {
 		result["vramUsed"] = used
 	}
 
+	// PDH 性能计数器兜底（厂商中立，免管理员，~ms 级；1s 进程内缓存）：
+	// AMD/新 Win11 下 nvidia-smi/wmic 双双不可用、ComfyUI 又没在跑时，GPU
+	// 负载与显存占用是仅剩的空洞——运行监测/资源条/首页矩阵共用本口径。
+	// 只补空或零字段：ComfyUI/nvidia-smi 的读数优先（同机同源时不打架）。
+	if util, vramUsed, ok := windowsGPUPerf(); ok {
+		if f, _ := result["gpuUsage"].(float64); f == 0 {
+			result["gpuUsage"] = util
+		}
+		if f, _ := result["vramUsed"].(float64); f <= 0 && vramUsed > 0 {
+			result["vramUsed"] = vramUsed
+		}
+	}
+
 	return result
 }
 

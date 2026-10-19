@@ -15,6 +15,20 @@ import './runtime.css'
 //   · 最近请求表：gaea 侧全引擎（含云端）调用记账（模型中心同源数据）。
 
 /** /metrics 宽松契约（Strata 系服务端字段演进不编进前端硬类型，按需取用） */
+interface EngineRequest {
+  time?: number
+  duration_s?: number
+  finish?: string
+  prompt_tokens?: number | null
+  prompt_total?: number | null
+  prompt_read?: number | null
+  reused?: number | null
+  output_tokens?: number | null
+  prompt_ms?: number | null
+  decode_tok_s?: number | null
+  hit_rate?: number | null
+}
+
 interface EngineMetrics {
   live?: {
     state?: string
@@ -28,9 +42,19 @@ interface EngineMetrics {
     max_tokens?: number | null
     elapsed_s?: number | null
   }
-  engine?: { model?: string }
+  engine?: { model?: string; max_context?: number | null }
   hardware?: Record<string, number | string | null>
   hardware_static?: Record<string, number | string | null>
+  requests?: EngineRequest[]
+  conversation_cache?: {
+    enabled?: boolean
+    budget_mib?: number | null
+    slots?: number | null
+    requests?: number
+    requests_reused?: number
+    reused_tokens?: number
+    prompt_tokens?: number
+  }
   totals?: Record<string, number>
 }
 
@@ -135,6 +159,47 @@ function Sparkline({ data, active }: { data: number[]; active: boolean }) {
 
 const SERIES_WINDOW = 60 // 每序列滚动窗口（2s 一拍 ≈ 2 分钟）
 
+/** 引擎侧请求的 finish 状态文案（Strata：stop/length/error） */
+const FINISH_LABEL: Record<string, string> = {
+  stop: '正常',
+  length: '截断',
+  error: '错误',
+}
+
+function fmtClock(epoch?: number): string {
+  if (!epoch) return '—'
+  const d = new Date(epoch * 1000)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`
+}
+
+function fmtKTok(v: number | null): string {
+  if (v == null) return '—'
+  return v >= 1000 ? `${(v / 1000).toFixed(1)}K` : String(Math.round(v))
+}
+
+/** Context 用量环（最近一次请求的 prompt_total+输出 vs 引擎 max_context） */
+function ContextDonut({ used, max }: { used: number | null; max: number | null }) {
+  const pct = used != null && max && max > 0 ? Math.min(used / max, 1) : null
+  const R = 42
+  const C = 2 * Math.PI * R
+  return (
+    <svg viewBox="0 0 100 100" className="rt-donut" role="img" aria-label="上下文用量">
+      <circle className="rt-donut-track" cx="50" cy="50" r={R} fill="none" strokeWidth="10" />
+      {pct != null && (
+        <circle
+          className={`rt-donut-fill${pct > 0.9 ? ' rt-donut-hot' : ''}`}
+          cx="50" cy="50" r={R} fill="none" strokeWidth="10"
+          strokeDasharray={`${pct * C} ${C}`} transform="rotate(-90 50 50)"
+        />
+      )}
+      <text x="50" y="49" textAnchor="middle" className="rt-donut-num">
+        {pct == null ? '—' : `${Math.round(pct * 100)}%`}
+      </text>
+      <text x="50" y="64" textAnchor="middle" className="rt-donut-label">Context</text>
+    </svg>
+  )
+}
+
 function MetricCard({ label, value, unit, series }: { label: string; value: string; unit: string; series: number[] }) {
   const hasValue = value !== '—'
   return (
@@ -176,13 +241,16 @@ export default function RuntimePage() {
       const hw = em?.hardware ?? {}
       const sys = m.system ?? {}
       pushSeries('tok_s', num(em?.live?.tok_s))
-      pushSeries('gpu_util', num(hw.gpu_util))
+      // GPU 负载：引擎遥测优先，系统 PDH 采集兜底（AMD Windows 下引擎侧恒
+      // null，系统侧常年有数——2026-10-19 轮二补齐）。
+      pushSeries('gpu_util', num(hw.gpu_util) ?? num(sys.gpuUsage))
       pushSeries('gpu_temp', num(hw.gpu_temp))
       pushSeries('gpu_power', num(hw.gpu_power))
       pushSeries('cpu', num(hw.cpu) ?? num(sys.cpu))
       pushSeries('ram_used', num(hw.ram_used) ?? num(sys.memUsed))
       pushSeries('vram_used', num(sys.vramUsed))
       pushSeries('disk_read', num(hw.disk_read_mb))
+      pushSeries('disk_write', num(hw.disk_write_mb))
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : '读取监测快照失败')
     }
@@ -207,15 +275,21 @@ export default function RuntimePage() {
     const vramUsed = num(sys.vramUsed)
     const vramTotal = num(sys.vramTotal)
     const tokS = num(em?.live?.tok_s)
+    const diskRead = num(hw.disk_read_mb)
+    const diskWrite = num(hw.disk_write_mb)
+    const diskValue =
+      diskRead == null && diskWrite == null
+        ? null
+        : `${diskRead?.toFixed(1) ?? '—'} / ${diskWrite?.toFixed(1) ?? '—'}`
     return [
       { label: '生成速度', value: tokS == null ? null : tokS.toFixed(1), unit: 'tok/s', series: 'tok_s' },
-      { label: 'GPU 负载', value: num(hw.gpu_util)?.toFixed(0), unit: '%', series: 'gpu_util' },
+      { label: 'GPU 负载', value: (num(hw.gpu_util) ?? num(sys.gpuUsage))?.toFixed(0), unit: '%', series: 'gpu_util' },
       { label: 'GPU 温度', value: num(hw.gpu_temp)?.toFixed(0), unit: '°C', series: 'gpu_temp' },
       { label: 'GPU 功率', value: num(hw.gpu_power)?.toFixed(0), unit: 'W', series: 'gpu_power' },
       { label: 'CPU', value: (num(hw.cpu) ?? num(sys.cpu))?.toFixed(0), unit: '%', series: 'cpu' },
       { label: '内存', value: ramUsed == null ? null : `${ramUsed.toFixed(1)}/${ramTotal ?? '?'}`, unit: 'GB', series: 'ram_used' },
       { label: '显存', value: vramUsed == null || vramUsed <= 0 ? null : `${vramUsed.toFixed(1)}/${vramTotal ?? '?'}`, unit: 'GB', series: 'vram_used' },
-      { label: '磁盘读', value: num(hw.disk_read_mb)?.toFixed(1), unit: 'MB/s', series: 'disk_read' },
+      { label: '磁盘 读/写', value: diskValue, unit: 'MB/s', series: 'disk_read' },
     ]
   }, [snap, em])
 
@@ -286,6 +360,60 @@ export default function RuntimePage() {
   const successRate = totals.total_calls
     ? `${((totals.success_calls ?? 0) / totals.total_calls) * 100 > 99.95 ? '100' : (((totals.success_calls ?? 0) / totals.total_calls) * 100).toFixed(1)}%`
     : '—'
+
+  // ── 引擎侧遥测（/metrics：Context 环 + 会话缓存 + 引擎请求表）──
+  const engineRequests = useMemo(() => (em?.requests ?? []).slice(0, 12), [em])
+  const ctxMax = num(em?.engine?.max_context)
+  const lastReq = engineRequests[0]
+  const ctxUsed = lastReq
+    ? (num(lastReq.prompt_total) ?? num(lastReq.prompt_tokens) ?? 0) + (num(lastReq.output_tokens) ?? 0)
+    : null
+  const cache = em?.conversation_cache
+  const engineReqColumns = useMemo(
+    () => [
+      { title: '时间', key: 'time', width: 80, render: (_: unknown, r: EngineRequest) => fmtClock(r.time) },
+      {
+        title: '状态', key: 'finish', width: 56,
+        render: (_: unknown, r: EngineRequest) => {
+          const ok = r.finish !== 'error'
+          return ok
+            ? <span className="rt-ok">{FINISH_LABEL[r.finish ?? ''] ?? r.finish ?? '—'}</span>
+            : <span className="rt-fail">错误</span>
+        },
+      },
+      {
+        title: 'Prompt', key: 'prompt', width: 90,
+        render: (_: unknown, r: EngineRequest) => (
+          <span>
+            {fmtKTok(num(r.prompt_tokens))}
+            {r.reused ? <span className="rt-req-sub"> 复用 {fmtKTok(num(r.reused))}</span> : null}
+          </span>
+        ),
+      },
+      { title: '输出', key: 'out', width: 70, render: (_: unknown, r: EngineRequest) => fmtKTok(num(r.output_tokens)) },
+      {
+        title: 'prefill t/s', key: 'prefill', width: 90,
+        render: (_: unknown, r: EngineRequest) => {
+          const ms = num(r.prompt_ms)
+          const toks = num(r.prompt_read) ?? num(r.prompt_tokens)
+          return ms && ms > 0 && toks ? ((toks / ms) * 1000).toFixed(0) : '—'
+        },
+      },
+      {
+        title: 'decode t/s', key: 'decode', width: 90,
+        render: (_: unknown, r: EngineRequest) => (num(r.decode_tok_s) != null ? num(r.decode_tok_s)!.toFixed(1) : '—'),
+      },
+      {
+        title: 'VRAM 命中', key: 'hit', width: 80,
+        render: (_: unknown, r: EngineRequest) => (num(r.hit_rate) != null ? `${Math.round(num(r.hit_rate)! * 100)}%` : '—'),
+      },
+      {
+        title: '时长', key: 'dur', width: 64,
+        render: (_: unknown, r: EngineRequest) => (num(r.duration_s) != null ? `${num(r.duration_s)!.toFixed(1)}s` : '—'),
+      },
+    ],
+    [],
+  )
 
   return (
     <div className="rt-page">
@@ -364,6 +492,46 @@ export default function RuntimePage() {
           </div>
         )}
       </div>
+
+      {em && (engineRequests.length > 0 || ctxMax != null) && (
+        <div className="rt-engine-side">
+          <div className="rt-ctx-row">
+            <div className="rt-ctx-donut">
+              <ContextDonut used={ctxUsed} max={ctxMax} />
+              <div className="rt-ctx-meta">
+                <div className="rt-ctx-tokens">
+                  {ctxUsed != null ? `${fmtKTok(ctxUsed)} / ${fmtKTok(ctxMax)} tok` : '等待首个请求'}
+                </div>
+                <div className="rt-ctx-model">{em.engine?.model ?? ''}</div>
+              </div>
+            </div>
+            <div className="rt-cache">
+              <div className="rt-cache-title">会话缓存</div>
+              {cache ? (
+                <div className="rt-cache-rows">
+                  <span>{cache.enabled ? `预算 ${cache.budget_mib ?? '?'} MiB · ${cache.slots ?? '?'} 槽` : '未启用'}</span>
+                  <span>近 {cache.requests ?? 0} 请求 · 复用 {cache.requests_reused ?? 0} 次</span>
+                  {cache.prompt_tokens
+                    ? <span>Prompt 复用 {fmtKTok(cache.reused_tokens ?? 0)} / {fmtKTok(cache.prompt_tokens)} tok（{Math.round(((cache.reused_tokens ?? 0) / cache.prompt_tokens) * 100)}%）</span>
+                    : null}
+                </div>
+              ) : (
+                <div className="rt-cache-rows">无数据</div>
+              )}
+            </div>
+          </div>
+          <div className="rt-requests-title">引擎侧请求（{em === snap?.tianxuan ? '天璇' : 'Strata'} /metrics）</div>
+          <Table<EngineRequest>
+            size="small"
+            rowKey={(r, i) => `${r.time}-${i}`}
+            columns={engineReqColumns}
+            dataSource={engineRequests}
+            pagination={false}
+            scroll={{ y: 260 }}
+            locale={{ emptyText: '引擎暂无已完成请求' }}
+          />
+        </div>
+      )}
 
       <div className="rt-requests">
         <div className="rt-requests-title">最近请求（gaea 侧全引擎记账）</div>

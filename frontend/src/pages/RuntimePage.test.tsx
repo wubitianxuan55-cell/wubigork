@@ -18,7 +18,7 @@ vi.mock('../hooks/usePollingGate', () => ({
 
 const SNAPSHOT = {
   time: '2026-10-19 20:00:00',
-  system: { cpu: 23, memTotal: 109, memUsed: 42, gpuName: '', vramTotal: 0, vramUsed: 0 },
+  system: { cpu: 23, memTotal: 109, memUsed: 42, gpuName: 'AMD Radeon 8060S', gpuUsage: 62, vramTotal: 96, vramUsed: 12.2 },
   engines: [
     {
       id: 'herdsman', name: 'Herdsman 本地', type: 'herdsman', local: true, enabled: true,
@@ -39,8 +39,19 @@ const SNAPSHOT = {
   ],
   tianxuan: {
     live: { state: 'generating', queued: 0, tok_s: 65.2, elapsed_s: 3.4, generated: 120 },
-    engine: { model: 'qwen3.8-flash-next-uncensored' },
-    hardware: { cpu: 31, ram_used: 45.2, ram_total: 109, gpu_util: null, gpu_temp: null, disk_read_mb: 12.5 },
+    engine: { model: 'qwen3.8-flash-next-uncensored', max_context: 4096 },
+    hardware: { cpu: 31, ram_used: 45.2, ram_total: 109, gpu_util: null, gpu_temp: null, disk_read_mb: 12.5, disk_write_mb: 3.2 },
+    requests: [
+      {
+        time: 1763400000, duration_s: 5.4, finish: 'stop', prompt_tokens: 1520, prompt_total: 1600,
+        prompt_read: 1520, reused: 1024, output_tokens: 340, prompt_ms: 1400, decode_tok_s: 65.2, hit_rate: 0.63,
+      },
+      { time: 1763399000, duration_s: 1.2, finish: 'error', prompt_tokens: 80, output_tokens: 0 },
+    ],
+    conversation_cache: {
+      enabled: true, budget_mib: 4096, slots: 4,
+      requests: 12, requests_reused: 8, reused_tokens: 8192, prompt_tokens: 16384,
+    },
   },
   strata: null,
   recent_calls: [
@@ -81,13 +92,37 @@ describe('RuntimePage 运行监测板块', () => {
     expect(screen.getByText(/¥3\.45/)).toBeTruthy()
   })
 
-  it('指标卡：遥测有值显示数值，GPU 无遥测诚实留空', async () => {
+  it('指标卡：遥测有值显示数值，GPU 吃系统 PDH 兜底，温度/功率诚实留空', async () => {
     getRuntimeMonitorMock.mockResolvedValue(SNAPSHOT)
     render(<RuntimePage />)
     await waitFor(() => expect(screen.getByText('生成速度')).toBeTruthy())
-    expect(screen.getByText('65.2')).toBeTruthy() // tok/s（引擎 live）
+    expect(screen.getAllByText('65.2').length).toBeGreaterThanOrEqual(1) // tok/s（引擎 live；引擎请求表 decode 列同值）
     expect(screen.getByText('31')).toBeTruthy() // CPU（引擎遥测优先）
-    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(3) // GPU 负载/温度/功率 + 显存（AMD 无遥测）
+    expect(screen.getByText('62')).toBeTruthy() // GPU 负载：引擎遥测 null → 系统 PDH（gpuUsage 62）兜底
+    expect(screen.getByText('12.2/96')).toBeTruthy() // 显存（系统侧读数）
+    expect(screen.getByText('12.5 / 3.2')).toBeTruthy() // 磁盘 读/写 合并卡
+    expect(screen.getByText('磁盘 读/写')).toBeTruthy()
+    expect(screen.getByText('GPU 温度')).toBeTruthy() // 无遥测卡仍在（值 — ）
+  })
+
+  it('引擎侧遥测：Context 环 + 会话缓存 + 引擎请求表（prefill/decode/VRAM 命中）', async () => {
+    getRuntimeMonitorMock.mockResolvedValue(SNAPSHOT)
+    render(<RuntimePage />)
+    await waitFor(() => expect(screen.getByText('引擎侧请求（天璇 /metrics）')).toBeTruthy())
+    // Context 环：最近请求 prompt_total+输出 1940 / max_context 4096 ≈ 47%
+    expect(screen.getByText('47%')).toBeTruthy()
+    expect(screen.getByText('1.9K / 4.1K tok')).toBeTruthy()
+    // 会话缓存口径
+    expect(screen.getByText('预算 4096 MiB · 4 槽')).toBeTruthy()
+    expect(screen.getByText(/复用 8 次/)).toBeTruthy()
+    expect(screen.getByText(/Prompt 复用 8.2K \/ 16.4K tok（50%）/)).toBeTruthy()
+    // 引擎请求行：prefill = prompt_read/prompt_ms = 1520/1.4s ≈ 1086；decode 65.2；VRAM 命中 63%
+    expect(screen.getByText('1086')).toBeTruthy()
+    expect(screen.getAllByText('65.2').length).toBeGreaterThanOrEqual(2) // 指标卡 + decode 列
+    expect(screen.getByText('63%')).toBeTruthy()
+    expect(screen.getByText('复用 1.0K')).toBeTruthy() // Prompt 列内复用子标注
+    expect(screen.getByText('正常')).toBeTruthy()
+    expect(screen.getByText('错误')).toBeTruthy()
   })
 
   it('引擎卡：本地三引擎 + 云端聚合 + 生成中状态徽标', async () => {
