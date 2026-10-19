@@ -39,15 +39,18 @@ type failoverServers struct {
 func newFailoverSetup(t *testing.T, badChatHandler http.HandlerFunc) *failoverServers {
 	t.Helper()
 
-	writeModels := func(w http.ResponseWriter) {
+	writeModels := func(w http.ResponseWriter, id string) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"data":[{"id":"m1"}]}`))
+		_, _ = w.Write([]byte(fmt.Sprintf(`{"data":[{"id":%q}]}`, id)))
 	}
 	f := &failoverServers{}
 	goodSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/models":
-			writeModels(w)
+			// 如实报告自己的默认模型：默认不在清单=悬空默认，RefreshModels
+			// 会自动接班（engine_default_repair_test.go），转移拿到的就不在
+			// 是本用例想验证的 default_model 了。
+			writeModels(w, "m-good")
 		case "/chat/completions":
 			var req ChatRequest
 			_ = json.NewDecoder(r.Body).Decode(&req)
@@ -74,7 +77,7 @@ func newFailoverSetup(t *testing.T, badChatHandler http.HandlerFunc) *failoverSe
 	badSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/models":
-			writeModels(w)
+			writeModels(w, "m-bad")
 		case "/chat/completions":
 			if badChatHandler != nil {
 				badChatHandler(w, r)

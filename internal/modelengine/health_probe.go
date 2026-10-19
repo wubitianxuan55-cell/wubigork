@@ -252,6 +252,10 @@ func sanitizeProbeError(key, msg string) string {
 // 引擎排最前的语义已隐含在 order 内）：
 //   - enabled 且最近 Status.Connected（巡检/测试连接成功）；
 //   - default_model 非空且判型为 llm（排除 cosyvoice 等 TTS/图像引擎）；
+//   - default_model 在引擎自己的模型清单内（悬空默认直发必 404
+//     model_not_found——2026-10-19 真机实锤：herdsman 换装后旧默认退役，
+//     转移重试报 Model not found 且配置类错误不再二次转移，办公整板不可用。
+//     清单为空=从未刷新，无从校验，维持旧口径放行）；
 //   - 排除 failedID（本次失败引擎）。
 //
 // ai.Client 取首个候选，用其 default_model 换新 URL/新 Key 重试一次。
@@ -268,6 +272,9 @@ func (m *Manager) FailoverCandidates(failedID string) []EngineConfig {
 			continue
 		}
 		if e.DefaultModel == "" || ClassifyModelKind(e.Type, e.DefaultModel) != "llm" {
+			continue
+		}
+		if len(e.Models) > 0 && !modelsContainID(e.Models, e.DefaultModel) {
 			continue
 		}
 		cfg := *e

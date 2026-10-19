@@ -59,6 +59,7 @@ func (m *Manager) TestConnection(ctx context.Context, engineID string) (*EngineS
 	if engine.DefaultModel == "" && len(models) > 0 {
 		engine.DefaultModel = models[0].ID
 	}
+	repairDanglingDefaultLocked(engine, models)
 	m.mu.Unlock()
 	m.saveState()
 
@@ -95,6 +96,8 @@ func (m *Manager) RefreshModels(ctx context.Context, engineID string) ([]ModelIn
 
 	m.mu.Lock()
 	engine.Models = models
+	// 清单整体替换后修复悬空默认（模型退役/改名），详见 repairDanglingDefaultLocked。
+	repairDanglingDefaultLocked(engine, models)
 	engine.Status = EngineStatus{
 		ID:          engineID,
 		Connected:   true,

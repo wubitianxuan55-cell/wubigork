@@ -59,6 +59,43 @@ func (m *Manager) RemoveModel(engineID, modelID string) {
 	m.saveState()
 }
 
+// modelsContainID 判断模型清单是否包含指定 id（空清单恒 false）。
+func modelsContainID(models []ModelInfo, id string) bool {
+	for _, mdl := range models {
+		if mdl.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+// repairDanglingDefaultLocked 修复悬空默认模型：模型清单整体替换（刷新/
+// 目录同步/保存覆盖）后，默认模型已不在新清单——模型退役、换库或服务端
+// 改名——时接班取新清单首个 llm 档（无 llm 则清空，与 RemoveModel 防悬空
+// 口径一致）。仅在悬空时动手：清单内的用户选择（含 stopped 档位，如天璇
+// 未启动的另一档）绝不由此改写。调用方须持写锁并负责落盘。
+//
+// 2026-10-19 真机实锤：herdsman 换装 MTP-r2 权重后旧默认 ...Q4_K_P-2 悬空，
+// 清单刷新只换 Models 不修默认——聊天故障转移（failoverTarget 取候选引擎
+// default_model 直发）拿到悬空名 → HTTP 404 model_not_found，办公板块整板
+// 不可用。app 侧 routeHerdsmanLocal 2026-09-27 已防（功能域），此处补引擎
+// 域收口。
+func repairDanglingDefaultLocked(engine *EngineConfig, models []ModelInfo) {
+	if engine.DefaultModel == "" || modelsContainID(models, engine.DefaultModel) {
+		return
+	}
+	old := engine.DefaultModel
+	engine.DefaultModel = ""
+	for _, mdl := range models {
+		if mdl.Kind == "llm" {
+			engine.DefaultModel = mdl.ID
+			break
+		}
+	}
+	slog.Warn("引擎默认模型已不在清单（退役/改名），自动接班首个 llm 档",
+		"engine", engine.ID, "stale_model", old, "new_model", engine.DefaultModel)
+}
+
 // GetEngines 获取所有引擎配置
 func (m *Manager) GetEngines() []EngineConfig {
 	m.mu.RLock()
@@ -109,6 +146,8 @@ func (m *Manager) SaveEngine(cfg EngineConfig) error {
 	// 保留已有的 models 列表（除非被明确覆盖）
 	if len(cfg.Models) > 0 {
 		existing.Models = cfg.Models
+		// 目录同步整体覆盖清单（如天璇/Strata 档位收窄）后同样修复悬空默认。
+		repairDanglingDefaultLocked(existing, cfg.Models)
 	}
 	if cfg.BaseURL != "" {
 		u := strings.TrimSpace(cfg.BaseURL)
