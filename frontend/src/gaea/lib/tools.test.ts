@@ -2,7 +2,9 @@ import { createElement } from "react";
 import { beforeAll, describe, expect, it } from "vitest";
 import { render } from "@testing-library/react";
 import {
+  BASH_SUBJECT_CAP,
   boundedOutput,
+  commandHeadline,
   commandOf,
   diffStatFor,
   READER_JSON_TOOLS,
@@ -10,7 +12,9 @@ import {
   subjectOf,
   TOOL_CARD_MAX_DIFF_ROWS,
   TOOL_CARD_OUTPUT_PREVIEW_LINES,
+  TOOL_OUTPUT_LINE_CAP,
   TOOL_OUTPUT_MAX_PREVIEW_LINES,
+  truncateSubject,
   unifiedRows,
 } from "./tools";
 import { LocaleProvider } from "./i18n";
@@ -84,6 +88,65 @@ describe("boundedOutput 输出清噪（v4.506）", () => {
     const { full, totalLines } = boundedOutput("a\r\nb\r\nc");
     expect(full).toBe("a\nb\nc");
     expect(totalLines).toBe(3);
+  });
+
+  it("超宽行在 preview 截断加 …，full 保持原文（v4.507）", () => {
+    expect(TOOL_OUTPUT_LINE_CAP).toBe(160);
+    const img = `[Image: source: C:\\Users\\wubi\\Documents\\xwechat_files\\wxid_x\\temp\\RWTemp\\2026-10\\${"p".repeat(200)}.png]`;
+    const { preview, full, lineFolded, collapsed } = boundedOutput(`ok\n${img}`);
+    expect(collapsed).toBe(false);
+    expect(lineFolded).toBe(1);
+    expect(preview).toContain("…");
+    expect(preview.length).toBeLessThan(full.length);
+    expect(full).toBe(`ok\n${img}`);
+    // 展开全文（full）路径不受截断影响
+    expect(full).toContain(img);
+  });
+
+  it("全部行都在行宽内时零截断（lineFolded=0，preview===full）", () => {
+    const r = boundedOutput("短行\n另一短行");
+    expect(r.lineFolded).toBe(0);
+    expect(r.preview).toBe(r.full);
+  });
+});
+
+describe("commandHeadline bash 折叠行标题（v4.507）", () => {
+  it("多行命令取首个非空行，不再整条压平", () => {
+    const cmd = 'python -c "\nimport json\nprint(1)\n"';
+    expect(commandHeadline(cmd)).toBe('python -c "');
+  });
+
+  it("行内连续空白压单空格（缩进/对齐不进折叠行）", () => {
+    expect(commandHeadline("git   rebase   --onto\tmain")).toBe("git rebase --onto main");
+  });
+
+  it("首行为空/全空白时跳到下一非空行", () => {
+    expect(commandHeadline("\n\n  \nls -la")).toBe("ls -la");
+  });
+
+  it("空命令/纯空白命令返回空串", () => {
+    expect(commandHeadline("")).toBe("");
+    expect(commandHeadline(" \n \n")).toBe("");
+  });
+
+  it("超长单行词界截断（cap 默认 64，截断点落在空白处）", () => {
+    const long = "python tools/settlement_adjust.py --network data --datum J1 --method indirect";
+    const h = commandHeadline(long);
+    expect(h.endsWith("…")).toBe(true);
+    expect(long[h.length - 1]).toMatch(/\s/);
+    expect(long.startsWith(h.slice(0, -1))).toBe(true);
+    expect(BASH_SUBJECT_CAP).toBe(64);
+  });
+});
+
+describe("truncateSubject 词界截断（v4.507）", () => {
+  it("未超上限原样返回", () => {
+    expect(truncateSubject("ls -la", 48)).toBe("ls -la");
+  });
+
+  it("中文/无空格串硬切（空格太靠前不回退）", () => {
+    const s = "汉字".repeat(40);
+    expect(truncateSubject(s, 48)).toBe(`${"汉字".repeat(24)}…`);
   });
 });
 
@@ -193,6 +256,25 @@ const envelope = (message: string) =>
   JSON.stringify({ ok: true, success: true, code: 0, message });
 
 describe("subjectOf 办公工具行首主体", () => {
+  it("bash：多行命令只取首行、长命令词界截断（v4.507）", () => {
+    expect(subjectOf("bash", JSON.stringify({ command: 'python -c "\nimport os\nprint(1)\n"' }))).toBe('python -c "');
+    const longCmd = "python tools/settlement_adjust.py --network data --datum J1 --method indirect";
+    expect(subjectOf("bash", JSON.stringify({ command: longCmd }))).toBe(commandHeadline(longCmd));
+    expect(subjectOf("bash", JSON.stringify({ command: "ls -la" }))).toBe("ls -la");
+  });
+
+  it("grep/glob：长正则截 32、路径只留 basename（v4.507）", () => {
+    expect(
+      subjectOf("grep", JSON.stringify({ pattern: "施工", path: "D:/新工作/旺平矿业/周报.md" })),
+    ).toBe("施工 @ 周报.md");
+    const longPattern = `^施\\s*工|${"x".repeat(40)}`;
+    expect(subjectOf("grep", JSON.stringify({ pattern: longPattern }))).toBe(
+      `${longPattern.slice(0, 32)}…`,
+    );
+    // pattern 缺失回退 path（历史口径）
+    expect(subjectOf("glob", JSON.stringify({ path: "docs/**" }))).toBe("docs/**");
+  });
+
   it("chart_gen/diagram_gen 取标题", () => {
     expect(subjectOf("chart_gen", JSON.stringify({ title: "单价对比", labels: ["a"] }))).toBe("单价对比");
     expect(subjectOf("diagram_gen", JSON.stringify({ title: "架构图", nodes: [] }))).toBe("架构图");

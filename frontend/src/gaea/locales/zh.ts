@@ -1049,6 +1049,7 @@ export const zh: Record<DictKey, string> = {
   "tool.outputHeader": "输出 · {n}L",
   "tool.collapseOutput": "收起输出",
   "tool.expandAllLines": "展开全部 {n} 行",
+  "tool.expandFullOutput": "展开完整输出",
 
   // ── v4.57 i18n 收尾：Sidebar（会话分组 / 事实底座）──
   "sidebar.currentBadge": "当前",

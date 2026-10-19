@@ -1053,6 +1053,7 @@ export const zhTW: Record<DictKey, string> = {
   "tool.outputHeader": "輸出 · {n}L",
   "tool.collapseOutput": "收起輸出",
   "tool.expandAllLines": "展開全部 {n} 行",
+  "tool.expandFullOutput": "展開完整輸出",
 
   // ── v4.57 i18n 收尾：Sidebar（工作階段分組 / 事實底座）──
   "sidebar.currentBadge": "目前",

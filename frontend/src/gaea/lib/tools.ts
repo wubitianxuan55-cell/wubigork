@@ -36,6 +36,32 @@ function str(a: Record<string, unknown>, key: string): string {
   return typeof a[key] === "string" ? (a[key] as string) : "";
 }
 
+// truncateSubject 行内主体词界截断（v4.507）：硬 slice 会把词切成残词
+// （「# 编码」→「# b.」），优先回退到截断点前最后一个空格；空格太靠前
+// （<60% 处，中文/路径串常态）则硬切——避免为凑词界丢掉大半内容。
+export function truncateSubject(s: string, cap: number): string {
+  if (s.length <= cap) return s;
+  const cut = s.slice(0, cap);
+  const lastSpace = cut.lastIndexOf(" ");
+  const head = lastSpace > cap * 0.6 ? cut.slice(0, lastSpace) : cut;
+  return `${head}…`;
+}
+
+// 行内主体的最终截断上限（单卡折叠行与组行同源）。
+export const SUBJECT_CAP = 48;
+
+// commandHeadline bash 命令的折叠行标题（v4.507）：多行命令（heredoc /
+// python -c / 续行）此前整条压平进单行成「一大串」——取首个非空行、行内
+// 空白压单空格，再词界截断。完整命令在展开态 $ 命令块里，不丢信息。
+export const BASH_SUBJECT_CAP = 64;
+
+export function commandHeadline(command: string, cap: number = BASH_SUBJECT_CAP): string {
+  if (!command) return "";
+  const firstLine = command.split("\n").map((l) => l.trim()).find((l) => l !== "") ?? "";
+  if (firstLine === "") return "";
+  return truncateSubject(firstLine.replace(/\s+/g, " "), cap);
+}
+
 // subjectOf pulls the most informative one-liner out of a call's args — the
 // command for bash, the pattern for search, the path for file tools, the
 // description for a sub-task — so the collapsed row reads at a glance.
@@ -43,10 +69,18 @@ export function subjectOf(name: string, args: string): string {
   const a = parse(args);
   switch (name) {
     case "bash":
-      return str(a, "command");
+      // v4.507：多行命令取首行 + 词界截断——整条压平上屏是「一大串」主源
+      return commandHeadline(str(a, "command"));
     case "grep":
-    case "glob":
-      return str(a, "pattern") || str(a, "path");
+    case "glob": {
+      // v4.507：长正则截 32 + 路径只留 basename——`^施\s*工|… , D:/新工作/…`
+      // 整串上屏同样是「一大串」；pattern 缺失回退 path（历史口径）。
+      const pattern = truncateSubject(str(a, "pattern"), 32);
+      const rawPath = str(a, "path");
+      if (!pattern) return rawPath;
+      const base = rawPath.replace(/[\\/]+$/, "").split(/[\\/]/).pop() ?? "";
+      return base ? `${pattern} @ ${base}` : pattern;
+    }
     case "web_fetch":
       return str(a, "url");
     case "web_search":
@@ -380,6 +414,8 @@ export interface BoundedOutput {
   hiddenLines: number;
   /** 输出总行数。 */
   totalLines: number;
+  /** 超宽被截断的行数（preview 侧；full 不动）。 */
+  lineFolded: number;
 }
 
 export const TOOL_OUTPUT_MAX_PREVIEW_LINES = 60;
@@ -402,20 +438,35 @@ export function stripOutputNoise(s: string): string {
 // SinProcessCard 维持 60 默认不随动。
 export const TOOL_CARD_OUTPUT_PREVIEW_LINES = 12;
 
+// TOOL_OUTPUT_LINE_CAP 预览行宽上限（v4.507）：单条超长行（base64、绝对
+// 路径串、[Image: source: …] 占位）此前原样上屏，几行就能占满 12 行预览。
+// 超宽行在 preview 侧截断加 …，full 保持原文（展开全部可见）。
+export const TOOL_OUTPUT_LINE_CAP = 160;
+
 export function boundedOutput(
   output: string | undefined,
   maxPreviewLines: number = TOOL_OUTPUT_MAX_PREVIEW_LINES,
 ): BoundedOutput {
   const full = stripOutputNoise(output ?? "");
   if (full === "") {
-    return { preview: "", full, collapsed: false, hiddenLines: 0, totalLines: 0 };
+    return { preview: "", full, collapsed: false, hiddenLines: 0, totalLines: 0, lineFolded: 0 };
   }
   const lines = full.split("\n");
   const totalLines = lines.length;
+  const clip = (l: string) => (l.length > TOOL_OUTPUT_LINE_CAP ? `${l.slice(0, TOOL_OUTPUT_LINE_CAP)}…` : l);
+  const clipped = lines.map(clip);
+  const lineFolded = clipped.filter((l, i) => l !== lines[i]).length;
   if (totalLines <= maxPreviewLines) {
-    return { preview: full, full, collapsed: false, hiddenLines: 0, totalLines };
+    return {
+      preview: lineFolded > 0 ? clipped.join("\n") : full,
+      full,
+      collapsed: false,
+      hiddenLines: 0,
+      totalLines,
+      lineFolded,
+    };
   }
-  const head = lines.slice(0, maxPreviewLines).join("\n");
+  const head = clipped.slice(0, maxPreviewLines).join("\n");
   const hiddenLines = totalLines - maxPreviewLines;
   return {
     preview: `${head}\n… 已折叠 ${hiddenLines} 行`,
@@ -423,5 +474,6 @@ export function boundedOutput(
     collapsed: true,
     hiddenLines,
     totalLines,
+    lineFolded,
   };
 }

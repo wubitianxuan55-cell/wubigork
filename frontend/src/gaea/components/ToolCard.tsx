@@ -314,13 +314,17 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
             <div className={`${innerPx} ${innerPb}`}>
               <div className="text-[10px] text-fg-faint/60 uppercase tracking-wider mb-0.5 select-none">{t("tool.outputHeader", { n: outputLines })}</div>
               <pre className="px-3 py-2 font-mono text-[12px] leading-[1.5] overflow-auto max-h-72 whitespace-pre-wrap break-words bg-bg-soft border border-border-soft rounded-md text-fg-dim"><code><FileLinkText text={showFullOutput ? bounded.full : bounded.preview} compact /></code></pre>
-              {bounded.collapsed && (
+              {bounded.preview !== bounded.full && (
                 <button
                   type="button"
                   className="mt-1 px-2 py-0.5 border border-border-soft rounded bg-bg-soft text-fg-dim text-[11px] cursor-pointer hover:bg-bg-soft hover:text-fg transition-colors"
                   onClick={() => setShowFullOutput((v) => !v)}
                 >
-                  {showFullOutput ? t("tool.collapseOutput") : t("tool.expandAllLines", { n: bounded.hiddenLines })}
+                  {showFullOutput
+                    ? t("tool.collapseOutput")
+                    : bounded.collapsed
+                      ? t("tool.expandAllLines", { n: bounded.hiddenLines })
+                      : t("tool.expandFullOutput")}
                 </button>
               )}
               {item.truncated && (

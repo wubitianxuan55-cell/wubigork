@@ -4,7 +4,7 @@ import { ChevronRight, FolderOpen } from "../icons";
 import { ToolCard } from "./ToolCard";
 import { useCompact } from "../hooks/useCompact";
 import { useGSAPCollapse } from "../lib/useGSAPCollapse";
-import { subjectOf } from "../lib/tools";
+import { subjectOf, SUBJECT_CAP, truncateSubject } from "../lib/tools";
 import { useT } from "../lib/i18n";
 import type { Item } from "../lib/store";
 
@@ -21,10 +21,9 @@ export const ToolGroup = memo(function ToolGroup({ tools, onCollapse }: { tools:
   const t0 = tools[0];
 
   // 提取所有工具的操作目标 — 最多 3 个，溢出显示 +N。
-  // v4.504：单条主体截 48 字符——bash 组的 subject 是整条命令，三条拼一行
-  // 又成「一长串」（与单卡折叠行的截断口径一致，完整命令在子卡 $ 块里）。
-  const SUBJECT_CAP = 48;
-  const cap = (s: string) => (s.length > SUBJECT_CAP ? `${s.slice(0, SUBJECT_CAP)}…` : s);
+  // v4.504：单条主体截 48 字符；v4.507 换词界截断（硬 slice 出「# b.」残词）
+  // 且幂等——subjectOf（bash 首行化等）已截过的串（… 结尾）不再二次截。
+  const cap = (s: string) => (s.endsWith("…") ? s : truncateSubject(s, SUBJECT_CAP));
   const allSubjects = tools
     .map(t => subjectOf(t.name, t.args))
     .filter((s): s is string => !!s);

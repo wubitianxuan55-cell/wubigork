@@ -1048,6 +1048,7 @@ export const en = {
   "tool.outputHeader": "Output · {n}L",
   "tool.collapseOutput": "Collapse output",
   "tool.expandAllLines": "Expand all {n} lines",
+  "tool.expandFullOutput": "Expand full output",
 
   // ── v4.57 i18n 收尾：Sidebar（会话分组 / 事实底座）──
   "sidebar.currentBadge": "Current",
