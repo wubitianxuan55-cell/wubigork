@@ -105,6 +105,47 @@ describe("TurnBlock 轮级 memo（T7-4）", () => {
     );
     expect(container.querySelector(".turn-divider")).toBeNull();
   });
+
+  // v4.505：todo_write 不进过程卡——待办有专属面板（useTodoExtractor →
+  // TasksWorkbench 待办区），外部项渲染线同款过滤；纯 todo_write 段不空壳出卡。
+  it("todo_write 不进过程卡：卡体无该卡、计数只含真实工具", () => {
+    const toolMock = vi.mocked(ToolCardModule.ToolCard);
+    toolMock.mockClear();
+    const think: Item = { kind: "assistant", id: "r1", text: "", reasoning: "想一下", streaming: false };
+    const todo: Item = { kind: "tool", id: "tw1", name: "todo_write", args: "{}", readOnly: false, status: "done" };
+    const seg = {
+      processItems: [think, todo, tool("b1", "bash")],
+      outsideItems: [],
+    };
+    const { container } = render(
+      <LocaleProvider>
+        <TurnBlock
+          seg={seg} running={false} isLast={false} turnNo={0} openTurn={null}
+          onToggleTurn={noop} onRewindTurn={noop} onCollapse={noop}
+          dismissedErrors={new Set<string>()} onDismissError={noop}
+          captureForId={() => undefined} turnElsRef={turnElsRef}
+        />
+      </LocaleProvider>,
+    );
+    const calls = toolMock.mock.calls;
+    expect(calls.length).toBe(1);
+    expect((calls[0][0] as { item: Extract<Item, { kind: "tool" }> }).item.name).toBe("bash");
+    expect(container.textContent).not.toContain("todo_write");
+  });
+
+  it("纯 todo_write 段不空壳出卡（无过程卡头）", () => {
+    const todo: Item = { kind: "tool", id: "tw2", name: "todo_write", args: "{}", readOnly: false, status: "done" };
+    const seg = { processItems: [todo], outsideItems: [] };
+    const { container } = render(
+      <TurnBlock
+        seg={seg} running={false} isLast={false} turnNo={0} openTurn={null}
+        onToggleTurn={noop} onRewindTurn={noop} onCollapse={noop}
+        dismissedErrors={new Set<string>()} onDismissError={noop}
+        captureForId={() => undefined} turnElsRef={turnElsRef}
+      />,
+    );
+    expect(container.querySelectorAll("button[aria-expanded]").length).toBe(0);
+  });
 });
 
 describe("ProcessCard memo（T7-4）", () => {

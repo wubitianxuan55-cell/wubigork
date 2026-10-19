@@ -384,6 +384,19 @@ export interface BoundedOutput {
 
 export const TOOL_OUTPUT_MAX_PREVIEW_LINES = 60;
 
+// stripOutputNoise 工具输出显示前清噪（v4.506）：①ANSI 转义序列（CSI 颜色/
+// 光标控制 + OSC 标题串）——引擎不剥，FORCE_COLOR/--color=always 的脚本会把
+// 「ESC[31m」原样送进输出块；②CRLF→LF——Windows 侧输出在 whitespace-pre 块
+// 里以 \r 显示怪相。只影响显示层，store 里的原始 output 不动。
+export function stripOutputNoise(s: string): string {
+  return s
+    // eslint-disable-next-line no-control-regex -- 剥 ANSI OSC 串（\x1b]…\x07）即控制字符，此为本函数天职
+    .replace(/\x1b\][^\x07]*\x07/g, "")
+    // eslint-disable-next-line no-control-regex -- 剥 ANSI CSI 序列（颜色/光标）同理
+    .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "")
+    .replace(/\r\n?/g, "\n");
+}
+
 // 办公对话流（ToolCard）输出预览上限：Codex 式紧凑——默认只露 12 行，
 // 折叠计数 + 「展开全部」按钮兜底（通用 60 行对 chat 流仍是大墙）。
 // SinProcessCard 维持 60 默认不随动。
@@ -393,7 +406,7 @@ export function boundedOutput(
   output: string | undefined,
   maxPreviewLines: number = TOOL_OUTPUT_MAX_PREVIEW_LINES,
 ): BoundedOutput {
-  const full = output ?? "";
+  const full = stripOutputNoise(output ?? "");
   if (full === "") {
     return { preview: "", full, collapsed: false, hiddenLines: 0, totalLines: 0 };
   }

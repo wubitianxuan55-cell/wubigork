@@ -337,9 +337,17 @@ export const TurnBlock = memo(function TurnBlock({
    *  不变）；值为同轮其它段正文已提及的路径键集，防同文件双卡。 */
   tailOmitMentions?: ReadonlySet<string>;
 }) {
-  const toolCount = seg.processItems.filter((it) => it.kind === "tool" && !it.parentId).length;
-  const thoughtCount = seg.processItems.filter((it) => it.kind === "assistant" && it.reasoning).length;
-  const hasProcess = seg.processItems.length > 0;
+  // v4.505：todo_write 不进过程卡——待办有专属面板（useTodoExtractor →
+  // TasksWorkbench 待办区），外部项渲染线同款过滤（renderOutsideItems）；
+  // 此前只有外部线滤了、过程卡体内漏滤，每轮待办更新以裸 todo_write 卡
+  // （展开整包 todos JSON）堆在卡内。纯 todo_write 段不空壳出卡。
+  const visibleProcess = useMemo(
+    () => seg.processItems.filter((it) => !(it.kind === "tool" && it.name === "todo_write")),
+    [seg.processItems],
+  );
+  const toolCount = visibleProcess.filter((it) => it.kind === "tool" && !it.parentId).length;
+  const thoughtCount = visibleProcess.filter((it) => it.kind === "assistant" && it.reasoning).length;
+  const hasProcess = visibleProcess.length > 0;
   const subcalls = useMemo(() => buildSubcalls(seg), [seg]);
   const setTurnEl = useCallback(
     (tn: number) => (el: HTMLElement | null) => {
@@ -366,7 +374,7 @@ export const TurnBlock = memo(function TurnBlock({
     <>
       {hasProcess && (
         <ProcessCard
-          items={seg.processItems}
+          items={visibleProcess}
           toolCount={toolCount}
           thoughtCount={thoughtCount}
           running={running && isLast}

@@ -71,6 +71,22 @@ describe("READER_JSON_TOOLS 只读工具 JSON 盒降噪", () => {
   });
 });
 
+describe("boundedOutput 输出清噪（v4.506）", () => {
+  it("ANSI 颜色/光标序列与 OSC 标题串被剥离，不进输出块", () => {
+    const raw = "\x1b]0;窗口标题\x07\x1b[31m红色\x1b[0m 普通 \x1b[1;32m绿粗\x1b[0m\n第二行\x1b[2K\x1b[1A";
+    const { preview, full } = boundedOutput(raw);
+    expect(full).toBe("红色 普通 绿粗\n第二行");
+    expect(preview).toBe(full);
+    expect(preview).not.toContain("\x1b");
+  });
+
+  it("CRLF/CR 归一为 LF，行数统计不受影响", () => {
+    const { full, totalLines } = boundedOutput("a\r\nb\r\nc");
+    expect(full).toBe("a\nb\nc");
+    expect(totalLines).toBe(3);
+  });
+});
+
 describe("diffStatFor 编辑类工具 diffstat（v4.27 Codex 式 +N−M 芯片）", () => {
   it("edit_file：按 old/new 行差异输出 +N/−N", () => {
     expect(
