@@ -1,3 +1,6 @@
+## v4.508.0 · 文件交互四修：PickFiles 选图 type 判空根修+识图不清草稿+base64 分块+附件去重（2026-10-20）
+> 用户提「文件交互功能」，调研池九项全落地前提下代码级走查 Composer 附件链抓四处实弹病灶：①PickFiles 图片 bug（主病灶）——FilePickResult 契约无 MIME type 字段，f.type==="image" 对系统对话框路径恒 false，「选择文件」选的图片全被当普通文件（无缩略图/无识图 OCR；拖拽路径有 File.type 正常所以只在对话框翻车；pickFile.test stub 自造 type 字段掩盖契约现场），修=isImagePath 扩展名单源（pickFile.ts 导出与 pickImageAsDataUrl 白名单同源）；②识图/OCR 的 setText("") 清用户草稿——识别结果独立成消息，草稿保留；③非图片附件逐字节 String.fromCharCode 拼接（10MB=千万次拼接 UI 卡秒级）→8KB 分块 bytesToBase64；④同路径附件双 chip 双 @注入白占上下文→appendUnique 去重。顺带：previewUrl 空不出裂 img（图标 chip 兜底可点预览）、图片缩略图可点开预览、FileTypeIcon 同图瑕疵根修。测试 +9；tsc/eslint/knip 0；composer 域+PickFiles 消费方全绿。详见 `releases/v4.508.0.md`。
+
 ## v4.507.0 · 办公输出细节轮四：bash 折叠行首行化+词界截断+超宽行预览截断（2026-10-19）
 > 用户截图实锤 bash 类工具行仍显示一大串，四处病灶单源收口（lib/tools.ts）：①commandHeadline 多行命令（heredoc/python -c/续行）取首个非空行+空白压单+64 词界截断——整条压平进单行折叠行是一大串主源，完整命令仍在展开态 $ 命令块，subjectOf bash 分支改走此函数（单卡+组行同源）；②truncateSubject 词界截断根除硬 slice 残词（「# 编码」→「# b.」），空格 <60% 处不回退（中文/无空格串硬切），ToolGroup cap 幂等；③grep/glob 主体=正则截 32+路径只留 basename；④boundedOutput 超宽行截断 TOOL_OUTPUT_LINE_CAP=160——[Image: source: C:\…] 绝对路径串/base64 长行不再占满 12 行预览，full 原文不动，lineFolded 计数+「展开完整输出」按钮（纯长行场景也有出口）。测试 +15；tsc/eslint/knip 0；相关 8 套件全绿。详见 `releases/v4.507.0.md`。
 
