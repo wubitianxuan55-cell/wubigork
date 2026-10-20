@@ -904,8 +904,16 @@
   min-height: 0;
 }
 
-/* 中：对话流主区（v3-zone 语义 + 不透明背景，供滚动区自由滚动） */
+/* 中：对话流主区（v3-zone 语义 + 不透明背景，供滚动区自由滚动）。
+   position:relative = 浮层列锚（v4.511 根修）：输入岛 .chat-composer-wrap
+   （absolute left:0 right:0 bottom:0）、回到底部 .chat-scroll-bottom
+   （absolute left:50%）、粒子层/声波层（absolute inset:0）都挂在本区——
+   此前无定位，包含块一路锚到整板 .chat-board（含左右两栏）：默认双栏
+   展开时输入岛/回底按钮仅偏 ~20px 不显眼，但单侧折叠组合下横向错位
+   达 ±114px（侧栏 52/inspector 280 或 240/40），输入岛与消息列明显
+   不对心、粒子/声波罩错罩到侧栏底下。 */
 .chat-main {
+  position: relative;
   overflow: hidden;
   background: transparent;
 }
