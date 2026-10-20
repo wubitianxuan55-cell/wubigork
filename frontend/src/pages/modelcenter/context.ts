@@ -54,6 +54,9 @@ export interface ModelCenterStateValue {
   featureDraft: Record<string, { engine: string; model: string }>
   featureEnabled: Record<string, boolean>
   modelRoutes: Record<string, { engine: string; model: string; source: string }>
+  /** 识图实际生效路由（App.VisionRoute 只读快照：跟随聊天模型 → 独立绑定 →
+   * 静态默认；routeModel('vision') 只反映绑定层，对识图失真）。null=绑定不可用（旧端）。 */
+  visionRoute: { engine: string; model: string; source: string } | null
   portraitCfg: { backend: string; model: string }
   portraitDraft: { backend: string; model: string }
   portraitModelOptions: { label: string; value: string }[]

@@ -161,7 +161,7 @@ const ModelCenterPage: React.FC = () => {
     chatVoiceSaving: voice.chatVoiceSaving, chatVoiceSpeakers: voice.chatVoiceSpeakers,
     chatVoiceOptions: voice.chatVoiceOptions, chatVoiceValue: voice.chatVoiceValue,
     featureCfg: bind.featureCfg, featureDraft: bind.featureDraft,
-    featureEnabled: bind.featureEnabled, modelRoutes: bind.modelRoutes,
+    featureEnabled: bind.featureEnabled, modelRoutes: bind.modelRoutes, visionRoute: bind.visionRoute,
     portraitCfg: bind.portraitCfg, portraitDraft: bind.portraitDraft,
     portraitModelOptions: bind.portraitModelOptions, portraitSaving: bind.portraitSaving,
     sinImageCfg: bind.sinImageCfg, sinImageDraft: bind.sinImageDraft,

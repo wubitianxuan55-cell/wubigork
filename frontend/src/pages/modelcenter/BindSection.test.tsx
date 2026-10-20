@@ -13,6 +13,7 @@ function renderBind(overrides: Partial<ModelCenterContextValue> = {}) {
     featureDraft: { chat: { engine: '', model: '' } },
     featureEnabled: { chat: true },
     modelRoutes: {},
+    visionRoute: null,
     chatVoiceCfg: { engine: '', model: '' },
     chatVoiceDraft: { engine: '', model: '' },
     chatVoiceSaving: false,
@@ -130,8 +131,8 @@ describe('BindSection', () => {
     expect(screen.getByText('herdsman / qwen-image')).toBeTruthy()
   })
 
-  // 办公识图功能绑定卡（不再固定于本地默认视觉模型）：卡渲染、未绑定态
-  // 显示「跟随全局默认」，卡内「绑定」按钮把 vision 键传给保存动作。
+  // 办公识图功能绑定卡（不再固定于本地默认视觉模型）：卡渲染、未绑定态按
+  // 真实链文案（跟随聊天模型优先），卡内「绑定」按钮把 vision 键传给保存动作。
   it('renders vision binding card and saves via handleSaveFeature (识图)', () => {
     const handleSaveFeature = vi.fn()
     renderBind({ handleSaveFeature })
@@ -141,10 +142,41 @@ describe('BindSection', () => {
     const visionNote = screen.getByText(/办公识图（看懂图）/)
     const card = visionNote.closest('.mc-bind-card')
     expect(card).toBeTruthy()
-    // 未绑定态元信息（收窄到识图卡内——其余功能卡同文案）
-    expect(within(card as HTMLElement).getByText('未绑定，跟随全局默认')).toBeTruthy()
+    // 未绑定态元信息按识图真实链（跟随聊天模型优先，非「跟随全局默认」）
+    expect(within(card as HTMLElement).getByText('未绑定：优先跟随聊天模型，无本地多模态在线时回落静态默认')).toBeTruthy()
     const bindBtn = within(card as HTMLElement).getByText(/^绑\s*定$/)
     fireEvent.click(bindBtn)
     expect(handleSaveFeature).toHaveBeenCalledWith('vision')
+  })
+
+  // 识图卡「当前生效」行跟随态对齐（App.VisionRoute）：跟随聊天模型命中时
+  // 出真实生效行 + chip「跟随聊天模型 · 绑定待命」（独立绑定此刻不生效）；
+  // 通用 modelRoutes['vision'] 行对识图不渲染（routeModel 口径失真）。
+  it('shows vision effective route with chat-follow source (识图跟随态)', () => {
+    renderBind({
+      featureCfg: { vision: { engine: 'herdsman', model: 'qwen3-8b' } },
+      featureDraft: { vision: { engine: 'herdsman', model: 'qwen3-8b' } },
+      featureEnabled: { vision: true },
+      visionRoute: { engine: 'tianxuan', model: 'qwen3.8-flash-next-uncensored', source: 'chat-follow' },
+      modelRoutes: { vision: { engine: 'herdsman', model: 'qwen3-8b', source: 'feature' } },
+    })
+
+    expect(screen.getByText(/当前生效：.*qwen3\.8-flash-next-uncensored（跟随聊天模型）/)).toBeTruthy()
+    expect(screen.getByText(/独立绑定待命（聊天回云端时接管）/)).toBeTruthy()
+    expect(screen.getByText('跟随聊天模型 · 绑定待命')).toBeTruthy()
+    // 绑定行改名「独立绑定：」且旧的 routeModel 生效行不再出现
+    expect(screen.getByText(/独立绑定：.*qwen3-8b/)).toBeTruthy()
+    expect(screen.queryByText(/当前生效：.*（功能绑定）/)).toBeNull()
+  })
+
+  // 静态兜底态：engine 不可知报空 → 「静态默认 / 模型」；未绑定时 chip 中性。
+  it('shows vision effective route with static fallback (识图静态兜底)', () => {
+    renderBind({
+      visionRoute: { engine: '', model: 'Qwen3.6-35B-A3B-U3B-Q4_K_P', source: 'static' },
+    })
+
+    expect(screen.getByText(/当前生效：静态默认 \/ Qwen3\.6-35B/)).toBeTruthy()
+    expect(screen.getByText(/（静态默认）/)).toBeTruthy()
+    expect(screen.getByText('静态兜底')).toBeTruthy()
   })
 })

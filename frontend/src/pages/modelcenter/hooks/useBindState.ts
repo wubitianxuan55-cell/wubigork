@@ -21,6 +21,7 @@ export interface BindState {
   setFeatureDraft: Dispatch<SetStateAction<Record<string, { engine: string; model: string }>>>
   featureEnabled: Record<string, boolean>
   modelRoutes: Record<string, { engine: string; model: string; source: string }>
+  visionRoute: { engine: string; model: string; source: string } | null
   portraitCfg: { backend: string; model: string }
   portraitDraft: { backend: string; model: string }
   setPortraitDraft: Dispatch<SetStateAction<{ backend: string; model: string }>>
@@ -44,6 +45,8 @@ export function useBindState(engines: EngineConfig[]): BindState {
   const [featureDraft, setFeatureDraft] = useState<Record<string, { engine: string; model: string }>>({})
   const [featureEnabled, setFeatureEnabled] = useState<Record<string, boolean>>({})
   const [modelRoutes, setModelRoutes] = useState<Record<string, { engine: string; model: string; source: string }>>({})
+  // 识图实际生效路由（跟随聊天模型 → 独立绑定 → 静态默认；Go 侧只读不记账）
+  const [visionRoute, setVisionRoute] = useState<{ engine: string; model: string; source: string } | null>(null)
   const [portraitCfg, setPortraitCfg] = useState<{ backend: string; model: string }>({ backend: '', model: '' })
   const [portraitDraft, setPortraitDraft] = useState<{ backend: string; model: string }>({ backend: '', model: '' })
   const [portraitSaving, setPortraitSaving] = useState(false)
@@ -53,6 +56,9 @@ export function useBindState(engines: EngineConfig[]): BindState {
   const [sinImageSaving, setSinImageSaving] = useState(false)
 
   // 当前生效路由（后端 routeModel 降级链结果：feature / global / fallback）
+  // + 识图实际生效路由（App.VisionRoute）：识图链 2026-10-19 起「跟随聊天模型」
+  // 压过 func_vision 绑定，routeModel('vision') 只反映绑定层——识图卡「当前生效」
+  // 须读真实链。绑定在 legacy 面且浏览器 dev mock 不路由，缺席时保持 null 不渲染。
   const refreshRoutes = useCallback(async () => {
     const bind = window.go?.app?.App as AppFacade
     if (!bind?.GetModelRoute) return
@@ -63,6 +69,11 @@ export function useBindState(engines: EngineConfig[]): BindState {
       } catch { /* 单功能失败忽略 */ }
     }
     setModelRoutes(next)
+    if (bind.VisionRoute) {
+      try {
+        setVisionRoute(JSON.parse(await bind.VisionRoute() as string))
+      } catch { /* 识图路由失败保持原值 */ }
+    }
   }, [])
 
   const loadFeatureCfg = useCallback(async () => {
@@ -210,6 +221,7 @@ export function useBindState(engines: EngineConfig[]): BindState {
     featureDraft, setFeatureDraft,
     featureEnabled,
     modelRoutes,
+    visionRoute,
     portraitCfg,
     portraitDraft, setPortraitDraft,
     portraitModelOptions,

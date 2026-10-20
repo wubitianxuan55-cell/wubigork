@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"image/png"
 	"strings"
 
@@ -20,35 +21,64 @@ var visionRecognize = vision.RecognizeImage
 //
 //  1. 跟随聊天模型（2026-10-19 用户拍板：聊天用的本地模型本身多模态时，识图
 //     不再另找第二个识图模型——多载一份权重浪费 UMA，单模型引擎上天璇/Strata
-//     只认当前服务档，绑定另一档必 404）。见 visionChatFollowRuntime。
+//     只认当前服务档，绑定另一档必 404）。见 visionChatFollowRoute。
 //  2. 办公识图功能绑定（模型中心「识图」卡，func_vision_*）：引擎地址 + 绑定
 //     模型 + 引擎 Key，改绑即生效（聊天在云端引擎时由此接管）。
 //  3. 均未命中回落 gaea.toml [vision] 静态注入（默认本机 herdsman 多模态主力）。
+//
+// 链路判定单源在 visionRouteRO；本方法只在动态层命中时组装运行时（含
+// TouchEngine 记账——解析即记账，防识图请求进行中/刚结束就被空闲收割器停机）。
 func (c *core) visionBoundRuntime() (vision.VisionRuntime, bool) {
-	if c.cfg == nil || c.engineMgr == nil {
+	eng, model, _, dynamic := c.visionRouteRO()
+	if !dynamic {
 		return vision.VisionRuntime{}, false
 	}
-	if r, ok := c.visionChatFollowRuntime(); ok {
-		return r, true
-	}
-	if !c.cfg.GetFeatureModelEnabled("vision") {
-		return vision.VisionRuntime{}, false
-	}
-	engID, model := c.cfg.GetFeatureModel("vision")
-	if engID == "" || model == "" {
-		return vision.VisionRuntime{}, false
-	}
-	offline := c.cfg.GetOfflineMode()
-	e, ok := c.engineMgr.GetEngine(engID)
-	if !ok || !e.Enabled || e.BaseURL == "" || (offline && !e.Type.IsLocal()) {
-		return vision.VisionRuntime{}, false
-	}
-	return c.visionLocalRuntime(engID, model), true
+	return c.visionLocalRuntime(eng, model), true
 }
 
-// visionChatFollowRuntime 识图跟随聊天模型：仅当聊天实际用的引擎是本地引擎
-// 且能就地取到多模态主力时接管（本机天璇/Strata 档位 serve 配置全部带
-// vision、herdsman 目录标 uncensored 家族 type=multimodal——2026-10-19 核实）。
+// visionRouteRO 识图生效链只读解析（不 TouchEngine 记账——展示/轮询路径
+// 专用，见 VisionRoute）。返回 (engine, model, source, dynamic)：
+// dynamic=false 表示动态层未接管，回落 vision 包静态注入（engine 不可知）。
+// source 细分：chat-follow（跟随聊天模型）/ chat-follow-fallback（聊天引擎
+// 停机，herdsman 主力兜底）/ feature（func_vision 功能绑定）。
+func (c *core) visionRouteRO() (engine, model, source string, dynamic bool) {
+	if c.cfg == nil || c.engineMgr == nil {
+		return "", "", "", false
+	}
+	if eng, m, src, ok := c.visionChatFollowRoute(); ok {
+		return eng, m, src, true
+	}
+	if c.cfg.GetFeatureModelEnabled("vision") {
+		engID, m := c.cfg.GetFeatureModel("vision")
+		if engID != "" && m != "" {
+			offline := c.cfg.GetOfflineMode()
+			if e, ok := c.engineMgr.GetEngine(engID); ok && e.Enabled && e.BaseURL != "" && !(offline && !e.Type.IsLocal()) {
+				return engID, m, "feature", true
+			}
+		}
+	}
+	return "", "", "", false
+}
+
+// VisionRoute 返回识图实际生效路由（Wails 绑定，模型中心识图卡「当前生效」
+// 展示用）：JSON {"engine","model","source"}。**只读不记账**——visionLocalRuntime
+// 的 TouchEngine（解析即记账）只在真实识图调用路径执行；本绑定供前端刷新/
+// 轮询，若走记账路径会把 model_idle_exit_minutes 空闲收割器永远喂饱。
+// source：chat-follow / chat-follow-fallback / feature / static（回落 gaea.toml
+// 静态注入或内置默认，engine 不可知报空、model 报静态生效值）。
+func (a *App) VisionRoute() (string, error) {
+	eng, model, source, dynamic := a.visionRouteRO()
+	if !dynamic {
+		eng, model, source = "", vision.StaticRuntime().Model, "static"
+	}
+	b, err := json.Marshal(map[string]string{"engine": eng, "model": model, "source": source})
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
+// visionChatFollowRoute 识图跟随聊天模型（只读解析，不记账）：
 //   - 天璇/Strata（单模型引擎）：跟随引擎当前实际服务的档位（engines.json
 //     running 条目，syncManagedCatalog 维护）；引擎未运行时若 herdsman 可用
 //     （启用且默认模型判型 llm，按需加载）以 herdsman 默认模型兜底——聊天
@@ -57,8 +87,9 @@ func (c *core) visionBoundRuntime() (vision.VisionRuntime, bool) {
 //     默认模型）。
 //
 // 聊天在云端引擎 / 本地引擎全停 / 办公未绑定且活跃引擎不可知（client 未装配）
-// 时不接管——回落既有 func_vision 绑定链。
-func (c *core) visionChatFollowRuntime() (vision.VisionRuntime, bool) {
+// 时不接管——回落既有 func_vision 绑定链。返回 source 细分 chat-follow /
+// chat-follow-fallback（聊天引擎停机，herdsman 兜底）供展示。
+func (c *core) visionChatFollowRoute() (engine, model, source string, ok bool) {
 	chatEng, chatModel := "", ""
 	if c.cfg.GetFeatureModelEnabled("gaea") {
 		chatEng, chatModel = c.cfg.GetFeatureModel("gaea")
@@ -70,20 +101,21 @@ func (c *core) visionChatFollowRuntime() (vision.VisionRuntime, bool) {
 		}
 	}
 	if chatEng == "" {
-		return vision.VisionRuntime{}, false
+		return "", "", "", false
 	}
 	switch chatEng {
 	case "tianxuan", "strata":
-		e, ok := c.engineMgr.GetEngine(chatEng)
-		if !ok || !e.Enabled {
-			return vision.VisionRuntime{}, false
+		e, okE := c.engineMgr.GetEngine(chatEng)
+		if !okE || !e.Enabled {
+			return "", "", "", false
 		}
 		for _, m := range e.Models {
 			if m.Kind == "llm" && m.Status == "running" {
-				return c.visionLocalRuntime(chatEng, m.ID), true
+				return chatEng, m.ID, "chat-follow", true
 			}
 		}
-		return c.visionHerdsmanFallback()
+		eng, m, okF := c.visionHerdsmanFallbackRoute()
+		return eng, m, "chat-follow-fallback", okF
 	case "herdsman":
 		if chatModel == "" {
 			if def, err := c.engineMgr.GetDefaultModel("herdsman"); err == nil {
@@ -91,28 +123,29 @@ func (c *core) visionChatFollowRuntime() (vision.VisionRuntime, bool) {
 			}
 		}
 		if chatModel == "" {
-			return vision.VisionRuntime{}, false
+			return "", "", "", false
 		}
-		if e, ok := c.engineMgr.GetEngine("herdsman"); !ok || !e.Enabled {
-			return vision.VisionRuntime{}, false
+		if e, okE := c.engineMgr.GetEngine("herdsman"); !okE || !e.Enabled {
+			return "", "", "", false
 		}
-		return c.visionLocalRuntime("herdsman", chatModel), true
+		return "herdsman", chatModel, "chat-follow", true
 	}
-	return vision.VisionRuntime{}, false
+	return "", "", "", false
 }
 
-// visionHerdsmanFallback herdsman 主力兜底（聊天引擎未运行时）：启用 + 默认
-// 模型判型 llm 才接管（默认模型经悬空修复不变量保证为 llm 或空）。
-func (c *core) visionHerdsmanFallback() (vision.VisionRuntime, bool) {
+// visionHerdsmanFallbackRoute herdsman 主力兜底（只读解析，不记账；聊天引擎
+// 未运行时）：启用 + 默认模型判型 llm 才接管（默认模型经悬空修复不变量保证
+// 为 llm 或空）。
+func (c *core) visionHerdsmanFallbackRoute() (engine, model string, ok bool) {
 	e, ok := c.engineMgr.GetEngine("herdsman")
 	if !ok || !e.Enabled || e.BaseURL == "" {
-		return vision.VisionRuntime{}, false
+		return "", "", false
 	}
 	def, err := c.engineMgr.GetDefaultModel("herdsman")
 	if err != nil || def == "" || modelengine.ClassifyModelByName(def) != "llm" {
-		return vision.VisionRuntime{}, false
+		return "", "", false
 	}
-	return c.visionLocalRuntime("herdsman", def), true
+	return "herdsman", def, true
 }
 
 // visionLocalRuntime 组装本地引擎的视觉运行时（OpenAI 兼容端点 + 引擎 Key，

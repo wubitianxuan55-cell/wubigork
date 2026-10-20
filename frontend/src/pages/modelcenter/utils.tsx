@@ -335,6 +335,15 @@ export const featureStateMeta: Record<FeatureState, { label: string; color: stri
 export const routeSourceLabel = (source?: string): string =>
   source === 'feature' ? '功能绑定' : source === 'global' ? '全局默认' : source === 'fallback' ? '兜底' : (source || '-')
 
+// 识图实际生效路由（App.VisionRoute）的 source → 友好文案：跟随聊天模型链
+// 压过 func_vision 绑定，routeModel('vision') 对识图失真，故有独立口径。
+export const visionSourceLabel = (source?: string): string =>
+  source === 'chat-follow' ? '跟随聊天模型'
+  : source === 'chat-follow-fallback' ? '聊天引擎停机 · Herdsman 主力兜底'
+  : source === 'feature' ? '识图独立绑定'
+  : source === 'static' ? '静态默认'
+  : (source || '-')
+
 // xAI Grok TTS 音色（与设置面板一致，模型中心绑定卡内可直接选择）
 export const XAI_VOICES = [
   { value: 'eve', label: 'Eve（默认）' },

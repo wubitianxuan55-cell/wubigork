@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/gaea/gaea/internal/config"
@@ -283,5 +284,103 @@ func TestVisionBoundRuntime_CloudChatKeepsVisionBinding(t *testing.T) {
 	}
 	if r.Model != "qwen3-8b" {
 		t.Errorf("Model = %q, want 绑定模型 qwen3-8b", r.Model)
+	}
+}
+
+// ── VisionRoute 展示绑定（模型中心识图卡「当前生效」行，只读不记账）──
+
+// parseVisionRoute 解析 VisionRoute 的 JSON 返回。
+func parseVisionRoute(t *testing.T, s string) (engine, model, source string) {
+	t.Helper()
+	var m map[string]string
+	if err := json.Unmarshal([]byte(s), &m); err != nil {
+		t.Fatalf("VisionRoute JSON: %v", err)
+	}
+	return m["engine"], m["model"], m["source"]
+}
+
+// TestVisionRoute_MirrorsBoundRuntimeChain 三态口径与 visionBoundRuntime 同链
+// 同判定：跟随（chat-follow）/ 聊天引擎停机兜底（chat-follow-fallback）/
+// 功能绑定（feature）/ 静态兜底（static）。
+func TestVisionRoute_MirrorsBoundRuntimeChain(t *testing.T) {
+	c := newTestCore(t)
+	a := &App{core: c}
+
+	// 聊天在云端 + 未绑识图：不跟随不绑定 → static（engine 不可知报空）。
+	chatID, err := c.engineMgr.AddCustomEngine("云端聊天", "https://api.example.com/v1", "sk-chat")
+	if err != nil {
+		t.Fatalf("AddCustomEngine: %v", err)
+	}
+	if err := c.SetFeatureModel("gaea", chatID, "deepseek-v4-pro"); err != nil {
+		t.Fatalf("SetFeatureModel(gaea): %v", err)
+	}
+	eng, model, source := parseVisionRoute(t, mustVisionRoute(t, a))
+	if source != "static" || eng != "" || model == "" {
+		t.Errorf("static 态 = (%q,%q,%q), want (空, 非空模型, static)", eng, model, source)
+	}
+
+	// 聊天在云端 + 绑定识图：feature 层接管（云端聊天时独立绑定才有意义）。
+	if err := c.SetFeatureModel("vision", "herdsman", "qwen3-8b"); err != nil {
+		t.Fatalf("SetFeatureModel(vision): %v", err)
+	}
+	eng, model, source = parseVisionRoute(t, mustVisionRoute(t, a))
+	if source != "feature" || eng != "herdsman" || model != "qwen3-8b" {
+		t.Errorf("feature 态 = (%q,%q,%q), want (herdsman,qwen3-8b,feature)", eng, model, source)
+	}
+
+	// 聊天切天璇且档位在服务：跟随压过绑定。
+	seedTianxuan(t, c, "qwen3.8-flash-next-uncensored")
+	if err := c.SetFeatureModel("gaea", "tianxuan", "qwen3.8-flash-next-uncensored"); err != nil {
+		t.Fatalf("SetFeatureModel(gaea): %v", err)
+	}
+	eng, model, source = parseVisionRoute(t, mustVisionRoute(t, a))
+	if source != "chat-follow" || eng != "tianxuan" || model != "qwen3.8-flash-next-uncensored" {
+		t.Errorf("chat-follow 态 = (%q,%q,%q), want (tianxuan,当前服务档,chat-follow)", eng, model, source)
+	}
+
+	// 天璇停机 + herdsman 主力可用：chat-follow-fallback。
+	seedTianxuan(t, c, "")
+	if err := c.engineMgr.SetDefaultModel("herdsman", "qwen3-8b"); err != nil {
+		t.Fatalf("SetDefaultModel: %v", err)
+	}
+	eng, model, source = parseVisionRoute(t, mustVisionRoute(t, a))
+	if source != "chat-follow-fallback" || eng != "herdsman" || model != "qwen3-8b" {
+		t.Errorf("chat-follow-fallback 态 = (%q,%q,%q), want (herdsman,qwen3-8b,chat-follow-fallback)", eng, model, source)
+	}
+}
+
+func mustVisionRoute(t *testing.T, a *App) string {
+	t.Helper()
+	s, err := a.VisionRoute()
+	if err != nil {
+		t.Fatalf("VisionRoute: %v", err)
+	}
+	return s
+}
+
+// TestVisionRoute_DoesNotAccountUsage 展示路径不记账：VisionRoute 轮询不得
+// TouchEngine——否则 model_idle_exit_minutes 空闲收割器被前端刷新永远喂饱
+// （记账点=BuildChatURL/启动/真实识图调用，探活/展示刻意不记账）。
+func TestVisionRoute_DoesNotAccountUsage(t *testing.T) {
+	c := newTestCore(t)
+	a := &App{core: c}
+	seedTianxuan(t, c, "qwen3.8-flash-next-uncensored")
+	if err := c.SetFeatureModel("gaea", "tianxuan", "qwen3.8-flash-next-uncensored"); err != nil {
+		t.Fatalf("SetFeatureModel(gaea): %v", err)
+	}
+	for i := 0; i < 3; i++ {
+		if _, err := a.VisionRoute(); err != nil {
+			t.Fatalf("VisionRoute: %v", err)
+		}
+	}
+	if at := c.engineMgr.EngineLastActivity("tianxuan"); !at.IsZero() {
+		t.Errorf("VisionRoute 不应记账，tianxuan lastActivity = %v", at)
+	}
+	// 对照：真实识图调用路径（visionBoundRuntime）才记账。
+	if _, ok := c.visionBoundRuntime(); !ok {
+		t.Fatal("跟随命中应成功")
+	}
+	if at := c.engineMgr.EngineLastActivity("tianxuan"); at.IsZero() {
+		t.Error("visionBoundRuntime 解析即记账，lastActivity 应非零")
 	}
 }

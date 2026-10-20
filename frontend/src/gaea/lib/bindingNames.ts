@@ -640,6 +640,7 @@ export const bindingNames = [
   "ToggleOrgMember",
   "UpdateCustomEngine",
   "UpdateProjectMeta",
+  "VisionRoute",
   "VoiceApplySettings",
   "VoiceCancelTTS",
   "VoiceChatText",

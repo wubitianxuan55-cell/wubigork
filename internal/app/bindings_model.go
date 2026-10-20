@@ -61,3 +61,4 @@ func (b *ModelB) TianxuanEngineStatus() map[string]interface{} { return b.a.Tian
 func (b *ModelB) TianxuanEngineStop() map[string]interface{} { return b.a.TianxuanEngineStop() }
 func (b *ModelB) TianxuanModelStart(model string) map[string]interface{} { return b.a.TianxuanModelStart(model) }
 func (b *ModelB) TianxuanModelStop(model string) map[string]interface{} { return b.a.TianxuanModelStop(model) }
+func (b *ModelB) VisionRoute() (string, error) { return b.a.VisionRoute() }

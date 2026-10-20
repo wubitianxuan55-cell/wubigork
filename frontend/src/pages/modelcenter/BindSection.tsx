@@ -8,7 +8,7 @@ import { app } from '../../gaea/lib/bridge'
 import { SectionHead, StatusChip, type StatusTone } from './ui'
 import {
   engineLabel, FEATURES, featureState, featureStateMeta,
-  modelOptionsForEngine, routeSourceLabel,
+  modelOptionsForEngine, routeSourceLabel, visionSourceLabel,
 } from './utils'
 import { useModelCenterActions, useModelCenterState } from './context'
 
@@ -25,7 +25,7 @@ const FEATURE_ICONS: Record<string, ReactNode> = {
 const FEATURE_NOTES: Record<string, string> = {
   chat: '聊天语音：TTS 与 STT 跟随语音管道，绑定的是对话大模型',
   office: '通用 + 方案 + 知识库',
-  vision: '办公识图（看懂图）：微信图片、图片附件、绘梦/剧照自评等视觉链路；改绑即生效，未绑定时用本地默认视觉模型。纯文字提取（OCR）在语音模型页单独绑定',
+  vision: '办公识图（看懂图）：微信图片、图片附件、绘梦/剧照自评等视觉链路。优先跟随聊天模型（本地多模态主力在线时直接用它，不另载第二份视觉权重）；聊天在云端或本地主力不可用时由此独立绑定接管；再回落 gaea.toml 静态默认。改绑即生效。纯文字提取（OCR）在语音模型页单独绑定',
   characterlib: '生成 / 补全',
   sin: '原罪（闲庭图文故事）：故事文本生成；未绑定跟随全局；角色库角色随故事走，不读办公工具与办公记忆。插图生图模型在下方「原罪插图」卡独立绑定',
   routine: '纯文本摘要/归一化/抽取/改写等无专业工具覆盖的活，由云端 agent 通过 routine_llm 兜底调用（识图/OCR/检索/转换走各自专业工具）；未绑定默认本地 herdsman',
@@ -43,6 +43,7 @@ export function BindSection() {
     featureDraft,
     featureEnabled,
     modelRoutes,
+    visionRoute,
     chatVoiceCfg,
     chatVoiceDraft,
     chatVoiceSaving,
@@ -106,6 +107,20 @@ export function BindSection() {
           const enabled = featureEnabled[f.key] !== false
           const state = featureState(bound, enabled)
           const stateMeta = featureStateMeta[state]
+          // 识图卡按真实生效链出 chip（App.VisionRoute）：跟随聊天模型压过
+          // func_vision 绑定，「已绑定生效」在跟随时是误导——绑定此刻待命不生效。
+          const isVision = f.key === 'vision'
+          const visionChip = isVision && visionRoute
+            ? (visionRoute.source === 'chat-follow' || visionRoute.source === 'chat-follow-fallback')
+              ? { label: bound && enabled ? '跟随聊天模型 · 绑定待命' : '跟随聊天模型', tone: 'ok' as const }
+              : visionRoute.source === 'feature'
+                ? { label: '识图绑定生效', tone: 'ok' as const }
+                : bound && enabled
+                  ? { label: '绑定不可用 · 静态兜底', tone: 'warn' as const }
+                  : bound && !enabled
+                    ? { label: '已停用 · 静态兜底', tone: 'warn' as const }
+                    : { label: '静态兜底', tone: 'neutral' as const }
+            : null
           // 绑定/路由文本展示友好名：引擎取 engineLabel，模型经 llmModels
           // 的 modelName（Model Hub 的别名 ID → tinyrick/…:Q6_K_P）。
           const modelText = (engineId?: string, modelId?: string): string => {
@@ -122,19 +137,36 @@ export function BindSection() {
                   {FEATURE_ICONS[f.key] || <LinkOutlined />}
                   {f.label}
                 </span>
-                <StatusChip tone={stateTone(stateMeta.color)} dot>{stateMeta.label}</StatusChip>
+                <StatusChip tone={visionChip ? visionChip.tone : stateTone(stateMeta.color)} dot>
+                  {visionChip ? visionChip.label : stateMeta.label}
+                </StatusChip>
               </div>
               {FEATURE_NOTES[f.key] && (
                 <div className="mc-bind-desc">{FEATURE_NOTES[f.key]}</div>
               )}
               <div className="mc-bind-meta">
                 {state === 'fallback'
-                  ? '未绑定，跟随全局默认'
+                  ? (isVision
+                    ? '未绑定：优先跟随聊天模型，无本地多模态在线时回落静态默认'
+                    : '未绑定，跟随全局默认')
                   : state === 'bound-disabled'
-                    ? `已停用，跟随全局默认（绑定保留：${modelText(cur!.engine, cur!.model)}）`
-                    : `当前：${modelText(cur!.engine, cur!.model)}`}
+                    ? (isVision
+                      ? `已停用（跟随链不受影响，绑定保留：${modelText(cur!.engine, cur!.model)}）`
+                      : `已停用，跟随全局默认（绑定保留：${modelText(cur!.engine, cur!.model)}）`)
+                    : `${isVision ? '独立绑定' : '当前'}：${modelText(cur!.engine, cur!.model)}`}
               </div>
-              {modelRoutes[f.key] && (
+              {isVision && visionRoute && (
+                <div className="mc-bind-meta">
+                  当前生效：{visionRoute.engine
+                    ? modelText(visionRoute.engine, visionRoute.model)
+                    : `静态默认 / ${visionRoute.model}`}
+                  （{visionSourceLabel(visionRoute.source)}）
+                  {(visionRoute.source === 'chat-follow' || visionRoute.source === 'chat-follow-fallback') && bound && enabled
+                    ? '；独立绑定待命（聊天回云端时接管）'
+                    : ''}
+                </div>
+              )}
+              {!isVision && modelRoutes[f.key] && (
                 <div className="mc-bind-meta">
                   当前生效：{modelText(modelRoutes[f.key].engine, modelRoutes[f.key].model)}
                   （{routeSourceLabel(modelRoutes[f.key].source)}）

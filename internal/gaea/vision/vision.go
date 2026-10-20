@@ -134,6 +134,11 @@ var visionRuntime VisionRuntime
 // 切换视觉后端只改配置（kind/base/model），消费方代码零改动。
 func SetVisionRuntime(cfg VisionRuntime) { visionRuntime = cfg }
 
+// StaticRuntime 返回静态注入层（gaea.toml [vision]）补全默认后的生效配置
+// （只读快照）。供宿主展示「静态兜底」档位（App.VisionRoute 的 static 分支）；
+// 动态钩子层（跟随聊天模型/功能绑定）由宿主自行解析，不经本函数。
+func StaticRuntime() VisionRuntime { return completeVisionRuntime(visionRuntime) }
+
 // visionRuntimeResolver 宿主动态解析钩子（app 装配注入）：返回 (runtime, true)
 // 时优先采用——办公识图功能绑定（func_vision_*）改绑即生效，无需重启；
 // 未注入或返回 false 时回落静态 visionRuntime（gaea.toml 注入值）。
