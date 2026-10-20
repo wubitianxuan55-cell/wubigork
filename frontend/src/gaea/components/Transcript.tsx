@@ -930,52 +930,60 @@ export function Transcript({
   }, [scrollToBottom]);
 
   return (
-    <div className="transcript v3-zone" ref={scrollRef} onScroll={onScroll}>
-      <div className="w-full px-4 sm:px-6 md:px-8 py-4" ref={entranceRef}>
-        {items.length === 0 && (
-          <Welcome onPrompt={onPrompt} cwd={cwd} cwdName={cwdName} sessions={sessions} onResumeSession={onResumeSession} meta={meta} />
-        )}
-        {/* 正文阅读宽度列（办公板块覆写为 --maxw 左对齐，其余板块 74ch 居中）；欢迎页作为启动器保持铺满 */}
-        <div className="v3-reading">
-          {/* v4.26：StreamingIndicator 降级为最底兜底（工作态头部已接管主反馈），
+    // v4.510 根修包装层：外层接管 flex 尺寸（原 .transcript 直接作为 .main /
+    // ChatPane 的弹性行），滚动容器降为包装层子节点——「回到底部」按钮必须
+    // 是滚动容器的兄弟节点：此前 absolute 挂在容器内部，绝对定位随内容
+    // 滚走（无头 Edge 实证：scrollTop=900 时按钮已滚出视口 666px），长会话
+    // 上翻时按钮恰在视口外永远不可见，只有首屏内短暂可见。
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <div className="transcript v3-zone" ref={scrollRef} onScroll={onScroll}>
+        <div className="w-full px-4 sm:px-6 md:px-8 py-4" ref={entranceRef}>
+          {items.length === 0 && (
+            <Welcome onPrompt={onPrompt} cwd={cwd} cwdName={cwdName} sessions={sessions} onResumeSession={onResumeSession} meta={meta} />
+          )}
+          {/* 正文阅读宽度列（办公板块覆写为 --maxw 左对齐，其余板块 74ch 居中）；欢迎页作为启动器保持铺满 */}
+          <div className="v3-reading">
+            {/* v4.26：StreamingIndicator 降级为最底兜底（工作态头部已接管主反馈），
               文案收敛为「连接中…/仍在等待事件…」。items 为空且 running 时
               WorkHeader 在此独立兜底挂载（无 segments 可锚定的死寂窗口）。 */}
-          <StreamingIndicator running={running} />
-          {items.length === 0 && running && <WorkHeader />}
-          {segments.map((seg, segIdx, arr) => {
-            const isLast = segIdx === arr.length - 1;
-            // 2026-08-26：删除大过程卡后全部走交替段，key 直接用段内首条 id
-            // （不再有 done- 重挂载——交替段跨 running 复用实例，用户手动
-            // 折叠/展开的过程卡状态不丢）。
-            const segKey = seg.processItems[0]?.id ?? seg.outsideItems[0]?.id ?? `seg${segIdx}`;
-            return (
-              <TurnBlock
-                key={segKey}
-                seg={seg}
-                running={running}
-                isLast={isLast}
-                turnNo={turnNos.get(segIdx)}
-                turnTail={turnTails.has(segIdx)}
-                openTurn={openTurn}
-                onToggleTurn={toggleTurn}
-                onRewindTurn={handleRewindTurn}
-                onCollapse={scheduleMeasure}
-                dismissedErrors={dismissedErrors}
-                onDismissError={dismissError}
-                captureForId={captureForId}
-                canRegenerateId={canRegenerateId}
-                onRegenerateTurn={handleRegenerateTurn}
-                onFeedback={onFeedback}
-                turnElsRef={turnEls}
-                workHeader={segIdx === lastUserSegIdx}
-                turnDoneSuppressed={segIdx === lastUserSegIdx && lastTurnHasProcess}
-                tailOmitMentions={tailOmitBySeg.get(segIdx)}
-              />
-            );
-          })}
+            <StreamingIndicator running={running} />
+            {items.length === 0 && running && <WorkHeader />}
+            {segments.map((seg, segIdx, arr) => {
+              const isLast = segIdx === arr.length - 1;
+              // 2026-08-26：删除大过程卡后全部走交替段，key 直接用段内首条 id
+              // （不再有 done- 重挂载——交替段跨 running 复用实例，用户手动
+              // 折叠/展开的过程卡状态不丢）。
+              const segKey = seg.processItems[0]?.id ?? seg.outsideItems[0]?.id ?? `seg${segIdx}`;
+              return (
+                <TurnBlock
+                  key={segKey}
+                  seg={seg}
+                  running={running}
+                  isLast={isLast}
+                  turnNo={turnNos.get(segIdx)}
+                  turnTail={turnTails.has(segIdx)}
+                  openTurn={openTurn}
+                  onToggleTurn={toggleTurn}
+                  onRewindTurn={handleRewindTurn}
+                  onCollapse={scheduleMeasure}
+                  dismissedErrors={dismissedErrors}
+                  onDismissError={dismissError}
+                  captureForId={captureForId}
+                  canRegenerateId={canRegenerateId}
+                  onRegenerateTurn={handleRegenerateTurn}
+                  onFeedback={onFeedback}
+                  turnElsRef={turnEls}
+                  workHeader={segIdx === lastUserSegIdx}
+                  turnDoneSuppressed={segIdx === lastUserSegIdx && lastTurnHasProcess}
+                  tailOmitMentions={tailOmitBySeg.get(segIdx)}
+                />
+              );
+            })}
+          </div>
         </div>
       </div>
-      {/* 回到底部按钮 —— 居中圆形，v3 柔光 */}
+      {/* 回到底部按钮 —— 居中圆形，v3 柔光；滚动容器的兄弟节点（锚定包装层，
+          不随内容滚动，上翻时常驻视口底部） */}
       {showScrollDown && (
         <button
           className="absolute left-1/2 bottom-8 z-20 flex items-center justify-center w-9 h-9 rounded-full border border-accent/25 bg-bg-elev/85 backdrop-blur-md text-fg-dim cursor-pointer hover:text-accent hover:border-accent/40 hover:bg-bg-elev-2 active:scale-95 transition-all shadow-[var(--v3-glow-faint)]"

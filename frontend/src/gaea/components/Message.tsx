@@ -136,7 +136,13 @@ export const UserMessage = memo(function UserMessage({
             )}
           </div>
           {canRewind && (
-            <div className="flex justify-end mt-0.5">
+            // v4.510 双修：①relative=回退下拉的定位锚——此前无定位祖先链一路
+            // 锚到滚动容器 .transcript 顶部（bottom-full 相对整个对话区），
+            // 菜单渲染在内容流顶端之外、任何滚动状态下都基本不可见；②rewind
+            // 类=Transcript 外点关闭守卫的选择器（closest(".rewind")）——此前
+            // 该类不存在于任何元素，点菜单项的 mousedown 先触发守卫关菜单，
+            // click 落在已卸载的按钮上，回退动作从未真正执行。
+            <div className="rewind relative flex justify-end mt-0.5">
               <button
                 className="opacity-0 group-hover:opacity-100 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-faint/50 text-[10px] cursor-pointer hover:text-fg transition-opacity"
                 onClick={onToggle}
