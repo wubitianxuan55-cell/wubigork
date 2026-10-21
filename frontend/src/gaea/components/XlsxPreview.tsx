@@ -191,8 +191,17 @@ export function XlsxPreview({
         setChartMenuOpen(false);
       }
     };
+    // v4.515 键盘可达：Escape 关闭（role=menu 的 ARIA 菜单模式要求；方向键
+    // 漫游在菜单容器 onKeyDown 上）。
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setChartMenuOpen(false);
+    };
     document.addEventListener("pointerdown", onDown);
-    return () => document.removeEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [chartMenuOpen]);
 
   const startEditCell = useCallback((ref: string, initial: string) => {
@@ -512,6 +521,17 @@ export function XlsxPreview({
                 role="menu"
                 className="absolute right-0 top-[calc(100%+4px)] z-30 min-w-[150px] bg-bg-elev border border-border rounded-[10px] p-1 anim-menu-in"
                 style={{ boxShadow: "var(--ds-shadow-dropdown)" }}
+                onKeyDown={(e) => {
+                  // v4.515 方向键漫游聚焦（roving focus）；Escape 在 document 守卫
+                  const items = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>("button[role=menuitem]"));
+                  if (items.length === 0) return;
+                  const idx = items.indexOf(document.activeElement as HTMLButtonElement);
+                  const go = (next: number) => { e.preventDefault(); items[(next + items.length) % items.length].focus(); };
+                  if (e.key === "ArrowDown") go(idx + 1);
+                  else if (e.key === "ArrowUp") go(idx - 1);
+                  else if (e.key === "Home") go(0);
+                  else if (e.key === "End") go(items.length - 1);
+                }}
               >
                 {[
                   { label: "柱状图", icon: <BarChart3 size={11} />, run: () => void genChart("bar") },

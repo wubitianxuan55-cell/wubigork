@@ -76,7 +76,7 @@ describe("回退菜单（v4.510 锚定+外点守卫双修）", () => {
     expect(triggerRow?.className).toContain("relative");
 
     // 真实浏览器序：mousedown 先于 click——守卫不误关菜单，onClick 真正执行
-    const scopeBtn = view.getByRole("button", { name: "文件 + 对话" });
+    const scopeBtn = view.getByRole("menuitem", { name: "文件 + 对话" });
     fireEvent.mouseDown(scopeBtn);
     fireEvent.click(scopeBtn);
     expect(onRewind).toHaveBeenCalledWith(0, "both");
@@ -88,11 +88,11 @@ describe("回退菜单（v4.510 锚定+外点守卫双修）", () => {
     const view = render(wrap(<Transcript onPrompt={() => {}} running={false} onRewind={onRewind} />));
 
     fireEvent.click(view.getByRole("button", { name: "回退" }));
-    expect(view.getByRole("button", { name: "文件 + 对话" })).toBeTruthy();
+    expect(view.getByRole("menuitem", { name: "文件 + 对话" })).toBeTruthy();
 
     // 菜单外 mousedown（正文区域）：关闭
     fireEvent.mouseDown(view.getByText("第一答"));
-    expect(view.queryByRole("button", { name: "文件 + 对话" })).toBeNull();
+    expect(view.queryByRole("menuitem", { name: "文件 + 对话" })).toBeNull();
     expect(onRewind).not.toHaveBeenCalled();
   });
 });
@@ -176,5 +176,62 @@ describe("流式滚动跟随手势化（v4.512）", () => {
     await nextFrame();
 
     expect(geo.get()).toBe(2000);
+  });
+});
+
+// ── v4.515 弹层键盘可达（ARIA 菜单模式）───────────────────────────────
+// 回退菜单：Escape 关闭（document 级守卫，与外点关闭同状态）+ 方向键漫游
+// 聚焦（roving focus）+ 触发钮 aria 契约。菜单项挂 role=menuitem（覆盖
+// 隐式 button 角色），键盘用户可全程操作（Tab 进菜单、↑↓ 漫游、Esc 关）。
+describe("回退菜单键盘可达（v4.515）", () => {
+  beforeEach(() => {
+    useStore.setState({ ...initialState, _dispatch: useStore.getState()._dispatch });
+  });
+
+  it("Escape 关闭菜单（焦点在菜单项或触发钮上都生效）", () => {
+    const onRewind = vi.fn();
+    useStore.setState({ items, running: false, turnStartAt: Date.now() });
+    const view = render(wrap(<Transcript onPrompt={() => {}} running={false} onRewind={onRewind} />));
+
+    const trigger = view.getByRole("button", { name: "回退" });
+    expect(trigger.getAttribute("aria-haspopup")).toBe("menu");
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.click(trigger);
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    expect(view.getByRole("menuitem", { name: "文件 + 对话" })).toBeTruthy();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(view.queryByRole("menuitem", { name: "文件 + 对话" })).toBeNull();
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(onRewind).not.toHaveBeenCalled();
+  });
+
+  it("方向键漫游聚焦：ArrowDown/ArrowUp/End 在菜单项间循环", () => {
+    useStore.setState({ items, running: false, turnStartAt: Date.now() });
+    const view = render(wrap(<Transcript onPrompt={() => {}} running={false} onRewind={vi.fn()} />));
+    fireEvent.click(view.getByRole("button", { name: "回退" }));
+
+    const menu = view.getByRole("menu");
+    const itemsInMenu = menu.querySelectorAll<HTMLButtonElement>("button[role=menuitem]");
+    expect(itemsInMenu.length).toBe(6);
+
+    itemsInMenu[0].focus();
+    expect(document.activeElement).toBe(itemsInMenu[0]);
+
+    fireEvent.keyDown(menu, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(itemsInMenu[1]);
+
+    fireEvent.keyDown(menu, { key: "ArrowUp" });
+    expect(document.activeElement).toBe(itemsInMenu[0]);
+
+    fireEvent.keyDown(menu, { key: "ArrowUp" }); // 首项上绕到末项（循环）
+    expect(document.activeElement).toBe(itemsInMenu[5]);
+
+    fireEvent.keyDown(menu, { key: "Home" });
+    expect(document.activeElement).toBe(itemsInMenu[0]);
+
+    fireEvent.keyDown(menu, { key: "End" });
+    expect(document.activeElement).toBe(itemsInMenu[5]);
   });
 });

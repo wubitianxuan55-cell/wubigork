@@ -148,16 +148,36 @@ export const UserMessage = memo(function UserMessage({
                 className="opacity-0 group-hover:opacity-100 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-faint/50 text-[10px] cursor-pointer hover:text-fg transition-opacity"
                 onClick={onToggle}
                 title={t("rewind.label")}
+                aria-haspopup="menu"
+                aria-expanded={open}
               >
                 <Rollback size={10} className="inline-block -mt-px mr-0.5" aria-hidden />
                 {t("msg.rewindText")}
               </button>
               {open && (
-                <div className="absolute bottom-full right-0 mb-1 z-30 min-w-[140px] py-1 bg-bg-elev-2 border border-border rounded-lg" style={{boxShadow: "var(--ds-shadow-dropdown)"}}>
+                // v4.515 键盘可达（ARIA 菜单模式）：role=menu/menuitem + 方向键
+                // 漫游聚焦（roving focus）+ Home/End；Escape 在 Transcript 的
+                // document 级守卫关闭（与外点关闭同状态）；Tab 仍可自然离开。
+                <div
+                  role="menu"
+                  aria-label={t("rewind.label")}
+                  className="absolute bottom-full right-0 mb-1 z-30 min-w-[140px] py-1 bg-bg-elev-2 border border-border rounded-lg"
+                  style={{boxShadow: "var(--ds-shadow-dropdown)"}}
+                  onKeyDown={(e) => {
+                    const items = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>("button[role=menuitem]"));
+                    if (items.length === 0) return;
+                    const idx = items.indexOf(document.activeElement as HTMLButtonElement);
+                    const go = (next: number) => { e.preventDefault(); items[(next + items.length) % items.length].focus(); };
+                    if (e.key === "ArrowDown") go(idx + 1);
+                    else if (e.key === "ArrowUp") go(idx - 1);
+                    else if (e.key === "Home") go(0);
+                    else if (e.key === "End") go(items.length - 1);
+                  }}
+                >
                   {(["both","conversation","code","fork","summ-from","summ-upto"] as const).map(scope => {
                     const key = scope === "summ-from" ? "rewind.summFrom" as const : scope === "summ-upto" ? "rewind.summUpto" as const : `rewind.${scope}` as const;
                     return (
-                    <button key={scope} className="w-full text-left px-3 py-1.5 border-0 bg-transparent text-fg-dim text-[12px] cursor-pointer hover:bg-bg-soft hover:text-fg" onClick={() => rewind(scope)}>
+                    <button key={scope} role="menuitem" className="w-full text-left px-3 py-1.5 border-0 bg-transparent text-fg-dim text-[12px] cursor-pointer hover:bg-bg-soft hover:text-fg" onClick={() => rewind(scope)}>
                       {t(key)}
                     </button>
                     );

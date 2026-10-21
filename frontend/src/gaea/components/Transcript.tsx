@@ -809,8 +809,18 @@ export function Transcript({
       const el = e.target as Element | null;
       if (!el || !el.closest(".rewind")) setOpenTurn(null);
     };
+    // v4.515 键盘可达：Escape 关闭回退菜单（与外点关闭同效应同状态）——
+    // 菜单项是真实按钮（Tab 可达），方向键漫游在菜单容器 onKeyDown 上
+    // （Message.tsx）；此处 document 级监听覆盖焦点在触发钮/菜单项两态。
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpenTurn(null);
+    };
     document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [openTurn]);
 
   // 每段对应的用户轮次号（data-turn / 回退弹窗 open 判定 / 助手消息登记卡

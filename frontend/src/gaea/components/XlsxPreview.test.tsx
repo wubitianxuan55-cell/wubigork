@@ -230,3 +230,35 @@ describe("XlsxPreview B3 选区引用到对话", () => {
     expect(screen.getByTestId("xlsx-quote-btn")).toBeTruthy();
   });
 });
+
+// ── v4.515 图表菜单键盘可达（ARIA 菜单模式）──────────────────────────
+// role=menu 此前只有鼠标路径（外点关闭）：Escape 关闭 + 方向键漫游聚焦补齐。
+describe("图表菜单键盘可达（v4.515）", () => {
+  it("Escape 关闭菜单（document 级守卫）", () => {
+    render(<XlsxPreview body={body} fileName="预算表.xlsx" relPath="mock.xlsx" />);
+    fireEvent.click(screen.getByRole("button", { name: /图表/ }));
+    expect(screen.getByRole("menuitem", { name: /柱状图/ })).toBeTruthy();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("menuitem", { name: /柱状图/ })).toBeNull();
+  });
+
+  it("方向键漫游聚焦：ArrowDown/End 在 5 个菜单项间移动", () => {
+    render(<XlsxPreview body={body} fileName="预算表.xlsx" relPath="mock.xlsx" />);
+    fireEvent.click(screen.getByRole("button", { name: /图表/ }));
+
+    const menu = screen.getByRole("menu");
+    const items = menu.querySelectorAll<HTMLButtonElement>("button[role=menuitem]");
+    expect(items.length).toBe(5);
+
+    items[0].focus();
+    fireEvent.keyDown(menu, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(items[1]);
+
+    fireEvent.keyDown(menu, { key: "End" });
+    expect(document.activeElement).toBe(items[4]);
+
+    fireEvent.keyDown(menu, { key: "ArrowDown" }); // 末项下绕回首项（循环）
+    expect(document.activeElement).toBe(items[0]);
+  });
+});
