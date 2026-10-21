@@ -19,6 +19,7 @@ import (
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/control"
 	"github.com/gaea/gaea/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/gaea/provider/bridge"
 	"github.com/gaea/gaea/internal/gaea/spaces"
 	"github.com/gaea/gaea/internal/gaea/tool"
@@ -57,12 +58,19 @@ type gaeaRuntime struct {
 
 // gaeaLoadConfig 加载办公引擎配置：内置默认 + 用户持久化文件（若有），
 // 再注入 bridge provider（kind=gaea 走 gaea 模型中心）。返回可直接修改的配置。
+// 持久化文件解析失败时隔离损坏件并按默认继续（对齐壳层 T6-9.4 范式，
+// 2026-10-06 断电事故根修落地）——损坏的 config.toml 绝不能把办公引擎
+// 锁死在 GaeaInit 启动失败上。
 func gaeaLoadConfig() (*gaeaConfig.Config, error) {
 	cfg := gaeaConfig.Default()
 	if p := gaeaConfig.UserConfigPath(); p != "" {
 		if b, err := os.ReadFile(p); err == nil {
 			if _, err := toml.Decode(string(b), cfg); err != nil {
-				return nil, fmt.Errorf("gaea: 解析持久化配置 %s: %w", p, err)
+				if backup, berr := fileutil.BackupCorrupt(p, b); berr != nil {
+					slog.Error("gaea: 持久化配置损坏且备份失败，按默认继续", "path", p, "err", err, "backup_error", berr)
+				} else {
+					slog.Warn("gaea: 持久化配置解析失败，已备份损坏件并按默认继续", "path", p, "backup", backup, "err", err)
+				}
 			}
 		} else if !os.IsNotExist(err) {
 			return nil, fmt.Errorf("gaea: 读取持久化配置 %s: %w", p, err)

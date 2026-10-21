@@ -13,6 +13,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/gaea/provider"
 	"github.com/gaea/gaea/internal/gaea/spaces"
 	"github.com/gaea/gaea/internal/netclient"
@@ -821,7 +822,7 @@ func Load() (*Config, error) {
 	cfg := Default()
 
 	if uc := userConfigPath(); uc != "" {
-		if err := mergeFile(cfg, uc); err != nil {
+		if err := mergeUserFile(cfg, uc); err != nil {
 			return nil, err
 		}
 	}
@@ -862,6 +863,32 @@ func mergeFile(cfg *Config, path string) error {
 	}
 	if _, err := toml.DecodeFile(path, cfg); err != nil {
 		return fmt.Errorf("config %s: %w", path, err)
+	}
+	return nil
+}
+
+// mergeUserFile merges the user-level config onto cfg, with corrupt-file
+// self-healing: a file that fails TOML parsing is quarantined to a
+// <path>.corrupt-<ts> sibling copy and skipped, so boot continues on
+// defaults instead of failing hard. This mirrors the shell config's
+// corrupt-file recovery (T6-9.4) and closes the 2026-10-06 power-loss
+// follow-up: a zeroed config.toml must never wedge Load() (headless agent
+// or desktop engine) out of startup. A missing file is not an error; an
+// I/O read error still is (that's an environment problem, not corruption).
+func mergeUserFile(cfg *Config, path string) error {
+	if _, err := os.Stat(path); err != nil {
+		return nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("config %s: %w", path, err)
+	}
+	if _, err := toml.Decode(string(data), cfg); err != nil {
+		if backup, berr := fileutil.BackupCorrupt(path, data); berr != nil {
+			slog.Error("config: 用户配置损坏且备份失败，跳过该层按默认继续", "path", path, "err", err, "backup_error", berr)
+		} else {
+			slog.Warn("config: 用户配置解析失败，已备份损坏件并按默认继续", "path", path, "backup", backup, "err", err)
+		}
 	}
 	return nil
 }

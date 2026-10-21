@@ -41,7 +41,8 @@ func LoadRecentWorkspaces() []string {
 	return nil
 }
 
-// SaveRecentWorkspaces 持久化最近工作区列表（尽力而为）。
+// SaveRecentWorkspaces 持久化最近工作区列表（尽力而为）。写盘走断电级
+// AtomicWriteSync（2026-10-06 断电事故该文件与 config.toml 一同全零）。
 func SaveRecentWorkspaces(paths []string) error {
 	p := RecentWorkspacesPath()
 	if p == "" {
@@ -54,7 +55,7 @@ func SaveRecentWorkspaces(paths []string) error {
 	if err != nil {
 		return err
 	}
-	return fileutil.AtomicWrite(p, b, 0o644)
+	return fileutil.AtomicWriteSync(p, b, 0o644)
 }
 
 // TouchRecentWorkspace 把工作区置顶到最近列表（去重、截断）并持久化，

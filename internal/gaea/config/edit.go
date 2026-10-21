@@ -280,9 +280,10 @@ func validatePlugin(e PluginEntry) error {
 }
 
 // SaveTo writes the configuration to path as annotated TOML, atomically: it
-// writes a sibling temp file then renames, so a crash mid-write can't leave a
-// half-written gaea.toml that fails to parse on next load. Parent directories
-// are created as needed.
+// writes a sibling temp file, fsyncs it, then renames — so a crash mid-write
+// can't leave a half-written gaea.toml that fails to parse on next load, and
+// a power loss can't expose the "renamed but not yet on disk" window
+// (2026-10-06 incident follow-up). Parent directories are created as needed.
 //
 // P0-1 刀：渲染走 RenderTOMLPreserving——先读回现有文件，把渲染器不负责的顶层
 // 段/标量/注释逐字保留（RenderTOML 是有损归一化渲染，直接整文件重写会静默丢段，
@@ -292,7 +293,7 @@ func (c *Config) SaveTo(path string) error {
 		return fmt.Errorf("save: empty config path")
 	}
 	existing := readFileOrEmpty(path)
-	return fileutil.AtomicWrite(path, []byte(RenderTOMLPreserving(c, existing)), 0o644)
+	return fileutil.AtomicWriteSync(path, []byte(RenderTOMLPreserving(c, existing)), 0o644)
 }
 
 // Save writes the configuration back to the file it was loaded from

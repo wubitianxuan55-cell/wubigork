@@ -6,12 +6,12 @@ package config
 
 import (
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
-	"time"
+
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 )
 
 // loadDefaults 硬编码默认值（最低优先级）。
@@ -469,8 +469,9 @@ func applyConfigFile(cfg *Config, home string) {
 		} else {
 			// 损坏恢复（T6-9.4）：把损坏文件备份为 .gaea_config.json.corrupt-<时间戳>
 			// （不丢用户数据），再用默认值继续——应用可正常启动，设置重置但文件可追溯。
-			backup := filepath.Join(home, fmt.Sprintf(".gaea_config.json.corrupt-%d", time.Now().UnixNano()))
-			if berr := os.WriteFile(backup, data, 0644); berr != nil {
+			// 备份落盘走 fileutil.BackupCorrupt 单源（2026-10-21 与 gaea config.toml
+			// 损坏自愈收敛同一实现，时间戳严格递增防同粒度互覆）。
+			if backup, berr := fileutil.BackupCorrupt(configPath, data); berr != nil {
 				slog.Error("配置文件损坏且备份失败", "path", configPath, "error", err, "backup_error", berr)
 			} else {
 				slog.Warn("配置文件解析失败，已备份并重置为默认值", "path", configPath, "backup", backup, "error", err)
