@@ -96,3 +96,85 @@ describe("回退菜单（v4.510 锚定+外点守卫双修）", () => {
     expect(onRewind).not.toHaveBeenCalled();
   });
 });
+
+// ── v4.512 流式滚动手势化 ────────────────────────────────────────────
+// stick（跟随）的清除权唯一归滚轮上滚手势；scroll 事件只在贴底时恢复跟随，
+// 不再在不贴底时清除——折叠卡收起时浏览器滚动锚定/夹紧产生的程序性 scroll
+// 事件曾把跟随误杀（v2.13.5「冻住假象」根因，当时以运行中强拉底部权宜，
+// 代价=流式生成时用户无法上翻阅读）。三钉：①运行中上翻=暂停（内容更新
+// 不再拽回）；②布局扰动（无手势的 scroll 事件）杀不死跟随（v2.13.5
+// 回归钉）；③「回到底部」点击恢复跟随。
+describe("流式滚动跟随手势化（v4.512）", () => {
+  beforeEach(() => {
+    useStore.setState({ ...initialState, _dispatch: useStore.getState()._dispatch });
+  });
+
+  // jsdom 无布局：伪造成长会话滚动几何（2000 内容/600 视口），scrollTop
+  // 为可写属性（Transcript 的落底=赋值 scrollHeight，可观测）。
+  const mockGeometry = (el: HTMLElement, top: number) => {
+    let cur = top;
+    Object.defineProperty(el, "scrollTop", { configurable: true, get: () => cur, set: (v: number) => { cur = v; } });
+    Object.defineProperty(el, "scrollHeight", { configurable: true, value: 2000 });
+    Object.defineProperty(el, "clientHeight", { configurable: true, value: 600 });
+    return { set: (v: number) => { cur = v; }, get: () => cur };
+  };
+  const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
+
+  it("运行中滚轮上翻=暂停跟随：后续内容更新不拽回（v2.13.5 强拉退役）", async () => {
+    useStore.setState({ items, running: true, turnStartAt: Date.now() });
+    const view = render(wrap(<Transcript onPrompt={() => {}} running={true} />));
+    const el = view.container.querySelector(".transcript") as HTMLElement;
+    const geo = mockGeometry(el, 2000);
+    await nextFrame(); // 挂载自动落底（top=2000）
+
+    // 上滚手势 + 离开底部（读历史）
+    fireEvent.wheel(el, { deltaY: -120 });
+    geo.set(800);
+    fireEvent.scroll(el);
+
+    // 流式新 chunk（内容变化触发滚动跟随路径）
+    useStore.setState({
+      items: [...items, { kind: "assistant", id: "a2", text: "流式第二段", reasoning: "", streaming: true }],
+    });
+    await nextFrame();
+
+    // 暂停生效：不拽回 2000，停在阅读位置
+    expect(geo.get()).toBe(800);
+  });
+
+  it("布局扰动（无手势 scroll 事件）杀不死跟随：v2.13.5 冻住假象不复发", async () => {
+    useStore.setState({ items, running: true, turnStartAt: Date.now() });
+    const view = render(wrap(<Transcript onPrompt={() => {}} running={true} />));
+    const el = view.container.querySelector(".transcript") as HTMLElement;
+    const geo = mockGeometry(el, 2000);
+    await nextFrame();
+
+    // 程序性扰动：滚动锚定/夹紧把视口挪到中部（scroll 事件但无滚轮手势）
+    geo.set(800);
+    fireEvent.scroll(el);
+
+    // 内容更新：跟随仍活着，自动补拉回底部
+    useStore.setState({
+      items: [...items, { kind: "assistant", id: "a2", text: "流式第二段", reasoning: "", streaming: true }],
+    });
+    await nextFrame();
+    expect(geo.get()).toBe(2000);
+  });
+
+  it("暂停后「回到底部」点击恢复跟随", async () => {
+    useStore.setState({ items, running: true, turnStartAt: Date.now() });
+    const view = render(wrap(<Transcript onPrompt={() => {}} running={true} />));
+    const el = view.container.querySelector(".transcript") as HTMLElement;
+    const geo = mockGeometry(el, 2000);
+    await nextFrame();
+
+    fireEvent.wheel(el, { deltaY: -120 });
+    geo.set(800);
+    fireEvent.scroll(el);
+    const fab = view.getByRole("button", { name: "回到底部" });
+    fireEvent.click(fab);
+    await nextFrame();
+
+    expect(geo.get()).toBe(2000);
+  });
+});

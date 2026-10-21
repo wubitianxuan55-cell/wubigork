@@ -666,26 +666,41 @@ export function Transcript({
     const el = scrollRef.current;
     if (!el) return;
     const atBottom = isNearBottom(el);
-    stick.current = atBottom;
+    // v4.512：贴底才恢复跟随；「不贴底」不再清除 stick——折叠卡收起时
+    // 浏览器滚动锚定/夹紧产生的程序性 scroll 事件曾把 stick 误杀（v2.13.5
+    // 的「冻住假象」根因，当时用运行中强拉底部权宜，代价=流式生成时用户
+    // 无法上翻阅读）。现在 stick 的清除权唯一归滚轮上滚手势（onWheel）：
+    // 布局扰动杀不死跟随，运行中也不再强拉。
+    if (atBottom) stick.current = true;
     setShowScrollDown(!atBottom && el.scrollHeight > el.clientHeight);
+  }, []);
+
+  // 上滚 = 显式暂停跟随（运行中亦然）：流式生成时可上翻读历史，视图停在
+  // 原处，「回到底部」按钮（v4.510 起常驻可用）点击或滚回底部即恢复。
+  // 仅在容器真实可滚时清除——短会话（内容不足一屏）上滚无位移，不产生
+  // 暂停态（否则贴底视角被无声冻结）。
+  const onWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    if (e.deltaY >= 0) return;
+    const el = scrollRef.current;
+    if (el && el.scrollHeight - el.clientHeight > 0) stick.current = false;
   }, []);
 
   // ── 智能滚动 ──────────────────────────────────────────────────────
   const scrollToBottom = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
-    // 运行中强制跟随底部（过程卡/工具卡持续产出时，视图必须实时跟进，
-    // 否则一旦 stick 被布局变化置 false，界面会“冻住”像卡死）；
-    // 运行结束后恢复智能滚动：用户上翻浏览时不再强拉。
-    if (!stick.current && !running) return;
+    // v4.512：跟随只认 stick（滚轮上滚=暂停）。运行中强拉退役——冻住
+    // 假象已由「onScroll 不贴底不清 stick」根治：即使程序性落底比布局
+    // 收敛早半拍（短暂不贴底），stick 仍为 true，下一拍内容更新自动补拉。
+    if (!stick.current) return;
 
     if (rAF.current !== null) cancelAnimationFrame(rAF.current);
     rAF.current = requestAnimationFrame(() => {
       rAF.current = null;
-      if (!stick.current && !running) return;
+      if (!stick.current) return;
       el.scrollTop = el.scrollHeight;
     });
-  }, [running]);
+  }, []);
 
   const onNewQuestion = useCallback(() => {
     stick.current = true;
@@ -706,6 +721,12 @@ export function Transcript({
 
   useEffect(() => {
     scrollToBottom();
+    // 按钮态自愈（仅暂停态）：上翻暂停后内容继续增长不触发 scroll 事件，
+    // 「回到底部」按钮的显隐在此随内容重算；跟随态由 onScroll 在落底后接管。
+    const el = scrollRef.current;
+    if (el && !stick.current) {
+      setShowScrollDown(!isNearBottom(el) && el.scrollHeight > el.clientHeight);
+    }
   }, [contentVersion, scrollToBottom]);
 
   // ── ResizeObserver ─────────────────────────────────────────────────
@@ -936,7 +957,7 @@ export function Transcript({
     // 滚走（无头 Edge 实证：scrollTop=900 时按钮已滚出视口 666px），长会话
     // 上翻时按钮恰在视口外永远不可见，只有首屏内短暂可见。
     <div className="relative flex min-h-0 flex-1 flex-col">
-      <div className="transcript v3-zone" ref={scrollRef} onScroll={onScroll}>
+      <div className="transcript v3-zone" ref={scrollRef} onScroll={onScroll} onWheel={onWheel}>
         <div className="w-full px-4 sm:px-6 md:px-8 py-4" ref={entranceRef}>
           {items.length === 0 && (
             <Welcome onPrompt={onPrompt} cwd={cwd} cwdName={cwdName} sessions={sessions} onResumeSession={onResumeSession} meta={meta} />
