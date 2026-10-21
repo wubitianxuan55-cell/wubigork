@@ -235,3 +235,69 @@ describe("回退菜单键盘可达（v4.515）", () => {
     expect(document.activeElement).toBe(itemsInMenu[5]);
   });
 });
+
+// ── v4.516 回退菜单键盘体验收官 ──────────────────────────────────────
+// ①触发钮键盘聚焦可见（focus-visible 通道——此前 opacity-0 group-hover
+//   键盘 Tab 踩到隐形按钮）②打开自动聚焦首项（方向键漫游直达）③菜单内
+// Escape 关闭+焦点归还触发钮（焦点不落 body；焦点在菜单外仍由 Transcript
+// document 守卫兜底关闭）④开向按视口空间翻转（上方不足 200px 向下开，
+// 防 bottom-full 在滚动区顶部被裁剪）。
+describe("回退菜单键盘体验收官（v4.516）", () => {
+  beforeEach(() => {
+    useStore.setState({ ...initialState, _dispatch: useStore.getState()._dispatch });
+  });
+
+  it("触发钮带 focus-visible 可见通道；打开菜单期间常显", () => {
+    useStore.setState({ items, running: false, turnStartAt: Date.now() });
+    const view = render(wrap(<Transcript onPrompt={() => {}} running={false} onRewind={vi.fn()} />));
+    const trigger = view.getByRole("button", { name: "回退" });
+    expect(trigger.className).toContain("focus-visible:opacity-100");
+    expect(trigger.className).not.toMatch(/(^|\s)opacity-100(\s|$)/); // 未开未聚焦时隐形（独立类名，非 focus-visible 前缀）
+
+    fireEvent.click(trigger);
+    expect(trigger.className).toContain("opacity-100"); // 菜单开时常显
+  });
+
+  it("打开菜单自动聚焦首项", () => {
+    useStore.setState({ items, running: false, turnStartAt: Date.now() });
+    const view = render(wrap(<Transcript onPrompt={() => {}} running={false} onRewind={vi.fn()} />));
+    fireEvent.click(view.getByRole("button", { name: "回退" }));
+
+    const menu = view.getByRole("menu");
+    const first = menu.querySelectorAll<HTMLButtonElement>("button[role=menuitem]")[0];
+    expect(document.activeElement).toBe(first);
+  });
+
+  it("菜单内 Escape：就地关闭并归还焦点触发钮（不走 document 守卫）", () => {
+    const onRewind = vi.fn();
+    useStore.setState({ items, running: false, turnStartAt: Date.now() });
+    const view = render(wrap(<Transcript onPrompt={() => {}} running={false} onRewind={onRewind} />));
+    const trigger = view.getByRole("button", { name: "回退" });
+    fireEvent.click(trigger);
+    const menu = view.getByRole("menu");
+
+    fireEvent.keyDown(menu, { key: "Escape" });
+    expect(view.queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    expect(onRewind).not.toHaveBeenCalled();
+  });
+
+  it("开向视口翻转：上方空间不足向下开（jsdom 零几何=不足），充足向上开", () => {
+    useStore.setState({ items, running: false, turnStartAt: Date.now() });
+    const view = render(wrap(<Transcript onPrompt={() => {}} running={false} onRewind={vi.fn()} />));
+    const trigger = view.getByRole("button", { name: "回退" });
+    const row = trigger.parentElement as HTMLElement;
+
+    // jsdom getBoundingClientRect 全零：rowTop-viewTop=0 < 200 → 向下开
+    fireEvent.click(trigger);
+    expect(view.getByRole("menu").className).toContain("top-full");
+
+    // 关闭后伪造充足上方空间（row 顶 500 / 视口顶 0）→ 向上开
+    fireEvent.keyDown(view.queryByRole("menu")!, { key: "Escape" });
+    vi.spyOn(row, "getBoundingClientRect").mockReturnValue({ top: 500 } as DOMRect);
+    const scroller = row.closest(".transcript") as HTMLElement;
+    vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue({ top: 0 } as DOMRect);
+    fireEvent.click(trigger);
+    expect(view.getByRole("menu").className).toContain("bottom-full");
+  });
+});

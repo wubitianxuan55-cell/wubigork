@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useRef, useState, useEffect } from "react";
+import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, useEffect } from "react";
 import { Bot, Check, ChevronDown, ChevronRight, Brain, Copy, FileText, RefreshCw, Rollback, ThumbsDown, ThumbsDownFilled, ThumbsUp, ThumbsUpFilled, Wand2 } from "../icons";
 import { app } from "../lib/bridge";
 import { copyToClipboard } from "../lib/clipboard";
@@ -88,6 +88,27 @@ export const UserMessage = memo(function UserMessage({
   const compact = useCompact();
   const canRewind = onRewind != null && turn != null;
   const rewind = (scope: string) => onRewind?.(turn as number, scope);
+  // v4.516 回退菜单键盘体验收官：触发钮引用（Escape 焦点归还）+ 菜单行引用
+  // （视口空间测量）+ 菜单引用（打开自动聚焦首项）。
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  // 菜单开向：上方空间不足（消息在滚动区顶部）时向下开，防 bottom-full 裁剪。
+  const [menuDown, setMenuDown] = useState(false);
+  useLayoutEffect(() => {
+    if (!open) return;
+    const row = rowRef.current;
+    if (!row) return;
+    const scroller = row.closest(".transcript");
+    const rowTop = row.getBoundingClientRect().top;
+    const viewTop = scroller ? scroller.getBoundingClientRect().top : 0;
+    // 菜单约 6 项×29px+边距 ≈ 182px；上方可用空间不足则翻转（阈值留余量）。
+    setMenuDown(rowTop - viewTop < 200);
+  }, [open]);
+  // 打开即聚焦首项：方向键漫游立即可用（键盘打开场景直达；鼠标打开同受益）。
+  useEffect(() => {
+    if (open) menuRef.current?.querySelector<HTMLButtonElement>("button[role=menuitem]")?.focus();
+  }, [open]);
   // 解析 @ 附件引用 → 分段渲染
   const textParts = useMemo(() => {
     const parts: { type: "text" | "attachment"; value: string }[] = [];
@@ -143,9 +164,10 @@ export const UserMessage = memo(function UserMessage({
             // 类=Transcript 外点关闭守卫的选择器（closest(".rewind")）——此前
             // 该类不存在于任何元素，点菜单项的 mousedown 先触发守卫关菜单，
             // click 落在已卸载的按钮上，回退动作从未真正执行。
-            <div className="rewind relative flex justify-end mt-0.5">
+            <div ref={rowRef} className="rewind relative flex justify-end mt-0.5">
               <button
-                className="opacity-0 group-hover:opacity-100 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-faint/50 text-[10px] cursor-pointer hover:text-fg transition-opacity"
+                ref={triggerRef}
+                className={`opacity-0 group-hover:opacity-100 focus-visible:opacity-100 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-faint/50 text-[10px] cursor-pointer hover:text-fg transition-opacity ${open ? "opacity-100" : ""}`}
                 onClick={onToggle}
                 title={t("rewind.label")}
                 aria-haspopup="menu"
@@ -156,14 +178,24 @@ export const UserMessage = memo(function UserMessage({
               </button>
               {open && (
                 // v4.515 键盘可达（ARIA 菜单模式）：role=menu/menuitem + 方向键
-                // 漫游聚焦（roving focus）+ Home/End；Escape 在 Transcript 的
-                // document 级守卫关闭（与外点关闭同状态）；Tab 仍可自然离开。
+                // 漫游聚焦（roving focus）+ Home/End。v4.516：菜单内 Escape
+                // 就地关闭并归还焦点触发钮（stopPropagation 免 Transcript
+                // document 守卫重复处理；焦点在菜单外时仍由 document 守卫兜底）；
+                // 开向按视口空间翻转（menuDown）防顶部裁剪。
                 <div
+                  ref={menuRef}
                   role="menu"
                   aria-label={t("rewind.label")}
-                  className="absolute bottom-full right-0 mb-1 z-30 min-w-[140px] py-1 bg-bg-elev-2 border border-border rounded-lg"
+                  className={`absolute ${menuDown ? "top-full mt-1" : "bottom-full mb-1"} right-0 z-30 min-w-[140px] py-1 bg-bg-elev-2 border border-border rounded-lg`}
                   style={{boxShadow: "var(--ds-shadow-dropdown)"}}
                   onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      triggerRef.current?.focus();
+                      onToggle?.();
+                      return;
+                    }
                     const items = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>("button[role=menuitem]"));
                     if (items.length === 0) return;
                     const idx = items.indexOf(document.activeElement as HTMLButtonElement);
