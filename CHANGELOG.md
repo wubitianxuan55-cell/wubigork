@@ -1,3 +1,6 @@
+## v4.515.0 · 弹层键盘可达轮：回退菜单与图表菜单补齐 ARIA 菜单模式（Escape+方向键漫游）（2026-10-21）
+> 用户指令「继续」（上轮预告候选）。全仓盘点弹层键盘可达：既有 20+ 处 Escape 覆盖良好，缺口两处：①回退菜单（UserMessage）v4.510 修好后只有鼠标路径——补 Transcript 守卫效应 keydown 监听（Escape 与外点同状态关闭，document 级覆盖焦点两态）+菜单容器方向键漫游聚焦（↑↓ 循环+Home/End）+role=menu/menuitem+触发钮 aria-haspopup/aria-expanded 契约；②XlsxPreview 图表菜单 role=menu 却只有外点关闭（ARIA 菜单模式要求键盘可操作）——补同款。menuitem 覆盖隐式 button 角色，v4.510 旧测试作用域项查询同步。测试 +4（Escape 关闭〔变异验证：摘 keydown 监听必红〕+aria 开合态+双菜单方向键漫游循环）；全量 vitest 3922 绿；tsc/eslint 0；零 Go 改动零绑定变更。详见 `releases/v4.515.0.md`。
+
 ## v4.514.0 · 轻语滚动跟随对齐 v4.512 手势语义：useFollowScroll 单源，布局扰动杀不死跟随（2026-10-21）
 > 用户指令「继续」（前端优化迭代续轮）。候选核验先行：v4.350 观察池「boot 亮色反闪」经查已在 v4.351.0 根修作废。轻语 ChatPage 仍是旧滚动语义（scroll 事件不贴底即清除 stick+无手势判定）——与办公板 v4.512 行为分叉，且同类「布局扰动误杀跟随」病灶同样存在（折叠/人格条/图片加载的滚动锚定调整产生程序性 scroll 事件被误判为用户上翻，流式跟随被误杀；轻语打字机 ~70 renders/s 高频路径更易触发）。修=新建 utils/followScroll.ts useFollowScroll hook（语义与办公板对齐）：onScroll 只贴底恢复（扰动杀不死跟随）/onWheel deltaY<0 且真实可滚才暂停（短会话无效上滚不产生暂停态）/follow 内容变化贴底落底+暂停态按钮自愈/rearm 程序性回底（切话题/发送/清空五处双行收敛）/scrollToBottom 回底按钮；ChatPage 消息区挂 onWheel。测试 +5（几何伪造：上滚暂停+按钮自愈〔变异验证：恢复旧清除语义必红〕/无手势 scroll 杀不死跟随/回底+rearm 恢复/短会话/下滚不清除）；全量 vitest 3918 绿；tsc/eslint 0；零 Go 改动零绑定变更。详见 `releases/v4.514.0.md`。
 
