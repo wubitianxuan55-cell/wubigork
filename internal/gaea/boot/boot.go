@@ -915,21 +915,11 @@ func lookupSubagentTemplatePrefix(skillName string) string {
 // while keeping them callable by name. V6.0 P8: reduces visible tool count
 // from ~41 to ~25, lowering model cognitive load.
 func applyCompactToolset(reg *tool.Registry) {
-	// File deletion: merge delete_range + delete_symbol into edit_file
-	// (edit_file deletes via new_string:"" — there is no mode parameter)
-	reg.HideUnlessOnly([]string{"delete_range", "delete_symbol"}, []string{"edit_file"})
-
 	// Batch editing: multi_edit is redundant with multiple edit_file calls
 	reg.HideUnlessOnly([]string{"multi_edit"}, []string{"edit_file"})
 
 	// Background job management: merge kill_shell + wait into bash/bgjobs
 	reg.HideUnlessOnly([]string{"kill_shell", "wait"}, []string{"bash", "bash_output"})
-
-	// Notebook editing: rarely used, hide unless explicitly enabled
-	reg.HideUnlessOnly([]string{"notebook_edit"}, []string{"edit_file", "write_file"})
-
-	// File listing: glob is redundant with ls (which supports patterns)
-	reg.HideUnlessOnly([]string{"glob"}, []string{"ls"})
 }
 
 // compactionConfig 压缩配置装配（阶段九 9.1「双阈值可配置」）：三层水位经

@@ -5,17 +5,16 @@ import {
   BookOpen, Brain, Calculator, CheckCircle,
   FilePen, FileText, FolderOpen, Globe, Hourglass,
   Layers, List, ListTree, PlusCircle, Search, Sparkles,
-  Table, Trash2, Users, Wrench, Zap, Ban, type Icon,
+  Table, Users, Wrench, Zap, Ban, type Icon,
 } from "../icons";
 
 export const ICONS: Record<string, Icon> = {
   // 文档
   edit_file: FilePen, multi_edit: FilePen, write_file: FilePen, read_file: FileText,
-  delete_range: Trash2, delete_symbol: Trash2, notebook_edit: FilePen,
   // 计算
   bash: Calculator, bash_output: Calculator, kill_shell: Calculator,
   // 规范
-  ls: FolderOpen, glob: Search, grep: Search, check: CheckCircle,
+  ls: FolderOpen, grep: Search, check: CheckCircle,
   // 项目
   task: ListTree, run_skill: Zap, install_skill: PlusCircle, slash_command: Zap,
   interrupt_agent: Ban, subagent_list: List,

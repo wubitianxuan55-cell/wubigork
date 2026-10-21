@@ -11,9 +11,11 @@ export interface SessionChange {
 // schedule_apply（v4.146 diff 确认闭环刀A）：整计划替换/ops 调整落盘
 // .gsched.json——证据卡本就入 Journal，白名单纳入后变更 tab 可见、
 // 与工具卡「回滚本次」同链路。
+// v4.519：摘除从未注册的幽灵名（notebook_edit/delete_range/delete_symbol，
+// 与 Go 侧 evidence.isWriterTool 同批——名单只含工具注册表真实存在的名字）。
 export const WRITE_TOOL_NAMES = new Set([
   "write_file", "edit_file", "edit_lines", "multi_edit",
-  "move_file", "notebook_edit", "delete_range", "delete_symbol",
+  "move_file",
   "schedule_apply",
 ]);
 
@@ -123,8 +125,7 @@ export function extractDeliverablePaths(args: string): string[] {
 
 /** 「编辑」= 修改既有内容：行级 diff 可展开（edit 族）。 */
 export const EDIT_TOOL_NAMES = new Set([
-  "edit_file", "edit_lines", "multi_edit", "notebook_edit",
-  "delete_range", "delete_symbol",
+  "edit_file", "edit_lines", "multi_edit",
 ]);
 
 /** 「写入」= 新建/整写/移动/生成：写入内容预览降级态（write_file 等）。

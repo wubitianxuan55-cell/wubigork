@@ -20,8 +20,7 @@ type Template struct {
 	Output      OutputDef           `json:"output"`
 	Constraints ConstraintDef       `json:"constraints"`
 	// ── t6 提示词工坊新增元数据（规格 进度计划/gaea-prompt-workshop-t6-20260916.md
-	// §3.1）：全部 omitempty——旧模板 JSON 原样可读，零迁移脚本；与
-	// internal/types.PromptTemplate 同名同 JSON tag（共享契约形状先例）。
+	// §3.1）：全部 omitempty——旧模板 JSON 原样可读，零迁移脚本。
 	Version     string   `json:"version,omitempty"`     // 版本记录，磁盘模板 "1" 起步（Q5 裁决：只落库不做合并交互）
 	Category    string   `json:"category,omitempty"`    // 工坊面板分组（worldview/character/outline/… 取值域见规格 §3.3）
 	Description string   `json:"description,omitempty"` // 一句话中文说明（列表态展示，列表接口不回传正文的前提）

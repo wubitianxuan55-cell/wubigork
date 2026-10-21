@@ -81,7 +81,7 @@ func (a *AgentRunner) postBatchCoherenceCheck(calls []provider.ToolCall, results
 // isReadTool reports whether a tool name is a read-only file inspection tool.
 func isReadTool(name string) bool {
 	switch name {
-	case "read_file", "grep", "ls", "glob":
+	case "read_file", "grep", "ls":
 		return true
 	}
 	return false
@@ -90,7 +90,7 @@ func isReadTool(name string) bool {
 // isWriteTool reports whether a tool name is a file-modifying tool.
 func isWriteTool(name string) bool {
 	switch name {
-	case "edit_file", "write_file", "multi_edit", "edit_lines", "move_file", "delete_range", "delete_symbol":
+	case "edit_file", "write_file", "multi_edit", "edit_lines", "move_file":
 		return true
 	}
 	return false

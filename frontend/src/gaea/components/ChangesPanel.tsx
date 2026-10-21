@@ -35,9 +35,6 @@ const TOOL_LABELS: Record<string, string> = {
   edit_lines: "按行编辑",
   multi_edit: "多处编辑",
   move_file: "移动",
-  notebook_edit: "Notebook",
-  delete_range: "删除片段",
-  delete_symbol: "删除符号",
 };
 
 // 2a 类型筛选 chips（按扩展名分桶，categoryOf 同口径）。

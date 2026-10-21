@@ -199,7 +199,7 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 					a.tc.Set(ra.Path, ra.Offset, result)
 				}
 			}
-		case "edit_file", "write_file", "multi_edit", "edit_lines", "delete_range", "delete_symbol":
+		case "edit_file", "write_file", "multi_edit", "edit_lines":
 			var wa struct {
 				Path string `json:"path"`
 			}
@@ -450,7 +450,7 @@ func repeatSuccessSignature(call provider.ToolCall, t tool.Tool) (string, bool) 
 		return "", false
 	}
 	switch call.Name {
-	case "write_file", "edit_file", "multi_edit", "edit_lines", "move_file", "delete_range", "delete_symbol":
+	case "write_file", "edit_file", "multi_edit", "edit_lines", "move_file":
 		return call.Name + "\x00" + canonicalToolArgs(call.Arguments), true
 	case "bash":
 		var p struct {
@@ -556,7 +556,7 @@ func hasShellWriteRedirect(command string) bool {
 // isFileWriter reports whether the tool name targets a specific file for writing.
 func isFileWriter(name string) bool {
 	switch name {
-	case "edit_file", "write_file", "multi_edit", "edit_lines", "move_file", "delete_range", "delete_symbol":
+	case "edit_file", "write_file", "multi_edit", "edit_lines", "move_file":
 		return true
 	}
 	return false

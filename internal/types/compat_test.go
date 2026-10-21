@@ -593,129 +593,9 @@ func TestAnnotationRoundTrip(t *testing.T) {
 }
 
 // ── 接口契约：模板 / 上下文 / Lint ───────────────────────────
-
-func TestPromptTemplate_LegacyJSONHasNoNewFields(t *testing.T) {
-	legacy := `{
-      "name": "create-chapter",
-      "system": "sys",
-      "task": "写{word_count}字",
-      "input_sections": {"plot_req": {"priority": "P0", "label": "本章剧情要求"}},
-      "output": {"format": "markdown", "description": "desc"},
-      "constraints": {"must": ["a"], "forbidden": ["b"], "style": ["c"]}
-    }`
-	var tmpl PromptTemplate
-	if err := json.Unmarshal([]byte(legacy), &tmpl); err != nil {
-		t.Fatalf("旧模板 JSON 必须原样可读（15 个模板零迁移）: %v", err)
-	}
-	if tmpl.Name != "create-chapter" || tmpl.Inputs["plot_req"].Priority != "P0" {
-		t.Errorf("模板既有字段解析错位: %+v", tmpl)
-	}
-	if tmpl.Inputs["plot_req"].Order != 0 {
-		t.Errorf("旧模板 order 缺省应为 0，实际 %d", tmpl.Inputs["plot_req"].Order)
-	}
-	if tmpl.Version != "" || tmpl.Category != "" || tmpl.Description != "" {
-		t.Errorf("新增元数据在旧模板上应为零值: %+v", tmpl)
-	}
-}
-
-// stubResolver 验证接口可被包外实现（依赖倒置的最小证据）。
-type stubResolver struct {
-	tmpl PromptTemplate
-	src  TemplateSource
-}
-
-func (s stubResolver) Resolve(name string) (ResolvedTemplate, bool) {
-	if name != s.tmpl.Name {
-		return ResolvedTemplate{}, false
-	}
-	return ResolvedTemplate{Template: s.tmpl, Source: s.src}, true
-}
-
-func (s stubResolver) List() []string { return []string{s.tmpl.Name} }
-
-func (s stubResolver) ResolveTemplate(name string) (PromptTemplate, TemplateSource, error) {
-	return s.tmpl, s.src, nil
-}
-
-func (s stubResolver) ValidateTemplate(PromptTemplate) []ValidationIssue { return nil }
-
-func (s stubResolver) ExtractPlaceholders(text string) []string { return nil }
-
-func (s stubResolver) RenderTemplate(text string, _ map[string]string) TemplateRenderResult {
-	return TemplateRenderResult{Text: text}
-}
-
-func (s stubResolver) LintForeshadowItems(_ []Foreshadow, opts ForeshadowLintOptions) ForeshadowLintReport {
-	return ForeshadowLintReport{TotalChapters: opts.TotalChapters, Findings: []ForeshadowLintFinding{}}
-}
-
-// 编译期断言：一个结构体可同时满足三个接口（模板引擎 + Lint 的组合能力）。
-var (
-	_ TemplateParser    = stubResolver{}
-	_ TemplateResolver  = stubResolver{}
-	_ TemplateValidator = stubResolver{}
-	_ TemplateRenderer  = stubResolver{}
-	_ TemplateEngine    = stubResolver{}
-	_ ForeshadowLinter  = stubResolver{}
-)
-
-// stubProvider 验证上下文提供方可被包外实现。
-type stubProvider struct {
-	name string
-	sec  []ContextSection
-}
-
-func (p stubProvider) Name() string                 { return p.name }
-func (p stubProvider) Provide(int) []ContextSection { return p.sec }
-
-var _ ContextProvider = stubProvider{}
-
-// stubAssembler 验证上下文组装接口可被包外实现（novelcontext.SceneBible 即天然实现）。
-type stubAssembler struct{ text string }
-
-func (a stubAssembler) Render(maxRunes int) string { return a.text }
-
-var _ ContextAssembler = stubAssembler{}
-
-func TestTemplateSourceRank(t *testing.T) {
-	order := []TemplateSource{
-		TemplateSourceProjectOverride,
-		TemplateSourceGlobalOverride,
-		TemplateSourceDisk,
-		TemplateSourceEmbedded,
-		TemplateSourceBuiltin,
-	}
-	for i := 1; i < len(order); i++ {
-		if TemplateSourceRank(order[i-1]) >= TemplateSourceRank(order[i]) {
-			t.Errorf("来源优先序错: %v 应优先于 %v", order[i-1], order[i])
-		}
-	}
-}
-
-func TestSortContextSections_Deterministic(t *testing.T) {
-	in := []ContextSection{
-		{ID: "z", Priority: SectionP0, Order: 2},
-		{ID: "a", Priority: SectionP0, Order: 2},
-		{ID: "m", Priority: SectionP1, Order: 0},
-		{ID: "b", Priority: SectionP0, Order: 1},
-		{ID: "x", Priority: SectionP2},
-	}
-	SortContextSections(in)
-	want := []string{"b", "a", "z", "m", "x"}
-	for i, id := range want {
-		if in[i].ID != id {
-			t.Fatalf("排序结果 = %v, want %v", ids(in), want)
-		}
-	}
-}
-
-func ids(s []ContextSection) []string {
-	out := make([]string, len(s))
-	for i := range s {
-		out[i] = s[i].ID
-	}
-	return out
-}
+// （v4.519：interfaces.go 设计期接口层整删——25 个导出类型全仓零引用，
+// 本段 stub/编译期断言/排序测试随之退役；ChapterNumOf 是其中唯一被
+// 消费的符号，已随迁 chapter_num.go 并保留测试。）
 
 func TestChapterNumOf(t *testing.T) {
 	cases := []struct {
@@ -733,14 +613,6 @@ func TestChapterNumOf(t *testing.T) {
 		if got := ChapterNumOf(c.in); got != c.want {
 			t.Errorf("ChapterNumOf(%q) = %d, want %d", c.in, got, c.want)
 		}
-	}
-}
-
-func TestDefaultContextMaxRunes_MatchesNovelcontextBaseline(t *testing.T) {
-	// handoff §4-1 指定 novelcontext.DefaultMaxRunes = 2000，契约层声明必须同值，
-	// 不得另立第二套阈值。
-	if DefaultContextMaxRunes != 2000 {
-		t.Fatalf("DefaultContextMaxRunes = %d, want 2000", DefaultContextMaxRunes)
 	}
 }
 

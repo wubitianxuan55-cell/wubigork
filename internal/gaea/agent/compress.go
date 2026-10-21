@@ -384,7 +384,6 @@ var toolCompressLimits = map[string]toolCompressLimit{
 	"run_command":    {180, 24 * 1024},
 	"run_background": {180, 24 * 1024},
 	"read_file":      {320, 32 * 1024}, // 文件内容
-	"glob":           {160, 24 * 1024}, // 文件列表
 	"search_files":   {160, 24 * 1024},
 	"ls":             {120, 24 * 1024}, // 目录列表
 	"list_directory": {120, 24 * 1024},

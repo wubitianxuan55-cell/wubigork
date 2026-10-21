@@ -5,7 +5,7 @@
 //   multi_edit { path, edits: [{ old_string, new_string }] } → 同上，逐片段构造；
 //   edit_lines { path, start_line, end_line, new_content }   → 只有新内容，降级「写入内容预览」；
 //   write_file { path, content }                             → 同上（覆盖写入，旧内容未随事件记录）；
-//   move_file / delete_range / delete_symbol 等              → 无内容片段，不伪造 diff。
+//   move_file 等                                            → 无内容片段，不伪造 diff。
 // （对齐 internal/gaea/tool/builtin/{editfile,multiedit,editlines}.go 的 Schema。）
 // 无 old/new 的调用一律显式标注降级原因，绝不拿新内容冒充红绿 diff。
 //

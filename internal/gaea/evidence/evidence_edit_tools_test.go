@@ -9,7 +9,7 @@ import (
 // new edit tools must classify as writers (receipts land as writes, not
 // reads) and grep must stay a reader.
 func TestIsWriterToolCoversEditTools(t *testing.T) {
-	writers := []string{"write_file", "edit_file", "multi_edit", "edit_lines", "move_file", "delete_range", "delete_symbol"}
+	writers := []string{"write_file", "edit_file", "multi_edit", "edit_lines", "move_file"}
 	for _, name := range writers {
 		if !isWriterTool(name) {
 			t.Errorf("isWriterTool(%q) = false, want true", name)

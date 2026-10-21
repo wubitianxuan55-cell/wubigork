@@ -43,7 +43,7 @@ func BuildCompactSummary(truncated []provider.Message) string {
 				toolCounts[tc.Name]++
 				// 提取编辑操作的文件路径
 				switch tc.Name {
-				case "edit_file", "write_file", "multi_edit", "delete_range", "delete_symbol":
+				case "edit_file", "write_file", "multi_edit":
 					path := extractFilePath(tc.Name, tc.Arguments)
 					if path != "" && !seenFiles[path] {
 						filesEdited = append(filesEdited, path)

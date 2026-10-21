@@ -9,7 +9,7 @@
 //
 // 为何不并 changes.extractChangedPaths：它的契约是「一次调用 → 全部被改动路径」
 // （path/file_path/notebook_path/source/destination + paths/file_paths 数组 +
-// edits[].path/file_path），服务 WRITE_TOOL_NAMES 全量工具（含 delete_symbol 等
+// edits[].path/file_path），服务 WRITE_TOOL_NAMES 全量工具（含 move_file 等
 // 无内容片段者）的聚合计数；本模块的契约是「一次调用的内容级视图」——只要
 // **唯一主目标** path（工具卡据此推 lang）+ 可还原的 old/new 片段。两者键集合、
 // 基数、工具集合都不同，硬并会把聚合语义塞进内容视图（见余量登记）。

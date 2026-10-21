@@ -32,13 +32,12 @@ type DomainConfig struct {
 
 // Tool lists for skill layer classification (originally in router.go).
 var readTools = []string{
-	"read_file", "grep", "glob", "ls",
+	"read_file", "grep", "ls",
 	"web_search", "web_fetch", "preview",
 }
 
 var editTools = []string{
 	"edit_file", "multi_edit", "write_file",
-	"delete_range", "delete_symbol", "notebook_edit",
 }
 
 var shellTools = []string{

@@ -100,7 +100,7 @@ describe('pickFile（壳内文件选取共享 util）', () => {
 describe('isImagePath 扩展名判图（v4.508 PickFiles 图片 bug 根修单源）', () => {
   it('图片扩展名（大小写不敏感）判定为图', () => {
     expect(isImagePath('C:/imgs/a.png')).toBe(true)
-    expect(isImagePath('D:\照片\现场.JPG')).toBe(true)
+    expect(isImagePath('D:\\照片\\现场.JPG')).toBe(true)
     expect(isImagePath('scan.jpeg')).toBe(true)
     expect(isImagePath('x.webp')).toBe(true)
   })

@@ -315,7 +315,7 @@ func ReceiptFromToolCall(toolName string, args json.RawMessage, success bool, re
 
 func isWriterTool(name string) bool {
 	switch name {
-	case "write_file", "edit_file", "multi_edit", "edit_lines", "move_file", "notebook_edit", "delete_range", "delete_symbol":
+	case "write_file", "edit_file", "multi_edit", "edit_lines", "move_file":
 		return true
 	default:
 		return false
@@ -345,9 +345,10 @@ func isProducerTool(name string) bool {
 }
 
 // IsDeliverableTool 报告工具是否会向工作区落盘产物（v4.24 C1 权威产物
-// 登记表的登记口径）：写类 8 种（isWriterTool：write_file/edit_file/
-// multi_edit/edit_lines/move_file/notebook_edit/delete_range/delete_symbol，
-// 与前端 lib/changes.ts WRITE_TOOL_NAMES 一致，并已核对工具注册表全集）
+// 登记表的登记口径）：写类 5 种（isWriterTool：write_file/edit_file/
+// multi_edit/edit_lines/move_file，与前端 lib/changes.ts WRITE_TOOL_NAMES
+// 一致，并已核对工具注册表全集——v4.519 摘除从未注册的幽灵名
+// notebook_edit/delete_range/delete_symbol）
 // + 生成/导出类 3 种（isProducerTool）。
 // bash/screen_capture 不登记：产物路径不出现在结构化参数里（bash 由命令
 // 决定、screen_capture 落 .gaea/uploads/ 由系统生成路径），无法从参数权威
