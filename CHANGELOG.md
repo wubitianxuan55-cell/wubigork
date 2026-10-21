@@ -1,3 +1,6 @@
+## v4.516.0 · 回退菜单键盘体验收官：触发钮焦点可见+自动首项+Escape 焦点归还+视口翻转（2026-10-21）
+> 用户指令「继续」。v4.515 补齐 ARIA 菜单模式后回退菜单仍留四缺口：①触发钮 opacity-0 group-hover 只有 hover 通道，键盘 Tab 踩到隐形按钮（助手操作行早有 focus-within 对照）→补 focus-visible:opacity-100+菜单展开期间常显；②打开后焦点留触发钮，方向键需先 Tab 进菜单→补打开自动聚焦首项；③菜单内 Escape 走 document 守卫，菜单卸载焦点落 body（WCAG 2.4.3）→补菜单容器就地 Escape（stopPropagation）+焦点归还触发钮，菜单外焦点仍由 document 守卫兜底；④菜单恒 bottom-full 向上开，消息在滚动区顶部时被 scrollport 裁剪（v4.510 已知边角）→补 useLayoutEffect 测行上方空间（相对 .transcript），不足 200px 翻转 top-full 向下开。测试 +4（焦点可见通道/自动首项/Escape 焦点归还〔变异验证：摘 triggerRef.focus 必红〕/翻转两态〔jsdom 零几何=向下；mock 充足=向上〕；坑=focus-visible:opacity-100 含子串撞 not.toContain 须正则边界）；全量 vitest 3926 绿；tsc/eslint 0；零 Go 改动零绑定变更。详见 `releases/v4.516.0.md`。
+
 ## v4.515.0 · 弹层键盘可达轮：回退菜单与图表菜单补齐 ARIA 菜单模式（Escape+方向键漫游）（2026-10-21）
 > 用户指令「继续」（上轮预告候选）。全仓盘点弹层键盘可达：既有 20+ 处 Escape 覆盖良好，缺口两处：①回退菜单（UserMessage）v4.510 修好后只有鼠标路径——补 Transcript 守卫效应 keydown 监听（Escape 与外点同状态关闭，document 级覆盖焦点两态）+菜单容器方向键漫游聚焦（↑↓ 循环+Home/End）+role=menu/menuitem+触发钮 aria-haspopup/aria-expanded 契约；②XlsxPreview 图表菜单 role=menu 却只有外点关闭（ARIA 菜单模式要求键盘可操作）——补同款。menuitem 覆盖隐式 button 角色，v4.510 旧测试作用域项查询同步。测试 +4（Escape 关闭〔变异验证：摘 keydown 监听必红〕+aria 开合态+双菜单方向键漫游循环）；全量 vitest 3922 绿；tsc/eslint 0；零 Go 改动零绑定变更。详见 `releases/v4.515.0.md`。
 
