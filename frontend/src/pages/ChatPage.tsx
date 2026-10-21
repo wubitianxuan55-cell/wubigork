@@ -8,9 +8,9 @@ import { DownOutlined } from '@ant-design/icons'
 import { app } from '../gaea/lib/bridge'
 import { b64ToBytes } from '../gaea/lib/bytes'
 import { copyToClipboard } from '../gaea/lib/clipboard'
+import { useFollowScroll } from '../utils/followScroll'
 import { C } from '../utils/theme'
 import { shouldSubmitOnEnter } from '../utils/chatComposer'
-import { isNearBottom } from '../utils/scroll'
 import ChatTopicSidebar, { type Topic as SidebarTopic } from '../components/ChatTopicSidebar'
 import { mdStyles } from '../components/MarkdownContent'
 import { ParticleFlow } from '../components/ParticleFlow'
@@ -106,23 +106,11 @@ const ChatPage: React.FC = () => {
     })
   }, [])
 
-  const listRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<React.ComponentRef<typeof Input.TextArea>>(null)
-  // 智能滚动：用户上翻阅读时不强制吸底，靠近底部/新消息/切换话题才跟随。
-  const [atBottom, setAtBottom] = useState(true)
-  const stickToBottomRef = useRef(true)
-  const onListScroll = useCallback(() => {
-    const el = listRef.current
-    if (!el) return
-    const near = isNearBottom(el.scrollHeight - el.scrollTop - el.clientHeight)
-    stickToBottomRef.current = near
-    setAtBottom(near)
-  }, [])
-  const scrollToBottom = useCallback(() => {
-    stickToBottomRef.current = true
-    setAtBottom(true)
-    if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight
-  }, [])
+  // 智能滚动（v4.514 对齐办公板 v4.512 手势语义）：跟随清除权唯一归滚轮
+  // 上滚——布局扰动（滚动锚定/夹紧的程序性 scroll 事件）杀不死跟随；
+  // 贴底恢复；暂停态（上翻读历史）由「回到底部」按钮/滚回底部恢复。
+  const { ref: listRef, atBottom, onScroll: onListScroll, onWheel: onListWheel, follow, rearm, scrollToBottom } = useFollowScroll<HTMLDivElement>()
 
   // 发送参数快照（doSend 在异步流期间读取，避免闭包过期）
   const searchEnabledRef = useRef(searchEnabled)
@@ -163,12 +151,10 @@ const ChatPage: React.FC = () => {
   // 朗读生效情绪：手动选择优先，其次当前会话最近一轮情绪（whisper L2 标签）
   const effectiveSpeakEmotion = speakEmotion || emotion
 
-  // ── 滚动跟随（新消息/流式文本变化时若用户贴底则保持吸底） ──
+  // ── 滚动跟随（新消息/流式文本变化：贴底保持吸底；暂停态自愈按钮显隐） ──
   useEffect(() => {
-    if (stickToBottomRef.current && listRef.current) {
-      listRef.current.scrollTop = listRef.current.scrollHeight
-    }
-  }, [messages, streamText])
+    follow()
+  }, [messages, streamText, follow])
 
   // ── 朗读资源释放（T6-3.3：卸载时 revokeObjectURL） ──
   const speakUrlRef = useRef<string | null>(null)
@@ -185,25 +171,22 @@ const ChatPage: React.FC = () => {
   const selectTopic = useCallback(async (id: string) => {
     // T6-3.3：切话题即中止上一话题的模拟打字流（避免过期 setStreamText 继续跑）
     cancelTyping()
-    stickToBottomRef.current = true
-    setAtBottom(true)
+    rearm()
     await selectTopicData(id)
     inputRef.current?.focus?.()
-  }, [cancelTyping, selectTopicData])
+  }, [cancelTyping, selectTopicData, rearm])
 
   const handleCreate = useCallback(async () => {
-    stickToBottomRef.current = true
-    setAtBottom(true)
+    rearm()
     await createTopic()
     inputRef.current?.focus?.()
-  }, [createTopic])
+  }, [createTopic, rearm])
 
   const handleDelete = useCallback(async (id: string) => {
-    stickToBottomRef.current = true
-    setAtBottom(true)
+    rearm()
     await deleteTopic(id)
     inputRef.current?.focus?.()
-  }, [deleteTopic])
+  }, [deleteTopic, rearm])
 
   const handleSwitchPersonality = useCallback(async (id: string) => {
     try { await app.WhisperClearSession(activePersonality) } catch (_) {}
@@ -225,8 +208,7 @@ const ChatPage: React.FC = () => {
 
   // ── 发送管道 ──
   const doSend = useCallback((text: string, retryKey?: string) => {
-    stickToBottomRef.current = true
-    setAtBottom(true)
+    rearm()
     return send({
       text, retryKey,
       mode: modeRef.current,
@@ -235,7 +217,7 @@ const ChatPage: React.FC = () => {
       thinking: thinkingRef.current,
       force: forceSearchRef.current,
     })
-  }, [send, modeRef, activeIdRef, searchEnabledRef, thinkingRef, forceSearchRef])
+  }, [send, modeRef, activeIdRef, searchEnabledRef, thinkingRef, forceSearchRef, rearm])
 
   const handleSend = useCallback(() => { doSend(input) }, [input, doSend])
   // GenUI action：聊天没有运行中 steer → 仅在本回合结束后发送；payload 折成
@@ -306,8 +288,7 @@ const ChatPage: React.FC = () => {
   }
 
   const handleClearMessages = useCallback(async () => {
-    stickToBottomRef.current = true
-    setAtBottom(true)
+    rearm()
     invalidateLoads() // v4.354：失效在途话题载入，防旧响应把清空后的视图重新填满
     const snapshot = messages // v4.361：清空失败时恢复（此前吞错后消息在切会话回来时「复活」）
     setMessages([]); resetPersonaMeta()
@@ -324,7 +305,7 @@ const ChatPage: React.FC = () => {
     if (modeRef.current !== 'plain') {
       try { await app.WhisperClearSession(modeRef.current) } catch (_) {}
     }
-  }, [resetPersonaMeta, activeIdRef, modeRef, setTopics, invalidateLoads, messages])
+  }, [resetPersonaMeta, activeIdRef, modeRef, setTopics, invalidateLoads, messages, rearm])
 
   const handleExport = useCallback(async () => {
     if (!activeIdRef.current) return
@@ -407,6 +388,7 @@ const ChatPage: React.FC = () => {
         {/* 消息区 */}
         <div ref={listRef} role="log" aria-live="polite" aria-label="对话消息"
           onScroll={onListScroll}
+          onWheel={onListWheel}
           style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: 0, position: 'relative' }}>
           {initializing ? (
             <div className="chat-empty">
