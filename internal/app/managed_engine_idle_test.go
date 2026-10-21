@@ -40,7 +40,7 @@ func TestReapIdle_Gates(t *testing.T) {
 
 	t.Run("未登记不收", func(t *testing.T) {
 		stopped := a.reapManagedEngineIdleOnce(now, idle, []managedIdleTarget{{
-			id: "tianxuan", proc: &localEngineProc{}, // 外部实例：无登记
+			id: "tianxuan", registered: func() bool { return false }, // 外部实例：无登记
 			probe: func() bool { return true },
 			stop:  func() { t.Error("外部实例不应被代停") },
 		}})
@@ -51,7 +51,7 @@ func TestReapIdle_Gates(t *testing.T) {
 
 	t.Run("无使用记录不收", func(t *testing.T) {
 		stopped := a.reapManagedEngineIdleOnce(now, idle, []managedIdleTarget{{
-			id: "tianxuan", proc: registeredProc(), // 本会话从未经手
+			id: "tianxuan", registered: registeredProc().registered, // 本会话从未经手
 			probe: func() bool { return true },
 			stop:  func() { t.Error("无使用记录不应收割") },
 		}})
@@ -63,7 +63,7 @@ func TestReapIdle_Gates(t *testing.T) {
 	t.Run("空闲未超阈不收", func(t *testing.T) {
 		a.engineMgr.TouchEngineAt("tianxuan", now.Add(-9*time.Minute))
 		stopped := a.reapManagedEngineIdleOnce(now, idle, []managedIdleTarget{{
-			id: "tianxuan", proc: registeredProc(),
+			id: "tianxuan", registered: registeredProc().registered,
 			probe: func() bool { return true },
 			stop:  func() { t.Error("未超阈值不应收割") },
 		}})
@@ -75,7 +75,7 @@ func TestReapIdle_Gates(t *testing.T) {
 	t.Run("空闲超阈但不在运行不收", func(t *testing.T) {
 		a.engineMgr.TouchEngineAt("strata", now.Add(-11*time.Minute))
 		stopped := a.reapManagedEngineIdleOnce(now, idle, []managedIdleTarget{{
-			id: "strata", proc: registeredProc(),
+			id: "strata", registered: registeredProc().registered,
 			probe: func() bool { return false }, // 已停/探活失败：可能是冷启动，不动作
 			stop:  func() { t.Error("未运行不应收割") },
 		}})
@@ -88,7 +88,7 @@ func TestReapIdle_Gates(t *testing.T) {
 		a.engineMgr.TouchEngineAt("tianxuan", now.Add(-11*time.Minute))
 		stopCalled := 0
 		stopped := a.reapManagedEngineIdleOnce(now, idle, []managedIdleTarget{{
-			id: "tianxuan", proc: registeredProc(),
+			id: "tianxuan", registered: registeredProc().registered,
 			probe: func() bool { return true },
 			stop:  func() { stopCalled++ },
 		}})
@@ -96,6 +96,26 @@ func TestReapIdle_Gates(t *testing.T) {
 			t.Errorf("stopped = %v stopCalled = %d, want [tianxuan]/1", stopped, stopCalled)
 		}
 	})
+}
+
+// TestManagedIdleTargets_CoversAllManagedEngines 生产目标表三引擎齐（天璇/
+// Strata/ComfyUI——ComfyUI 于 v4.518 接入）；谓词为方法值/闭包，构造期不求值
+// （nil 安全），零值 App 也能取表。
+func TestManagedIdleTargets_CoversAllManagedEngines(t *testing.T) {
+	a := newIdleReaperTestApp(t, 10)
+	targets := a.managedIdleTargets()
+	got := make(map[string]bool, len(targets))
+	for _, tg := range targets {
+		got[tg.id] = true
+		if tg.registered == nil || tg.probe == nil || tg.stop == nil {
+			t.Errorf("target %s 缺谓词（registered/probe/stop 必须齐）", tg.id)
+		}
+	}
+	for _, want := range []string{"tianxuan", "strata", "comfyui"} {
+		if !got[want] {
+			t.Errorf("目标表缺 %s: %v", want, got)
+		}
+	}
 }
 
 // TestReapIdle_ThresholdGate 阈值关闭（<=0）时 reapIdleManagedEngines 直接
@@ -116,7 +136,7 @@ func TestReapIdle_ThresholdGate(t *testing.T) {
 func TestReapIdle_MissingEngineActivitySkipped(t *testing.T) {
 	a := newIdleReaperTestApp(t, 10)
 	stopped := a.reapManagedEngineIdleOnce(time.Now(), 10*time.Minute, []managedIdleTarget{{
-		id: "strata", proc: registeredProc(),
+		id: "strata", registered: registeredProc().registered,
 		probe: func() bool { return true },
 		stop:  func() { t.Error("零使用记录不应收割") },
 	}})

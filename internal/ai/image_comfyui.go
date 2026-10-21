@@ -41,6 +41,18 @@ type ComfyUIBackend struct {
 	mu              sync.Mutex
 	cancelled       bool
 	currentPromptID string // 最近一次提交的任务 ID（诊断）
+
+	// usageHook 使用记账回调（app 层注入：queuePrompt 提交成功即记一次
+	// ComfyUI 真实使用——model_idle_exit_minutes 空闲自动退出的判定口径；
+	// 探活/LoRA 列表等只读查询刻意不经此路径，不能给空闲引擎续命）。nil=未挂。
+	usageHook func()
+}
+
+// SetUsageHook 注入使用记账回调（见 usageHook 字段注释；生成前注入一次即可）。
+func (b *ComfyUIBackend) SetUsageHook(fn func()) {
+	b.mu.Lock()
+	b.usageHook = fn
+	b.mu.Unlock()
 }
 
 // NewComfyUIBackend 创建 ComfyUI 后端
@@ -618,6 +630,13 @@ func (b *ComfyUIBackend) queuePrompt(ctx context.Context, workflow map[string]in
 	}
 	if result.Error != "" {
 		return "", fmt.Errorf("ComfyUI 错误: %s", result.Error)
+	}
+	// 提交成功=一次真实使用（app 层空闲自动退出记账；失败提交不算使用）。
+	b.mu.Lock()
+	hook := b.usageHook
+	b.mu.Unlock()
+	if hook != nil {
+		hook()
 	}
 	return result.PromptID, nil
 }

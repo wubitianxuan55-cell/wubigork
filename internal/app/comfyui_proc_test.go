@@ -77,6 +77,32 @@ func TestComfyUIProcRefStopKillsAndCancels(t *testing.T) {
 	}
 }
 
+// TestComfyUIProcRefRegistered 空闲自动退出的「gaea 本会话拉起」闸（与天璇/
+// Strata 的 localEngineProc.registered 同语义）：登记即 true，退出清理/停止
+// 后 false——外部手动启动的 ComfyUI（gaea 无引用）不被代管。
+func TestComfyUIProcRefRegistered(t *testing.T) {
+	a := &mediaState{}
+	if a.comfyProcRefRegistered() {
+		t.Fatal("零值状态不应视为 gaea 拉起")
+	}
+	_, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	a.comfyProcRefSet(cancel, &exec.Cmd{})
+	if !a.comfyProcRefRegistered() {
+		t.Fatal("登记后应视为 gaea 拉起")
+	}
+	a.comfyProcRefStop()
+	if a.comfyProcRefRegistered() {
+		t.Fatal("停止清引用后不应再视为 gaea 拉起")
+	}
+	// 进程自然退出路径（回收 goroutine 的 ClearIfCurrent）同样解除登记。
+	a.comfyProcRefSet(cancel, &exec.Cmd{})
+	a.comfyProcRefClear()
+	if a.comfyProcRefRegistered() {
+		t.Fatal("引用清理后不应再视为 gaea 拉起")
+	}
+}
+
 // TestComfyUIProcRefConcurrent 多 goroutine 压榨 refSet/ClearIfCurrent/Clear/Stop，
 // 供 -race 检测数据竞争（本机无 gcc 时仅验证无死锁）。
 func TestComfyUIProcRefConcurrent(t *testing.T) {

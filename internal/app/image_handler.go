@@ -82,6 +82,11 @@ func (a *mediaState) WarmComfyUI() map[string]interface{} {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 		backend := ai.NewComfyUIBackend(a.cfg.ComfyUIURL)
+		// 预热提交的是真实工作流（模型进显存）——与生成同口径记一次使用
+		// （model_idle_exit_minutes；探活/只读查询不记账）。测试 core 为空不挂。
+		if a.core != nil && a.core.engineMgr != nil {
+			backend.SetUsageHook(func() { a.core.engineMgr.TouchEngine("comfyui") })
+		}
 		if err := backend.Warmup(ctx, model); err != nil {
 			slog.Info("ComfyUI 预热未生效（静默降级）", "model", model, "error", err)
 		}

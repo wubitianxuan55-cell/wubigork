@@ -125,6 +125,42 @@ func TestQueuePrompt_ContextCanceled(t *testing.T) {
 	}
 }
 
+// TestQueuePrompt_UsageHook 使用记账（model_idle_exit_minutes 空闲自动退出
+// 口径）：提交成功记一次真实使用；提交失败不记；未挂 hook 不 panic。
+func TestQueuePrompt_UsageHook(t *testing.T) {
+	srv := newComfyHTTPServer(t)
+	b := srv.backend()
+	hits := 0
+	b.SetUsageHook(func() { hits++ })
+	if _, err := b.queuePrompt(context.Background(), map[string]interface{}{}); err != nil {
+		t.Fatalf("queuePrompt: %v", err)
+	}
+	if hits != 1 {
+		t.Errorf("成功提交后 hits = %d, want 1", hits)
+	}
+
+	// 失败提交（HTTP 400）不记账。
+	badSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(400)
+		fmt.Fprint(w, "{\"error\":\"boom\"}")
+	}))
+	defer badSrv.Close()
+	bad := NewComfyUIBackend(badSrv.URL)
+	bad.httpClient = badSrv.Client()
+	bad.SetUsageHook(func() { hits++ })
+	if _, err := bad.queuePrompt(context.Background(), map[string]interface{}{}); err == nil {
+		t.Fatal("期望错误，实际成功")
+	}
+	if hits != 1 {
+		t.Errorf("失败提交后 hits = %d, want 1（失败不算使用）", hits)
+	}
+
+	// 未挂 hook：零值回调不 panic。
+	if _, err := b.queuePrompt(context.Background(), map[string]interface{}{}); err != nil {
+		t.Fatalf("queuePrompt（未挂 hook）: %v", err)
+	}
+}
+
 // ── 轮询 /checkHistory ───────────────────────────────────────────
 
 func TestCheckHistory_NotDone(t *testing.T) {

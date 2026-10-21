@@ -2,11 +2,12 @@ package app
 
 // managed_engine_idle.go — 外部引擎空闲自动退出（model_idle_exit_minutes）。
 //
-// 天璇/Strata 是 gaea 代启的本地模型进程（吃 UMA/VRAM 的大户）：连续 N 分钟
-// 无真实使用即自动停止，不占机器。判定依据是 modelengine 的活跃记账
-//（TouchEngine：LLM 请求端点解析 / 引擎启动 / 识图绑定解析）；探活刻意不
-// 记账。只收 gaea 本会话拉起的实例（proc registered）——外部手动启动的引擎
-// 尊重其独立性，不代管。gaea 自身退出另有 Job Object 兜底（kill-on-close），
+// 天璇/Strata/ComfyUI 是 gaea 代启的本地模型进程（吃 UMA/VRAM 的大户）：连续
+// N 分钟无真实使用即自动停止，不占机器。判定依据是 modelengine 的活跃记账
+//（TouchEngine：LLM 请求端点解析 / 引擎启动 / 识图绑定解析 / ComfyUI 任务
+// 提交）；探活刻意不记账。只收 gaea 本会话拉起的实例（registered）——外部
+// 手动启动的引擎尊重其独立性，不代管。gaea 自身退出另有 Job Object 兜底
+//（kill-on-close；ComfyUI 进程引用随 gaea 退出由 exec.CommandContext 收敛），
 // 两者合起来覆盖「运行中空转」与「gaea 退了模型还挂着」两种占用。
 
 import (
@@ -19,11 +20,13 @@ import (
 const managedIdleCheckInterval = time.Minute
 
 // managedIdleTarget 一个可收割目标（生产指向真实探活/停止；测试注入桩）。
+// registered 是「gaea 本会话拉起」闸——进程形态因引擎而异（localEngineProc
+// 方法值 / ComfyUI 进程引用判定），收敛为谓词注入。
 type managedIdleTarget struct {
-	id    string
-	proc  *localEngineProc
-	probe func() bool // true=引擎在运行
-	stop  func()      // 幂等停止（复用引擎卡的停止语义）
+	id         string
+	registered func() bool // true=gaea 本会话拉起的实例
+	probe      func() bool // true=引擎在运行
+	stop       func()      // 幂等停止（复用引擎卡的停止语义）
 }
 
 // startManagedEngineIdleReaper 启动空闲巡检循环（ctx 随 app 生命周期）。
@@ -63,12 +66,12 @@ func (a *App) reapIdleManagedEngines() {
 	a.reapManagedEngineIdleOnce(time.Now(), time.Duration(minutes)*time.Minute, a.managedIdleTargets())
 }
 
-// managedIdleTargets 生产目标表（天璇 8094 / Strata 8091）。
+// managedIdleTargets 生产目标表（天璇 8094 / Strata 8091 / ComfyUI 8188）。
 func (a *App) managedIdleTargets() []managedIdleTarget {
 	return []managedIdleTarget{
 		{
-			id:   "tianxuan",
-			proc: &a.tianxuanProc,
+			id:         "tianxuan",
+			registered: a.tianxuanProc.registered,
 			probe: func() bool {
 				_, ok := tianxuanProbe()
 				return ok
@@ -76,13 +79,19 @@ func (a *App) managedIdleTargets() []managedIdleTarget {
 			stop: func() { _ = a.TianxuanEngineStop() },
 		},
 		{
-			id:   "strata",
-			proc: &a.strataProc,
+			id:         "strata",
+			registered: a.strataProc.registered,
 			probe: func() bool {
 				_, ok := strataProbe()
 				return ok
 			},
 			stop: func() { _ = a.StrataEngineStop() },
+		},
+		{
+			id:         "comfyui",
+			registered: a.comfyProcRefRegistered,
+			probe:      a.isComfyUIRunning,
+			stop:       func() { _ = a.StopComfyUI() },
 		},
 	}
 }
@@ -97,7 +106,7 @@ func (a *App) managedIdleTargets() []managedIdleTarget {
 func (a *App) reapManagedEngineIdleOnce(now time.Time, idle time.Duration, targets []managedIdleTarget) []string {
 	var stopped []string
 	for _, t := range targets {
-		if !t.proc.registered() {
+		if !t.registered() {
 			continue
 		}
 		last := a.engineMgr.EngineLastActivity(t.id)

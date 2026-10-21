@@ -60,6 +60,14 @@ func (a *mediaState) comfyProcRefClear() {
 	a.comfyProcMu.Unlock()
 }
 
+// comfyProcRefRegistered gaea 本会话是否登记了 ComfyUI 进程（空闲自动退出
+// 只收 gaea 拉起的实例，外部手动启动的不代管——与天璇/Strata 同闸）。
+func (a *mediaState) comfyProcRefRegistered() bool {
+	a.comfyProcMu.Lock()
+	defer a.comfyProcMu.Unlock()
+	return a.comfyUICmd != nil
+}
+
 // StartComfyUI 启动 ComfyUI 服务
 func (a *mediaState) StartComfyUI() error {
 	if a.cfg.ComfyUIPath == "" {
@@ -147,6 +155,12 @@ func (a *mediaState) StartComfyUI() error {
 
 	slog.Info("ComfyUI 已启动", "python", pythonExe, "dir", a.cfg.ComfyUIPath, "pid", cmd.Process.Pid)
 	a.comfyProcRefSet(cancel, cmd)
+	// 引擎启动记账（model_idle_exit_minutes 口径，与天璇/Strata 一致）：让刚
+	// 拉起的实例立刻进入「有使用记录」状态——否则冷启动期若从未记账，空闲
+	// 收割器按「从未经手」跳过，实例空转占显存无人管。
+	if a.core != nil && a.core.engineMgr != nil {
+		a.core.engineMgr.TouchEngine("comfyui")
+	}
 
 	// 后台等待进程结束，记录退出原因
 	go func() {

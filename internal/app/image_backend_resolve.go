@@ -65,7 +65,15 @@ func resolveImageBackend(name string, cfg *config.Config, mgr *modelengine.Manag
 		if cfg == nil || strings.TrimSpace(cfg.ComfyUIURL) == "" {
 			return resolvedImageBackend{Kind: "comfyui"}, &imageBackendResolveError{Reason: reasonComfyURLMissing, Backend: name}
 		}
-		return resolvedImageBackend{Backend: ai.NewComfyUIBackend(cfg.ComfyUIURL), Kind: "comfyui", BaseURL: cfg.ComfyUIURL}, nil
+		cb := ai.NewComfyUIBackend(cfg.ComfyUIURL)
+		// 使用记账（model_idle_exit_minutes 空闲自动退出）：queuePrompt 提交成功
+		// 即记一次 comfyui 真实使用——挂在实例上，所有生成路径（文生图/图生图/
+		// 编辑/视频/预热）单点覆盖；只读查询（LoRA 列表/探活）不经 queuePrompt，
+		// 天然不记账。mgr 为 nil（测试）时不挂。
+		if mgr != nil {
+			cb.SetUsageHook(func() { mgr.TouchEngine("comfyui") })
+		}
+		return resolvedImageBackend{Backend: cb, Kind: "comfyui", BaseURL: cfg.ComfyUIURL}, nil
 	case "herdsman", "ollama":
 		eng, err := imageEngineReady(mgr, name)
 		if err != nil {
