@@ -55,7 +55,7 @@
 ## 5. 收口清单（v4.320.0）
 
 tsc -b / eslint 改动文件 / 定向 vitest → ci.ps1 恰一次 → 版本三处
-（sync-version）→ build → exe/SUMS/桌面副本/冒烟 → releases/v4.320.0.md +
+（sync-version）→ build → exe/SUMS/桌面副本/冒烟 → releases/archive/v4.320.0.md +
 CHANGELOG/README（两处版本表）→ .gaea AGENTS 迁 1 插 1 + progress + todos
 → commit+tag。零 Go 改动：gen_bindings 不跑（drift 复核即可）。
 

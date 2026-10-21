@@ -92,7 +92,7 @@
   - ✅ E1-1 前端 CI 修复：eslint 插件/配置/script 修复、28 硬错误清零（含 Lightbox 12 处条件 Hook 隐患）、
     ci.yml 去 continue-on-error + vitest 步骤、ComfyUI 路径文案修复；
   - ✅ E1-2 发布冒烟脚本 `scripts/smoke.ps1`；
-  - ✅ E1-3 周版本节奏：v2.16.0；发布文档（CHANGELOG/README/releases/v2.16.0.md/releases/README.md/wails.json/.gaea/progress.md）已更新；
+  - ✅ E1-3 周版本节奏：v2.16.0；发布文档（CHANGELOG/README/releases/archive/v2.16.0.md/releases/README.md/wails.json/.gaea/progress.md）已更新；
   - 验证：变更面逐包全绿（internal/herdsman、internal/app 22s 全量、bridge/ai/voice/tts；internal/chat 经手动编译二进制 PASS 证实沙箱 exec 拒绝为环境因素）；
     tsc -b 通过、eslint 0 errors、模型库卡片 vitest 5/5。本会话沙箱对长进程树（go test 全量/vitest 全量/wails build）有限制，
     全量门禁交由 GitHub Actions CI 与本地 `scripts/ci.ps1` / `scripts/smoke.ps1` 执行。
@@ -144,7 +144,7 @@
     新增用例 ok；tsc -b、eslint 0 errors、vitest 243/243、vite build；冒烟通过 +
     HTTP 桥接 token 端到端（无 token 401 / Bearer 200）；
   - ✅ v2.17.0 发布产物：releases/gaea-v2.17.0.exe（33,725,952 字节，SHA256=ADBFD953904C359EFFB125585B4B4C2D8E52B3D33C4DBC39E4F64AD8CD4DD2A9）
-    + SHA256SUMS-v2.17.0.txt；发布文档（CHANGELOG/README/releases/v2.17.0.md/releases/README.md/
+    + SHA256SUMS-v2.17.0.txt；发布文档（CHANGELOG/README/releases/archive/v2.17.0.md/releases/README.md/
     wails.json/versioninfo.rc）已更新。
 - 2026-08-14（阶段 3 数据与成本纵深 v2.18.0，D3-1 ~ D3-3 首轮）：
   - ✅ D3-1 持久化向量索引：GaeaSemanticSearch 跨库统一语义检索并入工作区资料（kind=file，

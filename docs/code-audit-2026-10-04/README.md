@@ -56,7 +56,7 @@
 
 | 候选 | 误报原因 |
 |---|---|
-| `memory.GraphNeighbors`（83 行） | 设计文档 `docs/gaea-memory-graph-51-design-2026-09.md:13` 与 `releases/v4.210.0.md` 明列其为**已交付 API**（v4.210.0「记忆语义图谱」），只是「未出绑定」 |
+| `memory.GraphNeighbors`（83 行） | 设计文档 `docs/gaea-memory-graph-51-design-2026-09.md:13` 与 `releases/archive/v4.210.0.md` 明列其为**已交付 API**（v4.210.0「记忆语义图谱」），只是「未出绑定」 |
 | `provider.SanitizeToolPairing` + 5 helper（120 行） | 生产零调用但**有 3 个测试文件 14 处断言**——唯一写好的 tool 配对护栏，**该接线不该删** |
 | `SubagentStore.CleanupStaleRunning`（34 行） | 启动清理 stale running 的**安全机制**；无人调用是**功能缺失**（崩溃后 running 记录永久残留），删了等于删安全网 |
 | `BudgetStatus`/`SessionInfo`/`BranchInfo` 类型别名 | `agent/session_alias.go` 等是**包拆分兼容层的既定设计**（历史评审文档明写「兼容层保留」） |

@@ -15,7 +15,7 @@
 >
 > **补课状态（2026-08-30 v4.6.1）**：§B 红线缺口三条已全部接线（记忆注入
 > InSpace 视图 / [tasks] 任务分账启用 / 事件订阅空间过滤推广，见
-> releases/v4.6.0.md）；§C 纵深已落地 Mood→TTS 闭环、Verifier 通道 B 真视觉
+> releases/archive/v4.6.0.md）；§C 纵深已落地 Mood→TTS 闭环、Verifier 通道 B 真视觉
 > diff + 失败回 Plan、询价异常检测 + 价格预测 + OCR→询价库飞轮反向、微信统一
 > 路由 + iLink 图片协议第一刀（v4.6.1）、规范包机制化（红头+造价表式，v4.6.1）、
 > 成本归因对标（v4.6.1）；§D 治理收尾（keepAlive 8 处门控 + CSS 真硬编码

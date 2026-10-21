@@ -382,7 +382,7 @@ v4.262.0 给了模型 `sin_notes`（设定集）与 `sin_outline`（大纲）两
 ### 14.4 测试与走查
 
 Go +1（绑定三态）；vitest +14（面板 8 + collectIllustrations 2 + useSinNotes 4）。
-空间分类计数锁 462→463。真机走查见 releases/v4.263.0.md 产物行。
+空间分类计数锁 462→463。真机走查见 releases/archive/v4.263.0.md 产物行。
 
 ### 14.5 面板宽度可拖拽（v4.264.0）
 

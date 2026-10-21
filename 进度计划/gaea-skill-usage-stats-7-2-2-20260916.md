@@ -106,7 +106,7 @@ MaxSkills 拒新不拒旧 / View 排序与稳定 / File JSON 形状钉死（came
 ## 6. 收口清单（v4.319.0）
 
 gen_bindings → drift OK@696 → 版本四处（sync-version 口径）→ build → exe/SUMS/
-桌面副本/冒烟 → releases/v4.319.0.md + CHANGELOG/README → .gaea AGENTS 迁 1 插 1
+桌面副本/冒烟 → releases/archive/v4.319.0.md + CHANGELOG/README → .gaea AGENTS 迁 1 插 1
 + progress/todos → commit+tag。
 
 ## 7. 足迹

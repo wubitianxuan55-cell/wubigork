@@ -203,7 +203,7 @@ ActionSaveTask Action = "save_task" // 存为任务（Target = 任务标题文�
 2. 定向：tsc -b、eslint 改动文件、go/vitest 定向；全量 `scripts/ci.ps1` 恰一次
    （≈5-7 分钟）。
 3. 版本四处 4.318.0（sync-version.ps1 口径）→ 前端 build → `wails build -s` →
-   exe/SUMS/桌面副本/冒烟 → releases/v4.318.0.md + CHANGELOG/README →
+   exe/SUMS/桌面副本/冒烟 → releases/archive/v4.318.0.md + CHANGELOG/README →
    .gaea AGENTS（迁 1 插 1）+ progress + todos → commit+tag。
 
 ## 5. 足迹互斥表

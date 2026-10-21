@@ -2,7 +2,7 @@
 
 > [已归档 2026-09-09] 已实施：v4.122.0~v4.124.0（刀1 落盘/刀2 agent 通道/刀3 板块 UI）；余「刀4 mspdi 绑真机」入候选池。
 
-> 状态：**草案 · 待拍板**（2026-09-06）。承接 releases/v4.121.0.md 欠账池「资源成本（动手前需先出设计方案拍板）」——本文即拍板用设计方案，未获拍板前不动任何代码。
+> 状态：**草案 · 待拍板**（2026-09-06）。承接 releases/archive/v4.121.0.md 欠账池「资源成本（动手前需先出设计方案拍板）」——本文即拍板用设计方案，未获拍板前不动任何代码。
 > 纪律沿用：AI 产建议、引擎裁决（fail-closed）；取道不取器（零新依赖、不引入外部引擎）；工作日口径（工期/时距/费率周期均为工作日整数）；TS/Go 镜像引擎双侧同步。
 
 ---
@@ -240,4 +240,4 @@ computeCosts(project, cpm) → CostResult
 - MS Support：Enter costs for resources；Earned value analysis for the rest of us —— https://support.microsoft.com/en-us/project/enter-costs-for-resources ； https://support.microsoft.com/zh-cn/project/earned-value-analysis-for-the-rest-of-us
 - ProjectPlan365：Cost Resources / Cost Tracking（成本资源无费率、Cost/Use 每分配一次等口径佐证，二手）—— https://www.projectplan365.com/articles/cost-resources/
 - 广联达斑马进度：人/料/机计划资源管理（知乎专栏）与产品页（功能名级佐证，字段未核实）—— https://zhuanlan.zhihu.com/p/272751030 ； https://www.glodon.com/product/204.html
-- 既有基准：docs/gaea-office-mindmap-base-design-2026-09.md（格式与刀序范式）；internal/schedule/* 与 frontend/src/schedule/*（现状全量读码，2026-09-06）；releases/v4.113.0.md、v4.121.0.md（欠账出处与绑定面口径）
+- 既有基准：docs/gaea-office-mindmap-base-design-2026-09.md（格式与刀序范式）；internal/schedule/* 与 frontend/src/schedule/*（现状全量读码，2026-09-06）；releases/archive/v4.113.0.md、v4.121.0.md（欠账出处与绑定面口径）

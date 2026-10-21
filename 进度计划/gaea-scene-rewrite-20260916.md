@@ -56,7 +56,7 @@ scenes/（scene→blob 单向同步 `syncBlobFromScenes`）。本刀补 v4 感�
 
 定向（scene/app/rewrite go + ChapterPage/ChapterPage 单测 + RewriteModal 既有）
 → tsc/eslint → ci.ps1 恰一次 → 版本三处（**含 app_info.go 入 commit**）→
-build/SUMS/桌面副本/冒烟 → releases/v4.322.0.md+CHANGELOG/README×2 → AGENTS
+build/SUMS/桌面副本/冒烟 → releases/archive/v4.322.0.md+CHANGELOG/README×2 → AGENTS
 迁 1 插 1（三十七迁）+progress/todos → commit+tag。drift 复核 696。
 
 ## 4. 足迹

@@ -90,5 +90,5 @@ v4.324~v4.333（内嵌版本停 4.323.0，不影响功能面）。
 零新绑定（707 不动）；go build/vet/test 全量、tsc -b、eslint、vitest 3185、
 bindings drift OK@707、**版本三处 4.334.0（含漂移修复）**、ci.ps1 新增
 version-drift 段全绿；产物 exe+SHA256SUMS+冒烟 /api/health 200。
-文档=本规格书+releases/v4.334.0.md+CHANGELOG/README+AGENTS 迁1插1+revolution
+文档=本规格书+releases/archive/v4.334.0.md+CHANGELOG/README+AGENTS 迁1插1+revolution
 刀8 勾选+progress/todos。**出口=revolution 刀 1–8 全勾，规划收官。**

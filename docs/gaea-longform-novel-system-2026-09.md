@@ -30,7 +30,7 @@
 `internal/types/plot_v2.go:11-22` 定义了 `ChapterPlan`：`PlotSummary(200-300字)` ·
 `KeyEvents(2-4条，跨章不得重复)` · `CharacterFocus` · `EmotionalTone` · `NarrativeGoal` ·
 `ConflictType` · `EndingType(5值)` · `EstimatedWords`；落盘口径写的是
-`chapters/plans.json`（`:9`）。而 `releases/v4.278.0.md:114` 自己记着：
+`chapters/plans.json`（`:9`）。而 `releases/archive/v4.278.0.md:114` 自己记着：
 「t1 契约中除伏笔体检外的类型**尚无消费方**（…、`ChapterPlan`、…）」——全仓 grep 证实：
 除类型定义与 `compat_test.go` 往返测试外，**无任何读写路径**；生成链、写前契约、
 分析回写都不认识它。

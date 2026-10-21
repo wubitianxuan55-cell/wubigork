@@ -379,7 +379,7 @@
   CLEAN（零 is-not-a-function，Unsloth 卡片真机配置后出现=预期）。
 - 门禁：Go 全量 0 FAIL、tsc -b/eslint 0、vitest **256/2034**（净增 2 文件/
   10 用例）、drift PASS（584）。
-- 详见 releases/v4.102.0.md。
+- 详见 releases/archive/v4.102.0.md。
 
 ## 最新发布：v4.101.0（2026-09-05）「三线并行：GenUI 围栏 Go 侧收口 · 画室模型目录 · 深检误报缓解」
 
@@ -412,7 +412,7 @@
   none）。
 - 门禁：Go build/test/vet 全量 0 FAIL（含并行会话在途代码如实注明）、tsc -b/
   eslint 0、vitest **254/2024**（净增 4 文件/31 用例）、drift PASS（581 口径）。
-- 详见 releases/v4.101.0.md。
+- 详见 releases/archive/v4.101.0.md。
 - **补记（同日）**：v4.101.0 提交漏列围栏接线 5 文件 + 2 测试文件（第一批 add 整批失败被吞、第二批清单漏列），已补提交；tag 不移，详见 release 补记。**教训：多步 add 后必须 git diff --cached --stat 对照预期清单核数；2>/dev/null 会吞 add 的 fatal。**
 
 ## 最新发布：v4.100.0（2026-09-05）「三线并行：画室 T1 余件 · 办公 U4 前半 · GenUI 围栏审计」
@@ -442,7 +442,7 @@
 - 门禁：Go 全量 0 FAIL（含他线在途代码，如实注明）、tsc -b/eslint 0、
   vitest **250/1993**（净增 2 文件/39 用例，首轮 1 例 flaky 复跑绿）、
   ?mock=1 走查 PASS（AssetStudio 三槽/VisionTrial 全要素/互斥修复序列）。
-- 详见 releases/v4.100.0.md。
+- 详见 releases/archive/v4.100.0.md。
 
 ## 最新发布：v4.99.0（2026-09-05）「三线并行：图像域 T1 收口 · 办公 U2 回合投影 · GaeaListDir 硬化」
 
@@ -478,7 +478,7 @@
 - 门禁：Go 全量 0 FAIL、tsc -b/eslint 0、vitest **248/1954**（净增 3 文件/56
   用例；首轮 FilePreviewModal 1 例负载 flaky，单独+全量复跑均绿=既有模式）、
   drift PASS（581）。
-- 详见 releases/v4.99.0.md。
+- 详见 releases/archive/v4.99.0.md。
 
 ## 最新发布：v4.98.0（2026-09-05）「图像域 T0 契约落地：登记底座 · 素材库 · 参考槽 v0」
 
@@ -512,7 +512,7 @@
   1898 用例全绿**（净增 4 文件/38 用例）、drift PASS（581）；v4.97.0 tag 树
   隔离 worktree 验证（Go/tsc）补做通过。真机验收（生成后 assets.jsonl 出
   登记、素材库 tab、章节配图历史）待用户复验。
-- 详见 releases/v4.98.0.md。
+- 详见 releases/archive/v4.98.0.md。
 
 ## 最新发布：v4.96.0（2026-09-05）「三线并行：下钻联动收尾 · Verifier 逐页缩略图 · pptx 真编辑设计」
 
@@ -564,7 +564,7 @@
   Go genui/skill/tool·builtin/boot/app/whisper 全绿；绑定面 579 不变。
 - P5 剩余（需真机/发布决策）：真模型端到端（办公面板原地更新/聊天出 UI）、?mock=1
   视觉走查（发布说明已如实记录待用户复验）、记忆/压缩侧围栏剥离审计（若影响确认）。
-- 发布产物：releases/v4.97.0.md + SHA256SUMS-v4.97.0.txt；冒烟 /api/health 200；
+- 发布产物：releases/archive/v4.97.0.md + SHA256SUMS-v4.97.0.txt；冒烟 /api/health 200；
   wails.json/versioninfo.rc/README/CHANGELOG 已同步 4.97.0。
 
 ## 最新发布：v4.95.0（2026-09-05）「三线并行收欠账」
@@ -648,7 +648,7 @@
   fetcher/title 透传；App 接线（径向图 → 子代理上下文弹层）。
 - 门禁：Go 全量 0 FAIL、tsc -b/eslint 0、vitest 231/1758、drift PASS（579）、
   Go 绑定测试（合法/缺失/非法三态）-count=2 绿。
-- 详见 releases/v4.94.0.md。
+- 详见 releases/archive/v4.94.0.md。
 
 ## 最新发布：v4.93.0（2026-09-05）「失败子代理恢复入口 + diff 行内语法着色」（双小刀合并）
 
@@ -659,7 +659,7 @@
   优先），ChangesPanel/GitPanel 传路径。
 - 门禁：Go 全量 0 FAIL、tsc -b/eslint 0、vitest 231/1756、drift PASS（578）、
   ?mock=1 DOM 走查通过（ts diff 12 个 tok 片段；截图通道沿例故障）。
-- 详见 releases/v4.93.0.md。
+- 详见 releases/archive/v4.93.0.md。
 
 ## 最新发布：v4.92.0（2026-09-05）「Mermaid strict 安全线成文 + MemoMarkdown 消毒层」
 
@@ -670,7 +670,7 @@
   成文 lib/sanitize.ts 头注）。sanitize.test +3；mock README 补 mermaid
   样例；?mock=1 走查 labels 完整、无脚本注入。
 - 门禁：Go 全量 0 FAIL、tsc -b/eslint 0、vitest 229/1753、drift PASS（578）。
-- 详见 releases/v4.92.0.md。
+- 详见 releases/archive/v4.92.0.md。
 
 ## 最新发布：v4.91.0（2026-09-05）「CodeMirror 语法高亮编辑器」
 
@@ -681,7 +681,7 @@
   2c 遗留的 diff 语法着色能力随依赖就位。
 - 门禁：Go 全量 0 FAIL、tsc -b/eslint 0、vitest 228/1750、drift PASS（578）、
   ?mock=1 DOM 走查通过（go.mod 编辑态 .cm-editor/.cm-content/.cm-gutters）。
-- 详见 releases/v4.91.0.md。
+- 详见 releases/archive/v4.91.0.md。
 
 ## 最新发布：v4.90.0（2026-09-05）「终止级联：父任务中止连带终止派生后代」
 
@@ -692,7 +692,7 @@
 - 门禁：Go 全量 0 FAIL、tsc -b/eslint 0、vitest 227/1740（勘误 v4.88/89
   计数）、drift PASS（578）、jobs 并发单测 -count=2 绿（引擎语义 mock 不可
   驱动，沿 A1 先例以单测为验收面）。
-- 详见 releases/v4.90.0.md。
+- 详见 releases/archive/v4.90.0.md。
 
 ## 最新发布：v4.89.0（2026-09-05）「成本费率 hover：单价快照 · 三档明细 · 诚实降级」
 
@@ -704,7 +704,7 @@
   i18n 三语 +5 键。
 - 门禁：Go 全量 0 FAIL、tsc -b/eslint 0、vitest 227/1742、drift PASS（578）、
   ?mock=1 DOM 走查通过（hover title 五行断言；截图通道沿例故障）。
-- 详见 releases/v4.89.0.md。
+- 详见 releases/archive/v4.89.0.md。
 
 ## 最新发布：v4.88.0（2026-09-05）「/context 居中弹层 + 常驻「剩余上下文%」徽标」
 
@@ -714,7 +714,7 @@
   ContextView（打开挂载/关闭卸载）；/context 命令改道弹层、主区 tab 保留。
 - 门禁：Go 全量 0 FAIL、tsc -b/eslint 0、vitest 227/1743、drift PASS（578）、
   ?mock=1 DOM 走查三项通过（徽标/点击弹层//context 两段 Enter；截图沿例故障）。
-- 详见 releases/v4.88.0.md。
+- 详见 releases/archive/v4.88.0.md。
 
 ## 最新发布：v4.87.0（2026-09-05）「统一 diff 渲染升级：改蓝配对 · 行内字符高亮 · 上下文折叠」
 
@@ -726,7 +726,7 @@
   留阶段三。
 - 门禁：Go 全量 0 FAIL、tsc -b/eslint 0、vitest 226/1741、drift PASS（578）、
   ?mock=1 DOM 走查通过（折叠占位/展开渲染/配对标记；截图通道沿例故障）。
-- 详见 releases/v4.87.0.md。
+- 详见 releases/archive/v4.87.0.md。
 
 ## 最新发布：v4.86.0（2026-09-05）「Git 面板最小集：status/diff/stage/commit/history」
 
@@ -738,7 +738,7 @@
   绑定三件套同步（数量锁 270→277）。
 - 门禁：Go 全量 0 FAIL、tsc -b/eslint 0、vitest 225/1723、drift PASS（578）、
   ?mock=1 DOM 走查四项通过（截图通道沿例故障如实记录）。
-- 详见 releases/v4.86.0.md。
+- 详见 releases/archive/v4.86.0.md。
 
 ## 最新发布：v4.85.0（2026-09-05）「本轮文件三态折叠：写入/编辑/读取独立成层 + 类型筛选」
 
@@ -749,7 +749,7 @@
   buildChangeCalls/buildSessionChanges 工具集参数化零破坏。
 - 门禁：Go 全量 0 FAIL、tsc -b/eslint 0、vitest 224/1720、drift PASS（571）、
   ?mock=1 DOM 走查通过（三层计数/读取展开/分类过滤/空提示；截图通道沿例故障）。
-- 详见 releases/v4.85.0.md。
+- 详见 releases/archive/v4.85.0.md。
 
 ## 最新发布：v4.84.0（2026-09-05）「HTML 沙箱预览 · 外链协议分流」
 
@@ -763,7 +763,7 @@
   （此前任意 href 直接 openExternal）。
 - 门禁：Go 全量 0 FAIL、tsc/tsc -b/eslint 0、vitest 224/1712、drift PASS（571）、
   ?mock=1 DOM 走查通过（iframe sandbox/csp/srcdoc/标注条全验；截图通道沿例故障）。
-- 详见 releases/v4.84.0.md。
+- 详见 releases/archive/v4.84.0.md。
 
 ## 最新发布：v4.83.0（2026-09-05）「工具结果图片缩略卡：官方 patch 口径 token 估算」
 
@@ -776,7 +776,7 @@
   标准档」悬停完整口径）；缺失灰态/尺寸未知；i18n 三语 +6 键；mock vision 样例。
 - 门禁：Go 全量 0 FAIL、tsc/tsc -b/eslint 0、vitest 224/1700、drift PASS（571）、
   ?mock=1 DOM 走查通过（截图通道沿 v4.82 故障如实记录）。
-- 详见 releases/v4.83.0.md。
+- 详见 releases/archive/v4.83.0.md。
 
 ## 最新发布：v4.82.0（2026-09-05）「上下文趋势跳转浏览器：brief 行锚点 · 偏好持久化 · 设置中心默认」
 
@@ -788,7 +788,7 @@
   设置中心办公分组「上下文页偏好」卡；i18n 三语 +11 键。
 - 门禁：Go 全量 0 FAIL、tsc/tsc -b/eslint 0、vitest 224/1698、drift PASS（571）、
   ?mock=1 DOM 走查通过（IAB 截图与 Edge 无头备援均故障，实拍缺席如实记录）。
-- 详见 releases/v4.82.0.md。
+- 详见 releases/archive/v4.82.0.md。
 
 ## 最新发布：v4.81.0（2026-09-05）「文件活动行级增量：±徽标 · 操作日志展开 · 详情跳转」
 
@@ -800,7 +800,7 @@
 - 门禁：contextview -count=2 绿、Go 全量除 1 个既有 TempDir flaky（复验绿）、
   tsc -b/eslint 0、vitest 223/1688（与 Go 并发跑时 20 个超时失败复跑全绿，
   负载 flaky 先例）、drift PASS（571）、?mock=1 走查通过（截图存 artifacts）。
-- 详见 releases/v4.81.0.md。
+- 详见 releases/archive/v4.81.0.md。
 
 ## 最新发布：v4.80.0（2026-09-04）「上下文工具结果深读：完整调用懒加载 · 来源 chip · 分类内排序」
 
@@ -813,7 +813,7 @@
 - 门禁：detail/contextview -count=2 绿、Go 全量 0 FAIL、tsc -b/eslint 0、
   vitest 223/1687（首轮高负载 19 个无关用例 flaky 复跑全绿，沿先例记录）、
   drift PASS（571）、?mock=1 实机走查通过（截图存 artifacts）。
-- 详见 releases/v4.80.0.md。
+- 详见 releases/archive/v4.80.0.md。
 
 ## 最新发布：v4.79.0（2026-09-04）「上下文对比上一步：逐类 signed delta · 跨压缩近似标注」
 
@@ -825,7 +825,7 @@
   i18n 三语 +5 键 + mock 场景补样例。边界：不做 dsh 式逐步节点回放（蓝图成文）。
 - 门禁：contextview -count=2 绿、tsc -b/eslint 0、vitest 223/1685、drift PASS（570）、
   ?mock=1 实机走查通过（browser-use 截图存 artifacts）。
-- 详见 releases/v4.79.0.md。
+- 详见 releases/archive/v4.79.0.md。
 
 ## 最新发布：v4.78.0（2026-09-04）「任务强制终止收口：进程树击杀 · 两击确认」
 
@@ -838,51 +838,51 @@
 - 门禁：go vet 0、go test 全量除 1 个既有 TempDir 清理 flaky（单跑复验绿）、
   tsc -b/eslint 0、vitest 223/1683、drift PASS（570）。走查受限如实记录：mock
   无常驻 running 种子，以 TaskCenter 9 个 jsdom 交互用例为验收面（v4.62.0 A2 先例）。
-- 详见 releases/v4.78.0.md。
+- 详见 releases/archive/v4.78.0.md。
 
 ## 最新发布：v4.77.0（2026-09-04）「任务页自动激活补全 · 强制终止」
 
 - 纯前端、绑定面 561 零变更。新增：后台任务事件自动激活任务页；自动激活统一
   openTasksAuto（≥1240px 宽屏展开、窄屏不强制、沿用设置开关）；运行中任务按钮
   明确「强制终止」（queued=取消/stopping=停止中）。vitest 223/1681。
-- 详见 releases/v4.77.0.md。
+- 详见 releases/archive/v4.77.0.md。
 
 ## 最新发布：v4.76.0（2026-09-04）「任务面板修正：整树折叠 · 圆角 8px · 树形线」
 
 - 「子代理」分组头整体折叠/展开整棵树；点卡片也可折叠自身子级；卡片圆角显式
   rounded-[8px]；子树加 1px 树形线；打开对话收敛为卡片独立按钮。
-  vitest 223/1680。详见 releases/v4.76.0.md。
+  vitest 223/1680。详见 releases/archive/v4.76.0.md。
 
 ## 最新发布：v4.75.0（2026-09-04）「右侧任务面板卡片化」
 
 - AgentTree 子代理独立卡片：状态胶囊 + 模型/工具/耗时/token 指标行 + 运行实时
   预览 + 完成摘要；主 agent 主色底；视觉模型验收 92/100。vitest 223/1678。
-  详见 releases/v4.75.0.md。
+  详见 releases/archive/v4.75.0.md。
 
 ## 最新发布：v4.74.0（2026-09-04）「记忆界面技能重设计」
 
 - 记忆主区页：hero 卡 + 事实/文档/建议三统计小卡 + 快速添加 + 单张视图大卡
   （分段/搜索/筛选/内容同卡）；TabButton 紧凑胶囊；视觉验收 9/10。
-  vitest 223/1678。详见 releases/v4.74.0.md。
+  vitest 223/1678。详见 releases/archive/v4.74.0.md。
 
 ## 最新发布：v4.73.0（2026-09-04）「记忆迁入主区标签页」
 
 - 删除左侧「记忆」入口（展开/折叠态）；ChatTabs 增「记忆」tab 于上下文旁；
   记忆抽屉改主区卡片页；/memory 与 Ctrl+K 改切主区 tab；useDrawers 收敛。
-  vitest 223/1678。详见 releases/v4.73.0.md。
+  vitest 223/1678。详见 releases/archive/v4.73.0.md。
 
 ## 最新发布：v4.72.0（2026-09-04）「删除概览标签页」
 
 - ChatTabs 收敛 对话/轨迹/上下文；删除 OverviewPanel 容器 + 命令条目；
   历史 overview 自动回落对话；StatsPanel 统计模块暂留未接线。vitest 223/1677。
-  详见 releases/v4.72.0.md。
+  详见 releases/archive/v4.72.0.md。
 
 ## 最新发布：v4.71.0（2026-09-04）「上下文页卡片化：8 统计小卡 · 行卡化」
 
 - 用户点名「上下文统计应是 8 个小卡片」；自研规划（redesign/ui-ux-pro-max/
   ds-vision 读参考图）：8 个 ctx-tile 统计小卡、三大仪表卡图标章、事件/文件/
   浏览器节点行改 ctx-row cardlet、卡片表面抬升 + 零硬编码。vitest 224/1683。
-  详见 releases/v4.71.0.md。
+  详见 releases/archive/v4.71.0.md。
 
 ## 最新发布：v4.70.0（2026-09-04）「上下文页视觉重设计：数字层级 · 构成强调 · 仪表化」
 
@@ -895,7 +895,7 @@
   图 84→92px/stroke 10px；⑤v4.69 事件多选/趋势内联详情/99.89% 保留。
 - 门禁：tsc -b/eslint 0（全量）、vitest 224/1683、drift PASS（561）、冒烟 200。
 - 走查受限如实记录：mock 走查浏览器视口 756px（模拟面板仅 ~123px 高），宽版
-  网格仪表需桌面实机复核；jsdom 27 用例为交互验收面。详见 releases/v4.70.0.md。
+  网格仪表需桌面实机复核；jsdom 27 用例为交互验收面。详见 releases/archive/v4.70.0.md。
 
 ## 最新发布：v4.69.0（2026-09-04）「上下文页第三轮精修：图例联动 · 趋势卡内联详情 · 事件多选」
 
@@ -916,7 +916,7 @@
   已更新为 v4.69 全宽网格仪表现状。
 - 欠账（沿 v4.68）：浏览器「对比上一步变动」下拉（需 per-request 快照）；
   真实供应商用量卡；图例 hover 跨卡联动（浏览器同分类高亮）为远期。
-  详见 releases/v4.69.0.md。
+  详见 releases/archive/v4.69.0.md。
 
 ## 最新发布：v4.68.0（2026-09-04）「上下文页对齐 dsh-context」
 
@@ -932,7 +932,7 @@
 - 门禁：Go 定向包全绿、tsc -b/eslint 0、vitest 224/1681、drift PASS（561）、
   冒烟 200；judge 三图 pass 零 must_fix。
 - 欠账：浏览器「对比上一步变动」下拉（需 per-request 快照）；真实供应商
-  用量卡。详见 releases/v4.68.0.md。
+  用量卡。详见 releases/archive/v4.68.0.md。
 
 ## 最新发布：v4.67.0（2026-09-04）「上下文标签页重设计：驾驶舱三区布局」
 
@@ -945,7 +945,7 @@
 - 功能零删减（八块信息只重组）；测试结构同步 4 处（水位 1 处显示/tab
   先切后断言），13/13 全绿；judge 走查 ?mock=1 双宽截图 pass 无 must_fix。
 - 门禁：tsc -b/eslint 0、vitest 221/1647、app+contextview 包全绿、
-  drift 561、冒烟 200。详见 releases/v4.67.0.md。
+  drift 561、冒烟 200。详见 releases/archive/v4.67.0.md。
 
 ## 最新发布：v4.66.0（2026-09-04）「子代理会话提升 · TasksWorkbench 轮询收敛」
 
@@ -957,7 +957,7 @@
 - TasksWorkbench net+runs 迁两 store：四消费点全部共享单轮询；失败横幅
   +重试不再吞错；新测试文件 11 用例。
 - 门禁：Go 全量 exit 0、tsc -b/eslint 0、vitest 221/1647、drift PASS（561）、
-  冒烟 200。详见 releases/v4.66.0.md。
+  冒烟 200。详见 releases/archive/v4.66.0.md。
 
 ## 最新发布：v4.65.1（2026-09-04）「追问失败感知 · 任务退出码 · 轮询收敛」
 
@@ -969,7 +969,7 @@
 - 线C agentNetworkStore（单例轮询器 9 用例）+ SubagentsPanel net 迁入 +
   runsLoadFail 三语键。TasksWorkbench 双源轮询收档为下一消费点。
 - 门禁：Go 全量 exit 0、tsc -b/eslint 0、vitest 220/1636、drift PASS（560）、
-  冒烟 200。详见 releases/v4.65.1.md。
+  冒烟 200。详见 releases/archive/v4.65.1.md。
 
 ## 最新发布：v4.65.0（2026-09-04）「三线并行收欠账」
 
@@ -985,7 +985,7 @@
   零删除）。
 - 收口：tsc -b/eslint 0（抓 1 处测试类型收窄修复）；vitest 219/1624；
   drift PASS（560）；冒烟 200；实机走查（设置新卡+任务面板）PASS。
-  详见 releases/v4.65.0.md。
+  详见 releases/archive/v4.65.0.md。
 
 ## 最新发布：v4.64.3（2026-09-04）「任务管理树呼吸感优化」
 
@@ -993,7 +993,7 @@
   12px、统计 10px、状态点 8px；节点卡间距 gap-1.5；运行活动预览行与
   「本地模型工具」区块同步放宽；信息零删减（简化≠删除红线）。tsc -b/
   eslint 0、vitest 217/1605、冒烟 200、实机走查 PASS。绑定面 560 零变更。
-  详见 releases/v4.64.3.md。
+  详见 releases/archive/v4.64.3.md。
 
 ## 最新发布：v4.64.2（2026-09-04）「修复：任务管理树丢失零工具子代理」
 
@@ -1004,7 +1004,7 @@
   （id=sa_ ref，前端可开转录）。+3 回归（internal/app/
   gaea_ui_contextview_test.go）；重建后实机回归：历史零工具 run 全部
   出现在树上。绑定面 560 零变更。Go 全量 0 FAIL、vitest 217/1605、
-  drift PASS（560）、冒烟 200。详见 releases/v4.64.2.md。
+  drift PASS（560）、冒烟 200。详见 releases/archive/v4.64.2.md。
 
 ## 最新发布：v4.64.1（2026-09-04）「修复：mt_ 信封双层嵌套转义墙」
 
@@ -1013,7 +1013,7 @@
   转录已落盘写端修复无效。修复=写端递归拆包（unwrapModelToolOutput，
   4 层上限）+ 读端 unwrapEnvelopeText 显示侧同语义拆包（SubagentThread
   mt_ 内容渲染前调用，旧数据即刻可读）。双侧回归测试；vitest 217/1605、
-  drift PASS（560）、冒烟 200。详见 releases/v4.64.1.md。
+  drift PASS（560）、冒烟 200。详见 releases/archive/v4.64.1.md。
 
 ## 最新发布：v4.64.0（2026-09-04）「Side Chat 式追问：子代理会话 tab 内可持续提问」
 
@@ -1024,14 +1024,14 @@
   + App 绑定 GaeaSubagentFollowUp（后台 goroutine 即刻返回/同 ref 去重/
   主回合运行中拒绝）+ FE 追问输入框（乐观气泡/追问期轮询/mt_ 隐藏）。
   **绑定面 559→560**。vitest 217/1603、drift PASS（560）、冒烟 200。
-  详见 releases/v4.64.0.md。
+  详见 releases/archive/v4.64.0.md。
 
 ## 最新发布：v4.63.4（2026-09-04）「mt_/长文本输出 Codex 式有界渲染」
 
 - 用户点名本地模型工具输出渲染优化。BoundedAssistantMessage：mt_ 标签页/
   超 4000 字 assistant 内容默认限高 26rem 滚动（Markdown 照常渲染）+
   「展开全部（N 字）/收起」+字数标注；流式行保持跟随。i18n 三语 +3 键。
-  vitest 217/1602、drift 559、冒烟 200。详见 releases/v4.63.4.md。
+  vitest 217/1602、drift 559、冒烟 200。详见 releases/archive/v4.63.4.md。
 
 ## 最新发布：v4.63.3（2026-09-04）「对标 dsh：单轮询聚合 + 自动切任务视图」
 
@@ -1040,7 +1040,7 @@
   采纳两条：①共享单轮询 store（lib/subagentRunsStore.ts，App 两处独立轮询
   并入，任务树/左栏子行后续刀）；②新子代理 0→N 自动切右栏任务视图（500ms
   去抖重臂+偏好 localStorage 默认开）。vitest 217/1601、drift 559、冒烟
-  200。Side Chat 式追问列后续大刀。详见 releases/v4.63.3.md。
+  200。Side Chat 式追问列后续大刀。详见 releases/archive/v4.63.3.md。
 
 ## 最新发布：v4.63.2（2026-09-04）「并行子代理：批量派发不再串行排队」
 
@@ -1050,7 +1050,7 @@
   并行，runParallel ≤8、panic recover；ID 缺失退化共享键串行宁慢勿错）；
   TaskTool 用量 usageMu 互斥合并（并行安全）。install_skill 保持串行。
   如实说明：本地模型推理服务端仍可能排队，工具段真实重叠。新增分区回归
-  测试 3 例。vitest 216/1597、drift 559、冒烟 200。详见 releases/v4.63.2.md。
+  测试 3 例。vitest 216/1597、drift 559、冒烟 200。详见 releases/archive/v4.63.2.md。
 
 ## 最新发布：v4.63.1（2026-09-04）「主对话子代理卡片整卡可点」
 
@@ -1058,7 +1058,7 @@
   新增 openTarget/openHandler 注入点（App 注册：runs 缓存预填+唯一 running
   命中回退，宁缺勿错）；ToolCard task/run_skill 卡整卡可点（title 提示），
   运行中活动行同入口；tab 打开后 5s 轮询自校正。i18n 三语 +1 键；
-  vitest 216/1597、drift 559、冒烟 200。详见 releases/v4.63.1.md。
+  vitest 216/1597、drift 559、冒烟 200。详见 releases/archive/v4.63.1.md。
 
 ## 最新发布：v4.63.0（2026-09-04）「子代理会话 tab 输出对齐主对话 Codex 式渲染」
 
@@ -1066,7 +1066,7 @@
   流整体换主对话同款组件——正文/思考 AssistantMessage、工具 ToolCard；
   映射层 lib/subagentRender.ts（toolCallId 配对/乱序/孤儿降级/运行中
   running）纯函数可单测（+4 例）；流式实时行同款。vitest 214/1594、
-  drift 559、冒烟 200。详见 releases/v4.63.0.md。
+  drift 559、冒烟 200。详见 releases/archive/v4.63.0.md。
 
 ## 最新发布：v4.62.2（2026-09-04）「修复：对话标签页实时输出失聪」
 
@@ -1078,7 +1078,7 @@
   信封拆包（unwrapModelToolOutput）与 GaeaTaskList 传 []。
 - 验证：Go 全量绿、tsc/eslint 0、vitest 214/1590、drift 559、冒烟 200
   （首次构建因运行实例锁 exe 未写入，taskkill 重建后 hash 已核异）。
-  详见 releases/v4.62.2.md。
+  详见 releases/archive/v4.62.2.md。
 
 ## 最新发布：v4.62.1（2026-09-04）「修复：子代理流式打断对话窗过程可见性」
 
@@ -1088,7 +1088,7 @@
   通道（gaea-subagent-text，无 seq、有损无妨）+ 死映射移除 + forwarder
   不变量成文 + bridge onSubagentText + 回归测试（seq 无断号钉子）。
 - 验证：Go 全量绿（1 个 Windows TempDir 清理竞态 flaky 复跑通过）、
-  tsc/eslint 0、vitest 214/1587、drift 559、冒烟 200。详见 releases/v4.62.1.md。
+  tsc/eslint 0、vitest 214/1587、drift 559、冒烟 200。详见 releases/archive/v4.62.1.md。
 
 ## 最新发布：v4.62.0（2026-09-04）「办公板块：子代理逐 token 流式 · 交付验收闭环 A2」
 
@@ -1109,7 +1109,7 @@
 - **验证**：go vet/test 全量绿；tsc -b/eslint 0；vitest **214 文件/1586
   用例**；drift PASS（**559** 零变更）；build.bat 冒烟 /api/health 200。
   **走查受限如实记录**：新能力依赖真机 docx/子代理数据，?mock=1 无法驱动，
-  以 60+ 新 jsdom 用例为验收面（同 v4.59 A1 先例）。详见 releases/v4.62.0.md。
+  以 60+ 新 jsdom 用例为验收面（同 v4.59 A1 先例）。详见 releases/archive/v4.62.0.md。
 
 ## 最新发布：v4.61.0（2026-09-04）「子代理会话闭环 · Word 目录侧栏」
 
@@ -1123,7 +1123,7 @@
 - **验证**：Go 逐包全量绿（test-all.ps1）；vitest **211 文件/1535 用例**；
   tsc -b/eslint 0；check-bindings-drift PASS（**559**）；版本三源 4.61.0
   sync/check PASS；产物 gaea-v4.61.0.exe 冒烟 /api/health 200 通过；SHA256
-  见 releases/SHA256SUMS-v4.61.0.txt。记录：releases/v4.61.0.md +
+  见 releases/SHA256SUMS-v4.61.0.txt。记录：releases/archive/v4.61.0.md +
   CHANGELOG/README 版本表；欠账清单见发布说明（逐 token 流式 P1 等）。
 
 ## 最新发布：v4.60.0（2026-09-03）「better-sidebar pane 化三刀 · 文件打开统一开 tab」
@@ -1139,7 +1139,7 @@
 - **验证**：Go 全量 **121/121 包**、vitest **210 文件/1525 用例**、
   tsc -b/eslint 0、drift PASS（559）；产物 gaea-v4.60.0.exe 冒烟
   /api/health 200 通过；SHA256 见 releases/SHA256SUMS-v4.60.0.txt。
-- 记录：releases/v4.60.0.md + docs/better-sidebar-port-2026-09-03-worktree.md
+- 记录：releases/archive/v4.60.0.md + docs/better-sidebar-port-2026-09-03-worktree.md
   + docs/snapshots/2026-09-03-better-sidebar-port/。
 
 ## 在途快照：Word 预览目录侧栏（eb84c82c，未发版）
@@ -1235,7 +1235,7 @@
   语义回归锁，559 不变，models 重生成）；收口抓潜伏雷——ChatPanel 直调
   wailsjsCompat 浏览器同步抛致设置聊天分组白屏（`?.` 不防执行），try 兜底
   修复。559 零变更，vitest 204/1457，?mock=1 九分组零错误。详见
-  releases/v4.59.0.md。
+  releases/archive/v4.59.0.md。
 
 - **此前发布：v4.58.0（2026-09-03）「继续：三线并行收欠账 · 同章搜索重定位
   缺陷修复」**：A 小说域——同章搜索重定位缺陷根因实锤+最小修复（searchLocateSeq
@@ -1245,7 +1245,7 @@
   保真，648→682）；主代理收口——GetModelMonitor 三消费点迁 getModelMonitor()
   三态回退（wailsjsCompat 直读绕过 bridge mock =「wailsjsCompat 生成物消费族」
   欠账真身）、mock 补 GetEngines 空态。559 零变更，vitest 202/1442，?mock=1
-  零横幅。详见 releases/v4.58.0.md。
+  零横幅。详见 releases/archive/v4.58.0.md。
 - **此前发布：v4.57.0（2026-09-03）「设置中心化繁为简：删四补一 · 界面语言
   入口」**（用户点名刀）：删四（grep 核真伪、零功能损失）——绘梦纯展示卡、
   小说剧照零交互卡（并入 desc）、关于「系统信息」→「存储路径」、api/
@@ -1253,7 +1253,7 @@
   setPref 首个入口，跟随系统/简体/繁體/English）；修一坑——ImageGenPanel
   补 comfyui_url/image_save_dir 回填防清空已存配置。559 零变更，
   vitest 197/1393。走查注记：IAB 内 antd 下拉鼠标点不开、键盘可开（环境
-  怪癖），选项派发点击验证语言双向切换。详见 releases/v4.57.0.md。
+  怪癖），选项派发点击验证语言双向切换。详见 releases/archive/v4.57.0.md。
 - **此前发布：v4.56.0（2026-09-03）「继续完善：拆分第二步 · mock 补 Herdsman
   族 · 并行 task 卡关联」**：三线并行——A：ChapterPage 拆分第二批（三函数再
   搬 chapter/readingHighlight.ts，累计净减 ~111 行+14 用例；ref 包装保留论证
@@ -1263,7 +1263,7 @@
   （+13 用例，宁缺勿错）。收口补 GetModelCallStats 空聚合（统计横幅消除）。
   559 零变更。**新欠账：wailsjsCompat 生成物消费族浏览器 mock 缺口
   （ResourceMonitor 直读 window.go 报资源加载失败，建议独立刀迁 bridge）；
-  GaeaBenchmark* 五方法未 mock**。详见 releases/v4.56.0.md。
+  GaeaBenchmark* 五方法未 mock**。详见 releases/archive/v4.56.0.md。
 - **此前：v4.55.0（2026-09-03）「继续完善：拆分补测起步 · mock 补面 ·
   failover 文案 label 化」**：三线并行——A：ChapterPage 首次拥有测试（阅读
   高亮三函数搬 chapter/readingHighlight.ts 净-49 行+15 用例；拆分第二步=
@@ -1272,18 +1272,18 @@
   mock-scenarios 锁 window.go 必须为空，回退只能在调用点做；mock 缺
   HerdsmanModelCatalog 新欠账）；C：failover toast 统一 engineLabel（三级
   回退不变）。销账：右舷虚线交叠（DOM 证伪）。走查：?mock=1 调度三开关点亮
-  +CUA 三方核对。559 零变更。详见 releases/v4.55.0.md。
+  +CUA 三方核对。559 零变更。详见 releases/archive/v4.55.0.md。
 - **此前：v4.54.0（2026-09-03）「继续完善：三线并行收欠账」**：
   A 办公面板（任务中心空态文案+MergedPanel 分隔线）；B 首页「编程」span 4×1
   宽瓦片收末行空位（30 单位整除，四档核算入 home.md）；C eslint 三 warning
-  清零（**全量首次 0/0**）。559 零变更；judge 2/2 pass。详见 releases/v4.54.0.md。
+  清零（**全量首次 0/0**）。559 零变更；judge 2/2 pass。详见 releases/archive/v4.54.0.md。
 - **此前：v4.53.0（2026-09-03）「办公欢迎界面化繁为简：四点降噪 · 右栏 6→4」**：
   用户四点拍板——删 ContextBar（上下文走主区标签页）、删侧栏底部模型卡
   （FeatureModelBar 连组件清，入口统一顶栏）、产物+变更与任务+分工**直接合并
   为一个面板**（用户纠正：非二级标签/段切换；MergedPanel 上下分区同屏全可见；
   一级 Tab 6→4；旧 id changes/subagents 裸 id/记录/启用集三路径别名收敛）。
   零功能删除。judge 3/3 pass 无 must_fix。**欠账：任务中心空态副文案与办公
-  语境不符（占位残留）；产物/变更分隔线偏淡**。详见 releases/v4.53.0.md。
+  语境不符（占位残留）；产物/变更分隔线偏淡**。详见 releases/archive/v4.53.0.md。
 - **此前：v4.52.0（2026-09-03）「首页重设计：星枢港 · 双舷驾驶舱」**：
   用户点名「使用技能重新设计首页」（ui-ux-pro-max --design-system AI-Native UI
   方向+星枢令牌）。ModuleLauncher/css 全量重写：左舷=紧凑 Hero（左对齐，27px）+
@@ -1293,14 +1293,14 @@
   状态细条+底部信息条并右舷、门廊瓦片化。≤1180 侧舷下落+旗舰单行横向排布
   （judge must_fix）。i18n 三语 648 键（+3/改3/删22 含 9 v3 死键）。
   judge 两轮 overall pass。**新欠账：矩阵末行右一空位（10 瓦片+3 列固有）**。
-  详见 releases/v4.52.0.md。
+  详见 releases/archive/v4.52.0.md。
 - **此前：v4.51.0（2026-09-03）「壳层左缘修复 · 创建青鸟助手深链直通绑定」**：
   双线并行子代理——A：MainLayout 右列预留 --v3-rail-w 48px（根因=rail fixed 浮层
   热区，v4.50 欠账销账）；B：创建青鸟助手 → wxFocus sessionStorage 焦点 → NAVIGATE
   crossSpace 跨空间 → 选中未绑定助手直开扫码（收口修复 S2.1 同空间守卫静默丢
   弃缺口；MainLayout 新增显式 crossSpace 分支）。附带修造价「最近更新」备注窄
   列叠压。judge 视觉验收 overall pass。**工具欠账：IAB 截图管道两次卡死，Edge
-  无头 puppeteer-core 备援通道已建（%TEMP%\pptr-shot）**。详见 releases/v4.51.0.md。
+  无头 puppeteer-core 备援通道已建（%TEMP%\pptr-shot）**。详见 releases/archive/v4.51.0.md。
 
 - **最新发布：v4.50.0（2026-09-03）「造价数据库化繁为简」**：绑定面 559 零变更——
   导航 8→6（价格源+价格仓库+询价库归并「价格数据」三段；知识图谱降为概览「关联图
@@ -1309,36 +1309,36 @@
   CostLibrary；dev mock 补询价/五算九方法（走查抓到真缺口）。judge 视觉验收两轮
   overall pass。**新欠账（建议壳层刀）：全局 main 区未给收起态 rail 预留左边距，
   全板块最左列首字符被裁（ref-weixin 基线证明非本刀回归）**。设计蓝图
-  pages/cost.md。详见 releases/v4.50.0.md。
+  pages/cost.md。详见 releases/archive/v4.50.0.md。
 
 - **最新发布：v4.49.0（2026-09-02）「青鸟助手生命周期补全」**：双线并行子代理——
   ①编辑已有助手（改名/换人格/立绘，选择器抽 PersonaPickerPanel 新增/编辑共
   用，自定义人格 id 不在选项时保留原值）；②角色库 custom 角色卡一键创建未绑
   定助手；③**镜像守卫**：EnsureAssistants 跳过 custom 命中行（修复 v4.48 隐
   患：custom 角色被选为人格后启动时被镜像覆写）。**微信侧剩余欠账：从青鸟板
-  块深链跳回角色库（创建后引导绑定目前靠文案）**。详见 releases/v4.49.0.md。
+  块深链跳回角色库（创建后引导绑定目前靠文案）**。详见 releases/archive/v4.49.0.md。
 
 - **最新发布：v4.48.0（2026-09-02）「青鸟：板块更名 + 人格选择器」**：微信助手
   更名「青鸟」（青鸟传信；board id/绑定面不动，意图别名加青鸟，原名兼容）；
   新增助手弹窗手填人格 ID → 双栏选择器（轻语预设+角色库可聊天角色、搜索、
   立绘/人设详情预览、18+ 过滤、portraitUrl 落库回显）。**微信侧下一刀候选：
   编辑已有助手人格/立绘（现仅新增可选）、从角色库角色卡一键创建助手**。
-  详见 releases/v4.48.0.md。
+  详见 releases/archive/v4.48.0.md。
 
 - **最新发布：v4.47.0（2026-09-02）「微信助手星枢化：通讯枢纽工作台」**：UI 重构刀
   （绑定面 559 零变更、功能零删减）——三分区布局（玻璃细条+左通道轨道+主区三视图）、
   通道状态三重传达、扫码流三步指示、dev mock 补微信域、设计蓝图 pages/weixin.md。
-  本刀无新增欠账。详见 releases/v4.47.0.md。
+  本刀无新增欠账。详见 releases/archive/v4.47.0.md。
 
 - **最新发布：v4.46.0（2026-09-02）「小说板块第二轮」**：伏笔登记表闭环（写入口+合
   并语义+面板 CRUD）、导出扩展（EPUB 封面/仅主线/DOCX）、伴读问书多轮化、一致性 AI
   深检 v0（Continuity Linter MVP，诚实降级）。绑定面 557→559。**小说侧下一刀候选：
-  ChapterPage 拆分补测、搜索高亮落划线、branches.json 历史**。详见 releases/v4.46.0.md。
+  ChapterPage 拆分补测、搜索高亮落划线、branches.json 历史**。详见 releases/archive/v4.46.0.md。
 
 - **最新发布：v4.45.0（2026-09-02）「百炼全量下线」**：用户拍板删干净——引擎/配置/UI/
   微信改图链（v4.9 起）全量退役，img2img 保留 ComfyUI/Herdsman；SetImageBackend 收 4 参
   （绑定面 557 零变更）；wx_agent 工具面 7→6；gen_bindings 空白参数名修复。详见
-  releases/v4.45.0.md。
+  releases/archive/v4.45.0.md。
 
 - **最新发布：v4.44.0（2026-09-02）「绘梦专项三刀：百炼模型残留修复 · 引擎枚举
   单源化 · 模板画幅落地」**：绘梦板块专项摸底后收三条互不相交线（主代理直改 +
@@ -1357,7 +1357,7 @@
   Go 全量 exit 0（+8）、tsc -b/eslint 0、vitest 1285/1285（+11）、drift 557、
   版本四处 4.44.0。**下一刀候选（绘梦侧）**：dashscope 图生图 UI 内「参考图+
   指令」一键改图入口（v4.40 引擎能力就绪）、百炼 txt2img（qwen-image-2.0 系）
-  后端放行、GLM 切换前置引导。详见 releases/v4.44.0.md。
+  后端放行、GLM 切换前置引导。详见 releases/archive/v4.44.0.md。
 
 - **上一发布：v4.43.0（2026-09-02）「小说板块优化四刀」**：小说板块自 v4.3.1
   后首次专项投入（摸底盘点后四条互不相交线并行子代理，零 UI 结构变更）：
@@ -1367,32 +1367,32 @@
   「共 N 处·M 章」）；④一致性两 bug（分支章节纳入扫描、断档不停扫）；
   死代码清理 5 文件（未挂载分支组件+孤儿 search.ts）。**下一刀候选（小说侧）**：
   伏笔登记表写入口、Continuity Linter AI 化、导出扩展（EPUB 封面/DOCX/仅主线）、
-  ChapterPage 拆分补测。详见 releases/v4.43.0.md。
+  ChapterPage 拆分补测。详见 releases/archive/v4.43.0.md。
 
 - **上一发布：v4.42.0（2026-09-02）「微信智能体 v1」**：用户拍板微信消息由 LLM
   工具调用派发（7 工具零改动复用 exec，ChatStream tools 管道既有，4 轮/60s，
   能力门目录 Caps tools 宁缺勿滥整链回落）；正则路由降兜底，提醒/文件快路径
   保留。**真机验证**：自然语言任意派发（「把产物发给我」验证出站文件卡；无工具
   可做时应如实说做不到不再幻觉）。**下一刀候选**：办公板块工具化（文件整理调用
-  办公板块，用户点名）。详见 releases/v4.42.0.md。
+  办公板块，用户点名）。详见 releases/archive/v4.42.0.md。
 
 - **最新发布：v4.41.2（2026-09-02）「产物推送放宽+反幻觉护栏」**：真机实证
   「重新整理后发给我」未命中推送意图、模型幻觉声称已发送——意图第四式+复合
   请求诚实能力答复+聊天反幻觉提示；**入站链 turn 102 已验证通过**（确认收件+
   概括+询问需求）。**出站实测**：微信发「把产物发我」（黄甲工作区有 9-1 docx
   产物；失败读 wx_capture.jsonl upload_probe）。新欠账：微信触发办公任务闭环
-  （改文档并回传）。详见 releases/v4.41.2.md。
+  （改文档并回传）。详见 releases/archive/v4.41.2.md。
 
 - **最新发布：v4.41.1（2026-09-02）「真机修复」**：文件提取正文误过意图路由被
   「打开/看看+编程」碎片劫持（发报告回「打开编程」）——文件消息按注入头识别
   直通轻语聊天（跳过提醒+意图，追加确认收件+询问需求引导）。新欠账：导航子串
-  匹配普遍松动（语音/Ctrl+K 同链）需单独设计。详见 releases/v4.41.1.md。
+  匹配普遍松动（语音/Ctrl+K 同链）需单独设计。详见 releases/archive/v4.41.1.md。
 
 - **最新发布：v4.41.0（2026-09-02）「微信文件收发」**：入站 file_item 真机抓包
   定稿（与图片同构）→ 防线下载 → wx_files 自持 → docmd 提取注入对话；出站文件卡
   探针制（media_type=3 假设 + upload_probe 埋点 + 降级链）；「把刚才的报告发我」
   产物推送意图。**待真机复验**：①重发文件看提取回复 ②发「把产物发我」看文件卡
-  （失败读 wx_capture.jsonl upload_probe errcode 迭代）。详见 releases/v4.41.0.md。
+  （失败读 wx_capture.jsonl upload_probe errcode 迭代）。详见 releases/archive/v4.41.0.md。
 
 - **最新发布：v4.40.0（2026-09-02）「对话式改图」**：微信发图+一句指令→编辑出图→
   图片卡回推。百炼 DashScope 引擎（qwen-image-edit-plus，仅 img2img，官方契约核实
@@ -1401,7 +1401,7 @@
   选项与三处门禁白名单。绑定面 557 零变更（EditImageFromCard 收口改未导出——教训：
   内部链路方法小写开头防门面完整性测试逼进绑定面）。三路并行子代理实施。
   **下一刀**：B 文件收发（file_item 真机抓包硬前置，可先抓包定稿协议）。详见
-  releases/v4.40.0.md。
+  releases/archive/v4.40.0.md。
 
 - **最新发布：v4.39.0（2026-09-02）「微信助手管理台 · 多微信并行」**：定位用户拍板
   纠偏=聊天/出图/改图/收发文件/多微信并行（调研 docs/market-research-2026-09-02b.md）。
@@ -1409,7 +1409,7 @@
   manager.Update 写回扩展（空值保留）+ Save 空 token 保留凭据 + AssistantName 锁外
   直写竞争修复（内部 whisperChat 链，注入入 LockTurn 窗口）。绑定面 557 零变更；
   两路并行子代理实施。**下一刀**：A 对话式改图（Qwen-Image-Edit+改图意图+InitImage
-  接线）→ B 文件收发（抓包前置）。详见 releases/v4.39.0.md。
+  接线）→ B 文件收发（抓包前置）。详见 releases/archive/v4.39.0.md。
 
 - **最新发布：v4.38.0（2026-09-02）「目录通用化」**：用户指出 v4.36.0 元数据目录只覆盖
   GLM——扩展到 deepseek/xai/opencode-zen（model_catalog.json v1，25 条目官方互证核实；
@@ -1418,7 +1418,7 @@
   zen 8 模型新增计价，旧条目回归锁）；fetchModels 动态列表 enrich（徽标自动点亮，前端
   零改动）。内置表过时暴露：deepseek-chat/reasoner 官方 2026-07-24 停用、grok-4/3 系
   已下架。绑定面 557 零变更；filewatch TestCloseStopsEvents 全量首跑超时为负载 flaky
-  （单跑/整包复跑绿，先例一致）。详见 releases/v4.38.0.md。
+  （单跑/整包复跑绿，先例一致）。详见 releases/archive/v4.38.0.md。
 
 - **最新发布：v4.37.1（2026-09-02）「模型中心四刀」（调研 docs/market-research-2026-09-02.md
   → 用户拍板 ABCD → 同日 v4.35.0/v4.36.0/v4.37.0/v4.37.1 四刀四 tag，绑定面 552→555→557）**：
@@ -1435,7 +1435,7 @@
   git commit 中文乱码用 -F UTF-8 文件 amend。**验证**：Go 全量 test exit 0、tsc -b/eslint 0、
   vitest 1243/1243、drift PASS（557）。**欠账**：A2/B2、降噪折叠、palette 个性化、task 卡
   空 ref、-race、model-failover 文案 engineLabel 化、dev mock 补 failover、自定义引擎用户
-  价目（目录 v3 候选）。详见 releases/v4.35.0.md~v4.37.1.md。
+  价目（目录 v3 候选）。详见 releases/archive/v4.35.0.md~v4.37.1.md。
 
 - **最新发布：v4.34.0（2026-09-02）「子代理气泡恢复 · 恢复会话不再丢失子代理答复」**：
   git tag v4.34.0；基线 v4.33.0；绑定面 **552 零变更**（HistoryMessage 字段级，
@@ -1459,7 +1459,7 @@
   回归全绿=投影语义零改动证明）；tsc -b/eslint 0；vitest **1210/1210**（+3）；drift
   PASS（552）。**欠账**：渲染层未单独加测试（复用 Message 两态覆盖）；types 交叉扩展
   待回收；沿旧 A2 帧流/接管、B2 pptx 真编辑（独立刀体量需先规划）、降噪折叠、palette
-  个性化、空 ref 轮询窗口、-race 无 gcc。详见 releases/v4.34.0.md。
+  个性化、空 ref 轮询窗口、-race 无 gcc。详见 releases/archive/v4.34.0.md。
 
 - **上一发布：v4.33.0（2026-09-02）「细节收口 · 第三刀：回滚守卫统一/pdf 占位比精确化/
   主区预览懒加载对齐」**：git tag v4.33.0；基线 v4.32.0；绑定面 **552 零变更**。三并行
@@ -1485,7 +1485,7 @@
   **验证**：Go build/vet/全量 test exit 0；tsc -b/eslint 0；vitest **1207/1207**（+11：
   线B +8/线C +3，旧锁零删改）；drift PASS（552）；版本四处 4.33.0。**欠账**：rollback
   守卫 8KB 窗口外边界（见①）；独立刀候选=子代理气泡恢复；沿旧 A2 帧流/接管、B2 pptx
-  真编辑、行级降噪折叠、palette 个性化、-race 无 gcc。详见 releases/v4.33.0.md。
+  真编辑、行级降噪折叠、palette 个性化、-race 无 gcc。详见 releases/archive/v4.33.0.md。
 
 - **上一发布：v4.32.0（2026-09-02）「细节收口 · 第二刀：回滚可撤销/产物自动弹出/弹窗
   pdf 懒加载/预览最大化持久化」**：git tag v4.32.0；基线 v4.31.1；绑定面 **552 零变更**。
@@ -1519,7 +1519,7 @@
   **1196/1196**（+30：prefs 4+面板 4+pageLazy 19+弹窗 3，旧锁语义零删改）；drift PASS
   （552）；版本四处 4.32.0。**欠账**：rollback 卡手工修改守卫未接；弹窗 pdf 占位高为
   A4 估计值（滚动条比例非精确）；沿旧 v4.28 全部 + v4.30（降噪折叠/palette 个性化）+
-  环境（-race 无 gcc）。详见 releases/v4.32.0.md。
+  环境（-race 无 gcc）。详见 releases/archive/v4.32.0.md。
 
 - **上一发布：v4.31.1（2026-09-02）「-count>1 全量绿化 · 测试全局态 -count 不兼容根治 +
   whisper 末气泡真 bug 修复」**：git tag v4.31.1；基线 v4.31.0；绑定面 **552 零变更**
@@ -1534,7 +1534,7 @@
   全绿、发射器 -count=300 全绿、tasks -count=20 仍全绿、**全量 `go test -count=2 ./...` 与
   -count=5 ./... 双绿 exit 0**、tasks -shuffle=on -count=10 无顺序依赖、go vet 全绿；前端
   零改动；drift PASS（552）；版本四处 4.31.1。**欠账**：-count>1 既有问题清零；-race 仍
-  不可用（无 gcc）；沿旧 v4.28 全部 + v4.30/v4.31 欠账。详见 releases/v4.31.1.md。
+  不可用（无 gcc）；沿旧 v4.28 全部 + v4.30/v4.31 欠账。详见 releases/archive/v4.31.1.md。
 
 - **上一发布：v4.31.0（2026-09-02）「细节收口 · 四线并行：单版本入口/弹窗 pdf 预览/历史轮
   耗时/tasks 竞态根治」**：git tag v4.31.0；基线 v4.30.0；绑定面 **552 零变更**（结构字段
@@ -1567,7 +1567,7 @@
   耗时未消费；弹窗 pdf 不虚拟化；单版本「版本」徽标静态文案；tasks -count>1 既有全局注册表
   duplicate kind 与 whisper 超时沿旧；沿旧 v4.28（A2 帧流/接管、B2 pptx 真编辑、子代理气泡
   恢复暂缺/中途进度不回投）+v4.30（预览最大化持久化、产物自动弹 tab）。详见
-  releases/v4.31.0.md。
+  releases/archive/v4.31.0.md。
 
 - **上一发布：v4.30.0（2026-09-02）「办公 UI 化繁为简 · 第二刀：产物置前/行级降噪/
   命令面板视图重排/预览两档」**：git tag v4.30.0；基线 v4.29.0；绑定面 **552 零变更**
@@ -1589,7 +1589,7 @@
   vitest **1157/1157**（+10：paletteRank 6+DeliverablesPanel 新徽标 2+FilePreview 两档 2，
   未删改旧锁）；drift PASS（552）；版本四处 4.30.0。**欠账**：产物自动弹 tab（激进版
   Auto-open）暂不做可加偏好；行级降噪仅悬停次行未做折叠重构；命令面板个性化排序远期；
-  预览最大化不持久化；沿旧 v4.28 全部。详见 releases/v4.30.0.md。
+  预览最大化不持久化；沿旧 v4.28 全部。详见 releases/archive/v4.30.0.md。
 
 - **上一发布：v4.29.0（2026-09-02）「办公 UI 化繁为简 · 顶栏收拢/自适应标签/
   预览降噪」**：git tag v4.29.0；基线 v4.28.0；绑定面 **552 零变更**（纯前端
@@ -1607,7 +1607,7 @@
   eslint 0；vitest **1147/1147**（+9：ExportMenu 5+WorkspaceTabs compact 3+
   FilePreview 1，未删改旧锁）；drift PASS（552）；版本四处 4.29.0。
   **欠账**：产物自动置前/角标；面板行级悬停次行化；palette 吸附右栏项+按视图
-  重排；预览半幅↔最大化两档；沿旧 v4.28 全部。详见 releases/v4.29.0.md。
+  重排；预览半幅↔最大化两档；沿旧 v4.28 全部。详见 releases/archive/v4.29.0.md。
 
 - **上一发布：v4.28.0（2026-09-01）「浏览器与版本 · 观察窗/版本时间线/pptx
   交互」**：git tag v4.28.0；基线 v4.27.4；绑定面 550→552（+GaeaPptxOutline/
@@ -1637,7 +1637,7 @@
   PASS（552）；版本四处 4.28.0。**欠账**：A2 帧流/接管/动态权限卡；B1 单
   版本无入口+恢复不先快照当前；B2 真编辑远期；沿旧（子代理气泡恢复暂缺/
   中途进度不回投/WorkHeader 历史轮耗时/窄栏适配/tasks flaky）。**下一刀
-  候选**：v4.29 从欠账池+调研剩余挑主轴。详见 releases/v4.28.0.md。
+  候选**：v4.29 从欠账池+调研剩余挑主轴。详见 releases/archive/v4.28.0.md。
 
 - **最新发布：v4.27.4（2026-09-01）「todo 持久化改名 · progress.md 撞名根治」**：
   git tag v4.27.4；基线 v4.27.3；绑定面 550 零变更。**勘误**：本文件四次被
@@ -1655,7 +1655,7 @@
   0 FAIL、前端零改动。**教训**：运行时产物文件名不得与宿主仓库约定文件同名
   ——自举项目工作区常驻本仓库，任何 <cwd> 相对写入都要过撞名审查；归因要
   先证伪（「并行会话」结论未核实就写进了三份发布说明）。详见
-  releases/v4.27.4.md。
+  releases/archive/v4.27.4.md。
 
 - **最新发布：v4.27.3（2026-09-01）「markdown 包裹符 · 交付卡片路径修复」**：
   git tag v4.27.3；基线 v4.27.2；绑定面 550 零变更。用户报告「交付卡片点击
@@ -1668,7 +1668,7 @@
   vitest 1095/1095、tsc -b/eslint 0。**教训**：路径正则字符集以「目标平台
   文件名合法字符集」为准——非法字符（Windows: \ / : * ? " < > |）必然是
   markdown/包裹符，作边界不作路径体。**progress.md 第四次被并行会话覆写
-  （backups/ 留档），再次恢复。**详见 releases/v4.27.3.md。
+  （backups/ 留档），再次恢复。**详见 releases/archive/v4.27.3.md。
 
 
 ## 当前状态
@@ -1691,7 +1691,7 @@
   刀无关）；tsc -b/eslint 0；vitest 1090/1090（+5）；drift PASS（550）。
   **教训：FileTree reveal 只锚 data-path——新增行型（目录）必须同步锚点，
   否则定位静默失效。progress.md 第三次被并行会话覆写（backups/ 留档第 3
-  份），再次从 git 恢复。**详见 releases/v4.27.2.md。
+  份），再次从 git 恢复。**详见 releases/archive/v4.27.2.md。
 
 
 ## 当前状态
@@ -1714,7 +1714,7 @@
   **教训：跨语言 wire 契约（Go struct json tag ↔ 前端严格解析）必须有一条
   「真实序列化形态」往返测试；omitempty 是严格校验的天敌。注意：.gaea/
   progress.md 被并行会话再次覆写并随 v4.27.0 提交，已再次从 git 恢复。**
-  详见 releases/v4.27.1.md。
+  详见 releases/archive/v4.27.1.md。
 
 
 ## 当前状态
@@ -1732,7 +1732,7 @@
   替换后仍可见）。vitest 1080/1080（170 文件）、tsc -b/eslint 0。**教训**：
   用户报告「与版本相关」的 bug 未必是版本回归——先用运行中的真实数据实证
   形态再定修法；中文办公文件名带（）是常态，路径类正则必须过全角括号用例。
-  详见 releases/v4.26.1.md。**注意：并行会话正在做 v4.27 右栏加宽
+  详见 releases/archive/v4.26.1.md。**注意：并行会话正在做 v4.27 右栏加宽
   （App/WorkspacePanel/workspaceTabs 未提交改动在工作区），提交时严禁 git add -A。**
 
 - **最新发布：v4.26.0（2026-09-01）「对话流式重造 · 对齐 Codex」（插刀）**：
@@ -1771,7 +1771,7 @@
   空 ref；历史轮无耗时数据源；TrajectoryView 未消费 kind="subagent" 记录。
   **下一刀 v4.27「浏览器与版本」**（原 v4.26 顺延）：A2 观察窗+B1 版本时间线
   +B2 pptx+C2/C3（调研弹药 docs/market-research-2026-09-01.md）。详见
-  releases/v4.26.0.md。
+  releases/archive/v4.26.0.md。
 
 
 ## 当前状态
@@ -1816,7 +1816,7 @@
   **下一刀 v4.26「浏览器与版本」**：A2 观察窗（截图步进流起版+操作时间线+
   权限卡内联）+ B1 版本时间线（写前内容寻址快照库与登记表同源+vN 徽标
   popover 双入口+恢复=新增版本）+ B2 pptx（结构化大纲卡先行+页级指令两通道）
-  + C2/C3。详见 releases/v4.25.0.md。
+  + C2/C3。详见 releases/archive/v4.25.0.md。
 
 - **最新发布：v4.24.0（2026-09-01）「子代理工作台 · 树拓扑/实时动态/
   产物登记表」**：git tag v4.24.0；基线 v4.23.0；绑定面 548→549（+1：
@@ -1853,7 +1853,7 @@
   登记表为独立只读区未与启发式合并去重（v4.25 A3 变更 tab 统一快照时处理）；
   下一刀 v4.25「文件工作台」（A3 编辑器 tab 化+变更 diff+模型主动打开+reveal
   +B3 选区联动）；v4.26 浏览器观察窗+版本时间线+pptx（A2/B1/B2/C2/C3）。
-  详见 releases/v4.24.0.md。
+  详见 releases/archive/v4.24.0.md。
 
 - **最新发布：v4.23.0（2026-08-31）「工作台框架 · 右栏工作台化第一刀」**：
   git tag v4.23.0；基线 v4.22.0；零新增绑定（548）。用户拍板：右面板重造为
@@ -1884,7 +1884,7 @@
   /api/health 200。**欠账**：Tab 拆分分栏/底部面板/自由窗口、设置二级齿轮
   弹窗、注册表懒加载 chunk 化；下一刀 v4.24「子代理工作台」（树形实时拓扑 +
   live 批量预览 + 节点耗时/进度 + transcript 工具级下钻 + 合并活动流 + 产物
-  登记表）。详见 releases/v4.23.0.md。
+  登记表）。详见 releases/archive/v4.23.0.md。
 
 - **v4.22.0（2026-08-31）「一次性收官 · 真虚拟化/transcript 定位/
   晨报预载 UI」**：用户要求「一次性做完」——办公板块剩余本地可做欠账一次
@@ -1907,7 +1907,7 @@
   交织在同一工作区，作为一次合并发布提交并打 tag v4.22.0（历史 release
   notes 保留演进记录）。剩余欠账仅外部资源/官方数据项（Realtime 真机、
   自动路由、浏览器下载上传/headless UI/Windows UIA、iLink 真机窗口）——本地
-  不可完成，不在「做完」范围。详见 releases/v4.22.0.md。
+  不可完成，不在「做完」范围。详见 releases/archive/v4.22.0.md。
 
 - **最新发布：v4.21.0（2026-08-31）「长会话与 transcript · 增量渲染/消息搜索」**：
   续 v4.20.0 剩余两条欠账（轨迹超长会话渲染量 + transcript 只读无搜索），
@@ -1923,7 +1923,7 @@
   **验证**：tsc/eslint 0；vitest 872/872（+2：超长会话增量渲染与加载更多、
   transcript 搜索）；Go cached 全绿、drift PASS（546）；版本四处 4.21.0。
   欠账：增量渲染为分批 DOM 而非 react-window 真虚拟化（渲染量有界但已渲染
-  部分仍为真实 DOM）；transcript 只读无跳转/引用定位。详见 releases/v4.21.0.md。
+  部分仍为真实 DOM）；transcript 只读无跳转/引用定位。详见 releases/archive/v4.21.0.md。
 
 - **最新发布：v4.20.0（2026-08-31）「剩余收官 · 子代理 transcript/轨迹概览/
   旧会话趋势补齐」**：清掉 v4.17-v4.19 三刀之后的剩余欠账，三件事一并落地：
@@ -1945,7 +1945,7 @@
   **验证**：Go 全量 0 FAIL（+2 用例）；tsc/eslint 0；vitest 870/870（+3）；
   drift PASS（546）；版本四处 4.20.0。欠账：轨迹虚拟滚动未做（以收起全部+
   概览跳转缓解渲染量）；子代理 transcript 只读无搜索。详见
-  releases/v4.20.0.md。
+  releases/archive/v4.20.0.md。
 
 - **最新发布：v4.19.0（2026-08-31）「看板收官 · 上下文浏览器//context 命令/
   子代理节点详情」**：续 v4.17.0+v4.18.0 的「继续完善」第三刀，上下文标签
@@ -1967,7 +1967,7 @@
   **验证**：Go 全量 0 FAIL（+1 用例）；tsc/eslint 0；vitest 867/867（+4）；
   drift PASS（545）；版本四处 4.19.0。欠账：子代理完整 transcript 查看器；
   轨迹 Overview 投影与虚拟滚动；迁移会话系统/工具分类与趋势柱（诚实不造
-  数）。详见 releases/v4.19.0.md。
+  数）。详见 releases/archive/v4.19.0.md。
 
 - **最新发布：v4.18.0（2026-08-31）「看板补全 · 文件活动/增量模式/实时刷新」**：
   续 v4.17.0（事件日志默认开启，轨迹/上下文数据源接通）后的「继续完善」，
@@ -1987,7 +1987,7 @@
   mock-contract vitest 22/22（+2）；drift PASS（545）；版本四处 4.18.0。欠账：
   上下文浏览器（surface 节点浏览/归档）仍占位；Agent 节点点击跳子代理会话；
   轨迹 Overview 投影与虚拟滚动；/context 命令；迁移会话系统/工具分类与趋势
-  柱（旧消息无 request_header/usage，诚实不造数）。详见 releases/v4.18.0.md。
+  柱（旧消息无 request_header/usage，诚实不造数）。详见 releases/archive/v4.18.0.md。
 
 - **最新发布：v4.17.0（2026-08-31）「轨迹上下文接通 · 事件日志默认开启」**：
   用户反馈办公板块「轨迹」「上下文」标签是空壳。排查结论：前端/绑定/折叠器
@@ -2005,7 +2005,7 @@
   （+6 用例）；tsc -b 0；看板组件 vitest 12/12；drift PASS（545）；版本四处
   4.17.0。欠账：迁移/兜底会话无 request_header/usage（系统/工具分类 0、趋势
   无柱，新会话完整）；Agent 网络对 legacy 会话仅 root；上下文增量模式/浏览器/
-  File activity/SSE 增量刷新 = v3.5 既定欠账。详见 releases/v4.17.0.md。
+  File activity/SSE 增量刷新 = v3.5 既定欠账。详见 releases/archive/v4.17.0.md。
 
 - **最新发布：v4.16.0（2026-08-31）「四刀并行 · 离线收口/浏览器键盘与 iframe/复核
   可视化/晨报预装配」**：用户拍板「全部并行处理」——v4.15.0 欠账四个可离线方向由
@@ -2030,7 +2030,7 @@
   build.bat 冒烟 200；版本四处 4.16.0。欠账：Realtime 真机（需用户真 key+麦克风）；
   自动路由本体（待官方逐模型缓存/峰谷数字）；浏览器 snapshot 不下钻 iframe/
   下载上传/headless UI/Windows UIA；通道 B 逐页缩略图；晨报预载无 UI 开关。详见
-  releases/v4.16.0.md。
+  releases/archive/v4.16.0.md。
 
 - **最新发布：v4.15.0（2026-08-31）「聊天路由归位 · 由谁回答」**：v4.14.0 欠账
   「自动路由 v1」经**用户拍板收缩**为最小价值刀——砍成本档位机制/auto_route 开关/
@@ -2047,7 +2047,7 @@
   （+7）；tsc/eslint 0/0；drift PASS（545 不变）；build.bat 冒烟 200；版本四处 4.15.0。
   欠账：自动路由本体未做（待官方逐模型缓存/峰谷数字后另刀）；persona 侧
   gaea_whisper_causal/retell 同类离线裂缝=观察项；按 source 拆分统计未做；plain
-  费用口径 usage 不可达恒 0（诚实降级）。详见 releases/v4.15.0.md。
+  费用口径 usage 不可达恒 0（诚实降级）。详见 releases/archive/v4.15.0.md。
 
 - **最新发布：v4.14.0（2026-08-31）「三箭并行 · 晨报预取 + 浏览器续刀 + 复核产品化」**：
   用户拍板「多刀并行」，三刀足迹隔离并行落地（探索子代理 ×3 代码地图 → 实现
@@ -2076,7 +2076,7 @@
   （545）；版本四处统一 4.14.0；build.bat 冒烟 200。欠账：晨报深度预装配（进
   agent 上下文）列第二刀；浏览器 iframe/键盘级 Input/下载上传/headless UI/
   Windows UIA；Verifier 通道 B 结果未进前端、复核明细绑定留待真实需求；
-  本地-云端自动路由 v1 顺延下一刀。详见 releases/v4.14.0.md。
+  本地-云端自动路由 v1 顺延下一刀。详见 releases/archive/v4.14.0.md。
 
 - **最新发布：v4.13.0（2026-08-31）「自动操作·浏览器」**：四柱「自动操作」
   唯一空柱的第一块砖（刀序④）。internal/gaea/browser 新包——msedge 三段式
@@ -2093,7 +2093,7 @@
   vitest 825/825（首跑 2 例负载 flaky 复跑 0 failed=既有先例）、drift PASS、
   build.bat 冒烟 200。欠账：多标签页、空闲 TTL 关停、文件下载上传/iframe/
   键盘级 Input 事件、headless 开关 UI、Windows UIA（下一块砖）。详见
-  releases/v4.13.0.md。
+  releases/archive/v4.13.0.md。
 
 - **v4.12.0（2026-08-31）「成本透亮」**：调研后第一刀（成本层，
   审计 T0 缺口②③的计价前置）——①GLM 价格表补全（原仅 glm-4.7 一条，GLM
@@ -2114,7 +2114,7 @@
   端实现子代理串行 → 主控全绿门禁复核。欠账：本地-云端路由 v1 本体（下一
   刀，目标函数=本地优先→缓存命中→峰谷）、Context Compiler 前缀策略化、国
   内 CNY 原价表（bigmodel.cn JS 渲染未取得，现 z.ai USD+汇率）、覆盖文件
-  UI 入口。详见 releases/v4.12.0.md。
+  UI 入口。详见 releases/archive/v4.12.0.md。
 
 - **模块制市场调研复扫（2026-08-31，调研非刀，v4.11.0 基线，绑定面 544 不变）**：
   8 子代理并行复扫（办公/造价/记忆/模型中心/编程/创作/轻语/触点），合成
@@ -2136,12 +2136,12 @@
 
 - **最新发布：v4.11.0（2026-08-30）「GLM 全模态纵深」**：基线 v4.10.0 + 1
   提交（29c23ee），绑定面 543→544；vitest 821/821、drift PASS（544）。
-  详见 releases/v4.11.0.md 与下方刀明细。欠账：做梦 2.0 主动预取、
+  详见 releases/archive/v4.11.0.md 与下方刀明细。欠账：做梦 2.0 主动预取、
   Realtime 真机、本地-云端自动路由 v1、iLink 语音/视频、更深跳因果。
 
 - **最新发布：v4.11.0（2026-08-30）「GLM 全模态纵深」**：基线 v4.10.0 + 1
   提交（29c23ee），绑定面 543→544；vitest 821/821、drift PASS（544）。
-  详见 releases/v4.11.0.md 与下方刀明细。欠账：做梦 2.0 主动预取、
+  详见 releases/archive/v4.11.0.md 与下方刀明细。欠账：做梦 2.0 主动预取、
   Realtime 真机、本地-云端自动路由 v1、iLink 语音/视频、更深跳因果。
 
 - **GLM 生图 + 官方双端点（2026-08-30，v4.10.0 后第一刀）**：①生图后端
@@ -2166,7 +2166,7 @@
 - **最新发布：v4.10.0（2026-08-30）「GLM 引擎 · 办公秘书人设」**：v4.9.0
   后 9 提交（GLM 引擎三轮真机打通 + 工作人设收口 + 审计欠账三刀 + Herdsman
   CLI 透明化），绑定面 540→543；vitest 818/818、drift PASS（543）、build.bat
-  冒烟 200。用户已确认 GLM 可用。欠账清单见 releases/v4.10.0.md。
+  冒烟 200。用户已确认 GLM 可用。欠账清单见 releases/archive/v4.10.0.md。
 - **GLM 按官方文档重写（2026-08-30，两轮不可用后核对 docs.bigmodel.cn）**：
   根本误判=智谱无 /models 端点（文档仅 chat/completions 等），此前测试连接
   /刷新模型永远失败。重写：glmStaticModels 静态目录（锚定官方模型概览：
@@ -2239,7 +2239,7 @@
   + 15 提交（轻语记忆回放系列 + 图谱三维度 + 跨事实因果推断 + 首页重构
   「星枢指挥所」+ 两段式启动动画 + 工程化收尾），绑定面 535→540；vitest
   818/818、drift PASS（540）、build.bat 冒烟 200（顺带修 pwsh→powershell
-  回退）。欠账清单见 releases/v4.9.0.md；下一执行 = Realtime 真机验证轮。
+  回退）。欠账清单见 releases/archive/v4.9.0.md；下一执行 = Realtime 真机验证轮。
 - **首页重构「星枢指挥所」+ 启动动画（2026-08-30，v4.9.0）**：启动默认从首页
   落地（MainLayout 不再恢复上次页面，跨空间恢复保留）；两段式启动动画
   （index.html 静态启动屏 → BootSplash 组件：光环 + 徽记 + 分步状态 + 进度条，
@@ -2325,7 +2325,7 @@
   PaddleOCR→MinerU→OvisOCR2 降兜底 ④身份类问题跳过联网搜索（乱字母根
   因）⑤关键坑锁死（type=2/aes_key=base64(hex)/上传域与扫码 baseurl 无
   关）。协议三方印证（本机抓包解密+hermes-agent+openilink SDK）。验证：
-  Go 全量绿、绑定 535 不变、前端零改动。详见 releases/v4.8.3.md。
+  Go 全量绿、绑定 535 不变、前端零改动。详见 releases/archive/v4.8.3.md。
 - **下一执行**：Realtime 真机验证轮（真 key 下端到端对话/打断体感/AEC，
   S2 骨架已就绪）；手写识别质量复测；iLink 语音/视频 item 未探明（静默
   跳过）=观察项；生命库可写化=观察项。
@@ -2584,7 +2584,7 @@
   回归 4 个新测试（含飞轮接线）
 - [x] **验证**：Go 全量绿（无 FAIL）；vitest 791/791（144 文件）；tsc/eslint 0；
   绑定面不变（变参向后兼容）；版本统一 4.6.0
-- 欠账（如实列示于 releases/v4.6.0.md）：规范包机制化 / 成本知识图谱+归因 /
+- 欠账（如实列示于 releases/archive/v4.6.0.md）：规范包机制化 / 成本知识图谱+归因 /
   生命库可写化（评估=不盲写 Herdsman 库）/ Verifier 通道 A 引用级深化 /
   Mood 不进前端手动朗读（设计如此）
 
@@ -2602,7 +2602,7 @@
   归因区；回归 3 测试
 - [x] **验证**：Go 全量绿；vitest 791/791（144 文件）；tsc/eslint 0；绑定面 531、
   spaceBindings 248、drift PASS；版本统一 4.6.1
-- 欠账（如实列示于 releases/v4.6.1.md）：iLink 文件卡片/字节级图片识别待真机
+- 欠账（如实列示于 releases/archive/v4.6.1.md）：iLink 文件卡片/字节级图片识别待真机
   收敛；成本知识图谱可视化形态；生命库可写化维持评估结论；微信通用能力触发
   依赖卡片协议
 

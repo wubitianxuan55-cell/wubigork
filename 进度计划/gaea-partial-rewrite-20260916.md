@@ -121,7 +121,7 @@ fake client 注入：partial 请求往返（选段拼接正确/版本字段/返�
 ## 4. 主代理收口（v4.321.0）
 
 线间对账 → tsc -b/eslint/定向 go+vitest → ci.ps1 恰一次 → 版本三处 → build →
-exe/SUMS/桌面副本/冒烟 → releases/v4.321.0.md+CHANGELOG/README×2 → .gaea
+exe/SUMS/桌面副本/冒烟 → releases/archive/v4.321.0.md+CHANGELOG/README×2 → .gaea
 AGENTS 迁 1 插 1+progress/todos → commit+tag。drift 复核 696（零绑定变化）。
 
 ## 5. 足迹互斥表

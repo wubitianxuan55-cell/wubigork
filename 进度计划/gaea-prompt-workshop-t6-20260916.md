@@ -224,7 +224,7 @@ PromptWorkshopPanel ≥5 用例（列表分组与徽标/编辑保存含 Issues �
 2. `cd frontend && npm run build`（tsc -b + vite）→ `wails build -s`。
 3. `scripts/ci.ps1` 全绿 exit 0（Go 129 包 + vitest ~366 文件；flaky 复跑先例）。
 4. 版本三处（wails.json / app_info.go / README + versioninfo.rc sync-version.ps1）4.323.0；
-   releases/gaea-v4.323.0.exe + SHA256SUMS + releases/v4.323.0.md + releases/README
+   releases/gaea-v4.323.0.exe + SHA256SUMS + releases/archive/v4.323.0.md + releases/README
    （本地产物只留最近 5 版）；桌面副本同哈希；smoke /api/health 200。
 5. 文档：CHANGELOG/README/.gaea AGENTS（迁 1 插 1）/progress/todos/本规格书补出口对照。
 

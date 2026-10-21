@@ -2,7 +2,7 @@
 
 > [已归档 2026-09-09] 已实施：v4.123.0（AOA 刀1 手动布点 pins）；刀2 混合布局优化入观察池。
 
-> 状态：**草案 v1 / 待拍板**（2026-09-06）。承接 releases/v4.118.0.md 欠账池「双代号手动布局」（v4.110.0 刀1 即挂账：「节点拖动微调与手动布线待后续刀」）。本文档只做调研与设计提案，未动任何代码；拍板后按 §5 分刀实施。
+> 状态：**草案 v1 / 待拍板**（2026-09-06）。承接 releases/archive/v4.118.0.md 欠账池「双代号手动布局」（v4.110.0 刀1 即挂账：「节点拖动微调与手动布线待后续刀」）。本文档只做调研与设计提案，未动任何代码；拍板后按 §5 分刀实施。
 
 ---
 
@@ -152,6 +152,6 @@
 ## 8. 参考
 
 - 现状件：frontend/src/schedule/{aoa.ts, layout.ts, AoaView.tsx, types.ts, drag.ts, store.ts, api.ts, GanttView.tsx}；internal/schedule/{types.go, project.go}；internal/app/gaea_schedule_file.go；internal/gaea/tool/builtin/schedule_tools.go
-- 先例口径：releases/v4.118.0.md（横道拖拽刀：转手动锁定/纯函数吸附/Esc/绑定面纪律）、releases/v4.110.0.md（AOA 刀1 语义与欠账原文）
+- 先例口径：releases/archive/v4.118.0.md（横道拖拽刀：转手动锁定/纯函数吸附/Esc/绑定面纪律）、releases/archive/v4.110.0.md（AOA 刀1 语义与欠账原文）
 - 格式基准：docs/gaea-office-mindmap-base-design-2026-09.md
 - 外部调研：[飞椽 gantt-planing-network](https://github.com/bimcc/gantt-planing-network)（节点拖动/箭线调整/多图互转）、[gantt.bimcc.net 文档](https://gantt.bimcc.net/docs/guide/introduce.html)、[CCPROJECT 功能页](http://www.ccproj.com/cchelp80/doufunctions.htm)、[亿图双代号网络图画法](https://www.edrawsoft.cn/activity-arrow-network-diagram/)、[ProcessOn 网络图](https://www.processon.com/network)、[专利 CN106408171A 启发式双代号自动绘制](https://patents.google.com/patent/CN106408171A/zh)、[时标网络图要素（波形线）](https://zhuanlan.zhihu.com/p/420262137)、[箭线图绘制规则](http://www.cnitpm.com/pm1/48016.html)

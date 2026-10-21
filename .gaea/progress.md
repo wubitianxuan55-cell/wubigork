@@ -511,7 +511,7 @@
 - **测试**：Go 新增 3 例（未知 runID 返 false/登记表生命周期 register→cancel 命中→unregister 后 false/**取消传播端到端**〔受控协程：真 ctx+登记+ChatStreamCancel→ctx.Done 传播→退出清表+二次取消幂等〕）+**反向验证**（cancel() 改 `_ = cancel` 必红还原）。app 整包 -count=1 绿（含既有 chat 域全部测试）。数字守卫实测抓真账。
 - **门禁**：全量 `ci.ps1` → CI OK；漂移闸 OK@4.437.0（743 一致）；spaceBindings 567。
 - **产物**：`releases/gaea-v4.437.0.exe` 51,807,744 B SHA256=`3458cc6740eb2500a8e61342d52b37a2df33b2945571a3d7e43d02c1c065bb87`（`SHA256SUMS-v4.437.0.txt`；冒烟 200 过）；保留策略删 v4.432.0.exe，实存 5 版（437/436/435/434/433）。
-- **文档**：`releases/v4.437.0.md` + CHANGELOG/README + releases/README + AGENTS 速览（迁 6 插 1）+ progress（本条）+ 优化方向档三标注。
+- **文档**：`releases/archive/v4.437.0.md` + CHANGELOG/README + releases/README + AGENTS 速览（迁 6 插 1）+ progress（本条）+ 优化方向档三标注。
 - **坑/教训**：①**登记表/锁字段放哪个 struct 要看消费方装配面**：chatStreamMu 首放 writingState（跟 chapterGenMu 同区块抄的）——裸 chat 测试桩（newChatServiceTestApp）不构造 writingState→nil 嵌入解引用 panic（mutex.Lock 在 nil 指针+字段偏移上炸）；chat 域字段归 core。②端到端取消测试对假站路由的依赖太深（chat feature 快速失败路径毫秒级退出清表）——受控协程（真 ctx+登记+传播断言）是更稳的端到端形态。③反向验证的 mutation 锚先 grep 确认再改（本次 python 替换锚没匹配上=假验证，改用 Edit 直改才真红）。
 - **观察池**：GenUI 预算常量合并（P2-2 独立项）/全部 Get*Stats 类字段缺失用例（P1-5 尾池）/停止入口真机走查（长回合停止手感+部分回复落库核验）。
 
@@ -522,7 +522,7 @@
 - **验证**：go build ./... ./go vet/gofmt/golangci-lint 四包 0 issues；app+ai+control+config 四包测试 -count=1 绿。随版收口 TestCreateChapterDigestInjection 的 **Windows unlinkat 竞态**（刀5 测试漏补 waitGensDone——v4.435 总结「CreateChapter 真链测试收尾必等」完整套用，八连跑全绿）。
 - **门禁**：全量 `ci.ps1` → CI OK（**首轮挂在册负载 flaky OriginalSinPage.tabs**——v4.414/v4.418 同款，单跑 4/4 绿，重跑全绿；漂移闸 OK@4.436.0（742 零变更））。
 - **产物**：`releases/gaea-v4.436.0.exe` 51,804,160 B SHA256=`bde9b4652abb9cee52488e4b73181837cf8e1c5b9471460ee6edd999f78754ac`（`SHA256SUMS-v4.436.0.txt`；冒烟 200 过）；保留策略删 v4.431.0.exe，实存 5 版（436/435/434/433/432）。
-- **文档**：`releases/v4.436.0.md`（含拆分明细表）+ CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
+- **文档**：`releases/archive/v4.436.0.md`（含拆分明细表）+ CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
 - **坑/教训**：①**大文件拆分的机械配方**：按顶层声明清单（grep '^func|^type|^const|^var'）定函数边界行号→整段行级搬移→新文件手写 import（编译器逐个报缺/报多余，两三轮收敛）→**段尾注释回填**（切点常落在文档注释中间，尾注释移回原文件对应 func 前）。②拆分切点选「功能族聚拢」而非对半切——新文件名即族名（context/workflows/proc/session/paths），下季复测可读性也受益。③后台 shell cwd 漂移再犯（git add 报 frontend/internal 不存在）——跨命令一律显式 cd。
 
 ## 最新发布：v4.435.0（2026-09-30）「长篇刀7：评测基线（七刀收官）」
@@ -535,7 +535,7 @@
 - **随版收口**：两处 HTTP 断言测试（SettingBudgetTrim/SpineInjection）全量负载下挂 **Windows unlinkat 竞态**——测试 return 后生成协程尾步（自动门/摘要/SceneRefs 回写）仍在写 chapters/，t.TempDir 清理撞 directory not empty（v4.233 在册坑复发）；补 waitGensDone（等登记表清空+chapterGenWG）。
 - **门禁**：全量 `ci.ps1` → CI OK（三轮修：errcheck Fprintf 返回值显式化/unused 类型删除/unlinkat 竞态）；漂移闸 OK@4.435.0（742 一致）；spaceBindings 566。
 - **产物**：`releases/gaea-v4.435.0.exe` 51,803,648 B SHA256=`f0262d5b4f57517512e4ac80e6900b6d1ec485e25a7895ef21570ceb336e4a4f`（`SHA256SUMS-v4.435.0.txt`；冒烟 200 过）；保留策略删 v4.430.0.exe，实存 5 版（435/434/433/432/431）。
-- **文档**：`releases/v4.435.0.md` + 规格 `进度计划/gaea-novel-eval-baseline-20260930.md` + CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
+- **文档**：`releases/archive/v4.435.0.md` + 规格 `进度计划/gaea-novel-eval-baseline-20260930.md` + CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
 - **坑/教训**：①**HTTP 断言型测试（捕获 requests 后即 return）在生成链有后台尾步协程时必挂 unlinkat**——测试收尾必须 waitGensDone（v4.233 坑的完整形态：不只取消型测试，任何 CreateChapter 真链测试都算）。②errcheck 对 fmt.Fprintf(hasher) 也报——写 hasher 的返回值显式丢弃 `_, _ =`。
 - **长篇七刀收官**：刀1 章节计划闭环（v4.422）→刀2 场景卡与场景级生成（v4.430）→刀3 故事层骨架（v4.431）→刀4 质量收敛闭环（v4.432）→刀5 风格学习回灌（v4.433）→刀6 上下文编译器（v4.434）→刀7 评测基线（本版）。诊断 §1.1~§1.14 的正面解全部落地。
 - **观察池（长篇线收尾）**：回归夹具 3×30 章人工病历（独立工程）/LLM 盲评+bootstrap/张力曲线聚合（随真机分析覆盖率）/真 A/B 双生成/七刀全链真机走查（多场景章+骨架+收敛+回灌联合体验）。
@@ -550,7 +550,7 @@
 - **测试**：Go 新增 4 例（joinStyleSections 合并矩阵含**单标题去重验收**〔「## 文风与表达」恰一处〕/相关性命中前移+零命中原序+预算内不丢弃/setting 超长 HTTP body 断言〔截断提示+前段保留〕/Inventory 清单）+bigram 永假反向验证必红还原；既有断言随合并标题同步（「本书文风」→「文风与表达」两处+刀5 HTTP 断言）。app 整包 -count=1 绿；小说域 38 文件/331 例；tsc 0。
 - **门禁**：全量 `ci.ps1` → CI OK（两轮修：①unused 兼容壳 buildStyleSection 零调用删除 ②gofmt 漏一处）；漂移闸 OK@4.434.0（739 一致）；spaceBindings 563。
 - **产物**：`releases/gaea-v4.434.0.exe` 51,777,536 B SHA256=`c87c5b06e6f88244225837683628d2d50ac1de0d05e14574869cde9353eb574a`（`SHA256SUMS-v4.434.0.txt`；冒烟 200 过）；保留策略删 v4.429.0.exe，实存 5 版（434/433/432/431/430）。
-- **文档**：`releases/v4.434.0.md` + 规格 `进度计划/gaea-novel-ctx-compiler-20260930.md`（含落地回填）+ CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
+- **文档**：`releases/archive/v4.434.0.md` + 规格 `进度计划/gaea-novel-ctx-compiler-20260930.md`（含落地回填）+ CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
 - **坑/教训**：①**worldview 测试须直写结构化 json sections**——md 路径触发 ReadWorldviewFile 的 legacy 迁移（全文塞「旧版世界观」section 再拼默认六维，维度结构面目全非）。②**中文文本的关键词分词全部无效**（unicode.IsLetter 汉字=true，FieldsFunc 整句单 token）——相关性匹配用 rune bigram 滑窗。③CI 的 golangci unused 闸比 go vet 严（兼容壳零生产调用即报）——抽函数先查调用面。④后台 shell cwd 漂移复发（python FileNotFoundError 三连）——跨命令一律先 `python -c "import os;os.chdir(r'C:\AI\wubigrok')"` 或显式 cd。
 - **观察池**：设定语义级检索（向量/关键词召回升级）/SceneBible 与主链编译层统一（场景路径现独立）/Inventory 专门 UI（调参面板）/真机验证截断提示的实际体验。
 
@@ -565,7 +565,7 @@
 - **随版收口**：刀2 测试 TestNovelChapterScenesGenerate_Gate/Flow 全量负载下 flaky（「未收到 done 事件」）——协程登记表清空（waitFor 通过）≠SSE 订阅端已收到 done 帧（flush 延迟），一次快照断言有竞态窗口；改 waitFor 轮询事件快照。
 - **门禁**：全量 `ci.ps1` → CI OK（首轮挂上述 flaky，修复后复跑全绿）；漂移闸 OK@4.433.0（738 一致）；spaceBindings 562。
 - **产物**：`releases/gaea-v4.433.0.exe` 51,764,224 B SHA256=`b73ee31c530480f409d6b2d13c87688d6bf151756e4728efe1e6373f6b445228`（`SHA256SUMS-v4.433.0.txt`；冒烟 200 过）；保留策略删 v4.428.1.exe，实存 5 版（433/432/431/430/429）。
-- **文档**：`releases/v4.433.0.md`（含 flaky 附注）+ 规格 `进度计划/gaea-novel-style-digest-20260930.md` + CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
+- **文档**：`releases/archive/v4.433.0.md`（含 flaky 附注）+ 规格 `进度计划/gaea-novel-style-digest-20260930.md` + CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
 - **坑/教训**：①**SSE 事件断言必须轮询不能一次快照**：协程退出（登记表清空）与订阅端收帧（SSE flush）有时延——全量负载下必现窗口；waitFor(cond) 轮询事件快照是标准式。②反向验证改阈值测不出单向放松（条件变宽断言照样过）——须改**永假**验证「行存在性」。③后台 shell 的 cwd 各自漂移——跨命令文件操作前先 `cd /c/AI/wubigrok` 或绝对路径。④`python /dev/stdin` 在 Windows 不可用——heredoc 直接 `python - <<'EOF'`。
 - **观察池**：few-shot 样本句直取（prompt 预算）/真模型对照实验（同题双生成量化 Delta 下降——回灌效果实证）/回灌后生成质量真机走查。
 
@@ -579,7 +579,7 @@
 - **测试**：Go 新增 6 例（判据矩阵〔S3 不阻断/空正文 S1/严格目标〕/预检 dry-run+空章报错/零轮直答零事件/**no-improve 回滚**〔坏文本+安全闸拒收→stopped 事件+磁盘字节回轮前〕/指令拼装/**回滚函数直测**〔写脏→快照回滚→字节还原〕——no-improve 集成里安全闸常使回滚成 no-op，灵敏度靠直测钉；语义改坏〔空操作回滚〕复验必红后还原）；前端新增 4 例（预览渲染/已达标禁用/启动+零轮直答/预检失败）。小说域 37 文件/325 例；tsc 0；eslint 0；internal/app+types 绿。
 - **门禁**：全量 `ci.ps1` → CI OK；漂移闸 OK@4.432.0（735 一致）；spaceBindings 557。
 - **产物**：`releases/gaea-v4.432.0.exe` 51,744,256 B SHA256=`283cb4ee4664716b215459f50438e572cbf71bf40df0896cf230b263c43d8a71`（`SHA256SUMS-v4.432.0.txt`；冒烟 200 过）；保留策略删 v4.428.0.exe，实存 5 版（432/431/430/429/428.1）。
-- **文档**：`releases/v4.432.0.md` + 规格 `进度计划/gaea-novel-converge-20260930.md`（含落地回填）+ CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
+- **文档**：`releases/archive/v4.432.0.md` + 规格 `进度计划/gaea-novel-converge-20260930.md`（含落地回填）+ CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
 - **坑/教训**：①**反向验证的语义 mutate 要能被被测路径真的执行到**：no-improve 集成场景里 rewriteUnit 安全闸全程拒收→回滚是 no-op→改坏回滚函数集成测试仍绿——补回滚函数直测（写脏→回滚→字节还原）钉住函数本身。②bash 双引号内的 python f-string 花括号同样会被 shell 吞（{sha} command not found）——外插值一律先 shell 变量再单引号 heredoc 或 Edit 工具。③v4 项目无场景文件的混合态章（迁移/手写 blob）在场景 API 语义下是空集——收集单元必须回落 blob（ReadChapterAsStitch 同款口径），否则混合态章被功能拒之门外。
 - **观察池**：平台评审（novelreview 15 维）并入判据（外部标准报告制，另刀）/场景卡字段级修补/收敛闭环真机走查（真实模型的 no-improve 率与轮次分布）。
 
@@ -594,7 +594,7 @@
 - **测试**：Go 新增 4 例（往返+拒绝矩阵 10 例/七维度造数含健康支线不误报+空 spine 空报告/切片渲染含空 spine 零注入+非绑定章不注入节拍行/**CreateChapter prompt HTTP body 断言含「故事层骨架」**）+**反向验证**（遗忘阈值 10→100 必红还原复绿）；前端新增 5 例（打开拉取空态/编辑保存 payload/提案填表单 Save 零调用/体检报告渲染/校验拒绝如实报错）。小说域 36 文件/321 例；tsc 0；eslint 0；internal/app+project+types 绿。
 - **门禁**：全量 `ci.ps1` → CI OK；漂移闸 OK@4.431.0（733 一致）；spaceBindings 数量锁 553→557。
 - **产物**：`releases/gaea-v4.431.0.exe` 51,712,512 B SHA256=`0d9023b372649056e54b4ead6c9157b0e0467f9bb6fb10da457712c01f14b94c`（`SHA256SUMS-v4.431.0.txt`；冒烟 200 过）；保留策略删 v4.427.0.exe，实存 5 版（431/430/429/428.1/428）。
-- **文档**：`releases/v4.431.0.md` + 规格 `进度计划/gaea-novel-story-spine-20260930.md`（含落地回填）+ CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
+- **文档**：`releases/archive/v4.431.0.md` + 规格 `进度计划/gaea-novel-story-spine-20260930.md`（含落地回填）+ CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
 - **坑/教训**：①python heredoc 写 Go 源码里的 `
 ` 字面量（三重转义）在 bash 层必降级——Go 代码修改一律 Edit 工具或 node 行级操作（本批 sceneGenPlanSection 重写又踩一次）。②node 插入脚本的下标顺序要核对声明先后（spineSec 插到了 ctxBudgetLeft 声明前——编译器抓住，行级重排修复）。③**产物 SHA/体积别预写**：先跑 release.ps1 再从 SUMS 与 ls 读实际值回填（本批预写错一次靠 cat 纠正）。
 - **观察池**：M7 伏笔池不并入 spine（伏笔体系在产独立）/M8 认知三表完整形态/M9 因果 DAG·时间线台账/弧线水位闸门（只体检提示）/体检自动触发（按需按钮与全书体检口径一致）/骨架面板真机走查。
@@ -608,7 +608,7 @@
 - **测试**：Go 新增 5 例（卡区段三态零回归底线/闸点名+跳过+**关闸反向验证必红**/两卡两场全链 done 事件+Stitch→blob+SceneRefs 断言/**卡进 prompt 的 HTTP body 断言**（requests 通道捕获）/场景重写他场字节不动+mode=scene 版本留痕）；前端新增 4 例（卡字段编辑保存/闸拒绝确认弹窗/拆卡提案可编辑+落卡调用链/重写指令空提示+执行）。ChapterEditor 12/12；小说域 35 文件/316 例；tsc 0；eslint 0 错 0 警；internal/app 整包 -count=1 绿。
 - **门禁**：全量 `ci.ps1` → CI OK（首轮挂 SA1012：抽共享内核后 GenerateScene 传 nil ctx——改 context.Background 后复绿）；漂移闸 OK@4.430.0（729 一致）；spaceBindings 数量锁 550→553。
 - **产物**：`releases/gaea-v4.430.0.exe` 51,645,440 B SHA256=`74974d7ae9f1e1975dfe6d3363c2bac36380bd1f2cee8408939af29298ea8a11`（`SHA256SUMS-v4.430.0.txt`；冒烟 200 过）；保留策略删 v4.426.0.exe，实存 5 版（430/429/428.1/428/427）。
-- **文档**：`releases/v4.430.0.md` + 规格 `进度计划/gaea-novel-scene-cards-20260929.md`（含落地回填）+ CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
+- **文档**：`releases/archive/v4.430.0.md` + 规格 `进度计划/gaea-novel-scene-cards-20260929.md`（含落地回填）+ CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
 - **坑/教训**：①**bash 内联 node -e 的模板字符串美元花括号被 shell 吞**（backtick 串里的 ${} 当 bad substitution）——多行前端补丁一律 .mjs 文件化执行（Write 工具写脚本→node 执行→删）。②**CRLF 文件的 python LF 锚不匹配**（read newline='' 保留 
 ，replace('
 ') 锚全 miss 静默）——跨行替换用 node split/join 或 Edit 工具（本批 Step3 补丁的 '
@@ -626,7 +626,7 @@
 - **测试**：Go 新增 8 例（project 3：缺口续扫/主线过滤/迁移 fail-closed；app 5：连接建立阶段取消走 cancelled/嵌套节点两处递归/计划并发不丢更新/缺口计数）+rewrite reanchored 断言并入既有 13 例+prompt 测试改写（含 chapter-review 存在性）+main_test embed 清单同步；前端新增 9 例（回填守卫 2/曲线代际 1/伏笔短路 1/重写历史切书 1/Cmd+K 2/reanchored 2）。**四项反向验证改坏必红全部还原复绿**：取消分支/缺口续扫/伏笔短路/曲线守卫（曲线守卫初版用切书场景——svg 嵌在 report 分支内，切书清 report 后断言恒真测不出守卫缺失，改造成「重跑体检」场景才有灵敏度）。小说域定向 35 文件/312 例全绿；tsc -b 0；改动面 eslint 0 错 0 警。
 - **门禁**：全量 `ci.ps1` → CI OK（golangci v2.14.0 0 issues/Go 全量绿/前端 vitest 409 文件 3558 例/E 系+卫生守卫）；漂移闸 OK@4.429.0（726 一致）。
 - **产物**：`releases/gaea-v4.429.0.exe` 51,592,192 B SHA256=`f90bee694ceaf3ee7cd624ef3633337f05bf35a56b7b9384d310d14e96a1e7a6`（`SHA256SUMS-v4.429.0.txt`；build.bat 冒烟 `/api/health` 200 过）；保留策略删 v4.425.0.exe，实存 5 版（429/428.1/428/427/426）。
-- **文档**：`releases/v4.429.0.md` + 规格 `进度计划/gaea-novel-watchpool-20260929.md` + CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
+- **文档**：`releases/archive/v4.429.0.md` + 规格 `进度计划/gaea-novel-watchpool-20260929.md` + CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
 - **坑/教训**：①**release.ps1 预检挡未跟踪文件**——规格+发布说明正文须先 docs commit 再跑（v4.425 两段式同款：fix→docs→release）。②**测试期与后台全量 go test 并发改码=编译竞态自伤**（反向验证 mutate/restore 期间 ci 的 go test 编译到中间态裸 FAIL 无包名——反向验证必须在 ci 冻结窗口外做，且 ci 日志别 tail 截断要全量落盘）。③**python heredoc 写 TS 字面量 
  的 CRLF 变体**：文件行尾 CRLF 时 python 的 
  锚不匹配（LF 版匹配）——跨行 replace 失败静默，须 node split/join 或行级操作。④**还原性验证必须复跑对应测试**：mutate→红→restore 的 restore 若锚不完整（只回注释没回代码体），单看 grep 通过会漏——还原后必须重跑该用例（本批 CancelDuringConnect 曾因此带病过夜到全量 ci 才暴露）。⑤**测试断言要选得出区分度的场景**：曲线守卫切书场景里 svg 的渲染条件（report 非空）被切书本身破坏=断言恒真；换重跑体检场景（report 被同值替换非空）才能测出守卫缺失。
@@ -640,7 +640,7 @@
 - **测试**：新增 `TestWalkthroughOverrideIsolatesAppData`（开=重定向+目录创建；关=原样不动；前序用例已重定向时先归位临时目录防串场——定值沙箱路径让断言依赖用例顺序）；config 包全绿。
 - **门禁**：全量 `ci.ps1` → CI OK；漂移闸 OK@4.428.1（727 一致）。
 - **产物**：`releases/gaea-v4.428.1.exe` 51,582,464 B SHA256=`380318d95e101f839e26d43061e21dc79c673a8e0744ca714b532a5e4072f746`（`SHA256SUMS-v4.428.1.txt`；build.bat 冒烟 `/api/health` 200 过）；保留策略删 v4.424.0.exe，实存 5 版（428.1/428.0/427/426/425）。
-- **文档**：`releases/v4.428.1.md` + CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
+- **文档**：`releases/archive/v4.428.1.md` + CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
 - **坑/教训**：①**CDP dispatch 与读 DOM 必须分两次 evaluate**（React 批渲染的同步旧读假象——方向键导航两处一度误判 no-op，分开读全过）。②**验证卡体别用类选择器猜**：`sin-acc-panel-*` 是 **id** 不是类，类选择器查空是选择器错不是 bug（本轮差点误报「visible 门控失效」）。③**走查沙箱盲区要先探数据落点**：进板块前先确认沙箱目录里长出了数据文件（本次 workspace 空+有故事=直连实盘的信号）。④本修复后走查启动只需 `GAEA_WALKTHROUGH=1`（APPDATA 进程内自动重定向），不再需要手工 env。
 - **观察池**：设定卡排队体验需 ComfyUI 在线补走（本轮 ComfyUI 不在线，UI 态已由单测覆盖）/解释腔出现率·工具误用率需多轮真实生成人工评/novelstyle rewrite 链（需拍板成人向 whitelist 语义，v4.424 立案）/跨实例族+TOCTOU（需跨进程锁，权重低）。
 
@@ -652,7 +652,7 @@
 - **测试**：Go 新增 2 锚（分页契约〔首页升序/游走翻页不重不漏 10 条/尽头空页〕+ 值形态双形态归一）+3 处调用点断言随签名更新；前端新增 4 锚（105 条真翻页/双形态归一/caption 只取对象/画廊三级优先级）+ reload 用例改分页 mock + SEED_MESSAGES 共享种子基建。sin 域 121/121 绿；internal/app 全包 -count=1 绿（100.8s）；spaceBindings 550；tsc 0；eslint 0 错 0 警。
 - **门禁**：全量 `ci.ps1` → CI OK（含绑定漂移闸：Go 727 ↔ bindingNames.ts 727 一致）；漂移闸 OK@4.428.0。
 - **产物**：`releases/gaea-v4.428.0.exe` 51,580,928 B SHA256=`b2bfe66d248b0701bbc3d4e9108e5440aab60ddd340d79f95bdf75585cde74e3`（`SHA256SUMS-v4.428.0.txt`；build.bat 冒烟 `/api/health` 200 过）；保留策略删 v4.423.0.exe，实存 5 版（428/427/426/425/424）。
-- **文档**：`releases/v4.428.0.md` + CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
+- **文档**：`releases/archive/v4.428.0.md` + CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
 - **坑/教训**：①**Bash 工具 heredoc 的 `
 ` 会降级成真实换行**：python heredoc 里往 TS 源码写字面量 `
 `，出现反复「改完又变回去」的假象（同进程回读 md5 相同=改动自我抵消），耗时数轮才定位——heredoc 内构造字面量反斜杠必须 `chr(92)+'n'` 或行级拼接。②分页测试的页大小是 hook 常量 100：造数必须 >100 条才能真翻页（4 条一页装满 hasOlder 恒 false）。③gen_bindings regen 会把 11 个门面文件重排版（多行→一行的全量噪音）——按既有纪律 HEAD 还原后只手加新方法行。
@@ -665,7 +665,7 @@
 - **测试**：Go 新增 2 锚（识图并发上限+保序〔注入假识图实测 max 并发=2〕/节点详情跨话题拒绝〔单条查询路径与旧全量扫描行为一致〕），既有折叠契约（TestSinContextNodeDetail/TestSinTrajectoryFold 等）在单条化路径全数通过；前端新增 5 锚（ChatTabs tablist/tab 语义+roving+方向键×3、设定卡入队串行〔被占位不得开跑〕+排队位次显示与取消摘位），既有 16 例（含取消/进度）在入队路径下原样通过；适配 1 处（产物缩略图测试 beforeEach 补 __resetSinThumbCacheForTest——模块级 LRU 跨用例命中会把上一例的成功结果喂给失败用例，新缓存模块的标准纪律）。sin 域前端 117/117 绿；internal/app sin 族 -count=1 绿；tsc 0；改动面 eslint 0 错 0 警。
 - **门禁**：全量 `ci.ps1` → CI OK；漂移闸 OK@4.427.0（726 一致）。
 - **产物**：`releases/gaea-v4.427.0.exe` 51,575,808 B SHA256=`50b245c823adc26a3ee2e8aa914dec1229c46b84c49f615e4d7039a33cc4d663`（`SHA256SUMS-v4.427.0.txt`；build.bat 冒烟 `/api/health` 200 过）；保留策略删 v4.422.0.exe，实存 5 版（427/426/425/424/423）。
-- **文档**：`releases/v4.427.0.md` + CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
+- **文档**：`releases/archive/v4.427.0.md` + CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
 - **坑/教训**：①**模块级缓存进测试必须配复位出口**：LRU 命中让「读取失败」用例拿到上一例的成功结果——beforeEach 复位是标准纪律（先例 illustrationQueue/__resetBookDownloadForTest 同款）。②**队列包裹要保同步语义**：enqueueIllustration 的 drain 在入队点同步调用 job.run()，既有「点击即断言 called」的测试不破；若换异步调度会碎一片。③**池清账刀效率高**：三批审计的立案项都带读码证据，本批零新审计直接落地 9 项——审计批+清账批交替是可持续节奏。
 - **观察池（剩余，均需拍板或真机）**：novelstyle rewrite 链（需拍板成人向 whitelist 语义，v4.424 立案）/跨实例族+Delete·Clear TOCTOU（需跨进程锁，单用户桌面端权重低）/illustrations 值结构升级 {path,caption}/SinMessages 分页绑定（需绑定面窗口+UI 设计）/真机观察解释腔出现率·工具误用率·设定卡排队体验（需用户闲置窗口）。
 
@@ -677,7 +677,7 @@
 - **测试**：Go 新增 10 锚（普通失败只落用户消息+不降级重试〔400 非 tools 错误体绕开 C 刀故障转移真机语义地雷〕/跨话题回写拒绝/引号 token+裸 token 零误伤/空文件/保留名矩阵/工具产物进 MD 导出/EPUB 历史行+连续指令/产物跨调用重置/参数闸/收尾轮可见化+上下文续接）+改写 5 锚（无正文落库口径 0→1、进度语义 1/3·2/3→3/3、归属校验签名两处）；前端新增 5 锚（saveCast 失败返回/在途切换不回填、画廊 cue 数值排序/工具图描述反解/缓存签名失效）+重写 7 锚（超时口径、artifacts 全链归一、书源会话模块化〔测试复位出口〕）；sin 域 111/111 绿、全量 vitest 409 文件 3541 例绿、tsc 0、改动面 eslint 0 错 0 警、internal/app 整包+booksource `-count=1` 绿。
 - **门禁**：全量 `ci.ps1` → **CI OK**（build/vet/golangci/前端 lint+build/vitest 全量/E系/docs 守卫）；漂移闸 OK@4.426.0（726 一致）。
 - **产物**：`releases/gaea-v4.426.0.exe` 51,567,616 B SHA256=`24175989253fb2b04ab51cf2b97c1ed41208cd4b5c19d4908722f5d72b8e800f`（`SHA256SUMS-v4.426.0.txt`；build.bat 冒烟 `/api/health` 200 过）；保留策略删 v4.421.0.exe，实存 5 版（426/425/424/423/422）。
-- **文档**：`releases/v4.426.0.md` + CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
+- **文档**：`releases/archive/v4.426.0.md` + CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
 - **坑/教训**：①**C 刀故障转移会咬测试**：新守卫测试用 500 状态造「普通失败」，failoverTarget 把 5xx 当可转移错误重试到真实 localhost:8080 引擎→在途流 3 秒收不了尾；改 400（不可转移）+非 tools 错误体即过——失败注入用例的状态码要对着故障转移语义选。②**书源进度卡切换失附的根因是组件生命周期不是事件通道**：五卡手风琴一次只挂一张卡，模块级单例（先例 illustrationQueue）外提会话即可，不动布局。③**react-refresh/only-export-components**：组件文件里导出测试复位函数会吃 warning——抽纯模块（sinBookDownload.ts）既归零警告又对齐 illustrationQueue 形态。④**Go map JSON 字典序**：extra.illustrations 键 "10"<"2"，画廊 ≥11 张错序——数值化排序+toolN 独立类序。⑤**审计误报要读码证伪**：四线审计的「sin 后端不解析 @附件引用」是错的（sin_file_refs.go 即解析器），真问题是含空格路径截断——不复核就会修错方向。
 - **观察池**：跨实例族（sinRuns 进程内互斥/话题 id 毫秒撞名/messageID 启发定位）/Delete·Clear TOCTOU 残余窗口/画廊 base64 常驻/sin_insight 三口全量折叠/识图有界并发/illustration merge per-message 锁+sinExportUniquePath stat-then-write（既有）/ChatTabs tab 语义（办公共用另批）/sin 手风琴 aria-controls 配对/设定卡与插图队列统一/illustrations 值结构 {path,caption} 升级/novelstyle rewrite 链（需拍板成人向 whitelist 语义，v4.424 立案）/真机观察解释腔出现率与工具误用率。
 
@@ -689,7 +689,7 @@
 - **测试**：小说域定向 **53 文件 / 465 例全绿**（本批开工基线 49 文件 / 401 例 → 净增 4 文件 / 64 例）；`tsc -b` 0；改动面 45 个前端文件 eslint 0 错 0 警；Go `internal/app` 整包 142.5s 绿 + `project/novelcontext/novelstyle/novelreview/outline/analysis` 六包全绿 + `gofmt`/`vet`/`build` 0；**反向守卫逐条做变异验证**（板块门控去掉 `&& boardVisible` 恰 1 例红 / 跨页闸门六态 / 重写不覆盖 / 生成跨书 / 载入在途跨章 / 切书清态 / 恢复章不覆盖；Go 补下基准、白名单整篇、证据区间三条实测变红后还原）。
 - **门禁**：全量本地快闸 `scripts/ci.ps1` → **CI OK**（含全量 vitest 409 文件 / 3536 例 + E 系回归 + 卫生守卫）；漂移闸 OK@4.425.0。**首轮快闸抓到真错**：Go 线新测试文件有个未使用的 `writeStyleProfile` 助手被 golangci `unused` 拦下（删助手+连带三个失效 import 后复跑绿）。
 - **产物**：`releases/gaea-v4.425.0.exe` SHA256=`1e58ea6a6a615b8eb61b2bf61be4f37a17a5535b3c2d54e8e8081bbad0750e35`（`SHA256SUMS-v4.425.0.txt`；build.bat 冒烟 `/api/health` 200 过 + 桌面副本）；保留策略删 v4.420.0.exe，实存 5 版（425/424/423/422/421）。
-- **文档**：规格 `进度计划/gaea-novel-audit-20260929.md`（含 §4.1 观察池 19 项）+ `releases/v4.425.0.md` + CHANGELOG/README + releases/README + AGENTS 速览（**恢复迁 1 插 1 仪式**：一百三十八迁 v4.415.0 入 archive；v4.420–v4.424 五版发布时该仪式停摆、速览积到 8 条 —— 本批一并归位）+ progress（本条）。
+- **文档**：规格 `进度计划/gaea-novel-audit-20260929.md`（含 §4.1 观察池 19 项）+ `releases/archive/v4.425.0.md` + CHANGELOG/README + releases/README + AGENTS 速览（**恢复迁 1 插 1 仪式**：一百三十八迁 v4.415.0 入 archive；v4.420–v4.424 五版发布时该仪式停摆、速览积到 8 条 —— 本批一并归位）+ progress（本条）。
 - **坑/教训**：①**审计报告的「最小修法」未必够**：Go G2 有「基准取大 + 逐章占用判定」两层保护，只按报告修第一层时**变异测试仍全绿**——一层修复配一层护栏时，用例必须分别钉住两层，否则钉的是第二层。②**`dist/.gitkeep` 每逢 vite 构建即被清空**（v4.422 教训复现）：本轮 `ci.ps1` 与 `release.ps1` 各删一次，提交/发版前必须重建。③**多条等价护栏互相掩盖会让反向守卫失效**：线2 给 A8 多加的「active 变假自动收起」把事件门控藏进同一 tick，改坏门控用例照绿——一个修复点只留一条**可观测**路径。④**jsdom 里 React 不向 `disabled` 按钮派发 click**：UI 门必须直接断言 `disabled`，handler 早退要另找可达路径（线2/线4 都撞到）。⑤**antd `message` 门户跨用例不过期**：全局否定断言（`queryByText(/生成完成/)` 为 null）必被前序用例污染，改用「条数增量」或 `findAllByText`。⑥**并行会话占号**：开工时工作树里有另一会话**未提交**的 v4.424.0 发版准备（sin_* / .gaea/* / CHANGELOG / 版本三源）——按纪律不代其修改、不 stash 其文件，先把本批代码收敛成**独立代码提交**（62 文件，零触碰其面），待其 `fcf5b0dd` 落定后才用 `release.ps1` 取下一个空号。⑦vitest 过滤器 `src/pages/chapter` 会**连坐** `src/pages/ChapterPage.test.tsx`（不分大小写的路径子串匹配），只跑子目录要写 `"src/pages/chapter/"`。
 - **观察池**：前端 9 项（局部重写坐标错位需改后端契约 / 设定 Agent 回填覆盖在途键入 / 体检情感曲线无取消 token / 伏笔写回「排队×失败重读×切书」交错窗口 / 重写历史面板跨书面 / `Cmd+K` 接受是否真写回需真机 / 停止生成在连接建立阶段显示「生成失败」/ 切项目时后端是否继续写旧书 / 跨客户端并发面）+ Go 10 项（N5 分支摘要混入 / N9 `ForEachChapter` 缺口即停同族 3 处 / N12 迁移跳章仍落 v4 标记 / N13 嵌套大纲节点不可见 / G10 `SceneRefs` 零写零读 / G11 `chapter-generate.json` 无消费点却在工坊可编辑 / `plans.json` 无锁整表读改写（单客户端不可达）/ 零调用者导出绑定口径待对齐（台账 11 vs 宽口径 36）/ `scene_gen_handler.go:229` 同款吞错 / `internal/chapter` chapter-review 模板缺失恒走 fallback）。版本次刀序未变：**刀2 场景卡与逐场景生成**仍是长篇七刀的下一刀。
 
@@ -711,7 +711,7 @@
 - **测试**：Go 新增 sin_stream_guard_test 7 例 + 既有损坏用例补留档断言；internal/app sin 全族 + 全包 105s 绿。前端 sin 域 12 文件 110 例绿（tabs 测试按常驻挂载改 stub 口径）；tsc 0、eslint 0。
 - **门禁**：全量 ci.ps1 绿；漂移闸 OK@4.423.0。同树并行会话（v4.422.0 刀1）全程零交叠；其 CHANGELOG 引用的本线在制 tsc 报错（storyText.test TS2304）随本批落定清零——延续「不代对方修在制、不 stash 别人文件」纪律，本批提交面严格限定 sin 域+版本/文档。
 - **产物**：exe 51,519,488 B SHA256=c22d2220cfdba400e135da2f75d48397250cf5ecfe76377e9d8d75c970700025（releases/gaea-v4.423.0.exe + SHA256SUMS-v4.423.0.txt；build.bat 冒烟 /api/health 200 过；保留策略删 v4.418.0.exe，实存 5 版 423/422/421/420/419）。
-- **文档**：releases/v4.423.0.md + CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
+- **文档**：releases/archive/v4.423.0.md + CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
 - **坑/教训**：①sinStreamRound 错误分支提前 return 时 res.content 尚未从 builder 赋值——「错误路径带部分内容」必须在 return 前显式落值，审计报告的「res 带部分 content」描述与实际代码不符（读码复核抓出并新增测试钉住）；②前台 Edit 工具与后台 python 批量替换混用同一文件会触发「file modified since read」——同文件多处改动要么全 Edit 要么全脚本；③并行会话已发版占号（421→422 两连发）——动版本号前先 git log 核对最新台账，本批到场即改号 4.423.0。
 - **观察池**：Composer 排队清空提示 / SinMessages 分页绑定 / sinExportUniquePath 并发窗口 / SinIllustrate cfg nil 口径 / 书源下载卡级失附 / ChatTabs tab 语义（办公共用组件）/ illustration merge 无 per-message 锁（多客户端并发丢更新，串行队列下不触发）。
 
@@ -724,7 +724,7 @@
 - **测试**：Go 新增 6 测试文件（novelgate 6 / app 15+10+1 / project 9 / outline 7）；`internal/app` 全包 121.8s 绿、`go test ./internal/... .` 全绿；`gofmt`/`vet`/`build` 0。前端小说域 31 文件 233 例绿、tsc 0、eslint 0。
 - **门禁**：漂移闸 OK@4.422.0（`bindingNames.ts` 726 一致、`spaceBindings` 锁 549）；`ci.ps1 -Quick` 绿。
 - **产物**：exe 51,513,344 B SHA256=059f16a87c2ef1593a7020d86057efb12987a399fbd69c63569eb693f515aca4（releases/gaea-v4.422.0.exe + SHA256SUMS-v4.422.0.txt；桌面副本同哈希；冒烟 /api/health 200 过）；实存 5 版（422/421/420/419/418）正好在保留策略内。
-- **文档**：规格 `docs/gaea-longform-novel-system-2026-09.md` + 机制调研 `docs/gaea-longform-craft-mechanics-2026-09.md`（均登记 docs/README）+ releases/v4.422.0.md + CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
+- **文档**：规格 `docs/gaea-longform-novel-system-2026-09.md` + 机制调研 `docs/gaea-longform-craft-mechanics-2026-09.md`（均登记 docs/README）+ releases/archive/v4.422.0.md + CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
 - **坑/教训**：①`gen_bindings` 重生成会把全部门面文件压平重排（噪音）——按历史处置还原 10 个文件、只留最小增量（bindings_novel.go +24/−0）；②并行在制会话会让全项目 `tsc` 短暂变红（本次 `sin/storyText.test.ts` 的 `parseCancelled` 未 import 是它的中间态，几分钟后自愈）——**不要代它修**，也不要为了发版去 stash 别人的在制；③发版脚本要求工作树干净，与并行在制天然冲突——本次改走手工发版（sync-version + build.bat + 产物搬运 + 台账），`release.ps1` 幂等可后续补齐；④**`dist/.gitkeep` 从未入库**（P0-1 只在 .gitignore 写了 `!dist/.gitkeep` 例外、漏 `add -f`；且 vite build 默认清空 dist 会删掉占位）→ fresh checkout / CI 的 `go build ./...` 仍炸 `pattern all:dist: no matching files`；本刀用 **`git worktree add <tmp> v4.422.0` 检出 tag 快照**做独立验证时暴露，已 `add -f` 入库（commit 5440b086），**构建后需重建该占位**（后续可让 build 脚本自动补）；**方法论**=并行会话持续改写时，共享工作树上的门禁不可复现（本次快闸连撞 sin 线两轮中间态：`sin_booksource_handler.go` undefined fileutil → `sin_insight.go` 未使用变量），改用 worktree 对**已发布快照**取证：Go 全量除 `internal/netclient` 已知负载 flaky 外全绿（隔离复跑 ok）。
 - **观察池**：跨章去重第二来源（已写但无计划条目的旧章其 `ChapterSummary.KeyEvents` 未参与去重，根因无章号字段，修法=带章号的批量摘要读接口，随刀2）/ 刀2 场景卡与逐场景生成 / 刀3 故事层骨架 / 刀4 质量收敛闭环 / 刀5 风格学习回灌 / 刀6 上下文编译器 / 刀7 评测基线（`baseline.json` + `promptSetHash` + 夹具）。
 
@@ -737,7 +737,7 @@
 - **测试**：Go 新增 create_chapter_partial_test.go（残稿三态 + v4 场景不覆盖）与 novel_writeback_test.go（写失败报错 / v4 blob 与场景一致）；internal/app 定向 `Chapter|Deslop|Rewrite|Cancel` PASS 82/FAIL 0 + 场景族 17 例绿；gofmt 空 / go vet / go build 全 0。前端新增 unsavedGuard 7 例 + NovelPage.test 3 例 + 各线守卫 30 余例（线2 灵敏度实测：门控改 false 恰 3 条守卫变红）；线4 报告小说域 32 文件 222 例绿；tsc 0 / eslint 0。
 - **门禁**：全量 ci（本地快闸）绿；漂移闸 OK@4.421.0。
 - **产物**：见 SHA256SUMS-v4.421.0.txt（冒烟 200 过）。
-- **文档**：规格 进度计划/gaea-novel-polish-20260928.md + releases/v4.421.0.md + CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
+- **文档**：规格 进度计划/gaea-novel-polish-20260928.md + releases/archive/v4.421.0.md + CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
 - **观察池**：跨页切书确认（需跨页共享脏态）/ EditorPanel 内 rune↔code-unit 换算收敛 + 单测 / 板块级 keepAlive（切到别的板块时小说页仍常驻→阅读 tab 的 Ctrl+S·F11 仍吞键，全仓各页共有，需「板块级可见」信号）/ Go 余 9 项（搜索标题命中抑制正文扫描·生成后协程未托管·建章忽略 WriteOutlines 错误·ForEachChapter 缺口即停·分支摘要混入·书架全库全章 IO·迁移跳章仍落 v4 标记·嵌套大纲节点不可见·11 个零调用者导出绑定）/ 残稿文件名秒级时间戳（同秒两次取消会覆盖前一个残稿）。
 
 ## 最新发布：v4.420.0（2026-09-26）「计划模式手动选择：Composer 工具栏『计划』chip」
@@ -747,7 +747,7 @@
 - **测试**：composer 5 套件 35 例绿+tsc 0+eslint 0；真机沙箱目检双向翻转同步（GAEA_WALKTHROUGH=1，截图在案）；全量 ci 绿。
 - **门禁**：漂移闸 OK@4.420.0。
 - **产物**：见 SHA256SUMS-v4.420.0.txt（冒烟 200 过）；保留策略删 v4.415.0.exe（v4.417.0.exe 二进制此前误删，身份以 SUMS 在案）。
-- **文档**：releases/v4.420.0.md+CHANGELOG/README+releases/README（444→445+裁 v4.389）+progress。
+- **文档**：releases/archive/v4.420.0.md+CHANGELOG/README+releases/README（444→445+裁 v4.389）+progress。
 
 ## 最新发布：v4.419.0（2026-09-26）「动词回执可见化：notice 摘出过程卡」
 
@@ -757,7 +757,7 @@
 - **测试**：ProcessCard.test 增 1 例（buildSegments 断言 notice 恒落 outsideItems，info+warn 双样本）13/13 绿；真机目检沙箱 /plan on 回执独立行可见（截图在案）；全量 ci 绿。
 - **门禁**：漂移闸 OK@4.419.0。
 - **产物**：见 SHA256SUMS-v4.419.0.txt（冒烟 200 过）；保留策略删 v4.414.1.exe。
-- **文档**：releases/v4.419.0.md+CHANGELOG/README+releases/README（443→444+裁 v4.388）+AGENTS 迁 1 插 1（一百三十七迁）+progress。
+- **文档**：releases/archive/v4.419.0.md+CHANGELOG/README+releases/README（443→444+裁 v4.388）+AGENTS 迁 1 插 1（一百三十七迁）+progress。
 
 ## 非版本刀（2026-09-26）真机走查池全清账：plan-mode 审批卡可视确认（零代码）
 
@@ -775,7 +775,7 @@
 - **测试**：walkthrough_test.go 两例（开=恒沙箱/关=零触碰）；config+app 包回归绿；全量 ci 绿（OriginalSinPage.tabs 负载 flaky 一轮隔离复跑绿，v4.414.0 同款）。
 - **真机验证实录**：沙箱模式启动→GaeaInit 装配→ListDir 探针=沙箱（14 真实会话零出现）；沙箱内 /plan on 实弹确认「pre-turn Notice 不可见」=真实缺陷（藏在过程折叠卡，候可见 chip 小刀）；/plan off 正常；清场=删沙箱目录。**诊断坑三连**：①壳侧 gaeaLoadConfig 不走 config.Load，开关双入口必须同调 ApplyWalkthroughOverride ②装配前 ga.cfg=nil 探针全假 ③CDP 探针可打在僵尸旧实例（gaea-v4.418.0.exe≠gaea.exe 按名漏杀）——跨实例诊断先对 PID。
 - **产物**：见 SHA256SUMS-v4.418.0.txt（冒烟 200 过）；保留策略删 v4.414.0.exe。
-- **文档**：releases/v4.418.0.md+CHANGELOG/README+releases/README（442→443+裁 v4.387）+AGENTS 走查配方增补+progress。
+- **文档**：releases/archive/v4.418.0.md+CHANGELOG/README+releases/README（442→443+裁 v4.387）+AGENTS 走查配方增补+progress。
 
 ## 非版本刀（2026-09-26）真机走查尝试+污染预防实录（零代码；v4.417.0 壳）
 
@@ -800,7 +800,7 @@
 - **证伪降级**：圆角令牌化专项前提不成立（--md-sys-radius-* 明暗恒 8/12/16/28px，迁移零收益）；RelationGraph/GraphView/TisorRadar hex=SVG/canvas 字面量域豁免在案。
 - **门禁**：定向 4 套件 80 例绿+tsc 0+eslint 0；全量 ci 绿+漂移闸 OK@4.417.0。
 - **产物**：见 SHA256SUMS-v4.417.0.txt（冒烟 200 过）；保留策略删 v4.413.0.exe。
-- **文档**：releases/v4.417.0.md+CHANGELOG/README+releases/README（441→442+裁 v4.386）+AGENTS 迁 1 插 1（一百三十五迁）。
+- **文档**：releases/archive/v4.417.0.md+CHANGELOG/README+releases/README（441→442+裁 v4.386）+AGENTS 迁 1 插 1（一百三十五迁）。
 
 ## 最新发布：v4.416.0（2026-09-26）「前端 UI 完善批二：emoji 图标红线清零 + schedule 交互反馈补漏」
 
@@ -809,7 +809,7 @@
 - **schedule 补漏**：XML 导入 xmlBusy 合并按钮 loading；示例工程 Popconfirm 防呆（与「清空」同款）。
 - **门禁**：定向 7 套件绿+tsc 0+eslint 0；全量 ci 绿+漂移闸 OK@4.416.0。
 - **产物**：见 SHA256SUMS-v4.416.0.txt（冒烟 200 过）；保留策略删 v4.412.0.exe。
-- **文档**：releases/v4.416.0.md+CHANGELOG/README+releases/README（440→441+裁 v4.385）+AGENTS 迁 1 插 1（一百三十四迁）。
+- **文档**：releases/archive/v4.416.0.md+CHANGELOG/README+releases/README（440→441+裁 v4.385）+AGENTS 迁 1 插 1（一百三十四迁）。
 
 ## 最新发布：v4.415.0（2026-09-26）「前端 UI 完善批：绘梦整页崩根修 + 走查实证六项修复」
 
@@ -820,7 +820,7 @@
 - **观察池新挂**：whisper 子系统 emoji 图标群（WhisperDesirePanel/WhisperMemoryLibrary/WhisperTracePanel/WhisperMemoryModal 4 文件专项）；内联 borderRadius 222 处+CSS px 圆角 291 处令牌化（批替换专项）；间距 6/10/14 非栅格收敛；ChapterEditor 右键菜单键盘可达（可点 div 无 role/tabIndex）；SchedulePage 示例工程覆盖无确认（Popconfirm 候选）；CharacterLibEditor 大 Modal 可访问名复核。
 - **门禁**：定向 10 套件全绿（新增 7 例）+tsc 0+eslint 0；全量 ci 绿+漂移闸 OK@4.415.0；走查隔离目检不动用户壳与会话（v4.414.1 教训执行），console 0 新增错误。
 - **产物**：见 SHA256SUMS-v4.415.0.txt（仅本地；冒烟 200 过）；保留策略删 v4.411.0.exe。
-- **文档**：releases/v4.415.0.md+CHANGELOG/README+releases/README（439→440+34 席插 v4.415 裁 v4.384+清历史孤儿碎片行）+AGENTS 迁 1 插 1（一百三十三迁：v4.411.0 入 archive，头部补记 130~132 迁流水）。
+- **文档**：releases/archive/v4.415.0.md+CHANGELOG/README+releases/README（439→440+34 席插 v4.415 裁 v4.384+清历史孤儿碎片行）+AGENTS 迁 1 插 1（一百三十三迁：v4.411.0 入 archive，头部补记 130~132 迁流水）。
 
 ## 最新发布：v4.414.1（2026-09-26）「桌面 Send 斜杠派发根修 + GaeaNewSession 诚实报错（真机走查实录）」
 
@@ -839,7 +839,7 @@
 - **落地**：①exit_plan_mode 恒注册（工具目录跨模式切换稳定）：计划模式下 markdown 计划（# 标题强制）提交 ask 通道审批——批准=闸翻转 off+叙事落历史/继续计划=错误带回反馈/headless 无 Asker=诚实拒绝（执行闸必须人来开，刻意不仿 ask 自选降级）②PlanGate 窄接口经 callContext 盖章（asker 同位同纪律）+SubagentMetaTools 排除子代理③/plan on|off|status（on 注入 `[plan mode]` 政策 user 消息/off 退出叙事/status 回落，running 拒绝）④与上游两偏离：**系统前缀冻结（V10.36）→政策走 user 消息注入**（mid-session 改 system 段必破缓存，技能目录热重载同判先例）；**状态 v1=runner 内存态**（事件日志 kind=plan_mode+恢复折叠留二刀，最敏感面零碰）；沙箱/权限独立不做硬工具门（与上游同判）。
 - **测试**：Go plan_mode_test 六例（inactive 错误/批准翻转+叙事/继续计划语义/headless 拒绝/标题校验含六级合法七级拒/真闸直测含前缀不动+两条注入断言）；agent/control/boot 三包回归绿；全量 ci 绿。
 - **产物**：exe 见 SHA256SUMS-v4.414.0.txt；保留策略留 v4.410~v4.414 删 v4.409.0.exe。
-- **文档**：规格+releases/v4.414.0.md+CHANGELOG/README+releases/README（437→438+裁 v4.382）+AGENTS 迁 1 插 1（一百三十一迁：v4.409.0 入 archive）+todos（dsh 留池⑦清账，余①子代理控制面=等上游稳定）。
+- **文档**：规格+releases/archive/v4.414.0.md+CHANGELOG/README+releases/README（437→438+裁 v4.382）+AGENTS 迁 1 插 1（一百三十一迁：v4.409.0 入 archive）+todos（dsh 留池⑦清账，余①子代理控制面=等上游稳定）。
 - **坑**：①工具契约=Execute(ctx, json.RawMessage)+ReadOnly() bool（跟 string 签名走会炸 reg.Add）②包内测试桩撞名先查（stubGate 已被 gate_test.go 权限桩占用）③双引号 Go 串里的 \n 是真换行——拼 JSON 断言夹具须字面 \\n。
 
 ## 非版本刀：sin 书源一条龙实弹+常驻内存采集（2026-09-26，零代码）
@@ -860,7 +860,7 @@
 - **落地**：GaeaLogFrontendError 对 message 含 `context canceled` 降级 slog.Info，其余照旧 slog.Error——良性取消不再污染 Error 级观测通道，审计痕迹保留（INFO 在册）；剧照/设定卡/绘梦三条取消链路同时降噪；前端零改动（proxy.ts invoke 统一入口语义不变：仍上报、仍原拒绝语义抛出）。
 - **测试**：Go TestGaeaLogFrontendError_CancelDowngrade（slog 捕获两例：取消链 INFO/真错 ERROR，复用 captureLogs 基建）；全量 ci.ps1 绿 EXIT=0+绑定漂移闸 OK（720 方法）+版本漂移闸 OK@4.413.0。
 - **产物**：exe 51339264B SHA256=5d9b4b6ba2ce43c32e0d1e5d9f0a5dc473af1960b5c7eed6f7096f61cb7c2d24（SHA256SUMS-v4.413.0.txt，仅本地；build.bat 冒烟 200 过+桌面副本）；保留策略留 v4.409~v4.413 删 v4.408.0.exe。
-- **文档**：releases/v4.413.0.md+CHANGELOG/README+releases/README（436→437+34 席插 v4.413 裁 v4.381）+AGENTS 迁 1 插 1（一百三十迁：v4.408.0 入 archive）+todos（观察池「取消降级」清账）。
+- **文档**：releases/archive/v4.413.0.md+CHANGELOG/README+releases/README（436→437+34 席插 v4.413 裁 v4.381）+AGENTS 迁 1 插 1（一百三十迁：v4.408.0 入 archive）+todos（观察池「取消降级」清账）。
 - **顺带 P5 冷启动补采**：Go 同步链 43–110ms（十二样本中位 ~62ms，charlib+stores 40–47ms 恒大头）+前端 gaea:interactive=497ms（v4.413.0 壳 CDP 实测：gaea:boot 91ms→interactive 588ms，DCL 139ms）；常驻内存仍挂真机窗口——slim-masterplan §3 已回填。
 - **坑**：build.bat 是批处理——`powershell -File build.bat` 会 EXIT=127（旧 exe 原样未动），须 `cmd //c build.bat`。
 
@@ -956,7 +956,7 @@
 - **落地**：视觉 LLM 图 vs 文字设定评分（0-100+总评+issues，复用 RecognizeImage 单图链）；data URL 临时文件链+解析钳位+坏回复带原文报错；编辑器参考图「评分」钮+Modal+<60 补参考提示+单飞。
 - **测试**：Go 纯函数+解析七态+seam 全链；前端两态；全量 ci 绿 399 文件 3374 例。
 - **产物**：exe 见 SHA256SUMS-v4.404.0.txt；保留策略留 v4.400~v4.404 删 v4.399.0.exe。
-- **文档**：releases/v4.404.0.md+CHANGELOG/README+releases/README（425→426+裁 v4.370）+AGENTS 迁 1 插 1（一百一十九迁：v4.399 入 archive）+todos。
+- **文档**：releases/archive/v4.404.0.md+CHANGELOG/README+releases/README（425→426+裁 v4.370）+AGENTS 迁 1 插 1（一百一十九迁：v4.399 入 archive）+todos。
 - **观察池**：图 vs 参考图评分（多图验证）；sin 评分入口；评分写回元数据；自动重生成。
 ## 最新发布：v4.403.0（2026-09-23）「sin 侧设定卡入口（T2 角色资产 v2 收尾刀）」
 
@@ -964,7 +964,7 @@
 - **落地**：原罪右栏角色 chip 设定卡钮（单击 triptych 快路径）→getCharacter 全量→qedit→追加 referenceImages→saveCharacter 自动存回→reloadLibrary；chip 级单飞；面板吞错页面层 message；prop 可选向后兼容。
 - **测试**：SinCastPanel 3 例+SidePanel 夹具补 prop；全量 ci 绿 399 文件 3372 例（首轮 ProgrammingPage 负载 flaky 隔离绿+复跑全绿在案）。
 - **产物**：exe 见 SHA256SUMS-v4.403.0.txt；保留策略留 v4.399~v4.403 删 v4.398.0.exe。
-- **文档**：releases/v4.403.0.md+CHANGELOG/README+releases/README（424→425+裁 v4.369）+AGENTS 迁 1 插 1（一百一十八迁：v4.398 入 archive）+todos。
+- **文档**：releases/archive/v4.403.0.md+CHANGELOG/README+releases/README（424→425+裁 v4.369）+AGENTS 迁 1 插 1（一百一十八迁：v4.398 入 archive）+todos。
 - **观察池**：一致性评分（vision 待拍板）；chip 模板菜单；分张并发档；评分驱动补参考。
 ## 最新发布：v4.402.0（2026-09-23）「设定卡分张连发（T2 角色资产 v2 第三刀）」
 
@@ -972,7 +972,7 @@
 - **落地**：菜单「三视图分张（连发）」——正/侧/背串行排队逐张追加进参考图（即到即见+N/3 进度）；失败语义=首张失败即中止（系统性故障）/中途失败继续+warning 点名单张重试；sheetGuard 收敛共用。
 - **测试**：前端 3 例（全成功 variant 序/首张中止只调 1 次/中途失败 3 张都发起+点名）；全量 ci 绿 398 文件 3369 例。
 - **产物**：exe 见 SHA256SUMS-v4.402.0.txt；保留策略留 v4.398~v4.402 删 v4.397.0.exe。
-- **文档**：releases/v4.402.0.md+CHANGELOG/README+releases/README（423→424+裁 v4.368）+AGENTS 迁 1 插 1（一百一十七迁：v4.397 入 archive）+todos。
+- **文档**：releases/archive/v4.402.0.md+CHANGELOG/README+releases/README（423→424+裁 v4.368）+AGENTS 迁 1 插 1（一百一十七迁：v4.397 入 archive）+todos。
 - **观察池**：一致性评分（vision 待拍板）；sin 侧设定卡入口；分张并发档；评分驱动补参考。
 ## 最新发布：v4.401.0（2026-09-23）「设定卡模板矩阵 + 多参考锚定（T2 角色资产 v2 第二刀）」
 
@@ -981,7 +981,7 @@
 - **测试**：Go 纯函数矩阵+假 ComfyUI（2 可用 1 缺失→上传恰 2 次/variant 透传/非法报错/两态回归）+前端主按钮默认 triptych+菜单坐姿两态；全量 ci 绿 398 文件 3367 例。
 - **坑**：NodeList 解构 tsc -b 报 TS2488 须 Array.from/Dropdown.Button 的 testid 挂 wrapper 须 querySelector 取真按钮/新按钮抄旧 class 先核对是否承担布局定位。
 - **产物**：exe 见 SHA256SUMS-v4.401.0.txt；保留策略留 v4.397~v4.401 删 v4.396.0.exe。
-- **文档**：releases/v4.401.0.md+CHANGELOG/README+releases/README（422→423+裁 v4.367）+AGENTS 迁 1 插 1（一百一十六迁：v4.396 入 archive；头部记录行补 105~115 漏登案）+todos。
+- **文档**：releases/archive/v4.401.0.md+CHANGELOG/README+releases/README（422→423+裁 v4.367）+AGENTS 迁 1 插 1（一百一十六迁：v4.396 入 archive；头部记录行补 105~115 漏登案）+todos。
 - **观察池**：一致性评分（vision 文本锚点法待拍板）；分张一键连发（三张排队+单张失败重试）；sin 侧设定卡入口；评分驱动补参考。
 ## 最新发布：v4.400.0（2026-09-23）「角色设定卡生成（三视图，qedit 通道 · T2 角色资产 v2 首刀）」
 
@@ -990,7 +990,7 @@
 - **测试**：Go 纯函数+假 ComfyUI 全链+两态报错；前端按钮两态；全量 ci 绿。
 - **坑**：buildPortraitClient 独立建客户端注入不生效须假 ComfyUI/renderEditor 包装对象传裸静默不命中/prompt 文案断言用词对齐。
 - **产物**：exe 见 SHA256SUMS-v4.400.0.txt；保留策略留 v4.396~v4.400 删 v4.395.0.exe。
-- **文档**：releases/v4.400.0.md+CHANGELOG/README+releases/README（421→422+裁 v4.366）+AGENTS 迁 1 插 1（一百一十五迁：v4.395 入 archive）+todos。
+- **文档**：releases/archive/v4.400.0.md+CHANGELOG/README+releases/README（421→422+裁 v4.366）+AGENTS 迁 1 插 1（一百一十五迁：v4.395 入 archive）+todos。
 - **观察池**：一致性评分（vision 文本锚点法）；多姿势模板；设定卡分张；sin 侧入口；评分驱动补参考。
 
 ## 最新发布：v4.399.0（2026-09-23）「原罪插图参考升级 qedit（T2 第二消费方）」
@@ -1000,7 +1000,7 @@
 - **测试**：矩阵+透传+TestSin 回归绿；全量 398 文件 3365 例绿+tsc 0+eslint 0。
 - **门禁**：全量 ci 绿 EXIT=0+漂移闸 OK@4.399.0。
 - **产物**：exe 见 SHA256SUMS-v4.399.0.txt；保留策略留 v4.395~v4.399 删 v4.394.0.exe。
-- **文档**：releases/v4.399.0.md+CHANGELOG/README+releases/README（420→421+裁 v4.365）+AGENTS 迁 1 插 1（一百一十四迁：v4.394 入 archive）+todos。
+- **文档**：releases/archive/v4.399.0.md+CHANGELOG/README+releases/README（420→421+裁 v4.365）+AGENTS 迁 1 插 1（一百一十四迁：v4.394 入 archive）+todos。
 - **观察池**：sin 参考方法可配；两级回退；徽标区分方法；qedit 语义 prompt 模板。
 
 ## 最新发布：v4.398.0（2026-09-23）「绘梦·参考槽 Qwen-Edit 通道（T2 一致性首刀）」
@@ -1011,7 +1011,7 @@
 - **测试**：ai +2+回归绿+app +1+前端 +2；全量 398 文件 3365 例绿+tsc 0+eslint 0。
 - **坑**：代码块搬家块尾注释找边界/regex 中插截断泛型/缺省行为是契约新方法并列露出。
 - **产物**：exe 见 SHA256SUMS-v4.398.0.txt；保留策略留 v4.394~v4.398 删 v4.393.0.exe。
-- **文档**：releases/v4.398.0.md+CHANGELOG/README+releases/README（419→420+裁 v4.364）+AGENTS 迁 1 插 1（一百一十三迁：v4.393 入 archive）+todos。
+- **文档**：releases/archive/v4.398.0.md+CHANGELOG/README+releases/README（419→420+裁 v4.364）+AGENTS 迁 1 插 1（一百一十三迁：v4.393 入 archive）+todos。
 - **观察池**：sin 参考槽升级；云端多图编辑；角色资产 v2（三视图/一致性评分）；LoRA 向导；导演 Agent；per-image 权重。
 
 ## 最新发布：v4.397.0（2026-09-23）「绘梦·抠图/透明底导出（T3 编辑力收官）」
@@ -1021,7 +1021,7 @@
 - **测试**：ai +2+app +1+前端 +3；全量 398 文件 3363 例绿+tsc 0+eslint 0。
 - **坑**：bindingNames 两份（真实消费 gaea/lib 那份）/bindings_image.go 单行风格勿 gofmt -w 整文件/JSX 锚点替换嵌条件块插完必 tsc。
 - **产物**：exe 见 SHA256SUMS-v4.397.0.txt；保留策略留 v4.393~v4.397 删 v4.392.0.exe。
-- **文档**：releases/v4.397.0.md+CHANGELOG/README+releases/README（418→419+裁 v4.363）+AGENTS 迁 1 插 1（一百一十二迁：v4.392 入 archive）+todos。
+- **文档**：releases/archive/v4.397.0.md+CHANGELOG/README+releases/README（418→419+裁 v4.363）+AGENTS 迁 1 插 1（一百一十二迁：v4.392 入 archive）+todos。
 - **观察池**：羽化；角色库参考图管线对接；模型推理抠图；透明产物展示语义；**画室线转 T2 一致性**（ipadapter/pulid、角色资产 v2、LoRA 向导、导演 Agent）。
 
 ## 最新发布：v4.396.0（2026-09-23）「纯绘梦会话台账登记根修（真机走查抓出）+ 编辑四件套真机验收班」
@@ -1029,10 +1029,10 @@
 - **刀型**：真机验收班抓出的真缺陷根修。Go 1 文件+1 测试，绑定面 714 零变更。
 - **病根**：台账登记闸=armed&&gaeaCfgSnapshot()!=nil；ga.cfg 只在办公引擎 GaeaInit 赋值——纯绘梦会话恒 nil→误判非运行态→登记静默跳过（v4.98 起：素材库恒空/变体簇断）。
 - **落地**：闸只留 armed 位；回归测试钉纯绘梦会话形态。
-- **验收班**：编辑四件套真机全过（详见 releases/v4.396.0.md）；本地档真图编辑 ~400s（20B 首载）。
+- **验收班**：编辑四件套真机全过（详见 releases/archive/v4.396.0.md）；本地档真图编辑 ~400s（20B 首载）。
 - **坑**：国内大模型下载首选 ModelScope（33MB/s vs HF/镜像 2-5MB/s）；分段下载 curl -C - 与 -r 互斥、重试追加超长需单段重下。
 - **产物**：exe 见 SHA256SUMS-v4.396.0.txt；保留策略留 v4.392~v4.396 删 v4.391.0.exe。
-- **文档**：releases/v4.396.0.md+CHANGELOG/README+releases/README（417→418+裁 v4.362）+AGENTS 迁 1 插 1（一百一十一迁：v4.391 入 archive）+todos。
+- **文档**：releases/archive/v4.396.0.md+CHANGELOG/README+releases/README（417→418+裁 v4.362）+AGENTS 迁 1 插 1（一百一十一迁：v4.391 入 archive）+todos。
 - **走查班挂池**：变体徽标重验、蒙版/扩图真图、走查产物清场。
 
 ## 最新发布：v4.395.0（2026-09-23）「绘梦·编辑历史变体簇：ParentID 链 + 溯源，回到任一变体继续改」
@@ -1044,7 +1044,7 @@
 - **门禁**：全量 ci.ps1 绿 EXIT=0+版本漂移闸 OK@4.395.0。
 - **坑**：批量 replace 命中同名 meta 构造块先数命中数/测试按包依赖挪文件/gofmt 只 -w 触碰文件。
 - **产物**：exe 见 SHA256SUMS-v4.395.0.txt（仅本地；冒烟 200 过）；保留策略 5 版留 v4.391~v4.395 删 v4.390.0.exe。
-- **文档**：releases/v4.395.0.md+CHANGELOG/README+releases/README（416→417+34 席插 v4.395 裁 v4.361）+AGENTS 迁 1 插 1（一百一十迁：v4.390 入 archive）+todos。
+- **文档**：releases/archive/v4.395.0.md+CHANGELOG/README+releases/README（416→417+34 席插 v4.395 裁 v4.361）+AGENTS 迁 1 插 1（一百一十迁：v4.390 入 archive）+todos。
 - **观察池**：HistoryRail 簇折叠；跨空间溯源；sin 编辑链；变体簇导出；按簇删除；抠图/透明底（T3 最后一件）。
 
 ## 最新发布：v4.394.0（2026-09-23）「绘梦·扩图（outpaint）：画布加边，模型补全新区域」
@@ -1056,7 +1056,7 @@
 - **门禁**：全量 ci.ps1 绿 EXIT=0+版本漂移闸 OK@4.394.0。
 - **坑**：夹具 RGBA 忘 A:255=透明色贴图断言必挂/补正方百分比基数是短边原长/gate 顺序互斥门在通用 mask 门之前/测试期望先口算。
 - **产物**：exe 见 SHA256SUMS-v4.394.0.txt（仅本地；冒烟 200 过）；保留策略 5 版留 v4.390~v4.394 删 v4.389.0.exe。
-- **文档**：releases/v4.394.0.md+CHANGELOG/README+releases/README（415→416+34 席插 v4.394 裁 v4.360）+AGENTS 迁 1 插 1（一百零九迁：v4.389 入 archive）+todos。
+- **文档**：releases/archive/v4.394.0.md+CHANGELOG/README+releases/README（415→416+34 席插 v4.394 裁 v4.360）+AGENTS 迁 1 插 1（一百零九迁：v4.389 入 archive）+todos。
 - **观察池**：抠图/透明底导出（T3 最后一件）；扩边羽化；非矩形扩区（涂选已覆盖）；img2img+mask；变体簇；多图编辑；Lightning LoRA。
 
 ## 最新发布：v4.393.0（2026-09-23）「绘梦·蒙版局部重绘：涂选要改的区域，其余保持原样」
@@ -1068,7 +1068,7 @@
 - **门禁**：全量 ci.ps1 绿 EXIT=0+版本漂移闸 OK@4.393.0。
 - **坑**：蒙版黑白数据语义要 hex-exempt/SetLatentNoiseMask 裁剪不 resize 须显式对齐/JSON 往返数字变 float64/vi.mock 工厂 hoisting 不能引顶层标识/antd Slider 不转发 testid。
 - **产物**：exe 见 SHA256SUMS-v4.393.0.txt（仅本地；冒烟 200 过）；保留策略 5 版留 v4.389~v4.393 删 v4.388.0.exe。
-- **文档**：releases/v4.393.0.md+CHANGELOG/README+releases/README（414→415+34 席插 v4.393 裁 v4.359）+AGENTS 迁 1 插 1（一百零八迁：v4.388 入 archive）+todos。
+- **文档**：releases/archive/v4.393.0.md+CHANGELOG/README+releases/README（414→415+34 席插 v4.393 裁 v4.359）+AGENTS 迁 1 插 1（一百零八迁：v4.388 入 archive）+todos。
 - **观察池**：扩图（outpaint 画布扩边）；抠图/透明底导出；img2img+mask 纯局部重绘；蒙版反选/羽化；编辑历史变体簇；Lightning LoRA；多图编辑。
 
 ## 最新发布：v4.392.0（2026-09-22）「绘梦·指令编辑本地档：ComfyUI 接入 Qwen-Image-Edit 2511 官方工作流」
@@ -1080,7 +1080,7 @@
 - **门禁**：全量 ci.ps1 绿 EXIT=0+版本漂移闸 OK@4.392.0。
 - **坑**：官方模板新 subgraph 格式——节点图要从 definitions.subgraphs 展开+interface 槽位对射，顶层只有 4 节点/CLIPLoader 的 clip_name 查 text_encoders 目录非 clip/编辑不套请求 size——FluxKontextImageScale 按原图重标/提示锚 value_not_in_list+模型名双匹配防误挂。
 - **产物**：exe 见 SHA256SUMS-v4.392.0.txt（仅本地；冒烟 200 过）；保留策略 5 版留 v4.388~v4.392 删 v4.387.0.exe。
-- **文档**：releases/v4.392.0.md（含升级说明：ComfyUI 档编辑需先放模型文件，错误即指引）+CHANGELOG/README+releases/README（413→414+34 席插 v4.392 裁 v4.358）+AGENTS 迁 1 插 1（一百零七迁：v4.387 入 archive）+todos。
+- **文档**：releases/archive/v4.392.0.md（含升级说明：ComfyUI 档编辑需先放模型文件，错误即指引）+CHANGELOG/README+releases/README（413→414+34 席插 v4.392 裁 v4.358）+AGENTS 迁 1 插 1（一百零七迁：v4.387 入 archive）+todos。
 - **观察池**：Lightning 4 步加速 LoRA；image2/3 多图编辑；蒙版局部重绘/扩图/抠图；编辑历史变体簇（ParentID 链）；模型文件名 config 化；FLUX.2 Klein 编辑族第二档；编辑产物回填角色库。
 
 ## 最新发布：v4.391.0（2026-09-22）「附件 URL 缓存 blob 化：base64 大字符串迁出 JS 堆 + selbar z 防御修」
@@ -1092,7 +1092,7 @@
 - **门禁**：全量 ci.ps1 绿 EXIT=0+版本漂移闸 OK@4.391.0。
 - **坑**：jsdom 30 原生 createObjectURL（钉 data: 断言真挂）/LRU 淘汰即 revoke 裂在屏图（条目被组件 state 持有）/data URL→blob 别用 fetch(dataURL)（jsdom 不支持）/后台测试命令只留 tail 丢失败详情。
 - **产物**：exe 见 SHA256SUMS-v4.391.0.txt（仅本地；冒烟 200 过）；保留策略 5 版留 v4.387~v4.391 删 v4.386.exe。
-- **文档**：性能池⑦销号回填+releases/v4.391.0.md+CHANGELOG/README+releases/README（412→413+34 席插 v4.391 裁 v4.357）+AGENTS 迁 1 插 1（一百零六迁：v4.388 入 archive）+todos。
+- **文档**：性能池⑦销号回填+releases/archive/v4.391.0.md+CHANGELOG/README+releases/README（412→413+34 席插 v4.391 裁 v4.357）+AGENTS 迁 1 插 1（一百零六迁：v4.388 入 archive）+todos。
 
 ## 最新发布：v4.390.0（2026-09-22）「canvas 调色板集中化：resolveThemeColor 收口三份手写解析器 + 主题切换跟随缺陷根修」
 
@@ -1103,7 +1103,7 @@
 - **门禁**：全量 ci.ps1 绿 EXIT=0（E 系列守卫 OK+仓库卫生守卫 OK）+版本漂移闸 OK@4.390.0。
 - **坑**：①canvas 测试 jsdom 三连坑——offsetParent 恒 null 触发 v4.365 空转挂起/首绘 rAF 等帧 flush/ctx 桩 Proxy 兜底任意方法②hex 后缀拼接只兼容 6 位 hex——非法色被 canvas 静默忽略不报错③模块级求值=主题切换隐形死角④getPropertyValue 读 custom property 只到引用替换层⑤Edge --screenshot 单帧不跑 rAF——canvas rAF 组件截图全空须 --virtual-time-budget⑥gaea 侧主题跟随不引老栈 store。
 - **产物**：exe 51181568B SHA256=0ad223995fc7816bbaf810f1cff82d41942390bcdc8958464a85f79f05335404（SHA256SUMS-v4.390.0.txt，仅本地；冒烟 /api/health 200 过；桌面副本同哈希实测一致；字节数与 v4.389 巧合相同哈希不同）；保留策略 5 版留 v4.386~v4.390 删 v4.385.0.exe（SUMS 身份档案全保留）。
-- **文档**：releases/v4.390.0.md（含升级说明）+CHANGELOG/README+releases/README（保留策略行+计数 411→412+34 席插 v4.390 裁 v4.356）+AGENTS 迁 1 插 1（一百零五迁：v4.387 入 archive）+todos。
+- **文档**：releases/archive/v4.390.0.md（含升级说明）+CHANGELOG/README+releases/README（保留策略行+计数 411→412+34 席插 v4.390 裁 v4.356）+AGENTS 迁 1 插 1（一百零五迁：v4.387 入 archive）+todos。
 
 ## 最新发布：v4.389.0（2026-09-22）「模型中心统计重设计：右栏检查器遥测读出式 + 详细统计抽屉信息分层」
 
@@ -1113,7 +1113,7 @@
 - **测试**：前端 +2 文件 8 例（InspectorPanel 三态+入口联动/StatsSection 工具条芯片+KPI 着色+hint 紧凑+分流带占比口算）；modelcenter 17 套 121 例+全量 391 文件 3332 例绿+tsc 0+eslint 0。目检两轮（esbuild 挂具+Edge 截图）：检查器六项全过，抽屉唯一缺陷（Token hint 截断）修复后复检确认。坑：窄柱放全尺寸图轴字不可读——图表按目标渲染宽度设计 viewBox；antd 两字中文按钮自动插空格+图标 textContent 前导空格——断言按存在性/trim；挂具视口 <1180px 触发检查器隐藏媒体查询（截图全黑≠渲染失败）；fmtCompact 归 utils.tsx 不进组件文件（react-refresh 告警）。
 - **门禁**：全量 ci.ps1 绿 EXIT=0 + 版本漂移闸 OK@4.389.0。
 - **产物**：exe 51181568B SHA256=ba43b3a1cecf79431de4739bc1deb918e621a1b5b98025f4d3c471bc0857693a（SHA256SUMS-v4.389.0.txt，仅本地；冒烟 200 过；桌面副本同哈希实测一致）；保留策略 5 版留 v4.385~v4.389 删 v4.384.0.exe（SUMS 全保留）。
-- **文档**：releases/v4.389.0.md（含升级说明）+CHANGELOG/README+releases/README（保留策略行+计数 410→411+34 席插 v4.389 裁 v4.355）+AGENTS 迁 1 插 1（一百零四迁：v4.386 入 archive）+todos。
+- **文档**：releases/archive/v4.389.0.md（含升级说明）+CHANGELOG/README+releases/README（保留策略行+计数 410→411+34 席插 v4.389 裁 v4.355）+AGENTS 迁 1 插 1（一百零四迁：v4.386 入 archive）+todos。
 
 ## 最新发布：v4.388.0（2026-09-22）「原罪插图独立生图绑定：功能绑定卡新增『原罪插图』后端/模型选择」
 
@@ -1123,7 +1123,7 @@
 - **测试**：Go +4 组（级联四态/Get 回读/buildImageClientFor 分支/override 通道 override=1 全局零触碰）+前端 +1（卡渲染+保存+已绑定态）。坑：config.Save 直写真实 ~/.gaea_config.json 无隔离钩子——Set roundtrip 不能真调，测读映射+纯函数级联；种子引擎目录恒 Enabled 须 SaveEngine 禁用再测未启用分支；override 后端语义要跟到底（三处判定原读全局配置）。
 - **门禁**：全量 ci.ps1 绿 EXIT=0 + 版本漂移闸 OK@4.388.0 + spaceBindings 锁 535→537 + bindingNames 714。
 - **产物**：exe 51171328B SHA256=48f1a288eaadb80a6a8632a81ac6d0dbff0fd110b87318947c4682a37bb141e1（SHA256SUMS-v4.388.0.txt，仅本地；冒烟 200 过；桌面副本同哈希实测一致——用户已关 gaea 连跳两版直更 v4.388）；保留策略 5 版留 v4.384~v4.388 删 v4.383.0.exe（SUMS 全保留）。
-- **文档**：releases/v4.388.0.md（含升级说明）+CHANGELOG/README+releases/README（保留策略行+计数 409→410+34 席插 v4.388 裁 v4.354）+AGENTS 迁 1 插 1（一百零三迁：v4.385 入 archive）+todos。
+- **文档**：releases/archive/v4.388.0.md（含升级说明）+CHANGELOG/README+releases/README（保留策略行+计数 409→410+34 席插 v4.388 裁 v4.354）+AGENTS 迁 1 插 1（一百零三迁：v4.385 入 archive）+todos。
 
 ## 最新发布：v4.387.0（2026-09-22）「ComfyUI 未运行自动拉起：原罪插图/绘梦生成连接被拒自愈」
 
@@ -1134,7 +1134,7 @@
 - **测试**：Go +3（image_boot_test.go 零真进程：连接被拒→假就绪端点→重试恰一次〔计数=2〕/未配置路径不重试且原始错误上抛/ensure 三分支契约——已运行即真·未配置即假·无 main.py 启动失败即假快速返回）；internal/app 全量绿。坑=测试成功路径必设 ImageSaveDir 指临时目录（否则 saveToNovelImages 撞装配态 nil）。
 - **门禁**：全量 ci.ps1 绿 EXIT=0 + 版本漂移闸 OK@4.387.0。
 - **产物**：exe 51163136B SHA256=f7ec8eb3c30260104a180beb81ba6354399aecc6bece6962c70bf9ba85a2e17b（SHA256SUMS-v4.387.0.txt，仅本地；冒烟 /api/health 200 过；桌面副本因用户会话在跑未覆盖——关闭 gaea 后替换，当前会话靠环境修复已可用）；保留策略 5 版留 v4.383~v4.387 删 v4.382.0.exe（SUMS 全保留）。
-- **文档**：releases/v4.387.0.md（含升级说明：首次冷启动生图多等一段属预期）+CHANGELOG/README+releases/README（保留策略行+计数 408→409+34 席插 v4.387 裁 v4.353）+AGENTS 迁 1 插 1（一百零二迁：v4.384 入 archive）+todos。
+- **文档**：releases/archive/v4.387.0.md（含升级说明：首次冷启动生图多等一段属预期）+CHANGELOG/README+releases/README（保留策略行+计数 408→409+34 席插 v4.387 裁 v4.353）+AGENTS 迁 1 插 1（一百零二迁：v4.384 入 archive）+todos。
 
 ## 最新发布：v4.386.0（2026-09-22）「造价库分页绑定：成本条目列表/表格分页 + 检索下拉载荷降载」
 
@@ -1144,7 +1144,7 @@
 - **门禁**：全量 ci.ps1 绿 EXIT=0（E 系列守卫 OK+仓库卫生守卫 OK）+版本漂移闸 OK@4.386.0+bindingNames 再生 712+spaceBindings 锁 534→535。
 - **事故与修复（本轮最大坑）**：Go 测试零命中查询触发**真实语义管线**——NewManager 种子目录 herdsman 恒 Enabled+localhost:8080，本机 embedding 服务在跑时 SQL 召回<3 即走语义补召回：Stale("cost",keep) 按测试条目集清掉真实库 cost 向量行+Ensure 写假向量。**已修复**：假行 DELETE 清污+走应用自身 GaeaSemanticIndexBackfill 全量重建 1553/1553=24s（复核实测）；测试侧 SaveEngine 禁用 herdsman 断通道。教训：hubCostStore/hubSemanticStore override 只护一半，resolveHerdsmanSearchModel 引擎目录在测试环境是活的；App 嵌 *core 裸 &App{} 字段访问即 panic（须 &App{core:&core{…}}）。
 - **产物**：exe 51160576B SHA256=4201619c…458cd（全文见 SHA256SUMS-v4.386.0.txt，仅本地；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略 5 版留 v4.382~v4.386 删 v4.381.0.exe（SUMS 全保留）。
-- **文档**：性能池⑥销号回填+releases/v4.386.0.md（含升级说明：标题排序改字节序、列表默认 100 条）+CHANGELOG/README+releases/README（保留策略行+计数 407→408+34 席插 v4.386 裁 v4.352）+AGENTS 迁 1 插 1（一百零一迁：v4.383 入 archive）+todos。
+- **文档**：性能池⑥销号回填+releases/archive/v4.386.0.md（含升级说明：标题排序改字节序、列表默认 100 条）+CHANGELOG/README+releases/README（保留策略行+计数 407→408+34 席插 v4.386 裁 v4.352）+AGENTS 迁 1 插 1（一百零一迁：v4.383 入 archive）+todos。
 - **下刀候选**：性能池⑦base64→blob 会话资源管理；视觉大工程（字号阶梯/玻璃收敛等，需专项+截图对照）；其余等条件型不动。
 
 ## 非版本刀（2026-09-22）projection-cache 收益评估：辨伪销号（dsh ⑪）
@@ -1163,7 +1163,7 @@
 - **门禁**：全量 ci.ps1 绿 EXIT=0（E 系列守卫 OK+仓库卫生守卫 OK）+版本漂移闸 OK@4.385.0。
 - **坑**：①「已防御」≠「全防御」——符号追踪随代码演化增长，扫描要周期性复跑②Fixed in N/A 常驻项——新增 excelize 消费面必须同步配 recover 入口③knip 未用导出区分死代码与契约哨兵（重复导出 KEEP 不跟风删）。
 - **产物**：exe 51153920 B SHA256=9d8de0811f3aa6de298ed4b9ee5b78d3159a735bebbf4a48189580d2f6b5a72e（releases/gaea-v4.385.0.exe+SHA256SUMS-v4.385.0.txt，exe 仅本地不入库；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略留 v4.381~v4.385 删 v4.380.0.exe（SUMS 身份档案全保留）。
-- **文档**：releases/v4.385.0.md（含升级说明）+CHANGELOG/README+releases/README（计数 406→407+34 席插 v4.385 裁 v4.351）+AGENTS 迁 1 插 1（一百迁：v4.382 入 archive）+progress/todos。
+- **文档**：releases/archive/v4.385.0.md（含升级说明）+CHANGELOG/README+releases/README（计数 406→407+34 席插 v4.385 裁 v4.351）+AGENTS 迁 1 插 1（一百迁：v4.382 入 archive）+progress/todos。
 
 ## 最新发布：v4.384.0（2026-09-22）「dsh 蒸馏第五弹：session_query 会话检索（跨会话记忆首刀）」
 
@@ -1173,7 +1173,7 @@
 - **门禁**：go build/vet 0+gofmt（触碰文件）+全量 ci.ps1 绿 EXIT=0（E 系列守卫 OK+仓库卫生守卫 OK）+版本漂移闸 OK@4.384.0。
 - **坑**：①ReadLogRepaired 的 torn-tail 修复截断「未以换行收尾」的最后一行——手工构造日志必须换行收尾（真实 LogWriter 恒换行收尾）②FTS5 标准表（非 contentless）才支持普通 DELETE——UNINDEXED 元数据列建虚表免联表可重索引③LIKE 路径 snippet 手工裁窗——两路径 Scan 形状不同，共用 Scan 助手静默拿空原文（首写即犯测试当场抓出）。
 - **产物**：exe 51150848 B SHA256=221d26d35d9bd7eeaf5a4fcb15afa647cb30cfaf0ff1a498c4ae68fea5967d25（releases/gaea-v4.384.0.exe+SHA256SUMS-v4.384.0.txt，exe 仅本地不入库；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略留 v4.380~v4.384 删 v4.379.0.exe（SUMS 身份档案全保留）。
-- **文档**：dsh 蒸馏文档⑧首刀销号回填（余 3）+releases/v4.384.0.md（含升级说明：首检索全量索引一次）+CHANGELOG/README+releases/README（计数 405→406+34 席插 v4.384 裁 v4.350）+AGENTS 迁 1 插 1（九十九迁：v4.381 入 archive）+progress/todos。
+- **文档**：dsh 蒸馏文档⑧首刀销号回填（余 3）+releases/archive/v4.384.0.md（含升级说明：首检索全量索引一次）+CHANGELOG/README+releases/README（计数 405→406+34 席插 v4.384 裁 v4.350）+AGENTS 迁 1 插 1（九十九迁：v4.381 入 archive）+progress/todos。
 
 ## 最新发布：v4.383.0（2026-09-22）「聊天虚拟化第二层：绘制层 content-visibility + 挂池考古销号一批」
 
@@ -1183,7 +1183,7 @@
 - **门禁**：全量 ci.ps1 绿 EXIT=0（E 系列守卫 OK+仓库卫生守卫 OK）+版本漂移闸 OK@4.383.0。
 - **坑**：①content-visibility 的行内 fixed/portal 子元素语义要先查——containment 裁剪 fixed 后代，聊天行菜单 portal 到 body 不受影响，novel selbar 不在作用面②「真虚拟化」不等于 react-window——三冲突场景下渲染层窗口+绘制层 CV 分层零结构风险达成同目标，池条目按目标销号不按实现手段。
 - **产物**：exe 51128320 B SHA256=4453235ab91e5a39187e4e4112e363df89937e66e96731f43f6f7bd0a310e588（releases/gaea-v4.383.0.exe+SHA256SUMS-v4.383.0.txt，exe 仅本地不入库；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略留 v4.379~v4.383 删 v4.378.0.exe（SUMS 身份档案全保留）。
-- **文档**：池②收口+三条考古销号回填+releases/v4.383.0.md（含升级说明）+CHANGELOG/README+releases/README（计数 404→405+34 席插 v4.383 裁 v4.349）+AGENTS 迁 1 插 1（九十八迁：v4.380 入 archive）+progress/todos。
+- **文档**：池②收口+三条考古销号回填+releases/archive/v4.383.0.md（含升级说明）+CHANGELOG/README+releases/README（计数 404→405+34 席插 v4.383 裁 v4.349）+AGENTS 迁 1 插 1（九十八迁：v4.380 入 archive）+progress/todos。
 
 ## 最新发布：v4.382.0（2026-09-22）「前端挂池清欠：整店订阅清零 + 交付物缓存失效接线」
 
@@ -1193,7 +1193,7 @@
 - **门禁**：全量 ci.ps1 绿 EXIT=0（E 系列守卫 OK+仓库卫生守卫 OK）+版本漂移闸 OK@4.382.0。
 - **坑**：①挂池审计行号会过时——清欠前先全仓重扫，销号写清哪些本轮修哪些中间轮已修②恰好一次的事件绑定是模块级单例——从可观测面（bridge 调用计数）断言行为不 mock 内部③缓存失效时机在事件边界——reducer 保持纯函数，副作用接既存非纯区（turn_done 块本就有 ContextUsage/Balance 副作用）。
 - **产物**：exe 51128320 B SHA256=a44212dc84ddcdad14c54c7a1c0bd91783858d9907efa377e0362c72f0b0139f（releases/gaea-v4.382.0.exe+SHA256SUMS-v4.382.0.txt，exe 仅本地不入库；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略留 v4.378~v4.382 删 v4.377.0.exe（SUMS 身份档案全保留）。
-- **文档**：挂池④/dirListingsCache 销号回填+releases/v4.382.0.md（含升级说明）+CHANGELOG/README+releases/README（计数 403→404+34 席插 v4.382 裁 v4.348）+AGENTS 迁 1 插 1（九十七迁：v4.379 入 archive）+progress/todos。
+- **文档**：挂池④/dirListingsCache 销号回填+releases/archive/v4.382.0.md（含升级说明）+CHANGELOG/README+releases/README（计数 403→404+34 席插 v4.382 裁 v4.348）+AGENTS 迁 1 插 1（九十七迁：v4.379 入 archive）+progress/todos。
 
 ## 最新发布：v4.381.0（2026-09-22）「dsh 蒸馏第四弹：锚定式 token 计量（压缩触发时机去漂移）」
 
@@ -1203,7 +1203,7 @@
 - **门禁**：go build/vet 0+gofmt（触碰文件）+全量 ci.ps1 绿 EXIT=0（E 系列守卫 OK+仓库卫生守卫 OK）+版本漂移闸 OK@4.381.0。
 - **坑**：①锚点时点对齐「刚被 answered 的请求面」——maybeCompact 在 session.Add(assistant) 前调用才无系统偏差，挪后差一整轮②新消息按当前比率估、老消息按锚点时点比率消是刻意的（memo 键只含内容不含比率，比率演化不影响一致性）③sync.Mutex 不可重入——持锁调内部无锁变体，别再走公开方法。
 - **产物**：exe 51128320 B SHA256=42b574026869c84f0d9ae31203b3cdd6d7036fc4907d4c04a313e078dc316647（releases/gaea-v4.381.0.exe+SHA256SUMS-v4.381.0.txt，exe 仅本地不入库；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略留 v4.377~v4.381 删 v4.376.0.exe（SUMS 身份档案全保留）。
-- **文档**：dsh 蒸馏文档②销号回填（余 4）+releases/v4.381.0.md（含升级说明）+CHANGELOG/README+releases/README（计数 402→403+34 席插 v4.381 裁 v4.347）+AGENTS 迁 1 插 1（九十六迁：v4.378 入 archive）+progress/todos。
+- **文档**：dsh 蒸馏文档②销号回填（余 4）+releases/archive/v4.381.0.md（含升级说明）+CHANGELOG/README+releases/README（计数 402→403+34 席插 v4.381 裁 v4.347）+AGENTS 迁 1 插 1（九十六迁：v4.378 入 archive）+progress/todos。
 
 ## 最新发布：v4.380.0（2026-09-22）「dsh 蒸馏第三弹·子代理编排：Fork 型子代理 + 结构化输出补完 + V10.36 对齐复活」
 
@@ -1213,7 +1213,7 @@
 - **门禁**：go build/vet 0+gofmt（触碰文件）+全量 ci.ps1 绿 EXIT=0（E 系列守卫 OK+仓库卫生守卫 OK）+版本漂移闸 OK@4.380.0。
 - **坑**：①「每轮重置」类清理会把构造期注入的配置一起抹掉——重置要回基线不是零值，死代码靠端到端断言请求形状辨识（schema 数 1 vs 2 当场暴露）②V6.0/V10.36 两代测试钉矛盾行为各活各的（对齐是死的两边都绿）——修复一处另一处断言爆开，改断言不是改实现③RunSubAgent 把会话藏在内部——需同会话二次进入/会话预置的功能都要把会话持有上移调用方④executeOne 把工具结果包信封 JSON——测试透信封断言别假设裸文本。
 - **产物**：exe 51117568 B SHA256=1a3a237214d1805c337530bf53481f1d516003d6f2de8c2cb883e61b0b878b27（releases/gaea-v4.380.0.exe+SHA256SUMS-v4.380.0.txt，exe 仅本地不入库；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略留 v4.376~v4.380 删 v4.375.0.exe（SUMS 身份档案全保留）。
-- **文档**：dsh 蒸馏文档 fork/结构化输出销号回填（余 5）+releases/v4.380.0.md（含升级说明）+CHANGELOG/README+releases/README（计数 401→402+34 席插 v4.380 裁 v4.346）+AGENTS 迁 1 插 1（九十五迁：v4.377 入 archive）+progress/todos。
+- **文档**：dsh 蒸馏文档 fork/结构化输出销号回填（余 5）+releases/archive/v4.380.0.md（含升级说明）+CHANGELOG/README+releases/README（计数 401→402+34 席插 v4.380 裁 v4.346）+AGENTS 迁 1 插 1（九十五迁：v4.377 入 archive）+progress/todos。
 
 ## 最新发布：v4.379.0（2026-09-21）「dsh 蒸馏第二弹：spill 泄洪 + 中断流结构化块保全」
 
@@ -1223,7 +1223,7 @@
 - **门禁**：go build/vet 0+gofmt（触碰文件）+全量 ci.ps1 绿 EXIT=0（E 系列守卫 OK+仓库卫生守卫 OK）+版本漂移闸 OK@4.379.0。
 - **产物**：exe 51111424 B SHA256=affb81cd23963555085479c6bd47adbf716abd3762b10e7ce92fcd7b661e3385（releases/gaea-v4.379.0.exe+SHA256SUMS-v4.379.0.txt，exe 仅本地不入库；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略留 v4.375~v4.379 删 v4.374.0.exe（SUMS 身份档案全保留）。
 - **坑**：①信封是单行紧凑 JSON——截断按「行」选择按「字节」裁切，行数不超限时全行保留后首行被**头部**裁切：要活的内容（locator 指引）必须放头部，尾缀版被测试当场抓出假绿②混合批执行序非调用序（v4.375 分区并行不同资源键共存）——「先泄洪再取回」端到端测试同批会竞态假红，跨回合才有全序③agent 测试引 builtin + builtin 引 agent=测试期 import cycle（生产编译不报 go test 才炸）——SpillStore 下沉叶子包，策略留 agent④preOutcomes 存已包信封 output——合成占位同信封约定，否则回放两种形态混存。
-- **文档**：dsh 蒸馏文档①③销号回填（余 7）+releases/v4.379.0.md（含升级说明：tool_spill 关闭回旧行为/中断续聊占位语义）+CHANGELOG/README+releases/README（计数 400→401+34 席插 v4.379 裁 v4.345）+AGENTS 迁 1 插 1（九十四迁：v4.376 入 archive）+progress/todos。
+- **文档**：dsh 蒸馏文档①③销号回填（余 7）+releases/archive/v4.379.0.md（含升级说明：tool_spill 关闭回旧行为/中断续聊占位语义）+CHANGELOG/README+releases/README（计数 400→401+34 席插 v4.379 裁 v4.345）+AGENTS 迁 1 插 1（九十四迁：v4.376 入 archive）+progress/todos。
 ## 最新发布：v4.378.0（2026-09-21）「Reasonix 真身蒸馏第四弹·留池收官：bash 会话状态锚定 + memory activation 二维 + subject keys」
 
 - **动机**：用户口径「继续优化完善 gaea」——Reasonix 真身蒸馏第四弹，清掉最后 2 项留池（Persistent bash PTY + memory 事实生命周期）收官整条蒸馏线；同日对账 dsh 留池销 3（12→9）。全 Go，绑定面 711 零变更。
@@ -1233,7 +1233,7 @@
 - **门禁**：go build/vet 0+gofmt（触碰文件）+全量 ci.ps1 绿 EXIT=0（E 系列守卫 OK+仓库卫生守卫 OK）+版本漂移闸 OK@4.378.0。
 - **坑**：①bash printf 的 %s 是 Go Sprintf 动词——wrapper 模板写 %%s 否则 vet 拒编②MSYS 路径形态——探针必须 cygpath -w 转 host 形否则下次 cmd.Dir chdir 失败③事件日志列与 Event 结构一一对应——subject_key 真相归 facts 表（与 body 同待遇），不为审计单独开列④NormalizeSubjectKey 空白折叠与下划线不是一回事——键等价只走 trim+ASCII 小写+空白折叠'-'一条路。
 - **产物**：exe 51089920 B SHA256=3f65aafb6c69ae807f394c3f34a0272fcbf39f7326a2d6789423376f60e48622（releases/gaea-v4.378.0.exe+SHA256SUMS-v4.378.0.txt，exe 仅本地不入库；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略留 v4.374~v4.378 删 v4.373.0.exe（SUMS 身份档案全保留）。
-- **文档**：docs/gaea-reasonix-v138-distill-2026-09.md 第四弹三刀+留池⑤⑦收官回填（池清空）+docs/gaea-dsh-016-distill-2026-09.md 销号 3 项（12→9）+releases/v4.378.0.md+CHANGELOG/README+releases/README（保留策略行+发布说明计数 399→400+34 席索引插 v4.378 裁 v4.344）+AGENTS 迁 1 插 1（九十三迁：v4.375 入 archive；补记九十二迁漏登）+progress/todos（reasonix 行翻✅收官）。
+- **文档**：docs/gaea-reasonix-v138-distill-2026-09.md 第四弹三刀+留池⑤⑦收官回填（池清空）+docs/gaea-dsh-016-distill-2026-09.md 销号 3 项（12→9）+releases/archive/v4.378.0.md+CHANGELOG/README+releases/README（保留策略行+发布说明计数 399→400+34 席索引插 v4.378 裁 v4.344）+AGENTS 迁 1 插 1（九十三迁：v4.375 入 archive；补记九十二迁漏登）+progress/todos（reasonix 行翻✅收官）。
 
 ## 最新发布：v4.377.0（2026-09-21）「办公记忆/成本库写入纠偏：自动做梦建议制 + 存量清污 + 成本劝写改口」
 
@@ -1242,7 +1242,7 @@
 - **测试**：Go +8（模式归一化/队列 FIFO 上限出队三态空间隔离/入队分流/视图转换/接受幂等+忽略不写库/清污交集审计留痕）+前端 MemoryPanel +3（三态循环/忽略/清污两步）。绑定面 707→711。
 - **门禁**：go build/vet 0+全量 ci.ps1 绿+版本漂移闸 OK@4.377.0。
 - **坑**：①bindingNames.ts 重生成必须保 as const（丢则 drift 报 never 不指向真凶）②jsdom LocaleProvider 默认 en——i18n 断言双语正则③出队失败不得静默落旧写入路径④清污按钮不能只在建议非空分支渲染⑤Proxy mock 方法必须 mockResolvedValue（裸 vi.fn() 返回 undefined 接 .then 崩，单文件假绿全量才炸）。
-- **文档**：DREAM_WRITE_POLICY §5+releases/v4.377.0.md（含升级说明）+CHANGELOG/README+releases/README（计数 399）+AGENTS 迁 1 插 1（九十二迁：v4.374 入 archive）+todos。
+- **文档**：DREAM_WRITE_POLICY §5+releases/archive/v4.377.0.md（含升级说明）+CHANGELOG/README+releases/README（计数 399）+AGENTS 迁 1 插 1（九十二迁：v4.374 入 archive）+todos。
 ## 最新发布：v4.376.0（2026-09-21）「Reasonix 真身蒸馏第三弹：压缩救援阶梯 + 重复调用裁决 + 技能目录预算化」
 
 - **动机**：续 v4.375 真身留池第三弹——压缩/恢复域两把主刀+技能目录一把小刀，辨伪销号一批收口留池。全 Go，绑定面 707 零变更。
@@ -1252,7 +1252,7 @@
 - **门禁**：go build/vet 0+全量 ci.ps1 绿 EXIT=0 首跑即绿+版本三处 4.376.0。
 - **坑**：①救援机制的可达带先算清再写测试——可达带=compact 尾钳与 rescue 尾钳间盲区，prune 够不到、compact 尾保护又留下的大块 assistant 正文才是构造素材，否则前置清场测试假绿②token 估算器 max(bytes/4, runes/2)——纯 ASCII 按 2 字符/token 计，边界按此口径算③破坏性截断必须 fail-closed 于归档——三级都先归档再动手，archive 坏=整体拒绝。
 - **产物**：exe 51030528 B SHA256=8c0febb68f936ed247a317baa6bb86d714474e9f96b9a2c50a3724f7d59b4aef（releases+SUMS 仅本地；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略删 v4.371.0.exe。
-- **文档**：蒸馏文档第三弹三刀+留池销号回填+releases/v4.376.0.md+CHANGELOG/README+releases/README（计数 397→398+34 席插 v4.376 裁 v4.342）+AGENTS 迁 1 插 1（九十一迁：v4.373 入 archive）+progress/todos。
+- **文档**：蒸馏文档第三弹三刀+留池销号回填+releases/archive/v4.376.0.md+CHANGELOG/README+releases/README（计数 397→398+34 席插 v4.376 裁 v4.342）+AGENTS 迁 1 插 1（九十一迁：v4.373 入 archive）+progress/todos。
 
 ## 最新发布：v4.375.0（2026-09-21）「Reasonix 真身蒸馏第二弹：执行序批次 + 文件观察 + 杂项加固」
 
@@ -1262,7 +1262,7 @@
 - **门禁**：go build/vet 0+全量 ci 绿 EXIT=0+版本三处 4.375.0。
 - **坑**：①批次分区改动必须带共存收益回归锁（只测拆批不测共存=延迟优化静默回退）②观察类机制防「假装观察过」——观察点绑真实 I/O 成功路径。
 - **产物**：exe 51011072 B SHA256=88499e001577a49b184f8e754a1f1a879e38c13e3affe86dab9572e48c3e09a6（releases+SUMS 仅本地；桌面副本同哈希；冒烟 200 过）；保留策略删 v4.370.exe。
-- **文档**：蒸馏文档留池四项销号/辨伪回填+releases/v4.375.0.md+CHANGELOG/README+releases/README（计数 396→397+34 席插 v4.375 裁 v4.341）+AGENTS 迁 1 插 1（九十迁：v4.372 入 archive）+progress/todos。
+- **文档**：蒸馏文档留池四项销号/辨伪回填+releases/archive/v4.375.0.md+CHANGELOG/README+releases/README（计数 396→397+34 席插 v4.375 裁 v4.341）+AGENTS 迁 1 插 1（九十迁：v4.372 入 archive）+progress/todos。
 
 ## 最新发布：v4.374.0（2026-09-21）「Reasonix 真身蒸馏：安全四刀 + 内核三刀」
 
@@ -1272,7 +1272,7 @@
 - **门禁**：go build/vet 0+全量 ci 绿 EXIT=0+版本三处 4.374.0。
 - **坑**：①蒸馏判据带上「上游机制的前提本地是否成立」（awk -f 例外依赖上游已记忆规则模型，gaea 自动放行无此前提）②安全刀落地先 grep 假站/httptest 用例 client 来源。
 - **产物**：exe 51004928 B SHA256=85149421d0098b19dc28fbf66e4a0c7a5e52281fdf86b1e97b8ef35d9aed0a90（releases+SUMS 仅本地；桌面副本同哈希；冒烟 200 过）；保留策略删 v4.369.exe。
-- **文档**：docs/gaea-reasonix-v138-distill-2026-09.md 新增+gaea-dsh-016 勘误更名+releases/v4.374.0.md+CHANGELOG/README+releases/README（计数 395→396+34 席插 v4.374 裁 v4.340）+AGENTS 迁 1 插 1（八十九迁：v4.371 入 archive）+progress/todos。
+- **文档**：docs/gaea-reasonix-v138-distill-2026-09.md 新增+gaea-dsh-016 勘误更名+releases/archive/v4.374.0.md+CHANGELOG/README+releases/README（计数 395→396+34 席插 v4.374 裁 v4.340）+AGENTS 迁 1 插 1（八十九迁：v4.371 入 archive）+progress/todos。
 
 ## 最新发布：v4.373.0（2026-09-21）「Reasonix (dsh) 0.1.6 内核蒸馏：溢出自愈 + 缓存对齐摘要等五刀」
 
@@ -1282,7 +1282,7 @@
 - **门禁**：go build/vet 0+agent/provider 全包绿+全量 ci.ps1 绿 EXIT=0+drift OK@707+版本三处 4.373.0。
 - **坑**：①折叠区含旧 digest（kept）时重放到第一个 kept 消息即与上一请求分歧——system+tools 最贵前缀仍全命中，部分对齐可接受②无进展判定必须看 session.RewriteVersion 而非 compact 返回值（compact 对无可折叠区返回 nil，按返回值判会把空转当成功）。
 - **产物**：exe 50995712 B SHA256=363b40e7450e95a6a9089bfe7d3900c9edbb791fb50a2fc163b0098c0f29ac30（releases+SUMS 仅本地；桌面副本同哈希；冒烟 200 过）；保留策略删 v4.368.exe。
-- **文档**：docs/gaea-dsh-016-distill-2026-09.md（侦察+五刀+留池 12 项）+releases/v4.373.0.md+CHANGELOG/README+releases/README（计数 394→395+34 席插 v4.373 裁 v4.339）+AGENTS 迁 1 插 1（八十八迁：v4.370 入 archive）+progress/todos。
+- **文档**：docs/gaea-dsh-016-distill-2026-09.md（侦察+五刀+留池 12 项）+releases/archive/v4.373.0.md+CHANGELOG/README+releases/README（计数 394→395+34 席插 v4.373 裁 v4.339）+AGENTS 迁 1 插 1（八十八迁：v4.370 入 archive）+progress/todos。
 
 ## 最新发布：v4.372.0（2026-09-21）「Gantt 缩放性能：Ctrl+滚轮 rAF 合并」
 
@@ -1292,7 +1292,7 @@
 - **门禁**：tsc 0+eslint 0+全量 ci.ps1 绿 EXIT=0（vitest 387 文件 3315 例；首跑 BookHealthPanel 1 例 flaky 与本轮足迹零交叠，单跑 7/7 复绿后全量复跑 OK）+drift OK@707+版本三处 4.372.0。
 - **坑**：①rAF 合并后同步断言失效——jsdom 下 rAF 为 16ms 模拟 setTimeout，fireEvent.wheel 后同步断言拿到的还是旧值，测试需 await act 等待帧提交；②it 回调补 async 时易引连环括号错误——手工补 async( 后遗漏原闭合括号层级，esbuild 语法错误逐层暴露；脚本化改写测试文件时优先整段重写而非点状替换。
 - **产物**：exe 50,988,032B SHA256=cf94c096112e9c177f6e46f040fe315acf82e5ebc3fb5b4a765ee78057bab7b8（releases/gaea-v4.372.0.exe+SHA256SUMS-v4.372.0.txt 仅本地；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略 5 版留 v4.368~v4.372 删 v4.367.0.exe（SUMS 身份档案全保留）。
-- **文档**：releases/v4.372.0.md+CHANGELOG/README+releases/README（计数 393→394+34 席插 v4.372 裁 v4.338）+AGENTS 迁 1 插 1（八十七迁：v4.369 入 archive）+progress/todos（Gantt 缩放 rAF 合并销号；行组件化+transform 结构改造留池）。
+- **文档**：releases/archive/v4.372.0.md+CHANGELOG/README+releases/README（计数 393→394+34 席插 v4.372 裁 v4.338）+AGENTS 迁 1 插 1（八十七迁：v4.369 入 archive）+progress/todos（Gantt 缩放 rAF 合并销号；行组件化+transform 结构改造留池）。
 
 ## 最新发布：v4.371.0（2026-09-21）「聊天历史分页绑定（游标式，绑定面 706→707）」
 
@@ -1303,7 +1303,7 @@
 - **门禁**：go build/vet 0+internal/chat 全量绿+tsc 0+eslint 0+全量 ci.ps1 绿 EXIT=0（vitest 387 文件 3315 例）+bindings drift OK@707+版本三处 4.371.0。
 - **坑**：①头部追加 vs 整体替换的窗口语义——MessageList 的 anchor 重置逻辑原本不区分「切话题」与「分页头部追加」，直接接分页会把用户弹回尾部；②mock 契约必须跟随签名演进——ChatMessagesList 返回数组而 ChatMessagesPage 返回 page 对象，测试 mock 若只镜像数组形态，loadTopic 的 page?.messages 提取会静默得到空。
 - **产物**：exe 50,987,520B SHA256=59cfc300918fd55521a58ad8619884ecf0441795cda15a81fd84b607da19a200（releases/gaea-v4.371.0.exe+SHA256SUMS-v4.371.0.txt 仅本地；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略 5 版留 v4.367~v4.371 删 v4.366.0.exe（SUMS 身份档案全保留）。
-- **文档**：releases/v4.371.0.md+CHANGELOG/README+releases/README（计数 392→393+34 席插 v4.371 裁 v4.337）+AGENTS 迁 1 插 1（八十六迁：v4.368 入 archive）+progress/todos（性能八项消一项：分页绑定收官——余项均需更深的契约设计）。
+- **文档**：releases/archive/v4.371.0.md+CHANGELOG/README+releases/README（计数 392→393+34 席插 v4.371 裁 v4.337）+AGENTS 迁 1 插 1（八十六迁：v4.368 入 archive）+progress/todos（性能八项消一项：分页绑定收官——余项均需更深的契约设计）。
 
 ## 最新发布：v4.370.0（2026-09-21）「工程健康轮：依赖漏洞清零 + Go 工具链升级 + 构建管线修正」
 
@@ -1313,7 +1313,7 @@
 - **门禁**：govulncheck 复扫 11→1+npm audit 归零+go build/vet 0+office 包全量绿+全量 ci.ps1 绿 EXIT=0（vitest 388 文件 3315 例，vitest 4.1.11 兼容）+drift OK@706+版本三处 4.370.0。
 - **坑**：①pnpm 项目里 npm install 会生成 package-lock.json 形成双轨——发现后立即删除并 pnpm install 恢复单轨；②lockfile 缺失是环境敏感炸弹——任何依赖树变动触发重新解析，peer 冲突在 wails 隐式 install 中爆炸，lockfile 入库后不再复现；③wails 隐式 npm install 依赖环境解析成功——显式前端构建+-s 是在册坑配方，build.bat 此前未遵守本轮落地。
 - **产物**：exe 50,979,328B SHA256=785a740a681d410dfff9c8744d09cb37698ca6d756e0808f31b42edbae8de95f（releases/gaea-v4.370.0.exe+SHA256SUMS-v4.370.0.txt 仅本地；桌面副本同哈希实测一致；冒烟 /api/health 200 过；go1.26.6 构建）；保留策略 5 版留 v4.366~v4.370 删 v4.365.0.exe（SUMS 身份档案全保留）。
-- **文档**：releases/v4.370.0.md+CHANGELOG/README+releases/README（计数 391→392+34 席插 v4.370 裁 v4.336）+AGENTS 迁 1 插 1（八十五迁：v4.367 入 archive）+progress/todos（excelize 上游未修留观）。
+- **文档**：releases/archive/v4.370.0.md+CHANGELOG/README+releases/README（计数 391→392+34 席插 v4.370 裁 v4.336）+AGENTS 迁 1 插 1（八十五迁：v4.367 入 archive）+progress/todos（excelize 上游未修留观）。
 
 ## 最新发布：v4.369.0（2026-09-21）「真机走查班第二班：流式分段渲染真机验收 + --w-ink-3 重指向」
 
@@ -1324,7 +1324,7 @@
 - **门禁**：tsc 0+eslint 0+全量 ci.ps1 绿 EXIT=0（vitest 387 文件 3315 例）+drift OK@706+版本三处 4.369.0。
 - **坑**：①CDP 目检读局部令牌要在定义作用域元素上读——--w-ink-3 定义在 .ml 选择器下（板块局部令牌层），从 documentElement 读恒为空串；②走查发消息会写用户真实库——聊天无消息级删除绑定，测试消息只能按 id 从 chat.db 精准删除；后续走查若需验证流式，先建专用测试会话再删除整个会话（ChatTopicDelete），避免污染用户会话。
 - **产物**：exe 50,951,680B SHA256=26f0293b4b08e03f70d9220093872c3eff335ed72642116d341ec6029fbdfc50（releases/gaea-v4.369.0.exe+SHA256SUMS-v4.369.0.txt 仅本地；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略 5 版留 v4.365~v4.369 删 v4.364.0.exe（SUMS 身份档案全保留）。
-- **文档**：releases/v4.369.0.md+CHANGELOG/README+releases/README（计数 390→391+34 席插 v4.369 裁 v4.335）+AGENTS 迁 1 插 1（八十四迁：v4.366 入 archive）+progress/todos（别名重指向两目收官销号）。
+- **文档**：releases/archive/v4.369.0.md+CHANGELOG/README+releases/README（计数 390→391+34 席插 v4.369 裁 v4.335）+AGENTS 迁 1 插 1（八十四迁：v4.366 入 archive）+progress/todos（别名重指向两目收官销号）。
 
 ## 最新发布：v4.368.0（2026-09-21）「性能轮深水区：聊天流式分段渲染 O(n²) 根修」
 
@@ -1336,7 +1336,7 @@
 - **门禁**：定向 +6（findStableCut.test.ts：无空行全不稳定/多段落切分/切点后未闭合 fence 留尾/fence body 含空行不拦腰〔盲区修复〕/闭合 fence 入稳定段/空文本）+MemoMarkdown 既有 2 例零改动通过+ChatMarkdown.genui/聊天组件/genui.walkthrough 回归全绿+tsc 0+eslint 0+全量 ci.ps1 绿 EXIT=0（vitest 387 文件 3315 例）+drift OK@706+版本三处 4.368.0。
 - **坑**：①正则整段替换函数体非贪婪匹配会吞闭合括号——替换串忘了带 `}`，tsc 当场暴露；②性能改造的行为等价是「终态等价」——流式中间态 DOM 从单块变两块（stable+pending），验收口径=终态一致+中间态不劣化，不能拿中间态 DOM 逐字节比。
 - **产物**：exe 50,951,680B SHA256=e1bc4358584f6c0c70dacb2c9ac18cd545dd831f8dc6157a9b3d88b7cf2849a0（releases/gaea-v4.368.0.exe+SHA256SUMS-v4.368.0.txt 仅本地；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略 5 版留 v4.364~v4.368 删 v4.363.0.exe（SUMS 身份档案全保留）。
-- **文档**：releases/v4.368.0.md+CHANGELOG/README+releases/README（计数 389→390+34 席插 v4.368 裁 v4.334）+AGENTS 迁 1 插 1（八十三迁：v4.365 入 archive）+progress/todos（性能八项消一项：流式分段渲染收官——余七项）。
+- **文档**：releases/archive/v4.368.0.md+CHANGELOG/README+releases/README（计数 389→390+34 席插 v4.368 裁 v4.334）+AGENTS 迁 1 插 1（八十三迁：v4.365 入 archive）+progress/todos（性能八项消一项：流式分段渲染收官——余七项）。
 
 ## 最新发布：v4.367.0（2026-09-21）「编辑输入性能：章节编辑 memo 化 + 设定页预览/统计防抖」
 
@@ -1347,7 +1347,7 @@
 - **门禁**：tsc 0+eslint 0+全量 ci.ps1 绿 EXIT=0（vitest 387 文件 3309 例；ChapterPage/NovelSettingPage/novel 组件 187 例定向全绿）+drift OK@706+版本三处 4.367.0。
 - **坑**：①跨层字符串转义地狱——python 补丁多层传递中 \n 被吃成真实换行写进源码（TS Unterminated string literal），构造含反斜杠字面量用 chr(92) 拼接彻底避开转义层级；②防抖的正确姿势是「镜像值」而非「延迟源」——编辑器保持逐键受控（输入零延迟），只有下游重计算（Markdown 解析/字数）消费防抖镜像；防抖放 onChange 上游=输入回显延迟，那是 bug 不是优化。
 - **产物**：exe 50,951,680B SHA256=177331f52125c531ba4096e7e2e121cc1e653083d77912ebce6d935d2be8ac38（releases/gaea-v4.367.0.exe+SHA256SUMS-v4.367.0.txt 仅本地；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略 5 版留 v4.363~v4.367 删 v4.362.0.exe（SUMS 身份档案全保留）。
-- **文档**：releases/v4.367.0.md+CHANGELOG/README+releases/README（计数 388→389+34 席插 v4.367 裁 v4.333）+AGENTS 迁 1 插 1（八十二迁：v4.364 入 archive）+progress/todos（性能八项再消两目——ChapterEditor 受控下沉被 memo+防抖等效覆盖大半，下沉本体留池）。
+- **文档**：releases/archive/v4.367.0.md+CHANGELOG/README+releases/README（计数 388→389+34 席插 v4.367 裁 v4.333）+AGENTS 迁 1 插 1（八十二迁：v4.364 入 archive）+progress/todos（性能八项再消两目——ChapterEditor 受控下沉被 memo+防抖等效覆盖大半，下沉本体留池）。
 
 ## 最新发布：v4.366.0（2026-09-21）「性能轮收官：聊天组件 memo 化专项 + StoryStream 行级 memo」
 
@@ -1358,7 +1358,7 @@
 - **门禁**：tsc 0+eslint 0+全量 ci.ps1 绿 EXIT=0（vitest 387 文件 3309 例+E16 PASS）+drift OK@706+版本三处 4.366.0。
 - **坑**：①改组件导出形态先查源断言守卫——E16 按 `export const ChatComposer:` 文本定位组件声明，memo 化改名后守卫失明；守卫与被守代码同 commit 演进但断言意图不变；②memo 化顺序纪律——先稳定 props（useCallback/常量）再包 memo，顺序反了 memo 全部空转且无报错只有性能损失。
 - **产物**：exe 50,951,168B SHA256=a6d7be9a917339e4d010ceb17fa3b10c594f4225f845a0f9e3b2fbaa222b10c1（releases/gaea-v4.366.0.exe+SHA256SUMS-v4.366.0.txt 仅本地；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略 5 版留 v4.362~v4.366 删 v4.361.0.exe（SUMS 身份档案全保留）。
-- **文档**：releases/v4.366.0.md+CHANGELOG/README+releases/README（计数 387→388+34 席插 v4.366 裁 v4.332）+AGENTS 迁 1 插 1（八十一迁：v4.363 入 archive）+progress/todos（性能八项消两项：聊天组件 memo 化+StoryStream 行级 memo）。
+- **文档**：releases/archive/v4.366.0.md+CHANGELOG/README+releases/README（计数 387→388+34 席插 v4.366 裁 v4.332）+AGENTS 迁 1 插 1（八十一迁：v4.363 入 archive）+progress/todos（性能八项消两项：聊天组件 memo 化+StoryStream 行级 memo）。
 
 ## 最新发布：v4.365.0（2026-09-21）「前端性能轮：流式节流 + 后台空转治理 + 缓存统一」
 
@@ -1373,7 +1373,7 @@
 - **留池**（行为级/需设计，审计已给证据）：流式分段渲染/聊天真虚拟化/StoryStream 行级 memo/ChapterEditor 受控下沉/Gantt 行组件化/聊天历史与造价库分页绑定/base64→blob URL/聊天组件 memo 化（props 链需梳理）。
 - **坑**：①组件 memo 非免费午餐——内联 props 使 memo 恒失效，须先梳 props 链；②rules-of-hooks 硬约束——提升 useMemo 连同 manual/shown 计算移 early return 前（eslint 当场拦）；③测试 mock 缺方法时可选链与直接调语义差——共享工具要有方法缺失防御（ContextView 空渲染 5s 超时教训）；④整 store 订阅代价被 keepAlive 放大——根壳粗订阅优先治理。
 - **产物**：exe 50,951,168B SHA256=c2d09a937841630a46052517ea750cd16ac975d26e242d026c06f26296653948（releases/gaea-v4.365.0.exe+SHA256SUMS-v4.365.0.txt 仅本地；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略 5 版留 v4.361~v4.365 删 v4.360.0.exe（SUMS 身份档案全保留）。
-- **文档**：releases/v4.365.0.md+CHANGELOG/README+releases/README（计数 386→387+34 席插 v4.365 裁 v4.331）+AGENTS 迁 1 插 1（八十迁：v4.362 入 archive）+progress/todos（性能大工程八项挂池）。
+- **文档**：releases/archive/v4.365.0.md+CHANGELOG/README+releases/README（计数 386→387+34 席插 v4.365 裁 v4.331）+AGENTS 迁 1 插 1（八十迁：v4.362 入 archive）+progress/todos（性能大工程八项挂池）。
 
 ## 最新发布：v4.364.0（2026-09-21）「真机走查班：v4.361~v4.363 前端三轮验收 + withinReadRoots 绘梦图误伤修复」
 
@@ -1383,7 +1383,7 @@
 - **门禁**：定向 +1+internal/app 全量绿（102s）+tsc 0+eslint 0+全量 ci.ps1 绿 EXIT=0（vitest 387 文件 3305 例）+drift OK@706+版本三处 4.364.0。
 - **坑**：①mock/单测测不出路径语义——v4.358 白名单论断没经真机验证就写进注释，读侧白名单变更必须真机过一遍真实数据路径；②走查拽错要看壳日志不只看页面——AttachmentDataURL 失败前端有占位兜底页面全绿，问题只在壳日志里；③包级函数改方法先 grep 裸构造测试（&App{} 是合法测试惯用形，方法化后嵌入指针解引用即 panic）；④CDP 探针传 Windows 路径的转义陷阱（多层引号反斜杠被 JS 转义吃掉、 成 formfeed），用 join(String.fromCharCode(92)) 或正斜杠（Windows API 皆收）。
 - **产物**：exe 50,948,096B SHA256=e026857b8c74d1667b9d5606267d93bffd94d03a3678008073deca4d4f76b976（releases/gaea-v4.364.0.exe+SHA256SUMS-v4.364.0.txt 仅本地；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略 5 版留 v4.360~v4.364 删 v4.359.0.exe（SUMS 身份档案全保留）。
-- **文档**：releases/v4.364.0.md+CHANGELOG/README+releases/README（计数 385→386+34 席插 v4.364 裁 v4.330）+AGENTS 迁 1 插 1（七十九迁：v4.361 入 archive）+progress/todos（走查班清账+误伤修复销号）。
+- **文档**：releases/archive/v4.364.0.md+CHANGELOG/README+releases/README（计数 385→386+34 席插 v4.364 裁 v4.330）+AGENTS 迁 1 插 1（七十九迁：v4.361 入 archive）+progress/todos（走查班清账+误伤修复销号）。
 
 ## 最新发布：v4.363.0（2026-09-21）「后端留池终审：ConvertToPdf 读侧收口落地 + prompt 双构造辨伪关闭」
 
@@ -1394,7 +1394,7 @@
 - **门禁**：定向 +1+internal/app 全量绿（99.9s）+tsc 0+eslint 0+全量 ci.ps1 绿 EXIT=0（vitest 387 文件 3305 例）+drift OK@706+版本三处 4.363.0。
 - **坑**：①收口测试的「放行」断言不能借真实转换——.docx 在装了 LibreOffice 的测试机会真转成功（err==nil）断言失效，借「.doc 显式拒绝」这类转换前确定性分支验证过门，四场景零外部进程；②辨伪关闭也要证据链写进留档（风险侧+收益侧），下次取证不必重查。
 - **产物**：exe 50,947,584B SHA256=5a2bdafa10858b913df40604d9428be5adb3969dfeae8205eecf274a5b68b0fa（releases/gaea-v4.363.0.exe+SHA256SUMS-v4.363.0.txt 仅本地；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略 5 版留 v4.359~v4.363 删 v4.358.0.exe（SUMS 身份档案全保留）。
-- **文档**：releases/v4.363.0.md+CHANGELOG/README+releases/README（计数 384→385+34 席插 v4.363 裁 v4.329）+AGENTS 迁 1 插 1（七十八迁：v4.360 入 archive）+progress/todos（后端挂池清零销号）。
+- **文档**：releases/archive/v4.363.0.md+CHANGELOG/README+releases/README（计数 384→385+34 席插 v4.363 裁 v4.329）+AGENTS 迁 1 插 1（七十八迁：v4.360 入 archive）+progress/todos（后端挂池清零销号）。
 
 ## 最新发布：v4.362.0（2026-09-21）「前端优化轮第二弹：吞错可见化收尾 + tertiary 文本令牌收敛」
 
@@ -1404,7 +1404,7 @@
 - **门禁**：定向 +4+tsc 0+eslint 0 error 0 warn（新增 4 处 exhaustive-deps 全数补齐）+全量 ci.ps1 绿 EXIT=0（vitest 387 文件 3305 例）+bindings drift OK@706+版本三处 4.362.0。
 - **坑**：①LocaleProvider 默认跟随 localStorage（gaea-lang），beforeAll loadLocale('zh') 不稳固——组件重渲染（失败态→重试成功）后 t() 翻回 en 中文断言飘，测试须 beforeEach setItem；②antd disabled Button 的 accessible name 在 jsdom 不稳定（getByRole 正则失配），按钮定位走 testid/textContent 直查；③zh-TW.ts 必须补齐全部 DictKey（类型从 en.ts 推导全键校验，tsc 当场拦）；④恢复类操作「先删后插」的吞错=删半截+重复行，失败要中止而非吞掉继续；⑤对比度选值要喂最差场景背景（Violet 亮 surface 4.41，不是白底 4.83）。
 - **产物**：exe 50,946,048B SHA256=c26432852cdcb9211edf0c3e4bb6d6831a6be8a9dd57e09331276783aa3cd274（releases/gaea-v4.362.0.exe+SHA256SUMS-v4.362.0.txt 仅本地；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略 5 版留 v4.358~v4.362 删 v4.357.0.exe（SUMS 身份档案全保留）。
-- **文档**：releases/v4.362.0.md+CHANGELOG/README+releases/README（计数 383→384+34 席插 v4.362 裁 v4.328）+AGENTS 迁 1 插 1（七十七迁：v4.359 入 archive）+progress/todos。
+- **文档**：releases/archive/v4.362.0.md+CHANGELOG/README+releases/README（计数 383→384+34 席插 v4.362 裁 v4.328）+AGENTS 迁 1 插 1（七十七迁：v4.359 入 archive）+progress/todos。
 
 ## 最新发布：v4.361.0（2026-09-20）「前端优化轮：失败可见化 + 观察池清账 + 令牌卫生」
 
@@ -1415,7 +1415,7 @@
 - **门禁**：定向 +6+eslint 0 error 0 warn+全量 ci.ps1 绿（vitest 386 文件 3301 例+E 系列守卫+卫生守卫）+drift OK@706+版本三处 4.361.0。
 - **坑**：①「参与者全失败」合取式里不参与的路贡献 true（vacuous truth）——写反两次被定向测试当场抓出；②源断言行首锚定+令牌名后带标点（border-color/outline-variant 前缀误伤）；③no-raw-hex 豁免按文件名，色板迁新文件要同步登记；④hook 别与组件同文件（react-refresh 0 warn 门禁）；⑤select 测试按 option 文本定位、value 必须是 STATUSES 合法值否则 jsdom 静默回落空串短路 onChange。
 - **产物**：exe 50,941,440B SHA256=a2c695b3b6b375c309fa6ecb3dac0942b31e8a49e00cea6c2c7e1484b0f9b5da（releases/gaea-v4.361.0.exe+SHA256SUMS-v4.361.0.txt 仅本地；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略 5 版留 v4.357~v4.361 删 v4.356.0.exe（SUMS 身份档案全保留）。
-- **文档**：releases/v4.361.0.md+CHANGELOG/README+releases/README（计数 382→383+34 席插 v4.361 裁 v4.327）+AGENTS 迁 1 插 1（七十六迁：v4.358 入 archive，顺带补记七十二~七十五迁案行漏记）+progress/todos。
+- **文档**：releases/archive/v4.361.0.md+CHANGELOG/README+releases/README（计数 382→383+34 席插 v4.361 裁 v4.327）+AGENTS 迁 1 插 1（七十六迁：v4.358 入 archive，顺带补记七十二~七十五迁案行漏记）+progress/todos。
 
 ## 最新发布：v4.360.0（2026-09-20）「后端优化轮第五弹：挂池再清 3 刀——.tmp 卫生守卫 / 导入事务化 / 版本号原子化」
 
@@ -1483,7 +1483,7 @@
 - **修复确证（新壳复验）**：错误从 cannot unmarshal → embedding 请求失败（localhost:8080 语义服务超时——本机 embedding 未部署属环境事实挂观察池）；UI 三态如实呈现。语义检索完全可用需先起 embedding 服务，届时补一条龙走查。
 - **其余发现**：角色库页 console 27 条 file:// 头像 WebView2 拒载（既有非本轮回归，挂池：AttachmentDataURL 或 asset:// 通道）；[longtask] 69~165ms 误报阈值过敏感挂池；ResizableDrawer Esc 真机抽验因导航成本收尾（vitest 4 例已锁）。
 - **坑**：①mock 契约必须从 Go 绑定复制签名含参数序——按「前端怎么调」写，签名错位时 mock 全绿真壳全坏②静默吞错捂 bug 时长与可见性成反比，失败可见化是最便宜的测试③走查探针按钮定位优先类名/testid，textContent 匹配撞到别的按钮得假阴性（「检索中…」也是按钮文案）。
-- **门禁**：tsc 0（--force）+eslint 0/0+全量 ci.ps1 绿（vitest 386 文件 3295 例）+bindings drift OK@706+版本三处 4.355.0；产物见 releases/v4.355.0.md。**文档**=releases/v4.355.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（七十迁：v4.352 入 archive）+progress/todos。**未做（下刀池）**=embedding 服务就绪后语义检索一条龙走查/file:// 头像通道治理/longtask 阈值/dirListingsCache 接线/海报墙 hero 内容槽（内容决策）。
+- **门禁**：tsc 0（--force）+eslint 0/0+全量 ci.ps1 绿（vitest 386 文件 3295 例）+bindings drift OK@706+版本三处 4.355.0；产物见 releases/archive/v4.355.0.md。**文档**=releases/archive/v4.355.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（七十迁：v4.352 入 archive）+progress/todos。**未做（下刀池）**=embedding 服务就绪后语义检索一条龙走查/file:// 头像通道治理/longtask 阈值/dirListingsCache 接线/海报墙 hero 内容槽（内容决策）。
 
 ## 最新发布：v4.354.0（2026-09-19）「前端优化第六轮：P0 数据形状崩溃×2 / 异步竞态 11 处 / 资源生命周期」
 
@@ -1492,7 +1492,7 @@
 - **异步竞态 11 处**（统一项目已有 seq/loadToken 范式补齐，辨伪 18+）：PromptWorkshopPanel 模板切换 seq（A 正文写进 B 表单保存即数据损坏）；BookSearchModal pickSeq+backToSearch 失效（B 书源 URL+A 章节范围错误导入）；useChatTopics.createTopic/ChatPage.handleClearMessages 失效在途（新增 invalidateLoads 暴露，空话题视图被旧话题填满后清错对象）；useSinStory loadSeqRef+createStory 失效（切故事串台）；ChapterPage.handleSave 保存快照+setTabs 函数式比对（保存期间继续打字不再被强制 saved=true，未保存保护不丢，提示「请再次保存」）；SearchModal 移除 onPressEnter 双发+searchSeqRef（旧意图卡不再可被执行）；MemoryHubPage runSearch searchSeqRef（Enter 路径守卫）；useImageGenConfig backendSwitching 重入闸；outlineStore 模块级 loadSeq（错书章节读写风险）；WeixinPage togglingId busy 闸+Switch loading（连点两条相反 Save）；TTSPlayer 卸载 cleanupAudio（泄 blob URL 且音频继续外放）。
 - **资源生命周期第二层**：blob URL/Observer/AudioContext/MediaStream 全量辨伪通过（saveFile 同步 revoke、useVoiceChat 四路回收、9 处 Observer 均 disconnect）；dirListingsCache 无界+invalidateTurnCaches 零调用方挂池（结构性欠账需设计接线时机）。
 - **坑**：①Go nil slice→JSON null 且 mock 手写 [] 永不复现——前端收窄层统一归一优于消费点逐个防御②saved 标志语义=「缓冲区==磁盘」，异步完成侧不能无条件置位，快照比对是通用解③antd Input.Search 回车已触发 onSearch，再挂 onPressEnter=双发，删除而非守卫④竞态修复统一走已有 seq 范式不发明新机制。
-- **门禁**：tsc 0（--force）+eslint 0/0+全量 ci.ps1 绿（vitest 386 文件 3295 例）+bindings drift OK@706+版本三处 4.354.0；产物见 releases/v4.354.0.md。**文档**=releases/v4.354.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（六十九迁：v4.351 入 archive）+progress/todos。**未做（下刀池）**=dirListingsCache 失效接线/CharacterPage 双击重复写（幂等低危）/海报墙 hero 内容槽（内容决策）。
+- **门禁**：tsc 0（--force）+eslint 0/0+全量 ci.ps1 绿（vitest 386 文件 3295 例）+bindings drift OK@706+版本三处 4.354.0；产物见 releases/archive/v4.354.0.md。**文档**=releases/archive/v4.354.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（六十九迁：v4.351 入 archive）+progress/todos。**未做（下刀池）**=dirListingsCache 失效接线/CharacterPage 双击重复写（幂等低危）/海报墙 hero 内容槽（内容决策）。
 
 ## 最新发布：v4.353.0（2026-09-19）「前端优化第五轮：ResizableDrawer 弹层可访问性收口 / 可点 div 键盘化余量」
 
@@ -1500,7 +1500,7 @@
 - **线1 ResizableDrawer 三缺补齐**（对照 ApprovalModal 先例）：dialog 语义（role=dialog+aria-modal+aria-label 新 prop，两调用方传 i18n 标题）+ Esc 关闭（可编辑目标不劫持）+ 焦点管理（开记录 activeElement+聚焦容器 tabIndex=-1，卸载还原 try 兜底）；ResizableDrawer.test 新建 4 例（Esc 经退出动画/普通键不关/dialog 三件套/开聚焦+卸载还原）。
 - **线2 可点 div 键盘化余量**（v4.349 池逐点核对净剩 4 处+顺带 5 钮）：ChapterTreePanel 章节树节点/OutlinePanel 大纲行/StatsPanel 会话·本轮两折叠→role=button+tabIndex+Enter/Space+aria-label（FileTree 范式）；ChapterEditor 加/删场景+ChapterTreePanel 重新生成/删除/添加五 icon Button 补 aria-label（title 不参与可访问名）；FiveCalcPanel 版本带入遮罩补 Esc。辨伪=RailItem/FactCard 已是 button。
 - **坑**：①effect 引用 useCallback 声明顺序——Esc effect 插在 handleClose 声明前，依赖数组渲染期即时求值 TDZ ReferenceError；effect 一律放依赖声明后②React 合成 KeyboardEvent 无 isContentEditable（DOM HTMLElement 属性），div onKeyDown 判可编辑目标要 e.target 断言③审计清单是快照不是现状，逐点核对再动手。
-- **门禁**：tsc 0（--force）+eslint 0/0+全量 ci.ps1 绿（vitest 386 文件 3293 例）+bindings drift OK@706+版本三处 4.353.0；产物见 releases/v4.353.0.md。**文档**=releases/v4.353.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（六十八迁：v4.350 入 archive）+progress/todos。**未做（下刀池）**=reducer 级整店订阅 13 处（v4.350 审计辨伪「appStore 写入面低频不构成热点」维持不做）/selbar z-1080 阶梯治理（防御性）/海报墙 hero 内容槽（内容决策）/持久全量 overlay（真机窗口）。
+- **门禁**：tsc 0（--force）+eslint 0/0+全量 ci.ps1 绿（vitest 386 文件 3293 例）+bindings drift OK@706+版本三处 4.353.0；产物见 releases/archive/v4.353.0.md。**文档**=releases/archive/v4.353.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（六十八迁：v4.350 入 archive）+progress/todos。**未做（下刀池）**=reducer 级整店订阅 13 处（v4.350 审计辨伪「appStore 写入面低频不构成热点」维持不做）/selbar z-1080 阶梯治理（防御性）/海报墙 hero 内容槽（内容决策）/持久全量 overlay（真机窗口）。
 
 ## 最新发布：v4.352.0（2026-09-19）「前端优化第四轮：ForeshadowPanel 行 memo / ModelCenter ctx 两通道拆分 / 图标钮可访问名」
 
@@ -1509,7 +1509,7 @@
 - **线2 ModelCenter ctx 两通道拆分**（v4.350 辨伪项的正解）：ModelCenterContext 拆 StateContext（状态字段，内容变化才触发消费者重渲染）/ ActionsContext（setter/handler 引用波动单独承载）/ 兼容口（两通道合并，useModelCenter 存量不破坏）；页面 stateCtx/actionsCtx 各自 useMemo，9 个 section 迁 useModelCenterState + 按需 useModelCenterActions（多行解构逐字段分类），settingGlmEndpoint 归 state——键入 API Key 不再全 section 重渲染；4 个测试文件兼容 Provider 补三连挂载（value 同对象）。
 - **线3 图标钮可访问名**：ChatRow 四处（用户/助手复制动态态+朗读）+ ChatModeBar 四处（联网开关动态态/角色库管理/切换角色/语音设置）补 aria-label——Tooltip 不参与可访问名；SecurityPanel 排除（按钮带文字标签非图标钮）。
 - **坑**：①多行解构迁移必须先从源码抄全字段清单再分类（凭接口记忆分类漏 trendData/settingGlmEndpoint/setXxx——UNCLASSIFIED 断言救一半，tsc 逮另一半）②测试文件改完必须 tsc -b --force（上轮沉淀本轮再验证）③兼容口三 Provider 嵌套顺序 state→actions→兼容，测试挂载三连 value 同对象语义不变。
-- **门禁**：tsc 0（--force 全量复核）+eslint 0/0+全量 ci.ps1 绿（vitest 385 文件 3289 例）+bindings drift OK@706+版本三处 4.352.0；产物见 releases/v4.352.0.md。**文档**=releases/v4.352.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（六十七迁：v4.349 入 archive）+progress/todos。**未做（下刀池）**=其余可点 div 键盘化 ~8 处（v4.349 池）/ResizableDrawer 焦点管理/reducer 级整店订阅 13 处/selbar z-1080 阶梯治理/海报墙 hero 内容槽（内容决策）。
+- **门禁**：tsc 0（--force 全量复核）+eslint 0/0+全量 ci.ps1 绿（vitest 385 文件 3289 例）+bindings drift OK@706+版本三处 4.352.0；产物见 releases/archive/v4.352.0.md。**文档**=releases/archive/v4.352.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（六十七迁：v4.349 入 archive）+progress/todos。**未做（下刀池）**=其余可点 div 键盘化 ~8 处（v4.349 池）/ResizableDrawer 焦点管理/reducer 级整店订阅 13 处/selbar z-1080 阶梯治理/海报墙 hero 内容槽（内容决策）。
 
 ## 最新发布：v4.351.0（2026-09-19）「前端优化第三轮：启动反闪根修 / 绘梦历史有界化 / 亮主题叠加层失效群 / color-scheme / 反馈确认补遗」
 
@@ -1521,7 +1521,7 @@
 - **线5 反馈确认补遗**（上轮 B 系列遗留 4 处）：角色记忆弹窗三路读取全吞错→失败 Alert（原打开即空白与「无记忆」不可分）；青鸟助手两路全失败原伪装「暂无助手」假空态→载入失败条 role=status（单路失败仍兜底不误报，轮询自动重试）；图片下载两处失败 message.error+成功提示（另存为抛错原落 unhandled rejection，取消不算错）；自定义生图模板删除补 Popconfirm。
 - **测试**：HistoryRail.test.tsx 新建 3 例（超窗渲染 60/点击增量展开到底按钮消失/不足窗口全量不回归）+historyMeta +1（limit 按需恢复项计数）+meta +2（读截/写截）+WeixinPage +1（双失败提示+单路兜底不误报）。
 - **坑**：①静态期主题预读判定序必须逐字对齐 store.loadMode，多一个 matchMedia 兜底就分叉首帧跳变②limit 语义按需恢复项计数非位置（slice 让内联小图占名额）③heredoc 写测试三层转义（python→文件→JS），\ 才是源码单反斜杠，写完看原始字节（eslint no-useless-escape 逮住）④rgba(255,255,255,x) 不全是债，先排除 hex-exempt 名单再批量替换⑤GenResult 无 id 字段——tsc 增量缓存漏检测试文件改动，强制 tsc -b --force 复核。
-- **门禁**：tsc 0（强制全量复核）+eslint 0/0+全量 ci.ps1 绿+bindings drift OK@706+版本三处 4.351.0；产物见 releases/v4.351.0.md。**文档**=releases/v4.351.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（六十六迁：v4.348 入 archive）+progress/todos。**未做（下刀池）**=ForeshadowPanel 行 memo/ModelCenter ctx 拆分/其余可点 div 键盘化（v4.349 池）/ResizableDrawer 焦点管理/reducer 级整店订阅 13 处/selbar z-1080 阶梯治理。
+- **门禁**：tsc 0（强制全量复核）+eslint 0/0+全量 ci.ps1 绿+bindings drift OK@706+版本三处 4.351.0；产物见 releases/archive/v4.351.0.md。**文档**=releases/archive/v4.351.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（六十六迁：v4.348 入 archive）+progress/todos。**未做（下刀池）**=ForeshadowPanel 行 memo/ModelCenter ctx 拆分/其余可点 div 键盘化（v4.349 池）/ResizableDrawer 焦点管理/reducer 级整店订阅 13 处/selbar z-1080 阶梯治理。
 
 ## 最新发布：v4.350.0（2026-09-19）「前端优化第二轮：事件总线连环炸根修 / P0 幽灵令牌 / 破坏操作确认 / 静默失败 / 流式渲染热点 / 主题破绽」
 
@@ -1535,7 +1535,7 @@
 - **辨伪**：ModelCenter ctx（100+ 字段）不 memo——五 hook 返回对象字面量每渲染新引用 deps 无法建立，强行 memo=陈旧 ctx 真 bug（挂观察池）；TTSPlayer/AIConsole 单实例全清无害；z-index 1080 阶梯脆弱但无叠加路径；boot 亮色反闪挂池。
 - **测试**：events.test 新建 4 例（双订阅退订隔离+EventsOff 永不调用/space 过滤不变/updater+ready 同纪律）+runtimePolyfill +3 例+useNow 3 例；TaskInboxPanel/WeixinPage/KnowledgePanel 删除用例改两步确认。
 - **坑**：①EventsOff 红线是「禁全清」非「禁用」——polyfill 带 callback 只摘自己+通道空才关 SSE 才是完整语义②Popconfirm clone 注入 onClick 覆盖子元素（v4.348 Dropdown 坑家族），子按钮原 onClick 必须移除；无 forwardRef 按钮包不上改命令式③确认钮定位一律 testid（okButtonProps 透传）防「删 除」空格名④go test 全量负载 flaky（足迹零交叠复跑绿）；ci 日志勿 tail 截断否则 FAIL 无包名。
-- **门禁**：tsc 0+eslint 0/0（新色值走 // hex-exempt）+全量 ci.ps1 绿（vitest 384 文件 3280 例）+drift OK@706+版本三处 4.350.0；产物见 releases/v4.350.0.md。**文档**=releases/v4.350.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（六十五迁：v4.347 入 archive）+progress/todos。**未做（下刀池）**=boot 亮色主题启动反闪（index.html 内联预读主题，动 splash 链路）；MarkdownContent pre 底 rgba(0,0,0,0.3) 亮主题脏块；白色半透明 hover 底亮主题失效群（PersonaPicker/imagegen）；--color-scheme 声明；ModelCenter ctx context 拆分（state/actions 两通道）；绘梦历史无上限渲染+dataURL 全量回填（挂载内存膨胀）；ForeshadowPanel 行 memo。
+- **门禁**：tsc 0+eslint 0/0（新色值走 // hex-exempt）+全量 ci.ps1 绿（vitest 384 文件 3280 例）+drift OK@706+版本三处 4.350.0；产物见 releases/archive/v4.350.0.md。**文档**=releases/archive/v4.350.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（六十五迁：v4.347 入 archive）+progress/todos。**未做（下刀池）**=boot 亮色主题启动反闪（index.html 内联预读主题，动 splash 链路）；MarkdownContent pre 底 rgba(0,0,0,0.3) 亮主题脏块；白色半透明 hover 底亮主题失效群（PersonaPicker/imagegen）；--color-scheme 声明；ModelCenter ctx context 拆分（state/actions 两通道）；绘梦历史无上限渲染+dataURL 全量回填（挂载内存膨胀）；ForeshadowPanel 行 memo。
 
 ## 最新发布：v4.349.0（2026-09-19）「前端优化五线：可访问性动线 / 亮态可读性 / 运行开销 / 布局 / 稳健性」
 
@@ -1573,63 +1573,63 @@
 - **来源**：智谱 9 月中旬新发 GLM-5.3-FlashX（Flash 加速版，320B 总参/18B 激活，200 tokens/s）；官方四页交叉核实（模型概览/详情/定价/coding 活动）后接入模型中心 GLM 静态目录。纯数据刀，零新绑定 705。
 - **落地**：`glm_catalog.json` +1 条目（1M/128K、caps 同 Flash、国内绝对价 2/7 元/M、缓存命中 0.57 记 price_note）；coding 套餐官方明示暂未开放 FlashX→不配积分系数不进别名；Flash 补绝对价 0.8/2.8 元/M（「仅相对价回退 USD」旧口径作废，估算 0.65 USD→3.6 CNY /M+M）。
 - **测试**：锚定清单+计数 45→46 全对齐 ×8；FlashX 元数据/价格锁值；积分守卫+估算锁值翻新；modelengine 包全绿。
-- **验收**：drift OK@705；全量 ci 绿；产物见 releases/v4.347.0.md。
+- **验收**：drift OK@705；全量 ci 绿；产物见 releases/archive/v4.347.0.md。
 - **未做（下刀）**：coding 套餐若开放 FlashX 补 points/别名（覆盖文件可先行）。
 ## 最新发布：v4.346.0（2026-09-19）「UI 健壮性双修：错误边界页级隔离（keepAlive 连坐根修）+ TisorRadar 缺档崩页」
 
 - **来源**：UI 优化班——隔离目检（vite dev ?mock=1 + 无头 Edge CDP）双空间全页×明暗两态；纯前端四文件，零新绑定 705。
 - **根修**：①MainLayout 错误边界下沉 keepAlive 每页内部（原包整组外面=任何一页崩卸载全部页且后续导航全停错误态，keepAlive 状态俱失）②TisorRadar dims 守卫+CharacterCard 调用方守卫（缺档不渲染不出假图）③mock 三角色补 dims 对齐真契约。
 - **测试**：TisorRadar.test +3 +CharacterCard.test +1（按 circle 计数断言）定向 19/19；tsc 0。
-- **验收**：修复前角色库明暗皆崩；修复后 3 卡×30 circle 雷达在位、双空间明暗全绿；全量 ci 绿；drift OK@705；产物见 releases/v4.346.0.md。
+- **验收**：修复前角色库明暗皆崩；修复后 3 卡×30 circle 雷达在位、双空间明暗全绿；全量 ci 绿；drift OK@705；产物见 releases/archive/v4.346.0.md。
 - **未做（下刀）**：亮态 accent 对比度打磨（视觉拍板维持观察池）；动效手感待上手定论；真机走查清池班；技能核数 ≈09-30。
 ## 最新发布：v4.345.0（2026-09-19）「filewatch 关闭竞态根修：fs 通道关闭路径漏 close(out) 致消费方挂起」
 
 - **来源**：全量 ci 偶发时间型 flaky 深挖——预算拉满 10s 仍挂=真缺陷非调度慢。
 - **根因**：loop 三退出路径中 fs 通道关闭两条裸 return 漏 close(out)，与 done 分支 select 竞速，输则消费方 range Events() 永久挂起（~1/20）。
 - **修复**：outOnce+closeOut() 三路径幂等关闭；测试 2s 硬超时改终态轮询 10s 预算。
-- **验收**：filewatch 20 连跑全绿（修前 1/20 挂）；全量 ci 绿；产物见 releases/v4.345.0.md。
+- **验收**：filewatch 20 连跑全绿（修前 1/20 挂）；全量 ci 绿；产物见 releases/archive/v4.345.0.md。
 - **未做（下刀）**：真机走查清池班；技能核数 ≈09-30；t2 余项按反馈。
 ## 最新发布：v4.343.0（2026-09-19）「t7 收尾「编辑器标注高亮」轻量版：定位单条镜像 mark + 编辑即失效」
 
 - **来源**：观察池最后一项（v4.325 有意裁剪）的轻量落地；纯前端 EditorPanel+一条 CSS，零新绑定 705。
 - **落地**：locate 时镜像背景层（同排版/文本透明仅 mark 显色/textarea 底透出）；滚动条占宽补偿+滚动同步；content/activeNode 变化即失效（偏移漂移结构性规避）。
 - **测试**：EditorPanel 域 11/11（+1）；tsc/eslint 0。
-- **验收**：全量 ci 绿；drift OK@705；产物见 releases/v4.343.0.md。
+- **验收**：全量 ci 绿；drift OK@705；产物见 releases/archive/v4.343.0.md。
 - **未做（下刀）**：真机走查清池班（镜像对齐需真机目检后再议持久全量）；技能核数 ≈09-30；t2 余项按反馈。
 ## 最新发布：v4.341.0（2026-09-19）「t7 观察池「情感曲线图形化」：全书体检面板情感弧线折线」
 
 - **来源**：观察池条目（v4.325 记录）；纯前端单文件 BookHealthPanel，零新绑定 705、零新依赖。
 - **落地**：体检面板情感曲线区——按需逐章拉分析 V2 情感弧线强度（0-10，缺档跳过计数），纯 SVG 折线（参考线+tooltip+间隙如实呈现），<2 章诚实不足态。
 - **测试**：BookHealthPanel 域 7/7（+4）；tsc/eslint 0。
-- **验收**：全量 ci 绿；drift OK@705；产物见 releases/v4.341.0.md。
+- **验收**：全量 ci 绿；drift OK@705；产物见 releases/archive/v4.341.0.md。
 - **未做（下刀）**：真机走查清池班；技能核数 ≈09-30；t7 余项候拍板。
 ## 最新发布：v4.344.0（2026-09-19）「t7 最终形态：编辑器持久标注高亮（overlay 常驻 + 编辑退场）」
 
 - **来源**：v4.343 轻量版完全体（真机镜像对齐已过）；纯前端三文件，零新绑定 705、零新依赖。
 - **落地**：annotationMarks.ts 分段工具收敛（面板/编辑器同一实现）；EditorPanel annotations 驱动全量 mark 常驻 + dirty 编辑退场 + gutter 实测；CreatePage 随激活章加载标注（alive 守卫）；locate 契约不变。
 - **测试**：EditorPanel 11/11（重写+2）+ Panel 11/11（重构等价）+ CreatePage 15/15（补漏桩）；tsc/eslint 0。
-- **验收**：全量 ci 绿；drift OK@705；产物见 releases/v4.344.0.md。
+- **验收**：全量 ci 绿；drift OK@705；产物见 releases/archive/v4.344.0.md。
 - **未做（下刀）**：真机走查清池班（持久 overlay 目检随下一班）；技能核数 ≈09-30；t2 余项按反馈。
 ## 最新发布：v4.342.0（2026-09-19）「t7 观察池「多章对比」最小形态：分析面板章际对比」
 
 - **来源**：观察池条目最小可用形态；纯前端两文件，零新绑定 705。
 - **落地**：分析面板「章际对比」——选对比章拉其 V2，四维+情感强度差值表（Δ 上绿下红、情感中性）；未分析行内提示；chapterOptions 缺省整体隐藏。
 - **测试**：Panel 域 11/11（+3）；tsc/eslint 0。
-- **验收**：全量 ci 绿；drift OK@705；产物见 releases/v4.342.0.md。
+- **验收**：全量 ci 绿；drift OK@705；产物见 releases/archive/v4.342.0.md。
 - **未做（下刀）**：真机走查清池班；技能核数 ≈09-30；t7 仅剩 overlay 高亮候拍板。
 ## 最新发布：v4.340.0（2026-09-19）「t2 观察池「反推任务取消绑定」：AI 反推大纲轮询期可取消」
 
 - **来源**：观察池条目（t2 拆书线 v4.291 体验余项）；纯前端单文件 CreatePage，零新绑定 705。
 - **落地**：轮询期「取消反推」钮（taskId 到手门控）→ 停止等待 + GaeaTaskCancel 尽力协作取消（完成竞态被吞，任务中心权威）；同步回落路径不出入口。
 - **测试**：CreatePage 域 15/15（+2）；补 NovelOutlineReconstruct/TaskCancel 两处漏桩。
-- **验收**：全量 ci 绿；drift OK@705；产物见 releases/v4.340.0.md。
+- **验收**：全量 ci 绿；drift OK@705；产物见 releases/archive/v4.340.0.md。
 - **未做（下刀）**：真机走查清池班；技能核数 ≈09-30；t2 余项按反馈。
 ## 最新发布：v4.339.0（2026-09-19）「t7 观察池「标注定位编辑器光标」：分析面板→正文编辑器定位闭环」
 
 - **来源**：观察池条目（v4.325 记录）按既定习惯开刀；零新绑定 705，纯前端三组件。
 - **落地**：EditorPanel forwardRef+locate 句柄（rune→code-unit 换算+选区+聚焦滚动）；分析面板标注行「编辑器定位」钮（stopPropagation）；CreatePage 接线（gate 跳他章时入口按章一致条件隐藏）。
 - **测试**：EditorPanel +3 + Panel +3（18/18）；tsc/eslint 0。
-- **验收**：全量 ci 绿；drift OK@705；产物见 releases/v4.339.0.md。
+- **验收**：全量 ci 绿；drift OK@705；产物见 releases/archive/v4.339.0.md。
 - **未做（下刀）**：真机走查清池班；技能核数 ≈09-30；t7 观察池余项候拍板。
 ## 最新发布：v4.338.0（2026-09-19）「无参绑定会话语义审计收官 + 死链清理（绑定面 707→705）」
 
@@ -1637,7 +1637,7 @@
 - **审计结论**：需修 0 项——会话模型「看历史必经 ResumeSession 切内核」，主流水线无参读内核构造性自洽；v4.181 旁路看板族无同构残余；复审口径入档。
 - **顺手清账**：删 GaeaCheckpoints 死链（UI 回退实走 GaeaRewind）+GaeaTCCAReport 孤儿链（state.tcca 零消费）；绑定面 707→705。
 - **拍板池**：GaeaSkillDraftFromSession 参数化（从历史会话蒸馏技能）候拍板。
-- **验收**：go build/vet 0+internal/app ok；tsc/eslint 0；store 域 38/38；drift OK@705；全量 ci 绿；产物见 releases/v4.338.0.md。
+- **验收**：go build/vet 0+internal/app ok；tsc/eslint 0；store 域 38/38；drift OK@705；全量 ci 绿；产物见 releases/archive/v4.338.0.md。
 - **未做（下刀）**：真机走查清池班；技能核数 ≈09-30；TaskCenter 会话关联结构刀。
 ## 最新发布：v4.337.0（2026-09-18）「办公对话流美化三轮收官：对齐 Codex web（降噪+动线+语义归位）」
 
@@ -1645,14 +1645,14 @@
 - **落地**：用户消息气泡化；裸思考行 bare 模式（行数 meta 三语+英文单复数）；过程卡完成即收起；WorkHeader 三改（doneSuppressed/纯问答 0 步不渲染/运行态对齐过程条）；尾随工具段合并（过程卡归位正文前）；轮尾登记卡补挂+omitPaths 跨段去重；交付卡统一边框容器；消息操作 hover 淡入；顶条只留 waiting 档；ToolGroup「bash × 3」三语。
 - **测试**：ProcessCard 展开态测试重写钉新行为（旧测试钉已废行为，全量首跑 1 红）；vitest 3199/3199；tsc/eslint 零；三语 +4 键同轴。
 - **目检**：vite dev 9344 mock=demo+独立 Edge 9345 CDP 两轮五态截图全过（bare「思考 1 行」实测）。
-- **验收**：全量 ci.ps1 绿；drift OK@707；产物见 releases/v4.337.0.md。
+- **验收**：全量 ci.ps1 绿；drift OK@707；产物见 releases/archive/v4.337.0.md。
 - **未做（下刀）**：真机走查清池班；技能核数 ≈09-30；绘梦阶段二候拍板。
 ## 最新发布：v4.336.0（2026-09-18）「chapter-gate 通知跳转 + oh-story T5 落库接线」
 
 - **来源**：用户指令「继续」；规格书 进度计划/gaea-gate-jump-t5-wiring-20260918.md。
 - **甲件**：自动门通知可点击——onOpen 回调+CreatePage 覆盖态+跨章拉正文锚定；无回调零变化（v4.331 观察池头名收口）。
 - **乙件**：T5 七角色卡升格可派发——SKILL.md runAs=subagent+派发契约；spawn 写作域模板 subagent_writing+boot 映射；验收钉 Go +3。oh-story 只剩写前契约硬闸（等上游）。
-- **验收**：全量 ci 绿；drift OK@707；产物见 releases/v4.336.0.md。
+- **验收**：全量 ci 绿；drift OK@707；产物见 releases/archive/v4.336.0.md。
 - **未做（下刀）**：真机走查清池班；技能核数 ≈09-30；绘梦阶段二候拍板。
 
 ## 最新发布：v4.335.0（2026-09-17）「办公输入动线对齐 DSH/Codex：运行中 Enter=排队，插话改显式」
@@ -1660,7 +1660,7 @@
 - **来源**：用户报告「办公板块消息输入的排序/插话/撤回不见了，直接插入正在跑的对话中」；拍板「按 DSH/Codex 方式处理」。
 - **归因（非回归）**：队列本体（v4.200/201）一直在，v3.6.0 起 Enter=插话、排队退到 Clock 小按钮——队列卡从未被 Enter 动线触达=体感丢失。
 - **落地**：Enter=排队（队列卡回主动线，回合结束 FIFO 派发）；Alt+Enter=直插（显式插话）；Shift+Enter 纠正/Esc 停止不变；三语文案+title 三态更新；steerTitle 键删（0 死键）；组装逻辑抽 helper。零绑定 707。
-- **验收**：Composer.queue +3/I18n 对齐；composer 域 22/22；tsc/eslint/ci.ps1 全绿；产物见 releases/v4.335.0.md。
+- **验收**：Composer.queue +3/I18n 对齐；composer 域 22/22；tsc/eslint/ci.ps1 全绿；产物见 releases/archive/v4.335.0.md。
 - **未做（下刀）**：真机走查清池班；技能核数 ≈09-30；绘梦阶段二候拍板。
 
 ## 最新发布：v4.334.0（2026-09-17）「revolution 刀8 收官：跨模块验收+回退演练+版本三处漂移根治——**revolution 刀 1–8 全线收官**」
@@ -2173,7 +2173,7 @@
 - **来源**：拍板池清单后用户连说「继续」=按序放行；推翻 §13.2「刻意不做」，前提（产物链）本刀补齐。
 - **落地**：工具集 6→7；单链路委托 SinIllustrate；Artifacts 轨迹链（trace 字段+循环收集+result 帧）+落库回写 tool0..toolN；过程卡缩略图+元数据「生成插图」。
 - **测试**：Go+4+计数锁 6→7+vitest +3；零新绑定。
-- **门禁**：ci.ps1 全绿 / drift OK@642 / 版本三处 4.270.0。走查=部分完成如实记录（live 模型调工具留池补验，详见 releases/v4.270.0.md）；产物=exe 49,293,312B SHA256=523EAB82…ECF5（桌面副本同哈希，冒烟 200 过）。
+- **门禁**：ci.ps1 全绿 / drift OK@642 / 版本三处 4.270.0。走查=部分完成如实记录（live 模型调工具留池补验，详见 releases/archive/v4.270.0.md）；产物=exe 49,293,312B SHA256=523EAB82…ECF5（桌面副本同哈希，冒烟 200 过）。
 
 ## 最新发布：v4.269.0（2026-09-13）「造价域线上断链修复：json 标签+五算带入」
 
@@ -2252,7 +2252,7 @@
 - **测试**：Go +3（红→绿：改前 3 子例全红；纯函数矩阵 4 面 + 端到端 3 子例）。
 - **门禁**：ci.ps1 全绿 / 版本三处 4.261.1 / 零新绑定；exe 49,164,288B SHA256=CCE99E91…D5CAB（桌面副本同哈希，冒烟 200）。
 - **真机走查**：v4.261.1 exe 打开原罪故事 → 两个插图位 20s 内自动出图（产物落 `%APPDATA%\gaea\sin\art\`、回写 extra.illustrations），日志零失败/零异常；该故事没选角色=与用户同一分支。
-- **文档**：docs/gaea-sin-board-design-2026-09.md §12.5、releases/v4.261.1.md。
+- **文档**：docs/gaea-sin-board-design-2026-09.md §12.5、releases/archive/v4.261.1.md。
 
 ## 最新发布：v4.259.0（2026-09-12）「原罪插图：角色一致性锚定（文本锚点 + 图像参考槽）」
 
@@ -2261,7 +2261,7 @@
 - **诚实**：能力门控（不支持就跳过并给原因，不硬塞）+ 参考槽失败自动退回纯文本重试（标 ref_fallback）+ caption 徽标可见。
 - **未做**：ipadapter/pulid（后端未实现）。
 - **门禁**：Go 全绿 / drift OK@640 / tsc 0 / eslint 0 error / vite build / vitest 全绿 / E 系列+仓库卫生守卫绿 / 版本三处 4.259.0；走查徽标实测（零异常）。
-- **文档**：docs/gaea-sin-board-design-2026-09.md §12、releases/v4.259.0.md。
+- **文档**：docs/gaea-sin-board-design-2026-09.md §12、releases/archive/v4.259.0.md。
 
 ## 最新发布：v4.258.0（2026-09-12）「原罪插图：生成进度动画 + 串行队列 + 真停止」
 
@@ -2270,7 +2270,7 @@
 - **真停止**：新绑定 SinCancel（绑定 639→640）中止底层流并保留已生成部分落库（extra.cancelled）；插图「取消」接 CancelImageGeneration。
 - **顺带修真缺陷**：sending 因 deadRef+StrictMode 卡死（输入框锁死）、Composer「停止」是空实现。
 - **门禁**：Go 全绿 / drift OK@640 / tsc 0 / eslint 0 error / vite build / vitest 全绿 / E 系列+仓库卫生守卫绿 / 版本三处 4.258.0；走查：两处进度条 + 取消一张另一张继续 + 完成后停止按钮消失（零错误零异常）。
-- **文档**：docs/gaea-sin-board-design-2026-09.md §11、releases/v4.258.0.md。
+- **文档**：docs/gaea-sin-board-design-2026-09.md §11、releases/archive/v4.258.0.md。
 
 ## 最新发布：v4.257.1（2026-09-12）「修复：真机插图报 AttachmentDataURL is not a function」
 
@@ -2285,7 +2285,7 @@
 - **③角色库接入**：右栏角色卡 + 多选弹层 → SinCastGet/SinCastSet（悬空过滤/去重保序/封顶 8）→ SinStream 注入角色块（外观/性格/背景/动机/口吻/说话样例 + 不得改设定）；只引用不改库。
 - **未做**：角色参考图当图像参考槽（人物一致性锚定）留拍板。
 - **门禁**：Go 全绿 / drift OK@639 / tsc 0 / eslint 0 error / vite build 成功 / vitest 全绿 / E 系列+仓库卫生守卫绿 / 版本三处 4.257.0；走查零错误零异常。
-- **文档**：docs/gaea-sin-board-design-2026-09.md §8/§9、releases/v4.257.0.md。
+- **文档**：docs/gaea-sin-board-design-2026-09.md §8/§9、releases/archive/v4.257.0.md。
 
 ## 最新发布：v4.256.0（2026-09-12）「闲庭新板块『原罪』：对话式图文混杂故事创作（复用办公组件）」
 
@@ -2294,7 +2294,7 @@
 - **协议**：模型另起一行输出 `@@插图|画面描述@@`，前端按出现次序（0 起）就地生成并嵌进正文流；正文原样落库，重开按 `extra.illustrations` 渲染不重生成。
 - **边界**：成人内容口径沿用 docs/ADULT_MODE.md（零新立），四条硬边界写进提示词并有测试锁定。
 - **门禁**：Go 全绿 / drift OK@637 / tsc 0 / eslint 0 error / vite build 成功 / vitest 334 文件全绿 / E 系列+仓库卫生守卫绿 / 版本三处 4.256.0。
-- **文档**：docs/gaea-sin-board-design-2026-09.md（设计基线+复用清单+已知边界）、releases/v4.256.0.md。
+- **文档**：docs/gaea-sin-board-design-2026-09.md（设计基线+复用清单+已知边界）、releases/archive/v4.256.0.md。
 
 ## 最新发布：v4.218.0（2026-09-11）「阶段六 6.6 首刀：跨域 EVM——进度×造价挣值」
 

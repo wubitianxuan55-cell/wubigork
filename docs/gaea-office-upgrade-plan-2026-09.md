@@ -99,13 +99,13 @@
 |---|---|---|---|
 | v4.23 | 工作台框架 | A0（注册制+宽度拖拽+设置卡片）+ A4 迁移（统计→主区概览）+ 现有面板挂进新框架 | ✅ 已发布 |
 | v4.24 | 子代理工作台 | A1 全部（树拓扑/live/自动展开/下钻链/活动流）+ C1 产物登记表 | |
-| v4.25 | 文件工作台 | A3（编辑器 tab 化+变更 diff+模型主动打开+reveal）+ B3 选区联动 | ✅ 已发布（releases/v4.25.0.md） |
-| v4.26 | 对话流式重造（插刀，对齐 Codex：根因「发送后对话窗静默而轨迹在动」六连对账——WorkHeader 工作态头部/后端 phase 接线/子代理活动回投/seq+GaeaResyncEvents 吞件防线/重复工具折叠） | ✅ 已发布（releases/v4.26.0.md） |
-| v4.27 | Codex 对齐批（用户连续要求「对齐 Codex 右侧面板与对话输出」）：右栏文件工作台全高预览+宽度放开+编辑器 tab 图标、标签扁平化（删资料/成本库、取消二级标签）、对话输出（去气泡/回合分隔/复制/diffstat 芯片）、子代理对话实时下钻（SubagentThread 3s 轮询）、上下文标签完善（水位分色头部/空态/文件活动可点/悬停构成详情） | ✅ 已发布（releases/v4.27.0.md） | |
-| v4.28 | 浏览器与版本（原 v4.27 顺延） | A2 观察窗（截图步进流+操作时间线+自动弹出）+ B1 版本时间线（vN 徽标 popover+时间线+预览/恢复，证据链同源）+ B2/C3 pptx 大纲卡+逐页预览+页级指令 | ✅ 已发布（releases/v4.28.0.md） |
-| v4.29 | UI 化繁为简（用户点名主轴；**简化≠删功能红线**） | 顶栏导出三钮收拢单钮下拉（md/Word/PDF 出口全保留）+ 右栏 tab 窄栏自适应图标化（Notion Icon only 式，6 tab 集合不变）+ 预览头部降噪（打开/定位图标化+去边框，编辑等状态语义保留）——弹药：docs/archive/market-research-2026-09-01b.md | ✅ 已发布（releases/v4.29.0.md） |
-| v4.30 | UI 化繁为简第二刀（用户点名「继续优化完善」；收 v4.29 欠账） | 产物生成自动置前/角标（Devin Auto-open 式：新产物 tab 角标+行「新」徽标）+ 面板行级降噪（Cowork 一行式：产物/变更/任务次级信息悬停次行化）+ 命令面板按当前视图重排（Linear 式：lib/paletteRank 纯函数）+ 预览「半幅↔最大化」两档（VS Code Toggle Maximized Panel） | ✅ 已发布（releases/v4.30.0.md） |
-| v4.31 | 细节收口四线并行（用户点名「并行使用子代理」；四并行子代理足迹互斥+主代理集成） | A 产物版本时间线单版本入口（收 v4.28 B1 欠账）+ B FilePreviewModal pdf/pptx 逐页预览（收 v4.28 欠账）+ C 轨迹历史轮耗时（Turn.DurationMs+TrajectoryView 用时展示，收 v4.26 欠账）+ D TestCancelConcurrentStress flaky 根治（实现层真竞态：落选 worker 误删 cancelReq → clearStaleCancel+胜者重登记） | ✅ 已发布（releases/v4.31.0.md） |
+| v4.25 | 文件工作台 | A3（编辑器 tab 化+变更 diff+模型主动打开+reveal）+ B3 选区联动 | ✅ 已发布（releases/archive/v4.25.0.md） |
+| v4.26 | 对话流式重造（插刀，对齐 Codex：根因「发送后对话窗静默而轨迹在动」六连对账——WorkHeader 工作态头部/后端 phase 接线/子代理活动回投/seq+GaeaResyncEvents 吞件防线/重复工具折叠） | ✅ 已发布（releases/archive/v4.26.0.md） |
+| v4.27 | Codex 对齐批（用户连续要求「对齐 Codex 右侧面板与对话输出」）：右栏文件工作台全高预览+宽度放开+编辑器 tab 图标、标签扁平化（删资料/成本库、取消二级标签）、对话输出（去气泡/回合分隔/复制/diffstat 芯片）、子代理对话实时下钻（SubagentThread 3s 轮询）、上下文标签完善（水位分色头部/空态/文件活动可点/悬停构成详情） | ✅ 已发布（releases/archive/v4.27.0.md） | |
+| v4.28 | 浏览器与版本（原 v4.27 顺延） | A2 观察窗（截图步进流+操作时间线+自动弹出）+ B1 版本时间线（vN 徽标 popover+时间线+预览/恢复，证据链同源）+ B2/C3 pptx 大纲卡+逐页预览+页级指令 | ✅ 已发布（releases/archive/v4.28.0.md） |
+| v4.29 | UI 化繁为简（用户点名主轴；**简化≠删功能红线**） | 顶栏导出三钮收拢单钮下拉（md/Word/PDF 出口全保留）+ 右栏 tab 窄栏自适应图标化（Notion Icon only 式，6 tab 集合不变）+ 预览头部降噪（打开/定位图标化+去边框，编辑等状态语义保留）——弹药：docs/archive/market-research-2026-09-01b.md | ✅ 已发布（releases/archive/v4.29.0.md） |
+| v4.30 | UI 化繁为简第二刀（用户点名「继续优化完善」；收 v4.29 欠账） | 产物生成自动置前/角标（Devin Auto-open 式：新产物 tab 角标+行「新」徽标）+ 面板行级降噪（Cowork 一行式：产物/变更/任务次级信息悬停次行化）+ 命令面板按当前视图重排（Linear 式：lib/paletteRank 纯函数）+ 预览「半幅↔最大化」两档（VS Code Toggle Maximized Panel） | ✅ 已发布（releases/archive/v4.30.0.md） |
+| v4.31 | 细节收口四线并行（用户点名「并行使用子代理」；四并行子代理足迹互斥+主代理集成） | A 产物版本时间线单版本入口（收 v4.28 B1 欠账）+ B FilePreviewModal pdf/pptx 逐页预览（收 v4.28 欠账）+ C 轨迹历史轮耗时（Turn.DurationMs+TrajectoryView 用时展示，收 v4.26 欠账）+ D TestCancelConcurrentStress flaky 根治（实现层真竞态：落选 worker 误删 cancelReq → clearStaleCancel+胜者重登记） | ✅ 已发布（releases/archive/v4.31.0.md） |
 | 远期 | 终端 tab、底部面板/自由窗口、侧边对话、iframe 实时镜像 | — | |
 
 每版交付纪律沿用 .gaea/AGENTS.md 约定：releases/vN.0.md + README 更新日志表 + 测试钉住（vitest、fold/golden、mock 契约 drift）。

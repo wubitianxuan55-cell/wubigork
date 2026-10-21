@@ -215,7 +215,7 @@
 
 ## 8. 参考
 
-- releases/v4.110.0.md:64、v4.111.0.md:74（「后端持久化/多工程管理」首次挂账）；v4.113.0.md:54、v4.115.0.md:28、v4.124.0.md:55（拍板池延续）。
+- releases/archive/v4.110.0.md:64、v4.111.0.md:74（「后端持久化/多工程管理」首次挂账）；v4.113.0.md:54、v4.115.0.md:28、v4.124.0.md:55（拍板池延续）。
 - docs/gaea-office-mindmap-base-design-2026-09.md（格式基准：文件=权威、视图配置 sidecar、纯函数解析）。
 - docs/gaea-schedule-resource-cost-design-2026-09.md、docs/gaea-schedule-aoa-manual-layout-design-2026-09.md（绑定面零增先例与文档口径先例）。
 - internal/schedule/project.go；internal/app/gaea_schedule_file.go；internal/app/bindings_office.go；scripts/gen_bindings/main.go；scripts/check-bindings-drift.ps1；.github/workflows/ci.yml（drift 门禁）。
