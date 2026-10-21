@@ -1,3 +1,6 @@
+## v4.513.0 · 剪贴板复制诚实反馈轮：单源 copyToClipboard 七处收敛，失败不再假显「已复制」（2026-10-21）
+> 用户指令「继续」（前端优化迭代续轮）。全仓盘底 15 处剪贴板调用：四处假成功（办公消息复制 fire-and-forget+无条件 setCopied〔Message.tsx〕/办公与轻语代码块头 catch-noop 后仍置成功态〔Markdown CodeBlockHeader、ChatCodeBlock〕/Mermaid 无条件成功 toast——Clipboard API 被拒〔失焦/权限〕时失败仍显示「已复制」）；三份手写 execCommand 兜底互相重复且不检查返回（renderNode/ChatPanel/ChatPage，二次失败仍假成功）；四处已诚实不动（DeliverableCards/DeliverablesPanel/AssetStudio/PriceSourceCard）。修=新建 gaea/lib/clipboard.ts 单源 copyToClipboard：API 优先→execCommand 兜底（fixed+opacity:0 textarea+检查布尔返回+即挂即摘）→返回真实成败；七处改接（成功才翻转，双路全败 toast/message 可见，genui 无 toast 基建诚实不翻转）；三份重复兜底删除；i18n msg.copyFail 三语。测试 +6（util 四路径+兜底内容/即挂即摘；Message 诚实语义反向变异验证：恢复旧无条件成功必红）；全量 vitest 3913 绿；tsc/eslint 0；零 Go 改动零绑定变更。详见 `releases/v4.513.0.md`。
+
 ## v4.512.0 · 流式滚动手势化：运行中强拉退役，滚轮上滚=显式暂停跟随（2026-10-21）
 > 用户指令「继续」（前端优化迭代续轮）。v2.13.5 为修「卡住没输出假象」加的运行中强制拉底使流式生成时用户无法上翻阅读（v4.510 修好的回底按钮运行中形同虚设）；假象根因实为布局扰动误杀 stick——折叠卡收起时浏览器滚动锚定/夹紧产生的程序性 scroll 事件被旧 onScroll「不贴底即清除」误判为用户上翻。根修=stick 清除权收归滚轮上滚手势唯一：onScroll 只在贴底时恢复跟随（布局扰动杀不死跟随，冻住假象无法复发）；新增 onWheel（deltaY<0 且容器真实可滚才清 stick，短会话无效上滚不产生暂停态）；scrollToBottom 只认 stick（外层+rAF 内层双守卫独立拦截）；内容变化效应补暂停态按钮自愈。完整闭环=流式上翻暂停→回底按钮常驻→点击/滚回恢复跟随。测试 +3（伪造滚动几何+可写 scrollTop 观测：上翻暂停不拽回〔变异：摘双守卫复现强拉必红〕/无手势 scroll 杀不死跟随〔变异：恢复旧清除语义冻住假象复发必红〕/回底点击恢复；双守卫独立拦截=只摘一处仍绿）；全量 vitest 3907 绿；tsc/eslint 0；零 Go 改动零绑定变更。详见 `releases/v4.512.0.md`。
 
