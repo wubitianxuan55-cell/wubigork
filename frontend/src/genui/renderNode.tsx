@@ -37,6 +37,7 @@ import {
   type GenuiTimeline,
 } from "./spec";
 import { useBlockApi } from "./blocks/state";
+import { copyToClipboard } from "../gaea/lib/clipboard";
 
 function cx(...parts: Array<string | false | undefined>): string {
   return parts.filter(Boolean).join(" ");
@@ -329,36 +330,19 @@ function AvatarNode({ node }: { node: GenuiAvatar }) {
 function CopyNode({ node }: { node: GenuiCopy }) {
   const [copied, setCopied] = useState(false);
   const copy = (): void => {
-    const text = node.text;
-    if (navigator.clipboard?.writeText) {
-      void navigator.clipboard.writeText(text).then(() => {
-        setCopied(true);
-        window.setTimeout(() => setCopied(false), 1200);
-      }).catch(() => fallbackCopy(text));
-    } else {
-      fallbackCopy(text);
-    }
+    // v4.513 收敛进剪贴板单源（API→execCommand 兜底→真实成败）：成功才
+    // 翻转「已复制」，兜底也败不再假成功（genui 无 toast 基建，诚实静默）。
+    void copyToClipboard(node.text).then((ok) => {
+      if (!ok) return;
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    });
   };
   return (
     <button type="button" className="gui-btn gui-btn-ghost gui-btn-small gui-copy" onClick={copy}>
       {copied ? "已复制" : (node.label ?? "复制")}
     </button>
   );
-}
-
-function fallbackCopy(text: string): void {
-  try {
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    ta.style.position = "fixed";
-    ta.style.opacity = "0";
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand("copy");
-    document.body.removeChild(ta);
-  } catch {
-    // noop
-  }
 }
 
 // ─── 轻图表（手写 SVG） ─────────────────────────────────

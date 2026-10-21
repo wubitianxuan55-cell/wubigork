@@ -299,6 +299,7 @@ export const zh: Record<DictKey, string> = {
   "rewind.summFrom": "从这里起摘要",
   "rewind.summUpto": "摘要到这里",
   "msg.copied": "已复制",
+  "msg.copyFail": "复制失败：剪贴板不可用",
   "msg.compacting": "正在压缩对话…",
   "msg.compacted": "上下文已压缩",
   "msg.compactedMeta": "{n} 条消息 · {trigger}",

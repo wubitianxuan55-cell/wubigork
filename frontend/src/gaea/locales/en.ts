@@ -296,6 +296,7 @@ export const en = {
   "rewind.summFrom": "Summarize from here",
   "rewind.summUpto": "Summarize up to here",
   "msg.copied": "Copied",
+  "msg.copyFail": "Copy failed: clipboard unavailable",
   "msg.compacting": "Compacting conversation…",
   "msg.compacted": "Context compacted",
   "msg.compactedMeta": "{n} messages · {trigger}",

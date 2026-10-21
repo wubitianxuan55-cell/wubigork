@@ -7,6 +7,7 @@ import { Typography, Modal, message, Input } from 'antd'
 import { DownOutlined } from '@ant-design/icons'
 import { app } from '../gaea/lib/bridge'
 import { b64ToBytes } from '../gaea/lib/bytes'
+import { copyToClipboard } from '../gaea/lib/clipboard'
 import { C } from '../utils/theme'
 import { shouldSubmitOnEnter } from '../utils/chatComposer'
 import { isNearBottom } from '../utils/scroll'
@@ -269,11 +270,12 @@ const ChatPage: React.FC = () => {
   }
 
   const handleCopy = async (content: string, id: string) => {
-    try { await navigator.clipboard.writeText(content) } catch {
-      const ta = document.createElement('textarea'); ta.value = content; document.body.appendChild(ta); ta.select()
-      document.execCommand('copy'); document.body.removeChild(ta)
+    // v4.513 收敛进剪贴板单源：成功才翻转复制态，双路失败可见提示。
+    if (await copyToClipboard(content)) {
+      setCopiedId(id); setTimeout(() => setCopiedId(null), 2000)
+    } else {
+      message.warning('复制失败：剪贴板不可用')
     }
-    setCopiedId(id); setTimeout(() => setCopiedId(null), 2000)
   }
 
   const handleSpeak = async (content: string, id: string) => {

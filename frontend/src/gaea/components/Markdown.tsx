@@ -27,6 +27,7 @@ import rehypeRaw from "rehype-raw";
 import { Check, Copy, FileText, Loader } from "../icons";
 
 import { app, openExternal } from "../lib/bridge";
+import { copyToClipboard } from "../lib/clipboard";
 import { classifyExternalLink } from "../lib/browserPolicy";
 import { HlCode } from "./HlCode";
 import { isLocalFilePath } from "../lib/fileLinks";
@@ -339,7 +340,7 @@ const MermaidBlock = memo(function MermaidBlock({ code, autoExport = true }: { c
           <button
             type="button"
             className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-1 rounded-md border border-border-soft bg-bg-elev-2 text-fg-dim text-[10.5px] cursor-pointer hover:text-fg"
-            onClick={() => { void navigator.clipboard.writeText(code); toast.show("Mermaid 源码已复制"); }}
+            onClick={() => { void copyToClipboard(code).then((ok) => toast.show(ok ? "Mermaid 源码已复制" : "复制失败：剪贴板不可用", ok ? "info" : "warn")); }}
           >
             <Copy size={10} /> 复制
           </button>
@@ -380,11 +381,16 @@ const MermaidBlock = memo(function MermaidBlock({ code, autoExport = true }: { c
 
 function CodeBlockHeader({ language, text }: { language?: string; text: string }) {
   const [copied, setCopied] = useState(false);
+  const toast = useToast();
   const copy = useCallback(async () => {
-    try { await navigator.clipboard.writeText(text); } catch { /* noop */ }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }, [text]);
+    // v4.513 诚实反馈：成功才翻转「已复制」，失败 toast 可见（不再假成功）。
+    if (await copyToClipboard(text)) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } else {
+      toast.show("复制失败：剪贴板不可用", "warn");
+    }
+  }, [text, toast]);
   return (
     <div className="flex items-center justify-between px-3 py-1 bg-bg-soft/80 border-b border-border-soft/50 rounded-t-lg text-[10px] select-none">
       <span className="text-fg-faint/60 font-mono font-medium uppercase tracking-wider">

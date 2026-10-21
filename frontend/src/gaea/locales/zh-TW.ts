@@ -301,6 +301,7 @@ export const zhTW: Record<DictKey, string> = {
   "rewind.summFrom": "從此處開始摘要",
   "rewind.summUpto": "摘要到此處",
   "msg.copied": "已複製",
+  "msg.copyFail": "複製失敗：剪貼簿不可用",
   "msg.compacting": "正在壓縮對話…",
   "msg.compacted": "上下文已壓縮",
   "msg.compactedMeta": "{n} 條訊息 · {trigger}",

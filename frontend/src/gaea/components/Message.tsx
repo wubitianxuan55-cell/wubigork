@@ -1,6 +1,7 @@
 import { memo, useCallback, useMemo, useRef, useState, useEffect } from "react";
 import { Bot, Check, ChevronDown, ChevronRight, Brain, Copy, FileText, RefreshCw, Rollback, ThumbsDown, ThumbsDownFilled, ThumbsUp, ThumbsUpFilled, Wand2 } from "../icons";
 import { app } from "../lib/bridge";
+import { copyToClipboard } from "../lib/clipboard";
 import { MemoMarkdown } from "./MemoMarkdown";
 import { useT } from "../lib/i18n";
 import { useCompact } from "../hooks/useCompact";
@@ -340,9 +341,16 @@ export const AssistantMessage = memo(function AssistantMessage({
                 type="button"
                 className="inline-flex items-center gap-1 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-faint/50 text-[10.5px] cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors"
                 onClick={() => {
-                  void navigator.clipboard.writeText(item.text);
-                  setCopied(true);
-                  window.setTimeout(() => setCopied(false), 1500);
+                  // v4.513 诚实反馈：成功才翻转「已复制」；失败（含兜底也败）
+                  // toast 可见提示，不再无条件假成功。
+                  void copyToClipboard(item.text).then((ok) => {
+                    if (!ok) {
+                      toast.show(t("msg.copyFail"), "warn");
+                      return;
+                    }
+                    setCopied(true);
+                    window.setTimeout(() => setCopied(false), 1500);
+                  });
                 }}
                 title={t("msg.copy")}
               >

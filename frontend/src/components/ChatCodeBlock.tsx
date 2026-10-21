@@ -1,8 +1,10 @@
 import { useCallback, useState } from 'react'
+import { message } from 'antd'
 import { CheckOutlined, CopyOutlined } from '@ant-design/icons'
 import { C } from '../utils/theme'
 import { HlCode } from '../gaea/components/HlCode'
 import { CodeCollapse } from '../gaea/components/CodeCollapse'
+import { copyToClipboard } from '../gaea/lib/clipboard'
 
 /** 聊天线代码块（ChatMarkdown plain 模式与 companion 模式 genuiAdapter 共用）：
  *  语言标签+复制头部 + 暗色面板 + hljs 高亮。面板为行业标准暗色专用色
@@ -12,9 +14,13 @@ import { CodeCollapse } from '../gaea/components/CodeCollapse'
 function CodeBlockHeader({ language, text }: { language?: string; text: string }) {
   const [copied, setCopied] = useState(false)
   const copy = useCallback(async () => {
-    try { await navigator.clipboard.writeText(text) } catch { /* noop */ }
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+    // v4.513 诚实反馈：成功才翻转「已复制」，失败可见提示（不再假成功）。
+    if (await copyToClipboard(text)) {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } else {
+      message.warning('复制失败：剪贴板不可用')
+    }
   }, [text])
   return (
     <div style={{

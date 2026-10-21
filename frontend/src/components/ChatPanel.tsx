@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Input, Button, Space, Typography, Avatar, Tooltip } from 'antd'
+import { Input, Button, Space, Typography, Avatar, Tooltip, message } from 'antd'
 import {
   SendOutlined,
   RobotOutlined,
@@ -11,6 +11,7 @@ import {
   ImportOutlined,
 } from '@ant-design/icons'
 import { C } from '../utils/theme'
+import { copyToClipboard } from '../gaea/lib/clipboard'
 
 export interface Message {
   id: string
@@ -174,20 +175,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const handleSend = () => handleSendImpl()
 
   const handleCopy = async (content: string, id: string) => {
-    try {
-      await navigator.clipboard.writeText(content)
+    // v4.513 收敛进剪贴板单源：成功才翻转复制态，双路失败可见提示。
+    if (await copyToClipboard(content)) {
       setCopiedId(id)
       setTimeout(() => setCopiedId(null), 2000)
-    } catch {
-      // 降级方案
-      const ta = document.createElement('textarea')
-      ta.value = content
-      document.body.appendChild(ta)
-      ta.select()
-      document.execCommand('copy')
-      document.body.removeChild(ta)
-      setCopiedId(id)
-      setTimeout(() => setCopiedId(null), 2000)
+    } else {
+      message.warning('复制失败：剪贴板不可用')
     }
   }
 
