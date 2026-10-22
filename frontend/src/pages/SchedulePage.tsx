@@ -31,6 +31,7 @@ import type { SchedLink, SchedProject } from '../schedule/types'
 import { useScheduleStore, isGroupRow, initScheduleSync } from '../schedule/store'
 import { depFreeSlacks, drivingLinkKeys, linkKey } from '../schedule/pathDriver'
 import { TaskInspector, type InspectorDepRow } from '../schedule/TaskInspector'
+import { WhatIfPanel } from '../schedule/WhatIfPanel'
 import { wbsOf } from '../schedule/ganttGroup'
 import { saveExportBlob, inShell } from '../schedule/exportArtifact'
 import { b64ToBytes } from '../gaea/lib/bytes'
@@ -710,7 +711,9 @@ const SchedulePage: React.FC = () => {
       {view === 'aoa' && <AoaView graph={aoa} tasks={project.tasks} />}
       {view === 'usage' && <UsageView usage={usage} />}
 
-      {/* 任务检查器（v4.136）：该任务日期由哪条搭接决定 + 前驱/后继可点击跳转 */}
+      {/* 任务检查器（v4.136）：该任务日期由哪条搭接决定 + 前驱/后继可点击跳转；
+          what-if 推演（v4.523）经 slot 挂进抽屉——计算与 delta 交互态都在
+          WhatIfPanel，检查器保持零排程计算契约 */}
       <TaskInspector
         open={!!inspectTask && inspectTask.level > 0 && !!inspectorData}
         task={inspectTask && inspectTask.level > 0 ? inspectTask : null}
@@ -720,6 +723,9 @@ const SchedulePage: React.FC = () => {
         successors={inspectorData?.successors ?? []}
         startDate={project.startDate}
         calendar={project.calendar}
+        whatIf={inspectTask && inspectTask.level > 0 ? (
+          <WhatIfPanel project={project} taskId={inspectTask.id} />
+        ) : undefined}
         onClose={() => setInspectId(null)}
         onNavigate={(id) => { setInspectId(id); select(id) }}
       />

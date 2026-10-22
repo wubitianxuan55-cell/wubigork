@@ -2,6 +2,15 @@ import { useEffect, useMemo, useState } from 'react'
 import type { CpmResult, SchedProject } from './types'
 import { app } from '../gaea/lib/bridge'
 import { dcmaAudit, type DcmaThresholds } from './dcma'
+import { scheduleAdvice, type AdviceKind } from './advice'
+
+/** 建议类型 → 人可读标签（与 advice.ts 四类一一对应） */
+const ADVICE_KIND_LABEL: Record<AdviceKind, string> = {
+  'missing-link': '缺逻辑',
+  'negative-lag': '负搭接',
+  dangling: '悬空引用',
+  'redundant-link': '冗余搭接',
+}
 
 /** DcmaView — 6.4 计划质量体检：DCMA 14 点逐项结论（对标 Acumen Fuse 的
  *  体检单形态）。展示 + 阈值覆盖加载：审计在 dcmaAudit 纯函数内完成（同一输入
@@ -61,6 +70,10 @@ export function DcmaView({ project, cpm, dataDate }: { project: SchedProject; cp
     () => dcmaAudit(project, cpm, dataDate ?? null, thresholds ?? undefined),
     [project, cpm, dataDate, thresholds],
   )
+
+  // 纠错建议（v4.523：advice.ts v4.491 纯函数首次接 UI）——体检单的下游
+  // 投影「作者下一步动手清单」；同一 project+cpm 输入，与体检结论必然一致。
+  const advice = useMemo(() => scheduleAdvice(project, cpm), [project, cpm])
 
   const scoreTone =
     report.score === null
@@ -140,6 +153,47 @@ export function DcmaView({ project, cpm, dataDate }: { project: SchedProject; cp
             </div>
           </div>
         ))}
+      </div>
+
+      {/* 纠错建议区（v4.523）：体检单下游投影——问题 + 涉及任务/关系 + 修复动作 */}
+      <div data-testid="dcma-advice" className="mt-5 max-w-[860px]">
+        <div className="flex items-baseline gap-3 mb-2">
+          <span className="text-fg text-[13px] font-medium">纠错建议 · 修复动手清单</span>
+          <span className="text-fg-faint text-[11px]">
+            {advice.length > 0 ? `${advice.length} 条 · 确定性映射，零 LLM` : '缺逻辑 / 负搭接 / 悬空 / 冗余四项零命中'}
+          </span>
+        </div>
+        {advice.length === 0 ? (
+          <div className="px-3 py-2 rounded-lg border border-border-soft text-fg-faint text-[12px]" data-testid="dcma-advice-empty">
+            未发现需修复的逻辑问题。
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            {advice.map((a, i) => (
+              <div
+                key={`${a.kind}-${i}`}
+                data-testid="dcma-advice-item"
+                className="px-3 py-2 rounded-lg border border-border-soft bg-bg-soft/40"
+              >
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span
+                    data-kind={a.kind}
+                    className="shrink-0 rounded px-1.5 py-0.5 text-[10px] text-amber-500 bg-amber-500/10"
+                  >
+                    {ADVICE_KIND_LABEL[a.kind]}
+                  </span>
+                  <span className="text-fg text-[12.5px]">{a.message}</span>
+                </div>
+                {a.tasks.length > 0 && (
+                  <div className="text-fg-dim text-[11px] mt-1 leading-relaxed">{a.tasks.join('；')}</div>
+                )}
+                <div className="text-fg-dim text-[11.5px] mt-1">
+                  建议：<span className="text-fg">{a.action}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

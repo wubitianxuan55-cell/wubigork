@@ -170,3 +170,26 @@ describe('工作日历换算（FE7-04：口径统一走 calendar.ts 的 wdToDate
     expect(ui().getByTestId('sched-inspector-es').textContent).toBe('09-14 (+1)')
   })
 })
+
+// v4.523：what-if 推演经 slot 挂进抽屉（保持本组件「零排程计算」契约——
+// 计算与交互态在 WhatIfPanel，本组件只负责按位渲染外部节点）。
+describe('TaskInspector what-if slot（v4.523）', () => {
+  it('传 whatIf 节点：渲染在后继表之后（抽屉内）', () => {
+    render(
+      <TaskInspector
+        {...baseProps({ whatIf: <div data-testid="slot-probe">推演占位</div> })}
+      />,
+    )
+    expect(ui().getByTestId('slot-probe').textContent).toBe('推演占位')
+    // 挂载顺序：后继表在前，slot 在后
+    const succs = ui().getByTestId('sched-inspector-succs')
+    const probe = ui().getByTestId('slot-probe')
+    expect(succs.compareDocumentPosition(probe) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('不传 whatIf：抽屉内容零变化（向后兼容）', () => {
+    render(<TaskInspector {...baseProps()} />)
+    expect(ui().queryByTestId('slot-probe')).toBeNull()
+    expect(ui().getByTestId('sched-inspector-summary')).toBeTruthy()
+  })
+})

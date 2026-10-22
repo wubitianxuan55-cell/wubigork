@@ -37,6 +37,9 @@ export interface TaskInspectorProps {
   startDate: string
   /** 工作日历（缺省周一~五；workweek 为 JS getDay 口径 0=周日..6=周六） */
   calendar?: SchedCalendar
+  /** what-if 推演面板（v4.523）：外部节点按位渲染在后继表之后——计算与交互
+   *  态都在 WhatIfPanel，本组件保持「零排程计算」契约不破。 */
+  whatIf?: React.ReactNode
   onClose: () => void
   onNavigate: (taskId: string) => void
 }
@@ -94,6 +97,7 @@ export const TaskInspector: React.FC<TaskInspectorProps> = ({
   successors,
   startDate,
   calendar,
+  whatIf,
   onClose,
   onNavigate,
 }) => {
@@ -241,6 +245,9 @@ export const TaskInspector: React.FC<TaskInspectorProps> = ({
                 />
               )}
             </div>
+
+            {/* what-if 推演（v4.523 外部 slot：渲染在后继表之后） */}
+            {whatIf}
           </>
         )}
       </div>
