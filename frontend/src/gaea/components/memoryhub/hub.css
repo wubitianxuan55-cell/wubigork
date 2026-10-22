@@ -1,44 +1,51 @@
 /* ═══════════════════════════════════════════════════════════════════
-   记忆中枢「记忆图谱舰桥」工作台样式
-   氛围层（网格/扫描线）保留但降透明（≤40%，不抢戏）；布局改为
-   左分类轨道 | 中主区视图 | 右详情 inspector 三区分区。
+   记忆中枢「记忆图谱舰桥」工作台样式（v4.521 玄墨化，原 Luminous Glass）
+   布局：左分类轨道 | 中主区视图 | 右详情 inspector 三区分区。
+   玄墨对策落地（对齐首页 module-launcher.css v11，同青鸟/角色库第一轮）：
+   ① 氛围层降权——三 radial+网格+扫描线降透明近实底，不与内容层抢戏；
+   ② 描边退场——顶条去玻璃改纯色面（bg-container 亮一档）+近无底边线；
+     检索浮层 glow 影退役改投影令牌；主区容器近无边纯色面；
+   ③ 金色点睛纪律——标题图标中性墨化；金只留：激活轨道左缘细线、
+     激活计数徽记、hover 点亮与引用态；
+   ④ 激活态语义保留：轨道 primary-container 底不动，仅光效（glow 光条/
+     发光点/辉光影）退场为细线。
    令牌纪律：只消费 --md-sys-* / --gaea-* / --color-* / --v3-* 与旧栈
-   --bg/--fg/--accent/--border 等主题令牌，零硬编码色值。
+   --bg/--fg/--accent/--border 等主题令牌，零硬编码色值
+   （hub-hit-tag 领域编码四色 = hex-exempt 在册，v4.415 先例）。
    ═══════════════════════════════════════════════════════════════════ */
 
-/* ── 氛围层：令牌渐变 + 网格 + 扫描线（降透明，避免抢戏） ─────── */
+/* ── 氛围层：令牌渐变 + 网格 + 扫描线（v4.521 降透明——玄墨页底近实底） ── */
 .hub-bg {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: 0.4;
+  opacity: 0.22;
   background:
-    radial-gradient(ellipse 60% 50% at 50% 40%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 70%),
-    radial-gradient(ellipse 40% 35% at 15% 85%, color-mix(in srgb, var(--info) 5%, transparent), transparent 70%),
-    radial-gradient(ellipse 40% 35% at 85% 15%, color-mix(in srgb, var(--add-fg) 5%, transparent), transparent 70%),
-    linear-gradient(180deg, var(--bg) 0%, var(--bg-soft) 100%);
+    radial-gradient(ellipse 60% 50% at 50% 40%, color-mix(in srgb, var(--accent) 5%, transparent), transparent 70%),
+    radial-gradient(ellipse 40% 35% at 15% 85%, color-mix(in srgb, var(--info) 4%, transparent), transparent 70%),
+    radial-gradient(ellipse 40% 35% at 85% 15%, color-mix(in srgb, var(--add-fg) 4%, transparent), transparent 70%);
 }
 /* 网格线（accent 低透明，跟随主题色；整体降透明） */
 .hub-grid {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: 0.38;
+  opacity: 0.16;
   background-image:
     linear-gradient(color-mix(in srgb, var(--accent) 6%, transparent) 1px, transparent 1px),
     linear-gradient(90deg, color-mix(in srgb, var(--accent) 6%, transparent) 1px, transparent 1px);
   background-size: 44px 44px;
   mask-image: radial-gradient(ellipse 70% 65% at 50% 45%, black 40%, transparent 100%);
 }
-/* 扫描线（缓慢下移，info 色低透明；整体降透明） */
+/* 扫描线（舰桥意象降档保留：缓慢下移，近不可见的呼吸层） */
 .hub-scanline {
   position: absolute;
   left: 0;
   right: 0;
   height: 90px;
   pointer-events: none;
-  opacity: 0.35;
-  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--info) 6%, transparent), transparent);
+  opacity: 0.16;
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--info) 5%, transparent), transparent);
   animation: hub-scan 9s linear infinite;
 }
 @keyframes hub-scan {
@@ -56,7 +63,7 @@
   background: var(--color-bg-layout, var(--bg));
 }
 
-/* 细条头部（板块名收敛 + 三脑检索统一入口） */
+/* 细条头部（板块名收敛 + 三脑检索统一入口；纯色面，描边近无） */
 .hub-strip {
   position: relative;
   z-index: 40;
@@ -66,21 +73,8 @@
   gap: 10px;
   height: 40px;
   padding: 0 14px;
-  background: var(--gaea-glass-bg, var(--md-sys-color-surface-container));
-  -webkit-backdrop-filter: blur(20px) saturate(150%);
-  backdrop-filter: blur(20px) saturate(150%);
-  border-bottom: 1px solid var(--color-border, var(--border));
-}
-/* 底部 1px 高光线（Luminous Glass 2.0） */
-.hub-strip::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 1px;
-  background: var(--v3-edge);
-  pointer-events: none;
+  background: var(--color-bg-container, var(--md-sys-color-surface-container));
+  border-bottom: 1px solid color-mix(in srgb, var(--color-text, var(--fg)) 6%, transparent);
 }
 .hub-strip-title {
   display: inline-flex;
@@ -91,7 +85,7 @@
   letter-spacing: 0.02em;
   color: var(--color-text, var(--fg));
 }
-.hub-strip-title svg { color: var(--gaea-glow); }
+.hub-strip-title svg { color: var(--color-text-secondary, var(--fg-faint)); }
 .hub-strip-sub {
   font-size: 11px;
   color: var(--color-text-secondary, var(--fg-faint));
@@ -113,15 +107,15 @@
   border-radius: 8px;
   font-size: 12px;
   background: var(--color-bg-container, var(--bg-soft));
-  border: 1px solid var(--color-border, var(--border-soft));
+  border: 1px solid color-mix(in srgb, var(--color-text, var(--fg)) 7%, transparent);
   color: var(--color-text, var(--fg));
   outline: none;
   transition: border-color var(--md-sys-transition-fast, 200ms), box-shadow var(--md-sys-transition-fast, 200ms);
 }
 .hub-search-input::placeholder { color: var(--color-text-secondary, var(--fg-faint)); }
 .hub-search-input:focus {
-  border-color: var(--gaea-glow);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--gaea-glow) 18%, transparent);
+  border-color: color-mix(in srgb, var(--gaea-glow) 42%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gaea-glow) 12%, transparent);
 }
 .hub-search-btn {
   display: inline-flex;
@@ -134,11 +128,11 @@
   background: var(--color-primary-container, var(--md-sys-color-primary-container));
   color: var(--color-on-primary-container, var(--md-sys-color-on-primary-container));
   cursor: pointer;
-  transition: filter var(--md-sys-transition-fast, 200ms);
+  transition: box-shadow var(--md-sys-transition-fast, 200ms);
 }
-.hub-search-btn:hover:not(:disabled) { filter: brightness(1.1); }
+.hub-search-btn:hover:not(:disabled) { box-shadow: var(--shadow-sm); }
 .hub-search-btn:disabled { opacity: 0.45; cursor: default; }
-.hub-search-btn:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: 2px; }
+.hub-search-btn:focus-visible { outline: 2px solid color-mix(in srgb, var(--gaea-glow) 72%, transparent); outline-offset: 2px; }
 
 /* S1.2-C 检索 scope 切换（工位/乐园/全部）：与三脑检索同高的分段小按钮 */
 .hub-scope-switch {
@@ -148,8 +142,8 @@
   padding: 2px;
   gap: 2px;
   border-radius: 8px;
-  border: 1px solid var(--color-border, var(--border-soft));
-  background: var(--color-bg-container, var(--bg-soft));
+  border: 1px solid color-mix(in srgb, var(--color-text, var(--fg)) 7%, transparent);
+  background: transparent;
 }
 .hub-scope-option {
   display: inline-flex;
@@ -169,9 +163,9 @@
   background: var(--color-primary-container, var(--md-sys-color-primary-container));
   color: var(--color-on-primary-container, var(--md-sys-color-on-primary-container));
 }
-.hub-scope-option:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: 1px; }
+.hub-scope-option:focus-visible { outline: 2px solid color-mix(in srgb, var(--gaea-glow) 72%, transparent); outline-offset: 1px; }
 
-/* 检索结果浮层 */
+/* 检索结果浮层（glow 影退役改投影令牌；浮层保持 elevation） */
 .hub-search-pop {
   position: absolute;
   top: calc(100% + 8px);
@@ -182,9 +176,9 @@
   overflow: auto;
   padding: 6px;
   border-radius: 12px;
-  border: 1px solid var(--color-border, var(--border));
+  border: 1px solid color-mix(in srgb, var(--color-text, var(--fg)) 4.5%, transparent);
   background: var(--color-surface-container-highest, var(--md-sys-color-surface-container-highest));
-  box-shadow: var(--v3-glow-soft), 0 10px 30px color-mix(in srgb, var(--color-text) 10%, transparent);
+  box-shadow: var(--shadow-md);
   z-index: 60;
   scrollbar-width: thin;
 }
@@ -196,7 +190,7 @@
   margin-bottom: 4px;
   font-size: 11px;
   color: var(--color-text-secondary, var(--fg-faint));
-  border-bottom: var(--v3-split);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-text, var(--fg)) 6%, transparent);
 }
 .hub-search-clear {
   display: inline-flex;
@@ -213,10 +207,10 @@
   transition: background var(--md-sys-transition-fast, 200ms), color var(--md-sys-transition-fast, 200ms);
 }
 .hub-search-clear:hover {
-  background: var(--color-surface-container-high, var(--md-sys-color-surface-container-high));
+  background: color-mix(in srgb, var(--color-text, var(--fg)) 5%, transparent);
   color: var(--color-text, var(--fg));
 }
-.hub-search-clear:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: 1px; }
+.hub-search-clear:focus-visible { outline: 2px solid color-mix(in srgb, var(--gaea-glow) 72%, transparent); outline-offset: 1px; }
 .hub-hit {
   display: flex;
   align-items: center;
@@ -226,7 +220,7 @@
   cursor: pointer;
   transition: background var(--md-sys-transition-fast, 200ms);
 }
-.hub-hit:hover { background: var(--color-surface-container-high, var(--md-sys-color-surface-container-high)); }
+.hub-hit:hover { background: color-mix(in srgb, var(--color-text, var(--fg)) 4.5%, transparent); }
 .hub-hit-entity {
   flex-shrink: 0;
   border: 0;
@@ -237,7 +231,7 @@
   color: var(--color-text, var(--fg));
   cursor: pointer;
 }
-.hub-hit-entity:hover { color: var(--accent); }
+.hub-hit-entity:hover { color: color-mix(in srgb, var(--gaea-glow) 85%, var(--accent)); }
 .hub-hit-entity-static {
   flex-shrink: 0;
   font-size: 12px;
@@ -262,8 +256,8 @@
   color: var(--color-text-secondary, var(--fg-faint));
   cursor: pointer;
 }
-.hub-hit-ref:hover { color: var(--accent); }
-.hub-hit-ref.is-referenced { color: var(--accent); }
+.hub-hit-ref:hover { color: color-mix(in srgb, var(--gaea-glow) 85%, var(--accent)); }
+.hub-hit-ref.is-referenced { color: color-mix(in srgb, var(--gaea-glow) 85%, var(--accent)); }
 
 /* ── 3 分区主体 ─────────────────────────────────────────────────── */
 .hub-body {
@@ -276,7 +270,7 @@
   padding: 12px;
 }
 
-/* 左：分类轨道（对齐 v3 轨道语言：激活 = 主色容器 + 左缘光条） */
+/* 左：分类轨道（激活 = 主色容器底（语义保留）+ 左缘细线（光效退场）） */
 .hub-rail {
   width: 168px;
   flex-shrink: 0;
@@ -315,10 +309,10 @@
   transition: background var(--md-sys-transition-fast, 200ms), color var(--md-sys-transition-fast, 200ms);
 }
 .hub-rail-item:hover {
-  background: var(--color-surface-container-high, var(--md-sys-color-surface-container-high));
+  background: color-mix(in srgb, var(--color-text, var(--fg)) 4.5%, transparent);
   color: var(--color-text, var(--md-sys-color-text));
 }
-.hub-rail-item:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: -2px; }
+.hub-rail-item:focus-visible { outline: 2px solid color-mix(in srgb, var(--gaea-glow) 72%, transparent); outline-offset: -2px; }
 .hub-rail-item .hub-rail-icon { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
 .hub-rail-item .hub-rail-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
 .hub-rail-item .hub-rail-count {
@@ -330,7 +324,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  background: var(--color-surface-container-high, var(--md-sys-color-surface-container-high));
+  background: color-mix(in srgb, var(--color-text) 5%, transparent);
   color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
   font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
   font-size: 10px;
@@ -339,26 +333,25 @@
 .hub-rail-item.is-active {
   background: var(--color-primary-container, var(--md-sys-color-primary-container));
   color: var(--color-on-primary-container, var(--md-sys-color-on-primary-container));
-  box-shadow: var(--v3-glow-faint);
 }
-/* 左缘 3px 主色光条 */
+/* 左缘 2px 细线（金点睛位；glow 光条退役） */
 .hub-rail-item.is-active::before {
   content: '';
   position: absolute;
   left: 0;
   top: 8px;
   bottom: 8px;
-  width: 3px;
-  border-radius: 0 3px 3px 0;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
   background: var(--gaea-glow);
-  box-shadow: 0 0 8px var(--gaea-glow);
 }
 .hub-rail-item.is-active .hub-rail-count {
-  background: color-mix(in srgb, var(--gaea-glow) 16%, transparent);
+  background: color-mix(in srgb, var(--gaea-glow) 14%, transparent);
   color: var(--color-on-primary-container, var(--md-sys-color-on-primary-container));
 }
 
-/* 中：主区视图 */
+/* 中：主区视图（玄墨纯色面，描边近无；亮态补 v11.3 同款一档线——
+   走查目检：白底白面板定义感偏弱，对齐首页 .ml 卡亮态补偿） */
 .hub-main {
   flex: 1;
   min-width: 0;
@@ -367,9 +360,12 @@
   flex-direction: column;
   position: relative;
   border-radius: var(--radius-lg, 16px);
-  border: 1px solid var(--color-border, var(--border-soft));
-  background: color-mix(in srgb, var(--gaea-glass-bg, var(--md-sys-color-surface-container)) 30%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-text, var(--fg)) 4.5%, transparent);
+  background: var(--color-bg-container, var(--md-sys-color-surface-container));
   overflow: hidden;
+}
+html[data-hl='light'] .hub-main {
+  border-color: color-mix(in srgb, var(--color-text) 6.5%, transparent);
 }
 .hub-library-zone {
   flex: 1;
@@ -405,10 +401,10 @@
   transition: background var(--md-sys-transition-fast, 200ms), color var(--md-sys-transition-fast, 200ms);
 }
 .hub-inspector-toggle:hover {
-  background: var(--color-surface-container-high, var(--md-sys-color-surface-container-high));
+  background: color-mix(in srgb, var(--color-text, var(--fg)) 5%, transparent);
   color: var(--color-text, var(--md-sys-color-text));
 }
-.hub-inspector-toggle:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: 2px; }
+.hub-inspector-toggle:focus-visible { outline: 2px solid color-mix(in srgb, var(--gaea-glow) 72%, transparent); outline-offset: 2px; }
 .hub-inspector-collapsed-label {
   writing-mode: vertical-rl;
   margin: 14px auto;
@@ -447,7 +443,7 @@
 }
 .hub-detail-title {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 650;
   line-height: 1.4;
   color: var(--color-text, var(--md-sys-color-text));
   word-break: break-word;
@@ -456,8 +452,7 @@
   font-size: 12px;
   line-height: 1.6;
   color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
-  background: var(--color-surface-container, var(--md-sys-color-surface-container));
-  border: 1px solid var(--color-border, var(--border-soft));
+  background: color-mix(in srgb, var(--color-text) 4%, transparent);
   border-radius: 10px;
   padding: 10px 12px;
   white-space: pre-wrap;
@@ -487,7 +482,7 @@
   height: 24px;
   padding: 0 10px;
   border-radius: 7px;
-  border: 1px solid var(--color-border, var(--border-soft));
+  border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
   background: transparent;
   color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
   font-size: 11px;
@@ -496,13 +491,13 @@
 }
 .hub-detail-action:hover {
   color: var(--color-text, var(--md-sys-color-text));
-  border-color: color-mix(in srgb, var(--gaea-glow) 40%, transparent);
-  background: var(--color-surface-container-high, var(--md-sys-color-surface-container-high));
+  border-color: color-mix(in srgb, var(--gaea-glow) 32%, transparent);
+  background: color-mix(in srgb, var(--color-text) 4.5%, transparent);
 }
-.hub-detail-action:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: 2px; }
+.hub-detail-action:focus-visible { outline: 2px solid color-mix(in srgb, var(--gaea-glow) 72%, transparent); outline-offset: 2px; }
 .hub-detail-action.is-referenced {
-  color: var(--gaea-glow);
-  border-color: color-mix(in srgb, var(--gaea-glow) 45%, transparent);
+  color: color-mix(in srgb, var(--gaea-glow) 85%, var(--color-text));
+  border-color: color-mix(in srgb, var(--gaea-glow) 42%, transparent);
 }
 
 /* 空态 */
@@ -524,7 +519,7 @@
 }
 .hub-empty-title {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 650;
   color: var(--color-text, var(--md-sys-color-text));
 }
 .hub-empty-text {
