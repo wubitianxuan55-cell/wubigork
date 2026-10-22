@@ -224,16 +224,48 @@ describe("ContextView 上下文页卡片墙（v4.71 卡片化）", () => {
     const { ContextView } = await import("./ContextView");
     renderT(<ContextView running={false} />);
     await screen.findByText("上下文事件");
-    // 初始五类全亮：注入与压缩事件都可见
+    // 初始五类全亮：注入与压缩事件都可见（chips 带全量计数：注入 1 / 压缩 1）
     expect(await screen.findByText(/指令注入 · \.gaea/)).toBeTruthy();
     expect(screen.getByText(/-535\.5k/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /注入\s*1/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /压缩\s*1/ })).toBeTruthy();
     // 全亮态点「压缩」→ 只留压缩（注入事件被筛掉）
-    fireEvent.click(screen.getByRole("button", { name: "压缩" }));
+    fireEvent.click(screen.getByRole("button", { name: /压缩/ }));
     expect(screen.queryByText(/指令注入 · \.gaea/)).toBeNull();
     expect(screen.getByText(/-535\.5k/)).toBeTruthy();
     // 单选态再点「压缩」→ 恢复全选（注入事件回来）
-    fireEvent.click(screen.getByRole("button", { name: "压缩" }));
+    fireEvent.click(screen.getByRole("button", { name: /压缩/ }));
     expect(await screen.findByText(/指令注入 · \.gaea/)).toBeTruthy();
+  });
+
+  it("事件流截断诚实化：>30 条默认列最近 30 条+总数提示，「显示全部」展开最早事件", async () => {
+    // 32 条注入 + 1 条压缩 = 33 条：默认只列最近 30（最早 3 条注入不在），
+    // 提示「仅显示最近 30 条（共 33）」；chips 计数仍按全量口径（注入 32）。
+    const manyEvents: ContextTimeline = {
+      ...TIMELINE,
+      events: [
+        ...Array.from({ length: 32 }, (_, i) => ({
+          kind: "inject" as const, seq: 100 + i, delta: 100,
+          source: `注入 ${String(i + 1).padStart(2, "0")}`, turn: 1, step: i + 1, ts: 1750000000 + i,
+        })),
+        { kind: "compact", seq: 200, delta: -535500, source: "ratio", turn: 2, step: 20, ts: 1750000100 },
+      ],
+    };
+    contextViewMock.mockResolvedValue(manyEvents);
+    const { ContextView } = await import("./ContextView");
+    renderT(<ContextView running={false} />);
+    expect(await screen.findByText("注入 32")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /注入\s*32/ })).toBeTruthy(); // chips 全量计数
+    const trunc = screen.getByTestId("events-truncated");
+    expect(trunc.textContent).toContain("仅显示最近 30 条（共 33）");
+    // 最早的 3 条不在默认窗口（新事件在上：注入 01/02/03 被截）
+    expect(screen.queryByText("注入 01")).toBeNull();
+    expect(screen.queryByText("注入 03")).toBeNull();
+    expect(screen.getByText("注入 04")).toBeTruthy();
+    // 显示全部 → 最早事件回到列表，提示条消失
+    fireEvent.click(screen.getByRole("button", { name: "显示全部 33 条" }));
+    expect(await screen.findByText("注入 01")).toBeTruthy();
+    expect(screen.queryByTestId("events-truncated")).toBeNull();
   });
 
   it("构成卡：图例 hover 联动——该分类分段保持、其余分段淡出", async () => {

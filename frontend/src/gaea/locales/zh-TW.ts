@@ -1446,6 +1446,8 @@ export const zhTW: Record<DictKey, string> = {
   "contextview.radialNoRef": "ref 不可得，無法開啟子代理對話",
   "contextview.radialOpenTip": "點擊開啟子代理對話",
   "contextview.radialNoCallback": "未接線開啟回呼，點擊不觸發",
+  "contextview.eventsRecent": "僅顯示最近 {n} 條（共 {total}）",
+  "contextview.eventsShowAll": "顯示全部 {n} 條",
 
   // ── v4.57 i18n 收尾：TrajectoryView ──
   "trajectory.betweenSub": "輪次之間",

@@ -540,7 +540,8 @@ type FileChip = "all" | "read" | "write" | "search" | "image";
 type FileSort = "count" | "recent" | "path";
 
 // dsh 的「搜索/图片」在本仓 FileActivity.action（read/write/move/dir）中无对应值：
-// 按工具名/扩展名启发式推断；chips 是过滤器，与读/写允许重叠（注释待主代理收口语义）。
+// 按工具名/扩展名启发式推断。chips 是过滤器而非互斥分类——搜索/图片与读/写
+// 允许重叠（一个文件可以既被 grep 命中又是图片路径）。
 const SEARCH_TOOL_RE = /grep|glob|search|find|ls|list/i;
 const IMAGE_PATH_RE = /\.(png|jpe?g|gif|webp|bmp|svg)$/i;
 

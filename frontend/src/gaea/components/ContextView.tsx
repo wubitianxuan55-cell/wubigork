@@ -493,13 +493,23 @@ function StepDetail({
 // 全亮时点某类=仅看该类；多选态点某类=排除它；单选态再点=恢复全选。
 const EVENT_KINDS = ["inject", "compact", "prune", "switch", "mode"] as const;
 type EventKind = (typeof EVENT_KINDS)[number];
+// 事件流默认窗口（新事件在上；超出给「显示全部」——浏览器树分页同款纪律）。
+const EVENTS_PAGE = 30;
 const EVENT_LABEL: Record<EventKind, DictKey> = { inject: "contextview.evInject", compact: "contextview.evCompact", prune: "contextview.evPrune", switch: "contextview.evSwitch", mode: "contextview.evMode" };
 
 function EventsList({ events }: { events: ContextEvent[] }) {
   const t = useT();
   const [kinds, setKinds] = useState<readonly EventKind[]>(EVENT_KINDS);
+  // v4.524 截断诚实化：默认只列最近 EVENTS_PAGE 条（新事件在上），超出时
+  // 如实提示总数并给「显示全部」展开（对齐浏览器树分页与记忆中枢侧栏同款
+  // 纪律——此前静默砍掉更早的事件）。
+  const [showAll, setShowAll] = useState(false);
   const allOn = kinds.length === EVENT_KINDS.length;
   const shown = allOn ? events : events.filter((e) => kinds.includes(e.kind));
+  // 各类计数按全量 events 口径（与文件活动 chips 同款——计数不随选中集合抖动）。
+  const countOf = (k: EventKind) => events.reduce((s, e) => (e.kind === k ? s + 1 : s), 0);
+  const hidden = showAll ? 0 : Math.max(0, shown.length - EVENTS_PAGE);
+  const listed = hidden === 0 ? [...shown].reverse() : shown.slice(-EVENTS_PAGE).reverse();
   const toggle = (k: EventKind) => {
     setKinds((cur) => {
       if (allOn) return [k]; // 全选态点一 → 只留该分类（dsh 排他单选）
@@ -527,14 +537,14 @@ function EventsList({ events }: { events: ContextEvent[] }) {
                   on ? "bg-accent/15 text-accent" : "text-fg-faint hover:text-fg"
                 }`}
                 onClick={() => toggle(k)}
-              >{t(EVENT_LABEL[k])}</button>
+              >{t(EVENT_LABEL[k])}<span className="ml-1 tabular-nums">{countOf(k)}</span></button>
             );
           })}
         </div>
       </div>
       <div className="mt-1.5 flex max-h-44 flex-col gap-1 overflow-y-auto pr-0.5">
         {shown.length === 0 && <div className="text-[11px] text-fg-faint py-2">{t("contextview.noEvents")}</div>}
-        {shown.slice(-30).reverse().map((e) => (
+        {listed.map((e) => (
           <div key={`${e.kind}-${e.seq}`} className="ctx-row flex items-center gap-1.5 text-[11.5px]">
             <span className={`shrink-0 px-1 rounded text-[10px] ${e.kind === "compact" ? "bg-warning/15 text-warning" : e.kind === "prune" ? "bg-err/15 text-err" : "bg-accent/10 text-accent"}`}>
               {e.delta != null && e.delta < 0 ? "" : "+"}{t(EVENT_LABEL[e.kind])}
@@ -548,6 +558,16 @@ function EventsList({ events }: { events: ContextEvent[] }) {
             </span>
           </div>
         ))}
+        {hidden > 0 && (
+          <div className="flex items-center gap-1.5 border-t border-border-soft/50 pt-1 text-[10px] text-fg-faint" data-testid="events-truncated">
+            <span>{t("contextview.eventsRecent", { n: EVENTS_PAGE, total: shown.length })}</span>
+            <button
+              type="button"
+              className="cursor-pointer border-0 bg-transparent p-0 text-accent hover:underline"
+              onClick={() => setShowAll(true)}
+            >{t("contextview.eventsShowAll", { n: shown.length })}</button>
+          </div>
+        )}
       </div>
     </div>
   );

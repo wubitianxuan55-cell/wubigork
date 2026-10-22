@@ -1442,6 +1442,8 @@ export const zh: Record<DictKey, string> = {
   "contextview.radialNoRef": "ref 不可得，无法打开子代理对话",
   "contextview.radialOpenTip": "点击打开子代理对话",
   "contextview.radialNoCallback": "未接线打开回调，点击不触发",
+  "contextview.eventsRecent": "仅显示最近 {n} 条（共 {total}）",
+  "contextview.eventsShowAll": "显示全部 {n} 条",
 
   // ── v4.57 i18n 收尾：TrajectoryView ──
   "trajectory.betweenSub": "轮次之间",

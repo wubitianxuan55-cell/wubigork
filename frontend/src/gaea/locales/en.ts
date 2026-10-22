@@ -1442,6 +1442,8 @@ export const en = {
   "contextview.radialNoRef": "Ref unavailable; cannot open the subagent thread",
   "contextview.radialOpenTip": "Click to open the subagent thread",
   "contextview.radialNoCallback": "Open callback not wired; click does nothing",
+  "contextview.eventsRecent": "Showing the latest {n} of {total} events",
+  "contextview.eventsShowAll": "Show all {n}",
 
   // ── v4.57 i18n 收尾：TrajectoryView ──
   "trajectory.betweenSub": "between turns",
