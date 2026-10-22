@@ -1421,6 +1421,27 @@ export const en = {
   "contextview.summaryCost": "Total cost",
   "contextview.empty": "No context data yet",
   "contextview.emptyHint": "After a task runs, context composition, trend, inject/compact events and file activity appear here in real time.",
+  // ── Context module i18n closeout: gauge cards / radial map / browser counts / resident pill
+  // (previously hardcoded Chinese — zh values mirror those strings verbatim) ──
+  "contextview.itemsCount": "{n} items",
+  "contextview.filesCount": "{n} files",
+  "contextview.durSec": "{n}s",
+  "contextview.durMinSec": "{m}m {s}s",
+  "contextview.timingActive": "Active time",
+  "contextview.countTimes": "{n}×",
+  "contextview.sessionTitle": "Session info",
+  "contextview.pillTitle": "Context window {used}/{win} · click to inspect",
+  "contextview.pillRemain": "{n}% left",
+  "contextview.radialStatus": "Status: {v}",
+  "contextview.radialModel": "Model: {v}",
+  "contextview.radialToolCalls": "Tool calls: {n}",
+  "contextview.radialErrors": "Errors: {n}",
+  "contextview.radialWindow": "Context window: ≈{tokens}",
+  "contextview.radialTokens": "tokens: ≈{tokens}",
+  "contextview.radialViewContext": "View context",
+  "contextview.radialNoRef": "Ref unavailable; cannot open the subagent thread",
+  "contextview.radialOpenTip": "Click to open the subagent thread",
+  "contextview.radialNoCallback": "Open callback not wired; click does nothing",
 
   // ── v4.57 i18n 收尾：TrajectoryView ──
   "trajectory.betweenSub": "between turns",

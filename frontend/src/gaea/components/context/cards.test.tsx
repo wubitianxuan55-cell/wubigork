@@ -7,6 +7,7 @@ import type { ContextRequestRecord, ContextStats, ContextTiming } from "../../li
 import { costHoverTitle, fmtDuration, SessionInfoCard, StatsCard, summarizeTokens, SummaryBar, TimingCard, TokenCard } from "./cards";
 import type { ReactElement } from "react";
 import { LocaleProvider } from "../../lib/i18n";
+import type { DictKey } from "../../locales/en";
 
 const renderZ = (ui: ReactElement) => {
   localStorage.setItem("gaea-lang", "zh");
@@ -26,13 +27,21 @@ const REQ = (seq: number, hit: number, miss: number, out: number): ContextReques
 
 // ─── fmtDuration / summarizeTokens 纯函数 ───────────────────────
 
+// zh 直译器（i18n 收口批起 fmtDuration 单位词经 t 注入）：走真实 zh 字典插值，
+// 断言口径与运行态中文界面逐字一致。键型收 DictKey 对齐 Translator 签名。
+const zhT = (key: DictKey, vars?: Record<string, string | number>): string =>
+  ({ "contextview.durSec": "{n} 秒", "contextview.durMinSec": "{m} 分 {s} 秒" })[key as "contextview.durSec"].replace(
+    /\{(\w+)\}/g,
+    (_, k) => String(vars?.[k] ?? `{${k}}`),
+  );
+
 describe("fmtDuration 时长格式化", () => {
   it("秒级与分钟级两种形态", () => {
-    expect(fmtDuration(0)).toBe("0 秒");
-    expect(fmtDuration(30000)).toBe("30 秒");
-    expect(fmtDuration(65000)).toBe("1 分 5 秒");
-    expect(fmtDuration(60000)).toBe("1 分 0 秒");
-    expect(fmtDuration(3661000)).toBe("61 分 1 秒");
+    expect(fmtDuration(0, zhT)).toBe("0 秒");
+    expect(fmtDuration(30000, zhT)).toBe("30 秒");
+    expect(fmtDuration(65000, zhT)).toBe("1 分 5 秒");
+    expect(fmtDuration(60000, zhT)).toBe("1 分 0 秒");
+    expect(fmtDuration(3661000, zhT)).toBe("61 分 1 秒");
   });
 });
 

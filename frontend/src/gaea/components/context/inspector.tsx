@@ -7,8 +7,8 @@
 // - FileActivityTree：过滤 chips（全部/读取/写入/搜索/图片）+ 路径过滤 + 汇总行
 //   + 排序三胶囊（按次数/按最新/按路径）+ 按文件聚合树行（点击打开预览）。
 import { useEffect, useMemo, useRef, useState } from "react";
-// 六分类语义色：ContextView.tsx 已导出 CAT_COLORS，直接复用避免两处调色板漂移。
-import { CAT_COLORS } from "../ContextView";
+// 六分类语义色与键名单源在 context/cats.ts（i18n 收口批起 CAT_COLORS 定义也在此）。
+import { CAT_COLORS } from "./cats";
 import { MemoMarkdown } from "../MemoMarkdown";
 import { app } from "../../lib/bridge";
 import "./context-view.css";
@@ -438,11 +438,11 @@ export function ContextBrowserTree({
                     className="rounded-full px-1.5 text-[9px] tabular-nums"
                     style={{ background: "var(--md-sys-color-surface-container-high)", color: "var(--md-sys-color-text-secondary)" }}
                   >
-                    {g.count} 项 {/* i18n 待主代理收口 */}
-                  </span>
-                  <span className="ml-auto shrink-0 font-mono text-[9.5px] tabular-nums text-fg-faint">
-                    ≈{fmtTokens(g.tokens)} ({share}%)
-                  </span>
+                      {t("contextview.itemsCount", { n: g.count })}
+                      </span>
+                      <span className="ml-auto shrink-0 font-mono text-[9.5px] tabular-nums text-fg-faint">
+                        ≈{fmtTokens(g.tokens)} ({share}%)
+                      </span>
                 </button>
                 {isOpen && (
                   <div className="ml-3.5 mt-0.5 flex flex-col gap-1 border-l border-border-soft/60 pl-2">
@@ -495,9 +495,9 @@ export function ContextBrowserTree({
                     className="rounded-full px-1.5 text-[9px] tabular-nums"
                     style={{ background: "var(--md-sys-color-surface-container-high)", color: "var(--md-sys-color-text-secondary)" }}
                   >
-                    {archiveShown.length} 项 {/* i18n 待主代理收口 */}
-                  </span>
-                  <span className="ml-auto shrink-0 font-mono text-[9.5px] tabular-nums text-fg-faint">≈{fmtTokens(archiveTokens)}</span>
+                        {t("contextview.itemsCount", { n: archiveShown.length })}
+                      </span>
+                      <span className="ml-auto shrink-0 font-mono text-[9.5px] tabular-nums text-fg-faint">≈{fmtTokens(archiveTokens)}</span>
                 </button>
                 {isOpen && (
                   <div className="ml-3.5 mt-0.5 flex flex-col gap-1 border-l border-border-soft/60 pl-2">
@@ -698,12 +698,12 @@ export function FileActivityTree({ files, onOpenFile, sessionPath, fetchNodeDeta
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder={t("contextview.filesFilter")}
-        aria-label="按路径过滤" // i18n 待主代理收口
+        aria-label={t("contextview.filesFilter")}
         className="mt-1.5 h-6 w-full rounded-md border border-border-soft bg-bg-soft px-2 text-[10px] text-fg placeholder:text-fg-faint focus:border-accent focus:outline-none"
       />
       <div className="mt-1 flex items-center justify-between gap-2">
         <span className="shrink-0 text-[9.5px] tabular-nums text-fg-faint">
-          {rows.length} 个文件 {/* i18n 待主代理收口（dsh 的 +X−Y 增删行数无数据，省略） */}
+          {t("contextview.filesCount", { n: rows.length })}
         </span>
         <span className="flex items-center gap-1 text-[10px]">
           {SORT_PILLS.map((p) => (

@@ -19,7 +19,7 @@ import { Users } from "../../icons";
 //    时回调 onOpenSubagent（与 TasksWorkbench.openThread 同口径），否则不触发、title 说明；
 //    点击中心节点无动作。
 //
-// 文案硬编码中文——i18n 待主代理收口。
+// 文案全部走 t(DictKey)（i18n 收口批，此前硬编码中文；zh 译文与原文逐字一致）。
 
 // ─── 画布/布局常量（固定 viewBox 等比缩放 = 自适应宽度；不引 ResizeObserver：
 // jsdom 无原生实现，且 w-full + viewBox 已满足自适应，与 TrendChart 同思路） ───
@@ -192,11 +192,11 @@ export function AgentRadial({
 
   const centerTitle = [
     root.task || root.name,
-    `状态：${statusLabel(root.status, t)}`,
-    root.model ? `模型：${root.model}` : null,
-    `工具调用：${root.toolCalls}`,
-    root.errors > 0 ? `错误：${root.errors}` : null,
-    network.window > 0 ? `上下文窗口：≈${fmtTokens(network.window)}` : null,
+    t("contextview.radialStatus", { v: statusLabel(root.status, t) }),
+    root.model ? t("contextview.radialModel", { v: root.model }) : null,
+    t("contextview.radialToolCalls", { n: root.toolCalls }),
+    root.errors > 0 ? t("contextview.radialErrors", { n: root.errors }) : null,
+    network.window > 0 ? t("contextview.radialWindow", { tokens: fmtTokens(network.window) }) : null,
   ]
     .filter(Boolean)
     .join("\n");
@@ -287,16 +287,16 @@ export function AgentRadial({
           const canViewContext = hasRef && !!onViewContext;
           const title = [
             c.node.task || c.node.name,
-            `状态：${statusLabel(c.node.status, t)}`,
-            c.node.model ? `模型：${c.node.model}` : null,
-            `工具调用：${c.node.toolCalls}`,
-            c.node.errors > 0 ? `错误：${c.node.errors}` : null,
-            `tokens：≈${fmtTokens(c.node.tokens)}`,
+            t("contextview.radialStatus", { v: statusLabel(c.node.status, t) }),
+            c.node.model ? t("contextview.radialModel", { v: c.node.model }) : null,
+            t("contextview.radialToolCalls", { n: c.node.toolCalls }),
+            c.node.errors > 0 ? t("contextview.radialErrors", { n: c.node.errors }) : null,
+            t("contextview.radialTokens", { tokens: fmtTokens(c.node.tokens) }),
             !hasRef
-              ? "ref 不可得，无法打开子代理对话"
+              ? t("contextview.radialNoRef")
               : clickable
-                ? "点击打开子代理对话"
-                : "未接线打开回调，点击不触发",
+                ? t("contextview.radialOpenTip")
+                : t("contextview.radialNoCallback"),
           ]
             .filter(Boolean)
             .join("\n");
@@ -325,7 +325,7 @@ export function AgentRadial({
                     onViewContext(c.node.id);
                   }}
                 >
-                  查看上下文
+                  {t("contextview.radialViewContext")}
                 </text>
               )}
               {/* 占比环：子 tokens / 主 agent tokens */}

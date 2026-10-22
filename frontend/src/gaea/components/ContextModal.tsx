@@ -10,6 +10,7 @@
 // 到本弹层（主区 tab 仍保留，手动切换路径不变）。
 import { Modal } from "antd";
 import { fmtTokens } from "../lib/stats";
+import { useT } from "../lib/i18n";
 import { ContextView } from "./ContextView";
 
 export function ContextPill({ used, window: win, onClick }: {
@@ -17,6 +18,7 @@ export function ContextPill({ used, window: win, onClick }: {
   window: number;
   onClick?: () => void;
 }) {
+  const t = useT();
   if (!(win > 0)) return null;
   const pct = Math.min(100, Math.round((used / win) * 100));
   const remain = Math.max(0, 100 - pct);
@@ -31,7 +33,7 @@ export function ContextPill({ used, window: win, onClick }: {
       type="button"
       data-testid="ctx-pill"
       onClick={onClick}
-      title={`上下文窗口占用 ${fmtTokens(used)}/${fmtTokens(win)} · 点击查看构成`}
+      title={t("contextview.pillTitle", { used: fmtTokens(used), win: fmtTokens(win) })}
       className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10.5px] tabular-nums transition-colors hover:bg-bg-soft"
       style={{ borderColor: "var(--md-sys-color-outline-variant)", color: tone, background: "transparent" }}
     >
@@ -41,7 +43,7 @@ export function ContextPill({ used, window: win, onClick }: {
           style={{ width: `${pct}%`, background: tone }}
         />
       </span>
-      <span>剩余 {remain}%</span>
+      <span>{t("contextview.pillRemain", { n: remain })}</span>
     </button>
   );
 }
@@ -55,9 +57,10 @@ export function ContextModal({ open, onClose, running, sessionPath, sessionName,
   model?: string;
   /** 2.5e 后半：子代理上下文的自定义数据源（GaeaSubagentContextView）。 */
   fetchTimeline?: () => Promise<import("../lib/types").ContextTimeline>;
-  /** 弹层标题（缺省「当前上下文」；子代理态显示 ref）。 */
+  /** 弹层标题（缺省「当前上下文」=contextview.currentTitle；子代理态显示 ref）。 */
   title?: string;
 }) {
+  const t = useT();
   return (
     <Modal
       open={open}
@@ -65,7 +68,7 @@ export function ContextModal({ open, onClose, running, sessionPath, sessionName,
       footer={null}
       width={1080}
       centered
-      title={title ?? "当前上下文"}
+      title={title ?? t("contextview.currentTitle")}
       destroyOnHidden
     >
       {open && (

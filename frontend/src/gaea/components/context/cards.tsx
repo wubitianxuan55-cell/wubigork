@@ -1,21 +1,19 @@
 /* eslint-disable react-refresh/only-export-components -- 纯展示卡与格式化助手同文件（对齐 ContextView 收敛模式） */
-import { useT } from "../../lib/i18n";
+import { useT, type Translator } from "../../lib/i18n";
 import "./context-view.css";
 import { Clock, Coins, MessageSquare, type Icon } from "../../icons";
 import type { ReactNode } from "react";
 // cards.tsx — dsh-context 头部仪表卡移植（对齐 dsh-context 插件 StatsCard/TokenCard/
 // TimingCard/SessionInfoCard/SummaryBar 信息架构，套用 gaea 星枢皮肤）。
 //
-// i18n 待主代理收口：文案暂硬编码中文，收口时统一替换为 t(DictKey)。
-// 本文件保持纯展示（无 hooks、无 bridge、无 i18n provider），便于 jsdom 定向测试。
-//
-// 语义色豁免说明：六分类语义色 hex 与 ContextView.tsx 的 CAT_COLORS 单源保持一致
-// （页面蓝图 context.md 豁免条款）；主代理收口时可将其提升为共享模块再统一 import。
+// 文案全部走 t(DictKey)（i18n 收口批，此前硬编码中文）；六分类键名与语义色
+// 从 context/cats.ts 单源派生。本文件保持纯展示（无 bridge），便于 jsdom 定向测试。
 import type { ContextRequestRecord, ContextStats, ContextTiming } from "../../lib/types";
 import type { DictKey } from "../../locales/en";
 import { fmtTokens } from "../../lib/stats";
+import { CAT_COLORS, CONTEXT_CATS } from "./cats";
 
-// ─── 语义色（与 ContextView CAT_COLORS 同值；hex-exempt 页面级语义色板） ────
+// ─── 语义色（六分类色单源在 cats.ts；下列为卡片专属的非分类语义色） ────
 const COLORS = {
   donutTrack: "#8080802e", // hex-exempt Donut 轨道色（同 dsh 原版 #8080802e）
   cacheHit: "#22c55e", // hex-exempt 缓存命中绿（= user 绿）
@@ -25,26 +23,22 @@ const COLORS = {
   modelGen: "#06b6d4", // hex-exempt 模型生成青（= tool 青）
   toolExec: "#f59e0b", // hex-exempt 工具执行橙（= tools 橙）
   other: "#808080", // hex-exempt 其他开销灰
-  idle: "#808080", // hex-exempt {t("contextview.idleWindow")}灰
+  idle: "#808080", // hex-exempt 空闲窗口灰
 } as const;
 
-// 六分类图例（标签与 ContextView CATS 的 zh 文案一致；i18n 待主代理收口）
-const LEGEND_CATS: { key: keyof ContextRequestRecord["category"]; color: string; label: string }[] = [
-  { key: "system", color: "#3b82f6", label: "系统提示词" }, // hex-exempt 六分类语义色
-  { key: "tools", color: "#f59e0b", label: "工具定义" }, // hex-exempt 六分类语义色
-  { key: "user", color: "#22c55e", label: "用户消息" }, // hex-exempt 六分类语义色
-  { key: "inject", color: "#a855f7", label: "注入内容" }, // hex-exempt 六分类语义色
-  { key: "assistant", color: "#1e40af", label: "助手消息" }, // hex-exempt 六分类语义色
-  { key: "tool", color: "#06b6d4", label: "工具结果" }, // hex-exempt 六分类语义色
-];
+// 六分类图例：键名+语义色+文案全部从 cats.ts 单源派生（此前本地另抄一份
+// 色值与中文标签，与 CAT_COLORS/CONTEXT_CATS 双源漂移风险）。
+const LEGEND_CATS: { key: keyof ContextRequestRecord["category"]; color: string; labelKey: DictKey }[] =
+  CONTEXT_CATS.map(({ key, labelKey }) => ({ key, color: CAT_COLORS[key], labelKey }));
 
 // ─── 纯格式化/聚合助手（导出以便测试） ─────────────────────────
 
-/** ms → 「x 分 x 秒」/「x 秒」（dsh 时长口径；亚秒归入 0 秒，不伪造精度） */
-export function fmtDuration(ms: number): string {
+/** ms → 「x 分 x 秒」/「x 秒」（dsh 时长口径；亚秒归入 0 秒，不伪造精度）。
+ *  单位词由调用方经 t 注入（contextview.durSec/durMinSec），保持纯函数可测。 */
+export function fmtDuration(ms: number, t: Translator): string {
   const total = Math.max(0, Math.round(ms / 1000));
-  if (total < 60) return `${total} 秒`;
-  return `${Math.floor(total / 60)} 分 ${total % 60} 秒`;
+  if (total < 60) return t("contextview.durSec", { n: total });
+  return t("contextview.durMinSec", { m: Math.floor(total / 60), s: total % 60 });
 }
 
 export interface TokenSummary {
@@ -297,8 +291,9 @@ export function TimingCard({ timing }: { timing?: ContextTiming }) {
   const t = useT();
   const rows = (timing ? timingRows(timing, t) : TIMING_EMPTY_ROWS).map((r) => ({ ...r, label: t(r.label as Parameters<typeof t>[0]) }));
   const wall = timing?.wallMs ?? null;
+  // 注意：map 参数命名避开 t（翻译器）——工具排行与分解行都要在同表达式里用两者。
   const topTools = (timing?.tools ?? [])
-    .map((t) => ({ name: t.name, calls: t.calls, ms: t.ms }))
+    .map((tool) => ({ name: tool.name, calls: tool.calls, ms: tool.ms }))
     .sort((a, b) => b.ms - a.ms || b.calls - a.calls) // 后端已按 ms 降序，此处防御性保序
     .slice(0, 3);
   return (
@@ -307,8 +302,8 @@ export function TimingCard({ timing }: { timing?: ContextTiming }) {
       <div className="mt-2 flex items-center gap-4">
         <Donut
           segments={rows.map((r) => ({ value: r.ms ?? 0, color: r.color }))}
-          center={wall != null ? fmtDuration(wall) : "—"}
-          centerSub="活跃时长"
+          center={wall != null ? fmtDuration(wall, t) : "—"}
+          centerSub={t("contextview.timingActive")}
         />
         <div className="min-w-0 flex-1 space-y-1.5">
           {rows.map((r) => (
@@ -316,10 +311,10 @@ export function TimingCard({ timing }: { timing?: ContextTiming }) {
               <Dot color={r.color} />
               <span className="shrink-0 text-fg-dim">{r.label}</span>
               <span className="ml-auto min-w-0 truncate text-right font-mono tabular-nums text-fg">
-                {r.ms != null ? fmtDuration(r.ms) : "—"}
+                {r.ms != null ? fmtDuration(r.ms, t) : "—"}
               </span>
               <span className="w-10 shrink-0 text-right font-mono tabular-nums text-fg-faint">
-                {r.count != null ? `${r.count} 次` : "—"}
+                {r.count != null ? t("contextview.countTimes", { n: r.count }) : "—"}
               </span>
               <span className="w-8 shrink-0 text-right font-mono tabular-nums text-fg-faint">
                 {r.ms != null && wall ? fmtPct(r.ms, wall) : "—"}
@@ -330,11 +325,11 @@ export function TimingCard({ timing }: { timing?: ContextTiming }) {
       </div>
       {topTools.length > 0 && (
         <div className="mt-2 border-t border-border-soft pt-1.5" data-testid="timing-tools">
-          {topTools.map((t) => (
-            <div key={t.name} className="flex items-center gap-1.5 text-[10.5px]">
-              <span className="min-w-0 truncate text-fg-faint">{t.name}</span>
-              <span className="ml-auto shrink-0 font-mono tabular-nums text-fg-dim">{t.calls} 次</span>
-              <span className="w-14 shrink-0 text-right font-mono tabular-nums text-fg-faint">{fmtDuration(t.ms)}</span>
+          {topTools.map((tool) => (
+            <div key={tool.name} className="flex items-center gap-1.5 text-[10.5px]">
+              <span className="min-w-0 truncate text-fg-faint">{tool.name}</span>
+              <span className="ml-auto shrink-0 font-mono tabular-nums text-fg-dim">{t("contextview.countTimes", { n: tool.calls })}</span>
+              <span className="w-14 shrink-0 text-right font-mono tabular-nums text-fg-faint">{fmtDuration(tool.ms, t)}</span>
             </div>
           ))}
         </div>
@@ -367,7 +362,7 @@ export function SessionInfoCard({
   ];
   return (
     <div className="ctx-card p-3">
-      <CardHead title="会话信息" icon={MessageSquare} />
+      <CardHead title={t("contextview.sessionTitle")} icon={MessageSquare} />
       <div className="mt-2 space-y-1">
         {rows.map(([k, v]) => (
           <div key={k} className="flex items-baseline justify-between gap-2 text-[11.5px]">
@@ -444,7 +439,7 @@ export function SummaryBar({
           {LEGEND_CATS.map((c) => (
             <span key={c.key} className="inline-flex items-center gap-1 text-[9.5px] text-fg-faint">
               <Dot color={c.color} />
-              {c.label}
+              {t(c.labelKey)}
             </span>
           ))}
           <span className="inline-flex items-center gap-1 text-[9.5px] text-fg-faint">

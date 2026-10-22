@@ -12,7 +12,7 @@ const renderP = (ui: ReactElement) => {
 
 // AgentRadial 测试（jsdom）：SVG 渲染走 container.querySelector（TrendChart 同款
 // 兼容写法），占比弧断言 stroke-dasharray 数值，点击断言回调两态（ref 可得/不可得）。
-// 组件不走 useT（文案硬编码中文），无需 LocaleProvider。
+// 文案走 t(DictKey)（i18n 收口批）——renderP 包 LocaleProvider 且钉 zh。
 
 function child(id: string, over: Partial<AgentNode> = {}): AgentNode {
   return {

@@ -1,4 +1,5 @@
-/* eslint-disable react-refresh/only-export-components -- 子组件与容器同文件（Phase A 收敛，避免过早拆文件） */
+// 本文件导出面只含组件（ContextView/ContextTrendChart）；六分类键名与语义色
+// 常量在 context/cats.ts 单源（CAT_COLORS 收编后不再有非组件导出）。
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { app } from "../lib/bridge";
 import { useT } from "../lib/i18n";
@@ -10,7 +11,10 @@ import { fmtTokens } from "../lib/stats";
 import { loadContextPrefs, saveContextPref, type CtxTrendGranularity, type CtxTrendMode } from "../lib/contextPrefs";
 import { useLiveReload } from "../hooks/useLiveReload";
 import { subscribeAgentNetwork, reloadAgentNetwork } from "../lib/agentNetworkStore";
-import { CONTEXT_CATS, CONTEXT_CAT_BROWSE } from "./context/cats";
+import { CONTEXT_CATS, CONTEXT_CAT_BROWSE, CAT_COLORS } from "./context/cats";
+
+// 六分类语义色 CAT_COLORS 定义已收编至 context/cats.ts 单源（i18n 收口批），
+// 本文件经上方导入消费；inspector/cards 也直接从 cats.ts 取。
 import { StatsCard, TokenCard, TimingCard, SessionInfoCard, SummaryBar } from "./context/cards";
 import { ContextBrowserTree, FileActivityTree } from "./context/inspector";
 import { AgentRadial } from "./context/AgentRadial";
@@ -18,15 +22,7 @@ import "./context/context-view.css";
 import { BarChart3, LineChart, List } from "../icons";
 import type { AgentNetwork } from "../lib/types";
 
-// 六分类语义色（效果图对齐：系统蓝/工具橙/用户绿/注入紫/助手深蓝/工具青）。
-export const CAT_COLORS: Record<keyof ContextCategory, string> = {
-  system: "#3b82f6", // hex-exempt 上下文六分类语义色（可视化调色板）
-  tools: "#f59e0b", // hex-exempt 上下文六分类语义色
-  user: "#22c55e", // hex-exempt 上下文六分类语义色
-  inject: "#a855f7", // hex-exempt 上下文六分类语义色
-  assistant: "#1e40af", // hex-exempt 上下文六分类语义色
-  tool: "#06b6d4", // hex-exempt 上下文六分类语义色
-};
+// 六分类语义色在 context/cats.ts 单源（CAT_COLORS，经文件头导入消费）。
 
 // 六分类单一事实源在 context/cats.ts（FE1-02）：此处派生面板所需的 key+全名。
 const CATS: { key: keyof ContextCategory; labelKey: DictKey }[] = CONTEXT_CATS.map(({ key, labelKey }) => ({ key, labelKey }));
