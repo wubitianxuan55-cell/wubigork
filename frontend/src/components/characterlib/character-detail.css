@@ -1,5 +1,10 @@
 /* 角色库详情：档案册视图（档案眉 → 立绘横幅 → 身份栏 + 卷宗正文 → 底部操作条）
-   强调色跟随主题 var(--gaea-glow)，深浅色模式均可用 */
+   v4.521 玄墨化：立绘底/占位首字的 glow 渐变镀金退役改中性面；生成工具条、
+   类型旗标、可聊天、标签 pill 中性墨化；节标改玄墨 eyebrow 款（11px·700 宽字距
+   +渐隐尾线）；保存钮彩影改投影令牌；光泽扫过（sheen）退役。
+   金只留：节标引线外的等宽数据值、hover 点亮、引语/弧线 accent 左线。
+   图片叠加层（黑纱/暗玻璃钮/评分徽）为固定无主题黑，先例同 v4.415。
+   强语义色（primary 实底当前人格 / success 项目徽 / 评分三档）保留。 */
 
 .cd {
   display: flex;
@@ -21,15 +26,17 @@
   justify-content: space-between;
   gap: 10px;
   padding: 11px 16px;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-text) 6%, transparent);
   flex-shrink: 0;
 }
 
+/* 编号：等宽数据值 = 金点睛位 */
 .cd-no {
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.14em;
-  color: var(--md-sys-color-text-secondary);
+  color: color-mix(in srgb, var(--gaea-glow) 80%, var(--md-sys-color-text-secondary));
   font-variant-numeric: tabular-nums;
 }
 
@@ -40,26 +47,26 @@
   min-width: 0;
 }
 
-/* 类型标记：直角旗标 */
+/* 类型标记：直角旗标（中性墨——玄墨去金） */
 .cd-kind {
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.08em;
   padding: 2px 8px;
   border-radius: 4px;
-  color: var(--gaea-glow);
-  background: color-mix(in srgb, var(--gaea-glow) 13%, transparent);
-  border: 1px solid color-mix(in srgb, var(--gaea-glow) 26%, transparent);
+  color: var(--md-sys-color-text-secondary);
+  background: color-mix(in srgb, var(--color-text) 5%, transparent);
   white-space: nowrap;
 }
 
+/* 可聊天：文案中性墨 + 活性点金（金点睛位） */
 .cd-chat {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   font-size: 10px;
   font-weight: 500;
-  color: var(--gaea-glow);
+  color: var(--md-sys-color-text-secondary);
   white-space: nowrap;
 }
 
@@ -68,17 +75,17 @@
   height: 6px;
   border-radius: 50%;
   background: var(--gaea-glow);
-  box-shadow: 0 0 8px var(--gaea-glow);
 }
 
+/* 当前人格：primary 实底=强语义保留，彩影退役改中性影 */
 .cd-current {
   padding: 2px 10px;
   border-radius: 999px;
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 600;
   color: var(--md-sys-color-on-primary);
   background: var(--md-sys-color-primary);
-  box-shadow: 0 2px 12px color-mix(in srgb, var(--gaea-glow) 42%, transparent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-text) 26%, transparent);
   white-space: nowrap;
 }
 
@@ -87,7 +94,8 @@
   color: var(--md-sys-color-text-secondary);
 }
 
-/* 立绘档案卡（竖向 3:4，剧照完整可见） */
+/* 立绘档案卡（竖向 3:4，剧照完整可见；glow 渐变退役改中性面，
+   底降一档回 surface-container 与卡面拉开形成图框感） */
 .cd-hero {
   position: relative;
   width: 100%;
@@ -96,9 +104,7 @@
   overflow: hidden;
   flex-shrink: 0;
   border-radius: 14px;
-  background:
-    radial-gradient(90% 120% at 20% 0%, color-mix(in srgb, var(--gaea-glow) 22%, transparent), transparent 60%),
-    var(--md-sys-color-surface-container-high);
+  background: var(--color-surface-container, var(--md-sys-color-surface-container));
 }
 
 .cd-hero-img {
@@ -117,12 +123,9 @@
   justify-content: center;
   font-size: 56px;
   font-weight: 700;
-  color: var(--gaea-glow);
+  color: var(--md-sys-color-text-secondary);
   opacity: 0.9;
-  background:
-    radial-gradient(90% 160% at 18% 0%, color-mix(in srgb, var(--gaea-glow) 20%, transparent), transparent 55%),
-    linear-gradient(140deg, color-mix(in srgb, var(--gaea-glow) 10%, transparent), transparent 60%),
-    var(--md-sys-color-surface-container-high);
+  background: var(--color-surface-container, var(--md-sys-color-surface-container));
 }
 
 .cd-hero-shade {
@@ -133,7 +136,7 @@
 }
 
 /* 生成按钮组（剧照 + 设定卡）：垂直堆叠容器（v4.401 前两按钮各自 absolute
-   同点位重叠，收进容器根修） */
+   同点位重叠，收进容器根修）。暗玻璃=图片叠加层 */
 .cd-hero-gens {
   position: absolute;
   top: 12px;
@@ -181,7 +184,7 @@
 .cd-hero-gen:hover,
 .cd-hero-gen.ant-btn-group .ant-btn:hover {
   color: rgb(255 255 255) !important;
-  border-color: var(--gaea-glow) !important;
+  border-color: color-mix(in srgb, var(--gaea-glow) 46%, transparent) !important;
 }
 
 /* 生成进度行（v4.406）：载入/排队阶段可见（当前节点+用时），贴 hero 底部 */
@@ -194,6 +197,7 @@
   padding: 2px 8px;
   border-radius: 999px;
   font-size: 11px;
+  font-variant-numeric: tabular-nums;
   color: rgb(255 255 255);
   background: rgba(10, 10, 20, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -213,7 +217,7 @@
 .cd-hero-name {
   margin: 0;
   font-size: 20px;
-  font-weight: 700;
+  font-weight: 650;
   line-height: 1.2;
   letter-spacing: 0.01em;
   color: rgb(255 255 255);
@@ -233,20 +237,7 @@
   text-overflow: ellipsis;
 }
 
-.cd-sheen::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-  pointer-events: none;
-  background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.12) 50%, transparent 60%);
-  transform: translateX(-130%);
-  transition: transform 480ms ease;
-}
-
-.cd-hero:hover .cd-sheen::after {
-  transform: translateX(130%);
-}
+/* v4.521 玄墨化：cd-sheen 光泽扫过装饰退役（类名保留在结构，样式不画） */
 
 /* 两栏主体 */
 .cd-body {
@@ -259,7 +250,7 @@
   width: 300px;
   flex-shrink: 0;
   padding: 16px;
-  border-right: 1px solid var(--md-sys-color-outline-variant);
+  border-right: 1px solid color-mix(in srgb, var(--color-text) 6%, transparent);
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -275,7 +266,7 @@
   gap: 18px;
 }
 
-/* 随机生成工具条 */
+/* 随机生成工具条（glow 底+金描边退役 → 中性墨软底+中性虚线） */
 .cd-genbar {
   display: flex;
   align-items: center;
@@ -283,16 +274,16 @@
   flex-wrap: wrap;
   padding: 10px 12px;
   border-radius: 12px;
-  border: 1px dashed color-mix(in srgb, var(--gaea-glow) 28%, transparent);
-  background: color-mix(in srgb, var(--gaea-glow) 6%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--color-text) 12%, transparent);
+  background: color-mix(in srgb, var(--color-text) 4%, transparent);
   flex-shrink: 0;
 }
 
 .cd-genbar-title {
   font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  color: var(--gaea-glow);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--md-sys-color-text-secondary);
   white-space: nowrap;
 }
 
@@ -330,12 +321,12 @@
 }
 
 .cd-dice:hover {
-  color: var(--gaea-glow) !important;
+  color: color-mix(in srgb, var(--gaea-glow) 88%, var(--md-sys-color-text)) !important;
   background: color-mix(in srgb, var(--gaea-glow) 10%, transparent) !important;
 }
 
 .cd-dice:focus-visible {
-  outline: 2px solid var(--gaea-glow);
+  outline: 2px solid color-mix(in srgb, var(--gaea-glow) 72%, transparent);
   outline-offset: 1px;
 }
 
@@ -360,16 +351,17 @@
 }
 
 .cd-sec + .cd-sec {
-  border-top: 1px solid var(--md-sys-color-outline-variant);
+  border-top: 1px solid color-mix(in srgb, var(--color-text) 6%, transparent);
   padding-top: 16px;
 }
 
+/* 节标：玄墨 eyebrow 款（金标题退役 → 中性宽字距+渐隐尾线） */
 .cd-sec-title {
   margin: 0 0 12px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.07em;
-  color: var(--gaea-glow, var(--md-sys-color-primary));
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--md-sys-color-text-secondary, var(--md-sys-color-text));
   display: flex;
   align-items: center;
   gap: 8px;
@@ -379,7 +371,7 @@
   content: '';
   flex: 1;
   height: 1px;
-  background: linear-gradient(90deg, var(--md-sys-color-outline-variant), transparent);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--color-text) 8%, transparent), transparent);
 }
 
 
@@ -409,7 +401,7 @@
   gap: 12px;
 }
 
-/* 标签 pill */
+/* 标签 pill（金退役 → 中性 ink 三档） */
 .cd-tags {
   display: flex;
   flex-wrap: wrap;
@@ -417,10 +409,9 @@
 }
 
 .cd-tag {
-  font-size: 10px;
-  color: var(--gaea-glow, var(--md-sys-color-primary));
-  letter-spacing: 0.02em;
-  opacity: 0.9;
+  font-size: 10.5px;
+  color: var(--md-sys-color-text-secondary);
+  letter-spacing: 0.04em;
 }
 
 .cd-thumb {
@@ -430,7 +421,7 @@
   object-fit: cover;
   object-position: top center;
   margin-top: 4px;
-  border: 1px solid var(--md-sys-color-outline-variant);
+  border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
 }
 
 /* 五维 */
@@ -440,8 +431,8 @@
   align-items: center;
   gap: 8px;
   padding: 12px 0;
-  border-top: 1px solid var(--md-sys-color-outline-variant);
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  border-top: 1px solid color-mix(in srgb, var(--color-text) 6%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-text) 6%, transparent);
 }
 
 .cd-dims {
@@ -466,6 +457,7 @@
 }
 
 .cd-dim-val {
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
   font-size: 11px;
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -511,7 +503,7 @@
   aspect-ratio: 3 / 4;
   border-radius: 10px;
   overflow: hidden;
-  border: 1px solid var(--md-sys-color-outline-variant);
+  border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
   background: var(--md-sys-color-surface-container-high);
 }
 
@@ -524,6 +516,7 @@
   border-radius: 999px;
   font-size: 11px;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
   color: rgb(255 255 255);
   background: rgba(10, 10, 20, 0.62);
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -560,7 +553,7 @@
 }
 
 .cd-ref-actions .cd-dice:hover {
-  color: var(--gaea-glow) !important;
+  color: color-mix(in srgb, var(--gaea-glow) 88%, rgb(255 255 255)) !important;
   background: rgba(255, 255, 255, 0.14) !important;
 }
 
@@ -581,7 +574,7 @@
 .cd .ant-input-affix-wrapper,
 .cd .ant-select-selector {
   background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 58%, transparent) !important;
-  border-color: var(--md-sys-color-outline-variant) !important;
+  border-color: color-mix(in srgb, var(--color-text) 8%, transparent) !important;
   color: var(--md-sys-color-text) !important;
 }
 
@@ -602,7 +595,7 @@
   justify-content: space-between;
   gap: 12px;
   padding: 12px 16px;
-  border-top: 1px solid var(--md-sys-color-outline-variant);
+  border-top: 1px solid color-mix(in srgb, var(--color-text) 6%, transparent);
   background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 70%, transparent);
   flex-shrink: 0;
 }
@@ -622,11 +615,12 @@
   flex-shrink: 0;
 }
 
+/* 保存钮：彩影退役改投影令牌 */
 .cd-save {
   border-radius: 999px;
   padding-left: 18px;
   padding-right: 18px;
-  box-shadow: 0 4px 16px color-mix(in srgb, var(--gaea-glow) 28%, transparent);
+  box-shadow: var(--shadow-sm);
 }
 
 .cd-foot-actions .ant-btn:not(.cd-save) {

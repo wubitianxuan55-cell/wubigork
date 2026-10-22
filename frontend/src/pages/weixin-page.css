@@ -1,9 +1,19 @@
 /* ═══════════════════════════════════════════════════════════════════
-   微信助手「通讯枢纽」工作台（星枢 Constellation OS 化）
-   布局：顶部玻璃细条（标题/通道遥测/刷新）+ 左通道轨道 + 主区三视图
-  （助手详情 / 离线提醒 / 使用指南）。对齐 memoryhub hub.css 的轨道语言：
-  激活 = 主色容器底 + 左缘光条；氛围层降透明不抢戏。
-   令牌纪律：只消费 --md-sys-* / --gaea-* / --color-* / --v3-* 与旧栈
+   微信助手「通讯枢纽」工作台（v4.521 玄墨化，原星枢 Constellation OS）
+   布局：顶部细条（标题/通道遥测/刷新）+ 左通道轨道 + 主区三视图
+  （助手详情 / 离线提醒 / 使用指南）。
+   玄墨五条对策落地（对齐首页 module-launcher.css v11）：
+   ① 氛围层降权——通讯波纹/星穹网格双 radial+网格叠层降透明近实底，
+     不再与内容层抢戏；
+   ② 描边退场——主区 kv 卡/提醒条/指南卡/扫码框/选择器列表全部改
+     纯色面（bgContainer 比 surface 亮一档）+ 投影令牌，1px 主题边线
+     降到 text 4.5~6% 近无；
+   ③ 金色点睛纪律——标题/指南图标/命令 chip/空态图标章全部中性墨化，
+     金只留：激活轨道左缘线、pending 徽记、当前相位点、hover 点亮；
+   ④ 排印三档——主标 17px·600 / 标签 10.5px 宽字距 / 正文 12~13px；
+   ⑤ 激活态语义保留：轨道/chip 激活仍用 primary-container 底，仅光效
+    （glow 光条/发光点）退场为细线。
+   令牌纪律：只消费 --md-sys-* / --gaea-* / --color-* 与旧栈
    --bg/--fg/--accent/--border 等主题令牌，零硬编码色值。
    ═══════════════════════════════════════════════════════════════════ */
 
@@ -17,22 +27,21 @@
   background: var(--color-bg-layout, var(--bg));
 }
 
-/* 氛围层：令牌渐变 + 网格（降透明，通讯波纹意象） */
+/* 氛围层：令牌渐变 + 网格（v4.521 降透明——玄墨页底近实底，波纹仅存意象） */
 .wx-bg {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: 0.4;
+  opacity: 0.22;
   background:
-    radial-gradient(ellipse 55% 45% at 18% 20%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 70%),
-    radial-gradient(ellipse 45% 40% at 85% 80%, color-mix(in srgb, var(--info, var(--accent)) 5%, transparent), transparent 70%),
-    linear-gradient(180deg, var(--bg) 0%, var(--bg-soft, var(--bg)) 100%);
+    radial-gradient(ellipse 55% 45% at 18% 20%, color-mix(in srgb, var(--accent) 5%, transparent), transparent 70%),
+    radial-gradient(ellipse 45% 40% at 85% 80%, color-mix(in srgb, var(--info, var(--accent)) 4%, transparent), transparent 70%);
 }
 .wx-grid {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: 0.32;
+  opacity: 0.16;
   background-image:
     linear-gradient(color-mix(in srgb, var(--accent) 6%, transparent) 1px, transparent 1px),
     linear-gradient(90deg, color-mix(in srgb, var(--accent) 6%, transparent) 1px, transparent 1px);
@@ -40,7 +49,7 @@
   mask-image: radial-gradient(ellipse 70% 65% at 50% 40%, black 35%, transparent 100%);
 }
 
-/* ── 顶部细条（板块名收敛 + 通道遥测） ─────────────────────────── */
+/* ── 顶部细条（板块名收敛 + 通道遥测；纯色面，描边近无） ──────────── */
 .wx-strip {
   position: relative;
   z-index: 40;
@@ -50,20 +59,8 @@
   gap: 10px;
   height: 40px;
   padding: 0 14px;
-  background: var(--gaea-glass-bg, var(--md-sys-color-surface-container));
-  -webkit-backdrop-filter: blur(20px) saturate(150%);
-  backdrop-filter: blur(20px) saturate(150%);
-  border-bottom: 1px solid var(--color-border, var(--border));
-}
-.wx-strip::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 1px;
-  background: var(--v3-edge);
-  pointer-events: none;
+  background: var(--color-bg-container, var(--md-sys-color-surface-container));
+  border-bottom: 1px solid color-mix(in srgb, var(--color-text, var(--fg)) 6%, transparent);
 }
 .wx-strip-title {
   display: inline-flex;
@@ -75,7 +72,7 @@
   color: var(--color-text, var(--fg));
   white-space: nowrap;
 }
-.wx-strip-title svg { color: var(--gaea-glow); }
+.wx-strip-title svg { color: var(--color-text-secondary, var(--fg-faint)); }
 .wx-strip-sub {
   font-size: 11px;
   color: var(--color-text-secondary, var(--fg-faint));
@@ -108,10 +105,10 @@
   transition: background var(--md-sys-transition-fast, 200ms), color var(--md-sys-transition-fast, 200ms);
 }
 .wx-refresh-btn:hover {
-  background: var(--color-surface-container-high, var(--md-sys-color-surface-container-high));
+  background: color-mix(in srgb, var(--color-text, var(--fg)) 5%, transparent);
   color: var(--color-text, var(--fg));
 }
-.wx-refresh-btn:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: 2px; }
+.wx-refresh-btn:focus-visible { outline: 2px solid color-mix(in srgb, var(--gaea-glow) 72%, transparent); outline-offset: 2px; }
 
 /* ── 主体：左轨道 | 主区 ────────────────────────────────────────── */
 .wx-body {
@@ -145,8 +142,8 @@
 .wx-rail-group {
   padding: 2px 10px 4px;
   font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-weight: 700;
+  letter-spacing: 0.12em;
   color: var(--color-text-secondary, var(--fg-faint));
   white-space: nowrap;
 }
@@ -169,15 +166,15 @@
   transition: background var(--md-sys-transition-fast, 200ms), color var(--md-sys-transition-fast, 200ms);
 }
 .wx-rail-item:hover {
-  background: var(--color-surface-container-high, var(--md-sys-color-surface-container-high));
+  background: color-mix(in srgb, var(--color-text, var(--fg)) 4.5%, transparent);
   color: var(--color-text, var(--fg));
 }
-.wx-rail-item:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: 1px; }
+.wx-rail-item:focus-visible { outline: 2px solid color-mix(in srgb, var(--gaea-glow) 72%, transparent); outline-offset: 1px; }
+/* 激活：主色容器底（语义保留）+ 左缘细线（光效退场，金点睛位） */
 .wx-rail-item.is-active {
   background: var(--color-primary-container, var(--md-sys-color-primary-container));
   color: var(--color-on-primary-container, var(--md-sys-color-on-primary-container));
 }
-/* 左缘光条（激活态，对齐 v3 轨道语言） */
 .wx-rail-item.is-active::before {
   content: '';
   position: absolute;
@@ -187,7 +184,6 @@
   width: 2px;
   border-radius: 2px;
   background: var(--gaea-glow);
-  box-shadow: 0 0 6px color-mix(in srgb, var(--gaea-glow) 60%, transparent);
 }
 .wx-rail-item .ant-avatar { flex-shrink: 0; }
 .wx-rail-name {
@@ -221,7 +217,6 @@
 }
 .wx-dot.is-running {
   background: var(--color-success, var(--md-sys-color-success));
-  box-shadow: 0 0 6px color-mix(in srgb, var(--color-success, var(--md-sys-color-success)) 55%, transparent);
   animation: wx-pulse 2.4s ease-in-out infinite;
 }
 .wx-dot.is-expired { background: var(--color-warning, var(--md-sys-color-warning)); }
@@ -231,8 +226,8 @@
   border: 1.5px dashed color-mix(in srgb, var(--color-text-secondary, var(--fg-faint)) 70%, transparent);
 }
 @keyframes wx-pulse {
-  0%, 100% { box-shadow: 0 0 4px color-mix(in srgb, var(--color-success, var(--md-sys-color-success)) 35%, transparent); }
-  50% { box-shadow: 0 0 9px color-mix(in srgb, var(--color-success, var(--md-sys-color-success)) 75%, transparent); }
+  0%, 100% { box-shadow: 0 0 4px color-mix(in srgb, var(--color-success, var(--md-sys-color-success)) 30%, transparent); }
+  50% { box-shadow: 0 0 8px color-mix(in srgb, var(--color-success, var(--md-sys-color-success)) 60%, transparent); }
 }
 @media (prefers-reduced-motion: reduce) {
   .wx-dot.is-running { animation: none; }
@@ -250,7 +245,7 @@
   font-size: 10px;
   font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
   font-variant-numeric: tabular-nums;
-  background: color-mix(in srgb, var(--gaea-glow) 18%, transparent);
+  background: color-mix(in srgb, var(--gaea-glow) 14%, transparent);
   color: var(--color-text, var(--fg));
 }
 .wx-rail-add {
@@ -259,9 +254,9 @@
   color: var(--color-text-secondary, var(--fg-faint));
 }
 .wx-rail-add:hover {
-  border-color: var(--gaea-glow);
+  border-color: color-mix(in srgb, var(--gaea-glow) 40%, transparent);
   color: var(--color-text, var(--fg));
-  background: var(--color-surface-container-high, var(--md-sys-color-surface-container-high));
+  background: color-mix(in srgb, var(--color-text, var(--fg)) 4.5%, transparent);
 }
 .wx-rail-empty {
   padding: 6px 10px 8px;
@@ -293,7 +288,7 @@
 }
 .wx-main-title {
   font-size: 17px;
-  font-weight: 600;
+  font-weight: 650;
   color: var(--color-text, var(--fg));
   line-height: 1.3;
   display: flex;
@@ -322,15 +317,17 @@
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 10px;
 }
+/* kv 卡：玄墨纯色面（bgContainer 亮一档）+ 投影令牌 + 近无边 */
 .wx-kv {
   padding: 10px 12px;
   border-radius: var(--radius-md, 12px);
-  background: var(--color-surface-container, var(--md-sys-color-surface-container));
-  border: 1px solid var(--color-border, var(--border-soft));
+  background: var(--color-bg-container, var(--md-sys-color-surface-container));
+  border: 1px solid color-mix(in srgb, var(--color-text, var(--fg)) 4.5%, transparent);
+  box-shadow: var(--shadow-sm);
 }
 .wx-kv-label {
   font-size: 10.5px;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   color: var(--color-text-secondary, var(--fg-faint));
   white-space: nowrap;
 }
@@ -364,19 +361,21 @@
 }
 .wx-compose-input { flex: 1; min-width: 180px; }
 .wx-rem-list { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+/* 提醒条：玄墨纯色面 + hover 墨边（金辉退役） */
 .wx-rem-item {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
   border-radius: var(--radius-md, 12px);
-  background: var(--color-surface-container, var(--md-sys-color-surface-container));
-  border: 1px solid var(--color-border, var(--border-soft));
+  background: var(--color-bg-container, var(--md-sys-color-surface-container));
+  border: 1px solid color-mix(in srgb, var(--color-text, var(--fg)) 4.5%, transparent);
+  box-shadow: var(--shadow-sm);
   transition: border-color var(--md-sys-transition-fast, 200ms), box-shadow var(--md-sys-transition-fast, 200ms);
 }
 .wx-rem-item:hover {
-  border-color: color-mix(in srgb, var(--gaea-glow) 22%, var(--color-border, var(--border-soft)));
-  box-shadow: var(--v3-glow-soft);
+  border-color: color-mix(in srgb, var(--color-text, var(--fg)) 10%, transparent);
+  box-shadow: var(--shadow-md);
 }
 .wx-rem-text {
   flex: 1;
@@ -409,7 +408,7 @@
   transition: background var(--md-sys-transition-fast, 200ms), color var(--md-sys-transition-fast, 200ms);
 }
 .wx-rem-del:hover { background: color-mix(in srgb, var(--color-destructive, var(--md-sys-color-error)) 14%, transparent); color: var(--color-destructive, var(--md-sys-color-error)); }
-.wx-rem-del:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: 2px; }
+.wx-rem-del:focus-visible { outline: 2px solid color-mix(in srgb, var(--gaea-glow) 72%, transparent); outline-offset: 2px; }
 
 /* ── 指南视图（指令卡 + 示例句 chip） ──────────────────────────── */
 .wx-guide {
@@ -419,11 +418,13 @@
   gap: 10px;
   max-width: 640px;
 }
+/* 指南卡：玄墨纯色面 + 投影令牌 */
 .wx-guide-card {
   padding: 12px 14px;
   border-radius: var(--radius-md, 12px);
-  background: var(--color-surface-container, var(--md-sys-color-surface-container));
-  border: 1px solid var(--color-border, var(--border-soft));
+  background: var(--color-bg-container, var(--md-sys-color-surface-container));
+  border: 1px solid color-mix(in srgb, var(--color-text, var(--fg)) 4.5%, transparent);
+  box-shadow: var(--shadow-sm);
 }
 .wx-guide-label {
   font-size: 12px;
@@ -433,7 +434,7 @@
   align-items: center;
   gap: 7px;
 }
-.wx-guide-label svg { color: var(--gaea-glow); }
+.wx-guide-label svg { color: var(--color-text-secondary, var(--fg-faint)); }
 .wx-guide-desc {
   margin-top: 5px;
   font-size: 12px;
@@ -441,14 +442,14 @@
   line-height: 1.55;
 }
 .wx-cmd-row { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+/* 命令 chip：玄墨 kbd 款（中性墨 mono，金底退役） */
 .wx-cmd {
   padding: 3px 9px;
   border-radius: 7px;
   font-size: 11.5px;
   font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
-  background: color-mix(in srgb, var(--gaea-glow) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--gaea-glow) 20%, transparent);
-  color: var(--color-text, var(--fg));
+  background: color-mix(in srgb, var(--color-text, var(--fg)) 5%, transparent);
+  color: var(--color-text-secondary, var(--fg-faint));
   white-space: nowrap;
 }
 .wx-guide-footnote {
@@ -459,7 +460,7 @@
   max-width: 640px;
 }
 
-/* ── 空态（主区） ───────────────────────────────────────────────── */
+/* ── 空态（主区；图标章中性化） ─────────────────────────────────── */
 .wx-empty {
   height: 100%;
   min-height: 220px;
@@ -478,11 +479,10 @@
   align-items: center;
   justify-content: center;
   font-size: 22px;
-  color: var(--gaea-glow);
-  background: color-mix(in srgb, var(--gaea-glow) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--gaea-glow) 22%, transparent);
+  color: var(--color-text-secondary, var(--fg-faint));
+  background: color-mix(in srgb, var(--color-text, var(--fg)) 5%, transparent);
 }
-.wx-empty-title { font-size: 14px; font-weight: 600; color: var(--color-text, var(--fg)); }
+.wx-empty-title { font-size: 14px; font-weight: 650; color: var(--color-text, var(--fg)); }
 .wx-empty-hint { font-size: 12px; color: var(--color-text-secondary, var(--fg-faint)); max-width: 320px; line-height: 1.6; }
 
 /* ── 扫码绑定 Modal（相位步骤 + 二维码容器） ───────────────────── */
@@ -509,7 +509,6 @@
 .wx-qr-step.is-current { color: var(--color-text, var(--fg)); font-weight: 600; }
 .wx-qr-step.is-current .wx-qr-step-dot {
   background: var(--gaea-glow);
-  box-shadow: 0 0 6px color-mix(in srgb, var(--gaea-glow) 60%, transparent);
 }
 .wx-qr-step.is-done .wx-qr-step-dot { background: var(--color-success, var(--md-sys-color-success)); }
 .wx-qr-step-line {
@@ -517,6 +516,7 @@
   height: 1px;
   background: color-mix(in srgb, var(--color-text-secondary, var(--fg-faint)) 40%, transparent);
 }
+/* 扫码框：玄墨纯色面（白码底需要安静容器） */
 .wx-qr-frame {
   width: 240px;
   height: 240px;
@@ -525,8 +525,9 @@
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-md, 12px);
-  background: var(--color-surface-container, var(--md-sys-color-surface-container));
-  border: 1px solid var(--color-border, var(--border-soft));
+  background: var(--color-bg-container, var(--md-sys-color-surface-container));
+  border: 1px solid color-mix(in srgb, var(--color-text, var(--fg)) 4.5%, transparent);
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
 .wx-qr-frame img {
@@ -562,16 +563,16 @@
   flex-direction: column;
   gap: 2px;
   padding: 3px;
-  border: 1px solid var(--color-border, var(--border-soft));
+  border: 1px solid color-mix(in srgb, var(--color-text, var(--fg)) 6%, transparent);
   border-radius: 10px;
-  background: var(--color-surface-container, var(--md-sys-color-surface-container));
+  background: color-mix(in srgb, var(--color-text, var(--fg)) 3%, transparent);
   scrollbar-width: thin;
 }
 .wx-pk-group {
   padding: 6px 8px 2px;
   font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-weight: 700;
+  letter-spacing: 0.12em;
   color: var(--color-text-secondary, var(--fg-faint));
   white-space: nowrap;
 }
@@ -590,8 +591,8 @@
   text-align: left;
   transition: background var(--md-sys-transition-fast, 200ms);
 }
-.wx-pk-item:hover { background: var(--color-surface-container-high, var(--md-sys-color-surface-container-high)); }
-.wx-pk-item:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: 1px; }
+.wx-pk-item:hover { background: color-mix(in srgb, var(--color-text, var(--fg)) 4.5%, transparent); }
+.wx-pk-item:focus-visible { outline: 2px solid color-mix(in srgb, var(--gaea-glow) 72%, transparent); outline-offset: 1px; }
 .wx-pk-item.is-active { background: var(--color-primary-container, var(--md-sys-color-primary-container)); }
 .wx-pk-item .ant-avatar { flex-shrink: 0; }
 .wx-pk-item-name {
@@ -616,11 +617,13 @@
   flex-direction: column;
   gap: 8px;
   padding: 12px;
-  border: 1px solid var(--color-border, var(--border-soft));
+  border: 1px solid color-mix(in srgb, var(--color-text, var(--fg)) 4.5%, transparent);
   border-radius: 10px;
-  background: var(--color-surface-container, var(--md-sys-color-surface-container));
+  background: var(--color-bg-container, var(--md-sys-color-surface-container));
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
+/* 立绘预览框：中性面（金底金边退役） */
 .wx-pk-portrait {
   height: 112px;
   flex-shrink: 0;
@@ -629,11 +632,14 @@
   justify-content: center;
   border-radius: 8px;
   overflow: hidden;
-  background: color-mix(in srgb, var(--gaea-glow) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--gaea-glow) 18%, transparent);
+  background: var(--md-sys-color-surface-container, var(--color-surface-container));
 }
 .wx-pk-portrait img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.wx-pk-portrait-fallback { font-size: 34px; font-weight: 600; color: var(--gaea-glow); }
+.wx-pk-portrait-fallback {
+  font-size: 34px;
+  font-weight: 600;
+  color: var(--color-text-secondary, var(--fg-faint));
+}
 .wx-pk-detail-name {
   display: flex;
   align-items: center;
