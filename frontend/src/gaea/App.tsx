@@ -834,11 +834,14 @@ export default function App() {
                 onDismiss={() => { if (todoItem) setDismissedTodo(todoItem.id); }}
               />
             )}
-            {/* 2.5e 常驻「剩余上下文%」徽标（codex 式；点击打开居中弹层） */}
+            {/* 2.5e 常驻「剩余上下文%」徽标（codex 式；点击打开居中弹层）。
+                compactRatio/compactLeft（v4.524）让徽标按压缩水位提前变色。 */}
             <div className="flex justify-end px-4">
               <ContextPill
                 used={state.context.used}
                 window={state.context.window}
+                compactRatio={state.context.compactRatio}
+                compactLeft={state.context.compactLeft}
                 onClick={() => {
                   setCtxModalRef(null);
                   setCtxModalOpen(true);

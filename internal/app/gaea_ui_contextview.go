@@ -100,7 +100,9 @@ func (a *App) GaeaContextView(sessionPath ...string) (contextview.ContextTimelin
 		return contextview.EmptyTimeline(), err
 	}
 	window := gaeaContextWindow()
-	return contextview.FoldTimeline(entries, int64(window), 0), nil
+	tl := contextview.FoldTimeline(entries, int64(window), 0)
+	tl.Compact = gaeaCompactTiers()
+	return tl, nil
 }
 
 // GaeaContextNodeDetail 懒加载浏览器节点的「完整调用」详情（v4.80）：按 seq
@@ -235,6 +237,20 @@ func gaeaContextWindow() int {
 	}
 	_, window := c.ContextSnapshot()
 	return window
+}
+
+// gaeaCompactTiers 取内核生效的三层压缩水位（同属内核配置与会话无关）。
+// 内核未初始化时返回 nil——前端退回静态阈值呈现，不伪造水位。
+func gaeaCompactTiers() *contextview.CompactTiers {
+	c := gaeaCtrl()
+	if c == nil {
+		return nil
+	}
+	soft, ratio, force := c.CompactionTiers()
+	if ratio <= 0 || soft <= 0 || force <= 0 {
+		return nil
+	}
+	return &contextview.CompactTiers{Soft: soft, Ratio: ratio, Force: force}
 }
 
 // runMatchesNode 判定一个已落盘 run 是否已被树上的节点承载：

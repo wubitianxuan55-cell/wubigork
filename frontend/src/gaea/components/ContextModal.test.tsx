@@ -53,6 +53,21 @@ describe("ContextPill 常驻剩余上下文徽标", () => {
     expect(c2.querySelector("[data-testid='ctx-pill']")).toBeNull();
     void container;
   });
+
+  it("压缩水位联动（v4.524）：70% 但已过压缩水位 80% 前的距压缩提示；过水位提前转警示", () => {
+    // 70%（<压缩水位 80%）→ 常规色；tooltip 追加「距压缩 ≈100k tokens」（1M×0.8−700k）
+    wrap(<ContextPill used={700_000} window={1_000_000} compactRatio={0.8} compactLeft={100_000} />);
+    const calm = screen.getByTestId("ctx-pill");
+    expect(calm.textContent).toContain("剩余 30%");
+    expect((calm.getAttribute("title") ?? "")).toContain("距压缩 ≈100k tokens");
+    expect(calm.style.color).toContain("text-secondary");
+    // 85%（≥压缩水位 80%）→ 提前转警示（旧口径要到 90% 才变）；剩余 0 不追加距压缩行
+    wrap(<ContextPill used={850_000} window={1_000_000} compactRatio={0.8} compactLeft={0} />);
+    const warm = screen.getAllByTestId("ctx-pill").pop()!;
+    expect(warm.textContent).toContain("剩余 15%");
+    expect(warm.style.color).toContain("warning");
+    expect((warm.getAttribute("title") ?? "")).not.toContain("距压缩");
+  });
 });
 
 describe("ContextModal /context 居中弹层", () => {

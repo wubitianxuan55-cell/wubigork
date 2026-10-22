@@ -1448,6 +1448,14 @@ export const zhTW: Record<DictKey, string> = {
   "contextview.radialNoCallback": "未接線開啟回呼，點擊不觸發",
   "contextview.eventsRecent": "僅顯示最近 {n} 條（共 {total}）",
   "contextview.eventsShowAll": "顯示全部 {n} 條",
+  // ── 壓縮水位線（核心三層水位：soft 提醒/ratio 摘要壓縮/force 強制） ──
+  "contextview.wmSoft": "軟水位 {pct}%（一次性增長提醒）",
+  "contextview.wmRatio": "壓縮水位 {pct}%（觸發摘要壓縮）",
+  "contextview.wmForce": "強制水位 {pct}%",
+  "contextview.wmStatusSoft": "上下文增長中 · 距壓縮水位 ≈{tokens} tokens",
+  "contextview.wmStatusRatio": "已達壓縮水位（{pct}%）——本輪結束將觸發摘要壓縮",
+  "contextview.wmStatusForce": "已達強制壓縮水位（{pct}%）——壓縮即將強制執行",
+  "contextview.pillCompact": "距壓縮 ≈{tokens} tokens",
 
   // ── v4.57 i18n 收尾：TrajectoryView ──
   "trajectory.betweenSub": "輪次之間",

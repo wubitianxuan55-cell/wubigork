@@ -68,6 +68,8 @@ const TIMELINE: ContextTimeline = {
     { seq: 5, ts: 1750000005, turn: 1, step: 1, tool: "read_file", action: "read", path: "internal/gaea/config/config.go" },
     { seq: 9, ts: 1750000009, turn: 1, step: 2, tool: "write_file", action: "write", path: "docs/结论.md" },
   ],
+  // 压缩水位块（内核三阈值；缺省 0.5/0.8/0.9）——水位线/状态梯用例的数据面。
+  compact: { soft: 0.5, ratio: 0.8, force: 0.9 },
 };
 
 describe("ContextView 上下文页卡片墙（v4.71 卡片化）", () => {
@@ -121,8 +123,52 @@ describe("ContextView 上下文页卡片墙（v4.71 卡片化）", () => {
     });
     const { ContextView } = await import("./ContextView");
     renderT(<ContextView running={false} />);
+    // compact 在场 → 状态梯接管：95% ≥ 强制水位 90% 走 force 档
+    expect(await screen.findByText(/已达强制压缩水位/)).toBeTruthy();
+    expect(screen.getByText(/压缩即将强制执行/)).toBeTruthy();
+    // compact 缺席（旧后端兼容）→ 回落静态 ≥70/90 提示
+    contextViewMock.mockResolvedValue({
+      ...TIMELINE,
+      window: 100_000,
+      compact: undefined,
+      current: { system: 20000, tools: 20000, user: 5000, inject: 20000, assistant: 20000, tool: 10000 },
+    });
+    renderT(<ContextView running={false} />);
     expect(await screen.findByText(/上下文接近上限，建议压缩或新建会话/)).toBeTruthy();
     expect(screen.getByText(/已接近上下文上限/)).toBeTruthy();
+  });
+
+  it("压缩水位线：分段条三道竖标 + 状态梯四档（<soft 静默 / soft 距压缩 / ratio 压缩预告）", async () => {
+    // 主夹具 241.8k/1M=24% < soft 50%：水位标记在，状态行静默（健康不打扰）
+    const { ContextView } = await import("./ContextView");
+    const { container } = renderT(<ContextView running={false} />);
+    await screen.findByText("当前上下文");
+    for (const key of ["soft", "ratio", "force"] as const) {
+      const mark = container.querySelector(`[data-testid="comp-wm-${key}"]`);
+      if (!mark) throw new Error(`watermark ${key} missing`);
+      const left = mark.getAttribute("style") ?? "";
+      expect(left).toContain(key === "soft" ? "50%" : key === "ratio" ? "80%" : "90%");
+    }
+    expect(screen.queryByText(/距压缩水位/)).toBeNull();
+    expect(screen.queryByText(/已达压缩水位/)).toBeNull();
+
+    // 60%（≥soft 50%）→ 增长中 + 距压缩 ≈20k tokens（100k×0.8−60k）
+    contextViewMock.mockResolvedValue({
+      ...TIMELINE,
+      window: 100_000,
+      current: { system: 20000, tools: 20000, user: 5000, inject: 5000, assistant: 5000, tool: 5000 },
+    });
+    renderT(<ContextView running={false} />);
+    expect(await screen.findByText(/上下文增长中 · 距压缩水位 ≈20k tokens/)).toBeTruthy();
+
+    // 85%（≥ratio 80%）→ 压缩预告（本轮结束触发摘要压缩）
+    contextViewMock.mockResolvedValue({
+      ...TIMELINE,
+      window: 100_000,
+      current: { system: 20000, tools: 20000, user: 5000, inject: 20000, assistant: 15000, tool: 5000 },
+    });
+    renderT(<ContextView running={false} />);
+    expect(await screen.findByText(/已达压缩水位（80%）——本轮结束将触发摘要压缩/)).toBeTruthy();
   });
 
   it("空数据：空态引导 + 头部仍展示 0 水位", async () => {

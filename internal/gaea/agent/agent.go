@@ -687,6 +687,15 @@ func (a *AgentRunner) ContextWindow() int { return a.compaction.Window }
 // fires (e.g. 0.8). The status line uses it to show headroom to the next compact.
 func (a *AgentRunner) CompactRatio() float64 { return a.compaction.Ratio }
 
+// CompactTiers returns the effective three-tier compaction watermarks as
+// fractions of the window: soft (one-time growing-context notice), trigger
+// (summary compaction), force. Each falls back to its built-in default when
+// unset, so context-budget UIs always see the tiers the runtime actually
+// enforces (boot wires config-resolved values; this covers bare constructs).
+func (a *AgentRunner) CompactTiers() (soft, ratio, force float64) {
+	return a.softRatio(), a.ratio(), a.forceRatio()
+}
+
 // New constructs an AgentRunner. MaxSteps <= 0 means no cap �� the run loop
 // continues until the model gives a final answer, the context is cancelled, or
 // the provider errors (compaction keeps the context bounded). A nil sink is

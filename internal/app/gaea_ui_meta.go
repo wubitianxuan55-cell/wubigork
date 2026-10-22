@@ -21,6 +21,11 @@ import (
 type ContextInfo struct {
 	Used   int `json:"used"`
 	Window int `json:"window"`
+	// CompactRatio 是触发摘要压缩的窗口占比（生效值）。常驻徽标据此提前
+	// 变色——压缩远早于窗口耗尽，只看「剩余%」会系统性高估余量。
+	CompactRatio float64 `json:"compactRatio,omitempty"`
+	// CompactLeft 是距压缩水位的剩余 tokens（钳 0；窗口未知/水位未知为 0）。
+	CompactLeft int `json:"compactLeft,omitempty"`
 }
 
 // BalanceInfo 是状态栏的钱包余额读数。
@@ -244,7 +249,16 @@ func (a *App) GaeaContext() ContextInfo {
 		return ContextInfo{}
 	}
 	used, window := c.ContextSnapshot()
-	return ContextInfo{Used: used, Window: window}
+	info := ContextInfo{Used: used, Window: window}
+	if _, ratio, _ := c.CompactionTiers(); ratio > 0 && window > 0 {
+		info.CompactRatio = ratio
+		left := int(float64(window)*ratio) - used
+		if left < 0 {
+			left = 0
+		}
+		info.CompactLeft = left
+	}
+	return info
 }
 
 // GaeaBalance 查询当前引擎钱包余额（网络调用，失败返回不可用读数）。

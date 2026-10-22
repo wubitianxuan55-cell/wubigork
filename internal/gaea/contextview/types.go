@@ -231,6 +231,17 @@ type ToolTiming struct {
 	Ms    int64  `json:"ms"`
 }
 
+// CompactTiers 是三层压缩水位（窗口占比 0~1）——内核 [agent]
+// compaction_soft_ratio/compaction_ratio/compaction_force_ratio 解析后的生效值
+// （0/非法整组回落内置缺省 0.5/0.8/0.9）：Soft=一次性增长提醒水位、Ratio=
+// 触发摘要压缩水位、Force=强制压缩水位。窗口未知或内核未初始化时整体为
+// nil——前端退回静态阈值呈现（对齐上游 ContextWindowRing 的 compact 水位线）。
+type CompactTiers struct {
+	Soft  float64 `json:"soft"`
+	Ratio float64 `json:"ratio"`
+	Force float64 `json:"force"`
+}
+
 // ContextTimeline 是 context-view 的整值快照（GaeaContextView 返回值）。
 type ContextTimeline struct {
 	Ok       bool            `json:"ok"`
@@ -249,6 +260,8 @@ type ContextTimeline struct {
 	// 单价（每 1M tokens，供应商口径）。无任何费率上报时为 nil——前端
 	// 显示「费用未估算」，不伪造费率。
 	Rate *CostRate `json:"rate,omitempty"`
+	// Compact 是压缩水位块（窗口未知/内核未初始化时 nil；见 CompactTiers）。
+	Compact *CompactTiers `json:"compact,omitempty"`
 }
 
 // CostRate 是当前生效的模型单价快照（每 1M tokens）。

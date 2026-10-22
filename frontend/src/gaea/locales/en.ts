@@ -1444,6 +1444,14 @@ export const en = {
   "contextview.radialNoCallback": "Open callback not wired; click does nothing",
   "contextview.eventsRecent": "Showing the latest {n} of {total} events",
   "contextview.eventsShowAll": "Show all {n}",
+  // ── Compaction watermarks (kernel tiers: soft notice / summary compact / force) ──
+  "contextview.wmSoft": "Soft watermark {pct}% (one-time growth notice)",
+  "contextview.wmRatio": "Compact watermark {pct}% (triggers summary compaction)",
+  "contextview.wmForce": "Force watermark {pct}%",
+  "contextview.wmStatusSoft": "Context growing · ≈{tokens} tokens to the compact watermark",
+  "contextview.wmStatusRatio": "Past the compact watermark ({pct}%) — summary compaction fires at this turn's end",
+  "contextview.wmStatusForce": "Past the force watermark ({pct}%) — compaction is imminent",
+  "contextview.pillCompact": "≈{tokens} tokens to compact",
 
   // ── v4.57 i18n 收尾：TrajectoryView ──
   "trajectory.betweenSub": "between turns",

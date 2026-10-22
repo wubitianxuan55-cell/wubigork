@@ -910,6 +910,16 @@ func (c *Controller) CompactRatio() float64 {
 	return c.executor.CompactRatio()
 }
 
+// CompactionTiers returns the effective compaction watermarks (soft notice /
+// trigger / force) as fractions of the window, for context-budget UIs. All zero
+// when the executor is unset.
+func (c *Controller) CompactionTiers() (soft, ratio, force float64) {
+	if c.executor == nil {
+		return 0, 0, 0
+	}
+	return c.executor.CompactTiers()
+}
+
 // LastUsage returns the most recent turn's token telemetry (nil before the first
 // turn), so frontends can derive the prompt cache-hit rate for the status line.
 func (c *Controller) LastUsage() *provider.Usage {

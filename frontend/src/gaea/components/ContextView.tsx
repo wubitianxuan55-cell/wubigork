@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { app } from "../lib/bridge";
 import { useT } from "../lib/i18n";
 import type {
-  ContextCategory, ContextEvent, ContextNodeDetailView, ContextRequestRecord, ContextTimeline,
+  ContextCategory, ContextCompactTiers, ContextEvent, ContextNodeDetailView, ContextRequestRecord, ContextTimeline,
 } from "../lib/types";
 import type { DictKey } from "../locales/en";
 import { fmtTokens } from "../lib/stats";
@@ -43,14 +43,20 @@ const EMPTY: ContextTimeline = {
 };
 
 // ─── 当前上下文宽卡（对齐 dsh CurrentComposition：大数字+分段条含空闲+图例） ──
+// 压缩水位线（上游 ContextWindowRing 同款语义、gaea 三层水位版）：compact
+// 在场且窗口已知时，分段条上叠 soft/ratio/force 三道水位竖标，状态行按
+// 「<soft 健康（不渲染）/≥soft 增长中+距压缩/≥ratio 已达压缩/≥force 强制」
+// 四档呈现——替换旧静态 ≥70/90 提示（compact 缺席时保留旧提示兼容旧后端）。
 function CurrentContextCard({
   used,
   window: win,
   current,
+  compact,
 }: {
   used: number;
   window: number;
   current: ContextCategory;
+  compact?: ContextCompactTiers;
 }) {
   const t = useT();
   // v4.69：图例 chip hover 联动（dsh hover-key 同款）——悬停某分类时该段保持
@@ -66,6 +72,17 @@ function CurrentContextCard({
   const pct = win > 0 ? Math.min(100, Math.round((total / win) * 100)) : null;
   const idle = Math.max(0, win - total);
   const toolPct = total > 0 ? Math.round((current.tool / total) * 100) : 0;
+  // 水位块仅在窗口已知且三值齐备时生效（后端 nil=内核未初始化/窗口未知）。
+  const tiers = win > 0 && compact && compact.ratio > 0 && compact.soft > 0 && compact.force > 0 ? compact : null;
+  const pctRaw = win > 0 ? (total / win) * 100 : 0;
+  const toCompact = tiers ? Math.max(0, Math.round(win * tiers.ratio) - total) : 0;
+  const marks = tiers
+    ? ([
+        { key: "soft", at: tiers.soft * 100, color: "var(--md-sys-color-outline-variant)", label: t("contextview.wmSoft", { pct: Math.round(tiers.soft * 100) }) },
+        { key: "ratio", at: tiers.ratio * 100, color: "var(--md-sys-color-warning, #f59e0b)", label: t("contextview.wmRatio", { pct: Math.round(tiers.ratio * 100) }) },
+        { key: "force", at: tiers.force * 100, color: "var(--md-sys-color-destructive)", label: t("contextview.wmForce", { pct: Math.round(tiers.force * 100) }) },
+      ] as const)
+    : [];
   return (
     <div className="ctx-card ctx-hero p-3">
       <div className="flex items-center justify-between">
@@ -95,32 +112,44 @@ function CurrentContextCard({
           )}
         </span>
       </div>
-      <div className="mt-2 flex h-4 w-full overflow-hidden rounded-md bg-bg-soft" role="img" aria-label={t("contextview.currentTitle")}>
-        {CATS.map((c) => {
-          const w = total > 0 ? (current[c.key] / total) * 100 : 0;
-          if (w <= 0) return null;
-          return (
+      <div className="relative mt-2">
+        <div className="flex h-4 w-full overflow-hidden rounded-md bg-bg-soft" role="img" aria-label={t("contextview.currentTitle")}>
+          {CATS.map((c) => {
+            const w = total > 0 ? (current[c.key] / total) * 100 : 0;
+            if (w <= 0) return null;
+            return (
+              <div
+                key={c.key}
+                data-testid={`comp-seg-${c.key}`}
+                data-cat={c.key}
+                style={{ width: `${w}%`, background: CAT_COLORS[c.key], opacity: segOpacity(c.key), transition: "opacity 150ms ease" }}
+              />
+            );
+          })}
+          {idle > 0 && (pct == null || pct < 100) && (
             <div
-              key={c.key}
-              data-testid={`comp-seg-${c.key}`}
-              data-cat={c.key}
-              style={{ width: `${w}%`, background: CAT_COLORS[c.key], opacity: segOpacity(c.key), transition: "opacity 150ms ease" }}
+              data-testid="comp-seg-idle"
+              className="h-full"
+              style={{
+                width: `${(idle / win) * 100}%`,
+                background: "color-mix(in srgb, var(--md-sys-color-text-secondary) 14%, transparent)",
+                opacity: segOpacity("idle"),
+                transition: "opacity 150ms ease",
+              }}
+              title={t("contextview.idleWindow")}
             />
-          );
-        })}
-        {idle > 0 && (pct == null || pct < 100) && (
-          <div
-            data-testid="comp-seg-idle"
-            className="h-full"
-            style={{
-              width: `${(idle / win) * 100}%`,
-              background: "color-mix(in srgb, var(--md-sys-color-text-secondary) 14%, transparent)",
-              opacity: segOpacity("idle"),
-              transition: "opacity 150ms ease",
-            }}
-            title={t("contextview.idleWindow")}
+          )}
+        </div>
+        {/* 压缩水位竖标：叠加在分段条上方（宽度=窗口占比，与分段同基准） */}
+        {marks.map((m) => (
+          <span
+            key={m.key}
+            data-testid={`comp-wm-${m.key}`}
+            className="absolute top-0 h-4 w-px cursor-default"
+            style={{ left: `${Math.min(100, m.at)}%`, background: m.color }}
+            title={m.label}
           />
-        )}
+        ))}
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5">
         {CATS.map((c) => {
@@ -159,11 +188,24 @@ function CurrentContextCard({
           {t("contextview.idleWindow")}
         </span>
       </div>
-      {pct != null && pct >= 70 && (
-        <div className={`mt-1.5 text-[9.5px] ${pct >= 90 ? "text-err" : "text-warning"}`}>
-          {pct >= 90 ? t("contextview.almostFull") : t("contextview.highUsage")}
-          <span className="ml-2 opacity-80">{pct >= 90 ? t("contextview.almostFullHint") : t("contextview.highUsageHint")}</span>
-        </div>
+      {tiers ? (
+        pctRaw >= tiers.force * 100 ? (
+          <div className="mt-1.5 text-[9.5px] text-err">{t("contextview.wmStatusForce", { pct: Math.round(tiers.force * 100) })}</div>
+        ) : pctRaw >= tiers.ratio * 100 ? (
+          <div className="mt-1.5 text-[9.5px] text-warning">{t("contextview.wmStatusRatio", { pct: Math.round(tiers.ratio * 100) })}</div>
+        ) : pctRaw >= tiers.soft * 100 ? (
+          <div className="mt-1.5 text-[9.5px] text-fg-faint">
+            {t("contextview.wmStatusSoft", { tokens: fmtTokens(toCompact) })}
+          </div>
+        ) : null
+      ) : (
+        pct != null &&
+        pct >= 70 && (
+          <div className={`mt-1.5 text-[9.5px] ${pct >= 90 ? "text-err" : "text-warning"}`}>
+            {pct >= 90 ? t("contextview.almostFull") : t("contextview.highUsage")}
+            <span className="ml-2 opacity-80">{pct >= 90 ? t("contextview.almostFullHint") : t("contextview.highUsageHint")}</span>
+          </div>
+        )
       )}
     </div>
   );
@@ -698,7 +740,7 @@ export function ContextView({
       )}
       {!error && isEmpty && (
         <>
-          <CurrentContextCard used={catTotal(timeline.current)} window={timeline.window} current={timeline.current} />
+          <CurrentContextCard used={catTotal(timeline.current)} window={timeline.window} current={timeline.current} compact={timeline.compact} />
           <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border-soft bg-bg px-6 py-10 text-center">
             <span className="text-[12px] font-medium text-fg">{t("contextview.empty")}</span>
             <span className="max-w-[46ch] text-[10.5px] leading-relaxed text-fg-faint">
@@ -711,7 +753,7 @@ export function ContextView({
         <>
           {/* 行1：当前上下文 hero（v4.412 提位——「用了多少」是第一问，进页即答；
               与空态头部一致，窗口未知时百分比诚实「—」） */}
-          <CurrentContextCard used={catTotal(timeline.current)} window={timeline.window} current={timeline.current} />
+          <CurrentContextCard used={catTotal(timeline.current)} window={timeline.window} current={timeline.current} compact={timeline.compact} />
           {/* 行2：趋势卡（master-detail 单元——请求详情内联卡内，点柱/悬停联动；
               focus=Token 卡锚点，仅定位+强调） */}
           <ContextTrendChart

@@ -139,6 +139,15 @@ export interface ContextCostRate {
   currency?: string;
 }
 
+// ContextCompactTiers 是内核生效的三层压缩水位（窗口占比 0~1）：
+// soft=一次性增长提醒 / ratio=触发摘要压缩 / force=强制压缩。
+// 窗口未知或内核未初始化时整体缺席——前端退回静态阈值呈现。
+export interface ContextCompactTiers {
+  soft: number;
+  ratio: number;
+  force: number;
+}
+
 export interface ContextTimeline {
   ok: boolean;
   window: number;
@@ -151,6 +160,7 @@ export interface ContextTimeline {
   files: FileActivity[];
   timing?: ContextTiming;
   rate?: ContextCostRate; // 最近一次用量上报的单价快照（成本 hover 用）
+  compact?: ContextCompactTiers; // 压缩水位块（窗口未知时缺席）
 }
 
 // 耗时统计条目：单个工具名的调用次数与执行时长合计（timing.tools 排行项）。

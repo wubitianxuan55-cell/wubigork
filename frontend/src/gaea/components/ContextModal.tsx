@@ -13,27 +13,37 @@ import { fmtTokens } from "../lib/stats";
 import { useT } from "../lib/i18n";
 import { ContextView } from "./ContextView";
 
-export function ContextPill({ used, window: win, onClick }: {
+// v4.524：compactRatio/compactLeft（GaeaContext 附带）在场时按压缩水位提前
+// 变色——摘要压缩远早于窗口耗尽（缺省 80% 触发），只看「剩余%」会系统性
+// 高估余量；tooltip 追加「距压缩 ≈N tokens」。缺席时保持旧 75/90 静态档。
+export function ContextPill({ used, window: win, compactRatio, compactLeft, onClick }: {
   used: number;
   window: number;
+  compactRatio?: number;
+  compactLeft?: number;
   onClick?: () => void;
 }) {
   const t = useT();
   if (!(win > 0)) return null;
   const pct = Math.min(100, Math.round((used / win) * 100));
   const remain = Math.max(0, 100 - pct);
+  const compactPct = compactRatio && compactRatio > 0 ? compactRatio * 100 : 0;
   const tone =
     pct >= 90
       ? "var(--md-sys-color-destructive)"
-      : pct >= 75
+      : (compactPct > 0 && pct >= compactPct) || pct >= 75
         ? "var(--md-sys-color-warning, #f59e0b)"
         : "var(--md-sys-color-text-secondary)";
+  const title =
+    compactPct > 0 && compactLeft != null && compactLeft > 0
+      ? `${t("contextview.pillTitle", { used: fmtTokens(used), win: fmtTokens(win) })}\n${t("contextview.pillCompact", { tokens: fmtTokens(compactLeft) })}`
+      : t("contextview.pillTitle", { used: fmtTokens(used), win: fmtTokens(win) });
   return (
     <button
       type="button"
       data-testid="ctx-pill"
       onClick={onClick}
-      title={t("contextview.pillTitle", { used: fmtTokens(used), win: fmtTokens(win) })}
+      title={title}
       className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10.5px] tabular-nums transition-colors hover:bg-bg-soft"
       style={{ borderColor: "var(--md-sys-color-outline-variant)", color: tone, background: "transparent" }}
     >

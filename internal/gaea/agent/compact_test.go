@@ -263,3 +263,21 @@ func TestSummaryInstructionUIFenceGuidance(t *testing.T) {
 		t.Fatal("summaryInstruction 应给出「使用了交互组件」的概括口径")
 	}
 }
+
+// TestCompactTiers_EffectiveWatermarks 钉 CompactTiers 访问器（上下文水位线
+// 数据源）：零值配置回落内置缺省 0.5/0.8/0.9（boot 装配后恒为解析值，裸构造
+// 也有兜底）；显式配置原样透出。
+func TestCompactTiers_EffectiveWatermarks(t *testing.T) {
+	bare := &AgentRunner{}
+	soft, ratio, force := bare.CompactTiers()
+	if soft != defaultSoftCompactRatio || ratio != defaultCompactRatio || force != defaultCompactForceRatio {
+		t.Fatalf("零值配置应回落内置缺省 0.5/0.8/0.9: got %v/%v/%v", soft, ratio, force)
+	}
+	configured := testAgentC(128000, 0.8, 5)
+	configured.compaction.SoftRatio = 0.6
+	configured.compaction.ForceRatio = 0.95
+	soft, ratio, force = configured.CompactTiers()
+	if soft != 0.6 || ratio != 0.8 || force != 0.95 {
+		t.Fatalf("显式配置应原样透出: got %v/%v/%v", soft, ratio, force)
+	}
+}

@@ -163,6 +163,10 @@ func TestGaeaContextViewAndNodeDetailExplicitSessionPath(t *testing.T) {
 	if tl, err := a.GaeaContextView(); err != nil || !tl.Ok {
 		t.Fatalf("缺省 ContextView 应为空快照: ok=%v err=%v", tl.Ok, err)
 	}
+	// 内核 nil → 压缩水位块缺席（前端退回静态阈值，不伪造水位）。
+	if tl, _ := a.GaeaContextView(); tl.Compact != nil {
+		t.Fatal("内核 nil 时 Compact 水位块应为 nil")
+	}
 	if _, err := a.GaeaContextNodeDetail(1); err == nil {
 		t.Fatal("内核 nil 时 NodeDetail 缺省应报会话未就绪")
 	}
