@@ -100,3 +100,4 @@ releases/*-source.tar.gz
 .acl-recovery/
 # 用户/会话级瞬态沙箱（跑分对比 JSON、走查书架等；发版预检 2026-10-18 曾被 ?? temp/ 挡住）
 temp/
+.zcode/
