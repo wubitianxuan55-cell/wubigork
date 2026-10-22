@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/strutil"
-	"github.com/gaea/gaea/internal/gaea/wspath"
 )
 
 // grepMatch 表示一条 grep 匹配行。
@@ -30,7 +29,7 @@ var errorKeywords = []string{
 	"Fail", "Error", "PANIC", "Exception",
 }
 
-// compressGrep 压缩 grep/search_content 工具的输出结果。
+// compressGrep 压缩 grep 工具的输出结果。
 func compressGrep(raw string) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -264,110 +263,6 @@ func formatGrepPassthrough(matches []grepMatch) string {
 	return out.String()
 }
 
-// ─── tree 压缩器 ────────────────────────────────────────────────
-
-// 已知噪声目录口径见 internal/gaea/wspath（唯一真相源）：树压缩器与 grep
-// 工具共用 GrepExtra 增量，不再自建清单。
-
-// compressTree 压缩目录树输出。
-// 折叠已知噪声目录，其余内容原样保留。
-func compressTree(raw string) string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return ""
-	}
-
-	lines := strings.Split(raw, "\n")
-
-	// 检测是否有噪声目录
-	hasNoise := false
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		// 去除尾部斜杠
-		name := strings.TrimRight(trimmed, "/")
-		if wspath.IsSkippedIn(name, wspath.GrepExtra) {
-			hasNoise = true
-		}
-		if hasNoise {
-			break
-		}
-	}
-
-	if !hasNoise {
-		return raw
-	}
-
-	// 折叠噪声目录：保留目录名，隐藏其子内容
-	var out strings.Builder
-	skipDepth := -1
-	for _, line := range lines {
-		if skipDepth >= 0 {
-			// 计算当前行缩进深度（2空格一级）
-			depth := indentDepth(line)
-			if depth > skipDepth {
-				continue // 跳过噪声目录的子内容
-			}
-			skipDepth = -1 // 退出噪声目录
-		}
-
-		trimmed := strings.TrimSpace(line)
-		name := strings.TrimRight(trimmed, "/")
-
-		isNoise := wspath.IsSkippedIn(name, wspath.GrepExtra)
-
-		if isNoise {
-			depth := indentDepth(line)
-			skipDepth = depth
-			out.WriteString(line)
-			// 计算子条目数量
-			childCount := countChildren(lines, depth)
-			out.WriteString(" [")
-			out.WriteString(strutil.Itoa(childCount))
-			out.WriteString(" hidden — 依赖/构建目录]\n")
-		} else {
-			out.WriteString(line)
-			out.WriteString("\n")
-		}
-	}
-
-	return strings.TrimRight(out.String(), "\n")
-}
-
-// indentDepth 返回行首缩进级别（每2个空格为一级）。
-func indentDepth(line string) int {
-	count := 0
-	for _, c := range line {
-		if c == ' ' {
-			count++
-		} else {
-			break
-		}
-	}
-	return count / 2
-}
-
-// countChildren 统计某缩进级别下的子条目数。
-func countChildren(lines []string, parentDepth int) int {
-	count := 0
-	inChildren := false
-	for _, line := range lines {
-		depth := indentDepth(line)
-		if depth == parentDepth {
-			if inChildren {
-				break
-			}
-			continue
-		}
-		if depth == parentDepth+1 {
-			inChildren = true
-			count++
-		} else if inChildren && depth <= parentDepth {
-			break
-		}
-	}
-	return count
-}
-
 // ─── SmartCompress 路由 ──────────────────────────────────────────
 
 // ─── V5.10: KUN 风格按工具分策略压缩 ─────────────────────────────
@@ -380,31 +275,26 @@ type toolCompressLimit struct {
 }
 
 var toolCompressLimits = map[string]toolCompressLimit{
-	"bash":           {180, 24 * 1024}, // shell 输出
-	"run_command":    {180, 24 * 1024},
-	"run_background": {180, 24 * 1024},
-	"read_file":      {320, 32 * 1024}, // 文件内容
-	"search_files":   {160, 24 * 1024},
-	"ls":             {120, 24 * 1024}, // 目录列表
-	"list_directory": {120, 24 * 1024},
-	"web_fetch":      {320, 32 * 1024}, // 网页内容
-	"web_search":     {160, 24 * 1024}, // 搜索结果
-	"grep":           {0, 0},           // 走 compressGrep
-	"search_content": {0, 0},           // 走 compressGrep
-	"directory_tree": {0, 0},           // 走 compressTree
+	"bash":       {180, 24 * 1024}, // shell 输出
+	"read_file":  {320, 32 * 1024}, // 文件内容
+	"ls":         {120, 24 * 1024}, // 目录列表
+	"web_fetch":  {320, 32 * 1024}, // 网页内容
+	"web_search": {160, 24 * 1024}, // 搜索结果
+	"grep":       {0, 0},           // 走 compressGrep
 }
 
 // SmartCompress V5.10: 根据工具名称路由到对应的压缩策略。
-// grep/search_content → compressGrep（错误行加权+全局30条上限）
-// directory_tree → compressTree（折叠噪声目录）
-// bash/read_file/glob/ls → 行数+字节数二维上限
+// grep → compressGrep（错误行加权+全局30条上限）
+// bash/read_file/ls → 行数+字节数二维上限
 // 其余 → 原样返回（由 truncateToolOutput 统一处理）
+// v4.520：摘除从未注册的幽灵名（run_command/run_background/search_files/
+// list_directory/search_content/directory_tree）——builtin 注册面零命中、
+// MCP 工具名恒带 mcp__ 前缀不会撞裸名；tree 压缩器（compressTree）随之
+// 生产不可达，整族退役（守卫测试锁名单⊆注册面，见 registry_names_test.go）。
 func SmartCompress(toolName, raw string) string {
 	switch toolName {
-	case "grep", "search_content":
+	case "grep":
 		return compressGrep(raw)
-	case "directory_tree", "list_directory":
-		return compressTree(raw)
 	default:
 		if limit, ok := toolCompressLimits[toolName]; ok {
 			return compressByLimit(raw, limit.maxLines, limit.maxBytes)

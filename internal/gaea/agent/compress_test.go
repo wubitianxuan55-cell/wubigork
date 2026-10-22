@@ -137,53 +137,6 @@ func TestCompressGrepDashInFilename(t *testing.T) {
 	}
 }
 
-// TestCompressTreeCollapsesNodeModules 验证折叠 node_modules 等噪声目录。
-func TestCompressTreeCollapsesNodeModules(t *testing.T) {
-	input := strings.Join([]string{
-		"src/",
-		"  main.go",
-		"  utils.go",
-		"node_modules/",
-		"  express/",
-		"    index.js",
-		"  lodash/",
-		"    lodash.js",
-		"dist/",
-		"  bundle.js",
-	}, "\n")
-
-	result := compressTree(input)
-
-	if strings.Contains(result, "node_modules/") && !strings.Contains(result, "hidden") {
-		t.Error("node_modules should be collapsed with hidden marker")
-	}
-	if strings.Contains(result, "dist/") && !strings.Contains(result, "hidden") {
-		t.Error("dist should be collapsed with hidden marker")
-	}
-	if !strings.Contains(result, "src/") {
-		t.Error("src/ should be preserved")
-	}
-	if !strings.Contains(result, "main.go") {
-		t.Error("main.go should be preserved")
-	}
-}
-
-// TestCompressTreePassthrough 验证无明显噪声时不修改。
-func TestCompressTreePassthrough(t *testing.T) {
-	input := strings.Join([]string{
-		"src/",
-		"  agent/",
-		"    agent.go",
-		"  cache/",
-		"    runtime.go",
-	}, "\n")
-
-	result := compressTree(input)
-	if result != input {
-		t.Errorf("clean tree should pass through unchanged:\ngot:  %s\nwant: %s", result, input)
-	}
-}
-
 // TestCompressGrepEmptyLines 验证空行被跳过。
 func TestCompressGrepEmptyLines(t *testing.T) {
 	input := "app.go:1: line1\n\napp.go:2: line2\n\n"
