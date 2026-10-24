@@ -23,6 +23,7 @@ import { ExplorerView } from "../components/ExplorerView";
 import { usePaneTabsStore } from "./paneTabs";
 import { TasksWorkbench } from "../components/TasksWorkbench";
 import { GenuiPanel } from "../components/GenuiPanel";
+import { CadPanel } from "../components/cad/CadPanel";
 import type { SessionChange } from "./changes";
 import type { Icon } from "../icons";
 import { WORKSPACE_TABS, type WorkspaceTabId } from "./workspaceTabs";
@@ -68,6 +69,9 @@ export interface WorkspacePanelContext {
     model?: string;
     status: "running" | "completed" | "failed";
   }) => void;
+  /** 把一段文本作为用户消息发进对话流（v4.524 CAD 图纸卡「问图纸」结果
+   *  进对话续问用；App 接 send，语义=立即发送，与 Welcome onPrompt 同源）。 */
+  onAsk?: (text: string) => void;
 }
 
 export interface WorkspaceTabRegistration {
@@ -126,6 +130,9 @@ const RENDERERS: Record<WorkspaceTabId, (ctx: WorkspacePanelContext) => ReactNod
   git: (_ctx) => createElement(GitPanel, { onOpenFile: openPaneFileTab }),
   // GenUI 会话面板：数据自取（genuiPanel store，按会话隔离）。
   ui: (ctx) => createElement(GenuiPanel, { sessionPath: ctx.currentSessionPath }),
+  // v4.524 CAD 图纸卡：数据自取（CadOpen/CadRaster/CadTexts + 识图管线）；
+  // onAsk 把「问图纸」结果作为用户消息发进对话流（App 接 send）。
+  cad: (ctx) => createElement(CadPanel, { onAsk: ctx.onAsk }),
 };
 
 /** 打开 pane 文件 tab（行内打开的统一入口）：路径去重、追加到工作台 tab 条。 */

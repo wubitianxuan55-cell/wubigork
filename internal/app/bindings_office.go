@@ -33,6 +33,10 @@ func (b *OfficeB) GaeaAttachmentDataURL(path string) (string, error) { return b.
 func (b *OfficeB) GaeaBalance() BalanceInfo { return b.a.GaeaBalance() }
 func (b *OfficeB) GaeaBenchmarkStreamProbe(model string) (StreamProbeResult, error) { return b.a.GaeaBenchmarkStreamProbe(model) }
 func (b *OfficeB) GaeaBrowserObserve() browser.ObserveView { return b.a.GaeaBrowserObserve() }
+func (b *OfficeB) GaeaCadCount(path string) (string, error) { return b.a.GaeaCadCount(path) }
+func (b *OfficeB) GaeaCadOpen(path string) (string, error) { return b.a.GaeaCadOpen(path) }
+func (b *OfficeB) GaeaCadRaster(path string, sheet int, width int) (string, error) { return b.a.GaeaCadRaster(path, sheet, width) }
+func (b *OfficeB) GaeaCadTexts(path string) (string, error) { return b.a.GaeaCadTexts(path) }
 func (b *OfficeB) GaeaCancel() { b.a.GaeaCancel() }
 func (b *OfficeB) GaeaCapabilities() CapabilitiesView { return b.a.GaeaCapabilities() }
 func (b *OfficeB) GaeaCaptureScreen() (string, error) { return b.a.GaeaCaptureScreen() }

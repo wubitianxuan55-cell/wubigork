@@ -1,6 +1,8 @@
 import { createElement, useEffect, type ComponentType } from "react";
-import { Dropdown } from "antd";
+import { Dropdown, Popover, Switch } from "antd";
+import type { MenuProps } from "antd";
 import { usePaneTabsStore } from "../lib/paneTabs";
+import { usePaneEnabledStore } from "../lib/paneEnabled";
 import { normalizePreviewPath } from "../lib/officeTurnProjection";
 import { WORKSPACE_TABS, type WorkspaceTabId } from "../lib/workspaceTabs";
 import { getWorkspaceRegistration, type WorkspacePanelContext } from "../lib/sidebarRegistry";
@@ -38,6 +40,12 @@ export function WorkspacePane({
 }) {
   const tabs = usePaneTabsStore((s) => s.tabs);
   const active = usePaneTabsStore((s) => s.active);
+  // v4.524 可选卡红线：入口按启用集收敛（cad 默认关；store 为欢迎网格/＋下拉/
+  // 命令面板三入口的响应式单源）。已开 tab 不因停用强关——启用集只管入口。
+  const enabled = usePaneEnabledStore((s) => s.enabled);
+  const setEnabled = usePaneEnabledStore((s) => s.setEnabled);
+  const enabledTabs = WORKSPACE_TABS.filter((t) => enabled[t.id]);
+  const disabledTabs = WORKSPACE_TABS.filter((t) => !enabled[t.id]);
   // U4 写后预览实时跟随：文件 tab 的 FilePreview 消费 reloadTicks 总线
   // （App 从 office 写类工具成功回执派生，800ms 防抖合并连写后递增）。
   const reloadTicks = usePaneTabsStore((s) => s.reloadTicks);
@@ -65,13 +73,40 @@ export function WorkspacePane({
 
   // ── 欢迎卡片态（无任何 tab） ───────────────────────────────
   if (tabs.length === 0) {
+    // 面板管理：全部清单逐行开关（可选卡如 CAD 的唯一常驻开关入口；＋下拉的
+    // 「（未启用）」组是另一条即点即用路径）。
+    const manageContent = (
+      <div className="flex flex-col gap-2 min-w-[150px]">
+        {WORKSPACE_TABS.map((tab) => (
+          <label key={tab.id} className="flex items-center justify-between gap-3 text-[12px] cursor-pointer">
+            <span>{tab.label}</span>
+            <Switch
+              size="small"
+              checked={enabled[tab.id]}
+              aria-label={`启用 ${tab.label}`}
+              data-testid={`tab-enable-${tab.id}`}
+              onChange={(v) => setEnabled(tab.id, v)}
+            />
+          </label>
+        ))}
+      </div>
+    );
     return (
       <div data-workspace-pane className="flex flex-col h-full min-h-0">
-        <div className="px-3 pt-2.5 pb-1 text-[11px] text-fg-dim">
-          选择要打开的工作台页面
+        <div className="px-3 pt-2.5 pb-1 text-[11px] text-fg-dim flex items-center justify-between gap-2">
+          <span>选择要打开的工作台页面</span>
+          <Popover content={manageContent} trigger="click" placement="bottomRight">
+            <button
+              type="button"
+              data-testid="tabs-manage"
+              className="border-0 bg-transparent text-fg-dim cursor-pointer text-[11px] hover:text-accent p-0"
+            >
+              管理
+            </button>
+          </Popover>
         </div>
         <div className="grid grid-cols-2 gap-2 px-3 py-2">
-          {WORKSPACE_TABS.map((tab) => {
+          {enabledTabs.map((tab) => {
             const count = badgeOf(tab.id);
             return (
               <button
@@ -194,10 +229,22 @@ export function WorkspacePane({
         <Dropdown
           trigger={["click"]}
           menu={{
-            items: WORKSPACE_TABS.map((t) => ({ key: t.id, label: t.label })),
+            // v4.524：启用组在上，未启用组（显式标注）分隔线后——点击即启用并
+            // 打开（显式点击=用户意图，可选卡的一条发现路径）。
+            items: [
+              ...enabledTabs.map((t) => ({ key: t.id, label: t.label })),
+              ...(disabledTabs.length > 0
+                ? [
+                    { type: "divider" as const },
+                    ...disabledTabs.map((t) => ({ key: t.id, label: `${t.label}（未启用）` })),
+                  ]
+                : []),
+            ] as MenuProps["items"],
             onClick: ({ key }) => {
               const def = WORKSPACE_TABS.find((t) => t.id === key);
-              if (def) openView(def.id, def.label);
+              if (!def) return;
+              if (!enabled[def.id]) setEnabled(def.id, true);
+              openView(def.id, def.label);
             },
           }}
         >

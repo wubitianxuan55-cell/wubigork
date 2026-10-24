@@ -219,7 +219,8 @@ export function CostLibraryView() {
   }, []);
   const pickImport = useCallback(async () => {
     try {
-      const files = await app.PickFiles();
+      // 空串=不过滤；无参调用在 Wails v2.13 下被拒（详见 useComposerAttachments 注）。
+      const files = await app.PickFiles("");
       const f = files?.[0];
       if (f) setImportFile(f);
     } catch {

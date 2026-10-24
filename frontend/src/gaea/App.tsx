@@ -69,6 +69,7 @@ import { parseSidebarOpenResult } from "./lib/sidebarOpen";
 import { classifyComposerCommand } from "./lib/command";
 import { rankPaletteItems } from "./lib/paletteRank";
 import { usePaneTabsStore } from "./lib/paneTabs";
+import { usePaneEnabledStore } from "./lib/paneEnabled";
 import { normalizePreviewPath } from "./lib/officeTurnProjection";
 import { SIDEBAR_REGISTRY, type WorkspacePanelContext } from "./lib/sidebarRegistry";
 import { loadTemplates, FALLBACK_TEMPLATES } from "./components/Welcome";
@@ -498,6 +499,10 @@ export default function App() {
       openSubagentThread: (p) => {
         openSubagentThread(p);
       },
+      // v4.524 CAD 图纸卡「问图纸」结果进对话流（与 Welcome onPrompt 同源=send）。
+      onAsk: (text: string) => {
+        if (text.trim()) send(text);
+      },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- setWorkspacePanel 为 hook 返回的稳定 dispatch（onClosePanel 内引用），deps 原样保留
     [
@@ -505,7 +510,7 @@ export default function App() {
       sessionDeliverables, sessionChanges, freshDeliverablePaths,
       openFilePreview, refreshWorkspacePanel, locateDeliverableSource,
       handleSubagentStarted, handleRevealInTree, revealRequest, handleAutoWidenWorkspace,
-      openSubagentThread,
+      openSubagentThread, send,
     ],
   );
 
@@ -516,6 +521,11 @@ export default function App() {
     loadTemplates().then((ts) => { if (live) setTemplates(ts); });
     return () => { live = false; };
   }, []);
+
+  // v4.524 可选卡启用集（欢迎网格/＋下拉在 WorkspacePane，命令面板在此消费；
+  // paneEnabled store 为三入口的响应式单源）。
+  const paneEnabled = usePaneEnabledStore((s) => s.enabled);
+  const setPaneEnabled = usePaneEnabledStore((s) => s.setEnabled);
 
   const paletteItems = useMemo<PaletteItem[]>(() => {
     const cmds: PaletteItem[] = [
@@ -533,17 +543,23 @@ export default function App() {
     ];
     // 右侧面板命令项：由 sidebarRegistry 注册表派生；pane 语义下命令 = 开视图
     // tab（tasks 不在命令面板，与原行为一致；欢迎卡里可点）。
+    // v4.524 可选卡：未启用面板命令显式标注「（未启用）」，运行即启用并打开
+    // （显式检索=用户意图；欢迎网格「管理」是开关的常驻入口）。
     for (const reg of SIDEBAR_REGISTRY) {
       if (reg.id === "tasks") continue;
+      const on = paneEnabled[reg.id];
       const Icon = reg.icon;
       cmds.push({
         id: `cmd-${reg.id}`,
         group: t("palette.group.commands") ?? "命令",
-        title: `${reg.label}面板`,
+        title: on ? `${reg.label}面板` : `${reg.label}面板（未启用）`,
         icon: <Icon size={15} />,
         compact: true,
         keywords: reg.keywords,
-        run: () => { openPaneView(reg.id); },
+        run: () => {
+          if (!on) setPaneEnabled(reg.id, true);
+          openPaneView(reg.id);
+        },
       });
     }
     const sessionItems: PaletteItem[] = sidebarSessions.slice(0, 10).map((s) => ({
@@ -602,7 +618,7 @@ export default function App() {
       { chatTab, rightTab: rightTab ?? "files" },
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps -- setWorkspacePanel 为 hook 返回的稳定 dispatch（模板 run 内引用），deps 原样保留
-  }, [t, sidebarSessions, openMemory, openHistory, openKnowledge, onResumeSession, openPaneView, closeFilePreview, templates, send, newSessionAndReset, chatTab, rightTab, paletteQuery, currentSessionPath]);
+  }, [t, sidebarSessions, openMemory, openHistory, openKnowledge, onResumeSession, openPaneView, closeFilePreview, templates, send, newSessionAndReset, chatTab, rightTab, paletteQuery, currentSessionPath, paneEnabled, setPaneEnabled]);
 
   const layoutStyle = useMemo(
     () =>
