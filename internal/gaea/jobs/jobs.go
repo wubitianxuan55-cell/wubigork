@@ -90,6 +90,18 @@ type Manager struct {
 	// children 是「父 job ID → 其派生子 job ID」链（终止级联）：Kill 父任务
 	// 时 BFS 级联取消全部存活后代。仅 StartIn 检出父 ctx 时登记。
 	children map[string][]string
+
+	// onCompletion（Z6 蒸馏刀）：任务终态回调——controller 以此实现后台
+	// 完成主动唤醒（无回合在跑时拉起合成回合消费完成注记）。回调在
+	// recordCompletion 的锁外触发，须自行并发安全。
+	onCompletion func()
+}
+
+// SetOnCompletion 注册任务终态回调（构造后一次性接线；nil=清除）。
+func (m *Manager) SetOnCompletion(fn func()) {
+	m.mu.Lock()
+	m.onCompletion = fn
+	m.mu.Unlock()
 }
 
 // terminalJobLimit caps how many finished jobs the manager retains. Evicted jobs
@@ -226,6 +238,7 @@ func (m *Manager) recordCompletion(id, kind, label string, st Status, err error)
 	m.mu.Lock()
 	m.completed = append(m.completed, fmt.Sprintf("%s — %s", tag, st))
 	m.pruneTerminalLocked()
+	hook := m.onCompletion
 	m.mu.Unlock()
 
 	level, text := event.LevelInfo, fmt.Sprintf("background %s finished: %s", kind, id)
@@ -236,6 +249,9 @@ func (m *Manager) recordCompletion(id, kind, label string, st Status, err error)
 		text = fmt.Sprintf("background %s killed: %s", kind, id)
 	}
 	m.sink.Emit(event.Event{Kind: event.Notice, Level: level, Text: text})
+	if hook != nil {
+		hook() // Z6：完成注记已入队，唤醒判断交给 controller（锁外，防递归死锁）
+	}
 }
 
 // pruneTerminalLocked evicts the oldest terminal jobs beyond terminalJobLimit so

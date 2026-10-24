@@ -690,6 +690,7 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		WorkspaceRoot: cwd,
 	}
 	ctrl := control.New(ctrlOpts)
+	ctrl.WireJobWake() // Z6 蒸馏刀：后台任务完成主动唤醒（自激励预算在 controller 侧）
 	// v4.61：惰性 subagents store 的会话路径源（写盘发生在回合内，此时必已
 	// 有会话路径；与 eventLogSink 的 SetPathSource 同一晚绑定时序）。
 	ctrlSessionPath = ctrl.SessionPath
