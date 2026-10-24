@@ -17,6 +17,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/knowledge"
 	"github.com/gaea/gaea/internal/gaea/strutil"
 	"github.com/gaea/gaea/internal/gaea/textsim"
+	"github.com/gaea/gaea/internal/office/cjk"
 )
 
 const (
@@ -71,7 +72,10 @@ func ExtractText(path string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return md, nil
+		// CJK 部首归一（ZCode 蒸馏刀）：Chrome/Skia 打印的 PDF ToUnicode 会把
+		// 汉字写成部首兼容字符（⽂/⻩），画面对但检索/引用全错——提取出口
+		// 统一归一，知识库检索与摘要消费同一份干净文本。
+		return cjk.NormalizeCJKCompat(md), nil
 	case ".csv", ".tsv":
 		b, err := os.ReadFile(path)
 		if err != nil {
