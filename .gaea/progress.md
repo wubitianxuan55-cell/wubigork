@@ -27,6 +27,10 @@
 - **A3 验收经济学预核**：与 A2 强交互（用户轮保留顶大候选，验收 ≤50% 上限须配上游 partitionUnderCeiling 的「先降 KeepErrors 再试」降级序），单做价值低——与 A5 折叠区召回并下一批。
 - 门禁：go build 全仓+vet+gofmt 绿；A2 六例新测试+agent 全包绿。**未抬版本、未 commit/push**（树含并行会话改动勿混提）。拍板池：第 3 批=子代理两刀（A10 write_paths 预检+A11 完成裁决）；压缩线余=A3+A5 同批。
 
+## 打包记录：全树收口提交 · 2026-10-24
+
+- 当日多会话累积（B0~B5/CAD 一期/N1~N11/2511 退役/Reasonix 八刀）按主题分 14 笔提交入库（a3ec0485^..f2c6b2e9）：deps a3ec0485 / cad 6e8a49be+8ffec051 / agent-B1+A7 e00781ee+c907f2b5 / attachment 0a4c8730+7f18dd6b / memory 51f89b2f / image 2820a344 / novel 6c45cd9d+7cb6938d / agent-Reasonix b26a0255+f2c6b2e9 / docs 4a9e027f。树干净（0 改动）、HEAD go build 全仓过。**未抬版本未发版**——发版待与 DSH 轮询协调（版本三处防竞速），全部改动此时点起可发。
+
 ## Reasonix 2.x 蒸馏重开线：调研立档+安全两刀（A6/A7）· 2026-10-24
 
 - 用户指令「蒸馏reasinox，我们已经落后太多」——前档 docs/gaea-reasonix-v138-distill-2026-09.md（v1.38 四弹 16 刀后留池全销号收官）已过时：**studio 分支 2.0.0→2.50.0 共 59 版，PR 号 #10613→#14337（≈3700 号增量）**。四路并行深潜（会话与上下文引擎/权限安全/子代理补漏/架构地图）+ gaea 盘底（防提已有）→ **docs/gaea-reasonix-2x-distill-2026-10.md** 立档：A 档七刀（usage anchor 压力校准/压缩内容级保留〔用户原话预算〕/压缩验收经济学〔≤50% 上限+closedPrefixEnd〕/中断交接块/write_paths 预检不相交/complete_subtask 完成裁决/递归删除 guard+诚实拒绝）+ B/C 档 + 否定结论（MCP/扩展 Runtime/远程网关/计费/compositions/OS 沙箱/Coordinator）+ 辨伪（cache_shape/file observations/pinned 注入 gaea 已有）。
