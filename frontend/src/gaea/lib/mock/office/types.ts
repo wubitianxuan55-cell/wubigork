@@ -21,6 +21,9 @@ export type OfficeMethods = Pick<
   | "ExportDeliverable" | "ConvertToPdf" | "CrossEmbed" | "RevealWorkspacePath"
   | "SavePastedImage" | "SaveAttachmentFile" | "AttachmentDataURL"
   | "CaptureScreen" | "RecognizeImage" | "OCRText"
+  // v4.524 CAD 图纸卡（Go OfficeB.GaeaCad*，Gaea 前缀经 mappings 映射）。
+  | "CadOpen" | "CadRaster" | "CadTexts"
+  | "CadCount"
   | "HerdsmanDigitalLife" | "HerdsmanOperations"
   | "PickFiles" | "PickDirectory" | "ReadFileB64" | "SaveFileAs" | "OpenLogsDir"
   | "TaskList" | "TaskCancel" | "TaskKill" | "TaskRetry" | "TaskOutput"

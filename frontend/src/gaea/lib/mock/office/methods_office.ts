@@ -543,6 +543,46 @@ export const officeMethods: Partial<Omit<OfficeMethods, "PinnedMaterials">> &
   async OCRText(_imagePath: string) {
     return "（开发预览）模拟文字提取：项目周报 / 营收 120 万元 / 同比增长 18%。";
   },
+  async CadOpen(_path: string) {
+    return JSON.stringify({
+      kind: "dxf",
+      version: "AC1021",
+      entityCount: 49,
+      skipped: 0,
+      textCount: 26,
+      layers: ["图框", "文字", "标注"],
+      warnings: [],
+      file: { name: "plan.dxf", size: 26756 },
+      sheets: [{ name: "JS-01-一层平面图", box: [0, 0, 59000, 42000], passRate: 1, texts: 4, png: "" }],
+    });
+  },
+  async CadRaster(_path: string, _sheet: number, _width: number) {
+    return JSON.stringify({
+      pngPath: "C:\\mock\\cad\\sheet-1.png",
+      dataUrl:
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    });
+  },
+  async CadTexts(_path: string) {
+    return JSON.stringify({
+      total: 2,
+      truncated: false,
+      texts: [
+        { text: "JS-01", layer: "图框", x: 50000, y: 40000, h: 125, sheet: 1 },
+        { text: "一层平面图", layer: "图框", x: 50000, y: 39000, h: 125, sheet: 1 },
+      ],
+    });
+  },
+  async CadCount(_path: string) {
+    return JSON.stringify({
+      items: [
+        { block: "$equip$0001", name: "带保护接点暗装插座", confidence: 1, count: 31, perSheet: { "1": 27, "2": 4 }, sample: [0, 0] },
+        { block: "SYM2", name: "", confidence: 0, count: 6, perSheet: { "1": 6 }, sample: [0, 0] },
+      ],
+      layers: [{ layer: "E-干线", length: 668050, lines: 120 }],
+      warnings: [],
+    });
+  },
   async HerdsmanDigitalLife() {
     return {
       available: false,

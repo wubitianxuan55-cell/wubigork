@@ -19,6 +19,7 @@ import type { NovelBindings } from "./novel";
 import type { ImageBindings } from "./image";
 import type { CharLibBindings } from "./charlib";
 import type { SinBindings } from "./sin";
+import type { CadBindings } from "./cad";
 
 export interface AppBindings
   extends CoreBindings,
@@ -31,4 +32,5 @@ export interface AppBindings
     NovelBindings,
     ImageBindings,
     CharLibBindings,
-    SinBindings {}
+    SinBindings,
+    CadBindings {}

@@ -1,6 +1,8 @@
 package docmd
 
 import (
+	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -20,6 +22,14 @@ import (
 // 高分辨率只增加耗时不增加判定精度）。pdftoppm 不可用返回错误，调用方按
 // 「渲染降级 warn」处理（与 OCR 路径同一探测源 findPdftoppm）。
 func RenderPDFPages(pdfPath, prefix string, dpi int) ([]string, error) {
+	return RenderPDFPageRange(context.Background(), pdfPath, prefix, dpi, 0, 0)
+}
+
+// RenderPDFPageRange is the bounded/context-aware variant used by the CAD
+// channel. first/last are 1-based inclusive page bounds; <=0 means let
+// pdftoppm use its default end of document. The command runs in a tracked
+// process tree and is killed on cancellation or deadline.
+func RenderPDFPageRange(ctx context.Context, pdfPath, prefix string, dpi, first, last int) ([]string, error) {
 	pdftoppmPath := findPdftoppm()
 	if pdftoppmPath == "" {
 		return nil, fmt.Errorf("视觉 diff 需要 poppler 渲染（pdftoppm），但未找到。" +
@@ -28,11 +38,42 @@ func RenderPDFPages(pdfPath, prefix string, dpi int) ([]string, error) {
 	if dpi <= 0 {
 		dpi = 100
 	}
-	args := []string{"-png", "-r", strconv.Itoa(dpi), pdfPath, prefix}
+	if first < 0 {
+		first = 0
+	}
+	if last > 0 && first > last {
+		return nil, fmt.Errorf("PDF 页码范围无效: %d-%d", first, last)
+	}
+	args := []string{"-png", "-r", strconv.Itoa(dpi)}
+	if first > 0 {
+		args = append(args, "-f", strconv.Itoa(first))
+	}
+	if last > 0 {
+		args = append(args, "-l", strconv.Itoa(last))
+	}
+	args = append(args, pdfPath, prefix)
+	removeRenderedPages(prefix)
 	cmd := exec.Command(pdftoppmPath, args...)
 	proc.HideWindow(cmd) // Windows: 防止弹出 cmd 黑框
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return nil, fmt.Errorf("pdftoppm 执行失败: %w\n输出: %s", err, string(out))
+	var output bytes.Buffer
+	cmd.Stdout = &output
+	cmd.Stderr = &output
+	job, err := proc.StartTracked(cmd)
+	if err != nil {
+		return nil, fmt.Errorf("pdftoppm 启动失败: %w", err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	select {
+	case <-ctx.Done():
+		proc.KillTracked(cmd, job)
+		<-done
+		return nil, fmt.Errorf("pdftoppm 已取消: %w", ctx.Err())
+	case waitErr := <-done:
+		proc.KillTracked(cmd, job) // close the tracked job handle after Wait
+		if waitErr != nil {
+			return nil, fmt.Errorf("pdftoppm 执行失败: %w\n输出: %s", waitErr, output.String())
+		}
 	}
 
 	dir := filepath.Dir(prefix)
@@ -51,6 +92,9 @@ func RenderPDFPages(pdfPath, prefix string, dpi int) ([]string, error) {
 		}
 		// pdftoppm 输出形如 <prefix>-1.png / -10.png；从尾部数字段解析页码。
 		if n, ok := parseRenderedPageNumber(e.Name()); ok {
+			if first > 0 && n < first || last > 0 && n > last {
+				continue
+			}
 			pages = append(pages, pageFile{num: n, abs: filepath.Join(dir, e.Name())})
 		}
 	}
@@ -63,6 +107,24 @@ func RenderPDFPages(pdfPath, prefix string, dpi int) ([]string, error) {
 		out = append(out, p.abs)
 	}
 	return out, nil
+}
+
+func removeRenderedPages(prefix string) {
+	dir := filepath.Dir(prefix)
+	base := filepath.Base(prefix)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasPrefix(name, base+"-") {
+			continue
+		}
+		if _, ok := parseRenderedPageNumber(name); ok {
+			_ = os.Remove(filepath.Join(dir, name))
+		}
+	}
 }
 
 // parseRenderedPageNumber 从 pdftoppm 产物文件名解析绝对页码：<prefix>-<n>.png
