@@ -210,17 +210,47 @@ func TestCompactShrinkCheckKeepsGoodSummary(t *testing.T) {
 // ─── 刀4: force 路径多轮压缩 ────────────────────────────────────────────────
 
 func TestCompactIfOverForceBoundedPasses(t *testing.T) {
-	s := fatSession(t, 40)
-	a := testAgentC(2000, 0.8, 5)
+	// A3 适配（estNow 尺度）：测试环境 tokPerChar 走 fallback 0.25——estNow
+	// ≈ 65×236×0.25 ≈ 3835。约束三件：fold 区非空（estNow > tail 预算下限
+	// 2000）、候选下限 < trigger（floor = estNow-estFold+150 ≈ 2150 < 3200）、
+	// force 触发（3700 ≥ 0.9×4000）。window=2000/8000 的旧场景分别被 tail
+	// 下限吃满窗口、estNow 低于预算，fold 区为空。
+	s := fatSession(t, 65)
+	a := testAgentC(4000, 0.8, 5)
 	a.session = s
-	// 95% 窗口：越过 force 水位（90%），走多轮路径
 	before := len(s.Messages)
-	a.maybeCompact(context.Background(), &provider.Usage{PromptTokens: 1900})
+	a.maybeCompact(context.Background(), &provider.Usage{PromptTokens: 3700})
 
 	if len(a.session.Messages) >= before {
 		t.Fatal("force path should shrink the session")
 	}
 	if a.consecutiveCompacts < 1 || a.consecutiveCompacts > 2 {
 		t.Fatalf("consecutiveCompacts = %d, want 1..2", a.consecutiveCompacts)
+	}
+}
+
+// A3 验收闸（Reasonix 2.x acceptCheckpointCandidate 蒸馏）语义测试。
+func TestCompactIfOverSkipsHopelessCandidate(t *testing.T) {
+	// window=2000：tail 预算下限吃满窗口，fold 区≈1 条消息——候选下限
+	// （机械摘要保底）仍 ≥ trigger，压缩买来的是下一次折叠而非摆脱它。
+	sink := &collectorSink{}
+	s := fatSession(t, 40)
+	a := testAgentC(2000, 0.8, 5)
+	a.sink = sink
+	a.session = s
+	before := len(s.Messages)
+	a.maybeCompact(context.Background(), &provider.Usage{PromptTokens: 1900})
+
+	if len(s.Messages) != before {
+		t.Fatal("hopeless 候选应被验收闸跳过（会话不缩）")
+	}
+	found := false
+	for _, e := range sink.events {
+		if e.Kind == event.Notice && strings.Contains(e.Text, "trigger") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("跳过应上屏并说明 trigger 口径")
 	}
 }
