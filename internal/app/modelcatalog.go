@@ -40,9 +40,16 @@ var imageModelCatalogByID = map[string]imageModelCatalogMeta{
 		UnitCost: "0",
 	},
 	"qwen-image-2.1-turbo": {
-		Modes:    []string{"txt2img"}, // 官方仅 t2i 模板；img2img 未蒸馏（edit 走 2511 编辑族）
-		Tier:     imageTierLocalFree,
-		UnitCost: "0",
+		Modes:       []string{"txt2img"}, // 官方仅 t2i 模板；编辑走独立 2.1 Turbo Edit 工作流
+		Tier:        imageTierLocalFree,
+		UnitCost:    "0",
+		LicenseHint: "Qwen Research License（研究/评估；禁商用）",
+	},
+	"qwen-image-2.1-edit": {
+		Modes:       []string{"edit", "ref"}, // image_1 为目标，image_2..10 为参考
+		Tier:        imageTierLocalFree,
+		UnitCost:    "0",
+		LicenseHint: "Qwen Research License（研究/评估；禁商用）",
 	},
 	"flux": {
 		Modes:    []string{"txt2img"},

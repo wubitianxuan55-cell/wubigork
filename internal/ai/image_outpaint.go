@@ -2,9 +2,9 @@ package ai
 
 // 扩图合成器（阶段二刀 C，规格 进度计划/gaea-outpaint-20260923.md）：
 // 扩图 ≡ 合成大画布（原图锚定 + 四边扩展填中性灰）+ 灰度蒙版（扩边环白=重绘），
-// 即 v4.393 已打通的 edit+mask 请求形态——两个后端（OpenAI 兼容 /images/edits 的
-// mask 字段 + ComfyUI SetLatentNoiseMask 链）零引擎改动即可消费。本文件只做
-// 纯函数合成，供 app 层在 mode=outpaint 时转换为 edit 请求下发。
+// 即 edit+mask 请求形态：OpenAI 兼容 /images/edits 可消费 mask 字段；
+// ComfyUI 的 Qwen Image 2.1 Turbo Edit 不支持蒙版，会明确拒绝。本文件只做纯函数合成，
+// 供 app 层在 mode=outpaint 时转换为 edit 请求下发。
 
 import (
 	"bytes"
@@ -25,8 +25,7 @@ type OutpaintExpand struct {
 	Bottom int `json:"bottom"`
 }
 
-// outpaintMaxPixels 合成画布像素上限（4096²≈16.7MP）：防 base64 传输爆炸；
-// ComfyUI 分支会经 FluxKontextImageScale 重标到 1MP 档，上限只约束合成输入。
+// outpaintMaxPixels 合成画布像素上限（4096²≈16.7MP）：防 base64 传输爆炸。
 const outpaintMaxPixels = 4096 * 4096
 
 // ComposeOutpaint 扩图合成：返回画布与蒙版（均为 PNG data URL，gaea 统一

@@ -482,9 +482,8 @@ func TestGenerateMedia_EditMode(t *testing.T) {
 	}
 }
 
-// TestGenerateMedia_EditComfyuiModelOverride 指令编辑本地档（阶段二刀 A）：
-// backend=comfyui 时元数据如实改写 qwen-image-edit——请求 model 字段是生图模型名
-// （krea2 等），不代表编辑引擎；结果卡/台账按真实引擎记。
+// TestGenerateMedia_EditComfyuiModelOverride 指令编辑本地档：
+// backend=comfyui 时统一路由 qwen-image-2.1-edit——2511 已退役，不能回退旧引擎。
 func TestGenerateMedia_EditComfyuiModelOverride(t *testing.T) {
 	dir := t.TempDir()
 	fake := &fakeImageBackend{result: &ai.ImageGenerationResponse{
@@ -505,8 +504,8 @@ func TestGenerateMedia_EditComfyuiModelOverride(t *testing.T) {
 	if len(results) != 1 {
 		t.Fatalf("应出一图: %+v", results)
 	}
-	if results[0].Model != "qwen-image-edit" {
-		t.Fatalf("comfyui 编辑元数据应如实记 qwen-image-edit: %s", results[0].Model)
+	if results[0].Model != ai.Qwen21EditModel {
+		t.Fatalf("comfyui 编辑元数据应为 %s: %s", ai.Qwen21EditModel, results[0].Model)
 	}
 }
 
@@ -701,8 +700,8 @@ func solidGrayMaskSrc(t *testing.T, w, h int) string {
 	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(buf.Bytes())
 }
 
-// TestGenerateMedia_QeditMetadata qedit 参考编辑（阶段三刀 A）：txt2img+refs+
-// qedit 透传（ai 层路由）；comfyui 元数据如实记 qwen-image-edit。
+// TestGenerateMedia_QeditMetadata qedit 参考编辑：txt2img+refs+qedit 透传；
+// comfyui 统一记 qwen-image-2.1-edit。
 func TestGenerateMedia_QeditMetadata(t *testing.T) {
 	dir := t.TempDir()
 	fake := &fakeImageBackend{result: &ai.ImageGenerationResponse{
@@ -723,8 +722,8 @@ func TestGenerateMedia_QeditMetadata(t *testing.T) {
 		t.Fatalf("refs/refMethod 应透传: %+v", fake.lastReq)
 	}
 	items := res["results"].([]imageItem)
-	if len(items) != 1 || items[0].Model != "qwen-image-edit" {
-		t.Fatalf("qedit+comfyui 元数据应如实记 qwen-image-edit: %+v", items)
+	if len(items) != 1 || items[0].Model != ai.Qwen21EditModel {
+		t.Fatalf("qedit+comfyui 元数据应为 %s: %+v", ai.Qwen21EditModel, items)
 	}
 	// 非 qedit 的 txt2img+refs：元数据保持生图模型（krea2）
 	res, err = ms.GenerateMedia(`{"prompt":"p","mode":"txt2img","refImages":["data:image/png;base64,AAAA"],"refMethod":"img2img","count":1}`)
@@ -734,6 +733,33 @@ func TestGenerateMedia_QeditMetadata(t *testing.T) {
 	items = res["results"].([]imageItem)
 	if items[0].Model != "krea2" {
 		t.Fatalf("img2img 近似元数据应保持 krea2: %+v", items)
+	}
+}
+
+func TestGenerateMedia_Qwen21EditMetadata(t *testing.T) {
+	dir := t.TempDir()
+	fake := &fakeImageBackend{result: &ai.ImageGenerationResponse{
+		Data: []ai.ImageData{{B64JSON: pngDataURLApp("fake-qwen21-edit"), Kind: "image"}},
+	}}
+	c := &ai.Client{}
+	c.SetImageBackend(fake, "comfyui")
+	ms := &mediaState{core: &core{cfg: &config.Config{
+		ImageBackend: "comfyui", ImageModel: "krea2", ImageSaveDir: dir,
+	}, client: c}}
+
+	res, err := ms.GenerateMedia(`{"prompt":"<image1>穿<image2>的外套","mode":"txt2img","model":"qwen-image-2.1-edit","refImages":["data:image/png;base64,AAAA","data:image/png;base64,BBBB","data:image/png;base64,CCCC","data:image/png;base64,DDDD"],"refMethod":"qedit","count":1}`)
+	if err != nil {
+		t.Fatalf("GenerateMedia: %v", err)
+	}
+	if msg, _ := res["error"].(string); msg != "" {
+		t.Fatalf("Qwen2.1 Turbo Edit 应出结果: %s", msg)
+	}
+	if fake.lastReq == nil || fake.lastReq.Model != ai.Qwen21EditModel || len(fake.lastReq.RefImages) != 4 {
+		t.Fatalf("Qwen2.1 Turbo Edit 请求未正确透传: %+v", fake.lastReq)
+	}
+	items := res["results"].([]imageItem)
+	if len(items) != 1 || items[0].Model != ai.Qwen21EditModel {
+		t.Fatalf("元数据应如实记 %s: %+v", ai.Qwen21EditModel, items)
 	}
 }
 

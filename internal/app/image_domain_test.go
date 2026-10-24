@@ -203,6 +203,12 @@ func TestImageModelCatalog(t *testing.T) {
 	if !ok || meta.UnitCost != "0.18 CNY/张" {
 		t.Fatalf("qwen 目录错误: %+v ok=%v", meta, ok)
 	}
+	for _, id := range []string{"qwen-image-2.1-turbo", "qwen-image-2.1-edit"} {
+		meta, ok = imageModelCatalogMetaFor(id)
+		if !ok || !strings.Contains(meta.LicenseHint, "Research License") || !strings.Contains(meta.LicenseHint, "禁商用") {
+			t.Fatalf("%s 必须显形 Research License 合规红线: %+v ok=%v", id, meta, ok)
+		}
+	}
 	if _, ok := imageModelCatalogMetaFor("some-future-model"); ok {
 		t.Fatalf("未知模型应 ok=false")
 	}
@@ -367,7 +373,7 @@ func TestVariantChainParentIDRoundtrip(t *testing.T) {
 	if parentID == "" {
 		t.Fatal("byPath 应命中 v1")
 	}
-	if err := recordImageHubGeneratedAsset(cwd, "play", "imagegen", "comfyui", "qwen-image-edit", "p2",
+	if err := recordImageHubGeneratedAsset(cwd, "play", "imagegen", "comfyui", "qwen-image-2.1-edit", "p2",
 		nil, imageHubAsset{Path: child}, nil, parentID); err != nil {
 		t.Fatalf("record v2: %v", err)
 	}

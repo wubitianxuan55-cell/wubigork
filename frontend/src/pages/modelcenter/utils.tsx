@@ -241,6 +241,7 @@ export const COMFY_MODEL_CHECKPOINT: Record<string, string> = {
   krea2: 'krea2_turbo_fp8_scaled.safetensors',
   'z-image-turbo': 'z_image_turbo_bf16_完整版_效果最好.safetensors',
   'qwen-image-2.1-turbo': 'qwen_image_2.1_turbo_int8_convrot.safetensors',
+  'qwen-image-2.1-edit': 'qwen_image_2.1_turbo_int8_convrot.safetensors',
   flux: 'flux1-schnell.safetensors',
 }
 
@@ -265,6 +266,7 @@ export const COMFY_IMAGE_MODELS: ModelCardData[] = [
   { modelId: 'krea2', modelName: 'Krea2 Turbo', engineId: 'comfyui', engineName: 'ComfyUI', engineType: 'comfyui', engineEnabled: true, status: 'running', kind: 'image' },
   { modelId: 'z-image-turbo', modelName: 'Z-Image-Turbo', engineId: 'comfyui', engineName: 'ComfyUI', engineType: 'comfyui', engineEnabled: true, status: 'running', kind: 'image' },
   { modelId: 'qwen-image-2.1-turbo', modelName: 'Qwen Image 2.1 Turbo', engineId: 'comfyui', engineName: 'ComfyUI', engineType: 'comfyui', engineEnabled: true, status: 'running', kind: 'image' },
+  { modelId: 'qwen-image-2.1-edit', modelName: 'Qwen Image 2.1 Turbo Edit', engineId: 'comfyui', engineName: 'ComfyUI', engineType: 'comfyui', engineEnabled: true, status: 'running', kind: 'image' },
 ]
 
 // 图片模型下拉选项：严格按后端过滤，避免「选了 xAI 却列出 krea2」的错配。

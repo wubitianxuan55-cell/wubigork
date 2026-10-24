@@ -822,8 +822,8 @@ func buildCharacterSheetPrompt(c characterlib.Character, variant string) string 
 
 // CharacterGenerateSheet 角色设定卡生成（阶段三刀 C，T2 角色资产 v2）：
 // variant 选模板（空=三视图并排；front/side/back 单视图分张、sitting/action
-// 姿势扩展）。以角色参考图（最多 3 张，qedit 三图槽上限；其次剧照兜底）走
-// qedit（Qwen 参考编辑——参考图进编辑引擎 image1..3 槽，人物形象锚定）产出
+// 姿势扩展）。以角色参考图（产品侧保守取最多 3 张；其次剧照兜底）走
+// qedit（Qwen Image 2.1 Turbo Edit——参考图进编辑引擎，人物形象锚定）产出
 // 设定卡；返回 data URL 不自动保存。仅 ComfyUI 本地档（qedit 通道当前唯一
 // 后端）；无可用参考图如实报错。
 func (a *App) CharacterGenerateSheet(chJSON, variant string) (string, error) {
@@ -865,7 +865,7 @@ func (a *App) CharacterGenerateSheet(chJSON, variant string) (string, error) {
 		return "", err
 	}
 	req := &ai.ImageGenerationRequest{
-		Model:     a.cfg.ImageModel,
+		Model:     ai.Qwen21EditModel,
 		Prompt:    buildCharacterSheetPrompt(c, variant),
 		Negative:  "文字, 水印, 签名, 低质量, 模糊, 肢体变形, 多余手指, 多眼多嘴",
 		N:         1,

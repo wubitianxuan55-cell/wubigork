@@ -265,7 +265,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             </div>
             <div style={{ fontSize: 11, color: C('color-text-secondary'), lineHeight: 1.5, marginTop: 5 }}>
               {refMethod === 'qedit'
-                ? 'Qwen 参考编辑（推荐）：prompt 描述新场景，人物形象与参考图保持一致（本地 ComfyUI 编辑引擎，最多 3 张参考）。'
+                ? 'Qwen 参考编辑（推荐）：prompt 描述新场景，人物形象与参考图保持一致（Qwen Image 2.1 Turbo Edit 最多 10 张参考）。'
                 : '图生图近似：选定后自动切到图生图并载入该角色第一张参考图（构图跟随参考图）。'}
             </div>
           </div>
@@ -445,6 +445,19 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             <Input size="small" value={model} onChange={(e) => onModelChange(e.target.value)}
               placeholder="输入模型名称"
               style={{ ...inputStyle, height: 32 }} />
+          )}
+          {(model === 'qwen-image-2.1-turbo' || model === 'qwen-image-2.1-edit') && (
+            <div
+              role="note"
+              data-testid="qwen21-license-warning"
+              style={{
+                marginTop: 6, padding: '6px 9px', borderRadius: 8, fontSize: 11, lineHeight: 1.6,
+                color: 'var(--color-warning, #ad6800)', border: '1px solid rgba(250, 173, 20, 0.35)',
+                background: 'rgba(250, 173, 20, 0.08)',
+              }}
+            >
+              Qwen Image 2.1 使用 Research License（禁商用），仅用于研究或评估；商业用途请另选具备相应许可的图像模型。
+            </div>
           )}
           {model === 'diagram' && (
             <div style={{ marginTop: 6, fontSize: 11, color: C('color-text-secondary'), lineHeight: 1.6 }}>

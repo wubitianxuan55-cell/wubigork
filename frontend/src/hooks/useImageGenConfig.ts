@@ -66,6 +66,8 @@ export function useImageGenConfig() {
     { label: 'Z-Image-Turbo', value: 'z-image-turbo' },
     // Qwen-Image-2.1-Turbo：官方模板蒸馏（t2i；未装权重时后端回中文缺文件提示）
     { label: 'Qwen Image 2.1 Turbo', value: 'qwen-image-2.1-turbo' },
+    // Qwen Image 2.1 Turbo Edit：官方编辑模板，最多 10 张参考图；Research License 禁商用
+    { label: 'Qwen Image 2.1 Turbo Edit', value: 'qwen-image-2.1-edit' },
     // T6-4：flux 已有真实工作流；未装 flux1-schnell.safetensors 等模型时后端返回中文错误
     { label: 'Flux Schnell', value: 'flux' },
     { label: '流程图 / 框架图（代码渲染）', value: 'diagram' },

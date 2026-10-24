@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gaea/gaea/internal/netclient"
-	"image"
 	"io"
 	"log/slog"
 	"math/rand"
@@ -239,6 +238,10 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 	if mode == "" {
 		mode = "txt2img"
 	}
+	qwen21Edit := req.Model == Qwen21EditModel
+	if qwen21Edit && mode == "txt2img" && len(req.RefImages) == 0 {
+		return nil, fmt.Errorf("Qwen Image 2.1 Turbo Edit 需要至少 1 张参考图；如需单图指令编辑，请切换到指令编辑模式")
+	}
 	// T2 参考槽：img2img 近似（v0 行为）/ qedit 参考编辑（阶段三刀 A）。
 	// qedit：参考图由 edit 分支上传（三图槽），此处只路由不改 InitImage。
 	if len(req.RefImages) > 0 {
@@ -251,48 +254,35 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 			if req.Mask != "" {
 				return nil, fmt.Errorf("参考编辑（qedit）不支持蒙版——蒙版仅与指令编辑组合")
 			}
-			if len(req.RefImages) > 3 {
-				return nil, fmt.Errorf("Qwen 参考编辑最多 3 张参考图（image1..3），当前 %d 张", len(req.RefImages))
+			if !qwen21Edit {
+				return nil, fmt.Errorf("本地参考编辑仅支持 %s", Qwen21EditModel)
+			}
+			maxRefs := 10
+			engineName := "Qwen Image 2.1 Turbo Edit"
+			if len(req.RefImages) > maxRefs {
+				return nil, fmt.Errorf("%s 最多 %d 张参考图，当前 %d 张", engineName, maxRefs, len(req.RefImages))
 			}
 		} else if req.InitImage == "" {
 			req.InitImage = req.RefImages[0]
 		}
 	}
 
-	// 指令编辑本地档（阶段二刀 A）：Qwen-Image-Edit 2511 官方模板蒸馏——
-	// 原图上 → FluxKontextImageScale 重标 → 语义编辑（非图生图整幅重绘）。
-	// 阶段二刀 B：Mask 非空时走蒙版局部重绘（白=重绘区）——SetLatentNoiseMask
-	// 限制重采样区域，蒙版与缩放图同尺寸对齐（kontextScaleSize）。
-	// 阶段三刀 A：qedit 参考编辑共用本链——参考图 1..3 进 image1..3 槽
-	//（TextEncodeQwenImageEditPlus 三图参考，人物一致性正路）。
 	var editImages []string
-	var editMaskName string
-	editTargetW, editTargetH := 0, 0
 	if mode == "edit" {
 		if req.InitImage == "" {
 			return nil, fmt.Errorf("指令编辑需要原图（data URL）")
+		}
+		if !qwen21Edit {
+			return nil, fmt.Errorf("本地指令编辑仅支持 %s", Qwen21EditModel)
+		}
+		if req.Mask != "" {
+			return nil, fmt.Errorf("Qwen Image 2.1 Turbo Edit 暂不支持蒙版局部重绘")
 		}
 		name, err := b.uploadImage(ctx, req.InitImage)
 		if err != nil {
 			return nil, err
 		}
 		editImages = []string{name}
-		if req.Mask != "" {
-			imgBytes, _, err := decodeDataURLBytes(req.InitImage)
-			if err != nil {
-				return nil, fmt.Errorf("蒙版编辑需要可解析的原图尺寸: %w", err)
-			}
-			cfg, _, err := image.DecodeConfig(bytes.NewReader(imgBytes))
-			if err != nil || cfg.Width <= 0 || cfg.Height <= 0 {
-				return nil, fmt.Errorf("蒙版编辑需要可解析的原图尺寸（decode 失败）")
-			}
-			editTargetW, editTargetH = kontextScaleSize(cfg.Width, cfg.Height)
-			maskName, err := b.uploadImage(ctx, req.Mask)
-			if err != nil {
-				return nil, err
-			}
-			editMaskName = maskName
-		}
 	}
 	if mode == "qedit" {
 		if len(req.RefImages) == 0 {
@@ -322,9 +312,7 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 	kind := "image"
 	switch mode {
 	case "edit", "qedit":
-		// 指令编辑/参考编辑本地档：单编辑族 Qwen-Image-Edit 2511（req.Model 是
-		// 生图模型名，不代表编辑引擎——app 层已把元数据如实改写 qwen-image-edit）。
-		workflow = b.buildQwenImageEditWorkflow(req.Prompt, seed, editImages, editMaskName, editTargetW, editTargetH)
+		workflow = b.buildQwen21EditWorkflow(req.Prompt, req.Negative, editImages, seed, loras)
 	case "img2img":
 		// 图生图：上传参考图 → LoadImage + VAEEncode → 低 denoise 重绘
 		if req.InitImage == "" {
@@ -374,8 +362,8 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 	// 1. 提交任务
 	promptID, err := b.queuePrompt(ctx, workflow)
 	if err != nil {
-		if mode == "edit" {
-			return nil, fmt.Errorf("ComfyUI 提交失败（指令编辑本地档）: %w%s", err, qwenEditMissingModelHint(err.Error()))
+		if mode == "edit" || mode == "qedit" {
+			return nil, fmt.Errorf("ComfyUI 提交失败（Qwen Image 2.1 Turbo Edit）: %w%s", err, qwen21EditMissingModelHint(err.Error()))
 		}
 		if hint := qwen21MissingModelHint(err.Error()); hint != "" {
 			return nil, fmt.Errorf("ComfyUI 提交失败: %w%s", err, hint)
@@ -700,11 +688,9 @@ func (b *ComfyUIBackend) waitForResult(ctx context.Context, promptID string, req
 	}
 }
 
-// comfyResolveRefMode 解析参考槽的一致性方法（阶段三刀 A 起）：
+// comfyResolveRefMode 解析参考槽的一致性方法：
 //   - ""/"img2img" → 图生图近似（v0 行为不动）；
-//   - "qedit" → Qwen-Image-Edit 参考编辑（阶段三刀 A）：txt2img+参考 → 编辑
-//     引擎多图参考槽（TextEncodeQwenImageEditPlus image1..3），人物一致性正路
-//     （Qwen 架构族无 IP-Adapter 生态）；
+//   - "qedit" → Qwen Image 2.1 Turbo Edit 多图参考槽，人物一致性正路；
 //   - "ipadapter"/"pulid" → 诚实拒绝并改口指向 qedit（路线修订：Qwen 架构族
 //     无此生态，不再「排期中」）。
 func comfyResolveRefMode(mode, refMethod string) (string, error) {

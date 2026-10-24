@@ -38,7 +38,7 @@ const SOURCE: GenResult = {
 
 const EDITED: GenResult = {
   image: 'data:image/png;base64,EDITED',
-  seed: 0, time: 2.5, prompt: '【编辑】把外套改成红色', model: 'qwen-image-edit', size: '1024x1024',
+  seed: 0, time: 2.5, prompt: '【编辑】把外套改成红色', model: 'qwen-image-2.1-edit', size: '1024x1024',
 }
 
 const open = (onApply = vi.fn()) =>
@@ -61,7 +61,7 @@ describe('InstructionEditModal 指令编辑（阶段一刀 C）', () => {
     expect(params.initImage).toBe(SOURCE.image)
     expect(params.prompt).toBe('把外套改成红色')
     await waitFor(() => expect(screen.getByTestId('instruct-edit-result')).toBeTruthy())
-    expect(screen.getByTestId('instruct-edit-meta').textContent).toContain('qwen-image-edit')
+    expect(screen.getByTestId('instruct-edit-meta').textContent).toContain('qwen-image-2.1-edit')
   })
 
   it('用到画布：onApply 收编辑结果（prompt 带【编辑】前缀）并关闭', async () => {
@@ -95,7 +95,8 @@ describe('InstructionEditModal 指令编辑（阶段一刀 C）', () => {
   it('说明文案：本地 ComfyUI 档已支持（阶段二刀 A），缺权重行为如实描述', () => {
     open()
     const hint = screen.getByTestId('instruct-edit-hint').textContent ?? ''
-    expect(hint).toContain('Qwen-Image-Edit 2511')
+    expect(hint).toContain('Qwen Image 2.1 Turbo Edit')
+    expect(hint).not.toContain('2511')
     expect(hint).toContain('缺失时错误会列出所需文件')
     expect(hint).toContain('GLM')
   })

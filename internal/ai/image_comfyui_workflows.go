@@ -1,12 +1,10 @@
 package ai
 
 // image_comfyui_workflows.go — ComfyUI 工作流构建族（P5 破防专项拆自
-// image_comfyui.go：各模型 txt2img/img2img/edit/video 的工作流拼装、LoRA 注入、
-// Kontext 分辨率表——搬移零功能变更）。
+// image_comfyui.go：各模型 txt2img/img2img/edit/video 的工作流拼装与 LoRA 注入）。
 
 import (
 	"fmt"
-	"math"
 	"strings"
 )
 
@@ -189,84 +187,6 @@ func (b *ComfyUIBackend) buildZImageImg2ImgWorkflow(prompt, negative string, wid
 	return b.buildQwenProfileImg2Img(comfyQwenProfiles["z-image-turbo"], prompt, negative, width, height, seed, steps, loras, imageName, denoise)
 }
 
-// Qwen-Image-Edit 2511 官方模板文件名（comfyui-workflow-templates
-// image_qwen_image_edit_2511 蒸馏，2026-09-22 实读）。单点维护——后续
-// 配置化（config 键覆盖）在此扩展；VAE 与 krea2 共用。
-const (
-	qwenEditUNET = "qwen_image_edit_2511_fp8mixed.safetensors"
-	qwenEditCLIP = "qwen_2.5_vl_7b_fp8_scaled.safetensors"
-	qwenEditVAE  = "qwen_image_vae.safetensors"
-)
-
-// buildQwenImageEditWorkflow 构建 Qwen-Image-Edit 2511 指令编辑工作流
-// （官方模板 API 图还原，取道不取器）：
-//
-//	LoadImage → FluxKontextImageScale（按原图宽高比重标，不套 1024×1024）
-//	  ├→ TextEncodeQwenImageEditPlus(正) image1=缩放图 + vae
-//	  ├→ TextEncodeQwenImageEditPlus(负) image1=缩放图 + vae
-//	  └→ VAEEncode(缩放图) → KSampler.latent_image
-//	UNETLoader → ModelSamplingAuraFlow(shift 3.1) → CFGNorm(1) → KSampler
-//	KSampler(steps 20 / cfg 4.0 / euler / simple / denoise 1.0) → VAEDecode → SaveImage
-//
-// 蒙版局部重绘（阶段二刀 B，maskName 非空时）：
-//
-//	LoadImage(mask 灰度：白=重绘) → ImageScale(lanczos, targetW/H) → ImageToMask(red)
-//	  → SetLatentNoiseMask(VAEEncode) → KSampler.latent_image
-//
-//	蒙版与缩放图同尺寸（targetW/H=kontextScaleSize(原图)，与 FluxKontextImageScale
-//	的目标一致）——SetLatentNoiseMask 只做裁剪不 resize，尺寸不对齐会错位；
-//	TextEncode 的 image1 保持全图（语义参考需全图上下文，重绘区域由 noise_mask 限制）。
-//
-// 官方 Note「Comfy」列参数（20 步 CFG 4.0）；denoise 恒 1.0=语义编辑非整幅重绘；
-// FluxKontextMultiReferenceLatentMethod 官方明示「用 Comfy 官方权重不需要」不接；
-// Lightning 4 步 LoRA 为可选加速件，v1 不接（观察池）。
-func (b *ComfyUIBackend) buildQwenImageEditWorkflow(prompt string, seed int, images []string, maskName string, maskTargetW, maskTargetH int) map[string]interface{} {
-	wf := map[string]interface{}{
-		"4":   map[string]interface{}{"class_type": "UNETLoader", "inputs": map[string]interface{}{"unet_name": qwenEditUNET, "weight_dtype": "default"}},
-		"5":   map[string]interface{}{"class_type": "CLIPLoader", "inputs": map[string]interface{}{"clip_name": qwenEditCLIP, "type": "qwen_image", "device": "default"}},
-		"6":   map[string]interface{}{"class_type": "VAELoader", "inputs": map[string]interface{}{"vae_name": qwenEditVAE}},
-		"145": map[string]interface{}{"class_type": "ModelSamplingAuraFlow", "inputs": map[string]interface{}{"model": []interface{}{"4", 0}, "shift": 3.1}},
-		"152": map[string]interface{}{"class_type": "CFGNorm", "inputs": map[string]interface{}{"model": []interface{}{"145", 0}, "strength": 1.0, "pre_cfg": false}},
-		"1":   map[string]interface{}{"class_type": "LoadImage", "inputs": map[string]interface{}{"image": images[0]}},
-		// FluxKontextImageScale：把原图重标到 Kontext 系最优分辨率（保宽高比）
-		"160": map[string]interface{}{"class_type": "FluxKontextImageScale", "inputs": map[string]interface{}{"image": []interface{}{"1", 0}}},
-		"7":   map[string]interface{}{"class_type": "TextEncodeQwenImageEditPlus", "inputs": map[string]interface{}{"clip": []interface{}{"5", 0}, "vae": []interface{}{"6", 0}, "image1": []interface{}{"160", 0}, "prompt": prompt}},
-		"8":   map[string]interface{}{"class_type": "TextEncodeQwenImageEditPlus", "inputs": map[string]interface{}{"clip": []interface{}{"5", 0}, "vae": []interface{}{"6", 0}, "image1": []interface{}{"160", 0}, "prompt": ""}},
-	}
-	// 阶段三刀 A：参考槽 image2/3（qedit 多图参考；正/负 TextEncode 都接全部
-	// 参考槽——官方模板口径）。参考图各自 LoadImage+FluxKontextImageScale
-	//（与 image1 同款重标，编辑族输入尺寸规约一致）。
-	for i, name := range images[1:] {
-		loadID := fmt.Sprintf("2%d", i+1) // "21"/"22"
-		scaleID := fmt.Sprintf("17%d", i+1)
-		wf[loadID] = map[string]interface{}{"class_type": "LoadImage", "inputs": map[string]interface{}{"image": name}}
-		wf[scaleID] = map[string]interface{}{"class_type": "FluxKontextImageScale", "inputs": map[string]interface{}{"image": []interface{}{loadID, 0}}}
-		for _, encID := range []string{"7", "8"} {
-			wf[encID].(map[string]interface{})["inputs"].(map[string]interface{})[fmt.Sprintf("image%d", i+2)] = []interface{}{scaleID, 0}
-		}
-	}
-	wf["15"] = map[string]interface{}{"class_type": "VAEEncode", "inputs": map[string]interface{}{"pixels": []interface{}{"160", 0}, "vae": []interface{}{"6", 0}}}
-	// 蒙版链：latent 源改接 SetLatentNoiseMask 输出（"163"），无蒙版时直连 VAEEncode
-	latentNode := []interface{}{"15", 0}
-	if maskName != "" {
-		wf["2"] = map[string]interface{}{"class_type": "LoadImage", "inputs": map[string]interface{}{"image": maskName}}
-		wf["161"] = map[string]interface{}{"class_type": "ImageScale", "inputs": map[string]interface{}{
-			"image": []interface{}{"2", 0}, "upscale_method": "lanczos",
-			"width": maskTargetW, "height": maskTargetH, "crop": "disabled",
-		}}
-		wf["162"] = map[string]interface{}{"class_type": "ImageToMask", "inputs": map[string]interface{}{"image": []interface{}{"161", 0}, "channel": "red"}}
-		wf["163"] = map[string]interface{}{"class_type": "SetLatentNoiseMask", "inputs": map[string]interface{}{"samples": []interface{}{"15", 0}, "mask": []interface{}{"162", 0}}}
-		latentNode = []interface{}{"163", 0}
-	}
-	wf["10"] = map[string]interface{}{"class_type": "KSampler", "inputs": map[string]interface{}{
-		"seed": seed, "steps": 20, "cfg": 4.0, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0,
-		"model": []interface{}{"152", 0}, "positive": []interface{}{"7", 0}, "negative": []interface{}{"8", 0}, "latent_image": latentNode,
-	}}
-	wf["11"] = map[string]interface{}{"class_type": "VAEDecode", "inputs": map[string]interface{}{"samples": []interface{}{"10", 0}, "vae": []interface{}{"6", 0}}}
-	wf["12"] = map[string]interface{}{"class_type": "SaveImage", "inputs": map[string]interface{}{"filename_prefix": "gaea", "images": []interface{}{"11", 0}}}
-	return wf
-}
-
 // Qwen-Image-2.1-Turbo 官方模板文件名（comfyui-workflow-templates
 // image_qwen_image_2_1_turbo_t2i 蒸馏，2026-10-16 实读；权重本机
 // ComfyUI-Shared 共享目录已就位）。
@@ -280,6 +200,54 @@ const (
 // turbo 权重按该日程蒸馏，步数不开放（同 flux 固定 4 步的先例）。
 const qwen21Sigmas = "1.0, 0.978453, 0.95418, 0.926626, 0.89508, 0.845148, 0.704534, 0.414568, 0"
 
+const (
+	Qwen21EditModel = "qwen-image-2.1-edit"
+	qwen21EditUNET  = qwen21UNET
+)
+
+// buildQwen21EditWorkflow reconstructs the official
+// image_qwen_image_2_1_turbo_image_edit API graph. image_1 is the edit target; extra
+// images are references. The prompt enhancer subgraph is intentionally absent
+// (official template default: refine_prompt=false), so no extra PE weight or
+// extra generation pass is required.
+func (b *ComfyUIBackend) buildQwen21EditWorkflow(prompt, negative string, images []string, seed int, loras []string) map[string]interface{} {
+	wf := map[string]interface{}{
+		"4": map[string]interface{}{"class_type": "UNETLoader", "inputs": map[string]interface{}{"unet_name": qwen21EditUNET, "weight_dtype": "default"}},
+		"5": map[string]interface{}{"class_type": "CLIPLoader", "inputs": map[string]interface{}{"clip_name": qwen21CLIP, "type": "qwen_image", "device": "default"}},
+		"6": map[string]interface{}{"class_type": "VAELoader", "inputs": map[string]interface{}{"vae_name": qwen21VAE}},
+	}
+	for i, name := range images {
+		loadID := fmt.Sprintf("1%d", i+1)
+		wf[loadID] = map[string]interface{}{"class_type": "LoadImage", "inputs": map[string]interface{}{"image": name}}
+	}
+	encInputs := map[string]interface{}{
+		"clip": []interface{}{"5", 0}, "vae": []interface{}{"6", 0},
+		"prompt": prompt, "negative_prompt": negative, "resolution": 1024,
+	}
+	for i := range images {
+		encInputs[fmt.Sprintf("images.image_%d", i+1)] = []interface{}{fmt.Sprintf("1%d", i+1), 0}
+	}
+	wf["7"] = map[string]interface{}{"class_type": "TextEncodeQwenImage21", "inputs": encInputs}
+	modelSource := injectLoraNodes(wf, "4", loras)
+	wf["40"] = map[string]interface{}{"class_type": "QwenImage21Cache", "inputs": map[string]interface{}{
+		"model": []interface{}{modelSource, 0}, "device": "auto", "dtype": "default",
+	}}
+	wf["9"] = map[string]interface{}{"class_type": "EmptyLatentImage", "inputs": map[string]interface{}{"width": 1024, "height": 1024, "batch_size": 1}}
+	wf["41"] = map[string]interface{}{"class_type": "RandomNoise", "inputs": map[string]interface{}{"noise_seed": seed, "control": "randomize"}}
+	wf["42"] = map[string]interface{}{"class_type": "CFGGuider", "inputs": map[string]interface{}{
+		"model": []interface{}{"40", 0}, "positive": []interface{}{"7", 0}, "negative": []interface{}{"7", 1}, "cfg": 8.0,
+	}}
+	wf["43"] = map[string]interface{}{"class_type": "KSamplerSelect", "inputs": map[string]interface{}{"sampler_name": "euler"}}
+	wf["44"] = map[string]interface{}{"class_type": "ManualSigmas", "inputs": map[string]interface{}{"sigmas": qwen21Sigmas}}
+	wf["10"] = map[string]interface{}{"class_type": "SamplerCustomAdvanced", "inputs": map[string]interface{}{
+		"noise": []interface{}{"41", 0}, "guider": []interface{}{"42", 0}, "sampler": []interface{}{"43", 0},
+		"sigmas": []interface{}{"44", 0}, "latent_image": []interface{}{"9", 0},
+	}}
+	wf["90"] = map[string]interface{}{"class_type": "VAEDecode", "inputs": map[string]interface{}{"samples": []interface{}{"10", 0}, "vae": []interface{}{"6", 0}}}
+	wf["91"] = map[string]interface{}{"class_type": "SaveImage", "inputs": map[string]interface{}{"filename_prefix": "gaea", "images": []interface{}{"90", 0}}}
+	return wf
+}
+
 // buildQwen21Workflow 构建 Qwen-Image-2.1-Turbo 文生图工作流（官方模板
 // API 图还原，取道不取器）：
 //
@@ -291,8 +259,7 @@ const qwen21Sigmas = "1.0, 0.978453, 0.95418, 0.926626, 0.89508, 0.845148, 0.704
 //
 // 官方模板的可选件不接：TextGenerate 提示词改写支路（PE 模型
 // qwen3.5_9b_*_pe_t2i 另需 9.5GB，模板默认 switch=false 直通原文，gaea 的
-// 提示词由上层 LLM 组织）；2.1 的 edit 模板不接——指令编辑/参考编辑仍走
-// Qwen-Image-Edit 2511（编辑族单引擎口径，见 buildQwenImageEditWorkflow）。
+// 提示词由上层 LLM 组织）。2.1 的编辑由 buildQwen21EditWorkflow 独立承接。
 // TextEncodeQwenImage21.resolution 只作用于参考图重标，本工作流不传参考图，
 // 保持模板默认 1024（latent 由 EmptyLatentImage 按请求宽高给出）。
 func (b *ComfyUIBackend) buildQwen21Workflow(prompt, negative string, width, height, seed int, loras []string) map[string]interface{} {
@@ -338,49 +305,21 @@ func qwen21MissingModelHint(errMsg string) string {
 		"   ← 可在 ComfyUI 模板管理器打开「Qwen Image 2.1 Turbo」模板一键下载，或到 ModelScope/HuggingFace 搜索同名权重"
 }
 
-// preferredKontextResolutions ComfyUI FluxKontextImageScale 的分辨率预设表
-// （本机 ComfyUI 0.36 comfy_extras/nodes_flux.py:105 实读，17 档）。
-var preferredKontextResolutions = [][2]int{
-	{672, 1568}, {688, 1504}, {720, 1456}, {752, 1392}, {800, 1328},
-	{832, 1248}, {880, 1184}, {944, 1104}, {1024, 1024}, {1104, 944},
-	{1184, 880}, {1248, 832}, {1328, 800}, {1392, 752}, {1456, 720},
-	{1504, 688}, {1568, 672},
-}
-
-// kontextScaleSize 复刻 FluxKontextImageScale 的尺寸选择：宽高比最接近的
-// 预设档（平手取先出现者，与 Python min 语义一致）；退化输入兜底 1024²。
-// 蒙版链用它把灰度蒙版对齐到缩放图的目标尺寸。
-func kontextScaleSize(w, h int) (int, int) {
-	if w <= 0 || h <= 0 {
-		return 1024, 1024
-	}
-	aspect := float64(w) / float64(h)
-	bestW, bestH := 1024, 1024
-	bestDiff := math.MaxFloat64
-	for _, r := range preferredKontextResolutions {
-		if d := math.Abs(aspect - float64(r[0])/float64(r[1])); d < bestDiff {
-			bestDiff, bestW, bestH = d, r[0], r[1]
-		}
-	}
-	return bestW, bestH
-}
-
-// qwenEditMissingModelHint 指令编辑提交失败时的缺权重提示：ComfyUI 对不在列表的
-// 模型回 value_not_in_list——gaea 从不自动下载模型，这里给出三件文件名 + HF 链接
-// + 存放目录（可操作）；错误不匹配时返回空串零影响。
-func qwenEditMissingModelHint(errMsg string) string {
-	if !strings.Contains(errMsg, "value_not_in_list") &&
-		!strings.Contains(errMsg, "qwen_image_edit") &&
-		!strings.Contains(errMsg, "qwen_2_5_vl") &&
-		!strings.Contains(errMsg, "missing") {
+func qwen21EditMissingModelHint(errMsg string) string {
+	missingValue := strings.Contains(errMsg, "value_not_in_list") ||
+		strings.Contains(strings.ToLower(errMsg), "value not in list")
+	if !missingValue ||
+		(!strings.Contains(errMsg, qwen21EditUNET) &&
+			!strings.Contains(errMsg, qwen21CLIP) &&
+			!strings.Contains(errMsg, qwen21VAE)) {
 		return ""
 	}
-	return "\n💡 指令编辑本地档（Qwen-Image-Edit 2511）需要以下模型文件（放入 ComfyUI 对应目录后重试）：\n" +
-		"   models/diffusion_models/" + qwenEditUNET + "\n" +
-		"     ← https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI（split_files/diffusion_models；bf16 版同名替换亦可）\n" +
-		"   models/text_encoders/" + qwenEditCLIP + "\n" +
-		"     ← https://huggingface.co/Comfy-Org/HunyuanVideo_1.5_repackaged（split_files/text_encoders）\n" +
-		"   models/vae/" + qwenEditVAE + "（与 krea2 共用，通常已存在）"
+	return "\n💡 Qwen Image 2.1 Turbo Edit 需要以下模型文件（放入 ComfyUI 对应目录后重试）：\n" +
+		"   models/diffusion_models/" + qwen21EditUNET + "\n" +
+		"   models/text_encoders/" + qwen21CLIP + "\n" +
+		"   models/vae/" + qwen21VAE + "\n" +
+		"   ← 可在 ComfyUI 模板管理器打开「Image Edit (Qwen Image 2.1 Turbo)」查看官方下载地址；gaea 不会自动下载权重。\n" +
+		"   提示词增强器默认关闭，不需要额外 PE 权重。"
 }
 
 // buildLTXVideoWorkflow 构建 LTX-Video 文生视频工作流（ComfyUI ≥0.30 节点组）：

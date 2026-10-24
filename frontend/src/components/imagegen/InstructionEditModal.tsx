@@ -3,7 +3,7 @@
 // 进度计划/gaea-comfyui-edit-20260922.md；阶段二刀 B 补蒙版局部重绘，规格
 // 进度计划/gaea-mask-inpaint-20260923.md；阶段二刀 C 补扩图，规格
 // 进度计划/gaea-outpaint-20260923.md）：原图 + 人话指令 → 语义改图
-// （云端 OpenAI 兼容 /images/edits；本地 ComfyUI Qwen-Image-Edit 2511 官方工作流）；
+// （云端 OpenAI 兼容 /images/edits；本地 ComfyUI Qwen Image 2.1 Turbo Edit 工作流）；
 // 范围可切「全图 / 局部（涂选）/ 扩图（加画布）」。与既有「改图」（=把结果填回
 // 图生图整幅重绘）互补。对照区原图|新图并排；「用到画布」把编辑结果并入 results/
 // history（后端已落盘+登记台账，走既有保存/溯源链）。
@@ -235,7 +235,7 @@ export default function InstructionEditModal({ open, source, onClose, onApply }:
           )}
           {error && <Alert type="error" showIcon data-testid="instruct-edit-error" message={error} />}
           <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="instruct-edit-hint">
-            云端走 OpenAI 兼容引擎的 /images/edits（如 Qwen-Image-Edit 系）；本地 ComfyUI 走 Qwen-Image-Edit 2511 官方工作流（需在 ComfyUI models 目录放置模型文件，缺失时错误会列出所需文件与下载地址）；GLM 档暂不支持（会如实报错）。局部=只重绘涂红区域；扩图=画布加边、原图保持。
+            云端走 OpenAI 兼容引擎的 /images/edits（如 Qwen-Image-Edit 系）；本地 ComfyUI 走 Qwen Image 2.1 Turbo Edit（Research License、禁商用；需在 ComfyUI models 目录放置模型文件，缺失时错误会列出所需文件与下载地址）。本地 Turbo Edit 暂不支持蒙版，因此局部重绘和扩图请使用支持 /images/edits 的云端后端；GLM 档暂不支持（会如实报错）。
           </Typography.Text>
         </div>
       )}

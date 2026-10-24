@@ -75,7 +75,7 @@ func TestPortraitImageBindingCascade(t *testing.T) {
 		{"跟随全局", "", "", "xai", "grok-imagine-image-quality", "", "xai", "grok-imagine-image-quality"},
 		{"只绑后端", "herdsman", "", "xai", "grok-imagine-image-quality", "", "herdsman", "grok-imagine-image-quality"},
 		{"只绑模型", "", "krea2", "comfyui", "z-image-turbo", "", "comfyui", "krea2"},
-		{"双绑", "comfyui", "qwen-image-edit", "xai", "grok-imagine-image-quality", "", "comfyui", "qwen-image-edit"},
+		{"双绑", "comfyui", "qwen-image-2.1-edit", "xai", "grok-imagine-image-quality", "", "comfyui", "qwen-image-2.1-edit"},
 		{"显式模型优先", "", "krea2", "comfyui", "z-image-turbo", "flux", "comfyui", "flux"},
 	}
 	for _, c := range cases {

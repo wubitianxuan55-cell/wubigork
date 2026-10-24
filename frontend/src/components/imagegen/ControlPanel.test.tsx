@@ -111,6 +111,14 @@ describe('ControlPanel 引擎枚举与模式门禁', () => {
     expect(screen.queryByText(/GLM 仅支持文生图/)).toBeNull()
     expect(screen.queryByText(/请切换引擎/)).toBeNull()
   })
+
+  it('Qwen 2.1 模型显形 Research License 禁商用提示，普通模型不显示', () => {
+    const { rerender } = render(<ControlPanel {...baseProps} model="qwen-image-2.1-edit" backend="comfyui" />)
+    expect(screen.getByTestId('qwen21-license-warning').textContent).toContain('Research License')
+    expect(screen.getByTestId('qwen21-license-warning').textContent).toContain('禁商用')
+    rerender(<ControlPanel {...baseProps} model="krea2" backend="comfyui" />)
+    expect(screen.queryByTestId('qwen21-license-warning')).toBeNull()
+  })
 })
 
 // ── 审计刀C-1：Wails 壳内「上传参考图」收口到 GaeaPickFiles 系统对话框 ────

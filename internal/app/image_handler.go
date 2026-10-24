@@ -287,7 +287,7 @@ type imageGenLoopSpec struct {
 	// 两链本就每轮新建请求、除 Seed 外字段轮间不变，语义一致。
 	reqTemplate ai.ImageGenerationRequest
 	// modelOverride 调用方显式模型（空=全局 cfg.ImageModel）；modelForced 链内
-	// 强制模型（media 链 edit/outpaint/qedit 在 comfyui 下强制 qwen-image-edit；
+	// 强制模型（media 链 edit/outpaint/qedit 在 comfyui 下强制 Qwen 2.1 Turbo Edit；
 	// internal 恒空）。非空时后者覆盖前者（与改前覆盖顺序一致）。
 	modelOverride string
 	modelForced   string
@@ -630,14 +630,12 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 	// 注入提示词安全段；未配置 = 零值 = 提示词原样）。
 	safePrompt := applyImageSafeMode(p.Prompt, playGuardrails().ImageSafeMode)
 	results, lastErr := func() ([]imageItem, string) {
-		// 指令编辑本地档（阶段二刀 A）：ComfyUI 编辑工作流固定走 Qwen-Image-Edit 族
-		// ——请求 model 字段是生图模型名（krea2 等），不代表编辑引擎；元数据/台账
-		// 如实记 qwen-image-edit（ai 层 edit 分支本就不消费该字段）。扩图（刀 C）
-		// 转发同一编辑引擎，同口径。（收敛为 modelForced 传入共享循环）
+		// ComfyUI 编辑族只走 Qwen Image 2.1 Turbo Edit；旧 2511 引擎已退役。
+		// 元数据/台账如实记录实际编辑引擎。
 		modelForced := ""
 		if mode == "edit" || mode == "outpaint" || (mode == "txt2img" && p.RefMethod == "qedit") {
 			if a.cfg.ImageBackend == ai.ImageBackendTypeComfyUI {
-				modelForced = "qwen-image-edit"
+				modelForced = ai.Qwen21EditModel
 			}
 		}
 		// 扩图转换（刀 C）：合成画布+蒙版后按 edit 请求下发——ai 层 fail-closed
@@ -1012,7 +1010,7 @@ func (a *mediaState) GetImageBackendConfig() map[string]interface{} {
 	}
 
 	// 2. 恒提供 ComfyUI 本地模型（角色剧照等场景可选择本地出图，本机单用户定位）
-	comfyAlways := []string{"krea2", "z-image-turbo", "qwen-image-2.1-turbo", "flux"}
+	comfyAlways := []string{"krea2", "z-image-turbo", "qwen-image-2.1-turbo", "qwen-image-2.1-edit", "flux"}
 	for _, cm := range comfyAlways {
 		dup := false
 		for _, m := range availableModels {

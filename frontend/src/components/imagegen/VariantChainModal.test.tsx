@@ -23,8 +23,8 @@ import type { GenResult } from './types'
 
 // 三代链：A（根）← B ← C（当前）
 const ENTRIES = [
-  { id: 'ih-c', parent_id: 'ih-b', model: 'qwen-image-edit', created_at: '2026-09-23T10:00:00Z', prompt_truncate: '把外套改成红色', path: 'C:/img/c.png' },
-  { id: 'ih-b', parent_id: 'ih-a', model: 'qwen-image-edit', created_at: '2026-09-23T09:00:00Z', prompt_truncate: '扩图四边', path: 'C:/img/b.png' },
+  { id: 'ih-c', parent_id: 'ih-b', model: 'qwen-image-2.1-edit', created_at: '2026-09-23T10:00:00Z', prompt_truncate: '把外套改成红色', path: 'C:/img/c.png' },
+  { id: 'ih-b', parent_id: 'ih-a', model: 'qwen-image-2.1-edit', created_at: '2026-09-23T09:00:00Z', prompt_truncate: '扩图四边', path: 'C:/img/b.png' },
   { id: 'ih-a', model: 'krea2', created_at: '2026-09-23T08:00:00Z', prompt_truncate: '初始生成', path: 'C:/img/a.png' },
 ]
 
@@ -70,7 +70,7 @@ describe('VariantChainModal 变体簇溯源（阶段二刀 D）', () => {
 
   it('断链诚实标注：祖先缺档显示提示不造假', async () => {
     mocks.imageHubAssets.mockResolvedValue([
-      { id: 'ih-c', parent_id: 'ih-gone', model: 'qwen-image-edit', path: 'C:/img/c.png' },
+      { id: 'ih-c', parent_id: 'ih-gone', model: 'qwen-image-2.1-edit', path: 'C:/img/c.png' },
     ])
     render(<VariantChainModal open assetId="ih-c" onClose={vi.fn()} onApply={vi.fn()} />)
     await waitFor(() => expect(screen.getByTestId('variant-chain-broken')).toBeTruthy())
