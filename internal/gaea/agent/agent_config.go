@@ -4,6 +4,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/context"
 	"github.com/gaea/gaea/internal/gaea/jobs"
 	"github.com/gaea/gaea/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
 // Options configures an AgentRunner.
@@ -18,6 +19,13 @@ type Options struct {
 	// Hooks fires PreToolUse / PostToolUse shell hooks around tool calls. nil
 	// disables hook firing.
 	Hooks ToolHooks
+	// HooksForSession lets a persisted sub-agent bind the same user hooks with
+	// its own sa_ session id. nil keeps the existing Hooks behavior.
+	HooksForSession func(sessionID string) ToolHooks
+
+	// AccessPolicy is the execution-time filesystem boundary for tools that
+	// declare model-controlled paths. A missing policy fails closed.
+	AccessPolicy tool.AccessPolicy
 
 	// Jobs is the session's background-job manager (nil disables background tools).
 	Jobs *jobs.Manager

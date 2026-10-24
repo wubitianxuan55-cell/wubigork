@@ -35,6 +35,7 @@ func RunPersistedSubAgent(
 			return "", fmt.Errorf("sub-agent queued: %w", err)
 		}
 		defer releaseSubSlot()
+		opts = bindHooksToSession(opts, newEphemeralSubagentID())
 		return RunSubAgent(ctx, prov, reg, sysPrompt, prompt, opts, sink, subUsage)
 	}
 	run, err := store.PrepareFreshWithTitle(sysPrompt, SpaceFromContext(ctx), title)
@@ -42,6 +43,7 @@ func RunPersistedSubAgent(
 		return "", fmt.Errorf("prepare subagent transcript: %w", err)
 	}
 	defer run.Release()
+	opts = bindHooksToSession(opts, run.Ref)
 	// 有限并行：排队先落 queued 侧车（分工面板如实显示「排队中」），起跑时
 	// MarkRunning 覆写；等槽期间 ctx 取消则补 failed 收口，不留永久排队态。
 	_ = store.MarkQueued(run)
@@ -73,6 +75,13 @@ func RunPersistedSubAgent(
 		return "", fmt.Errorf("save subagent transcript: %w", err)
 	}
 	return result, nil
+}
+
+func bindHooksToSession(opts Options, sessionID string) Options {
+	if opts.HooksForSession != nil {
+		opts.Hooks = opts.HooksForSession(sessionID)
+	}
+	return opts
 }
 
 // refTextSink 把子代理 LLM 文本增量转标 SubagentText（打 ref）后转发 inner——

@@ -76,6 +76,16 @@ func (scheduleGet) Schema() json.RawMessage {
 
 func (scheduleGet) ReadOnly() bool { return true }
 
+func (s scheduleGet) ReadTarget(args json.RawMessage) (string, bool) {
+	var p struct {
+		Path string `json:"path,omitempty"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil {
+		return "", false
+	}
+	return resolveSchedulePath(s.workDir, p.Path), true
+}
+
 func (scheduleGet) CompactDescription() string     { return compactDesc["schedule_get"] }
 func (scheduleGet) CompactSchema() json.RawMessage { return compactSchema["schedule_get"] }
 
@@ -206,6 +216,16 @@ func (scheduleApply) Schema() json.RawMessage {
 }
 
 func (scheduleApply) ReadOnly() bool { return false }
+
+func (s scheduleApply) WritePaths(args json.RawMessage) ([]string, error) {
+	var p struct {
+		Path string `json:"path,omitempty"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil {
+		return nil, err
+	}
+	return []string{resolveSchedulePath(s.workDir, p.Path)}, nil
+}
 
 func (scheduleApply) CompactDescription() string     { return compactDesc["schedule_apply"] }
 func (scheduleApply) CompactSchema() json.RawMessage { return compactSchema["schedule_apply"] }
@@ -401,6 +421,16 @@ func (scheduleAnalyze) Schema() json.RawMessage {
 }
 
 func (scheduleAnalyze) ReadOnly() bool { return true }
+
+func (s scheduleAnalyze) ReadTarget(args json.RawMessage) (string, bool) {
+	var p struct {
+		Path string `json:"path,omitempty"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil {
+		return "", false
+	}
+	return resolveSchedulePath(s.workDir, p.Path), true
+}
 
 func (scheduleAnalyze) CompactDescription() string     { return compactDesc["schedule_analyze"] }
 func (scheduleAnalyze) CompactSchema() json.RawMessage { return compactSchema["schedule_analyze"] }

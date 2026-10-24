@@ -91,6 +91,13 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 			}
 		}
 	}
+	if err := a.checkToolAccess(ctx, t, json.RawMessage(call.Arguments)); err != nil {
+		return toolOutcome{
+			output:  "blocked: " + err.Error(),
+			blocked: true,
+			errMsg:  "blocked by path access policy",
+		}
+	}
 	// Phase 1 DSpark: 确定性预检查 — 在文件编辑工具实际执行前，
 	// 验证 old_string / anchor 是否存在于目标文件中。
 	// 预检查命中时返回诊断消息，阻止必然失败的操作，节省一整轮 API 调用。
