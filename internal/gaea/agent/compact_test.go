@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/provider"
@@ -303,4 +304,51 @@ func TestEffectiveWindow(t *testing.T) {
 			t.Errorf("Window=%d: effectiveWindow=%d, want %d", tc.window, got, tc.want)
 		}
 	}
+}
+
+// TestMaybeIdlePrune（Z2 蒸馏刀）：空闲>60min 且有旧工具结果→prune 落地；
+// 未过阈值/无历史时刻/空会话静默跳过。
+func TestMaybeIdlePrune(t *testing.T) {
+	newRunner := func() *AgentRunner {
+		a := testAgentC(4000, 0.8, 3)
+		s := NewSession("sys")
+		s.Add(provider.Message{Role: provider.RoleUser, Content: "q"})
+		// 一条超 minPruneBytes 的旧工具结果（受保护尾部之外需足够的尾）
+		s.Add(provider.Message{Role: provider.RoleTool, Name: "bash",
+			Content: "old result " + strings.Repeat("x", 2000)})
+		for i := 0; i < 6; i++ {
+			s.Add(provider.Message{Role: provider.RoleUser, Content: "tail q"})
+			s.Add(provider.Message{Role: provider.RoleAssistant, Content: "tail a"})
+		}
+		a.session = s
+		return a
+	}
+	t.Run("未过阈值不prune", func(t *testing.T) {
+		a := newRunner()
+		a.lastStreamDoneUnixNano.Store(time.Now().Add(-10 * time.Minute).UnixNano())
+		a.maybeIdlePrune()
+		for _, m := range a.session.Messages {
+			if m.Role == provider.RoleTool && strings.HasPrefix(m.Content, prunedMarker) {
+				t.Fatal("10 分钟空闲不应 prune")
+			}
+		}
+	})
+	t.Run("过阈值prune旧结果", func(t *testing.T) {
+		a := newRunner()
+		a.lastStreamDoneUnixNano.Store(time.Now().Add(-2 * time.Hour).UnixNano())
+		a.maybeIdlePrune()
+		var pruned bool
+		for _, m := range a.session.Messages {
+			if m.Role == provider.RoleTool && strings.HasPrefix(m.Content, prunedMarker) {
+				pruned = true
+			}
+		}
+		if !pruned {
+			t.Fatal("2 小时空闲应 prune 旧工具结果")
+		}
+	})
+	t.Run("无历史时刻跳过", func(t *testing.T) {
+		a := newRunner()
+		a.maybeIdlePrune() // 不 panic、不 prune 即可
+	})
 }

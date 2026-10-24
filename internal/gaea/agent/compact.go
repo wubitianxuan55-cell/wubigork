@@ -166,6 +166,16 @@ func (a *AgentRunner) compactIfOver(ctx context.Context, prompt int, trigger str
 		return
 	}
 	if prompt < high {
+		// Z2 蒸馏刀（microcompact TokenPressure 同源）：0.9×触发线先免费清
+		// 旧工具结果体——把「清结果体」从「整段折叠」里解耦提前，可能就此
+		// 免掉整次摘要压缩。此刻离窗口上限一步之遥，前缀重写的缓存代价
+		// 远小于放任其涨到 force 线的折叠代价；prune 幂等（占位标记跳过）。
+		if prompt >= high*9/10 {
+			if st, err := a.PruneStaleToolResults(); err == nil && st.Results > 0 {
+				a.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelInfo,
+					Text: fmt.Sprintf("pre-compact prune: cleared %d stale tool results (~%d chars) at 90%% of threshold", st.Results, st.SavedChars)})
+			}
+		}
 		a.compaction.LastPrompt = prompt
 		a.consecutiveCompacts = 0
 		a.compactStuck = false
@@ -875,6 +885,33 @@ func (a *AgentRunner) summarize(ctx context.Context, fold []provider.Message, in
 // 小窗保护：预留至多窗口 1/4，防本地小窗模型阈值塌缩到即刻触发
 // （刻意差异——ZCode 直接扣到 0，gaea 桌面有 8K 档本地引擎）。
 const outputReserveTokens = 21_000
+
+// idlePruneThreshold（Z2 蒸馏刀，ZCode microcompact TimeBased 同源）：
+// 距上次采样成功 >60 分钟=用户离开后回来（桌面隔日场景）。此刻 provider
+// 前缀缓存早已冷透（TTL 分钟级），清旧工具结果体零缓存代价；只清结果体
+// 不动会话语义（无摘要、无折叠），下一条请求直接受益。
+const idlePruneThreshold = 60 * time.Minute
+
+// maybeIdlePrune 空闲触发闸：回合入口调用。无历史时刻（首轮）或未过阈值
+// 静默跳过；prune 自身幂等且有 archive，不重复伤害。
+func (a *AgentRunner) maybeIdlePrune() {
+	v := a.lastStreamDoneUnixNano.Load()
+	if v == 0 {
+		return
+	}
+	if time.Since(time.Unix(0, v)) < idlePruneThreshold {
+		return
+	}
+	if a.compaction.Window <= 0 {
+		return
+	}
+	st, err := a.PruneStaleToolResults()
+	if err != nil || st.Results == 0 {
+		return
+	}
+	a.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelInfo,
+		Text: fmt.Sprintf("idle prune: cleared %d stale tool results (~%d chars) after inactivity", st.Results, st.SavedChars)})
+}
 
 // effectiveWindow 触发阈值的分母：Window − 输出预留。仅用于 soft/high/force
 // 触发判定与验收闸的 triggerTokens（同一阈值同分母）；checkpointCeiling 与

@@ -473,10 +473,13 @@ type AgentRunner struct {
 	// 关闭后 SteerAccept 如实拒绝，controller 降级为普通 Send（下一条消息），
 	// 消除「检查 running 后回合才退出」窗口里 steer 落进将被清空的队列的
 	// 静默丢失。
-	steerMu           sync.Mutex
-	steerQueue        []steerItem
-	steerConsumed     bool
-	steerIntakeClosed bool
+	steerMu    sync.Mutex
+	steerQueue []steerItem
+	// lastStreamDoneUnixNano（Z2 蒸馏刀）：上次采样成功完成时刻，空闲触发
+	// 闸的判据——用户隔日回来时旧工具结果体先清（不动会话语义）。
+	lastStreamDoneUnixNano atomic.Int64
+	steerConsumed          bool
+	steerIntakeClosed      bool
 
 	// todoState is the host canonical task list: the latest successful
 	// todo_write with completions applied by complete_step. Unlike the per-turn

@@ -105,6 +105,7 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 		a.paramStorm.Reset()
 	}
 	a.overflowRecoveries = 0 // 刀1: 每轮重置溢出自愈预算
+	a.maybeIdlePrune()
 	// the clear() method resets mtime caches auto-expired entries
 
 	// recall-reminder lets the model know mid-turn context remains
@@ -215,7 +216,8 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 			return buildTurnResult(turnFilesCreated, turnFilesModified, turnToolErrors, turnLastSummary), err
 		}
 		streamRecoveries = 0
-		a.overflowRecoveries = 0 // 采样成功即清零溢出自愈预算（dsh 语义）
+		a.overflowRecoveries = 0                              // 采样成功即清零溢出自愈预算（dsh 语义）
+		a.lastStreamDoneUnixNano.Store(time.Now().UnixNano()) // Z2：空闲闸判据
 
 		// length-truncation — inject nudge when finish_reason="length" and no tool calls
 		if a.maybeContinueOutputLength(usage, calls) {
