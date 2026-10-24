@@ -53,15 +53,20 @@ func sinCastPath() string {
 	return filepath.Join(sinRoot(), "cast.json")
 }
 
-// sinCastDoc cast.json 结构：故事 id → 角色库角色 id 列表。
+// sinCastDoc cast.json 结构：故事 id → 角色库角色 id 列表；N10 起同文件增
+// Styles（故事 id → 统一插图画风，图文穿插一致性锚——同一故事的插图不再
+// 各张各的画风）。版本仍 1：字段是增量，旧文件反序列化为空 map 即无锚。
 type sinCastDoc struct {
 	Version int                 `json:"version"`
 	Casts   map[string][]string `json:"casts"`
+	Styles  map[string]string   `json:"styles,omitempty"`
 }
 
 // loadSinCast 读取角色选择表（文件缺失/损坏 → 空表，辅助配置容错）。
+// 三个返回点的 Casts/Styles 都必须非 nil（typed-nil map：早退路径漏初始化
+// 会让 Set 在写 nil map 上 panic）。
 func loadSinCast() sinCastDoc {
-	doc := sinCastDoc{Version: sinCastVersion, Casts: map[string][]string{}}
+	doc := emptySinCastDoc()
 	raw, err := os.ReadFile(sinCastPath())
 	if err != nil {
 		return doc
@@ -74,13 +79,25 @@ func loadSinCast() sinCastDoc {
 		} else {
 			slog.Warn("原罪角色配置损坏，按空表继续（留档失败）", "path", sinCastPath(), "error", err)
 		}
-		return sinCastDoc{Version: sinCastVersion, Casts: map[string][]string{}}
+		return emptySinCastDoc()
 	}
 	if doc.Casts == nil {
 		doc.Casts = map[string][]string{}
 	}
+	if doc.Styles == nil {
+		doc.Styles = map[string]string{}
+	}
 	doc.Version = sinCastVersion
 	return doc
+}
+
+// emptySinCastDoc 空表构造（map 全非 nil 的唯一真源）。
+func emptySinCastDoc() sinCastDoc {
+	return sinCastDoc{
+		Version: sinCastVersion,
+		Casts:   map[string][]string{},
+		Styles:  map[string]string{},
+	}
 }
 
 // saveSinCast 原子写回角色选择表（临时文件 + rename；失败向上抛）。
@@ -181,6 +198,48 @@ func (a *App) sinCastCharacters(topicID string) []*characterlib.Character {
 		out = append(out, c)
 	}
 	return out
+}
+
+// ── 统一插图画风（N10：图文穿插一致性锚）──────────────────────────────
+
+// sinStoryStyleMaxRunes 画风描述的长度上限（rune）。
+const sinStoryStyleMaxRunes = 200
+
+// sinStoryStyle 读某故事的统一画风（未设 = 空串 = 无锚，逐字节旧行为）。
+func sinStoryStyle(topicID string) string {
+	sinCastMu.Lock()
+	defer sinCastMu.Unlock()
+	return loadSinCast().Styles[topicID]
+}
+
+// SinStoryStyleGet 读取某故事的统一插图画风。
+func (a *App) SinStoryStyleGet(topicID string) (string, error) {
+	if err := a.sinTopicGuard(topicID); err != nil {
+		return "", err
+	}
+	return sinStoryStyle(topicID), nil
+}
+
+// SinStoryStyleSet 设置/清空某故事的统一插图画风（空串=清空回无锚），
+// 返回生效值。之后该故事的每张插图（正文标记与 sin_illustrate 工具同路）
+// 都会带上这条画风层。
+func (a *App) SinStoryStyleSet(topicID string, style string) (string, error) {
+	if err := a.sinTopicGuard(topicID); err != nil {
+		return "", err
+	}
+	style = truncateRunes(strings.TrimSpace(style), sinStoryStyleMaxRunes)
+	sinCastMu.Lock()
+	defer sinCastMu.Unlock()
+	doc := loadSinCast()
+	if style == "" {
+		delete(doc.Styles, topicID)
+	} else {
+		doc.Styles[topicID] = style
+	}
+	if err := saveSinCast(doc); err != nil {
+		return "", err
+	}
+	return style, nil
 }
 
 // SinNotesView 右栏「设定/大纲」面板的只读视图（sin/notes/<故事 id>.json 的

@@ -187,9 +187,12 @@ func TestSinIllustratePassesCharacterRef(t *testing.T) {
 		t.Fatalf("应只调用一次生成: %d", len(fake.requests))
 	}
 	req := fake.requests[0]
-	// 阶段三刀 B（v4.399）：comfyui 参考升级 qedit（txt2img+参考→编辑引擎三图槽）
+	// ComfyUI 参考槽固定走 Qwen Image 2.1 Turbo Edit。
 	if req.Mode != "txt2img" || len(req.RefImages) != 1 || req.RefMethod != "qedit" {
 		t.Fatalf("参考槽未透传: mode=%q refs=%d method=%q", req.Mode, len(req.RefImages), req.RefMethod)
+	}
+	if req.Model != ai.Qwen21EditModel {
+		t.Fatalf("参考槽模型应为 %s，得到 %s", ai.Qwen21EditModel, req.Model)
 	}
 	if !strings.Contains(req.Prompt, "人物锚点（林晚）") {
 		t.Errorf("提示词应带外观锚点: %q", req.Prompt)
@@ -264,8 +267,14 @@ func TestSinIllustrateFallsBackWhenRefFails(t *testing.T) {
 	if len(fake.requests[0].RefImages) == 0 {
 		t.Error("首次应带参考图")
 	}
+	if fake.requests[0].Model != ai.Qwen21EditModel {
+		t.Errorf("首次参考编辑模型应为 %s，得到 %s", ai.Qwen21EditModel, fake.requests[0].Model)
+	}
 	if len(fake.requests[1].RefImages) != 0 || fake.requests[1].Mode != "" {
 		t.Errorf("重试应退回纯文本: mode=%q refs=%d", fake.requests[1].Mode, len(fake.requests[1].RefImages))
+	}
+	if fake.requests[1].Model != "krea2" {
+		t.Errorf("纯文本回退应恢复生图模型 krea2，得到 %s", fake.requests[1].Model)
 	}
 	if fb, _ := res["ref_fallback"].(bool); !fb {
 		t.Errorf("应标记 ref_fallback: %+v", res)

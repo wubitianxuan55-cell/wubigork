@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/novelstyle"
+	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/types"
 )
 
@@ -128,12 +129,17 @@ func truncateCtxStyle(merged string) string {
 
 // styleDigestSection 生成注入的作者风格约束区段（空档零注入；独立消费面保留——
 // 逐场景流与 Inventory 用）。
-func (a *writingState) styleDigestSection(pm styleDigestPM) string {
+func (a *writingState) styleDigestSection(pm *project.Manager) string {
+	author := a.authorMemorySection(pm.Dir)
 	df, err := pm.ReadStyleDigest()
 	if err != nil || df == nil || df.Instructions == "" {
-		return ""
+		return author
 	}
-	return "## 作者风格约束（从你的成稿学到的表达习惯，按此口径写）\n" + df.Instructions
+	digest := "## 作者风格约束（从你的成稿学到的表达习惯，按此口径写）\n" + df.Instructions
+	if author == "" {
+		return digest
+	}
+	return author + "\n\n" + digest
 }
 
 // styleDigestPM 读档依赖面（*project.Manager 满足）。
