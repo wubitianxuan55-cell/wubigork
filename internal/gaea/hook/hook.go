@@ -232,6 +232,7 @@ func MatchesTool(h ResolvedHook, toolName string) bool {
 type Payload struct {
 	Event         Event           `json:"event"`
 	Cwd           string          `json:"cwd"`
+	SessionID     string          `json:"sessionId,omitempty"`
 	ToolName      string          `json:"toolName,omitempty"`
 	ToolArgs      json.RawMessage `json:"toolArgs,omitempty"`
 	ToolResult    string          `json:"toolResult,omitempty"`

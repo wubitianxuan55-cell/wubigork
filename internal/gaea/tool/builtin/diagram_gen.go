@@ -18,7 +18,7 @@ func init() { tool.RegisterBuiltin(diagramGen{}) }
 // diagramGen 生成框架图/流程图（matplotlib 确定性渲染，中文清晰）。
 // 与 chart_gen（统计图表）互补：文字密集的结构图（架构图/流程图/框架图）
 // 走本工具，避免文生图模型把中文渲染成乱码。
-type diagramGen struct{}
+type diagramGen struct{ workDir string }
 
 func (diagramGen) Name() string { return "diagram_gen" }
 
@@ -42,6 +42,19 @@ func (diagramGen) Schema() json.RawMessage {
 }
 
 func (diagramGen) ReadOnly() bool { return false }
+
+func (d diagramGen) WritePaths(args json.RawMessage) ([]string, error) {
+	var p struct {
+		Output string `json:"output,omitempty"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(p.Output) == "" {
+		p.Output = "diagram.png"
+	}
+	return []string{resolveIn(d.workDir, p.Output)}, nil
+}
 
 func (diagramGen) CompactDescription() string     { return compactDesc["diagram_gen"] }
 func (diagramGen) CompactSchema() json.RawMessage { return compactSchema["diagram_gen"] }
@@ -347,7 +360,7 @@ size_bytes = os.path.getsize(output)
 print(json.dumps({"ok": True, "output": output, "size_bytes": size_bytes, "nodes": len(nodes)}))
 `
 
-func (diagramGen) Execute(ctx context.Context, args json.RawMessage) (string, error) {
+func (d diagramGen) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p struct {
 		Title  string `json:"title,omitempty"`
 		Kind   string `json:"kind,omitempty"`
@@ -411,6 +424,7 @@ func (diagramGen) Execute(ctx context.Context, args json.RawMessage) (string, er
 	if p.Output == "" {
 		p.Output = "diagram.png"
 	}
+	p.Output = resolveIn(d.workDir, p.Output)
 	if dir := filepath.Dir(p.Output); dir != "." {
 		_ = os.MkdirAll(dir, 0755)
 	}

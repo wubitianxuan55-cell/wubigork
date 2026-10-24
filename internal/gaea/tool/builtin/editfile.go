@@ -46,6 +46,19 @@ func (editFile) Schema() json.RawMessage {
 
 func (editFile) ReadOnly() bool { return false }
 
+func (e editFile) WritePaths(args json.RawMessage) ([]string, error) {
+	var p struct {
+		Path string `json:"path"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(p.Path) == "" {
+		return nil, fmt.Errorf("path is required")
+	}
+	return []string{resolveIn(e.workDir, p.Path)}, nil
+}
+
 func (editFile) CompactDescription() string     { return compactDesc["edit_file"] }
 func (editFile) CompactSchema() json.RawMessage { return compactSchema["edit_file"] }
 

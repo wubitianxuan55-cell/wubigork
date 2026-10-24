@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -112,6 +113,11 @@ func (a *AgentRunner) precheckMultiEdit(raw json.RawMessage) string {
 // readFileForPrecheck returns file content for precheck purposes. Uses the
 // toolCache when available (faster, no disk IO); falls back to a direct read.
 func (a *AgentRunner) readFileForPrecheck(path string) (string, bool) {
+	if a.access != nil {
+		if err := a.access.CheckPreview(context.Background(), path); err != nil {
+			return "", false
+		}
+	}
 	// Try the tool cache first (cached read_file results from this turn).
 	if a.tc != nil {
 		if content, hit := a.tc.Get(path, 0); hit {

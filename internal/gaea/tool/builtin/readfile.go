@@ -56,6 +56,16 @@ func (readFile) Schema() json.RawMessage {
 
 func (readFile) ReadOnly() bool { return true }
 
+func (r readFile) ReadTarget(args json.RawMessage) (string, bool) {
+	var p struct {
+		Path string `json:"path"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil || strings.TrimSpace(p.Path) == "" {
+		return "", false
+	}
+	return resolveIn(r.workDir, p.Path), true
+}
+
 func (readFile) CompactDescription() string     { return compactDesc["read_file"] }
 func (readFile) CompactSchema() json.RawMessage { return compactSchema["read_file"] }
 

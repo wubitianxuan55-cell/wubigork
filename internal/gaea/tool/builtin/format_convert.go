@@ -16,7 +16,7 @@ import (
 
 func init() { tool.RegisterBuiltin(formatConvert{}) }
 
-type formatConvert struct{}
+type formatConvert struct{ workDir string }
 
 func (formatConvert) Name() string { return "format_convert" }
 
@@ -36,7 +36,27 @@ func (formatConvert) Schema() json.RawMessage {
 }`)
 }
 
-func (formatConvert) ReadOnly() bool { return true }
+// ReadOnly is false because the optional output path writes Markdown to disk.
+func (formatConvert) ReadOnly() bool { return false }
+
+func (f formatConvert) ReadTarget(args json.RawMessage) (string, bool) {
+	var p fcInput
+	if err := json.Unmarshal(args, &p); err != nil || strings.TrimSpace(p.Path) == "" {
+		return "", false
+	}
+	return resolveIn(f.workDir, p.Path), true
+}
+
+func (f formatConvert) WritePaths(args json.RawMessage) ([]string, error) {
+	var p fcInput
+	if err := json.Unmarshal(args, &p); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(p.Output) == "" {
+		return nil, nil
+	}
+	return []string{resolveIn(f.workDir, p.Output)}, nil
+}
 
 func (formatConvert) CompactDescription() string     { return compactDesc["format_convert"] }
 func (formatConvert) CompactSchema() json.RawMessage { return compactSchema["format_convert"] }
@@ -47,13 +67,17 @@ type fcInput struct {
 	Pages  string `json:"pages,omitempty"`
 }
 
-func (formatConvert) Execute(ctx context.Context, args json.RawMessage) (string, error) {
+func (f formatConvert) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p fcInput
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", codedError("FORMAT_INVALID_ARGS", "参数无效: %v", err)
 	}
 	if p.Path == "" {
 		return "", codedError("FORMAT_INVALID_ARGS", "path 不能为空")
+	}
+	p.Path = resolveIn(f.workDir, p.Path)
+	if p.Output != "" {
+		p.Output = resolveIn(f.workDir, p.Output)
 	}
 
 	md, total, truncated, err := docmd.ConvertLimit(p.Path, p.Pages, docmd.DefaultMaxPDFPages)

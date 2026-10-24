@@ -24,6 +24,11 @@ func NewSummarizeTool(prov provider.Provider) tool.Tool {
 	return &summarizeFile{prov: prov}
 }
 
+// NewSummarizeToolAt binds relative file arguments to the session workspace.
+func NewSummarizeToolAt(prov provider.Provider, workDir string) tool.Tool {
+	return &summarizeFile{prov: prov, workDir: workDir}
+}
+
 func (t *summarizeFile) Name() string { return "summarize_file" }
 
 func (t *summarizeFile) Description() string {
@@ -42,6 +47,24 @@ func (t *summarizeFile) Schema() json.RawMessage {
 }
 
 func (t *summarizeFile) ReadOnly() bool { return true }
+
+func (t *summarizeFile) ReadPaths(_ context.Context, args json.RawMessage) ([]string, error) {
+	var p struct {
+		Path  string   `json:"path"`
+		Paths []string `json:"paths,omitempty"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil {
+		return nil, err
+	}
+	paths := append([]string(nil), p.Paths...)
+	if len(paths) == 0 && p.Path != "" {
+		paths = []string{p.Path}
+	}
+	for i := range paths {
+		paths[i] = resolveIn(t.workDir, paths[i])
+	}
+	return paths, nil
+}
 
 // ModelBacked 声明该工具内部调用会话模型做分块摘要——桌面端把一次调用当作
 // 「变相子代理」打开 mt_ 运行记录（与子代理同一会话 UI）。

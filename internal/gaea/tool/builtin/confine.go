@@ -76,24 +76,7 @@ func confine(roots []string, target string) error {
 // existing ancestor with EvalSymlinks and re-appends the not-yet-existing tail.
 // This stops a symlinked directory from smuggling a write outside a root.
 func realPath(path string) (string, error) {
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return "", err
-	}
-	abs = filepath.Clean(abs)
-	tail := ""
-	cur := abs
-	for {
-		if real, err := filepath.EvalSymlinks(cur); err == nil {
-			return filepath.Join(real, tail), nil
-		}
-		parent := filepath.Dir(cur)
-		if parent == cur {
-			return abs, nil // nothing along the path exists; use the cleaned abs
-		}
-		tail = filepath.Join(filepath.Base(cur), tail)
-		cur = parent
-	}
+	return wspath.RealPath(path)
 }
 
 // within reports whether path is at or below root. Both must be absolute,

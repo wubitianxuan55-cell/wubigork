@@ -169,8 +169,8 @@ func RenderTOML(c *Config) string {
 	}
 
 	b.WriteString("[sandbox]\n")
-	b.WriteString("# Confine tool blast radius. File-writers (write_file/edit_file/multi_edit)\n")
-	b.WriteString("# may only write under workspace_root (empty = current dir) + allow_write.\n")
+	b.WriteString("# Confine tool blast radius. File tools may read workspace_root + allow_write,\n")
+	b.WriteString("# plus read-only allow_read. Writers may modify workspace_root + allow_write.\n")
 	b.WriteString("# bash = \"enforce\" (default) jails each command in an OS sandbox (macOS now;\n")
 	b.WriteString("# graceful fallback elsewhere); \"off\" disables it. network allows egress.\n")
 	if c.Sandbox.WorkspaceRoot != "" {
@@ -182,6 +182,11 @@ func RenderTOML(c *Config) string {
 		fmt.Fprintf(&b, "allow_write = %s\n", renderStringArray(c.Sandbox.AllowWrite))
 	} else {
 		b.WriteString("# allow_write = [\"/tmp\"]          # extra dirs writers may also modify\n")
+	}
+	if len(c.Sandbox.AllowRead) > 0 {
+		fmt.Fprintf(&b, "allow_read = %s\n", renderStringArray(c.Sandbox.AllowRead))
+	} else {
+		b.WriteString("# allow_read = [\"/data\"]           # extra read-only dirs\n")
 	}
 	fmt.Fprintf(&b, "bash    = %q\n", c.BashMode())
 	fmt.Fprintf(&b, "network = %v\n", c.Sandbox.Network)

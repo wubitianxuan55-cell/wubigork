@@ -15,7 +15,7 @@ import (
 
 func init() { tool.RegisterBuiltin(chartGen{}) }
 
-type chartGen struct{}
+type chartGen struct{ workDir string }
 
 func (chartGen) Name() string { return "chart_gen" }
 
@@ -41,6 +41,19 @@ func (chartGen) Schema() json.RawMessage {
 }
 
 func (chartGen) ReadOnly() bool { return false }
+
+func (c chartGen) WritePaths(args json.RawMessage) ([]string, error) {
+	var p struct {
+		Output string `json:"output,omitempty"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(p.Output) == "" {
+		p.Output = "chart.png"
+	}
+	return []string{resolveIn(c.workDir, p.Output)}, nil
+}
 
 func (chartGen) CompactDescription() string     { return compactDesc["chart_gen"] }
 func (chartGen) CompactSchema() json.RawMessage { return compactSchema["chart_gen"] }
@@ -247,7 +260,7 @@ size_bytes = os.path.getsize(output)
 print(json.dumps({"ok": True, "output": output, "size_bytes": size_bytes}))
 `
 
-func (chartGen) Execute(ctx context.Context, args json.RawMessage) (string, error) {
+func (c chartGen) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	p, err := parseChartInput(args)
 	if err != nil {
 		return "", err
@@ -255,6 +268,7 @@ func (chartGen) Execute(ctx context.Context, args json.RawMessage) (string, erro
 	if p.Output == "" {
 		p.Output = "chart.png"
 	}
+	p.Output = resolveIn(c.workDir, p.Output)
 	// 确保输出目录存在
 	if dir := filepath.Dir(p.Output); dir != "." {
 		_ = os.MkdirAll(dir, 0755)

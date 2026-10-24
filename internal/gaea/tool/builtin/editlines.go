@@ -43,6 +43,19 @@ func (editLines) Schema() json.RawMessage {
 
 func (editLines) ReadOnly() bool { return false }
 
+func (e editLines) WritePaths(args json.RawMessage) ([]string, error) {
+	var p struct {
+		Path string `json:"path"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(p.Path) == "" {
+		return nil, fmt.Errorf("path is required")
+	}
+	return []string{resolveIn(e.workDir, p.Path)}, nil
+}
+
 func (editLines) CompactDescription() string     { return compactDesc["edit_lines"] }
 func (editLines) CompactSchema() json.RawMessage { return compactSchema["edit_lines"] }
 

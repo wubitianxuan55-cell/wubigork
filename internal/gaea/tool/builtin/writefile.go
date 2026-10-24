@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/tool"
 
@@ -35,6 +36,19 @@ func (writeFile) Schema() json.RawMessage {
 }
 
 func (writeFile) ReadOnly() bool { return false }
+
+func (w writeFile) WritePaths(args json.RawMessage) ([]string, error) {
+	var p struct {
+		Path string `json:"path"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(p.Path) == "" {
+		return nil, fmt.Errorf("path is required")
+	}
+	return []string{resolveIn(w.workDir, p.Path)}, nil
+}
 
 func (writeFile) CompactDescription() string     { return compactDesc["write_file"] }
 func (writeFile) CompactSchema() json.RawMessage { return compactSchema["write_file"] }

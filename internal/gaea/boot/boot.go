@@ -95,6 +95,9 @@ type Options struct {
 	// 与 run_skill 管线执行各汇报一次，ok=工具级成功。空 = 不计数
 	// （CLI/TUI 宿主不传不受影响——EmitSubagentText 同款先例）。
 	OnSkillUse func(name string, ok bool)
+	// ReadPathAllowed is the host's explicit-read allowlist callback (desktop
+	// file picker selections). It extends reads only; writes always use config.
+	ReadPathAllowed func(path string) bool
 }
 
 // Build loads config, resolves the model, and returns a Controller wrapping a
@@ -219,7 +222,9 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	skillStore := sp.store
 
 	reg := tool.NewRegistry()
-	bashSpec := sandbox.Spec{Mode: cfg.BashMode(), WriteRoots: cfg.WriteRoots(), Network: cfg.Sandbox.Network}
+	writeRoots := cfg.WriteRootsAt(cwd)
+	bashSpec := sandbox.Spec{Mode: cfg.BashMode(), WriteRoots: writeRoots, Network: cfg.Sandbox.Network}
+	accessPolicy := tool.NewPathAccessPolicy(cwd, cfg.ReadRootsAt(cwd), writeRoots, opts.ReadPathAllowed)
 	if bashSpec.Mode == "enforce" && !sandbox.Available() {
 		sandboxWarnOnce.Do(func() {
 			_, _ = fmt.Fprintln(stderr, "warning: bash sandbox requested but unavailable on this platform; running bash unconfined")
@@ -230,7 +235,7 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 			_, _ = fmt.Fprintln(stderr, "warning: bash not found on PATH; the shell tool will run commands under Windows PowerShell. Install Git for Windows or WSL to use bash.")
 		})
 	}
-	addBuiltins(reg, opts.Cwd, cfg.Tools.Enabled, cfg.WriteRoots(), bashSpec, cfg.NetworkProxySpec(), stderr, space)
+	addBuiltins(reg, cwd, cfg.Tools.Enabled, writeRoots, bashSpec, cfg.NetworkProxySpec(), stderr, space)
 	// Always construct a host, even with no plugins configured, so the controller's
 	// host pointer is stable for the session and `/mcp add` can hot-add into it.
 	// V10.22: plugins + LSP assembled in plugins.go
@@ -299,6 +304,10 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// 分文件）——文件工作台版本时间线/回滚与 DAG 节点产物归因由此供给。与主
 	// 执行器 JournalDir 同目录（下方 Options.JournalDir 同源路径）。
 	taskTool.SetSubagentJournalDir(filepath.Join(cwd, ".gaea", "work", "journal"))
+	taskTool.WithHooksForSession(func(sessionID string) agent.ToolHooks {
+		return hookRunner.WithSessionID(sessionID)
+	})
+	taskTool.WithAccessPolicy(accessPolicy)
 	// v4.379 泄洪随父配置：子代理 runner 各持独立泄洪库（read_spill 同注册表可达）。
 	taskTool.SetSpill(cfg.Agent.ToolSpillEnabled())
 	// 有限并行闸（2026-10）：task/run_skill 前台派生共享的并发上限，超出的
@@ -434,10 +443,14 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		// （sa_ meta/jsonl），title 用任务本体而非 sk.Body+task 拼合串，UI 标题
 		// 不以技能正文开头。
 		return agent.RunPersistedSubAgent(sctx, prov, subReg, sysPrompt, sk.Body+"\n\n"+task, task, agent.Options{
-			MaxSteps:      steps,
-			Temperature:   cfg.Agent.Temperature,
-			Pricing:       price,
-			Gate:          headlessGate,
+			MaxSteps:    steps,
+			Temperature: cfg.Agent.Temperature,
+			Pricing:     price,
+			Gate:        headlessGate,
+			HooksForSession: func(sessionID string) agent.ToolHooks {
+				return hookRunner.WithSessionID(sessionID)
+			},
+			AccessPolicy:  accessPolicy,
 			ContextWindow: ctxWin,
 			Compaction:    compactionConfig(cfg),
 			RuntimePrompt: runtimeCtx.SystemPrompt(),
@@ -461,7 +474,7 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	}
 	// 大文件分块摘要工具：需要注入会话 provider，故在 boot 处注册
 	// （对标千问 500 页超长文 / WPS 整本书 / 豆包分段摘要）。
-	reg.Add(largefile.NewSummarizeTool(execProv))
+	reg.Add(largefile.NewSummarizeToolAt(execProv, cwd))
 
 	compiler.SetRegistry(reg)
 
@@ -489,6 +502,7 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		Pricing:       entry.Price,
 		Gate:          headlessGate,
 		Hooks:         hookRunner,
+		AccessPolicy:  accessPolicy,
 		Jobs:          jm,
 		ContextWindow: entry.ContextWindow,
 		Compaction:    compactionConfig(cfg),

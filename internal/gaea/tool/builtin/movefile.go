@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/evidence"
 	"github.com/gaea/gaea/internal/gaea/tool"
@@ -44,6 +45,23 @@ func (moveFile) Schema() json.RawMessage {
 }
 
 func (moveFile) ReadOnly() bool { return false }
+
+func (m moveFile) WritePaths(args json.RawMessage) ([]string, error) {
+	var p struct {
+		Source      string `json:"source"`
+		Destination string `json:"destination"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(p.Source) == "" || strings.TrimSpace(p.Destination) == "" {
+		return nil, fmt.Errorf("source and destination are required")
+	}
+	return []string{
+		resolveIn(m.workDir, p.Source),
+		resolveIn(m.workDir, p.Destination),
+	}, nil
+}
 
 func (moveFile) CompactDescription() string     { return compactDesc["move_file"] }
 func (moveFile) CompactSchema() json.RawMessage { return compactSchema["move_file"] }

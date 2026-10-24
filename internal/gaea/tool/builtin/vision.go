@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/tool"
 	"github.com/gaea/gaea/internal/gaea/vision"
@@ -12,7 +13,7 @@ import (
 func init() { tool.RegisterBuiltin(visionTool{}) }
 
 // visionTool 识图工具：用本地视觉模型识别图片内容。
-type visionTool struct{}
+type visionTool struct{ workDir string }
 
 func (visionTool) Name() string { return "vision" }
 
@@ -33,6 +34,16 @@ func (visionTool) Schema() json.RawMessage {
 
 func (visionTool) ReadOnly() bool { return true }
 
+func (v visionTool) ReadTarget(args json.RawMessage) (string, bool) {
+	var p struct {
+		ImagePath string `json:"image_path"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil || strings.TrimSpace(p.ImagePath) == "" {
+		return "", false
+	}
+	return resolveIn(v.workDir, p.ImagePath), true
+}
+
 // ModelBacked 声明该工具调用本地视觉模型——桌面端把一次调用当作
 // 「变相子代理」打开 mt_ 运行记录（与子代理同一会话 UI）。
 func (visionTool) ModelBacked() bool { return true }
@@ -40,7 +51,7 @@ func (visionTool) ModelBacked() bool { return true }
 func (visionTool) CompactDescription() string     { return compactDesc["vision"] }
 func (visionTool) CompactSchema() json.RawMessage { return compactSchema["vision"] }
 
-func (visionTool) Execute(ctx context.Context, args json.RawMessage) (string, error) {
+func (v visionTool) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p struct {
 		ImagePath string `json:"image_path"`
 		Prompt    string `json:"prompt"`
@@ -51,6 +62,7 @@ func (visionTool) Execute(ctx context.Context, args json.RawMessage) (string, er
 	if p.ImagePath == "" {
 		return "", fmt.Errorf("image_path 不能为空")
 	}
+	p.ImagePath = resolveIn(v.workDir, p.ImagePath)
 	text, err := vision.RecognizeImage(ctx, p.ImagePath, p.Prompt)
 	if err != nil {
 		return "", err

@@ -54,6 +54,19 @@ func (grepTool) Schema() json.RawMessage {
 
 func (grepTool) ReadOnly() bool { return true }
 
+func (g grepTool) ReadPaths(_ context.Context, args json.RawMessage) ([]string, error) {
+	var p struct {
+		Path string `json:"path"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(p.Path) == "" {
+		p.Path = "."
+	}
+	return []string{resolveIn(g.workDir, p.Path)}, nil
+}
+
 func (grepTool) CompactDescription() string     { return compactDesc["grep"] }
 func (grepTool) CompactSchema() json.RawMessage { return compactSchema["grep"] }
 

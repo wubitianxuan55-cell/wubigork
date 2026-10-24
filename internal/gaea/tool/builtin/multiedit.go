@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/evidence"
 	"github.com/gaea/gaea/internal/gaea/tool"
@@ -43,6 +44,19 @@ func (multiEdit) Schema() json.RawMessage {
 }
 
 func (multiEdit) ReadOnly() bool { return false }
+
+func (m multiEdit) WritePaths(args json.RawMessage) ([]string, error) {
+	var p struct {
+		Path string `json:"path"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(p.Path) == "" {
+		return nil, fmt.Errorf("path is required")
+	}
+	return []string{resolveIn(m.workDir, p.Path)}, nil
+}
 
 func (multiEdit) CompactDescription() string     { return compactDesc["multi_edit"] }
 func (multiEdit) CompactSchema() json.RawMessage { return compactSchema["multi_edit"] }

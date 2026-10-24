@@ -54,8 +54,17 @@ func (sidebarOpen) Schema() json.RawMessage {
 
 // 只读档：纯 UI 动作，无宿主侧副作用 → 权限门直接 Allow（不弹写类审批卡），
 // 且可与同批只读工具并行。
-func (sidebarOpen) ReadOnly() bool                 { return true }
-func (sidebarOpen) SpaceTag() string               { return spaces.SpaceWork }
+func (sidebarOpen) ReadOnly() bool   { return true }
+func (sidebarOpen) SpaceTag() string { return spaces.SpaceWork }
+func (s sidebarOpen) ReadTarget(args json.RawMessage) (string, bool) {
+	var p struct {
+		Path string `json:"path"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil || strings.TrimSpace(p.Path) == "" {
+		return "", false
+	}
+	return resolveIn(s.root, p.Path), true
+}
 func (sidebarOpen) CompactDescription() string     { return compactDesc["sidebar_open"] }
 func (sidebarOpen) CompactSchema() json.RawMessage { return compactSchema["sidebar_open"] }
 

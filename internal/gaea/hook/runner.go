@@ -19,6 +19,7 @@ import (
 type Runner struct {
 	hooks   []ResolvedHook
 	cwd     string
+	session string
 	spawner Spawner
 	notify  func(string) // surface a non-blocking (warn/error) hook message; may be nil
 	// sandbox confines every hook command when its Mode is "enforce" (zero Spec
@@ -57,6 +58,24 @@ func (r *Runner) WithSandbox(spec sandbox.Spec) *Runner {
 	}
 	r.sandbox = spec
 	return r
+}
+
+// WithSessionID returns a shallow logical view of the runner whose hook payload
+// carries sessionID. The original runner is not mutated, so parent and child
+// sessions can fire concurrently without racing on one shared value.
+func (r *Runner) WithSessionID(sessionID string) *Runner {
+	if r == nil {
+		return nil
+	}
+	return &Runner{
+		hooks:            r.hooks,
+		cwd:              r.cwd,
+		session:          sessionID,
+		spawner:          r.spawner,
+		notify:           r.notify,
+		sandbox:          r.sandbox,
+		sandboxAvailable: r.sandboxAvailable,
+	}
 }
 
 // spawn runs one hook command through the runner's spawner, injecting the
@@ -165,7 +184,7 @@ func (r *Runner) PermissionRequest(ctx context.Context, name string, args json.R
 	if !r.Enabled() {
 		return true, args, ""
 	}
-	rep := Run(ctx, Payload{Event: PermissionRequest, Cwd: r.cwd, ToolName: name, ToolArgs: args}, r.hooks, r.spawn)
+	rep := Run(ctx, Payload{Event: PermissionRequest, Cwd: r.cwd, SessionID: r.session, ToolName: name, ToolArgs: args}, r.hooks, r.spawn)
 	block, msg := r.handle(rep)
 	// For now, args pass through unchanged. Future: parse modified args from rep output.
 	return !block, args, msg
@@ -174,7 +193,7 @@ func (r *Runner) PreToolUse(ctx context.Context, name string, args json.RawMessa
 	if !r.Enabled() {
 		return false, ""
 	}
-	rep := Run(ctx, Payload{Event: PreToolUse, Cwd: r.cwd, ToolName: name, ToolArgs: args}, r.hooks, r.spawn)
+	rep := Run(ctx, Payload{Event: PreToolUse, Cwd: r.cwd, SessionID: r.session, ToolName: name, ToolArgs: args}, r.hooks, r.spawn)
 	return r.handle(rep)
 }
 
@@ -184,7 +203,7 @@ func (r *Runner) PostToolUse(ctx context.Context, name string, args json.RawMess
 	if !r.Enabled() {
 		return
 	}
-	rep := Run(ctx, Payload{Event: PostToolUse, Cwd: r.cwd, ToolName: name, ToolArgs: args, ToolResult: result}, r.hooks, r.spawn)
+	rep := Run(ctx, Payload{Event: PostToolUse, Cwd: r.cwd, SessionID: r.session, ToolName: name, ToolArgs: args, ToolResult: result}, r.hooks, r.spawn)
 	r.handle(rep)
 }
 
@@ -194,7 +213,7 @@ func (r *Runner) PromptSubmit(ctx context.Context, prompt string, turn int) (blo
 	if !r.Enabled() {
 		return false, ""
 	}
-	rep := Run(ctx, Payload{Event: UserPromptSubmit, Cwd: r.cwd, Prompt: prompt, Turn: turn}, r.hooks, r.spawn)
+	rep := Run(ctx, Payload{Event: UserPromptSubmit, Cwd: r.cwd, SessionID: r.session, Prompt: prompt, Turn: turn}, r.hooks, r.spawn)
 	return r.handle(rep)
 }
 
@@ -203,7 +222,7 @@ func (r *Runner) Stop(ctx context.Context, lastAssistant string, turn int) {
 	if !r.Enabled() {
 		return
 	}
-	rep := Run(ctx, Payload{Event: Stop, Cwd: r.cwd, LastAssistant: lastAssistant, Turn: turn}, r.hooks, r.spawn)
+	rep := Run(ctx, Payload{Event: Stop, Cwd: r.cwd, SessionID: r.session, LastAssistant: lastAssistant, Turn: turn}, r.hooks, r.spawn)
 	r.handle(rep)
 }
 
@@ -213,7 +232,7 @@ func (r *Runner) SessionStart(ctx context.Context) {
 	if !r.Enabled() {
 		return
 	}
-	r.handle(Run(ctx, Payload{Event: SessionStart, Cwd: r.cwd}, r.hooks, r.spawn))
+	r.handle(Run(ctx, Payload{Event: SessionStart, Cwd: r.cwd, SessionID: r.session}, r.hooks, r.spawn))
 }
 
 // SessionEnd fires when a session is closed or rotated (/new). It can't block.
@@ -221,7 +240,7 @@ func (r *Runner) SessionEnd(ctx context.Context) {
 	if !r.Enabled() {
 		return
 	}
-	r.handle(Run(ctx, Payload{Event: SessionEnd, Cwd: r.cwd}, r.hooks, r.spawn))
+	r.handle(Run(ctx, Payload{Event: SessionEnd, Cwd: r.cwd, SessionID: r.session}, r.hooks, r.spawn))
 }
 
 // SubagentStop fires when a `task` sub-agent finishes. It can't block; last is
@@ -230,7 +249,7 @@ func (r *Runner) SubagentStop(ctx context.Context, last string) {
 	if !r.Enabled() {
 		return
 	}
-	r.handle(Run(ctx, Payload{Event: SubagentStop, Cwd: r.cwd, LastAssistant: last}, r.hooks, r.spawn))
+	r.handle(Run(ctx, Payload{Event: SubagentStop, Cwd: r.cwd, SessionID: r.session, LastAssistant: last}, r.hooks, r.spawn))
 }
 
 // Notification fires when the agent needs the user's attention (e.g. a pending
@@ -239,7 +258,7 @@ func (r *Runner) Notification(ctx context.Context, message string) {
 	if !r.Enabled() {
 		return
 	}
-	r.handle(Run(ctx, Payload{Event: Notification, Cwd: r.cwd, Message: message}, r.hooks, r.spawn))
+	r.handle(Run(ctx, Payload{Event: Notification, Cwd: r.cwd, SessionID: r.session, Message: message}, r.hooks, r.spawn))
 }
 
 // PostLLMCall fires after every model turn completes but before the
@@ -251,7 +270,7 @@ func (r *Runner) PostLLMCall(ctx context.Context, reasoning string, turn int) st
 	if !r.Has(PostLLMCall) {
 		return reasoning
 	}
-	rep := Run(ctx, Payload{Event: PostLLMCall, Cwd: r.cwd, Reasoning: reasoning, Turn: turn}, r.hooks, r.spawn)
+	rep := Run(ctx, Payload{Event: PostLLMCall, Cwd: r.cwd, SessionID: r.session, Reasoning: reasoning, Turn: turn}, r.hooks, r.spawn)
 	r.handle(rep)
 	for _, o := range rep.Outcomes {
 		if o.Decision == DecisionPass {
@@ -270,7 +289,7 @@ func (r *Runner) PreCompact(ctx context.Context, trigger string) string {
 	if !r.Enabled() {
 		return ""
 	}
-	rep := Run(ctx, Payload{Event: PreCompact, Cwd: r.cwd, Trigger: trigger}, r.hooks, r.spawn)
+	rep := Run(ctx, Payload{Event: PreCompact, Cwd: r.cwd, SessionID: r.session, Trigger: trigger}, r.hooks, r.spawn)
 	r.handle(rep)
 	var b strings.Builder
 	for _, o := range rep.Outcomes {

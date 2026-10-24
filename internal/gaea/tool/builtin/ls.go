@@ -28,6 +28,21 @@ func (listDir) Schema() json.RawMessage {
 
 func (listDir) ReadOnly() bool { return true }
 
+func (l listDir) ReadPaths(_ context.Context, args json.RawMessage) ([]string, error) {
+	var p struct {
+		Path string `json:"path"`
+	}
+	if len(args) > 0 {
+		if err := json.Unmarshal(args, &p); err != nil {
+			return nil, err
+		}
+	}
+	if strings.TrimSpace(p.Path) == "" {
+		p.Path = "."
+	}
+	return []string{resolveIn(l.workDir, p.Path)}, nil
+}
+
 func (listDir) CompactDescription() string     { return compactDesc["ls"] }
 func (listDir) CompactSchema() json.RawMessage { return compactSchema["ls"] }
 

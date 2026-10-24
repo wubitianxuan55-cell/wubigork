@@ -500,6 +500,7 @@ func (c *Config) SkillCustomPaths() []string {
 type SandboxConfig struct {
 	WorkspaceRoot string   `toml:"workspace_root"`
 	AllowWrite    []string `toml:"allow_write"`
+	AllowRead     []string `toml:"allow_read"`
 	// Bash is the OS-sandbox mode for the bash tool: "enforce" (default) jails
 	// each command, "off" runs it unconfined. Phase 1; macOS only for now, with
 	// a graceful fallback elsewhere (see internal/sandbox).
@@ -515,16 +516,44 @@ type SandboxConfig struct {
 // (relative or absolute); the confiner resolves them to absolute, symlink-free
 // paths. The result is always non-empty, so confinement is on by default.
 func (c *Config) WriteRoots() []string {
+	return c.WriteRootsAt("")
+}
+
+// WriteRootsAt is WriteRoots with an explicit workspace fallback. Desktop boot
+// passes its per-session cwd so confinement never silently follows the
+// process-wide working directory.
+func (c *Config) WriteRootsAt(workspace string) []string {
 	root := ExpandVars(c.Sandbox.WorkspaceRoot)
 	if root == "" {
-		if wd, err := os.Getwd(); err == nil {
-			root = wd
-		} else {
-			root = "."
+		root = workspace
+		if root == "" {
+			if wd, err := os.Getwd(); err == nil {
+				root = wd
+			} else {
+				root = "."
+			}
 		}
 	}
 	roots := []string{root}
 	for _, d := range c.Sandbox.AllowWrite {
+		if d = ExpandVars(d); d != "" {
+			roots = append(roots, d)
+		}
+	}
+	return roots
+}
+
+// ReadRoots returns every directory file-reading tools may access. Writable
+// roots are always readable, so allow_write never creates a write-only hole.
+// AllowRead extends reads only and never appears in WriteRoots.
+func (c *Config) ReadRoots() []string {
+	return c.ReadRootsAt("")
+}
+
+// ReadRootsAt is ReadRoots with an explicit workspace fallback.
+func (c *Config) ReadRootsAt(workspace string) []string {
+	roots := c.WriteRootsAt(workspace)
+	for _, d := range c.Sandbox.AllowRead {
 		if d = ExpandVars(d); d != "" {
 			roots = append(roots, d)
 		}
