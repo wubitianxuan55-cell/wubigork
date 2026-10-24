@@ -34,6 +34,7 @@ var compactDesc = map[string]string{
 	"cost_compose":       "AI 组价:相似条目价格带推荐(P25-P75+置信度+证据链),只读不落库,用户确认后 cost_save 沉淀",
 	"screen_capture":     "捕获屏幕截图保存为PNG,返回文件路径(可指定region局部截图)",
 	"vision":             "用本地视觉模型识别图片内容(文字/布局/细节),配合screen_capture理解截图",
+	"doc_render":         "把文档渲染成页PNG(只读,docx/pptx/xlsx/pdf→LibreOffice+poppler,供vision/视觉验收)",
 	"browser_navigate":   "受控Edge打开URL(仅http/https,独立临时profile,不碰用户浏览器)",
 	"browser_read":       "读取受控浏览器页面文本(全文或selector局部,可截断,frame可选iframe内)",
 	"browser_snapshot":   "列出页面可交互元素([#ref] <tag> 文本),click/type前必须先snapshot拿ref",
@@ -110,6 +111,8 @@ var compactSchema = map[string]json.RawMessage{
 		`{"type":"object","properties":{"region":{"type":"object","properties":{"x":{"type":"integer"},"y":{"type":"integer"},"width":{"type":"integer"},"height":{"type":"integer"}}}}}`),
 	"vision": json.RawMessage(
 		`{"type":"object","properties":{"image_path":{"type":"string"},"prompt":{"type":"string"}},"required":["image_path"]}`),
+	"doc_render": json.RawMessage(
+		`{"type":"object","properties":{"path":{"type":"string"},"pages":{"type":"string"},"dpi":{"type":"integer"}},"required":["path"]}`),
 	"browser_navigate": json.RawMessage(
 		`{"type":"object","properties":{"url":{"type":"string"},"timeout_secs":{"type":"integer"}},"required":["url"]}`),
 	"browser_read": json.RawMessage(

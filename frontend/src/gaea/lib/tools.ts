@@ -108,6 +108,9 @@ export function subjectOf(name: string, args: string): string {
       return str(a, "title");
     case "read_skill":
       return str(a, "name");
+    case "doc_render":
+      // F2 只读渲染：主体=文档路径，页区间缀尾（有才显）
+      return str(a, "path") + (str(a, "pages") ? ` p${str(a, "pages")}` : "");
     case "move_file": {
       const from = str(a, "source") || str(a, "path");
       const to = str(a, "destination");
