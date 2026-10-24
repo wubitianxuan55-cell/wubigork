@@ -85,8 +85,8 @@ func TestGaeaAttachmentRoundTrip(t *testing.T) {
 	a := &App{}
 
 	// 粘贴图片：dataURL 保存后应能原样读回
-	pngB := []byte("fake-png-bytes")
-	pngURL := "data:image/png;base64," + base64.StdEncoding.EncodeToString(pngB)
+	// 使用真实 PNG 签名，确保保存链路同时覆盖 MIME 内容嗅探。
+	pngURL := "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
 	path, err := a.GaeaSavePastedImage(pngURL)
 	if err != nil {
 		t.Fatalf("保存粘贴图失败: %v", err)

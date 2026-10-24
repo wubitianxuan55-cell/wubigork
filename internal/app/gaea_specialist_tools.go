@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/tool"
@@ -18,6 +19,7 @@ func gaeaSpecialistTools(a *App) []tool.Tool {
 	return []tool.Tool{
 		ocrTool{a: a},
 		semanticSearchTool{a: a},
+		authorMemoryTool{a: a},
 	}
 }
 
@@ -47,6 +49,19 @@ func (t ocrTool) Schema() json.RawMessage {
 
 func (t ocrTool) ReadOnly() bool { return true }
 
+func (t ocrTool) ReadTarget(args json.RawMessage) (string, bool) {
+	var p struct {
+		ImagePath string `json:"image_path"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil || strings.TrimSpace(p.ImagePath) == "" {
+		return "", false
+	}
+	if !filepath.IsAbs(p.ImagePath) {
+		p.ImagePath = filepath.Join(gaeaCwd(), p.ImagePath)
+	}
+	return p.ImagePath, true
+}
+
 func (t ocrTool) CompactDescription() string {
 	return "提取图片/扫描件中的文字（本地 OCR 模型）"
 }
@@ -68,6 +83,9 @@ func (t ocrTool) Execute(ctx context.Context, args json.RawMessage) (string, err
 	}
 	if strings.TrimSpace(p.ImagePath) == "" {
 		return "", fmt.Errorf("ocr: image_path 不能为空")
+	}
+	if !filepath.IsAbs(p.ImagePath) {
+		p.ImagePath = filepath.Join(gaeaCwd(), p.ImagePath)
 	}
 	text, err := t.a.GaeaOCRText(p.ImagePath)
 	if err != nil {

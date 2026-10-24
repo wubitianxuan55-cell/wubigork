@@ -153,11 +153,12 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 			ga.followUpMu.Unlock()
 		},
 		// 7.2-2 判据②：read_skill/run_skill 工具级调用计数（包级函数无状态）。
-		OnSkillUse: recordSkillUse,
-		RequireKey: false,
-		Sink:       sink,
-		MaxSteps:   0,
-		SessionDir: gaeaConfig.WorkspaceSessionDir(gaeaCwd(), space),
+		OnSkillUse:      recordSkillUse,
+		ReadPathAllowed: isPickedFile,
+		RequireKey:      false,
+		Sink:            sink,
+		MaxSteps:        0,
+		SessionDir:      gaeaConfig.WorkspaceSessionDir(gaeaCwd(), space),
 		// 工作空间根：基础工具（read/write/bash/ls）相对路径基于它，
 		// 而非进程 cwd（否则办公 agent 在启动目录而非用户工作空间操作）。
 		Cwd: gaeaCwd(),
