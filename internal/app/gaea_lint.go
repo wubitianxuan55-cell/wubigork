@@ -11,8 +11,13 @@ import (
 
 	"github.com/gaea/gaea/internal/docmd"
 	"github.com/gaea/gaea/internal/gaea/wspath"
+	"github.com/gaea/gaea/internal/office/qa"
 	"github.com/gaea/gaea/internal/office/standard"
 )
+
+// 机检规范包挂载（Q1/K3 蒸馏刀）：qa 包经 RegisterDefault 反向注册，
+// standard 保持不 import 下游。init 一次，幂等。
+func init() { qa.Register() }
 
 func (a *App) GaeaDocumentLint(rel string) (standard.LintReport, error) {
 	if rel == "" {
@@ -63,5 +68,8 @@ func (a *App) GaeaDocumentLint(rel string) (standard.LintReport, error) {
 	} else {
 		head = text
 	}
-	return standard.LintDocument(rel, head, body), nil
+	// 机检面（Q1/K3）需要可打开的绝对路径读 OOXML——此前传 rel，工作区
+	// 相对路径在进程 CWD 下打不开，docx 检查器会静默跳过。前端不消费
+	// report.Path（只用 passed/summary/issues），传绝对路径安全。
+	return standard.LintDocument(path, head, body), nil
 }

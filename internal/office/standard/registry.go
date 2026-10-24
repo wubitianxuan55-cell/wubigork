@@ -48,6 +48,10 @@ func (r *Registry) Names() []string {
 // defaultRegistry 是生产默认规范包：红头要素 + 造价工程表式。
 var defaultRegistry = NewRegistry(RedheadChecker{}, CostTableChecker{})
 
+// RegisterDefault 向默认注册表追加检查器（供办公机检等外部规范包反向挂载：
+// standard 不 import 下游包，注册由 app 装配层完成，避免循环依赖）。
+func RegisterDefault(c Checker) { defaultRegistry.Add(c) }
+
 // LintDocument 跑全部已注册检查器，聚合为一份体检报告（v4.6.1 机制化入口；
 // GaeaDocumentLint 从 LintText 切换到这里）。每个 Issue 带 Spec 归属，
 // Summary 按规范包分别统计。
