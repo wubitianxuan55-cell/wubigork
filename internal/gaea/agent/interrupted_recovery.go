@@ -5,6 +5,7 @@ import (
 	"html"
 	"strings"
 
+	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
@@ -46,19 +47,60 @@ type recoveryTool struct {
 	Files []string
 }
 
-// isSyntheticUserTurn 合成用户消息（steer/流恢复/readiness 重试）不是真实
-// 用户轮——回扫真实轮起点时跳过（上游 SyntheticUserPrefixes 同口径）。
+// isSyntheticUserTurn 合成用户消息（steer/流恢复/readiness 重试/各门与提醒
+// nudge/unapplied steer）不是真实用户轮——回扫真实轮起点时跳过（上游
+// SyntheticUserPrefixes 同口径）。所有门 nudge 统一以 "[system] " 开头
+// （stop_gate/repeat_detect/output_continue/recall_reminder/task schema 重试/
+// executeOne 重复写提醒），单前缀收口；真实用户消息以该前缀开头属可接受的
+// 误判边界（上游同口径）。
 func isSyntheticUserTurn(content string) bool {
 	for _, prefix := range []string{
 		MidTurnSteerPrefix,
 		"The previous assistant response was interrupted during streaming.",
 		"Host final-answer readiness check failed.",
+		"[system] ",
+		unappliedSteerPrefix,
 	} {
 		if strings.HasPrefix(content, prefix) {
 			return true
 		}
 	}
 	return false
+}
+
+// ── B3：未消费 steer 的退出收据（Reasonix 2.x sessioninbox 蒸馏最小刀）──
+//
+// 病根（不需要崩溃就丢）：controller.Steer 检查 running 后、入队前，回合
+// 可能恰好收尾清队列——用户看到插话已发射，消息却无声消失。上游 #7045 教训
+// 同源：steer 被接受但回合没消费，绝不能静默。
+//
+// 机制：回合退出先关 intake 闸（新入队被拒、controller 降级普通 Send），
+// 再把队列里已接受的 steer 落成会话记录——**不自动重放成新任务**（#7045），
+// 文案明确「上一轮的补充指引，若仍相关才用；用户新消息优先」。上游存
+// LocalOnly 消息；gaea 会话本就全文落库，这里即等价的持久收据，A4 回扫经
+// unappliedSteerPrefix 识别为合成轮。
+const unappliedSteerPrefix = "[unapplied steer] "
+
+// drainSteerOnExit 回合退出路径：关门 + 收据。round 内已消费的 steer 不经过
+// 这里（consumeSteer 取走）。
+func (a *AgentRunner) drainSteerOnExit() {
+	a.steerMu.Lock()
+	a.steerIntakeClosed = true
+	remaining := a.steerQueue
+	a.steerQueue = nil
+	a.steerConsumed = false
+	a.steerMu.Unlock()
+	for _, text := range remaining {
+		a.session.Add(provider.Message{
+			Role: provider.RoleUser,
+			Content: unappliedSteerPrefix + "The previous turn ended before this mid-task guidance reached the model. " +
+				"It is recorded as guidance for the recorded task — apply it only if still relevant, and the user's next message takes precedence.\n" + text,
+		})
+	}
+	if len(remaining) > 0 {
+		a.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelWarn,
+			Text: fmt.Sprintf("%d 条插话未被本轮消费（回合已结束），已存入会话记录，下一条消息的上下文里可见", len(remaining))})
+	}
 }
 
 // captureInterruptedRecovery 终局路径调用：把本轮回执折叠成交接记录，存

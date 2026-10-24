@@ -469,9 +469,14 @@ type AgentRunner struct {
 	// running. Each is consumed once per loop iteration, persisted to the
 	// session for history replay, and sent to the model as guidance (not a
 	// new task). (Design adopted from DeepSeek-Reasonix-V1.12)
-	steerMu       sync.Mutex
-	steerQueue    []string
-	steerConsumed bool
+	// steerIntakeClosed 是 B3 收尾闸：回合退出路径先关门再 drain——intake
+	// 关闭后 SteerAccept 如实拒绝，controller 降级为普通 Send（下一条消息），
+	// 消除「检查 running 后回合才退出」窗口里 steer 落进将被清空的队列的
+	// 静默丢失。
+	steerMu           sync.Mutex
+	steerQueue        []string
+	steerConsumed     bool
+	steerIntakeClosed bool
 
 	// todoState is the host canonical task list: the latest successful
 	// todo_write with completions applied by complete_step. Unlike the per-turn
@@ -952,6 +957,22 @@ func (a *AgentRunner) SteerConsumed() bool {
 	return a.steerConsumed
 }
 
+// SteerAccept 是带收尾闸的插话入口（B3，上游 closeSteerIntakeIfIdle 同语义）：
+// 回合退出路径已关门时如实拒绝（返回 false），调用方降级为普通下一条消息；
+// 否则入队并返回 true。与 drainSteerOnExit 同一把 steerMu 串行——入队与
+// drain 不会交错，进队者要么被消费、要么被 drain 收进会话记录，不再有
+// 「入队即被 nil」的丢失窗。
+func (a *AgentRunner) SteerAccept(text string) bool {
+	a.steerMu.Lock()
+	defer a.steerMu.Unlock()
+	if a.steerIntakeClosed {
+		return false
+	}
+	a.steerQueue = append(a.steerQueue, text)
+	a.steerConsumed = false
+	return true
+}
+
 func (a *AgentRunner) consumeSteer() (string, bool) {
 	a.steerMu.Lock()
 	defer a.steerMu.Unlock()
@@ -977,17 +998,23 @@ func (a *AgentRunner) finalReadinessCheck() (blocked bool, reason string) {
 	if a.evidence == nil {
 		return false, ""
 	}
-	// Check for unverified completed todos: the model marked a todo as
-	// "completed" but never ran complete_step for it.
-	unverified, hasBaseline := a.evidence.UnverifiedCompletedTodos(nil)
-	if hasBaseline && len(unverified) > 0 {
-		names := make([]string, len(unverified))
-		for i, m := range unverified {
-			names[i] = m.ActiveForm
-		}
-		return true, fmt.Sprintf("complete_step missing for: %s", strings.Join(names, ", "))
+	// Check for todos that transitioned to completed mid-turn without ever
+	// running complete_step. (v4.524 修复：旧实现传 nil 给
+	// UnverifiedCompletedTodos——missing 循环零次执行，闸从未真正 block 过。
+	// 跃迁口径见 UnverifiedCompletedTransitions：回合首次 todo_write 是基线，
+	// 只判写间跃迁。)
+	unverified := a.evidence.UnverifiedCompletedTransitions()
+	if len(unverified) == 0 {
+		return false, ""
 	}
-	return false, ""
+	names := make([]string, len(unverified))
+	for i, m := range unverified {
+		names[i] = m.ActiveForm
+		if names[i] == "" {
+			names[i] = m.Content
+		}
+	}
+	return true, fmt.Sprintf("complete_step missing for: %s", strings.Join(names, ", "))
 }
 
 // finalReadinessRetryMessage generates a retry prompt when the final-answer

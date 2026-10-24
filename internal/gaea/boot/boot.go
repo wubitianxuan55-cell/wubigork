@@ -304,6 +304,9 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// 分文件）——文件工作台版本时间线/回滚与 DAG 节点产物归因由此供给。与主
 	// 执行器 JournalDir 同目录（下方 Options.JournalDir 同源路径）。
 	taskTool.SetSubagentJournalDir(filepath.Join(cwd, ".gaea", "work", "journal"))
+	// 出发快照的模型身份（B1 蒸馏）：缺省=父条目；下方显式子代理模型分支
+	// 会用子条目覆盖。按**实际选中**的配置条目注入，不用 provider.Name()。
+	taskTool.SetSubagentIdentity(entry.Model, entry.Effort)
 	taskTool.WithHooksForSession(func(sessionID string) agent.ToolHooks {
 		return hookRunner.WithSessionID(sessionID)
 	})
@@ -325,6 +328,8 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 			}
 			if subProv, err := NewProvider(subEntry); err == nil {
 				taskTool.SetSubagentProvider(subProv, subEntry.Price, subEntry.ContextWindow)
+				// 子代理模型显式命名时快照身份跟着换（实际选中的条目）。
+				taskTool.SetSubagentIdentity(subEntry.Model, subEntry.Effort)
 			}
 		}
 	}
@@ -336,6 +341,9 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// subagent_list（2026-10 P1-D）：模型面枚举当前会话子代理运行（lazy store
 	// 跟随会话路径），为 interrupt_agent / continue_from 提供 ref 入口。
 	reg.Add(agent.NewSubagentListTool(subagentStore))
+	// read_subagent_result（2026-10 B2）：模型面按 ref 分页取回子代理最终
+	// 回答——聚合没送达/结果滚出上下文时不必重跑（省一次推理费）。
+	reg.Add(agent.NewReadSubagentResultTool(subagentStore))
 	// v4.384 会话检索（dsh ⑧ session-query 蒸馏首刀）：过往会话 user/assistant
 	// 正文的 FTS5 索引（绑定装配空间会话目录——空间隔离由目录构造），模型经
 	// session_search 检索跨会话记忆；搜索时惰性增量索引，零 boot 成本。

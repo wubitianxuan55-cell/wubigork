@@ -254,18 +254,16 @@ func TestEvidenceFlowRejectsTodoCompletionWithoutCompleteStep(t *testing.T) {
 	}}
 
 	a := New(prov, reg, NewSession(""), Options{}, event.Discard)
-	if _, err := a.Run(context.Background(), "complete the todo without a sign-off"); err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-
 	// V10.x: complete_step 验证在 finalReadinessCheck 闸门阶段触发，
-	// 不在工具执行阶段。todo_write 本身总是成功。
-	got := lastToolResult(a.session, "todo_write")
-	if !strings.Contains(got, "Todos updated") {
-		t.Fatalf("todo_write should succeed, got = %q", got)
+	// todo_write 本身总是成功；v4.524 起该闸真正生效——无 complete_step 的
+	// completed todo 在最终回答处被拒（用例名承诺的拒绝语义）。
+	_, err := a.Run(context.Background(), "complete the todo without a sign-off")
+	if err == nil {
+		t.Fatal("final-answer readiness gate must reject a completed todo without any complete_step")
 	}
-	// 最终就绪闸门会捕获无 complete_step 的 completed todo。
-	// 此处验证 Run 正常完成（闸门阻塞后模型退出）。
+	if !strings.Contains(err.Error(), "complete_step missing for: Add parser") {
+		t.Fatalf("err = %q, want the missing todo named", err)
+	}
 }
 
 func TestEvidenceFlowFailedCompleteStepDoesNotAuthorizeTodoCompletion(t *testing.T) {
@@ -297,14 +295,19 @@ func TestEvidenceFlowFailedCompleteStepDoesNotAuthorizeTodoCompletion(t *testing
 	}}
 
 	a := New(prov, reg, NewSession(""), Options{}, event.Discard)
-	if _, err := a.Run(context.Background(), "attempt completion after a failed sign-off"); err != nil {
-		t.Fatalf("Run: %v", err)
+	// V10.x: complete_step 验证在 finalReadinessCheck 闸门阶段触发——
+	// todo_write 在工具阶段成功（证据闸不拦写入），但 failed 的 complete_step
+	// 收据不算覆盖，最终回答被闸拒绝（v4.524 起真正生效）。
+	_, err := a.Run(context.Background(), "attempt completion after a failed sign-off")
+	if err == nil {
+		t.Fatal("final-answer readiness gate must reject completion authorized only by a failed complete_step")
 	}
-
-	// V10.x: complete_step 验证在 finalReadinessCheck 闸门阶段触发。
 	got := lastToolResult(a.session, "todo_write")
 	if !strings.Contains(got, "Todos updated") {
 		t.Fatalf("todo_write should succeed (gate validates at final-answer time), got = %q", got)
+	}
+	if !strings.Contains(err.Error(), "complete_step missing for: Add parser") {
+		t.Fatalf("err = %q, want the missing todo named", err)
 	}
 }
 
@@ -337,14 +340,18 @@ func TestEvidenceFlowRejectsReplacedTodoAfterNumericCompleteStep(t *testing.T) {
 	}}
 
 	a := New(prov, reg, NewSession(""), Options{}, event.Discard)
-	if _, err := a.Run(context.Background(), "try to reuse a numeric sign-off for another todo"); err != nil {
-		t.Fatalf("Run: %v", err)
+	// 数字签名「1」绑死序号 1（Add parser），改名为 Ship parser 的新条目不在
+	// 覆盖内——todo_write 工具阶段成功，最终回答被闸拒绝（v4.524 起真正生效）。
+	_, err := a.Run(context.Background(), "try to reuse a numeric sign-off for another todo")
+	if err == nil {
+		t.Fatal("final-answer readiness gate must reject a renamed todo outside the numeric sign-off's coverage")
 	}
-
-	// V10.x: complete_step 验证在 finalReadinessCheck 闸门阶段触发。
 	got := lastToolResult(a.session, "todo_write")
 	if !strings.Contains(got, "Todos updated") {
 		t.Fatalf("todo_write should succeed (gate validates at final-answer time), got = %q", got)
+	}
+	if !strings.Contains(err.Error(), "complete_step missing for: Ship parser") {
+		t.Fatalf("err = %q, want the renamed todo named", err)
 	}
 }
 

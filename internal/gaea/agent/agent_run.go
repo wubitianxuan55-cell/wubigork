@@ -32,7 +32,13 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 	ctx = WithSpace(ctx, a.session.Space())
 	// A5：archive 目录随 ctx 下发（recall_archived 检索面；空=工具如实报未配置）。
 	ctx = WithArchiveDir(ctx, a.compaction.ArchiveDir)
-	defer func() { a.steerMu.Lock(); a.steerQueue = nil; a.steerConsumed = false; a.steerMu.Unlock() }() // drain any remaining steer on turn exit
+	// B3（Reasonix 2.x sessioninbox/steer_unapplied 蒸馏）：退出不再裸清
+	// steer 队列——先关门（拒新入队）再 drain，未消费的插话落会话记录+Notice，
+	// 消除「UI 已回执、消息却静默丢失」的窗口；本轮开闸在下方。
+	defer a.drainSteerOnExit()
+	a.steerMu.Lock()
+	a.steerIntakeClosed = false
+	a.steerMu.Unlock()
 
 	if a.evidence != nil {
 		a.evidence.Reset()
@@ -112,6 +118,10 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 	const maxEmptyFinalBlocks = 3
 	finalReadinessBlocks := 0
 	const maxFinalReadinessBlocks = 3
+	// B5（Reasonix 2.x readiness_continuation 蒸馏）：停滞签名=reason 全文
+	// （gaea readiness 只有一类缺失，未验证清单即完整未满足态；换措辞绕不过，
+	// 因为清单内容变了 reason 就变）。连续两轮同签名=没有推进，提前停。
+	lastReadinessReason := ""
 	for step := 0; a.maxSteps <= 0 || step < a.maxSteps || graceRound; step++ {
 		// consume a queued mid-turn steer as session guidance
 		// (Design adopted from DeepSeek-Reasonix-V1.12)
@@ -332,7 +342,12 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 			// final-answer readiness gate — verify evidence before accepting completion
 			if blocked, reason := a.finalReadinessCheck(); blocked {
 				finalReadinessBlocks++
-				if finalReadinessBlocks >= maxFinalReadinessBlocks {
+				stalled := reason == lastReadinessReason
+				lastReadinessReason = reason
+				if finalReadinessBlocks >= maxFinalReadinessBlocks || (stalled && finalReadinessBlocks >= 2) {
+					// A4 交接块第三挂点：readiness 拒绝的回合同样以未竟工作
+					// 收尾——回执折叠给下一轮「别重做已完成写入」。
+					a.captureInterruptedRecovery()
 					return buildTurnResult(turnFilesCreated, turnFilesModified, turnToolErrors, turnLastSummary), fmt.Errorf("final-answer readiness failed %d times: %s", finalReadinessBlocks, reason)
 				}
 				a.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelWarn,

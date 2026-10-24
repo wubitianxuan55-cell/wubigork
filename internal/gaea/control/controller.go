@@ -662,8 +662,11 @@ func (c *Controller) Cancel() {
 // Steer 在任务运行中插话调整（2026-08-28，对齐豆包工作「边跑边改」/
 // Codex mid-turn steer）：把消息注入当前回合的 steer 队列，agent 在下一轮
 // 采样前作为 guidance 消费——模型看到的是「对当前任务的补充指引」而不是
-// 新任务。不打断当前工具执行；回合结束后若仍有未消费消息则自然转为下一轮。
-// 未运行（无回合可插话）时走普通 Send 排队，保证消息不丢。
+// 新任务。不打断当前工具执行；回合结束后未消费的消息由 agent 落会话记录
+// 并发 Notice（v4.524 B3）。
+// 未运行（无回合可插话）时走普通 Send 排队，保证消息不丢；running 但回合
+// 恰在收尾（intake 已关）时同样降级 Send——running 检查与回合退出之间的
+// 竞态窗由此关死（上游 closeSteerIntakeIfIdle 同语义）。
 func (c *Controller) Steer(text string) {
 	text = strings.TrimSpace(text)
 	if text == "" {
@@ -674,9 +677,11 @@ func (c *Controller) Steer(text string) {
 	running := c.running
 	c.mu.Unlock()
 	if executor != nil && running {
-		executor.Steer(text)
-		c.sink.Emit(event.Event{Kind: event.Steer, Text: text})
-		return
+		if executor.SteerAccept(text) {
+			c.sink.Emit(event.Event{Kind: event.Steer, Text: text})
+			return
+		}
+		// 回合正在收尾：插话降级为下一条消息，绝不静默丢。
 	}
 	c.Send(text)
 }

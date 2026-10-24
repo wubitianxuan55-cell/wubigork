@@ -136,6 +136,9 @@ var subagentMetaTools = []string{
 	// subagent_list（2026-10 P1-D）：兄弟运行清单不进子代理上下文（子代理
 	// 无兄弟管理职责），与 interrupt_agent 同一可见性边界。
 	"subagent_list",
+	// read_subagent_result（2026-10 B2）：兄弟运行的结果体不进子代理上下文
+	// ——父代理才有「聚合没送达、按 ref 取回」的消费场景，同 list 边界。
+	"read_subagent_result",
 }
 
 // SubagentMetaTools returns the tool names that spawned agents should not inherit
@@ -197,9 +200,15 @@ type TaskTool struct {
 	accumulatedUsage *provider.Usage        // V5.30: 子代理累计 token 用量
 	usageMu          sync.Mutex             // v4.63: 并行 task 调用时合并记账的互斥锁
 	activeSchemas    []provider.ToolSchema  // V5.30: 父代理过滤工具集，子代理继承以共享缓存
-	subagentProv     provider.LLMProvider   // V10.22: optional subagent model provider (nil → use prov)
-	subagentPricing  *provider.Pricing
-	subagentCtxWin   int
+	// subagentProv     provider.LLMProvider   // V10.22: optional subagent model provider (nil → use prov)
+	subagentProv    provider.LLMProvider // V10.22: optional subagent model provider (nil → use prov)
+	subagentPricing *provider.Pricing
+	subagentCtxWin  int
+	// 出发快照的模型身份（B1 蒸馏）：boot 按**实际选中**的条目注入（显式
+	// 子代理模型=子条目，否则=父条目）。不能用 provider.Name() 冒充——那是
+	// provider 实例名（"deepseek"），不是模型 id。
+	subModel  string
+	subEffort string
 
 	// writeClaims 是 A10 写范围声明注册表（Reasonix 2.x fleet 预检蒸馏）：
 	// task 调用声明 write_paths 后在执行期登记，与**正在运行**的其它声明做
@@ -373,6 +382,8 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 	}
 	if run != nil {
 		defer run.Release()
+		// 出发快照（B1）：执行面白名单在排队登记（MarkQueued）前盖到 run 上。
+		run.ToolScope = sortedToolNames(subReg.Names())
 	}
 	childSessionID := subagentRunRef(run)
 	if strings.TrimSpace(childSessionID) == "" {
@@ -649,6 +660,7 @@ func (t *TaskTool) RunNew(ctx context.Context, prompt string, emit func(ref, tex
 	stop()
 
 	subReg := mustSubReg(t, nil)
+	run.ToolScope = sortedToolNames(subReg.Names())
 	maxSteps := t.maxSteps / 2
 	if maxSteps < 5 {
 		maxSteps = 5
@@ -722,6 +734,14 @@ func (t *TaskTool) SetSubagentProvider(p provider.LLMProvider, pricing *provider
 	t.subagentProv = p
 	t.subagentPricing = pricing
 	t.subagentCtxWin = ctxWin
+}
+
+// SetSubagentIdentity 注入出发快照的模型身份（B1 蒸馏）：boot 按**实际选中**
+// 的配置条目调用（显式子代理模型=子条目，否则=父条目）。快照审计面，与
+// 执行无关。
+func (t *TaskTool) SetSubagentIdentity(model, effort string) {
+	t.subModel = strings.TrimSpace(model)
+	t.subEffort = strings.TrimSpace(effort)
 }
 
 // WithTranscripts wires the subagent transcript store for continue_from support.
@@ -1033,9 +1053,17 @@ func (t *TaskTool) prepareRun(ctx context.Context, continueFrom string, runInBac
 		if runInBackground {
 			return nil, fmt.Errorf("continue_from cannot be used with run_in_background")
 		}
-		return t.transcripts.PrepareContinue(continueFrom, SpaceFromContext(ctx))
+		run, err := t.transcripts.PrepareContinue(continueFrom, SpaceFromContext(ctx))
+		if err == nil && run != nil {
+			run.Model, run.Effort = t.subModel, t.subEffort
+		}
+		return run, err
 	}
-	return t.transcripts.PrepareFresh(t.sysPrompt, SpaceFromContext(ctx))
+	run, err := t.transcripts.PrepareFresh(t.sysPrompt, SpaceFromContext(ctx))
+	if err == nil && run != nil {
+		run.Model, run.Effort = t.subModel, t.subEffort
+	}
+	return run, err
 }
 
 // finalizeRun persists the run result and appends the reference to the output.

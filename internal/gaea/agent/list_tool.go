@@ -66,9 +66,24 @@ func (t *SubagentListTool) Execute(ctx context.Context, args json.RawMessage) (s
 		if !r.UpdatedAt.IsZero() {
 			line += fmt.Sprintf(" (updated %s)", time.Since(r.UpdatedAt).Truncate(time.Second))
 		}
+		// 假 running 判活（B2 蒸馏）：running/queued 且本进程无在跑句柄且
+		// UpdatedAt 停更 = 大概率重启遗留。只标注不改写 meta（无租约语义，
+		// 多窗同开时不替别的进程做破坏性裁决）；模型据此避开 interrupt/等待，
+		// 走 continue_from。
+		if (r.Status == SubagentRunning || r.Status == SubagentQueued) && isStaleSubagentRun(r.Ref, r.UpdatedAt) {
+			line += " [stale: no live handle — likely interrupted by a restart; continue_from to resume]"
+		}
 		sb.WriteString(line)
 		sb.WriteByte('\n')
 	}
-	sb.WriteString("Interrupt a running/queued entry with interrupt_agent; resume a completed/failed one with task's continue_from.")
+	sb.WriteString("Interrupt a running/queued entry with interrupt_agent; resume a completed/failed one with task's continue_from; read a completed one's final answer with read_subagent_result.")
 	return strings.TrimRight(sb.String(), "\n"), nil
+}
+
+// isStaleSubagentRun 假 running 判活：无在跑句柄且 UpdatedAt 停更超过阈值。
+func isStaleSubagentRun(ref string, updatedAt time.Time) bool {
+	if _, live := subRuns.Load(ref); live {
+		return false
+	}
+	return time.Since(updatedAt) > staleRunningAfter
 }

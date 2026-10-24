@@ -2,6 +2,7 @@ package agent
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -70,9 +71,7 @@ type SubagentMeta struct {
 	// 摘要）。旧文件无该字段时由读端从 transcript 首条 user 消息推导。
 	Title string `json:"title,omitempty"`
 	// Tool 仅 model_tool 填写：触发记录的工具名（vision/summarize_file…）。
-	Tool      string   `json:"tool,omitempty"`
-	ToolScope []string `json:"toolScope,omitempty"`
-	Model     string   `json:"model,omitempty"`
+	Tool string `json:"tool,omitempty"`
 	// Space 是子代理的空间自描述（S3 双空间，设计 §1「子代理 transcript meta
 	// 前瞻」）：work/play。旧 meta 无此字段 = 零值，读端按 work 降级
 	// （spaces.SpaceOr）——与事件日志 space 字段同一兼容语义。
@@ -83,6 +82,29 @@ type SubagentMeta struct {
 	// transcript 快照/轮询链路带出。空 = 最近一次追问无失败（每次追问开跑
 	// 即清旧值，失败态只属于最近一次）。旧 meta 无此字段按无失败降级。
 	FollowUpError string `json:"followUpError,omitempty"`
+	// ── 出发快照（B1，Reasonix 2.x ContextCapsule 蒸馏的最小形态，v4.524）──
+	// spawn 时刻的不可变出发清单，审计/调试面：回答「这个孩子当时看见了什么、
+	// 用什么跑的」。语义=**一次写定**：写路径只填空位（applySnapshot），
+	// 续跑/追问路径保原值，反序列化-再序列化不篡改历史记录。全部 omitempty
+	// 且读端降级（旧 meta 无字段=未知），无需迁移。
+	//
+	// 刻意差异（留档）：上游是嵌套 Capsule+sha256 整体 hash+续跑一致性闸；
+	// gaea 取打平字段（对齐既有 ToolScope/Model/Space 风格），不做整体 hash
+	// 也不做续跑闸——gaea 续跑面（PrepareContinue）的既有闸是 status/kind/
+	// space，模型/工具面差异属可解释的演化而非错误。
+	//
+	// ToolScope 口径=**执行面白名单**（buildSubReg 过滤后的注册表名清单，排
+	// 序），不是发送面 ActiveSchemas（V5.30 缓存共享面=父全集）——审计问题
+	// 是「子代理能调什么」，执行面才是答案。
+	// WorkspaceRoot 是 spawn 时刻进程 cwd；SystemPromptHash 是子代理系统
+	// 提示的 sha256（手法同 cache identity）；Effort 是推理档位；ResumedFrom
+	// 是续跑源 ref（fresh 派发为空）。
+	WorkspaceRoot    string   `json:"workspaceRoot,omitempty"`
+	SystemPromptHash string   `json:"systemPromptHash,omitempty"`
+	Effort           string   `json:"effort,omitempty"`
+	ResumedFrom      string   `json:"resumedFrom,omitempty"`
+	ToolScope        []string `json:"toolScope,omitempty"`
+	Model            string   `json:"model,omitempty"`
 }
 
 // SubagentRun holds a prepared sub-agent transcript ready to execute.
@@ -98,9 +120,17 @@ type SubagentRun struct {
 	Tool string
 	// Space 是本次子代理运行的空间（S3 前瞻）：prepare 时落定，meta
 	// sidecar 写入时带上，续跑（continue_from）时用于一致性校验。
-	Space   string
-	store   *SubagentStore
-	release func()
+	Space string
+	// ── 出发快照（B1 蒸馏，语义见 SubagentMeta 同名注释）──由 prepare 路径
+	// 与派发方盖章，meta 写路径经 applySnapshot 一次写定。
+	ToolScope        []string
+	Model            string
+	Effort           string
+	WorkspaceRoot    string
+	SystemPromptHash string
+	ResumedFrom      string
+	store            *SubagentStore
+	release          func()
 }
 
 // Release unlocks the run's ref in the store so another caller can
@@ -192,7 +222,61 @@ func newRef(prefix string, now time.Time) string {
 		prefix, now.UTC().Format("20060102_150405"), now.Nanosecond(), hex.EncodeToString(b))
 }
 
+// cwdOrEmpty 返回当前工作目录（出发快照用，best-effort——取不到就留空，
+// 读端按未知降级）。
+func cwdOrEmpty() string {
+	wd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	return wd
+}
+
+// sysPromptHash 是 16 hex 位 sha256 短指纹（出发快照的系统提示指纹用——审计
+// 对比「两次派发的提示是否一致」，抗碰撞性足够且省 meta 体量）。
+func sysPromptHash(s string) string {
+	if strings.TrimSpace(s) == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(sum[:8])
+}
+
+// sortedToolNames 返回排序副本（出发快照的工具面清单：确定性审计面，
+// 与注册表枚举顺序解耦）。
+func sortedToolNames(names []string) []string {
+	if len(names) == 0 {
+		return nil
+	}
+	out := append([]string(nil), names...)
+	sort.Strings(out)
+	return out
+}
+
 // ── Lifecycle persistence ──────────────────────────────────────────
+
+// applySnapshot 把 run 的出发快照填进 meta（B1 一次写定语义）：只填空位，
+// 续跑/追问/进度快照路径保原值——快照在首次建档时落定后不可变。
+func applySnapshot(meta *SubagentMeta, run *SubagentRun) {
+	if meta.WorkspaceRoot == "" {
+		meta.WorkspaceRoot = run.WorkspaceRoot
+	}
+	if meta.SystemPromptHash == "" {
+		meta.SystemPromptHash = run.SystemPromptHash
+	}
+	if meta.Effort == "" {
+		meta.Effort = run.Effort
+	}
+	if meta.ResumedFrom == "" {
+		meta.ResumedFrom = run.ResumedFrom
+	}
+	if len(meta.ToolScope) == 0 && len(run.ToolScope) > 0 {
+		meta.ToolScope = run.ToolScope
+	}
+	if meta.Model == "" {
+		meta.Model = run.Model
+	}
+}
 
 // baseMeta loads an existing sidecar (ignoring absence/corruption) so the
 // write paths can preserve CreatedAt/Kind/Title/Tool/Space across status
@@ -227,6 +311,7 @@ func (s *SubagentStore) MarkRunning(run *SubagentRun) error {
 		meta.Tool = run.Tool
 	}
 	meta.Space = spaces.Normalize(run.Space)
+	applySnapshot(&meta, run)
 	return s.saveMetaUnlocked(meta)
 }
 
@@ -256,6 +341,7 @@ func (s *SubagentStore) MarkQueued(run *SubagentRun) error {
 		meta.Title = run.Title
 	}
 	meta.Space = spaces.Normalize(run.Space)
+	applySnapshot(&meta, run)
 	return s.saveMetaUnlocked(meta)
 }
 
@@ -332,6 +418,7 @@ func (s *SubagentStore) finalizeMetaUnlocked(run *SubagentRun, status SubagentSt
 		meta.Tool = run.Tool
 	}
 	meta.Space = spaces.Normalize(run.Space)
+	applySnapshot(&meta, run)
 	return s.saveMetaUnlocked(meta)
 }
 
@@ -361,7 +448,11 @@ func (s *SubagentStore) prepareFresh(sysPrompt, space, kind, title string) (*Sub
 		Session: sess,
 		Title:   title,
 		Space:   spaces.Normalize(space),
-		store:   s,
+		// 出发快照（B1）：cwd 与系统提示指纹在 prepare 时刻截取——此刻是
+		// 「子代理出发时看见了什么」的权威时点。
+		WorkspaceRoot:    cwdOrEmpty(),
+		SystemPromptHash: sysPromptHash(sysPrompt),
+		store:            s,
 	}, nil
 }
 
@@ -423,8 +514,13 @@ func (s *SubagentStore) PrepareContinue(ref, space string) (*SubagentRun, error)
 		Session: sess,
 		Title:   meta.Title,
 		Space:   spaces.Normalize(space),
-		store:   s,
-		release: func() { s.continueClaims.Delete(ref) },
+		// 续跑也是一次新出发：ResumedFrom 记源 ref（applySnapshot 一次写定，
+		// 已有值不覆盖）。WorkspaceRoot 按当前 cwd 截取，但 applySnapshot 只填
+		// 空位——原 spawn 记录保持权威。
+		WorkspaceRoot: cwdOrEmpty(),
+		ResumedFrom:   ref,
+		store:         s,
+		release:       func() { s.continueClaims.Delete(ref) },
 	}, nil
 }
 
@@ -659,6 +755,7 @@ func (s *SubagentStore) saveProgress(run *SubagentRun) {
 		meta.Tool = run.Tool
 	}
 	meta.Space = spaces.Normalize(run.Space)
+	applySnapshot(&meta, run)
 	_ = s.saveMetaUnlocked(meta)
 }
 

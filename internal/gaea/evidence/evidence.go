@@ -239,6 +239,70 @@ func (l *Ledger) UnverifiedCompletedTodos(current []TodoItem) (missing []TodoSte
 	return missing, true
 }
 
+// UnverifiedCompletedTransitions reports todos that transitioned to completed
+// between two successful todo_write receipts within this turn without a
+// matching successful complete_step receipt anywhere in the turn. The first
+// write of the turn is the baseline — its completed items may be carried over
+// from earlier turns this per-turn ledger cannot see — so only later
+// transitions are judged. This is the normal-mode counterpart of the strict
+// write-time gate (todo tool's verifyTodoCompletionTransitions) and is what
+// the final-answer readiness check consumes.
+func (l *Ledger) UnverifiedCompletedTransitions() []TodoStepMatch {
+	if l == nil {
+		return nil
+	}
+	l.mu.Lock()
+	receipts := append([]Receipt(nil), l.receipts...)
+	l.mu.Unlock()
+
+	var missing []TodoStepMatch
+	seen := map[string]bool{}
+	previous := []TodoItem(nil)
+	haveBaseline := false
+	for _, r := range receipts {
+		if !r.Success || r.ToolName != "todo_write" {
+			continue
+		}
+		if haveBaseline {
+			covered := completeStepCoveredIndices(receipts, r.Todos)
+			for i, t := range r.Todos {
+				if todoStatus(t.Status) != "completed" {
+					continue
+				}
+				index := i + 1
+				if previousTodoCompleted(index, t, previous) {
+					continue
+				}
+				if covered[index] {
+					continue
+				}
+				key := todoIdentityKey(t)
+				if seen[key] {
+					continue
+				}
+				seen[key] = true
+				missing = append(missing, TodoStepMatch{
+					Found:      true,
+					Index:      index,
+					Content:    t.Content,
+					Status:     todoStatus(t.Status),
+					ActiveForm: t.ActiveForm,
+				})
+			}
+		}
+		previous = r.Todos
+		haveBaseline = true
+	}
+	return missing
+}
+
+func todoIdentityKey(t TodoItem) string {
+	if t.Content != "" {
+		return strings.ToLower(t.Content)
+	}
+	return strings.ToLower(t.ActiveForm)
+}
+
 func (l *Ledger) hasSuccessfulPaths(paths []string, accept func(Receipt) bool) bool {
 	wanted := pathSet(normalizePaths(paths))
 	if l == nil || len(wanted) == 0 {

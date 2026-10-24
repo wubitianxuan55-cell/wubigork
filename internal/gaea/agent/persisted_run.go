@@ -43,6 +43,9 @@ func RunPersistedSubAgent(
 		return "", fmt.Errorf("prepare subagent transcript: %w", err)
 	}
 	defer run.Release()
+	// 出发快照（B1）：技能派发的执行面=调用方传入的注册表全体（技能路径无
+	// 父白名单过滤，注册表即边界）。
+	run.ToolScope = sortedToolNames(reg.Names())
 	opts = bindHooksToSession(opts, run.Ref)
 	// 有限并行：排队先落 queued 侧车（分工面板如实显示「排队中」），起跑时
 	// MarkRunning 覆写；等槽期间 ctx 取消则补 failed 收口，不留永久排队态。
