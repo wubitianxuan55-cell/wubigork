@@ -1,8 +1,6 @@
 module github.com/gaea/gaea
 
-go 1.26.3
-
-toolchain go1.26.6
+go 1.26.10
 
 require (
 	github.com/BurntSushi/toml v1.6.0
@@ -15,12 +13,13 @@ require (
 	github.com/mattn/go-runewidth v0.0.23
 	github.com/richardlehane/mscfb v1.0.8
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
+	github.com/unitedrhino/go-cad v0.0.0-20261001090957-ddd91eea9618
 	github.com/wailsapp/wails/v2 v2.13.0
-	github.com/xuri/excelize/v2 v2.11.0
+	github.com/xuri/excelize/v2 v2.11.1-0.20261020033641-611b222fd8f7
 	golang.org/x/image v0.46.0
-	golang.org/x/net v0.58.0
-	golang.org/x/sys v0.48.0
-	golang.org/x/text v0.42.0
+	golang.org/x/net v0.61.0
+	golang.org/x/sys v0.49.0
+	golang.org/x/text v0.43.0
 	modernc.org/sqlite v1.55.0
 )
 
@@ -57,9 +56,9 @@ require (
 	github.com/vincent-petithory/dataurl v0.0.0-20191104211930-d1553a71de50 // indirect
 	github.com/wailsapp/go-webview2 v1.0.22 // indirect
 	github.com/wailsapp/mimetype v1.4.1 // indirect
-	github.com/xuri/efp v0.0.1 // indirect
+	github.com/xuri/efp v0.0.2 // indirect
 	github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9 // indirect
-	golang.org/x/crypto v0.55.0 // indirect
+	golang.org/x/crypto v0.58.0 // indirect
 	modernc.org/libc v1.74.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
