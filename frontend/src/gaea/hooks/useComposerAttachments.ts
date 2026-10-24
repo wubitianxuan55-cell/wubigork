@@ -1,6 +1,5 @@
 // Composer 拆分产物：附件/粘贴/截图/识图/OCR 状态机（行为零变化，T6-10.1）
 import { useRef, useState } from 'react'
-import { Modal } from 'antd'
 import { app } from '../lib/bridge'
 import { isImagePath } from '../lib/pickFile'
 import { useToast } from '../components/Toast'
@@ -11,6 +10,33 @@ export interface Attachment {
   type: "image" | "file";
   /** 附件字节数（P2-4 上下文用量透明化：图片由 base64 估算，文件取 File.size）。 */
   size?: number;
+}
+
+export const ATTACHMENT_LIMITS = {
+  file: 25 * 1024 * 1024,
+  image: 10 * 1024 * 1024,
+} as const
+
+export interface OversizeAttachment {
+  file: File
+  limit: number
+  kind: "image" | "file"
+}
+
+/** Classify by metadata before any FileReader reads bytes. */
+export function splitOversizeAttachments(files: File[]): {
+  accepted: File[]
+  rejected: OversizeAttachment[]
+} {
+  const accepted: File[] = []
+  const rejected: OversizeAttachment[] = []
+  for (const file of files) {
+    const kind = file.type.startsWith("image/") || isImagePath(file.name) ? "image" : "file"
+    const limit = ATTACHMENT_LIMITS[kind]
+    if (file.size > limit) rejected.push({ file, limit, kind })
+    else accepted.push(file)
+  }
+  return { accepted, rejected }
 }
 
 export interface UseComposerAttachmentsOptions {
@@ -35,6 +61,11 @@ function dataUrlBytes(dataUrl: string): number {
 function attachFailText(step: string, file: File | null, e: unknown): string {
   const why = e instanceof Error ? (e.message || String(e)) : String(e ?? "未知错误");
   return `${step}${file ? `「${file.name}」` : ""}：${why}`;
+}
+
+function oversizeText(item: OversizeAttachment): string {
+  const mb = Math.round(item.limit / (1024 * 1024))
+  return `${item.kind === "image" ? "图片" : "文件"}附件失败「${item.file.name}」：超过 ${mb}MB 上限`
 }
 
 // bytesToBase64 分块编码（v4.508）：此前逐字节 String.fromCharCode 拼接——
@@ -71,28 +102,15 @@ export function useComposerAttachments({ running, onSend }: UseComposerAttachmen
 
   // 附加文件：图片走已有流程，非图片用 base64 上传
   const attachDroppedFiles = async (files: File[]) => {
+    const split = splitOversizeAttachments(files)
+    for (const rejected of split.rejected) toast.show(oversizeText(rejected), "warn")
+    files = split.accepted
+    if (files.length === 0) return
     const images: File[] = []
     const others: File[] = []
     for (const f of files) {
       if (f.type.startsWith("image/")) images.push(f)
       else others.push(f)
-    }
-    // 大文件提示
-    const bigFiles = files.filter((f) => f.size > 10 * 1024 * 1024)
-    if (bigFiles.length > 0) {
-      const names = bigFiles.map((f) => f.name).join(", ")
-      // 原生 confirm 会同步阻塞 WebView2 主线程导致界面卡死，改用异步弹窗。
-      const ok = await new Promise<boolean>((resolve) => {
-        Modal.confirm({
-          title: "大文件提示",
-          content: `以下文件超过 10MB，可能上传较慢：\n${names}\n\n确定要继续吗？`,
-          okText: "继续上传",
-          cancelText: "取消",
-          onOk: () => resolve(true),
-          onCancel: () => resolve(false),
-        })
-      })
-      if (!ok) return
     }
     // 处理图片
     for (const file of images) {
@@ -132,14 +150,25 @@ export function useComposerAttachments({ running, onSend }: UseComposerAttachmen
     // 其余错误（对话框异常、后端拒绝）必须可见。
     if (typeof app.PickFiles !== "function") return
     try {
-      const files = await app.PickFiles()
+      // filters 显式空串=不过滤（Go 侧口径）。此前无参调用在 Wails v2.13 下被
+      // 拒「received 0 arguments, expected 1」（2026-10-22/23 gaea.log 实录）。
+      const files = await app.PickFiles("")
       if (!files || files.length === 0) return
       for (const f of files) {
         // v4.508 bug 根修：FilePickResult 无 MIME type 字段，此前按 f.type
         // 判断对话框选的图片恒 false——图片全被当普通文件（无缩略图/无识图
         // OCR）。改按扩展名（isImagePath 单源，与 pickImageAsDataUrl 白名单
         // 同源）；previewUrl 空由附件条图标兜底。
-        if (isImagePath(f.path)) {
+        const image = isImagePath(f.path)
+        const limit = image ? ATTACHMENT_LIMITS.image : ATTACHMENT_LIMITS.file
+        if ((f.size ?? 0) > limit) {
+          toast.show(
+            `${image ? "图片" : "文件"}附件失败「${f.name}」：超过 ${Math.round(limit / (1024 * 1024))}MB 上限`,
+            "warn",
+          )
+          continue
+        }
+        if (image) {
           setAttachments((prev) => appendUnique(prev, { path: f.path, previewUrl: f.previewUrl ?? "", type: "image" as const, size: f.size }))
         } else {
           // P0-1 chip 化：非图片附件进 attachments（提交时统一注入 @路径）
@@ -157,6 +186,10 @@ export function useComposerAttachments({ running, onSend }: UseComposerAttachmen
     setCaptureBusy(true)
     try {
       const dataUrl = await app.CaptureScreen()
+      if (dataUrlBytes(dataUrl) > ATTACHMENT_LIMITS.image) {
+        toast.show(`截图超过 ${Math.round(ATTACHMENT_LIMITS.image / (1024 * 1024))}MB 上限`, "warn")
+        return
+      }
       setCropSrc(dataUrl)
     } catch (e: unknown) {
       toast.show(String((e as Error)?.message ?? e), "warn")
@@ -167,6 +200,10 @@ export function useComposerAttachments({ running, onSend }: UseComposerAttachmen
 
   const handleCropConfirm = async (dataUrl: string) => {
     setCropSrc(null)
+    if (dataUrlBytes(dataUrl) > ATTACHMENT_LIMITS.image) {
+      toast.show(`截图超过 ${Math.round(ATTACHMENT_LIMITS.image / (1024 * 1024))}MB 上限`, "warn")
+      return
+    }
     setPendingPaste((n) => n + 1)
     try {
       const path = await app.SavePastedImage(dataUrl)

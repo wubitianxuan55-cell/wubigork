@@ -51,6 +51,8 @@ type Client struct {
 	streamRetryBackoff []time.Duration
 	// 流空闲超时：连接/首字节后超过该时长无任何数据视为失败（默认 60s）。测试可覆盖为短时长。
 	streamIdleTimeout time.Duration
+	// requestSendBudget bounds only one attempt's write phase (default 300s).
+	requestSendBudget time.Duration
 	// proxySpecOverride 代理配置覆盖（测试注入）；nil 时读取 gaea 生效配置。
 	proxySpecOverride *netclient.ProxySpec
 
@@ -99,6 +101,7 @@ func NewClient(cfg *config.Config) *Client {
 		chatRetryBackoff:   append([]time.Duration(nil), defaultStreamRetryBackoff...),
 		streamRetryBackoff: append([]time.Duration(nil), defaultStreamRetryBackoff...),
 		streamIdleTimeout:  defaultStreamIdleTimeout,
+		requestSendBudget:  defaultRequestSendBudget,
 	}
 	c.httpClient = c.buildHTTPClient()
 	return c
@@ -135,15 +138,12 @@ func (c *Client) proxySpec() netclient.ProxySpec {
 // 保留默认传输的超时与连接池行为。代理配置无效时回退直连客户端。
 func (c *Client) buildHTTPClient() *http.Client {
 	spec := c.proxySpec()
-	// 响应头超时兜底「连接 + 首字节等待」：代理或远端黑洞时避免无限挂起
-	// （与流空闲超时同值；流开始后由 idleTimeoutBody 按空闲计）。
-	cli, err := netclient.NewHTTPClient(spec, netclient.TransportOptions{
-		ResponseHeaderTimeout: c.idleTimeout(),
-	})
+	cli, err := netclient.NewHTTPClient(spec, netclient.TransportOptions{})
 	if err != nil {
 		slog.Warn("代理配置无效，AI 客户端回退直连", "error", err)
-		return netclient.NewSimpleClient(0)
+		cli = netclient.NewSimpleClient(0)
 	}
+	cli.Transport = newSendGuardTransport(cli.Transport, c.sendBudget(), c.idleTimeout())
 	return cli
 }
 
@@ -153,6 +153,13 @@ func (c *Client) idleTimeout() time.Duration {
 		return c.streamIdleTimeout
 	}
 	return defaultStreamIdleTimeout
+}
+
+func (c *Client) sendBudget() time.Duration {
+	if c.requestSendBudget > 0 {
+		return c.requestSendBudget
+	}
+	return defaultRequestSendBudget
 }
 
 // SetEngineManager 设置模型引擎管理器（用于多引擎路由）

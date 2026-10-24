@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/gaea/gaea/internal/modelengine"
 	"io"
@@ -43,6 +44,9 @@ func (c *Client) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, err
 	resp, err := c.chatOnce(ctx, req)
 	if err == nil {
 		return resp, nil
+	}
+	if nonRetryableSendError(err) {
+		return nil, err
 	}
 	from := req.EngineID
 	if from == "" {
@@ -101,6 +105,7 @@ func (c *Client) chatOnce(ctx context.Context, req *ChatRequest) (*ChatResponse,
 	backoff := c.chatBackoffOrDefault()
 	var lastErr error
 	refreshed := false // 401 刷新只做一次
+	safeSendRetries := 0
 	for attempt := 0; attempt <= len(backoff); attempt++ {
 		if attempt > 0 {
 			select {
@@ -128,6 +133,19 @@ func (c *Client) chatOnce(ctx context.Context, req *ChatRequest) (*ChatResponse,
 			if ctx.Err() != nil {
 				c.recordUsage(req.Feature, reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
 				return nil, fmt.Errorf("API 请求失败: %w", err)
+			}
+			var guardErr *SendGuardError
+			if errors.As(err, &guardErr) {
+				if guardErr.Reason != "" {
+					slog.Warn("Chat 请求阶段失败", "phase", guardErr.Phase, "reason", guardErr.Reason, "retryable", guardErr.Retryable)
+				}
+				if !guardErr.Retryable || safeSendRetries >= 1 {
+					lastErr = fmt.Errorf("API 请求失败: %w", err)
+					break
+				}
+				safeSendRetries++
+				lastErr = fmt.Errorf("API 请求失败: %w", err)
+				continue
 			}
 			lastErr = fmt.Errorf("API 请求失败: %w", err)
 			slog.Warn("Chat 请求失败，准备退避重试", "attempt", attempt+1, "error", lastErr)

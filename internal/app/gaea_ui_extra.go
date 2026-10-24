@@ -4,17 +4,19 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
+	stdruntime "runtime"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/auth"
 	"github.com/gaea/gaea/internal/config"
+	gaeaAttachment "github.com/gaea/gaea/internal/gaea/attachment"
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/gaea/wspath"
@@ -814,13 +816,21 @@ func registerPickedFile(path string) {
 	if pickedFiles.paths == nil {
 		pickedFiles.paths = map[string]bool{}
 	}
-	pickedFiles.paths[filepath.Clean(path)] = true
+	pickedFiles.paths[pickedFileKey(path)] = true
 }
 
 func isPickedFile(path string) bool {
 	pickedFiles.mu.Lock()
 	defer pickedFiles.mu.Unlock()
-	return pickedFiles.paths[filepath.Clean(path)]
+	return pickedFiles.paths[pickedFileKey(path)]
+}
+
+func pickedFileKey(path string) string {
+	path = filepath.Clean(path)
+	if stdruntime.GOOS == "windows" {
+		return strings.ToLower(path)
+	}
+	return path
 }
 
 // pickFileFilter 把逗号分隔扩展名（"png,jpg"）转成 Wails FileFilter
@@ -865,53 +875,22 @@ type FilePickResult struct {
 
 // GaeaSavePastedImage 保存粘贴图片到工作区 .gaea/uploads。
 func (a *App) GaeaSavePastedImage(dataURL string) (string, error) {
-	dir := filepath.Join(gaeaCwd(), ".gaea", "uploads")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", err
-	}
-	// dataURL 形如 "data:image/png;base64,xxxx"
-	comma := strings.Index(dataURL, ",")
-	if comma < 0 {
-		return "", errors.New("无效的图片 dataURL")
-	}
-	mime := strings.TrimSuffix(strings.TrimPrefix(dataURL[:comma], "data:"), ";base64")
-	ext := ".png"
-	switch mime {
-	case "image/jpeg":
-		ext = ".jpg"
-	case "image/webp":
-		ext = ".webp"
-	case "image/gif":
-		ext = ".gif"
-	}
-	b, err := base64.StdEncoding.DecodeString(dataURL[comma+1:])
+	store, err := gaeaAttachment.Open(filepath.Join(gaeaCwd(), ".gaea", "uploads"))
 	if err != nil {
-		return "", fmt.Errorf("图片解码失败: %w", err)
-	}
-	name := fmt.Sprintf("paste-%d%s", time.Now().UnixNano(), ext)
-	path := filepath.Join(dir, name)
-	if err := os.WriteFile(path, b, 0o644); err != nil {
 		return "", err
 	}
-	return path, nil
+	defer func() { _ = store.Close() }()
+	return store.SaveImageDataURL(dataURL)
 }
 
 // GaeaSaveAttachmentFile 保存附件文件到工作区 .gaea/uploads。
 func (a *App) GaeaSaveAttachmentFile(fileName, base64Data string) (string, error) {
-	dir := filepath.Join(gaeaCwd(), ".gaea", "uploads")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", err
-	}
-	b, err := base64.StdEncoding.DecodeString(base64Data)
+	store, err := gaeaAttachment.Open(filepath.Join(gaeaCwd(), ".gaea", "uploads"))
 	if err != nil {
-		return "", fmt.Errorf("附件解码失败: %w", err)
-	}
-	name := fmt.Sprintf("attach-%d-%s", time.Now().UnixNano(), filepath.Base(fileName))
-	path := filepath.Join(dir, name)
-	if err := os.WriteFile(path, b, 0o644); err != nil {
 		return "", err
 	}
-	return path, nil
+	defer func() { _ = store.Close() }()
+	return store.SaveFileBase64(fileName, base64Data)
 }
 
 // GaeaReadFileB64 读取本地文件为 base64（v4.162 进度计划导入链路专用）。
@@ -936,9 +915,17 @@ func (a *App) GaeaReadFileB64(path string) (string, error) {
 	if !isPickedFile(path) {
 		return "", fmt.Errorf("仅允许读取文件对话框选择的文件: %s", path)
 	}
-	b, err := os.ReadFile(path)
+	f, err := os.Open(path)
 	if err != nil {
 		return "", fmt.Errorf("读取失败: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+	b, err := io.ReadAll(io.LimitReader(f, (64<<20)+1))
+	if err != nil {
+		return "", fmt.Errorf("读取失败: %w", err)
+	}
+	if len(b) > 64<<20 {
+		return "", fmt.Errorf("文件过大（上限 64MB）")
 	}
 	return base64.StdEncoding.EncodeToString(b), nil
 }

@@ -125,14 +125,11 @@ func TestClassifyRef(t *testing.T) {
 // TestResolveRefs_ImageRecognition 图片引用应自动识图并把描述注入上下文。
 func TestResolveRefs_ImageRecognition(t *testing.T) {
 	t.Chdir(t.TempDir())
-	if err := ensureAttachmentRoot(); err != nil {
+	if err := os.MkdirAll(filepath.Join(".gaea", "attachments"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	rel, f, err := createAttachmentFile(".png")
-	if err != nil {
-		t.Fatalf("createAttachmentFile: %v", err)
-	}
-	if err := f.Close(); err != nil {
+	rel := filepath.ToSlash(filepath.Join(".gaea", "attachments", "ref.png"))
+	if err := os.WriteFile(rel, []byte("image"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -188,14 +185,11 @@ func TestResolveRefs_UploadsImage(t *testing.T) {
 // TestResolveRefs_ImageRecognitionFallback 识图失败时回退为占位提示。
 func TestResolveRefs_ImageRecognitionFallback(t *testing.T) {
 	t.Chdir(t.TempDir())
-	if err := ensureAttachmentRoot(); err != nil {
+	if err := os.MkdirAll(filepath.Join(".gaea", "attachments"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	rel, f, err := createAttachmentFile(".png")
-	if err != nil {
-		t.Fatalf("createAttachmentFile: %v", err)
-	}
-	if err := f.Close(); err != nil {
+	rel := filepath.ToSlash(filepath.Join(".gaea", "attachments", "fallback.png"))
+	if err := os.WriteFile(rel, []byte("image"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 

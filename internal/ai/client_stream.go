@@ -91,7 +91,7 @@ func (c *Client) ChatStream(ctx context.Context, req *ChatRequest) (<-chan SSECh
 		// C 刀故障转移 v0：doStreamRequest 只在「尚未收到任何响应字节」时返回
 		// 错误（连接失败/非 200；200 返回即流已开始，不进本分支）。可转移时换
 		// 候选引擎重试一次；重试请求带 failoverDone 标记，不再二次转移。
-		if req != nil && !req.failoverDone {
+		if req != nil && !req.failoverDone && !nonRetryableSendError(err) {
 			if to, toModel, ok := c.failoverTarget(reqEngine, err); ok {
 				slog.Warn("流式请求失败，故障转移重试", "from_engine", reqEngine, "to_engine", to, "model", toModel, "error", err)
 				retryReq := *req
@@ -149,6 +149,7 @@ func (c *Client) doStreamRequest(ctx context.Context, endpoint, apiKey string, b
 		backoff = defaultStreamRetryBackoff
 	}
 	var lastErr error
+	safeSendRetries := 0
 	for attempt := 0; attempt <= len(backoff); attempt++ {
 		if attempt > 0 {
 			select {
@@ -173,6 +174,18 @@ func (c *Client) doStreamRequest(ctx context.Context, endpoint, apiKey string, b
 			// 连接建立失败：ctx 取消不重试，其余退避重试
 			if ctx.Err() != nil {
 				return nil, fmt.Errorf("流式请求失败: %w", err)
+			}
+			var guardErr *SendGuardError
+			if errors.As(err, &guardErr) {
+				if guardErr.Reason != "" {
+					slog.Warn("流式请求阶段失败", "phase", guardErr.Phase, "reason", guardErr.Reason, "retryable", guardErr.Retryable)
+				}
+				if !guardErr.Retryable || safeSendRetries >= 1 {
+					return nil, fmt.Errorf("流式请求失败: %w", err)
+				}
+				safeSendRetries++
+				lastErr = fmt.Errorf("流式请求失败: %w", err)
+				continue
 			}
 			lastErr = fmt.Errorf("流式请求失败: %w", err)
 			slog.Warn("流式请求失败，准备退避重试", "attempt", attempt+1, "error", lastErr)

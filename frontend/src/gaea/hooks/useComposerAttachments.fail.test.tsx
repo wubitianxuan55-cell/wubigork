@@ -45,6 +45,10 @@ function renderAttachments(over?: { setText?: ReturnType<typeof vi.fn>; onSend?:
 
 const pngFile = (name: string) => new File([new Uint8Array([1, 2, 3])], name, { type: 'image/png' })
 const binFile = (name: string) => new File([new Uint8Array([4, 5, 6])], name, { type: 'application/octet-stream' })
+const sizedFile = (file: File, size: number) => {
+  Object.defineProperty(file, 'size', { value: size })
+  return file
+}
 
 describe('useComposerAttachments 附件失败可见化（FE4-12）', () => {
   afterEach(() => { cleanup(); vi.clearAllMocks() })
@@ -81,6 +85,33 @@ describe('useComposerAttachments 附件失败可见化（FE4-12）', () => {
 
     expect(result.current.attachments).toHaveLength(1)
     expect(screen.queryByText(/附件失败/)).toBeNull()
+  })
+
+  it('普通文件超过 25MB：FileReader 不启动、后端不调用、提示可见', async () => {
+    const read = vi.spyOn(FileReader.prototype, 'readAsArrayBuffer')
+    const { result } = renderAttachments()
+    const tooLarge = sizedFile(binFile('oversize.bin'), 25 * 1024 * 1024 + 1)
+
+    await act(async () => { await result.current.attachDroppedFiles([tooLarge]) })
+
+    expect(read).not.toHaveBeenCalled()
+    expect(bridgeMocks.SaveAttachmentFile).not.toHaveBeenCalled()
+    expect(screen.getByText(/超过 25MB 上限/)).toBeTruthy()
+    expect(result.current.pendingPaste).toBe(0)
+    read.mockRestore()
+  })
+
+  it('图片超过 10MB：FileReader 不启动、后端不调用', async () => {
+    const read = vi.spyOn(FileReader.prototype, 'readAsDataURL')
+    const { result } = renderAttachments()
+    const tooLarge = sizedFile(pngFile('oversize.png'), 10 * 1024 * 1024 + 1)
+
+    await act(async () => { await result.current.attachDroppedFiles([tooLarge]) })
+
+    expect(read).not.toHaveBeenCalled()
+    expect(bridgeMocks.SavePastedImage).not.toHaveBeenCalled()
+    expect(screen.getByText(/超过 10MB 上限/)).toBeTruthy()
+    read.mockRestore()
   })
 
   it('handlePickFiles：绑定不存在（旧后端）静默，不弹提示', async () => {
@@ -122,6 +153,16 @@ describe('useComposerAttachments v4.508 文件交互修复', () => {
     expect(atts).toHaveLength(2)
     expect(atts[0]).toMatchObject({ path: 'C:/imgs/现场照片.png', type: 'image' })
     expect(atts[1]).toMatchObject({ path: 'C:/docs/报告.docx', type: 'file' })
+  })
+
+  it('PickFiles 元数据超限：不加入附件且提示可见', async () => {
+    bridgeMocks.PickFiles.mockResolvedValue([
+      { path: 'C:/docs/huge.pdf', name: 'huge.pdf', size: 25 * 1024 * 1024 + 1 },
+    ])
+    const { result } = renderAttachments()
+    await act(async () => { await result.current.handlePickFiles() })
+    expect(result.current.attachments).toHaveLength(0)
+    expect(screen.getByText(/超过 25MB 上限/)).toBeTruthy()
   })
 
   it('识图发送后输入框草稿保留（此前 setText("") 清用户半句话）', async () => {
