@@ -226,7 +226,7 @@ gaea 的造价算量、双代号进度**未见社区竞品，属差异化空白*
 
 **办公文档×AI**：生成式（Gamma/Kimi Slides/百度文库）痛点恰是「生成后改不动、导出丢格式」；真编辑侧 Microsoft Copilot 2026-04 GA（对象级操作保格式）+**WPS 灵犀（中文市场真编辑事实垄断者）**；把「保格式真编辑」当卖点的供给稀疏（LLeMental/Deckary 等，偏英文初创）。技术流派分明：OOXML 直接操作 vs 重渲染。**gaea「真编辑」定位竞争密度低、技术壁垒可防守，是四垂类中定位最干净的**。
 
-**图像编辑×AI**：Canva Magic Edit/Grab/Expand、PS Firefly 5（精细标杆）；Qwen-Image-Edit 迭代 2509→2511→2.1（7B 单 checkpoint、16 参考图，**⚠️ Qwen Research License 禁商用**）；ComfyUI Desktop 免费但 Cloud 涨价赶客+社区不满密集。**⚠️ 合规红线：gaea 画室若升级 Qwen-Image-Edit 2.1 即踩禁商用；商用须锁定 Apache 2.0 的 2509/2511 或其他许可模型**。
+**图像编辑×AI**：Canva Magic Edit/Grab/Expand、PS Firefly 5（精细标杆）；Qwen-Image-Edit 迭代 2509→2511→2.1（7B 单 checkpoint、16 参考图，**⚠️ Qwen Research License 禁商用**）；ComfyUI Desktop 免费但 Cloud 涨价赶客+社区不满密集。**⚠️ 合规红线：gaea 画室若使用 Qwen-Image-Edit 2.1 即踩禁商用；旧 2511 已退役，商业用途须另选具备许可的模型**。
 
 来源：xinhuanet.com/info/20260424（广联达 DATA+AI）、glodon.com、lubansoft.com、togal.ai（peer-reviewed case study）、kprogress.com、zpert.com（斑马）、microsoft.com/en-us/copilot/blog/2026/04/22、wps.cn（灵犀 AI 3.0）、llemental.com、deckary.com、canva.com/canva-ai、huggingface.co/Qwen/Qwen-Image-Edit-2509、comfy.org（qwen-image-2.1/pricing/download）。
 
@@ -278,7 +278,7 @@ gaea 的造价算量、双代号进度**未见社区竞品，属差异化空白*
 - **D3 办公「保格式真编辑」立场强化**：竞争密度低+WPS 之外无中文重度玩家，宣传与产品双双押注「改既有文件不丢格式」（对位生成式竞品「改不动」痛点）。无需新开发，属定位决策。
 
 ### E. 合规风险
-- **E1 Qwen-Image-Edit 许可证（已核实 2026-10-14）**：画室当前权重=`qwen_image_edit_2511_fp8mixed`（v4.392.0，2026-09-22 接入，Comfy-Org 重打包），**2511 本体=Apache 2.0（HF 页面 license 标签+许可证章节双证），当前商用合规**。红线在未来：Qwen-Image 2.1（7B 单 checkpoint）起改 **Qwen Research License 禁商用**——升级画室基座前必查许可，勿顺手升 2.1。Spec=5.4。
+- **E1 Qwen-Image-Edit 许可证（2026-10-24 更新）**：2511 本体曾为 Apache 2.0，但已在 2026-10-24 按用户指令从产品链路退役，不再作为当前权重或商用回退。当前本地编辑仅接 Qwen-Image 2.1（**Qwen Research License 禁商用**），仅用于研究/评估；商业用途另选具备许可的模型。
 
 ### F. 桌面通用面（待核实）
 - **F1 全局热键呼出/划词助手**：同一轮提案 7，Wails 全局快捷键可行性未核实。

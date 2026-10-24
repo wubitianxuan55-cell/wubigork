@@ -1,3 +1,143 @@
+## Reasonix 2.x 蒸馏·第 5 批：压缩验收闸（A3）+ 折叠区召回（A5）· 2026-10-24
+
+- 上游原码对照（`compact_projection.go` partitionUnderCeiling+acceptCheckpointCandidate、`compact_search.go` 召回形态）后落地。**A3 适配版**：验收闸进 compact——候选下限≥trigger 一律跳过（force 不豁免；manual 低于 trigger 例外）+固定前缀超 ceiling 走 ≥25% 节省例外。**两处刻意差异（探针实证后定深）**：①候选下限用「机械摘要保底」估算（shrink 校验保证摘要过大回落 mechanical→下限可达而非猜测；上游用真实候选 token）；②通用 above-ceiling 拒绝不取——**gaea tail 预算有 2000 tok 下限（v10.11），小窗口下 tail 单独顶破 50%，照搬会关死小窗口自动压缩**；例外分支在 gaea 常数下由 trigger 闸覆盖（savings=estFold-150 ≥ estNow/4 恒真当折叠区非空）。closedPrefixEnd 不变量=配对完整性回归测试钉死（tailStart 对齐本就保证，测试防回归）。
+- **坑**：三个既有测试被闸拦下——TestCompactIfOverForceBoundedPasses 旧场景（window=2000/8000）在 estNow 尺度上 fold 区本就不存在（tail 下限吃满/estNow 低于预算），按 estNow 尺度重排（window=4000/65 对/usage=3700）；hopeless-skip 语义另立新测试。**测试环境 tokPerChar 走 fallback 0.25**（lastUsage 只在采样路径 Store）——合成 usage 的尺度必须与 0.25 估算一致，否则 compactIfOver 的 prompt 口径与 planCompaction 的 sizing 口径脱节。
+- **A5 形态适配**：`recall_archived` 新内置只读工具（ctx 注入 archive 目录，runDirect 与 WithSpace 同位）——检索对象=archive JSONL（gaea 折叠区在文件里，上游在 DB canonical；archive 路径本就附在 digest 尾=天然 fold index）。确定性计分（查询词+CJK 双元、≥2 rune 防单字误伤）、tool_output 由所属调用寻址（召回连来路）、噪声比 0.25、默认 8/上限 20、片段 240 rune、输出 4KiB 封顶、坏档跳过（per-source）、合成消息/摘要不入检索面。零新绑定。
+- 门禁：go build 全仓+vet+gofmt 绿；agent 全包绿（A3 闸三例+配对完整性+A5 两例新测试）。**未抬版本、未 commit/push**。**A 档七刀全数处置完毕**（六落地+A1 辨伪）。余池=B 档四件（ContextCapsule 观测/list_subagents 取址/durable inbox/checkpoint-rewind，均需独立预核）。
+
+## Reasonix 2.x 蒸馏·第 4 批：中断交接块（A4）· 2026-10-24
+
+- 上游原码对照（`interrupted_recovery.go` 全文 131 行）后落地：回合终局（流错误/取消/预算阻断三路径）把本轮回执折叠成 **bounded 交接记录**（≤24 工具对、每工具 ≤8 文件、渲染层值截 240 rune+HTML 转义；不含原始参数/结果/推理），下一条真实用户消息前置 `<interrupted-turn-recovery>` 块一次性消费——「host-verified recovery facts 非新任务；先查看工作区现状；不要盲目重复已完成写入；被打断的调用从头重发；用户新消息优先」。
+- 集成点：capture=agent_run.go 两处终局 return（流终局+预算阻断）前；注入=runDirect 入口 withTurnPreferences 之前（one-shot 清零，下一回合隐式消费不原地改历史——上游同口径）。回扫真实轮起点跳过三类合成用户消息（steer 前缀/流恢复/readiness）+压缩摘要——流恢复消息之后的工具对也覆盖。
+- completed/interrupted 判据：结果含 "stream interrupted"（persistInterruptedCalls 信封文案）或无结果回执=被打断；其余=completed（真实失败也算 completed——它是 host-verified 事实）。**与上游的刻意差异留档**：①gaea 终局本就把部分输出落库进上下文（v4.379 刀2），无上游 unsafe_partial_output 条款；②记录存 AgentRunner 内存不随会话持久化（进程重启丢失=诚实边界，上游 LocalOnly 持久）。**坑**：渲染层必须重钳值（捕获时截过不等于契约——测试直接构造 300 rune 文件名抓出；上游正是在渲染处 clip）。
+- 门禁：go build 全仓+vet+gofmt 绿；A4 五例新测试+agent 全包绿；app 全包回归后台跑。**未抬版本、未 commit/push**。余池：A3+A5（压缩，需同批预核）、B 档四件（ContextCapsule/子代理结果取址/durable inbox/checkpoint-rewind）。
+
+## Reasonix 2.x 蒸馏·第 3 批：子代理两刀（A10 写范围预检 + A11 完成裁决）· 2026-10-24
+
+- 按纪律先读上游原码（`delegation/task.go` executeTask+task_schema、`safety/evidence/completion_report.go` 全文）再动手。gaea 侧盘底：并行子代理经 batch_executor「每调用唯一键」全并行、**无写范围协调**——双会话同树互踩（stale-Edit/TS2300 撞车坑）的 agent 内同型缺口。
+- **A10 write_paths 写范围声明落地**（task.go+task_writepaths.go+batch_executor.go）：task 工具增 `write_paths` 参数（glob `*?[]`/逃逸〔归一后不在 cwd 子树，wspath.Within 判〕/卷根/POSIX 绝对非盘符形拒；cwd 归一+去重+排序）；**两层协调**——①冲突键按声明集计键（`wpaths:`+排序归一集；同集同键同批必串行、异集各键共存并行）②执行期 claim 注册表（TaskTool.writeClaims，目录包含语义两两重叠，重叠的后到者 fail-fast 如实指路「拆批或改 disjoint 范围」）。**生命周期坑**：真后台任务跨回合——声明随 job 存活（StartInheriting 闭包收尾释放），前台/bg-fallback 在 Execute 返回释放（realBackground 旗标区分，双 defer 语义）。**刻意偏差留档**：声明是并行协调元数据非安全边界（上游 extend_write_paths 能力卡需审批 UX，gaea 无；越界执行期拦截不做）；未声明调用零变化（文件观察 stale 检测执行期兜底=上游 optimistic 的 gaea 对应面）。CompactDescription/Schema/CompactSchema 三面同步（CompactDescriptor 是模型唯一可见面——在册坑复训）。
+- **A11 complete_subtask 完成裁决落地**（complete_subtask.go 新文件）：结构化完成报告（status 四态+验收判据+证据引用 verification/diff/files/review/manual）+ **回执账本=子会话消息**（assistant 调用↔tool 结果按 ToolCallID 配对；无结果回执=被中断不构成支撑；失败=isErrorMessage 前缀族）+ **只降不升**——引用判据无回执支撑降 unsatisfied，任一降级 complete 整体降 partial，降级结论+逐条理由附在结果尾部给父模型；partial/blocked/failed 不是完成主张不裁决；工具提交永远成功（子代理只收确认文案）。verification 匹配=命令包含双向包含口径；diff/files=路径相等或目录前缀（ToSlash 归一）；review/manual 永不自证。buildSubReg 常驻挂载（不占白名单名额）。**坑**：注册面守卫（v4.520 tool_names_guard）把报告状态枚举 case 当幽灵工具名——按守卫自家协议「非工具名 case 逐个注明归属」入白名单（11 枚举词）。
+- 门禁：go build 全仓+vet+gofmt 绿；A10 五例+A11 七例新测试+agent 全包绿。**未抬版本、未 commit/push**。余池：压缩线 A3+A5、A4 中断交接块、B 档（ContextCapsule/list_subagents 取址/durable inbox/checkpoint-rewind）。
+
+## Reasonix 2.x 蒸馏·第 2 批：压缩内容级保留（A2）+ A1 辨伪销号 · 2026-10-24
+
+- 承 Reasonix 2.x 蒸馏线（首批 A6/A7 已落地）。按新纪律先读上游原码（`compact_user_turns.go` 全文+`usage_anchor.go`+`context_usage.go`+`compact.go:353-460`）再动手。
+- **A1 usage anchor 辨伪销号**：gaea `tokenmeter.go`（v4.381 dsh 蒸馏）即上游 usageAnchor+providerReportedFloor 同构等价物（锚点+有符号差值+per-message memo 相消；tokPerChar 钳 0.05–2 兜底 0.25 全同）——调研报告初稿「水位线全靠本地估算」系误判（v4.523 上屏的是三阈值**显示**，计量 v4.381 已锚定），报告现状行已修正。上游锚绑 projectionVersion 失效语义在 gaea 不需要（全量表面差值自洽）。窗口探测 contextWindowProbe 无对应面留观察。
+- **A2 压缩内容级保留落地**（compact.go+新测试）：`keepUserTurns` 进 partitionFold——digest 后用户轮逐字保留预算=窗口 5%（无窗口 floor 1024 tok，上游常量全同），最老优先、**预算是唯一闸**（上游明确：per-turn 上限是被刻意移除的形态——它会在预算装得下时丢掉长轮；`[[keep]]` 前缀才是逃生通道；gaea 旧 pinnableUserTurn 正是那个被移除形态，已收缩回头部 pin 专职）、估价用固定比率 0.25 不随校准漂（阈值跟上次轮比率漂=同一轮这次留下次折）、**丢弃显形**（Notice 上屏+告知 [[keep]] 通道——「投影看起来完整而作者的话只剩摘要转述，逃逸通道只对被告知它存在的人有用」上游注释口径）。
+- **A3 验收经济学预核**：与 A2 强交互（用户轮保留顶大候选，验收 ≤50% 上限须配上游 partitionUnderCeiling 的「先降 KeepErrors 再试」降级序），单做价值低——与 A5 折叠区召回并下一批。
+- 门禁：go build 全仓+vet+gofmt 绿；A2 六例新测试+agent 全包绿。**未抬版本、未 commit/push**（树含并行会话改动勿混提）。拍板池：第 3 批=子代理两刀（A10 write_paths 预检+A11 完成裁决）；压缩线余=A3+A5 同批。
+
+## Reasonix 2.x 蒸馏重开线：调研立档+安全两刀（A6/A7）· 2026-10-24
+
+- 用户指令「蒸馏reasinox，我们已经落后太多」——前档 docs/gaea-reasonix-v138-distill-2026-09.md（v1.38 四弹 16 刀后留池全销号收官）已过时：**studio 分支 2.0.0→2.50.0 共 59 版，PR 号 #10613→#14337（≈3700 号增量）**。四路并行深潜（会话与上下文引擎/权限安全/子代理补漏/架构地图）+ gaea 盘底（防提已有）→ **docs/gaea-reasonix-2x-distill-2026-10.md** 立档：A 档七刀（usage anchor 压力校准/压缩内容级保留〔用户原话预算〕/压缩验收经济学〔≤50% 上限+closedPrefixEnd〕/中断交接块/write_paths 预检不相交/complete_subtask 完成裁决/递归删除 guard+诚实拒绝）+ B/C 档 + 否定结论（MCP/扩展 Runtime/远程网关/计费/compositions/OS 沙箱/Coordinator）+ 辨伪（cache_shape/file observations/pinned 注入 gaea 已有）。
+- **首批实弹两刀（拍板序第 1 批=安全）**：
+  - **A6 递归删除硬拒绝**（internal/gaea/tool/builtin/bash_delete.go+测试）：灾难面（文件系统/卷根、home 及祖先、工作目录及祖先）任何形态硬拒绝；PowerShell 词法（Remove-Item/ri/rm/del -Recurse 缩写旗标）；find -delete 与 find|xargs rm 管道形态；变量/glob 字面性不足 fail-closed。**刻意偏差留档**：上游连「工作区外」也拒（有审批阶梯可路由给人），gaea bash 无审批 UX、temp 清理是合法实弹流，只拦灾难面。**坑三连**：①Windows filepath.Clean("C:") 补点成 "C:."——卷根判定必须打在原始词上；②Windows Clean 把 / 规范化成 \，POSIX 形态分类必须先于一切 Clean（MSYS 盘符挂载 /c/foo→C:\foo 单独翻译；/home/... 落 Git 安装根下=非用户数据灾难面放行）；③sameOrAncestor 的 Rel 方向——Rel(dir,p) 把「p 在保护区子树外」误判成祖先，正确方向=Rel(p,dir) 无 ".." 前缀（且 xargs 段 rm 无路径参数，递归旗标即判）。
+  - **A7 诚实拒绝升级**（tool/access.go）：读/写拒绝消息列出**具体允许根清单**（≤8 个配置序+超出计数省略；空集合明说 none configured）——模型看到根才能自我纠正；解析失败（提存在性）与越界（不提）两种错误语义分立；只读根不混进可写根清单。
+- **对源复核（用户质询「看了上游代码没有」引出的流程缺口补课）**：四路深潜报告有 file:line（读过源码），但 A6/A7 两刀最初按报告摘要写、未直接对照上游原实现——直接读 `shellsafe/delete*.go`+`tools/builtin/bash_delete*.go`+`target_access.go` 后盘出 **v1 九处差距并重写为 v1.1**：①包装解包（sudo/env/nohup/exec/builtin/command+旗标白名单，`sudo rm -rf /` v1 直接漏）②未知基座/解包失败递归参数扫描（裸 `xargs rm -rf` 树根未知 fail-closed；无关基座 echo 等放行=上游 default 分支）③find -exec/-execdir 嵌套删除负载④未知旗标 fail-closed（短旗标字符白名单 rfRvidI/长旗标前缀缩写口径）⑤PS 冒号内联值（`-Path:C:\ -Recurse` v1 漏）⑥`-Recurse:$false` 显式关递归⑦rd/rmdir 别名+cmd `/s /q` 旗标词法⑧字面性字符集补全（%[]{}+~user）⑨`-Confirm -Recurse` 取值参数后跟旗标=fail-closed（测试预期按上游语义修正）。新增 4 组测试（包装/finde-exec/PS v1.1/cmd），tool+agent 全包复绿。**A7 对照结论**：主干已对齐；不取=结构化 Refusal{Code}（gaea sentinel+文本全链改型收益薄）+覆盖写保留读因（新拒绝面行为变更，记刀池）+禁读列表（gaea B1 是 allow 模型无对应面）。
+- 门禁：go build 全仓绿；go vet（tool/builtin/tool/agent）绿；guard 12 组子例+denial 4 例+tool 全包（bash/shellstate 回归）+agent 全包绿；gofmt 清。**未抬版本、未 commit/push**（树含并行会话改动勿混提）。
+- 拍板池待用户挑：第 2 批=压缩两刀（A1 usage anchor+A2 内容级保留，A3 验收经济学同批预核）；第 3 批=子代理两刀（A10 write_paths 预检+A11 完成裁决）。
+
+## 网文 skill 蒸馏 N11：技法检索库（webnovel-writer 九表思想）· 2026-10-24（续刀五）
+
+- 调研余池 A6 收口（A 档最后一项；GPL-3.0 红线=只重推导机制，账本内容全自写不搬上游文本）。上游思想：技法以「关键词/意图同义词/适用题材/核心摘要/详细展开/毒点」行式账本存档，按需检索注入不常驻。
+- **N11 全栈**：internal/app/novel_technique.go 内置 28 条九类技法账本（场景写法/爽点节奏/桥段套路/人设关系/写作技法/命名规则/裁决规则/金手指/题材调性；每条=关键词+适用题材+一句话核心+展开+毒点，关键词 ≥2 rune 硬约束防单字误伤）+ 确定性检索零 LLM（关键词含分类名子串计分，同分按账本序 ID 稳定）+ **生成链 advisory 注入**（create-chapter 的 extras 增 technique 区段：hint=计划+大纲要点文本命中关键词条目，至多 3 条/520 rune/整条不入宁少勿截半；**Rank 4 最先牺牲**——技法是参考非创作约束，排在世界观之后；标题明示「非创作约束，与本章无关的条目忽略」）+ NovelTechniqueSearch 绑定（683→684；空查询=分类目录初始态不倒全量；只读不落盘零写路径）+ TechniquePanel（CreatePage 工具轨质量组新项「技法库」：检索框+九类 Tag 点击即按分类检索+结果卡三件套渲染+零命中诚实空态）+ mock 诚实空态（账本在 Go 二进制，浏览器 dev 无账本）。
+- v1 边界留档：内置账本只读不支持项目级增补（写路径属记忆写入确认红线范畴，实弹有需求再立刀）。
+- 坑复训：**heredoc python 改文件在 assert 失败时静默不写盘——文件改动一律 Edit 工具手写（第三次复训）**；gen_bindings -signatures-ts 再生会把并行会话已落 Go 未同步 signatures 的名字一并补齐（本次补入 CAD 四件/N 系三批/Sin 件，与 Go 面 684 一致属正常同步非冲突）；**面板测试一次性 mock 会被「打开即拉初始态」的消费先吃掉**（mockResolvedValueOnce 须挂在初始 await 之后）；vitest 定向复跑必须从 frontend/ 起（仓库根起吃不到 vite.config 的 jsdom=整文件 document is not defined 假红）。
+- 门禁：go vet 绿；go build 绿；技法定向测试+app 全包 153s 绿；tsc 0；eslint 0（六改动文件）；绑定 drift OK@684；-legacy-ts/-signatures-ts 再生同步；契约漂移 WARN 无新增 exit 0；全量 vitest **458 文件/3981 用例**绿（独占；首跑 2 例=技法面板 mock 次序坑已根修复跑绿）。**未抬版本、未 commit/push**（树含并行会话改动勿混提）。
+
+## 原罪 N10：统一插图画风锚（图文穿插一致性）· 2026-10-24（续刀四）
+
+- 用户拍板「原罪是图文穿插式，需要单独优化」。盘底：SinIllustrate 已有角色文本锚+T2 参考槽+失败回退（正文标记与 sin_illustrate 工具同路），**缺画风锚**——同一故事各张插图风格全凭当轮 cue 措辞漂移，图文穿插体验硬伤。
+- **N10 全栈**：cast.json 增 `styles` 键（故事 id→画风描述，版本仍 1 字段增量；**坑=loadSinCast 三个返回点的 map 全非 nil——早退路径漏初始化 Styles 会在 Set 上 panic〔typed-nil map 复踩〕，收敛 emptySinCastDoc 单源**）+ `SinStoryStyleGet/Set`（trim/200 rune 截断/空串清空）+ `sinAugmentPromptWithStyle` 注入（与人物锚同款去重：「统一画风（本故事插图保持一致）：…」，未设=逐字节旧行为）+ 系统提示词插图协议画风行（**教模型 cue 里不写整体画风词**——设了锚由系统承担，没设保持与此前插图措辞一致）+ 右栏「插图」卡顶部画风卡（TextArea+保存，dirty 门闩，切故事重载）+ mock 内存态。绑定 681→683。
+- 前端测试 31/31（新 3 例：回显禁写/改写保存生效值回填/清空解除锚定；**坑=antd TextArea 的 testid 落点TagName 兼容取法复训**）。
+- 门禁：eslint 0；tsc 0；drift OK@683；go vet+app 全包 140s 绿；全量 vitest 绿（独占跑）。**未抬版本、未 commit/push**。
+
+## 网文 skill 蒸馏 N9：原罪板块写作纪律补族 · 2026-10-24（续刀三）
+
+- 用户问「原罪板块呢」——盘底结论：原罪是对话式合写成人向图文故事（SinB 26 方法+工具环+便签/大纲底稿直注+插图标记+epub 导出），提示词在 `internal/app/sin_prompt.go`（Go 串不走模板引擎）；v4.424 已吸收 T2 蒸馏的解释腔/否定翻转两条。**关键事实：sin 正文是流式对话产物，前后端都不经过 novelstyle 打分——`sin_prompt.go` 旧注释「内核门禁兜底」名不副实，已诚实化**（提示词层是唯一闸，措辞按最强口径写）。
+- N9 刀（sin 写作规范补族，与小说板块 N1/N2/N7 判据同源）：通用反应不刷屏（深吸一口气/瞳孔微缩/眼底闪过一丝/嘴角勾起 一轮至多一次，优先换人物特定动作）/弱化装饰节制（微微/一丝/一抹/缓缓 连续出现=描写没落地）/收束不升华（轮末落具体动作对话画面，不写命运齿轮式预告）/获得要挣来（契约四问可移植子集：巧合制造麻烦不解决麻烦）。测试锚扩族（TestSinSystemPromptAntiAIFlavorRules +新增 TestSinSystemPromptEarnedGainRule）。
+- 不移植项（判据留档）：N3 扫榜/N6 拆解=项目级工具不适用对话面；N8 词典双时间线=合写场景用户即读者全知，便签+大纲已覆盖一致性锚；N4 书封=epub 封面属新需求非蒸馏。
+- 门禁：go build/vet 绿；app 全包 135s 绿（TestSin 全族含提示词锚）；零前端零绑定改动（sin_prompt 是 Go 串，无 drift 面）。**未抬版本、未 commit/push**。
+
+## 网文 skill 蒸馏 N7~N8：设定事实词典双时间线 + 钩子技法补全 · 2026-10-24（续刀二）
+
+- 承 N1~N6（同日续刀二）：消化调研余池 A5/B11；C16 字数带核对完毕=现状 minWords+自动续写 ≤20 轮是既有设计选择，与上游「欠字不自动补」相抵触属行为变更，不动，记观察。
+- **N8 设定事实词典全栈**（chinese-novelist-skill「设定与事实词典」机制重推导）：`<项目根>/facts.json` 双时间线账本（name/category/first_chapter/**reader_known 口径上限**/full_truth/reveal_chapter/revealed）——`NovelFactsList/Save`（整表写回作者审批制：名称+读者已知必填、缺 ID 自动补 fact_<ns>、负揭示章拒收）+ **Rank 0 注进章节上下文**（buildChapterContextSections 与伏笔同梯队最后牺牲；预算 800 rune/10 条，整条不入宁少勿截半）：未到揭示章的完整真相带「本章不得提前揭示」纪律、已到期/已标记转「已可揭示」口径、无隐藏层只出口径。设定页下行区改三面板（伏笔+FactsPanel+一致性，aria-label 随改测试同步）；FactsPanel v1=登记/标记已揭示/删除/整表保存。绑定 681。
+- **N7 钩子技法补全**（钩子十三式的可代码化子集）：chapter-plan forbidden+=虚假悬念（无铺垫空吓）/机械降神式破局（主角不付代价外力免费解围）；create-chapter must+=新悬念必须当场给具体可感由头（一件物/一句话/一个变化），不开空吓天窗。十三式全表与悬念弧并行不进 prompts（章级模板装不下全书级调度，dissect 八型已够用）。
+- 坑复训：**aria-label 类可访问名是契约锁**（getByLabelText 精确匹配，改面板构成须同步测试）；**同族短按钮名（「登记」vs「登记事实」）正则双命中，用 ^…$ 整名锚定**；**全量 vitest 必须独占跑**（与 Go 全包并行=432 假 errors，定性资源抢占非回归）。
+- 门禁：go vet+app/prompt/novelstyle 全包绿（app 133s）；tsc 0；eslint 0；绑定 drift OK@681；全量 vitest 绿。**未抬版本、未 commit/push**。余池：扫榜/拆书/词典真机实弹。
+
+## 网文 skill 蒸馏 N4~N6：对标拆解全栈 + 书封三层模板 + 审核 fix 方向限制 · 2026-10-24（续刀）
+
+- 承 N1~N3（同日续刀，用户拍板「只管小说板块，继续」）：消化调研余池 A②/B10/B12。
+- **N6 对标拆解全栈**（oh-story story-long-analyze 机制重推导，学习导向与章节分析〔修改导向 analysis-v2〕分面）：prompts/novel-dissect.json（付息/钩子类型八枚举/情绪曲线/信息推进/写法公式「条件→手法→效果」，偷机制不偷设定+证据不足诚实条款）+ internal/app/novel_dissect_handler.go（`NovelDissectChapter(num,force)` 逐章拆解落 `<项目根>/dissections/NNN.json` 原子写、force=false 文件存在即跳过=断点续跑零 LLM、非法 hook_type 落「无」保守档、字段钳长；`NovelDissectList`/`NovelDissectReport` 纯确定性零 LLM 聚合：剧情线付息链/钩子分布/公式去重/情绪曲线）+ 三绑定（679，spaceBindings play 认领+names 手工+legacy/signatures 再生）+ DissectPanel（CreatePage 工具轨「质量组」新项：起止章号+跳过已拆+前端串行循环进度可停可续+报告视图）。
+- **N4 书封三层模板**（novel_bookcover.go）：题材风格表 15 档对齐 GENRE_OPTIONS（玄幻/仙侠/武侠/奇幻/都市/现实/历史/军事/游戏/体育/科幻/悬疑/灵异/二次元/短篇，子串命中取首条+通用兜底）+ 画面三层排布（前景人物-中景场景-远景氛围）+ 排版安全区指令（顶部 1/6+底部窄条净空）；本地生图后端中文渲染不可靠的既有「不画文字」口径保留，测试断言字符串（竖版书籍封面构图/promptHint/项目名）全保留。
+- **N5 审核 fix 方向限制**：chapter-review.json（一致性/事实/因果类问题只写「事实统一方向」，不夹带文学创作建议、不代作者改剧情走向）+ book-review.json（同款一行）——防 LLM 评审越权改剧情。
+- 坑复训：**antd InputNumber 的 data-testid 直接落在 input 元素上**（querySelector('input') 取空，helper 须判 tagName）；**同包测试文件与源文件函数重名不同签名=测试编译才炸**（mustJSON 撞 image_handler_test，改名 dissectJSON）；heredoc 改文件会让 Edit 工具失去文件状态跟踪（重 Read 再 Edit）。
+- 门禁：go vet+app/prompt/novelstyle 全包绿（app 144s）；tsc 0；eslint 0；绑定 drift OK@679；契约漂移无新增 exit 0；模板计数锁 25→26；全量 vitest 456 文件/3968 用例绿。**未抬版本、未 commit/push**（树含并行会话改动勿混提）。余池：钩子十三式资产、事实词典双列、扫榜/拆书真机实弹。
+
+## 网文 skill 蒸馏 N1~N3：选题扫榜全栈 + 契约四问申报 + 内核去味扩充 · 2026-10-24
+
+- 起因：宣传图「写小说一整套 Skill」调研（报告 docs/gaea-novel-skill-distill-survey-2026-10.md）——十个名字实出自四仓（oh-story-claudecode 合集 + chinese-novelist-skill + novel-creator-skill + webnovel-writer〔GPL 只重推导〕）；novel-deslop/novel-agents/novel-review 早在 v4.282 起蒸馏自同源，真空白=选题扫榜与拆书编排。用户拍板「不要技能，直接蒸馏进代码」。
+- **N3 选题扫榜全栈**：prompts/novel-scan.json（八维市场观察+选题 12 字段+可行性量化门槛+来源诚实标注）+ internal/app/novel_scan_handler.go（粘贴解析→LLM→**确定性封顶**：同方向样本<15〔刺猬猫 10〕或趋势未知→高封中，只降不升，封顶原因写回 feasibility_reason；报告只读不落盘=建议制）+ NovelScanAnalyze 绑定（NovelB 123/全 676：spaceBindings play 认领→bindingNames 手工同步→legacy/signatures 再生）+ CreateNovelModal「扫榜找灵感」折叠区（平台选择/粘贴/可行性徽标报告卡/**采用题材**映射 GENRE_OPTIONS 回填）。爬榜通路明确不做（D 档：ToS 灰）。
+- **N2 prompts 纪律**：create-chapter 增契约四问（结果必须挣来/不预支底牌/旧期待付息+新期待具体）+新增物申报（具名新角色/新伏笔/新承诺必须入变更声明；需作者拍板的走向不写正文、【待拍板】列摘要行）+章末升华禁令；chapter-plan 增主线配额（主线推进/关系升级/核心秘密三类取一，非收官章不终局）+钩子章内铺垫纪律。
+- **N1 内核去味扩充**（纯确定性零 LLM）：words.json blacklist 19→38（通用反应/论述公文腔/空泛定性/自动过渡信号，只计分不替换，宁漏勿误不变）+patterns.json 新族 trailerEndings（**章末窗口 240 rune 位置敏感**，S3 advisory 封顶 1；解释腔标记 +3）+patterns.go 规则 12+classifyTasteLayer 升华→narrative。
+- 门禁：go build/vet 绿；novelstyle/prompt/app 全包测试绿（app 148s）；tsc 0；eslint 0；绑定 drift OK@676；契约漂移 WARN 无新增 exit 0；全量 vitest 455 文件/3961+3 用例绿。模板计数锁 24→25（prompt_override_test）。**未抬版本、未 commit/push**（沿用 B0~B5 纪律；树含并行会话 Qwen-Image-Edit 退役改动，勿混提）。
+
+## Qwen-Image-Edit 2511 退役：删除 `qwen-image-edit` · 2026-10-24
+
+- 用户拍板删除旧本地编辑模型 `qwen-image-edit`（Qwen-Image-Edit 2511），不作为回退保留。
+- 删除 2511 工作流、专用权重提示、Kontext 缩放辅助与相关测试；ComfyUI 编辑统一走 `qwen-image-2.1-edit`。角色设定卡、原罪 qedit、媒体编辑均同步切换；旧模型请求显式拒绝。实际权重 25 个文件 / 51.31GB（主文件 + 24 分段）已移入 Windows 回收站，可恢复，其他模型未动。
+- 本地 2.1 Edit 不支持蒙版，局部重绘/扩图保留 honest failure，并在 UI 指向支持 `/images/edits` 的云端后端。历史发布记录不重写。门禁：`go test ./...`、Go build/vet/lint、前端 vitest **455 文件 / 3961 用例**、tsc/build/knip、文档/契约/E 系列/绑定守卫全绿。
+
+## 上游蒸馏 B0：发布阻断清零（依赖安全+门禁恢复）· 2026-10-23
+
+- 按 `进度计划/gaea-upstream-distill-execution-20261023.md` 从 B0 直接执行；保留执行前 CAD/工作台未提交改动，不 commit/push。
+- 依赖修复：Go 1.26.10、x/net 0.61.0、excelize 10-20 修复版、DOMPurify 3.4.17、KaTeX 0.18.2（pnpm 11 overrides 统一传递依赖）；`govulncheck` 与 `pnpm audit --prod` 均归零。
+- Excelize 条件格式测试夹具改用 `NewConditionalStyle`，删除 61 行手工 zip/dxfs 注入；CAD lint 清零，三份 CAD 文档登记并修正 PoC 链接。
+- 门禁：Go build/vet/test 全绿；前端 tsc/build/knip 通过；vitest **454 文件 / 3951 用例**全绿；绑定 PASS@675、契约/E 系列/文档守卫通过。前端 lint 0 error / 7 既有 warning，CAD 一条留 B2。
+- 下一批次：B1 文件访问边界与子代理 hooks（工作区读写分根、preview confinement、hooks 继承）；未抬版本、未发版。
+
+## 上游蒸馏 B5：Qwen Image 2.1 Turbo Edit（代码+mock+单图真机收口）· 2026-10-24
+
+- 保持 `qwen-image-2.1-edit` 内部 ID 兼容配置，UI 显示 “Qwen Image 2.1 Turbo Edit”；官方 Turbo Edit 工作流复用现有三件权重：`TextEncodeQwenImage21`、`QwenImage21Cache → CFGGuider(cfg=8) → SamplerCustomAdvanced` + 官方 8 步 `ManualSigmas`。1/4/10 图 golden 通过、第 11 图拒绝；增强器默认关闭。
+- **合规显形**：Qwen 2.1 的 `Qwen Research License（禁商用）`写入目录 license hint，并在模型选择页/编辑弹窗明确警示；商业用途需另选具备相应许可的模型。新增 Go 目录与前端 UI 回归，定向 Go 测试、21 个前端用例、tsc、eslint 通过。
+- **真机复核（2026-10-24）**：ComfyUI 0.42.0 / templates 0.11.96 下，产品级单图指令编辑成功（1024×1024 RGBA、172,229 种颜色）；Turbo Edit 三件权重均已就位，不再等待基础 Edit UNET。
+- 2.1 Turbo 真机文生图成功（1024×1024 RGBA、274,349 种颜色、49.59 秒），本机 SHA-256 与 HF `lfs.oid` 一致，证明 2.1 CLIP/VAE/采样节点栈健康。
+- 2511 在 0.42.0 下仍输出纯黑；同实例 Krea2 对照正常（158,876 种颜色），排除 VAE/全局 GPU。本机 2511 与官方文件同为 20,533,762,817 B，但 SHA-256 `d21c31e4…d081` ≠ 官方 LFS `c9fdc158…0a4e`，确认本地权重损坏。
+- 留池：4 图真机在 5 分钟门控内停在 0/8、未产出，已中断；中文图上文字真机输出绿色噪声、无可读“山海”，判失败。2511 已退役，不再重新获取。
+- 全量前端 vitest **456 文件 / 3968 用例**通过；Go 全量与各静态/安全门禁通过，当前绑定面 `PASS@679`（含并行功能增量），未抬版本、未 commit/push。
+
+## 上游蒸馏 B4：作者记忆 + 三层去味 · 2026-10-23
+
+- 新增 `internal/authorprefs` AP/BP 两级 author memory（幂等 event、单调 revision、conflict/pending/accepted、book 覆盖 global、2048B 查询上限与 omitted IDs），新增 play 空间 `author_memory` 工具并接入章节/风格上下文。
+- `novelstyle` 与 `novelgate` issue 增加 expression/narrative/story layer；novel-deslop 增加 H/I/J story 授权门禁。自动化词法引擎不伪造 story 层问题，脚本零命中不替代后两层阅读核验。
+- authorprefs 6 个场景、三层正反例与零误报测试通过；agent 内部工具不增加 Wails 绑定。
+
+## 上游蒸馏 B3：附件准入 + Provider 发送保护 · 2026-10-23
+
+- 新增 `internal/gaea/attachment` 单一安全实现：普通文件 25 MiB、图片 10 MiB，解码前拒绝超限，`os.Root` 固定目录、独占临时文件、原子改名、真实路径/MIME 校验；粘贴图与附件绑定接入，旧 control 重复实现删除。
+- 前端普通文件/图片/截图三条附件路径均在 FileReader 前分拣；新增 provider send guard：发送阶段 300 秒、请求写完启动响应头计时、仅取消 attempt context、未完成发送最多安全重发一次，响应头超时不重发，长 SSE 不中断。
+- attachment 7 个后端场景、send guard 6 个场景、附件前端 12 个场景通过；零新绑定。
+
+## 上游蒸馏 B2：CAD 当前版本收口 · 2026-10-23
+
+- `CadPanel` generation/seq 隔离全部异步请求，新图纸清空旧状态，慢 Open/Raster/Texts/Count/Ask 迟到结果丢弃，ask 期间禁换图框，handoff 仅用当前代际数据；不同错误与 count warnings 显形。
+- CAD 后端新增 DWG/DXF 32 MiB、PDF 128 MiB、100 图框、512 MiB PNG 总量、渲染宽度 64–8000、PDF 前 50 页限制，pdftoppm 可取消杀树，PNG/cache 元数据原子写。51 页合成 PDF 实测只生成 50 页。
+- CAD 后端 14 个 Go 场景、前端 14 个用例通过；lint 0 error / 6 个既有 warning，无 CAD 新 warning。
+
+## 上游蒸馏 B1：文件访问边界 + 子代理 hooks · 2026-10-23
+
+- 新增 AccessPolicy 与真实路径解析；默认读根=workspace+allow_write，`allow_read` 仅扩读；UI 已选文件经显式回调单文件放行。file/grep/ls/vision/format/chart/diagram/schedule/sidebar/largefile/OCR 等路径工具在 precheck 前统一校验。
+- 子代理继承 AccessPolicy；用户 hooks 使用独立 `sa_` session view，`retry_until` 也走 child hooks。覆盖 symlink/junction、跨卷/大小写越界、正文不泄漏、读根不可写与 hooks 阻断 bash，共 19 个新增场景；零新绑定。
+
+## 上游蒸馏执行规划已立档（非版本刀）· 2026-10-23
+
+- 全仓审计与上游同步后形成可执行计划：`进度计划/gaea-upstream-distill-execution-20261023.md`。
+- 下个会话直接按 §0 执行，不重新审计、不重复拍板；首批 B0 发布阻断清零，随后 B1 文件访问边界+子代理 hooks。
+- 锁定顺序：B0 门禁 → B1 安全边界 → B2 CAD 收口 → B3 附件/provider → B4 小说作者记忆 → B5 Qwen Image 2.1 Edit。
+- 当前审计基线：`ce56c783`，v4.523.0，工作树含未提交 CAD/工作台改动；保留现有改动，不 commit/push。
+
 ## v4.466.0 发布：二期·退役清理（21 死绑定退役，660→639）· 2026-10-07
 
 - **退役 21 全走 excludedBindings**（批 53 先例：方法体保留——ProjectSave/EstimateItemSave 是 graph/indicators 测试种子、笔记/归因有行为测试；门面/bindingNames/mock 收缩；复活=除名重跑）：旧测算项目写路径 9+复盘笔记 4+五算 4+归因 1+CostList 1+WorkcostBillItemSave/Delete 2。

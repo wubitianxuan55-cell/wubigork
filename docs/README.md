@@ -41,6 +41,9 @@
 
 | 文档 | 状态 |
 |---|---|
+| gaea-cad-tool-master-plan-2026-10.md | 🔄 **CAD 图纸识别工具总体规划（2026-10，当前刀路准绳）**：桌面本地图纸信息提取与问答；PoC 合成样本 PASS，一期查看/提取/问图纸代码落地，待真机走查与发版 |
+| gaea-cad-poc-report-2026-10.md | ✅ **CAD PoC 门禁报告（2026-10-23）**：go-cad 解析/分幅渲染/中文字形/图框识别与识图问答验证；真实 DWG 样本验证挂池但不阻塞一期 |
+| gaea-cad-recognition-market-survey-2026-10.md | 🔄 **CAD 图纸识别市场与开源技术调研（2026-10）**：DWG/DXF/PDF 解析、查看器、识图问答与许可边界；含二轮 GitHub/社区盘点附录 |
 | gaea-office-upgrade-plan-2026-09.md | ✅ 主体已落地（分期 v4.23–v4.31）；「远期」行（终端 tab/双工作台/侧边对话）维持拍板门控 |
 | gaea-office-mindmap-base-design-2026-09.md | 🔄 M1/B1/B2 看板/M2 画布编辑（v4.108.0）已落地；**B2 后半（字段面板/画廊）待拍板** |
 | gaea-pptx-edit-design-2026-09.md | ✅ 刀1 v4.109 / 刀2+刀3 v4.156 已交付；刀4 待反馈；真机走查挂池 |
@@ -100,6 +103,7 @@
 | gaea-sin-booksource-distill-2026-09.md | 🔄 原罪·书源引擎蒸馏规格（so-novel 机制重推导；AGPL 红线=不搬代码与规则 JSON）；并行线在制品，代码落点 `internal/booksource/` |
 | gaea-sin-booksearch-distill-2026-09.md | 🔄 原罪·书源检索蒸馏规格（并行线在制品） |
 | gaea-novel-ohstory-distill-2026-09.md | 🔄 小说板块·oh-story-claudecode 蒸馏规格（MIT：机制重推导 + 知识资产带许可收录）；技能×gaea 映射 + 六刀刀路，首刀=T1 评审 rubric 数据化 |
+| gaea-novel-skill-distill-survey-2026-10.md | ⬜ **网文写作 Skill 生态调研（2026-10-24）**：十 Skill 溯源到四仓库，核对 MIT/GPL 红线与 gaea 现有覆盖；只调研不立项，候选走拍板池 |
 | gaea-novel-booksource-import-2026-09.md | 🔄 小说板块·书源取书→拆书导入接通刀路（用户拍板 2026-09-13：两板块不合并改接通）；书源引擎（零消费者）作导入取书上游，NovelB +4 绑定 + 书架「在线搜书」；sin 书源线 t2~t5 归并行线不碰 |
 | gaea-longform-novel-system-2026-09.md | 🔄 长篇小说创作系统方向（2026-09-28 立项，用户指令「解决如何写一个优秀的长篇小说」）：§1 诊断十四条（带代码证据：意图输入仅一句剧情要求 / StoryThread 无写入点 / ChapterPlan 零消费 / 生成单位整章 blob / 场景卡缺工艺字段 / 分析情报不回写 / 写前契约软提示 / 质量门不收敛 / 上下文堆料 / 风格事后打分 / 无整书状态 / 前文窗口 10 章断档 / 张力字段不写 / 章内续写无衔接）+ §2 机制 + §3 对标 + §4 评测 + §5 七刀刀序 + §7 刀1 契约与验收 |
 | gaea-longform-craft-mechanics-2026-09.md | 🔄 长篇创作机制调研交付物（2026-09-28，方法论→可机械化的 14 机制 M1–M14 + 25 条「优秀长篇」机械判据（22 条可确定性自动化）+ 故事层/场景层/文本层三层架构 + 主流工具对应层做法与短板）；要点已并入 gaea-longform-novel-system §2 |
