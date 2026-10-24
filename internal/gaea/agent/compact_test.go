@@ -66,7 +66,9 @@ func TestMaybeCompact_NilUsage_LowPrompt_NoOp(t *testing.T) {
 // TestMaybeCompact_WithUsage_StillWorks verifies compaction triggers
 // when real usage data is provided.
 func TestMaybeCompact_WithUsage_StillWorks(t *testing.T) {
-	a := testAgentC(3000, 0.8, 3)
+	// Z1 输出预留后分母=Window−min(21K,Window/4)：4000−1000=3000，
+	// 保持本夹具在触发线（2400）之上的既有语义。
+	a := testAgentC(4000, 0.8, 3)
 	s := NewSession("system prompt")
 	// V10.13: 增加到 40 对消息，确保超过 minRecentTokens=2000 的 tail 预算
 	for i := 0; i < 40; i++ {
@@ -279,5 +281,26 @@ func TestCompactTiers_EffectiveWatermarks(t *testing.T) {
 	soft, ratio, force = configured.CompactTiers()
 	if soft != 0.6 || ratio != 0.8 || force != 0.95 {
 		t.Fatalf("显式配置应原样透出: got %v/%v/%v", soft, ratio, force)
+	}
+}
+
+// TestEffectiveWindow（Z1 蒸馏刀）：触发阈值分母=Window−min(21K, Window/4)。
+// 大窗吃满 21K 预留；小窗按 1/4 比例护底（防本地 8K 档阈值塌缩）。
+func TestEffectiveWindow(t *testing.T) {
+	cases := []struct {
+		window int
+		want   int
+	}{
+		{256_000, 235_000}, // 大窗：21K 全额预留
+		{100_000, 79_000},  // 21K < W/4
+		{8_000, 6_000},     // 小窗：W/4=2000 < 21K，按比例
+		{2_000, 1_500},     // 测试常用窗
+		{0, 0},             // 无窗压缩关闭：原样返回
+	}
+	for _, tc := range cases {
+		a := &AgentRunner{compaction: CompactionConfig{Window: tc.window}}
+		if got := a.effectiveWindow(); got != tc.want {
+			t.Errorf("Window=%d: effectiveWindow=%d, want %d", tc.window, got, tc.want)
+		}
 	}
 }

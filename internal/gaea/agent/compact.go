@@ -154,8 +154,8 @@ func (a *AgentRunner) midTurnMaybeCompact(ctx context.Context) {
 // "auto" after a sampling round, "mid-turn" between tool rounds.
 func (a *AgentRunner) compactIfOver(ctx context.Context, prompt int, trigger string) {
 
-	high := int(float64(a.compaction.Window) * a.ratio())
-	soft := int(float64(a.compaction.Window) * a.softRatio())
+	high := int(float64(a.effectiveWindow()) * a.ratio())
+	soft := int(float64(a.effectiveWindow()) * a.softRatio())
 
 	// ── Tier 1: Soft notice (no message change) ──
 	if prompt >= soft && prompt < high && !a.compaction.softNoticed {
@@ -183,7 +183,7 @@ func (a *AgentRunner) compactIfOver(ctx context.Context, prompt int, trigger str
 		}
 	}
 
-	force := prompt >= int(float64(a.compaction.Window)*a.forceRatio())
+	force := prompt >= int(float64(a.effectiveWindow())*a.forceRatio())
 
 	// ── Tier 2: Prune stale tool results (free) ──
 	if st, err := a.PruneStaleToolResults(); err == nil && st.Results > 0 {
@@ -214,7 +214,7 @@ func (a *AgentRunner) compactIfOver(ctx context.Context, prompt int, trigger str
 	// 尾预算和保护消息顶住，第二轮才真正落到水位下。consecutiveCompacts
 	// 达 2 触发既有的 compactStuck 熔断，封顶失控。
 	if force && a.consecutiveCompacts < 2 &&
-		a.EstimateContextTokens() >= int(float64(a.compaction.Window)*a.forceRatio()) {
+		a.EstimateContextTokens() >= int(float64(a.effectiveWindow())*a.forceRatio()) {
 		v2 := a.session.RewriteVersion()
 		if err := a.compact(ctx, trigger, instructions, true); err == nil && a.session.RewriteVersion() != v2 {
 			a.consecutiveCompacts++ // 只计真实落地的压缩，空转不计入熔断
@@ -321,7 +321,7 @@ func (a *AgentRunner) compact(ctx context.Context, trigger, instructions string,
 	if a.compaction.Window > 0 {
 		estNow := a.EstimateContextTokens()
 		estFold := int(float64(charsOfMessages(fold)) * a.tokPerChar())
-		triggerTokens := int(float64(a.compaction.Window) * a.ratio())
+		triggerTokens := int(float64(a.effectiveWindow()) * a.ratio())
 		ceiling := int(float64(a.compaction.Window) * checkpointCeilingRatio)
 		fixedPrefix := int(float64((charsOfMessages(msgs[:head]) + charsOfMessages(kept))) * a.tokPerChar())
 		skip := ""
@@ -865,6 +865,29 @@ func (a *AgentRunner) summarize(ctx context.Context, fold []provider.Message, in
 			}
 		}
 	}
+}
+
+// outputReserveTokens（Z1 蒸馏刀，ZCode compact/policy.ts preflight-v1 同源）：
+// provider 窗口是 input+output 共享，压缩触发阈值的分母必须先扣输出侧——
+// 否则「按 0.8 全窗触发」时输出预算在被计入的余量里被二次挤占，长输出
+// 模型在 trigger 点即可能写满。gaea 无 per-model 输出上限跟踪
+// （Request.MaxTokens 零值=引擎默认），取 ZCode preflight 上限 21K 常量；
+// 小窗保护：预留至多窗口 1/4，防本地小窗模型阈值塌缩到即刻触发
+// （刻意差异——ZCode 直接扣到 0，gaea 桌面有 8K 档本地引擎）。
+const outputReserveTokens = 21_000
+
+// effectiveWindow 触发阈值的分母：Window − 输出预留。仅用于 soft/high/force
+// 触发判定与验收闸的 triggerTokens（同一阈值同分母）；checkpointCeiling 与
+// tail 预算仍按全窗（前缀占比/尾部尺寸语义，非触发语义）。
+func (a *AgentRunner) effectiveWindow() int {
+	if a.compaction.Window <= 0 {
+		return a.compaction.Window
+	}
+	reserve := outputReserveTokens
+	if max := a.compaction.Window / 4; reserve > max {
+		reserve = max
+	}
+	return a.compaction.Window - reserve
 }
 
 func (a *AgentRunner) ratio() float64 {
