@@ -40,6 +40,20 @@ const (
 	maxPinnedFirstUserTokens  = 1500  // cap on pinning the first user turn verbatim
 	pinnedFirstUserWindowFrac = 0.15  // and never pin >15% of the window
 	minRecentKeep             = 5     // never keep fewer recent messages (used in tailFloor + checkpoint)
+
+	// 刀 A2（Reasonix 2.x compact_user_turns 蒸馏）：digest 后用户轮的逐字
+	// 保留预算——用户在会话中途说的约束一旦被摘要吞掉就不可恢复，而被约束
+	// 的工作产物仍可从工作区重推。预算随窗口缩放（无窗口用 floor 兜底）。
+	keptUserTurnsWindowFrac  = 0.05
+	keptUserTurnsFloorTokens = 1024
+
+	// 刀 A3（Reasonix 2.x acceptCheckpointCandidate 蒸馏）：
+	// checkpointCeilingRatio 是固定前缀例外路径的验收上限（窗口占比）；
+	// mechanicalDigestEstimate 是 shrink 校验兜底产物的保守预估——验收闸用
+	// 「机械摘要保底」算候选下限（摘要过大必回落 mechanical，所以这是可达
+	// 下限而非猜测）。
+	checkpointCeilingRatio   = 0.50
+	mechanicalDigestEstimate = 150
 )
 
 // summaryTag wraps the compaction summary so the model can distinguish it from
@@ -281,8 +295,8 @@ func (a *AgentRunner) compact(ctx context.Context, trigger, instructions string,
 	}
 	region := msgs[head:start]
 
-	// Split: kept (old digests + small user turns) vs fold (into summary).
-	kept, fold := a.partitionFold(region)
+	// Split: kept (old digests + small user turns + user-turn retention) vs fold.
+	kept, fold, retention := a.partitionFold(region)
 	if len(fold) == 0 {
 		return nil
 	}
@@ -290,6 +304,43 @@ func (a *AgentRunner) compact(ctx context.Context, trigger, instructions string,
 	// Economic check: skip if savings too small.
 	if !force && !foldEconomics(fold) {
 		return nil
+	}
+
+	// A3 验收经济学预判（Reasonix 2.x acceptCheckpointCandidate 蒸馏，gaea
+	// 适配版）：候选装配后的估算表面必须落在验收带内，否则**跳过本次摘要**
+	// （省一次注定无效的 LLM 调用；事后的 shrink 硬校验仍是真相）。与上游的
+	// 两处刻意差异：①候选下限用「机械摘要保底」估算——shrink 校验保证摘要
+	// 过大时回落 mechanical，所以这是可达的下限而非猜测（上游用真实候选
+	// token，gaea 摘要在未来时点）；②通用 above-ceiling 拒绝不取——gaea 的
+	// tail 预算有 2000 token 下限（v10.11，opencode 口径），小窗口下 tail 单
+	// 独就会顶破 50%，照搬会关死小窗口的自动压缩；触发检查+shrink 校验足够。
+	// 保留两条硬闸：
+	//   - 候选下限 ≥ trigger：一律拒——落回 trigger 的压缩买来的是下一次折叠
+	//     而不是摆脱它（force 也不豁免；manual 且当前已低于 trigger 除外）；
+	//   - 固定前缀本身超 50% ceiling：例外路径要求 ≥25% 节省，否则拒。
+	if a.compaction.Window > 0 {
+		estNow := a.EstimateContextTokens()
+		estFold := int(float64(charsOfMessages(fold)) * a.tokPerChar())
+		triggerTokens := int(float64(a.compaction.Window) * a.ratio())
+		ceiling := int(float64(a.compaction.Window) * checkpointCeilingRatio)
+		fixedPrefix := int(float64((charsOfMessages(msgs[:head]) + charsOfMessages(kept))) * a.tokPerChar())
+		skip := ""
+		switch {
+		case trigger == "manual" && estNow < triggerTokens:
+			// 定向手动压缩：验收带无物可护，任何真实节省都收。
+		case estNow-estFold+mechanicalDigestEstimate >= triggerTokens:
+			skip = fmt.Sprintf("compaction skipped: even a minimal digest would land at ~%d tokens (trigger %d); a checkpoint that lands back at the trigger buys the next fold rather than avoiding it",
+				estNow-estFold+mechanicalDigestEstimate, triggerTokens)
+		case fixedPrefix > ceiling:
+			if savings := estFold - mechanicalDigestEstimate; savings < estNow/4 {
+				skip = fmt.Sprintf("compaction skipped: fixed prefix already exceeds the 50%% ceiling (~%d/%d tokens); exception path requires ≥25%% savings, got ~%d",
+					fixedPrefix, ceiling, savings)
+			}
+		}
+		if skip != "" {
+			a.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelInfo, Text: skip})
+			return nil
+		}
 	}
 
 	a.sink.Emit(event.Event{Kind: event.CompactionStarted,
@@ -347,6 +398,13 @@ func (a *AgentRunner) compact(ctx context.Context, trigger, instructions string,
 
 	a.sink.Emit(event.Event{Kind: event.CompactionDone,
 		Compaction: event.Compaction{Trigger: trigger, Messages: len(fold), Summary: summary, Archive: archived}})
+	// 刀 A2：被预算丢下的用户轮必须显形（上游 noticeDroppedUserTurns）——
+	// 投影看起来完整而作者的话只剩摘要转述，逃逸通道（[[keep]]）只对被告知
+	// 它存在的人有用。
+	if retention.Dropped > 0 {
+		a.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelWarn,
+			Text: fmt.Sprintf("%d of your earlier message(s) were too large to keep verbatim and now survive only through the summary. Prefix a turn with [[keep]] to hold it verbatim.", retention.Dropped)})
+	}
 	return nil
 }
 
@@ -524,17 +582,67 @@ func isCompactionSummary(m provider.Message) bool {
 // partitionFold splits the compaction region into kept (prefix-stable) and fold.
 // 缓存前缀不变性：只保留结构性条件——现有 digest 和可 pin 的短 user turn。
 // 禁止基于消息内容（如重要性评分）做保留决策，否则 kept 区膨胀破坏前缀。
+// 用户轮逐字保留（刀 A2）是确定性判定（Role 判定+固定比率估价+预算），同一
+// 消息永远同一结论，不在此禁令之列。
 
-func (a *AgentRunner) partitionFold(region []provider.Message) (kept, fold []provider.Message) {
-	policyKeep := keepIndexes(region, a.keepPolicy)
+// userTurnRetention 记一次折叠对用户轮的保留/丢弃（上游 userTurnRetention）。
+type userTurnRetention struct {
+	Kept    int
+	Dropped int
+}
+
+func (a *AgentRunner) partitionFold(region []provider.Message) (kept, fold []provider.Message, retention userTurnRetention) {
+	keep := keepIndexes(region, a.keepPolicy)
+	retention = a.keepUserTurns(region, keep)
 	for i, m := range region {
-		if policyKeep[i] || isCompactionSummary(m) || (m.Role == provider.RoleUser && a.pinnableUserTurn(m)) {
+		if keep[i] || isCompactionSummary(m) {
 			kept = append(kept, m)
 		} else {
 			fold = append(fold, m)
 		}
 	}
-	return kept, fold
+	return kept, fold, retention
+}
+
+// keepUserTurns 保护用户自己的话不被摘要裁决（上游 compact_user_turns 同构）：
+// 会话中途说出的约束被 digest 丢掉就没了，而它约束的工作产物仍可从工作区重推。
+// 与 keep policy 刻意不同——忽略 policyStart（预算本身就是封顶，不需要折叠
+// 地平线）；最老优先（老轮已活过更多次折叠，新轮的近处副本还在 tail 里逐字
+// 覆盖）。预算是唯一闸——单轮上限形态（pinnableUserTurn 的阈值）是上游刻意
+// 移除的：它会在预算装得下时丢掉长轮；[[keep]] 前缀才是坚持保留某轮的逃生
+// 通道。估价用固定比率而非校准比率：阈值跟着上一轮的比率漂，会让同一轮这次
+// 留下次折——确定性要求固定估价。
+func (a *AgentRunner) keepUserTurns(region []provider.Message, keep []bool) userTurnRetention {
+	var ret userTurnRetention
+	budget := a.keptUserTurnsBudget()
+	for i, m := range region {
+		if m.Role != provider.RoleUser || isCompactionSummary(m) {
+			continue
+		}
+		if keep[i] {
+			ret.Kept++ // 已被 keep policy（[[keep]] 标记）持有：有自己的预算
+			continue
+		}
+		cost := int(float64(msgChars(m)) * fallbackTokPerChar)
+		if cost > budget {
+			ret.Dropped++
+			continue
+		}
+		keep[i] = true
+		budget -= cost
+		ret.Kept++
+	}
+	return ret
+}
+
+// keptUserTurnsBudget 用户轮保留预算（上游 keptUserTurnsBudget 同构）：窗口
+// 的 5%，无窗口用 floor。不叠绝对下限——小窗口再叠地板会把候选顶过验收
+// 上限，直接让压缩整体失败而非降级。
+func (a *AgentRunner) keptUserTurnsBudget() int {
+	if a.compaction.Window <= 0 {
+		return keptUserTurnsFloorTokens
+	}
+	return max(1, int(float64(a.compaction.Window)*keptUserTurnsWindowFrac))
 }
 
 // ─── KeepPolicy helpers ───

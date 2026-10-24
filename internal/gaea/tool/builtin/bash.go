@@ -103,6 +103,18 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 			"conditional chaining, or issue the commands as separate calls")
 	}
 
+	// v4.524 刀 A6（Reasonix 2.x 递归删除 guard 蒸馏）：灾难面递归删除——文件
+	// 系统/卷根、home 及其祖先、工作目录及其祖先——硬拒绝，字面性不足（变量/
+	// glob）fail-closed 要求字面路径重试。对原始命令分类（状态包装前），解析
+	// 基准与实际 cmd.Dir 同源。
+	guardDir := b.workDir
+	if b.st != nil && sh.Kind == sandbox.ShellBash {
+		guardDir = b.st.workDir(b.workDir)
+	}
+	if v := guardRecursiveDelete(p.Command, guardDir, sh.Kind == sandbox.ShellPowerShell); v.reject {
+		return "", fmt.Errorf("%s", v.reason)
+	}
+
 	// v4.378 会话状态锚定：仅 bash 壳启用（PowerShell 语法不通）。前台调用包
 	// 状态采集前缀；后台任务不回写状态但起始目录仍锚定。WSL enforce 见下——
 	// 壳内 cwd/env 是另一个世界，host 侧锚定整体退回旧行为。

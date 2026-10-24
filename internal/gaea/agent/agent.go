@@ -345,6 +345,10 @@ type AgentRunner struct {
 	// nil disables all hook firing.
 	hooks ToolHooks
 
+	// access is the execution-time filesystem boundary applied before precheck
+	// or execution. New installs a deny-all policy when Options leaves it nil.
+	access tool.AccessPolicy
+
 	// finalizeText 是最终文本定稿闸（Options.FinalizeText，nil = 不改写）。
 	// stream() 收尾在 Message 全文事件发出前应用。
 	finalizeText func(string) string
@@ -417,6 +421,12 @@ type AgentRunner struct {
 	// 刀1（Reasonix/dsh 蒸馏）：连续溢出自愈计数——采样成功即清零，
 	// 上限 maxOverflowRecoveries，防止对同一请求反复空转。
 	overflowRecoveries int
+
+	// pendingRecovery 是 A4 中断交接记录（Reasonix 2.x interrupted_recovery
+	// 蒸馏）：回合终局（流错误/取消/预算阻断）时把本轮回执折叠存入，下一条
+	// 真实用户消息前置 <interrupted-turn-recovery> 块一次性消费。内存驻留
+	// （桌面单运行时）；进程重启丢失=诚实边界（上游 LocalOnly 持久）。
+	pendingRecovery *turnRecovery
 
 	// activeSchemas, when non-nil, overrides the full tool registry for this
 	// session. Set by the controller after GoalRouter classifies the task.
@@ -730,6 +740,10 @@ func New(prov provider.LLMProvider, tools *tool.Registry, session *Session, opts
 	if nilutil.IsNil(hooks) {
 		hooks = nil
 	}
+	access := opts.AccessPolicy
+	if nilutil.IsNil(access) {
+		access = tool.NewDenyAccessPolicy()
+	}
 	r := &AgentRunner{
 		prov:          prov,
 		tools:         tools,
@@ -739,6 +753,7 @@ func New(prov provider.LLMProvider, tools *tool.Registry, session *Session, opts
 		pricing:       opts.Pricing,
 		sink:          sink,
 		hooks:         hooks,
+		access:        access,
 		finalizeText:  opts.FinalizeText,
 		jobs:          opts.Jobs,
 		evidence:      evidence.NewLedger(),

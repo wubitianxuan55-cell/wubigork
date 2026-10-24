@@ -30,6 +30,8 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 	// 子代理 runSubAgentInternal 会在自己的 runDirect 再盖一次同一空间（其会话
 	// 已被断言与 ctx 一致），不产生漂移。
 	ctx = WithSpace(ctx, a.session.Space())
+	// A5：archive 目录随 ctx 下发（recall_archived 检索面；空=工具如实报未配置）。
+	ctx = WithArchiveDir(ctx, a.compaction.ArchiveDir)
 	defer func() { a.steerMu.Lock(); a.steerQueue = nil; a.steerConsumed = false; a.steerMu.Unlock() }() // drain any remaining steer on turn exit
 
 	if a.evidence != nil {
@@ -50,6 +52,9 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 	a.sink.Emit(event.Event{Kind: event.TurnStarted})
 	// wrap user input with transient language preference blocks
 	// (Design adopted from DeepSeek-Reasonix-V1.12)
+	// A4：若有中断交接记录，先前置 <interrupted-turn-recovery> 块（一次性
+	// 消费——不要盲目重复已完成写入；用户新消息优先）。
+	input = a.withInterruptedRecovery(input)
 	input = a.withTurnPreferences(input)
 	a.session.Add(provider.Message{Role: provider.RoleUser, Content: input})
 
@@ -190,6 +195,9 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 				}
 				a.persistInterruptedCalls(calls, "stream aborted before dispatch")
 			}
+			// A4：终局（流错误/取消）把本轮回执折叠成交接记录——下一轮用户
+			// 消息前置「不要盲目重复已完成写入」块。
+			a.captureInterruptedRecovery()
 			return buildTurnResult(turnFilesCreated, turnFilesModified, turnToolErrors, turnLastSummary), err
 		}
 		streamRecoveries = 0
@@ -230,6 +238,8 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 						}
 						a.persistInterruptedCalls(calls, "budget exceeded")
 					}
+					// A4：预算阻断同样算中断——已完成写入的回执照样交接。
+					a.captureInterruptedRecovery()
 					return buildTurnResult(turnFilesCreated, turnFilesModified, turnToolErrors, turnLastSummary), fmt.Errorf("budget exceeded: %s", a.budgetGate.StatusMessage())
 				}
 			}

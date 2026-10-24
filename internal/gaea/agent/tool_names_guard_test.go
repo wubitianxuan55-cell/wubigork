@@ -31,6 +31,10 @@ func TestToolNameMentionsSubsetOfRegistry(t *testing.T) {
 	for _, n := range []string{
 		"zh", "cn", "en", "chinese", "english", // 语言标签（compact/翻译域）
 		"length", "content_filter", "repetition_truncation", // 压缩原因枚举
+		// A11 完成裁决枚举（complete_subtask.go：报告状态/判据状态/证据种类）
+		"complete", "partial", "blocked", "failed",
+		"satisfied", "unsatisfied",
+		"verification", "diff", "files", "review", "manual",
 	} {
 		known[n] = true
 	}

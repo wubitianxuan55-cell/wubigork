@@ -8,6 +8,8 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 	"unicode/utf8"
 
 	"github.com/gaea/gaea/internal/gaea/event"
@@ -101,6 +103,26 @@ type RetryUntilConfig struct {
 	MaxRetries int    `json:"max_retries"` // Maximum retry attempts (default 3, max 10)
 }
 
+type subagentSessionIDKey struct{}
+
+func withSubagentSessionID(ctx context.Context, sessionID string) context.Context {
+	return context.WithValue(ctx, subagentSessionIDKey{}, sessionID)
+}
+
+func subagentSessionIDFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	id, _ := ctx.Value(subagentSessionIDKey{}).(string)
+	return id
+}
+
+var ephemeralSubagentSeq atomic.Uint64
+
+func newEphemeralSubagentID() string {
+	return fmt.Sprintf("sa_ephemeral_%d_%d", time.Now().UnixNano(), ephemeralSubagentSeq.Add(1))
+}
+
 var subagentMetaTools = []string{
 	"task",
 	"run_skill",
@@ -166,16 +188,28 @@ type TaskTool struct {
 	archiveDir       string
 	sysPrompt        string
 	gate             Gate
-	hooks            ToolHooks             // optional: gates the retry_until check command like any normal tool call
-	compiler         TaskCompiler          // optional, for cache sharing via Fork
-	runtimePrompt    string                // V5.25: L2 runtime context for sub-agents
-	templatePrefix   string                // V5.30: 子代理模板前缀，同类子代理共享缓存
-	accumulatedUsage *provider.Usage       // V5.30: 子代理累计 token 用量
-	usageMu          sync.Mutex            // v4.63: 并行 task 调用时合并记账的互斥锁
-	activeSchemas    []provider.ToolSchema // V5.30: 父代理过滤工具集，子代理继承以共享缓存
-	subagentProv     provider.LLMProvider  // V10.22: optional subagent model provider (nil → use prov)
+	hooks            ToolHooks              // optional: gates the retry_until check command like any normal tool call
+	hooksForSession  func(string) ToolHooks // returns the same user hooks bound to a child sa_ session
+	access           tool.AccessPolicy      // inherited filesystem boundary for spawned agents
+	compiler         TaskCompiler           // optional, for cache sharing via Fork
+	runtimePrompt    string                 // V5.25: L2 runtime context for sub-agents
+	templatePrefix   string                 // V5.30: 子代理模板前缀，同类子代理共享缓存
+	accumulatedUsage *provider.Usage        // V5.30: 子代理累计 token 用量
+	usageMu          sync.Mutex             // v4.63: 并行 task 调用时合并记账的互斥锁
+	activeSchemas    []provider.ToolSchema  // V5.30: 父代理过滤工具集，子代理继承以共享缓存
+	subagentProv     provider.LLMProvider   // V10.22: optional subagent model provider (nil → use prov)
 	subagentPricing  *provider.Pricing
 	subagentCtxWin   int
+
+	// writeClaims 是 A10 写范围声明注册表（Reasonix 2.x fleet 预检蒸馏）：
+	// task 调用声明 write_paths 后在执行期登记，与**正在运行**的其它声明做
+	// 两两重叠检查（目录重叠其下所有路径）——重叠的后到者当场拒绝（fail-fast，
+	// 模型下一回合可拆批或改范围重派）。冲突键（getConflictKey）只挡「声明集
+	// 完全相同」的同批并行，部分重叠（D:/a vs D:/a/b 键不同）由本注册表兜住。
+	// 未声明的调用不登记（今日行为零变化——上游 optimistic 模式的 gaea 对应
+	// 面：文件观察 stale 检测在执行期兜底）。
+	claimsMu    sync.Mutex
+	writeClaims map[string][]string
 
 	transcripts *SubagentStore // V10.29: subagent transcript persistence (continue_from)
 
@@ -235,6 +269,7 @@ func (t *TaskTool) Schema() json.RawMessage {
 "properties":{
   "prompt":{"type":"string","description":"What the sub-agent should accomplish. Be specific about the deliverable — the sub-agent does not see this conversation."},
   "description":{"type":"string","description":"Short label for the sub-task (3-7 words). Surfaced in the dispatch line so the user sees what's running."},
+  "write_paths":{"type":"array","items":{"type":"string"},"description":"Optional literal file/directory paths this writer may modify. Prefer file paths when known: a directory overlaps every path beneath it. Tasks with overlapping write_paths are rejected or serialized; disjoint scopes run in parallel. Globs and path escapes are rejected. Declaration is coordination metadata for parallel dispatch, not a security boundary."},
   "tools":{"type":"array","items":{"type":"string"},"description":"Optional tool whitelist. Subagent/skill meta-tools are still excluded so delegation stays one layer deep."},
   "max_steps":{"type":"integer","description":"Optional cap on tool-call rounds. Defaults to half the parent's cap (min 5).","minimum":1},
   "run_in_background":{"type":"boolean","description":"Run the sub-agent asynchronously: returns a job id immediately and keeps working across turns. Collect its final answer with wait, and you'll be notified when it finishes. Use for long, independent sub-tasks you don't need to block on right now."},
@@ -257,10 +292,10 @@ func (t *TaskTool) ReadOnly() bool { return false }
 // 这里——并行语义引导（2026-10 有限并行批）必须落在本行；写进 Description
 // 的版本到不了模型面前（该坑已修正）。
 func (t *TaskTool) CompactDescription() string {
-	return fmt.Sprintf("派发隔离子代理执行子任务(可设置output_schema获取结构化JSON)。同一消息里派发多个独立task即并行执行,并发上限%d路、超限自动排队等槽;严格有序的步骤写进同一prompt或同一次调用", SubagentMaxParallel())
+	return fmt.Sprintf("派发隔离子代理执行子任务(可设置output_schema获取结构化JSON)。同一消息里派发多个独立task即并行执行,并发上限%d路、超限自动排队等槽;要并行写文件的任务各自声明write_paths(字面路径,目录含其下全部,glob被拒)且互不重叠,重叠即拒绝;严格有序的步骤写进同一prompt或同一次调用", SubagentMaxParallel())
 }
 func (t *TaskTool) CompactSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"prompt":{"type":"string"},"description":{"type":"string"},"tools":{"type":"array","items":{"type":"string"}},"max_steps":{"type":"integer"},"run_in_background":{"type":"boolean"},"output_schema":{"type":"object"},"retry_until":{"type":"object","properties":{"check":{"type":"string"},"max_retries":{"type":"integer"}},"required":["check"]},"continue_from":{"type":"string"},"fork":{"type":"boolean"}},"required":["prompt"]}`)
+	return json.RawMessage(`{"type":"object","properties":{"prompt":{"type":"string"},"description":{"type":"string"},"write_paths":{"type":"array","items":{"type":"string"}},"tools":{"type":"array","items":{"type":"string"}},"max_steps":{"type":"integer"},"run_in_background":{"type":"boolean"},"output_schema":{"type":"object"},"retry_until":{"type":"object","properties":{"check":{"type":"string"},"max_retries":{"type":"integer"}},"required":["check"]},"continue_from":{"type":"string"},"fork":{"type":"boolean"}},"required":["prompt"]}`)
 }
 
 // Execute 满足 tool.Tool 接口（无父上下文的直接调用方——技能/测试路径）。
@@ -282,12 +317,18 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 		RetryUntil      *RetryUntilConfig `json:"retry_until,omitempty"`
 		ContinueFrom    string            `json:"continue_from,omitempty"`
 		Fork            bool              `json:"fork,omitempty"`
+		WritePaths      []string          `json:"write_paths,omitempty"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", fmt.Errorf("invalid args: %w", err)
 	}
 	if p.Prompt == "" {
 		return "", fmt.Errorf("prompt is required")
+	}
+	// A10 写范围声明（Reasonix 2.x fleet 预检蒸馏）：glob/逃逸当场拒绝。
+	writePaths, err := normalizeWritePaths(p.WritePaths)
+	if err != nil {
+		return "", err
 	}
 	// v4.380 刀1（dsh subagent-fork-in-process 蒸馏）：fork=父会话平衡前缀做
 	// 种子，子代理带完整上下文开跑。组合禁忌：background（种子会话生命周期
@@ -333,6 +374,26 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 	if run != nil {
 		defer run.Release()
 	}
+	childSessionID := subagentRunRef(run)
+	if strings.TrimSpace(childSessionID) == "" {
+		childSessionID = newEphemeralSubagentID()
+	}
+	ctx = withSubagentSessionID(ctx, childSessionID)
+
+	// A10：声明非空时登记活动声明（重叠 fail-fast）。真后台任务的声明随 job
+	// 存活（任务跨回合，声明必须同样跨回合，否则并行批里后来的声明检不到
+	// 它），job 收尾释放；前台与 bg-fallback 在本调用返回时释放。
+	realBackground := false
+	if len(writePaths) > 0 {
+		if err := t.acquireWriteClaim(childSessionID, writePaths); err != nil {
+			return "", err
+		}
+		defer func() {
+			if !realBackground {
+				t.releaseWriteClaim(childSessionID)
+			}
+		}()
+	}
 
 	// retry_until: foreground only (background retry doesn't make sense across turns).
 	if p.RetryUntil != nil && !p.RunInBackground {
@@ -374,7 +435,9 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 		// trace/evidence/memory 队列等 value 全丢——此前只逐字段补注了 space，
 		// 其余全靠「后台子代理用不到」的未经断言假设；取消链仍在 root，
 		// 调用方被取消不连带后台任务）。
+		realBackground = true
 		job := jm.StartInheriting(ctx, "task", label, func(jobCtx context.Context, _ io.Writer) (string, error) {
+			defer t.releaseWriteClaim(childSessionID) // A10：后台任务的声明随 job 收尾释放
 			result, _, runErr := t.runSubSession(jobCtx, p.Prompt, subReg, nested, run, maxSteps, p.OutputSchema, nil)
 			// 后台任务必须在此收尾 transcript（父 Execute 已返回，等不到回合末
 			// finalizeRun 代跑；此前 store 模式下后台子代理从不落盘）。
@@ -440,7 +503,12 @@ func (t *TaskTool) buildSubReg(names []string) (*tool.Registry, error) {
 	if unknown := UnknownToolNames(t.parentReg, names, SubagentMetaTools()...); len(unknown) > 0 {
 		return nil, fmt.Errorf("unknown tools in sub-agent whitelist: %s (check the names; excluded meta-tools like task/run_skill are silently denied by design)", strings.Join(unknown, ", "))
 	}
-	return FilterRegistry(t.parentReg, names, SubagentMetaTools()...), nil
+	reg := FilterRegistry(t.parentReg, names, SubagentMetaTools()...)
+	// A11：完成裁决工具常驻子代理注册表（不占白名单名额；白名单列它也不重复）。
+	if _, ok := reg.Get(completeSubtaskName); !ok {
+		reg.Add(completeSubtaskTool{})
+	}
+	return reg, nil
 }
 
 // UnknownToolNames 返回清单里父注册表**完全不存在的**工具名（排除清单按设
@@ -672,6 +740,21 @@ func (t *TaskTool) WithHooks(h ToolHooks) *TaskTool {
 	return t
 }
 
+// WithHooksForSession installs the production hook factory. Every child
+// sub-agent receives a fresh runner view carrying its own sa_ session id; the
+// parent runner is never mutated.
+func (t *TaskTool) WithHooksForSession(hooksForSession func(string) ToolHooks) *TaskTool {
+	t.hooksForSession = hooksForSession
+	return t
+}
+
+// WithAccessPolicy makes spawned sub-agents inherit the parent's exact
+// filesystem boundary.
+func (t *TaskTool) WithAccessPolicy(policy tool.AccessPolicy) *TaskTool {
+	t.access = policy
+	return t
+}
+
 // runSubSession executes the sub-agent with the given session (from a SubagentRun if
 // non-nil, otherwise creates an ephemeral session). When run is non-nil the session
 // from the store is used directly (supporting continue_from). The session actually
@@ -717,6 +800,13 @@ func (t *TaskTool) runSubSession(ctx context.Context, prompt string, subReg *too
 	if run != nil && run.Ref != "" {
 		subJournal = t.journalDir
 	}
+	hookSessionID := subagentSessionIDFromContext(ctx)
+	if run != nil && run.Ref != "" {
+		hookSessionID = run.Ref
+	}
+	if strings.TrimSpace(hookSessionID) == "" {
+		hookSessionID = newEphemeralSubagentID()
+	}
 
 	var subUsage provider.Usage
 	subOpts := Options{
@@ -724,6 +814,8 @@ func (t *TaskTool) runSubSession(ctx context.Context, prompt string, subReg *too
 		Temperature:   t.temperature,
 		Pricing:       subPrice,
 		Gate:          t.gate,
+		Hooks:         t.hooksForChild(hookSessionID),
+		AccessPolicy:  t.access,
 		ContextWindow: subCtxWin,
 		Compaction:    CompactionConfig{ArchiveDir: t.archiveDir},
 		ActiveSchemas: t.parentReg.Schemas(), // V10.36: align tools JSON with parent for cache
@@ -803,6 +895,11 @@ func (t *TaskTool) runSubSession(ctx context.Context, prompt string, subReg *too
 	}
 	if err == nil {
 		t.mergeSubUsage(&subUsage)
+		// A11 完成裁决（Reasonix 2.x complete_subtask 蒸馏）：子代理提交过
+		// 结构化报告就对照其会话回执只降不升，裁决语附在结果尾部给父模型。
+		if verdict := childCompletionVerdict(sess); verdict != "" {
+			result += verdict
+		}
 		// V10.12: wrap successful sub-agent results in structured XML tags
 		// so the parent can reliably identify the result. Borrowed from opencode.
 		return wrapTaskResult(result), sess, nil
@@ -902,11 +999,18 @@ func (t *TaskTool) runCheckCommand(ctx context.Context, command string) (string,
 	// hardAsk semantics are identical to a normal bash approval. readOnly
 	// mirrors bash's own classification (false — its effects can't be inferred
 	// from args).
-	cr := NewToolDispatcher(t.gate, t.hooks).Check(ctx, "bash", args, bashTool.ReadOnly())
+	cr := NewToolDispatcher(t.gate, t.hooksForChild(subagentSessionIDFromContext(ctx))).Check(ctx, "bash", args, bashTool.ReadOnly())
 	if !cr.Allowed {
 		return cr.Reason, fmt.Errorf("%w: %s", errCheckBlocked, cr.Reason)
 	}
 	return bashTool.Execute(ctx, args)
+}
+
+func (t *TaskTool) hooksForChild(sessionID string) ToolHooks {
+	if t.hooksForSession != nil {
+		return t.hooksForSession(sessionID)
+	}
+	return t.hooks
 }
 
 // ── Transcript lifecycle (V10.29) ────────────────────────────────────

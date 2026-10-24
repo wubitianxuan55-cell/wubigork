@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 
@@ -232,6 +234,20 @@ func getConflictKey(call provider.ToolCall) string {
 		// ID 缺失时退化为共享键 "spawn:"，按冲突串行，宁慢勿错）。本地模型
 		// 场景 LLM 推理在模型服务端仍可能排队，但工具执行段（检索/读文件等）
 		// 真实重叠，收益如实。
+		//
+		// A10（Reasonix 2.x fleet 预检蒸馏）：声明 write_paths 的调用按声明集
+		// 计键——同集声明同键必串行；异集声明各键共存并行；执行期注册表兜住
+		// 部分重叠（目录包含关系的键不同）。未声明调用维持唯一键（行为零变化）。
+		if call.Name == "task" {
+			if wp := declaredWritePaths(call.Arguments); len(wp) > 0 {
+				normalized := make([]string, 0, len(wp))
+				for _, p := range wp {
+					normalized = append(normalized, strings.ToLower(filepath.Clean(p)))
+				}
+				sort.Strings(normalized)
+				return "wpaths:" + strings.Join(normalized, "\x00")
+			}
+		}
 		if call.ID == "" {
 			return "spawn:"
 		}
