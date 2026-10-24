@@ -76,14 +76,15 @@ func TestDeSlopRewrite_PunctCollapse(t *testing.T) {
 // ── v4.225 词表数据资产（规范知识出内核）────────────────────────────────
 
 // TestWordsEmbeddedDefaultsGuard 漂移守卫：内置 words.json 与搬出前的 Go 表
-// 同规模（27 组替换 + 19 个黑名单词），防误删误改。
+// 同规模（27 组替换 + 38 个黑名单词——v4.524 吸收 oh-story banned-words 信号
+// 扩充 19 词，见 docs/gaea-novel-skill-distill-survey-2026-10.md），防误删误改。
 func TestWordsEmbeddedDefaultsGuard(t *testing.T) {
 	w := currentWords()
 	if len(w.Replacements) != 27 {
 		t.Fatalf("内置替换表应为 27 组, got %d", len(w.Replacements))
 	}
-	if len(w.Blacklist) != 19 {
-		t.Fatalf("内置黑名单应为 19 词, got %d", len(w.Blacklist))
+	if len(w.Blacklist) != 38 {
+		t.Fatalf("内置黑名单应为 38 词, got %d", len(w.Blacklist))
 	}
 	if w.Replacements["眸光流转"] != "目光流转" {
 		t.Fatalf("内置表内容漂移: %+v", w.Replacements)

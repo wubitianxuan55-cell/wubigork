@@ -546,14 +546,14 @@ describe('NovelSettingPage 下行面板折叠（默认收起）', () => {
     expect(screen.getByText('已收起（内容未变）')).toBeTruthy()
     const toggle = screen.getByTestId('novel-setting-panels-toggle')
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
-    expect(screen.getByLabelText('展开伏笔与一致性面板')).toBeTruthy()
+    expect(screen.getByLabelText('展开伏笔事实与一致性面板')).toBeTruthy()
 
     fireEvent.click(toggle)
 
     expect(await screen.findByTestId('novel-setting-panels')).toBeTruthy()
     expect(await screen.findByText('伏笔登记')).toBeTruthy()
     expect(screen.getByTestId('novel-setting-panels-toggle').getAttribute('aria-expanded')).toBe('true')
-    expect(screen.getByLabelText('收起伏笔与一致性面板')).toBeTruthy()
+    expect(screen.getByLabelText('收起伏笔事实与一致性面板')).toBeTruthy()
     expect(localStorage.getItem(COLLAPSED_KEY)).toBe('0')
   })
 

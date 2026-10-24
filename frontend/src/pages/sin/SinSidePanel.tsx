@@ -13,9 +13,10 @@
 // 纯文字+计数在密度与可读性上都是对的。
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, message, Modal, Popover } from 'antd'
+import { Button, Input, message, Modal, Popover } from 'antd'
 import { CaretRightOutlined, DeleteOutlined, EditOutlined, PlusOutlined, QuestionCircleOutlined } from '@ant-design/icons'
 import V3Empty from '../../components/V3Empty'
+import { app } from '../../gaea/lib/bridge'
 import { readSinThumb } from './sinThumbCache'
 import { collectIllustrations, type SinGalleryItem } from './storyText'
 import {
@@ -121,6 +122,40 @@ export function SinSidePanel({
   const widthRef = useRef(width)
   const [resizing, setResizing] = useState(false)
   const gallery = useMemo(() => collectIllustrations(messages), [messages])
+
+  // ── 统一插图画风（N10 图文穿插一致性锚）：本故事每张插图共享的画风层 ──
+  // 自包含读写（画廊域内闭环，不走父层 props）；切故事重载，保存回写后
+  // loaded 对齐、dirty 归零。读失败按无锚处理（保存时如实报错）。
+  const [styleText, setStyleText] = useState('')
+  const [styleLoaded, setStyleLoaded] = useState('')
+  const [styleSaving, setStyleSaving] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const v = await app.SinStoryStyleGet(storyId)
+        if (!cancelled) { setStyleText(v); setStyleLoaded(v) }
+      } catch {
+        if (!cancelled) { setStyleText(''); setStyleLoaded('') }
+      }
+    })()
+    return () => { cancelled = true }
+  }, [storyId])
+  const styleDirty = styleText.trim() !== styleLoaded
+  const saveStyle = useCallback(async () => {
+    if (styleSaving) return
+    setStyleSaving(true)
+    try {
+      const effective = await app.SinStoryStyleSet(storyId, styleText)
+      setStyleText(effective)
+      setStyleLoaded(effective)
+      void message.success(effective ? '统一画风已保存，之后的插图都会带上' : '已清空统一画风')
+    } catch (e) {
+      void message.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      setStyleSaving(false)
+    }
+  }, [storyId, styleSaving, styleText])
   // 重新生成进行中的条目（key 集合）：缩略图/大图按钮进 busy，防重复点火
   const [regenKeys, setRegenKeys] = useState<ReadonlySet<string>>(new Set())
   const regenerate = useCallback((item: SinGalleryItem) => {
@@ -539,6 +574,32 @@ export function SinSidePanel({
           </button>
           {showBody('gallery') && (
             <div className="sin-acc-body" role="tabpanel" id="sin-acc-panel-gallery" aria-labelledby="sin-acc-tab-gallery">
+
+                {/* 统一画风（N10）：设一条画风，本故事此后每张插图自动带上同一画风层 */}
+                <section className="sin-card" data-testid="sin-style-card">
+                  <div className="sin-help-title">统一画风</div>
+                  <p className="sin-note-text" style={{ margin: '4px 0 6px' }}>
+                    设定后本故事的每张插图都自动锚定这条画风，不再各张各的画风；留空=不锚定。
+                  </p>
+                  <Input.TextArea
+                    rows={2}
+                    value={styleText}
+                    maxLength={200}
+                    data-testid="sin-style-input"
+                    placeholder="如：赛博朋克霓虹，高对比冷暖光，电影感"
+                    onChange={(e) => setStyleText(e.target.value)}
+                  />
+                  <Button
+                    size="small" type="primary"
+                    style={{ marginTop: 6 }}
+                    data-testid="sin-style-save"
+                    disabled={!styleDirty || styleSaving}
+                    loading={styleSaving}
+                    onClick={() => void saveStyle()}
+                  >
+                    保存画风
+                  </Button>
+                </section>
 
                 <section className="sin-card">
                   {gallery.length > 0 ? (

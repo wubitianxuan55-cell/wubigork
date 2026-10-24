@@ -78,11 +78,16 @@ func (b *NovelB) NovelChapterScenesGenerate(chapterNum int, allowMissingCard boo
 func (b *NovelB) NovelChapterSuggestions(chapterNum int) ([]string, error) { return b.a.NovelChapterSuggestions(chapterNum) }
 func (b *NovelB) NovelContextInventory(chapterNum int) ([]map[string]interface{}, error) { return b.a.NovelContextInventory(chapterNum) }
 func (b *NovelB) NovelDiscardRewriteVersion(chapterNum int, versionID string) error { return b.a.NovelDiscardRewriteVersion(chapterNum, versionID) }
+func (b *NovelB) NovelDissectChapter(chapterNum int, force bool) (map[string]interface{}, error) { return b.a.NovelDissectChapter(chapterNum, force) }
+func (b *NovelB) NovelDissectList() (map[string]interface{}, error) { return b.a.NovelDissectList() }
+func (b *NovelB) NovelDissectReport() (map[string]interface{}, error) { return b.a.NovelDissectReport() }
 func (b *NovelB) NovelEvalBaselineSet() (map[string]interface{}, error) { return b.a.NovelEvalBaselineSet() }
 func (b *NovelB) NovelEvalCompare(baseName string, curName string) (map[string]interface{}, error) { return b.a.NovelEvalCompare(baseName, curName) }
 func (b *NovelB) NovelEvalSnapshot(persist bool) (map[string]interface{}, error) { return b.a.NovelEvalSnapshot(persist) }
 func (b *NovelB) NovelEvalSnapshotDelete(name string) error { return b.a.NovelEvalSnapshotDelete(name) }
 func (b *NovelB) NovelEvalSnapshotsList() ([]map[string]interface{}, error) { return b.a.NovelEvalSnapshotsList() }
+func (b *NovelB) NovelFactsList() (map[string]interface{}, error) { return b.a.NovelFactsList() }
+func (b *NovelB) NovelFactsSave(factsJSON string) (map[string]interface{}, error) { return b.a.NovelFactsSave(factsJSON) }
 func (b *NovelB) NovelFingerprintBuild() (FingerprintStatusPayload, error) { return b.a.NovelFingerprintBuild() }
 func (b *NovelB) NovelFingerprintScore(chapterNum int) (FingerprintScorePayload, error) { return b.a.NovelFingerprintScore(chapterNum) }
 func (b *NovelB) NovelFingerprintStatus() (FingerprintStatusPayload, error) { return b.a.NovelFingerprintStatus() }
@@ -96,6 +101,7 @@ func (b *NovelB) NovelOutlineReconstructTaskGet() (NovelOutlineReconstructTaskSt
 func (b *NovelB) NovelReadingAsk(kind string, title string, chapterText string, selection string, question string, historyJSON string) (string, error) { return b.a.NovelReadingAsk(kind, title, chapterText, selection, question, historyJSON) }
 func (b *NovelB) NovelRestoreRewriteVersion(chapterNum int, versionID string) (map[string]interface{}, error) { return b.a.NovelRestoreRewriteVersion(chapterNum, versionID) }
 func (b *NovelB) NovelReviewPlatforms() []ReviewPlatformView { return b.a.NovelReviewPlatforms() }
+func (b *NovelB) NovelScanAnalyze(platform string, rankText string) (map[string]interface{}, error) { return b.a.NovelScanAnalyze(platform, rankText) }
 func (b *NovelB) NovelSceneBibleView(chapterNum int, sceneID string) (SceneBibleView, error) { return b.a.NovelSceneBibleView(chapterNum, sceneID) }
 func (b *NovelB) NovelSceneCardsPropose(chapterNum int) ([]map[string]interface{}, error) { return b.a.NovelSceneCardsPropose(chapterNum) }
 func (b *NovelB) NovelSceneRewrite(chapterNum int, sceneID string, instruction string) (map[string]interface{}, error) { return b.a.NovelSceneRewrite(chapterNum, sceneID, instruction) }
@@ -107,6 +113,7 @@ func (b *NovelB) NovelStorySpineSave(spineJSON string) error { return b.a.NovelS
 func (b *NovelB) NovelStyleDigestBuild() (map[string]interface{}, error) { return b.a.NovelStyleDigestBuild() }
 func (b *NovelB) NovelStyleDigestClear() error { return b.a.NovelStyleDigestClear() }
 func (b *NovelB) NovelStyleDigestGet() (map[string]interface{}, error) { return b.a.NovelStyleDigestGet() }
+func (b *NovelB) NovelTechniqueSearch(query string) (map[string]interface{}, error) { return b.a.NovelTechniqueSearch(query) }
 func (b *NovelB) PromptBundleExport() (string, error) { return b.a.PromptBundleExport() }
 func (b *NovelB) PromptBundleImport(bundleJSON string) (promptstore.BundleImportResult, error) { return b.a.PromptBundleImport(bundleJSON) }
 func (b *NovelB) PromptTemplateGet(key string) (PromptTemplateDetail, error) { return b.a.PromptTemplateGet(key) }

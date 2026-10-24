@@ -116,6 +116,14 @@ type NovelMethods = Pick<
   | "NovelStyleDigestGet" | "NovelStyleDigestClear"
   // 上下文盘点批次（刀6 可见性；「上下文」页签）。
   | "NovelContextInventory"
+  // 选题扫榜（oh-story story-long-scan 蒸馏；CreateNovelModal「扫榜找灵感」）。
+  | "NovelScanAnalyze"
+  // 对标拆解（oh-story story-long-analyze 蒸馏；CreatePage「对标拆解」面板）。
+  | "NovelDissectChapter" | "NovelDissectList" | "NovelDissectReport"
+  // 设定事实词典（chinese-novelist-skill 蒸馏；设定页 FactsPanel）。
+  | "NovelFactsList" | "NovelFactsSave"
+  // N11 技法检索库（webnovel-writer 九表思想蒸馏；CreatePage「技法库」面板）。
+  | "NovelTechniqueSearch"
   // 书封生成 + 小说 AI 创作流 12 件（批 46 NOT_MOCKED 收尾刀；诚实拒=dev 无 LLM）。
   | "GenerateBookCover"
   | "NovelChapterAnnotations" | "NovelChapterConverge" | "NovelChapterConvergePreview"
@@ -130,6 +138,33 @@ export function buildNovel(): NovelMethods {
   return {
     // 形参对齐 Go 门面签名（X1-11 契约测试）：mock 如实拒绝（需桌面端文件系统），
     // 实参只收不用。
+    // ── 选题扫榜（oh-story story-long-scan 蒸馏）：生成类诚实拒（dev 无 LLM）──
+    async NovelScanAnalyze(_platform: string, _rankText: string) {
+      throw new Error("dev mock：扫榜分析需本地模型调用");
+    },
+    // ── 对标拆解（oh-story story-long-analyze 蒸馏）：拆解诚实拒（dev 无 LLM）；
+    // 清单/报告查询类中性空态（浏览器无可检索小说项目）。
+    async NovelDissectChapter(_chapterNum: number, _force: boolean) {
+      throw new Error("dev mock：拆解需本地模型调用");
+    },
+    async NovelDissectList() {
+      return { entries: [] };
+    },
+    async NovelDissectReport() {
+      return { chapters_dissected: 0, timeline: [], hook_dist: {}, emotion_arc: [], formulas: [] };
+    },
+    // ── 设定事实词典：查询类中性空态、写回类 no-op（对齐 GetForeshadows/SaveForeshadows）。
+    async NovelFactsList() {
+      return { facts: [] };
+    },
+    async NovelFactsSave(_factsJSON: string) {
+      // mock: no-op（返回契约形，浏览器演示不落盘）。
+      return { saved: 0 };
+    },
+    // ── N11 技法检索：账本内置于 Go 二进制，浏览器 dev 无账本——诚实空态 ──
+    async NovelTechniqueSearch(_query: string) {
+      return { results: [], categories: [], total: 0 };
+    },
     async ImportNovelBookEx(
       _filePath: string, _title: string, _genre: string, _style: string,
       _extractMode: string, _tailChapters: number,

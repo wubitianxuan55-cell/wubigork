@@ -25,6 +25,7 @@ import (
 type Issue struct {
 	Code     string `json:"code"`
 	Severity string `json:"severity"` // S1 | S2 | S3 | S4
+	Layer    string `json:"layer"`    // expression | narrative | story
 	Message  string `json:"message"`
 	Evidence string `json:"evidence,omitempty"`
 }
@@ -65,7 +66,7 @@ func OutlineContractIssues(node types.OutlineNode) []Issue {
 		out = append(out, Issue{Code: "outline_emotion_empty", Severity: "S4",
 			Message: "情感基调为空：建议一句话（如「紧张递进」），便于节奏控制"})
 	}
-	return out
+	return withIssueLayers(out)
 }
 
 // ChapterQualityIssues 写后质量体检（确定性）：
@@ -73,7 +74,7 @@ func OutlineContractIssues(node types.OutlineNode) []Issue {
 func ChapterQualityIssues(text string) []Issue {
 	body := strings.TrimSpace(text)
 	if body == "" {
-		return []Issue{{Code: "chapter_empty", Severity: "S1", Message: "正文为空"}}
+		return withIssueLayers([]Issue{{Code: "chapter_empty", Severity: "S1", Message: "正文为空"}})
 	}
 	var out []Issue
 
@@ -139,7 +140,28 @@ func ChapterQualityIssues(text string) []Issue {
 		out = append(out, Issue{Code: "period_heavy", Severity: "S3",
 			Message: "标点以句号为主（句号 " + itoa(periods) + " / 逗号 " + itoa(commas) + "）：中文叙述更依赖逗号长句节奏"})
 	}
-	return out
+	return withIssueLayers(out)
+}
+
+func withIssueLayers(in []Issue) []Issue {
+	for i := range in {
+		in[i].Layer = issueLayer(in[i].Code)
+	}
+	return in
+}
+
+func issueLayer(code string) string {
+	switch code {
+	case "outline_title_empty", "outline_summary_empty", "outline_keypoints_empty",
+		"plan_story_goal_empty", "plan_key_events_empty", "plan_conflict_empty",
+		"plan_ending_empty":
+		return "story"
+	case "outline_emotion_empty", "paragraph_too_long", "telegraph_style",
+		"sentences_too_short", "period_heavy", "chapter_empty":
+		return "narrative"
+	default:
+		return "expression"
+	}
 }
 
 // firstShort 第一处短句（电报体证据）。

@@ -17,6 +17,7 @@ import { MarkdownContent, mdStyles } from '../components/MarkdownContent'
 import WorldviewSectionsEditor from '../components/novel/WorldviewSectionsEditor'
 import V3Empty from '../components/V3Empty'
 import ForeshadowPanel from '../components/novel/ForeshadowPanel'
+import FactsPanel from '../components/novel/FactsPanel'
 import ConsistencyPanel from '../components/novel/ConsistencyPanel'
 import { confirmDiscard } from '../components/novel/unsavedGuard'
 import { registerNovelDirtyProvider, takeDiscardConfirmed } from '../components/novel/novelSwitchGuard'
@@ -417,21 +418,21 @@ const NovelSettingPage: React.FC<NovelSettingPageProps> = ({ active = true }) =>
         </div>
       </div>
 
-      {/* 下行：伏笔登记表 + 一致性检查（可折叠；折叠态持久化，收起时仅留一行标题） */}
+      {/* 下行：伏笔登记表 + 设定事实 + 一致性检查（可折叠；折叠态持久化，收起时仅留一行标题） */}
       {!needsProject && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0, minHeight: 0 }}>
           <div className="novel-panel-head" style={{ flexShrink: 0 }}>
-            <span className="novel-panel-title"><FlagOutlined />伏笔 + 一致性</span>
+            <span className="novel-panel-title"><FlagOutlined />伏笔 + 事实 + 一致性</span>
             <div style={{ flex: 1 }} />
             <span className="novel-setting-meta">
-              {panelsCollapsed ? '已收起（内容未变）' : '伏笔登记表 · 一致性检查'}
+              {panelsCollapsed ? '已收起（内容未变）' : '伏笔登记表 · 设定事实 · 一致性检查'}
             </span>
             <Button
               size="small" type="text"
               icon={panelsCollapsed ? <DownOutlined /> : <UpOutlined />}
               onClick={togglePanelsCollapsed}
               aria-expanded={!panelsCollapsed}
-              aria-label={panelsCollapsed ? '展开伏笔与一致性面板' : '收起伏笔与一致性面板'}
+              aria-label={panelsCollapsed ? '展开伏笔事实与一致性面板' : '收起伏笔事实与一致性面板'}
               data-testid="novel-setting-panels-toggle"
             >
               {panelsCollapsed ? '展开' : '收起'}
@@ -443,6 +444,7 @@ const NovelSettingPage: React.FC<NovelSettingPageProps> = ({ active = true }) =>
               style={{ display: 'flex', flexDirection: 'row', gap: 14, height: 300, flexShrink: 0, minHeight: 0 }}
             >
               <ForeshadowPanel disabled={needsProject} />
+              <FactsPanel />
               <ConsistencyPanel disabled={needsProject} />
             </div>
           )}

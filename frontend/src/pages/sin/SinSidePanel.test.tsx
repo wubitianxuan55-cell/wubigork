@@ -7,9 +7,23 @@ const apiMock = vi.hoisted(() => ({
   readFileAsDataURL: vi.fn(),
 }))
 
+// 统一画风（N10）桥接替桩：默认空串=无锚，其余用例渲染面板时同样安全。
+const styleMocks = vi.hoisted(() => ({
+  get: vi.fn().mockResolvedValue(''),
+  set: vi.fn().mockResolvedValue(''),
+}))
+
 vi.mock('../../api/image', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../api/image')>()),
   readFileAsDataURL: apiMock.readFileAsDataURL,
+}))
+
+vi.mock('../../gaea/lib/bridge', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../gaea/lib/bridge')>()),
+  app: {
+    SinStoryStyleGet: styleMocks.get,
+    SinStoryStyleSet: styleMocks.set,
+  },
 }))
 
 import { SinSidePanel } from './SinSidePanel'
@@ -407,6 +421,57 @@ describe('SinSidePanel 底稿编辑（v4.266）', () => {
     fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }))
     await waitFor(() => expect(screen.getByText('便签文件不可写')).toBeTruthy())
     expect(screen.queryAllByText('底稿已被更新').length).toBe(0)
+  })
+})
+
+describe('SinSidePanel 统一画风（N10 图文穿插一致性锚）', () => {
+  beforeEach(() => {
+    styleMocks.get.mockReset().mockResolvedValue('')
+    styleMocks.set.mockReset().mockResolvedValue('')
+  })
+
+  const openGallery = async () => {
+    fireEvent.click(screen.getByRole('tab', { name: /插图/ }))
+    await waitFor(() => expect(screen.getByTestId('sin-style-input')).toBeTruthy())
+  }
+
+  /** antd TextArea：data-testid 可能落在 textarea 本身或外层容器，两种都兼容。 */
+  const styleTextarea = () => {
+    const el = screen.getByTestId('sin-style-input')
+    return (el.tagName === 'TEXTAREA' ? el : el.querySelector('textarea')) as HTMLTextAreaElement
+  }
+
+  it('已设画风回显，未改动时保存钮禁用（无 dirty 不写）', async () => {
+    styleMocks.get.mockResolvedValueOnce('赛博朋克霓虹，高对比冷暖光')
+    renderPanel()
+    await openGallery()
+    expect(styleTextarea().value).toBe('赛博朋克霓虹，高对比冷暖光')
+    expect((screen.getByTestId('sin-style-save') as HTMLButtonElement).disabled).toBe(true)
+    expect(styleMocks.set).not.toHaveBeenCalled()
+  })
+
+  it('改画风保存：Set 带原文，生效值（trim 后）回填、dirty 归零', async () => {
+    styleMocks.set.mockResolvedValueOnce('水墨氤氲，留白多')
+    renderPanel()
+    await openGallery()
+    fireEvent.change(styleTextarea(), { target: { value: '  水墨氤氲，留白多  ' } })
+    const save = screen.getByTestId('sin-style-save') as HTMLButtonElement
+    expect(save.disabled).toBe(false)
+    fireEvent.click(save)
+    await waitFor(() => expect(styleMocks.set).toHaveBeenCalledWith('s_a', '  水墨氤氲，留白多  '))
+    // 后端返回生效值（trim 后）回填，保存钮回禁用
+    await waitFor(() => expect((screen.getByTestId('sin-style-save') as HTMLButtonElement).disabled).toBe(true))
+    expect(styleTextarea().value).toBe('水墨氤氲，留白多')
+  })
+
+  it('清空保存=解除锚定（Set 空串）', async () => {
+    styleMocks.get.mockResolvedValueOnce('旧画风')
+    styleMocks.set.mockResolvedValueOnce('')
+    renderPanel()
+    await openGallery()
+    fireEvent.change(styleTextarea(), { target: { value: '' } })
+    fireEvent.click(screen.getByTestId('sin-style-save'))
+    await waitFor(() => expect(styleMocks.set).toHaveBeenCalledWith('s_a', ''))
   })
 })
 

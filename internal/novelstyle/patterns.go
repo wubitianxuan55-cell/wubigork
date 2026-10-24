@@ -22,12 +22,16 @@ type patternTables struct {
 	NegationFlipHigh []string `json:"negationFlipHigh"`
 	// ExplanatoryMarkers 解释腔/上帝感标记（门禁 G；advisory——承担锚点则保留）。
 	ExplanatoryMarkers []string `json:"explanatoryMarkers"`
+	// TrailerEndings 章末升华/预告腔标记（门禁 F；advisory，只在章末窗口判定——
+	// 同样的词出现在章中可能是正常叙述，位置才是这类 AI 味的判据）。
+	TrailerEndings []string `json:"trailerEndings"`
 }
 
 // compiledPatterns 编译后的模式（装载期编译：坏正则 fail-closed 不换出）。
 type compiledPatterns struct {
-	neg  []*regexp.Regexp
-	expl []*regexp.Regexp
+	neg     []*regexp.Regexp
+	expl    []*regexp.Regexp
+	trailer []*regexp.Regexp
 }
 
 //go:embed patterns.json
@@ -69,6 +73,13 @@ func compilePatterns(t *patternTables) (*compiledPatterns, error) {
 		}
 		c.expl = append(c.expl, re)
 	}
+	for _, p := range t.TrailerEndings {
+		re, err := regexp.Compile(p)
+		if err != nil {
+			return nil, fmt.Errorf("章末升华正则不可编译 %q: %w", p, err)
+		}
+		c.trailer = append(c.trailer, re)
+	}
 	return c, nil
 }
 
@@ -92,7 +103,7 @@ func LoadPatternsFile(path string) error {
 	if err := json.Unmarshal(b, t); err != nil {
 		return fmt.Errorf("模式覆盖文件解析失败 %s: %w", path, err)
 	}
-	if len(t.NegationFlipHigh) == 0 && len(t.ExplanatoryMarkers) == 0 {
+	if len(t.NegationFlipHigh) == 0 && len(t.ExplanatoryMarkers) == 0 && len(t.TrailerEndings) == 0 {
 		return fmt.Errorf("模式覆盖文件无有效内容 %s", path)
 	}
 	c, err := compilePatterns(t)
@@ -106,6 +117,53 @@ func LoadPatternsFile(path string) error {
 // explanatoryMarkerCap advisory 标记的计分上限：解释腔命中常见于正常叙述，
 // 超量计分会把低置信提示放大成主要扣分（gates.json G：advisory）。
 const explanatoryMarkerCap = 5
+
+// trailerEndingWindow 章末升华判定的窗口（章末最后 N 个 rune）：升华/预告腔
+// 的判据是位置（收尾用总结陈词代替具体收束），同样的话出现在章中不算。
+const trailerEndingWindow = 240
+
+// trailerEndingCap 章末升华 advisory 计分上限：收尾只发生一次，命中即提示，
+// 不因同段多个标记词重复放大。
+const trailerEndingCap = 1
+
+// ruleTrailerEnding 规则 12（门禁 F，advisory）：章末升华/预告腔。
+// 只在章末 trailerEndingWindow 窗口内匹配：大段抒情总结（命运/宿命/齿轮式
+// 陈词、「才刚刚开始」式预告）代替安静具体收束。内核分不清「有功能的收束
+// 陈词」与「无功能升华」，一律 S3 提示，删不删由作者/语义裁决。
+func ruleTrailerEnding(text string, runes []rune) []TasteIssue {
+	pats := currentPatterns().trailer
+	if len(pats) == 0 {
+		return nil
+	}
+	n := len(runes)
+	w := trailerEndingWindow
+	if n < w {
+		w = n
+	}
+	tailStart := n - w
+	tailRunes := runes[tailStart:]
+	tailText := string(tailRunes)
+	var issues []TasteIssue
+	for _, re := range pats {
+		for _, loc := range re.FindAllStringIndex(tailText, -1) {
+			if len(issues) >= trailerEndingCap {
+				return issues
+			}
+			start := tailStart + byteToRune(tailRunes, loc[0])
+			end := tailStart + byteToRune(tailRunes, loc[1])
+			if end > n || start >= end {
+				continue
+			}
+			issues = append(issues, TasteIssue{
+				Start: start, End: end,
+				Reason:     "章末升华/预告腔：结尾用抒情总结陈词收束（advisory：安静细节或动作收尾，悬念优先于升华）",
+				Severity:   "S3",
+				Suggestion: "删总结陈词，落在一个具体动作、细节或对话上；确需留余韵时用可感的物象，不用命运/齿轮式概括。",
+			})
+		}
+	}
+	return issues
+}
 
 // byteToRune 把字节偏移换算成 rune 偏移（TasteIssue 的 span 口径，rune 下标）。
 func byteToRune(runes []rune, byteIdx int) int {

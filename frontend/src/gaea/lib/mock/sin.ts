@@ -17,6 +17,7 @@ type SinMethods = Pick<
   | "SinTopicClear" | "SinMessages" | "SinMessagesPage" | "SinStream" | "SinIllustrate" | "SinExportMarkdown"
   | "SinExportEpub"
   | "SinCastGet" | "SinCastSet" | "SinCancel" | "SinNotesGet" | "SinNotesSave"
+  | "SinStoryStyleGet" | "SinStoryStyleSet"
   | "SinTrajectory" | "SinContextView" | "SinContextNodeDetail"
   | "SinBookSourceSearch" | "SinBookSourceToc" | "SinBookSourceDownload"
   | "SinBookSourceDownloadCancel" | "SinBookSourceBooksList" | "SinBookSourceBookDelete"
@@ -107,6 +108,8 @@ export function buildSin(): SinMethods {
   const messages = new Map<string, MockSinMessage[]>();
   // 角色选择内存态（故事 id → 角色库 id）；角色库本身由 mock/weixin.ts 提供。
   const casts = new Map<string, string[]>();
+  // 统一插图画风内存态（故事 id → 画风描述；N10 一致性锚的演示面）。
+  const styles = new Map<string, string>();
   // 便签（设定集）与大纲内存态（故事 id → { notes, outline }）：
   // 真机由 sin_notes/sin_outline 工具落 notes/<故事 id>.json，这里给右栏面板
   // 同样的可走查数据（种子与 DEMO_TOOLS 里写的那条便签对齐）。
@@ -452,6 +455,17 @@ export function buildSin(): SinMethods {
       if (out.length === 0) casts.delete(topicID);
       else casts.set(topicID, out);
       return out;
+    },
+    async SinStoryStyleGet(topicID: string) {
+      seed();
+      return styles.get(topicID) ?? "";
+    },
+    async SinStoryStyleSet(topicID: string, style: string) {
+      seed();
+      const v = String(style ?? "").trim().slice(0, 200);
+      if (!v) styles.delete(topicID);
+      else styles.set(topicID, v);
+      return v;
     },
     async SinIllustrate(topicID: string, messageID: number, cue: string, _prompt: string, _size: string) {
       // 浏览器无图像后端：返回占位产物路径（AttachmentDataURL 出占位色块），

@@ -148,6 +148,8 @@ export const GAEA_METHOD_FACETS = {
   SinExportEpub: "play",
   SinCastGet: "play",
   SinCastSet: "play",
+  SinStoryStyleGet: "play", // 统一插图画风（N10）：图文穿插一致性锚，SinSidePanel 消费
+  SinStoryStyleSet: "play",
   SinNotesGet: "play",
   SinNotesSave: "play",
   SinCancel: "play",
@@ -237,6 +239,12 @@ export const GAEA_METHOD_FACETS = {
   NovelChapterPlanPropose: "play",
   NovelChapterPlanDeviation: "play",
   NovelChapterGatePrecheck: "play",
+  NovelScanAnalyze: "play", // 选题扫榜（oh-story 蒸馏）：建档前扫榜分析，CreateNovelModal 消费
+  NovelDissectChapter: "play", // 对标拆解（oh-story 蒸馏）：逐章写法拆解，DissectPanel 消费
+  NovelDissectList: "play",
+  NovelDissectReport: "play",
+  NovelFactsList: "play", // 设定事实词典（词典蒸馏）：双时间线口径约束，FactsPanel 消费
+  NovelFactsSave: "play",
   CostBulkPricePreview: "play", // 资源价批量维护（三期 3.4）：Excel 预览→确认应用
   CostBulkPriceApply: "play",
   CostQuotaFlywheelPreview: "play", // 企业定额自生成（11.6）：跨项目含量聚合
@@ -272,6 +280,8 @@ export const GAEA_METHOD_FACETS = {
   NovelStyleDigestBuild: "play",
   NovelStyleDigestGet: "play",
   NovelStyleDigestClear: "play",
+  // N11 技法检索库（webnovel-writer 九表思想蒸馏）：零 LLM 确定性检索，TechniquePanel 消费
+  NovelTechniqueSearch: "play",
   // 长篇刀6：上下文编译清单（dry-run，NovelB 门面）。
   NovelContextInventory: "play",
   // 长篇刀7：评测基线（NovelB 门面）。
@@ -460,6 +470,10 @@ export const GAEA_METHOD_FACETS = {
   CaptureScreen: "work",
   RecognizeImage: "work",
   OCRText: "work",
+  CadOpen: "work",
+  CadRaster: "work",
+  CadTexts: "work",
+  CadCount: "work",
   Memory: "work",
   Remember: "work",
   Forget: "work",

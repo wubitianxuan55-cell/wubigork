@@ -299,6 +299,17 @@ export interface NovelBindings {
   NovelGetRewriteVersion(chapterNum: number, versionID: string): Promise<Record<string, unknown>>;
   NovelApplyRewriteVersion(chapterNum: number, versionID: string): Promise<Record<string, unknown>>;
   NovelDiscardRewriteVersion(chapterNum: number, versionID: string): Promise<void>;
+  // ── 对标拆解（oh-story story-long-analyze 机制重推导蒸馏；学习导向，
+  // 与章节分析的修改导向分面）── 逐章拆解落 <项目根>/dissections/NNN.json，
+  // 断点续跑=文件存在即跳过（force 重拆）；清单/聚合报告零 LLM。
+  NovelDissectChapter(chapterNum: number, force: boolean): Promise<NovelDissectEntry>;
+  NovelDissectList(): Promise<{ entries: NovelDissectEntry[] }>;
+  NovelDissectReport(): Promise<NovelDissectReport>;
+  // ── 设定事实词典（chinese-novelist-skill 词典蒸馏；双时间线口径约束）──
+  // facts.json 整表写回（作者审批制）；章节生成时注入「读者已知=口径上限，
+  // 未到揭示章的完整真相不得提前揭示」。List 零 LLM。
+  NovelFactsList(): Promise<{ facts: NovelFact[] }>;
+  NovelFactsSave(factsJSON: string): Promise<{ saved: number }>;
   NovelRestoreRewriteVersion(chapterNum: number, versionID: string): Promise<Record<string, unknown>>;
   // NovelChapterSuggestions 读取该章分析建议（重写建议驱动勾选数据源）；
   // 无分析结果返回空数组（正常态）。
@@ -339,6 +350,10 @@ export interface NovelBindings {
   RunBookHealthCheck(): Promise<BookHealthReportView>;
   SaveCharactersBatch(namesJSON: string): Promise<Record<string, unknown>>;
   NovelReadingAsk(kind: string, title: string, chapterText: string, selection: string, question: string, historyJSON: string): Promise<string>;
+  // ── 选题扫榜（oh-story story-long-scan 机制重推导蒸馏；粘贴通路，无爬虫）──
+  // 报告只读不落盘（建议制红线）；source.verified 恒 false（粘贴文本未实时校验），
+  // 可行性经 Go 侧确定性封顶（样本不足/趋势未知 → 高降中）。
+  NovelScanAnalyze(platform: string, rankText: string): Promise<NovelScanResult>;
   // 配图 v2（阶段一刀 D）：optsJSON={"characterIds":[],"style":""}（空串=旧行为）；
   // 返回增 refNote（参考使用情况：已附/降级/跳过原因）。
   GenerateSceneIllustration(chapterNum: number, optsJSON: string): Promise<Record<string, unknown>>;
@@ -440,6 +455,9 @@ export interface NovelBindings {
   NovelStyleDigestGet(): Promise<Record<string, unknown>>;
   // 清除风格摘要档（指纹体检档不受影响）。
   NovelStyleDigestClear(): Promise<void>;
+  // ── N11 技法检索库（webnovel-writer 九表思想蒸馏）──
+  // 技法检索（零 LLM 确定性子串计分；空查询返回分类目录初始态；只读不落盘）。
+  NovelTechniqueSearch(query: string): Promise<NovelTechniqueSearchResult>;
   // 本章生成将注入的上下文区段清单（dry-run，刀6 可见性）。
   NovelContextInventory(chapterNum: number): Promise<Array<Record<string, unknown>>>;
   // ── 长篇刀7：评测基线 ──
@@ -709,4 +727,98 @@ export interface NovelImportResult {
   /** strong | weak | window | single | epub | booksource */
   split_strategy?: string;
   warnings?: Array<{ code: string; message: string; level: string }>;
+}
+
+// ── 选题扫榜载荷（NovelScanAnalyze；Go novel_scan_handler.go）──────────────
+/** 单条选题决策（上游 12 固定字段 + 门槛判定输入 direction_sample/trend）。 */
+export interface NovelScanTopic {
+  direction: string;
+  genre_mix: string;
+  audience: string;
+  selling_point: string;
+  why_hot: string;
+  market_evidence: string;
+  differentiation: string;
+  /** 高 | 中 | 低（Go 侧确定性封顶：样本不足/趋势未知时高→中，只降不升） */
+  feasibility: '高' | '中' | '低' | string;
+  feasibility_reason: string;
+  direction_sample: number;
+  trend: string;
+  risks: string;
+  validation: string;
+  benchmarks: string;
+  scope: string;
+}
+/** 数据来源面（诚实纪律）：kind 恒 'paste'，verified 恒 false。 */
+export interface NovelScanSource {
+  kind: string;
+  platform: string;
+  entry_count: number;
+  verified: boolean;
+  disclaimer: string;
+}
+/** 扫榜报告：八维市场观察 + 选题列表 + 来源面（只读，不落盘）。 */
+export interface NovelScanResult {
+  market: Record<string, string>;
+  topics: NovelScanTopic[];
+  source: NovelScanSource;
+}
+
+// ── 对标拆解载荷（NovelDissect*；Go novel_dissect_handler.go）──────────────
+/** 单章拆解条目（dissections/NNN.json 文件结构同形）。 */
+export interface NovelDissectEntry {
+  chapter: number;
+  /** 本章兑现了前面的什么期待/伏笔（没有为「无」） */
+  payoff: string;
+  /** 危机 | 揭示 | 反转 | 两难 | 承诺 | 意象 | 留白 | 无 */
+  hook_type: string;
+  hook_detail: string;
+  emotion_arc: string;
+  info_push: string[];
+  craft_formulas: string[];
+  dissected_at: string;
+}
+/** 聚合报告（纯确定性零 LLM）：剧情线/钩子分布/情绪曲线/公式合并去重。 */
+export interface NovelDissectReport {
+  chapters_dissected: number;
+  timeline: Array<{ chapter: number; payoff: string; hook_type: string }>;
+  hook_dist: Record<string, number>;
+  emotion_arc: Array<{ chapter: number; emotion_arc: string }>;
+  formulas: string[];
+}
+
+// ── 设定事实词典载荷（NovelFacts*；Go novel_facts_handler.go）──────────────
+/** 单条设定事实（双时间线）：reader_known 是读者视角口径上限；未到揭示章的
+ *  full_truth 不得提前向读者揭示（生成时按口径约束注入）。 */
+export interface NovelFact {
+  id: string;
+  name: string;
+  category: string;
+  first_chapter: number;
+  reader_known: string;
+  full_truth: string;
+  /** 计划揭示章；0=未定 */
+  reveal_chapter: number;
+  /** 作者标记：已向读者揭示 */
+  revealed: boolean;
+}
+
+// ── N11 技法检索库载荷（NovelTechniqueSearch；Go novel_technique.go）────────
+/** 单条技法（九类账本；内容自写——GPL 上游只重推导机制不搬文本）。 */
+export interface NovelTechnique {
+  id: string;
+  category: string;
+  keywords: string[];
+  /** 适用题材；空=通用 */
+  genres: string[];
+  summary: string;
+  detail: string;
+  /** 毒点（这样写会坏） */
+  pitfall: string;
+}
+/** 检索结果：空查询返回分类目录初始态（results 空 + categories 全量）。 */
+export interface NovelTechniqueSearchResult {
+  results: NovelTechnique[];
+  categories: Array<{ category: string; count: number }>;
+  total: number;
 }

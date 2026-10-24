@@ -641,6 +641,9 @@ func (a *App) SinIllustrate(topicID string, messageID int64, cue string, prompt 
 	cast := a.sinCastCharacters(topicID)
 	picked := sinPickRefCharacters(cast, prompt)
 	promptUsed, anchorNames := sinAugmentPromptWithCast(prompt, picked)
+	// N10 统一画风锚：同一故事的插图共享一条画风层（图文穿插的一致性前提），
+	// 未设画风 = 逐字节旧行为。
+	promptUsed = sinAugmentPromptWithStyle(promptUsed, sinStoryStyle(topicID))
 	refModel := effModel
 	refMode, refMethod, refOK, refReason := sinRefPlan(effBackend, refModel)
 	refs := sinResolveRefImages(picked)
@@ -670,11 +673,15 @@ func (a *App) SinIllustrate(topicID string, messageID int64, cue string, prompt 
 	// 硬隔离（v4.257）：产物落原罪自有目录（<用户配置目录>/gaea/sin/art），
 	// 台账来源记为 sin——不写办公工作区、不依赖办公 ImageSaveDir 配置，
 	// 且生成链内部只登记一条（调用方不再补第二条）。
+	genModel := effModel
+	if len(refs.images) > 0 && effBackend == "comfyui" && refMethod == "qedit" {
+		genModel = ai.Qwen21EditModel
+	}
 	gen := imageGenInternal{
 		prompt: strings.TrimSpace(promptUsed), size: size,
 		sourceBoard: sinSourceBoard, saveDir: sinArtDir(),
 		mode: refMode, refImages: refs.images, refMethod: refMethod, denoise: sinRefDenoise,
-		model: effModel, // 生成链内 model 非空即覆盖全局 ImageModel
+		model: genModel, // 生成链内 model 非空即覆盖全局 ImageModel
 	}
 	// 绑定后端 ≠ 全局后端时走独立客户端（不改变绘梦全局后端；相同后端
 	// 复用全局客户端即可，模型差异由 gen.model 承担）。
@@ -703,6 +710,7 @@ func (a *App) SinIllustrate(topicID string, messageID int64, cue string, prompt 
 		refFallback = true
 		refs.images, refs.names, refs.charID = nil, nil, ""
 		gen.mode, gen.refImages, gen.refMethod, gen.characterID = "", nil, "", ""
+		gen.model = effModel
 		res, err = a.mediaState.generateImageInternal(gen)
 	}
 	if err != nil {

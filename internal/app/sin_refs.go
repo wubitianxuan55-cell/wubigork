@@ -39,15 +39,13 @@ const (
 // sinRefPlan 图像后端 × 模型 → 参考槽可用性（纯函数，便于测试矩阵）。
 // 返回 mode / refMethod / 是否可用 / 不可用原因。
 //
-// 阶段三刀 B（v4.399）路线升级：ComfyUI 改走 qedit（Qwen-Image-Edit 参考编辑，
-// v4.398 通道）——参考图进编辑引擎 image1..3 槽，prompt 即场景描述，人物一致
-// 性远优于 img2img 整幅重绘近似（构图不再被参考图锁死）；编辑引擎独立于生图
-// 模型（req.Model 不消费），不再按 krea2/z-image 判型。编辑权重缺失时由
-// sin_handler 既有 refFallback 链兜底（退纯文本重试+如实标注）。
+// ComfyUI 参考槽走 Qwen Image 2.1 Turbo Edit：参考图进编辑引擎，prompt 即场景描述，
+// 人物一致性优于 img2img 整幅重绘近似。旧 2511 编辑引擎已退役；编辑权重缺失时
+// 由 sin_handler 的 refFallback 链兜底（退纯文本重试+如实标注）。
 func sinRefPlan(backend, model string) (mode string, refMethod string, ok bool, reason string) {
 	switch backend {
 	case "comfyui":
-		// qedit 走编辑引擎（Qwen-Image-Edit 2511），生图模型不影响通道可用性
+		// qedit 固定走 Qwen Image 2.1 Turbo Edit。
 		return "txt2img", "qedit", true, ""
 	case "herdsman":
 		// herdsman 无编辑引擎：维持 img2img 近似（/images/img2img）
@@ -117,6 +115,16 @@ func sinAugmentPromptWithCast(prompt string, picked []*characterlib.Character) (
 		added = append(added, c.Name)
 	}
 	return out, added
+}
+
+// sinAugmentPromptWithStyle 追加统一画风层（N10 图文穿插一致性锚）：
+// 未设画风 = 原样返回；画面描述已含同款画风词 = 不重复追加。
+func sinAugmentPromptWithStyle(prompt, style string) string {
+	style = strings.TrimSpace(style)
+	if style == "" || strings.Contains(prompt, style) {
+		return prompt
+	}
+	return strings.TrimRight(prompt, "。 　") + "。统一画风（本故事插图保持一致）：" + style
 }
 
 // sinCharacterRefPath 取角色的一致性参考图路径：参考图优先，其次剧照。

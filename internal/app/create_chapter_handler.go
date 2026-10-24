@@ -160,10 +160,14 @@ func (a *writingState) createChapter(setting, prevSummary, plotReq string, chapt
 	ctxHint := planSec + "\n" + outlineSec
 	digestInstr := a.digestBody(pm)
 	extras := []viewSection{
+		{Key: "author_memory", Rank: 1, Body: a.authorMemorySection(pm.Dir)},
 		// 刀3：故事层骨架切片（节拍位/活跃线程/未解问题/弧线水位）——空 spine 零注入
 		{Key: "spine", Rank: 1, Body: a.storySpineSection(pm, ctxChapterNum)},
 		// 阶段开篇章（第 21/41/…章）：先合账再开新账——非阶段开篇章零注入
 		{Key: "stage_recap", Rank: 2, Body: a.stageRecapSection(pm, ctxChapterNum)},
+		// N11 技法提示（webnovel-writer 九表思想蒸馏）：计划/大纲要点命中关键词的
+		// 条目注入——参考非约束，Rank 4 最先牺牲（排在世界观之后）
+		{Key: "technique", Rank: 4, Body: buildTechniqueSection(ctxHint)},
 	}
 	if extra := buildChapterContextSectionsWithin(pm, ctxChapterNum, ctxBudgetLeft, ctxHint, digestInstr, extras...); extra != "" {
 		userPrompt += extra + "\n"

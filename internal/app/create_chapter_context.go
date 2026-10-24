@@ -217,10 +217,15 @@ func buildChapterContextSectionsWithin(pm *project.Manager, currentChapter, budg
 	if budget <= 0 {
 		return "" // 额度耗尽：不追加任何区段（宁缺毋滥，不写半截截断文本）
 	}
-	sections := make([]viewSection, 0, 3+len(extraSections))
+	sections := make([]viewSection, 0, 4+len(extraSections))
 	if body := buildForeshadowSection(pm, currentChapter); body != "" {
 		sections = append(sections, viewSection{Key: "foreshadow", Rank: 0, Body: "## 未回收伏笔（创作约束）\n" +
 			"以下伏笔已埋设尚未回收，写作时不得与之矛盾；可自然推进，不要强行揭穿：\n" + body})
+	}
+	// 设定事实（chinese-novelist-skill 词典蒸馏）：双时间线口径约束——未到
+	// 揭示章的完整真相不得提前向读者揭示。与伏笔同为创作约束，Rank 0 最后牺牲。
+	if body := buildFactsSection(pm, currentChapter); body != "" {
+		sections = append(sections, viewSection{Key: "facts", Rank: 0, Body: body})
 	}
 	// 刀6 文风去重合并：style.md（显式偏好）与成稿学习指令（刀5 digest）此前
 	// 是两个独立区段两个标题（§1.8「文风两处」的延续）——合并为单一区段，

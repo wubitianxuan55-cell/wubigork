@@ -368,12 +368,30 @@ func TestSinSystemPromptCoversToolRegistry(t *testing.T) {
 }
 
 // TestSinSystemPromptAntiAIFlavorRules 反 AI 腔规则锚（v4.424，对齐 novelstyle
-// 蒸馏判据）：解释腔标记与否定翻转句式必须在提示词里点名劝阻。
+// 蒸馏判据；N9 扩族）：解释腔标记、否定翻转、通用反应套词、弱化装饰、轮末
+// 升华预告都必须在提示词里点名劝阻——原罪正文不经内核打分，这是唯一闸。
 func TestSinSystemPromptAntiAIFlavorRules(t *testing.T) {
 	p := sinSystemPrompt()
-	for _, want := range []string{"解释腔", "她不知道的是", "殊不知", "否定翻转"} {
+	for _, want := range []string{
+		"解释腔", "她不知道的是", "殊不知", "否定翻转",
+		"深吸一口气", "瞳孔微缩",   // 通用反应套词（words.json blacklist 同族）
+		"微微", "缓缓",           // 弱化装饰
+		"收束不升华", "命运的齿轮", // 轮末升华预告（trailerEndings 同族）
+	} {
 		if !strings.Contains(p, want) {
 			t.Errorf("系统提示词缺少反 AI 腔判据 %q", want)
+		}
+	}
+}
+
+// TestSinSystemPromptEarnedGainRule 契约纪律锚（N9，契约四问的可移植子集）：
+// 收获由选择挣来、巧合不解决麻烦——原罪是合写故事，收益纪律与小说板块
+// create-chapter 同源。
+func TestSinSystemPromptEarnedGainRule(t *testing.T) {
+	p := sinSystemPrompt()
+	for _, want := range []string{"获得要挣来", "巧合", "不代替主角解决麻烦"} {
+		if !strings.Contains(p, want) {
+			t.Errorf("系统提示词缺少契约纪律 %q", want)
 		}
 	}
 }

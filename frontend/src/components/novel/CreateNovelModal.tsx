@@ -1,7 +1,9 @@
 import React, { useState } from 'react'
-import { Typography, Space, Input, Modal, Checkbox, Radio, message } from 'antd'
+import { Typography, Space, Input, Modal, Checkbox, Radio, Button, Select, Tag, message } from 'antd'
 import { C } from '../../utils/theme'
 import { GENRE_OPTIONS, STYLE_OPTIONS } from './novelOptions'
+import { app } from '../../gaea/lib/bridge'
+import type { NovelScanResult } from '../../gaea/lib/bridge/novel'
 
 interface CreateNovelModalProps {
   open: boolean
@@ -33,6 +35,35 @@ const CreateNovelModal: React.FC<CreateNovelModalProps> = ({
 }) => {
   const [submitting, setSubmitting] = useState(false)
   const emptyTitle = !title.trim()
+
+  // ── 选题扫榜（oh-story story-long-scan 蒸馏；粘贴通路无爬虫）────────
+  // 报告只展示不落盘（建议制红线）；「采用题材」把选题的题材组合映射进
+  // GENRE_OPTIONS 勾选——作者显式动作，不静默改表单。
+  const [scanOpen, setScanOpen] = useState(false)
+  const [scanPlatform, setScanPlatform] = useState('')
+  const [scanText, setScanText] = useState('')
+  const [scanning, setScanning] = useState(false)
+  const [scanRes, setScanRes] = useState<NovelScanResult | null>(null)
+  const [scanErr, setScanErr] = useState('')
+
+  const runScan = async () => {
+    if (scanning) return
+    setScanning(true)
+    setScanErr('')
+    setScanRes(null)
+    try {
+      setScanRes(await app.NovelScanAnalyze(scanPlatform, scanText))
+    } catch (e) {
+      setScanErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setScanning(false)
+    }
+  }
+
+  const adoptGenre = (mix: string) => {
+    const hits = GENRE_OPTIONS.filter((g) => mix.includes(g))
+    if (hits.length > 0) onGenreChange(hits)
+  }
 
   const handleOk = async () => {
     if (submitting) return // 门闩：在途重复点击不再起第二次创建
@@ -118,6 +149,95 @@ const CreateNovelModal: React.FC<CreateNovelModalProps> = ({
             ]}
             style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}
           />
+        </div>
+
+        {/* 选题扫榜（oh-story story-long-scan 蒸馏）：粘贴榜单 → 八维观察+选题决策；只读参考不落盘 */}
+        <div>
+          <Typography.Link style={{ fontSize: 13 }} onClick={() => setScanOpen((v) => !v)}>
+            扫榜找灵感（选题参考）{scanOpen ? '▴' : '▾'}
+          </Typography.Link>
+          {scanOpen && (
+            <div style={{ marginTop: 8 }}>
+              <Select
+                value={scanPlatform || undefined}
+                onChange={(v) => setScanPlatform(v || '')}
+                allowClear
+                placeholder="平台（留空按标题自动识别）"
+                style={{ width: '100%', marginBottom: 6 }}
+                options={[
+                  { value: '起点', label: '起点' },
+                  { value: '番茄', label: '番茄' },
+                  { value: '晋江', label: '晋江（女频）' },
+                  { value: '七猫', label: '七猫' },
+                  { value: '刺猬猫', label: '刺猬猫' },
+                  { value: '知乎盐言', label: '知乎盐言（短篇）' },
+                ]}
+              />
+              <Input.TextArea
+                rows={5}
+                value={scanText}
+                onChange={(e) => setScanText(e.target.value)}
+                placeholder={'粘贴榜单文本（至少 50 字），首行可用「# 起点·风云榜」标注平台，每行一本书'}
+                style={{ background: C('color-bg-layout'), borderColor: C('color-border'), color: C('color-text') }}
+              />
+              <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Button
+                  size="small"
+                  type="primary"
+                  loading={scanning}
+                  disabled={scanText.trim().length < 50}
+                  onClick={() => void runScan()}
+                >
+                  分析选题
+                </Button>
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  只读参考：不写盘、不改书稿
+                </Typography.Text>
+              </div>
+              {scanErr && (
+                <Typography.Text type="danger" style={{ fontSize: 12, display: 'block', marginTop: 6 }}>
+                  {scanErr}
+                </Typography.Text>
+              )}
+              {scanRes && (
+                <div style={{ marginTop: 8 }}>
+                  <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>
+                    {scanRes.source?.disclaimer}（样本 {scanRes.source?.entry_count ?? 0} 条 · {scanRes.source?.platform}）
+                  </Typography.Text>
+                  {(scanRes.topics ?? []).map((t, i) => (
+                    <div
+                      key={i}
+                      style={{ border: `1px solid ${C('color-border')}`, borderRadius: 6, padding: '8px 10px', marginBottom: 6 }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Tag color={t.feasibility === '高' ? 'green' : t.feasibility === '中' ? 'orange' : 'default'}>
+                          可行性{t.feasibility}
+                        </Tag>
+                        <Typography.Text strong style={{ color: C('color-text'), fontSize: 13 }}>
+                          {t.direction}
+                        </Typography.Text>
+                      </div>
+                      <div style={{ fontSize: 12, color: C('color-text-secondary'), marginTop: 4 }}>
+                        {[t.genre_mix, t.selling_point, t.differentiation].filter(Boolean).join(' · ')}
+                      </div>
+                      {t.market_evidence && (
+                        <div style={{ fontSize: 12, color: C('color-text-secondary'), marginTop: 2 }}>依据：{t.market_evidence}</div>
+                      )}
+                      {t.validation && <div style={{ fontSize: 12, marginTop: 2 }}>验证：{t.validation}</div>}
+                      {t.feasibility_reason && (
+                        <div style={{ fontSize: 12, color: C('color-text-secondary'), marginTop: 2 }}>{t.feasibility_reason}</div>
+                      )}
+                      {t.genre_mix && (
+                        <Button size="small" style={{ marginTop: 6 }} onClick={() => adoptGenre(t.genre_mix)}>
+                          采用题材
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </Space>
     </Modal>

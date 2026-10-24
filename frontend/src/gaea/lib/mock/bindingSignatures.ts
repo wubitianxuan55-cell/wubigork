@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 671 名（原生变参 7 名已收窄标注）。
+// 共 684 名（原生变参 7 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -104,6 +104,10 @@ export const bindingSignatures = {
   GaeaBenchmarkStart: { argc: 1, variadic: false, params: "req BenchmarkRequest" },
   GaeaBenchmarkStreamProbe: { argc: 1, variadic: false, params: "model string" },
   GaeaBrowserObserve: { argc: 0, variadic: false, params: "" },
+  GaeaCadCount: { argc: 1, variadic: false, params: "path string" },
+  GaeaCadOpen: { argc: 1, variadic: false, params: "path string" },
+  GaeaCadRaster: { argc: 3, variadic: false, params: "path string, sheet int, width int" },
+  GaeaCadTexts: { argc: 1, variadic: false, params: "path string" },
   GaeaCancel: { argc: 0, variadic: false, params: "" },
   GaeaCapabilities: { argc: 0, variadic: false, params: "" },
   GaeaCaptureScreen: { argc: 0, variadic: false, params: "" },
@@ -525,11 +529,16 @@ export const bindingSignatures = {
   NovelChapterSuggestions: { argc: 1, variadic: false, params: "chapterNum int" },
   NovelContextInventory: { argc: 1, variadic: false, params: "chapterNum int" },
   NovelDiscardRewriteVersion: { argc: 2, variadic: false, params: "chapterNum int, versionID string" },
+  NovelDissectChapter: { argc: 2, variadic: false, params: "chapterNum int, force bool" },
+  NovelDissectList: { argc: 0, variadic: false, params: "" },
+  NovelDissectReport: { argc: 0, variadic: false, params: "" },
   NovelEvalBaselineSet: { argc: 0, variadic: false, params: "" },
   NovelEvalCompare: { argc: 2, variadic: false, params: "baseName string, curName string" },
   NovelEvalSnapshot: { argc: 1, variadic: false, params: "persist bool" },
   NovelEvalSnapshotDelete: { argc: 1, variadic: false, params: "name string" },
   NovelEvalSnapshotsList: { argc: 0, variadic: false, params: "" },
+  NovelFactsList: { argc: 0, variadic: false, params: "" },
+  NovelFactsSave: { argc: 1, variadic: false, params: "factsJSON string" },
   NovelFingerprintBuild: { argc: 0, variadic: false, params: "" },
   NovelFingerprintScore: { argc: 1, variadic: false, params: "chapterNum int" },
   NovelFingerprintStatus: { argc: 0, variadic: false, params: "" },
@@ -543,6 +552,7 @@ export const bindingSignatures = {
   NovelReadingAsk: { argc: 6, variadic: false, params: "kind string, title string, chapterText string, selection string, question string, historyJSON string" },
   NovelRestoreRewriteVersion: { argc: 2, variadic: false, params: "chapterNum int, versionID string" },
   NovelReviewPlatforms: { argc: 0, variadic: false, params: "" },
+  NovelScanAnalyze: { argc: 2, variadic: false, params: "platform string, rankText string" },
   NovelSceneBibleView: { argc: 2, variadic: false, params: "chapterNum int, sceneID string" },
   NovelSceneCardsPropose: { argc: 1, variadic: false, params: "chapterNum int" },
   NovelSceneRewrite: { argc: 3, variadic: false, params: "chapterNum int, sceneID string, instruction string" },
@@ -554,6 +564,7 @@ export const bindingSignatures = {
   NovelStyleDigestBuild: { argc: 0, variadic: false, params: "" },
   NovelStyleDigestClear: { argc: 0, variadic: false, params: "" },
   NovelStyleDigestGet: { argc: 0, variadic: false, params: "" },
+  NovelTechniqueSearch: { argc: 1, variadic: false, params: "query string" },
   OpenImageSaveDir: { argc: 0, variadic: false, params: "" },
   OpenNovelImagesDir: { argc: 0, variadic: false, params: "" },
   OpenProject: { argc: 1, variadic: false, params: "dir string" },
@@ -632,6 +643,8 @@ export const bindingSignatures = {
   SinMessagesPage: { argc: 3, variadic: false, params: "topicID string, beforeSeq int64, limit int" },
   SinNotesGet: { argc: 1, variadic: false, params: "topicID string" },
   SinNotesSave: { argc: 5, variadic: false, params: "topicID string, baseline string, outline string, notes string, force bool" },
+  SinStoryStyleGet: { argc: 1, variadic: false, params: "topicID string" },
+  SinStoryStyleSet: { argc: 2, variadic: false, params: "topicID string, style string" },
   SinStream: { argc: 2, variadic: false, params: "topicID string, message string" },
   SinTopicClear: { argc: 1, variadic: false, params: "id string" },
   SinTopicCreate: { argc: 1, variadic: false, params: "title string" },
@@ -692,5 +705,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 671。
-export const bindingSignatureCount = 671;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 684。
+export const bindingSignatureCount = 684;

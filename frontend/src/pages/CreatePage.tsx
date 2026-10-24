@@ -21,6 +21,8 @@ import RewriteHistoryPanel from '../components/novel/RewriteHistoryPanel'
 import PromptWorkshopPanel from '../components/novel/PromptWorkshopPanel'
 import ChapterAnalysisPanel from '../components/novel/ChapterAnalysisPanel'
 import BookHealthPanel from '../components/novel/BookHealthPanel'
+import DissectPanel from '../components/novel/DissectPanel'
+import TechniquePanel from '../components/novel/TechniquePanel'
 import StorySpinePanel from '../components/novel/StorySpinePanel'
 import ConvergeModal from '../components/novel/ConvergeModal'
 import ContextInventoryPanel from '../components/novel/create/ContextInventoryPanel'
@@ -211,6 +213,10 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
   const [rwHistOpen, setRwHistOpen] = useState(false)
   // 提示词工坊面板（t6 首刀：模板可编辑覆盖层；打开才拉一次）
   const [promptWsOpen, setPromptWsOpen] = useState(false)
+  // 对标拆解面板（oh-story story-long-analyze 蒸馏：写法学习导向，与章节分析分面）
+  const [dissectOpen, setDissectOpen] = useState(false)
+  // 技法库面板（webnovel-writer 九表思想蒸馏 N11：零 LLM 检索，只读不落盘）
+  const [techniqueOpen, setTechniqueOpen] = useState(false)
   // 章节计划卡（刀1 线D）：工具轨「章节计划」与硬闸弹窗共用同一展开位
   const [planOpen, setPlanOpen] = useState(false)
   /**
@@ -1232,6 +1238,8 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
   const railQualityItems: MenuProps['items'] = [
     { key: 'health', label: '全书体检' },
     { key: 'spine', label: '故事骨架' },
+    { key: 'dissect', label: '对标拆解' },
+    { key: 'technique', label: '技法库' },
     { key: 'converge', label: '收敛修补', disabled: !activeChapterNum },
     { key: 'ctxinv', label: '上下文清单' },
     { key: 'review', label: '平台评审' },
@@ -1240,6 +1248,8 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
   const onRailQuality: MenuProps['onClick'] = ({ key }) => {
     if (key === 'health') setHealthOpen(true)
     else if (key === 'spine') setSpineOpen(true)
+    else if (key === 'dissect') setDissectOpen(true)
+    else if (key === 'technique') setTechniqueOpen(true)
     else if (key === 'converge') setConvergeOpen(true)
     else if (key === 'ctxinv') setCtxInvOpen(true)
     else if (key === 'review') void openReview()
@@ -1384,6 +1394,8 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
         onApplied={refreshEditorAfterRewriteApplied}
       />
       <BookHealthPanel open={healthOpen} onClose={() => setHealthOpen(false)} onOpenStyleAnchor={() => setFpOpen(true)} />
+      <DissectPanel open={dissectOpen} onClose={() => setDissectOpen(false)} />
+      <TechniquePanel open={techniqueOpen} onClose={() => setTechniqueOpen(false)} />
       <StorySpinePanel open={spineOpen} onClose={() => setSpineOpen(false)} />
       <ConvergeModal open={convergeOpen} chapterNum={activeChapterNum ? activeChapterNum : null} onClose={() => setConvergeOpen(false)} onFinished={() => { if (activeNode) void loadChapter(activeNode as typeof activeNode) }} />
       <ContextInventoryPanel open={ctxInvOpen} chapterNum={activeChapterNum || 0} onClose={() => setCtxInvOpen(false)} />

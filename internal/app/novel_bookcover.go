@@ -32,6 +32,38 @@ import (
 // 书封生效模型统一由 effectiveSceneIllustrationModel 解析（审计 AP7-05：
 // 登记与请求必须同源，不得各自写死常量）——此处不再留本地别名常量。
 
+// bookCoverStyles 题材→风格层关键词表（oh-story story-cover 题材风格库蒸馏，
+// 按 gaea 题材档位 GENRE_OPTIONS 对齐）：项目题材子串命中取首条，全不命中用
+// 通用档。只给画面/色彩/光效关键词，不写死构图——构图由三层模板统一承担。
+var bookCoverStyles = []struct{ key, style string }{
+	{"玄幻", "东方玄幻：云海仙山远景，中景持剑主角衣袂翻飞，金与玄青主色，逆光金边勾勒，气势恢宏"},
+	{"仙侠", "仙侠古风：亭台烟霞远景，中景白衣人物御风，青白主色一抹朱红，柔光云雾，飘逸出尘"},
+	{"武侠", "水墨武侠：远山孤城剪影，中景持刀人物侧立，墨色留白配一点冷金，硬光刀锋反光，江湖肃杀"},
+	{"奇幻", "西方奇幻：魔幻城堡与异月远景，中景持法杖人物，紫蓝撞金主色，魔力光粒，史诗魔幻"},
+	{"都市", "现代都市：霓虹街景与天际线中景，前景人物立姿回眸，冷暖对比色，电影感侧光，写实细腻"},
+	{"现实", "现实题材：生活街巷暖光中景，前景朴素人物，低饱和暖色，自然柔光，生活流质感"},
+	{"历史", "历史古风：宫阙城墙远景，中景古装人物，绛红与鎏金主色，烛光宫灯暖调，厚重庄严"},
+	{"军事", "军事战争：战场硝烟远景，中景军人剪影，钢灰与橄榄绿主色，冷调硬光，紧张压迫"},
+	{"游戏", "虚拟游戏风：数据流光远景，中景装备人物，荧光蓝紫主色，HUD 光效，赛博电竞感"},
+	{"体育", "热血体育：赛场远景，中景动态人物瞬间，高饱和撞色，顶光汗珠反光，动感张力"},
+	{"科幻", "科幻未来：星舰废土或星云远景，中景装甲/机甲人物，冷蓝配橙主色，体积光，宏大冷峻"},
+	{"悬疑", "悬疑推理：雨夜街灯或密闭空间中景，前景人物半侧影，深灰藏蓝主色一束冷光，阴影切割，克制紧张"},
+	{"灵异", "灵异惊悚：老宅浓雾远景，中景持灯人物背影，墨绿与惨白主色，底光鬼影，阴冷压抑"},
+	{"二次元", "日系轻小说风：天空教室或花海背景，前景大半身人物特写构图，明亮糖果色，均匀柔光，赛璐璐上色"},
+	{"短篇", "极简人像：单色渐变背景，前景人物半身剪影，低饱和双主色，一束侧光，大量留白"},
+}
+
+// bookCoverStyleFor 返回题材风格层文案：按题材串子串命中表内首条（表序即
+// 优先序），无命中回落通用档。
+func bookCoverStyleFor(genre string) string {
+	for _, s := range bookCoverStyles {
+		if strings.Contains(genre, s.key) {
+			return s.style
+		}
+	}
+	return "与题材气质相符的插画风格"
+}
+
 // GaeaGenerateBookCover 生成项目书封（3:4），落盘 .gaea/play/exports/cover-<projectID>.png，
 // 返回封面文件绝对路径。promptHint 可选补充提示词（如风格/元素）。
 func (a *App) GaeaGenerateBookCover(projectID, promptHint string) (string, error) {
@@ -61,13 +93,18 @@ func (a *App) GaeaGenerateBookCover(projectID, promptHint string) (string, error
 	}
 
 	// 构建 3:4 竖版书封 prompt（仿 GenerateSceneIllustration：世界观截断 200）。
+	// 三层提示词（oh-story story-cover 蒸馏）：画面层（主角/世界观）→ 风格层
+	// （题材风格表）→ 文字排版层（安全区留白；本地生图后端中文渲染不可靠，
+	// 不要求画面内绘制文字，书名作者名由前端封面叠加排版）。
 	var b strings.Builder
+	genre := ""
 	b.WriteString("小说封面插画。")
 	if pm.Meta != nil {
 		if pm.Meta.Title != "" {
 			b.WriteString("作品名: " + pm.Meta.Title + "。")
 		}
 		if pm.Meta.Genre != "" {
+			genre = pm.Meta.Genre
 			b.WriteString("题材: " + pm.Meta.Genre + "。")
 		}
 	}
@@ -99,8 +136,8 @@ func (a *App) GaeaGenerateBookCover(projectID, promptHint string) (string, error
 		}
 		b.WriteString("。")
 	}
-	b.WriteString(" 风格: 数字油画，电影级光影，高细节。")
-	b.WriteString(" 竖版书籍封面构图（3:4），主体突出、画面平衡，顶部与底部留白以排版书名与作者名，画面中不直接绘制文字。")
+	b.WriteString(" 风格: " + bookCoverStyleFor(genre) + "；数字油画质感，电影级光影，高细节。")
+	b.WriteString(" 竖版书籍封面构图（3:4），主体突出、画面平衡：前景人物-中景场景-远景氛围三层排布，画面顶部约六分之一与底部窄条保持干净留白（书名与作者名的排版安全区，主体元素避开四边），画面中不直接绘制文字。")
 	if promptHint != "" {
 		b.WriteString(" 补充要求: " + promptHint + "。")
 	}

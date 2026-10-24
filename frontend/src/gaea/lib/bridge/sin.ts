@@ -50,6 +50,13 @@ export interface SinBindings {
   /** 保存故事角色选择，返回生效清单（悬空 id 丢弃、去重保序、单故事封顶）。 */
   SinCastSet(topicID: string, ids: string[]): Promise<string[]>;
   /**
+   * 统一插图画风（N10 图文穿插一致性锚）：该故事每张插图（正文标记与
+   * sin_illustrate 工具同路）都追加同一条画风层；空串=清空回无锚。
+   * 存储同 cast.json（styles 键），未设 = 逐字节旧行为。
+   */
+  SinStoryStyleGet(topicID: string): Promise<string>;
+  SinStoryStyleSet(topicID: string, style: string): Promise<string>;
+  /**
    * 取消某故事当前在途的生成（Composer「停止」）：
    * 后端中止底层流式请求，已生成的部分照常落库（extra.cancelled=true）。
    * 无在途流时 reject（前端如实提示「没有正在生成的故事」）。

@@ -14,6 +14,7 @@ type TasteIssue struct {
 	End        int    `json:"end"`        // 在原文的 [Start,End) rune 偏移
 	Reason     string `json:"reason"`     // 命中规则
 	Severity   string `json:"severity"`   // S1/S2/S3/S4（S1 最重；与 novelgate/novelreview 同一枚举，见 IN1-09 单源）
+	Layer      string `json:"layer"`      // expression | narrative | story
 	Suggestion string `json:"suggestion"` // 修复建议
 }
 
@@ -115,14 +116,33 @@ func ScoreText(text string, fp *Fingerprint) (*TasteScore, error) {
 	// 规则 11：解释腔/上帝感标记（oh-story T2 门禁 G，advisory 封顶）
 	issues = append(issues, ruleExplanatoryMarkers(text, runes)...)
 
+	// 规则 12：章末升华/预告腔（oh-story T2 门禁 F，advisory，仅章末窗口）
+	issues = append(issues, ruleTrailerEnding(text, runes)...)
+
 	score := 0
-	for _, iss := range issues {
+	for i := range issues {
+		issues[i].Layer = classifyTasteLayer(issues[i].Reason)
+		iss := issues[i]
 		score += severityToWeight(iss.Severity)
 	}
 	if score > 100 {
 		score = 100
 	}
 	return &TasteScore{Score: score, Issues: issues}, nil
+}
+
+func classifyTasteLayer(reason string) string {
+	switch {
+	case strings.Contains(reason, "句长"), strings.Contains(reason, "情绪直述"),
+		strings.Contains(reason, "解释腔"), strings.Contains(reason, "节奏"),
+		strings.Contains(reason, "升华"):
+		return "narrative"
+	case strings.Contains(reason, "动机"), strings.Contains(reason, "因果"),
+		strings.Contains(reason, "揭露"), strings.Contains(reason, "行为依据"):
+		return "story"
+	default:
+		return "expression"
+	}
 }
 
 // ScoreTextNoRef 无参考指纹时用通用阈值打分。
