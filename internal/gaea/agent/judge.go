@@ -97,6 +97,7 @@ func (a *AgentRunner) judgeGoal(ctx context.Context, goal string) (judgeVerdict,
 		Messages:    msgs,
 		Temperature: 0,
 		MaxTokens:   200,
+		ConvID:      a.sessionID,
 	})
 	if err != nil {
 		return judgeVerdict{OK: false, Reason: "judge call failed: " + err.Error()}, nil

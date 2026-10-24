@@ -126,6 +126,7 @@ func (c *Client) chatOnce(ctx context.Context, req *ChatRequest) (*ChatResponse,
 		if apiKey != "" {
 			httpReq.Header.Set("Authorization", "Bearer "+apiKey)
 		}
+		applyConvHeader(httpReq.Header, reqEngine, req.ConvID)
 
 		resp, err := c.httpClient.Do(httpReq)
 		if err != nil {

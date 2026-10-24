@@ -46,6 +46,7 @@ func (p *Provider) Stream(ctx context.Context, req provider.Request) (<-chan pro
 		Temperature: req.Temperature,
 		EngineID:    p.engine,
 		Feature:     p.feature,
+		ConvID:      req.ConvID,
 	}
 	// Qwen3 等本地模型默认不输出推理；开启思考模式（enable_thinking +
 	// chat_template_kwargs）后服务端才会流式下发 reasoning_content，

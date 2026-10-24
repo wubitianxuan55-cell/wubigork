@@ -217,6 +217,15 @@ func (c *Client) resolveChatEndpoint(engineID string) (endpoint string, apiKey s
 	return endpoint, token, nil
 }
 
+// applyConvHeader 会话粘性路由头（Z0 蒸馏刀，对话档第 2/5 轮收口）：xAI 的
+// 前缀缓存条目按服务器存（128-token 块粒度 exact-prefix），同会话请求带
+// x-grok-conv-id 保持路由一致才容易命中；其他引擎与空键不设。
+func applyConvHeader(h http.Header, engine, convID string) {
+	if engine == "xai" && convID != "" {
+		h.Set("x-grok-conv-id", convID)
+	}
+}
+
 // resolveModelName 根据活跃引擎解析模型名称。
 // 规则：
 //   - xAI 引擎: 优先用请求指定的模型，否则用 cfg.Model

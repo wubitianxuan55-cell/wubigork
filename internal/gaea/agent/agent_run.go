@@ -125,9 +125,13 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 	for step := 0; a.maxSteps <= 0 || step < a.maxSteps || graceRound; step++ {
 		// consume a queued mid-turn steer as session guidance
 		// (Design adopted from DeepSeek-Reasonix-V1.12)
-		if text, ok := a.consumeSteer(); ok {
-			a.session.Add(provider.Message{Role: provider.RoleUser, Content: midTurnSteerMessage(text)})
-			a.sink.Emit(event.Event{Kind: event.Steer, Text: text})
+		if it, ok := a.consumeSteer(); ok {
+			content := midTurnSteerMessage(it.text)
+			if it.origin == steerFromParent {
+				content = midTurnParentSteerMessage(it.text)
+			}
+			a.session.Add(provider.Message{Role: provider.RoleUser, Content: content})
+			a.sink.Emit(event.Event{Kind: event.Steer, Text: it.text})
 			// 用户插话重置重复链（Distilled from Reasonix/dsh
 			// repeat-tool-reminder：新指引值得新绳子）。
 			a.repeatSig, a.repeatCount = "", 0

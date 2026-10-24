@@ -168,6 +168,7 @@ func (c *Client) doStreamRequest(ctx context.Context, endpoint, apiKey string, b
 			httpReq.Header.Set("Authorization", "Bearer "+apiKey)
 		}
 		httpReq.Header.Set("Accept", "text/event-stream")
+		applyConvHeader(httpReq.Header, reqEngine, req.ConvID)
 
 		resp, err := c.httpClient.Do(httpReq)
 		if err != nil {

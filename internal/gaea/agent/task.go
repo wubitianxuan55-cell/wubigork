@@ -23,10 +23,20 @@ import (
 
 // DefaultTaskSystemPrompt steers a sub-agent toward focused, terse delivery —
 // it doesn't see the parent's conversation so it must self-contain.
+// Z15 写入纪律包（ZCode 蒸馏对话档第 2/6 轮收口）随公共提示词下发：
+// 禁报告文件（发现进最终回复，任务显式要文件交付物除外）+评审轮次预算
+// （每类缺陷至多一次修复尝试，不收敛如实上报——防评审回修自我供能）。
 const DefaultTaskSystemPrompt = `You are a sub-agent invoked by a parent engineering office assistant to carry out one focused task.
 Use the provided tools to investigate or act. Return a single final answer that is concise
 and self-contained — the parent will see only that answer, not your tool calls or reasoning.
-If you need to ask for clarification, fail with a precise question instead of guessing.`
+If you need to ask for clarification, fail with a precise question instead of guessing.
+Do NOT write report/summary/findings/analysis files (e.g. .md) unless the task explicitly
+names a file as the deliverable — deliver findings directly in your final answer; the parent
+reads your text output, not files you create.
+When your task is to review or verify a deliverable: judge only. At most one repair attempt
+per distinct defect; if a defect persists after its repair attempt, report it honestly in
+your final answer for the user to decide — never exceed the budget and never mask a
+failure as done.`
 
 // taskResultTag wraps sub-agent output in structured XML so the parent agent can
 // distinguish the result from other tool output. Borrowed from opencode.
@@ -1125,7 +1135,7 @@ func SteerSubagent(ref, text string) error {
 	if !ok || v.(*subRunHandle).runner == nil {
 		return fmt.Errorf("子代理 %s 当前不在运行（已收跑请用续跑改向）", ref)
 	}
-	v.(*subRunHandle).runner.Steer(text)
+	v.(*subRunHandle).runner.SteerParent(text)
 	return nil
 }
 

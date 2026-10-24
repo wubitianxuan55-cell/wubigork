@@ -474,7 +474,7 @@ type AgentRunner struct {
 	// 消除「检查 running 后回合才退出」窗口里 steer 落进将被清空的队列的
 	// 静默丢失。
 	steerMu           sync.Mutex
-	steerQueue        []string
+	steerQueue        []steerItem
 	steerConsumed     bool
 	steerIntakeClosed bool
 
@@ -944,10 +944,13 @@ func (a *AgentRunner) tokPerChar() float64 {
 // send).
 // (Design adopted from DeepSeek-Reasonix-V1.12)
 func (a *AgentRunner) Steer(text string) {
-	a.steerMu.Lock()
-	defer a.steerMu.Unlock()
-	a.steerQueue = append(a.steerQueue, text)
-	a.steerConsumed = false
+	a.steerAccept(steerItem{text: text, origin: steerFromUser})
+}
+
+// SteerParent 父代理直穿插话（SteerSubagent 通道）：与用户插话同队列、
+// 异来源——消费时以 ParentSteerPrefix 呈现（Z3/Z4：来源分面，防同意洗白）。
+func (a *AgentRunner) SteerParent(text string) {
+	a.steerAccept(steerItem{text: text, origin: steerFromParent})
 }
 
 // SteerConsumed returns true when the steer queue became empty after the last consume.
@@ -965,24 +968,34 @@ func (a *AgentRunner) SteerConsumed() bool {
 func (a *AgentRunner) SteerAccept(text string) bool {
 	a.steerMu.Lock()
 	defer a.steerMu.Unlock()
+	return a.steerAcceptLocked(steerItem{text: text, origin: steerFromUser})
+}
+
+func (a *AgentRunner) steerAccept(it steerItem) {
+	a.steerMu.Lock()
+	defer a.steerMu.Unlock()
+	a.steerAcceptLocked(it)
+}
+
+func (a *AgentRunner) steerAcceptLocked(it steerItem) bool {
 	if a.steerIntakeClosed {
 		return false
 	}
-	a.steerQueue = append(a.steerQueue, text)
+	a.steerQueue = append(a.steerQueue, it)
 	a.steerConsumed = false
 	return true
 }
 
-func (a *AgentRunner) consumeSteer() (string, bool) {
+func (a *AgentRunner) consumeSteer() (steerItem, bool) {
 	a.steerMu.Lock()
 	defer a.steerMu.Unlock()
 	if len(a.steerQueue) == 0 {
-		return "", false
+		return steerItem{}, false
 	}
-	t := a.steerQueue[0]
+	it := a.steerQueue[0]
 	a.steerQueue = a.steerQueue[1:]
 	a.steerConsumed = len(a.steerQueue) == 0
-	return t, true
+	return it, true
 }
 
 func (a *AgentRunner) steerQueueLen() int {

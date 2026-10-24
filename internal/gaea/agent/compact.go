@@ -830,6 +830,7 @@ func (a *AgentRunner) summarize(ctx context.Context, fold []provider.Message, in
 		Messages:    msgs,
 		Tools:       a.currentSchemas(),
 		Temperature: 0,
+		ConvID:      a.sessionID,
 	}
 
 	ch, err := a.prov.Stream(ctx, req)

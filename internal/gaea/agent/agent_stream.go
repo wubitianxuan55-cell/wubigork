@@ -75,6 +75,7 @@ func (a *AgentRunner) stream(ctx context.Context, turn int) (string, string, str
 		Messages:    msgs,
 		Tools:       tools,
 		Temperature: a.temperature,
+		ConvID:      a.sessionID,
 	})
 	if err != nil {
 		return "", "", "", nil, nil, false, err

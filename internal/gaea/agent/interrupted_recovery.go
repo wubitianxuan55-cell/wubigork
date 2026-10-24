@@ -56,6 +56,7 @@ type recoveryTool struct {
 func isSyntheticUserTurn(content string) bool {
 	for _, prefix := range []string{
 		MidTurnSteerPrefix,
+		ParentSteerPrefix,
 		"The previous assistant response was interrupted during streaming.",
 		"Host final-answer readiness check failed.",
 		"[system] ",
@@ -90,11 +91,15 @@ func (a *AgentRunner) drainSteerOnExit() {
 	a.steerQueue = nil
 	a.steerConsumed = false
 	a.steerMu.Unlock()
-	for _, text := range remaining {
+	for _, it := range remaining {
+		originNote := ""
+		if it.origin == steerFromParent {
+			originNote = " (from the parent agent, not the user)"
+		}
 		a.session.Add(provider.Message{
 			Role: provider.RoleUser,
 			Content: unappliedSteerPrefix + "The previous turn ended before this mid-task guidance reached the model. " +
-				"It is recorded as guidance for the recorded task — apply it only if still relevant, and the user's next message takes precedence.\n" + text,
+				"It is recorded as guidance for the recorded task — apply it only if still relevant, and the user's next message takes precedence." + originNote + "\n" + it.text,
 		})
 	}
 	if len(remaining) > 0 {

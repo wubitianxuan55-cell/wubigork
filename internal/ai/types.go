@@ -55,6 +55,7 @@ type ChatRequest struct {
 	Model              string             `json:"model"`
 	EngineID           string             `json:"-"` // 功能级引擎覆盖（空=全局激活引擎），不序列化
 	Feature            string             `json:"-"` // 账目 feature 标签（7.1-2 A 线：调用方功能域，如 chat/novel/office；空=未标记），不序列化
+	ConvID             string             `json:"-"` // 会话粘性路由键（Z0 蒸馏刀）：仅 xai 分支消费为 x-grok-conv-id 请求头——xAI 缓存条目按服务器存，同会话路由一致才易命中前缀缓存；其他引擎不设，不序列化 // 账目 feature 标签（7.1-2 A 线：调用方功能域，如 chat/novel/office；空=未标记），不序列化
 	Messages           []ChatMessage      `json:"messages"`
 	MaxTokens          int                `json:"max_tokens,omitempty"`
 	Temperature        float64            `json:"temperature,omitempty"`

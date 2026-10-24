@@ -26,9 +26,9 @@ func TestSteerSubagentAddressing(t *testing.T) {
 		t.Fatalf("在跑登记应注入成功: %v", err)
 	}
 	// 注入进的是该 runner 的 steer 队列（consumeSteer 可取回）
-	text, ok := sub.consumeSteer()
-	if !ok || text != "补充指引" {
-		t.Fatalf("steer 队列内容 = %q ok=%v", text, ok)
+	it, ok := sub.consumeSteer()
+	if !ok || it.text != "补充指引" || it.origin != steerFromParent {
+		t.Fatalf("steer 队列内容 = %+v ok=%v（应为父面来源）", it, ok)
 	}
 	// 注销后寻址失败（runSubAgentInternal defer Delete 的语义等价）
 	subRuns.Delete("sa_live")

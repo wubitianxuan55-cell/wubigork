@@ -61,6 +61,9 @@ type Request struct {
 	Tools       []ToolSchema
 	Temperature float64
 	MaxTokens   int
+	// ConvID 会话粘性路由键（Z0 蒸馏刀）：主采样/压缩摘要/goal 判定同一会话
+	// 共用一键，bridge 透传 ai.ChatRequest.ConvID（仅 xai 分支消费）。
+	ConvID string
 }
 
 // interruptedToolResult stands in for a tool result that never landed — an
