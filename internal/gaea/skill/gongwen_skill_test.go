@@ -4,8 +4,11 @@ package skill
 // 与 office-edit 纪律互补不重复。
 
 import (
+	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/gaea/gaea/internal/office/typography"
 )
 
 func TestGongwenSkillRegistered(t *testing.T) {
@@ -64,5 +67,35 @@ func TestGongwenSkill_ComplementsOfficeEdit(t *testing.T) {
 	}
 	if !strings.Contains(oe.Description, "纪律总纲") {
 		t.Fatal("office-edit 应仍是纪律总纲")
+	}
+}
+
+// TestGongwenSkill_TypographySingleSource（K2b）：技能正文里的排版数值与
+// typography 常量必须同源——技能是文本、常量是 Go，唯一的防漂移形态是
+// 一致性锁：任一侧改动而不改另一侧，本测试即红。
+func TestGongwenSkill_TypographySingleSource(t *testing.T) {
+	pairs := []struct {
+		name string
+		want string
+	}{
+		{"GB 上边距", fmt.Sprintf("上 %dmm", typography.GBMarginTopMm)},
+		{"GB 下边距", fmt.Sprintf("下 %dmm", typography.GBMarginBottomMm)},
+		{"GB 左边距", fmt.Sprintf("左 %dmm", typography.GBMarginLeftMm)},
+		{"GB 右边距", fmt.Sprintf("右 %dmm", typography.GBMarginRightMm)},
+		{"页边距示例（python-docx 侧）", fmt.Sprintf("Mm(%d)", typography.GBMarginTopMm)},
+	}
+	for _, p := range pairs {
+		if !strings.Contains(gongwenBody, p.want) {
+			t.Errorf("技能正文缺 %s %q——typography 常量与技能文本已漂移", p.name, p.want)
+		}
+	}
+	// 版心自洽：A4 宽高（mm=twips/567*10）减四边距应等于正文宣称的版心。
+	wMm := (typography.A4WidthTwips*10 + typography.TwipsPerCm/2) / typography.TwipsPerCm
+	hMm := (typography.A4HeightTwips*10 + typography.TwipsPerCm/2) / typography.TwipsPerCm
+	wantArea := fmt.Sprintf("版心 %dmm×%dmm",
+		wMm-typography.GBMarginLeftMm-typography.GBMarginRightMm,
+		hMm-typography.GBMarginTopMm-typography.GBMarginBottomMm)
+	if !strings.Contains(gongwenBody, wantArea) {
+		t.Errorf("技能正文版心与 A4+页边距不自洽：期望包含 %q", wantArea)
 	}
 }
