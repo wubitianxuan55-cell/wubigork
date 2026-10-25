@@ -74,6 +74,9 @@ export const FRONTEND_EVENTS = {
   /** 打开模型中心「详细统计」抽屉（运行监测「按模型明细」跨板跳转联动，
       已挂载场景；未挂载首次跳转走 OPEN_STATS_FLAG 补开） */
   OPEN_STATS_DRAWER: 'gaea-open-stats-drawer',
+  /** 打开办公板块临时工具面板 ToolSheet（payload { tool: 'cad' | 'schedule' }；
+      发射方=产物行/工具卡等深处组件，消费方=办公 App 根 setActiveTool） */
+  OPEN_TOOL: 'gaea-open-tool',
 } as const
 
 /** 「按模型明细」跳转的抽屉补开标记（sessionStorage；模型中心挂载效应消费即清） */

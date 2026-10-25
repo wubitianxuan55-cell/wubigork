@@ -52,7 +52,7 @@ function loadComposerHeight(): number | null {
 }
 
 export function Composer({
-  running, cwd, onSend, onSteer, onCancel, permLevel, onSetPermLevel, thinkLevel, onSetThinkLevel, onPickFolder, disabled, planActive, onTogglePlan, onQueueDrop,
+  running, cwd, onSend, onSteer, onCancel, permLevel, onSetPermLevel, thinkLevel, onSetThinkLevel, onPickFolder, disabled, planActive, onTogglePlan, onQueueDrop, onOpenTool,
 }: {
   running: boolean; cwd?: string;
   onSend: (displayText: string, submitText?: string) => void;
@@ -62,6 +62,8 @@ export function Composer({
   /** 计划模式（v4.420）：状态由 App 层从计划回执推导，点击走动词链 */
   planActive?: boolean; onTogglePlan?: () => void;
   onPickFolder: (path?: string) => Promise<string>; disabled?: boolean;
+  /** 打开办公工具面板（CAD 看图/进度计划）；不是右栏 Tab，是临时 ToolSheet。 */
+  onOpenTool?: (tool: "cad" | "schedule") => void;
   /** 卸载时队列未清空（宿主用 key 重挂 = 队列被静默丢弃）——如实上报条数，
    *  宿主可提示「排队 N 条已随切换清空」。可选；办公场景不传零影响。 */
   onQueueDrop?: (count: number) => void;
@@ -534,6 +536,7 @@ export function Composer({
           onPickFiles={() => void handlePickFiles()}
           onScreenshot={() => void handleScreenshot()}
           onRecordSkill={() => setRecordOpen(true)}
+          onOpenTool={onOpenTool}
           permLevel={permLevel}
           onSetPermLevel={onSetPermLevel}
           thinkLevel={thinkLevel}
@@ -557,3 +560,4 @@ export function Composer({
     </div>
   );
 }
+

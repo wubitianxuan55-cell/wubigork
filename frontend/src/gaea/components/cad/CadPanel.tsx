@@ -6,9 +6,11 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Alert, Button, Input, Spin, Tag } from "antd";
 import { useT } from "../../lib/i18n";
+import { Layers } from "../../icons";
 import { app } from "../../lib/bridge";
 import type { CadOpenResult, CadRasterResult, CadTextsResult, CadCountResult, CadText } from "../../lib/bridge/cad";
 import { cadRecentList, cadRecentPush, type CadRecent } from "./cadRecent";
+import "./cad-panel.css";
 
 /** 导入扩展名白名单（与 pickFile.ts 的 fail-closed 后置复核同源：宽容模式下
  *  系统对话框过滤可绕过，前端必须复核扩展名）。 */
@@ -33,7 +35,7 @@ function reportCadError(where: string, e: unknown): void {
   }
 }
 
-export function CadPanel({ onAsk }: { onAsk?: (text: string) => void }) {
+export function CadPanel({ onAsk, variant = "pane" }: { onAsk?: (text: string) => void; variant?: "pane" | "sheet" }) {
   const t = useT();
   const [file, setFile] = useState<{ path: string; name: string } | null>(null);
   const [openRes, setOpenRes] = useState<CadOpenResult | null>(null);
@@ -456,249 +458,274 @@ export function CadPanel({ onAsk }: { onAsk?: (text: string) => void }) {
   }, [texts, sheet]);
 
   return (
-    <div data-testid="cad-panel" className="flex flex-col h-full min-h-0 gap-2 p-2 text-[12px]">
-      <div className="flex items-center gap-2">
-        <Button
-          size="small"
-          data-testid="cad-import"
-          disabled={busy || askBusy}
-          onClick={() => void import_()}
-        >
-          {t("cad.import")}
-        </Button>
-        {file && <span className="truncate text-fg-dim" title={file.path}>{file.name}</span>}
-      </div>
-      <div className="text-[11px] text-fg-dim">{t("cad.importHint")}</div>
-      {recent.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1" data-testid="cad-recent">
-          <span className="text-[11px] text-fg-dim">{t("cad.recent")}</span>
-          {recent.map((r) => (
+    <div
+      data-testid="cad-panel"
+      data-variant={variant}
+      className={`cad-panel ${variant === "sheet" ? "cad-panel--sheet" : "cad-panel--pane"} h-full min-h-0 gap-2 p-2 text-[12px]`}
+    >
+      <div className="cad-head">
+        <div className="cad-import-row flex items-center gap-2">
+          {(variant === "pane" || file) && (
             <Button
-              key={r.path}
               size="small"
-              type={r.path === file?.path ? "primary" : "default"}
-              data-testid={`cad-recent-${r.name}`}
-              title={r.path}
+              data-testid="cad-import"
               disabled={busy || askBusy}
-              onClick={() => void load(r.path, r.name)}
+              onClick={() => void import_()}
             >
-              {r.name}
+              {t("cad.import")}
             </Button>
-          ))}
+          )}
+          {file && <span className="truncate text-fg-dim" title={file.path}>{file.name}</span>}
         </div>
-      )}
-
-      {busy && <Spin size="small" />}
-      {error && (
-        <Alert
-          type="error"
-          showIcon
-          message={`${t(`cad.error.${errorKind}`)}：${error}`}
-          data-testid="cad-error"
-        />
-      )}
-      {openRes?.warnings.map((w, i) => (
-        <Alert key={i} type="warning" showIcon message={w} />
-      ))}
-
-      {!file && !busy && <div className="text-fg-dim mt-6 text-center">{t("cad.emptyHint")}</div>}
-
-      {openRes && (
-        <>
-          <div className="text-[11px] text-fg-dim flex flex-wrap gap-x-2">
-            <Tag>{openRes.kind.toUpperCase()}</Tag>
-            <span>{openRes.entityCount} 实体</span>
-            <span>{openRes.textCount} 文本</span>
-            <span title={openRes.layers.join("、")}>{t("cad.layers", { count: openRes.layers.length })}</span>
-          </div>
-
-          <div className="flex flex-wrap gap-1" data-testid="cad-sheets">
-            {openRes.sheets.map((s, i) => (
+        {(variant === "pane" || file) && <div className="cad-hint text-[11px] text-fg-dim">{t("cad.importHint")}</div>}
+        {recent.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1" data-testid="cad-recent">
+            <span className="text-[11px] text-fg-dim">{t("cad.recent")}</span>
+            {recent.map((r) => (
               <Button
-                key={i}
+                key={r.path}
                 size="small"
-                type={i + 1 === sheet ? "primary" : "default"}
-                data-testid={`cad-sheet-${i + 1}`}
-                title={s.passRate >= 0 ? t("cad.sheetQuality", { rate: s.passRate.toFixed(2) }) : s.name}
-                disabled={askBusy}
-                onClick={() => selectSheet(i + 1)}
+                type={r.path === file?.path ? "primary" : "default"}
+                data-testid={`cad-recent-${r.name}`}
+                title={r.path}
+                disabled={busy || askBusy}
+                onClick={() => void load(r.path, r.name)}
               >
-                {s.name || `#${i + 1}`}
-                {s.passRate >= 0.3 && s.passRate < 0.5 ? "!" : ""}
+                {r.name}
               </Button>
             ))}
           </div>
+        )}
+      </div>
 
-          {raster && (
-            <div className="flex flex-col gap-1 min-h-0">
-              <div className="flex justify-between items-center">
-                <span className="text-[11px] text-fg-dim">
-                  {openRes.sheets[sheet - 1]?.passRate >= 0
-                    ? t("cad.sheetQuality", { rate: (openRes.sheets[sheet - 1].passRate ?? 0).toFixed(2) })
-                    : ""}
-                </span>
-                <a
-                  data-testid="cad-rerender"
-                  className="text-[11px] cursor-pointer"
-                  aria-disabled={askBusy}
-                  onClick={() => !askBusy && file && void fetchRaster(file.path, sheet, ASK_WIDTH)}
+      <div className="cad-alerts">
+        {busy && <Spin size="small" />}
+        {error && (
+          <Alert
+            type="error"
+            showIcon
+            message={`${t(`cad.error.${errorKind}`)}：${error}`}
+            data-testid="cad-error"
+          />
+        )}
+        {openRes?.warnings.map((w, i) => (
+          <Alert key={i} type="warning" showIcon message={w} />
+        ))}
+      </div>
+
+      {!file && !busy && (
+        <div className="cad-empty">
+          <div className="cad-empty-mark"><Layers size={20} /></div>
+          <b>打开一张图纸</b>
+          <p>{t("cad.emptyHint")}</p>
+          <Button type="primary" size="small" onClick={() => void import_()}>{t("cad.import")}</Button>
+          <span>支持 DWG / DXF / PDF · 解析与分幅全程本地</span>
+        </div>
+      )}
+
+      {openRes && (
+        <>
+          <div className="cad-side">
+            <div className="text-[11px] text-fg-dim flex flex-wrap gap-x-2">
+              <Tag>{openRes.kind.toUpperCase()}</Tag>
+              <span>{openRes.entityCount} 实体</span>
+              <span>{openRes.textCount} 文本</span>
+              <span title={openRes.layers.join("、")}>{t("cad.layers", { count: openRes.layers.length })}</span>
+            </div>
+
+            <div className="flex flex-wrap gap-1" data-testid="cad-sheets">
+              {openRes.sheets.map((s, i) => (
+                <Button
+                  key={i}
+                  size="small"
+                  type={i + 1 === sheet ? "primary" : "default"}
+                  data-testid={`cad-sheet-${i + 1}`}
+                  title={s.passRate >= 0 ? t("cad.sheetQuality", { rate: s.passRate.toFixed(2) }) : s.name}
+                  disabled={askBusy}
+                  onClick={() => selectSheet(i + 1)}
                 >
-                  {t("cad.rerender")}
-                </a>
-              </div>
-              <img
-                data-testid="cad-raster-img"
-                src={raster.dataUrl}
-                alt={openRes.sheets[sheet - 1]?.name ?? ""}
-                className="max-h-[38vh] object-contain border border-border-soft rounded bg-white"
-              />
+                  {s.name || `#${i + 1}`}
+                  {s.passRate >= 0.3 && s.passRate < 0.5 ? "!" : ""}
+                </Button>
+              ))}
             </div>
-          )}
-
-          <div className="flex flex-col gap-1">
-            <div className="flex gap-1">
-              <Input
-                size="small"
-                data-testid="cad-ask-input"
-                placeholder={t("cad.askPlaceholder") ?? ""}
-                value={question}
-                onChange={(e) => setQuestion(e.target.value)}
-                onPressEnter={() => void ask()}
-                disabled={!file}
-              />
-              <Button
-                size="small"
-                type="primary"
-                data-testid="cad-ask-btn"
-                loading={askBusy}
-                disabled={!file || !question.trim()}
-                onClick={() => void ask()}
-              >
-                {t("cad.ask")}
-              </Button>
-            </div>
-            {answer && (
-              <Alert
-                data-testid="cad-answer"
-                type="info"
-                message={
-                  <div className="flex flex-col gap-1 whitespace-pre-wrap">
-                    <b>{t("cad.askAnswer")}</b>
-                    <div>{answer}</div>
-                    {onAsk && (
-                      <a data-testid="cad-ask-send" className="cursor-pointer" onClick={sendToChat}>
-                        {t("cad.askSend")}
-                      </a>
-                    )}
-                  </div>
-                }
-              />
-            )}
           </div>
 
-          <div className="flex flex-col gap-1 min-h-0">
-            {texts ? (
-              <div className="min-h-0 overflow-auto" data-testid="cad-texts">
-                <div className="flex justify-between items-center mb-1">
+          <div className="cad-main">
+            {raster && (
+              <div className="cad-canvas">
+                <div className="flex justify-between items-center">
                   <span className="text-[11px] text-fg-dim">
-                    {t("cad.texts", { count: texts.total })}
-                    {texts.truncated ? ` · ${t("cad.textsTruncated", { count: texts.texts.length, total: texts.total })}` : ""}
+                    {openRes.sheets[sheet - 1]?.passRate >= 0
+                      ? t("cad.sheetQuality", { rate: (openRes.sheets[sheet - 1].passRate ?? 0).toFixed(2) })
+                      : ""}
                   </span>
-                  <a data-testid="cad-texts-copy" className="text-[11px] cursor-pointer" onClick={() => void copyTexts()}>
-                    {textsCopied ? t("cad.countCopied") : t("cad.textsCopy")}
+                  <a
+                    data-testid="cad-rerender"
+                    className="text-[11px] cursor-pointer"
+                    aria-disabled={askBusy}
+                    onClick={() => !askBusy && file && void fetchRaster(file.path, sheet, ASK_WIDTH)}
+                  >
+                    {t("cad.rerender")}
                   </a>
                 </div>
-                {sheetTexts.slice(0, 100).map((x, i) => (
-                  <div key={i} className="flex gap-2 leading-5">
-                    <span className="text-fg-dim shrink-0 max-w-[7em] truncate" title={x.layer}>
-                      {x.layer || "-"}
-                    </span>
-                    <span className="break-all">{x.text}</span>
-                  </div>
-                ))}
+                <img
+                  data-testid="cad-raster-img"
+                  src={raster.dataUrl}
+                  alt={openRes.sheets[sheet - 1]?.name ?? ""}
+                  className="cad-raster max-h-[38vh] object-contain border border-border-soft rounded bg-white"
+                />
               </div>
-            ) : (
-              <Button
-                size="small"
-                loading={textsBusy}
-                disabled={!file || openRes.kind === "pdf" || askBusy}
-                onClick={() => void loadTexts()}
-              >
-                {t("cad.texts", { count: openRes.textCount })}
-              </Button>
             )}
+
+            <div className="cad-ask flex flex-col gap-1">
+              <div className="flex gap-1">
+                <Input
+                  size="small"
+                  data-testid="cad-ask-input"
+                  placeholder={t("cad.askPlaceholder") ?? ""}
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  onPressEnter={() => void ask()}
+                  disabled={!file}
+                />
+                <Button
+                  size="small"
+                  type="primary"
+                  data-testid="cad-ask-btn"
+                  loading={askBusy}
+                  disabled={!file || !question.trim()}
+                  onClick={() => void ask()}
+                >
+                  {t("cad.ask")}
+                </Button>
+              </div>
+              {answer && (
+                <Alert
+                  data-testid="cad-answer"
+                  type="info"
+                  message={
+                    <div className="flex flex-col gap-1 whitespace-pre-wrap">
+                      <b>{t("cad.askAnswer")}</b>
+                      <div>{answer}</div>
+                      {onAsk && (
+                        <a data-testid="cad-ask-send" className="cursor-pointer" onClick={sendToChat}>
+                          {t("cad.askSend")}
+                        </a>
+                      )}
+                    </div>
+                  }
+                />
+              )}
+            </div>
           </div>
 
-          <div className="flex flex-col gap-1 min-h-0">
-            {count ? (
-              <div className="min-h-0 overflow-auto" data-testid="cad-count">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-[11px] text-fg-dim">
-                    {t("cad.count")} · {count.items.length}
-                  </span>
-                  <span className="flex gap-2">
-                    <a data-testid="cad-handoff" className="text-[11px] cursor-pointer" onClick={() => void handoffToAI()}>
-                      {t("cad.handoff")}
+          <div className="cad-inspector">
+            <div className="cad-section flex flex-col gap-1 min-h-0">
+              {texts ? (
+                <div className="min-h-0 overflow-auto" data-testid="cad-texts">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[11px] text-fg-dim">
+                      {t("cad.texts", { count: texts.total })}
+                      {texts.truncated ? ` · ${t("cad.textsTruncated", { count: texts.texts.length, total: texts.total })}` : ""}
+                    </span>
+                    <a data-testid="cad-texts-copy" className="text-[11px] cursor-pointer" onClick={() => void copyTexts()}>
+                      {textsCopied ? t("cad.countCopied") : t("cad.textsCopy")}
                     </a>
-                    <a data-testid="cad-count-copy" className="text-[11px] cursor-pointer" onClick={() => void copyCount()}>
-                      {copied ? t("cad.countCopied") : t("cad.countCopy")}
-                    </a>
-                  </span>
+                  </div>
+                  {sheetTexts.slice(0, 100).map((x, i) => (
+                    <div key={i} className="flex gap-2 leading-5">
+                      <span className="text-fg-dim shrink-0 max-w-[7em] truncate" title={x.layer}>
+                        {x.layer || "-"}
+                      </span>
+                      <span className="break-all">{x.text}</span>
+                    </div>
+                  ))}
                 </div>
-                {count.items.slice(0, 60).map((it, i) => (
-                  <div key={i} className="flex gap-2 leading-5" data-testid={`cad-count-row-${i}`}>
-                    <span className="shrink-0 min-w-[10em] truncate" title={it.block}>
-                      {it.name || <span className="text-fg-dim">{t("cad.countUnnamed")}</span>}
-                    </span>
-                    <span className="text-fg-dim shrink-0 max-w-[9em] truncate" title={it.block}>
-                      {it.block}
-                    </span>
-                    <b className="shrink-0">×{it.count}</b>
-                    <span className="text-fg-dim truncate">
-                      {Object.entries(it.perSheet).map(([k, v]) => `${sheetLabel(k)}×${v}`).join(" ")}
-                    </span>
-                  </div>
-                ))}
-                {count.items.some((it) => !it.name) && (
-                  <div className="text-[11px] text-fg-dim mt-1">{t("cad.countNoNameHint")}</div>
-                )}
-                <div className="text-[11px] text-fg-dim mt-1">{t("cad.countLayers")}</div>
-                {count.layers.slice(0, 8).map((l, i) => (
-                  <div key={i} className="flex gap-2 leading-5">
-                    <span className="text-fg-dim shrink-0 max-w-[9em] truncate" title={l.layer}>
-                      {l.layer}
-                    </span>
-                    <span>{Math.round(l.length).toLocaleString()}</span>
-                  </div>
-                ))}
-                {count.warnings.map((w, i) => (
-                  <Alert key={`w-${i}`} type="warning" showIcon message={w} className="mt-1" />
-                ))}
-              </div>
-            ) : (
-              <div className="flex gap-1">
+              ) : (
                 <Button
                   size="small"
-                  data-testid="cad-count-btn"
-                  loading={countBusy}
+                  loading={textsBusy}
                   disabled={!file || openRes.kind === "pdf" || askBusy}
-                  onClick={() => void loadCount()}
+                  onClick={() => void loadTexts()}
                 >
-                  {t("cad.count")}
+                  {t("cad.texts", { count: openRes.textCount })}
                 </Button>
-                <Button
-                  size="small"
-                  data-testid="cad-handoff-pre"
-                  disabled={!file || openRes.kind === "pdf" || askBusy}
-                  onClick={() => void handoffToAI()}
-                >
-                  {t("cad.handoff")}
-                </Button>
-              </div>
-            )}
+              )}
+            </div>
+
+            <div className="cad-section flex flex-col gap-1 min-h-0">
+              {count ? (
+                <div className="min-h-0 overflow-auto" data-testid="cad-count">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[11px] text-fg-dim">
+                      {t("cad.count")} · {count.items.length}
+                    </span>
+                    <span className="flex gap-2">
+                      <a data-testid="cad-handoff" className="text-[11px] cursor-pointer" onClick={() => void handoffToAI()}>
+                        {t("cad.handoff")}
+                      </a>
+                      <a data-testid="cad-count-copy" className="text-[11px] cursor-pointer" onClick={() => void copyCount()}>
+                        {copied ? t("cad.countCopied") : t("cad.countCopy")}
+                      </a>
+                    </span>
+                  </div>
+                  {count.items.slice(0, 60).map((it, i) => (
+                    <div key={i} className="flex gap-2 leading-5" data-testid={`cad-count-row-${i}`}>
+                      <span className="shrink-0 min-w-[10em] truncate" title={it.block}>
+                        {it.name || <span className="text-fg-dim">{t("cad.countUnnamed")}</span>}
+                      </span>
+                      <span className="text-fg-dim shrink-0 max-w-[9em] truncate" title={it.block}>
+                        {it.block}
+                      </span>
+                      <b className="shrink-0">×{it.count}</b>
+                      <span className="text-fg-dim truncate">
+                        {Object.entries(it.perSheet).map(([k, v]) => `${sheetLabel(k)}×${v}`).join(" ")}
+                      </span>
+                    </div>
+                  ))}
+                  {count.items.some((it) => !it.name) && (
+                    <div className="text-[11px] text-fg-dim mt-1">{t("cad.countNoNameHint")}</div>
+                  )}
+                  <div className="text-[11px] text-fg-dim mt-1">{t("cad.countLayers")}</div>
+                  {count.layers.slice(0, 8).map((l, i) => (
+                    <div key={i} className="flex gap-2 leading-5">
+                      <span className="text-fg-dim shrink-0 max-w-[9em] truncate" title={l.layer}>
+                        {l.layer}
+                      </span>
+                      <span>{Math.round(l.length).toLocaleString()}</span>
+                    </div>
+                  ))}
+                  {count.warnings.map((w, i) => (
+                    <Alert key={`w-${i}`} type="warning" showIcon message={w} className="mt-1" />
+                  ))}
+                </div>
+              ) : (
+                <div className="flex gap-1">
+                  <Button
+                    size="small"
+                    data-testid="cad-count-btn"
+                    loading={countBusy}
+                    disabled={!file || openRes.kind === "pdf" || askBusy}
+                    onClick={() => void loadCount()}
+                  >
+                    {t("cad.count")}
+                  </Button>
+                  <Button
+                    size="small"
+                    data-testid="cad-handoff-pre"
+                    disabled={!file || openRes.kind === "pdf" || askBusy}
+                    onClick={() => void handoffToAI()}
+                  >
+                    {t("cad.handoff")}
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
         </>
       )}
     </div>
   );
 }
+

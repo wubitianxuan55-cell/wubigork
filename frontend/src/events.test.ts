@@ -48,9 +48,9 @@ describe('BACKEND_EVENTS（§4.1，26 个）', () => {
   })
 })
 
-describe('FRONTEND_EVENTS（§4.2，5 个）', () => {
-  it('共 5 个前端自定义事件常量', () => {
-    expect(Object.keys(FRONTEND_EVENTS)).toHaveLength(5)
+describe('FRONTEND_EVENTS（§4.2，6 个）', () => {
+  it('共 6 个前端自定义事件常量', () => {
+    expect(Object.keys(FRONTEND_EVENTS)).toHaveLength(6)
   })
 
   it('常量名与事件名一致', () => {
@@ -59,6 +59,7 @@ describe('FRONTEND_EVENTS（§4.2，5 个）', () => {
     expect(FRONTEND_EVENTS.GAEA_PROJECT_CHARS_CHANGED).toBe('gaea-project-chars-changed')
     expect(FRONTEND_EVENTS.AI_ASSIST_SEND).toBe('ai-assist-send')
     expect(FRONTEND_EVENTS.OPEN_STATS_DRAWER).toBe('gaea-open-stats-drawer')
+    expect(FRONTEND_EVENTS.OPEN_TOOL).toBe('gaea-open-tool')
     expect(OPEN_STATS_FLAG).toBe('gaea.stats-drawer-open')
   })
 

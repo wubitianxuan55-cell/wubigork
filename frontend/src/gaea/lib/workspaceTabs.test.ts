@@ -33,8 +33,8 @@ describe("workspaceTabs 清单完整性（v4.53 合并：文件/产物/任务/�
     expect(ids.sort()).toEqual([...WORKSPACE_TAB_IDS].sort());
   });
 
-  it("清单为 7 Tab（v4.53 合并后追加 Git/UI，v4.524 追加 CAD 图纸卡），不含已删除面板", () => {
-    expect(WORKSPACE_TABS.map((t) => t.id)).toEqual(["files", "deliverables", "tasks", "browser", "git", "ui", "cad"]);
+  it("清单为 6 Tab（v4.53 合并后追加 Git/UI；CAD 已工具化，不进右栏），不含已删除面板", () => {
+    expect(WORKSPACE_TABS.map((t) => t.id)).toEqual(["files", "deliverables", "tasks", "browser", "git", "ui"]);
     expect(WORKSPACE_TABS.some((t) => (t.id as string) === "materials")).toBe(false);
     expect(WORKSPACE_TABS.some((t) => (t.id as string) === "cost")).toBe(false);
     expect(isWorkspaceTabId("materials")).toBe(false); // 旧存储值收敛回默认
@@ -57,11 +57,6 @@ describe("workspaceTabs 清单完整性（v4.53 合并：文件/产物/任务/�
     expect(ui).toBeTruthy();
     expect(ui!.label).toBe("UI");
     expect(ui!.defaultEnabled).toBe(true);
-    // v4.524 CAD 图纸卡：可选使用（用户拍板）——defaultEnabled:false 声明
-    const cad = WORKSPACE_TABS.find((t) => t.id === "cad");
-    expect(cad).toBeTruthy();
-    expect(cad!.label).toBe("CAD 图纸");
-    expect(cad!.defaultEnabled).toBe(false);
   });
 
   it("v4.53 旧 id 别名：changes→deliverables、subagents→tasks，非法值回 null", () => {
@@ -211,10 +206,10 @@ describe("workspaceTabs 宽度契约（全局键：最后一次拖拽胜出）",
 describe("workspaceTabs 声明式设置启用集（全局键，学 booleanMapOf 净化）", () => {
   afterEach(cleanupStorage);
 
-  it("无记录时为空覆盖（全部按清单 defaultEnabled 启用；例外=cad 可选卡默认关）", () => {
+  it("无记录时为空覆盖（全部按清单 defaultEnabled 启用）", () => {
     expect(loadEnabledTabs()).toEqual({});
     const resolved = resolveEnabledTabs({});
-    for (const id of WORKSPACE_TAB_IDS) expect(resolved[id]).toBe(id !== "cad"); // v4.524 CAD 卡可选使用
+    for (const id of WORKSPACE_TAB_IDS) expect(resolved[id]).toBe(true);
   });
 
   it("保存后读取往返（工作台空间分键）", () => {
@@ -240,8 +235,8 @@ describe("workspaceTabs 声明式设置启用集（全局键，学 booleanMapOf 
     const allOff: WorkspaceEnabledMap = {};
     for (const id of WORKSPACE_TAB_IDS) allOff[id] = false;
     const rescued = resolveEnabledTabs(allOff);
-    // 兜底恢复默认启用集；cad（可选卡，默认关）保持声明态 false。
-    for (const id of WORKSPACE_TAB_IDS) expect(rescued[id]).toBe(id !== "cad");
+    // 兜底恢复默认启用集。
+    for (const id of WORKSPACE_TAB_IDS) expect(rescued[id]).toBe(true);
   });
 
   it("firstEnabledTab 按清单顺序回退到第一个启用面板", () => {
@@ -308,3 +303,4 @@ describe("workspaceTabs 会话记录 v2（激活 tab + 启用集快照 + 宽度�
     expect(loadPersistedRightTab()).toBe(DEFAULT_WORKSPACE_TAB);
   });
 });
+

@@ -95,17 +95,17 @@ describe("ScheduleFileCard 办公侧计划摘要卡", () => {
     expect(screen.queryByText("基线")).toBeNull();
   });
 
-  it("当前计划文件：跳转按钮派发 navigate 事件到 schedule 板块", () => {
+  it("当前计划文件：「打开」派发 OPEN_TOOL 开进度工具面板（不离开对话）", () => {
     const s = parseSchedSummary(JSON.stringify(project()))!;
     const seen: unknown[] = [];
     const listener = (e: Event) => seen.push((e as CustomEvent).detail);
-    window.addEventListener(FRONTEND_EVENTS.NAVIGATE, listener);
+    window.addEventListener(FRONTEND_EVENTS.OPEN_TOOL, listener);
     try {
       render(wrap(<ScheduleFileCard relPath={CURRENT} summary={s} raw="{}" />));
       fireEvent.click(screen.getByText("在进度计划中打开"));
-      expect(seen).toContainEqual({ page: "schedule" });
+      expect(seen).toContainEqual({ tool: "schedule" });
     } finally {
-      window.removeEventListener(FRONTEND_EVENTS.NAVIGATE, listener);
+      window.removeEventListener(FRONTEND_EVENTS.OPEN_TOOL, listener);
     }
   });
 
@@ -148,41 +148,40 @@ describe("ScheduleFileCard 办公侧计划摘要卡", () => {
     expect(screen.queryByText("5 天")).toBeNull();
   });
 
-  // v4.139 #15 语义升级（原用例「非当前计划可一键设为当前计划：写 ScheduleSave」）：
-  // 「设为当前计划」从复制内容改为切指针——点「打开」调 ScheduleProjectOpen +
-  // 跳板块；不再复制覆盖（ScheduleSave 联动路径废弃，多工程下复制会制造同源漂移）。
-  it("非当前计划点「打开」=切指针：ScheduleProjectOpen+navigate，不再走 ScheduleSave 复制", async () => {
+  // v4.139 #15 语义升级 + 2026-10 工具化：「设为当前计划」=切指针 ScheduleProjectOpen
+  // + 开工具面板（OPEN_TOOL）；不再复制覆盖（ScheduleSave 联动路径废弃）也不再跳板块。
+  it("非当前计划点「打开」=切指针：ScheduleProjectOpen+OPEN_TOOL，不再走 ScheduleSave 复制", async () => {
     const s = parseSchedSummary(JSON.stringify(project()))!;
     const seen: unknown[] = [];
     const listener = (e: Event) => seen.push((e as CustomEvent).detail);
-    window.addEventListener(FRONTEND_EVENTS.NAVIGATE, listener);
+    window.addEventListener(FRONTEND_EVENTS.OPEN_TOOL, listener);
     try {
       render(wrap(<ScheduleFileCard relPath={OTHER} summary={s} raw="{}" />));
       fireEvent.click(screen.getByText("在进度计划中打开"));
       await waitFor(() => expect(mocks.projectOpen).toHaveBeenCalledTimes(1));
       expect(mocks.projectOpen).toHaveBeenCalledWith(OTHER);
-      expect(seen).toContainEqual({ page: "schedule" });
+      expect(seen).toContainEqual({ tool: "schedule" });
       await waitFor(() =>
         expect(screen.getAllByText("已切换为当前计划").length).toBeGreaterThanOrEqual(1),
       );
       expect(mocks.scheduleSave).not.toHaveBeenCalled();
     } finally {
-      window.removeEventListener(FRONTEND_EVENTS.NAVIGATE, listener);
+      window.removeEventListener(FRONTEND_EVENTS.OPEN_TOOL, listener);
     }
   });
 
-  it("当前计划点「打开」：直接跳板块，不重复切指针", () => {
+  it("当前计划点「打开」：直接开工具面板，不重复切指针", () => {
     const s = parseSchedSummary(JSON.stringify(project()))!;
     const seen: unknown[] = [];
     const listener = (e: Event) => seen.push((e as CustomEvent).detail);
-    window.addEventListener(FRONTEND_EVENTS.NAVIGATE, listener);
+    window.addEventListener(FRONTEND_EVENTS.OPEN_TOOL, listener);
     try {
       render(wrap(<ScheduleFileCard relPath={CURRENT} summary={s} raw="{}" />));
       fireEvent.click(screen.getByText("在进度计划中打开"));
-      expect(seen).toContainEqual({ page: "schedule" });
+      expect(seen).toContainEqual({ tool: "schedule" });
       expect(mocks.projectOpen).not.toHaveBeenCalled();
     } finally {
-      window.removeEventListener(FRONTEND_EVENTS.NAVIGATE, listener);
+      window.removeEventListener(FRONTEND_EVENTS.OPEN_TOOL, listener);
     }
   });
 

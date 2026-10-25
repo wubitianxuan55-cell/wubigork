@@ -1194,3 +1194,10 @@ body::after {
     margin-right: 0;
   }
 }
+
+/* ToolSheet：容器本身获得焦点只为键盘入口，不画焦点环（焦点环留给内部控件）。 */
+.tool-sheet-panel:focus,
+.tool-sheet-panel:focus-visible {
+  outline: none;
+}
+

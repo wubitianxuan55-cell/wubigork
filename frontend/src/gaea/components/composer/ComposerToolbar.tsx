@@ -4,7 +4,8 @@
 // 弹出层内 chip 的样式/文案/title/onClick 逐字保留（行为零变化，功能零删除），
 // 触发钮文案实时显示当前取值（YOLO 激活时红色高亮，风险状态不藏）。
 import { useEffect, useState } from "react";
-import { Camera, ChevronDown, ClipboardList, FolderGit2, Gauge, Loader, Paperclip, Wand2, Zap } from "../../icons";
+import { Dropdown } from "antd";
+import { Camera, ChevronDown, ClipboardList, FolderGit2, Gauge, Layers, LineChart, Loader, Paperclip, Wand2, Wrench, Zap } from "../../icons";
 import { useT } from "../../lib/i18n";
 import type { DictKey } from "../../locales/en";
 
@@ -20,6 +21,8 @@ export interface ComposerToolbarProps {
   onPickFiles: () => void
   onScreenshot: () => void
   onRecordSkill?: () => void
+  /** 打开办公工具面板（CAD 看图/进度计划）；不是右栏 Tab，是临时 ToolSheet。 */
+  onOpenTool?: (tool: "cad" | "schedule") => void
   permLevel?: string
   onSetPermLevel?: (p: "ask" | "auto" | "yolo") => void
   thinkLevel?: string
@@ -42,7 +45,7 @@ const THINK_DESCS: Record<string, DictKey> = {
 
 export function ComposerToolbar({
   cwd, workspaceName, workspaceMenuOpen, onToggleWorkspaceMenu, workspaceAnchorRef,
-  running, pendingPaste, captureBusy, onPickFiles, onScreenshot, onRecordSkill,
+  running, pendingPaste, captureBusy, onPickFiles, onScreenshot, onRecordSkill, onOpenTool,
   permLevel, onSetPermLevel, thinkLevel, onSetThinkLevel, planActive, onTogglePlan,
 }: ComposerToolbarProps) {
   const t = useT();
@@ -100,6 +103,32 @@ export function ComposerToolbar({
       >
         {captureBusy ? <Loader size={14} className="animate-spin" /> : <Camera size={14} />}
       </button>
+
+      {/* 工具（CAD 看图/进度计划）：临时 ToolSheet，不是右栏 Tab；与顶栏「工具」
+          下拉同一 activeTool 单源（App 层状态），此处是输入框旁的第二入口 */}
+      <Dropdown
+        trigger={["click"]}
+        placement="topLeft"
+        menu={{
+          items: [
+            { key: "cad", label: "CAD 看图", icon: <Layers size={13} /> },
+            { key: "schedule", label: "进度计划", icon: <LineChart size={13} /> },
+          ],
+          onClick: ({ key }) => {
+            if (key === "cad" || key === "schedule") onOpenTool?.(key);
+          },
+        }}
+      >
+        <button
+          className="inline-flex items-center justify-center w-[28px] h-[28px] border-0 rounded-md bg-transparent text-fg-dim cursor-pointer transition-[color,background] duration-[var(--dur-fast)] hover:text-fg hover:bg-bg-soft disabled:cursor-default disabled:opacity-40 shrink-0"
+          disabled={running || !onOpenTool}
+          title={onOpenTool ? "工具：CAD 看图 / 进度计划" : "工具"}
+          aria-label="工具"
+          data-testid="composer-tools"
+        >
+          <Wrench size={14} />
+        </button>
+      </Dropdown>
 
       {/* 会话录制技能按钮（阶段七 7.2-1 演示式录制）：蒸馏当前会话为可复用技能 */}
       <button
@@ -230,3 +259,4 @@ export function ComposerToolbar({
     </div>
   )
 }
+

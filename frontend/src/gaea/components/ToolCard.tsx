@@ -3,6 +3,7 @@ import {
   Ban,
   Check,
   ChevronRight,
+  LineChart,
   Loader2,
   Users,
   X,
@@ -13,6 +14,7 @@ import { ICONS, mcpOr } from "./tool_icons";
 import { useT } from "../lib/i18n";
 import { useCompact } from "../hooks/useCompact";
 import { useGSAPCollapse } from "../lib/useGSAPCollapse";
+import { emitFrontendEvent, FRONTEND_EVENTS } from "../../events";
 import {
   boundedOutput,
   commandOf,
@@ -273,9 +275,25 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
           （活动预览 / 已用时 / 查看分工），不进折叠区、常驻可见。 */}
       {item.name === "task" && item.status === "running" && <TaskLiveRow item={item} />}
 
-      {/* diff 确认闭环刀A（v4.146）：schedule_apply 回执卡常驻「回滚本次」行
-          （Journal 按 target 匹配最新基线快照；无记录整行不渲染）。 */}
-      {item.name === "schedule_apply" && item.status === "done" && <ScheduleApplyRollback args={item.args} />}
+      {/* schedule_apply 回执卡常驻动作行（v4.146 刀A + 工具化 2026-10）：
+          「回滚本次」（Journal 按 target 匹配最新基线快照，无记录该段不渲染）
+          +「展开查看」开进度工具面板（ToolSheet 浮在对话上方，不离开会话；
+          docs/gaea-ai-workbench-ui-2026-10.md §4 工具卡=工具入口之一）。 */}
+      {item.name === "schedule_apply" && item.status === "done" && (
+        <div className="px-3 py-1 flex items-center gap-2 border-b border-border-soft" data-testid="sched-apply-actions">
+          <ScheduleApplyRollback args={item.args} />
+          <span className="flex-1" />
+          <button
+            className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-accent/40 bg-transparent text-accent text-[10px] cursor-pointer hover:bg-accent/10 transition-colors"
+            onClick={() => emitFrontendEvent(FRONTEND_EVENTS.OPEN_TOOL, { tool: "schedule" })}
+            title="在对话上方打开进度计划工具面板（临时面板，关闭回到对话）"
+            data-testid="sched-apply-open-tool"
+          >
+            <LineChart size={10} aria-hidden />
+            展开查看
+          </button>
+        </div>
+      )}
 
       <div ref={bodyRef} style={{ overflow: "hidden" }}>
         <div>

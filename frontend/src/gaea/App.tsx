@@ -1,9 +1,9 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { Layout, Modal } from "antd";
+import { Dropdown, Layout, Modal } from "antd";
 import {
   BookOpen, Check, SquarePen, Brain, ChevronDown, FolderGit2, FileText, LineChart,
-  PanelRightOpen, PanelRightClose, MessageSquare, Trash2, X, Aim, List, Square, Inbox,
+  PanelRightOpen, PanelRightClose, MessageSquare, Trash2, X, Aim, List, Square, Inbox, Layers, Wrench,
 } from "./icons";
 import { Sidebar } from "./components/Sidebar";
 import { useT } from "./lib/i18n";
@@ -15,7 +15,7 @@ import { RESUME_SESSION_EVENT, consumePendingSessionResume } from "./lib/pending
 import { GenuiActionProvider } from "../genui/GenuiActionContext";
 import { GenuiScopeProvider } from "../genui/scope";
 import { scheduleApplyArgsOf } from "../schedule/applyDiff";
-import { emitFrontendEvent, FRONTEND_EVENTS } from "../events";
+import { FRONTEND_EVENTS } from "../events";
 import { setGenuiActionHandler } from "./lib/genuiHost";
 import { clearGenuiPanel } from "./lib/genuiPanel";
 import { Transcript } from "./components/Transcript";
@@ -28,6 +28,9 @@ import { AskCard } from "./components/AskCard";
 import { ToolbarButton } from "./components/ToolbarButton";
 import { ExportMenu, type ExportFormat } from "./components/ExportMenu";
 import { ModelSwitcher } from "./components/ModelSwitcher";
+import { ToolSheet } from "./components/ToolSheet";
+const CadPanel = lazy(() => import("./components/cad/CadPanel").then(m => ({ default: m.CadPanel })));
+const ScheduleTool = lazy(() => import("./components/schedule/ScheduleTool").then(m => ({ default: m.ScheduleTool })));
 const MemoryPanel = lazy(() => import("./components/MemoryPanel").then(m => ({ default: m.MemoryPanel })));
 const HistoryPanel = lazy(() => import("./components/HistoryPanel").then(m => ({ default: m.HistoryPanel })));
 const CapabilitiesPanel = lazy(() => import("./components/CapabilitiesPanel").then(m => ({ default: m.CapabilitiesPanel })));
@@ -191,6 +194,19 @@ export default function App() {
   // 当前激活的 pane 视图（由 WorkspacePane 经 onActiveViewChange 回写；
   // 欢迎卡片态 = null）。pane 打开的文件 tab 归入 files 视图语义。
   const [rightTab, setRightTab] = useState<WorkspaceTabId | null>(null);
+  // 临时工具面板（CAD 看图/进度计划）：不是工作台、不占右栏 Tab；关闭即回对话。
+  const [activeTool, setActiveTool] = useState<"cad" | "schedule" | null>(null);
+  // 深处组件（产物行/工具卡）请求打开工具面板：FRONTEND_EVENTS.OPEN_TOOL 单通道，
+  // 与 setActiveTool 三入口同源（办公室根常驻挂载，无需 OPEN_STATS_DRAWER 那套
+  // 未挂载补开标记）。
+  useEffect(() => {
+    const onOpenTool = (ev: Event) => {
+      const tool = (ev as CustomEvent<{ tool?: "cad" | "schedule" }>).detail?.tool;
+      if (tool === "cad" || tool === "schedule") setActiveTool(tool);
+    };
+    window.addEventListener(FRONTEND_EVENTS.OPEN_TOOL, onOpenTool);
+    return () => window.removeEventListener(FRONTEND_EVENTS.OPEN_TOOL, onOpenTool);
+  }, []);
   const {
     sidebarCollapsed, sidebarWidth, sidebarResizing, effectiveSidebarWidth,
     toggleSidebar, setExpandedSidebarWidth, startSidebarResize,
@@ -499,10 +515,6 @@ export default function App() {
       openSubagentThread: (p) => {
         openSubagentThread(p);
       },
-      // v4.524 CAD 图纸卡「问图纸」结果进对话流（与 Welcome onPrompt 同源=send）。
-      onAsk: (text: string) => {
-        if (text.trim()) send(text);
-      },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- setWorkspacePanel 为 hook 返回的稳定 dispatch（onClosePanel 内引用），deps 原样保留
     [
@@ -530,13 +542,15 @@ export default function App() {
   const paletteItems = useMemo<PaletteItem[]>(() => {
     const cmds: PaletteItem[] = [
       { id: "cmd-new", group: t("palette.group.commands") ?? "命令", title: t("topbar.newSession") ?? "新建会话", icon: <SquarePen size={15} />, compact: true, keywords: ["new", "新建"], run: () => void newSessionAndReset() },
-      // 办公域「进度计划」入口（v4.168 刀1b）：Ctrl+K 直达 schedule 板块，与
-      // ScheduleFileCard.tsx:67 同款 NAVIGATE 事件（前置 v4.167.0 导航白名单已解耦，
-      // 引擎零改动）。title 复用既有键 schedCard.tag（zh=进度计划 / zh-TW=進度計畫 /
-      // en=Schedule，内容层不铺新字典）。「最近工程列表+打开工作台」不由本命令项
-      // 承担：办公文件面 RecentFilesBar 复用 lib/recentFiles 单源（.gsched 文件被
-      // 预览/引用即入列），点摘要卡「在进度计划中打开」已达，此处仅作可检索入口。
-      { id: "cmd-schedule", group: t("palette.group.commands") ?? "命令", title: t("schedCard.tag") ?? "进度计划", icon: <LineChart size={15} />, compact: true, keywords: ["schedule", "进度", "计划", "工作台"], run: () => { emitFrontendEvent(FRONTEND_EVENTS.NAVIGATE, { page: "schedule" }); } },
+      // 办公域「进度计划」入口：Ctrl+K 打开进度工具面板（ToolSheet，不离开
+      // 对话；设计 docs/gaea-ai-workbench-ui-2026-10.md §7.4——进度是动词不是
+      // 房间）。title 复用既有键 schedCard.tag（zh=进度计划 / zh-TW=進度計畫 /
+      // en=Schedule）。「最近工程列表+打开工作台」不由本命令项承担：办公文件面
+      // RecentFilesBar 复用 lib/recentFiles 单源（.gsched 文件被预览/引用即入列），
+      // 点摘要卡「在进度计划中打开」已达，此处仅作可检索入口；完整编制工作台经
+      // 工具面板头部「完整工作台」深链接（旧 NAVIGATE 板块路由保留）。
+      { id: "cmd-schedule", group: t("palette.group.commands") ?? "命令", title: t("schedCard.tag") ?? "进度计划", icon: <LineChart size={15} />, compact: true, keywords: ["schedule", "进度", "计划", "工具"], run: () => { setActiveTool("schedule"); } },
+      { id: "cmd-tool-cad", group: t("palette.group.commands") ?? "命令", title: "CAD 看图", icon: <Layers size={15} />, compact: true, keywords: ["cad", "图纸", "dwg", "dxf", "图框", "工具"], run: () => setActiveTool("cad") },
       { id: "cmd-memory", group: t("palette.group.commands") ?? "命令", title: t("topbar.memory") ?? "记忆", icon: <Brain size={15} />, compact: true, keywords: ["memory", "记忆"], run: () => { setChatTab("memory"); void openMemory(); } },
       { id: "cmd-history", group: t("palette.group.commands") ?? "命令", title: t("topbar.history") ?? "历史", icon: <MessageSquare size={15} />, compact: true, keywords: ["history", "历史"], run: () => void openHistory() },
       { id: "cmd-knowledge", group: t("palette.group.commands") ?? "命令", title: t("topbar.knowledge") ?? "知识库", icon: <BookOpen size={15} />, compact: true, keywords: ["knowledge", "知识库"], run: () => void openKnowledge() },
@@ -692,6 +706,30 @@ export default function App() {
             </div>
             <div className="flex-1" />
             <div className="flex items-center gap-2">
+              <Dropdown
+                trigger={["click"]}
+                placement="bottomRight"
+                menu={{
+                  items: [
+                    { key: "cad", label: "CAD 看图", icon: <Layers size={13} /> },
+                    { key: "schedule", label: "进度计划", icon: <LineChart size={13} /> },
+                  ],
+                  onClick: ({ key }) => {
+                    if (key === "cad" || key === "schedule") setActiveTool(key);
+                  },
+                }}
+              >
+                <button
+                  type="button"
+                  className="toolbar-btn no-drag"
+                  title="工具（CAD 看图 / 进度计划）"
+                  aria-label="工具"
+                  data-testid="office-tools-menu"
+                >
+                  <Wrench size={13} />
+                  <span>工具</span>
+                </button>
+              </Dropdown>
               <ToolbarButton onClick={() => void toggleWorkspacePanel()} title={previewFile ? t("topbar.backToFiles") : workspacePanelOpen ? t("topbar.collapseFilePanel") : t("topbar.expandFilePanel")}>
                 {workspacePanelOpen || previewFile ? <PanelRightClose size={13} /> : <PanelRightOpen size={13} />}
               </ToolbarButton>
@@ -741,7 +779,10 @@ export default function App() {
           <NewSessionToast done={newSessionDone} />
           <ChatTabs
             active={subagentTabId ?? chatTab}
-            onChange={handleChatTabSelect}
+            onChange={(id) => {
+              setActiveTool(null);
+              handleChatTabSelect(id);
+            }}
             extraTabs={subagentTabs.map((x) => {
               const statusText =
                 x.status === "running"
@@ -840,6 +881,43 @@ export default function App() {
               </>
             )}
             </CompactContext.Provider>
+            {activeTool === "cad" && (
+              <ToolSheet
+                open
+                title="CAD 看图"
+                subtitle="临时工具面板 · 关闭后解析结果留在产物"
+                testId="tool-sheet-cad"
+                onClose={() => setActiveTool(null)}
+              >
+                <Suspense fallback={<div className="p-4 text-[12px] text-fg-dim">正在加载图纸工具…</div>}>
+                  <CadPanel
+                    variant="sheet"
+                    onAsk={(text) => {
+                      setActiveTool(null);
+                      send(text);
+                    }}
+                  />
+                </Suspense>
+              </ToolSheet>
+            )}
+            {activeTool === "schedule" && (
+              <ToolSheet
+                open
+                title="进度计划"
+                subtitle="临时工具面板 · 计划与产物保留，agent 读写即时可见"
+                testId="tool-sheet-schedule"
+                onClose={() => setActiveTool(null)}
+              >
+                <Suspense fallback={<div className="p-4 text-[12px] text-fg-dim">正在加载进度工具…</div>}>
+                  <ScheduleTool
+                    onAsk={(text) => {
+                      setActiveTool(null);
+                      send(text);
+                    }}
+                  />
+                </Suspense>
+              </ToolSheet>
+            )}
           </main>
 
           <footer className={`shrink-0 border-t border-border-soft bg-bg px-8 ${compactMode ? "pt-2 pb-0.5" : "pt-3 pb-1"}`}>
@@ -885,6 +963,7 @@ export default function App() {
               planActive={planActive}
               onTogglePlan={() => { if (!state.running) void handleSend(planActive ? "/plan off" : "/plan on") }}
               onPickFolder={switchFolder}
+              onOpenTool={(tool) => setActiveTool(tool)}
               disabled={state.meta?.ready === false || state.approval != null}
             />
             </div>
@@ -1060,3 +1139,4 @@ export default function App() {
     </>
   );
 }
+

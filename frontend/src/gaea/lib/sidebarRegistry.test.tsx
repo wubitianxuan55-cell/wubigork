@@ -45,8 +45,8 @@ describe("sidebarRegistry 注册表完整性（蒸馏 dsh-better-sidebar registe
       expect(entry.label.trim().length).toBeGreaterThan(0);
       expect(entry.icon).toBeTypeOf("function");
       expect(entry.keywords.length).toBeGreaterThan(0);
-      // v4.23 行为基线：面板全默认启用；例外=cad（v4.524 CAD 图纸卡可选使用）
-      expect(entry.defaultEnabled).toBe(entry.id !== "cad");
+      // v4.23 行为基线：面板全默认启用（CAD 已工具化，不在右栏清单）。
+      expect(entry.defaultEnabled).toBe(true);
       const def = WORKSPACE_TABS.find((t) => t.id === entry.id);
       expect(def).toBeTruthy();
     }

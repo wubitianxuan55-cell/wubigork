@@ -20,7 +20,10 @@ import { useToast } from "./Toast";
 // GaeaRollbackRecord 内置，误触不静默。
 //
 // 常驻可见（对齐 TaskLiveRow 位置，不进折叠区）：回滚是后置闭环的主入口，
-// 藏进展开体等于没有。无匹配记录（Journal 未就绪/旧会话无快照）整行不渲染。
+// 藏进展开体等于没有。无匹配记录（Journal 未就绪/旧会话无快照）本段不渲染
+// （宿主 ToolCard 的动作行仍渲染「展开查看」，不为回滚可用性所绑）。
+// 2026-10 工具化：行容器上移到 ToolCard 动作行（与「展开查看」同排），本组件
+// 只出片段（提示文案 + 回滚钮）。
 
 // 缺省计划 rel 单源在 schedule/paths.ts（零依赖常量模块，FE7-09）——此前此处
 // 自写一份字面量镜像，与 gschedSummary/store/changes/mock 各一份共五处副本；
@@ -70,12 +73,12 @@ export function ScheduleApplyRollback({ args }: { args: string }) {
   };
 
   return (
-    <div className="px-3 py-1 flex items-center gap-2 border-b border-border-soft">
+    <>
       <span className="text-[10px] text-fg-faint truncate">
         本次修改已留基线快照，可整体还原（turn {record.turn}）
       </span>
       <button
-        className="ml-auto shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-err/40 bg-transparent text-err text-[10px] cursor-pointer hover:bg-err/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-err/40 bg-transparent text-err text-[10px] cursor-pointer hover:bg-err/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         onClick={() => void doRollback()}
         disabled={rollingBack}
         title={`回滚到写盘前基线快照（turn ${record.turn} · schedule_apply）`}
@@ -84,6 +87,6 @@ export function ScheduleApplyRollback({ args }: { args: string }) {
         {rollingBack ? <Loader2 size={10} className="animate-spin" /> : <Rollback size={10} aria-hidden />}
         回滚本次
       </button>
-    </div>
+    </>
   );
 }

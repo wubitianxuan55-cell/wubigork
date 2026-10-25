@@ -1,0 +1,771 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>gaea · AI 工作台设计稿</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body data-theme="dark" data-view="chat">
+<script>if (new URLSearchParams(location.search).get("theme") === "light") document.body.dataset.theme = "light";</script>
+
+<svg class="sprite" aria-hidden="true">
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m10 7 5 5-5 5"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+  <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z"/></symbol>
+  <symbol id="i-paperclip" viewBox="0 0 24 24"><path d="m20 11-8.5 8.5a5 5 0 0 1-7-7L13 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L15 6"/></symbol>
+  <symbol id="i-at" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M16 12v2a3 3 0 0 0 6 0v-2a10 10 0 1 0-4 8"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5M3 16l9 5 9-5"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"/><path d="M14 3v6h6M8 13h8M8 17h6"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2 21h20Z"/><path d="M12 9v5M12 18h0"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z"/><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8L19 16Z"/></symbol>
+  <symbol id="i-zoom-in" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M11 8v6M8 11h6M20 20l-3.5-3.5"/></symbol>
+  <symbol id="i-zoom-out" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M8 11h6M20 20l-3.5-3.5"/></symbol>
+  <symbol id="i-maximize" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+  <symbol id="i-move" viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></symbol>
+  <symbol id="i-ruler" viewBox="0 0 24 24"><path d="m3 17 14-14 4 4L7 21Z"/><path d="m7 13 2 2M10 10l2 2M13 7l2 2"/></symbol>
+  <symbol id="i-type" viewBox="0 0 24 24"><path d="M4 6V4h16v2M12 4v16M8 20h8"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7Z"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></symbol>
+  <symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></symbol>
+  <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9"/><path d="M19 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h6"/></symbol>
+  <symbol id="i-command" viewBox="0 0 24 24"><path d="M9 6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3Z"/></symbol>
+  <symbol id="i-message" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H4l2-3a8 8 0 1 1 15-5Z"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-gantt" viewBox="0 0 24 24"><path d="M4 5h6M4 10h10M4 15h7M4 20h12"/><path d="M4 3v18"/></symbol>
+  <symbol id="i-bug" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="12" rx="5"/><path d="M9 7V5a3 3 0 0 1 6 0v2M3 12h3M18 12h3M4 17h3M17 17h3M5 7l3 2M16 9l3-2"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2 5.5"/><path d="M20 5v6h-6"/></symbol>
+</svg>
+
+<div class="app">
+
+  <!-- ── 左：工作列表 ─────────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark">g</span>
+      <span class="brand-name">gaea</span>
+      <span class="brand-sub">工作台</span>
+      <button class="icon-btn brand-more" aria-label="更多"><svg><use href="#i-more"/></svg></button>
+    </div>
+
+    <button class="new-work" data-action="desk">
+      <svg><use href="#i-plus"/></svg>
+      <span>开始一件工作</span>
+      <kbd>⌘N</kbd>
+    </button>
+
+    <div class="side-search">
+      <svg><use href="#i-search"/></svg>
+      <input aria-label="搜索工作" placeholder="搜索工作、产物…" />
+      <kbd>⌘K</kbd>
+    </div>
+
+    <div class="side-scroll">
+      <div class="side-section">
+        <div class="side-label"><span>进行中</span><span class="side-count">2</span></div>
+        <button class="work-item is-active" data-action="chat">
+          <span class="work-ico"><svg><use href="#i-layers"/></svg></span>
+          <span class="work-main">
+            <span class="work-title">图纸识别 · 阳光城 3# 楼</span>
+            <span class="work-meta"><i class="dot run"></i> 运行中 · 8 分钟</span>
+          </span>
+          <span class="work-badge">3</span>
+        </button>
+        <button class="work-item" data-tool="schedule">
+          <span class="work-ico"><svg><use href="#i-gantt"/></svg></span>
+          <span class="work-main">
+            <span class="work-title">进度纠错 · 总进度计划</span>
+            <span class="work-meta"><i class="dot wait"></i> 待你确认 · 1 项</span>
+          </span>
+        </button>
+      </div>
+
+      <div class="side-section">
+        <div class="side-label"><span>最近</span><span class="side-count">4</span></div>
+        <button class="work-item slim" data-action="chat">
+          <span class="work-main"><span class="work-title">造价复核 · 百锦路</span><span class="work-meta">昨天 18:42</span></span>
+        </button>
+        <button class="work-item slim" data-action="chat">
+          <span class="work-main"><span class="work-title">公文排版 · 会议纪要</span><span class="work-meta">昨天 16:10</span></span>
+        </button>
+        <button class="work-item slim" data-action="chat">
+          <span class="work-main"><span class="work-title">标书拼装 · 技术方案</span><span class="work-meta">10 月 23 日</span></span>
+        </button>
+        <button class="work-item slim" data-action="chat">
+          <span class="work-main"><span class="work-title">图纸问答 · 地下室</span><span class="work-meta">10 月 21 日</span></span>
+        </button>
+      </div>
+
+      <div class="side-section">
+        <div class="side-label"><span>产物</span><span class="side-count">6</span></div>
+        <button class="artifact-mini" data-tool="cad">
+          <svg><use href="#i-file"/></svg>
+          <span>图纸摘要.md</span>
+          <span class="mini-meta">刚刚</span>
+        </button>
+        <button class="artifact-mini" data-tool="cad">
+          <svg><use href="#i-grid"/></svg>
+          <span>设备统计.csv</span>
+          <span class="mini-meta">2 分钟</span>
+        </button>
+        <button class="artifact-mini" data-tool="schedule">
+          <svg><use href="#i-gantt"/></svg>
+          <span>总进度计划.gsched</span>
+          <span class="mini-meta">1 小时</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="side-foot">
+      <button class="workspace-pill">
+        <span class="ws-ico"><svg><use href="#i-folder"/></svg></span>
+        <span class="ws-main"><b>gaea</b><small>本地工作区</small></span>
+        <svg class="chev"><use href="#i-chevron-down"/></svg>
+      </button>
+      <button class="icon-btn" aria-label="设置"><svg><use href="#i-sliders"/></svg></button>
+    </div>
+  </aside>
+
+  <!-- ── 中：工作画布 ─────────────────────────────────────── -->
+  <main class="main">
+    <header class="topbar">
+      <div class="crumbs">
+        <span class="crumb-root">办公</span>
+        <svg><use href="#i-chevron-right"/></svg>
+        <span class="crumb-here">图纸识别 · 阳光城 3# 楼</span>
+      </div>
+      <div class="run-pill"><i class="dot run"></i><span>运行中</span><b>00:42</b><span class="sep"></span><span>3 个工具</span></div>
+      <button class="run-pill pending" data-action="confirm" title="有 1 项需要你确认"><span class="q">?</span><span>待你确认</span><b>1</b></button>
+      <div class="top-spacer"></div>
+      <button class="context-ring" title="上下文 42%">
+        <svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" class="ring-bg"/><circle cx="18" cy="18" r="15" class="ring-fg" stroke-dasharray="42 100"/></svg>
+        <span>42%</span>
+      </button>
+      <button class="model-pill"><span class="model-dot"></span>gaea · Opus 4.5<svg><use href="#i-chevron-down"/></svg></button>
+      <button class="icon-btn theme-toggle" aria-label="切换明暗"><svg class="ico-moon"><use href="#i-moon"/></svg><svg class="ico-sun"><use href="#i-sun"/></svg></button>
+      <button class="icon-btn" data-action="toggle-inspector" aria-label="收起检查器"><svg><use href="#i-panel"/></svg></button>
+    </header>
+
+    <nav class="tabs" role="tablist" aria-label="办公视图">
+      <div class="tab is-active" data-view="chat" role="tab" tabindex="0" aria-selected="true"><svg><use href="#i-message"/></svg><span>对话</span><i class="tab-live"></i></div>
+      <div class="tab" data-view="trajectory" role="tab" tabindex="-1" aria-selected="false"><svg><use href="#i-list"/></svg><span>轨迹</span></div>
+      <div class="tab" data-view="context" role="tab" tabindex="-1" aria-selected="false"><svg><use href="#i-grid"/></svg><span>上下文</span></div>
+      <div class="tab" data-view="memory" role="tab" tabindex="-1" aria-selected="false"><svg><use href="#i-database"/></svg><span>记忆</span></div>
+      <div class="tab-spacer"></div>
+      <span class="tab-hint">CAD 与计划是工具，从对话或工具条调用</span>
+    </nav>
+
+    <div class="stage">
+
+      <!-- 对话 -->
+      <section class="view view-chat" aria-label="对话">
+        <div class="thread" id="thread">
+          <div class="dayline"><span>今天 09:12</span></div>
+
+          <div class="msg user">
+            <div class="bubble">把这张图纸里的图框、图层和主要设备数量整理一下，顺便看看有没有漏项。</div>
+            <div class="msg-meta">你 · 09:12</div>
+          </div>
+
+          <div class="msg ai">
+            <div class="ai-mark">g</div>
+            <div class="ai-body">
+              <p>收到。先解析图纸，再把结论按“图框 → 图层 → 设备”三层整理；漏项只做提示，不直接写库。</p>
+
+              <article class="tool-card" data-tool="cad">
+                <header>
+                  <span class="tool-ico"><svg><use href="#i-layers"/></svg></span>
+                  <span class="tool-title">CAD 解析</span>
+                  <span class="tool-status ok"><svg><use href="#i-check"/></svg>完成 · 8.4s</span>
+                  <button class="tool-more" aria-label="更多"><svg><use href="#i-more"/></svg></button>
+                </header>
+                <div class="tool-file">
+                  <svg><use href="#i-file"/></svg>
+                  <b>阳光城3#楼.dwg</b>
+                  <span>12.4 MB · R2018</span>
+                </div>
+                <div class="tool-stats">
+                  <div><b>3</b><span>图框</span></div>
+                  <div><b>46</b><span>图层</span></div>
+                  <div><b>218</b><span>文字</span></div>
+                  <div class="warn"><b>2</b><span>代理实体</span></div>
+                </div>
+                <div class="tool-note"><svg><use href="#i-alert"/></svg>检测到天正代理实体，已跳过并在检查器标注。建议导出 T3 后重试。</div>
+                <footer>
+                  <button class="btn primary sm" data-tool="cad"><svg><use href="#i-arrow"/></svg>展开查看</button>
+                  <button class="btn ghost sm" data-tool="cad"><svg><use href="#i-spark"/></svg>问这张图</button>
+                  <button class="btn ghost sm"><svg><use href="#i-file"/></svg>复制摘要</button>
+                </footer>
+              </article>
+
+              <p>主要设备集中在 <code>E-干线</code> 与 <code>E-照明</code> 两个图层；图框质量 0.92，JS-01 可直接用于算量。</p>
+              <div class="inline-cites"><span class="cite-label">依据</span><button class="cite-chip" data-tool="cad">JS-01 / E-干线</button><button class="cite-chip" data-tool="cad">JS-01 / E-照明</button><button class="cite-chip" data-tool="cad">系统图 JS-09</button></div>
+
+              <article class="result-card">
+                <header><span>设备统计</span><span class="result-src">来源：块引用计数 + 邻近文字</span></header>
+                <div class="result-row"><span class="swatch teal"></span><span class="result-name">带保护接点暗装插座</span><span class="result-layer">E-干线</span><b>31</b><span class="conf">置信度 1.00</span></div>
+                <div class="result-row"><span class="swatch blue"></span><span class="result-name">LED 吸顶灯</span><span class="result-layer">E-照明</span><b>18</b><span class="conf">0.96</span></div>
+                <div class="result-row"><span class="swatch gold"></span><span class="result-name">照明配电箱</span><span class="result-layer">E-配电</span><b>4</b><span class="conf">0.92</span></div>
+                <footer><button class="link" data-tool="cad">查看全部 12 类</button><span class="dot-sep">·</span><button class="link" data-tool="cad">图外符号 3 个待确认</button></footer>
+              </article>
+
+              <p>另发现 <mark>3 处</mark> 回路标注没有对应系统图，已收进待确认；你确认后才会写入造价库。</p>
+
+              <div class="msg-actions"><button class="icon-btn sm" aria-label="复制"><svg><use href="#i-file"/></svg></button><button class="icon-btn sm" aria-label="重试"><svg><use href="#i-refresh"/></svg></button><span>09:14 · 1,284 tokens</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="pending-dock">
+          <span class="pending-q">?</span>
+          <div class="pending-copy"><b>1 项待你确认</b><span>3 条漏项提示 · 写入待确认清单并同步造价库</span></div>
+          <button class="btn ghost sm" data-action="confirm">查看</button>
+          <button class="btn primary sm" data-action="approve">允许并留痕</button>
+        </div>
+        <footer class="composer-wrap">
+          <div class="composer">
+            <textarea id="composer-input" rows="1" placeholder="继续追问，或让 gaea 改图纸、排计划…"></textarea>
+            <div class="composer-bar">
+              <button class="icon-btn sm" aria-label="添加附件"><svg><use href="#i-paperclip"/></svg></button>
+              <button class="chip sm"><svg><use href="#i-at"/></svg>引用</button>
+              <button class="chip sm" data-action="tools"><svg><use href="#i-layers"/></svg>工具<svg class="chev"><use href="#i-chevron-down"/></svg></button>
+              <button class="chip sm"><svg><use href="#i-sliders"/></svg>标准</button>
+              <div class="bar-spacer"></div>
+              <span class="composer-model">Opus 4.5</span>
+              <button class="send-btn" aria-label="发送"><svg><use href="#i-send"/></svg></button>
+            </div>
+            <div class="tool-menu" id="tool-menu" hidden>
+              <div class="tool-menu-label">调用工具 <span>结果归档到产物</span></div>
+              <button class="tool-menu-item" data-tool="cad"><span class="tmi-ico"><svg><use href="#i-layers"/></svg></span><span><b>CAD 看图</b><small>图框 / 图层 / 问图纸 · 临时面板</small></span><svg class="chev"><use href="#i-arrow"/></svg></button>
+              <button class="tool-menu-item" data-tool="schedule"><span class="tmi-ico"><svg><use href="#i-gantt"/></svg></span><span><b>进度计划</b><small>甘特 / 体检 / 推演 · 临时面板</small></span><svg class="chev"><use href="#i-arrow"/></svg></button>
+              <button class="tool-menu-item is-muted"><span class="tmi-ico"><svg><use href="#i-file"/></svg></span><span><b>文档</b><small>Word / PDF · 沿用现有办公工具</small></span></button>
+              <button class="tool-menu-item is-muted"><span class="tmi-ico"><svg><use href="#i-grid"/></svg></span><span><b>表格</b><small>xlsx / 数据 / 图表 · 沿用现有办公工具</small></span></button>
+              <p class="tool-menu-note">CAD 与计划不占导航、不新建工作台；关闭面板后结果仍在对话与产物里。</p>
+            </div>
+          </div>
+          <div class="composer-foot"><span>Enter 发送 · Shift+Enter 换行</span><span>图纸与结论不会自动写库</span></div>
+        </footer>
+      </section>
+
+      <!-- 轨迹 -->
+      <section class="view view-trajectory" aria-label="轨迹">
+        <div class="subpage">
+          <div class="sub-head"><div class="kicker">工作记录</div><h2>轨迹</h2><p>本次工作的工具调用、产物与等待点；CAD 与计划都只是其中一条调用。</p></div>
+          <div class="timeline">
+            <div class="tl-row"><span class="tl-time">09:12:04</span><i class="dot ok"></i><div><b>CAD 解析</b><p>阳光城3#楼.dwg · 8.4s · 3 图框 / 46 图层</p></div><span class="pill">完成</span></div>
+            <div class="tl-row"><span class="tl-time">09:12:13</span><i class="dot ok"></i><div><b>提取文字与设备</b><p>218 条文字 · 12 类设备 · 2 个代理实体跳过</p></div><span class="pill">完成</span></div>
+            <div class="tl-row"><span class="tl-time">09:12:15</span><i class="dot ok"></i><div><b>生成摘要</b><p>图纸摘要.md · 设备统计.csv</p></div><span class="pill">产物</span></div>
+            <div class="tl-row"><span class="tl-time">09:14:22</span><i class="dot warn"></i><div><b>等待确认</b><p>3 条漏项提示 · 写入待确认清单</p></div><span class="pill danger">待你确认</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 上下文 -->
+      <section class="view view-context" aria-label="上下文">
+        <div class="subpage">
+          <div class="sub-head"><div class="kicker">本轮上下文</div><h2>42%</h2><p>系统提示、对话与本轮工具结果共占 42%；图纸解析结果只在工具面板打开时载入。</p></div>
+          <div class="ctx-bars">
+            <div class="ctx-row"><span>系统 / 技能</span><i><b style="width:12%"></b></i><em>12%</em></div>
+            <div class="ctx-row"><span>对话</span><i><b style="width:46%"></b></i><em>46%</em></div>
+            <div class="ctx-row"><span>工具结果</span><i><b style="width:42%"></b></i><em>42%</em></div>
+          </div>
+          <div class="ctx-files"><span class="ctx-label">本轮载入</span><button class="cite-chip" data-tool="cad">图纸 3 张</button><button class="cite-chip" data-tool="cad">图框列表</button><button class="cite-chip" data-tool="schedule">进度计划</button><button class="cite-chip">规范 2 份</button></div>
+        </div>
+      </section>
+
+      <!-- 记忆 -->
+      <section class="view view-memory" aria-label="记忆">
+        <div class="subpage">
+          <div class="sub-head"><div class="kicker">项目记忆</div><h2>它记得什么</h2><p>只读总览；写入仍走确认制。</p></div>
+          <div class="mem-card"><span class="mem-type">项目</span><b>阳光城 3# 楼</b><p>图纸结论先列依据；设备统计只认块引用计数。</p></div>
+          <div class="mem-card"><span class="mem-type">偏好</span><b>进度纠错</b><p>先给偏差来源，再给修复动作；不改原计划。</p></div>
+          <div class="mem-card"><span class="mem-type">来源</span><b>3 条事实</b><p>来自本会话确认与历史项目，可逐条删除。</p></div>
+        </div>
+      </section>
+
+      <!-- 工具面板：CAD 看图（临时面板，不是工作台） -->
+      <div class="tool-backdrop" data-close-tool></div>
+      <section class="tool-sheet" data-sheet="cad" role="dialog" aria-modal="true" aria-label="CAD 看图工具">
+        <header class="tool-sheet-head">
+          <span class="tool-badge">工具</span>
+          <b>CAD 看图</b>
+          <span class="sheet-file">阳光城3#楼.dwg · JS-01</span>
+          <span class="sheet-hint">临时面板 · 关闭后解析结果留在产物</span>
+          <button class="icon-btn sm sheet-close" data-close-tool aria-label="关闭 CAD 工具"><svg><use href="#i-close"/></svg></button>
+        </header>
+        <div class="tool-sheet-body">
+        <div class="cad-toolbar">
+          <div class="tool-group">
+            <button class="tool-btn is-active" title="选择"><svg><use href="#i-move"/></svg></button>
+            <button class="tool-btn" title="缩放"><svg><use href="#i-zoom-in"/></svg></button>
+            <button class="tool-btn" title="适应窗口"><svg><use href="#i-maximize"/></svg></button>
+            <span class="vsep"></span>
+            <button class="tool-btn" title="测量"><svg><use href="#i-ruler"/></svg></button>
+            <button class="tool-btn" title="文字"><svg><use href="#i-type"/></svg></button>
+            <button class="tool-btn" title="图层"><svg><use href="#i-layers"/></svg></button>
+          </div>
+          <div class="tool-group grow">
+            <button class="sheet-pill">JS-01 一层平面图<svg><use href="#i-chevron-down"/></svg></button>
+            <span class="quality-pill"><i></i>质量 0.92</span>
+          </div>
+          <div class="tool-group">
+            <button class="tool-btn" title="全屏"><svg><use href="#i-maximize"/></svg></button>
+            <button class="tool-btn" title="更多"><svg><use href="#i-more"/></svg></button>
+          </div>
+        </div>
+
+        <div class="cad-body">
+          <div class="sheet-rail">
+            <button class="sheet-thumb is-active"><span class="thumb-box"><svg viewBox="0 0 120 84"><rect x="8" y="8" width="104" height="68" rx="2"/><path d="M36 8v68M70 8v68M8 40h104M36 40h34v36"/><circle cx="52" cy="26" r="3"/><circle cx="88" cy="54" r="3"/></svg></span><b>JS-01</b><small>一层</small></button>
+            <button class="sheet-thumb"><span class="thumb-box"><svg viewBox="0 0 120 84"><rect x="8" y="8" width="104" height="68" rx="2"/><path d="M8 30h104M46 30v46M82 30v46"/><circle cx="30" cy="20" r="2.5"/><circle cx="64" cy="52" r="2.5"/><circle cx="96" cy="20" r="2.5"/></svg></span><b>JS-02</b><small>二层</small></button>
+            <button class="sheet-thumb"><span class="thumb-box"><svg viewBox="0 0 120 84"><rect x="8" y="8" width="104" height="68" rx="2"/><path d="M8 52h104M30 8v44M62 8v44M94 8v44"/><circle cx="20" cy="68" r="2.5"/><circle cx="46" cy="30" r="2.5"/><circle cx="78" cy="68" r="2.5"/></svg></span><b>JS-03</b><small>屋顶</small></button>
+            <div class="rail-spacer"></div>
+            <button class="rail-btn" title="图框列表"><svg><use href="#i-grid"/></svg></button>
+          </div>
+
+          <div class="drawing" id="drawing">
+            <svg class="plan" viewBox="0 0 1000 620" role="img" aria-label="一层平面图示意">
+              <defs>
+                <pattern id="dots" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="0.7" fill="var(--grid-dot)"/></pattern>
+                <marker id="dim" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto"><path d="M0 4h8M4 0v8" stroke="var(--ink-dim)" stroke-width="1"/></marker>
+              </defs>
+              <rect width="1000" height="620" fill="url(#dots)"/>
+
+              <!-- 轴网 -->
+              <g class="axes">
+                <path d="M140 70V560M330 70V560M520 70V560M710 70V560M900 70V560" />
+                <path d="M120 120H940M120 260H940M120 400H940M120 540H940" />
+                <g class="axis-label">
+                  <text x="140" y="58">A</text><text x="330" y="58">B</text><text x="520" y="58">C</text><text x="710" y="58">D</text><text x="900" y="58">E</text>
+                  <text x="108" y="124">1</text><text x="108" y="264">2</text><text x="108" y="404">3</text><text x="108" y="544">4</text>
+                </g>
+              </g>
+
+              <!-- 墙体 -->
+              <g class="walls">
+                <path d="M160 90H920V550H160Z"/>
+                <path d="M430 90V280M430 400V550M700 90V550M160 280H430M700 280H920M160 400H430"/>
+                <path d="M700 400H920"/>
+              </g>
+
+              <!-- 门 -->
+              <g class="doors">
+                <path d="M430 320a40 40 0 0 1 40 40"/>
+                <path d="M700 470a40 40 0 0 0-40-40"/>
+                <path d="M560 90a40 40 0 0 0 40 40"/>
+                <path d="M860 280a40 40 0 0 1-40 40"/>
+              </g>
+
+              <!-- 家具 -->
+              <g class="furniture">
+                <rect x="200" y="140" width="130" height="70" rx="4"/>
+                <path d="M200 175h130M235 140v70M295 140v70"/>
+                <rect x="470" y="140" width="110" height="46" rx="3"/>
+                <rect x="470" y="330" width="170" height="52" rx="3"/>
+                <path d="M500 330v52M610 330v52"/>
+                <rect x="760" y="140" width="110" height="70" rx="3"/>
+                <rect x="760" y="330" width="80" height="42" rx="3"/>
+                <rect x="740" y="470" width="120" height="46" rx="3"/>
+                <rect x="200" y="330" width="120" height="46" rx="3"/>
+              </g>
+
+              <!-- 设备：插座/灯/配电箱 -->
+              <g class="layer" data-layer="E-干线">
+                <g class="equip"><circle cx="250" cy="220" r="9"/><text x="250" y="224">S</text></g>
+                <g class="equip"><circle cx="390" cy="220" r="9"/><text x="390" y="224">S</text></g>
+                <g class="equip"><circle cx="610" cy="220" r="9"/><text x="610" y="224">S</text></g>
+                <g class="equip"><circle cx="840" cy="220" r="9"/><text x="840" y="224">S</text></g>
+                <g class="equip"><circle cx="250" cy="470" r="9"/><text x="250" y="474">S</text></g>
+                <g class="equip"><circle cx="390" cy="470" r="9"/><text x="390" y="474">S</text></g>
+                <g class="equip"><circle cx="610" cy="470" r="9"/><text x="610" y="474">S</text></g>
+                <g class="equip"><circle cx="840" cy="470" r="9"/><text x="840" y="474">S</text></g>
+                <path class="wire" d="M250 220H840M250 470H840"/>
+              </g>
+              <g class="layer" data-layer="E-照明">
+                <g class="equip lamp"><circle cx="300" cy="160" r="8"/><text x="300" y="164">L</text></g>
+                <g class="equip lamp"><circle cx="520" cy="160" r="8"/><text x="520" y="164">L</text></g>
+                <g class="equip lamp"><circle cx="800" cy="160" r="8"/><text x="800" y="164">L</text></g>
+                <g class="equip lamp"><circle cx="300" cy="360" r="8"/><text x="300" y="364">L</text></g>
+                <g class="equip lamp"><circle cx="520" cy="360" r="8"/><text x="520" y="364">L</text></g>
+                <g class="equip lamp"><circle cx="800" cy="360" r="8"/><text x="800" y="364">L</text></g>
+              </g>
+              <g class="layer" data-layer="E-配电">
+                <rect x="452" y="250" width="28" height="34" rx="2" class="panel"/>
+                <text x="466" y="271">P</text>
+                <text class="tag" x="488" y="270">AL-3</text>
+                <rect x="884" y="500" width="22" height="28" rx="2" class="panel"/>
+                <text class="tag" x="840" y="492">AP-2</text>
+              </g>
+
+              <!-- 选中态 -->
+              <g class="selection">
+                <circle cx="610" cy="470" r="18"/>
+                <path d="M628 470h56"/>
+                <rect x="684" y="452" width="128" height="36" rx="4"/>
+                <text x="698" y="475">插座 31 · 已选中</text>
+              </g>
+
+              <!-- 标注 -->
+              <g class="dimensions">
+                <path d="M160 585H920" marker-start="url(#dim)" marker-end="url(#dim)"/>
+                <text x="540" y="604">24 000</text>
+                <path d="M985 90V550" marker-start="url(#dim)" marker-end="url(#dim)"/>
+                <text x="972" y="330" transform="rotate(90 972 330)">18 000</text>
+              </g>
+
+              <!-- 图框标题 -->
+              <g class="titleblock">
+                <rect x="740" y="512" width="180" height="76" rx="2"/>
+                <path d="M740 536h180M740 560h180M830 536v52"/>
+                <text x="754" y="529">阳光城 3# 楼</text>
+                <text x="754" y="552">JS-01 一层平面图</text>
+                <text x="754" y="576">1:100</text>
+                <text x="844" y="552">建施</text>
+                <text x="844" y="576">2026.10</text>
+              </g>
+            </svg>
+
+            <div class="canvas-hud">
+              <span class="hud-chip"><i class="dot run"></i>问这张图</span>
+              <input aria-label="问这张图" placeholder="这层有多少个插座？AL-3 备用回路在哪？" />
+              <button class="hud-send" aria-label="发送"><svg><use href="#i-send"/></svg></button>
+            </div>
+
+            <div class="zoom-hud"><button aria-label="缩小"><svg><use href="#i-zoom-out"/></svg></button><span>86%</span><button aria-label="放大"><svg><use href="#i-zoom-in"/></svg></button></div>
+          </div>
+        </div>
+
+        <div class="statusbar">
+          <span><b>模型</b> 布局</span>
+          <span>X 12,480 · Y 8,220</span>
+          <span>比例 1:100</span>
+          <span class="status-spacer"></span>
+          <span><i class="dot ok"></i>2 个代理实体已跳过</span>
+          <span>46 图层 · 218 文字</span>
+        </div>
+        </div>
+      </section>
+
+      <!-- 工具面板：进度计划（临时面板，不是工作台） -->
+      <section class="tool-sheet" data-sheet="schedule" role="dialog" aria-modal="true" aria-label="进度计划工具">
+        <header class="tool-sheet-head">
+          <span class="tool-badge">工具</span>
+          <b>进度计划</b>
+          <span class="sheet-file">总进度计划.gsched</span>
+          <span class="sheet-hint">临时面板 · AI 体检后可回对话继续问</span>
+          <button class="icon-btn sm sheet-close" data-close-tool aria-label="关闭进度计划工具"><svg><use href="#i-close"/></svg></button>
+        </header>
+        <div class="tool-sheet-body">
+        <div class="sched-toolbar">
+          <div class="segmented">
+            <button class="is-active">横道图</button><button>单代号</button><button>双代号</button><button>体检</button>
+          </div>
+          <span class="vsep"></span>
+          <button class="chip sm"><svg><use href="#i-calendar"/></svg>2026-10-01 → 2027-03-01</button>
+          <button class="chip sm"><svg><use href="#i-database"/></svg>基线：批准版 1</button>
+          <div class="bar-spacer"></div>
+          <span class="sched-summary"><b>141</b> 工作日<span class="sep"></span><b class="danger">6</b> 关键<span class="sep"></span>偏差 <b class="danger">+3</b> 天</span>
+          <button class="tool-btn" title="更多"><svg><use href="#i-more"/></svg></button>
+        </div>
+
+        <div class="sched-body">
+          <div class="gantt">
+            <div class="gantt-table">
+              <div class="gantt-head"><span class="c-wbs">WBS</span><span class="c-name">任务</span><span class="c-dur">工期</span><span class="c-who">负责人</span></div>
+              <div class="gantt-rows">
+                <div class="grow is-group"><span class="c-wbs">1</span><span class="c-name">施工准备</span><span class="c-dur">8</span><span class="c-who">张工</span></div>
+                <div class="grow"><span class="c-wbs">1.1</span><span class="c-name">临建与围挡</span><span class="c-dur">4</span><span class="c-who">张工</span></div>
+                <div class="grow"><span class="c-wbs">1.2</span><span class="c-name">测量放线</span><span class="c-dur">4</span><span class="c-who">李工</span></div>
+                <div class="grow is-group"><span class="c-wbs">2</span><span class="c-name">基础工程</span><span class="c-dur">42</span><span class="c-who">王工</span></div>
+                <div class="grow"><span class="c-wbs">2.1</span><span class="c-name">土方开挖</span><span class="c-dur">12</span><span class="c-who">王工</span></div>
+                <div class="grow"><span class="c-wbs">2.2</span><span class="c-name">基础底板</span><span class="c-dur">18</span><span class="c-who">王工</span></div>
+                <div class="grow is-selected"><span class="c-wbs">2.3</span><span class="c-name">地下室结构</span><span class="c-dur">24</span><span class="c-who">王工</span></div>
+                <div class="grow is-group"><span class="c-wbs">3</span><span class="c-name">主体结构</span><span class="c-dur">58</span><span class="c-who">赵工</span></div>
+                <div class="grow"><span class="c-wbs">3.1</span><span class="c-name">一至五层</span><span class="c-dur">34</span><span class="c-who">赵工</span></div>
+                <div class="grow"><span class="c-wbs">3.2</span><span class="c-name">六层至封顶</span><span class="c-dur">24</span><span class="c-who">赵工</span></div>
+                <div class="grow is-group"><span class="c-wbs">4</span><span class="c-name">装饰装修</span><span class="c-dur">32</span><span class="c-who">刘工</span></div>
+                <div class="grow"><span class="c-wbs">4.1</span><span class="c-name">抹灰与基层</span><span class="c-dur">16</span><span class="c-who">刘工</span></div>
+                <div class="grow"><span class="c-wbs">4.2</span><span class="c-name">涂料与收口</span><span class="c-dur">16</span><span class="c-who">刘工</span></div>
+                <div class="grow is-group"><span class="c-wbs">5</span><span class="c-name">屋面工程</span><span class="c-dur">12</span><span class="c-who">王工</span></div>
+                <div class="grow"><span class="c-wbs">5.1</span><span class="c-name">防水与保温</span><span class="c-dur">12</span><span class="c-who">王工</span></div>
+                <div class="grow"><span class="c-wbs">6</span><span class="c-name">机电安装</span><span class="c-dur">36</span><span class="c-who">陈工</span></div>
+                <div class="grow"><span class="c-wbs">7</span><span class="c-name">竣工验收</span><span class="c-dur">8</span><span class="c-who">张工</span></div>
+              </div>
+            </div>
+
+            <div class="gantt-canvas" id="gantt-canvas">
+              <div class="timeline-head">
+                <div class="month" style="left:0%;width:28%">2026 年 10 月</div>
+                <div class="month" style="left:28%;width:34%">11 月</div>
+                <div class="month" style="left:62%;width:24%">12 月</div>
+                <div class="month" style="left:86%;width:14%">2027 年 1 月</div>
+              </div>
+              <div class="timeline-grid">
+                <div class="vline" style="left:7%"></div><div class="vline" style="left:14%"></div><div class="vline" style="left:21%"></div>
+                <div class="vline" style="left:28%"></div><div class="vline" style="left:35%"></div><div class="vline" style="left:42%"></div>
+                <div class="vline" style="left:49%"></div><div class="vline" style="left:56%"></div><div class="vline" style="left:62%"></div>
+                <div class="vline" style="left:69%"></div><div class="vline" style="left:76%"></div><div class="vline" style="left:83%"></div>
+                <div class="vline" style="left:90%"></div><div class="vline" style="left:97%"></div>
+                <div class="today-line" style="left:46%"><span>今天 10/25</span></div>
+                <div class="today-dot" style="left:46%"></div>
+              </div>
+              <div class="bars">
+                <div class="brow"><div class="bar summary" style="left:2%;width:10%"></div></div>
+                <div class="brow"><div class="bar" style="left:2%;width:5%"></div></div>
+                <div class="brow"><div class="bar" style="left:7%;width:5%"></div></div>
+                <div class="brow"><div class="bar summary" style="left:12%;width:42%"></div></div>
+                <div class="brow"><div class="bar" style="left:12%;width:12%"></div></div>
+                <div class="brow"><div class="bar" style="left:24%;width:18%"></div></div>
+                <div class="brow is-selected"><div class="bar critical" style="left:42%;width:12%"><span>24d</span></div></div>
+                <div class="brow"><div class="bar summary" style="left:50%;width:40%"></div></div>
+                <div class="brow"><div class="bar" style="left:50%;width:20%"></div></div>
+                <div class="brow"><div class="bar critical" style="left:70%;width:20%"></div></div>
+                <div class="brow"><div class="bar summary" style="left:68%;width:28%"></div></div>
+                <div class="brow"><div class="bar" style="left:68%;width:14%"></div></div>
+                <div class="brow"><div class="bar" style="left:82%;width:14%"></div></div>
+                <div class="brow"><div class="bar summary" style="left:82%;width:12%"></div></div>
+                <div class="brow"><div class="bar" style="left:82%;width:12%"></div></div>
+                <div class="brow"><div class="bar" style="left:74%;width:22%"></div></div>
+                <div class="brow"><div class="bar critical" style="left:94%;width:5%"></div></div>
+              </div>
+              <div class="milestone" style="left:99%;top:88%"><span>竣工</span></div>
+            </div>
+          </div>
+
+          <div class="sched-insights">
+            <div class="insights-head">
+              <span class="eyebrow">AI 体检 · 3 条</span>
+              <span class="insights-sum">总工期 <b>141</b> 工作日 · 关键线路 <b class="danger">6</b> 项 · 基线偏差 <b class="danger">+3</b> 天</span>
+              <div class="mini-ask">
+                <span class="hud-chip"><i class="dot run"></i>问计划</span>
+                <input aria-label="问计划" placeholder="为什么比基线多 3 天？有哪些纠错建议？" />
+                <button class="hud-send" aria-label="发送"><svg><use href="#i-send"/></svg></button>
+              </div>
+            </div>
+            <div class="insight-cards">
+              <button class="insight-card"><i class="dot danger"></i><span><b>负搭接</b><small>主体结构 → 机电安装为 SS−4，早于前置完成。</small></span><em>定位</em></button>
+              <button class="insight-card"><i class="dot warn"></i><span><b>悬空引用</b><small>“竣工验收”引用了不存在的 FS 关系。</small></span><em>定位</em></button>
+              <button class="insight-card"><i class="dot warn"></i><span><b>冗余搭接</b><small>1.1 → 1.2 已有 FS，重复 SS+0。</small></span><em>定位</em></button>
+            </div>
+          </div>
+        </div>
+        </div>
+      </section>
+
+      <!-- 空态工作台 -->
+      <section class="view view-desk" aria-label="工作台">
+        <div class="desk">
+          <div class="desk-head">
+            <div class="kicker">工作台 · 2026 年 10 月 25 日</div>
+            <h1>今天，把哪件事做完？</h1>
+            <p>交给 gaea 一件事，它会调用工具、留下产物；图纸与计划都在同一张画布上。</p>
+          </div>
+
+          <div class="desk-composer">
+            <textarea rows="2" placeholder="例如：把阳光城 3# 楼的图纸梳理一遍，列出图框、图层和主要设备数量，并标出漏项。"></textarea>
+            <div class="desk-composer-bar">
+              <button class="chip sm"><svg><use href="#i-paperclip"/></svg>附件</button>
+              <button class="chip sm" data-action="tools"><svg><use href="#i-layers"/></svg>选择工具<svg class="chev"><use href="#i-chevron-down"/></svg></button>
+              <div class="bar-spacer"></div>
+              <button class="btn primary sm" data-action="chat"><svg><use href="#i-arrow"/></svg>开始工作</button>
+            </div>
+          </div>
+
+          <div class="desk-grid">
+            <div class="desk-col">
+              <div class="desk-label">继续</div>
+              <button class="continue-card" data-action="chat">
+                <span class="cc-ico"><svg><use href="#i-layers"/></svg></span>
+                <span class="cc-main"><b>图纸识别 · 阳光城 3# 楼</b><small>已解析 3 张图框 · 2 项待确认</small><span class="cc-progress"><i style="width:72%"></i></span></span>
+                <svg class="chev"><use href="#i-chevron-right"/></svg>
+              </button>
+              <button class="continue-card" data-tool="schedule">
+                <span class="cc-ico"><svg><use href="#i-gantt"/></svg></span>
+                <span class="cc-main"><b>进度纠错 · 总进度计划</b><small>AI 体检 3 条 · 基线偏差 +3 天</small><span class="cc-progress"><i style="width:44%"></i></span></span>
+                <svg class="chev"><use href="#i-chevron-right"/></svg>
+              </button>
+            </div>
+
+            <div class="desk-col">
+              <div class="desk-label">工具</div>
+              <div class="tool-grid">
+                <button class="tool-tile" data-tool="cad"><svg><use href="#i-layers"/></svg><b>CAD 看图</b><small>图框 / 图层 / 问图纸</small></button>
+                <button class="tool-tile" data-tool="schedule"><svg><use href="#i-gantt"/></svg><b>进度计划</b><small>甘特 / 纠错 / 推演</small></button>
+                <button class="tool-tile"><svg><use href="#i-file"/></svg><b>文档</b><small>Word / PDF / 保格式</small></button>
+                <button class="tool-tile"><svg><use href="#i-grid"/></svg><b>表格</b><small>xlsx / 数据 / 图表</small></button>
+              </div>
+            </div>
+          </div>
+
+          <div class="desk-recent">
+            <div class="desk-label">最近产物<span class="desk-more">全部</span></div>
+            <div class="recent-row"><svg><use href="#i-file"/></svg><span>图纸摘要.md</span><small>图纸识别 · 刚刚</small><svg class="chev"><use href="#i-arrow"/></svg></div>
+            <div class="recent-row"><svg><use href="#i-gantt"/></svg><span>总进度计划 · 纠错建议.md</span><small>进度纠错 · 1 小时前</small><svg class="chev"><use href="#i-arrow"/></svg></div>
+            <div class="recent-row"><svg><use href="#i-grid"/></svg><span>设备统计.csv</span><small>图纸识别 · 2 分钟前</small><svg class="chev"><use href="#i-arrow"/></svg></div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- ── 右：检查器 ───────────────────────────────────────── -->
+  <aside class="inspector" id="inspector">
+    <header class="inspector-head">
+      <span>检查器</span>
+      <span class="inspector-scope" id="inspector-scope">对话</span>
+      <button class="icon-btn sm" data-action="toggle-inspector" aria-label="收起检查器"><svg><use href="#i-close"/></svg></button>
+    </header>
+
+    <div class="inspector-body">
+
+      <div class="inspector-view" data-for="chat">
+        <div class="insp-section">
+          <div class="insp-label">本轮工作</div>
+          <div class="insp-task"><span class="dot ok"></span><span>图纸识别 · 阳光城 3# 楼</span><small>完成</small></div>
+          <div class="steps">
+            <div class="step done"><i><svg><use href="#i-check"/></svg></i><span>解析 DWG</span><small>8.4s</small></div>
+            <div class="step done"><i><svg><use href="#i-check"/></svg></i><span>提取图框与文字</span><small>1.2s</small></div>
+            <div class="step done"><i><svg><use href="#i-check"/></svg></i><span>生成摘要与统计</span><small>2.1s</small></div>
+          </div>
+        </div>
+
+        <div class="insp-section">
+          <div class="insp-label">产物 <span>2</span></div>
+          <button class="art-row" data-tool="cad"><svg><use href="#i-file"/></svg><span>图纸摘要.md</span><small>12 KB</small></button>
+          <button class="art-row" data-tool="cad"><svg><use href="#i-grid"/></svg><span>设备统计.csv</span><small>3 KB</small></button>
+        </div>
+
+        <div class="insp-section">
+          <div class="insp-label">上下文</div>
+          <div class="kv"><span>图纸</span><b>3 张</b></div>
+          <div class="kv"><span>图层</span><b>46</b></div>
+          <div class="kv"><span>规范</span><b>2 份</b></div>
+          <div class="kv"><span>水位</span><b class="accent">42%</b></div>
+        </div>
+
+        <div class="insp-section">
+          <div class="insp-label">待你确认 <span class="badge-warn">1</span></div>
+          <div class="confirm-card">
+            <b>3 条漏项提示</b>
+            <p>写入「待确认清单」并同步到造价库备注。</p>
+            <div class="confirm-actions"><button class="btn primary xs" data-action="approve">允许</button><button class="btn ghost xs" data-action="skip">暂不</button></div>
+          </div>
+        </div>
+
+        <div class="insp-section">
+          <div class="insp-label">引用 <span>3</span></div>
+          <div class="cite-row"><span class="cite-no">01</span><span>JS-01 / E-干线</span><svg><use href="#i-external"/></svg></div>
+          <div class="cite-row"><span class="cite-no">02</span><span>JS-01 / E-照明</span><svg><use href="#i-external"/></svg></div>
+          <div class="cite-row"><span class="cite-no">03</span><span>系统图 JS-09</span><svg><use href="#i-external"/></svg></div>
+        </div>
+      </div>
+
+      <div class="inspector-view" data-for="cad">
+        <div class="insp-section">
+          <div class="insp-tabs"><button class="is-active">图层</button><button>图框</button><button>文字</button><button>统计</button></div>
+        </div>
+        <div class="insp-section">
+          <div class="insp-label">图层 <span>46</span></div>
+          <label class="layer-row"><input type="checkbox" checked /><i class="swatch teal"></i><span>E-干线</span><small>31</small><svg><use href="#i-eye"/></svg></label>
+          <label class="layer-row"><input type="checkbox" checked /><i class="swatch blue"></i><span>E-照明</span><small>18</small><svg><use href="#i-eye"/></svg></label>
+          <label class="layer-row"><input type="checkbox" checked /><i class="swatch gold"></i><span>E-配电</span><small>4</small><svg><use href="#i-eye"/></svg></label>
+          <label class="layer-row"><input type="checkbox" /><i class="swatch grey"></i><span>A-墙体</span><small>—</small><svg><use href="#i-eye"/></svg></label>
+          <label class="layer-row"><input type="checkbox" /><i class="swatch grey"></i><span>A-家具</span><small>—</small><svg><use href="#i-eye"/></svg></label>
+          <label class="layer-row"><input type="checkbox" /><i class="swatch grey"></i><span>DIM-标注</span><small>—</small><svg><use href="#i-eye"/></svg></label>
+        </div>
+
+        <div class="insp-section">
+          <div class="insp-label">图框质量</div>
+          <div class="quality-card">
+            <div class="quality-top"><b>0.92</b><span>可直接算量</span></div>
+            <div class="quality-bar"><i style="width:92%"></i></div>
+            <div class="quality-rows">
+              <div><span>图框识别</span><b>3 / 3</b></div>
+              <div><span>文字提取</span><b>218</b></div>
+              <div><span>代理实体</span><b class="warn">2 跳过</b></div>
+            </div>
+          </div>
+          <button class="btn primary block" data-action="ask"><svg><use href="#i-spark"/></svg>交 AI 算量</button>
+          <button class="btn ghost block"><svg><use href="#i-file"/></svg>复制全部文字</button>
+        </div>
+
+        <div class="insp-section">
+          <div class="insp-label">注意</div>
+          <div class="warning-row"><svg><use href="#i-alert"/></svg><span>天正代理实体 2 个，已跳过；建议 TXDC 导出 T3 后重试。</span></div>
+        </div>
+      </div>
+
+      <div class="inspector-view" data-for="schedule">
+        <div class="insp-section">
+          <div class="insp-label">选中任务</div>
+          <div class="task-title">地下室结构</div>
+          <div class="task-meta"><span class="pill danger">关键线路</span><span class="pill">24 工作日</span><span class="pill">总时差 0</span></div>
+          <div class="kv"><span>开始</span><b>2026-11-02</b></div>
+          <div class="kv"><span>完成</span><b>2026-11-25</b></div>
+          <div class="kv"><span>前置</span><b>基础底板 FS</b></div>
+          <div class="kv"><span>负责人</span><b>王工</b></div>
+        </div>
+
+        <div class="insp-section">
+          <div class="insp-label">AI 体检 <span class="badge-warn">3</span></div>
+          <div class="health-row"><i class="dot danger"></i><div><b>负搭接</b><p>主体结构 → 机电安装为 SS−4，早于前置完成。</p></div><button class="link">定位</button></div>
+          <div class="health-row"><i class="dot warn"></i><div><b>悬空引用</b><p>“竣工验收”引用了不存在的 FS 关系。</p></div><button class="link">定位</button></div>
+          <div class="health-row"><i class="dot warn"></i><div><b>冗余搭接</b><p>1.1 → 1.2 已有 FS，重复 SS+0。</p></div><button class="link">定位</button></div>
+        </div>
+
+        <div class="insp-section">
+          <div class="insp-label">推演</div>
+          <div class="whatif">
+            <div class="whatif-btns"><button>−5</button><button>−1</button><button class="is-active">重置</button><button>+1</button><button>+5</button></div>
+            <div class="whatif-result"><span>总工期</span><b>141</b><svg><use href="#i-arrow"/></svg><b class="accent">136</b></div>
+            <p class="whatif-note">仅推演，不改原计划。关键线路不变。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="inspector-view" data-for="desk">
+        <div class="insp-section">
+          <div class="insp-label">今天</div>
+          <div class="today-row"><span class="time">09:30</span><div><b>图纸评审</b><p>阳光城 3# 楼 · 3 张图框</p></div></div>
+          <div class="today-row"><span class="time">14:00</span><div><b>进度周会</b><p>总进度计划 · 基线偏差 +3 天</p></div></div>
+        </div>
+        <div class="insp-section">
+          <div class="insp-label">待处理 <span class="badge-warn">2</span></div>
+          <div class="todo-row"><i class="dot warn"></i><span>3 条漏项待确认</span></div>
+          <div class="todo-row"><i class="dot warn"></i><span>进度纠错 3 条待处理</span></div>
+        </div>
+        <div class="insp-section">
+          <div class="insp-label">记忆</div>
+          <div class="kv"><span>项目</span><b>阳光城 3# 楼</b></div>
+          <div class="kv"><span>偏好</span><b>图纸结论先列依据</b></div>
+        </div>
+      </div>
+
+    </div>
+  </aside>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
+
+
+
+
+
+
