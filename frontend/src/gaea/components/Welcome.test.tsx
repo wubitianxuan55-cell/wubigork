@@ -41,4 +41,23 @@ describe("Welcome 欢迎页", () => {
     fireEvent.click(await screen.findByText("周报"));
     expect(prompts[0]).toContain("周报");
   });
+
+  // 2026-10 工具化（§6.4 空态工作台）：工具 tile 开 ToolSheet 不是页面；
+  // onOpenTool 缺省整节不渲染（工具节是办公宿主可选接线，其他消费方零感知）。
+  it("未接 onOpenTool：工具节不渲染（能力卡照常）", async () => {
+    render(wrap(<Welcome onPrompt={() => {}} />));
+    expect(screen.queryByTestId("welcome-tools")).toBeNull();
+    expect(screen.getByText("核心能力")).toBeTruthy();
+  });
+
+  it("工具节两 tile：点 CAD/进度派发 onOpenTool 对应 kind（不触发 onPrompt）", async () => {
+    const opened: string[] = [];
+    const prompts: string[] = [];
+    render(wrap(<Welcome onPrompt={(p) => prompts.push(p)} onOpenTool={(tool) => opened.push(tool)} />));
+    expect(await screen.findByTestId("welcome-tools")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("welcome-tool-cad"));
+    fireEvent.click(screen.getByTestId("welcome-tool-schedule"));
+    expect(opened).toEqual(["cad", "schedule"]);
+    expect(prompts).toEqual([]);
+  });
 });

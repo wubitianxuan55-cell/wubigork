@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components -- 任务模板加载/兜底函数导出供测试与复用 */
 import {
   ArrowUpRight, BarChart3, BookOpen, Brain, Clock, FilePpt, FileText, FolderOpen,
-  MessageSquare, RefreshCw, ScrollText, Sparkles, Table, Wand2,
+  Layers, LineChart, MessageSquare, RefreshCw, ScrollText, Sparkles, Table, Wand2, Wrench,
 } from "../icons";
 import { useEffect, useState } from "react";
 import logoSvg from "../assets/logo.svg";
@@ -181,6 +181,7 @@ export function Welcome({
   sessions,
   onResumeSession,
   meta,
+  onOpenTool,
 }: {
   onPrompt: (text: string) => void;
   cwd?: string;
@@ -188,6 +189,9 @@ export function Welcome({
   sessions?: SessionMeta[];
   onResumeSession?: (path: string) => Promise<void>;
   meta?: Meta;
+  /** 打开办公工具面板（§6.4 空态工作台：工具 tile 开的是 ToolSheet 不是页面）；
+   *  缺省整节不渲染（工具节是办公宿主可选接线）。 */
+  onOpenTool?: (tool: "cad" | "schedule") => void;
 }) {
   const t = useT();
   const compact = useCompact();
@@ -256,6 +260,40 @@ export function Welcome({
           ))}
         </div>
       </div>
+
+      {/* 工具（§6.4 空态工作台：CAD 看图/进度计划是动词——tile 打开临时工具
+          面板 ToolSheet，不是页面/导航；能力卡是 prompt 发对话，语义不同分节） */}
+      {onOpenTool && (
+        <div className="welcome-rise welcome-rise-2 w-full mt-6" data-testid="welcome-tools">
+          <div className={`font-semibold text-fg-faint uppercase tracking-wider mb-3 flex items-center gap-1.5 ${compact ? "text-[10px]" : "text-[11px]"}`}>
+            <Wrench size={12} />
+            {t("welcome.tools")}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {([
+              { key: "cad" as const, icon: <Layers size={17} />, nameKey: "welcome.toolCad" as DictKey, descKey: "welcome.toolCadDesc" as DictKey },
+              { key: "schedule" as const, icon: <LineChart size={17} />, nameKey: "welcome.toolSchedule" as DictKey, descKey: "welcome.toolScheduleDesc" as DictKey },
+            ]).map((tool) => (
+              <button
+                key={tool.key}
+                onClick={() => onOpenTool(tool.key)}
+                className="group relative flex flex-col items-start text-left font-[inherit] bg-bg-elev border border-border-soft rounded-xl p-3.5 cursor-pointer transition-all duration-200 hover:border-accent/30 hover:bg-bg-elev hover:-translate-y-0.5 hover:shadow-[var(--ds-shadow-card)] overflow-hidden"
+                data-testid={`welcome-tool-${tool.key}`}
+              >
+                <div className="flex items-center gap-2.5 w-full mb-2.5">
+                  <span className="w-8 h-8 rounded-lg bg-accent/10 border border-accent/15 text-accent flex items-center justify-center shrink-0 group-hover:bg-accent/15 transition-colors">
+                    {tool.icon}
+                  </span>
+                  <span className={`font-semibold text-fg ${compact ? "text-[12.5px]" : "text-[13.5px]"}`}>{t(tool.nameKey)}</span>
+                </div>
+                <p className={`text-fg-dim leading-relaxed line-clamp-2 ${compact ? "text-[11px]" : "text-[12px]"}`}>
+                  {t(tool.descKey)}
+                </p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 更多启动方式（v4.477 简化：任务模板+内置技能收进折叠披露——藏≠删，
           原生 details 保证无 JS 状态、内容常驻 DOM、键盘可达） */}

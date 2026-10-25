@@ -246,3 +246,16 @@ CAD 与进度是**动词**——出现在输入框工具菜单、AI 工具卡、
 | 数据单源 | 与 SchedulePage 共享 useScheduleStore（initScheduleSync 模块级幂等）；agent schedule_apply 写入经 usePreviewAutoFront 即时回读两条路都可见 |
 
 **验证**：`tsc -b` 绿；ESLint 0；全量 vitest 3989/3989（含 ScheduleTool 7 新例、App.palette/events 两个源级守卫同批改口径——守卫随代码迁移纪律）；`pnpm run build` 绿（ScheduleTool 独立 chunk 7.21KB、CadPanel 14.81KB，懒加载）。
+
+---
+
+## 11. 第三刀：CAD 重开不重跑 + 第四刀：空态工作台工具区（2026-10-25）
+
+| 项 | 落点 |
+|---|---|
+| cadToolCache（§7.3 尾） | `gaea/components/cad/cadToolCache.ts`：解析产物按 path 缓存（模块级单例，cadRecent 同款）。ToolSheet 关闭卸载 CadPanel 后 openRes/raster/texts/count 留存，重开（最近图纸/重复导入）零 CadOpen/CadRaster/CadTexts/CadCount 调用。图纸只读红线→无失效需求；内存节制：raster 仅缓存默认宽度渲图（ASK_WIDTH 加宽图不缓存）、每文件 3 张 LRU、8 文件 LRU。CadPanel 六处接线（load 命中短路/open/raster/texts/count 落/handoff 内联落），代际竞态守卫原样生效 |
+| 空态工具区（§6.4） | `Welcome` 新增工具节（能力卡后）：CAD 看图/进度计划两 tile，点击开 ToolSheet 不导航；`onOpenTool` 缺省整节不渲染（宿主可选接线）；Transcript/App 穿线；三语 5 键（welcome.tools*） |
+| 挂拍板池 | §7.5 首页 12 模块卡改造——首页形态是 v4.476 刚拍板的极简化（模块卡极简化保留全卡），且 doc/sheet 工具 tile 无 ToolSheet kind 支撑；改首页与既有拍板有张力，提请拍板后再动 |
+| 留池 | 工具面板与右栏检查器合并（§7.4 尾，需 CadPanel 拆 CadTool/CadInspector 状态上移，建议真机走查后按体感定）；§7.6 令牌映射暖纸面 |
+
+**验证**：`tsc -b` 绿；ESLint 0；全量 vitest 3997/3997（cad 20 例含缓存 6 新例；既有「卸载重挂一键重开」用例断言随新语义同批迁移=重开后 CadOpen 不再二次调用；Welcome 6 例含工具节 2 新例）。

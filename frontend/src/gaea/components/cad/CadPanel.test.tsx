@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { CadPanel } from "./CadPanel";
 import { cadRecentResetForTest } from "./cadRecent";
+import { cadCacheResetForTest } from "./cadToolCache";
 
 const state = vi.hoisted(() => ({
   pickFilters: [] as string[],
@@ -87,6 +88,7 @@ beforeEach(() => {
   state.recognizeCalls = [];
   state.askSent = [];
   cadRecentResetForTest();
+  cadCacheResetForTest();
   localStorage.setItem("gaea-lang", "zh");
 });
 
@@ -193,7 +195,7 @@ describe("CadPanel 最近图纸（内存态）与文本全文复制", () => {
     localStorage.setItem("gaea-lang", "zh");
   });
 
-  it("导入成功入最近列表；面板卸载重挂后仍可一键重开（模块态跨卸载）", async () => {
+  it("导入成功入最近列表；面板卸载重挂后仍可一键重开（模块态跨卸载；§7.3 缓存命中零重解析）", async () => {
     const first = renderPanel();
     fireEvent.click(await screen.findByTestId("cad-import"));
     await screen.findByTestId("cad-raster-img");
@@ -202,7 +204,10 @@ describe("CadPanel 最近图纸（内存态）与文本全文复制", () => {
     renderPanel();
     const chip = screen.getByTestId("cad-recent-plan.dxf");
     fireEvent.click(chip);
-    await waitFor(() => expect(state.openPaths).toEqual(["C:/d/plan.dxf", "C:/d/plan.dxf"]));
+    // 重开一键可达：CadOpen 不再第二次调用（cadToolCache 按 path 命中，
+    // 「重开不重跑解析」）——图面直接回填即证。
+    await screen.findByTestId("cad-raster-img");
+    expect(state.openPaths).toEqual(["C:/d/plan.dxf"]);
   });
 
   it("文本清单全文复制：TSV 带表头（图框/图层/内容），成功反馈「已复制」", async () => {

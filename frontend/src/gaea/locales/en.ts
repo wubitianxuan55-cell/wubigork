@@ -1107,6 +1107,12 @@ export const en = {
   // ── v4.57 i18n 收尾：Welcome ──
   "welcome.heading": "What should we tackle with gaea today?",
   "welcome.coreCaps": "Core capabilities",
+  // ── 2026-10 工具化：空态工作台工具 tile（§6.4）──
+  "welcome.tools": "Tools",
+  "welcome.toolCad": "CAD viewer",
+  "welcome.toolCadDesc": "Open DWG / DXF / PDF: sheet browsing, text list, takeoff handoff — a temporary panel, not a page",
+  "welcome.toolSchedule": "Schedule",
+  "welcome.toolScheduleDesc": "Gantt / network diagram / health check; AI plan edits appear live, ask back into chat",
   "welcome.capWrite": "Document writing",
   "welcome.capWriteDesc": "Reports, proposals, official docs — Word & Markdown in one click",
   "welcome.capSheet": "Spreadsheets",

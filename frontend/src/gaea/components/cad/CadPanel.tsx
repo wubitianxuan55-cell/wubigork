@@ -10,6 +10,15 @@ import { Layers } from "../../icons";
 import { app } from "../../lib/bridge";
 import type { CadOpenResult, CadRasterResult, CadTextsResult, CadCountResult, CadText } from "../../lib/bridge/cad";
 import { cadRecentList, cadRecentPush, type CadRecent } from "./cadRecent";
+// 解析缓存（§7.3）：ToolSheet 关闭卸载本组件，openRes/raster/texts/count 留在
+// cadToolCache，重开（最近图纸/重复导入同路径）不重跑解析。
+import {
+  cadCacheGet,
+  cadCachePutOpen,
+  cadCachePutRaster,
+  cadCachePutTexts,
+  cadCachePutCount,
+} from "./cadToolCache";
 import "./cad-panel.css";
 
 /** 导入扩展名白名单（与 pickFile.ts 的 fail-closed 后置复核同源：宽容模式下
@@ -84,6 +93,8 @@ export function CadPanel({ onAsk, variant = "pane" }: { onAsk?: (text: string) =
       ) return;
       setRaster(next);
       setRasterWidth(width);
+      // 默认宽度渲图入缓存（加宽图不缓存：dataUrl 太大）；迟到的结果不入。
+      if (width === 0) cadCachePutRaster(path, idx, next);
     } catch (e) {
       if (
         generation !== generationRef.current ||
@@ -131,6 +142,29 @@ export function CadPanel({ onAsk, variant = "pane" }: { onAsk?: (text: string) =
       setCopied(false);
       setTextsCopied(false);
       setOpenRes(null);
+      // 缓存命中：图纸只读，openRes/raster/texts/count 原样回填，零绑定调用
+      // （§7.3 重开不重跑解析——ToolSheet 关开之间不付 CadOpen+分幅渲染的等待）。
+      // 代际/路径守卫照常生效（上面已递增代际并指向本 path）。
+      const cached = cadCacheGet(path);
+      if (cached) {
+        busyRef.current = false;
+        setBusy(false);
+        cadRecentPush(path, name);
+        setRecent(cadRecentList());
+        setOpenRes(cached.openRes);
+        activeSheetRef.current = cached.bestSheet;
+        setSheet(cached.bestSheet);
+        const hit = cached.rasters.find((r) => r.sheet === cached.bestSheet);
+        if (hit) {
+          setRaster(hit.res);
+          setRasterWidth(0);
+        } else {
+          void fetchRaster(path, cached.bestSheet, 0);
+        }
+        if (cached.texts) setTexts(cached.texts);
+        if (cached.count) setCount(cached.count);
+        return;
+      }
       try {
         const res: CadOpenResult = JSON.parse(await app.CadOpen(path));
         if (generation !== generationRef.current || path !== activePathRef.current) return;
@@ -150,6 +184,7 @@ export function CadPanel({ onAsk, variant = "pane" }: { onAsk?: (text: string) =
         });
         activeSheetRef.current = best;
         setSheet(best);
+        cadCachePutOpen(path, res, best);
         await fetchRaster(path, best, 0);
       } catch (e) {
         if (generation !== generationRef.current || path !== activePathRef.current) return;
@@ -228,6 +263,7 @@ export function CadPanel({ onAsk, variant = "pane" }: { onAsk?: (text: string) =
         idx !== activeSheetRef.current
       ) return;
       setTexts(next);
+      cadCachePutTexts(path, next);
     } catch (e) {
       if (
         generation !== generationRef.current ||
@@ -263,6 +299,7 @@ export function CadPanel({ onAsk, variant = "pane" }: { onAsk?: (text: string) =
         idx !== activeSheetRef.current
       ) return;
       setCount(next);
+      cadCachePutCount(path, next);
     } catch (e) {
       if (
         generation !== generationRef.current ||
@@ -327,6 +364,7 @@ export function CadPanel({ onAsk, variant = "pane" }: { onAsk?: (text: string) =
         const loaded: CadCountResult = JSON.parse(await app.CadCount(path));
         if (!current() || seq !== seqRef.current.count) return;
         setCount(loaded);
+        cadCachePutCount(path, loaded);
         c = loaded;
       } catch (e) {
         if (!current() || seq !== seqRef.current.count) return;
@@ -350,6 +388,7 @@ export function CadPanel({ onAsk, variant = "pane" }: { onAsk?: (text: string) =
         const loaded: CadTextsResult = JSON.parse(await app.CadTexts(path));
         if (!current() || seq !== seqRef.current.texts) return;
         setTexts(loaded);
+        cadCachePutTexts(path, loaded);
         ts = loaded;
       }
       const shown = ts.texts.slice(0, 80).map((x: CadText) => `[${x.layer}] ${x.text}`).join("\n");

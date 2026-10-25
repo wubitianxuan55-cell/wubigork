@@ -629,7 +629,7 @@ export const ProcessCard = memo(function ProcessCard({
 
 export function Transcript({
   onPrompt, onRewind, onRegenerate, onFeedback, running, onThreadEl, onScrollToTurnReady,
-  cwd, cwdName, sessions, onResumeSession, meta,
+  cwd, cwdName, sessions, onResumeSession, meta, onOpenTool,
 }: {
   onPrompt: (text: string) => void;
   onRewind?: (turn: number, scope: string) => void;
@@ -645,6 +645,8 @@ export function Transcript({
   sessions?: import("../lib/types").SessionMeta[];
   onResumeSession?: (path: string) => Promise<void>;
   meta?: import("../lib/types").Meta;
+  /** 空态工作台工具 tile（§6.4）：穿给 Welcome，缺省工具节不渲染。 */
+  onOpenTool?: (tool: "cad" | "schedule") => void;
 }) {
   const items = useItems();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -970,7 +972,7 @@ export function Transcript({
       <div className="transcript v3-zone" ref={scrollRef} onScroll={onScroll} onWheel={onWheel}>
         <div className="w-full px-4 sm:px-6 md:px-8 py-4" ref={entranceRef}>
           {items.length === 0 && (
-            <Welcome onPrompt={onPrompt} cwd={cwd} cwdName={cwdName} sessions={sessions} onResumeSession={onResumeSession} meta={meta} />
+            <Welcome onPrompt={onPrompt} cwd={cwd} cwdName={cwdName} sessions={sessions} onResumeSession={onResumeSession} meta={meta} onOpenTool={onOpenTool} />
           )}
           {/* 正文阅读宽度列（办公板块覆写为 --maxw 左对齐，其余板块 74ch 居中）；欢迎页作为启动器保持铺满 */}
           <div className="v3-reading">

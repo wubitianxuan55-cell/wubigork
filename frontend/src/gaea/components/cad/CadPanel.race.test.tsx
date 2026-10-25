@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { CadPanel } from "./CadPanel";
 import { cadRecentResetForTest } from "./cadRecent";
+import { cadCacheResetForTest } from "./cadToolCache";
 import { LocaleProvider } from "../../lib/i18n";
 
 type Deferred<T> = {
@@ -122,6 +123,7 @@ async function importPath(path: string, name: string) {
 
 beforeEach(() => {
   cadRecentResetForTest();
+  cadCacheResetForTest();
   localStorage.setItem("gaea-lang", "zh");
   state.pickResults = [];
   state.openPaths = [];

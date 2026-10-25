@@ -1108,6 +1108,12 @@ export const zh: Record<DictKey, string> = {
   // ── v4.57 i18n 收尾：Welcome ──
   "welcome.heading": "今天想和 gaea 一起做什么？",
   "welcome.coreCaps": "核心能力",
+  // ── 2026-10 工具化：空态工作台工具 tile（§6.4）──
+  "welcome.tools": "工具",
+  "welcome.toolCad": "CAD 看图",
+  "welcome.toolCadDesc": "打开 DWG / DXF / PDF：图框翻页、文字清单、算量交接，临时面板不离开对话",
+  "welcome.toolSchedule": "进度计划",
+  "welcome.toolScheduleDesc": "甘特 / 网络图 / 质量体检，AI 改计划即时同见，可问计划发回对话",
   "welcome.capWrite": "文档撰写",
   "welcome.capWriteDesc": "报告、方案、公文，Word 与 Markdown 一键成稿",
   "welcome.capSheet": "表格处理",

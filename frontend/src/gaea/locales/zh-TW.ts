@@ -1112,6 +1112,12 @@ export const zhTW: Record<DictKey, string> = {
   // ── v4.57 i18n 收尾：Welcome ──
   "welcome.heading": "今天想和 gaea 一起做什麼？",
   "welcome.coreCaps": "核心能力",
+  // ── 2026-10 工具化：空态工作台工具 tile（§6.4）──
+  "welcome.tools": "工具",
+  "welcome.toolCad": "CAD 看圖",
+  "welcome.toolCadDesc": "打開 DWG / DXF / PDF：圖框翻頁、文字清單、算量交接，臨時面板不離開對話",
+  "welcome.toolSchedule": "進度計畫",
+  "welcome.toolScheduleDesc": "甘特 / 網路圖 / 質量體檢，AI 改計畫即時同見，可問計畫發回對話",
   "welcome.capWrite": "文件撰寫",
   "welcome.capWriteDesc": "報告、方案、公文，Word 與 Markdown 一鍵成稿",
   "welcome.capSheet": "表格處理",
