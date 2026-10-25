@@ -274,7 +274,8 @@ const WeixinPage: React.FC = () => {
   // 壳层 keepAlive 切到后台（useBoardActive('weixin')：MainLayout 对访问过的
   // 板块只 display:none，组件不卸载）。此前只判 ①，于是进过一次青鸟页后停在
   // 任意板块都会每 5s 打 WhisperWeixinStatus/WhisperAssistantList/
-  // WeixinReminderList/WeixinReminderConfig。形态照 modelcenter/ResourceMonitor。
+  // WeixinReminderList/WeixinReminderConfig。形态照 modelcenter 系轮询组件
+  // （usePollingGate + useBoardActive 双闸）。
   const pollable = usePollingGate()
   const boardVisible = useBoardActive('weixin')
   useEffect(() => {

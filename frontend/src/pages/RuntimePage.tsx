@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, Table, Tooltip } from 'antd'
+import { Button, Segmented, Table, Tooltip } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'
 import { getRuntimeMonitor } from '../api/engines'
+import { emitFrontendEvent, FRONTEND_EVENTS } from '../events'
 import { usePollingGate } from '../hooks/usePollingGate'
+import { useStatsState } from './modelcenter/hooks/useStatsState'
+import { RequestsSpark, TokenMiniBars, type TrendRange } from './modelcenter/charts'
 import './runtime.css'
 
 // RuntimePage — 运行监测板块（2026-10-19，参照 Strata Monitor 仪表盘）。
@@ -11,7 +14,10 @@ import './runtime.css'
 //     GPU 系列为 null=诚实显示「无遥测」）+ 系统统计兜底 + 生成速度 tok/s；
 //     迷你趋势为前端滚动窗口（60 点 ≈ 2 分钟）；
 //   · 引擎状态条：模型中心引擎表 + Strata 系引擎 live 状态（空闲/读入中/
-//     生成中、队列、prompt 进度）；
+//     生成中、队列、prompt 进度）+ ComfyUI 运行标记；
+//   · 调用统计趋势：今日/7天/30天（useStatsState 同源 getModelCallStats；
+//     2026-10 模型中心右侧统计检查器并入本板块——总计/成功率/费用在状态条，
+//     趋势与入/出拆分在此）；
 //   · 最近请求表：gaea 侧全引擎（含云端）调用记账（模型中心同源数据）。
 
 /** /metrics 宽松契约（Strata 系服务端字段演进不编进前端硬类型，按需取用） */
@@ -87,6 +93,7 @@ interface RecentCall {
 interface MonitorSnapshot {
   time?: string
   system?: Record<string, number | string>
+  comfy_running?: boolean
   engines?: EngineRow[]
   strata?: EngineMetrics | null
   tianxuan?: EngineMetrics | null
@@ -96,6 +103,8 @@ interface MonitorSnapshot {
     success_calls?: number
     fail_calls?: number
     total_tokens?: number
+    input_tokens?: number
+    output_tokens?: number
     total_cost?: number
     since?: string
   }
@@ -200,10 +209,10 @@ function ContextDonut({ used, max }: { used: number | null; max: number | null }
   )
 }
 
-function MetricCard({ label, value, unit, series }: { label: string; value: string; unit: string; series: number[] }) {
+function MetricCard({ label, value, unit, series, hint }: { label: string; value: string; unit: string; series: number[]; hint?: string }) {
   const hasValue = value !== '—'
   return (
-    <div className={`rt-card${hasValue ? '' : ' rt-card-empty'}`}>
+    <div className={`rt-card${hasValue ? '' : ' rt-card-empty'}`} title={hint}>
       <div className="rt-card-label">{label}</div>
       <div className="rt-card-value">
         {value}
@@ -266,10 +275,12 @@ export default function RuntimePage() {
   const em = useMemo(() => (snap ? pickEngineMetrics(snap) : null), [snap])
   const overall = useMemo(() => (snap ? overallState(snap) : null), [snap])
 
-  const metricCards = useMemo(() => {
+  const metricCards = useMemo<{ label: string; value?: string | null; unit: string; series: string; hint?: string }[]>(() => {
     if (!snap) return []
     const hw = em?.hardware ?? {}
     const sys = snap.system ?? {}
+    const gpuName = typeof sys.gpuName === 'string' ? sys.gpuName : ''
+    const gpuHint = gpuName || undefined
     const ramUsed = num(hw.ram_used) ?? num(sys.memUsed)
     const ramTotal = num(hw.ram_total) ?? num(sys.memTotal)
     const vramUsed = num(sys.vramUsed)
@@ -281,14 +292,18 @@ export default function RuntimePage() {
       diskRead == null && diskWrite == null
         ? null
         : `${diskRead?.toFixed(1) ?? '—'} / ${diskWrite?.toFixed(1) ?? '—'}`
+    // 占用百分比（原模型中心资源条的 CPU/内存/显存 百分比读数并入：总量卡
+    // 尾缀 pct，有 used+total 才给）
+    const pct = (used: number | null, total: number | null) =>
+      used != null && total != null && total > 0 ? ` · ${Math.round((used / total) * 100)}%` : ''
     return [
       { label: '生成速度', value: tokS == null ? null : tokS.toFixed(1), unit: 'tok/s', series: 'tok_s' },
-      { label: 'GPU 负载', value: (num(hw.gpu_util) ?? num(sys.gpuUsage))?.toFixed(0), unit: '%', series: 'gpu_util' },
-      { label: 'GPU 温度', value: num(hw.gpu_temp)?.toFixed(0), unit: '°C', series: 'gpu_temp' },
-      { label: 'GPU 功率', value: num(hw.gpu_power)?.toFixed(0), unit: 'W', series: 'gpu_power' },
+      { label: 'GPU 负载', value: (num(hw.gpu_util) ?? num(sys.gpuUsage))?.toFixed(0), unit: '%', series: 'gpu_util', hint: gpuHint },
+      { label: 'GPU 温度', value: num(hw.gpu_temp)?.toFixed(0), unit: '°C', series: 'gpu_temp', hint: gpuHint },
+      { label: 'GPU 功率', value: num(hw.gpu_power)?.toFixed(0), unit: 'W', series: 'gpu_power', hint: gpuHint },
       { label: 'CPU', value: (num(hw.cpu) ?? num(sys.cpu))?.toFixed(0), unit: '%', series: 'cpu' },
-      { label: '内存', value: ramUsed == null ? null : `${ramUsed.toFixed(1)}/${ramTotal ?? '?'}`, unit: 'GB', series: 'ram_used' },
-      { label: '显存', value: vramUsed == null || vramUsed <= 0 ? null : `${vramUsed.toFixed(1)}/${vramTotal ?? '?'}`, unit: 'GB', series: 'vram_used' },
+      { label: '内存', value: ramUsed == null ? null : `${ramUsed.toFixed(1)}/${ramTotal ?? '?'}`, unit: `GB${pct(ramUsed, ramTotal)}`, series: 'ram_used' },
+      { label: '显存', value: vramUsed == null || vramUsed <= 0 ? null : `${vramUsed.toFixed(1)}/${vramTotal ?? '?'}`, unit: `GB${pct(vramUsed, vramTotal)}`, series: 'vram_used', hint: gpuHint },
       { label: '磁盘 读/写', value: diskValue, unit: 'MB/s', series: 'disk_read' },
     ]
   }, [snap, em])
@@ -360,6 +375,12 @@ export default function RuntimePage() {
   const successRate = totals.total_calls
     ? `${((totals.success_calls ?? 0) / totals.total_calls) * 100 > 99.95 ? '100' : (((totals.success_calls ?? 0) / totals.total_calls) * 100).toFixed(1)}%`
     : '—'
+
+  // 调用统计趋势（原模型中心右侧统计检查器并入）：与「详细统计」抽屉同源
+  // （getModelCallStats，30s 轮询走 usePollingGate）；总计/成功率/费用已由
+  // 状态条 totals 行承载（2s 快照口径），此处只补趋势与入/出拆分。
+  const stats = useStatsState(false)
+  const trendPeak = useMemo(() => stats.trendData.reduce((a, b) => Math.max(a, b.calls), 0), [stats.trendData])
 
   // ── 引擎侧遥测（/metrics：Context 环 + 会话缓存 + 引擎请求表）──
   const engineRequests = useMemo(() => (em?.requests ?? []).slice(0, 12), [em])
@@ -437,7 +458,7 @@ export default function RuntimePage() {
 
       <div className="rt-cards">
         {metricCards.map((c) => (
-          <MetricCard key={c.label} label={c.label} value={c.value ?? '—'} unit={c.unit} series={seriesRef.current[c.series] ?? []} />
+          <MetricCard key={c.label} label={c.label} value={c.value ?? '—'} unit={c.unit} series={seriesRef.current[c.series] ?? []} hint={c.hint} />
         ))}
         {metricCards.length === 0 && <div className="rt-loading">正在读取监测数据…</div>}
       </div>
@@ -491,6 +512,16 @@ export default function RuntimePage() {
             </div>
           </div>
         )}
+        {/* ComfyUI：图像工作流引擎，非 engineMgr 引擎表成员（原模型中心资源
+            检查器「ComfyUI 运行中」chip 并入，恒出卡、点灯随 comfy_running） */}
+        <div className={`rt-engine${snap?.comfy_running ? '' : ' rt-engine-disabled'}`}>
+          <div className="rt-engine-head">
+            <span className={`rt-engine-dot${snap?.comfy_running ? ' on' : ''}`} />
+            <span className="rt-engine-name">ComfyUI</span>
+            <span className="rt-engine-state">图像工作流</span>
+          </div>
+          <div className="rt-engine-model">{snap?.comfy_running ? '运行中 · 画室生成队列可用' : '未运行'}</div>
+        </div>
       </div>
 
       {em && (engineRequests.length > 0 || ctxMax != null) && (
@@ -532,6 +563,61 @@ export default function RuntimePage() {
           />
         </div>
       )}
+
+      <div className="rt-stats">
+        <div className="rt-stats-head">
+          <span className="rt-requests-title" style={{ marginBottom: 0 }}>调用统计</span>
+          <Segmented
+            size="small"
+            value={stats.trendRange}
+            onChange={(v) => stats.setTrendRange(v as TrendRange)}
+            options={[
+              { value: 'today', label: '今日' },
+              { value: '7d', label: '7天' },
+              { value: '30d', label: '30天' },
+            ]}
+          />
+          <Tooltip title="刷新统计">
+            <Button size="small" type="text" icon={<ReloadOutlined />} aria-label="刷新统计" onClick={() => void stats.loadCallStats()} />
+          </Tooltip>
+          <span className="rt-stats-strip">
+            Token {fmtInt(totals.total_tokens ?? null)}
+            <span className="rt-stats-sep" />
+            入 {fmtInt(totals.input_tokens ?? null)} / 出 {fmtInt(totals.output_tokens ?? null)}
+          </span>
+          <span style={{ flex: 1 }} />
+          <Button
+            size="small"
+            type="text"
+            className="rt-stats-link"
+            onClick={() => emitFrontendEvent(FRONTEND_EVENTS.NAVIGATE, { page: 'modelcenter', crossSpace: true })}
+          >
+            按模型明细 →
+          </Button>
+        </div>
+        {stats.loadError ? (
+          <div className="rt-error">统计加载失败：{stats.loadError}</div>
+        ) : stats.trendData.length === 0 ? (
+          <div className="rt-stats-empty">暂无趋势数据（对话、语音、办公等模块调用模型后自动累计）</div>
+        ) : (
+          <div className="rt-stats-charts">
+            <div className="rt-stats-chart">
+              <div className="rt-stats-chart-head">
+                <span>请求趋势</span>
+                <span>峰值 {trendPeak.toLocaleString()}</span>
+              </div>
+              <RequestsSpark data={stats.trendData} color="var(--color-primary)" />
+            </div>
+            <div className="rt-stats-chart">
+              <div className="rt-stats-chart-head">
+                <span>Token 分布</span>
+                <span>入 / 出 堆叠</span>
+              </div>
+              <TokenMiniBars data={stats.trendData} />
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="rt-requests">
         <div className="rt-requests-title">最近请求（gaea 侧全引擎记账）</div>

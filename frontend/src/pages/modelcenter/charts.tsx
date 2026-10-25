@@ -174,7 +174,7 @@ export const RequestsSpark: FC<{ data: TrendDatum[]; color: string }> = ({ data,
           </circle>
         </g>
       ))}
-      <circle cx={x(last)} cy={y(data[last].calls)} r={2.6} style={{ fill: color, stroke: 'var(--mc-surface)', strokeWidth: 1.5 }}>
+      <circle cx={x(last)} cy={y(data[last].calls)} r={2.6} style={{ fill: color, stroke: 'var(--color-bg-container)', strokeWidth: 1.5 }}>
         <title>{`${data[last].label} · ${data[last].calls} 次`}</title>
       </circle>
     </svg>

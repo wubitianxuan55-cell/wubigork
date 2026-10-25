@@ -24,7 +24,6 @@ vi.mock('./SchedulingSection', () => ({ SchedulingSection: () => null }))
 vi.mock('./EngineSection', () => ({ EngineSection: () => null }))
 vi.mock('./BindSection', () => ({ BindSection: () => null }))
 vi.mock('./StatsSection', () => ({ StatsSection: () => null }))
-vi.mock('./InspectorPanel', () => ({ InspectorPanel: () => null }))
 
 const mocks = vi.hoisted(() => ({
   engines: [] as unknown[], // 当前用例的引擎列表（beforeEach 实现里注入）

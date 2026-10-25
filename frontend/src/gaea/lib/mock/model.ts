@@ -70,13 +70,13 @@ type LegacyHerdsmanMethods = {
 type HerdsmanOpResultMock = { ok: boolean; status: string; message: string };
 
 // 受控测评五名 + 资源遥测（B 线欠账，v4.56 走查）：BenchmarkSection 经
-// api/engines.ts（getBenchmarkList 等）调用 GaeaBenchmark*；ResourceMonitor /
-// MainLayout / ModuleLauncher 调用 GetModelMonitor。六名与上方 Herdsman 族同为
+// api/engines.ts（getBenchmarkList 等）调用 GaeaBenchmark*；MainLayout /
+// ModuleLauncher 调用 GetModelMonitor。六名与上方 Herdsman 族同为
 // legacy 绑定面（bridge.ts LegacySurfaceNames 显式排除，AppBindings 不消费），
 // 故同样局部重述返回形状、不牵动 AppBindings 双向类型锁。形状对齐
 // api/engines.ts 的 BenchmarkRunSummary/BenchmarkRunDetail/StreamProbeResult 与
-// pages/modelcenter/resource.ts 的 ResourceMonitorData（api/pages 层 import 会成
-// api↔gaea 环）；字段漂移由 mock-contract-benchmark 契约测试兜底。
+// GetModelMonitor 返回形状（engines/stats/comfyRunning 三键；api/pages 层
+// import 会成 api↔gaea 环）；字段漂移由 mock-contract-benchmark 契约测试兜底。
 type LegacyBenchmarkMethods = {
   GaeaBenchmarkList(): Promise<unknown[]>;
   // Go 契约为 (string, error)：失败呈现 rejected promise（消费方 catch 弹错），
@@ -125,7 +125,7 @@ type StreamProbeResultMock = {
   error?: string;
 };
 
-/** 资源遥测（对齐 pages/modelcenter/resource.ts ResourceMonitorData 三键）。 */
+/** 资源遥测（对齐 GetModelMonitor 返回形状三键：engines/stats/comfyRunning）。 */
 type ResourceMonitorDataMock = {
   engines?: unknown[];
   stats?: {
@@ -522,8 +522,8 @@ export function buildModel(s: MakeMockState): ModelMethods {
         error: "浏览器开发环境无本地模型后端，流式探针不可用（mock）",
       };
     },
-    // 资源遥测中性空态：无本地引擎 / 无占用读数 / ComfyUI 未运行——ResourceMonitor
-    // 呈现「无本地引擎」chip + 0% 条，不编造真实 CPU/显存数值。
+    // 资源遥测中性空态：无本地引擎 / 无占用读数 / ComfyUI 未运行——
+    // MainLayout 遥测轨呈现空态，不编造真实 CPU/显存数值。
     async GetModelMonitor(): Promise<ResourceMonitorDataMock> {
       return { engines: [], stats: {}, comfyRunning: false };
     },
@@ -533,6 +533,7 @@ export function buildModel(s: MakeMockState): ModelMethods {
       return {
         time: "",
         system: {},
+        comfy_running: false,
         engines: [],
         strata: null,
         tianxuan: null,

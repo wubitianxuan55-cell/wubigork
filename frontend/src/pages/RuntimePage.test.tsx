@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import RuntimePage from './RuntimePage'
 
-const { getRuntimeMonitorMock } = vi.hoisted(() => ({
+const { getRuntimeMonitorMock, getModelCallStatsMock } = vi.hoisted(() => ({
   getRuntimeMonitorMock: vi.fn(),
+  getModelCallStatsMock: vi.fn(),
 }))
 
 vi.mock('../api/engines', () => ({
   getRuntimeMonitor: getRuntimeMonitorMock,
+  getModelCallStats: getModelCallStatsMock,
 }))
 
 // 轮询门默认开（jsdom visibilityState=visible）；测试不推进假时钟，靠挂载
@@ -19,6 +21,7 @@ vi.mock('../hooks/usePollingGate', () => ({
 const SNAPSHOT = {
   time: '2026-10-19 20:00:00',
   system: { cpu: 23, memTotal: 109, memUsed: 42, gpuName: 'AMD Radeon 8060S', gpuUsage: 62, vramTotal: 96, vramUsed: 12.2 },
+  comfy_running: true,
   engines: [
     {
       id: 'herdsman', name: 'Herdsman 本地', type: 'herdsman', local: true, enabled: true,
@@ -66,13 +69,29 @@ const SNAPSHOT = {
       error_message: 'HTTP 429', finished_at: '2026-10-19 19:58:10',
     },
   ],
-  totals: { total_calls: 1200, success_calls: 1190, fail_calls: 10, total_tokens: 2400000, total_cost: 3.45 },
+  totals: { total_calls: 1200, success_calls: 1190, fail_calls: 10, total_tokens: 2400000, input_tokens: 1900000, output_tokens: 500000, total_cost: 3.45 },
+}
+
+// 调用统计（原模型中心检查器并入）：趋势按小时桶返回，hook 聚合到天。
+const CALL_STATS = {
+  total_calls: 1200, success_calls: 1190, fail_calls: 10,
+  total_tokens: 2400000, input_tokens: 1900000, output_tokens: 500000,
+  total_duration_ms: 1000, avg_duration_ms: 1, total_cost: 3.45,
+  trend: [
+    { time: '2026-10-17 08:00:00', calls: 12, success_calls: 12, fail_calls: 0, input_tokens: 8000, output_tokens: 2000, total_tokens: 10000, cost: 0.1 },
+    { time: '2026-10-18 09:00:00', calls: 30, success_calls: 28, fail_calls: 2, input_tokens: 20000, output_tokens: 5000, total_tokens: 25000, cost: 0.4 },
+    { time: '2026-10-19 20:00:00', calls: 45, success_calls: 45, fail_calls: 0, input_tokens: 30000, output_tokens: 9000, total_tokens: 39000, cost: 0.6 },
+  ],
+  per_model: [],
 }
 
 describe('RuntimePage 运行监测板块', () => {
   beforeEach(() => {
     // mockReset（非 clearAllMocks）：清实现 + Once 队列，防上个用例的持久实现串台
     getRuntimeMonitorMock.mockReset()
+    // 调用统计默认空摘要（无趋势=诚实空态；有趋势用例自行覆写）
+    getModelCallStatsMock.mockReset()
+    getModelCallStatsMock.mockResolvedValue({ ...CALL_STATS, trend: [] })
   })
 
   it('快照到达前显示加载态', () => {
@@ -125,7 +144,7 @@ describe('RuntimePage 运行监测板块', () => {
     expect(screen.getByText('错误')).toBeTruthy()
   })
 
-  it('引擎卡：本地三引擎 + 云端聚合 + 生成中状态徽标', async () => {
+  it('引擎卡：本地三引擎 + 云端聚合 + ComfyUI 卡 + 生成中状态徽标', async () => {
     getRuntimeMonitorMock.mockResolvedValue(SNAPSHOT)
     render(<RuntimePage />)
     await waitFor(() => expect(screen.getByText('Herdsman 本地')).toBeTruthy())
@@ -133,10 +152,49 @@ describe('RuntimePage 运行监测板块', () => {
     expect(screen.getByText('Strata')).toBeTruthy()
     expect(screen.getByText('云端引擎')).toBeTruthy()
     expect(screen.getByText('xAI')).toBeTruthy()
+    // ComfyUI 卡（原模型中心资源检查器 chip 并入）：comfy_running=true 点亮
+    expect(screen.getByText('ComfyUI')).toBeTruthy()
+    expect(screen.getByText('运行中 · 画室生成队列可用')).toBeTruthy()
     // 天璇 live=generating → 状态徽标「生成中」在引擎卡上呈现
     expect(screen.getAllByText('生成中').length).toBeGreaterThanOrEqual(2) // 状态条 + 引擎卡
     // herdsman 模型 chip：过滤条件 kind=llm 或 running（bge-m3 running 保留，edge-tts stopped+tts 过滤）
     expect(screen.getByText('bge-m3')).toBeTruthy()
+  })
+
+  it('ComfyUI 卡：未运行时灰态呈现（快照缺 comfy_running=false）', async () => {
+    getRuntimeMonitorMock.mockResolvedValue({ ...SNAPSHOT, comfy_running: false })
+    render(<RuntimePage />)
+    await waitFor(() => expect(screen.getByText('ComfyUI')).toBeTruthy())
+    expect(screen.getByText('未运行')).toBeTruthy()
+  })
+
+  it('调用统计段（检查器并入）：趋势双图 + 范围切换 + 入/出拆分 + 明细跳转', async () => {
+    getRuntimeMonitorMock.mockResolvedValue(SNAPSHOT)
+    getModelCallStatsMock.mockResolvedValue(CALL_STATS)
+    render(<RuntimePage />)
+    await waitFor(() => expect(screen.getByText('调用统计')).toBeTruthy())
+    // 双迷你图标题行（峰值=三天最大 45）
+    expect(screen.getByText('请求趋势')).toBeTruthy()
+    expect(screen.getByText('Token 分布')).toBeTruthy()
+    expect(screen.getByText('峰值 45')).toBeTruthy()
+    // 入/出拆分（totals 快照口径）
+    expect(screen.getByText(/入 1,900,000 \/ 出 500,000/)).toBeTruthy()
+    // 范围切换三档
+    for (const label of ['今日', '7天', '30天']) {
+      expect(screen.getByRole('radio', { name: label })).toBeTruthy()
+    }
+    // SVG 迷你图渲染（aria-label 由 charts 组件给出）
+    expect(screen.getByRole('img', { name: '请求趋势迷你图' })).toBeTruthy()
+    expect(screen.getByRole('img', { name: 'Token 分布迷你图' })).toBeTruthy()
+    // 跳模型中心入口
+    expect(screen.getByRole('button', { name: /按模型明细/ })).toBeTruthy()
+  })
+
+  it('调用统计段：无趋势数据诚实空态', async () => {
+    getRuntimeMonitorMock.mockResolvedValue(SNAPSHOT)
+    render(<RuntimePage />)
+    await waitFor(() => expect(screen.getByText('调用统计')).toBeTruthy())
+    expect(screen.getByText(/暂无趋势数据/)).toBeTruthy()
   })
 
   it('最近请求表：成功/失败行与缓存命中', async () => {

@@ -3,9 +3,10 @@ import { Button, Drawer, message } from 'antd'
 import {
   ThunderboltOutlined, PictureOutlined, SoundOutlined, SettingOutlined, LinkOutlined,
   CheckCircleOutlined, LoginOutlined, LogoutOutlined, DatabaseOutlined, DashboardOutlined, ReloadOutlined, BarChartOutlined, StarOutlined,
-  AppstoreOutlined, ExperimentOutlined, SearchOutlined, ControlOutlined, PieChartOutlined,
+  AppstoreOutlined, ExperimentOutlined, SearchOutlined, ControlOutlined, PieChartOutlined, MonitorOutlined,
 } from '@ant-design/icons'
 import { useAppStore } from '../stores/appStore'
+import { emitFrontendEvent, FRONTEND_EVENTS } from '../events'
 import { ModelCenterContext, ModelCenterStateContext, ModelCenterActionsContext, type ModelCenterContextValue, type ModelCenterStateValue, type ModelCenterActionsValue } from './modelcenter/context'
 import { LLMSection } from './modelcenter/LLMSection'
 import { BindSection } from './modelcenter/BindSection'
@@ -22,7 +23,6 @@ import { RecommendSection } from './modelcenter/RecommendSection'
 import { RetrievalEvalSection } from './modelcenter/RetrievalEvalSection'
 import { SchedulingSection } from './modelcenter/SchedulingSection'
 import { AttributionSection } from './modelcenter/AttributionSection'
-import { InspectorPanel } from './modelcenter/InspectorPanel'
 import { useEngineState } from './modelcenter/hooks/useEngineState'
 import { useStatsState } from './modelcenter/hooks/useStatsState'
 import { useImageState } from './modelcenter/hooks/useImageState'
@@ -42,10 +42,11 @@ function runtimeOn(event: string, handler: (data: unknown) => void): (() => void
   }
 }
 
-// gaea 3.0「引擎控制台」：3 分区工作台（§2.7）——
+// gaea 3.0「引擎控制台」：2 分区工作台（§2.7，2026-10 检查器合并刀）——
 // 左 = 分类导航栏（v3-panel，激活项 = 主色容器 + 光条 + 光晕 orb）；
-// 中 = 主区（KPI 卡行 + 引擎卡网格，各 Section 渲染）；
-// 右 = 统计/资源检查器（v3-panel，可折叠，InspectorPanel）。
+// 中 = 主区（KPI 卡行 + 引擎卡网格，各 Section 渲染）。
+// 右侧「统计与资源」检查器已并入运行监测板块（资源指标卡/引擎卡/ComfyUI
+// 标记/调用趋势同源呈现），本页头部保留「详细统计」抽屉与「运行监测」跳转。
 // 头部收敛为细条：板块名已在左侧指挥轨道/面包屑，仅保留账号连接状态与必要操作。
 const ModelCenterPage: React.FC = () => {
   // v4.365：粗订阅改选择器
@@ -292,6 +293,13 @@ const ModelCenterPage: React.FC = () => {
             </Button>
           )}
           <Button size="small" icon={<BarChartOutlined />} onClick={() => setStatsOpen(true)}>详细统计</Button>
+          <Button
+            size="small"
+            icon={<MonitorOutlined />}
+            onClick={() => emitFrontendEvent(FRONTEND_EVENTS.NAVIGATE, { page: 'runtime', crossSpace: true })}
+          >
+            运行监测
+          </Button>
           <Button size="small" icon={<ReloadOutlined />} onClick={engine.loadAll}>刷新状态</Button>
         </div>
       </header>
@@ -366,9 +374,6 @@ const ModelCenterPage: React.FC = () => {
               <StatsSection />
             </Drawer>
           </main>
-
-          {/* 右：统计/资源检查器（v3-panel，可折叠） */}
-          <InspectorPanel />
         </div>
       </ModelCenterContext.Provider>
       </ModelCenterActionsContext.Provider>

@@ -105,6 +105,20 @@ func TestRuntimeMonitor_Aggregation(t *testing.T) {
 	if totals["total_calls"] != int64(1) {
 		t.Errorf("totals.total_calls = %v, want 1", totals["total_calls"])
 	}
+	// comfy_running 恒有键（无 mediaState 时 false——零值安全口径）
+	if _, ok := snap["comfy_running"]; !ok {
+		t.Error("comfy_running 键应恒存在")
+	}
+}
+
+// TestRuntimeMonitor_ComfyRunningKey 零值 App 也带 comfy_running=false（前端
+// 引擎卡渲染依赖该键存在，缺键=ComfyUI 卡不出现）。
+func TestRuntimeMonitor_ComfyRunningKey(t *testing.T) {
+	a := &App{}
+	snap := a.RuntimeMonitor()
+	if v, ok := snap["comfy_running"].(bool); !ok || v {
+		t.Errorf("零值 App comfy_running = %v, want false", snap["comfy_running"])
+	}
 }
 
 // TestRuntimeMonitor_ZeroAppSafe 零值 App（无 core）不 panic，字段空壳。

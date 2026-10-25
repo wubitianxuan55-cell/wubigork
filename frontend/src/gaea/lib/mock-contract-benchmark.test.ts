@@ -1,12 +1,12 @@
 // B 线欠账「dev mock 补受控测评五名 + 资源遥测」契约层 mock 冒烟测试：
 // 模型中心「Herdsman 受控测评」段（BenchmarkSection → api/engines
 // getBenchmarkList/startBenchmark/exportBenchmark/streamProbe → Go GaeaBenchmark*
-// 同名 legacy 绑定面）与「本地资源占用」块（ResourceMonitor/MainLayout/
-// ModuleLauncher → GetModelMonitor）。v4.56 走查发现 ?mock=1 下 mock 缺这批绑定：
+// 同名 legacy 绑定面）与资源遥测（MainLayout/ModuleLauncher → GetModelMonitor）。
+// v4.56 走查发现 ?mock=1 下 mock 缺这批绑定：
 // 测评段 load() 报「无法连接 Herdsman 测评接口」、资源块报「资源加载失败」。
 // 锁定 mock 契约：每名存在性 + 返回形状关键键，键名与消费方解构字段一一对应
 // （BenchmarkSection 读 status/summary/cases、probeBadge 读 ok/error、
-// ResourceMonitor 读 engines/stats/comfyRunning 三键）。
+// GetModelMonitor 读 engines/stats/comfyRunning 三键）。
 //
 // 契约原则与 mock-contract-herdsman 同源：
 //   · 查询类（List/Detail）中性空态（空列表/零计数），绝不 throw——load() 的

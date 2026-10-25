@@ -40,9 +40,10 @@ export function useStatsState(statsOpen: boolean): StatsState {
     }
   }, [])
 
-  // 3.0「引擎控制台」：右侧统计检查器常显，进入页面即加载；
+  // 3.0「引擎控制台」：右侧统计检查器常显，进入页面即加载（2026-10 检查器
+  // 并入运行监测后，本页消费方=总览 KPI/异常清单 + 详细统计抽屉）；
   // 页面 keep-alive 常驻，统计需自行定期刷新——基础 30s 轮询，
-  // 统计抽屉打开期间加快到 15s（原实现仅在抽屉打开时轮询，面板数据会过期）。
+  // 统计抽屉打开期间加快到 15s。
   useEffect(() => {
     const tick = () => { if (gate) void loadCallStats() }
     tick()

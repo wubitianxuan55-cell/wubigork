@@ -46,8 +46,12 @@ func (a *App) RuntimeMonitor() map[string]interface{} {
 	// 可能拿不到——如实透出）。
 	if a != nil && a.mediaState != nil {
 		out["system"] = a.mediaState.GetSystemStats()
+		// ComfyUI 运行标记：原模型中心资源检查器的「ComfyUI 运行中」chip
+		// 随统计/资源面板并入运行监测（2026-10 检查器合并刀）。
+		out["comfy_running"] = a.mediaState.isComfyUIRunning()
 	} else {
 		out["system"] = map[string]interface{}{}
+		out["comfy_running"] = false
 	}
 
 	// 引擎表：内存态直读（GetEngines 已清 Key、补空清单）。App 指针嵌入
