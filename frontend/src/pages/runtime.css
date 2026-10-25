@@ -397,6 +397,20 @@
 .rt-stats-link { color: var(--color-text-secondary); font-size: 12px; }
 .rt-stats-link:hover { color: var(--color-text); }
 
+.rt-stats-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rt-stats-error span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .rt-stats-empty {
   padding: 16px;
   text-align: center;

@@ -6,7 +6,7 @@ import {
   AppstoreOutlined, ExperimentOutlined, SearchOutlined, ControlOutlined, PieChartOutlined, MonitorOutlined,
 } from '@ant-design/icons'
 import { useAppStore } from '../stores/appStore'
-import { emitFrontendEvent, FRONTEND_EVENTS } from '../events'
+import { emitFrontendEvent, FRONTEND_EVENTS, OPEN_STATS_FLAG } from '../events'
 import { ModelCenterContext, ModelCenterStateContext, ModelCenterActionsContext, type ModelCenterContextValue, type ModelCenterStateValue, type ModelCenterActionsValue } from './modelcenter/context'
 import { LLMSection } from './modelcenter/LLMSection'
 import { BindSection } from './modelcenter/BindSection'
@@ -59,6 +59,21 @@ const ModelCenterPage: React.FC = () => {
   const [category, setCategory] = useState<Category>('overview')
   const [statsOpen, setStatsOpen] = useState(false)
   const [loggingIn, setLoggingIn] = useState(false)
+
+  // 「按模型明细」跨板跳转联动（运行监测）：已挂载（keepAlive 常驻）听事件
+  // 即开抽屉；首次未挂载场景 navigate 才懒加载本页，事件已错过 → 挂载效应
+  // 消费 sessionStorage 标记补开，读后即清（一次性）。
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(OPEN_STATS_FLAG) === '1') {
+        sessionStorage.removeItem(OPEN_STATS_FLAG)
+        setStatsOpen(true)
+      }
+    } catch { /* sessionStorage 不可用（隐私模式等）静默跳过 */ }
+    const open = () => setStatsOpen(true)
+    window.addEventListener(FRONTEND_EVENTS.OPEN_STATS_DRAWER, open)
+    return () => window.removeEventListener(FRONTEND_EVENTS.OPEN_STATS_DRAWER, open)
+  }, [])
 
   const engine = useEngineState(category)
   const stats = useStatsState(statsOpen)

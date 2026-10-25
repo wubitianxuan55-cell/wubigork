@@ -61,7 +61,7 @@ export const BACKEND_EVENTS = {
   GAEA_READY: 'gaea-ready',
 } as const
 
-// ─── 前端自定义事件（§4.2，4 个，dispatchEvent 非 runtime）───────────────
+// ─── 前端自定义事件（§4.2，dispatchEvent 非 runtime）───────────────
 export const FRONTEND_EVENTS = {
   /** 跨页面导航（chat/utils.ts / CharacterPage / ModelPanel → MainLayout 白名单校验） */
   NAVIGATE: 'navigate',
@@ -71,7 +71,13 @@ export const FRONTEND_EVENTS = {
   GAEA_PROJECT_CHARS_CHANGED: 'gaea-project-chars-changed',
   /** AI 辅助发送（ChapterEditor 内部） */
   AI_ASSIST_SEND: 'ai-assist-send',
+  /** 打开模型中心「详细统计」抽屉（运行监测「按模型明细」跨板跳转联动，
+      已挂载场景；未挂载首次跳转走 OPEN_STATS_FLAG 补开） */
+  OPEN_STATS_DRAWER: 'gaea-open-stats-drawer',
 } as const
+
+/** 「按模型明细」跳转的抽屉补开标记（sessionStorage；模型中心挂载效应消费即清） */
+export const OPEN_STATS_FLAG = 'gaea.stats-drawer-open'
 
 export type FrontendEventName = (typeof FRONTEND_EVENTS)[keyof typeof FRONTEND_EVENTS]
 

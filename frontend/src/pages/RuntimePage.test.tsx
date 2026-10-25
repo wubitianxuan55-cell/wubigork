@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import RuntimePage from './RuntimePage'
+import { FRONTEND_EVENTS, OPEN_STATS_FLAG } from '../events'
 
 const { getRuntimeMonitorMock, getModelCallStatsMock } = vi.hoisted(() => ({
   getRuntimeMonitorMock: vi.fn(),
@@ -92,6 +93,7 @@ describe('RuntimePage 运行监测板块', () => {
     // 调用统计默认空摘要（无趋势=诚实空态；有趋势用例自行覆写）
     getModelCallStatsMock.mockReset()
     getModelCallStatsMock.mockResolvedValue({ ...CALL_STATS, trend: [] })
+    sessionStorage.removeItem(OPEN_STATS_FLAG)
   })
 
   it('快照到达前显示加载态', () => {
@@ -198,6 +200,40 @@ describe('RuntimePage 运行监测板块', () => {
     render(<RuntimePage />)
     await waitFor(() => expect(screen.getByText('调用统计')).toBeTruthy())
     expect(screen.getByText(/暂无趋势数据/)).toBeTruthy()
+  })
+
+  it('调用统计段：首拍加载中与无数据区分（callStats 未到=正在读取）', async () => {
+    getRuntimeMonitorMock.mockResolvedValue(SNAPSHOT)
+    getModelCallStatsMock.mockImplementation(() => new Promise(() => {}))
+    render(<RuntimePage />)
+    await waitFor(() => expect(screen.getByText('正在读取统计…')).toBeTruthy())
+    expect(screen.queryByText(/暂无趋势数据/)).toBeNull()
+  })
+
+  it('调用统计段：加载失败出重试钮，重试成功后图表恢复', async () => {
+    getRuntimeMonitorMock.mockResolvedValue(SNAPSHOT)
+    getModelCallStatsMock.mockRejectedValueOnce(new Error('boom')).mockResolvedValue(CALL_STATS)
+    render(<RuntimePage />)
+    await waitFor(() => expect(screen.getByText(/统计加载失败：boom/)).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: /重\s*试/ })) // antd 两字按钮插空格（既定坑）
+    await waitFor(() => expect(screen.getByText('峰值 45')).toBeTruthy())
+  })
+
+  it('按模型明细跳转：置补开标记 + 发跨板导航与开抽屉双事件', async () => {
+    getRuntimeMonitorMock.mockResolvedValue(SNAPSHOT)
+    getModelCallStatsMock.mockResolvedValue(CALL_STATS)
+    const seen: Array<[string, unknown]> = []
+    const nav = (e: Event) => seen.push(['navigate', (e as CustomEvent).detail])
+    const open = () => seen.push(['open-drawer', null])
+    window.addEventListener(FRONTEND_EVENTS.NAVIGATE, nav)
+    window.addEventListener(FRONTEND_EVENTS.OPEN_STATS_DRAWER, open)
+    render(<RuntimePage />)
+    fireEvent.click(screen.getByRole('button', { name: /按模型明细/ }))
+    expect(sessionStorage.getItem(OPEN_STATS_FLAG)).toBe('1')
+    expect(seen).toContainEqual(['navigate', { page: 'modelcenter', crossSpace: true }])
+    expect(seen).toContainEqual(['open-drawer', null])
+    window.removeEventListener(FRONTEND_EVENTS.NAVIGATE, nav)
+    window.removeEventListener(FRONTEND_EVENTS.OPEN_STATS_DRAWER, open)
   })
 
   it('调用统计段：今日/7天/30天切换真实换数（峰值随档位变化）', async () => {

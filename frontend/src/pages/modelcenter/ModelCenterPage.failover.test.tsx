@@ -6,9 +6,10 @@
  * to_engine 缺失 → 通用文案。页面子分区与状态 Hook 全部打桩，聚焦 onFailover
  * 回调本体；runtime 事件按 CreatePage.test.tsx 既有 listener-map 惯例打桩。
  */
-import { act, render } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import { message } from 'antd'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { FRONTEND_EVENTS, OPEN_STATS_FLAG } from '../../events'
 
 // 子分区/检查器打桩：它们只经 Context 消费状态，与 toast 文案无关，
 // 打掉后页面仅剩 4 个状态 Hook + 事件回调，无需 mock 后端绑定面。
@@ -78,6 +79,21 @@ describe('ModelCenterPage · model-failover 提示文案（引擎 label 化）',
     render(<ModelCenterPage />)
     emit('model-failover', { from_engine: 'glm', to_engine: 'deepseek', model: 'glm-4.7' })
     expect(spy).toHaveBeenCalledWith('调用失败，已切换到 深度求索 重试')
+  })
+
+  it('「按模型明细」跳转标记：挂载效应补开「详细统计」抽屉并清标记', () => {
+    sessionStorage.setItem(OPEN_STATS_FLAG, '1')
+    render(<ModelCenterPage />)
+    expect(screen.getByText('模型调用统计')).toBeTruthy() // Drawer 标题（open=true）
+    expect(sessionStorage.getItem(OPEN_STATS_FLAG)).toBeNull() // 一次性消费
+  })
+
+  it('OPEN_STATS_DRAWER 事件：已挂载（keepAlive）场景即开抽屉', () => {
+    sessionStorage.removeItem(OPEN_STATS_FLAG)
+    render(<ModelCenterPage />)
+    expect(screen.queryByText('模型调用统计')).toBeNull()
+    act(() => { window.dispatchEvent(new CustomEvent(FRONTEND_EVENTS.OPEN_STATS_DRAWER)) })
+    expect(screen.getByText('模型调用统计')).toBeTruthy()
   })
 
   it('后端未下发 label 时经内置映射显示（glm → GLM 云端）', () => {

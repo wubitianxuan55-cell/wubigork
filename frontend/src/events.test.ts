@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from 'vitest'
-import { BACKEND_EVENTS, FRONTEND_EVENTS, bookImportProgressChannel, chatStreamChannel, sinStreamChannel, subscribe, subscribeForSpace, emitFrontendEvent } from './events'
+import { BACKEND_EVENTS, FRONTEND_EVENTS, OPEN_STATS_FLAG, bookImportProgressChannel, chatStreamChannel, sinStreamChannel, subscribe, subscribeForSpace, emitFrontendEvent } from './events'
 
 // 3.0 01 报告 §4：22 后端事件（+v4.3c 轻语主动关心定时推送 + v4.244 原罪故事流
 // + v4.283 书源在线导入进度 + v4.294 原罪书源下载进度）+ 4 前端事件常量表 + subscribe 统一封装
@@ -48,9 +48,9 @@ describe('BACKEND_EVENTS（§4.1，26 个）', () => {
   })
 })
 
-describe('FRONTEND_EVENTS（§4.2，4 个）', () => {
-  it('共 4 个前端自定义事件常量', () => {
-    expect(Object.keys(FRONTEND_EVENTS)).toHaveLength(4)
+describe('FRONTEND_EVENTS（§4.2，5 个）', () => {
+  it('共 5 个前端自定义事件常量', () => {
+    expect(Object.keys(FRONTEND_EVENTS)).toHaveLength(5)
   })
 
   it('常量名与事件名一致', () => {
@@ -58,6 +58,8 @@ describe('FRONTEND_EVENTS（§4.2，4 个）', () => {
     expect(FRONTEND_EVENTS.GAEA_PERSONA_CHANGED).toBe('gaea-persona-changed')
     expect(FRONTEND_EVENTS.GAEA_PROJECT_CHARS_CHANGED).toBe('gaea-project-chars-changed')
     expect(FRONTEND_EVENTS.AI_ASSIST_SEND).toBe('ai-assist-send')
+    expect(FRONTEND_EVENTS.OPEN_STATS_DRAWER).toBe('gaea-open-stats-drawer')
+    expect(OPEN_STATS_FLAG).toBe('gaea.stats-drawer-open')
   })
 
   it('emitFrontendEvent 分发 CustomEvent 并可被监听', () => {

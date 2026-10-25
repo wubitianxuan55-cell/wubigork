@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Segmented, Table, Tooltip } from 'antd'
 import { MonitorOutlined, ReloadOutlined } from '@ant-design/icons'
 import { getRuntimeMonitor } from '../api/engines'
-import { emitFrontendEvent, FRONTEND_EVENTS } from '../events'
+import { emitFrontendEvent, FRONTEND_EVENTS, OPEN_STATS_FLAG } from '../events'
 import { usePollingGate } from '../hooks/usePollingGate'
 import { useStatsState } from './modelcenter/hooks/useStatsState'
 import { RequestsSpark, TokenMiniBars, type TrendRange } from './modelcenter/charts'
@@ -615,13 +615,25 @@ export default function RuntimePage() {
               size="small"
               type="text"
               className="rt-stats-link"
-              onClick={() => emitFrontendEvent(FRONTEND_EVENTS.NAVIGATE, { page: 'modelcenter', crossSpace: true })}
+              onClick={() => {
+                // 跨板跳转 + 自动开「详细统计」抽屉双通道：事件覆盖已挂载
+                // （keepAlive 常驻）场景；sessionStorage 标记覆盖首次未挂载、
+                // navigate 懒加载完成后在挂载效应里补开。
+                sessionStorage.setItem(OPEN_STATS_FLAG, '1')
+                emitFrontendEvent(FRONTEND_EVENTS.NAVIGATE, { page: 'modelcenter', crossSpace: true })
+                emitFrontendEvent(FRONTEND_EVENTS.OPEN_STATS_DRAWER)
+              }}
             >
               按模型明细 →
             </Button>
           </div>
           {stats.loadError ? (
-            <div className="rt-error">统计加载失败：{stats.loadError}</div>
+            <div className="rt-error rt-stats-error">
+              <span>统计加载失败：{stats.loadError}</span>
+              <Button size="small" type="primary" ghost onClick={() => void stats.loadCallStats()}>重试</Button>
+            </div>
+          ) : !stats.callStats ? (
+            <div className="rt-stats-empty">正在读取统计…</div>
           ) : stats.trendData.length === 0 ? (
             <div className="rt-stats-empty">暂无趋势数据（对话、语音、办公等模块调用模型后自动累计）</div>
           ) : (
