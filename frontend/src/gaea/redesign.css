@@ -41,9 +41,10 @@
   position: relative;
 }
 
-/* ── 侧栏：玻璃轨道 + 顶部 1px 高光线 ── */
+/* ── 侧栏：玻璃轨道 + 顶部 1px 高光线 ──（§7.6：shellSidebar 派生优先——
+   侧栏比画布暗一档后退，画布是主角） */
 aside[aria-label="gaea navigation"] {
-  background: var(--v3-rail-bg, var(--gaea-glass-bg, var(--md-sys-color-surface))) !important;
+  background: var(--v3-rail-bg, var(--md-sys-color-shell-sidebar, var(--gaea-glass-bg, var(--md-sys-color-surface)))) !important;
   -webkit-backdrop-filter: blur(24px) saturate(150%);
   backdrop-filter: blur(24px) saturate(150%);
   border-right: var(--v3-split) !important;

@@ -736,7 +736,7 @@ export function Sidebar({
         className={`flex flex-col min-w-0 pt-[50px] pb-2 border-r border-border-soft select-none overflow-hidden drag-region ${
           collapsed ? "items-center px-2" : "px-2.5"
         }`}
-        style={{ background: "var(--v3-rail-bg, var(--gaea-glass-bg, var(--md-sys-color-surface)))" }}
+        style={{ background: "var(--v3-rail-bg, var(--md-sys-color-shell-sidebar, var(--gaea-glass-bg, var(--md-sys-color-surface))))" }}
         aria-label="gaea navigation"
       >
         {/* 品牌行：logo + 名称 + 折叠 */}

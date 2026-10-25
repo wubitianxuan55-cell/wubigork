@@ -259,3 +259,16 @@ CAD 与进度是**动词**——出现在输入框工具菜单、AI 工具卡、
 | 留池 | 工具面板与右栏检查器合并（§7.4 尾，需 CadPanel 拆 CadTool/CadInspector 状态上移，建议真机走查后按体感定）；§7.6 令牌映射暖纸面 |
 
 **验证**：`tsc -b` 绿；ESLint 0；全量 vitest 3997/3997（cad 20 例含缓存 6 新例；既有「卸载重挂一键重开」用例断言随新语义同批迁移=重开后 CadOpen 不再二次调用；Welcome 6 例含工具节 2 新例）。
+
+---
+
+## 12. 第五刀：shellSidebar 派生——侧栏后退（§7.6，2026-10-25）
+
+| 项 | 落点 |
+|---|---|
+| 令牌派生 | `appStore.ts`：ThemeTokens 新增 `shellSidebar`；`getThemeTokens` 中央派生 hex（mixHex 线性混合）——暗态 colorBgLayout 掺黑 22%（后退一档，文本对比只增），亮态掺 5% 暖灰 `#8a857c`（压灰微暖=暖纸方向）。**不改 7×2 主题表** |
+| 下发与消费 | App.tsx 下发 `--md-sys-color-shell-sidebar`；Sidebar aside 与 redesign.css rail 的背景链在 `--v3-rail-bg`（保留覆盖位）之后、glassBg 之前插入；styles.css `--sidebar-bg` 同步改链。此前侧栏=画布同调（glassBg→surface），无后退 |
+| 亮色暖纸 | 本刀只落在派生层（侧栏暖灰）；全量亮色暖纸改版=原型令牌映射文档（§7.6），动主题表面需单独拍板 |
+| 对比度契约 | appStore.contrast.test 新增 14 例：全预设×明暗 shellSidebar 为 hex、侧栏正文四令牌（text/secondary/tertiary/primary）≥4.5:1（会话列表文本直接压壳侧栏）；暗态加亮度严格低于画布的后退不变式 |
+
+**验证**：`tsc -b` 绿；ESLint 0；定向 contrast 35/35（含 14 新例）+Sidebar/appStore/perf-guards 32/32；全量 vitest 4010/4011（1 例 `FilePreviewModal` Esc 关闭为已知并发负载 flaky，隔离复跑 15/15 绿——与 §9 首批同签名，非本刀面）。

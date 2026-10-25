@@ -63,6 +63,10 @@ export interface ThemeTokens {
   // ── M3 tertiary 角色（v4.183：闲庭暖伴侣色母题，与 primary 冷暖区分）──
   tertiaryContainer: string
   onTertiaryContainer: string
+  // ── 壳层侧栏底（2026-10 §7.6 shellSidebar 派生）：暗态比画布暗一档、亮态
+  //    暖灰压灰——「侧栏后退，画布是主角」（Claude 改版教训的反向应用）。
+  //    派生层实现，不改 7×2 主题表。──
+  shellSidebar: string
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -148,10 +152,25 @@ const TERTIARY: Record<ThemePreset, { dark: [string, string]; light: [string, st
   tianXuan:    { dark: ['#1f2a4d', '#c2d3f8'], light: ['#e6ecfb', '#2b3f73'] },
 }
 
+/** hex 线性混合（a 与 b 按 weightB 权重，输出 #rrggbb）。仅供派生层用——
+ *  主题表自身零字面量混合，保证对比度机检可直接解析。 */
+function mixHex(a: string, b: string, weightB: number): string {
+  const pa = [1, 3, 5].map((i) => parseInt(a.slice(i, i + 2), 16))
+  const pb = [1, 3, 5].map((i) => parseInt(b.slice(i, i + 2), 16))
+  const out = pa.map((va, i) => Math.round(va * (1 - weightB) + pb[i] * weightB))
+  return "#" + out.map((v) => v.toString(16).padStart(2, "0")).join("")
+}
+
 export function getThemeTokens(base: ThemePreset, darkMode: boolean): ThemeTokens {
   const fn = darkMode ? darkFn[base] : lightFn[base]
   const [tertiaryContainer, onTertiaryContainer] = TERTIARY[base][darkMode ? 'dark' : 'light']
-  return { ...fn(), tertiaryContainer, onTertiaryContainer } as ThemeTokens
+  const t = fn()
+  // shellSidebar 派生（§7.6）：暗态 layout 掺黑 22%（后退一档，文本对比只增）；
+  // 亮态 layout 掺 5% 暖灰 #8a857c（压灰微暖=暖纸方向，正文 AA 由
+  // appStore.contrast.test 机检锁定，5% 幅度经全预设实测 ≥5.3:1）。
+  const layout = t.colorBgLayout!
+  const shellSidebar = darkMode ? mixHex(layout, "#000000", 0.22) : mixHex(layout, "#8a857c", 0.05)
+  return { ...t, tertiaryContainer, onTertiaryContainer, shellSidebar } as ThemeTokens
 }
 
 const THEME_KEY = 'gaea-theme'

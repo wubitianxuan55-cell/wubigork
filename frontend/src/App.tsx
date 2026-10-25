@@ -95,6 +95,9 @@ const App: React.FC = () => {
     // Background (Ant Design 兼容)
     set('--md-sys-color-bg-container', effTokens.colorBgContainer)
     set('--md-sys-color-bg-layout', effTokens.colorBgLayout)
+    // 壳层侧栏底（§7.6 shellSidebar 派生）：侧栏比画布暗一档后退（暗态）/暖灰
+    // 压灰（亮态）；Sidebar aside 与 redesign.css rail 消费。
+    set('--md-sys-color-shell-sidebar', effTokens.shellSidebar)
 
     // Text
     set('--md-sys-color-text', effTokens.colorText)

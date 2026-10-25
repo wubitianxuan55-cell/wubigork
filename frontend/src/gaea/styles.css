@@ -18,7 +18,7 @@
   --bg-soft: var(--md-sys-color-surface-container, #1B2336);
   --bg-elev: var(--md-sys-color-surface-container-high, #1E293B);
   --bg-elev-2: var(--md-sys-color-surface-container-highest, #272F42);
-  --sidebar-bg: var(--md-sys-color-surface, #0A111F);
+  --sidebar-bg: var(--md-sys-color-shell-sidebar, var(--md-sys-color-surface, #0A111F));
   --sidebar-hover: var(--md-sys-color-surface-container, #18202F);
   --sidebar-active: var(--accent-soft, rgba(99, 102, 241, 0.14));
   --border: var(--md-sys-color-outline, #475569);

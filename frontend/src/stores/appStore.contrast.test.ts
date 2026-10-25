@@ -67,6 +67,34 @@ describe('令牌对比度契约（12 主题 × 正文语义令牌 × 承载背�
   }
 })
 
+// ── shellSidebar 派生契约（2026-10 §7.6）────────────────────────────────
+// 侧栏后退不变式：暗态壳侧栏必须比画布（colorBgLayout）暗（亮度严格更低）；
+// 亮态压灰不得把侧栏正文拉破 AA（会话列表文本直接压在壳侧栏上）。
+describe('shellSidebar 派生（§7.6 侧栏后退）', () => {
+  for (const preset of PRESETS) {
+    for (const dark of [true, false]) {
+      it(`${preset}${dark ? 'D' : 'L'}：hex 派生 + 侧栏正文令牌 ≥ 4.5:1${dark ? ' + 亮度低于画布（后退不变式）' : ''}`, () => {
+        const t = getThemeTokens(preset, dark)
+        expect(t.shellSidebar, `${preset} shellSidebar 必须是 hex（机检可解析）`).toMatch(/^#[0-9a-fA-F]{6}$/)
+        // 会话列表/分组头/计数等正文令牌直接压在壳侧栏上
+        for (const tok of ['colorText', 'colorTextSecondary', 'colorTextTertiary', 'colorPrimary'] as const) {
+          const r = contrast(t[tok], t.shellSidebar)
+          expect(
+            r,
+            `${preset}${dark ? 'D' : 'L'} ${tok}=${t[tok]} on shellSidebar=${t.shellSidebar} 实测 ${r.toFixed(2)}:1`,
+          ).toBeGreaterThanOrEqual(4.5)
+        }
+        if (dark) {
+          expect(
+            luminance(t.shellSidebar),
+            `${preset}D shellSidebar=${t.shellSidebar} 必须比画布 ${t.colorBgLayout} 更暗（后退）`,
+          ).toBeLessThan(luminance(t.colorBgLayout))
+        }
+      })
+    }
+  }
+})
+
 describe('亮态 accent/语义色不回流 Tailwind-600 亮阶（v4.349 回归锁）', () => {
   it('Jade / Rose / Amber 主色为 Tailwind-700 深阶（原 #0d9488 / #e11d48 / #d97706 均为 600 阶，实测 <4.5）', () => {
     expect(getThemeTokens('nightJade', false).colorPrimary).toBe('#0f766e') // hex-exempt 测试锁值（令牌契约）
