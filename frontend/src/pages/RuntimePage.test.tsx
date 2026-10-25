@@ -177,8 +177,11 @@ describe('RuntimePage 运行监测板块', () => {
     expect(screen.getByText('请求趋势')).toBeTruthy()
     expect(screen.getByText('Token 分布')).toBeTruthy()
     expect(screen.getByText('峰值 45')).toBeTruthy()
-    // 入/出拆分（totals 快照口径）
-    expect(screen.getByText(/入 1,900,000 \/ 出 500,000/)).toBeTruthy()
+    // 档位内汇总读数（默认 7天=三桶合计：调用 87、Token 74K、入 58K/出 16K、¥1.10——
+    // 累计口径只在头部 totals 行，本面板数字随档位走）
+    expect(screen.getByText('调用 87')).toBeTruthy()
+    expect(screen.getByText(/Token 74\.0K · 入 58\.0K \/ 出 16\.0K/)).toBeTruthy()
+    expect(screen.getByText('¥1.10')).toBeTruthy()
     // 范围切换三档
     for (const label of ['今日', '7天', '30天']) {
       expect(screen.getByRole('radio', { name: label })).toBeTruthy()
@@ -216,18 +219,23 @@ describe('RuntimePage 运行监测板块', () => {
       ],
     })
     render(<RuntimePage />)
-    // 默认 7天：三天日聚合，峰值 45
+    // 默认 7天：三天日聚合，峰值 45、调用 87
     await waitFor(() => expect(screen.getByText('峰值 45')).toBeTruthy())
-    // 切「今日」：只剩今天的小时桶，峰值 12
+    expect(screen.getByText('调用 87')).toBeTruthy()
+    // 切「今日」：只剩今天的小时桶，峰值 12、调用 12、费用 0.10
     fireEvent.click(screen.getByRole('radio', { name: '今日' }))
     await waitFor(() => expect(screen.getByText('峰值 12')).toBeTruthy())
     expect(screen.queryByText('峰值 45')).toBeNull()
-    // 切「30天」：全量三天回来，峰值 45
+    expect(screen.getByText('调用 12')).toBeTruthy()
+    expect(screen.getByText('¥0.10')).toBeTruthy()
+    // 切「30天」：全量三天回来，峰值 45、调用 87
     fireEvent.click(screen.getByRole('radio', { name: '30天' }))
     await waitFor(() => expect(screen.getByText('峰值 45')).toBeTruthy())
+    expect(screen.getByText('调用 87')).toBeTruthy()
     // 切回「7天」：与 30天 同为日聚合（数据窗口内一致），仍是 45
     fireEvent.click(screen.getByRole('radio', { name: '7天' }))
     await waitFor(() => expect(screen.getByText('峰值 45')).toBeTruthy())
+    expect(screen.getByText('调用 87')).toBeTruthy()
   })
 
   it('最近请求表：成功/失败行与缓存命中', async () => {

@@ -377,10 +377,24 @@ export default function RuntimePage() {
     : '—'
 
   // 调用统计趋势（原模型中心右侧统计检查器并入）：与「详细统计」抽屉同源
-  // （getModelCallStats，30s 轮询走 usePollingGate）；总计/成功率/费用已由
-  // 状态条 totals 行承载（2s 快照口径），此处只补趋势与入/出拆分。
+  // （getModelCallStats，30s 轮询走 usePollingGate）。头部 totals 行=累计口径
+  // （2s 快照）；本面板数字条与双图均为**档位内汇总**——今日/7天/30天切换时
+  // 调用数、Token 入/出、费用随 trendData 重算，不再混累计值。
   const stats = useStatsState(false)
   const trendPeak = useMemo(() => stats.trendData.reduce((a, b) => Math.max(a, b.calls), 0), [stats.trendData])
+  const trendSums = useMemo(
+    () =>
+      stats.trendData.reduce(
+        (a, b) => ({
+          calls: a.calls + b.calls,
+          in: a.in + b.inputTokens,
+          out: a.out + b.outputTokens,
+          cost: a.cost + b.cost,
+        }),
+        { calls: 0, in: 0, out: 0, cost: 0 },
+      ),
+    [stats.trendData],
+  )
 
   // ── 引擎侧遥测（/metrics：Context 环 + 会话缓存 + 引擎请求表）──
   const engineRequests = useMemo(() => (em?.requests ?? []).slice(0, 12), [em])
@@ -606,32 +620,37 @@ export default function RuntimePage() {
               按模型明细 →
             </Button>
           </div>
-          <div className="rt-stats-strip">
-            Token {fmtInt(totals.total_tokens ?? null)}
-            <span className="rt-stats-sep" />
-            入 {fmtInt(totals.input_tokens ?? null)} / 出 {fmtInt(totals.output_tokens ?? null)}
-          </div>
           {stats.loadError ? (
             <div className="rt-error">统计加载失败：{stats.loadError}</div>
           ) : stats.trendData.length === 0 ? (
             <div className="rt-stats-empty">暂无趋势数据（对话、语音、办公等模块调用模型后自动累计）</div>
           ) : (
-            <div className="rt-stats-charts">
-              <div className="rt-stats-chart">
-                <div className="rt-stats-chart-head">
-                  <span>请求趋势</span>
-                  <span>峰值 {trendPeak.toLocaleString()}</span>
-                </div>
-                <RequestsSpark data={stats.trendData} color="var(--color-primary)" />
+            <>
+              {/* 档位内汇总读数（随今日/7天/30天重算；累计口径在头部 totals 行） */}
+              <div className="rt-stats-strip">
+                <span>调用 {trendSums.calls.toLocaleString()}</span>
+                <span className="rt-stats-sep" />
+                <span>Token {fmtKTok(trendSums.in + trendSums.out)} · 入 {fmtKTok(trendSums.in)} / 出 {fmtKTok(trendSums.out)}</span>
+                <span className="rt-stats-sep" />
+                <span>¥{trendSums.cost.toFixed(2)}</span>
               </div>
-              <div className="rt-stats-chart">
-                <div className="rt-stats-chart-head">
-                  <span>Token 分布</span>
-                  <span>入 / 出 堆叠</span>
+              <div className="rt-stats-charts">
+                <div className="rt-stats-chart">
+                  <div className="rt-stats-chart-head">
+                    <span>请求趋势</span>
+                    <span>峰值 {trendPeak.toLocaleString()}</span>
+                  </div>
+                  <RequestsSpark data={stats.trendData} color="var(--color-primary)" />
                 </div>
-                <TokenMiniBars data={stats.trendData} />
+                <div className="rt-stats-chart">
+                  <div className="rt-stats-chart-head">
+                    <span>Token 分布</span>
+                    <span>入 / 出 堆叠</span>
+                  </div>
+                  <TokenMiniBars data={stats.trendData} />
+                </div>
               </div>
-            </div>
+            </>
           )}
         </div>
 

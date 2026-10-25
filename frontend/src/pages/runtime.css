@@ -377,6 +377,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
   padding: 7px 10px;
   border-radius: 8px;
   background: color-mix(in srgb, var(--color-text) 5%, transparent);
