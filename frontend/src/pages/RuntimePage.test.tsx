@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import RuntimePage from './RuntimePage'
 
 const { getRuntimeMonitorMock, getModelCallStatsMock } = vi.hoisted(() => ({
@@ -195,6 +195,39 @@ describe('RuntimePage 运行监测板块', () => {
     render(<RuntimePage />)
     await waitFor(() => expect(screen.getByText('调用统计')).toBeTruthy())
     expect(screen.getByText(/暂无趋势数据/)).toBeTruthy()
+  })
+
+  it('调用统计段：今日/7天/30天切换真实换数（峰值随档位变化）', async () => {
+    getRuntimeMonitorMock.mockResolvedValue(SNAPSHOT)
+    // 趋势含「今天」小时桶 + 前两天各一桶（日期动态生成防跨日脆断；
+    // time 格式对齐 Go 小时桶 "YYYY-MM-DDTHH:00"）
+    const hourBucket = (daysAgo: number, hour: number) => {
+      const dt = new Date()
+      dt.setDate(dt.getDate() - daysAgo)
+      const p2 = (n: number) => String(n).padStart(2, '0')
+      return `${dt.getFullYear()}-${p2(dt.getMonth() + 1)}-${p2(dt.getDate())}T${p2(hour)}:00`
+    }
+    getModelCallStatsMock.mockResolvedValue({
+      ...CALL_STATS,
+      trend: [
+        { time: hourBucket(0, 8), calls: 12, success_calls: 12, fail_calls: 0, input_tokens: 8000, output_tokens: 2000, total_tokens: 10000, cost: 0.1 },
+        { time: hourBucket(1, 9), calls: 30, success_calls: 28, fail_calls: 2, input_tokens: 20000, output_tokens: 5000, total_tokens: 25000, cost: 0.4 },
+        { time: hourBucket(2, 10), calls: 45, success_calls: 45, fail_calls: 0, input_tokens: 30000, output_tokens: 9000, total_tokens: 39000, cost: 0.6 },
+      ],
+    })
+    render(<RuntimePage />)
+    // 默认 7天：三天日聚合，峰值 45
+    await waitFor(() => expect(screen.getByText('峰值 45')).toBeTruthy())
+    // 切「今日」：只剩今天的小时桶，峰值 12
+    fireEvent.click(screen.getByRole('radio', { name: '今日' }))
+    await waitFor(() => expect(screen.getByText('峰值 12')).toBeTruthy())
+    expect(screen.queryByText('峰值 45')).toBeNull()
+    // 切「30天」：全量三天回来，峰值 45
+    fireEvent.click(screen.getByRole('radio', { name: '30天' }))
+    await waitFor(() => expect(screen.getByText('峰值 45')).toBeTruthy())
+    // 切回「7天」：与 30天 同为日聚合（数据窗口内一致），仍是 45
+    fireEvent.click(screen.getByRole('radio', { name: '7天' }))
+    await waitFor(() => expect(screen.getByText('峰值 45')).toBeTruthy())
   })
 
   it('最近请求表：成功/失败行与缓存命中', async () => {
