@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Segmented, Table, Tooltip } from 'antd'
-import { ReloadOutlined } from '@ant-design/icons'
+import { MonitorOutlined, ReloadOutlined } from '@ant-design/icons'
 import { getRuntimeMonitor } from '../api/engines'
 import { emitFrontendEvent, FRONTEND_EVENTS } from '../events'
 import { usePollingGate } from '../hooks/usePollingGate'
@@ -438,95 +438,120 @@ export default function RuntimePage() {
 
   return (
     <div className="rt-page">
-      <div className="rt-header">
-        <div className={`rt-state rt-state-${overall?.tone ?? 'off'}`}>
+      {/* D1 统一板块头部（40px 紧凑档·运行监测样板间）：图标章+工作区名+
+          实时状态+累计口径+动作区——板块名已在壳层面包屑，不再另起大标题 */}
+      <header className="rt-ph">
+        <span className="rt-ph-seat" aria-hidden="true"><MonitorOutlined /></span>
+        <span className="rt-ph-name">运行监测</span>
+        <span className={`rt-state rt-state-${overall?.tone ?? 'off'}`}>
           <span className="rt-state-dot" />
           {overall?.label ?? '加载中'}
           {overall?.tokS != null && <span className="rt-state-toks"> · {overall.tokS.toFixed(1)} tok/s</span>}
-        </div>
+        </span>
         <span className="rt-header-meta">
           累计 {fmtInt(totals.total_calls ?? null)} 次调用 · 成功率 {successRate} · {fmtInt(totals.total_tokens ?? null)} tokens
           {totals.total_cost ? ` · ¥${totals.total_cost.toFixed(2)}` : ''}
         </span>
-        <span style={{ flex: 1 }} />
-        {lastUpdated && <span className="rt-updated">{lastUpdated}</span>}
-        <Tooltip title="立即刷新">
-          <Button size="small" type="text" icon={<ReloadOutlined />} aria-label="立即刷新" onClick={() => void load()} />
-        </Tooltip>
-      </div>
+        <div className="rt-ph-actions">
+          {lastUpdated && <span className="rt-updated">{lastUpdated}</span>}
+          <Tooltip title="立即刷新">
+            <Button size="small" type="text" icon={<ReloadOutlined />} aria-label="立即刷新" onClick={() => void load()} />
+          </Tooltip>
+        </div>
+      </header>
       {error && <div className="rt-error">刷新失败：{error}</div>}
 
-      <div className="rt-cards">
-        {metricCards.map((c) => (
-          <MetricCard key={c.label} label={c.label} value={c.value ?? '—'} unit={c.unit} series={seriesRef.current[c.series] ?? []} hint={c.hint} />
-        ))}
-        {metricCards.length === 0 && <div className="rt-loading">正在读取监测数据…</div>}
-      </div>
+      {/* 左主列（实时面）：硬件遥测 → 引擎 → gaea 记账明细 */}
+      <main className="rt-main" aria-label="实时监测">
+        <div className="rt-eyebrow">硬件遥测</div>
+        <div className="rt-cards">
+          {metricCards.map((c) => (
+            <MetricCard key={c.label} label={c.label} value={c.value ?? '—'} unit={c.unit} series={seriesRef.current[c.series] ?? []} hint={c.hint} />
+          ))}
+          {metricCards.length === 0 && <div className="rt-loading">正在读取监测数据…</div>}
+        </div>
 
-      <div className="rt-engines">
-        {localEngineCards.map(({ id, row }) => {
-          const metrics = id === 'tianxuan' ? snap?.tianxuan : id === 'strata' ? snap?.strata : null
-          const live = metrics?.live
-          const stateLabel = live ? (LIVE_STATE_LABEL[live.state ?? ''] ?? live.state) : null
-          return (
-            <div key={id} className={`rt-engine${row?.enabled ? '' : ' rt-engine-disabled'}`}>
-              <div className="rt-engine-head">
-                <span className={`rt-engine-dot${row?.connected ? ' on' : ''}`} />
-                <span className="rt-engine-name">{row?.name ?? id}</span>
-                {stateLabel && <span className={`rt-engine-state${live?.state === 'generating' ? ' busy' : ''}`}>{stateLabel}</span>}
-                {row?.latency_ms != null && row.latency_ms > 0 && <span className="rt-engine-lat">{row.latency_ms}ms</span>}
+        <div className="rt-eyebrow">引擎</div>
+        <div className="rt-engines">
+          {localEngineCards.map(({ id, row }) => {
+            const metrics = id === 'tianxuan' ? snap?.tianxuan : id === 'strata' ? snap?.strata : null
+            const live = metrics?.live
+            const stateLabel = live ? (LIVE_STATE_LABEL[live.state ?? ''] ?? live.state) : null
+            return (
+              <div key={id} className={`rt-engine${row?.enabled ? '' : ' rt-engine-disabled'}`}>
+                <div className="rt-engine-head">
+                  <span className={`rt-engine-dot${row?.connected ? ' on' : ''}`} />
+                  <span className="rt-engine-name">{row?.name ?? id}</span>
+                  {stateLabel && <span className={`rt-engine-state${live?.state === 'generating' ? ' busy' : ''}`}>{stateLabel}</span>}
+                  {row?.latency_ms != null && row.latency_ms > 0 && <span className="rt-engine-lat">{row.latency_ms}ms</span>}
+                </div>
+                <div className="rt-engine-model">
+                  {metrics?.engine?.model ?? row?.default_model ?? '未设置默认模型'}
+                  {live?.queued ? <span className="rt-engine-queued"> · 队列 {live.queued}</span> : null}
+                  {live?.prompt_total ? (
+                    <span className="rt-engine-prompt"> · prompt {fmtInt(live.prompt_read ?? 0)}/{fmtInt(live.prompt_total)}</span>
+                  ) : null}
+                  {live?.elapsed_s != null ? <span className="rt-engine-elapsed"> · {live.elapsed_s}s</span> : null}
+                </div>
+                <div className="rt-engine-models">
+                  {(row?.models ?? [])
+                    .filter((m) => m.kind === 'llm' || m.status === 'running')
+                    .slice(0, 4)
+                    .map((m) => (
+                      <span key={m.id} className={`rt-chip${m.status === 'running' ? ' on' : ''}`} title={m.id}>{shortModel(m.id)}</span>
+                    ))}
+                  {(row?.models ?? []).length > 4 && (
+                    <span className="rt-chip rt-chip-more">+{(row?.models ?? []).length - 4}</span>
+                  )}
+                </div>
               </div>
-              <div className="rt-engine-model">
-                {metrics?.engine?.model ?? row?.default_model ?? '未设置默认模型'}
-                {live?.queued ? <span className="rt-engine-queued"> · 队列 {live.queued}</span> : null}
-                {live?.prompt_total ? (
-                  <span className="rt-engine-prompt"> · prompt {fmtInt(live.prompt_read ?? 0)}/{fmtInt(live.prompt_total)}</span>
-                ) : null}
-                {live?.elapsed_s != null ? <span className="rt-engine-elapsed"> · {live.elapsed_s}s</span> : null}
+            )
+          })}
+          {cloudEngines.length > 0 && (
+            <div className="rt-engine rt-engine-cloud">
+              <div className="rt-engine-head">
+                <span className="rt-engine-cloud-label">云端引擎</span>
               </div>
               <div className="rt-engine-models">
-                {(row?.models ?? [])
-                  .filter((m) => m.kind === 'llm' || m.status === 'running')
-                  .slice(0, 4)
-                  .map((m) => (
-                    <span key={m.id} className={`rt-chip${m.status === 'running' ? ' on' : ''}`} title={m.id}>{shortModel(m.id)}</span>
-                  ))}
-                {(row?.models ?? []).length > 4 && (
-                  <span className="rt-chip rt-chip-more">+{(row?.models ?? []).length - 4}</span>
-                )}
+                {cloudEngines.map((e) => (
+                  <Tooltip key={e.id} title={`${e.name}${e.connected ? ' · 已连通' : ''}${e.default_model ? ` · ${e.default_model}` : ''}`}>
+                    <span className={`rt-chip${e.connected ? ' on' : ''}`}>{e.name}</span>
+                  </Tooltip>
+                ))}
               </div>
             </div>
-          )
-        })}
-        {cloudEngines.length > 0 && (
-          <div className="rt-engine rt-engine-cloud">
+          )}
+          {/* ComfyUI：图像工作流引擎，非 engineMgr 引擎表成员（原模型中心资源
+              检查器「ComfyUI 运行中」chip 并入，恒出卡、点灯随 comfy_running） */}
+          <div className={`rt-engine${snap?.comfy_running ? '' : ' rt-engine-disabled'}`}>
             <div className="rt-engine-head">
-              <span className="rt-engine-cloud-label">云端引擎</span>
+              <span className={`rt-engine-dot${snap?.comfy_running ? ' on' : ''}`} />
+              <span className="rt-engine-name">ComfyUI</span>
+              <span className="rt-engine-state">图像工作流</span>
             </div>
-            <div className="rt-engine-models">
-              {cloudEngines.map((e) => (
-                <Tooltip key={e.id} title={`${e.name}${e.connected ? ' · 已连通' : ''}${e.default_model ? ` · ${e.default_model}` : ''}`}>
-                  <span className={`rt-chip${e.connected ? ' on' : ''}`}>{e.name}</span>
-                </Tooltip>
-              ))}
-            </div>
+            <div className="rt-engine-model">{snap?.comfy_running ? '运行中 · 画室生成队列可用' : '未运行'}</div>
           </div>
-        )}
-        {/* ComfyUI：图像工作流引擎，非 engineMgr 引擎表成员（原模型中心资源
-            检查器「ComfyUI 运行中」chip 并入，恒出卡、点灯随 comfy_running） */}
-        <div className={`rt-engine${snap?.comfy_running ? '' : ' rt-engine-disabled'}`}>
-          <div className="rt-engine-head">
-            <span className={`rt-engine-dot${snap?.comfy_running ? ' on' : ''}`} />
-            <span className="rt-engine-name">ComfyUI</span>
-            <span className="rt-engine-state">图像工作流</span>
-          </div>
-          <div className="rt-engine-model">{snap?.comfy_running ? '运行中 · 画室生成队列可用' : '未运行'}</div>
         </div>
-      </div>
 
-      {em && (engineRequests.length > 0 || ctxMax != null) && (
-        <div className="rt-engine-side">
-          <div className="rt-ctx-row">
+        <div className="rt-eyebrow">最近请求（gaea 侧全引擎记账）</div>
+        <div className="rt-panel">
+          <Table<RecentCall>
+            size="small"
+            rowKey={(r, i) => `${r.finished_at}-${r.engine_id}-${i}`}
+            columns={requestsColumns}
+            dataSource={snap?.recent_calls ?? []}
+            pagination={{ pageSize: 10, hideOnSinglePage: true, size: 'small' }}
+            locale={{ emptyText: '暂无调用记录' }}
+          />
+        </div>
+      </main>
+
+      {/* 右检查列（统计面）：上下文 → 调用统计趋势 → 引擎侧请求。
+          两路信息的「结合」：实时遥测在左一眼全貌，统计/上下文在右常驻对照 */}
+      <aside className="rt-side" aria-label="统计与上下文">
+        {em && (engineRequests.length > 0 || ctxMax != null) && (
+          <div className="rt-panel rt-ctx-panel">
+            <div className="rt-side-title">上下文 · 会话缓存</div>
             <div className="rt-ctx-donut">
               <ContextDonut used={ctxUsed} max={ctxMax} />
               <div className="rt-ctx-meta">
@@ -551,85 +576,80 @@ export default function RuntimePage() {
               )}
             </div>
           </div>
-          <div className="rt-requests-title">引擎侧请求（{em === snap?.tianxuan ? '天璇' : 'Strata'} /metrics）</div>
-          <Table<EngineRequest>
-            size="small"
-            rowKey={(r, i) => `${r.time}-${i}`}
-            columns={engineReqColumns}
-            dataSource={engineRequests}
-            pagination={false}
-            scroll={{ y: 260 }}
-            locale={{ emptyText: '引擎暂无已完成请求' }}
-          />
-        </div>
-      )}
+        )}
 
-      <div className="rt-stats">
-        <div className="rt-stats-head">
-          <span className="rt-requests-title" style={{ marginBottom: 0 }}>调用统计</span>
-          <Segmented
-            size="small"
-            value={stats.trendRange}
-            onChange={(v) => stats.setTrendRange(v as TrendRange)}
-            options={[
-              { value: 'today', label: '今日' },
-              { value: '7d', label: '7天' },
-              { value: '30d', label: '30天' },
-            ]}
-          />
-          <Tooltip title="刷新统计">
-            <Button size="small" type="text" icon={<ReloadOutlined />} aria-label="刷新统计" onClick={() => void stats.loadCallStats()} />
-          </Tooltip>
-          <span className="rt-stats-strip">
+        <div className="rt-panel rt-stats">
+          <div className="rt-stats-head">
+            <span className="rt-side-title">调用统计</span>
+            <span style={{ flex: 1 }} />
+            <Tooltip title="刷新统计">
+              <Button size="small" type="text" icon={<ReloadOutlined />} aria-label="刷新统计" onClick={() => void stats.loadCallStats()} />
+            </Tooltip>
+          </div>
+          <div className="rt-stats-sub">
+            <Segmented
+              size="small"
+              value={stats.trendRange}
+              onChange={(v) => stats.setTrendRange(v as TrendRange)}
+              options={[
+                { value: 'today', label: '今日' },
+                { value: '7d', label: '7天' },
+                { value: '30d', label: '30天' },
+              ]}
+            />
+            <Button
+              size="small"
+              type="text"
+              className="rt-stats-link"
+              onClick={() => emitFrontendEvent(FRONTEND_EVENTS.NAVIGATE, { page: 'modelcenter', crossSpace: true })}
+            >
+              按模型明细 →
+            </Button>
+          </div>
+          <div className="rt-stats-strip">
             Token {fmtInt(totals.total_tokens ?? null)}
             <span className="rt-stats-sep" />
             入 {fmtInt(totals.input_tokens ?? null)} / 出 {fmtInt(totals.output_tokens ?? null)}
-          </span>
-          <span style={{ flex: 1 }} />
-          <Button
-            size="small"
-            type="text"
-            className="rt-stats-link"
-            onClick={() => emitFrontendEvent(FRONTEND_EVENTS.NAVIGATE, { page: 'modelcenter', crossSpace: true })}
-          >
-            按模型明细 →
-          </Button>
+          </div>
+          {stats.loadError ? (
+            <div className="rt-error">统计加载失败：{stats.loadError}</div>
+          ) : stats.trendData.length === 0 ? (
+            <div className="rt-stats-empty">暂无趋势数据（对话、语音、办公等模块调用模型后自动累计）</div>
+          ) : (
+            <div className="rt-stats-charts">
+              <div className="rt-stats-chart">
+                <div className="rt-stats-chart-head">
+                  <span>请求趋势</span>
+                  <span>峰值 {trendPeak.toLocaleString()}</span>
+                </div>
+                <RequestsSpark data={stats.trendData} color="var(--color-primary)" />
+              </div>
+              <div className="rt-stats-chart">
+                <div className="rt-stats-chart-head">
+                  <span>Token 分布</span>
+                  <span>入 / 出 堆叠</span>
+                </div>
+                <TokenMiniBars data={stats.trendData} />
+              </div>
+            </div>
+          )}
         </div>
-        {stats.loadError ? (
-          <div className="rt-error">统计加载失败：{stats.loadError}</div>
-        ) : stats.trendData.length === 0 ? (
-          <div className="rt-stats-empty">暂无趋势数据（对话、语音、办公等模块调用模型后自动累计）</div>
-        ) : (
-          <div className="rt-stats-charts">
-            <div className="rt-stats-chart">
-              <div className="rt-stats-chart-head">
-                <span>请求趋势</span>
-                <span>峰值 {trendPeak.toLocaleString()}</span>
-              </div>
-              <RequestsSpark data={stats.trendData} color="var(--color-primary)" />
-            </div>
-            <div className="rt-stats-chart">
-              <div className="rt-stats-chart-head">
-                <span>Token 分布</span>
-                <span>入 / 出 堆叠</span>
-              </div>
-              <TokenMiniBars data={stats.trendData} />
-            </div>
+
+        {em && (engineRequests.length > 0 || ctxMax != null) && (
+          <div className="rt-panel rt-engine-req">
+            <div className="rt-side-title">引擎侧请求（{em === snap?.tianxuan ? '天璇' : 'Strata'} /metrics）</div>
+            <Table<EngineRequest>
+              size="small"
+              rowKey={(r, i) => `${r.time}-${i}`}
+              columns={engineReqColumns}
+              dataSource={engineRequests}
+              pagination={false}
+              scroll={{ x: 620, y: 260 }}
+              locale={{ emptyText: '引擎暂无已完成请求' }}
+            />
           </div>
         )}
-      </div>
-
-      <div className="rt-requests">
-        <div className="rt-requests-title">最近请求（gaea 侧全引擎记账）</div>
-        <Table<RecentCall>
-          size="small"
-          rowKey={(r, i) => `${r.finished_at}-${r.engine_id}-${i}`}
-          columns={requestsColumns}
-          dataSource={snap?.recent_calls ?? []}
-          pagination={{ pageSize: 10, hideOnSinglePage: true, size: 'small' }}
-          locale={{ emptyText: '暂无调用记录' }}
-        />
-      </div>
+      </aside>
     </div>
   )
 }

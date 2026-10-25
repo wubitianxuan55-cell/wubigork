@@ -1,31 +1,92 @@
-/* runtime.css — 运行监测板块（参照 Strata Monitor 仪表盘的分区结构，
-   视觉走 gaea 令牌：玻璃面板 + 描边 + 强调色点睛，亮暗两态自动跟随）。 */
+/* runtime.css — 运行监测板块（2026-10-25 全新设计：玄墨语言双栏工作台）。
+   结构 = D1 统一板块头部（40px 紧凑档）+ 左主列（实时面：硬件遥测/引擎/
+   记账明细）+ 右检查列（统计面：上下文/调用统计趋势/引擎侧请求）。
+   视觉走玄墨五条：描边退场（ink color-mix 近无边线，深度靠面板面阶差 +
+   shadow 令牌）/ 排印三档（名 15px·650、值 mono+tabular、节标 eyebrow）/
+   金点睛（实时状态与 donut 走 --glow，唯一强调）/ 面板面阶 bg-container 亮
+   surface 一档 / 圆角归档 radius-md 12px（旧 10px 硬编码退役）。亮暗两态
+   经全局令牌自动跟随（color-mix 基 --color-text 双态自适应）。 */
 
+/* ── 页面骨架：双栏工作台（<1100px 折单列，检查列沉底） ── */
 .rt-page {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-width: 1200px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 344px;
+  gap: 14px;
+  align-items: start;
+  max-width: 1480px;
   margin: 0 auto;
 }
 
-/* ── 状态条 ─────────────────────────────────────────────── */
-.rt-header {
+.rt-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rt-side {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+@media (max-width: 1100px) {
+  .rt-page {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── D1 统一板块头部（40px 紧凑档） ── */
+.rt-ph {
+  grid-column: 1 / -1;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 14px;
-  background: color-mix(in srgb, var(--gaea-glass-bg) 52%, var(--color-surface));
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
+  height: 40px;
+  padding: 0 14px;
+  background: var(--color-bg-container);
+  border: 1px solid color-mix(in srgb, var(--color-text) 5%, transparent);
+  border-radius: var(--radius-md, 12px);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.25));
 }
 
+.rt-ph-seat {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--glow, #d9b26a) 14%, transparent);
+  color: var(--glow, #d9b26a);
+  font-size: 12px;
+}
+
+.rt-ph-name {
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.rt-ph-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+/* ── 实时状态（头部内嵌，金点睛位） ── */
 .rt-state {
   display: inline-flex;
   align-items: center;
   gap: 7px;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 13.5px;
+  white-space: nowrap;
 }
 
 .rt-state-dot {
@@ -35,45 +96,93 @@
   background: var(--color-text-secondary);
 }
 
-.rt-state-idle .rt-state-dot { background: #52c41a; }
+.rt-state-idle .rt-state-dot { background: var(--color-success, #52c41a); }
 .rt-state-busy .rt-state-dot {
   background: var(--glow, #faad14);
   animation: rt-pulse 1.2s ease-in-out infinite;
 }
 .rt-state-busy { color: var(--glow, #faad14); }
-.rt-state-off .rt-state-dot { background: #d9d9d9; }
+.rt-state-off .rt-state-dot { background: var(--color-text-quaternary, #d9d9d9); }
 
 @keyframes rt-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.35; }
 }
 
-.rt-state-toks { color: var(--color-text-secondary); font-weight: 500; }
+.rt-state-toks { color: var(--color-text-secondary); font-weight: 500; font-variant-numeric: tabular-nums; }
 
-.rt-header-meta { color: var(--color-text-secondary); font-size: 12.5px; }
+.rt-header-meta {
+  color: var(--color-text-secondary);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
 
-.rt-updated { color: var(--color-text-secondary); font-size: 12px; }
+.rt-updated { color: var(--color-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .rt-error {
+  grid-column: 1 / -1;
   padding: 6px 12px;
   border-radius: 8px;
-  background: color-mix(in srgb, #ff4d4f 12%, transparent);
-  color: #ff7875;
+  background: color-mix(in srgb, var(--color-destructive, #ff4d4f) 12%, transparent);
+  color: var(--color-destructive, #ff7875);
   font-size: 12.5px;
 }
 
-/* ── 指标卡栅格 ─────────────────────────────────────────── */
+/* ── 节标 eyebrow（玄墨 11px·700·宽字距·渐隐尾线） ── */
+.rt-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.rt-eyebrow::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--color-text) 12%, transparent), transparent);
+}
+
+/* ── 面板（玄墨卡面：bg-container 亮一档 + 近无边线 + shadow 令牌） ── */
+.rt-panel {
+  background: var(--color-bg-container);
+  border: 1px solid color-mix(in srgb, var(--color-text) 5%, transparent);
+  border-radius: var(--radius-md, 12px);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.25));
+  padding: 12px 14px;
+  min-width: 0;
+}
+
+.rt-side-title {
+  font-size: 12.5px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--color-text);
+  margin-bottom: 10px;
+}
+
+/* ── 硬件遥测指标卡栅格 ── */
 .rt-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
   gap: 10px;
 }
 
 .rt-card {
-  padding: 12px 14px 8px;
-  background: color-mix(in srgb, var(--gaea-glass-bg) 52%, var(--color-surface));
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
+  padding: 11px 13px 7px;
+  background: var(--color-bg-container);
+  border: 1px solid color-mix(in srgb, var(--color-text) 5%, transparent);
+  border-radius: var(--radius-md, 12px);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.25));
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -83,13 +192,15 @@
 .rt-card-empty .rt-card-value { color: var(--color-text-secondary); }
 
 .rt-card-label {
-  font-size: 12px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
   color: var(--color-text-secondary);
   white-space: nowrap;
 }
 
 .rt-card-value {
-  font-size: 20px;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 19px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -97,35 +208,36 @@
   text-overflow: ellipsis;
 }
 
-.rt-card-unit { font-size: 12px; font-weight: 400; color: var(--color-text-secondary); }
+.rt-card-unit { font-size: 11.5px; font-weight: 400; color: var(--color-text-secondary); }
 
 .rt-spark { width: 100%; height: 26px; display: block; }
 .rt-spark polyline { stroke: var(--glow, #1677ff); stroke-width: 1.5; opacity: 0.55; }
 .rt-spark-active polyline { opacity: 1; }
-.rt-spark-baseline { stroke: var(--color-border); stroke-width: 1; }
+.rt-spark-baseline { stroke: color-mix(in srgb, var(--color-text) 14%, transparent); stroke-width: 1; }
 
 .rt-loading {
   grid-column: 1 / -1;
   padding: 28px;
   text-align: center;
   color: var(--color-text-secondary);
-  background: color-mix(in srgb, var(--gaea-glass-bg) 52%, var(--color-surface));
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
+  background: var(--color-bg-container);
+  border: 1px solid color-mix(in srgb, var(--color-text) 5%, transparent);
+  border-radius: var(--radius-md, 12px);
 }
 
-/* ── 引擎卡行 ───────────────────────────────────────────── */
+/* ── 引擎卡行 ── */
 .rt-engines {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(252px, 1fr));
   gap: 10px;
 }
 
 .rt-engine {
-  padding: 10px 14px;
-  background: color-mix(in srgb, var(--gaea-glass-bg) 52%, var(--color-surface));
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
+  padding: 10px 13px;
+  background: var(--color-bg-container);
+  border: 1px solid color-mix(in srgb, var(--color-text) 5%, transparent);
+  border-radius: var(--radius-md, 12px);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.25));
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -145,19 +257,19 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #d9d9d9;
+  background: var(--color-text-quaternary, #d9d9d9);
   flex: none;
 }
 
-.rt-engine-dot.on { background: #52c41a; }
+.rt-engine-dot.on { background: var(--color-success, #52c41a); }
 
 .rt-engine-name { font-weight: 600; font-size: 13.5px; white-space: nowrap; }
 
 .rt-engine-state {
-  font-size: 11.5px;
+  font-size: 11px;
   padding: 1px 8px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--color-border) 55%, transparent);
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
   color: var(--color-text-secondary);
   flex: none;
 }
@@ -167,7 +279,7 @@
   color: var(--glow, #faad14);
 }
 
-.rt-engine-lat { margin-left: auto; font-size: 11.5px; color: var(--color-text-secondary); flex: none; }
+.rt-engine-lat { margin-left: auto; font-size: 11px; color: var(--color-text-secondary); flex: none; font-variant-numeric: tabular-nums; }
 
 .rt-engine-model {
   font-size: 12.5px;
@@ -179,7 +291,8 @@
 
 .rt-engine-queued, .rt-engine-prompt, .rt-engine-elapsed {
   color: var(--color-text-secondary);
-  font-size: 11.5px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 
 .rt-engine-cloud-label { font-weight: 600; font-size: 13.5px; }
@@ -194,7 +307,7 @@
   font-size: 11px;
   padding: 1px 8px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--color-border) 45%, transparent);
+  background: color-mix(in srgb, var(--color-text) 7%, transparent);
   color: var(--color-text-secondary);
   max-width: 100%;
   white-space: nowrap;
@@ -203,46 +316,14 @@
 }
 
 .rt-chip.on {
-  background: color-mix(in srgb, #52c41a 16%, transparent);
-  color: #52c41a;
+  background: color-mix(in srgb, var(--color-success, #52c41a) 16%, transparent);
+  color: var(--color-success, #52c41a);
 }
 
 .rt-chip-more { flex: none; }
 
-/* ── 最近请求表 ─────────────────────────────────────────── */
-.rt-requests {
-  padding: 12px 14px;
-  background: color-mix(in srgb, var(--gaea-glass-bg) 52%, var(--color-surface));
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-}
-
-.rt-requests-title {
-  font-weight: 600;
-  font-size: 13.5px;
-  margin-bottom: 8px;
-}
-
-.rt-ok { color: #52c41a; }
-.rt-fail { color: #ff7875; cursor: help; }
-
-/* ── 引擎侧遥测（Context 环 + 会话缓存 + 引擎请求表）──────── */
-.rt-engine-side {
-  padding: 12px 14px;
-  background: color-mix(in srgb, var(--gaea-glass-bg) 52%, var(--color-surface));
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.rt-ctx-row {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  flex-wrap: wrap;
-}
+/* ── 右检查列：上下文环 + 会话缓存 ── */
+.rt-ctx-panel { display: flex; flex-direction: column; gap: 12px; }
 
 .rt-ctx-donut {
   display: flex;
@@ -252,53 +333,55 @@
 }
 
 .rt-donut { width: 92px; height: 92px; flex: none; }
-.rt-donut-track { stroke: color-mix(in srgb, var(--color-border) 70%, transparent); }
+.rt-donut-track { stroke: color-mix(in srgb, var(--color-text) 12%, transparent); }
 .rt-donut-fill { stroke: var(--glow, #1677ff); transition: stroke-dasharray 0.4s ease; }
-.rt-donut-fill.rt-donut-hot { stroke: #ff7875; }
+.rt-donut-fill.rt-donut-hot { stroke: var(--color-destructive, #ff7875); }
 .rt-donut-num { font-size: 17px; font-weight: 600; fill: var(--color-text); }
 .rt-donut-label { font-size: 9px; fill: var(--color-text-secondary); }
 
 .rt-ctx-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .rt-ctx-tokens { font-size: 12.5px; font-variant-numeric: tabular-nums; }
-.rt-ctx-model { font-size: 11.5px; color: var(--color-text-secondary); }
+.rt-ctx-model { font-size: 11px; color: var(--color-text-secondary); }
 
 .rt-cache { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.rt-cache-title { font-weight: 600; font-size: 12.5px; }
+.rt-cache-title { font-weight: 600; font-size: 12px; }
 .rt-cache-rows {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--color-text-secondary);
   font-variant-numeric: tabular-nums;
 }
 
 .rt-req-sub { color: var(--color-text-secondary); font-size: 11px; }
 
-/* ── 调用统计（原模型中心右侧统计检查器并入：趋势 + 入/出拆分）── */
-.rt-stats {
-  padding: 12px 14px;
-  background: color-mix(in srgb, var(--gaea-glass-bg) 52%, var(--color-surface));
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
+/* ── 右检查列：调用统计（窄柱原生 260 宽迷你图 1:1 渲染） ── */
+.rt-stats { display: flex; flex-direction: column; gap: 10px; }
 
 .rt-stats-head {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+}
+
+.rt-stats-sub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 .rt-stats-strip {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-text) 5%, transparent);
   color: var(--color-text);
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -306,24 +389,24 @@
 .rt-stats-sep {
   flex: 0 0 1px;
   align-self: stretch;
-  margin: 2px 0;
-  background: var(--color-border);
+  margin: 1px 0;
+  background: color-mix(in srgb, var(--color-text) 14%, transparent);
 }
 
-.rt-stats-link { color: var(--color-text-secondary); }
+.rt-stats-link { color: var(--color-text-secondary); font-size: 12px; }
 .rt-stats-link:hover { color: var(--color-text); }
 
 .rt-stats-empty {
-  padding: 18px;
+  padding: 16px;
   text-align: center;
   color: var(--color-text-secondary);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 .rt-stats-charts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 12px;
+  grid-template-columns: 1fr;
+  gap: 10px;
 }
 
 .rt-stats-chart {
@@ -332,8 +415,8 @@
   flex-direction: column;
   gap: 5px;
   padding: 8px 10px;
-  border: 1px solid var(--color-border);
   border-radius: 8px;
+  background: color-mix(in srgb, var(--color-text) 4%, transparent);
 }
 
 .rt-stats-chart-head {
@@ -341,9 +424,12 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  font-size: 11.5px;
+  font-size: 11px;
   color: var(--color-text-secondary);
 }
 
 .rt-stats-chart-head span:first-child { color: var(--color-text); font-weight: 600; }
 .rt-stats-chart-head span:last-child { font-variant-numeric: tabular-nums; }
+
+.rt-ok { color: var(--color-success, #52c41a); }
+.rt-fail { color: var(--color-destructive, #ff7875); cursor: help; }
