@@ -113,45 +113,9 @@
   filter: drop-shadow(0 0 9px var(--gaea-glow));
 }
 
-/* v4.182：空间切换器迁移首页顶栏（ModuleLauncher SpaceSwitch）；rail 顶部
-   改为当前空间指示徽标（非交互 is-indicator）。rail 主体分域语义不变
-   （getActiveMenuBoardsForSpace：shared 恒在 / independent 剔除 /
-   settings inMenu:false 不在 rail），独立窗口板块仅经 foot 单列
-   （v4.439 编程板块删除后该分面暂为空集）。 */
-.v3-rail-space {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 4px 5px 5px;
-  flex-shrink: 0;
-  width: 100%;
-}
-/* 空间指示徽标（非交互）：竖排文字纵轴微章；主色容器提示当前空间 */
-.v3-rail-space.is-indicator {
-  align-items: center;
-  justify-content: center;
-  padding: 6px 4px;
-  margin: 0 auto;
-  border-radius: 9px;
-  background: var(--color-primary-container);
-  color: var(--gaea-glow);
-  box-shadow: var(--v3-glow-faint);
-  font-size: 11px;
-  line-height: 1.15;
-  letter-spacing: 0.08em;
-  max-width: 28px;
-}
-.v3-rail-space.is-indicator span {
-  writing-mode: vertical-rl;
-  text-orientation: upright;
-}
-/* 切换器选项：紧凑两态胶囊（纯文字 11px）；激活 = 主色容器 + 辉光强调文字 + 柔光 */
-.v3-rail-space-opt.is-active {
-  background: var(--color-primary-container);
-  color: var(--gaea-glow);
-  box-shadow: var(--v3-glow-faint);
-  transform: none;
-}
+/* 一级导航合一（2026-10-26 用户拍板）：空间指示徽标（v3-rail-space 竖排微章）
+   随 rail 分域退役——全部 inMenu 板块一栏尽收，切空间由板块导航隐式驱动；
+   独立窗口板块仅经 foot 单列（v4.439 编程板块删除后该分面暂为空集）。 */
 
 .v3-rail-nav {
   flex: 1;

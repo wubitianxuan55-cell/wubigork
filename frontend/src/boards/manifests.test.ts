@@ -5,7 +5,7 @@ import {
   normalizeManifests, deriveMenuBoards, deriveNavigateWhitelist,
   deriveShortcutMap, deriveHomeBoard, deriveBoard, deriveProjectAnchorId,
   loadBoardManifests, subscribeBoards, getActiveBoards,
-  getActiveMenuBoards, getActiveMenuBoardsForSpace, getActiveNavigateWhitelist, getActiveShortcutMap,
+  getActiveMenuBoards, getActiveNavigateWhitelist, getActiveShortcutMap,
   getActiveHomeBoard, getActiveBoard,
   resetActiveBoardsForTest,
 } from './manifests'
@@ -78,36 +78,22 @@ describe('menuBoards（附 B #4：filter(inMenu) + sort(menuOrder)）', () => {
   })
 })
 
-describe('getActiveMenuBoardsForSpace（S2.1 双空间分域：shared 恒在 / independent 剔除 / inMenu 过滤）', () => {
-  it('work → 共享 + 工位板块（menuOrder 派生序；shared 不置顶——切换器在 rail 顶部承担空间定位）', () => {
-    expect(getActiveMenuBoardsForSpace('work').map((b) => b.id)).toEqual([
-      'home', 'gaea', 'cost', 'memoryhub', 'modelcenter', 'weixin', 'runtime',
+describe('getActiveMenuBoards（一级导航合一 2026-10-26：全量菜单，不再按空间分域）', () => {
+  it('全量序 = 首页 + 全部 inMenu 板块（menuOrder 派生；书斋/闲庭同栏尽收）', () => {
+    expect(getActiveMenuBoards().map((b) => b.id)).toEqual([
+      'home', 'chat', 'novel', 'imagegen', 'gaea', 'cost', 'memoryhub', 'modelcenter', 'characterlib', 'weixin', 'sin', 'runtime',
+    ])
+    expect(getActiveMenuBoards().map((b) => b.label)).toEqual([
+      '首页', '聊天', '小说', '绘梦', '办公', '造价数据库', '记忆中枢', '模型中心', '角色库', '青鸟', '原罪', '运行监测',
     ])
   })
 
-  it('play → 共享 + 乐园板块（menuOrder 派生序）', () => {
-    expect(getActiveMenuBoardsForSpace('play').map((b) => b.id)).toEqual([
-      'home', 'chat', 'novel', 'imagegen', 'modelcenter', 'characterlib', 'sin', 'runtime',
-    ])
-  })
-
-  it('两空间均剔除 independent 板块（独立窗口不并入工位/乐园；v4.439 起该分面为空集）、settings（inMenu=false 隐式入口）、schedule（并入办公文档面）', () => {
-    for (const space of ['work', 'play'] as const) {
-      const menus = getActiveMenuBoardsForSpace(space)
-      expect(menus.filter((b) => boardSpace(b) === 'independent'), space).toHaveLength(0)
-      const ids = menus.map((b) => b.id)
-      expect(ids, space).not.toContain('settings')
-      expect(ids, space).not.toContain('schedule')
-    }
-  })
-
-  it('两空间板块数（work 7 / play 8，含 home 与共享的 modelcenter/runtime；v4.244 原罪只在闲庭）且文案为中文便签', () => {
-    const work = getActiveMenuBoardsForSpace('work')
-    const play = getActiveMenuBoardsForSpace('play')
-    expect(work).toHaveLength(7)
-    expect(play).toHaveLength(8)
-    expect(work.map((b) => b.label)).toEqual(['首页', '办公', '造价数据库', '记忆中枢', '模型中心', '青鸟', '运行监测'])
-    expect(play.map((b) => b.label)).toEqual(['首页', '聊天', '小说', '绘梦', '模型中心', '角色库', '原罪', '运行监测'])
+  it('剔除 independent（空集机制保留）、settings（inMenu=false foot 入口）、schedule（并入办公文档面）', () => {
+    const menus = getActiveMenuBoards()
+    expect(menus.filter((b) => boardSpace(b) === 'independent')).toHaveLength(0)
+    const ids = menus.map((b) => b.id)
+    expect(ids).not.toContain('settings')
+    expect(ids).not.toContain('schedule')
   })
 })
 

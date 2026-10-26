@@ -216,6 +216,20 @@
 
 **二期后留池**：①tasks 形态是否补对象组（当前 classic 独有）；②发版推送待指示。（真机实弹走查已于沙箱真绑定链路代偿：见上「沙箱走查」段。）
 
+### 8.2 一级导航合一：rail 不再按空间分页（2026-10-26 用户拍板）
+
+用户指正「一级导航还在分页，没有合并显示全部一级标题」——rail 此前按 书斋/闲庭 双空间分域（v4.475 首页合一时保留的口径，work 侧竟看不到 聊天/小说/绘梦/角色库/原罪）。合一落地：
+
+| 项 | 落点 |
+|---|---|
+| rail 全量 | `CommandRail` 数据源 `getActiveMenuBoardsForSpace(space)` → `getActiveMenuBoards()`：首页+全部 inMenu 板块同栏（12 项，menuOrder 序）；空间指示徽标（v3-rail-space 竖排微章）随分域退役 |
+| 随迁退役 | 每空间最后页面持久化（SHELL_PAGE_PREFIX 三件+save effect）、keepAlive 空间剪枝（pruneVisitedForSpace——访问过的板块全部常驻，跨板块往返不丢现场）、NAVIGATE 空间可达性门禁+v4.51 crossSpace 双订阅（统一走 navigateBoard 自动换空间）、CommandRail 的 space/onSwitchSpace props、Ctrl+1~9 改全量序 |
+| 数据面保留 | 壳层空间降为纯数据概念：会话空间/事件分域（subscribeForSpace）/任务标签仍用 ShellSpace+boardSpace；navigateBoard 仍按目标板块归属隐式切空间 |
+| 死码清理 | `getActiveMenuBoardsForSpace`/`filterBoardsForSpace`/`isBoardReachableInSpace`/`pruneVisitedForSpace` 退役；space.test 归属表改 boardSpace 纯归属口径（shared=home/模型中心/设置/运行监测）；CSS `.v3-rail-space` 族删除 |
+| 契约 | CommandRail.test 重写（全量 12 项同栏+徽标零残留+跨域点击直达+激活态）；manifests.test getActiveMenuBoards 全量序锁 |
+
+**验证**：tsc 绿/eslint 0err/knip exit0/**全量 vitest 4016/4016**；无头 Edge 实测：rail 12 项同栏无溢出、指示徽标零残留、work 态点「小说」直达（novel-hub 挂载+激活态跟随）、回首页三段结构完好。
+
 ## 7. 参考来源（节选）
 
 **国际 AI**

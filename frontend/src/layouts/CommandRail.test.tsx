@@ -4,27 +4,24 @@ import type { ReactElement } from 'react'
 import { CommandRail } from './MainLayout'
 import { LocaleProvider } from '../gaea/lib/i18n'
 
-// CommandRail 双空间分域导航（v4.169）：切换器（SHELL_SPACES 驱动）+
-// 主体按当前空间过滤（shared 恒在 / independent 剔除 / inMenu 过滤）+
-// independent 独立窗口仅 foot 单列（v4.439 编程板块删除后 foot 段为空 ⇒ 自动隐藏）。
-// LocaleProvider 钉 zh（localStorage gaea-lang）让切换器 label 走字典中文文案。
+// CommandRail 一级导航合一（2026-10-26 用户拍板）：rail 不再按 书斋/闲庭
+// 分域——全部 inMenu 板块一栏尽收（getActiveMenuBoards）；空间指示徽标随
+// 分域退役；space/onSwitchSpace props 退役（切空间由 navigateBoard 按目标
+// 板块归属隐式驱动）。LocaleProvider 钉 zh（localStorage gaea-lang）。
 const wrap = (ui: ReactElement) => <LocaleProvider>{ui}</LocaleProvider>
 
 function renderRail(props: Partial<Parameters<typeof CommandRail>[0]> = {}) {
   const onNavigate = vi.fn()
-  const onSwitchSpace = vi.fn()
   const utils = render(wrap(
     <CommandRail
       page="home"
-      space="work"
       darkMode={false}
       toggleDarkMode={vi.fn()}
       onNavigate={onNavigate}
-      onSwitchSpace={onSwitchSpace}
       {...props}
     />,
   ))
-  return { ...utils, onNavigate, onSwitchSpace }
+  return { ...utils, onNavigate }
 }
 
 /** rail 主体（menubar）内按钮的 aria-label 序 */
@@ -37,23 +34,22 @@ beforeEach(() => {
   localStorage.setItem('gaea-lang', 'zh')
 })
 
-describe('CommandRail 书斋/闲庭双空间分域导航（v4.169）', () => {
-  it('rail 顶部渲染当前空间指示徽标（v4.182 切换器迁首页顶栏：非交互、label 走字典）', () => {
+describe('CommandRail 一级导航合一（2026-10-26）', () => {
+  it('全量一级导航：首页 + 全部 inMenu 板块同栏尽收（书斋/闲庭不再分页）', () => {
     renderRail()
-    const ind = screen.getByTestId('v3-rail-space-indicator')
-    expect(ind.textContent).toBe('书斋')
-    expect(ind.getAttribute('aria-pressed')).toBeNull()
-    // 切换器移除：rail 不再渲染空间切换按钮
+    expect(navLabels()).toEqual([
+      '首页', '聊天', '小说', '绘梦', '办公', '造价数据库', '记忆中枢', '模型中心', '角色库', '青鸟', '原罪', '运行监测',
+    ])
+  })
+
+  it('空间分域残面零残留：指示徽标/切换器/竖排微章全 null', () => {
+    renderRail()
+    expect(screen.queryByTestId('v3-rail-space-indicator')).toBeNull()
     expect(screen.queryByTestId('v3-rail-space-switch')).toBeNull()
-    expect(screen.queryByTestId('v3-rail-space-play')).toBeNull()
+    expect(document.querySelector('.v3-rail-space')).toBeNull()
   })
 
-  it('work 空间：主体 = 共享 + 书斋板块（首页/办公/造价数据库/记忆中枢/模型中心/青鸟/运行监测）', () => {
-    renderRail()
-    expect(navLabels()).toEqual(['首页', '办公', '造价数据库', '记忆中枢', '模型中心', '青鸟', '运行监测'])
-  })
-
-  it('independent 分面为空（v4.439 编程板块删除）：foot 段不渲染任何独立窗口入口', () => {
+  it('independent 分面为空（v4.439 编程板块删除后）：foot 段不渲染任何独立窗口入口', () => {
     renderRail()
     expect(screen.queryAllByLabelText(/编程/)).toHaveLength(0)
     // foot 容器仍在（深浅色切换常驻），但独立窗口分隔线/入口整块不渲染
@@ -62,27 +58,18 @@ describe('CommandRail 书斋/闲庭双空间分域导航（v4.169）', () => {
     expect(screen.getByLabelText('切换暗色')).toBeTruthy()
   })
 
-  it('play 空间：主体 = 共享 + 闲庭板块（聊天/小说/绘梦/模型中心/角色库/原罪），空间标识激活态跟随', () => {
-    const { rerender } = renderRail()
-    rerender(wrap(
-      <CommandRail
-        page="home"
-        space="play"
-        darkMode={false}
-        toggleDarkMode={vi.fn()}
-        onNavigate={vi.fn()}
-        onSwitchSpace={vi.fn()}
-      />,
-    ))
-    expect(navLabels()).toEqual(['首页', '聊天', '小说', '绘梦', '模型中心', '角色库', '原罪', '运行监测'])
-    expect(screen.getByTestId('v3-rail-space-indicator').textContent).toBe('闲庭')
-    expect(screen.queryAllByLabelText(/编程/)).toHaveLength(0)
-  })
-
-  it('点击办公 → onNavigate("gaea")（编程入口已随板块删除；空间切换点击语义已迁首页顶栏）', () => {
+  it('点击办公/小说均直达（同栏跨域可点；空间切换由 navigateBoard 隐式驱动）', () => {
     const { onNavigate } = renderRail()
     fireEvent.click(screen.getByLabelText('办公'))
     expect(onNavigate).toHaveBeenCalledWith('gaea')
-    expect(screen.queryByLabelText('编程')).toBeNull()
+    fireEvent.click(screen.getByLabelText('小说'))
+    expect(onNavigate).toHaveBeenCalledWith('novel')
+  })
+
+  it('激活态跟随 page（aria-current=page + is-active 容器）', () => {
+    renderRail({ page: 'gaea' })
+    const active = document.querySelector('.v3-rail-item.is-active')
+    expect(active?.getAttribute('aria-label')).toBe('办公')
+    expect(active?.getAttribute('aria-current')).toBe('page')
   })
 })

@@ -24,7 +24,7 @@ import {
 import type { ComponentType } from 'react'
 import type { BoardManifest, BoardNavChild } from './types'
 import { app } from '../gaea/lib/bridge'
-import { filterBoardsForSpace, isIndependentBoard, type BoardSpace, type ShellSpace } from './space'
+import { isIndependentBoard, type BoardSpace } from './space'
 
 // ─── 图标注册表：manifest.icon 名（antd 图标名）→ 组件查表解析 ───────────────
 const ICON_REGISTRY: Record<string, ComponentType> = {
@@ -308,11 +308,8 @@ export function getActiveBoards(): BoardManifest[] {
 }
 
 // ── 活动派生视图（消费者：MainLayout 菜单/白名单/快捷键/布局/面包屑）────
+// 一级导航合一（2026-10-26）：菜单恒全量（getActiveMenuBoardsForSpace 随 rail 分域退役）
 export function getActiveMenuBoards(): BoardManifest[] { return deriveMenuBoards(activeBoards) }
-/** S2.1：按壳层空间过滤后的菜单（shared + 当前空间板块） */
-export function getActiveMenuBoardsForSpace(space: ShellSpace): BoardManifest[] {
-  return deriveMenuBoards(filterBoardsForSpace(activeBoards, space))
-}
 /** S2.1：独立窗口板块——两空间导航/首页均不出现，壳层单独入口（v4.439 起暂为空集） */
 export function getActiveIndependentBoards(): BoardManifest[] {
   return deriveMenuBoards(activeBoards.filter(isIndependentBoard))

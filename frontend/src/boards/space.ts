@@ -52,27 +52,7 @@ export function isIndependentBoard(b: BoardManifest): boolean {
   return boardSpace(b) === 'independent'
 }
 
-/** 板块在指定壳层空间是否可达：shared 或归属等于当前空间；independent 恒不可达 */
-export function isBoardReachableInSpace(b: BoardManifest, space: ShellSpace): boolean {
-  const s = boardSpace(b)
-  if (s === 'independent') return false
-  return s === 'shared' || s === space
-}
-
-/** 清单按空间过滤（导航/启动器/快捷键共用；保持原顺序） */
-export function filterBoardsForSpace(list: BoardManifest[], space: ShellSpace): BoardManifest[] {
-  return list.filter((b) => isBoardReachableInSpace(b, space))
-}
-
-/**
- * S2.2 性能门控：空间切换时剪枝 keepAlive 保活页（docs §4.4 补）。
- * 只保留谓词通过（home/当前空间可达）的页面；跨空间页面随之卸载，
- * 后台轮询/渲染归零——对齐审计「keepAlive 挂载策略带来的系统级后台轮询」
- * 风险项与「work 不打扰乐园 UI（反之亦然）」红线。
- */
-export function pruneVisitedForSpace(
-  visited: Iterable<string>,
-  isReachable: (id: string) => boolean,
-): string[] {
-  return Array.from(visited).filter(isReachable);
-}
+// 一级导航合一（2026-10-26 用户拍板）：isBoardReachableInSpace /
+// filterBoardsForSpace / pruneVisitedForSpace 随 rail 分域退役——壳层空间
+// 降为纯数据面概念（会话空间/事件分域/任务标签仍用 ShellSpace 与 boardSpace），
+// 导航/keepAlive/快捷键不再按空间过滤或剪枝。
