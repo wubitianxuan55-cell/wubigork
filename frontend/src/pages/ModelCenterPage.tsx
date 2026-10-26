@@ -62,7 +62,9 @@ const ModelCenterPage: React.FC = () => {
 
   // 「按模型明细」跨板跳转联动（运行监测）：已挂载（keepAlive 常驻）听事件
   // 即开抽屉；首次未挂载场景 navigate 才懒加载本页，事件已错过 → 挂载效应
-  // 消费 sessionStorage 标记补开，读后即清（一次性）。
+  // 消费 sessionStorage 标记补开，读后即清（一次性）。事件直达=已挂载场景，
+  // 发射方写入的标记已无用——监听里顺带清除，杜绝残留到 webview reload 后
+  // 重挂载误开抽屉（与 OPEN_TOOL_FLAG 监听双清同款，刀6 一致性收口）。
   useEffect(() => {
     try {
       if (sessionStorage.getItem(OPEN_STATS_FLAG) === '1') {
@@ -70,7 +72,10 @@ const ModelCenterPage: React.FC = () => {
         setStatsOpen(true)
       }
     } catch { /* sessionStorage 不可用（隐私模式等）静默跳过 */ }
-    const open = () => setStatsOpen(true)
+    const open = () => {
+      try { sessionStorage.removeItem(OPEN_STATS_FLAG) } catch { /* 同上 */ }
+      setStatsOpen(true)
+    }
     window.addEventListener(FRONTEND_EVENTS.OPEN_STATS_DRAWER, open)
     return () => window.removeEventListener(FRONTEND_EVENTS.OPEN_STATS_DRAWER, open)
   }, [])

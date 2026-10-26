@@ -88,12 +88,16 @@ describe('ModelCenterPage · model-failover 提示文案（引擎 label 化）',
     expect(sessionStorage.getItem(OPEN_STATS_FLAG)).toBeNull() // 一次性消费
   })
 
-  it('OPEN_STATS_DRAWER 事件：已挂载（keepAlive）场景即开抽屉', () => {
+  it('OPEN_STATS_DRAWER 事件：已挂载（keepAlive）场景即开抽屉，并顺带清残留标记（reload 后不误开，刀6 一致性收口）', () => {
     sessionStorage.removeItem(OPEN_STATS_FLAG)
     render(<ModelCenterPage />)
-    expect(screen.queryByText('模型调用统计')).toBeNull()
+    expect(screen.queryByText('模型调用统计')).toBeNull() // 无标记不自动开
+    // 已挂载后发射方写标记+发事件（RuntimePage 真实时序）：事件即开 + 标记即清
+    // （双清）——否则残留标记在 webview reload 后本页重挂载时误开抽屉
+    sessionStorage.setItem(OPEN_STATS_FLAG, '1')
     act(() => { window.dispatchEvent(new CustomEvent(FRONTEND_EVENTS.OPEN_STATS_DRAWER)) })
     expect(screen.getByText('模型调用统计')).toBeTruthy()
+    expect(sessionStorage.getItem(OPEN_STATS_FLAG)).toBeNull() // 无残留
   })
 
   it('后端未下发 label 时经内置映射显示（glm → GLM 云端）', () => {
