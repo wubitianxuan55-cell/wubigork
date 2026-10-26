@@ -1,18 +1,20 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import ModuleLauncher from './ModuleLauncher'
 import { LocaleProvider } from '../gaea/lib/i18n'
 import { FRONTEND_EVENTS, OPEN_TOOL_FLAG } from '../events'
+import { clearRecentFilesForTest, recordRecentFile } from '../gaea/lib/recentFiles'
 
-// ModuleLauncher 统一首页（v4.475 书斋/闲庭合一；前身 v4.182 双空间首页）：
-// 首页不再按壳层空间分裂版式——空间切换钮退役（切空间由板块导航隐式驱动），
-// 能力矩阵全板块出卡（书斋+闲庭一屏尽收），收件箱跨空间全量（列表 scope=''，
-// 新建任务仍按当前壳层空间落标签）。
-// 数据 hooks（遥测/会话/记忆）后端未就绪时静默兜底，无需 mock；语音 hook 整体
-// mock（真实实现依赖 Wails EventsOn）。
-// 断言焦点：统一台版式（w-hero 指挥卡 / desk-recent-docs / w-modules 全量网格 /
-// w-stat-row 状态带）、收件箱挂点与面板的跨空间口径、homeLayout 形态分支。
+// ModuleLauncher 首页（方向一「输入即首页」，2026-10-26 拍板；调研
+// docs/gaea-home-redesign-survey-2026-10.md）：classic 形态从六区收敛为中轴
+// 三段——开始（问候+命令条+建议词）/ 继续（最近文档+最近会话）/ 待办一行。
+// 12 板块卡与独立工具节退役（导航归 rail+命令面板；工具收进命令条「工具」
+// 下拉，OPEN_TOOL 双通道机制原样）；状态卡排收为待办一行。
+// 数据 hooks（会话）后端未就绪时静默兜底，无需 mock；语音 hook 整体 mock
+// （真实实现依赖 Wails EventsOn）；paneFileOpen mock（走桥的打开动作不属本测）。
+// 断言焦点：三段结构、退役面零残留（12 卡/工具节/状态排/进度环）、建议词
+// 填入命令条、工具下拉双通道、最近行真打开、收件箱挂点跨空间口径、形态分支。
 
 const bridgeMocks = vi.hoisted(() => ({
   app: {
@@ -31,6 +33,7 @@ const bridgeMocks = vi.hoisted(() => ({
 }))
 
 vi.mock('../gaea/lib/bridge', () => ({ app: bridgeMocks.app }))
+vi.mock('../gaea/lib/paneFileOpen', () => ({ openPaneFileOrPreview: vi.fn() }))
 // FE6-02：语音 hook 可切换降级位（默认 null = 既有用例口径不变）
 const voiceMock = vi.hoisted(() => ({
   state: { active: false, listening: false, aiSpeaking: false, error: null, degraded: null as string | null },
@@ -49,7 +52,13 @@ const wrap = (ui: ReactElement) => {
   return <LocaleProvider>{ui}</LocaleProvider>
 }
 
-describe('ModuleLauncher 统一台首页（v4.475 书斋/闲庭合一）', () => {
+// 最近文档种子跨用例隔离（localStorage 单源 + 解析缓存都是模块级状态，
+// 直写 localStorage 不失效缓存——走模块自身的 record/clear 辅助）
+beforeEach(() => {
+  clearRecentFilesForTest()
+})
+
+describe('ModuleLauncher 输入即首页（方向一 · 2026-10-26）', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -62,83 +71,68 @@ describe('ModuleLauncher 统一台首页（v4.475 书斋/闲庭合一）', () =>
     expect(screen.getByTestId('home-layout-tasks-entry')).toBeTruthy()
   })
 
-  it('指挥卡——台名大标 + 印章（台名首字，去空间语义）+ 就绪徽记；空间 chip 退役', () => {
+  it('开始段：时辰问候大标（衬线）+ 印章「文」+ 题辞 + 大命令条；就绪 pill 退役', () => {
     render(wrap(<ModuleLauncher onNavigate={vi.fn()} />))
-    // 全宽指挥卡：h1.w-hero-title = home.title「文书台」
-    expect(document.querySelector('.w-hero')).toBeTruthy()
-    const title = screen.getByText('文书台')
-    expect(title.tagName.toLowerCase()).toBe('h1')
-    expect(title.classList.contains('w-hero-title')).toBe(true)
-    // 题辞：w-hero-lede 承载 home.sub 长文案（锁存在 + 非空，不锁全串避免标点级脆断）
-    const lede = document.querySelector('.w-hero-lede')
-    expect(lede).toBeTruthy()
-    expect((lede?.textContent ?? '').length).toBeGreaterThan(0)
-    // 印章：纯装饰（aria-hidden），内容为台名首字「文」（v4.475 起不再取空间名首字）
-    const seal = document.querySelector('.w-seal')
+    expect(document.querySelector('.w-greet')).toBeTruthy()
+    const h1 = document.querySelector('.w-greet h1.w-hero-title')
+    expect(h1).toBeTruthy()
+    expect(['早上好', '下午好', '晚上好', '夜深了']).toContain(h1?.textContent ?? '')
+    // 印章：纯装饰（aria-hidden），内容为台名首字「文」（身份记号保留）
+    const seal = document.querySelector('.w-greet .w-seal')
     expect(seal).toBeTruthy()
     expect(seal?.getAttribute('aria-hidden')).toBe('true')
     expect(seal?.textContent).toBe('文')
-    // 空间 chip 退役（合一后首页无空间身份）；就绪徽记 = home.pill（zh.ts 精确串）
-    expect(screen.queryByTestId('ml-space-chip')).toBeNull()
-    expect(screen.getByText('GAEA 已就绪 · 本地 AI 创作中枢')).toBeTruthy()
-    // v9 的 open-masthead 结构退役；命令条本体保留
-    expect(document.querySelector('.w-masthead')).toBeNull()
+    // 题辞：home.sub 长文案（锁存在 + 非空）
+    const lede = document.querySelector('.w-greet .w-hero-lede')
+    expect(lede).toBeTruthy()
+    expect((lede?.textContent ?? '').length).toBeGreaterThan(0)
+    // 命令条本体保留；空间 chip / v9 masthead / 就绪 pill 全退役
     expect(document.querySelector('.w-cmd')).toBeTruthy()
+    expect(screen.queryByTestId('ml-space-chip')).toBeNull()
+    expect(document.querySelector('.w-masthead')).toBeNull()
+    expect(screen.queryByText('GAEA 已就绪 · 本地 AI 创作中枢')).toBeNull()
   })
 
-  it('板块全量出卡且全卡同权：闲庭与书斋板块同屏，无旗舰/徽记/箭头（v4.476 极简化；刀6 起与工具节分家，断言 scope 到 home-boards）', () => {
+  it('六区退役面零残留：板块卡网格/工具节/状态卡排/侧列进度环/画廊版式全 null', () => {
     render(wrap(<ModuleLauncher onNavigate={vi.fn()} />))
-    // 板块节（home-boards）与工具节（home-tools）各持一张 .w-modules 网格；
-    // 板块卡只在 home-boards 内清点（工具 tile 同用 .w-mod 形态类，不算板块卡）
-    const boards = document.querySelector('[data-testid="home-boards"]')
-    expect(boards).toBeTruthy()
-    expect(boards?.querySelector('.w-modules')).toBeTruthy()
-    // 静态 canonicalBoards 全量派生：11 业务板块 + settings，12 张同构卡（2026-10-19 +runtime）
-    const mods = boards?.querySelectorAll('.w-mod') ?? []
-    expect(mods.length).toBe(12)
-    mods.forEach((p) => expect(p.tagName.toLowerCase()).toBe('button'))
-    // 全卡同权：无旗舰/徽记/水印/悬停箭头，设置也是普通卡
-    expect((boards?.querySelectorAll('.w-mod.is-featured') ?? []).length).toBe(0)
-    expect((boards?.querySelectorAll('.w-mod.is-settings') ?? []).length).toBe(0)
-    expect((boards?.querySelectorAll('.w-mod-badge, .w-mod-mark, .w-mod-go, .w-mod-arrow') ?? []).length).toBe(0)
-    // 每卡=图标座+名称+一行描述三件套
-    mods.forEach((p) => {
-      expect(p.querySelector('.w-mod-icon')).toBeTruthy()
-      expect(p.querySelector('.w-mod-name')).toBeTruthy()
-      expect(p.querySelector('.w-mod-desc')).toBeTruthy()
-    })
-    // 闲庭板块卡可见（合一判据：不再按 work/play 过滤）
-    expect(screen.getByText('小说')).toBeTruthy()
-    expect(screen.getByText('原罪')).toBeTruthy()
-    expect(screen.getByText('绘梦')).toBeTruthy()
-    expect(screen.getByText('聊天')).toBeTruthy()
-    // 书斋板块卡同屏（办公不再有旗舰待遇，同样是一张普通卡）
-    expect(screen.getByText('造价数据库')).toBeTruthy()
-    expect(screen.getByText('办公')).toBeTruthy()
-    // 画廊版式残留不出现（GardenHome 系随合一退役）
+    expect(document.querySelector('[data-testid="home-boards"]')).toBeNull()
+    expect(document.querySelector('[data-testid="home-tools"]')).toBeNull()
+    expect(document.querySelector('.w-modules')).toBeNull()
+    expect(document.querySelector('.w-mod')).toBeNull()
+    expect(document.querySelector('.w-stat-row')).toBeNull()
+    expect(document.querySelector('.w-stat')).toBeNull()
+    expect(document.querySelector('.w-aside')).toBeNull()
+    expect(document.querySelector('.w-progress')).toBeNull()
+    expect(document.querySelector('.w-hero-pill')).toBeNull()
     expect(document.querySelector('.garden-banner')).toBeNull()
     expect(document.querySelector('.p-board')).toBeNull()
+    // 板块名称不再上首页（导航归常驻 rail + 命令面板）
+    expect(screen.queryByText('造价数据库')).toBeNull()
+    expect(screen.queryByText('板块')).toBeNull()
   })
 
-  it('工具节（§7.5 刀6）：CAD/进度两 tile 与板块分节，形态同 w-mod；点击=OPEN_TOOL 事件+冷启标记+导航办公（工具是动作不是房间）', () => {
+  it('建议词（NN/g：具体场景）点击=填入命令条可改可发，不直接发送', () => {
+    render(wrap(<ModuleLauncher onNavigate={vi.fn()} />))
+    const chips = document.querySelectorAll('.w-chip')
+    expect(chips.length).toBe(4)
+    const chip1 = screen.getByTestId('home-sug-1')
+    expect(chip1.textContent).toBe('帮我把这份文档的要点整理成一页纪要')
+    fireEvent.click(chip1)
+    const input = document.querySelector('input.w-cmd-input') as HTMLInputElement
+    expect(input.value).toBe('帮我把这份文档的要点整理成一页纪要')
+    // 只填入不发送：VoiceChatText 零调用（发送留给用户回车/点发送）
+    expect(bridgeMocks.app.VoiceChatText).not.toHaveBeenCalled()
+  })
+
+  it('命令条「工具」下拉（§7.5 刀6 机制随迁）：CAD/进度两档，点击=OPEN_TOOL 事件+冷启标记+导航办公', async () => {
     sessionStorage.clear()
     const onNavigate = vi.fn()
     render(wrap(<ModuleLauncher onNavigate={onNavigate} />))
-    const tools = document.querySelector('[data-testid="home-tools"]')
-    expect(tools).toBeTruthy()
-    // 只收已落地 ToolSheet kind（cad/schedule）；doc/sheet 无 kind 支撑不冒充工具
-    const tiles = tools?.querySelectorAll('.w-mod') ?? []
-    expect(tiles.length).toBe(2)
-    const cad = screen.getByTestId('home-tool-cad')
+    fireEvent.click(screen.getByTestId('home-tools-btn'))
+    const cad = await screen.findByTestId('home-tool-cad')
     const sched = screen.getByTestId('home-tool-schedule')
     expect(cad.textContent).toContain('CAD 看图')
     expect(sched.textContent).toContain('进度计划')
-    // tile 复用板块卡同款三件套（极简形态语言不分家）
-    tiles.forEach((p) => {
-      expect(p.querySelector('.w-mod-icon')).toBeTruthy()
-      expect(p.querySelector('.w-mod-name')).toBeTruthy()
-      expect(p.querySelector('.w-mod-desc')).toBeTruthy()
-    })
     // 点击 cad：双通道全发——事件（已挂载直达 setActiveTool）+ sessionStorage 标记
     //（办公 App 未懒加载挂载时由其挂载效应补开）+ 导航办公（不导航去板块房间）
     const seen: Array<{ name: string; detail: unknown }> = []
@@ -149,43 +143,63 @@ describe('ModuleLauncher 统一台首页（v4.475 书斋/闲庭合一）', () =>
     expect(seen).toEqual([{ name: FRONTEND_EVENTS.OPEN_TOOL, detail: { tool: 'cad' } }])
     expect(sessionStorage.getItem(OPEN_TOOL_FLAG)).toBe('cad')
     expect(onNavigate).toHaveBeenCalledWith('gaea')
-    // 点击 schedule 同链路（标记覆写为当前工具）
-    fireEvent.click(sched)
+    // 点击 schedule 同链路（菜单已关，重开再点；标记覆写为当前工具）
+    fireEvent.click(screen.getByTestId('home-tools-btn'))
+    fireEvent.click(await screen.findByTestId('home-tool-schedule'))
     expect(sessionStorage.getItem(OPEN_TOOL_FLAG)).toBe('schedule')
     expect(onNavigate).toHaveBeenLastCalledWith('gaea')
     sessionStorage.clear()
   })
 
-  it('首屏为卡片网格：指挥卡 + 文档卡 + 侧列 + 能力卡排 + 状态卡排', () => {
-    render(wrap(<ModuleLauncher onNavigate={vi.fn()} />))
-    expect(document.querySelector('.w-board')).toBeTruthy()
-    // 最近文档：卡片形态（卡头 + 行式文档流），testid 契约不变
+  it('继续段：最近文档行（点行真打开→办公）+ 最近会话行（点开进聊天）', async () => {
+    ;['第五份.docx', '第四份.docx', '第三份.docx', '预算.xlsx', '合同审查.docx'].forEach((n) => {
+      recordRecentFile(`C:/docs/${n}`, n)
+    })
+    bridgeMocks.app.ListSessions.mockResolvedValue([
+      { title: '造价对标', turns: 5, modTime: Date.now() - 3600_000, current: false },
+      { title: '周报整理', turns: 2, modTime: Date.now() - 7200_000, current: false },
+    ] as never)
+    const onNavigate = vi.fn()
+    render(wrap(<ModuleLauncher onNavigate={onNavigate} />))
+    expect(screen.getByTestId('home-recent')).toBeTruthy()
     const docs = screen.getByTestId('desk-recent-docs')
-    expect(docs.classList.contains('ml-card')).toBe(true)
-    expect(docs.querySelector('.ml-card-head')).toBeTruthy()
-    // 写作进度卡（侧列内，共享 ml-ring 原语）
-    const progress = document.querySelector('.w-progress')
-    expect(progress).toBeTruthy()
-    expect(progress?.querySelector('.ml-ring')).toBeTruthy()
+    // 最近行收 4 条（方向一：首页只答「现在开始做什么」，行数从 6 收 4）
+    await vi.waitFor(() => expect(docs.querySelectorAll('.w-docs-row').length).toBe(4))
+    // 点行=真打开该文档 + 导航办公（v4.439 语义不变）
+    fireEvent.click(docs.querySelector('.w-docs-btn') as HTMLElement)
+    expect(onNavigate).toHaveBeenCalledWith('gaea')
+    // 最近会话行出现（有会话才渲染）
+    await vi.waitFor(() => expect(document.querySelector('.w-recent-sess .ml-sess-item')).toBeTruthy())
+    expect(screen.getByText('造价对标')).toBeTruthy()
   })
 
-  it('状态卡排四张卡齐备（内核/会话/记忆/任务，aria-label 对齐 zh 精确文案）', () => {
+  it('最近文档空态：横排空态 + 「进入办公」CTA 导航', () => {
+    const onNavigate = vi.fn()
+    render(wrap(<ModuleLauncher onNavigate={onNavigate} />))
+    const docs = screen.getByTestId('desk-recent-docs')
+    expect(docs.querySelector('.w-empty')).toBeTruthy()
+    fireEvent.click(screen.getByText('进入办公'))
+    expect(onNavigate).toHaveBeenCalledWith('gaea')
+  })
+
+  it('待办段：收件箱挂点收为单行（aria-label=任务），不再渲染四节状态带', async () => {
+    bridgeMocks.app.GaeaTaskInboxList.mockResolvedValue([
+      { id: 'ti-a', title: 'a', space: 'work', status: 'pending', source: 'ctrlk', createdAt: 1, updatedAt: 1 },
+    ])
     render(wrap(<ModuleLauncher onNavigate={vi.fn()} />))
-    expect(document.querySelector('.w-stat-row')).toBeTruthy()
-    const stats = document.querySelectorAll('.w-stat')
-    expect(stats.length).toBe(4)
-    const labels = Array.from(stats).map((el) => el.getAttribute('aria-label'))
-    expect(labels).toContain('内核状态')
-    expect(labels).toContain('最近会话')
-    expect(labels).toContain('记忆脉搏')
-    expect(labels).toContain('任务')
-    stats.forEach((el) => expect(el.classList.contains('ml-card')).toBe(true))
+    const todo = screen.getByTestId('desk-task-inbox')
+    expect(todo.getAttribute('aria-label')).toBe('任务')
+    expect(todo.querySelector('.ml-krow-strong')).toBeTruthy()
+    expect(todo.querySelector('[data-testid="task-inbox-open-btn"]')).toBeTruthy()
+    // 状态卡排退役：容器内不再有内核/会话/记忆节
+    expect(document.querySelectorAll('.w-stat').length).toBe(0)
+    await vi.waitFor(() => expect(todo.textContent).toContain('待处理 1 项'))
   })
 })
 
-// 7.3-1 任务收件箱挂点：desk-task-inbox 状态带第五节。v4.475 首页合一：
-// 挂点计数跨空间全量（GaeaTaskInboxList('')）；面板单例同口径，新建任务仍
-// 按当前壳层空间落标签（Go ValidSpace 仅收 work|play）。
+// 7.3-1 任务收件箱挂点与面板：行为零变化（方向一只改呈现行）。
+// 挂点计数跨空间全量（GaeaTaskInboxList('')）；面板单例同口径，新建任务仍按
+// 当前壳层空间落标签（Go ValidSpace 仅收 work|play）。
 describe('ModuleLauncher 任务收件箱挂点（7.3-1 + v4.475 跨空间口径）', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -200,7 +214,6 @@ describe('ModuleLauncher 任务收件箱挂点（7.3-1 + v4.475 跨空间口径�
     render(wrap(<ModuleLauncher onNavigate={vi.fn()} />))
     const sec = screen.getByTestId('desk-task-inbox')
     expect(sec).toBeTruthy()
-    expect(sec.textContent).toContain('任务')
     // 跨空间全量：scope 空串（后端 FilterBySpace('')=全部）
     await vi.waitFor(() => expect(bridgeMocks.app.GaeaTaskInboxList).toHaveBeenCalledWith(''))
     await vi.waitFor(() => expect(sec.textContent).toContain('待处理 2 项'))
@@ -244,18 +257,19 @@ describe('ModuleLauncher 任务收件箱挂点（7.3-1 + v4.475 跨空间口径�
   })
 })
 
-// ── 7.3-2 板块降级为任务视图：homeLayout 分支（合一后台版式不分空间）──
+// ── 7.3-2 板块降级为任务视图：homeLayout 分支（tasks 形态结构不动）──
 describe('ModuleLauncher 首页形态分支（7.3-2 层跃升）', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.removeItem('gaea.home.layout')
   })
 
-  it('缺省 classic：渲染统一台首页，快捷钮为「任务优先」入口', async () => {
+  it('缺省 classic：渲染输入即首页，快捷钮为「任务优先」入口', async () => {
     const { useAppStore } = await import('../stores/appStore')
     useAppStore.setState({ homeLayout: 'classic' })
     render(wrap(<ModuleLauncher onNavigate={vi.fn()} />))
     expect(screen.getByTestId('desk-task-inbox')).toBeTruthy()
+    expect(screen.getByTestId('home-recent')).toBeTruthy()
     expect(screen.queryByTestId('tasks-first-home')).toBeNull()
     expect(screen.getByTestId('home-layout-tasks-entry')).toBeTruthy()
   })
@@ -277,9 +291,6 @@ describe('ModuleLauncher 语音降级可见化（FE6-02）', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     voiceMock.state = { active: true, listening: false, aiSpeaking: false, error: null, degraded: 'mic-unavailable' }
-  })
-  afterEach(() => {
-    voiceMock.state = { active: false, listening: false, aiSpeaking: false, error: null, degraded: null }
   })
 
   it('degraded=mic-unavailable → 命令条出现中文警示，且不再显示「聆听中」', () => {
