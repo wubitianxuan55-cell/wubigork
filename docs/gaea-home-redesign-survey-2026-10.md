@@ -210,7 +210,11 @@
 
 **验证**：tsc 绿；定向 73/73（HomePage 11 例零编辑=抽取等价）；无头 Edge 暗色四档+亮色档（`gaea-display-mode` localStorage 配方）重叠扫描**全零 over=0**；对象组亮/暗两档渲染实测（objRows=2/docRows=2，亮色主文字 rgb(15,26,32) 深墨可读）。全量 vitest 见提交记录。
 
-**二期后留池**：①用户真机走查（对象组恢复链路 novel 闸门/schedule 面板跟随均未真机实弹）；②tasks 形态是否补对象组（当前 classic 独有）；③发版推送待指示。
+**沙箱走查（2026-10-26 深夜补，真实 Wails 绑定端到端）**：`build.bat skip-smoke` 构建 + `GAEA_WALKTHROUGH=1 GAEA_WEBVIEW_DEBUG=1`（沙箱隔离三行日志核验：书架/workspace/APPDATA 均指 Temp 走查沙箱）。两条恢复链路全过：①novel=CDP 真调 `CreateProject` 建书 → 种子 → 点首页续做行 → `OpenProject` 真调成功（记账 ts 回写为证）→ 落小说板块；②schedule=真调 `GaeaScheduleProjectCreate` 建工程 → 点行 → 指针真切+记账 → 办公 ToolSheet 打开且工具面板显示走查工程名。console 0 错。**断言辨误**：点行后 `.ml` 仍在 DOM——首页是 keepAlive 常驻隐藏（visitedPages）不卸载，判「已切走」须查可见性（offsetWidth=0）非存在性。
+
+**走查揭出隔离洞并当场根修（v4.428.1 同类）**：上述 schedule 链路当时实际把 `走查工程` 写进了**真实仓库**（`.gaea/schedule/index.json` 指针被改+`进度计划/` 新增文件）——污染已即时复原（checkout 索引+删文件，当前计划本体未动）。根因=**未登录走查壳 `ga.cfg==nil` → `gaeaCwd()` 回退 `os.Getwd()`=仓库根**，schedule/CAD/dag/crosslink 等办公面绑定全部静默落真实目录（昨日会话登录过沙箱故未漏）。根修=`gaeaCwd()` 走查态 fail-closed 到 `WalkthroughWorkspaceDir()`（同 userHome 纪律：宁可落沙箱绝不回落）+ 回归测试两例；重建后**同事故形态复现验证**：复现工程落 Temp 沙箱、真实索引零触碰。另：9333 被昨日会话遗留的无窗口 msedge+msedgewebview2 双占（dev-mock/原型页签=自动化残留特征），取证（StartTime 前日+MainWindowTitle 空）后清除再启壳——CDP 驱动前必查 9333 属主配方再次应验。
+
+**二期后留池**：①tasks 形态是否补对象组（当前 classic 独有）；②发版推送待指示。（真机实弹走查已于沙箱真绑定链路代偿：见上「沙箱走查」段。）
 
 ## 7. 参考来源（节选）
 

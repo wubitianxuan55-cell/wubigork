@@ -422,9 +422,21 @@ type FilePreview struct {
 }
 
 // gaeaCwd 返回办公引擎工作目录：优先当前工作空间配置，回退进程启动目录。
+// 走查态 fail-closed（2026-10-26 沙箱走查实弹事故根修）：gaea 引擎未登录
+// 未装配时 ga.cfg 为 nil，回退 os.Getwd() 会把走查绑定静默打进真实目录
+// （实弹：GaeaScheduleProjectCreate 以 cwd=仓库根 启动时实写了真实
+// .gaea/schedule/index.json 与 进度计划/）。同 userHome 纪律：走查态宁可
+// 落沙箱 workspace，绝不回落真实目录。
 func gaeaCwd() string {
 	if ga.cfg != nil && ga.cfg.Workspace != "" {
 		return ga.cfg.Workspace
+	}
+	if config.IsWalkthrough() {
+		dir := gaeaConfig.WalkthroughWorkspaceDir()
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			slog.Error("创建走查沙箱 workspace 失败（工作目录拒绝回落真实目录）", "error", err)
+		}
+		return dir
 	}
 	cwd, _ := os.Getwd()
 	return cwd
