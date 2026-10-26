@@ -30,7 +30,7 @@ import {
   ArrowRightOutlined, AudioOutlined, SendOutlined,
   StopOutlined, ThunderboltOutlined,
   FileTextOutlined, ClockCircleOutlined, HeartOutlined, ApiOutlined,
-  CheckSquareOutlined,
+  CheckSquareOutlined, BlockOutlined, BarChartOutlined, ToolOutlined,
 } from '@ant-design/icons'
 // 板块清单：活动清单（静态 fallback / 后端合并）订阅驱动；图标由 manifest 图标注册表解析（3.0 §5.2）
 import { getActiveBoards, subscribeBoards, resolveBoardIcon } from '../boards/manifests'
@@ -42,9 +42,11 @@ import { Input } from 'antd'
 import { useVoiceChat } from '../hooks/useVoiceChat'
 import { useAppStore } from '../stores/appStore'
 import { useT } from '../gaea/lib/i18n'
+import type { DictKey } from '../gaea/locales/en'
 import { app } from '../gaea/lib/bridge'
 import { TaskInboxPanel } from '../gaea/components/TaskInboxPanel'
 import { SectionLabel, ChatBubble, WritingRing, MemoryPulse, TaskInboxEntry, TelemetryBody, SessionList, useLauncherData, type LauncherData } from './launcher_parts'
+import { emitFrontendEvent, FRONTEND_EVENTS, OPEN_TOOL_FLAG } from '../events'
 import './module-launcher.css'
 
 export { SessionList }
@@ -103,6 +105,16 @@ export const HomeStrip: React.FC = () => {
 //  统一首页 · v9「案头」——masthead 身份区 + 纯命令台 + 账页×案牌 + 脉息面板
 //  （v4.475 书斋/闲庭合一：本版式即唯一 classic 首页，板块全量出卡）
 // ════════════════════════════════════════════════════════════════════
+
+// §7.5 刀6 首页工具 tile 清单：工具=动作不是房间——点击打开办公工作台里的
+// 临时 ToolSheet（不导航去板块）。只收已落地的 ToolSheet kind（cad/schedule）；
+// 文档/表格是办公对话能力（能力卡/技能面），无工具面板 kind 支撑不冒充工具。
+type HomeToolKind = 'cad' | 'schedule'
+const HOME_TOOLS: { kind: HomeToolKind; icon: React.ReactNode; nameKey: DictKey; descKey: DictKey }[] = [
+  { kind: 'cad', icon: <BlockOutlined />, nameKey: 'home.toolCad', descKey: 'home.toolCadDesc' },
+  { kind: 'schedule', icon: <BarChartOutlined />, nameKey: 'home.toolSchedule', descKey: 'home.toolScheduleDesc' },
+]
+
 const DeskHome: React.FC<{
   data: LauncherData
   onNavigate: (t: LauncherTarget) => void
@@ -171,6 +183,16 @@ const DeskHome: React.FC<{
           : ''
 
   const hasChat = !!userText || !!aiReply
+
+  // §7.5 刀6：工具 tile 点击 = 双通道打开办公 ToolSheet。办公 App keepAlive
+  // 常驻时 OPEN_TOOL 事件直达 setActiveTool；首次未挂载（lazy 懒加载）事件
+  // 无人听 → sessionStorage 标记由办公 App 挂载效应补开（OPEN_STATS_FLAG 同款
+  // 双通道；已挂载场景监听侧顺带清标记，无残留）。
+  const openOfficeTool = useCallback((tool: HomeToolKind) => {
+    try { sessionStorage.setItem(OPEN_TOOL_FLAG, tool) } catch { /* 隐私模式静默跳过补开 */ }
+    emitFrontendEvent(FRONTEND_EVENTS.OPEN_TOOL, { tool })
+    onNavigate('gaea')
+  }, [onNavigate])
 
   return (
     <div className="ml ml-work">
@@ -326,8 +348,33 @@ const DeskHome: React.FC<{
               组件与数据管线保留（gaea/components/MorningBriefCard），仅撤书斋侧列入口 */}
         </div>
 
-        {/* ═══ ③ 能力矩阵：节标 + 统一模块卡网格（v4.476 全卡同权极简化）═══ */}
-        <section className="w-cap v3-rise v3-rise-3" aria-label={t('home.capTitle')}>
+        {/* ═══ ③ 工具（§7.5 刀6：工具=动作——CAD 看图/进度计划打开办公工作台
+            里的临时 ToolSheet，不是板块房间；与板块入口分节，两类心智不再混排）═══ */}
+        <section className="w-cap v3-rise v3-rise-3" aria-label={t('home.toolsTitle')} data-testid="home-tools">
+          <SectionLabel icon={<ToolOutlined />} title={t('home.toolsTitle')} sub={t('home.toolsSub')} />
+          <div className="w-modules">
+            {HOME_TOOLS.map((tool) => (
+              <button
+                key={tool.kind}
+                type="button"
+                className="w-mod"
+                data-testid={`home-tool-${tool.kind}`}
+                aria-label={`${t(tool.nameKey)} — ${t('home.toolsSub')}`}
+                title={t(tool.descKey)}
+                onClick={() => openOfficeTool(tool.kind)}
+              >
+                <span className="w-mod-icon" aria-hidden="true">{tool.icon}</span>
+                <span className="w-mod-body">
+                  <span className="w-mod-name">{t(tool.nameKey)}</span>
+                  <span className="w-mod-desc">{t(tool.descKey)}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* ═══ ④ 板块：统一模块卡网格（v4.476 全卡同权极简化；刀6 起与工具分节）═══ */}
+        <section className="w-cap v3-rise v3-rise-3" aria-label={t('home.capTitle')} data-testid="home-boards">
           <SectionLabel icon={<ThunderboltOutlined />} title={t('home.capTitle')} sub={t('home.capSub')} />
           <div className="w-modules">
             {allModules.map((m) => (
@@ -339,7 +386,7 @@ const DeskHome: React.FC<{
           </div>
         </section>
 
-        {/* ═══ ④ 状态卡排：内核 / 会话 / 记忆 / 任务（自适列宽，窄屏自动换行）═══ */}
+        {/* ═══ ⑤ 状态卡排：内核 / 会话 / 记忆 / 任务（自适列宽，窄屏自动换行）═══ */}
         <section className="w-stat-row v3-rise v3-rise-3" aria-label={t('home.sideAria')}>
           <section className="ml-card w-stat" aria-label={t('home.kernel')}>
             <CardHead icon={<ApiOutlined />} title={t('home.kernel')} />

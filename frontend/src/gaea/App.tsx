@@ -15,7 +15,7 @@ import { RESUME_SESSION_EVENT, consumePendingSessionResume } from "./lib/pending
 import { GenuiActionProvider } from "../genui/GenuiActionContext";
 import { GenuiScopeProvider } from "../genui/scope";
 import { scheduleApplyArgsOf } from "../schedule/applyDiff";
-import { FRONTEND_EVENTS } from "../events";
+import { FRONTEND_EVENTS, OPEN_TOOL_FLAG } from "../events";
 import { setGenuiActionHandler } from "./lib/genuiHost";
 import { clearGenuiPanel } from "./lib/genuiPanel";
 import { Transcript } from "./components/Transcript";
@@ -197,12 +197,24 @@ export default function App() {
   // 临时工具面板（CAD 看图/进度计划）：不是工作台、不占右栏 Tab；关闭即回对话。
   const [activeTool, setActiveTool] = useState<"cad" | "schedule" | null>(null);
   // 深处组件（产物行/工具卡）请求打开工具面板：FRONTEND_EVENTS.OPEN_TOOL 单通道，
-  // 与 setActiveTool 三入口同源（办公室根常驻挂载，无需 OPEN_STATS_DRAWER 那套
-  // 未挂载补开标记）。
+  // 与 setActiveTool 三入口同源。首页工具 tile（§7.5 刀6）是跨板例外：办公 App
+  // 尚未懒加载挂载时事件无人听 → 挂载效应消费 sessionStorage 标记（OPEN_TOOL_FLAG）
+  // 补开，读后即清（OPEN_STATS_FLAG 同款双通道）；已挂载场景监听顺带清标记，
+  // 杜绝已消费标记残留到下次冷启误开。
   useEffect(() => {
+    try {
+      const pending = sessionStorage.getItem(OPEN_TOOL_FLAG);
+      if (pending === "cad" || pending === "schedule") {
+        sessionStorage.removeItem(OPEN_TOOL_FLAG);
+        setActiveTool(pending);
+      }
+    } catch { /* sessionStorage 不可用（隐私模式等）静默跳过 */ }
     const onOpenTool = (ev: Event) => {
       const tool = (ev as CustomEvent<{ tool?: "cad" | "schedule" }>).detail?.tool;
-      if (tool === "cad" || tool === "schedule") setActiveTool(tool);
+      if (tool === "cad" || tool === "schedule") {
+        try { sessionStorage.removeItem(OPEN_TOOL_FLAG); } catch { /* 同上 */ }
+        setActiveTool(tool);
+      }
     };
     window.addEventListener(FRONTEND_EVENTS.OPEN_TOOL, onOpenTool);
     return () => window.removeEventListener(FRONTEND_EVENTS.OPEN_TOOL, onOpenTool);

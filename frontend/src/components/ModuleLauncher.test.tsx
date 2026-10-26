@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import ModuleLauncher from './ModuleLauncher'
 import { LocaleProvider } from '../gaea/lib/i18n'
+import { FRONTEND_EVENTS, OPEN_TOOL_FLAG } from '../events'
 
 // ModuleLauncher 统一首页（v4.475 书斋/闲庭合一；前身 v4.182 双空间首页）：
 // 首页不再按壳层空间分裂版式——空间切换钮退役（切空间由板块导航隐式驱动），
@@ -85,17 +86,21 @@ describe('ModuleLauncher 统一台首页（v4.475 书斋/闲庭合一）', () =>
     expect(document.querySelector('.w-cmd')).toBeTruthy()
   })
 
-  it('能力矩阵全板块出卡且全卡同权：闲庭与书斋板块同屏，无旗舰/徽记/箭头（v4.476 极简化）', () => {
+  it('板块全量出卡且全卡同权：闲庭与书斋板块同屏，无旗舰/徽记/箭头（v4.476 极简化；刀6 起与工具节分家，断言 scope 到 home-boards）', () => {
     render(wrap(<ModuleLauncher onNavigate={vi.fn()} />))
-    expect(document.querySelector('.w-modules')).toBeTruthy()
+    // 板块节（home-boards）与工具节（home-tools）各持一张 .w-modules 网格；
+    // 板块卡只在 home-boards 内清点（工具 tile 同用 .w-mod 形态类，不算板块卡）
+    const boards = document.querySelector('[data-testid="home-boards"]')
+    expect(boards).toBeTruthy()
+    expect(boards?.querySelector('.w-modules')).toBeTruthy()
     // 静态 canonicalBoards 全量派生：11 业务板块 + settings，12 张同构卡（2026-10-19 +runtime）
-    const mods = document.querySelectorAll('.w-mod')
+    const mods = boards?.querySelectorAll('.w-mod') ?? []
     expect(mods.length).toBe(12)
     mods.forEach((p) => expect(p.tagName.toLowerCase()).toBe('button'))
     // 全卡同权：无旗舰/徽记/水印/悬停箭头，设置也是普通卡
-    expect(document.querySelectorAll('.w-mod.is-featured').length).toBe(0)
-    expect(document.querySelectorAll('.w-mod.is-settings').length).toBe(0)
-    expect(document.querySelectorAll('.w-mod-badge, .w-mod-mark, .w-mod-go, .w-mod-arrow').length).toBe(0)
+    expect((boards?.querySelectorAll('.w-mod.is-featured') ?? []).length).toBe(0)
+    expect((boards?.querySelectorAll('.w-mod.is-settings') ?? []).length).toBe(0)
+    expect((boards?.querySelectorAll('.w-mod-badge, .w-mod-mark, .w-mod-go, .w-mod-arrow') ?? []).length).toBe(0)
     // 每卡=图标座+名称+一行描述三件套
     mods.forEach((p) => {
       expect(p.querySelector('.w-mod-icon')).toBeTruthy()
@@ -113,6 +118,42 @@ describe('ModuleLauncher 统一台首页（v4.475 书斋/闲庭合一）', () =>
     // 画廊版式残留不出现（GardenHome 系随合一退役）
     expect(document.querySelector('.garden-banner')).toBeNull()
     expect(document.querySelector('.p-board')).toBeNull()
+  })
+
+  it('工具节（§7.5 刀6）：CAD/进度两 tile 与板块分节，形态同 w-mod；点击=OPEN_TOOL 事件+冷启标记+导航办公（工具是动作不是房间）', () => {
+    sessionStorage.clear()
+    const onNavigate = vi.fn()
+    render(wrap(<ModuleLauncher onNavigate={onNavigate} />))
+    const tools = document.querySelector('[data-testid="home-tools"]')
+    expect(tools).toBeTruthy()
+    // 只收已落地 ToolSheet kind（cad/schedule）；doc/sheet 无 kind 支撑不冒充工具
+    const tiles = tools?.querySelectorAll('.w-mod') ?? []
+    expect(tiles.length).toBe(2)
+    const cad = screen.getByTestId('home-tool-cad')
+    const sched = screen.getByTestId('home-tool-schedule')
+    expect(cad.textContent).toContain('CAD 看图')
+    expect(sched.textContent).toContain('进度计划')
+    // tile 复用板块卡同款三件套（极简形态语言不分家）
+    tiles.forEach((p) => {
+      expect(p.querySelector('.w-mod-icon')).toBeTruthy()
+      expect(p.querySelector('.w-mod-name')).toBeTruthy()
+      expect(p.querySelector('.w-mod-desc')).toBeTruthy()
+    })
+    // 点击 cad：双通道全发——事件（已挂载直达 setActiveTool）+ sessionStorage 标记
+    //（办公 App 未懒加载挂载时由其挂载效应补开）+ 导航办公（不导航去板块房间）
+    const seen: Array<{ name: string; detail: unknown }> = []
+    const rec = (ev: Event) => seen.push({ name: ev.type, detail: (ev as CustomEvent).detail })
+    window.addEventListener(FRONTEND_EVENTS.OPEN_TOOL, rec)
+    fireEvent.click(cad)
+    window.removeEventListener(FRONTEND_EVENTS.OPEN_TOOL, rec)
+    expect(seen).toEqual([{ name: FRONTEND_EVENTS.OPEN_TOOL, detail: { tool: 'cad' } }])
+    expect(sessionStorage.getItem(OPEN_TOOL_FLAG)).toBe('cad')
+    expect(onNavigate).toHaveBeenCalledWith('gaea')
+    // 点击 schedule 同链路（标记覆写为当前工具）
+    fireEvent.click(sched)
+    expect(sessionStorage.getItem(OPEN_TOOL_FLAG)).toBe('schedule')
+    expect(onNavigate).toHaveBeenLastCalledWith('gaea')
+    sessionStorage.clear()
   })
 
   it('首屏为卡片网格：指挥卡 + 文档卡 + 侧列 + 能力卡排 + 状态卡排', () => {

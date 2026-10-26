@@ -32,12 +32,23 @@ describe('办公域「进度计划」命令面板入口', () => {
     expect(cmdLine).not.toContain('NAVIGATE')
   })
 
-  it('App 已从 ../events 引入 FRONTEND_EVENTS（OPEN_TOOL 监听用，模块级，无需 dep）', () => {
-    expect(src).toMatch(/import \{ FRONTEND_EVENTS \} from "\.\.\/events"/)
+  it('App 已从 ../events 引入 FRONTEND_EVENTS + OPEN_TOOL_FLAG（§7.5 刀6 冷启补开用）', () => {
+    expect(src).toMatch(/import \{ FRONTEND_EVENTS, OPEN_TOOL_FLAG \} from "\.\.\/events"/)
   })
 
   it('深处组件打开工具面板的单通道存在：OPEN_TOOL 监听 → setActiveTool', () => {
     expect(src).toMatch(/FRONTEND_EVENTS\.OPEN_TOOL/)
-    expect(src).toMatch(/activeTool, setActiveTool\] = useState<"cad" \| "schedule" \| null>/)
+    expect(src).toMatch(/activeTool, setActiveTool\] = useState<"cad" \| "schedule" | null>/)
+  })
+
+  it('首页工具 tile 的冷启补开双通道：挂载效应消费 OPEN_TOOL_FLAG 标记（读后即清）+ 监听顺带清残留（§7.5 刀6）', () => {
+    // 挂载效应：读标记 → removeItem → setActiveTool（办公 App 首次懒加载时事件已错过）
+    expect(src).toMatch(/sessionStorage\.getItem\(OPEN_TOOL_FLAG\)/)
+    expect(src).toMatch(/sessionStorage\.removeItem\(OPEN_TOOL_FLAG\);/)
+    expect(src).toMatch(/setActiveTool\(pending\)/)
+    // 已挂载场景：事件监听里也清标记，杜绝已消费标记残留到下次冷启误开
+    const listenerBody = src.split('const onOpenTool')[1]?.split('}, [];')[0] ?? ''
+    expect(listenerBody).toContain('sessionStorage.removeItem(OPEN_TOOL_FLAG)')
+    expect(listenerBody).toContain('setActiveTool(tool)')
   })
 })

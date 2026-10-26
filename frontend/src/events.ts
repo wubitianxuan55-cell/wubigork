@@ -82,6 +82,11 @@ export const FRONTEND_EVENTS = {
 /** 「按模型明细」跳转的抽屉补开标记（sessionStorage；模型中心挂载效应消费即清） */
 export const OPEN_STATS_FLAG = 'gaea.stats-drawer-open'
 
+/** 首页工具 tile 打开 ToolSheet 的冷启补开标记（sessionStorage；值为工具名
+ *  'cad' | 'schedule'。办公 App 常驻挂载前事件无人听 → 首次懒加载挂载效应
+ *  消费即清；已挂载场景由 OPEN_TOOL 监听顺带清除，杜绝标记残留） */
+export const OPEN_TOOL_FLAG = 'gaea.tool-open'
+
 export type FrontendEventName = (typeof FRONTEND_EVENTS)[keyof typeof FRONTEND_EVENTS]
 
 /** 聊天流动态频道：chat-stream:<runID> */

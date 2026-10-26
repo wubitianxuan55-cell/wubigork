@@ -255,7 +255,7 @@ CAD 与进度是**动词**——出现在输入框工具菜单、AI 工具卡、
 |---|---|
 | cadToolCache（§7.3 尾） | `gaea/components/cad/cadToolCache.ts`：解析产物按 path 缓存（模块级单例，cadRecent 同款）。ToolSheet 关闭卸载 CadPanel 后 openRes/raster/texts/count 留存，重开（最近图纸/重复导入）零 CadOpen/CadRaster/CadTexts/CadCount 调用。图纸只读红线→无失效需求；内存节制：raster 仅缓存默认宽度渲图（ASK_WIDTH 加宽图不缓存）、每文件 3 张 LRU、8 文件 LRU。CadPanel 六处接线（load 命中短路/open/raster/texts/count 落/handoff 内联落），代际竞态守卫原样生效 |
 | 空态工具区（§6.4） | `Welcome` 新增工具节（能力卡后）：CAD 看图/进度计划两 tile，点击开 ToolSheet 不导航；`onOpenTool` 缺省整节不渲染（宿主可选接线）；Transcript/App 穿线；三语 5 键（welcome.tools*） |
-| 挂拍板池 | §7.5 首页 12 模块卡改造——首页形态是 v4.476 刚拍板的极简化（模块卡极简化保留全卡），且 doc/sheet 工具 tile 无 ToolSheet kind 支撑；改首页与既有拍板有张力，提请拍板后再动 |
+| 挂拍板池 | §7.5 首页 12 模块卡改造——首页形态是 v4.476 刚拍板的极简化（模块卡极简化保留全卡），且 doc/sheet 工具 tile 无 ToolSheet kind 支撑；改首页与既有拍板有张力，提请拍板后再动（**2026-10-26 用户拍板执行，落地见 §13**） |
 | 留池 | 工具面板与右栏检查器合并（§7.4 尾，需 CadPanel 拆 CadTool/CadInspector 状态上移，建议真机走查后按体感定）；§7.6 令牌映射暖纸面 |
 
 **验证**：`tsc -b` 绿；ESLint 0；全量 vitest 3997/3997（cad 20 例含缓存 6 新例；既有「卸载重挂一键重开」用例断言随新语义同批迁移=重开后 CadOpen 不再二次调用；Welcome 6 例含工具节 2 新例）。
@@ -272,3 +272,21 @@ CAD 与进度是**动词**——出现在输入框工具菜单、AI 工具卡、
 | 对比度契约 | appStore.contrast.test 新增 14 例：全预设×明暗 shellSidebar 为 hex、侧栏正文四令牌（text/secondary/tertiary/primary）≥4.5:1（会话列表文本直接压壳侧栏）；暗态加亮度严格低于画布的后退不变式 |
 
 **验证**：`tsc -b` 绿；ESLint 0；定向 contrast 35/35（含 14 新例）+Sidebar/appStore/perf-guards 32/32；全量 vitest 4010/4011（1 例 `FilePreviewModal` Esc 关闭为已知并发负载 flaky，隔离复跑 15/15 绿——与 §9 首批同签名，非本刀面）。
+
+---
+
+## 13. 第六刀：首页 12 模块卡工作台化——工具行前置（§7.5 销项，2026-10-26）
+
+2026-10-26 用户拍板执行 §7.5 挂拍板项，并明确**不采纳本文档 §7.5/§8 原型的三段方案**（继续+最近产物无跨板块数据源、doc/sheet tile 无 ToolSheet kind 支撑——老方案基于旧首页认知，已过时）。落地以刀1~5 之后的现状为基准做增量：
+
+| 项 | 落点 |
+|---|---|
+| 对象修正 | §7.5 原文「Welcome 的 12 张模块卡」实为**首页 `DeskHome`（ModuleLauncher）能力矩阵节**的 12 张板块卡（chat/novel/imagegen/gaea/cost/memoryhub/modelcenter/characterlib/settings 特判/weixin/sin/runtime；schedule v4.168 起 inMenu:false 不在网格）。办公空态 Welcome 无 12 卡（刀4 已加工具节） |
+| 工具行前置 | `DeskHome` 能力矩阵节前新增**工具节**（`home-tools`）：CAD 看图/进度计划两 tile——工具=动作不是房间；与板块节（`home-boards`）分节，两类心智不再混排。tile 复用 `.w-mod` 全卡同权形态（v4.476 极简语言零新 CSS），`HOME_TOOLS` 清单只收已落地 ToolSheet kind（cad/schedule），doc/sheet 无 kind 支撑不冒充工具 |
+| 跨板打开链路 | 首页 tile 点击=**OPEN_TOOL 双通道**：`emitFrontendEvent`（办公 App keepAlive 常驻直达 `setActiveTool`）+ sessionStorage 标记 `OPEN_TOOL_FLAG`（首访未挂载、事件无人听时由办公 App 挂载效应补开，读后即清——`OPEN_STATS_FLAG` 同款模式）+ `onNavigate('gaea')`。比 OPEN_STATS 模式多一手：**监听侧顺带清标记**，杜绝已挂载场景写入的标记残留到下次冷启误开 |
+| 板块节口径 | `home.capTitle` 三语「能力矩阵」→「板块」（Boards/板塊）——本节就是板块入口网格，「能力矩阵」是 §2 诊断用语；sub「全部工作台，一屏尽收」保留。12 卡全卡同权**零变化**（v4.476 拍板形态不动） |
+| 事件面 | `events.ts` 新增 `OPEN_TOOL_FLAG = 'gaea.tool-open'`（标记值为工具名，区别于 OPEN_STATS_FLAG 的 '1'） |
+| 消费侧 | `gaea/App.tsx` OPEN_TOOL 监听效应扩为双通道：挂载效应读标记补开（privacy try/catch 静默）+ 监听内清标记 |
+| TasksFirstHome | 不动——任务优先首页心智是「先处理收件箱」，能力 chips 是紧凑文本视图，工具直达不属其核心路径 |
+
+**验证**：`tsc -b` 绿；ESLint 0；定向 ModuleLauncher 13 例（含工具节新例：双通道事件+标记+导航断言、tile 三件套形态、板块断言 scope 化迁移）+ App.palette 源级守卫 5 例（含冷启补开双通道新例）= 18/18 绿；全量 vitest 见提交记录。
