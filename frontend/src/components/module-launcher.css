@@ -583,6 +583,11 @@ html[data-hl='light'] .ml .w-hero {
 /* 最近会话行（有会话才渲染；与文档行同一节奏） */
 .w-recent-sess { min-width: 0; }
 
+/* 工作对象行（书/工程）：复用文档行形态，meta 位放板块标签（无路径语义，
+   不走 rtl 截断方向） */
+.w-objects { margin: 0; }
+.w-objects .w-docs-path { direction: ltr; }
+
 /* 卡内/列表空态（v11 横排苗条态）：icon+主文案+动作钮一行，窄屏 flex-wrap 兜底 */
 .w-empty {
   display: flex;

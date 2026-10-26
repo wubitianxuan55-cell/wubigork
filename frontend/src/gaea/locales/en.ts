@@ -692,6 +692,8 @@ export const en = {
   "home.greetEvening": "Good evening",
   "home.greetNight": "Good evening",
   "home.recentTitle": "Recent",
+  "home.objKindNovel": "Novel",
+  "home.objKindSchedule": "Schedule",
   "home.sug1": "Summarize this document into a one-page brief",
   "home.sug2": "Continue a passage of my novel",
   "home.sug3": "Draw an ink-wash painting of an alley after rain",

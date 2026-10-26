@@ -195,6 +195,23 @@
 
 **留池**：①「继续」二期跨板块聚合（书/进度工程/造价项目需统一 recent 源）；②亮色档真机目检+用户真机走查；③tasks 形态与 classic 的视觉语言已分家（卡片台 vs 中轴），是否统一待用户体感；④发版推送待指示。
 
+### 8.1 「继续」二期：跨板块工作对象聚合（2026-10-26 同日）
+
+一期留池①当日清偿。范围拍板：**只收小说书+进度工程两类**——cost 判「不做」（其「选中项目」是 WorkcostBillView 组件本地筛选态，无恢复语义，硬造对象行是伪续做）。
+
+| 项 | 落点 |
+|---|---|
+| recentObjects 单源 | `gaea/lib/recentObjects.ts`（仿 recentFiles：localStorage+写入广播+解析缓存；kind+key 去重置顶；每 kind 留 3 条、总量 12 防单一板块刷屏；读写 fail-safe 不影响打开主流程）+ 单源测试 4 例 |
+| 打开链路共享件 | `components/novel/openNovelProject.ts` 抽自 HomePage.handleOpen（后端 OpenProject→store 落位→可选直达阅读 tab→记账）；HomePage 四处接线（handleOpen 改走共享件零编辑复绿；新建/文件导入/在线导入三处补一行记账）——书架与首页一份真相 |
+| schedule 埋点 | `schedule/store.ts` switchProject/createThenSwitch 成功路径 record（失败 fail-closed 不记，防没打开的工程顶到续做行） |
+| 首页对象组 | 「继续」区顶部 `.w-objects`（≤3 行：BookOutlined/BarChartOutlined+名称+板块标签+箭头），无记账整组不渲染；恢复链路：novel=切书闸门 guardNovelSwitch+共享件+navigate('novel')；schedule=`useScheduleStore.getState().openProject(rel)`（指针驱动，ScheduleTool/完整工作台自动跟随）→ OPEN_TOOL 双通道开工具面板——**store 走动态 import，schedule 域不进主包** |
+| 词典 | 三语 +2 键（home.objKindNovel 小说/Novel/小說；home.objKindSchedule 进度/Schedule/進度） |
+| 契约 | ModuleLauncher.test +3 mock（openNovelProject/guardNovelSwitch/schedule store——动态 import 同走 mock）+2 用例（对象组渲染+双恢复链路断言；空态整组不渲染）；recentObjects.test 4 例 |
+
+**验证**：tsc 绿；定向 73/73（HomePage 11 例零编辑=抽取等价）；无头 Edge 暗色四档+亮色档（`gaea-display-mode` localStorage 配方）重叠扫描**全零 over=0**；对象组亮/暗两档渲染实测（objRows=2/docRows=2，亮色主文字 rgb(15,26,32) 深墨可读）。全量 vitest 见提交记录。
+
+**二期后留池**：①用户真机走查（对象组恢复链路 novel 闸门/schedule 面板跟随均未真机实弹）；②tasks 形态是否补对象组（当前 classic 独有）；③发版推送待指示。
+
 ## 7. 参考来源（节选）
 
 **国际 AI**

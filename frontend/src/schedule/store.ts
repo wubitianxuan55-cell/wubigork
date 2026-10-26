@@ -28,6 +28,7 @@ import {
   saveScheduleFile,
 } from './api'
 import type { ScheduleProjectSummary } from './api'
+import { recordRecentObject } from '../gaea/lib/recentObjects'
 import { snapshotBaseline, upsertBaseline } from './baseline'
 import { normalizeAoaLayout } from './aoaLayout'
 import { SCHEDULE_DEFAULT_REL } from './paths'
@@ -695,6 +696,10 @@ async function switchProject(rel: string): Promise<void> {
     await openScheduleProject(rel)
     await rehydrateCurrent()
     void refreshProjectsCache() // 列表缓存活刷新（失败静默）
+    // 首页「继续」区记账（2026-10-26 二期）：切换成功才算一次使用；失败路径
+    // （fail-closed 保持原工程）不记，避免把没打开的工程顶到续做行。
+    const st = useScheduleStore.getState()
+    recordRecentObject('schedule', rel, st.project?.name || rel)
   } catch (e) {
     // d. fail-closed：指针/工程保持原状，错误交指示器诚实展示
     useScheduleStore.setState({ syncError: e instanceof Error ? e.message : String(e) })
@@ -709,6 +714,9 @@ async function createThenSwitch(name: string): Promise<void> {
     await rehydrateCurrent()
     // Create 回执不含列表：显式刷新把新条目带进缓存
     await refreshProjectsCache()
+    // 新建即使用：同款最近对象记账（rel 以重水合后的 currentPath 为准）
+    const st = useScheduleStore.getState()
+    recordRecentObject('schedule', st.currentPath, st.project?.name || name)
   } catch (e) {
     useScheduleStore.setState({ syncError: e instanceof Error ? e.message : String(e) })
   }

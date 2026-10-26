@@ -697,6 +697,8 @@ export const zhTW: Record<DictKey, string> = {
   "home.greetEvening": "晚安",
   "home.greetNight": "夜深了",
   "home.recentTitle": "最近",
+  "home.objKindNovel": "小說",
+  "home.objKindSchedule": "進度",
   "home.sug1": "幫我把這份文件的要點整理成一頁紀要",
   "home.sug2": "續寫一段我的小說",
   "home.sug3": "畫一張雨後巷口的水墨插畫",

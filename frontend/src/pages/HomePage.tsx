@@ -17,6 +17,8 @@ import V3Empty from '../components/V3Empty'
 import { readReadingProgress } from '../utils/readingProgress'
 import { formatImportSuccess, formatImportWarnings } from '../utils/novelImportReport'
 import { guardNovelSwitch } from '../components/novel/novelSwitchGuard'
+import { openNovelProject } from '../components/novel/openNovelProject'
+import { recordRecentObject } from '../gaea/lib/recentObjects'
 
 type SortKey = 'recent' | 'words' | 'chapters' | 'title'
 
@@ -129,6 +131,7 @@ const HomePage: React.FC<HomePageProps> = ({ active = true }) => {
           }
         }
         openProject(dir, newTitle)
+        recordRecentObject('novel', dir, newTitle)
         await loadProjects()
         setNewModal(false)
         resetForm()
@@ -180,6 +183,7 @@ const HomePage: React.FC<HomePageProps> = ({ active = true }) => {
         tailStr ? Number(tailStr) : 0,
       )
       openProject(res.path, res.title)
+      recordRecentObject('novel', res.path, res.title)
       await loadProjects()
       setImportModal(false)
       // v4.279：解析报告直显（编码 + 切分策略），便于判断「这本书是不是被切错了」
@@ -213,6 +217,7 @@ const HomePage: React.FC<HomePageProps> = ({ active = true }) => {
   const handleOnlineImported = async (res: Parameters<typeof formatImportSuccess>[0]) => {
     const apply = async () => {
       openProject(res.path, res.title)
+      recordRecentObject('novel', res.path, res.title)
       await loadProjects()
       message.success(formatImportSuccess(res))
       const warnText = formatImportWarnings(res)
@@ -239,15 +244,15 @@ const HomePage: React.FC<HomePageProps> = ({ active = true }) => {
       if (goRead) {
         window.dispatchEvent(new CustomEvent('novel:goto-tab', { detail: { tab: 'chapter' } }))
       }
+      // 已打开的书"续读"同样是一次使用：刷新最近对象记账（置顶）
+      recordRecentObject('novel', card.path, card.title)
       return
     }
     const apply = async () => {
       try {
-        await wailsApp().OpenProject(card.path)
-        openProject(card.path, card.title)
-        if (goRead) {
-          window.dispatchEvent(new CustomEvent('novel:goto-tab', { detail: { tab: 'chapter' } }))
-        }
+        // 完整链路（后端 OpenProject + store 落位 + 记账）抽为共享件：
+        // 首页「继续」区续做书走同一条链路，2026-10-26 起一份真相。
+        await openNovelProject(card.path, card.title, { goRead })
       } catch (err: unknown) {
         message.error(err instanceof Error ? err.message : '打开失败')
       }

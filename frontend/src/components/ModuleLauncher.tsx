@@ -16,15 +16,18 @@
  * desk-task-inbox、task-inbox-open-btn、home-layout-*。数据层单源
  * useLauncherData（recentFiles 订阅 + 会话一次读）。
  */
-import React, { useState, useCallback, useRef } from 'react'
+import React, { useState, useCallback, useRef, useMemo, useSyncExternalStore } from 'react'
 import {
   ArrowRightOutlined, AudioOutlined, SendOutlined,
   StopOutlined, FileTextOutlined, ClockCircleOutlined,
-  CheckSquareOutlined, BlockOutlined, BarChartOutlined, ToolOutlined,
+  CheckSquareOutlined, BlockOutlined, BarChartOutlined, BookOutlined, ToolOutlined,
 } from '@ant-design/icons'
 import TasksFirstHome from './TasksFirstHome'
 import { requestSessionResume } from '../gaea/lib/pendingSessionResume'
 import { openPaneFileOrPreview } from '../gaea/lib/paneFileOpen'
+import { loadRecentObjects, subscribeRecentObjects, type RecentObject } from '../gaea/lib/recentObjects'
+import { guardNovelSwitch } from './novel/novelSwitchGuard'
+import { openNovelProject } from './novel/openNovelProject'
 import { Dropdown, Input } from 'antd'
 import type { InputRef, MenuProps } from 'antd'
 import { useVoiceChat } from '../hooks/useVoiceChat'
@@ -206,6 +209,42 @@ const DeskHome: React.FC<{
     inputRef.current?.focus()
   }, [])
 
+  // ──「继续」对象组（二期 2026-10-26）：小说书 / 进度工程两类工作对象 ──
+  // 订阅单源（localStorage + 写入广播）；无对象不渲染（与最近会话同款）。
+  const objectsRaw = useSyncExternalStore(subscribeRecentObjects, loadRecentObjects, () => [])
+  const objects = useMemo(() => objectsRaw.slice(0, 3), [objectsRaw])
+
+  const objectKindLabel = useCallback((kind: RecentObject['kind']): string =>
+    kind === 'novel' ? t('home.objKindNovel') : t('home.objKindSchedule'), [t])
+
+  /**
+   * 续做一行：
+   * - schedule = 先切工程指针（store 动作，ScheduleTool/完整工作台指针驱动自动
+   *   跟随）再走 OPEN_TOOL 双通道开进度工具面板；切指针失败仍开面板看当前工程
+   *   （面板自身会诚实展示 syncError）。store 走动态 import——schedule 域不进
+   *   主包，首页点击时才拉取。
+   * - novel = 切书闸门（未保存正文先问）+ 完整打开链路（共享件 openNovelProject，
+   *   与书架一份真相），落小说板块书架（书已打开、书架高亮）。
+   */
+  const resumeObject = useCallback((o: RecentObject) => {
+    if (o.kind === 'schedule') {
+      void (async () => {
+        try {
+          const { useScheduleStore } = await import('../schedule/store')
+          await useScheduleStore.getState().openProject(o.key)
+        } catch { /* 指针切换失败：仍打开面板（面板内诚实展示错误态） */ }
+        openOfficeTool('schedule')
+      })()
+      return
+    }
+    const apply = async () => {
+      try { await openNovelProject(o.key, o.title) } catch { /* 打开失败仍去书架，现场可见 */ }
+      onNavigate('novel')
+    }
+    if (guardNovelSwitch(() => { void apply() }, o.title)) return
+    void apply()
+  }, [onNavigate, openOfficeTool])
+
   return (
     <div className="ml ml-work">
       <div className="w-zen">
@@ -323,9 +362,34 @@ const DeskHome: React.FC<{
           </div>
         </section>
 
-        {/* ═══ ② 继续：最近文档行 + 最近会话行（点行真打开）═══ */}
+        {/* ═══ ② 继续：最近工作对象（书/工程）+ 最近文档行 + 最近会话行（点行真打开）═══ */}
         <section className="w-recent v3-rise v3-rise-2" data-testid="home-recent" aria-label={t('home.recentTitle')}>
           <SectionLabel icon={<ClockCircleOutlined />} title={t('home.recentTitle')} />
+          {objects.length > 0 && (
+            <ul className="w-docs-list w-objects" data-testid="home-recent-objects" aria-label={t('home.recentTitle')}>
+              {objects.map((o) => (
+                <li key={`${o.kind}:${o.key}`} className="w-docs-row">
+                  <button
+                    type="button"
+                    className="w-docs-btn"
+                    data-testid={`home-obj-${o.kind}`}
+                    aria-label={`${o.title} — ${objectKindLabel(o.kind)}`}
+                    title={objectKindLabel(o.kind)}
+                    onClick={() => resumeObject(o)}
+                  >
+                    <span className="w-docs-mark" aria-hidden="true">
+                      {o.kind === 'novel' ? <BookOutlined /> : <BarChartOutlined />}
+                    </span>
+                    <span className="w-docs-body">
+                      <span className="w-docs-name">{o.title}</span>
+                      <span className="w-docs-path w-obj-kind">{objectKindLabel(o.kind)}</span>
+                    </span>
+                    <ArrowRightOutlined className="w-docs-arrow" aria-hidden="true" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
           <div className="w-docs" data-testid="desk-recent-docs" aria-label={t('home.recentDocs')}>
             {data.recentFiles.length > 0 ? (
               <ul className="w-docs-list">

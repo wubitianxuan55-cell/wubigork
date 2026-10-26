@@ -693,6 +693,8 @@ export const zh: Record<DictKey, string> = {
   "home.greetEvening": "晚上好",
   "home.greetNight": "夜深了",
   "home.recentTitle": "最近",
+  "home.objKindNovel": "小说",
+  "home.objKindSchedule": "进度",
   "home.sug1": "帮我把这份文档的要点整理成一页纪要",
   "home.sug2": "续写一段我的小说",
   "home.sug3": "画一张雨后巷口的水墨插画",

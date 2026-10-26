@@ -5,6 +5,7 @@ import ModuleLauncher from './ModuleLauncher'
 import { LocaleProvider } from '../gaea/lib/i18n'
 import { FRONTEND_EVENTS, OPEN_TOOL_FLAG } from '../events'
 import { clearRecentFilesForTest, recordRecentFile } from '../gaea/lib/recentFiles'
+import { clearRecentObjectsForTest, recordRecentObject } from '../gaea/lib/recentObjects'
 
 // ModuleLauncher 首页（方向一「输入即首页」，2026-10-26 拍板；调研
 // docs/gaea-home-redesign-survey-2026-10.md）：classic 形态从六区收敛为中轴
@@ -34,6 +35,13 @@ const bridgeMocks = vi.hoisted(() => ({
 
 vi.mock('../gaea/lib/bridge', () => ({ app: bridgeMocks.app }))
 vi.mock('../gaea/lib/paneFileOpen', () => ({ openPaneFileOrPreview: vi.fn() }))
+// 「继续」对象组（二期）三桩：完整打开链路/切书闸门/进度 store（动态 import 同走 mock）
+const novelMocks = vi.hoisted(() => ({ openNovelProject: vi.fn(async () => {}) }))
+vi.mock('./novel/openNovelProject', () => novelMocks)
+const guardMocks = vi.hoisted(() => ({ guardNovelSwitch: vi.fn(() => false) }))
+vi.mock('./novel/novelSwitchGuard', () => guardMocks)
+const scheduleStoreMocks = vi.hoisted(() => ({ openProject: vi.fn(async () => {}) }))
+vi.mock('../schedule/store', () => ({ useScheduleStore: { getState: () => scheduleStoreMocks } }))
 // FE6-02：语音 hook 可切换降级位（默认 null = 既有用例口径不变）
 const voiceMock = vi.hoisted(() => ({
   state: { active: false, listening: false, aiSpeaking: false, error: null, degraded: null as string | null },
@@ -52,10 +60,11 @@ const wrap = (ui: ReactElement) => {
   return <LocaleProvider>{ui}</LocaleProvider>
 }
 
-// 最近文档种子跨用例隔离（localStorage 单源 + 解析缓存都是模块级状态，
+// 最近文档/最近对象种子跨用例隔离（localStorage 单源 + 解析缓存都是模块级状态，
 // 直写 localStorage 不失效缓存——走模块自身的 record/clear 辅助）
 beforeEach(() => {
   clearRecentFilesForTest()
+  clearRecentObjectsForTest()
 })
 
 describe('ModuleLauncher 输入即首页（方向一 · 2026-10-26）', () => {
@@ -171,6 +180,47 @@ describe('ModuleLauncher 输入即首页（方向一 · 2026-10-26）', () => {
     // 最近会话行出现（有会话才渲染）
     await vi.waitFor(() => expect(document.querySelector('.w-recent-sess .ml-sess-item')).toBeTruthy())
     expect(screen.getByText('造价对标')).toBeTruthy()
+  })
+
+  it('继续段·对象组（二期）：书/工程续做行置顶，恢复链路各走各的正确通道', async () => {
+    recordRecentObject('novel', 'C:/Novels/长夜', '长夜')
+    recordRecentObject('schedule', 'plans/百锦路.gsp', '百锦路')
+    const onNavigate = vi.fn()
+    render(wrap(<ModuleLauncher onNavigate={onNavigate} />))
+    const group = screen.getByTestId('home-recent-objects')
+    expect(group.querySelectorAll('.w-docs-row').length).toBe(2)
+    // 书行：小说标签 + 书名
+    const novelRow = screen.getByTestId('home-obj-novel')
+    expect(novelRow.textContent).toContain('长夜')
+    expect(novelRow.textContent).toContain('小说')
+    // 工程行：进度标签 + 工程名
+    const schedRow = screen.getByTestId('home-obj-schedule')
+    expect(schedRow.textContent).toContain('百锦路')
+    expect(schedRow.textContent).toContain('进度')
+    // 点书行：完整打开链路（闸门默认放行）+ 导航小说板块
+    fireEvent.click(novelRow)
+    await vi.waitFor(() => expect(novelMocks.openNovelProject).toHaveBeenCalledWith('C:/Novels/长夜', '长夜'))
+    expect(guardMocks.guardNovelSwitch).toHaveBeenCalled()
+    expect(onNavigate).toHaveBeenCalledWith('novel')
+    // 点工程行：先切指针（store 动作）再 OPEN_TOOL 双通道开进度工具面板
+    const seen: Array<{ name: string; detail: unknown }> = []
+    const rec = (ev: Event) => seen.push({ name: ev.type, detail: (ev as CustomEvent).detail })
+    window.addEventListener(FRONTEND_EVENTS.OPEN_TOOL, rec)
+    fireEvent.click(schedRow)
+    await vi.waitFor(() => expect(scheduleStoreMocks.openProject).toHaveBeenCalledWith('plans/百锦路.gsp'))
+    await vi.waitFor(() => {
+      expect(seen).toEqual([{ name: FRONTEND_EVENTS.OPEN_TOOL, detail: { tool: 'schedule' } }])
+      expect(sessionStorage.getItem(OPEN_TOOL_FLAG)).toBe('schedule')
+      expect(onNavigate).toHaveBeenLastCalledWith('gaea')
+    })
+    window.removeEventListener(FRONTEND_EVENTS.OPEN_TOOL, rec)
+    sessionStorage.clear()
+  })
+
+  it('继续段·对象组空态：无记账时整组不渲染（与最近会话同款）', () => {
+    render(wrap(<ModuleLauncher onNavigate={vi.fn()} />))
+    expect(screen.queryByTestId('home-recent-objects')).toBeNull()
+    expect(screen.queryByTestId('home-obj-novel')).toBeNull()
   })
 
   it('最近文档空态：横排空态 + 「进入办公」CTA 导航', () => {
