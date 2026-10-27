@@ -40,8 +40,5 @@ export const usePaneEnabledStore = create<PaneEnabledState>()((set) => ({
     }),
 }));
 
-/** 测试辅助：清存储 + 回默认启用集（vitest 用例间隔离）。 */
-export function resetPaneEnabledForTest(): void {
-  saveEnabledTabs({});
-  usePaneEnabledStore.setState({ overrides: {}, enabled: resolveEnabledTabs({}) });
-}
+// 注：原 resetPaneEnabledForTest 死导出已删（2026-10-27 knip 抓零使用；测试需要
+// 隔离时再按用例现场补，不再预留无消费的导出面）。

@@ -6,7 +6,7 @@ import type { ModelUsageStats } from '../api/engines'
 import { emitFrontendEvent, FRONTEND_EVENTS, OPEN_STATS_FLAG } from '../events'
 import { usePollingGate } from '../hooks/usePollingGate'
 import { useStatsState } from './modelcenter/hooks/useStatsState'
-import { RequestsSpark, TokenMiniBars, type TrendRange } from './modelcenter/charts'
+import { type TrendDatum, type TrendRange } from './modelcenter/charts'
 import { costToCNY, engineColor, engineLabel, fmtCost, USD_TO_CNY } from './modelcenter/utils'
 import './runtime.css'
 
@@ -193,9 +193,138 @@ function fmtKTok(v: number | null): string {
   return v >= 1000 ? `${(v / 1000).toFixed(1)}K` : String(Math.round(v))
 }
 
+/** Catmull-Rom → 三次贝塞尔平滑路径（控制点钳回绘图区防尖峰过冲穿底） */
+function smoothPath(pts: Array<[number, number]>, yMin: number, yMax: number): string {
+  const clampY = (v: number) => Math.min(yMax, Math.max(yMin, v))
+  if (pts.length < 3) return pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${clampY(p[1]).toFixed(1)}`).join(' ')
+  let d = `M${pts[0][0].toFixed(1)},${clampY(pts[0][1]).toFixed(1)}`
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] ?? pts[i]
+    const p1 = pts[i]
+    const p2 = pts[i + 1]
+    const p3 = pts[i + 2] ?? p2
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6
+    const c1y = clampY(p1[1] + (p2[1] - p0[1]) / 6)
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6
+    const c2y = clampY(p2[1] - (p3[1] - p1[1]) / 6)
+    d += ` C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2[0].toFixed(1)},${clampY(p2[1]).toFixed(1)}`
+  }
+  return d
+}
+
+/** 请求趋势 HUD 图（2026-10-27 用户判旧迷你图「太low」重画）：平滑曲线 + 渐变
+ *  辉光 + 虚线网格 + 峰值轴标 + 失败红点光晕 + 末点呼吸标记。数据/口径与旧
+ *  RequestsSpark 完全一致（档位内 trendData），只换画法。 */
+function RequestsHudChart({ data }: { data: TrendDatum[] }) {
+  const W = 300, H = 112, padT = 14, padB = 12, padL = 6, padR = 10
+  const plotW = W - padL - padR
+  const plotH = H - padT - padB
+  const maxV = Math.max(...data.map((d) => d.calls), 1)
+  const x = (i: number) => (data.length === 1 ? padL + plotW / 2 : padL + (i / (data.length - 1)) * plotW)
+  const y = (v: number) => padT + plotH * (1 - v / maxV)
+  const pts = data.map((d, i) => [x(i), y(d.calls)] as [number, number])
+  const line = smoothPath(pts, padT, padT + plotH)
+  const base = padT + plotH
+  const area = `${line} L${x(data.length - 1).toFixed(1)},${base} L${x(0).toFixed(1)},${base} Z`
+  const last = data.length - 1
+  const peakIdx = data.reduce((a, d, i) => (d.calls > data[a].calls ? i : a), 0)
+  return (
+    <svg className="rt-hchart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="请求趋势图">
+      <defs>
+        <linearGradient id="rt-req-stroke" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="var(--gaea-glow)" stopOpacity="0.25" />
+          <stop offset="55%" stopColor="var(--gaea-glow)" stopOpacity="0.95" />
+          <stop offset="100%" stopColor="var(--gaea-glow)" />
+        </linearGradient>
+        <linearGradient id="rt-req-area" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="var(--gaea-glow)" stopOpacity="0.3" />
+          <stop offset="100%" stopColor="var(--gaea-glow)" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {/* 虚线网格 + 轴标（mono 小字，max/半程） */}
+      {[1, 0.5].map((f) => (
+        <line key={f} className="rt-hchart-grid" x1={padL} x2={W - padR} y1={padT + plotH * (1 - f)} y2={padT + plotH * (1 - f)} />
+      ))}
+      <text className="rt-hchart-axis" x={padL + 2} y={padT - 4}>{maxV}</text>
+      <text className="rt-hchart-axis" x={padL + 2} y={base - 3}>{Math.round(maxV / 2)}</text>
+      <text className="rt-hchart-axis rt-hchart-axis-r" x={W - padR} y={base - 3}>0</text>
+      <path d={area} fill="url(#rt-req-area)" />
+      <path d={line} fill="none" stroke="url(#rt-req-stroke)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="rt-hchart-line" />
+      {/* 峰值刻度：短竖线 + 点 */}
+      <line className="rt-hchart-peak" x1={x(peakIdx)} x2={x(peakIdx)} y1={y(data[peakIdx].calls) - 6} y2={y(data[peakIdx].calls) + 3} />
+      {data.map((d, i) => (
+        <g key={d.key}>
+          {d.failCalls > 0 && (
+            <circle className="rt-hchart-fail" cx={x(i)} cy={y(d.calls)} r={2.6}>
+              <title>{`${d.label} · ${d.calls} 次（失败 ${d.failCalls}）`}</title>
+            </circle>
+          )}
+          <circle cx={x(i)} cy={y(d.calls)} r={0}>
+            <title>{`${d.label} · ${d.calls} 次 · 成功 ${d.successCalls} · 失败 ${d.failCalls}`}</title>
+          </circle>
+        </g>
+      ))}
+      {/* 末点：光晕环 + 实心点 */}
+      <circle className="rt-hchart-last-halo" cx={x(last)} cy={y(data[last].calls)} r={6} />
+      <circle className="rt-hchart-last" cx={x(last)} cy={y(data[last].calls)} r={2.8}>
+        <title>{`${data[last].label} · ${data[last].calls} 次`}</title>
+      </circle>
+    </svg>
+  )
+}
+
+/** Token 分布 HUD 堆叠柱（入=primary 下段 / 出=success 上段）：渐变柱 + 虚线
+ *  网格 + 总量轴标 + 末柱点亮辉光。数据口径与旧 TokenMiniBars 一致。 */
+function TokenHudBars({ data }: { data: TrendDatum[] }) {
+  const W = 300, H = 112, padT = 14, padB = 12, padL = 6, padR = 10
+  const plotW = W - padL - padR
+  const plotH = H - padT - padB
+  const maxTok = Math.max(...data.map((d) => d.inputTokens + d.outputTokens), 1)
+  const slot = plotW / data.length
+  const barW = Math.max(3, Math.min(26, slot * 0.62))
+  const base = padT + plotH
+  return (
+    <svg className="rt-hchart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Token 分布图">
+      <defs>
+        <linearGradient id="rt-tok-in" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="var(--color-primary)" stopOpacity="0.55" />
+          <stop offset="100%" stopColor="var(--color-primary)" stopOpacity="0.9" />
+        </linearGradient>
+        <linearGradient id="rt-tok-out" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="var(--color-success)" stopOpacity="0.95" />
+          <stop offset="100%" stopColor="var(--color-success)" stopOpacity="0.6" />
+        </linearGradient>
+      </defs>
+      {[1, 0.5].map((f) => (
+        <line key={f} className="rt-hchart-grid" x1={padL} x2={W - padR} y1={padT + plotH * (1 - f)} y2={padT + plotH * (1 - f)} />
+      ))}
+      <text className="rt-hchart-axis" x={padL + 2} y={padT - 4}>{fmtKTok(maxTok)}</text>
+      <text className="rt-hchart-axis" x={padL + 2} y={base - 3}>{fmtKTok(maxTok / 2)}</text>
+      <text className="rt-hchart-axis rt-hchart-axis-r" x={W - padR} y={base - 3}>0</text>
+      {data.map((d, i) => {
+        const x0 = padL + (i + 0.5) * slot - barW / 2
+        const hIn = (d.inputTokens / maxTok) * plotH
+        const hOut = (d.outputTokens / maxTok) * plotH
+        const yIn = base - hIn
+        const yOut = yIn - hOut
+        const isLast = i === data.length - 1
+        return (
+          <g key={d.key} className={isLast ? 'rt-tok-last' : undefined}>
+            <rect className="rt-tok-bar rt-tok-in" x={x0} y={yIn} width={barW} height={Math.max(0, hIn)} rx={Math.min(2.5, barW / 3)}>
+              <title>{`${d.label} · 输入 ${d.inputTokens.toLocaleString()} token`}</title>
+            </rect>
+            <rect className="rt-tok-bar rt-tok-out" x={x0} y={yOut} width={barW} height={Math.max(0, hOut)} rx={Math.min(2.5, barW / 3)}>
+              <title>{`${d.label} · 输出 ${d.outputTokens.toLocaleString()} token`}</title>
+            </rect>
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
+
 /** Context 用量环（最近一次请求的 prompt_total+输出 vs 引擎 max_context） */
-function ContextDonut({ used, max }: { used: number | null; max: number | null }) {
-  const pct = used != null && max && max > 0 ? Math.min(used / max, 1) : null
+function ContextDonut({ used, max }: { used: number | null; max: number | null }) {  const pct = used != null && max && max > 0 ? Math.min(used / max, 1) : null
   const R = 42
   const C = 2 * Math.PI * R
   return (
@@ -742,14 +871,17 @@ export default function RuntimePage() {
                     <span>请求趋势</span>
                     <span>峰值 {trendPeak.toLocaleString()}</span>
                   </div>
-                  <RequestsSpark data={stats.trendData} color="var(--color-primary)" />
+                  <RequestsHudChart data={stats.trendData} />
                 </div>
                 <div className="rt-stats-chart">
                   <div className="rt-stats-chart-head">
                     <span>Token 分布</span>
-                    <span>入 / 出 堆叠</span>
+                    <span className="rt-tok-legend">
+                      <i className="rt-tok-dot rt-tok-dot-in" />入
+                      <i className="rt-tok-dot rt-tok-dot-out" />出
+                    </span>
                   </div>
-                  <TokenMiniBars data={stats.trendData} />
+                  <TokenHudBars data={stats.trendData} />
                 </div>
               </div>
             </>

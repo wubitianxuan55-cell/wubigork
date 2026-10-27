@@ -720,6 +720,79 @@
 .rt-stats-chart-head span:first-child { color: var(--color-text); font-weight: 600; }
 .rt-stats-chart-head span:last-child { font-variant-numeric: tabular-nums; }
 
+/* ── HUD 图表（调用统计双图 2026-10-27 重画：渐变辉光 + 虚线网格 + mono 轴标） ── */
+.rt-hchart { width: 100%; height: auto; display: block; }
+
+.rt-hchart-grid {
+  stroke: color-mix(in srgb, var(--gaea-glow) 14%, transparent);
+  stroke-width: 1;
+  stroke-dasharray: 3 5;
+}
+
+.rt-hchart-axis {
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Mono', Consolas, monospace);
+  font-size: 8.5px;
+  fill: var(--color-text-secondary);
+  opacity: 0.85;
+}
+
+.rt-hchart-axis-r { text-anchor: end; }
+
+.rt-hchart-line {
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--gaea-glow) 45%, transparent));
+}
+
+.rt-hchart-fail {
+  fill: var(--color-destructive, #ff7875);
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--color-destructive, #ff7875) 55%, transparent));
+}
+
+.rt-hchart-peak {
+  stroke: color-mix(in srgb, var(--gaea-glow) 55%, transparent);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.rt-hchart-last-halo {
+  fill: color-mix(in srgb, var(--gaea-glow) 22%, transparent);
+  animation: rt-halo 2.4s ease-in-out infinite;
+}
+
+.rt-hchart-last {
+  fill: var(--gaea-glow);
+  stroke: var(--color-bg-container);
+  stroke-width: 1.4;
+}
+
+@keyframes rt-halo {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+.rt-tok-bar.rt-tok-in { fill: url(#rt-tok-in); opacity: 0.82; }
+.rt-tok-bar.rt-tok-out { fill: url(#rt-tok-out); opacity: 0.9; }
+
+.rt-tok-last .rt-tok-bar { opacity: 1; }
+.rt-tok-last .rt-tok-out { filter: drop-shadow(0 0 4px color-mix(in srgb, var(--color-success, #52c41a) 45%, transparent)); }
+
+.rt-tok-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  color: var(--color-text-secondary);
+}
+
+.rt-tok-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.rt-tok-dot-in { background: var(--color-primary); }
+.rt-tok-dot-out { background: var(--color-success, #52c41a); margin-left: 6px; }
+
 /* ── 表格 HUD 化（antd Table 作用域覆写：透明底 + glow 表头 + mono 数字） ── */
 .rt-panel .ant-table {
   background: transparent;
@@ -760,8 +833,9 @@ html[data-hl='light'] .rt-engine {
   background: color-mix(in srgb, var(--color-bg-container) 92%, transparent);
 }
 
-/* ── 降级：reduced-motion 扫描线停摆（近不可见层也不做无谓动画） ── */
+/* ── 降级：reduced-motion 扫描线/末点光晕停摆（近不可见层也不做无谓动画） ── */
 @media (prefers-reduced-motion: reduce) {
   .rt-hud-scanline { animation: none; opacity: 0; }
   .rt-state-busy .rt-state-dot { animation: none; }
+  .rt-hchart-last-halo { animation: none; }
 }

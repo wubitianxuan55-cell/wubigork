@@ -188,9 +188,13 @@ describe('RuntimePage 运行监测板块', () => {
     for (const label of ['今日', '7天', '30天']) {
       expect(screen.getByRole('radio', { name: label })).toBeTruthy()
     }
-    // SVG 迷你图渲染（aria-label 由 charts 组件给出）
-    expect(screen.getByRole('img', { name: '请求趋势迷你图' })).toBeTruthy()
-    expect(screen.getByRole('img', { name: 'Token 分布迷你图' })).toBeTruthy()
+    // HUD 图表（2026-10-27 重画）：平滑曲线 + 堆叠柱（CALL_STATS 3 桶 → 3 组柱）
+    expect(screen.getByRole('img', { name: '请求趋势图' })).toBeTruthy()
+    expect(screen.getByRole('img', { name: 'Token 分布图' })).toBeTruthy()
+    expect(document.querySelectorAll('.rt-hchart-grid').length).toBeGreaterThanOrEqual(4) // 双图各 2 条虚线
+    expect(document.querySelectorAll('.rt-tok-bar').length).toBe(6) // 3 桶 × 入/出两段
+    expect(document.querySelectorAll('.rt-tok-last').length).toBe(1) // 末柱点亮
+    expect(document.querySelectorAll('.rt-tok-dot').length).toBe(2) // 入/出双色图例点
     // 跳模型中心入口
     expect(screen.getByRole('button', { name: /按模型明细/ })).toBeTruthy()
   })
