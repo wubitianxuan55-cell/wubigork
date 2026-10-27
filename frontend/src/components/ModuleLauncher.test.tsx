@@ -167,11 +167,13 @@ describe('ModuleLauncher DeepSeek 式首页（§8.3）', () => {
     const sched = screen.getByTestId('home-tool-schedule')
     expect(cad.textContent).toContain('CAD 看图')
     expect(sched.textContent).toContain('进度计划')
-    // §8.6 回归锁：弹层挂 .w-cmd-row 容器内（getPopupContainer）——body 直挂在本页
-    // 布局下 rc-trigger 对齐损坏（菜单落 −1000vw 哨兵镜像位，用户侧「没反应」）；
-    // jsdom 无布局量不了在屏内，锁容器归属即锁住修复口径
-    expect(document.querySelector('.w-cmd-row .ant-dropdown')).toBeTruthy()
-    expect(document.body.querySelector(':scope > .ant-dropdown')).toBeNull()
+    // §8.7 回归锁（根修后的口径）：弹层回归 antd 默认 body 直挂——§8.6 曾用
+    // getPopupContainer 容器内挂载绕「点了没反应」，后定位根因=index.css 全局
+    // reduced-motion 规则把 transition 打 0.01ms 致 rc-motion 卡死定位震荡，
+    // 已跳终态根修（index.css）并在系统 reduce 态实证 body 直挂落位正常，
+    // workaround 随根修退役；jsdom 无布局量不了在屏内，落位归 CDP 走查层
+    expect(document.querySelector('body .ant-dropdown')).toBeTruthy()
+    expect(document.querySelector('.w-cmd-row .ant-dropdown')).toBeNull()
     // 点击 cad：双通道全发——事件（已挂载直达 setActiveTool）+ sessionStorage 标记
     //（办公 App 未懒加载挂载时由其挂载效应补开）+ 导航办公（不导航去板块房间）
     const seen: Array<{ name: string; detail: unknown }> = []

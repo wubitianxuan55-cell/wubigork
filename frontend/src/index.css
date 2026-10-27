@@ -381,6 +381,50 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+
+  /* antd 弹层动画在 reduce 下必须跳终态而非瞬时过渡（同 gaea-raf-degraded 手法）：
+     rc-motion 状态机靠 transitionend 推进，全量 transition-duration 被打成
+     0.01ms 时事件在监听挂上前已结束（竞态丢失）→ motion 卡死 → rc-trigger
+     useAlign 与 ResizeObserver 互喂成 inset ±10vw 无限震荡/停哨兵，弹层
+     「点了没反应」（docs/gaea-home-redesign-survey-2026-10.md §8.6 根因：
+     Windows 关闭显示动画 → WebView2 报 reduce）。跳终态=卡住也显示正确。 */
+  [class*='ant-slide-up-enter'],
+  [class*='ant-slide-up-appear'],
+  [class*='ant-slide-down-enter'],
+  [class*='ant-slide-down-appear'],
+  [class*='ant-slide-left-enter'],
+  [class*='ant-slide-left-appear'],
+  [class*='ant-slide-right-enter'],
+  [class*='ant-slide-right-appear'],
+  [class*='ant-zoom-enter'],
+  [class*='ant-zoom-appear'],
+  [class*='ant-move-up-enter'],
+  [class*='ant-move-up-appear'],
+  [class*='ant-move-down-enter'],
+  [class*='ant-move-down-appear'],
+  [class*='ant-move-left-enter'],
+  [class*='ant-move-left-appear'],
+  [class*='ant-move-right-enter'],
+  [class*='ant-move-right-appear'],
+  [class*='ant-fade-enter'],
+  [class*='ant-fade-appear'] {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+  [class*='ant-slide-up-leave'],
+  [class*='ant-slide-down-leave'],
+  [class*='ant-slide-left-leave'],
+  [class*='ant-slide-right-leave'],
+  [class*='ant-zoom-leave'],
+  [class*='ant-move-up-leave'],
+  [class*='ant-move-down-leave'],
+  [class*='ant-move-left-leave'],
+  [class*='ant-move-right-leave'],
+  [class*='ant-fade-leave'] {
+    display: none !important;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -636,6 +680,46 @@ body {
   animation-iteration-count: 1 !important;
   transition-duration: 0.01ms !important;
   scroll-behavior: auto !important;
+}
+
+/* 同上方 @media reduce 段：antd 弹层跳终态防 rc-motion 卡死（用户手动开
+   减弱动效时同病——transitionend 竞态丢失致弹层定位震荡/停哨兵） */
+.ui-reduced-motion [class*='ant-slide-up-enter'],
+.ui-reduced-motion [class*='ant-slide-up-appear'],
+.ui-reduced-motion [class*='ant-slide-down-enter'],
+.ui-reduced-motion [class*='ant-slide-down-appear'],
+.ui-reduced-motion [class*='ant-slide-left-enter'],
+.ui-reduced-motion [class*='ant-slide-left-appear'],
+.ui-reduced-motion [class*='ant-slide-right-enter'],
+.ui-reduced-motion [class*='ant-slide-right-appear'],
+.ui-reduced-motion [class*='ant-zoom-enter'],
+.ui-reduced-motion [class*='ant-zoom-appear'],
+.ui-reduced-motion [class*='ant-move-up-enter'],
+.ui-reduced-motion [class*='ant-move-up-appear'],
+.ui-reduced-motion [class*='ant-move-down-enter'],
+.ui-reduced-motion [class*='ant-move-down-appear'],
+.ui-reduced-motion [class*='ant-move-left-enter'],
+.ui-reduced-motion [class*='ant-move-left-appear'],
+.ui-reduced-motion [class*='ant-move-right-enter'],
+.ui-reduced-motion [class*='ant-move-right-appear'],
+.ui-reduced-motion [class*='ant-fade-enter'],
+.ui-reduced-motion [class*='ant-fade-appear'] {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+  transition: none !important;
+}
+.ui-reduced-motion [class*='ant-slide-up-leave'],
+.ui-reduced-motion [class*='ant-slide-down-leave'],
+.ui-reduced-motion [class*='ant-slide-left-leave'],
+.ui-reduced-motion [class*='ant-slide-right-leave'],
+.ui-reduced-motion [class*='ant-zoom-leave'],
+.ui-reduced-motion [class*='ant-move-up-leave'],
+.ui-reduced-motion [class*='ant-move-down-leave'],
+.ui-reduced-motion [class*='ant-move-left-leave'],
+.ui-reduced-motion [class*='ant-move-right-leave'],
+.ui-reduced-motion [class*='ant-fade-leave'] {
+  display: none !important;
 }
 
 /* ── WebView2 rAF 节流降级（main.tsx 检测到后给 <html> 加 gaea-raf-degraded）──

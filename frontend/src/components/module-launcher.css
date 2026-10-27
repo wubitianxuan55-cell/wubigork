@@ -250,14 +250,12 @@ html[data-hl='light'] .ml {
   resize: none;
 }
 
-/* 框内底部动作行：orb 存在位 + spacer 推右 + 动作钮。
-   position:relative = 工具下拉容器（§8.6 getPopupContainer 挂本行） */
+/* 框内底部动作行：orb 存在位 + spacer 推右 + 动作钮 */
 .w-cmd-row {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
-  position: relative;
 }
 .w-cmd-spacer { flex: 1; }
 

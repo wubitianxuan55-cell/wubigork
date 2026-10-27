@@ -288,6 +288,20 @@
 
 **教训**：①「菜单打开」类断言必须含**在屏内**判据（onScreen=rect∈viewport），portal 到 body 的组件 jsdom 全绿≠用户看得见；②弹层类走查要点开第一层菜单并目检落位，不能只点主按钮。
 
+### 8.7 §8.6 观察池清账：全局 reduced-motion 规则杀 rc-motion（真根因+workaround 退役，2026-10-27 同日）
+
+§8.6 留的「首页特有诱因」当天以逐帧追踪定位——**根本不是首页特有，是全局弹层 bug，且 §8.6 的 A/B 排除项全部是被环境变量污染的假结论**（当时无头 Edge 残留 Emulation override + vite 串包）：
+
+**根因链（每环都有实测证据）**：用户 Windows 关闭「显示动画效果」→ WebView2/Edge 报 `prefers-reduced-motion: reduce`（无头 Edge 继承系统设置所以同环境复现，`matchMedia` 实测 true）→ **index.css 自家的全局 reduce 规则**（§早期写的 `@media (prefers-reduced-motion: reduce) { * { transition-duration: 0.01ms !important } }`，`.ui-reduced-motion` 用户手动类同款）把 antd 弹层 motion 的 transition 打成 0.00001s → **rc-motion 状态机靠 transitionend 事件推进**，超短 transition 的事件在监听挂上前已结束（竞态丢失）→ motion 卡死在 appear 中间态 → 卡死的 motion 类与 rc-trigger `useAlign` 的 ResizeObserver 互喂：align 写 inset → 菜单 shrink-to-fit 宽度随可用宽变（120×84↔88×126，实测 left=+14992 时 available 为负宽度收缩换行）→ RO 触发重 align 读旧位写反相值 → **inset 在 ±10vw 两态无限震荡**（逐帧采样实证：`inset:8570px auto auto 14992px` ↔ `inset:-8080px auto auto -14160px` 逐帧交替，且 14992=期望x 832+10×vw、8570=期望y 490+10×vh 精确吻合=「popup 在 −10vw 位被测量」的差值公式）→ 用户侧「点了没反应」。
+
+**定位路径**（无头 Edge CDP 9344 独立实例，vite dev+trusted click）：哨兵值 −14160=−10×vw 与 rc-trigger 哨兵 −1000vw 差 100 倍的假说→computed width 实测证伪→逐帧追踪抓「style 与 rect 互说反话」→现场二分（灭动画/玻璃化/overflow/rise 四组全无效且值恒定）→内联 style 原文 `inset:8570px auto auto 14992px`（align 已完成、箭头位合理）→弹层 `transition:1e-05s` 指向 reduce 规则→`matchMedia` 实锤→`Emulation.setEmulatedMedia` 强制 no-preference 复测菜单落 (832,490) 完全正常=闭环。
+
+**根修**（index.css，对齐项目既有 `gaea-raf-degraded` 降级先例的手法）：两个 reduce 规则（媒体查询版+用户手动类版）各追加 antd motion 类族跳终态——appear/enter 态 `animation:none; opacity:1; transform:none; transition:none !important`（不修状态机、样式层强终态=卡住也显示正确），leave 态 `display:none`。**验收=系统 reduce 态（真凶环境）下 body 直挂菜单落位 (832,490) onScreen=true**。
+
+**§8.6 workaround 随根修退役**：`getPopupContainer` 容器内挂载与 `.w-cmd-row position:relative` 撤除（弹层回归 antd 默认 body 直挂语义）；ModuleLauncher.test 容器归属断言改锁 body 直挂口径。**波及面**：此修复惠及全部 antd 弹层（Dropdown/Popover/Select/Tooltip/Drawer 等）在系统关动画机器上的表现——不止首页工具菜单。
+
+**教训**：①A/B 排除实验必须先清环境变量（Emulation override 残留、vite 串包都会让「灭掉仍坏」成为假结论——§8.6 的四项排除全是被污染的，真凶就在被「排除」的 CSS 里）；②「X 特有」的判断要先验证环境态共享面（无头 Edge 与用户壳同继承系统媒体查询，能复现恰说明是环境态不是页面态）；③全局 `*` 选择器动 transition/animation 是高危面，rc-motion 这类依赖动画事件的状态机会被超短时长打成卡死——减弱动效对组件动画必须跳终态而非瞬时过渡（reduce 语义=不要动画，不是「动画快到没有」）。
+
 ## 7. 参考来源（节选）
 
 **国际 AI**

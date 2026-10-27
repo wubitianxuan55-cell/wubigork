@@ -239,14 +239,13 @@ const DeskHome: React.FC<{
                 <span className="w-cmd-orb-ring" />
               </span>
               <span className="w-cmd-spacer" aria-hidden="true" />
-              {/* 工具下拉（§8.6 修复）：getPopupContainer=触发钮父层（.w-cmd-row，
-                  position:relative）——body 直挂弹层在本页布局下 rc-trigger 对齐
-                  产物损坏（菜单定位到 −1000vw 哨兵镜像位，用户侧「点了没反应」）；
-                  容器内挂载让对齐在行内坐标系完成，菜单锚在命令条旁 */}
+              {/* 工具下拉：§8.6 曾用 getPopupContainer 容器内挂载绕「点了没反应」，
+                  后根因定位（§8.7）=index.css 全局 reduced-motion 规则把 transition
+                  打成 0.01ms 致 rc-motion 卡死、定位 ±10vw 震荡——已跳终态根修并
+                  在系统 reduce 态实证 body 直挂落位正常，workaround 随根修退役 */}
               <Dropdown
                 trigger={['click']}
                 menu={{ items: toolMenuItems }}
-                getPopupContainer={(n) => n.parentElement ?? document.body}
               >
                 <button
                   type="button"
