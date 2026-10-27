@@ -47,7 +47,10 @@ await new Promise((res, rej) => { ws.addEventListener("open", res); ws.addEventL
 
 const SIZES = viewports.length ? viewports : [[1600, 1000]];
 const FN = `(() => {
-  const els = Array.from(document.querySelectorAll('.ml-card, .w-mod, .p-poster, .ml-strip, .w-cap, .p-wall, .t-foot'));
+  // 选择器随首页形态随迁（§8.3 DeepSeek 化后 .ml-card/.w-mod 等卡片族退役，
+  // 空集保留无害）：现行视觉块=命令条 .w-cmd / 板块胶囊 .w-board-pill /
+  // 续做对象行 .w-docs-row / 会话行 .ml-sess-item
+  const els = Array.from(document.querySelectorAll('.ml-card, .w-mod, .p-poster, .ml-strip, .w-cap, .p-wall, .t-foot, .w-cmd, .w-board-pill, .w-docs-row, .ml-sess-item'));
   const rects = els.map(e => ({ cls: String(e.className).split(' ').slice(0,2).join('.'), r: e.getBoundingClientRect() }))
     .filter(x => x.r.width > 40 && x.r.height > 20);
   const bad = [];
