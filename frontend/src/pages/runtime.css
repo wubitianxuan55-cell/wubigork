@@ -1,20 +1,27 @@
-/* runtime.css — 运行监测板块（2026-10-25 全新设计：玄墨语言双栏工作台）。
-   结构 = D1 统一板块头部（40px 紧凑档）+ 左主列（实时面：硬件遥测/引擎/
-   记账明细）+ 右检查列（统计面：上下文/调用统计趋势/引擎侧请求）。
-   视觉走玄墨五条：描边退场（ink color-mix 近无边线，深度靠面板面阶差 +
-   shadow 令牌）/ 排印三档（名 15px·650、值 mono+tabular、节标 eyebrow）/
-   金点睛（实时状态与 donut 走 --glow，唯一强调）/ 面板面阶 bg-container 亮
-   surface 一档 / 圆角归档 radius-md 12px（旧 10px 硬编码退役）。亮暗两态
-   经全局令牌自动跟随（color-mix 基 --color-text 双态自适应）。 */
+/* runtime.css — 运行监测板块（2026-10-27 舰桥 HUD 改版，用户拍板「未来科技感」）。
+   结构 = D1 统一板块头部 + 左主列（实时面：硬件遥测/引擎/按模型明细/记账明细）
+   + 右检查列（统计面：上下文/调用统计趋势/引擎侧请求）。
+   视觉语言（仪表盘类页面专用 HUD 档，区别于内容工作台的玄墨档）：
+   ① 氛围层：星云径向底 + 44px 网格（radial mask 渐隐）+ 9s 近不可见扫描线
+      ——复刻记忆中枢舰桥底手法（hub.css），透明度档位调高一档应「科技感」；
+   ② 面板玻璃化：--gaea-glass-bg + backdrop-blur + --v3-edge 顶缘光线，
+      头部加 HUD 角标（左上/右下折线）；
+   ③ glow 点睛：--gaea-glow 全局替换旧裸 --glow（从未定义恒走 fallback 的
+      在册坑一并收口）；数值 mono（var(--font-mono)）+tabular+文字辉光；
+   ④ 亮暗双态：全部 color-mix 派生自动跟随；亮色档氛围层额外降透明保可读。
+   令牌纪律：只消费 --gaea-*/--v3-*/--color-*/--md-sys-* 与 --font-mono，零硬编码。 */
 
 /* ── 页面骨架：双栏工作台（<1100px 折单列，检查列沉底） ── */
 .rt-page {
+  position: relative;
+  overflow: hidden; /* 扫描线动画出界裁剪（氛围层不外溢页面圆角与列边界） */
   display: grid;
   grid-template-columns: minmax(0, 1fr) 344px;
   gap: 14px;
   align-items: start;
   max-width: 1480px;
   margin: 0 auto;
+  border-radius: var(--radius-md, 12px);
 }
 
 .rt-main {
@@ -37,18 +44,87 @@
   }
 }
 
-/* ── D1 统一板块头部（40px 紧凑档） ── */
+/* ── HUD 氛围层（pointer-events 全关；渲染在内容层之下=DOM 前置兄弟） ── */
+.rt-hud-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 55% 42% at 50% 0%, color-mix(in srgb, var(--gaea-glow) 7%, transparent), transparent 72%),
+    radial-gradient(ellipse 40% 34% at 8% 92%, color-mix(in srgb, var(--color-primary) 6%, transparent), transparent 72%),
+    radial-gradient(ellipse 40% 34% at 92% 18%, color-mix(in srgb, var(--gaea-glow) 5%, transparent), transparent 72%);
+}
+
+.rt-hud-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.2;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--gaea-glow) 7%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--gaea-glow) 7%, transparent) 1px, transparent 1px);
+  background-size: 44px 44px;
+  -webkit-mask-image: radial-gradient(ellipse 75% 70% at 50% 42%, black 30%, transparent 100%);
+  mask-image: radial-gradient(ellipse 75% 70% at 50% 42%, black 30%, transparent 100%);
+}
+
+.rt-hud-scanline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -12%;
+  height: 110px;
+  pointer-events: none;
+  opacity: 0.22;
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--gaea-glow) 7%, transparent), transparent);
+  animation: rt-scan 9s linear infinite;
+}
+
+@keyframes rt-scan {
+  0% { top: -12%; }
+  100% { top: 112%; }
+}
+
+/* ── D1 统一板块头部（玻璃 + HUD 角标） ── */
 .rt-ph {
   grid-column: 1 / -1;
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
   height: 40px;
   padding: 0 14px;
-  background: var(--color-bg-container);
-  border: 1px solid color-mix(in srgb, var(--color-text) 5%, transparent);
+  background: var(--gaea-glass-bg, var(--color-bg-container));
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 16%, transparent);
   border-radius: var(--radius-md, 12px);
-  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.25));
+  box-shadow: var(--v3-glow-faint, var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.25)));
+}
+
+/* HUD 角标：左上/右下折线（头部签名件，主题 glow 跟随） */
+.rt-ph::before,
+.rt-ph::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  opacity: 0.85;
+}
+.rt-ph::before {
+  top: -1px;
+  left: -1px;
+  border-top: 2px solid color-mix(in srgb, var(--gaea-glow) 70%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--gaea-glow) 70%, transparent);
+  border-top-left-radius: var(--radius-md, 12px);
+}
+.rt-ph::after {
+  bottom: -1px;
+  right: -1px;
+  border-bottom: 2px solid color-mix(in srgb, var(--gaea-glow) 70%, transparent);
+  border-right: 2px solid color-mix(in srgb, var(--gaea-glow) 70%, transparent);
+  border-bottom-right-radius: var(--radius-md, 12px);
 }
 
 .rt-ph-seat {
@@ -59,8 +135,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: color-mix(in srgb, var(--glow, #d9b26a) 14%, transparent);
-  color: var(--glow, #d9b26a);
+  background: color-mix(in srgb, var(--gaea-glow) 16%, transparent);
+  color: var(--gaea-glow);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--gaea-glow) 22%, transparent);
   font-size: 12px;
 }
 
@@ -79,7 +156,7 @@
   flex: none;
 }
 
-/* ── 实时状态（头部内嵌，金点睛位） ── */
+/* ── 实时状态（头部内嵌，glow 点睛位） ── */
 .rt-state {
   display: inline-flex;
   align-items: center;
@@ -96,12 +173,16 @@
   background: var(--color-text-secondary);
 }
 
-.rt-state-idle .rt-state-dot { background: var(--color-success, #52c41a); }
+.rt-state-idle .rt-state-dot {
+  background: var(--color-success, #52c41a);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--color-success, #52c41a) 55%, transparent);
+}
 .rt-state-busy .rt-state-dot {
-  background: var(--glow, #faad14);
+  background: var(--gaea-glow);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--gaea-glow) 65%, transparent);
   animation: rt-pulse 1.2s ease-in-out infinite;
 }
-.rt-state-busy { color: var(--glow, #faad14); }
+.rt-state-busy { color: var(--gaea-glow); text-shadow: 0 0 12px color-mix(in srgb, var(--gaea-glow) 30%, transparent); }
 .rt-state-off .rt-state-dot { background: var(--color-text-quaternary, #d9d9d9); }
 
 @keyframes rt-pulse {
@@ -132,7 +213,7 @@
   font-size: 12.5px;
 }
 
-/* ── 节标 eyebrow（玄墨 11px·700·宽字距·渐隐尾线） ── */
+/* ── 节标 eyebrow（11px·700·宽字距·渐隐尾线；note=口径小注） ── */
 .rt-eyebrow {
   display: flex;
   align-items: center;
@@ -149,17 +230,40 @@
   content: '';
   flex: 1;
   height: 1px;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--color-text) 12%, transparent), transparent);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--gaea-glow) 22%, transparent), transparent);
 }
 
-/* ── 面板（玄墨卡面：bg-container 亮一档 + 近无边线 + shadow 令牌） ── */
+.rt-eyebrow-note {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: var(--color-text-secondary);
+  opacity: 0.75;
+}
+
+/* ── 面板（玻璃四件套：glass 底 + blur + glow 细边 + v3-edge 顶缘光线） ── */
 .rt-panel {
-  background: var(--color-bg-container);
-  border: 1px solid color-mix(in srgb, var(--color-text) 5%, transparent);
+  position: relative;
+  background: var(--gaea-glass-bg, var(--color-bg-container));
+  -webkit-backdrop-filter: blur(18px) saturate(145%);
+  backdrop-filter: blur(18px) saturate(145%);
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 12%, transparent);
   border-radius: var(--radius-md, 12px);
   box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.25));
   padding: 12px 14px;
   min-width: 0;
+}
+
+.rt-panel::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: var(--v3-edge, linear-gradient(90deg, transparent, color-mix(in srgb, var(--gaea-glow) 40%, transparent), transparent));
+  border-radius: var(--radius-md, 12px) var(--radius-md, 12px) 0 0;
+  pointer-events: none;
 }
 
 .rt-side-title {
@@ -178,15 +282,24 @@
 }
 
 .rt-card {
+  position: relative;
   padding: 11px 13px 7px;
-  background: var(--color-bg-container);
-  border: 1px solid color-mix(in srgb, var(--color-text) 5%, transparent);
+  background: color-mix(in srgb, var(--color-bg-container) 82%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 10%, transparent);
   border-radius: var(--radius-md, 12px);
   box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.25));
   display: flex;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+  transition: border-color var(--md-sys-transition-fast, 200ms), box-shadow var(--md-sys-transition-fast, 200ms);
+}
+
+.rt-card:hover {
+  border-color: color-mix(in srgb, var(--gaea-glow) 26%, transparent);
+  box-shadow: var(--v3-glow-faint, var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.25)));
 }
 
 .rt-card-empty .rt-card-value { color: var(--color-text-secondary); }
@@ -199,19 +312,25 @@
 }
 
 .rt-card-value {
-  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Mono', Consolas, monospace);
   font-size: 19px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-shadow: 0 0 14px color-mix(in srgb, var(--gaea-glow) 22%, transparent);
 }
 
 .rt-card-unit { font-size: 11.5px; font-weight: 400; color: var(--color-text-secondary); }
 
 .rt-spark { width: 100%; height: 26px; display: block; }
-.rt-spark polyline { stroke: var(--glow, #1677ff); stroke-width: 1.5; opacity: 0.55; }
+.rt-spark polyline {
+  stroke: var(--v3-telemetry, var(--gaea-glow));
+  stroke-width: 1.5;
+  opacity: 0.55;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--gaea-glow) 35%, transparent));
+}
 .rt-spark-active polyline { opacity: 1; }
 .rt-spark-baseline { stroke: color-mix(in srgb, var(--color-text) 14%, transparent); stroke-width: 1; }
 
@@ -220,8 +339,8 @@
   padding: 28px;
   text-align: center;
   color: var(--color-text-secondary);
-  background: var(--color-bg-container);
-  border: 1px solid color-mix(in srgb, var(--color-text) 5%, transparent);
+  background: var(--gaea-glass-bg, var(--color-bg-container));
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 10%, transparent);
   border-radius: var(--radius-md, 12px);
 }
 
@@ -233,15 +352,24 @@
 }
 
 .rt-engine {
+  position: relative;
   padding: 10px 13px;
-  background: var(--color-bg-container);
-  border: 1px solid color-mix(in srgb, var(--color-text) 5%, transparent);
+  background: color-mix(in srgb, var(--color-bg-container) 82%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 10%, transparent);
   border-radius: var(--radius-md, 12px);
   box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.25));
   display: flex;
   flex-direction: column;
   gap: 6px;
   min-width: 0;
+  transition: border-color var(--md-sys-transition-fast, 200ms), box-shadow var(--md-sys-transition-fast, 200ms);
+}
+
+.rt-engine:not(.rt-engine-disabled):hover {
+  border-color: color-mix(in srgb, var(--gaea-glow) 24%, transparent);
+  box-shadow: var(--v3-glow-faint, var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.25)));
 }
 
 .rt-engine-disabled { opacity: 0.55; }
@@ -261,7 +389,10 @@
   flex: none;
 }
 
-.rt-engine-dot.on { background: var(--color-success, #52c41a); }
+.rt-engine-dot.on {
+  background: var(--color-success, #52c41a);
+  box-shadow: 0 0 9px color-mix(in srgb, var(--color-success, #52c41a) 60%, transparent);
+}
 
 .rt-engine-name { font-weight: 600; font-size: 13.5px; white-space: nowrap; }
 
@@ -275,8 +406,8 @@
 }
 
 .rt-engine-state.busy {
-  background: color-mix(in srgb, var(--glow, #faad14) 16%, transparent);
-  color: var(--glow, #faad14);
+  background: color-mix(in srgb, var(--gaea-glow) 16%, transparent);
+  color: var(--gaea-glow);
 }
 
 .rt-engine-lat { margin-left: auto; font-size: 11px; color: var(--color-text-secondary); flex: none; font-variant-numeric: tabular-nums; }
@@ -322,6 +453,143 @@
 
 .rt-chip-more { flex: none; }
 
+/* ── 按模型明细常驻板（累计口径·引擎分组平铺） ── */
+.rt-models-panel { padding: 10px 12px 12px; }
+
+.rt-mb {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.rt-mb-caption,
+.rt-mb-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 82px 108px 52px 76px 52px;
+  gap: 10px;
+  align-items: center;
+}
+
+.rt-mb-caption {
+  padding: 0 10px 2px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--color-text-secondary);
+  opacity: 0.8;
+}
+
+.rt-mb-caption span:not(:first-child),
+.rt-mb-row > span:not(.rt-mb-name) {
+  text-align: right;
+}
+
+.rt-mb-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 10px 9px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-text) 3%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 7%, transparent);
+}
+
+.rt-mb-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 6px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid color-mix(in srgb, var(--gaea-glow) 12%, transparent);
+  min-width: 0;
+}
+
+.rt-mb-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--gaea-glow) 45%, transparent);
+}
+
+.rt-mb-engine { font-size: 12.5px; font-weight: 650; white-space: nowrap; }
+
+.rt-mb-sub { font-size: 10.5px; color: var(--color-text-secondary); flex: none; }
+
+.rt-mb-sum {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rt-mb-row {
+  padding: 3px 0;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rt-mb-row + .rt-mb-row {
+  border-top: 1px solid color-mix(in srgb, var(--color-text) 4%, transparent);
+}
+
+.rt-mb-name {
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Mono', Consolas, monospace);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.rt-mb-calls {
+  position: relative;
+  display: inline-flex;
+  justify-content: flex-end;
+  height: 16px;
+  align-items: center;
+}
+
+.rt-mb-bar {
+  position: absolute;
+  inset-block: 2px;
+  right: 0;
+  border-radius: 3px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--gaea-glow) 26%, transparent));
+  box-shadow: inset 0 0 6px color-mix(in srgb, var(--gaea-glow) 18%, transparent);
+}
+
+.rt-mb-calls-num {
+  position: relative;
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Mono', Consolas, monospace);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.rt-mb-tok,
+.rt-mb-cost {
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Mono', Consolas, monospace);
+  font-size: 11px;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.rt-mb-rate { font-family: var(--font-mono, ui-monospace, 'Cascadia Mono', Consolas, monospace); font-size: 11px; }
+
+.rt-mb-fail {
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Mono', Consolas, monospace);
+  font-size: 10.5px;
+  color: var(--color-destructive, #ff7875);
+  cursor: help;
+}
+
+.rt-mb-fail-none { color: var(--color-text-quaternary, #d9d9d9); cursor: default; }
+
 /* ── 右检查列：上下文环 + 会话缓存 ── */
 .rt-ctx-panel { display: flex; flex-direction: column; gap: 12px; }
 
@@ -334,10 +602,14 @@
 
 .rt-donut { width: 92px; height: 92px; flex: none; }
 .rt-donut-track { stroke: color-mix(in srgb, var(--color-text) 12%, transparent); }
-.rt-donut-fill { stroke: var(--glow, #1677ff); transition: stroke-dasharray 0.4s ease; }
-.rt-donut-fill.rt-donut-hot { stroke: var(--color-destructive, #ff7875); }
-.rt-donut-num { font-size: 17px; font-weight: 600; fill: var(--color-text); }
-.rt-donut-label { font-size: 9px; fill: var(--color-text-secondary); }
+.rt-donut-fill {
+  stroke: var(--v3-telemetry, var(--gaea-glow));
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--gaea-glow) 45%, transparent));
+  transition: stroke-dasharray 0.4s ease;
+}
+.rt-donut-fill.rt-donut-hot { stroke: var(--color-destructive, #ff7875); filter: drop-shadow(0 0 6px color-mix(in srgb, var(--color-destructive, #ff7875) 45%, transparent)); }
+.rt-donut-num { font-size: 17px; font-weight: 600; fill: var(--color-text); font-family: var(--font-mono, ui-monospace, monospace); }
+.rt-donut-label { font-size: 9px; fill: var(--color-text-secondary); letter-spacing: 0.12em; }
 
 .rt-ctx-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .rt-ctx-tokens { font-size: 12.5px; font-variant-numeric: tabular-nums; }
@@ -380,7 +652,8 @@
   flex-wrap: wrap;
   padding: 7px 10px;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--color-text) 5%, transparent);
+  background: color-mix(in srgb, var(--gaea-glow) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 10%, transparent);
   color: var(--color-text);
   font-size: 11.5px;
   font-weight: 600;
@@ -391,11 +664,11 @@
   flex: 0 0 1px;
   align-self: stretch;
   margin: 1px 0;
-  background: color-mix(in srgb, var(--color-text) 14%, transparent);
+  background: color-mix(in srgb, var(--gaea-glow) 25%, transparent);
 }
 
 .rt-stats-link { color: var(--color-text-secondary); font-size: 12px; }
-.rt-stats-link:hover { color: var(--color-text); }
+.rt-stats-link:hover { color: var(--gaea-glow); }
 
 .rt-stats-error {
   display: flex;
@@ -432,6 +705,7 @@
   padding: 8px 10px;
   border-radius: 8px;
   background: color-mix(in srgb, var(--color-text) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 7%, transparent);
 }
 
 .rt-stats-chart-head {
@@ -446,5 +720,48 @@
 .rt-stats-chart-head span:first-child { color: var(--color-text); font-weight: 600; }
 .rt-stats-chart-head span:last-child { font-variant-numeric: tabular-nums; }
 
+/* ── 表格 HUD 化（antd Table 作用域覆写：透明底 + glow 表头 + mono 数字） ── */
+.rt-panel .ant-table {
+  background: transparent;
+  font-variant-numeric: tabular-nums;
+}
+
+.rt-panel .ant-table-container,
+.rt-panel .ant-table-container table,
+.rt-panel .ant-table-tbody > tr > td {
+  background: transparent;
+}
+
+.rt-panel .ant-table-thead > tr > th {
+  background: color-mix(in srgb, var(--gaea-glow) 7%, transparent) !important;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
+.rt-panel .ant-table-tbody > tr:hover > td {
+  background: color-mix(in srgb, var(--gaea-glow) 6%, transparent) !important;
+}
+
+.rt-panel .ant-pagination {
+  margin-top: 8px !important;
+}
+
 .rt-ok { color: var(--color-success, #52c41a); }
 .rt-fail { color: var(--color-destructive, #ff7875); cursor: help; }
+
+/* ── 亮色档：氛围层降透明保可读（HUD 效果在白底上收敛而非消失） ── */
+html[data-hl='light'] .rt-hud-grid { opacity: 0.1; }
+html[data-hl='light'] .rt-hud-scanline { opacity: 0.12; }
+html[data-hl='light'] .rt-hud-bg { opacity: 0.7; }
+html[data-hl='light'] .rt-card-value { text-shadow: none; }
+html[data-hl='light'] .rt-state-busy { text-shadow: none; }
+html[data-hl='light'] .rt-card,
+html[data-hl='light'] .rt-engine {
+  background: color-mix(in srgb, var(--color-bg-container) 92%, transparent);
+}
+
+/* ── 降级：reduced-motion 扫描线停摆（近不可见层也不做无谓动画） ── */
+@media (prefers-reduced-motion: reduce) {
+  .rt-hud-scanline { animation: none; opacity: 0; }
+  .rt-state-busy .rt-state-dot { animation: none; }
+}

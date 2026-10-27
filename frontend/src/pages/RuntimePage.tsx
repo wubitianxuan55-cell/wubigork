@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Segmented, Table, Tooltip } from 'antd'
 import { MonitorOutlined, ReloadOutlined } from '@ant-design/icons'
 import { getRuntimeMonitor } from '../api/engines'
+import type { ModelUsageStats } from '../api/engines'
 import { emitFrontendEvent, FRONTEND_EVENTS, OPEN_STATS_FLAG } from '../events'
 import { usePollingGate } from '../hooks/usePollingGate'
 import { useStatsState } from './modelcenter/hooks/useStatsState'
 import { RequestsSpark, TokenMiniBars, type TrendRange } from './modelcenter/charts'
+import { costToCNY, engineColor, engineLabel, fmtCost, USD_TO_CNY } from './modelcenter/utils'
 import './runtime.css'
 
 // RuntimePage — 运行监测板块（2026-10-19，参照 Strata Monitor 仪表盘）。
@@ -15,10 +17,15 @@ import './runtime.css'
 //     迷你趋势为前端滚动窗口（60 点 ≈ 2 分钟）；
 //   · 引擎状态条：模型中心引擎表 + Strata 系引擎 live 状态（空闲/读入中/
 //     生成中、队列、prompt 进度）+ ComfyUI 运行标记；
+//   · 按模型明细（2026-10-27 拍板常驻平铺）：per_model 累计口径按引擎分组
+//     全量平铺，不折叠不跳转（跳钮保留=抽屉还有 KPI/分流带全量统计）；
 //   · 调用统计趋势：今日/7天/30天（useStatsState 同源 getModelCallStats；
 //     2026-10 模型中心右侧统计检查器并入本板块——总计/成功率/费用在状态条，
 //     趋势与入/出拆分在此）；
 //   · 最近请求表：gaea 侧全引擎（含云端）调用记账（模型中心同源数据）。
+// 视觉（2026-10-27 舰桥 HUD 改版，用户拍板「未来科技感」）：星云底+网格+
+// 扫描线氛围层 + 玻璃面板 + glow 点睛——全部令牌驱动（--gaea-glow/
+// --gaea-glass-bg/--v3-*），亮暗随主题；reduced-motion 扫描线停摆。
 
 /** /metrics 宽松契约（Strata 系服务端字段演进不编进前端硬类型，按需取用） */
 interface EngineRequest {
@@ -219,6 +226,72 @@ function MetricCard({ label, value, unit, series, hint }: { label: string; value
         {hasValue && unit && <span className="rt-card-unit"> {unit}</span>}
       </div>
       <Sparkline data={series} active={hasValue} />
+    </div>
+  )
+}
+
+/** 按模型明细常驻板（2026-10-27 用户拍板「不要折叠隐藏」）：原「按模型明细 →」
+ *  跳钮指向的明细本体（模型中心抽屉同源 getModelCallStats）平铺进本页，
+ *  按引擎分组、全部模型行常驻（无折叠/展开/弹层）。口径=**累计**——per_model
+ *  后端全量聚合，不随右列 今日/7天/30天 档位过滤（档位只管趋势图，两套口径
+ *  在节标与右列文案里各自明示，防误读）。跳钮保留（抽屉还有 KPI/分流带全量）。 */
+function PerModelBoard({ rows, usdToCny }: { rows: ModelUsageStats[]; usdToCny?: number }) {
+  const groups = new Map<string, ModelUsageStats[]>()
+  for (const r of rows) {
+    const list = groups.get(r.engine_id)
+    if (list) list.push(r)
+    else groups.set(r.engine_id, [r])
+  }
+  return (
+    <div className="rt-mb" aria-label="按模型明细">
+      <div className="rt-mb-caption" aria-hidden="true">
+        <span>模型</span><span>调用</span><span>入 / 出 Token</span><span>成功率</span><span>费用</span><span>失败</span>
+      </div>
+      {Array.from(groups.entries()).map(([engineId, list]) => {
+        const color = engineColor({ engineId })
+        const calls = list.reduce((a, b) => a + b.call_count, 0)
+        const succ = list.reduce((a, b) => a + b.success_count, 0)
+        const tokens = list.reduce((a, b) => a + b.total_tokens, 0)
+        const cost = list.reduce((a, b) => a + costToCNY(b.estimated_cost ?? 0, b.currency, usdToCny ?? USD_TO_CNY), 0)
+        const rate = calls > 0 ? (succ / calls) * 100 : 0
+        const maxCalls = Math.max(...list.map((s) => s.call_count), 1)
+        return (
+          <section key={engineId} className="rt-mb-group">
+            <div className="rt-mb-head">
+              <span className="rt-mb-dot" style={{ background: color }} />
+              <span className="rt-mb-engine">{engineLabel({ engineId })}</span>
+              <span className="rt-mb-sub">{list.length} 个模型</span>
+              <span className="rt-mb-sum">
+                调用 {calls.toLocaleString()} · {fmtKTok(tokens)} tok · {fmtCost(cost, 'CNY')} ·{' '}
+                <span className={rate >= 99 ? 'rt-ok' : 'rt-fail'}>{rate.toFixed(0)}%</span>
+              </span>
+            </div>
+            {list.map((r) => {
+              const share = Math.max((r.call_count / maxCalls) * 100, 2)
+              const rRate = r.call_count > 0 ? (r.success_count / r.call_count) * 100 : 0
+              return (
+                <div key={`${r.engine_id}-${r.model}`} className="rt-mb-row">
+                  <span className="rt-mb-name" title={r.model}>{r.model}</span>
+                  <span className="rt-mb-calls">
+                    <span className="rt-mb-bar" style={{ width: `${share}%` }} />
+                    <span className="rt-mb-calls-num">{r.call_count.toLocaleString()}</span>
+                  </span>
+                  <span className="rt-mb-tok">{fmtKTok(r.input_tokens)} / {fmtKTok(r.output_tokens)}</span>
+                  <span className={`rt-mb-rate ${rRate >= 99 ? 'rt-ok' : 'rt-fail'}`}>{rRate.toFixed(0)}%</span>
+                  <span className="rt-mb-cost">{fmtCost(costToCNY(r.estimated_cost ?? 0, r.currency, usdToCny ?? USD_TO_CNY), 'CNY')}</span>
+                  {r.fail_count > 0 ? (
+                    <Tooltip title={r.last_error || `累计失败 ${r.fail_count} 次`}>
+                      <span className="rt-mb-fail">败 {r.fail_count}</span>
+                    </Tooltip>
+                  ) : (
+                    <span className="rt-mb-fail rt-mb-fail-none" aria-hidden="true">—</span>
+                  )}
+                </div>
+              )
+            })}
+          </section>
+        )
+      })}
     </div>
   )
 }
@@ -452,6 +525,11 @@ export default function RuntimePage() {
 
   return (
     <div className="rt-page">
+      {/* HUD 氛围层（2026-10-27 舰桥改版：星云底 + 网格 + 扫描线；pointer-events
+          全关不挡交互，reduced-motion 下扫描线停摆——见 runtime.css 降级段） */}
+      <div className="rt-hud-bg" aria-hidden="true" />
+      <div className="rt-hud-grid" aria-hidden="true" />
+      <div className="rt-hud-scanline" aria-hidden="true" />
       {/* D1 统一板块头部（40px 紧凑档·运行监测样板间）：图标章+工作区名+
           实时状态+累计口径+动作区——板块名已在壳层面包屑，不再另起大标题 */}
       <header className="rt-ph">
@@ -545,6 +623,18 @@ export default function RuntimePage() {
             </div>
             <div className="rt-engine-model">{snap?.comfy_running ? '运行中 · 画室生成队列可用' : '未运行'}</div>
           </div>
+        </div>
+
+        <div className="rt-eyebrow">按模型明细<span className="rt-eyebrow-note">累计口径 · 全引擎平铺</span></div>
+        <div className="rt-panel rt-models-panel">
+          {!stats.callStats ? (
+            <div className="rt-stats-empty">明细加载中…</div>
+          ) : (stats.callStats.per_model ?? []).length === 0 ? (
+            /* per_model 后端 nil 切片 → JSON null（Wails 系统性契约）：一律 ?? [] */
+            <div className="rt-stats-empty">暂无模型调用记录（对话、语音、办公等模块调用模型后自动累计）</div>
+          ) : (
+            <PerModelBoard rows={stats.callStats.per_model ?? []} usdToCny={stats.callStats.usd_to_cny} />
+          )}
         </div>
 
         <div className="rt-eyebrow">最近请求（gaea 侧全引擎记账）</div>

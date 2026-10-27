@@ -274,6 +274,68 @@ describe('RuntimePage 运行监测板块', () => {
     expect(screen.getByText('调用 87')).toBeTruthy()
   })
 
+  it('按模型明细常驻板：引擎分组平铺 + 占比条 + 成功率着色 + 失败徽标（累计口径）', async () => {
+    getRuntimeMonitorMock.mockResolvedValue(SNAPSHOT)
+    getModelCallStatsMock.mockResolvedValue({
+      ...CALL_STATS,
+      per_model: [
+        {
+          engine_id: 'tianxuan', model: 'qwen3.8-flash-next-uncensored',
+          call_count: 80, success_count: 80, fail_count: 0,
+          input_tokens: 80000, output_tokens: 20000, total_tokens: 100000,
+          total_duration_ms: 1000, estimated_cost: 0,
+        },
+        {
+          engine_id: 'tianxuan', model: 'qwen3.6-35b',
+          call_count: 20, success_count: 20, fail_count: 0,
+          input_tokens: 4000, output_tokens: 1000, total_tokens: 5000,
+          total_duration_ms: 300, estimated_cost: 0,
+        },
+        {
+          engine_id: 'xai', model: 'grok-4.7',
+          call_count: 20, success_count: 18, fail_count: 2,
+          input_tokens: 6000, output_tokens: 2000, total_tokens: 8000,
+          total_duration_ms: 500, estimated_cost: 0.5, currency: 'USD', last_error: 'HTTP 429',
+        },
+      ],
+    })
+    render(<RuntimePage />)
+    // 分组头：引擎标签（engineLabel 映射）+ 模型数 + 累计小计
+    await waitFor(() => expect(screen.getByText('天璇引擎 本地')).toBeTruthy())
+    expect(screen.getByText('xAI 云端')).toBeTruthy()
+    expect(screen.getByText('1 个模型')).toBeTruthy() // xai 组（天璇组=2 个模型）
+    // 行内字段：模型名（引擎卡 chip/请求行/明细行多处出现）/ 成功率（组小计与行各一枚）
+    expect(screen.getAllByText('grok-4.7').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('100%').length).toBeGreaterThanOrEqual(2)
+    const failRates = screen.getAllByText('90%')
+    expect(failRates.every((el) => el.className.includes('rt-fail'))).toBe(true)
+    // USD 0.5 × 缺省 7.2 → ¥3.60
+    expect(screen.getByText('¥3.60')).toBeTruthy()
+    // 占比条：组内归一——天璇组 80 满格、20/80=25%；xai 组单模型 100%
+    const bars = document.querySelectorAll('.rt-mb-bar')
+    expect(bars.length).toBe(3)
+    expect((bars[0] as HTMLElement).style.width).toBe('100%')
+    expect((bars[1] as HTMLElement).style.width).toBe('25%')
+    expect((bars[2] as HTMLElement).style.width).toBe('100%')
+    // 失败徽标（Tooltip title=last_error；精确串避免撞趋势图 SVG title 的「失败 2」）
+    expect(screen.getByText('败 2')).toBeTruthy()
+    // 累计口径节标明示（与右列趋势档位两套口径）
+    expect(screen.getByText('累计口径 · 全引擎平铺')).toBeTruthy()
+  })
+
+  it('按模型明细常驻板：空数据诚实空态', async () => {
+    getRuntimeMonitorMock.mockResolvedValue(SNAPSHOT)
+    render(<RuntimePage />) // beforeEach 默认 per_model: []
+    await waitFor(() => expect(screen.getByText(/暂无模型调用记录/)).toBeTruthy())
+  })
+
+  it('按模型明细常驻板：统计未到显示明细加载中（与右列「正在读取统计…」文案分立）', async () => {
+    getRuntimeMonitorMock.mockResolvedValue(SNAPSHOT)
+    getModelCallStatsMock.mockImplementation(() => new Promise(() => {}))
+    render(<RuntimePage />)
+    await waitFor(() => expect(screen.getByText('明细加载中…')).toBeTruthy())
+  })
+
   it('最近请求表：成功/失败行与缓存命中', async () => {
     getRuntimeMonitorMock.mockResolvedValue(SNAPSHOT)
     render(<RuntimePage />)

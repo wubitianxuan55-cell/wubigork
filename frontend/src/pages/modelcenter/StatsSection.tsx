@@ -193,7 +193,7 @@ export function StatsSection() {
                 const color = r >= 100 ? 'var(--mc-ok)' : r >= 90 ? 'var(--mc-text)' : 'var(--mc-danger)'
                 return <span style={{ color }}>{r.toFixed(1)}%</span>
               })()}
-              hint={`${callStats.per_model.length} 个模型`}
+              hint={`${callStats.per_model?.length ?? 0} 个模型`}
             />
             <KpiTile
               icon={<ClockCircleOutlined />}
@@ -305,7 +305,8 @@ export function StatsSection() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {(() => {
               const groups = new Map<string, typeof callStats.per_model>()
-              callStats.per_model.forEach(s => {
+              // per_model 后端 nil 切片 → JSON null（Wails 系统性契约）：?? [] 兜底
+              ;(callStats.per_model ?? []).forEach(s => {
                 const list = groups.get(s.engine_id) || []
                 list.push(s)
                 groups.set(s.engine_id, list)
