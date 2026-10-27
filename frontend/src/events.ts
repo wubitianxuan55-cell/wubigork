@@ -77,6 +77,10 @@ export const FRONTEND_EVENTS = {
   /** 打开办公板块临时工具面板 ToolSheet（payload { tool: 'cad' | 'schedule' }；
       发射方=产物行/工具卡等深处组件，消费方=办公 App 根 setActiveTool） */
   OPEN_TOOL: 'gaea-open-tool',
+  /** 打开任务收件箱面板（§8.3 首页 DeepSeek 化：待办行与任务优先形态退役后，
+      面板唯一入口=命令面板空态「打开任务收件箱」；消费方=首页 ModuleLauncher
+      的收件箱单例——首页 keepAlive 常驻，自 boot 恒有听者，无需补开标记） */
+  OPEN_TASK_INBOX: 'gaea-open-task-inbox',
 } as const
 
 /** 「按模型明细」跳转的抽屉补开标记（sessionStorage；模型中心挂载效应消费即清） */

@@ -43,12 +43,14 @@ describe('主题令牌与 antd 主题对象 memo 化（v4.349）', () => {
   })
 })
 
-describe('最近文件实时化：Home 与办公文件面都订阅单源（v4.349）', () => {
-  it('ModuleLauncher 首页账页用 useSyncExternalStore + subscribeRecentFiles（不再挂载时读一次）', () => {
-    // 批 32 FE6-07 拆分后订阅用法在 launcher_parts.tsx（useLauncherData）：
-    // 守卫意图不变，读主文件+展示件两份源码的并集。
+describe('最近文件实时化：办公文件面订阅单源（v4.349；首页侧随 §8.3 退役）', () => {
+  it('首页不再消费 recentFiles（§8.3 DeepSeek 化删最近文档行）——不得残留订阅或挂载读一次写法', () => {
+    // 首页最近文档行 2026-10-27 随用户拍板退役（办公板块 RecentFilesBar 承接）：
+    // 此前守卫的「首页订阅单源」前提不复存在，改为防回潮断言——若 recentFiles
+    // 回归首页，必须按 v4.349 纪律走 useSyncExternalStore 订阅单源（重开守卫）。
     const src = read('components/ModuleLauncher.tsx') + read('components/launcher_parts.tsx')
-    expect(src).toContain('useSyncExternalStore(subscribeRecentFiles, loadRecentFiles')
+    expect(src).not.toContain('subscribeRecentFiles')
+    expect(src).not.toContain('loadRecentFiles')
     expect(src).not.toContain('setRecentFiles(loadRecentFiles()')
   })
 

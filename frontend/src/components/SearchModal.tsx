@@ -1,7 +1,8 @@
 import { wailsApp } from '../lib/wailsApp';
 import React, { useRef, useState } from 'react'
 import { Typography, Space, Tag, Modal, Input, Spin, Button, message } from 'antd'
-import { SearchOutlined, FileTextOutlined, UserOutlined, ThunderboltOutlined } from '@ant-design/icons'
+import { SearchOutlined, FileTextOutlined, UserOutlined, ThunderboltOutlined, InboxOutlined } from '@ant-design/icons'
+import { emitFrontendEvent, FRONTEND_EVENTS } from '../events'
 
 import { C } from '../utils/theme'
 import V3Empty from './V3Empty'
@@ -402,6 +403,18 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
           ) : (
           <div style={{ textAlign: 'center', padding: 20, color: C('color-text-secondary'), fontSize: 12 }}>
             {t('shell.search.empty')}
+            {/* §8.3 收件箱入口归位：首页待办行/任务优先形态退役后，收件箱面板的
+                唯一打开口。首页 keepAlive 常驻恒有 OPEN_TASK_INBOX 听者，直达开面板。 */}
+            <div style={{ marginTop: 14 }}>
+              <Button
+                size="small"
+                data-testid="search-open-inbox"
+                icon={<InboxOutlined />}
+                onClick={() => { emitFrontendEvent(FRONTEND_EVENTS.OPEN_TASK_INBOX, {}); onClose(); resetQuery() }}
+              >
+                {t('shell.search.openInbox')}
+              </Button>
+            </div>
           </div>
         )}
       </Space>

@@ -230,6 +230,24 @@
 
 **验证**：tsc 绿/eslint 0err/knip exit0/**全量 vitest 4016/4016**；无头 Edge 实测：rail 12 项同栏无溢出、指示徽标零残留、work 态点「小说」直达（novel-hub 挂载+激活态跟随）、回首页三段结构完好。
 
+### 8.3 DeepSeek 化：中轴两段+板块胶囊行（2026-10-27 用户拍板）
+
+用户携 DeepSeek 网页版截图再拍板「要简洁，删除最近文档、待处理项，删除任务优先版面，模仿 DeepSeek 的网页版，把各个功能板块置于对话框下端」。方向一三段（开始/继续/待办）收为中轴两段：
+
+| 项 | 落点 |
+|---|---|
+| 形态 | `ModuleLauncher.tsx` DeskHome 重写：①`.w-greet` 开始段=印章+时辰问候+题辞+大命令条（语音/工具/发送全保留）+**板块胶囊行**（`.w-boards`，命令条正下方=DeepSeek 落地页功能入口位；`deriveLauncherModules` 全量 12 模块=方向一退役的 12 板块卡以胶囊形回归，点击直达，manifest 订阅实时更新）②`.w-recent` 继续段=工作对象组（书/工程）+最近会话行——**对象组与会话皆空时整段不渲染**（冷启首页=纯落地页，工作有现场才长出「最近」） |
+| 用户点名删除 | 最近文档行（`desk-recent-docs` 块+空态 CTA；办公板块自有最近面承接）、待办一行（`.w-todo`/`desk-task-inbox`）、任务优先版面（**TasksFirstHome.tsx+测试整删**、homeLayout 分发/`setHomeLayout`/`HomeLayoutPanel` 设置面板/appStore 三件全撤） |
+| 随形态退役 | 建议词 chips（DeepSeek 形态输入框下只有功能胶囊；`home.sug1~4` 键按 statIdle 先例闲置）、顶栏仪表条 HomeStrip（形态切换既亡，孤 date 无撑——`.ml-strip`/`.ml-space-btn` 族删）、placeholder 改「问点什么，或从下面进入一个工作台…」口径 |
+| 收件箱入口归位 | 待办行+任务优先形态退役后面板几成孤岛（Ctrl+K/语音/微信只「存」不「看」）——**命令面板空态新增「打开任务收件箱」**：`OPEN_TASK_INBOX` 事件（`events.ts`）→ 首页 ModuleLauncher 单例面板；首页 keepAlive 常驻（visitedPages 自 boot 含 home）恒有听者，无需 OPEN_TOOL 式 sessionStorage 补开标记 |
+| launcher_parts 瘦身 | `TaskInboxEntry`（待办行挂点内容）+recentFiles 订阅源退役——LauncherData 收窄为 `{sessions}` 单源；CSS 809→~470 行（.ml-strip/.ml-space-btn/.ml-card 族/.w-board/.w-hero 卡/.t-*/.w-chips/.w-empty/.w-todo/.ml-krow-strong/.ml-memory/.ml-inline-cta 全删，任务形态卡片语言随形态整退） |
+| 词典 | 三语 +2 键（home.boardsAria 功能板块、shell.search.openInbox 打开任务收件箱）+placeholder 三语改口径；tasksFirst*/homeLayout*/sug1~4/recentDocs* 等退役键按 statIdle 先例闲置保留防 parity 抖动 |
+| 契约 | ModuleLauncher.test 重写：两段结构+胶囊行全量 12+直达导航+退役面零残留（desk-recent-docs/desk-task-inbox/w-chip/tasks-first-home/home-layout-* 全 null）+对象组双恢复链路口径不变+收件箱改事件入口（挂载零拉取、OPEN_TASK_INBOX 开面板）；SearchModal.test +空态入口例；appStore.test homeLayout describe 删 |
+
+**验证**：tsc -b 绿；eslint 0 error（launcher_parts react-refresh 警示系拆分前既有）；knip exit 0（唯一 unused export 仍为 CAD 线既有）；**全量 vitest 4004/4004（458 文件，含两枚源级守卫随迁：events.test 事件数 6→7、perf-guards 最近文件守卫改防回潮口径）**；无头 Edge（vite dev + 独立 user-data-dir，1440×900）截图+DOM 实测：问候居中、命令条 760×50、胶囊行 12 枚全渲染（chat/novel/imagegen/gaea/cost/memoryhub/modelcenter/characterlib/weixin/sin/runtime/settings——识图初审漏数 runtime，DOM dump-dom 实证 12/12）两行排布无溢出无重叠、退役面（最近文档/待办/建议词/仪表条）零残留、左侧 rail 完好。
+
+**留池**：①亮/暗两档真机目检+用户真机走查；②发版推送待指示（与 §8/8.1/8.2 四提交同批）。
+
 ## 7. 参考来源（节选）
 
 **国际 AI**

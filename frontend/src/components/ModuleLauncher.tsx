@@ -1,47 +1,46 @@
 /**
- * ModuleLauncher — 统一首页（方向一「输入即首页」，2026-10-26 拍板）。
+ * ModuleLauncher — 统一首页（DeepSeek 式「输入即首页」，2026-10-27 用户拍板）。
  *
- * 市场调研落档 docs/gaea-home-redesign-survey-2026-10.md：AI 产品首页共识
- * =「开始（输入）+ 继续（最近）+ 需要你处理的（待办）」一屏三件事。classic
- * 形态从六区（指挥卡/文档卡/侧列/工具节/板块节/状态排）收敛为中轴三段：
- *   ① 开始 —— 问候（时辰）+ 印章 + 大命令条（语音/工具/发送）+ 建议词 chips；
- *   ② 继续 —— 最近文档行 + 最近会话行（点行真打开）；
- *   ③ 待办 —— 待处理计数一行（其余状态归壳层遥测轨/运行监测板块）。
- * 退役（入口归位，藏≠删）：12 板块卡 → 常驻左栏 rail + 命令面板；工具节
- * （§7.5 刀6 tile）→ 命令条「工具」下拉（OPEN_TOOL 双通道机制原样）；状态
- * 卡排 → 待办一行；写作进度环 → 小说板块。tasks 形态（TasksFirstHome）不动。
+ * 沿革 docs/gaea-home-redesign-survey-2026-10.md §8.3：方向一中轴三段上线次日，
+ * 用户再拍板「简洁优先，模仿 DeepSeek 网页版，功能板块置于对话框下端」。形态：
+ *   ① 开始 —— 问候（时辰）+ 印章 + 大命令条（语音/工具/发送），垂直居中唯一主角；
+ *   ② 板块 —— 命令条正下方一排功能板块胶囊（deriveLauncherModules 全量 12 模块
+ *      =方向一退役的 12 板块卡以胶囊形回归 DeepSeek 位，点击直达；rail/命令面板
+ *      双入口不变）。
+ * 退役（入口归位，藏≠删）：最近文档行（办公板块自有最近面）、待办一行与任务
+ * 优先形态 TasksFirstHome + homeLayout 分发（收件箱面板保留单例，入口移命令面板
+ * 空态「打开任务收件箱」——OPEN_TASK_INBOX 事件直达，首页 keepAlive 常驻自
+ * boot 恒有听者）、建议词 chips（DeepSeek 形态输入框下只有功能胶囊）、顶栏
+ * 仪表条（日期归系统时钟/壳层遥测轨）。
+ * 「继续」段保留工作对象组（书/工程）+ 最近会话行；两者皆空时整段不渲染——
+ * 冷启首页=纯 DeepSeek 落地页，工作有现场时才长出「最近」。
  *
  * 视觉沿用玄墨 v11 语言（衬线大标题/描边退场/金点睛/印泥朱印章），零硬编码
- * 色值全走令牌。契约保持（测试与壳层依赖，勿改）：desk-recent-docs、
- * desk-task-inbox、task-inbox-open-btn、home-layout-*。数据层单源
- * useLauncherData（recentFiles 订阅 + 会话一次读）。
+ * 色值全走令牌。数据层单源 useLauncherData（会话一次读）。
  */
-import React, { useState, useCallback, useRef, useMemo, useSyncExternalStore } from 'react'
+import React, { useState, useCallback, useMemo, useEffect, useSyncExternalStore } from 'react'
 import {
   ArrowRightOutlined, AudioOutlined, SendOutlined,
-  StopOutlined, FileTextOutlined, ClockCircleOutlined,
-  CheckSquareOutlined, BlockOutlined, BarChartOutlined, BookOutlined, ToolOutlined,
+  StopOutlined, ClockCircleOutlined,
+  BlockOutlined, BarChartOutlined, BookOutlined, ToolOutlined,
 } from '@ant-design/icons'
-import TasksFirstHome from './TasksFirstHome'
 import { requestSessionResume } from '../gaea/lib/pendingSessionResume'
-import { openPaneFileOrPreview } from '../gaea/lib/paneFileOpen'
 import { loadRecentObjects, subscribeRecentObjects, type RecentObject } from '../gaea/lib/recentObjects'
 import { guardNovelSwitch } from './novel/novelSwitchGuard'
 import { openNovelProject } from './novel/openNovelProject'
 import { Dropdown, Input } from 'antd'
-import type { InputRef, MenuProps } from 'antd'
+import type { MenuProps } from 'antd'
 import { useVoiceChat } from '../hooks/useVoiceChat'
 import { useAppStore } from '../stores/appStore'
 import { useT } from '../gaea/lib/i18n'
 import type { DictKey } from '../gaea/locales/en'
 import { app } from '../gaea/lib/bridge'
 import { TaskInboxPanel } from '../gaea/components/TaskInboxPanel'
-import { SectionLabel, ChatBubble, TaskInboxEntry, SessionList, useLauncherData, type LauncherData } from './launcher_parts'
+import { getActiveBoards, subscribeBoards, resolveBoardIcon } from '../boards/manifests'
+import { deriveLauncherModules, LAUNCHER_DESC } from '../boards/launcher'
+import { SectionLabel, ChatBubble, SessionList, useLauncherData } from './launcher_parts'
 import { emitFrontendEvent, FRONTEND_EVENTS, OPEN_TOOL_FLAG } from '../events'
 import './module-launcher.css'
-
-export { SessionList }
-export type { LauncherData }
 
 
 /**
@@ -56,46 +55,6 @@ interface ModuleLauncherProps {
   onNavigate: (target: LauncherTarget) => void
 }
 
-// ─── 顶栏仪表条（v4.182 从 rail 迁入首页；v4.475 空间切换钮退役）────────────
-// 1B 已拍板（2026-09-10，拆开）：壳层开关=界面导航，与办公引擎空间
-// （办公侧栏 SpaceChip，写 session.space）两套是定局。v4.475 首页合一后
-// 切空间由板块导航隐式驱动（navigateBoard 自动切换），条上只剩首页形态
-// 快捷切换与日期。
-/** 首页形态快捷切换（7.3-2）：形态互切按钮，读写 appStore.homeLayout。 */
-const HomeLayoutToggle: React.FC = () => {
-  const t = useT()
-  const homeLayout = useAppStore((st) => st.homeLayout)
-  const setHomeLayout = useAppStore((st) => st.setHomeLayout)
-  const tasks = homeLayout === 'tasks'
-  return (
-    <button
-      type="button"
-      data-testid={tasks ? 'home-layout-back-classic' : 'home-layout-tasks-entry'}
-      aria-pressed={tasks}
-      title={tasks ? t('home.tasksFirstBackHint') : t('home.tasksFirstEntryHint')}
-      className="ml-space-btn"
-      onClick={() => setHomeLayout(tasks ? 'classic' : 'tasks')}
-    >
-      {tasks ? t('home.tasksFirstBack') : t('home.tasksFirstEntry')}
-    </button>
-  )
-}
-
-/** 首页顶栏仪表条（v4.475 起无空间语义）：形态切换 + 分隔线 + 日期。 */
-export const HomeStrip: React.FC = () => {
-  return (
-    <div className="ml-strip v3-rise v3-rise-1">
-      <HomeLayoutToggle />
-      <span className="ml-strip-rule" aria-hidden="true" />
-      <span className="ml-strip-date" aria-hidden="true">{new Date().toLocaleDateString()}</span>
-    </div>
-  )
-}
-
-// ════════════════════════════════════════════════════════════════════
-//  classic 形态 · 方向一「输入即首页」——中轴三段：开始 / 继续 / 待办
-// ════════════════════════════════════════════════════════════════════
-
 // §7.5 刀6 首页工具清单（方向一：从独立工具节移入命令条「工具」下拉）：
 // 工具=动作不是房间——打开办公工作台里的临时 ToolSheet（不导航去板块）。
 // 只收已落地的 ToolSheet kind（cad/schedule）；文档/表格是办公对话能力，
@@ -106,10 +65,6 @@ const HOME_TOOLS: { kind: HomeToolKind; icon: React.ReactNode; nameKey: DictKey;
   { kind: 'schedule', icon: <BarChartOutlined />, nameKey: 'home.toolSchedule', descKey: 'home.toolScheduleDesc' },
 ]
 
-// 场景建议词（NN/g 规范：紧贴输入框、具体优于笼统、人工策展）。
-// 点击=填入命令条（不直接发送），可改可发。
-const HOME_SUGGESTIONS: DictKey[] = ['home.sug1', 'home.sug2', 'home.sug3', 'home.sug4']
-
 /** 时辰问候键（5/12/18 点三段切换；夜深档 0~5 点） */
 function greetKeyOf(hour: number): DictKey {
   if (hour < 5) return 'home.greetNight'
@@ -119,16 +74,13 @@ function greetKeyOf(hour: number): DictKey {
 }
 
 const DeskHome: React.FC<{
-  data: LauncherData
   onNavigate: (t: LauncherTarget) => void
-  onOpenTaskInbox: () => void
-  inboxTick: number
-}> = ({ data, onNavigate, onOpenTaskInbox, inboxTick }) => {
+}> = ({ onNavigate }) => {
   const t = useT()
-  const inputRef = useRef<InputRef>(null)
   const [typedText, setTypedText] = useState('')
   const [userText, setUserText] = useState('')
   const [aiReply, setAiReply] = useState('')
+  const data = useLauncherData()
   const { state: voice, start, stop, interrupt } = useVoiceChat({
     onTranscript: (txt) => { setUserText(txt); setAiReply('') },
     onReply: (txt) => setAiReply(txt),
@@ -204,10 +156,14 @@ const DeskHome: React.FC<{
     onClick: () => openOfficeTool(tool.kind),
   }))
 
-  const applySuggestion = useCallback((text: string) => {
-    setTypedText(text)
-    inputRef.current?.focus()
-  }, [])
+  // ── 板块胶囊行（§8.3）：deriveLauncherModules 全量 12 模块（含 settings 隐式
+  // 入口，=方向一退役的 12 板块卡清单），胶囊形置于命令条正下方——DeepSeek
+  // 落地页的功能入口位。清单随活动板块订阅实时更新（manifest 机制零改动）。──
+  const activeBoards = useSyncExternalStore(subscribeBoards, getActiveBoards)
+  const modules = useMemo(
+    () => deriveLauncherModules(activeBoards, LAUNCHER_DESC),
+    [activeBoards],
+  )
 
   // ──「继续」对象组（二期 2026-10-26）：小说书 / 进度工程两类工作对象 ──
   // 订阅单源（localStorage + 写入广播）；无对象不渲染（与最近会话同款）。
@@ -245,13 +201,14 @@ const DeskHome: React.FC<{
     void apply()
   }, [onNavigate, openOfficeTool])
 
+  // 「继续」段整段渲染判据：对象组或会话至少其一有内容——冷启首页保持
+  // 纯 DeepSeek 落地页，不渲染只有节标的空段。
+  const hasRecent = objects.length > 0 || data.sessions.length > 0
+
   return (
     <div className="ml ml-work">
       <div className="w-zen">
-        {/* 顶栏仪表条（形态切换 / 日期） */}
-        <HomeStrip />
-
-        {/* ═══ ① 开始：问候 + 命令条 + 建议词 —— 首页唯一主角，垂直居中 ═══ */}
+        {/* ═══ ① 开始：问候 + 命令条 + 板块胶囊 —— 垂直居中唯一主角 ═══ */}
         <section className="w-greet v3-rise v3-rise-1" aria-label={t('shell.launcher.heroAria')}>
           {/* 印章：台名首字（身份记号保留，玄墨语言不动） */}
           <span className="w-seal" aria-hidden="true">{(t('home.title') || '')[0] || ''}</span>
@@ -265,7 +222,6 @@ const DeskHome: React.FC<{
               <span className="w-cmd-orb-ring" />
             </span>
             <Input
-              ref={inputRef}
               value={typedText}
               onChange={(e) => setTypedText(e.target.value)}
               onPressEnter={() => sendTyped()}
@@ -318,20 +274,24 @@ const DeskHome: React.FC<{
             <kbd className="w-kbd" title={t('home.cmdk')} aria-label={t('home.cmdk')}>⌘K</kbd>
           </div>
 
-          {/* 建议词：填入命令条（不直接发送），可改可发 */}
-          <div className="w-chips">
-            {HOME_SUGGESTIONS.map((key, i) => (
-              <button
-                key={key}
-                type="button"
-                className="w-chip"
-                data-testid={`home-sug-${i + 1}`}
-                title={t(key)}
-                onClick={() => applySuggestion(t(key))}
-              >
-                {t(key)}
-              </button>
-            ))}
+          {/* 板块胶囊行（§8.3 DeepSeek 位）：命令条正下方一排功能入口，点击直达 */}
+          <div className="w-boards" data-testid="home-boards-row" aria-label={t('home.boardsAria')}>
+            {modules.map((m) => {
+              const Icon = resolveBoardIcon(m.icon)
+              return (
+                <button
+                  key={m.key}
+                  type="button"
+                  className="w-board-pill"
+                  data-testid={`home-board-${m.key}`}
+                  title={m.desc}
+                  onClick={() => onNavigate(m.key)}
+                >
+                  {Icon && <Icon aria-hidden />}
+                  <span className="w-board-pill-label">{m.name}</span>
+                </button>
+              )
+            })}
           </div>
 
           {hasChat && (
@@ -362,125 +322,64 @@ const DeskHome: React.FC<{
           </div>
         </section>
 
-        {/* ═══ ② 继续：最近工作对象（书/工程）+ 最近文档行 + 最近会话行（点行真打开）═══ */}
-        <section className="w-recent v3-rise v3-rise-2" data-testid="home-recent" aria-label={t('home.recentTitle')}>
-          <SectionLabel icon={<ClockCircleOutlined />} title={t('home.recentTitle')} />
-          {objects.length > 0 && (
-            <ul className="w-docs-list w-objects" data-testid="home-recent-objects" aria-label={t('home.recentTitle')}>
-              {objects.map((o) => (
-                <li key={`${o.kind}:${o.key}`} className="w-docs-row">
-                  <button
-                    type="button"
-                    className="w-docs-btn"
-                    data-testid={`home-obj-${o.kind}`}
-                    aria-label={`${o.title} — ${objectKindLabel(o.kind)}`}
-                    title={objectKindLabel(o.kind)}
-                    onClick={() => resumeObject(o)}
-                  >
-                    <span className="w-docs-mark" aria-hidden="true">
-                      {o.kind === 'novel' ? <BookOutlined /> : <BarChartOutlined />}
-                    </span>
-                    <span className="w-docs-body">
-                      <span className="w-docs-name">{o.title}</span>
-                      <span className="w-docs-path w-obj-kind">{objectKindLabel(o.kind)}</span>
-                    </span>
-                    <ArrowRightOutlined className="w-docs-arrow" aria-hidden="true" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="w-docs" data-testid="desk-recent-docs" aria-label={t('home.recentDocs')}>
-            {data.recentFiles.length > 0 ? (
-              <ul className="w-docs-list">
-                {data.recentFiles.map((f, i) => (
-                  <li key={`${f.path}:${i}`} className="w-docs-row">
+        {/* ═══ ② 继续：最近工作对象（书/工程）+ 最近会话行（点行真打开）。
+            两者皆空时整段不渲染（§8.3：冷启首页=纯落地页）。═══ */}
+        {hasRecent && (
+          <section className="w-recent v3-rise v3-rise-2" data-testid="home-recent" aria-label={t('home.recentTitle')}>
+            <SectionLabel icon={<ClockCircleOutlined />} title={t('home.recentTitle')} />
+            {objects.length > 0 && (
+              <ul className="w-docs-list w-objects" data-testid="home-recent-objects" aria-label={t('home.recentTitle')}>
+                {objects.map((o) => (
+                  <li key={`${o.kind}:${o.key}`} className="w-docs-row">
                     <button
                       type="button"
                       className="w-docs-btn"
-                      title={t('home.recentDocsHint')}
-                      aria-label={`${f.name || f.path} — ${t('home.recentDocsHint')}`}
-                      /* v4.439：点行＝真打开该文档（此前只跳办公板块，与「在办公中打开」
-                         文案不符）。经 paneFileOpen 的统一入口——办公工作台已挂载则开
-                         pane 文件页签，未挂载则落预览队列，导航过去即可见。 */
-                      onClick={() => { openPaneFileOrPreview(f.path); onNavigate('gaea') }}
+                      data-testid={`home-obj-${o.kind}`}
+                      aria-label={`${o.title} — ${objectKindLabel(o.kind)}`}
+                      title={objectKindLabel(o.kind)}
+                      onClick={() => resumeObject(o)}
                     >
-                      <span className="w-docs-mark" aria-hidden="true"><FileTextOutlined /></span>
+                      <span className="w-docs-mark" aria-hidden="true">
+                        {o.kind === 'novel' ? <BookOutlined /> : <BarChartOutlined />}
+                      </span>
                       <span className="w-docs-body">
-                        <span className="w-docs-name">{f.name || f.path}</span>
-                        <span className="w-docs-path">{f.path}</span>
+                        <span className="w-docs-name">{o.title}</span>
+                        <span className="w-docs-path w-obj-kind">{objectKindLabel(o.kind)}</span>
                       </span>
                       <ArrowRightOutlined className="w-docs-arrow" aria-hidden="true" />
                     </button>
                   </li>
                 ))}
               </ul>
-            ) : (
-              <div className="w-empty">
-                <FileTextOutlined className="w-empty-icon" aria-hidden="true" />
-                <span className="w-empty-text">{t('home.recentDocsEmpty')}</span>
-                <span className="w-empty-sub">{t('home.recentDocsEmptySub')}</span>
-                <button type="button" className="w-empty-cta" onClick={() => onNavigate('gaea')}>
-                  <ArrowRightOutlined aria-hidden="true" />
-                  {t('home.recentDocsEmptyCta')}
-                </button>
+            )}
+            {data.sessions.length > 0 && (
+              <div className="w-recent-sess" aria-label={t('shell.launcher.sessions')}>
+                <SessionList sessions={data.sessions} onOpen={() => onNavigate('chat')} />
               </div>
             )}
-          </div>
-          {data.sessions.length > 0 && (
-            <div className="w-recent-sess" aria-label={t('shell.launcher.sessions')}>
-              <SessionList sessions={data.sessions} onOpen={() => onNavigate('chat')} />
-            </div>
-          )}
-        </section>
-
-        {/* ═══ ③ 需要你处理的：待办一行（其余状态归遥测轨/运行监测）═══
-            7.3-1 任务收件箱：待处理计数 + 打开收件箱（挂点 testid 契约不变）。
-            v4.475 首页合一：计数跨空间全量（scope=''），面板内可跨空间处置。 */}
-        <footer className="w-todo v3-rise v3-rise-3" data-testid="desk-task-inbox" aria-label={t('shell.launcher.taskInbox')}>
-          <span className="w-todo-icon" aria-hidden="true"><CheckSquareOutlined /></span>
-          <TaskInboxEntry space="" tick={inboxTick} onOpen={onOpenTaskInbox} row />
-        </footer>
+          </section>
+        )}
       </div>
     </div>
   )
 }
 
 /**
- * 卡片头（v10 卡片工作台统一头部）：图标章 + 标题/副文 + 可选尾注。
- * 导出供任务优先首页（TasksFirstHome）复用同一张卡片的头部形态。
- */
-export const CardHead: React.FC<{
-  icon: React.ReactNode
-  title: string
-  sub?: string
-  tail?: React.ReactNode
-}> = ({ icon, title, sub, tail }) => (
-  <header className="ml-card-head">
-    <span className="ml-card-icon" aria-hidden="true">{icon}</span>
-    <span className="ml-card-titles">
-      <span className="ml-card-title">{title}</span>
-      {sub && <span className="ml-card-sub">{sub}</span>}
-    </span>
-    {tail}
-  </header>
-)
-
-/**
- * ModuleLauncher — 首页入口：数据一次拉取，按 homeLayout 分发任务优先 / 输入
- * 即首页两形态（v4.475 起不再有书斋/闲庭版式之分）。7.3-1：任务收件箱面板单例
- * 挂顶层——列表口径跨空间全量（scope=''），新建任务仍按当前壳层空间落标签（Go
- * ValidSpace 仅收 work|play，标签保证任务归属数据不劣化）。inboxTick 在面板
- * 收起时 +1，驱动挂点计数补一次重读（用户动作触发，非轮询）。
+ * ModuleLauncher — 首页入口（§8.3 起单一形态）。任务收件箱面板单例挂顶层
+ * ——列表口径跨空间全量（scope=''），新建任务仍按当前壳层空间落标签（Go
+ * ValidSpace 仅收 work|play，标签保证任务归属数据不劣化）。
  */
 const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate }) => {
-  const data = useLauncherData()
   const [inboxOpen, setInboxOpen] = useState(false)
-  const [inboxTick, setInboxTick] = useState(0)
-  const openInbox = useCallback(() => setInboxOpen(true), [])
-  const closeInbox = useCallback(() => {
-    setInboxOpen(false)
-    setInboxTick((x) => x + 1)
+  const closeInbox = useCallback(() => setInboxOpen(false), [])
+
+  // 收件箱入口归位（§8.3）：首页待办行与任务优先形态退役后，面板唯一入口=
+  // 命令面板空态「打开任务收件箱」。首页 keepAlive 常驻（MainLayout
+  // visitedPages 自 boot 含 home），监听器恒活，无需 sessionStorage 补开标记。
+  useEffect(() => {
+    const open = () => setInboxOpen(true)
+    window.addEventListener(FRONTEND_EVENTS.OPEN_TASK_INBOX, open)
+    return () => window.removeEventListener(FRONTEND_EVENTS.OPEN_TASK_INBOX, open)
   }, [])
 
   // 会话级回源（7.3-1 收口）：记 pending+派发事件（keepAlive 已挂载态直达），
@@ -489,20 +388,12 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate }) => {
     requestSessionResume(path)
     onNavigate('gaea')
   }, [onNavigate])
-  // 7.3-2 板块降级为任务视图：homeLayout==='tasks' → 任务优先首页（收件箱首屏+
-  // 能力 chips）；classic → 输入即首页。回退开关即时切回（藏≠删）。
-  const homeLayout = useAppStore((st) => st.homeLayout)
-  // 新建任务的归属标签 = 当前壳层空间（rail 指示器同一数据源；仅作数据落库，
-  // 不再影响首页任何渲染分支）
+  // 新建任务的归属标签 = 当前壳层空间（rail 指示器同一数据源；仅作数据落库）
   const space = useAppStore((st) => st.space)
 
   return (
     <>
-      {homeLayout === 'tasks' ? (
-        <TasksFirstHome data={data} onNavigate={onNavigate} onResumeSession={resumeSessionFromInbox} />
-      ) : (
-        <DeskHome data={data} onNavigate={onNavigate} onOpenTaskInbox={openInbox} inboxTick={inboxTick} />
-      )}
+      <DeskHome onNavigate={onNavigate} />
       <TaskInboxPanel open={inboxOpen} onClose={closeInbox} space={space} scope="" onNavigate={onNavigate} onResumeSession={resumeSessionFromInbox} />
     </>
   )

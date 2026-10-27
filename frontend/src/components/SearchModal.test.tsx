@@ -5,6 +5,7 @@
 import { describe, expect, it, beforeEach, afterEach, beforeAll, vi } from "vitest";
 import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
 import SearchModal from "./SearchModal";
+import { FRONTEND_EVENTS } from "../events";
 import { LocaleProvider } from "../gaea/lib/i18n";
 import { waitMockReady } from "../gaea/lib/bridge";
 
@@ -221,5 +222,25 @@ describe("检索失败可见化（v4.361）", () => {
     renderModal();
     await search("预算");
     await waitFor(() => expect(screen.queryByTestId("search-failed-empty")).toBeNull(), { timeout: 3000 });
+  });
+});
+
+// §8.3 收件箱入口归位：首页待办行与任务优先形态退役后，命令面板空态的
+// 「打开任务收件箱」是收件箱面板唯一打开口——派发 OPEN_TASK_INBOX 事件
+// （消费方=首页 ModuleLauncher 的面板单例）并随手收面板。
+describe("SearchModal 空态收件箱入口（§8.3 入口归位）", () => {
+  it("未搜索空态出「打开任务收件箱」；点击=派发 OPEN_TASK_INBOX + 收面板", () => {
+    const onClose = renderModal();
+    const btn = screen.getByTestId("search-open-inbox");
+    expect(btn.textContent).toContain("打开任务收件箱");
+
+    const seen: Array<{ name: string; detail: unknown }> = [];
+    const rec = (ev: Event) => seen.push({ name: ev.type, detail: (ev as CustomEvent).detail });
+    window.addEventListener(FRONTEND_EVENTS.OPEN_TASK_INBOX, rec);
+    fireEvent.click(btn);
+    window.removeEventListener(FRONTEND_EVENTS.OPEN_TASK_INBOX, rec);
+
+    expect(seen).toEqual([{ name: FRONTEND_EVENTS.OPEN_TASK_INBOX, detail: {} }]);
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

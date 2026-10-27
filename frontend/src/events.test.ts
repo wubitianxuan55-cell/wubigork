@@ -48,9 +48,10 @@ describe('BACKEND_EVENTS（§4.1，26 个）', () => {
   })
 })
 
-describe('FRONTEND_EVENTS（§4.2，6 个）', () => {
-  it('共 6 个前端自定义事件常量', () => {
-    expect(Object.keys(FRONTEND_EVENTS)).toHaveLength(6)
+describe('FRONTEND_EVENTS（§4.2，7 个）', () => {
+  it('共 7 个前端自定义事件常量', () => {
+    // §8.3 首页 DeepSeek 化 +1：OPEN_TASK_INBOX（收件箱面板入口归位命令面板空态）
+    expect(Object.keys(FRONTEND_EVENTS)).toHaveLength(7)
   })
 
   it('常量名与事件名一致', () => {
@@ -60,6 +61,7 @@ describe('FRONTEND_EVENTS（§4.2，6 个）', () => {
     expect(FRONTEND_EVENTS.AI_ASSIST_SEND).toBe('ai-assist-send')
     expect(FRONTEND_EVENTS.OPEN_STATS_DRAWER).toBe('gaea-open-stats-drawer')
     expect(FRONTEND_EVENTS.OPEN_TOOL).toBe('gaea-open-tool')
+    expect(FRONTEND_EVENTS.OPEN_TASK_INBOX).toBe('gaea-open-task-inbox')
     expect(OPEN_STATS_FLAG).toBe('gaea.stats-drawer-open')
   })
 

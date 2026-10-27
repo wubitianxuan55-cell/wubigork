@@ -2,9 +2,9 @@ import React, { useMemo, useState } from 'react'
 import {
   CheckOutlined, DesktopOutlined, MoonOutlined, BgColorsOutlined,
   SunOutlined, ThunderboltOutlined, FontSizeOutlined, DashboardOutlined, CompressOutlined,
-  SwapOutlined, AimOutlined, GlobalOutlined, LayoutOutlined, AppstoreOutlined, InboxOutlined } from '@ant-design/icons'
+  SwapOutlined, AimOutlined, GlobalOutlined } from '@ant-design/icons'
 import { Button, InputNumber, Segmented, Select } from 'antd'
-import { useAppStore, THEME_PRESETS, FONT_OPTIONS, type DisplayMode, type ThemePreset, type Density, type MotionPref, type HomeLayout } from '../../stores/appStore'
+import { useAppStore, THEME_PRESETS, FONT_OPTIONS, type DisplayMode, type ThemePreset, type Density, type MotionPref } from '../../stores/appStore'
 import { useI18n, useT, type LangPref } from '../../gaea/lib/i18n'
 import type { DictKey } from '../../gaea/locales/en'
 import SettingsSection from './SettingsSection'
@@ -347,26 +347,6 @@ export const MotionPanel: React.FC = () => {
   )
 }
 
-/** HomeLayoutPanel — 首页形态（7.3-2 板块降级为任务视图）：经典 / 任务优先。
- *  回退开关的正式位（首页顶栏 HomeStrip 的快捷钮为另一入口，同源 appStore）。 */
-export const HomeLayoutPanel: React.FC = () => {
-  const t = useT()
-  const homeLayout = useAppStore((s) => s.homeLayout)
-  const setHomeLayout = useAppStore((s) => s.setHomeLayout)
-  return (
-    <SettingsSection icon={<span style={{ fontSize: 15 }}><LayoutOutlined /></span>} title={t('settings.homeLayoutTitle')} desc={t('settings.homeLayoutDesc')}>
-      <SegmentedRow<HomeLayout>
-        value={homeLayout}
-        onChange={setHomeLayout}
-        ariaLabel={t('settings.homeLayoutTitle')}
-        options={[
-          { key: 'classic', label: t('settings.homeLayoutClassic'), icon: <AppstoreOutlined /> },
-          { key: 'tasks', label: t('settings.homeLayoutTasks'), icon: <InboxOutlined /> },
-        ]}
-      />
-    </SettingsSection>
-  )
-}
 
 /** AccentPanel — 强调色自定义：跟随主题 / 自定义取色 */
 export const AccentPanel: React.FC = () => {
