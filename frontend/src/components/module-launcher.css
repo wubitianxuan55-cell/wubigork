@@ -1,13 +1,15 @@
-/* 首页 · DeepSeek 式「输入即首页」（2026-10-27 拍板，调研 docs/gaea-home-redesign-survey-2026-10.md §8.3）
+/* 首页 · DeepSeek 式「输入即首页」（2026-10-27 拍板，调研 docs/gaea-home-redesign-survey-2026-10.md §8.3/§8.4）
    ────────────────────────────────────────────────────────────────────
    版本谱系（用户拍板驱动）：v6 等大圆角卡→「低级」；v7~v9 案头；v10 卡片工作台→「廉价」；
    v11 玄墨（三层层级/描边退场/金三处点睛/衬线排印）；v4.473~476 简化批；刀6 工具节；
    方向一中轴三段（开始/继续/待办）→§8.3 DeepSeek 化：中轴只留「开始 + 命令条下
-   板块胶囊行」，最近文档/待办一行/建议词/顶栏仪表条/任务优先卡片形态全退役。
+   板块胶囊行」，最近文档/待办一行/建议词/顶栏仪表条/任务优先卡片形态全退役；
+   §8.4 复检：印章+时辰问候退役（gaea 字标承接身份位，印泥朱 hex 豁免随印销号）、
+   命令条大气化（72px 高/880 通栏/18px 圆角/16.5px 输入）。
    视觉语言沿用玄墨 v11：衬线大标题、描边退场、金点睛（命令条 orb/focus +
-   胶囊 hover）、印泥朱印章。
+   胶囊 hover）。
    令牌纪律：零硬编码色值，全走 --color-* / --md-sys-* / --gaea-* / --radius-* /
-   --shadow-* / --transition-*。唯一例外：.w-seal 印泥朱 #d06055（hex-exempt 在册）。 */
+   --shadow-* / --transition-*。 */
 
 .ml {
   /* ── 局部令牌 ── */
@@ -197,11 +199,15 @@ html[data-hl='light'] .ml {
   line-height: 1.2;
   color: var(--w-ink);
 }
-.w-greet .w-hero-title { font-size: 34px; }
+.w-greet .w-hero-title {
+  /* §8.4：gaea 字标位——拉丁字标加字距撑气象（DeepSeek 品牌名同构） */
+  font-size: 44px;
+  letter-spacing: 0.06em;
+}
 .w-hero-lede {
   margin: 0;
   max-width: 72ch;
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.6;
   color: var(--w-ink-2);
 }
@@ -212,16 +218,17 @@ html[data-hl='light'] .ml {
 /* 指挥卡内的气泡流 */
 .w-hero-chat { display: flex; flex-direction: column; gap: 2px; }
 
-/* ── 命令条（页面主角，唯一抬升面）：focus 金环 + 键盘提示 ── */
+/* ── 命令条（页面主角，唯一抬升面）：focus 金环 + 键盘提示。
+   §8.4 大气化：72px 高、880px 通栏（=中轴柱全宽）、18px 圆角、16.5px 输入 ── */
 .w-cmd {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  max-width: 760px;
-  height: 56px;
-  padding: 0 9px 0 16px;
-  border-radius: var(--radius-md, 12px);
+  max-width: 880px;
+  height: 72px;
+  padding: 0 12px 0 22px;
+  border-radius: 18px;
   border: 1px solid var(--ml-card-line);
   background: var(--color-surface-container-high);
   box-shadow: var(--shadow-sm);
@@ -233,9 +240,9 @@ html[data-hl='light'] .ml {
 }
 .w-cmd.is-listening { border-color: color-mix(in srgb, var(--w-accent) 46%, transparent); }
 
-.w-cmd-orb { position: relative; width: 22px; height: 22px; flex-shrink: 0; display: grid; place-items: center; }
+.w-cmd-orb { position: relative; width: 24px; height: 24px; flex-shrink: 0; display: grid; place-items: center; }
 .w-cmd-orb-core {
-  width: 8px; height: 8px; border-radius: 50%;
+  width: 9px; height: 9px; border-radius: 50%;
   background: var(--w-accent);
   box-shadow: 0 0 10px color-mix(in srgb, var(--w-accent) 55%, transparent);
 }
@@ -249,8 +256,8 @@ html[data-hl='light'] .ml {
 .w-cmd.is-speaking .w-cmd-orb-ring { animation: w-orb 1.8s ease-out infinite; }
 .w-cmd.is-active .w-cmd-orb-core { animation: w-breathe 2.2s ease-in-out infinite; }
 
-.w-cmd-input { flex: 1; min-width: 0; font-size: 15px; }
-.w-cmd-input input { font-size: 15px; }
+.w-cmd-input { flex: 1; min-width: 0; font-size: 16.5px; }
+.w-cmd-input input { font-size: 16.5px; }
 
 .w-cmd-btn {
   appearance: none;
@@ -258,13 +265,13 @@ html[data-hl='light'] .ml {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  height: 38px;
-  padding: 0 14px;
+  height: 46px;
+  padding: 0 17px;
   border-radius: var(--radius-sm, 8px);
   border: 1px solid transparent;
   background: color-mix(in srgb, var(--color-text) 5%, transparent);
   color: var(--w-ink-2);
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 600;
   transition: color var(--transition-fast, 200ms) ease, background var(--transition-fast, 200ms) ease,
     border-color var(--transition-fast, 200ms) ease, transform var(--transition-fast, 200ms) ease;
@@ -277,7 +284,7 @@ html[data-hl='light'] .ml {
   border-color: color-mix(in srgb, var(--w-accent) 44%, transparent);
 }
 .w-cmd-btn.is-send {
-  width: 38px;
+  width: 46px;
   padding: 0;
   justify-content: center;
   color: var(--color-on-primary, var(--w-ink));
@@ -289,10 +296,10 @@ html[data-hl='light'] .ml {
 
 .w-kbd {
   font-family: var(--w-mono);
-  font-size: 10.5px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   color: var(--w-ink-3);
-  padding: 4px 8px;
+  padding: 5px 9px;
   border-radius: 6px;
   background: color-mix(in srgb, var(--color-text) 4%, transparent);
 }
@@ -307,7 +314,7 @@ html[data-hl='light'] .ml {
   align-items: center;
   gap: 8px;
   width: 100%;
-  max-width: 760px;
+  max-width: 880px;
 }
 .w-board-pill {
   appearance: none;
@@ -461,22 +468,6 @@ html[data-hl='light'] .ml {
 .w-objects { margin: 0; }
 .w-objects .w-docs-path { direction: ltr; }
 
-/* ── 印章款识（身份记号；印泥朱 = 唯一 hex 豁免，在册）── */
-.w-seal {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  transform: rotate(-3deg);
-  display: grid;
-  place-items: center;
-  border: 1.5px solid #d06055; /* hex-exempt 印泥朱印章品牌记号 */
-  color: #d06055; /* hex-exempt 同上 */
-  font-family: 'Noto Serif SC', 'Songti SC', serif;
-  font-size: 20px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
 /* ════════════════════════════════════════════════════════════════════
    三、动效关键帧 + 降级
    ════════════════════════════════════════════════════════════════════ */
@@ -519,8 +510,8 @@ html.gaea-raf-degraded .ml .w-status-dot {
 /* 高度档：≤1060px 高的窗口再加一档压缩 */
 @media (max-height: 1060px) {
   .w-greet { padding-top: 10px; gap: 10px; }
-  .w-greet .w-hero-title { font-size: 30px; }
-  .w-cmd { height: 50px; }
+  .w-greet .w-hero-title { font-size: 38px; }
+  .w-cmd { height: 62px; }
   .w-hero-title { font-size: 28px; }
   .w-docs-path { display: none; }
   .w-docs-btn { padding: 4px 10px; }
@@ -529,18 +520,16 @@ html.gaea-raf-degraded .ml .w-status-dot {
   .w-cmd.is-listening ~ .w-voice-status,
   .w-cmd.is-speaking ~ .w-voice-status,
   .w-cmd.is-active ~ .w-voice-status { display: flex; }
-  .w-seal { width: 38px; height: 38px; font-size: 17px; }
   .w-board-pill { height: 32px; padding: 0 13px; }
 }
 
 @media (max-width: 900px) {
   .ml-work { padding: 12px 20px 28px; }
   .w-hero-title { font-size: 26px; }
-  .w-greet .w-hero-title { font-size: 28px; }
+  .w-greet .w-hero-title { font-size: 34px; }
 }
 
 @media (max-width: 640px) {
-  .w-seal { width: 38px; height: 38px; font-size: 17px; }
   .w-hero-lede { font-size: 12px; }
   .w-docs-path { display: none; }
   .w-cmd { height: auto; flex-wrap: wrap; padding: 10px 10px 10px 14px; gap: 8px; }

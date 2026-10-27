@@ -683,6 +683,7 @@ export const zh: Record<DictKey, string> = {
   "home.capSub": "全部工作台，一屏尽收",
   "home.sub": "办公与创作同在一张台面上：文书、造价、记忆、小说、绘画各就各位，随取随用。",
   "home.title": "文书台",
+  "home.brand": "gaea",
   "home.recentDocs": "最近文档",
   "home.recentDocsHint": "在办公中打开",
   "home.recentDocsEmpty": "还没有打开过文档",

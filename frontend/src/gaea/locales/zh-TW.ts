@@ -687,6 +687,7 @@ export const zhTW: Record<DictKey, string> = {
   "home.capSub": "全部工作台，一目瞭然",
   "home.sub": "辦公與創作同在一張檯面上：文書、造價、記憶、小說、繪畫各就各位，隨取隨用。",
   "home.title": "文書檯",
+  "home.brand": "gaea",
   "home.recentDocs": "最近文件",
   "home.recentDocsHint": "在辦公中開啟",
   "home.recentDocsEmpty": "尚未開啟任何文件",

@@ -1,9 +1,11 @@
 /**
  * ModuleLauncher — 统一首页（DeepSeek 式「输入即首页」，2026-10-27 用户拍板）。
  *
- * 沿革 docs/gaea-home-redesign-survey-2026-10.md §8.3：方向一中轴三段上线次日，
- * 用户再拍板「简洁优先，模仿 DeepSeek 网页版，功能板块置于对话框下端」。形态：
- *   ① 开始 —— 问候（时辰）+ 印章 + 大命令条（语音/工具/发送），垂直居中唯一主角；
+ * 沿革 docs/gaea-home-redesign-survey-2026-10.md §8.3/§8.4：方向一中轴三段上线次日，
+ * 用户再拍板「简洁优先，模仿 DeepSeek 网页版，功能板块置于对话框下端」（§8.3），
+ * 复检再拍「印章+时辰问候退役换静态身份位、命令条放大做大气」（§8.4）。形态：
+ *   ① 开始 —— 台名大标（静态品牌位，无时间态）+ 题辞 + 大命令条（语音/工具/发送，
+ *      72px 抬升面）+ 板块胶囊行；垂直居中唯一主角；
  *   ② 板块 —— 命令条正下方一排功能板块胶囊（deriveLauncherModules 全量 12 模块
  *      =方向一退役的 12 板块卡以胶囊形回归 DeepSeek 位，点击直达；rail/命令面板
  *      双入口不变）。
@@ -65,13 +67,7 @@ const HOME_TOOLS: { kind: HomeToolKind; icon: React.ReactNode; nameKey: DictKey;
   { kind: 'schedule', icon: <BarChartOutlined />, nameKey: 'home.toolSchedule', descKey: 'home.toolScheduleDesc' },
 ]
 
-/** 时辰问候键（5/12/18 点三段切换；夜深档 0~5 点） */
-function greetKeyOf(hour: number): DictKey {
-  if (hour < 5) return 'home.greetNight'
-  if (hour < 12) return 'home.greetMorning'
-  if (hour < 18) return 'home.greetAfternoon'
-  return 'home.greetEvening'
-}
+/** 时辰问候键已随 §8.4 退役（印章+问候→台名大标承接身份位；键闲置留典） */
 
 const DeskHome: React.FC<{
   onNavigate: (t: LauncherTarget) => void
@@ -208,11 +204,12 @@ const DeskHome: React.FC<{
   return (
     <div className="ml ml-work">
       <div className="w-zen">
-        {/* ═══ ① 开始：问候 + 命令条 + 板块胶囊 —— 垂直居中唯一主角 ═══ */}
+        {/* ═══ ① 开始：台名大标 + 命令条 + 板块胶囊 —— 垂直居中唯一主角 ═══ */}
         <section className="w-greet v3-rise v3-rise-1" aria-label={t('shell.launcher.heroAria')}>
-          {/* 印章：台名首字（身份记号保留，玄墨语言不动） */}
-          <span className="w-seal" aria-hidden="true">{(t('home.title') || '')[0] || ''}</span>
-          <h1 className="w-hero-title">{t(greetKeyOf(new Date().getHours()))}</h1>
+          {/* §8.4：印章与时辰问候随用户拍板退役——软件名字标 gaea 承接身份位
+              （DeepSeek 落地页同构：品牌名居中，静态无时间态；与 rail/favicon
+              同一品牌拼写） */}
+          <h1 className="w-hero-title">{t('home.brand')}</h1>
           <p className="w-hero-lede">{t('home.sub')}</p>
 
           {/* 命令条：单一抬升面 + focus-within 金环（键盘可达，⌘K 提示） */}

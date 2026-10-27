@@ -682,6 +682,7 @@ export const en = {
   "home.capSub": "Every workbench, one screen",
   "home.sub": "Work and creation share one desk — documents, cost, memory, novels and art, each in its place, ready at hand.",
   "home.title": "The Desk",
+  "home.brand": "gaea",
   "home.recentDocs": "Recent documents",
   "home.recentDocsHint": "Open in office",
   "home.recentDocsEmpty": "No documents opened yet",

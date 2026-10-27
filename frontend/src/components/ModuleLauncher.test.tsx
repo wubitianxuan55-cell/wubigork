@@ -72,17 +72,16 @@ describe('ModuleLauncher DeepSeek 式首页（§8.3）', () => {
     vi.clearAllMocks()
   })
 
-  it('开始段：时辰问候大标（衬线）+ 印章「文」+ 题辞 + 大命令条；顶栏仪表条退役', () => {
+  it('开始段：gaea 字标大标（静态品牌位）+ 题辞 + 大命令条；印章/时辰问候/顶栏仪表条退役', () => {
     render(wrap(<ModuleLauncher onNavigate={vi.fn()} />))
     expect(document.querySelector('.w-greet')).toBeTruthy()
+    // §8.4：印章与时辰问候退役——软件名字标 gaea 承接身份位（静态，无时间态）
     const h1 = document.querySelector('.w-greet h1.w-hero-title')
-    expect(h1).toBeTruthy()
-    expect(['早上好', '下午好', '晚上好', '夜深了']).toContain(h1?.textContent ?? '')
-    // 印章：纯装饰（aria-hidden），内容为台名首字「文」（身份记号保留）
-    const seal = document.querySelector('.w-greet .w-seal')
-    expect(seal).toBeTruthy()
-    expect(seal?.getAttribute('aria-hidden')).toBe('true')
-    expect(seal?.textContent).toBe('文')
+    expect(h1?.textContent).toBe('gaea')
+    expect(document.querySelector('.w-seal')).toBeNull()
+    for (const greet of ['早上好', '下午好', '晚上好', '夜深了']) {
+      expect(screen.queryByText(greet)).toBeNull()
+    }
     // 题辞：home.sub 长文案（锁存在 + 非空）
     const lede = document.querySelector('.w-greet .w-hero-lede')
     expect(lede).toBeTruthy()

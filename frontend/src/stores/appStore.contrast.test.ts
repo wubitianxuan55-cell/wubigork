@@ -14,8 +14,9 @@
 //     不覆盖 surfaceContainerHighest 等**高亮容器层**（它们是块背景，正文不直接
 //     压在上面；success/warning 在该层会低于 4.5，属已知且非正文场景）。
 //   - 装饰性色（outline/glassBg/auroraBg 渐变）不参与断言。
-//   - 「印泥朱印章」.w-seal #d06055 为品牌记号豁免：20px/700 粗体属 WCAG
-//     large text（阈值 3:1），白底 3.83:1 达标，故不改色（避免品牌色漂移）。
+//   - 「印泥朱印章」.w-seal #d06055 曾为品牌记号豁免（20px/700 粗体属 WCAG
+//     large text，白底 3.83:1 达标）；印章随首页 §8.4（2026-10-27）退役，
+//     该 hex 已不在任何 CSS 中，豁免条目随之销号（此注留档防回潮再议）。
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
