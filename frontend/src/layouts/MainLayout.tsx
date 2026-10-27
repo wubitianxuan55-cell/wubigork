@@ -556,7 +556,7 @@ const MainLayout: React.FC = () => {
       </div>
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative' }}>
-        {/* ═══ 左侧指挥轨道（OS 自动隐藏 dock：默认收进左缘，滑过热区展开） ═══ */}
+        {/* ═══ 左侧指挥轨道（2026-10-27 常驻显示：不再自动隐藏，固定悬浮左缘） ═══ */}
         <div className="v3-rail-dock">
           <CommandRail
             page={page}
@@ -567,10 +567,9 @@ const MainLayout: React.FC = () => {
         </div>
 
         {/* ═══ 右侧列：轨道条 + 内容 + 遥测轨道 ═══
-            v4.51.0：预留 rail 收起宽度（--v3-rail-w）——rail-dock 是 fixed 浮层
-            不占 flex 布局，不预留则滑出展开时盖住各板块最左列首字符；
-            悬停展开态仍按浮层覆盖内容（z-index 不动，不推挤布局）。 */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, paddingLeft: 'var(--v3-rail-w)', transition: 'padding-left 280ms cubic-bezier(0.2, 0, 0, 1)' }}>
+            rail 常驻后 --v3-rail-w = 62px 完整足迹（8 margin + 46 rail + 8 呼吸），
+            rail-dock 是 fixed 浮层不占 flex 布局，内容列经 paddingLeft 预留不遮挡 */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, paddingLeft: 'var(--v3-rail-w)' }}>
           {/* 顶部轨道条 */}
           <header className="v3-strip">
             {/* 一键返回首页（非首页时显示） */}

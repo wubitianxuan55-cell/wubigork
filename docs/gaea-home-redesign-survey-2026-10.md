@@ -302,6 +302,19 @@
 
 **教训**：①A/B 排除实验必须先清环境变量（Emulation override 残留、vite 串包都会让「灭掉仍坏」成为假结论——§8.6 的四项排除全是被污染的，真凶就在被「排除」的 CSS 里）；②「X 特有」的判断要先验证环境态共享面（无头 Edge 与用户壳同继承系统媒体查询，能复现恰说明是环境态不是页面态）；③全局 `*` 选择器动 transition/animation 是高危面，rc-motion 这类依赖动画事件的状态机会被超短时长打成卡死——减弱动效对组件动画必须跳终态而非瞬时过渡（reduce 语义=不要动画，不是「动画快到没有」）。
 
+### 8.8 一级导航常驻显示：自动隐藏 dock 机制退役（2026-10-27 用户拍板）
+
+用户拍板「平台一级标题栏不再隐藏，一直显示在左侧」——v3 壳层的 CommandRail 自 v3 起一直是 **OS 自动隐藏 dock 形态**（`.v3-rail-dock` 左缘 10px 热区，鼠标滑过才滑出、移开收起，`translateX(-112%)` 藏在屏外），发现性差（须知道「往左缘蹭」才会用）且与一级导航合一（§8.2 全量 12 项同栏尽收）后定位价值上升——常驻是合理归宿。
+
+**改动**（纯 CSS+注释，DOM 结构与测试契约零变化）：
+- foundation.css：dock 悬停宽机制（`:hover/:focus-within` 宽 10→54px 两规则）与 rail 显隐机制（`translateX(-112%)/opacity:0/pointer-events:none` 及其 hover 逆转、两条 transition）整族退役；rail 恒显（absolute 满高拉伸保留）。
+- `--v3-rail-w: 48px → 62px`：从「收起态预留」改「常驻完整足迹」（8px 左 margin + 46px rail + 8px 呼吸），内容列 paddingLeft 跟随，rail 悬浮不再覆盖内容首列；死变量 `--v3-rail-w-open: 176px`（零消费，旧展开设计遗物）随批销号。
+- MainLayout：v4.51.0「预留收起宽度」注释随迁；paddingLeft 上的 280ms transition 删除（变量恒定从未变过=死动画）。
+
+**验证**：tsc/eslint 0 err；CommandRail 5/5（测试只锁数据面〔标签序/激活态〕，本就不锁显隐机制=零编辑）；无头 Edge（vite dev+独立 user-data-dir）DOM 实测：未悬停态 opacity=1/transform=none/pointer-events=auto、rect x=8 w=46 满高拉伸、内容列 paddingLeft=62px、strip 与 rail 间隙 8px 无重叠、12 导航项齐、点「办公」跨页后仍常驻；1440×900 截图视觉旁证（左列图标栏清晰可见/主内容无破版）。
+
+**教训**：无头 CDP 实例 `--window-size` 偶发不生效（innerH=320）——几何断言前先打 `window.innerHeight`，别把视口假高度当成布局 bug（本次 rail h=304 实为 320−16 边距，拉伸机制本就正确）。
+
 ## 7. 参考来源（节选）
 
 **国际 AI**

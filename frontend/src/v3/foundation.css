@@ -32,25 +32,19 @@
   /* 遥测主色 */
   --v3-telemetry: var(--gaea-glow);
   --v3-telemetry-fill: color-mix(in srgb, var(--gaea-glow) 18%, transparent);
-  /* 轨道图标尺寸 */
-  --v3-rail-w: 48px;
-  --v3-rail-w-open: 176px;
+  /* 轨道图标尺寸：--v3-rail-w = rail 常驻足迹（8px 左 margin + 46px rail + 8px 呼吸），
+     内容列经 paddingLeft 预留，rail 悬浮不遮挡 */
+  --v3-rail-w: 62px;
 }
 
-/* ── 指挥轨道 Command Rail（OS 自动隐藏 dock：默认收进左缘，
-     鼠标滑到左缘热区（10px）时滑出展开，移开自动收起，悬浮覆盖内容）── */
+/* ── 指挥轨道 Command Rail（2026-10-27 用户拍板常驻显示：不再自动隐藏，
+     固定悬浮左缘常显；自动隐藏 dock（左缘热区悬停滑出）机制整族退役） ── */
 .v3-rail-dock {
   position: fixed;
   left: 0;
   top: 0;
   bottom: 0;
-  width: 10px;
   z-index: 200;
-  transition: width 280ms cubic-bezier(0.2, 0, 0, 1);
-}
-.v3-rail-dock:hover,
-.v3-rail-dock:focus-within {
-  width: 54px; /* 8px 左 margin + 46px rail */
 }
 .v3-rail-dock .v3-rail {
   position: absolute;
@@ -58,16 +52,6 @@
   top: 0;
   bottom: 0;
   margin: 8px 0 8px 8px;
-  transform: translateX(-112%);
-  opacity: 0;
-  pointer-events: none;
-  transition: transform 280ms cubic-bezier(0.2, 0, 0, 1), opacity 200ms ease;
-}
-.v3-rail-dock:hover .v3-rail,
-.v3-rail-dock:focus-within .v3-rail {
-  transform: translateX(0);
-  opacity: 1;
-  pointer-events: auto;
 }
 
 .v3-rail {
