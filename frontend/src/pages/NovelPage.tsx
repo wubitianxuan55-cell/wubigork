@@ -81,6 +81,16 @@ const tabItems = [
 /** 书房工坊：身份头栏 + 模式轨 + 按页显隐的分区工作台 */
 const NovelPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<NovelTab>(loadActiveTab)
+  // 挂载集合：五个小说子页**一次全挂**（既有「常驻门控」契约的前提，规格线2）；
+  // 唯 sin pane 惰性——原罪是独立数据域（聊天库 mode=sin + gaea/sin/ 产物），
+  // 未进过原罪页签就不挂载、不发 SinTopicsList 等任何请求（对齐合并前「进板块
+  // 才拉」语义），懒 chunk 也随首次激活才加载；回访恢复 activeTab=sin 时直挂
+  // （不闪空白）。挂载过即常驻：切走只 display:none 不卸载（草稿/流式订阅/
+  // 插图进度不丢）。
+  const [mountedTabs, setMountedTabs] = useState<ReadonlySet<NovelTab>>(() => {
+    const all = tabItems.map((t) => t.key)
+    return new Set(activeTab === 'sin' ? all : all.filter((k) => k !== 'sin'))
+  })
   const [sideCollapsed, setSideCollapsed] = useState<boolean>(() => loadCollapsed(NOVEL_SIDE_KEY))
   const [inspectorCollapsed, setInspectorCollapsed] = useState<boolean>(() => loadCollapsed(NOVEL_INSPECTOR_KEY, true))
   const [activeChapterId, setActiveChapterId] = useState('')
@@ -100,6 +110,7 @@ const NovelPage: React.FC = () => {
 
   const changeTab = (key: NovelTab) => {
     setActiveTab(key)
+    setMountedTabs((prev) => (prev.has(key) ? prev : new Set(prev).add(key)))
     try { localStorage.setItem(NOVEL_TAB_KEY, key) } catch { /* ignore */ }
   }
 
@@ -196,10 +207,11 @@ const NovelPage: React.FC = () => {
         <div className="novel-atelier-identity">
           {activeTab === 'sin' ? (
             // 原罪页签不属当前小说项目语境：身份区切板块语境，项目统计/封面
-            // 等项目级元素一并退场（故事名与模型状态在 sin-head 里自持）
+            // 等项目级元素一并退场（完整副题/故事名/模型状态在 sin-head 里自持，
+            // 这里只留短标避免逐字重复）
             <>
               <span className="novel-atelier-kicker">原罪</span>
-              <span className="novel-atelier-title">图文故事 · 与 AI 对话式创作</span>
+              <span className="novel-atelier-title">图文故事</span>
             </>
           ) : (
             <>
@@ -264,16 +276,18 @@ const NovelPage: React.FC = () => {
 
         <main className="v3-zone novel-main-zone">
           {tabItems.map((t) => (
-            <div
-              key={t.key}
-              className={`novel-tab-pane${activeTab === t.key ? ' is-active' : ''}`}
-            >
-              <React.Suspense fallback={<div className="novel-tab-skeleton" aria-hidden />}>
-                {/* active 门控的唯一来源：当前 tab 为 true，其余四个常驻隐藏页为 false；
-                    再 AND「小说板块当前是否可见」（切到别的板块＝全部 pane 非当前页） */}
-                <t.component active={activeTab === t.key && boardVisible} />
-              </React.Suspense>
-            </div>
+            mountedTabs.has(t.key) ? (
+              <div
+                key={t.key}
+                className={`novel-tab-pane${activeTab === t.key ? ' is-active' : ''}`}
+              >
+                <React.Suspense fallback={<div className="novel-tab-skeleton" aria-hidden />}>
+                  {/* active 门控的唯一来源：当前 tab 为 true，其余常驻隐藏页为 false；
+                      再 AND「小说板块当前是否可见」（切到别的板块＝全部 pane 非当前页） */}
+                  <t.component active={activeTab === t.key && boardVisible} />
+                </React.Suspense>
+              </div>
+            ) : null
           ))}
         </main>
 
