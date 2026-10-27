@@ -219,15 +219,17 @@ html[data-hl='light'] .ml {
 .w-hero-chat { display: flex; flex-direction: column; gap: 2px; }
 
 /* ── 命令条（页面主角，唯一抬升面）：focus 金环 + 键盘提示。
-   §8.4 大气化：72px 高、880px 通栏（=中轴柱全宽）、18px 圆角、16.5px 输入 ── */
+   §8.5 多行大气化：纵向容器=textarea 主体（2 行起、autoSize 随文长高至 10 行）
+   + 框内底部动作行（orb/工具/语音/⌘K/发送）——DeepSeek 输入区同构；
+   Enter 发送、Shift+Enter 换行。min-height 132px 托底，长文随内容撑高。── */
 .w-cmd {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  gap: 10px;
   width: 100%;
   max-width: 880px;
-  height: 72px;
-  padding: 0 12px 0 22px;
+  min-height: 132px;
+  padding: 15px 15px 12px 19px;
   border-radius: 18px;
   border: 1px solid var(--ml-card-line);
   background: var(--color-surface-container-high);
@@ -239,6 +241,23 @@ html[data-hl='light'] .ml {
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--w-accent) 12%, transparent), var(--shadow-md);
 }
 .w-cmd.is-listening { border-color: color-mix(in srgb, var(--w-accent) 46%, transparent); }
+
+/* textarea 主体：占满剩余高度（容器托底 132px，autoSize 长文撑高容器） */
+.w-cmd-textarea { flex: 1; min-height: 0; font-size: 16.5px; }
+.w-cmd-textarea textarea {
+  font-size: 16.5px;
+  line-height: 1.6;
+  resize: none;
+}
+
+/* 框内底部动作行：orb 存在位 + spacer 推右 + 动作钮 */
+.w-cmd-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.w-cmd-spacer { flex: 1; }
 
 .w-cmd-orb { position: relative; width: 24px; height: 24px; flex-shrink: 0; display: grid; place-items: center; }
 .w-cmd-orb-core {
@@ -256,22 +275,19 @@ html[data-hl='light'] .ml {
 .w-cmd.is-speaking .w-cmd-orb-ring { animation: w-orb 1.8s ease-out infinite; }
 .w-cmd.is-active .w-cmd-orb-core { animation: w-breathe 2.2s ease-in-out infinite; }
 
-.w-cmd-input { flex: 1; min-width: 0; font-size: 16.5px; }
-.w-cmd-input input { font-size: 16.5px; }
-
 .w-cmd-btn {
   appearance: none;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  height: 46px;
-  padding: 0 17px;
+  height: 40px;
+  padding: 0 15px;
   border-radius: var(--radius-sm, 8px);
   border: 1px solid transparent;
   background: color-mix(in srgb, var(--color-text) 5%, transparent);
   color: var(--w-ink-2);
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 600;
   transition: color var(--transition-fast, 200ms) ease, background var(--transition-fast, 200ms) ease,
     border-color var(--transition-fast, 200ms) ease, transform var(--transition-fast, 200ms) ease;
@@ -284,9 +300,11 @@ html[data-hl='light'] .ml {
   border-color: color-mix(in srgb, var(--w-accent) 44%, transparent);
 }
 .w-cmd-btn.is-send {
-  width: 46px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   justify-content: center;
+  border-radius: 50%;
   color: var(--color-on-primary, var(--w-ink));
   background: var(--color-primary, var(--w-accent));
   border-color: transparent;
@@ -511,7 +529,7 @@ html.gaea-raf-degraded .ml .w-status-dot {
 @media (max-height: 1060px) {
   .w-greet { padding-top: 10px; gap: 10px; }
   .w-greet .w-hero-title { font-size: 38px; }
-  .w-cmd { height: 62px; }
+  .w-cmd { min-height: 116px; }
   .w-hero-title { font-size: 28px; }
   .w-docs-path { display: none; }
   .w-docs-btn { padding: 4px 10px; }
@@ -532,7 +550,8 @@ html.gaea-raf-degraded .ml .w-status-dot {
 @media (max-width: 640px) {
   .w-hero-lede { font-size: 12px; }
   .w-docs-path { display: none; }
-  .w-cmd { height: auto; flex-wrap: wrap; padding: 10px 10px 10px 14px; gap: 8px; }
+  .w-cmd { min-height: 108px; padding: 12px 10px 10px 12px; }
+  .w-cmd-row { flex-wrap: wrap; }
   .w-cmd-btn-label { display: none; }
   .w-kbd { display: none; }
 }

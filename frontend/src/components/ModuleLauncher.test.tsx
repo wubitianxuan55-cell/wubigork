@@ -93,6 +93,24 @@ describe('ModuleLauncher DeepSeek 式首页（§8.3）', () => {
     expect(document.querySelector('.ml-space-btn')).toBeNull()
   })
 
+  it('命令条多行（§8.5）：textarea 主体 + 框内动作行；Enter=发送（语音文本通道），Shift+Enter=换行不发送', () => {
+    render(wrap(<ModuleLauncher onNavigate={vi.fn()} />))
+    const ta = document.querySelector('textarea.w-cmd-textarea') as HTMLTextAreaElement
+    expect(ta).toBeTruthy()
+    // 框内底部动作行：工具/语音/发送都在命令条内
+    expect(document.querySelector('.w-cmd .w-cmd-row .w-cmd-btn.is-send')).toBeTruthy()
+    expect(document.querySelector('.w-cmd .w-cmd-row [data-testid="home-tools-btn"]')).toBeTruthy()
+    fireEvent.change(ta, { target: { value: '整理这份纪要' } })
+    // Shift+Enter=换行：不发送（交给 textarea 默认行为）
+    fireEvent.keyDown(ta, { key: 'Enter', shiftKey: true })
+    expect(bridgeMocks.app.VoiceChatText).not.toHaveBeenCalled()
+    expect(ta.value).toBe('整理这份纪要')
+    // Enter=发送：走语音文本通道，发送后清空
+    fireEvent.keyDown(ta, { key: 'Enter' })
+    expect(bridgeMocks.app.VoiceChatText).toHaveBeenCalledWith('整理这份纪要')
+    expect(ta.value).toBe('')
+  })
+
   it('板块胶囊行（DeepSeek 位）：命令条正下方全量 12 模块（含设置），点击直达导航', () => {
     const onNavigate = vi.fn()
     render(wrap(<ModuleLauncher onNavigate={onNavigate} />))

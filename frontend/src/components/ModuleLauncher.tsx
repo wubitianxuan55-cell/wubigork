@@ -3,9 +3,11 @@
  *
  * 沿革 docs/gaea-home-redesign-survey-2026-10.md §8.3/§8.4：方向一中轴三段上线次日，
  * 用户再拍板「简洁优先，模仿 DeepSeek 网页版，功能板块置于对话框下端」（§8.3），
- * 复检再拍「印章+时辰问候退役换静态身份位、命令条放大做大气」（§8.4）。形态：
- *   ① 开始 —— 台名大标（静态品牌位，无时间态）+ 题辞 + 大命令条（语音/工具/发送，
- *      72px 抬升面）+ 板块胶囊行；垂直居中唯一主角；
+ * 复检再拍「印章+时辰问候退役换静态身份位、命令条放大做大气」（§8.4），三检
+ * 「输入框还是小——改多行加高」（§8.5）。形态：
+ *   ① 开始 —— gaea 字标（静态品牌位，无时间态）+ 题辞 + 大命令条（多行 textarea
+ *      随文长高 + 框内底部动作行 语音/工具/发送；Enter 发送 Shift+Enter 换行）
+ *      + 板块胶囊行；垂直居中唯一主角；
  *   ② 板块 —— 命令条正下方一排功能板块胶囊（deriveLauncherModules 全量 12 模块
  *      =方向一退役的 12 板块卡以胶囊形回归 DeepSeek 位，点击直达；rail/命令面板
  *      双入口不变）。
@@ -212,63 +214,73 @@ const DeskHome: React.FC<{
           <h1 className="w-hero-title">{t('home.brand')}</h1>
           <p className="w-hero-lede">{t('home.sub')}</p>
 
-          {/* 命令条：单一抬升面 + focus-within 金环（键盘可达，⌘K 提示） */}
+          {/* 命令条（§8.5 多行大气化）：textarea 主体随文长高（2 行起）+ 框内底部
+              动作行（工具/语音/发送）——DeepSeek 同构；Enter 发送、Shift+Enter 换行。
+              focus-within 金环（键盘可达，⌘K 提示） */}
           <div className={`w-cmd ${voiceTone}`}>
-            <span className="w-cmd-orb" aria-hidden="true">
-              <span className="w-cmd-orb-core" />
-              <span className="w-cmd-orb-ring" />
-            </span>
-            <Input
+            <Input.TextArea
               value={typedText}
               onChange={(e) => setTypedText(e.target.value)}
-              onPressEnter={() => sendTyped()}
+              onPressEnter={(e) => {
+                if (e.shiftKey) return // Shift+Enter=换行，交给 textarea 默认行为
+                e.preventDefault()
+                sendTyped()
+              }}
               placeholder={t('home.placeholder')}
               aria-label={t('home.placeholder')}
               variant="borderless"
-              className="w-cmd-input"
+              autoSize={{ minRows: 2, maxRows: 10 }}
+              className="w-cmd-textarea"
               disabled={voice.active}
             />
-            <Dropdown trigger={['click']} menu={{ items: toolMenuItems }}>
+            <div className="w-cmd-row">
+              <span className="w-cmd-orb" aria-hidden="true">
+                <span className="w-cmd-orb-core" />
+                <span className="w-cmd-orb-ring" />
+              </span>
+              <span className="w-cmd-spacer" aria-hidden="true" />
+              <Dropdown trigger={['click']} menu={{ items: toolMenuItems }}>
+                <button
+                  type="button"
+                  className="w-cmd-btn is-tools"
+                  data-testid="home-tools-btn"
+                  aria-haspopup="menu"
+                  aria-label={t('home.toolsTitle')}
+                  title={t('home.toolsSub')}
+                >
+                  <ToolOutlined /> <span className="w-cmd-btn-label">{t('home.toolsTitle')}</span>
+                </button>
+              </Dropdown>
+              {voice.active ? (
+                <button
+                  type="button"
+                  className="w-cmd-btn is-voice is-on"
+                  onClick={toggleVoice}
+                  aria-label={t('shell.launcher.voiceAriaEnd')}
+                >
+                  <StopOutlined /> <span className="w-cmd-btn-label">{t('shell.launcher.voiceEnd')}</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="w-cmd-btn is-voice"
+                  onClick={toggleVoice}
+                  aria-label={t('shell.launcher.voiceAriaStart')}
+                >
+                  <AudioOutlined /> <span className="w-cmd-btn-label">{t('shell.launcher.voiceStart')}</span>
+                </button>
+              )}
+              <kbd className="w-kbd" title={t('home.cmdk')} aria-label={t('home.cmdk')}>⌘K</kbd>
               <button
                 type="button"
-                className="w-cmd-btn is-tools"
-                data-testid="home-tools-btn"
-                aria-haspopup="menu"
-                aria-label={t('home.toolsTitle')}
-                title={t('home.toolsSub')}
+                className="w-cmd-btn is-send"
+                onClick={sendTyped}
+                disabled={!typedText.trim() || voice.active}
+                aria-label={t('shell.launcher.courtyardSend')}
               >
-                <ToolOutlined /> <span className="w-cmd-btn-label">{t('home.toolsTitle')}</span>
+                <SendOutlined />
               </button>
-            </Dropdown>
-            {voice.active ? (
-              <button
-                type="button"
-                className="w-cmd-btn is-voice is-on"
-                onClick={toggleVoice}
-                aria-label={t('shell.launcher.voiceAriaEnd')}
-              >
-                <StopOutlined /> <span className="w-cmd-btn-label">{t('shell.launcher.voiceEnd')}</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="w-cmd-btn is-voice"
-                onClick={toggleVoice}
-                aria-label={t('shell.launcher.voiceAriaStart')}
-              >
-                <AudioOutlined /> <span className="w-cmd-btn-label">{t('shell.launcher.voiceStart')}</span>
-              </button>
-            )}
-            <button
-              type="button"
-              className="w-cmd-btn is-send"
-              onClick={sendTyped}
-              disabled={!typedText.trim() || voice.active}
-              aria-label={t('shell.launcher.courtyardSend')}
-            >
-              <SendOutlined />
-            </button>
-            <kbd className="w-kbd" title={t('home.cmdk')} aria-label={t('home.cmdk')}>⌘K</kbd>
+            </div>
           </div>
 
           {/* 板块胶囊行（§8.3 DeepSeek 位）：命令条正下方一排功能入口，点击直达 */}
