@@ -4,7 +4,7 @@ import { AIConsole } from '../components/novel/AIConsole'
 import NovelSidebar from '../components/novel/NovelSidebar'
 import NovelInspector from '../components/novel/NovelInspector'
 import {
-  HomeOutlined, FileTextOutlined, UserOutlined,
+  HomeOutlined, FileTextOutlined,
   ThunderboltOutlined, BookOutlined, PictureOutlined, FireOutlined,
 } from '@ant-design/icons'
 import { useAppStore } from '../stores/appStore'
@@ -13,13 +13,14 @@ import { useBoardActive } from '../lib/boardActive'
 import { sortNodes } from '../utils/outline'
 import { app } from '../gaea/lib/bridge'
 import { PortraitImg } from '../components/characterlib/PortraitImg'
+import { SETTING_VIEW_KEY } from './SettingHub'
 import '../novel-workspace.css'
 import type { OutlineNode } from '../types'
 
 /** 五个子页统一的 pane props（跨线契约，规格线2「常驻页快捷键门控」）。
  *
  *  `active` 语义：**本 pane 是否为当前可见页**（由 NovelPage 按 activeTab 下发）。
- *  为什么需要它：五个 pane 是**常驻挂载**的（下方 map 一次全挂，只靠
+ *  为什么需要它：常驻 pane 是**常驻挂载**的（下方 map 一次全挂，只靠
  *  `.novel-tab-pane{display:none}` 隐藏），**隐藏 ≠ 卸载**——被隐藏的子页仍在监听
  *  window。于是任何**窗口级副作用**（window keydown、全局自定义事件）都必须按
  *  `active` 门控，否则：F11 在任意子页被隐藏的阅读页 preventDefault 吞掉（浏览器
@@ -32,20 +33,23 @@ import type { OutlineNode } from '../types'
  *  **板块级门控（lib/boardActive）**：`active` 还 AND 了「小说板块本身是否为壳层
  *  当前可见板块」——壳层 keepAlive 让小说板块在切到办公/原罪等板块后仍常驻挂载
  *  （`MainLayout` 的 visitedPages 只 display:none），只按子页判断的话，隐藏的阅读页
- *  照样吞 Ctrl+S/F11（v4.421 观察池「板块级 keepAlive」）。 */
+ *  照样吞 Ctrl+S/F11（v4.421 观察池「板块级 keepAlive」）。
+ *
+ *  2026-10-27 大道至简重组：角色页并入设定（SettingHub 双视图），六页签 6→5。 */
 type NovelPaneProps = { active?: boolean }
 const HomePage = React.lazy(() => import('./HomePage')) as React.ComponentType<NovelPaneProps>
-const NovelSettingPage = React.lazy(() => import('./NovelSettingPage')) as React.ComponentType<NovelPaneProps>
-const CharacterPage = React.lazy(() => import('./CharacterPage')) as React.ComponentType<NovelPaneProps>
+// 设定页签薄壳：内部再 lazy 世界观/人物两子页并常驻 display 切换（active 转发）
+const SettingHub = React.lazy(() => import('./SettingHub')) as React.ComponentType<NovelPaneProps>
 const CreatePage = React.lazy(() => import('./CreatePage')) as React.ComponentType<NovelPaneProps>
 const ChapterPage = React.lazy(() => import('./ChapterPage')) as React.ComponentType<NovelPaneProps>
-// 原罪页（2026-10-27 拍板导航级合并收编）：整页三栏作为第六常驻 pane 挂载。
+// 原罪页（2026-10-27 拍板导航级合并收编）：整页三栏作为常驻 pane 挂载。
 // 按 NovelPaneProps 对齐类型只为 pane 渲染处的统一 props 面——页面本体不消费
 // active（无 window 级监听），隐藏 ≠ 卸载期间行为与既有板块级 keepAlive 一致
 // （Composer 草稿/流式订阅/插图进度不因切页签而丢）。
 const OriginalSinPage = React.lazy(() => import('./OriginalSinPage')) as React.ComponentType<NovelPaneProps>
 
-export type NovelTab = 'home' | 'novelsetting' | 'character' | 'create' | 'chapter' | 'sin'
+/** 2026-10-27 大道至简重组：'character' 页签退役并入设定（SettingHub「人物」视图） */
+export type NovelTab = 'home' | 'novelsetting' | 'create' | 'chapter' | 'sin'
 const NOVEL_TAB_KEY = 'gaea.novel.activeTab'
 const NOVEL_SIDE_KEY = 'gaea.novel.sideCollapsed'
 const NOVEL_INSPECTOR_KEY = 'gaea.novel.inspectorCollapsed'
@@ -53,8 +57,14 @@ const NOVEL_INSPECTOR_KEY = 'gaea.novel.inspectorCollapsed'
 function loadActiveTab(): NovelTab {
   try {
     const v = localStorage.getItem(NOVEL_TAB_KEY)
-    if (v === 'home' || v === 'novelsetting' || v === 'character' || v === 'create' || v === 'chapter' || v === 'sin') {
+    if (v === 'home' || v === 'novelsetting' || v === 'create' || v === 'chapter' || v === 'sin') {
       return v
+    }
+    // 旧值迁移：上次停在已退役的「角色」页签 → 落设定页签的人物视图（不闪空、
+    // 不丢语境；迁移即写 settingView，后续切视图由 SettingHub 自持记忆）
+    if (v === 'character') {
+      try { localStorage.setItem(SETTING_VIEW_KEY, 'chars') } catch { /* ignore */ }
+      return 'novelsetting'
     }
   } catch { /* ignore */ }
   return 'home'
@@ -71,8 +81,7 @@ function loadCollapsed(key: string, fallback = false): boolean {
 
 const tabItems = [
   { key: 'home', icon: <HomeOutlined />, label: '书架', component: HomePage },
-  { key: 'novelsetting', icon: <FileTextOutlined />, label: '设定', component: NovelSettingPage },
-  { key: 'character', icon: <UserOutlined />, label: '角色', component: CharacterPage },
+  { key: 'novelsetting', icon: <FileTextOutlined />, label: '设定', component: SettingHub },
   { key: 'create', icon: <ThunderboltOutlined />, label: '创作', component: CreatePage },
   { key: 'chapter', icon: <BookOutlined />, label: '阅读', component: ChapterPage },
   { key: 'sin', icon: <FireOutlined />, label: '原罪', component: OriginalSinPage },
@@ -81,11 +90,12 @@ const tabItems = [
 /** 书房工坊：身份头栏 + 模式轨 + 按页显隐的分区工作台 */
 const NovelPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<NovelTab>(loadActiveTab)
-  // 挂载集合：五个小说子页**一次全挂**（既有「常驻门控」契约的前提，规格线2）；
-  // 唯 sin pane 惰性——原罪是独立数据域（聊天库 mode=sin + gaea/sin/ 产物），
-  // 未进过原罪页签就不挂载、不发 SinTopicsList 等任何请求（对齐合并前「进板块
-  // 才拉」语义），懒 chunk 也随首次激活才加载；回访恢复 activeTab=sin 时直挂
-  // （不闪空白）。挂载过即常驻：切走只 display:none 不卸载（草稿/流式订阅/
+  // 挂载集合：四个小说子页**一次全挂**（设定页签内 SettingHub 又常驻世界观/人物
+  // 两子 pane——合并前的 CharacterPage 常驻语义不变；既有「常驻门控」契约的前提，
+  // 规格线2）；唯 sin pane 惰性——原罪是独立数据域（聊天库 mode=sin + gaea/sin/
+  // 产物），未进过原罪页签就不挂载、不发 SinTopicsList 等任何请求（对齐合并前
+  // 「进板块才拉」语义），懒 chunk 也随首次激活才加载；回访恢复 activeTab=sin 时
+  // 直挂（不闪空白）。挂载过即常驻：切走只 display:none 不卸载（草稿/流式订阅/
   // 插图进度不丢）。
   const [mountedTabs, setMountedTabs] = useState<ReadonlySet<NovelTab>>(() => {
     const all = tabItems.map((t) => t.key)

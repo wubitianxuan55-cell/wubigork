@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Button, Tooltip } from 'antd'
 import {
   ControlOutlined, MenuFoldOutlined,
-  FileTextOutlined, BookOutlined, ThunderboltOutlined, UserOutlined,
+  FileTextOutlined, BookOutlined, ThunderboltOutlined,
   ReadOutlined, InfoCircleOutlined, SafetyCertificateOutlined,
 } from '@ant-design/icons'
 import { RunChapterGate } from '../../../wailsjs/go/app/NovelB'
@@ -126,7 +126,6 @@ const NovelInspector: React.FC<NovelInspectorProps> = ({
   const quickActions: Array<{ key: NovelTab; label: string; icon: React.ReactNode }> = [
     { key: 'create', label: '创作', icon: <ThunderboltOutlined /> },
     { key: 'novelsetting', label: '设定', icon: <FileTextOutlined /> },
-    { key: 'character', label: '角色', icon: <UserOutlined /> },
   ]
 
   if (collapsed) {

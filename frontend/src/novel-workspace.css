@@ -268,17 +268,44 @@
   width: 44px;
 }
 
-/* 书架 / 设定 / 角色：全幅画廊，收起外壳分区 */
+/* 书架 / 设定（人物子视图随页签一并全幅，2026-10-27 角色页并入）：收起外壳分区 */
 .novel-hub[data-novel-tab='home'] > .novel-workspace > .novel-side-zone,
 .novel-hub[data-novel-tab='home'] > .novel-workspace > .novel-inspector-zone,
 .novel-hub[data-novel-tab='home'] > .novel-workspace > .v3-grip,
 .novel-hub[data-novel-tab='novelsetting'] > .novel-workspace > .novel-side-zone,
 .novel-hub[data-novel-tab='novelsetting'] > .novel-workspace > .novel-inspector-zone,
-.novel-hub[data-novel-tab='novelsetting'] > .novel-workspace > .v3-grip,
-.novel-hub[data-novel-tab='character'] > .novel-workspace > .novel-side-zone,
-.novel-hub[data-novel-tab='character'] > .novel-workspace > .novel-inspector-zone,
-.novel-hub[data-novel-tab='character'] > .novel-workspace > .v3-grip {
+.novel-hub[data-novel-tab='novelsetting'] > .novel-workspace > .v3-grip {
   display: none;
+}
+
+/* 设定页签薄壳（角色并入，2026-10-27）：子导航条 + 双 pane 常驻 display 切换 */
+.novel-setting-hub {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+.novel-setting-hub-nav {
+  display: flex;
+  align-items: center;
+  padding: 6px 16px 8px;
+  border-bottom: 1px solid var(--border-subtle, rgba(128, 128, 128, 0.18));
+  flex-shrink: 0;
+}
+.novel-setting-hub-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+.novel-setting-hub-pane {
+  display: none;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+.novel-setting-hub-pane.is-active {
+  display: flex;
 }
 
 /* 阅读：保留目录；属性检查器默认可折叠（章节体检在此，勿 display:none） */
@@ -2176,9 +2203,26 @@
   min-width: 0;
   min-height: 0;
 }
+/* 通用横幅容器（ForeshadowDueBanner 等仍在用；创作页本体已收敛为下方状态条） */
 .novel-create-alert {
   padding: 8px 12px 0;
   flex-shrink: 0;
+}
+/* 写作状态条（2026-10-27 大道至简：四条横幅收敛为一条——最高优先级常显、
+   「N 条反馈」展开全部；条目恒在 DOM 由组件内联控制，此处只管排版） */
+.novel-create-statusbar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px 0;
+  flex-shrink: 0;
+}
+.novel-create-statusbar-item {
+  flex-shrink: 0;
+}
+.novel-create-statusbar-toggle {
+  align-self: flex-end;
+  font-size: 12px;
 }
 .novel-create-rail {
   display: flex;

@@ -3,14 +3,13 @@ import { Alert, Button, Dropdown, message, Modal } from 'antd'
 import type { MenuProps } from 'antd'
 import { DownOutlined } from '@ant-design/icons'
 import { app } from '../gaea/lib/bridge'
-import { GetNovelState, BuildNovelStatePatch, SettleNovelState, DeSlopChapterAiTaste, RewriteChapterAiTaste, GetEntityRelations, CancelCreateChapter, NovelFingerprintStatus, NovelFingerprintBuild, NovelFingerprintScore, NovelOutlineReconstruct, NovelOutlineReconstructApply, NovelOutlineReconstructStart, NovelOutlineReconstructTaskGet, NovelReviewPlatforms, NovelChapterReview } from '../../wailsjs/go/app/NovelB'
+import { GetNovelState, BuildNovelStatePatch, SettleNovelState, DeSlopChapterAiTaste, RewriteChapterAiTaste, CancelCreateChapter, NovelFingerprintStatus, NovelFingerprintBuild, NovelFingerprintScore, NovelOutlineReconstruct, NovelOutlineReconstructApply, NovelOutlineReconstructStart, NovelOutlineReconstructTaskGet, NovelReviewPlatforms, NovelChapterReview } from '../../wailsjs/go/app/NovelB'
 import { useOutlineStore } from '../stores/outlineStore'
 import { useAppStore } from '../stores/appStore'
 import type { OutlineNode } from '../types'
 import { buildTree, flattenTree, buildPrevSummary, flattenChapters } from '../components/novel/create/outlineTree'
 import { useChapterStream } from '../components/novel/create/useChapterStream'
 import { useChapterGateNotice } from '../components/novel/create/useChapterGateNotice'
-import type { AiTasteResult } from '../components/novel/create/chapterStreamTypes'
 import type { ChapterReviewPayload, FingerprintScorePayload, FingerprintStatusPayload, ReviewPlatform, ChapterAnnotation, PlanGateReportView } from '../gaea/lib/bridge/novel'
 import StyleFingerprintPanel from '../components/novel/StyleFingerprintPanel'
 import ChapterReviewPanel from '../components/novel/ChapterReviewPanel'
@@ -34,8 +33,14 @@ import BranchWizardModal, { type Branch, type BranchCastEntry } from '../compone
 import ChapterPlanCard, { type ChapterPlan } from '../components/novel/ChapterPlanCard'
 import { chooseAction, chooseUnsavedAction } from '../components/novel/unsavedGuard'
 import { registerNovelDirtyProvider, takeDiscardConfirmed } from '../components/novel/novelSwitchGuard'
+// 大道至简分域拆件（2026-10-27）：弹层开关/写作反馈横幅/分支向导/全文脑图
+// 四族状态出页到 ./create/ 四个域 hook——页面按同名解构，全部引用点零改动
+import { useCreatePanels } from './create/useCreatePanels'
+import { useCreateBanners } from './create/useCreateBanners'
+import { useCreateWizard, type WizardRequest } from './create/useCreateWizard'
+import { useCreateGraph, type EntityGraph, type EntityGraphNode } from './create/useCreateGraph'
+import { WritingStatusBar } from '../components/novel/create/WritingStatusBar'
 
-interface WizardRequest { prevChapter: number; overwriteChapter: number; branchFromID: string }
 const BRAINSTORM_MSG_KEY = 'novel-brainstorm-loading'
 
 // ── 创作参数持久化（v4.421.0）──
@@ -68,11 +73,8 @@ function loadGenPrefs(): NovelGenPrefs {
 // 直接用已导出类型消费（可选字段 ?? 兜底），不再本地重定义/手写窄化（FE5-03）；
 // 运行时 typeof 守卫保留——绑定未就绪的降级提示口径不变。
 
-// ── 全文脑图：实体关系图类型 + 纯 SVG 渲染（零依赖、零硬编码 hex）──
-interface EntityGraphNode { id?: string; name?: string; type?: string; group?: string | number }
-interface EntityGraphEdge { from?: string; to?: string; type?: string }
-interface EntityGraph { nodes: EntityGraphNode[]; edges: EntityGraphEdge[] }
-
+// ── 全文脑图：实体关系图类型与窄化已随 useCreateGraph 域 hook 外迁；
+// 此处仅留内联 SVG 渲染（零依赖、零硬编码 hex）──
 // group → 语义令牌色（0 角色 / 1 组织 / 2 地点 / 3 物品 / 4 事件 / 5 其它）
 const GRAPH_GROUP_TOKENS = [
   'var(--color-primary)',
@@ -87,21 +89,6 @@ function graphGroupColor(group: EntityGraphNode['group']): string {
   const g = typeof group === 'number' ? group : Number(group)
   const idx = Number.isFinite(g) && g >= 0 && g < GRAPH_GROUP_TOKENS.length ? g : GRAPH_GROUP_TOKENS.length - 1
   return GRAPH_GROUP_TOKENS[idx]
-}
-
-/** 把后端未知负载窄化为 EntityGraph（畸形/非对象 → 空图）。 */
-function toEntityGraph(value: unknown): EntityGraph {
-  if (typeof value === 'object' && value !== null) {
-    const rec = value as Record<string, unknown>
-    const nodes = Array.isArray(rec.nodes)
-      ? rec.nodes.map((n) => (typeof n === 'object' && n !== null ? n as EntityGraphNode : {}))
-      : []
-    const edges = Array.isArray(rec.edges)
-      ? rec.edges.map((e) => (typeof e === 'object' && e !== null ? e as EntityGraphEdge : {}))
-      : []
-    return { nodes, edges }
-  }
-  return { nodes: [], edges: [] }
 }
 
 /** 内联 SVG：节点=圆形带名字（按环均匀排布），边=直线；viewBox 0 0 W H、宽度自适应。 */
@@ -162,6 +149,20 @@ const EntityGraphSvg: React.FC<{ graph: EntityGraph }> = ({ graph }) => {
 // v4.421.0：新增 `active`（本 pane 是否当前可见页——隐藏≠卸载，窗口级副作用按它门控）
 // 与未保存正文保护（loadedSnapshot/dirty + unsavedGuard 三选确认）。
 const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
+  // ── 分域 hook（2026-10-27 大道至简拆件）：弹层开关/写作反馈/分支向导/全文脑图
+  //    四族状态同名解构——页面内全部引用点零改动（等价证明=CreatePage.test 行为锁）
+  const {
+    rwOpen, setRwOpen, rwHistOpen, setRwHistOpen,
+    promptWsOpen, setPromptWsOpen, dissectOpen, setDissectOpen,
+    techniqueOpen, setTechniqueOpen, planOpen, setPlanOpen,
+    analysisOpen, setAnalysisOpen, healthOpen, setHealthOpen,
+    spineOpen, setSpineOpen, convergeOpen, setConvergeOpen,
+    ctxInvOpen, setCtxInvOpen, stateOpen, setStateOpen,
+    fpOpen, setFpOpen, reviewOpen, setReviewOpen,
+  } = useCreatePanels()
+  const { aiTaste, setAiTaste, declGate, setDeclGate, samplerNote, setSamplerNote, stageClosing, setStageClosing, stateMsg, setStateMsg } = useCreateBanners()
+  const { wizard, setWizard, wizardBranches, setWizardBranches, wizardCastSelection, setWizardCastSelection, wizardCast, setWizardCast, wizardLibCast, setWizardLibCast, wizardPrevCast, setWizardPrevCast } = useCreateWizard()
+  const { graphOpen, setGraphOpen, graphBusy, graphData, graphMsg, openGraph } = useCreateGraph()
   const [setting, setSetting] = useState('')
   const outlines = useOutlineStore(s => s.outlines)
   const loadOutlines = useOutlineStore(s => s.loadOutlines)
@@ -207,18 +208,6 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
   const [temperature, setTemperature] = useState(() => loadGenPrefs().temperature)
   const [directPlot, setDirectPlot] = useState('')
   const [stats, setStats] = useState<{ totalWords: number; chapterCount: number } | null>(null)
-  // 整章重写弹窗（t4-C3 前端消费）
-  const [rwOpen, setRwOpen] = useState(false)
-  // 重写版本历史面板（t4-C3 余项：版本库 List/Get 前端消费）
-  const [rwHistOpen, setRwHistOpen] = useState(false)
-  // 提示词工坊面板（t6 首刀：模板可编辑覆盖层；打开才拉一次）
-  const [promptWsOpen, setPromptWsOpen] = useState(false)
-  // 对标拆解面板（oh-story story-long-analyze 蒸馏：写法学习导向，与章节分析分面）
-  const [dissectOpen, setDissectOpen] = useState(false)
-  // 技法库面板（webnovel-writer 九表思想蒸馏 N11：零 LLM 检索，只读不落盘）
-  const [techniqueOpen, setTechniqueOpen] = useState(false)
-  // 章节计划卡（刀1 线D）：工具轨「章节计划」与硬闸弹窗共用同一展开位
-  const [planOpen, setPlanOpen] = useState(false)
   /**
    * 计划种子（v4.450.0 三点打通）：硬闸拦下生成时把本次 plotReq（分支意向/剧情
    * 要求）存为创作方向，随计划卡下发 Propose——分支→计划才真正连通。工具轨手动
@@ -231,7 +220,6 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
   const [planGate, setPlanGate] = useState<{ chapterNum: number; missing: string[]; problems: string[]; proceed: () => void } | null>(null)
   /** 本次生成是否经作者显式覆盖硬闸（随 CreateChapterWithOverride 的 allowOverride 下发） */
   const planOverrideRef = useRef(false)
-  const [analysisOpen, setAnalysisOpen] = useState(false)
   // 标注定位编辑器（t7 观察池）：面板「编辑器定位」→ 关面板 → 编辑器光标
   // 选区定位到标注区间（rune 偏移，EditorPanel 内部换算 code-unit）。
   // gate 跳转他章时面板章≠编辑章（gateContent 是他章正文），不提供该入口。
@@ -243,10 +231,6 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
     const ok = editorRef.current?.locate(ann.pos, ann.pos + (ann.length ?? 0)) ?? false
     if (!ok) message.info('请先在左侧选择该章，再定位标注')
   }
-  const [healthOpen, setHealthOpen] = useState(false)
-  const [spineOpen, setSpineOpen] = useState(false)
-  const [convergeOpen, setConvergeOpen] = useState(false)
-  const [ctxInvOpen, setCtxInvOpen] = useState(false)
   // 局部重写选区（t4-C3 余项：EditorPanel 选段回调 → PartialRewriteModal；rune 偏移）
   const [pSel, setPSel] = useState<{ start: number; end: number; text: string } | null>(null)
   // 默认启用 story-deslop 去 AI 味润色技能；可在右侧创作设置中切换或清空
@@ -257,33 +241,17 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
       localStorage.setItem(GEN_PREFS_KEY, JSON.stringify({ minWords, temperature, skill: selectedSkill ?? '' }))
     } catch { /* 持久化失败不影响创作 */ }
   }, [minWords, temperature, selectedSkill])
-  // 生成完成后 novelstyle 的 AI 味检测结果（分数 + 命中问题），展示给作者
-  const [aiTaste, setAiTaste] = useState<AiTasteResult | null>(null)
-  // 章级变更声明门禁（阶段八 8.5）：拒收时人可读问题清单（重新生成或定稿面板手动修正）
-  const [declGate, setDeclGate] = useState<{ declared: boolean; accepted: boolean; issues: string[] } | null>(null)
-  const [samplerNote, setSamplerNote] = useState('')
-  // 阶段收尾提示（阶段八 8.8）：收官章 done 时出现，建议跑体检（建议制，不自动跑）
-  const [stageClosing, setStageClosing] = useState<{ stage: number } | null>(null)
-  // 叙事状态账本（narrative 审批制结算）UI
-  const [stateOpen, setStateOpen] = useState(false)
+  // 生成完成后 novelstyle 的 AI 味检测结果等写作反馈横幅族已出页到 useCreateBanners
+  // （呈现面收敛为 WritingStatusBar 单条状态条）
   const [novelState, setNovelState] = useState<{ version?: number; entities?: Record<string, { name?: string; type?: string; status?: string }> } | null>(null)
   const [statePatch, setStatePatch] = useState<unknown>(null)
   const [stateBusy, setStateBusy] = useState(false)
-  const [stateMsg, setStateMsg] = useState('')
-
-  // 全文脑图（实体关系）弹窗状态
-  const [graphOpen, setGraphOpen] = useState(false)
-  const [graphBusy, setGraphBusy] = useState(false)
-  const [graphData, setGraphData] = useState<EntityGraph | null>(null)
-  const [graphMsg, setGraphMsg] = useState('')
 
   // 文风指纹（参考档 + 章节体检）弹窗状态；Status 在打开时自动拉取（无独立刷新按钮）
-  const [fpOpen, setFpOpen] = useState(false)
   const [fpStatus, setFpStatus] = useState<FingerprintStatusPayload | null>(null)
   const [fpScore, setFpScore] = useState<FingerprintScorePayload | null>(null)
   const [fpBusy, setFpBusy] = useState(false)
   // 平台评审（v4.282，oh-story 蒸馏 T1）：档位清单 + 单章报告 + 动作态。
-  const [reviewOpen, setReviewOpen] = useState(false)
   const [reviewPlatforms, setReviewPlatforms] = useState<ReviewPlatform[]>([])
   const [reviewPlatformId, setReviewPlatformId] = useState('general')
   const [reviewReport, setReviewReport] = useState<ChapterReviewPayload | null>(null)
@@ -303,21 +271,6 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
   useEffect(() => () => { reconstructAliveRef.current = false }, [])
   const [fpMsg, setFpMsg] = useState('')
 
-  const openGraph = async () => {
-    setGraphOpen(true)
-    setGraphBusy(true)
-    setGraphMsg('')
-    try {
-      const g = toEntityGraph(await GetEntityRelations())
-      setGraphData(g)
-      setGraphMsg(g.nodes.length > 0 ? `共 ${g.nodes.length} 个实体 · ${g.edges.length} 条关系` : '')
-    } catch (err: unknown) {
-      setGraphData(null)
-      setGraphMsg(err instanceof Error ? err.message : '加载实体关系失败')
-    } finally {
-      setGraphBusy(false)
-    }
-  }
   const [editorFontSize, setEditorFontSize] = useState<number>(() => {
     try {
       const v = Number(localStorage.getItem('gaea.novel.editorFontSize'))
@@ -325,14 +278,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
     } catch { /* 读取失败按默认值 */ }
     return 15
   })
-  const [wizard, setWizard] = useState<WizardRequest | null>(null)
-  const [wizardBranches, setWizardBranches] = useState<Branch[]>([])
-  // 选角会议：结果由页面层持有（后台构思期间弹窗收起不丢）
-  const [wizardCastSelection, setWizardCastSelection] = useState<BranchCastEntry[]>([])
-  // 选角会议数据源：项目名册 / 角色库候选 / 上一章出场（向导打开时拉取；失败静默降级）
-  const [wizardCast, setWizardCast] = useState<string[]>([])
-  const [wizardLibCast, setWizardLibCast] = useState<{ name: string; note?: string }[]>([])
-  const [wizardPrevCast, setWizardPrevCast] = useState<string[]>([])
+  // 分支向导数据族（wizard/wizardCast/…）已出页到 useCreateWizard
 
   const settingLoadToken = useRef(0)
   const chapterLoadToken = useRef(0)
@@ -427,8 +373,9 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
     // 上一本的内容（审计确证）。两个弹窗一并关闭：留在屏上比「需要重开一次」更糟。
     setReviewReport(null); setReviewMsg(''); setReviewOpen(false)
     setFpStatus(null); setFpScore(null); setFpMsg(''); setFpOpen(false)
-    // 仅在项目变化时执行（content/snapshot/finishStream 均走 ref，不进依赖）
-  }, [projectPath])
+    // 仅在项目变化时执行（content/snapshot/finishStream 均走 ref，不进依赖；
+    // 域 hook 的 useState setter 引用恒稳，列入 deps 不触发重建）
+  }, [projectPath, setFpOpen, setReviewOpen])
 
   // 跨页切书未保存保护（`novelSwitchGuard` 的登记端）：把「创作页正文脏不脏、
   // 能否先保存」暴露给书架页的切书闸门。dirty/save 均经 ref 读最新值，故只登记一次。
@@ -530,7 +477,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
         setWizardPrevCast([])
       }
     })()
-  }, [])
+  }, [setWizard, setWizardBranches, setWizardCast, setWizardCastSelection, setWizardLibCast, setWizardPrevCast])
 
   // 后台构思分支：弹窗随即收起（可继续操作其他内容），完成后按原请求自动弹回分支步
   const startBrainstorm = useCallback((cast: BranchCastEntry[]) => {
@@ -561,7 +508,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
         brainstormingRef.current = false
       }
     })()
-  }, [wizard, fetchWizardBranches])
+  }, [wizard, fetchWizardBranches, setWizard, setWizardBranches, setWizardCastSelection])
 
   // 流式生成收尾：三路终态（done/error/cancelled）与停止兜底共用
   const finishStream = useCallback(() => {
@@ -897,7 +844,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
       return
     }
     setRwOpen(true)
-  }, [])
+  }, [setRwOpen])
 
   /**
    * A2a：「重写历史」入口同 A1——应用版本 / 恢复原文都会写回本章正文，此前**入口无脏检查**
@@ -915,7 +862,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
       return
     }
     setRwHistOpen(true)
-  }, [])
+  }, [setRwHistOpen])
 
   /**
    * A1：打开局部重写前过同一道脏闸。局部重写的选区坐标取自编辑器缓冲，后端却按**磁盘**
@@ -990,7 +937,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
       setNovelState(s); setStateMsg('已加载叙事状态账本')
     } catch (err: unknown) { setStateMsg(err instanceof Error ? err.message : '加载失败') }
     finally { setStateBusy(false) }
-  }, [])
+  }, [setStateMsg])
   const proposeState = useCallback(async () => {
     setStateBusy(true); setStateMsg('')
     try {
@@ -998,7 +945,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
       setStatePatch(p); setStateMsg(`AI 已生成第 ${activeChapterNum} 章状态建议，等待你审批`)
     } catch (err: unknown) { setStateMsg(err instanceof Error ? err.message : '生成建议失败') }
     finally { setStateBusy(false) }
-  }, [activeChapterNum])
+  }, [activeChapterNum, setStateMsg])
   const approveState = useCallback(async () => {
     if (statePatch === null || statePatch === undefined) { setStateMsg('请先生成 AI 状态建议'); return }
     setStateBusy(true); setStateMsg('')
@@ -1008,7 +955,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
       await loadState()
     } catch (err: unknown) { setStateMsg(err instanceof Error ? err.message : '结算失败') }
     finally { setStateBusy(false) }
-  }, [statePatch, loadState])
+  }, [statePatch, loadState, setStateMsg])
   // 手动「一键去味」：对当前章节跑确定性 DeSlopRewrite（任意章节可用，不只生成时）。
   // v4.421.0：成功后刷新编辑区（旧实现只更新提示，作者看到的仍是旧文，以为去味没生效）；
   // 若编辑区有未保存的手写修改则不刷新，如实提示，避免把作者的字覆盖掉。
@@ -1050,7 +997,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
       if (r?.done) refreshEditorAfterServerRewrite()
     } catch (err: unknown) { setStateMsg(err instanceof Error ? err.message : '去味失败') }
     finally { setStateBusy(false) }
-  }, [activeChapterNum, refreshEditorAfterServerRewrite])
+  }, [activeChapterNum, refreshEditorAfterServerRewrite, setStateMsg])
   // 高级去味：LLM 受限重写命中句（质量更高，需模型调用）。
   const llmDeslop = useCallback(async () => {
     // A6：同 deslopChapter——生成中改写同一章，两个写者会互相覆盖。
@@ -1062,7 +1009,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
       if (r?.done) refreshEditorAfterServerRewrite()
     } catch (err: unknown) { setStateMsg(err instanceof Error ? err.message : '高级去味失败') }
     finally { setStateBusy(false) }
-  }, [activeChapterNum, refreshEditorAfterServerRewrite])
+  }, [activeChapterNum, refreshEditorAfterServerRewrite, setStateMsg])
 
   // ── 文风指纹（参考档构建 + 章节体检；wailsjs 再生前 NovelB 三方法直接 import）──
   // 打开即拉参考档状态（刷新并入 open 时自动加载）；失败落 rail 消息（stateMsg）。
@@ -1072,7 +1019,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
       setFpStatus(await NovelFingerprintStatus())
     } catch (err: unknown) { setFpMsg(err instanceof Error ? err.message : '加载文风指纹失败') }
     finally { setFpBusy(false) }
-  }, [])
+  }, [setFpOpen])
   // 构建/重建参考档：用全部已写章节生成风格基线（样本不足时后端 reject 中文提示）。
   const buildFingerprint = useCallback(async () => {
     setFpBusy(true); setFpMsg('')
@@ -1108,7 +1055,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
         setReviewMsg(err instanceof Error ? err.message : '加载平台档位失败')
       }
     }
-  }, [reviewPlatforms.length])
+  }, [reviewPlatforms.length, setReviewOpen])
   const runReview = useCallback(async () => {
     setReviewBusy(true)
     setReviewMsg('')
@@ -1211,7 +1158,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
       setReconstructCancellable(false)
       setReconstructElapsed(0)
     }
-  }, [loadOutlines])
+  }, [loadOutlines, setStateMsg])
 
   // tail×反推串联（v4.292）：导入向导 tail 模式完成后由书架派发本事件，
   // 本页自动开跑反推（任务化后台执行）。
@@ -1287,63 +1234,15 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
 
   return (
     <div className="novel-create-root">
-      {samplerNote && (
-        <div className="novel-create-alert">
-          <Alert type="success" showIcon data-testid="sampler-note" message={samplerNote} />
-        </div>
-      )}
-      {stageClosing && (
-        <div className="novel-create-alert">
-          <Alert
-            type="info"
-            showIcon
-            data-testid="stage-closing-banner"
-            message={`第 ${stageClosing.stage} 阶段（每 10 章一阶段）收尾——建议跑一次全书体检`}
-            description="体检零 LLM 纯确定性：逐章质量/AI 味/伏笔 Lint 一份报告，帮你确认本阶段没有留下悬空伏笔或质量塌方。"
-            action={
-              <Button size="small" type="primary" data-testid="stage-closing-run" onClick={() => { setHealthOpen(true); setStageClosing(null) }}>
-                立即体检
-              </Button>
-            }
-          />
-        </div>
-      )}
-      {declGate && declGate.declared && !declGate.accepted && (
-        <div className="novel-create-alert">
-          <Alert
-            type="error"
-            showIcon
-            data-testid="decl-gate-banner"
-            message="变更声明未过章级门禁——声明的状态/伏笔更新未落库"
-            description={(
-              <div>
-                {declGate.issues.map((it, i) => <div key={i}>{it}</div>)}
-                <div style={{ marginTop: 4, opacity: 0.8 }}>正文已正常保存；可重新生成，或在定稿时手动修正后确认。</div>
-              </div>
-            )}
-          />
-        </div>
-      )}
-      {declGate && declGate.declared && declGate.accepted && (
-        <div className="novel-create-alert">
-          <Alert type="success" showIcon data-testid="decl-gate-ok"
-            message="变更声明已过章级门禁——定稿时将零成本预填三件套草案" />
-        </div>
-      )}
-      {aiTaste && (
-        <div className="novel-create-alert">
-          <Alert
-            type={aiTaste.score >= 60 ? 'warning' : aiTaste.score >= 35 ? 'info' : 'success'}
-            showIcon
-            message={`AI 味检测 ${aiTaste.score} 分${aiTaste.score >= 60 ? '（建议去味）' : ''}`}
-            description={aiTaste.deSlop?.beforeScore != null && aiTaste.deSlop.afterScore != null
-              ? `已去味 ${(aiTaste.deSlop.changes ?? []).length} 处，分数 ${aiTaste.deSlop.beforeScore}→${aiTaste.deSlop.afterScore}`
-              : aiTaste.issues.length > 0
-                ? [...new Set(aiTaste.issues.map(i => i.reason))].slice(0, 3).join('；')
-                : '未命中明显 AI 套路'}
-          />
-        </div>
-      )}
+      {/* 写作状态条（大道至简：四条横幅收敛为一条——最高优先级常显，
+          「N 条反馈」展开全部；条目恒在 DOM 保测试 testid 契约） */}
+      <WritingStatusBar
+        samplerNote={samplerNote}
+        stageClosing={stageClosing}
+        declGate={declGate}
+        aiTaste={aiTaste}
+        onRunHealth={() => { setHealthOpen(true); setStageClosing(null) }}
+      />
       <div className="novel-create-rail">
         {/* 高频直钮：每章写作循环（计划→分析→去味）零菜单直达 */}
         <Button size="small" onClick={() => { setPlanSeed(''); setPlanChapterOverride(0); setPlanOpen(v => !v) }}>章节计划</Button>

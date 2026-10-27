@@ -11,6 +11,10 @@
 // 2026-10-27 起第六 pane = 原罪页（导航级合并收编，lazy import）——**惰性挂载**：
 // 首次激活才挂（独立数据域零请求）、挂载过即常驻（切走不卸载）。
 //
+// 2026-10-27 大道至简重组：角色页并入设定——外壳 6→5 页签，'novelsetting' 的
+// component 换成真 SettingHub（内部再挂 mock 的世界观/人物两子 pane）。DOM 里
+// pane-* 计数 = 外壳 4（home/create/chapter+惰性 sin）+ 设定 hub 内 2 子 pane。
+//
 // 手法：子页替换为只暴露 `data-active` 的桩（线2 允许的两种手法之一），
 // 大纲树 OutlinePanel 替换为「点一下即 onSelectNode」的按钮。
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -82,7 +86,7 @@ describe('NovelPage 常驻 pane 的 active 下发', () => {
     useOutlineStore.setState({ outlines: [], loading: false, error: null })
   })
 
-  it('默认书架 tab：home=true、其余四个常驻隐藏页=false，且恰好一个可见；sin 惰性未挂载', async () => {
+  it('默认书架 tab：home=true、其余常驻隐藏页=false，且恰好一个可见；sin 惰性未挂载', async () => {
     render(<NovelPage />)
     await screen.findByTestId('pane-home')
 
@@ -90,11 +94,33 @@ describe('NovelPage 常驻 pane 的 active 下发', () => {
     for (const key of PANE_KEYS.filter((k) => k !== 'home' && k !== 'sin')) {
       expect(paneActive(key)).toBe('false')
     }
-    // 五个小说子 pane 一次全挂（常驻）——「隐藏 ≠ 卸载」的既有契约；
+    // 外壳 4 pane 一次全挂（home/create/chapter + 设定 hub；隐藏 ≠ 卸载），设定 hub
+    // 内部再挂世界观/人物两子 pane——DOM pane-* 计数 = 3 + 2 = 5；
     // sin pane 惰性：未进过原罪页签就不挂载（独立数据域零请求）
     expect(document.querySelectorAll('[data-testid^="pane-"]').length).toBe(5)
     expect(screen.queryByTestId('pane-sin')).toBeNull()
     expect(activePanes()).toEqual(['pane-home'])
+  })
+
+  it('设定页签：hub 转发 active——世界观子 pane true、人物子 pane false（Ctrl+S 门控链）', async () => {
+    render(<NovelPage />)
+    await screen.findByTestId('pane-home')
+    fireEvent.click(within(screen.getByRole('navigation', { name: '小说板块' }))
+      .getByRole('button', { name: /设定/ }))
+    await waitFor(() => expect(paneActive('novelsetting')).toBe('true'))
+    expect(paneActive('character')).toBe('false')
+    expect(activePanes()).toEqual(['pane-novelsetting'])
+  })
+
+  it('旧值迁移：activeTab 残留已退役的 character → 落设定页签并直达人物视图', async () => {
+    localStorage.setItem('gaea.novel.activeTab', 'character')
+    render(<NovelPage />)
+    await screen.findByTestId('pane-character')
+    // 迁移即写 settingView=chars：设定 hub 直达人物视图（人物子 pane active，
+    // 世界观子 pane 隐藏）——用户上次在角色页，本次不丢语境
+    expect(paneActive('character')).toBe('true')
+    expect(paneActive('novelsetting')).toBe('false')
+    expect(localStorage.getItem('gaea.novel.settingView')).toBe('chars')
   })
 
   it('切 tab：active 跟着切，隐藏页一律 false', async () => {
