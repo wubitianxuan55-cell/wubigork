@@ -82,7 +82,7 @@ describe('useEngineState · T6-6.5 竞态守卫', () => {
     })
 
     // 切分类：effect 清理自增 refreshSeq，作废在途刷新
-    rerender({ cat: 'llm' })
+    rerender({ cat: 'models' })
     await act(async () => {
       release!([])
       await refreshPromise
@@ -182,7 +182,7 @@ describe('useEngineState · 模型元数据透传（B 刀）', () => {
         { id: 'glm-4', owned_by: 'glm', status: 'running', kind: 'llm' },
       ]),
     ])
-    const { result } = renderHook(() => useEngineState('llm'))
+    const { result } = renderHook(() => useEngineState('models'))
     await act(async () => {})
     const withMeta = result.current.llmModels.find(m => m.modelId === 'glm-5.3')
     expect(withMeta?.meta).toMatchObject({ context_length: 200_000, free: true, points_in: 2.5 })

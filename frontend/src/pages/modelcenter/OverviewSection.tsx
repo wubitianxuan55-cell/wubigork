@@ -128,8 +128,8 @@ export function OverviewSection() {
       </div>
 
       <div className="mc-overview-actions">
-        <Button icon={<ThunderboltOutlined />} onClick={() => setCategory('llm')}>管理语言模型</Button>
-        <Button icon={<DashboardOutlined />} onClick={() => setCategory('specialty')}>查看专业模型</Button>
+        <Button icon={<ThunderboltOutlined />} onClick={() => setCategory('models')}>管理语言模型</Button>
+        <Button icon={<DashboardOutlined />} onClick={() => setCategory('models')}>查看专业模型</Button>
         <Button icon={<SettingOutlined />} onClick={() => setCategory('engine')}>测试引擎连接</Button>
       </div>
     </section>

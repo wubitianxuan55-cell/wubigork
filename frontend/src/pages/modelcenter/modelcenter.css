@@ -109,6 +109,19 @@
   scrollbar-width: thin;
 }
 
+/* 分节标题（2026-10-27 瘦身重组：13 分类温和合并为 9，按概览/模型/质量与成本/接入分节；
+   同款见微信 rail 的 .wx-rail-group） */
+.mc-rail-group {
+  padding: 2px 10px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--mc-muted);
+  white-space: nowrap;
+}
+
+.mc-rail-group:not(:first-child) { margin-top: 10px; }
+
 .mc-rail-item {
   position: relative;
   display: flex;

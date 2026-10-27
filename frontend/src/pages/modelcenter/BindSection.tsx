@@ -205,7 +205,7 @@ export function BindSection() {
               {managedSingleModel && (
                 <div className="mc-bind-desc">
                   该引擎一次只服务一个模型；候选为全部档位（运行中/未启动）。
-                  在「语言模型」启动某个档位即可切换，功能绑定选对应模型。
+                  在「模型一览」启动某个档位即可切换，功能绑定选对应模型。
                   {managedStopped && ' 当前引擎未运行，启动模型后绑定才会生效。'}
                 </div>
               )}

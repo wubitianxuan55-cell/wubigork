@@ -2,7 +2,10 @@ import type { ReactNode } from 'react'
 import { CloudOutlined, DesktopOutlined, GlobalOutlined, KeyOutlined, RocketOutlined } from '@ant-design/icons'
 import type { EngineConfig, ModelInfo } from '../../api/engines'
 
-export type Category = 'overview' | 'llm' | 'image' | 'tts' | 'specialty' | 'recommend' | 'catalog' | 'engine' | 'bind' | 'strategy' | 'stats' | 'benchmark' | 'retrieval' | 'attribution'
+/** 左 rail 分类（2026-10-27 瘦身重组：13 tab 温和合并为 9——
+ *  llm+specialty+recommend→models、benchmark+retrieval→eval、
+ *  strategy+attribution→governance；无消费的 'stats' 残留值一并清除） */
+export type Category = 'overview' | 'models' | 'catalog' | 'image' | 'tts' | 'eval' | 'governance' | 'bind' | 'engine'
 
 /** 模型元数据（B 刀）：后端 ModelInfo 目录字段的展示子集，全可选 */
 export interface ModelMeta {

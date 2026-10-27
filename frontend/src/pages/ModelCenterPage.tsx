@@ -2,8 +2,8 @@ import React, { useMemo, useState, useEffect } from 'react'
 import { Button, Drawer, message } from 'antd'
 import {
   ThunderboltOutlined, PictureOutlined, SoundOutlined, SettingOutlined, LinkOutlined,
-  CheckCircleOutlined, LoginOutlined, LogoutOutlined, DatabaseOutlined, DashboardOutlined, ReloadOutlined, BarChartOutlined, StarOutlined,
-  AppstoreOutlined, ExperimentOutlined, SearchOutlined, ControlOutlined, PieChartOutlined, MonitorOutlined,
+  CheckCircleOutlined, LoginOutlined, LogoutOutlined, DashboardOutlined, ReloadOutlined, BarChartOutlined,
+  AppstoreOutlined, ExperimentOutlined, PieChartOutlined, MonitorOutlined,
 } from '@ant-design/icons'
 import { useAppStore } from '../stores/appStore'
 import { emitFrontendEvent, FRONTEND_EVENTS, OPEN_STATS_FLAG } from '../events'
@@ -43,8 +43,9 @@ function runtimeOn(event: string, handler: (data: unknown) => void): (() => void
 }
 
 // gaea 3.0「引擎控制台」：2 分区工作台（§2.7，2026-10 检查器合并刀）——
-// 左 = 分类导航栏（v3-panel，激活项 = 主色容器 + 光条 + 光晕 orb）；
-// 中 = 主区（KPI 卡行 + 引擎卡网格，各 Section 渲染）。
+// 左 = 分类导航栏（v3-panel，激活项 = 主色容器 + 光条 + 光晕 orb；2026-10-27
+// 瘦身重组 13 分类温和合并为 9，按概览/模型/质量与成本/接入四节分组）；
+// 中 = 主区（KPI 卡行 + 引擎卡网格，各 Section 渲染；合并 tab 为纵向多段）。
 // 右侧「统计与资源」检查器已并入运行监测板块（资源指标卡/引擎卡/ComfyUI
 // 标记/调用趋势同源呈现），本页头部保留「详细统计」抽屉与「运行监测」跳转。
 // 头部收敛为细条：板块名已在左侧指挥轨道/面包屑，仅保留账号连接状态与必要操作。
@@ -239,20 +240,28 @@ const ModelCenterPage: React.FC = () => {
     [stateCtx, actionsCtx],
   )
 
-  const TABS: { key: Category; icon: React.ReactNode; label: string }[] = [
-    { key: 'overview', icon: <DashboardOutlined />, label: '总览' },
-    { key: 'llm', icon: <ThunderboltOutlined />, label: '语言模型' },
-    { key: 'image', icon: <PictureOutlined />, label: '图片生成' },
-    { key: 'tts', icon: <SoundOutlined />, label: '语音模型' },
-    { key: 'specialty', icon: <DatabaseOutlined />, label: '专业模型' },
-    { key: 'recommend', icon: <StarOutlined />, label: '推荐位' },
-    { key: 'catalog', icon: <AppstoreOutlined />, label: '模型库' },
-    { key: 'benchmark', icon: <ExperimentOutlined />, label: '受控测评' },
-    { key: 'retrieval', icon: <SearchOutlined />, label: '检索质量' },
-    { key: 'bind', icon: <LinkOutlined />, label: '功能绑定' },
-    { key: 'strategy', icon: <ControlOutlined />, label: '空间策略' },
-    { key: 'attribution', icon: <PieChartOutlined />, label: '成本归因' },
-    { key: 'engine', icon: <SettingOutlined />, label: '引擎管理' },
+  // 2026-10-27 瘦身重组：13 分类温和合并为 9（llm+specialty+recommend→models、
+  // benchmark+retrieval→eval、strategy+attribution→governance），rail 按语义分四节
+  // （概览/模型/质量与成本/接入）。Section 组件全部保留，合并 tab 内纵向多段渲染
+  // （与 engine tab 的 Scheduling+Engine 两段先例同构）。
+  const TAB_GROUPS: { label: string | null; tabs: { key: Category; icon: React.ReactNode; label: string }[] }[] = [
+    { label: '概览', tabs: [
+      { key: 'overview', icon: <DashboardOutlined />, label: '总览' },
+    ] },
+    { label: '模型', tabs: [
+      { key: 'models', icon: <ThunderboltOutlined />, label: '模型一览' },
+      { key: 'catalog', icon: <AppstoreOutlined />, label: '模型库' },
+      { key: 'image', icon: <PictureOutlined />, label: '图片生成' },
+      { key: 'tts', icon: <SoundOutlined />, label: '语音模型' },
+    ] },
+    { label: '质量与成本', tabs: [
+      { key: 'eval', icon: <ExperimentOutlined />, label: '测评中心' },
+      { key: 'governance', icon: <PieChartOutlined />, label: '策略与成本' },
+    ] },
+    { label: '接入', tabs: [
+      { key: 'bind', icon: <LinkOutlined />, label: '功能绑定' },
+      { key: 'engine', icon: <SettingOutlined />, label: '引擎管理' },
+    ] },
   ]
 
   // 左栏「绑定状态」摘要：已绑定（引擎+模型齐全）的功能数
@@ -334,20 +343,25 @@ const ModelCenterPage: React.FC = () => {
               <span className="v3-panel-title">引擎控制台</span>
             </div>
             <div className="mc-rail-nav">
-              {TABS.map(tab => (
-                <button
-                  type="button"
-                  key={tab.key}
-                  className={`mc-rail-item${category === tab.key ? ' is-active' : ''}`}
-                  // aria-selected 只允许出现在 tab/radio/option/gridcell 等角色上；此处
-                  // 分区按钮无 tablist 结构，用 aria-pressed（合法且语义同为「已选中」）
-                  aria-pressed={category === tab.key}
-                  onClick={() => setCategory(tab.key)}
-                >
-                  <span className="mc-rail-icon" aria-hidden="true">{tab.icon}</span>
-                  <span className="mc-rail-label">{tab.label}</span>
-                  <span className="mc-rail-orb" aria-hidden="true" />
-                </button>
+              {TAB_GROUPS.map(group => (
+                <React.Fragment key={group.label ?? group.tabs[0].key}>
+                  <div className="mc-rail-group" aria-hidden="true">{group.label}</div>
+                  {group.tabs.map(tab => (
+                    <button
+                      type="button"
+                      key={tab.key}
+                      className={`mc-rail-item${category === tab.key ? ' is-active' : ''}`}
+                      // aria-selected 只允许出现在 tab/radio/option/gridcell 等角色上；此处
+                      // 分区按钮无 tablist 结构，用 aria-pressed（合法且语义同为「已选中」）
+                      aria-pressed={category === tab.key}
+                      onClick={() => setCategory(tab.key)}
+                    >
+                      <span className="mc-rail-icon" aria-hidden="true">{tab.icon}</span>
+                      <span className="mc-rail-label">{tab.label}</span>
+                      <span className="mc-rail-orb" aria-hidden="true" />
+                    </button>
+                  ))}
+                </React.Fragment>
               ))}
             </div>
             <div className="mc-rail-foot">
@@ -367,14 +381,22 @@ const ModelCenterPage: React.FC = () => {
           {/* 中：主区（各分类 Section：KPI 卡行 + 引擎卡网格等） */}
           <main className="mc-main" aria-label="引擎控制台内容">
             {category === 'overview' && <OverviewSection />}
-            {category === 'llm' && <LLMSection />}
+            {category === 'models' && (
+              <>
+                <LLMSection />
+                <SpecialtySection />
+                <RecommendSection />
+              </>
+            )}
             {category === 'image' && <ImageSection />}
             {category === 'tts' && <VoiceSection />}
-            {category === 'specialty' && <SpecialtySection />}
-            {category === 'recommend' && <RecommendSection />}
             {category === 'catalog' && <HerdsmanCatalogSection />}
-            {category === 'benchmark' && <BenchmarkSection />}
-            {category === 'retrieval' && <RetrievalEvalSection />}
+            {category === 'eval' && (
+              <>
+                <BenchmarkSection />
+                <RetrievalEvalSection />
+              </>
+            )}
             {category === 'engine' && (
               <>
                 <SchedulingSection />
@@ -382,8 +404,12 @@ const ModelCenterPage: React.FC = () => {
               </>
             )}
             {category === 'bind' && <BindSection />}
-            {category === 'strategy' && <StrategySection />}
-            {category === 'attribution' && <AttributionSection />}
+            {category === 'governance' && (
+              <>
+                <StrategySection />
+                <AttributionSection />
+              </>
+            )}
             <Drawer
               title="模型调用统计"
               open={statsOpen}

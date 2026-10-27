@@ -1,10 +1,14 @@
 // RecommendSection.tsx — 模型推荐位三档陈列（阶段十 10.2）
 // 数据源：survey §5.3 谱系表（静态，标注口径诚实——口碑含负面原文）；
 // 量化建议联动 10.1 档位口径；「本机模型适用面」调 QuantSuitability 绑定。
+// 2026-10-27 瘦身重组：随「推荐位」tab 并入「模型一览」第三段，
+// 外层从裸 inline style 统一为 SectionHead + mc-section 体系。
 import { useEffect, useState } from "react";
 import { Collapse, Spin } from "antd";
+import { StarOutlined } from "@ant-design/icons";
 import { REC_TIERS } from "./recommendations";
 import { getEngines, getQuantSuitability } from "../../api/engines";
+import { SectionHead } from "./ui";
 
 interface EngineLite {
   id: string;
@@ -66,16 +70,15 @@ function LocalModelSuitability() {
   );
 }
 
-/** 推荐位三档陈列（静态数据驱动；本机适用面速览挂顶部）。 */
+/** 推荐位三档陈列（静态数据驱动；本机适用面速览挂底部）。 */
 export function RecommendSection() {
   return (
-    <div data-testid="recommend-section" style={{ display: "flex", flexDirection: "column", gap: 12, fontSize: 12.5 }}>
-      <div>
-        <div style={{ fontWeight: 600, marginBottom: 4 }}>模型推荐位（社区实战谱系 · 2026-10）</div>
-        <div style={{ color: "var(--color-text-secondary)" }}>
-          量化共识：文风对低量化的容忍度远高于知识（知识低量化非线性崩塌）；agent 工具调用建议 ≥Q4（低比特崩溃率高，见量化红线）。
-        </div>
-      </div>
+    <section className="mc-section" data-testid="recommend-section">
+      <SectionHead
+        icon={<StarOutlined />}
+        title="选型参考"
+        desc="社区实战谱系（2026-10）：文风对低量化的容忍度远高于知识；agent 工具调用建议 ≥Q4"
+      />
       <Collapse
         items={REC_TIERS.map((t) => ({
           key: t.tier,
@@ -105,7 +108,6 @@ export function RecommendSection() {
         }))}
       />
       <LocalModelSuitability />
-    </div>
+    </section>
   );
 }
-
