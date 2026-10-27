@@ -277,6 +277,17 @@
 
 **留池**：①亮/暗两档真机目检+用户真机走查；②发版推送待指示（与 §8~8.4 六提交同批）。
 
+### 8.6 工具下拉「点了没反应」根修：弹层容器内挂载（2026-10-27 用户真机首点揭出）
+
+用户真机点命令条「工具」无反应。**诊断历程（实弹级，非读码想象）**：
+1. jsdom 测试全绿但位置盲区（只断言菜单项存在，不断言在屏内）——方向一（b15be104）把工具收进命令条 Dropdown 起**从未目检过菜单落位**，§8.2 老首页实测同病（病根早于 §8.3 DeepSeek 化，非本批引入）；
+2. 用户壳只读探针（9333 属主先取证=壳自己的 WebView2 子进程；纯 evaluate 零输入零导航）+ vite dev 真 trusted click 双复现：菜单**确实打开**（z=1050、挂 body、两项俱全）但落在离屏坐标——rc-trigger 预对齐哨兵 `left:-1000vw/top:-1000vh`（=−10 视口）与「对齐完成但输出镜像垃圾值」两态交替（实测 rect=−inline+按钮坐标的镜像式），ready 状态反复翻转；
+3. 排除项（A/B 实证）：v3-rise 入场动画（灭掉仍坏）、index.css 弹层玻璃化四件套（backdrop-filter/border/box-shadow 逐项灭仍坏）、html/body zoom/transform（全 1/none）、遮挡（elementFromPoint 命中按钮本体）；小说系同款 body 直挂 Dropdown 真机走查历来是好的——**首页特有诱因未定位，挂观察池**（坑：vite 分支往返后 dev 缓存串包，A/B 须先验 bundle 新旧再下结论）。
+
+**根修**：`getPopupContainer={(n) => n.parentElement}`（挂 `.w-cmd-row`，该行补 `position:relative`）——对齐在行内坐标系完成，绕开 body 级定位损坏。vite+真 trusted click 复验：菜单落按钮正下方 (832,490) 在屏内、overflow 无裁剪。tsc 绿；定向 12/12。
+
+**教训**：①「菜单打开」类断言必须含**在屏内**判据（onScreen=rect∈viewport），portal 到 body 的组件 jsdom 全绿≠用户看得见；②弹层类走查要点开第一层菜单并目检落位，不能只点主按钮。
+
 ## 7. 参考来源（节选）
 
 **国际 AI**

@@ -239,7 +239,15 @@ const DeskHome: React.FC<{
                 <span className="w-cmd-orb-ring" />
               </span>
               <span className="w-cmd-spacer" aria-hidden="true" />
-              <Dropdown trigger={['click']} menu={{ items: toolMenuItems }}>
+              {/* 工具下拉（§8.6 修复）：getPopupContainer=触发钮父层（.w-cmd-row，
+                  position:relative）——body 直挂弹层在本页布局下 rc-trigger 对齐
+                  产物损坏（菜单定位到 −1000vw 哨兵镜像位，用户侧「点了没反应」）；
+                  容器内挂载让对齐在行内坐标系完成，菜单锚在命令条旁 */}
+              <Dropdown
+                trigger={['click']}
+                menu={{ items: toolMenuItems }}
+                getPopupContainer={(n) => n.parentElement ?? document.body}
+              >
                 <button
                   type="button"
                   className="w-cmd-btn is-tools"
