@@ -3,7 +3,6 @@ import { Button, Segmented, Table, Tooltip } from 'antd'
 import { MonitorOutlined, ReloadOutlined } from '@ant-design/icons'
 import { getRuntimeMonitor } from '../api/engines'
 import type { ModelUsageStats } from '../api/engines'
-import { emitFrontendEvent, FRONTEND_EVENTS, OPEN_STATS_FLAG } from '../events'
 import { usePollingGate } from '../hooks/usePollingGate'
 import { useStatsState } from './modelcenter/hooks/useStatsState'
 import { type TrendDatum, type TrendRange } from './modelcenter/charts'
@@ -23,9 +22,13 @@ import './runtime.css'
 //     2026-10 模型中心右侧统计检查器并入本板块——总计/成功率/费用在状态条，
 //     趋势与入/出拆分在此）；
 //   · 最近请求表：gaea 侧全引擎（含云端）调用记账（模型中心同源数据）。
-// 视觉（2026-10-27 舰桥 HUD 改版，用户拍板「未来科技感」）：星云底+网格+
-// 扫描线氛围层 + 玻璃面板 + glow 点睛——全部令牌驱动（--gaea-glow/
-// --gaea-glass-bg/--v3-*），亮暗随主题；reduced-motion 扫描线停摆。
+// 视觉（2026-10-27 舰桥 HUD 全面重设计，用户判旧版「太low」；ui-ux-pro-max
+// 技能 HUD/Sci-Fi FUI 样式卡处方）：指挥条 LIVE 徽标（轮询暂停诚实转「已暂停」/
+// FUI 规约）+ 遥测主轴（核心速度大数+平滑波形+四弹道仪表+副读数行，替代八卡
+// 网格）+ FUI 细线框（1px glow 边+角标）+ 终端化表格（mono/虚线行）+ CSS 计数
+// 器编号节标——全部令牌驱动（--gaea-glow/--gaea-glass-bg/--v3-*），亮暗随主题；
+// reduced-motion 扫描线/光晕停摆。可及性（技能 a11y 高风险项）：状态不只靠色
+// （点+文字）、对比走令牌、焦点可见。
 
 /** /metrics 宽松契约（Strata 系服务端字段演进不编进前端硬类型，按需取用） */
 interface EngineRequest {
@@ -151,25 +154,50 @@ function overallState(snap: MonitorSnapshot): { label: string; tone: 'ok' | 'bus
   return { label: '无引擎在线', tone: 'off', tokS: null }
 }
 
-/** 迷你趋势折线（手卷 SVG，100×26；数据不足两点画空轨） */
-function Sparkline({ data, active }: { data: number[]; active: boolean }) {
+/** 主轴波形（HUD 重设计：tok/s 滚动窗口平滑面积波，宽幅细条） */
+function HeroWave({ data }: { data: number[] }) {
+  const W = 360, H = 46, padT = 6, padB = 4
   if (data.length < 2) {
-    return (
-      <svg className="rt-spark" viewBox="0 0 100 26" preserveAspectRatio="none" aria-hidden>
-        <line className="rt-spark-baseline" x1="0" y1="24" x2="100" y2="24" />
-      </svg>
-    )
+    return <div className="rt-hero-wave-empty" aria-hidden="true">waiting for stream…</div>
   }
   const min = Math.min(...data)
   const max = Math.max(...data)
   const span = max - min || 1
-  const pts = data
-    .map((v, i) => `${(i / (data.length - 1)) * 100},${24 - ((v - min) / span) * 20}`)
-    .join(' ')
+  const pts = data.map((v, i) => [ (i / (data.length - 1)) * W, padT + (H - padT - padB) * (1 - (v - min) / span) ] as [number, number])
+  const line = smoothPath(pts, padT, H - padB)
+  const area = `${line} L${W},${H} L0,${H} Z`
   return (
-    <svg className={`rt-spark${active ? ' rt-spark-active' : ''}`} viewBox="0 0 100 26" preserveAspectRatio="none" aria-hidden>
-      <polyline points={pts} fill="none" />
+    <svg className="rt-hero-wave" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="rt-wave-fill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="var(--gaea-glow)" stopOpacity="0.34" />
+          <stop offset="100%" stopColor="var(--gaea-glow)" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill="url(#rt-wave-fill)" />
+      <path d={line} fill="none" className="rt-hero-wave-line" strokeWidth={1.6} vectorEffect="non-scaling-stroke" />
     </svg>
+  )
+}
+
+/** 弹道仪表（bullet gauge：值条 + 80% 阈值刻度；FUI 控制台签名件）。
+ *  value 为展示串（'—'=无遥测诚实空轨），frac 为 0~1 满条比例。 */
+function BulletGauge({ label, value, unit, frac }: { label: string; value: string; unit: string; frac: number | null }) {
+  const has = value !== '—' && frac != null
+  return (
+    <div className={`rt-gauge${has ? '' : ' rt-gauge-empty'}`}>
+      <div className="rt-gauge-head">
+        <span className="rt-gauge-label">{label}</span>
+        <span className="rt-gauge-val">
+          {value}
+          {has && unit && <i> {unit}</i>}
+        </span>
+      </div>
+      <div className="rt-gauge-track">
+        <span className="rt-gauge-fill" style={{ width: has ? `${Math.min(frac * 100, 100)}%` : '0%' }} />
+        <span className="rt-gauge-tick" aria-hidden="true" title="负载阈值 80%" />
+      </div>
+    </div>
   )
 }
 
@@ -345,25 +373,12 @@ function ContextDonut({ used, max }: { used: number | null; max: number | null }
   )
 }
 
-function MetricCard({ label, value, unit, series, hint }: { label: string; value: string; unit: string; series: number[]; hint?: string }) {
-  const hasValue = value !== '—'
-  return (
-    <div className={`rt-card${hasValue ? '' : ' rt-card-empty'}`} title={hint}>
-      <div className="rt-card-label">{label}</div>
-      <div className="rt-card-value">
-        {value}
-        {hasValue && unit && <span className="rt-card-unit"> {unit}</span>}
-      </div>
-      <Sparkline data={series} active={hasValue} />
-    </div>
-  )
-}
-
 /** 按模型明细常驻板（2026-10-27 用户拍板「不要折叠隐藏」）：原「按模型明细 →」
  *  跳钮指向的明细本体（模型中心抽屉同源 getModelCallStats）平铺进本页，
  *  按引擎分组、全部模型行常驻（无折叠/展开/弹层）。口径=**累计**——per_model
  *  后端全量聚合，不随右列 今日/7天/30天 档位过滤（档位只管趋势图，两套口径
- *  在节标与右列文案里各自明示，防误读）。跳钮保留（抽屉还有 KPI/分流带全量）。 */
+ *  在节标与右列文案里各自明示，防误读）。跳钮已随拍板移除（抽屉取消=本页即
+ *  明细唯一入口；模型中心自有「详细统计」钮不动）。 */
 function PerModelBoard({ rows, usdToCny }: { rows: ModelUsageStats[]; usdToCny?: number }) {
   const groups = new Map<string, ModelUsageStats[]>()
   for (const r of rows) {
@@ -477,8 +492,10 @@ export default function RuntimePage() {
   const em = useMemo(() => (snap ? pickEngineMetrics(snap) : null), [snap])
   const overall = useMemo(() => (snap ? overallState(snap) : null), [snap])
 
-  const metricCards = useMemo<{ label: string; value?: string | null; unit: string; series: string; hint?: string }[]>(() => {
-    if (!snap) return []
+  /** 遥测主轴数据（HUD 重设计：核心速度 + 四弹道仪表 + 副读数行；替代旧八卡网格）。
+   *  展示串逐项保持旧口径（测试锁值：62/31/12.2/96/12.5 / 3.2 等），只换容器。 */
+  const hero = useMemo(() => {
+    if (!snap) return null
     const hw = em?.hardware ?? {}
     const sys = snap.system ?? {}
     const gpuName = typeof sys.gpuName === 'string' ? sys.gpuName : ''
@@ -488,26 +505,31 @@ export default function RuntimePage() {
     const vramUsed = num(sys.vramUsed)
     const vramTotal = num(sys.vramTotal)
     const tokS = num(em?.live?.tok_s)
+    const gpuUtil = num(hw.gpu_util) ?? num(sys.gpuUsage)
+    const cpu = num(hw.cpu) ?? num(sys.cpu)
     const diskRead = num(hw.disk_read_mb)
     const diskWrite = num(hw.disk_write_mb)
     const diskValue =
       diskRead == null && diskWrite == null
         ? null
         : `${diskRead?.toFixed(1) ?? '—'} / ${diskWrite?.toFixed(1) ?? '—'}`
-    // 占用百分比（原模型中心资源条的 CPU/内存/显存 百分比读数并入：总量卡
-    // 尾缀 pct，有 used+total 才给）
-    const pct = (used: number | null, total: number | null) =>
-      used != null && total != null && total > 0 ? ` · ${Math.round((used / total) * 100)}%` : ''
-    return [
-      { label: '生成速度', value: tokS == null ? null : tokS.toFixed(1), unit: 'tok/s', series: 'tok_s' },
-      { label: 'GPU 负载', value: (num(hw.gpu_util) ?? num(sys.gpuUsage))?.toFixed(0), unit: '%', series: 'gpu_util', hint: gpuHint },
-      { label: 'GPU 温度', value: num(hw.gpu_temp)?.toFixed(0), unit: '°C', series: 'gpu_temp', hint: gpuHint },
-      { label: 'GPU 功率', value: num(hw.gpu_power)?.toFixed(0), unit: 'W', series: 'gpu_power', hint: gpuHint },
-      { label: 'CPU', value: (num(hw.cpu) ?? num(sys.cpu))?.toFixed(0), unit: '%', series: 'cpu' },
-      { label: '内存', value: ramUsed == null ? null : `${ramUsed.toFixed(1)}/${ramTotal ?? '?'}`, unit: `GB${pct(ramUsed, ramTotal)}`, series: 'ram_used' },
-      { label: '显存', value: vramUsed == null || vramUsed <= 0 ? null : `${vramUsed.toFixed(1)}/${vramTotal ?? '?'}`, unit: `GB${pct(vramUsed, vramTotal)}`, series: 'vram_used', hint: gpuHint },
-      { label: '磁盘 读/写', value: diskValue, unit: 'MB/s', series: 'disk_read' },
-    ]
+    const frac = (used: number | null, total: number | null) =>
+      used != null && total != null && total > 0 ? Math.min(used / total, 1) : null
+    return {
+      tokS,
+      gpuHint,
+      gauges: [
+        { label: 'GPU 负载', value: gpuUtil?.toFixed(0) ?? '—', unit: '%', frac: gpuUtil != null ? gpuUtil / 100 : null, hint: gpuHint },
+        { label: 'CPU', value: cpu?.toFixed(0) ?? '—', unit: '%', frac: cpu != null ? cpu / 100 : null },
+        { label: '内存', value: ramUsed == null ? '—' : `${ramUsed.toFixed(1)}/${ramTotal ?? '?'}`, unit: 'GB', frac: frac(ramUsed, ramTotal) },
+        { label: '显存', value: vramUsed == null || vramUsed <= 0 ? '—' : `${vramUsed.toFixed(1)}/${vramTotal ?? '?'}`, unit: 'GB', frac: frac(vramUsed, vramTotal), hint: gpuHint },
+      ] as Array<{ label: string; value: string; unit: string; frac: number | null; hint?: string }>,
+      chips: [
+        { label: 'GPU 温度', value: num(hw.gpu_temp)?.toFixed(0) ?? '—', unit: '°C', hint: gpuHint },
+        { label: 'GPU 功率', value: num(hw.gpu_power)?.toFixed(0) ?? '—', unit: 'W', hint: gpuHint },
+        { label: '磁盘 读/写', value: diskValue ?? '—', unit: 'MB/s' },
+      ] as Array<{ label: string; value: string; unit: string; hint?: string }>,
+    }
   }, [snap, em])
 
   const enginesById = useMemo(() => {
@@ -659,11 +681,16 @@ export default function RuntimePage() {
       <div className="rt-hud-bg" aria-hidden="true" />
       <div className="rt-hud-grid" aria-hidden="true" />
       <div className="rt-hud-scanline" aria-hidden="true" />
-      {/* D1 统一板块头部（40px 紧凑档·运行监测样板间）：图标章+工作区名+
-          实时状态+累计口径+动作区——板块名已在壳层面包屑，不再另起大标题 */}
+      {/* D1 指挥条（HUD 重设计）：图标章+工作区名+LIVE 徽标（轮询门控暂停时
+          诚实转「已暂停」——FUI 规约：遥测只在有活数据源时标 LIVE）+实时状态+
+          累计口径+动作区 */}
       <header className="rt-ph">
         <span className="rt-ph-seat" aria-hidden="true"><MonitorOutlined /></span>
         <span className="rt-ph-name">运行监测</span>
+        <span className={`rt-live${pollable ? '' : ' rt-live-stale'}`}>
+          <span className="rt-live-dot" aria-hidden="true" />
+          {pollable ? 'LIVE' : '已暂停'}
+        </span>
         <span className={`rt-state rt-state-${overall?.tone ?? 'off'}`}>
           <span className="rt-state-dot" />
           {overall?.label ?? '加载中'}
@@ -682,15 +709,44 @@ export default function RuntimePage() {
       </header>
       {error && <div className="rt-error">刷新失败：{error}</div>}
 
-      {/* 左主列（实时面）：硬件遥测 → 引擎 → gaea 记账明细 */}
+      {/* 左主列（实时面）：遥测主轴 → 引擎阵列 → 模型调用 → 请求流水 */}
       <main className="rt-main" aria-label="实时监测">
         <div className="rt-eyebrow">硬件遥测</div>
-        <div className="rt-cards">
-          {metricCards.map((c) => (
-            <MetricCard key={c.label} label={c.label} value={c.value ?? '—'} unit={c.unit} series={seriesRef.current[c.series] ?? []} hint={c.hint} />
-          ))}
-          {metricCards.length === 0 && <div className="rt-loading">正在读取监测数据…</div>}
-        </div>
+        {!hero ? (
+          <div className="rt-loading">正在读取监测数据…</div>
+        ) : (
+          <section className="rt-hero" aria-label="遥测主轴">
+            <div className="rt-hero-core">
+              <div className="rt-hero-label">
+                生成速度
+                {overall && overall.tone !== 'off' && (
+                  <span className={`rt-hero-state rt-hero-state-${overall.tone}`}>{overall.label}</span>
+                )}
+              </div>
+              <div className="rt-hero-value">
+                {hero.tokS == null ? '—' : hero.tokS.toFixed(1)}
+                {hero.tokS != null && <span className="rt-hero-unit"> tok/s</span>}
+              </div>
+              <HeroWave data={seriesRef.current['tok_s'] ?? []} />
+            </div>
+            <div className="rt-hero-gauges">
+              {hero.gauges.map((g) => (
+                <BulletGauge key={g.label} label={g.label} value={g.value} unit={g.unit} frac={g.frac} />
+              ))}
+            </div>
+            <div className="rt-hero-chips">
+              {hero.chips.map((c) => (
+                <span key={c.label} className="rt-readout" title={c.hint}>
+                  <span className="rt-readout-label">{c.label}</span>
+                  <span className="rt-readout-val">
+                    {c.value}
+                    {c.value !== '—' && <i> {c.unit}</i>}
+                  </span>
+                </span>
+              ))}
+            </div>
+          </section>
+        )}
 
         <div className="rt-eyebrow">引擎</div>
         <div className="rt-engines">
@@ -830,21 +886,6 @@ export default function RuntimePage() {
                 { value: '30d', label: '30天' },
               ]}
             />
-            <Button
-              size="small"
-              type="text"
-              className="rt-stats-link"
-              onClick={() => {
-                // 跨板跳转 + 自动开「详细统计」抽屉双通道：事件覆盖已挂载
-                // （keepAlive 常驻）场景；sessionStorage 标记覆盖首次未挂载、
-                // navigate 懒加载完成后在挂载效应里补开。
-                sessionStorage.setItem(OPEN_STATS_FLAG, '1')
-                emitFrontendEvent(FRONTEND_EVENTS.NAVIGATE, { page: 'modelcenter', crossSpace: true })
-                emitFrontendEvent(FRONTEND_EVENTS.OPEN_STATS_DRAWER)
-              }}
-            >
-              按模型明细 →
-            </Button>
           </div>
           {stats.loadError ? (
             <div className="rt-error rt-stats-error">

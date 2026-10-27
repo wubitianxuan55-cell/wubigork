@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import RuntimePage from './RuntimePage'
-import { FRONTEND_EVENTS, OPEN_STATS_FLAG } from '../events'
 
 const { getRuntimeMonitorMock, getModelCallStatsMock } = vi.hoisted(() => ({
   getRuntimeMonitorMock: vi.fn(),
@@ -93,7 +92,6 @@ describe('RuntimePage 运行监测板块', () => {
     // 调用统计默认空摘要（无趋势=诚实空态；有趋势用例自行覆写）
     getModelCallStatsMock.mockReset()
     getModelCallStatsMock.mockResolvedValue({ ...CALL_STATS, trend: [] })
-    sessionStorage.removeItem(OPEN_STATS_FLAG)
   })
 
   it('快照到达前显示加载态', () => {
@@ -124,6 +122,15 @@ describe('RuntimePage 运行监测板块', () => {
     expect(screen.getByText('12.5 / 3.2')).toBeTruthy() // 磁盘 读/写 合并卡
     expect(screen.getByText('磁盘 读/写')).toBeTruthy()
     expect(screen.getByText('GPU 温度')).toBeTruthy() // 无遥测卡仍在（值 — ）
+    // HUD 主轴结构（2026-10-27 技能重设计）：LIVE 徽标 + 四弹道仪表 + 三副读数
+    expect(screen.getByText('LIVE')).toBeTruthy()
+    expect(document.querySelectorAll('.rt-gauge').length).toBe(4)
+    expect(document.querySelectorAll('.rt-gauge-fill').length).toBe(4)
+    expect(document.querySelectorAll('.rt-readout').length).toBe(3)
+    // 仪表条宽=满条比例（GPU 62%；显存 12.2/96→12.708…% 未取整=精确比例）
+    const fills = document.querySelectorAll('.rt-gauge-fill') as NodeListOf<HTMLElement>
+    expect(fills[0].style.width).toBe('62%')
+    expect(fills[3].style.width).toBe('12.708333333333332%')
   })
 
   it('引擎侧遥测：Context 环 + 会话缓存 + 引擎请求表（prefill/decode/VRAM 命中）', async () => {
@@ -195,8 +202,8 @@ describe('RuntimePage 运行监测板块', () => {
     expect(document.querySelectorAll('.rt-tok-bar').length).toBe(6) // 3 桶 × 入/出两段
     expect(document.querySelectorAll('.rt-tok-last').length).toBe(1) // 末柱点亮
     expect(document.querySelectorAll('.rt-tok-dot').length).toBe(2) // 入/出双色图例点
-    // 跳模型中心入口
-    expect(screen.getByRole('button', { name: /按模型明细/ })).toBeTruthy()
+    // 抽屉跳钮已随拍板移除（明细常驻本页=唯一入口；反断言防回流）
+    expect(screen.queryByRole('button', { name: /按模型明细/ })).toBeNull()
   })
 
   it('调用统计段：无趋势数据诚实空态', async () => {
@@ -221,23 +228,6 @@ describe('RuntimePage 运行监测板块', () => {
     await waitFor(() => expect(screen.getByText(/统计加载失败：boom/)).toBeTruthy())
     fireEvent.click(screen.getByRole('button', { name: /重\s*试/ })) // antd 两字按钮插空格（既定坑）
     await waitFor(() => expect(screen.getByText('峰值 45')).toBeTruthy())
-  })
-
-  it('按模型明细跳转：置补开标记 + 发跨板导航与开抽屉双事件', async () => {
-    getRuntimeMonitorMock.mockResolvedValue(SNAPSHOT)
-    getModelCallStatsMock.mockResolvedValue(CALL_STATS)
-    const seen: Array<[string, unknown]> = []
-    const nav = (e: Event) => seen.push(['navigate', (e as CustomEvent).detail])
-    const open = () => seen.push(['open-drawer', null])
-    window.addEventListener(FRONTEND_EVENTS.NAVIGATE, nav)
-    window.addEventListener(FRONTEND_EVENTS.OPEN_STATS_DRAWER, open)
-    render(<RuntimePage />)
-    fireEvent.click(screen.getByRole('button', { name: /按模型明细/ }))
-    expect(sessionStorage.getItem(OPEN_STATS_FLAG)).toBe('1')
-    expect(seen).toContainEqual(['navigate', { page: 'modelcenter', crossSpace: true }])
-    expect(seen).toContainEqual(['open-drawer', null])
-    window.removeEventListener(FRONTEND_EVENTS.NAVIGATE, nav)
-    window.removeEventListener(FRONTEND_EVENTS.OPEN_STATS_DRAWER, open)
   })
 
   it('调用统计段：今日/7天/30天切换真实换数（峰值随档位变化）', async () => {
