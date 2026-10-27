@@ -46,6 +46,8 @@ const NOVEL_NAV: BoardNavChild[] = [
   { id: 'character', label: '角色' },
   { id: 'create', label: '创作' },
   { id: 'chapter', label: '阅读' },
+  // 2026-10-27 拍板：原罪收编为小说板块第六页签（导航级合并，页面/绑定/数据面零改动）
+  { id: 'sin', label: '原罪' },
 ]
 const SETTINGS_NAV: BoardNavChild[] = [
   { id: 'general', label: '通用' }, { id: 'chat', label: '聊天' },
@@ -68,9 +70,12 @@ const COST_NAV: BoardNavChild[] = [
 ]
 
 /**
- * 内置 canonical 板块清单（11 条 = 10 业务板块 + home 启动器壳层）。
+ * 内置 canonical 板块清单（13 条 = 12 业务板块〔含 inMenu=false 的 settings/
+ * schedule〕 + home 启动器壳层）。
  * menuOrder 与现状 menuItems 顺序一致；settings inMenu=false（右上角按钮入口）。
  * weixin：v4.4 触点落地（WeixinPage 扫码绑定 + 离线代办），进 rail 与首页左翼书房。
+ * sin 板块已退役（2026-10-27 拍板导航级合并）：原罪收编为小说板块第六页签，
+ * 页面本体经 NovelPage 挂载，featureModel 'sin' 功能绑定与 SinB 门面不受影响。
  */
 export const canonicalBoards: BoardManifest[] = [
   {
@@ -137,15 +142,6 @@ export const canonicalBoards: BoardManifest[] = [
     // 办公『进度计划』入口承接（白名单刀0 已解耦，注册即可导航不丢能力）
     menuOrder: 12, inMenu: false, space: 'work',
     featureModel: 'schedule',
-  },
-  {
-    // 闲庭新板块：与 AI 对话式合写图文混杂的成人向故事（H 故事小说）。
-    // 复用办公（gaea）组件与视觉层；后端复用统一会话存储（mode=sin）+
-    // 功能级绑定 sin（模型中心可单绑）+ 绘梦图像后端（内联插图）。
-    id: 'sin', label: '原罪', icon: 'FireOutlined', page: 'OriginalSinPage',
-    lazy: true, keepAlive: true, layout: 'full',
-    menuOrder: 13, inMenu: true, space: 'play',
-    featureModel: 'sin',
   },
   {
     // 运行监测（2026-10-19，参照 Strata Monitor 仪表盘）：系统资源 + 引擎状态 +

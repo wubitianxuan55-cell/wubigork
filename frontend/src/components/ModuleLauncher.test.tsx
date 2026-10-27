@@ -111,17 +111,17 @@ describe('ModuleLauncher DeepSeek 式首页（§8.3）', () => {
     expect(ta.value).toBe('')
   })
 
-  it('板块胶囊行（DeepSeek 位）：命令条正下方全量 12 模块（含设置），点击直达导航', () => {
+  it('板块胶囊行（DeepSeek 位）：命令条正下方全量 11 模块（含设置），点击直达导航', () => {
     const onNavigate = vi.fn()
     render(wrap(<ModuleLauncher onNavigate={onNavigate} />))
     const row = screen.getByTestId('home-boards-row')
     expect(row.getAttribute('aria-label')).toBe('功能板块')
-    // 全量 12 模块 = deriveLauncherModules（11 业务板块 + settings 隐式入口；
-    // schedule 板 v4.168 起 inMenu:false 由办公「进度计划」承接，不在列——与
-    // 方向一退役的 12 板块卡同一份清单）
+    // 全量 11 模块 = deriveLauncherModules（10 业务板块 + settings 隐式入口；
+    // schedule 板 v4.168 起 inMenu:false 由办公「进度计划」承接，不在列；
+    // sin 板 2026-10-27 退役=导航级合并进小说板块第六页签，不在列）
     const pills = row.querySelectorAll('.w-board-pill')
-    expect(pills.length).toBe(12)
-    for (const key of ['chat', 'novel', 'imagegen', 'gaea', 'cost', 'memoryhub', 'modelcenter', 'characterlib', 'weixin', 'sin', 'runtime', 'settings']) {
+    expect(pills.length).toBe(11)
+    for (const key of ['chat', 'novel', 'imagegen', 'gaea', 'cost', 'memoryhub', 'modelcenter', 'characterlib', 'weixin', 'runtime', 'settings']) {
       expect(row.querySelector(`[data-testid="home-board-${key}"]`)).toBeTruthy()
     }
     expect(screen.getByTestId('home-board-novel').textContent).toContain('小说')

@@ -21,8 +21,9 @@ const getBoardManifestsMock = app.GetBoardManifests as unknown as {
 }
 
 // 后端 GetBoardManifests 契约形态（对齐 internal/app/board/builtins.go）：
-// 11 个业务板块（含 cost 造价数据库 + D7 knowledge；v4.439 删除 code 编程板块），无 home 壳层，
-// v4.4 起 weixin.page="WeixinPage"、inMenu=true；v4.48 label=青鸟（原微信助手）。
+// 11 个业务板块（含 cost 造价数据库 + D7 knowledge；v4.439 删除 code 编程板块），
+// 无 home 壳层，v4.4 起 weixin.page="WeixinPage"、inMenu=true；v4.48 label=青鸟
+// （原微信助手）；2026-10-27 sin 退役（导航级合并进小说板块第六页签）。
 const BACKEND_FIXTURE = [
   { id: 'chat', label: '聊天', icon: 'MessageOutlined', page: 'ChatPage', lazy: true, keepAlive: true, layout: 'full', shortcut: 'ctrl+1', menuOrder: 1, inMenu: true, featureModel: 'chat' },
   { id: 'novel', label: '小说', icon: 'ReadOutlined', page: 'NovelPage', lazy: true, keepAlive: true, layout: 'padded', shortcut: 'ctrl+2', menuOrder: 2, inMenu: true, breadcrumb: { anchorTo: 'project' }, featureModel: 'novel' },
@@ -35,21 +36,20 @@ const BACKEND_FIXTURE = [
   { id: 'settings', label: '设置', icon: 'SettingOutlined', page: 'SettingsPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 10, inMenu: false },
   { id: 'weixin', label: '青鸟', icon: 'WechatOutlined', page: 'WeixinPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 11, inMenu: true },
   { id: 'knowledge', label: '知识库', icon: 'BookOutlined', page: 'KnowledgePage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 8, inMenu: true, featureModel: 'knowledge' },
-  { id: 'sin', label: '原罪', icon: 'FireOutlined', page: 'OriginalSinPage', lazy: true, keepAlive: true, layout: 'full', menuOrder: 13, inMenu: true, featureModel: 'sin' },
 ]
 
 describe('deriveLauncherModules（启动器清单纯函数）', () => {
-  it('静态清单 → 12 卡，顺序与 LAUNCHER_DESC 对齐（2026-10-19 +runtime；不含 home/schedule）', () => {
+  it('静态清单 → 11 卡，顺序与 LAUNCHER_DESC 对齐（2026-10-27 -sin：原罪并进小说；不含 home/schedule）', () => {
     const modules = deriveLauncherModules(canonicalBoards, LAUNCHER_DESC)
     expect(modules.map((m) => m.key)).toEqual([
-      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin', 'sin', 'runtime',
+      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin', 'runtime',
     ])
     expect(modules.map((m) => m.key)).not.toContain('home')
     // 刀1 语义：schedule 并入办公文档面，inMenu=false 移出启动器（办公文件面/命令面板承接）
     expect(modules.map((m) => m.key)).not.toContain('schedule')
   })
 
-  it('静态 12 卡 desc 全部取 LAUNCHER_DESC 文案（name/icon 取 manifest）', () => {
+  it('静态 11 卡 desc 全部取 LAUNCHER_DESC 文案（name/icon 取 manifest）', () => {
     const modules = deriveLauncherModules(canonicalBoards, LAUNCHER_DESC)
     for (const m of modules) {
       expect(LAUNCHER_DESC[m.key], m.key).toBeDefined()
@@ -64,11 +64,11 @@ describe('deriveLauncherModules（启动器清单纯函数）', () => {
     expect(keys).toContain('settings')
   })
 
-  it('后端合并清单（normalizeManifests 后）→ 11 卡（knowledge 并入记忆中枢被过滤），desc 兜底 = label', () => {
+  it('后端合并清单（normalizeManifests 后）→ 10 卡（knowledge 并入记忆中枢被过滤；sin 已退役不在后端清单），desc 兜底 = label', () => {
     const merged = normalizeManifests(BACKEND_FIXTURE)
     const modules = deriveLauncherModules(merged, LAUNCHER_DESC)
     expect(modules.map((m) => m.key)).toEqual([
-      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin', 'sin',
+      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin',
     ])
     expect(modules.map((m) => m.key)).not.toContain('knowledge')
   })
@@ -112,10 +112,10 @@ describe('launcher 订阅联动（loadBoardManifests 通知 → 派生结果变�
     const unsub = subscribeBoards(notified)
     await loadBoardManifests()
     unsub()
-    // 加载后：活动清单替换 → 订阅者收到通知，派生结果 11 卡含 cost（v4.4 起 +weixin；v4.244 +sin）
+    // 加载后：活动清单替换 → 订阅者收到通知，派生结果 10 卡含 cost（v4.4 起 +weixin；2026-10-27 -sin）
     expect(notified).toHaveBeenCalledTimes(1)
     const keys = deriveLauncherModules(getActiveBoards(), LAUNCHER_DESC).map((m) => m.key)
-    expect(keys).toHaveLength(11)
+    expect(keys).toHaveLength(10)
     expect(keys).not.toContain('code')
     expect(keys).toContain('cost')
   })

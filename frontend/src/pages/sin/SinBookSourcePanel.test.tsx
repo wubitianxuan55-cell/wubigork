@@ -176,7 +176,7 @@ describe('SinBookSourcePanel（原罪·书源页签）', () => {
     await waitFor(() => expect(booksList).toHaveBeenCalledTimes(2))
   })
 
-  it('送小说：确认后逐参对齐导入（full 全本）并派发 NAVIGATE 跳书架', async () => {
+  it('送小说：确认后逐参对齐导入（full 全本）并派发 goto-tab+NAVIGATE 落书架页签', async () => {
   booksList.mockResolvedValue(books)
   importEx.mockResolvedValue({ path: '/p', title: '风雪夜归', chapter_count: 3, total_words: 100 })
   const spy = vi.spyOn(window, 'dispatchEvent')
@@ -188,6 +188,12 @@ describe('SinBookSourcePanel（原罪·书源页签）', () => {
   await waitFor(() => {
     const ev = spy.mock.calls.map(([e]) => e as Event).find((e) => e.type === 'navigate') as CustomEvent | undefined
     expect(ev?.detail).toEqual({ page: 'novel' })
+  })
+  // 2026-10-27 合并后原罪在小说板块内部：单跳 NAVIGATE 落回当前页签（可能仍是
+  // 原罪），必须补发 novel:goto-tab home 才能真的看到新书
+  await waitFor(() => {
+    const ev = spy.mock.calls.map(([e]) => e as Event).find((e) => e.type === 'novel:goto-tab') as CustomEvent | undefined
+    expect(ev?.detail).toEqual({ tab: 'home' })
   })
 })
 

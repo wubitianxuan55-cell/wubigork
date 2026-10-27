@@ -183,7 +183,10 @@ export function SinBookSourcePanel() {
     app.ImportNovelBookEx(book.path, book.title, '未分类', '默认', 'full', 0)
       .then((res) => {
         message.success(`已导入书架「${res.title}」：${res.chapter_count} 章`)
-        // 跨板块跳转走 NAVIGATE 白名单事件（MainLayout 校验空间可达性）
+        // 合并后（2026-10-27）原罪在小说板块内部：单跳 NAVIGATE 会落回小说板块
+        // 当前页签（很可能仍是原罪），补发 goto-tab 落书架才能看到新书——
+        // NovelPage 与本面板同体常驻挂载，事件必达
+        window.dispatchEvent(new CustomEvent('novel:goto-tab', { detail: { tab: 'home' } }))
         emitFrontendEvent(FRONTEND_EVENTS.NAVIGATE, { page: 'novel' })
       })
       .catch((err: unknown) => message.error(errText(err, '导入失败')))

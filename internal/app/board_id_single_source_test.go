@@ -71,12 +71,15 @@ func TestIntentFallbackPromptBoardIDsMatchManifest(t *testing.T) {
 	got := extractBoardIDs(t, prompt, "只能是：", " 之一")
 	assertSameBoardIDs(t, "LLM 兜底提示词", got, boardIDSet(a))
 
-	// 已删板块不得回流（用户拍板 v4.439 删编程板块）
-	if got["code"] {
-		t.Error("提示词出现已删除的 code 板块（v4.439 删除编程板块）")
+	// 已删板块不得回流（用户拍板 v4.439 删编程板块；2026-10-27 sin 退役=
+	// 导航级合并进小说板块第六页签，一级导航不再有独立原罪板块）
+	for _, dead := range []string{"code", "sin"} {
+		if got[dead] {
+			t.Errorf("提示词出现已删除的 %s 板块", dead)
+		}
 	}
-	// 三类曾漏的板块必须在场（LLM 否则永不输出，用户「打开原罪」落回聊天管道）
-	for _, id := range []string{"schedule", "sin", "knowledge"} {
+	// 两类曾漏的板块必须在场（LLM 否则永不输出）
+	for _, id := range []string{"schedule", "knowledge"} {
 		if !got[id] {
 			t.Errorf("提示词缺板块 %q（曾漏：LLM 永不输出该类导航）", id)
 		}

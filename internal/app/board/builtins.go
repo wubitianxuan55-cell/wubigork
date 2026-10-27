@@ -40,6 +40,9 @@ var builtinManifests = []Manifest{
 			{ID: "home", Label: "书架"}, {ID: "novelsetting", Label: "设定"},
 			{ID: "character", Label: "角色"}, {ID: "create", Label: "创作"},
 			{ID: "chapter", Label: "阅读"}, {ID: "export", Label: "导出"},
+			// 2026-10-27 拍板导航级合并：原罪收编为小说板块第六页签（sin 板块退役，
+			// SinB 门面与 featureModel 'sin' 功能绑定不受影响）
+			{ID: "sin", Label: "原罪"},
 		}},
 		FeatureModel: "novel",
 		Bindings:     []string{"NovelB"},
@@ -158,18 +161,6 @@ var builtinManifests = []Manifest{
 		FeatureModel: "schedule",
 	},
 	{
-		// 原罪（闲庭新板块）：与 AI 对话式合写图文混杂的成人向故事。
-		// 页面复用办公（gaea）组件与视觉层；后端复用统一会话存储（mode=sin）
-		// + 功能级绑定（sin）+ 绘梦图像后端（内联插图）。
-		ID: "sin", Label: "原罪", Icon: "FireOutlined",
-		Page: "OriginalSinPage", Lazy: true,
-		KeepAlive: Bool(true), Layout: "full",
-		MenuOrder: 13, InMenu: Bool(true),
-		Space:        SpacePlay, // 闲庭·原罪（故事创作）
-		FeatureModel: "sin",
-		Bindings:     []string{"SinB"},
-	},
-	{
 		// 运行监测（2026-10-19，参照 Strata Monitor 仪表盘）：本机系统资源 +
 		// 引擎状态 + Strata 系引擎 /metrics 遥测 + gaea 侧最近调用记账的
 		// 聚合仪表盘。数据源 App.RuntimeMonitor（runtime_monitor.go）。
@@ -203,7 +194,8 @@ func Builtins() []Board {
 }
 
 // CanonicalIDs 返回 canonical 业务板块的 id（验收断言用；不含 knowledge——
-// knowledge 是 D7 独立板块，见 BuiltinManifests）。
+// knowledge 是 D7 独立板块，见 BuiltinManifests）。sin 已退役（2026-10-27 拍板
+// 导航级合并：原罪收编为小说板块第六页签，SinB 门面经 NewBindings 照常注册）。
 func CanonicalIDs() []string {
-	return []string{"chat", "novel", "imagegen", "gaea", "cost", "memoryhub", "modelcenter", "characterlib", "settings", "weixin", "schedule", "sin", "runtime"}
+	return []string{"chat", "novel", "imagegen", "gaea", "cost", "memoryhub", "modelcenter", "characterlib", "settings", "weixin", "schedule", "runtime"}
 }

@@ -1,14 +1,16 @@
-// NovelPage.test.tsx — 常驻五 pane 的 active 下发（规格线2「常驻页快捷键门控」防复发守卫）。
+// NovelPage.test.tsx — 常驻六 pane 的 active 下发（规格线2「常驻页快捷键门控」防复发守卫）。
 //
-// 背景（读码确证）：NovelPage 把五个子页**一次全挂**，只靠
+// 背景（读码确证）：NovelPage 把六个子页**一次全挂**，只靠
 // `.novel-tab-pane{display:none}` 隐藏——隐藏 ≠ 卸载。于是子页的窗口级副作用
 // （F11 / Ctrl+S / Ctrl+N、novel:open-chapter）只能靠 NovelPage 下发的 active 门控，
 // 本文件锁两条不变量：
-//   ①当前页 active=true、其余四个常驻隐藏页 active=false（且恰好一个 true）；
+//   ①当前页 active=true、其余五个常驻隐藏页 active=false（且恰好一个 true）；
 //   ②点目录树时 novel:open-chapter 必须在阅读 pane **已成为当前页之后**才派发
 //     （同 tick 同步派发时隐藏页拿到的 active 还是 false，会被门控丢弃 → 点章失效）。
 //
-// 手法：五个子页替换为只暴露 `data-active` 的桩（线2 允许的两种手法之一），
+// 2026-10-27 起第六 pane = 原罪页（导航级合并收编，页面本体经 lazy import 挂载）。
+//
+// 手法：六个子页替换为只暴露 `data-active` 的桩（线2 允许的两种手法之一），
 // 大纲树 OutlinePanel 替换为「点一下即 onSelectNode」的按钮。
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -27,6 +29,9 @@ vi.mock('./CreatePage', () => ({
 }))
 vi.mock('./ChapterPage', () => ({
   default: ({ active }: { active?: boolean }) => <div data-testid="pane-chapter" data-active={String(active)} />,
+}))
+vi.mock('./OriginalSinPage', () => ({
+  default: ({ active }: { active?: boolean }) => <div data-testid="pane-sin" data-active={String(active)} />,
 }))
 
 // 壳层左 zone 的目录树：真实 OutlinePanel 依赖大纲数据，这里只保留「点击 → onSelectNode」。
@@ -62,7 +67,7 @@ const activePanes = () =>
 const paneActive = (key: string) =>
   screen.getByTestId(`pane-${key}`).getAttribute('data-active')
 
-const PANE_KEYS = ['home', 'novelsetting', 'character', 'create', 'chapter']
+const PANE_KEYS = ['home', 'novelsetting', 'character', 'create', 'chapter', 'sin']
 
 describe('NovelPage 常驻 pane 的 active 下发', () => {
   beforeEach(() => {
@@ -76,7 +81,7 @@ describe('NovelPage 常驻 pane 的 active 下发', () => {
     useOutlineStore.setState({ outlines: [], loading: false, error: null })
   })
 
-  it('默认书架 tab：home=true、其余四个常驻隐藏页=false，且恰好一个可见', async () => {
+  it('默认书架 tab：home=true、其余五个常驻隐藏页=false，且恰好一个可见', async () => {
     render(<NovelPage />)
     await screen.findByTestId('pane-home')
 
@@ -84,8 +89,8 @@ describe('NovelPage 常驻 pane 的 active 下发', () => {
     for (const key of PANE_KEYS.filter((k) => k !== 'home')) {
       expect(paneActive(key)).toBe('false')
     }
-    // 五 pane 全部挂载（常驻），只有 active 不同——这正是「隐藏 ≠ 卸载」的契约
-    expect(document.querySelectorAll('[data-testid^="pane-"]').length).toBe(5)
+    // 六 pane 全部挂载（常驻），只有 active 不同——这正是「隐藏 ≠ 卸载」的契约
+    expect(document.querySelectorAll('[data-testid^="pane-"]').length).toBe(6)
     expect(activePanes()).toEqual(['pane-home'])
   })
 
@@ -150,5 +155,27 @@ describe('NovelPage 常驻 pane 的 active 下发', () => {
     act(() => { notifyBoardActive('novel') })
     expect(paneActive('chapter')).toBe('true')
     expect(activePanes()).toEqual(['pane-chapter'])
+  })
+
+  // ── 第六 pane：原罪（2026-10-27 导航级合并收编）──────────────────────────
+  it('原罪页签：pane-sin 独占 active，身份区切原罪语境、封面按钮退场、data-novel-tab 驱动 zone 收敛', async () => {
+    render(<NovelPage />)
+    await screen.findByTestId('pane-home')
+
+    fireEvent.click(within(screen.getByRole('navigation', { name: '小说板块' }))
+      .getByRole('button', { name: /原罪/ }))
+
+    await waitFor(() => expect(paneActive('sin')).toBe('true'))
+    expect(activePanes()).toEqual(['pane-sin'])
+    // data-novel-tab='sin' 是 novel-workspace.css 收敛项目级目录树/检查器/AI 控制台
+    // FAB 的选择器锚点——丢了它 sin 页签会挤在双 zone 之间
+    expect(document.querySelector('.novel-hub')?.getAttribute('data-novel-tab')).toBe('sin')
+    // 身份区切原罪语境：kicker 不再是书房，书名/项目统计退场
+    expect(document.querySelector('.novel-atelier-kicker')?.textContent).toBe('原罪')
+    expect(screen.getByText('图文故事 · 与 AI 对话式创作')).toBeTruthy()
+    expect(screen.queryByText('书房')).toBeNull()
+    expect(screen.queryByTitle('为当前项目生成书封（3:4 竖版）')).toBeNull()
+    // activeTab 持久化（回访落在原罪页签）
+    expect(localStorage.getItem('gaea.novel.activeTab')).toBe('sin')
   })
 })

@@ -5,7 +5,7 @@ import NovelSidebar from '../components/novel/NovelSidebar'
 import NovelInspector from '../components/novel/NovelInspector'
 import {
   HomeOutlined, FileTextOutlined, UserOutlined,
-  ThunderboltOutlined, BookOutlined, PictureOutlined,
+  ThunderboltOutlined, BookOutlined, PictureOutlined, FireOutlined,
 } from '@ant-design/icons'
 import { useAppStore } from '../stores/appStore'
 import { useOutlineStore } from '../stores/outlineStore'
@@ -39,8 +39,13 @@ const NovelSettingPage = React.lazy(() => import('./NovelSettingPage')) as React
 const CharacterPage = React.lazy(() => import('./CharacterPage')) as React.ComponentType<NovelPaneProps>
 const CreatePage = React.lazy(() => import('./CreatePage')) as React.ComponentType<NovelPaneProps>
 const ChapterPage = React.lazy(() => import('./ChapterPage')) as React.ComponentType<NovelPaneProps>
+// 原罪页（2026-10-27 拍板导航级合并收编）：整页三栏作为第六常驻 pane 挂载。
+// 按 NovelPaneProps 对齐类型只为 pane 渲染处的统一 props 面——页面本体不消费
+// active（无 window 级监听），隐藏 ≠ 卸载期间行为与既有板块级 keepAlive 一致
+// （Composer 草稿/流式订阅/插图进度不因切页签而丢）。
+const OriginalSinPage = React.lazy(() => import('./OriginalSinPage')) as React.ComponentType<NovelPaneProps>
 
-export type NovelTab = 'home' | 'novelsetting' | 'character' | 'create' | 'chapter'
+export type NovelTab = 'home' | 'novelsetting' | 'character' | 'create' | 'chapter' | 'sin'
 const NOVEL_TAB_KEY = 'gaea.novel.activeTab'
 const NOVEL_SIDE_KEY = 'gaea.novel.sideCollapsed'
 const NOVEL_INSPECTOR_KEY = 'gaea.novel.inspectorCollapsed'
@@ -48,7 +53,7 @@ const NOVEL_INSPECTOR_KEY = 'gaea.novel.inspectorCollapsed'
 function loadActiveTab(): NovelTab {
   try {
     const v = localStorage.getItem(NOVEL_TAB_KEY)
-    if (v === 'home' || v === 'novelsetting' || v === 'character' || v === 'create' || v === 'chapter') {
+    if (v === 'home' || v === 'novelsetting' || v === 'character' || v === 'create' || v === 'chapter' || v === 'sin') {
       return v
     }
   } catch { /* ignore */ }
@@ -70,6 +75,7 @@ const tabItems = [
   { key: 'character', icon: <UserOutlined />, label: '角色', component: CharacterPage },
   { key: 'create', icon: <ThunderboltOutlined />, label: '创作', component: CreatePage },
   { key: 'chapter', icon: <BookOutlined />, label: '阅读', component: ChapterPage },
+  { key: 'sin', icon: <FireOutlined />, label: '原罪', component: OriginalSinPage },
 ] as const
 
 /** 书房工坊：身份头栏 + 模式轨 + 按页显隐的分区工作台 */
@@ -188,16 +194,27 @@ const NovelPage: React.FC = () => {
     <div className="novel-hub" data-novel-tab={activeTab} data-novel-focus={focusMode ? '1' : '0'}>
       <header className="novel-atelier-bar">
         <div className="novel-atelier-identity">
-          <span className="novel-atelier-kicker">书房</span>
-          <span className="novel-atelier-title">
-            {projectTitle || '未打开小说'}
-          </span>
-          {projectPath && stats ? (
-            <span className="novel-atelier-meta">
-              {stats.chapterCount} 章 · {stats.totalWords.toLocaleString()} 字
-            </span>
+          {activeTab === 'sin' ? (
+            // 原罪页签不属当前小说项目语境：身份区切板块语境，项目统计/封面
+            // 等项目级元素一并退场（故事名与模型状态在 sin-head 里自持）
+            <>
+              <span className="novel-atelier-kicker">原罪</span>
+              <span className="novel-atelier-title">图文故事 · 与 AI 对话式创作</span>
+            </>
           ) : (
-            <span className="novel-atelier-meta">打开或新建一部小说</span>
+            <>
+              <span className="novel-atelier-kicker">书房</span>
+              <span className="novel-atelier-title">
+                {projectTitle || '未打开小说'}
+              </span>
+              {projectPath && stats ? (
+                <span className="novel-atelier-meta">
+                  {stats.chapterCount} 章 · {stats.totalWords.toLocaleString()} 字
+                </span>
+              ) : (
+                <span className="novel-atelier-meta">打开或新建一部小说</span>
+              )}
+            </>
           )}
         </div>
 
@@ -216,19 +233,21 @@ const NovelPage: React.FC = () => {
           ))}
         </nav>
 
-        <div className="novel-atelier-actions">
-          <button
-            type="button"
-            className="novel-atelier-iconbtn"
-            disabled={!projectPath || coverBusy}
-            onClick={() => void handleGenerateCover()}
-            aria-label="为当前项目生成书封"
-            title="为当前项目生成书封（3:4 竖版）"
-          >
-            <PictureOutlined aria-hidden />
-            {coverBusy ? '生成中' : '封面'}
-          </button>
-        </div>
+        {activeTab !== 'sin' && (
+          <div className="novel-atelier-actions">
+            <button
+              type="button"
+              className="novel-atelier-iconbtn"
+              disabled={!projectPath || coverBusy}
+              onClick={() => void handleGenerateCover()}
+              aria-label="为当前项目生成书封"
+              title="为当前项目生成书封（3:4 竖版）"
+            >
+              <PictureOutlined aria-hidden />
+              {coverBusy ? '生成中' : '封面'}
+            </button>
+          </div>
+        )}
       </header>
 
       <div className="novel-workspace">

@@ -260,8 +260,8 @@ const NovelInspector: React.FC<NovelInspectorProps> = ({
           </section>
         )}
 
-        {/* 快捷入口 */}
-        {projectPath && activeTab !== 'chapter' && (
+        {/* 快捷入口（原罪页签下检查器整体隐藏，此处再排除一层保语义诚实） */}
+        {projectPath && activeTab !== 'chapter' && activeTab !== 'sin' && (
           <section className="novel-inspector-section">
             <div className="novel-inspector-section-title"><ThunderboltOutlined />快捷入口</div>
             <div className="novel-action-row">

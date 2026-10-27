@@ -290,6 +290,17 @@
   display: none;
 }
 
+/* 原罪页签（2026-10-27 导航级合并收编）：自带故事架/主区/创作面板三栏整幅，
+   项目级目录树与检查器（章节体检）在本页签语境下无意义，一并收敛；
+   AI 控制台 FAB 是小说项目调用监控（xai-output），原罪流走 sin 事件面，同步退场 */
+.novel-hub[data-novel-tab='sin'] > .novel-workspace > .novel-side-zone,
+.novel-hub[data-novel-tab='sin'] > .novel-workspace > .novel-inspector-zone,
+.novel-hub[data-novel-tab='sin'] > .novel-workspace > .v3-grip,
+.novel-hub[data-novel-tab='sin'] .ai-console-fab,
+.novel-hub[data-novel-tab='sin'] .ai-console-panel {
+  display: none;
+}
+
 /* 阅读页专注模式：左右 zone 收敛（沉浸书写；仅阅读 tab 生效，
    避免专注状态跨 tab 残留导致其他页 zone 被误藏） */
 .novel-hub[data-novel-focus='1'][data-novel-tab='chapter'] > .novel-workspace > .novel-side-zone,
