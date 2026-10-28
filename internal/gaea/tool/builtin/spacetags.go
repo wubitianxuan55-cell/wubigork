@@ -47,6 +47,7 @@ var spaceTags = map[string]string{
 	"screen_capture":   spaces.SpaceWork,
 	"vision":           spaces.SpaceWork,
 	"doc_render":       spaces.SpaceWork, // F2 只读渲染（办公文档视觉验收）
+	"cad_ask":          spaces.SpaceWork, // CAD 图纸识读（只读；DWG/DXF/PDF→视觉问答）
 	"ocr":              spaces.SpaceWork,
 	"cost_search":      spaces.SpaceWork,
 	"cost_save":        spaces.SpaceWork,

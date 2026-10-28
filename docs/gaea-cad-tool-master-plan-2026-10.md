@@ -171,3 +171,29 @@ internal/gaea/cad/
 
 - 一期一刀发版（预计 v4.524+ 档位，随当时版本节奏），release.ps1 台账自述行同步；CHANGELOG 条目+releases/README 三处同步（既有纪律）。
 - 每期关账更新本文件状态行；PoC 报告单独成档。
+
+
+## 追记（2026-10-28）：agent 工具 cad_ask——对话侧读图通道
+
+**实弹翻车**：用户早间在办公对话里让 AI 读 PDF 版 CAD 图纸，AI 读不了。取证：当日
+全局主日志零 CAD/识图调用（无 CadOpen/CadError/RecognizeImage；CAD 链路失败有
+LogFrontendError 留痕纪律，成功不留痕）。定性三重断点：①附件识图只认图片
+（PDF 归 file 型不走视觉）；②agent 无 CAD 工具可自己调（vision 工具只吃图片路径、
+doc_render 走 LibreOffice/poppler——吃不了 DWG/DXF 原生格式，PDF 渲染 DPI 也不受控）；
+③CAD 识图能力只活在工具面板 UI 里，对话侧完全够不着。
+
+**根修**：`internal/gaea/tool/builtin/cad_ask.go` 注册 agent 工具 `cad_ask(path,
+question, sheet?)`——把本计划工具面板同款管线一步带给模型：
+- DWG/DXF：原生解析 → 全图框默认宽渲图（passRate 质量闸回填）→ 缺省选质量最好
+  图框 → 6000px 加宽渲图（识图喂图红线）→ vision.RecognizeImage；
+- PDF：按页渲染，ask 档 DPI=200（面板默认档 110 的近两倍——对话问图纸就是为了
+  读字）；sheet 参数显式选页；
+- 多图框返回图框清单（名称+清晰度），模型可换 sheet 再问；ReadOnly+ModelBacked
+  （mt_ 运行记录面，同 vision 工具）；渲染走每次调用临时目录 defer 清理（UI 侧
+  cadToolCache 缓存不适用于 agent 单次问答形态）。
+- 注册面三表同批：compactDesc/compactSchema（CompactDescriptor 无条件替换模型面）
+  + spaceTags（SpaceWork，GA2-04 守卫 TestSpaceTagsCoversAllBuiltins 当场逮住漏表
+  ——守卫体系第 N 次立功）；config 无 tools.enabled 白名单时 boot 全注册路径自动
+  生效（用户 config 实测无该名单）。
+- 遗留观察：面板「问图纸」PDF 分支喂的是 110dpi 页图（GaeaCadRaster PDF 恒忽略
+  width）——若实弹发现 PDF 问图纸读字不清，把 ask 档 DPI 提到 200 同款提法。
