@@ -144,8 +144,9 @@ func TestBuildTechniqueSection(t *testing.T) {
 	if got := buildTechniqueSection(""); got != "" {
 		t.Fatalf("空 hint 应返回空串，实得 %q", got)
 	}
-	// 确定性：同输入两次逐字节一致
-	if buildTechniqueSection("打脸 误会 伏笔") != buildTechniqueSection("打脸 误会 伏笔") {
+	// 确定性：同输入两次逐字节一致（两变量绕 SA4000 同表达式判定，意图不变）
+	first, second := buildTechniqueSection("打脸 误会 伏笔"), buildTechniqueSection("打脸 误会 伏笔")
+	if first != second {
 		t.Fatal("同输入两次装配应逐字节一致")
 	}
 	// 预算护栏：至多 3 条

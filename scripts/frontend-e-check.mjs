@@ -142,22 +142,23 @@ section("E25 聊天×轻语合并");
   }
 }
 
-// E26: 壳层空间切换=纯导航（1B 拍板 2026-09-10「拆开」：切书斋/闲庭是界面导航，
-// 不得触引擎——办公在跑时切小说，办公照常。守卫 switchSpace 函数体零桥接调用；
+// E26: 壳层空间切换=纯导航（不变量沿革：1B 拍板 2026-09-10「switchSpace 零桥接」；
+// 2026-10-26/27 一级导航合一+空间切换钮退役（0d883cd5/c834489a）后机制改为
+// navigateBoard 导航隐式切空间——不变量不变：切空间只动数据面状态，不得触引擎。
 // 引擎空间唯一写入口=办公侧栏 SpaceChip 的 GaeaSpaceActivate，不在此处。）
 section("E26 空间切换零桥接");
 {
   const layout = read("frontend/src/layouts/MainLayout.tsx");
-  const start = layout.indexOf("const switchSpace = useCallback");
-  const end = layout.indexOf("const [, forceBoards]");
+  const start = layout.indexOf("const navigateBoard = useCallback");
+  const end = start === -1 ? -1 : layout.indexOf("}, [", start);
   if (start === -1 || end === -1 || end <= start) {
-    bad("MainLayout 找不到 switchSpace 定义（结构变更，须人工复核 E26 守卫口径）");
+    bad("MainLayout 找不到 navigateBoard 定义（结构变更，须人工复核 E26 守卫口径）");
   } else {
     const body = layout.slice(start, end);
     const forbidden = ["app.", "wailsApp(", "GaeaSpaceActivate", "noteSpaceActivated", ".Cancel(", "GaeaSend"];
     const hit = forbidden.filter((k) => body.includes(k));
-    if (hit.length) bad(`switchSpace 含引擎/桥接调用（违反 1B 拍板）: ${hit.join(", ")}`);
-    else ok("switchSpace 零桥接——壳层切换纯导航，不打断在跑的活");
+    if (hit.length) bad(`navigateBoard 含引擎/桥接调用（违反空间切换纯导航不变量）: ${hit.join(", ")}`);
+    else ok("navigateBoard 零桥接——壳层切换纯导航（导航隐式切空间），不打断在跑的活");
   }
 }
 

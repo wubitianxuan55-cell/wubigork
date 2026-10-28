@@ -104,7 +104,7 @@ func (v cadAsk) Execute(ctx context.Context, args json.RawMessage) (string, erro
 	if err != nil {
 		return "", fmt.Errorf("创建渲染临时目录失败: %w", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	var sheetIdx int
 	var sheets []cadSheetInfo

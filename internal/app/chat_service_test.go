@@ -46,6 +46,13 @@ func newChatServiceTestAppWithHandler(t *testing.T, handler http.Handler) *App {
 	home := t.TempDir()
 	t.Setenv("USERPROFILE", home)
 	t.Setenv("HOME", home)
+	// OCR 引擎面隔离：本机若装有 C:\AI\gaea-ocr / C:\AI\unlimited-ocr2，读屏/
+	// 提取链会真拉起 llama-server（Vulkan，VkCache 落测试 TempDir，进程超时被杀
+	// 后句柄未及释放 → TempDir 清理失败假红）——OCR 环境变量统一指向死值。
+	t.Setenv("GAEA_UOCR2_DIR", filepath.Join(t.TempDir(), "no-such-uocr2"))
+	t.Setenv("GAEA_UOCR2_PORT", "1")
+	t.Setenv("GAEA_OCR_DIR", filepath.Join(t.TempDir(), "no-such-ocr"))
+	t.Setenv("GAEA_OCR_PORT", "1")
 	root := filepath.Join(t.TempDir(), "data")
 
 	c := &core{

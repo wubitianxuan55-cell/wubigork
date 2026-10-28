@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -194,11 +195,11 @@ func TestChildCompletionVerdictDowngradeVisible(t *testing.T) {
 
 func TestCompleteSubtaskToolAlwaysSucceeds(t *testing.T) {
 	tl := completeSubtaskTool{}
-	out, err := tl.Execute(nil, []byte(`{"status":"complete","summary":"done"}`))
+	out, err := tl.Execute(context.TODO(), []byte(`{"status":"complete","summary":"done"}`))
 	if err != nil || !strings.Contains(out, "accepted") {
 		t.Fatalf("提交应永远成功: %v %q", err, out)
 	}
-	if _, err := tl.Execute(nil, []byte(`{"status":"bogus","summary":"x"}`)); err == nil {
+	if _, err := tl.Execute(context.TODO(), []byte(`{"status":"bogus","summary":"x"}`)); err == nil {
 		t.Fatal("非法状态应报错")
 	}
 }

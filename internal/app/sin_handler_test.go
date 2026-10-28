@@ -374,8 +374,8 @@ func TestSinSystemPromptAntiAIFlavorRules(t *testing.T) {
 	p := sinSystemPrompt()
 	for _, want := range []string{
 		"解释腔", "她不知道的是", "殊不知", "否定翻转",
-		"深吸一口气", "瞳孔微缩",   // 通用反应套词（words.json blacklist 同族）
-		"微微", "缓缓",           // 弱化装饰
+		"深吸一口气", "瞳孔微缩", // 通用反应套词（words.json blacklist 同族）
+		"微微", "缓缓", // 弱化装饰
 		"收束不升华", "命运的齿轮", // 轮末升华预告（trailerEndings 同族）
 	} {
 		if !strings.Contains(p, want) {

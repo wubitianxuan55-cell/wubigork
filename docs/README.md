@@ -53,6 +53,10 @@
 | gaea-image-domain-longterm-plan-2026.md | 长期路线：T0 契约已落地（v4.98.0）；T1+ 未启动 |
 | gaea-image-domain-t0-contract-design-2026-09.md | ✅ 已落地随 v4.98.0 |
 | gaea-sin-board-design-2026-09.md | ✅ **闲庭·原罪板块（v4.256.0）**：对话式图文混杂故事创作——办公组件复用清单、sin 绑定契约（会话/流式/插图/导出）、cue 编号跨端约定、成人内容边界与验收证据 |
+| gaea-ai-workbench-ui-2026-10.md | 🔄 **办公 AI 工作台工具化设计单（2026-10，刀路准绳）**：§7.3 检查器随工具（c90aefb3）/§7.5 首页 12 卡（2b76dbab 批）已落地；余池=亮色暖纸（需拍板） |
+| gaea-ui-benchmark-2026-10.md | 🔄 **UI 对标调研（2026-10）**：首刀=监测↔模型中心统计面板合并（e6749ebf 已随 v4.526.0 发版）；后续刀按档推进 |
+| gaea-home-redesign-survey-2026-10.md | ✅ **首页重设计调研+实施档（2026-10-27 十三连推送）**：一级导航合一（§8.2）/dock 退役（§8.8）/首页 12 卡；E26 守卫锚已随 0d883cd5 迁 navigateBoard |
+| gaea-board-slim-reorg-2026-10.md | ✅ **板块瘦身重组纪要（2026-10-28）**：模型中心导航 13→9/小说质检菜单 8 项三组/CreatePage 40→24 态；真机走查已过 |
 
 ## 引擎线（本地推理引擎：调研 / 基座决策 / 批次台账）
 
@@ -74,6 +78,14 @@
 | gaea-dsh-genui-distill-plan-2026-09.md | ✅ 已收官（P0–P5 全部发布，止于 v4.97.0） |
 | gaea-dsh-better-sidebar-long-term-distill-plan-2026.md | 🔄 滚动权威：阶段一/二/二.5/三(3a/3b) 已全销账；3c 与阶段四/五维持「拍板后/若做」 |
 | gaea-unsloth-modelhub-distill-plan-2026-09.md | ⚠️ 已退役（2026-10-18 modelhub 引擎整体删除：引擎/Key/MH4 预热随 Unsloth 退役下线；CU1/CU2 等 ComfyUI 侧蒸馏成果保留）。本文保留作历史蒸馏记录 |
+| gaea-reasonix-2x-distill-2026-10.md | ✅ **Reasonix 2.x 蒸馏重开（2026-10-24）**：A 档八刀+B 档五刀全清随 v4.524.0 发版（readiness 死闸根修/read_subagent_result/出发快照/steer 收据收口） |
+| gaea-zcode-distill-2026-10.md | ✅ **ZCode 蒸馏规划档（Z0~Z18 刀池+十二节跨源合流分析）**：v1 收官随 v4.525.0（运行时 8+产出 5+交汇 2，dfd8e169→faebe184） |
+| zcode-office-distill-2026-10.md | ✅ ZCode office 域对源蒸馏分析（A1 锚点语法层/F2 doc_render 等交汇刀的对源证据层） |
+| zcode-office-distill-analysis-2026-10.md | ✅ ZCode office 蒸馏子分析报告（机检十二规则/Q1 对源） |
+| zcode-office-decision-memo-2026-10.md | ✅ ZCode office 蒸馏决策备忘（双执行体轮次署名权/取舍记录） |
+| zcode-dialogue-2026-10-24.md | ✅ 双执行体对话档（ZCode 蒸馏线，单轮存档） |
+| zcode-distill-dialogue-2026-10.md | ✅ 双执行体协作对话档七轮全录（协议⑦写前扫描/⑧轮次署名权） |
+| zcode-handoff-2026-10-24.md | ✅ DSH 交接档（ZCode 蒸馏线批次交接） |
 
 > dsh-better-sidebar-go-port-plan-2026-09.md（整包 Go 化方案）已归档至 docs/archive/——路线未采纳，被滚动蒸馏规划取代。
 
@@ -107,6 +119,12 @@
 | gaea-novel-booksource-import-2026-09.md | 🔄 小说板块·书源取书→拆书导入接通刀路（用户拍板 2026-09-13：两板块不合并改接通；**2026-10-27 修订：两板块导航级合并，原罪收编为小说第六页签**）；书源引擎（零消费者）作导入取书上游，NovelB +4 绑定 + 书架「在线搜书」；sin 书源线 t2~t5 归并行线不碰 |
 | gaea-longform-novel-system-2026-09.md | 🔄 长篇小说创作系统方向（2026-09-28 立项，用户指令「解决如何写一个优秀的长篇小说」）：§1 诊断十四条（带代码证据：意图输入仅一句剧情要求 / StoryThread 无写入点 / ChapterPlan 零消费 / 生成单位整章 blob / 场景卡缺工艺字段 / 分析情报不回写 / 写前契约软提示 / 质量门不收敛 / 上下文堆料 / 风格事后打分 / 无整书状态 / 前文窗口 10 章断档 / 张力字段不写 / 章内续写无衔接）+ §2 机制 + §3 对标 + §4 评测 + §5 七刀刀序 + §7 刀1 契约与验收 |
 | gaea-longform-craft-mechanics-2026-09.md | 🔄 长篇创作机制调研交付物（2026-09-28，方法论→可机械化的 14 机制 M1–M14 + 25 条「优秀长篇」机械判据（22 条可确定性自动化）+ 故事层/场景层/文本层三层架构 + 主流工具对应层做法与短板）；要点已并入 gaea-longform-novel-system §2 |
+
+## 当日总账
+
+| 文档 | 状态 |
+|---|---|
+| gaea-day-log-2026-10-28.md | ✅ 2026-10-28 当日总账：五提交索引+余池清单+exe 哈希（SHA256 前缀 bffba192dacd0817） |
 
 ## 上手与工装
 

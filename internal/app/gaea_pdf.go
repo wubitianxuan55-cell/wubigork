@@ -1,8 +1,8 @@
 package app
 
 import (
-	"github.com/gaea/gaea/internal/docmd"
 	"fmt"
+	"github.com/gaea/gaea/internal/docmd"
 	"os"
 	"path/filepath"
 	"strings"
@@ -148,6 +148,6 @@ func convertToPdfFile(src, outPath string) error { return docmd.ConvertToPdfFile
 
 func findSoffice() string { return docmd.FindSoffice() }
 
-func moveOrCopyFile(src, dst string) error { return docmd.MoveOrCopyFile(src, dst) }
-
-func runProcess(exe string, args []string, timeoutSec int) error { return docmd.RunProcess(exe, args, timeoutSec) }
+func runProcess(exe string, args []string, timeoutSec int) error {
+	return docmd.RunProcess(exe, args, timeoutSec)
+}

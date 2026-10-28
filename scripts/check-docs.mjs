@@ -23,6 +23,10 @@ const NOT_REPO_DOCS = [
   // 外部引擎项目文档（strata / tianxuan）：不是 gaea 仓库文件。
   /^docs\/(STRIX_HALO|WINDOWS|QWEN36|BACKENDS|FAQ)\.md$/,
   /^docs\/models\/qwen3\.6-35b-a3b\/README\.md$/,
+  // 蒸馏对源文档（他仓路径，作证据引用）：NodeBenchAI / zai-org/ZCode。
+  /^docs\/chat-logs-unified\/MANUS_INTERACTION_MAP\.md$/,
+  /^docs\/plugins\/2026-10-15-office-viewer-builtin-panels-spec\.md$/,
+  /^docs\/ui\/task-file-change-summary\.md$/,
 ]
 
 const fails = []

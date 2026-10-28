@@ -30,12 +30,16 @@ func TestKeepUserTurnsRetainsMidSessionTurns(t *testing.T) {
 	if ret.Kept != 2 || ret.Dropped != 0 {
 		t.Fatalf("两条用户轮都应在预算内保留: kept=%d dropped=%d", ret.Kept, ret.Dropped)
 	}
+	found := false
 	for _, m := range kept {
 		if m.Role == provider.RoleUser && strings.Contains(m.Content, "第一条用户约束") {
-			return // 找到了
+			found = true
+			break
 		}
 	}
-	t.Fatal("用户约束轮应进 kept 区")
+	if !found {
+		t.Fatal("用户约束轮应进 kept 区")
+	}
 	if len(fold) == 0 {
 		t.Fatal("assistant/tool 工作应仍被折叠")
 	}
