@@ -102,7 +102,9 @@ describe("PptxEditPanel pptx 编辑面板（v4.156 刀2）", () => {
   it("initialSlide 预选该页第一段（编辑目标显示页码+段落序号）", async () => {
     renderPanel({ initialSlide: 2 });
     await screen.findByTestId("pptx-para-2-0");
-    expect(screen.getByText("编辑目标：第 2 页 第 1 段")).toBeTruthy();
+    // 预选是 loadState=ready 后的 effect，与段落首渲之间有时间窗——
+    // 满负载下 findBy 先返回而 effect 未跑（满载假红家族此例的根因），等它落地。
+    await waitFor(() => expect(screen.getByText("编辑目标：第 2 页 第 1 段")).toBeTruthy());
   });
 
   it("载入失败 → 错误态 + 重试；重试成功恢复列表（诚实降级不静默）", async () => {
