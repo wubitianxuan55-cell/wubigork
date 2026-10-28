@@ -103,9 +103,9 @@ describe('亮态 accent/语义色不回流 Tailwind-600 亮阶（v4.349 回归�
     expect(getThemeTokens('nightAmber', false).colorPrimary).toBe('#b45309') // hex-exempt 测试锁值
   })
 
-  it('tertiary 文本档锁值（v4.362）：亮 #5b6472（Violet 亮 surface 5.45:1）/ 暗 #8b93a0，防回流硬编码', () => {
+  it('tertiary 文本档锁值：亮 #67635c（暖纸派生，§7.6 亮色暖纸统一面后全预设同值）/ 暗 #8b93a0，防回流硬编码', () => {
     for (const preset of PRESETS) {
-      expect(getThemeTokens(preset, false).colorTextTertiary, `${preset} 亮态 tertiary`).toBe('#5b6472') // hex-exempt 测试锁值
+      expect(getThemeTokens(preset, false).colorTextTertiary, `${preset} 亮态 tertiary`).toBe('#67635c') // hex-exempt 测试锁值
       expect(getThemeTokens(preset, true).colorTextTertiary, `${preset} 暗态 tertiary`).toBe('#8b93a0') // hex-exempt 测试锁值
     }
   })
@@ -125,6 +125,37 @@ describe('亮态 accent/语义色不回流 Tailwind-600 亮阶（v4.349 回归�
       const primary = t.colorPrimary.replace('#', '')
       expect(rgb, `${preset} 亮态 accentRgb`).toEqual([0, 2, 4].map((i) => parseInt(primary.slice(i, i + 2), 16)))
       expect(t.glow, `${preset} 亮态 glow`).toBe(t.colorPrimary)
+    }
+  })
+})
+
+// ── 亮色暖纸派生契约（§7.6，2026-10-29 拍板落地）────────────────────────
+// 亮态表面统一暖纸底（原型 §5.1：#F4F2ED 画布/#FBFAF7 卡面/#EDEAE3 容器/
+// #1E1C18 正文），全预设一致；暗态零触碰（各自主题表原值）。accent/语义色/
+// tertiary 容器保留预设身份（AA 由上方矩阵机检重算）。
+describe('亮色暖纸派生（§7.6）', () => {
+  it('全预设亮态：画布/卡面/容器/正文 = 原型暖纸四值', () => {
+    for (const preset of PRESETS) {
+      const t = getThemeTokens(preset, false)
+      expect(t.colorBgLayout, `${preset}L colorBgLayout`).toBe('#F4F2ED')
+      expect(t.surface, `${preset}L surface`).toBe('#FBFAF7')
+      expect(t.colorBgContainer, `${preset}L colorBgContainer`).toBe('#FBFAF7')
+      expect(t.surfaceContainer, `${preset}L surfaceContainer`).toBe('#EDEAE3')
+      expect(t.colorText, `${preset}L colorText`).toBe('#1E1C18')
+    }
+  })
+
+  it('暗态零触碰：各预设画布保持主题表原值（互不相同=未被统一）', () => {
+    const layouts = new Set(PRESETS.map((p) => getThemeTokens(p, true).colorBgLayout))
+    expect(layouts.size).toBe(PRESETS.length)
+    expect(getThemeTokens('nightJade', true).colorBgLayout).toBe('#0a1014') // hex-exempt 锁值
+  })
+
+  it('aurora 渐变保留预设色相辐条 + 暖纸 linear 基底（防旧底色盖住画布映射）', () => {
+    for (const preset of PRESETS) {
+      const t = getThemeTokens(preset, false)
+      expect(t.auroraBg, `${preset}L auroraBg`).toContain('linear-gradient(160deg, #F4F2ED 0%')
+      expect(t.auroraBg).toMatch(/radial-gradient/) // 预设色相辐条仍在
     }
   })
 })

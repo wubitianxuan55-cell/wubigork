@@ -161,15 +161,51 @@ function mixHex(a: string, b: string, weightB: number): string {
   return "#" + out.map((v) => v.toString(16).padStart(2, "0")).join("")
 }
 
+// §7.6 亮色暖纸映射（2026-10-29 拍板落地，派生层不改 7×2 主题表）：
+// 亮态表面统一压暖纸底——原型 §5.1 亮色调色板 #F4F2ED(画布)/#FBFAF7(卡面)/
+// #EDEAE3(容器)/#1E1C18(正文)，各预设保留 accent/语义色/tertiary 容器身份；
+// AA 由 appStore.contrast.test 全预设机检（含新底重算）。aurora 渐变保留预设
+// 色相辐条、仅把 linear 基底换暖纸——否则旧底色盖住 layout 映射（渐变是完整
+// background 值）。
+const WARM_LAYOUT = '#F4F2ED'
+const WARM_SURFACE = '#FBFAF7'
+const WARM_CONTAINER = '#EDEAE3'
+const WARM_TEXT = '#1E1C18'
+const WARM_GRAY = '#8a857c'
+
+function warmPaper(t: Partial<ThemeTokens>): Partial<ThemeTokens> {
+  const auroraHead = (t.auroraBg ?? '').split(', linear-gradient')[0]
+  return {
+    colorBgLayout: WARM_LAYOUT,
+    surface: WARM_SURFACE,
+    surfaceBright: WARM_SURFACE,
+    colorBgContainer: WARM_SURFACE,
+    surfaceContainer: WARM_CONTAINER,
+    surfaceContainerHigh: mixHex(WARM_CONTAINER, WARM_GRAY, 0.18),
+    surfaceContainerHighest: mixHex(WARM_CONTAINER, WARM_GRAY, 0.34),
+    surfaceVariant: mixHex(WARM_CONTAINER, WARM_GRAY, 0.10),
+    surfaceDim: mixHex(WARM_LAYOUT, WARM_GRAY, 0.14),
+    onSurface: WARM_TEXT,
+    colorText: WARM_TEXT,
+    onSurfaceVariant: mixHex(WARM_TEXT, WARM_GRAY, 0.50),
+    colorTextSecondary: mixHex(WARM_TEXT, WARM_GRAY, 0.50),
+    colorTextTertiary: mixHex(WARM_TEXT, WARM_GRAY, 0.68),
+    glassBg: 'rgba(251,250,247,0.55)',
+    auroraBg: `${auroraHead}, linear-gradient(160deg, #F4F2ED 0%, #EFEBE3 50%, #FBFAF7 100%)`,
+  }
+}
+
 export function getThemeTokens(base: ThemePreset, darkMode: boolean): ThemeTokens {
   const fn = darkMode ? darkFn[base] : lightFn[base]
   const [tertiaryContainer, onTertiaryContainer] = TERTIARY[base][darkMode ? 'dark' : 'light']
-  const t = fn()
-  // shellSidebar 派生（§7.6）：暗态 layout 掺黑 22%（后退一档，文本对比只增）；
-  // 亮态 layout 掺 5% 暖灰 #8a857c（压灰微暖=暖纸方向，正文 AA 由
-  // appStore.contrast.test 机检锁定，5% 幅度经全预设实测 ≥5.3:1）。
+  let t = fn()
+  if (!darkMode) t = { ...t, ...warmPaper(t) } // §7.6 亮色暖纸（暗态零触碰）
+  // shellSidebar 派生（§7.6）：暗态 layout 掺黑 22%（后退=更暗，不变式有机检）；
+  // 亮态暖纸画布（#F4F2ED）本身比旧近白底深一档，再掺灰会把 Amber/Moss 主色
+  // 压破 AA（实测 4.27~4.29:1）——亮态改向卡面提亮后退（纸面嵌纸，
+  // mixHex(layout,#fff,0.6)≈#fbfaf8），「侧栏后退，画布是主角」不变量两侧都成立。
   const layout = t.colorBgLayout!
-  const shellSidebar = darkMode ? mixHex(layout, "#000000", 0.22) : mixHex(layout, "#8a857c", 0.05)
+  const shellSidebar = darkMode ? mixHex(layout, "#000000", 0.22) : mixHex(layout, "#ffffff", 0.6)
   return { ...t, tertiaryContainer, onTertiaryContainer, shellSidebar } as ThemeTokens
 }
 

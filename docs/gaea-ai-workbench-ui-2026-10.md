@@ -312,3 +312,18 @@ CAD 与进度是**动词**——出现在输入框工具菜单、AI 工具卡、
 | TasksFirstHome | 不动——任务优先首页心智是「先处理收件箱」，能力 chips 是紧凑文本视图，工具直达不属其核心路径 |
 
 **验证**：`tsc -b` 绿；ESLint 0；定向 ModuleLauncher 13 例（含工具节新例：双通道事件+标记+导航断言、tile 三件套形态、板块断言 scope 化迁移）+ App.palette 源级守卫 5 例（含冷启补开双通道新例）= 18/18 绿；全量 vitest 见提交记录。
+
+## §15 第七刀：亮色暖纸全量落地（§7.6 销项，2026-10-29）
+
+用户拍板（连轮「继续」+两次菜单明示首选项后执行）落地 §7.6 留池「令牌映射暖纸面」。**派生层实现（同 §12 shellSidebar 先例，7×2 主题表零改动）**：
+
+| 项 | 落点 |
+|---|---|
+| 暖纸派生 | `appStore.ts` `warmPaper()`：亮态统一压 §5.1 原型暖纸底——画布 `#F4F2ED`/卡面 `#FBFAF7`（colorBgContainer 同步）/容器 `#EDEAE3`/正文 `#1E1C18`；容器三阶（High/Highest/Variant）与 Dim 由 mixHex 派生；glassBg 暖化 `rgba(251,250,247,0.55)`。accent/语义色/tertiary 容器/outline 保留各预设身份 |
+| aurora 重基底 | 预设色相辐条（radial）保留，仅 linear 基底换暖纸三停——否则渐变完整 background 值盖住画布映射 |
+| 侧栏后退转向 | 亮态 shellSidebar 从「掺 5% 暖灰」改「mixHex(layout,#fff,0.6) 向卡面提亮后退」——暖纸画布比旧近白底深一档，再掺灰把 Amber/Moss 主色压破 AA（实测 4.27~4.29:1）；暗态掺黑 22% 不变式不动（纸面嵌纸=亮态后退语义） |
+| 令牌契约 | `appStore.contrast.test`：AA 矩阵全预设×新底重算全过；tertiary 亮态锁值 #5b6472→**#67635c**（暖灰派生）；新增暖纸派生契约三例（全预设四值统一/暗态零触碰互异/aurora 辐条保留+暖纸基底） |
+
+**验证**：全量 vitest 4035/4035 + `tsc -b` 绿 + lint 零新增；真机走查（沙箱壳 CDP）：亮态画布 `rgb(244,242,237)`/卡面 `#FBFAF7`/容器 `#EDEAE3`/侧栏 `#fbfaf8` 计算样式全对 + 双态截图目检（.tmp/walk-warm-light.png / walk-jade-dark.png），暗态画布回 `#0a1014` 主题表原值=零触碰实证。exe 已重建含本刀。
+
+**已知边界**：本刀落在令牌层——个别 CSS 硬编码浅色底（非 var 消费方）不在映射面，实弹遇局部不随暖者逐处收编。
