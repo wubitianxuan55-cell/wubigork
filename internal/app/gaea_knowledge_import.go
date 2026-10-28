@@ -61,11 +61,22 @@ func (a *App) GaeaKnowledgeImportPreview(path string) (KnowledgeImportPreview, e
 	if err != nil {
 		return KnowledgeImportPreview{}, err
 	}
-	pv, err := knowledgeimport.Parse(abs, store)
+	pv, err := knowledgeimport.ParseProgress(abs, store, a.knowledgeImportProgress(abs))
 	if err != nil {
 		return KnowledgeImportPreview{}, err
 	}
 	return toKnowledgeImportPreview(pv, false), nil
+}
+
+// knowledgeImportProgress 构造逐页 OCR 进度回调：经统一 emit 通道广播
+// knowledge-import-progress 事件（uocr2 后扫描件导入长达分钟级/页，进度可见性；
+// 非 OCR 文档不回调不发事件；ctx 为空由 emit 自行短路）。
+func (a *App) knowledgeImportProgress(abs string) func(done, total int) {
+	return func(done, total int) {
+		a.emit("knowledge-import-progress", map[string]interface{}{
+			"path": abs, "done": done, "total": total,
+		})
+	}
 }
 
 // GaeaKnowledgeImportAIParse 用办公功能模型把文档/表格结构化（AI 提取），
@@ -78,7 +89,7 @@ func (a *App) GaeaKnowledgeImportAIParse(path string) (KnowledgeImportPreview, e
 	if a.clientRef() == nil {
 		return KnowledgeImportPreview{}, fmt.Errorf("模型服务不可用，请先配置办公功能模型")
 	}
-	text, err := knowledgeimport.ExtractText(abs)
+	text, err := knowledgeimport.ExtractTextProgress(abs, a.knowledgeImportProgress(abs))
 	if err != nil {
 		return KnowledgeImportPreview{}, err
 	}

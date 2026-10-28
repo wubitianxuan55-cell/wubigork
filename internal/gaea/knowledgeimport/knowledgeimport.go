@@ -59,6 +59,13 @@ type Preview struct {
 
 // ExtractText 提取文件文本（md/txt 原文；docx/pdf/xlsx/csv 转 Markdown）。
 func ExtractText(path string) (string, error) {
+	return ExtractTextProgress(path, nil)
+}
+
+// ExtractTextProgress 与 ExtractText 同口径；progress 在 PDF 逐页 OCR 时回调
+// (done, total)（docmd.ConvertLimitProgress 管道，长扫描件导入的进度可见性）。
+// md/txt/csv 直读不回调。
+func ExtractTextProgress(path string, progress func(done, total int)) (string, error) {
 	ext := strings.ToLower(filepath.Ext(path))
 	switch ext {
 	case ".md", ".markdown", ".txt", ".text":
@@ -68,7 +75,7 @@ func ExtractText(path string) (string, error) {
 		}
 		return string(b), nil
 	case ".docx", ".xlsx", ".xlsm", ".pdf", ".et", ".ods":
-		md, _, _, err := docmd.ConvertLimit(path, "", 50)
+		md, _, _, err := docmd.ConvertLimitProgress(path, "", 50, progress)
 		if err != nil {
 			return "", err
 		}
@@ -89,6 +96,11 @@ func ExtractText(path string) (string, error) {
 
 // Parse 解析文件为候选知识条目（store 可为 nil 跳过既有匹配）。
 func Parse(path string, store *knowledge.Store) (*Preview, error) {
+	return ParseProgress(path, store, nil)
+}
+
+// ParseProgress 与 Parse 同口径；progress 透传给 PDF 逐页 OCR 进度回调。
+func ParseProgress(path string, store *knowledge.Store, progress func(done, total int)) (*Preview, error) {
 	abs := path
 	if !filepath.IsAbs(path) {
 		if wd, err := os.Getwd(); err == nil {
@@ -120,7 +132,7 @@ func Parse(path string, store *knowledge.Store) (*Preview, error) {
 		pv.Rows = rows
 		pv.Message = "md/txt 直接入库，可在预览中修改分类/标题。"
 	case ".docx", ".pdf":
-		text, err := ExtractText(abs)
+		text, err := ExtractTextProgress(abs, progress)
 		if err != nil {
 			return nil, err
 		}

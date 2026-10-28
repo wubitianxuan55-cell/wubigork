@@ -3,6 +3,7 @@ import { Modal } from "antd";
 import { BookOpen, CloudUpload, Loader, Sparkles } from "../../icons";
 import { app } from "../../lib/bridge";
 import type { KnowledgeEntry, KnowledgeImportPreview, KnowledgeImportRow } from "../../lib/types";
+import { BACKEND_EVENTS, subscribe } from "../../../events";
 import { useToast } from "../Toast";
 
 const CATEGORIES = ["规范标准", "工程案例", "经验总结", "材料工艺", "法规政策", "调查报告", "设计方案", "其他"];
@@ -30,13 +31,28 @@ export function KnowledgeImportModal({
   const [aiLoading, setAiLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ocrProgress, setOcrProgress] = useState<{ done: number; total: number } | null>(null);
   const toast = useToast();
+
+  // 逐页 OCR 进度（uocr2 后扫描件导入分钟级/页）：后端在逐页识别时广播
+  // knowledge-import-progress；导入弹窗同时至多一个，事件不按 path 过滤。
+  useEffect(() => {
+    if (!open) return;
+    const unsub = subscribe(BACKEND_EVENTS.KNOWLEDGE_IMPORT_PROGRESS, (data) => {
+      const d = data as { done?: number; total?: number };
+      if (typeof d?.done === "number" && typeof d?.total === "number") {
+        setOcrProgress({ done: d.done, total: d.total });
+      }
+    });
+    return unsub;
+  }, [open]);
 
   useEffect(() => {
     if (!open || !path) return;
     setPreview(null);
     setRows([]);
     setError(null);
+    setOcrProgress(null);
     setLoading(true);
     app
       .KnowledgeImportPreview(path)
@@ -168,7 +184,9 @@ export function KnowledgeImportModal({
         <div className="mb-2 px-3 py-2 rounded-lg bg-bg-elev text-fg-dim text-[11.5px] flex items-center gap-2" role="status">
           <Loader size={13} className="animate-spin text-accent shrink-0" />
           <span>
-            AI 智能解析中… 正在读取文档并调用模型（通常 30 秒~2 分钟），请稍候。期间可随时点「取消」关闭。
+            {ocrProgress
+              ? `AI 智能解析中… 正在 OCR 识别（${ocrProgress.done}/${ocrProgress.total} 页），扫描件每页约 1 分钟。`
+              : "AI 智能解析中… 正在读取文档并调用模型（通常 30 秒~2 分钟），请稍候。期间可随时点「取消」关闭。"}
           </span>
         </div>
       ) : null}
@@ -191,7 +209,11 @@ export function KnowledgeImportModal({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="px-3 py-8 text-center text-fg-faint">解析中…</td>
+                <td colSpan={7} className="px-3 py-8 text-center text-fg-faint">
+                  {ocrProgress
+                    ? `正在 OCR 识别（${ocrProgress.done}/${ocrProgress.total} 页），扫描件每页约 1 分钟…`
+                    : "解析中…"}
+                </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>

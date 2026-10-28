@@ -6,7 +6,7 @@
  * 两套并存（§4.3），统一返回 () => void 卸载函数。
  */
 
-// ─── 后端事件（§4.1，23 个）────────────────────────────────────────────
+// ─── 后端事件（§4.1，27 个）────────────────────────────────────────────
 export const BACKEND_EVENTS = {
   /** 顶栏模型标签刷新（MainLayout） */
   MODEL_CHANGED: 'model-changed',
@@ -31,6 +31,8 @@ export const BACKEND_EVENTS = {
   NEW_CHARACTERS_DISCOVERED: 'new-characters-discovered',
   /** 角色批量填充进度（CharacterLibraryPage） */
   CHARACTER_FILL_PROGRESS: 'character-fill-progress',
+  /** 知识库导入逐页 OCR 进度（KnowledgeImportModal；uocr2 后扫描件导入分钟级/页） */
+  KNOWLEDGE_IMPORT_PROGRESS: 'knowledge-import-progress',
   /** 语音状态（useVoiceChat） */
   VOICE_STATE: 'voice:state',
   /** 语音识别文本 */
