@@ -168,7 +168,9 @@ func uocr2CleanText(raw string) string {
 	return strings.TrimSpace(s)
 }
 
-var blockMarkerRe = regexp.MustCompile(`<BLOCK>[^<]*<FORK>`)
+// blockMarkerRe 非贪婪行内匹配（. 不跨行）：坐标/内容段里出现任何 `<`（嵌套
+// 标签、模型回显）都会让 [^<]* 形态漏清洗——15 页全量实弹实证泄漏，故用 .*?。
+var blockMarkerRe = regexp.MustCompile(`<BLOCK>.*?<FORK>`)
 
 // uocr2BatchTimeout 单批请求超时：基座 180s + 每页 120s 裕量（CPU 实测约 60-80s/页，
 // 窗口越大线性增长；超时防呆不等价于服务端截断判定）。

@@ -45,6 +45,20 @@ func TestUocr2CleanTextDropsMalformedBlock(t *testing.T) {
 	}
 }
 
+// TestUocr2CleanTextNestedAngle 15 页全量实弹泄漏实证：BLOCK 与 FORK 之间出现
+// 任何 `<`（嵌套标签/模型回显）时 [^<]* 形态漏清洗——非贪婪 .*? 行内匹配收口。
+func TestUocr2CleanTextNestedAngle(t *testing.T) {
+	for _, raw := range []string{
+		"<BLOCK>table[1, <x]<FORK>内容",
+		"<BLOCK>t[a]<b>提示</b><FORK>内容",
+		"前缀<BLOCK>a[1]<i>x</i><FORK>后缀",
+	} {
+		if got := uocr2CleanText(raw); got != "内容" && got != "前缀后缀" {
+			t.Errorf("uocr2CleanText(%q) = %q, 标记应被剥净", raw, got)
+		}
+	}
+}
+
 // fakeUocr2Server 起 httptest 服务模拟 server.py：/health 探活 + /ocr 返回注入文本。
 func fakeUocr2Server(t *testing.T, status int, body string) *httptest.Server {
 	t.Helper()
