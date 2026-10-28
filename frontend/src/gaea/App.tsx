@@ -196,6 +196,11 @@ export default function App() {
   const [rightTab, setRightTab] = useState<WorkspaceTabId | null>(null);
   // 临时工具面板（CAD 看图/进度计划）：不是工作台、不占右栏 Tab；关闭即回对话。
   const [activeTool, setActiveTool] = useState<"cad" | "schedule" | null>(null);
+  // §7.3 检查器随工具：CAD 打开期间右栏切到图纸「依据」面（文本清单/符号统计）。
+  // 宿主元素经 ref callback 上报为 state——portal 目标变化（右栏开/关）实时反映到
+  // CadPanel（宿主在=portal 进右栏；宿主不在=回落 sheet 内联，行为与合并前一致）。
+  // （开合快照 effect 在 workspacePanelOpen 解构之后，见 setWorkspacePanel 声明处）
+  const [cadInspectorHost, setCadInspectorHost] = useState<HTMLDivElement | null>(null);
   // 深处组件（产物行/工具卡）请求打开工具面板：FRONTEND_EVENTS.OPEN_TOOL 单通道，
   // 与 setActiveTool 三入口同源。首页工具 tile（§7.5 刀6）是跨板例外：办公 App
   // 尚未懒加载挂载时事件无人听 → 挂载效应消费 sessionStorage 标记（OPEN_TOOL_FLAG）
@@ -269,6 +274,24 @@ export default function App() {
     previewWidth, previewMaximized, previewResizing, previewMaxWidth,
     togglePreviewMaximize, startPreviewResize,
   } = usePreviewPanel({ effectiveSidebarWidth, setRightTab, handleWorkspacePreviewModeChange });
+
+  // §7.3 工具开合时右栏开合快照：开 CAD 自动亮右栏（检查器要有地方住），关 CAD
+  // 还原打开前的开合态。只在工具「切换沿」动作一次，工具打开期间用户手动收放
+  // 右栏不被抢（收了右栏 → 检查器回落 sheet 内联，行为与合并前一致）。
+  const railOpenBeforeToolRef = useRef<boolean | null>(null);
+  const prevToolRef = useRef<string | null>(null);
+  useEffect(() => {
+    const became = prevToolRef.current !== activeTool;
+    prevToolRef.current = activeTool;
+    if (!became) return;
+    if (activeTool === "cad") {
+      railOpenBeforeToolRef.current = workspacePanelOpen;
+      if (!workspacePanelOpen) setWorkspacePanel(true);
+    } else if (railOpenBeforeToolRef.current !== null) {
+      if (railOpenBeforeToolRef.current !== workspacePanelOpen) setWorkspacePanel(railOpenBeforeToolRef.current);
+      railOpenBeforeToolRef.current = null;
+    }
+  }, [activeTool, workspacePanelOpen, setWorkspacePanel]);
 
   // 统一交付出口：会话成果一键导出（docx/pptx/xlsx/md/pdf 同管线；
   // pdf 经 docx 中转 + LibreOffice 转换）。
@@ -904,6 +927,7 @@ export default function App() {
                 <Suspense fallback={<div className="p-4 text-[12px] text-fg-dim">正在加载图纸工具…</div>}>
                   <CadPanel
                     variant="sheet"
+                    inspectorHost={cadInspectorHost}
                     onAsk={(text) => {
                       setActiveTool(null);
                       send(text);
@@ -1014,15 +1038,32 @@ export default function App() {
 
         {workspacePanelOpen && (
         <div className="workspace-pane flex flex-col min-w-0 overflow-hidden border-l border-border-soft bg-bg transition-all duration-200">
-          {/* pane 工作台：空态欢迎卡 → 点卡片开视图 tab；资源管理器内点文件
-              新增文件 tab（对标 better-sidebar；内容分发在 WorkspacePane 内） */}
-          <WorkspacePane
-            context={panelContext}
-            badges={tabBadges}
-            onActiveViewChange={(viewId) => {
-              if (viewId !== rightTab) setRightTab(viewId);
-            }}
-          />
+          {/* §7.3 检查器随工具：CAD 打开期间右栏整体切到图纸「依据」面（文本清单/
+              符号统计 portal 宿主），关工具回文件工作台——右栏本就是「随当前对象
+              变化的检查器」（设计原则 4）。进度工具不占：TaskInspector 抽屉交互已自洽。 */}
+          {activeTool === "cad" ? (
+            <div
+              className="cad-inspector-rail flex min-h-0 flex-1 flex-col overflow-hidden"
+              data-testid="cad-inspector-rail"
+            >
+              <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border-soft px-3 text-[12px] font-medium text-fg-dim">
+                <Layers size={12} aria-hidden />
+                <span>图纸检查器</span>
+                <span className="ml-auto text-[10px] text-fg-faint">文本清单 · 符号统计</span>
+              </div>
+              <div ref={setCadInspectorHost} className="min-h-0 flex-1 overflow-auto" />
+            </div>
+          ) : (
+            // pane 工作台：空态欢迎卡 → 点卡片开视图 tab；资源管理器内点文件
+            // 新增文件 tab（对标 better-sidebar；内容分发在 WorkspacePane 内）
+            <WorkspacePane
+              context={panelContext}
+              badges={tabBadges}
+              onActiveViewChange={(viewId) => {
+                if (viewId !== rightTab) setRightTab(viewId);
+              }}
+            />
+          )}
           {/* 宽度拖拽手柄：复用 preview-resizer 悬停/激活样式，absolute 贴左缘 */}
           <div
             className={`preview-resizer ${workspaceResizing ? "is-active" : ""}`}

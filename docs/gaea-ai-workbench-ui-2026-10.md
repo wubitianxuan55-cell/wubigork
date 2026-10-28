@@ -256,7 +256,29 @@ CAD 与进度是**动词**——出现在输入框工具菜单、AI 工具卡、
 | cadToolCache（§7.3 尾） | `gaea/components/cad/cadToolCache.ts`：解析产物按 path 缓存（模块级单例，cadRecent 同款）。ToolSheet 关闭卸载 CadPanel 后 openRes/raster/texts/count 留存，重开（最近图纸/重复导入）零 CadOpen/CadRaster/CadTexts/CadCount 调用。图纸只读红线→无失效需求；内存节制：raster 仅缓存默认宽度渲图（ASK_WIDTH 加宽图不缓存）、每文件 3 张 LRU、8 文件 LRU。CadPanel 六处接线（load 命中短路/open/raster/texts/count 落/handoff 内联落），代际竞态守卫原样生效 |
 | 空态工具区（§6.4） | `Welcome` 新增工具节（能力卡后）：CAD 看图/进度计划两 tile，点击开 ToolSheet 不导航；`onOpenTool` 缺省整节不渲染（宿主可选接线）；Transcript/App 穿线；三语 5 键（welcome.tools*） |
 | 挂拍板池 | §7.5 首页 12 模块卡改造——首页形态是 v4.476 刚拍板的极简化（模块卡极简化保留全卡），且 doc/sheet 工具 tile 无 ToolSheet kind 支撑；改首页与既有拍板有张力，提请拍板后再动（**2026-10-26 用户拍板执行，落地见 §13**） |
-| 留池 | 工具面板与右栏检查器合并（§7.4 尾，需 CadPanel 拆 CadTool/CadInspector 状态上移，建议真机走查后按体感定）；§7.6 令牌映射暖纸面 |
+| 留池 | ~~工具面板与右栏检查器合并~~ → **2026-10-28 已落（CAD 侧，见 §14）**；§7.6 令牌映射暖纸面（需单独拍板） |
+
+## §14 检查器随工具（2026-10-28，CAD 侧）
+
+用户「继续」拍板续池。落法与 §7.3 假设不同：**不做 CadTool/CadInspector 状态上移**
+（15+ useState+6 ref 代际竞态守卫是大手术），改走 **portal**——CadPanel 状态与回调
+零上移，检查器节点（文本清单+符号统计）经 `createPortal` 渲染进右栏宿主。
+
+- `CadPanel` 新 prop `inspectorHost?: HTMLElement | null`：宿主在挂 → 检查器 portal
+  进右栏，sheet 画布区 3 栏变 2 栏（`data-inspector="external"`）；宿主不在（右栏
+  收起/pane 变体）回落内联=与合并前 DOM 完全一致。右栏收放实时跟随（宿主 ref
+  callback → App state → prop）。
+- `App.tsx`：右栏在 `activeTool==='cad'` 期间整体切「图纸检查器」宿主（设计原则 4
+  「右栏随当前对象变化」的第一次真实发生）；开 CAD 自动亮右栏、关 CAD 还原打开前
+  开合态（快照只在工具切换沿动作一次，打开期间用户手动收放不被抢）。
+- **进度工具不参与**：TaskInspector 抽屉（右键行→抽屉+what-if）交互已自洽，硬搬
+  右栏是负收益——§7.4 尾的「ScheduleInspector」判定不做，销号。
+- 行为锁：`CadPanel.portal.test.tsx` 2 例（宿主在挂=检查器住右栏+sheet external；
+  宿主撤走=回落内联 inline）；既有 CadPanel.test/cache/race 30 例零编辑复绿
+  （无宿主=内联=合并前）。空态 CTA 补 `cad-import-empty` testid（sheet 空态无
+  cad-import 钮；测试按 testid 不按文案——测试里 LocaleProvider 落过英文）。
+- 已知边界：ToolSheet 焦点陷阱只圈 sheet 本体，右栏检查器的钮鼠标可达、键盘 Tab
+  不可达（辅助面，接受；如需闭合再把宿主纳入 trap 语境）。
 
 **验证**：`tsc -b` 绿；ESLint 0；全量 vitest 3997/3997（cad 20 例含缓存 6 新例；既有「卸载重挂一键重开」用例断言随新语义同批迁移=重开后 CadOpen 不再二次调用；Welcome 6 例含工具节 2 新例）。
 

@@ -64,6 +64,26 @@
   padding-left: 10px;
   border-left: 1px solid var(--md-sys-color-border);
 }
+/* §7.3 检查器随工具：宿主在挂时检查器 portal 进右栏，画布区 3 栏变 2 栏 */
+.cad-panel--sheet[data-inspector="external"] {
+  grid-template-columns: 190px minmax(0, 1fr);
+}
+/* portal 进右栏的检查器：脱离 .cad-panel--sheet 作用域，由右栏宿主容器给纵向布局 */
+.cad-inspector-rail .cad-inspector {
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+}
+.cad-inspector-rail .cad-section {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--md-sys-color-border);
+}
+.cad-inspector-rail .cad-section:last-child {
+  border-bottom: 0;
+}
 .cad-panel--sheet .cad-canvas {
   flex: 1;
   min-height: 0;

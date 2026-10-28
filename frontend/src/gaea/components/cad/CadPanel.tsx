@@ -4,6 +4,8 @@
 // 红线（docs/gaea-cad-tool-master-plan-2026-10.md）：三绑定只读零写入；
 // 「问图纸」复用 RecognizeImage 零新绑定；图纸与提取结果不入库。
 import { useCallback, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Alert, Button, Input, Spin, Tag } from "antd";
 import { useT } from "../../lib/i18n";
 import { Layers } from "../../icons";
@@ -44,7 +46,7 @@ function reportCadError(where: string, e: unknown): void {
   }
 }
 
-export function CadPanel({ onAsk, variant = "pane" }: { onAsk?: (text: string) => void; variant?: "pane" | "sheet" }) {
+export function CadPanel({ onAsk, variant = "pane", inspectorHost = null }: { onAsk?: (text: string) => void; variant?: "pane" | "sheet"; /** §7.3 检查器随工具：右栏宿主在挂时，文本/统计两段 portal 进右栏（画布区 3 栏变 2 栏）；宿主不在（右栏收起/pane 变体）回落内联——状态与回调全在本组件，零上移 */ inspectorHost?: HTMLElement | null }) {
   const t = useT();
   const [file, setFile] = useState<{ path: string; name: string } | null>(null);
   const [openRes, setOpenRes] = useState<CadOpenResult | null>(null);
@@ -496,170 +498,11 @@ export function CadPanel({ onAsk, variant = "pane" }: { onAsk?: (text: string) =
     return texts.texts.filter((x) => x.sheet === sheet || x.sheet === 0);
   }, [texts, sheet]);
 
-  return (
-    <div
-      data-testid="cad-panel"
-      data-variant={variant}
-      className={`cad-panel ${variant === "sheet" ? "cad-panel--sheet" : "cad-panel--pane"} h-full min-h-0 gap-2 p-2 text-[12px]`}
-    >
-      <div className="cad-head">
-        <div className="cad-import-row flex items-center gap-2">
-          {(variant === "pane" || file) && (
-            <Button
-              size="small"
-              data-testid="cad-import"
-              disabled={busy || askBusy}
-              onClick={() => void import_()}
-            >
-              {t("cad.import")}
-            </Button>
-          )}
-          {file && <span className="truncate text-fg-dim" title={file.path}>{file.name}</span>}
-        </div>
-        {(variant === "pane" || file) && <div className="cad-hint text-[11px] text-fg-dim">{t("cad.importHint")}</div>}
-        {recent.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1" data-testid="cad-recent">
-            <span className="text-[11px] text-fg-dim">{t("cad.recent")}</span>
-            {recent.map((r) => (
-              <Button
-                key={r.path}
-                size="small"
-                type={r.path === file?.path ? "primary" : "default"}
-                data-testid={`cad-recent-${r.name}`}
-                title={r.path}
-                disabled={busy || askBusy}
-                onClick={() => void load(r.path, r.name)}
-              >
-                {r.name}
-              </Button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="cad-alerts">
-        {busy && <Spin size="small" />}
-        {error && (
-          <Alert
-            type="error"
-            showIcon
-            message={`${t(`cad.error.${errorKind}`)}：${error}`}
-            data-testid="cad-error"
-          />
-        )}
-        {openRes?.warnings.map((w, i) => (
-          <Alert key={i} type="warning" showIcon message={w} />
-        ))}
-      </div>
-
-      {!file && !busy && (
-        <div className="cad-empty">
-          <div className="cad-empty-mark"><Layers size={20} /></div>
-          <b>打开一张图纸</b>
-          <p>{t("cad.emptyHint")}</p>
-          <Button type="primary" size="small" onClick={() => void import_()}>{t("cad.import")}</Button>
-          <span>支持 DWG / DXF / PDF · 解析与分幅全程本地</span>
-        </div>
-      )}
-
-      {openRes && (
-        <>
-          <div className="cad-side">
-            <div className="text-[11px] text-fg-dim flex flex-wrap gap-x-2">
-              <Tag>{openRes.kind.toUpperCase()}</Tag>
-              <span>{openRes.entityCount} 实体</span>
-              <span>{openRes.textCount} 文本</span>
-              <span title={openRes.layers.join("、")}>{t("cad.layers", { count: openRes.layers.length })}</span>
-            </div>
-
-            <div className="flex flex-wrap gap-1" data-testid="cad-sheets">
-              {openRes.sheets.map((s, i) => (
-                <Button
-                  key={i}
-                  size="small"
-                  type={i + 1 === sheet ? "primary" : "default"}
-                  data-testid={`cad-sheet-${i + 1}`}
-                  title={s.passRate >= 0 ? t("cad.sheetQuality", { rate: s.passRate.toFixed(2) }) : s.name}
-                  disabled={askBusy}
-                  onClick={() => selectSheet(i + 1)}
-                >
-                  {s.name || `#${i + 1}`}
-                  {s.passRate >= 0.3 && s.passRate < 0.5 ? "!" : ""}
-                </Button>
-              ))}
-            </div>
-          </div>
-
-          <div className="cad-main">
-            {raster && (
-              <div className="cad-canvas">
-                <div className="flex justify-between items-center">
-                  <span className="text-[11px] text-fg-dim">
-                    {openRes.sheets[sheet - 1]?.passRate >= 0
-                      ? t("cad.sheetQuality", { rate: (openRes.sheets[sheet - 1].passRate ?? 0).toFixed(2) })
-                      : ""}
-                  </span>
-                  <a
-                    data-testid="cad-rerender"
-                    className="text-[11px] cursor-pointer"
-                    aria-disabled={askBusy}
-                    onClick={() => !askBusy && file && void fetchRaster(file.path, sheet, ASK_WIDTH)}
-                  >
-                    {t("cad.rerender")}
-                  </a>
-                </div>
-                <img
-                  data-testid="cad-raster-img"
-                  src={raster.dataUrl}
-                  alt={openRes.sheets[sheet - 1]?.name ?? ""}
-                  className="cad-raster max-h-[38vh] object-contain border border-border-soft rounded bg-white"
-                />
-              </div>
-            )}
-
-            <div className="cad-ask flex flex-col gap-1">
-              <div className="flex gap-1">
-                <Input
-                  size="small"
-                  data-testid="cad-ask-input"
-                  placeholder={t("cad.askPlaceholder") ?? ""}
-                  value={question}
-                  onChange={(e) => setQuestion(e.target.value)}
-                  onPressEnter={() => void ask()}
-                  disabled={!file}
-                />
-                <Button
-                  size="small"
-                  type="primary"
-                  data-testid="cad-ask-btn"
-                  loading={askBusy}
-                  disabled={!file || !question.trim()}
-                  onClick={() => void ask()}
-                >
-                  {t("cad.ask")}
-                </Button>
-              </div>
-              {answer && (
-                <Alert
-                  data-testid="cad-answer"
-                  type="info"
-                  message={
-                    <div className="flex flex-col gap-1 whitespace-pre-wrap">
-                      <b>{t("cad.askAnswer")}</b>
-                      <div>{answer}</div>
-                      {onAsk && (
-                        <a data-testid="cad-ask-send" className="cursor-pointer" onClick={sendToChat}>
-                          {t("cad.askSend")}
-                        </a>
-                      )}
-                    </div>
-                  }
-                />
-              )}
-            </div>
-          </div>
-
-          <div className="cad-inspector">
+  // §7.3 检查器随工具（docs/gaea-ai-workbench-ui-2026-10.md）：文本清单+符号统计是
+  // 图纸的「依据」面——右栏宿主在挂时 portal 进右栏（sheet 画布区 3 栏变 2 栏），
+  // 宿主不在（右栏收起/pane 变体）回落内联。状态与回调零上移，portal 保 React 树。
+  const inspectorNode: ReactNode = openRes ? (
+      <div className="cad-inspector" data-testid="cad-inspector">
             <div className="cad-section flex flex-col gap-1 min-h-0">
               {texts ? (
                 <div className="min-h-0 overflow-auto" data-testid="cad-texts">
@@ -761,7 +604,173 @@ export function CadPanel({ onAsk, variant = "pane" }: { onAsk?: (text: string) =
                 </div>
               )}
             </div>
+      </div>
+  ) : null;
+  return (
+    <div
+      data-testid="cad-panel"
+      data-variant={variant}
+      data-inspector={inspectorHost ? "external" : "inline"}
+      className={`cad-panel ${variant === "sheet" ? "cad-panel--sheet" : "cad-panel--pane"} h-full min-h-0 gap-2 p-2 text-[12px]`}
+    >
+      <div className="cad-head">
+        <div className="cad-import-row flex items-center gap-2">
+          {(variant === "pane" || file) && (
+            <Button
+              size="small"
+              data-testid="cad-import"
+              disabled={busy || askBusy}
+              onClick={() => void import_()}
+            >
+              {t("cad.import")}
+            </Button>
+          )}
+          {file && <span className="truncate text-fg-dim" title={file.path}>{file.name}</span>}
+        </div>
+        {(variant === "pane" || file) && <div className="cad-hint text-[11px] text-fg-dim">{t("cad.importHint")}</div>}
+        {recent.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1" data-testid="cad-recent">
+            <span className="text-[11px] text-fg-dim">{t("cad.recent")}</span>
+            {recent.map((r) => (
+              <Button
+                key={r.path}
+                size="small"
+                type={r.path === file?.path ? "primary" : "default"}
+                data-testid={`cad-recent-${r.name}`}
+                title={r.path}
+                disabled={busy || askBusy}
+                onClick={() => void load(r.path, r.name)}
+              >
+                {r.name}
+              </Button>
+            ))}
           </div>
+        )}
+      </div>
+
+      <div className="cad-alerts">
+        {busy && <Spin size="small" />}
+        {error && (
+          <Alert
+            type="error"
+            showIcon
+            message={`${t(`cad.error.${errorKind}`)}：${error}`}
+            data-testid="cad-error"
+          />
+        )}
+        {openRes?.warnings.map((w, i) => (
+          <Alert key={i} type="warning" showIcon message={w} />
+        ))}
+      </div>
+
+      {!file && !busy && (
+        <div className="cad-empty">
+          <div className="cad-empty-mark"><Layers size={20} /></div>
+          <b>打开一张图纸</b>
+          <p>{t("cad.emptyHint")}</p>
+          <Button type="primary" size="small" data-testid="cad-import-empty" onClick={() => void import_()}>{t("cad.import")}</Button>
+          <span>支持 DWG / DXF / PDF · 解析与分幅全程本地</span>
+        </div>
+      )}
+
+      {openRes && (
+        <>
+          <div className="cad-side">
+            <div className="text-[11px] text-fg-dim flex flex-wrap gap-x-2">
+              <Tag>{openRes.kind.toUpperCase()}</Tag>
+              <span>{openRes.entityCount} 实体</span>
+              <span>{openRes.textCount} 文本</span>
+              <span title={openRes.layers.join("、")}>{t("cad.layers", { count: openRes.layers.length })}</span>
+            </div>
+
+            <div className="flex flex-wrap gap-1" data-testid="cad-sheets">
+              {openRes.sheets.map((s, i) => (
+                <Button
+                  key={i}
+                  size="small"
+                  type={i + 1 === sheet ? "primary" : "default"}
+                  data-testid={`cad-sheet-${i + 1}`}
+                  title={s.passRate >= 0 ? t("cad.sheetQuality", { rate: s.passRate.toFixed(2) }) : s.name}
+                  disabled={askBusy}
+                  onClick={() => selectSheet(i + 1)}
+                >
+                  {s.name || `#${i + 1}`}
+                  {s.passRate >= 0.3 && s.passRate < 0.5 ? "!" : ""}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          <div className="cad-main">
+            {raster && (
+              <div className="cad-canvas">
+                <div className="flex justify-between items-center">
+                  <span className="text-[11px] text-fg-dim">
+                    {openRes.sheets[sheet - 1]?.passRate >= 0
+                      ? t("cad.sheetQuality", { rate: (openRes.sheets[sheet - 1].passRate ?? 0).toFixed(2) })
+                      : ""}
+                  </span>
+                  <a
+                    data-testid="cad-rerender"
+                    className="text-[11px] cursor-pointer"
+                    aria-disabled={askBusy}
+                    onClick={() => !askBusy && file && void fetchRaster(file.path, sheet, ASK_WIDTH)}
+                  >
+                    {t("cad.rerender")}
+                  </a>
+                </div>
+                <img
+                  data-testid="cad-raster-img"
+                  src={raster.dataUrl}
+                  alt={openRes.sheets[sheet - 1]?.name ?? ""}
+                  className="cad-raster max-h-[38vh] object-contain border border-border-soft rounded bg-white"
+                />
+              </div>
+            )}
+
+            <div className="cad-ask flex flex-col gap-1">
+              <div className="flex gap-1">
+                <Input
+                  size="small"
+                  data-testid="cad-ask-input"
+                  placeholder={t("cad.askPlaceholder") ?? ""}
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  onPressEnter={() => void ask()}
+                  disabled={!file}
+                />
+                <Button
+                  size="small"
+                  type="primary"
+                  data-testid="cad-ask-btn"
+                  loading={askBusy}
+                  disabled={!file || !question.trim()}
+                  onClick={() => void ask()}
+                >
+                  {t("cad.ask")}
+                </Button>
+              </div>
+              {answer && (
+                <Alert
+                  data-testid="cad-answer"
+                  type="info"
+                  message={
+                    <div className="flex flex-col gap-1 whitespace-pre-wrap">
+                      <b>{t("cad.askAnswer")}</b>
+                      <div>{answer}</div>
+                      {onAsk && (
+                        <a data-testid="cad-ask-send" className="cursor-pointer" onClick={sendToChat}>
+                          {t("cad.askSend")}
+                        </a>
+                      )}
+                    </div>
+                  }
+                />
+              )}
+            </div>
+          </div>
+
+          {inspectorHost ? (inspectorNode && createPortal(inspectorNode, inspectorHost)) : inspectorNode}
         </>
       )}
     </div>
