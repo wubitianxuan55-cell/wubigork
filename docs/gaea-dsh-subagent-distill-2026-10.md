@@ -143,7 +143,7 @@ deny=移除该键」，防 `allow: []` 默认值把所有工具静默清空）�
 | P1-D | `subagent_list` 模型面枚举 | §4 | 新工具读 SubagentStore meta（ref/标题/状态/调用数），配合 steer/continue_from 闭环；注册进父注册表、元工具剔除清单同步 | 中 |
 | P2-E | send_message 邻接双向/idle-wake/冷恢复投递 | §2 | 需常驻概念重构，等长跑子代理真实需求；归因分离纪律随行 | 大 |
 | P2-F | per-call 模型路由+route preflight | §6 | 等真实多模型路由需求 | 中 |
-| P2-G | 委派深度记账（单调持久教训随行） | §5 | 等可配置 N 层需求 | 中 |
+| P2-G | 委派深度记账（单调持久教训随行） | §5 | **辨伪销号（2026-10-29，代码证据）**：gaea 用注册表剔除元工具表达一层深不变式（task.go:527 FilterRegistry 排除 SubagentMetaTools；continue_from 不回注），**深度恒=1、无递归面**——N 层记账对当前架构无实义；不变式有守卫钉住（TestSubagentMetaToolsExcludeControlPlane+task_test+tool_names_guard）。若未来开嵌套派生（新能力，需单独拍板），深度记账随行落地（§5 单调持久教训：transcript 侧车记 depth，续跑不得归零） | — |
 
 > 落地纪律提醒：P0-A/P1-D 是**新工具**（注册表面，非 Wails 绑定面），但前端 `tool_icons.ts`/`tools.ts`
 > 的 subjectOf/summarize 需同步认领（不认领则走 Wrench 通用图标+空摘要，功能不坏）；P0-B 申报行为变化
