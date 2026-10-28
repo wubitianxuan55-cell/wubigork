@@ -137,11 +137,11 @@ describe('亮色暖纸派生（§7.6）', () => {
   it('全预设亮态：画布/卡面/容器/正文 = 原型暖纸四值', () => {
     for (const preset of PRESETS) {
       const t = getThemeTokens(preset, false)
-      expect(t.colorBgLayout, `${preset}L colorBgLayout`).toBe('#F4F2ED')
-      expect(t.surface, `${preset}L surface`).toBe('#FBFAF7')
-      expect(t.colorBgContainer, `${preset}L colorBgContainer`).toBe('#FBFAF7')
-      expect(t.surfaceContainer, `${preset}L surfaceContainer`).toBe('#EDEAE3')
-      expect(t.colorText, `${preset}L colorText`).toBe('#1E1C18')
+      expect(t.colorBgLayout, `${preset}L colorBgLayout`).toBe('#F4F2ED') // hex-exempt 暖纸契约锁值
+      expect(t.surface, `${preset}L surface`).toBe('#FBFAF7') // hex-exempt 暖纸契约锁值
+      expect(t.colorBgContainer, `${preset}L colorBgContainer`).toBe('#FBFAF7') // hex-exempt 暖纸契约锁值
+      expect(t.surfaceContainer, `${preset}L surfaceContainer`).toBe('#EDEAE3') // hex-exempt 暖纸契约锁值
+      expect(t.colorText, `${preset}L colorText`).toBe('#1E1C18') // hex-exempt 暖纸契约锁值
     }
   })
 
