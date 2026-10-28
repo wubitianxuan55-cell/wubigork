@@ -58,7 +58,8 @@ type CostMethods = Pick<
   | "WorkcostQuotaCompose" | "WorkcostQuotaComposeMany" | "WorkcostProjectFees"
   | "WorkcostSeedPreview" | "WorkcostSeedApply" | "WorkcostRecompose"
   | "WorkcostProjectParse" | "WorkcostProjectApply" | "WorkcostProjectExport" | "WorkcostProjectExportToWorkspace"
-  | "WorkcostBillProjects" | "WorkcostBillItems" | "WorkcostBillProjectRatesSave"
+  | "WorkcostBillProjects" | "WorkcostBillItems" | "WorkcostBillItemSave" | "WorkcostBillItemDelete"
+  | "WorkcostBillProjectRatesSave"
   | "WorkcostBillProjectDelete"
   | "WorkcostBillQuotaLinks" | "WorkcostBillQuotaAttach" | "WorkcostBillQuotaDetach"
 >;
@@ -827,6 +828,40 @@ export function buildCost(_s: MakeMockState): CostMethods {
     async WorkcostBillItems(projectId: number): Promise<WorkcostBillItem[]> {
       ensureWorkcostSeed();
       return mockBillItems.filter((b) => b.projectId === projectId);
+    },
+    async WorkcostBillItemSave(item: WorkcostBillItem): Promise<WorkcostBillItem> {
+      ensureWorkcostSeed();
+      const title = item.title.trim();
+      if (!title) throw new Error("清单项需要名称");
+      if (item.projectId <= 0) throw new Error("清单项需要归属项目");
+      let code = item.code.trim();
+      if (!code) {
+        let maxSeq = 0;
+        for (const b of mockBillItems) {
+          if (b.projectId !== item.projectId) continue;
+          const m = /^M(\d{3})$/.exec(b.code);
+          if (m) maxSeq = Math.max(maxSeq, Number(m[1]));
+        }
+        code = `M${String(maxSeq + 1).padStart(3, "0")}`;
+      }
+      const existing = mockBillItems.find((b) => b.projectId === item.projectId && b.code === code);
+      if (existing) {
+        Object.assign(existing, { ...item, id: existing.id, code, title });
+        return existing;
+      }
+      const saved: WorkcostBillItem = {
+        ...item,
+        id: mockBillSeq++,
+        code,
+        title,
+        quotaCodes: item.quotaCodes ?? [],
+      };
+      mockBillItems.push(saved);
+      return saved;
+    },
+    async WorkcostBillItemDelete(id: number): Promise<void> {
+      mockBillItems = mockBillItems.filter((b) => b.id !== id);
+      delete mockBillLinks[id];
     },
     async WorkcostBillQuotaLinks(billItemId: number): Promise<WorkcostBillQuotaLink[]> {
       return (mockBillLinks[billItemId] ?? []).slice().sort((a, b) => a.sort - b.sort);

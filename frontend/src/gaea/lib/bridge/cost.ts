@@ -249,6 +249,11 @@ export interface CostBindings {
   WorkcostBillProjects(): Promise<WorkcostBillProject[]>;
   // WorkcostBillItems 某项目的分部分项清单。
   WorkcostBillItems(projectId: number): Promise<WorkcostBillItem[]>;
+  // WorkcostBillItemSave 新增/更新一条清单项（同项目同编码走更新；code 空
+  // 自动生成 M 序号）。工程量与引用定额都是录入数据——合价导出时由 Excel 算。
+  WorkcostBillItemSave(item: WorkcostBillItem): Promise<WorkcostBillItem>;
+  // WorkcostBillItemDelete 删除一条清单项（1:N 定额挂接引用随行清理）。
+  WorkcostBillItemDelete(id: number): Promise<void>;
   // WorkcostBillProjectRatesSave 保存项目费率（录入数据）。
   WorkcostBillProjectRatesSave(
     id: number,

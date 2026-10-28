@@ -141,7 +141,14 @@ func (s *Store) SaveBillItem(item BillItem) (BillItem, error) {
 		item.ID = existing
 		_, err = s.db.Exec(`UPDATE gf_bill_items SET title=?, unit=?, division=?, quantity=?, quantity_expr=?, quota_code=?, feature=?, price_override=?, sort=? WHERE id=?`,
 			item.Title, item.Unit, item.Division, item.Quantity, item.QuantityExpr, item.QuotaCode, item.Feature, item.PriceOverride, item.Sort, existing)
-		return item, err
+		if err != nil {
+			return item, err
+		}
+		// 返回值按绑定面契约构造即非 nil（nil 切片 JSON null 崩前端）。
+		if item.QuotaCodes == nil {
+			item.QuotaCodes = []string{}
+		}
+		return item, nil
 	}
 	if !strings.Contains(err.Error(), "no rows") {
 		return item, err
@@ -159,6 +166,9 @@ func (s *Store) SaveBillItem(item BillItem) (BillItem, error) {
 		return item, err
 	}
 	item.ID, _ = res.LastInsertId()
+	if item.QuotaCodes == nil {
+		item.QuotaCodes = []string{}
+	}
 	return item, nil
 }
 
@@ -194,13 +204,25 @@ func (s *Store) nextBillCode(projectID int64) (int, error) {
 	return maxSeq + 1, rows.Err()
 }
 
-// DeleteBillItem 删除一条清单项。
+// DeleteBillItem 删除一条清单项，连同其在 gf_bill_quota_links 的定额挂接
+// （1:N 引用随清单项消亡；V30 后不清理会留孤儿引用，该清单 ID 复用或
+// 导出聚合时复活成幽灵定额）。
 func (s *Store) DeleteBillItem(id int64) error {
 	if err := s.requireDB(); err != nil {
 		return err
 	}
-	_, err := s.db.Exec(`DELETE FROM gf_bill_items WHERE id=?`, id)
-	return err
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.Exec(`DELETE FROM gf_bill_quota_links WHERE bill_item_id=?`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM gf_bill_items WHERE id=?`, id); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // BillItems 项目的清单（按 sort, id 稳定序）。
@@ -296,7 +318,10 @@ func (s *Store) DeleteBillProject(id int64) (int, error) {
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	// ① 清单项。
+	// ① 清单项（1:N 定额挂接引用随清单项一并清理，防孤儿）。
+	if _, err := tx.Exec(`DELETE FROM gf_bill_quota_links WHERE bill_item_id IN (SELECT id FROM gf_bill_items WHERE project_id=?)`, id); err != nil {
+		return 0, err
+	}
 	if _, err := tx.Exec(`DELETE FROM gf_bill_items WHERE project_id=?`, id); err != nil {
 		return 0, err
 	}

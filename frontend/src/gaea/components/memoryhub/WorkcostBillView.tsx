@@ -5,9 +5,13 @@
 // 项目使用的属性不在本视图；项目文件的导入/费率/删除在「造价参考」的项目
 // 案例区。综合单价按当前资源价现算（参考口径），加总由导出的五表活公式算。
 //
+// 行级维护（2026-10-28）：编辑/删除/手工新增——清单项是录入数据随时可改；
+// 新增的项目归属在弹窗内选定（编码留空后端自动 M 序号），删除随行清定额挂接。
+// 手填行点行开综合单价分析=未套定额行挂定额的入口。
+//
 // 三层关系：工料机=资源价格 → 定额=每单位消耗 → 清单=工程实体分项（套定额）。
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ListTree, RefreshCw, Search, X } from "../../icons";
+import { ListTree, Pencil, Plus, RefreshCw, Search, Trash2, X } from "../../icons";
 import { app } from "../../lib/bridge";
 import type { WorkcostBillItem, WorkcostBillProject, WorkcostBillQuotaLink, WorkcostCompose, WorkcostQuota } from "../../lib/types";
 
@@ -52,6 +56,12 @@ export function WorkcostBillView() {
   const [toast, setToast] = useState("");
   // 清单分析：点清单行打开该清单项的综合单价分析（按挂接定额分组，1:N）。
   const [analyzeItem, setAnalyzeItem] = useState<WorkcostBillItem | null>(null);
+  // 行级维护：编辑弹窗 / 删除确认（录入数据随时可改，v4.526）；手工新增
+  // （项目归属语义：弹窗内选归属项目，v4.465 留池销号）。
+  const [editing, setEditing] = useState<BillRowItem | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<BillRowItem | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [busy, setBusy] = useState(false);
   // 参考价批量缓存：一次 ComposeMany（key=定额编码），替代每行一次核算——
   // 逐行调用在 63 行清单上=63 次全资源扫描，真机首屏 longtask ~700ms。
   const [refPrices, setRefPrices] = useState<Record<string, number>>({});
@@ -103,6 +113,43 @@ export function WorkcostBillView() {
     setProjects(projs);
     await loadItems(projs);
   }, [loadItems]);
+
+  // saveItem 行级编辑保存（同项目同编码走更新）与手工新增（code 空后端自动
+  // M 序号）；删除随行清定额挂接（后端口径）。
+  const saveItem = useCallback(
+    async (item: WorkcostBillItem) => {
+      setBusy(true);
+      try {
+        await app.WorkcostBillItemSave(item);
+        setEditing(null);
+        setCreating(false);
+        await reload();
+        setToast(`${item.id ? "已保存" : "已新增"}清单项「${item.title}」`);
+      } catch (e) {
+        setToast(`保存失败：${e instanceof Error ? e.message : String(e)}`);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [reload],
+  );
+
+  const removeItem = useCallback(
+    async (item: WorkcostBillItem) => {
+      setBusy(true);
+      try {
+        await app.WorkcostBillItemDelete(item.id);
+        setConfirmDelete(null);
+        await reload();
+        setToast(`已删除清单项「${item.title}」（定额挂接随行清理）`);
+      } catch (e) {
+        setToast(`删除失败：${e instanceof Error ? e.message : String(e)}`);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [reload],
+  );
 
   useEffect(() => {
     loadProjects();
@@ -187,6 +234,17 @@ export function WorkcostBillView() {
             按库项归并
           </button>
         </div>
+        {projects.length > 0 && (
+          <button
+            type="button"
+            className={solidBtn}
+            data-testid="workcost-bill-add"
+            title="手工新增一条清单项（归属项目在弹窗内选定；编码留空自动 M 序号）"
+            onClick={() => setCreating(true)}
+          >
+            <Plus size={12} /> 新增清单项
+          </button>
+        )}
         <button type="button" className={ghostBtn + " ml-auto"} onClick={reload} title="刷新">
           <RefreshCw size={12} />
         </button>
@@ -278,11 +336,20 @@ export function WorkcostBillView() {
                     <th className="py-2 px-2 w-14">单位</th>
                     <th className="py-2 px-2 w-24">引用定额</th>
                     <th className="py-2 px-2 w-24 text-right">单价参考</th>
+                    <th className="py-2 px-2 w-16 text-right">操作</th>
                   </tr>
                 </thead>
                 <tbody>
                   {visible.map((it) => (
-                    <BillRow key={it.id} item={it} showProject={!selected} onAnalyze={setAnalyzeItem} refPrice={it.quotaCode ? refPrices[it.quotaCode] : undefined} />
+                    <BillRow
+                      key={it.id}
+                      item={it}
+                      showProject={!selected}
+                      onAnalyze={setAnalyzeItem}
+                      onEdit={setEditing}
+                      onDelete={setConfirmDelete}
+                      refPrice={it.quotaCode ? refPrices[it.quotaCode] : undefined}
+                    />
                   ))}
                 </tbody>
               </table>
@@ -328,6 +395,14 @@ export function WorkcostBillView() {
                                 {it.quotaCode}
                               </button>
                             )}
+                            <span className={`flex items-center gap-1 ${it.quotaCode ? "" : "ml-auto"} shrink-0`}>
+                              <button type="button" className={iconBtn} title={`编辑「${it.title}」`} onClick={() => setEditing(it)}>
+                                <Pencil size={10} />
+                              </button>
+                              <button type="button" className={`${iconBtn} hover:text-err`} title={`删除「${it.title}」`} onClick={() => setConfirmDelete(it)}>
+                                <Trash2 size={10} />
+                              </button>
+                            </span>
                           </li>
                         ))}
                       </ul>
@@ -341,30 +416,55 @@ export function WorkcostBillView() {
       </div>
 
       {analyzeItem && <QuotaAnalysisModal item={analyzeItem} onClose={() => setAnalyzeItem(null)} />}
+      {editing && (
+        <BillItemModal
+          item={editing}
+          projects={projects}
+          busy={busy}
+          onCancel={() => setEditing(null)}
+          onSave={saveItem}
+        />
+      )}
+      {creating && (
+        <BillItemModal
+          item={emptyBillItem(selected)}
+          projects={projects}
+          busy={busy}
+          onCancel={() => setCreating(false)}
+          onSave={saveItem}
+        />
+      )}
+      {confirmDelete && (
+        <DeleteBillItemModal item={confirmDelete} busy={busy} onCancel={() => setConfirmDelete(null)} onDelete={removeItem} />
+      )}
     </div>
   );
 }
 
-// BillRow 一条清单项（只读）：**整行可点**开综合单价分析（用户心智=「点击清单
-// 看组价明细」，此前只有 10px 定额码徽章可点，真机反馈「点击清单无法查看组价
-// 明细」——可点面太小）；徽章保留为视觉锚点。手填行（未套定额）不可点。
+// BillRow 一条清单项：**整行可点**开综合单价分析（用户心智=「点击清单看组价
+// 明细」，此前只有 10px 定额码徽章可点，真机反馈「点击清单无法查看组价明细」
+// ——可点面太小）。手填行同样可点：综合单价分析的挂接区就是给未套定额行补挂
+// 定额的入口。行尾 编辑/删除（录入数据维护面；stopPropagation 防误触分析）。
 function BillRow({
   item,
   showProject,
   onAnalyze,
+  onEdit,
+  onDelete,
   refPrice,
 }: {
-  item: WorkcostBillItem & { projectName?: string };
+  item: BillRowItem;
   showProject?: boolean;
   onAnalyze: (item: WorkcostBillItem) => void;
+  onEdit: (item: BillRowItem) => void;
+  onDelete: (item: BillRowItem) => void;
   refPrice?: number;
 }) {
-  const clickable = Boolean(item.quotaCode);
   return (
     <tr
-      className={`border-b border-border-soft/25 last:border-0 hover:bg-bg-elev/30 ${clickable ? "cursor-pointer" : ""}`}
-      onClick={clickable ? () => onAnalyze(item) : undefined}
-      title={clickable ? `点开综合单价分析：${item.title}（按挂接定额分组展示工料机明细）` : "未套定额（手填项）——单价即行内手填价"}
+      className="border-b border-border-soft/25 last:border-0 hover:bg-bg-elev/30 cursor-pointer"
+      onClick={() => onAnalyze(item)}
+      title={item.quotaCode ? `点开综合单价分析：${item.title}（按挂接定额分组展示工料机明细）` : `未套定额（手填项）——点开可从定额库挂接定额：${item.title}`}
     >
       {showProject && (
         <td className="py-1.5 px-2 max-w-[9rem]" title={item.projectName}>
@@ -414,6 +514,32 @@ function BillRow({
         ) : (
           <span className="text-fg-faint">—</span>
         )}
+      </td>
+      <td className="py-1.5 px-2 text-right">
+        <span className="inline-flex items-center gap-1">
+          <button
+            type="button"
+            className={iconBtn}
+            title={`编辑「${item.title}」`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(item);
+            }}
+          >
+            <Pencil size={10} />
+          </button>
+          <button
+            type="button"
+            className={`${iconBtn} hover:text-err`}
+            title={`删除「${item.title}」（定额挂接随行清理）`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(item);
+            }}
+          >
+            <Trash2 size={10} />
+          </button>
+        </span>
       </td>
     </tr>
   );
@@ -708,6 +834,184 @@ export function QuotaAnalysisModal({ item, onClose }: { item: WorkcostBillItem; 
         <p className="text-[10px] text-fg-faint">
           按当前资源价现算（参考口径）；清单合价 = Σ(定额工程量 × 定额单价)，由导出的五表工作簿活公式计算。
         </p>
+      </div>
+    </div>
+  );
+}
+
+// ── 行级维护：编辑 / 删除（录入数据随时可改）──────────────────────────
+
+// emptyBillItem 手工新增的空白草稿（projectId=当前项目筛选；0=弹窗内再选）。
+const emptyBillItem = (projectId: number): WorkcostBillItem => ({
+  id: 0, projectId, code: "", title: "", unit: "", division: "", quantity: 0,
+  quantityExpr: "", quotaCode: "", feature: "", priceOverride: 0, sort: 0, quotaCodes: [],
+});
+
+// BillItemModal 清单项编辑/手工新增弹窗。新增=项目归属在弹窗内选定（留池
+// 「清单库手工添加（项目归属语义）」的落点）；引用定额不在弹窗内改——1:N 挂
+// 接的主锚点在综合单价分析里挂接/解挂（点行即达），弹窗里只读显形防两处真相打架。
+function BillItemModal({
+  item,
+  projects,
+  busy,
+  onCancel,
+  onSave,
+}: {
+  item: WorkcostBillItem & { projectName?: string };
+  projects: WorkcostBillProject[];
+  busy: boolean;
+  onCancel: () => void;
+  onSave: (item: WorkcostBillItem) => void;
+}) {
+  const [draft, setDraft] = useState<WorkcostBillItem>(item);
+  const set = (patch: Partial<WorkcostBillItem>) => setDraft((d) => ({ ...d, ...patch }));
+  const isCreate = item.id === 0;
+  const canSave = draft.title.trim().length > 0 && draft.projectId > 0;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onCancel}>
+      <div
+        className="v3-panel rounded-2xl p-5 space-y-3 w-[34rem] max-h-[84vh] overflow-y-auto"
+        role="dialog"
+        aria-label={isCreate ? "新增清单项" : "编辑清单项"}
+        data-testid="workcost-bill-edit-modal"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-[13px] text-fg font-semibold flex-1 min-w-0 truncate">
+            {isCreate ? "新增清单项" : "编辑清单项"}
+          </span>
+          <button type="button" className={iconBtn} onClick={onCancel} title="关闭">
+            <X size={11} />
+          </button>
+        </div>
+        <div className="grid grid-cols-2 gap-2.5">
+          <label className="space-y-1">
+            <span className="text-[10.5px] text-fg-faint">归属项目{isCreate ? "（必选）" : ""}</span>
+            {isCreate ? (
+              <select
+                className={fieldCls}
+                value={draft.projectId}
+                data-testid="workcost-bill-project-select"
+                aria-label="归属项目"
+                onChange={(e) => set({ projectId: Number(e.target.value) })}
+              >
+                <option value={0}>请选择项目…</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            ) : (
+              <input className={`${fieldCls} text-fg-faint`} value={item.projectName ?? `项目 #${item.projectId}`} disabled />
+            )}
+          </label>
+          <label className="space-y-1">
+            <span className="text-[10.5px] text-fg-faint">编码（留空自动 M 序号）</span>
+            <input className={fieldCls} value={draft.code} onChange={(e) => set({ code: e.target.value })} />
+          </label>
+          <label className="space-y-1">
+            <span className="text-[10.5px] text-fg-faint">名称 <span className="text-err">*</span></span>
+            <input className={fieldCls} value={draft.title} autoFocus onChange={(e) => set({ title: e.target.value })} />
+          </label>
+          <label className="space-y-1">
+            <span className="text-[10.5px] text-fg-faint">单位</span>
+            <input className={fieldCls} value={draft.unit} onChange={(e) => set({ unit: e.target.value })} />
+          </label>
+          <label className="space-y-1">
+            <span className="text-[10.5px] text-fg-faint">分部</span>
+            <input className={fieldCls} value={draft.division} onChange={(e) => set({ division: e.target.value })} />
+          </label>
+          <label className="space-y-1">
+            <span className="text-[10.5px] text-fg-faint">工程量（项目使用属性，留痕）</span>
+            <input
+              className={fieldCls}
+              type="number"
+              value={draft.quantity}
+              onChange={(e) => set({ quantity: Number(e.target.value) || 0 })}
+            />
+          </label>
+          <label className="space-y-1">
+            <span className="text-[10.5px] text-fg-faint">手填单价（0 = 按定额现算）</span>
+            <input
+              className={fieldCls}
+              type="number"
+              value={draft.priceOverride}
+              onChange={(e) => set({ priceOverride: Number(e.target.value) || 0 })}
+            />
+          </label>
+        </div>
+        <label className="block space-y-1">
+          <span className="text-[10.5px] text-fg-faint">项目特征</span>
+          <textarea
+            className={`${fieldCls} h-16 resize-none`}
+            value={draft.feature}
+            onChange={(e) => set({ feature: e.target.value })}
+          />
+        </label>
+        <div className="v3-panel rounded-lg px-3 py-2 text-[11px] text-fg-faint">
+          引用定额：
+          {(draft.quotaCodes ?? []).length > 0 ? (
+            <span className="font-mono text-accent ml-1">{(draft.quotaCodes ?? []).join(" / ")}</span>
+          ) : (
+            <span className="ml-1">未套定额（手填）</span>
+          )}
+          <span className="ml-2">挂接/解挂与工程量在综合单价分析里维护——点清单行即达。</span>
+        </div>
+        <div className="flex items-center justify-end gap-2 pt-1">
+          <button type="button" className={ghostBtn} onClick={onCancel}>取消</button>
+          <button
+            type="button"
+            className={solidBtn}
+            data-testid="workcost-bill-edit-save"
+            disabled={!canSave || busy}
+            title={canSave ? "保存清单项（同项目同编码走更新）" : "名称必填、新增须选定归属项目"}
+            onClick={() => onSave({ ...draft, title: draft.title.trim(), code: draft.code.trim() })}
+          >
+            {busy ? "保存中…" : "保存"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// DeleteBillItemModal 删除确认（清单项删除随行清定额挂接；项目与其余清单不受影响）。
+function DeleteBillItemModal({
+  item,
+  busy,
+  onCancel,
+  onDelete,
+}: {
+  item: WorkcostBillItem;
+  busy: boolean;
+  onCancel: () => void;
+  onDelete: (item: WorkcostBillItem) => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onCancel}>
+      <div
+        className="v3-panel rounded-2xl p-5 space-y-3 w-[26rem]"
+        role="dialog"
+        aria-label="删除清单项确认"
+        data-testid="workcost-bill-delete-modal"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="text-[13px] text-fg font-semibold">删除清单项</div>
+        <p className="text-[11.5px] text-fg-dim leading-relaxed">
+          将删除清单项 <span className="font-mono text-fg-dim">{item.code}</span>「{item.title}」，
+          其定额挂接记录随行清理；项目封面与其余清单项不受影响。
+        </p>
+        <div className="flex items-center justify-end gap-2 pt-1">
+          <button type="button" className={ghostBtn} onClick={onCancel}>取消</button>
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 px-2.5 h-7 rounded-lg bg-err text-white text-[11.5px] hover:opacity-90 transition-opacity disabled:opacity-50"
+            data-testid="workcost-bill-delete-confirm"
+            disabled={busy}
+            onClick={() => onDelete(item)}
+          >
+            {busy ? "删除中…" : "确认删除"}
+          </button>
+        </div>
       </div>
     </div>
   );

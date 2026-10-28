@@ -87,13 +87,27 @@ vi.mock("../../lib/bridge", () => ({
     WorkcostBillItems: async (projectId: number): Promise<WorkcostBillItem[]> =>
       state.billItems.filter((b) => b.projectId === projectId),
     WorkcostBillItemSave: async (item: WorkcostBillItem): Promise<WorkcostBillItem> => {
-      state.billSaved = item;
-      const idx = state.billItems.findIndex((b) => b.projectId === item.projectId && b.code === item.code && item.code !== "");
+      // 与 Go 同：空码自动项目内 M 序号；同项目同码走更新；billSaved 记落库结果。
+      let code = item.code.trim();
+      if (!code) {
+        let maxSeq = 0;
+        for (const b of state.billItems) {
+          if (b.projectId !== item.projectId) continue;
+          const m = /^M(\d{3})$/.exec(b.code);
+          if (m) maxSeq = Math.max(maxSeq, Number(m[1]));
+        }
+        code = `M${String(maxSeq + 1).padStart(3, "0")}`;
+      }
+      const idx = state.billItems.findIndex((b) => b.projectId === item.projectId && b.code === code);
       if (idx >= 0) {
-        state.billItems[idx] = { ...state.billItems[idx], ...item };
+        // 不可变更新：fixture 数组可能被用例直接引用（state.billItems = items），
+        // 原地覆写会顺着引用改掉模块级 fixture，污染后续用例。
+        state.billItems = state.billItems.map((b, i) => (i === idx ? { ...b, ...item, id: b.id, code } : b));
+        state.billSaved = state.billItems[idx];
         return state.billItems[idx];
       }
-      const saved = { ...item, id: item.id || 990 + state.billItems.length };
+      const saved = { ...item, id: item.id || 990 + state.billItems.length, code };
+      state.billSaved = saved;
       state.billItems = [...state.billItems, saved];
       return saved;
     },
@@ -641,6 +655,92 @@ describe("WorkcostBillView 分部分项清单", () => {
     expect(await screen.findByText("什邡项目")).toBeTruthy();
     // 外委监测化验只在 1 个项目 → 1 项目 1 条。
     expect(screen.getByText("1 项目 · 1 条")).toBeTruthy();
+  });
+
+  it("行级编辑：操作钮不触发行点击，保存走 WorkcostBillItemSave 并刷新列表", async () => {
+    state.billProjects = [proj];
+    state.billItems = items;
+    render(<WorkcostBillView />);
+    fireEvent.click(await screen.findByTitle("编辑「测量放线」"));
+    // stopPropagation：操作钮点击不应打开综合单价分析。
+    expect(screen.queryByText(/综合单价分析：/)).toBeNull();
+    expect(await screen.findByTestId("workcost-bill-edit-modal")).toBeTruthy();
+    // 引用定额只读显形（1:N 挂接在分析弹窗维护，弹窗内不改）。
+    expect(screen.getByText(/挂接\/解挂与工程量在综合单价分析里维护/)).toBeTruthy();
+    fireEvent.change(screen.getByDisplayValue("测量放线"), { target: { value: "测量放线（复核）" } });
+    fireEvent.click(screen.getByTestId("workcost-bill-edit-save"));
+    await waitFor(() => expect(state.billSaved?.title).toBe("测量放线（复核）"));
+    expect(state.billSaved?.id).toBe(11); // 同编码走更新（item 原样回传）
+    expect(await screen.findByText(/已保存清单项/)).toBeTruthy();
+    expect(await screen.findByText("测量放线（复核）")).toBeTruthy(); // 列表刷新
+  });
+
+  it("行级删除：确认弹窗 → WorkcostBillItemDelete；取消不删", async () => {
+    state.billProjects = [proj];
+    state.billItems = items;
+    render(<WorkcostBillView />);
+    fireEvent.click(await screen.findByTitle(/删除「测量放线」/));
+    expect(await screen.findByTestId("workcost-bill-delete-modal")).toBeTruthy();
+    expect(screen.getByText(/定额挂接记录随行清理/)).toBeTruthy();
+    fireEvent.click(screen.getByText("取消"));
+    expect(screen.queryByTestId("workcost-bill-delete-modal")).toBeNull();
+    expect(state.billDeleted).toBe(0);
+    fireEvent.click(screen.getByTitle(/删除「测量放线」/));
+    fireEvent.click(screen.getByTestId("workcost-bill-delete-confirm"));
+    await waitFor(() => expect(state.billDeleted).toBe(11));
+    expect(await screen.findByText(/已删除清单项/)).toBeTruthy();
+    expect(await screen.findByText("外委监测化验")).toBeTruthy(); // 其余行仍在
+  });
+
+  it("手填行点击打开综合单价分析——挂接定额的入口（未套定额行此前不可达）", async () => {
+    state.billProjects = [proj];
+    state.billItems = items;
+    render(<WorkcostBillView />);
+    fireEvent.click(await screen.findByText("外委监测化验"));
+    expect(await screen.findByText("综合单价分析：外委监测化验")).toBeTruthy();
+    expect(screen.getByText(/该清单项还没有挂接定额/)).toBeTruthy();
+  });
+
+  it("归并视图成员行带编辑/删除入口", async () => {
+    const p2 = { ...proj, id: 2, name: "什邡项目", itemCount: 1 };
+    state.billProjects = [proj, p2];
+    state.billItems = [
+      ...items,
+      { id: 41, projectId: 2, code: "WP01", title: "测量放线", unit: "项", division: "A临建", quantity: 1, quantityExpr: "", quotaCode: "WP01", feature: "拐点、分层标高", priceOverride: 0, sort: 1 },
+    ];
+    render(<WorkcostBillView />);
+    fireEvent.click(await screen.findByText("按库项归并"));
+    // 逐组展开逐组数：测量放线组 2 成员、外委组 1 成员，各带编辑/删除。
+    fireEvent.click(screen.getAllByText(/测量放线/)[0]);
+    await waitFor(() => expect(screen.getAllByTitle(/编辑「测量放线」/).length).toBe(2));
+    fireEvent.click(screen.getAllByText(/外委监测化验/)[0]);
+    await waitFor(() => expect(screen.getAllByTitle(/编辑「外委监测化验」/).length).toBe(1));
+    expect(screen.getAllByTitle(/删除「/).length).toBe(3);
+  });
+
+  it("手工新增：项目归属在弹窗内选定（必选），编码留空自动 M 序号", async () => {
+    state.billProjects = [proj];
+    state.billItems = [];
+    render(<WorkcostBillView />);
+    expect(await screen.findByTestId("workcost-bill-add")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("workcost-bill-add"));
+    expect(await screen.findByTestId("workcost-bill-edit-modal")).toBeTruthy();
+    // 未选归属项目时保存被拦（项目归属语义）。
+    fireEvent.change(screen.getByLabelText(/^名称/), { target: { value: "手工新增项" } });
+    expect(screen.getByTestId("workcost-bill-edit-save")).toHaveProperty("disabled", true);
+    fireEvent.change(screen.getByLabelText("归属项目"), { target: { value: "1" } });
+    fireEvent.click(screen.getByTestId("workcost-bill-edit-save"));
+    await waitFor(() => expect(state.billSaved?.title).toBe("手工新增项"));
+    expect(state.billSaved?.projectId).toBe(1);
+    expect(state.billSaved?.code).toBe("M001"); // mock 与 Go 同：空码自动 M 序号
+    expect(await screen.findByText(/已新增清单项/)).toBeTruthy();
+    expect(await screen.findByText("手工新增项")).toBeTruthy(); // 列表刷新出新行
+  });
+
+  it("无项目时不出手工新增入口（归属无着落，引导仍指向造价参考导入）", async () => {
+    render(<WorkcostBillView />);
+    expect(await screen.findByText(/还没有清单/)).toBeTruthy();
+    expect(screen.queryByTestId("workcost-bill-add")).toBeNull();
   });
 
   it("企业定额库：左列表显示来源徽标（手工）与引用计数", async () => {

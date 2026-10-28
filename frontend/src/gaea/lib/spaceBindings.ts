@@ -578,6 +578,8 @@ export const GAEA_METHOD_FACETS = {
   WorkcostProjectExportToWorkspace: "work",
   WorkcostBillProjects: "work",
   WorkcostBillItems: "work",
+  WorkcostBillItemSave: "work",
+  WorkcostBillItemDelete: "work",
   WorkcostBillProjectRatesSave: "work",
   WorkcostBillProjectDelete: "work",
   WorkcostBillQuotaAttach: "work",

@@ -64,7 +64,8 @@ var excludedBindings = map[string]bool{
 	"GaeaCostNoteSave": true, "GaeaCostNoteList": true, "GaeaCostNoteDelete": true, "GaeaCostNoteBumpRef": true,
 	"GaeaCostStageSave": true, "GaeaCostStages": true, "GaeaCostStageCompare": true, "GaeaCostStageDeviations": true,
 	"GaeaCostAttribution": true, "GaeaCostList": true,
-	"GaeaWorkcostBillItemSave": true, "GaeaWorkcostBillItemDelete": true,
+	// （GaeaWorkcostBillItemSave/Delete 已于 2026-10-28 复活除名：清单库行级
+	// 编辑/删除 UI 落地，方法体本就保留，见 internal/app/gaea_workcost.go。）
 	"AddOutlineNode": true, "AnalyzeStyle": true, "BrainCrossRefs": true,
 	"BrainWrite": true, "BrainstormBranches": true, "BuildBacklinkIndex": true,
 	"BuildContextBudget": true, "BuildRichContext": true, "ChatCharacter": true,

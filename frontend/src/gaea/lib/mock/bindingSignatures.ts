@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 684 名（原生变参 7 名已收窄标注）。
+// 共 686 名（原生变参 7 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -391,6 +391,8 @@ export const bindingSignatures = {
   GaeaWhisperProactiveConfig: { argc: 0, variadic: false, params: "" },
   GaeaWhisperProactiveNow: { argc: 1, variadic: false, params: "personalityID string" },
   GaeaWhisperSetProactiveConfig: { argc: 1, variadic: false, params: "cfgJSON string" },
+  GaeaWorkcostBillItemDelete: { argc: 1, variadic: false, params: "id int64" },
+  GaeaWorkcostBillItemSave: { argc: 1, variadic: false, params: "item workcost.BillItem" },
   GaeaWorkcostBillItems: { argc: 1, variadic: false, params: "projectID int64" },
   GaeaWorkcostBillProjectDelete: { argc: 1, variadic: false, params: "id int64" },
   GaeaWorkcostBillProjectRatesSave: { argc: 4, variadic: false, params: "id int64, rates workcost.RateSet, profitIncludesRegulatory bool, controlPrice float64" },
@@ -705,5 +707,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 684。
-export const bindingSignatureCount = 684;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 686。
+export const bindingSignatureCount = 686;

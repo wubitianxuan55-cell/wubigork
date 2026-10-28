@@ -56,6 +56,8 @@ func (b *CostB) GaeaPriceHistory(name string) []pricefeed.History { return b.a.G
 func (b *CostB) GaeaPriceSourceDelete(id string) error { return b.a.GaeaPriceSourceDelete(id) }
 func (b *CostB) GaeaPriceSourceSave(src pricefeed.Source) error { return b.a.GaeaPriceSourceSave(src) }
 func (b *CostB) GaeaPriceSources() []pricefeed.Source { return b.a.GaeaPriceSources() }
+func (b *CostB) GaeaWorkcostBillItemDelete(id int64) error { return b.a.GaeaWorkcostBillItemDelete(id) }
+func (b *CostB) GaeaWorkcostBillItemSave(item workcost.BillItem) (*workcost.BillItem, error) { return b.a.GaeaWorkcostBillItemSave(item) }
 func (b *CostB) GaeaWorkcostBillItems(projectID int64) []workcost.BillItem { return b.a.GaeaWorkcostBillItems(projectID) }
 func (b *CostB) GaeaWorkcostBillProjectDelete(id int64) (int, error) { return b.a.GaeaWorkcostBillProjectDelete(id) }
 func (b *CostB) GaeaWorkcostBillProjectRatesSave(id int64, rates workcost.RateSet, profitIncludesRegulatory bool, controlPrice float64) error { return b.a.GaeaWorkcostBillProjectRatesSave(id, rates, profitIncludesRegulatory, controlPrice) }

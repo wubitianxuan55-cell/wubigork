@@ -354,3 +354,62 @@ WHERE COALESCE(quota_code,'') != '' AND id NOT IN (SELECT bill_item_id FROM gf_b
 		t.Errorf("回填 quantity 应=清单工程量 200，得到 %.2f", links[0].Quantity)
 	}
 }
+
+// TestDeleteBillItemCascadesQuotaLinks 清单项删除必须随行清理 1:N 定额挂接
+// （gf_bill_quota_links）——不清理会留孤儿引用，BillItems 读侧兜底会把孤儿
+// 复活成幽灵定额码。
+func TestDeleteBillItemCascadesQuotaLinks(t *testing.T) {
+	s, cleanup := newWorkcostStore(t)
+	defer cleanup()
+
+	idx, err := s.ResourceIndex()
+	if err != nil {
+		t.Fatalf("建资源索引失败: %v", err)
+	}
+	for _, code := range []string{"WP01", "WP02"} {
+		if _, err := s.SaveQuota(Quota{Code: code, OrigCode: code, Title: "定额" + code, Specialty: "土壤修复", Unit: "m", Source: "测试"}, idx); err != nil {
+			t.Fatalf("建定额 %s 失败: %v", code, err)
+		}
+	}
+	projID, _ := s.UpsertBillProject("项目C", "c.xlsx", "", "", "", "", nil, false, 0)
+	saved, err := s.SaveBillItem(BillItem{ProjectID: projID, Code: "WP01", Title: "施工便道", Unit: "m", Quantity: 100, QuotaCode: "WP01"})
+	if err != nil {
+		t.Fatalf("建清单项失败: %v", err)
+	}
+	if _, err := s.AttachBillQuotaLink(saved.ID, "WP01", 0); err != nil {
+		t.Fatalf("挂接 WP01 失败: %v", err)
+	}
+	if _, err := s.AttachBillQuotaLink(saved.ID, "WP02", 30); err != nil {
+		t.Fatalf("挂接 WP02 失败: %v", err)
+	}
+
+	if err := s.DeleteBillItem(saved.ID); err != nil {
+		t.Fatalf("删除清单项失败: %v", err)
+	}
+	var n int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM gf_bill_quota_links WHERE bill_item_id=?`, saved.ID).Scan(&n); err != nil {
+		t.Fatalf("查孤儿引用失败: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("删除清单项后引用表应无残留，残留 %d 条", n)
+	}
+
+	// DeleteBillProject 同口径：整项目删除不漏引用清理。
+	p2, _ := s.UpsertBillProject("项目C2", "c2.xlsx", "", "", "", "", nil, false, 0)
+	saved2, err := s.SaveBillItem(BillItem{ProjectID: p2, Code: "WP01", Title: "测量放线", Unit: "项", Quantity: 1, QuotaCode: "WP01"})
+	if err != nil {
+		t.Fatalf("建清单项 2 失败: %v", err)
+	}
+	if _, err := s.AttachBillQuotaLink(saved2.ID, "WP01", 0); err != nil {
+		t.Fatalf("挂接失败: %v", err)
+	}
+	if _, err := s.DeleteBillProject(p2); err != nil {
+		t.Fatalf("删项目失败: %v", err)
+	}
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM gf_bill_quota_links WHERE bill_item_id=?`, saved2.ID).Scan(&n); err != nil {
+		t.Fatalf("查孤儿引用失败: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("删项目后引用表应无残留，残留 %d 条", n)
+	}
+}
