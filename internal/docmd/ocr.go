@@ -236,14 +236,14 @@ var (
 //   - 提供者：ovis（常驻 OvisOCR2 llama-server）、tesseract（命令行），各自
 //     init() 自注册，互斥注册（重复即 panic）
 //   - 消费者：OCRImageText / ocrPDFRange 只依赖接口，引擎顺序由配置
-//     GAEA_OCR_ENGINE 驱动（"auto"=ovis→tesseract 自动回退，保持现状；
+//     GAEA_OCR_ENGINE 驱动（"auto"=uocr2→ovis→tesseract 自动回退；
 //     显式指定 = 仅该引擎，不可用即 fail-closed 报错，不静默降级）
 //
 // 验收：切换 OCR 引擎只改配置项（GAEA_OCR_ENGINE），代码零改动。
 //
 // ── 口径边界（审计 U54/IN3-09 权威口径，改动前必读） ─────────────────────
 //
-// 本 seam 的 kind 取值域 = 本地 OCR 引擎（auto/ovis/tesseract），消费方三组
+// 本 seam 的 kind 取值域 = 本地 OCR 引擎（uocr2/ovis/tesseract），消费方三组
 // 都是「本地、离线、文件不出机」用例：扫描件 PDF（ocrPDFRange）、成本库报价
 // 单图片（app visionOCRImage → OCRImageText）、办公提取文字兜底腿（app
 // GaeaOCRText 第四腿）。远端 herdsman 链（internal/ocr 的 PaddleOCR /v1/ocr
@@ -257,10 +257,12 @@ var (
 //   - 探测模型不同构：本 seam 按需拉起进程 + /health 探测 + 冷却；herdsman
 //     外部常驻、无探测，HTTP 即错误。
 // 两链是分工不是重复，配置名词同名不同物（勿「顺手统一」）：
-//   GAEA_OCR_ENGINE — 本 seam 引擎 kind（auto/ovis/tesseract），本文件唯一解析点；
+//   GAEA_OCR_ENGINE — 本 seam 引擎 kind（auto/uocr2/ovis/tesseract），本文件唯一解析点；
 //   active_ocr_engine/active_ocr_model — 模型中心「设为 OCR」绑定（引擎/模型
 //     ID 域），只影响 app GaeaOCRText 前三腿，本 seam 不读它；
 //   GAEA_OCR_URL/GAEA_OCR_PORT — 本地 OvisOCR2 llama-server 地址（默认 8137）；
+//   GAEA_UOCR2_URL/GAEA_UOCR2_PORT — 本地 Unlimited-OCR-2 python 服务地址
+//     （默认 8138，见 ocr_uocr2.go）；
 //   HERDSMAN_OCR_MODEL/HERDSMAN_PARSE_MODEL — 远端模型 ID，与 GAEA_OCR_MODEL
 //     （本地 gguf 文件路径）同名词不同物。
 
@@ -275,7 +277,10 @@ type OCRProvider interface {
 
 // OCR 引擎 kind 常量（代码与配置只依赖 kind；具体实现由各文件 init() 自注册）。
 const (
-	// OCRKindOvis 常驻 OvisOCR2 llama-server（本地推荐，见 pdf 技能）。
+	// OCRKindUocr2 常驻 Unlimited-OCR-2 python 服务（本地首选：版式/表格还原最好，
+	// 见 ocr_uocr2.go；CPU 约 1 分钟/页，重速度可 GAEA_OCR_ENGINE=ovis 换挡）。
+	OCRKindUocr2 = "uocr2"
+	// OCRKindOvis 常驻 OvisOCR2 llama-server（本地次选：快约 5 倍但版式还原弱）。
 	OCRKindOvis = "ovis"
 	// OCRKindTesseract tesseract 命令行 OCR（chi_sim+eng）。
 	OCRKindTesseract = "tesseract"
@@ -324,12 +329,14 @@ func OCRProviderKinds() []string {
 }
 
 // ocrEngineOrder 由配置解析 OCR 引擎顺序：
-// GAEA_OCR_ENGINE 为空或 "auto" → [ovis, tesseract]（自动回退链，保持现状）；
+// GAEA_OCR_ENGINE 为空或 "auto" → [uocr2, ovis, tesseract]（2026-10-29 拍板：质量
+// 优先——Unlimited-OCR-2 版式/表格还原最好，OvisOCR2 快约 5 倍作次选，tesseract 兜底；
+// 用户嫌慢可显式 GAEA_OCR_ENGINE=ovis 换挡）；
 // 显式指定 → 单引擎（未知 kind 报错，fail-closed 不静默回退到 auto）。
 func ocrEngineOrder() ([]string, error) {
 	raw := strings.TrimSpace(os.Getenv("GAEA_OCR_ENGINE"))
 	if raw == "" || strings.EqualFold(raw, "auto") {
-		return []string{OCRKindOvis, OCRKindTesseract}, nil
+		return []string{OCRKindUocr2, OCRKindOvis, OCRKindTesseract}, nil
 	}
 	kind := strings.ToLower(raw)
 	for _, k := range OCRProviderKinds() {
@@ -440,8 +447,9 @@ func ocrUnavailableError(kinds []string) error {
 	if len(kinds) == 1 {
 		return fmt.Errorf("OCR 引擎 %q 不可用（未安装或无法运行）。请安装该引擎或检查 GAEA_OCR_ENGINE 配置。", kinds[0])
 	}
-	return fmt.Errorf("OvisOCR2 本地 OCR 不可用（未安装或服务无法拉起），且未找到 tesseract。" +
-		"请安装其一：\n  - OvisOCR2（本地推荐，见 pdf 技能：C:\\AI\\gaea-ocr 或 GAEA_OCR_DIR）\n" +
+	return fmt.Errorf("本地 OCR 不可用（未安装或服务无法拉起），且未找到 tesseract。" +
+		"请安装其一：\n  - Unlimited-OCR-2（本地首选，C:\\AI\\unlimited-ocr2 或 GAEA_UOCR2_DIR）\n" +
+		"  - OvisOCR2（本地次选，C:\\AI\\gaea-ocr 或 GAEA_OCR_DIR）\n" +
 		"  - tesseract: https://github.com/tesseract-ocr/tesseract")
 }
 
@@ -452,8 +460,9 @@ func ocrPDFUnavailableError(kinds []string) error {
 		return fmt.Errorf("扫描件 PDF 需要 OCR 引擎 %q，但该引擎不可用（未安装或无法运行）。"+
 			"请检查 GAEA_OCR_ENGINE 配置或安装该引擎，或使用文本 PDF（非扫描件）。", kinds[0])
 	}
-	return fmt.Errorf("扫描件 PDF 需要 OCR 引擎，但未找到 OvisOCR2 或 tesseract。" +
-		"请安装其一：\n  - OvisOCR2（本地推荐，见 pdf 技能：C:\\AI\\gaea-ocr）\n" +
+	return fmt.Errorf("扫描件 PDF 需要 OCR 引擎，但未找到 Unlimited-OCR-2 / OvisOCR2 / tesseract。" +
+		"请安装其一：\n  - Unlimited-OCR-2（本地首选，C:\\AI\\unlimited-ocr2）\n" +
+		"  - OvisOCR2（本地次选，C:\\AI\\gaea-ocr）\n" +
 		"  - tesseract: https://github.com/tesseract-ocr/tesseract\n\n" +
 		"或者使用文本 PDF（非扫描件）")
 }

@@ -249,6 +249,12 @@ C:\AI\gaea-ocr-env\Scripts\python.exe scripts/ocr_local.py 扫描件.pdf --mode 
 python scripts/ocr_local.py 扫描件.pdf --mode local --out 识别结果.txt
 ```
 
+> **gaea 内建链路（知识库导入/成本报价单/提取文字兜底）2026-10-29 起自动首选
+> Unlimited-OCR-2**（百度 DeepSeek-OCR 血统 3B MoE，表格/版式还原最好，已装
+> `C:\AI\unlimited-ocr2`，常驻服务 127.0.0.1:8138 按需拉起，CPU 约 1 分钟/页；
+> `GAEA_OCR_ENGINE=ovis` 可换回快速档）。直接命令行调用：
+> `C:\AI\unlimited-ocr2\venv\Scripts\python.exe C:\AI\unlimited-ocr2\ocr.py 页.png`。
+
 链路：PyMuPDF 渲染 PDF 页（默认 300 DPI）→ **OvisOCR2**（llama.cpp Vulkan，
 `C:\AI\gaea-ocr`，路径可用 `GAEA_OCR_DIR` / `GAEA_OCR_LLAMA` / `GAEA_OCR_MODEL` / `GAEA_OCR_MMPROJ`
 覆盖）→ RapidOCR（PP-OCR，onnxruntime）→ WinRT OcrEngine（离线、zh-Hans）→

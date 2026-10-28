@@ -23,7 +23,7 @@ func TestOCRProviderRegistry_Kinds(t *testing.T) {
 	for _, k := range kinds {
 		got[k] = true
 	}
-	for _, want := range []string{"ovis", "tesseract"} {
+	for _, want := range []string{"uocr2", "ovis", "tesseract"} {
 		if !got[want] {
 			t.Errorf("注册表缺少 kind %q（已注册: %v）", want, kinds)
 		}
@@ -31,7 +31,7 @@ func TestOCRProviderRegistry_Kinds(t *testing.T) {
 }
 
 func TestOCRProviderRegistry_Construct(t *testing.T) {
-	for _, kind := range []string{"ovis", "tesseract"} {
+	for _, kind := range []string{"uocr2", "ovis", "tesseract"} {
 		p, err := NewOCRProvider(kind)
 		if err != nil {
 			t.Fatalf("NewOCRProvider(%q): %v", kind, err)
@@ -61,9 +61,10 @@ func TestOCREngineOrder_ConfigDriven(t *testing.T) {
 		want []string
 		err  bool
 	}{
-		{"", []string{"ovis", "tesseract"}, false}, // 默认 = auto
-		{"auto", []string{"ovis", "tesseract"}, false},
-		{"AUTO", []string{"ovis", "tesseract"}, false}, // 大小写不敏感
+		{"", []string{"uocr2", "ovis", "tesseract"}, false}, // 默认 = auto（2026-10-29 拍板：uocr2 质量优先）
+		{"auto", []string{"uocr2", "ovis", "tesseract"}, false},
+		{"AUTO", []string{"uocr2", "ovis", "tesseract"}, false}, // 大小写不敏感
+		{"uocr2", []string{"uocr2"}, false},
 		{"ovis", []string{"ovis"}, false},
 		{"tesseract", []string{"tesseract"}, false},
 		{"paddle", nil, true}, // 未知 → fail-closed
@@ -146,10 +147,10 @@ func TestOCRImageText_ExplicitEngineUnavailable(t *testing.T) {
 }
 
 // TestOCRPDFUnavailableError_ConfigAware 扫描件 PDF 引擎不可用错误按配置生成：
-// auto 链保留原文案（含 OvisOCR2/tesseract 安装提示），显式单引擎给针对性文案。
+// auto 链保留原文案（含三个引擎安装提示），显式单引擎给针对性文案。
 func TestOCRPDFUnavailableError_ConfigAware(t *testing.T) {
-	err := ocrPDFUnavailableError([]string{"ovis", "tesseract"})
-	for _, want := range []string{"OvisOCR2", "tesseract", "安装"} {
+	err := ocrPDFUnavailableError([]string{"uocr2", "ovis", "tesseract"})
+	for _, want := range []string{"Unlimited-OCR-2", "OvisOCR2", "tesseract", "安装"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("auto 错误缺少 %q: %v", want, err)
 		}

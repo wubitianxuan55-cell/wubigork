@@ -1,7 +1,7 @@
 package docmd
 
 // ocr_kind_domain_test.go — 审计 U54/IN3-09 钉子：本 seam 的 kind 取值域 =
-// 本地 OCR 引擎（ovis/tesseract）。远端 herdsman 链（internal/ocr 的
+// 本地 OCR 引擎（uocr2/ovis/tesseract）。远端 herdsman 链（internal/ocr 的
 // PaddleOCR/MinerU，app/gaea_ocr.go 编排）刻意不在域内——若未来把 herdsman
 // 注册成 provider kind 或写进 GAEA_OCR_ENGINE 取值域（审计原修法方向），
 // 本文件红；须回 ocr.go seam 注释「口径边界」段重新论证分工后再动。

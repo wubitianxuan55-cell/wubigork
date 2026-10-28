@@ -127,11 +127,13 @@ func restoreTesseractVars(t *testing.T) {
 	})
 }
 
-// TestOCRImageTextFallsBackToTesseract GAEA_OCR_* 指向不存在路径（OvisOCR2 不可用，
-// ovisServerBase()==""）时，OCRImageText 应降级 tesseract 分支并返回注入的识别结果。
+// TestOCRImageTextFallsBackToTesseract GAEA_OCR_*/GAEA_UOCR2_* 指向不存在路径
+// （uocr2/ovis 均不可用）时，OCRImageText 应降级 tesseract 分支并返回注入的识别结果。
 func TestOCRImageTextFallsBackToTesseract(t *testing.T) {
+	t.Setenv("GAEA_UOCR2_DIR", filepath.Join(t.TempDir(), "no-such-uocr2"))
+	t.Setenv("GAEA_UOCR2_PORT", "1") // 无人监听的端口，健康检查必失败
 	t.Setenv("GAEA_OCR_DIR", filepath.Join(t.TempDir(), "no-such-ocr"))
-	t.Setenv("GAEA_OCR_PORT", "1") // 无人监听的端口，健康检查必失败
+	t.Setenv("GAEA_OCR_PORT", "1")
 
 	img := filepath.Join(t.TempDir(), "img.png")
 	if err := os.WriteFile(img, []byte("fake-image"), 0o644); err != nil {
@@ -151,9 +153,11 @@ func TestOCRImageTextFallsBackToTesseract(t *testing.T) {
 	}
 }
 
-// TestOCRImageTextBothUnavailable OvisOCR2 与 tesseract 都不可用时，OCRImageText 应
-// 返回明确错误，且错误信息包含两者的安装提示。
+// TestOCRImageTextBothUnavailable 三个本地引擎都不可用时，OCRImageText 应
+// 返回明确错误，且错误信息包含安装提示。
 func TestOCRImageTextBothUnavailable(t *testing.T) {
+	t.Setenv("GAEA_UOCR2_DIR", filepath.Join(t.TempDir(), "no-such-uocr2"))
+	t.Setenv("GAEA_UOCR2_PORT", "1")
 	t.Setenv("GAEA_OCR_DIR", filepath.Join(t.TempDir(), "no-such-ocr"))
 	t.Setenv("GAEA_OCR_PORT", "1")
 
@@ -162,9 +166,9 @@ func TestOCRImageTextBothUnavailable(t *testing.T) {
 
 	_, err := OCRImageText("whatever.png")
 	if err == nil {
-		t.Fatal("两个引擎都不可用时应返回错误")
+		t.Fatal("所有引擎都不可用时应返回错误")
 	}
-	for _, want := range []string{"OvisOCR2", "tesseract", "安装"} {
+	for _, want := range []string{"Unlimited-OCR-2", "OvisOCR2", "tesseract", "安装"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("错误信息 %q 缺少安装提示 %q", err.Error(), want)
 		}
