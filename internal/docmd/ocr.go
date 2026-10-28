@@ -23,6 +23,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gaea/gaea/internal/gaea/proc"
 )
@@ -688,6 +689,12 @@ func renderedPageJobs(pngFiles []string, first int) (jobs []ocrPageJob, fromArti
 // 窗口 10 页，取其半控最坏重试成本）。仅编排层使用。
 const ocrBatchWindow = 5
 
+// ocrBatchMinPageChars 批结果单页近空阈值（rune 数）：批生成退化实测形态=仅页眉
+// 无正文（~28 字符，<PAGE> 数可能对上）。低于阈值整窗回退逐页（逐页 gundam 保真
+// 最高，重试无害；真空白/封面级稀疏页逐页路径同样出短文本，重复识别一次成本可
+// 接受，空文本仍按既有「空文本=失败」口径记账）。
+const ocrBatchMinPageChars = 48
+
 // ocrPageLoop 逐页调用 pageOCR 识别（单页失败跳过继续，全部失败才报错）。
 func ocrPageLoop(pngFiles []string, first int, pages string,
 	pageOCR func(pageNum int, pngPath string) (string, error),
@@ -743,8 +750,8 @@ func ocrPageLoopBatch(pngFiles []string, first int, pages string,
 			if err == nil && len(texts) == win {
 				complete := true
 				for _, tx := range texts {
-					if strings.TrimSpace(tx) == "" {
-						complete = false
+					if n := utf8.RuneCountInString(strings.TrimSpace(tx)); n < ocrBatchMinPageChars {
+						complete = false // 近空页：批生成退化，整窗回退逐页
 						break
 					}
 				}

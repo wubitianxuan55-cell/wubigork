@@ -267,8 +267,11 @@ func TestOCRPageLoopBatchWinsAndFallsBack(t *testing.T) {
 	batchCalls := 0
 	batchOCR := func(jobs []ocrPageJob) ([]string, error) {
 		batchCalls++
-		if jobs[0].num == 1 { // 第一窗（5 页）成功
-			return []string{"批-1", "批-2", "批-3", "批-4", "批-5"}, nil
+		if jobs[0].num == 1 { // 第一窗（5 页）成功（文本须 ≥48 rune 过近空页守卫）
+			long := func(tag string) string {
+				return tag + "：检测项目水温 pH 值流量透明度浊度总硬度悬浮物色度电导率溶解氧均正确识别，计费单位点次与指导价金额逐行核对无误"
+			}
+			return []string{long("批-1"), long("批-2"), long("批-3"), long("批-4"), long("批-5")}, nil
 		}
 		return nil, errors.New("批失败") // 第二窗（1 页）失败 → 回退逐页
 	}
@@ -283,7 +286,14 @@ func TestOCRPageLoopBatchWinsAndFallsBack(t *testing.T) {
 	if batchCalls != 2 {
 		t.Fatalf("6 页应分 2 窗（窗口=%d）: %d", ocrBatchWindow, batchCalls)
 	}
-	want := []string{"批-1", "批-2", "批-3", "批-4", "批-5", "逐页-6"}
+	want := []string{
+		"批-1：检测项目水温 pH 值流量透明度浊度总硬度悬浮物色度电导率溶解氧均正确识别，计费单位点次与指导价金额逐行核对无误",
+		"批-2：检测项目水温 pH 值流量透明度浊度总硬度悬浮物色度电导率溶解氧均正确识别，计费单位点次与指导价金额逐行核对无误",
+		"批-3：检测项目水温 pH 值流量透明度浊度总硬度悬浮物色度电导率溶解氧均正确识别，计费单位点次与指导价金额逐行核对无误",
+		"批-4：检测项目水温 pH 值流量透明度浊度总硬度悬浮物色度电导率溶解氧均正确识别，计费单位点次与指导价金额逐行核对无误",
+		"批-5：检测项目水温 pH 值流量透明度浊度总硬度悬浮物色度电导率溶解氧均正确识别，计费单位点次与指导价金额逐行核对无误",
+		"逐页-6",
+	}
 	if len(texts) != 6 {
 		t.Fatalf("应 6 页全出: %+v", texts)
 	}
@@ -297,6 +307,28 @@ func TestOCRPageLoopBatchWinsAndFallsBack(t *testing.T) {
 	}
 	if len(gotProgress) != 2 || gotProgress[0] != 5 || gotProgress[1] != 6 {
 		t.Fatalf("批路径 progress 按窗跳进: %+v", gotProgress)
+	}
+}
+
+// TestOCRPageLoopBatchNearEmptyPageFallsBack 批结果含近空页（生成退化：仅页眉
+// 无正文）→ 整窗回退逐页，近空页不进结果。
+func TestOCRPageLoopBatchNearEmptyPageFallsBack(t *testing.T) {
+	files := []string{"p1.png", "p2.png"}
+	batchOCR := func([]ocrPageJob) ([]string, error) {
+		// 页数对得上但第二页近空（3 字符 < 20 阈值）→ 不接受
+		return []string{"第一页完整正文内容足够长", "页眉"}, nil
+	}
+	texts, _, failed, err := ocrPageLoopBatch(files, 1, "", func(pageNum int, pngPath string) (string, error) {
+		return "逐页完整结果-" + strconv.Itoa(pageNum), nil
+	}, batchOCR, nil)
+	if err != nil {
+		t.Fatalf("近空页回退逐页不应报错: %v", err)
+	}
+	if len(texts) != 2 || texts[0] != "逐页完整结果-1" || texts[1] != "逐页完整结果-2" {
+		t.Fatalf("整窗应回退逐页: %+v", texts)
+	}
+	if len(failed) != 0 {
+		t.Fatalf("不应有失败页: %v", failed)
 	}
 }
 
