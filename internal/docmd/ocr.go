@@ -9,10 +9,12 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -268,11 +270,23 @@ var (
 
 // OCRProvider 单图 OCR 提供者（seam 定义）。
 type OCRProvider interface {
-	// Name 返回提供者 kind（"ovis" / "tesseract"）。
+	// Name 返回提供者 kind（"uocr2" / "ovis" / "tesseract"）。
 	Name() string
 	// ExtractImage 识别单张图片，返回去首尾空白的文本。
 	// 引擎不可用（未安装/无法拉起）必须返回错误（fail-closed），不得静默返回空。
 	ExtractImage(path string) (string, error)
+}
+
+// PageBatchOCRProvider 可选增强：整批多页识别（跨页上下文共享——uocr2 的 SR-SWA
+// 多页解析可合并跨页表格/衔接正文，逐页识别做不到）。实现契约：
+//   - 返回顺序与输入 paths 严格一致、等长；
+//   - 任一页失败/输出对不上必须整体返回错误（fail-closed），调用方对该批回退逐页；
+//   - 单次请求页数由调用方控制（uocr2BatchWindow 分窗，防超长请求）。
+//
+// 只有链首引擎走批识别（质量优先引擎批处理，回退引擎逐页），见 ocrPageLoopBatch。
+type PageBatchOCRProvider interface {
+	OCRProvider
+	ExtractPages(paths []string) ([]string, error)
 }
 
 // OCR 引擎 kind 常量（代码与配置只依赖 kind；具体实现由各文件 init() 自注册）。
@@ -371,9 +385,23 @@ func (p *ovisOCRProvider) ExtractImage(path string) (string, error) {
 	}
 	text, err := ovisOCRPage(base, path)
 	if err != nil {
+		p.dropBaseIfTransportErr(err) // 与 uocr2 同款：传输层失败清缓存，下页重新探测/拉起
 		return "", err
 	}
 	return strings.TrimSpace(text), nil
+}
+
+// dropBaseIfTransportErr 传输层错误（连接拒绝/重置等 *url.Error）时清除缓存的
+// base URL：长驻 gaea 进程里服务可能中途消亡（重启/被杀），不清会导致本次
+// 会话内 OCR 永远打死地址、永远走不到重拉。HTTP 状态错误不算——服务活着。
+func (p *ovisOCRProvider) dropBaseIfTransportErr(err error) {
+	var urlErr *url.Error
+	if !errors.As(err, &urlErr) {
+		return
+	}
+	p.mu.Lock()
+	p.base = ""
+	p.mu.Unlock()
 }
 
 // resolveBase 解析常驻服务 base URL：成功缓存，失败记录冷却时间。
@@ -571,8 +599,10 @@ func ocrPDFRange(path, pages string, first, last, total int, progress func(done,
 
 	// 逐页 OCR：页码取上一步的产物页码（绝对页码，与文本路径 pageInRange 同口径）。
 	// 单页失败跳过继续（失败页计入 failed 列表，在结果尾部注明），全部失败才报错。
+	// 链首引擎实现 PageBatchOCRProvider 时启用分窗批识别（跨页上下文，见
+	// ocrPageLoopBatch）；批失败整窗回退逐页，容错语义不变。
 	pageOCR := func(pageNum int, pngPath string) (string, error) {
-		// 逐引擎尝试（auto 链 = OvisOCR2 常驻服务优先，失败/截断退回 tesseract）；
+		// 逐引擎尝试（auto 链 = uocr2 优先，失败/截断退回 OvisOCR2/tesseract）；
 		// 单页全部引擎失败由 ocrPageLoop 跳过继续（逐页容错，测试固化）。
 		for _, p := range providers {
 			if t, err := p.ExtractImage(pngPath); err == nil && strings.TrimSpace(t) != "" {
@@ -581,7 +611,19 @@ func ocrPDFRange(path, pages string, first, last, total int, progress func(done,
 		}
 		return "", fmt.Errorf("无可用 OCR 引擎")
 	}
-	pageTexts, _, failed, err := ocrPageLoop(pngFiles, first, pages, pageOCR, progress)
+	var batchOCR func([]ocrPageJob) ([]string, error)
+	if len(providers) > 0 {
+		if bp, ok := providers[0].(PageBatchOCRProvider); ok {
+			batchOCR = func(jobs []ocrPageJob) ([]string, error) {
+				paths := make([]string, len(jobs))
+				for i, j := range jobs {
+					paths[i] = j.png
+				}
+				return bp.ExtractPages(paths)
+			}
+		}
+	}
+	pageTexts, _, failed, err := ocrPageLoopBatch(pngFiles, first, pages, pageOCR, batchOCR, progress)
 	if err != nil {
 		return "", err
 	}
@@ -641,15 +683,27 @@ func renderedPageJobs(pngFiles []string, first int) (jobs []ocrPageJob, fromArti
 	return out, true
 }
 
+// ocrBatchWindow 批识别窗口（页/请求）：跨页上下文收益与单请求时长/失败重试
+// 成本的折中（uocr2 CPU 约 1 分钟/页，5 页 ≈ 6-8 分钟/请求；官方 SGLang 默认
+// 窗口 10 页，取其半控最坏重试成本）。仅编排层使用。
+const ocrBatchWindow = 5
+
 // ocrPageLoop 逐页调用 pageOCR 识别（单页失败跳过继续，全部失败才报错）。
-// 返回识别文本列表、实际 OCR 页数（按页范围过滤后，即 progress 的 total）、
-// 失败页码列表与错误（仅全部失败时非 nil）。progress 回调 (done, total)，
-// total 为实际 OCR 页数而非渲染页数，保证进度条反映真实工作量。
-//
-// 页码来自 renderedPageJobs（IN3-11：实际产物页码优先，不可解析时回退
-// first+i 并告警），页范围过滤用绝对页码（与文本路径 pageInRange 同口径）。
 func ocrPageLoop(pngFiles []string, first int, pages string,
 	pageOCR func(pageNum int, pngPath string) (string, error),
+	progress func(done, total int)) ([]string, int, []int, error) {
+	return ocrPageLoopBatch(pngFiles, first, pages, pageOCR, nil, progress)
+}
+
+// ocrPageLoopBatch 逐页/分窗批识别编排：页码来自 renderedPageJobs（IN3-11：实际
+// 产物页码优先，不可解析时回退 first+i 并告警），页范围过滤用绝对页码（与文本
+// 路径 pageInRange 同口径）。batchOCR 非 nil 且待识别 ≥2 页时按 ocrBatchWindow
+// 分窗走批识别（跨页上下文，见 PageBatchOCRProvider）；任一窗批失败/结果不齐/
+// 含空文本，整窗回退逐页——容错语义与纯逐页完全一致。progress 回调 (done, total)，
+// total 为实际 OCR 页数而非渲染页数，保证进度条反映真实工作量（批路径按窗跳进）。
+func ocrPageLoopBatch(pngFiles []string, first int, pages string,
+	pageOCR func(pageNum int, pngPath string) (string, error),
+	batchOCR func(jobs []ocrPageJob) ([]string, error),
 	progress func(done, total int)) ([]string, int, []int, error) {
 
 	jobs, fromArtifacts := renderedPageJobs(pngFiles, first)
@@ -669,19 +723,63 @@ func ocrPageLoop(pngFiles []string, first int, pages string,
 	if total == 0 {
 		return nil, 0, nil, fmt.Errorf("没有需要 OCR 的页面")
 	}
-	var texts []string
-	var failed []int
+
+	batching := batchOCR != nil && len(jobs) >= 2
+	textsByJob := make([]string, len(jobs))
+	failedByJob := make([]bool, len(jobs))
 	done := 0
-	for _, j := range jobs {
-		text, err := pageOCR(j.num, j.png)
-		if err != nil || strings.TrimSpace(text) == "" {
-			failed = append(failed, j.num)
-		} else {
-			texts = append(texts, text)
+	for start := 0; start < len(jobs); {
+		win := 1 // 非批路径：逐页（与历史语义逐字一致，含 progress 步进）
+		if batching {
+			win = len(jobs) - start
+			if win > ocrBatchWindow {
+				win = ocrBatchWindow
+			}
 		}
-		done++
+		winJobs := jobs[start : start+win]
+		handled := false
+		if batching {
+			texts, err := batchOCR(winJobs)
+			if err == nil && len(texts) == win {
+				complete := true
+				for _, tx := range texts {
+					if strings.TrimSpace(tx) == "" {
+						complete = false
+						break
+					}
+				}
+				if complete {
+					for i, tx := range texts {
+						textsByJob[start+i] = strings.TrimSpace(tx)
+					}
+					handled = true
+				}
+			}
+		}
+		if !handled { // 批失败/不可用：整窗回退逐页（容错语义不变）
+			for i, j := range winJobs {
+				text, err := pageOCR(j.num, j.png)
+				if err != nil || strings.TrimSpace(text) == "" {
+					failedByJob[start+i] = true
+				} else {
+					textsByJob[start+i] = strings.TrimSpace(text)
+				}
+			}
+		}
+		start += win
+		done += win
 		if progress != nil {
 			progress(done, total)
+		}
+	}
+
+	var texts []string
+	var failed []int
+	for i, j := range jobs {
+		if failedByJob[i] || strings.TrimSpace(textsByJob[i]) == "" {
+			failed = append(failed, j.num)
+		} else {
+			texts = append(texts, textsByJob[i])
 		}
 	}
 	if len(texts) == 0 {

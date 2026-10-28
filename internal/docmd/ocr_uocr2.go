@@ -19,9 +19,11 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -148,13 +150,80 @@ func buildUocr2ServerCmd() (*exec.Cmd, *os.File, bool) {
 
 // uocr2CleanText 清洗模型原始输出的结构标记为纯文本：
 // <BLOCK>header[42, 16, 143, 27]<FORK>正文 → 正文；<PAGE> 移除。
+// 防御：偶发生成坏标记（GPU bf16 数字噪声实测出现过 <FORK> 缺失、坐标与正文
+// 粘连）时，含 <BLOCK> 而整行无 <FORK> 的行视为结构垃圾整行剥掉——良 form 行
+// 必有 <FORK>，坏行内容本就不可恢复，宁缺勿把坐标碎片漏进正文。
 func uocr2CleanText(raw string) string {
 	s := blockMarkerRe.ReplaceAllString(raw, "")
+	lines := strings.Split(s, "\n")
+	kept := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if strings.Contains(line, "<BLOCK>") && !strings.Contains(line, "<FORK>") {
+			continue // 坏标记行：整行丢弃
+		}
+		kept = append(kept, line)
+	}
+	s = strings.Join(kept, "\n")
 	s = strings.ReplaceAll(s, "<PAGE>", "")
 	return strings.TrimSpace(s)
 }
 
 var blockMarkerRe = regexp.MustCompile(`<BLOCK>[^<]*<FORK>`)
+
+// uocr2BatchTimeout 单批请求超时：基座 180s + 每页 120s 裕量（CPU 实测约 60-80s/页，
+// 窗口越大线性增长；超时防呆不等价于服务端截断判定）。
+func uocr2BatchTimeout(pages int) time.Duration {
+	return 180*time.Second + time.Duration(pages)*120*time.Second
+}
+
+// uocr2PagesOCR 把一批 PNG（一窗，≤ocrBatchWindow 页）发给常驻服务的 /ocr_batch，
+// 返回与输入等长同序、清洗后的识别文本。422（截断/页数对不上）与其余非 200 一律
+// 报错（fail-closed，由编排层整窗回退逐页）。
+func uocr2PagesOCR(base string, pngPaths []string) ([]string, error) {
+	images := make([]string, 0, len(pngPaths))
+	for _, p := range pngPaths {
+		data, err := os.ReadFile(p)
+		if err != nil {
+			return nil, err
+		}
+		images = append(images, base64.StdEncoding.EncodeToString(data))
+	}
+	payload := map[string]any{
+		"images":              images,
+		"max_tokens_per_page": uocr2PageMaxTokens,
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	client := &http.Client{Timeout: uocr2BatchTimeout(len(pngPaths))}
+	resp, err := client.Post(base+"/ocr_batch", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		var e struct {
+			Error string `json:"error"`
+		}
+		_ = json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&e)
+		return nil, fmt.Errorf("Unlimited-OCR-2 批识别返回 %d: %s", resp.StatusCode, e.Error)
+	}
+	var out struct {
+		Texts []string `json:"texts"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 64<<20)).Decode(&out); err != nil {
+		return nil, err
+	}
+	if len(out.Texts) != len(pngPaths) {
+		return nil, fmt.Errorf("Unlimited-OCR-2 批识别页数不齐（%d/%d）", len(out.Texts), len(pngPaths))
+	}
+	texts := make([]string, len(out.Texts))
+	for i, raw := range out.Texts {
+		texts[i] = uocr2CleanText(raw)
+	}
+	return texts, nil
+}
 
 // uocr2PageOCR 把一页 PNG 发给常驻 Unlimited-OCR-2 服务，返回清洗后的识别文本。
 // 422（截断）与其余非 200 一律报错（fail-closed，由引擎链回退处理）。
@@ -215,9 +284,42 @@ func (p *uocr2OCRProvider) ExtractImage(path string) (string, error) {
 	}
 	text, err := uocr2PageOCR(base, path)
 	if err != nil {
+		p.dropBaseIfTransportErr(err) // 传输层失败=服务大概率已死（重启/被杀），下页重新探测/拉起
 		return "", err
 	}
 	return strings.TrimSpace(text), nil
+}
+
+// dropBaseIfTransportErr 传输层错误（连接拒绝/重置等 *url.Error）时清除缓存的
+// base URL：长驻 gaea 进程里服务可能中途消亡（重启/被杀），不清会导致本次
+// 会话内 OCR 永远打死地址、永远走不到重拉。HTTP 状态错误（422/500）不算——
+// 服务活着，地址仍有效。
+func (p *uocr2OCRProvider) dropBaseIfTransportErr(err error) {
+	var urlErr *url.Error
+	if !errors.As(err, &urlErr) {
+		return
+	}
+	p.mu.Lock()
+	p.base = ""
+	p.mu.Unlock()
+}
+
+// ExtractPages 实现批量接口：一批 PNG（一窗，≤ocrBatchWindow 页）一次请求识别
+// （跨页上下文共享）。顺序与输入严格一致；任一页失败整体报错（编排层整窗回退逐页）。
+func (p *uocr2OCRProvider) ExtractPages(paths []string) ([]string, error) {
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("ExtractPages：空页列表")
+	}
+	base := p.resolveBase()
+	if base == "" {
+		return nil, fmt.Errorf("Unlimited-OCR-2 服务不可用（未安装或无法拉起）")
+	}
+	texts, err := uocr2PagesOCR(base, paths)
+	if err != nil {
+		p.dropBaseIfTransportErr(err)
+		return nil, err
+	}
+	return texts, nil
 }
 
 // resolveBase 解析常驻服务 base URL：成功缓存，失败记录冷却时间。
