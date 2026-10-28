@@ -118,7 +118,7 @@ describe('RuntimePage 运行监测板块', () => {
     expect(screen.getAllByText('65.2').length).toBeGreaterThanOrEqual(1) // tok/s（引擎 live；引擎请求表 decode 列同值）
     expect(screen.getByText('31')).toBeTruthy() // CPU（引擎遥测优先）
     expect(screen.getByText('62')).toBeTruthy() // GPU 负载：引擎遥测 null → 系统 PDH（gpuUsage 62）兜底
-    expect(screen.getByText('12.2/96')).toBeTruthy() // 显存（系统侧读数）
+    expect(screen.getByText('12.2/96.0')).toBeTruthy() // 显存（系统侧读数；分母与分子同一位一位小数）
     expect(screen.getByText('12.5 / 3.2')).toBeTruthy() // 磁盘 读/写 合并卡
     expect(screen.getByText('磁盘 读/写')).toBeTruthy()
     expect(screen.getByText('GPU 温度')).toBeTruthy() // 无遥测卡仍在（值 — ）

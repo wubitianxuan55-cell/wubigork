@@ -521,8 +521,8 @@ export default function RuntimePage() {
       gauges: [
         { label: 'GPU 负载', value: gpuUtil?.toFixed(0) ?? '—', unit: '%', frac: gpuUtil != null ? gpuUtil / 100 : null, hint: gpuHint },
         { label: 'CPU', value: cpu?.toFixed(0) ?? '—', unit: '%', frac: cpu != null ? cpu / 100 : null },
-        { label: '内存', value: ramUsed == null ? '—' : `${ramUsed.toFixed(1)}/${ramTotal ?? '?'}`, unit: 'GB', frac: frac(ramUsed, ramTotal) },
-        { label: '显存', value: vramUsed == null || vramUsed <= 0 ? '—' : `${vramUsed.toFixed(1)}/${vramTotal ?? '?'}`, unit: 'GB', frac: frac(vramUsed, vramTotal), hint: gpuHint },
+        { label: '内存', value: ramUsed == null ? '—' : `${ramUsed.toFixed(1)}/${ramTotal?.toFixed(1) ?? '?'}`, unit: 'GB', frac: frac(ramUsed, ramTotal) },
+        { label: '显存', value: vramUsed == null || vramUsed <= 0 ? '—' : `${vramUsed.toFixed(1)}/${vramTotal?.toFixed(1) ?? '?'}`, unit: 'GB', frac: frac(vramUsed, vramTotal), hint: gpuHint },
       ] as Array<{ label: string; value: string; unit: string; frac: number | null; hint?: string }>,
       chips: [
         { label: 'GPU 温度', value: num(hw.gpu_temp)?.toFixed(0) ?? '—', unit: '°C', hint: gpuHint },
