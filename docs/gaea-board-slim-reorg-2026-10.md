@@ -4,6 +4,9 @@
 > 拍板点(AskUserQuestion)均未获即时应答,按推荐档执行——与既往拍板风格一致
 > (实质收敛、简化≠删功能、同批顺手收口)。提交锚点:`43fa62d9`(模型中心)/
 > `56b21897`(小说),随本批 30 提交整体推送 origin,**未发版**(发版随池另拍)。
+>
+> **2026-10-28 续刀**(用户「继续大道至简」,提交 `本批`):上表余池「创作页 18 弹层
+> 交互与阅读页双 chrome」盘底定刀,见文末「续刀(2026-10-28)」节。
 
 ## 刀一:模型中心瘦身重组(43fa62d9)
 
@@ -83,8 +86,12 @@
   视觉/状态条展开手感~~ → **2026-10-28 已走查**(与首页线同场,见下「真机走查」节):
   模型中心/小说 SettingHub/首页工具链/运行监测 HUD 全过;唯一遗留=创作页状态条
   「N 条反馈」展开手感需实弹生成流(渲染条件=有反馈条目,干净新书返回 null 属设计)。
-- 模型中心:CreatePage 同款深拆不在册;小说:创作页 18 弹层交互与阅读页双 chrome
-  未动(下轮候选)、CreatePage 剩 ~41 态因与生成流逻辑纠缠未拆。
+- ~~小说:创作页 18 弹层交互与阅读页双 chrome~~ → **2026-10-28 续刀**(见文末)。
+  盘底结论:阅读页双 chrome(ReadingChrome/EditChrome)实为已收敛态——单行 chrome+
+  弹层组,无可收面,候选销号;创作页弹层面 19 个均为「菜单一次点击可达」的独立
+  功能面,合面板内容(如对标拆解+技法库)收益小语义风险大,不做;真余量在状态族。
+- 模型中心:CreatePage 同款深拆不在册;CreatePage 剩 ~24 态(章节正文域 10/生成流域 13
+  与生成流逻辑纠缠,拆之无益——同族已尽)。
 - 发版:随池另拍(本批 30 提交含首页方向一重设计/运行监测 HUD/工具化线等三线)。
 
 ## 真机走查(2026-10-28,沙箱壳=重建后桌面 exe,GAEA_WALKTHROUGH 隔离核验过)
@@ -110,3 +117,32 @@
   window 侧;③走查壳登录态=沙箱 home 的 `.gaea_token.json`(第三数据面,非 appdata),
   明文合成 token(expires_in:0)即可过 EnsureToken 零网络;④页内 location.reload 保
   Wails 桥,CDP Page.reload 后 evaluate 可能打到旧执行上下文残影。
+
+## 续刀(2026-10-28):创作页状态族清账 + 质检菜单分组
+
+用户「继续大道至简」。盘底(见余池销号注):双 chrome 已收敛无面可收;19 弹层面
+合并内容不做;真余量=状态族与菜单 IA。两刀:
+
+- **质检菜单 8 项平铺→三组**(全书评估: 全书体检/平台评审/文风指纹;
+  写法参考: 故事骨架/对标拆解/技法库;本章工具: 收敛修补/上下文清单)——
+  antd Menu `type:'group'`,组名即导览,成员/key/handler 零变化;测试从「6 项在册」
+  升级为「8 成员+3 组名」全量钉死(旧断言漏了 2 成员,顺带补齐)。
+- **状态族两域出页,域 hook 4→6**:
+  `useCreateNarrativeOps`(叙事账本 loadState/proposeState/approveState+去味
+  deslopChapter/llmDeslop+AI 反推 reconstructOutlines 族——三者共用 rail 消息通道
+  stateMsg/stateBusy 故同族;7 态+6 动作+反推轮询/取消/`novel:auto-reconstruct`
+  串联事件,`active` 经参数入 hook 走本地 ref 镜像)与
+  `useCreateFingerprintReview`(指纹 fp*4+评审 review*5+5 动作,纯自包含)。
+  CreatePage 1467→1258 行/40→24 态。
+- **B5a 切书失效下沉**:评审/指纹的切书复位内聚为 hook 的 projectPath effect
+  (原 CreatePage 切书 effect 内联语句逐字迁入,挂载首跑全为初值=无操作等价),
+  页面切书 effect 只管正文/在途生成;换平台弃报告收为 `changeReviewPlatform`。
+- 等价证明=CreatePage.test 43/43 **零编辑**复绿(行为锁含 B5a/菜单成员/去味禁用);
+  新增断言仅菜单三组名。坑复训:hook 内事件处理器读 `active` 须本地 ref 镜像
+  (闭包捕获 prop 滞后一拍);`useXxx` 引用必须先于解构使用点,切书 effect 引用
+  后置 hook 的返回值会吃 TS2448——复位职责索性整体下沉,别让页面当二传手。
+- **NovelPage pane 断言竞态根修**(全量并发下两连失败,单跑恒绿——按纪律不盖
+  flaky 章):「默认书架 tab」用例只 findBy pane-home 一个惰性 chunk,其余四 pane
+  **同步断言**——负载下设定 hub chunk 慢半拍即炸(「全量并发超时单跑绿」家族的
+  潜伏形态,这次凑齐两连败证据链)。根修=等 pane 计数到 5 再断言,等待语义增强、
+  断言零变化。

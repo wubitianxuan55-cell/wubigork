@@ -598,10 +598,14 @@ describe('CreatePage 未保存保护与体验收口（v4.421.0）', () => {
     for (const label of ['章节计划', '章节分析', '一键去味']) {
       expect(screen.getByRole('button', { name: label })).toBeTruthy()
     }
-    // 质检菜单 6 项
+    // 质检菜单 8 项三组（2026-10-28 续大道至简：全书评估/写法参考/本章工具，
+    // 组名即导览；成员与 key 零变化）
     let group = await openRailMenu('质检')
-    for (const label of ['全书体检', '故事骨架', '收敛修补', '上下文清单', '平台评审', '文风指纹']) {
+    for (const label of ['全书体检', '平台评审', '文风指纹', '故事骨架', '对标拆解', '技法库', '收敛修补', '上下文清单']) {
       expect(group.getByRole('menuitem', { name: label })).toBeTruthy()
+    }
+    for (const groupLabel of ['全书评估', '写法参考', '本章工具']) {
+      expect(group.getByText(groupLabel)).toBeTruthy()
     }
     // 文本菜单 3 项
     group = await openRailMenu('文本')

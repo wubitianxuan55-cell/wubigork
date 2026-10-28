@@ -3,14 +3,14 @@ import { Alert, Button, Dropdown, message, Modal } from 'antd'
 import type { MenuProps } from 'antd'
 import { DownOutlined } from '@ant-design/icons'
 import { app } from '../gaea/lib/bridge'
-import { GetNovelState, BuildNovelStatePatch, SettleNovelState, DeSlopChapterAiTaste, RewriteChapterAiTaste, CancelCreateChapter, NovelFingerprintStatus, NovelFingerprintBuild, NovelFingerprintScore, NovelOutlineReconstruct, NovelOutlineReconstructApply, NovelOutlineReconstructStart, NovelOutlineReconstructTaskGet, NovelReviewPlatforms, NovelChapterReview } from '../../wailsjs/go/app/NovelB'
+import { CancelCreateChapter } from '../../wailsjs/go/app/NovelB'
 import { useOutlineStore } from '../stores/outlineStore'
 import { useAppStore } from '../stores/appStore'
 import type { OutlineNode } from '../types'
 import { buildTree, flattenTree, buildPrevSummary, flattenChapters } from '../components/novel/create/outlineTree'
 import { useChapterStream } from '../components/novel/create/useChapterStream'
 import { useChapterGateNotice } from '../components/novel/create/useChapterGateNotice'
-import type { ChapterReviewPayload, FingerprintScorePayload, FingerprintStatusPayload, ReviewPlatform, ChapterAnnotation, PlanGateReportView } from '../gaea/lib/bridge/novel'
+import type { ChapterAnnotation, PlanGateReportView } from '../gaea/lib/bridge/novel'
 import StyleFingerprintPanel from '../components/novel/StyleFingerprintPanel'
 import ChapterReviewPanel from '../components/novel/ChapterReviewPanel'
 import ChapterTreePanel from '../components/novel/create/ChapterTreePanel'
@@ -35,10 +35,14 @@ import { chooseAction, chooseUnsavedAction } from '../components/novel/unsavedGu
 import { registerNovelDirtyProvider, takeDiscardConfirmed } from '../components/novel/novelSwitchGuard'
 // 大道至简分域拆件（2026-10-27）：弹层开关/写作反馈横幅/分支向导/全文脑图
 // 四族状态出页到 ./create/ 四个域 hook——页面按同名解构，全部引用点零改动
+// 2026-10-28 续刀：叙事账本+反推+去味（useCreateNarrativeOps）、
+// 文风指纹+平台评审（useCreateFingerprintReview）两族同法出走，域 hook 4→6
 import { useCreatePanels } from './create/useCreatePanels'
 import { useCreateBanners } from './create/useCreateBanners'
 import { useCreateWizard, type WizardRequest } from './create/useCreateWizard'
 import { useCreateGraph, type EntityGraph, type EntityGraphNode } from './create/useCreateGraph'
+import { useCreateNarrativeOps } from './create/useCreateNarrativeOps'
+import { useCreateFingerprintReview } from './create/useCreateFingerprintReview'
 import { WritingStatusBar } from '../components/novel/create/WritingStatusBar'
 
 const BRAINSTORM_MSG_KEY = 'novel-brainstorm-loading'
@@ -243,33 +247,8 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
   }, [minWords, temperature, selectedSkill])
   // 生成完成后 novelstyle 的 AI 味检测结果等写作反馈横幅族已出页到 useCreateBanners
   // （呈现面收敛为 WritingStatusBar 单条状态条）
-  const [novelState, setNovelState] = useState<{ version?: number; entities?: Record<string, { name?: string; type?: string; status?: string }> } | null>(null)
-  const [statePatch, setStatePatch] = useState<unknown>(null)
-  const [stateBusy, setStateBusy] = useState(false)
-
-  // 文风指纹（参考档 + 章节体检）弹窗状态；Status 在打开时自动拉取（无独立刷新按钮）
-  const [fpStatus, setFpStatus] = useState<FingerprintStatusPayload | null>(null)
-  const [fpScore, setFpScore] = useState<FingerprintScorePayload | null>(null)
-  const [fpBusy, setFpBusy] = useState(false)
-  // 平台评审（v4.282，oh-story 蒸馏 T1）：档位清单 + 单章报告 + 动作态。
-  const [reviewPlatforms, setReviewPlatforms] = useState<ReviewPlatform[]>([])
-  const [reviewPlatformId, setReviewPlatformId] = useState('general')
-  const [reviewReport, setReviewReport] = useState<ChapterReviewPayload | null>(null)
-  const [reviewBusy, setReviewBusy] = useState(false)
-  const [reviewMsg, setReviewMsg] = useState('')
-  // AI 反推大纲（v4.281）：反推 → 确认 → 幂等合并进大纲
-  const [reconstructBusy, setReconstructBusy] = useState(false)
-  // v4.340 取消：轮询期「取消反推」可见（cancellable=已入队拿到 taskId），
-  // 点击置标志 → 轮询下个检查点退出 + 请求后端协作取消任务。
-  const [reconstructCancellable, setReconstructCancellable] = useState(false)
-  const reconstructCancelRef = useRef(false)
-  const reconstructTaskIdRef = useRef('')
-  /** 已等待秒数（v4.421.0：长任务可见化——12 分钟轮询期间此前只有一个静态提示） */
-  const [reconstructElapsed, setReconstructElapsed] = useState(0)
-  /** 组件是否还在（v4.421.0：卸载/切走后停止轮询，避免对已卸载组件 setState 与空跑请求） */
-  const reconstructAliveRef = useRef(true)
-  useEffect(() => () => { reconstructAliveRef.current = false }, [])
-  const [fpMsg, setFpMsg] = useState('')
+  // 叙事账本/反推/去味族与文风指纹/评审族已出页到 useCreateNarrativeOps /
+  // useCreateFingerprintReview（2026-10-28 续大道至简：状态+动作同族出走）
 
   const [editorFontSize, setEditorFontSize] = useState<number>(() => {
     try {
@@ -369,13 +348,10 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
       }
     }
     setActiveId(''); setContent(''); setLoadedSnapshot('')
-    // B5a：评审报告 / 文风指纹状态与提示语都取自上一本书——不清则切书后弹窗仍整屏显示
-    // 上一本的内容（审计确证）。两个弹窗一并关闭：留在屏上比「需要重开一次」更糟。
-    setReviewReport(null); setReviewMsg(''); setReviewOpen(false)
-    setFpStatus(null); setFpScore(null); setFpMsg(''); setFpOpen(false)
-    // 仅在项目变化时执行（content/snapshot/finishStream 均走 ref，不进依赖；
-    // 域 hook 的 useState setter 引用恒稳，列入 deps 不触发重建）
-  }, [projectPath, setFpOpen, setReviewOpen])
+    // B5a：评审/指纹切书失效已内聚到 useCreateFingerprintReview（projectPath effect，
+    // 原内联语句逐字在彼处）；本 effect 只管正文/在途生成。
+    // 仅在项目变化时执行（content/snapshot/finishStream 均走 ref，不进依赖）
+  }, [projectPath])
 
   // 跨页切书未保存保护（`novelSwitchGuard` 的登记端）：把「创作页正文脏不脏、
   // 能否先保存」暴露给书架页的切书闸门。dirty/save 均经 ref 读最新值，故只登记一次。
@@ -930,35 +906,11 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
       .catch(() => { if (alive) setEditorAnns([]) })
     return () => { alive = false }
   }, [activeChapterNum])
-  const loadState = useCallback(async () => {
-    setStateBusy(true); setStateMsg('')
-    try {
-      const s = (await GetNovelState()) as { version?: number; entities?: Record<string, { name?: string; type?: string; status?: string }> }
-      setNovelState(s); setStateMsg('已加载叙事状态账本')
-    } catch (err: unknown) { setStateMsg(err instanceof Error ? err.message : '加载失败') }
-    finally { setStateBusy(false) }
-  }, [setStateMsg])
-  const proposeState = useCallback(async () => {
-    setStateBusy(true); setStateMsg('')
-    try {
-      const p = await BuildNovelStatePatch(activeChapterNum)
-      setStatePatch(p); setStateMsg(`AI 已生成第 ${activeChapterNum} 章状态建议，等待你审批`)
-    } catch (err: unknown) { setStateMsg(err instanceof Error ? err.message : '生成建议失败') }
-    finally { setStateBusy(false) }
-  }, [activeChapterNum, setStateMsg])
-  const approveState = useCallback(async () => {
-    if (statePatch === null || statePatch === undefined) { setStateMsg('请先生成 AI 状态建议'); return }
-    setStateBusy(true); setStateMsg('')
-    try {
-      const r = (await SettleNovelState(JSON.stringify(statePatch), true)) as { version?: number }
-      setStateMsg(`已审批结算，状态账本版本 → ${r?.version ?? '?'}`)
-      await loadState()
-    } catch (err: unknown) { setStateMsg(err instanceof Error ? err.message : '结算失败') }
-    finally { setStateBusy(false) }
-  }, [statePatch, loadState, setStateMsg])
-  // 手动「一键去味」：对当前章节跑确定性 DeSlopRewrite（任意章节可用，不只生成时）。
-  // v4.421.0：成功后刷新编辑区（旧实现只更新提示，作者看到的仍是旧文，以为去味没生效）；
-  // 若编辑区有未保存的手写修改则不刷新，如实提示，避免把作者的字覆盖掉。
+  // 叙事账本（loadState/proposeState/approveState）+ 去味（deslopChapter/llmDeslop）
+  // + AI 反推（reconstructOutlines 族）→ useCreateNarrativeOps（2026-10-28 续大道至简：
+  // 三者共用 rail 消息通道 stateMsg/stateBusy，同族出页同名解构=引用点零改动）
+
+  // 手动「一键去味」前置闸 refreshEditorAfterServerRewrite 留编辑域（dirty 纪律属页面）
   const refreshEditorAfterServerRewrite = useCallback(() => {
     const node = useOutlineStore.getState().outlines.find(n => n.id === activeIdRef.current)
     if (!node) return
@@ -985,212 +937,51 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
     void loadChapter(node)
   }, [loadChapter])
 
-  const deslopChapter = useCallback(async () => {
-    // A6：生成中途去味会把**半章**写盘，随后流式 done 再写全文——两写者的最终结果取决于
-    // 到达顺序（旧实现不禁用，rail 按钮在生成中照常可点）。rail 上另外加了 disabled 门控，
-    // 这里保留早退以覆盖非按钮调用点。
-    if (generatingRef.current) { message.warning('正在生成，请先停止生成再去味'); return }
-    setStateBusy(true); setStateMsg('')
-    try {
-      const r = (await DeSlopChapterAiTaste(activeChapterNum)) as { changes?: number; beforeScore?: number; afterScore?: number; done?: boolean }
-      setStateMsg(r?.done ? `已去味 ${r.changes} 处，分数 ${r.beforeScore}→${r.afterScore}` : '未命中 AI 套路，无需去味')
-      if (r?.done) refreshEditorAfterServerRewrite()
-    } catch (err: unknown) { setStateMsg(err instanceof Error ? err.message : '去味失败') }
-    finally { setStateBusy(false) }
-  }, [activeChapterNum, refreshEditorAfterServerRewrite, setStateMsg])
-  // 高级去味：LLM 受限重写命中句（质量更高，需模型调用）。
-  const llmDeslop = useCallback(async () => {
-    // A6：同 deslopChapter——生成中改写同一章，两个写者会互相覆盖。
-    if (generatingRef.current) { message.warning('正在生成，请先停止生成再去味'); return }
-    setStateBusy(true); setStateMsg('')
-    try {
-      const r = (await RewriteChapterAiTaste(activeChapterNum)) as { done?: boolean; rewritten?: number; beforeScore?: number; afterScore?: number; reason?: string }
-      setStateMsg(r?.done ? `已高级去味 ${r.rewritten} 句，分数 ${r.beforeScore}→${r.afterScore}` : (r?.reason ?? '无命中句'))
-      if (r?.done) refreshEditorAfterServerRewrite()
-    } catch (err: unknown) { setStateMsg(err instanceof Error ? err.message : '高级去味失败') }
-    finally { setStateBusy(false) }
-  }, [activeChapterNum, refreshEditorAfterServerRewrite, setStateMsg])
-
-  // ── 文风指纹（参考档构建 + 章节体检；wailsjs 再生前 NovelB 三方法直接 import）──
-  // 打开即拉参考档状态（刷新并入 open 时自动加载）；失败落 rail 消息（stateMsg）。
-  const openFingerprint = useCallback(async () => {
-    setFpOpen(true); setFpBusy(true); setFpMsg(''); setFpScore(null)
-    try {
-      setFpStatus(await NovelFingerprintStatus())
-    } catch (err: unknown) { setFpMsg(err instanceof Error ? err.message : '加载文风指纹失败') }
-    finally { setFpBusy(false) }
-  }, [setFpOpen])
-  // 构建/重建参考档：用全部已写章节生成风格基线（样本不足时后端 reject 中文提示）。
-  const buildFingerprint = useCallback(async () => {
-    setFpBusy(true); setFpMsg('')
-    try {
-      const s = await NovelFingerprintBuild()
-      setFpStatus(s)
-      setFpMsg(`参考档已构建（${s?.chapters ?? 0} 章 · ${(s?.chars ?? 0).toLocaleString()} 字）`)
-    } catch (err: unknown) { setFpMsg(err instanceof Error ? err.message : '构建参考档失败') }
-    finally { setFpBusy(false) }
-  }, [])
-  // 体检当前章：AI 味评分 + 与参考档距离（无参考档时后端按通用阈值打分）。
-  const scoreFingerprint = useCallback(async () => {
-    setFpBusy(true); setFpMsg('')
-    try {
-      const r = await NovelFingerprintScore(activeChapterNum)
-      setFpScore(r)
-      setFpMsg(`第 ${activeChapterNum} 章体检完成`)
-    } catch (err: unknown) { setFpMsg(err instanceof Error ? err.message : '章节体检失败') }
-    finally { setFpBusy(false) }
-  }, [activeChapterNum])
-
-  // ── AI 反推大纲（v4.281，拆书导入 P1）：反推当前工程立项 + 分批章节大纲（只读预览），
-  // ── 平台评审（v4.282，oh-story 蒸馏 T1）：档位清单（一次拉取）+ 当前章确定性评审。
-  // 打开面板即拉档位（失败落 rail 消息，选择器回退为「通用」一档）；评审零模型调用。
-  const openReview = useCallback(async () => {
-    setReviewOpen(true)
-    setReviewMsg('')
-    if (reviewPlatforms.length === 0) {
-      try {
-        const list = await NovelReviewPlatforms()
-        setReviewPlatforms(Array.isArray(list) ? list : [])
-      } catch (err: unknown) {
-        setReviewMsg(err instanceof Error ? err.message : '加载平台档位失败')
-      }
-    }
-  }, [reviewPlatforms.length, setReviewOpen])
-  const runReview = useCallback(async () => {
-    setReviewBusy(true)
-    setReviewMsg('')
-    try {
-      const rep = await NovelChapterReview(activeChapterNum, reviewPlatformId)
-      setReviewReport(rep)
-      const hit = (rep?.counts?.S1 ?? 0) + (rep?.counts?.S2 ?? 0) + (rep?.counts?.S3 ?? 0) + (rep?.counts?.S4 ?? 0)
-      setReviewMsg(`第 ${activeChapterNum} 章评审完成：${rep?.platformLabel ?? ''} · ${rep?.verdict ?? ''} · 命中 ${hit} 项`)
-    } catch (err: unknown) {
-      setReviewMsg(err instanceof Error ? err.message : '评审失败')
-    } finally {
-      setReviewBusy(false)
-    }
-  }, [activeChapterNum, reviewPlatformId])
-
-  // ── AI 反推大纲（v4.281，拆书导入 P1）：反推当前工程立项 + 分批章节大纲（只读预览），
-  // 确认后按章号合并进大纲（幂等、不覆盖章节正文）；模型不可用时后端自动规则兜底并如实回报。
-  const reconstructOutlines = useCallback(async () => {
-    setReconstructBusy(true)
-    setStateMsg('AI 反推大纲中…')
-    try {
-      // v4.291 任务化：反推入任务队列（任务中心可见、页面关闭不丢），
-      // 轮询取结果；队列不可用回落同步绑定。v4.340：轮询期可取消——
-      // 停止等待并请求后端取消任务（任务完成竞态下取消失败被吞，任务中心可查）。
-      let preview: Awaited<ReturnType<typeof NovelOutlineReconstruct>> | null = null
-      let cancelled = false
-      try {
-        const started = await NovelOutlineReconstructStart()
-        reconstructTaskIdRef.current = started.taskId || ''
-        reconstructCancelRef.current = false
-        setReconstructCancellable(true)
-        const startedAt = Date.now()
-        const deadline = startedAt + 12 * 60_000
-        for (;;) {
-          if (!reconstructAliveRef.current) return
-          if (reconstructCancelRef.current) { cancelled = true; break }
-          if (Date.now() > deadline) throw new Error('反推任务超时（12 分钟）')
-          await new Promise((r) => setTimeout(r, 3000))
-          if (!reconstructAliveRef.current) return
-          const waited = Math.floor((Date.now() - startedAt) / 1000)
-          setReconstructElapsed(waited)
-          setStateMsg(`AI 反推大纲中…已等待 ${Math.floor(waited / 60)} 分 ${waited % 60} 秒`)
-          if (reconstructCancelRef.current) { cancelled = true; break }
-          const st = await NovelOutlineReconstructTaskGet()
-          if (!reconstructAliveRef.current) return
-          if (st.status === 'failed') throw new Error(st.error || '反推任务失败')
-          if (st.status === 'succeeded' && st.preview) {
-            preview = st.preview as Awaited<ReturnType<typeof NovelOutlineReconstruct>>
-            break
-          }
-        }
-      } catch (taskErr: unknown) {
-        const msg = taskErr instanceof Error ? taskErr.message : ''
-        const fallbackable = msg.includes('任务队列不可用') || msg.includes('尚无反推任务')
-        if (!fallbackable) throw taskErr
-        if (!reconstructAliveRef.current) return
-        // 回退路径是同步绑定，没有取消面——如实告知，不让「取消反推」按钮假消失
-        setStateMsg('任务队列不可用：已回退同步反推（该路径不可取消，完成后会弹确认）')
-        preview = await NovelOutlineReconstruct()
-        if (!reconstructAliveRef.current) return
-      }
-      if (cancelled) {
-        // 用户取消：停止等待并请求后端协作取消（任务恰已完成时后端报错，
-        // 吞掉即可——等待已停，结果可在任务中心看到）。
-        const id = reconstructTaskIdRef.current
-        if (id) void app.TaskCancel(id).catch(() => {})
-        setStateMsg('已取消反推等待；任务已请求取消，可在任务中心查看')
-        return
-      }
-      const items = preview?.items ?? []
-      if (items.length === 0) {
-        setStateMsg('反推结果为空，未做修改')
-        return
-      }
-      const head = preview?.aiUsed ? 'AI 反推完成' : '模型不可用，已用规则兜底'
-      const warn = preview?.warnings?.length ? `\n提示：${preview.warnings.slice(0, 2).join('；')}` : ''
-      const meta = [preview?.genre, preview?.narrativePerspective, preview?.targetWords ? `目标 ${preview.targetWords.toLocaleString()} 字` : '']
-        .filter(Boolean).join(' · ')
-      // 篇幅路由（oh-story T4）：中/长篇预览按每 segmentSize 章聚合为卷级参考节点
-      const seg = preview?.segmentSize ?? 0
-      const tierLabel = preview?.tier === 'long' ? '长篇' : preview?.tier === 'mid' ? '中篇' : '短篇'
-      const action = seg > 0
-        ? `篇幅路由（${tierLabel}）：已按每 ${seg} 章聚合为 ${items.length} 个卷级参考节点，应用将新建这些节点（不影响章节正文，可重复执行）。`
-        : '将把每章的概要 / 场景 / 要点 / 情感基调合并进大纲（不覆盖章节正文，可重复执行）。'
-      Modal.confirm({
-        title: '应用 AI 反推大纲？',
-        content: `${head}：共 ${items.length} ${seg > 0 ? '个卷级节点' : '章'}。${action}${meta ? `\n推断：${meta}` : ''}${warn}`,
-        okText: '应用到大纲',
-        cancelText: '取消',
-        onOk: async () => {
-          const n = await NovelOutlineReconstructApply(JSON.stringify(items))
-          setStateMsg(seg > 0 ? `已应用 ${n} 个卷级参考节点` : `已应用 ${n} 章大纲`)
-          await loadOutlines()
-        },
-      })
-    } catch (err: unknown) {
-      setStateMsg(err instanceof Error ? err.message : 'AI 反推失败')
-    } finally {
-      setReconstructBusy(false)
-      setReconstructCancellable(false)
-      setReconstructElapsed(0)
-    }
-  }, [loadOutlines, setStateMsg])
-
-  // tail×反推串联（v4.292）：导入向导 tail 模式完成后由书架派发本事件，
-  // 本页自动开跑反推（任务化后台执行）。
-  // v4.421.0 门控：本页不可见时**挂起**而不是直接开跑——书架流程里
-  // `novel:goto-tab{create}` 与 `novel:auto-reconstruct` 同 tick 连发，
-  // 事件到达时 active prop 还没翻转，直接按 active 拦会把正常流程拦掉。
-  const pendingReconstructRef = useRef(false)
-  React.useEffect(() => {
-    if (!active || !pendingReconstructRef.current) return
-    pendingReconstructRef.current = false
-    void reconstructOutlines()
-  }, [active, reconstructOutlines])
-
-  React.useEffect(() => {
-    const handler = () => {
-      if (activeRef.current) { void reconstructOutlines(); return }
-      pendingReconstructRef.current = true
-    }
-    window.addEventListener('novel:auto-reconstruct', handler)
-    return () => window.removeEventListener('novel:auto-reconstruct', handler)
-  }, [reconstructOutlines])
+  // ── 叙事账本+反推+去味 / 文风指纹+评审 两族出页（2026-10-28 续大道至简同名解构）──
+  // 前者共用 rail 消息通道（stateMsg/stateBusy）+ 反推轮询/取消/串联事件；
+  // 后者纯自包含（只依赖章号与弹层开关 setter）。语句逐字迁入，行为零变化。
+  const {
+    novelState, stateBusy,
+    loadState, proposeState, approveState,
+    deslopChapter, llmDeslop,
+    reconstructBusy, reconstructCancellable, reconstructElapsed,
+    reconstructCancelRef, reconstructOutlines,
+  } = useCreateNarrativeOps({ active, activeChapterNum, setStateMsg, generatingRef, refreshEditorAfterServerRewrite, loadOutlines })
+  const {
+    fpStatus, fpScore, fpBusy, fpMsg,
+    openFingerprint, buildFingerprint, scoreFingerprint,
+    reviewPlatforms, reviewPlatformId, changeReviewPlatform,
+    reviewReport, reviewBusy, reviewMsg,
+    openReview, runReview,
+  } = useCreateFingerprintReview({ activeChapterNum, projectPath, setFpOpen, setReviewOpen })
 
   // ── 工具轨分组菜单（简化批）：成员与直钮分工见 RailGroup 位置的设计注释 ──
+  // 2026-10-28 续大道至简：质检菜单 8 项平铺 → 三组（全书评估/写法参考/本章工具）——
+  // 组名即导览，成员与 key 零变化（CreatePage.test 菜单成员锁零改动仍绿）。
   const railQualityItems: MenuProps['items'] = [
-    { key: 'health', label: '全书体检' },
-    { key: 'spine', label: '故事骨架' },
-    { key: 'dissect', label: '对标拆解' },
-    { key: 'technique', label: '技法库' },
-    { key: 'converge', label: '收敛修补', disabled: !activeChapterNum },
-    { key: 'ctxinv', label: '上下文清单' },
-    { key: 'review', label: '平台评审' },
-    { key: 'fingerprint', label: '文风指纹' },
+    {
+      key: 'g-book', label: '全书评估', type: 'group',
+      children: [
+        { key: 'health', label: '全书体检' },
+        { key: 'review', label: '平台评审' },
+        { key: 'fingerprint', label: '文风指纹' },
+      ],
+    },
+    {
+      key: 'g-learn', label: '写法参考', type: 'group',
+      children: [
+        { key: 'spine', label: '故事骨架' },
+        { key: 'dissect', label: '对标拆解' },
+        { key: 'technique', label: '技法库' },
+      ],
+    },
+    {
+      key: 'g-chapter', label: '本章工具', type: 'group',
+      children: [
+        { key: 'converge', label: '收敛修补', disabled: !activeChapterNum },
+        { key: 'ctxinv', label: '上下文清单' },
+      ],
+    },
   ]
   const onRailQuality: MenuProps['onClick'] = ({ key }) => {
     if (key === 'health') setHealthOpen(true)
@@ -1455,7 +1246,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
         msg={reviewMsg}
         platforms={reviewPlatforms}
         platformId={reviewPlatformId}
-        onPlatformChange={(id) => { setReviewPlatformId(id); setReviewReport(null) }}
+        onPlatformChange={changeReviewPlatform}
         report={reviewReport}
         onReview={() => void runReview()}
         hasChapter={activeChapterNum > 0}

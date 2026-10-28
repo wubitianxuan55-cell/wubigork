@@ -89,6 +89,9 @@ describe('NovelPage 常驻 pane 的 active 下发', () => {
   it('默认书架 tab：home=true、其余常驻隐藏页=false，且恰好一个可见；sin 惰性未挂载', async () => {
     render(<NovelPage />)
     await screen.findByTestId('pane-home')
+    // 五 pane 为各自 React.lazy chunk——重载机器上 home 先到、设定 hub 等慢半拍，
+    // 同步断言会踩「home 已挂、其余未到」的窗口（全量并发下两连失败实证）。等齐再断言。
+    await waitFor(() => expect(document.querySelectorAll('[data-testid^="pane-"]').length).toBe(5))
 
     expect(paneActive('home')).toBe('true')
     for (const key of PANE_KEYS.filter((k) => k !== 'home' && k !== 'sin')) {
