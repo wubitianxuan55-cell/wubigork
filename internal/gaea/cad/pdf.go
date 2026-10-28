@@ -18,6 +18,26 @@ import (
 // PDFDpiDefault PDF 页图默认渲染 DPI（110：A3 图纸文字可读与耗时的折中）。
 const PDFDpiDefault = 110
 
+// RenderPDFPage 单页渲染（ask 档）：第 page 页（1 基）按 dpi 渲为 PNG，返回落盘
+// 路径。与 OpenPDFContext 的整本渲染不同，本函数只渲一页——「问图纸」与 agent
+// cad_ask 的单页高清通道（高清档 DPI 由调用方定，对话侧 200、面板默认档 110）。
+func RenderPDFPage(ctx context.Context, path, cacheDir string, page, dpi int) (string, error) {
+	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
+		return "", fmt.Errorf("创建缓存目录失败: %w", err)
+	}
+	pngs, err := docmd.RenderPDFPageRange(ctx, path, filepath.Join(cacheDir, "ask"), dpi, page, page)
+	if err != nil {
+		if strings.Contains(err.Error(), "pdftoppm") {
+			return "", fmt.Errorf("PDF 渲染需要 poppler（pdftoppm），当前环境未安装: %w", err)
+		}
+		return "", err
+	}
+	if len(pngs) == 0 {
+		return "", fmt.Errorf("PDF 第 %d 页渲染失败：无输出", page)
+	}
+	return pngs[0], nil
+}
+
 // PDFMaxPages 一期页数上限（超出截断并警告；防超大 PDF 首开卡顿）。
 const PDFMaxPages = 50
 

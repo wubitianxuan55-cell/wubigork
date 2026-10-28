@@ -195,5 +195,10 @@ question, sheet?)`——把本计划工具面板同款管线一步带给模型�
   + spaceTags（SpaceWork，GA2-04 守卫 TestSpaceTagsCoversAllBuiltins 当场逮住漏表
   ——守卫体系第 N 次立功）；config 无 tools.enabled 白名单时 boot 全注册路径自动
   生效（用户 config 实测无该名单）。
-- 遗留观察：面板「问图纸」PDF 分支喂的是 110dpi 页图（GaeaCadRaster PDF 恒忽略
-  width）——若实弹发现 PDF 问图纸读字不清，把 ask 档 DPI 提到 200 同款提法。
+- **面板问图纸 PDF 分支同刀收口（同日）**：cad 包新增 `RenderPDFPage`（单页按
+  DPI 渲染，复用 docmd.RenderPDFPageRange 的 1..1 页区间）；`GaeaCadRaster` PDF
+  分支 width>0（问图纸高清档）改走单页 200dpi 重渲（`cadAskRasterDPI`，落缓存
+  目录 ask 前缀不覆盖默认页图），与对话侧 cad_ask 同口径——遗留观察池销号。
+  守卫=TestRenderPDFPage（DPI 传播实证：36dpi→306px / 144dpi→1224px；越界页
+  如实报错）。坑：pdftoppm 单页输出无零填充，同前缀两渲同名覆写——测试量宽度
+  必须渲完立刻量。

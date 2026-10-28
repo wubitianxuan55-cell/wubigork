@@ -32,6 +32,10 @@ const cadMaxTexts = 2000
 // 不做无界累积）。
 const cadCacheKeep = 8
 
+// cadAskRasterDPI PDF 问图纸高清档 DPI（cad_ask 对话侧同款 200；默认档 110 是
+// 可读与耗时折中——「问图纸」就是为了读字，清晰度优先，单页有界可控）。
+const cadAskRasterDPI = 200
+
 const (
 	cadOpenTimeout  = 2 * time.Minute
 	cadQueryTimeout = 90 * time.Second
@@ -204,12 +208,23 @@ func (a *App) GaeaCadRaster(path string, sheet int, width int) (string, error) {
 	var pngPath string
 	switch cad.Sniff(path) {
 	case cad.KindPDF:
-		pngPath = filepath.Join(dir, fmt.Sprintf("sheet-%d.png", sheet))
-		if _, err := os.Stat(pngPath); err != nil {
-			ctx, cancel := cadContext(a, cadOpenTimeout)
+		if width > 0 {
+			// 问图纸/高清档：单页按 ask DPI（200）重渲——默认档 110 是「可读与
+			// 耗时折中」，对话侧 cad_ask 同款提法；读字优先（2026-10-28 实弹翻车
+			// 同源根修）。渲染落缓存目录 ask 前缀，不覆盖打开时的默认页图。
+			ctx, cancel := cadContext(a, cadQueryTimeout)
 			defer cancel()
-			if _, err := cad.OpenPDFContext(ctx, path, dir, 0, cad.PDFMaxPages); err != nil {
+			if pngPath, err = cad.RenderPDFPage(ctx, path, dir, sheet, cadAskRasterDPI); err != nil {
 				return "", err
+			}
+		} else {
+			pngPath = filepath.Join(dir, fmt.Sprintf("sheet-%d.png", sheet))
+			if _, err := os.Stat(pngPath); err != nil {
+				ctx, cancel := cadContext(a, cadOpenTimeout)
+				defer cancel()
+				if _, err := cad.OpenPDFContext(ctx, path, dir, 0, cad.PDFMaxPages); err != nil {
+					return "", err
+				}
 			}
 		}
 	default:
