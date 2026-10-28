@@ -724,15 +724,44 @@ func isDigitsOrHex(s string) bool {
 // meaningfulText 判断提取结果是否包含真实可读内容（中文字符或成段英文），
 // 避免把 PDF 结构/二进制垃圾当成正文。词按空白切分并要求是常规字母词
 // （拒绝高熵符号串），只有真正成句的内容才能通过。
+//
+// 双闸（2026-10-28 实弹：Chrome 图片型 PDF 解压流垃圾 30 万字符里随机蹦出
+// 1088 个汉字，仅凭 cjk>=5 绝对数闸被放行入库成乱码，OCR 回退被短路）：
+//  1. 符号垃圾闸：含 3+ 连续 ASCII 符号的行占比 >30% 直接判垃圾——压缩流
+//     垃圾 56% 的行长这样（`xy<;tnKERQ`），真文本（中/英/字面串）实测 0%；
+//  2. 密度闸：中文支线要求汉字占比 ≥2%（实弹垃圾 0.37%，真中文文档 ≥20%，
+//     两侧各留数量级余量）；英文支线（≥8 字母词且 ≥2 成句行）口径不变。
+// 两闸任一不过 → 上层视提取失败回空串，走 OCR（图片型 PDF 的正解出口）。
 func meaningfulText(s string) bool {
 	cjk := 0
+	total := 0
 	totalWords := 0
 	proseLines := 0
+	lines := 0
+	junkyLines := 0
 	for _, line := range strings.Split(s, "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		lines++
+		symRun := 0
+		junky := false
 		for _, r := range line {
+			total++
 			if r >= 0x4E00 && r <= 0x9FFF {
 				cjk++
 			}
+			if isASCIISymbol(r) {
+				symRun++
+				if symRun >= 3 {
+					junky = true
+				}
+			} else {
+				symRun = 0
+			}
+		}
+		if junky {
+			junkyLines++
 		}
 		n := alphaWordCount(line)
 		totalWords += n
@@ -740,7 +769,19 @@ func meaningfulText(s string) bool {
 			proseLines++
 		}
 	}
-	return cjk >= 5 || (totalWords >= 8 && proseLines >= 2)
+	if lines == 0 || total == 0 {
+		return false
+	}
+	if junkyLines*10 > lines*3 {
+		return false
+	}
+	return (cjk >= 5 && cjk*50 >= total) || (totalWords >= 8 && proseLines >= 2)
+}
+
+// isASCIISymbol 判断是否可打印 ASCII 符号（非字母数字非空白）。
+func isASCIISymbol(r rune) bool {
+	return r >= 33 && r <= 126 && !(r >= '0' && r <= '9') &&
+		!(r >= 'a' && r <= 'z') && !(r >= 'A' && r <= 'Z')
 }
 
 // alphaWordCount 统计一行里由空白分隔的常规字母词数量（词只含字母与少量标点，
