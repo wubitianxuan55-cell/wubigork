@@ -190,9 +190,9 @@ func LookupBuiltin(name string) (Tool, bool) {
 // released, so a tool implementation can never re-enter (and deadlock against)
 // the registry.
 type Registry struct {
-	mu        sync.RWMutex
-	tools     map[string]Tool
-	order     []string
+	mu     sync.RWMutex
+	tools  map[string]Tool
+	order  []string
 	hidden map[string]bool            // V6.0 P8: hidden from schema but still callable
 	canon  map[string]json.RawMessage // V10.0: schema canonicalized once on Add, reused by Schemas()
 }
