@@ -9,18 +9,16 @@ import (
 // The tests in this file cover the Registry concurrency contract fixed alongside
 // the sync.RWMutex introduction in tool.go:
 //
-//  1. TestRegistryConcurrent — writers (Add, RemovePrefix, SuspendPrefix/
-//     ResumePrefix: the registry surface MCP hot-plug exercises from the Wails
-//     binding goroutine via Controller.AddMCPServer / RemoveMCPServer) race
-//     against readers (Get/Names/Schemas/Len/PersistWriteNames: the surface the
-//     agent turn loop exercises via agent_stream.go). Before the fix this
-//     data-raced on tools/order/hidden/canon/suspended and could corrupt the
-//     maps; run with -race to verify.
-//
-//  2. TestRegistrySuspendedGhost — a suspended-prefix Add must not leave a
-//     "ghost" name in order without a Tool behind it: before the fix, Add
-//     appended to order before the suspended early-return, and Schemas() later
-//     dereferenced the missing Tool and panicked.
+// TestRegistryConcurrent — writers (Add, RemovePrefix: the registry surface MCP
+// hot-plug exercises from the Wails binding goroutine via
+// Controller.AddMCPServer / RemoveMCPServer) race against readers
+// (Get/Names/Schemas/Len/PersistWriteNames: the surface the agent turn loop
+// exercises via agent_stream.go). Before the fix this data-raced on
+// tools/order/hidden/canon and could corrupt the maps; run with -race to verify.
+// Final-state assertions stay weak (interleavings are nondeterministic) but must
+// hold after every round: no ghost names in order (Add appends to order and
+// stores the Tool in one locked critical section), every schema entry backed by
+// a real tool.
 
 // fakeMCPToolName builds a model-visible MCP tool name for a fake server, the
 // same "mcp__<server>__<tool>" shape SplitMCPName expects.
@@ -29,9 +27,7 @@ func fakeMCPToolName(server string, i int) string {
 }
 
 // TestRegistryConcurrent hammers one Registry from ≥8 goroutines mixing writes
-// and reads across several independent rounds. Final-state assertions stay
-// weak (interleavings are nondeterministic) but must hold after every round:
-// no ghost names in order, every schema entry backed by a real tool.
+// and reads across several independent rounds.
 func TestRegistryConcurrent(t *testing.T) {
 	const (
 		rounds  = 8  // independent registries
@@ -60,14 +56,14 @@ func TestRegistryConcurrent(t *testing.T) {
 						if i%10 == 9 {
 							r.RemovePrefix(prefix)
 						}
-					case 1: // per-session suspend / resume cycling (V10.0)
+					case 1: // server reconnect churn: drop-then-re-add the same set
 						if i%7 == 0 {
-							r.SuspendPrefix(prefix)
+							r.RemovePrefix(prefix)
 						}
 						r.Names()
 						r.Len()
 						if i%7 == 3 {
-							r.ResumePrefix(prefix)
+							r.Add(stubTool{name: fakeMCPToolName(server, i%5)})
 						}
 					case 2: // turn loop: schema export + persist-write set
 						for _, s := range r.Schemas() {
@@ -106,61 +102,5 @@ func TestRegistryConcurrent(t *testing.T) {
 				t.Fatalf("round %d: incomplete schema entry %+v", round, s)
 			}
 		}
-	}
-}
-
-// TestRegistrySuspendedGhost proves a suspended-prefix Add is a clean no-op:
-// Get reports absent, and Names()/Schemas() neither contain the name nor panic
-// (before the fix, Schemas() dereferenced the missing Tool and panicked).
-func TestRegistrySuspendedGhost(t *testing.T) {
-	r := NewRegistry()
-	r.Add(stubTool{name: "bash"})
-
-	const ghost = "mcp__gone__tool"
-	if n := r.SuspendPrefix("mcp__gone__"); n != 0 {
-		t.Fatalf("SuspendPrefix on absent prefix returned %d, want 0", n)
-	}
-
-	// Add under a suspended prefix must be silently rejected.
-	r.Add(stubTool{name: ghost})
-
-	if _, ok := r.Get(ghost); ok {
-		t.Errorf("Get(%q) returned ok=true, want false", ghost)
-	}
-	if r.Len() != 1 {
-		t.Fatalf("Len() = %d, want 1 (suspended Add must not leave a ghost in order)", r.Len())
-	}
-	for _, n := range r.Names() {
-		if n == ghost {
-			t.Errorf("Names() contains ghost name %q", ghost)
-		}
-	}
-
-	// Schemas() must not contain the ghost — and must not panic, which the
-	// unfixed code did here via a nil Tool's Description().
-	schemas := r.Schemas()
-	if len(schemas) != 1 {
-		t.Fatalf("Schemas() returned %d entries, want 1", len(schemas))
-	}
-	if schemas[0].Name != "bash" {
-		t.Fatalf("Schemas()[0].Name = %q, want %q", schemas[0].Name, "bash")
-	}
-
-	// Repeated suspended Adds must not accumulate ghost entries either.
-	for i := 0; i < 3; i++ {
-		r.Add(stubTool{name: ghost})
-	}
-	if r.Len() != 1 || len(r.Names()) != 1 {
-		t.Fatalf("after repeated suspended Adds: Len()=%d Names()=%v, want 1/[bash]", r.Len(), r.Names())
-	}
-
-	// Resume re-enables registration of the same name.
-	r.ResumePrefix("mcp__gone__")
-	r.Add(stubTool{name: ghost})
-	if _, ok := r.Get(ghost); !ok {
-		t.Errorf("Get(%q) after ResumePrefix returned ok=false, want true", ghost)
-	}
-	if r.Len() != 2 {
-		t.Fatalf("Len() = %d, want 2 after resume + Add", r.Len())
 	}
 }

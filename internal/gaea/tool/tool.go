@@ -176,7 +176,7 @@ func LookupBuiltin(name string) (Tool, bool) {
 //
 // Concurrency: mu guards every field below. Readers (Get/Len/Names/
 // PersistWriteNames/Schemas/FilteredSchemas) take RLock; writers (Add/Hide/
-// HideUnlessOnly/RemovePrefix/SuspendPrefix/ResumePrefix) take Lock. This is
+// HideUnlessOnly/RemovePrefix) take Lock. This is
 // required because MCP hot-plug mutates the registry from the Wails binding
 // goroutine (Controller.AddMCPServer → Add, RemoveMCPServer/DisconnectMCPServer
 // → RemovePrefix) while the agent turn loop reads it concurrently
@@ -193,41 +193,31 @@ type Registry struct {
 	mu        sync.RWMutex
 	tools     map[string]Tool
 	order     []string
-	hidden    map[string]bool            // V6.0 P8: hidden from schema but still callable
-	canon     map[string]json.RawMessage // V10.0: schema canonicalized once on Add, reused by Schemas()
-	suspended map[string]bool            // V10.0: MCP prefixes temporarily disabled per-session
+	hidden map[string]bool            // V6.0 P8: hidden from schema but still callable
+	canon  map[string]json.RawMessage // V10.0: schema canonicalized once on Add, reused by Schemas()
 }
 
 // NewRegistry returns an empty registry.
 func NewRegistry() *Registry {
-	return &Registry{tools: map[string]Tool{}, hidden: map[string]bool{}, canon: map[string]json.RawMessage{}, suspended: map[string]bool{}}
+	return &Registry{tools: map[string]Tool{}, hidden: map[string]bool{}, canon: map[string]json.RawMessage{}}
 }
 
 // Add inserts (or replaces) a tool, preserving first-seen order.
 // V10.0: canonicalizes the schema once here — Schemas() reuses the cached result.
 //
-// Ghost-name rule: a tool whose name carries a suspended prefix (see
-// SuspendPrefix) is silently rejected BEFORE anything is appended to order, so
-// a rejected Add never leaves a name in order without a Tool behind it (which
-// would make Schemas() dereference a nil Tool and panic). The order append and
-// the tools/canon stores happen in one locked critical section, so they cannot
-// be observed (or left) inconsistent.
+// The order append and the tools/canon stores happen in one locked critical
+// section, so they cannot be observed (or left) inconsistent.
 //
 // Schema canonicalization runs BEFORE the write lock is taken: Schema() is
-// tool-implemented code and Registry.mu is a leaf lock (see Registry doc). Note
-// this means Schema() is invoked even when the Add ends up suspended-rejected;
-// implementations must keep it side-effect free (as for every registration).
+// tool-implemented code and Registry.mu is a leaf lock (see Registry doc).
+// Implementations must keep Schema() side-effect free (as for every
+// registration).
 func (r *Registry) Add(t Tool) {
 	name := t.Name()
 	canon := provider.CanonicalizeSchema(t.Schema())
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	for prefix := range r.suspended {
-		if strings.HasPrefix(name, prefix) {
-			return // silently reject — prefix is suspended; do not touch order
-		}
-	}
 	if _, ok := r.tools[name]; !ok {
 		r.order = append(r.order, name)
 	}
@@ -287,36 +277,6 @@ func (r *Registry) RemovePrefix(prefix string) int {
 	}
 	r.order = kept
 	return removed
-}
-
-// SuspendPrefix unregisters every tool whose name starts with prefix, and
-// prevents future Add calls for that prefix until ResumePrefix is called.
-// Used for per-session MCP disables — an in-flight background handshake
-// may attempt to re-add tools for the suspended prefix.
-func (r *Registry) SuspendPrefix(prefix string) int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.suspended[prefix] = true
-	kept := r.order[:0]
-	removed := 0
-	for _, name := range r.order {
-		if strings.HasPrefix(name, prefix) {
-			delete(r.tools, name)
-			delete(r.canon, name)
-			removed++
-			continue
-		}
-		kept = append(kept, name)
-	}
-	r.order = kept
-	return removed
-}
-
-// ResumePrefix allows future Add calls for a previously suspended prefix.
-func (r *Registry) ResumePrefix(prefix string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	delete(r.suspended, prefix)
 }
 
 // Get looks up a tool by name.
