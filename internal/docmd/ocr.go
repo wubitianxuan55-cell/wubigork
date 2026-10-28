@@ -730,6 +730,9 @@ func ocrPageLoopBatch(pngFiles []string, first int, pages string,
 	if total == 0 {
 		return nil, 0, nil, fmt.Errorf("没有需要 OCR 的页面")
 	}
+	if progress != nil {
+		progress(0, total) // 起步事件：批模式下首窗完成前（可达 5-8 分钟）先给即时反馈
+	}
 
 	batching := batchOCR != nil && len(jobs) >= 2
 	textsByJob := make([]string, len(jobs))

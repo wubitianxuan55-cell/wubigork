@@ -41,8 +41,8 @@ func TestOCRPageLoopSkipSinglePageFailures(t *testing.T) {
 	if len(failed) != 1 || failed[0] != 2 {
 		t.Fatalf("失败页应为 [2]: %+v", failed)
 	}
-	if len(gotProgress) != 3 || gotProgress[0] != 3 {
-		t.Fatalf("progress total 应按实际页数 3: %+v", gotProgress)
+	if len(gotProgress) != 4 || gotProgress[0] != 3 || gotProgress[3] != 3 {
+		t.Fatalf("progress 应含起步事件+逐页三次，total 恒为 3: %+v", gotProgress)
 	}
 }
 
@@ -93,8 +93,8 @@ func TestOCRPageLoopPageRangeTotal(t *testing.T) {
 	if total != 1 || len(texts) != 1 {
 		t.Fatalf("pages=1 时应只 OCR 1 页: total=%d texts=%d", total, len(texts))
 	}
-	if len(totals) != 1 || totals[0] != 1 {
-		t.Fatalf("progress total 应为 1: %+v", totals)
+	if len(totals) != 2 || totals[0] != 1 || totals[1] != 1 {
+		t.Fatalf("progress 应为起步事件+1 页，total 恒为 1: %+v", totals)
 	}
 }
 

@@ -305,8 +305,8 @@ func TestOCRPageLoopBatchWinsAndFallsBack(t *testing.T) {
 	if total != 6 || len(failed) != 0 {
 		t.Fatalf("total=6 无失败页: total=%d failed=%v", total, failed)
 	}
-	if len(gotProgress) != 2 || gotProgress[0] != 5 || gotProgress[1] != 6 {
-		t.Fatalf("批路径 progress 按窗跳进: %+v", gotProgress)
+	if len(gotProgress) != 3 || gotProgress[0] != 0 || gotProgress[1] != 5 || gotProgress[2] != 6 {
+		t.Fatalf("progress 应含起步事件(0)+按窗跳进 5/6: %+v", gotProgress)
 	}
 }
 
