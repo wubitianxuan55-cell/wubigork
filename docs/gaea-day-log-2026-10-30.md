@@ -60,6 +60,7 @@
 - **众神殿实弹**：导出真存落盘腿（用户顺手点一次导出即补上）。
 - 既往各线实弹池：OCR 长跑、50+ 轮长会话、30 章长跑、进度条手感、ComfyUI
   JobObject 观察等（见 10-29 日总账与各线记忆）。
-- **CI 观察池**：OriginalSinPage.tabs/ContextView 满载并发假红（39~41s 超时、隔离
-  复跑绿）——候选刀=重组件文件 testTimeout 单独放宽或 maxWorkers 再压，与 vite
-  已载的「首个 await import 计入 testTimeout」同族。
+- **CI 观察池销项**（d62f1f1a）：OriginalSinPage.tabs/ContextView 满载并发假红
+  （39.7s/41.2s 超时、隔离复跑绿）——沿既有逐轮放宽配方（5s→20s→30s→40s→60s）
+  testTimeout 提到 60s，满载全量 vitest 4054/4054 认证绿。备注=该族随用例增长
+  通胀，再破线时的根治方向=拆文件或 maxWorkers 再压，勿再单点放宽。
