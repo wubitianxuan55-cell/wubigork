@@ -63,3 +63,29 @@ PDF 降画质触发模型跳页（走查素材用原 PDF 直渲）/ model.infer 
 - ComfyUI JobObject 兜底（观察池）；pptx 刀4 待反馈
 - 下版发版：tag 后五刀（9937f8af/5c678934/ce4619be/172f3b64+c7e0e5fa docs）随下一
   列车
+
+## 晚间加开线：OCR 提速与全链接入（d0cc2286+c2 两提交，随下一列车）
+
+- **三引擎同图实测定腿序**：uocr2 质量全面第一（干净文本/价格表零错字+表格保
+  结构）；PaddleOCR 快 30 倍但干净文本 8 处错字+表格平铺；MinerU 表格 rowspan 大乱
+  （与 10-28 观察一致）→ `GAEA_OCR_LEG_ORDER` 默认 local-first，herdsman-first 保
+  旧序，未知值 fail-closed；实弹 64s→（换 llama 后）11.1s
+- **v2 上 llama.cpp**：RX5950XT unlimited-ocr2.patch（b11980）+Q8_0 GGUF 自建
+  Vulkan 版，8060S 实测单页 6.1s/15 页 105.7s=python CPU 10~14 倍，**SR-SWA 跨页
+  续排完整保住**（append_table 24 行续排实证）；工件+全坑录=C:\AI\uocr2-llama
+  （README）；上游主线暂无 v2 支持（PR #31252 是 LFM3，搜索误导）=盯梢项
+- **两铁律**（补丁 Windows 兼容坑，均实弹实证+代码固化+守卫双钉）：①chat 请求
+  文本收尾（图片收尾=server 空批断言崩整进程）；②--ubatch-size 4096（默认 512+FA
+  多图丢前面的图且不报错）
+- **ocr_uocr2.go 双后端**：GAEA_UOCR2_BACKEND auto=llama→python（默认）；python
+  env 原口径 8138=活兜底；实弹=杀 8139 自动拉起零孤儿+批续排锚点全中+全链 11.1s
+- **OCR 时间感四消费方**：进度事件带 elapsedSec（导入弹窗/文件预览×2「N/总页·
+  已用 Xs」）；识图卡 5s/造价弹窗 3s+8s 冷启动提示（i18n 三语）；清过时文案
+  「每页约 1 分钟」与模型中心 MinerU/PaddleOCR 残留
+- **MinerU 退役**（用户拍板效果不好）：herdsman 侧 UI 卸载（paddleocr 同批用户
+  自删）+残留文件三处删除（launch_config/runtimes/models ≈2.9GB 回收）
+- 本机栈新增：C:\AI\uocr2-llama（llama 后端工件，README 含重建口径）；Vulkan SDK
+  1.4.363（winget，构建用）；herdsman 注册面知识=launch_config+runtimes+models
+  三处、CLI 无模型管理（桌面 UI 驱动）
+- 余池增补：发版列车追加 d0cc2286+c2+docs 三提交；v2 进 llama.cpp 主线=盯梢池；
+  venv-rocm2 HIP init 挂起（基准弃跑）留档
