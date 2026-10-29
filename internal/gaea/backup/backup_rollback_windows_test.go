@@ -8,6 +8,8 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+
+	"golang.org/x/sys/windows"
 )
 
 // lockExclusive 以 dwShareMode=0 独占打开文件，返回释放函数。独占句柄让
@@ -30,6 +32,35 @@ func lockExclusive(t *testing.T, path string) func() {
 	return func() { _ = syscall.CloseHandle(h) }
 }
 
+// denyReadAndDelete 给文件挂 Everyone 全权拒绝（FA）的 deny ACE。独占句柄注入在
+// GH windows runner 的卷上未阻断回滚（2026-10-30 实测 ok=true）——共享模式
+// 语义在该卷不可依赖；ACL deny 对 rename 所需的 DELETE 与 copy 所需的 READ
+// 都是硬拒绝，NTFS/ReFS 全平台确定。返回恢复 DACL 的释放函数。
+func denyReadAndDelete(t *testing.T, path string) func() {
+	t.Helper()
+	sd, err := windows.SecurityDescriptorFromString("D:(D;;FA;;;WD)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dacl, _, err := sd.DACL()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := windows.SetNamedSecurityInfo(path, windows.SE_FILE_OBJECT,
+		windows.DACL_SECURITY_INFORMATION, nil, nil, dacl, nil); err != nil {
+		t.Fatalf("挂拒绝 ACL 失败: %v", err)
+	}
+	return func() {
+		allow, err := windows.SecurityDescriptorFromString("D:(A;;FA;;;WD)")
+		if err == nil {
+			if allowACL, _, err := allow.DACL(); err == nil {
+				_ = windows.SetNamedSecurityInfo(path, windows.SE_FILE_OBJECT,
+					windows.DACL_SECURITY_INFORMATION, nil, nil, allowACL, nil)
+			}
+		}
+	}
+}
+
 // TestRollbackBeforePartialFailureIsNotSuccess 审计 GA4-11：回滚中一个条目
 // 失败（被独占占用 → rename 与复制回退都失败）、另一个成功后，旧实现按
 // moved>0 返回 (true, nil) 谎报成功；修复后必须 (false, error) 且点名失败项，
@@ -45,6 +76,8 @@ func TestRollbackBeforePartialFailureIsNotSuccess(t *testing.T) {
 	}
 	unlock := lockExclusive(t, filepath.Join(before, "locked.txt"))
 	defer unlock()
+	undeny := denyReadAndDelete(t, filepath.Join(before, "locked.txt"))
+	defer undeny()
 
 	ok, err := RollbackBefore(root)
 	if err == nil {
