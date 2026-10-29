@@ -122,7 +122,7 @@ func TestWakeSelfExcitationBudget(t *testing.T) {
 		// 回合桩立即结束，running 回落（字段由 mu 保护，读必须同样持锁——
 		// linux -race 实锤：turnLoop 锁内写 vs 测试裸读）
 		deadline := time.Now().Add(time.Second)
-		for time.Now().Before(deadline) && c.runningLocked() {
+		for time.Now().Before(deadline) && runningLocked(c) {
 			time.Sleep(2 * time.Millisecond)
 		}
 	}
