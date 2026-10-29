@@ -67,6 +67,20 @@ func TestSemanticSearchTool_EndToEnd(t *testing.T) {
 	// 用例从此与执行顺序无关。
 	knowledge.ResetForTest()
 
+	// 播种两条知识条目：此前该测试从未播种数据，本地靠开发者真实成本库
+	// 里恰有「驳接爪」条目才侥幸命中（runner 空库实锤未命中）。embedder
+	// mock 按「驳接爪/水泥」给正交向量，检索应命中播种条目。
+	kb, kerr := knowledge.Global().Store()
+	if kerr != nil {
+		t.Fatalf("knowledge store: %v", kerr)
+	}
+	if err := kb.Save(knowledge.Entry{Name: "驳接爪工艺", Body: "不锈钢驳接爪 90 度安装工艺，幕墙转角固定件。"}); err != nil {
+		t.Fatalf("seed 驳接爪: %v", err)
+	}
+	if err := kb.Save(knowledge.Entry{Name: "水泥养护", Body: "水泥浇筑完成后 7 天养护期。"}); err != nil {
+		t.Fatalf("seed 水泥: %v", err)
+	}
+
 	a := &App{}
 	tool := semanticSearchTool{a: a}
 
