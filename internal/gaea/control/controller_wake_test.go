@@ -15,6 +15,14 @@ import (
 
 // Z6 蒸馏刀：后台任务完成主动唤醒——回调链、空闲判定、自激励预算三面。
 
+// runningLocked 持锁读 running：turnLoop 在 mu 内写该字段，测试轮询裸读
+// 即数据竞态（linux -race 实锤，2026-10-30）。
+func runningLocked(c *Controller) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.running
+}
+
 func newWakeTestController(t *testing.T, sink event.Sink) (*Controller, *jobs.Manager, *atomic.Int32, *atomic.Pointer[string]) {
 	t.Helper()
 	var turns atomic.Int32
@@ -111,9 +119,10 @@ func TestWakeSelfExcitationBudget(t *testing.T) {
 	// 直接压满预算：连续唤醒 wakeMaxConsecutive 次后再触发应被闸住
 	for i := 0; i < wakeMaxConsecutive; i++ {
 		c.maybeWakeByJobs()
-		// 回合桩立即结束，running 回落
+		// 回合桩立即结束，running 回落（字段由 mu 保护，读必须同样持锁——
+		// linux -race 实锤：turnLoop 锁内写 vs 测试裸读）
 		deadline := time.Now().Add(time.Second)
-		for time.Now().Before(deadline) && c.running {
+		for time.Now().Before(deadline) && c.runningLocked() {
 			time.Sleep(2 * time.Millisecond)
 		}
 	}

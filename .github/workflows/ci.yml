@@ -72,6 +72,18 @@ jobs:
           # shellcheck disable=SC2046
           go test -count=1 $(tr '\n' ' ' < scripts/go-retry-pkgs.txt)
 
+      # Fresh-runner 金丝雀：genui/backup/attachment 三包只在干净 runner 上红
+      # （本地+UTC+干净 APPDATA 均不复现），平文本全量输出走注解带回来定位。
+      # exit 0：诊断步不拦门，真失败由后续全量测试步如实判红。
+      - name: Fresh-runner canary (genui/backup/attachment)
+        shell: bash
+        run: |
+          set +e
+          go test -count=1 ./internal/gaea/genui/ ./internal/gaea/backup/ ./internal/gaea/attachment/ 2>&1 | tee canary.log
+          grep -E '^(--- FAIL|FAIL|ok|panic)' canary.log | head -20 | while IFS= read -r line; do echo "::error::canary: $line"; done || true
+          grep -E '[A-Za-z0-9_]+\.go:[0-9]+:' canary.log | head -20 | while IFS= read -r line; do echo "::error::canary: $line"; done || true
+          exit 0
+
       # internal/app 竞态用例 -race（审计 P0-2：comfyUI 进程引用三路并发写收口）。
       # internal/app 整包尚未跨平台（kernel32 原生采集/x/sys/windows），故 -race
       # 放在 windows runner 上跑（自带 gcc）；先用窄 -run 起步，逐步扩面，
@@ -181,6 +193,8 @@ jobs:
             echo "vitest 全绿"
             exit 0
           fi
+          # 失败文件+首条断言消息进注解（check-runs API 免登录可见，2026-10-30）
+          node -e 'const r=require("./vitest-report.json"); for (const f of (r.testResults||[])) for (const a of (f.assertionResults||[]).filter(x=>x.status==="failed").slice(0,8)) console.log("::error::"+f.name+" :: "+(a.fullName||a.title||"")+" :: "+String((a.failureMessages||[])[0]||"").replace(/\n/g," ").slice(0,260))' || true
           node scripts/classify-vitest-failures.mjs vitest-report.json known-flaky.txt --expect-failure || exit 1
           echo "在册 flaky 隔离复跑："
           cat vitest-retry-files.txt
