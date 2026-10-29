@@ -43,7 +43,11 @@ const stubShell = () => {
   ;(window as unknown as { go?: unknown }).go = { app: { ImageGenTestB: {} } }
 }
 
-afterEach(() => {
+afterEach(async () => {
+  // 冲刷并发调度器里未落地的 commit：下载完成后的 setState 若在测试环境拆除
+  // 后才 flush，react-dom 会在无 window 的环境里 commit（unhandled error →
+  // 全量 vitest 进程退 1 且报告不落盘，2026-10-30 远端 CI 实锤）。
+  await act(async () => {})
   delete (window as unknown as { go?: unknown }).go
   vi.restoreAllMocks()
   vi.clearAllMocks()

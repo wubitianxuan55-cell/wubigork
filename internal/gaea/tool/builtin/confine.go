@@ -53,6 +53,11 @@ func realRoots(roots []string) []string {
 // roots slice is unconfined (returns nil) — the safe default for the built-in
 // templates before a run configures the workspace. The error text is written
 // for the model: it names the boundary and how the user can widen it.
+//
+// 双侧归一：root 也过 RealPath。构造方可能传 8.3 短名/junction 形态的根
+// （GH windows runner 的 TEMP=RUNNER~1 实锤：root 短名 vs target 经 RealPath
+// 解析成长名，Within 误判 outside）；解析失败退回原形——不确定即拒
+// （fail-closed），绝不因解析不了而放行。
 func confine(roots []string, target string) error {
 	if len(roots) == 0 {
 		return nil
@@ -62,7 +67,14 @@ func confine(roots []string, target string) error {
 		return fmt.Errorf("resolve %s: %w", target, err)
 	}
 	for _, r := range roots {
-		if within(r, abs) {
+		real, err := realPath(r)
+		if err != nil {
+			real = filepath.Clean(r)
+			if !filepath.IsAbs(real) {
+				return fmt.Errorf("resolve root %s: %w", r, err)
+			}
+		}
+		if within(real, abs) {
 			return nil
 		}
 	}

@@ -4,12 +4,29 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 )
 
+// requireDiagramPython 探针：内嵌渲染脚本 import matplotlib，宿主没有
+// python+matplotlib 时（GH windows runner 实锤 exit status 1）跳过——与
+// cad pdftoppm / markitdown 不可用即 skip 同款配方。工具本体在真实宿主
+// （已装 matplotlib 的用户机）上照常工作。
+func requireDiagramPython(t *testing.T) {
+	t.Helper()
+	for _, py := range []string{"python", "python3"} {
+		cmd := exec.Command(py, "-c", "import matplotlib")
+		if err := cmd.Run(); err == nil {
+			return
+		}
+	}
+	t.Skip("宿主缺 python+matplotlib（diagram_gen 渲染依赖），跳过")
+}
+
 func TestDiagramGenFramework(t *testing.T) {
+	requireDiagramPython(t)
 	out := filepath.Join(t.TempDir(), "framework.png")
 	args := map[string]interface{}{
 		"title": "gaea 三层架构框架图",
@@ -46,6 +63,7 @@ func TestDiagramGenFramework(t *testing.T) {
 }
 
 func TestDiagramGenFlow(t *testing.T) {
+	requireDiagramPython(t)
 	out := filepath.Join(t.TempDir(), "flow.png")
 	args := map[string]interface{}{
 		"title": "项目周报流程",
