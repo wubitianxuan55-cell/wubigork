@@ -609,6 +609,10 @@
   opacity: .67;
 }
 
+.pantheon-agent-mini button.is-fixed {
+  cursor: default;
+}
+
 /* Canvas and page rhythm. */
 .pantheon-canvas {
   position: relative;
@@ -659,14 +663,14 @@
 }
 
 .pantheon-welcome h2 {
-  max-width: 11ch;
   margin: 14px 0 20px;
   font-family: var(--font-serif, "Noto Serif SC", "Songti SC", serif);
-  font-size: clamp(42px, 5.1vw, 68px);
+  /* 上限须按 rail 展开后的最窄主列放字（第二行 9 字 × 字号 ≤ 列宽），vw 不感知 rail */
+  font-size: clamp(30px, 3.4vw, 50px);
   font-weight: 580;
-  line-height: 1.14;
+  line-height: 1.22;
   letter-spacing: -.045em;
-  text-wrap: balance;
+  line-break: strict;
 }
 
 .pantheon-welcome p {
@@ -717,6 +721,11 @@
   height: 6px;
   border-radius: 50%;
   background: var(--md-sys-color-destructive, var(--color-destructive));
+}
+
+/* 探针未回时不算告警：点位与文案同为中性，检测完成才恢复红/绿语义 */
+.pantheon-readiness.is-probing i {
+  background: var(--pantheon-line, var(--color-outline));
 }
 
 .pantheon-readiness i.is-ready {
@@ -2665,7 +2674,7 @@
 }
 
 .pantheon-verdict-head h3 {
-  max-width: 24ch;
+  max-width: min(100%, 20em);
   margin: 8px 0 0;
   font-family: var(--font-serif, "Noto Serif SC", "Songti SC", serif);
   font-size: clamp(20px, 2vw, 27px);
@@ -2673,6 +2682,7 @@
   line-height: 1.45;
   letter-spacing: -.02em;
   text-wrap: balance;
+  line-break: strict;
 }
 
 .pantheon-verdict-head .ant-tag {
@@ -3264,9 +3274,8 @@
     gap: 32px;
   }
 
-  .pantheon-welcome h2 {
-    max-width: 14ch;
-  }
+  /* .pantheon-welcome h2 两行手工断行后不再限宽（ch 限宽按拉丁字形，CJK 下会把断行绞碎） */
+
 
   .pantheon-council-preview {
     max-width: 620px;
@@ -3372,8 +3381,7 @@
   }
 
   .pantheon-welcome h2 {
-    max-width: 13ch;
-    font-size: clamp(39px, 10.5vw, 56px);
+    font-size: clamp(34px, 9.5vw, 52px);
   }
 
   .pantheon-council-preview {
@@ -3570,7 +3578,7 @@
   }
 
   .pantheon-welcome h2 {
-    font-size: clamp(36px, 11vw, 49px);
+    font-size: clamp(30px, 9.6vw, 49px);
   }
 
   .pantheon-welcome-actions {

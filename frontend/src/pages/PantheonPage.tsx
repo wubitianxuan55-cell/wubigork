@@ -214,13 +214,14 @@ const WelcomeCanvas: React.FC<{
   onStart: () => void
 }> = ({ agents, onStart }) => {
   const seats = agents.length ? agents : FALLBACK_SEATS
+  const probing = agents.length === 0
   const available = agents.filter((agent) => agent.available).length
   return (
     <section className="pantheon-welcome" aria-labelledby="pantheon-welcome-title">
       <div className="pantheon-welcome-copy">
         <span className="pantheon-eyebrow">公正、客观、协助、互助</span>
         <h2 id="pantheon-welcome-title">
-          让不同判断，在讨论中彼此补强。
+          让不同判断，<br />在讨论中彼此补强。
         </h2>
         <p>
           多位参与者按序发言、多轮论证，最后形成一份保留共识、分歧与证据缺口的讨论小结。
@@ -235,9 +236,9 @@ const WelcomeCanvas: React.FC<{
           >
             发起讨论
           </Button>
-          <span className="pantheon-readiness">
-            <i className={available >= 2 ? 'is-ready' : ''} aria-hidden />
-            {available} 位就绪
+          <span className={`pantheon-readiness${probing ? ' is-probing' : ''}`}>
+            <i className={!probing && available >= 2 ? 'is-ready' : ''} aria-hidden />
+            {probing ? '正在检测本机席位…' : `${available} 位就绪`}
           </span>
         </div>
       </div>
@@ -248,7 +249,7 @@ const WelcomeCanvas: React.FC<{
             <span className="pantheon-eyebrow">参与者</span>
             <strong>本机 Agent 讨论阵容</strong>
           </div>
-          <span>{available} / {seats.length} 在线</span>
+          <span>{probing ? '检测中' : `${available} / ${seats.length} 在线`}</span>
         </div>
         <div className="pantheon-seat-map">
           {seats.map((agent, index) => (
@@ -265,7 +266,7 @@ const WelcomeCanvas: React.FC<{
                 <small>{agent.kind}</small>
               </span>
               <span className="pantheon-seat-state">
-                {agent.available ? '在线' : '离线'}
+                {agent.available ? '在线' : probing ? '检测中' : '离线'}
               </span>
             </article>
           ))}
@@ -809,18 +810,25 @@ const PantheonPage: React.FC = () => {
             <button type="button" onClick={() => void loadAgents()}>重新检测</button>
           </div>
           <div className="pantheon-agent-mini">
-            {agents.map((agent) => (
-              <button
-                key={agent.id}
-                type="button"
-                title={agent.reason || `${agent.name} ${agent.version || ''}`}
-                className={agent.available ? 'is-ready' : 'is-missing'}
-                onClick={() => { if (agent.id !== 'grok') openAgentPath(agent) }}
-              >
-                <span>{agent.name.slice(0, 1).toUpperCase()}</span>
-                <small>{agent.available ? '就绪' : '设置'}</small>
-              </button>
-            ))}
+            {agents.map((agent) => {
+              const fixed = agent.id === 'grok'
+              return (
+                <button
+                  key={agent.id}
+                  type="button"
+                  title={
+                    fixed
+                      ? `${agent.name} 由 Gaea 办公 AgentRunner 驱动，无需配置路径${agent.reason ? `（${agent.reason}）` : ''}`
+                      : agent.reason || `${agent.name} ${agent.version || ''}`
+                  }
+                  className={`${agent.available ? 'is-ready' : 'is-missing'}${fixed ? ' is-fixed' : ''}`}
+                  onClick={() => { if (!fixed) openAgentPath(agent) }}
+                >
+                  <span>{agent.name.slice(0, 1).toUpperCase()}</span>
+                  <small>{agent.available ? '就绪' : fixed ? '内置' : '设置'}</small>
+                </button>
+              )
+            })}
           </div>
         </footer>
       </aside>

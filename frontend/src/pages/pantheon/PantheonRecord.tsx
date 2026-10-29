@@ -173,7 +173,7 @@ const ConclusionPanel: React.FC<{
         type="warning"
         showIcon
         message="本次讨论未形成自动小结"
-        description={session.error || '请检查参与者返回与日志。'}
+        description="讨论没有走到协作汇总这一步。可基于已有发言续议，或查看时间线定位中断位置；失败原因见上方提示。"
       />
     )
   }
@@ -829,15 +829,18 @@ export const PantheonRecord: React.FC<Props> = ({
           ) : (
             <p className="pantheon-muted">本次未附加材料。</p>
           )}
-          {session.warnings?.length ? (
-            <ul className="pantheon-warning-list">
-              {session.warnings.map((warning, index) => (
-                <li key={`${warning}-${index}`}><WarningOutlined /> {warning}</li>
-              ))}
-            </ul>
-          ) : (
-            <p className="pantheon-muted">暂无额外警示。</p>
-          )}
+          {(() => {
+            const visibleWarnings = (session.warnings ?? []).filter((w) => w !== session.error)
+            return visibleWarnings.length ? (
+              <ul className="pantheon-warning-list">
+                {visibleWarnings.map((warning, index) => (
+                  <li key={`${warning}-${index}`}><WarningOutlined /> {warning}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="pantheon-muted">暂无额外警示。</p>
+            )
+          })()}
         </section>
       </aside>
     </div>
