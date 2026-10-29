@@ -15,18 +15,35 @@ import (
 
 // Z6 蒸馏刀：后台任务完成主动唤醒——回调链、空闲判定、自激励预算三面。
 
-func newWakeTestController(t *testing.T) (*Controller, *jobs.Manager, *atomic.Int32, *atomic.Pointer[string]) {
+func newWakeTestController(t *testing.T, sink event.Sink) (*Controller, *jobs.Manager, *atomic.Int32, *atomic.Pointer[string]) {
 	t.Helper()
 	var turns atomic.Int32
 	lastP := &atomic.Pointer[string]{}
+	if sink == nil {
+		sink = event.FuncSink(func(event.Event) {})
+	}
 	c := New(Options{
-		Sink:   event.FuncSink(func(event.Event) {}),
+		Sink:   sink,
 		Runner: wakeRunnerStub{turns: &turns, last: lastP},
 	})
 	jm := jobs.NewManager(event.FuncSink(func(event.Event) {}))
 	c.jobs = jm
 	c.WireJobWake()
 	return c, jm, &turns, lastP
+}
+
+// noticeCounterSink 构造期注入的计数 sink。测试中途热改 c.sink 与回合
+// goroutine 的 Emit 读构成数据竞态（linux -race 实锤，2026-10-30）——sink 是
+// 构造期注入的契约字段，观察一律在构造期布线。
+type noticeCounterSink struct {
+	text string
+	hits atomic.Int32
+}
+
+func (s *noticeCounterSink) Emit(e event.Event) {
+	if e.Kind == event.Notice && strings.Contains(e.Text, s.text) {
+		s.hits.Add(1)
+	}
 }
 
 // wakeRunnerStub 立即完成的 Runner 桩：唤醒回合被拉起即计一数，并捕获
@@ -44,7 +61,7 @@ func (s wakeRunnerStub) Run(ctx context.Context, input string) (*agent.TurnResul
 }
 
 func TestWakeJobCompletionStartsIdleTurn(t *testing.T) {
-	c, jm, turns, lastP := newWakeTestController(t)
+	c, jm, turns, lastP := newWakeTestController(t, nil)
 	jm.Start("bash", "long task", func(ctx context.Context, out io.Writer) (string, error) {
 		return "ok", nil
 	})
@@ -89,7 +106,8 @@ func TestWakeJobCompletionStartsIdleTurn(t *testing.T) {
 }
 
 func TestWakeSelfExcitationBudget(t *testing.T) {
-	c, _, _, _ := newWakeTestController(t)
+	sink := &noticeCounterSink{text: "自激励预算耗尽"}
+	c, _, _, _ := newWakeTestController(t, sink)
 	// 直接压满预算：连续唤醒 wakeMaxConsecutive 次后再触发应被闸住
 	for i := 0; i < wakeMaxConsecutive; i++ {
 		c.maybeWakeByJobs()
@@ -106,14 +124,8 @@ func TestWakeSelfExcitationBudget(t *testing.T) {
 		t.Fatalf("预算应压满 %d，实得 %d", wakeMaxConsecutive, chain)
 	}
 	// 再触发：预算耗尽，不再拉起（turn 计数不涨，只发 Notice）
-	var notices atomic.Int32
-	c.sink = event.FuncSink(func(e event.Event) {
-		if e.Kind == event.Notice && strings.Contains(e.Text, "自激励预算耗尽") {
-			notices.Add(1)
-		}
-	})
 	c.maybeWakeByJobs()
-	if notices.Load() != 1 {
+	if sink.hits.Load() != 1 {
 		t.Fatal("预算耗尽后应发 Notice 且不再拉起回合")
 	}
 	// 真人消息复位预算
@@ -127,7 +139,7 @@ func TestWakeSelfExcitationBudget(t *testing.T) {
 }
 
 func TestWakeRunningSessionSkips(t *testing.T) {
-	c, _, turns, _ := newWakeTestController(t)
+	c, _, turns, _ := newWakeTestController(t, nil)
 	// 占住 running：直接拉一个不会立刻结束的回合
 	release := make(chan struct{})
 	c.tryStartTurn(func(ctx context.Context) error {

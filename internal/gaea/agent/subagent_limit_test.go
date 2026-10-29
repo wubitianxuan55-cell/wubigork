@@ -195,11 +195,11 @@ func TestTaskToolQueuedUnderBoundedSlots(t *testing.T) {
 	waitFor(t, 2*time.Second, "first call to hold the slot", func() bool { return SubagentSlotsBusy() == 1 })
 
 	second := make(chan call, 1)
-	// 第二路换 provider：TaskTool 的 prov 在构造时定死，这里直接换字段
-	// （同包测试白盒；真机多路派生共享同一 TaskTool，provider 相同）。
-	task.prov = fast
+	// 第二路用独立 TaskTool 实例（包级槽位共享，排队语义不变）。不再热改
+	// task.prov：与首路 goroutine 的 t.prov 读无同步边=数据竞态（linux -race 实锤）。
+	task2 := NewTaskTool(fast, nil, parentReg, 10, 0, 0.0, "", "sys", nil).WithTranscripts(store)
 	go func() {
-		out, err := task.Execute(context.Background(), []byte(`{"prompt":"second task"}`))
+		out, err := task2.Execute(context.Background(), []byte(`{"prompt":"second task"}`))
 		second <- call{out, err}
 	}()
 	waitFor(t, 2*time.Second, "second call to register queued", func() bool {
@@ -253,11 +253,14 @@ func TestTaskToolQueuedCancelMarksFailed(t *testing.T) {
 	}()
 	waitFor(t, 2*time.Second, "first call to hold the slot", func() bool { return SubagentSlotsBusy() == 1 })
 
-	task.prov = fast
+	// 第二路用独立 TaskTool 实例（槽位是包级信号量，排队语义不变）。不再热改
+	// task.prov：首路 goroutine 仍会读 t.prov，无同步边的写字段=数据竞态
+	// （linux -race 实锤，2026-10-30）。
+	task2 := NewTaskTool(fast, nil, parentReg, 10, 0, 0.0, "", "sys", nil).WithTranscripts(store)
 	ctx, cancel := context.WithCancel(context.Background())
 	errCh := make(chan error, 1)
 	go func() {
-		_, err := task.Execute(ctx, []byte(`{"prompt":"second task"}`))
+		_, err := task2.Execute(ctx, []byte(`{"prompt":"second task"}`))
 		errCh <- err
 	}()
 	waitFor(t, 2*time.Second, "second call to register queued", func() bool {
