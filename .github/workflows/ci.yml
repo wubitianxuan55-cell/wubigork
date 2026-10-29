@@ -82,6 +82,8 @@ jobs:
           go test -count=1 ./internal/gaea/genui/ ./internal/gaea/backup/ ./internal/gaea/attachment/ 2>&1 | tee canary.log
           grep -E '^(--- FAIL|FAIL|ok|panic)' canary.log | head -20 | while IFS= read -r line; do echo "::error::canary: $line"; done || true
           grep -E '[A-Za-z0-9_]+\.go:[0-9]+:' canary.log | head -20 | while IFS= read -r line; do echo "::error::canary: $line"; done || true
+          # 全文进 Step Summary（运行页服务端渲染，免登录可读）
+          { echo "## canary (genui/backup/attachment)"; echo '```'; tail -80 canary.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           exit 0
 
       # internal/app 竞态用例 -race（审计 P0-2：comfyUI 进程引用三路并发写收口）。
@@ -136,6 +138,7 @@ jobs:
             grep -A14 'WARNING: DATA RACE' race.log | head -34 | while IFS= read -r line; do echo "::error::$line"; done || true
             # 兜底：竞态块若走了缓冲没被上面抓到，日志尾部必有现场
             tail -25 race.log | while IFS= read -r line; do echo "::error::tail: $line"; done || true
+            { echo "## race.log tail"; echo '```'; tail -80 race.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
 
@@ -195,6 +198,8 @@ jobs:
           fi
           # 失败文件+首条断言消息进注解（check-runs API 免登录可见，2026-10-30）
           node -e 'const r=require("./vitest-report.json"); for (const f of (r.testResults||[])) for (const a of (f.assertionResults||[]).filter(x=>x.status==="failed").slice(0,8)) console.log("::error::"+f.name+" :: "+(a.fullName||a.title||"")+" :: "+String((a.failureMessages||[])[0]||"").replace(/\n/g," ").slice(0,260))' || true
+          # 失败明细进 Step Summary（运行页免登录可读）
+          node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync("./vitest-report.json","utf8")); let s="## vitest failures\n"; for (const f of (r.testResults||[])) { const bad=(f.assertionResults||[]).filter(x=>x.status==="failed"); if (!bad.length) continue; s+="### "+f.name+"\n"; for (const a of bad) { s+="#### "+(a.fullName||a.title||"")+"\n```\n"+String((a.failureMessages||[])[0]||"").slice(0,1500)+"\n```\n"; } } fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY||"/dev/null", s)' || true
           node scripts/classify-vitest-failures.mjs vitest-report.json known-flaky.txt --expect-failure || exit 1
           echo "在册 flaky 隔离复跑："
           cat vitest-retry-files.txt
