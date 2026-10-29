@@ -442,7 +442,9 @@
   font-family: var(--font-mono, ui-monospace, 'Cascadia Mono', Consolas, monospace);
   font-size: 10px;
   letter-spacing: 0.14em;
-  color: var(--color-text-quaternary, #d9d9d9);
+  /* --color-text-quaternary 是幽灵令牌（全仓零定义，v4.350 只补了 tertiary 族），
+     恒走 fallback #d9d9d9——亮色暖纸上 1.2:1 隐形。接 tertiary 实令牌。 */
+  color: var(--md-sys-color-text-tertiary, var(--color-text-tertiary, #8b93a0));
 }
 
 .rt-hero-gauges {

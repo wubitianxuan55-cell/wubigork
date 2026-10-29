@@ -354,7 +354,10 @@
   padding: 0 22px;
   border: none;
   border-radius: 999px;
-  background: linear-gradient(135deg, var(--color-primary), color-mix(in srgb, var(--gaea-glow) 72%, transparent));
+  /* 第二腿与 primary 实混（勿用 transparent 混）：透明混是暗色发光语言，
+     亮色暖纸下 72% alpha 叠浅底≈#4aa291 中绿，白字仅 2.5:1 看不清
+     （2026-10-29 浅色白字排查实弹逮住）。 */
+  background: linear-gradient(135deg, var(--color-primary), color-mix(in srgb, var(--gaea-glow) 72%, var(--color-primary)));
   color: var(--md-sys-color-on-primary, #fff);
   font-size: 13.5px;
   font-weight: 600;
