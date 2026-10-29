@@ -30,6 +30,11 @@
 - 四象限终验：亮暗 × 栏折叠/展开，小结标题两行断句全部成立
 - 测试：pantheon go test 绿；前端 19/19（PantheonPage 18+streaming 1）；tsc 零错；
   mock 契约 83/83；文档守卫全绿（孤儿 0/悬空 0/计数对账 529/719）
+- **全量 CI 终验**（ci.ps1，批末三跑）：①首跑逮 gofmt 三处欠账（grok 刀提交漏跑全
+  门禁溜入）→ 56be39af 收口；②go test 全量一发 flaky 复跑 EXIT=0；③末跑 go 侧全绿，
+  vitest 463 文件/4050 例绿 + **2 文件并发假红**（OriginalSinPage.tabs 39.7s/
+  ContextView 41.2s 超时，与今日改动零交集，隔离复跑 39/39 绿=flaky 定性成立）。
+  结论=全绿（含 flaky 定性），满载假红两户挂观察池
 
 ## 新坑入册（详录各线记忆）
 
@@ -55,3 +60,6 @@
 - **众神殿实弹**：导出真存落盘腿（用户顺手点一次导出即补上）。
 - 既往各线实弹池：OCR 长跑、50+ 轮长会话、30 章长跑、进度条手感、ComfyUI
   JobObject 观察等（见 10-29 日总账与各线记忆）。
+- **CI 观察池**：OriginalSinPage.tabs/ContextView 满载并发假红（39~41s 超时、隔离
+  复跑绿）——候选刀=重组件文件 testTimeout 单独放宽或 maxWorkers 再压，与 vite
+  已载的「首个 await import 计入 testTimeout」同族。
