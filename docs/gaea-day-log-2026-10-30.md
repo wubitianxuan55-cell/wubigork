@@ -62,5 +62,17 @@
   JobObject 观察等（见 10-29 日总账与各线记忆）。
 - **CI 观察池销项**（d62f1f1a）：OriginalSinPage.tabs/ContextView 满载并发假红
   （39.7s/41.2s 超时、隔离复跑绿）——沿既有逐轮放宽配方（5s→20s→30s→40s→60s）
-  testTimeout 提到 60s，满载全量 vitest 4054/4054 认证绿。备注=该族随用例增长
-  通胀，再破线时的根治方向=拆文件或 maxWorkers 再压，勿再单点放宽。
+  testTimeout 提到 60s，满载全量 vitest 4054/4054 认证绿。
+- **深夜远端 CI 275 连红根修战役**（fbfe5d8d→5c79cb03 八轮，详见 P0 门禁线记忆）：
+  dist/.gitkeep+wailsjs 入库两结构性修复后三层全部推进到测试层；race job 已全绿
+  （agent 三竞态=测试热改共享字段/数据平台化+extractFilePath JSON 转义解码）；
+  genui=limits.ts text eol=lf（runner autocrlf 喂 CRLF 给字节级校验）；attachment=
+  夹具 EvalSymlinks（runner TEMP junction 形态触产品根护栏）；frontend PromptWorkshop
+  Panel afterEach message.destroy（rc-notification 定时器跨环境泄漏=unhandled
+  error→进程退 1→报告不落盘红链根修）。**余账四件**：①internal/app ×2=GaeaInit/
+  memory 看门狗 30s 在 2 核 runner 误发（已放宽 120s 待验证）；②builtin schedule
+  族 ~10 例=沙箱 confinement 比较 RUNNER~1 短名 vs 解析长名误判 outside（产品级
+  修复点：比较前双侧归一）；③diagram_gen ×2=外部进程 exit status 1（runner 缺
+  依赖待定）；④frontend 最后 1 unhandled=useImageGenHistory.test.ts 同族定时器
+  跨环境。backup 回滚 ACL deny 注入 runner 上仍被绕过（SeBackup/SeRestore 特权
+  假设）——倾向 runner 跳过或特权感知断言。
