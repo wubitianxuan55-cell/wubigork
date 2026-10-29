@@ -62,6 +62,8 @@ jobs:
           tail -n 100 go-test.err
           # 失败包进注解（-json 流里 Action:fail 事件；无登录也能从 check-runs API 看）
           grep -o '"Action":"fail","Package":"[^"]*"' go-test.json | head -15 | while IFS= read -r line; do echo "::error::$line"; done || true
+          # 失败用例名与断言消息（Output 事件里 JSON 转义的 --- FAIL / 断言行）
+          grep -o '"Output":"[^"]*\(--- FAIL\|_test.go:\)[^"]*"' go-test.json | head -20 | while IFS= read -r line; do echo "::error::$line"; done || true
           node scripts/classify-go-failures.mjs go-test.json scripts/go-known-flaky.txt scripts/go-retry-pkgs.txt --expect-failure || exit 1
           echo "在册 flaky 隔离复跑："
           cat scripts/go-retry-pkgs.txt
@@ -115,7 +117,9 @@ jobs:
           set -e
           if [ $code -ne 0 ]; then
             # 失败包/用例/断言消息进注解（check-runs API 免登录可见，2026-10-30 根修轮）
-            grep -E '^(FAIL|--- FAIL|panic|# command-line)|^[[:space:]]+[A-Za-z0-9_]+\.go:[0-9]+:' race.log | head -30 | while IFS= read -r line; do echo "::error::$line"; done || true
+            grep -E '^(FAIL|--- FAIL|panic|# command-line)|^[[:space:]]+[A-Za-z0-9_]+\.go:[0-9]+:' race.log | head -20 | while IFS= read -r line; do echo "::error::$line"; done || true
+            # DATA RACE 块（读/写两处栈）：竞态根修要靠它定位共享内存
+            grep -A14 'WARNING: DATA RACE' race.log | head -34 | while IFS= read -r line; do echo "::error::$line"; done || true
             exit 1
           fi
 

@@ -64,19 +64,37 @@ describe('createBooleanPref 持久化与降级', () => {
   })
 
   it('读写抛错（存储禁用）静默回落：load 回默认、save 不上抛', () => {
-    // jsdom 的 localStorage 不经 Storage.prototype 分派：实例级 spy 拦截
-    const getItem = vi.spyOn(window.localStorage, 'getItem').mockImplementation(() => {
+    // 存储整体替换（defineProperty）：实例级 spyOn 在远端 CI 上连续两轮复现
+    // 「spy 已装但 load 未经过它」——部分环境取 window.localStorage 每次返回的
+    // 对象未必是 spy 安装的那个实例；整体替换对任何访问路径都成立。
+    const throws = () => {
       throw new Error('quota')
-    })
-    const setItem = vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => {
-      throw new Error('quota')
-    })
-    const on = createBooleanPref('test.pref.throwing', true)
-    const off = createBooleanPref('test.pref.throwing', false)
-    expect(on.load()).toBe(true)
-    expect(off.load()).toBe(false)
-    expect(() => on.save(true)).not.toThrow()
-    expect(getItem).toHaveBeenCalled()
-    expect(setItem).toHaveBeenCalled()
+    }
+    const storageStub = {
+      getItem: vi.fn(throws),
+      setItem: vi.fn(throws),
+      removeItem: vi.fn(),
+      clear: vi.fn(),
+      key: vi.fn(() => null),
+      length: 0,
+    }
+    const ownDesc = Object.getOwnPropertyDescriptor(window, 'localStorage')
+    Object.defineProperty(window, 'localStorage', { configurable: true, value: storageStub })
+    try {
+      const on = createBooleanPref('test.pref.throwing', true)
+      const off = createBooleanPref('test.pref.throwing', false)
+      expect(on.load()).toBe(true)
+      expect(off.load()).toBe(false)
+      expect(() => on.save(true)).not.toThrow()
+      expect(storageStub.getItem).toHaveBeenCalled()
+      expect(storageStub.setItem).toHaveBeenCalled()
+    } finally {
+      if (ownDesc) {
+        Object.defineProperty(window, 'localStorage', ownDesc)
+      } else {
+        // jsdom 把 localStorage 挂在原型上时无 own 描述符：剥掉 own 桩即回原型访问器
+        delete (window as unknown as { localStorage?: unknown }).localStorage
+      }
+    }
   })
 })
