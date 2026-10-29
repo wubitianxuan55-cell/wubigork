@@ -1,3 +1,30 @@
+## 众神殿工作空间范围与 UI 重设计 · 2026-10-29
+
+- 用户要求继续优化 UI，并为每场讨论选择工作空间以限定项目。空态/新建页移除冗余右栏，原则改为底部横条；讨论纪要保留并固定右侧摘要栏，用于滚动复核参与者、证据与警示。
+- 工作空间为会话级字段，不切换 Gaea 全局工作区：`StartRequest.Workspace` 持久化到纪要，外部 Agent 的 cwd 与多轮讨论简报绑定该目录；当前/最近工作空间与独立目录选择器走 `PantheonB`，新增 Workspaces / PickWorkspace 两绑定。并发讨论使用各自 workspace，避免全局 cwd 串台。
+- 视觉与交互：石墨/冷灰/旧金体系、参与者地图、参与者观点窗、协作小结印记、骨架加载、亮暗主题、390/720/1440 响应式与 reduced-motion；同时修复纪要切换继承滚动位置、Agent 路径 `window.prompt` 失效两个问题。
+- 讨论协议 V2：按用户指定顺序串行发言，默认 2 轮、可选 3-4 轮，下一轮自动轮换首位；第 1 轮开场陈述，后续轮补充证据、澄清分歧和修正观点，最后由汇总人整理共识、分歧、开放问题与建议。全面移除“质询/裁决/签注”法庭化文案，界面改成动态轮次轨道、发言顺序编辑器与讨论小结。
+- 共享与独立上下文：运行页固定建立 1 个共享观点窗口和 4 个 Agent 独立窗口；每个 Agent 的后续 prompt 分开注入个人历次发言与其他参与者公开观点，避免共享语境覆盖自身判断链。右侧设置栏持续展示范围、参与者、发言顺序、轮次与材料。
+- 流式显示：Grok 直接消费 SSE delta，外部 CLI stdout 逐行增量解析并发出临时 `agent_delta` 事件；共享窗口改为自动滚动的对话气泡，保留流式光标，最终完整输出仍按贡献持久化。
+- 门禁：生成器 697 绑定与 drift 一致；Wails 桌面构建成功（55,927,296B，SHA256 `9A60EB0DAD83E0260B6C84252DDE1B80DC51D2F607148C155639C6AF4B0843C5`）；TypeScript/ESLint/go vet 绿；众神殿前端 9 例 + 流式窗口 1 例 + mock 契约 5 例、Go 有序多轮/顺序轮换/独立上下文分段/流式增量/失败隔离/并发工作空间隔离/路径边界定向绿。
+- 续优化（同日）：完成态改为“小结先于过程”，首屏直接呈现综合建议；新增基于小结与保留分歧的续议草稿，继承工作空间、材料、席位、顺序和轮次；导出菜单补齐 Markdown/JSON 双格式。
+- 历史与发起体验：讨论档案支持议题/工作空间搜索和状态筛选；桌面发起页操作栏吸底，实时显示“选择范围/至少两席/填写议题”的阻塞原因；390/720/1440 三档及亮暗主题目检通过，窄屏改为正常文档流，避免吸底栏遮挡内容。
+- 左侧档案栏折叠：桌面可收为 72px 窄轨，保留新讨论、档案数量、展开按钮和四个 Agent 状态；折叠选择写入 localStorage，刷新后保持。移动端继续使用原横向档案栏。折叠新增后众神殿定向 14 例、tsc/eslint 绿；前序全量基线 465 文件/4048 例。
+- 轮次模式：手动轮次改为 2-20 轮数字输入，不再局限 2/3/4；新增“不限”模式，每轮要求各席输出结构化共识状态（一致/仍有分歧），仅当所有实际参与者都明确一致才提前汇总。无共识时默认最多 12 轮并保留分歧、正常生成小结，可随时终止；高轮次进度轨改为横向滚动，续议会继承模式。
+- Agent 工具与轨迹：Codex 保持 read-only sandbox；ZCode 改走 `--output-format stream-json`；DSH 保持 read-only permission。统一解析 Codex `command_execution`、ZCode `tool_call/tool.updated`、DSH `tool_call/tool_result`，工具开始、完成、失败、输入摘要和结果预览实时进入纪要。Grok 改由 Gaea 办公 AgentRunner 驱动，复用工作区文件、搜索、造价、知识与日程等只读办公工具，不再裸跑 xAI 补全。工具轨迹不展示模型内部推理，只展示实际工具动作。
+- Grok 办公工具接线：`pantheonGrokSeat` 以 xAI 模型构造独立 Gaea AgentRunner，provider feature 仍记 `pantheon`；每轮按众神殿工作空间新建只读工具注册表，核心文件工具重新绑定该目录，并从办公 controller 复制显式 `ReadOnly` 的造价/知识/记忆/日程等工具。禁止 `write_file/edit_file/bash/task/install_skill` 等写类或编排类工具；AgentRunner 的 ToolDispatch/ToolResult 直接映射为众神殿工具轨迹。
+- 工具真机探针：本机 Codex 0.165.0、ZCode 0.17.0、DSH 0.2.1-rc.3 分别完成最小只读目录查询；三家均返回可解析工具事件，工作区未修改。讨论提示词新增工具使用与只读边界，明确优先核验事实、精简输出、禁止写盘/安装/读取凭证。
+- 后端可靠性：超长提示词改为保留首尾并显式标记省略中段，避免长材料/长讨论截掉末尾 JSON 输出要求；应用重启时把遗留 `running` 会话收敛为失败并保留部分发言、参与者和事件，第二次恢复幂等。
+- 续优化门禁：tsc/eslint 0；众神殿前端 18 例（续议、筛选、结果优先、JSON 导出、档案栏折叠、手动/不限轮次、实时工具轨迹）；`internal/pantheon` 工具跨供应商解析/事件持久化/提示词边界与轮次共识测试全包绿；发布前完整本地快闸全绿（Go build/vet/lint/全仓测试 + 前端 **465 文件 / 4053 例** + 生产构建 + E/文档守卫）；11 个绑定名称零变更。race 检查因本机缺 gcc/CGO 环境未执行，如实留档。
+
+## 众神殿 MVP：本机异构 Agent 议事一级板块 · 2026-10-29
+
+- 用户拍板「V5 论证先放一边，先把众神殿实现」。按 `docs/gaea-pantheon-market-research-2026-10-29.md` 落首版：一级板块 `pantheon`（shared，菜单序 6）+ 首页胶囊 + 9 个 `PantheonB` 绑定。
+- 后端 `internal/pantheon`：独立陈词 → 匿名互评 → 定向质询 → 首席裁决；JSON 原子持久化、实时事件、单席失败隔离、取消、Markdown 议事录。Codex 用只读沙箱；ZCode 用 plan 模式并注入其原生 provider 配置文件路径；DSH 走随附 headless CLI + `DSH_PERMISSION_MODE=read-only`，Windows 取消用 `taskkill /T /F` 清进程树。
+- 前端：三步工作台（议题列表/议事台/卷宗检查器）、设坛材料与参与者选择、阶段轨道、实时流、裁决/分歧/风险、用户签注、历史打开、复制/导出/删除。另含浏览器 mock 完整演示与 5 例页面单测。
+- 真机探针：Codex/ZCode/DSH 均以最小 `READY` prompt 跑通；DSH 需要当前 Gaea 工作目录以沿用自身凭据层，Gaea 不读取/复制密钥。
+- 门禁：`go vet` 绿；`internal/app` 全包 163s 绿；`internal/pantheon`/board 定向绿；tsc/eslint 0；最终 Wails 构建成功（55,882,752B，SHA256 `E626CEE69F0F58432DBB44BBC9B6CCF981B61DB90AAA7BB4718B9DE92156CCE4`）；`/api/health` 冒烟 200；全量 vitest 首轮 463/464 文件、4038/4039 用例通过，唯一失败=CommandRail 旧导航期望，已更新并定向复绿；签注新增后相关 25 例复跑绿；绑定 drift 695 方法 OK；docs 守卫 OK。
+
 ## Reasonix 2.x 蒸馏·第 5 批：压缩验收闸（A3）+ 折叠区召回（A5）· 2026-10-24
 
 - 上游原码对照（`compact_projection.go` partitionUnderCeiling+acceptCheckpointCandidate、`compact_search.go` 召回形态）后落地。**A3 适配版**：验收闸进 compact——候选下限≥trigger 一律跳过（force 不豁免；manual 低于 trigger 例外）+固定前缀超 ceiling 走 ≥25% 节省例外。**两处刻意差异（探针实证后定深）**：①候选下限用「机械摘要保底」估算（shrink 校验保证摘要过大回落 mechanical→下限可达而非猜测；上游用真实候选 token）；②通用 above-ceiling 拒绝不取——**gaea tail 预算有 2000 tok 下限（v10.11），小窗口下 tail 单独顶破 50%，照搬会关死小窗口自动压缩**；例外分支在 gaea 常数下由 trigger 闸覆盖（savings=estFold-150 ≥ estNow/4 恒真当折叠区非空）。closedPrefixEnd 不变量=配对完整性回归测试钉死（tailStart 对齐本就保证，测试防回归）。

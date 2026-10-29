@@ -286,6 +286,7 @@ type App struct {
 	*mediaState
 	*whisperState
 	*officeState
+	*pantheonState
 
 	brain *BrainStore
 
@@ -353,6 +354,7 @@ func New() *App {
 		weixinServers:   map[string]*weixin.Server{},
 	}
 	a.officeState = &officeState{core: c, app: a}
+	a.pantheonState = &pantheonState{app: a}
 	// 冷启动基线（瘦身轨道五）：构造链耗时（config.Load 磁盘 IO + prompt 引擎加载）。
 	slog.Info("app.New 完成", "cost", time.Since(t0).Round(time.Millisecond).String())
 	return a
@@ -679,6 +681,10 @@ func (a *App) Shutdown(ctx context.Context) {
 			a.logClose()
 		}
 	}()
+
+	if a.pantheonState != nil {
+		a.pantheonState.closePantheon()
+	}
 
 	// 停止 GLM 目录远程拉取循环（B 刀；engineMgr 未初始化时为空操作兜底）。
 	if a.engineMgr != nil {

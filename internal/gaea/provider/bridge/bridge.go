@@ -198,6 +198,9 @@ func init() {
 			// 解析结果：成本/摘要/知识导入/读屏等，全部 office 域）。
 			feature = "office"
 		}
+		if override, _ := cfg.Extra["feature"].(string); strings.TrimSpace(override) != "" {
+			feature = strings.TrimSpace(override)
+		}
 		if engine == "" {
 			engine = featureEngine // 功能级引擎（未绑定则为空，由 ai.Client 按活跃引擎解析）
 		}

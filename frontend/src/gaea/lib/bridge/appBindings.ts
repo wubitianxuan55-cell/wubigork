@@ -20,6 +20,7 @@ import type { ImageBindings } from "./image";
 import type { CharLibBindings } from "./charlib";
 import type { SinBindings } from "./sin";
 import type { CadBindings } from "./cad";
+import type { PantheonBindings } from "./pantheon";
 
 export interface AppBindings
   extends CoreBindings,
@@ -33,4 +34,5 @@ export interface AppBindings
     ImageBindings,
     CharLibBindings,
     SinBindings,
-    CadBindings {}
+    CadBindings,
+    PantheonBindings {}

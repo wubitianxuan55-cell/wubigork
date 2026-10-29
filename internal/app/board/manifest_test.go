@@ -65,6 +65,7 @@ func TestManifestSpaceAssignments(t *testing.T) {
 		"imagegen":     SpacePlay,
 		"gaea":         SpaceWork,
 		"cost":         SpaceWork,
+		"pantheon":     SpaceShared,
 		"memoryhub":    SpaceWork,
 		"modelcenter":  SpaceShared,
 		"characterlib": SpacePlay,

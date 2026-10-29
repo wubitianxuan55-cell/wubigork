@@ -144,15 +144,15 @@ func TestFillFromManifestsHappyPath(t *testing.T) {
 }
 
 // TestGetBoardManifestsCanonical GetBoardManifests 返回 canonical 清单：
-// 12 个 canonical 板块（含 cost 成本库 + v4.110.0 schedule 进度计划；
+// 13 个 canonical 板块（含 cost 成本库 + pantheon 众神殿 + v4.110.0 schedule；
 // v4.439 删除 code 编程板块；2026-10-27 sin 退役=导航级合并进小说板块第六页签）
 // + knowledge 独立板块（D7），含 weixin 服务板块；
 // JSON 字段对齐 doc §5.2 TS schema；CoreB 委托与 App 方法一致。
 func TestGetBoardManifestsCanonical(t *testing.T) {
 	a := &App{}
 	manifests := a.GetBoardManifests()
-	if len(manifests) != 13 {
-		t.Fatalf("GetBoardManifests 应返回 13 个板块（12 canonical〔2026-10-27 -sin〕+ knowledge D7），got %d", len(manifests))
+	if len(manifests) != 14 {
+		t.Fatalf("GetBoardManifests 应返回 14 个板块（13 canonical〔含 pantheon〕+ knowledge D7），got %d", len(manifests))
 	}
 	byID := map[string]board.Manifest{}
 	for _, m := range manifests {

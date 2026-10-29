@@ -28,6 +28,7 @@ import { buildMemory } from "./mock/memory";
 import { buildModel } from "./mock/model";
 import { buildNovel } from "./mock/novel";
 import { buildOffice } from "./mock/office";
+import { buildPantheon } from "./mock/pantheon";
 import { buildRetrieval } from "./mock/retrieval";
 import { buildSettings } from "./mock/settings";
 import { buildSin } from "./mock/sin";
@@ -68,5 +69,6 @@ export function makeMockApp(): AppBindings {
     buildImagehub(),
     buildImagegenTools(),
     buildSin(),
+    buildPantheon(),
   );
 }

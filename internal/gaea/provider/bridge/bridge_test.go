@@ -439,6 +439,33 @@ func TestBridge_PerCallEngine(t *testing.T) {
 	}
 }
 
+func TestBridge_CustomFeatureOverride(t *testing.T) {
+	mc := &mockClient{chunks: []ai.SSEChunk{{Done: true}}}
+	SetClient(mc)
+	SetFeature("herdsman", "Qwen3.5-35B-A3B-MTP")
+	defer SetFeature("", "")
+
+	p, err := provider.New("wubigrok", provider.Config{
+		Name: "pantheon-grok", Model: "grok-4.7", Engine: "xai",
+		Extra: map[string]any{"feature": "pantheon"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.Stream(context.Background(), provider.Request{
+		Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if mc.gotReq == nil {
+		t.Fatal("client received no request")
+	}
+	if mc.gotReq.EngineID != "xai" || mc.gotReq.Feature != "pantheon" {
+		t.Fatalf("request engine/feature = %q/%q, want xai/pantheon",
+			mc.gotReq.EngineID, mc.gotReq.Feature)
+	}
+}
+
 // TestBridge_FeatureEngine_NoBinding 验证未注入功能绑定时保持原行为
 // （engine/model 为空，由 ai.Client 按活跃引擎解析）。
 func TestBridge_FeatureEngine_NoBinding(t *testing.T) {

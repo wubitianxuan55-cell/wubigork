@@ -20,6 +20,7 @@ import {
   SettingOutlined, WechatOutlined, BookOutlined, AccountBookOutlined,
   ScheduleOutlined,
   FireOutlined, MonitorOutlined,
+  CrownOutlined,
 } from '@ant-design/icons'
 import type { ComponentType } from 'react'
 import type { BoardManifest, BoardNavChild } from './types'
@@ -32,6 +33,7 @@ const ICON_REGISTRY: Record<string, ComponentType> = {
   ToolOutlined, DatabaseOutlined, ApiOutlined, TeamOutlined,
   SettingOutlined, WechatOutlined, BookOutlined, AccountBookOutlined,
   ScheduleOutlined, FireOutlined, MonitorOutlined,
+  CrownOutlined,
 }
 
 /** 查表解析 antd 图标；未知图标名返回 null（不抛错，渲染时退化） */
@@ -70,7 +72,7 @@ const COST_NAV: BoardNavChild[] = [
 ]
 
 /**
- * 内置 canonical 板块清单（13 条 = 12 业务板块〔含 inMenu=false 的 settings/
+ * 内置 canonical 板块清单（14 条 = 13 业务板块〔含 inMenu=false 的 settings/
  * schedule〕 + home 启动器壳层）。
  * menuOrder 与现状 menuItems 顺序一致；settings inMenu=false（右上角按钮入口）。
  * weixin：v4.4 触点落地（WeixinPage 扫码绑定 + 离线代办），进 rail 与首页左翼书房。
@@ -109,6 +111,11 @@ export const canonicalBoards: BoardManifest[] = [
     id: 'cost', label: '造价数据库', icon: 'AccountBookOutlined', page: 'CostLibraryPage',
     lazy: true, keepAlive: true, layout: 'padded',
     menuOrder: 5, inMenu: true, nav: { children: COST_NAV }, featureModel: 'cost', space: 'work',
+  },
+  {
+    id: 'pantheon', label: '众神殿', icon: 'CrownOutlined', page: 'PantheonPage',
+    lazy: true, keepAlive: true, layout: 'full',
+    menuOrder: 6, inMenu: true, space: 'shared',
   },
   {
     id: 'memoryhub', label: '记忆中枢', icon: 'DatabaseOutlined', page: 'MemoryHubPage',

@@ -30,7 +30,7 @@ const getBoardManifestsMock = app.GetBoardManifests as unknown as {
 }
 
 // 后端 GetBoardManifests 契约形态（对齐 internal/app/board/builtins.go）：
-// 10 个业务板块（含 cost 造价数据库 + D7 knowledge；v4.439 删除 code 编程板块），
+// 11 个业务板块（含 cost 造价数据库 + pantheon + D7 knowledge；v4.439 删除 code），
 // 无 home 壳层，weixin.page=""、label=青鸟（v4.48 更名，原微信助手）。
 const BACKEND_FIXTURE = [
   { id: 'chat', label: '聊天', icon: 'MessageOutlined', page: 'ChatPage', lazy: true, keepAlive: true, layout: 'full', shortcut: 'ctrl+1', menuOrder: 1, inMenu: true, featureModel: 'chat' },
@@ -38,6 +38,7 @@ const BACKEND_FIXTURE = [
   { id: 'imagegen', label: '绘梦', icon: 'PictureOutlined', page: 'ImageGenPage', lazy: true, keepAlive: true, layout: 'padded', shortcut: 'ctrl+3', menuOrder: 3, inMenu: true, featureModel: 'imagegen' },
   { id: 'gaea', label: '办公', icon: 'ToolOutlined', page: 'GaeaPage', lazy: true, keepAlive: true, layout: 'full', shortcut: 'ctrl+4', menuOrder: 4, inMenu: true, featureModel: 'gaea' },
   { id: 'cost', label: '造价数据库', icon: 'AccountBookOutlined', page: 'CostLibraryPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 5, inMenu: true, featureModel: 'cost' },
+  { id: 'pantheon', label: '众神殿', icon: 'CrownOutlined', page: 'PantheonPage', lazy: true, keepAlive: true, layout: 'full', menuOrder: 6, inMenu: true },
   { id: 'memoryhub', label: '记忆中枢', icon: 'DatabaseOutlined', page: 'MemoryHubPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 7, inMenu: true },
   { id: 'modelcenter', label: '模型中心', icon: 'ApiOutlined', page: 'ModelCenterPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 8, inMenu: true },
   { id: 'characterlib', label: '角色库', icon: 'TeamOutlined', page: 'CharacterLibraryPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 9, inMenu: true, featureModel: 'characterlib' },
@@ -49,21 +50,21 @@ const BACKEND_FIXTURE = [
 // 3.0 附 B 收敛映射回归：manifest 派生结果必须与旧 MainLayout 硬编码一致（像素级）。
 
 describe('menuBoards（附 B #4：filter(inMenu) + sort(menuOrder)）', () => {
-  it('菜单顺序与现状一致：首页 → 聊天 → 小说 → 绘梦 → 办公 → 造价数据库 → 记忆中枢 → 模型中心 → 角色库 → 青鸟 → 运行监测（2026-10-27 -sin 合并进小说板块 共 11 项）', () => {
+  it('菜单顺序与现状一致：首页 → … → 造价数据库 → 众神殿 → 记忆中枢 → … → 运行监测（共 12 项）', () => {
     expect(menuBoards.map((b) => b.id)).toEqual([
-      'home', 'chat', 'novel', 'imagegen', 'gaea', 'cost', 'memoryhub', 'modelcenter', 'characterlib', 'weixin', 'runtime',
+      'home', 'chat', 'novel', 'imagegen', 'gaea', 'cost', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib', 'weixin', 'runtime',
     ])
   })
 
-  it('菜单文案与现状一致（首页/聊天/小说/绘梦/办公/造价数据库/记忆中枢/模型中心/角色库/青鸟/运行监测）', () => {
+  it('菜单文案与现状一致（含众神殿）', () => {
     expect(menuBoards.map((b) => b.label)).toEqual([
-      '首页', '聊天', '小说', '绘梦', '办公', '造价数据库', '记忆中枢', '模型中心', '角色库', '青鸟', '运行监测',
+      '首页', '聊天', '小说', '绘梦', '办公', '造价数据库', '众神殿', '记忆中枢', '模型中心', '角色库', '青鸟', '运行监测',
     ])
   })
 
   it('菜单图标名与现状一致（antd 图标注册表可解析）', () => {
     const expected = ['HomeOutlined', 'MessageOutlined', 'ReadOutlined', 'PictureOutlined',
-      'ToolOutlined', 'AccountBookOutlined', 'DatabaseOutlined', 'ApiOutlined', 'TeamOutlined', 'WechatOutlined',
+      'ToolOutlined', 'AccountBookOutlined', 'CrownOutlined', 'DatabaseOutlined', 'ApiOutlined', 'TeamOutlined', 'WechatOutlined',
       'MonitorOutlined']
     expect(menuBoards.map((b) => b.icon)).toEqual(expected)
     for (const b of menuBoards) {
@@ -81,10 +82,10 @@ describe('menuBoards（附 B #4：filter(inMenu) + sort(menuOrder)）', () => {
 describe('getActiveMenuBoards（一级导航合一 2026-10-26：全量菜单，不再按空间分域）', () => {
   it('全量序 = 首页 + 全部 inMenu 板块（menuOrder 派生；书斋/闲庭同栏尽收）', () => {
     expect(getActiveMenuBoards().map((b) => b.id)).toEqual([
-      'home', 'chat', 'novel', 'imagegen', 'gaea', 'cost', 'memoryhub', 'modelcenter', 'characterlib', 'weixin', 'runtime',
+      'home', 'chat', 'novel', 'imagegen', 'gaea', 'cost', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib', 'weixin', 'runtime',
     ])
     expect(getActiveMenuBoards().map((b) => b.label)).toEqual([
-      '首页', '聊天', '小说', '绘梦', '办公', '造价数据库', '记忆中枢', '模型中心', '角色库', '青鸟', '运行监测',
+      '首页', '聊天', '小说', '绘梦', '办公', '造价数据库', '众神殿', '记忆中枢', '模型中心', '角色库', '青鸟', '运行监测',
     ])
   })
 
@@ -105,7 +106,7 @@ describe('navigateWhitelist（附 B #2：manifest 派生导航白名单）', () 
   // 白名单仍含 schedule（注册即可导航），办公文件面『进度计划』入口承接导航能力。
   it('注册即可导航：全部业务板块（v4.110.0 加 schedule；刀1 后仍含 inMenu=false 的 settings 与 schedule；2026-10-27 sin 退役不在此列），不含 home', () => {
     expect(navigateWhitelist).toEqual([
-      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin', 'schedule', 'runtime',
+      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin', 'schedule', 'runtime',
     ])
   })
 })
@@ -125,9 +126,10 @@ describe('shortcutMap（附 B #6：Ctrl+1~4 显式声明）', () => {
 })
 
 describe('layout / breadcrumb / home（附 B #8/#9/#10/#11）', () => {
-  it('chat/gaea = full（全出血），其余 = padded', () => {
+  it('chat/gaea/pantheon = full（全出血），其余 = padded', () => {
     expect(getBoard('chat')?.layout).toBe('full')
     expect(getBoard('gaea')?.layout).toBe('full')
+    expect(getBoard('pantheon')?.layout).toBe('full')
     for (const id of ['novel', 'imagegen', 'cost', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'schedule']) {
       expect(getBoard(id)?.layout, id).toBe('padded')
     }
@@ -170,7 +172,7 @@ describe('normalizeManifests（板块差集归一：后端清单 + 前端 home �
     expect(ids[0]).toBe('home')
     expect(deriveHomeBoard(merged)?.id).toBe('home')
     expect(merged.filter((b) => b.isHome)).toHaveLength(1)
-    expect(merged).toHaveLength(11)
+    expect(merged).toHaveLength(12)
   })
 
   it('差集 #3：weixin 以后端为准（page=""，label=青鸟，inMenu=false）', () => {
@@ -184,10 +186,10 @@ describe('normalizeManifests（板块差集归一：后端清单 + 前端 home �
   it('重叠 id 后端字段优先：菜单顺序/文案与静态一致（knowledge 被过滤，不尾随）', () => {
     const menu = deriveMenuBoards(normalizeManifests(BACKEND_FIXTURE))
     expect(menu.map((b) => b.id)).toEqual([
-      'home', 'chat', 'novel', 'imagegen', 'gaea', 'cost', 'memoryhub', 'modelcenter', 'characterlib',
+      'home', 'chat', 'novel', 'imagegen', 'gaea', 'cost', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib',
     ])
     expect(menu.map((b) => b.label)).toEqual([
-      '首页', '聊天', '小说', '绘梦', '办公', '造价数据库', '记忆中枢', '模型中心', '角色库',
+      '首页', '聊天', '小说', '绘梦', '办公', '造价数据库', '众神殿', '记忆中枢', '模型中心', '角色库',
     ])
   })
 
@@ -196,7 +198,7 @@ describe('normalizeManifests（板块差集归一：后端清单 + 前端 home �
   // 已并入记忆中枢被过滤（不单列也不尾随）。
   it('注册即可导航：后端清单 + home（inMenu=false 的 settings/weixin 进白名单；knowledge 仍被过滤）', () => {
     expect(deriveNavigateWhitelist(normalizeManifests(BACKEND_FIXTURE))).toEqual([
-      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin',
+      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin',
     ])
   })
 
@@ -208,10 +210,11 @@ describe('normalizeManifests（板块差集归一：后端清单 + 前端 home �
     expect(sc['ctrl+4']).toBe('gaea')
   })
 
-  it('布局：chat/gaea=full，其余 padded', () => {
+  it('布局：chat/gaea/pantheon=full，其余 padded', () => {
     const merged = normalizeManifests(BACKEND_FIXTURE)
     expect(deriveBoard(merged, 'chat')?.layout).toBe('full')
     expect(deriveBoard(merged, 'gaea')?.layout).toBe('full')
+    expect(deriveBoard(merged, 'pantheon')?.layout).toBe('full')
     for (const id of ['novel', 'imagegen', 'cost', 'memoryhub', 'modelcenter', 'characterlib', 'settings']) {
       expect(deriveBoard(merged, id)?.layout, id).toBe('padded')
     }
@@ -278,7 +281,7 @@ describe('loadBoardManifests（数据源 seam：后端优先 / fail-closed 回�
     getBoardManifestsMock.mockResolvedValue(BACKEND_FIXTURE)
     await loadBoardManifests()
     expect(getActiveMenuBoards().map((b) => b.id)).toEqual([
-      'home', 'chat', 'novel', 'imagegen', 'gaea', 'cost', 'memoryhub', 'modelcenter', 'characterlib',
+      'home', 'chat', 'novel', 'imagegen', 'gaea', 'cost', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib',
     ])
     expect(getActiveNavigateWhitelist()).not.toContain('knowledge')
     expect(getActiveShortcutMap()['ctrl+4']).toBe('gaea')
@@ -300,7 +303,7 @@ describe('loadBoardManifests（数据源 seam：后端优先 / fail-closed 回�
   it('resetActiveBoardsForTest 恢复静态基线（测试隔离）', async () => {
     getBoardManifestsMock.mockResolvedValue(BACKEND_FIXTURE)
     await loadBoardManifests()
-    // knowledge 过滤后合并清单与静态长度相同（均为 10），但引用不同（home 壳层 + 后端字段优先）
+    // knowledge 过滤后活动清单是后端合并结果，引用与静态 fallback 不同
     expect(getActiveBoards()).not.toBe(canonicalBoards)
     resetActiveBoardsForTest()
     expect(getActiveBoards()).toBe(canonicalBoards)

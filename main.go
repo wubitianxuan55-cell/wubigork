@@ -73,8 +73,8 @@ func main() {
 		},
 		OnStartup:  application.Startup,
 		OnShutdown: application.Shutdown,
-		// S2-3「App 绑定面拆分」：不再绑定单一 App 对象，改为 10 个板块门面
-		// （core/office/memory/cost/model/voice/chat/novel/image/charlib），
+		// S2-3「App 绑定面拆分」：不再绑定单一 App 对象，改为 12 个板块门面
+		// （core/office/memory/cost/model/voice/chat/novel/image/charlib/sin/pantheon），
 		// 方法纯委托、逻辑零改动；前端经 gaea/lib/bridge.ts 单点路由。
 		Bind: app.NewBindings(application),
 	})

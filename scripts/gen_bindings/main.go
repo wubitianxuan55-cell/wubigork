@@ -43,11 +43,11 @@ import (
 // receiverTypes 参与绑定的接收者类型（App 及其嵌入的子状态结构）。
 var receiverTypes = map[string]bool{
 	"App": true, "core": true, "writingState": true,
-	"mediaState": true, "whisperState": true, "officeState": true,
+	"mediaState": true, "whisperState": true, "officeState": true, "pantheonState": true,
 }
 
 // facadeOrder 板块顺序（生成文件与绑定顺序一致，稳定可读）。
-var facadeOrder = []string{"core", "office", "memory", "cost", "model", "voice", "chat", "novel", "image", "charlib", "sin"}
+var facadeOrder = []string{"core", "office", "memory", "cost", "model", "voice", "chat", "novel", "image", "charlib", "sin", "pantheon"}
 
 // excludedBindings 绑定面排除清单（A1① 拍板，2026-10-03）：109 条零调用绑定
 // 整体摘除（绑定面 744→635；名单=check-bindings-drift.ps1 §4 knownDead 普查，
@@ -188,6 +188,9 @@ func mapMethod(m method) string {
 	case strings.HasPrefix(n, "Sin"):
 		// 原罪板块（闲庭·图文故事创作）：Sin* 前缀独占一门面
 		return "sin"
+	case strings.HasPrefix(n, "Pantheon"):
+		// 众神殿：本机异构 Agent 议事内核独占门面。
+		return "pantheon"
 	case strings.HasPrefix(n, "Character"):
 		return "charlib"
 	case strings.HasPrefix(n, "GenerateFreeImage"), strings.HasPrefix(n, "CancelImageGeneration"),

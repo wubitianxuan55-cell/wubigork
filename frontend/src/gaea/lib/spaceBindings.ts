@@ -65,6 +65,18 @@ export const GAEA_METHOD_FACETS = {
   GaeaTaskInboxSave: "shared",
   GaeaTaskInboxSetStatus: "shared",
   GaeaTaskInboxDelete: "shared",
+  // 众神殿（本机异构 Agent 议事）：两空间共用入口，材料范围由每场议事显式选择。
+  PantheonAgents: "shared",
+  PantheonWorkspaces: "shared",
+  PantheonPickWorkspace: "shared",
+  PantheonList: "shared",
+  PantheonGet: "shared",
+  PantheonStart: "shared",
+  PantheonCancel: "shared",
+  PantheonDelete: "shared",
+  PantheonExport: "shared",
+  PantheonSignOff: "shared",
+  PantheonSetExecutable: "shared",
   Settings: "shared",
   SetDefaultModel: "shared",
   // v4.171 批次一：办公引擎设置整体写回（OfficePanel「保存」，同 Settings 归 shared）。

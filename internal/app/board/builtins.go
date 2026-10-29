@@ -1,10 +1,11 @@
 package board
 
-// builtins 注册 canonical 板块（§3.1 清单 + 决策 D7）。
+// builtins 注册 canonical 板块（§3.1 清单 + 决策 D7 + 众神殿）。
 //
 // canonical 集合 = §3.1 的 9 业务板块 + 成本库（cost，2026-08-19 从记忆中枢
 // 二级分类提升为一级板块）+ knowledge（决策 D7：恢复挂载为独立板块 = 3.0.0
-// 最小 manifest 试点）。v4.439 用户拍板「删除编程板块」：code（DeepSeek
+// 最小 manifest 试点）+ pantheon（本机异构 Agent 议事台）。v4.439 用户拍板
+// 「删除编程板块」：code（DeepSeek
 // Harness Web 进程管理）整块退役，independent 分面暂无成员。
 // home 是壳（启动器，不进 manifest 业务清单，见 §3.1 注；前端 manifests.ts 的
 // 静态清单含 home 属壳层数据）。
@@ -85,6 +86,14 @@ var builtinManifests = []Manifest{
 		}},
 		FeatureModel: "cost",
 		Bindings:     []string{"CostB"},
+	},
+	{
+		ID: "pantheon", Label: "众神殿", Icon: "CrownOutlined",
+		Page: "PantheonPage", Lazy: true,
+		KeepAlive: Bool(true), Layout: "full",
+		MenuOrder: 6, InMenu: Bool(true),
+		Space:    SpaceShared, // 议题可来自任一空间，但材料范围由每场议事显式选择
+		Bindings: []string{"PantheonB"},
 	},
 	{
 		ID: "memoryhub", Label: "记忆中枢", Icon: "DatabaseOutlined",
@@ -197,5 +206,5 @@ func Builtins() []Board {
 // knowledge 是 D7 独立板块，见 BuiltinManifests）。sin 已退役（2026-10-27 拍板
 // 导航级合并：原罪收编为小说板块第六页签，SinB 门面经 NewBindings 照常注册）。
 func CanonicalIDs() []string {
-	return []string{"chat", "novel", "imagegen", "gaea", "cost", "memoryhub", "modelcenter", "characterlib", "settings", "weixin", "schedule", "runtime"}
+	return []string{"chat", "novel", "imagegen", "gaea", "cost", "pantheon", "memoryhub", "modelcenter", "characterlib", "settings", "weixin", "schedule", "runtime"}
 }

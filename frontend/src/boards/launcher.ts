@@ -28,6 +28,7 @@ export const LAUNCHER_DESC: Record<string, string> = {
   imagegen: 'AI 图像生成工作台',
   gaea: '通用办公工作台 · 改既有文件不丢格式',
   cost: '造价数据库：单价、定额与价格源',
+  pantheon: '本机 Agent 多轮讨论 · 有序发言与协作综合',
   memoryhub: '知识/画像/办公记忆跨板块沉淀',
   modelcenter: '模型引擎管理与配置',
   characterlib: '角色档案与跨板块角色管理',
