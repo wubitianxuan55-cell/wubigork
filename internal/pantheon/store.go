@@ -78,6 +78,10 @@ func (s *sessionStore) get(id string) (*Session, error) {
 	if session.Participants == nil {
 		session.Participants = []Participant{}
 	}
+	// AgentIDs 无 omitempty，历史文件可能带 "agentIds": null，前端记录页裸 .map。
+	if session.Request.AgentIDs == nil {
+		session.Request.AgentIDs = []string{}
+	}
 	return &session, nil
 }
 

@@ -286,6 +286,43 @@ func TestStoreRoundTripListAndExport(t *testing.T) {
 	}
 }
 
+// 历史文件可能带 "agentIds": null（AgentIDs 无 omitempty 的 nil 切片契约），
+// 读回必须归一化成空切片——前端记录页裸 .map，null 直达会崩页。
+func TestStoreGetNormalizesNullAgentIDs(t *testing.T) {
+	root := t.TempDir()
+	store, err := newSessionStore(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(root, "sessions", "pan_null")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	raw := `{"id":"pan_null","title":"空席历史件","status":"completed","phase":"completed",
+		"createdAt":1,"updatedAt":2,"request":{"topic":"历史文件","rounds":1,"readOnly":true,"agentIds":null},
+		"participants":null,"events":null,"contributions":null}`
+	if err := os.WriteFile(filepath.Join(dir, "session.json"), []byte(raw), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := store.get("pan_null")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Request.AgentIDs == nil || len(got.Request.AgentIDs) != 0 {
+		t.Fatalf("agentIDs not normalized: %#v", got.Request.AgentIDs)
+	}
+	if got.Participants == nil || got.Events == nil || got.Contributions == nil {
+		t.Fatalf("slices not normalized: %+v", got)
+	}
+	data, err := json.Marshal(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), `"agentIds":null`) {
+		t.Fatalf("agentIds still null after normalize: %s", data)
+	}
+}
+
 func TestManagerRunsOrderedMultiRoundDiscussion(t *testing.T) {
 	runner := defaultFakeRunner()
 	m := newTestManager(t, runner, fakeAdapter("alpha"), fakeAdapter("beta"))

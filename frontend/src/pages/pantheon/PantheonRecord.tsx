@@ -799,7 +799,7 @@ export const PantheonRecord: React.FC<Props> = ({
             <h3>发言顺序</h3>
           </div>
           <ol className="pantheon-inspector-order">
-            {session.request.agentIds.map((agentID, index) => (
+            {(session.request.agentIds ?? []).map((agentID, index) => (
               <li key={agentID}>
                 <span>{String(index + 1).padStart(2, '0')}</span>
                 <small>

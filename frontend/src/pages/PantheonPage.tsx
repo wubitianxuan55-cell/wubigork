@@ -522,18 +522,20 @@ const PantheonPage: React.FC = () => {
     if (!active) return
     try {
       const markdown = await pantheonApi.PantheonExport(active.id)
-      downloadMarkdown(exportFilename(active, 'md'), markdown)
-      messageApi.success('Markdown 议事录已导出')
+      const saved = await downloadMarkdown(exportFilename(active, 'md'), markdown)
+      if (saved) messageApi.success('Markdown 议事录已导出')
+      else messageApi.info('已取消导出')
     } catch (err) {
       setError(`导出失败：${errorText(err)}`)
     }
   }, [active, messageApi])
 
-  const exportCouncilJson = useCallback(() => {
+  const exportCouncilJson = useCallback(async () => {
     if (!active) return
     try {
-      downloadJSON(exportFilename(active, 'json'), active)
-      messageApi.success('JSON 议事录已导出')
+      const saved = await downloadJSON(exportFilename(active, 'json'), active)
+      if (saved) messageApi.success('JSON 议事录已导出')
+      else messageApi.info('已取消导出')
     } catch (err) {
       setError(`导出 JSON 失败：${errorText(err)}`)
     }

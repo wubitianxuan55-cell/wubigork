@@ -1,4 +1,5 @@
 import { app } from '../../gaea/lib/bridge'
+import { saveExportBlob } from '../../gaea/lib/saveFile'
 import { subscribeWailsEvent } from '../../gaea/lib/wailsEvents'
 import type { PantheonApi, PantheonEvent } from './types'
 
@@ -27,20 +28,18 @@ export async function copyMarkdown(text: string): Promise<boolean> {
   }
 }
 
-function downloadFile(filename: string, text: string, type: string): void {
-  const blob = new Blob([text], { type })
-  const url = URL.createObjectURL(blob)
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = filename
-  anchor.click()
-  URL.revokeObjectURL(url)
+/**
+ * 导出统一走 saveFile 中立层双门：壳内 <a download> 不落盘（v4.162 实证，
+ * 2026-10-29 圆桌裁决复核），必须经 GaeaSaveFileAs 系统「另存为」。
+ * 返回 false = 用户在另存为对话框取消。
+ */
+export function downloadMarkdown(filename: string, text: string): Promise<boolean> {
+  return saveExportBlob(new Blob([text], { type: 'text/markdown;charset=utf-8' }), filename)
 }
 
-export function downloadMarkdown(filename: string, text: string): void {
-  downloadFile(filename, text, 'text/markdown;charset=utf-8')
-}
-
-export function downloadJSON(filename: string, value: unknown): void {
-  downloadFile(filename, JSON.stringify(value, null, 2), 'application/json;charset=utf-8')
+export function downloadJSON(filename: string, value: unknown): Promise<boolean> {
+  return saveExportBlob(
+    new Blob([JSON.stringify(value, null, 2)], { type: 'application/json;charset=utf-8' }),
+    filename,
+  )
 }

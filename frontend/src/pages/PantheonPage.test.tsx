@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   export: vi.fn(),
   signOff: vi.fn(),
   setExecutable: vi.fn(),
+  saveExportBlob: vi.fn<(blob: Blob, name: string) => Promise<boolean>>(),
 }))
 
 vi.mock('../gaea/lib/bridge', () => ({
@@ -32,6 +33,10 @@ vi.mock('../gaea/lib/bridge', () => ({
     PantheonSignOff: mocks.signOff,
     PantheonSetExecutable: mocks.setExecutable,
   },
+}))
+
+vi.mock('../gaea/lib/saveFile', () => ({
+  saveExportBlob: mocks.saveExportBlob,
 }))
 
 const AGENTS: PantheonAgentStatus[] = [
@@ -401,7 +406,7 @@ describe('PantheonPage', () => {
     expect(screen.getByTestId('pantheon-order-zcode')).toBeTruthy()
   })
 
-  it('导出菜单可生成 JSON 完整记录', async () => {
+  const openCompletedSession = async () => {
     const completed = sessionFixture({
       status: 'completed',
       phase: 'completed',
@@ -424,51 +429,34 @@ describe('PantheonPage', () => {
       verdictSummary: completed.verdict?.recommendation,
     }])
     mocks.get.mockResolvedValue(completed)
-
-    let exportedBlob: Blob | undefined
-    const createObjectURL = vi.fn((blob: Blob) => {
-      exportedBlob = blob
-      return 'blob:pantheon-json'
+    render(<PantheonPage />)
+    fireEvent.click(await screen.findByTestId(`pantheon-session-${completed.id}`))
+    const trigger = await screen.findByRole('button', { name: /导出/ })
+    fireEvent.click(trigger)
+    // jsdom 下 rc-trigger 挂 portal 与 RTL waitFor 轮询相克，须实等 portal 出现
+    await waitFor(() => {
+      expect(document.body.querySelector('.ant-dropdown')).toBeTruthy()
     })
-    const revokeObjectURL = vi.fn()
-    const originalCreate = URL.createObjectURL
-    const originalRevoke = URL.revokeObjectURL
-    Object.defineProperty(URL, 'createObjectURL', {
-      configurable: true,
-      writable: true,
-      value: createObjectURL,
-    })
-    Object.defineProperty(URL, 'revokeObjectURL', {
-      configurable: true,
-      writable: true,
-      value: revokeObjectURL,
-    })
-    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    fireEvent.click(screen.getByText('JSON 完整记录'))
+  }
 
-    try {
-      render(<PantheonPage />)
-      fireEvent.click(await screen.findByTestId(`pantheon-session-${completed.id}`))
-      fireEvent.click(await screen.findByRole('button', { name: /导出/ }))
-      fireEvent.click(await screen.findByText('JSON 完整记录'))
+  it('导出菜单可生成 JSON 完整记录，经 saveExportBlob 双门落盘', async () => {
+    mocks.saveExportBlob.mockResolvedValue(true)
+    await openCompletedSession()
+    await waitFor(() => expect(mocks.saveExportBlob).toHaveBeenCalledTimes(1))
+    const [blob, name] = mocks.saveExportBlob.mock.calls[0]
+    expect(blob?.type).toBe('application/json;charset=utf-8')
+    expect(name).toBe('是否采用只读议事.json')
+    expect(await screen.findByText('JSON 议事录已导出')).toBeTruthy()
+  })
 
-      await waitFor(() => expect(createObjectURL).toHaveBeenCalledTimes(1))
-      expect(exportedBlob?.type).toBe('application/json;charset=utf-8')
-      expect(revokeObjectURL).toHaveBeenCalledWith('blob:pantheon-json')
-      expect(anchorClick).toHaveBeenCalledTimes(1)
-      expect(await screen.findByText('JSON 议事录已导出')).toBeTruthy()
-    } finally {
-      anchorClick.mockRestore()
-      Object.defineProperty(URL, 'createObjectURL', {
-        configurable: true,
-        writable: true,
-        value: originalCreate,
-      })
-      Object.defineProperty(URL, 'revokeObjectURL', {
-        configurable: true,
-        writable: true,
-        value: originalRevoke,
-      })
-    }
+  it('导出被用户取消（另存为返回取消）提示已取消而不报错', async () => {
+    mocks.saveExportBlob.mockResolvedValue(false)
+    await openCompletedSession()
+    await waitFor(() => expect(mocks.saveExportBlob).toHaveBeenCalledTimes(1))
+    expect(await screen.findByText('已取消导出')).toBeTruthy()
+    expect(screen.queryByText(/导出 JSON 失败/)).toBeNull()
+    expect(screen.queryByText('JSON 议事录已导出')).toBeNull()
   })
 
   it('讨论档案可以按关键字和状态筛选', async () => {
