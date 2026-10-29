@@ -307,13 +307,13 @@ func (m *Manager) Start(req StartRequest) (*Session, error) {
 
 	now := time.Now().UnixMilli()
 	session := &Session{
-		ID:           newSessionID(now),
-		Title:        req.Title,
-		Status:       StatusRunning,
-		Phase:        PhasePreparing,
-		CreatedAt:    now,
-		UpdatedAt:    now,
-		Request:      req,
+		ID:            newSessionID(now),
+		Title:         req.Title,
+		Status:        StatusRunning,
+		Phase:         PhasePreparing,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+		Request:       req,
 		Participants:  participants,
 		Events:        []Event{},
 		Contributions: []Contribution{},
