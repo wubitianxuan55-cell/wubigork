@@ -21,10 +21,12 @@ export type EventKind =
   | "preview_progress";
 
 // WirePreviewProgress 是预览（扫描件 PDF OCR）的逐页进度。
+// elapsedSec=自解析起点已耗时（整秒，2026-10-29 起随事件下发，老事件无该字段）。
 export interface WirePreviewProgress {
   path: string;
   done: number;
   total: number;
+  elapsedSec?: number;
 }
 
 export interface WireCompaction {

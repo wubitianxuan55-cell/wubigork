@@ -69,12 +69,15 @@ func (a *App) GaeaKnowledgeImportPreview(path string) (KnowledgeImportPreview, e
 }
 
 // knowledgeImportProgress 构造逐页 OCR 进度回调：经统一 emit 通道广播
-// knowledge-import-progress 事件（uocr2 后扫描件导入长达分钟级/页，进度可见性；
-// 非 OCR 文档不回调不发事件；ctx 为空由 emit 自行短路）。
+// knowledge-import-progress 事件（uocr2 后扫描件导入分钟级/页，进度可见性；
+// 非 OCR 文档不回调不发事件；ctx 为空由 emit 自行短路）。elapsedSec=自解析
+// 起点已耗时（整秒），前端与页数并显——批窗间无事件的空档期靠它给时间感。
 func (a *App) knowledgeImportProgress(abs string) func(done, total int) {
+	start := time.Now()
 	return func(done, total int) {
 		a.emit("knowledge-import-progress", map[string]interface{}{
 			"path": abs, "done": done, "total": total,
+			"elapsedSec": int(time.Since(start).Seconds()),
 		})
 	}
 }

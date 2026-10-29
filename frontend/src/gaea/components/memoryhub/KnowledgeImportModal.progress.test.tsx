@@ -55,6 +55,12 @@ describe("KnowledgeImportModal OCR 进度可见", () => {
     });
     expect(screen.getByText(/正在 OCR 识别（3\/15 页）/)).toBeTruthy();
     expect(screen.queryByText("解析中…")).toBeNull();
+
+    // 2026-10-29 起事件带 elapsedSec：批窗间空档期给时间感，文案与页数并显
+    act(() => {
+      fire?.({ path: "C:/tmp/扫描件.pdf", done: 5, total: 15, elapsedSec: 42 });
+    });
+    expect(screen.getByText(/正在 OCR 识别（5\/15 页，已用 42s）/)).toBeTruthy();
   });
 
   it("无进度事件时保持「解析中…」（非 OCR 文档不发事件）", () => {

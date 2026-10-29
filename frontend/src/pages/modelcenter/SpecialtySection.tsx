@@ -35,7 +35,7 @@ export function SpecialtySection() {
         <EmptyState
           icon={<SearchOutlined />}
           title="暂无 Embedding / Rerank / OCR 模型"
-          hint="在「引擎管理」中刷新本地 Herdsman 模型后，这里会显示 bge-m3、bge-reranker-v2-m3、PaddleOCR 与 MinerU"
+          hint="在「引擎管理」中刷新本地 Herdsman 模型后，这里会显示 bge-m3、bge-reranker-v2-m3 等检索/OCR 模型（2026-10-29 起 MinerU/PaddleOCR 已退役，本地文字识别走内置 OCR 引擎）"
         />
       ) : (
         <>

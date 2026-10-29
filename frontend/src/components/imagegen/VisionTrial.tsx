@@ -90,6 +90,21 @@ export const VisionTrial: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [errMsg, setErrMsg] = useState('')
   const [history, setHistory] = useState<VisionHistoryItem[]>(() => loadHistory())
   const [histThumbs, setHistThumbs] = useState<Record<string, string>>({})
+  const [ocrWaitSec, setOcrWaitSec] = useState(0)
+
+  // 提取文字（本地 OCR）长等提示：温态约 6s 无感；冷启动（首次/服务被回收后）
+  // 含 llama 服务拉起约 10s——5s 起显示已耗时，避免误以为卡死（识图-懂走远端
+  // 模型不适用，不计时）。
+  useEffect(() => {
+    if (running !== 'read') {
+      setOcrWaitSec(0)
+      return
+    }
+    setOcrWaitSec(0)
+    const t0 = Date.now()
+    const iv = window.setInterval(() => setOcrWaitSec(Math.floor((Date.now() - t0) / 1000)), 1000)
+    return () => window.clearInterval(iv)
+  }, [running])
 
   // 载图统一漏斗：dataURL → SavePastedImage 落盘 → 读回预览（失败诚实呈现）。
   const handleImageDataUrl = useCallback(async (dataUrl: string) => {
@@ -294,6 +309,11 @@ export const VisionTrial: React.FC<{ onClose: () => void }> = ({ onClose }) => {
               {t('imagehubT1.visionActOcr')}
             </Button>
           </div>
+          {running === 'read' && ocrWaitSec >= 5 ? (
+            <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
+              {t('imagehubT1.visionOcrWaitHint', { sec: ocrWaitSec })}
+            </Typography.Text>
+          ) : null}
         </div>
 
         {/* 结果区：原语标注 + 模型名（若返回里有）+ 文本/错误原文 */}

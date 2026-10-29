@@ -1617,6 +1617,7 @@ export const zhTW: Record<DictKey, string> = {
   "imagehubT1.visionPromptDefault": "請詳細描述這張圖片的內容，包括所有可見文字、版面與關鍵細節。",
   "imagehubT1.visionActRecognize": "辨識內容",
   "imagehubT1.visionActOcr": "擷取文字",
+  "imagehubT1.visionOcrWaitHint": "本地辨識執行中——首次呼叫需啟動辨識服務（約 10 秒）· 已用 {sec} 秒",
   "imagehubT1.visionRecognizeBusy": "辨識中…",
   "imagehubT1.visionOcrBusy": "擷取中…",
   "imagehubT1.visionResultEmpty": "尚無結果——載入圖片後點擊「辨識內容」或「擷取文字」。",

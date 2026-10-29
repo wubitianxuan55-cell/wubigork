@@ -230,7 +230,10 @@ export function FilePreviewModal() {
               {ocrProgress ? (
                 <>
                   <Loader2 size={26} className="animate-spin text-accent" />
-                  <span>OCR 识别中 {ocrProgress.done}/{ocrProgress.total} 页…</span>
+                  <span>
+                    OCR 识别中 {ocrProgress.done}/{ocrProgress.total} 页
+                    {ocrProgress.elapsedSec != null ? ` · 已用 ${ocrProgress.elapsedSec}s` : ""}…
+                  </span>
                 </>
               ) : (
                 <>

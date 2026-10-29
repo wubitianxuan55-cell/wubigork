@@ -1613,6 +1613,7 @@ export const en = {
   "imagehubT1.visionPromptDefault": "Describe this image in detail, including all visible text, layout and key details.",
   "imagehubT1.visionActRecognize": "Recognize content",
   "imagehubT1.visionActOcr": "Extract text",
+  "imagehubT1.visionOcrWaitHint": "Local OCR running — first call starts the service (~10s) · {sec}s elapsed",
   "imagehubT1.visionRecognizeBusy": "Recognizing…",
   "imagehubT1.visionOcrBusy": "Extracting…",
   "imagehubT1.visionResultEmpty": "No result yet — load an image, then click \"Recognize content\" or \"Extract text\".",

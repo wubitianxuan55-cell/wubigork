@@ -442,7 +442,8 @@ export function FilePreview({
               <>
                 <Loader2 size={18} className="animate-spin text-accent" />
                 <span>
-                  OCR 识别中 {ocrProgress.done}/{ocrProgress.total} 页…
+                  OCR 识别中 {ocrProgress.done}/{ocrProgress.total} 页
+                  {ocrProgress.elapsedSec != null ? ` · 已用 ${ocrProgress.elapsedSec}s` : ""}…
                 </span>
               </>
             ) : (

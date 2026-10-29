@@ -244,6 +244,8 @@ func (a *App) GaeaPreview(rel string) PreviewResult {
 		return previewPptx(path, info, base)
 	case ".doc", ".xls", ".pdf":
 		// 扫描件 OCR 逐页进度经事件通道回传前端（仅 Wails/HTTP 桥接环境真正发布）。
+		// elapsedSec 与页数并显：批窗间无事件的空档期给时间感（同 knowledge-import-progress）。
+		progressStart := time.Now()
 		md, total, truncated, err := docmd.ConvertLimitProgress(path, "", docmd.DefaultMaxPDFPages,
 			func(done, n int) {
 				if n <= 0 {
@@ -253,9 +255,10 @@ func (a *App) GaeaPreview(rel string) PreviewResult {
 					"kind": "preview_progress",
 					"path": rel,
 					"progress": map[string]interface{}{
-						"path":  rel,
-						"done":  done,
-						"total": n,
+						"path":       rel,
+						"done":       done,
+						"total":      n,
+						"elapsedSec": int(time.Since(progressStart).Seconds()),
 					},
 				})
 			})

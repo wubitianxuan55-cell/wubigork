@@ -31,17 +31,18 @@ export function KnowledgeImportModal({
   const [aiLoading, setAiLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [ocrProgress, setOcrProgress] = useState<{ done: number; total: number } | null>(null);
+  const [ocrProgress, setOcrProgress] = useState<{ done: number; total: number; elapsedSec?: number } | null>(null);
   const toast = useToast();
 
   // 逐页 OCR 进度（uocr2 后扫描件导入分钟级/页）：后端在逐页识别时广播
   // knowledge-import-progress；导入弹窗同时至多一个，事件不按 path 过滤。
+  // elapsedSec=已耗时（2026-10-29 起随事件下发，批窗间空档期给时间感）。
   useEffect(() => {
     if (!open) return;
     const unsub = subscribe(BACKEND_EVENTS.KNOWLEDGE_IMPORT_PROGRESS, (data) => {
-      const d = data as { done?: number; total?: number };
+      const d = data as { done?: number; total?: number; elapsedSec?: number };
       if (typeof d?.done === "number" && typeof d?.total === "number") {
-        setOcrProgress({ done: d.done, total: d.total });
+        setOcrProgress({ done: d.done, total: d.total, elapsedSec: d.elapsedSec });
       }
     });
     return unsub;
@@ -185,7 +186,7 @@ export function KnowledgeImportModal({
           <Loader size={13} className="animate-spin text-accent shrink-0" />
           <span>
             {ocrProgress
-              ? `AI 智能解析中… 正在 OCR 识别（${ocrProgress.done}/${ocrProgress.total} 页），扫描件每页约 1 分钟。`
+              ? `AI 智能解析中… 正在 OCR 识别（${ocrProgress.done}/${ocrProgress.total} 页${ocrProgress.elapsedSec != null ? `，已用 ${ocrProgress.elapsedSec}s` : ""}）。`
               : "AI 智能解析中… 正在读取文档并调用模型（通常 30 秒~2 分钟），请稍候。期间可随时点「取消」关闭。"}
           </span>
         </div>
@@ -211,7 +212,7 @@ export function KnowledgeImportModal({
               <tr>
                 <td colSpan={7} className="px-3 py-8 text-center text-fg-faint">
                   {ocrProgress
-                    ? `正在 OCR 识别（${ocrProgress.done}/${ocrProgress.total} 页），扫描件每页约 1 分钟…`
+                    ? `正在 OCR 识别（${ocrProgress.done}/${ocrProgress.total} 页${ocrProgress.elapsedSec != null ? `，已用 ${ocrProgress.elapsedSec}s` : ""}）…`
                     : "解析中…"}
                 </td>
               </tr>

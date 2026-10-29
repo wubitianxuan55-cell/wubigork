@@ -1613,6 +1613,7 @@ export const zh: Record<DictKey, string> = {
   "imagehubT1.visionPromptDefault": "请详细描述这张图片的内容，包括所有可见文字、布局和关键细节。",
   "imagehubT1.visionActRecognize": "识别内容",
   "imagehubT1.visionActOcr": "提取文字",
+  "imagehubT1.visionOcrWaitHint": "本地识别运行中——首次调用需启动识别服务（约 10 秒）· 已用 {sec} 秒",
   "imagehubT1.visionRecognizeBusy": "识别中…",
   "imagehubT1.visionOcrBusy": "提取中…",
   "imagehubT1.visionResultEmpty": "尚无结果——载入图片后点击「识别内容」或「提取文字」。",

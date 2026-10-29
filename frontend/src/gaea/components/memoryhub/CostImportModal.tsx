@@ -36,6 +36,7 @@ export function CostImportModal({
   const [preview, setPreview] = useState<CostImportPreview | null>(null);
   const [rows, setRows] = useState<CostImportRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [visionWaitSec, setVisionWaitSec] = useState(0);
   const [aiLoading, setAiLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +61,20 @@ export function CostImportModal({
       })
       .finally(() => setLoading(false));
   }, [open, path, toast]);
+
+  // 视觉识别（报价单图片/扫描件，本地 OCR）计时：温态秒级；冷启动（首次/服务
+  // 被回收后）含识别服务拉起约 10s——3s 起并显已耗时，8s 起提示冷启动，避免
+  // 误以为卡死（xlsx/csv 解析秒回，不计时）。
+  useEffect(() => {
+    if (!loading || !isVisionFile(path)) {
+      setVisionWaitSec(0);
+      return;
+    }
+    setVisionWaitSec(0);
+    const t0 = Date.now();
+    const iv = window.setInterval(() => setVisionWaitSec(Math.floor((Date.now() - t0) / 1000)), 1000);
+    return () => window.clearInterval(iv);
+  }, [loading, path]);
 
   const runAI = useCallback(async () => {
     if (!path) return;
@@ -233,7 +248,11 @@ export function CostImportModal({
             {loading ? (
               <tr>
                 <td colSpan={8} className="px-3 py-8 text-center text-fg-faint">
-                  {isVisionFile(path) ? "正在识别报价单…" : "解析中…"}
+                  {isVisionFile(path)
+                    ? visionWaitSec < 3
+                      ? "正在识别报价单…"
+                      : `正在识别报价单… 已用 ${visionWaitSec}s${visionWaitSec >= 8 ? "（首次识别需启动本地服务，约 10 秒）" : ""}`
+                    : "解析中…"}
                 </td>
               </tr>
             ) : rows.length === 0 ? (
