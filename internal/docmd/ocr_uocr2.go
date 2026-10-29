@@ -1,19 +1,29 @@
 package docmd
 
 // ocr_uocr2.go — OCR Provider Seam 的 uocr2 引擎（Unlimited-OCR-2，百度/DeepSeek-OCR
-// 血统 3B MoE + SR-SWA，MIT）：常驻 Python HTTP 服务（默认 C:\AI\unlimited-ocr2，
-// transformers bf16，模型驻留内存、端口应答即就绪），探测/拉起/健康检查与单页识别
-// 编排口径与 ovis（ocr.go）同款：on-demand 拉起、失败短冷却、fail-closed。
+// 血统 3B MoE + SR-SWA，MIT）。双后端（2026-10-29 拍板：llama 主、python 兜底）：
 //
-// 服务协议（server.py）：
+//   - llama 后端（默认）：常驻 llama-server（b11980+unlimited-ocr2.patch + Q8_0 GGUF，
+//     工件 C:\AI\uocr2-llama，见该目录 README），8060S Vulkan 实测单页 6s/15 页
+//     106s（python CPU 的 10~14 倍），SR-SWA 跨页续排完整保住。协议=OpenAI chat
+//     completions；GAEA_UOCR2_LLAMA_URL/_PORT/_DIR/_MODEL/_MMPROJ 配置（默认
+//     127.0.0.1:8139 / C:\AI\uocr2-llama）。
+//   - python 后端（兜底）：transformers server.py（scripts/uocr2 为版本控制副本，
+//     运行实例 C:\AI\unlimited-ocr2），协议=/ocr+/ocr_batch；GAEA_UOCR2_URL/_PORT/
+//     _DIR/_PY 配置（默认 8138）。
 //
-//	GET  /health → {"status":"ok"}（模型加载完成后才监听）
-//	POST /ocr    {"image":<base64 png>,"max_tokens":N} → {"text":…}；
-//	             422 = 输出被 max_tokens 截断（同 ovis finish_reason=length 口径，
-//	             不把残缺文本当完整结果，按单页失败处理走引擎链回退）
+// GAEA_UOCR2_BACKEND 驱动腿序：空/auto = llama→python 自动回退；显式 llama/python
+// 仅该后端；未知值 fail-closed。两后端 /health 应答同为 {"status":"ok"}，共用探活。
+//
+// llama 后端两条铁律（2026-10-29 实弹实证，详见各自函数注释）：
+//   - 铁律一：chat 消息必须以文本块收尾——补丁把 unlimited-ocr2 的 img_end 置空，
+//     图片收尾的请求触发 server 空批断言整进程崩溃（uocr2LlamaChatContent 客户端
+//     无条件追加收尾文本）；
+//   - 铁律二：--ubatch-size 4096——默认 512+flash-attn 下多图请求丢前面的图
+//     （buildUocr2LlamaCmd 固化）。
 //
 // 模型原始输出含 <PAGE>/<BLOCK>…<FORK> 结构标记，uocr2CleanText 在 Go 侧清洗
-// （可单测；服务端返回原始输出）。
+// （两后端输出同格式，清洗器共用；可单测）。
 
 import (
 	"bytes"
@@ -38,9 +48,45 @@ import (
 // uocr2PageMaxTokens 单页输出 token 上限（官方口径 tokens_per_page=8000）。
 const uocr2PageMaxTokens = 8000
 
-// uocr2ServerBase 返回常驻 Unlimited-OCR-2 服务的 base URL；未安装/无法拉起时返回 ""。
-// 优先复用已在跑的实例，否则按需静默拉起一次。
-func uocr2ServerBase() string {
+// uocr2BackendKind 常驻 Unlimited-OCR-2 服务的后端形态。
+type uocr2BackendKind string
+
+const (
+	uocr2BackendLlama  uocr2BackendKind = "llama"
+	uocr2BackendPython uocr2BackendKind = "python"
+)
+
+// uocr2BackendOrder 解析 GAEA_UOCR2_BACKEND：空/"auto" = llama→python 自动回退
+// （2026-10-29 拍板：质量同级下 llama 快 10~14 倍）；显式 "llama"/"python" 仅该
+// 后端；其他值 fail-closed 报错（与 GAEA_OCR_ENGINE 口径一致，不静默回退）。
+func uocr2BackendOrder() ([]uocr2BackendKind, error) {
+	raw := strings.TrimSpace(os.Getenv("GAEA_UOCR2_BACKEND"))
+	switch {
+	case raw == "", strings.EqualFold(raw, "auto"):
+		return []uocr2BackendKind{uocr2BackendLlama, uocr2BackendPython}, nil
+	case strings.EqualFold(raw, string(uocr2BackendLlama)):
+		return []uocr2BackendKind{uocr2BackendLlama}, nil
+	case strings.EqualFold(raw, string(uocr2BackendPython)):
+		return []uocr2BackendKind{uocr2BackendPython}, nil
+	}
+	return nil, fmt.Errorf("docmd: 未知 GAEA_UOCR2_BACKEND %q（可用：auto / llama / python）", raw)
+}
+
+// uocr2LlamaBaseURL 解析 llama 后端服务地址（GAEA_UOCR2_LLAMA_URL 优先，其次
+// GAEA_UOCR2_LLAMA_PORT，默认 8139——与 python 的 8138 分离，两后端可并存）。
+func uocr2LlamaBaseURL() string {
+	if u := strings.TrimRight(os.Getenv("GAEA_UOCR2_LLAMA_URL"), "/"); u != "" {
+		return u
+	}
+	port := os.Getenv("GAEA_UOCR2_LLAMA_PORT")
+	if port == "" {
+		port = "8139"
+	}
+	return "http://127.0.0.1:" + port
+}
+
+// uocr2PythonBaseURL 解析 python 后端服务地址（原单后端口径不变）。
+func uocr2PythonBaseURL() string {
 	base := strings.TrimRight(os.Getenv("GAEA_UOCR2_URL"), "/")
 	if base == "" {
 		port := os.Getenv("GAEA_UOCR2_PORT")
@@ -49,14 +95,39 @@ func uocr2ServerBase() string {
 		}
 		base = "http://127.0.0.1:" + port
 	}
+	return base
+}
+
+// uocr2ServerBase 按后端腿序解析可用服务：健康探测→按需拉起，返回 base 与后端
+// 形态。全部不可用返回 ("", "", nil)（调用方报「服务不可用」）；配置错误（未知
+// GAEA_UOCR2_BACKEND）返回 err fail-closed 上抛。
+func uocr2ServerBase() (string, uocr2BackendKind, error) {
+	kinds, err := uocr2BackendOrder()
+	if err != nil {
+		return "", "", err
+	}
 	client := &http.Client{Timeout: 3 * time.Second}
-	if uocr2Healthy(client, base) {
-		return base
+	for _, kind := range kinds {
+		var base string
+		if kind == uocr2BackendLlama {
+			base = uocr2LlamaBaseURL()
+		} else {
+			base = uocr2PythonBaseURL()
+		}
+		if uocr2Healthy(client, base) {
+			return base, kind, nil
+		}
+		var start func(*http.Client, string) bool
+		if kind == uocr2BackendLlama {
+			start = startUocr2LlamaServer
+		} else {
+			start = startUocr2Server
+		}
+		if start(client, base) {
+			return base, kind, nil
+		}
 	}
-	if startUocr2Server(client, base) {
-		return base
-	}
-	return ""
+	return "", "", nil
 }
 
 // uocr2ServerHealthy 探测 /health（服务端模型加载完成后才监听，应答即就绪）。
@@ -73,11 +144,11 @@ func uocr2ServerHealthy(c *http.Client, base string) bool {
 	return strings.Contains(string(body), "ok")
 }
 
-// startUocr2Server 拉起常驻 python 服务（隐藏窗口，Job Object 跟踪）。等待就绪
-// （≤uocr2StartWait，默认 120s——首次含 torch 导入+模型加载）。任何失败路径都在
-// 返回 false 前杀整棵进程树，保证不残留孤儿 python。
-func startUocr2Server(c *http.Client, base string) bool {
-	cmd, logf, ok := uocr2BuildCmd()
+// startTrackedServer 拉起常驻服务（隐藏窗口，Job Object 跟踪）并等待就绪
+// （≤uocr2StartWait，默认 120s——python 首次含 torch 导入+模型加载；llama Q8
+// 实测 ~10s）。任何失败路径都在返回 false 前杀整棵进程树，保证不残留孤儿。
+func startTrackedServer(c *http.Client, base string, build func() (*exec.Cmd, *os.File, bool)) bool {
+	cmd, logf, ok := build()
 	if !ok {
 		return false
 	}
@@ -105,6 +176,16 @@ func startUocr2Server(c *http.Client, base string) bool {
 	return false
 }
 
+// startUocr2Server 拉起 python 后端（server.py）。
+func startUocr2Server(c *http.Client, base string) bool {
+	return startTrackedServer(c, base, func() (*exec.Cmd, *os.File, bool) { return uocr2BuildCmd() })
+}
+
+// startUocr2LlamaServer 拉起 llama 后端（llama-server）。
+func startUocr2LlamaServer(c *http.Client, base string) bool {
+	return startTrackedServer(c, base, func() (*exec.Cmd, *os.File, bool) { return uocr2LlamaBuildCmd() })
+}
+
 // uocr2StartWait 是 startUocr2Server 等待服务就绪的时长（默认 120s：CPU 冷启动
 // 含 torch 导入+模型加载约 20s，留足裕量）；包级变量便于单测缩短等待。
 var uocr2StartWait = 120 * time.Second
@@ -112,8 +193,11 @@ var uocr2StartWait = 120 * time.Second
 // uocr2Healthy 是 startUocr2Server 轮询的就绪探针；包级变量便于单测注入 fake。
 var uocr2Healthy = uocr2ServerHealthy
 
-// uocr2BuildCmd 构造服务命令；包级变量便于单测注入假进程。
+// uocr2BuildCmd 构造 python 服务命令；包级变量便于单测注入假进程。
 var uocr2BuildCmd = buildUocr2ServerCmd
+
+// uocr2LlamaBuildCmd 构造 llama 服务命令；包级变量便于单测注入假进程。
+var uocr2LlamaBuildCmd = buildUocr2LlamaServerCmd
 
 // buildUocr2ServerCmd 按 GAEA_UOCR2_* 配置构造 python 服务命令与其日志文件。
 // 返回 ok=false 表示配置缺失（python/server.py 不存在）。
@@ -141,6 +225,58 @@ func buildUocr2ServerCmd() (*exec.Cmd, *os.File, bool) {
 		logf = f
 	}
 	cmd := exec.Command(py, server, "--host", "127.0.0.1", "--port", port)
+	if logf != nil {
+		cmd.Stdout = logf
+		cmd.Stderr = logf
+	}
+	return cmd, logf, true
+}
+
+// buildUocr2LlamaServerCmd 按 GAEA_UOCR2_LLAMA_* 配置构造 llama-server 命令与其
+// 日志文件。返回 ok=false 表示工件缺失（bin\llama-server.exe / 模型 / mmproj）。
+//
+// 启动口径逐字来自 2026-10-29 实弹验证（C:\AI\uocr2-llama\README.md）：
+//   - --ubatch-size 4096 = 铁律二：默认 512+flash-attn 下多图请求丢前面的图
+//     （实测 2 页只转写第 2 页且不报错；-fa 0 亦可修复但更慢），4096 保证图片
+//     嵌入块不被 ubatch 切割，勿删；
+//   - -c 65536 覆盖 5 页窗（实测 15 页 prompt≈11.5k+生成 8.4k）；-np 1 单序列
+//     （unlimited-ocr2 补丁的多序列路径未验证）；-ngl 99 无 GPU 时 llama-server
+//     自行忽略并回退 CPU（Q8 CPU 实测 ~20s/页，仍 4 倍于 python）。
+func buildUocr2LlamaServerCmd() (*exec.Cmd, *os.File, bool) {
+	dir := os.Getenv("GAEA_UOCR2_LLAMA_DIR")
+	if dir == "" {
+		dir = `C:\AI\uocr2-llama`
+	}
+	model := os.Getenv("GAEA_UOCR2_LLAMA_MODEL")
+	if model == "" {
+		model = "uocr2-Q8_0.gguf"
+	}
+	mmproj := os.Getenv("GAEA_UOCR2_LLAMA_MMPROJ")
+	if mmproj == "" {
+		mmproj = "mmproj-uocr2-F16.gguf"
+	}
+	exe := filepath.Join(dir, "bin", "llama-server.exe")
+	modelPath := filepath.Join(dir, model)
+	mmprojPath := filepath.Join(dir, mmproj)
+	for _, p := range []string{exe, modelPath, mmprojPath} {
+		if _, err := os.Stat(p); err != nil {
+			return nil, nil, false
+		}
+	}
+	port := "8139"
+	if u, err := url.Parse(uocr2LlamaBaseURL()); err == nil && u.Port() != "" {
+		port = u.Port()
+	}
+	var logf *os.File
+	if f, err := os.OpenFile(filepath.Join(dir, "server.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644); err == nil {
+		logf = f
+	}
+	cmd := exec.Command(exe,
+		"-m", modelPath, "--mmproj", mmprojPath,
+		"--host", "127.0.0.1", "--port", port,
+		"-c", "65536", "-np", "1", "-ngl", "99",
+		"--temp", "0", "--top-k", "1",
+		"--ubatch-size", "4096")
 	if logf != nil {
 		cmd.Stdout = logf
 		cmd.Stderr = logf
@@ -265,26 +401,170 @@ func uocr2PageOCR(base, pngPath string) (string, error) {
 	return uocr2CleanText(out.Text), nil
 }
 
-// uocr2OCRProvider 常驻 Unlimited-OCR-2 服务 OCR 提供者：首次使用探测/拉起并缓存
-// base URL；探测失败进入短冷却（避免逐页重复拉起）。不可用即返回错误。
+// llamaChatPiece chat completions 的 content 分片：文本块或图片块。
+type llamaChatPiece struct {
+	Type     string          `json:"type"`
+	Text     string          `json:"text,omitempty"`
+	ImageURL *llamaChatImage `json:"image_url,omitempty"`
+}
+
+type llamaChatImage struct {
+	URL string `json:"url"`
+}
+
+// uocr2LlamaMultiPagePrompt 是收尾指令文本，也是铁律一的载体。
+const uocr2LlamaMultiPagePrompt = "Multi page parsing."
+
+// uocr2LlamaChatContent 构造 chat content：每页 [<PAGE> 文本块, 图片块]，末尾
+// 无条件追加收尾文本块。铁律一（2026-10-29 实弹实证）：unlimited-ocr2 补丁把
+// img_end 置空（页界靠精确 <PAGE><image> token 流），**图片收尾的请求会触发
+// llama-server 空批断言 GGML_ASSERT(batch.size()>0) 整进程崩溃**——收尾文本块
+// 只在此处构造，不信任任何调用方，勿改为可选。
+func uocr2LlamaChatContent(imagesB64 []string) []llamaChatPiece {
+	content := make([]llamaChatPiece, 0, len(imagesB64)*2+1)
+	for _, b64 := range imagesB64 {
+		content = append(content,
+			llamaChatPiece{Type: "text", Text: "<PAGE>"},
+			llamaChatPiece{Type: "image_url", ImageURL: &llamaChatImage{
+				URL: "data:image/png;base64," + b64,
+			}},
+		)
+	}
+	content = append(content, llamaChatPiece{Type: "text", Text: uocr2LlamaMultiPagePrompt})
+	return content
+}
+
+// uocr2LlamaChat 调 llama-server 的 /v1/chat/completions 识别一页或多页，
+// 返回模型原始输出（含结构标记，单/多页共用；多页由调用方按 <PAGE> 拆分）。
+// finish_reason=length 视为截断 fail-closed（对齐 python server 422 口径）；
+// 其余非 200 一律报错（fail-closed，由引擎链/编排层回退处理）。
+func uocr2LlamaChat(base string, pngPaths []string) (string, error) {
+	b64s := make([]string, len(pngPaths))
+	for i, p := range pngPaths {
+		data, err := os.ReadFile(p)
+		if err != nil {
+			return "", err
+		}
+		b64s[i] = base64.StdEncoding.EncodeToString(data)
+	}
+	payload := struct {
+		Messages []struct {
+			Role    string           `json:"role"`
+			Content []llamaChatPiece `json:"content"`
+		} `json:"messages"`
+		MaxTokens   int     `json:"max_tokens"`
+		Temperature float64 `json:"temperature"`
+	}{
+		Messages: []struct {
+			Role    string           `json:"role"`
+			Content []llamaChatPiece `json:"content"`
+		}{{Role: "user", Content: uocr2LlamaChatContent(b64s)}},
+		MaxTokens:   uocr2PageMaxTokens * len(pngPaths),
+		Temperature: 0,
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+	// llama 实测 2~13s/请求（单页~6s、15 页 106s）；沿用批量超时公式（180s+120s/页）
+	// 留足裕量，冷路径（无 GPU 回退 CPU ~20s/页）同样覆盖。
+	client := &http.Client{Timeout: uocr2BatchTimeout(len(pngPaths))}
+	resp, err := client.Post(base+"/v1/chat/completions", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+		return "", fmt.Errorf("Unlimited-OCR-2 llama 服务返回 %d: %s", resp.StatusCode, strings.TrimSpace(string(raw)))
+	}
+	var out struct {
+		Choices []struct {
+			FinishReason string `json:"finish_reason"`
+			Message      struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 64<<20)).Decode(&out); err != nil {
+		return "", err
+	}
+	if len(out.Choices) == 0 {
+		return "", fmt.Errorf("Unlimited-OCR-2 llama 应答无 choices")
+	}
+	if out.Choices[0].FinishReason == "length" {
+		return "", fmt.Errorf("Unlimited-OCR-2 llama 输出被 max_tokens 截断（finish_reason=length），不把残缺文本当完整结果")
+	}
+	content := out.Choices[0].Message.Content
+	if strings.TrimSpace(content) == "" {
+		return "", fmt.Errorf("Unlimited-OCR-2 llama 空输出")
+	}
+	return content, nil
+}
+
+// uocr2LlamaPageOCR llama 后端单页识别（输出清洗与 python 后端共用 uocr2CleanText）。
+func uocr2LlamaPageOCR(base, pngPath string) (string, error) {
+	raw, err := uocr2LlamaChat(base, []string{pngPath})
+	if err != nil {
+		return "", err
+	}
+	return uocr2CleanText(raw), nil
+}
+
+// uocr2LlamaPagesOCR llama 后端多页批识别：一次 chat 请求多图（SR-SWA 跨页上下文
+// 在服务端共享），输出按 <PAGE> 拆分。页数对不上=生成缺页 fail-closed（编排层
+// 整窗回退逐页，与 python /ocr_batch 的 split_pages 同口径）。
+func uocr2LlamaPagesOCR(base string, pngPaths []string) ([]string, error) {
+	raw, err := uocr2LlamaChat(base, pngPaths)
+	if err != nil {
+		return nil, err
+	}
+	parts := strings.Split(raw, "<PAGE>")
+	if strings.TrimSpace(parts[0]) != "" {
+		return nil, fmt.Errorf("Unlimited-OCR-2 llama 批输出首段非空（结构异常）")
+	}
+	pages := parts[1:]
+	if len(pages) != len(pngPaths) {
+		return nil, fmt.Errorf("Unlimited-OCR-2 llama 批识别页数不齐（%d/%d）", len(pages), len(pngPaths))
+	}
+	texts := make([]string, len(pages))
+	for i, p := range pages {
+		texts[i] = uocr2CleanText(p)
+	}
+	return texts, nil
+}
+
+// uocr2OCRProvider 常驻 Unlimited-OCR-2 服务 OCR 提供者：首次使用按后端腿序
+// （llama→python）探测/拉起并缓存 base URL 与后端形态；探测失败进入短冷却
+// （避免逐页重复拉起）。不可用即返回错误。
 type uocr2OCRProvider struct {
 	mu       sync.Mutex
-	base     string // 已解析的常驻服务 base URL；空 = 未解析/不可用
+	base     string           // 已解析的常驻服务 base URL；空 = 未解析/不可用
+	backend  uocr2BackendKind // 与 base 一同缓存，决定单/批识别走哪套协议
 	lastFail time.Time
 }
 
 func (p *uocr2OCRProvider) Name() string { return OCRKindUocr2 }
 
 // Available 预探测提供者是否可用（解析并缓存常驻服务地址；失败进入冷却）。
-func (p *uocr2OCRProvider) Available() bool { return p.resolveBase() != "" }
+func (p *uocr2OCRProvider) Available() bool { base, _, _ := p.resolveBase(); return base != "" }
 
-// ExtractImage 识别单张图片；服务不可用返回错误（fail-closed）。
+// ExtractImage 识别单张图片；服务不可用/配置错误返回错误（fail-closed）。
 func (p *uocr2OCRProvider) ExtractImage(path string) (string, error) {
-	base := p.resolveBase()
-	if base == "" {
-		return "", fmt.Errorf("Unlimited-OCR-2 服务不可用（未安装或无法拉起）")
+	base, kind, rerr := p.resolveBase()
+	if rerr != nil {
+		return "", rerr
 	}
-	text, err := uocr2PageOCR(base, path)
+	if base == "" {
+		return "", fmt.Errorf("Unlimited-OCR-2 服务不可用（llama/python 后端均未安装或无法拉起）")
+	}
+	var text string
+	var err error
+	if kind == uocr2BackendLlama {
+		text, err = uocr2LlamaPageOCR(base, path)
+	} else {
+		text, err = uocr2PageOCR(base, path)
+	}
 	if err != nil {
 		p.dropBaseIfTransportErr(err) // 传输层失败=服务大概率已死（重启/被杀），下页重新探测/拉起
 		return "", err
@@ -312,11 +592,20 @@ func (p *uocr2OCRProvider) ExtractPages(paths []string) ([]string, error) {
 	if len(paths) == 0 {
 		return nil, fmt.Errorf("ExtractPages：空页列表")
 	}
-	base := p.resolveBase()
-	if base == "" {
-		return nil, fmt.Errorf("Unlimited-OCR-2 服务不可用（未安装或无法拉起）")
+	base, kind, rerr := p.resolveBase()
+	if rerr != nil {
+		return nil, rerr
 	}
-	texts, err := uocr2PagesOCR(base, paths)
+	if base == "" {
+		return nil, fmt.Errorf("Unlimited-OCR-2 服务不可用（llama/python 后端均未安装或无法拉起）")
+	}
+	var texts []string
+	var err error
+	if kind == uocr2BackendLlama {
+		texts, err = uocr2LlamaPagesOCR(base, paths)
+	} else {
+		texts, err = uocr2PagesOCR(base, paths)
+	}
 	if err != nil {
 		p.dropBaseIfTransportErr(err)
 		return nil, err
@@ -324,29 +613,30 @@ func (p *uocr2OCRProvider) ExtractPages(paths []string) ([]string, error) {
 	return texts, nil
 }
 
-// resolveBase 解析常驻服务 base URL：成功缓存，失败记录冷却时间。
-func (p *uocr2OCRProvider) resolveBase() string {
+// resolveBase 解析常驻服务（base+后端形态）：成功缓存，失败记录冷却时间。
+// 配置错误（未知 GAEA_UOCR2_BACKEND）不缓存直接透传——每次调用都 fail-closed 报错。
+func (p *uocr2OCRProvider) resolveBase() (string, uocr2BackendKind, error) {
 	p.mu.Lock()
 	if p.base != "" {
-		base := p.base
+		base, kind := p.base, p.backend
 		p.mu.Unlock()
-		return base
+		return base, kind, nil
 	}
 	if time.Since(p.lastFail) < ovisProbeCooldown {
 		p.mu.Unlock()
-		return ""
+		return "", "", nil
 	}
 	p.mu.Unlock()
 
-	base := uocr2ServerBase() // 探测/拉起（注入点可控，测试不依赖真实服务）
+	base, kind, err := uocr2ServerBase() // 探测/拉起（注入点可控，测试不依赖真实服务）
 	p.mu.Lock()
-	if base != "" {
-		p.base = base
-	} else {
+	if err == nil && base != "" {
+		p.base, p.backend = base, kind
+	} else if err == nil {
 		p.lastFail = time.Now()
 	}
 	p.mu.Unlock()
-	return base
+	return base, kind, err
 }
 
 func init() {

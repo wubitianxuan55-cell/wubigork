@@ -177,6 +177,7 @@ func TestStartUocr2ServerSuccessKeepsProcessAlive(t *testing.T) {
 // base，让下一页重新探测/拉起；HTTP 状态错误（服务活着）不清。
 func TestUocr2ProviderDropsCacheOnTransportErr(t *testing.T) {
 	restoreUocr2Vars(t)
+	t.Setenv("GAEA_UOCR2_BACKEND", "python") // 本例钉 python 协议（默认 auto 会先探 llama）
 
 	// 1) 服务活着但返回 422：错误透传，缓存保留。
 	srv := fakeUocr2Server(t, http.StatusUnprocessableEntity,
@@ -256,6 +257,7 @@ func TestUocr2PagesOCRCountMismatchFailsClosed(t *testing.T) {
 }
 
 func TestUocr2ProviderExtractPagesDropsCacheOnTransportErr(t *testing.T) {
+	t.Setenv("GAEA_UOCR2_BACKEND", "python") // 本例钉 python 协议（默认 auto 会先探 llama）
 	body, _ := json.Marshal(map[string]any{"texts": []string{"<PAGE><BLOCK>x[1]<FORK>内容"}})
 	srv := fakeUocr2BatchServer(t, func() (int, string) { return http.StatusOK, string(body) })
 	t.Setenv("GAEA_UOCR2_URL", srv.URL)

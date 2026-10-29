@@ -51,6 +51,8 @@ func newChatServiceTestAppWithHandler(t *testing.T, handler http.Handler) *App {
 	// 后句柄未及释放 → TempDir 清理失败假红）——OCR 环境变量统一指向死值。
 	t.Setenv("GAEA_UOCR2_DIR", filepath.Join(t.TempDir(), "no-such-uocr2"))
 	t.Setenv("GAEA_UOCR2_PORT", "1")
+	t.Setenv("GAEA_UOCR2_LLAMA_DIR", filepath.Join(t.TempDir(), "no-such-llama"))
+	t.Setenv("GAEA_UOCR2_LLAMA_URL", "http://127.0.0.1:1") // llama 主后端（2026-10-29 起默认先行）同须死值
 	t.Setenv("GAEA_OCR_DIR", filepath.Join(t.TempDir(), "no-such-ocr"))
 	t.Setenv("GAEA_OCR_PORT", "1")
 	root := filepath.Join(t.TempDir(), "data")

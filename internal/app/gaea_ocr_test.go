@@ -12,6 +12,8 @@ import (
 )
 
 func TestGaeaOCRText_UsesHerdsmanPaddleOCR(t *testing.T) {
+	clearHerdsmanOCREnv(t)
+	killLocalOCRLeg(t) // 默认 local-first 序：杀本地腿后 herdsman /v1/ocr 兜底命中
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/ocr" {
 			t.Errorf("path = %q, want /v1/ocr", r.URL.Path)

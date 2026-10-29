@@ -132,6 +132,8 @@ func restoreTesseractVars(t *testing.T) {
 func TestOCRImageTextFallsBackToTesseract(t *testing.T) {
 	t.Setenv("GAEA_UOCR2_DIR", filepath.Join(t.TempDir(), "no-such-uocr2"))
 	t.Setenv("GAEA_UOCR2_PORT", "1") // 无人监听的端口，健康检查必失败
+	t.Setenv("GAEA_UOCR2_LLAMA_DIR", filepath.Join(t.TempDir(), "no-such-llama"))
+	t.Setenv("GAEA_UOCR2_LLAMA_URL", "http://127.0.0.1:1") // llama 主后端同须死值
 	t.Setenv("GAEA_OCR_DIR", filepath.Join(t.TempDir(), "no-such-ocr"))
 	t.Setenv("GAEA_OCR_PORT", "1")
 
@@ -158,6 +160,8 @@ func TestOCRImageTextFallsBackToTesseract(t *testing.T) {
 func TestOCRImageTextBothUnavailable(t *testing.T) {
 	t.Setenv("GAEA_UOCR2_DIR", filepath.Join(t.TempDir(), "no-such-uocr2"))
 	t.Setenv("GAEA_UOCR2_PORT", "1")
+	t.Setenv("GAEA_UOCR2_LLAMA_DIR", filepath.Join(t.TempDir(), "no-such-llama"))
+	t.Setenv("GAEA_UOCR2_LLAMA_URL", "http://127.0.0.1:1") // llama 主后端同须死值
 	t.Setenv("GAEA_OCR_DIR", filepath.Join(t.TempDir(), "no-such-ocr"))
 	t.Setenv("GAEA_OCR_PORT", "1")
 

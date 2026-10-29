@@ -12,20 +12,30 @@ import (
 )
 
 // GaeaOCRText 提取图片中的文字（办公板块「提取文字」用）。
-// 优先使用 Herdsman /v1/ocr（PaddleOCR），其次 /v1/documents/parse（MinerU），
-// 都不可用时回退本地 OvisOCR2。
 //
-// 四腿编排（审计 U54/IN3-09：本函数是远端 internal/ocr 与本地 docmd 两链的
+// 编排（审计 U54/IN3-09：本函数是远端 internal/ocr 与本地 docmd 两链的
 // 唯一汇合点——是编排不是第三套 OCR 客户端，自身无 HTTP 代码。腿序与配置源
 // 已由 gaea_ocr_chain_test.go 钉死；把前腿折进 docmd seam 会改道本地-only
 // 消费方，勿动，理由见 docmd/ocr.go seam 注释的口径边界段）：
 //   - 腿 1 指定引擎：activeOCREngine/activeOCRModel（模型中心「设为 OCR」，
 //     config active_ocr_engine/active_ocr_model）→ herdsmanOCRWith，模型名
-//     含 mineru/parse 走 /v1/documents/parse，否则 /v1/ocr；
-//   - 腿 2 herdsman /v1/ocr，模型取 HERDSMAN_OCR_MODEL 或引擎 OCR 模型；
-//   - 腿 3 herdsman /v1/documents/parse（HERDSMAN_PARSE_MODEL/_MODE）；
+//     含 mineru/parse 走 /v1/documents/parse，否则 /v1/ocr。显式绑定恒在最前；
+//   - 腿 2 herdsman /v1/ocr（PaddleOCR），模型取 HERDSMAN_OCR_MODEL 或引擎
+//     OCR 模型；
+//   - 腿 3 herdsman /v1/documents/parse（MinerU，HERDSMAN_PARSE_MODEL/_MODE）；
 //   - 腿 4 docmd.OCRImageText 本地链，引擎顺序归 GAEA_OCR_ENGINE 管
-//     （auto=OvisOCR2→tesseract）——两链配置口径互不越界。
+//     （auto=uocr2→ovis→tesseract）——两链配置口径互不越界。
+//
+// 腿 2~4 相对顺序由 GAEA_OCR_LEG_ORDER 驱动（2026-10-29 同图三引擎实测拍板，
+// 质量优先，与 docmd 链 uocr2→ovis→tesseract 的拍板同口径）：
+//   - 未设置/"local-first"/"local"（默认）：腿 4 → 腿 2 → 腿 3。实测：uocr2
+//     干净文本与微信打印件价格表两素材零错字、表格保 HTML 结构；PaddleOCR 快
+//     （1~5s）但干净文本 8 处错字、表格逐格平铺丢结构；MinerU 纯文本几乎全对
+//     但打印件表格 rowspan 大乱。本地质量挡在前，herdsman 两腿退居速度/可用性
+//     兜底（本地腿错误/空文本即穿透，herdsman 缺席不降可用性）；
+//   - "herdsman-first"/"herdsman"：旧序（腿 2 → 腿 3 → 腿 4）。嫌本地慢
+//     （uocr2 CPU 实测 28~83s/图）可用此挡换速度；
+//   - 其他值 fail-closed 报错（与 GAEA_OCR_ENGINE 口径一致，不静默回退）。
 //
 // 腿间「错误或空文本即穿透」+ IN3-08 逐腿错误收集（errors.Join）。
 func (a *App) GaeaOCRText(imagePath string) (string, error) {
@@ -39,33 +49,67 @@ func (a *App) GaeaOCRText(imagePath string) (string, error) {
 	if _, err := os.Stat(imagePath); err != nil {
 		return "", fmt.Errorf("图片不存在：%s", imagePath)
 	}
+	localFirst, err := ocrLegLocalFirst()
+	if err != nil {
+		return "", err
+	}
 
-	// 审计 P1 IN3-08：四层降级链逐层收集真实错误——此前只判 err==nil 且从不
-	// 保留 err，全部不可用时只回最后一层的错误，排障看不到前三层为何失败。
-	var errs []error
+	herdsmanLegs := []ocrLeg{
+		{"herdsman /v1/ocr", func() (string, error) { return a.herdsmanOCR(imagePath) }},
+		{"herdsman parse", func() (string, error) { return a.herdsmanParseImage(imagePath) }},
+	}
+	localLeg := ocrLeg{"本地 OCR", func() (string, error) { return docmd.OCRImageText(imagePath) }}
+
+	// 审计 P1 IN3-08：腿链逐层收集真实错误——此前只判 err==nil 且从不保留 err，
+	// 全部不可用时只回最后一层的错误，排障看不到前面各腿为何失败。
+	chain := make([]ocrLeg, 0, 4)
 	if a.activeOCREngine != "" || a.activeOCRModel != "" {
-		if text, err := a.herdsmanOCRWith(a.activeOCREngine, a.activeOCRModel, imagePath); err == nil && strings.TrimSpace(text) != "" {
+		engine, model := a.activeOCREngine, a.activeOCRModel
+		chain = append(chain, ocrLeg{"指定引擎(" + engine + "/" + model + ")", func() (string, error) {
+			return a.herdsmanOCRWith(engine, model, imagePath)
+		}})
+	}
+	if localFirst {
+		chain = append(chain, localLeg)
+		chain = append(chain, herdsmanLegs...)
+	} else {
+		chain = append(chain, herdsmanLegs...)
+		chain = append(chain, localLeg)
+	}
+
+	var errs []error
+	for _, leg := range chain {
+		text, err := leg.run()
+		if err == nil && strings.TrimSpace(text) != "" {
 			return strings.TrimSpace(text), nil
-		} else if err != nil {
-			errs = append(errs, fmt.Errorf("指定引擎(%s/%s): %w", a.activeOCREngine, a.activeOCRModel, err))
+		}
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", leg.name, err))
 		}
 	}
-	if text, err := a.herdsmanOCR(imagePath); err == nil && strings.TrimSpace(text) != "" {
-		return strings.TrimSpace(text), nil
-	} else if err != nil {
-		errs = append(errs, fmt.Errorf("herdsman /v1/ocr: %w", err))
+	if len(errs) == 0 { // 所有腿都「成功但空文本」——OCRImageText 空文本必报错，防御性兜底
+		return "", fmt.Errorf("所有 OCR 引擎均未识别出文字")
 	}
-	if text, err := a.herdsmanParseImage(imagePath); err == nil && strings.TrimSpace(text) != "" {
-		return strings.TrimSpace(text), nil
-	} else if err != nil {
-		errs = append(errs, fmt.Errorf("herdsman parse: %w", err))
+	return "", errors.Join(errs...)
+}
+
+// ocrLeg 是 GaeaOCRText 腿链的最小单元：名（错误前缀）+ 执行。
+type ocrLeg struct {
+	name string
+	run  func() (string, error)
+}
+
+// ocrLegLocalFirst 解析 GAEA_OCR_LEG_ORDER（腿 2~4 相对顺序开关，语义见
+// GaeaOCRText 注释）。空值默认 local-first（2026-10-29 实测拍板）。
+func ocrLegLocalFirst() (bool, error) {
+	raw := strings.TrimSpace(os.Getenv("GAEA_OCR_LEG_ORDER"))
+	switch {
+	case raw == "", strings.EqualFold(raw, "local-first"), strings.EqualFold(raw, "local"):
+		return true, nil
+	case strings.EqualFold(raw, "herdsman-first"), strings.EqualFold(raw, "herdsman"):
+		return false, nil
 	}
-	text, err := docmd.OCRImageText(imagePath)
-	if err != nil {
-		errs = append(errs, fmt.Errorf("本地 OCR: %w", err))
-		return "", errors.Join(errs...)
-	}
-	return text, nil
+	return false, fmt.Errorf("未知 GAEA_OCR_LEG_ORDER %q（可用：local-first / herdsman-first）", raw)
 }
 
 // herdsmanOCRWith 使用指定引擎和模型识别图片。

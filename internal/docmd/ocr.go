@@ -264,8 +264,13 @@ var (
 //   active_ocr_engine/active_ocr_model — 模型中心「设为 OCR」绑定（引擎/模型
 //     ID 域），只影响 app GaeaOCRText 前三腿，本 seam 不读它；
 //   GAEA_OCR_URL/GAEA_OCR_PORT — 本地 OvisOCR2 llama-server 地址（默认 8137）；
-//   GAEA_UOCR2_URL/GAEA_UOCR2_PORT — 本地 Unlimited-OCR-2 python 服务地址
-//     （默认 8138，见 ocr_uocr2.go）；
+//   GAEA_UOCR2_BACKEND — Unlimited-OCR-2 后端腿序（auto/llama/python，默认
+//     auto=llama→python，2026-10-29 拍板：llama-server+Q8 快 10~14 倍，python
+//     transformers 降兜底，见 ocr_uocr2.go）；
+//   GAEA_UOCR2_LLAMA_URL/_PORT/_DIR/_MODEL/_MMPROJ — llama 后端工件与地址
+//     （默认 8139 / C:\AI\uocr2-llama）；
+//   GAEA_UOCR2_URL/_PORT/_DIR/_PY — python 后端服务地址与工件（默认 8138 /
+//     C:\AI\unlimited-ocr2）；
 //   HERDSMAN_OCR_MODEL/HERDSMAN_PARSE_MODEL — 远端模型 ID，与 GAEA_OCR_MODEL
 //     （本地 gguf 文件路径）同名词不同物。
 
@@ -497,8 +502,9 @@ func ocrPDFUnavailableError(kinds []string) error {
 }
 
 // OCRImageText 识别单张图片中的文字。引擎顺序由 GAEA_OCR_ENGINE 配置驱动：
-// "auto"（默认）= 常驻 OvisOCR2 服务优先，不可用时降级 tesseract（保持现状）；
-// 显式指定（ovis/tesseract）= 仅该引擎，不可用即报错（fail-closed，不静默降级）。
+// "auto"（默认）= uocr2→ovis→tesseract（2026-10-29 拍板质量优先，见
+// ocrEngineOrder 注释）；显式指定（uocr2/ovis/tesseract）= 仅该引擎，不可用
+// 即报错（fail-closed，不静默降级）。
 // 引擎顺序与降级行为由测试固化（见 ocr_seam_test.go / ocr_test.go）。
 func OCRImageText(path string) (string, error) {
 	kinds, err := ocrEngineOrder()
@@ -525,7 +531,7 @@ func ocrPDFRange(path, pages string, first, last, total int, progress func(done,
 		return "", fmt.Errorf("扫描件 PDF 需要 poppler 渲染（pdftoppm），但未找到。" +
 			"请安装 poppler：https://poppler.freedesktop.org\n\n或者使用文本 PDF（非扫描件）")
 	}
-	// 引擎链由 GAEA_OCR_ENGINE 配置驱动（"auto" = ovis → tesseract，保持现状；
+	// 引擎链由 GAEA_OCR_ENGINE 配置驱动（"auto" = uocr2→ovis→tesseract；
 	// 显式指定 = 仅该引擎）。构造提供者实例后预探测一次：至少一个引擎可用才继续
 	// （ovis 探测并缓存常驻服务地址，失败整轮跳过、不逐页重试拉起；tesseract
 	// 检查可执行文件），与历史提前失败行为一致。
