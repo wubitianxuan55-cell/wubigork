@@ -76,6 +76,7 @@ jobs:
       # （本地+UTC+干净 APPDATA 均不复现），平文本全量输出走注解带回来定位。
       # exit 0：诊断步不拦门，真失败由后续全量测试步如实判红。
       - name: Fresh-runner canary (genui/backup/attachment)
+        if: always() # 前序全量测试步红了也要跑：三包只在干净 runner 上红的诊断通道
         shell: bash
         run: |
           set +e

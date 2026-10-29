@@ -3,8 +3,17 @@
 // 切模板脏草稿保护（v4.421.0：脏→共享原语 confirmDiscard，取消不切换）。
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
-import { Modal } from 'antd'
+import { Modal, message } from 'antd'
 import type { Mock } from 'vitest'
+
+// afterEach 统一清场：面板的 message 通知带 3s 自动关闭定时器，测试文件环境
+// 拆除后才触发会在无 window 的环境里 setState（rc-notification 跨环境泄漏 →
+// unhandled error → 全量 vitest 进程退 1 且报告不落盘，2026-10-30 远端 CI 实
+// 锤）。destroy 立即卸载通知并清掉关闭定时器。antd message 整体 mock 会破坏
+// 断言其行为的用例（已实测 4 例红），不可取。
+afterEach(() => {
+  message.destroy()
+})
 
 // 五绑定 + t6-C2 模板包两绑定 mock 以 vi.hoisted 引用持有（vi.mock 工厂被提升
 // 到文件顶部；断言不经过 app.* 类型面——CreatePage.test.tsx 同款范式）。
