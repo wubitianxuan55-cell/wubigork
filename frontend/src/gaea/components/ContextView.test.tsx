@@ -9,7 +9,8 @@ import type { ContextTimeline } from "../lib/types";
 // 只放宽时限不改断言。
 // v4.293 治理：本文件 import 图最重（recharts 族），满负载下 20s 出现过
 // 两例超时假红（隔离恒绿）——放宽到 40s 只影响本文件。
-vi.setConfig({ testTimeout: 40_000 });
+// 2026-10-30 满载 41.2s 再破 40s 线（隔离恒绿）——放宽到 60s。
+vi.setConfig({ testTimeout: 60_000 });
 
 // ContextView 走 useT：钉住 zh 让既有中文文案断言继续成立
 const renderT = (ui: ReactElement) => {

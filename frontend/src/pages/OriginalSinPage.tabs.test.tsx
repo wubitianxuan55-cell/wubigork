@@ -4,7 +4,8 @@ import type { ContextTimeline, Trajectory } from "../gaea/lib/types";
 
 // 页面 import 链最重（antd+办公组件族+react-window），全量并行负载下按
 // ContextView 先例放宽本文件时限，只放宽时限不改断言。
-vi.setConfig({ testTimeout: 30_000 });
+// 2026-10-30 满载 39.7s 再破 30s 线（隔离恒绿）——放宽到 60s。
+vi.setConfig({ testTimeout: 60_000 });
 
 // OriginalSinPage.tabs.test.tsx — v4.412 原罪主区页签接线：故事/轨迹/上下文
 // 三页签复用办公 ChatTabs/TrajectoryView/ContextView，数据源走
