@@ -2667,17 +2667,23 @@
 
 .pantheon-verdict-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   padding-right: 72px;
 }
 
+/* 标题行被 tag+印记预留挤压时会绞出碎行：标题恒占整行，tag 恒换行右对齐 */
+.pantheon-verdict-head > div:first-child {
+  flex: 1 1 100%;
+}
+
 .pantheon-verdict-head h3 {
   max-width: min(100%, 20em);
   margin: 8px 0 0;
   font-family: var(--font-serif, "Noto Serif SC", "Songti SC", serif);
-  font-size: clamp(20px, 2vw, 27px);
+  font-size: clamp(19px, 1.7vw, 24px);
   font-weight: 600;
   line-height: 1.45;
   letter-spacing: -.02em;
