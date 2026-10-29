@@ -14,9 +14,14 @@ func TestLiveAgentAdapters(t *testing.T) {
 	if os.Getenv("PANTHEON_LIVE_SMOKE") == "" {
 		t.Skip("set PANTHEON_LIVE_SMOKE=1 to call installed agent harnesses")
 	}
-	adapters := buildAdapters(nil, nil)
+	adapters := buildAdapters(nil, nil, os.Getenv("DEEPSEEK_API_KEY"))
 	only := strings.TrimSpace(os.Getenv("PANTHEON_LIVE_AGENTS"))
 	workDir := strings.TrimSpace(os.Getenv("PANTHEON_LIVE_WORKDIR"))
+	if workDir == "" {
+		// 共享 workDir 必须绑外层 t：子测试的 TempDir 在该子测试结束即被清理，
+		// 后续席位 chdir 立炸（PANTHEON_LIVE_SMOKE 实弹逮住）
+		workDir = t.TempDir()
+	}
 	for _, id := range []string{"codex", "zcode", "dsh"} {
 		if only != "" && !strings.Contains(","+only+",", ","+id+",") {
 			continue

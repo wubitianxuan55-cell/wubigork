@@ -59,6 +59,7 @@ func (s *pantheonState) managerRef() (*pantheon.Manager, error) {
 		return nil, fmt.Errorf("恢复被中断的讨论失败: %w", err)
 	}
 	manager.SetGrokBackend(&pantheonGrokSeat{app: s.app}) // Grok 模型席位（xai 引擎直调；主持默认优先）
+	manager.SetDSHAPIKey(s.app.engineMgr.EngineAPIKey("deepseek")) // dsh 陈词凭据：DSH 凭据服务无存档时官方 env 通道兜底
 	manager.SetWorkDir(gaeaCwd())
 	s.manager = manager
 	return s.manager, nil

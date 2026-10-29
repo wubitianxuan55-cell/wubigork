@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -759,6 +760,33 @@ func containsValue(values []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func TestDSHAdapterInjectsDeepseekKey(t *testing.T) {
+	// override 指向假 .cmd：绕过真实安装探测，单测不依赖本机 dsh
+	fake := filepath.Join(t.TempDir(), "dsh.cmd")
+	if err := os.WriteFile(fake, []byte("@echo off\r\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	spec, err := newDSHAdapter(fake, "sk-test").build("议题", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsValue(spec.Env, "DEEPSEEK_API_KEY=sk-test") {
+		t.Fatalf("dsh env missing injected key: %v", spec.Env)
+	}
+	if !containsValue(spec.Env, "DSH_PERMISSION_MODE=read-only") {
+		t.Fatalf("dsh env lost permission mode: %v", spec.Env)
+	}
+	bare, err := newDSHAdapter(fake, "").build("议题", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, kv := range bare.Env {
+		if strings.HasPrefix(kv, "DEEPSEEK_API_KEY=") {
+			t.Fatalf("empty key must not inject (would shadow user env): %v", bare.Env)
+		}
+	}
 }
 
 func TestExtractConsensusSignal(t *testing.T) {

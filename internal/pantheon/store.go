@@ -67,6 +67,17 @@ func (s *sessionStore) get(id string) (*Session, error) {
 	if err := json.Unmarshal(data, &session); err != nil {
 		return nil, fmt.Errorf("解析议事 %s: %w", id, err)
 	}
+	// 历史文件可能带 "contributions": null（nil 切片契约），读回统一成空切片，
+	// 前端裸读 .length 才不炸页（2026-10-29 实弹逮住）。
+	if session.Contributions == nil {
+		session.Contributions = []Contribution{}
+	}
+	if session.Events == nil {
+		session.Events = []Event{}
+	}
+	if session.Participants == nil {
+		session.Participants = []Participant{}
+	}
 	return &session, nil
 }
 

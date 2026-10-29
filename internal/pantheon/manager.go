@@ -34,6 +34,7 @@ type Manager struct {
 	store     *sessionStore
 	runner    commandRunner
 	overrides map[string]string
+	dshKey    string
 	adapters  map[string]agentAdapter
 	grok      GrokBackend
 	cancels   map[string]context.CancelFunc
@@ -60,7 +61,7 @@ func NewManager(root string, runner commandRunner, emit func(Event)) (*Manager, 
 		store:     store,
 		runner:    runner,
 		overrides: overrides,
-		adapters:  buildAdapters(overrides, nil),
+		adapters:  buildAdapters(overrides, nil, ""),
 		cancels:   map[string]context.CancelFunc{},
 		emit:      emit,
 	}, nil
@@ -120,7 +121,16 @@ func (m *Manager) SetGrokBackend(backend GrokBackend) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.grok = backend
-	m.adapters = buildAdapters(m.overrides, backend)
+	m.adapters = buildAdapters(m.overrides, backend, m.dshKey)
+}
+
+// SetDSHAPIKey 注入 DeepSeek 凭据给 dsh 席位（DEEPSEEK_API_KEY 走 DSH 官方
+// 环境变量通道；其凭据服务无存档时陈词会 MISSING_CREDENTIAL，实弹逮住）。
+func (m *Manager) SetDSHAPIKey(key string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.dshKey = key
+	m.adapters = buildAdapters(m.overrides, m.grok, key)
 }
 
 func (m *Manager) DataRoot() string { return m.root }
@@ -211,7 +221,7 @@ func (m *Manager) SetExecutable(id, path string) ([]AgentStatus, error) {
 		m.mu.Unlock()
 		return nil, err
 	}
-	m.adapters = buildAdapters(overrides, m.grok)
+	m.adapters = buildAdapters(overrides, m.grok, m.dshKey)
 	m.mu.Unlock()
 	return m.Agents(context.Background()), nil
 }
@@ -304,8 +314,9 @@ func (m *Manager) Start(req StartRequest) (*Session, error) {
 		CreatedAt:    now,
 		UpdatedAt:    now,
 		Request:      req,
-		Participants: participants,
-		Events:       []Event{},
+		Participants:  participants,
+		Events:        []Event{},
+		Contributions: []Contribution{},
 	}
 	for _, p := range participants {
 		if p.Status == "unavailable" {

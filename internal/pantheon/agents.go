@@ -60,11 +60,11 @@ type GrokToolStreamingBackend interface {
 	) (string, error)
 }
 
-func buildAdapters(overrides map[string]string, grok GrokBackend) map[string]agentAdapter {
+func buildAdapters(overrides map[string]string, grok GrokBackend, deepseekKey string) map[string]agentAdapter {
 	adapters := []agentAdapter{
 		newCodexAdapter(overrides["codex"]),
 		newZCodeAdapter(overrides["zcode"]),
-		newDSHAdapter(overrides["dsh"]),
+		newDSHAdapter(overrides["dsh"], deepseekKey),
 	}
 	if grok != nil {
 		// Grok 席位列首位：Gaea 办公 AgentRunner、秒级探测，适合作协作汇总人。
@@ -236,7 +236,7 @@ func zcodePromptArgs(prompt, cwd string) []string {
 	}
 }
 
-func newDSHAdapter(override string) agentAdapter {
+func newDSHAdapter(override, deepseekKey string) agentAdapter {
 	type dshPaths struct {
 		exe  string
 		cli  string
@@ -271,6 +271,9 @@ func newDSHAdapter(override string) agentAdapter {
 	}
 	build := func(paths dshPaths, args []string) commandSpec {
 		env := []string{"DSH_PERMISSION_MODE=read-only"}
+		if deepseekKey != "" {
+			env = append(env, "DEEPSEEK_API_KEY="+deepseekKey)
+		}
 		if paths.mode == "desktop" {
 			// .cmd is an official Windows wrapper. Keep the prompt on stdin so
 			// topic/material text never enters shell metacharacter parsing.

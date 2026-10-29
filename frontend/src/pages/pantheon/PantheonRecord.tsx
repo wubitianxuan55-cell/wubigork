@@ -390,9 +390,9 @@ export const PantheonRecord: React.FC<Props> = ({
   const meta = statusMeta(session.status)
   const running = session.status === 'running'
   const sharedFeedRef = useRef<HTMLDivElement>(null)
-  const recentEvents = useMemo(() => [...session.events].reverse().slice(0, 14), [session.events])
+  const recentEvents = useMemo(() => [...(session.events ?? [])].reverse().slice(0, 14), [session.events])
   const discussionOutputs = useMemo<DiscussionOutput[]>(() => {
-    if (session.contributions.length > 0) {
+    if ((session.contributions ?? []).length > 0) {
       return session.contributions.map((item: PantheonContribution) => ({
         id: item.id,
         agentId: item.agentId,
@@ -403,13 +403,13 @@ export const PantheonRecord: React.FC<Props> = ({
         durationMs: item.durationMs,
       }))
     }
-    return session.events
+    return (session.events ?? [])
       .filter((event) => event.kind === 'agent_output' && event.agentId)
       .map((event) => ({
         id: `event-${event.seq}`,
         agentId: event.agentId || '',
         agentName:
-          session.participants.find((participant) => participant.agentId === event.agentId)?.name
+          (session.participants ?? []).find((participant) => participant.agentId === event.agentId)?.name
           || event.agentId
           || '未知参与者',
         phase: event.phase,

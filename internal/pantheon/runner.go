@@ -20,7 +20,9 @@ const (
 	maxProcessOutput  = 4 << 20
 	maxPromptRunes    = 24000
 	maxAgentOutput    = 200000
-	defaultAgentLimit = 4 * time.Minute
+	// 8 分钟：plan/工具型席位（如 zcode 读大型仓库）陈词常超 4 分钟
+	// （2026-10-29 实弹 zcode context deadline exceeded 逮住）
+	defaultAgentLimit = 8 * time.Minute
 	promptClipMarker  = "\n\n【中间内容因提示词长度限制省略】\n\n"
 )
 
