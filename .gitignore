@@ -47,7 +47,10 @@ novels/
 Thumbs.db
 
 # Wails
-frontend/wailsjs/
+# wailsjs 2026-10-30 起入库：tsc/vite 的真依赖，而 linux CI 无法编译 main 包
+# （app→x/sys/windows）⇒ `wails generate module` 在 ubuntu 结构性不可行；漂移由
+# check-bindings-drift.ps1（bindingNames vs Go 面）+ tsc 双保险兜住。
+#frontend/wailsjs/
 
 # 移动端 PWA
 mobile/node_modules/

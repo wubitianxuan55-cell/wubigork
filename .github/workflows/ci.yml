@@ -60,6 +60,8 @@ jobs:
             exit 0
           fi
           tail -n 100 go-test.err
+          # 失败包进注解（无登录也能从 check-runs API 看见，2026-10-30 CI 根修）
+          grep -E '^FAIL' go-test.err | head -15 | while IFS= read -r line; do echo "::error::$line"; done || true
           node scripts/classify-go-failures.mjs go-test.json scripts/go-known-flaky.txt scripts/go-retry-pkgs.txt --expect-failure || exit 1
           echo "在册 flaky 隔离复跑："
           cat scripts/go-retry-pkgs.txt
@@ -104,7 +106,18 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - run: go test -race -count=1 ./internal/gaea/agent/ ./internal/gaea/tool/ ./internal/gaea/control/ ./internal/novelstyle/ ./internal/novelcontext/ ./internal/narrative/ ./internal/chapter/ ./internal/analysis/ ./internal/promptstore/ ./internal/novelgate/ ./internal/rewrite/ ./internal/characterstate/ ./internal/gaea/fileutil/
+      - name: Go test -race (linux) with failure digest
+        shell: bash
+        run: |
+          set +e
+          go test -race -count=1 ./internal/gaea/agent/ ./internal/gaea/tool/ ./internal/gaea/control/ ./internal/novelstyle/ ./internal/novelcontext/ ./internal/narrative/ ./internal/chapter/ ./internal/analysis/ ./internal/promptstore/ ./internal/novelgate/ ./internal/rewrite/ ./internal/characterstate/ ./internal/gaea/fileutil/ 2>&1 | tee race.log
+          code=${PIPESTATUS[0]}
+          set -e
+          if [ $code -ne 0 ]; then
+            # 失败包/用例进注解（check-runs API 免登录可见，2026-10-30 根修轮）
+            grep -E '^(FAIL|--- FAIL|panic|# command-line)' race.log | head -20 | while IFS= read -r line; do echo "::error::$line"; done || true
+            exit 1
+          fi
 
   frontend:
     runs-on: ubuntu-latest
@@ -128,20 +141,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # wailsjs 生成物不入库（.gitignore），但 tsc/vite build 需要
-      # wailsjs/go/* 类型——fresh checkout 上用与 go.mod 同版的 wails CLI
-      # 生成（本地由 wails build / gen_bindings 流程顺手产出）。step 在仓库根
-      # 跑（wails generate module 读根上的 wails.json），覆盖 job 级 frontend 默认。
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-
-      - name: Generate wailsjs bindings (wails generate module)
-        working-directory: .
-        run: |
-          go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
-          "$(go env GOPATH)/bin/wails" generate module
-
+      # wailsjs 已入库（2026-10-30）：tsc/vite 的真依赖。曾经 CI 生成失败——
+      # `wails generate module` 要编译 main 包，而 main→internal/app→x/sys/windows
+      # 在 ubuntu 结构性不可编译；库化后漂移由 check-bindings-drift.ps1+tsc 双保险。
       - run: pnpm lint
 
       - run: pnpm build
