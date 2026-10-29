@@ -361,7 +361,7 @@ func TestGaeaMemorySetRetentionDaysUninitialized(t *testing.T) {
 		if err != nil {
 			t.Fatalf("未初始化时设置保留期: %v", err)
 		}
-	case <-time.After(30 * time.Second):
+	case <-time.After(120 * time.Second): // 2 核 CI runner 首次 GaeaInit 全新环境建库装配远超 30s（2026-10-30 实锤 os.Exit 误发）；真死锁是无限挂起，放宽不影响判据
 		t.Log("SetRetentionDays 超时：持 ga.mu 调 GaeaInit 自死锁（回归）")
 		os.Exit(1)
 	}

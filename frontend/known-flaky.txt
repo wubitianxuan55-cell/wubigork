@@ -8,3 +8,9 @@
 # testTimeout 30s + RTL asyncUtilTimeout 5s），连续 3 轮全量 2799/2799 通过，
 # 原 ContextView / TrajectoryView / MemoryPanel / FilePreviewModal 超时族已消除，
 # 不再需要无条件重试。
+
+# 2026-10-30 远端 CI（4 核 ubuntu）满载轮换假红族：隔离复跑均绿、与改动零交集、
+# 逐轮换文件（SinBookSourcePanel/GitPanel 交替）——worker 饥饿超时家族，与
+# vite.config 注释里 ContextView 族同因。登记后 CI 分类器自动隔离复跑。
+src/pages/sin/SinBookSourcePanel.test.tsx
+src/gaea/components/GitPanel.test.tsx

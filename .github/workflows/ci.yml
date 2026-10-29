@@ -75,12 +75,12 @@ jobs:
       # Fresh-runner 金丝雀：genui/backup/attachment 三包只在干净 runner 上红
       # （本地+UTC+干净 APPDATA 均不复现），平文本全量输出走注解带回来定位。
       # exit 0：诊断步不拦门，真失败由后续全量测试步如实判红。
-      - name: Fresh-runner canary (genui/backup/attachment)
+      - name: Fresh-runner canary (genui/backup/attachment/builtin/app)
         if: always() # 前序全量测试步红了也要跑：三包只在干净 runner 上红的诊断通道
         shell: bash
         run: |
           set +e
-          go test -count=1 ./internal/gaea/genui/ ./internal/gaea/backup/ ./internal/gaea/attachment/ 2>&1 | tee canary.log
+          go test -count=1 ./internal/gaea/genui/ ./internal/gaea/backup/ ./internal/gaea/attachment/ ./internal/gaea/tool/builtin/ ./internal/app/ 2>&1 | tee canary.log
           grep -E '^(--- FAIL|FAIL|ok|panic)' canary.log | head -20 | while IFS= read -r line; do echo "::error::canary: $line"; done || true
           grep -E '[A-Za-z0-9_]+\.go:[0-9]+:' canary.log | head -20 | while IFS= read -r line; do echo "::error::canary: $line"; done || true
           # 全文进 Step Summary（运行页服务端渲染，免登录可读）

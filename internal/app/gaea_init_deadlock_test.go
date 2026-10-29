@@ -81,7 +81,7 @@ func TestGaeaInitAutoResumeWithSessions(t *testing.T) {
 	var initErr error
 	select {
 	case initErr = <-done:
-	case <-time.After(30 * time.Second):
+	case <-time.After(120 * time.Second): // 2 核 CI runner 首次 GaeaInit 全新环境建库装配远超 30s（2026-10-30 实锤 os.Exit 误发）；真死锁是无限挂起，放宽不影响判据
 		// 死锁无法恢复：直接退出测试二进制，避免同包后续测试永久挂起。
 		t.Log("GaeaInit 超时：resumeLastSession 在 ga.mu 持锁上下文死锁（回归）")
 		os.Exit(1)
