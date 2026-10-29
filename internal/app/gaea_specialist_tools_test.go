@@ -21,7 +21,13 @@ import (
 // TestSemanticSearchTool_EndToEnd 本地 bge-m3 mock + 临时向量库：
 // 云端 agent 通过 semantic_search 工具按语义命中成本/知识条目。
 func TestSemanticSearchTool_EndToEnd(t *testing.T) {
-	home := t.TempDir()
+	home, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// runner 的 TEMP 是 8.3 短名/junction 形态：数据根落在重解析点上会触发
+	// 各处 RealPath 护栏/路径比对不一致（2026-10-30 语义检索零命中实锤），
+	// 先解出真路径再注入环境。
 	t.Setenv("USERPROFILE", home)
 	t.Setenv("HOME", home)
 

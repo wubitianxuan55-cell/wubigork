@@ -80,7 +80,13 @@ func TestGaeaBootBuild(t *testing.T) {
 func TestGaeaAttachmentRoundTrip(t *testing.T) {
 	oldwd, _ := os.Getwd()
 	defer func() { _ = os.Chdir(oldwd) }()
-	_ = os.Chdir(t.TempDir())
+	// runner 的 TEMP 是 8.3 短名/junction 形态：直接 chdir 会让 attachment 根
+	// （相对 CWD）落在重解析点上，触发产品「根不得 symlink/junction」护栏。
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = os.Chdir(dir)
 
 	a := &App{}
 

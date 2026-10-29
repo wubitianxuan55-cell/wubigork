@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/gaea/gaea/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/gaea/wspath"
 )
 
 // parseSidebarEnv 断言输出是合法 envelope。
@@ -156,6 +157,13 @@ func TestSidebarOpenTraversal(t *testing.T) {
 // TestSidebarOpenInference file/directory 推断与 envelope 结构。
 func TestSidebarOpenInference(t *testing.T) {
 	root := t.TempDir()
+	// runner 的 TEMP 是 8.3 短名/junction 形态（RUNNER~1 实锤）：产品侧返回
+	// RealPath 解析后的长名（行为正确），期望值须同样归一，否则逐路径比对全红。
+	resolved, err := wspath.RealPath(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root = resolved
 	fileRel := filepath.Join("docs", "报告.docx")
 	if err := os.MkdirAll(filepath.Join(root, "docs"), 0o755); err != nil {
 		t.Fatal(err)
