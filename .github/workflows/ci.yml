@@ -60,8 +60,8 @@ jobs:
             exit 0
           fi
           tail -n 100 go-test.err
-          # 失败包进注解（无登录也能从 check-runs API 看见，2026-10-30 CI 根修）
-          grep -E '^FAIL' go-test.err | head -15 | while IFS= read -r line; do echo "::error::$line"; done || true
+          # 失败包进注解（-json 流里 Action:fail 事件；无登录也能从 check-runs API 看）
+          grep -o '"Action":"fail","Package":"[^"]*"' go-test.json | head -15 | while IFS= read -r line; do echo "::error::$line"; done || true
           node scripts/classify-go-failures.mjs go-test.json scripts/go-known-flaky.txt scripts/go-retry-pkgs.txt --expect-failure || exit 1
           echo "在册 flaky 隔离复跑："
           cat scripts/go-retry-pkgs.txt
