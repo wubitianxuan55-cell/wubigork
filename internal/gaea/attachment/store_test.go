@@ -14,7 +14,14 @@ const tinyPNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9
 
 func openTestStore(t *testing.T) *Store {
 	t.Helper()
-	s, err := Open(filepath.Join(t.TempDir(), "uploads"))
+	// runner 的 TEMP 可能是短名/junction 形态（GH windows runner 实锤）：先解出
+	// 真路径再建根——产品护栏（根不得 symlink/junction）保持全强度，夹具自身
+	// 不落在重解析点上。
+	base, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := Open(filepath.Join(base, "uploads"))
 	if err != nil {
 		t.Fatal(err)
 	}
