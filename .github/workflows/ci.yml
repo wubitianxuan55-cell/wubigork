@@ -114,8 +114,8 @@ jobs:
           code=${PIPESTATUS[0]}
           set -e
           if [ $code -ne 0 ]; then
-            # 失败包/用例进注解（check-runs API 免登录可见，2026-10-30 根修轮）
-            grep -E '^(FAIL|--- FAIL|panic|# command-line)' race.log | head -20 | while IFS= read -r line; do echo "::error::$line"; done || true
+            # 失败包/用例/断言消息进注解（check-runs API 免登录可见，2026-10-30 根修轮）
+            grep -E '^(FAIL|--- FAIL|panic|# command-line)|^[[:space:]]+[A-Za-z0-9_]+\.go:[0-9]+:' race.log | head -30 | while IFS= read -r line; do echo "::error::$line"; done || true
             exit 1
           fi
 

@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"encoding/json"
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/provider"
@@ -62,6 +63,13 @@ func extractFilePath(name string, args string) string {
 		val = strings.TrimSpace(val)
 		val = strings.Trim(val, `"`)
 		if val != "" {
+			// JSON 转义解码：手搓切片拿到的是 JSON 字面量（`C:\\ws\\a.go` 形态），
+			// 语义值须过一遍 unmarshal——否则依赖 Clean 折叠双反斜杠才成立的
+			// 路径比对在非 Windows 平台上永不相等（2026-10-30 远端 CI linux 实锤）。
+			var decoded string
+			if err := json.Unmarshal([]byte(val), &decoded); err == nil {
+				val = decoded
+			}
 			return val
 		}
 	}

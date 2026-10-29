@@ -3,6 +3,8 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -12,24 +14,28 @@ import (
 // ── A10 write_paths 声明（Reasonix 2.x fleet 预检蒸馏）测试 ──────────────
 
 func TestNormalizeWritePathsRejectsGlobsAndEscapes(t *testing.T) {
-	for _, bad := range [][]string{
+	bad := [][]string{
 		{"build/*"},
 		{"src/**"},
 		{"../outside"},
 		{"a[0]"},
 		{""},
-		{"C:\\"},
 		{"/"},
-	} {
-		if _, err := normalizeWritePaths(bad); err == nil {
-			t.Fatalf("应拒绝 %v", bad)
+	}
+	if runtime.GOOS == "windows" {
+		// 盘根拒绝是 Windows 语义；linux 上 `C:\` 是普通相对名，合法直通。
+		bad = append(bad, []string{`C:\`})
+	}
+	for _, one := range bad {
+		if _, err := normalizeWritePaths(one); err == nil {
+			t.Fatalf("应拒绝 %v", one)
 		}
 	}
-	got, err := normalizeWritePaths([]string{"./build", "build", "src\\gen"}) // 去重+归一
+	got, err := normalizeWritePaths([]string{"./build", "build", filepath.FromSlash("src/gen")}) // 去重+归一
 	if err != nil {
 		t.Fatalf("合法声明不应报错: %v", err)
 	}
-	if len(got) != 2 { // ./build 与 build 归一同路径去重；src\gen 保留
+	if len(got) != 2 { // ./build 与 build 归一同路径去重；src/gen 按平台分隔符保留
 		t.Fatalf("归一去重后应 2 条: %v", got)
 	}
 }
@@ -59,21 +65,27 @@ func TestPathsOverlapDirSemantics(t *testing.T) {
 
 func TestWriteClaimRegistry(t *testing.T) {
 	tt := &TaskTool{}
-	if err := tt.acquireWriteClaim("sa_1", []string{`C:\ws\build`}); err != nil {
+	// 夹具按平台取形态：意图不变（不相交共存/嵌套重叠 fail-fast/释放后再登记）。
+	// 大小写不敏感重叠是 Windows 文件系统专有语义（linux 大小写敏感，嵌套用同形）。
+	root, other, nested := `/ws/build`, `/ws/docs`, `/ws/build/sub`
+	if runtime.GOOS == "windows" {
+		root, other, nested = `C:\ws\build`, `C:\ws\docs`, `c:\WS\build\sub`
+	}
+	if err := tt.acquireWriteClaim("sa_1", []string{root}); err != nil {
 		t.Fatalf("首登记应成功: %v", err)
 	}
 	// 不相交可共存
-	if err := tt.acquireWriteClaim("sa_2", []string{`C:\ws\docs`}); err != nil {
+	if err := tt.acquireWriteClaim("sa_2", []string{other}); err != nil {
 		t.Fatalf("不相交声明应共存: %v", err)
 	}
-	// 重叠 fail-fast（含目录包含）
-	err := tt.acquireWriteClaim("sa_3", []string{`c:\WS\build\sub`})
+	// 重叠 fail-fast（含目录包含；windows 形态顺带验大小写不敏感）
+	err := tt.acquireWriteClaim("sa_3", []string{nested})
 	if err == nil || !strings.Contains(err.Error(), "overlap") {
 		t.Fatalf("重叠声明应拒绝: %v", err)
 	}
 	// 释放后可再登记
 	tt.releaseWriteClaim("sa_1")
-	if err := tt.acquireWriteClaim("sa_3", []string{`C:\ws\build`}); err != nil {
+	if err := tt.acquireWriteClaim("sa_3", []string{root}); err != nil {
 		t.Fatalf("释放后应可登记: %v", err)
 	}
 }
