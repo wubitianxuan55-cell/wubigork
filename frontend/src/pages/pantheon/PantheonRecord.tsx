@@ -14,6 +14,7 @@ import {
   MenuUnfoldOutlined,
   ReloadOutlined,
   StopOutlined,
+  ToolOutlined,
   WarningOutlined,
 } from '@ant-design/icons'
 import { Alert, Button, Dropdown, Empty, Spin, Tag, Tooltip } from 'antd'
@@ -63,6 +64,7 @@ const DISCUSSION_SLOTS = [
 ]
 
 const INSPECTOR_COLLAPSED_KEY = 'gaea.pantheon.inspector-collapsed'
+const SEAT_TRACE_LIMIT = 12
 
 function readInspectorCollapsed(): boolean {
   try {
@@ -261,6 +263,157 @@ const ConclusionPanel: React.FC<{
   )
 }
 
+// 独立窗口：逐席发言消息 + 每席工具轨迹（≤SEAT_TRACE_LIMIT 条，更早折叠）。
+const AgentOutputWindow: React.FC<{
+  slot: { id: string; name: string }
+  participant?: PantheonSession['participants'][number]
+  outputs: DiscussionOutput[]
+  traces: ToolTraceView[]
+  facilitator: boolean
+  phase: string
+  collapsed: boolean
+  onToggleCollapsed: () => void
+}> = ({ slot, participant, outputs, traces, facilitator, phase, collapsed, onToggleCollapsed }) => {
+  const feedRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const feed = feedRef.current
+    if (feed) feed.scrollTop = feed.scrollHeight
+  }, [outputs])
+  const status = !participant
+    ? '未加入'
+    : participant.status === 'running'
+      ? '流式输出中'
+      : participantStatusLabel(participant.status)
+  return (
+    <article
+      data-testid={`pantheon-live-seat-${slot.id}`}
+      className={`pantheon-agent-window${participant ? ` is-${participant.status}` : ' is-absent'}${collapsed ? ' is-collapsed' : ''}`}
+      style={{ '--agent-accent': AGENT_ACCENTS[slot.id] || 'var(--pantheon-accent)' } as React.CSSProperties}
+    >
+      <header>
+        <span className="pantheon-live-seat-identity">
+          <span className="pantheon-seat-monogram" aria-hidden>
+            {slot.name.slice(0, 1).toUpperCase()}
+          </span>
+          <span className="pantheon-seat-pane-title">{participant?.name || slot.name}</span>
+          {facilitator && participant && (
+            <span className="pantheon-facilitator-mark" title="负责协作汇总">
+              <CommentOutlined />
+            </span>
+          )}
+        </span>
+        <small>
+          {participant?.status === 'running' && (
+            <span className="pantheon-live-dot pantheon-seat-live-dot" aria-hidden />
+          )}
+          {status}
+        </small>
+        <Button
+          type="text"
+          size="small"
+          className={`pantheon-seat-collapse${collapsed ? ' is-collapsed' : ''}`}
+          icon={<DownOutlined />}
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? `展开${participant?.name || slot.name}独立窗口` : `折叠${participant?.name || slot.name}独立窗口`}
+          data-testid={`pantheon-seat-collapse-${slot.id}`}
+          onClick={onToggleCollapsed}
+        />
+      </header>
+      {!collapsed && (
+        <>
+          <div ref={feedRef} className="pantheon-agent-feed" aria-live={participant?.status === 'running' ? 'polite' : undefined}>
+            {outputs.map((output) => (
+              <article
+                key={output.id}
+                className={`pantheon-agent-message${output.streaming ? ' is-streaming' : ''}`}
+              >
+                <header>
+                  <span>
+                    {output.round ? `第 ${output.round} 轮 · ` : ''}
+                    {PHASE_LABEL[output.phase] || output.phase}
+                  </span>
+                  {output.durationMs ? <small>{(output.durationMs / 1000).toFixed(1)}s</small> : <small>独立上下文</small>}
+                </header>
+                <p>
+                  {output.text}
+                  {output.streaming && <span className="pantheon-stream-caret" aria-label="正在输出" />}
+                </p>
+              </article>
+            ))}
+            {participant?.status === 'running' && (
+              <div className="pantheon-agent-generating">
+                <Spin size="small" /> 正在{PHASE_LABEL[phase] || '处理'}…
+              </div>
+            )}
+            {participant && outputs.length === 0 && participant.status !== 'running' && (
+              <span className="pantheon-muted">等待发言</span>
+            )}
+            {!participant && (
+              <span className="pantheon-muted">未参与本次讨论，独立窗口保留为空。</span>
+            )}
+            {participant?.status === 'failed' && (
+              <span className="pantheon-seat-failed">{participant.error || '调用失败'}</span>
+            )}
+          </div>
+          <SeatTrajectory traces={traces} />
+        </>
+      )}
+    </article>
+  )
+}
+
+const SeatTrajectory: React.FC<{
+  traces: ToolTraceView[]
+}> = ({ traces }) => {
+  if (traces.length === 0) return null
+  const visibleTraces = traces.slice(-SEAT_TRACE_LIMIT)
+  const foldedCount = traces.length - visibleTraces.length
+  return (
+    <section className="pantheon-seat-trace" aria-label="工具轨迹">
+      <header className="pantheon-seat-trace-head">
+        <ToolOutlined aria-hidden />
+        <strong>工具轨迹</strong>
+        <em>{traces.length} 次</em>
+      </header>
+      <ol className="pantheon-seat-trace-list">
+        {foldedCount > 0 && (
+          <li className="pantheon-seat-trace-fold">更早 {foldedCount} 条已折叠</li>
+        )}
+        {visibleTraces.map((trace) => (
+          <li
+            key={trace.id}
+            className={`pantheon-tool-trace is-${trace.status}`}
+            data-testid={`pantheon-tool-${trace.id}`}
+          >
+            <span className="pantheon-tool-trace-state" aria-hidden>
+              {trace.status === 'started' ? <ClockCircleOutlined /> : null}
+              {trace.status === 'completed' ? <CheckCircleFilled /> : null}
+              {trace.status === 'failed' ? <CloseCircleFilled /> : null}
+            </span>
+            <div className="pantheon-tool-trace-main">
+              <div className="pantheon-tool-trace-title">
+                <strong>{trace.toolName || '工具'}</strong>
+                <small>
+                  {trace.status === 'started' ? '执行中' : trace.status === 'failed' ? '失败' : '已完成'}
+                </small>
+                <time>{formatTime(trace.at)}</time>
+              </div>
+              {trace.input && <code>{trace.input}</code>}
+              {trace.error && <p className="pantheon-tool-trace-error">{trace.error}</p>}
+              {trace.output && (
+                <details>
+                  <summary>结果预览</summary>
+                  <pre>{trace.output}</pre>
+                </details>
+              )}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
+  )
+}
+
 export const PantheonRecord: React.FC<Props> = ({
   session,
   loading,
@@ -279,8 +432,12 @@ export const PantheonRecord: React.FC<Props> = ({
   const meta = statusMeta(session.status)
   const running = session.status === 'running'
   const streamRef = useRef<HTMLDivElement>(null)
+  const [collapsedSeats, setCollapsedSeats] = useState<Record<string, boolean>>({})
   const [inspectorCollapsed, setInspectorCollapsed] = useState(readInspectorCollapsed)
   const recentEvents = useMemo(() => [...(session.events ?? [])].reverse().slice(0, 14), [session.events])
+  const toggleSeatCollapsed = (seatId: string) => {
+    setCollapsedSeats((prev) => ({ ...prev, [seatId]: !prev[seatId] }))
+  }
   const toggleInspectorCollapsed = () => {
     setInspectorCollapsed((prev) => {
       const next = !prev
@@ -365,6 +522,16 @@ export const PantheonRecord: React.FC<Props> = ({
     }
     return [...byID.values()].slice(-40)
   }, [session.events, session.participants])
+  const tracesBySeat = useMemo(() => {
+    const bySeat = new Map<string, ToolTraceView[]>()
+    for (const trace of toolTraces) {
+      if (!trace.agentId) continue
+      const list = bySeat.get(trace.agentId)
+      if (list) list.push(trace)
+      else bySeat.set(trace.agentId, [trace])
+    }
+    return bySeat
+  }, [toolTraces])
   const streamItems = useMemo<StreamItem[]>(() => {
     const items: StreamItem[] = [
       ...displayOutputs.map((output): StreamItem => ({
@@ -643,6 +810,29 @@ export const PantheonRecord: React.FC<Props> = ({
                 </div>
               </details>
             ))}
+          </div>
+
+          {/* 四席独立窗口：固定一排两个（2×2），统一讨论流之下按时钟并陈 */}
+          <div
+            className={`pantheon-agent-windows${session.participants.some((item) => item.status === 'running') ? ' has-speaking' : ''}`}
+          >
+            {DISCUSSION_SLOTS.map((slot) => {
+              const participant = session.participants.find((item) => item.agentId === slot.id)
+              const outputs = displayOutputs.filter((item) => item.agentId === slot.id)
+              return (
+                <AgentOutputWindow
+                  key={slot.id}
+                  slot={slot}
+                  participant={participant}
+                  outputs={outputs}
+                  traces={tracesBySeat.get(slot.id) ?? []}
+                  facilitator={session.request.chairmanAgentId === slot.id}
+                  phase={session.phase}
+                  collapsed={Boolean(collapsedSeats[slot.id])}
+                  onToggleCollapsed={() => toggleSeatCollapsed(slot.id)}
+                />
+              )
+            })}
           </div>
         </section>
 

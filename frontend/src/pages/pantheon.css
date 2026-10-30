@@ -2049,198 +2049,213 @@
 }
 
 .pantheon-tool-trace-error {
-  margin: 0;
+  margin: 6px 0 0;
   color: var(--md-sys-color-destructive, var(--color-destructive));
-  font-size: 8.5px;
-}
-
-/* Seat-scoped tool trajectory: rendered inside each agent window. */
-.pantheon-seat-trace {
-  display: flex;
-  min-width: 0;
-  padding-top: 8px;
-  margin-top: 8px;
-  overflow: hidden;
-  flex-direction: column;
-  border-top: 1px solid var(--pantheon-line);
-}
-
-.pantheon-seat-trace-head {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding-bottom: 6px;
-  color: var(--pantheon-accent);
-  font-size: 9px;
-}
-
-.pantheon-seat-trace-head strong {
-  color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
-  font-size: 9.5px;
-  font-weight: 650;
-}
-
-.pantheon-seat-trace-head em {
-  margin-left: auto;
-  color: var(--pantheon-accent);
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 8px;
-  font-style: normal;
-}
-
-.pantheon-seat-trace-list {
-  max-height: 132px;
-  padding: 0;
-  margin: 0;
-  overflow: auto;
-  list-style: none;
-  scrollbar-width: thin;
-}
-
-.pantheon-seat-trace-fold {
-  padding: 6px 0;
-  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
-  font-size: 8.5px;
-  list-style: none;
-}
-
-.pantheon-seat-trace .pantheon-tool-trace-main > code {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pantheon-seat-trace .pantheon-tool-trace-main > details pre {
-  max-height: 110px;
-}
-
-.pantheon-shared-window {
-  margin-top: 12px;
-  padding: 12px;
-  border: 1px solid color-mix(in srgb, var(--pantheon-accent) 30%, var(--pantheon-line));
-  border-radius: var(--pantheon-control-radius);
-  background:
-    linear-gradient(135deg, var(--pantheon-accent-faint), transparent 50%),
-    color-mix(in srgb, var(--md-sys-color-bg-layout, var(--color-bg-layout)) 54%, transparent);
-}
-
-.pantheon-shared-window > header,
-.pantheon-agent-window > header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.pantheon-shared-window > header > span:last-child {
-  margin-left: auto;
-  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 8px;
-}
-
-.pantheon-window-mark {
-  display: grid;
-  width: 27px;
-  height: 27px;
-  place-items: center;
-  border: 1px solid color-mix(in srgb, var(--pantheon-accent) 42%, var(--pantheon-line));
-  border-radius: 8px;
-  color: var(--pantheon-accent);
-  font-family: var(--font-serif, "Noto Serif SC", "Songti SC", serif);
   font-size: 11px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
 }
 
-.pantheon-window-title {
+/* 统一讨论流：发言与工具轨迹合并为一条时间线（消息块+单行工具卡，
+   对齐 dsh 多团队/子代理线程的阅读密度；流本身不加盒子，靠消息块自带底色）。 */
+.pantheon-stream {
   display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.pantheon-window-title strong {
-  font-size: 10.5px;
-  font-weight: 650;
-}
-
-.pantheon-window-title small {
-  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
-  font-size: 8px;
-}
-
-.pantheon-shared-feed {
-  display: flex;
-  max-height: 310px;
-  padding-top: 10px;
-  margin-top: 10px;
-  overflow: auto;
+  padding: 4px 0 8px;
   flex-direction: column;
   gap: 10px;
-  border-top: 1px solid var(--pantheon-line);
-  scrollbar-width: thin;
 }
 
-.pantheon-shared-message {
+.pantheon-stream-message {
   display: grid;
   min-width: 0;
-  grid-template-columns: 27px minmax(0, 1fr);
+  grid-template-columns: 30px minmax(0, 1fr);
   align-items: start;
-  gap: 9px;
-  padding: 7px 8px 8px;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--pantheon-surface) 36%, transparent);
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--pantheon-line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--md-sys-color-surface-container, var(--bg-elevated)) 40%, transparent);
 }
 
-.pantheon-shared-message.is-streaming {
+/* 流式消息即运行席的实时高亮：accent 左边条 + shimmer 底。 */
+.pantheon-stream-message.is-streaming {
+  border-left: 2px solid var(--agent-accent, var(--pantheon-accent));
   background:
     linear-gradient(110deg, transparent 15%, var(--pantheon-accent-faint) 48%, transparent 78%),
-    color-mix(in srgb, var(--pantheon-surface) 52%, transparent);
+    color-mix(in srgb, var(--md-sys-color-surface-container, var(--bg-elevated)) 40%, transparent);
   background-size: 220% 100%;
   animation: pantheon-shimmer 2.2s linear infinite;
 }
 
-.pantheon-shared-avatar {
+.pantheon-stream-avatar {
   display: grid;
-  width: 27px;
-  height: 27px;
+  width: 30px;
+  height: 30px;
   place-items: center;
-  border: 1px solid var(--pantheon-line-strong);
-  border-radius: 8px;
-  color: var(--pantheon-accent);
+  border: 1px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 45%, var(--pantheon-line));
+  border-radius: 9px;
+  color: var(--agent-accent, var(--pantheon-accent));
   font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 700;
 }
 
-.pantheon-shared-message-body {
-  min-width: 0;
-}
-
-.pantheon-shared-message-body > header {
+.pantheon-stream-message-body {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 4px;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
 }
 
-.pantheon-shared-message-body strong {
+.pantheon-stream-message-body > header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.pantheon-stream-message-body strong {
   color: var(--md-sys-color-text, var(--color-text));
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 650;
 }
 
-.pantheon-shared-message-body small {
+.pantheon-stream-message-body > header small {
+  overflow: hidden;
   color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
-  font-size: 8px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.pantheon-shared-message-body p {
+.pantheon-stream-message-body p {
   margin: 0;
   overflow-wrap: anywhere;
   color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
-  font-size: 10px;
-  line-height: 1.72;
+  font-size: 12.5px;
+  line-height: 1.75;
   white-space: pre-wrap;
+}
+
+/* 工具卡：margin-left 40px = 头像 30px + 间距 10px，与消息正文列对齐。 */
+.pantheon-stream-tool {
+  min-width: 0;
+  margin-left: 40px;
+  overflow: hidden;
+  border: 1px solid var(--pantheon-line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--md-sys-color-bg-layout, var(--color-bg-layout)) 40%, transparent);
+}
+
+.pantheon-stream-tool > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.pantheon-stream-tool > summary::-webkit-details-marker {
+  display: none;
+}
+
+.pantheon-stream-tool-state {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 10px;
+}
+
+.pantheon-stream-tool.is-started .pantheon-stream-tool-state {
+  color: var(--pantheon-accent);
+  animation: pantheon-pulse 1.8s ease-in-out infinite;
+}
+
+.pantheon-stream-tool.is-completed .pantheon-stream-tool-state {
+  color: var(--md-sys-color-success, var(--color-success));
+}
+
+.pantheon-stream-tool.is-failed .pantheon-stream-tool-state,
+.pantheon-stream-tool.is-failed > summary strong {
+  color: var(--md-sys-color-destructive, var(--color-destructive));
+}
+
+.pantheon-stream-tool > summary strong {
+  overflow: hidden;
+  color: var(--md-sys-color-text, var(--color-text));
+  font-size: 11.5px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pantheon-stream-tool-seat {
+  flex: 0 0 auto;
+  max-width: 32%;
+  overflow: hidden;
+  color: var(--agent-accent, var(--pantheon-accent));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 9.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pantheon-stream-tool > summary small {
+  flex: 0 0 auto;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 9.5px;
+}
+
+.pantheon-stream-tool > summary time {
+  margin-left: auto;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.pantheon-stream-tool-detail {
+  min-width: 0;
+  padding: 0 10px 8px;
+}
+
+.pantheon-stream-tool-detail code {
+  display: block;
+  padding: 6px 8px;
+  margin-top: 6px;
+  overflow: hidden;
+  border-radius: 8px;
+  color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
+  background: color-mix(in srgb, var(--md-sys-color-bg-layout, var(--color-bg-layout)) 60%, transparent);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  line-height: 1.55;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pantheon-stream-tool-label {
+  display: block;
+  margin-top: 8px;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 9.5px;
+}
+
+.pantheon-stream-tool-detail pre {
+  max-height: 160px;
+  padding: 6px 8px;
+  margin: 6px 0 2px;
+  overflow: auto;
+  border-top: 1px solid var(--pantheon-line);
+  color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  scrollbar-width: thin;
 }
 
 .pantheon-stream-caret {
@@ -2253,18 +2268,20 @@
   animation: pantheon-pulse .9s ease-in-out infinite;
 }
 
+/* 四席独立窗口：固定一排两个（2×2），不随桌面宽度变 3/4 列或 1 列；
+   仅 ≤820px 降为单列（手机屏物理放不下两列）。 */
 .pantheon-agent-windows {
   display: grid;
-  margin-top: 8px;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
-  gap: 8px;
+  margin-top: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .pantheon-agent-window {
   display: flex;
   min-width: 0;
-  /* 2026-10-30 轨迹入窗后加高：feed(flex:1 滚动) + 轨迹列表(≤132px+头) 要同时放得下 */
-  max-height: 460px;
+  /* feed(flex:1 滚动) + 席内轨迹列表(≤132px+头) 要同时放得下 */
+  max-height: 480px;
   padding: 10px;
   overflow: hidden;
   flex-direction: column;
@@ -2310,7 +2327,10 @@
 }
 
 .pantheon-agent-window > header {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
+  gap: 8px;
   padding-bottom: 9px;
   margin-bottom: 8px;
   border-bottom: 1px solid var(--pantheon-line);
@@ -2321,13 +2341,48 @@
   align-items: center;
   margin-left: auto;
   color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
-  font-size: 8px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 9.5px;
 }
 
 .pantheon-agent-window.is-collapsed > header {
   padding-bottom: 0;
   margin-bottom: 0;
   border-bottom: 0;
+}
+
+.pantheon-live-seat-identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+}
+
+.pantheon-live-seat-identity .pantheon-seat-monogram {
+  width: 27px;
+  height: 27px;
+  border-radius: 8px;
+  font-size: 10px;
+}
+
+.pantheon-facilitator-mark {
+  display: inline-grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border-radius: 5px;
+  color: var(--pantheon-accent);
+  background: var(--pantheon-accent-faint);
+  font-size: 9px;
+}
+
+.pantheon-seat-pane-title {
+  overflow: hidden;
+  color: var(--md-sys-color-text, var(--color-text));
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pantheon-seat-collapse.ant-btn {
@@ -2383,20 +2438,21 @@
   gap: 8px;
   margin-bottom: 4px;
   color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
-  font-size: 8px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10px;
 }
 
 .pantheon-agent-message > header small {
   font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 7.5px;
+  font-size: 9.5px;
 }
 
 .pantheon-agent-message p {
   margin: 0;
   overflow-wrap: anywhere;
   color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
-  font-size: 9.5px;
-  line-height: 1.68;
+  font-size: 12px;
+  line-height: 1.7;
   white-space: pre-wrap;
 }
 
@@ -2406,7 +2462,93 @@
   gap: 6px;
   padding: 4px 2px;
   color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
-  font-size: 8.5px;
+  font-size: 9.5px;
+}
+
+.pantheon-seat-failed {
+  color: var(--md-sys-color-destructive, var(--color-destructive));
+  font-size: 9.5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* 席内工具轨迹：复用 .pantheon-tool-trace 结构，字号按窗口内阅读密度抬高。 */
+.pantheon-seat-trace {
+  display: flex;
+  min-width: 0;
+  padding-top: 8px;
+  margin-top: 8px;
+  overflow: hidden;
+  flex-direction: column;
+  border-top: 1px solid var(--pantheon-line);
+}
+
+.pantheon-seat-trace-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding-bottom: 6px;
+  color: var(--pantheon-accent);
+  font-size: 10px;
+}
+
+.pantheon-seat-trace-head strong {
+  color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.pantheon-seat-trace-head em {
+  margin-left: auto;
+  color: var(--pantheon-accent);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 9.5px;
+  font-style: normal;
+}
+
+.pantheon-seat-trace-list {
+  max-height: 132px;
+  padding: 0;
+  margin: 0;
+  overflow: auto;
+  list-style: none;
+  scrollbar-width: thin;
+}
+
+.pantheon-seat-trace-fold {
+  padding: 6px 0;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 9.5px;
+  list-style: none;
+}
+
+.pantheon-seat-trace .pantheon-tool-trace-title strong {
+  font-size: 11px;
+}
+
+.pantheon-seat-trace .pantheon-tool-trace-title small {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 9.5px;
+}
+
+.pantheon-seat-trace .pantheon-tool-trace-title time {
+  font-size: 9.5px;
+}
+
+.pantheon-seat-trace .pantheon-tool-trace-main > code {
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pantheon-seat-trace .pantheon-tool-trace-main > details summary {
+  font-size: 9.5px;
+}
+
+.pantheon-seat-trace .pantheon-tool-trace-main > details pre {
+  max-height: 140px;
+  font-size: 11px;
 }
 
 .pantheon-live-head {
@@ -2543,40 +2685,6 @@
   border-bottom: 1px solid var(--pantheon-line);
 }
 
-.pantheon-live-seat-identity {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 7px;
-}
-
-.pantheon-live-seat-identity .pantheon-seat-monogram {
-  width: 27px;
-  height: 27px;
-  border-radius: 8px;
-  font-size: 9px;
-}
-
-.pantheon-facilitator-mark {
-  display: inline-grid;
-  width: 18px;
-  height: 18px;
-  place-items: center;
-  border-radius: 5px;
-  color: var(--pantheon-accent);
-  background: var(--pantheon-accent-faint);
-  font-size: 9px;
-}
-
-.pantheon-seat-pane-title {
-  overflow: hidden;
-  color: var(--md-sys-color-text, var(--color-text));
-  font-size: 10.5px;
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .pantheon-seat-pane > header > small {
   color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
   font-size: 8.5px;
@@ -2641,7 +2749,6 @@
   font-size: 9.5px;
 }
 
-.pantheon-seat-failed,
 .pantheon-event-error {
   color: var(--md-sys-color-destructive, var(--color-destructive));
   font-size: 9.5px;
@@ -3430,6 +3537,11 @@
     grid-template-rows: auto minmax(0, 1fr);
   }
 
+  /* 手机屏物理放不下两列，四席窗口降为单列。 */
+  .pantheon-agent-windows {
+    grid-template-columns: 1fr;
+  }
+
   .pantheon-rail {
     max-height: 190px;
     border-right: 0;
@@ -3574,6 +3686,11 @@
     align-items: flex-start;
     flex-direction: column;
     gap: 7px;
+  }
+
+  /* 窄屏下工具卡不再缩进对齐消息正文列，占满整行。 */
+  .pantheon-stream-tool {
+    margin-left: 0;
   }
 
   .pantheon-seat-panes,
@@ -3748,10 +3865,6 @@
 
   .pantheon-workspace-option {
     min-width: 166px;
-  }
-
-  .pantheon-agent-windows {
-    grid-template-columns: 1fr;
   }
 
   .pantheon-inspector-order {
