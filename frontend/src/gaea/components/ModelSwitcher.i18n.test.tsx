@@ -1,10 +1,11 @@
 // v4.57 i18n 收尾冒烟 + v4.126 刀1/刀2 本地模型使用：ModelSwitcher 三语字典接线、
 // 按引擎分组（本地置前）、运行徽标、预估按目标模型传参、云端直切。
-// antd 静态 Modal.confirm 在 jsdom 下不渲染 → 用 spy 捕获 confirm 配置断言
-// 字典文案（zh 逐字 + en 抽查），并驱动 onOk/onCancel 钉回调路径。
+// v4.530 用户拍板「切换模型不要弹窗」：冷启动不再弹确认框——直接切换 + 非阻塞
+// message.info 告知预计等待。jsdom 下用 spy 捕获 message.info 配置断言字典文案
+// （zh 逐字 + en 抽查），并断言 onPick 立即生效（不等用户确认）。
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import { Modal } from "antd";
+import { message } from "antd";
 import { ModelSwitcher } from "./ModelSwitcher";
 import { LocaleProvider } from "../lib/i18n";
 
@@ -28,19 +29,18 @@ const renderT = async (ui: React.ReactNode, lang: "zh" | "en" = "zh") => {
   return render(<LocaleProvider>{ui}</LocaleProvider>);
 };
 
-// Modal.confirm 配置捕获：beforeEach 统一 spy，用例直接读 confirmCalls；
-// afterEach restore，避免用例间 mock 串扰（antd 静态弹层在 jsdom 不渲染）。
-type ConfirmConfig = { title: string; content: string; okText: string; cancelText: string; onOk?: () => void; onCancel?: () => void };
-let confirmCalls: ConfirmConfig[] = [];
+// message.info 捕获：beforeEach 统一 spy，用例直接读 noticeCalls。
+type NoticeCall = { content: string };
+let noticeCalls: NoticeCall[] = [];
 
 describe("ModelSwitcher i18n 冒烟", () => {
   beforeEach(() => {
     mocks.Models.mockReset();
     mocks.ModelSwitchEstimate.mockReset();
-    confirmCalls = [];
-    vi.spyOn(Modal, "confirm").mockImplementation(((config: ConfirmConfig) => {
-      confirmCalls.push(config);
-      return { destroy: () => {}, update: () => {} };
+    noticeCalls = [];
+    vi.spyOn(message, "info").mockImplementation(((content?: any) => {
+      noticeCalls.push({ content: String(content) });
+      return undefined as never;
     }) as never);
   });
   afterEach(() => {
@@ -56,41 +56,35 @@ describe("ModelSwitcher i18n 冒烟", () => {
     expect(await screen.findByText("未配置任何模型")).toBeTruthy();
   });
 
-  it("herdsman 冷启动：预估按目标模型传参，确认弹层文案走字典（zh），确认后回调 onPick", async () => {
+  it("herdsman 冷启动：预估按目标模型传参，不弹窗直接切换 + 非阻塞告知等待（zh），onPick 立即生效", async () => {
     mocks.Models.mockResolvedValue([{ ref: "herdsman/qwen3-32b", model: "qwen3-32b", local: true, current: true }]);
     mocks.ModelSwitchEstimate.mockResolvedValue({ status: "cold", waitSeconds: 20, note: "" });
     const onPick = vi.fn();
     renderT(<ModelSwitcher label="" onPick={onPick} />);
     fireEvent.click(screen.getByTitle("切换模型"));
     fireEvent.click(await screen.findByText("qwen3-32b"));
-    await vi.waitFor(() => expect(confirmCalls).toHaveLength(1));
+    // 不再弹确认框：立即切换。
+    await vi.waitFor(() => expect(onPick).toHaveBeenCalledWith("herdsman/qwen3-32b"));
     // 刀2：预估带目标模型（不再只按引擎默认模型口径）。
     expect(mocks.ModelSwitchEstimate).toHaveBeenCalledWith("herdsman", "qwen3-32b");
-    const config = confirmCalls[0];
-    expect(config.title).toBe("切换本地模型");
-    expect(config.content).toBe("herdsman/qwen3-32b 未在运行（需冷启动）。\n预计等待 20 秒，确定继续切换吗？");
-    expect(config.okText).toBe("继续切换");
-    expect(config.cancelText).toBe("取消");
-    config.onOk?.();
-    await vi.waitFor(() => expect(onPick).toHaveBeenCalledWith("herdsman/qwen3-32b"));
+    // 非阻塞 toast 告知冷启动等待，文案走字典。
+    await vi.waitFor(() => expect(noticeCalls).toHaveLength(1));
+    expect(noticeCalls[0].content).toBe("已切换 herdsman/qwen3-32b（需冷启动），预计等待 20 秒。");
   });
 
-  it("en 抽查：确认弹层标题/按钮渲染英文键值；取消则不切换", async () => {
+  it("en 抽查：冷启动提示渲染英文键值，切换照常立即生效", async () => {
     mocks.Models.mockResolvedValue([{ ref: "herdsman/qwen3-32b", model: "qwen3-32b", local: true, current: false }]);
     mocks.ModelSwitchEstimate.mockResolvedValue({ status: "cold", waitSeconds: 0, note: "" });
     const onPick = vi.fn();
     await renderT(<ModelSwitcher label="" onPick={onPick} />, "en");
     fireEvent.click(screen.getByTitle("Switch model"));
     fireEvent.click(await screen.findByText("qwen3-32b"));
-    await vi.waitFor(() => expect(confirmCalls).toHaveLength(1));
-    const config = confirmCalls[0];
-    expect(config.title).toBe("Switch local model");
-    expect(config.okText).toBe("Switch anyway");
-    config.onCancel?.();
-    await vi.waitFor(() => expect(onPick).not.toHaveBeenCalled());
+    await vi.waitFor(() => expect(onPick).toHaveBeenCalledWith("herdsman/qwen3-32b"));
+    await vi.waitFor(() => expect(noticeCalls).toHaveLength(1));
+    expect(noticeCalls[0].content).toBe("Switched to herdsman/qwen3-32b (cold start required); this will take a moment.");
   });
 
-  it("云端模型直接切换（无确认弹层、不发预估）", async () => {
+  it("云端模型直接切换（无提示、不发预估）", async () => {
     mocks.Models.mockResolvedValue([{ ref: "xai/grok-5", model: "grok-5", current: false }]);
     const onPick = vi.fn();
     renderT(<ModelSwitcher label="" onPick={onPick} />);
@@ -98,7 +92,7 @@ describe("ModelSwitcher i18n 冒烟", () => {
     fireEvent.click(await screen.findByText("grok-5"));
     await vi.waitFor(() => expect(onPick).toHaveBeenCalledWith("xai/grok-5"));
     expect(mocks.ModelSwitchEstimate).not.toHaveBeenCalled();
-    expect(confirmCalls).toHaveLength(0);
+    expect(noticeCalls).toHaveLength(0);
   });
 
   it("刀1 分组：本地引擎组置前且带「本地」标，组内条目按引擎聚拢；运行中徽标", async () => {
@@ -120,7 +114,7 @@ describe("ModelSwitcher i18n 冒烟", () => {
     // 序断言：ollama 组条目先于 xai 条目出现（本地置前）。
     const items = [...screen.getAllByRole("option")].map((el) => el.textContent);
     expect(items.findIndex((s) => s?.includes("q3:8b"))).toBeLessThan(items.findIndex((s) => s?.includes("grok-4.20")));
-    // 点选未加载的本地模型：走预估确认，展示名/模型名文本可点。
+    // 点选未加载的本地模型：走预估（hot 即静默直切），展示名/模型名文本可点。
     mocks.ModelSwitchEstimate.mockResolvedValue({ status: "hot", waitSeconds: 1, note: "模型已加载" });
     fireEvent.click(screen.getByText("q3:14b"));
     await vi.waitFor(() => expect(onPick).toHaveBeenCalledWith("ollama/q3:14b"));

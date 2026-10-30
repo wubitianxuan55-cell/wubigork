@@ -1514,9 +1514,7 @@ export const en = {
   // ── v4.57 i18n 收尾：ModelSwitcher ──
   "model.waitSeconds": "Estimated wait {n} s",
   "model.takeTime": "this will take a moment",
-  "model.switchTitle": "Switch local model",
-  "model.switchAsk": "{name} is not running ({note}).\n{wait} — switch anyway?",
-  "model.switchOk": "Switch anyway",
+  "model.switchNotice": "Switched to {name} ({note}); {wait}.",
   "model.needColdStart": "cold start required",
   "model.localTag": "local",
   "model.running": "running",

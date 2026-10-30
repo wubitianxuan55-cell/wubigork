@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Modal } from "antd";
+import { message } from "antd";
 import { Check, ChevronsUpDown } from "../icons";
 import { app } from "../lib/bridge";
 import { useT } from "../lib/i18n";
@@ -8,7 +8,8 @@ import type { ModelInfo } from "../lib/types";
 // ModelSwitcher is the header model picker: the model label becomes a button
 // that opens a dropdown listing configured providers. v4.126 刀1 起按引擎展开
 // 全部对话模型：本地引擎分组置前（组名带「本地」标）、条目带加载态徽标；
-// 换模预估（刀2）按目标模型询问后端，本地引擎非 hot 时确认后再切。
+// 换模预估（刀2）按目标模型询问后端。v4.530 起——用户拍板「切换模型不要
+// 弹窗」：冷启动不再弹确认框，直接切换 + 非阻塞 toast 告知预计等待。
 // When allowInherit is true and the selected value is empty, the button shows
 // inheritLabel and the dropdown includes an "inherit" option at the top.
 export function ModelSwitcher({
@@ -73,8 +74,8 @@ export function ModelSwitcher({
     ];
   }, [models]);
 
-  // 本地引擎换模前先做预估：非 hot（未运行/未加载）时提示预计等待，
-  // 用户确认「继续切换」才真正切模型，避免切过去后长时间卡在冷启动/下载。
+  // 本地引擎换模仍先做预估：非 hot（未运行/未加载）时切换照常立即生效，
+  // 但用非阻塞 toast 告知预计等待——不再弹确认框打断（用户拍板）。
   const pick = async (name: string) => {
     setOpen(false);
     const slash = name.indexOf("/");
@@ -92,17 +93,8 @@ export function ModelSwitcher({
         return;
       }
       const waitText = est.waitSeconds > 0 ? t("model.waitSeconds", { n: est.waitSeconds }) : t("model.takeTime");
-      const ok = await new Promise<boolean>((resolve) => {
-        Modal.confirm({
-          title: t("model.switchTitle"),
-          content: t("model.switchAsk", { name, note: est.note || t("model.needColdStart"), wait: waitText }),
-          okText: t("model.switchOk"),
-          cancelText: t("common.cancel"),
-          onOk: () => resolve(true),
-          onCancel: () => resolve(false),
-        });
-      });
-      if (ok) onPick(name);
+      onPick(name);
+      message.info(t("model.switchNotice", { name, note: est.note || t("model.needColdStart"), wait: waitText }));
     } catch {
       // 预估失败（如后端暂未实现）：不阻塞用户，照常切换
       onPick(name);

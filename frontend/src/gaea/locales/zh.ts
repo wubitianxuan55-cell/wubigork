@@ -1514,9 +1514,7 @@ export const zh: Record<DictKey, string> = {
   // ── v4.57 i18n 收尾：ModelSwitcher ──
   "model.waitSeconds": "预计等待 {n} 秒",
   "model.takeTime": "需要一些时间",
-  "model.switchTitle": "切换本地模型",
-  "model.switchAsk": "{name} 未在运行（{note}）。\n{wait}，确定继续切换吗？",
-  "model.switchOk": "继续切换",
+  "model.switchNotice": "已切换 {name}（{note}），{wait}。",
   "model.needColdStart": "需冷启动",
   "model.localTag": "本地",
   "model.running": "运行中",
