@@ -1,5 +1,5 @@
 import { afterEach } from 'vitest'
-import { cleanup, configure } from '@testing-library/react'
+import { act, cleanup, configure } from '@testing-library/react'
 
 // 门禁可信化（2026-09-10）：@testing-library/dom 的等待预算默认 1000ms，
 // 满负载下查询会被饿死而假红。放宽到 5s（仍有上界，真回归照样红）；
@@ -70,7 +70,13 @@ if (typeof window !== 'undefined' && typeof Element !== 'undefined' && typeof (E
   (Element.prototype as { scrollIntoView: () => void }).scrollIntoView = () => {}
 }
 
-afterEach(() => {
+afterEach(async () => {
+  // 冲刷并发调度器里未落地的 commit：重组件测试的延迟 setState 若在本文件
+  // jsdom 环境拆除后才 flush，react-dom 会在无 window 的环境里 commit
+  // （unhandled error → 全量 vitest 进程退 1 且报告不落盘）。远端 CI 实锤
+  // 轮换族：PromptWorkshopPanel / useImageGenHistory / ModelCenterPage.failover
+  // （2026-10-30）——文件级各补不如此处统一冲刷。
+  await act(async () => {})
   cleanup()
   // 注意（2026-09-10 实测）：不要在这里 document.body.innerHTML = ''。
   // 用例超时后迟到的 render 确实会残留到下一个用例（表现为
