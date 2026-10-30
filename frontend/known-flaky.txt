@@ -14,3 +14,12 @@
 # vite.config 注释里 ContextView 族同因。登记后 CI 分类器自动隔离复跑。
 src/pages/sin/SinBookSourcePanel.test.tsx
 src/gaea/components/GitPanel.test.tsx
+
+# 2026-10-30 深夜第二族：跨环境拆除 commit（重组建模态/异步尾流在 jsdom 拆除后
+# 才 flush → window undefined unhandled error，满载下逐轮换文件、隔离复跑均绿）。
+# 不能直接修的原因：commit 排程落在环境拆除期是 vitest+jsdom 的生态时序问题，
+# 文件内 afterEach/afterAll 冲刷均已尝试（setup.ts 全局冲刷已覆盖大半家族），
+# 剩余尾流只能靠隔离复跑兜底。
+src/gaea/components/Transcript.interaction.test.tsx
+# 满载 worker 饥饿超时族（5.5s 断言超时、隔离复跑绿），同 ContextView 族。
+src/pages/NovelSettingPage.test.tsx

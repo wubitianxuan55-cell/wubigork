@@ -1,4 +1,4 @@
-import { afterEach } from 'vitest'
+import { afterAll, afterEach } from 'vitest'
 import { act, cleanup, configure } from '@testing-library/react'
 
 // 门禁可信化（2026-09-10）：@testing-library/dom 的等待预算默认 1000ms，
@@ -84,4 +84,11 @@ afterEach(async () => {
   // 模块级单例：清空 body 会让后续所有 toast 落进游离节点，
   // 一次清空实测造成 14 例「找不到提示文案」假红。残留问题改由
   // vite.config.ts 的 maxWorkers/预算收紧从源头消除（超时不再发生）。
+})
+
+// 文件级收尾再冲一次：最后一条用例断言之后才排程的 setState（如 Transcript
+// 族），afterEach 冲不到——若留到 jsdom 环境拆除后才 flush，react-dom 会在
+// 无 window 的环境里 commit（unhandled error → 全量进程退 1，远端实锤）。
+afterAll(async () => {
+  await act(async () => {})
 })
