@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { Modal } from 'antd'
 import PantheonPage from './PantheonPage'
 import type { PantheonAgentStatus, PantheonSession } from './pantheon/types'
@@ -504,7 +504,7 @@ describe('PantheonPage', () => {
     expect(screen.queryByTestId('pantheon-session-pan_finished')).toBeNull()
   })
 
-  it('运行期按席位实时展示各席观点，汇总时间线不再摊全文', async () => {
+  it('运行期讨论流按时间线合并各席观点，汇总时间线不再摊全文', async () => {
     const now = Date.now()
     const running = sessionFixture({
       phase: 'opening',
@@ -541,24 +541,28 @@ describe('PantheonPage', () => {
     render(<PantheonPage />)
     fireEvent.click(await screen.findByTestId('pantheon-session-pan_test'))
 
-    const grokPane = await screen.findByTestId('pantheon-live-seat-grok')
-    expect(grokPane.textContent).toContain('先做只读验证')
-    expect(screen.getByTestId('pantheon-live-seat-codex').textContent).toContain('必须设超时')
-    expect(screen.getByText('共享观点池')).toBeTruthy()
-    expect(screen.getByTestId('pantheon-live-seat-zcode')).toBeTruthy()
-    expect(screen.getByTestId('pantheon-live-seat-dsh').textContent).toContain('未参与本次讨论')
+    const stream = await screen.findByTestId('pantheon-stream')
+    expect(stream.textContent).toContain('先做只读验证')
+    expect(stream.textContent).toContain('必须设超时')
+    // 两席发言都落在统一讨论流里，按发生时刻排序
+    expect(screen.getByTestId('pantheon-shared-message-event-2').textContent).toContain('Grok')
+    expect(screen.getByTestId('pantheon-shared-message-event-3').textContent).toContain('Codex')
+    const streamChildren = Array.from(stream.children)
+    expect(
+      streamChildren.indexOf(screen.getByTestId('pantheon-shared-message-event-2')),
+    ).toBeLessThan(
+      streamChildren.indexOf(screen.getByTestId('pantheon-shared-message-event-3')),
+    )
     expect(screen.getByLabelText('本轮发言顺序').textContent).toContain('Grok')
     const settings = screen.getByRole('complementary', { name: '讨论纪要摘要' })
     expect(settings.textContent).toContain('讨论范围')
     expect(settings.textContent).toContain('参与者')
     expect(settings.textContent).toContain('发言顺序')
-    // 汇总时间线指向独立窗口，不重复摊全文
-    expect(screen.getAllByText(/全文见参与者独立窗口/).length).toBe(2)
-    // 主持席带皇冠
-    expect(grokPane.querySelector('.pantheon-facilitator-mark')).toBeTruthy()
+    // 汇总时间线指向讨论流，不重复摊全文
+    expect(screen.getAllByText(/全文见讨论流/).length).toBe(2)
   })
 
-  it('运行期工具轨迹并入席位窗口并合并开始与结果，独立轨迹窗口撤除', async () => {
+  it('运行期工具轨迹并入讨论流并合并开始与结果，独立轨迹窗口撤除', async () => {
     const now = Date.now()
     const running = sessionFixture({
       phase: 'opening',
@@ -607,21 +611,21 @@ describe('PantheonPage', () => {
 
     render(<PantheonPage />)
     fireEvent.click(await screen.findByTestId('pantheon-session-pan_test'))
-    const codexPane = await screen.findByTestId('pantheon-live-seat-codex')
+    const stream = await screen.findByTestId('pantheon-stream')
     const trace = await screen.findByTestId('pantheon-tool-tool_1')
-    expect(codexPane.contains(trace)).toBe(true)
-    expect(codexPane.textContent).toContain('工具轨迹')
+    expect(stream.contains(trace)).toBe(true)
     expect(trace.textContent).toContain('命令')
     expect(trace.textContent).toContain('rg --files')
     expect(trace.textContent).toContain('结果预览')
     expect(trace.textContent).toContain('README.md')
+    expect(trace.textContent).toContain('Codex')
     // 独立轨迹窗口不再渲染
     expect(screen.queryByTestId('pantheon-tool-trajectory')).toBeNull()
-    // 无轨迹的席位不出现轨迹区
-    expect(within(screen.getByTestId('pantheon-live-seat-grok')).queryByText('工具轨迹')).toBeNull()
+    // 无轨迹的席位在流里没有工具行：全流只有 tool_1 一张工具卡
+    expect(stream.querySelectorAll('[data-testid^="pantheon-tool-"]').length).toBe(1)
   })
 
-  it('发言席高亮：窗口进入 running 强调态，其余席退暗，名单行标记发言中', async () => {
+  it('发言席高亮：讨论流在席，发言顺序队列与右栏名单标记发言中', async () => {
     const running = sessionFixture({
       participants: sessionFixture().participants.map((participant) => ({
         ...participant,
@@ -642,15 +646,8 @@ describe('PantheonPage', () => {
     render(<PantheonPage />)
     fireEvent.click(await screen.findByTestId('pantheon-session-pan_test'))
 
-    const codexPane = await screen.findByTestId('pantheon-live-seat-codex')
-    expect(codexPane.className).toContain('is-running')
-    // 头部带脉冲直播点
-    expect(codexPane.querySelector('.pantheon-seat-live-dot')).toBeTruthy()
-    const grid = document.querySelector('.pantheon-agent-windows')
-    expect(grid?.className).toContain('has-speaking')
-    // 非发言席不进强调态
-    expect(screen.getByTestId('pantheon-live-seat-grok').className).toContain('is-waiting')
-    expect(screen.getByTestId('pantheon-live-seat-grok').className).not.toContain('is-running')
+    // 统一讨论流在席（无发言内容时为空态）
+    expect(await screen.findByTestId('pantheon-stream')).toBeTruthy()
     // 右栏参与者名单：发言行带 is-speaking
     const speakingRow = document.querySelector('.pantheon-seat-list li.is-speaking')
     expect(speakingRow?.textContent).toContain('Codex')
@@ -689,54 +686,6 @@ describe('PantheonPage', () => {
     const settings = screen.getByRole('complementary', { name: '讨论纪要摘要' })
     expect(settings.textContent).toContain('讨论范围')
     expect(window.localStorage.getItem('gaea.pantheon.inspector-collapsed')).toBe('0')
-  })
-
-  it('席位窗口可折叠只留头部，再点展开恢复', async () => {
-    const now = Date.now()
-    const running = sessionFixture({
-      phase: 'opening',
-      events: [
-        {
-          seq: 1, sessionId: 'pan_test', phase: 'opening', kind: 'phase',
-          text: '开始开场陈述', at: now - 4000,
-        },
-        {
-          seq: 2, sessionId: 'pan_test', phase: 'opening', round: 1, kind: 'agent_output',
-          agentId: 'codex', text: '结论：验证可行，但必须设超时。', at: now - 1000, durationMs: 22400,
-        },
-      ],
-      participants: [
-        { agentId: 'grok', name: 'Grok', role: 'participant', status: 'finished' },
-        { agentId: 'codex', name: 'Codex', role: 'participant', status: 'running' },
-      ],
-    })
-    mocks.list.mockResolvedValue([{
-      id: running.id,
-      title: running.title,
-      status: running.status,
-      phase: running.phase,
-      createdAt: running.createdAt,
-      updatedAt: running.updatedAt,
-      agentCount: running.participants.length,
-    }])
-    mocks.get.mockResolvedValue(running)
-
-    render(<PantheonPage />)
-    fireEvent.click(await screen.findByTestId('pantheon-session-pan_test'))
-    const codexPane = await screen.findByTestId('pantheon-live-seat-codex')
-    expect(codexPane.textContent).toContain('必须设超时')
-
-    const collapse = screen.getByTestId('pantheon-seat-collapse-codex')
-    expect(collapse.getAttribute('aria-expanded')).toBe('true')
-    fireEvent.click(collapse)
-    // 折叠后只留头部：席位名仍在，feed 内容消失
-    expect(codexPane.textContent).toContain('Codex')
-    expect(codexPane.textContent).not.toContain('必须设超时')
-    expect(collapse.getAttribute('aria-expanded')).toBe('false')
-
-    fireEvent.click(collapse)
-    expect(codexPane.textContent).toContain('必须设超时')
-    expect(collapse.getAttribute('aria-expanded')).toBe('true')
   })
 
   it('已结束会话的右侧面板同样展示运行时间线', async () => {

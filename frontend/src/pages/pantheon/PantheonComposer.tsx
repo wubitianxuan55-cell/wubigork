@@ -52,12 +52,6 @@ function agentToolLabel(agent: PantheonAgentStatus): string {
   return '只读工具'
 }
 
-function agentToolDetail(agent: PantheonAgentStatus): string {
-  if (agent.id === 'grok') return 'Gaea 办公工具；只读轨迹实时可见'
-  if (agent.id === 'zcode') return 'Plan 模式工具；轨迹实时可见'
-  return '只读工具；轨迹实时可见'
-}
-
 // 对话式开议：主输入即议题，其余全部渐进披露（材料/背景/成功标准/标题按需
 // 展开），席位压成一行胶囊。字段与提交契约和旧表单版完全一致。
 export const PantheonComposer: React.FC<Props> = ({
@@ -303,45 +297,35 @@ export const PantheonComposer: React.FC<Props> = ({
           {agents.map((agent) => {
             const active = selected.includes(agent.id)
             return (
-              <Tooltip
+              <button
                 key={agent.id}
-                title={agent.available
-                  ? [
-                      agent.executable || agent.version || agent.kind,
-                      agentToolDetail(agent),
-                      agent.capabilities?.join(' · '),
-                    ].filter(Boolean).join(' · ')
-                  : agent.reason || '不可用'}
+                type="button"
+                data-testid={`pantheon-agent-${agent.id}`}
+                aria-pressed={active}
+                className={`pantheon-seat-chip${active ? ' is-selected' : ''}${agent.available ? '' : ' is-disabled'}`}
+                disabled={!agent.available || busy}
+                onClick={() => toggleAgent(agent.id)}
+                style={{ '--agent-accent': AGENT_ACCENTS[agent.id] || 'var(--pantheon-accent)' } as React.CSSProperties}
               >
-                <button
-                  type="button"
-                  data-testid={`pantheon-agent-${agent.id}`}
-                  aria-pressed={active}
-                  className={`pantheon-seat-chip${active ? ' is-selected' : ''}${agent.available ? '' : ' is-disabled'}`}
-                  disabled={!agent.available || busy}
-                  onClick={() => toggleAgent(agent.id)}
-                  style={{ '--agent-accent': AGENT_ACCENTS[agent.id] || 'var(--pantheon-accent)' } as React.CSSProperties}
-                >
-                  <span className="pantheon-seat-monogram" aria-hidden>
-                    {agent.name.slice(0, 1).toUpperCase()}
+                <span className="pantheon-seat-monogram" aria-hidden>
+                  {agent.name.slice(0, 1).toUpperCase()}
+                </span>
+                <span className="pantheon-seat-chip-copy">
+                  <strong>{agent.name}</strong>
+                  <small>
+                    {chairman === agent.id && active
+                      ? `负责汇总 · ${agentToolLabel(agent)}`
+                      : agent.available
+                        ? agentToolLabel(agent)
+                        : agent.reason || '未就绪'}
+                  </small>
+                </span>
+                {active && (
+                  <span className="pantheon-seat-order" aria-label={`第 ${selected.indexOf(agent.id) + 1} 位`}>
+                    {String(selected.indexOf(agent.id) + 1).padStart(2, '0')}
                   </span>
-                  <span className="pantheon-seat-chip-copy">
-                    <strong>{agent.name}</strong>
-                    <small>
-                      {chairman === agent.id && active
-                        ? `负责汇总 · ${agentToolLabel(agent)}`
-                        : agent.available
-                          ? agentToolLabel(agent)
-                          : '未就绪'}
-                    </small>
-                  </span>
-                  {active && (
-                    <span className="pantheon-seat-order" aria-label={`第 ${selected.indexOf(agent.id) + 1} 位`}>
-                      {String(selected.indexOf(agent.id) + 1).padStart(2, '0')}
-                    </span>
-                  )}
-                </button>
-              </Tooltip>
+                )}
+              </button>
             )
           })}
         </div>
