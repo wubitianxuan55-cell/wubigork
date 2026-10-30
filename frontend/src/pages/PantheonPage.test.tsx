@@ -819,9 +819,16 @@ describe('PantheonPage', () => {
 
   it('Agent 路径通过页面弹窗设置，不调用被禁用的 window.prompt', async () => {
     const prompt = vi.spyOn(window, 'prompt')
+    // 只有离线（标「设置」）的 agent 卡才进路径配置；就绪卡纯状态展示不弹窗。
+    const agents = AGENTS.map((agent) => (
+      agent.id === 'codex' ? { ...agent, available: false, reason: '未找到 codex 命令' } : agent
+    ))
+    mocks.agents.mockResolvedValue(agents)
     render(<PantheonPage />)
 
-    fireEvent.click(await screen.findByTitle('Codex 1.0'))
+    fireEvent.click(await screen.findByTestId('pantheon-agent-mini-zcode'))
+    expect(screen.queryByLabelText('Agent 可执行文件路径')).toBeNull()
+    fireEvent.click(screen.getByTestId('pantheon-agent-mini-codex'))
     const input = await screen.findByLabelText('Agent 可执行文件路径')
     fireEvent.change(input, { target: { value: 'C:\\Tools\\codex.exe' } })
     fireEvent.click(screen.getByRole('button', { name: '保存路径' }))

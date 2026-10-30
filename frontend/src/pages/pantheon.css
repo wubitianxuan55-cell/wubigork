@@ -613,6 +613,17 @@
   cursor: default;
 }
 
+/* 就绪/内置卡是纯状态展示（disabled）：不弹悬停层不弹配置窗，视觉不弱化。 */
+.pantheon-agent-mini button:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.pantheon-agent-mini button:disabled:hover {
+  border-color: var(--pantheon-line);
+  background: color-mix(in srgb, var(--pantheon-surface) 58%, transparent);
+}
+
 /* Canvas and page rhythm. */
 .pantheon-canvas {
   position: relative;

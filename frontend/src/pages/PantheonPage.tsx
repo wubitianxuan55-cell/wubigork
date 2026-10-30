@@ -812,17 +812,17 @@ const PantheonPage: React.FC = () => {
           <div className="pantheon-agent-mini">
             {agents.map((agent) => {
               const fixed = agent.id === 'grok'
+              // 就绪/内置卡纯状态展示：不弹悬停层、点击不弹配置窗（用户拍板
+              // 「切换 agent 不要弹窗」）；只有标「设置」的离线卡才进路径配置。
+              const configurable = !fixed && !agent.available
               return (
                 <button
                   key={agent.id}
                   type="button"
-                  title={
-                    fixed
-                      ? `${agent.name} 由 Gaea 办公 AgentRunner 驱动，无需配置路径${agent.reason ? `（${agent.reason}）` : ''}`
-                      : agent.reason || `${agent.name} ${agent.version || ''}`
-                  }
+                  data-testid={`pantheon-agent-mini-${agent.id}`}
                   className={`${agent.available ? 'is-ready' : 'is-missing'}${fixed ? ' is-fixed' : ''}`}
-                  onClick={() => { if (!fixed) openAgentPath(agent) }}
+                  disabled={!configurable}
+                  onClick={() => { if (configurable) openAgentPath(agent) }}
                 >
                   <span>{agent.name.slice(0, 1).toUpperCase()}</span>
                   <small>{agent.available ? '就绪' : fixed ? '内置' : '设置'}</small>
