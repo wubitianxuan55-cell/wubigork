@@ -295,7 +295,12 @@ const AgentOutputWindow: React.FC<{
             </span>
           )}
         </span>
-        <small>{status}</small>
+        <small>
+          {participant?.status === 'running' && (
+            <span className="pantheon-live-dot pantheon-seat-live-dot" aria-hidden />
+          )}
+          {status}
+        </small>
         <Button
           type="text"
           size="small"
@@ -700,12 +705,11 @@ export const PantheonRecord: React.FC<Props> = ({
               <ol>
                 {speakingOrder.map((agentID, index) => {
                   const participant = session.participants.find((item) => item.agentId === agentID)
+                  const speaking = participant?.status === 'running'
                   return (
-                    <li
-                      key={agentID}
-                      className={participant?.status === 'running' ? 'is-speaking' : ''}
-                    >
+                    <li key={agentID} className={speaking ? 'is-speaking' : ''}>
                       <small>{String(index + 1).padStart(2, '0')}</small>
+                      {speaking && <span className="pantheon-live-dot pantheon-queue-live-dot" aria-hidden />}
                       <span>{participant?.name || agentID}</span>
                     </li>
                   )
@@ -754,7 +758,9 @@ export const PantheonRecord: React.FC<Props> = ({
             </div>
           </article>
 
-          <div className="pantheon-agent-windows">
+          <div
+            className={`pantheon-agent-windows${session.participants.some((item) => item.status === 'running') ? ' has-speaking' : ''}`}
+          >
             {DISCUSSION_SLOTS.map((slot) => {
               const participant = session.participants.find((item) => item.agentId === slot.id)
               const outputs = displayOutputs.filter((item) => item.agentId === slot.id)
@@ -822,7 +828,10 @@ export const PantheonRecord: React.FC<Props> = ({
               {DISCUSSION_SLOTS.map((slot) => {
                 const participant = session.participants.find((item) => item.agentId === slot.id)
                 return (
-                  <li key={slot.id} className={participant ? '' : 'is-absent'}>
+                  <li
+                    key={slot.id}
+                    className={`${participant ? '' : 'is-absent'}${participant?.status === 'running' ? ' is-speaking' : ''}`}
+                  >
                     <span className={`pantheon-seat-dot${participant ? ` is-${participant.status}` : ''}`} />
                     <span>{participant?.name || slot.name}</span>
                     <small>

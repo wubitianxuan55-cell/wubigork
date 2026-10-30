@@ -2271,11 +2271,33 @@
   border: 1px solid var(--pantheon-line);
   border-radius: var(--pantheon-control-radius);
   background: color-mix(in srgb, var(--md-sys-color-bg-layout, var(--color-bg-layout)) 44%, transparent);
+  transition: opacity 320ms ease, border-color 320ms ease, box-shadow 320ms ease;
 }
 
+/* 谁发言谁高亮：发言席=accent 描边+外辉光+暖底；其余席在 has-speaking 下退暗。 */
 .pantheon-agent-window.is-running {
-  border-color: color-mix(in srgb, var(--pantheon-accent) 42%, var(--pantheon-line));
-  box-shadow: inset 0 1px 0 var(--pantheon-accent-soft);
+  border-color: color-mix(in srgb, var(--pantheon-accent) 58%, var(--pantheon-line));
+  background:
+    linear-gradient(165deg, var(--pantheon-accent-faint), transparent 44%),
+    color-mix(in srgb, var(--md-sys-color-bg-layout, var(--color-bg-layout)) 44%, transparent);
+  box-shadow:
+    inset 0 1px 0 var(--pantheon-accent-soft),
+    0 0 0 1px color-mix(in srgb, var(--pantheon-accent) 24%, transparent),
+    0 10px 30px var(--pantheon-accent-faint);
+}
+
+.pantheon-agent-window.is-running .pantheon-seat-monogram {
+  border-color: color-mix(in srgb, var(--pantheon-accent) 58%, transparent);
+  background: var(--pantheon-accent-soft);
+  color: var(--pantheon-accent-strong);
+}
+
+.pantheon-agent-windows.has-speaking .pantheon-agent-window:not(.is-running) {
+  opacity: .74;
+}
+
+.pantheon-seat-live-dot {
+  margin: 0 5px 2px 0;
 }
 
 .pantheon-agent-window.is-failed {
@@ -2295,6 +2317,8 @@
 }
 
 .pantheon-agent-window > header > small {
+  display: inline-flex;
+  align-items: center;
   margin-left: auto;
   color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
   font-size: 8px;
@@ -2447,6 +2471,10 @@
   border-color: color-mix(in srgb, var(--pantheon-accent) 45%, var(--pantheon-line));
   color: var(--md-sys-color-text, var(--color-text));
   background: var(--pantheon-accent-faint);
+}
+
+.pantheon-queue-live-dot {
+  margin: 0 0 2px;
 }
 
 .pantheon-live-dot {
@@ -3089,6 +3117,12 @@
   opacity: .48;
 }
 
+/* 右栏参与者名单里的发言席：名字提亮，圆点已由 is-running 脉冲。 */
+.pantheon-seat-list li.is-speaking > span:nth-child(2) {
+  color: var(--pantheon-accent-strong);
+  font-weight: 650;
+}
+
 .pantheon-seat-dot {
   width: 6px;
   height: 6px;
@@ -3098,6 +3132,8 @@
 
 .pantheon-seat-dot.is-running {
   background: var(--pantheon-accent);
+  box-shadow: 0 0 0 3px var(--pantheon-accent-soft);
+  animation: pantheon-pulse 1.8s ease-in-out infinite;
 }
 
 .pantheon-seat-dot.is-finished {

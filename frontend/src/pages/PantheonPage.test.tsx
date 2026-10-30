@@ -621,6 +621,45 @@ describe('PantheonPage', () => {
     expect(within(screen.getByTestId('pantheon-live-seat-grok')).queryByText('工具轨迹')).toBeNull()
   })
 
+  it('发言席高亮：窗口进入 running 强调态，其余席退暗，名单行标记发言中', async () => {
+    const running = sessionFixture({
+      participants: sessionFixture().participants.map((participant) => ({
+        ...participant,
+        status: participant.agentId === 'codex' ? 'running' : 'waiting',
+      })),
+    })
+    mocks.list.mockResolvedValue([{
+      id: running.id,
+      title: running.title,
+      status: running.status,
+      phase: running.phase,
+      createdAt: running.createdAt,
+      updatedAt: running.updatedAt,
+      agentCount: running.participants.length,
+    }])
+    mocks.get.mockResolvedValue(running)
+
+    render(<PantheonPage />)
+    fireEvent.click(await screen.findByTestId('pantheon-session-pan_test'))
+
+    const codexPane = await screen.findByTestId('pantheon-live-seat-codex')
+    expect(codexPane.className).toContain('is-running')
+    // 头部带脉冲直播点
+    expect(codexPane.querySelector('.pantheon-seat-live-dot')).toBeTruthy()
+    const grid = document.querySelector('.pantheon-agent-windows')
+    expect(grid?.className).toContain('has-speaking')
+    // 非发言席不进强调态
+    expect(screen.getByTestId('pantheon-live-seat-grok').className).toContain('is-waiting')
+    expect(screen.getByTestId('pantheon-live-seat-grok').className).not.toContain('is-running')
+    // 右栏参与者名单：发言行带 is-speaking
+    const speakingRow = document.querySelector('.pantheon-seat-list li.is-speaking')
+    expect(speakingRow?.textContent).toContain('Codex')
+    // 发言顺序队列：codex 高亮 + 脉冲点
+    const queueSpeaking = document.querySelector('.pantheon-speaking-queue li.is-speaking')
+    expect(queueSpeaking?.textContent).toContain('Codex')
+    expect(queueSpeaking?.querySelector('.pantheon-queue-live-dot')).toBeTruthy()
+  })
+
   it('右侧纪要摘要面板可收起并恢复，选择持久化', async () => {
     const running = sessionFixture()
     mocks.list.mockResolvedValue([{
