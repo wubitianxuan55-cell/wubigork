@@ -645,6 +645,17 @@ body {
   border: 1px solid var(--md-sys-color-outline-variant) !important;
   box-shadow: var(--md-sys-elevation-3) !important;
 }
+/* Tooltip 文字在 antd 吃 colorTextLightSolid（明暗两套算法恒 #fff，默认假设
+   弹底是深色）。上方玻璃化把弹底换成主题玻璃色后，浅色系即白字白底
+   （2026-10-30 用户实拍众神殿席位 chip）。文字接主题前景，箭头同步玻璃底，
+   明暗两态都成立。 */
+.ant-tooltip-inner {
+  color: var(--md-sys-color-text, var(--color-text)) !important;
+}
+.ant-tooltip-arrow::before,
+.ant-tooltip-arrow::after {
+  background: var(--gaea-glass-bg, var(--md-sys-color-surface-container-high)) !important;
+}
 .ant-dropdown-menu-item:hover,
 .ant-dropdown-menu-item-selected,
 .ant-select-item-option-active {
