@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { Modal } from 'antd'
 import PantheonPage from './PantheonPage'
 import type { PantheonAgentStatus, PantheonSession } from './pantheon/types'
@@ -91,6 +91,7 @@ describe('PantheonPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     window.localStorage.removeItem('gaea.pantheon.rail-collapsed')
+    window.localStorage.removeItem('gaea.pantheon.inspector-collapsed')
     mocks.agents.mockResolvedValue(AGENTS)
     mocks.workspaces.mockResolvedValue([
       { path: 'C:\\AI\\wubigrok', name: 'wubigrok', current: true },
@@ -557,7 +558,7 @@ describe('PantheonPage', () => {
     expect(grokPane.querySelector('.pantheon-facilitator-mark')).toBeTruthy()
   })
 
-  it('运行期实时展示只读工具轨迹并合并开始与结果', async () => {
+  it('运行期工具轨迹并入席位窗口并合并开始与结果，独立轨迹窗口撤除', async () => {
     const now = Date.now()
     const running = sessionFixture({
       phase: 'opening',
@@ -606,15 +607,128 @@ describe('PantheonPage', () => {
 
     render(<PantheonPage />)
     fireEvent.click(await screen.findByTestId('pantheon-session-pan_test'))
-    const trajectory = await screen.findByTestId('pantheon-tool-trajectory')
-    expect(trajectory.textContent).toContain('工具轨迹')
-    expect(trajectory.textContent).toContain('1 次')
-    const trace = screen.getByTestId('pantheon-tool-tool_1')
-    expect(trace.textContent).toContain('Codex')
+    const codexPane = await screen.findByTestId('pantheon-live-seat-codex')
+    const trace = await screen.findByTestId('pantheon-tool-tool_1')
+    expect(codexPane.contains(trace)).toBe(true)
+    expect(codexPane.textContent).toContain('工具轨迹')
     expect(trace.textContent).toContain('命令')
     expect(trace.textContent).toContain('rg --files')
     expect(trace.textContent).toContain('结果预览')
     expect(trace.textContent).toContain('README.md')
+    // 独立轨迹窗口不再渲染
+    expect(screen.queryByTestId('pantheon-tool-trajectory')).toBeNull()
+    // 无轨迹的席位不出现轨迹区
+    expect(within(screen.getByTestId('pantheon-live-seat-grok')).queryByText('工具轨迹')).toBeNull()
+  })
+
+  it('右侧纪要摘要面板可收起并恢复，选择持久化', async () => {
+    const running = sessionFixture()
+    mocks.list.mockResolvedValue([{
+      id: running.id,
+      title: running.title,
+      status: running.status,
+      phase: running.phase,
+      createdAt: running.createdAt,
+      updatedAt: running.updatedAt,
+      agentCount: running.participants.length,
+    }])
+    mocks.get.mockResolvedValue(running)
+
+    render(<PantheonPage />)
+    fireEvent.click(await screen.findByTestId('pantheon-session-pan_test'))
+
+    const toggle = await screen.findByTestId('pantheon-inspector-toggle')
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByRole('complementary', { name: '讨论纪要摘要' })).toBeTruthy()
+
+    fireEvent.click(toggle)
+    expect(screen.queryByRole('complementary', { name: '讨论纪要摘要' })).toBeNull()
+    expect(window.localStorage.getItem('gaea.pantheon.inspector-collapsed')).toBe('1')
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+
+    fireEvent.click(toggle)
+    const settings = screen.getByRole('complementary', { name: '讨论纪要摘要' })
+    expect(settings.textContent).toContain('讨论范围')
+    expect(window.localStorage.getItem('gaea.pantheon.inspector-collapsed')).toBe('0')
+  })
+
+  it('席位窗口可折叠只留头部，再点展开恢复', async () => {
+    const now = Date.now()
+    const running = sessionFixture({
+      phase: 'opening',
+      events: [
+        {
+          seq: 1, sessionId: 'pan_test', phase: 'opening', kind: 'phase',
+          text: '开始开场陈述', at: now - 4000,
+        },
+        {
+          seq: 2, sessionId: 'pan_test', phase: 'opening', round: 1, kind: 'agent_output',
+          agentId: 'codex', text: '结论：验证可行，但必须设超时。', at: now - 1000, durationMs: 22400,
+        },
+      ],
+      participants: [
+        { agentId: 'grok', name: 'Grok', role: 'participant', status: 'finished' },
+        { agentId: 'codex', name: 'Codex', role: 'participant', status: 'running' },
+      ],
+    })
+    mocks.list.mockResolvedValue([{
+      id: running.id,
+      title: running.title,
+      status: running.status,
+      phase: running.phase,
+      createdAt: running.createdAt,
+      updatedAt: running.updatedAt,
+      agentCount: running.participants.length,
+    }])
+    mocks.get.mockResolvedValue(running)
+
+    render(<PantheonPage />)
+    fireEvent.click(await screen.findByTestId('pantheon-session-pan_test'))
+    const codexPane = await screen.findByTestId('pantheon-live-seat-codex')
+    expect(codexPane.textContent).toContain('必须设超时')
+
+    const collapse = screen.getByTestId('pantheon-seat-collapse-codex')
+    expect(collapse.getAttribute('aria-expanded')).toBe('true')
+    fireEvent.click(collapse)
+    // 折叠后只留头部：席位名仍在，feed 内容消失
+    expect(codexPane.textContent).toContain('Codex')
+    expect(codexPane.textContent).not.toContain('必须设超时')
+    expect(collapse.getAttribute('aria-expanded')).toBe('false')
+
+    fireEvent.click(collapse)
+    expect(codexPane.textContent).toContain('必须设超时')
+    expect(collapse.getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('已结束会话的右侧面板同样展示运行时间线', async () => {
+    const completed = sessionFixture({
+      status: 'completed',
+      phase: 'completed',
+      verdict: {
+        summary: '时间线随纪要归档。',
+        recommendation: '先批准只读 MVP。',
+        chairman: 'Grok',
+        partial: false,
+        createdAt: Date.now(),
+      },
+    })
+    mocks.list.mockResolvedValue([{
+      id: completed.id,
+      title: completed.title,
+      status: completed.status,
+      phase: completed.phase,
+      createdAt: completed.createdAt,
+      updatedAt: completed.updatedAt,
+      agentCount: completed.participants.length,
+      verdictSummary: completed.verdict?.recommendation,
+    }])
+    mocks.get.mockResolvedValue(completed)
+
+    render(<PantheonPage />)
+    fireEvent.click(await screen.findByTestId(`pantheon-session-${completed.id}`))
+    const settings = await screen.findByRole('complementary', { name: '讨论纪要摘要' })
+    expect(settings.textContent).toContain('运行时间线')
+    expect(settings.textContent).toContain('开始开场陈述')
   })
 
   it('可用 Agent 少于两个时禁止开始讨论', async () => {
