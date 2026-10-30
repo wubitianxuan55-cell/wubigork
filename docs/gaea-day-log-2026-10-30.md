@@ -74,5 +74,15 @@
   族 ~10 例=沙箱 confinement 比较 RUNNER~1 短名 vs 解析长名误判 outside（产品级
   修复点：比较前双侧归一）；③diagram_gen ×2=外部进程 exit status 1（runner 缺
   依赖待定）；④frontend 最后 1 unhandled=useImageGenHistory.test.ts 同族定时器
-  跨环境。backup 回滚 ACL deny 注入 runner 上仍被绕过（SeBackup/SeRestore 特权
-  假设）——倾向 runner 跳过或特权感知断言。
+  跨环境。backup 回滚注入在 runner 上被卷/令牌绕过（独占句柄+ACL deny 双注入实测
+  ok=true）——已 GITHUB_ACTIONS env 诚实跳过，语义本地已验。**深夜续战
+  （fbfe5d8d→7eaa5311 十轮）**：race job 首绿稳定（agent 三竞态清）/genui+
+  attachment+schedule 族全清/confine 双侧归一（**产品修**：RUNNER~1 短名
+  root vs 长名 target 误判 outside，真用户短名主目录同险，回归锁
+  GetShortPathName）/看门狗 120s/limits.ts eol=lf/PromptWorkshopPanel
+  message.destroy/known-flaky 登记/canary if:always 扩五包/**backend 首次
+  全绿**（#293：build+vet+全量测试+race+lint+drift 全过，workflow 历史第
+  一次）/costimport CJK map 断对齐组（golangci 内嵌 go/printer 与本地工具
+  链列宽计数不一致）。**尚余两族**：frontend Transcript.interaction
+  setTimeout 类跨环境 commit（非 act 可冲刷，另刀）+满载轮换偶发
+  （NovelSettingPage 5.5s 族）；backup runner 跳过已入册。
