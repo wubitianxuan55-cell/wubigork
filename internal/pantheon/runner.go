@@ -206,6 +206,12 @@ func streamTextFromLine(line string) string {
 	if json.Unmarshal([]byte(line), &obj) != nil {
 		return ""
 	}
+	// Codex 把 Harness 级告警（如未知 config 键提示）包成 item.completed/error
+	// 事件，每轮都会重复播报；这不是发言内容，混进流会变成大段英文噪音。
+	// 真正的调用失败走进程退出码 → agent_error，不依赖这里透传。
+	if harnessErrorItem(obj) {
+		return ""
+	}
 	kind, _ := obj["type"].(string)
 	if strings.EqualFold(kind, "text") {
 		if text, _ := obj["text"].(string); strings.TrimSpace(text) != "" {
@@ -233,6 +239,15 @@ func streamTextFromLine(line string) string {
 		return extractLooseText(obj)
 	}
 	return ""
+}
+
+func harnessErrorItem(obj map[string]interface{}) bool {
+	item, _ := obj["item"].(map[string]interface{})
+	if item == nil {
+		return false
+	}
+	itemType, _ := item["type"].(string)
+	return strings.EqualFold(itemType, "error")
 }
 
 func toolTraceFromLine(line string) *ToolTrace {
@@ -527,6 +542,7 @@ func parseAgentOutput(raw string) string {
 	}
 	var texts []string
 	var generic string
+	onlyHarnessErrors := true
 	for _, line := range strings.Split(raw, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
@@ -534,8 +550,15 @@ func parseAgentOutput(raw string) string {
 		}
 		var obj map[string]interface{}
 		if err := json.Unmarshal([]byte(line), &obj); err != nil {
+			// 纯文本行是合法输出形态，保留最终的整体兜底。
+			onlyHarnessErrors = false
 			continue
 		}
+		if harnessErrorItem(obj) {
+			// Harness 告警不算发言内容；见函数尾部的空结果判定。
+			continue
+		}
+		onlyHarnessErrors = false
 		if text := extractKnownText(obj); text != "" {
 			texts = append(texts, text)
 		} else if text := extractLooseText(obj); text != "" {
@@ -547,6 +570,11 @@ func parseAgentOutput(raw string) string {
 	}
 	if generic != "" {
 		return trimRunes(generic, maxAgentOutput)
+	}
+	if onlyHarnessErrors {
+		// 整段输出只有 Harness 告警：按空结果交上层走 agent_error，
+		// 而不是把配置警告存成席位陈词。
+		return ""
 	}
 	// A CLI may emit a single JSON object with a response field.
 	var obj map[string]interface{}

@@ -493,6 +493,13 @@ func TestStreamingLineParser(t *testing.T) {
 		{name: "dsh text", line: `{"type":"text","text":"最终文本"}`, want: "最终文本"},
 		{name: "plain", line: "普通流式输出", want: "普通流式输出\n"},
 		{name: "control", line: `{"type":"thread.started","thread_id":"t1"}`, want: ""},
+		{
+			// Codex 每轮把未知 config 键告警包成 item.completed/error 重播，
+			// 属于 Harness 噪音，不得混进流式发言（2026-10-30 实弹乱码线）。
+			name: "codex harness warning",
+			line: `{"type":"item.completed","item":{"type":"error","message":"Codex is ignoring 1 unrecognized configuration setting."}}`,
+			want: "",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -694,6 +701,19 @@ func TestParseAgentOutputFormats(t *testing.T) {
 		{"zcode", `{"sessionId":"s","response":"ready","eventCount":4}`, "ready"},
 		{"dsh", "{\"type\":\"result\",\"result\":\"完成\"}", "完成"},
 		{"plain", "直接文本", "直接文本"},
+		{
+			// 告警项夹在正式发言里：只保留发言，不把告警兜底成陈词。
+			name: "warning beside message",
+			raw: `{"type":"item.completed","item":{"type":"error","message":"Codex is ignoring 1 unrecognized configuration setting."}}
+{"type":"item.completed","item":{"type":"agent_message","text":"最终答复"}}`,
+			want: "最终答复",
+		},
+		{
+			// 整段只有告警：按空结果处理，上层走 agent_error 而非存假陈词。
+			name: "only warning",
+			raw:  `{"type":"item.completed","item":{"type":"error","message":"Codex is ignoring 1 unrecognized configuration setting."}}`,
+			want: "",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

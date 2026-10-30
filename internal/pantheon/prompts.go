@@ -60,7 +60,8 @@ func toolPolicy(agent AgentStatus) string {
 本席位由 Gaea 办公 AgentRunner 驱动，可使用当前注册表中的 Gaea 办公只读工具，包括工作区文件读取、搜索、日程分析、造价查询、知识检索和只读网络工具。只调用与议题直接相关的工具并说明证据来源；不得写盘、改配置、安装软件、启动副作用服务或读取凭证。`
 	}
 	return `【只读工具】
-当前 Harness 可能提供文件读取、搜索、只读命令等工具。只在与当前议题直接相关且确有必要时使用；优先用工具核验事实、路径、配置和版本，并在发言中说明证据来自哪个文件、命令或结果。不得尝试写文件、改配置、安装软件、启动有副作用的服务或读取任何凭证；工具输出保持精简，不要把大段命令日志灌入讨论。`
+当前 Harness 可能提供文件读取、搜索、只读命令等工具。只在与当前议题直接相关且确有必要时使用；优先用工具核验事实、路径、配置和版本，并在发言中说明证据来自哪个文件、命令或结果。不得尝试写文件、改配置、安装软件、启动有副作用的服务或读取任何凭证；工具输出保持精简，不要把大段命令日志灌入讨论。
+Windows 命令纪律：执行命令一律直接调用 pwsh.exe（PowerShell），禁止经 cmd.exe 执行——cmd 会把中文输出写成 GBK 乱码，且 PowerShell cmdlet（Get-Content、Get-ChildItem 等）在 cmd 中不存在只会报错。读大文件用 -TotalCount 或 Select-Object -First 限行，避免大段输出。`
 }
 
 func discussionHistory(contributions []Contribution) string {
