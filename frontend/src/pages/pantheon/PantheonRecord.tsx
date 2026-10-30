@@ -275,9 +275,26 @@ const AgentOutputWindow: React.FC<{
   onToggleCollapsed: () => void
 }> = ({ slot, participant, outputs, traces, facilitator, phase, collapsed, onToggleCollapsed }) => {
   const feedRef = useRef<HTMLDivElement>(null)
+  const feedStickRef = useRef(true)
   useEffect(() => {
     const feed = feedRef.current
-    if (feed) feed.scrollTop = feed.scrollHeight
+    if (!feed) return
+    const onScroll = () => {
+      feedStickRef.current = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 60
+    }
+    feed.addEventListener('scroll', onScroll, { passive: true })
+    return () => feed.removeEventListener('scroll', onScroll)
+  }, [])
+  useEffect(() => {
+    const feed = feedRef.current
+    // 窗内同样贴底跟随：用户上滑查看历史发言时不被流式增量拽回底部。
+    if (feed && feedStickRef.current) {
+      if (typeof feed.scrollTo === 'function') {
+        feed.scrollTo({ top: feed.scrollHeight, behavior: 'instant' })
+      } else {
+        feed.scrollTop = feed.scrollHeight
+      }
+    }
   }, [outputs])
   const status = !participant
     ? '未加入'
@@ -545,10 +562,34 @@ export const PantheonRecord: React.FC<Props> = ({
     items.sort((a, b) => a.at - b.at)
     return items
   }, [displayOutputs, toolTraces])
+  // 贴底跟随：只有用户本就停在底部附近才自动跟随新流式内容；向上滚动
+  // （滚轮/滚动条/触摸）即停跟，滚回底部自动恢复——否则讨论期间的增量
+  // 会把用户强行拽回底部、滚轮上滑失效（2026-10-30 实弹反馈）。
+  const streamStickRef = useRef(true)
+  const streamElRef = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    streamElRef.current = (streamRef.current?.closest('.pantheon-canvas') as HTMLElement) ?? null
+    const canvas = streamElRef.current
+    if (!canvas) return
+    const onScroll = () => {
+      const distance = canvas.scrollHeight - canvas.scrollTop - canvas.clientHeight
+      streamStickRef.current = distance < 120
+    }
+    canvas.addEventListener('scroll', onScroll, { passive: true })
+    return () => canvas.removeEventListener('scroll', onScroll)
+  }, [])
   useEffect(() => {
     if (!running) return
-    const scroller = streamRef.current?.closest('.pantheon-canvas')
-    if (scroller) scroller.scrollTop = scroller.scrollHeight
+    const canvas = streamElRef.current
+    if (canvas && streamStickRef.current) {
+      // 绕过 .pantheon-canvas 的 scroll-behavior:smooth——高频增量下平滑动画
+      // 既拖沓又会和用户滚动抢帧。jsdom 无元素 scrollTo，特性检测兜底。
+      if (typeof canvas.scrollTo === 'function') {
+        canvas.scrollTo({ top: canvas.scrollHeight, behavior: 'instant' })
+      } else {
+        canvas.scrollTop = canvas.scrollHeight
+      }
+    }
   }, [streamItems, running])
   const untilConsensus = Boolean(session.request.untilConsensus)
   const totalRounds = Math.max(1, Math.min(20, session.request.rounds || 2))
