@@ -61,7 +61,10 @@ func toolPolicy(agent AgentStatus) string {
 	}
 	return `【只读工具】
 当前 Harness 可能提供文件读取、搜索、只读命令等工具。只在与当前议题直接相关且确有必要时使用；优先用工具核验事实、路径、配置和版本，并在发言中说明证据来自哪个文件、命令或结果。不得尝试写文件、改配置、安装软件、启动有副作用的服务或读取任何凭证；工具输出保持精简，不要把大段命令日志灌入讨论。
-Windows 命令纪律：执行命令一律直接调用 pwsh.exe（PowerShell），禁止经 cmd.exe 执行——cmd 会把中文输出写成 GBK 乱码，且 PowerShell cmdlet（Get-Content、Get-ChildItem 等）在 cmd 中不存在只会报错。读大文件用 -TotalCount 或 Select-Object -First 限行，避免大段输出。`
+Windows 命令纪律：执行命令一律直接调用 pwsh.exe（PowerShell），禁止经 cmd.exe 执行——cmd 的中文输出与内部报错都是 GBK 乱码，且 PowerShell cmdlet（Get-Content、Get-ChildItem 等）在 cmd 中不存在只会报错。
+pwsh 管道默认输出编码也是 GBK：凡涉及读取或查看含中文的文件/目录，命令开头先设 UTF-8，例如：
+"C:\\...\\pwsh.exe" -NoProfile -Command "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; Get-Content -LiteralPath 'x.md' -TotalCount 80"
+读大文件用 -TotalCount 或 Select-Object -First 限行，避免大段输出。`
 }
 
 func discussionHistory(contributions []Contribution) string {

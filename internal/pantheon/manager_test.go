@@ -714,6 +714,23 @@ func TestParseAgentOutputFormats(t *testing.T) {
 			raw:  `{"type":"item.completed","item":{"type":"error","message":"Codex is ignoring 1 unrecognized configuration setting."}}`,
 			want: "",
 		},
+		{
+			// zcode 新版桌面运行时：答案只存在于 text_delta 增量流里
+			// （reasoning_delta 不算发言），按序重装全文（2026-10-30 实弹线）。
+			name: "zcode text_delta stream",
+			raw: `{"type":"model.streaming","payload":{"kind":"reasoning_delta","delta":"思考"}}
+{"type":"model.streaming","payload":{"kind":"text_delta","delta":"最终"}}
+{"type":"model.streaming","payload":{"kind":"text_delta","delta":"答复"}}`,
+			want: "最终答复",
+		},
+		{
+			// 纯 JSON 事件流但没有任何可识别文本（未知新 schema）：
+			// 返回空走 agent_error，不把事件墙原样存成席位陈词。
+			name: "unknown event wall",
+			raw: `{"type":"session.titleUpdated","payload":{"title":"t"}}
+{"type":"session.updated","payload":{"seq":2}}`,
+			want: "",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

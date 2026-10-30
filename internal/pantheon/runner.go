@@ -542,6 +542,8 @@ func parseAgentOutput(raw string) string {
 	}
 	var texts []string
 	var generic string
+	var stream strings.Builder
+	sawPlainLine := false
 	onlyHarnessErrors := true
 	for _, line := range strings.Split(raw, "\n") {
 		line = strings.TrimSpace(line)
@@ -551,6 +553,7 @@ func parseAgentOutput(raw string) string {
 		var obj map[string]interface{}
 		if err := json.Unmarshal([]byte(line), &obj); err != nil {
 			// 纯文本行是合法输出形态，保留最终的整体兜底。
+			sawPlainLine = true
 			onlyHarnessErrors = false
 			continue
 		}
@@ -561,7 +564,16 @@ func parseAgentOutput(raw string) string {
 		onlyHarnessErrors = false
 		if text := extractKnownText(obj); text != "" {
 			texts = append(texts, text)
-		} else if text := extractLooseText(obj); text != "" {
+			continue
+		}
+		if delta, ok := extractTextDelta(obj); ok {
+			// zcode 新版桌面运行时（eventId/payload 信封）把答案拆成
+			// model.streaming/text_delta 增量且无聚合事件：按序收集，
+			// 见函数尾部重装分支（2026-10-30 实弹 200k 事件墙乱码线）。
+			stream.WriteString(delta)
+			continue
+		}
+		if text := extractLooseText(obj); text != "" {
 			generic = text
 		}
 	}
@@ -571,9 +583,22 @@ func parseAgentOutput(raw string) string {
 	if generic != "" {
 		return trimRunes(generic, maxAgentOutput)
 	}
+	if rebuilt := strings.TrimSpace(stream.String()); rebuilt != "" {
+		return trimRunes(rebuilt, maxAgentOutput)
+	}
 	if onlyHarnessErrors {
 		// 整段输出只有 Harness 告警：按空结果交上层走 agent_error，
 		// 而不是把配置警告存成席位陈词。
+		return ""
+	}
+	if !sawPlainLine {
+		// 单个 JSON 对象（如 synthesis 裁决 JSON，键集在 loose 清单之外）
+		// 原样放行给上层解析；多行 JSONL 事件流且没认出任何文本（未知新
+		// schema 的纯事件墙）则空结果走 agent_error——宁可席位失败可见，
+		// 也不把事件流原样存成席位陈词。
+		if json.Valid([]byte(raw)) {
+			return trimRunes(raw, maxAgentOutput)
+		}
 		return ""
 	}
 	// A CLI may emit a single JSON object with a response field.
@@ -584,6 +609,19 @@ func parseAgentOutput(raw string) string {
 		}
 	}
 	return trimRunes(raw, maxAgentOutput)
+}
+
+// extractTextDelta 识别 zcode stream-json 的 text_delta 增量载荷。
+func extractTextDelta(obj map[string]interface{}) (string, bool) {
+	payload, _ := obj["payload"].(map[string]interface{})
+	if payload == nil {
+		return "", false
+	}
+	if !strings.EqualFold(traceString(payload["kind"]), "text_delta") {
+		return "", false
+	}
+	delta, _ := payload["delta"].(string)
+	return delta, delta != ""
 }
 
 func extractKnownText(obj map[string]interface{}) string {
