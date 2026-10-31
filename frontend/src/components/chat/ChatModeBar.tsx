@@ -41,13 +41,13 @@ const ChatModeBarInner: React.FC<ChatModeBarProps> = ({
 }) => (
   <div className={`chat-mode-bar${variant === 'strip' ? ' chat-mode-bar--strip' : ''}`}>
     <div className="chat-mode-seg" role="tablist" aria-label="对话模式">
-      <button role="tab" aria-selected={mode === 'plain'} className={mode === 'plain' ? 'active' : ''}
+      <button type="button" role="tab" aria-label="普通对话" aria-selected={mode === 'plain'} className={mode === 'plain' ? 'active' : ''}
         onClick={onSwitchPlain}>
-        <MessageOutlined style={{ fontSize: 12 }} /> 普通对话
+        <MessageOutlined aria-hidden style={{ fontSize: 12 }} /> <span>普通对话</span>
       </button>
-      <button role="tab" aria-selected={mode !== 'plain'} className={mode !== 'plain' ? 'active' : ''}
+      <button type="button" role="tab" aria-label={`角色对话：${mode !== 'plain' ? personaLabel : (currentPersonalityLabel || '人格')}`} aria-selected={mode !== 'plain'} className={mode !== 'plain' ? 'active' : ''}
         onClick={onSwitchPersona}>
-        <HeartOutlined style={{ fontSize: 12 }} /> 角色 · {mode !== 'plain' ? personaLabel : (currentPersonalityLabel || '人格')}
+        <HeartOutlined aria-hidden style={{ fontSize: 12 }} /> <span>角色 · {mode !== 'plain' ? personaLabel : (currentPersonalityLabel || '人格')}</span>
       </button>
     </div>
     {variant !== 'strip' && <div className="chat-mode-bar-spacer" style={{ flex: 1 }} />}
@@ -84,13 +84,13 @@ const ChatModeBarInner: React.FC<ChatModeBarProps> = ({
       )}
       {hasMessages && (
         <Tooltip title="导出为 Markdown">
-          <Button type="text" size="small" icon={<DownloadOutlined />} onClick={onExport}
+          <Button type="text" size="small" icon={<DownloadOutlined />} onClick={onExport} aria-label="导出为 Markdown"
             style={{ color: C('color-text-secondary'), height: 24 }} />
         </Tooltip>
       )}
       <Tooltip title="清空当前对话">
         <Popconfirm title="确定清空当前对话？此操作不可恢复" onConfirm={onClear} okText="清空" cancelText="取消">
-          <Button type="text" size="small" icon={<ClearOutlined />} disabled={!hasMessages}
+          <Button type="text" size="small" icon={<ClearOutlined />} disabled={!hasMessages} aria-label="清空当前对话"
             style={{ color: C('color-text-secondary'), height: 24, opacity: hasMessages ? 1 : 0.35 }} />
         </Popconfirm>
       </Tooltip>

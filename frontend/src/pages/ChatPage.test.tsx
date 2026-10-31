@@ -5,7 +5,7 @@
 //    模拟打字循环取消（切话题中止、卸载收尾）
 //  - T6-3.4 迁移一次性：持久化标记 + 二次初始化仅执行一次 + 失败不写标记
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 
 // ── 运行时事件 mock（先于 import 定义，供 vi.mock 工厂引用）─────────────────
 interface ChatTopicLike {
@@ -42,6 +42,9 @@ vi.mock('../../wailsjs/runtime/runtime', () => ({
 // ── 语音 hook mock：捕获 ChatPage 注册的回调，测试可直接触发 ───────────────
 const voiceMock = vi.hoisted(() => ({
   opts: {} as { onTranscript?: (t: string) => void; onReply?: (t: string) => void },
+  start: vi.fn(),
+  stop: vi.fn(),
+  interrupt: vi.fn(),
 }))
 
 vi.mock('../hooks/useVoiceChat', () => ({
@@ -49,7 +52,7 @@ vi.mock('../hooks/useVoiceChat', () => ({
     voiceMock.opts = options || {}
     return {
       state: { active: false, listening: false, speaking: false, aiSpeaking: false, transcript: '', finalTranscript: '', volume: 0, error: null, mode: 'vad' },
-      start: vi.fn(), stop: vi.fn(), setPTT: vi.fn(), interrupt: vi.fn(),
+      start: voiceMock.start, stop: voiceMock.stop, setPTT: vi.fn(), interrupt: voiceMock.interrupt,
     }
   },
 }))
@@ -179,6 +182,7 @@ beforeEach(() => {
   runtimeMock.unsubs = []
   voiceMock.opts = {}
   vi.clearAllMocks()
+  vi.mocked(voiceMock.start).mockResolvedValue(true)
   // 默认实现（clearAllMocks 只清调用记录，这里显式重设保证用例间隔离）
   vi.mocked(ChatTopicsList).mockResolvedValue([TOPIC_PLAIN])
   vi.mocked(ChatMessagesList).mockResolvedValue([])
@@ -297,25 +301,93 @@ describe('T6-3.1 流订阅竞态与超时', () => {
   })
 })
 
+describe('专用语音交互界面', () => {
+  it('从输入区进入语音台，返回后恢复文字对话', async () => {
+    await renderChat()
+    fireEvent.click(screen.getByLabelText('语音输入'))
+    const voiceConsole = await screen.findByTestId('chat-voice-console')
+    expect(within(voiceConsole).getByRole('heading', { name: /语音对话/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '结束语音' })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: '返回文字对话' }))
+    await flushAsync()
+    expect(screen.queryByTestId('chat-voice-console')).toBeNull()
+    expect(screen.getByRole('textbox', { name: '聊天消息' })).toBeTruthy()
+  })
+
+  it('语音启动失败时保留可重试界面，不伪装成进行中的语音会话', async () => {
+    vi.mocked(voiceMock.start).mockResolvedValue(false)
+    await renderChat()
+    fireEvent.click(screen.getByLabelText('语音输入'))
+    expect(await screen.findByTestId('chat-voice-console')).toBeTruthy()
+    await flushAsync()
+    expect(screen.getByRole('button', { name: '开始聆听' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '结束语音' })).toBeNull()
+  })
+
+  it('切换话题会结束当前语音会话，避免后续识别串入新话题', async () => {
+    const second = { id: 't2', title: '第二会话', mode: 'plain', created_at: '2026-01-02T00:00:00Z', updated_at: '2026-01-02T00:00:00Z' }
+    await renderChat({ topics: [TOPIC_PLAIN, second] })
+    fireEvent.click(screen.getByLabelText('语音输入'))
+    expect(await screen.findByTestId('chat-voice-console')).toBeTruthy()
+    fireEvent.click(screen.getByText('第二会话'))
+    await flushAsync()
+    await act(async () => { voiceMock.opts.onTranscript?.('迟到语音') })
+    expect(voiceMock.stop).toHaveBeenCalled()
+    expect(ChatAppendMessages).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('chat-voice-console')).toBeNull()
+  })
+
+  it('语音启动尚未完成时切话题，迟到的成功结果也会被回收', async () => {
+    const second = { id: 't2', title: '第二会话', mode: 'plain', created_at: '2026-01-02T00:00:00Z', updated_at: '2026-01-02T00:00:00Z' }
+    let finishStart: (started: boolean) => void = () => {}
+    vi.mocked(voiceMock.start).mockImplementationOnce(() => new Promise<boolean>((resolve) => {
+      finishStart = resolve
+    }))
+    await renderChat({ topics: [TOPIC_PLAIN, second] })
+    fireEvent.click(screen.getByLabelText('语音输入'))
+    expect(await screen.findByTestId('chat-voice-console')).toBeTruthy()
+
+    fireEvent.click(screen.getByText('第二会话'))
+    await flushAsync()
+    await act(async () => { finishStart(true) })
+    await flushAsync()
+
+    expect(voiceMock.stop.mock.calls.length).toBeGreaterThanOrEqual(2)
+    expect(screen.queryByTestId('chat-voice-console')).toBeNull()
+  })
+})
+
 describe('T6-3.3 语音持久化与资源清理', () => {
   it('语音识别文本/回复经 ChatAppendMessages 落库（不静默吞错路径有日志）', async () => {
     await renderChat()
+    fireEvent.click(screen.getByLabelText('语音输入'))
+    await screen.findByTestId('chat-voice-console')
+    await flushAsync()
     await act(async () => { voiceMock.opts.onTranscript?.('语音你好') })
     await act(async () => { voiceMock.opts.onReply?.('语音回复') })
+    await flushAsync()
     // v4.276 形状普查：useChatVoice 发送载荷已改 camelCase（真源=Go json 标签），断言对齐。
     expect(ChatAppendMessages).toHaveBeenCalledWith('t1', [{ role: 'user', content: '语音你好', extra: '' }])
     expect(ChatAppendMessages).toHaveBeenCalledWith('t1', [{ role: 'assistant', content: '语音回复', extra: '' }])
-    expect(await screen.findByText('语音你好')).toBeTruthy()
+    expect(screen.getAllByText('语音你好').length).toBeGreaterThan(0)
     expect(await screen.findByText('语音回复')).toBeTruthy()
+    // 语音首条消息与文字发送共用同一会话元数据收尾：标题/预览/最近活跃同步。
+    expect(bindingsBridge.ChatTopicRename).toHaveBeenCalledWith('t1', '语音你好')
   })
 
   it('语音落库失败：记录 gaea.log，界面不受影响', async () => {
     vi.mocked(ChatAppendMessages).mockRejectedValue(new Error('db down'))
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     await renderChat()
+    fireEvent.click(screen.getByLabelText('语音输入'))
+    await screen.findByTestId('chat-voice-console')
+    await flushAsync()
     await act(async () => { voiceMock.opts.onTranscript?.('落库会失败') })
     await flushAsync()
     expect(GaeaLogFrontendError).toHaveBeenCalledWith(expect.stringContaining('语音消息落库失败'))
+    fireEvent.click(screen.getByRole('button', { name: '返回文字对话' }))
+    await flushAsync()
     expect(await screen.findByText('落库会失败')).toBeTruthy()
     errSpy.mockRestore()
   })

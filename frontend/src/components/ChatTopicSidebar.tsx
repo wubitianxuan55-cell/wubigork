@@ -82,6 +82,7 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
                 size="small"
                 icon={<MenuUnfoldOutlined />}
                 onClick={onToggle}
+                aria-label="展开会话列表"
                 style={{ color: C('color-text-secondary'), borderRadius: 8 }}
               />
             </Tooltip>
@@ -92,6 +93,7 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
               size="small"
               icon={<PlusOutlined />}
               onClick={onCreate}
+              aria-label="新建会话"
               style={{ color: C('color-primary'), borderRadius: 8 }}
             />
           </Tooltip>
@@ -112,6 +114,7 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
                     size="small"
                     icon={<MenuFoldOutlined />}
                     onClick={onToggle}
+                    aria-label="折叠会话列表"
                     style={{ color: C('color-text-secondary'), borderRadius: 8 }}
                   />
                 </Tooltip>
@@ -122,6 +125,7 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
                   size="small"
                   icon={<PlusOutlined />}
                   onClick={onCreate}
+                aria-label="新建会话"
                   style={{ color: C('color-primary'), borderRadius: 8 }}
                 />
               </Tooltip>
@@ -135,6 +139,7 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
               allowClear
               prefix={<SearchOutlined style={{ color: C('color-text-secondary'), fontSize: 12 }} />}
               placeholder="搜索会话"
+              aria-label="搜索会话"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               style={{
@@ -164,6 +169,11 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
                 <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 12, opacity: 0.7 }}>
                   {query ? '换个关键词试试' : '点击 + 创建新对话'}
                 </Typography.Text>
+                {!query && (
+                  <button type="button" className="chat-topic-empty-create" onClick={onCreate}>
+                    <PlusOutlined aria-hidden /> 新建对话
+                  </button>
+                )}
               </div>
             ) : (
               <div>
@@ -173,13 +183,12 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
                 <div
                   key={topic.id}
                   className={`chat-topic-item${active ? ' active' : ''}`}
-                  onClick={() => onSelect(topic.id)}
                   /* 背景走 chat-board.css：active=primary-container，hover=surface-container-high；
                      删除钮显隐同样纯 CSS（.chat-topic-del），无 JS hover state */
                 >
                   {/* title + preview (double-click to edit) */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    {editingId === topic.id ? (
+                  {editingId === topic.id ? (
+                    <div className="chat-topic-select is-editing">
                       <Input
                         ref={editRef}
                         size="small"
@@ -187,12 +196,33 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
                         onChange={(e) => setEditText(e.target.value)}
                         onBlur={commitEdit}
                         onPressEnter={commitEdit}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') {
+                            e.preventDefault()
+                            setEditingId(null)
+                            setEditText('')
+                          }
+                        }}
                         onClick={(e) => e.stopPropagation()}
                         style={{ background: C('color-bg-container'), borderColor: C('color-primary'), color: C('color-text'), borderRadius: 6 }}
                       />
-                    ) : (
-                      <>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="chat-topic-select"
+                      aria-label={`打开会话：${topic.title}`}
+                      aria-current={active ? 'true' : undefined}
+                      title={`${topic.title}（双击或按 F2 重命名）`}
+                      onClick={() => onSelect(topic.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'F2') {
+                          e.preventDefault()
+                          startEdit(topic)
+                        }
+                      }}
+                    >
+                        <span className="chat-topic-title-row">
                           <Typography.Text
                             ellipsis
                             onDoubleClick={() => startEdit(topic)}
@@ -218,15 +248,14 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
                           >
                             {relativeTime(topic.updatedAt || topic.createdAt)}
                           </span>
-                        </div>
+                        </span>
                         {topic.preview && (
-                          <div className="chat-topic-preview" title={topic.preview}>
+                          <span className="chat-topic-preview" title={topic.preview}>
                             {topic.preview}
-                          </div>
+                          </span>
                         )}
-                      </>
-                    )}
-                  </div>
+                    </button>
+                  )}
 
                   {/* delete button — visible on hover / active（纯 CSS，见 chat-board.css） */}
                   <div
@@ -250,6 +279,7 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
                         size="small"
                         icon={<DeleteOutlined style={{ fontSize: 13 }} />}
                         onClick={(e) => e.stopPropagation()}
+                        aria-label={`删除会话：${topic.title}`}
                         style={{
                           color: active ? 'var(--md-sys-color-on-primary-container)' : C('color-text-secondary'),
                           width: 26, height: 26, padding: 0,

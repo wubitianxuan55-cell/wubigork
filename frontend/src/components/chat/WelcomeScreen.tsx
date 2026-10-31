@@ -5,6 +5,7 @@ import {
   MessageOutlined, SearchOutlined, EditOutlined, BulbOutlined,
   TranslationOutlined, BookOutlined, HeartOutlined, GlobalOutlined,
   StarFilled, ThunderboltOutlined, SettingOutlined, SwapOutlined,
+  AudioOutlined,
 } from '@ant-design/icons'
 import { C } from '../../utils/theme'
 import { CompanionAvatar } from '../CompanionAvatar'
@@ -41,6 +42,7 @@ export interface WelcomeScreenProps {
   onNavigateLib: () => void
   onFillInput: (label: string) => void
   onSuggestion: (label: string) => void
+  onOpenVoiceConsole?: () => void
 }
 
 /** 语音降级警示条（FE6-02）：麦克风不可用时必须可见——此前页面照旧显示
@@ -61,12 +63,13 @@ const MicDegradedNotice: React.FC = () => (
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   mode, personaLabel, companionName, voice, emoColor,
   activePersonality, onSwitchPersonality, onNavigateLib, onFillInput, onSuggestion,
+  onOpenVoiceConsole,
 }) => {
   // 遥测行文案：降级时不得显示 LISTEN（麦克风不可用时宣称在听=同一条谎），
   // 与上方警示条口径一致；非降级时逐字零变化。
-  const voiceTelemetry = voice.degraded === 'mic-unavailable'
-    ? 'MIC OFF'
-    : voice.listening ? 'LISTEN' : voice.aiSpeaking ? 'SPEAK' : 'STANDBY'
+  const voiceStatus = voice.degraded === 'mic-unavailable'
+    ? '不可用'
+    : voice.listening ? '聆听中' : voice.aiSpeaking ? '回应中' : '待命'
   if (mode !== 'plain') {
     return (
       <div className="chat-welcome">
@@ -85,27 +88,33 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           <span className="chat-wel-ring chat-wel-ring-1" aria-hidden="true" />
           <span className="chat-wel-ring chat-wel-ring-2" aria-hidden="true" />
           <CompanionAvatar
-            size={146}
+            size={104}
             state={voice.aiSpeaking ? 'speaking' : voice.listening ? 'listening' : 'idle'}
             emotionColor={emoColor}
           />
         </div>
 
         <h2>{companionName}</h2>
-        <p>我是{personaLabel}，今天想聊点什么？</p>
+        <p>以 {personaLabel} 的身份，今天想聊点什么？</p>
 
         <div className="chat-wel-telemetry">
           <span className="chat-wel-dot" />
-          BOND <b>ACTIVE</b>
+          角色 <b>已就位</b>
           <span className="chat-wel-sep" />
-          VOICE <b>{voiceTelemetry}</b>
+          语音 <b>{voiceStatus}</b>
           <span className="chat-wel-sep" />
-          INPUT <b>READY</b>
+          输入 <b>就绪</b>
         </div>
+
+        {onOpenVoiceConsole && (
+          <button type="button" className="chat-welcome-voice-entry" onClick={onOpenVoiceConsole}>
+            <AudioOutlined aria-hidden /> 进入语音对话
+          </button>
+        )}
 
         <PersonaPicker activeId={activePersonality}
           onSelect={onSwitchPersonality} onManage={onNavigateLib}>
-          <Button type="primary" icon={<SwapOutlined />} style={{ marginTop: 14, marginBottom: 16, borderRadius: 20, padding: '4px 22px', height: 36, fontSize: 13 }}>
+          <Button type="default" icon={<SwapOutlined />} className="chat-wel-persona-button">
             选择角色
           </Button>
         </PersonaPicker>
@@ -132,7 +141,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         <span className="chat-wel-corner chat-wel-br" />
       </div>
 
-      <span className="chat-wel-kicker">// GAEA CORE · 语音就绪</span>
+      <span className="chat-wel-kicker">GAEA CORE · 普通对话</span>
 
       {voice.degraded === 'mic-unavailable' && <MicDegradedNotice />}
 
@@ -145,22 +154,28 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           speaking={voice.speaking}
           aiSpeaking={voice.aiSpeaking}
           transcript={voice.transcript}
-          size={188}
+          size={112}
           micUnavailable={voice.degraded === 'mic-unavailable'}
         />
       </div>
 
-      <h2>gaea AI</h2>
-      <p>你的智能 AI 助手：聊天、写作、翻译、学习，随时待命 —— 说话即可开始对话</p>
+      <h2>今天想完成什么？</h2>
+      <p>从一个具体问题开始：查资料、写文章、整理想法，或直接把判断交给我。</p>
 
       <div className="chat-wel-telemetry">
         <span className="chat-wel-dot" />
-        VOICE <b>{voiceTelemetry}</b>
+        语音 <b>{voiceStatus}</b>
         <span className="chat-wel-sep" />
-        CORE <b>ONLINE</b>
+        搜索 <b>可选</b>
         <span className="chat-wel-sep" />
-        INPUT <b>READY</b>
+        输入 <b>就绪</b>
       </div>
+
+      {onOpenVoiceConsole && (
+        <button type="button" className="chat-welcome-voice-entry" onClick={onOpenVoiceConsole}>
+          <AudioOutlined aria-hidden /> 进入语音对话
+        </button>
+      )}
 
       <div className="chat-suggestion-grid">
         {PLAIN_SUGGESTIONS.map(s => (

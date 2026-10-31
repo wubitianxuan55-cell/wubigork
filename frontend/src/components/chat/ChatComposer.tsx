@@ -7,7 +7,6 @@ import { Input, Button, Tooltip } from 'antd'
 import {
   GlobalOutlined, BulbOutlined, AudioOutlined, StopOutlined, PauseCircleOutlined, SendOutlined,
 } from '@ant-design/icons'
-import { C } from '../../utils/theme'
 
 // ── 快捷情绪回复（人格模式输入区 chips；导出供右侧 inspector 快捷建议复用） ──
 export const QUICK_REPLIES = [
@@ -45,13 +44,12 @@ export interface ChatComposerProps {
 /** 工具行开关：图标 + 12px 标签，激活 = 主色胶囊（状态三重传达：色/图标/文案）。 */
 const ComposerTool: React.FC<{
   active: boolean
-  activeColor?: string
   onClick: () => void
   label: string
   icon: React.ReactNode
   title: string
   ariaLabel: string
-}> = ({ active, activeColor, onClick, label, icon, title, ariaLabel }) => (
+}> = ({ active, onClick, label, icon, title, ariaLabel }) => (
   <Tooltip title={title}>
     <button
       type="button"
@@ -60,7 +58,7 @@ const ComposerTool: React.FC<{
       aria-label={ariaLabel}
       onClick={onClick}
     >
-      <span className="chat-composer-tool-icon" style={active && activeColor ? { color: activeColor } : undefined}>{icon}</span>
+      <span className="chat-composer-tool-icon">{icon}</span>
       {label}
     </button>
   </Tooltip>
@@ -75,7 +73,7 @@ const ChatComposerInner: React.FC<ChatComposerProps> = ({
     {mode !== 'plain' && (
       <div className="chat-quick-replies">
         {QUICK_REPLIES.map(q => (
-          <button key={q.label} className="chat-quick-chip" onClick={() => onFillInput(q.text)}>{q.label}</button>
+          <button key={q.label} type="button" className="chat-quick-chip" onClick={() => onFillInput(q.text)}>{q.label}</button>
         ))}
       </div>
     )}
@@ -83,7 +81,6 @@ const ChatComposerInner: React.FC<ChatComposerProps> = ({
     <div className="chat-composer-tools">
       <ComposerTool
         active={forceSearch}
-        activeColor="var(--md-sys-color-success)"
         onClick={onToggleForceSearch}
         label="搜索"
         icon={<GlobalOutlined />}
@@ -109,7 +106,10 @@ const ChatComposerInner: React.FC<ChatComposerProps> = ({
           : voiceOn ? '结束聆听' : '语音输入（说话识别为文本对话）'}
         ariaLabel={voiceDegraded ? '结束语音' : voiceOn ? '结束聆听' : '语音输入'}
       />
-      <span className="chat-composer-hint">Enter 发送 · Shift+Enter 换行</span>
+      <span className="chat-composer-hint">
+        {sending && <span className="chat-composer-running" aria-live="polite">正在生成</span>}
+        Enter 发送 · Shift+Enter 换行
+      </span>
     </div>
     <div className="gaea-glass-shell chat-composer">
       <Input.TextArea
@@ -124,17 +124,29 @@ const ChatComposerInner: React.FC<ChatComposerProps> = ({
         disabled={sending || (voiceOn && !voiceDegraded)}
         autoSize={{ minRows: 1, maxRows: 6 }}
         className="chat-input-textarea"
-        style={{ flex: 1, background: 'transparent', border: 'none', color: C('color-text'), borderRadius: 0, resize: 'none', fontSize: 14, lineHeight: 1.6, padding: '6px 2px', boxShadow: 'none' }}
+        aria-label="聊天消息"
+        enterKeyHint="send"
       />
       {sending ? (
         <Tooltip title="停止生成（已生成部分保留）">
-          <Button icon={<PauseCircleOutlined />} onClick={onStop} aria-label="停止生成" data-testid="chat-stop"
-            style={{ borderRadius: 14, width: 40, height: 40, minWidth: 40, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }} />
+          <Button
+            icon={<PauseCircleOutlined />}
+            onClick={onStop}
+            aria-label="停止生成"
+            data-testid="chat-stop"
+            className="chat-stop-button"
+          />
         </Tooltip>
       ) : (
         <Tooltip title="发送 (Enter)">
-          <Button type="primary" icon={<SendOutlined />} onClick={onSend} disabled={!input.trim() || (voiceOn && !voiceDegraded)} aria-label="发送"
-            style={{ background: input.trim() ? 'var(--md-sys-color-primary)' : C('color-border'), borderColor: 'transparent', borderRadius: 14, width: 40, height: 40, minWidth: 40, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: input.trim() ? '0 0 16px color-mix(in srgb, var(--gaea-glow) 40%, transparent)' : 'none', flexShrink: 0 }} />
+          <Button
+            type="primary"
+            icon={<SendOutlined />}
+            onClick={onSend}
+            disabled={!input.trim() || (voiceOn && !voiceDegraded)}
+            aria-label="发送"
+            className={`chat-send-button${input.trim() ? ' is-ready' : ''}`}
+          />
         </Tooltip>
       )}
     </div>

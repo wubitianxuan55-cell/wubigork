@@ -9,6 +9,7 @@ import { app } from '../gaea/lib/bridge'
 import { b64ToBytes } from '../gaea/lib/bytes'
 import { copyToClipboard } from '../gaea/lib/clipboard'
 import { useFollowScroll } from '../utils/followScroll'
+import { useBoardActive } from '../lib/boardActive'
 import { C } from '../utils/theme'
 import { shouldSubmitOnEnter } from '../utils/chatComposer'
 import ChatTopicSidebar, { type Topic as SidebarTopic } from '../components/ChatTopicSidebar'
@@ -26,10 +27,12 @@ import { WelcomeScreen } from '../components/chat/WelcomeScreen'
 import { ChatComposer, QUICK_REPLIES } from '../components/chat/ChatComposer'
 const EMPTY_REPLIES: Array<{ label: string; text: string }> = []
 import { ChatInspector } from '../components/chat/ChatInspector'
+import { VoiceConsole } from '../components/chat/VoiceConsole'
 import { STREAM_SILENCE_TIMEOUT_MS, EMO_COLORS } from './chat/constants'
 import { navigateToCharacterLib, loadCompanionName, toUpdatedAt, loadPersonality } from './chat/utils'
 import type { ChatMsg, Personality } from './chat/types'
 import '../chat-board.css'
+import '../chat-workspace.css'
 import { GenuiScopeProvider } from '../genui/scope'
 import { GenuiActionProvider } from '../genui/GenuiActionContext'
 
@@ -37,7 +40,18 @@ import { GenuiActionProvider } from '../genui/GenuiActionContext'
 // （vitest fake timers 推进同一阈值），故在此再导出。
 export { STREAM_SILENCE_TIMEOUT_MS }
 
+function initialCollapsed(key: string): boolean {
+  try {
+    const saved = localStorage.getItem(key)
+    if (saved !== null) return saved === '1'
+  } catch {
+    // localStorage 不可用时按视口给出一致初值。
+  }
+  return typeof window !== 'undefined' && window.innerWidth < 900
+}
+
 const ChatPage: React.FC = () => {
+  const chatActive = useBoardActive('chat')
   // ── 消息区状态（页面持有；流/话题/语音三个 hook 注入更新） ──
   const [messages, setMessages] = useState<ChatMsg[]>([])
   const updateMessage = useCallback((key: string, patch: Partial<ChatMsg>) => {
@@ -62,6 +76,7 @@ const ChatPage: React.FC = () => {
   const [forceSearch, setForceSearch] = useState(false)
 
   const [showVoiceSettings, setShowVoiceSettings] = useState(false)
+  const [voiceConsoleOpen, setVoiceConsoleOpen] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [speakingId, setSpeakingId] = useState<string | null>(null)
   // v4.3d 朗读情绪：手动选择（'' = 跟随会话最近一轮情绪）；朗读时作为
@@ -77,9 +92,9 @@ const ChatPage: React.FC = () => {
   }, [])
 
   // 左侧会话栏折叠态（本地持久化，随面板一起折叠悬浮绑定模型卡）
-  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
-    try { return localStorage.getItem('gaea.chatSidebarCollapsed') === '1' } catch { return false }
-  })
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(
+    () => initialCollapsed('gaea.chatSidebarCollapsed'),
+  )
   const toggleChatSidebar = useCallback(() => {
     setSidebarCollapsed((c) => {
       const next = !c
@@ -89,15 +104,24 @@ const ChatPage: React.FC = () => {
   }, [])
 
   // 右侧上下文/人格 inspector 折叠态（本地持久化，随面板折叠为窄条）
-  const [inspectorCollapsed, setInspectorCollapsed] = useState<boolean>(() => {
-    try { return localStorage.getItem('gaea.chatInspectorCollapsed') === '1' } catch { return false }
-  })
+  const [inspectorCollapsed, setInspectorCollapsed] = useState<boolean>(
+    () => initialCollapsed('gaea.chatInspectorCollapsed'),
+  )
+  useEffect(() => {
+    const collapseForCompactWindow = () => {
+      if (window.innerWidth >= 900) return
+      setSidebarCollapsed(true)
+      setInspectorCollapsed(true)
+    }
+    collapseForCompactWindow()
+    window.addEventListener('resize', collapseForCompactWindow)
+    return () => window.removeEventListener('resize', collapseForCompactWindow)
+  }, [])
   // v4.365 性能轮：传给 memo 子组件的回调全部 useCallback 稳定（内联箭头使 memo 恒失效）
   const handleToggleSearch = useCallback(() => setSearchEnabled(v => !v), [])
   const handleToggleForceSearch = useCallback(() => setForceSearch(v => !v), [])
   const handleToggleThinking = useCallback(() => setThinking(v => !v), [])
   const handleOpenVoiceSettings = useCallback(() => setShowVoiceSettings(true), [])
-  const handleSwitchPersona = useCallback(() => { if (mode === 'plain') switchMode(activePersonality) }, [mode, activePersonality, switchMode])
   const toggleChatInspector = useCallback(() => {
     setInspectorCollapsed((c) => {
       const next = !c
@@ -137,8 +161,35 @@ const ChatPage: React.FC = () => {
     setMessages,
     getActiveId: useCallback(() => activeIdRef.current, [activeIdRef]),
     getMode: useCallback(() => modeRef.current, [modeRef]),
+    finalizeTopicAfterSend,
   })
-  const { voice, voiceOn, toggleVoice } = voiceApi
+  const { voice, voiceOn, toggleVoice, stopVoiceSession, interruptVoice } = voiceApi
+
+  useEffect(() => {
+    if (chatActive) return
+    setVoiceConsoleOpen(false)
+    stopVoiceSession()
+  }, [chatActive, stopVoiceSession])
+
+  const openVoiceConsole = useCallback(async () => {
+    if (!activeIdRef.current) {
+      message.warning('当前会话尚未准备好，请稍后再试')
+      return
+    }
+    setVoiceConsoleOpen(true)
+    if (!voiceOn) await toggleVoice()
+  }, [activeIdRef, voiceOn, toggleVoice])
+
+  const closeVoiceConsole = useCallback(() => {
+    setVoiceConsoleOpen(false)
+    stopVoiceSession()
+  }, [stopVoiceSession])
+  const handleOpenVoiceConsole = useCallback(() => {
+    void openVoiceConsole()
+  }, [openVoiceConsole])
+  const handleCloseVoiceConsole = useCallback(() => {
+    closeVoiceConsole()
+  }, [closeVoiceConsole])
 
   // ── 派生展示值 ──
   const currentPersonality = personalities.find(p => p.id === activePersonality)
@@ -148,6 +199,23 @@ const ChatPage: React.FC = () => {
   const emoColor = EMO_COLORS[emotion] || 'var(--gaea-glow, var(--md-sys-color-primary))'
   const personaLabel = currentPersonality?.label || '角色'
   const hasMessages = messages.length > 0
+  const activeTopic = topics.find((topic) => topic.id === activeId)
+  const workspaceTitle = voiceConsoleOpen
+    ? '语音对话'
+    : activeTopic?.title || (mode === 'plain' ? '新对话' : companionName)
+  const workspaceStatus = voiceConsoleOpen
+    ? voice.degraded === 'mic-unavailable'
+      ? '麦克风不可用'
+      : voice.aiSpeaking
+        ? '正在回应'
+        : voice.listening
+          ? '正在聆听'
+          : voiceOn ? '等待发言' : '语音暂停'
+    : sending
+      ? '正在生成'
+      : hasMessages
+        ? `${messages.length} 条消息`
+        : '等待开始'
   // 朗读生效情绪：手动选择优先，其次当前会话最近一轮情绪（whisper L2 标签）
   const effectiveSpeakEmotion = speakEmotion || emotion
 
@@ -169,42 +237,57 @@ const ChatPage: React.FC = () => {
   // ── 话题操作（滚动/聚焦包装；数据逻辑在 useChatTopics） ──
   // 选择话题 → 中止上一话题的模拟打字流 + 加载消息 + 恢复人格元数据
   const selectTopic = useCallback(async (id: string) => {
+    closeVoiceConsole()
     // T6-3.3：切话题即中止上一话题的模拟打字流（避免过期 setStreamText 继续跑）
     cancelTyping()
     rearm()
     await selectTopicData(id)
     inputRef.current?.focus?.()
-  }, [cancelTyping, selectTopicData, rearm])
+  }, [cancelTyping, closeVoiceConsole, selectTopicData, rearm])
 
   const handleCreate = useCallback(async () => {
+    closeVoiceConsole()
     rearm()
     await createTopic()
     inputRef.current?.focus?.()
-  }, [createTopic, rearm])
+  }, [closeVoiceConsole, createTopic, rearm])
 
   const handleDelete = useCallback(async (id: string) => {
+    if (id === activeIdRef.current) closeVoiceConsole()
     rearm()
     await deleteTopic(id)
     inputRef.current?.focus?.()
-  }, [deleteTopic, rearm])
+  }, [activeIdRef, closeVoiceConsole, deleteTopic, rearm])
 
   const handleSwitchPersonality = useCallback(async (id: string) => {
+    closeVoiceConsole()
     try { await app.WhisperClearSession(activePersonality) } catch (_) {}
     setActivePersonality(id)
     await switchMode(id)
-  }, [activePersonality, switchMode])
+  }, [activePersonality, closeVoiceConsole, switchMode])
+
+  const handleSwitchPlain = useCallback(() => {
+    closeVoiceConsole()
+    void switchMode('plain')
+  }, [closeVoiceConsole, switchMode])
+
+  const handleSwitchPersona = useCallback(() => {
+    closeVoiceConsole()
+    if (mode === 'plain') void switchMode(activePersonality)
+  }, [activePersonality, closeVoiceConsole, mode, switchMode])
 
   // 角色库切换人格 → 聊天板块联动
   useEffect(() => {
     const onPersona = (e: Event) => {
       const id = (e as CustomEvent).detail?.id
       if (!id) return
+      closeVoiceConsole()
       setActivePersonality(id)
       switchMode(id)
     }
     window.addEventListener('gaea-persona-changed', onPersona)
     return () => window.removeEventListener('gaea-persona-changed', onPersona)
-  }, [switchMode])
+  }, [closeVoiceConsole, switchMode])
 
   // ── 发送管道 ──
   const doSend = useCallback((text: string, retryKey?: string) => {
@@ -339,7 +422,7 @@ const ChatPage: React.FC = () => {
       searchEnabled={searchEnabled}
       onToggleSearch={handleToggleSearch}
       onNavigateLib={navigateToCharacterLib}
-      onSwitchPlain={() => switchMode('plain')}
+      onSwitchPlain={handleSwitchPlain}
       onSwitchPersona={handleSwitchPersona}
       onSwitchPersonality={handleSwitchPersonality}
       onOpenVoiceSettings={handleOpenVoiceSettings}
@@ -354,6 +437,7 @@ const ChatPage: React.FC = () => {
 
   return (
     <div className="chat-board chat-cockpit" style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+      <a className="chat-skip-link" href="#chat-workspace">跳到对话内容</a>
       <ChatTopicSidebar
         topics={topicList}
         activeId={activeId}
@@ -372,92 +456,122 @@ const ChatPage: React.FC = () => {
         {mode !== 'plain' && <ParticleFlow aro={aro} />}
         <SoundWaveOverlay active={speakingId !== null} aff={aff} aro={aro} />
 
-        {/* 人格状态条（临场感：头像常驻 + 名字；状态/记忆归角色库） */}
-        {mode !== 'plain' && hasMessages && (
-          <ChatPersonaBar
-            companionName={companionName}
-            emoColor={emoColor}
-            speaking={speakingId !== null}
-            thinking={sending}
-            activeId={mode !== 'plain' ? mode : activePersonality}
-            onSelect={handleSwitchPersonality}
-            onManage={navigateToCharacterLib}
-          />
-        )}
-
-        {/* 消息区 */}
-        <div ref={listRef} role="log" aria-live="polite" aria-label="对话消息"
-          onScroll={onListScroll}
-          onWheel={onListWheel}
-          style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: 0, position: 'relative' }}>
-          {initializing ? (
-            <div className="chat-empty">
-              <span className="typing-dots"><span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" /></span>
-              <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 12, marginTop: 14 }}>正在载入会话…</Typography.Text>
+        <header className="chat-workspace-head">
+          <div className="chat-workspace-identity">
+            <span className="chat-workspace-kicker">CONVERSATION</span>
+            <div className="chat-workspace-title-row">
+              <h1 id="chat-workspace" tabIndex={-1}>{workspaceTitle}</h1>
+              <span className="chat-workspace-status" aria-live="polite">{workspaceStatus}</span>
             </div>
-          ) : !hasMessages ? (
-            <WelcomeScreen
-              mode={mode}
-              personaLabel={personaLabel}
-              companionName={companionName}
-              voice={voice}
-              emoColor={emoColor}
-              activePersonality={activePersonality}
-              onSwitchPersonality={handleSwitchPersonality}
-              onNavigateLib={navigateToCharacterLib}
-              onFillInput={handleFillInput}
-              onSuggestion={handleSuggestion}
-            />
-          ) : (
-            <GenuiScopeProvider scope={activeId ? { scope: 'chat', sessionKey: activeId } : null}>
-              <GenuiActionProvider onAction={genuiChatAction}>
-                <MessageList
-                  hasOlder={hasOlder}
-                  loadingOlder={loadingOlder}
-                  onLoadOlder={loadOlder}
-                  prepend={prepend}
-                  messages={messages}
-                  streamKey={streamKey}
-                  streamText={streamText}
+          </div>
+          <div className="chat-workspace-mode" title="会话记录保存在本机">
+            <span className="chat-workspace-mode-dot" aria-hidden />
+            本机保存
+          </div>
+        </header>
+
+        {voiceConsoleOpen ? (
+          <VoiceConsole
+            voice={voice}
+            voiceOn={voiceOn}
+            messages={messages}
+            companionName={companionName}
+            onToggleVoice={toggleVoice}
+            onInterruptVoice={interruptVoice}
+            onOpenSettings={handleOpenVoiceSettings}
+            onClose={handleCloseVoiceConsole}
+          />
+        ) : (
+          <>
+            {/* 人格状态条（临场感：头像常驻 + 名字；状态/记忆归角色库） */}
+            {mode !== 'plain' && hasMessages && (
+              <ChatPersonaBar
+                companionName={companionName}
+                emoColor={emoColor}
+                speaking={speakingId !== null}
+                thinking={sending}
+                activeId={mode !== 'plain' ? mode : activePersonality}
+                onSelect={handleSwitchPersonality}
+                onManage={navigateToCharacterLib}
+              />
+            )}
+
+            {/* 消息区 */}
+            <div ref={listRef} className="chat-message-scroll" role="log" aria-live="polite" aria-busy={sending} aria-label="对话消息"
+              onScroll={onListScroll}
+              onWheel={onListWheel}
+              style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: 0, position: 'relative' }}>
+              {initializing ? (
+                <div className="chat-empty">
+                  <span className="typing-dots"><span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" /></span>
+                  <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 12, marginTop: 14 }}>正在载入会话…</Typography.Text>
+                </div>
+              ) : !hasMessages ? (
+                <WelcomeScreen
                   mode={mode}
+                  personaLabel={personaLabel}
                   companionName={companionName}
-                  copiedId={copiedId}
-                  speakingId={speakingId}
-                  onCopy={handleCopy}
-                  onSpeak={handleSpeak}
-                  onRetry={handleRetry}
+                  voice={voice}
+                  emoColor={emoColor}
+                  activePersonality={activePersonality}
+                  onSwitchPersonality={handleSwitchPersonality}
+                  onNavigateLib={navigateToCharacterLib}
+                  onFillInput={handleFillInput}
+                  onSuggestion={handleSuggestion}
+                  onOpenVoiceConsole={handleOpenVoiceConsole}
                 />
-              </GenuiActionProvider>
-            </GenuiScopeProvider>
-          )}
-        </div>
+              ) : (
+                <GenuiScopeProvider scope={activeId ? { scope: 'chat', sessionKey: activeId } : null}>
+                  <GenuiActionProvider onAction={genuiChatAction}>
+                    <MessageList
+                      hasOlder={hasOlder}
+                      loadingOlder={loadingOlder}
+                      onLoadOlder={loadOlder}
+                      prepend={prepend}
+                      messages={messages}
+                      streamKey={streamKey}
+                      streamText={streamText}
+                      mode={mode}
+                      companionName={companionName}
+                      copiedId={copiedId}
+                      speakingId={speakingId}
+                      onCopy={handleCopy}
+                      onSpeak={handleSpeak}
+                      onRetry={handleRetry}
+                    />
+                  </GenuiActionProvider>
+                </GenuiScopeProvider>
+              )}
+            </div>
 
-        {!atBottom && hasMessages && (
-          <button className="chat-scroll-bottom" onClick={scrollToBottom} aria-label="回到底部">
-            <DownOutlined /> 回到底部
-          </button>
+            {!atBottom && hasMessages && (
+              <button className="chat-scroll-bottom" onClick={scrollToBottom} aria-label="回到底部">
+                <DownOutlined /> 回到底部
+              </button>
+            )}
+
+            {/* 输入岛 */}
+            <ChatComposer
+              mode={mode}
+              input={input}
+              onInputChange={setInput}
+              onKeyDown={handleKeyDown}
+              inputRef={inputRef}
+              voiceOn={voiceOn}
+              voiceTranscript={voice.transcript}
+              voiceDegraded={voice.degraded === 'mic-unavailable'}
+              onToggleVoice={handleOpenVoiceConsole}
+              sending={sending}
+              forceSearch={forceSearch}
+              onToggleForceSearch={handleToggleForceSearch}
+              thinking={thinking}
+              onToggleThinking={handleToggleThinking}
+              onSend={handleSend}
+              onStop={stop}
+              onFillInput={handleFillInput}
+            />
+          </>
         )}
-
-        {/* 输入岛 */}
-        <ChatComposer
-          mode={mode}
-          input={input}
-          onInputChange={setInput}
-          onKeyDown={handleKeyDown}
-          inputRef={inputRef}
-          voiceOn={voiceOn}
-          voiceTranscript={voice.transcript}
-          voiceDegraded={voice.degraded === 'mic-unavailable'}
-          onToggleVoice={toggleVoice}
-          sending={sending}
-          forceSearch={forceSearch}
-          onToggleForceSearch={handleToggleForceSearch}
-          thinking={thinking}
-          onToggleThinking={handleToggleThinking}
-          onSend={handleSend}
-          onStop={stop}
-          onFillInput={handleFillInput}
-        />
       </main>
 
       <div className="v3-split-v" aria-hidden="true" />

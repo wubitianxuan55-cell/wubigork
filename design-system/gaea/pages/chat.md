@@ -1,43 +1,94 @@
-# gaea 3.0 板块蓝图 · chat 聊天
+# gaea 板块蓝图 · chat 聊天「对话工作台」
 
-> 覆盖 MASTER。实施参考 docs/2026-08-15-gaea3-ui-design-system.md。
-> 更新：T6-10.2（2026-08-15）——模式切换条移入全局顶栏；输入框两级重设计。
+> 覆盖 MASTER。实现以 `ChatPage.tsx` + `chat-workspace.css` 为页面外壳，
+> 保留会话、流式回答、角色、语音、工具轨迹、Markdown/GenUI 与持久化契约。
+> 技能来源：`redesign-existing-projects` 审计流程 + `ui-ux-pro-max`
+> Chat & Messaging、Minimalism、键盘可达与移动端适配规则。
 
-## 现状（facts）
-- 页面：`frontend/src/pages/ChatPage.tsx` + components/chat/{ChatComposer,ChatModeBar,ChatPersonaBar,MessageList,ChatInspector,WelcomScreen}.tsx
-- 侧栏：ChatTopicSidebar（会话列表，react-window 虚拟滚动）；消息流 MessageList
-- 样式：chat-board.css + 全局 token；语音：useChatVoice / ChatAppendMessages 持久化
-- 流式：SSE 事件（delta/reasoning/done/error）+ 30s 无帧超时 + sending 五路复位
+## 视觉性格：安静的对话工作台
 
-## 目标态
-- **视觉性格：沉浸对话**——左侧玻璃会话栏 + 消息流 + 流式发光。
-- **模式切换条在全局顶栏**（T6-10.2）：普通对话/角色对话 胶囊段渲染进 MainLayout 的
-  v3-strip 轨道条（`#v3-chatmode-host` 宿主 + ChatPage createPortal + ChatModeBar `variant='strip'`；
-  仅聊天板块激活时显示，动作按钮如角色库/切换角色/语音/导出/清空同条内嵌）
-- 会话侧栏（玻璃 `gp-panel`）：
-  - 激活会话 = `--color-primary-container` 高亮 + 主色左缘 3px 指示条；
-  - 新建按钮 = 主色胶囊；未完成徽标（interrupted）琥珀色 `--color-warning`；
-  - 搜索框 focus `--focus-ring`。
-- 消息流：
-  - 用户气泡 = `--color-primary-container`（主色系，onPrimaryContainer 文字）；
-  - AI 消息 = 透明底 + 头像（品牌 orb 小号）+ 主题色发光边（AI 生成态）；
-  - 流式光标 `cursor-blink`（已有）；生成中 AI 消息底部发光脉冲 `--gaea-glow`；
-  - 消息操作（复制/朗读）hover 浮现，`--transition-fast`。
-- Composer **两级布局**（T6-10.2）：
-  - 工具行（`.chat-composer-tools`）：搜索/深度思考/语音 开关（图标 + 12px 标签，激活 =
-    主色胶囊 + 柔光，状态三重传达：色/图标/文案），右侧键盘提示「Enter 发送 · Shift+Enter 换行」；
-  - 输入卡（`.chat-composer` 玻璃）：仅 textarea + 发送按钮（主色，有字发光），placeholder「输入消息…」；
-  - 角色模式：快捷回复 chips 位于工具行上方。
+聊天不是演示型 AI 首页，而是可长期停留的阅读与输入空间：
 
-## 落地清单
-- [x] 模式切换条移入全局顶栏轨道条（portal 宿主，仅聊天板块显示）
-- [x] Composer 两级重设计（工具行独立 + 输入卡精简）
-- [x] 侧栏激活态统一（primary-container + 左缘指示条）；焦点环
-- [x] 用户/AI 气泡语义色统一走令牌（清硬编码）
-- [x] Composer 玻璃输入条 + 发送 hover 微交互
-- [x] 流式发光脉冲（AI 生成态）用 `--gaea-glow`
+- 三栏结构明确：左侧会话索引、中央对话正文、右侧上下文；
+- 侧栏信息层使用实底表面，只有输入器保留必要的玻璃和柔光；
+- 单一主题强调色用于当前会话、发送、语音状态和焦点；
+- 正文使用系统字体，标题收紧字距，元数据使用等宽字与 tabular-nums；
+- 大面积网格只保留在中央低层，不抢正文与消息操作。
 
-## 验收
-- 12 主题明暗下气泡对比度 ≥4.5:1；流式无跳动（无 layout shift）；
-- 键盘可达（消息可聚焦、操作可见焦点环）；reduced-motion 无发光脉冲。
-- 顶栏模式条：切板块隐藏、回聊天恢复；工具行激活态随 aria-pressed 同步。
+## 信息架构
+
+### 左侧：会话索引
+
+- 顶部为「会话」标题、折叠与新建会话；
+- 搜索支持即时过滤；
+- 每条会话以独立 button 作为选择目标，删除按钮为 sibling，避免嵌套交互；
+- 激活会话使用强调色浅底与左缘刻线；
+- `F2` 或双击重命名，`Escape` 取消编辑；
+- 空态提供「新建对话」动作，搜索无结果给出退出路径。
+
+### 中央：对话正文
+
+- 顶部 `chat-workspace-head` 显示 `CONVERSATION`、当前会话标题、消息数/生成状态，
+  右侧固定显示“本机保存”；
+- 消息阅读宽度约 780px，用户消息使用右对齐单层气泡，AI 消息保持文档式阅读宽度；
+- 流式光标、复制、朗读、重试、回答来源沿用原契约；
+- 新对话时展示紧凑欢迎屏：小尺寸声核、明确标题、状态行、任务入口；
+- 输入器从绝对浮层改为文档流底部 dock，不再覆盖建议卡和历史消息。
+
+### 输入器
+
+- 工具行：联网搜索、深度思考、语音输入；
+- 输入卡：textarea + 发送/停止，发送按钮仅在可发送时点亮；
+- 键盘提示保留 `Enter 发送 · Shift+Enter 换行`；生成时显示“正在生成”；
+- 语音降级时允许继续文字输入，并把“麦克风不可用”作为事实展示；
+- `prefers-reduced-transparency` 与低帧率环境下不使用高强度模糊。
+
+### 右侧：上下文
+
+- 人格、当前模型、上下文摘要、快捷建议；
+- 信息卡由嵌套卡片改为轻分隔行，避免与中央正文争夺视觉权重；
+- 模型状态使用色点 + 文案；无模型/无上下文时显示真实空态；
+- 导出、清空、语音设置、角色库保留，危险操作继续二次确认。
+
+## 专用语音交互界面
+
+语音输入不再只停留在输入框的占位文案中。点击欢迎页“进入语音对话”或输入器语音按钮
+会打开 `VoiceConsole`：
+
+- 顶部显示语音状态：聆听 / 回应 / 等待 / 暂停 / 麦克风不可用；
+- 左侧大尺寸声核随音量与说话方变化，环形轨道与波形只在活动态运动；
+- 右侧显示实时转写与最近一条 AI 回答；
+- 操作：结束/开始语音、AI 回答中打断、语音设置、返回文字对话；
+- `Esc` 返回文字对话；关闭或离开聊天板块时停止采集并释放语音会话；
+- 语音会话绑定打开时的话题；切换话题、人格或离开聊天板块先结束当前语音会话，
+  迟到的识别/回复事件不得串入新话题；
+- 语音消息仍经 `ChatAppendMessages` 写入同一话题，并复用文字发送的标题、预览与
+  最近活跃收尾，不产生独立数据体系；
+- 麦克风失败、错误与降级全部显形，不把静音伪装成“正在聆听”。
+
+## 响应式
+
+- `≤1180px`：两侧栏收窄；
+- `≤980px`：中央保持优先宽度，欢迎入口变两列，语音台转单列；
+- `≤900px`：展开的会话栏/上下文面板改为覆盖式侧板，不继续挤压正文；
+- `≤700px`：折叠栏变顶部浮动控制，欢迎入口单列，工具提示隐藏，顶部模式文字折叠为图标；
+- 输入器、消息正文、语音台均使用可滚动主区，页面本身不横向溢出。
+
+## 可访问性
+
+- 提供“跳到对话内容”；
+- 对话区 `role=log`、`aria-live=polite`、生成时 `aria-busy`；
+- 会话选择、删除、折叠、新建均有明确可访问名称；
+- 语音状态、实时转写与错误分别使用 `role=status` / `aria-live` / `role=alert`；
+- 语音台打开后聚焦标题，关闭按钮和返回入口均可键盘到达；
+- 所有交互保留可见焦点环；减少动效时关闭声核轨道、波形和消息入场动画。
+
+## 实现与验收
+
+- 页面编排：`frontend/src/pages/ChatPage.tsx`
+- 页面样式：`frontend/src/chat-workspace.css`
+- 专用语音台：`frontend/src/components/chat/VoiceConsole.tsx`
+- 欢迎屏/输入器/模式条/会话栏：`frontend/src/components/chat/*`
+- 语音聚合：`frontend/src/hooks/useChatVoice.ts`
+- 验收：亮暗双态；桌面、800px、390px；欢迎、消息、语音台、麦克风降级；
+  定向 Vitest、TypeScript、ESLint 与生产构建。
