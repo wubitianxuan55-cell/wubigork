@@ -168,6 +168,8 @@ export default function VoiceSettingsPanel() {
 
   const isXai = useMemo(() => ttsModel.toLowerCase().includes('grok-tts'), [ttsModel])
   const isCosyvoice = useMemo(() => ttsModel.toLowerCase().includes('cosyvoice'), [ttsModel])
+  // Breeze-TTS-2：无预置音色（voice 留空 = voice design，音色由描述/情感指令决定）
+  const isBreeze = useMemo(() => ttsModel.toLowerCase().includes('breeze'), [ttsModel])
 
   const voiceOptions = useMemo(() => {
     if (isHerdsman) {
@@ -179,8 +181,9 @@ export default function VoiceSettingsPanel() {
       const list = herdsmanVoices.length > 0 ? herdsmanVoices : COSYVOICE_VOICES
       return list.map(v => ({ value: v, label: v }))
     }
+    if (isBreeze) return [] // 无预置音色，隐藏选择器（design 模式）
     return EDGE_VOICES
-  }, [isHerdsman, isXai, isCosyvoice, herdsmanVoices])
+  }, [isHerdsman, isXai, isCosyvoice, isBreeze, herdsmanVoices])
 
   const effectiveVoice = useMemo(() => {
     if (isHerdsman) {
@@ -192,8 +195,9 @@ export default function VoiceSettingsPanel() {
       const list = herdsmanVoices.length > 0 ? herdsmanVoices : COSYVOICE_VOICES
       return list.includes(ttsVoice) ? ttsVoice : '中文女'
     }
+    if (isBreeze) return '' // 不发 voice（发未知名会被 breeze-server 404）
     return ttsVoice || 'zh-CN-YunxiNeural'
-  }, [isHerdsman, isXai, isCosyvoice, herdsmanVoices, ttsVoice])
+  }, [isHerdsman, isXai, isCosyvoice, isBreeze, herdsmanVoices, ttsVoice])
 
   return (
     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -252,13 +256,20 @@ export default function VoiceSettingsPanel() {
             当前模型：{ttsModel}（本地 CosyVoice，支持参考音频克隆音色）
           </div>
         )}
-        <Select
-          size="small"
-          value={effectiveVoice}
-          onChange={v => { setTtsVoice(v); applyVoiceSettings({ ttsVoice: v }) }}
-          style={{ width: '100%' }}
-          options={voiceOptions}
-        />
+        {isBreeze && ttsModel && (
+          <div style={{ fontSize: 10, color: '#2dd4bf', marginBottom: 6 }}> {/* hex-exempt 引擎品牌识别色（Breeze） */}
+            当前模型：{ttsModel}（本地 Breeze-TTS-2，无预置音色——由朗读情绪/描述自动定音色）
+          </div>
+        )}
+        {!isBreeze && (
+          <Select
+            size="small"
+            value={effectiveVoice}
+            onChange={v => { setTtsVoice(v); applyVoiceSettings({ ttsVoice: v }) }}
+            style={{ width: '100%' }}
+            options={voiceOptions}
+          />
+        )}
       </Card>
 
       {/* 语音模式 */}

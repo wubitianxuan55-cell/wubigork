@@ -38,7 +38,9 @@ export interface EngineConfig {
   // 免鉴权；离线模式按本地引擎放行；档位目录现仅 uncensored 一档）
   // tianxuan = 本地天璇引擎（V1.0 Strata 基座，默认 127.0.0.1:8094/v1，
   // uncensored/flash 两个 uncensored 档；与「天璇」编程助手是两个产品）
-  type: 'xai' | 'ollama' | 'herdsman' | 'deepseek' | 'glm' | 'cosyvoice' | 'opencode-go' | 'opencode-zen' | 'custom' | 'strata' | 'tianxuan'
+  // breeze = 本地 Breeze-TTS-2（breeze-server 托管，默认 127.0.0.1:8012/v1，
+  // OpenAI 兼容 /v1/audio/speech；无预置音色，design 模式走 instructions）
+  type: 'xai' | 'ollama' | 'herdsman' | 'deepseek' | 'glm' | 'cosyvoice' | 'breeze' | 'opencode-go' | 'opencode-zen' | 'custom' | 'strata' | 'tianxuan'
   label?: string
   color?: string
   icon?: string

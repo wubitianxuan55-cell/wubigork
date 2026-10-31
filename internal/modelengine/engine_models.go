@@ -309,7 +309,7 @@ func (m *Manager) TianxuanModelLoaded(ctx context.Context, modelID string) (bool
 // 直接落通用关键词表、默认 llm——刻意不加类型分支（避免死代码），由测试锚定该行为。
 func ClassifyModelKind(engineType EngineType, modelID string) string {
 	l := strings.ToLower(modelID)
-	if engineType == EngineCosyVoice ||
+	if engineType == EngineCosyVoice || engineType == EngineBreeze ||
 		strings.Contains(l, "tts") || strings.Contains(l, "voice") ||
 		strings.Contains(l, "edge") || strings.Contains(l, "speech") ||
 		strings.Contains(l, "voxcpm") {

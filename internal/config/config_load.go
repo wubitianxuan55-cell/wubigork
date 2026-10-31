@@ -71,6 +71,9 @@ func loadDefaults(home string) *Config {
 		// CosyVoice 本地 TTS 服务（T6-9.5，默认与历史硬编码一致）。
 		CosyVoiceDir:  DefaultCosyVoiceDir,
 		CosyVoicePort: DefaultCosyVoicePort,
+		// Breeze 本地 TTS 服务（Breeze-TTS-2）。
+		BreezeDir:  DefaultBreezeDir,
+		BreezePort: DefaultBreezePort,
 
 		// TTS 默认值
 		TTSBinaryPath: filepath.Join(home, "legacy-tts", "legacy_tts.exe"),
@@ -447,6 +450,12 @@ func applyConfigFile(cfg *Config, home string) {
 			}
 			if cf.CosyVoicePort != 0 {
 				cfg.CosyVoicePort = cf.CosyVoicePort
+			}
+			if cf.BreezeDir != "" {
+				cfg.BreezeDir = cf.BreezeDir
+			}
+			if cf.BreezePort != 0 {
+				cfg.BreezePort = cf.BreezePort
 			}
 			if cf.RealtimeProvider != "" {
 				cfg.RealtimeProvider = cf.RealtimeProvider

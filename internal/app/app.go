@@ -474,6 +474,9 @@ func (a *App) Startup(ctx context.Context) {
 	// 其内部回退，不再进 gaea 模型目录）。RemoveModel 清存量 engines.json。
 	a.engineMgr.EnsureModel("cosyvoice", "Fun-CosyVoice3-0.5B")
 	a.engineMgr.RemoveModel("cosyvoice", "CosyVoice2-0.5B")
+	// Breeze-TTS-2（breeze-server 托管）：单模型目录种子（服务端忽略模型名，
+	// 恒发 breeze-tts-2）。不加开机自启——884cdd10 口径：合成前按需拉起。
+	a.engineMgr.EnsureModel("breeze", "breeze-tts-2")
 	// 外部单模型引擎的完整档位目录（Herdsman 式模型目录）：启动时就写入
 	// 引擎模型列表，语言模型页与功能绑定不必等进程起来才看到候选。
 	_ = a.TianxuanEngineStatus()

@@ -114,6 +114,9 @@ type configFile struct {
 	// CosyVoice 本地 TTS 服务（T6-9.5）：路径/端口可配置，空值回退默认。
 	CosyVoiceDir  string `json:"cosyvoice_dir,omitempty"`
 	CosyVoicePort int    `json:"cosyvoice_port,omitempty"`
+	// Breeze 本地 TTS 服务（Breeze-TTS-2）：路径/端口可配置，空值回退默认。
+	BreezeDir  string `json:"breeze_dir,omitempty"`
+	BreezePort int    `json:"breeze_port,omitempty"`
 	// tianxuan 独立引擎项目根目录（模型、二进制与启动档位由项目自身管理）。
 	TianxuanPath string `json:"tianxuan_path,omitempty"`
 	// strata 独立引擎项目根目录（.venv / serve / 档位 JSON 均在此目录）。
@@ -296,6 +299,10 @@ type Config struct {
 	// CosyVoice 本地 TTS 服务（T6-9.5）：路径/端口可配置，默认 C:\AI\cosyvoice / 8010。
 	CosyVoiceDir  string
 	CosyVoicePort int
+
+	// Breeze 本地 TTS 服务（Breeze-TTS-2）：路径/端口可配置，默认 C:\AI\breeze-tts2 / 8012。
+	BreezeDir  string
+	BreezePort int
 
 	// 实时语音 Realtime 档（S1，internal/realtime seam）：三项来自落盘配置，
 	// 默认空 = 未配置。RealtimeAPIKey 为 secure.EncryptString 密文（config 层

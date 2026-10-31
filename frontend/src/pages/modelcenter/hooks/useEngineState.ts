@@ -145,7 +145,7 @@ export function useEngineState(category: Category): EngineState {
   // 返回时序号不匹配即丢弃（不触发 loadAll，避免旧结果覆盖新分类视图）。
   const refreshLocalModels = useCallback(async () => {
     const seq = ++refreshSeq.current
-    await Promise.allSettled(['herdsman', 'ollama', 'cosyvoice', 'strata', 'tianxuan'].map(id => refreshEngineModels(id)))
+    await Promise.allSettled(['herdsman', 'ollama', 'cosyvoice', 'breeze', 'strata', 'tianxuan'].map(id => refreshEngineModels(id)))
     if (seq !== refreshSeq.current) return // 过期刷新结果：切分类后已作废，丢弃
     await loadAll()
   }, [loadAll])

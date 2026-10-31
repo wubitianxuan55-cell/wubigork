@@ -837,6 +837,37 @@ func TestSave_CosyVoicePathPortRoundTrip(t *testing.T) {
 	}
 }
 
+// TestSave_BreezePathPortRoundTrip Breeze 路径/端口持久化：
+// 默认值（C:\\AI\\breeze-tts2 / 8012）；合法值写入可读回；非法端口拒绝。
+func TestSave_BreezePathPortRoundTrip(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	if cfg := Load(); cfg.BreezeDir != `C:\AI\breeze-tts2` || cfg.BreezePort != 8012 {
+		t.Errorf("默认 Breeze = (%q,%d), want (C:\\AI\\breeze-tts2,8012)", cfg.BreezeDir, cfg.BreezePort)
+	}
+
+	if err := Save(KeyBreezeDir, "D:\\voice\\breeze"); err != nil {
+		t.Fatalf("Save breeze_dir 失败: %s", err)
+	}
+	if err := Save(KeyBreezePort, "9040"); err != nil {
+		t.Fatalf("Save breeze_port 失败: %s", err)
+	}
+	if cfg := Load(); cfg.BreezeDir != "D:\\voice\\breeze" || cfg.BreezePort != 9040 {
+		t.Errorf("Breeze = (%q,%d), want (D:\\voice\\breeze,9040)", cfg.BreezeDir, cfg.BreezePort)
+	}
+
+	for _, bad := range []string{"0", "-1", "70000", "abc"} {
+		if err := Save(KeyBreezePort, bad); err == nil {
+			t.Errorf("端口 %q 应返回 error", bad)
+		}
+	}
+	if cfg := Load(); cfg.BreezePort != 9040 {
+		t.Errorf("非法端口被拒后 = %d, want 保持 9040", cfg.BreezePort)
+	}
+}
+
 func TestSave_TianxuanPathRoundTrip(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

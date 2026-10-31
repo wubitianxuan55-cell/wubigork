@@ -54,7 +54,35 @@ func (c *core) TestEngineConnection(engineID string) (*modelengine.EngineStatus,
 			time.Sleep(2 * time.Second)
 		}
 	}
+	// breeze-server 无 /v1/models（探活走 /health），通用 TestConnection 链
+	// 不适用：ensure + 状态回写单点在此（模型目录恒为种子单条，服务端忽略模型名）。
+	if engineID == "breeze" {
+		return c.breezeConnectStatus(), nil
+	}
 	return c.engineMgr.TestConnection(c.ctx, engineID)
+}
+
+// breezeConnectStatus 确保本地 breeze TTS 服务就绪并回写引擎状态（幂等）。
+// 冷启动含模型加载+预热（约 6~10s），轮询上限 16s。
+func (c *core) breezeConnectStatus() *modelengine.EngineStatus {
+	c.ensureLocalTTSService("breeze")
+	for i := 0; i < 8 && !c.ttsReady("breeze"); i++ {
+		time.Sleep(2 * time.Second)
+	}
+	ready := c.ttsReady("breeze")
+	errMsg := ""
+	if !ready {
+		errMsg = "Breeze TTS 服务未运行（未安装或启动失败）"
+	}
+	st := modelengine.EngineStatus{
+		ID:          "breeze",
+		Connected:   ready,
+		ModelCount:  1,
+		Error:       errMsg,
+		LastChecked: time.Now().Format(time.RFC3339),
+	}
+	c.engineMgr.SetStatus("breeze", st)
+	return &st
 }
 
 // RefreshEngineModels 刷新引擎的模型列表
@@ -64,6 +92,15 @@ func (c *core) RefreshEngineModels(engineID string) ([]modelengine.ModelInfo, er
 	}
 	if engineID == "tianxuan" || engineID == "strata" {
 		return c.refreshManagedEngineModels(engineID)
+	}
+	// breeze-server 无 /v1/models：刷新 = ensure + 按探活结果回写模型运行态。
+	if engineID == "breeze" {
+		c.breezeConnectStatus()
+		status := "stopped"
+		if c.ttsReady("breeze") {
+			status = "running"
+		}
+		return []modelengine.ModelInfo{{ID: "breeze-tts-2", Kind: "tts", Name: "Breeze-TTS-2", Status: status}}, nil
 	}
 	return c.engineMgr.RefreshModels(c.ctx, engineID)
 }

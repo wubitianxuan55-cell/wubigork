@@ -6,6 +6,9 @@ import (
 	"net/http"
 	"os/exec"
 	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -23,9 +26,21 @@ var ttsStartMaxRetries = 3
 // ttsStartBackoff 每次重试前的等待时长（与 ttsStartMaxRetries 等长）。
 var ttsStartBackoff = []time.Duration{time.Second, 2 * time.Second, 4 * time.Second}
 
+// isLocalTTSAssetEngine 需要按需拉起本地服务进程的 TTS 引擎（合成前惰性
+// ensure，已就绪零开销）：cosyvoice（python server.py）与 breeze（breeze-server.exe）。
+func isLocalTTSAssetEngine(engineID string) bool {
+	return engineID == "cosyvoice" || engineID == "breeze"
+}
+
 // ttsCmdFactory 构造 CosyVoice 启动命令；抽为变量便于测试注入（断言参数/模拟启动失败）。
 var ttsCmdFactory = func(cfg *config.Config) *exec.Cmd {
 	return ttsCosyVoiceCmdFor(cfg)
+}
+
+// breezeCmdFactory 构造 breeze-server 启动命令；抽为变量便于测试注入。
+// 启动失败（未安装/无模型）返回错误，由 startTTSServiceWithRetry 统一退避重试。
+var breezeCmdFactory = func(cfg *config.Config) (*exec.Cmd, error) {
+	return breezeCmdFor(cfg)
 }
 
 // ttsCosyVoiceCmdFor 由配置推导 CosyVoice 启动命令：python 与 server.py 均位于
@@ -38,6 +53,66 @@ func ttsCosyVoiceCmdFor(cfg *config.Config) *exec.Cmd {
 	cmd := exec.Command(filepath.Join(dir, "venv", "Scripts", "python.exe"), filepath.Join(dir, "server.py"))
 	cmd.Dir = dir
 	return cmd
+}
+
+// breezeCmdFor 由配置推导 breeze-server 启动命令（Breeze-TTS-2，breezeCmdFactory 的实体）。
+// exe 取 <dir>\bin\<版本>\breeze-server.exe（按目录名倒序取最新，容版本升级）；
+// 模型取 <dir>\model\*.gguf（优先 q8_0 且非 -dd 实验档——dd 档深度解码量化后
+// 约 45 秒持续生成起音质渐进劣化，不作默认）。
+func breezeCmdFor(cfg *config.Config) (*exec.Cmd, error) {
+	dir := config.DefaultBreezeDir
+	if cfg != nil && cfg.BreezeDir != "" {
+		dir = cfg.BreezeDir
+	}
+	exeMatches, err := filepath.Glob(filepath.Join(dir, "bin", "*", "breeze-server.exe"))
+	if err != nil || len(exeMatches) == 0 {
+		return nil, fmt.Errorf("未找到 breeze-server.exe（查找 %s\\bin\\*\\breeze-server.exe）", dir)
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(exeMatches)))
+	exe := exeMatches[0]
+
+	model, err := pickBreezeModel(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	port := config.DefaultBreezePort
+	if cfg != nil && cfg.BreezePort > 0 {
+		port = cfg.BreezePort
+	}
+	cmd := exec.Command(exe, model, "--host", "127.0.0.1", "--port", strconv.Itoa(port))
+	cmd.Dir = filepath.Dir(exe)
+	return cmd, nil
+}
+
+// pickBreezeModel 选择 breeze 模型 GGUF：<dir>\model\*.gguf 中优先
+// q8_0（官方推荐档）且排除 -dd 实验档；无 q8_0 时取任意非 -dd 档。
+func pickBreezeModel(dir string) (string, error) {
+	matches, err := filepath.Glob(filepath.Join(dir, "model", "*.gguf"))
+	if err != nil || len(matches) == 0 {
+		return "", fmt.Errorf("未找到 Breeze-TTS-2 模型 GGUF（查找 %s\\model\\*.gguf）", dir)
+	}
+	var q8, plain []string
+	for _, m := range matches {
+		l := strings.ToLower(filepath.Base(m))
+		switch {
+		case strings.Contains(l, "q8_0") && !strings.Contains(l, "-dd"):
+			q8 = append(q8, m)
+		case !strings.Contains(l, "-dd"):
+			plain = append(plain, m)
+		}
+	}
+	switch {
+	case len(q8) > 0:
+		sort.Strings(q8)
+		return q8[0], nil
+	case len(plain) > 0:
+		sort.Strings(plain)
+		return plain[0], nil
+	default:
+		sort.Strings(matches)
+		return matches[0], nil
+	}
 }
 
 var (
@@ -55,9 +130,22 @@ func (c *core) ttsURL() string {
 	return fmt.Sprintf("http://127.0.0.1:%d/v1/models", port)
 }
 
+// breezeURL breeze-server 探活 URL（/health，模型加载完成才监听——200 即热）。
+func (c *core) breezeURL() string {
+	port := config.DefaultBreezePort
+	if c.cfg != nil && c.cfg.BreezePort > 0 {
+		port = c.cfg.BreezePort
+	}
+	return fmt.Sprintf("http://127.0.0.1:%d/health", port)
+}
+
 func (c *core) ttsReady(engineID string) bool {
+	probeURL := c.ttsURL()
+	if engineID == "breeze" {
+		probeURL = c.breezeURL()
+	}
 	client := &http.Client{Timeout: 2 * time.Second}
-	resp, err := client.Get(c.ttsURL())
+	resp, err := client.Get(probeURL)
 	if err != nil {
 		return false
 	}
@@ -71,6 +159,12 @@ func (c *core) startTTSService(engineID string) error {
 	switch engineID {
 	case "cosyvoice":
 		cmd = ttsCmdFactory(c.cfg)
+	case "breeze":
+		breezeCmd, err := breezeCmdFactory(c.cfg)
+		if err != nil {
+			return err
+		}
+		cmd = breezeCmd
 	default:
 		return fmt.Errorf("unsupported local tts engine: %s", engineID)
 	}
@@ -109,7 +203,7 @@ func (c *core) startTTSServiceWithRetry(engineID string) error {
 // ensureLocalTTSService 幂等确保本地 TTS 服务就绪。
 // 已就绪直接返回；未就绪则异步拉起并轮询，调用方不会被阻塞。
 func (c *core) ensureLocalTTSService(engineID string) map[string]interface{} {
-	if engineID != "cosyvoice" {
+	if !isLocalTTSAssetEngine(engineID) {
 		return map[string]interface{}{"engine": engineID, "ready": false, "starting": false, "error": "unsupported engine"}
 	}
 	if c.ttsReady(engineID) {

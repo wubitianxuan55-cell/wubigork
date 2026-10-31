@@ -539,7 +539,7 @@ export default function RuntimePage() {
   }, [snap])
 
   const localEngineCards = useMemo(
-    () => ['herdsman', 'tianxuan', 'strata'].map((id) => ({ id, row: enginesById.get(id) })),
+    () => ['herdsman', 'tianxuan', 'strata', 'breeze'].map((id) => ({ id, row: enginesById.get(id) })),
     [enginesById],
   )
 

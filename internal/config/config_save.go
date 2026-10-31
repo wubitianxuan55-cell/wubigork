@@ -170,6 +170,18 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 		cf.CosyVoicePort = n
 		return nil
 	},
+	KeyBreezeDir: func(cf *configFile, v string) error { cf.BreezeDir = v; return nil },
+	KeyBreezePort: func(cf *configFile, v string) error {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return err
+		}
+		if n < 1 || n > 65535 {
+			return fmt.Errorf("Breeze 端口必须在 1-65535 之间（当前值: %s）", v)
+		}
+		cf.BreezePort = n
+		return nil
+	},
 	KeyTTSSpeed: func(cf *configFile, v string) error {
 		f, err := strconv.ParseFloat(v, 64)
 		if err != nil {

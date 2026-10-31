@@ -300,8 +300,8 @@ func (a *mediaState) synthesizeVoiceTTS(text, voiceDescription string) ([]byte, 
 // /v1/audio/speech（"herdsman" kind）；引擎构造分支（voicedesign/voxcpm/voiceclone）
 // 由 herdsman 工厂收敛，这里零分支。
 func (a *mediaState) tryEngineTTS(engineID, model, text, voiceDescription string) ([]byte, string, bool) {
-	// 本地 TTS 服务兜底：cosyvoice 未就绪时自动拉起（幂等，已就绪零开销）
-	if engineID == "cosyvoice" {
+	// 本地 TTS 服务兜底：cosyvoice/breeze 未就绪时自动拉起（幂等，已就绪零开销）
+	if isLocalTTSAssetEngine(engineID) {
 		a.ensureLocalTTSService(engineID)
 	}
 	p, ok := a.ttsProviderForEngine(engineID, model, voiceDescription)
@@ -339,6 +339,19 @@ func (a *mediaState) ttsProviderForEngine(engineID, model, voiceDescription stri
 		}
 		p, err := tts.NewTTSProvider("xai", tts.TTSConfig{
 			BaseURL: eng.BaseURL, Voice: voice, GetToken: a.clientRef().GetToken,
+		})
+		if err != nil {
+			return nil, false
+		}
+		return p, true
+	}
+
+	// Breeze：OpenAI 兼容 JSON 路径但字段口径不同（instructions/voice，无
+	// /v1/audio/info 音色探测），走 breeze kind——voice 恒留空（voice design
+	// 模式，instructions 即音色描述；发未知名 voice 会被服务端 404）。
+	if engineID == "breeze" {
+		p, err := tts.NewTTSProvider("breeze", tts.TTSConfig{
+			BaseURL: eng.BaseURL, Model: model, VoiceDescription: voiceDescription,
 		})
 		if err != nil {
 			return nil, false

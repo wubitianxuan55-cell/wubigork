@@ -78,8 +78,8 @@ func TestTTSPipeline_RegistryDrivenOrder(t *testing.T) {
 	a.activeTTSModel = "qwen3-tts-customvoice"
 
 	steps := a.ttsProviderPipeline(true)
-	if len(steps) != 5 {
-		t.Fatalf("应有 5 步（选中 1 + 扫描 2 + edge + sapi）, got %d: %+v", len(steps), steps)
+	if len(steps) != 6 {
+		t.Fatalf("应有 6 步（选中 1 + 扫描 2 + breeze 种子 1 + edge + sapi）, got %d: %+v", len(steps), steps)
 	}
 	// 1. 用户选中（herdsman）
 	if steps[0].provider.Name() != "herdsman" || steps[0].engineID != "herdsman" {
@@ -87,13 +87,21 @@ func TestTTSPipeline_RegistryDrivenOrder(t *testing.T) {
 	}
 	// 2-3. 扫描：qwen3-tts-customvoice（重复命中）+ voxcpm2
 	herdCount := 0
+	breezeCount := 0
 	for _, st := range steps {
 		if st.provider.Name() == "herdsman" {
 			herdCount++
 		}
+		if st.engineID == "breeze" {
+			breezeCount++
+		}
 	}
 	if herdCount != 3 {
 		t.Errorf("herdsman 步骤应为 3（选中 + qwen3 扫描 + voxcpm2 扫描，whisper-base 应被排除）, got %d", herdCount)
+	}
+	// breeze 种子模型（breeze-tts-2，Status 空 = 通过扫描）入链一步
+	if breezeCount != 1 {
+		t.Errorf("breeze 步骤应为 1（种子模型 breeze-tts-2）, got %d", breezeCount)
 	}
 	// 尾部：edge + sapi
 	if steps[len(steps)-2].provider.Name() != "edge" || steps[len(steps)-1].provider.Name() != "sapi" {
@@ -114,6 +122,40 @@ func TestTTSPipeline_NoScan(t *testing.T) {
 	if steps[0].provider.Name() != "herdsman" || steps[1].provider.Name() != "edge" || steps[2].provider.Name() != "sapi" {
 		t.Errorf("顺序应为 选中/edge/sapi: %v", steps)
 	}
+}
+
+// TestTTSStreamingProviders_BreezeFirst 用户选中 breeze 时，流式链首位应为
+// breeze（breezeStreamProvider 包装，Name 透传内层 "breeze"）；未选中时链中
+// 不含 breeze（与旧链一致）。
+func TestTTSStreamingProviders_BreezeFirst(t *testing.T) {
+	a := newVoiceSettingsTestState(t, nil)
+	a.activeTTSEngine = "breeze"
+	a.activeTTSModel = "breeze-tts-2"
+
+	providers := a.ttsStreamingProviders()
+	if len(providers) == 0 || providers[0].Name() != "breeze" {
+		t.Fatalf("选中 breeze 时流式链首位应为 breeze, got %+v", namesOf(providers))
+	}
+	if _, ok := providers[0].(*breezeStreamProvider); !ok {
+		t.Errorf("首位应为 breezeStreamProvider 包装, got %T", providers[0])
+	}
+
+	// 未选中：不含 breeze
+	a.activeTTSEngine = "herdsman"
+	a.activeTTSModel = "qwen3-tts-customvoice"
+	for _, p := range a.ttsStreamingProviders() {
+		if p.Name() == "breeze" {
+			t.Fatal("未选中 breeze 时流式链不应包含 breeze")
+		}
+	}
+}
+
+func namesOf(ps []tts.TTSProvider) []string {
+	out := make([]string, 0, len(ps))
+	for _, p := range ps {
+		out = append(out, p.Name())
+	}
+	return out
 }
 
 // TestTTSProviderForEngine_XaiRequiresClient xAI 缺 client（OAuth token）→ 不可用。

@@ -31,6 +31,15 @@ const (
 	// EngineCosyVoice 本地 CosyVoice TTS 服务（OpenAI 兼容 /v1/audio/speech；
 	// 目录只留 Fun-CosyVoice3-0.5B，CosyVoice2 已于 2026-10-18 用户拍板删除）
 	EngineCosyVoice EngineType = "cosyvoice"
+	// EngineBreeze 本地 Breeze-TTS-2 引擎（BreezeBlue 3.47B 中英双语 TTS，
+	// HoppouAI/Breeze-TTS-2.cpp 的 breeze-server 托管；OpenAI 兼容 JSON 路径
+	// /v1/audio/speech，字段口径 instructions/voice/response_format，探活走
+	// /health——无 /v1/models，故 TestConnection/RefreshModels 需专用分支）。
+	// 无预置音色：voice 留空走 voice design（instructions 即音色描述）。
+	// 红线：权重为 BreezeBlue Research and Non-Commercial License，自托管
+	// 输出仅限非商业用途。默认端口 8012（8080 herdsman / 8010 cosyvoice /
+	// 8091 strata / 8094 tianxuan / 8188 comfyui）。
+	EngineBreeze EngineType = "breeze"
 	// EngineOpencodeGo OpenCode Go 云端目录（OpenAI 兼容 /chat/completions）
 	EngineOpencodeGo EngineType = "opencode-go"
 	// EngineOpencodeZen OpenCode Zen 云端目录（OpenAI 兼容 /chat/completions 子集）
@@ -70,7 +79,7 @@ const (
 // tianxuan），云端（xai/deepseek/opencode-*）一律跳过。
 func (t EngineType) IsLocal() bool {
 	switch t {
-	case EngineOllama, EngineHerdsman, EngineCosyVoice, EngineStrata, EngineTianxuan:
+	case EngineOllama, EngineHerdsman, EngineCosyVoice, EngineBreeze, EngineStrata, EngineTianxuan:
 		return true
 	}
 	return false
@@ -100,6 +109,8 @@ func BuiltinEngineTypeOf(id string) EngineType {
 		return EngineGLM
 	case "cosyvoice":
 		return EngineCosyVoice
+	case "breeze":
+		return EngineBreeze
 	case "opencode-go":
 		return EngineOpencodeGo
 	case "opencode-zen":
@@ -212,7 +223,7 @@ type Manager struct {
 func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 	m := &Manager{
 		engines:     make(map[string]*EngineConfig),
-		order:       []string{"xai", "ollama", "herdsman", "deepseek", "glm", "cosyvoice", "strata", "tianxuan", "opencode-go", "opencode-zen"},
+		order:       []string{"xai", "ollama", "herdsman", "deepseek", "glm", "cosyvoice", "breeze", "strata", "tianxuan", "opencode-go", "opencode-zen"},
 		xaiKey:      xaiAPIKey,
 		deepseekKey: deepseekKey,
 		customKeys:  make(map[string]string),
@@ -288,6 +299,23 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 		BaseURL:      "http://127.0.0.1:8010/v1",
 		Enabled:      true,
 		DefaultModel: "Fun-CosyVoice3-0.5B",
+	}
+	m.engines["breeze"] = &EngineConfig{
+		ID:      "breeze",
+		Name:    "Breeze-TTS-2 (本地)",
+		Type:    EngineBreeze,
+		Label:   "Breeze-TTS 本地",
+		Color:   "#2dd4bf",
+		Icon:    "rocket",
+		IsLocal: true,
+		// Breeze-TTS-2（breeze-server 托管，C:\AI\breeze-tts2）：OpenAI 兼容
+		// /v1/audio/speech 但无 /v1/models，探活走 /health（app 层
+		// TestEngineConnection/RefreshEngineModels 有专用分支）。模型名服务端
+		// 忽略，恒发 breeze-tts-2；无预置音色（voice design 走 instructions）。
+		BaseURL:      "http://127.0.0.1:8012/v1",
+		Enabled:      true,
+		DefaultModel: "breeze-tts-2",
+		Models:       []ModelInfo{{ID: "breeze-tts-2", Kind: "tts", Name: "Breeze-TTS-2"}},
 	}
 	m.engines["opencode-go"] = &EngineConfig{
 		ID:           "opencode-go",

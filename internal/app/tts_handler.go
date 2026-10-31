@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/gaea/gaea/internal/tts"
 	"github.com/gaea/gaea/internal/voice"
@@ -64,7 +66,7 @@ func (a *mediaState) TTSSpeakBase64(text string) (map[string]interface{}, error)
 
 // TTSSpeakStreaming 流式合成：逐句生成（边合成边播）。
 // 合成器列表由注册表驱动（见 ttsStreamingProviders）：
-// Herdsman TTS → xAI Grok TTS → Edge TTS → WinTTS (SAPI)。
+// Breeze（选中时，首位）→ Herdsman TTS → xAI Grok TTS → Edge TTS → WinTTS (SAPI)。
 func (a *mediaState) TTSSpeakStreaming(text string) error {
 	sentences := tts.SplitSentences(text)
 	if len(sentences) == 0 {
@@ -174,7 +176,7 @@ func (a *mediaState) ttsProviderPipeline(includeScan bool) []ttsPipelineStep {
 
 	// 2. 扫描所有引擎的 TTS 模型列表
 	if includeScan && a.engineMgr != nil {
-		for _, eid := range []string{"herdsman", "cosyvoice", "ollama", "xai", "deepseek"} {
+		for _, eid := range []string{"herdsman", "cosyvoice", "breeze", "ollama", "xai", "deepseek"} {
 			eng, ok := a.engineMgr.GetEngine(eid)
 			if !ok || !eng.Enabled {
 				continue
@@ -216,7 +218,7 @@ func (a *mediaState) speakFromTTSProviderSteps(text string, steps []ttsPipelineS
 // 各引擎，edge SSML 参数化），失败依次回退下一提供者。
 func (a *mediaState) speakFromTTSProviderStepsParams(text string, steps []ttsPipelineStep, params tts.TTSParams) ([]byte, string, error) {
 	for _, st := range steps {
-		if st.engineID == "cosyvoice" {
+		if isLocalTTSAssetEngine(st.engineID) {
 			a.ensureLocalTTSService(st.engineID)
 		}
 		audio, mime, err := st.provider.SynthesizeWithParams(text, params)
@@ -249,11 +251,27 @@ func (a *App) GaeaTTSVoiceParams(emotion string) tts.TTSParams {
 }
 
 // ttsStreamingProviders 构建流式 TTS 的合成器链（注册表驱动）：
-// Herdsman TTS（本地优先）→ xAI Grok TTS（选中时）→ Edge TTS → WinTTS SAPI。
+// Breeze（选中时，首位）→ Herdsman TTS（本地优先）→ xAI Grok TTS（选中时）→
+// Edge TTS → WinTTS SAPI。
 func (a *mediaState) ttsStreamingProviders() []tts.TTSProvider {
 	var providers []tts.TTSProvider
 
-	// 0. Herdsman TTS（本地优先）
+	// 0. Breeze-TTS-2（用户选中时首位，与 Base64 管线「选中优先」同口径）。
+	// 包一层 breezeStreamProvider：首次合成前有界等待本地服务就绪，冷启动
+	// 不把整段朗读静默滑落到 herdsman/edge。
+	if a.activeTTSEngine == "breeze" && a.engineMgr != nil {
+		if breezeEngine, ok := a.engineMgr.GetEngine("breeze"); ok && breezeEngine.Enabled {
+			model := strings.TrimSpace(a.activeTTSModel)
+			if model == "" {
+				model = "breeze-tts-2"
+			}
+			if p, err := tts.NewTTSProvider("breeze", tts.TTSConfig{BaseURL: breezeEngine.BaseURL, Model: model}); err == nil {
+				providers = append(providers, &breezeStreamProvider{inner: p, ms: a})
+			}
+		}
+	}
+
+	// 0.6 Herdsman TTS（本地优先）
 	if a.engineMgr != nil {
 		if herdEngine, ok := a.engineMgr.GetEngine("herdsman"); ok && herdEngine.Enabled {
 			for _, model := range []string{"edge-tts", "qwen3-tts-customvoice", "qwen3-tts-voicedesign", "voxcpm2"} {
@@ -292,6 +310,42 @@ func (a *mediaState) ttsStreamingProviders() []tts.TTSProvider {
 		providers = append(providers, p)
 	}
 	return providers
+}
+
+// breezeStreamProvider 流式链的 breeze 包装：首次合成前有界等待本地服务就绪
+// （ensure 异步拉起 + 轮询 /health ≤10s；未安装/起不来则超时放行，由 TTSChain
+// 回退下一提供者）。只包 ensure 语义，合成全部委托内层。
+type breezeStreamProvider struct {
+	inner tts.TTSProvider
+	ms    *mediaState
+	ready sync.Once
+}
+
+func (b *breezeStreamProvider) ensureReady() {
+	b.ready.Do(func() {
+		b.ms.ensureLocalTTSService("breeze")
+		for i := 0; i < 5 && !b.ms.ttsReady("breeze"); i++ {
+			time.Sleep(2 * time.Second)
+		}
+	})
+}
+
+func (b *breezeStreamProvider) Name() string { return b.inner.Name() }
+
+func (b *breezeStreamProvider) Synthesize(text string) ([]byte, error) {
+	b.ensureReady()
+	audio, _, err := b.inner.SynthesizeWithMime(text)
+	return audio, err
+}
+
+func (b *breezeStreamProvider) SynthesizeWithMime(text string) ([]byte, string, error) {
+	b.ensureReady()
+	return b.inner.SynthesizeWithMime(text)
+}
+
+func (b *breezeStreamProvider) SynthesizeWithParams(text string, p tts.TTSParams) ([]byte, string, error) {
+	b.ensureReady()
+	return b.inner.SynthesizeWithParams(text, p)
 }
 
 // isTTSModelID 判断模型 ID 是否为 TTS 合成模型（与模型中心 tts 分类口径一致；

@@ -138,6 +138,10 @@ const (
 	// CosyVoice 本地 TTS 服务（T6-9.5）：路径/端口可配置，默认与历史硬编码一致。
 	KeyCosyVoiceDir  = "cosyvoice_dir"
 	KeyCosyVoicePort = "cosyvoice_port"
+	// Breeze 本地 TTS 服务（Breeze-TTS-2，breeze-server 托管）：路径/端口可配置。
+	// exe/模型 GGUF 按目录约定自动发现（bin\*\breeze-server.exe / model\*.gguf）。
+	KeyBreezeDir  = "breeze_dir"
+	KeyBreezePort = "breeze_port"
 	// tianxuan 独立引擎工作区：gaea 只引用该路径下的 scripts/serve.ps1。
 	KeyTianxuanPath = "tianxuan_path"
 	// strata 独立引擎工作区：gaea 只引用该路径下的 serve/server.py 与档位配置。
@@ -159,6 +163,13 @@ const DefaultUsdCnyRate = 7.2
 const (
 	DefaultCosyVoiceDir  = `C:\AI\cosyvoice`
 	DefaultCosyVoicePort = 8010
+)
+
+// Breeze 本地服务默认值（Breeze-TTS-2）：8012 避开在用端口
+// （8080 herdsman / 8010 cosyvoice / 8091 strata / 8094 tianxuan / 8188 comfyui）。
+const (
+	DefaultBreezeDir  = `C:\AI\breeze-tts2`
+	DefaultBreezePort = 8012
 )
 
 // tianxuan 引擎独立工作区默认值。引擎源码、启动档位与运行文档均在此目录。

@@ -285,6 +285,8 @@ var cfgMemSetters = map[string]func(*config.Config, string) error{
 	config.KeyUsdCnyRate:           setFloat(func(cfg *config.Config, f float64) { cfg.UsdCnyRate = f }),
 	config.KeyCosyVoiceDir:         setStr(func(cfg *config.Config, v string) { cfg.CosyVoiceDir = v }),
 	config.KeyCosyVoicePort:        setInt(func(cfg *config.Config, n int) { cfg.CosyVoicePort = n }),
+	config.KeyBreezeDir:            setStr(func(cfg *config.Config, v string) { cfg.BreezeDir = v }),
+	config.KeyBreezePort:           setInt(func(cfg *config.Config, n int) { cfg.BreezePort = n }),
 	// 布尔开关（*bool 在盘上，内存为 bool）
 	config.KeyFuncChatEnabled:    setBool(func(cfg *config.Config, b bool) { cfg.FuncChatEnabled = b }),
 	config.KeyFuncNovelEnabled:   setBool(func(cfg *config.Config, b bool) { cfg.FuncNovelEnabled = b }),
