@@ -10,10 +10,10 @@ import {
 } from './space'
 
 describe('SHELL_SPACES / isShellSpace', () => {
-  it('壳层空间恰为 work/play 两档，标签符合书斋/闲庭（v4.182 文雅定名）', () => {
+  it('壳层空间恰为 work/play 两档，标签对应当前工位/乐园语义', () => {
     expect(SHELL_SPACES.map((s) => s.id)).toEqual(['work', 'play'])
-    expect(SHELL_SPACES[0].label).toBe('书斋')
-    expect(SHELL_SPACES[1].label).toBe('闲庭')
+    expect(SHELL_SPACES[0].label).toBe('工位')
+    expect(SHELL_SPACES[1].label).toBe('乐园')
   })
 
   it('isShellSpace 仅接受 work/play（localStorage 读取守卫）', () => {

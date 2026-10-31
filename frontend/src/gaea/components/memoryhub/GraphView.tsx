@@ -1,15 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import ForceGraph3D from "3d-force-graph";
 import type { ForceGraph3DInstance } from "3d-force-graph";
 import { Modal, Spin } from "antd";
+import { ArrowRightOutlined, DatabaseOutlined, ReloadOutlined } from "@ant-design/icons";
 import { app } from "../../lib/bridge";
-import { resolveThemeColor } from "../../../utils/theme";
 import { DOMAIN_COLORS, DOMAIN_KEYS, DOMAIN_LABELS } from "../../lib/domainColors";
 import type { GraphLink, GraphNode, MemoryGraphView, SemanticGraphView } from "../../lib/types";
 
 const TYPE_COLORS = DOMAIN_COLORS;
 const TYPE_LABELS = DOMAIN_LABELS;
 const TYPE_KEYS = DOMAIN_KEYS;
+const SEMANTIC_TYPES = new Set(["entity", "event", "source"]);
 const LINK_COLORS: Record<string, string> = {
   "same-tag": "rgba(129,140,248,0.30)",
   "same-category": "rgba(52,211,153,0.30)",
@@ -32,25 +33,34 @@ type GraphData = MemoryGraphView | SemanticGraphView;
  *  variant="page" 带工具条（库面板内）；variant="home" 纯净展示（首页中央）。
  *  onSelect 可选回调：节点被点击 / 详情关闭时通知外层（详情 inspector 联动，不影响原有 Modal）。
  *  source="cloud"（默认）按标签/分类拼关联图；source="semantic" 读事件日志投影
- *  的语义图谱（entity/event/source 三向边，GaeaMemorySemanticGraph）。 */
+ *  的语义图谱（entity/event/source 三向边，GaeaMemorySemanticGraph）。
+ *  onEmptyAction 可选回调：空态入口（进入知识库添加第一条记忆）。 */
 export function GraphView(p: {
   variant?: "page" | "home";
   onSelect?: (node: GraphNode | null) => void;
   source?: "cloud" | "semantic";
   sourceSwitch?: React.ReactNode;
+  onEmptyAction?: () => void;
 }) {
-  const { variant = "page", onSelect, source = "cloud", sourceSwitch } = p;
+  const { variant = "page", onSelect, source = "cloud", sourceSwitch, onEmptyAction } = p;
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<ForceGraph | null>(null);
   const dataRef = useRef<GraphData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [typeFilter, setTypeFilter] = useState<Set<string>>(new Set([...TYPE_KEYS]));
   const [selected, setSelected] = useState<GraphNode | null>(null);
   const [nodeCount, setNodeCount] = useState(0);
   const [linkCount, setLinkCount] = useState(0);
+  const visibleTypeKeys = TYPE_KEYS.filter((t) =>
+    source === "semantic" ? SEMANTIC_TYPES.has(t) : !SEMANTIC_TYPES.has(t),
+  );
 
   // 拉取图谱数据（cloud=关联图聚合；semantic=事件日志投影语义图）
   useEffect(() => {
+    setLoading(true);
+    setLoadError(false);
     const fetchGraph = source === "semantic" ? app.SemanticGraph() : app.MemoryGraph();
     fetchGraph
       .then((g: GraphData) => {
@@ -63,18 +73,23 @@ export function GraphView(p: {
           applyFilter(graphRef.current, g, typeFilter);
         }
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        dataRef.current = null;
+        setNodeCount(0);
+        setLinkCount(0);
+        setLoadError(true);
+        setLoading(false);
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source]);
+  }, [source, reloadKey]);
 
   // 初始化 ForceGraph3D（once）
   useEffect(() => {
     if (!containerRef.current || graphRef.current) return;
-    // 图谱背景跟随主题：span 探针解析 --bg-soft（引用链 var(--md-sys-color-*)）
-    // 为终值——getPropertyValue 读 custom property 只到引用替换层，探针拿计算色更稳。
-    const themeBg = () => resolveThemeColor("var(--bg-soft, #1B2336)");
     const fg = createGraph()(containerRef.current)
-      .backgroundColor(themeBg())
+      // WebGL 画布透明，主题背景由 hub.css 的画布层负责。这样 12 套主题切换时
+      // CSS 与三维场景永远同源，不会残留上一套主题的整块背景色。
+      .backgroundColor("rgba(0,0,0,0)")
       .nodeVal((d) => d.val ?? 1)
       .nodeColor((d) => TYPE_COLORS[d.type] ?? "#64748b")
       .nodeLabel(
@@ -109,16 +124,6 @@ export function GraphView(p: {
     };
     resizeGraph();
     window.addEventListener("resize", resizeGraph);
-    // 主题切换跟随：gaea 令牌全部引用主应用写入 :root 的 M3 令牌（App.tsx
-    // setProperty），亮暗/主题色切换即触发 documentElement 内联 style 变更——
-    // 在此重读背景色推给实例（backgroundColor 支持运行时更新）。不引老栈
-    // store，保持 gaea 与主应用仅经 CSS 变量耦合。
-    const themeObserver = new MutationObserver(() => {
-      graphRef.current?.backgroundColor(themeBg());
-    });
-    themeObserver.observe(document.documentElement, {
-      attributes: true, attributeFilter: ["style"],
-    });
     // 容器尺寸变化（如侧栏/窗口布局调整）时同步画布。
     let ro: ResizeObserver | null = null;
     if (typeof ResizeObserver !== "undefined") {
@@ -130,7 +135,6 @@ export function GraphView(p: {
     if (dataRef.current) applyFilter(fg, dataRef.current, typeFilter);
     return () => {
       window.removeEventListener("resize", resizeGraph);
-      themeObserver.disconnect();
       ro?.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 图初始化 effect 只应运行一次：typeFilter 为随过滤变化的状态、onSelect 为父组件回调、applyFilter 为普通函数，均非稳定值；补依赖会在其变化时先执行 cleanup（断开 ResizeObserver、移除 resize 监听）再因 graphRef 已存在而早退，画布将失去自适应
@@ -162,28 +166,26 @@ export function GraphView(p: {
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="hub-graph">
       {/* 工具条（home 模式隐藏，纯净展示） */}
       {variant === "page" && (
-      <div className="shrink-0 flex items-center gap-2 px-4 pt-3 pb-2">
-        <div className="text-fg text-[13px] font-medium">{source === "semantic" ? "记忆事件图谱" : "记忆 3D 图谱"}</div>
-        <span className="text-fg-faint text-[11px]">
+      <div className="hub-graph-toolbar">
+        <div className="hub-graph-title">{source === "semantic" ? "记忆事件图谱" : "记忆 3D 图谱"}</div>
+        <span className="hub-graph-count">
           {nodeCount} 节点 · {linkCount} 边
         </span>
         {sourceSwitch}
-        <div className="ml-auto flex items-center gap-1.5">
-          {TYPE_KEYS.map((t) => (
+        <div className="hub-graph-filters">
+          {visibleTypeKeys.map((t) => (
             <button
               key={t}
+              type="button"
+              aria-pressed={typeFilter.has(t)}
               onClick={() => toggleType(t)}
-              className={`inline-flex items-center gap-1.5 px-2.5 h-7 rounded-full text-[11.5px] transition-colors border ${
-                typeFilter.has(t)
-                  ? "border-transparent text-white"
-                  : "border-border text-fg-faint hover:text-fg"
-              }`}
-              style={typeFilter.has(t) ? { background: TYPE_COLORS[t] } : undefined}
+              className={`hub-graph-filter${typeFilter.has(t) ? " is-active" : ""}`}
+              style={{ "--filter-color": TYPE_COLORS[t] } as CSSProperties}
             >
-              <span className="w-2 h-2 rounded-full" style={{ background: typeFilter.has(t) ? "rgba(255,255,255,0.9)" : TYPE_COLORS[t] }} />
+              <span style={{ background: TYPE_COLORS[t] }} />
               {TYPE_LABELS[t]}
             </button>
           ))}
@@ -192,16 +194,57 @@ export function GraphView(p: {
       )}
 
       {/* 图区 */}
-      <div className={`flex-1 min-h-0 relative ${variant === "page" ? "mx-4 mb-4 rounded-xl overflow-hidden border border-border-soft" : "w-full h-full"}`}>
+      <div className={`hub-graph-stage${variant === "page" ? " is-page" : " is-home"}`}>
         {loading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-bg/60 z-10">
-            <Spin tip="构建记忆图谱…" />
+          <div className="hub-graph-loading" role="status">
+            <span className="hub-graph-loader" aria-hidden="true" />
+            <Spin />
+            <strong>构建记忆图谱</strong>
+            <small>正在整理节点与关联关系…</small>
           </div>
         )}
-        <div ref={containerRef} className="w-full h-full" />
-        <div className="absolute left-3 top-3 text-fg-faint text-[10.5px] leading-relaxed pointer-events-none">
-          拖拽旋转 · 滚轮缩放 · hover 高亮 · 点击查看详情
-        </div>
+        <div ref={containerRef} className="hub-graph-canvas" aria-label="记忆 3D 关系图" />
+
+        {!loading && loadError && (
+          <div className="hub-graph-empty is-error" role="alert">
+            <span className="hub-graph-empty-mark" aria-hidden="true"><DatabaseOutlined /></span>
+            <span className="hub-kicker">CONNECTION LOST</span>
+            <h3>暂时无法读取图谱</h3>
+            <p>本地记忆仍保存在原处。重新连接后即可继续探索。</p>
+            <button type="button" onClick={() => setReloadKey((v) => v + 1)}>
+              <ReloadOutlined aria-hidden="true" />
+              重新加载
+            </button>
+          </div>
+        )}
+
+        {!loading && !loadError && nodeCount === 0 && (
+          <div className="hub-graph-empty">
+            <div className="hub-graph-orbit" aria-hidden="true">
+              <span className="hub-graph-orbit-ring hub-graph-orbit-ring--one" />
+              <span className="hub-graph-orbit-ring hub-graph-orbit-ring--two" />
+              <span className="hub-graph-orbit-node hub-graph-orbit-node--a" />
+              <span className="hub-graph-orbit-node hub-graph-orbit-node--b" />
+              <span className="hub-graph-orbit-node hub-graph-orbit-node--c" />
+              <span className="hub-graph-orbit-core"><DatabaseOutlined /></span>
+            </div>
+            <span className="hub-kicker">THE FIRST THREAD</span>
+            <h3>记忆还未连成脉络</h3>
+            <p>在对话里保存一条偏好，或从知识库添加第一条资料。新的关系会在这里自然展开。</p>
+            {onEmptyAction && (
+              <button type="button" onClick={onEmptyAction}>
+                从知识库开始
+                <ArrowRightOutlined aria-hidden="true" />
+              </button>
+            )}
+          </div>
+        )}
+
+        {!loading && !loadError && nodeCount > 0 && (
+          <div className="hub-graph-hint">
+            拖拽旋转 · 滚轮缩放 · hover 高亮
+          </div>
+        )}
       </div>
 
       {/* 节点详情 */}

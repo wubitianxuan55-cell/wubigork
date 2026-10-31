@@ -9,6 +9,7 @@ import {
   NodeIndexOutlined,
   RightOutlined,
   RobotOutlined,
+  SearchOutlined,
 } from "@ant-design/icons";
 import { BookOpen, Brain, FileText, Pin } from "../gaea/icons";
 import { LocaleProvider } from "../gaea/lib/i18n";
@@ -96,6 +97,10 @@ const LIBRARIES: LibraryDef[] = [
   { key: "database", label: "数据库", icon: <DatabaseOutlined style={{ fontSize: 16 }} />, hint: "本设备聊天记录 · 上传文件" },
 ];
 
+const MEMORY_LIBS = LIBRARIES.slice(0, 5);
+const EXPLORE_LIBS = LIBRARIES.slice(5, 6);
+const ARCHIVE_LIBS = LIBRARIES.slice(6);
+
 // 图谱节点类型 → 语义色/标签/来源（与 GraphView 节点着色同源）
 const NODE_COLORS: Record<string, string> = {
   knowledge: LIB_COLORS.knowledge,
@@ -144,13 +149,15 @@ function RailItem(p: {
   icon: React.ReactNode;
   count?: number | "—" | "…";
   title: string;
+  color?: string;
 }) {
-  const { active, onClick, label, icon, count, title } = p;
+  const { active, onClick, label, icon, count, title, color } = p;
   return (
     <button
       type="button"
       onClick={onClick}
       className={`hub-rail-item${active ? " is-active" : ""}`}
+      style={{ "--hub-item-accent": color ?? "var(--gaea-glow)" } as React.CSSProperties}
       title={title}
       aria-label={label}
       aria-current={active ? "page" : undefined}
@@ -162,7 +169,101 @@ function RailItem(p: {
   );
 }
 
-/** 记忆中枢「记忆图谱舰桥」：左分类轨道 | 中主区视图（列表/图谱） | 右详情 inspector。 */
+function RailSection({ label }: { label: string }) {
+  return (
+    <div className="hub-rail-section">
+      <span>{label}</span>
+      <i aria-hidden="true" />
+    </div>
+  );
+}
+
+function HubInspectorOverview(p: {
+  overview: MemoryHubOverview | null;
+  overviewError: boolean;
+  counts: Partial<Record<LibraryKey, number | "—" | "…">>;
+  scope: SearchScope;
+  onSelect: (key: LibraryKey) => void;
+}) {
+  const { overview, overviewError, counts, scope, onSelect } = p;
+  const keys = MEMORY_LIBS.map((lib) => lib.key);
+  const numericCounts = keys.map((key) => counts[key]).filter((n): n is number => typeof n === "number");
+  const total = numericCounts.length === keys.length
+    ? numericCounts.reduce((sum, n) => sum + n, 0)
+    : null;
+  const scopeLabel = SCOPE_OPTIONS.find((o) => o.value === scope)?.label ?? "当前空间";
+
+  return (
+    <div className="hub-overview">
+      <section className="hub-overview-total">
+        <span className="hub-kicker">INDEXED MEMORY</span>
+        <div className="hub-overview-number">
+          {overviewError ? "—" : total == null ? "···" : total.toLocaleString()}
+          <span>条</span>
+        </div>
+        <p>{overviewError ? "总览暂时不可用，仍可在左侧逐库浏览。" : "来自知识、画像、办公、资料与聊天记忆。"}</p>
+        <div className={`hub-overview-spectrum${total === 0 ? " is-empty" : ""}`} aria-hidden="true">
+          {MEMORY_LIBS.map((lib) => {
+            const count = counts[lib.key];
+            const share = typeof count === "number" && total && total > 0 ? Math.max(4, (count / total) * 100) : 0;
+            return <i key={lib.key} style={{ width: `${share}%`, background: LIB_COLORS[lib.key] }} />;
+          })}
+        </div>
+      </section>
+
+      <section className="hub-overview-section">
+        <div className="hub-overview-heading">
+          <span>库分布</span>
+          <small>点击进入</small>
+        </div>
+        <div className="hub-overview-list">
+          {MEMORY_LIBS.map((lib) => {
+            const count = counts[lib.key];
+            return (
+              <button
+                key={lib.key}
+                type="button"
+                className="hub-overview-row"
+                onClick={() => onSelect(lib.key)}
+              >
+                <span className="hub-overview-row-icon" style={{ color: LIB_COLORS[lib.key] }}>
+                  {lib.icon}
+                </span>
+                <span className="hub-overview-row-copy">
+                  <strong>{lib.label}</strong>
+                  <small>{lib.hint}</small>
+                </span>
+                <span className="hub-overview-row-count">
+                  {overviewError ? "—" : count ?? "···"}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="hub-overview-context">
+        <div>
+          <span className="hub-kicker">SEARCH SCOPE</span>
+          <strong>{scopeLabel}</strong>
+          <small>默认只搜索当前空间，避免记忆串场。</small>
+        </div>
+        <div>
+          <span className="hub-kicker">LAST UPDATED</span>
+          <strong>{overview?.latestUpdated || (overviewError ? "读取失败" : "正在读取")}</strong>
+          <small>本地维护，随对话与资料自动更新。</small>
+        </div>
+      </section>
+
+      <div className="hub-overview-tip">
+        <NodeIndexOutlined aria-hidden="true" />
+        <span>点击图谱节点或检索结果，这里会展开它的完整上下文。</span>
+      </div>
+    </div>
+  );
+}
+
+/** 记忆中枢：左索引 | 中图谱/库视图 | 右构成与详情。 */
 function MemoryHubPage() {
   const [active, setActive] = useState<"home" | LibraryKey>("home");
   const [overview, setOverview] = useState<MemoryHubOverview | null>(null);
@@ -268,14 +369,14 @@ function MemoryHubPage() {
   // 日志投影的语义图（entity/event/source 三向边，悬空互引有统计）。
   const [graphSource, setGraphSource] = useState<"cloud" | "semantic">("cloud");
   const graphSourceSwitch = (
-    <div className="flex items-center rounded-full border border-border overflow-hidden text-[11px] shrink-0" role="group" aria-label="图谱事实源">
+    <div className="hub-source-switch" role="group" aria-label="图谱事实源">
       {([["cloud", "关联图"], ["semantic", "事件图谱"]] as const).map(([v, label]) => (
         <button
           key={v}
           type="button"
           aria-pressed={graphSource === v}
           onClick={() => setGraphSource(v)}
-          className={`px-2.5 h-7 transition-colors ${graphSource === v ? "bg-accent-soft text-accent" : "text-fg-faint hover:text-fg"}`}
+          className={graphSource === v ? "is-active" : undefined}
         >
           {label}
         </button>
@@ -308,6 +409,8 @@ function MemoryHubPage() {
   const selectCategory = (key: "home" | LibraryKey) => {
     setActive(key);
     setDetail(null); // 切换分类时清空详情，避免展示陈旧条目
+    setHits([]);
+    setSearchOutcome("idle"); // 检索浮层跟随分类切换收起，不遮挡新视图
   };
 
   // v4.363：总览读取失败不再让计数徽标静默空缺——rail 显「—」占位。
@@ -330,9 +433,6 @@ function MemoryHubPage() {
       }
     : { knowledge: "…", profile: "…", office: "…", materials: "…", whisper: "…" };
 
-  const activeDef = active === "home" ? null : LIBRARIES.find((l) => l.key === active) ?? null;
-  const activeCount = activeDef ? counts[activeDef.key] : undefined;
-
   return (
     <div className="hub-workspace">
       {/* 氛围层：网格 + 扫描线（保留，降透明避免抢戏） */}
@@ -340,151 +440,203 @@ function MemoryHubPage() {
       <div className="hub-grid" aria-hidden="true" />
       <div className="hub-scanline" aria-hidden="true" />
 
-      {/* 细条头部：板块名收敛 + 三脑检索统一入口 */}
-      <div className="hub-strip">
-        <span className="hub-strip-title">
-          <NodeIndexOutlined aria-hidden="true" />
-          <span>记忆图谱舰桥</span>
-        </span>
-        <span className="hub-strip-sub">三脑记忆 · 统一入口</span>
-        {overview?.latestUpdated && (
-          <span className="hub-strip-meta">更新 {overview.latestUpdated}</span>
-        )}
-        <div className="ml-auto flex items-center gap-2 relative">
-          <input
-            value={brainQuery}
-            onChange={(e) => {
-              setBrainQuery(e.target.value);
-              if (!e.target.value.trim()) { setHits([]); setSearchOutcome("idle"); }
-            }}
-            onKeyDown={(e) => { if (e.key === "Enter") runSearch(); }}
-            placeholder="三脑检索 · 工作区资料"
-            aria-label="三脑检索 · 工作区资料"
-            className="hub-search-input"
-          />
-          {/* S1.2-C scope 切换：默认当前空间，「全部」=scope "" 仅显式选择 */}
-          <div className="hub-scope-switch" role="radiogroup" aria-label="检索范围">
-            {SCOPE_OPTIONS.map((o) => (
-              <button
-                key={o.label}
-                type="button"
-                role="radio"
-                aria-checked={scope === o.value}
-                className={`hub-scope-option${scope === o.value ? " is-active" : ""}`}
-                title={o.title}
-                onClick={() => { scopeTouched.current = true; setScope(o.value); }}
-              >
-                {o.label}
-              </button>
-            ))}
+      <header className="hub-hero">
+        <div className="hub-identity">
+          <div className="hub-emblem" aria-hidden="true">
+            <span className="hub-emblem-ring hub-emblem-ring--outer" />
+            <span className="hub-emblem-ring hub-emblem-ring--inner" />
+            <span className="hub-emblem-core" />
+            <i />
           </div>
-          <button
-            onClick={runSearch}
-            disabled={searching}
-            className="hub-search-btn"
-            type="button"
-          >
-            {searching ? "检索中…" : "检索"}
-          </button>
-          {hits.length > 0 && (
-            <div className="hub-search-pop">
-              <div className="hub-search-pop-head">
-                <span>{hits.length} 条命中</span>
+          <div className="hub-identity-copy">
+            <div className="hub-eyebrow">
+              <span className="hub-status-dot" aria-hidden="true" />
+              <span>LOCAL MEMORY INDEX</span>
+              <i />
+              <span>三脑同步</span>
+            </div>
+            <div className="hub-title-row">
+              <h1>记忆中枢</h1>
+              <span className="hub-local-badge">LOCAL</span>
+            </div>
+            <p>让对话、资料与偏好沿着同一条脉络生长。</p>
+          </div>
+        </div>
+
+        <div className="hub-search-shell">
+          <div className="hub-search-caption">
+            <span><SearchOutlined aria-hidden="true" /> 跨库检索</span>
+            <small>三脑 + 工作区资料</small>
+          </div>
+          <div className="hub-search-row">
+            <SearchOutlined className="hub-search-leading" aria-hidden="true" />
+            <input
+              value={brainQuery}
+              onChange={(e) => {
+                setBrainQuery(e.target.value);
+                if (!e.target.value.trim()) { setHits([]); setSearchOutcome("idle"); }
+              }}
+              onKeyDown={(e) => { if (e.key === "Enter") runSearch(); }}
+              placeholder="三脑检索 · 工作区资料"
+              aria-label="三脑检索 · 工作区资料"
+              className="hub-search-input"
+            />
+            <span className="hub-search-key" aria-hidden="true">ENTER</span>
+            {/* S1.2-C scope 切换：默认当前空间，「全部」=scope "" 仅显式选择 */}
+            <div className="hub-scope-switch" role="radiogroup" aria-label="检索范围">
+              {SCOPE_OPTIONS.map((o) => (
                 <button
+                  key={o.label}
                   type="button"
-                  className="hub-search-clear"
-                  onClick={() => setHits([])}
-                  aria-label="关闭检索结果"
-                  title="关闭检索结果"
+                  role="radio"
+                  aria-checked={scope === o.value}
+                  className={`hub-scope-option${scope === o.value ? " is-active" : ""}`}
+                  title={o.title}
+                  onClick={() => { scopeTouched.current = true; setScope(o.value); }}
                 >
-                  <CloseOutlined aria-hidden="true" style={{ fontSize: 10 }} />
+                  {o.label}
                 </button>
-              </div>
-              {hits.map((h, i) => (
-                <div
-                  key={`${h.kind}:${h.brain}:${h.entity}:${i}`}
-                  className="hub-hit"
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => selectHit(h)}
-                  onKeyDown={(e) => {
-                    // 键盘等价于整行点击（行内「预览/@ 引用」子按钮已有各自焦点，
-                    // 其事件 stopPropagation，不会冒泡到这里）
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      selectHit(h)
-                    }
-                  }}
-                >
-                  <span className={`hub-hit-tag ${
-                    h.kind === "file"
-                      ? "hub-hit-tag--file"
-                      : h.brain === "brain.right"
-                        ? "hub-hit-tag--right"
-                        : h.brain === "brain.left"
-                          ? "hub-hit-tag--left"
-                          : "hub-hit-tag--main"
-                  }`}>
-                    {h.kind === "file" ? "文件" : h.brain === "brain.right" ? "右脑" : h.brain === "brain.left" ? "左脑" : "主脑"}
-                  </span>
-                  {h.kind === "file" && h.path ? (
-                    <>
-                      <button
-                        type="button"
-                        className="hub-hit-entity"
-                        onClick={(e) => { e.stopPropagation(); usePreviewStore.getState().openFilePreview(h.path!); }}
-                        title="点击预览"
-                      >
-                        {h.entity}
-                      </button>
-                      <span className="hub-hit-text">{h.text}</span>
-                      <button
-                        type="button"
-                        className={`hub-hit-ref${referenced === h.path ? " is-referenced" : ""}`}
-                        onClick={(e) => { e.stopPropagation(); referenceFile(h.path!); }}
-                        title="一键 @ 引用（回到办公板块自动插入输入框）"
-                      >
-                        {referenced === h.path ? "已引用" : "@ 引用"}
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <span className="hub-hit-entity-static">{h.entity}</span>
-                      <span className="hub-hit-text">{h.text}</span>
-                    </>
-                  )}
-                </div>
               ))}
             </div>
+            <button
+              onClick={runSearch}
+              disabled={searching}
+              className="hub-search-btn"
+              type="button"
+            >
+              {searching ? "检索中" : "检索"}
+            </button>
+          </div>
+
+          {searching && (
+            <div className="hub-search-pop hub-search-pop--status" role="status">
+              <span className="hub-search-pulse" aria-hidden="true" />
+              <span>正在穿过知识、画像与工作区资料…</span>
+            </div>
           )}
-          {hits.length === 0 && !searching && searchOutcome !== "idle" && (
-            <div className="hub-search-pop" role="status">
-              <div
-                className="hub-search-pop-head"
-                style={searchOutcome === "error" ? { color: "var(--md-sys-color-destructive)" } : undefined}
-              >
-                <span>{searchOutcome === "error" ? "检索失败，请重试" : "没有找到相关内容，换个关键词试试"}</span>
+
+          {!searching && hits.length > 0 && (
+            <div className="hub-search-pop">
+              <div className="hub-search-pop-head">
+                <span><strong>{hits.length}</strong> 条相关记忆</span>
+                <small>点击条目在右侧展开</small>
                 <button
                   type="button"
                   className="hub-search-clear"
-                  onClick={() => setSearchOutcome("idle")}
+                  onClick={() => { setHits([]); setSearchOutcome("idle"); }}
                   aria-label="关闭检索结果"
                   title="关闭检索结果"
                 >
-                  <CloseOutlined aria-hidden="true" style={{ fontSize: 10 }} />
+                  <CloseOutlined aria-hidden="true" />
                 </button>
               </div>
+              <div className="hub-search-results">
+                {hits.map((h, i) => (
+                  <div
+                    key={`${h.kind}:${h.brain}:${h.entity}:${i}`}
+                    className="hub-hit"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => selectHit(h)}
+                    onKeyDown={(e) => {
+                      // 键盘等价于整行点击（行内「预览/@ 引用」子按钮已有各自焦点，
+                      // 其事件 stopPropagation，不会冒泡到这里）
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        selectHit(h)
+                      }
+                    }}
+                  >
+                    <span className={`hub-hit-tag ${
+                      h.kind === "file"
+                        ? "hub-hit-tag--file"
+                        : h.brain === "brain.right"
+                          ? "hub-hit-tag--right"
+                          : h.brain === "brain.left"
+                            ? "hub-hit-tag--left"
+                            : "hub-hit-tag--main"
+                    }`}>
+                      {h.kind === "file" ? "文件" : h.brain === "brain.right" ? "右脑" : h.brain === "brain.left" ? "左脑" : "主脑"}
+                    </span>
+                    {h.kind === "file" && h.path ? (
+                      <>
+                        <button
+                          type="button"
+                          className="hub-hit-entity"
+                          onClick={(e) => { e.stopPropagation(); usePreviewStore.getState().openFilePreview(h.path!); }}
+                          title="点击预览"
+                        >
+                          {h.entity}
+                        </button>
+                        <span className="hub-hit-text">{h.text}</span>
+                        <button
+                          type="button"
+                          className={`hub-hit-ref${referenced === h.path ? " is-referenced" : ""}`}
+                          onClick={(e) => { e.stopPropagation(); referenceFile(h.path!); }}
+                          title="一键 @ 引用（回到办公板块自动插入输入框）"
+                        >
+                          {referenced === h.path ? "已引用" : "@ 引用"}
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="hub-hit-entity-static">{h.entity}</span>
+                        <span className="hub-hit-text">{h.text}</span>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {hits.length === 0 && !searching && searchOutcome !== "idle" && (
+            <div className={`hub-search-pop hub-search-pop--status${searchOutcome === "error" ? " is-error" : ""}`} role="status">
+              <span className="hub-search-state-icon" aria-hidden="true">
+                {searchOutcome === "error" ? "!" : "0"}
+              </span>
+              <span>{searchOutcome === "error" ? "检索失败，请稍后再试" : "没有找到相关内容，换个关键词试试"}</span>
+              <button
+                type="button"
+                className="hub-search-clear"
+                onClick={() => setSearchOutcome("idle")}
+                aria-label="关闭检索结果"
+                title="关闭检索结果"
+              >
+                <CloseOutlined aria-hidden="true" />
+              </button>
             </div>
           )}
         </div>
-      </div>
+
+        <div className="hub-hero-summary">
+          <div>
+            <span className="hub-kicker">MEMORY PULSE</span>
+            <strong>{overviewError ? "—" : overview ? (
+              overview.knowledgeCount + overview.profileCount + overview.officeCount +
+              overview.pinnedCount + overview.whisperCount
+            ).toLocaleString() : "···"}</strong>
+            <small>已索引条目</small>
+          </div>
+          <span className="hub-hero-summary-rule" aria-hidden="true" />
+          <div>
+            <span className="hub-kicker">LAST UPDATE</span>
+            <strong className="is-time">{overview?.latestUpdated || (overviewError ? "读取失败" : "同步中")}</strong>
+            <small>本地自动维护</small>
+          </div>
+        </div>
+      </header>
 
       {/* 3 分区工作台：左分类轨道 | 中主区视图 | 右详情 inspector */}
       <div className="hub-body">
         {/* 左：分类轨道（图标 + 标签，替代顶部横排 tab） */}
         <aside className="hub-rail v3-panel" aria-label="记忆分类导航">
-          <div className="v3-panel-head">
-            <span className="v3-panel-title">记忆分类</span>
+          <div className="hub-panel-head">
+            <div>
+              <span className="hub-kicker">INDEX</span>
+              <strong>记忆分类</strong>
+            </div>
+            <span className="hub-panel-head-mark" aria-hidden="true">{LIBRARIES.length + 1}</span>
           </div>
           <nav className="hub-rail-nav">
             <RailItem
@@ -493,8 +645,10 @@ function MemoryHubPage() {
               label="总览"
               icon={<HomeOutlined />}
               title="记忆中枢总览 · 3D 图谱"
+              color="var(--gaea-glow)"
             />
-            {LIBRARIES.map((lib) => (
+            <RailSection label="记忆集合" />
+            {MEMORY_LIBS.map((lib) => (
               <RailItem
                 key={lib.key}
                 active={active === lib.key}
@@ -503,23 +657,86 @@ function MemoryHubPage() {
                 icon={lib.icon}
                 count={counts[lib.key]}
                 title={`${lib.label} · ${lib.hint}`}
+                color={LIB_COLORS[lib.key]}
+              />
+            ))}
+            <RailSection label="探索与存档" />
+            {[...EXPLORE_LIBS, ...ARCHIVE_LIBS].map((lib) => (
+              <RailItem
+                key={lib.key}
+                active={active === lib.key}
+                onClick={() => selectCategory(lib.key)}
+                label={lib.label}
+                icon={lib.icon}
+                count={counts[lib.key]}
+                title={`${lib.label} · ${lib.hint}`}
+                color={LIB_COLORS[lib.key]}
               />
             ))}
           </nav>
+          <div className="hub-rail-foot">
+            <span className="hub-kicker">CURRENT SCOPE</span>
+            <strong>
+              <span className="hub-status-dot" aria-hidden="true" />
+              {SCOPE_OPTIONS.find((o) => o.value === scope)?.label ?? "当前空间"}
+            </strong>
+            <small>记忆不会默认跨空间混用</small>
+          </div>
         </aside>
 
         {/* 中：主区视图（总览/图谱保持 GraphView 沉浸感；分类 = 各库列表） */}
         <main className="hub-main" aria-label="主区视图">
           <Suspense fallback={<HubViewFallback />}>
             {active === "home" ? (
-              <GraphView variant="home" onSelect={handleGraphSelect} />
+              <div className="hub-home-view">
+                <div className="hub-home-head">
+                  <div>
+                    <span className="hub-kicker">MEMORY TOPOLOGY</span>
+                    <h2>记忆关系域</h2>
+                    <p>标签、分类与引用在此汇成可探索的三维脉络。</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="hub-quiet-action"
+                    onClick={() => selectCategory("graph")}
+                  >
+                    <NodeIndexOutlined aria-hidden="true" />
+                    展开图谱
+                  </button>
+                </div>
+                <div className="hub-home-stage">
+                  <GraphView
+                    variant="home"
+                    onSelect={handleGraphSelect}
+                    onEmptyAction={() => selectCategory("knowledge")}
+                  />
+                  <div className="hub-graph-mode" aria-hidden="true">
+                    <span className="hub-status-dot" />
+                    LIVE TOPOLOGY
+                  </div>
+                </div>
+                <div className="hub-home-foot">
+                  <div className="hub-legend" aria-label="图谱节点图例">
+                    {Object.entries(NODE_LABELS).map(([type, label]) => (
+                      <span key={type}>
+                        <i style={{ background: NODE_COLORS[type] }} />
+                        {label}
+                      </span>
+                    ))}
+                  </div>
+                  <span className="hub-home-hint">拖拽旋转 · 滚轮缩放 · 点击节点查看上下文</span>
+                </div>
+              </div>
             ) : active === "graph" ? (
-              <GraphView
-                variant="page"
-                onSelect={handleGraphSelect}
-                source={graphSource}
-                sourceSwitch={graphSourceSwitch}
-              />
+              <div className="hub-graph-page">
+                <GraphView
+                  variant="page"
+                  onSelect={handleGraphSelect}
+                  source={graphSource}
+                  sourceSwitch={graphSourceSwitch}
+                  onEmptyAction={() => selectCategory("knowledge")}
+                />
+              </div>
             ) : (
               <div className="hub-library-zone">
                 <LocaleProvider>
@@ -545,11 +762,13 @@ function MemoryHubPage() {
         {(active === "home" || active === "graph") && (
         <aside
           className={`hub-inspector v3-panel${inspectorOpen ? "" : " is-collapsed"}`}
-          aria-label="详情面板"
+          aria-label={detail ? "条目详情" : "记忆构成"}
         >
-          <div className="v3-panel-head">
-            <span className="v3-panel-title">详情</span>
-            <span className="v3-panel-spacer" />
+          <div className="hub-panel-head">
+            <div>
+              <span className="hub-kicker">{detail ? "INSPECTOR" : "MEMORY MAP"}</span>
+              <strong>{detail ? "条目详情" : "记忆构成"}</strong>
+            </div>
             <button
               type="button"
               className="hub-inspector-toggle"
@@ -565,7 +784,7 @@ function MemoryHubPage() {
               )}
             </button>
           </div>
-          {!inspectorOpen && <div className="hub-inspector-collapsed-label">详情</div>}
+          {!inspectorOpen && <div className="hub-inspector-collapsed-label">构成</div>}
           {inspectorOpen && (
             <div className="hub-inspector-body">
               {detail ? (
@@ -628,19 +847,13 @@ function MemoryHubPage() {
                   </div>
                 )
               ) : (
-                /* 优雅空态 */
-                <div className="hub-empty">
-                  <FileSearchOutlined aria-hidden="true" className="hub-empty-icon" />
-                  <div className="hub-empty-title">未选中条目</div>
-                  <div className="hub-empty-text">
-                    {activeDef
-                      ? `${activeDef.label} · ${activeDef.hint}${
-                          typeof activeCount === "number" ? `（${activeCount} 条）` : ""
-                        }`
-                      : "记忆中枢总览 · 三脑记忆统一入口"}
-                  </div>
-                  <div className="hub-empty-tip">在图谱中点击节点，或点击检索命中条目，详情将在此展示</div>
-                </div>
+                <HubInspectorOverview
+                  overview={overview}
+                  overviewError={overviewError}
+                  counts={counts}
+                  scope={scope}
+                  onSelect={selectCategory}
+                />
               )}
             </div>
           )}
