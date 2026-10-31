@@ -72,6 +72,7 @@ export function useChatVoice({
     start: startVoice,
     stop: stopVoice,
     interrupt: interruptVoice,
+    switchMic,
   } = useVoiceChat({ onTranscript: onVoiceTranscript, onReply: onVoiceReply })
 
   const stopVoiceSession = useCallback(() => {
@@ -107,5 +108,5 @@ export function useChatVoice({
     return started
   }, [voiceOn, getMode, getActiveId, startVoice, stopVoice, stopVoiceSession])
 
-  return { voice, voiceOn, toggleVoice, stopVoiceSession, interruptVoice }
+  return { voice, voiceOn, toggleVoice, stopVoiceSession, interruptVoice, switchMic }
 }

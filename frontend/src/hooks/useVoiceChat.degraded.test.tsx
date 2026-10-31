@@ -48,7 +48,7 @@ function voiceState(degraded: 'mic-unavailable' | null) {
   return {
     active: true, listening: degraded === null, speaking: false, aiSpeaking: false,
     transcript: '', finalTranscript: '', volume: 0, error: null, mode: 'vad' as const,
-    degraded,
+    degraded, suggestedMic: null,
   }
 }
 
@@ -290,6 +290,28 @@ describe('useVoiceChat 麦克风不可用降级（FE6-02）', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('switchMic(deviceId)：持久化选择并以 exact 约束就地重启采集，降级清空', async () => {
+    const { stream } = installFakeAudioContext()
+    const gum = vi.fn(async (_constraints?: MediaStreamConstraints) => stream)
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: gum, enumerateDevices: vi.fn(async () => []) },
+    })
+    const { result } = renderHook(() => useVoiceChat())
+    await act(async () => { await result.current.start() })
+
+    await act(async () => { await result.current.switchMic('dev-real') })
+
+    expect(result.current.state.degraded).toBeNull()
+    expect(result.current.state.suggestedMic).toBeNull()
+    expect(result.current.state.active).toBe(true) // 会话不中断：采集就地重启
+    const lastCall = gum.mock.calls[gum.mock.calls.length - 1]?.[0] as { audio?: { deviceId?: { exact?: string } } }
+    expect(lastCall?.audio?.deviceId?.exact).toBe('dev-real')
+    expect(localStorage.getItem('gaea.voice.micDeviceId')).toBe('dev-real')
+    await act(async () => { result.current.stop() })
+    localStorage.removeItem('gaea.voice.micDeviceId')
   })
 })
 

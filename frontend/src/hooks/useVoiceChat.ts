@@ -19,6 +19,8 @@ export interface VoiceChatState {
   /** 显式降级位（FE6-02）：麦克风不可用时置 'mic-unavailable'——
    *  绝不伪造成「正在聆听」，消费方据此渲染可见警示条。 */
   degraded: 'mic-unavailable' | null
+  /** 零信号自动换真麦：降级时探测到的可用设备（一键切换建议，切换后清空） */
+  suggestedMic: { deviceId: string; label: string } | null
 }
 
 interface Options {
@@ -131,11 +133,55 @@ export async function listMicDevices(): Promise<MicDeviceInfo[]> {
   }
 }
 
+/** 探测有真实信号的录音设备（零信号自动换真麦）：逐台开 500ms 测频域能量，
+ *  返回按信号强度降序的候选。跳过 default/communications 别名口（指向同一
+ *  物理设备）与当前设备；单台探测失败静默跳过。 */
+export async function probeMicDevicesForSignal(
+  excludeDeviceId?: string,
+): Promise<Array<MicDeviceInfo & { strength: number }>> {
+  if (!navigator.mediaDevices?.enumerateDevices) return []
+  try {
+    const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput')
+    const out: Array<MicDeviceInfo & { strength: number }> = []
+    for (const d of devs) {
+      if (d.deviceId === 'default' || d.deviceId === 'communications') continue
+      if (excludeDeviceId && d.deviceId === excludeDeviceId) continue
+      let strength = 0
+      try {
+        const s = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: d.deviceId } } })
+        const ctx = new AudioContext()
+        const src = ctx.createMediaStreamSource(s)
+        const analyser = ctx.createAnalyser()
+        analyser.fftSize = 256
+        src.connect(analyser)
+        const buf = new Uint8Array(analyser.frequencyBinCount)
+        const deadline = Date.now() + 500
+        while (Date.now() < deadline) {
+          analyser.getByteFrequencyData(buf)
+          for (let i = 0; i < buf.length; i++) {
+            if (buf[i] > strength) strength = buf[i]
+          }
+          await new Promise(r => setTimeout(r, 50))
+        }
+        src.disconnect()
+        await ctx.close()
+        s.getTracks().forEach(t => t.stop())
+      } catch { /* 单台失败跳过（占用/权限） */ }
+      if (strength > 0) {
+        out.push({ deviceId: d.deviceId, label: d.label || '麦克风', isDefault: false, strength })
+      }
+    }
+    return out.sort((a, b) => b.strength - a.strength)
+  } catch {
+    return []
+  }
+}
+
 export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
   const [state, setState] = useState<VoiceChatState>({
     active: false, listening: false, speaking: false, aiSpeaking: false,
     transcript: '', finalTranscript: '', volume: 0, error: null, mode: 'vad',
-    degraded: null,
+    degraded: null, suggestedMic: null,
   })
 
   // ── Refs ──
@@ -155,6 +201,8 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
   // S2 realtime 模式（后端注入了 Realtime 会话 = realtimeProvider 非空）：
   // 强制推送 PCM + 抑制本地识别路径（防双输入）。start 时经 VoiceGetSettings 刷新。
   const realtimeModeRef = useRef(false)
+  // 零信号自动换真麦：一次会话只探测一轮（防降级↔探测循环）
+  const micProbeRef = useRef(false)
 
   // 保持 stateRef 同步
   stateRef.current = state
@@ -559,6 +607,17 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
         } else if (!degradedNow && Date.now() - lastSignalAt > 5000) {
           console.warn('[Voice] 麦克风连续 5 秒零输入（虚拟设备/硬件静音），降级为不可用')
           setState2({ degraded: 'mic-unavailable', speaking: false })
+          // 零信号自动换真麦：一次性探测其余设备，发现信号源给出一键切换建议
+          if (!micProbeRef.current) {
+            micProbeRef.current = true
+            const currentId = streamRef.current?.getAudioTracks()[0]?.getSettings?.().deviceId || ''
+            void probeMicDevicesForSignal(currentId || undefined).then(cands => {
+              if (abortRef.current || cands.length === 0) return
+              const best = cands[0]
+              console.info('[Voice] 探测到有信号的麦克风，建议切换', best.label, 'strength=', best.strength)
+              setState2({ suggestedMic: { deviceId: best.deviceId, label: best.label } })
+            })
+          }
         }
         setState2({ volume: vol, speaking: vol > 0.12 })
       }, 80)
@@ -603,9 +662,10 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
   const start = useCallback(async (): Promise<boolean> => {
     abortRef.current = false
     volSmoothRef.current = 0
+    micProbeRef.current = false
     setState2({
       active: true, listening: false, speaking: false, aiSpeaking: false,
-      transcript: '', finalTranscript: '', volume: 0, error: null, degraded: null,
+      transcript: '', finalTranscript: '', volume: 0, error: null, degraded: null, suggestedMic: null,
     })
 
     // S2：启动前刷新 realtime 模式判定（决定 PCM 强制推送与本地识别抑制）
@@ -669,7 +729,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
 
     setState2({
       active: false, listening: false, speaking: false, aiSpeaking: false,
-      transcript: '', finalTranscript: '', volume: 0, error: null, degraded: null,
+      transcript: '', finalTranscript: '', volume: 0, error: null, degraded: null, suggestedMic: null,
     })
   }, [stopCapture, stopPlayback, setState2])
 
@@ -687,6 +747,21 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     stopPlayback()
     setState2({ aiSpeaking: false })
   }, [stopPlayback, setState2])
+
+  // ── 零信号自动换真麦：一键切换 ──
+
+  /** 切换录音设备并就地重启采集（会话不中断）：持久化 → 停旧采集 → 用新
+   *  设备重开 → 视需要重启浏览器识别。降级位与切换建议一并清空。 */
+  const switchMic = useCallback(async (deviceId: string) => {
+    saveMicDeviceId(deviceId)
+    micProbeRef.current = false // 新设备若再零信号，允许重新探测
+    stopCapture()
+    setState2({ degraded: null, suggestedMic: null, volume: 0, speaking: false })
+    const captured = await startCapture()
+    if (captured && browserASRAvailable && !realtimeModeRef.current) {
+      startBrowserRecognition()
+    }
+  }, [stopCapture, startCapture, startBrowserRecognition, setState2])
 
   // ── 清理 ──
 
@@ -709,7 +784,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     }
   }, [])
 
-  return { state, start, stop, setPTT, interrupt }
+  return { state, start, stop, setPTT, interrupt, switchMic }
 }
 
 // ── 工具函数 ──

@@ -163,7 +163,7 @@ const ChatPage: React.FC = () => {
     getMode: useCallback(() => modeRef.current, [modeRef]),
     finalizeTopicAfterSend,
   })
-  const { voice, voiceOn, toggleVoice, stopVoiceSession, interruptVoice } = voiceApi
+  const { voice, voiceOn, toggleVoice, stopVoiceSession, interruptVoice, switchMic } = voiceApi
 
   useEffect(() => {
     if (chatActive) return
@@ -480,6 +480,7 @@ const ChatPage: React.FC = () => {
             onInterruptVoice={interruptVoice}
             onOpenSettings={handleOpenVoiceSettings}
             onClose={handleCloseVoiceConsole}
+            onSwitchMic={switchMic}
           />
         ) : (
           <>
@@ -519,6 +520,7 @@ const ChatPage: React.FC = () => {
                   onFillInput={handleFillInput}
                   onSuggestion={handleSuggestion}
                   onOpenVoiceConsole={handleOpenVoiceConsole}
+                  onSwitchMic={switchMic}
                 />
               ) : (
                 <GenuiScopeProvider scope={activeId ? { scope: 'chat', sessionKey: activeId } : null}>

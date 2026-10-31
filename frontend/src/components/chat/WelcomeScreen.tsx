@@ -43,6 +43,8 @@ export interface WelcomeScreenProps {
   onFillInput: (label: string) => void
   onSuggestion: (label: string) => void
   onOpenVoiceConsole?: () => void
+  /** 零信号自动换真麦：一键切换到探测到的有信号设备 */
+  onSwitchMic?: (deviceId: string) => void
 }
 
 /** 语音降级警示条（FE6-02）：麦克风不可用时必须可见——此前页面照旧显示
@@ -51,19 +53,31 @@ export interface WelcomeScreenProps {
  *  样式照抄仓内既有诚实降级提示条（FilePreview/FilePreviewModal 同款琥珀条）。 */
 const MIC_DEGRADED_TEXT = '麦克风不可用，未在采集音频，本回合走文本输入'
 
-const MicDegradedNotice: React.FC = () => (
+const MicDegradedNotice: React.FC<{
+  suggestion?: { deviceId: string; label: string } | null
+  onSwitchMic?: (deviceId: string) => void
+}> = ({ suggestion, onSwitchMic }) => (
   <div
     role="alert"
     className="mb-2 px-3 py-2 rounded-md border border-amber-500/30 bg-amber-500/5 text-amber-500 text-[11px] leading-relaxed"
   >
     {MIC_DEGRADED_TEXT}
+    {suggestion && onSwitchMic && (
+      <button
+        type="button"
+        className="mt-1 block text-left underline underline-offset-2 hover:opacity-80"
+        onClick={() => onSwitchMic(suggestion.deviceId)}
+      >
+        检测到可用麦克风：{suggestion.label} —— 点此一键切换
+      </button>
+    )}
   </div>
 )
 
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   mode, personaLabel, companionName, voice, emoColor,
   activePersonality, onSwitchPersonality, onNavigateLib, onFillInput, onSuggestion,
-  onOpenVoiceConsole,
+  onOpenVoiceConsole, onSwitchMic,
 }) => {
   // 遥测行文案：降级时不得显示 LISTEN（麦克风不可用时宣称在听=同一条谎），
   // 与上方警示条口径一致；非降级时逐字零变化。
@@ -82,7 +96,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
         <span className="chat-wel-kicker">// COMPANION · {personaLabel}</span>
 
-        {voice.degraded === 'mic-unavailable' && <MicDegradedNotice />}
+        {voice.degraded === 'mic-unavailable' && (
+          <MicDegradedNotice suggestion={voice.suggestedMic} onSwitchMic={onSwitchMic} />
+        )}
 
         <div className="chat-wel-orb chat-wel-orb-sm">
           <span className="chat-wel-ring chat-wel-ring-1" aria-hidden="true" />
@@ -143,7 +159,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
       <span className="chat-wel-kicker">GAEA CORE · 普通对话</span>
 
-      {voice.degraded === 'mic-unavailable' && <MicDegradedNotice />}
+      {voice.degraded === 'mic-unavailable' && (
+        <MicDegradedNotice suggestion={voice.suggestedMic} onSwitchMic={onSwitchMic} />
+      )}
 
       <div className="chat-wel-orb">
         <span className="chat-wel-ring chat-wel-ring-1" aria-hidden="true" />

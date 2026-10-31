@@ -20,6 +20,8 @@ export interface VoiceConsoleProps {
   onInterruptVoice?: () => void
   onOpenSettings: () => void
   onClose: () => void
+  /** 零信号自动换真麦：一键切换到探测到的有信号设备 */
+  onSwitchMic?: (deviceId: string) => void
 }
 
 /** 专用语音工作台：大尺寸声核、实时转写、最近回答与明确的会话控制。 */
@@ -32,6 +34,7 @@ export const VoiceConsole: React.FC<VoiceConsoleProps> = ({
   onInterruptVoice,
   onOpenSettings,
   onClose,
+  onSwitchMic,
 }) => {
   const headingRef = useRef<HTMLHeadingElement>(null)
   const [busy, setBusy] = useState(false)
@@ -114,6 +117,20 @@ export const VoiceConsole: React.FC<VoiceConsoleProps> = ({
                     ? '语音通道已打开，请开始说话。'
                     : '点击开始聆听，进入连续语音对话。'}
           </p>
+          {voice.degraded === 'mic-unavailable' && voice.suggestedMic && onSwitchMic && (
+            <button
+              type="button"
+              className="chat-voice-guidance"
+              style={{
+                marginTop: 8, padding: '6px 12px', borderRadius: 8, cursor: 'pointer',
+                border: '1px solid var(--color-border)', background: 'var(--color-surface-container)',
+                color: 'var(--color-text)', fontSize: 12, textAlign: 'left',
+              }}
+              onClick={() => onSwitchMic(voice.suggestedMic!.deviceId)}
+            >
+              检测到可用麦克风：{voice.suggestedMic.label} —— 点此一键切换
+            </button>
+          )}
 
           <div className="chat-voice-transcript" aria-live="polite">
             <span>实时转写</span>

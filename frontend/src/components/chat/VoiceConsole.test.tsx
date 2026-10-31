@@ -16,6 +16,7 @@ const voiceState = (over: Partial<VoiceChatState> = {}): VoiceChatState => ({
   error: null,
   mode: 'vad',
   degraded: null,
+  suggestedMic: null,
   ...over,
 })
 
@@ -64,6 +65,25 @@ describe('VoiceConsole 专用语音交互界面', () => {
     expect(screen.getByText('麦克风不可用')).toBeTruthy()
     expect(screen.getByRole('alert').textContent).toContain('未在采集声音')
     expect(screen.queryByText('正在聆听')).toBeNull()
+  })
+
+  it('零信号降级且探测到可用设备 → 一键切换钮回调 onSwitchMic(deviceId)', async () => {
+    const onSwitchMic = vi.fn().mockResolvedValue(undefined)
+    render(<VoiceConsole {...props({
+      voice: voiceState({
+        listening: false,
+        degraded: 'mic-unavailable',
+        suggestedMic: { deviceId: 'dev-real', label: 'Headset (HUAWEI FreeArc)' },
+      }),
+      onSwitchMic,
+    })} />)
+    fireEvent.click(screen.getByRole('button', { name: /检测到可用麦克风/ }))
+    await waitFor(() => expect(onSwitchMic).toHaveBeenCalledWith('dev-real'))
+  })
+
+  it('降级但未探测到信号源 → 不出切换钮', () => {
+    render(<VoiceConsole {...props({ voice: voiceState({ listening: false, degraded: 'mic-unavailable' }) })} />)
+    expect(screen.queryByRole('button', { name: /检测到可用麦克风/ })).toBeNull()
   })
 
   it('暂停后可以从界面重新开始聆听', async () => {
