@@ -21,12 +21,11 @@ export interface BoardNav {
 }
 
 /**
- * 板块 Manifest（导航白名单 / 菜单 / 快捷键 / 布局 / 面包屑 / 启动器全部由它派生）。
+ * 板块 Manifest（导航白名单 / 菜单 / 快捷键 / 布局 / 面包屑全部由它派生）。
  * 约定：
  *  - label 同时服务菜单、面包屑、启动器显示名（单一来源）；
  *  - icon 为 antd 图标名（'MessageOutlined' 等），由图标注册表查表解析；
  *  - page 为 PageRegistry 中注册的页面组件 key（替代 lazy import + pageComponents 两处登记）；
- *  - isHome 仅一块（首页启动器，壳层渲染 ModuleLauncher）；
  *  - inMenu=false 不进顶栏菜单（settings/weixin 走隐式入口）。
  */
 export interface BoardManifest {
@@ -34,7 +33,7 @@ export interface BoardManifest {
   id: string
   /** 空间归属（S2.1 双空间壳）：work 工位 / play 乐园 / shared 共用 / independent 独立窗口（缺省按 work 兼容） */
   space?: 'work' | 'play' | 'shared' | 'independent'
-  /** 菜单/面包屑/启动器显示名 */
+  /** 菜单/面包屑显示名 */
   label: string
   /** antd 图标名（图标注册表查表解析） */
   icon: string
@@ -54,8 +53,6 @@ export interface BoardManifest {
   inMenu?: boolean
   /** 面包屑"项目名→novel"锚点语义 */
   breadcrumb?: { anchorTo?: string }
-  /** 首页特判分支的替代 */
-  isHome?: boolean
   /** 板块内子导航（NovelPage 6 tab/SettingsPage 9 分类/MemoryHubPage 8 库等） */
   nav?: BoardNav
   /** FeatureModelBar 的 feature 键（"事实上的板块注册表"，gaea/office 二义需消歧） */

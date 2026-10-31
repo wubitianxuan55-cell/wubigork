@@ -335,6 +335,79 @@ export function buildPantheon(): PantheonBindings {
       session.error = '用户终止了本次议事'
       session.updatedAt = now()
     },
+    PantheonSkipAgent: async (id, agentId) => {
+      const session = sessions.get(id)
+      if (!session) throw new Error('议事不存在')
+      const participant = session.participants.find((item) => item.agentId === agentId)
+      if (!participant || participant.status !== 'running') {
+        throw new Error('当前没有可跳过的 Agent 调用')
+      }
+      participant.status = 'skipped'
+      participant.finishedAt = now()
+      participant.error = '用户跳过当前调用'
+      session.updatedAt = now()
+      session.events.push({
+        seq: session.events.length + 1,
+        sessionId: session.id,
+        phase: session.phase,
+        round: session.currentRound,
+        agentId,
+        kind: 'agent_skipped',
+        text: `${participant.name} 当前调用已跳过，继续下一位 Agent`,
+        at: now(),
+      })
+    },
+    PantheonRetryAgent: async (id, agentId) => {
+      const session = sessions.get(id)
+      if (!session) throw new Error('议事不存在')
+      const participant = session.participants.find((item) => item.agentId === agentId)
+      if (!participant || participant.status !== 'running') {
+        throw new Error('当前没有可重试的 Agent 调用')
+      }
+      participant.status = 'retrying'
+      participant.finishedAt = 0
+      participant.error = ''
+      session.updatedAt = now()
+      session.events.push({
+        seq: session.events.length + 1,
+        sessionId: session.id,
+        phase: session.phase,
+        round: session.currentRound,
+        agentId,
+        kind: 'agent_retry',
+        text: `${participant.name} 正在重新调用，保留此前发言`,
+        at: now(),
+      })
+    },
+    PantheonRestart: async (id) => {
+      const previous = sessions.get(id)
+      if (!previous) throw new Error('议事不存在')
+      if (previous.status === 'running') {
+        previous.status = 'cancelled'
+        previous.phase = 'cancelled'
+        previous.error = '用户重新开始本次议事'
+        previous.updatedAt = now()
+      }
+      const session = makeSession(structuredClone(previous.request))
+      sessions.set(session.id, session)
+      return structuredClone(session)
+    },
+    PantheonResume: async (id) => {
+      // mock 恢复：保留既有贡献，标记回运行态交给常规调度演示。
+      const session = sessions.get(id)
+      if (!session) throw new Error('议事不存在')
+      if (session.status === 'running') throw new Error('讨论仍在进行，无需恢复')
+      if (session.status === 'completed') throw new Error('讨论已完成；续议请使用「基于小结续议」')
+      if ((session.contributions || []).length === 0) {
+        throw new Error('该场没有可续的历史发言；请使用「重开整场」')
+      }
+      session.status = 'running'
+      session.phase = 'preparing'
+      session.error = ''
+      session.updatedAt = now()
+      advance(session)
+      return structuredClone(session)
+    },
     PantheonDelete: async (id) => {
       if (!sessions.delete(id)) throw new Error('议事不存在')
     },
@@ -342,6 +415,13 @@ export function buildPantheon(): PantheonBindings {
       const session = sessions.get(id)
       if (!session) throw new Error('议事不存在')
       return exportSession(session)
+    },
+    PantheonOpenResult: async (id) => {
+      const session = sessions.get(id)
+      if (!session) throw new Error('议事不存在')
+      if (session.status !== 'completed') throw new Error('讨论尚未完成，暂无最终结果文档')
+      session.resultPath = session.resultPath || `C:/AI/wubigrok/.gaea/pantheon/results/${id}.md`
+      return session.resultPath
     },
     PantheonSignOff: async (id, decision, note) => {
       const session = sessions.get(id)

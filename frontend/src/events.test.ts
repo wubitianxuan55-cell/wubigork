@@ -51,7 +51,7 @@ describe('BACKEND_EVENTS（§4.1，27 个）', () => {
 
 describe('FRONTEND_EVENTS（§4.2，7 个）', () => {
   it('共 7 个前端自定义事件常量', () => {
-    // §8.3 首页 DeepSeek 化 +1：OPEN_TASK_INBOX（收件箱面板入口归位命令面板空态）
+    // OPEN_TASK_INBOX：收件箱面板入口归位命令面板空态
     expect(Object.keys(FRONTEND_EVENTS)).toHaveLength(7)
   })
 

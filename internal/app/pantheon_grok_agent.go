@@ -102,6 +102,7 @@ func runPantheonGrokAgent(
 	reg *tool.Registry,
 	workspace string,
 	prompt string,
+	readPaths []string,
 	emitText func(string),
 	onTool func(pantheon.ToolTrace),
 ) (string, error) {
@@ -154,7 +155,7 @@ func runPantheonGrokAgent(
 	runner := gaeaAgent.New(prov, reg, session, gaeaAgent.Options{
 		MaxSteps:      12,
 		Temperature:   0.2,
-		AccessPolicy:  tool.NewPathAccessPolicy(workspace, []string{workspace}, nil, nil),
+		AccessPolicy:  tool.NewPathAccessPolicy(workspace, readPaths, nil, nil),
 		ContextWindow: 200_000,
 		DisableVerify: true,
 	}, sink)

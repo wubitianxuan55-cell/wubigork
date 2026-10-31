@@ -104,8 +104,6 @@ export const en = {
   // sidebar
   "sidebar.viewAll": "All",
   "sidebar.search": "Search chats…",
-  "sidebar.space": "Space",
-  "sidebar.spaceHint": "Office engine space (distinct from the Study/Lounge switch in the home top bar): deliverables are partitioned by space; activation takes effect on next engine rebuild/restart",
   "sidebar.collapse": "Collapse sidebar",
   "sidebar.expand": "Expand sidebar",
   "sidebar.resize": "Resize sidebar",
@@ -179,7 +177,7 @@ export const en = {
   "skeleton.cacheDesc": "Smart cache boost",
 
   // composer
-  "composer.placeholder": "Message gaea…  ( / commands · @ files )",
+  "composer.placeholder": "Describe a task, or drop a file…",
   "composer.searchProjects": "Search projects",
   "composer.noProjectMatches": "No matching projects",
   "composer.addProject": "Add new project",
@@ -1026,7 +1024,6 @@ export const en = {
   "composer.queuePending": "Queued ({n})…",
   "composer.runningHint": "Task running… Enter to queue · Alt+Enter to steer · Shift+Enter to correct",
   "composer.sendQueuedTitle": "Queue send (Enter) · Alt+Enter to steer",
-  "composer.askIn": "Ask in {name}/…",
   "composer.correctTitle": "Correct & resend (Shift+Enter)",
   "composer.queueSendHint": "Queue send (runs after the current turn; unlike steering it does not touch the running task)",
   "composer.queueCount": "Queued sends ({n})",
@@ -1126,6 +1123,12 @@ export const en = {
 
   // ── v4.57 i18n 收尾：Welcome ──
   "welcome.heading": "What should we tackle with gaea today?",
+  "office.welcomeLine": "Welcome back. gaea is ready to help you finish today's work.",
+  "office.emptyTitle": "What would you like to get done?",
+  "office.quickActions": "Quick start",
+  "office.quickReport": "Draft a weekly report",
+  "office.quickMinutes": "Summarize meeting notes",
+  "office.quickCost": "Estimate project costs",
   "welcome.coreCaps": "Core capabilities",
   // ── 2026-10 工具化：空态工作台工具 tile（§6.4）──
   "welcome.tools": "Tools",

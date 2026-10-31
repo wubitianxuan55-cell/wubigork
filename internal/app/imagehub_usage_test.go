@@ -49,7 +49,9 @@ func TestImageHubMonthlyUsage_Aggregation(t *testing.T) {
 	cwd := t.TempDir()
 	now := time.Now()
 	thisMonth := now.Format("2006-01")
-	lastMonth := now.AddDate(0, -1, 0).Format("2006-01")
+	// 上月取「本月 1 号再退一月」：AddDate(0,-1,0) 在 31 号会得到 09-31 被
+	// Go 归一化成 10-01，上月变本月，聚合断言必炸（2026-10-31 月尾实弹）。
+	lastMonth := time.Date(now.Year(), now.Month()-1, 1, 0, 0, 0, 0, now.Location()).Format("2006-01")
 	recordUsageLine(t, cwd, "glm-image", "glm", "0.1 CNY/张", thisMonth+"-01T10:00:00+08:00")
 	recordUsageLine(t, cwd, "glm-image", "glm", "0.1 CNY/张", thisMonth+"-02T10:00:00+08:00")
 	recordUsageLine(t, cwd, "krea2", "comfyui", "0", thisMonth+"-03T10:00:00+08:00")

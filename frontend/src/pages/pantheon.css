@@ -327,22 +327,34 @@
 
 .pantheon-session-item {
   position: relative;
-  display: grid;
-  grid-template-columns: 7px minmax(0, 1fr) auto;
-  gap: 10px;
+  display: flex;
+  align-items: stretch;
   width: 100%;
-  padding: 12px 10px 11px;
   overflow: hidden;
   border: 1px solid transparent;
   border-radius: var(--pantheon-control-radius);
   color: inherit;
   text-align: left;
   background: transparent;
-  cursor: pointer;
   transition:
     border-color 220ms cubic-bezier(.16, 1, .3, 1),
     background 220ms cubic-bezier(.16, 1, .3, 1),
     transform 220ms cubic-bezier(.16, 1, .3, 1);
+}
+
+.pantheon-session-open {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  padding: 12px 7px 11px 10px;
+  grid-template-columns: 7px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
 }
 
 .pantheon-session-item::after {
@@ -360,10 +372,6 @@
   border-color: var(--pantheon-line);
   background: color-mix(in srgb, var(--pantheon-surface) 66%, transparent);
   transform: translateX(2px);
-}
-
-.pantheon-session-item:active {
-  transform: translateX(1px) scale(.992);
 }
 
 .pantheon-session-item.is-active {
@@ -457,13 +465,57 @@
   content: "";
 }
 
-.pantheon-session-item time {
+.pantheon-session-open time {
   padding-top: 1px;
   color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 8.5px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.pantheon-session-delete {
+  display: grid;
+  width: 27px;
+  height: 27px;
+  flex: 0 0 auto;
+  align-self: flex-start;
+  place-items: center;
+  padding: 0;
+  margin: 8px 5px 0 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  background: transparent;
+  font-size: 12px;
+  cursor: pointer;
+  opacity: .48;
+  transition:
+    opacity 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.pantheon-session-item:hover .pantheon-session-delete,
+.pantheon-session-item:focus-within .pantheon-session-delete {
+  opacity: 1;
+}
+
+.pantheon-session-delete:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--md-sys-color-destructive, var(--color-destructive)) 30%, var(--pantheon-line));
+  color: var(--md-sys-color-destructive, var(--color-destructive));
+  background: color-mix(in srgb, var(--md-sys-color-destructive, var(--color-destructive)) 8%, transparent);
+}
+
+.pantheon-session-delete:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--pantheon-accent) 64%, transparent);
+  outline-offset: 1px;
+}
+
+.pantheon-session-delete:disabled {
+  cursor: not-allowed;
+  opacity: .25;
 }
 
 .pantheon-rail-empty {
@@ -568,40 +620,65 @@
   gap: 7px;
   padding: 6px 7px;
   border: 1px solid var(--pantheon-line);
+  border-left: 2px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 52%, var(--pantheon-line));
   border-radius: 9px;
   color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
   text-align: left;
-  background: color-mix(in srgb, var(--pantheon-surface) 58%, transparent);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 7%, transparent), transparent 52%),
+    color-mix(in srgb, var(--pantheon-surface) 58%, transparent);
   cursor: pointer;
   transition: border-color 180ms ease, background 180ms ease;
 }
 
 .pantheon-agent-mini button:hover {
-  border-color: color-mix(in srgb, var(--pantheon-accent) 36%, var(--pantheon-line));
-  background: var(--pantheon-accent-faint);
+  border-color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 42%, var(--pantheon-line));
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 12%, transparent), transparent 58%),
+    var(--pantheon-surface);
 }
 
-.pantheon-agent-mini button > span {
+.pantheon-agent-mini .pantheon-agent-avatar {
   display: grid;
   width: 21px;
   height: 21px;
   flex: 0 0 auto;
   place-items: center;
-  border: 1px solid var(--pantheon-line);
+  border: 1px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 35%, var(--pantheon-line));
   border-radius: 6px;
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 64%, var(--md-sys-color-text, var(--color-text)));
+  background: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 8%, transparent);
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 8px;
 }
 
-.pantheon-agent-mini button small {
+.pantheon-agent-mini-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.pantheon-agent-mini-copy strong {
   overflow: hidden;
-  font-size: 8.5px;
+  color: var(--md-sys-color-text, var(--color-text));
+  font-size: 9px;
+  font-weight: 660;
+  line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.pantheon-agent-mini button.is-ready > span {
-  border-color: color-mix(in srgb, var(--md-sys-color-success, var(--color-success)) 45%, var(--pantheon-line));
+.pantheon-agent-mini button small {
+  overflow: hidden;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 7.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pantheon-agent-mini button.is-ready small {
   color: var(--md-sys-color-success, var(--color-success));
 }
 
@@ -621,7 +698,10 @@
 
 .pantheon-agent-mini button:disabled:hover {
   border-color: var(--pantheon-line);
-  background: color-mix(in srgb, var(--pantheon-surface) 58%, transparent);
+  border-left-color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 52%, var(--pantheon-line));
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 7%, transparent), transparent 52%),
+    color-mix(in srgb, var(--pantheon-surface) 58%, transparent);
 }
 
 /* Canvas and page rhythm. */
@@ -822,8 +902,11 @@
 }
 
 .pantheon-seat-card.is-ready {
-  border-color: color-mix(in srgb, var(--pantheon-accent) 16%, var(--pantheon-line));
+  border-color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 30%, var(--pantheon-line));
   color: var(--md-sys-color-text, var(--color-text));
+  background:
+    linear-gradient(125deg, color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 7%, transparent), transparent 54%),
+    color-mix(in srgb, var(--md-sys-color-bg-layout, var(--color-bg-layout)) 45%, transparent);
 }
 
 .pantheon-seat-monogram {
@@ -832,10 +915,10 @@
   height: 30px;
   flex: 0 0 auto;
   place-items: center;
-  border: 1px solid var(--pantheon-line-strong);
+  border: 1px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 40%, var(--pantheon-line));
   border-radius: 9px;
-  color: var(--pantheon-accent);
-  background: var(--pantheon-accent-faint);
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 64%, var(--md-sys-color-text, var(--color-text)));
+  background: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 9%, transparent);
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 10px;
   font-weight: 700;
@@ -1296,9 +1379,9 @@
 .pantheon-seat-order {
   min-width: 22px;
   padding: 2px 5px;
-  border: 1px solid var(--pantheon-line-strong);
+  border: 1px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 36%, var(--pantheon-line));
   border-radius: 6px;
-  color: var(--pantheon-accent);
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 64%, var(--md-sys-color-text, var(--color-text)));
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 8px;
   text-align: center;
@@ -1354,13 +1437,16 @@
   align-items: center;
   gap: 8px;
   padding: 8px 6px 8px 10px;
-  border: 1px solid var(--pantheon-line);
+  border: 1px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 24%, var(--pantheon-line));
+  border-left: 2px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 54%, var(--pantheon-line));
   border-radius: var(--pantheon-control-radius);
-  background: color-mix(in srgb, var(--pantheon-surface) 45%, transparent);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 7%, transparent), transparent 48%),
+    color-mix(in srgb, var(--pantheon-surface) 45%, transparent);
 }
 
 .pantheon-order-number {
-  color: var(--pantheon-accent);
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 64%, var(--md-sys-color-text, var(--color-text)));
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 9px;
   font-variant-numeric: tabular-nums;
@@ -1379,6 +1465,7 @@
   font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 54%, var(--md-sys-color-text, var(--color-text)));
 }
 
 .pantheon-order-copy small {
@@ -1744,6 +1831,67 @@
   margin-top: 18px;
 }
 
+.pantheon-stall-notice {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 12px;
+  margin-top: 16px;
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-warning, #d89614) 42%, var(--pantheon-line));
+  border-radius: 12px;
+  color: var(--md-sys-color-text, var(--color-text));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--md-sys-color-warning, #d89614) 10%, transparent), transparent 64%),
+    var(--pantheon-surface-raised);
+}
+
+.pantheon-stall-notice > .anticon {
+  flex: 0 0 auto;
+  color: var(--md-sys-color-warning, #d89614);
+  font-size: 17px;
+}
+
+.pantheon-stall-notice > span {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pantheon-stall-notice strong {
+  font-size: 11.5px;
+  font-weight: 680;
+}
+
+.pantheon-stall-notice small {
+  color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
+  font-size: 9.5px;
+  line-height: 1.55;
+}
+
+.pantheon-stall-notice .ant-btn {
+  flex: 0 0 auto;
+  border-color: color-mix(in srgb, var(--md-sys-color-warning, #d89614) 38%, var(--pantheon-line));
+  border-radius: 9px;
+  font-size: 10px;
+}
+
+.pantheon-stall-notice.is-failure {
+  border-color: color-mix(in srgb, var(--md-sys-color-destructive, var(--color-destructive)) 42%, var(--pantheon-line));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--md-sys-color-destructive, var(--color-destructive)) 8%, transparent), transparent 64%),
+    var(--pantheon-surface-raised);
+}
+
+.pantheon-stall-notice.is-failure > .anticon {
+  color: var(--md-sys-color-destructive, var(--color-destructive));
+}
+
+.pantheon-stall-notice.is-failure .ant-btn {
+  border-color: color-mix(in srgb, var(--md-sys-color-destructive, var(--color-destructive)) 34%, var(--pantheon-line));
+}
+
 .pantheon-phase-track {
   display: grid;
   padding: 0;
@@ -1869,6 +2017,127 @@
   font-weight: 650;
 }
 
+.pantheon-agent-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 0 2px;
+  flex-wrap: wrap;
+}
+
+.pantheon-agent-legend > span {
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 8.5px;
+  letter-spacing: .04em;
+}
+
+.pantheon-agent-legend ul {
+  display: flex;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  flex-wrap: wrap;
+  gap: 5px;
+  list-style: none;
+}
+
+.pantheon-agent-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 7px 3px 4px;
+  border: 1px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 24%, var(--pantheon-line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 6%, transparent);
+}
+
+.pantheon-agent-legend li i {
+  display: inline-grid;
+  width: 17px;
+  height: 17px;
+  place-items: center;
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 62%, var(--md-sys-color-text, var(--color-text)));
+  background: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 12%, transparent);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 7.5px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.pantheon-agent-legend li > span {
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 54%, var(--md-sys-color-text, var(--color-text)));
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.pantheon-agent-legend small {
+  margin-left: auto;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 8.5px;
+}
+
+.pantheon-now-speaking {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  margin-top: 9px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--pantheon-accent) 22%, var(--pantheon-line));
+  border-left: 3px solid var(--pantheon-accent);
+  border-radius: 10px;
+  background:
+    linear-gradient(90deg, var(--pantheon-accent-soft), transparent 64%),
+    color-mix(in srgb, var(--pantheon-surface-raised) 74%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--pantheon-accent) 10%, transparent),
+    0 6px 18px var(--pantheon-accent-faint);
+}
+
+.pantheon-now-speaking-label {
+  flex: 0 0 auto;
+  color: var(--pantheon-accent-strong);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+
+.pantheon-now-speaking-list {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pantheon-now-speaking-seat {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border: 1px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 34%, var(--pantheon-line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 10%, transparent);
+}
+
+.pantheon-now-speaking-seat strong {
+  overflow: hidden;
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 60%, var(--md-sys-color-text, var(--color-text)));
+  font-size: 10px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pantheon-now-speaking .pantheon-now-speaking-dot {
+  width: 6px;
+  height: 6px;
+  margin: 0;
+  background: var(--agent-accent, var(--pantheon-accent));
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 12%, transparent);
+}
+
 .pantheon-tool-trajectory {
   margin-top: 12px;
   padding: 11px 12px;
@@ -1970,7 +2239,7 @@
 }
 
 .pantheon-tool-trace.is-started .pantheon-tool-trace-state {
-  color: var(--pantheon-accent);
+  color: var(--agent-accent, var(--pantheon-accent));
   animation: pantheon-pulse 1.8s ease-in-out infinite;
 }
 
@@ -2005,7 +2274,7 @@
 
 .pantheon-tool-trace-title span {
   overflow: hidden;
-  color: var(--pantheon-accent);
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 58%, var(--md-sys-color-text, var(--color-text)));
   font-size: 8px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2083,18 +2352,30 @@
   align-items: start;
   gap: 10px;
   padding: 10px 12px;
-  border: 1px solid var(--pantheon-line);
+  border: 1px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 22%, var(--pantheon-line));
+  border-left: 3px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 58%, var(--pantheon-line));
   border-radius: 12px;
-  background: color-mix(in srgb, var(--md-sys-color-surface-container, var(--bg-elevated)) 40%, transparent);
+  background:
+    linear-gradient(92deg, color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 8%, transparent), transparent 38%),
+    color-mix(in srgb, var(--md-sys-color-surface-container, var(--bg-elevated)) 40%, transparent);
 }
 
-/* 流式消息即运行席的实时高亮：accent 左边条 + shimmer 底。 */
+/* 每席常驻身份色；流式态额外叠加该席色 shimmer，谁在输出无需读名字也能扫到。 */
 .pantheon-stream-message.is-streaming {
-  border-left: 2px solid var(--agent-accent, var(--pantheon-accent));
+  border-left-color: var(--agent-accent, var(--pantheon-accent));
   background:
-    linear-gradient(110deg, transparent 15%, var(--pantheon-accent-faint) 48%, transparent 78%),
+    linear-gradient(
+      110deg,
+      transparent 15%,
+      color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 10%, transparent) 48%,
+      transparent 78%
+    ),
+    linear-gradient(92deg, color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 8%, transparent), transparent 38%),
     color-mix(in srgb, var(--md-sys-color-surface-container, var(--bg-elevated)) 40%, transparent);
-  background-size: 220% 100%;
+  background-size: 220% 100%, 100% 100%, 100% 100%;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 16%, transparent),
+    0 8px 24px color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 8%, transparent);
   animation: pantheon-shimmer 2.2s linear infinite;
 }
 
@@ -2103,9 +2384,10 @@
   width: 30px;
   height: 30px;
   place-items: center;
-  border: 1px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 45%, var(--pantheon-line));
+  border: 1px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 48%, var(--pantheon-line));
   border-radius: 9px;
-  color: var(--agent-accent, var(--pantheon-accent));
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 58%, var(--md-sys-color-text, var(--color-text)));
+  background: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 10%, transparent);
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 11px;
   font-weight: 700;
@@ -2121,11 +2403,12 @@
 .pantheon-stream-message-body > header {
   display: flex;
   align-items: baseline;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
 .pantheon-stream-message-body strong {
-  color: var(--md-sys-color-text, var(--color-text));
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 54%, var(--md-sys-color-text, var(--color-text)));
   font-size: 12px;
   font-weight: 650;
 }
@@ -2137,6 +2420,31 @@
   font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.pantheon-streaming-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border: 1px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 34%, var(--pantheon-line));
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 60%, var(--md-sys-color-text, var(--color-text)));
+  background: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 10%, transparent);
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.pantheon-streaming-state::before {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--agent-accent, var(--pantheon-accent));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 10%, transparent);
+  content: "";
+  animation: pantheon-pulse 1.8s ease-in-out infinite;
 }
 
 .pantheon-stream-message-body p {
@@ -2153,9 +2461,12 @@
   min-width: 0;
   margin-left: 40px;
   overflow: hidden;
-  border: 1px solid var(--pantheon-line);
+  border: 1px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 20%, var(--pantheon-line));
+  border-left: 2px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 50%, var(--pantheon-line));
   border-radius: 10px;
-  background: color-mix(in srgb, var(--md-sys-color-bg-layout, var(--color-bg-layout)) 40%, transparent);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 6%, transparent), transparent 40%),
+    color-mix(in srgb, var(--md-sys-color-bg-layout, var(--color-bg-layout)) 40%, transparent);
 }
 
 .pantheon-stream-tool > summary {
@@ -2180,7 +2491,7 @@
 }
 
 .pantheon-stream-tool.is-started .pantheon-stream-tool-state {
-  color: var(--pantheon-accent);
+  color: var(--agent-accent, var(--pantheon-accent));
   animation: pantheon-pulse 1.8s ease-in-out infinite;
 }
 
@@ -2206,7 +2517,7 @@
   flex: 0 0 auto;
   max-width: 32%;
   overflow: hidden;
-  color: var(--agent-accent, var(--pantheon-accent));
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 58%, var(--md-sys-color-text, var(--color-text)));
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 9.5px;
   text-overflow: ellipsis;
@@ -2275,7 +2586,7 @@
   height: 13px;
   margin-left: 2px;
   vertical-align: -2px;
-  background: var(--pantheon-accent);
+  background: var(--agent-accent, var(--pantheon-accent));
   animation: pantheon-pulse .9s ease-in-out infinite;
 }
 
@@ -2289,6 +2600,7 @@
 }
 
 .pantheon-agent-window {
+  position: relative;
   display: flex;
   min-width: 0;
   /* feed(flex:1 滚动) + 席内轨迹列表(≤132px+头) 要同时放得下 */
@@ -2296,32 +2608,43 @@
   padding: 10px;
   overflow: hidden;
   flex-direction: column;
-  border: 1px solid var(--pantheon-line);
+  border: 1px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 20%, var(--pantheon-line));
+  border-left: 3px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 52%, var(--pantheon-line));
   border-radius: var(--pantheon-control-radius);
-  background: color-mix(in srgb, var(--md-sys-color-bg-layout, var(--color-bg-layout)) 44%, transparent);
-  transition: opacity 320ms ease, border-color 320ms ease, box-shadow 320ms ease;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 6%, transparent), transparent 48%),
+    color-mix(in srgb, var(--md-sys-color-bg-layout, var(--color-bg-layout)) 44%, transparent);
+  transition:
+    opacity 320ms ease,
+    border-color 320ms ease,
+    box-shadow 320ms ease,
+    transform 320ms cubic-bezier(.16, 1, .3, 1);
 }
 
-/* 谁发言谁高亮：发言席=accent 描边+外辉光+暖底；其余席在 has-speaking 下退暗。 */
+/* 谁发言谁高亮：发言席保留自身身份色，并叠加描边、外辉光与底色。 */
 .pantheon-agent-window.is-running {
-  border-color: color-mix(in srgb, var(--pantheon-accent) 58%, var(--pantheon-line));
+  z-index: 1;
+  border-width: 2px;
+  border-color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 70%, var(--pantheon-line));
+  border-left-color: var(--agent-accent, var(--pantheon-accent));
   background:
-    linear-gradient(165deg, var(--pantheon-accent-faint), transparent 44%),
+    linear-gradient(165deg, color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 13%, transparent), transparent 52%),
     color-mix(in srgb, var(--md-sys-color-bg-layout, var(--color-bg-layout)) 44%, transparent);
   box-shadow:
-    inset 0 1px 0 var(--pantheon-accent-soft),
-    0 0 0 1px color-mix(in srgb, var(--pantheon-accent) 24%, transparent),
-    0 10px 30px var(--pantheon-accent-faint);
+    inset 0 1px 0 color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 20%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 24%, transparent),
+    0 12px 34px color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 16%, transparent);
+  transform: translateY(-2px);
 }
 
 .pantheon-agent-window.is-running .pantheon-seat-monogram {
-  border-color: color-mix(in srgb, var(--pantheon-accent) 58%, transparent);
-  background: var(--pantheon-accent-soft);
-  color: var(--pantheon-accent-strong);
+  border-color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 58%, transparent);
+  background: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 14%, transparent);
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 62%, var(--md-sys-color-text, var(--color-text)));
 }
 
 .pantheon-agent-windows.has-speaking .pantheon-agent-window:not(.is-running) {
-  opacity: .74;
+  opacity: .68;
 }
 
 .pantheon-seat-live-dot {
@@ -2344,7 +2667,7 @@
   gap: 8px;
   padding-bottom: 9px;
   margin-bottom: 8px;
-  border-bottom: 1px solid var(--pantheon-line);
+  border-bottom: 1px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 18%, var(--pantheon-line));
 }
 
 .pantheon-agent-window > header > small {
@@ -2354,6 +2677,16 @@
   color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 9.5px;
+}
+
+.pantheon-agent-window.is-running > header > small {
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 60%, var(--md-sys-color-text, var(--color-text)));
+  font-weight: 700;
+}
+
+.pantheon-agent-window.is-running .pantheon-seat-pane-title {
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 62%, var(--md-sys-color-text, var(--color-text)));
+  font-weight: 750;
 }
 
 .pantheon-agent-window.is-collapsed > header {
@@ -2428,17 +2761,22 @@
 
 .pantheon-agent-message {
   padding: 8px 9px;
-  border: 1px solid var(--pantheon-line);
+  border: 1px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 16%, var(--pantheon-line));
+  border-left: 2px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 44%, var(--pantheon-line));
   border-radius: 9px;
-  background: color-mix(in srgb, var(--pantheon-surface) 58%, transparent);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 5%, transparent), transparent 46%),
+    color-mix(in srgb, var(--pantheon-surface) 58%, transparent);
 }
 
 .pantheon-agent-message.is-streaming {
-  border-color: color-mix(in srgb, var(--pantheon-accent) 32%, var(--pantheon-line));
+  border-color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 32%, var(--pantheon-line));
+  border-left-color: var(--agent-accent, var(--pantheon-accent));
   background:
-    linear-gradient(105deg, transparent 18%, var(--pantheon-accent-faint) 46%, transparent 74%),
+    linear-gradient(105deg, transparent 18%, color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 9%, transparent) 46%, transparent 74%),
+    linear-gradient(90deg, color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 5%, transparent), transparent 46%),
     color-mix(in srgb, var(--pantheon-surface) 68%, transparent);
-  background-size: 210% 100%;
+  background-size: 210% 100%, 100% 100%, 100% 100%;
   animation: pantheon-shimmer 2.2s linear infinite;
 }
 
@@ -2491,7 +2829,7 @@
   margin-top: 8px;
   overflow: hidden;
   flex-direction: column;
-  border-top: 1px solid var(--pantheon-line);
+  border-top: 1px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 18%, var(--pantheon-line));
 }
 
 .pantheon-seat-trace-head {
@@ -2499,7 +2837,7 @@
   align-items: center;
   gap: 5px;
   padding-bottom: 6px;
-  color: var(--pantheon-accent);
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 58%, var(--md-sys-color-text, var(--color-text)));
   font-size: 10px;
 }
 
@@ -2511,7 +2849,7 @@
 
 .pantheon-seat-trace-head em {
   margin-left: auto;
-  color: var(--pantheon-accent);
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 58%, var(--md-sys-color-text, var(--color-text)));
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 9.5px;
   font-style: normal;
@@ -2608,22 +2946,35 @@
   align-items: center;
   gap: 5px;
   padding: 3px 7px;
-  border: 1px solid var(--pantheon-line);
+  border: 1px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 20%, var(--pantheon-line));
   border-radius: 7px;
   color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
+  background: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 4%, transparent);
   font-size: 8.5px;
 }
 
 .pantheon-speaking-queue li small {
-  color: var(--pantheon-accent);
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 58%, var(--md-sys-color-text, var(--color-text)));
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 8px;
 }
 
 .pantheon-speaking-queue li.is-speaking {
-  border-color: color-mix(in srgb, var(--pantheon-accent) 45%, var(--pantheon-line));
+  border-color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 66%, var(--pantheon-line));
   color: var(--md-sys-color-text, var(--color-text));
-  background: var(--pantheon-accent-faint);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 16%, transparent), transparent 92%),
+    color-mix(in srgb, var(--pantheon-surface-raised) 78%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 12%, transparent),
+    0 4px 12px color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 8%, transparent);
+  font-weight: 650;
+  transform: translateY(-1px);
+}
+
+.pantheon-speaking-queue li.is-speaking > span:last-child {
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 62%, var(--md-sys-color-text, var(--color-text)));
+  font-weight: 700;
 }
 
 .pantheon-queue-live-dot {
@@ -2639,6 +2990,16 @@
   background: var(--pantheon-accent);
   box-shadow: 0 0 0 4px var(--pantheon-accent-soft);
   animation: pantheon-pulse 1.8s ease-in-out infinite;
+}
+
+.pantheon-speaking-queue .pantheon-queue-live-dot {
+  background: var(--agent-accent, var(--pantheon-accent));
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 10%, transparent);
+}
+
+.pantheon-agent-window .pantheon-seat-live-dot {
+  background: var(--agent-accent, var(--pantheon-accent));
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 10%, transparent);
 }
 
 .pantheon-live-meta {
@@ -3222,8 +3583,16 @@
   grid-template-columns: 7px minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  padding: 7px 0;
+  padding: 7px 8px;
+  border-left: 2px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 46%, var(--pantheon-line));
+  border-radius: 6px;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 5%, transparent), transparent 72%);
   font-size: 9.5px;
+}
+
+.pantheon-seat-list li > span:nth-child(2) {
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 48%, var(--md-sys-color-text, var(--color-text)));
 }
 
 .pantheon-seat-list small {
@@ -3237,8 +3606,15 @@
 
 /* 右栏参与者名单里的发言席：名字提亮，圆点已由 is-running 脉冲。 */
 .pantheon-seat-list li.is-speaking > span:nth-child(2) {
-  color: var(--pantheon-accent-strong);
-  font-weight: 650;
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 68%, var(--md-sys-color-text, var(--color-text)));
+  font-weight: 750;
+}
+
+.pantheon-seat-list li.is-speaking {
+  border-left-color: var(--agent-accent, var(--pantheon-accent));
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 12%, transparent), transparent 80%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 10%, transparent);
 }
 
 .pantheon-seat-dot {
@@ -3249,8 +3625,8 @@
 }
 
 .pantheon-seat-dot.is-running {
-  background: var(--pantheon-accent);
-  box-shadow: 0 0 0 3px var(--pantheon-accent-soft);
+  background: var(--agent-accent, var(--pantheon-accent));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 10%, transparent);
   animation: pantheon-pulse 1.8s ease-in-out infinite;
 }
 
@@ -3591,6 +3967,9 @@
   .pantheon-session-item {
     min-width: 220px;
     max-width: 245px;
+  }
+
+  .pantheon-session-open {
     padding-block: 10px;
   }
 
@@ -3675,6 +4054,17 @@
   .pantheon-record-actions {
     width: 100%;
     flex-wrap: wrap;
+  }
+
+  .pantheon-agent-legend small {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .pantheon-now-speaking {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
   }
 
   .pantheon-phase-track {
@@ -4020,5 +4410,3689 @@
     animation-duration: .01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: .01ms !important;
+  }
+}
+
+/* Council overview: one calm shared thread, with team relationships behind a
+   single topology layer. Agent transcripts and tool calls open on demand. */
+.pantheon-council-stage {
+  display: grid;
+  width: 100%;
+  max-width: 980px;
+  min-height: 100%;
+  padding: clamp(26px, 3vw, 46px) clamp(18px, 2.7vw, 40px) 64px;
+  margin: 0 auto;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  justify-content: center;
+  column-gap: 20px;
+}
+
+.pantheon-council-stage.is-detail-open {
+  max-width: 1240px;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 360px);
+}
+
+.pantheon-council-stage > .pantheon-record-main {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+}
+
+.pantheon-council-stage .pantheon-record-head {
+  gap: 20px;
+}
+
+.pantheon-council-stage .pantheon-record-title h2 {
+  display: -webkit-box;
+  max-width: 30ch;
+  max-height: 2.52em;
+  overflow: hidden;
+  font-size: clamp(24px, 2.2vw, 31px);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.pantheon-council-stage.is-detail-open .pantheon-record-head {
+  flex-direction: column;
+}
+
+.pantheon-council-stage.is-detail-open .pantheon-record-actions {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.pantheon-council-stage .pantheon-record-actions {
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.pantheon-council-stage .pantheon-phase-track {
+  margin: 24px 0 22px;
+}
+
+.pantheon-team-map {
+  padding: 18px 18px 14px;
+  border: 1px solid var(--pantheon-line);
+  border-radius: var(--pantheon-sheet-radius);
+  background:
+    radial-gradient(circle at 50% 6%, var(--pantheon-accent-soft), transparent 42%),
+    color-mix(in srgb, var(--pantheon-surface) 55%, transparent);
+}
+
+.pantheon-team-map-head,
+.pantheon-shared-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.pantheon-team-map-head h3,
+.pantheon-shared-head h3 {
+  margin: 5px 0 0;
+  font-family: var(--font-serif, "Noto Serif SC", "Songti SC", serif);
+  font-size: 17px;
+  font-weight: 620;
+  letter-spacing: -.015em;
+}
+
+.pantheon-team-map-head > span {
+  flex: 0 0 auto;
+  padding-top: 5px;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 9.5px;
+}
+
+/* 讨论总时长读秒（2026-10-31 实弹反馈）：运行态逐秒走表，完成态定值 */
+.pantheon-team-map-side {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+  padding-top: 5px;
+}
+
+.pantheon-team-map-hint {
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 9.5px;
+}
+
+.pantheon-total-elapsed {
+  padding: 2px 10px;
+  border: 1px solid color-mix(in srgb, var(--pantheon-accent) 34%, var(--pantheon-line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pantheon-accent) 7%, var(--pantheon-surface-raised));
+  color: var(--pantheon-text);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 离线席位 chip 上的显式路径配置入口（切换席位永不弹窗的替代门） */
+.pantheon-seat-chip-config {
+  align-self: flex-start;
+  margin-top: 1px;
+  color: var(--pantheon-accent);
+  font-size: 9.5px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.pantheon-seat-chip-config:hover {
+  filter: brightness(1.15);
+}
+
+.pantheon-topology {
+  position: relative;
+  min-height: 196px;
+  margin-top: 6px;
+}
+
+.pantheon-topology-svg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.pantheon-topology-svg svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.pantheon-topology-svg path {
+  fill: none;
+  stroke: color-mix(in srgb, currentColor 45%, var(--pantheon-line));
+  stroke-dasharray: 3 5;
+  stroke-linecap: round;
+  stroke-width: 1;
+  opacity: .72;
+  vector-effect: non-scaling-stroke;
+}
+
+.pantheon-topology-svg path.is-active {
+  stroke: currentColor;
+  stroke-dasharray: 6 5;
+  stroke-width: 1.8;
+  opacity: 1;
+  animation: pantheon-topology-flow 1.5s linear infinite;
+}
+
+.pantheon-topology-hub {
+  position: absolute;
+  top: 9px;
+  left: 50%;
+  z-index: 2;
+  display: flex;
+  width: 176px;
+  min-height: 56px;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 13px;
+  transform: translateX(-50%);
+  border: 1px solid color-mix(in srgb, var(--pantheon-accent) 42%, var(--pantheon-line));
+  border-radius: 15px;
+  background:
+    linear-gradient(135deg, var(--pantheon-accent-soft), transparent 70%),
+    var(--pantheon-surface-raised);
+  box-shadow:
+    0 0 0 5px color-mix(in srgb, var(--pantheon-accent) 5%, transparent),
+    0 14px 34px color-mix(in srgb, var(--md-sys-color-bg-layout) 24%, transparent);
+}
+
+.pantheon-topology-hub::after {
+  position: absolute;
+  right: 17px;
+  bottom: -5px;
+  left: 17px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--pantheon-accent), transparent);
+  content: "";
+}
+
+.pantheon-topology-hub-icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--pantheon-accent) 34%, var(--pantheon-line));
+  border-radius: 10px;
+  color: var(--pantheon-accent);
+  background: var(--pantheon-accent-faint);
+  font-size: 14px;
+}
+
+.pantheon-topology-hub > span:last-child {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pantheon-topology-hub strong {
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.pantheon-topology-hub small {
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 9.5px;
+}
+
+.pantheon-topology-hub small .pantheon-live-dot {
+  width: 5px;
+  height: 5px;
+  margin-right: 5px;
+}
+
+.pantheon-topology-nodes {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(var(--agent-count), minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pantheon-topology-node {
+  position: relative;
+  display: grid;
+  width: min(156px, calc(100% - 6px));
+  min-height: 96px;
+  padding: 12px 10px 9px;
+  margin-inline: auto;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 8px;
+  border: 1px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 24%, var(--pantheon-line));
+  border-radius: 14px;
+  color: inherit;
+  text-align: left;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 7%, transparent), transparent 62%),
+    color-mix(in srgb, var(--pantheon-surface-raised) 88%, transparent);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--md-sys-color-bg-layout) 16%, transparent);
+  cursor: pointer;
+  transition:
+    transform 220ms cubic-bezier(.16, 1, .3, 1),
+    border-color 220ms ease,
+    box-shadow 220ms ease,
+    background 220ms ease;
+}
+
+.pantheon-topology-node:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 52%, var(--pantheon-line));
+  box-shadow: 0 14px 32px color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 10%, transparent);
+}
+
+.pantheon-topology-node:active {
+  transform: translateY(-1px) scale(.985);
+}
+
+.pantheon-topology-node.is-running,
+.pantheon-topology-node.is-selected {
+  border-color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 72%, var(--pantheon-line));
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 14%, transparent), transparent 66%),
+    var(--pantheon-surface-raised);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 11%, transparent),
+    0 14px 34px color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 13%, transparent);
+}
+
+.pantheon-topology-node.is-failed {
+  border-color: color-mix(in srgb, var(--md-sys-color-destructive, var(--color-destructive)) 48%, var(--pantheon-line));
+}
+
+.pantheon-topology-node.is-skipped {
+  border-style: dashed;
+  opacity: .74;
+}
+
+.pantheon-topology-order {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 62%, var(--md-sys-color-text, var(--color-text)));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 7.5px;
+  opacity: .72;
+}
+
+.pantheon-topology-avatar {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  grid-row: 1;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 42%, var(--pantheon-line));
+  border-radius: 10px;
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 66%, var(--md-sys-color-text, var(--color-text)));
+  background: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 10%, transparent);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  font-weight: 720;
+}
+
+.pantheon-topology-copy {
+  display: flex;
+  min-width: 0;
+  grid-row: 1;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pantheon-topology-copy strong {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 680;
+  line-height: 1.28;
+  text-wrap: balance;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.pantheon-topology-copy small {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  overflow: hidden;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pantheon-topology-copy .pantheon-live-dot {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 auto;
+  margin-right: 5px;
+}
+
+.pantheon-topology-node.is-running .pantheon-topology-copy small {
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 62%, var(--md-sys-color-text, var(--color-text)));
+  font-weight: 650;
+}
+
+.pantheon-topology-metrics {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  gap: 5px;
+  padding-top: 7px;
+  margin-top: 6px;
+  border-top: 1px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 14%, var(--pantheon-line));
+}
+
+.pantheon-topology-metrics > span {
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  background: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 5%, transparent);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.pantheon-topology-metrics .pantheon-agent-elapsed {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 68%, var(--md-sys-color-text, var(--color-text)));
+  background: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 11%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+
+.pantheon-topology-metrics .pantheon-agent-elapsed > span {
+  padding: 0;
+  border-radius: 0;
+  color: inherit;
+  background: transparent;
+  font-size: inherit;
+}
+
+.pantheon-agent-elapsed.is-slow {
+  color: color-mix(in srgb, var(--md-sys-color-warning, #d89614) 84%, var(--md-sys-color-text, var(--color-text))) !important;
+}
+
+.pantheon-topology-metrics .pantheon-agent-elapsed .anticon {
+  font-size: 7.5px;
+}
+
+.pantheon-shared-dialogue {
+  padding: 20px;
+  margin-top: 18px;
+  border: 1px solid var(--pantheon-line-strong);
+  border-radius: var(--pantheon-sheet-radius);
+  background:
+    linear-gradient(145deg, var(--pantheon-accent-faint), transparent 28%),
+    color-mix(in srgb, var(--pantheon-surface) 64%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--pantheon-accent) 8%, transparent);
+}
+
+.pantheon-shared-dialogue.is-live {
+  border-color: color-mix(in srgb, var(--pantheon-accent) 24%, var(--pantheon-line-strong));
+}
+
+.pantheon-shared-head {
+  padding-bottom: 15px;
+  border-bottom: 1px solid var(--pantheon-line);
+}
+
+.pantheon-shared-head h3 {
+  display: flex;
+  align-items: center;
+}
+
+.pantheon-shared-head p {
+  max-width: 58ch;
+  margin: 7px 0 0;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 10.5px;
+  line-height: 1.65;
+}
+
+.pantheon-shared-head-meta {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-end;
+  flex-direction: column;
+  gap: 4px;
+  text-align: right;
+}
+
+.pantheon-shared-head-meta strong {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.pantheon-shared-head-meta span {
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 9px;
+}
+
+/* 共享流自身限高+滚轮：流内滚动（overscroll 防滚穿到整页），
+   页面不再随发言无限延长；贴底跟随由 tsx 锚在流容器上。 */
+.pantheon-shared-stream {
+  gap: 13px;
+  padding: 18px 8px 8px 2px;
+  max-height: clamp(420px, 56vh, 780px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
+}
+
+.pantheon-shared-entry {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: start;
+  gap: 11px;
+  padding: 12px 13px;
+  border: 1px solid var(--pantheon-line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--pantheon-surface-raised) 64%, transparent);
+}
+
+.pantheon-shared-entry.is-topic {
+  border-color: color-mix(in srgb, var(--pantheon-accent) 28%, var(--pantheon-line));
+  background:
+    linear-gradient(135deg, var(--pantheon-accent-soft), transparent 64%),
+    color-mix(in srgb, var(--pantheon-surface-raised) 74%, transparent);
+}
+
+.pantheon-shared-entry.is-agent {
+  border-color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 24%, var(--pantheon-line));
+  border-left: 3px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 62%, var(--pantheon-line));
+  background:
+    linear-gradient(100deg, color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 7%, transparent), transparent 58%),
+    color-mix(in srgb, var(--pantheon-surface-raised) 72%, transparent);
+}
+
+.pantheon-shared-entry.is-agent.is-streaming {
+  border-color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 46%, var(--pantheon-line));
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 8%, transparent);
+}
+
+.pantheon-shared-entry.is-agent .pantheon-shared-avatar {
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+}
+
+.pantheon-shared-agent-avatar {
+  width: 34px;
+  height: 34px;
+}
+
+.pantheon-shared-entry.is-live {
+  border-color: color-mix(in srgb, var(--pantheon-accent) 32%, var(--pantheon-line));
+  background:
+    linear-gradient(100deg, var(--pantheon-accent-soft), transparent 76%),
+    color-mix(in srgb, var(--pantheon-surface-raised) 70%, transparent);
+  box-shadow: 0 8px 24px var(--pantheon-accent-faint);
+}
+
+.pantheon-shared-entry.is-warning {
+  border-color: color-mix(in srgb, var(--md-sys-color-warning, var(--color-warning)) 36%, var(--pantheon-line));
+  background: color-mix(in srgb, var(--md-sys-color-warning, var(--color-warning)) 5%, var(--pantheon-surface));
+}
+
+.pantheon-shared-avatar {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--pantheon-accent) 28%, var(--pantheon-line));
+  border-radius: 11px;
+  color: var(--pantheon-accent);
+  background: var(--pantheon-accent-faint);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.pantheon-shared-entry.is-topic .pantheon-shared-avatar {
+  color: var(--md-sys-color-on-primary-container, var(--md-sys-color-text, var(--color-text)));
+  background: color-mix(in srgb, var(--pantheon-accent) 18%, transparent);
+}
+
+.pantheon-shared-avatar .pantheon-live-dot {
+  width: 7px;
+  height: 7px;
+  margin: 0;
+}
+
+.pantheon-shared-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.pantheon-shared-copy > header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pantheon-shared-copy > header strong {
+  color: var(--md-sys-color-text, var(--color-text));
+  font-size: 11.5px;
+  font-weight: 680;
+}
+
+.pantheon-shared-copy > header time {
+  margin-left: auto;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 8.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pantheon-shared-copy p {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
+  font-size: 13px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  text-wrap: pretty;
+}
+
+/* 发言折叠：长文默认收成一行预览，展开/收起共用一枚胶囊按钮。 */
+.pantheon-shared-preview {
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 12.5px;
+}
+
+.pantheon-shared-fold {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border: 1px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 22%, var(--pantheon-line));
+  border-radius: 999px;
+  color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
+  background: transparent;
+  font-size: 10px;
+  line-height: 1.6;
+  cursor: pointer;
+  transition: color .15s ease, border-color .15s ease;
+}
+
+.pantheon-shared-fold:hover,
+.pantheon-shared-fold:focus-visible {
+  color: var(--agent-accent, var(--pantheon-accent));
+  border-color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 46%, var(--pantheon-line));
+}
+
+.pantheon-shared-markdown {
+  color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
+  font-size: 12.5px !important;
+  line-height: 1.72 !important;
+}
+
+.pantheon-shared-markdown p {
+  margin: 5px 0;
+}
+
+.pantheon-shared-markdown h1,
+.pantheon-shared-markdown h2,
+.pantheon-shared-markdown h3 {
+  color: var(--md-sys-color-text, var(--color-text));
+}
+
+.pantheon-shared-entry.is-topic .pantheon-shared-copy p {
+  color: var(--md-sys-color-text, var(--color-text));
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.pantheon-shared-copy > small {
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.pantheon-shared-dialogue .pantheon-record-body {
+  margin: 17px 0 0;
+}
+
+.pantheon-shared-dialogue .pantheon-verdict {
+  box-shadow: none;
+}
+
+.pantheon-verdict-details {
+  padding-top: 13px;
+  margin-top: 15px;
+  border-top: 1px solid var(--pantheon-line);
+}
+
+.pantheon-verdict-details > summary {
+  color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
+  font-size: 9.5px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.pantheon-verdict-details[open] > summary {
+  margin-bottom: 4px;
+}
+
+.pantheon-meta-disclosure {
+  display: flex;
+  padding: 18px;
+  margin: 0 0 18px;
+  flex-direction: column;
+  gap: 18px;
+  border: 1px solid var(--pantheon-line);
+  border-radius: var(--pantheon-control-radius);
+  background: color-mix(in srgb, var(--pantheon-surface) 52%, transparent);
+  animation: pantheon-meta-in 220ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.pantheon-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.pantheon-meta-grid.is-lower {
+  padding-top: 18px;
+  border-top: 1px solid var(--pantheon-line);
+}
+
+.pantheon-meta-grid .pantheon-facts {
+  margin-top: 10px;
+}
+
+.pantheon-meta-grid .pantheon-seat-list {
+  margin-top: 9px;
+}
+
+.pantheon-meta-grid .pantheon-event-stream {
+  max-height: 240px;
+  margin-top: 9px;
+}
+
+.pantheon-agent-detail {
+  position: sticky;
+  top: 22px;
+  display: flex;
+  width: 100%;
+  max-height: calc(100dvh - 44px);
+  min-height: 460px;
+  padding: 16px;
+  overflow: hidden;
+  flex-direction: column;
+  border: 1px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 30%, var(--pantheon-line-strong));
+  border-radius: var(--pantheon-sheet-radius);
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 8%, transparent), transparent 34%),
+    var(--pantheon-surface-raised);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 8%, transparent),
+    0 26px 70px color-mix(in srgb, var(--md-sys-color-bg-layout) 42%, transparent);
+  animation: pantheon-agent-detail-in 260ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.pantheon-agent-detail:focus {
+  outline: 2px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 72%, transparent);
+  outline-offset: 3px;
+}
+
+.pantheon-agent-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 13px;
+  border-bottom: 1px solid var(--pantheon-line);
+}
+
+.pantheon-agent-detail-avatar {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 46%, var(--pantheon-line));
+  border-radius: 11px;
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 68%, var(--md-sys-color-text, var(--color-text)));
+  background: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 11%, transparent);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  font-weight: 720;
+}
+
+.pantheon-agent-detail-title {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pantheon-agent-detail-title strong {
+  overflow: hidden;
+  color: var(--md-sys-color-text, var(--color-text));
+  font-size: 15px;
+  font-weight: 680;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pantheon-agent-detail-title small {
+  display: flex;
+  align-items: center;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 9.5px;
+}
+
+.pantheon-agent-detail-elapsed {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  padding: 2px 6px;
+  margin-top: 3px;
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 72%, var(--md-sys-color-text, var(--color-text)));
+  background: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 9%, transparent);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 8.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pantheon-agent-detail-title .pantheon-live-dot {
+  width: 5px;
+  height: 5px;
+  margin-right: 5px;
+}
+
+.pantheon-agent-detail-head .ant-btn {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 9px;
+}
+
+.pantheon-agent-detail-stats {
+  display: grid;
+  padding: 12px 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.pantheon-agent-detail-stats span {
+  display: flex;
+  min-width: 0;
+  padding: 7px;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: 8px;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  background: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 5%, transparent);
+  font-size: 8px;
+  line-height: 1.4;
+}
+
+.pantheon-agent-detail-stats strong {
+  overflow: hidden;
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 58%, var(--md-sys-color-text, var(--color-text)));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  font-weight: 680;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pantheon-agent-detail-tabs {
+  display: grid;
+  padding: 3px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px;
+  border: 1px solid var(--pantheon-line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--md-sys-color-bg-layout, var(--color-bg-layout)) 44%, transparent);
+}
+
+.pantheon-agent-detail-tabs button {
+  display: inline-flex;
+  height: 31px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  background: transparent;
+  font-size: 9.5px;
+  cursor: pointer;
+  transition: color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+}
+
+.pantheon-agent-detail-tabs button:hover {
+  color: var(--md-sys-color-text, var(--color-text));
+}
+
+.pantheon-agent-detail-tabs button[aria-pressed="true"] {
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 62%, var(--md-sys-color-text, var(--color-text)));
+  background: var(--pantheon-surface-raised);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--md-sys-color-bg-layout) 22%, transparent);
+  font-weight: 680;
+}
+
+.pantheon-agent-detail-tabs button span {
+  display: inline-grid;
+  min-width: 17px;
+  height: 17px;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 8%, transparent);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 7.5px;
+}
+
+.pantheon-agent-detail-body {
+  min-height: 140px;
+  padding: 8px 3px 12px 0;
+  overflow: auto;
+  flex: 1;
+  scrollbar-width: thin;
+}
+
+.pantheon-agent-output-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.pantheon-agent-output {
+  padding: 11px;
+  border: 1px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 18%, var(--pantheon-line));
+  border-left: 2px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 52%, var(--pantheon-line));
+  border-radius: 11px;
+  background:
+    linear-gradient(100deg, color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 5%, transparent), transparent 62%),
+    color-mix(in srgb, var(--pantheon-surface) 52%, transparent);
+}
+
+.pantheon-agent-output.is-streaming {
+  border-left-color: var(--agent-accent, var(--pantheon-accent));
+  box-shadow: 0 0 18px color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 9%, transparent);
+}
+
+.pantheon-agent-output > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 8.5px;
+}
+
+.pantheon-agent-output > header span {
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 60%, var(--md-sys-color-text, var(--color-text)));
+}
+
+.pantheon-agent-output-markdown {
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
+  font-size: 13px !important;
+  line-height: 1.72 !important;
+  white-space: normal;
+}
+
+.pantheon-agent-output-markdown p {
+  margin: 5px 0;
+}
+
+.pantheon-agent-output-markdown ul,
+.pantheon-agent-output-markdown ol {
+  padding-left: 19px;
+}
+
+.pantheon-agent-output-caret {
+  margin-top: 7px;
+}
+
+.pantheon-agent-detail-empty {
+  display: flex;
+  min-height: 190px;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 14px;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  text-align: center;
+}
+
+.pantheon-agent-detail-empty .anticon,
+.pantheon-agent-detail-empty .ant-spin {
+  color: var(--agent-accent, var(--pantheon-accent));
+  font-size: 18px;
+}
+
+.pantheon-agent-detail-empty strong {
+  color: var(--md-sys-color-text, var(--color-text));
+  font-size: 11.5px;
+}
+
+.pantheon-agent-detail-empty span {
+  max-width: 26ch;
+  font-size: 9.5px;
+  line-height: 1.6;
+}
+
+.pantheon-agent-trace-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.pantheon-agent-trace-fold {
+  margin: 0 0 2px;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 8.5px;
+}
+
+.pantheon-agent-trace {
+  overflow: hidden;
+  border: 1px solid var(--pantheon-line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--pantheon-surface) 54%, transparent);
+}
+
+.pantheon-agent-trace.is-started {
+  border-color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 26%, var(--pantheon-line));
+}
+
+.pantheon-agent-trace > summary {
+  display: grid;
+  min-width: 0;
+  padding: 9px 10px;
+  grid-template-columns: 18px minmax(0, 1fr) auto 12px;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.pantheon-agent-trace > summary::-webkit-details-marker {
+  display: none;
+}
+
+.pantheon-agent-trace > summary > span:nth-child(2) {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.pantheon-agent-trace > summary strong {
+  overflow: hidden;
+  color: var(--md-sys-color-text, var(--color-text));
+  font-size: 10.5px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pantheon-agent-trace > summary small,
+.pantheon-agent-trace > summary time {
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 8px;
+}
+
+.pantheon-agent-trace-chevron {
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 8px;
+  transition: transform 180ms ease;
+}
+
+.pantheon-agent-trace[open] .pantheon-agent-trace-chevron {
+  transform: rotate(180deg);
+}
+
+.pantheon-agent-trace-detail {
+  display: flex;
+  min-width: 0;
+  padding: 0 10px 10px 36px;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.pantheon-agent-trace-detail > small {
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 8px;
+}
+
+.pantheon-agent-trace-detail code,
+.pantheon-agent-trace-detail pre {
+  max-height: 180px;
+  padding: 7px 8px;
+  margin: 0;
+  overflow: auto;
+  border-radius: 7px;
+  color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
+  background: color-mix(in srgb, var(--md-sys-color-bg-layout, var(--color-bg-layout)) 62%, transparent);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 9.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  scrollbar-width: thin;
+}
+
+.pantheon-agent-detail-error {
+  padding: 8px 10px;
+  margin: 0 0 8px;
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-destructive, var(--color-destructive)) 28%, var(--pantheon-line));
+  border-radius: 8px;
+  color: var(--md-sys-color-destructive, var(--color-destructive));
+  background: color-mix(in srgb, var(--md-sys-color-destructive, var(--color-destructive)) 5%, transparent);
+  font-size: 9.5px;
+  line-height: 1.55;
+}
+
+.pantheon-agent-detail-foot {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding-top: 10px;
+  border-top: 1px solid var(--pantheon-line);
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 8.5px;
+  line-height: 1.5;
+}
+
+@keyframes pantheon-topology-flow {
+  to { stroke-dashoffset: -22; }
+}
+
+@keyframes pantheon-meta-in {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pantheon-agent-detail-in {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (max-width: 1320px) {
+  .pantheon-council-stage.is-detail-open {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pantheon-council-stage.is-detail-open .pantheon-agent-detail {
+    position: fixed;
+    top: 78px;
+    right: 18px;
+    bottom: 18px;
+    z-index: 80;
+    width: min(382px, calc(100vw - 36px));
+    max-height: none;
+    background:
+      linear-gradient(145deg, color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 8%, transparent), transparent 34%),
+      var(--pantheon-surface-raised);
+  }
+}
+
+@media (max-width: 820px) {
+  .pantheon-council-stage {
+    padding: 20px 14px 46px;
+  }
+
+  .pantheon-council-stage .pantheon-record-head {
+    flex-direction: column;
+    gap: 13px;
+  }
+
+  .pantheon-council-stage .pantheon-record-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .pantheon-team-map,
+  .pantheon-shared-dialogue {
+    padding: 15px;
+  }
+
+  .pantheon-team-map-head,
+  .pantheon-shared-head {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .pantheon-team-map-head > span {
+    padding-top: 0;
+  }
+
+  .pantheon-topology {
+    min-height: auto;
+    padding-top: 77px;
+  }
+
+  .pantheon-topology-svg {
+    display: none;
+  }
+
+  .pantheon-topology-hub {
+    top: 0;
+    left: 50%;
+    width: min(210px, 90%);
+  }
+
+  .pantheon-topology-nodes {
+    position: relative;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 26px;
+  }
+
+  .pantheon-topology-nodes::before {
+    position: absolute;
+    top: -26px;
+    left: 50%;
+    width: 1px;
+    height: 18px;
+    background: color-mix(in srgb, var(--pantheon-accent) 42%, var(--pantheon-line));
+    content: "";
+  }
+
+  .pantheon-topology-node {
+    width: 100%;
+  }
+
+  .pantheon-shared-head-meta {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .pantheon-meta-grid {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .pantheon-council-stage.is-detail-open .pantheon-agent-detail {
+    top: auto;
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    width: auto;
+    max-height: min(76dvh, 680px);
+  }
+}
+
+@media (max-width: 520px) {
+  .pantheon-stall-notice {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .pantheon-stall-notice .ant-btn {
+    width: 100%;
+    margin-left: 28px;
+  }
+
+  .pantheon-shared-entry {
+    grid-template-columns: 28px minmax(0, 1fr);
+    gap: 9px;
+    padding: 10px;
+  }
+
+  .pantheon-shared-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 9px;
+  }
+
+  .pantheon-topology-nodes {
+    grid-template-columns: 1fr;
+  }
+
+  .pantheon-topology-nodes::before {
+    display: none;
+  }
+
+  .pantheon-agent-detail-stats {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Agent identity marks: one compact vector portrait per seat, repeated across
+   welcome, selection, topology and detail surfaces. */
+.pantheon-agent-avatar {
+  position: relative;
+  display: grid;
+  flex: 0 0 auto;
+  overflow: hidden;
+  place-items: center;
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 68%, var(--md-sys-color-text, var(--color-text)));
+  background: var(--pantheon-surface-raised, var(--pantheon-surface, var(--color-bg-layout)));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 18%, transparent),
+    0 2px 7px color-mix(in srgb, var(--md-sys-color-bg-layout, var(--color-bg-layout)) 22%, transparent);
+}
+
+.pantheon-agent-avatar img {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  user-select: none;
+}
+
+.pantheon-agent-avatar-status {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  z-index: 2;
+  width: 6px;
+  height: 6px;
+  border: 1.5px solid var(--pantheon-surface-raised, var(--pantheon-surface, var(--color-bg-layout)));
+  border-radius: 999px;
+  background: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+}
+
+.pantheon-agent-avatar-status.is-online,
+.pantheon-agent-avatar-status.is-finished {
+  background: var(--md-sys-color-success, var(--color-success));
+}
+
+.pantheon-agent-avatar-status.is-running {
+  background: var(--agent-accent, var(--pantheon-accent));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 12%, transparent);
+  animation: pantheon-pulse 1.8s ease-in-out infinite;
+}
+
+.pantheon-agent-avatar-status.is-waiting {
+  background: color-mix(in srgb, var(--md-sys-color-text-tertiary, var(--color-text-secondary)) 72%, transparent);
+}
+
+.pantheon-agent-avatar-status.is-failed {
+  background: var(--md-sys-color-destructive, var(--color-destructive));
+}
+
+.pantheon-agent-avatar-status.is-skipped {
+  background: var(--md-sys-color-warning, #d89614);
+}
+
+.pantheon-agent-avatar-status.is-offline {
+  background: color-mix(in srgb, var(--md-sys-color-text-tertiary, var(--color-text-secondary)) 46%, transparent);
+}
+
+.pantheon-topology-node:hover .pantheon-topology-avatar {
+  transform: scale(1.045);
+}
+
+.pantheon-topology-avatar {
+  transform-origin: center;
+  transition: transform 220ms cubic-bezier(.16, 1, .3, 1);
+}
+
+.pantheon-meta-agent-avatar {
+  width: 18px;
+  height: 18px;
+  border: 1px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 34%, var(--pantheon-line));
+  border-radius: 6px;
+}
+
+.pantheon-meta-agent-avatar .pantheon-agent-avatar-status {
+  right: 1px;
+  bottom: 1px;
+  width: 5px;
+  height: 5px;
+  border-width: 1px;
+}
+
+.pantheon-seat-list li {
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+}
+
+.pantheon-image-evidence {
+  display: flex;
+  padding: 13px;
+  margin: -8px 0 16px;
+  flex-direction: column;
+  gap: 9px;
+  border: 1px solid color-mix(in srgb, var(--pantheon-accent) 24%, var(--pantheon-line));
+  border-radius: var(--pantheon-control-radius);
+  background:
+    linear-gradient(135deg, var(--pantheon-accent-faint), transparent 48%),
+    color-mix(in srgb, var(--pantheon-surface) 58%, transparent);
+}
+
+.pantheon-image-evidence-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.pantheon-image-evidence-head > span {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  color: var(--pantheon-accent);
+}
+
+.pantheon-image-evidence-head strong {
+  color: var(--md-sys-color-text, var(--color-text));
+  font-size: 10.5px;
+}
+
+.pantheon-image-evidence-head small {
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 8.5px;
+}
+
+.pantheon-image-evidence-list {
+  display: grid;
+  padding: 0;
+  margin: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  list-style: none;
+}
+
+.pantheon-image-evidence-list li {
+  display: grid;
+  min-width: 0;
+  padding: 7px 7px 7px 8px;
+  grid-template-columns: 25px minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--pantheon-line);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--pantheon-surface-raised) 72%, transparent);
+}
+
+.pantheon-image-evidence-icon {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  border-radius: 7px;
+  color: var(--pantheon-accent);
+  background: var(--pantheon-accent-faint);
+}
+
+.pantheon-image-evidence-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.pantheon-image-evidence-copy strong {
+  overflow: hidden;
+  color: var(--md-sys-color-text, var(--color-text));
+  font-size: 9.5px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pantheon-image-evidence-copy small {
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 7.5px;
+}
+
+.pantheon-image-evidence-list .ant-btn {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  padding: 0;
+  border-radius: 7px;
+}
+
+.pantheon-record-attachments {
+  margin-top: 9px;
+}
+
+.pantheon-record-attachments > span {
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 8.5px;
+}
+
+.pantheon-record-attachments ul {
+  display: flex;
+  padding: 0;
+  margin: 6px 0 0;
+  flex-direction: column;
+  gap: 4px;
+  list-style: none;
+}
+
+.pantheon-record-attachments li {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
+  font-size: 9px;
+}
+
+.pantheon-record-attachments li .anticon {
+  flex: 0 0 auto;
+  color: var(--pantheon-accent);
+}
+
+.pantheon-record-attachments li span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pantheon-record-attachments small {
+  display: block;
+  margin-top: 5px;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 8px;
+}
+
+@media (max-width: 680px) {
+  .pantheon-image-evidence-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .pantheon-image-evidence-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ═══ 引导层 · DeepSeek 首屏式重设计（2026-10-31 用户拍板「更喜欢这个」）═══
+   居中构图 / 大字距衬线标题 / 单一输入卡 / 卡内胶囊 / 柔和雾面 washes。
+   全部走主题变量（color-mix + 既有 pantheon token），亮暗双态同源。 */
+
+.pantheon-composer-stage {
+  position: relative;
+}
+
+.pantheon-composer-stage::before,
+.pantheon-welcome-stage::before {
+  position: absolute;
+  inset: -12% -20%;
+  pointer-events: none;
+  content: "";
+  background:
+    radial-gradient(38% 34% at 22% 18%,
+      color-mix(in srgb, var(--pantheon-accent) 13%, transparent), transparent 72%),
+    radial-gradient(42% 38% at 78% 12%,
+      color-mix(in srgb, var(--md-sys-color-primary, #4a6cf7) 10%, transparent), transparent 74%),
+    radial-gradient(46% 44% at 62% 88%,
+      color-mix(in srgb, var(--pantheon-accent) 8%, transparent), transparent 76%),
+    radial-gradient(30% 30% at 12% 78%,
+      color-mix(in srgb, var(--md-sys-color-primary, #4a6cf7) 7%, transparent), transparent 78%);
+  filter: blur(2px);
+}
+
+/* ── 居中 hero ─────────────────────────────────────────────── */
+
+.pantheon-composer {
+  position: relative;
+  z-index: 1;
+  max-width: 860px;
+}
+
+.pantheon-composer-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: clamp(6px, 2vh, 26px);
+  text-align: center;
+}
+
+.pantheon-hero-note {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 14px;
+  border: 1px solid color-mix(in srgb, var(--pantheon-accent) 22%, var(--pantheon-line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pantheon-accent) 6%, var(--pantheon-surface-raised));
+  color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
+  font-size: 11.5px;
+  letter-spacing: .04em;
+}
+
+.pantheon-composer-head h2 {
+  margin: 18px 0 10px;
+  font-family: var(--font-serif, "Noto Serif SC", "Songti SC", serif);
+  font-size: clamp(28px, 3.6vw, 40px);
+  font-weight: 620;
+  letter-spacing: .05em;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.pantheon-composer-head p {
+  max-width: 46em;
+  margin: 0;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 12.5px;
+  letter-spacing: .02em;
+}
+
+/* ── 单一输入卡（议题 + 卡内胶囊工具条 + 圆形开议钮）────────── */
+
+.pantheon-compose-card {
+  margin-top: clamp(18px, 3vh, 30px);
+  padding: 4px 6px 8px;
+  border: 1px solid var(--pantheon-line);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--pantheon-accent) 4%, transparent), transparent 46%),
+    var(--pantheon-surface-raised);
+  box-shadow:
+    0 1px 0 color-mix(in srgb, #fff 30%, transparent) inset,
+    0 18px 44px color-mix(in srgb, var(--md-sys-color-bg-layout, #000) 16%, transparent);
+  transition: border-color 220ms ease, box-shadow 220ms ease;
+}
+
+.pantheon-compose-card:focus-within {
+  border-color: color-mix(in srgb, var(--pantheon-accent) 45%, var(--pantheon-line));
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--pantheon-accent) 10%, transparent),
+    0 18px 44px color-mix(in srgb, var(--md-sys-color-bg-layout, #000) 18%, transparent);
+}
+
+.pantheon-compose-card .pantheon-topic-input {
+  padding: 14px 12px 2px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  font-family: var(--font-serif, "Noto Serif SC", "Songti SC", serif);
+  font-size: 16.5px;
+  line-height: 1.75;
+}
+
+.pantheon-compose-card .pantheon-topic-input:focus {
+  box-shadow: none;
+}
+
+.pantheon-compose-meta {
+  display: flex;
+  gap: 14px;
+  justify-content: flex-end;
+  padding: 0 14px;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pantheon-compose-card .pantheon-chatbar {
+  margin-top: 6px;
+  padding: 9px 6px 4px;
+  border-top: 1px solid color-mix(in srgb, var(--pantheon-line) 72%, transparent);
+  background: transparent;
+  border-radius: 0;
+}
+
+.pantheon-compose-card .pantheon-selection-note {
+  max-width: 200px;
+  text-align: right;
+}
+
+.pantheon-start.ant-btn {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 999px;
+  font-size: 16px;
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--pantheon-accent) 32%, transparent);
+  transition: transform 200ms cubic-bezier(.16, 1, .3, 1), box-shadow 200ms ease, opacity 200ms ease;
+}
+
+.pantheon-start.ant-btn:not(:disabled):hover {
+  transform: translateY(-2px) scale(1.04);
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--pantheon-accent) 42%, transparent);
+}
+
+.pantheon-start.ant-btn:disabled {
+  opacity: .45;
+  box-shadow: none;
+}
+
+/* ── 卡下各段：去盒装、留白呼吸 ────────────────────────────── */
+
+.pantheon-composer .pantheon-workspace-scope,
+.pantheon-composer .pantheon-seat-section,
+.pantheon-composer .pantheon-speaking-order,
+.pantheon-composer .pantheon-image-evidence {
+  margin-top: 14px;
+  padding: 2px 4px;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.pantheon-composer .pantheon-workspace-scope > .pantheon-workspace-head {
+  padding: 2px 0;
+  background: transparent;
+  border: 0;
+}
+
+.pantheon-composer .pantheon-workspace-scope h3,
+.pantheon-composer .pantheon-seat-section h3,
+.pantheon-composer .pantheon-speaking-order h3 {
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .05em;
+}
+
+.pantheon-composer .pantheon-workspace-scope p,
+.pantheon-composer .pantheon-seat-section p,
+.pantheon-composer .pantheon-speaking-order p {
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 11px;
+  opacity: .8;
+}
+
+/* 工作空间选项 → 细胶囊行 */
+.pantheon-composer .pantheon-workspace-options {
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.pantheon-composer .pantheon-workspace-option {
+  gap: 8px;
+  padding: 5px 13px;
+  border-radius: 999px;
+}
+
+/* 席位胶囊行保持既有 chip 形态，仅收紧 */
+.pantheon-composer .pantheon-seat-row {
+  gap: 10px;
+  margin-top: 8px;
+}
+
+/* 发言顺序 → 单行顺序胶囊带 */
+.pantheon-composer .pantheon-speaking-order ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.pantheon-composer .pantheon-speaking-order li {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 8px 4px 10px;
+  border: 1px solid var(--pantheon-line);
+  border-radius: 999px;
+  background: var(--pantheon-surface-raised);
+}
+
+.pantheon-composer .pantheon-speaking-order .pantheon-order-actions {
+  display: inline-flex;
+  gap: 0;
+  margin: 0;
+}
+
+/* ── 欢迎屏同语言：居中 + 大字距 + 胶囊阵容 ─────────────────── */
+
+.pantheon-welcome-stage {
+  position: relative;
+}
+
+.pantheon-welcome {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 880px;
+  gap: 0;
+  text-align: center;
+}
+
+.pantheon-welcome-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-block: clamp(8px, 3vh, 34px) 6px;
+}
+
+.pantheon-welcome h2 {
+  margin: 18px 0 14px;
+  font-size: clamp(30px, 4vw, 46px);
+  font-weight: 620;
+  letter-spacing: .05em;
+  text-wrap: balance;
+}
+
+.pantheon-welcome p {
+  max-width: 44em;
+  text-align: center;
+}
+
+.pantheon-welcome-actions {
+  justify-content: center;
+  margin-top: 26px;
+}
+
+.pantheon-council-preview {
+  width: 100%;
+  margin-top: clamp(18px, 3vh, 34px);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.pantheon-council-preview-head {
+  justify-content: center;
+}
+
+.pantheon-seat-map {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+
+.pantheon-seat-card {
+  display: inline-flex;
+  flex: 0 0 auto;
+  flex-direction: row;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  padding: 8px 16px 8px 10px;
+  text-align: left;
+}
+
+@media (max-width: 820px) {
+  .pantheon-welcome {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ── 动效降级（ui-ux-pro-max 审查：prefers-reduced-motion，High）──────── */
+@media (prefers-reduced-motion: reduce) {
+  .pantheon-composer,
+  .pantheon-welcome,
+  .pantheon-welcome-copy,
+  .pantheon-council-preview,
+  .pantheon-compose-card {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .pantheon-start.ant-btn:not(:disabled):hover,
+  .pantheon-welcome-actions .ant-btn:hover {
+    transform: none;
+  }
+}
+
+/* ═══ 议事厅卷首 · 2026-10-31 首页重设计 ════════════════════════════════
+   不再复刻通用 AI 落地页的居中 hero。首屏以编辑式大标题、席位图和
+   一条清晰议事路径组成非对称“议事厅”：左为立题入口，右为本机席次。
+   仅重组首屏表现，所有展开、提交与档案交互保持原契约。 */
+
+.pantheon-canvas {
+  container-name: pantheon-canvas;
+  container-type: inline-size;
+  overflow-x: hidden;
+}
+
+.pantheon-welcome-stage {
+  position: relative;
+  justify-content: center;
+  gap: 22px;
+  padding-top: clamp(24px, 3.8vh, 42px);
+  padding-bottom: clamp(22px, 3.4vh, 36px);
+  overflow: hidden;
+}
+
+.pantheon-welcome-stage::before {
+  inset: -20% -10%;
+  background:
+    radial-gradient(42% 46% at 18% 22%,
+      color-mix(in srgb, var(--pantheon-accent) 12%, transparent), transparent 72%),
+    radial-gradient(34% 42% at 83% 12%,
+      color-mix(in srgb, var(--md-sys-color-info, var(--color-info)) 7%, transparent), transparent 74%),
+    radial-gradient(48% 38% at 66% 92%,
+      color-mix(in srgb, var(--pantheon-accent) 7%, transparent), transparent 78%);
+  filter: blur(5px);
+}
+
+.pantheon-chamber-watermark {
+  position: absolute;
+  top: 45%;
+  right: clamp(-42px, -1vw, 0px);
+  z-index: 0;
+  display: block;
+  color: transparent;
+  font-family: var(--font-serif, "Noto Serif SC", "Songti SC", serif);
+  font-size: clamp(260px, 34vw, 520px);
+  font-weight: 700;
+  line-height: .8;
+  opacity: .13;
+  pointer-events: none;
+  transform: translateY(-50%) rotate(-5deg);
+  -webkit-text-stroke: 1px color-mix(in srgb, var(--pantheon-accent) 72%, transparent);
+}
+
+.pantheon-welcome--hall > .pantheon-welcome-copy,
+.pantheon-welcome--hall > .pantheon-council-preview {
+  position: relative;
+  z-index: 1;
+}
+
+.pantheon-welcome--hall {
+  position: relative;
+  z-index: 1;
+  max-width: 1240px;
+  grid-template-columns: minmax(0, 1.18fr) minmax(300px, .82fr);
+  align-items: center;
+  gap: clamp(32px, 4.4vw, 68px);
+  text-align: left;
+}
+
+.pantheon-welcome--hall .pantheon-welcome-copy {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  padding: 8px 0;
+  text-align: left;
+  animation: pantheon-rise 560ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.pantheon-welcome-kicker {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.pantheon-welcome-kicker-rule {
+  width: clamp(30px, 5vw, 72px);
+  height: 1px;
+  background: linear-gradient(90deg, var(--pantheon-accent), var(--pantheon-line));
+}
+
+.pantheon-welcome-read-only {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  color: var(--pantheon-accent);
+  font-size: 9px;
+  letter-spacing: .1em;
+}
+
+.pantheon-welcome-title-row {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: clamp(14px, 1.8vw, 24px);
+  margin-top: clamp(22px, 3.2vh, 34px);
+}
+
+.pantheon-chamber-seal {
+  position: relative;
+  display: grid;
+  width: clamp(48px, 4.2vw, 60px);
+  aspect-ratio: 1;
+  flex: 0 0 auto;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--pantheon-accent) 56%, var(--pantheon-line));
+  color: var(--pantheon-accent-strong);
+  background:
+    linear-gradient(145deg,
+      color-mix(in srgb, var(--pantheon-accent) 18%, transparent),
+      transparent 62%),
+    color-mix(in srgb, var(--pantheon-surface) 82%, transparent);
+  box-shadow:
+    inset 0 0 0 5px color-mix(in srgb, var(--md-sys-color-bg-layout, var(--color-bg-layout)) 72%, transparent),
+    inset 0 0 0 6px color-mix(in srgb, var(--pantheon-accent) 18%, transparent);
+  transform: rotate(-2deg);
+}
+
+.pantheon-chamber-seal::after {
+  position: absolute;
+  right: 5px;
+  bottom: 4px;
+  color: var(--pantheon-accent);
+  content: "Ⅰ";
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 7px;
+  opacity: .7;
+}
+
+.pantheon-chamber-seal .anticon {
+  margin-top: -7px;
+  font-size: clamp(17px, 1.8vw, 22px);
+}
+
+.pantheon-chamber-seal small {
+  position: absolute;
+  bottom: 7px;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-family: var(--font-serif, "Noto Serif SC", "Songti SC", serif);
+  font-size: 8px;
+  letter-spacing: .18em;
+}
+
+.pantheon-welcome--hall h2 {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  margin: 0;
+  font-size: clamp(35px, 3.45vw, 50px);
+  font-weight: 570;
+  line-height: 1.1;
+  letter-spacing: -.045em;
+  text-wrap: balance;
+}
+
+.pantheon-welcome--hall h2 span {
+  display: block;
+  white-space: nowrap;
+}
+
+.pantheon-welcome--hall h2 span:last-child {
+  color: color-mix(in srgb, var(--md-sys-color-text, var(--color-text)) 74%, var(--pantheon-accent));
+}
+
+.pantheon-welcome--hall .pantheon-welcome-copy > p {
+  max-width: 47ch;
+  margin: 22px 0 0 clamp(0px, 6vw, 77px);
+  color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
+  font-size: 13.5px;
+  line-height: 1.85;
+  text-align: left;
+  text-wrap: pretty;
+}
+
+.pantheon-welcome--hall .pantheon-welcome-actions {
+  justify-content: flex-start;
+  gap: 15px;
+  margin: 27px 0 0 clamp(0px, 6vw, 77px);
+}
+
+.pantheon-welcome-start.ant-btn {
+  min-width: 152px;
+  height: 46px;
+  padding-inline: 19px;
+  border: 1px solid color-mix(in srgb, var(--pantheon-accent) 68%, var(--pantheon-line));
+  border-radius: 5px 15px 5px 15px;
+  color: var(--pantheon-surface);
+  background:
+    linear-gradient(115deg,
+      color-mix(in srgb, var(--pantheon-accent-strong) 92%, var(--md-sys-color-text, var(--color-text))),
+      var(--pantheon-accent));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--md-sys-color-text, var(--color-text)) 28%, transparent),
+    0 12px 34px color-mix(in srgb, var(--pantheon-accent) 18%, transparent);
+  font-weight: 680;
+  letter-spacing: .045em;
+}
+
+.pantheon-welcome-start.ant-btn:not(:disabled):hover {
+  border-color: var(--pantheon-accent-strong);
+  color: var(--pantheon-surface);
+  background:
+    linear-gradient(115deg,
+      var(--pantheon-accent-strong),
+      color-mix(in srgb, var(--pantheon-accent) 82%, var(--md-sys-color-text, var(--color-text))));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--md-sys-color-text, var(--color-text)) 35%, transparent),
+    0 16px 38px color-mix(in srgb, var(--pantheon-accent) 26%, transparent);
+  transform: translateY(-2px);
+}
+
+.pantheon-welcome-start.ant-btn:not(:disabled):active {
+  transform: translateY(0) scale(.985);
+}
+
+.pantheon-welcome-start.ant-btn .anticon {
+  font-size: 12px;
+}
+
+.pantheon-welcome--hall .pantheon-readiness {
+  padding: 6px 0;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 10.5px;
+}
+
+.pantheon-welcome--hall .pantheon-readiness i {
+  width: 5px;
+  height: 5px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--md-sys-color-success, var(--color-success)) 8%, transparent);
+}
+
+.pantheon-welcome-sequence {
+  display: grid;
+  width: calc(100% - clamp(0px, 6vw, 77px));
+  padding: 20px 0 0;
+  margin: clamp(28px, 4vh, 42px) 0 0 clamp(0px, 6vw, 77px);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--pantheon-line);
+  list-style: none;
+}
+
+.pantheon-welcome-sequence li {
+  display: grid;
+  min-width: 0;
+  padding: 0 14px;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 2px 7px;
+}
+
+.pantheon-welcome-sequence li:first-child {
+  padding-left: 0;
+}
+
+.pantheon-welcome-sequence li + li {
+  border-left: 1px solid var(--pantheon-line);
+}
+
+.pantheon-welcome-sequence li > span {
+  grid-row: 1 / span 2;
+  color: var(--pantheon-accent);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pantheon-welcome-sequence strong {
+  color: var(--md-sys-color-text, var(--color-text));
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: .05em;
+}
+
+.pantheon-welcome-sequence small {
+  overflow: hidden;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 8.5px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pantheon-welcome--hall .pantheon-council-preview {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: clamp(20px, 2.4vw, 28px);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--pantheon-accent) 22%, var(--pantheon-line));
+  border-radius: 5px 28px 5px 28px;
+  background:
+    linear-gradient(145deg,
+      color-mix(in srgb, var(--pantheon-accent) 11%, transparent),
+      transparent 43%),
+    var(--pantheon-surface-raised);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--pantheon-accent) 18%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--md-sys-color-bg-layout, var(--color-bg-layout)) 18%, transparent),
+    0 28px 70px color-mix(in srgb, var(--md-sys-color-bg-layout, var(--color-bg-layout)) 28%, transparent);
+  text-align: left;
+  animation: pantheon-rise 600ms 80ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.pantheon-welcome--hall .pantheon-council-preview::before {
+  position: absolute;
+  top: 18px;
+  bottom: 18px;
+  left: 0;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: linear-gradient(180deg,
+    transparent,
+    color-mix(in srgb, var(--pantheon-accent) 72%, transparent) 22%,
+    color-mix(in srgb, var(--pantheon-accent) 20%, transparent) 76%,
+    transparent);
+  content: "";
+}
+
+.pantheon-preview-orbit {
+  position: absolute;
+  top: -104px;
+  right: -116px;
+  width: 260px;
+  aspect-ratio: 1;
+  border: 1px solid color-mix(in srgb, var(--pantheon-accent) 16%, var(--pantheon-line));
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 28px color-mix(in srgb, var(--pantheon-accent) 3%, transparent),
+    0 0 0 29px var(--pantheon-line),
+    0 0 0 60px color-mix(in srgb, var(--pantheon-accent) 2%, transparent);
+  opacity: .82;
+  pointer-events: none;
+}
+
+.pantheon-welcome--hall .pantheon-council-preview-head {
+  position: relative;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding-bottom: 17px;
+}
+
+.pantheon-welcome--hall .pantheon-council-preview-head > div {
+  gap: 8px;
+}
+
+.pantheon-welcome--hall .pantheon-council-preview-head strong {
+  max-width: 15ch;
+  font-family: var(--font-serif, "Noto Serif SC", "Songti SC", serif);
+  font-size: clamp(17px, 1.55vw, 22px);
+  font-weight: 590;
+  line-height: 1.34;
+  letter-spacing: -.02em;
+}
+
+.pantheon-preview-count {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: baseline;
+  gap: 4px;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+}
+
+.pantheon-preview-count b {
+  color: var(--pantheon-accent);
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.pantheon-preview-count small {
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.pantheon-welcome--hall .pantheon-seat-map {
+  display: grid;
+  padding: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  border-bottom: 1px solid var(--pantheon-line);
+}
+
+.pantheon-welcome--hall .pantheon-seat-card {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  padding: 15px 12px 15px 0;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-top: 1px solid var(--pantheon-line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.pantheon-welcome--hall .pantheon-seat-card:nth-child(odd) {
+  padding-right: 15px;
+  border-right: 1px solid var(--pantheon-line);
+}
+
+.pantheon-welcome--hall .pantheon-seat-card:nth-child(even) {
+  padding-left: 15px;
+}
+
+.pantheon-welcome--hall .pantheon-seat-card.is-ready {
+  border-color: var(--pantheon-line);
+  background:
+    linear-gradient(110deg,
+      color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 6%, transparent),
+      transparent 66%);
+}
+
+.pantheon-welcome--hall .pantheon-seat-monogram {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px 4px 9px 4px;
+}
+
+.pantheon-welcome--hall .pantheon-seat-card-copy {
+  gap: 1px;
+}
+
+.pantheon-seat-number {
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 7px;
+  letter-spacing: .08em;
+  line-height: 1.35;
+}
+
+.pantheon-welcome--hall .pantheon-seat-card-copy strong {
+  font-size: 11.5px;
+  line-height: 1.3;
+}
+
+.pantheon-welcome--hall .pantheon-seat-card-copy small {
+  color: color-mix(in srgb,
+    var(--md-sys-color-text-secondary, var(--color-text-secondary)) 74%,
+    var(--md-sys-color-text, var(--color-text)));
+  font-size: 8.75px;
+}
+
+.pantheon-welcome--hall .pantheon-seat-state {
+  position: absolute;
+  top: 9px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: color-mix(in srgb,
+    var(--md-sys-color-text-tertiary, var(--color-text-secondary)) 54%,
+    var(--md-sys-color-text, var(--color-text)));
+  font-size: 7px;
+  letter-spacing: .04em;
+}
+
+.pantheon-welcome--hall .pantheon-seat-card:nth-child(odd) .pantheon-seat-state {
+  right: 12px;
+}
+
+.pantheon-welcome--hall .pantheon-seat-card.is-ready .pantheon-seat-state {
+  color: var(--md-sys-color-success, var(--color-success));
+}
+
+.pantheon-seat-state i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.pantheon-welcome--hall .pantheon-seat-number,
+.pantheon-welcome--hall .pantheon-preview-count small,
+.pantheon-welcome--hall .pantheon-council-foot {
+  color: color-mix(in srgb,
+    var(--md-sys-color-text-secondary, var(--color-text-secondary)) 76%,
+    var(--md-sys-color-text, var(--color-text)));
+}
+
+.pantheon-welcome--hall .pantheon-seat-card.is-ready .pantheon-seat-state i {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--md-sys-color-success, var(--color-success)) 9%, transparent);
+  animation: pantheon-pulse 2.2s ease-in-out infinite;
+}
+
+.pantheon-welcome--hall .pantheon-council-foot {
+  justify-content: flex-start;
+  gap: 8px;
+  padding-top: 15px;
+  border: 0;
+  font-size: 8px;
+  letter-spacing: .03em;
+}
+
+.pantheon-welcome--hall .pantheon-council-foot span:not(:first-child) {
+  color: color-mix(in srgb, var(--md-sys-color-text, var(--color-text)) 76%, transparent);
+}
+
+.pantheon-welcome--hall .pantheon-council-foot .anticon {
+  margin-inline: 1px 3px;
+  opacity: .72;
+}
+
+.pantheon-welcome-stage .pantheon-protocol {
+  position: relative;
+  z-index: 1;
+  max-width: 1240px;
+  padding-top: 18px;
+  grid-template-columns: minmax(170px, .78fr) minmax(0, 2.35fr) minmax(150px, .66fr);
+  gap: clamp(20px, 3vw, 42px);
+}
+
+.pantheon-welcome-stage .pantheon-protocol-head h3 {
+  max-width: 20ch;
+  margin-top: 6px;
+  font-family: var(--font-serif, "Noto Serif SC", "Songti SC", serif);
+  font-size: 13px;
+  font-weight: 590;
+  line-height: 1.55;
+}
+
+.pantheon-welcome-stage .pantheon-rule-list {
+  gap: 16px;
+}
+
+.pantheon-welcome-stage .pantheon-rule-list li {
+  grid-template-columns: 24px minmax(0, 1fr);
+}
+
+.pantheon-welcome-stage .pantheon-rule-list b {
+  font-size: 11px;
+}
+
+.pantheon-welcome-stage .pantheon-rule-list small {
+  font-size: 9.5px;
+  line-height: 1.55;
+}
+
+.pantheon-welcome-stage .pantheon-protocol-boundary {
+  padding: 7px 0 7px 12px;
+  border-left: 1px solid var(--pantheon-line);
+}
+
+@container pantheon-canvas (max-width: 960px) {
+  .pantheon-welcome--hall {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+  }
+
+  .pantheon-welcome--hall .pantheon-welcome-copy {
+    padding-bottom: 0;
+  }
+
+  .pantheon-welcome--hall .pantheon-council-preview {
+    margin-top: 0;
+  }
+
+  .pantheon-welcome-stage .pantheon-protocol {
+    grid-template-columns: minmax(180px, .8fr) minmax(0, 2.2fr);
+  }
+
+  .pantheon-welcome-stage .pantheon-protocol-boundary {
+    display: none;
+  }
+}
+
+@container pantheon-canvas (max-width: 680px) {
+  .pantheon-chamber-watermark {
+    top: 24%;
+    right: -60px;
+    font-size: 280px;
+  }
+
+  .pantheon-welcome--hall h2 {
+    font-size: clamp(32px, 7.2cqw, 44px);
+  }
+
+  .pantheon-welcome--hall h2 span {
+    white-space: normal;
+  }
+
+  .pantheon-welcome--hall .pantheon-welcome-copy > p {
+    margin-left: 0;
+    font-size: 12.5px;
+  }
+
+  .pantheon-welcome--hall .pantheon-welcome-actions {
+    margin-left: 0;
+  }
+
+  .pantheon-welcome-sequence {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .pantheon-welcome-sequence li {
+    padding-inline: 9px;
+    grid-template-columns: 19px minmax(0, 1fr);
+  }
+
+  .pantheon-welcome-sequence small {
+    display: none;
+  }
+
+  .pantheon-welcome-stage .pantheon-protocol {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .pantheon-welcome-stage .pantheon-rule-list {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 11px;
+  }
+
+  .pantheon-welcome-stage .pantheon-rule-list li {
+    grid-template-columns: 24px minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .pantheon-welcome-kicker-rule,
+  .pantheon-welcome-read-only {
+    display: none;
+  }
+
+  .pantheon-welcome-title-row {
+    gap: 12px;
+  }
+
+  .pantheon-chamber-seal {
+    width: 44px;
+  }
+
+  .pantheon-welcome--hall .pantheon-welcome-actions {
+    flex-wrap: wrap;
+    gap: 11px;
+    margin-top: 22px;
+  }
+
+  .pantheon-welcome-start.ant-btn {
+    min-width: 138px;
+    height: 44px;
+  }
+
+  .pantheon-welcome--hall .pantheon-council-preview {
+    padding: 18px;
+    border-radius: 4px 22px 4px 22px;
+  }
+
+  .pantheon-welcome--hall .pantheon-seat-map {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pantheon-welcome--hall .pantheon-seat-card,
+  .pantheon-welcome--hall .pantheon-seat-card:nth-child(odd),
+  .pantheon-welcome--hall .pantheon-seat-card:nth-child(even) {
+    padding: 12px 8px 12px 0;
+    border-right: 0;
+  }
+
+  .pantheon-welcome--hall .pantheon-seat-card:nth-child(even) {
+    padding-left: 0;
+  }
+
+  .pantheon-welcome--hall .pantheon-seat-card:nth-child(odd) .pantheon-seat-state {
+    right: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pantheon-welcome--hall .pantheon-seat-card.is-ready .pantheon-seat-state i {
+    animation: none;
+  }
+
+  .pantheon-welcome-start.ant-btn:not(:disabled):hover,
+  .pantheon-welcome-start.ant-btn:not(:disabled):active {
+    transform: none;
+  }
+}
+
+/* ═══ 立题卷 · 与议事厅首屏同源 ═══════════════════════════════════════
+   宽屏为“题签 + 议题卷”双栏，窄屏回落为单一阅读列。输入框仍是唯一
+   视觉主角，工具条与展开字段保持清晰但降噪。 */
+
+.pantheon-compose-stage {
+  position: relative;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.pantheon-composer-watermark {
+  position: absolute;
+  top: 18%;
+  left: -1.5%;
+  z-index: 0;
+  color: transparent;
+  font-family: var(--font-serif, "Noto Serif SC", "Songti SC", serif);
+  font-size: clamp(260px, 30vw, 460px);
+  font-weight: 700;
+  line-height: 1;
+  opacity: .08;
+  pointer-events: none;
+  transform: rotate(-8deg);
+  -webkit-text-stroke: 1px color-mix(in srgb, var(--pantheon-accent) 68%, transparent);
+}
+
+.pantheon-compose-stage > .pantheon-composer {
+  position: relative;
+  z-index: 1;
+}
+
+.pantheon-composer {
+  display: grid;
+  max-width: 1120px;
+  grid-template-columns: 244px minmax(0, 1fr);
+  align-items: start;
+  column-gap: clamp(30px, 3.4vw, 48px);
+  row-gap: 12px;
+}
+
+.pantheon-composer-head {
+  position: relative;
+  display: flex;
+  padding-top: 4px;
+  grid-column: 1;
+  grid-row: 1;
+  align-items: flex-start;
+  flex-direction: column;
+  text-align: left;
+}
+
+.pantheon-composer-head::after {
+  width: 42px;
+  height: 1px;
+  margin-top: 23px;
+  background: linear-gradient(90deg, var(--pantheon-accent), transparent);
+  content: "";
+}
+
+.pantheon-hero-note {
+  padding: 0 0 12px;
+  border: 0;
+  border-radius: 0;
+  color: var(--pantheon-accent);
+  background: transparent;
+  font-size: 9.5px;
+  font-weight: 650;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.pantheon-composer-head h2 {
+  max-width: 11ch;
+  margin: 0;
+  font-size: clamp(28px, 2.45vw, 36px);
+  font-weight: 590;
+  line-height: 1.32;
+  letter-spacing: -.03em;
+  text-align: left;
+  text-wrap: balance;
+}
+
+.pantheon-composer-head p {
+  max-width: 24ch;
+  margin-top: 15px;
+  font-size: 11.5px;
+  line-height: 1.72;
+  text-align: left;
+}
+
+.pantheon-composer > :not(.pantheon-composer-head) {
+  min-width: 0;
+  grid-column: 2;
+}
+
+.pantheon-composer > .pantheon-alert {
+  margin: 0;
+}
+
+.pantheon-compose-card {
+  margin-top: 0;
+  padding: 5px 7px 8px;
+  border-color: color-mix(in srgb, var(--pantheon-accent) 24%, var(--pantheon-line));
+  border-left: 2px solid color-mix(in srgb, var(--pantheon-accent) 72%, var(--pantheon-line));
+  border-radius: 4px 22px 4px 22px;
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--pantheon-accent) 6%, transparent), transparent 52%),
+    var(--pantheon-surface-raised);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--pantheon-accent) 14%, transparent),
+    0 22px 58px color-mix(in srgb, var(--md-sys-color-bg-layout, var(--color-bg-layout)) 18%, transparent);
+}
+
+.pantheon-compose-card .pantheon-topic-input {
+  min-height: 108px;
+  padding: 16px 14px 3px;
+  font-size: 17px;
+  line-height: 1.72;
+}
+
+.pantheon-compose-card .pantheon-chatbar {
+  flex-wrap: wrap;
+  margin-top: 8px;
+  padding: 10px 6px 3px;
+  row-gap: 7px;
+  border-top-color: color-mix(in srgb, var(--pantheon-accent) 16%, var(--pantheon-line));
+}
+
+.pantheon-compose-card .pantheon-start-spacer {
+  flex: 1 1 20px;
+}
+
+.pantheon-compose-card .pantheon-selection-note {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pantheon-composer .pantheon-workspace-scope,
+.pantheon-composer .pantheon-seat-section,
+.pantheon-composer .pantheon-speaking-order,
+.pantheon-composer .pantheon-image-evidence {
+  margin-top: 0;
+  padding-top: 6px;
+}
+
+.pantheon-composer .pantheon-workspace-scope h3,
+.pantheon-composer .pantheon-seat-section h3,
+.pantheon-composer .pantheon-speaking-order h3 {
+  color: var(--md-sys-color-text, var(--color-text));
+  font-size: 12.5px;
+  font-weight: 650;
+  letter-spacing: .025em;
+}
+
+.pantheon-composer .pantheon-seat-section,
+.pantheon-composer .pantheon-speaking-order {
+  padding-top: 14px;
+  border-top: 1px solid var(--pantheon-line);
+}
+
+.pantheon-composer-stage .pantheon-protocol {
+  max-width: 1120px;
+}
+
+@media (max-width: 1199px) {
+  .pantheon-composer {
+    display: block;
+    max-width: 860px;
+    margin-inline: auto;
+  }
+
+  .pantheon-composer-head {
+    align-items: flex-start;
+    padding-top: 0;
+  }
+
+  .pantheon-composer-head::after {
+    margin-top: 18px;
+    margin-bottom: 15px;
+  }
+
+  .pantheon-composer-head h2 {
+    max-width: 18ch;
+    font-size: clamp(28px, 4.2vw, 38px);
+  }
+
+  .pantheon-composer-head p {
+    max-width: 50ch;
+    margin-top: 10px;
+  }
+
+  .pantheon-compose-card {
+    margin-top: 22px;
+  }
+
+  .pantheon-composer .pantheon-workspace-scope,
+  .pantheon-composer .pantheon-seat-section,
+  .pantheon-composer .pantheon-speaking-order,
+  .pantheon-composer .pantheon-image-evidence {
+    margin-top: 14px;
+  }
+}
+
+@media (max-width: 640px) {
+  .pantheon-composer-watermark {
+    top: 11%;
+    left: -26%;
+    font-size: 320px;
+  }
+
+  .pantheon-composer-head::after {
+    margin-top: 14px;
+    margin-bottom: 12px;
+  }
+
+  .pantheon-composer-head h2 {
+    font-size: 29px;
+  }
+
+  .pantheon-compose-card .pantheon-topic-input {
+    min-height: 104px;
+    font-size: 15.5px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pantheon-composer,
+  .pantheon-composer-head,
+  .pantheon-compose-card {
+    animation: none;
+  }
+}
+
+/* ═══ 2026-10-31 · 发起讨论页重构：议题卷 + 议事配置 ═════════════════════
+   页面从纵向表单改为“左侧定义问题、右侧组成议事桌”的工作台。
+   DOM 和提交契约不变；只重组阅读层级、展开方式和主要动作。 */
+
+.pantheon-compose-stage {
+  justify-content: flex-start;
+  gap: 20px;
+  padding-top: clamp(22px, 3vh, 34px);
+}
+
+.pantheon-composer--studio {
+  display: block;
+  max-width: 1180px;
+  margin-inline: auto;
+}
+
+.pantheon-composer--studio .pantheon-composer-head {
+  display: grid;
+  padding: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: clamp(24px, 4vw, 54px);
+}
+
+.pantheon-composer--studio .pantheon-composer-head::after {
+  display: none;
+}
+
+.pantheon-composer-head-copy {
+  min-width: 0;
+}
+
+.pantheon-composer--studio .pantheon-hero-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  color: var(--pantheon-accent);
+  background: transparent;
+  font-size: 9.5px;
+  font-weight: 650;
+  letter-spacing: .1em;
+}
+
+.pantheon-composer-kicker {
+  display: block;
+  margin-top: 17px;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 9px;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+
+.pantheon-composer--studio .pantheon-composer-head h2 {
+  max-width: 16ch;
+  margin: 10px 0 0;
+  font-size: clamp(35px, 3.5vw, 51px);
+  font-weight: 570;
+  line-height: 1.13;
+  letter-spacing: -.04em;
+  text-align: left;
+  text-wrap: balance;
+}
+
+.pantheon-composer--studio .pantheon-composer-head p {
+  max-width: 54ch;
+  margin: 17px 0 0;
+  color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
+  font-size: 12.5px;
+  line-height: 1.75;
+  text-align: left;
+  text-wrap: pretty;
+}
+
+.pantheon-composer-steps {
+  display: flex;
+  padding: 0;
+  margin: 0 0 4px;
+  align-items: flex-end;
+  gap: 0;
+  list-style: none;
+}
+
+.pantheon-composer-steps li {
+  position: relative;
+  display: flex;
+  width: 78px;
+  padding-top: 11px;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+}
+
+.pantheon-composer-steps li::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: var(--pantheon-line);
+  content: "";
+}
+
+.pantheon-composer-steps li.is-current::before {
+  height: 2px;
+  background: var(--pantheon-accent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--pantheon-accent) 24%, transparent);
+}
+
+.pantheon-composer-steps b {
+  color: var(--pantheon-accent);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 8.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.pantheon-composer-steps span {
+  font-size: 10px;
+  font-weight: 620;
+  letter-spacing: .04em;
+}
+
+.pantheon-composer-steps li.is-current span {
+  color: var(--md-sys-color-text, var(--color-text));
+}
+
+.pantheon-composer--studio > .pantheon-alert {
+  margin: 16px 0 0;
+}
+
+.pantheon-composer-studio {
+  display: grid;
+  margin-top: 22px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
+}
+
+.pantheon-composer-main,
+.pantheon-composer-config,
+.pantheon-composer-extra {
+  min-width: 0;
+}
+
+.pantheon-composer-main {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.pantheon-composer-config {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.pantheon-composer-extra {
+  display: flex;
+  grid-column: 1;
+  grid-row: 3;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pantheon-composer-extra:empty {
+  display: none;
+}
+
+.pantheon-composer--studio .pantheon-topic-sheet {
+  position: relative;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--pantheon-accent) 22%, var(--pantheon-line));
+  border-top: 2px solid color-mix(in srgb, var(--pantheon-accent) 64%, var(--pantheon-line));
+  border-radius: 4px 18px 10px 10px;
+  background:
+    linear-gradient(145deg,
+      color-mix(in srgb, var(--pantheon-accent) 7%, transparent),
+      transparent 38%),
+    var(--pantheon-surface-raised);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--pantheon-accent) 14%, transparent),
+    0 18px 46px color-mix(in srgb, var(--md-sys-color-bg-layout, var(--color-bg-layout)) 16%, transparent);
+  transition: border-color 220ms ease, box-shadow 220ms ease;
+}
+
+.pantheon-composer--studio .pantheon-topic-sheet:focus-within {
+  border-color: color-mix(in srgb, var(--pantheon-accent) 52%, var(--pantheon-line));
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--pantheon-accent) 8%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--pantheon-accent) 16%, transparent),
+    0 18px 46px color-mix(in srgb, var(--md-sys-color-bg-layout, var(--color-bg-layout)) 16%, transparent);
+}
+
+.pantheon-topic-sheet-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 20px 23px 0;
+}
+
+.pantheon-topic-sheet-head > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.pantheon-topic-sheet-head label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--md-sys-color-text, var(--color-text));
+  font-family: var(--font-serif, "Noto Serif SC", "Songti SC", serif);
+  font-size: clamp(20px, 2vw, 27px);
+  font-weight: 590;
+  line-height: 1.3;
+  letter-spacing: -.025em;
+}
+
+.pantheon-topic-sheet-head label em {
+  padding-left: 9px;
+  border-left: 1px solid var(--pantheon-line-strong);
+  color: var(--pantheon-accent);
+  font-family: var(--font-sans, inherit);
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 650;
+  letter-spacing: .08em;
+}
+
+.pantheon-topic-sheet-mark {
+  color: transparent;
+  font-family: var(--font-serif, "Noto Serif SC", "Songti SC", serif);
+  font-size: 48px;
+  font-weight: 600;
+  line-height: .8;
+  opacity: .2;
+  pointer-events: none;
+  -webkit-text-stroke: 1px var(--pantheon-accent);
+}
+
+.pantheon-composer--studio .pantheon-topic-input.ant-input {
+  min-height: 154px;
+  padding: 18px 23px 8px;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  box-shadow: none;
+  font-family: var(--font-serif, "Noto Serif SC", "Songti SC", serif);
+  font-size: clamp(17px, 1.65vw, 20px);
+  line-height: 1.72;
+  resize: none;
+}
+
+.pantheon-composer--studio .pantheon-topic-input.ant-input:focus {
+  border: 0;
+  outline: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.pantheon-composer--studio .pantheon-topic-input.ant-input::placeholder {
+  color: color-mix(in srgb,
+    var(--md-sys-color-text-secondary, var(--color-text-secondary)) 72%,
+    var(--md-sys-color-text, var(--color-text)));
+  opacity: 1;
+}
+
+.pantheon-composer--studio .pantheon-topic-input.ant-input.has-error {
+  text-decoration-color: var(--md-sys-color-destructive, var(--color-destructive));
+}
+
+.pantheon-topic-help,
+.pantheon-topic-error {
+  margin: 0 23px;
+  font-size: 10.5px;
+  line-height: 1.55;
+}
+
+.pantheon-topic-help {
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+}
+
+.pantheon-topic-error {
+  margin-top: 4px;
+  color: var(--md-sys-color-destructive, var(--color-destructive));
+  font-weight: 600;
+}
+
+.pantheon-composer--studio .pantheon-compose-meta {
+  justify-content: flex-start;
+  gap: 14px;
+  padding: 9px 23px 14px;
+  border-bottom: 1px solid var(--pantheon-line);
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 8.75px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pantheon-composer--studio .pantheon-compose-meta span + span::before {
+  display: inline-block;
+  width: 2px;
+  height: 2px;
+  margin: 0 9px 2px 0;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+  opacity: .7;
+}
+
+.pantheon-composer--studio .pantheon-chatbar {
+  position: static;
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: color-mix(in srgb, var(--pantheon-surface) 46%, transparent);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.pantheon-toolbar-options {
+  display: flex;
+  min-width: 0;
+  padding: 11px 14px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.pantheon-toolbar-options > .ant-btn {
+  height: 30px;
+  padding-inline: 9px;
+  border-radius: 7px;
+  font-size: 10px;
+}
+
+.pantheon-toolbar-options .pantheon-chatbar-select {
+  width: 116px;
+  min-width: 106px;
+}
+
+.pantheon-toolbar-options .pantheon-chatbar-select .ant-select-selector {
+  border-color: var(--pantheon-line);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--pantheon-surface-raised) 64%, transparent) !important;
+}
+
+.pantheon-toolbar-options .pantheon-round-control {
+  gap: 4px;
+}
+
+.pantheon-toolbar-options .pantheon-round-mode button {
+  height: 28px;
+}
+
+.pantheon-toolbar-launch {
+  display: flex;
+  padding: 11px 14px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  border-top: 1px solid var(--pantheon-line);
+  background:
+    linear-gradient(90deg,
+      color-mix(in srgb, var(--pantheon-accent) 5%, transparent),
+      transparent 58%);
+}
+
+.pantheon-toolbar-launch .pantheon-selection-note {
+  min-width: 0;
+  margin-right: auto;
+  overflow: hidden;
+  font-size: 10px;
+  text-overflow: ellipsis;
+}
+
+.pantheon-composer--studio .pantheon-start.ant-btn {
+  width: auto;
+  min-width: 112px;
+  height: 44px;
+  padding-inline: 17px;
+  border: 1px solid color-mix(in srgb, var(--pantheon-accent) 62%, var(--pantheon-line));
+  border-radius: 10px;
+  color: var(--pantheon-surface);
+  background: var(--pantheon-accent-strong);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--pantheon-accent) 20%, transparent);
+  font-size: 11.5px;
+  font-weight: 680;
+}
+
+.pantheon-composer--studio .pantheon-start.ant-btn:not(:disabled):hover {
+  color: var(--pantheon-surface);
+  background: var(--pantheon-accent);
+  transform: translateY(-1px);
+}
+
+.pantheon-composer--studio .pantheon-start.ant-btn:disabled {
+  border-color: var(--pantheon-line);
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  background: color-mix(in srgb, var(--pantheon-surface) 66%, transparent);
+  box-shadow: none;
+}
+
+/* 议事配置是一张纵向索引，不再重复堆叠五张同权卡片。 */
+.pantheon-composer-config {
+  position: relative;
+  display: flex;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--pantheon-accent) 16%, var(--pantheon-line));
+  border-radius: 14px 4px 14px 4px;
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--pantheon-accent) 5%, transparent),
+      transparent 28%),
+    color-mix(in srgb, var(--pantheon-surface-raised) 90%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--pantheon-accent) 10%, transparent),
+    0 16px 38px color-mix(in srgb, var(--md-sys-color-bg-layout, var(--color-bg-layout)) 12%, transparent);
+  flex-direction: column;
+}
+
+.pantheon-config-rail-head {
+  display: flex;
+  padding: 16px 16px 14px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pantheon-config-rail-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pantheon-config-rail-head h3 {
+  margin: 0;
+  font-family: var(--font-serif, "Noto Serif SC", "Songti SC", serif);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.pantheon-config-ready {
+  display: inline-flex;
+  padding-top: 3px;
+  align-items: center;
+  gap: 5px;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 8px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pantheon-config-ready i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--md-sys-color-success, var(--color-success));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--md-sys-color-success, var(--color-success)) 9%, transparent);
+}
+
+.pantheon-composer--studio .pantheon-composer-config > section {
+  position: relative;
+  padding: 14px 16px;
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--pantheon-line);
+  background: transparent;
+  box-shadow: none;
+}
+
+.pantheon-composer--studio .pantheon-composer-config > section::before {
+  position: absolute;
+  top: 13px;
+  right: 16px;
+  color: var(--pantheon-accent);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 7px;
+  letter-spacing: .08em;
+  opacity: .65;
+}
+
+.pantheon-composer--studio .pantheon-composer-config > .pantheon-workspace-scope::before {
+  content: "01 / SCOPE";
+}
+
+.pantheon-composer--studio .pantheon-composer-config > .pantheon-seat-section::before {
+  content: "02 / SEATS";
+}
+
+.pantheon-composer--studio .pantheon-composer-config > .pantheon-speaking-order::before {
+  content: "03 / ORDER";
+}
+
+.pantheon-composer--studio .pantheon-workspace-scope > .pantheon-workspace-head {
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+
+.pantheon-composer--studio .pantheon-workspace-title {
+  gap: 8px;
+}
+
+.pantheon-composer--studio .pantheon-workspace-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.pantheon-composer--studio .pantheon-workspace-title strong {
+  font-size: 11.5px;
+}
+
+.pantheon-composer--studio .pantheon-workspace-title small {
+  max-width: 210px;
+  font-size: 8.5px;
+}
+
+.pantheon-composer--studio .pantheon-workspace-head > .ant-btn {
+  height: 28px;
+  padding-inline: 7px;
+  font-size: 9px;
+}
+
+.pantheon-composer--studio .pantheon-workspace-options {
+  display: grid;
+  margin-top: 9px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.pantheon-composer--studio .pantheon-workspace-option {
+  min-width: 0;
+  padding: 7px 8px;
+  gap: 6px;
+  border-radius: 8px;
+}
+
+.pantheon-composer--studio .pantheon-workspace-option > span {
+  min-width: 0;
+}
+
+.pantheon-composer--studio .pantheon-workspace-option strong,
+.pantheon-composer--studio .pantheon-workspace-option small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pantheon-composer--studio .pantheon-workspace-option strong {
+  font-size: 9.5px;
+}
+
+.pantheon-composer--studio .pantheon-workspace-option small {
+  font-size: 8px;
+}
+
+.pantheon-composer--studio .pantheon-seat-section {
+  padding-top: 14px;
+}
+
+.pantheon-composer--studio .pantheon-seat-section-head {
+  margin-bottom: 9px;
+  gap: 10px;
+}
+
+.pantheon-composer--studio .pantheon-seat-section-head h3,
+.pantheon-composer--studio .pantheon-speaking-order-head h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 660;
+}
+
+.pantheon-composer--studio .pantheon-seat-section-head p,
+.pantheon-composer--studio .pantheon-speaking-order-head p {
+  max-width: 30ch;
+  margin-top: 2px;
+  font-size: 8.75px;
+  line-height: 1.5;
+}
+
+.pantheon-composer--studio .pantheon-seat-section-head > .ant-btn {
+  height: 26px;
+  padding-inline: 4px;
+  font-size: 8.5px;
+}
+
+.pantheon-composer--studio .pantheon-seat-row {
+  display: grid;
+  margin-top: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.pantheon-composer--studio .pantheon-seat-chip {
+  min-width: 0;
+  min-height: 58px;
+  padding: 8px;
+  gap: 7px;
+  border: 1px solid var(--pantheon-line);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--pantheon-surface) 42%, transparent);
+  text-align: left;
+  box-shadow: none;
+}
+
+.pantheon-composer--studio .pantheon-seat-chip:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 42%, var(--pantheon-line));
+  background: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 7%, var(--pantheon-surface));
+}
+
+.pantheon-composer--studio .pantheon-seat-chip.is-selected {
+  border-color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 52%, var(--pantheon-line));
+  background:
+    linear-gradient(110deg,
+      color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 11%, transparent),
+      transparent 72%),
+    color-mix(in srgb, var(--pantheon-surface) 64%, transparent);
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 68%, transparent);
+}
+
+.pantheon-composer--studio .pantheon-seat-chip .pantheon-seat-monogram {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px 3px 7px 3px;
+  font-size: 9px;
+}
+
+.pantheon-composer--studio .pantheon-seat-chip-copy {
+  gap: 1px;
+}
+
+.pantheon-composer--studio .pantheon-seat-chip-copy strong {
+  font-size: 9.5px;
+}
+
+.pantheon-composer--studio .pantheon-seat-chip-copy small {
+  overflow: hidden;
+  font-size: 7.75px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pantheon-composer--studio .pantheon-seat-order {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: auto;
+  height: auto;
+  padding: 1px 3px;
+  border: 0;
+  background: transparent;
+  font-size: 7px;
+}
+
+.pantheon-composer--studio .pantheon-speaking-order {
+  padding-top: 14px;
+  border-top: 1px solid var(--pantheon-line);
+}
+
+.pantheon-composer--studio .pantheon-speaking-order-head {
+  margin-bottom: 7px;
+}
+
+.pantheon-composer--studio .pantheon-speaking-order-head > span {
+  font-size: 8px;
+}
+
+.pantheon-composer--studio .pantheon-speaking-order > ol {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.pantheon-composer--studio .pantheon-speaking-order li {
+  display: grid;
+  min-height: 35px;
+  padding: 5px 2px;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  border: 0;
+  border-bottom: 1px solid var(--pantheon-line);
+  border-radius: 0;
+  background: transparent;
+}
+
+.pantheon-composer--studio .pantheon-speaking-order li:last-child {
+  border-bottom: 0;
+}
+
+.pantheon-composer--studio .pantheon-order-number {
+  font-size: 8px;
+}
+
+.pantheon-composer--studio .pantheon-order-copy strong {
+  font-size: 9px;
+}
+
+.pantheon-composer--studio .pantheon-order-copy small {
+  font-size: 7.5px;
+}
+
+.pantheon-composer--studio .pantheon-order-actions .ant-btn {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+}
+
+.pantheon-composer--studio .pantheon-composer-extra > .pantheon-disclose {
+  padding: 15px;
+  margin: 0;
+  border: 1px solid var(--pantheon-line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--pantheon-surface-raised) 76%, transparent);
+}
+
+.pantheon-composer--studio .pantheon-composer-extra .pantheon-field > span {
+  font-size: 10.5px;
+}
+
+.pantheon-composer--studio .pantheon-composer-extra .pantheon-field > span small {
+  font-size: 9px;
+}
+
+.pantheon-composer--studio .pantheon-advanced {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pantheon-composer--studio .pantheon-image-evidence {
+  padding: 13px 15px;
+  margin: 0;
+  border: 1px solid var(--pantheon-line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--pantheon-surface-raised) 76%, transparent);
+}
+
+@container pantheon-canvas (min-width: 980px) {
+  .pantheon-composer-studio {
+    grid-template-columns: minmax(0, 1.55fr) minmax(308px, .78fr);
+    gap: 18px;
+  }
+
+  .pantheon-composer-main {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .pantheon-composer-config {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+
+  .pantheon-composer-extra {
+    grid-column: 1;
+    grid-row: 2;
+  }
+}
+
+@container pantheon-canvas (max-width: 979px) {
+  .pantheon-composer--studio .pantheon-composer-head {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .pantheon-composer-steps {
+    width: 100%;
+  }
+
+  .pantheon-composer-steps li {
+    width: min(92px, 30%);
+  }
+
+  .pantheon-composer--studio .pantheon-composer-head h2 {
+    max-width: 18ch;
+    font-size: clamp(34px, 5.2cqw, 43px);
+  }
+}
+
+@container pantheon-canvas (max-width: 640px) {
+  .pantheon-composer--studio .pantheon-composer-head h2 {
+    font-size: 33px;
+  }
+
+  .pantheon-composer-studio {
+    margin-top: 18px;
+  }
+
+  .pantheon-topic-sheet-head {
+    padding: 17px 16px 0;
+  }
+
+  .pantheon-topic-sheet-head label {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 21px;
+  }
+
+  .pantheon-topic-sheet-head label em {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .pantheon-topic-sheet-mark {
+    font-size: 38px;
+  }
+
+  .pantheon-composer--studio .pantheon-topic-input.ant-input {
+    min-height: 146px;
+    padding: 15px 16px 7px;
+    font-size: 16px;
+  }
+
+  .pantheon-topic-help,
+  .pantheon-topic-error {
+    margin-inline: 16px;
+  }
+
+  .pantheon-composer--studio .pantheon-compose-meta {
+    padding-inline: 16px;
+  }
+
+  .pantheon-toolbar-options {
+    padding: 10px 12px;
+  }
+
+  .pantheon-toolbar-launch {
+    padding: 10px 12px;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .pantheon-toolbar-launch .pantheon-selection-note {
+    margin: 0;
+  }
+
+  .pantheon-composer--studio .pantheon-start.ant-btn {
+    width: 100%;
+    height: 44px;
+  }
+
+  .pantheon-composer--studio .pantheon-composer-config > section {
+    padding: 13px 14px;
+  }
+
+  .pantheon-config-rail-head {
+    padding: 15px 14px 13px;
+  }
+}
+
+@container pantheon-canvas (max-width: 430px) {
+  .pantheon-composer-steps li {
+    width: auto;
+    flex: 1;
+  }
+
+  .pantheon-composer--studio .pantheon-composer-head h2 {
+    font-size: 30px;
+  }
+
+  .pantheon-topic-sheet-mark {
+    display: none;
+  }
+
+  .pantheon-composer--studio .pantheon-seat-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pantheon-composer--studio .pantheon-seat-chip {
+    min-height: 52px;
+  }
+
+  .pantheon-toolbar-options .pantheon-chatbar-select {
+    width: calc(50% - 4px);
+    min-width: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pantheon-composer--studio .pantheon-topic-sheet,
+  .pantheon-composer--studio .pantheon-start.ant-btn {
+    transition: none;
   }
 }

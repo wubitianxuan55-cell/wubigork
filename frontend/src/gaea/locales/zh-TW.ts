@@ -107,8 +107,6 @@ export const zhTW: Record<DictKey, string> = {
   // sidebar
   "sidebar.viewAll": "全部",
   "sidebar.search": "搜尋對話…",
-  "sidebar.space": "空間",
-  "sidebar.spaceHint": "辦公引擎空間（區別於首頁頂欄的書齋/閒庭介面切換）：交付物落點隨空間分區；切換於下次引擎重建/重啟生效",
   "sidebar.collapse": "收起側邊欄",
   "sidebar.expand": "展開側邊欄",
   "sidebar.resize": "調整側邊欄大小",
@@ -182,7 +180,7 @@ export const zhTW: Record<DictKey, string> = {
   "skeleton.cacheDesc": "智慧前綴快取",
 
   // composer
-  "composer.placeholder": "向 gaea 發送訊息…（ / 指令 · @ 檔案）",
+  "composer.placeholder": "描述任務，或拖入檔案…",
   "composer.searchProjects": "搜尋專案",
   "composer.noProjectMatches": "無相符專案",
   "composer.addProject": "新增專案",
@@ -1031,7 +1029,6 @@ export const zhTW: Record<DictKey, string> = {
   "composer.queuePending": "排隊中 ({n})…",
   "composer.runningHint": "任務執行中… Enter 排隊發送 · Alt+Enter 插話調整 · Shift+Enter 糾正",
   "composer.sendQueuedTitle": "排隊發送（Enter）· Alt+Enter 插話調整",
-  "composer.askIn": "在 {name}/ 中提問…",
   "composer.correctTitle": "糾正傳送（Shift+Enter）",
   "composer.queueSendHint": "排入佇列（目前回合結束後執行，與插話不同：插話立即調整目前任務）",
   "composer.queueCount": "排入佇列 ({n})",
@@ -1131,6 +1128,12 @@ export const zhTW: Record<DictKey, string> = {
 
   // ── v4.57 i18n 收尾：Welcome ──
   "welcome.heading": "今天想和 gaea 一起做什麼？",
+  "office.welcomeLine": "歡迎回來，gaea 已準備好陪你完成今天的工作",
+  "office.emptyTitle": "今天想完成什麼？",
+  "office.quickActions": "快速開始",
+  "office.quickReport": "寫一份工作週報",
+  "office.quickMinutes": "整理會議紀要",
+  "office.quickCost": "測算專案成本",
   "welcome.coreCaps": "核心能力",
   // ── 2026-10 工具化：空态工作台工具 tile（§6.4）──
   "welcome.tools": "工具",

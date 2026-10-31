@@ -28,6 +28,8 @@ const (
 	EventAgentDelta   = "agent_delta"
 	EventAgentOutput  = "agent_output"
 	EventAgentError   = "agent_error"
+	EventAgentSkipped = "agent_skipped"
+	EventAgentRetry   = "agent_retry"
 	EventToolStart    = "tool_started"
 	EventToolResult   = "tool_result"
 	EventVerdict      = "verdict"
@@ -58,6 +60,16 @@ type EvidenceItem struct {
 	Content string `json:"content"`
 }
 
+// Attachment is a user-picked image made available to a council session.
+// Files stay in place; the host validates them and passes their paths to the
+// Agent harnesses without copying or modifying the workspace.
+type Attachment struct {
+	Name string `json:"name"`
+	Path string `json:"path"`
+	MIME string `json:"mime"`
+	Size int64  `json:"size"`
+}
+
 // WorkspaceOption is a directory that can scope one council session. Selecting
 // a workspace never switches the rest of the Gaea application.
 type WorkspaceOption struct {
@@ -75,12 +87,19 @@ type StartRequest struct {
 	SuccessCriteria string         `json:"successCriteria"`
 	Workspace       string         `json:"workspace,omitempty"`
 	Evidence        []EvidenceItem `json:"evidence,omitempty"`
+	Attachments     []Attachment   `json:"attachments,omitempty"`
 	AgentIDs        []string       `json:"agentIds"`
 	ChairmanAgentID string         `json:"chairmanAgentId"`
 	Rounds          int            `json:"rounds"`
 	UntilConsensus  bool           `json:"untilConsensus,omitempty"`
 	MaxRounds       int            `json:"maxRounds,omitempty"`
 	ReadOnly        bool           `json:"readOnly"`
+	// Protocol records which deliberation path produced the session
+	// (2026-10-31 裁决第二刀：对照实验必须可表达、可比对必须可打标签).
+	Protocol string `json:"protocol,omitempty"`
+	// ParentSessionID links a follow-up council to the session it continues
+	// (2026-10-31 裁决第三刀：续议保留父会话；承接内容以简报为准，不冒充继承全文).
+	ParentSessionID string `json:"parentSessionId,omitempty"`
 }
 
 type Participant struct {
@@ -137,6 +156,9 @@ type Contribution struct {
 	Content    string `json:"content"`
 	Confidence string `json:"confidence,omitempty"`
 	Consensus  string `json:"consensus,omitempty"`
+	// RunMode 记录本次调用实际施加的只读机制（裁决第三刀：能力不对称必须
+	// 进每次调用记录，不能把四个标志写成同一个笼统的「已只读」）。
+	RunMode    string `json:"runMode,omitempty"`
 	CreatedAt  int64  `json:"createdAt"`
 	DurationMs int64  `json:"durationMs,omitempty"`
 }
@@ -157,6 +179,9 @@ type SignOff struct {
 	Decision string `json:"decision"`
 	Note     string `json:"note,omitempty"`
 	At       int64  `json:"at"`
+	// VerdictSHA256 绑定被签注的小结版本（裁决第三刀：转发件要能证明
+	// 用户确认的是哪一版，签注与对外交付物不能是两份真相）。
+	VerdictSHA256 string `json:"verdictSha256,omitempty"`
 }
 
 type Session struct {
@@ -173,8 +198,22 @@ type Session struct {
 	Contributions []Contribution `json:"contributions"`
 	Verdict       *Verdict       `json:"verdict,omitempty"`
 	SignOff       *SignOff       `json:"signoff,omitempty"`
+	ResultPath    string         `json:"resultPath,omitempty"`
+	InputManifest []InputDigest  `json:"inputManifest,omitempty"`
 	Warnings      []string       `json:"warnings,omitempty"`
 	Error         string         `json:"error,omitempty"`
+}
+
+// InputDigest pins one start-time input so later re-runs and path comparisons
+// keep a stable evidence baseline (2026-10-31 裁决第三刀：真正会漂移的是盘上
+// 活文件——简报正文已随 session.json 落盘，附件文件在讨论期间可被改动).
+type InputDigest struct {
+	Kind   string `json:"kind"` // evidence | attachment
+	Name   string `json:"name"`
+	Path   string `json:"path,omitempty"`
+	SHA256 string `json:"sha256,omitempty"`
+	Size   int64  `json:"size,omitempty"`
+	Error  string `json:"error,omitempty"`
 }
 
 // SessionSummary is the list payload. It intentionally omits full transcripts.

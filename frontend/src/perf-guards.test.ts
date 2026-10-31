@@ -43,15 +43,14 @@ describe('主题令牌与 antd 主题对象 memo 化（v4.349）', () => {
   })
 })
 
-describe('最近文件实时化：办公文件面订阅单源（v4.349；首页侧随 §8.3 退役）', () => {
-  it('首页不再消费 recentFiles（§8.3 DeepSeek 化删最近文档行）——不得残留订阅或挂载读一次写法', () => {
-    // 首页最近文档行 2026-10-27 随用户拍板退役（办公板块 RecentFilesBar 承接）：
-    // 此前守卫的「首页订阅单源」前提不复存在，改为防回潮断言——若 recentFiles
-    // 回归首页，必须按 v4.349 纪律走 useSyncExternalStore 订阅单源（重开守卫）。
-    const src = read('components/ModuleLauncher.tsx') + read('components/launcher_parts.tsx')
-    expect(src).not.toContain('subscribeRecentFiles')
-    expect(src).not.toContain('loadRecentFiles')
-    expect(src).not.toContain('setRecentFiles(loadRecentFiles()')
+describe('启动页与最近文件单源守卫', () => {
+  it('首页启动器已删除，MainLayout 默认直接进入办公', () => {
+    const layout = read('layouts/MainLayout.tsx')
+    expect(layout).not.toContain('ModuleLauncher')
+    expect(layout).not.toContain('getActiveHomeBoard')
+    expect(layout).toContain('useState<Page>(DEFAULT_BOARD_ID)')
+    expect(read('boards/manifests.ts')).not.toContain("id: 'home', label: '首页'")
+    expect(read('boards/manifests.ts')).toContain("DEFAULT_BOARD_ID = 'gaea'")
   })
 
   it('RecentFilesBar 同样订阅单源', () => {

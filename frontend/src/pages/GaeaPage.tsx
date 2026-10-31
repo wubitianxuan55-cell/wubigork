@@ -3,6 +3,8 @@ import { LocaleProvider } from '../gaea/lib/i18n'
 import '../gaea/styles.css'
 import '../gaea/tailwind.css'
 import '../gaea/redesign.css'
+import '../gaea/office-ui.css'
+import '../gaea/office-sidebar.css'
 
 // 办公板块：完整使用 gaeaW 原生版面（对话区 + 左侧 Sidebar + 右侧面板）。
 // 后端绑定通过 gaea/lib/bridge.ts 适配层映射到 gaea 的 Gaea* 方法。

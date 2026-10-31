@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -174,6 +175,22 @@ func (s *pantheonState) PantheonStart(req pantheon.StartRequest) (*pantheon.Sess
 	if err != nil {
 		return nil, err
 	}
+	attachments, err := pantheon.NormalizeAttachments(req.Attachments)
+	if err != nil {
+		return nil, err
+	}
+	req.Attachments = attachments
+	visualEvidence, err := pantheonAttachmentEvidence(attachments)
+	if err != nil {
+		return nil, err
+	}
+	baseEvidence := req.Evidence[:0]
+	for _, item := range req.Evidence {
+		if !strings.HasPrefix(item.Name, "共享识图 · ") {
+			baseEvidence = append(baseEvidence, item)
+		}
+	}
+	req.Evidence = append(baseEvidence, visualEvidence...)
 	manager.SetWorkDir(gaeaCwd())
 	session, err := manager.Start(req)
 	if err == nil && session != nil && session.Request.Workspace != "" {
@@ -190,6 +207,46 @@ func (s *pantheonState) PantheonCancel(id string) error {
 	return manager.Cancel(id)
 }
 
+func (s *pantheonState) PantheonSkipAgent(id, agentID string) error {
+	manager, err := s.managerRef()
+	if err != nil {
+		return err
+	}
+	return manager.SkipAgent(id, agentID)
+}
+
+func (s *pantheonState) PantheonRetryAgent(id, agentID string) error {
+	manager, err := s.managerRef()
+	if err != nil {
+		return err
+	}
+	return manager.RetryAgent(id, agentID)
+}
+
+func (s *pantheonState) PantheonRestart(id string) (*pantheon.Session, error) {
+	manager, err := s.managerRef()
+	if err != nil {
+		return nil, err
+	}
+	manager.SetWorkDir(gaeaCwd())
+	session, err := manager.Restart(id)
+	if err == nil && session != nil && session.Request.Workspace != "" {
+		gaeaConfig.TouchRecentWorkspace(session.Request.Workspace)
+	}
+	return session, err
+}
+
+// PantheonResume 恢复被中断的讨论：保留已有贡献，从中断处下一轮继续
+// （2026-10-31 实弹反馈「中途保存与临时变故的保存，方便后续继续讨论」）。
+func (s *pantheonState) PantheonResume(id string) (*pantheon.Session, error) {
+	manager, err := s.managerRef()
+	if err != nil {
+		return nil, err
+	}
+	manager.SetWorkDir(gaeaCwd())
+	return manager.Resume(id)
+}
+
 func (s *pantheonState) PantheonDelete(id string) error {
 	manager, err := s.managerRef()
 	if err != nil {
@@ -204,6 +261,21 @@ func (s *pantheonState) PantheonExport(id string) (string, error) {
 		return "", err
 	}
 	return manager.Export(id)
+}
+
+func (s *pantheonState) PantheonOpenResult(id string) (string, error) {
+	manager, err := s.managerRef()
+	if err != nil {
+		return "", err
+	}
+	path, err := manager.ResultPath(id)
+	if err != nil {
+		return "", err
+	}
+	if err := exec.Command("explorer", path).Start(); err != nil {
+		return path, fmt.Errorf("打开结果文档失败: %w", err)
+	}
+	return path, nil
 }
 
 func (s *pantheonState) PantheonSignOff(id string, decision string, note string) (*pantheon.Session, error) {

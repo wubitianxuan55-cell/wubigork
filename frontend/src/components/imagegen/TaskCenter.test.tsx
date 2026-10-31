@@ -50,6 +50,16 @@ async function openAssetsTab() {
 }
 
 describe('TaskCenter 素材库 tab 轻扫更新', () => {
+  it('首屏可默认收成任务图标轨，并保留无歧义展开入口', () => {
+    render(<TaskCenter {...baseProps} defaultCollapsed />)
+    expect(
+      screen.getByRole('complementary', { name: '历史与任务队列（已收起）' }),
+    ).toBeTruthy()
+    expect(
+      screen.getByRole('button', { name: '展开历史与任务队列' }),
+    ).toBeTruthy()
+  })
+
   it('tab 激活即读取（play 空间最近 50 条）并渲染模型/成本列', async () => {
     await openAssetsTab()
     await waitFor(() => expect(imageHubAssetsMock).toHaveBeenCalledWith('play', '', 50))

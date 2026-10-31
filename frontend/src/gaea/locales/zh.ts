@@ -107,8 +107,6 @@ export const zh: Record<DictKey, string> = {
   // 侧边栏
   "sidebar.viewAll": "全部",
   "sidebar.search": "搜索会话…",
-  "sidebar.space": "空间",
-  "sidebar.spaceHint": "办公引擎空间（区别于首页顶栏的书斋/闲庭界面切换）：交付物落点随空间分区；切换于下次引擎重建/重启生效",
   "sidebar.collapse": "收起侧边栏",
   "sidebar.expand": "展开侧边栏",
   "sidebar.resize": "调整侧边栏宽度",
@@ -182,7 +180,7 @@ export const zh: Record<DictKey, string> = {
   "skeleton.cacheDesc": "智能缓存加速",
 
   // 输入框
-  "composer.placeholder": "给 gaea 发消息…  ( / 命令 · @ 文件 )",
+  "composer.placeholder": "描述任务，或拖入文件…",
   "composer.searchProjects": "搜索项目",
   "composer.noProjectMatches": "没有匹配的项目",
   "composer.addProject": "添加新项目",
@@ -1027,7 +1025,6 @@ export const zh: Record<DictKey, string> = {
   "composer.queuePending": "排队中 ({n})…",
   "composer.runningHint": "任务执行中… Enter 排队发送 · Alt+Enter 插话调整 · Shift+Enter 纠正",
   "composer.sendQueuedTitle": "排队发送（Enter）· Alt+Enter 插话调整",
-  "composer.askIn": "在 {name}/ 中提问…",
   "composer.correctTitle": "纠正发送（Shift+Enter）",
   "composer.queueSendHint": "排队发送（当前回合结束后执行，与插话不同：插话立即调整当前任务）",
   "composer.queueCount": "排队发送 ({n})",
@@ -1127,6 +1124,12 @@ export const zh: Record<DictKey, string> = {
 
   // ── v4.57 i18n 收尾：Welcome ──
   "welcome.heading": "今天想和 gaea 一起做什么？",
+  "office.welcomeLine": "欢迎回来，gaea 已准备好陪你完成今天的工作",
+  "office.emptyTitle": "今天想完成什么？",
+  "office.quickActions": "快速开始",
+  "office.quickReport": "写一份工作周报",
+  "office.quickMinutes": "整理会议纪要",
+  "office.quickCost": "测算项目成本",
   "welcome.coreCaps": "核心能力",
   // ── 2026-10 工具化：空态工作台工具 tile（§6.4）──
   "welcome.tools": "工具",

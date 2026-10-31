@@ -4,12 +4,13 @@ import { Dropdown, Layout, Modal } from "antd";
 import {
   BookOpen, Check, SquarePen, Brain, ChevronDown, FolderGit2, FileText, LineChart,
   PanelRightOpen, PanelRightClose, MessageSquare, Trash2, X, Aim, List, Square, Inbox, Layers, Wrench,
+  ClipboardList, Sparkles, Table,
 } from "./icons";
 import { Sidebar } from "./components/Sidebar";
 import { useT } from "./lib/i18n";
 import { sessionTitle, sessionTime } from "./lib/session";
 import { relativeTime } from "./lib/time";
-import { useController, useUpdatedFilesStore } from "./lib/store";
+import { useComposerInsertStore, useController, useUpdatedFilesStore } from "./lib/store";
 import { app } from "./lib/bridge";
 import { RESUME_SESSION_EVENT, consumePendingSessionResume } from "./lib/pendingSessionResume";
 import { GenuiActionProvider } from "../genui/GenuiActionContext";
@@ -75,7 +76,7 @@ import { usePaneTabsStore } from "./lib/paneTabs";
 import { usePaneEnabledStore } from "./lib/paneEnabled";
 import { normalizePreviewPath } from "./lib/officeTurnProjection";
 import { SIDEBAR_REGISTRY, type WorkspacePanelContext } from "./lib/sidebarRegistry";
-import { loadTemplates, FALLBACK_TEMPLATES } from "./components/Welcome";
+import { loadTemplates, FALLBACK_TEMPLATES } from "./lib/taskTemplates";
 
 // 瘦身 P3（巨文件拆分）：1) 会话/布局/命令等按域拆入 app/ 下 hooks，App.tsx
 // 保留为主壳——default export App 与导出面不变；2) palette 命令项、JSX 布局、
@@ -134,8 +135,6 @@ export default function App() {
     saveDoc,
     updateFact,
     changeFactType,
-    clearFactBase,
-    promoteFactBase,
     fetchSessionStats,
   } = useController();
   const t = useT();
@@ -379,7 +378,7 @@ export default function App() {
   // 会话/历史/记忆操作回调集 → app/useSessionHandlers
   const {
     openHistory, closeHistory, onResumeSession, onDeleteSession, onRenameSession,
-    confirmDeleteCurrent, switchFolder, resumeSessionInProject, recentSessions,
+    confirmDeleteCurrent, switchFolder, resumeSessionInProject,
     resumeRecentSession, onArchiveSession, onPinSession, onRestoreSession,
     onRemember, onForget, onSaveDoc, onSaveFact, onAcceptMemorySuggestion,
     onAcceptSkillSuggestion, onAcceptMergeSuggestion, onRefreshSuggestions,
@@ -561,13 +560,24 @@ export default function App() {
     ],
   );
 
-  // 任务模板（命令面板「任务模板」组 + 欢迎页共用数据源；loadTemplates 模块级缓存）。
+  // 任务模板（命令面板「任务模板」组数据源；loadTemplates 模块级缓存）。
   const [templates, setTemplates] = useState<TaskTemplate[]>(FALLBACK_TEMPLATES);
   useEffect(() => {
     let live = true;
     loadTemplates().then((ts) => { if (live) setTemplates(ts); });
     return () => { live = false; };
   }, []);
+  const quickActions = useMemo(() => {
+    const resolve = (name: string, fallbackIndex: number) =>
+      templates.find((template) => template.name === name)
+      ?? FALLBACK_TEMPLATES.find((template) => template.name === name)
+      ?? FALLBACK_TEMPLATES[fallbackIndex]!;
+    return [
+      { key: "weekly-report", label: t("office.quickReport"), Icon: FileText, template: resolve("weekly-report", 0) },
+      { key: "meeting-minutes", label: t("office.quickMinutes"), Icon: ClipboardList, template: resolve("meeting-minutes", 1) },
+      { key: "cost-estimate", label: t("office.quickCost"), Icon: Table, template: resolve("cost-estimate", 2) },
+    ];
+  }, [templates, t]);
 
   // v4.524 可选卡启用集（欢迎网格/＋下拉在 WorkspacePane，命令面板在此消费；
   // paneEnabled store 为三入口的响应式单源）。
@@ -622,7 +632,7 @@ export default function App() {
       keywords: ["session", "会话"],
       run: () => { if (!s.current) void onResumeSession(s.path); },
     }));
-    // 任务模板组：与欢迎页同源（FALLBACK_TEMPLATES/远端），Ctrl+K 可直接发起
+    // 任务模板组：使用内置/远端模板，Ctrl+K 可直接发起
     const templateItems: PaletteItem[] = templates.map((tm) => ({
       id: `tpl-${tm.name}`,
       group: t("palette.group.templates") ?? "任务模板",
@@ -682,6 +692,12 @@ export default function App() {
     [sidebarWidth, previewWidth, effectiveWorkspaceWidth, previewMaximized, previewMaxWidth],
   );
   const activeSubagent = subagentTabs.find((t) => t.id === subagentTabId) ?? null;
+  const showCenteredComposer =
+    chatTab === "chat"
+    && !activeSubagent
+    && state.items.length === 0
+    && !state.running
+    && state.meta?.ready === true;
 
   return (
     <>
@@ -706,9 +722,6 @@ export default function App() {
           toggleSidebar={toggleSidebar}
           running={state.running}
           jobs={state.jobs}
-          factBase={state.factBase}
-          onClearFactBase={() => void clearFactBase()}
-          onPromoteFactBase={promoteFactBase}
           newSessionAndReset={newSessionAndReset}
           projectGroups={projectGroups}
           onResumeSessionInProject={resumeSessionInProject}
@@ -731,13 +744,15 @@ export default function App() {
           SIDEBAR_MAX_WIDTH={SIDEBAR_MAX_WIDTH}
         />
 
-        <section className="chat-pane v3-zone">
-          <header className="flex flex-shrink-0 items-center gap-3 px-12 border-b border-border-soft select-none drag-region transition-all duration-200" style={{background: "var(--gaea-glass-bg, var(--md-sys-color-surface-container))"}}>
-            <div className="flex items-center gap-2 min-w-0">
-              <ModelSwitcher label={state.meta?.label ?? t("status.connecting")} onPick={switchModel} />
-            </div>
-            <div className="flex items-center gap-2 px-3">
-              {cwd && (<button className="toolbar-btn no-drag" onClick={() => void switchFolder()} disabled={state.running}><FolderGit2 size={13} /><span>{cwdName}</span><ChevronDown size={11} /></button>)}
+        <section className={`chat-pane v3-zone ${showCenteredComposer ? "office-chat-empty" : "office-chat-active"}`}>
+          <header className="office-topbar flex flex-shrink-0 items-center gap-3 px-12 border-b border-border-soft select-none drag-region transition-all duration-200" style={{background: "var(--gaea-glass-bg, var(--md-sys-color-surface-container))"}}>
+            <div className="office-topbar__primary">
+              <div className="flex items-center gap-2 min-w-0">
+                <ModelSwitcher label={state.meta?.label ?? t("status.connecting")} onPick={switchModel} />
+              </div>
+              <div className="flex items-center gap-2 px-3">
+                {cwd && (<button className="office-workspace-switch toolbar-btn no-drag" onClick={() => void switchFolder()} disabled={state.running}><FolderGit2 size={13} /><span>{cwdName}</span><ChevronDown size={11} /></button>)}
+              </div>
             </div>
             <div className="flex-1" />
             <div className="flex items-center gap-2">
@@ -813,6 +828,7 @@ export default function App() {
           <UpdateBanner />
           <NewSessionToast done={newSessionDone} />
           <ChatTabs
+            className="office-view-tabs"
             active={subagentTabId ?? chatTab}
             onChange={(id) => {
               setActiveTool(null);
@@ -866,7 +882,7 @@ export default function App() {
                     {chatTab === "chat" && (
                       <GenuiScopeProvider scope={{ scope: "office", sessionKey: currentSessionKey }}>
                         <GenuiActionProvider onAction={genuiActionHandler}>
-                          <Transcript onPrompt={send} running={state.running} onRewind={rewind} onRegenerate={regenerate} onFeedback onScrollToTurnReady={setScrollToTurn} cwd={state.meta?.cwd} cwdName={cwdName} sessions={recentSessions} onResumeSession={resumeRecentSession} meta={state.meta} onOpenTool={(tool) => setActiveTool(tool)} />
+                          <Transcript onPrompt={send} running={state.running} onRewind={rewind} onRegenerate={regenerate} onFeedback onScrollToTurnReady={setScrollToTurn} />
                           {state.items.length > 1 && <JumpBar items={state.items} scrollToTurn={scrollToTurn ?? undefined} />}
                         </GenuiActionProvider>
                       </GenuiScopeProvider>
@@ -956,7 +972,7 @@ export default function App() {
             )}
           </main>
 
-          <footer className={`shrink-0 border-t border-border-soft bg-bg px-8 ${compactMode ? "pt-2 pb-0.5" : "pt-3 pb-1"}`}>
+          <footer className={`office-composer-footer shrink-0 border-t border-border-soft bg-bg px-8 ${compactMode ? "pt-2 pb-0.5" : "pt-3 pb-1"}`}>
             <CompactContext.Provider value={compactMode}>
             {showTodos && (
               <TodoCard
@@ -964,44 +980,70 @@ export default function App() {
                 onDismiss={() => { if (todoItem) setDismissedTodo(todoItem.id); }}
               />
             )}
-            {/* 2.5e 常驻「剩余上下文%」徽标（codex 式；点击打开居中弹层）。
-                compactRatio/compactLeft（v4.524）让徽标按压缩水位提前变色。 */}
-            <div className="flex justify-end px-4">
-              <ContextPill
+            {showCenteredComposer && (
+              <>
+                <div className="office-empty-heading">
+                  <p className="office-empty-welcome">
+                    <Sparkles size={13} aria-hidden />
+                    <span>{t("office.welcomeLine")}</span>
+                  </p>
+                  <h1>{t("office.emptyTitle")}</h1>
+                </div>
+                <div className="office-quick-actions" role="group" aria-label={t("office.quickActions")}>
+                  {quickActions.map(({ key, label, Icon, template }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      className="office-quick-action"
+                      onClick={() => useComposerInsertStore.getState().requestText(template.prompt)}
+                      title={template.description || template.prompt}
+                    >
+                      <Icon size={15} aria-hidden />
+                      <span>{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+            <div className="office-composer-stack">
+              {/* 「剩余上下文%」贴在输入岛顶部，保持可见但不占独立操作行。 */}
+              <div className="office-composer-meta">
+                <ContextPill
+                  used={state.context.used}
+                  window={state.context.window}
+                  compactRatio={state.context.compactRatio}
+                  compactLeft={state.context.compactLeft}
+                  onClick={() => {
+                    setCtxModalRef(null);
+                    setCtxModalOpen(true);
+                  }}
+                />
+              </div>
+              <RunStatus
+                running={state.running}
+                turnStartAt={state.turnStartAt}
+                turnTokens={state.turnTokens}
                 used={state.context.used}
                 window={state.context.window}
-                compactRatio={state.context.compactRatio}
-                compactLeft={state.context.compactLeft}
-                onClick={() => {
-                  setCtxModalRef(null);
-                  setCtxModalOpen(true);
-                }}
               />
-            </div>
-            <RunStatus
-              running={state.running}
-              turnStartAt={state.turnStartAt}
-              turnTokens={state.turnTokens}
-              used={state.context.used}
-              window={state.context.window}
-            />
-            <div className="composer-glow">
-            <Composer
-              running={state.running}
-              cwd={state.meta?.cwd}
-              onSend={handleSend}
-              onSteer={steer}
-              onCancel={cancel}
-              permLevel={permLevel}
-              onSetPermLevel={setPermLevel}
-              thinkLevel={thinkLevel}
-              onSetThinkLevel={handleThinkLevelChange}
-              planActive={planActive}
-              onTogglePlan={() => { if (!state.running) void handleSend(planActive ? "/plan off" : "/plan on") }}
-              onPickFolder={switchFolder}
-              onOpenTool={(tool) => setActiveTool(tool)}
-              disabled={state.meta?.ready === false || state.approval != null}
-            />
+              <div className="composer-glow office-composer">
+                <Composer
+                  running={state.running}
+                  cwd={state.meta?.cwd}
+                  onSend={handleSend}
+                  onSteer={steer}
+                  onCancel={cancel}
+                  permLevel={permLevel}
+                  onSetPermLevel={setPermLevel}
+                  thinkLevel={thinkLevel}
+                  onSetThinkLevel={handleThinkLevelChange}
+                  planActive={planActive}
+                  onTogglePlan={() => { if (!state.running) void handleSend(planActive ? "/plan off" : "/plan on") }}
+                  onPickFolder={switchFolder}
+                  onOpenTool={(tool) => setActiveTool(tool)}
+                  disabled={state.meta?.ready === false || state.approval != null}
+                />
+              </div>
             </div>
             </CompactContext.Provider>
           </footer>

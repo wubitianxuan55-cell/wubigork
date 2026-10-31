@@ -3,20 +3,20 @@ import React, { useState, useEffect, useRef, Suspense, useReducer, useCallback }
 import { Layout, Button, Space, Typography, Tooltip, Spin, Progress, notification, Popover } from 'antd'
 import {
   SunOutlined, MoonOutlined, SearchOutlined, SettingOutlined, LoginOutlined,
-  HomeOutlined, FileTextOutlined, UpOutlined, DownOutlined, ThunderboltOutlined,
+  FileTextOutlined, UpOutlined, DownOutlined, ThunderboltOutlined,
 } from '@ant-design/icons'
 import SecurityBanner from '../components/SecurityBanner'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { useAppStore, THEME_PRESETS, THEME_PRESET_COLORS, THEME_PRESET_LABELS, type StatsData, type ProjectInfo } from '../stores/appStore'
-import ModuleLauncher, { type LauncherTarget } from '../components/ModuleLauncher'
+import { TaskInboxHost } from '../components/TaskInboxHost'
 import { getModelMonitor } from '../api/engines'
 // 3.0「星枢 Constellation OS」壳层革命：顶栏横向菜单 → 左侧指挥轨道 + 顶部轨道条 + 底部遥测轨道。
-// 板块数据源依旧 manifest 驱动（后端 GetBoardManifests + home 壳层合并，失败回退静态 canonicalBoards）。
+// 板块数据源依旧 manifest 驱动（后端 GetBoardManifests，失败回退静态 canonicalBoards）。
 import {
-  type BoardId, resolveBoardIcon,
+  type BoardId, resolveBoardIcon, DEFAULT_BOARD_ID,
   subscribeBoards, loadBoardManifests,
   getActiveMenuBoards, getActiveIndependentBoards, getActiveNavigateWhitelist,
-  getActiveHomeBoard, getActiveProjectAnchorId, getActiveBoard, activeBoardLabel,
+  getActiveProjectAnchorId, getActiveBoard, activeBoardLabel,
 } from '../boards/manifests'
 import {
   boardSpace,
@@ -355,10 +355,8 @@ const MainLayout: React.FC = () => {
   const space = useAppStore((s) => s.space)
   const setSpace = useAppStore((s) => s.setSpace)
   const t = useT()
-  // 启动默认首页（3.0：gaea 每次启动都从首页启动器落地，不恢复上次页面）。
-  // 一级导航合一（2026-10-26）：每空间最后页面持久化随 rail 分域退役——
-  // 跨板块跳转不再有「空间切换→恢复该空间最后页」语义，导航直达目标。
-  const [page, setPage] = useState<Page>(() => getActiveHomeBoard().id as Page)
+  // 首页已删除：每次启动直接落到办公工作台；其余板块仍可在 rail/快捷键直达。
+  const [page, setPage] = useState<Page>(DEFAULT_BOARD_ID)
   // v4.365：整 store 订阅改逐字段选择器——zustand 任意 set() 都会换新 state
   // 对象，粗订阅使本壳组件（及其 visitedPages 下全部 keepAlive 页元素）在
   // 任意 store 变化时全量重渲染。
@@ -396,8 +394,7 @@ const MainLayout: React.FC = () => {
   const [searchOpen, setSearchOpen] = useState(false)
   // 简化批：strip 常驻主题色点 7 颗收进单钮弹出（触发钮=当前主题色）
   const [themeOpen, setThemeOpen] = useState(false)
-  // 附 B #10：visitedPages 初始 home = manifest.isHome
-  const [visitedPages, setVisitedPages] = useState<Set<Page>>(new Set([getActiveHomeBoard().id]))
+  const [visitedPages, setVisitedPages] = useState<Set<Page>>(new Set([DEFAULT_BOARD_ID]))
 
   // 数据源 seam 接线：订阅活动板块清单并触发一次加载；清单变化时重渲染菜单/白名单/快捷键/布局。
   const [, forceBoards] = useReducer((c: number) => c + 1, 0)
@@ -471,7 +468,7 @@ const MainLayout: React.FC = () => {
       const ctrl = e.ctrlKey || e.metaKey
       if (!ctrl) return
       if (e.key >= '1' && e.key <= '9') {
-        const targets = getActiveMenuBoards().filter((b) => !b.isHome)
+        const targets = getActiveMenuBoards()
         const target = targets[parseInt(e.key, 10) - 1]
         if (target) {
           e.preventDefault()
@@ -499,10 +496,9 @@ const MainLayout: React.FC = () => {
     return () => window.removeEventListener('keydown', onKey)
   }, [projectOpen, space, setSpace, page])
 
-  // 附 B #9：Content 布局 = manifest.layout（chat/gaea=full，其余 padded，home=isHome 特判）
+  // Content 布局 = manifest.layout（chat/gaea/pantheon=full，其余 padded）
   const currentLayout = getActiveBoard(page)?.layout ?? 'padded'
   const isFullLayout = currentLayout === 'full'
-  const isHomePage = page === getActiveHomeBoard().id
 
   // v4.3.2c：统一导航入口——按目标板块的 manifest.space 自动切换壳层空间
   // （仅数据面：会话空间/事件分域随之切换）。一级导航合一（2026-10-26）后
@@ -572,21 +568,8 @@ const MainLayout: React.FC = () => {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, paddingLeft: 'var(--v3-rail-w)' }}>
           {/* 顶部轨道条 */}
           <header className="v3-strip">
-            {/* 一键返回首页（非首页时显示） */}
-            {page !== getActiveHomeBoard().id && (
-              <Tooltip title={t('shell.strip.home')}>
-                <Button
-                  type="text"
-                  size="small"
-                  icon={<HomeOutlined />}
-                  onClick={() => setPage(getActiveHomeBoard().id as Page)}
-                  aria-label={t('shell.strip.home')}
-                  style={{ color: 'var(--color-text-secondary)' }}
-                />
-              </Tooltip>
-            )}
             <div className="v3-strip-context">
-              {projectContextVisible && page !== getActiveProjectAnchorId() && page !== getActiveHomeBoard().id && (
+              {projectContextVisible && page !== getActiveProjectAnchorId() && (
                 <>
                   <span
                     role="link"
@@ -602,7 +585,7 @@ const MainLayout: React.FC = () => {
                   <strong>{activeBoardLabel(page)}</strong>
                 </>
               )}
-              {!projectContextVisible && page !== getActiveHomeBoard().id && <strong>{activeBoardLabel(page)}</strong>}
+              {!projectContextVisible && <strong>{activeBoardLabel(page)}</strong>}
             </div>
             {/* 聊天模式切换条宿主（T6-10.2：ChatPage 经 portal 渲染进此容器；
                 仅聊天板块激活时可见，其他板块隐藏） */}
@@ -697,16 +680,12 @@ const MainLayout: React.FC = () => {
           {/* Herdsman LAN 暴露安全告警 */}
           <SecurityBanner />
 
-          {/* 主体：面包屑 + 内容。
-              v11.4：首页态挂 ml-shell-column——首页页底色统一画在这一层
-              （module-launcher.css 三档主题规则），消除 .ml 半透底与 rail 保留带、
-              Content 内边距裸 aurora 的交界色阶缝；非首页态无类不上色 */}
+          {/* 主体：面包屑 + 当前板块内容（visitedPages 常驻保活）。 */}
           <Layout style={{ flex: 1, flexDirection: 'row', background: 'transparent', minHeight: 0 }}>
-            <div className={isHomePage ? 'ml-shell-column' : undefined}
-              style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
               <Content style={{
-                padding: isFullLayout ? 0 : (isHomePage ? '16px' : '8px 16px 16px'),
-                paddingBottom: isFullLayout || isHomePage ? 0 : '16px',
+                padding: isFullLayout ? 0 : '8px 16px 16px',
+                paddingBottom: isFullLayout ? 0 : '16px',
                 background: isFullLayout ? 'var(--gaea-glass-bg, var(--md-sys-color-surface))' : 'transparent',
                 overflow: isFullLayout ? 'hidden' : 'auto',
                 flex: 1,
@@ -724,20 +703,13 @@ const MainLayout: React.FC = () => {
                     </div>
                   )}>
                     {Array.from(visitedPages).map((p) => {
-                      // 附 B #11：home 特判分支 = manifest.isHome（渲染 ModuleLauncher）
-                      const Comp = p === getActiveHomeBoard().id ? undefined : resolvePageComponent(p)
+                      const Comp = resolvePageComponent(p)
                       return (
                         <div key={p} className="page-enter" style={{ display: p === page ? 'flex' : 'none', flex: 1, flexDirection: 'column', minHeight: 0 }}>
                           {/* 边界在每页内部：keepAlive 下所有已访问页常驻挂载，边界若包在整组外面，
                               任何一页崩溃会卸载全部页并让后续所有导航都停在错误态（连坐）。
                               页级隔离后崩溃只瘫自己那页，其余页与各自状态不受牵连。 */}
-                          <ErrorBoundary>
-                            {p === getActiveHomeBoard().id
-                              ? <ModuleLauncher
-                                  onNavigate={(target: LauncherTarget) => navigateBoard(target as Page)}
-                                />
-                              : Comp ? <Comp /> : null}
-                          </ErrorBoundary>
+                          <ErrorBoundary>{Comp ? <Comp /> : null}</ErrorBoundary>
                         </div>
                       )
                     })}
@@ -751,6 +723,8 @@ const MainLayout: React.FC = () => {
           <TelemetryRail stats={stats} info={projectInfo} showProject={projectContextVisible} />
         </div>
       </div>
+
+      <TaskInboxHost onNavigate={(target) => navigateBoard(target as Page)} />
 
       {/* 搜索（P4-H8：React.lazy 懒加载；fallback null——Ctrl+K 首开微秒级加载） */}
       <Suspense fallback={null}>

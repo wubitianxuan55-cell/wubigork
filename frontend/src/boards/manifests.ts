@@ -5,17 +5,17 @@
  * 代理，见 gaea/lib/bridge.ts LegacySurfaceNames 注记）；消费者 = 菜单/白名单/快捷键/
  * 布局派生视图（MainLayout 经 subscribeBoards 订阅）。加载失败/未就绪时 fail-closed
  * 回退内置静态 canonicalBoards，壳层永远可用。
- * 板块差集归一（normalizeManifests）：后端清单为准 + 前端 home 壳层补位——
- *   · knowledge：后端 D7 独立板块（前端静态清单无）→ 并入；
- *   · home：后端无壳层 → 补前端静态壳层（isHome 唯一）；
+ * 板块差集归一（normalizeManifests）：后端清单为准并过滤已退役的壳层 id——
+ *   · knowledge：后端 D7 独立板块（前端静态清单无）→ 并入记忆中枢；
+ *   · home：首页已删除，后端旧清单或旧深链均 fail-closed 过滤；
  *   · weixin：v4.4 起两端一致（WeixinPage 已落地，后端 Page 优先照常生效）。
  * 12 硬编码点收敛映射（附 B）：menuItems=filter(inMenu).sort(menuOrder)；
  * allPageKeys=manifest 派生导航白名单；pageLabels=manifest.label；Ctrl+1~4=manifest.shortcut；
  * Content 布局=manifest.layout；面包屑锚点=manifest.breadcrumb.anchorTo；
- * visitedPages home=manifest.isHome；settings 入口=manifest.inMenu=false。
+ * 启动页=DEFAULT_BOARD_ID（办公）；settings 入口=manifest.inMenu=false。
  */
 import {
-  HomeOutlined, MessageOutlined, ReadOutlined, PictureOutlined,
+  MessageOutlined, ReadOutlined, PictureOutlined,
   ToolOutlined, DatabaseOutlined, ApiOutlined, TeamOutlined,
   SettingOutlined, WechatOutlined, BookOutlined, AccountBookOutlined,
   ScheduleOutlined,
@@ -29,7 +29,7 @@ import { isIndependentBoard, type BoardSpace } from './space'
 
 // ─── 图标注册表：manifest.icon 名（antd 图标名）→ 组件查表解析 ───────────────
 const ICON_REGISTRY: Record<string, ComponentType> = {
-  HomeOutlined, MessageOutlined, ReadOutlined, PictureOutlined,
+  MessageOutlined, ReadOutlined, PictureOutlined,
   ToolOutlined, DatabaseOutlined, ApiOutlined, TeamOutlined,
   SettingOutlined, WechatOutlined, BookOutlined, AccountBookOutlined,
   ScheduleOutlined, FireOutlined, MonitorOutlined,
@@ -72,20 +72,13 @@ const COST_NAV: BoardNavChild[] = [
 ]
 
 /**
- * 内置 canonical 板块清单（14 条 = 13 业务板块〔含 inMenu=false 的 settings/
- * schedule〕 + home 启动器壳层）。
+ * 内置 canonical 板块清单（13 条业务板块，含 inMenu=false 的 settings/schedule）。
  * menuOrder 与现状 menuItems 顺序一致；settings inMenu=false（右上角按钮入口）。
- * weixin：v4.4 触点落地（WeixinPage 扫码绑定 + 离线代办），进 rail 与首页左翼书房。
+ * weixin：v4.4 触点落地（WeixinPage 扫码绑定 + 离线代办），进 rail。
  * sin 板块已退役（2026-10-27 拍板导航级合并）：原罪收编为小说板块第六页签，
  * 页面本体经 NovelPage 挂载，featureModel 'sin' 功能绑定与 SinB 门面不受影响。
  */
 export const canonicalBoards: BoardManifest[] = [
-  {
-    id: 'home', label: '首页', icon: 'HomeOutlined', page: 'home',
-    lazy: false, keepAlive: true, layout: 'padded',
-    menuOrder: 0, inMenu: true, isHome: true,
-    space: 'shared',
-  },
   {
     id: 'chat', label: '聊天', icon: 'MessageOutlined', page: 'ChatPage',
     lazy: true, keepAlive: true, layout: 'full', shortcut: 'ctrl+1',
@@ -165,6 +158,9 @@ export const canonicalBoards: BoardManifest[] = [
  *  实为恒真空操作且触发 noUnusedLocals，已删） */
 export type BoardId = (typeof canonicalBoards)[number]['id']
 
+/** 应用启动落点：办公是默认工作台。 */
+export const DEFAULT_BOARD_ID = 'gaea' satisfies BoardId
+
 // ─── 派生视图通用实现（列表参数化：静态 canonicalBoards 与活动清单共用）──────
 /** 顶栏菜单：filter(inMenu) + sort(menuOrder)（附 B #4） */
 export function deriveMenuBoards(list: BoardManifest[]): BoardManifest[] {
@@ -174,21 +170,15 @@ export function deriveMenuBoards(list: BoardManifest[]): BoardManifest[] {
 }
 
 /** 导航白名单：所有已注册板块 id（附 B #2，navigate 事件校验）。
- *  瘦身刀0 解耦（manifests 语义）：注册即可导航——filter 只排除 home（!isHome），
- *  inMenu 只控菜单、不再派生可导航性。v4.164 前科：藏板块（inMenu=false）经
+ *  注册即可导航；inMenu 只控菜单、不再派生可导航性。v4.164 前科：藏板块（inMenu=false）经
  *  NAVIGATE 白名单 fail-closed 静默丢导航；刀1 schedule inMenu=false 依赖本语义。 */
 export function deriveNavigateWhitelist(list: BoardManifest[]): string[] {
-  return list.filter((b) => !b.isHome).map((b) => b.id)
+  return list.map((b) => b.id)
 }
 
 /** 快捷键映射：'ctrl+1' → board（附 B #6，显式声明不依赖数组顺序） */
 export function deriveShortcutMap(list: BoardManifest[]): Record<string, string> {
   return Object.fromEntries(list.filter((b) => b.shortcut).map((b) => [b.shortcut as string, b.id]))
-}
-
-/** 首页启动器板块（附 B #10/#11） */
-export function deriveHomeBoard(list: BoardManifest[]): BoardManifest | undefined {
-  return list.find((b) => b.isHome)
 }
 
 /** 面包屑项目锚点板块（附 B #8：声明 breadcrumb.anchorTo 的板块，novel 是项目锚点） */
@@ -210,7 +200,6 @@ export function deriveBoardLabel(list: BoardManifest[], id: string): string {
 export const menuBoards: BoardManifest[] = deriveMenuBoards(canonicalBoards)
 export const navigateWhitelist: BoardId[] = deriveNavigateWhitelist(canonicalBoards)
 export const shortcutMap: Record<string, BoardId> = deriveShortcutMap(canonicalBoards)
-export const homeBoard: BoardManifest = deriveHomeBoard(canonicalBoards)!
 export const projectAnchorId: string = deriveProjectAnchorId(canonicalBoards)
 export function getBoard(id: string): BoardManifest | undefined {
   return deriveBoard(canonicalBoards, id)
@@ -239,7 +228,6 @@ export interface RemoteBoardManifest {
   // 未知值回退静态清单，避免把不可信远程值直接灌进导航派生视图。
   space?: string
   breadcrumb?: { anchorTo?: string }
-  isHome?: boolean
   nav?: { children?: BoardNavChild[] }
   featureModel?: string
 }
@@ -249,11 +237,11 @@ function isBoardSpace(s: unknown): s is BoardSpace {
 }
 
 /**
- * 板块差集归一（merge 语义 = 后端清单 + 前端 home 壳层）：
+ * 板块差集归一（merge 语义 = 后端清单 + 前端静态 field 兜底）：
  *  - 重叠 id：后端字段优先，缺失字段回填前端静态（icon/page/layout 兜底）；
  *  - knowledge：后端 D7 独立板块**过滤不并入一级导航**——知识库已并入记忆中枢
  *    （MemoryHubPage「知识库」分类），一级导航不再单列避免重复入口（3.0 定制）；
- *  - home：后端无 isHome 板块时补前端静态壳层，menuOrder=0 恒首位（差集 #2）；
+ *  - home：首页已删除；旧后端清单若仍返回 home，导航侧过滤；
  *  - weixin：v4.4 触点落地，前后端同为 WeixinPage/inMenu=true（后端字段优先不变）；
  *  - 空输入返回 []（回退决策在 loadBoardManifests 层）。
  */
@@ -262,8 +250,8 @@ export function normalizeManifests(remote: RemoteBoardManifest[]): BoardManifest
   const out: BoardManifest[] = []
   for (const r of remote ?? []) {
     if (!r || typeof r.id !== 'string' || r.id === '') continue
-    // 3.0 定制：knowledge 并入记忆中枢，一级导航不单列（后端清单照常返回，仅导航侧过滤）
-    if (r.id === 'knowledge') continue
+    // knowledge 并入记忆中枢；home 已退役。两者都不进入导航派生。
+    if (r.id === 'knowledge' || r.id === 'home') continue
     const base = staticById.get(r.id)
     out.push({
       id: r.id,
@@ -278,15 +266,11 @@ export function normalizeManifests(remote: RemoteBoardManifest[]): BoardManifest
       inMenu: r.inMenu ?? base?.inMenu ?? false,
       space: isBoardSpace(r.space) ? r.space : base?.space,
       breadcrumb: r.breadcrumb ? { anchorTo: r.breadcrumb.anchorTo } : base?.breadcrumb,
-      isHome: r.isHome ?? base?.isHome ?? false,
       nav: r.nav ? { children: r.nav.children ?? [] } : base?.nav,
       featureModel: r.featureModel ?? base?.featureModel,
     })
   }
-  if (out.length > 0 && !out.some((b) => b.isHome)) {
-    out.push({ ...homeBoard })
-  }
-  // 稳定排序：menuOrder 升序（undefined 视为无穷大；home=0 恒首位）
+  // 稳定排序：menuOrder 升序（undefined 视为无穷大）
   out.sort((a, b) => (a.menuOrder ?? Number.MAX_SAFE_INTEGER) - (b.menuOrder ?? Number.MAX_SAFE_INTEGER))
   return out
 }
@@ -305,7 +289,7 @@ function notifyBoardsChanged(): void {
   for (const cb of boardListeners) cb()
 }
 
-/** 当前生效板块清单（后端 + home 壳层合并；未加载 = 静态 canonicalBoards） */
+/** 当前生效板块清单（后端合并；未加载 = 静态 canonicalBoards） */
 export function getActiveBoards(): BoardManifest[] {
   return activeBoards
 }
@@ -319,7 +303,6 @@ export function getActiveIndependentBoards(): BoardManifest[] {
 }
 export function getActiveNavigateWhitelist(): string[] { return deriveNavigateWhitelist(activeBoards) }
 export function getActiveShortcutMap(): Record<string, string> { return deriveShortcutMap(activeBoards) }
-export function getActiveHomeBoard(): BoardManifest { return deriveHomeBoard(activeBoards) ?? homeBoard }
 export function getActiveProjectAnchorId(): string { return deriveProjectAnchorId(activeBoards) }
 export function getActiveBoard(id: string): BoardManifest | undefined { return deriveBoard(activeBoards, id) }
 export function activeBoardLabel(id: string): string { return deriveBoardLabel(activeBoards, id) }
@@ -333,7 +316,7 @@ export function resetActiveBoardsForTest(): void {
 /**
  * 后端 GetBoardManifests 绑定的接入点（§5.3 seam 提供者调用）：
  *  1. 优先 CoreB.GetBoardManifests()（经 gaea/lib/bridge 代理）；
- *  2. 成功 → normalizeManifests 合并（后端清单 + home 壳层）并替换活动清单；
+ *  2. 成功 → normalizeManifests 合并（过滤 knowledge/home）并替换活动清单；
  *  3. 失败/空/未就绪（浏览器 dev mock 无 window.go）→ fail-closed 回退静态
  *     canonicalBoards，壳层保持可用。
  * 返回生效清单；消费方经 subscribeBoards 感知变化。

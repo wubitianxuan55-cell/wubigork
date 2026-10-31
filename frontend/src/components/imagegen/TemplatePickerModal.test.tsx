@@ -26,4 +26,23 @@ describe('TemplatePickerModal 模板库重设计', () => {
     fireEvent.click(screen.getByRole('tab', { name: /UI 界面/ }))
     expect(await screen.findByText('健康数据仪表盘')).toBeTruthy()
   })
+
+  it('单击卡片先展示完整详情，再由主按钮套用并关闭', async () => {
+    vi.clearAllMocks()
+    render(<TemplatePickerModal {...baseProps} />)
+    const card = screen.getByText('电影质感').closest('button')
+    expect(card).toBeTruthy()
+    fireEvent.click(card as HTMLButtonElement)
+
+    expect(await screen.findByRole('heading', { name: '电影质感' })).toBeTruthy()
+    expect(screen.getAllByText('胶片颗粒与宽银幕调色').length).toBeGreaterThan(1)
+    expect(baseProps.onSelect).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: /套用此模板/ }))
+    expect(baseProps.onSelect).toHaveBeenCalledWith(expect.objectContaining({
+      label: '电影质感',
+      size: '16:9',
+    }))
+    expect(baseProps.onClose).toHaveBeenCalled()
+  })
 })

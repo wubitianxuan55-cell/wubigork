@@ -46,6 +46,8 @@ interface Props {
   customTemplates: CustomTemplate[]
   onApplyTemplate: (t: Template) => void
   onManageTemplates: () => void
+  /** 首屏可先收成图标轨，让画布成为主角；任务/历史产生后仍可随时展开。 */
+  defaultCollapsed?: boolean
 }
 
 const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
@@ -59,9 +61,10 @@ export const TaskCenter: React.FC<Props> = ({
   queueItems, onClearQueue, onCancelQueue,
   history, selectedIndex, onSelectHistory, onClearHistory, onRegenerateMeta,
   templates, customTemplates, onApplyTemplate, onManageTemplates,
+  defaultCollapsed = false,
 }) => {
   const [tab, setTab] = useState<TabKey>('queue')
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(defaultCollapsed)
   const [keyword, setKeyword] = useState('')
   // T1 画室素材库：登记读取（play 空间，最多展示 12 张缩略）。
   const [assetThumbs, setAssetThumbs] = useState<AssetThumb[]>([])
@@ -139,6 +142,8 @@ export const TaskCenter: React.FC<Props> = ({
               key={t.key}
               type="button"
               title={t.label}
+              aria-label={`${t.label}${count > 0 ? `，${count} 项` : ''}`}
+              aria-pressed={active}
               onClick={() => { setTab(t.key); setCollapsed(false) }}
               className={`ig-task-icon${active ? ' is-active' : ''}`}
             >
@@ -151,6 +156,7 @@ export const TaskCenter: React.FC<Props> = ({
           type="button"
           className="ig-task-icon"
           title="展开任务中心"
+          aria-label="展开历史与任务队列"
           onClick={() => setCollapsed(false)}
         >
           <MenuUnfoldOutlined />
@@ -186,6 +192,7 @@ export const TaskCenter: React.FC<Props> = ({
           type="button"
           className="ig-task-icon"
           title="收起任务中心"
+          aria-label="收起历史与任务队列"
           onClick={() => setCollapsed(true)}
           style={{ marginLeft: 'auto' }}
         >

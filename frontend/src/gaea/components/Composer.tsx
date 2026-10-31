@@ -414,12 +414,11 @@ export function Composer({
     if (isQueueBusy(queue)) return t("composer.queueSending");
     if (running && queueLen > 0) return t("composer.queuePending", { n: queueLen });
     if (running) return t("composer.runningHint");
-    if (cwd && workspaceName) return t("composer.askIn", { name: workspaceName });
     return t("composer.placeholder");
-  }, [disabled, running, queueLen, queue, cwd, workspaceName, t]);
+  }, [disabled, running, queueLen, queue, t]);
 
   return (
-    <div className="relative max-w-(--maxw) mx-auto">
+    <div className="office-composer-root relative max-w-(--maxw) mx-auto">
       {/* ── 拖放指示器 ── */}
       <ComposerDragOverlay show={dragOver} />
 
@@ -476,7 +475,7 @@ export function Composer({
 
       {/* ── 输入卡片（Luminous Glass：玻璃底 + 顶部 1px 高光线 + 聚焦收敛光晕） ── */}
       <div
-        className={`relative border border-border-soft/80 bg-bg-elev/70 backdrop-blur-xl backdrop-saturate-150 rounded-2xl overflow-hidden shadow-[inset_0_1px_0_color-mix(in_srgb,var(--fg)_6%,transparent)] transition-[border-color,box-shadow,background] duration-[var(--dur-base)] focus-within:border-accent/30 focus-within:shadow-[inset_0_1px_0_color-mix(in_srgb,var(--fg)_6%,transparent),0_0_0_1px_var(--accent-soft),0_0_22px_color-mix(in_srgb,var(--accent)_10%,transparent),var(--ds-shadow-composer)] ${composerHeight !== null ? "flex flex-col" : ""} ${composerResizing ? "cursor-ns-resize" : ""}`}
+        className={`office-composer-card relative border border-border-soft/80 bg-bg-elev/70 backdrop-blur-xl backdrop-saturate-150 rounded-2xl overflow-hidden shadow-[inset_0_1px_0_color-mix(in_srgb,var(--fg)_6%,transparent)] transition-[border-color,box-shadow,background] duration-[var(--dur-base)] focus-within:border-accent/30 focus-within:shadow-[inset_0_1px_0_color-mix(in_srgb,var(--fg)_6%,transparent),0_0_0_1px_var(--accent-soft),0_0_22px_color-mix(in_srgb,var(--accent)_10%,transparent),var(--ds-shadow-composer)] ${composerHeight !== null ? "flex flex-col" : ""} ${composerResizing ? "cursor-ns-resize" : ""}`}
         style={{ ...(composerHeight !== null ? { height: "var(--composer-height)" } : {}), ...composerCardStyle }}
         ref={composerCardRef}
       >

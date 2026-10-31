@@ -22,25 +22,112 @@ const (
 	maxManualRounds        = 20
 	defaultConsensusLimit  = 12
 	maxConsensusRoundLimit = 20
+	maxAttachments         = 4
+	maxAttachmentBytes     = 20 << 20
 )
 
 var consensusMarker = regexp.MustCompile(`(?im)^\s*(?:[-*>]\s*)*(?:共识状态|consensus)\s*[:：]\s*(一致|同意|仍有分歧|不同意|yes|no)`)
+
+var (
+	errAgentSkipped = errors.New("agent skipped")
+	errAgentRetry   = errors.New("agent retry requested")
+)
+
+var attachmentMIME = map[string]string{
+	".png":  "image/png",
+	".jpg":  "image/jpeg",
+	".jpeg": "image/jpeg",
+	".webp": "image/webp",
+	".gif":  "image/gif",
+	".bmp":  "image/bmp",
+}
+
+// NormalizeAttachments validates the small, image-only attachment surface used
+// by council discussions. It is safe to call more than once.
+func NormalizeAttachments(items []Attachment) ([]Attachment, error) {
+	if len(items) > maxAttachments {
+		return nil, fmt.Errorf("最多添加 %d 张图片", maxAttachments)
+	}
+	out := make([]Attachment, 0, len(items))
+	seen := map[string]bool{}
+	for _, item := range items {
+		path := strings.TrimSpace(item.Path)
+		if path == "" {
+			return nil, errors.New("图片附件路径不能为空")
+		}
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			return nil, fmt.Errorf("解析图片路径失败: %w", err)
+		}
+		abs = filepath.Clean(abs)
+		key := abs
+		if filepath.Separator == '\\' {
+			key = strings.ToLower(key)
+		}
+		if seen[key] {
+			continue
+		}
+		info, err := os.Stat(abs)
+		if err != nil {
+			return nil, fmt.Errorf("图片不可访问 %s: %w", filepath.Base(abs), err)
+		}
+		if !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("图片附件不是普通文件: %s", filepath.Base(abs))
+		}
+		if info.Size() <= 0 {
+			return nil, fmt.Errorf("图片为空: %s", filepath.Base(abs))
+		}
+		if info.Size() > maxAttachmentBytes {
+			return nil, fmt.Errorf("图片 %s 超过 %dMB", filepath.Base(abs), maxAttachmentBytes>>20)
+		}
+		mime := attachmentMIME[strings.ToLower(filepath.Ext(abs))]
+		if mime == "" {
+			return nil, fmt.Errorf("仅支持 PNG/JPG/WEBP/GIF/BMP 图片: %s", filepath.Base(abs))
+		}
+		name := strings.TrimSpace(item.Name)
+		if name == "" {
+			name = filepath.Base(abs)
+		}
+		seen[key] = true
+		out = append(out, Attachment{Name: name, Path: abs, MIME: mime, Size: info.Size()})
+	}
+	return out, nil
+}
+
+func attachmentPaths(items []Attachment) []string {
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		if strings.TrimSpace(item.Path) != "" {
+			out = append(out, item.Path)
+		}
+	}
+	return out
+}
 
 type Manager struct {
 	root    string
 	workDir string
 
-	mu        sync.Mutex
-	store     *sessionStore
-	runner    commandRunner
-	overrides map[string]string
-	dshKey    string
-	adapters  map[string]agentAdapter
-	grok      GrokBackend
-	cancels   map[string]context.CancelFunc
-	wg        sync.WaitGroup
-	emit      func(Event)
-	deltaSeq  int64
+	mu         sync.Mutex
+	store      *sessionStore
+	runner     commandRunner
+	overrides  map[string]string
+	dshKey     string
+	adapters   map[string]agentAdapter
+	grok       GrokBackend
+	cancels    map[string]context.CancelFunc
+	agentCalls map[string]*activeAgentCall
+	runs       map[string]*Session
+	wg         sync.WaitGroup
+	emit       func(Event)
+	deltaSeq   int64
+}
+
+type activeAgentCall struct {
+	agentID string
+	cancel  context.CancelFunc
+	skipped bool
+	retry   bool
 }
 
 func NewManager(root string, runner commandRunner, emit func(Event)) (*Manager, error) {
@@ -56,14 +143,16 @@ func NewManager(root string, runner commandRunner, emit func(Event)) (*Manager, 
 		runner = osCommandRunner{}
 	}
 	return &Manager{
-		root:      root,
-		workDir:   root,
-		store:     store,
-		runner:    runner,
-		overrides: overrides,
-		adapters:  buildAdapters(overrides, nil, ""),
-		cancels:   map[string]context.CancelFunc{},
-		emit:      emit,
+		root:       root,
+		workDir:    root,
+		store:      store,
+		runner:     runner,
+		overrides:  overrides,
+		adapters:   buildAdapters(overrides, nil, ""),
+		cancels:    map[string]context.CancelFunc{},
+		agentCalls: map[string]*activeAgentCall{},
+		runs:       map[string]*Session{},
+		emit:       emit,
 	}, nil
 }
 
@@ -248,7 +337,28 @@ func (m *Manager) Start(req StartRequest) (*Session, error) {
 		return nil, err
 	}
 	req.Workspace = workspace
+	attachments, err := NormalizeAttachments(req.Attachments)
+	if err != nil {
+		return nil, err
+	}
+	req.Attachments = attachments
+	protocol, err := NormalizeProtocol(req.Protocol)
+	if err != nil {
+		return nil, err
+	}
+	req.Protocol = protocol
+	req.ParentSessionID = strings.TrimSpace(req.ParentSessionID)
 	normalizeRoundSettings(&req)
+	// 材料快照先于历史论点注入：快照只钉用户设题材料，续议立场卡是派生
+	// 内容（全文已随父会话落盘），不入 manifest。
+	inputManifest := buildInputManifest(req)
+	if req.ParentSessionID != "" {
+		parent, err := m.store.get(req.ParentSessionID)
+		if err != nil {
+			return nil, fmt.Errorf("续议的父会话不可用：%w", err)
+		}
+		req.Evidence = append(req.Evidence, parentStanceEvidence(parent)...)
+	}
 	req.ReadOnly = true // first release has no workspace-write debate mode
 	if strings.TrimSpace(req.Title) == "" {
 		req.Title = titleFromTopic(req.Topic)
@@ -270,7 +380,9 @@ func (m *Manager) Start(req StartRequest) (*Session, error) {
 			}
 		}
 	}
-	if len(selectedIDs) < 2 {
+	// 圆桌接力仍要求至少两席；独立开场允许单席深答（对照基线之一，
+	// 裁决第二刀：单 Agent 路径此前既跑不出来也无法打标签）。
+	if len(selectedIDs) < 2 && req.Protocol != ProtocolIndependent {
 		return nil, errors.New("众神殿至少需要选择两个 Agent")
 	}
 	for _, id := range selectedIDs {
@@ -292,7 +404,7 @@ func (m *Manager) Start(req StartRequest) (*Session, error) {
 		}
 		participants = append(participants, p)
 	}
-	if len(available) < 2 {
+	if len(available) < 2 && req.Protocol != ProtocolIndependent {
 		return nil, errors.New("可用 Agent 少于两个，无法开始讨论")
 	}
 
@@ -317,6 +429,7 @@ func (m *Manager) Start(req StartRequest) (*Session, error) {
 		Participants:  participants,
 		Events:        []Event{},
 		Contributions: []Contribution{},
+		InputManifest: inputManifest,
 	}
 	for _, p := range participants {
 		if p.Status == "unavailable" {
@@ -331,6 +444,7 @@ func (m *Manager) Start(req StartRequest) (*Session, error) {
 	runCtx, cancel := context.WithCancel(context.Background())
 	m.mu.Lock()
 	m.cancels[session.ID] = cancel
+	m.runs[session.ID] = session
 	m.wg.Add(1)
 	m.mu.Unlock()
 	go func() {
@@ -338,12 +452,45 @@ func (m *Manager) Start(req StartRequest) (*Session, error) {
 		defer func() {
 			m.mu.Lock()
 			delete(m.cancels, session.ID)
+			delete(m.runs, session.ID)
 			m.mu.Unlock()
 			cancel()
 		}()
-		m.run(runCtx, session, available, chairman)
+		m.run(runCtx, session, available, chairman, 1, nil)
 	}()
 	return cloneSession(session), nil
+}
+
+// Deliberation path labels (2026-10-31 裁决第二刀)：对照实验可表达——
+// 每场议事必须记录自己走的是哪条路径，比较才有对象。
+const (
+	// ProtocolCouncil 圆桌接力：同轮前序发言对后位可见（原始协议，可显式选用）。
+	ProtocolCouncil = "council"
+	// ProtocolIndependent 独立开场（2026-10-31 用户拍板升为默认）：首轮各抒己见，
+	// 不注入同轮前序，避免首位发言框定范围；第 2 轮起共享前轮信息开始议论。
+	// 配合单轮即得「独立多答」基线。用户指定顺序与首位轮换保留。
+	ProtocolIndependent = "independent"
+)
+
+func NormalizeProtocol(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		// 默认独立开场：首位锚定是实弹观察到的真问题，新会话默认各抒己见。
+		// 历史存档无 protocol 字段，展示层按圆桌接力渲染，不篡改史实。
+		return ProtocolIndependent, nil
+	}
+	switch trimmed {
+	case ProtocolCouncil, ProtocolIndependent:
+		return trimmed, nil
+	}
+	return "", fmt.Errorf("未知议事路径 %q", trimmed)
+}
+
+func ProtocolLabel(protocol string) string {
+	if protocol == ProtocolIndependent {
+		return "独立开场"
+	}
+	return "圆桌接力"
 }
 
 func normalizeRoundSettings(req *StartRequest) {
@@ -361,7 +508,8 @@ func normalizeRoundSettings(req *StartRequest) {
 		return
 	}
 	req.MaxRounds = 0
-	if req.Rounds < 2 {
+	// 单轮放行（裁决第二刀：允许单轮）；0 仍取默认两轮。
+	if req.Rounds < 1 {
 		req.Rounds = defaultManualRounds
 	}
 	if req.Rounds > maxManualRounds {
@@ -404,6 +552,199 @@ func (m *Manager) Cancel(id string) error {
 	return nil
 }
 
+func (m *Manager) beginAgentCall(
+	ctx context.Context,
+	session *Session,
+	status AgentStatus,
+	phase string,
+	round int,
+) (context.Context, *activeAgentCall) {
+	callCtx, cancel := context.WithCancel(ctx)
+	call := &activeAgentCall{agentID: status.ID, cancel: cancel}
+	m.recordAgentStarted(session, status, phase, round)
+	m.mu.Lock()
+	m.agentCalls[session.ID] = call
+	m.mu.Unlock()
+	return callCtx, call
+}
+
+func (m *Manager) endAgentCall(sessionID string, call *activeAgentCall) {
+	if call == nil {
+		return
+	}
+	m.mu.Lock()
+	if m.agentCalls[sessionID] == call {
+		delete(m.agentCalls, sessionID)
+	}
+	m.mu.Unlock()
+	call.cancel()
+}
+
+func (m *Manager) agentCallSkipped(call *activeAgentCall) bool {
+	if call == nil {
+		return false
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return call.skipped
+}
+
+func (m *Manager) agentCallRetry(call *activeAgentCall) bool {
+	if call == nil {
+		return false
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return call.retry
+}
+
+// SkipAgent cancels only the active model/CLI call. The council loop continues
+// with the next participant, preserving all prior contributions.
+func (m *Manager) SkipAgent(id, agentID string) error {
+	id = strings.TrimSpace(id)
+	agentID = strings.ToLower(strings.TrimSpace(agentID))
+	m.mu.Lock()
+	call := m.agentCalls[id]
+	if call == nil {
+		m.mu.Unlock()
+		return errors.New("当前没有可跳过的 Agent 调用")
+	}
+	if call.agentID != agentID {
+		current := call.agentID
+		m.mu.Unlock()
+		return fmt.Errorf("当前运行的是 %s，无法跳过 %s", current, agentID)
+	}
+	if call.skipped {
+		m.mu.Unlock()
+		return nil
+	}
+	session := m.runs[id]
+	if session == nil {
+		m.mu.Unlock()
+		call.cancel()
+		return errors.New("议事运行状态不可用")
+	}
+	if session.Status != StatusRunning {
+		m.mu.Unlock()
+		return errors.New("议事已不在运行")
+	}
+	call.skipped = true
+	now := time.Now().UnixMilli()
+	name := agentID
+	for i := range session.Participants {
+		participant := &session.Participants[i]
+		if participant.AgentID != agentID {
+			continue
+		}
+		name = participant.Name
+		participant.Status = "skipped"
+		participant.FinishedAt = now
+		if participant.StartedAt > 0 && now > participant.StartedAt {
+			participant.DurationMs += now - participant.StartedAt
+		}
+		participant.Error = "用户跳过当前调用"
+	}
+	session.UpdatedAt = now
+	event := m.appendEventLocked(session, Event{
+		Phase:   session.Phase,
+		Round:   session.CurrentRound,
+		AgentID: agentID,
+		Kind:    EventAgentSkipped,
+		Text:    name + " 当前调用已跳过，继续下一位 Agent",
+		At:      now,
+	})
+	saveErr := m.store.save(session)
+	m.mu.Unlock()
+	call.cancel()
+	m.emitSafe(event)
+	return saveErr
+}
+
+// RetryAgent aborts only the current call and lets the council loop invoke the
+// same participant again with the existing history and round position.
+func (m *Manager) RetryAgent(id, agentID string) error {
+	id = strings.TrimSpace(id)
+	agentID = strings.ToLower(strings.TrimSpace(agentID))
+	m.mu.Lock()
+	call := m.agentCalls[id]
+	if call == nil {
+		m.mu.Unlock()
+		return errors.New("当前没有可重试的 Agent 调用")
+	}
+	if call.agentID != agentID {
+		current := call.agentID
+		m.mu.Unlock()
+		return fmt.Errorf("当前运行的是 %s，无法重试 %s", current, agentID)
+	}
+	if call.skipped {
+		m.mu.Unlock()
+		return errors.New("当前 Agent 已跳过")
+	}
+	if call.retry {
+		m.mu.Unlock()
+		return nil
+	}
+	session := m.runs[id]
+	if session == nil {
+		m.mu.Unlock()
+		call.cancel()
+		return errors.New("议事运行状态不可用")
+	}
+	if session.Status != StatusRunning {
+		m.mu.Unlock()
+		return errors.New("议事已不在运行")
+	}
+	call.retry = true
+	now := time.Now().UnixMilli()
+	name := agentID
+	for i := range session.Participants {
+		participant := &session.Participants[i]
+		if participant.AgentID != agentID {
+			continue
+		}
+		name = participant.Name
+		participant.Status = "retrying"
+		participant.FinishedAt = 0
+		participant.Error = ""
+	}
+	session.UpdatedAt = now
+	event := m.appendEventLocked(session, Event{
+		Phase:   session.Phase,
+		Round:   session.CurrentRound,
+		AgentID: agentID,
+		Kind:    EventAgentRetry,
+		Text:    name + " 正在重新调用，保留此前发言",
+		At:      now,
+	})
+	saveErr := m.store.save(session)
+	m.mu.Unlock()
+	call.cancel()
+	m.emitSafe(event)
+	return saveErr
+}
+
+// Restart starts a fresh run from an existing council brief. A live run is
+// cancelled first, but Restart does not wait for it to unwind: the UI needs a
+// recovery path even when an external harness ignores cancellation until its
+// own hard timeout. The old record remains available for audit.
+func (m *Manager) Restart(id string) (*Session, error) {
+	m.mu.Lock()
+	session, err := m.store.get(id)
+	cancel := m.cancels[id]
+	m.mu.Unlock()
+	if err != nil {
+		return nil, err
+	}
+	if cancel != nil {
+		cancel()
+	}
+	req := session.Request
+	req.AgentIDs = append([]string(nil), req.AgentIDs...)
+	req.Evidence = append([]EvidenceItem(nil), req.Evidence...)
+	req.Attachments = append([]Attachment(nil), req.Attachments...)
+	return m.Start(req)
+}
+
 func (m *Manager) Delete(id string) error {
 	m.mu.Lock()
 	_, running := m.cancels[id]
@@ -424,6 +765,34 @@ func (m *Manager) Export(id string) (string, error) {
 	return ExportMarkdown(session), nil
 }
 
+// ResultPath returns the chair's final Markdown deliverable, generating it on
+// demand for completed sessions created before automatic result documents.
+func (m *Manager) ResultPath(id string) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	session, err := m.store.get(id)
+	if err != nil {
+		return "", err
+	}
+	if session.Status != StatusCompleted {
+		return "", errors.New("讨论尚未完成，暂无最终结果文档")
+	}
+	if session.ResultPath != "" {
+		if info, err := os.Stat(session.ResultPath); err == nil && info.Mode().IsRegular() {
+			return session.ResultPath, nil
+		}
+	}
+	path, err := m.store.writeResult(session)
+	if err != nil {
+		return "", err
+	}
+	session.ResultPath = path
+	if err := m.store.save(session); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
 func (m *Manager) SignOff(id, decision, note string) (*Session, error) {
 	decision = strings.TrimSpace(strings.ToLower(decision))
 	switch decision {
@@ -442,7 +811,12 @@ func (m *Manager) SignOff(id, decision, note string) (*Session, error) {
 		return nil, errors.New("讨论仍在进行，暂不能确认小结")
 	}
 	now := time.Now().UnixMilli()
-	session.SignOff = &SignOff{Decision: decision, Note: strings.TrimSpace(note), At: now}
+	session.SignOff = &SignOff{
+		Decision:      decision,
+		Note:          strings.TrimSpace(note),
+		At:            now,
+		VerdictSHA256: verdictFingerprint(session.Verdict),
+	}
 	session.UpdatedAt = now
 	label := map[string]string{
 		"accepted": "确认讨论小结", "needs_revision": "标记为需继续讨论", "rejected": "暂不采纳讨论小结",
@@ -450,12 +824,132 @@ func (m *Manager) SignOff(id, decision, note string) (*Session, error) {
 	event := m.appendEventLocked(session, Event{
 		Phase: session.Phase, Kind: EventSignOff, Text: label, At: now,
 	})
+	// 重渲染对外交付物：签注后 results 文档必须携带用户确认与其绑定的小结
+	// 版本，否则签注（session.json）与转发件是两份真相（2026-10-31 裁决第三刀）。
+	if session.Status == StatusCompleted {
+		if path, err := m.store.writeResult(session); err == nil {
+			session.ResultPath = path
+		} else {
+			session.Warnings = append(session.Warnings, "最终结果文档重渲染失败："+err.Error())
+		}
+	}
 	if err := m.store.save(session); err != nil {
 		m.mu.Unlock()
 		return nil, err
 	}
 	out := cloneSession(session)
 	m.mu.Unlock()
+	m.emitSafe(event)
+	return out, nil
+}
+
+// Resume 继续一场被中断（失败/终止）的议事：已有贡献原样保留，从中断处的
+// 下一轮接着跑，最后照常汇总。中途保存随时可续（2026-10-31 实弹反馈）；
+// 崩溃后启动恢复把 running 标为 failed，本方法就是它的「恢复讨论」入口。
+func (m *Manager) Resume(id string) (*Session, error) {
+	m.mu.Lock()
+	session, err := m.store.get(id)
+	if err != nil {
+		m.mu.Unlock()
+		return nil, err
+	}
+	if session.Status == StatusRunning {
+		m.mu.Unlock()
+		return nil, errors.New("讨论仍在进行，无需恢复")
+	}
+	if session.Status == StatusCompleted {
+		m.mu.Unlock()
+		return nil, errors.New("讨论已完成；续议请使用「基于小结续议」")
+	}
+	if len(session.Contributions) == 0 {
+		m.mu.Unlock()
+		return nil, errors.New("该场没有可续的历史发言；请使用「重开整场」")
+	}
+	request := session.Request
+	resumeRound := session.CurrentRound + 1
+	history := make([]Contribution, 0, len(session.Contributions))
+	for _, contribution := range session.Contributions {
+		if contribution.Phase == PhaseSynthesis {
+			continue
+		}
+		history = append(history, contribution)
+	}
+	m.mu.Unlock()
+
+	probeCtx, cancelProbe := context.WithTimeout(context.Background(), 15*time.Second)
+	statuses := m.Agents(probeCtx)
+	cancelProbe()
+	byID := map[string]AgentStatus{}
+	for _, status := range statuses {
+		byID[status.ID] = status
+	}
+	available := map[string]AgentStatus{}
+	for _, agentID := range uniqueNonEmpty(request.AgentIDs) {
+		if status, ok := byID[agentID]; ok && status.Available {
+			available[agentID] = status
+		}
+	}
+	if len(available) == 0 {
+		return nil, errors.New("没有可用 Agent，无法恢复讨论")
+	}
+	chairman := strings.TrimSpace(request.ChairmanAgentID)
+	if _, ok := available[chairman]; !ok {
+		chairman = pickChairman(request.AgentIDs, available)
+	}
+
+	m.mu.Lock()
+	session, err = m.store.get(id)
+	if err != nil {
+		m.mu.Unlock()
+		return nil, err
+	}
+	if session.Status == StatusRunning {
+		m.mu.Unlock()
+		return nil, errors.New("讨论已在进行中")
+	}
+	if resumeRound < 1 {
+		resumeRound = 1
+	}
+	session.Status = StatusRunning
+	session.Phase = PhasePreparing
+	session.Error = ""
+	session.UpdatedAt = time.Now().UnixMilli()
+	for i := range session.Participants {
+		if session.Participants[i].Status == "failed" {
+			session.Participants[i].Status = "waiting"
+			session.Participants[i].Error = ""
+		}
+	}
+	event := m.appendEventLocked(session, Event{
+		Phase: PhasePreparing,
+		Kind:  EventPhase,
+		Text: fmt.Sprintf(
+			"从中断处恢复：保留 %d 条已有发言，从第 %d 轮继续",
+			len(history), resumeRound,
+		),
+		At: session.UpdatedAt,
+	})
+	if err := m.store.save(session); err != nil {
+		m.mu.Unlock()
+		return nil, err
+	}
+	runCtx, cancel := context.WithCancel(context.Background())
+	m.cancels[session.ID] = cancel
+	m.runs[session.ID] = session
+	m.wg.Add(1)
+	m.mu.Unlock()
+	go func() {
+		defer m.wg.Done()
+		defer func() {
+			m.mu.Lock()
+			delete(m.cancels, session.ID)
+			delete(m.runs, session.ID)
+			m.mu.Unlock()
+			cancel()
+		}()
+		m.run(runCtx, session, available, chairman, resumeRound, history)
+	}()
+	out := cloneSession(session)
 	m.emitSafe(event)
 	return out, nil
 }
@@ -469,14 +963,31 @@ func (m *Manager) Close() {
 	m.wg.Wait()
 }
 
-func (m *Manager) run(ctx context.Context, session *Session, available map[string]AgentStatus, chairman string) {
+// run 执行议事循环。startRound/history 支持中断恢复：恢复时保留既有贡献、
+// 从中断处的下一轮继续（2026-10-31 实弹反馈「中途保存、临时变故的保存」）。
+func (m *Manager) run(
+	ctx context.Context,
+	session *Session,
+	available map[string]AgentStatus,
+	chairman string,
+	startRound int,
+	history []Contribution,
+) {
 	order := orderedAgentIDs(session.Request.AgentIDs, available)
-	history := make([]Contribution, 0, len(order)*session.Request.Rounds)
+	if history == nil {
+		history = make([]Contribution, 0, len(order)*session.Request.Rounds)
+	}
 	successful := map[string]AgentStatus{}
+	for _, item := range history {
+		if status, ok := available[item.AgentID]; ok {
+			successful[item.AgentID] = status
+		}
+	}
 	actualRounds := 0
 	consensusRound := 0
+	clippedInputs := make([]string, 0)
 
-	for round := 1; round <= session.Request.Rounds; round++ {
+	for round := startRound; round <= session.Request.Rounds; round++ {
 		actualRounds = round
 		phase := PhaseDiscussion
 		phaseText := fmt.Sprintf("第 %d 轮补充论证：承接前文，补充证据并澄清分歧", round)
@@ -495,11 +1006,22 @@ func (m *Manager) run(ctx context.Context, session *Session, available map[strin
 			status := available[agentID]
 			var prompt string
 			if round == 1 {
-				prompt = openingPrompt(session.Request, status, history, position+1, len(roundOrder))
+				openingHistory := history
+				if session.Request.Protocol == ProtocolIndependent {
+					// 独立开场基线：第 1 轮不注入同轮前序，每位视同首位发言。
+					openingHistory = nil
+				}
+				prompt = openingPrompt(session.Request, status, openingHistory, position+1, len(roundOrder))
 			} else {
 				prompt = discussionPrompt(session.Request, status, history, round, position+1, len(roundOrder))
 			}
-			out, duration, err := m.runOne(ctx, session, status, prompt, phase, round)
+			if promptExceedsBudget(prompt) {
+				clippedInputs = append(
+					clippedInputs,
+					fmt.Sprintf("第%d轮·%s", round, status.ID),
+				)
+			}
+			out, duration, err := m.runAgentWithRetry(ctx, session, status, prompt, phase, round)
 			if err != nil {
 				continue
 			}
@@ -515,6 +1037,7 @@ func (m *Manager) run(ctx context.Context, session *Session, available map[strin
 				AgentName:  status.Name,
 				Content:    out,
 				Consensus:  consensus,
+				RunMode:    m.adapter(status.ID).runMode,
 				CreatedAt:  time.Now().UnixMilli(),
 				DurationMs: duration.Milliseconds(),
 			}
@@ -545,10 +1068,9 @@ func (m *Manager) run(ctx context.Context, session *Session, available map[strin
 	if session.Request.UntilConsensus &&
 		consensusRound == 0 &&
 		actualRounds >= session.Request.Rounds {
-		m.addWarning(
-			session,
-			fmt.Sprintf("已达到 %d 轮安全上限，仍未全员一致；以下保留各席当前判断与未解分歧", session.Request.Rounds),
-		)
+		m.addWarning(session, consensusShortfallWarning(
+			session.Request.Rounds, order, history, actualRounds, clippedInputs,
+		))
 	}
 
 	m.updateRoundPhase(session, PhaseSynthesis, actualRounds, "汇总人正在整理共识、分歧与开放问题")
@@ -564,7 +1086,7 @@ func (m *Manager) run(ctx context.Context, session *Session, available map[strin
 	}
 	var verdict *Verdict
 	if ok {
-		out, duration, err := m.runOne(
+		out, duration, err := m.runAgentWithRetry(
 			ctx,
 			session,
 			summarizerStatus,
@@ -581,6 +1103,7 @@ func (m *Manager) run(ctx context.Context, session *Session, available map[strin
 				AgentName:  summarizerStatus.Name,
 				AnonLabel:  "协作汇总",
 				Content:    out,
+				RunMode:    m.adapter(summarizerStatus.ID).runMode,
 				CreatedAt:  time.Now().UnixMilli(),
 				DurationMs: duration.Milliseconds(),
 			})
@@ -611,6 +1134,11 @@ func (m *Manager) run(ctx context.Context, session *Session, available map[strin
 		Phase: PhaseCompleted, Kind: EventComplete, Text: "讨论小结已形成，等待用户确认",
 		At: time.Now().UnixMilli(),
 	})
+	if path, err := m.store.writeResult(session); err == nil {
+		session.ResultPath = path
+	} else {
+		session.Warnings = append(session.Warnings, "最终结果文档生成失败："+err.Error())
+	}
 	_ = m.store.save(session)
 	events := cloneEvents(m.lastEventsLocked(session, 2))
 	m.mu.Unlock()
@@ -619,20 +1147,42 @@ func (m *Manager) run(ctx context.Context, session *Session, available map[strin
 	}
 }
 
+func (m *Manager) runAgentWithRetry(
+	ctx context.Context,
+	session *Session,
+	status AgentStatus,
+	prompt string,
+	phase string,
+	round int,
+) (string, time.Duration, error) {
+	for {
+		text, duration, err := m.runOne(ctx, session, status, prompt, phase, round)
+		if errors.Is(err, errAgentRetry) && ctx.Err() == nil {
+			continue
+		}
+		return text, duration, err
+	}
+}
+
 func (m *Manager) runOne(ctx context.Context, session *Session, status AgentStatus, prompt, phase string, round int) (string, time.Duration, error) {
 	adapter := m.adapter(status.ID)
 	if adapter.id == "" {
 		return "", 0, fmt.Errorf("未找到 Agent Adapter %s", status.ID)
 	}
+	images := attachmentPaths(session.Request.Attachments)
 	if adapter.invoke != nil {
+		callCtx, call := m.beginAgentCall(ctx, session, status, phase, round)
+		defer m.endAgentCall(session.ID, call)
 		return m.runModelSeat(
-			ctx,
+			callCtx,
 			session,
 			status,
+			call,
 			adapter.invoke,
 			adapter.stream,
 			adapter.streamWithTools,
 			prompt,
+			images,
 			phase,
 			round,
 		)
@@ -646,13 +1196,14 @@ func (m *Manager) runOne(ctx context.Context, session *Session, status AgentStat
 	if workDir == "" {
 		workDir = m.root
 	}
-	spec, err := adapter.build(prompt, workDir)
+	spec, err := adapter.build(prompt, workDir, images)
 	if err != nil {
 		m.recordAgentError(session, status, phase, err)
 		return "", 0, err
 	}
-	m.recordAgentStarted(session, status, phase, round)
-	runCtx, cancel := context.WithTimeout(ctx, defaultAgentLimit)
+	callCtx, call := m.beginAgentCall(ctx, session, status, phase, round)
+	defer m.endAgentCall(session.ID, call)
+	runCtx, cancel := context.WithTimeout(callCtx, defaultAgentLimit)
 	defer cancel()
 	start := time.Now()
 	onDelta := func(chunk string) {
@@ -670,11 +1221,23 @@ func (m *Manager) runOne(ctx context.Context, session *Session, status AgentStat
 		raw, err = m.runner.Run(runCtx, spec)
 	}
 	duration := time.Since(start)
+	if m.agentCallSkipped(call) {
+		return "", duration, errAgentSkipped
+	}
+	if m.agentCallRetry(call) {
+		return "", duration, errAgentRetry
+	}
 	if err != nil {
 		m.recordAgentError(session, status, phase, err)
 		return "", duration, err
 	}
 	text := strings.TrimSpace(parseAgentOutput(raw))
+	if m.agentCallSkipped(call) {
+		return "", duration, errAgentSkipped
+	}
+	if m.agentCallRetry(call) {
+		return "", duration, errAgentRetry
+	}
 	if text == "" {
 		err = errors.New("Agent 返回空结果")
 		m.recordAgentError(session, status, phase, err)
@@ -692,19 +1255,22 @@ func (m *Manager) runModelSeat(
 	ctx context.Context,
 	session *Session,
 	status AgentStatus,
+	call *activeAgentCall,
 	invoke func(context.Context, string) (string, error),
 	stream func(context.Context, string, func(string)) (string, error),
 	streamWithTools func(
 		context.Context,
 		string,
 		string,
+		[]string,
 		func(string),
 		func(ToolTrace),
 	) (string, error),
-	prompt, phase string,
+	prompt string,
+	images []string,
+	phase string,
 	round int,
 ) (string, time.Duration, error) {
-	m.recordAgentStarted(session, status, phase, round)
 	runCtx, cancel := context.WithTimeout(ctx, defaultAgentLimit)
 	defer cancel()
 	start := time.Now()
@@ -718,6 +1284,7 @@ func (m *Manager) runModelSeat(
 			runCtx,
 			clampPrompt(prompt),
 			session.Request.Workspace,
+			images,
 			func(chunk string) {
 				m.recordAgentDelta(session, status, phase, round, chunk)
 			},
@@ -731,11 +1298,23 @@ func (m *Manager) runModelSeat(
 		text, err = invoke(runCtx, clampPrompt(prompt))
 	}
 	duration := time.Since(start)
+	if m.agentCallSkipped(call) {
+		return "", duration, errAgentSkipped
+	}
+	if m.agentCallRetry(call) {
+		return "", duration, errAgentRetry
+	}
 	if err != nil {
 		m.recordAgentError(session, status, phase, err)
 		return "", duration, err
 	}
 	text = strings.TrimSpace(text)
+	if m.agentCallSkipped(call) {
+		return "", duration, errAgentSkipped
+	}
+	if m.agentCallRetry(call) {
+		return "", duration, errAgentRetry
+	}
 	if text == "" {
 		err = errors.New("模型返回空结果")
 		m.recordAgentError(session, status, phase, err)
@@ -783,6 +1362,8 @@ func (m *Manager) recordAgentStarted(session *Session, status AgentStatus, phase
 		if session.Participants[i].AgentID == status.ID {
 			session.Participants[i].Status = "running"
 			session.Participants[i].StartedAt = time.Now().UnixMilli()
+			session.Participants[i].FinishedAt = 0
+			session.Participants[i].Error = ""
 		}
 	}
 	event := Event{Phase: phase, Round: round, AgentID: status.ID, Kind: EventAgentStart, Text: text, At: time.Now().UnixMilli()}
@@ -1060,6 +1641,55 @@ func roundReachedConsensus(contributions []Contribution, expected int) bool {
 		seen[contribution.AgentID] = true
 	}
 	return true
+}
+
+// consensusShortfallWarning separates substantive disagreement from
+// infrastructure states (absent seats, clipped prompts, undeclared signals)
+// so a stop without consensus stays auditable instead of collapsing into a
+// blanket "still not unanimous" that masks failures (2026-10-31 裁决第一刀).
+func consensusShortfallWarning(
+	rounds int,
+	order []string,
+	history []Contribution,
+	finalRound int,
+	clipped []string,
+) string {
+	signals := make(map[string]string)
+	for _, item := range history {
+		if item.Round == finalRound {
+			signals[item.AgentID] = item.Consensus
+		}
+	}
+	disagreed := make([]string, 0, len(order))
+	undeclared := make([]string, 0, len(order))
+	absent := make([]string, 0, len(order))
+	for _, id := range order {
+		signal, ok := signals[id]
+		switch {
+		case !ok:
+			absent = append(absent, id)
+		case signal == "no":
+			disagreed = append(disagreed, id)
+		case signal == "":
+			undeclared = append(undeclared, id)
+		}
+	}
+	parts := make([]string, 0, 4)
+	if len(disagreed) > 0 {
+		parts = append(parts, fmt.Sprintf("实质分歧 %d 席（%s）", len(disagreed), strings.Join(disagreed, "、")))
+	} else {
+		parts = append(parts, "末轮没有席位声明仍有分歧")
+	}
+	if len(undeclared) > 0 {
+		parts = append(parts, fmt.Sprintf("末轮 %d 席未声明共识信号（%s）", len(undeclared), strings.Join(undeclared, "、")))
+	}
+	if len(absent) > 0 {
+		parts = append(parts, fmt.Sprintf("末轮缺席 %d 席（%s）——缺席是运行状态，不构成实质分歧", len(absent), strings.Join(absent, "、")))
+	}
+	if len(clipped) > 0 {
+		parts = append(parts, fmt.Sprintf("提示词超限截断 %d 次（%s）——截断可能掩盖真实立场", len(clipped), strings.Join(clipped, "、")))
+	}
+	return fmt.Sprintf("已达到 %d 轮安全上限，未达成全员一致：%s", rounds, strings.Join(parts, "；"))
 }
 
 func fallbackVerdict(history []Contribution) *Verdict {

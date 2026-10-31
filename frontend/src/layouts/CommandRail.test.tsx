@@ -14,7 +14,7 @@ function renderRail(props: Partial<Parameters<typeof CommandRail>[0]> = {}) {
   const onNavigate = vi.fn()
   const utils = render(wrap(
     <CommandRail
-      page="home"
+      page="gaea"
       darkMode={false}
       toggleDarkMode={vi.fn()}
       onNavigate={onNavigate}
@@ -35,10 +35,10 @@ beforeEach(() => {
 })
 
 describe('CommandRail 一级导航合一（2026-10-26）', () => {
-  it('全量一级导航：首页 + 全部 inMenu 板块同栏尽收（书斋/闲庭不再分页；2026-10-27 -sin 原罪并入小说第六页签）', () => {
+  it('全量一级导航：办公默认 + 全部 inMenu 板块同栏尽收（首页已删除；原罪并入小说第六页签）', () => {
     renderRail()
     expect(navLabels()).toEqual([
-      '首页', '聊天', '小说', '绘梦', '办公', '造价数据库', '众神殿', '记忆中枢', '模型中心', '角色库', '青鸟', '运行监测',
+      '聊天', '小说', '绘梦', '办公', '造价数据库', '众神殿', '记忆中枢', '模型中心', '角色库', '青鸟', '运行监测',
     ])
   })
 

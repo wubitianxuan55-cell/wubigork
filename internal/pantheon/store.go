@@ -51,6 +51,24 @@ func (s *sessionStore) save(session *Session) error {
 	return fileutil.AtomicWriteSync(filepath.Join(dir, "session.json"), data, 0o600)
 }
 
+func (s *sessionStore) writeResult(session *Session) (string, error) {
+	if session == nil {
+		return "", errors.New("议事为空")
+	}
+	if _, err := s.sessionDir(session.ID); err != nil {
+		return "", err
+	}
+	dir := filepath.Join(s.root, "results")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", fmt.Errorf("创建结果文档目录: %w", err)
+	}
+	path := filepath.Join(dir, session.ID+".md")
+	if err := fileutil.AtomicWriteSync(path, []byte(RenderFinalDocument(session)), 0o644); err != nil {
+		return "", fmt.Errorf("写入结果文档: %w", err)
+	}
+	return path, nil
+}
+
 func (s *sessionStore) get(id string) (*Session, error) {
 	dir, err := s.sessionDir(id)
 	if err != nil {
@@ -77,6 +95,14 @@ func (s *sessionStore) get(id string) (*Session, error) {
 	}
 	if session.Participants == nil {
 		session.Participants = []Participant{}
+	}
+	for i := range session.Contributions {
+		session.Contributions[i].Content = repairLegacyZCodeEventWall(session.Contributions[i].Content)
+	}
+	for i := range session.Events {
+		if session.Events[i].Kind == EventAgentOutput {
+			session.Events[i].Text = repairLegacyZCodeEventWall(session.Events[i].Text)
+		}
 	}
 	// AgentIDs 无 omitempty，历史文件可能带 "agentIds": null，前端记录页裸 .map。
 	if session.Request.AgentIDs == nil {

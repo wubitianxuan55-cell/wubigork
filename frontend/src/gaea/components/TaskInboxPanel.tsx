@@ -202,9 +202,9 @@ export function TaskInboxPanel({
   onClose: () => void;
   /** 新建任务的归属标签（Go ValidSpace 仅收 work|play） */
   space: ShellSpace;
-  /** 列表口径：壳层空间或 ''（跨空间全量）；缺省 = space（首页合一 v4.475 传 ''） */
+  /** 列表口径：壳层空间或 ''（跨空间全量）；壳层宿主传 ''。 */
   scope?: ShellSpace | "";
-  /** 板块级跳转（ModuleLauncher 既有 onNavigate；缺省时跳转按钮不渲染） */
+  /** 板块级跳转（壳层 TaskInboxHost 注入；缺省时跳转按钮不渲染） */
   onNavigate?: (boardId: string) => void;
   /** 会话级回源（7.3-1 收口）：透传 Board。 */
   onResumeSession?: (path: string) => void;
@@ -249,9 +249,9 @@ export function TaskInboxPanel({
 /**
  * TaskInboxBoard 收件箱内联板（7.3-2 板块降级为任务视图）：原 TaskInboxPanel
  * 主体原样抽出——四档 tab + 新建 + 状态机动作 + 板块跳转。Modal 壳保留为薄
- * 包装（面板 props/DOM/既有测试零变化）；任务优先首页直接内嵌本组件。
+ * 包装（面板 props/DOM/既有测试零变化）；壳层也复用本组件。
  * active=false 时不拉取（Modal 关闭态）；onPendingChange 把待处理计数报给
- * 壳层（Modal 标题徽标 / 首页头部计数共用）。
+ * 壳层（Modal 标题徽标）。
  */
 export function TaskInboxBoard({
   space,
@@ -263,9 +263,9 @@ export function TaskInboxBoard({
 }: {
   /** 新建任务的归属标签（Go ValidSpace 仅收 work|play） */
   space: ShellSpace;
-  /** 列表口径：壳层空间或 ''（跨空间全量）；缺省 = space（首页合一 v4.475 传 ''） */
+  /** 列表口径：壳层空间或 ''（跨空间全量）；壳层宿主传 ''。 */
   scope?: ShellSpace | "";
-  /** 激活态（false=挂载但不拉取；内嵌首页恒 true） */
+  /** 激活态（false=挂载但不拉取；壳层面板按 open 激活） */
   active: boolean;
   onNavigate?: (boardId: string) => void;
   onPendingChange?: (pending: number) => void;

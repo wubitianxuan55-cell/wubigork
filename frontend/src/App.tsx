@@ -191,8 +191,8 @@ const App: React.FC = () => {
     // 代码高亮明暗挂钩（gaea 板块 .hljs-* 调色板切换，色值在 gaea/styles.css
     // :root[data-hl="light"]；刻意内联不走 gaea/lib 导入——那会把消毒链拖进主入口）
     document.documentElement.dataset.hl = darkMode ? 'dark' : 'light'
-    // 主题预设下发（v10「天玄」）：首页星穹底纹/月华描线按预设开关
-    // （module-launcher.css 以 html[data-theme='tianXuan'] 作用域隔离，其余预设零影响）
+    // 主题预设下发（v10「天玄」）：页面级星穹底纹与描线按预设开关，
+    // 各页面以 data-theme 作用域隔离，其余预设零影响。
     root.dataset.theme = baseTheme
     // 原生控件明暗（v4.351）：滚动条轨道角/表单控件随主题（此前全仓无声明，
     // 暗主题下原生控件残留亮色渲染）

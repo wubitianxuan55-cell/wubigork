@@ -192,18 +192,31 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
   return (
     <div className="ig-control-panel" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {/* ── ① 基础设置：提示词 / 负向 / 模板 / 参考图 ── */}
-      <CollapsibleSection title="基础设置" icon={<EditOutlined />} defaultOpen>
-        <TextArea
-          placeholder="描述你想要的画面，例如：一座悬浮在云端的东方仙侠城市，琉璃瓦宫殿，瀑布倾泻，落日余晖..."
-          value={prompt}
-          onChange={(e) => onPromptChange(e.target.value)}
-          autoSize={{ minRows: 4, maxRows: 7 }}
-          style={{
-            ...inputStyle, resize: 'none', lineHeight: 1.6, fontSize: 13,
-            padding: '10px 12px',
-          }}
-        />
+      {/* ── ① 画面描述：创作入口 / 负向 / 模板 / 参考图 ── */}
+      <CollapsibleSection title="画面描述" icon={<EditOutlined />} defaultOpen>
+        <div className="ig-prompt-field">
+          <div className="ig-prompt-label-row">
+            <label htmlFor="imagegen-prompt-input">你想画下什么？</label>
+            <span>{prompt.length} 字</span>
+          </div>
+          <TextArea
+            id="imagegen-prompt-input"
+            data-testid="imagegen-prompt"
+            className="ig-prompt-textarea"
+            placeholder="一座悬浮在云端的东方仙侠城市，琉璃瓦宫殿，瀑布倾泻，落日余晖..."
+            value={prompt}
+            onChange={(e) => onPromptChange(e.target.value)}
+            autoSize={{ minRows: 5, maxRows: 9 }}
+            aria-describedby="imagegen-prompt-help"
+            style={{
+              resize: 'none', lineHeight: 1.65, fontSize: 14,
+              padding: '12px 14px',
+            }}
+          />
+          <p className="ig-prompt-help" id="imagegen-prompt-help">
+            写清主体、环境、镜头与光线；风格词越具体，画面越稳定。
+          </p>
+        </div>
         <button
           type="button"
           onClick={() => setShowNegative((v) => !v)}

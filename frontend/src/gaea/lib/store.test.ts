@@ -115,6 +115,7 @@ describe("useController bridge 失败记录（T6-1.2）", () => {
   function facadeOk(): Record<string, unknown> {
     return {
       GaeaLogFrontendError: vi.fn(async () => {}),
+      GaeaNewSession: vi.fn(async () => {}),
       GaeaMeta: async () => ({ version: "test", app: "gaea" }),
       GaeaContext: async () => ({ used: 0, window: 0 }),
       GaeaHistory: async () => [],
@@ -128,13 +129,14 @@ describe("useController bridge 失败记录（T6-1.2）", () => {
     delete (window as unknown as { go?: { app?: Record<string, unknown> } }).go;
   });
 
-  it("loadSessionData 失败不再静默：经 LogFrontendError 记录", async () => {
+  it("冷启动先 NewSession 再装载；loadSessionData 失败不再静默", async () => {
     const f = facadeOk();
     f.GaeaMeta = async () => { throw new Error("meta boom"); };
     (window as unknown as { go?: { app?: Record<string, unknown> } }).go = { app: { CoreB: f } };
     const lfe = f.GaeaLogFrontendError as ReturnType<typeof vi.fn>;
     renderHook(() => useController());
     await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    expect(f.GaeaNewSession).toHaveBeenCalledTimes(1);
     expect(lfe).toHaveBeenCalledWith(expect.stringContaining("loadSessionData"));
     expect(lfe).toHaveBeenCalledWith(expect.stringContaining("[MetaError]"));
   });

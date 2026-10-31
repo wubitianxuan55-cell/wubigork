@@ -7,7 +7,7 @@ import { invalidateTurnCaches } from "../deliverablesTurn";
 import { create } from "zustand";
 import { useShallow } from "zustand/shallow";
 import { app, onEvent, onReady } from "../bridge";
-import { noteEventSeq } from "../eventSync";
+import { noteEventSeq, resetEventSync } from "../eventSync";
 import { logBridgeError, useMemoryActions } from "./controller_actions_memory";
 import { useSessionActions } from "./controller_actions_session";
 import { useTurnActions } from "./controller_actions_turn";
@@ -37,6 +37,31 @@ interface EventBindDeps {
   dispatch: (a: Action) => void;
 }
 let eventsBound = false;
+
+/**
+ * 冷启动固定创建新会话：不恢复后端上一次当前会话，也不把旧 History
+ * 导入新会话。NewSession 成功后才装载 meta/context；失败时保留空状态并
+ * 在 bridge 日志留痕，onReady 会再次尝试。
+ */
+let startupSessionPromise: Promise<void> | null = null;
+function startFreshSessionOnBoot(deps: EventBindDeps): Promise<void> {
+  if (startupSessionPromise) return startupSessionPromise;
+  startupSessionPromise = (async () => {
+    try {
+      await app.NewSession();
+      deps.dispatch({ type: "reset" });
+      resetEventSync();
+      deps.refreshFactBase();
+    } catch (err) {
+      startupSessionPromise = null;
+      logBridgeError("boot NewSession", err);
+      return;
+    }
+    await deps.loadSessionData();
+  })();
+  return startupSessionPromise;
+}
+
 function ensureEventsBound(deps: EventBindDeps): void {
   if (eventsBound) return;
   eventsBound = true;
@@ -78,12 +103,12 @@ function ensureEventsBound(deps: EventBindDeps): void {
     }
   });
   onReady(() => {
-    void deps.loadSessionData();
+    void startFreshSessionOnBoot(deps);
     app.Balance().then(b => dispatch({ type: "balance", balance: b })).catch((err) => logBridgeError("onReady Balance", err));
     app.Jobs().then(j => dispatch({ type: "jobs", jobs: j })).catch((err) => logBridgeError("onReady Jobs", err));
     refreshFactBase();
   });
-  void deps.loadSessionData();
+  void startFreshSessionOnBoot(deps);
   app.Balance().then(b => dispatch({ type: "balance", balance: b })).catch((err) => logBridgeError("init Balance", err));
   app.Jobs().then(j => dispatch({ type: "jobs", jobs: j })).catch((err) => logBridgeError("init Jobs", err));
   refreshFactBase();

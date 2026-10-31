@@ -225,9 +225,9 @@ describe("检索失败可见化（v4.361）", () => {
   });
 });
 
-// §8.3 收件箱入口归位：首页待办行与任务优先形态退役后，命令面板空态的
+// 收件箱入口归位：命令面板空态的
 // 「打开任务收件箱」是收件箱面板唯一打开口——派发 OPEN_TASK_INBOX 事件
-// （消费方=首页 ModuleLauncher 的面板单例）并随手收面板。
+// （消费方=壳层 TaskInboxHost 的面板单例）并随手收面板。
 describe("SearchModal 空态收件箱入口（§8.3 入口归位）", () => {
   it("未搜索空态出「打开任务收件箱」；点击=派发 OPEN_TASK_INBOX + 收面板", () => {
     const onClose = renderModal();

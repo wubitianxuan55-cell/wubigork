@@ -68,11 +68,11 @@ export function ComposerToolbar({
   const yoloActive = permLevel === "yolo";
 
   return (
-    <div className="flex items-center flex-wrap gap-x-1.5 gap-y-1 min-w-0 px-2.5 py-1.5">
+    <div className="office-composer-toolbar flex items-center flex-wrap gap-x-1.5 gap-y-1 min-w-0 px-2.5 py-1.5">
       {cwd && (
         <div className="relative inline-flex min-w-0" ref={workspaceAnchorRef}>
           <button
-            className={`inline-flex items-center gap-1.5 max-w-60 px-2 py-1 border-0 rounded-md bg-transparent text-fg-dim text-xs cursor-pointer transition-[color,background] duration-[var(--dur-fast)] hover:text-fg hover:bg-bg-soft disabled:cursor-default disabled:opacity-60 no-drag ${workspaceMenuOpen ? "text-fg bg-bg-soft" : ""}`}
+            className={`office-toolbar-workspace inline-flex items-center gap-1.5 max-w-60 px-2 py-1 border-0 rounded-md bg-transparent text-fg-dim text-xs cursor-pointer transition-[color,background] duration-[var(--dur-fast)] hover:text-fg hover:bg-bg-soft disabled:cursor-default disabled:opacity-60 no-drag ${workspaceMenuOpen ? "text-fg bg-bg-soft" : ""}`}
             onClick={onToggleWorkspaceMenu}
             disabled={running}
             title={running ? t("common.busyHint") : t("status.switchFolder", { cwd })}
@@ -86,7 +86,7 @@ export function ComposerToolbar({
 
       {/* 导入文件按钮 */}
       <button
-        className={`inline-flex items-center justify-center w-[28px] h-[28px] border-0 rounded-md bg-transparent text-fg-dim cursor-pointer transition-[color,background] duration-[var(--dur-fast)] hover:text-fg hover:bg-bg-soft disabled:cursor-default disabled:opacity-40 shrink-0 ${pendingPaste > 0 ? "pointer-events-none opacity-40" : ""}`}
+        className={`office-toolbar-icon inline-flex items-center justify-center w-[28px] h-[28px] border-0 rounded-md bg-transparent text-fg-dim cursor-pointer transition-[color,background] duration-[var(--dur-fast)] hover:text-fg hover:bg-bg-soft disabled:cursor-default disabled:opacity-40 shrink-0 ${pendingPaste > 0 ? "pointer-events-none opacity-40" : ""}`}
         onClick={onPickFiles}
         disabled={running}
         title={running ? t("common.busyHint") : t("composer.importFile")}
@@ -96,7 +96,7 @@ export function ComposerToolbar({
 
       {/* 截图按钮：整屏捕获后裁剪并附加 */}
       <button
-        className={`inline-flex items-center justify-center w-[28px] h-[28px] border-0 rounded-md bg-transparent text-fg-dim cursor-pointer transition-[color,background] duration-[var(--dur-fast)] hover:text-fg hover:bg-bg-soft disabled:cursor-default disabled:opacity-40 shrink-0 ${captureBusy ? "pointer-events-none opacity-40" : ""}`}
+        className={`office-toolbar-icon inline-flex items-center justify-center w-[28px] h-[28px] border-0 rounded-md bg-transparent text-fg-dim cursor-pointer transition-[color,background] duration-[var(--dur-fast)] hover:text-fg hover:bg-bg-soft disabled:cursor-default disabled:opacity-40 shrink-0 ${captureBusy ? "pointer-events-none opacity-40" : ""}`}
         onClick={onScreenshot}
         disabled={running || captureBusy}
         title={running ? t("common.busyHint") : t("composer.screenshot")}
@@ -120,7 +120,7 @@ export function ComposerToolbar({
         }}
       >
         <button
-          className="inline-flex items-center justify-center w-[28px] h-[28px] border-0 rounded-md bg-transparent text-fg-dim cursor-pointer transition-[color,background] duration-[var(--dur-fast)] hover:text-fg hover:bg-bg-soft disabled:cursor-default disabled:opacity-40 shrink-0"
+          className="office-toolbar-icon inline-flex items-center justify-center w-[28px] h-[28px] border-0 rounded-md bg-transparent text-fg-dim cursor-pointer transition-[color,background] duration-[var(--dur-fast)] hover:text-fg hover:bg-bg-soft disabled:cursor-default disabled:opacity-40 shrink-0"
           disabled={running || !onOpenTool}
           title={onOpenTool ? "工具：CAD 看图 / 进度计划" : "工具"}
           aria-label="工具"
@@ -132,7 +132,7 @@ export function ComposerToolbar({
 
       {/* 会话录制技能按钮（阶段七 7.2-1 演示式录制）：蒸馏当前会话为可复用技能 */}
       <button
-        className="inline-flex items-center justify-center w-[28px] h-[28px] border-0 rounded-md bg-transparent text-fg-dim cursor-pointer transition-[color,background] duration-[var(--dur-fast)] hover:text-fg hover:bg-bg-soft disabled:cursor-default disabled:opacity-40 shrink-0"
+        className="office-toolbar-icon inline-flex items-center justify-center w-[28px] h-[28px] border-0 rounded-md bg-transparent text-fg-dim cursor-pointer transition-[color,background] duration-[var(--dur-fast)] hover:text-fg hover:bg-bg-soft disabled:cursor-default disabled:opacity-40 shrink-0"
         onClick={() => onRecordSkill?.()}
         disabled={running}
         title={running ? t("common.busyHint") : t("composer.recordSkill")}
@@ -146,7 +146,7 @@ export function ComposerToolbar({
       {(permLevel || thinkLevel) && (
         <div className="relative inline-flex shrink-0">
           <button type="button"
-            className={`flex items-center gap-1.5 px-2 py-1 border rounded-md bg-transparent text-xs cursor-pointer whitespace-nowrap transition-[color,background,border,transform] duration-[var(--dur-fast)] active:scale-[0.97] ${
+            className={`office-toolbar-param flex items-center gap-1.5 px-2 py-1 border rounded-md bg-transparent text-xs cursor-pointer whitespace-nowrap transition-[color,background,border,transform] duration-[var(--dur-fast)] active:scale-[0.97] ${
               yoloActive
                 ? "text-err bg-err/10 border-err/20 shadow-[0_0_0_1px_var(--err)]"
                 : paramsOpen
@@ -234,7 +234,7 @@ export function ComposerToolbar({
           保持独立直钮：模式忘关会改变模型行为，须常驻可见。 */}
       <div className="flex gap-[3px] shrink-0">
         <button type="button"
-          className={`flex items-center gap-1 px-2 py-1 border rounded-md bg-transparent text-xs cursor-pointer whitespace-nowrap transition-[color,background,border,transform] duration-[var(--dur-fast)] active:scale-[0.97] ${
+          className={`office-toolbar-plan flex items-center gap-1 px-2 py-1 border rounded-md bg-transparent text-xs cursor-pointer whitespace-nowrap transition-[color,background,border,transform] duration-[var(--dur-fast)] active:scale-[0.97] ${
             planActive
               ? "text-accent bg-accent-soft border-accent/30 shadow-[0_0_0_1px_var(--accent-soft)]"
               : "text-fg-faint border-transparent hover:text-fg hover:bg-bg-soft"
@@ -251,7 +251,7 @@ export function ComposerToolbar({
       </div>
 
       {/* 快捷提示 */}
-      <span className="ml-auto text-fg-faint/40 text-[10px] select-none hidden sm:inline-flex items-center gap-1.5">
+      <span className="office-toolbar-hint ml-auto text-fg-faint/40 text-[10px] select-none hidden sm:inline-flex items-center gap-1.5">
         <span>{t("composer.hintSlash")}</span>
         <span>{t("composer.hintAt")}</span>
         {running && <span className="text-warn/60">{t("composer.hintCorrect")}</span>}

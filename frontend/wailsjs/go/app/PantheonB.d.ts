@@ -14,11 +14,21 @@ export function PantheonGet(arg1:string):Promise<pantheon.Session>;
 
 export function PantheonList():Promise<Array<pantheon.SessionSummary>>;
 
+export function PantheonOpenResult(arg1:string):Promise<string>;
+
 export function PantheonPickWorkspace():Promise<string>;
+
+export function PantheonRestart(arg1:string):Promise<pantheon.Session>;
+
+export function PantheonResume(arg1:string):Promise<pantheon.Session>;
+
+export function PantheonRetryAgent(arg1:string,arg2:string):Promise<void>;
 
 export function PantheonSetExecutable(arg1:string,arg2:string):Promise<Array<pantheon.AgentStatus>>;
 
 export function PantheonSignOff(arg1:string,arg2:string,arg3:string):Promise<pantheon.Session>;
+
+export function PantheonSkipAgent(arg1:string,arg2:string):Promise<void>;
 
 export function PantheonStart(arg1:pantheon.StartRequest):Promise<pantheon.Session>;
 

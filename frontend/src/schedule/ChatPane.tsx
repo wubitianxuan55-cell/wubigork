@@ -98,8 +98,6 @@ const ChatPaneInner: React.FC<{ onCollapse?: () => void }> = ({ onCollapse }) =>
       <Transcript
         running={state.running}
         onPrompt={(text) => ctrl.send(text)}
-        cwd={state.meta?.cwd}
-        meta={state.meta}
       />
       <QuickChips running={state.running} onSend={(text) => ctrl.send(text)} />
       <Composer

@@ -11,8 +11,7 @@ import { registerPage } from './boards/pageRegistry'
 
 // ═══ PageRegistry 集中注册（3.0 §5.2 附 B #3/#5）══════════════════════
 // manifest.page 键 ↔ 页面组件统一 lazy 包装；MainLayout 渲染时按 manifest 查表。
-// home 启动器为壳层（ModuleLauncher），不注册组件。过渡期后删除 MainLayout 的
-// legacy lazy import，全部以本注册表为唯一来源。
+// 所有业务板块统一走本注册表；启动页为办公（DEFAULT_BOARD_ID）。
 registerPage('ChatPage', lazy(() => import('./pages/ChatPage')))
 registerPage('NovelPage', lazy(() => import('./pages/NovelPage')))
 registerPage('ImageGenPage', lazy(() => import('./pages/ImageGenPage')))

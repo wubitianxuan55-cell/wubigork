@@ -11,7 +11,6 @@ import { WorkHeader } from "./WorkHeader";
 import { ToolCard } from "./ToolCard";
 import { ToolGroup, scanGroups } from "./ToolGroup";
 import { ErrorCard } from "./ErrorCard";
-import { Welcome } from "./Welcome";
 import { useEntranceAnimation } from "../lib/useEntranceAnimation";
 import { useGSAPCollapse } from "../lib/useGSAPCollapse";
 import { useNow } from "../lib/useNow";
@@ -628,8 +627,8 @@ export const ProcessCard = memo(function ProcessCard({
 });
 
 export function Transcript({
-  onPrompt, onRewind, onRegenerate, onFeedback, running, onThreadEl, onScrollToTurnReady,
-  cwd, cwdName, sessions, onResumeSession, meta, onOpenTool,
+  // 欢迎页移除后 Transcript 不再消费 onPrompt；保留宿主契约，避免嵌入方同步改签名。
+  onPrompt: _onPrompt, onRewind, onRegenerate, onFeedback, running, onThreadEl, onScrollToTurnReady,
 }: {
   onPrompt: (text: string) => void;
   onRewind?: (turn: number, scope: string) => void;
@@ -640,13 +639,6 @@ export function Transcript({
   running: boolean;
   onThreadEl?: (el: HTMLElement | null) => void;
   onScrollToTurnReady?: (fn: (turn: number) => void) => void;
-  cwd?: string;
-  cwdName?: string;
-  sessions?: import("../lib/types").SessionMeta[];
-  onResumeSession?: (path: string) => Promise<void>;
-  meta?: import("../lib/types").Meta;
-  /** 空态工作台工具 tile（§6.4）：穿给 Welcome，缺省工具节不渲染。 */
-  onOpenTool?: (tool: "cad" | "schedule") => void;
 }) {
   const items = useItems();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -971,10 +963,7 @@ export function Transcript({
     <div className="relative flex min-h-0 flex-1 flex-col">
       <div className="transcript v3-zone" ref={scrollRef} onScroll={onScroll} onWheel={onWheel}>
         <div className="w-full px-4 sm:px-6 md:px-8 py-4" ref={entranceRef}>
-          {items.length === 0 && (
-            <Welcome onPrompt={onPrompt} cwd={cwd} cwdName={cwdName} sessions={sessions} onResumeSession={onResumeSession} meta={meta} onOpenTool={onOpenTool} />
-          )}
-          {/* 正文阅读宽度列（办公板块覆写为 --maxw 左对齐，其余板块 74ch 居中）；欢迎页作为启动器保持铺满 */}
+          {/* 正文阅读宽度列（办公板块覆写为 --maxw 左对齐，其余板块 74ch 居中） */}
           <div className="v3-reading">
             {/* v4.26：StreamingIndicator 降级为最底兜底（工作态头部已接管主反馈），
               文案收敛为「连接中…/仍在等待事件…」。items 为空且 running 时
@@ -1017,7 +1006,7 @@ export function Transcript({
       </div>
       {/* 回到底部按钮 —— 居中圆形，v3 柔光；滚动容器的兄弟节点（锚定包装层，
           不随内容滚动，上翻时常驻视口底部） */}
-      {showScrollDown && (
+      {showScrollDown && items.length > 0 && (
         <button
           className="absolute left-1/2 bottom-8 z-20 flex items-center justify-center w-9 h-9 rounded-full border border-accent/25 bg-bg-elev/85 backdrop-blur-md text-fg-dim cursor-pointer hover:text-accent hover:border-accent/40 hover:bg-bg-elev-2 active:scale-95 transition-all shadow-[var(--v3-glow-faint)]"
           style={{ transform: "translateX(-50%)" }}

@@ -14,6 +14,13 @@ export interface PantheonEvidence {
   content: string
 }
 
+export interface PantheonAttachment {
+  name: string
+  path: string
+  mime: string
+  size: number
+}
+
 export interface PantheonWorkspace {
   path: string
   name: string
@@ -28,12 +35,17 @@ export interface PantheonStartRequest {
   successCriteria: string
   workspace?: string
   evidence?: PantheonEvidence[]
+  attachments?: PantheonAttachment[]
   agentIds: string[]
   chairmanAgentId: string
   rounds: number
   untilConsensus?: boolean
   maxRounds?: number
   readOnly: boolean
+  /** 议事路径：council=圆桌接力；independent=独立开场（默认，第 1 轮不注入同轮前序） */
+  protocol?: string
+  /** 续议来源会话 ID（裁决第三刀：保留父会话谱系；承接以简报为准） */
+  parentSessionId?: string
 }
 
 export interface PantheonParticipant {
@@ -72,6 +84,8 @@ export interface PantheonLiveStream {
   round: number
   text: string
   streaming: boolean
+  startedAt?: number
+  updatedAt?: number
 }
 
 export interface PantheonContribution {
@@ -120,6 +134,7 @@ export interface PantheonSession {
   contributions: PantheonContribution[]
   verdict?: PantheonVerdict
   signoff?: PantheonSignOff
+  resultPath?: string
   warnings?: string[]
   error?: string
 }

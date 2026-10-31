@@ -37,7 +37,7 @@ func TestLiveAgentAdapters(t *testing.T) {
 			if workDir == "" {
 				workDir = t.TempDir()
 			}
-			spec, err := adapter.build("Reply with exactly READY and do not use tools.", workDir)
+			spec, err := adapter.build("Reply with exactly READY and do not use tools.", workDir, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

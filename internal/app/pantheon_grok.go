@@ -77,11 +77,11 @@ func (s *pantheonGrokSeat) ProbeGrok(_ context.Context) pantheon.AgentStatus {
 // CallGrok 完成一次只读议事调用。它保留给旧适配器路径，实际同样经过
 // Gaea 办公 AgentRunner，不再直接裸调模型。
 func (s *pantheonGrokSeat) CallGrok(ctx context.Context, prompt string) (string, error) {
-	return s.StreamGrokWithTools(ctx, prompt, gaeaCwd(), nil, nil)
+	return s.StreamGrokWithTools(ctx, prompt, gaeaCwd(), nil, nil, nil)
 }
 
 func (s *pantheonGrokSeat) StreamGrok(ctx context.Context, prompt string, emit func(string)) (string, error) {
-	return s.StreamGrokWithTools(ctx, prompt, gaeaCwd(), emit, nil)
+	return s.StreamGrokWithTools(ctx, prompt, gaeaCwd(), nil, emit, nil)
 }
 
 // StreamGrokWithTools runs Grok through a fresh Gaea office AgentRunner with a
@@ -92,6 +92,7 @@ func (s *pantheonGrokSeat) StreamGrokWithTools(
 	ctx context.Context,
 	prompt string,
 	workspace string,
+	readPaths []string,
 	emit func(string),
 	onTool func(pantheon.ToolTrace),
 ) (string, error) {
@@ -128,7 +129,7 @@ func (s *pantheonGrokSeat) StreamGrokWithTools(
 	if reg.Len() == 0 {
 		return "", fmt.Errorf("Grok 办公工具注册表为空")
 	}
-	return runPantheonGrokAgent(ctx, prov, reg, workspace, prompt, emit, onTool)
+	return runPantheonGrokAgent(ctx, prov, reg, workspace, prompt, readPaths, emit, onTool)
 }
 
 // grokChatModel 解析 xai 引擎上的对话模型：默认模型优先（用户在模型中心选

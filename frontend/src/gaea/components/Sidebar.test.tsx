@@ -19,13 +19,11 @@ const group: ProjectGroup = {
   ],
 };
 
-function renderSidebar(groups: ProjectGroup[] = [group]) {
+function renderSidebar(groups: ProjectGroup[] = [group], sidebarWidth = 264) {
   // Sidebar 走 useT：钉住 zh 让既有中文文案断言（当前/置顶/已归档/未完成…）继续成立
   localStorage.setItem("gaea-lang", "zh");
   const callbacks = {
     toggleSidebar: vi.fn(),
-    onClearFactBase: vi.fn(),
-    onPromoteFactBase: vi.fn().mockResolvedValue(0),
     newSessionAndReset: vi.fn(),
     onSearchChange: vi.fn(),
     onResumeSessionInProject: vi.fn(),
@@ -50,9 +48,6 @@ function renderSidebar(groups: ProjectGroup[] = [group]) {
           toggleSidebar={callbacks.toggleSidebar}
           running={false}
           jobs={[]}
-          factBase={{ facts: [], markdown: "", count: 0, path: "" }}
-          onClearFactBase={callbacks.onClearFactBase}
-          onPromoteFactBase={callbacks.onPromoteFactBase}
           newSessionAndReset={callbacks.newSessionAndReset}
           projectGroups={groups}
           searchQuery=""
@@ -70,7 +65,7 @@ function renderSidebar(groups: ProjectGroup[] = [group]) {
           startResize={callbacks.startResize}
           resizeWithKeyboard={callbacks.resizeWithKeyboard}
           onDoubleClickResize={callbacks.onDoubleClickResize}
-          sidebarWidth={264}
+          sidebarWidth={sidebarWidth}
           SIDEBAR_MIN_WIDTH={200}
           SIDEBAR_MAX_WIDTH={480}
         />
@@ -87,8 +82,25 @@ describe("Sidebar 项目分组与会话操作", () => {
     expect(screen.getByTitle("知识库")).toBeTruthy();
   });
 
+  it("不再渲染过时的办公空间与娱乐空间切换", () => {
+    renderSidebar();
+    expect(screen.queryByText("办公空间")).toBeNull();
+    expect(screen.queryByText("娱乐空间")).toBeNull();
+  });
+
+  it("不再渲染左侧事实底座", () => {
+    renderSidebar();
+    expect(screen.queryByText("事实底座")).toBeNull();
+  });
+
+  it("窄侧栏切换为单列快捷入口", () => {
+    const { view } = renderSidebar([group], 240);
+    expect(view.container.querySelector('aside')?.getAttribute("data-narrow")).toBe("true");
+  });
+
   it("渲染项目名称、当前会话与当前标记", () => {
     renderSidebar();
+    expect(screen.getByText(/项目.*ws/)).toBeTruthy();
     expect(screen.getByText("ws")).toBeTruthy();
     expect(screen.getByText("当前标题")).toBeTruthy();
     // 「当前」出现两处：项目分组徽标 + 当前会话时间列（history.current），zh 钉住后均命中

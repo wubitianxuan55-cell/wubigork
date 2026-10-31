@@ -1,10 +1,9 @@
 import type { Dispatch, KeyboardEvent, PointerEvent as ReactPointerEvent, SetStateAction } from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { List, type RowComponentProps } from "react-window";
-import { Modal } from "antd";
 import {
   Plus, Blocks, BookOpen, MessageSquare, Search,
-  PanelLeftClose, PanelLeftOpen, Loader2, FileText, ChevronDown, FolderGit2,
+  PanelLeftClose, PanelLeftOpen, Loader2, ChevronDown, FolderGit2,
   Pin, Inbox, Rollback, X,
 } from "../icons";
 import logoSvg from "../assets/logo.svg";
@@ -13,12 +12,9 @@ import { useT } from "../lib/i18n";
 import { sessionTitle } from "../lib/session";
 import { relativeTime } from "../lib/time";
 import { filterProjectGroups } from "../lib/projectGroups";
-import type { FactBaseView, JobView, ProjectGroup, SessionMeta, SubagentRunView } from "../lib/types";
-import { app } from "../lib/bridge";
+import type { JobView, ProjectGroup, SessionMeta, SubagentRunView } from "../lib/types";
 import { reloadSubagentRuns, subscribeSubagentRuns } from "../lib/subagentRunsStore";
-import { useToast } from "./Toast";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
-import SpaceChip from "./SpaceChip";
 import type { SubagentThreadStatus } from "./SubagentThread";
 
 export interface SidebarProps {
@@ -26,9 +22,6 @@ export interface SidebarProps {
   toggleSidebar: () => void;
   running: boolean;
   jobs: JobView[];
-  factBase: FactBaseView;
-  onClearFactBase: () => void;
-  onPromoteFactBase: () => Promise<number>;
   newSessionAndReset: () => void;
   // 会话模块：按项目分组（当前工作区在前，其余为最近打开过的工作区）
   projectGroups: ProjectGroup[];
@@ -58,7 +51,6 @@ export interface SidebarProps {
   SIDEBAR_MAX_WIDTH: number;
 }
 
-const FACT_OPEN_KEY = "gaea.sidebar.factBaseOpen";
 const PROJECTS_OPEN_KEY = "gaea.sidebar.projectsOpen";
 const PER_PROJECT_PAGE = 8;
 
@@ -139,9 +131,9 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
 
   if (row.kind === "group") {
     return (
-      <div style={style} {...ariaAttributes}>
+      <div style={style} {...ariaAttributes} className="office-tree-row" data-sidebar-row="group">
         <button
-          className="flex items-center gap-1.5 w-full h-8 pl-1 pr-1 rounded-md bg-transparent border-0 cursor-pointer transition-colors duration-[var(--dur-fast)] hover:bg-sidebar-hover no-drag"
+          className={`office-project-row no-drag ${row.g.current ? "is-current" : ""}`}
           onClick={() => ui.toggleProject(row.g.path, row.g.current)}
           title={row.g.path}
         >
@@ -156,9 +148,9 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
             {row.g.name}
           </span>
           {row.g.current && (
-            <span className="shrink-0 text-accent text-[10px] font-medium">{t("sidebar.currentBadge")}</span>
+            <span className="office-project-current shrink-0 text-accent text-[10px] font-medium">{t("sidebar.currentBadge")}</span>
           )}
-          <span className="shrink-0 text-fg-faint/55 font-mono text-[10px]">{row.g.sessions.length}</span>
+          <span className="office-project-count shrink-0 text-fg-faint/55 font-mono text-[10px]">{row.g.sessions.length}</span>
         </button>
       </div>
     );
@@ -166,8 +158,8 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
 
   if (row.kind === "empty") {
     return (
-      <div style={style} {...ariaAttributes}>
-        <div className="py-2 px-2 text-fg-faint text-[11px] leading-snug">
+      <div style={style} {...ariaAttributes} className="office-tree-row" data-sidebar-row="empty">
+        <div className="office-tree-empty">
           {row.g.archived.length === 0 ? (row.g.current ? t("sidebar.emptyCurrent") : t("sidebar.emptyProject")) : t("sidebar.noActive")}
         </div>
       </div>
@@ -176,9 +168,9 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
 
   if (row.kind === "showMore") {
     return (
-      <div style={style} {...ariaAttributes}>
+      <div style={style} {...ariaAttributes} className="office-tree-row" data-sidebar-row="showMore">
         <button
-          className="w-full mt-0.5 py-1 text-fg-faint text-[11.5px] rounded-md bg-transparent cursor-pointer hover:text-fg hover:bg-sidebar-hover transition-colors"
+          className="office-tree-more"
           onClick={() => ui.setRevealed((prev) => ({ ...prev, [row.g.path]: true }))}
           type="button"
         >
@@ -190,9 +182,9 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
 
   if (row.kind === "archHeader") {
     return (
-      <div style={style} {...ariaAttributes}>
+      <div style={style} {...ariaAttributes} className="office-tree-row" data-sidebar-row="archHeader">
         <button
-          className="flex items-center gap-1.5 w-full h-7 pl-1 pr-1 rounded-md bg-transparent border-0 cursor-pointer text-fg-faint transition-colors duration-[var(--dur-fast)] hover:bg-sidebar-hover hover:text-fg no-drag"
+          className="office-archive-row no-drag"
           onClick={() => ui.setArchivedOpen((prev) => ({ ...prev, [row.g.path]: !prev[row.g.path] }))}
           title={t("sidebar.archivedTitle")}
         >
@@ -215,14 +207,14 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
     const projectPath = row.g.path;
     const openSubagents = !!ui.subagentOpen[s.path];
     return (
-      <div style={style} {...ariaAttributes}>
+      <div style={style} {...ariaAttributes} className="office-tree-row" data-sidebar-row="session">
         <div
-          className={`group flex items-start gap-0.5 rounded-md py-[6px] pl-1 pr-1.5 mb-[1px] transition-colors duration-150 hover:bg-sidebar-hover ${
+          className={`office-session-row group ${
             s.current ? "sidebar-session-active" : ""
           }`}
         >
           <button
-            className="flex w-5 h-5 shrink-0 items-center justify-center self-start mt-[5px] rounded-md bg-transparent border-0 text-fg-faint/55 cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors"
+            className={`office-session-branch-toggle ${openSubagents ? "is-open" : ""}`}
             onClick={(e) => { e.stopPropagation(); ui.toggleSubagents(s.path); }}
             title={openSubagents ? t("sidebar.subagentsCollapse") : t("sidebar.subagentsExpand")}
             aria-expanded={openSubagents}
@@ -236,14 +228,14 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
             />
           </button>
           <button
-            className="flex items-start gap-2 flex-1 min-w-0 bg-transparent border-0 text-inherit cursor-pointer py-0.5 text-left disabled:cursor-default"
+            className="office-session-main"
             onClick={() => void ui.onResumeSessionInProject(s.path, projectPath)}
             disabled={ui.running || s.current}
             title={s.path}
           >
             <MessageSquare
               size={13}
-              className={`shrink-0 mt-[3px] ${s.current ? "text-accent" : "text-fg-faint/60"}`}
+              className={`office-session-icon ${s.current ? "text-accent" : "text-fg-faint/60"}`}
             />
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
               {ui.renameTarget === s.path ? (
@@ -263,7 +255,7 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
                 <>
                   <span className="flex items-baseline gap-2 min-w-0">
                     <span
-                      className={`overflow-hidden text-ellipsis whitespace-nowrap text-[12.5px] leading-[1.35] font-medium cursor-text ${
+                      className={`office-session-title overflow-hidden text-ellipsis whitespace-nowrap text-[12.5px] leading-[1.35] font-medium cursor-text ${
                         s.current ? "text-accent" : "text-fg-dim"
                       }`}
                       onDoubleClick={e => {
@@ -278,7 +270,7 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
                     </span>
                     {isInterruptedSession(s) && (
                       <span
-                        className="shrink-0 self-center rounded-full bg-warning/15 px-1.5 py-px text-[10px] leading-[1.5] font-medium text-warning"
+                        className="office-session-state shrink-0 self-center bg-warning/15 text-[10px] leading-[1.5] font-medium text-warning"
                         title={t("sidebar.interruptedTitle")}
                       >
                         {t("sidebar.interrupted")}
@@ -287,12 +279,12 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
                     {s.pinned && (
                       <Pin size={10} className="shrink-0 text-accent/80" aria-label={t("sidebar.pinnedAria")} />
                     )}
-                    <span className="shrink-0 ml-auto text-fg-faint/70 font-mono text-[10px] tabular-nums">
+                    <span className="office-session-time shrink-0 ml-auto text-fg-faint/70 font-mono text-[10px] tabular-nums">
                       {s.current ? t("history.current") : relativeTime(s.modTime)}
                     </span>
                   </span>
                   {!s.current && s.preview && s.preview !== sessionTitle(s, "") && (
-                    <span className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-fg-faint/60 text-[11px] leading-snug">
+                    <span className="office-session-preview flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-fg-faint/60 text-[11px] leading-snug">
                       {s.preview}
                     </span>
                   )}
@@ -311,7 +303,7 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
                 </button>
               </span>
             ) : (
-              <span className="hidden group-hover:flex items-center gap-0.5 shrink-0 mt-0.5">
+              <span className="office-session-actions hidden group-hover:flex items-center gap-0.5 shrink-0 mt-0.5">
                 <button
                   className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint cursor-pointer hover:text-accent hover:bg-bg-soft transition-colors"
                   title={s.pinned ? t("sidebar.unpin") : t("sidebar.pin")}
@@ -346,9 +338,9 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
     const loading = row.note === "loading";
     const error = row.note === "error";
     return (
-      <div style={style} {...ariaAttributes}>
+      <div style={style} {...ariaAttributes} className="office-tree-row" data-sidebar-row="subagentNote">
         <div
-          className={`flex items-center gap-1.5 rounded-md py-[6px] pl-9 pr-2 text-[11px] leading-snug ${
+          className={`office-subagent-note flex items-center gap-1.5 text-[11px] leading-snug ${
             error ? "text-err/85 cursor-pointer hover:text-err" : "text-fg-faint/80"
           }`}
           onClick={error ? () => ui.reloadSubagents(s.path) : undefined}
@@ -380,10 +372,10 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
     const updated = new Date(r.updatedAt).getTime();
     const timeText = Number.isFinite(updated) ? relativeTime(updated) : "";
     return (
-      <div style={style} {...ariaAttributes}>
-        <div className="group flex items-start gap-1 rounded-md py-[5px] pl-9 pr-2 mb-[1px] transition-colors duration-150 hover:bg-sidebar-hover">
+      <div style={style} {...ariaAttributes} className="office-tree-row" data-sidebar-row="subagent">
+        <div className="office-subagent-row group">
           <button
-            className="flex items-start gap-2 flex-1 min-w-0 bg-transparent border-0 text-left cursor-pointer py-0.5"
+            className="office-subagent-main"
             onClick={() =>
               ui.onOpenSubagentThread({
                 sessionPath: s.path,
@@ -430,9 +422,9 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
   // archived
   const s = row.s;
   return (
-    <div style={style} {...ariaAttributes}>
+    <div style={style} {...ariaAttributes} className="office-tree-row" data-sidebar-row="archived">
       <div
-        className="group flex items-center gap-1 rounded-md py-[5px] pl-2 pr-1 hover:bg-sidebar-hover transition-colors"
+        className="office-archived-row group"
       >
         <button
           className="flex items-center gap-2 flex-1 min-w-0 bg-transparent border-0 text-left cursor-pointer"
@@ -494,9 +486,6 @@ export function Sidebar({
   toggleSidebar,
   running,
   jobs,
-  factBase,
-  onClearFactBase,
-  onPromoteFactBase,
   newSessionAndReset,
   projectGroups,
   searchQuery,
@@ -519,18 +508,11 @@ export function Sidebar({
   SIDEBAR_MAX_WIDTH,
 }: SidebarProps) {
   const t = useT();
-  const toast = useToast();
   const toggleTitle = collapsed ? t("sidebar.expand") : t("sidebar.collapse");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [localQuery, setLocalQuery] = useState(searchQuery);
-  const [exportTemplate, setExportTemplate] = useState<"通用" | "公文" | "报告" | "合同">("报告");
-  const [factOpen, setFactOpen] = useState(() => {
-    // 简化批：默认收起（侧栏主体是会话列表，事实底座是交付任务的沉淀产物，
-    // 非每会话常驻面）；显式展开过（"1"）的用户保持展开。写侧极性见 toggleFactOpen。
-    try { return localStorage.getItem(FACT_OPEN_KEY) === "1"; } catch { return false; }
-  });
   const [projectsOpen, setProjectsOpen] = useState<Record<string, boolean>>(() => {
     try {
       const raw = localStorage.getItem(PROJECTS_OPEN_KEY);
@@ -611,13 +593,6 @@ export function Sidebar({
   // 高频搜索防抖：输入框值即时更新（localQuery），过滤/搜索消费防抖后的值
   const debouncedQuery = useDebouncedValue(localQuery, 250);
 
-  const toggleFactOpen = () => {
-    setFactOpen((o) => {
-      try { localStorage.setItem(FACT_OPEN_KEY, o ? "0" : "1"); } catch { /* ignore */ }
-      return !o;
-    });
-  };
-
   const isProjectOpen = (g: ProjectGroup): boolean =>
     g.path in projectsOpen ? projectsOpen[g.path] : g.current;
 
@@ -635,6 +610,10 @@ export function Sidebar({
     }
     return undefined;
   }, [projectGroups]);
+  const currentProject = useMemo(
+    () => projectGroups.find((g) => g.current),
+    [projectGroups],
+  );
 
   const searching = debouncedQuery.trim().length > 0;
   const filteredGroups = useMemo(
@@ -733,19 +712,32 @@ export function Sidebar({
   return (
     <>
       <aside
-        className={`flex flex-col min-w-0 pt-[50px] pb-2 border-r border-border-soft select-none overflow-hidden drag-region ${
+        className={`office-sidebar flex flex-col min-w-0 pt-[50px] pb-2 border-r border-border-soft select-none overflow-hidden drag-region ${
           collapsed ? "items-center px-2" : "px-2.5"
         }`}
+        data-collapsed={collapsed ? "true" : "false"}
+        data-narrow={sidebarWidth < 250 ? "true" : "false"}
         style={{ background: "var(--v3-rail-bg, var(--md-sys-color-shell-sidebar, var(--gaea-glass-bg, var(--md-sys-color-surface))))" }}
         aria-label="gaea navigation"
       >
-        {/* 品牌行：logo + 名称 + 折叠 */}
-        <div className={`flex items-center gap-2 px-1.5 pb-2.5 ${collapsed ? "flex-col gap-1.5 px-0 pb-3" : ""}`}>
-          <img src={logoSvg} alt="" className="w-5 h-5 rounded-md dark:hidden" />
-          <img src={logoLightSvg} alt="" className="w-5 h-5 rounded-md hidden dark:block" />
-          {!collapsed && <span className="text-[13px] font-semibold tracking-tight text-fg">gaea</span>}
+        {/* 工作区身份：产品、当前项目与侧栏开关 */}
+        <div className={`office-sidebar__brand flex items-center gap-2 ${collapsed ? "flex-col gap-1.5" : ""}`}>
+          <span className="office-sidebar__brand-mark" aria-hidden>
+            <img src={logoSvg} alt="" className="dark:hidden" />
+            <img src={logoLightSvg} alt="" className="hidden dark:block" />
+          </span>
+          {!collapsed && (
+            <span className="office-sidebar__brand-copy">
+              <span className="office-sidebar__brand-name">gaea</span>
+              {currentProject && (
+                <span className="office-sidebar__workspace-name" title={currentProject.path}>
+                  {t("sidebar.projects")} · {currentProject.name}
+                </span>
+              )}
+            </span>
+          )}
           <button
-            className={`inline-flex items-center justify-center w-7 h-7 border-0 rounded-md bg-transparent text-fg-faint cursor-pointer transition-[color,background] duration-[var(--dur-fast)] hover:text-fg hover:bg-sidebar-hover no-drag ${
+            className={`office-sidebar__collapse inline-flex items-center justify-center border-0 bg-transparent text-fg-faint cursor-pointer transition-[color,background] duration-[var(--dur-fast)] hover:text-fg hover:bg-sidebar-hover no-drag ${
               collapsed ? "" : "ml-auto"
             }`}
             onClick={toggleSidebar}
@@ -759,30 +751,31 @@ export function Sidebar({
         {/* 新建会话（KUN 风命令行：展开态通栏胶囊，折叠态圆钮） */}
         {collapsed ? (
           <button
-            className="inline-flex items-center justify-center w-8 h-8 mb-3 border-0 rounded-full text-accent bg-accent/12 cursor-pointer transition-[color,background,transform] duration-[var(--dur-fast)] hover:bg-accent/22 active:scale-95 no-drag disabled:opacity-40 disabled:cursor-default"
+            className="office-sidebar__new office-sidebar__new--compact inline-flex items-center justify-center border-0 text-accent cursor-pointer transition-[color,background,transform] duration-[var(--dur-fast)] hover:bg-accent/22 active:scale-95 no-drag disabled:opacity-40 disabled:cursor-default"
             onClick={() => void newSessionAndReset()}
             disabled={running}
             title={running ? t("common.busyHint") : t("topbar.newSession")}
+            aria-label={t("topbar.newSession")}
           >
             <Plus size={15} />
           </button>
         ) : (
           <button
-            className="flex items-center gap-2.5 min-h-9 w-full px-3 mb-1.5 rounded-full bg-accent/10 text-accent border border-accent/15 cursor-pointer transition-[color,background,transform] duration-[var(--dur-fast)] hover:bg-accent/18 active:scale-[0.98] no-drag disabled:opacity-40 disabled:cursor-default"
+            className="office-sidebar__new flex items-center w-full text-accent cursor-pointer transition-[color,background,transform] duration-[var(--dur-fast)] hover:bg-accent/18 active:scale-[0.98] no-drag disabled:opacity-40 disabled:cursor-default"
             onClick={() => void newSessionAndReset()}
             disabled={running}
             title={running ? t("common.busyHint") : t("topbar.newSession")}
           >
-            <Plus size={14} />
-            <span className="text-[13px] font-medium">{t("topbar.newSession")}</span>
+            <span className="office-sidebar__new-icon"><Plus size={14} /></span>
+            <span className="office-sidebar__new-label">{t("topbar.newSession")}</span>
           </button>
         )}
 
-        {/* KUN 风命令行：功能入口常驻会话区上方（展开态） */}
+        {/* 次级工作入口：保持两列紧凑，不与会话争夺视觉权重 */}
         {!collapsed && (
-          <div className="flex flex-col gap-0.5 mb-2">
+          <div className="office-sidebar__utilities">
             <button
-              className="flex items-center gap-2.5 min-h-9 w-full px-3 rounded-full border border-transparent text-fg-dim text-[13px] no-drag cursor-pointer transition-[color,background] duration-[var(--dur-fast)] hover:bg-sidebar-hover hover:text-fg active:scale-[0.985]"
+              className="office-sidebar__utility no-drag"
               onClick={() => void onOpenKnowledge()}
               title={t("topbar.knowledge")}
             >
@@ -790,22 +783,20 @@ export function Sidebar({
               <span className="flex-1 min-w-0 truncate text-left">{t("topbar.knowledge")}</span>
             </button>
             <button
-              className="flex items-center gap-2.5 min-h-9 w-full px-3 rounded-full border border-transparent text-fg-dim text-[13px] no-drag cursor-pointer transition-[color,background] duration-[var(--dur-fast)] hover:bg-sidebar-hover hover:text-fg active:scale-[0.985]"
+              className="office-sidebar__utility no-drag"
               onClick={() => onOpenCaps()}
               title={t("caps.title")}
             >
               <Blocks size={15} className="shrink-0 text-fg-faint" />
               <span className="flex-1 min-w-0 truncate text-left">{t("caps.title")}</span>
             </button>
-            {/* S4 双空间：当前生效空间 + 切换入口（绑定不可用时自行隐藏） */}
-            <SpaceChip disabled={running} />
           </div>
         )}
 
         {/* 折叠态当前会话指示 */}
         {collapsed && currentSession && (
           <button
-            className="w-8 h-8 mb-3 rounded-lg sidebar-current-chip text-[12px] font-bold flex items-center justify-center cursor-pointer transition-colors no-drag"
+            className="office-sidebar__current sidebar-current-chip flex items-center justify-center cursor-pointer transition-colors no-drag"
             title={sessionTitle(currentSession, "")}
             type="button"
           >
@@ -815,13 +806,14 @@ export function Sidebar({
 
         {/* 会话区（展开态，占主要空间） */}
         {!collapsed && (
-          <section className="flex-1 min-h-0 flex flex-col">
+          <section className="office-sidebar__sessions flex-1 min-h-0 flex flex-col">
             {/* 搜索框 */}
-            <div className="relative mb-2">
+            <div className="office-sidebar__search relative">
               <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-faint/70 pointer-events-none" />
               <input
-                className="w-full h-8 pl-8 pr-2.5 bg-bg-soft/60 border border-border-soft rounded-lg text-fg text-xs placeholder:text-fg-faint/60 outline-none focus:border-accent/50 transition-colors no-drag"
+                className="office-sidebar__search-input no-drag"
                 placeholder={t("sidebar.search")}
+                aria-label={t("sidebar.search")}
                 value={localQuery}
                 onChange={e => setLocalQuery(e.target.value)}
                 onKeyDown={e => e.stopPropagation()}
@@ -829,12 +821,14 @@ export function Sidebar({
             </div>
 
             {/* 项目头（KUN 风小节标签） */}
-            <div className="flex items-center gap-2 px-1.5 pb-1.5">
-              <span className="flex-1 min-w-0 text-fg-faint text-[11px] font-medium tracking-[0.02em]">
+            <div className="office-sidebar__section-head">
+              <span className="office-sidebar__section-title">
                 {t("sidebar.projects")}
               </span>
+              <span className="office-sidebar__section-count">{filteredGroups.length}</span>
+              <span className="office-sidebar__section-rule" aria-hidden />
               <button
-                className="shrink-0 border-0 rounded-md bg-transparent text-fg-faint/70 text-[11px] px-1.5 py-0.5 cursor-pointer transition-colors duration-[var(--dur-fast)] hover:text-fg hover:bg-sidebar-hover disabled:opacity-50 disabled:cursor-default"
+                className="office-sidebar__section-action"
                 onClick={() => void onOpenHistory()}
                 disabled={running}
                 title={running ? t("common.busyHint") : t("topbar.history")}
@@ -844,14 +838,18 @@ export function Sidebar({
             </div>
 
             {/* 会话列表：虚拟滚动（仅渲染可见窗口 + overscan） */}
-            <div className="min-h-0 flex-1 flex flex-col overflow-hidden" ref={sessionListRef}>
+            <div className="office-sidebar__list min-h-0 flex-1 flex flex-col overflow-hidden" ref={sessionListRef}>
               {projectGroups.length === 0 ? (
-                <div className="py-3 px-2.5 text-fg-faint text-xs">
-                  {t("sidebar.noRecentLong")}
-                  <div className="mt-1 text-[11px] leading-snug opacity-80">{t("sidebar.noRecentHint")}</div>
+                <div className="office-sidebar__empty">
+                  <span className="office-sidebar__empty-icon" aria-hidden><MessageSquare size={18} /></span>
+                  <strong>{t("sidebar.noRecentLong")}</strong>
+                  <p>{t("sidebar.noRecentHint")}</p>
                 </div>
               ) : filteredGroups.length === 0 ? (
-                <div className="py-3 px-2.5 text-fg-faint text-xs">{t("sidebar.noMatch")}</div>
+                <div className="office-sidebar__empty office-sidebar__empty--compact">
+                  <span className="office-sidebar__empty-icon" aria-hidden><Search size={16} /></span>
+                  <strong>{t("sidebar.noMatch")}</strong>
+                </div>
               ) : (
                 <List
                   className="sidebar-session-scroll"
@@ -870,8 +868,8 @@ export function Sidebar({
 
         {/* 后台任务（仅展开态、有运行任务时显示；紧凑单行） */}
         {!collapsed && jobs.length > 0 && (
-          <section className="shrink-0 px-1 pt-2 pb-1.5 border-t border-border-soft">
-            <div className="flex items-center gap-2 px-1.5 pb-1 text-fg-faint text-[11px] font-medium tracking-[0.02em]">
+          <section className="office-sidebar__jobs shrink-0">
+            <div className="office-sidebar__group-label">
               <span className="flex items-center gap-1.5">
                 <Loader2 size={11} className="text-accent" />
                 {t("status.jobsTitle")}
@@ -902,142 +900,18 @@ export function Sidebar({
           </section>
         )}
 
-        {/* 事实底座：可折叠，默认收起（简化批）；交付类任务沉淀的事实底座 */}
-        {!collapsed && (
-          <section className="shrink-0 px-1 pt-1.5 pb-1.5 border-t border-border-soft">
-            <button
-              className="flex items-center gap-2 w-full h-8 px-2 rounded-lg bg-transparent border-0 cursor-pointer transition-colors duration-[var(--dur-fast)] hover:bg-sidebar-hover no-drag"
-              onClick={toggleFactOpen}
-              title={factOpen ? t("sidebar.factCollapse") : t("sidebar.factExpand")}
-            >
-              <FileText size={13} className={`shrink-0 ${factBase.count > 0 ? "text-accent" : "text-fg-faint"}`} />
-              <span className="text-[12px] font-medium text-fg-dim">{t("sidebar.factBase")}</span>
-              {factBase.count > 0 && (
-                <span className="text-fg-faint/60 font-mono text-[10px]">{factBase.count}</span>
-              )}
-              <span className="ml-auto text-fg-faint/60 transition-transform duration-[var(--dur-fast)]" style={{ transform: factOpen ? "rotate(180deg)" : "none" }}>
-                <ChevronDown size={12} />
-              </span>
-            </button>
-
-            {factOpen && (
-              <div className="pt-0.5">
-                {factBase.count === 0 ? (
-                  <div className="px-2.5 pb-1 text-fg-faint text-[11px] leading-snug">
-                    {t("sidebar.factEmpty")}
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex flex-col gap-0.5 max-h-32 overflow-y-auto pr-0.5">
-                      {factBase.facts.map((f) => (
-                        <div
-                          key={f.key}
-                          className="px-2 py-1 rounded-md bg-bg-soft/40"
-                          title={f.value}
-                        >
-                          <span className="block truncate text-fg-dim text-[12px] leading-snug">{f.key}</span>
-                          <span className="block truncate text-fg-faint text-[11px] leading-snug">{f.value}</span>
-                          {f.source ? (
-                            <span className="block truncate text-fg-faint/60 text-[10px] font-mono">{t("sidebar.factSource", { source: f.source })}</span>
-                          ) : null}
-                        </div>
-                      ))}
-                    </div>
-                    <div className="flex flex-col gap-1.5 px-1 pt-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <select
-                          className="h-6 rounded-md text-[11px] text-fg-dim bg-bg-soft/60 border border-border-soft outline-none cursor-pointer"
-                          value={exportTemplate}
-                          onChange={(e) => setExportTemplate(e.target.value as "通用" | "公文" | "报告" | "合同")}
-                          title={t("sidebar.templateTitle")}
-                        >
-                          {/* option value 为后端模板契约值（保持中文枚举），仅展示文案走字典 */}
-                          <option value="报告">{t("sidebar.tplReport")}</option>
-                          <option value="公文">{t("sidebar.tplOfficial")}</option>
-                          <option value="合同">{t("sidebar.tplContract")}</option>
-                          <option value="通用">{t("sidebar.tplGeneric")}</option>
-                        </select>
-                        <button
-                          className="flex-1 h-6 rounded-md text-[11px] text-accent bg-accent/10 border border-accent/25 cursor-pointer transition-[background,color] hover:bg-accent/20"
-                          title={t("sidebar.exportReportTitle")}
-                          onClick={() => {
-                            void app.ExportDeliverable({
-                              markdown: factBase.markdown,
-                              format: "docx",
-                              title: "事实底座报告",
-                              template: exportTemplate,
-                              cover: exportTemplate === "报告" || exportTemplate === "通用",
-                              toc: exportTemplate === "报告",
-                            })
-                              .then((r) => {
-                                toast.show(t("toast.exported", { name: r.name }), "info");
-                                void app.RevealWorkspacePath(r.path).catch(() => {});
-                              })
-                              .catch((e) => toast.show(e?.message || t("sidebar.exportFail"), "warn"));
-                          }}
-                        >
-                          {t("sidebar.exportReport")}
-                        </button>
-                      </div>
-                      <button
-                        className="h-6 rounded-md text-[11px] text-accent bg-accent/10 border border-accent/25 cursor-pointer transition-[background,color] hover:bg-accent/20"
-                        title={t("sidebar.promoteTitle")}
-                        onClick={() => {
-                          void onPromoteFactBase().then((n) => {
-                            toast.show(n > 0 ? t("sidebar.promoteDone", { n }) : t("sidebar.promoteNone"), "info");
-                          });
-                        }}
-                      >
-                        {t("sidebar.promote")}
-                      </button>
-                      <div className="flex items-center gap-2">
-                        <button
-                          className="flex-1 h-6 rounded-md text-[11px] text-fg-dim bg-bg-soft/60 border border-border-soft cursor-pointer transition-[background,color] hover:text-fg hover:bg-sidebar-hover"
-                          onClick={() => {
-                            void navigator.clipboard?.writeText(factBase.markdown).then(
-                              () => toast.show(t("sidebar.copyMdDone"), "info"),
-                              () => {},
-                            );
-                          }}
-                        >
-                          {t("sidebar.copyMd")}
-                        </button>
-                        <button
-                          className="flex-1 h-6 rounded-md text-[11px] text-fg-faint bg-transparent border border-border-soft cursor-pointer transition-[background,color] hover:text-warning hover:border-warning/50"
-                          onClick={() => {
-                            Modal.confirm({
-                              title: t("sidebar.clearTitle"),
-                              content: t("sidebar.clearAsk"),
-                              okText: t("sidebar.clearOk"),
-                              okButtonProps: { danger: true },
-                              cancelText: t("common.cancel"),
-                              onOk: () => onClearFactBase(),
-                            });
-                          }}
-                        >
-                          {t("sidebar.clear")}
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-          </section>
-        )}
-
         {/* 折叠态底部导航图标 */}
         {collapsed && (
-        <nav className="flex flex-col gap-1 items-center w-full mt-auto !pt-2.5 !pb-3">
+        <nav className="office-sidebar__collapsed-nav flex flex-col items-center mt-auto">
           <button
-            className="flex items-center justify-center w-8 h-8 rounded-lg text-fg-dim no-drag cursor-pointer transition-[color,background] duration-[var(--dur-fast)] hover:text-fg hover:bg-sidebar-hover active:scale-[0.98]"
+            className="office-sidebar__collapsed-action no-drag"
             onClick={() => void onOpenKnowledge()}
             title={t("topbar.knowledge")}
           >
             <BookOpen size={15} />
           </button>
           <button
-            className="flex items-center justify-center w-8 h-8 rounded-lg text-fg-dim no-drag cursor-pointer transition-[color,background] duration-[var(--dur-fast)] hover:text-fg hover:bg-sidebar-hover active:scale-[0.98]"
+            className="office-sidebar__collapsed-action no-drag"
             onClick={() => void onOpenCaps()}
             title={t("caps.title")}
           >

@@ -92,8 +92,9 @@ func fakeAdapter(id string) agentAdapter {
 	status := AgentStatus{ID: id, Name: strings.ToUpper(id), Kind: "fake", Available: true, Executable: id}
 	return agentAdapter{
 		id: id, name: status.Name, kind: status.Kind,
-		probe: func(context.Context) AgentStatus { return status },
-		build: func(prompt, cwd string) (commandSpec, error) {
+		runMode: "内存桩（只读）",
+		probe:   func(context.Context) AgentStatus { return status },
+		build: func(prompt, cwd string, _ []string) (commandSpec, error) {
 			return commandSpec{Executable: id, Dir: cwd, Stdin: prompt}, nil
 		},
 	}
@@ -113,6 +114,7 @@ func newTestManager(t *testing.T, runner commandRunner, adapters ...agentAdapter
 	return &Manager{
 		root: root, workDir: root, store: store, runner: runner, adapters: adapterMap,
 		overrides: map[string]string{}, cancels: map[string]context.CancelFunc{},
+		agentCalls: map[string]*activeAgentCall{}, runs: map[string]*Session{},
 	}
 }
 
@@ -137,6 +139,7 @@ type fakeGrokBackend struct {
 type toolTraceGrokBackend struct {
 	fakeGrokBackend
 	workspace string
+	readPaths []string
 }
 
 func (b *fakeGrokBackend) ProbeGrok(_ context.Context) AgentStatus {
@@ -161,12 +164,14 @@ func (b *toolTraceGrokBackend) StreamGrokWithTools(
 	_ context.Context,
 	prompt string,
 	workspace string,
+	readPaths []string,
 	emit func(string),
 	onTool func(ToolTrace),
 ) (string, error) {
 	b.mu.Lock()
 	b.prompts = append(b.prompts, prompt)
 	b.workspace = workspace
+	b.readPaths = append([]string(nil), readPaths...)
 	b.mu.Unlock()
 	onTool(ToolTrace{
 		ID: "grok-tool-1", Name: "semantic_search", Status: "started",
@@ -283,6 +288,47 @@ func TestStoreRoundTripListAndExport(t *testing.T) {
 	}
 	if _, err := store.get("pan_old"); err == nil {
 		t.Fatal("deleted session still readable")
+	}
+}
+
+func TestStoreRepairsLegacyZCodeEventWallOnRead(t *testing.T) {
+	store, err := newSessionStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	readableWall := `{"eventId":"e1","messageId":"msg_hidden","type":"session.titleUpdated","payload":{"title":"提示词"}} ` +
+		`{"eventId":"e2","type":"model.streaming","payload":{"kind":"text_delta","delta":"可读"}} ` +
+		`{"eventId":"e3","type":"model.streaming","payload":{"kind":"text_delta","delta":"观点"}}`
+	metadataOnly := `{"eventId":"e1","messageId":"msg_hidden","type":"session.titleUpdated","payload":{"title":"提示词"}}`
+	session := &Session{
+		ID: "pan_legacy_zcode", Title: "历史 ZCode", Status: StatusCompleted,
+		Phase: PhaseCompleted, CreatedAt: 1, UpdatedAt: 2,
+		Request: StartRequest{Topic: "历史", Rounds: 1, ReadOnly: true},
+		Contributions: []Contribution{
+			{ID: "c1", AgentID: "zcode", Content: readableWall, CreatedAt: 3},
+			{ID: "c2", AgentID: "zcode", Content: metadataOnly, CreatedAt: 4},
+		},
+		Events: []Event{{
+			Seq: 1, SessionID: "pan_legacy_zcode", Kind: EventAgentOutput,
+			AgentID: "zcode", Text: readableWall, At: 3,
+		}},
+	}
+	if err := store.save(session); err != nil {
+		t.Fatal(err)
+	}
+	got, err := store.get(session.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Contributions[0].Content != "可读观点" {
+		t.Fatalf("repaired contribution = %q", got.Contributions[0].Content)
+	}
+	if strings.Contains(got.Contributions[1].Content, "messageId") ||
+		!strings.Contains(got.Contributions[1].Content, "请重试本轮观点") {
+		t.Fatalf("unparsed legacy wall was not replaced honestly: %q", got.Contributions[1].Content)
+	}
+	if got.Events[0].Text != "可读观点" {
+		t.Fatalf("repaired event = %q", got.Events[0].Text)
 	}
 }
 
@@ -432,6 +478,47 @@ func TestManagerRunsOrderedMultiRoundDiscussion(t *testing.T) {
 	}
 }
 
+func TestManagerWritesChairFinalDocument(t *testing.T) {
+	m := newTestManager(t, defaultFakeRunner(), fakeAdapter("alpha"), fakeAdapter("beta"))
+	defer m.Close()
+	session, err := m.Start(StartRequest{
+		Title:    "最终文档验证",
+		Topic:    "讨论结束后是否生成最终文档？",
+		AgentIDs: []string{"alpha", "beta"},
+		Rounds:   1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := waitForStatus(t, m, session.ID, StatusCompleted)
+	if done.ResultPath == "" {
+		t.Fatal("completed session missing resultPath")
+	}
+	data, err := os.ReadFile(done.ResultPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := string(data)
+	for _, want := range []string{
+		"# 最终文档验证",
+		"## 最终建议",
+		done.Verdict.Recommendation,
+		done.Verdict.Chairman,
+		"## 各席观点",
+	} {
+		if !strings.Contains(doc, want) {
+			t.Fatalf("final document misses %q:\n%s", want, doc)
+		}
+	}
+	path, err := m.ResultPath(session.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path != done.ResultPath {
+		t.Fatalf("ResultPath = %q, want %q", path, done.ResultPath)
+	}
+}
+
 func TestManagerRejectsMissingWorkspace(t *testing.T) {
 	m := newTestManager(t, defaultFakeRunner(), fakeAdapter("alpha"), fakeAdapter("beta"))
 	defer m.Close()
@@ -507,6 +594,78 @@ func TestStreamingLineParser(t *testing.T) {
 				t.Fatalf("streamTextFromLine = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestParseAgentOutputSplitsConcatenatedZCodeEvents(t *testing.T) {
+	raw := `{"eventId":"e1","messageId":"msg_bad_wall_payload","type":"session.titleUpdated","payload":{"title":"提示词"}} {"eventId":"e2","type":"model.streaming","payload":{"kind":"reasoning_delta","delta":"内部推理"}} {"eventId":"e3","type":"model.streaming","payload":{"kind":"text_delta","delta":"最终"}} {"eventId":"e4","type":"model.streaming","payload":{"kind":"text_delta","delta":"答复"}} {"eventId":"e5","payload":{"kind":"finish","done":true}}`
+	got := parseAgentOutput(raw)
+	if got != "最终答复" {
+		t.Fatalf("parseAgentOutput = %q, want 最终答复", got)
+	}
+	if strings.Contains(got, "messageId") || strings.Contains(got, "payload") {
+		t.Fatalf("event metadata leaked into answer: %q", got)
+	}
+}
+
+func TestStreamWriterSplitsConcatenatedJSONWithoutNewlines(t *testing.T) {
+	var deltas []string
+	var traces []ToolTrace
+	writer := &streamTextWriter{
+		onDelta: func(text string) { deltas = append(deltas, text) },
+		onTool:  func(trace ToolTrace) { traces = append(traces, trace) },
+	}
+	toolEvent := `{"type":"model.streaming","payload":{"kind":"tool_call","toolCallId":"call_1","toolName":"Bash","input":{"command":"rg --files"}}}`
+	textEvent := `{"eventId":"e2","messageId":"msg_hidden","type":"model.streaming","payload":{"kind":"text_delta","delta":"可读输出"}}`
+	stream := toolEvent + " " + textEvent
+	for _, part := range []string{stream[:90], stream[90:190], stream[190:]} {
+		if _, err := writer.Write([]byte(part)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writer.Flush()
+
+	if strings.Join(deltas, "") != "可读输出" {
+		t.Fatalf("deltas = %q, want 可读输出", strings.Join(deltas, ""))
+	}
+	if len(traces) != 1 || traces[0].ID != "call_1" || traces[0].Name != "Bash" {
+		t.Fatalf("tool traces = %+v", traces)
+	}
+}
+
+func TestStreamWriterSuppressesFullTextEchoAfterDeltas(t *testing.T) {
+	// 2026-10-30 实弹重复输出根修：codex 等 CLI 先流增量 delta，收尾再发
+	// item.completed/agent_message 全文事件；增量已播过流，全文必须吞掉，
+	// 否则前端拼接后整段发言输出两遍（只影响流式席位，grok 模型席无此问题）。
+	var deltas []string
+	writer := &streamTextWriter{
+		onDelta: func(text string) { deltas = append(deltas, text) },
+	}
+	stream := strings.Join([]string{
+		`{"type":"item.delta","delta":"第一"}`,
+		`{"type":"item.delta","delta":"段增量"}`,
+		`{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"第一段增量"}}`,
+		`{"type":"thread.completed","usage":{"tokens":10}}`,
+	}, "\n")
+	if _, err := writer.Write([]byte(stream)); err != nil {
+		t.Fatal(err)
+	}
+	writer.Flush()
+	if got := strings.Join(deltas, ""); got != "第一段增量" {
+		t.Fatalf("deltas = %q, want 第一段增量（全文回声未抑制）", got)
+	}
+
+	// 无增量的纯最终态 CLI：全文事件是唯一文本来源，不得拦截。
+	var finalOnly []string
+	plain := &streamTextWriter{
+		onDelta: func(text string) { finalOnly = append(finalOnly, text) },
+	}
+	if _, err := plain.Write([]byte(`{"type":"item.completed","item":{"type":"agent_message","text":"只有全文"}}`)); err != nil {
+		t.Fatal(err)
+	}
+	plain.Flush()
+	if got := strings.Join(finalOnly, ""); got != "只有全文" {
+		t.Fatalf("final-only deltas = %q, want 只有全文", got)
 	}
 }
 
@@ -691,6 +850,224 @@ func TestManagerCancel(t *testing.T) {
 	}
 }
 
+func TestManagerSkipCurrentAgentContinuesToNext(t *testing.T) {
+	block := make(chan struct{})
+	m := newTestManager(t, blockingRunner{release: block}, fakeAdapter("alpha"), fakeAdapter("beta"))
+	defer close(block)
+	defer m.Close()
+
+	session, err := m.Start(StartRequest{
+		Topic: "跳过当前席位", AgentIDs: []string{"alpha", "beta"}, Rounds: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var current string
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		got, err := m.Get(session.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, participant := range got.Participants {
+			if participant.Status == "running" {
+				current = participant.AgentID
+				break
+			}
+		}
+		if current != "" {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if current == "" {
+		t.Fatal("no agent started running")
+	}
+	time.Sleep(10 * time.Millisecond)
+	if err := m.SkipAgent(session.ID, current); err != nil {
+		t.Fatal(err)
+	}
+
+	deadline = time.Now().Add(2 * time.Second)
+	var advanced *Session
+	for time.Now().Before(deadline) {
+		got, err := m.Get(session.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var nextRunning bool
+		for _, participant := range got.Participants {
+			if participant.AgentID != current && participant.Status == "running" {
+				nextRunning = true
+			}
+		}
+		if nextRunning {
+			advanced = got
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if advanced == nil {
+		t.Fatal("discussion did not advance to the next agent")
+	}
+	var skipped bool
+	for _, participant := range advanced.Participants {
+		if participant.AgentID == current && participant.Status == "skipped" {
+			skipped = true
+		}
+	}
+	if !skipped {
+		t.Fatalf("skipped participant state missing: %+v", advanced.Participants)
+	}
+	var skippedEvent bool
+	for _, event := range advanced.Events {
+		if event.Kind == EventAgentSkipped && event.AgentID == current {
+			skippedEvent = true
+		}
+		if event.Kind == EventAgentError && event.AgentID == current {
+			t.Fatalf("skip must not be recorded as an error: %+v", event)
+		}
+	}
+	if !skippedEvent {
+		t.Fatal("agent_skipped event missing")
+	}
+	if err := m.Cancel(session.ID); err != nil {
+		t.Fatal(err)
+	}
+	waitForStatus(t, m, session.ID, StatusCancelled)
+}
+
+func TestManagerRetryCurrentAgentKeepsRoundPosition(t *testing.T) {
+	block := make(chan struct{})
+	m := newTestManager(t, blockingRunner{release: block}, fakeAdapter("alpha"), fakeAdapter("beta"))
+	defer close(block)
+	defer m.Close()
+
+	session, err := m.Start(StartRequest{
+		Topic: "重试当前席位", AgentIDs: []string{"alpha", "beta"}, Rounds: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var current string
+	var firstStart int64
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		got, err := m.Get(session.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, participant := range got.Participants {
+			if participant.Status == "running" {
+				current = participant.AgentID
+				firstStart = participant.StartedAt
+				break
+			}
+		}
+		if current != "" {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if current == "" {
+		t.Fatal("no agent started running")
+	}
+	time.Sleep(10 * time.Millisecond)
+	if err := m.RetryAgent(session.ID, current); err != nil {
+		t.Fatal(err)
+	}
+
+	deadline = time.Now().Add(2 * time.Second)
+	var retried *Session
+	for time.Now().Before(deadline) {
+		got, err := m.Get(session.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var retryEvent bool
+		var currentRunning bool
+		for _, event := range got.Events {
+			if event.Kind == EventAgentRetry && event.AgentID == current {
+				retryEvent = true
+			}
+		}
+		for _, participant := range got.Participants {
+			if participant.AgentID == current &&
+				participant.Status == "running" &&
+				participant.StartedAt > firstStart {
+				currentRunning = true
+			}
+			if participant.AgentID != current && participant.Status == "running" {
+				t.Fatalf("retry advanced to another agent: %+v", participant)
+			}
+		}
+		if retryEvent && currentRunning {
+			retried = got
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if retried == nil {
+		t.Fatal("current agent was not retried in place")
+	}
+	for _, event := range retried.Events {
+		if event.Kind == EventAgentError && event.AgentID == current {
+			t.Fatalf("retry must not be recorded as an error: %+v", event)
+		}
+	}
+	if err := m.Cancel(session.ID); err != nil {
+		t.Fatal(err)
+	}
+	waitForStatus(t, m, session.ID, StatusCancelled)
+}
+
+func TestManagerRestartReusesBriefAndCancelsOldRun(t *testing.T) {
+	block := make(chan struct{})
+	m := newTestManager(t, blockingRunner{release: block}, fakeAdapter("alpha"), fakeAdapter("beta"))
+	defer close(block)
+	defer m.Close()
+
+	imagePath := filepath.Join(m.root, "diagram.png")
+	if err := os.WriteFile(imagePath, []byte("png"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	original, err := m.Start(StartRequest{
+		Title:       "卡死恢复",
+		Topic:       "验证重新开始会保留议事配置",
+		Workspace:   m.root,
+		Evidence:    []EvidenceItem{{Name: "材料", Content: "保留这段证据"}},
+		Attachments: []Attachment{{Name: "diagram.png", Path: imagePath}},
+		AgentIDs:    []string{"alpha", "beta"},
+		Rounds:      3,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	restarted, err := m.Restart(original.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restarted.ID == "" || restarted.ID == original.ID {
+		t.Fatalf("restart id = %q, original = %q", restarted.ID, original.ID)
+	}
+	want := original.Request
+	got := restarted.Request
+	if got.Title != want.Title || got.Topic != want.Topic ||
+		got.Workspace != want.Workspace || got.Rounds != want.Rounds ||
+		!reflect.DeepEqual(got.AgentIDs, want.AgentIDs) ||
+		!reflect.DeepEqual(got.Evidence, want.Evidence) ||
+		!reflect.DeepEqual(got.Attachments, want.Attachments) {
+		t.Fatalf("restart did not preserve brief:\n got %+v\nwant %+v", got, want)
+	}
+
+	waitForStatus(t, m, original.ID, StatusCancelled)
+	if err := m.Cancel(restarted.ID); err != nil {
+		t.Fatal(err)
+	}
+	waitForStatus(t, m, restarted.ID, StatusCancelled)
+}
+
 func TestParseAgentOutputFormats(t *testing.T) {
 	cases := []struct {
 		name string
@@ -717,11 +1094,33 @@ func TestParseAgentOutputFormats(t *testing.T) {
 		{
 			// zcode 新版桌面运行时：答案只存在于 text_delta 增量流里
 			// （reasoning_delta 不算发言），按序重装全文（2026-10-30 实弹线）。
+			// 2026-10-31 起增量重装须见到信封收尾（finish/turn.completed）——
+			// 中途夭折的流只有过程旁白，宁空不假。
 			name: "zcode text_delta stream",
 			raw: `{"type":"model.streaming","payload":{"kind":"reasoning_delta","delta":"思考"}}
 {"type":"model.streaming","payload":{"kind":"text_delta","delta":"最终"}}
-{"type":"model.streaming","payload":{"kind":"text_delta","delta":"答复"}}`,
+{"type":"model.streaming","payload":{"kind":"text_delta","delta":"答复"}}
+{"type":"model.streaming","payload":{"kind":"finish","done":true}}`,
 			want: "最终答复",
+		},
+		{
+			// 信封聚合事件（turn.completed.response）是收尾权威全文：即使增量
+			// 缺失或尾部被截断也能恢复答案（2026-10-31 实弹 zcode 格式）。
+			name: "zcode envelope aggregated final",
+			raw: `{"eventId":"a","payload":{"kind":"reasoning_delta","delta":"推理"}}
+{"eventId":"b","payload":{"kind":"text_delta","delta":"收到"}}
+{"eventId":"c","payload":{"kind":"finish","done":true}}
+{"eventId":"d","payload":{"kind":"turn.completed","response":"收到，这是完整最终陈词。","usage":{"outputTokens":43}}}`,
+			want: "收到，这是完整最终陈词。",
+		},
+		{
+			// 中途夭折（超时/被杀）：只有 text_delta 旁白、无 finish 收尾——
+			// 返回空走 agent_error，不把过程旁白冒充席位观点（2026-10-31 实弹
+			// zcode 第 1/3 轮 149/187 字旁白的根因）。
+			name: "zcode killed stream has no finish",
+			raw: `{"eventId":"a","payload":{"kind":"text_delta","delta":"找到了一批核心文档。"}}
+{"eventId":"b","payload":{"kind":"text_delta","delta":"继续读规划正文。"}}`,
+			want: "",
 		},
 		{
 			// 纯 JSON 事件流但没有任何可识别文本（未知新 schema）：
@@ -758,8 +1157,13 @@ func TestNormalizeRoundSettings(t *testing.T) {
 			want: StartRequest{Rounds: 7},
 		},
 		{
-			name: "manual minimum",
+			name: "manual single round allowed",
 			in:   StartRequest{Rounds: 1},
+			want: StartRequest{Rounds: 1},
+		},
+		{
+			name: "manual zero default",
+			in:   StartRequest{Rounds: 0},
 			want: StartRequest{Rounds: 2},
 		},
 		{
@@ -808,13 +1212,59 @@ func TestToolPolicyMatchesSeatCapabilities(t *testing.T) {
 	}
 }
 
+func TestNormalizeAttachmentsValidatesAndDeduplicatesImages(t *testing.T) {
+	root := t.TempDir()
+	image := filepath.Join(root, "diagram.png")
+	if err := os.WriteFile(image, []byte("png"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := NormalizeAttachments([]Attachment{
+		{Path: image, Name: "图一"},
+		{Path: image, Name: "重复"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("normalized attachments = %d, want 1", len(got))
+	}
+	if got[0].MIME != "image/png" || got[0].Size != 3 || got[0].Name != "图一" {
+		t.Fatalf("normalized attachment = %+v", got[0])
+	}
+
+	text := filepath.Join(root, "notes.txt")
+	if err := os.WriteFile(text, []byte("text"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NormalizeAttachments([]Attachment{{Path: text}}); err == nil {
+		t.Fatal("text file must not pass image attachment validation")
+	}
+}
+
 func TestZCodePromptRequestsStreamJSON(t *testing.T) {
-	args := zcodePromptArgs("分析当前议题", `C:\AI\wubigrok`)
+	args := zcodePromptArgs("分析当前议题", `C:\AI\wubigrok`, []string{`C:\AI\wubigrok\diagram.png`})
 	if !containsAdjacent(args, "--output-format", "stream-json") {
 		t.Fatalf("zcode args do not request stream-json: %v", args)
 	}
+	if !containsAdjacent(args, "--attach", `C:\AI\wubigrok\diagram.png`) {
+		t.Fatalf("zcode args lost image attachment: %v", args)
+	}
 	if containsValue(args, "--json") {
 		t.Fatalf("zcode args still contain one-shot --json: %v", args)
+	}
+}
+
+func TestCodexExecEnablesLiveSearchAndImageInput(t *testing.T) {
+	image := `C:\AI\wubigrok\diagram.png`
+	spec, err := newCodexAdapter("codex").build("分析图片", `C:\AI\wubigrok`, []string{image})
+	if err != nil {
+		t.Skipf("codex executable unavailable: %v", err)
+	}
+	if !containsAdjacent(spec.Args, "-c", `web_search="live"`) {
+		t.Fatalf("codex args do not enable live web search: %v", spec.Args)
+	}
+	if !containsAdjacent(spec.Args, "--image", image) {
+		t.Fatalf("codex args lost image attachment: %v", spec.Args)
 	}
 }
 
@@ -842,7 +1292,7 @@ func TestDSHAdapterInjectsDeepseekKey(t *testing.T) {
 	if err := os.WriteFile(fake, []byte("@echo off\r\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	spec, err := newDSHAdapter(fake, "sk-test").build("议题", t.TempDir())
+	spec, err := newDSHAdapter(fake, "sk-test").build("议题", t.TempDir(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -852,7 +1302,7 @@ func TestDSHAdapterInjectsDeepseekKey(t *testing.T) {
 	if !containsValue(spec.Env, "DSH_PERMISSION_MODE=read-only") {
 		t.Fatalf("dsh env lost permission mode: %v", spec.Env)
 	}
-	bare, err := newDSHAdapter(fake, "").build("议题", t.TempDir())
+	bare, err := newDSHAdapter(fake, "").build("议题", t.TempDir(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -969,7 +1419,9 @@ func TestManagerStopsAtConsensusSafetyLimit(t *testing.T) {
 	}
 	found := false
 	for _, warning := range done.Warnings {
-		if strings.Contains(warning, "安全上限") && strings.Contains(warning, "仍未全员一致") {
+		if strings.Contains(warning, "安全上限") &&
+			strings.Contains(warning, "未达成全员一致") &&
+			strings.Contains(warning, "实质分歧 2 席（alpha、beta）") {
 			found = true
 		}
 	}
@@ -1075,7 +1527,7 @@ func TestGrokSeatJoinsCouncilAndChairs(t *testing.T) {
 	session, err := m.Start(StartRequest{
 		Topic:    "Grok 主持可行性",
 		AgentIDs: []string{"alpha", "beta", "grok"},
-		Rounds:   1,
+		Rounds:   2, // 显式两轮：单轮现已放行，不再隐式抬高
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -1110,9 +1562,14 @@ func TestGrokToolAwareBackendReceivesWorkspaceAndEmitsTrajectory(t *testing.T) {
 	m := newTestManager(t, defaultFakeRunner(), fakeAdapter("alpha"), newGrokAdapter(backend))
 	defer m.Close()
 	workspace := t.TempDir()
+	image := filepath.Join(workspace, "diagram.png")
+	if err := os.WriteFile(image, []byte("png"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	session, err := m.Start(StartRequest{
 		Topic: "Grok 办公工具", Workspace: workspace,
-		AgentIDs: []string{"grok", "alpha"}, ChairmanAgentID: "alpha", Rounds: 2,
+		Attachments: []Attachment{{Path: image, Name: "diagram.png"}},
+		AgentIDs:    []string{"grok", "alpha"}, ChairmanAgentID: "alpha", Rounds: 2,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -1120,9 +1577,13 @@ func TestGrokToolAwareBackendReceivesWorkspaceAndEmitsTrajectory(t *testing.T) {
 	done := waitForStatus(t, m, session.ID, StatusCompleted)
 	backend.mu.Lock()
 	gotWorkspace := backend.workspace
+	gotReadPaths := append([]string(nil), backend.readPaths...)
 	backend.mu.Unlock()
 	if gotWorkspace != filepath.Clean(workspace) {
 		t.Fatalf("Grok workspace = %q, want %q", gotWorkspace, filepath.Clean(workspace))
+	}
+	if len(gotReadPaths) != 1 || gotReadPaths[0] != filepath.Clean(image) {
+		t.Fatalf("Grok image read roots = %v, want %q", gotReadPaths, filepath.Clean(image))
 	}
 	var starts, results int
 	for _, event := range done.Events {

@@ -15,8 +15,14 @@ type agentAdapter struct {
 	name string
 	kind string
 
+	// runMode 声明本次调用实际施加的只读机制。会话级 ReadOnly 布尔在四席
+	// 的落地方式并不同质（sandbox/plan/环境变量/工具白名单），必须逐席入档
+	// 而不是写成同一个笼统的「已只读」；无硬限制的能力（如 codex 联网搜索）
+	// 在文案中明示降级（2026-10-31 裁决第三刀）。
+	runMode string
+
 	probe func(context.Context) AgentStatus
-	build func(prompt, cwd string) (commandSpec, error)
+	build func(prompt, cwd string, images []string) (commandSpec, error)
 	// invoke 非空 = Gaea 模型席位：不经本机 CLI。app 层用 xAI 模型驱动
 	// Gaea 办公 AgentRunner；build 为空，输出按纯文本处理。
 	invoke func(ctx context.Context, prompt string) (string, error)
@@ -27,6 +33,7 @@ type agentAdapter struct {
 		ctx context.Context,
 		prompt string,
 		workspace string,
+		readPaths []string,
 		emit func(string),
 		onTool func(ToolTrace),
 	) (string, error)
@@ -55,6 +62,7 @@ type GrokToolStreamingBackend interface {
 		ctx context.Context,
 		prompt string,
 		workspace string,
+		readPaths []string,
 		emit func(string),
 		onTool func(ToolTrace),
 	) (string, error)
@@ -82,6 +90,8 @@ func newGrokAdapter(backend GrokBackend) agentAdapter {
 		id:   "grok",
 		name: "Grok",
 		kind: "Gaea 办公席位 · xAI",
+		// 无写工具注册；文件读取以 workspace 与附件 readPaths 为边界。
+		runMode: "Gaea 只读工具白名单（未注册写工具，读取限工作区与附件）",
 		probe: func(ctx context.Context) AgentStatus {
 			return backend.ProbeGrok(ctx)
 		},
@@ -95,10 +105,11 @@ func newGrokAdapter(backend GrokBackend) agentAdapter {
 			ctx context.Context,
 			prompt string,
 			workspace string,
+			readPaths []string,
 			emit func(string),
 			onTool func(ToolTrace),
 		) (string, error) {
-			return streaming.StreamGrokWithTools(ctx, prompt, workspace, emit, onTool)
+			return streaming.StreamGrokWithTools(ctx, prompt, workspace, readPaths, emit, onTool)
 		}
 	}
 	return adapter
@@ -116,6 +127,8 @@ func newCodexAdapter(override string) agentAdapter {
 	}
 	return agentAdapter{
 		id: "codex", name: "Codex", kind: "OpenAI Codex CLI",
+		// 联网搜索显式开放（web_search=live），属无硬限制能力，必须降级表述。
+		runMode: "codex sandbox read-only（文件写被沙箱拦截；联网搜索开放，结果按不可信资料处理）",
 		probe: func(ctx context.Context) AgentStatus {
 			status := AgentStatus{
 				ID: "codex", Name: "Codex", Kind: "OpenAI Codex CLI",
@@ -133,19 +146,24 @@ func newCodexAdapter(override string) agentAdapter {
 			status.Version = probeVersion(ctx, commandSpec{Executable: path, Args: []string{"--version"}})
 			return status
 		},
-		build: func(prompt, cwd string) (commandSpec, error) {
+		build: func(prompt, cwd string, images []string) (commandSpec, error) {
 			path, err := find()
 			if err != nil {
 				return commandSpec{}, err
 			}
+			args := []string{
+				"exec", "--json", "--ephemeral", "--sandbox", "read-only",
+				"-c", `web_search="live"`, "--skip-git-repo-check",
+			}
+			for _, image := range images {
+				args = append(args, "--image", image)
+			}
+			args = append(args, "-C", cwd, "-")
 			return commandSpec{
 				Executable: path,
-				Args: []string{
-					"exec", "--json", "--ephemeral", "--sandbox", "read-only",
-					"--skip-git-repo-check", "-C", cwd, "-",
-				},
-				Dir:   cwd,
-				Stdin: clampPrompt(prompt),
+				Args:       args,
+				Dir:        cwd,
+				Stdin:      clampPrompt(prompt),
 			}, nil
 		},
 	}
@@ -174,6 +192,7 @@ func newZCodeAdapter(override string) agentAdapter {
 	}
 	return agentAdapter{
 		id: "zcode", name: "ZCode", kind: "ZCode CLI",
+		runMode: "plan 模式（提案不落盘，依赖 harness 自身执行；provider 凭据经环境变量注入）",
 		probe: func(ctx context.Context) AgentStatus {
 			status := AgentStatus{
 				ID: "zcode", Name: "ZCode", Kind: "ZCode CLI",
@@ -198,12 +217,12 @@ func newZCodeAdapter(override string) agentAdapter {
 			status.Version = probeVersion(ctx, commandSpec{Executable: node, Args: args})
 			return status
 		},
-		build: func(prompt, cwd string) (commandSpec, error) {
+		build: func(prompt, cwd string, images []string) (commandSpec, error) {
 			node, script, err := resolve()
 			if err != nil {
 				return commandSpec{}, err
 			}
-			args := zcodePromptArgs(prompt, cwd)
+			args := zcodePromptArgs(prompt, cwd, images)
 			if script != "" {
 				args = append([]string{script}, args...)
 			}
@@ -229,11 +248,15 @@ func newZCodeAdapter(override string) agentAdapter {
 	}
 }
 
-func zcodePromptArgs(prompt, cwd string) []string {
-	return []string{
+func zcodePromptArgs(prompt, cwd string, images []string) []string {
+	args := make([]string, 0, 10+len(images)*2)
+	for _, image := range images {
+		args = append(args, "--attach", image)
+	}
+	return append(args,
 		"--prompt", clampPrompt(prompt), "--cwd", cwd,
 		"--mode", "plan", "--output-format", "stream-json", "--no-color",
-	}
+	)
 }
 
 func newDSHAdapter(override, deepseekKey string) agentAdapter {
@@ -288,6 +311,7 @@ func newDSHAdapter(override, deepseekKey string) agentAdapter {
 	}
 	return agentAdapter{
 		id: "dsh", name: "DeepSeek Harness", kind: "DSH headless",
+		runMode: "DSH_PERMISSION_MODE=read-only 环境变量（依赖 DSH 自身执行）",
 		probe: func(ctx context.Context) AgentStatus {
 			status := AgentStatus{
 				ID: "dsh", Name: "DeepSeek Harness", Kind: "DSH headless",
@@ -307,7 +331,7 @@ func newDSHAdapter(override, deepseekKey string) agentAdapter {
 			status.Version = probeVersion(ctx, spec)
 			return status
 		},
-		build: func(prompt, cwd string) (commandSpec, error) {
+		build: func(prompt, cwd string, _ []string) (commandSpec, error) {
 			paths, err := resolve()
 			if err != nil {
 				return commandSpec{}, err

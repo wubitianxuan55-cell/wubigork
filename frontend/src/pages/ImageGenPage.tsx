@@ -268,6 +268,7 @@ const ImageGenPage: React.FC = () => {
       {/* 顶条：模式轨道细 tab + 引擎状态 pill + 目录入口（板块名已在轨道/面包屑，不再重复大标题） */}
       <div className="ig-top-strip">
         <div className="ig-mode-nav" role="tablist" aria-label="生成模式">
+          <span className="ig-mode-cluster-label" aria-hidden>创作</span>
           <button
             type="button"
             role="tab"
@@ -295,6 +296,7 @@ const ImageGenPage: React.FC = () => {
           >
             <VideoCameraOutlined /> 文生视频
           </button>
+          <span className="ig-mode-divider" aria-hidden>工具</span>
           <button
             type="button"
             role="tab"
@@ -446,6 +448,7 @@ const ImageGenPage: React.FC = () => {
           customTemplates={customTemplates}
           onApplyTemplate={applyTemplate}
           onManageTemplates={() => setTemplatePickerOpen(true)}
+          defaultCollapsed
         />
       </div>
 
@@ -464,6 +467,8 @@ const ImageGenPage: React.FC = () => {
         queueTotal={queueItems.filter((q) => q.status === 'pending' || q.status === 'running').length}
         comfyProgress={comfyProgress}
         needsComfy={needsComfy}
+        hasPrompt={Boolean(prompt.trim())}
+        hasReference={mode !== 'img2img' || Boolean(initImage)}
         onGenerate={handleGenerate}
         onCancel={handleCancel}
       />

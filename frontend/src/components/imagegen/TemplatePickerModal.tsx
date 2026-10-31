@@ -1,12 +1,23 @@
-import React, { useMemo, useState } from 'react'
-import { Typography, Button, Modal, Input, Empty, Popconfirm } from 'antd'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { Button, Empty, Input, Modal, Popconfirm } from 'antd'
 import {
-  PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, AppstoreOutlined,
+  AppstoreOutlined,
+  ArrowRightOutlined,
+  CloseOutlined,
+  DeleteOutlined,
+  EditOutlined,
+  PlusOutlined,
+  SearchOutlined,
 } from '@ant-design/icons'
-import { C } from '../../utils/theme'
 import {
-  TEMPLATES, CATEGORIES, CUSTOM_CATEGORY_ID, ALL_CATEGORY_ID, ALL_CATEGORY, getCategory,
-  type Template, type CustomTemplate, type TemplateCategory,
+  TEMPLATES,
+  CATEGORIES,
+  CUSTOM_CATEGORY_ID,
+  ALL_CATEGORY_ID,
+  ALL_CATEGORY,
+  type Template,
+  type CustomTemplate,
+  type TemplateCategory,
 } from '../../data/imageTemplates'
 
 interface Props {
@@ -19,14 +30,21 @@ interface Props {
   onDeleteCustom: (id: string) => void
 }
 
-/** hex → rgba，用于分类主题色淡底 */
-function withAlpha(hex: string, a: number): string {
-  const n = parseInt(hex.replace('#', ''), 16)
-  if (Number.isNaN(n) || hex.length !== 7) return `rgba(45, 212, 191, ${a})`
-  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`
+const CUSTOM_CAT: TemplateCategory = {
+  id: CUSTOM_CATEGORY_ID,
+  label: '我的模板',
+  color: 'var(--color-primary)',
 }
 
-const CUSTOM_CAT: TemplateCategory = { id: CUSTOM_CATEGORY_ID, label: '我的模板', color: 'var(--color-primary)' }
+const CORE_CATEGORY_IDS = new Set([
+  'enhance',
+  'style',
+  'photo',
+  'creation',
+  'compose',
+  'light',
+  'scene',
+])
 
 type CardItem = Template & {
   id?: string
@@ -35,279 +53,470 @@ type CardItem = Template & {
   catColor?: string
 }
 
+const templateKey = (t: CardItem, fallbackCategory = 'all'): string =>
+  t.id || `${t.catLabel || fallbackCategory}:${t.label}`
+
 const TemplateCard: React.FC<{
-  t: CardItem
-  accent: string
-  hovered: boolean
-  showCat: boolean
+  template: CardItem
+  index: number
+  selected: boolean
+  showCategory: boolean
   onSelect: () => void
-  onHover: () => void
-  onLeave: () => void
-  onEdit?: () => void
-  onDelete?: () => void
-}> = ({ t, accent, hovered, showCat, onSelect, onHover, onLeave, onEdit, onDelete }) => (
-  <div
-    onClick={onSelect}
-    onMouseEnter={onHover}
-    onMouseLeave={onLeave}
-    style={{
-      position: 'relative',
-      padding: '12px 14px',
-      borderRadius: 12,
-      border: '1px solid',
-      borderColor: hovered ? accent : 'var(--border-subtle)',
-      background: hovered ? withAlpha(accent, 0.06) : 'var(--color-surface-container)',
-      boxShadow: hovered ? '0 8px 20px rgba(0,0,0,0.10)' : '0 1px 3px rgba(0,0,0,0.05)',
-      cursor: 'pointer',
-      transition: 'all 0.15s ease',
-      display: 'flex', flexDirection: 'column', gap: 7, minHeight: 96,
-    }}
-  >
-    {/* 图标（圆角方底）+ 标题 + 自定义操作 */}
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-      <span style={{
-        width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        background: withAlpha(accent, 0.12), fontSize: 15, lineHeight: 1,
-      }}>
-        {t.icon || <AppstoreOutlined style={{ fontSize: 13, color: accent }} />}
+  onApply: () => void
+}> = ({ template, index, selected, showCategory, onSelect, onApply }) => {
+  const accent = template.catColor || 'var(--color-primary)'
+  return (
+    <button
+      type="button"
+      className={`igt-template-card${selected ? ' is-selected' : ''}`}
+      aria-pressed={selected}
+      onClick={onSelect}
+      onDoubleClick={onApply}
+      style={{ '--igt-accent': accent } as React.CSSProperties}
+      title="单击查看详情，双击直接套用"
+    >
+      <span className="igt-card-index" aria-hidden>
+        {String(index + 1).padStart(2, '0')}
       </span>
-      <Typography.Text
-        strong
-        style={{
-          flex: 1, minWidth: 0, fontSize: 13, color: C('color-text'),
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-        }}
-      >
-        {t.label}
-      </Typography.Text>
-      {t.isCustom && (
-        <span style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
-          <Button
-            type="text" size="small" icon={<EditOutlined style={{ fontSize: 10 }} />}
-            onClick={(e) => { e.stopPropagation(); onEdit?.() }}
-            style={{ padding: 0, height: 16, width: 18, color: C('color-text-secondary') }}
-          />
-          <Popconfirm
-            title="删除这个自定义模板？"
-            okText="删除"
-            cancelText="取消"
-            okButtonProps={{ danger: true, 'data-testid': 'imgtpl-delete-confirm' }}
-            onConfirm={(e) => { e?.stopPropagation(); onDelete?.() }}
-            onCancel={(e) => e?.stopPropagation()}
-          >
-            <Button
-              type="text" size="small" icon={<DeleteOutlined style={{ fontSize: 10 }} />}
-              onClick={(e) => e.stopPropagation()}
-              style={{ padding: 0, height: 16, width: 18, color: 'var(--color-destructive)' }}
-            />
-          </Popconfirm>
+      <span className="igt-card-topline">
+        <span className="igt-card-category">
+          <i aria-hidden />
+          {showCategory ? template.catLabel : template.size || '自由画幅'}
         </span>
-      )}
-    </div>
-
-    {/* 用途描述 */}
-    {t.description && (
-      <Typography.Text
-        style={{
-          fontSize: 11, color: C('color-text-secondary'), lineHeight: 1.45,
-          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
-          overflow: 'hidden', minHeight: 32,
-        }}
-      >
-        {t.description}
-      </Typography.Text>
-    )}
-
-    {showCat && t.catLabel && (
-      <span style={{
-        position: 'absolute', right: 10, bottom: 8,
-        fontSize: 9.5, padding: '1px 7px', borderRadius: 999,
-        background: withAlpha(accent, 0.12), color: accent,
-        border: `1px solid ${withAlpha(accent, 0.35)}`, lineHeight: 1.5,
-      }}>
-        {t.catLabel}
+        <span>{template.size || '自由画幅'}</span>
       </span>
-    )}
-  </div>
-)
+      <strong>{template.label}</strong>
+      <span className="igt-card-description">
+        {template.description || template.prompt}
+      </span>
+      <span className="igt-card-tags">
+        {(template.tags || [template.size || '通用']).slice(0, 2).map((tag) => (
+          <em key={tag}>{tag}</em>
+        ))}
+      </span>
+      <span className="igt-card-arrow" aria-hidden>
+        <ArrowRightOutlined />
+      </span>
+    </button>
+  )
+}
 
 const TemplatePickerModal: React.FC<Props> = ({
-  open, onClose, customTemplates,
-  onSelect, onAddCustom, onEditCustom, onDeleteCustom,
+  open,
+  onClose,
+  customTemplates,
+  onSelect,
+  onAddCustom,
+  onEditCustom,
+  onDeleteCustom,
 }) => {
-  const defaultCat = ALL_CATEGORY_ID
-  const [activeCatId, setActiveCatId] = useState(defaultCat)
+  const [activeCatId, setActiveCatId] = useState(ALL_CATEGORY_ID)
   const [search, setSearch] = useState('')
-  const [hoverIdx, setHoverIdx] = useState<number | null>(null)
+  const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  const resultsRef = useRef<HTMLDivElement>(null)
 
-  // 分类行：「全部模板」+ 预设 19 类 + 始终保留「我的模板」（空库时也可新建）
-  const catRow: TemplateCategory[] = useMemo(() => {
-    return [ALL_CATEGORY, ...CATEGORIES, CUSTOM_CAT]
-  }, [])
+  const totalTemplates = useMemo(
+    () => CATEGORIES.reduce((sum, category) => sum + (TEMPLATES[category.id]?.length || 0), customTemplates.length),
+    [customTemplates.length],
+  )
 
-  // 当前分类下的模板（自定义模板在「我的模板」分类）
+  const coreCategories = useMemo(
+    () => CATEGORIES.filter((category) => CORE_CATEGORY_IDS.has(category.id)),
+    [],
+  )
+  const collectionCategories = useMemo(
+    () => CATEGORIES.filter((category) => !CORE_CATEGORY_IDS.has(category.id)),
+    [],
+  )
+
+  const categoryCount = (id: string): number => {
+    if (id === ALL_CATEGORY_ID) return totalTemplates
+    if (id === CUSTOM_CATEGORY_ID) return customTemplates.length
+    return TEMPLATES[id]?.length || 0
+  }
+
+  const activeCategory = activeCatId === ALL_CATEGORY_ID
+    ? ALL_CATEGORY
+    : activeCatId === CUSTOM_CATEGORY_ID
+      ? CUSTOM_CAT
+      : CATEGORIES.find((category) => category.id === activeCatId) || ALL_CATEGORY
+
   const baseTemplates: CardItem[] = useMemo(() => {
     if (activeCatId === CUSTOM_CATEGORY_ID) {
-      return customTemplates.map((t) => ({ ...t, isCustom: true }))
+      return customTemplates.map((template) => ({
+        ...template,
+        isCustom: true,
+        catLabel: CUSTOM_CAT.label,
+        catColor: CUSTOM_CAT.color,
+      }))
     }
     if (activeCatId === ALL_CATEGORY_ID) {
       const all: CardItem[] = []
-      for (const cat of CATEGORIES) {
-        for (const t of TEMPLATES[cat.id] || []) {
-          all.push({ ...t, catLabel: cat.label, catColor: cat.color })
+      for (const category of CATEGORIES) {
+        for (const template of TEMPLATES[category.id] || []) {
+          all.push({
+            ...template,
+            catLabel: category.label,
+            catColor: category.color,
+          })
         }
       }
-      for (const t of customTemplates) {
-        all.push({ ...t, isCustom: true, catLabel: CUSTOM_CAT.label, catColor: CUSTOM_CAT.color })
+      for (const template of customTemplates) {
+        all.push({
+          ...template,
+          isCustom: true,
+          catLabel: CUSTOM_CAT.label,
+          catColor: CUSTOM_CAT.color,
+        })
       }
       return all
     }
-    return (TEMPLATES[activeCatId] || []).map((t) => ({ ...t }))
+    const category = CATEGORIES.find((item) => item.id === activeCatId)
+    return (TEMPLATES[activeCatId] || []).map((template) => ({
+      ...template,
+      catLabel: category?.label,
+      catColor: category?.color,
+    }))
   }, [activeCatId, customTemplates])
 
-  // 搜索：跨全库命中名称 / 描述 / 标签 / 提示词
   const searchHits = useMemo(() => {
-    const kw = search.trim().toLowerCase()
-    if (!kw) return null
-    const matches = (t: Template) =>
-      t.label.toLowerCase().includes(kw)
-      || (t.description || '').toLowerCase().includes(kw)
-      || (t.tags || []).some((tag) => tag.toLowerCase().includes(kw))
-      || t.prompt.toLowerCase().includes(kw)
+    const keyword = search.trim().toLowerCase()
+    if (!keyword) return null
+    const matches = (template: Template) =>
+      template.label.toLowerCase().includes(keyword)
+      || (template.description || '').toLowerCase().includes(keyword)
+      || (template.tags || []).some((tag) => tag.toLowerCase().includes(keyword))
+      || template.prompt.toLowerCase().includes(keyword)
     const hits: CardItem[] = []
-    for (const cat of CATEGORIES) {
-      for (const t of TEMPLATES[cat.id] || []) {
-        if (matches(t)) hits.push({ ...t, catLabel: cat.label, catColor: cat.color })
+    for (const category of CATEGORIES) {
+      for (const template of TEMPLATES[category.id] || []) {
+        if (matches(template)) {
+          hits.push({
+            ...template,
+            catLabel: category.label,
+            catColor: category.color,
+          })
+        }
       }
     }
-    for (const t of customTemplates) {
-      if (matches(t)) hits.push({ ...t, isCustom: true, catLabel: CUSTOM_CAT.label, catColor: CUSTOM_CAT.color })
+    for (const template of customTemplates) {
+      if (matches(template)) {
+        hits.push({
+          ...template,
+          isCustom: true,
+          catLabel: CUSTOM_CAT.label,
+          catColor: CUSTOM_CAT.color,
+        })
+      }
     }
     return hits
   }, [search, customTemplates])
 
   const searching = search.trim().length > 0
-  const filtered: CardItem[] = searching ? (searchHits || []) : baseTemplates
+  const filtered = searching ? searchHits || [] : baseTemplates
+  const selected = filtered.find((template) =>
+    templateKey(template, activeCatId) === selectedKey,
+  ) || filtered[0] || null
+  const selectedAccent = selected?.catColor || activeCategory.color
+  const showNewCard = !searching && activeCatId === CUSTOM_CATEGORY_ID
 
-  const handleSelect = (t: Template) => {
-    // 保留模板推荐画幅（size），应用模板时同步画幅（刀3）
-    onSelect({ label: t.label, prompt: t.prompt, negative: t.negative, size: t.size })
+  useEffect(() => {
+    setSelectedKey(null)
+    const results = resultsRef.current
+    if (!results) return
+    if (typeof results.scrollTo === 'function') results.scrollTo({ top: 0 })
+    else results.scrollTop = 0
+  }, [activeCatId, search])
+
+  const chooseCategory = (id: string) => {
+    setActiveCatId(id)
+    setSearch('')
+  }
+
+  const applyTemplate = (template: Template) => {
+    onSelect({
+      label: template.label,
+      prompt: template.prompt,
+      negative: template.negative,
+      size: template.size,
+    })
     onClose()
   }
 
-  const activeColor = getCategory(activeCatId)?.color
-    ?? CUSTOM_CAT.color
+  const collectionTitle = searching
+    ? '搜索结果'
+    : activeCatId === ALL_CATEGORY_ID
+      ? '全库浏览'
+      : activeCategory.label
+
+  const renderCategory = (category: TemplateCategory) => {
+    const selectedCategory = activeCatId === category.id
+    return (
+      <button
+        key={category.id}
+        type="button"
+        role="tab"
+        aria-selected={selectedCategory}
+        aria-controls="igt-template-results"
+        className={`igt-category${selectedCategory ? ' is-active' : ''}`}
+        onClick={() => chooseCategory(category.id)}
+        style={{ '--igt-category': category.color } as React.CSSProperties}
+      >
+        <i aria-hidden />
+        <span>{category.label}</span>
+        <b>{categoryCount(category.id)}</b>
+      </button>
+    )
+  }
 
   return (
     <Modal
-      title={
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 15, fontWeight: 600 }}>
-          <AppstoreOutlined style={{ color: 'var(--color-primary)' }} />
-          选择图片模板
-        </span>
-      }
       open={open}
       onCancel={onClose}
       footer={null}
-      width={720}
+      closable={false}
+      width={1120}
+      className="ig-template-library-modal"
+      rootClassName="ig-template-library-root"
       destroyOnHidden
       transitionName=""
       maskTransitionName=""
-      styles={{
-        body: { background: 'transparent', padding: '12px 20px 20px' },
-        header: { background: 'transparent' },
-      }}
+      style={{ top: 24 }}
+      aria-labelledby="igt-library-title"
     >
-      {/* 搜索框 */}
-      <Input
-        allowClear
-        prefix={<SearchOutlined style={{ color: C('color-text-secondary'), fontSize: 13 }} />}
-        placeholder="搜索模板名称、用途、标签或提示词…"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        style={{
-          background: 'var(--bg-elevated)',
-          border: '1px solid var(--border-subtle)',
-          color: 'var(--color-text)',
-          borderRadius: 10, fontSize: 13, marginBottom: 10,
-        }}
-      />
-
-      {/* 分类页签（参考 herdsman：横向滚动灰色胶囊，选中加深） */}
-      <div className="ig-tpl-tabs" role="tablist" aria-label="模板分类">
-        {catRow.map((cat) => {
-          const selected = activeCatId === cat.id
-          return (
-            <button
-              key={cat.id}
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              onClick={() => { setActiveCatId(cat.id); setSearch('') }}
-              className={`ig-tpl-tab${selected ? ' is-active' : ''}`}
-            >
-              {cat.label}
-            </button>
-          )
-        })}
-      </div>
-
-      {/* 模板卡片网格 */}
-      {filtered.length === 0 && !(activeCatId === CUSTOM_CATEGORY_ID && !searching) ? (
-        <div style={{ padding: '30px 0' }}>
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description={
-              <span style={{ color: C('color-text-secondary'), fontSize: 12 }}>
-                {searching ? '没有匹配的模板' : '当前分类暂无模板'}
-              </span>
-            }
-          >
-            {searching && (
-              <Button size="small" onClick={() => setSearch('')} style={{ borderRadius: 999, fontSize: 12 }}>
-                清空搜索
-              </Button>
-            )}
-          </Empty>
-        </div>
-      ) : (
-        <div className="ig-tpl-grid">
-          {filtered.map((t, i) => (
-            <TemplateCard
-              key={t.label + (t.id || '')}
-              t={t}
-              accent={(t as CardItem).catColor || activeColor}
-              hovered={hoverIdx === i}
-              showCat={searching || activeCatId === ALL_CATEGORY_ID}
-              onSelect={() => handleSelect(t)}
-              onHover={() => setHoverIdx(i)}
-              onLeave={() => setHoverIdx(null)}
-              onEdit={t.isCustom ? () => onEditCustom(t as CustomTemplate) : undefined}
-              onDelete={t.isCustom ? () => onDeleteCustom((t as CustomTemplate).id) : undefined}
-            />
-          ))}
-
-          {/* 我的模板：新建卡 */}
-          {!searching && activeCatId === CUSTOM_CATEGORY_ID && (
-            <div
-              onClick={onAddCustom}
-              style={{
-                padding: '10px 12px', borderRadius: 'var(--radius-md)',
-                border: '1px dashed var(--border-subtle)',
-                background: 'color-mix(in srgb, var(--color-text) 2%, transparent)', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 104,
-                transition: 'all 0.15s',
-              }}
-            >
-              <PlusOutlined style={{ color: C('color-text-secondary'), fontSize: 14 }} />
-              <Typography.Text style={{ fontSize: 11.5, color: C('color-text-secondary') }}>
-                新建模板
-              </Typography.Text>
+      <div className="igt-library">
+        <header className="igt-library-head">
+          <div className="igt-library-identity">
+            <span className="igt-library-mark" aria-hidden>
+              <AppstoreOutlined />
+            </span>
+            <div>
+              <span className="igt-kicker">Dream atelier · Prompt atlas</span>
+              <h2 id="igt-library-title">绘梦模板库</h2>
             </div>
-          )}
+          </div>
+          <p>从成熟的画面语言出发，再把模板改成属于你的那一幕。</p>
+          <div className="igt-library-total">
+            <strong>{totalTemplates}</strong>
+            <span>组提示词</span>
+          </div>
+          <button type="button" className="igt-library-close" aria-label="关闭模板库" onClick={onClose}>
+            <CloseOutlined />
+          </button>
+        </header>
+
+        <div className="igt-library-body">
+          <nav className="igt-category-panel" aria-label="模板分类">
+            <div className="igt-category-scroll">
+              <div className="igt-category-group" role="tablist" aria-label="全部模板">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeCatId === ALL_CATEGORY_ID}
+                  aria-controls="igt-template-results"
+                  className={`igt-category igt-category--all${activeCatId === ALL_CATEGORY_ID ? ' is-active' : ''}`}
+                  onClick={() => chooseCategory(ALL_CATEGORY_ID)}
+                >
+                  <i aria-hidden />
+                  <span>全部模板</span>
+                  <b>{categoryCount(ALL_CATEGORY_ID)}</b>
+                </button>
+              </div>
+
+              <div className="igt-category-group" role="tablist" aria-label="基础与风格">
+                <span className="igt-category-label">基础与风格</span>
+                {coreCategories.map(renderCategory)}
+              </div>
+
+              <div className="igt-category-group" role="tablist" aria-label="场景与视觉">
+                <span className="igt-category-label">场景与视觉</span>
+                {collectionCategories.map(renderCategory)}
+              </div>
+
+              <div className="igt-category-group igt-category-group--mine" role="tablist" aria-label="个人收藏">
+                <span className="igt-category-label">个人收藏</span>
+                {renderCategory(CUSTOM_CAT)}
+              </div>
+            </div>
+
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              className="igt-new-template"
+              onClick={onAddCustom}
+            >
+              新建模板
+            </Button>
+          </nav>
+
+          <section className="igt-results" aria-labelledby="igt-results-title">
+            <div className="igt-search-row">
+              <Input
+                allowClear
+                prefix={<SearchOutlined />}
+                placeholder="搜索名称、用途、标签或提示词"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                aria-label="搜索模板"
+                className="igt-search"
+              />
+              <span aria-live="polite">{filtered.length} 项</span>
+            </div>
+
+            <header className="igt-results-head">
+              <div>
+                <span className="igt-kicker">{searching ? 'Search result' : 'Collection'}</span>
+                <h3 id="igt-results-title">{collectionTitle}</h3>
+              </div>
+              <small>单击查看详情 · 双击直接套用</small>
+            </header>
+
+            <div
+              id="igt-template-results"
+              ref={resultsRef}
+              className="igt-results-scroll"
+              role="tabpanel"
+            >
+              {filtered.length === 0 && !showNewCard ? (
+                <div className="igt-empty">
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description={searching ? '没有找到匹配的模板' : '当前分类还没有模板'}
+                  >
+                    {searching && (
+                      <Button size="small" onClick={() => setSearch('')}>
+                        清空搜索
+                      </Button>
+                    )}
+                  </Empty>
+                </div>
+              ) : (
+                <div className="igt-card-grid">
+                  {filtered.map((template, index) => {
+                    const key = templateKey(template, activeCatId)
+                    return (
+                      <TemplateCard
+                        key={`${key}-${index}`}
+                        template={template}
+                        index={index}
+                        selected={selected ? templateKey(selected, activeCatId) === key : false}
+                        showCategory={searching || activeCatId === ALL_CATEGORY_ID}
+                        onSelect={() => setSelectedKey(key)}
+                        onApply={() => applyTemplate(template)}
+                      />
+                    )
+                  })}
+
+                  {showNewCard && (
+                    <button
+                      type="button"
+                      className="igt-template-card igt-template-card--new"
+                      onClick={onAddCustom}
+                    >
+                      <span className="igt-new-icon" aria-hidden><PlusOutlined /></span>
+                      <strong>写下自己的模板</strong>
+                      <span className="igt-card-description">
+                        保存常用提示词、负向词与推荐画幅，建立自己的风格库。
+                      </span>
+                      <span className="igt-card-arrow" aria-hidden><ArrowRightOutlined /></span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </section>
+
+          <aside
+            className="igt-preview"
+            aria-label="模板详情"
+            style={{ '--igt-accent': selectedAccent } as React.CSSProperties}
+          >
+            {selected ? (
+              <>
+                <div className="igt-preview-art" aria-hidden>
+                  <span>{selected.catLabel || activeCategory.label}</span>
+                  <strong>{Array.from(selected.label)[0] || '绘'}</strong>
+                  <small>{selected.size || '自由画幅'}</small>
+                </div>
+                <div className="igt-preview-copy">
+                  <span className="igt-preview-category">
+                    {selected.catLabel || activeCategory.label}
+                  </span>
+                  <h3>{selected.label}</h3>
+                  <p>{selected.description || '从这组提示词开始，继续补充主体与环境。'}</p>
+                </div>
+
+                <div className="igt-preview-meta">
+                  <span>{selected.size || '自由画幅'}</span>
+                  <span>{selected.tags?.length || 0} 个标签</span>
+                  <span>{selected.isCustom ? '自定义' : '内置'}</span>
+                </div>
+
+                {(selected.tags?.length || 0) > 0 && (
+                  <div className="igt-preview-tags">
+                    {selected.tags?.map((tag) => <span key={tag}>{tag}</span>)}
+                  </div>
+                )}
+
+                <section className="igt-prompt-preview" aria-labelledby="igt-prompt-title">
+                  <header>
+                    <span id="igt-prompt-title">提示词</span>
+                    <small>{selected.prompt.length} 字</small>
+                  </header>
+                  <p>{selected.prompt}</p>
+                </section>
+
+                {selected.negative && (
+                  <details className="igt-negative-preview">
+                    <summary>负向提示词</summary>
+                    <p>{selected.negative}</p>
+                  </details>
+                )}
+
+                <div className="igt-preview-actions">
+                  <Button
+                    type="primary"
+                    icon={<ArrowRightOutlined />}
+                    iconPosition="end"
+                    className="igt-apply"
+                    onClick={() => applyTemplate(selected)}
+                  >
+                    套用此模板
+                  </Button>
+                  {selected.isCustom && (
+                    <>
+                      <Button
+                        icon={<EditOutlined />}
+                        onClick={() => onEditCustom(selected as CustomTemplate)}
+                      >
+                        编辑
+                      </Button>
+                      <Popconfirm
+                        title="删除这个自定义模板？"
+                        okText="删除"
+                        cancelText="取消"
+                        okButtonProps={{ danger: true, 'data-testid': 'imgtpl-delete-confirm' }}
+                        onConfirm={() => onDeleteCustom((selected as CustomTemplate).id)}
+                      >
+                        <Button danger icon={<DeleteOutlined />}>
+                          删除
+                        </Button>
+                      </Popconfirm>
+                    </>
+                  )}
+                </div>
+                <p className="igt-preview-note">套用后会同步推荐画幅与负向提示词。</p>
+              </>
+            ) : (
+              <div className="igt-preview-empty">
+                <AppstoreOutlined aria-hidden />
+                <strong>选择一个模板</strong>
+                <span>在这里查看完整提示词、画幅与标签。</span>
+              </div>
+            )}
+          </aside>
         </div>
-      )}
+      </div>
     </Modal>
   )
 }

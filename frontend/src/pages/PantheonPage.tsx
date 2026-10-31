@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowRightOutlined,
   CrownOutlined,
+  DeleteOutlined,
   FolderOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -12,6 +13,7 @@ import {
 import { Alert, Button, Input, Modal, Tag, Tooltip, message } from 'antd'
 import { PantheonComposer } from './pantheon/PantheonComposer'
 import { PantheonRecord } from './pantheon/PantheonRecord'
+import { PantheonAgentAvatar } from './pantheon/PantheonAgentAvatar'
 import {
   copyMarkdown,
   downloadJSON,
@@ -19,6 +21,11 @@ import {
   pantheonApi,
   subscribePantheonEvents,
 } from './pantheon/api'
+import {
+  AGENT_ACCENTS,
+  agentCapabilityLabel,
+  agentCompactName,
+} from './pantheon/visuals'
 import type {
   PantheonAgentStatus,
   PantheonComposerSeed,
@@ -125,32 +132,48 @@ const SessionRailItem: React.FC<{
   item: PantheonSessionSummary
   active: boolean
   onClick: () => void
-}> = ({ item, active, onClick }) => (
-  <button
-    type="button"
+  onDelete: () => void
+}> = ({ item, active, onClick, onDelete }) => (
+  <div
     className={`pantheon-session-item${active ? ' is-active' : ''}`}
-    data-testid={`pantheon-session-${item.id}`}
-    onClick={onClick}
   >
-    <span className={`pantheon-session-status is-${item.status}`} aria-hidden />
-    <span className="pantheon-session-copy">
-      <strong>{item.title}</strong>
-      {item.workspace && (
-        <span className="pantheon-session-workspace" title={item.workspace}>
-          <FolderOutlined />
-          {workspaceName(item.workspace)}
+    <button
+      type="button"
+      className="pantheon-session-open"
+      data-testid={`pantheon-session-${item.id}`}
+      onClick={onClick}
+    >
+      <span className={`pantheon-session-status is-${item.status}`} aria-hidden />
+      <span className="pantheon-session-copy">
+        <strong>{item.title}</strong>
+        {item.workspace && (
+          <span className="pantheon-session-workspace" title={item.workspace}>
+            <FolderOutlined />
+            {workspaceName(item.workspace)}
+          </span>
+        )}
+        <small>
+          {item.verdictSummary || item.error || PHASE_LABEL[item.phase] || item.phase}
+        </small>
+        <span className="pantheon-session-meta">
+          {STATUS_LABEL[item.status] || item.status}
+          <span>{item.agentCount} 位</span>
         </span>
-      )}
-      <small>
-        {item.verdictSummary || item.error || PHASE_LABEL[item.phase] || item.phase}
-      </small>
-      <span className="pantheon-session-meta">
-        {STATUS_LABEL[item.status] || item.status}
-        <span>{item.agentCount} 位</span>
       </span>
-    </span>
-    <time>{formatListTime(item.updatedAt)}</time>
-  </button>
+      <time>{formatListTime(item.updatedAt)}</time>
+    </button>
+    <button
+      type="button"
+      className="pantheon-session-delete"
+      data-testid={`pantheon-session-delete-${item.id}`}
+      aria-label={`删除议题：${item.title}`}
+      title={item.status === 'running' ? '请先终止正在进行的议题' : '删除议题'}
+      disabled={item.status === 'running'}
+      onClick={onDelete}
+    >
+      <DeleteOutlined />
+    </button>
+  </div>
 )
 
 const PantheonListSkeleton: React.FC = () => (
@@ -184,8 +207,8 @@ const PantheonRecordSkeleton: React.FC = () => (
 const CouncilProtocol: React.FC = () => (
   <section className="pantheon-protocol" aria-labelledby="pantheon-protocol-title">
     <header className="pantheon-protocol-head">
-      <span className="pantheon-eyebrow">讨论原则</span>
-      <h3 id="pantheon-protocol-title">在秩序中充分表达，在合作中补强论证。</h3>
+      <span className="pantheon-eyebrow">议事守则 · Protocol</span>
+      <h3 id="pantheon-protocol-title">让每一种判断，都能经得起彼此校正。</h3>
     </header>
     <ol className="pantheon-rule-list">
       <li>
@@ -217,56 +240,108 @@ const WelcomeCanvas: React.FC<{
   const probing = agents.length === 0
   const available = agents.filter((agent) => agent.available).length
   return (
-    <section className="pantheon-welcome" aria-labelledby="pantheon-welcome-title">
+    <section
+      className="pantheon-welcome pantheon-welcome--hall"
+      aria-labelledby="pantheon-welcome-title"
+    >
+      <span className="pantheon-chamber-watermark" aria-hidden>議</span>
       <div className="pantheon-welcome-copy">
-        <span className="pantheon-eyebrow">公正、客观、协助、互助</span>
-        <h2 id="pantheon-welcome-title">
-          让不同判断，<br />在讨论中彼此补强。
-        </h2>
+        <div className="pantheon-welcome-kicker">
+          <span className="pantheon-eyebrow">Gaea Council</span>
+          <span className="pantheon-welcome-kicker-rule" aria-hidden />
+          <span>本机议事厅</span>
+          <span className="pantheon-welcome-read-only">
+            <SafetyCertificateOutlined aria-hidden />
+            只读
+          </span>
+        </div>
+        <div className="pantheon-welcome-title-row">
+          <span className="pantheon-chamber-seal" aria-hidden>
+            <CrownOutlined />
+            <small>議</small>
+          </span>
+          <h2 id="pantheon-welcome-title">
+            <span>让不同判断，</span>
+            <span>在讨论中彼此补强。</span>
+          </h2>
+        </div>
         <p>
-          多位参与者按序发言、多轮论证，最后形成一份保留共识、分歧与证据缺口的讨论小结。
+          把问题交给本机多位 Agent。它们独立开场、交替补强，最后收束共识、
+          保留分歧，一并标出尚未闭合的证据缺口。
         </p>
         <div className="pantheon-welcome-actions">
           <Button
             type="primary"
             size="large"
-            icon={<PlusOutlined />}
+            icon={<ArrowRightOutlined />}
+            iconPosition="end"
             onClick={onStart}
             data-testid="pantheon-welcome-start"
+            className="pantheon-welcome-start"
           >
             发起讨论
           </Button>
           <span className={`pantheon-readiness${probing ? ' is-probing' : ''}`}>
             <i className={!probing && available >= 2 ? 'is-ready' : ''} aria-hidden />
-            {probing ? '正在检测本机席位…' : `${available} 位就绪`}
+            {probing ? '正在检测本机席位…' : `${available} 位可入席`}
           </span>
         </div>
+        <ol className="pantheon-welcome-sequence" aria-label="议事流程">
+          <li>
+            <span>01</span>
+            <strong>立题</strong>
+            <small>定义问题与证据</small>
+          </li>
+          <li>
+            <span>02</span>
+            <strong>众议</strong>
+            <small>独立判断，多轮补强</small>
+          </li>
+          <li>
+            <span>03</span>
+            <strong>汇断</strong>
+            <small>收束共识，保留分歧</small>
+          </li>
+        </ol>
       </div>
 
-      <div className="pantheon-council-preview" aria-label="本机讨论参与者">
+      <aside className="pantheon-council-preview" aria-label="本机讨论参与者">
+        <span className="pantheon-preview-orbit" aria-hidden />
         <div className="pantheon-council-preview-head">
           <div>
-            <span className="pantheon-eyebrow">参与者</span>
-            <strong>本机 Agent 讨论阵容</strong>
+            <span className="pantheon-eyebrow">Seat map · 本机席位</span>
+            <strong>一场讨论，四种视角。</strong>
           </div>
-          <span>{probing ? '检测中' : `${available} / ${seats.length} 在线`}</span>
+          <span className="pantheon-preview-count">
+            <b>{probing ? '—' : String(available).padStart(2, '0')}</b>
+            <small>/ {String(seats.length).padStart(2, '0')} 入席</small>
+          </span>
         </div>
         <div className="pantheon-seat-map">
           {seats.map((agent, index) => (
             <article
               key={agent.id}
               className={`pantheon-seat-card${agent.available ? ' is-ready' : ''}`}
-              style={{ '--seat-order': index } as React.CSSProperties}
+              style={{
+                '--seat-order': index,
+                '--agent-accent': AGENT_ACCENTS[agent.id] || 'var(--pantheon-accent)',
+              } as React.CSSProperties}
             >
-              <span className="pantheon-seat-monogram" aria-hidden>
-                {agent.name.slice(0, 1).toUpperCase()}
-              </span>
+              <PantheonAgentAvatar
+                agentId={agent.id}
+                className="pantheon-seat-monogram"
+                status={probing ? undefined : agent.available ? 'online' : 'offline'}
+              />
               <span className="pantheon-seat-card-copy">
+                <span className="pantheon-seat-number">
+                  席 {String(index + 1).padStart(2, '0')}
+                </span>
                 <strong>{agent.name}</strong>
                 <small>{agent.kind}</small>
               </span>
               <span className="pantheon-seat-state">
-                {agent.available ? '在线' : probing ? '检测中' : '离线'}
+                <i aria-hidden />
+                {agent.available ? '可入席' : probing ? '检测中' : '离线'}
               </span>
             </article>
           ))}
@@ -278,7 +353,7 @@ const WelcomeCanvas: React.FC<{
           <ArrowRightOutlined aria-hidden />
           <span>协作综合</span>
         </div>
-      </div>
+      </aside>
     </section>
   )
 }
@@ -369,11 +444,24 @@ const PantheonPage: React.FC = () => {
 
   const applyLiveEvent = useCallback((event: PantheonEvent) => {
     if (!event.agentId || !event.sessionId) return
+    if (event.kind === 'agent_skipped' || event.kind === 'agent_retry') {
+      setLiveStreams((current) => current.filter((item) => item.agentId !== event.agentId))
+      return
+    }
     if (event.kind !== 'agent_delta' && event.kind !== 'agent_output') return
     const id = `${event.sessionId}:${event.agentId}:${event.phase}:${event.round || 0}`
     setLiveStreams((current) => {
-      const index = current.findIndex((item) => item.id === id)
-      const existing = index >= 0 ? current[index] : undefined
+      // 定稿落位即清掉该席该轮的一切直播残影（含 phase 字符串漂移的旧条目），
+      // 防止同一发言以直播+定稿两份并存（2026-10-31 实弹重复输出护栏）。
+      const base = event.kind === 'agent_output'
+        ? current.filter((item) => !(
+          item.agentId === event.agentId
+          && (item.round || 0) === (event.round || 0)
+          && item.id !== id
+        ))
+        : current
+      const index = base.findIndex((item) => item.id === id)
+      const existing = index >= 0 ? base[index] : undefined
       if (event.kind === 'agent_delta' && existing && !existing.streaming) return current
       const next: PantheonLiveStream = {
         id,
@@ -384,9 +472,11 @@ const PantheonPage: React.FC = () => {
           ? event.text || ''
           : `${existing?.text || ''}${event.text || ''}`,
         streaming: event.kind === 'agent_delta',
+        startedAt: existing?.startedAt || event.at || Date.now(),
+        updatedAt: event.at || Date.now(),
       }
-      if (index < 0) return [...current.slice(-23), next]
-      const updated = [...current]
+      if (index < 0) return [...base.slice(-23), next]
+      const updated = [...base]
       updated[index] = next
       return updated
     })
@@ -519,6 +609,36 @@ const PantheonPage: React.FC = () => {
     })
   }, [active, messageApi, refreshSession])
 
+  const skipAgent = useCallback(async (agentId: string) => {
+    if (!active || !agentId) return
+    setBusy(true)
+    setError('')
+    try {
+      await pantheonApi.PantheonSkipAgent(active.id, agentId)
+      await refreshSession(active.id)
+      messageApi.info('已跳过当前 Agent，正在进入下一位')
+    } catch (err) {
+      setError(`跳过失败：${errorText(err)}`)
+    } finally {
+      setBusy(false)
+    }
+  }, [active, messageApi, refreshSession])
+
+  const retryAgent = useCallback(async (agentId: string) => {
+    if (!active || !agentId) return
+    setBusy(true)
+    setError('')
+    try {
+      await pantheonApi.PantheonRetryAgent(active.id, agentId)
+      await refreshSession(active.id)
+      messageApi.info('已重试当前 Agent，将保留已有发言并继续本轮')
+    } catch (err) {
+      setError(`重试当前 Agent 失败：${errorText(err)}`)
+    } finally {
+      setBusy(false)
+    }
+  }, [active, messageApi, refreshSession])
+
   const exportCouncil = useCallback(async () => {
     if (!active) return
     try {
@@ -554,10 +674,21 @@ const PantheonPage: React.FC = () => {
     }
   }, [active, messageApi])
 
-  const deleteCouncil = useCallback(() => {
+  const openResult = useCallback(async () => {
     if (!active) return
+    try {
+      const path = await pantheonApi.PantheonOpenResult(active.id)
+      setActive((current) => current ? { ...current, resultPath: path } : current)
+      messageApi.success('已打开主持人整理的最终文档')
+    } catch (err) {
+      setError(`打开最终文档失败：${errorText(err)}`)
+    }
+  }, [active, messageApi])
+
+  const deleteCouncil = useCallback((id: string, title: string) => {
+    if (!id) return
     Modal.confirm({
-      title: '删除这份讨论纪要？',
+      title: `删除「${clipText(title, 42)}」？`,
       content: '该操作会删除本地保存的全部发言、事件和小结，不能从页面恢复。',
       okText: '删除',
       okButtonProps: { danger: true },
@@ -565,11 +696,13 @@ const PantheonPage: React.FC = () => {
       onOk: async () => {
         setBusy(true)
         try {
-          await pantheonApi.PantheonDelete(active.id)
-          setActive(null)
-          setLiveStreams([])
-          activeIDRef.current = ''
-          setShowComposer(false)
+          await pantheonApi.PantheonDelete(id)
+          if (activeIDRef.current === id) {
+            setActive(null)
+            setLiveStreams([])
+            activeIDRef.current = ''
+            setShowComposer(false)
+          }
           await loadSessions()
           messageApi.success('讨论纪要已删除')
         } catch (err) {
@@ -579,6 +712,50 @@ const PantheonPage: React.FC = () => {
         }
       },
     })
+  }, [loadSessions, messageApi])
+
+  const restartCouncil = useCallback(() => {
+    if (!active) return
+    Modal.confirm({
+      title: '从头重开整场讨论？',
+      content: '这会另建一份全新的议事记录，之前已经完成的发言不会带入新议题进程。',
+      okText: '重开整场',
+      cancelText: '取消',
+      onOk: async () => {
+        setBusy(true)
+        setError('')
+        try {
+          const session = await pantheonApi.PantheonRestart(active.id)
+          setActive(session)
+          activeIDRef.current = session.id
+          setLiveStreams([])
+          await loadSessions()
+          messageApi.success('已从头重开整场讨论')
+        } catch (err) {
+          setError(`重新开始失败：${errorText(err)}`)
+        } finally {
+          setBusy(false)
+        }
+      },
+    })
+  }, [active, loadSessions, messageApi])
+
+  const resumeCouncil = useCallback(async () => {
+    if (!active) return
+    setBusy(true)
+    setError('')
+    try {
+      const session = await pantheonApi.PantheonResume(active.id)
+      setActive(session)
+      activeIDRef.current = session.id
+      setLiveStreams([])
+      await loadSessions()
+      messageApi.success('已恢复讨论：保留既有发言，从中断处继续')
+    } catch (err) {
+      setError(`恢复讨论失败：${errorText(err)}`)
+    } finally {
+      setBusy(false)
+    }
   }, [active, loadSessions, messageApi])
 
   const signOffCouncil = useCallback((decision: 'accepted' | 'needs_revision' | 'rejected') => {
@@ -639,12 +816,17 @@ const PantheonPage: React.FC = () => {
       ].filter(Boolean).join('\n\n'),
       successCriteria: session.request.successCriteria,
       workspace: session.request.workspace,
-      evidence: session.request.evidence || [],
+      evidence: (session.request.evidence || []).filter(
+        (item) => !item.name.startsWith('共享识图 · '),
+      ),
+      attachments: session.request.attachments || [],
       agentIds: session.request.agentIds || [],
       chairmanAgentId: session.request.chairmanAgentId,
       rounds: Math.max(2, Math.min(20, session.request.rounds || 2)),
       untilConsensus: Boolean(session.request.untilConsensus),
       maxRounds: session.request.maxRounds,
+      protocol: session.request.protocol,
+      parentSessionId: session.id,
     })
     setActive(null)
     setShowComposer(true)
@@ -784,6 +966,7 @@ const PantheonPage: React.FC = () => {
                 item={item}
                 active={active?.id === item.id}
                 onClick={() => void openSession(item.id)}
+                onDelete={() => deleteCouncil(item.id, item.title)}
               />
             ))}
           </div>
@@ -812,20 +995,32 @@ const PantheonPage: React.FC = () => {
           <div className="pantheon-agent-mini">
             {agents.map((agent) => {
               const fixed = agent.id === 'grok'
-              // 就绪/内置卡纯状态展示：不弹悬停层、点击不弹配置窗（用户拍板
-              // 「切换 agent 不要弹窗」）；只有标「设置」的离线卡才进路径配置。
-              const configurable = !fixed && !agent.available
+              // 全部纯状态展示：点击永不弹窗（2026-10-31 实弹拍板「切换 agent
+              // 还是弹窗」根除）；路径配置只走 Composer 离线席位的「设置路径」钮。
               return (
                 <button
                   key={agent.id}
                   type="button"
                   data-testid={`pantheon-agent-mini-${agent.id}`}
                   className={`${agent.available ? 'is-ready' : 'is-missing'}${fixed ? ' is-fixed' : ''}`}
-                  disabled={!configurable}
-                  onClick={() => { if (configurable) openAgentPath(agent) }}
+                  disabled
+                  title={agent.name}
+                  style={{
+                    '--agent-accent': AGENT_ACCENTS[agent.id] || 'var(--pantheon-accent)',
+                  } as React.CSSProperties}
                 >
-                  <span>{agent.name.slice(0, 1).toUpperCase()}</span>
-                  <small>{agent.available ? '就绪' : fixed ? '内置' : '设置'}</small>
+                  <PantheonAgentAvatar
+                    agentId={agent.id}
+                    status={agent.available ? 'online' : 'offline'}
+                  />
+                  <span className="pantheon-agent-mini-copy">
+                    <strong>{agentCompactName(agent.id, agent.name)}</strong>
+                    <small>
+                      {agent.available
+                        ? `就绪 · ${agentCapabilityLabel(agent.id)}`
+                        : fixed ? '内置' : '未就绪'}
+                    </small>
+                  </span>
                 </button>
               )
             })}
@@ -850,16 +1045,22 @@ const PantheonPage: React.FC = () => {
             error={error}
             liveStreams={liveStreams}
             onCancel={cancelCouncil}
-            onDelete={deleteCouncil}
+            onSkipAgent={(agentId) => void skipAgent(agentId)}
+            onRetryAgent={(agentId) => void retryAgent(agentId)}
+            onRestart={restartCouncil}
+            onResume={() => void resumeCouncil()}
+            onDelete={() => deleteCouncil(active.id, active.title)}
             onRefresh={() => void refreshSession(active.id)}
             onExport={() => void exportCouncil()}
             onExportJson={exportCouncilJson}
             onCopy={() => void copyCouncil()}
+            onOpenResult={() => void openResult()}
             onSignOff={signOffCouncil}
             onContinue={() => continueCouncil(active)}
           />
         ) : showComposer ? (
           <div className="pantheon-flow-stage pantheon-compose-stage">
+            <span className="pantheon-composer-watermark" aria-hidden>问</span>
             <PantheonComposer
               agents={agents}
               busy={busy}
@@ -867,6 +1068,7 @@ const PantheonPage: React.FC = () => {
               seed={composerSeed}
               onStart={beginCouncil}
               onRefreshAgents={() => void loadAgents()}
+              onConfigureAgent={openAgentPath}
             />
             <CouncilProtocol />
           </div>

@@ -203,11 +203,11 @@ describe("ComposerDragOverlay i18n 冒烟", () => {
 describe("Composer i18n 冒烟", () => {
   afterEach(cleanup);
 
-  it("项目感知 placeholder 走字典：空闲带工作区名（zh）/运行中提示（zh/en）", () => {
+  it("placeholder 走字典：空闲统一任务提示（zh/en）/运行中提示（zh）", () => {
     renderT(
       <Composer running={false} cwd="/ws" onSend={noop} onCancel={() => undefined} onPickFolder={async () => "/ws"} />,
     );
-    expect(screen.getByPlaceholderText("在 ws/ 中提问…")).toBeTruthy();
+    expect(screen.getByPlaceholderText("描述任务，或拖入文件…")).toBeTruthy();
     cleanup();
 
     renderT(
@@ -220,6 +220,6 @@ describe("Composer i18n 冒烟", () => {
       <Composer running={false} cwd="/ws" onSend={noop} onCancel={() => undefined} onPickFolder={async () => "/ws"} />,
       "en",
     );
-    expect(screen.getByPlaceholderText("Ask in ws/…")).toBeTruthy();
+    expect(screen.getByPlaceholderText("Describe a task, or drop a file…")).toBeTruthy();
   });
 });

@@ -71,6 +71,7 @@ func TestRunPantheonGrokAgentUsesOfficeToolLoop(t *testing.T) {
 		reg,
 		t.TempDir(),
 		"请先核验办公资料，再给出结论。",
+		nil,
 		func(text string) { streamed.WriteString(text) },
 		func(trace pantheon.ToolTrace) { traces = append(traces, trace) },
 	)

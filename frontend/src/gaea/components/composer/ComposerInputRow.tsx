@@ -35,27 +35,28 @@ export function ComposerInputRow({
   const breathing = !running && !disabled && (text.trim().length > 0 || attachmentsCount > 0)
   return (
     <div
-      className={`flex gap-2 items-center shrink-0 min-h-0 bg-transparent border-0 border-b border-border-soft rounded-none px-[13px] py-2.5 ${composerHeightFixed ? "flex-1 items-start" : ""} ${dragOver ? "outline outline-1 outline-dashed outline-accent outline-offset-[-4px] bg-accent-[0.02]" : ""} ${disabled ? "opacity-50 pointer-events-none" : ""}`}
+      className={`office-composer-input-row flex gap-2 items-center shrink-0 min-h-0 bg-transparent border-0 border-b border-border-soft rounded-none px-[13px] py-2.5 ${composerHeightFixed ? "flex-1 items-start" : ""} ${dragOver ? "outline outline-1 outline-dashed outline-accent outline-offset-[-4px] bg-accent-[0.02]" : ""} ${disabled ? "opacity-50 pointer-events-none" : ""}`}
       onDrop={onDrop} onDragOver={onDragOver} onDragLeave={onDragLeave}
     >
-      <span className="text-accent font-mono font-semibold text-lg leading-[1.55] shrink-0 select-none">›</span>
+      <span className="office-composer-caret" aria-hidden />
       <textarea
         ref={taRef}
-        className={`flex-1 resize-none border-0 bg-transparent text-fg leading-[1.55] max-h-[200px] outline-none placeholder:text-fg-faint ${composerHeightFixed ? "h-full max-h-none overflow-y-auto" : ""}`}
+        className={`office-composer-textarea flex-1 resize-none border-0 bg-transparent text-fg leading-[1.55] max-h-[200px] outline-none placeholder:text-fg-faint ${composerHeightFixed ? "h-full max-h-none overflow-y-auto" : ""}`}
         style={{ fieldSizing: "content" }}
         value={text} onChange={(e) => onTextChange(e.target.value)}
         onPaste={onPaste} onKeyDown={onKeyDown}
         placeholder={placeholder}
-        rows={1} disabled={disabled}
+        aria-label={placeholder}
+        rows={4} disabled={disabled}
       />
       {running && (
-        <button className="inline-flex items-center justify-center w-[30px] h-[30px] border-0 rounded-md cursor-pointer shrink-0 transition-all duration-[var(--dur-fast)] bg-bg-elev-2 text-err shadow-[0_0_8px_color-mix(in_srgb,var(--err)_20%,transparent)] hover:bg-err hover:text-white active:scale-95" onClick={onStop} title={t("composer.stop")}>
+        <button className="office-composer-action inline-flex items-center justify-center w-[30px] h-[30px] border-0 rounded-md cursor-pointer shrink-0 transition-all duration-[var(--dur-fast)] bg-bg-elev-2 text-err hover:bg-err hover:text-white active:scale-95" onClick={onStop} title={t("composer.stop")}>
           <Square size={14} fill="currentColor" />
         </button>
       )}
       {running && text.trim() !== "" && (
         <button
-          className="inline-flex items-center justify-center w-[30px] h-[30px] border-0 rounded-md cursor-pointer shrink-0 transition-all duration-[var(--dur-fast)] bg-transparent text-fg-faint hover:text-fg hover:bg-bg-soft active:scale-95"
+          className="office-composer-action inline-flex items-center justify-center w-[30px] h-[30px] border-0 rounded-md cursor-pointer shrink-0 transition-all duration-[var(--dur-fast)] bg-transparent text-fg-faint hover:text-fg hover:bg-bg-soft active:scale-95"
           onClick={onQueue}
           title={t("composer.queueSendHint")}
         >
@@ -63,7 +64,7 @@ export function ComposerInputRow({
         </button>
       )}
       <button
-        className={`inline-flex items-center justify-center w-[32px] h-[32px] border-0 rounded-full cursor-pointer shrink-0 transition-all duration-[var(--dur-fast)] active:scale-95 ${running ? (shiftHeld ? "bg-warn/20 text-warn hover:bg-warn hover:text-white shadow-[0_0_8px_var(--warn)]" : "bg-bg-elev-2 text-fg-dim hover:bg-accent hover:text-accent-fg hover:scale-105") : `bg-accent text-accent-fg hover:brightness-110 ${breathing ? "v3-send-breathe" : ""}`} disabled:bg-bg-elev-2 disabled:text-fg-faint disabled:cursor-default disabled:hover:scale-100 disabled:active:scale-100 disabled:shadow-none`}
+        className={`office-send-button inline-flex items-center justify-center w-[32px] h-[32px] border-0 rounded-full cursor-pointer shrink-0 transition-all duration-[var(--dur-fast)] active:scale-95 ${running ? (shiftHeld ? "bg-warn/20 text-warn hover:bg-warn hover:text-white" : "bg-bg-elev-2 text-fg-dim hover:bg-accent hover:text-accent-fg") : `bg-accent text-accent-fg hover:brightness-110 ${breathing ? "v3-send-breathe" : ""}`} disabled:bg-bg-elev-2 disabled:text-fg-faint disabled:cursor-default disabled:hover:scale-100 disabled:active:scale-100 disabled:shadow-none`}
         onClick={onSubmit}
         disabled={disabled || pendingPaste > 0 || (!text.trim() && attachmentsCount === 0 && (!running || queueLen === 0))}
         title={running ? (shiftHeld ? t("composer.correctTitle") : queueLen > 0 ? t("composer.queueCount", { n: queueLen }) : t("composer.sendQueuedTitle")) : t("composer.send")}

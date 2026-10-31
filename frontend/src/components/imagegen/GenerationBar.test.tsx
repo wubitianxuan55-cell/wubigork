@@ -49,6 +49,31 @@ describe('GenerationBar 生成进度显示', () => {
 })
 
 describe('GenerationBar 模式门禁', () => {
+  it('空提示词：禁用生成并提示先写画面描述', () => {
+    const { container } = render(
+      <GenerationBar {...baseProps} generating={false} hasPrompt={false} />,
+    )
+    const btn = container.querySelector('.ig-gen-button') as HTMLButtonElement
+    expect(btn.disabled).toBe(true)
+    expect(screen.getByText('先写下画面描述')).toBeTruthy()
+  })
+
+  it('图生图缺参考图：禁用生成并提示上传参考图', () => {
+    const { container } = render(
+      <GenerationBar
+        {...baseProps}
+        mode="img2img"
+        backend="comfyui"
+        generating={false}
+        needsComfy={false}
+        hasReference={false}
+      />,
+    )
+    const btn = container.querySelector('.ig-gen-button') as HTMLButtonElement
+    expect(btn.disabled).toBe(true)
+    expect(screen.getByText('先上传一张参考图')).toBeTruthy()
+  })
+
   it('img2img + xai + needsComfy：仍禁用生成按钮并提示切换引擎', () => {
     const { container } = render(
       <GenerationBar {...baseProps} mode="img2img" backend="xai" generating={false} needsComfy={true} />,

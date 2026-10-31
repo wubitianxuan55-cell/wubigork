@@ -26,8 +26,24 @@ export function PantheonList() {
   return window['go']['app']['PantheonB']['PantheonList']();
 }
 
+export function PantheonOpenResult(arg1) {
+  return window['go']['app']['PantheonB']['PantheonOpenResult'](arg1);
+}
+
 export function PantheonPickWorkspace() {
   return window['go']['app']['PantheonB']['PantheonPickWorkspace']();
+}
+
+export function PantheonRestart(arg1) {
+  return window['go']['app']['PantheonB']['PantheonRestart'](arg1);
+}
+
+export function PantheonResume(arg1) {
+  return window['go']['app']['PantheonB']['PantheonResume'](arg1);
+}
+
+export function PantheonRetryAgent(arg1, arg2) {
+  return window['go']['app']['PantheonB']['PantheonRetryAgent'](arg1, arg2);
 }
 
 export function PantheonSetExecutable(arg1, arg2) {
@@ -36,6 +52,10 @@ export function PantheonSetExecutable(arg1, arg2) {
 
 export function PantheonSignOff(arg1, arg2, arg3) {
   return window['go']['app']['PantheonB']['PantheonSignOff'](arg1, arg2, arg3);
+}
+
+export function PantheonSkipAgent(arg1, arg2) {
+  return window['go']['app']['PantheonB']['PantheonSkipAgent'](arg1, arg2);
 }
 
 export function PantheonStart(arg1) {

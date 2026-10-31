@@ -1,10 +1,9 @@
 // ChatPage 拆分产物：语音对话集成（行为零变化，T6-10.1）。
 // T6-3.3：语音消息持久化。识别文本/回复经 ChatAppendMessages 落库（单事务），
 // 与正常 ChatSend 的落库互不重复（语音管道不走 ChatSend）；无活跃话题时仅内存展示。
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { app } from '../gaea/lib/bridge'
 import { useVoiceChat } from './useVoiceChat'
-import { VOICE_LAUNCH_FLAG } from '../components/ModuleLauncher'
 import { logFrontendError, nextMsgKey, nowStr } from '../pages/chat/utils'
 import type { ChatMsg } from '../pages/chat/types'
 
@@ -48,16 +47,6 @@ export function useChatVoice({ setMessages, getActiveId, getMode }: UseChatVoice
     setVoiceOn(true)
     await startVoice()
   }, [voiceOn, getMode, startVoice, stopVoice])
-
-  // 首页语音入口兼容：进入聊天板块自动开启收听
-  useEffect(() => {
-    let flag = false
-    try { flag = sessionStorage.getItem(VOICE_LAUNCH_FLAG) === '1' } catch (_) {}
-    if (flag) {
-      try { sessionStorage.removeItem(VOICE_LAUNCH_FLAG) } catch (_) {}
-      toggleVoice()
-    }
-  }, [toggleVoice])
 
   return { voice, voiceOn, toggleVoice }
 }

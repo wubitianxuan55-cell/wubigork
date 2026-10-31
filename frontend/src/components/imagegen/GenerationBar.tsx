@@ -24,6 +24,10 @@ interface Props {
   queueTotal: number
   comfyProgress?: { status: string; elapsed: number; percent?: number; node?: string }
   needsComfy: boolean
+  /** 页面级内容门禁：缺画面描述时禁用主按钮并把原因放回生成栏。 */
+  hasPrompt?: boolean
+  /** 图生图必须已有参考图；其它模式默认满足。 */
+  hasReference?: boolean
   onGenerate: () => void
   onCancel: () => void
 }
@@ -31,7 +35,8 @@ interface Props {
 export const GenerationBar: React.FC<Props> = ({
   mode, backend, model, count, frames, fps,
   generating, elapsed, lastTime, pendingCount, queueTotal,
-  comfyProgress, needsComfy, onGenerate, onCancel,
+  comfyProgress, needsComfy, hasPrompt = true, hasReference = true,
+  onGenerate, onCancel,
 }) => {
   const est = estimateImageTime(backend, model, count, mode, frames, fps)
 
@@ -39,9 +44,24 @@ export const GenerationBar: React.FC<Props> = ({
   // backendSupportsMode 兜住引擎固有模式约束（GLM 仅文生图），
   // 两者任一不满足即禁用生成，避免残留态点击后被后端拒收。
   const modeBlocked = !backendSupportsMode(backend, mode) || needsComfy
+  const contentBlocked = !hasPrompt || (mode === 'img2img' && !hasReference)
+  const blockReason = modeBlocked
+    ? backend === 'glm'
+      ? 'GLM 仅支持文生图，请切换到文生图模式或更换引擎'
+      : mode === 't2v'
+        ? '文生视频需切换至 ComfyUI'
+        : '图生图需切换至 ComfyUI / Herdsman'
+    : !hasPrompt
+      ? mode === 't2v' ? '先写下视频画面描述' : '先写下画面描述'
+      : mode === 'img2img' && !hasReference
+        ? '先上传一张参考图'
+        : ''
+  const generateDisabled = modeBlocked || contentBlocked
 
   let hint: string
-  if (generating) {
+  if (!generating && contentBlocked) {
+    hint = blockReason
+  } else if (generating) {
     hint = `已用时 ${elapsed}s`
   } else if (backend === 'comfyui' && comfyProgress?.status === 'running') {
     hint = `ComfyUI 执行中 · ${comfyProgress.elapsed}s`
@@ -87,13 +107,9 @@ export const GenerationBar: React.FC<Props> = ({
               队列 {queueTotal}
             </Tag>
           )}
-          {modeBlocked && (
+          {blockReason && !contentBlocked && (
             <span style={{ fontSize: 11, color: 'var(--md-sys-color-warning)' }}>
-              {backend === 'glm'
-                ? 'GLM 仅支持文生图，请切换到文生图模式或更换引擎'
-                : mode === 't2v'
-                  ? '文生视频需切换至 ComfyUI'
-                  : '图生图需切换至 ComfyUI / Herdsman'}
+              {blockReason}
             </span>
           )}
         </div>
@@ -110,17 +126,11 @@ export const GenerationBar: React.FC<Props> = ({
           )}
           <button
             type="button"
-            disabled={modeBlocked}
+            disabled={generateDisabled}
             onClick={onGenerate}
             className="ig-gen-button"
             aria-busy={generating}
-            title={modeBlocked
-              ? backend === 'glm'
-                ? 'GLM 仅支持文生图，请切换到文生图模式或更换引擎'
-                : mode === 't2v'
-                  ? '文生视频需切换至 ComfyUI 本地后端'
-                  : '图生图需切换至 ComfyUI / Herdsman 后端'
-              : undefined}
+            title={blockReason || undefined}
           >
             {generating ? <LoadingOutlined /> : <ThunderboltOutlined />}
             {label}

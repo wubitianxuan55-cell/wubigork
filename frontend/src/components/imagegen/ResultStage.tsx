@@ -40,14 +40,19 @@ const getAspect = (size: string) => {
 export const ResultStage: React.FC<Props> = ({
   results, generating, error, mode = 'txt2img', initImage, onPreview, onDownload, onReuse, onDelete, onRetry, onOpenTemplatePicker, onEditImage, onInstructEdit, onCutout,
 }) => {
-  const emptyTitle = mode === 't2v' ? '输入描述，生成你的第一支 AI 视频'
-    : mode === 'img2img' ? '上传参考图，开始重绘'
-    : '输入描述，开始创作'
+  const emptyTitle = mode === 't2v' ? '一句话，生成第一段镜头。'
+    : mode === 'img2img' ? '让参考图，长出新的画面。'
+    : '让第一幅画，从一句话开始。'
   const emptyDesc = mode === 't2v'
-    ? '在左侧写下画面描述，选择分辨率与时长后点击生成（需 ComfyUI + LTX-Video）'
+    ? '写下主体、动作与镜头运动；本地 ComfyUI + LTX-Video 会把描述变成动态画面。'
     : mode === 'img2img'
-      ? '上传参考图并描述想要的改动，控制重绘幅度生成新画面'
-      : '在左侧写下想要的画面，选择模型与参数后点击生成'
+      ? '先放入参考图，再描述想保留和改变的部分。重绘幅度决定它离原图有多远。'
+      : '在左侧写下你脑海里的画面，再选定模型与画幅。绘梦会把描述变成一张可继续编辑的作品。'
+  const emptyCues = mode === 't2v'
+    ? ['主体动作', '镜头运动', '环境光线']
+    : mode === 'img2img'
+      ? ['保留构图', '改变内容', '目标风格']
+      : ['主体细节', '环境光线', '镜头风格']
 
   // 生成中且无结果：骨架屏
   if (generating && results.length === 0) {
@@ -100,39 +105,49 @@ export const ResultStage: React.FC<Props> = ({
   // 空态
   if (results.length === 0) {
     return (
-      <div className="img-stage-enter" style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        gap: 12, paddingTop: mode === 'img2img' && initImage ? 40 : 110,
-      }}>
-        {mode === 'img2img' && initImage && (
-          <div style={{ position: 'relative' }}>
-            <img
-              src={initImage}
-              alt="参考图"
-              style={{ width: 160, height: 160, objectFit: 'cover', borderRadius: 14, border: '1px solid var(--border-subtle)', boxShadow: 'var(--shadow-sm)' }}
-            />
-            <span style={{
-              position: 'absolute', left: '50%', bottom: -10, transform: 'translateX(-50%)',
-              background: 'rgba(0,0,0,0.65)', color: '#fff', fontSize: 10, padding: '2px 10px', borderRadius: 999, // hex-exempt 图片覆盖层 chrome
-              border: '1px solid var(--border-subtle)', whiteSpace: 'nowrap',
-            }}>参考图已就绪</span>
+      <div className="img-stage-enter ig-empty-stage">
+        <span className="ig-empty-index" aria-hidden>01 / Canvas</span>
+        <div className="ig-empty-art" aria-hidden={!initImage}>
+          {mode === 'img2img' && initImage ? (
+            <>
+              <img src={initImage} alt="图生图参考图" />
+              <span className="ig-empty-ref-label">参考图已就位</span>
+            </>
+          ) : (
+            <>
+              <span className="ig-empty-frame ig-empty-frame--back" />
+              <span className="ig-empty-frame ig-empty-frame--front">
+                {mode === 't2v' ? <VideoCameraOutlined /> : <PictureOutlined />}
+              </span>
+              <span className="ig-empty-orbit" />
+            </>
+          )}
+        </div>
+        <div className="ig-empty-copy">
+          <span className="ig-empty-eyebrow">
+            {mode === 't2v' ? 'Motion study' : mode === 'img2img' ? 'Reference study' : 'Blank canvas'}
+          </span>
+          <h2>{emptyTitle}</h2>
+          <p>{emptyDesc}</p>
+          <div className="ig-empty-cues" aria-label="描述建议">
+            {emptyCues.map((cue, index) => (
+              <span key={cue}>
+                <b>{String(index + 1).padStart(2, '0')}</b>
+                {cue}
+              </span>
+            ))}
           </div>
-        )}
-        <div style={{
-          width: 56, height: 56, borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(var(--accent-rgb), 0.12)', color: 'var(--color-primary)', fontSize: 24,
-          border: '1px solid rgba(var(--accent-rgb), 0.2)',
-        }}>
-          {mode === 't2v' ? <VideoCameraOutlined /> : <PictureOutlined />}
+          {onOpenTemplatePicker && (
+            <Button
+              type="primary"
+              icon={<AppstoreOutlined />}
+              onClick={onOpenTemplatePicker}
+              className="ig-empty-template"
+            >
+              从模板开始
+            </Button>
+          )}
         </div>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ color: 'var(--color-text)', fontSize: 20, fontWeight: 650, marginBottom: 8 }}>{emptyTitle}</div>
-          <div style={{ color: C('color-text-secondary'), fontSize: 12, maxWidth: 300, lineHeight: 1.6 }}>{emptyDesc}</div>
-        </div>
-        {onOpenTemplatePicker && (
-          <Button type="primary" icon={<AppstoreOutlined />} onClick={onOpenTemplatePicker}
-            style={{ borderRadius: 999, fontSize: 13, height: 36, paddingInline: 18 }}>浏览模板</Button>
-        )}
       </div>
     )
   }
@@ -167,7 +182,7 @@ export const ResultStage: React.FC<Props> = ({
           ) : (
             <img
               src={r.image}
-              alt=""
+              alt={r.prompt ? `绘梦生成：${r.prompt}` : '绘梦生成图片'}
               style={{ width: '100%', height: '100%', display: 'block', objectFit: 'contain' }}
             />
           )}
@@ -239,7 +254,7 @@ export const ResultStage: React.FC<Props> = ({
           ) : (
             <img
               src={r.image}
-              alt=""
+              alt={r.prompt ? `绘梦生成：${r.prompt}` : '绘梦生成图片'}
               style={{ width: '100%', display: 'block', aspectRatio: getAspect(r.size), objectFit: 'cover' }}
             />
           )}
