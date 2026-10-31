@@ -171,6 +171,13 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 		return nil
 	},
 	KeyBreezeDir: func(cf *configFile, v string) error { cf.BreezeDir = v; return nil },
+	KeyBreezeVoiceDesc: func(cf *configFile, v string) error {
+		if len(v) > 4096 {
+			return fmt.Errorf("Breeze 音色描述过长（%d 字节，上限 4096）", len(v))
+		}
+		cf.BreezeVoiceDesc = v
+		return nil
+	},
 	KeyBreezePort: func(cf *configFile, v string) error {
 		n, err := strconv.Atoi(v)
 		if err != nil {

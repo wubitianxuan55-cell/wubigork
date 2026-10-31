@@ -6,6 +6,9 @@ package app
 // 方法体零改动——纯委托给 App 实例（b.a.<Method>）。
 type ImageB struct{ a *App }
 
+func (b *ImageB) BreezeDeleteVoice(id string) map[string]interface{} { return b.a.BreezeDeleteVoice(id) }
+func (b *ImageB) BreezeListVoices() map[string]interface{} { return b.a.BreezeListVoices() }
+func (b *ImageB) BreezeSaveVoice(name string, description string, refText string, refAudioB64 string) map[string]interface{} { return b.a.BreezeSaveVoice(name, description, refText, refAudioB64) }
 func (b *ImageB) CancelImageGeneration() bool { return b.a.CancelImageGeneration() }
 func (b *ImageB) GaeaImageDirector(req ImageDirectorRequest) (ImageDirectorResult, error) { return b.a.GaeaImageDirector(req) }
 func (b *ImageB) GenerateCharacterPortrait(charID string, model string) (string, error) { return b.a.GenerateCharacterPortrait(charID, model) }

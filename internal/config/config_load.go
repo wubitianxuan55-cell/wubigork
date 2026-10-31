@@ -457,6 +457,9 @@ func applyConfigFile(cfg *Config, home string) {
 			if cf.BreezePort != 0 {
 				cfg.BreezePort = cf.BreezePort
 			}
+			if cf.BreezeVoiceDesc != "" {
+				cfg.BreezeVoiceDesc = cf.BreezeVoiceDesc
+			}
 			if cf.RealtimeProvider != "" {
 				cfg.RealtimeProvider = cf.RealtimeProvider
 			}

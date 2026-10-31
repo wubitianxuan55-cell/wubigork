@@ -1,8 +1,8 @@
 // VoiceSettingsPanel.tsx — 聊天语音设置面板
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Card, Switch, Select, Slider, Button, Typography, Tag, Input, message } from 'antd'
-import { AudioOutlined, ReloadOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons'
+import { AudioOutlined, ReloadOutlined, CheckCircleOutlined, CloseCircleOutlined, PlusOutlined } from '@ant-design/icons'
 import { app } from '../gaea/lib/bridge'
 import { listMicDevices, loadMicDeviceId, saveMicDeviceId } from '../hooks/useVoiceChat'
 
@@ -26,6 +26,7 @@ interface VoiceSettingsInfo {
   realtimeProvider?: string
   realtimeModel?: string
   realtimeHasKey?: boolean
+  breezeVoiceDesc?: string
 }
 
 /** GetVoicePipelineConfig 动态载荷中 TTS 模型读取面 */
@@ -95,6 +96,87 @@ export default function VoiceSettingsPanel() {
     setMicId(loadMicDeviceId())
   }
 
+  // ── Breeze 音色区（克隆音色 + voice design 描述） ──
+  interface BreezeVoiceInfo { id: string; seconds?: number; saved?: boolean; description?: string }
+  const [breezeVoices, setBreezeVoices] = useState<BreezeVoiceInfo[]>([])
+  const [breezeVoicesStarted, setBreezeVoicesStarted] = useState(true)
+  const [breezeVoicesLoading, setBreezeVoicesLoading] = useState(false)
+  const [breezeDesc, setBreezeDesc] = useState('')
+  // 克隆表单
+  const [cloneName, setCloneName] = useState('')
+  const [cloneDesc, setCloneDesc] = useState('')
+  const [cloneRefText, setCloneRefText] = useState('')
+  const [cloneSaving, setCloneSaving] = useState(false)
+  const cloneFileRef = useRef<HTMLInputElement | null>(null)
+  const [cloneFileB64, setCloneFileB64] = useState('')
+  const [cloneFileName, setCloneFileName] = useState('')
+  // 试音电平
+  const [metering, setMetering] = useState(false)
+  const [meterLevel, setMeterLevel] = useState(0)
+  const [meterResult, setMeterResult] = useState<null | 'signal' | 'silent'>(null)
+  const meterStopRef = useRef<(() => void) | null>(null)
+
+  const refreshBreezeVoices = async () => {
+    setBreezeVoicesLoading(true)
+    try {
+      const res = await app.BreezeListVoices() as { started?: boolean; voices?: BreezeVoiceInfo[]; error?: string }
+      setBreezeVoicesStarted(!!res?.started)
+      setBreezeVoices(Array.isArray(res?.voices) ? res.voices : [])
+    } catch (_) {
+      setBreezeVoicesStarted(false)
+      setBreezeVoices([])
+    } finally {
+      setBreezeVoicesLoading(false)
+    }
+  }
+
+  // 试音：在当前所选录音设备上采 3s，实时电平条 + 有/无信号结论（与采集同口径：
+  // 频域任一字节非零 = 有信号）。
+  const runMicMeter = async () => {
+    if (metering) return
+    setMetering(true)
+    setMeterResult(null)
+    setMeterLevel(0)
+    let stream: MediaStream | null = null
+    let ctx: AudioContext | null = null
+    const savedMicId = loadMicDeviceId()
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          ...(savedMicId ? { deviceId: { exact: savedMicId } } : {}),
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+      })
+      ctx = new AudioContext()
+      const src = ctx.createMediaStreamSource(stream)
+      const analyser = ctx.createAnalyser()
+      analyser.fftSize = 256
+      src.connect(analyser)
+      const buf = new Uint8Array(analyser.frequencyBinCount)
+      let hasSignal = false
+      const deadline = Date.now() + 3000
+      while (Date.now() < deadline) {
+        analyser.getByteFrequencyData(buf)
+        let max = 0
+        for (let i = 0; i < buf.length; i++) if (buf[i] > max) max = buf[i]
+        if (max > 0) hasSignal = true
+        setMeterLevel(Math.min(max / 140, 1))
+        await new Promise(r => setTimeout(r, 80))
+      }
+      setMeterResult(hasSignal ? 'signal' : 'silent')
+    } catch (err) {
+      setMeterResult('silent')
+      message.warning(`试音失败：${err instanceof Error ? err.name : String(err)}`)
+    } finally {
+      stream?.getTracks().forEach(t => t.stop())
+      await ctx?.close().catch(() => {})
+      setMetering(false)
+      setMeterLevel(0)
+      meterStopRef.current = null
+    }
+  }
+
   const checkHealth = async () => {
     setChecking(true)
     try {
@@ -122,6 +204,7 @@ export default function VoiceSettingsPanel() {
       if (settings.realtimeProvider !== undefined) setRtProvider(String(settings.realtimeProvider || ''))
       if (settings.realtimeModel !== undefined) setRtModel(String(settings.realtimeModel || ''))
       if (settings.realtimeHasKey !== undefined) setRtHasKey(!!settings.realtimeHasKey)
+      if (settings.breezeVoiceDesc !== undefined) setBreezeDesc(String(settings.breezeVoiceDesc || ''))
 
       const model = (pipeline as VoicePipelineInfo | undefined)?.chatTts?.model
         || (pipeline as VoicePipelineInfo | undefined)?.tts?.model
@@ -207,9 +290,15 @@ export default function VoiceSettingsPanel() {
       const list = herdsmanVoices.length > 0 ? herdsmanVoices : COSYVOICE_VOICES
       return list.includes(ttsVoice) ? ttsVoice : '中文女'
     }
-    if (isBreeze) return '' // 不发 voice（发未知名会被 breeze-server 404）
+    if (isBreeze) return ttsVoice // 克隆音色 id（空=design 模式）
     return ttsVoice || 'zh-CN-YunxiNeural'
   }, [isHerdsman, isXai, isCosyvoice, isBreeze, herdsmanVoices, ttsVoice])
+
+  // Breeze 音色列表：进入 breeze 引擎时拉一次（服务未起则提示，启动后点刷新）
+  useEffect(() => {
+    if (isBreeze) void refreshBreezeVoices()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isBreeze])
 
   return (
     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -270,10 +359,48 @@ export default function VoiceSettingsPanel() {
         )}
         {isBreeze && ttsModel && (
           <div style={{ fontSize: 10, color: '#2dd4bf', marginBottom: 6 }}> {/* hex-exempt 引擎品牌识别色（Breeze） */}
-            当前模型：{ttsModel}（本地 Breeze-TTS-2，无预置音色——由朗读情绪/描述自动定音色）
+            当前模型：{ttsModel}（本地 Breeze-TTS-2）
           </div>
         )}
-        {!isBreeze && (
+        {isBreeze ? (
+          <>
+            <Select
+              size="small"
+              value={ttsVoice || ''}
+              onChange={v => { setTtsVoice(String(v)); applyVoiceSettings({ ttsVoice: String(v) }) }}
+              style={{ width: '100%' }}
+              options={[
+                { value: '', label: '自动（按下方描述定音色）' },
+                ...breezeVoices.map(v => ({
+                  value: v.id,
+                  label: `${v.id}（${(v.seconds ?? 0).toFixed(1)}s${v.saved ? '·已保存' : '·临时'}）`,
+                })),
+              ]}
+              notFoundContent={breezeVoicesLoading ? '加载中…' : (breezeVoicesStarted ? '尚无克隆音色' : 'Breeze 服务未运行')}
+              dropdownRender={menu => (
+                <>
+                  {menu}
+                  <div style={{ padding: '4px 8px' }}>
+                    <Button size="small" type="text" icon={<ReloadOutlined />} loading={breezeVoicesLoading} onClick={() => { void refreshBreezeVoices() }} style={{ fontSize: 11 }}>刷新音色列表</Button>
+                  </div>
+                </>
+              )}
+            />
+            <Input.TextArea
+              size="small"
+              value={breezeDesc}
+              onChange={e => setBreezeDesc(e.target.value)}
+              onBlur={() => { applyVoiceSettings({ breezeVoiceDesc: breezeDesc }) }}
+              placeholder="音色描述（voice design）：如「温柔沉稳的青年女声，吐字清晰」"
+              autoSize={{ minRows: 2, maxRows: 4 }}
+              style={{ marginTop: 8, fontSize: 11 }}
+              maxLength={2000}
+            />
+            <div style={{ fontSize: 10, color: 'var(--color-text-secondary)', marginTop: 4, opacity: 0.75 }}>
+              未选克隆音色时按描述合成；朗读情绪（[笑]/[叹气] 等）会并入语气执导
+            </div>
+          </>
+        ) : (
           <Select
             size="small"
             value={effectiveVoice}
@@ -283,6 +410,101 @@ export default function VoiceSettingsPanel() {
           />
         )}
       </Card>
+
+      {/* Breeze 克隆音色（仅 breeze 引擎时显示）：参考音频+逐字转写 → 保存为可复用音色 */}
+      {isBreeze && (
+        <Card size="small" style={{ background: 'var(--color-surface-container)', border: '1px solid var(--color-border)', borderRadius: 8 }} bodyStyle={{ padding: 12 }}>
+          <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 6 }}>克隆音色</div>
+          {!breezeVoicesStarted && (
+            <div style={{ fontSize: 10, color: '#f59e0b', marginBottom: 6 }}> {/* hex-exempt 警示琥珀 */}
+              Breeze 服务未运行——先在模型中心启动（克隆需要服务在线）
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+            <Input
+              size="small"
+              value={cloneName}
+              onChange={e => setCloneName(e.target.value.replace(/[^A-Za-z0-9_-]/g, ''))}
+              placeholder="名称（字母/数字/_/-，≤64）"
+              style={{ fontSize: 11, flex: 1 }}
+              maxLength={64}
+            />
+            <Input
+              size="small"
+              value={cloneDesc}
+              onChange={e => setCloneDesc(e.target.value)}
+              placeholder="备注描述（可选）"
+              style={{ fontSize: 11, flex: 1 }}
+              maxLength={200}
+            />
+          </div>
+          <Input.TextArea
+            size="small"
+            value={cloneRefText}
+            onChange={e => setCloneRefText(e.target.value)}
+            placeholder="参考音频的转写文本——必须与音频逐字一致，否则克隆严重劣化"
+            autoSize={{ minRows: 2, maxRows: 3 }}
+            style={{ fontSize: 11, marginBottom: 6 }}
+            maxLength={1000}
+          />
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <Button size="small" icon={<AudioOutlined />} onClick={() => cloneFileRef.current?.click()} style={{ fontSize: 11 }} disabled={!breezeVoicesStarted}>
+              {cloneFileName ? `已选：${cloneFileName.slice(0, 18)}` : '选择参考音频（WAV，5~15s 干净人声）'}
+            </Button>
+            <input
+              ref={cloneFileRef}
+              type="file"
+              accept="audio/wav,audio/x-wav,.wav"
+              style={{ display: 'none' }}
+              onChange={e => {
+                const f = e.target.files?.[0]
+                if (!f) return
+                setCloneFileName(f.name)
+                const reader = new FileReader()
+                reader.onload = () => {
+                  const buf = new Uint8Array(reader.result as ArrayBuffer)
+                  let bin = ''
+                  for (let i = 0; i < buf.length; i += 0x8000) {
+                    bin += String.fromCharCode(...buf.subarray(i, i + 0x8000))
+                  }
+                  setCloneFileB64(btoa(bin))
+                }
+                reader.readAsArrayBuffer(f)
+              }}
+            />
+            <Button
+              size="small"
+              type="primary"
+              icon={<PlusOutlined />}
+              loading={cloneSaving}
+              disabled={!breezeVoicesStarted || !cloneName || !cloneRefText || !cloneFileB64}
+              style={{ fontSize: 11 }}
+              onClick={async () => {
+                setCloneSaving(true)
+                try {
+                  const res = await app.BreezeSaveVoice(cloneName, cloneDesc, cloneRefText, cloneFileB64) as { ok?: boolean; error?: string }
+                  if (res?.ok) {
+                    message.success(`克隆音色「${cloneName}」已保存`)
+                    setCloneName(''); setCloneDesc(''); setCloneRefText(''); setCloneFileB64(''); setCloneFileName('')
+                    void refreshBreezeVoices()
+                  } else {
+                    message.error(res?.error || '保存失败')
+                  }
+                } catch (err) {
+                  message.error(`保存失败：${err instanceof Error ? err.message : String(err)}`)
+                } finally {
+                  setCloneSaving(false)
+                }
+              }}
+            >
+              保存克隆
+            </Button>
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--color-text-secondary)', marginTop: 4, opacity: 0.75 }}>
+            保存后在上方「合成音色」下拉选用；服务端写入 voices/&lt;名称&gt;.breeze，跨重启可用
+          </div>
+        </Card>
+      )}
 
       {/* 麦克风设备 */}
       <Card size="small" style={{ background: 'var(--color-surface-container)', border: '1px solid var(--color-border)', borderRadius: 8 }} bodyStyle={{ padding: 12 }}>
@@ -310,6 +532,24 @@ export default function VoiceSettingsPanel() {
         )}
         <div style={{ fontSize: 10, color: 'var(--color-text-secondary)', marginTop: 4, opacity: 0.75 }}>
           默认设备可能是无信号的虚拟音频；语音对话提示「麦克风不可用」时在此换真麦克风
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
+          <Button size="small" loading={metering} onClick={() => { void runMicMeter() }} style={{ fontSize: 11 }}>
+            试音（3 秒）
+          </Button>
+          <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'var(--color-surface-container-high)', overflow: 'hidden' }}>
+            <div style={{
+              width: `${Math.round(meterLevel * 100)}%`, height: '100%', borderRadius: 3,
+              background: meterResult === 'silent' ? '#f59e0b' : '#2dd4bf', /* hex-exempt 电平条（琥珀=无信号/青=有信号） */
+              transition: 'width 80ms linear',
+            }} />
+          </div>
+          {meterResult === 'signal' && (
+            <span style={{ fontSize: 10, color: '#2dd4bf' }}>有信号 ✓</span> /* hex-exempt 同上 */
+          )}
+          {meterResult === 'silent' && (
+            <span style={{ fontSize: 10, color: '#f59e0b' }}>无信号 ✗（虚拟设备/静音/未佩戴）</span> /* hex-exempt 同上 */
+          )}
         </div>
       </Card>
 

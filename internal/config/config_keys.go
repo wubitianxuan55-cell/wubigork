@@ -140,8 +140,11 @@ const (
 	KeyCosyVoicePort = "cosyvoice_port"
 	// Breeze 本地 TTS 服务（Breeze-TTS-2，breeze-server 托管）：路径/端口可配置。
 	// exe/模型 GGUF 按目录约定自动发现（bin\*\breeze-server.exe / model\*.gguf）。
-	KeyBreezeDir  = "breeze_dir"
-	KeyBreezePort = "breeze_port"
+	// voice_desc = voice design 模式的音色描述（朗读/语音对话未带人格化描述时
+	// 的缺省音色，如「温柔沉稳的青年女声」；空=breeze 服务端默认）。
+	KeyBreezeDir       = "breeze_dir"
+	KeyBreezePort      = "breeze_port"
+	KeyBreezeVoiceDesc = "breeze_voice_desc"
 	// tianxuan 独立引擎工作区：gaea 只引用该路径下的 scripts/serve.ps1。
 	KeyTianxuanPath = "tianxuan_path"
 	// strata 独立引擎工作区：gaea 只引用该路径下的 serve/server.py 与档位配置。

@@ -347,11 +347,19 @@ func (a *mediaState) ttsProviderForEngine(engineID, model, voiceDescription stri
 	}
 
 	// Breeze：OpenAI 兼容 JSON 路径但字段口径不同（instructions/voice，无
-	// /v1/audio/info 音色探测），走 breeze kind——voice 恒留空（voice design
-	// 模式，instructions 即音色描述；发未知名 voice 会被服务端 404）。
+	// /v1/audio/info 音色探测），走 breeze kind。voice 仅在面板显式选择了
+	// 克隆音色 id 时透传（空=voice design，instructions 即音色描述；发未知
+	// 名 voice 会被服务端 404）。描述优先级：语音对话管线的人格化描述 >
+	// 配置的 breeze 音色描述（朗读路径无人格化描述时的缺省音色）。
 	if engineID == "breeze" {
+		desc := voiceDescription
+		if desc == "" && a.cfg != nil {
+			desc = strings.TrimSpace(a.cfg.BreezeVoiceDesc)
+		}
 		p, err := tts.NewTTSProvider("breeze", tts.TTSConfig{
-			BaseURL: eng.BaseURL, Model: model, VoiceDescription: voiceDescription,
+			BaseURL: eng.BaseURL, Model: model,
+			Voice:            strings.TrimSpace(a.activeTTSVoice),
+			VoiceDescription: desc,
 		})
 		if err != nil {
 			return nil, false
@@ -594,6 +602,16 @@ func (a *mediaState) VoiceApplySettings(settings map[string]interface{}) error {
 			slog.Warn("保存语音角色配置失败", "error", err)
 		}
 	}
+	if v, ok := settings["breezeVoiceDesc"].(string); ok {
+		// Breeze voice design 音色描述：只落盘（provider 在 ttsProviderForEngine
+		// 处实时读 cfg，不进 voice 运行时配置——语音对话的人格化描述优先级更高）
+		if err := appconfig.Save(appconfig.KeyBreezeVoiceDesc, v); err != nil {
+			return fmt.Errorf("保存 Breeze 音色描述失败: %w", err)
+		}
+		if a.cfg != nil {
+			a.cfg.BreezeVoiceDesc = v
+		}
+	}
 
 	a.voiceManager.ApplyConfig(config)
 	return nil
@@ -630,6 +648,10 @@ func (a *mediaState) voiceSettingsMap(c *voice.VoiceRuntimeConfig) map[string]in
 	m["realtimeProvider"] = c.RealtimeProvider
 	m["realtimeModel"] = c.RealtimeModel
 	m["realtimeHasKey"] = c.RealtimeAPIKey != ""
+	// Breeze voice design 音色描述（breeze 引擎音色面板回显用）
+	if a.cfg != nil {
+		m["breezeVoiceDesc"] = a.cfg.BreezeVoiceDesc
+	}
 	return m
 }
 

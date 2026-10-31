@@ -65,6 +65,15 @@ export interface ImageBindings {
   SetActiveASRModel(engineID: string, modelID: string): Promise<void>;
   SetActiveTTSModel(engineID: string, modelID: string): Promise<void>;
   SetChatVoiceModel(engineID: string, modelID: string): Promise<void>;
+  // ── Breeze 克隆音色管理（Go ImageB 门面 breeze_voices_handler.go，同名）──
+  // BreezeListVoices 列出已保存/缓存的克隆音色（{started, voices[]}；服务未
+  // 运行时 started=false）。BreezeSaveVoice 保存克隆音色（参考 WAV base64+
+  // 逐字转写+名称[字母数字-_≤64]+可选描述）。BreezeDeleteVoice 从服务内存
+  // 移除（.breeze 文件保留，重启即回）。语音设置面板 Breeze 音色区消费，
+  // 归 shared。
+  BreezeListVoices(): Promise<Record<string, unknown>>;
+  BreezeSaveVoice(name: string, description: string, refText: string, refAudioB64: string): Promise<Record<string, unknown>>;
+  BreezeDeleteVoice(id: string): Promise<Record<string, unknown>>;
 }
 
 // ── 画室消耗视图（刀 E；Go ImageHubMonthlyUsageReport 直连）──

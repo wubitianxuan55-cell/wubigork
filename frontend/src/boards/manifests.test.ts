@@ -31,7 +31,7 @@ const getBoardManifestsMock = app.GetBoardManifests as unknown as {
 
 // 后端 GetBoardManifests 契约形态（对齐 internal/app/board/builtins.go）：
 // 11 个业务板块（含 cost 造价数据库 + pantheon + D7 knowledge；v4.439 删除 code），
-// 无 home 壳层，weixin.page=""、label=青鸟（v4.48 更名，原微信助手）。
+// 无 home 壳层，weixin.page=""、label=微信助手（2026-10-31 去掉隐喻名）。
 const BACKEND_FIXTURE = [
   { id: 'chat', label: '聊天', icon: 'MessageOutlined', page: 'ChatPage', lazy: true, keepAlive: true, layout: 'full', shortcut: 'ctrl+1', menuOrder: 1, inMenu: true, featureModel: 'chat' },
   { id: 'novel', label: '小说', icon: 'ReadOutlined', page: 'NovelPage', lazy: true, keepAlive: true, layout: 'padded', shortcut: 'ctrl+2', menuOrder: 2, inMenu: true, breadcrumb: { anchorTo: 'project' }, featureModel: 'novel' },
@@ -43,7 +43,7 @@ const BACKEND_FIXTURE = [
   { id: 'modelcenter', label: '模型中心', icon: 'ApiOutlined', page: 'ModelCenterPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 8, inMenu: true },
   { id: 'characterlib', label: '角色库', icon: 'TeamOutlined', page: 'CharacterLibraryPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 9, inMenu: true, featureModel: 'characterlib' },
   { id: 'settings', label: '设置', icon: 'SettingOutlined', page: 'SettingsPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 10, inMenu: false },
-  { id: 'weixin', label: '青鸟', icon: 'WechatOutlined', page: '', lazy: false, keepAlive: true, layout: 'padded', menuOrder: 11, inMenu: false },
+  { id: 'weixin', label: '微信助手', icon: 'WechatOutlined', page: '', lazy: false, keepAlive: true, layout: 'padded', menuOrder: 11, inMenu: false },
   { id: 'knowledge', label: '知识库', icon: 'BookOutlined', page: 'KnowledgePage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 8, inMenu: true, featureModel: 'knowledge' },
 ]
 
@@ -58,7 +58,7 @@ describe('menuBoards（附 B #4：filter(inMenu) + sort(menuOrder)）', () => {
 
   it('菜单文案与现状一致（含众神殿）', () => {
     expect(menuBoards.map((b) => b.label)).toEqual([
-      '聊天', '小说', '绘梦', '办公', '造价数据库', '众神殿', '记忆中枢', '模型中心', '角色库', '青鸟', '运行监测',
+      '聊天', '小说', '绘梦', '办公', '造价数据库', '众神殿', '记忆中枢', '模型中心', '角色库', '微信助手', '运行监测',
     ])
   })
 
@@ -85,7 +85,7 @@ describe('getActiveMenuBoards（一级导航合一 2026-10-26：全量菜单，�
       'chat', 'novel', 'imagegen', 'gaea', 'cost', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib', 'weixin', 'runtime',
     ])
     expect(getActiveMenuBoards().map((b) => b.label)).toEqual([
-      '聊天', '小说', '绘梦', '办公', '造价数据库', '众神殿', '记忆中枢', '模型中心', '角色库', '青鸟', '运行监测',
+      '聊天', '小说', '绘梦', '办公', '造价数据库', '众神殿', '记忆中枢', '模型中心', '角色库', '微信助手', '运行监测',
     ])
   })
 
@@ -173,11 +173,11 @@ describe('normalizeManifests（板块差集归一：后端清单 + 静态字段�
     expect(merged).toHaveLength(11)
   })
 
-  it('差集 #3：weixin 以后端为准（page=""，label=青鸟，inMenu=false）', () => {
+  it('差集 #3：weixin 以后端为准（page=""，label=微信助手，inMenu=false）', () => {
     const merged = normalizeManifests(BACKEND_FIXTURE)
     const wx = deriveBoard(merged, 'weixin')
     expect(wx?.page).toBe('')
-    expect(wx?.label).toBe('青鸟')
+    expect(wx?.label).toBe('微信助手')
     expect(wx?.inMenu).toBe(false)
   })
 

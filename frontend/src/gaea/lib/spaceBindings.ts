@@ -117,7 +117,7 @@ export const GAEA_METHOD_FACETS = {
   // 「路由内核是触点层内核（两空间共用家底）」），dry-run 预览-确认制防误触发
   RouteIntent: "shared",
   // ── 图像域 legacy 直调族转正（v4.102）：绘梦/图示消费面=play；角色数据
-  // （GetCharacters/SetCharacterPortrait）跨画室参考槽（play）与青鸟/角色域
+  // （GetCharacters/SetCharacterPortrait）跨画室参考槽（play）与微信助手/角色域
   // （work）两用 → shared。分类锁同步见 spaceBindings.test.ts。──
   GenerateFreeImage: "play",
   GaeaImageDirector: "play", // 绘梦导演（11.6）：解析→生成→自评→重试
@@ -323,6 +323,11 @@ export const GAEA_METHOD_FACETS = {
   SetActiveASRModel: "shared",
   SetActiveTTSModel: "shared",
   SetChatVoiceModel: "shared",
+  // Breeze 克隆音色管理（Go ImageB breeze_voices_handler.go）：列表/保存/删除
+  // 克隆音色——语音设置面板 Breeze 音色区消费，两空间共用 → shared。
+  BreezeListVoices: "shared",
+  BreezeSaveVoice: "shared",
+  BreezeDeleteVoice: "shared",
   // v4.3 情感语音：TTS 参数预览为 shared（语音朗读两空间共用）
   TTSVoiceParams: "shared",
   // 批次三a legacy 直调转正：TTS base64 合成入口同 TTSVoiceParams 归 shared
@@ -358,7 +363,7 @@ export const GAEA_METHOD_FACETS = {
   WhisperAssistantList: "work",
   WhisperAssistantSave: "work",
   WhisperAssistantDelete: "work",
-  // v4.48 青鸟人格选择器（WeixinPage 经 bridge 消费，转正出 legacy 名单）。
+  // v4.48 起人格选择器（WeixinPage 经 bridge 消费，转正出 legacy 名单）。
   WhisperGetPersonalities: "work",
   CharacterList: "work",
   WeixinReminderList: "work",

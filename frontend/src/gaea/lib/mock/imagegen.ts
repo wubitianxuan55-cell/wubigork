@@ -22,6 +22,9 @@ type ImagegenMethods = Pick<
   // 批次四 bridge 双轨退役终局（ImageB 门面 bindings_image.go:37/38/40）：
   // 语音模型设置写口（激活识别/合成模型 + 功能绑定聊天语音），同批转正。
   | "SetActiveASRModel" | "SetActiveTTSModel" | "SetChatVoiceModel"
+  // Breeze 克隆音色管理（ImageB 门面 breeze_voices_handler.go）：浏览器无
+  // breeze-server，列表空态/保存删除诚实拒。
+  | "BreezeListVoices" | "BreezeSaveVoice" | "BreezeDeleteVoice"
   // 绘图引擎双件（批 46 NOT_MOCKED 收尾刀）：Cutout 诚实拒、Warm 空转回执。
   | "ImageCutout" | "WarmComfyUI"
   // 绘梦导演（11.6）：浏览器无生成后端，诚实拒。
@@ -112,6 +115,19 @@ export function buildImagegenTools(): ImagegenMethods {
     async GetTTSSpeakers(_model: string) {
       // 浏览器开发无本地 TTS 引擎：空音色列表（模型中心音色下拉空态，不编造）。
       return [];
+    },
+    // ── Breeze 克隆音色管理（Go ImageB breeze_voices_handler.go，同名前缀）──
+    async BreezeListVoices() {
+      // mock: 浏览器无 breeze-server，按「服务未运行」形状返回（面板提示先启动）。
+      return { started: false, voices: [] };
+    },
+    async BreezeSaveVoice(_name: string, _description: string, _refText: string, _refAudioB64: string) {
+      // mock: 无服务可保存，诚实失败（面板走 error 分支提示）。
+      return { ok: false, error: "浏览器 mock 环境无 Breeze 服务" };
+    },
+    async BreezeDeleteVoice(_id: string) {
+      // mock: 同上 no-op 失败。
+      return { ok: false, error: "浏览器 mock 环境无 Breeze 服务" };
     },
     async GetVoicePipelineConfig() {
       // 最小样例：无语音管线实例 → 仅 samples 键（消费方按空态兜底渲染）。

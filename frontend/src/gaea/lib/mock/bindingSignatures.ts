@@ -16,13 +16,16 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 701 名（原生变参 7 名已收窄标注）。
+// 共 705 名（原生变参 7 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
   AnalyzeChapter: { argc: 1, variadic: false, params: "chapterNum int" },
   ApplyBranch: { argc: 3, variadic: false, params: "nodeID string, branchIndex int, userInput string" },
   BrainSearch: { argc: 2, variadic: false, params: "query string, brains string" },
+  BreezeDeleteVoice: { argc: 1, variadic: false, params: "id string" },
+  BreezeListVoices: { argc: 0, variadic: false, params: "" },
+  BreezeSaveVoice: { argc: 4, variadic: false, params: "name string, description string, refText string, refAudioB64 string" },
   BuildNovelStatePatch: { argc: 1, variadic: false, params: "chapterNum int" },
   CancelCreateChapter: { argc: 2, variadic: false, params: "chapterNum int, branch string" },
   CancelImageGeneration: { argc: 0, variadic: false, params: "" },
@@ -723,5 +726,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 701。
-export const bindingSignatureCount = 702;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 705。
+export const bindingSignatureCount = 705;
