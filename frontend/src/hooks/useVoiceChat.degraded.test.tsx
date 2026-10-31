@@ -70,13 +70,28 @@ function renderWelcome(degraded: 'mic-unavailable' | null) {
 }
 
 /** jsdom 无 WebAudio：给「麦克风可用」路径一个最小假 AudioContext，
- *  使 startCapture 能走完全程（只关心降级位，不关心可视化数值）。 */
+ *  使 startCapture 能走完全程（只关心降级位，不关心可视化数值）。
+ *  返回带事件注册表的假 track（中途失麦检测用）：trackListeners[mute/ended/
+ *  unmute] 由用例手动触发，模拟设备中途移除/系统静音。 */
 function installFakeAudioContext() {
   class FakeNode {
     connect() { return this }
     disconnect() { return this }
   }
-  const fakeMediaStream = { getTracks: () => [{ stop: vi.fn() }] }
+  const trackListeners: Record<string, Array<() => void>> = {}
+  const fakeTrack = {
+    stop: vi.fn(),
+    addEventListener: (type: string, fn: () => void) => {
+      ;(trackListeners[type] ??= []).push(fn)
+    },
+    removeEventListener: vi.fn(),
+  }
+  const fakeMediaStream = {
+    getTracks: () => [fakeTrack],
+    getAudioTracks: () => [fakeTrack],
+  }
+  // 零信号检测开关：signal=false 时频域全零（虚拟麦克风），true 时有真实信号
+  const micSource = { signal: false }
   class FakeAudioContext {
     state = 'running'
     sampleRate = 16000
@@ -87,11 +102,11 @@ function installFakeAudioContext() {
     createGain() { return Object.assign(new FakeNode(), { gain: { value: 1 } }) }
     createBufferSource() { return Object.assign(new FakeNode(), { buffer: null, start: vi.fn(), onended: null }) }
     createMediaStreamSource() { return new FakeNode() }
-    createAnalyser() { return Object.assign(new FakeNode(), { fftSize: 0, smoothingTimeConstant: 0, frequencyBinCount: 8, getByteFrequencyData: () => {} }) }
+    createAnalyser() { return Object.assign(new FakeNode(), { fftSize: 0, smoothingTimeConstant: 0, frequencyBinCount: 8, getByteFrequencyData: (buf: Uint8Array) => { if (micSource.signal) buf.fill(10) } }) }
     createScriptProcessor() { return Object.assign(new FakeNode(), { onaudioprocess: null }) }
   }
   Object.defineProperty(window, 'AudioContext', { configurable: true, writable: true, value: FakeAudioContext })
-  return fakeMediaStream
+  return { stream: fakeMediaStream, trackListeners, micSource }
 }
 
 describe('useVoiceChat 麦克风不可用降级（FE6-02）', () => {
@@ -135,8 +150,21 @@ describe('useVoiceChat 麦克风不可用降级（FE6-02）', () => {
     expect(result.current.state.speaking).toBe(false)
   })
 
+  it('后端 VoiceStart 拒绝 → start 返回 false，状态回落到未启动并保留可见错误', async () => {
+    bridgeMocks.VoiceStart.mockRejectedValueOnce(new Error('语音对话引擎未就绪'))
+    const { result } = renderHook(() => useVoiceChat())
+
+    let started = true
+    await act(async () => { started = await result.current.start() })
+
+    expect(started).toBe(false)
+    expect(result.current.state.active).toBe(false)
+    expect(result.current.state.listening).toBe(false)
+    expect(result.current.state.error).toContain('语音对话引擎未就绪')
+  })
+
   it('getUserMedia 成功 → degraded 保持 null（反向验证：降级位不是恒亮）', async () => {
-    const stream = installFakeAudioContext()
+    const { stream } = installFakeAudioContext()
     Object.defineProperty(navigator, 'mediaDevices', {
       configurable: true,
       value: { getUserMedia: vi.fn(async () => stream) },
@@ -145,6 +173,123 @@ describe('useVoiceChat 麦克风不可用降级（FE6-02）', () => {
     await act(async () => { await result.current.start() })
     expect(result.current.state.degraded).toBeNull()
     await act(async () => { result.current.stop() })
+  })
+
+  // ── FE6-02 补课：中途失麦（采集成功后的静默死亡路径） ──
+
+  it('采集中 track mute（系统静音）→ degraded 置位、音量归零（静音不冒充聆听）', async () => {
+    const { stream, trackListeners } = installFakeAudioContext()
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: vi.fn(async () => stream) },
+    })
+    const { result } = renderHook(() => useVoiceChat())
+    await act(async () => { await result.current.start() })
+    expect(result.current.state.degraded).toBeNull()
+
+    await act(async () => { (trackListeners['mute'] ?? []).forEach(fn => fn()) })
+
+    expect(result.current.state.degraded).toBe('mic-unavailable')
+    expect(result.current.state.volume).toBe(0)
+    expect(result.current.state.speaking).toBe(false)
+    await act(async () => { result.current.stop() })
+  })
+
+  it('mute 后 unmute（系统恢复）→ degraded 自愈清除', async () => {
+    const { stream, trackListeners } = installFakeAudioContext()
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: vi.fn(async () => stream) },
+    })
+    const { result } = renderHook(() => useVoiceChat())
+    await act(async () => { await result.current.start() })
+    await act(async () => { (trackListeners['mute'] ?? []).forEach(fn => fn()) })
+    expect(result.current.state.degraded).toBe('mic-unavailable')
+
+    await act(async () => { (trackListeners['unmute'] ?? []).forEach(fn => fn()) })
+    expect(result.current.state.degraded).toBeNull()
+    await act(async () => { result.current.stop() })
+  })
+
+  it('track ended（设备移除/被独占）→ degraded 置位（ended 无自愈路径）', async () => {
+    const { stream, trackListeners } = installFakeAudioContext()
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: vi.fn(async () => stream) },
+    })
+    const { result } = renderHook(() => useVoiceChat())
+    await act(async () => { await result.current.start() })
+    expect(result.current.state.degraded).toBeNull()
+
+    await act(async () => { (trackListeners['ended'] ?? []).forEach(fn => fn()) })
+
+    expect(result.current.state.degraded).toBe('mic-unavailable')
+    expect(result.current.state.volume).toBe(0)
+    await act(async () => { result.current.stop() })
+  })
+
+  it('stop() 主动结束会话后补发的 track ended 不误降级（abortRef 门）', async () => {
+    const { stream, trackListeners } = installFakeAudioContext()
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: vi.fn(async () => stream) },
+    })
+    const { result } = renderHook(() => useVoiceChat())
+    await act(async () => { await result.current.start() })
+    await act(async () => { result.current.stop() })
+    // 会话已结束：设备随后断开（ended 补发）不产生误导性的降级警示
+    await act(async () => { (trackListeners['ended'] ?? []).forEach(fn => fn()) })
+    expect(result.current.state.degraded).toBeNull()
+    expect(result.current.state.active).toBe(false)
+  })
+
+  // ── FE6-02 终局：零信号检测（虚拟麦克风实弹场景） ──
+  // 系统默认录音设备可能是虚拟音频（ToDesk Virtual Audio 实证）：
+  // getUserMedia 成功、track.muted=false、却全程零样本——静音绝不冒充聆听。
+
+  it('采集成功但连续 5s 零输入（虚拟麦克风）→ degraded 置位', async () => {
+    vi.useFakeTimers()
+    try {
+      const { stream, micSource } = installFakeAudioContext()
+      Object.defineProperty(navigator, 'mediaDevices', {
+        configurable: true,
+        value: { getUserMedia: vi.fn(async () => stream) },
+      })
+      const { result } = renderHook(() => useVoiceChat())
+      await act(async () => { await result.current.start() })
+      expect(result.current.state.degraded).toBeNull()
+
+      micSource.signal = false // 虚拟设备：频域全零
+      await act(async () => { vi.advanceTimersByTime(5600) })
+
+      expect(result.current.state.degraded).toBe('mic-unavailable')
+      expect(result.current.state.speaking).toBe(false)
+      await act(async () => { result.current.stop() })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('零输入降级后出现真实信号 → 自愈恢复 degraded=null', async () => {
+    vi.useFakeTimers()
+    try {
+      const { stream, micSource } = installFakeAudioContext()
+      Object.defineProperty(navigator, 'mediaDevices', {
+        configurable: true,
+        value: { getUserMedia: vi.fn(async () => stream) },
+      })
+      const { result } = renderHook(() => useVoiceChat())
+      await act(async () => { await result.current.start() })
+      await act(async () => { vi.advanceTimersByTime(5600) })
+      expect(result.current.state.degraded).toBe('mic-unavailable')
+
+      micSource.signal = true // 麦克风活了（换插真设备/解除硬件静音）
+      await act(async () => { vi.advanceTimersByTime(200) })
+      expect(result.current.state.degraded).toBeNull()
+      await act(async () => { result.current.stop() })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 

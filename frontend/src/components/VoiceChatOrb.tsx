@@ -54,8 +54,8 @@ const VoiceChatOrb: React.FC<Props> = ({
   const orbitsRef = useRef<OrbitParticle[]>([])
   const animRef = useRef<number>(0)
   const tmRef = useRef(0)
-  const propsRef = useRef({ volume, listening, speaking, aiSpeaking })
-  propsRef.current = { volume, listening, speaking, aiSpeaking }
+  const propsRef = useRef({ volume, listening, speaking, aiSpeaking, micUnavailable })
+  propsRef.current = { volume, listening, speaking, aiSpeaking, micUnavailable }
 
   useEffect(() => {
     const cvs = canvasRef.current
@@ -113,7 +113,10 @@ const VoiceChatOrb: React.FC<Props> = ({
       }
       tmRef.current += 0.016
       const t = tmRef.current
-      const { volume: vr, listening: lis, speaking: spk, aiSpeaking: ai } = propsRef.current
+      const { volume: vr, speaking: spk, aiSpeaking: ai, micUnavailable: mu } = propsRef.current
+      // FE6-02：麦克风不可用时「聆听」辉光一并熄灭——降级态下 orb 静默呼吸，
+      // 不播放任何聆听动画（警示条由文案层承担）。
+      const lis = mu ? false : propsRef.current.listening
       ctx.clearRect(0, 0, size, size)
 
       sv.v += (vr - sv.v) * 0.15

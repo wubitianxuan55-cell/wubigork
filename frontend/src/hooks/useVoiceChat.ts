@@ -79,6 +79,58 @@ const CHUNK_SIZE = SAMPLE_RATE * 2 * CHUNK_MS / 1000 // 6400 bytes
 // 免去后端 ASR 模型，识别更快。
 const browserASRAvailable = !!speechRecognitionCtor()
 
+// ── 麦克风设备选择（FE6-02 终局配套） ──
+// 实弹实证：本机默认录音设备可能是零信号虚拟设备（ToDesk Virtual Audio），
+// getUserMedia 默认拿到的就是它——没有设备选择，真麦插上也听不见。
+// deviceId 是 WebView2 按源的持久指纹，纯前端采集关注点，localStorage 持久化
+// （不进后端 config——后端不做采集，为浏览器指纹 ID 开五文件配账不值）。
+
+const MIC_DEVICE_KEY = 'gaea.voice.micDeviceId'
+
+/** 读取已选麦克风设备 ID（空 = 跟随系统默认） */
+export function loadMicDeviceId(): string {
+  try { return localStorage.getItem(MIC_DEVICE_KEY) || '' } catch { return '' }
+}
+
+/** 保存麦克风设备 ID（空串 = 清除，恢复跟随系统默认） */
+export function saveMicDeviceId(id: string): void {
+  try {
+    if (id) localStorage.setItem(MIC_DEVICE_KEY, id)
+    else localStorage.removeItem(MIC_DEVICE_KEY)
+  } catch { /* localStorage 不可用（隐私模式）：仅本会话内生效 */ }
+}
+
+export interface MicDeviceInfo {
+  deviceId: string
+  label: string
+  isDefault: boolean
+}
+
+/** 列出录音输入设备。权限未授予时 label 为空——借一次瞬时采集换取可读标签
+ *  （失败静默，设备仍可列只是名字叫「麦克风」）。 */
+export async function listMicDevices(): Promise<MicDeviceInfo[]> {
+  if (!navigator.mediaDevices?.enumerateDevices) return []
+  try {
+    let devs = await navigator.mediaDevices.enumerateDevices()
+    if (devs.filter(d => d.kind === 'audioinput').some(d => !d.label)) {
+      try {
+        const s = await navigator.mediaDevices.getUserMedia({ audio: true })
+        s.getTracks().forEach(t => t.stop())
+        devs = await navigator.mediaDevices.enumerateDevices()
+      } catch { /* 权限拒绝：按匿名设备列出 */ }
+    }
+    return devs
+      .filter(d => d.kind === 'audioinput')
+      .map(d => ({
+        deviceId: d.deviceId,
+        label: d.label || '麦克风',
+        isDefault: d.deviceId === 'default',
+      }))
+  } catch {
+    return []
+  }
+}
+
 export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
   const [state, setState] = useState<VoiceChatState>({
     active: false, listening: false, speaking: false, aiSpeaking: false,
@@ -319,14 +371,127 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     }
   }, [])
 
+  // ── 浏览器端语音识别（Web Speech API，WebView2 自带） ──
+  // （定义在 startCapture 之前：中途失麦检测需在 track ended 时停转识别器）
+
+  const startBrowserRecognition = useCallback((): boolean => {
+    if (!browserASRAvailable) return false
+    const SR = speechRecognitionCtor()
+    if (!SR) return false
+    if (recognitionActiveRef.current) return true
+
+    let rec: SpeechRecognitionLike
+    try {
+      rec = new SR()
+    } catch (err: unknown) {
+      const detail = err instanceof Error ? err.message : String(err)
+      setState2({ error: `语音识别初始化失败：${detail}` })
+      return false
+    }
+    recognitionActiveRef.current = true
+    recognitionRef.current = rec
+    rec.lang = 'zh-CN'
+    rec.continuous = true
+    rec.interimResults = true
+    rec.maxAlternatives = 1
+
+    rec.onresult = (e: SpeechRecognitionResultEventLike) => {
+      if (abortRef.current) return
+      let interim = ''
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const res = e.results[i]
+        if (!res) continue
+        const text = (res[0]?.transcript || '').trim()
+        if (!text) continue
+        if (res.isFinal) {
+          setState2(s => ({ ...s, transcript: '', finalTranscript: s.finalTranscript + text }))
+          // 直接进入后端对话管道（跳过 ASR 模型，识别更快）
+          app.VoiceChatText(text).catch((err: unknown) => {
+            const detail = err instanceof Error ? err.message : String(err)
+            setState2({ error: `语音消息发送失败：${detail}` })
+          })
+        } else {
+          interim += text
+        }
+      }
+      setState2(s => ({ ...s, transcript: interim }))
+    }
+
+    rec.onerror = (e: SpeechRecognitionErrorEventLike) => {
+      console.warn('[Voice] 浏览器识别错误:', e?.error)
+      if (e?.error === 'not-allowed' || e?.error === 'service-not-allowed') {
+        // 识别器侧权限被拒（同采集路径的撒谎式降级）：显式降级，警示条可见
+        recognitionActiveRef.current = false
+        setState2({ degraded: 'mic-unavailable', error: '语音识别被拒绝（麦克风权限或服务不可用）' })
+      } else if (e?.error === 'audio-capture') {
+        // 识别器侧采集失败（设备中途消失/被独占）：阻断 onend 自动重连，
+        // 与采集路径同口径降级——静音/断麦绝不冒充「聆听」。
+        recognitionActiveRef.current = false
+        setState2({ degraded: 'mic-unavailable' })
+      }
+    }
+
+    rec.onend = () => {
+      // continuous 模式在静音后可能自行结束，自动重连保持聆听
+      if (!abortRef.current && recognitionActiveRef.current) {
+        setTimeout(() => {
+          if (!abortRef.current && recognitionActiveRef.current && recognitionRef.current) {
+            try { recognitionRef.current.start() } catch (_) {}
+          }
+        }, 150)
+      }
+    }
+
+    try {
+      rec.start()
+      return true
+    } catch (err: unknown) {
+      recognitionActiveRef.current = false
+      recognitionRef.current = null
+      const detail = err instanceof Error ? err.message : String(err)
+      setState2({ error: `语音识别启动失败：${detail}` })
+      return false
+    }
+  }, [setState2])
+
+  const stopBrowserRecognition = useCallback(() => {
+    recognitionActiveRef.current = false
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop() } catch (_) {}
+      recognitionRef.current = null
+    }
+  }, [])
+
+  const stopCapture = useCallback(() => {
+    stopBrowserRecognition()
+    volSmoothRef.current = 0
+    if (volTimerRef.current) { clearInterval(volTimerRef.current); volTimerRef.current = null }
+    if (processorRef.current) {
+      try { processorRef.current.disconnect() } catch (_) {}
+      processorRef.current = null
+    }
+    if (captureCtxRef.current) {
+      captureCtxRef.current.close().catch(() => {})
+      captureCtxRef.current = null
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop())
+      streamRef.current = null
+    }
+  }, [stopBrowserRecognition])
+
   // ── 音频采集 ──
 
   /** 启动本地采集。返回是否真正采到音频（FE6-02 复审）：调用方据此决定要不要
    *  起本地识别，不依赖 React eager state 的时序（stateRef 在 updater 内赋值）。 */
   const startCapture = useCallback(async (): Promise<boolean> => {
     try {
+      // 已选麦克风优先（exact）：默认设备可能是零信号虚拟设备，用户显式
+      // 选过真麦就必须用真麦；未选过 = 跟随系统默认。
+      const savedMicId = loadMicDeviceId()
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
+          ...(savedMicId ? { deviceId: { exact: savedMicId } } : {}),
           sampleRate: SAMPLE_RATE,
           channelCount: 1,
           echoCancellation: true,
@@ -336,6 +501,29 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
       if (abortRef.current) { stream.getTracks().forEach(t => t.stop()); return false }
 
       streamRef.current = stream
+
+      // FE6-02 补课：中途失麦检测。采集成功 ≠ 一直成功——设备拔出/被其他
+      // 应用独占（track ended）或被系统隐私静音（track mute）后，采集静默
+      // 死亡而 UI 仍按旧状态显示「聆听」。显式降级 + 音量归零（unmute 自愈
+      // 恢复），断麦/静音绝不冒充「正在聆听/准备聆听」。
+      const track = stream.getAudioTracks()[0] ?? null
+      if (track) {
+        track.addEventListener('ended', () => {
+          if (abortRef.current) return
+          console.warn('[Voice] 麦克风已断开（设备移除或被独占），采集停止')
+          stopBrowserRecognition()
+          setState2({ degraded: 'mic-unavailable', volume: 0, speaking: false })
+        })
+        track.addEventListener('mute', () => {
+          if (abortRef.current) return
+          console.warn('[Voice] 麦克风被系统静音，采集暂停')
+          setState2({ degraded: 'mic-unavailable', volume: 0, speaking: false })
+        })
+        track.addEventListener('unmute', () => {
+          if (abortRef.current || streamRef.current?.getAudioTracks()[0] !== track) return
+          setState2({ degraded: null })
+        })
+      }
 
       // AudioContext 用于采集（对齐 Ackem captureContextRef）
       captureCtxRef.current = new AudioContext({ sampleRate: SAMPLE_RATE })
@@ -348,6 +536,11 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
       source.connect(analyser)
 
       const freqBuf = new Uint8Array(analyser.frequencyBinCount)
+      // FE6-02 终局（实弹实证）：系统默认录音设备可能是虚拟音频（如 ToDesk
+      // Virtual Audio）——getUserMedia 成功、track.muted=false，却全程零样本。
+      // 旧 UI 此时永远「准备聆听/正在聆听」而实际一个字都没采到。连续 5s 频域
+      // 全零 = 未在采集真实声音 → 显式降级警示；一旦出现真实信号即自愈恢复。
+      let lastSignalAt = Date.now()
       volTimerRef.current = setInterval(() => {
         analyser.getByteFrequencyData(freqBuf)
         const avg = freqBuf.reduce((a, b) => a + b, 0) / freqBuf.length
@@ -355,6 +548,18 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
         const raw = avg / 128
         volSmoothRef.current = volSmoothRef.current * 0.7 + raw * 0.3
         const vol = Math.min(volSmoothRef.current, 1)
+        let hasSignal = false
+        for (let i = 0; i < freqBuf.length; i++) {
+          if (freqBuf[i] > 0) { hasSignal = true; break }
+        }
+        const degradedNow = stateRef.current.degraded === 'mic-unavailable'
+        if (hasSignal) {
+          lastSignalAt = Date.now()
+          if (degradedNow) setState2({ degraded: null }) // 麦克风活了：自愈恢复
+        } else if (!degradedNow && Date.now() - lastSignalAt > 5000) {
+          console.warn('[Voice] 麦克风连续 5 秒零输入（虚拟设备/硬件静音），降级为不可用')
+          setState2({ degraded: 'mic-unavailable', speaking: false })
+        }
         setState2({ volume: vol, speaking: vol > 0.12 })
       }, 80)
 
@@ -391,74 +596,11 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
       setState2({ degraded: 'mic-unavailable', volume: 0, speaking: false })
       return false
     }
-  }, [setState2])
+  }, [setState2, stopBrowserRecognition])
 
   // ── start / stop ──
 
-  // ── 浏览器端语音识别（Web Speech API，WebView2 自带） ──
-
-  const startBrowserRecognition = useCallback(() => {
-    if (!browserASRAvailable) return
-    const SR = speechRecognitionCtor()
-    if (!SR || recognitionActiveRef.current) return
-    recognitionActiveRef.current = true
-
-    const rec = new SR()
-    recognitionRef.current = rec
-    rec.lang = 'zh-CN'
-    rec.continuous = true
-    rec.interimResults = true
-    rec.maxAlternatives = 1
-
-    rec.onresult = (e: SpeechRecognitionResultEventLike) => {
-      if (abortRef.current) return
-      let interim = ''
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const res = e.results[i]
-        if (!res) continue
-        const text = (res[0]?.transcript || '').trim()
-        if (!text) continue
-        if (res.isFinal) {
-          setState2(s => ({ ...s, transcript: '', finalTranscript: s.finalTranscript + text }))
-          // 直接进入后端对话管道（跳过 ASR 模型，识别更快）
-          app.VoiceChatText(text).catch(() => {})
-        } else {
-          interim += text
-        }
-      }
-      setState2(s => ({ ...s, transcript: interim }))
-    }
-
-    rec.onerror = (e: SpeechRecognitionErrorEventLike) => {
-      console.warn('[Voice] 浏览器识别错误:', e?.error)
-      if (e?.error === 'not-allowed' || e?.error === 'service-not-allowed') {
-        setState2({ error: '语音识别被拒绝（麦克风权限或服务不可用）' })
-      }
-    }
-
-    rec.onend = () => {
-      // continuous 模式在静音后可能自行结束，自动重连保持聆听
-      if (!abortRef.current && recognitionActiveRef.current) {
-        setTimeout(() => {
-          if (!abortRef.current && recognitionActiveRef.current && recognitionRef.current) {
-            try { recognitionRef.current.start() } catch (_) {}
-          }
-        }, 150)
-      }
-    }
-
-    try { rec.start() } catch (_) {}
-  }, [setState2])
-
-  const stopBrowserRecognition = useCallback(() => {
-    recognitionActiveRef.current = false
-    if (recognitionRef.current) {
-      try { recognitionRef.current.stop() } catch (_) {}
-      recognitionRef.current = null
-    }
-  }, [])
-
-  const start = useCallback(async () => {
+  const start = useCallback(async (): Promise<boolean> => {
     abortRef.current = false
     volSmoothRef.current = 0
     setState2({
@@ -473,12 +615,26 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     try {
       await app.VoiceStart(browserASRAvailable)
     } catch (err: unknown) {
-      setState2({ error: `语音启动失败: ${err instanceof Error ? err.message : String(err)}` })
-      return
+      abortRef.current = true
+      setState2({
+        active: false,
+        listening: false,
+        speaking: false,
+        aiSpeaking: false,
+        error: `语音启动失败: ${err instanceof Error ? err.message : String(err)}`,
+      })
+      return false
     }
 
     // 启动本地音频采集（音量可视化）
     const captured = await startCapture()
+    if (!captured) {
+      abortRef.current = true
+      stopCapture()
+      try { await app.VoiceStop() } catch (_) {}
+      setState2({ active: false, listening: false, speaking: false, aiSpeaking: false })
+      return false
+    }
 
     // 浏览器端自带识别：直接出文本，不需要后端 ASR 模型。
     // realtime 模式抑制（服务端转写经 voice:transcript 事件回传，防双输入）。
@@ -486,35 +642,26 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     // not-allowed 空转，UI 仍显「聆听中」，同一撒谎式降级换条路径复现。
     // 用 startCapture 的返回值判定，不读 stateRef（其赋值发生在 setState
     // updater 内，靠 eager state 才同步，队列里有别的更新时会读到旧值）。
-    if (captured && browserASRAvailable && !realtimeModeRef.current) {
-      startBrowserRecognition()
+    if (browserASRAvailable && !realtimeModeRef.current) {
+      if (!startBrowserRecognition()) {
+        abortRef.current = true
+        stopCapture()
+        try { await app.VoiceStop() } catch (_) {}
+        setState2({ active: false, listening: false, speaking: false, aiSpeaking: false })
+        return false
+      }
     }
-  }, [startCapture, setState2, startBrowserRecognition, refreshRealtimeMode])
+    return true
+  }, [startCapture, setState2, startBrowserRecognition, refreshRealtimeMode, stopCapture])
 
   const stop = useCallback(() => {
     abortRef.current = true
 
-    // 停止浏览器端识别
-    stopBrowserRecognition()
+    // 停止浏览器端识别与采集
+    stopCapture()
 
     // 停止后端（wailsjsCompat 直调在 mock/未就绪时同步 throw，需 try/catch 防 cleanup 崩溃）
     try { app.VoiceStop().catch(() => {}) } catch { /* 后端未就绪 */ }
-
-    // 停止采集
-    volSmoothRef.current = 0
-    if (volTimerRef.current) { clearInterval(volTimerRef.current); volTimerRef.current = null }
-    if (processorRef.current) {
-      try { processorRef.current.disconnect() } catch (_) {}
-      processorRef.current = null
-    }
-    if (captureCtxRef.current) {
-      captureCtxRef.current.close().catch(() => {})
-      captureCtxRef.current = null
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop())
-      streamRef.current = null
-    }
 
     // 停止播放
     stopPlayback()
@@ -524,7 +671,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
       active: false, listening: false, speaking: false, aiSpeaking: false,
       transcript: '', finalTranscript: '', volume: 0, error: null, degraded: null,
     })
-  }, [stopPlayback, setState2, stopBrowserRecognition])
+  }, [stopCapture, stopPlayback, setState2])
 
   // ── PTT 控制 ──
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -57,6 +58,23 @@ func main() {
 	debugWebView := os.Getenv("GAEA_WEBVIEW_DEBUG") == "1"
 	if debugWebView {
 		slog.Warn("GAEA_WEBVIEW_DEBUG=1：WebView2 远程调试端口 127.0.0.1:9333 已开启（仅调试用）")
+	}
+
+	// 语音对话麦克风放行（FE6-02 后续根因修）：壳内 WebView2 无
+	// PermissionRequested 处理，getUserMedia 权限申请被默认拒绝 → 语音对话
+	// 恒「麦克风不可用、未在采集」。追加 Chromium 旗标在本壳内自动放行媒体
+	// 设备权限（仅作用本壳 WebView2 页面，本地 UI 无远程内容）。追加不覆盖：
+	// 与调试旗标（--remote-debugging-port）或用户自设参数共存，重复启动幂等。
+	const micPermFlag = "--use-fake-ui-for-media-stream"
+	extraArgs := os.Getenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS")
+	if !strings.Contains(extraArgs, micPermFlag) {
+		if extraArgs == "" {
+			extraArgs = micPermFlag
+		} else {
+			extraArgs += " " + micPermFlag
+		}
+		_ = os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", extraArgs)
+		slog.Info("WebView2 媒体权限已自动放行（麦克风，语音对话依赖；仅作用于本壳页面）")
 	}
 
 	err := wails.Run(&options.App{

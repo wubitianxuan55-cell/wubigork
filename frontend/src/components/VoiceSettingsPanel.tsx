@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Card, Switch, Select, Slider, Button, Typography, Tag, Input, message } from 'antd'
 import { AudioOutlined, ReloadOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons'
 import { app } from '../gaea/lib/bridge'
+import { listMicDevices, loadMicDeviceId, saveMicDeviceId } from '../hooks/useVoiceChat'
 
 const { Text } = Typography
 
@@ -84,6 +85,16 @@ export default function VoiceSettingsPanel() {
   const [rtHasKey, setRtHasKey] = useState(false)
   const [rtSaving, setRtSaving] = useState(false)
 
+  // 麦克风设备选择（FE6-02 终局配套）：默认设备可能是零信号虚拟音频，
+  // 采集侧 getUserMedia 以此为准（localStorage 持久化，前端纯关注点）
+  const [micDevices, setMicDevices] = useState<Array<{ deviceId: string; label: string; isDefault: boolean }>>([])
+  const [micId, setMicId] = useState<string>(() => loadMicDeviceId())
+  const refreshMicDevices = async () => {
+    const list = await listMicDevices()
+    setMicDevices(list)
+    setMicId(loadMicDeviceId())
+  }
+
   const checkHealth = async () => {
     setChecking(true)
     try {
@@ -92,6 +103,7 @@ export default function VoiceSettingsPanel() {
     } catch (_) {
       setHealth({ asrReady: false, ttsReady: false, error: '无法获取语音服务状态' })
     }
+    void refreshMicDevices() // 插拔麦克风后「检测」即刷新设备清单
     setChecking(false)
   }
 
@@ -270,6 +282,35 @@ export default function VoiceSettingsPanel() {
             options={voiceOptions}
           />
         )}
+      </Card>
+
+      {/* 麦克风设备 */}
+      <Card size="small" style={{ background: 'var(--color-surface-container)', border: '1px solid var(--color-border)', borderRadius: 8 }} bodyStyle={{ padding: 12 }}>
+        <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 6 }}>录音设备</div>
+        {micDevices.length === 0 ? (
+          <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>
+            未发现录音设备——插入麦克风后点「检测」刷新
+          </div>
+        ) : (
+          <Select
+            size="small"
+            value={micId || 'default'}
+            onChange={v => {
+              const id = v === 'default' ? '' : String(v)
+              setMicId(id)
+              saveMicDeviceId(id)
+              message.success('录音设备已切换，下次语音对话生效')
+            }}
+            style={{ width: '100%' }}
+            options={[
+              { value: 'default', label: '跟随系统默认' },
+              ...micDevices.map(d => ({ value: d.deviceId, label: d.label })),
+            ]}
+          />
+        )}
+        <div style={{ fontSize: 10, color: 'var(--color-text-secondary)', marginTop: 4, opacity: 0.75 }}>
+          默认设备可能是无信号的虚拟音频；语音对话提示「麦克风不可用」时在此换真麦克风
+        </div>
       </Card>
 
       {/* 语音模式 */}
