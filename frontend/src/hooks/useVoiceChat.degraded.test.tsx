@@ -292,6 +292,87 @@ describe('useVoiceChat 麦克风不可用降级（FE6-02）', () => {
     }
   })
 
+  it('NotReadableError 瞬态失败 → 有界重试后成功（蓝牙档位切换窗口）', async () => {
+    vi.useFakeTimers()
+    try {
+      const { stream } = installFakeAudioContext()
+      let calls = 0
+      const gum = vi.fn(async () => {
+        calls++
+        if (calls <= 2) {
+          const e = new DOMException('device busy', 'NotReadableError')
+          throw e
+        }
+        return stream
+      })
+      Object.defineProperty(navigator, 'mediaDevices', {
+        configurable: true,
+        value: { getUserMedia: gum },
+      })
+      const { result } = renderHook(() => useVoiceChat())
+      const startPromise = act(async () => { await result.current.start() })
+      // 两次失败间隔 800ms：推进定时器放行重试
+      await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
+      await startPromise
+      expect(calls).toBe(3)
+      expect(result.current.state.degraded).toBeNull()
+      expect(result.current.state.active).toBe(true)
+      await act(async () => { result.current.stop() })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('NotReadableError 连续全档失败 → 4 档阶梯后诚实降级（不无限拖）', async () => {
+    vi.useFakeTimers()
+    try {
+      const gum = vi.fn(async () => { throw new DOMException('busy', 'NotReadableError') })
+      Object.defineProperty(navigator, 'mediaDevices', {
+        configurable: true,
+        value: { getUserMedia: gum },
+      })
+      const { result } = renderHook(() => useVoiceChat())
+      const startPromise = act(async () => { await result.current.start() })
+      await act(async () => { await vi.advanceTimersByTimeAsync(4000) })
+      await startPromise
+      expect(gum).toHaveBeenCalledTimes(4) // 全约束×2 + 去 sampleRate + 裸
+      expect(result.current.state.degraded).toBe('mic-unavailable')
+      await act(async () => { result.current.stop() })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('IndexSizeError → 降档到去 sampleRate/裸约束后成功（约束雷区兜底）', async () => {
+    vi.useFakeTimers()
+    try {
+      const { stream } = installFakeAudioContext()
+      const gum = vi.fn(async (c?: MediaStreamConstraints) => {
+        const audio = c?.audio
+        if (typeof audio === 'object' && audio && 'sampleRate' in audio) {
+          throw new DOMException('bad range', 'IndexSizeError')
+        }
+        return stream
+      })
+      Object.defineProperty(navigator, 'mediaDevices', {
+        configurable: true,
+        value: { getUserMedia: gum },
+      })
+      const { result } = renderHook(() => useVoiceChat())
+      const startPromise = act(async () => { await result.current.start() })
+      await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
+      await startPromise
+      expect(result.current.state.degraded).toBeNull()
+      expect(result.current.state.active).toBe(true)
+      // 第 3 档（去 sampleRate）命中
+      const lastCall = gum.mock.calls[gum.mock.calls.length - 1]?.[0] as { audio?: Record<string, unknown> }
+      expect(lastCall?.audio && 'sampleRate' in lastCall.audio).toBe(false)
+      await act(async () => { result.current.stop() })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('switchMic(deviceId)：持久化选择并以 exact 约束就地重启采集，降级清空', async () => {
     const { stream } = installFakeAudioContext()
     const gum = vi.fn(async (_constraints?: MediaStreamConstraints) => stream)

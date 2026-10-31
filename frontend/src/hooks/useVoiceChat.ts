@@ -533,19 +533,51 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
   /** 启动本地采集。返回是否真正采到音频（FE6-02 复审）：调用方据此决定要不要
    *  起本地识别，不依赖 React eager state 的时序（stateRef 在 updater 内赋值）。 */
   const startCapture = useCallback(async (): Promise<boolean> => {
-    try {
-      // 已选麦克风优先（exact）：默认设备可能是零信号虚拟设备，用户显式
-      // 选过真麦就必须用真麦；未选过 = 跟随系统默认。
+    // 采集约束阶梯（实弹取证）：① 全约束（已选麦克风 exact + EC/NS）——
+    // 默认设备可能是零信号虚拟设备，用户选过真麦就必须用真麦；② 同款重试
+    // 一次（蓝牙 hands-free 档位切换窗口的瞬态 NotReadableError/AbortError）；
+    // ③ 去 sampleRate——Chromium 在 BT HFP/虚拟设备混路上对 sampleRate 约束
+    // 会抛非确定性 IndexSizeError，而 16k 重采样由 AudioContext 强制（约束
+    // 本身冗余）；④ 裸 {audio:true}——实测百发百中的最后底线。
+    const buildAudioConstraints = (withSampleRate: boolean): MediaTrackConstraints => {
       const savedMicId = loadMicDeviceId()
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          ...(savedMicId ? { deviceId: { exact: savedMicId } } : {}),
-          sampleRate: SAMPLE_RATE,
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-        },
-      })
+      return {
+        ...(savedMicId ? { deviceId: { exact: savedMicId } } : {}),
+        ...(withSampleRate ? { sampleRate: SAMPLE_RATE } : {}),
+        channelCount: 1,
+        echoCancellation: true,
+        noiseSuppression: true,
+      }
+    }
+    const ladder: Array<MediaTrackConstraints | true> = [
+      buildAudioConstraints(true),
+      buildAudioConstraints(true),
+      buildAudioConstraints(false),
+      true,
+    ]
+    // 全档全败才降级：可恢复失败不当永久不可用。
+    const openStream = async (): Promise<MediaStream> => {
+      let lastErr: unknown
+      for (let i = 0; i < ladder.length; i++) {
+        if (abortRef.current) throw lastErr ?? new DOMException('aborted', 'AbortError')
+        try {
+          const constraints = ladder[i]
+          return await navigator.mediaDevices.getUserMedia({
+            audio: constraints === true ? true : constraints,
+          })
+        } catch (err) {
+          lastErr = err
+          const name = (err as DOMException)?.name || ''
+          console.warn(`[Voice] 采集失败（${name}，档位 ${i + 1}/${ladder.length}），降档重试`)
+          if (i < ladder.length - 1) {
+            await new Promise(r => setTimeout(r, 500))
+          }
+        }
+      }
+      throw lastErr
+    }
+    try {
+      const stream = await openStream()
       if (abortRef.current) { stream.getTracks().forEach(t => t.stop()); return false }
 
       streamRef.current = stream
@@ -651,7 +683,9 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
       // 造正弦假音量 + speaking 置真，用户戴着没插稳的麦克风说完整段话，
       // 页面全程显示聆听中、却一个字节都没采到——对用户撒谎式降级。
       // 现改为显式降级位 + 音量归零，由消费方渲染可见警示条。
-      console.warn('[Voice] 麦克风不可用，未采集音频，本回合走文本输入', err)
+      // 错误名进日志（DOMException 序列化为 {}，不带 name 无法诊断）。
+      const name = (err as DOMException)?.name || ''
+      console.warn(`[Voice] 麦克风不可用（${name || '未知错误'}），未采集音频，本回合走文本输入`, err)
       setState2({ degraded: 'mic-unavailable', volume: 0, speaking: false })
       return false
     }
