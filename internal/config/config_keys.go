@@ -157,6 +157,10 @@ const (
 	KeyRealtimeProvider = "realtime_provider"
 	KeyRealtimeModel    = "realtime_model"
 	KeyRealtimeAPIKey   = "realtime_api_key"
+	// 角色音色预设（人格→音色）：JSON 对象 {"<personalityId>":{"voiceId":"","desc":""}}。
+	// voiceId = breeze 克隆音色 id（空=design 模式）；desc = 该人格的音色描述
+	// （未填 voiceId 时消费）。breeze 合成按当前 personalityPresetID 解析。
+	KeyVoicePersonaPresets = "voice_persona_presets"
 )
 
 // DefaultUsdCnyRate 美元→人民币汇率默认值（费用估算折算口径）。

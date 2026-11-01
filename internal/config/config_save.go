@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/gaea/gaea/internal/gaea/fileutil"
@@ -176,6 +177,19 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 			return fmt.Errorf("Breeze 音色描述过长（%d 字节，上限 4096）", len(v))
 		}
 		cf.BreezeVoiceDesc = v
+		return nil
+	},
+	KeyVoicePersonaPresets: func(cf *configFile, v string) error {
+		// JSON 对象形状校验（{"<pid>":{"voiceId":"","desc":""}}），坏 JSON 整批拒绝
+		if strings.TrimSpace(v) == "" {
+			cf.VoicePersonaPresets = ""
+			return nil
+		}
+		var m map[string]map[string]string
+		if err := json.Unmarshal([]byte(v), &m); err != nil {
+			return fmt.Errorf("角色音色预设须为 JSON 对象: %w", err)
+		}
+		cf.VoicePersonaPresets = v
 		return nil
 	},
 	KeyBreezePort: func(cf *configFile, v string) error {

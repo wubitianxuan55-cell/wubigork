@@ -460,6 +460,9 @@ func applyConfigFile(cfg *Config, home string) {
 			if cf.BreezeVoiceDesc != "" {
 				cfg.BreezeVoiceDesc = cf.BreezeVoiceDesc
 			}
+			if cf.VoicePersonaPresets != "" {
+				cfg.VoicePersonaPresets = cf.VoicePersonaPresets
+			}
 			if cf.RealtimeProvider != "" {
 				cfg.RealtimeProvider = cf.RealtimeProvider
 			}

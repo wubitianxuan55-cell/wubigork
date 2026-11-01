@@ -119,6 +119,8 @@ type configFile struct {
 	BreezePort int    `json:"breeze_port,omitempty"`
 	// Breeze voice design 音色描述（空=服务端默认）
 	BreezeVoiceDesc string `json:"breeze_voice_desc,omitempty"`
+	// 角色音色预设（人格→音色，JSON 对象）
+	VoicePersonaPresets string `json:"voice_persona_presets,omitempty"`
 	// tianxuan 独立引擎项目根目录（模型、二进制与启动档位由项目自身管理）。
 	TianxuanPath string `json:"tianxuan_path,omitempty"`
 	// strata 独立引擎项目根目录（.venv / serve / 档位 JSON 均在此目录）。
@@ -307,6 +309,8 @@ type Config struct {
 	BreezePort int
 	// Breeze voice design 音色描述（空=服务端默认）
 	BreezeVoiceDesc string
+	// 角色音色预设（人格→音色，JSON 对象）
+	VoicePersonaPresets string
 
 	// 实时语音 Realtime 档（S1，internal/realtime seam）：三项来自落盘配置，
 	// 默认空 = 未配置。RealtimeAPIKey 为 secure.EncryptString 密文（config 层

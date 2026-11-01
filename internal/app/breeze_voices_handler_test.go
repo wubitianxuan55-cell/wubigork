@@ -159,3 +159,61 @@ func TestBreezeVoiceNameRe(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestVoicePersonaPreset(t *testing.T) {
+	a := &mediaState{core: &core{cfg: &config.Config{
+		VoicePersonaPresets: `{"tsundere":{"voiceId":"my_voice","desc":"傲娇少女音"},"plain":{"voiceId":"","desc":"平静叙述"}}`,
+	}}}
+
+	vid, desc := a.voicePersonaPreset("tsundere")
+	if vid != "my_voice" || desc != "傲娇少女音" {
+		t.Errorf("tsundere 预设 = (%q,%q), want (my_voice, 傲娇少女音)", vid, desc)
+	}
+	// 无预设人格：走全局缺省链（返回空）
+	if vid, desc := a.voicePersonaPreset("kuudere"); vid != "" || desc != "" {
+		t.Errorf("无预设人格应返回空, got (%q,%q)", vid, desc)
+	}
+	// plain（无人格）不解析
+	if vid, _ := a.voicePersonaPreset("plain"); vid != "" {
+		t.Errorf("plain 应返回空 voiceId, got %q", vid)
+	}
+	// 空 ID/坏 JSON/nil cfg 诚实降级
+	if vid, _ := a.voicePersonaPreset(""); vid != "" {
+		t.Error("空人格 ID 应返回空")
+	}
+	bad := &mediaState{core: &core{cfg: &config.Config{VoicePersonaPresets: "not-json"}}}
+	if vid, _ := bad.voicePersonaPreset("tsundere"); vid != "" {
+		t.Error("坏 JSON 应返回空")
+	}
+	if vid, _ := (&mediaState{core: &core{}}).voicePersonaPreset("tsundere"); vid != "" {
+		t.Error("nil cfg 应返回空")
+	}
+}
+
+func TestVoiceApplySettings_PersonaPresets(t *testing.T) {
+	a := &mediaState{core: &core{cfg: &config.Config{}}}
+	a.voiceManager = nil
+	a.initVoice()
+	if a.voiceManager == nil {
+		t.Skip("voiceManager 不可用（依赖缺失环境）")
+	}
+
+	// 合法对象：规范化落盘（空字段保留为空串键）
+	err := a.VoiceApplySettings(map[string]interface{}{
+		"personaVoicePresets": map[string]interface{}{
+			"tsundere": map[string]interface{}{"voiceId": " v1 ", "desc": "傲娇音"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("合法预设应通过: %v", err)
+	}
+	if !strings.Contains(a.cfg.VoicePersonaPresets, `"voiceId":"v1"`) {
+		t.Errorf("应规范化 trim 后落盘, got %s", a.cfg.VoicePersonaPresets)
+	}
+	// 形状不符整批拒绝
+	if err := a.VoiceApplySettings(map[string]interface{}{
+		"personaVoicePresets": map[string]interface{}{"bad": "not-a-map"},
+	}); err == nil {
+		t.Fatal("形状不符应拒绝")
+	}
+}

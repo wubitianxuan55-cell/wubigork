@@ -130,6 +130,15 @@ const ChatPage: React.FC = () => {
     })
   }, [])
 
+  // 角色音色预设同步（FE 角色音色线）：人格/模式变化即同步后端
+  // personalityPresetID——朗读（TTSSpeak*）按当前人格解析音色预设；
+  // 语音对话在开麦时另有 VoiceApplySettings 同步，双保险同口径。
+  const modeForPreset = mode === 'plain' ? 'plain' : activePersonality
+  useEffect(() => {
+    // Promise.resolve 包一层：mock 桩可能返回 undefined，防挂载期 TypeError
+    Promise.resolve(app.VoiceApplySettings({ personalityPresetId: modeForPreset })).catch(() => {})
+  }, [modeForPreset])
+
   const inputRef = useRef<React.ComponentRef<typeof Input.TextArea>>(null)
   // 智能滚动（v4.514 对齐办公板 v4.512 手势语义）：跟随清除权唯一归滚轮
   // 上滚——布局扰动（滚动锚定/夹紧的程序性 scroll 事件）杀不死跟随；

@@ -11,6 +11,7 @@ package app
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -347,18 +348,25 @@ func (a *mediaState) ttsProviderForEngine(engineID, model, voiceDescription stri
 	}
 
 	// Breeze：OpenAI 兼容 JSON 路径但字段口径不同（instructions/voice，无
-	// /v1/audio/info 音色探测），走 breeze kind。voice 仅在面板显式选择了
-	// 克隆音色 id 时透传（空=voice design，instructions 即音色描述；发未知
-	// 名 voice 会被服务端 404）。描述优先级：语音对话管线的人格化描述 >
-	// 配置的 breeze 音色描述（朗读路径无人格化描述时的缺省音色）。
+	// /v1/audio/info 音色探测），走 breeze kind。音色解析优先级：
+	// 角色音色预设（当前人格的克隆音色 id）> 面板全局选择 > voice design；
+	// 描述优先级：语音对话管线的人格化描述 > 角色预设描述 > 全局 breeze 描述。
 	if engineID == "breeze" {
+		presetVoice, presetDesc := a.voicePersonaPreset(a.activePersonalityID)
+		voice := presetVoice
+		if voice == "" {
+			voice = strings.TrimSpace(a.activeTTSVoice)
+		}
 		desc := voiceDescription
+		if desc == "" {
+			desc = presetDesc
+		}
 		if desc == "" && a.cfg != nil {
 			desc = strings.TrimSpace(a.cfg.BreezeVoiceDesc)
 		}
 		p, err := tts.NewTTSProvider("breeze", tts.TTSConfig{
 			BaseURL: eng.BaseURL, Model: model,
-			Voice:            strings.TrimSpace(a.activeTTSVoice),
+			Voice:            voice,
 			VoiceDescription: desc,
 		})
 		if err != nil {
@@ -612,6 +620,34 @@ func (a *mediaState) VoiceApplySettings(settings map[string]interface{}) error {
 			a.cfg.BreezeVoiceDesc = v
 		}
 	}
+	if v, ok := settings["personaVoicePresets"]; ok {
+		// 角色音色预设（人格→音色）：整体规范化落盘（形状不符整批拒绝——
+		// 半套预设会让人格间音色跳变难以排查）
+		normalized := map[string]map[string]string{}
+		if m, mok := v.(map[string]interface{}); mok {
+			for pid, pv := range m {
+				pm, pok := pv.(map[string]interface{})
+				if !pok {
+					return fmt.Errorf("角色音色预设形状不符: %s", pid)
+				}
+				vid, _ := pm["voiceId"].(string)
+				dsc, _ := pm["desc"].(string)
+				normalized[pid] = map[string]string{"voiceId": strings.TrimSpace(vid), "desc": strings.TrimSpace(dsc)}
+			}
+		} else if s, sok := v.(string); !sok || s != "" {
+			return fmt.Errorf("personaVoicePresets 须为对象")
+		}
+		b, err := json.Marshal(normalized)
+		if err != nil {
+			return fmt.Errorf("序列化角色音色预设失败: %w", err)
+		}
+		if err := appconfig.Save(appconfig.KeyVoicePersonaPresets, string(b)); err != nil {
+			return fmt.Errorf("保存角色音色预设失败: %w", err)
+		}
+		if a.cfg != nil {
+			a.cfg.VoicePersonaPresets = string(b)
+		}
+	}
 
 	a.voiceManager.ApplyConfig(config)
 	return nil
@@ -648,11 +684,35 @@ func (a *mediaState) voiceSettingsMap(c *voice.VoiceRuntimeConfig) map[string]in
 	m["realtimeProvider"] = c.RealtimeProvider
 	m["realtimeModel"] = c.RealtimeModel
 	m["realtimeHasKey"] = c.RealtimeAPIKey != ""
-	// Breeze voice design 音色描述（breeze 引擎音色面板回显用）
+	// Breeze voice design 音色描述（breeze 引擎音色面板回显用）+ 角色音色预设
+	// （原始 JSON 串，前端解析渲染逐人格行）
 	if a.cfg != nil {
 		m["breezeVoiceDesc"] = a.cfg.BreezeVoiceDesc
+		m["personaVoicePresets"] = a.cfg.VoicePersonaPresets
 	}
 	return m
+}
+
+// voicePersonaPreset 解析当前人格的音色预设（voice_persona_presets JSON）。
+// 坏 JSON/无预设/人格为 plain（无人格）一律返回空——调用方走全局缺省链。
+func (a *mediaState) voicePersonaPreset(personalityID string) (voiceID, desc string) {
+	if a.cfg == nil || personalityID == "" || personalityID == "plain" {
+		return "", ""
+	}
+	if a.cfg.VoicePersonaPresets == "" {
+		return "", ""
+	}
+	var m map[string]struct {
+		VoiceID string `json:"voiceId"`
+		Desc    string `json:"desc"`
+	}
+	if err := json.Unmarshal([]byte(a.cfg.VoicePersonaPresets), &m); err != nil {
+		return "", ""
+	}
+	if p, ok := m[personalityID]; ok {
+		return strings.TrimSpace(p.VoiceID), strings.TrimSpace(p.Desc)
+	}
+	return "", ""
 }
 
 // herdsmanInstalledModelIDs 返回 Herdsman 引擎当前已安装（可用）模型 ID 列表。
