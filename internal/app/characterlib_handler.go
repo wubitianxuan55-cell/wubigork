@@ -121,6 +121,19 @@ func (a *App) CharacterSave(cJSON string) (characterlib.Character, error) {
 	if err := a.charLib.Upsert(&c); err != nil {
 		return c, err
 	}
+	// 台词/音色预设变更 → 旧语音文件键自然失效，后台按新键重生成（试听保持
+	// 「点开即播文件」）；新生成失败不回滚保存——下次试听缓存未命中会现场合成。
+	if old, err := a.charLib.Get(c.ID); err == nil && old != nil &&
+		voicePresetChanged(old, &c) {
+		go func(ms *mediaState, ch characterlib.Character) {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("台词语音重生成 panic", "panic", r)
+				}
+			}()
+			ms.regenerateCharacterVoiceLine(ch)
+		}(a.mediaState, c)
+	}
 	// 剧照 URL 可能在 Upsert 内被本地化（远程 xAI 临时图 → 本地路径），
 	// 回写助手记录保持一致，避免聊天人格头像仍引用过期链接。
 	if a.assistantMgr != nil && c.ChatEnabled && c.AssistantID != "" {

@@ -10,6 +10,7 @@
 package app
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -32,6 +33,7 @@ import (
 const (
 	VoiceEventState      = "voice:state"
 	VoiceEventTranscript = "voice:transcript"
+	VoiceEventReplyDelta = "voice:reply-delta"
 	VoiceEventTTSAudio   = "voice:tts-audio"
 	VoiceEventTTSSpeak   = "voice:tts-speak-text"
 	VoiceEventTTSCancel  = "voice:tts-speak-cancel"
@@ -56,6 +58,10 @@ func (e *voiceEmitter) EmitVoiceTranscript(text string, isFinal bool) {
 
 func (e *voiceEmitter) EmitVoiceReply(text string) {
 	e.app.emit("voice:reply", map[string]interface{}{"text": text})
+}
+
+func (e *voiceEmitter) EmitVoiceReplyDelta(text string) {
+	e.app.emit(VoiceEventReplyDelta, map[string]interface{}{"text": text})
 }
 
 func (e *voiceEmitter) EmitVoiceTTSAudio(audio []byte, mimeType string) {
@@ -93,6 +99,12 @@ func (a *mediaState) initVoice() {
 	if v := strings.TrimSpace(a.activePersonalityID); v != "" {
 		config.PersonalityPresetID = v
 	}
+	// Voice V2 档：落盘的后端选择（空 = v1 缺省）
+	if a.cfg != nil {
+		if v := strings.TrimSpace(a.cfg.GetVoiceBackend()); v != "" {
+			config.VoiceBackend = v
+		}
+	}
 	// S1 沿用：从 ~/.gaea_config.json 读取 realtime_provider / realtime_model /
 	// realtime_api_key 三项落盘值注入运行时配置（APIKey 存储口径为
 	// secure.EncryptString 密文，这里解出内存明文；解密失败 → 告警 + 置空，
@@ -116,6 +128,13 @@ func (a *mediaState) initVoice() {
 	// TTSSpeakBase64 统一路由到 TTS 提供者注册表）
 	a.voiceManager.SetTTSSynthesizeFn(func(text, voiceDescription string) ([]byte, string, error) {
 		return a.synthesizeVoiceTTS(text, voiceDescription)
+	})
+	a.voiceManager.SetTTSStreamSynthesizeFn(func(
+		ctx context.Context,
+		text, voiceDescription string,
+		onAudio func([]byte, string) error,
+	) error {
+		return a.streamVoiceTTS(ctx, text, voiceDescription, onAudio)
 	})
 
 	// S2 Realtime：provider 配置时经注册表构造真实会话注入 Manager（替换 S1
@@ -203,6 +222,42 @@ func (a *mediaState) setWhisperChatFn() {
 		// v4.6 Mood→TTS 闭环：透传 whisper 长期心境 4D EWMA（全 0 = 未播种）。
 		// 语音路径是进程内直调（Go [4]float64）；Wails 绑定路径经 JSON 往返
 		// 是 []float64——两种形态都接。
+		var mood [4]float64
+		switch raw := result["mood"].(type) {
+		case [4]float64:
+			mood = raw
+		case []float64:
+			if len(raw) == 4 {
+				copy(mood[:], raw)
+			}
+		}
+		return reply, emotion, mood, nil
+	})
+
+	// 低延迟语音链：模型正文边生成边交给 VoiceManager，首句完成即进入 TTS。
+	// 阻塞回调保留为兼容路径与旧测试 seam。
+	a.voiceManager.SetWhisperChatStreamFn(func(
+		ctx context.Context,
+		userMsg, personalityID string,
+		onDelta func(string),
+	) (string, string, [4]float64, error) {
+		if a.app != nil {
+			if reply, handled := a.app.routeIntent(userMsg); handled {
+				if onDelta != nil {
+					onDelta(reply)
+				}
+				return reply, "CALM_RATIONAL", [4]float64{}, nil
+			}
+		}
+		result, err := a.app.whisperChatStream(ctx, userMsg, personalityID, true, false, false, true, onDelta, nil)
+		if err != nil {
+			return "", "", [4]float64{}, err
+		}
+		reply, _ := result["reply"].(string)
+		emotion, _ := result["emotion"].(string)
+		if emotion == "" {
+			emotion = "CALM_RATIONAL"
+		}
 		var mood [4]float64
 		switch raw := result["mood"].(type) {
 		case [4]float64:
@@ -378,6 +433,39 @@ func (a *mediaState) ttsProviderForEngine(engineID, model, voiceDescription stri
 		cfg.Voice = a.ttsVoiceForModel(model)
 	}
 	p, err := tts.NewTTSProvider("herdsman", cfg)
+	if err != nil {
+		return nil, false
+	}
+	return p, true
+}
+
+// ttsProviderForEngineWithVoice 试听专用 provider 构造（TTSVoicePreviewBase64
+// 消费）：音色/描述显式入参，不读当前人格预设与全局 breeze 描述。仅覆盖
+// breeze 与 herdsman voicedesign/voxcpm 两种能表达预设的形态
+// （voicePreviewCapable 已先行过滤，这里不再重复判定）。
+func (a *mediaState) ttsProviderForEngineWithVoice(engineID, model, voiceID, voiceDescription string) (tts.TTSProvider, bool) {
+	if a.engineMgr == nil {
+		return nil, false
+	}
+	eng, ok := a.engineMgr.GetEngine(engineID)
+	if !ok || !eng.Enabled {
+		return nil, false
+	}
+	if engineID == "breeze" {
+		p, err := tts.NewTTSProvider("breeze", tts.TTSConfig{
+			BaseURL: eng.BaseURL, Model: model,
+			Voice:            voiceID,
+			VoiceDescription: voiceDescription,
+		})
+		if err != nil {
+			return nil, false
+		}
+		return p, true
+	}
+	// herdsman voicedesign/voxcpm：描述即音色（无 Voice 字段，工厂按模型收敛）
+	p, err := tts.NewTTSProvider("herdsman", tts.TTSConfig{
+		BaseURL: eng.BaseURL, Model: model, VoiceDescription: voiceDescription,
+	})
 	if err != nil {
 		return nil, false
 	}
@@ -599,6 +687,20 @@ func (a *mediaState) VoiceApplySettings(settings map[string]interface{}) error {
 			slog.Warn("保存语音角色配置失败", "error", err)
 		}
 	}
+	if v, ok := settings["voiceBackend"].(string); ok {
+		config.VoiceBackend = v
+		config.Validate()
+		// feature flag 落盘（KeyVoicePersonality 同款仅告警先例：非关键路径）
+		if err := appconfig.Save(appconfig.KeyVoiceBackend, config.VoiceBackend); err != nil {
+			slog.Warn("保存语音后端配置失败", "error", err)
+		}
+		if a.cfg != nil {
+			a.cfg.VoiceBackend = config.VoiceBackend
+		}
+		// 即时生效（2026-11-01 实弹教训：切档不通知=用户在 v1 上测了半天 v2 的锅）：
+		// ChatPage 订阅 voice-backend-changed 热切语音台，不用重开页面。
+		a.emit("voice-backend-changed", map[string]interface{}{"backend": config.VoiceBackend})
+	}
 	if v, ok := settings["breezeVoiceDesc"].(string); ok {
 		// Breeze voice design 音色描述：只落盘（provider 在 ttsProviderForEngine
 		// 处实时读 cfg，不进 voice 运行时配置——语音对话的人格化描述优先级更高）
@@ -642,7 +744,7 @@ func (a *mediaState) VoiceApplySettings(settings map[string]interface{}) error {
 	return nil
 }
 
-// VoiceGetSettings 获取当前语音设置（H0-3：TTSHerdsmanModel 动态解析为已装模型）
+// VoiceGetSettings 获取当前语音设置
 func (a *mediaState) VoiceGetSettings() map[string]interface{} {
 	if a.voiceManager == nil {
 		config := voice.DefaultVoiceConfig()
@@ -652,23 +754,14 @@ func (a *mediaState) VoiceGetSettings() map[string]interface{} {
 	return a.voiceSettingsMap(&config)
 }
 
-// voiceSettingsMap 构建语音设置映射；TTSHerdsmanModel 经 ResolveHerdsmanTTSModel
-// 动态解析（配置值优先，未安装则按优先级选已装模型；拿不到已装列表时等价于原逻辑）。
+// voiceSettingsMap 构建语音设置映射。
+// 2026-11-01 诚实化：退役 TTSHerdsmanModel 展示链（ResolveHerdsmanTTSModel 死链）——
+// 该字段不落盘、不参与合成路由（真实路由=聊天语音绑定→全局 TTS→TTSSpeakBase64
+// 扫描链，见 synthesizeVoiceTTS），展示解析值只会误导（每次回显触发
+// 「resolved=edge-tts」假 fallback 日志）。真实路由前端经 GetVoicePipelineConfig
+// 获取，健康经 VoiceHealth 的 ttsRouteHealth 探测。
 func (a *mediaState) voiceSettingsMap(c *voice.VoiceRuntimeConfig) map[string]interface{} {
-	resolved, usedFallback, resolvedFromInstalled := voice.ResolveHerdsmanTTSModel(c.TTSHerdsmanModel, a.herdsmanInstalledModelIDs())
-	if usedFallback || resolvedFromInstalled {
-		slog.Info("TTS 默认模型动态解析",
-			"configured", c.TTSHerdsmanModel,
-			"resolved", resolved,
-			"usedFallback", usedFallback,
-			"resolvedFromInstalled", resolvedFromInstalled,
-		)
-	}
-	c.TTSHerdsmanModel = resolved
 	m := configToMap(c)
-	// 前端提示：解析是否走了回退 / 结果是否来自已装列表
-	m["ttsHerdsmanModelFallback"] = usedFallback
-	m["ttsHerdsmanModelFromInstalled"] = resolvedFromInstalled
 	// 实时语音档（S1）：只回 provider/model 与 hasKey 布尔——明文 Key 永不出后端。
 	m["realtimeProvider"] = c.RealtimeProvider
 	m["realtimeModel"] = c.RealtimeModel
@@ -733,7 +826,8 @@ func (a *mediaState) voicePersonaPreset(personalityID string) (voiceID, desc str
 }
 
 // herdsmanInstalledModelIDs 返回 Herdsman 引擎当前已安装（可用）模型 ID 列表。
-// 引擎未初始化/未启用/无模型列表时返回 nil（调用方按「无已装信息」处理，行为等价于原逻辑）。
+// 引擎未初始化/未启用/无模型列表时返回 nil（消费方 ttsRouteHealth 按
+// 「Herdsman 路由不可达」处理）。
 func (a *mediaState) herdsmanInstalledModelIDs() []string {
 	if a.engineMgr == nil {
 		return nil
@@ -775,7 +869,10 @@ func (a *mediaState) VoiceSetPTTActive(active bool) error {
 	return nil
 }
 
-// VoiceHealth 健康检查（对齐 Ackem voice:health）
+// VoiceHealth 健康检查（对齐 Ackem voice:health）。
+// 2026-11-01 诚实化：ttsReady 覆写为按真实合成路由第一跳探测（原值只查
+// synthFn 回调注入=恒 true 的假绿）；asrReady 补 browserAsr 标注——语音对话
+// 默认走 WebView2 浏览器识别，后端 ASR provider 只是 PCM 推送路径的依赖。
 func (a *mediaState) VoiceHealth() map[string]interface{} {
 	if a.voiceManager == nil {
 		return map[string]interface{}{
@@ -783,6 +880,9 @@ func (a *mediaState) VoiceHealth() map[string]interface{} {
 			"ttsReady":      false,
 			"realtimeReady": false,
 			"state":         "idle",
+			"browserAsr":    true,
+			"ttsDetail":     "语音管理器未初始化",
+			"asrDetail":     "语音对话默认走浏览器识别（无需本地模型）",
 		}
 	}
 	hc := a.voiceManager.HealthCheck()
@@ -795,7 +895,54 @@ func (a *mediaState) VoiceHealth() map[string]interface{} {
 		RealtimeModel:    model,
 		RealtimeAPIKey:   apiKey,
 	})
+	ready, detail := a.ttsRouteHealth()
+	hc["ttsReady"] = ready
+	hc["ttsDetail"] = detail
+	hc["browserAsr"] = true
+	hc["asrDetail"] = "语音对话默认走浏览器识别（无需本地模型）；后端 ASR 用于 PCM 推送路径"
 	return hc
+}
+
+// ttsRouteHealth 按真实合成路由（聊天语音绑定→全局 TTS→TTSSpeakBase64 扫描
+// 链，优先级对齐 synthesizeVoiceTTS）探测第一跳，返回 (立即可用, 说明)。
+// 只读探测不拉起（拉起是合成路径行为）；本地引擎离线时合成会自动拉起（路
+// 径可走通），但「立即可用」如实报 false——前端红点+「朗读时自动拉起」说明，
+// 不再假绿。
+func (a *mediaState) ttsRouteHealth() (bool, string) {
+	engineID, modelID, hop := "", "", ""
+	switch {
+	case a.chatVoiceEngine != "" && a.chatVoiceModel != "":
+		engineID, modelID, hop = a.chatVoiceEngine, a.chatVoiceModel, "聊天语音绑定"
+	case a.activeTTSModel != "":
+		engineID, modelID, hop = a.activeTTSEngine, a.activeTTSModel, "全局 TTS"
+	default:
+		return true, "自动路由：本地引擎优先，Edge 云端兜底"
+	}
+	label := hop + "：" + engineID + "/" + modelID
+	switch {
+	case isLocalTTSAssetEngine(engineID):
+		if a.ttsReady(engineID) {
+			return true, label + "（本地服务在线）"
+		}
+		if engineID == "breeze" {
+			if _, err := breezeCmdFor(a.cfg); err != nil {
+				return false, label + "——服务未启动且未检测到安装（朗读将滑落 Edge 兜底）"
+			}
+		}
+		return false, label + "（本地服务离线，朗读时自动拉起）"
+	case engineID == "xai":
+		// 云端：绑定在位即可用（不实拨 API 花配额；合成失败自动滑落全局/兜底）。
+		if a.clientRef() != nil {
+			return true, label + "（xai 云端）"
+		}
+		return false, label + "——云端客户端未就绪（朗读将滑落全局/Edge 兜底）"
+	default:
+		// Herdsman 系：引擎启用且有已装模型即路由可达。
+		if len(a.herdsmanInstalledModelIDs()) > 0 {
+			return true, label + "（Herdsman）"
+		}
+		return false, label + "——Herdsman 未启用/无已装模型（朗读将滑落 Edge 兜底）"
+	}
 }
 
 // VoiceRestartService 重启语音服务（重新检测 ASR/TTS 可用性）
@@ -836,11 +983,11 @@ func configToMap(c *voice.VoiceRuntimeConfig) map[string]interface{} {
 		"asrModel":             string(c.ASRModel),
 		"ttsEngine":            string(c.TTSEngine),
 		"ttsVoice":             c.TTSVoice,
-		"ttsHerdsmanModel":     c.TTSHerdsmanModel,
 		"voiceMode":            string(c.VoiceMode),
 		"interruptThresholdMs": c.InterruptThresholdMs,
 		"silenceThresholdMs":   c.SilenceThresholdMs,
 		"inputChannel":         string(c.InputChannel),
 		"personalityPresetId":  c.PersonalityPresetID,
+		"voiceBackend":         c.VoiceBackend,
 	}
 }

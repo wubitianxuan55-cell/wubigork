@@ -1,0 +1,59 @@
+# gaea voice-v2 M1 Spike 管线配置（huggingface/speech-to-speech sidecar）。
+# 方案冻结：进度计划/gaea-voice-v2-rearchitecture-20261101.md §0.4。
+# 运行：scripts/voice_v2/start_spike.bat（venv 位于 C:\AI\gaea-voice-v2）。
+# 轮次目标：只验管线正确性、取消与音频连续性；35B 不用于最终延迟验收。
+schema_version: 1
+
+blocks:
+  vad:
+    kind: vad
+    backend: silero
+    settings:
+      smart_turn_cpu_count: 2
+      # 2026-11-01 实弹提速：低置信/不完满判决的持留窗收紧（社区初值 2000/600
+      # 偏保守；2000→1200 ms、600→400 ms，代价=密集停顿语速下切句更激进）
+      smart_turn_max_wait_ms: 1200
+      smart_turn_incomplete_delay_ms: 400
+  stt:
+    kind: stt
+    backend: paraformer
+    settings:
+      paraformer_stt_model_name: paraformer-zh
+      paraformer_stt_device: cpu
+  llm:
+    kind: llm
+    backend: chat-completions
+    settings:
+      # M4：语音专属快模型路由（独立进程=路由隔离，方案 §12 voice_chat_engine/
+      # voice_chat_model 的 spike 等价物）。Qwen3-4B Q4_K_M @8123（--reasoning off）。
+      # 35B 慢速对照：base_url http://127.0.0.1:8080/v1 + model_name
+      # Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_P-MTP-r2
+      model_name: qwen3-4b
+      responses_api_base_url: http://127.0.0.1:8123/v1
+      responses_api_api_key: local-spike
+      init_chat_prompt: >-
+        你是 gaea 的语音对话助手。请用口语化中文回答，每轮尽量控制在两句话以内，
+        不要使用列表或 Markdown 格式，不要输出思考过程。
+      chat_size: 12
+      stream_batch_sentences: 1
+  tts:
+    kind: tts
+    backend: openai
+    settings:
+      openai_tts_base_url: http://127.0.0.1:8012/v1
+      openai_tts_model: breeze-tts-2
+      openai_tts_voice: char_gaea
+      openai_tts_response_format: pcm
+      openai_tts_sample_rate: 24000
+      openai_tts_stream: true
+
+runtime:
+  log_level: info
+  log_transcripts: false
+  server:
+    host: 127.0.0.1
+    port: 8791
+
+pipelines:
+  gaea-spike:
+    stages: {vad: vad, stt: stt, llm: llm, tts: tts}

@@ -58,7 +58,7 @@ export function __clearAttachmentUrlCacheForTest() {
 
 // usePortraitUrl：本地文件路径经 AttachmentDataURL 转 data URL 的通用钩子。
 // 远程 http(s)/data URL 直接透传。WebView2 拒绝 <img src="file://…">，所有
-// 角色剧照上墙必须走本通道（v4.361 清账：PersonaPicker/绘梦/青鸟残留直连点）。
+// 角色剧照上墙必须走本通道（v4.361 清账：PersonaPicker/绘梦/微信助手残留直连点）。
 export function usePortraitUrl(src?: string): { url?: string; failed: boolean } {
   const [url, setUrl] = useState<string | undefined>(undefined)
   const [failed, setFailed] = useState(false)
@@ -74,6 +74,9 @@ export function usePortraitUrl(src?: string): { url?: string; failed: boolean } 
       setUrl(src)
       return
     }
+    // 本地路径切换时先清空旧图，避免等待 AttachmentDataURL 期间继续显示
+    // 上一个角色的剧照（微信助手切换通道时会明显串脸）。
+    setUrl(undefined)
     const cached = dataUrlCache.get(src)
     if (cached) {
       cachePut(src, cached) // 命中也走 put：刷新 LRU recency

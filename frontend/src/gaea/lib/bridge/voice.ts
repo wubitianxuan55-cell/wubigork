@@ -40,11 +40,25 @@ export interface VoiceBindings {
   // WhisperClearSession 清空指定人格的轻语会话（重开一段干净对话）。
   WhisperClearSession(personalityID: string): Promise<void>;
   // TTSSpeakBase64 合成 TTS 音频并返回 base64（text → {base64, mimeType}）；
-  // TTSSpeakBase64WithParams 带 TTS 参数（tts.TTSParams，前端用 Record 透传）合成。
+  // TTSSpeakBase64WithParams 带 TTS 参数（tts.TTSParams，前端用 Record 透传）合成；
+  // TTSVoicePreviewBase64 角色档案试听段（text/voiceID/voiceDescription 显式覆盖，
+  // 不读当前人格预设；仅走能表达音色预设的引擎，全链不可用诚实报错）。
   TTSSpeakBase64(text: string): Promise<Record<string, unknown>>;
   TTSSpeakBase64WithParams(text: string, params: Record<string, unknown>): Promise<Record<string, unknown>>;
+  TTSVoicePreviewBase64(text: string, voiceID: string, voiceDescription: string): Promise<Record<string, unknown>>;
   // ── 批次四 bridge 双轨退役终局（Go VoiceB 门面 bindings_voice.go:27）──
   // VoiceHealth 语音服务健康状态（返回 {asrReady,ttsReady,state,error}；
   // 语音设置面板「检测」按钮 VoiceHealth 直调转正）。
   VoiceHealth(): Promise<Record<string, unknown>>;
+  // TTSLineAudioFor 角色台词语音文件（内容寻址缓存优先）：命中回读文件
+  // {audio, mimeType, cached:true}（试听秒开）；未命中合成一次落盘回
+  // {audio, mimeType, cached:false}。chJSON=角色 JSON（新角色无 id 拒绝）。
+  TTSLineAudioFor(chJSON: string): Promise<Record<string, unknown>>;
+  // ── Voice V2 档（M4 产品接入刀；voice.backend=v2 消费）──
+  // VoiceV2Status 三依赖只读探测 {sidecar,llm,breeze,ready}。
+  VoiceV2Status(): Promise<Record<string, unknown>>;
+  // VoiceV2Ensure 幂等拉起 breeze→4B→sidecar 链（异步，voice-v2-status 事件上报）。
+  VoiceV2Ensure(): Promise<Record<string, unknown>>;
+  // VoiceV2Stop 按端口击杀 sidecar 与 4B（breeze 共享引擎不动）。
+  VoiceV2Stop(): Promise<Record<string, unknown>>;
 }

@@ -46,6 +46,22 @@ const R = 0.62        // 球面半径比例
 const LINK_MAX = 74   // 连线距离阈值（像素）
 const ORBIT_N = 26    // 每圈轨道粒子数
 
+function parseCssRgb(raw: string, fallback: [number, number, number]): [number, number, number] {
+  const value = raw.trim()
+  const hex = value.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)
+  if (hex) {
+    const body = hex[1].length === 3
+      ? hex[1].split('').map(ch => ch + ch).join('')
+      : hex[1]
+    return [0, 2, 4].map(index => Number.parseInt(body.slice(index, index + 2), 16)) as [number, number, number]
+  }
+  const nums = value.match(/[\d.]+/g)
+  if (nums && nums.length >= 3) {
+    return [Number(nums[0]), Number(nums[1]), Number(nums[2])]
+  }
+  return fallback
+}
+
 const VoiceChatOrb: React.FC<Props> = ({
   volume, listening, speaking, aiSpeaking, transcript, size = 360, micUnavailable = false,
 }) => {
@@ -61,6 +77,10 @@ const VoiceChatOrb: React.FC<Props> = ({
     const cvs = canvasRef.current
     if (!cvs) return
     const ctx = cvs.getContext('2d')!
+    const accent = parseCssRgb(
+      getComputedStyle(document.documentElement).getPropertyValue('--gaea-glow'),
+      [94, 234, 212],
+    )
     const dpr = Math.min(window.devicePixelRatio || 1, 2)
     cvs.width = size * dpr
     cvs.height = size * dpr
@@ -113,7 +133,7 @@ const VoiceChatOrb: React.FC<Props> = ({
       }
       tmRef.current += 0.016
       const t = tmRef.current
-      const { volume: vr, speaking: spk, aiSpeaking: ai, micUnavailable: mu } = propsRef.current
+      const { volume: vr, aiSpeaking: ai, micUnavailable: mu } = propsRef.current
       // FE6-02：麦克风不可用时「聆听」辉光一并熄灭——降级态下 orb 静默呼吸，
       // 不播放任何聆听动画（警示条由文案层承担）。
       const lis = mu ? false : propsRef.current.listening
@@ -123,8 +143,14 @@ const VoiceChatOrb: React.FC<Props> = ({
       const vol = Math.max(sv.v, 0.01)
       const act = lis || ai
 
-      const c1 = spk ? [255, 140, 80] : ai ? [100, 200, 255] : [120, 140, 220]
-      const c2 = spk ? [255, 80, 120] : ai ? [80, 160, 240] : [80, 100, 200]
+      // 单一强调色：用户说话、AI 回应和待机只改变明度、扩散与轨道速度，
+      // 不再用橙/紫/蓝三套品牌色切换。
+      const c1 = accent
+      const c2 = [
+        Math.min(255, accent[0] + 34),
+        Math.min(255, accent[1] + 22),
+        Math.min(255, accent[2] + 8),
+      ]
 
       // 光晕
       const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, size * 0.3 * (1 + vol))
@@ -231,7 +257,7 @@ const VoiceChatOrb: React.FC<Props> = ({
         </div>
       )}
 
-      <div style={{ position: 'absolute', top: -10, left: '50%', transform: 'translateX(-50%)', color: aiSpeaking ? '#64b5f6' : speaking ? '#ff8a65' : C('color-text-secondary'), fontSize: 12, fontWeight: 500, opacity: listening || aiSpeaking || micUnavailable ? 0.9 : 0, transition: 'opacity 0.3s' }}> {/* hex-exempt 语音双方品牌识别色 */}
+      <div style={{ position: 'absolute', top: -10, left: '50%', transform: 'translateX(-50%)', color: aiSpeaking || speaking ? 'var(--gaea-glow)' : C('color-text-secondary'), fontSize: 12, fontWeight: 500, opacity: listening || aiSpeaking || micUnavailable ? 0.9 : 0, transition: 'opacity 0.3s' }}>
         {aiSpeaking ? 'AI 回复中...' : micUnavailable ? '麦克风不可用' : speaking ? '正在聆听...' : listening ? '准备聆听' : ''}
       </div>
     </div>

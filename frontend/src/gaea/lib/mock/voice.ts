@@ -17,11 +17,18 @@ type VoiceMethods = Pick<
   | "VoiceStart" | "VoiceStop" | "VoicePlaybackDone" | "VoiceCancelTTS"
   | "VoicePushAudio" | "VoiceSetPTTActive" | "WhisperClearSession"
   | "TTSSpeakBase64" | "TTSSpeakBase64WithParams"
+  // 角色档案试听段（角色库编辑器/检查器试听钮消费；显式音色/描述覆盖合成）。
+  | "TTSVoicePreviewBase64"
+  // 角色台词语音文件（内容寻址缓存优先；角色库试听钮消费）。
+  | "TTSLineAudioFor"
   // 批次四 bridge 双轨退役终局（VoiceB 门面 bindings_voice.go:27）：语音服务
   // 健康状态（语音设置面板「检测」按钮消费，同 Voice 运行时族就近）。
   | "VoiceHealth"
   // TTS 参数预览（批 46 NOT_MOCKED 收尾刀；引擎零值语义=不指定）。
   | "TTSVoiceParams"
+  // Voice V2 档（M4 产品接入刀）：sidecar 依赖链监护（语音设置实验档卡片/
+  // 语音台 v2 前置检查消费）。
+  | "VoiceV2Status" | "VoiceV2Ensure" | "VoiceV2Stop"
 >;
 
 export function buildVoice(): VoiceMethods {
@@ -85,6 +92,14 @@ export function buildVoice(): VoiceMethods {
       // 同上：参数透传但无服务可合成 → 空 base64。
       return { base64: "", mimeType: "" };
     },
+    async TTSVoicePreviewBase64(_text: string, _voiceID: string, _voiceDescription: string) {
+      // 无本地 TTS 服务：返回空合成结果（消费方对空 base64 兜底，不编造音频）。
+      return { base64: "", mimeType: "" };
+    },
+    async TTSLineAudioFor(_chJSON: string) {
+      // 浏览器开发无角色库/语音服务：空音频（消费方对空 audio 兜底，不编造文件）。
+      return { audio: "", mimeType: "", cached: false, path: "" };
+    },
     // ── 批次四 bridge 双轨退役终局（Go VoiceB，同名前缀）────────────────
     async VoiceHealth() {
       // 浏览器开发无语音服务实例：按「未就绪/空闲」形状返回，面板图标不谎报就绪。
@@ -93,6 +108,18 @@ export function buildVoice(): VoiceMethods {
     async TTSVoiceParams(_emotion: string) {
       // tts.TTSParams 零值语义（0/空串=不指定），与 Go 引擎未接语义一致。
       return { speed: 0, pitch: 0, style: "", emotion: "" };
+    },
+    // ── Voice V2 档（M4 产品接入刀）──────────────────────────────
+    async VoiceV2Status() {
+      // 浏览器开发无 sidecar 链：诚实全 false，实验档卡片显示未就绪。
+      return { sidecar: false, llm: false, breeze: false, ready: false };
+    },
+    async VoiceV2Ensure() {
+      // mock 无进程可拉：直接回未就绪（带 error 说明），不谎报 starting。
+      return { ready: false, starting: false, error: "mock 环境无 sidecar" };
+    },
+    async VoiceV2Stop() {
+      return { sidecar: false, llm: false };
     },
   };
 }

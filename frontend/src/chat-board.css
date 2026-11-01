@@ -333,8 +333,95 @@
   opacity: 1;
 }
 
+.chat-msg-actions.has-metrics {
+  opacity: 1;
+}
+
 .chat-msg-actions:focus-within {
   opacity: 1;
+}
+
+.chat-metrics-toggle {
+  display: inline-flex;
+  height: 22px;
+  padding: 0 6px;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--md-sys-color-text-secondary);
+  font: inherit;
+  font-size: 10.5px;
+  cursor: pointer;
+  transition: color 160ms ease, background 160ms ease;
+}
+
+.chat-metrics-toggle:hover,
+.chat-metrics-toggle:focus-visible {
+  background: color-mix(in srgb, var(--gaea-glow) 7%, transparent);
+  color: var(--gaea-glow);
+  outline: none;
+}
+
+.chat-metrics-toggle:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--gaea-glow) 55%, transparent);
+}
+
+.chat-metrics-toggle:active {
+  transform: translateY(1px);
+}
+
+.chat-answer-meta {
+  width: 100%;
+  max-width: 100%;
+  margin-top: 5px;
+  color: var(--md-sys-color-text-secondary);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Consolas, monospace);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.chat-answer-byline {
+  opacity: 0.88;
+}
+
+.chat-answer-metrics {
+  display: flex;
+  margin-top: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: 4px;
+  color: color-mix(in srgb, var(--md-sys-color-text-secondary) 86%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-answer-metric {
+  display: inline-flex;
+  min-height: 18px;
+  padding: 0 10px;
+  align-items: center;
+  gap: 5px;
+  border-left: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 62%, transparent);
+}
+
+.chat-answer-metric:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.chat-answer-metric > span {
+  color: color-mix(in srgb, var(--md-sys-color-text-secondary) 72%, transparent);
+}
+
+.chat-answer-metric > strong {
+  color: color-mix(in srgb, var(--md-sys-color-text) 82%, transparent);
+  font-weight: 560;
+  letter-spacing: 0.01em;
+}
+
+.chat-answer-metric.is-cache > strong {
+  color: var(--gaea-glow);
 }
 
 /* ── 欢迎屏（科幻语音空态） ── */

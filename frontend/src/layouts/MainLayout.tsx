@@ -35,6 +35,10 @@ const { Content } = Layout
 // 加载不可感知（fallback null 不闪占位）。
 const SearchModal = React.lazy(() => import('../components/SearchModal'))
 
+// Voice V2 实验页（M2，进度计划/gaea-voice-v2-*）：?voicev2=1 唤出的懒加载覆盖层，
+// 不进正式导航；ChatPage 集成是 M4 之后的事
+const VoiceV2Lab = React.lazy(() => import('../voice/dev/VoiceV2Lab'))
+
 // ─── 页面组件：PageRegistry 集中注册（main.tsx），附 B #3/#5 过渡期已结束，
 //     旧 pageComponents lazy 兜底已删（registerPage 是唯一来源）。
 
@@ -395,6 +399,8 @@ const MainLayout: React.FC = () => {
   // 简化批：strip 常驻主题色点 7 颗收进单钮弹出（触发钮=当前主题色）
   const [themeOpen, setThemeOpen] = useState(false)
   const [visitedPages, setVisitedPages] = useState<Set<Page>>(new Set([DEFAULT_BOARD_ID]))
+  // Voice V2 Lab 开关：仅 ?voicev2=1 打开（一次性读取，无 UI 入口）
+  const [voiceV2LabOpen] = useState(() => new URLSearchParams(window.location.search).has('voicev2'))
 
   // 数据源 seam 接线：订阅活动板块清单并触发一次加载；清单变化时重渲染菜单/白名单/快捷键/布局。
   const [, forceBoards] = useReducer((c: number) => c + 1, 0)
@@ -730,6 +736,13 @@ const MainLayout: React.FC = () => {
       <Suspense fallback={null}>
         <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} space={space} />
       </Suspense>
+
+      {/* Voice V2 实验页（?voicev2=1 唤出；lazy 独立 chunk，平时零成本） */}
+      {voiceV2LabOpen ? (
+        <Suspense fallback={null}>
+          <VoiceV2Lab />
+        </Suspense>
+      ) : null}
     </Layout>
   )
 }

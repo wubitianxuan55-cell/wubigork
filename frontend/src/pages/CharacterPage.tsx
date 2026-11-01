@@ -512,6 +512,11 @@ const CharacterPage: React.FC = () => {
                   />
                 )
               })}
+              <button type="button" className="char-card-add" onClick={() => setDrawOpen(true)}>
+                <span className="char-card-add-mark" aria-hidden><PlusOutlined /></span>
+                <strong>继续扩充人物</strong>
+                <span>从角色库抽取，或带入已有角色</span>
+              </button>
             </div>
           )}
         </>
@@ -596,6 +601,11 @@ const CharacterPage: React.FC = () => {
 
       {/* 头部信息栏（收敛：无重复板块标题，保留统计与操作） */}
       <div className="char-panel-header">
+        <div className="char-panel-heading">
+          <span>CAST LEDGER</span>
+          <strong>人物档案</strong>
+        </div>
+        <span className="char-panel-header-rule" aria-hidden />
         <div className="char-panel-stats">
           <span className="char-panel-stat">角色 <strong>{characters.length}</strong></span>
           <span className="char-panel-stat">组织 <strong>{organizations.length}</strong></span>

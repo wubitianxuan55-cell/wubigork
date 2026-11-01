@@ -112,6 +112,47 @@ func streamTokensPerSecond(tokens int64, elapsed time.Duration) float64 {
 	return math.Round(float64(tokens)/elapsed.Seconds()*10) / 10
 }
 
+// streamOutputMetrics 汇总一次流式生成的可见性能指标。
+// 首字延迟从请求发出计到首个正文/推理分片；prefill_tps 使用 prompt tokens
+// 除以首字耗时，completion_tps 使用 completion tokens 除以首字后的生成时段。
+// 这是通用 OpenAI 兼容流能稳定获得的口径，不把网络排队时间伪装成 GPU 预填时间。
+func streamOutputMetrics(requestStart, firstTokenAt, finishedAt time.Time, usage *ai.ChatUsage) map[string]interface{} {
+	metrics := map[string]interface{}{}
+	if !requestStart.IsZero() && !finishedAt.IsZero() && finishedAt.After(requestStart) {
+		metrics["duration_ms"] = finishedAt.Sub(requestStart).Milliseconds()
+	}
+	if !requestStart.IsZero() && !firstTokenAt.IsZero() && firstTokenAt.After(requestStart) {
+		firstMS := firstTokenAt.Sub(requestStart).Milliseconds()
+		metrics["first_token_ms"] = firstMS
+		metrics["prefill_ms"] = firstMS
+		if usage != nil && usage.PromptTokens > 0 {
+			metrics["prefill_tps"] = math.Round(float64(usage.PromptTokens)/firstTokenAt.Sub(requestStart).Seconds()*10) / 10
+		}
+	}
+	if !firstTokenAt.IsZero() && !finishedAt.IsZero() && finishedAt.After(firstTokenAt) {
+		decodeMS := finishedAt.Sub(firstTokenAt).Milliseconds()
+		metrics["decode_ms"] = decodeMS
+		if usage != nil && usage.CompletionTokens > 0 {
+			metrics["completion_tps"] = streamTokensPerSecond(usage.CompletionTokens, finishedAt.Sub(firstTokenAt))
+		}
+	}
+	if usage != nil {
+		metrics["prompt_tokens"] = usage.PromptTokens
+		metrics["completion_tokens"] = usage.CompletionTokens
+		total := usage.TotalTokens
+		if total <= 0 {
+			total = usage.PromptTokens + usage.CompletionTokens
+		}
+		metrics["total_tokens"] = total
+		metrics["cache_hit_tokens"] = usage.CacheHitTokens()
+		metrics["cache_miss_tokens"] = usage.CacheMissTokens()
+		if tps, ok := metrics["completion_tps"].(float64); ok && tps > 0 {
+			metrics["tokens_per_second"] = tps
+		}
+	}
+	return metrics
+}
+
 // ChatStreamPlain 普通对话真实流式入口：立即返回 runID，前端订阅
 // "chat-stream:<runID>" 事件流（delta / reasoning / done / error），完成后落库。
 // 联网搜索注入只进入模型上下文，落库仍保留用户原文。
@@ -138,6 +179,30 @@ func (a *App) ChatStreamPlain(topicID, message string, searchEnabled, thinking, 
 	streamCtx, cancel := context.WithCancel(parent)
 	a.chatStreamRegister(runID, cancel)
 	go a.runChatStreamPlain(streamCtx, runID, topicID, message, eng, model, source, searchEnabled, thinking, forceSearch)
+	return runID, nil
+}
+
+// ChatStreamPersona 角色对话真实流式入口。人格链路仍由 Whisper 编排器完成
+// 情绪、记忆与状态收尾，但模型正文不再等整段完成后才回前端：首个 delta 直接
+// 通过 chat-stream:<runID> 下发，前端无需再模拟打字。
+func (a *App) ChatStreamPersona(topicID, message, mode string, searchEnabled, thinking, forceSearch bool) (string, error) {
+	if topicID == "" {
+		return "", fmt.Errorf("话题 ID 不能为空")
+	}
+	if strings.TrimSpace(mode) == "" || mode == "plain" {
+		return "", fmt.Errorf("角色对话模式无效")
+	}
+	if a.clientRef() == nil {
+		return "", fmt.Errorf("AI 客户端未初始化")
+	}
+	runID := newChatStreamRunID()
+	parent := a.ctx
+	if parent == nil {
+		parent = context.Background()
+	}
+	streamCtx, cancel := context.WithCancel(parent)
+	a.chatStreamRegister(runID, cancel)
+	go a.runChatStreamPersona(streamCtx, runID, topicID, message, mode, searchEnabled, thinking, forceSearch)
 	return runID, nil
 }
 
@@ -182,6 +247,7 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 	}()
 
 	promptMessage := a.preparePlainChatMessage(userMessage, searchEnabled, forceSearch)
+	requestStart := time.Now()
 	chunks, cancel, err := a.clientRef().ChatStreamChunks(ctx, model, chatPlainSystemPrompt, promptMessage,
 		ai.ChatSimpleOptions{EngineID: eng, Feature: "chat", EnableThinking: thinking, DisableThinking: !thinking})
 	if err != nil {
@@ -196,7 +262,7 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 	// 服务端未带 usage 时保持 nil → 费用诚实记 0。
 	var usage *ai.ChatUsage
 	// 生成速度计时：从首个内容/思考 delta 起表（排队与首字延迟不计入 tok/s）。
-	var genStart time.Time
+	var firstTokenAt time.Time
 	for chunk := range chunks {
 		if chunk.Error != "" {
 			a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": chunk.Error})
@@ -206,8 +272,8 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 			usage = chunk.Usage
 			break
 		}
-		if (chunk.Content != "" || chunk.Reasoning != "") && genStart.IsZero() {
-			genStart = time.Now()
+		if (chunk.Content != "" || chunk.Reasoning != "") && firstTokenAt.IsZero() {
+			firstTokenAt = time.Now()
 		}
 		if chunk.Content != "" {
 			reply.WriteString(chunk.Content)
@@ -222,24 +288,9 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 	// P1-5 用户取消：已生成部分照常走落库与终态——按 cancelled（而非 done/error）
 	// 如实告知前端（保留部分回复，对齐章节生成取消语义）。
 	cancelled := ctx.Err() != nil
+	finishedAt := time.Now()
 	replyStr := reply.String()
 	reasoningStr := reasoning.String()
-	extra := ""
-	if reasoningStr != "" {
-		if b, err := json.Marshal(map[string]interface{}{"reasoning": reasoningStr}); err == nil {
-			extra = string(b)
-		}
-	}
-	// T6-3.2 落库错误透传：delta 流不受影响，仅在最终落库失败时 emit error 终态
-	// 而非 done——前端可见失败（消息已生成但未持久化）。
-	if err := a.appendChatExchange(topicID, userMessage, replyStr, extra); err != nil {
-		slog.Error("chat stream plain 落库失败", "runID", runID, "topicID", topicID, "error", err)
-		a.emit("chat-stream:"+runID, map[string]interface{}{
-			"type":  "error",
-			"error": "回复生成完成但消息保存失败: " + err.Error(),
-		})
-		return
-	}
 	// answered_by 回显：费用按本次实际 token（流结束块 usage）经 EstimateCostCNY
 	// 估算，汇率取配置（与 GaeaGetUsdCnyRate 同源；非法值由 EstimateCostCNY 内
 	// 回退默认 7.2）；usage 不可达时 cost_cny=0（诚实，不虚报）。
@@ -259,16 +310,113 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 	answeredBy := map[string]interface{}{
 		"engine": eng, "model": model, "source": source, "cost_cny": costCNY,
 	}
-	if usage != nil && !genStart.IsZero() {
-		if s := streamTokensPerSecond(usage.CompletionTokens, time.Since(genStart)); s > 0 {
+	metrics := streamOutputMetrics(requestStart, firstTokenAt, finishedAt, usage)
+	if len(metrics) > 0 {
+		answeredBy["metrics"] = metrics
+	}
+	if usage != nil && !firstTokenAt.IsZero() {
+		if s := streamTokensPerSecond(usage.CompletionTokens, finishedAt.Sub(firstTokenAt)); s > 0 {
 			answeredBy["tokens_per_second"] = s
 		}
+	}
+	persistedExtra := map[string]interface{}{"answered_by": answeredBy}
+	if reasoningStr != "" {
+		persistedExtra["reasoning"] = reasoningStr
+	}
+	extra := ""
+	if b, err := json.Marshal(persistedExtra); err == nil {
+		extra = string(b)
+	}
+	// T6-3.2 落库错误透传：delta 流不受影响，仅在最终落库失败时 emit error 终态
+	// 而非 done——前端可见失败（消息已生成但未持久化）。
+	if err := a.appendChatExchange(topicID, userMessage, replyStr, extra); err != nil {
+		slog.Error("chat stream plain 落库失败", "runID", runID, "topicID", topicID, "error", err)
+		a.emit("chat-stream:"+runID, map[string]interface{}{
+			"type":  "error",
+			"error": "回复生成完成但消息保存失败: " + err.Error(),
+		})
+		return
 	}
 	a.emit("chat-stream:"+runID, map[string]interface{}{
 		"type":        finalType,
 		"reply":       replyStr,
 		"reasoning":   reasoningStr,
 		"topicID":     topicID,
+		"answered_by": answeredBy,
+	})
+}
+
+func (a *App) runChatStreamPersona(ctx context.Context, runID, topicID, userMessage, mode string, searchEnabled, thinking, forceSearch bool) {
+	defer a.chatStreamUnregister(runID)
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("chat stream persona panic", "panic", r)
+			a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": "角色流式生成异常"})
+		}
+	}()
+
+	out, err := a.whisperChatStream(
+		ctx,
+		userMessage,
+		mode,
+		searchEnabled,
+		thinking,
+		forceSearch,
+		false,
+		func(delta string) {
+			a.emit("chat-stream:"+runID, map[string]interface{}{"type": "delta", "content": delta})
+		},
+		func(delta string) {
+			a.emit("chat-stream:"+runID, map[string]interface{}{"type": "reasoning", "content": delta})
+		},
+	)
+	if err != nil {
+		a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": err.Error()})
+		return
+	}
+
+	reply := fmt.Sprint(out["reply"])
+	if reply == "<nil>" {
+		reply = ""
+	}
+	reasoning := fmt.Sprint(out["reasoning"])
+	if reasoning == "<nil>" {
+		reasoning = ""
+	}
+	answeredBy := out["answered_by"]
+	persistedExtra := map[string]interface{}{
+		"emotion": out["emotion"], "trust": out["trust"], "stage": out["stage"],
+		"totalTurns": out["totalTurns"], "answered_by": answeredBy,
+	}
+	if reasoning != "" {
+		persistedExtra["reasoning"] = reasoning
+	}
+	extra := ""
+	if b, marshalErr := json.Marshal(persistedExtra); marshalErr == nil {
+		extra = string(b)
+	}
+	if err := a.appendChatExchange(topicID, userMessage, reply, extra); err != nil {
+		slog.Error("chat stream persona 落库失败", "runID", runID, "topicID", topicID, "error", err)
+		a.emit("chat-stream:"+runID, map[string]interface{}{
+			"type":  "error",
+			"error": "回复生成完成但消息保存失败: " + err.Error(),
+		})
+		return
+	}
+
+	finalType := "done"
+	if cancelled, _ := out["cancelled"].(bool); cancelled {
+		finalType = "cancelled"
+	}
+	a.emit("chat-stream:"+runID, map[string]interface{}{
+		"type":        finalType,
+		"reply":       reply,
+		"reasoning":   reasoning,
+		"topicID":     topicID,
+		"mode":        mode,
+		"emotion":     out["emotion"],
+		"aff":         out["aff"],
+		"aro":         out["aro"],
 		"answered_by": answeredBy,
 	})
 }
@@ -287,7 +435,7 @@ func (a *App) chatSendPersona(topicID, message, mode string, searchEnabled, thin
 	extra := ""
 	if b, err := json.Marshal(map[string]interface{}{
 		"emotion": out["emotion"], "trust": out["trust"], "stage": out["stage"], "totalTurns": out["totalTurns"],
-		"reasoning": out["reasoning"],
+		"reasoning": out["reasoning"], "answered_by": out["answered_by"],
 	}); err == nil {
 		extra = string(b)
 	}

@@ -295,6 +295,41 @@ func TestToPreset_CarriesChatFields(t *testing.T) {
 	}
 }
 
+// 人格厚度全量进聊天（2026-11-01 用户验收）：性格/背景/对话样本折叠进
+// voiceGuide——「按人设思考」的主料不许在 ToPreset 处截流。
+func TestToPreset_CarriesPersonaDepth(t *testing.T) {
+	c := &Character{
+		ID: "lib_02", Name: "苏念", Gender: "female",
+		VoiceGuide:      "温柔中带锋芒",
+		Personality:     "外柔内韧，重诺",
+		Background:      "书香门第出身，家道中落",
+		BehaviorRules:   "不打断对方",
+		EmotionLogic:    "被冒犯先冷后爆",
+		DialogueSamples: []string{"剑来。", "别挡路。", "让我看看。", "第四条不该出现。"},
+	}
+	p := c.ToPreset()
+	if !strings.Contains(p.VoiceGuide, "【人设】") || !strings.Contains(p.VoiceGuide, "性格：外柔内韧，重诺") {
+		t.Fatalf("性格未进 voiceGuide: %s", p.VoiceGuide)
+	}
+	if !strings.Contains(p.VoiceGuide, "背景：书香门第出身，家道中落") {
+		t.Fatalf("背景未进 voiceGuide: %s", p.VoiceGuide)
+	}
+	if !strings.Contains(p.VoiceGuide, "- 剑来。") || !strings.Contains(p.VoiceGuide, "- 让我看看。") {
+		t.Fatalf("对话样本未进 voiceGuide: %s", p.VoiceGuide)
+	}
+	if strings.Contains(p.VoiceGuide, "第四条不该出现") {
+		t.Fatalf("样本应截前 3 条: %s", p.VoiceGuide)
+	}
+	// 无性格/背景/样本的角色：不加空【人设】段（结构零污染）
+	p2 := (&Character{ID: "x", Name: "白板"}).ToPreset()
+	if strings.Contains(p2.VoiceGuide, "【人设】") || strings.Contains(p2.VoiceGuide, "对话样本") {
+		t.Fatalf("空字段不应产生空段: %s", p2.VoiceGuide)
+	}
+	if !strings.Contains(p2.VoiceGuide, "你是「白板」") {
+		t.Fatalf("缺省口吻兜底失效: %s", p2.VoiceGuide)
+	}
+}
+
 func TestDrawRandom_FiltersAndLimit(t *testing.T) {
 	s := newTestStore(t)
 	base := []Character{

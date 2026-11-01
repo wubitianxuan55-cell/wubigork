@@ -93,10 +93,11 @@ func migrateSchemaV2(db *sql.DB) error {
 }
 
 // migrateSchemaV3 幂等迁移（角色音色预设）：characters 表补 tts_voice_id /
-// tts_desc 两列（TEXT，空串=未设置）。voiceId=breeze 克隆音色 id，desc=音色
-// 描述（design 模式）；两列独立回退，均空时合成走全局缺省链。
+// tts_desc / tts_line 三列（TEXT，空串=未设置）。voiceId=breeze 克隆音色 id，
+// desc=音色描述（design 模式）；两列独立回退，均空时合成走全局缺省链。
+// tts_line=专属语音台词（档案试听段念的台词，空时前端按对话样本/问候回退）。
 func migrateSchemaV3(db *sql.DB) error {
-	for _, col := range []string{"tts_voice_id", "tts_desc"} {
+	for _, col := range []string{"tts_voice_id", "tts_desc", "tts_line"} {
 		has, err := hasColumn(db, "characters", col)
 		if err != nil {
 			return err

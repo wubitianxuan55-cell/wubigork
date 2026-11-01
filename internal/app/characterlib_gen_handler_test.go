@@ -140,6 +140,55 @@ func TestParseRandomFields_IncludesDims(t *testing.T) {
 	}
 }
 
+// ttsLine（专属语音台词）与随机面同批：单字段白名单放行 / all 收录 /
+// 随机与补全两条合并路都认。
+func TestParseRandomFields_IncludesTTSLine(t *testing.T) {
+	got := parseRandomFields("ttsLine")
+	if len(got) != 1 || got[0] != "ttsLine" {
+		t.Fatalf("parseRandomFields(ttsLine) = %v", got)
+	}
+	if !containsKey(parseRandomFields("all"), "ttsLine") {
+		t.Fatalf("all 应包含 ttsLine")
+	}
+}
+
+func TestMergeRandom_TTSLineTarget(t *testing.T) {
+	cur := map[string]interface{}{
+		"name":    "苏念",
+		"ttsLine": "剑来。",
+	}
+	gen := map[string]interface{}{"ttsLine": "别挡路，看我剑意。"}
+	mergeRandom(cur, gen, []string{"ttsLine"})
+	if cur["ttsLine"] != "别挡路，看我剑意。" {
+		t.Fatalf("ttsLine 目标字段应被随机覆盖: %v", cur["ttsLine"])
+	}
+	// 空生成值不覆盖（与其它字段同口径）
+	cur2 := map[string]interface{}{"name": "苏念", "ttsLine": "剑来。"}
+	mergeRandom(cur2, map[string]interface{}{"ttsLine": " "}, []string{"ttsLine"})
+	if cur2["ttsLine"] != "剑来。" {
+		t.Fatalf("空生成值不应覆盖: %v", cur2["ttsLine"])
+	}
+}
+
+func TestMergeFill_FillsEmptyTTSLine(t *testing.T) {
+	cur := map[string]interface{}{"name": "苏念", "ttsLine": ""}
+	mergeFill(cur, map[string]interface{}{"ttsLine": "夜色温柔，我亦如此。"})
+	if cur["ttsLine"] != "夜色温柔，我亦如此。" {
+		t.Fatalf("空台词应被补全: %v", cur["ttsLine"])
+	}
+	cur2 := map[string]interface{}{"name": "苏念", "ttsLine": "剑来。"}
+	mergeFill(cur2, map[string]interface{}{"ttsLine": "别挡路。"})
+	if cur2["ttsLine"] != "剑来。" {
+		t.Fatalf("已有台词不应被补全覆盖: %v", cur2["ttsLine"])
+	}
+	// snake_case 回退（模板输出常带下划线）
+	cur3 := map[string]interface{}{"name": "苏念"}
+	mergeFill(cur3, map[string]interface{}{"tts_line": "山高路远，江湖再会。"})
+	if cur3["ttsLine"] != "山高路远，江湖再会。" {
+		t.Fatalf("tts_line snake 回退应命中: %v", cur3["ttsLine"])
+	}
+}
+
 func TestBuildPortraitPrompt(t *testing.T) {
 	c := characterlib.Character{
 		Name:        "苏念",

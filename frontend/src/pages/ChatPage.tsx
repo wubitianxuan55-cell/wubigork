@@ -1,11 +1,12 @@
 // ChatPage（T6-10.1 巨型组件拆分后的编排层，行为零变化）
-// 职责：状态编排 + 跨 hook/组件装配；流订阅（useChatStream）、话题状态机
+// 职责：状态编排 + 跨 hook/组件装配；真实流订阅（useChatStream）、话题状态机
 // （useChatTopics）、语音集成（useChatVoice）与纯展示组件拆分见各产物文件。
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { Typography, Modal, message, Input } from 'antd'
 import { DownOutlined } from '@ant-design/icons'
 import { app } from '../gaea/lib/bridge'
+import { subscribeWailsEvent } from '../gaea/lib/wailsEvents'
 import { b64ToBytes } from '../gaea/lib/bytes'
 import { copyToClipboard } from '../gaea/lib/clipboard'
 import { useFollowScroll } from '../utils/followScroll'
@@ -28,6 +29,7 @@ import { ChatComposer, QUICK_REPLIES } from '../components/chat/ChatComposer'
 const EMPTY_REPLIES: Array<{ label: string; text: string }> = []
 import { ChatInspector } from '../components/chat/ChatInspector'
 import { VoiceConsole } from '../components/chat/VoiceConsole'
+import VoiceConsoleV2 from '../components/chat/VoiceConsoleV2'
 import { STREAM_SILENCE_TIMEOUT_MS, EMO_COLORS } from './chat/constants'
 import { navigateToCharacterLib, loadCompanionName, toUpdatedAt, loadPersonality } from './chat/utils'
 import type { ChatMsg, Personality } from './chat/types'
@@ -77,6 +79,23 @@ const ChatPage: React.FC = () => {
 
   const [showVoiceSettings, setShowVoiceSettings] = useState(false)
   const [voiceConsoleOpen, setVoiceConsoleOpen] = useState(false)
+  // Voice V2 档（M4 产品接入刀）：v2=实时 sidecar（VoiceConsoleV2）；读取一次，
+  // 设置面板切档下次打开语音台生效（V1 全保留，回退=切回 v1）。
+  const [voiceBackend, setVoiceBackend] = useState<'v1' | 'v2'>('v1')
+  useEffect(() => {
+    void app.VoiceGetSettings().then((s) => {
+      if ((s as Record<string, unknown>).voiceBackend === 'v2') setVoiceBackend('v2')
+    }).catch(() => { /* 桥不可用维持 v1 */ })
+  }, [])
+  // 切档即时生效（2026-11-01 实弹教训：设置面板切了 v2，页面还停在 v1 读数，
+  // 用户实测跑了半天 V1）。后端 VoiceApplySettings 发 voice-backend-changed。
+  useEffect(() => {
+    if (!window.runtime?.EventsOn) return
+    return subscribeWailsEvent(window.runtime, 'voice-backend-changed', (payload) => {
+      const backend = (payload as { backend?: string })?.backend === 'v2' ? 'v2' : 'v1'
+      setVoiceBackend(backend)
+    })
+  }, [])
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [speakingId, setSpeakingId] = useState<string | null>(null)
   // v4.3d 朗读情绪：手动选择（'' = 跟随会话最近一轮情绪）；朗读时作为
@@ -107,6 +126,24 @@ const ChatPage: React.FC = () => {
   const [inspectorCollapsed, setInspectorCollapsed] = useState<boolean>(
     () => initialCollapsed('gaea.chatInspectorCollapsed'),
   )
+  const voiceInspectorRestoreRef = useRef<boolean | null>(null)
+
+  // 语音模式暂时收起右侧上下文面板，把宽度让给声场；左侧会话索引继续可用，
+  // 以便直接切换话题。退出时恢复原状态，不写入 localStorage。
+  useEffect(() => {
+    if (voiceConsoleOpen) {
+      if (voiceInspectorRestoreRef.current === null) {
+        voiceInspectorRestoreRef.current = inspectorCollapsed
+      }
+      setInspectorCollapsed(true)
+      return
+    }
+    const restore = voiceInspectorRestoreRef.current
+    if (restore === null) return
+    voiceInspectorRestoreRef.current = null
+    setInspectorCollapsed(restore)
+  }, [voiceConsoleOpen, inspectorCollapsed])
+
   useEffect(() => {
     const collapseForCompactWindow = () => {
       if (window.innerWidth >= 900) return
@@ -153,7 +190,7 @@ const ChatPage: React.FC = () => {
   const forceSearchRef = useRef(forceSearch)
   forceSearchRef.current = forceSearch
 
-  // ── 流式发送（plain 流订阅 + 角色模拟打字，T6-3.1/T6-3.3 逻辑在 hook 内） ──
+  // ── 流式发送（plain/persona 同一真实流协议，逻辑在 hook 内） ──
   const streamApi = useChatStream({
     updateMessage,
     setMessages,
@@ -186,13 +223,15 @@ const ChatPage: React.FC = () => {
       return
     }
     setVoiceConsoleOpen(true)
+    if (voiceBackend === 'v2') return // V2 自管会话（VoiceConsoleV2 挂载即连接）
     if (!voiceOn) await toggleVoice()
-  }, [activeIdRef, voiceOn, toggleVoice])
+  }, [activeIdRef, voiceBackend, voiceOn, toggleVoice])
 
   const closeVoiceConsole = useCallback(() => {
     setVoiceConsoleOpen(false)
+    if (voiceBackend === 'v2') return // V2 卸载即断开
     stopVoiceSession()
-  }, [stopVoiceSession])
+  }, [voiceBackend, stopVoiceSession])
   const handleOpenVoiceConsole = useCallback(() => {
     void openVoiceConsole()
   }, [openVoiceConsole])
@@ -205,6 +244,26 @@ const ChatPage: React.FC = () => {
   const companionName = useMemo(
     () => loadCompanionName(currentPersonality?.label || 'gaea'),
     [currentPersonality])
+  // V2 人格音色（2026-11-01 实弹「声色没有固定」根修）：角色卡 TTSVoiceID
+  // （breeze 克隆 id）→ session.update.audio.output.voice；无卡/无字段落服务端缺省。
+  const [v2VoiceId, setV2VoiceId] = useState('')
+  useEffect(() => {
+    const pid = currentPersonality?.id
+    if (!pid || pid === 'plain') { setV2VoiceId(''); return }
+    void app.CharacterGet(pid).then((r) => {
+      const ch = (r as { character?: { ttsVoiceId?: string } }).character
+      setV2VoiceId(String(ch?.ttsVoiceId || ''))
+    }).catch(() => setV2VoiceId(''))
+  }, [currentPersonality?.id])
+  // V2 人格指令：当前人格的 label/voiceGuide 折叠成 sidecar session instructions
+  // （完整人设/记忆接 gaea 内部端点是下一刀；这里保底人格名与语气导引不丢）。
+  const v2Instructions = useMemo(() => {
+    const persona = currentPersonality?.label
+      ? `你正在扮演「${currentPersonality.label}」这个角色。`
+      : '你是 gaea 的语音对话助手。'
+    const guide = currentPersonality?.voiceGuide ? `${currentPersonality.voiceGuide}` : ''
+    return `${persona}${guide} 用口语化中文回答，每轮不超过两句话，不要列表和 Markdown，不要输出思考过程。`
+  }, [currentPersonality])
   const emoColor = EMO_COLORS[emotion] || 'var(--gaea-glow, var(--md-sys-color-primary))'
   const personaLabel = currentPersonality?.label || '角色'
   const hasMessages = messages.length > 0
@@ -445,7 +504,10 @@ const ChatPage: React.FC = () => {
   )
 
   return (
-    <div className="chat-board chat-cockpit" style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+    <div
+      className={`chat-board chat-cockpit${voiceConsoleOpen ? ' chat-voice-mode' : ''}`}
+      style={{ flex: 1, minHeight: 0, position: 'relative' }}
+    >
       <a className="chat-skip-link" href="#chat-workspace">跳到对话内容</a>
       <ChatTopicSidebar
         topics={topicList}
@@ -462,7 +524,7 @@ const ChatPage: React.FC = () => {
 
       <main className="chat-main v3-zone">
         <style>{mdStyles}</style>
-        {mode !== 'plain' && <ParticleFlow aro={aro} />}
+        {mode !== 'plain' && !voiceConsoleOpen && <ParticleFlow aro={aro} />}
         <SoundWaveOverlay active={speakingId !== null} aff={aff} aro={aro} />
 
         <header className="chat-workspace-head">
@@ -480,17 +542,30 @@ const ChatPage: React.FC = () => {
         </header>
 
         {voiceConsoleOpen ? (
-          <VoiceConsole
-            voice={voice}
-            voiceOn={voiceOn}
-            messages={messages}
-            companionName={companionName}
-            onToggleVoice={toggleVoice}
-            onInterruptVoice={interruptVoice}
-            onOpenSettings={handleOpenVoiceSettings}
-            onClose={handleCloseVoiceConsole}
-            onSwitchMic={switchMic}
-          />
+          voiceBackend === 'v2' ? (
+            <VoiceConsoleV2
+              companionName={companionName}
+              instructions={v2Instructions}
+              voiceId={v2VoiceId}
+              onClose={handleCloseVoiceConsole}
+              onOpenSettings={handleOpenVoiceSettings}
+              setMessages={setMessages}
+              getActiveId={() => activeIdRef.current}
+              finalizeTopicAfterSend={finalizeTopicAfterSend}
+            />
+          ) : (
+            <VoiceConsole
+              voice={voice}
+              voiceOn={voiceOn}
+              messages={messages}
+              companionName={companionName}
+              onToggleVoice={toggleVoice}
+              onInterruptVoice={interruptVoice}
+              onOpenSettings={handleOpenVoiceSettings}
+              onClose={handleCloseVoiceConsole}
+              onSwitchMic={switchMic}
+            />
+          )
         ) : (
           <>
             {/* 人格状态条（临场感：头像常驻 + 名字；状态/记忆归角色库） */}

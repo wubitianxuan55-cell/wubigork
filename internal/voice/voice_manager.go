@@ -21,6 +21,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gaea/gaea/internal/asr"
 	"github.com/gaea/gaea/internal/realtime"
@@ -42,6 +43,12 @@ type EventEmitter interface {
 	EmitVoiceError(err error)
 }
 
+// ReplyDeltaEmitter 可选能力：支持流式回复文本的发射器实现该接口。
+// 保留 EventEmitter 原接口不变，旧测试桩和外部消费者可继续工作。
+type ReplyDeltaEmitter interface {
+	EmitVoiceReplyDelta(text string)
+}
+
 // WhisperChatFn whisper 对话函数签名
 // 对齐 Ackem 中调用 LLM 的方式。v4.6 Mood→TTS 闭环：第三返回值 mood 是
 // whisper 长期心境 4D EWMA（[aff, sec, aro, dom]，-100..100；全 0 = 未播种/
@@ -50,6 +57,25 @@ type WhisperChatFn func(userMsg string, personalityID string) (reply string, emo
 
 // TTSSynthesizeFn TTS 合成函数签名
 type TTSSynthesizeFn func(text string, voiceDescription string) (audio []byte, mimeType string, err error)
+
+// TTSStreamSynthesizeFn 低延迟 TTS：在完整音频返回前逐块交付可播放音频。
+// 未配置时继续使用阻塞式 TTSSynthesizeFn。
+type TTSStreamSynthesizeFn func(
+	ctx context.Context,
+	text string,
+	voiceDescription string,
+	onAudio func(audio []byte, mimeType string) error,
+) error
+
+// WhisperChatStreamFn 低延迟语音对话回调：每收到一个模型正文分片就调用
+// onDelta，最终仍返回完整回复、情绪与长期心境。语音管线可据此在首句完成时
+// 立即开始 TTS，无需等待整段回复生成结束。
+type WhisperChatStreamFn func(
+	ctx context.Context,
+	userMsg string,
+	personalityID string,
+	onDelta func(string),
+) (reply string, emotionLabel string, mood [4]float64, err error)
 
 // ── VoiceManager ──
 
@@ -96,9 +122,11 @@ type Manager struct {
 	//	emitterPtr     ← NewManager（构造期，发布前）   → currentEmitter()
 	//	whisperChatPtr ← SetWhisperChatFn              → currentWhisperChatFn()
 	//	ttsSynthPtr    ← SetTTSSynthesizeFn            → currentTTSSynthFn()
-	emitterPtr     atomic.Pointer[EventEmitter]
-	whisperChatPtr atomic.Pointer[WhisperChatFn]
-	ttsSynthPtr    atomic.Pointer[TTSSynthesizeFn]
+	emitterPtr           atomic.Pointer[EventEmitter]
+	whisperChatPtr       atomic.Pointer[WhisperChatFn]
+	whisperChatStreamPtr atomic.Pointer[WhisperChatStreamFn]
+	ttsSynthPtr          atomic.Pointer[TTSSynthesizeFn]
+	ttsStreamSynthPtr    atomic.Pointer[TTSStreamSynthesizeFn]
 
 	// 打断与轮次控制
 	playbackDoneCh chan struct{} // 当前句播放完成信号（前端回调）
@@ -149,9 +177,24 @@ func (m *Manager) currentWhisperChatFn() WhisperChatFn {
 	return nil
 }
 
+// currentWhisperChatStreamFn 原子载入低延迟流式对话回调（未设置返回 nil）。
+func (m *Manager) currentWhisperChatStreamFn() WhisperChatStreamFn {
+	if p := m.whisperChatStreamPtr.Load(); p != nil {
+		return *p
+	}
+	return nil
+}
+
 // currentTTSSynthFn 原子载入 TTS 合成回调（未设置返回 nil）。
 func (m *Manager) currentTTSSynthFn() TTSSynthesizeFn {
 	if p := m.ttsSynthPtr.Load(); p != nil {
+		return *p
+	}
+	return nil
+}
+
+func (m *Manager) currentTTSStreamSynthFn() TTSStreamSynthesizeFn {
+	if p := m.ttsStreamSynthPtr.Load(); p != nil {
 		return *p
 	}
 	return nil
@@ -265,11 +308,21 @@ func (m *Manager) SetWhisperChatFn(fn WhisperChatFn) {
 	m.whisperChatPtr.Store(&fn)
 }
 
+// SetWhisperChatStreamFn 设置低延迟流式对话回调。未设置时继续使用
+// SetWhisperChatFn 的阻塞兼容路径。
+func (m *Manager) SetWhisperChatStreamFn(fn WhisperChatStreamFn) {
+	m.whisperChatStreamPtr.Store(&fn)
+}
+
 // SetTTSSynthesizeFn 设置 TTS 合成回调（seam 消费者：函数注入，携带情感音色描述；
 // app 层经 TTS 提供者注册表统一路由）。
 // P0#12：写侧走 atomic（见 currentTTSSynthFn 的并发纪律注释），不再裸写字段。
 func (m *Manager) SetTTSSynthesizeFn(fn TTSSynthesizeFn) {
 	m.ttsSynthPtr.Store(&fn)
+}
+
+func (m *Manager) SetTTSStreamSynthesizeFn(fn TTSStreamSynthesizeFn) {
+	m.ttsStreamSynthPtr.Store(&fn)
 }
 
 // ApplyConfig 应用配置变更（对齐 Ackem voice:apply-settings）
@@ -631,7 +684,9 @@ func (m *Manager) handleReply(text string) {
 	// 启动末尾刷新或运行时重接线（app.initVoice 链）插在中间即让本回合丢回复或
 	// 换用别人的接线（TOCTOU）。快照点在本轮首个事件发射之前 = 回合开始时。
 	chatFn := m.currentWhisperChatFn()
+	streamChatFn := m.currentWhisperChatStreamFn()
 	synthFn := m.currentTTSSynthFn()
+	ttsStreamFn := m.currentTTSStreamSynthFn()
 
 	// 防重入：若上一轮仍在说话/思考（例如浏览器连续识别），先停掉旧语音
 	m.mu.RLock()
@@ -665,7 +720,7 @@ func (m *Manager) handleReply(text string) {
 	}
 
 	// Whisper 对话
-	if chatFn == nil {
+	if chatFn == nil && streamChatFn == nil {
 		slog.Warn("whisper 对话回调未设置")
 		m.setState(StateIdle)
 		return
@@ -677,26 +732,41 @@ func (m *Manager) handleReply(text string) {
 		userMsg = "[注意：用户打断了你上一轮未说完的语音回复。] " + text
 	}
 
-	reply, emotionLabel, mood, err := chatFn(userMsg, config.PersonalityPresetID)
+	var reply, emotionLabel string
+	var mood [4]float64
+	var err error
+	ttsStreamed := false
+	if streamChatFn != nil {
+		reply, emotionLabel, mood, ttsStreamed, err = m.runStreamingChat(
+			userMsg, config, streamChatFn, synthFn, ttsStreamFn, turnCancel,
+		)
+	} else {
+		reply, emotionLabel, mood, err = chatFn(userMsg, config.PersonalityPresetID)
+	}
 	if err != nil {
 		slog.Error("whisper 对话失败", "error", err)
 		if em := m.currentEmitter(); em != nil {
+			if strings.TrimSpace(reply) != "" {
+				em.EmitVoiceReply(reply)
+			}
 			em.EmitVoiceError(fmt.Errorf("对话失败: %w", err))
 		}
 		m.setState(StateIdle)
 		return
 	}
 
-	// 生成期间被打断：不播放旧回复，让排队的新输入接话
-	select {
-	case <-turnCancel:
-		slog.Debug("生成期间被打断，跳过播放旧回复")
-		m.setState(StateIdle)
-		if em := m.currentEmitter(); em != nil {
-			em.EmitVoiceThinking(false)
+	if !ttsStreamed {
+		// 生成期间被打断：不播放旧回复，让排队的新输入接话
+		select {
+		case <-turnCancel:
+			slog.Debug("生成期间被打断，跳过播放旧回复")
+			m.setState(StateIdle)
+			if em := m.currentEmitter(); em != nil {
+				em.EmitVoiceThinking(false)
+			}
+			return
+		default:
 		}
-		return
-	default:
 	}
 
 	// 发送回复文本到前端（用于对话显示）
@@ -717,9 +787,9 @@ func (m *Manager) handleReply(text string) {
 
 	// 流式 TTS：逐句合成并播放（支持 barge-in 打断）。synthFn 是本轮快照，
 	// 判定与合成侧调用同源，不再各自载入一次（P0#12）。
-	if config.TTSEnabled && synthFn != nil {
-		m.speak(reply, voiceDesc, synthFn)
-	} else {
+	if !ttsStreamed && config.TTSEnabled && (synthFn != nil || ttsStreamFn != nil) {
+		m.speak(reply, voiceDesc, synthFn, ttsStreamFn)
+	} else if !ttsStreamed {
 		// 仅文本模式：通知前端用浏览器 TTS
 		if em := m.currentEmitter(); em != nil {
 			em.EmitVoiceTTSSpeakText(reply)
@@ -770,14 +840,272 @@ type sentenceAudio struct {
 	mimeType string
 }
 
+type streamedChatResult struct {
+	reply   string
+	emotion string
+	mood    [4]float64
+	err     error
+}
+
+// runStreamingChat 把 LLM 流式正文按完整句子送入 TTS。模型仍在生成后文时，
+// 首句已可合成和播放，不再等待整段回复。
+func (m *Manager) runStreamingChat(
+	userMsg string,
+	config VoiceRuntimeConfig,
+	chatFn WhisperChatStreamFn,
+	synthFn TTSSynthesizeFn,
+	ttsStreamFn TTSStreamSynthesizeFn,
+	turnCancel <-chan struct{},
+) (reply, emotion string, mood [4]float64, ttsStreamed bool, err error) {
+	ctx, cancel := context.WithCancel(m.currentContext())
+	defer cancel()
+	if turnCancel != nil {
+		go func() {
+			select {
+			case <-turnCancel:
+				cancel()
+			case <-ctx.Done():
+			}
+		}()
+	}
+
+	// 未启用 TTS 时无需句子通道，直接消费流并交给兼容路径处理浏览器朗读。
+	if !config.TTSEnabled || (synthFn == nil && ttsStreamFn == nil) {
+		reply, emotion, mood, err = chatFn(ctx, userMsg, config.PersonalityPresetID, nil)
+		return reply, emotion, mood, false, err
+	}
+
+	m.mu.Lock()
+	m.ttsActive = true
+	m.speakStopCh = make(chan struct{})
+	stop := m.speakStopCh
+	m.mu.Unlock()
+	defer func() {
+		m.mu.Lock()
+		if m.speakStopCh == stop {
+			m.ttsActive = false
+			m.speakStopCh = nil
+		}
+		m.mu.Unlock()
+	}()
+
+	voiceDesc := GetVoiceDescriptionWithPersonality("CALM_RATIONAL", config.PersonalityPresetID)
+	textCh := make(chan string, 8)
+	audioCh := make(chan sentenceAudio, 2)
+	resultCh := make(chan streamedChatResult, 1)
+
+	go func() {
+		var pending string
+		var full strings.Builder
+		sendSpeech := func(part string) bool {
+			select {
+			case textCh <- part:
+				return true
+			case <-ctx.Done():
+				return false
+			case <-stop:
+				return false
+			}
+		}
+		reply, emotion, mood, err := chatFn(ctx, userMsg, config.PersonalityPresetID, func(delta string) {
+			if delta == "" {
+				return
+			}
+			if em, ok := m.currentEmitter().(ReplyDeltaEmitter); ok {
+				em.EmitVoiceReplyDelta(delta)
+			}
+			full.WriteString(delta)
+			pending += delta
+			ready, rest := takeReadySpeech(pending)
+			pending = rest
+			for _, part := range ready {
+				if !sendSpeech(part) {
+					return
+				}
+			}
+		})
+		if pending != "" {
+			_ = sendSpeech(pending)
+		}
+		close(textCh)
+		if reply == "" {
+			reply = full.String()
+		}
+		resultCh <- streamedChatResult{reply: reply, emotion: emotion, mood: mood, err: err}
+	}()
+
+	// 合成侧：句子一到达就合成，预取下一句，和模型生成并行。
+	go func() {
+		defer close(audioCh)
+		for sentence := range textCh {
+			select {
+			case <-ctx.Done():
+				return
+			case <-stop:
+				return
+			default:
+			}
+			cleaned := cleanForSpeech(sentence)
+			if cleaned == "" {
+				continue
+			}
+			sent, synthErr := m.synthesizeSentenceAudio(
+				ctx, cleaned, voiceDesc, synthFn, ttsStreamFn, audioCh, stop,
+			)
+			if synthErr != nil {
+				slog.Error("流式 TTS 合成失败", "error", synthErr)
+				if ctx.Err() != nil {
+					return
+				}
+				if em := m.currentEmitter(); em != nil {
+					em.EmitVoiceError(fmt.Errorf("语音合成失败: %w", synthErr))
+					if !sent {
+						em.EmitVoiceTTSSpeakText(sentence)
+					}
+				}
+				continue
+			}
+			if !sent {
+				continue
+			}
+		}
+	}()
+
+	// 播放侧：首句音频就绪即进入 speaking；每句等前端播放完成回执。
+	for {
+		select {
+		case <-ctx.Done():
+			res := <-resultCh
+			return res.reply, res.emotion, res.mood, true, nil
+		case <-stop:
+			cancel()
+			res := <-resultCh
+			return res.reply, res.emotion, res.mood, true, nil
+		case sa, ok := <-audioCh:
+			if !ok {
+				res := <-resultCh
+				return res.reply, res.emotion, res.mood, true, res.err
+			}
+			m.setState(StateSpeaking)
+			ackCh := make(chan struct{}, 1)
+			m.mu.Lock()
+			m.playbackDoneCh = ackCh
+			m.mu.Unlock()
+			if em := m.currentEmitter(); em != nil {
+				em.EmitVoiceTTSAudio(sa.audio, sa.mimeType)
+			}
+			select {
+			case <-ctx.Done():
+				res := <-resultCh
+				return res.reply, res.emotion, res.mood, true, nil
+			case <-stop:
+				cancel()
+				res := <-resultCh
+				return res.reply, res.emotion, res.mood, true, nil
+			case <-ackCh:
+				m.mu.Lock()
+				if m.playbackDoneCh == ackCh {
+					m.playbackDoneCh = nil
+				}
+				m.mu.Unlock()
+			}
+		}
+	}
+}
+
+// synthesizeSentenceAudio 优先消费流式 TTS；提供器未给出音频时再走阻塞兼容链。
+// 返回 sent 表示至少已向播放侧交付一块音频，调用方据此决定是否可用浏览器 TTS
+// 兜底（已播出的片段不能再用整句兜底，否则会重复朗读）。
+func (m *Manager) synthesizeSentenceAudio(
+	ctx context.Context,
+	text string,
+	voiceDesc string,
+	synthFn TTSSynthesizeFn,
+	streamFn TTSStreamSynthesizeFn,
+	audioCh chan<- sentenceAudio,
+	stop <-chan struct{},
+) (sent bool, err error) {
+	send := func(audio []byte, mimeType string) error {
+		if len(audio) == 0 {
+			return nil
+		}
+		sent = true
+		select {
+		case audioCh <- sentenceAudio{audio: audio, mimeType: mimeType}:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-stop:
+			return context.Canceled
+		}
+	}
+
+	if streamFn != nil {
+		err = streamFn(ctx, text, voiceDesc, send)
+		if err != nil || sent {
+			return sent, err
+		}
+	}
+	if synthFn == nil {
+		return false, fmt.Errorf("TTS 提供器未设置")
+	}
+	audio, mimeType, synthErr := synthFn(text, voiceDesc)
+	if synthErr != nil {
+		return false, synthErr
+	}
+	if sendErr := send(audio, mimeType); sendErr != nil {
+		return sent, sendErr
+	}
+	return sent, nil
+}
+
+// takeReadySpeech 优先按句末标点切分；还没有句号时，只要出现有意义的逗号
+// 也可先合成，避免语音首段一直等到整句生成完。完全没有软标点时才按 28 个
+// 汉字硬切，兼顾低延迟与可听的句群长度。
+func takeReadySpeech(pending string) (ready []string, rest string) {
+	cut := 0
+	for i, r := range pending {
+		switch r {
+		case '。', '！', '？', '!', '?', '\n':
+			cut = i + utf8.RuneLen(r)
+		}
+	}
+	if cut == 0 {
+		for i, r := range pending {
+			switch r {
+			case '，', '；', '：', ',', ';', ':':
+				// 过短的「好，」也允许快速起播；首个软标点之后的后文继续累积。
+				if utf8.RuneCountInString(pending[:i]) >= 2 {
+					cut = i + utf8.RuneLen(r)
+				}
+			}
+		}
+	}
+	if cut == 0 && utf8.RuneCountInString(pending) >= 28 {
+		cut = len(pending)
+		runes := 0
+		for i, r := range pending {
+			runes++
+			if runes == 28 {
+				cut = i + utf8.RuneLen(r)
+				break
+			}
+		}
+	}
+	if cut <= 0 {
+		return nil, pending
+	}
+	return tts.SplitSentences(pending[:cut]), pending[cut:]
+}
+
 // speak 流式 TTS：逐句合成并播放（Hermes 式"边合成边播"）。
 // 合成侧 goroutine 预合成下一句，播放侧等当前句播放完成（前端回调
 // PlaybackDone）后再取下一句，从而隐藏合成延迟；打断时 close(speakStopCh)，
 // 合成与播放两侧立即退出，不再播后续句子。
 // speak 的 synthFn 由 handleReply 在本轮开始时快照并传入（P0#12）：整轮只用一份
 // 接线，回合中途重接线（SetTTSSynthesizeFn）不得让本轮的合成换实现。
-func (m *Manager) speak(text string, voiceDesc string, synthFn TTSSynthesizeFn) {
-	if synthFn == nil { // 防御：调用方已判定非 nil，此处只为杜绝 nil 回调调用
+func (m *Manager) speak(text string, voiceDesc string, synthFn TTSSynthesizeFn, streamFn TTSStreamSynthesizeFn) {
+	if synthFn == nil && streamFn == nil { // 防御：调用方已判定非 nil
 		return
 	}
 	m.mu.Lock()
@@ -787,8 +1115,10 @@ func (m *Manager) speak(text string, voiceDesc string, synthFn TTSSynthesizeFn) 
 	m.mu.Unlock()
 	defer func() {
 		m.mu.Lock()
-		m.ttsActive = false
-		m.speakStopCh = nil
+		if m.speakStopCh == stop {
+			m.ttsActive = false
+			m.speakStopCh = nil
+		}
 		m.mu.Unlock()
 	}()
 
@@ -799,9 +1129,16 @@ func (m *Manager) speak(text string, voiceDesc string, synthFn TTSSynthesizeFn) 
 		sentences = []string{text}
 	}
 
-	ctx := m.currentContext() // 捕获：Stop() 会替换 m.ctx，避免读到新 context 而不退出（P0#12 同族：原为锁外裸读）
+	ctx, cancel := context.WithCancel(m.currentContext()) // 捕获：Stop() 会替换 m.ctx
+	defer cancel()
+	go func() {
+		select {
+		case <-stop:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
 	audioCh := make(chan sentenceAudio, 1)
-	seen := make(map[string]struct{})
 
 	// 合成侧：逐句合成并送入队列（预取下一句，隐藏合成延迟）
 	go func() {
@@ -815,34 +1152,30 @@ func (m *Manager) speak(text string, voiceDesc string, synthFn TTSSynthesizeFn) 
 			default:
 			}
 
-			// 口语化清洗 + 去重（对齐 Hermes 的 _strip_markdown_for_tts）
+			// 口语化清洗（对齐 Hermes 的 _strip_markdown_for_tts）；不按文本去重，
+			// 重复短句可能是模型有意的强调。
 			cleaned := cleanForSpeech(sentence)
 			if cleaned == "" {
 				continue
 			}
-			if _, dup := seen[cleaned]; dup {
-				continue
-			}
-			seen[cleaned] = struct{}{}
-
-			audio, mimeType, err := synthFn(cleaned, voiceDesc)
+			sent, err := m.synthesizeSentenceAudio(
+				ctx, cleaned, voiceDesc, synthFn, streamFn, audioCh, stop,
+			)
 			if err != nil {
 				slog.Error("TTS 合成失败", "error", err)
+				if ctx.Err() != nil {
+					return
+				}
 				if em := m.currentEmitter(); em != nil {
 					em.EmitVoiceError(fmt.Errorf("语音合成失败: %w", err))
-					em.EmitVoiceTTSSpeakText(sentence) // fallback 浏览器 TTS
+					if !sent {
+						em.EmitVoiceTTSSpeakText(sentence) // fallback 浏览器 TTS
+					}
 				}
-				return
-			}
-			if len(audio) == 0 {
 				continue
 			}
-			select {
-			case audioCh <- sentenceAudio{audio: audio, mimeType: mimeType}:
-			case <-ctx.Done():
-				return
-			case <-stop:
-				return
+			if !sent {
+				continue
 			}
 		}
 	}()
@@ -875,7 +1208,11 @@ func (m *Manager) speak(text string, voiceDesc string, synthFn TTSSynthesizeFn) 
 			case <-stop:
 				return
 			case <-ackCh:
-				// 当前句播放完成，继续下一句
+				m.mu.Lock()
+				if m.playbackDoneCh == ackCh {
+					m.playbackDoneCh = nil
+				}
+				m.mu.Unlock()
 			}
 		}
 	}
@@ -915,6 +1252,7 @@ func (m *Manager) CancelTTS() {
 	m.speakStopCh = nil
 	wasActive := m.ttsActive
 	m.ttsActive = false
+	m.playbackDoneCh = nil
 	m.interrupted = true // 用户打断：下一轮告诉模型
 	rtSess := m.rtActive
 	state := m.state
@@ -1310,9 +1648,10 @@ func (m *Manager) handleInterrupt() {
 func (m *Manager) PlaybackDone() {
 	m.mu.RLock()
 	state := m.state
+	active := m.ttsActive
 	ch := m.playbackDoneCh
 	m.mu.RUnlock()
-	if state != StateSpeaking || ch == nil {
+	if state != StateSpeaking || !active || ch == nil {
 		return
 	}
 	select {
@@ -1338,5 +1677,5 @@ func (m *Manager) ASRReady() bool {
 
 // WhisperReady reports whether the whisper chat callback has been configured.
 func (m *Manager) WhisperReady() bool {
-	return m.currentWhisperChatFn() != nil
+	return m.currentWhisperChatFn() != nil || m.currentWhisperChatStreamFn() != nil
 }

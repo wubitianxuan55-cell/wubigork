@@ -1,0 +1,233 @@
+/* voice/dev/voiceV2Lab.css — Voice V2 实验页（令牌化，?voicev2=1 唤出） */
+
+.v2l-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--md-sys-color-surface-dim, #000) 72%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+.v2l-panel {
+  width: min(720px, calc(100vw - 48px));
+  max-height: calc(100vh - 96px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 22px;
+  border-radius: var(--md-sys-radius-lg, 16px);
+  background: var(--md-sys-color-surface-container, #111);
+  border: 1px solid var(--md-sys-color-outline-variant, #333);
+  box-shadow: var(--md-sys-elevation-4, none);
+}
+
+.v2l-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.v2l-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--md-sys-color-text, #eee);
+}
+
+.v2l-phase {
+  font-size: 12px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--md-sys-color-outline-variant, #333);
+  color: var(--md-sys-color-text-secondary, #aaa);
+  transition: color 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+
+.v2l-phase-listening {
+  color: var(--md-sys-color-primary, #6cf);
+  border-color: var(--md-sys-color-primary, #6cf);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--md-sys-color-primary, #6cf) 40%, transparent);
+}
+
+.v2l-phase-speaking {
+  color: var(--md-sys-color-tertiary, #fc6);
+  border-color: var(--md-sys-color-tertiary, #fc6);
+}
+
+.v2l-phase-interrupted {
+  color: var(--md-sys-color-warning, #f80);
+  border-color: var(--md-sys-color-warning, #f80);
+}
+
+.v2l-phase-error {
+  color: var(--md-sys-color-destructive, #f66);
+  border-color: var(--md-sys-color-destructive, #f66);
+}
+
+.v2l-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.v2l-url {
+  flex: 1;
+  min-width: 220px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  border-radius: var(--md-sys-radius-sm, 8px);
+  border: 1px solid var(--md-sys-color-outline-variant, #333);
+  background: var(--md-sys-color-surface, #181818);
+  color: var(--md-sys-color-text, #eee);
+}
+
+.v2l-btn {
+  padding: 6px 14px;
+  font-size: 12px;
+  border-radius: var(--md-sys-radius-sm, 8px);
+  border: 1px solid var(--md-sys-color-outline-variant, #333);
+  background: var(--md-sys-color-surface-container-high, #1c1c1c);
+  color: var(--md-sys-color-text, #eee);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.v2l-btn:hover {
+  border-color: var(--md-sys-color-primary, #6cf);
+  color: var(--md-sys-color-primary, #6cf);
+}
+
+.v2l-btn-ghost {
+  border-style: dashed;
+}
+
+.v2l-note {
+  font-size: 12px;
+  color: var(--md-sys-color-text-secondary, #aaa);
+}
+
+.v2l-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  min-height: 0;
+}
+
+.v2l-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+}
+
+.v2l-sec h4 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--md-sys-color-text-tertiary, #777);
+}
+
+.v2l-scroll {
+  flex: 1;
+  min-height: 90px;
+  max-height: 180px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px 10px;
+  border-radius: var(--md-sys-radius-sm, 8px);
+  background: var(--md-sys-color-surface, #181818);
+  border: 1px solid var(--md-sys-color-outline-variant, #333);
+}
+
+.v2l-user,
+.v2l-assistant {
+  margin: 0 0 6px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--md-sys-color-text, #eee);
+  word-break: break-word;
+}
+
+.v2l-partial {
+  color: var(--md-sys-color-text-tertiary, #777);
+}
+
+.v2l-assistant {
+  color: var(--md-sys-color-primary, #6cf);
+}
+
+.v2l-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.v2l-pb {
+  font-size: 12px;
+  color: var(--md-sys-color-text-secondary, #aaa);
+  font-variant-numeric: tabular-nums;
+}
+
+.v2l-tail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 120px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  font-size: 11px;
+  font-family: Consolas, monospace;
+  color: var(--md-sys-color-text-tertiary, #777);
+}
+
+/* ── 语音台 V2 会话视图（VoiceConsoleV2，复用 v2l-* 原子） ───────────── */
+
+.voice-console-v2 {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 20px;
+  border-radius: var(--md-sys-radius-lg, 16px);
+  background: var(--md-sys-color-surface, #141414);
+  border: 1px solid var(--md-sys-color-outline-variant, #333);
+}
+
+.vc2-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.vc2-companion {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--md-sys-color-text, #eee);
+}
+
+.vc2-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px dashed var(--md-sys-color-primary, #6cf);
+  color: var(--md-sys-color-primary, #6cf);
+}
+
+.vc2-warn {
+  font-size: 12px;
+  color: var(--md-sys-color-warning, #f80);
+}
+
+.vc2-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}

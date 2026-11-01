@@ -49,7 +49,7 @@ var boardAliases = []struct{ alias, id string }{
 	{"模型中心", "modelcenter"}, {"模型管理", "modelcenter"}, {"模型", "modelcenter"},
 	{"角色库", "characterlib"}, {"角色", "characterlib"}, {"人物", "characterlib"},
 	{"设置", "settings"}, {"偏好", "settings"},
-	{"青鸟", "weixin"}, {"微信助手", "weixin"}, {"微信", "weixin"}, // 青鸟 = v4.48 板块名
+	{"青鸟", "weixin"}, {"微信助手", "weixin"}, {"微信", "weixin"}, // 青鸟保留为旧名称兼容别名
 }
 
 // lookupBoard 别名匹配。

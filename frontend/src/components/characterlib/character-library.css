@@ -1,738 +1,789 @@
-/* 角色档案库「角色档案库」工作台外壳（v4.521 玄墨化）
-   细条头部 → 3 分区工作台：左检索/筛选栏（v3-panel）｜中档案卡网格（v3-zone）｜右详情 inspector（v3-panel，可折叠）
-   玄墨对策落地：计数徽章/统计卡/提示条/hint 的 glow 底+金描边全部中性墨化，
-   金只留等宽数据值与 hover 点亮；空态图标章中性化（去金底金影）；
-   描边近无（text 4.5~6% 派生），inspector 身份卡改纯色面+投影令牌；
-   排印三档（标题 15px·650 / 标签 11px 宽字距 / 正文 12px）。
-   激活态语义保留：chip 激活仍用 primary-container 底，仅光效（glow 影/
-   发光点）退场为左缘细线。令牌纪律零硬编码 hex。 */
+/* ═══════════════════════════════════════════════════════════════════
+   角色档案库 · 选角工作台
+   主视觉（档案宣言）→ 横向检索带 → 人物画廊 + 常驻档案检查器
+   视觉目标：人物剧照主导、信息层级清楚、减少等大卡片与工具面板噪音。
+   ═══════════════════════════════════════════════════════════════════ */
 
 .clib-page {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
+  --clib-panel: var(--color-bg-container, var(--md-sys-color-surface-container, var(--bg)));
+  --clib-raised: var(--color-bg-elevated, var(--md-sys-color-surface-container-high, var(--clib-panel)));
+  --clib-text: var(--color-text, var(--fg));
+  --clib-muted: var(--color-text-secondary, var(--fg-faint));
+  --clib-line: color-mix(in srgb, var(--clib-text) 7%, transparent);
+  --clib-line-strong: color-mix(in srgb, var(--clib-text) 12%, transparent);
+  --clib-accent: var(--color-primary, var(--md-sys-color-primary, var(--accent)));
+  --clib-glow: var(--gaea-glow, var(--clib-accent));
+  --clib-soft: color-mix(in srgb, var(--clib-text) 4.5%, transparent);
+  --clib-accent-soft: color-mix(in srgb, var(--clib-accent) 9%, var(--clib-panel));
+  --clib-shadow: 0 16px 44px color-mix(in srgb, var(--clib-accent) 7%, transparent);
+  --clib-ease: cubic-bezier(0.22, 1, 0.36, 1);
   position: relative;
-}
-
-/* ── 细条头部（板块名已在左侧轨道，只保留统计 + 主操作） ── */
-.clib-header-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 4px 2px 12px;
-  border-bottom: 1px solid color-mix(in srgb, var(--color-text) 6%, transparent);
-  flex-shrink: 0;
-}
-
-.clib-count {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--color-text);
-  min-width: 0;
-  white-space: nowrap;
-}
-
-.clib-count .anticon {
-  color: var(--color-text-secondary);
-  font-size: 14px;
-}
-
-/* 计数：中性 mono 胶囊（对齐玄墨 ml-card-count；金留给数据值） */
-.clib-count-num {
-  font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
-  font-variant-numeric: tabular-nums;
-  color: color-mix(in srgb, var(--gaea-glow) 80%, var(--color-text));
-  background: color-mix(in srgb, var(--color-text) 5%, transparent);
-  border-radius: 999px;
-  padding: 0 9px;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 19px;
-}
-
-.clib-count-unit {
-  font-size: 11.5px;
-  font-weight: 400;
-  color: var(--color-text-secondary);
-}
-
-.clib-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.clib-actions .ant-btn {
-  border-radius: 10px;
-}
-
-.clib-new-btn {
-  box-shadow: var(--shadow-sm);
-}
-
-/* ── 3 分区工作台 ── */
-.clib-workbench {
-  display: flex;
-  align-items: stretch;
-  gap: 12px;
   flex: 1;
   min-height: 0;
-  padding-top: 12px;
-}
-
-/* ── 左：检索 / 筛选栏（v3-panel 玻璃面板） ── */
-.clib-side {
-  width: 236px;
-  flex-shrink: 0;
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  gap: 12px;
+  padding: 2px;
+  isolation: isolate;
+}
+
+/* ── 档案库主视觉 ───────────────────────────────────────────────── */
+.clib-masthead {
+  position: relative;
+  flex-shrink: 0;
+  min-height: 132px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 24px;
   overflow: hidden;
+  padding: 20px 22px;
+  border: 1px solid var(--clib-line);
+  border-radius: 20px;
+  background:
+    linear-gradient(92deg, var(--clib-panel) 0 44%, color-mix(in srgb, var(--clib-panel) 82%, transparent) 68%, color-mix(in srgb, var(--clib-panel) 28%, transparent));
+  box-shadow: var(--clib-shadow);
 }
-
-.clib-side-head-icon {
-  color: var(--color-text-secondary);
-  font-size: 13px;
+.clib-masthead::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 1px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--clib-accent) 34%, transparent), transparent 58%);
+  pointer-events: none;
 }
-
-.clib-side-body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 12px;
+.clib-mast-art {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 44%;
+  overflow: hidden;
+  pointer-events: none;
+  mask-image: linear-gradient(90deg, transparent 0, color-mix(in srgb, var(--clib-text) 72%, transparent) 34%, color-mix(in srgb, var(--clib-text) 92%, transparent) 100%);
+}
+.clib-mast-art img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center 18%;
+  opacity: 0.52;
+  filter: saturate(0.72) contrast(1.04);
+  transform: scale(1.02);
+}
+.clib-mast-copy {
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+  max-width: 690px;
+}
+.clib-kicker {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 7px;
+  color: var(--clib-muted);
+  font-family: var(--font-mono, ui-monospace, "Cascadia Code", Consolas, monospace);
+  font-size: 8.5px;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+}
+.clib-kicker span {
+  color: color-mix(in srgb, var(--clib-accent) 82%, var(--clib-text));
+}
+.clib-kicker::after {
+  content: "";
+  width: 56px;
+  height: 1px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--clib-accent) 32%, transparent), transparent);
+}
+.clib-mast-title {
+  max-width: 660px;
+  margin: 0;
+  color: var(--clib-text);
+  font-size: clamp(23px, 2.2vw, 30px);
+  font-weight: 670;
+  letter-spacing: -0.045em;
+  line-height: 1.12;
+  text-wrap: balance;
+}
+.clib-mast-sub {
+  max-width: 62ch;
+  margin: 8px 0 0;
+  color: var(--clib-muted);
+  font-size: 11px;
+  line-height: 1.65;
+  text-wrap: pretty;
+}
+.clib-mast-side {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: flex-end;
   gap: 14px;
 }
-
-.clib-side-group {
+.clib-mast-metrics {
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--clib-text) 8%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--clib-panel) 78%, transparent);
+  backdrop-filter: blur(12px);
+}
+.clib-mast-metrics > div {
+  min-width: 78px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 2px;
+  padding: 8px 11px;
+  border-right: 1px solid var(--clib-line);
 }
-
-.clib-side-label {
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  color: var(--color-text-secondary);
+.clib-mast-metrics > div:last-child {
+  min-width: 112px;
+  border-right: 0;
 }
-
-/* 搜索框聚焦：金环收敛一档（对齐玄墨 w-cmd focus 语言） */
-.clib-search-wrap {
-  position: relative;
-}
-
-.clib-search {
-  width: 100%;
-  border-radius: 10px;
-}
-
-.clib-search-wrap:focus-within .ant-input-affix-wrapper {
-  border-color: color-mix(in srgb, var(--gaea-glow) 42%, transparent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gaea-glow) 12%, transparent);
-}
-
-/* 筛选 chips：激活 = 主色容器底（语义保留）+ 左缘细线（光效退场） */
-.clib-chip-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.clib-chip {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 26px;
-  padding: 0 11px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--color-text) 7%, transparent);
-  background: transparent;
-  color: var(--color-text-secondary);
-  font-size: 12px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition:
-    background var(--md-sys-transition-fast, 200ms),
-    color var(--md-sys-transition-fast, 200ms),
-    border-color var(--md-sys-transition-fast, 200ms);
-}
-
-.clib-chip:hover {
-  color: var(--color-text);
-  border-color: color-mix(in srgb, var(--gaea-glow) 30%, transparent);
-  background: color-mix(in srgb, var(--color-text) 4.5%, transparent);
-}
-
-.clib-chip:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--gaea-glow) 72%, transparent);
-  outline-offset: 1px;
-}
-
-.clib-chip.is-active {
-  background: var(--color-primary-container);
-  border-color: transparent;
-  color: var(--color-text);
-}
-
-.clib-chip.is-active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 6px;
-  bottom: 6px;
-  width: 2px;
-  border-radius: 0 2px 2px 0;
-  background: var(--gaea-glow);
-}
-
-.clib-chip-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--color-text-secondary);
-  transition: background var(--md-sys-transition-fast, 200ms);
-}
-
-.clib-chip.is-active .clib-chip-dot {
-  background: var(--gaea-glow);
-}
-
-/* 统计小卡（glow 底+虚线退役 → 中性墨软底） */
-.clib-side-stat {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--color-text) 4%, transparent);
-  font-size: 11.5px;
-}
-
-.clib-stat-key {
-  color: var(--color-text-secondary);
-}
-
-/* 等宽数据值 = 金点睛位 */
-.clib-stat-val {
-  font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
+.clib-mast-metrics strong {
+  overflow: hidden;
+  max-width: 120px;
+  color: var(--clib-text);
+  font-family: var(--font-mono, ui-monospace, "Cascadia Code", Consolas, monospace);
+  font-size: 16px;
+  font-weight: 580;
   font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  color: color-mix(in srgb, var(--gaea-glow) 80%, var(--color-text));
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.clib-mast-metrics > div:first-child strong {
+  color: var(--clib-accent);
+  font-size: 22px;
+}
+.clib-mast-metrics span {
+  color: var(--clib-muted);
+  font-family: var(--font-mono, ui-monospace, "Cascadia Code", Consolas, monospace);
+  font-size: 7.5px;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+.clib-new-btn {
+  border-radius: 10px;
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--clib-accent) 14%, transparent);
 }
 
-/* 数据操作 */
-.clib-side-ops {
+/* ── 横向检索带 ─────────────────────────────────────────────────── */
+.clib-filter-deck {
+  position: relative;
+  z-index: 4;
+  min-height: 52px;
+  flex-shrink: 0;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding-top: 12px;
-  border-top: 1px solid color-mix(in srgb, var(--color-text) 6%, transparent);
-  margin-top: auto;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border: 1px solid var(--clib-line);
+  border-radius: 15px;
+  background: var(--clib-panel);
+  box-shadow: 0 8px 26px color-mix(in srgb, var(--clib-text) 3.5%, transparent);
 }
-
-.clib-side-ops .clib-side-label {
-  margin-bottom: 2px;
+.clib-filter-search {
+  width: clamp(230px, 27%, 360px);
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid var(--clib-line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--clib-text) 3%, transparent);
+  transition: border-color 200ms var(--clib-ease), background 200ms var(--clib-ease), box-shadow 200ms var(--clib-ease);
 }
-
-.clib-side-ops .ant-btn {
+.clib-filter-search:focus-within {
+  border-color: color-mix(in srgb, var(--clib-accent) 34%, transparent);
+  background: var(--clib-panel);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--clib-accent) 9%, transparent);
+}
+.clib-filter-search-icon {
+  flex-shrink: 0;
+  color: var(--clib-muted);
   font-size: 12px;
-  border-radius: 8px;
 }
-
-/* ── 中：档案卡网格区 ── */
-.clib-main {
+.clib-search {
   flex: 1;
   min-width: 0;
+  padding: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-size: 11px;
+}
+.clib-filter-kinds {
   display: flex;
-  flex-direction: column;
-  min-height: 0;
+  align-items: center;
+  gap: 4px;
+}
+.clib-filter-label-icon {
+  margin-right: 3px;
+  color: var(--clib-muted);
+  font-size: 11px;
+}
+.clib-chip,
+.clib-chat-filter {
+  position: relative;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--clib-muted);
+  font-size: 10.5px;
+  font-weight: 520;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 180ms var(--clib-ease),
+    background 180ms var(--clib-ease),
+    border-color 180ms var(--clib-ease),
+    transform 180ms var(--clib-ease);
+}
+.clib-chip:hover,
+.clib-chat-filter:hover {
+  border-color: var(--clib-line);
+  background: var(--clib-soft);
+  color: var(--clib-text);
+}
+.clib-chip:active,
+.clib-chat-filter:active { transform: scale(0.97); }
+.clib-chip:focus-visible,
+.clib-chat-filter:focus-visible,
+.clib-filter-clear:focus-visible,
+.clib-data-tools:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--clib-accent) 68%, transparent);
+  outline-offset: 1px;
+}
+.clib-chip.is-active,
+.clib-chat-filter.is-active {
+  border-color: color-mix(in srgb, var(--clib-accent) 16%, var(--clib-line));
+  background: var(--clib-accent-soft);
+  color: color-mix(in srgb, var(--clib-accent) 82%, var(--clib-text));
+}
+.clib-chip-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--clib-muted);
+}
+.clib-chat-filter.is-active .clib-chip-dot {
+  background: var(--clib-glow);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--clib-glow) 9%, transparent);
+}
+.clib-filter-summary {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding-left: 8px;
+  color: var(--clib-muted);
+  font-family: var(--font-mono, ui-monospace, "Cascadia Code", Consolas, monospace);
+  font-size: 8.5px;
+  white-space: nowrap;
+}
+.clib-filter-summary strong {
+  color: var(--clib-text);
+  font-size: 11px;
+  font-weight: 650;
+}
+.clib-filter-clear {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--clib-line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--clib-muted);
+  cursor: pointer;
+}
+.clib-filter-clear:hover {
+  background: var(--clib-soft);
+  color: var(--clib-text);
+}
+.clib-data-tools {
+  border-radius: 8px !important;
+  font-size: 10px !important;
 }
 
-/* 提示条（glow 底+虚线 → 中性墨软底） */
+/* ── 主工作台：画廊 + 档案检查器 ───────────────────────────────── */
+.clib-workbench {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 336px;
+  align-items: stretch;
+  gap: 12px;
+}
+.clib-main {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 .clib-hint {
-  font-size: 11.5px;
-  line-height: 1.6;
-  color: var(--color-text-secondary);
-  margin-bottom: 10px;
-  padding: 8px 12px;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--color-text) 4%, transparent);
-  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
+  margin-bottom: 9px;
+  padding: 8px 11px;
+  border: 1px solid var(--clib-line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--clib-text) 2.8%, transparent);
+  color: var(--clib-muted);
+  font-size: 10px;
+  line-height: 1.55;
 }
-
 .clib-wall {
   flex: 1;
-  overflow-y: auto;
   min-height: 0;
-  padding-right: 4px;
-  padding-bottom: 6px;
+  overflow-y: auto;
+  padding: 1px 4px 8px 1px;
+  scrollbar-width: thin;
 }
-
 .clib-pager {
+  flex-shrink: 0;
   display: flex;
   justify-content: center;
-  padding-top: 12px;
-  flex-shrink: 0;
+  padding-top: 10px;
 }
 
-/* ── 空状态（中区；图标章中性化，排印三档） ── */
+/* ── 空态 ───────────────────────────────────────────────────────── */
 .clib-empty {
+  min-height: 380px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  text-align: center;
-  min-height: 320px;
-  gap: 6px;
-  padding: 40px 20px;
-}
-
-.clib-empty-icon {
-  width: 56px;
-  height: 56px;
+  gap: 7px;
+  padding: 38px 20px;
+  border: 1px solid var(--clib-line);
   border-radius: 18px;
-  display: flex;
+  background:
+    radial-gradient(ellipse 58% 60% at 50% 38%, color-mix(in srgb, var(--clib-accent) 7%, transparent), transparent 72%),
+    var(--clib-panel);
+  text-align: center;
+}
+.clib-empty-icon {
+  width: 58px;
+  height: 58px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  margin-bottom: 5px;
+  border: 1px solid color-mix(in srgb, var(--clib-accent) 13%, var(--clib-line));
+  border-radius: 18px 18px 18px 6px;
+  background: var(--clib-accent-soft);
+  color: var(--clib-accent);
   font-size: 24px;
-  color: var(--color-text-secondary);
-  background: color-mix(in srgb, var(--color-text) 5%, transparent);
-  margin-bottom: 8px;
 }
-
 .clib-empty-title {
   margin: 0;
-  font-size: 15px;
+  color: var(--clib-text);
+  font-size: 16px;
   font-weight: 650;
-  color: var(--color-text);
+  letter-spacing: -0.02em;
 }
-
 .clib-empty-desc {
-  margin: 0 0 14px;
-  font-size: 12px;
-  color: var(--color-text-secondary);
+  max-width: 42ch;
+  margin: 0 0 10px;
+  color: var(--clib-muted);
+  font-size: 10.5px;
+  line-height: 1.65;
 }
-
 .clib-empty-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
   justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
+.clib-empty-import { color: var(--clib-accent); }
 
-.clib-empty-import {
-  color: color-mix(in srgb, var(--gaea-glow) 85%, var(--color-text));
-}
-
-/* ── 右：详情 inspector（v3-panel，可折叠） ── */
+/* ── 档案检查器 ────────────────────────────────────────────────── */
 .clib-inspector {
-  width: 300px;
-  flex-shrink: 0;
+  width: auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  min-height: 0;
   overflow: hidden;
-  transition: width var(--md-sys-transition-normal, 300ms) cubic-bezier(0.2, 0, 0, 1);
+  border: 1px solid var(--clib-line);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--clib-panel) 94%, transparent);
+  box-shadow: var(--clib-shadow);
+  transition: width 260ms var(--clib-ease), min-width 260ms var(--clib-ease);
 }
-
 .clib-inspector.is-collapsed {
-  width: 44px;
+  width: 46px;
+  min-width: 46px;
 }
-
 .clib-inspector-head {
-  padding: 0 8px 0 12px;
+  min-height: 48px;
+  padding: 0 8px 0 13px;
+  border-bottom: 1px solid var(--clib-line);
 }
-
+.clib-side-head-icon {
+  color: var(--clib-accent);
+  font-size: 12px;
+}
 .clib-insp-no {
-  font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
-  font-variant-numeric: tabular-nums;
-  font-size: 10px;
+  padding: 2px 6px;
+  border: 1px solid var(--clib-line);
+  border-radius: 5px;
+  color: var(--clib-muted);
+  font-family: var(--font-mono, ui-monospace, "Cascadia Code", Consolas, monospace);
+  font-size: 8px;
   font-weight: 600;
-  letter-spacing: 0.14em;
-  color: color-mix(in srgb, var(--gaea-glow) 80%, var(--color-text-secondary));
-  white-space: nowrap;
-  padding: 1px 7px;
-  border-radius: 6px;
-  border: 1px solid color-mix(in srgb, var(--color-text) 7%, transparent);
-  background: transparent;
+  letter-spacing: 0.08em;
 }
-
-.clib-inspector-fold {
-  border: none;
+.clib-inspector-fold,
+.clib-inspector-reopen {
+  border: 1px solid transparent;
   background: transparent;
-  color: var(--color-text-secondary);
+  color: var(--clib-muted);
   cursor: pointer;
-  width: 24px;
-  height: 24px;
+}
+.clib-inspector-fold {
+  width: 28px;
+  height: 28px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
-  font-size: 12px;
-  transition: background var(--md-sys-transition-fast, 200ms), color var(--md-sys-transition-fast, 200ms);
+  border-radius: 8px;
 }
-
 .clib-inspector-fold:hover {
-  background: color-mix(in srgb, var(--color-text) 5%, transparent);
-  color: color-mix(in srgb, var(--gaea-glow) 88%, var(--color-text));
+  border-color: var(--clib-line);
+  background: var(--clib-soft);
+  color: var(--clib-text);
 }
-
-.clib-inspector-fold:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--gaea-glow) 72%, transparent);
-  outline-offset: 1px;
-}
-
 .clib-inspector-reopen {
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  width: 100%;
-  height: 100%;
-  border: none;
-  background: transparent;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  padding: 14px 0;
-  font-size: 14px;
-  transition: color var(--md-sys-transition-fast, 200ms), background var(--md-sys-transition-fast, 200ms);
+  padding-top: 15px;
 }
-
 .clib-inspector-reopen:hover {
-  color: color-mix(in srgb, var(--gaea-glow) 88%, var(--color-text));
-  background: color-mix(in srgb, var(--color-text) 4%, transparent);
+  background: var(--clib-soft);
+  color: var(--clib-text);
 }
-
-.clib-inspector-reopen:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--gaea-glow) 72%, transparent);
-  outline-offset: -2px;
-}
-
 .clib-inspector-reopen-label {
   writing-mode: vertical-rl;
-  letter-spacing: 0.18em;
-  font-size: 11px;
+  color: inherit;
+  font-family: var(--font-mono, ui-monospace, "Cascadia Code", Consolas, monospace);
+  font-size: 8.5px;
   font-weight: 600;
+  letter-spacing: 0.16em;
 }
-
+.clib-inspector-fold:focus-visible,
+.clib-inspector-reopen:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--clib-accent) 68%, transparent);
+  outline-offset: 1px;
+}
 .clib-inspector-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
+  padding: 12px;
+  scrollbar-width: thin;
 }
 
-/* inspector 空态（图标章中性化） */
 .clib-insp-empty {
+  flex: 1;
+  min-height: 260px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  text-align: center;
   gap: 6px;
-  padding: 48px 16px;
-  flex: 1;
-  min-height: 240px;
+  padding: 36px 18px;
+  text-align: center;
 }
-
 .clib-insp-empty-icon {
   width: 48px;
   height: 48px;
-  border-radius: 14px;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  margin-bottom: 5px;
+  border-radius: 15px 15px 15px 5px;
+  background: var(--clib-soft);
+  color: var(--clib-muted);
   font-size: 20px;
-  color: var(--color-text-secondary);
-  background: color-mix(in srgb, var(--color-text) 5%, transparent);
-  margin-bottom: 6px;
 }
-
 .clib-insp-empty-title {
   margin: 0;
-  font-size: 14px;
-  font-weight: 650;
-  color: var(--color-text);
+  color: var(--clib-text);
+  font-size: 13px;
+  font-weight: 620;
 }
-
 .clib-insp-empty-desc {
+  max-width: 34ch;
   margin: 0;
-  font-size: 11.5px;
+  color: var(--clib-muted);
+  font-size: 10px;
   line-height: 1.6;
-  color: var(--color-text-secondary);
 }
 
-/* 立绘 + 身份（纯色面+投影令牌，描边近无——玄墨卡语言） */
+/* inspector 主视觉：整幅人物剧照，身份信息压在底部 */
 .clib-insp-hero {
-  display: flex;
-  gap: 12px;
-  align-items: stretch;
-  border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--color-text) 4.5%, transparent);
-  background: var(--color-bg-container, var(--color-surface-container-high));
-  box-shadow: var(--shadow-sm);
-  padding: 10px;
+  position: relative;
+  aspect-ratio: 4 / 3.25;
+  min-height: 220px;
+  overflow: hidden;
+  border: 1px solid var(--clib-line);
+  border-radius: 15px;
+  background: var(--clib-raised);
 }
-
-.clib-insp-hero-img {
-  width: 84px;
-  height: 112px;
-  object-fit: cover;
-  border-radius: 10px;
-  display: block;
-  flex-shrink: 0;
+.clib-insp-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(0deg,
+    var(--clib-panel) 0,
+    color-mix(in srgb, var(--clib-panel) 92%, transparent) 28%,
+    color-mix(in srgb, var(--clib-panel) 12%, transparent) 70%,
+    transparent 100%);
 }
-
+.clib-insp-hero-img,
 .clib-insp-hero-ph {
-  width: 84px;
-  height: 112px;
-  border-radius: 10px;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.clib-insp-hero-img {
+  display: block;
+  object-fit: cover;
+  object-position: center 20%;
+}
+.clib-insp-hero-ph {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 34px;
-  font-weight: 700;
-  color: var(--color-text-secondary);
-  background: var(--color-surface-container, var(--md-sys-color-surface-container));
-  flex-shrink: 0;
+  color: var(--clib-muted);
+  background:
+    radial-gradient(ellipse 64% 54% at 50% 30%, color-mix(in srgb, var(--clib-accent) 13%, transparent), transparent 66%),
+    var(--clib-raised);
+  font-size: 54px;
+  font-weight: 650;
 }
-
 .clib-insp-hero-info {
+  position: absolute;
+  right: 13px;
+  bottom: 12px;
+  left: 13px;
+  z-index: 2;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-  justify-content: center;
+  gap: 5px;
 }
-
 .clib-insp-name {
   margin: 0;
-  font-size: 17px;
-  font-weight: 650;
-  color: var(--color-text);
-  line-height: 1.25;
-  word-break: break-all;
+  color: var(--clib-text);
+  font-size: 22px;
+  font-weight: 670;
+  letter-spacing: -0.04em;
+  line-height: 1.15;
 }
-
 .clib-insp-meta {
   margin: 0;
-  font-size: 11px;
-  line-height: 1.5;
-  color: var(--color-text-secondary);
+  color: var(--clib-muted);
+  font-size: 9.5px;
+  line-height: 1.45;
 }
-
 .clib-insp-badges {
   display: flex;
+  align-items: center;
+  gap: 4px;
   flex-wrap: wrap;
-  gap: 6px;
 }
-
 .clib-insp-badge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  font-size: 10px;
+  gap: 4px;
+  min-height: 19px;
+  padding: 0 7px;
+  border: 1px solid var(--clib-line);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--clib-panel) 74%, transparent);
+  color: var(--clib-muted);
+  font-size: 8px;
   font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--color-text) 7%, transparent);
-  color: var(--color-text-secondary);
-  background: transparent;
   white-space: nowrap;
 }
-
-/* 可聊天徽记：中性墨 + 金活性点（金点睛位） */
-.clib-insp-badge.is-chat {
-  color: var(--color-text-secondary);
-  border-color: color-mix(in srgb, var(--color-text) 9%, transparent);
-  background: transparent;
-}
-
+.clib-insp-badge.is-chat { color: color-mix(in srgb, var(--clib-text) 75%, var(--clib-muted)); }
 .clib-insp-badge.is-persona {
-  color: var(--md-sys-color-on-primary, var(--color-on-primary));
-  background: var(--md-sys-color-primary, var(--color-primary));
   border-color: transparent;
+  background: var(--clib-accent);
+  color: var(--color-on-primary, var(--md-sys-color-on-primary));
 }
-
 .clib-insp-badge.is-project {
-  color: var(--color-success);
-  border-color: color-mix(in srgb, var(--color-success) 35%, transparent);
-  background: color-mix(in srgb, var(--color-success) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-success) 22%, transparent);
+  background: color-mix(in srgb, var(--color-success) 9%, transparent);
+  color: color-mix(in srgb, var(--color-success) 82%, var(--clib-text));
 }
-
 .clib-insp-dot {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: var(--gaea-glow);
+  background: var(--clib-glow);
 }
-
 .clib-insp-kind {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  padding: 2px 7px;
-  border-radius: 4px;
-  color: var(--color-text-secondary);
-  background: color-mix(in srgb, var(--color-text) 5%, transparent);
-  align-self: flex-start;
-  white-space: nowrap;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+  padding: 3px 7px;
+  border: 1px solid color-mix(in srgb, var(--clib-text) 10%, transparent);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--clib-panel) 75%, transparent);
+  color: var(--clib-muted);
+  font-family: var(--font-mono, ui-monospace, "Cascadia Code", Consolas, monospace);
+  font-size: 8px;
+  letter-spacing: 0.05em;
 }
 
-/* 快速操作 */
 .clib-insp-actions {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
 }
-
 .clib-insp-actions .ant-btn {
-  font-size: 12px;
+  min-width: 0;
+  justify-content: flex-start;
   border-radius: 8px;
+  font-size: 10px;
 }
-
-/* 设定摘要分区 */
+.clib-insp-actions .ant-btn:first-child {
+  grid-column: span 2;
+}
 .clib-insp-sec {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  padding-top: 2px;
 }
-
-/* 节标：玄墨 eyebrow 款（宽字距+渐隐尾线） */
 .clib-insp-sec-title {
-  margin: 0;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  color: var(--color-text-secondary);
   display: flex;
   align-items: center;
   gap: 8px;
+  margin: 0;
+  color: var(--clib-muted);
+  font-family: var(--font-mono, ui-monospace, "Cascadia Code", Consolas, monospace);
+  font-size: 8.5px;
+  font-weight: 650;
+  letter-spacing: 0.11em;
 }
-
 .clib-insp-sec-title::after {
-  content: '';
+  content: "";
   flex: 1;
   height: 1px;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--color-text) 8%, transparent), transparent);
+  background: linear-gradient(90deg, var(--clib-line), transparent);
 }
-
 .clib-insp-field {
   display: flex;
   flex-direction: column;
   gap: 3px;
 }
-
-.clib-insp-label {
-  font-size: 10.5px;
-  color: var(--color-text-secondary);
+.clib-insp-field:first-of-type {
+  padding: 10px 11px;
+  border-left: 2px solid color-mix(in srgb, var(--clib-accent) 46%, transparent);
+  border-radius: 0 9px 9px 0;
+  background: color-mix(in srgb, var(--clib-accent) 4%, transparent);
 }
-
+.clib-insp-label {
+  color: var(--clib-muted);
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
 .clib-insp-text {
   margin: 0;
-  font-size: 12px;
+  color: color-mix(in srgb, var(--clib-text) 88%, var(--clib-muted));
+  font-size: 10.5px;
   line-height: 1.65;
-  color: var(--color-text);
   white-space: pre-wrap;
   word-break: break-word;
 }
-
-/* 引语：accent 左线为玄墨引用语言 */
 .clib-insp-quote {
-  border-left: 2px solid color-mix(in srgb, var(--gaea-glow) 42%, transparent);
   padding-left: 8px;
-  color: var(--color-text-secondary);
+  border-left: 1px solid color-mix(in srgb, var(--clib-accent) 36%, transparent);
+  color: var(--clib-muted);
   font-style: italic;
 }
-
 .clib-insp-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px 8px;
+  gap: 4px;
 }
-
 .clib-insp-tag {
-  font-size: 10.5px;
-  color: var(--color-text-secondary);
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--clib-soft);
+  color: var(--clib-muted);
+  font-size: 8.5px;
 }
-
 .clib-insp-radar {
   display: flex;
   justify-content: center;
-  padding: 4px 0;
+  padding: 8px 0 4px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--clib-text) 2.5%, transparent);
 }
-
 .clib-insp-mem-hint {
-  font-size: 11.5px;
-  line-height: 1.6;
-  color: var(--color-text-secondary);
   display: inline-flex;
   align-items: flex-start;
   gap: 6px;
+  color: var(--clib-muted);
+  font-size: 9.5px;
+  line-height: 1.6;
 }
-
 .clib-insp-mem-hint .anticon {
-  color: color-mix(in srgb, var(--gaea-glow) 80%, var(--color-text-secondary));
   margin-top: 2px;
+  color: var(--clib-accent);
 }
 
-/* ── 窄窗口适配：压缩侧栏宽度（inspector 可手动折叠） ── */
-@media (max-width: 1120px) {
-  .clib-side {
-    width: 208px;
-  }
-  .clib-inspector {
-    width: 272px;
-  }
-}
-
-/* ── reduced-motion 降级 ── */
-@media (prefers-reduced-motion: reduce) {
-  .clib-inspector,
-  .clib-chip,
-  .clib-chip-dot,
-  .clib-inspector-fold,
-  .clib-inspector-reopen {
-    transition: none !important;
-  }
-}
-
-.ui-reduced-motion .clib-inspector,
-.ui-reduced-motion .clib-chip,
-.ui-reduced-motion .clib-chip-dot,
-.ui-reduced-motion .clib-inspector-fold,
-.ui-reduced-motion .clib-inspector-reopen {
-  transition: none !important;
-}
-
-/* ── 加入项目：小说选择弹窗 ── */
+/* ── 加入项目弹窗 ───────────────────────────────────────────────── */
 .clib-assoc {
+  --clib-panel: var(--color-bg-container, var(--md-sys-color-surface-container, var(--bg)));
+  --clib-text: var(--color-text, var(--fg));
+  --clib-muted: var(--color-text-secondary, var(--fg-faint));
+  --clib-line: color-mix(in srgb, var(--clib-text) 7%, transparent);
+  --clib-accent: var(--color-primary, var(--md-sys-color-primary, var(--accent)));
+  --clib-accent-soft: color-mix(in srgb, var(--clib-accent) 9%, transparent);
+  --clib-soft: color-mix(in srgb, var(--clib-text) 4.5%, transparent);
+  --clib-ease: cubic-bezier(0.22, 1, 0.36, 1);
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
-
 .clib-assoc-title {
-  font-size: 12px;
-  color: var(--color-text-secondary);
+  color: var(--clib-muted);
+  font-size: 10.5px;
 }
-
 .clib-assoc-loading,
 .clib-assoc-empty {
   display: flex;
@@ -740,80 +791,125 @@
   justify-content: center;
   gap: 8px;
   padding: 28px 0;
-  font-size: 12.5px;
-  color: var(--color-text-secondary);
+  color: var(--clib-muted);
+  font-size: 10.5px;
 }
-
-.clib-assoc-empty {
-  flex-direction: column;
-}
-
-.clib-assoc-empty-ic {
-  font-size: 28px;
-  color: var(--color-text-tertiary);
-}
-
+.clib-assoc-empty { flex-direction: column; }
+.clib-assoc-empty-ic { color: var(--clib-muted); font-size: 26px; }
 .clib-assoc-list {
+  max-height: 320px;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 320px;
   overflow-y: auto;
 }
-
 .clib-assoc-item {
   display: grid;
-  grid-template-columns: 28px 1fr;
+  grid-template-columns: 30px minmax(0, 1fr);
   grid-template-rows: auto auto;
   gap: 0 10px;
   align-items: center;
   width: 100%;
-  padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--color-text) 7%, transparent);
+  padding: 9px 11px;
+  border: 1px solid var(--clib-line);
   border-radius: 10px;
   background: transparent;
   color: inherit;
-  text-align: left;
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  text-align: left;
+  transition: background 180ms var(--clib-ease), border-color 180ms var(--clib-ease);
 }
-
 .clib-assoc-item:hover {
-  border-color: color-mix(in srgb, var(--gaea-glow) 32%, transparent);
-  background: color-mix(in srgb, var(--gaea-glow) 6%, transparent);
+  border-color: color-mix(in srgb, var(--clib-accent) 24%, var(--clib-line));
+  background: var(--clib-accent-soft);
 }
-
-.clib-assoc-item.is-current {
-  border-color: color-mix(in srgb, var(--gaea-glow) 40%, transparent);
-  background: color-mix(in srgb, var(--gaea-glow) 6%, transparent);
-}
-
 .clib-assoc-ic {
   grid-row: 1 / 3;
+  width: 30px;
+  height: 30px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--color-text) 5%, transparent);
-  color: var(--color-text-secondary);
+  border-radius: 9px;
+  background: var(--clib-soft);
+  color: var(--clib-muted);
 }
-
-.clib-assoc-item:hover .clib-assoc-ic {
-  color: color-mix(in srgb, var(--gaea-glow) 88%, var(--color-text));
-}
-
 .clib-assoc-name {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.clib-assoc-meta {
-  font-size: 11px;
-  color: var(--color-text-secondary);
   overflow: hidden;
+  color: var(--clib-text);
+  font-size: 11.5px;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.clib-assoc-meta {
+  overflow: hidden;
+  color: var(--clib-muted);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── 响应式 ─────────────────────────────────────────────────────── */
+@media (max-width: 1120px) {
+  .clib-mast-art { width: 34%; }
+  .clib-mast-metrics > div:nth-child(2) { display: none; }
+  .clib-workbench { grid-template-columns: minmax(0, 1fr) 300px; }
+  .clib-filter-search { width: min(100%, 310px); }
+}
+
+@media (max-width: 900px) {
+  .clib-masthead {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+  .clib-mast-art { width: 52%; opacity: 0.72; }
+  .clib-mast-side {
+    width: 100%;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .clib-mast-metrics > div:nth-child(2) { display: flex; }
+  .clib-workbench {
+    grid-template-columns: minmax(0, 1fr);
+    overflow-y: auto;
+  }
+  .clib-main { min-height: 560px; }
+  .clib-inspector { max-height: 620px; }
+  .clib-inspector.is-collapsed {
+    width: 100%;
+    min-width: 0;
+    height: 46px;
+  }
+  .clib-inspector.is-collapsed .clib-inspector-reopen {
+    flex-direction: row;
+    justify-content: center;
+    height: 44px;
+    padding: 0;
+  }
+  .clib-inspector.is-collapsed .clib-inspector-reopen-label { writing-mode: initial; }
+}
+
+@media (max-width: 680px) {
+  .clib-masthead { padding: 16px; }
+  .clib-mast-title { font-size: 22px; }
+  .clib-mast-side { flex-direction: column; align-items: stretch; }
+  .clib-mast-metrics { width: 100%; }
+  .clib-mast-metrics > div { flex: 1; }
+  .clib-new-btn { width: 100%; }
+  .clib-filter-search { width: 100%; }
+  .clib-filter-summary { margin-left: 0; }
+  .clib-data-tools { margin-left: auto; }
+  .clib-main { min-height: 480px; }
+  .clib-insp-hero { min-height: 210px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clib-filter-search,
+  .clib-chip,
+  .clib-chat-filter,
+  .clib-inspector,
+  .clib-assoc-item {
+    transition: none;
+  }
 }

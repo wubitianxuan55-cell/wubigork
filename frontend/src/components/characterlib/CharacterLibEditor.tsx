@@ -9,7 +9,7 @@ import {
 import {
   SaveOutlined, CloseOutlined, PictureOutlined, ThunderboltOutlined,
   ExperimentOutlined, RetweetOutlined, LoadingOutlined, IdcardOutlined,
-  AimOutlined } from '@ant-design/icons'
+  AimOutlined, SoundOutlined } from '@ant-design/icons'
 import TisorRadar from '../TisorRadar'
 import {
   saveCharacter, generateFill, generateRandom, generatePortrait, generatePortraitWithRef, generateCharacterSheet, scoreCharacterConsistency,
@@ -21,6 +21,7 @@ import { useComfyTaskProgress } from '../imagegen/useComfyTaskProgress'
 import { COMFY_NODE_LABELS } from '../imagegen/GenerationProgress'
 import { PortraitImg } from './PortraitImg'
 import { CHARACTER_STATUS_OPTIONS, characterStatusLabel } from '../../utils/characterStatus'
+import { playVoicePreview, playCharacterVoiceLine, genderDefaultVoiceDesc, stopVoicePreview, resolveVoiceLine } from './voicePreview'
 import { inShellEnv, pickImageAsDataUrl } from '../../gaea/lib/pickFile'
 import './character-detail.css'
 
@@ -81,6 +82,7 @@ const FIELD_LABELS: Record<string, string> = {
   voiceGuide: '口吻指南',
   behaviorRules: '行为规则',
   emotionLogic: '情感逻辑',
+  ttsLine: '专属台词',
 }
 
 // 本地即时随机的年龄池（无需 AI）
@@ -130,6 +132,8 @@ const CharacterLibEditor: React.FC<Props> = ({
   const [genPortrait, setGenPortrait] = useState(false)
   // 克隆音色清单（Breeze 服务在线才有内容；离线时下拉仅「自动」档）
   const [breezeVoices, setBreezeVoices] = useState<Array<{ id: string; seconds?: number }>>([])
+  // 试听段合成/播放中（试听按钮 loading；合成用表单当前值，未保存也可试）
+  const [voicePreviewing, setVoicePreviewing] = useState(false)
   useEffect(() => {
     if (!open) return
     void (async () => {
@@ -141,6 +145,27 @@ const CharacterLibEditor: React.FC<Props> = ({
       }
     })()
   }, [open])
+  // 抽屉关闭/组件卸载即停试听段（防界面关了声音还在）
+  useEffect(() => {
+    if (!open) stopVoicePreview()
+  }, [open])
+  useEffect(() => () => stopVoicePreview(), [])
+  const previewVoice = () => {
+    const voiceId = ((form.ttsVoiceId ?? '') as string).trim()
+    const desc = ((form.ttsDesc ?? '') as string).trim() || genderDefaultVoiceDesc(form.gender)
+    const line = resolveVoiceLine({ name: form.name, ttsLine: form.ttsLine, dialogueSamples: form.dialogueSamples })
+    setVoicePreviewing(true)
+    const job = (form.id ?? '') !== ''
+      // 已保存：走文件缓存链（命中播文件秒开，未命中合成落盘——「语音文件已生成」）
+      ? playCharacterVoiceLine({
+          id: form.id, name: form.name, ttsLine: form.ttsLine,
+          ttsVoiceId: form.ttsVoiceId, ttsDesc: form.ttsDesc,
+          gender: form.gender, dialogueSamples: form.dialogueSamples,
+        })
+      // 未保存新角色：无 id 无法落盘，临时实时试听（保存后即入文件缓存链）
+      : playVoicePreview(line, voiceId, desc)
+    void job.finally(() => setVoicePreviewing(false))
+  }
   const [refGenIdx, setRefGenIdx] = useState<number | null>(null)
   const [sheetGen, setSheetGen] = useState(false)
   // 一致性评分进行中的参考图下标（v4.404，文字锚点 v1）
@@ -848,7 +873,25 @@ const CharacterLibEditor: React.FC<Props> = ({
                         onChange={e => patch({ [f.key]: e.target.value })} />
                     </div>
                   ))}
-                  {/* 角色音色预设（TTS）：聊天选中该角色即用其音色（breeze 合成） */}
+                  {/* 角色音色预设（TTS）：聊天选中该角色即用其音色（breeze 合成）；
+                      专属语音台词=试听段念的词（AI 可随机设计，空时回退对话样本首条/姓名问候） */}
+                  <div className="cd-field">
+                    <div className="cd-label-row">
+                      <label className="cd-label">专属语音台词</label>
+                      <Button size="small" type="text" className="cd-dice"
+                        icon={fieldGen === 'ttsLine' ? <LoadingOutlined /> : <RetweetOutlined />}
+                        loading={fieldGen === 'ttsLine'}
+                        disabled={busy && fieldGen !== 'ttsLine'}
+                        title="随机生成专属台词"
+                        onClick={() => randomizeField('ttsLine')} />
+                      <Button size="small" type="text" icon={<SoundOutlined />} loading={voicePreviewing}
+                        onClick={previewVoice}
+                        title={form.id ? '试听台词语音（首次生成语音文件，之后秒开）' : '未保存角色临时试听（保存后即入语音文件缓存）'}>试听</Button>
+                    </div>
+                    <TextArea className="cd-area" size="small" rows={2} value={form.ttsLine ?? ''}
+                      placeholder="这个角色的签名台词/开场白；留空试听自动取首条对话样本"
+                      onChange={e => patch({ ttsLine: e.target.value })} />
+                  </div>
                   <div className="cd-field">
                     <div className="cd-label-row"><label className="cd-label">克隆音色</label></div>
                     <Select size="small" value={form.ttsVoiceId ?? ''} style={{ width: '100%' }}

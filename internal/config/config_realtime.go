@@ -24,3 +24,12 @@ func (c *Config) GetRealtimeAPIKey() string {
 	defer funcMu.RUnlock()
 	return c.RealtimeAPIKey
 }
+
+// GetVoiceBackend 语音对话后端（"v1" whisper 链 | "v2" 实时 sidecar 实验档；
+// 空 = v1）。前端语音台/设置面板经 VoiceGetSettings 读取运行时副本。
+func (c *Config) GetVoiceBackend() string {
+	if c == nil {
+		return ""
+	}
+	return c.VoiceBackend
+}

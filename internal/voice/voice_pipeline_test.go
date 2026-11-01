@@ -1,6 +1,7 @@
 package voice
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -147,6 +148,217 @@ func TestManager_HandleUserText(t *testing.T) {
 	})
 	if got := m.GetState(); got == StateSpeaking {
 		t.Errorf("PlaybackDone 后仍处于 speaking: %s", got)
+	}
+}
+
+// TestManager_StreamingChatStartsTTSBeforeModelCompletion 低延迟语音链：
+// 首句分片到达后立即合成播放，模型后文可以在播放过程中继续生成。
+func TestManager_StreamingChatStartsTTSBeforeModelCompletion(t *testing.T) {
+	em := &mockEmitter{}
+	m := NewManager(em, DefaultVoiceConfig())
+
+	firstSynth := make(chan struct{})
+	releaseModel := make(chan struct{})
+	var synthCalls int32
+	m.SetWhisperChatStreamFn(func(
+		_ context.Context,
+		_ string,
+		_ string,
+		onDelta func(string),
+	) (string, string, [4]float64, error) {
+		onDelta("第一句。")
+		<-releaseModel
+		onDelta("第二句。")
+		return "第一句。第二句。", "CALM_RATIONAL", [4]float64{}, nil
+	})
+	m.SetTTSSynthesizeFn(func(text, _ string) ([]byte, string, error) {
+		if atomic.AddInt32(&synthCalls, 1) == 1 {
+			close(firstSynth)
+		}
+		return []byte("audio:" + text), "audio/wav", nil
+	})
+
+	if err := m.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer m.Stop()
+
+	m.HandleUserText("测试流式首句")
+	select {
+	case <-firstSynth:
+	case <-time.After(2 * time.Second):
+		t.Fatal("模型尚未完成整段回复时，首句应已进入 TTS")
+	}
+
+	waitFor(t, 2*time.Second, func() bool { return m.GetState() == StateSpeaking })
+	m.PlaybackDone()
+	close(releaseModel)
+
+	waitFor(t, 2*time.Second, func() bool { return atomic.LoadInt32(&synthCalls) >= 2 })
+	m.Stop()
+}
+
+func TestManager_StreamingChatKeepsRepeatedSentences(t *testing.T) {
+	m := NewManager(&mockEmitter{}, DefaultVoiceConfig())
+	m.SetWhisperChatStreamFn(func(
+		_ context.Context,
+		_ string,
+		_ string,
+		onDelta func(string),
+	) (string, string, [4]float64, error) {
+		onDelta("好。好。")
+		return "好。好。", "CALM_RATIONAL", [4]float64{}, nil
+	})
+
+	var mu sync.Mutex
+	var spoken []string
+	m.SetTTSSynthesizeFn(func(text, _ string) ([]byte, string, error) {
+		mu.Lock()
+		spoken = append(spoken, text)
+		mu.Unlock()
+		return []byte("audio:" + text), "audio/wav", nil
+	})
+
+	if err := m.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer m.Stop()
+
+	m.HandleUserText("连续说两次")
+	waitFor(t, 2*time.Second, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(spoken) >= 1
+	})
+	m.PlaybackDone()
+	waitFor(t, 2*time.Second, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(spoken) >= 2
+	})
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(spoken) != 2 || spoken[0] != "好" || spoken[1] != "好" {
+		t.Fatalf("重复但有意重复的句子都应朗读，got %#v", spoken)
+	}
+}
+
+func TestManager_StreamingChatCancelStopsPromptly(t *testing.T) {
+	m := NewManager(&mockEmitter{}, DefaultVoiceConfig())
+	var synthCalls int32
+	m.SetWhisperChatStreamFn(func(
+		ctx context.Context,
+		_ string,
+		_ string,
+		onDelta func(string),
+	) (string, string, [4]float64, error) {
+		onDelta("第一句。")
+		<-ctx.Done()
+		return "第一句。", "CALM_RATIONAL", [4]float64{}, nil
+	})
+	m.SetTTSSynthesizeFn(func(text, _ string) ([]byte, string, error) {
+		atomic.AddInt32(&synthCalls, 1)
+		return []byte("audio:" + text), "audio/wav", nil
+	})
+
+	if err := m.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer m.Stop()
+
+	m.HandleUserText("开始说话")
+	waitFor(t, 2*time.Second, func() bool {
+		return m.GetState() == StateSpeaking && atomic.LoadInt32(&synthCalls) == 1
+	})
+
+	m.CancelTTS()
+	waitFor(t, 2*time.Second, func() bool {
+		s := m.GetState()
+		return s == StateIdle || s == StateListening
+	})
+	if got := atomic.LoadInt32(&synthCalls); got != 1 {
+		t.Fatalf("打断后不应继续合成旧回合, synth calls=%d", got)
+	}
+}
+
+func TestTakeReadySpeech(t *testing.T) {
+	ready, rest := takeReadySpeech("第一句。第二句还没结束")
+	if len(ready) != 1 || ready[0] != "第一句" {
+		t.Fatalf("ready = %#v", ready)
+	}
+	if rest != "第二句还没结束" {
+		t.Fatalf("rest = %q", rest)
+	}
+	ready, rest = takeReadySpeech("还没有标点")
+	if len(ready) != 0 || rest != "还没有标点" {
+		t.Fatalf("无标点不应提前切分: ready=%#v rest=%q", ready, rest)
+	}
+
+	ready, rest = takeReadySpeech("好的，我马上开始后面的说明")
+	if len(ready) != 1 || ready[0] != "好的，" || rest != "我马上开始后面的说明" {
+		t.Fatalf("首个逗号应低延迟切分: ready=%#v rest=%q", ready, rest)
+	}
+
+	long := "这是一段故意没有任何标点而且很长很长的语音测试文本用于强制切分"
+	ready, rest = takeReadySpeech(long)
+	if len(ready) != 1 || rest == "" {
+		t.Fatalf("超长无标点文本应强制提前切分: ready=%#v rest=%q", ready, rest)
+	}
+}
+
+func TestSynthesizeSentenceAudioStreamsChunks(t *testing.T) {
+	m := NewManager(&mockEmitter{}, DefaultVoiceConfig())
+	audioCh := make(chan sentenceAudio, 2)
+	streamFn := func(
+		_ context.Context,
+		text, _ string,
+		onAudio func([]byte, string) error,
+	) error {
+		if text != "你好" {
+			t.Fatalf("stream text = %q", text)
+		}
+		if err := onAudio([]byte("first"), "audio/wav"); err != nil {
+			return err
+		}
+		return onAudio([]byte("second"), "audio/wav")
+	}
+
+	sent, err := m.synthesizeSentenceAudio(
+		context.Background(), "你好", "", nil, streamFn, audioCh, nil,
+	)
+	if err != nil {
+		t.Fatalf("synthesizeSentenceAudio: %v", err)
+	}
+	if !sent {
+		t.Fatal("流式合成应标记已交付音频")
+	}
+	if first := <-audioCh; string(first.audio) != "first" {
+		t.Fatalf("first chunk = %q", first.audio)
+	}
+	if second := <-audioCh; string(second.audio) != "second" {
+		t.Fatalf("second chunk = %q", second.audio)
+	}
+}
+
+func TestManager_CancelTTSDropsLatePlaybackAck(t *testing.T) {
+	m := NewManager(&mockEmitter{}, DefaultVoiceConfig())
+	ack := make(chan struct{}, 1)
+
+	m.mu.Lock()
+	m.ttsActive = true
+	m.speakStopCh = make(chan struct{})
+	m.playbackDoneCh = ack
+	m.state = StateSpeaking
+	m.mu.Unlock()
+
+	m.CancelTTS()
+	m.PlaybackDone() // 取消后在途的旧回执不得放行下一句
+
+	select {
+	case <-ack:
+		t.Fatal("取消后迟到的 PlaybackDone 不应写入旧回执通道")
+	default:
 	}
 }
 

@@ -155,6 +155,7 @@ const (
 	// 的密文——config 层不做加解密、只存取字符串（明文↔密文转换由 app 层
 	// secure 负责，先例 model_engine_handler.go SetOpencodeZenKey）。
 	KeyRealtimeProvider = "realtime_provider"
+	KeyVoiceBackend     = "voice_backend" // 语音对话后端（v1=whisper 链 | v2=实时 sidecar 实验档，M4 产品接入刀）
 	KeyRealtimeModel    = "realtime_model"
 	KeyRealtimeAPIKey   = "realtime_api_key"
 	// 角色音色预设（人格→音色）：JSON 对象 {"<personalityId>":{"voiceId":"","desc":""}}。

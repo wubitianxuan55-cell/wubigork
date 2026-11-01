@@ -211,11 +211,17 @@ func writeCompanionReplyLog(orch *Orchestrator, ctx PostTurnContext) []string {
 		reply = genui.UIFencePlaceholder
 	}
 	ec := CaptureEmotionalContext(orch.State.Relationship, orch.State.Emotion)
+	// 自述记忆的主角用当前人格自己的名字（空回退产品名）——每个角色的
+	// 自述归档到各自名下，不全员记在「gaea」头上。
+	who := strings.TrimSpace(orch.Preset.Label)
+	if who == "" {
+		who = AckemName
+	}
 	f := orch.FactStore.Add(MemoryFact{
 		Domain:           "companion_reply",
 		Subcategory:      "SELF_NARRATIVE",
-		Subject:          "gaea",
-		Summary:          "gaea回复：" + strutil.TruncateRunesSuffix(reply, 200, "…"),
+		Subject:          who,
+		Summary:          who + "回复：" + strutil.TruncateRunesSuffix(reply, 200, "…"),
 		Weight:           0.3,
 		Confidence:       1.0,
 		SelfRelevance:    1.0,

@@ -6,6 +6,10 @@ export function GaeaTTSVoiceParams(arg1) {
   return window['go']['app']['VoiceB']['GaeaTTSVoiceParams'](arg1);
 }
 
+export function TTSLineAudioFor(arg1) {
+  return window['go']['app']['VoiceB']['TTSLineAudioFor'](arg1);
+}
+
 export function TTSSpeakBase64(arg1) {
   return window['go']['app']['VoiceB']['TTSSpeakBase64'](arg1);
 }
@@ -16,6 +20,10 @@ export function TTSSpeakBase64WithParams(arg1, arg2) {
 
 export function TTSSpeakStreaming(arg1) {
   return window['go']['app']['VoiceB']['TTSSpeakStreaming'](arg1);
+}
+
+export function TTSVoicePreviewBase64(arg1, arg2, arg3) {
+  return window['go']['app']['VoiceB']['TTSVoicePreviewBase64'](arg1, arg2, arg3);
 }
 
 export function VoiceApplySettings(arg1) {
@@ -56,6 +64,18 @@ export function VoiceStart(arg1) {
 
 export function VoiceStop() {
   return window['go']['app']['VoiceB']['VoiceStop']();
+}
+
+export function VoiceV2Ensure() {
+  return window['go']['app']['VoiceB']['VoiceV2Ensure']();
+}
+
+export function VoiceV2Status() {
+  return window['go']['app']['VoiceB']['VoiceV2Status']();
+}
+
+export function VoiceV2Stop() {
+  return window['go']['app']['VoiceB']['VoiceV2Stop']();
 }
 
 export function WeixinReminderAdd(arg1, arg2) {

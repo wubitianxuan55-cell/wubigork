@@ -36,6 +36,7 @@ const STATUS_LABELS: Record<string, string> = {
 interface CharacterCardProps {
   character: LibraryCharacter
   index: number
+  isSelected?: boolean
   inProject?: boolean
   isCurrentPersona?: boolean
   hasProject?: boolean
@@ -46,13 +47,14 @@ interface CharacterCardProps {
   onAssociate: (c: LibraryCharacter) => void
   onDissociate: (c: LibraryCharacter) => void
   onDelete: (c: LibraryCharacter) => void
-  /** 「创建青鸟助手」成功后触发（页面刷新角色列表用） */
+  /** 「创建微信助手」成功后触发（页面刷新角色列表用） */
   onAssistantCreated?: (c: LibraryCharacter) => void
 }
 
 const CharacterCard: React.FC<CharacterCardProps> = ({
   character: c,
   index,
+  isSelected = false,
   inProject = false,
   isCurrentPersona = false,
   hasProject = false,
@@ -74,9 +76,9 @@ const CharacterCard: React.FC<CharacterCardProps> = ({
     inProject ? '已加入' : '',
   ].filter(Boolean).join(' · ')
 
-  /** custom 角色 → 一键创建以其为人格的青鸟（微信）助手（wxToken 留空 = 未绑定）。
+  /** custom 角色 → 一键创建以其为人格的微信助手（wxToken 留空 = 未绑定）。
    * v4.51 深链：成功后先落焦点（WeixinPage lazy 挂载，事件先于订阅，须走
-   * sessionStorage）→ 再派发 NAVIGATE 跳青鸟 → 那边自动选中并直进扫码绑定。 */
+   * sessionStorage）→ 再派发 NAVIGATE 跳微信助手 → 那边自动选中并直进扫码绑定。 */
   const handleCreateAssistant = async () => {
     const id = `wx_${Date.now().toString(36)}`
     try {
@@ -88,22 +90,23 @@ const CharacterCard: React.FC<CharacterCardProps> = ({
         portraitUrl: c.portraitUrl || '',
       }))
       setWxFocusAssistant(id)
-      // crossSpace：角色库在乐园（play）、青鸟在工位（work）——不带标记会被
+      // crossSpace：角色库在乐园（play）、微信助手在工位（work）——不带标记会被
       // 壳层 S2.1 同空间守卫丢弃；显式跨空间走 navigateBoard 换空间路径。
       emitFrontendEvent(FRONTEND_EVENTS.NAVIGATE, { page: 'weixin', crossSpace: true })
-      message.success('已创建，正在前往青鸟绑定…')
+      message.success('已创建，正在前往微信助手绑定…')
       onAssistantCreated?.(c)
     } catch (err) {
-      message.error(`创建青鸟助手失败：${err instanceof Error ? err.message : String(err)}`)
+      message.error(`创建微信助手失败：${err instanceof Error ? err.message : String(err)}`)
     }
   }
 
   return (
     <div
-      className={`ccard${onClick ? ' v3-card is-interactive' : ''}`}
+      className={`ccard${onClick ? ' v3-card is-interactive' : ''}${isSelected ? ' is-selected' : ''}`}
       style={{ '--ccard-i': String(Math.min(index % 12, 11)) } as React.CSSProperties}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
+      aria-pressed={onClick ? isSelected : undefined}
       onClick={onClick ? () => onClick(c) : undefined}
       onKeyDown={onClick ? (e) => {
         if (e.currentTarget !== e.target) return
@@ -117,6 +120,7 @@ const CharacterCard: React.FC<CharacterCardProps> = ({
         <span className="ccard-no">NO.{String(index + 1).padStart(3, '0')}</span>
         <span className="ccard-head-right">
           <span className="ccard-kind">{kindLabel}</span>
+          {inProject && <span className="ccard-project">已加入</span>}
           {c.chatEnabled && (
             <span className="ccard-chat"><i className="ccard-chat-dot" />可聊天</span>
           )}
@@ -167,19 +171,20 @@ const CharacterCard: React.FC<CharacterCardProps> = ({
           {inProject ? (
             hasProject && (
               <Button size="small" type="text" icon={<ReadOutlined />} title="从当前项目移除" aria-label={`从当前项目移除 ${c.name}`}
-                onClick={e => { e.stopPropagation(); onDissociate(c) }}>已加入</Button>
+                onClick={e => { e.stopPropagation(); onDissociate(c) }} />
             )
           ) : (
             <Button size="small" type="text" icon={<ReadOutlined />} title="加入项目（可选择任意小说）"
-              onClick={e => { e.stopPropagation(); onAssociate(c) }}>加入项目</Button>
+              aria-label={`加入项目 ${c.name}`}
+              onClick={e => { e.stopPropagation(); onAssociate(c) }} />
           )}
           {c.kind === 'custom' && (
             <Popconfirm
-              title={`以「${c.name}」为人格创建青鸟助手？`}
+              title={`以「${c.name}」为人格创建微信助手？`}
               okText="创建" cancelText="取消"
               onConfirm={() => { void handleCreateAssistant() }}>
-              <Button size="small" type="text" icon={<RobotOutlined />} title="创建青鸟助手"
-                aria-label={`创建青鸟助手 ${c.name}`}
+              <Button size="small" type="text" icon={<RobotOutlined />} title="创建微信助手"
+                aria-label={`创建微信助手 ${c.name}`}
                 onClick={e => e.stopPropagation()} />
             </Popconfirm>
           )}

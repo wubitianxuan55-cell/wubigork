@@ -1,6 +1,7 @@
 // Package whisper — product_identity.go
 // 100% 对齐 ackem paperCard/ackemProductIdentity.ts
-// 产品身份守卫：防止模型自称底层 API 名称
+// 产品身份守卫：防止模型自称底层 API 名称（产品层条款，与聊天人格命名无关，
+// 不掺人格参数——人格名只在 canon 身份核心块处理）
 
 package whisper
 

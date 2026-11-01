@@ -1,13 +1,14 @@
-// CharacterLibFilterBar.tsx — 角色档案库「检索与筛选」侧栏（左侧 v3-panel 玻璃面板）
-// 搜索（聚焦光晕）+ 类型筛选 chips（激活项 = 主色容器 + 左缘光条）+ 通道 chip + 数据操作入口。
+// CharacterLibFilterBar.tsx — 角色档案库横向检索带
+// 搜索、类型、聊天通道和数据运维收进同一条工具带，把整列空间让给人物画廊。
 import React from 'react'
-import { Button, Input } from 'antd'
+import { Button, Dropdown, Input } from 'antd'
 import {
-  SearchOutlined, FilterOutlined, ThunderboltOutlined, ImportOutlined, SyncOutlined,
+  SearchOutlined, FilterOutlined, ThunderboltOutlined, ImportOutlined,
+  SyncOutlined, ToolOutlined, DownOutlined, CloseOutlined,
 } from '@ant-design/icons'
 
 const KIND_CHIPS = [
-  { value: '', label: '全部类型' },
+  { value: '', label: '全部' },
   { value: 'builtin', label: '内置' },
   { value: 'custom', label: '自定义' },
   { value: 'assistant', label: '助手' },
@@ -31,79 +32,102 @@ interface Props {
 const CharacterLibFilterBar: React.FC<Props> = ({
   query, kind, chatOnly, total, hasProject, fillingAll,
   onQueryChange, onKindChange, onChatOnlyChange, onFillAll, onImportProject, onSyncProject,
-}) => (
-  <aside className="clib-side v3-panel" aria-label="角色检索与筛选">
-    <div className="v3-panel-head">
-      <FilterOutlined className="clib-side-head-icon" aria-hidden />
-      <span className="v3-panel-title">检索与筛选</span>
-    </div>
+}) => {
+  const hasFilter = !!(query.trim() || kind || chatOnly)
+  const dataMenu = {
+    items: [
+      {
+        key: 'fill',
+        icon: <ThunderboltOutlined />,
+        label: fillingAll ? '补齐中…' : '一键补齐空缺字段',
+        disabled: fillingAll,
+        onClick: onFillAll,
+      },
+      {
+        key: 'import',
+        icon: <ImportOutlined />,
+        label: '从当前小说导入',
+        disabled: !hasProject,
+        onClick: onImportProject,
+      },
+      {
+        key: 'sync',
+        icon: <SyncOutlined />,
+        label: '同步引用到当前小说',
+        disabled: !hasProject,
+        onClick: onSyncProject,
+      },
+    ],
+  }
 
-    <div className="clib-side-body">
-      <div className="clib-side-group">
-        <span className="clib-side-label">搜索</span>
-        <div className="clib-search-wrap">
-          <Input
-            allowClear
-            prefix={<SearchOutlined />}
-            placeholder="名称 / 标签 / 性格"
-            value={query}
-            onChange={e => onQueryChange(e.target.value)}
-            className="clib-search"
-          />
-        </div>
+  return (
+    <section className="clib-filter-deck" aria-label="角色检索与筛选">
+      <label className="clib-filter-search">
+        <SearchOutlined className="clib-filter-search-icon" aria-hidden="true" />
+        <Input
+          allowClear
+          variant="borderless"
+          aria-label="搜索角色名称、标签或性格"
+          placeholder="搜索角色名称、标签或性格…"
+          value={query}
+          onChange={e => onQueryChange(e.target.value)}
+          className="clib-search"
+        />
+      </label>
+
+      <div className="clib-filter-kinds" role="group" aria-label="按角色类型筛选">
+        <FilterOutlined className="clib-filter-label-icon" aria-hidden="true" />
+        {KIND_CHIPS.map(k => (
+          <button
+            key={k.value || 'all'}
+            type="button"
+            className={`clib-chip${kind === k.value ? ' is-active' : ''}`}
+            aria-pressed={kind === k.value}
+            onClick={() => onKindChange(k.value)}
+          >
+            {k.label}
+          </button>
+        ))}
       </div>
 
-      <div className="clib-side-group">
-        <span className="clib-side-label">类型</span>
-        <div className="clib-chip-row" role="group" aria-label="按角色类型筛选">
-          {KIND_CHIPS.map(k => (
-            <button
-              key={k.value || 'all'}
-              type="button"
-              className={`clib-chip${kind === k.value ? ' is-active' : ''}`}
-              aria-pressed={kind === k.value}
-              onClick={() => onKindChange(k.value)}
-            >
-              {k.label}
-            </button>
-          ))}
-        </div>
+      <button
+        type="button"
+        className={`clib-chat-filter${chatOnly ? ' is-active' : ''}`}
+        aria-pressed={chatOnly}
+        onClick={() => onChatOnlyChange(!chatOnly)}
+      >
+        <i className="clib-chip-dot" aria-hidden="true" />
+        仅可聊天
+      </button>
+
+      <div className="clib-filter-summary">
+        <strong>{total}</strong>
+        <span>份档案</span>
       </div>
 
-      <div className="clib-side-group">
-        <span className="clib-side-label">通道</span>
+      {hasFilter && (
         <button
           type="button"
-          className={`clib-chip${chatOnly ? ' is-active' : ''}`}
-          aria-pressed={chatOnly}
-          onClick={() => onChatOnlyChange(!chatOnly)}
+          className="clib-filter-clear"
+          aria-label="清除全部筛选"
+          title="清除全部筛选"
+          onClick={() => {
+            onQueryChange('')
+            onKindChange('')
+            onChatOnlyChange(false)
+          }}
         >
-          <i className="clib-chip-dot" aria-hidden />
-          仅可聊天
+          <CloseOutlined aria-hidden="true" />
         </button>
-      </div>
+      )}
 
-      <div className="clib-side-stat">
-        <span className="clib-stat-key">档案总数</span>
-        <span className="clib-stat-val">{total}</span>
-      </div>
-
-      <div className="clib-side-ops">
-        <span className="clib-side-label">数据操作</span>
-        <Button size="small" block icon={<ThunderboltOutlined />} loading={fillingAll}
-          onClick={onFillAll}
-          title="为所有角色补齐空缺字段（基于已有设定推断）">
-          {fillingAll ? '补齐中…' : '一键补齐'}
+      <Dropdown menu={dataMenu} trigger={['click']} placement="bottomRight">
+        <Button className="clib-data-tools" size="small" icon={<ToolOutlined />}>
+          数据工具 <DownOutlined />
         </Button>
-        <Button size="small" block icon={<ImportOutlined />} disabled={!hasProject}
-          onClick={onImportProject}
-          title="把当前项目的 characters.json 导入全局库">导入项目</Button>
-        <Button size="small" block icon={<SyncOutlined />} disabled={!hasProject}
-          onClick={onSyncProject}
-          title="把项目引用写回 characters.json，小说 Agent 生效">同步到项目</Button>
-      </div>
-    </div>
-  </aside>
-)
+      </Dropdown>
+    </section>
+  )
+}
 
 export default CharacterLibFilterBar

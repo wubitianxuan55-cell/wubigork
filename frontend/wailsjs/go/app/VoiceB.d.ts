@@ -6,11 +6,15 @@ import {whisper} from '../models';
 
 export function GaeaTTSVoiceParams(arg1:string):Promise<tts.TTSParams>;
 
+export function TTSLineAudioFor(arg1:string):Promise<Record<string, any>>;
+
 export function TTSSpeakBase64(arg1:string):Promise<Record<string, any>>;
 
 export function TTSSpeakBase64WithParams(arg1:string,arg2:tts.TTSParams):Promise<Record<string, any>>;
 
 export function TTSSpeakStreaming(arg1:string):Promise<void>;
+
+export function TTSVoicePreviewBase64(arg1:string,arg2:string,arg3:string):Promise<Record<string, any>>;
 
 export function VoiceApplySettings(arg1:Record<string, any>):Promise<void>;
 
@@ -31,6 +35,12 @@ export function VoiceSetPTTActive(arg1:boolean):Promise<void>;
 export function VoiceStart(arg1:boolean):Promise<void>;
 
 export function VoiceStop():Promise<void>;
+
+export function VoiceV2Ensure():Promise<Record<string, any>>;
+
+export function VoiceV2Status():Promise<Record<string, any>>;
+
+export function VoiceV2Stop():Promise<Record<string, any>>;
 
 export function WeixinReminderAdd(arg1:string,arg2:string):Promise<Record<string, any>>;
 

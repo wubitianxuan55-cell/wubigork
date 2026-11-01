@@ -1,14 +1,15 @@
 // CharacterLibInspector.tsx — 角色档案库「档案详情」inspector（右侧 v3-panel，可折叠）
 // 只读速览：立绘 / 身份徽标 / 设定摘要 / 记忆入口；操作复用页面既有处理器（编辑→抽屉弹窗、记忆→状态面板等）。
 // 未选中档案时展示优雅空态。
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { Button, Popconfirm } from 'antd'
 import {
   IdcardOutlined, LeftOutlined, RightOutlined, EditOutlined, SwapOutlined,
-  DatabaseOutlined, ReadOutlined, DeleteOutlined, InboxOutlined,
+  DatabaseOutlined, ReadOutlined, DeleteOutlined, InboxOutlined, SoundOutlined,
 } from '@ant-design/icons'
 import type { LibraryCharacter } from '../../api/characterlib'
 import { PortraitImg } from './PortraitImg'
+import { playCharacterVoiceLine, stopVoicePreview, resolveVoiceLine } from './voicePreview'
 import TisorRadar from '../TisorRadar'
 import { C } from '../../utils/theme'
 
@@ -48,6 +49,15 @@ const CharacterLibInspector: React.FC<Props> = ({
   character: c, index, inProject = false, isCurrentPersona = false, hasProject = false,
   collapsed, onToggleCollapse, onEdit, onSetPersona, onMemory, onAssociate, onDissociate, onDelete,
 }) => {
+  // 语音台词试听（hooks 须在折叠早退前——规则 of hooks）：走文件缓存链
+  // （命中播文件秒开；未命中合成落盘——启动批量/保存钩子通常已备好文件）
+  const [voicePreviewing, setVoicePreviewing] = useState(false)
+  useEffect(() => () => stopVoicePreview(), [])
+  const previewVoice = () => {
+    if (!c) return
+    setVoicePreviewing(true)
+    void playCharacterVoiceLine(c).finally(() => setVoicePreviewing(false))
+  }
   if (collapsed) {
     return (
       <aside className="clib-inspector v3-panel is-collapsed" aria-label="档案详情检查器（已折叠）">
@@ -157,6 +167,16 @@ const CharacterLibInspector: React.FC<Props> = ({
             {/* 设定摘要 */}
             <div className="clib-insp-sec">
               <h4 className="clib-insp-sec-title">人物设定</h4>
+              {/* 专属语音台词（每角色一条签名声线台词；空时展示回退口径的生效台词） */}
+              <div className="clib-insp-field">
+                <span className="clib-insp-label">语音台词</span>
+                <p className="clib-insp-text">
+                  {resolveVoiceLine(c)}
+                  <Button size="small" type="text" icon={<SoundOutlined />} loading={voicePreviewing}
+                    onClick={previewVoice} title="试听台词语音（首次生成语音文件，之后秒开）"
+                    style={{ marginLeft: 6, padding: '0 6px' }}>试听</Button>
+                </p>
+              </div>
               {hasDetail ? (
                 <>
                   {field('性格', c.personality)}

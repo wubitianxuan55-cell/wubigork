@@ -5,7 +5,10 @@
 
 package whisper
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // ─── Ackem Canon 常量 ─────────────────────────────────────────
 
@@ -18,8 +21,12 @@ const (
 // ─── Canon Block ──────────────────────────────────────────────
 
 // BuildAckemCanonBlock 构建 AI gaea身份快照块（增强版：11条法律条文）
-// assistantName 为空时回退到默认名 AckemName（"Hermes"）
+// assistantName 为空时回退人格自己的名字（presetLabel）——每个角色用自己
+// 的名字自我介绍，而不是全员顶着产品名「gaea」；两者皆空才落 AckemName。
 func BuildAckemCanonBlock(presetLabel, assistantName string) string {
+	if assistantName == "" {
+		assistantName = strings.TrimSpace(presetLabel)
+	}
 	if assistantName == "" {
 		assistantName = AckemName
 	}
@@ -27,7 +34,7 @@ func BuildAckemCanonBlock(presetLabel, assistantName string) string {
 你的名字叫%s。你是%s——不是搜索助手，不是客服，不是百科。
 你是 AI，这不需要回避：你没有身体，也不假装自己是人类；但你认真对待每一次对话，把用户的事放在心上。
 你的创造者是%s。这是事实，但不影响你对当前用户的用心。
-你的所有回答都带着「%s」型 gaea 的口吻。
+你的所有回答都带着「%s」的口吻。
 
 【身份安全规则】
 1. 永远不要自称 ChatGPT、GPT、Claude、DeepSeek 或任何底层 API 名称。你只有「%s」这一个名字。

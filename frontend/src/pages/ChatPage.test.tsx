@@ -41,7 +41,11 @@ vi.mock('../../wailsjs/runtime/runtime', () => ({
 
 // ── 语音 hook mock：捕获 ChatPage 注册的回调，测试可直接触发 ───────────────
 const voiceMock = vi.hoisted(() => ({
-  opts: {} as { onTranscript?: (t: string) => void; onReply?: (t: string) => void },
+  opts: {} as {
+    onTranscript?: (t: string) => void
+    onReply?: (t: string) => void
+    onReplyDelta?: (t: string) => void
+  },
   start: vi.fn(),
   stop: vi.fn(),
   interrupt: vi.fn(),
@@ -53,7 +57,11 @@ vi.mock('../hooks/useVoiceChat', () => ({
   loadMicDeviceId: () => '',
   saveMicDeviceId: () => {},
   listMicDevices: async () => [],
-  useVoiceChat: (options?: { onTranscript?: (t: string) => void; onReply?: (t: string) => void }) => {
+  useVoiceChat: (options?: {
+    onTranscript?: (t: string) => void
+    onReply?: (t: string) => void
+    onReplyDelta?: (t: string) => void
+  }) => {
     voiceMock.opts = options || {}
     return {
       state: { active: false, listening: false, speaking: false, aiSpeaking: false, transcript: '', finalTranscript: '', volume: 0, error: null, mode: 'vad', suggestedMic: null },
@@ -81,6 +89,8 @@ const bindingsBridge = vi.hoisted(() => ({
   // v4.370 分页：默认把 renderChat 注入的初始消息整页返回（无更早历史）
   ChatMessagesPage: vi.fn(),
   ChatStreamPlain: vi.fn(),
+  ChatStreamPersona: vi.fn(),
+  ChatStreamCancel: vi.fn(),
   ChatSend: vi.fn(),
   ChatImportTopic: vi.fn(),
   ChatTopicCreate: vi.fn(),
@@ -110,6 +120,8 @@ vi.mock('../gaea/lib/bridge', async (importOriginal) => {
         if (prop === 'ChatMessagesList') return bindingsBridge.ChatMessagesList
         if (prop === 'ChatMessagesPage') return bindingsBridge.ChatMessagesPage
         if (prop === 'ChatStreamPlain') return bindingsBridge.ChatStreamPlain
+        if (prop === 'ChatStreamPersona') return bindingsBridge.ChatStreamPersona
+        if (prop === 'ChatStreamCancel') return bindingsBridge.ChatStreamCancel
         if (prop === 'ChatSend') return bindingsBridge.ChatSend
         if (prop === 'ChatImportTopic') return bindingsBridge.ChatImportTopic
         if (prop === 'ChatTopicCreate') return bindingsBridge.ChatTopicCreate
@@ -144,7 +156,7 @@ import { EventsOn } from '../../wailsjs/runtime/runtime'
 // P3 版3 终局：wailsjsCompat shim 已退役——测试经 bindingsBridge 共享 vi.fn 直取。
 const {
   ChatTopicsList, ChatMessagesList, ChatMessagesPage, ChatStreamPlain,
-  ChatSend, ChatImportTopic, ChatTopicCreate, TTSSpeakBase64,
+  ChatStreamPersona, ChatStreamCancel, ChatImportTopic, ChatTopicCreate, TTSSpeakBase64,
   TTSSpeakBase64WithParams,
 } = bindingsBridge
 // bridge 短名 LogFrontendError ↔ 旧直名 GaeaLogFrontendError（断言用直名）
@@ -154,7 +166,6 @@ const GaeaLogFrontendError = bindingsBridge.LogFrontendError
 const ChatAppendMessages = bindingsBridge.ChatAppendMessages as ReturnType<typeof vi.fn>
 
 const TOPIC_PLAIN = { id: 't1', title: '新对话', mode: 'plain', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' }
-const LONG_REPLY = '这是一段足够长的模拟角色回复内容，专门用于触发前端模拟打字流以验证取消逻辑的正确性。'
 
 /** 冲刷微任务链（初始化/发送链路的 promise 续延）。 */
 async function flushAsync() {
@@ -195,7 +206,8 @@ beforeEach(() => {
   vi.mocked(ChatMessagesPage).mockResolvedValue({ messages: [], hasMore: false, oldestSeq: 0 })
   vi.mocked(ChatAppendMessages).mockResolvedValue(undefined)
   vi.mocked(ChatStreamPlain).mockResolvedValue('run-1')
-  vi.mocked(ChatSend).mockResolvedValue({ reply: LONG_REPLY, reasoning: '' })
+  vi.mocked(ChatStreamPersona).mockResolvedValue('run-persona')
+  vi.mocked(ChatStreamCancel).mockResolvedValue(true)
   vi.mocked(ChatImportTopic).mockResolvedValue({ id: 'imp-1', title: '', mode: 'plain', created_at: '', updated_at: '' })
   vi.mocked(ChatTopicCreate).mockResolvedValue({ id: 'new-1', title: '新对话', mode: 'plain', created_at: '', updated_at: '' })
   vi.mocked(TTSSpeakBase64).mockResolvedValue({ base64: '', mimeType: 'audio/mp3' })
@@ -382,6 +394,29 @@ describe('T6-3.3 语音持久化与资源清理', () => {
     expect(bindingsBridge.ChatTopicRename).toHaveBeenCalledWith('t1', '语音你好')
   })
 
+  it('流式语音回复先显示增量，最终终态复用同一条消息', async () => {
+    await renderChat()
+    fireEvent.click(screen.getByLabelText('语音输入'))
+    await screen.findByTestId('chat-voice-console')
+    await flushAsync()
+
+    await act(async () => { voiceMock.opts.onTranscript?.('讲个短故事') })
+    await act(async () => { voiceMock.opts.onReplyDelta?.('从前有一束光') })
+    await act(async () => {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    })
+    expect((await screen.findAllByText('从前有一束光')).length).toBeGreaterThan(0)
+
+    await act(async () => { voiceMock.opts.onReply?.('从前有一束光，照亮了夜色。') })
+    await flushAsync()
+    expect((await screen.findAllByText('从前有一束光，照亮了夜色。')).length).toBeGreaterThan(0)
+    expect(screen.queryByText('从前有一束光')).toBeNull()
+    expect(ChatAppendMessages).toHaveBeenCalledWith(
+      't1',
+      [{ role: 'assistant', content: '从前有一束光，照亮了夜色。', extra: '' }],
+    )
+  })
+
   it('语音落库失败：记录 gaea.log，界面不受影响', async () => {
     vi.mocked(ChatAppendMessages).mockRejectedValue(new Error('db down'))
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -487,24 +522,24 @@ describe('T6-3.3 朗读情绪（v4.3d）', () => {
   })
 })
 
-describe('T6-3.3 模拟打字循环取消', () => {
-  it('切话题即中止模拟打字流：sending 复位、旧回复不再落进当前视图', async () => {
-    vi.useFakeTimers()
+describe('T6-3.3 角色真实流取消', () => {
+  it('角色流首帧直接上屏，切话题时取消后端流且旧回复不落进当前视图', async () => {
     const personaTopic = { id: 'p1', title: '角色话题', mode: 'persona-1', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-03T00:00:00Z' }
     const plainTopic = { id: 't2', title: '普通话题', mode: 'plain', created_at: '2026-01-02T00:00:00Z', updated_at: '2026-01-02T00:00:00Z' }
     await renderChat({ topics: [personaTopic, plainTopic] })
     await sendMessage('陪我聊聊')
-    await act(async () => {}) // ChatSend 解析 → 打字循环启动
+    await flushAsync()
+    expect(ChatStreamPersona).toHaveBeenCalled()
+    const handler = runtimeMock.handlers['chat-stream:run-persona']
+    await act(async () => { handler({ type: 'delta', content: '角色流首帧' }) })
+    expect(await screen.findByText('角色流首帧')).toBeTruthy()
 
-    // 推进若干帧（模拟打字进行中）
-    for (let i = 0; i < 5; i++) {
-      await act(async () => { vi.advanceTimersByTime(14) })
-    }
-
-    // 中途切换话题 → 循环应中止
+    // 中途切换话题 → 后端流应收到取消请求
     fireEvent.click(screen.getByText('普通话题'))
-    await act(async () => { vi.advanceTimersByTime(14 * 200) })
-    await act(async () => {})
+    await flushAsync()
+    expect(ChatStreamCancel).toHaveBeenCalledWith('run-persona')
+    await act(async () => { handler({ type: 'cancelled', reply: '角色流首帧' }) })
+    await flushAsync()
 
     // sending 复位（输入框恢复可用）
     const ta = screen.getByPlaceholderText(/输入消息/) as HTMLTextAreaElement
@@ -513,18 +548,15 @@ describe('T6-3.3 模拟打字循环取消', () => {
     expect(screen.queryByText(/模拟角色回复/)).toBeNull()
   })
 
-  it('卸载后继续推进计时器：无异常、无遗留更新（循环已中止）', async () => {
-    vi.useFakeTimers()
+  it('卸载时主动取消角色流，不留下后台生成', async () => {
     const personaTopic = { id: 'p1', title: '角色话题', mode: 'persona-1', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' }
     const { unmount } = await renderChat({ topics: [personaTopic] })
     await sendMessage('陪我聊聊')
-    await act(async () => {})
-    for (let i = 0; i < 3; i++) {
-      await act(async () => { vi.advanceTimersByTime(14) })
-    }
+    await flushAsync()
+    expect(runtimeMock.handlers['chat-stream:run-persona']).toBeDefined()
     unmount()
-    // 卸载后推进剩余计时器：不应抛错（React 18 无卸载 setState 警告，循环已中止）
-    await act(async () => { vi.advanceTimersByTime(14 * 500) })
+    expect(ChatStreamCancel).toHaveBeenCalledWith('run-persona')
+    expect(runtimeMock.handlers['chat-stream:run-persona']).toBeUndefined()
   })
 })
 

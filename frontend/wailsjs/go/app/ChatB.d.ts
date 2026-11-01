@@ -21,6 +21,8 @@ export function ChatSend(arg1:string,arg2:string,arg3:string,arg4:boolean,arg5:b
 
 export function ChatStreamCancel(arg1:string):Promise<boolean>;
 
+export function ChatStreamPersona(arg1:string,arg2:string,arg3:string,arg4:boolean,arg5:boolean,arg6:boolean):Promise<string>;
+
 export function ChatStreamPlain(arg1:string,arg2:string,arg3:boolean,arg4:boolean,arg5:boolean):Promise<string>;
 
 export function ChatTopicClear(arg1:string):Promise<void>;

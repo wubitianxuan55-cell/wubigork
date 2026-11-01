@@ -319,6 +319,13 @@ func selectExamples(personality PersonalityTemplate, aff float64, maxExamples in
 	return examples
 }
 
+// BuildCharacterStaticBlock 角色状态块的跨轮稳定部分（KV 前缀稳定化五刀：
+// 行为优先级+人格基底每轮字节相同，进 system 稳定前缀终身命中，不再随
+// 动态段每轮重打重算 prefill）。
+func BuildCharacterStaticBlock(p PersonalityTemplate) string {
+	return buildPrioritySectionFusion() + "\n\n" + buildPersonalitySectionFusion(p)
+}
+
 // ─── 区块构建函数 ──────────────────────────────────────────────
 
 // buildPrioritySectionFusion 行为优先级区块
@@ -433,10 +440,8 @@ func BuildCharacterStateBlock(
 	}
 
 	parts := []string{
-		buildPrioritySectionFusion(),
-		"",
-		buildPersonalitySectionFusion(personality),
-		"",
+		// 五刀：Priority/人格基底经 BuildCharacterStaticBlock 进 system 稳定
+		// 前缀，本函数只留每轮变化段（buildTierASnapshot 双路消费）。
 		buildEmotionSectionFusion(emotion.PrimaryLabel, emotion.Aff, emotion.Sec, emotion.Aro, emotion.Dom, intensity, innerFeeling),
 		"",
 		buildFusionSectionFusion(fusionStrategy),

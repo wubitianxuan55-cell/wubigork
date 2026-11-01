@@ -22,7 +22,7 @@ type ChatMethods = Pick<
   | "ChatTopicsList" | "ChatMessagesList" | "ChatMessagesPage" | "ChatAppendMessages"
   // 批次二 legacy 直调转正（ChatB 门面）：话题管理 + 发送 + 导出。
   | "ChatTopicCreate" | "ChatTopicDelete" | "ChatTopicRename" | "ChatTopicSetMode"
-  | "ChatImportTopic" | "ChatSend" | "ChatStreamPlain" | "ChatStreamCancel"
+  | "ChatImportTopic" | "ChatSend" | "ChatStreamPlain" | "ChatStreamPersona" | "ChatStreamCancel"
   | "ChatTopicClear" | "ChatTopicExportMarkdown"
 >;
 
@@ -487,6 +487,10 @@ export function buildChat(s: MakeMockState): ChatMethods {
     async ChatStreamPlain(_topicID: string, _message: string, _searchEnabled: boolean, _thinking: boolean, _forceSearch: boolean) {
       // mock: 纯文本通道返回空串（真实实现经流式聚合返回最终文本）。
       return "";
+    },
+    async ChatStreamPersona(_topicID: string, _message: string, _mode: string, _searchEnabled: boolean, _thinking: boolean, _forceSearch: boolean) {
+      // mock: 浏览器演示由页面脚本模拟事件，这里只返回 runID 形状。
+      return "mock-persona-run";
     },
     async ChatStreamCancel(_runID: string) {
       // P1-5 取消面（批 46 NOT_MOCKED 收尾刀）：Go 对未知 runID 返回 false

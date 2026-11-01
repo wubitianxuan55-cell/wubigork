@@ -1,7 +1,7 @@
-// ChatPage 拆分产物：流式/模拟打字发送状态机（行为零变化，T6-10.1）。
+// ChatPage 拆分产物：plain/persona 统一真实流式发送状态机。
 // 原 ChatPage.doSend 的 plain 流订阅（T6-3.1：先订阅后收帧、30s 无帧超时、
-// done/error/启动失败终态、卸载收尾）+ 角色模式模拟打字（T6-3.3：切话题/卸载
-// 取消循环）原样搬入；外部仅注入消息更新回调与最终态回调。
+// done/error/启动失败终态、卸载收尾）继续保留；角色模式已改为同一事件协议，
+// 首个正文分片立即上屏，切话题/卸载直接取消后端 run。
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 import { app } from '../gaea/lib/bridge'
@@ -19,6 +19,10 @@ interface ChatStreamPayload {
   error?: string
   /** v4.15 可选：实际回答的引擎/模型/来源/费用；旧事件无此字段 → 静默跳过 */
   answered_by?: AnsweredByInfo
+  /** 角色流完成帧附带的会话状态（plain 流不携带） */
+  emotion?: string
+  aff?: number
+  aro?: number
 }
 
 export interface UseChatStreamOptions {
@@ -46,7 +50,7 @@ export function useChatStream(opts: UseChatStreamOptions) {
   const [sending, setSending] = useState(false)
   const [streamKey, setStreamKey] = useState<string | null>(null)
   const [streamText, setStreamText] = useState('')
-  // T6-3.3：模拟打字循环取消标志（切话题/卸载即置 true 中止循环，新一轮发送复位）。
+  // 旧接口保留的取消标志（外部切话题/卸载调用取消后端流，新一轮发送复位）。
   const typingCancelRef = useRef(false)
   // 真实流式订阅的清理函数：卸载时取消监听，避免泄漏。
   const streamCleanupRef = useRef<(() => void) | null>(null)
@@ -63,13 +67,22 @@ export function useChatStream(opts: UseChatStreamOptions) {
     streamFinishRef.current = null
     streamCleanupRef.current?.()
     streamCleanupRef.current = null
-    // T6-3.3：卸载中止模拟打字循环
     typingCancelRef.current = true
+    const rid = activeRunIDRef.current
+    activeRunIDRef.current = null
+    if (rid) void app.ChatStreamCancel(rid).catch(() => {})
   }, [])
 
-  const cancelTyping = useCallback(() => { typingCancelRef.current = true }, [])
   // P1-5：进行中流式回合的 runID（停止入口用；无流/角色模式为 null）。
   const activeRunIDRef = useRef<string | null>(null)
+  const cancelTyping = useCallback(() => {
+    typingCancelRef.current = true
+    const rid = activeRunIDRef.current
+    if (rid) {
+      activeRunIDRef.current = null
+      void app.ChatStreamCancel(rid).catch(() => {})
+    }
+  }, [])
   const resetTyping = useCallback(() => { typingCancelRef.current = false }, [])
 
   const send = useCallback(async (params: ChatSendParams) => {
@@ -95,8 +108,9 @@ export function useChatStream(opts: UseChatStreamOptions) {
     })
     setStreamKey(am.key); setStreamText('')
 
-    // 普通对话：后端逐块流式下发；角色模式继续走整段返回（保留原有模拟打字流）。
-    if (mode === 'plain') {
+    // 普通对话与角色对话统一走真实流：角色链路此前先等整段返回，再做前端模拟
+    // 打字，长回复会额外增加数十秒可见延迟；现在首个模型分片即上屏。
+    {
       let unsub: (() => void) | null = null
       let reasoningAcc = ''
       // v4.365 流式节流：每 chunk 一次 setState 使 ChatPage 以 chunk 频率（30~120/s）
@@ -140,9 +154,19 @@ export function useChatStream(opts: UseChatStreamOptions) {
             updateMessage(am.key, { content: `请求超时：${STREAM_SILENCE_TIMEOUT_MS / 1000} 秒内未收到回复，请重试`, streaming: false, error: true })
             finish(false)
           }, STREAM_SILENCE_TIMEOUT_MS)
-          app.ChatStreamPlain(active, trimmed, search, thinking, force)
+          const opening = mode === 'plain'
+            ? app.ChatStreamPlain(active, trimmed, search, thinking, force)
+            : app.ChatStreamPersona(active, trimmed, mode, search, thinking, force)
+          opening
             .then((runID: string) => {
               activeRunIDRef.current = runID
+              // 超时/卸载先于 binding resolve：runID 现在才到，直接撤销后端任务，
+              // 不再为已结束的前端回合挂监听。
+              if (settled) {
+                activeRunIDRef.current = null
+                void app.ChatStreamCancel(runID).catch(() => {})
+                return
+              }
               // 订阅注册紧跟 runID 解析：同一微任务内完成，先订阅后收帧，首帧不丢
               unsub = EventsOn(`chat-stream:${runID}`, (payload: ChatStreamPayload) => {
                 if (settled) return
@@ -155,15 +179,21 @@ export function useChatStream(opts: UseChatStreamOptions) {
                 } else if (p.type === 'done') {
                   const reply = typeof p.reply === 'string' ? p.reply : ''
                   const reasoning = typeof p.reasoning === 'string' ? p.reasoning : reasoningAcc
-                  // v4.15：answered_by 为可选字段（旧事件缺失 → 静默跳过，不写入 extra）
+                  // answered_by 与角色状态随 done 帧下发；统一写入 extra，
+                  // 刷新会话后指标仍可从消息记录恢复。
                   const extra: Record<string, unknown> = {}
                   const ab = p.answered_by
                   if (ab && typeof ab === 'object' && typeof ab.engine === 'string' && typeof ab.model === 'string') {
                     extra.answered_by = ab
                   }
+                  if (typeof p.emotion === 'string' && p.emotion) extra.emotion = p.emotion
+                  if (typeof p.reasoning === 'string' && p.reasoning) extra.reasoning = p.reasoning
                   cancelPendingDelta()
                   setStreamText(''); setStreamKey(null)
                   updateMessage(am.key, { content: reply, streaming: false, reasoning, extra })
+                  if (typeof p.emotion === 'string' && p.emotion) setEmotion(p.emotion)
+                  if (typeof p.aff === 'number') setAff(Math.round(p.aff))
+                  if (typeof p.aro === 'number') setAro(Math.round(p.aro))
                   finish(true)
                 } else if (p.type === 'cancelled') {
                   // P1-5 用户停止：已生成部分落库（后端已 appendChatExchange），
@@ -171,7 +201,12 @@ export function useChatStream(opts: UseChatStreamOptions) {
                   cancelPendingDelta()
                   const partial = typeof p.reply === 'string' ? p.reply : ''
                   setStreamText(''); setStreamKey(null)
-                  updateMessage(am.key, { content: partial ? partial + '\n\n（已停止生成）' : '（已停止生成，未收到内容）', streaming: false, reasoning: reasoningAcc })
+                  const extra: Record<string, unknown> = {}
+                  if (p.answered_by && typeof p.answered_by === 'object') extra.answered_by = p.answered_by
+                  updateMessage(am.key, {
+                    content: partial ? partial + '\n\n（已停止生成）' : '（已停止生成，未收到内容）',
+                    streaming: false, reasoning: p.reasoning || reasoningAcc, extra,
+                  })
                   finish(false)
                 } else if (p.type === 'error') {
                   cancelPendingDelta()
@@ -180,6 +215,11 @@ export function useChatStream(opts: UseChatStreamOptions) {
                   finish(false)
                 }
               })
+              // 用户在 runID 返回前已点停止：订阅建立后立即撤销后端任务，
+              // cancelled 帧仍会走统一收尾。
+              if (typingCancelRef.current) {
+                void app.ChatStreamCancel(runID).catch(() => {})
+              }
             })
             .catch((err: unknown) => {
               // 启动失败（binding 拒绝）：直接按失败收尾，与事件错误终态一致
@@ -201,66 +241,13 @@ export function useChatStream(opts: UseChatStreamOptions) {
       }
       return
     }
-
-    // 角色模式：整段返回 + 前端模拟打字流。
-    try {
-      const res = await app.ChatSend(active, trimmed, mode, search, thinking, force)
-      const reply = typeof res?.reply === 'string' ? res.reply : ''
-      const reasoning = typeof res?.reasoning === 'string' ? res.reasoning : ''
-      const reduced = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-      if (!reduced && reply.length > 40) {
-        // v4.365：setTimeout(14ms) 循环≈71 次/秒 setState，改 rAF 驱动并按
-        // 时间推进——节奏与原实现一致（每 14ms 推进 step 字），刷新对齐显示器帧。
-        const step = Math.max(2, Math.round(reply.length / 180))
-        const started = performance.now()
-        await new Promise<void>((resolve) => {
-          const tick = () => {
-            // T6-3.3：切话题/卸载即中止模拟打字流（避免过期 setStreamText 持续写入）
-            if (typingCancelRef.current) { resolve(); return }
-            const idx = Math.min(reply.length, Math.floor(((performance.now() - started) / 14) * step))
-            setStreamText(reply.slice(0, idx))
-            if (idx >= reply.length) { resolve(); return }
-            requestAnimationFrame(tick)
-          }
-          requestAnimationFrame(tick)
-        })
-      }
-      // T6-3.3：循环被取消（话题已切换/组件已卸载）→ 不再更新消息与最终态，
-      // 由 finally 复位 sending；旧消息 key 已随话题切换离开消息列表，更新无意义。
-      if (typingCancelRef.current) return
-      setStreamText(''); setStreamKey(null)
-      const extra: Record<string, unknown> = {}
-      if (res.emotion) extra.emotion = res.emotion
-      if (reasoning) extra.reasoning = reasoning
-      // v4.15：ChatSend 返回可选字段 answered_by（旧后端无此字段 → 静默跳过）。
-      // bridge 契约为 Record<string, unknown>，局部收窄为可选 object 后再做型别判断
-      // （运行期行为与旧 Record<string, any> 一致：truthy + object + engine/model 均为 string）。
-      const ab = res.answered_by as { engine?: unknown; model?: unknown } | undefined
-      if (ab && typeof ab === 'object' && typeof ab.engine === 'string' && typeof ab.model === 'string') {
-        extra.answered_by = ab
-      }
-      updateMessage(am.key, { content: reply, streaming: false, reasoning, extra })
-      if (res.emotion) setEmotion(res.emotion as string)
-      if (typeof res.aff === 'number') setAff(Math.round(res.aff))
-      if (typeof res.aro === 'number') setAro(Math.round(res.aro))
-      await finalizeTopicAfterSend(active, trimmed)
-    } catch (err: unknown) {
-      setStreamText(''); setStreamKey(null)
-      updateMessage(am.key, { content: `请求失败：${err instanceof Error ? err.message : String(err)}`, streaming: false, error: true })
-    } finally { setSending(false) }
   }, [sending, updateMessage, setMessages, setInput, setEmotion, setAff, setAro, finalizeTopicAfterSend])
 
-  /** P1-5 停止生成：plain 流调后端取消（cancelled 帧收尾——部分回复保留落库）；
-   * 角色模式退化为取消模拟打字（整段返回无法中断，如实保留已到文本）。 */
+  /** P1-5 停止生成：plain/persona 流均调后端取消，cancelled 帧收尾并保留部分回复。 */
   const stop = useCallback(() => {
     if (typingCancelRef.current !== null && !sending) return
-    typingCancelRef.current = true // 角色模式：中止模拟打字
-    const rid = activeRunIDRef.current
-    if (rid) {
-      activeRunIDRef.current = null
-      void app.ChatStreamCancel(rid).catch(() => { /* 取消失败由 30s 静默超时兜底收尾 */ })
-    }
-  }, [sending])
+    cancelTyping()
+  }, [sending, cancelTyping])
 
   return { sending, streamKey, streamText, send, stop, cancelTyping, resetTyping }
 }

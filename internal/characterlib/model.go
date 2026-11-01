@@ -4,6 +4,8 @@
 package characterlib
 
 import (
+	"strings"
+
 	"github.com/gaea/gaea/internal/types"
 	"github.com/gaea/gaea/internal/whisper"
 )
@@ -56,6 +58,9 @@ type Character struct {
 	// 全局缺省链（gender 缺省描述 > 全局 breeze 描述）。
 	TTSVoiceID string `json:"ttsVoiceId,omitempty"`
 	TTSDesc    string `json:"ttsDesc,omitempty"`
+	// 专属语音台词：档案试听段念的台词（角色签名声线）。空时试听回退
+	// 对话样本首条 > 姓名问候（前端 resolveVoiceLine 同口径）。
+	TTSLine string `json:"ttsLine,omitempty"`
 
 	// 助手通道（可选）：assistant 记录仍是微信配置的唯一事实源
 	AssistantID string `json:"assistantId,omitempty"`
@@ -80,15 +85,35 @@ func (c *Character) ToPreset() *whisper.PersonalityPreset {
 	if c == nil {
 		return nil
 	}
+	// 人格厚度全量进聊天：性格/背景是「按人设思考」的主料，口吻是语气层，
+	// 行为规则/情感逻辑是行为约束，对话样本给语气实例——全部折叠进
+	// VoiceGuide 单一注入点（系统提示词人格段的唯一来源）。
 	voice := c.VoiceGuide
 	if voice == "" {
 		voice = "你是「" + c.Name + "」：措辞与态度须贯穿此人设，勿写成通用温柔助手或百科客服。"
+	}
+	var persona string
+	if p := strings.TrimSpace(c.Personality); p != "" {
+		persona += "\n性格：" + p
+	}
+	if b := strings.TrimSpace(c.Background); b != "" {
+		persona += "\n背景：" + b
+	}
+	if persona != "" {
+		voice += "\n【人设】" + persona
 	}
 	if c.BehaviorRules != "" {
 		voice += "\n行为规则：" + c.BehaviorRules
 	}
 	if c.EmotionLogic != "" {
 		voice += "\n情感逻辑：" + c.EmotionLogic
+	}
+	if n := len(c.DialogueSamples); n > 0 {
+		max := n
+		if max > 3 {
+			max = 3
+		}
+		voice += "\n对话样本（语气实例，仿其风格）：\n- " + strings.Join(c.DialogueSamples[:max], "\n- ")
 	}
 	return &whisper.PersonalityPreset{
 		ID:              c.ID,

@@ -1,7 +1,7 @@
 // ChatPage 语音对话聚合：把识别文本、AI 回复和聊天话题接到同一条会话链。
 // 语音回合绑定启动时的话题，消息经 ChatAppendMessages 落库并同步话题标题/
 // 预览/活跃时间；切话题或结束会话后，迟到事件不得串入新话题。
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { app } from '../gaea/lib/bridge'
 import { useVoiceChat } from './useVoiceChat'
 import { logFrontendError, nextMsgKey, nowStr } from '../pages/chat/utils'
@@ -25,6 +25,21 @@ export function useChatVoice({
   // 声音串进新会话。清空代表当前没有可接收的语音回合。
   const sessionTopicRef = useRef('')
   const sessionGenerationRef = useRef(0)
+  const replyKeyRef = useRef<string | null>(null)
+  const replyDeltaRef = useRef('')
+  const replyRafRef = useRef<number | null>(null)
+
+  const cancelReplyFlush = useCallback(() => {
+    if (replyRafRef.current !== null) {
+      cancelAnimationFrame(replyRafRef.current)
+      replyRafRef.current = null
+    }
+    replyDeltaRef.current = ''
+  }, [])
+
+  useEffect(() => () => {
+    if (replyRafRef.current !== null) cancelAnimationFrame(replyRafRef.current)
+  }, [])
 
   const persistVoiceMessages = useCallback(async (
     topicID: string,
@@ -47,6 +62,8 @@ export function useChatVoice({
     const text = (t || '').trim(); if (!text) return
     const topicID = sessionTopicRef.current
     if (!topicID) return
+    cancelReplyFlush()
+    replyKeyRef.current = null
     // 事件可能晚于切话题到达：只写入发起本轮语音的会话；当前视图已切走时
     // 不再把旧声音插进新会话。
     if (getActiveId() === topicID) {
@@ -55,17 +72,52 @@ export function useChatVoice({
     void persistVoiceMessages(topicID, [{ role: 'user', content: text, extra: '' }]).then((saved) => {
       if (saved) void finalizeTopicAfterSend?.(topicID, text)
     })
-  }, [finalizeTopicAfterSend, getActiveId, persistVoiceMessages, setMessages])
+  }, [cancelReplyFlush, finalizeTopicAfterSend, getActiveId, persistVoiceMessages, setMessages])
+
+  const onVoiceReplyDelta = useCallback((delta: string) => {
+    if (!delta) return
+    const topicID = sessionTopicRef.current
+    if (!topicID || getActiveId() !== topicID) return
+    replyDeltaRef.current += delta
+    if (replyRafRef.current !== null) return
+    replyRafRef.current = requestAnimationFrame(() => {
+      replyRafRef.current = null
+      const chunk = replyDeltaRef.current
+      replyDeltaRef.current = ''
+      if (!chunk) return
+      const existingKey = replyKeyRef.current
+      if (existingKey) {
+        setMessages(prev => prev.map(m => m.key === existingKey
+          ? { ...m, content: m.content + chunk }
+          : m))
+        return
+      }
+      const key = nextMsgKey()
+      replyKeyRef.current = key
+      setMessages(prev => [...prev, {
+        key, role: 'assistant', content: chunk, streaming: true, createdAt: nowStr(),
+      }])
+    })
+  }, [getActiveId, setMessages])
 
   const onVoiceReply = useCallback((t: string) => {
     const text = (t || '').trim(); if (!text) return
     const topicID = sessionTopicRef.current
     if (!topicID) return
+    cancelReplyFlush()
+    const existingKey = replyKeyRef.current
+    replyKeyRef.current = null
     if (getActiveId() === topicID) {
-      setMessages(prev => [...prev, { key: nextMsgKey(), role: 'assistant', content: text, createdAt: nowStr() }])
+      if (existingKey) {
+        setMessages(prev => prev.map(m => m.key === existingKey
+          ? { ...m, content: text, streaming: false }
+          : m))
+      } else {
+        setMessages(prev => [...prev, { key: nextMsgKey(), role: 'assistant', content: text, createdAt: nowStr() }])
+      }
     }
     void persistVoiceMessages(topicID, [{ role: 'assistant', content: text, extra: '' }])
-  }, [getActiveId, persistVoiceMessages, setMessages])
+  }, [cancelReplyFlush, getActiveId, persistVoiceMessages, setMessages])
 
   const {
     state: voice,
@@ -73,14 +125,16 @@ export function useChatVoice({
     stop: stopVoice,
     interrupt: interruptVoice,
     switchMic,
-  } = useVoiceChat({ onTranscript: onVoiceTranscript, onReply: onVoiceReply })
+  } = useVoiceChat({ onTranscript: onVoiceTranscript, onReply: onVoiceReply, onReplyDelta: onVoiceReplyDelta })
 
   const stopVoiceSession = useCallback(() => {
+    cancelReplyFlush()
+    replyKeyRef.current = null
     sessionGenerationRef.current += 1
     sessionTopicRef.current = ''
     stopVoice()
     setVoiceOn(false)
-  }, [stopVoice])
+  }, [cancelReplyFlush, stopVoice])
 
   const toggleVoice = useCallback(async (): Promise<boolean> => {
     if (voiceOn) {

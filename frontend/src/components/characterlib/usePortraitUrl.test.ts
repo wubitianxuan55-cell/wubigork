@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { getCachedAttachmentDataURL, __clearAttachmentUrlCacheForTest } from './usePortraitUrl'
+import { renderHook, waitFor } from '@testing-library/react'
+import {
+  getCachedAttachmentDataURL, usePortraitUrl, __clearAttachmentUrlCacheForTest,
+} from './usePortraitUrl'
 
 const { attachmentDataURLMock } = vi.hoisted(() => ({
   attachmentDataURLMock: vi.fn(),
@@ -48,6 +51,17 @@ describe('usePortraitUrl 缓存 blob URL 化（v4.391）', () => {
     expect(u2).toBe(u1)
     expect(createObjectURL).toHaveBeenCalledTimes(1)
     expect(attachmentDataURLMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('本地剧照路径切换时立即清空旧 URL，避免角色切换串脸', async () => {
+    attachmentDataURLMock.mockReturnValue(new Promise(() => {}))
+    const { result, rerender } = renderHook(
+      ({ src }: { src: string }) => usePortraitUrl(src),
+      { initialProps: { src: 'https://example.com/old.png' } },
+    )
+    expect(result.current.url).toBe('https://example.com/old.png')
+    rerender({ src: 'C:/x/new.png' })
+    await waitFor(() => expect(result.current.url).toBeUndefined())
   })
 
   it('blob 字节与 MIME 忠实于原 data URL', async () => {

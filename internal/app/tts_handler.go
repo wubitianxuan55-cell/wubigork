@@ -251,6 +251,98 @@ func (a *mediaState) TTSSpeakBase64WithParams(text string, params tts.TTSParams)
 	return map[string]interface{}{"base64": base64.StdEncoding.EncodeToString(audio), "mimeType": mime}, nil
 }
 
+// TTSVoicePreviewBase64 角色档案试听段合成（实时，不落文件）：按显式音色/描述
+// （角色预设）合成一段短语音。文件化试听走 TTSLineAudioFor（内容寻址缓存），
+// 本绑定只服务未保存角色的临时试听等场景。
+func (a *mediaState) TTSVoicePreviewBase64(text, voiceID, voiceDescription string) (map[string]interface{}, error) {
+	audio, mime, err := a.ttsVoicePreviewAudio(text, voiceID, voiceDescription)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]interface{}{"base64": base64.StdEncoding.EncodeToString(audio), "mimeType": mime}, nil
+}
+
+// ttsVoicePreviewAudioSeam 单测注入点（真装机跑单测绝不触发真合成）。
+var ttsVoicePreviewAudioFn = (*mediaState).ttsVoicePreviewAudio
+
+// ttsVoicePreviewAudio 试听段合成核心（TTSVoicePreviewBase64 与台词语音文件
+// 落盘共用）。候选链与聊天语音同序（聊天语音绑定 → 全局 TTS → Breeze 扫描），
+// 但音色/描述按入参覆盖，不读当前人格（voicePersonaPreset）——试听对象是
+// 「这个角色」。只走能表达音色预设的引擎（voicePreviewCapable）：Edge/SAPI/xai
+// 等合成不出角色音色的试听是假试听，不落兜底，全链不可用时诚实报错。
+func (a *mediaState) ttsVoicePreviewAudio(text, voiceID, voiceDescription string) ([]byte, string, error) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return nil, "", fmt.Errorf("试听文本为空")
+	}
+	voiceID = strings.TrimSpace(voiceID)
+	desc := strings.TrimSpace(voiceDescription)
+	if voiceID == "" && desc == "" {
+		return nil, "", fmt.Errorf("该角色未配置克隆音色或音色描述，无可试听的内容")
+	}
+	// 候选链：聊天语音绑定 → 全局 TTS → Breeze（克隆音色本源引擎，按需拉起）。
+	type previewStep struct{ engineID, model string }
+	steps := []previewStep{}
+	if a.chatVoiceEngine != "" && a.chatVoiceModel != "" {
+		steps = append(steps, previewStep{a.chatVoiceEngine, a.chatVoiceModel})
+	}
+	if a.activeTTSModel != "" {
+		steps = append(steps, previewStep{a.activeTTSEngine, a.activeTTSModel})
+	}
+	steps = append(steps, previewStep{"breeze", "breeze-tts-2"})
+	var lastErr error
+	for _, s := range steps {
+		if !voicePreviewCapable(s.engineID, s.model) {
+			continue
+		}
+		// breeze 冷启动走流播同款 seams（真装机跑单测绝不能 ensure 拉起真实服务）：
+		// 未就绪则按需拉起并短等（~12s），起不来本步放弃滑下一步。
+		if s.engineID == "breeze" && !breezeStreamProbe(a) {
+			breezeStreamEnsure(a)
+			for i := 0; i < breezeStreamPollAttempts && !breezeStreamProbe(a); i++ {
+				time.Sleep(breezeStreamPollInterval)
+			}
+			if !breezeStreamProbe(a) {
+				continue
+			}
+		}
+		p, ok := a.ttsProviderForEngineWithVoice(s.engineID, s.model, voiceID, desc)
+		if !ok {
+			continue
+		}
+		audio, mime, err := p.SynthesizeWithMime(text)
+		if err != nil || len(audio) == 0 {
+			if err != nil {
+				lastErr = err // 与链语义一致：本步失败滑下一步，末尾带出末次错误
+			}
+			continue
+		}
+		if mime == "" {
+			mime = "audio/mp3"
+		}
+		return audio, mime, nil
+	}
+	if lastErr != nil {
+		return nil, "", fmt.Errorf("试听失败：%w", lastErr)
+	}
+	return nil, "", fmt.Errorf("试听不可用：无支持角色音色预设的语音引擎（需 Breeze 或 voicedesign 类语音模型）")
+}
+
+// voicePreviewCapable 判定引擎+模型能否表达角色音色预设：breeze 全模型可
+// （voice=克隆 id；voice 空 = design 模式，instructions 即音色描述）；herdsman
+// 仅 voicedesign/voxcpm（描述即音色）；customvoice/edge 类是命名音色，带不进
+// 角色预设，试听不落。
+func voicePreviewCapable(engineID, model string) bool {
+	if engineID == "breeze" {
+		return true
+	}
+	if engineID == "herdsman" {
+		l := strings.ToLower(model)
+		return strings.Contains(l, "voicedesign") || strings.Contains(l, "voxcpm")
+	}
+	return false
+}
+
 // GaeaTTSVoiceParams 返回情绪标签对应的结构化 TTS 参数（v4.3d，shared）：
 // 前端预览/调试与语音管道共用；未知情绪返回零值（引擎默认）。
 func (a *App) GaeaTTSVoiceParams(emotion string) tts.TTSParams {

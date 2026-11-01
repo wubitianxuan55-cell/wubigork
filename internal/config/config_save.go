@@ -447,6 +447,7 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 		cf.UsdCnyRate = f
 		return nil
 	},
+	KeyVoiceBackend: func(cf *configFile, v string) error { cf.VoiceBackend = v; return nil },
 	KeyRealtimeProvider: func(cf *configFile, v string) error {
 		// 空 = 关闭实时语音档（允许清空回未配置态）；非空只允许已注册 kind
 		// "openai"（与 internal/realtime 注册表一致，非法值保存即拒绝）。

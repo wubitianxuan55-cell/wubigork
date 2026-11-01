@@ -38,6 +38,10 @@ export function ChatStreamCancel(arg1) {
   return window['go']['app']['ChatB']['ChatStreamCancel'](arg1);
 }
 
+export function ChatStreamPersona(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['app']['ChatB']['ChatStreamPersona'](arg1, arg2, arg3, arg4, arg5, arg6);
+}
+
 export function ChatStreamPlain(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['app']['ChatB']['ChatStreamPlain'](arg1, arg2, arg3, arg4, arg5);
 }

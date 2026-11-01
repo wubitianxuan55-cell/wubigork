@@ -1,6 +1,8 @@
 package app
 
 import (
+	"context"
+	"crypto/sha1"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -8,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/assistant"
@@ -46,6 +49,22 @@ var (
 	whisperSessionsMu sync.RWMutex
 )
 
+const (
+	voiceContextCharBudget = 5000
+	voiceHistoryTurns      = 4
+	voiceMaxOutputTokens   = 768
+)
+
+// truncateVoiceContext 保留人格状态、情绪与高优先级记忆的头部，尾部低权重
+// 召回内容在语音低延迟模式下截断。文字聊天不经过此函数。
+func truncateVoiceContext(s string) string {
+	runes := []rune(strings.TrimSpace(s))
+	if len(runes) <= voiceContextCharBudget {
+		return string(runes)
+	}
+	return string(runes[:voiceContextCharBudget]) + "\n\n【语音低延迟模式：低优先级上下文已压缩】"
+}
+
 func (a *whisperState) getOrCreateOrch(personalityID string) *whisper.Orchestrator {
 	sessionID := "whisper_" + personalityID
 	whisperSessionsMu.RLock()
@@ -67,10 +86,16 @@ func (a *whisperState) getOrCreateOrch(personalityID string) *whisper.Orchestrat
 		}
 	} else {
 		preset = whisper.GetPreset(personalityID)
-		// 全局角色库优先：库内角色（含可编辑的内置人格）直接作为聊天人格
+		// 全局角色库优先：库内角色（含可编辑的内置人格）直接作为聊天人格，
+		// 且库卡是唯一事实源——ToPreset 已折叠性格/背景/口吻/行为规则/情感
+		// 逻辑/对话样本，不再被助手记录的精简快照整体覆盖（旧序会把厚人格
+		// 换成只剩 voiceGuide 的薄壳，性格背景全部丢失）。助手记录只在库内
+		// 无此人格时兜底（小说导入等历史路径）。
+		fromLib := false
 		if a.charLib != nil {
 			if c, err := a.charLib.Get(personalityID); err == nil && c != nil && !c.Hidden && c.ChatEnabled {
 				preset = c.ToPreset()
+				fromLib = true
 			}
 		}
 		if preset == nil {
@@ -79,25 +104,29 @@ func (a *whisperState) getOrCreateOrch(personalityID string) *whisper.Orchestrat
 		if preset == nil {
 			preset = &whisper.PersonalityPresets[0]
 		}
-		// 小说角色导入的自定义人格：助手记录带 voiceGuide 时覆盖预设
-		if ast, ok := a.assistantMgr.FindByPersonality(personalityID); ok && ast.VoiceGuide != "" {
-			dims := ast.Dims
-			if dims.T == 0 && dims.I == 0 && dims.S == 0 && dims.O == 0 && dims.R == 0 {
-				dims = whisper.PersonalityDims{T: 50, I: 50, S: 50, O: 50, R: 50}
+		// 小说角色导入的自定义人格（不在角色库）：助手记录带 voiceGuide 时兜底
+		if !fromLib {
+			if ast, ok := a.assistantMgr.FindByPersonality(personalityID); ok && ast.VoiceGuide != "" {
+				dims := ast.Dims
+				if dims.T == 0 && dims.I == 0 && dims.S == 0 && dims.O == 0 && dims.R == 0 {
+					dims = whisper.PersonalityDims{T: 50, I: 50, S: 50, O: 50, R: 50}
+				}
+				preset = &whisper.PersonalityPreset{
+					ID:         ast.PersonalityID,
+					Label:      ast.Name,
+					Gender:     ast.Gender,
+					Dims:       dims,
+					Tags:       ast.Tags,
+					VoiceGuide: ast.VoiceGuide,
+				}
+				slog.Info("使用自定义人格角色", "personalityID", personalityID, "name", ast.Name)
 			}
-			preset = &whisper.PersonalityPreset{
-				ID:         ast.PersonalityID,
-				Label:      ast.Name,
-				Gender:     ast.Gender,
-				Dims:       dims,
-				Tags:       ast.Tags,
-				VoiceGuide: ast.VoiceGuide,
-			}
-			slog.Info("使用自定义人格角色", "personalityID", personalityID, "name", ast.Name)
 		}
 	}
 	orch := whisper.NewOrchestrator(sessionID, *preset)
 	orch.DataRoot = a.whisperDataRoot
+	// KV 前缀稳定化二刀：历史走 append-only messages（见 whisperChat 调用处注释）
+	orch.HistoryInMessages = true
 	// FTS 全文检索回调：buildTierBBlock 经此走 hermes.db FTS5 索引（含 LIKE 中文降级）
 	orch.FTSSearch = func(query string, limit int) []string {
 		ids, err := repos.SearchFactIDsFTS(a.whisperDataRoot, query, limit)
@@ -157,6 +186,18 @@ func (a *whisperState) WhisperChat(userMsg string, personalityID string, thinkin
 // 全局缓存），微信回调按助手身份注入名字必须在回合锁内完成——锁外直写会互相覆盖，
 // 且与 PreLLMTurn 锁内读（BuildAckemCanonBlock 身份块）构成数据竞争。
 func (a *whisperState) whisperChat(userMsg, personalityID, assistantName string, thinking bool) (result map[string]interface{}, err error) {
+	return a.whisperChatCore(a.ctx, userMsg, personalityID, assistantName, thinking, false, nil, nil)
+}
+
+// whisperChatCore 是阻塞/流式两条输入路径共用的角色回合实现。onDelta 与
+// onReasoning 非空时，模型分片一到达就交给调用方；否则只聚合最终文本。
+func (a *whisperState) whisperChatCore(
+	ctx context.Context,
+	userMsg, personalityID, assistantName string,
+	thinking bool,
+	lowLatency bool,
+	onDelta, onReasoning func(string),
+) (result map[string]interface{}, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Error("[whisper] PANIC", "panic", fmt.Sprintf("%v", r))
@@ -164,6 +205,12 @@ func (a *whisperState) whisperChat(userMsg, personalityID, assistantName string,
 			err = fmt.Errorf("whisper panic: %v", r)
 		}
 	}()
+	if ctx == nil {
+		ctx = a.ctx
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
 	msgPreview := userMsg
 	if len(userMsg) > 80 {
@@ -194,17 +241,56 @@ func (a *whisperState) whisperChat(userMsg, personalityID, assistantName string,
 	slog.Info("[whisper] TurnPlan", "routing", turnPlan.Routing, "goal", turnPlan.Goal)
 
 	preResult := orch.PreLLMTurn(userMsg)
-	slog.Info("[whisper] PreLLMTurn done", "hasSystemPrompt", len(preResult.SystemPrompt) > 0, "eventType", preResult.Event.Type)
+	slog.Info("[whisper] PreLLMTurn done", "hasSystemPrompt", len(preResult.SystemPrompt) > 0, "eventType", preResult.Event.Type,
+		"dynCtxChars", len(preResult.DynamicContext))
 
 	systemPrompt := preResult.SystemPrompt
+	// KV 前缀稳定化（2026-11-01 提速刀，两段式）：
+	// ① system 只留跨轮稳定段（orchestrator 动态上下文挪出）；
+	// ② 会话历史走真实 append-only messages（RecentExchanges）——system+旧历史
+	// 跨轮字节不变，引擎前缀缓存（llama-server --cache-reuse）跨轮命中，每轮
+	// 只 prefill 新增轮次（动态上下文+本轮消息），长会话每轮 10~26s 冷 prefill
+	// 降至 2~4s 量级。
+	dynamicCtx := strings.TrimSpace(preResult.DynamicContext)
 	if turnPlan.Routing == whisper.RouteStructuredChat && turnPlan.FormatHint != "" {
-		systemPrompt = systemPrompt + "\n\n【本轮格式要求】\n" + turnPlan.FormatHint
+		dynamicCtx = strings.TrimSpace(dynamicCtx + "\n\n【本轮格式要求】\n" + turnPlan.FormatHint)
 	}
+	llmUserMsg := userMsg
+	if dynamicCtx != "" {
+		llmUserMsg = "【本轮上下文】\n" + dynamicCtx + "\n【本轮上下文结束】\n\n用户消息：" + userMsg
+	}
+	if lowLatency {
+		dynamicCtx = truncateVoiceContext(dynamicCtx)
+		if turnPlan.Routing == whisper.RouteStructuredChat && turnPlan.FormatHint != "" {
+			formatBlock := "【本轮格式要求】\n" + turnPlan.FormatHint
+			if !strings.Contains(dynamicCtx, formatBlock) {
+				dynamicCtx = strings.TrimSpace(dynamicCtx + "\n\n" + formatBlock)
+			}
+		}
+		llmUserMsg = userMsg
+		if dynamicCtx != "" {
+			llmUserMsg = "【本轮上下文】\n" + dynamicCtx + "\n【本轮上下文结束】\n\n用户消息：" + userMsg
+		}
+	}
+	historyExchanges := preResult.RecentExchanges
+	if lowLatency && len(historyExchanges) > voiceHistoryTurns {
+		historyExchanges = historyExchanges[len(historyExchanges)-voiceHistoryTurns:]
+	}
+	messages := []ai.ChatMessage{{Role: "system", Content: systemPrompt}}
+	for _, ex := range historyExchanges {
+		if strings.TrimSpace(ex.UserText) != "" {
+			messages = append(messages, ai.ChatMessage{Role: "user", Content: ex.UserText})
+		}
+		if strings.TrimSpace(ex.AssistantText) != "" {
+			messages = append(messages, ai.ChatMessage{Role: "assistant", Content: ex.AssistantText})
+		}
+	}
+	messages = append(messages, ai.ChatMessage{Role: "user", Content: llmUserMsg})
 
 	// v4.16 离线裂缝收口：persona 主链路与 plain 聊天同源走 routeModel（功能绑定 →
 	// 全局 → 兜底，离线模式自动滤云端）；无可用时 model 为空，由客户端按既有
 	// 「模型不可用」路径处理（与 v4.15 plain 聊天一致）。
-	engine, model, _ := a.routeModel("chat")
+	engine, model, source := a.routeModel("chat")
 	// per-call 引擎覆盖：不影响全局激活引擎，多会话并发安全
 	if a.clientRef() == nil {
 		slog.Error("[whisper] client is nil")
@@ -214,14 +300,97 @@ func (a *whisperState) whisperChat(userMsg, personalityID, assistantName string,
 	// 注入时追加人格锁定段（防系统层覆盖人格段）并锁温度上限；
 	// max_output_tokens 钳制输出。未配置 = 零值 = 请求与现状逐字节一致。
 	opts := ai.ChatSimpleOptions{EngineID: engine, Feature: "chat", EnableThinking: thinking, DisableThinking: !thinking}
+	if lowLatency && opts.MaxTokens <= 0 {
+		opts.MaxTokens = voiceMaxOutputTokens
+	}
 	systemPrompt = applyWhisperGuardrails(&opts, systemPrompt, orch.Preset, playGuardrails())
-	slog.Info("[whisper] calling LLM", "engine", engine, "model", model)
-	reply, reasoning, callErr := a.clientRef().ChatSimpleStreamDetailed(a.ctx, model, systemPrompt, userMsg, opts)
+	// 前缀命中观测（KV 前缀稳定化验证）：system 跨轮哈希应恒定、历史轮数递增
+	sysSum := sha1.Sum([]byte(systemPrompt))
+	slog.Info("[whisper] calling LLM", "engine", engine, "model", model,
+		"sysHash", fmt.Sprintf("%x", sysSum)[:8], "histTurns", len(historyExchanges),
+		"dynCtxChars", len([]rune(dynamicCtx)), "lowLatency", lowLatency)
+	requestStart := time.Now()
+	chunks, cancel, callErr := a.clientRef().ChatStreamMessages(ctx, model, messages, opts, nil)
 	if callErr != nil {
 		slog.Error("[whisper] LLM call failed", "error", callErr)
 		return nil, callErr
 	}
+	defer cancel()
+
+	var replyBuilder strings.Builder
+	var reasoningBuilder strings.Builder
+	var usage *ai.ChatUsage
+	var firstTokenAt time.Time
+	streamPending := ""
+	emitDelta := func(delta string) {
+		if onDelta == nil {
+			return
+		}
+		streamPending += delta
+		for {
+			markerAt := strings.Index(streamPending, whisper.SplitMarker)
+			if markerAt < 0 {
+				break
+			}
+			if markerAt > 0 {
+				onDelta(streamPending[:markerAt])
+			}
+			onDelta("\n")
+			streamPending = streamPending[markerAt+len(whisper.SplitMarker):]
+		}
+		hold := 0
+		for n := len(whisper.SplitMarker) - 1; n > 0; n-- {
+			if strings.HasSuffix(streamPending, whisper.SplitMarker[:n]) {
+				hold = n
+				break
+			}
+		}
+		if len(streamPending) > hold {
+			cut := len(streamPending) - hold
+			onDelta(streamPending[:cut])
+			streamPending = streamPending[cut:]
+		}
+	}
+	for chunk := range chunks {
+		if chunk.Error != "" {
+			callErr = errors.New(chunk.Error)
+			break
+		}
+		if chunk.Done {
+			usage = chunk.Usage
+			break
+		}
+		if (chunk.Content != "" || chunk.Reasoning != "") && firstTokenAt.IsZero() {
+			firstTokenAt = time.Now()
+		}
+		if chunk.Content != "" {
+			replyBuilder.WriteString(chunk.Content)
+			emitDelta(chunk.Content)
+		}
+		if chunk.Reasoning != "" {
+			reasoningBuilder.WriteString(chunk.Reasoning)
+			if onReasoning != nil {
+				onReasoning(chunk.Reasoning)
+			}
+		}
+	}
+	if onDelta != nil && streamPending != "" {
+		onDelta(streamPending)
+	}
+	finishedAt := time.Now()
+	cancelled := ctx.Err() != nil
+	if callErr != nil && !cancelled {
+		slog.Error("[whisper] LLM call failed", "error", callErr)
+		return nil, callErr
+	}
+	reply := replyBuilder.String()
+	reasoning := reasoningBuilder.String()
 	slog.Info("[whisper] LLM reply", "len", len(reply))
+	streamStats := []any{"lowLatency", lowLatency, "totalMs", finishedAt.Sub(requestStart).Milliseconds()}
+	if !firstTokenAt.IsZero() {
+		streamStats = append(streamStats, "ttftMs", firstTokenAt.Sub(requestStart).Milliseconds())
+	}
+	slog.Info("[whisper] LLM stream stats", streamStats...)
 
 	// 节奏标记归一（v4.9.1）：chatter 模式要求模型用 [SPLIT] 分条连发，但该
 	// 标记是内部格式协议——本函数是 GUI/微信/语音三个出口的共同上游，在这
@@ -236,9 +405,35 @@ func (a *whisperState) whisperChat(userMsg, personalityID, assistantName string,
 		sentences = []string{reply}
 	}
 
+	costCNY := 0.0
+	if usage != nil {
+		usdCny := 0.0
+		if a.cfg != nil {
+			usdCny = a.cfg.UsdCnyRate
+		}
+		costCNY = modelengine.EstimateCostCNY(engine, model, usage.PromptTokens, usage.CompletionTokens, usdCny)
+	}
+	answeredBy := map[string]interface{}{
+		"engine": engine, "model": model, "source": source, "cost_cny": costCNY,
+	}
+	metrics := streamOutputMetrics(requestStart, firstTokenAt, finishedAt, usage)
+	if len(metrics) > 0 {
+		answeredBy["metrics"] = metrics
+	}
+	if usage != nil && !firstTokenAt.IsZero() {
+		if tps := streamTokensPerSecond(usage.CompletionTokens, finishedAt.Sub(firstTokenAt)); tps > 0 {
+			answeredBy["tokens_per_second"] = tps
+		}
+	}
+
 	orch.WM.Push(orch.SessionID, whisper.Exchange{
 		TurnIndex: orch.State.Counters.TotalTurns, UserText: userMsg, AssistantText: reply,
 	})
+	// KV 前缀稳定化四刀：提示历史记**实际发送内容**（llmUserMsg 含动态前缀），
+	// 保证下一轮 messages 前缀与本轮尾部逐字节衔接（引擎前缀缓存命中前提）。
+	if orch.HistoryInMessages {
+		orch.RecordPromptTurn(orch.State.Counters.TotalTurns, llmUserMsg, reply)
+	}
 
 	l1Snap := orch.State.Relationship
 	l2Snap := orch.State.Emotion
@@ -298,6 +493,8 @@ func (a *whisperState) whisperChat(userMsg, personalityID, assistantName string,
 		"trace":        preResult.Trace,
 		"facts":        buildFactsList(orch.FactStore),
 		"sharedEvents": orch.State.Counters.SharedEventsCount,
+		"answered_by":  answeredBy,
+		"cancelled":    cancelled,
 	}, nil
 }
 
@@ -535,9 +732,31 @@ func (a *whisperState) WhisperChatWithSearch(userMsg string, personalityID strin
 	return a.whisperChatWithSearch(userMsg, personalityID, "", thinking, forceSearch)
 }
 
+// whisperChatStream 角色聊天流式入口：搜索增强、人格预编排与最终状态收尾
+// 与阻塞路径共用 whisperChatCore，只把模型正文/推理分片实时交给调用方。
+func (a *whisperState) whisperChatStream(
+	ctx context.Context,
+	userMsg, personalityID string,
+	searchEnabled, thinking, forceSearch bool,
+	lowLatency bool,
+	onDelta, onReasoning func(string),
+) (map[string]interface{}, error) {
+	msg := userMsg
+	if forceSearch || (searchEnabled && shouldSearchWeb(userMsg)) {
+		msg = a.prepareWhisperChatMessage(userMsg, true)
+	}
+	return a.whisperChatCore(ctx, msg, personalityID, "", thinking, lowLatency, onDelta, onReasoning)
+}
+
 // whisperChatWithSearch 搜索增强的内部实现：assistantName 非空时透传给 whisperChat
 // 在其 LockTurn 持锁窗口内注入 orch.AssistantName。
 func (a *whisperState) whisperChatWithSearch(userMsg, personalityID, assistantName string, thinking, forceSearch bool) (map[string]interface{}, error) {
+	return a.whisperChat(a.prepareWhisperChatMessage(userMsg, forceSearch), personalityID, assistantName, thinking)
+}
+
+// prepareWhisperChatMessage 在请求模型前完成可选联网搜索。搜索结果只进入
+// 本轮模型上下文，不污染落库的用户原文。
+func (a *whisperState) prepareWhisperChatMessage(userMsg string, forceSearch bool) string {
 	// 检测搜索意图（身份类问题除外——「你是谁/你会什么」问的是助手自己，
 	// 联网搜索只会注入无关网页摘要，模型把英文片段混进回复反而出乱码）
 	if !isIdentityQuestion(userMsg) && (forceSearch || shouldSearchWeb(userMsg)) {
@@ -546,11 +765,10 @@ func (a *whisperState) whisperChatWithSearch(userMsg, personalityID, assistantNa
 		searchResult, err := whisper.WebSearch(userMsg)
 		if err == nil && searchResult != "" {
 			// 将搜索结果注入为增强的 userMsg
-			enhancedMsg := fmt.Sprintf("%s\n\n[以下是关于此问题的实时搜索结果，请参考这些信息回答]\n%s", userMsg, searchResult)
-			return a.whisperChat(enhancedMsg, personalityID, assistantName, thinking)
+			return fmt.Sprintf("%s\n\n[以下是关于此问题的实时搜索结果，请参考这些信息回答]\n%s", userMsg, searchResult)
 		}
 	}
-	return a.whisperChat(userMsg, personalityID, assistantName, thinking)
+	return userMsg
 }
 
 // whisperChatAsAssistant 以指定助手身份发起对话（微信回调专用内部入口，不进 Wails 绑定面）：

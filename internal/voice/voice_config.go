@@ -93,6 +93,11 @@ type VoiceRuntimeConfig struct {
 
 	// Realtime API Key（内存态明文；空 = 未配置）
 	RealtimeAPIKey string `json:"realtimeAPIKey,omitempty"`
+
+	// ── Voice V2 档（M4 产品接入刀）──
+	// 语音对话后端："v1"（默认，whisper 拼接管线）| "v2"（实时 sidecar：
+	// VoiceClientV2 → ws://127.0.0.1:8791，feature flag，V1 全保留可回退）。
+	VoiceBackend string `json:"voiceBackend"`
 }
 
 // DefaultVoiceConfig 默认语音配置
@@ -109,6 +114,7 @@ func DefaultVoiceConfig() VoiceRuntimeConfig {
 		SilenceThresholdMs:   1000,
 		InputChannel:         InputDual,
 		PersonalityPresetID:  "gaea",
+		VoiceBackend:         "v1",
 	}
 }
 
@@ -125,6 +131,9 @@ func (c *VoiceRuntimeConfig) Validate() {
 	}
 	if c.SilenceThresholdMs > 5000 {
 		c.SilenceThresholdMs = 5000
+	}
+	if c.VoiceBackend != "v2" {
+		c.VoiceBackend = "v1" // 空/未知值一律回 v1（flag 缺省安全）
 	}
 	if c.TTSVoice == "" {
 		c.TTSVoice = "zh-CN-YunxiNeural"

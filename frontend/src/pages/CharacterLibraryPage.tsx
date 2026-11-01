@@ -15,6 +15,7 @@ import CharacterLibEditor from '../components/characterlib/CharacterLibEditor'
 import CharacterLibInspector from '../components/characterlib/CharacterLibInspector'
 import CharacterLibFilterBar from '../components/characterlib/CharacterLibFilterBar'
 import CharacterMemoryModal from '../components/characterlib/CharacterMemoryModal'
+import { PortraitImg } from '../components/characterlib/PortraitImg'
 import { useAppStore } from '../stores/appStore'
 import {
   listCharacters, getCharacter, deleteCharacter, importProjectCharacters,
@@ -97,6 +98,19 @@ const CharacterLibraryPage: React.FC = () => {
     window.addEventListener('gaea-persona-changed', onPersona)
     return () => window.removeEventListener('gaea-persona-changed', onPersona)
   }, [])
+
+  // 档案墙加载/翻页后自动选中当前仍存在的角色；首屏直接给右侧 inspector
+  // 一个有效对象，避免默认长期空置。用户手动选择的角色在数据刷新后保持。
+  useEffect(() => {
+    if (items.length === 0) {
+      setSelected(null)
+      setSelectedIndex(0)
+      return
+    }
+    const next = selected ? items.find(item => item.id === selected.id) ?? items[0] : items[0]
+    setSelected(next)
+    setSelectedIndex(Math.max(0, items.findIndex(item => item.id === next.id)))
+  }, [items, selected])
 
   /** 点击档案卡 → 右侧 inspector 预览（编辑走 inspector/卡片上的「编辑」） */
   const selectForInspector = (c: LibraryCharacter) => {
@@ -269,41 +283,59 @@ const CharacterLibraryPage: React.FC = () => {
 
   const hasProject = !!projectPath
   const inProjectOf = (id: string) => projectRefs.has(id)
+  const chatCount = items.filter(c => c.chatEnabled).length
+  const currentPersonaCharacter = items.find(c => c.id === currentPersona)
+  const heroCharacter = selected ?? items[0]
 
   return (
     <div className="clib-page">
-      {/* ── 细条头部：统计 + 主操作（板块名已在左侧轨道） ── */}
-      <div className="clib-header-bar">
-        <div className="clib-count">
-          <TeamOutlined aria-hidden />
-          角色档案库
-          <span className="clib-count-num">{total}</span>
-          <span className="clib-count-unit">位</span>
+      {/* ── 档案库主视觉：人物资产与聊天人格的双重定位 ── */}
+      <header className="clib-masthead">
+        {heroCharacter?.portraitUrl && (
+          <div className="clib-mast-art" aria-hidden="true">
+            <PortraitImg src={heroCharacter.portraitUrl} alt="" />
+          </div>
+        )}
+        <div className="clib-mast-copy">
+          <div className="clib-kicker"><span>CAST ARCHIVE</span> 人物档案</div>
+          <h1 className="clib-mast-title">每个角色，都值得一份完整档案</h1>
+          <p className="clib-mast-sub">
+            人物是独立资产：小说可以引用他们的故事，聊天可以把他们变成可感知的人格。
+          </p>
         </div>
-        <div className="clib-actions">
-          <Button type="primary" icon={<PlusOutlined />} onClick={openNew}
-            className="clib-new-btn">新建角色</Button>
+        <div className="clib-mast-side">
+          <div className="clib-mast-metrics" aria-label="角色库统计">
+            <div><strong>{total}</strong><span>位档案</span></div>
+            <div><strong>{chatCount}</strong><span>当前页可聊天</span></div>
+            <div>
+              <strong>{currentPersonaCharacter?.name || (currentPersona ? '已设定' : '未设定')}</strong>
+              <span>当前聊天人格</span>
+            </div>
+          </div>
+          <Button type="primary" icon={<PlusOutlined />} onClick={openNew} className="clib-new-btn">
+            新建角色
+          </Button>
         </div>
-      </div>
+      </header>
 
-      {/* ── 3 分区工作台 ── */}
+      {/* 检索与筛选改成横跨工作台的检索带，为档案墙释放一列空间 */}
+      <CharacterLibFilterBar
+        query={query}
+        kind={kind}
+        chatOnly={chatOnly}
+        total={total}
+        hasProject={hasProject}
+        fillingAll={fillingAll}
+        onQueryChange={q => { setQuery(q); setPage(1) }}
+        onKindChange={k => { setKind(k); setPage(1) }}
+        onChatOnlyChange={v => { setChatOnly(v); setPage(1) }}
+        onFillAll={handleFillAll}
+        onImportProject={handleImportProject}
+        onSyncProject={handleSyncProject}
+      />
+
+      {/* ── 档案墙 + 详情检查器 ── */}
       <div className="clib-workbench">
-        {/* 左：检索 / 筛选栏 */}
-        <CharacterLibFilterBar
-          query={query}
-          kind={kind}
-          chatOnly={chatOnly}
-          total={total}
-          hasProject={hasProject}
-          fillingAll={fillingAll}
-          onQueryChange={q => { setQuery(q); setPage(1) }}
-          onKindChange={k => { setKind(k); setPage(1) }}
-          onChatOnlyChange={v => { setChatOnly(v); setPage(1) }}
-          onFillAll={handleFillAll}
-          onImportProject={handleImportProject}
-          onSyncProject={handleSyncProject}
-        />
-
         {/* 中：档案卡网格 */}
         <main className="clib-main" aria-label="角色档案网格">
           {!hasProject && (
@@ -350,6 +382,7 @@ const CharacterLibraryPage: React.FC = () => {
                     key={c.id}
                     character={c}
                     index={idx}
+                    isSelected={selected?.id === c.id}
                     inProject={inProjectOf(c.id)}
                     isCurrentPersona={currentPersona === c.id}
                     hasProject={hasProject}

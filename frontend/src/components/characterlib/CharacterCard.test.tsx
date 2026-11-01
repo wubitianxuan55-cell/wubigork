@@ -120,6 +120,15 @@ describe('CharacterCard', () => {
     expect(onClick).toHaveBeenCalledWith(c)
   })
 
+  it('当前检查器中的档案卡显示独立选中态', () => {
+    const { container } = render(
+      <CharacterCard character={makeCharacter()} index={0} isSelected onClick={noop} {...baseProps} />,
+    )
+    const card = container.querySelector('.ccard') as HTMLElement
+    expect(card.classList.contains('is-selected')).toBe(true)
+    expect(card.getAttribute('aria-pressed')).toBe('true')
+  })
+
   it('点击编辑按钮不触发 onClick', () => {
     const onClick = vi.fn()
     const onEdit = vi.fn()
@@ -138,11 +147,11 @@ describe('CharacterCard', () => {
     expect(onClick).toHaveBeenCalledWith(c)
   })
 
-  it('custom 卡显示「创建青鸟助手」，Popconfirm 确认后以角色为人格调 WhisperAssistantSave', async () => {
+  it('custom 卡显示「创建微信助手」，Popconfirm 确认后以角色为人格调 WhisperAssistantSave', async () => {
     const onAssistantCreated = vi.fn()
     render(<CharacterCard character={makeCharacter()} index={0} {...baseProps} onAssistantCreated={onAssistantCreated} />)
-    const trigger = screen.getByTitle('创建青鸟助手')
-    expect(trigger.getAttribute('aria-label')).toBe('创建青鸟助手 苏念')
+    const trigger = screen.getByTitle('创建微信助手')
+    expect(trigger.getAttribute('aria-label')).toBe('创建微信助手 苏念')
     // Popconfirm 二次确认：点动作 → 点「创建」
     fireEvent.click(trigger)
     fireEvent.click(await screen.findByRole('button', { name: /^创\s*建$/ }))
@@ -159,7 +168,7 @@ describe('CharacterCard', () => {
     expect(onAssistantCreated).toHaveBeenCalledTimes(1)
   })
 
-  it('创建成功 → 深链跳青鸟：写焦点（sessionStorage）+ 派发 NAVIGATE(page=weixin)，提示前往绑定', async () => {
+  it('创建成功 → 深链跳微信助手：写焦点（sessionStorage）+ 派发 NAVIGATE(page=weixin)，提示前往绑定', async () => {
     sessionStorage.removeItem(WX_FOCUS_KEY)
     const navListener = vi.fn()
     window.addEventListener(FRONTEND_EVENTS.NAVIGATE, navListener)
@@ -168,17 +177,17 @@ describe('CharacterCard', () => {
     const messageSpy = vi.spyOn(antd.message, 'success')
     try {
       render(<CharacterCard character={makeCharacter()} index={0} {...baseProps} />)
-      fireEvent.click(screen.getByTitle('创建青鸟助手'))
+      fireEvent.click(screen.getByTitle('创建微信助手'))
       fireEvent.click(await screen.findByRole('button', { name: /^创\s*建$/ }))
       await waitFor(() => {
-        // 焦点 = 本次创建的助手 id（先落焦点再导航，青鸟页读后即清）
+        // 焦点 = 本次创建的助手 id（先落焦点再导航，微信助手页读后即清）
         const saved = mockedSave.mock.calls[mockedSave.mock.calls.length - 1][0] as { id: string }
         expect(saved.id).toMatch(/^wx_/)
         expect(sessionStorage.getItem(WX_FOCUS_KEY)).toBe(saved.id)
         expect(navListener).toHaveBeenCalledWith(expect.objectContaining({ detail: { page: 'weixin', crossSpace: true } }))
       })
-      // 提示文案指向青鸟绑定（不再让用户自己找路）
-      expect(messageSpy).toHaveBeenCalledWith('已创建，正在前往青鸟绑定…')
+      // 提示文案指向微信助手绑定（不再让用户自己找路）
+      expect(messageSpy).toHaveBeenCalledWith('已创建，正在前往微信助手绑定…')
     } finally {
       messageSpy.mockRestore()
       window.removeEventListener(FRONTEND_EVENTS.NAVIGATE, navListener)
@@ -186,15 +195,15 @@ describe('CharacterCard', () => {
     }
   })
 
-  it('assistant / builtin 卡不渲染「创建青鸟助手」动作', () => {
+  it('assistant / builtin 卡不渲染「创建微信助手」动作', () => {
     const { container: a } = render(<CharacterCard character={makeCharacter({ kind: 'assistant' })} index={0} {...baseProps} />)
-    expect(a.querySelector('[title="创建青鸟助手"]')).toBeNull()
+    expect(a.querySelector('[title="创建微信助手"]')).toBeNull()
     const { container: b, unmount } = render(<CharacterCard character={makeCharacter({ kind: 'builtin' })} index={0} {...baseProps} />)
-    expect(b.querySelector('[title="创建青鸟助手"]')).toBeNull()
+    expect(b.querySelector('[title="创建微信助手"]')).toBeNull()
     unmount()
     // custom 卡对照：动作存在
     const { container: c } = render(<CharacterCard character={makeCharacter({ kind: 'custom' })} index={0} {...baseProps} />)
-    expect(c.querySelector('[title="创建青鸟助手"]')).not.toBeNull()
+    expect(c.querySelector('[title="创建微信助手"]')).not.toBeNull()
   })
   it('chatEnabled 但五维档案缺档：不渲染雷达也不崩（旧档/外部来源角色；v4.346 前会整页崩进错误边界）', () => {
     const { container } = render(

@@ -335,6 +335,10 @@ export const GAEA_METHOD_FACETS = {
   // 同 WhisperGetState/GetFacts 等轻语数据面归 play；语音运行时启停族归 play）。
   TTSSpeakBase64: "shared",
   TTSSpeakBase64WithParams: "shared",
+  // 角色档案试听段（角色库编辑器/检查器试听钮）：合成入口同 TTSSpeakBase64 归 shared。
+  TTSVoicePreviewBase64: "shared",
+  // 角色台词语音文件（内容寻址缓存优先）：试听链同上归 shared。
+  TTSLineAudioFor: "shared",
   WhisperClearSession: "play",
   VoiceStart: "play",
   VoiceStop: "play",
@@ -349,6 +353,11 @@ export const GAEA_METHOD_FACETS = {
   // 模型中心 BindSection）+ 本地 TTS 服务启动（模型中心「启动」按钮）——
   // 语音朗读/模型设置两空间共用，同 TTSVoiceParams 归 shared。
   VoiceApplySettings: "shared",
+  // Voice V2 档（M4 产品接入刀）：sidecar 依赖链监护——语音设置面板（实验档
+  // 卡片）与语音台（v2 会话前置检查）共用，语音朗读/模型设置同跨，归 shared。
+  VoiceV2Status: "shared",
+  VoiceV2Ensure: "shared",
+  VoiceV2Stop: "shared",
   // 批次二 legacy 直调转正：语音设置读取（VoiceGetSettings）与
   // VoiceApplySettings patch 写配对，同归 shared（语音设置面板/模型中心两空间共用）。
   VoiceGetSettings: "shared",
@@ -387,6 +396,7 @@ export const GAEA_METHOD_FACETS = {
   ChatImportTopic: "work",
   ChatSend: "work",
   ChatStreamPlain: "work",
+  ChatStreamPersona: "work",
   // P1-5：对话流取消（ChatB 门面，work/play 共用通道）。
   ChatStreamCancel: "work",
   ChatTopicClear: "work",

@@ -1,7 +1,7 @@
 /**
  * events.ts — 事件名常量表 + subscribe() 统一封装（3.0 01 报告 §4）
  *
- * 后端事件 23 个（window.runtime.EventsOn 全量订阅点，§4.1）+ 前端自定义事件 4 个（§4.2）。
+ * 后端事件 28 个（window.runtime.EventsOn 全量订阅点，§4.1）+ 前端自定义事件 4 个（§4.2）。
  * subscribe() 收敛"规范路径（wailsjs runtime 返回卸载函数）"与"手动路径（window.runtime 裸调）"
  * 两套并存（§4.3），统一返回 () => void 卸载函数。
  */
@@ -39,6 +39,8 @@ export const BACKEND_EVENTS = {
   VOICE_TRANSCRIPT: 'voice:transcript',
   /** 语音回复文本 */
   VOICE_REPLY: 'voice:reply',
+  /** 语音回复流式增量（首句生成中即更新界面） */
+  VOICE_REPLY_DELTA: 'voice:reply-delta',
   /** 语音 TTS 音频 */
   VOICE_TTS_AUDIO: 'voice:tts-audio',
   /** 语音 TTS 朗读文本 */

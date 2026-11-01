@@ -116,7 +116,8 @@ func TestVoiceStart_RealtimeGateSkipsWhisperChat(t *testing.T) {
 	app := &App{core: &core{cfg: cfg}}
 	a := &mediaState{core: &core{cfg: cfg}, app: app}
 	a.initVoice()
-	a.voiceManager.SetWhisperChatFn(nil) // 显式剥掉对话回调
+	a.voiceManager.SetWhisperChatFn(nil)       // 显式剥掉阻塞兼容回调
+	a.voiceManager.SetWhisperChatStreamFn(nil) // 同时剥掉低延迟流式回调
 	a.voiceManager.SetRealtimeSession(newStubRealtimeSession())
 
 	if err := a.VoiceStart(false); err != nil {
@@ -134,6 +135,7 @@ func TestVoiceStart_LegacyWhisperGateUnchanged(t *testing.T) {
 	a := &mediaState{core: &core{cfg: cfg}, app: app}
 	a.initVoice()
 	a.voiceManager.SetWhisperChatFn(nil)
+	a.voiceManager.SetWhisperChatStreamFn(nil)
 
 	err := a.VoiceStart(true) // browserASR=true 跳过 ASR 门，只测 WhisperReady 门
 	if err == nil {

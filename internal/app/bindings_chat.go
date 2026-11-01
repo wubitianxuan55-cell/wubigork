@@ -19,6 +19,7 @@ func (b *ChatB) ChatMessagesList(topicID string) ([]chat.Message, error) { retur
 func (b *ChatB) ChatMessagesPage(topicID string, limit int, beforeSeq int64) (ChatMessagesPageResult, error) { return b.a.ChatMessagesPage(topicID, limit, beforeSeq) }
 func (b *ChatB) ChatSend(topicID string, message string, mode string, searchEnabled bool, thinking bool, forceSearch bool) (map[string]interface{}, error) { return b.a.ChatSend(topicID, message, mode, searchEnabled, thinking, forceSearch) }
 func (b *ChatB) ChatStreamCancel(runID string) bool { return b.a.ChatStreamCancel(runID) }
+func (b *ChatB) ChatStreamPersona(topicID string, message string, mode string, searchEnabled bool, thinking bool, forceSearch bool) (string, error) { return b.a.ChatStreamPersona(topicID, message, mode, searchEnabled, thinking, forceSearch) }
 func (b *ChatB) ChatStreamPlain(topicID string, message string, searchEnabled bool, thinking bool, forceSearch bool) (string, error) { return b.a.ChatStreamPlain(topicID, message, searchEnabled, thinking, forceSearch) }
 func (b *ChatB) ChatTopicClear(id string) error { return b.a.ChatTopicClear(id) }
 func (b *ChatB) ChatTopicCreate(title string, mode string) (chat.Topic, error) { return b.a.ChatTopicCreate(title, mode) }

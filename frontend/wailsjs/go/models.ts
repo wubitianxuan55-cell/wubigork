@@ -6457,6 +6457,7 @@ export namespace characterlib {
 	    hiddenPersona?: whisper.PersonalityDims;
 	    ttsVoiceId?: string;
 	    ttsDesc?: string;
+	    ttsLine?: string;
 	    assistantId?: string;
 	    createdAt: string;
 	    updatedAt: string;
@@ -6496,6 +6497,7 @@ export namespace characterlib {
 	        this.hiddenPersona = this.convertValues(source["hiddenPersona"], whisper.PersonalityDims);
 	        this.ttsVoiceId = source["ttsVoiceId"];
 	        this.ttsDesc = source["ttsDesc"];
+	        this.ttsLine = source["ttsLine"];
 	        this.assistantId = source["assistantId"];
 	        this.createdAt = source["createdAt"];
 	        this.updatedAt = source["updatedAt"];

@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 705 名（原生变参 7 名已收窄标注）。
+// 共 711 名（原生变参 7 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -61,6 +61,7 @@ export const bindingSignatures = {
   ChatMessagesPage: { argc: 3, variadic: false, params: "topicID string, limit int, beforeSeq int64" },
   ChatSend: { argc: 6, variadic: false, params: "topicID string, message string, mode string, searchEnabled bool, thinking bool, forceSearch bool" },
   ChatStreamCancel: { argc: 1, variadic: false, params: "runID string" },
+  ChatStreamPersona: { argc: 6, variadic: false, params: "topicID string, message string, mode string, searchEnabled bool, thinking bool, forceSearch bool" },
   ChatStreamPlain: { argc: 5, variadic: false, params: "topicID string, message string, searchEnabled bool, thinking bool, forceSearch bool" },
   ChatTopicClear: { argc: 1, variadic: false, params: "id string" },
   ChatTopicCreate: { argc: 2, variadic: false, params: "title string, mode string" },
@@ -681,9 +682,11 @@ export const bindingSignatures = {
   StrataEngineStop: { argc: 0, variadic: false, params: "" },
   StrataModelStart: { argc: 1, variadic: false, params: "model string" },
   StrataModelStop: { argc: 1, variadic: false, params: "model string" },
+  TTSLineAudioFor: { argc: 1, variadic: false, params: "chJSON string" },
   TTSSpeakBase64: { argc: 1, variadic: false, params: "text string" },
   TTSSpeakBase64WithParams: { argc: 2, variadic: false, params: "text string, params tts.TTSParams" },
   TTSSpeakStreaming: { argc: 1, variadic: false, params: "text string" },
+  TTSVoicePreviewBase64: { argc: 3, variadic: false, params: "text string, voiceID string, voiceDescription string" },
   TestEngineConnection: { argc: 1, variadic: false, params: "engineID string" },
   TianxuanEngineStart: { argc: 1, variadic: false, params: "profile string" },
   TianxuanEngineStatus: { argc: 0, variadic: false, params: "" },
@@ -704,6 +707,9 @@ export const bindingSignatures = {
   VoiceSetPTTActive: { argc: 1, variadic: false, params: "active bool" },
   VoiceStart: { argc: 1, variadic: false, params: "browserASR bool" },
   VoiceStop: { argc: 0, variadic: false, params: "" },
+  VoiceV2Ensure: { argc: 0, variadic: false, params: "" },
+  VoiceV2Status: { argc: 0, variadic: false, params: "" },
+  VoiceV2Stop: { argc: 0, variadic: false, params: "" },
   WarmComfyUI: { argc: 0, variadic: false, params: "" },
   WeixinReminderAdd: { argc: 2, variadic: false, params: "text string, fireAtRFC3339 string" },
   WeixinReminderConfig: { argc: 0, variadic: false, params: "" },
@@ -726,5 +732,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 705。
-export const bindingSignatureCount = 705;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 711。
+export const bindingSignatureCount = 711;

@@ -407,6 +407,70 @@ func TestChatSend_Persona(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 }
 
+// TestChatStreamPersona_StreamsMetricsAndPersists 角色对话不再先等整段完成：
+// 正文 delta 立即下发，done 帧带角色状态与真实用量指标，消息仍只落库一对。
+func TestChatStreamPersona_StreamsMetricsAndPersists(t *testing.T) {
+	a := newChatServiceTestAppWithHandler(t, http.HandlerFunc(sseUsageHandler))
+	personalityID := "persona_stream_metrics"
+	cleanupWhisperSession(t, personalityID)
+	topic, err := a.ChatTopicCreate("角色流式", personalityID)
+	if err != nil {
+		t.Fatalf("ChatTopicCreate: %v", err)
+	}
+	fixed := "cs_persona_stream"
+	orig := newChatStreamRunID
+	newChatStreamRunID = func() string { return fixed }
+	t.Cleanup(func() {
+		cleanupWhisperSession(t, personalityID)
+		newChatStreamRunID = orig
+	})
+
+	events := captureStreamEvents(t, a, "chat-stream:"+fixed, func() {
+		if _, err := a.ChatStreamPersona(topic.ID, "你好", personalityID, false, false, false); err != nil {
+			t.Errorf("ChatStreamPersona: %v", err)
+		}
+	})
+	var sawDelta, sawDone bool
+	for _, ev := range events {
+		switch ev["type"] {
+		case "delta":
+			if ev["content"] == "你好呀" {
+				sawDelta = true
+			}
+		case "done":
+			sawDone = true
+			ab, ok := ev["answered_by"].(map[string]interface{})
+			if !ok {
+				t.Fatalf("done 帧缺少 answered_by: %v", ev)
+			}
+			metrics, ok := ab["metrics"].(map[string]interface{})
+			if !ok {
+				t.Fatalf("answered_by 缺少 metrics: %v", ab)
+			}
+			if got := metrics["prompt_tokens"]; got != float64(5) {
+				t.Errorf("prompt_tokens = %v, want 5", got)
+			}
+			if got := metrics["completion_tokens"]; got != float64(10) {
+				t.Errorf("completion_tokens = %v, want 10", got)
+			}
+			if _, ok := ev["emotion"]; !ok {
+				t.Error("角色 done 帧应携带 emotion")
+			}
+		}
+	}
+	if !sawDelta || !sawDone {
+		t.Fatalf("缺失 delta/done 帧: %v", events)
+	}
+	msgs, err := a.ChatMessagesList(topic.ID)
+	if err != nil {
+		t.Fatalf("ChatMessagesList: %v", err)
+	}
+	if len(msgs) != 2 || msgs[1].Content != "你好呀" {
+		t.Fatalf("角色流落库异常: %+v", msgs)
+	}
+	time.Sleep(100 * time.Millisecond)
+}
+
 // TestChatImportTopic 旧 localStorage 话题导入：模式保留 + 消息按序落库 + 首条预览。
 func TestChatImportTopic(t *testing.T) {
 	a := newChatServiceTestApp(t)

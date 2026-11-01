@@ -128,6 +128,7 @@ type configFile struct {
 	// 实时语音 Realtime 档（S1）：provider/model + API Key（存储口径 =
 	// secure.EncryptString 密文，config 层只存取字符串不做加解密）。
 	RealtimeProvider string `json:"realtime_provider,omitempty"`
+	VoiceBackend     string `json:"voice_backend,omitempty"`
 	RealtimeModel    string `json:"realtime_model,omitempty"`
 	RealtimeAPIKey   string `json:"realtime_api_key,omitempty"`
 }
@@ -319,4 +320,7 @@ type Config struct {
 	RealtimeProvider string
 	RealtimeModel    string
 	RealtimeAPIKey   string
+
+	// 语音对话后端（v1 | v2，默认 v1；M4 产品接入刀）
+	VoiceBackend string
 }

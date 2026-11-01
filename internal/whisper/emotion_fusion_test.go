@@ -242,12 +242,26 @@ func TestEmotionFusion_BuildCharacterStateBlock_Full(t *testing.T) {
 	}
 	emotion := EmotionStateFusion{Aff: 90, Sec: 60, Aro: 30, Dom: 0, PrimaryLabel: "TSUNDERE"}
 	got := BuildCharacterStateBlock(p, emotion, false, "normal")
+	// 五刀拆分：行为优先级/人格基底经 BuildCharacterStaticBlock 走 system
+	// 稳定前缀，动态块只含每轮变化段——两者拼接才是完整角色块。
+	static := BuildCharacterStaticBlock(p)
+	full := static + "\n\n" + got
 	for _, want := range []string{
 		"行为优先级", "人格基底", "傲娇", "动态情绪", "【傲娇】", "情绪强度：极高",
 		"融合执行策略", "绝对禁止清单", "人格禁止A", "参考示例", "开头短反应",
 	} {
-		if !strings.Contains(got, want) {
-			t.Errorf("完整角色块缺少 %q", want)
+		if !strings.Contains(full, want) {
+			t.Errorf("完整角色块（静态+动态）缺少 %q", want)
+		}
+	}
+	for _, dynOnly := range []string{"动态情绪", "融合执行策略", "参考示例"} {
+		if !strings.Contains(got, dynOnly) {
+			t.Errorf("动态块应含 %q", dynOnly)
+		}
+	}
+	for _, staticOnly := range []string{"行为优先级", "人格基底"} {
+		if strings.Contains(got, staticOnly) {
+			t.Errorf("固定段 %q 应在静态块（system 前缀），不得重复进动态块", staticOnly)
 		}
 	}
 	if !strings.Contains(got, "× 直球甜腻") {

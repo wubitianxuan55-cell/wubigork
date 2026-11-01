@@ -8,15 +8,25 @@ import (
 // ─── T6-5.1: canon.go / canon_creator.go / canon_origin.go / canon_father_reference.go ──
 
 func TestBuildAckemCanonBlock_DefaultName(t *testing.T) {
+	// 名字回退链（2026-11-01 用户拍板）：AssistantName 空 → 人格自己的名字，
+	// 不再全员顶产品名 gaea；人格名也空才落 AckemName。
 	got := BuildAckemCanonBlock("温柔", "")
-	if !strings.Contains(got, "你的名字叫gaea") {
-		t.Errorf("空名字应回退默认名 gaea: %q", got)
+	if !strings.Contains(got, "你的名字叫温柔") {
+		t.Errorf("空助手名应回退人格名: %q", got)
 	}
-	if !strings.Contains(got, "温柔") || !strings.Contains(got, "AI 伙伴") {
-		t.Errorf("应含人设与本质: %q", got)
+	if strings.Contains(got, "型 gaea") {
+		t.Errorf("口吻句不应再注入「型 gaea」品牌: %q", got)
+	}
+	if !strings.Contains(got, "AI 伙伴") {
+		t.Errorf("应含本质: %q", got)
 	}
 	if !strings.Contains(got, "Jason") {
 		t.Errorf("应含创造者: %q", got)
+	}
+	// 双空（无人格名无助手名）才回退产品缺省名
+	got2 := BuildAckemCanonBlock("", "")
+	if !strings.Contains(got2, "你的名字叫gaea") {
+		t.Errorf("双空应回退默认名 gaea: %q", got2)
 	}
 }
 

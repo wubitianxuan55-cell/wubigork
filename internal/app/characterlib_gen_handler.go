@@ -18,7 +18,7 @@ import (
 var libFillKeys = []string{
 	"roleType", "gender", "age", "personality", "appearance", "figure",
 	"background", "motivation", "arc", "status", "notes",
-	"behaviorRules", "emotionLogic",
+	"behaviorRules", "emotionLogic", "ttsLine",
 }
 
 // libRandomKeys 所有可随机生成的字段（"all" 时全部重生成）。
@@ -31,17 +31,26 @@ var libFillLabels = map[string]string{
 	"appearance": "外貌", "figure": "身材", "background": "背景",
 	"motivation": "动机", "arc": "角色弧线", "status": "状态", "notes": "备注",
 	"behaviorRules": "行为规则", "emotionLogic": "情感逻辑",
+	"ttsLine": "专属语音台词",
 }
 
-// libRandomLabels 随机字段的中文标签（all / 单字段随机时用于 prompt）。
+// libRandomLabels 随机字段的中文标签（all / 单字段随机时用于 prompt 与
+// parseRandomFields 白名单校验，双重身份）。
 var libRandomLabels = map[string]string{
 	"roleType": "定位", "gender": "性别", "age": "年龄", "personality": "性格",
 	"appearance": "外貌", "figure": "身材", "background": "背景",
 	"motivation": "动机", "arc": "角色弧线", "status": "状态", "notes": "备注",
 	"tags": "标签", "dialogueSamples": "对话样本", "voiceGuide": "口吻指南",
 	"behaviorRules": "行为规则", "emotionLogic": "情感逻辑",
-	"dims": "五维人格",
+	"ttsLine": "专属语音台词",
+	"dims":    "五维人格",
 }
+
+// ttsLinePromptSpec 专属语音台词的生成指令（fill / 单字段 / all 三处共用口径）：
+// 一句念得出声的签名台词，TTS 试听段直接照此合成。
+const ttsLinePromptSpec = "「专属语音台词」为该角色的签名台词（语音合成试听用，会直接念出声）：" +
+	"一句 8~24 字的口语台词，带角色的人格与语气特征，可直接念出声，不要旁白/引号/说明；" +
+	"输出为 JSON 的 ttsLine 字段（字符串）。"
 
 // dimsKeys 五维人格的字段键（T/I/S/O/R，与 whisper.PersonalityDims 一致）。
 var dimsKeys = []string{"T", "I", "S", "O", "R"}
@@ -340,6 +349,10 @@ func (a *App) characterGenerate(chJSON, mode string, targets []string) (string, 
 				"请按补全后的性格给出五维人格（0-100 整数）：" + dimsLabels + "。" +
 				"在 JSON 的 dims 字段输出对象，如 {\"dims\":{\"T\":85,\"I\":40,\"S\":20,\"O\":70,\"R\":60}}。"
 		}
+		// 专属语音台词：空缺时随补全生成（与 dims 同款的字段专项指令）
+		if curLine, _ := cur["ttsLine"].(string); strings.TrimSpace(curLine) == "" {
+			userPrompt += "\n\n" + ttsLinePromptSpec
+		}
 	} else {
 		if existing != "" {
 			userPrompt += "\n\n【当前设定（仅作上下文参考，可完全推翻）】" + existing
@@ -348,13 +361,17 @@ func (a *App) characterGenerate(chJSON, mode string, targets []string) (string, 
 			userPrompt += "\n\n【随机要求】请为角色重新设计一套完整的新设定（含性格、外貌、背景、五维人格等全部字段），" +
 				"可完全推翻当前设定；姓名必须与输入完全一致、保持不变；输出完整 JSON。" +
 				"其中 dims 为五维人格（0-100 整数）：" + dimsLabels + "，必须与重新设计的性格保持一致。" +
-				"示例：{\"dims\":{\"T\":30,\"I\":80,\"S\":70,\"O\":40,\"R\":50}}。"
+				"示例：{\"dims\":{\"T\":30,\"I\":80,\"S\":70,\"O\":40,\"R\":50}}。" +
+				ttsLinePromptSpec
 		} else {
 			userPrompt += "\n\n【随机要求】仅重新随机设计以下字段：" + randomTargetLabels(targets) + "。" +
 				"其余字段必须与当前设定完全一致、保持不变；姓名不变；输出完整 JSON。"
 			if containsKey(targets, "dims") {
 				userPrompt += "其中 dims 为五维人格（0-100 整数）：" + dimsLabels + "，与当前性格保持一致。" +
 					"示例：{\"dims\":{\"T\":30,\"I\":80,\"S\":70,\"O\":40,\"R\":50}}。"
+			}
+			if containsKey(targets, "ttsLine") {
+				userPrompt += ttsLinePromptSpec
 			}
 		}
 	}
@@ -703,6 +720,7 @@ var libSnakeFallback = map[string]string{
 	"behaviorRules": "behavior_rules",
 	"emotionLogic":  "emotion_logic",
 	"voiceGuide":    "voice_guide",
+	"ttsLine":       "tts_line",
 }
 
 // summarizeExisting 汇总当前非空字段（中文标签），供 AI 保持一致。

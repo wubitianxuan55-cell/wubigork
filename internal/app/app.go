@@ -522,9 +522,19 @@ func (a *App) Startup(ctx context.Context) {
 			}
 		}()
 		if n := a.charLib.MigrateRemotePortraits(); n > 0 {
-			slog.Info("角色库远程剧照已本地化（后台）", "count", n)
+			slog.Info("角色库剧照已本地化（后台）", "count", n)
 		}
 	}()
+	// 台词语音初始文件批量补齐（后台，幂等跳过已有键）：保证全量角色开箱即有
+	// 语音文件，试听=纯播文件。引擎不可用整批早退（只 log，不阻塞启动）。
+	go func(ms *mediaState) {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("台词语音批量生成外层 panic", "panic", r)
+			}
+		}()
+		ms.bootstrapVoiceLineAudio()
+	}(a.mediaState)
 	if a.charLib != nil {
 		if err := a.charLib.EnsureBuiltins(whisper.PersonalityPresets); err != nil {
 			slog.Error("角色库种子化内置角色失败", "error", err)

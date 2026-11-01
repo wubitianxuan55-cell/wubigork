@@ -99,11 +99,25 @@ const (
 	MemoirTrustFloor = 25.0
 )
 
+// ─── 提示历史（KV 前缀稳定化四刀，2026-11-01 提速）──────────────────
+const (
+	// HistoryMaxTurns 提示历史（PromptHistory）滞回裁剪上限：超过即一次性裁到
+	// HistoryKeepTurns。裁剪轮付一次全量 prefill，其余轮前缀全命中；短会话
+	// （≤上限）永不裁剪 = 全命中。
+	HistoryMaxTurns  = 8
+	HistoryKeepTurns = 4
+)
+
 // ─── L4 记忆系统 ──────────────────────────────────────────────
 
 const (
-	FactExtractionMaxPerTurn  = 8
-	TierBCharBudget           = 8000
+	FactExtractionMaxPerTurn = 8
+	// TierBCharBudget 事实注入字符预算。2026-11-01 提速刀两连收：8000→2000→800
+	// ——SelectForInjection 按相关性分数排序取前 N，收紧只砍尾部低分事实
+	// （高相关头部 ~5 条足够演绎）；旧值让动态段膨胀到 ~11k 字符（每轮 4~6k
+	// token 全量 prefill，长会话每轮 10~26s 的主因之一），与 KV 前缀稳定化
+	// 系列刀配套。动态段每轮全新 prefill，是每轮耗时的线性主项。
+	TierBCharBudget           = 800
 	MinConfidenceForInjection = 0.55
 	AutoRetireCheckInterval   = 10
 
@@ -151,7 +165,9 @@ const (
 
 const (
 	KGQueryMaxTriples                = 8
-	KGCharBudget                     = 800
+	// KGCharBudget 知识图谱注入预算。2026-11-01 提速刀：800→300（动态段
+	// 每轮全新 prefill，与 TierBCharBudget 同批节食）。
+	KGCharBudget                     = 300
 	ContradictionSimilarityThreshold = 0.35
 	ContradictionMinWeight           = 1.5
 	MirrorCheckIntervalTurns         = 20

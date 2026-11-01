@@ -5,9 +5,23 @@ import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/re
 import CharacterLibEditor from './CharacterLibEditor'
 import type { LibraryCharacter } from '../../api/characterlib'
 
-const { readFileAsDataURL: readFileAsDataURLMock } = vi.hoisted(() => ({
+const { readFileAsDataURL: readFileAsDataURLMock, playVoicePreview: playVoicePreviewMock, playCharacterVoiceLine: playCharacterVoiceLineMock, stopVoicePreview: stopVoicePreviewMock } = vi.hoisted(() => ({
   readFileAsDataURL: vi.fn(),
+  playVoicePreview: vi.fn(async (_text?: string, _voiceId?: string, _desc?: string) => true),
+  playCharacterVoiceLine: vi.fn(async (_c?: Record<string, unknown>) => true),
+  stopVoicePreview: vi.fn(),
 }))
+
+vi.mock('./voicePreview', async (importOriginal) => {
+  // 台词/描述解析用真实现（wire 正确性含解析口径），只桩合成播放面
+  const actual = await importOriginal<typeof import('./voicePreview')>()
+  return {
+    ...actual,
+    playVoicePreview: playVoicePreviewMock,
+    playCharacterVoiceLine: playCharacterVoiceLineMock,
+    stopVoicePreview: stopVoicePreviewMock,
+  }
+})
 
 vi.mock('../../api/characterlib', () => ({
   saveCharacter: vi.fn(),
@@ -91,6 +105,11 @@ beforeEach(() => {
   mockedRandom.mockReset()
   readFileAsDataURLMock.mockReset()
   readFileAsDataURLMock.mockResolvedValue('data:image/png;base64,PATHREF')
+  playVoicePreviewMock.mockReset()
+  playVoicePreviewMock.mockResolvedValue(true)
+  playCharacterVoiceLineMock.mockReset()
+  playCharacterVoiceLineMock.mockResolvedValue(true)
+  stopVoicePreviewMock.mockReset()
 })
 
 // 壳内用例装的 window.go stub 用完即清，防泄漏进同文件浏览器分支用例
@@ -597,5 +616,60 @@ describe('CharacterLibEditor ComfyUI 进度行（FE6-06：共用 useComfyTaskPro
     expect(row.textContent).toContain('排队中（前有任务）')
     resolveGen('data:image/png;base64,ZZZ')
     await vi.waitFor(() => expect(screen.queryByTestId('cd-comfy-progress')).toBeNull())
+  })
+
+  // ── 角色音色试听（voicePreview 共享播放器）────────────────────────────
+
+  it('试听钮：已保存角色走文件缓存链（playCharacterVoiceLine 带表单当前值）', async () => {
+    renderEditor({ character: makeCharacter({ ttsVoiceId: 'my-clone-1', ttsDesc: '' }) })
+    fireEvent.click(screen.getByRole('button', { name: /试听/ }))
+    await waitFor(() => {
+      expect(playCharacterVoiceLineMock).toHaveBeenCalledTimes(1)
+    })
+    const payload = playCharacterVoiceLineMock.mock.calls[0][0] as { id: string; name: string; ttsVoiceId: string }
+    expect(payload.id).toBe('c1')
+    expect(payload.name).toBe('苏念')
+    expect(payload.ttsVoiceId).toBe('my-clone-1')
+    expect(playVoicePreviewMock).not.toHaveBeenCalled()
+  })
+
+  it('试听钮：台词/样本透传后端解析（专属台词>样本>问候口径在后端单测）', async () => {
+    const first = renderEditor({ character: makeCharacter({ ttsLine: '剑来。', ttsVoiceId: '', ttsDesc: '' }) })
+    fireEvent.click(screen.getByRole('button', { name: /试听/ }))
+    await waitFor(() => {
+      expect(playCharacterVoiceLineMock).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'c1', ttsLine: '剑来。', dialogueSamples: [] }),
+      )
+    })
+    first.unmount()
+    renderEditor({ character: makeCharacter({ ttsLine: '', dialogueSamples: ['别挡路。'] }) })
+    fireEvent.click(screen.getByRole('button', { name: /试听/ }))
+    await waitFor(() => {
+      expect(playCharacterVoiceLineMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ id: 'c1', ttsLine: '', dialogueSamples: ['别挡路。'] }),
+      )
+    })
+  })
+
+  it('试听钮：未保存新角色（无 id）回退实时试听', async () => {
+    renderEditor({ character: makeCharacter({ id: '', gender: 'neutral', ttsVoiceId: '', ttsDesc: '', ttsLine: '', dialogueSamples: [] }) })
+    fireEvent.click(screen.getByRole('button', { name: /试听/ }))
+    await waitFor(() => {
+      expect(playVoicePreviewMock).toHaveBeenCalledWith(
+        expect.stringContaining('苏念'), '', '',
+      )
+    })
+    expect(playCharacterVoiceLineMock).not.toHaveBeenCalled()
+  })
+
+  it('专属台词 AI 随机钮：按字段调 generateRandom(ttsLine) 并回填表单', async () => {
+    mockedRandom.mockResolvedValue(makeCharacter({ ttsLine: '山高路远，江湖再会。' }))
+    renderEditor({ character: makeCharacter() })
+    fireEvent.click(screen.getByTitle('随机生成专属台词'))
+    await waitFor(() => {
+      expect(mockedRandom).toHaveBeenCalledWith(expect.objectContaining({ name: '苏念' }), 'ttsLine')
+      expect((screen.getByPlaceholderText(/这个角色的签名台词/) as HTMLTextAreaElement).value)
+        .toBe('山高路远，江湖再会。')
+    })
   })
 })

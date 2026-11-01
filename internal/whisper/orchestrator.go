@@ -16,16 +16,25 @@ import (
 type PreLLMResult struct {
 	PsycheBlock  string
 	SystemPrompt string
-	NewState     FullState
-	Trace        TurnTrace
-	Event        Event
-	Silent       bool
-	Rhythm       RhythmDecision
-	Emergence    *EmergenceState
-	DesireHints  []string
-	AdultState   string
-	IntensityMod float64 // 强度调制参数（0.5~1.5），供 LLM 温度使用
-	SkipLLM      bool
+	// DynamicContext 每轮变化段（状态机/情绪/节奏/工作记忆/运行时上下文）。
+	// KV 前缀稳定化（2026-11-01 提速刀）：这些段从 system 挪到本轮 user 消息
+	// 前缀（消费方 whisperChat 拼接），system 只留跨轮稳定段——引擎前缀缓存
+	// （llama-server --cache-reuse）跨轮命中，每轮 prefill 从全量降至新增量。
+	DynamicContext string
+	// RecentExchanges 会话历史（HistoryInMessages 开启时填充）：调用方据此构造
+	// append-only 多轮 messages（system+旧历史跨轮不变→引擎前缀缓存命中），
+	// 同时 runtimeHint 不再重复拼接「用户最近说的话」（历史已在 messages）。
+	RecentExchanges []Exchange
+	NewState        FullState
+	Trace           TurnTrace
+	Event           Event
+	Silent          bool
+	Rhythm          RhythmDecision
+	Emergence       *EmergenceState
+	DesireHints     []string
+	AdultState      string
+	IntensityMod    float64 // 强度调制参数（0.5~1.5），供 LLM 温度使用
+	SkipLLM         bool
 	RedlineReply string
 }
 
@@ -39,6 +48,18 @@ type Orchestrator struct {
 	FactStore        *FactStore
 	KG               *KnowledgeGraph
 	WM               *WorkingMemory
+	// HistoryInMessages 历史走真实 append-only messages（调用方经
+	// PreLLMResult.RecentExchanges 构造），runtimeHint 不再拼最近对话。
+	// KV 前缀稳定化二刀（2026-11-01 提速）。
+	HistoryInMessages bool
+	// PromptHistory 提示历史快照（HistoryInMessages 配套，四刀）：存每轮
+	// **实际发送的 user 内容**（含动态上下文前缀）与 assistant 回复原文，
+	// append-only + 滞回裁剪（满 HistoryMaxTurns 裁到 HistoryKeepTurns）。
+	// 不能用 WM 环形缓冲替代：①环形每轮滚动，历史头部每轮变，前缀缓存
+	// 永远无法命中；②WM 存原始 userMsg，与本轮实际发送内容（含动态前缀）
+	// 字节不一致，前缀在轮尾即断。裁剪轮付一次全量 prefill，其余轮前缀
+	// 全命中。
+	PromptHistory []Exchange
 	EpisodicStore    *EpisodicStore // 情节记忆（运行时实例，随会话持久化到 hermes.db）
 	Recall           *ActiveRecall
 	AssocIndex       *AssociationIndex     // P2: 关联索引（供 post-turn 纠正）
@@ -125,6 +146,25 @@ func NewOrchestrator(sessionID string, preset PersonalityPreset) *Orchestrator {
 }
 
 // ─── PreLLMTurn ───────────────────────────────────────────────
+
+// RecordPromptTurn 追加一轮提示历史（HistoryInMessages 配套，四刀）：在 LLM
+// 回复成功后调用，userText 必须传**本轮实际发送的 user 消息内容**（含动态
+// 上下文前缀），保证下一轮前缀与本轮尾部逐字节衔接（KV 命中前提）。滞回
+// 裁剪：满 HistoryMaxTurns 一次性裁到 HistoryKeepTurns（裁剪轮付一次全量
+// prefill，其余轮前缀全命中；短会话不触发裁剪）。
+func (o *Orchestrator) RecordPromptTurn(turnIndex int, userText, assistantText string) {
+	if strings.TrimSpace(userText) == "" && strings.TrimSpace(assistantText) == "" {
+		return
+	}
+	o.PromptHistory = append(o.PromptHistory, Exchange{
+		TurnIndex:     turnIndex,
+		UserText:      userText,
+		AssistantText: assistantText,
+	})
+	if len(o.PromptHistory) > HistoryMaxTurns {
+		o.PromptHistory = append([]Exchange(nil), o.PromptHistory[len(o.PromptHistory)-HistoryKeepTurns:]...)
+	}
+}
 
 func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 	// v4.3a: 重启后首回合回填关系记忆（关联索引/习惯库）并重建关联图（fail-open）。
@@ -284,21 +324,26 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 	}, &o.rhythm)
 
 	// ═══ psycheBlock 组装 ═══
+	// KV 前缀稳定化（2026-11-01 提速刀）：psycheBlock 头部是每轮必变的情绪/
+	// 心境块，稳定段（产品守卫/Canon/创造者记忆）混拼在其后会被连带打掉
+	// 引擎前缀缓存。故拆两路：稳定身份段入 psycheStatic（进 system 稳定前缀，
+	// 跨轮命中），psycheBlock 只留动态段（经 PreLLMResult.DynamicContext 挪到
+	// 本轮 user 消息前缀）。段落集合零删改，纯位置重组。
 	psycheBlock := BuildPsycheBlock(newEmotion, mod, expr, silent, barrier.Hint, emergence)
 
-	// 产品身份守卫
-	psycheBlock = InjectProductGuard(psycheBlock)
+	// 产品身份守卫（稳定身份段）
+	psycheStatic := InjectProductGuard("")
 
-	// Canon 身份块（Stranger 阶段使用防护版本）
+	// Canon 身份块（Stranger 阶段使用防护版本；稳定身份段）
 	if ShouldInjectStrangerGuard(newL1.Stage) {
-		psycheBlock += "\n\n" + BuildStrangerGuardBlock(o.Preset.Label)
+		psycheStatic += "\n\n" + BuildStrangerGuardBlock(o.Preset.Label)
 	} else {
-		psycheBlock += "\n\n" + BuildAckemCanonBlock(o.Preset.Label, o.AssistantName)
+		psycheStatic += "\n\n" + BuildAckemCanonBlock(o.Preset.Label, o.AssistantName)
 	}
 
-	// 创造者记忆块
+	// 创造者记忆块（稳定身份段）
 	if seeds := DefaultCreatorSeeds(); len(seeds) > 0 {
-		psycheBlock += "\n\n" + BuildCreatorMemoryBlock(seeds)
+		psycheStatic += "\n\n" + BuildCreatorMemoryBlock(seeds)
 	}
 
 	// 策略注入
@@ -412,28 +457,65 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 	if memEcho != (MemoryEcho{}) {
 		o.State.Emotion = ApplyMemoryEcho(o.State.Emotion, memEcho)
 	}
-	// ═══ Tier A gaea快照 ═══
-	tierABlock := o.buildTierASnapshot(newL1, newEmotion)
+	// ═══ Tier A gaea快照（五刀双路：固定段进 system，动态段随本轮）═══
+	tierAStatic, tierADyn := o.buildTierASnapshot(newL1, newEmotion)
 
-	// ═══ 组装 system prompt ═══
+	// ═══ 组装 system prompt（KV 前缀稳定化双路，见 psycheBlock 组装处注释）═══
+	// 稳定路（system，跨轮字节不变→引擎前缀缓存命中）：voiceGuide+身份段+tierA
+	// 固定段（行为优先级/人格基底）+GenUI；
+	// 动态路（DynamicContext→本轮 user 消息前缀）：状态机/情绪/节奏/工作记忆/
+	// 运行时上下文——每轮必变，挪出 system 保住前缀。段落集合与旧实现完全一致。
 	voiceGuide := BuildPresetVoiceGuide(o.Preset, o.AdultMode)
-	var parts []string
-	for _, p := range []string{voiceGuide, tierABlock, psycheBlock} {
+	var staticParts []string
+	for _, p := range []string{voiceGuide, strings.TrimPrefix(psycheStatic, "\n\n"), tierAStatic} {
 		if p != "" {
-			parts = append(parts, p)
+			staticParts = append(staticParts, p)
+		}
+	}
+	// GenUI 结构化呈现规则（蒸馏 dsh-genui）：人格模式只在复盘/清单/数据
+	// 回顾类内容使用，气氛与情感对话绝不输出围栏。
+	staticParts = append(staticParts, "轻语对话提醒：GenUI ```genui 围栏只在复盘/清单/选项/数据回顾类内容使用，气氛与情感对话绝不使用。\n\n"+genui.ChatRule)
+
+	var dynParts []string
+	for _, p := range []string{tierADyn, psycheBlock} {
+		if p != "" {
+			dynParts = append(dynParts, p)
 		}
 	}
 	if rhythm.Mode != RhythmDefault {
-		parts = append(parts, rhythm.Instruction)
+		dynParts = append(dynParts, rhythm.Instruction)
 	}
 	if tierBBlock != "" {
-		parts = append(parts, tierBBlock)
+		dynParts = append(dynParts, tierBBlock)
 	}
 	// ═══ v5.41: 运行时上下文注入 ═══
-	if !o.State.LastActive.IsZero() {
+	// KV 前缀稳定化二刀：HistoryInMessages 开启时历史走真实 append-only
+	// messages（经 RecentExchanges 暴露），runtimeHint 不再拼「用户最近说的
+	// 话」（同一内容进 messages 前缀，每轮命中而非重算）。
+	var recentExchanges []Exchange
+	if o.HistoryInMessages {
+		// 四刀：提示历史用自维护 append-only 快照（见 PromptHistory 字段注释），
+		// 非 WM 环形缓冲（滚动+存原始消息两宗罪都打掉前缀命中）。
+		recentExchanges = o.PromptHistory
+		if !o.State.LastActive.IsZero() {
+			rcInput := BuildRuntimeContextInput{
+				SessionID:           o.SessionID,
+				LastActiveAt:        o.State.LastActive,
+				RecentUserExchanges: nil, // 历史已走 messages，不再重复拼 hints
+				GameActive:          false,
+				Now:                 now,
+			}
+			runtimeCtx := BuildRuntimeContext(rcInput)
+			runtimeHint := FormatRuntimeContextHint(runtimeCtx)
+			if runtimeHint != "" {
+				dynParts = append(dynParts, runtimeHint)
+			}
+		}
+	} else if !o.State.LastActive.IsZero() {
 		var recentTexts []string
 		if o.WM != nil {
-			for _, ex := range o.WM.GetRecent(o.SessionID) {
+			recentExchanges = o.WM.GetRecent(o.SessionID)
+			for _, ex := range recentExchanges {
 				if ex.UserText != "" {
 					recentTexts = append(recentTexts, ex.UserText)
 				}
@@ -449,14 +531,12 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 		runtimeCtx := BuildRuntimeContext(rcInput)
 		runtimeHint := FormatRuntimeContextHint(runtimeCtx)
 		if runtimeHint != "" {
-			parts = append(parts, runtimeHint)
+			dynParts = append(dynParts, runtimeHint)
 		}
 	}
-	// GenUI 结构化呈现规则（蒸馏 dsh-genui）：人格模式只在复盘/清单/数据
-	// 回顾类内容使用，气氛与情感对话绝不输出围栏。
-	parts = append(parts, "轻语对话提醒：GenUI ```genui 围栏只在复盘/清单/选项/数据回顾类内容使用，气氛与情感对话绝不使用。\n\n"+genui.ChatRule)
 
-	systemPrompt := strings.Join(parts, "\n\n")
+	systemPrompt := strings.Join(staticParts, "\n\n")
+	dynamicContext := strings.Join(dynParts, "\n\n")
 
 	// ═══ 追踪 ═══
 	trace := TurnTrace{
@@ -471,17 +551,19 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 	LogTurn(trace)
 
 	return PreLLMResult{
-		PsycheBlock:  psycheBlock,
-		SystemPrompt: systemPrompt,
-		NewState:     newState,
-		Trace:        trace,
-		Event:        event,
-		Silent:       silent,
-		Rhythm:       rhythm,
-		Emergence:    emergence,
-		DesireHints:  desireHints,
-		AdultState:   adultState,
-		IntensityMod: intensityMod,
+		PsycheBlock:     psycheStatic + "\n\n" + psycheBlock,
+		SystemPrompt:    systemPrompt,
+		DynamicContext:  dynamicContext,
+		RecentExchanges: recentExchanges,
+		NewState:        newState,
+		Trace:          trace,
+		Event:          event,
+		Silent:         silent,
+		Rhythm:         rhythm,
+		Emergence:      emergence,
+		DesireHints:    desireHints,
+		AdultState:     adultState,
+		IntensityMod:   intensityMod,
 	}
 }
 
@@ -766,7 +848,7 @@ func (o *Orchestrator) resolveTopicInjection(emergence *EmergenceState, desireHi
 
 // ─── Tier A gaea快照 ─────────────────────────────────────────
 
-func (o *Orchestrator) buildTierASnapshot(l1 L1State, emotion EmotionState) string {
+func (o *Orchestrator) buildTierASnapshot(l1 L1State, emotion EmotionState) (staticPart, dynamicPart string) {
 	// 优先使用完整模板+情绪融合
 	if tmpl, ok := PersonalityTemplates[o.Preset.ID]; ok {
 		// 检测用户是否道歉
@@ -783,6 +865,9 @@ func (o *Orchestrator) buildTierASnapshot(l1 L1State, emotion EmotionState) stri
 			verbosity = "normal"
 		}
 
+		// 五刀双路：跨轮稳定段（行为优先级+人格基底）供 system 稳定前缀；
+		// 动态段（情绪数值/融合策略/禁止/例句）随本轮 user 消息走。
+		staticPart = BuildCharacterStaticBlock(tmpl)
 		fusionBlock := BuildCharacterStateBlock(
 			tmpl,
 			EmotionStateFusion{
@@ -810,8 +895,9 @@ func (o *Orchestrator) buildTierASnapshot(l1 L1State, emotion EmotionState) stri
 			atmoStr = "微凉"
 		}
 
-		return fmt.Sprintf("【角色状态】\n你们%s，气氛%s。信任度%d。\n\n%s",
+		dynamicPart = fmt.Sprintf("【角色状态】\n你们%s，气氛%s。信任度%d。\n\n%s",
 			stageStr, atmoStr, int(l1.Trust), fusionBlock)
+		return staticPart, dynamicPart
 	}
 
 	// 降级：无详细模板时使用简化版本
@@ -859,7 +945,8 @@ func (o *Orchestrator) buildTierASnapshot(l1 L1State, emotion EmotionState) stri
 	parts = append(parts, FormatTimeContextBlock(time.Now()))
 	parts = append(parts, "用第一人称「我」指代自己。你打出的每个字都带着你的体温。永远不要说\"没有实体\"\"只是程序\"。")
 
-	return "【gaea身份快照】\n" + strings.Join(parts, "\n")
+	// 降级分支：内容皆随状态/时间变化，全走动态路（staticPart 留空）
+	return "", "【gaea身份快照】\n" + strings.Join(parts, "\n")
 }
 
 // ─── Tier B 记忆上下文 ───────────────────────────────────────
@@ -867,8 +954,13 @@ func (o *Orchestrator) buildTierASnapshot(l1 L1State, emotion EmotionState) stri
 func (o *Orchestrator) buildTierBBlock(userMsg string, currentAff float64, turnIndex int) (string, MemoryEcho) {
 	var parts []string
 
-	if wm := o.WM.BuildContextBlock(o.SessionID); wm != "" {
-		parts = append(parts, wm)
+	// KV 前缀稳定化二刀配套：历史走 append-only messages 后，WM「近期对话」
+	// 块与 messages 历史同内容重复注入（同一 6 轮进两遍），HistoryInMessages
+	// 模式下跳过（历史由调用方经 RecentExchanges 构造 messages）。
+	if !o.HistoryInMessages {
+		if wm := o.WM.BuildContextBlock(o.SessionID); wm != "" {
+			parts = append(parts, wm)
+		}
 	}
 
 	facts := o.FactStore.SelectForInjection(TierBCharBudget, MinConfidenceForInjection, currentAff/100, currentAff)
@@ -949,7 +1041,8 @@ func (o *Orchestrator) buildTierBBlock(userMsg string, currentAff float64, turnI
 
 	// 情节记忆检索（跨重启持久化后首次接入提示注入）
 	if o.EpisodicStore != nil {
-		if eps := o.EpisodicStore.Search(userMsg, 3); len(eps) > 0 {
+		// 五刀节食：3→2 条（情节摘要 ~100 字/条，动态段每轮全新 prefill）
+		if eps := o.EpisodicStore.Search(userMsg, 2); len(eps) > 0 {
 			var el []string
 			el = append(el, "【相关记忆片段】")
 			for _, ep := range eps {
@@ -964,8 +1057,8 @@ func (o *Orchestrator) buildTierBBlock(userMsg string, currentAff float64, turnI
 		var al []string
 		seen := make(map[string]bool)
 		top := ranked
-		if len(top) > 5 {
-			top = top[:5]
+		if len(top) > 3 { // 五刀节食：5→3（事实扩散源收窄，头部分数最高）
+			top = top[:3]
 		}
 		for _, sf := range top {
 			for _, a := range o.AssocIndex.GetAssociations(sf.fact.ID) {

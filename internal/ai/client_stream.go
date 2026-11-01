@@ -539,6 +539,48 @@ loop:
 	return result, reasoning, nil
 }
 
+// ChatSimpleMessagesStreamDetailed ChatSimpleStreamDetailed 的多轮 messages 形态。
+// KV 前缀稳定化二刀（2026-11-01 提速）配套：调用方（whisper 链）把会话历史走
+// 真实 append-only messages——system+旧历史跨轮字节不变，引擎前缀缓存
+// （llama-server --cache-reuse）跨轮命中，每轮只 prefill 新增轮次。
+func (c *Client) ChatSimpleMessagesStreamDetailed(ctx context.Context, model string, messages []ChatMessage, opts ChatSimpleOptions) (string, string, error) {
+	chunks, cancel, err := c.ChatStreamMessages(ctx, model, messages, opts, nil)
+	if err != nil {
+		return "", "", err
+	}
+	defer cancel()
+
+	var sb strings.Builder
+	var rb strings.Builder
+loop:
+	for {
+		select {
+		case <-ctx.Done():
+			return sb.String(), rb.String(), fmt.Errorf("请求超时或已取消")
+		case chunk, ok := <-chunks:
+			if !ok {
+				break loop
+			}
+			if chunk.Error != "" {
+				return sb.String(), rb.String(), fmt.Errorf("%s", chunk.Error)
+			}
+			if chunk.Done {
+				break loop
+			}
+			sb.WriteString(chunk.Content)
+			rb.WriteString(chunk.Reasoning)
+		}
+	}
+	result := sb.String()
+	reasoning := rb.String()
+	c.emit("response", map[string]interface{}{
+		"length":    len([]rune(result)),
+		"content":   result,
+		"reasoning": reasoning,
+	})
+	return result, reasoning, nil
+}
+
 // ChatStreamChunks 与 ChatSimpleStreamDetailed 相同的请求准备，但不消费底层 SSE
 // 通道，而是把它原样返回给调用方逐块消费（用于聊天板块真实流式下发）。
 // 调用方负责在消费完成后调用返回的 cancel（同时关闭超时定时器）。

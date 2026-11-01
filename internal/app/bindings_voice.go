@@ -13,9 +13,11 @@ import (
 type VoiceB struct{ a *App }
 
 func (b *VoiceB) GaeaTTSVoiceParams(emotion string) tts.TTSParams { return b.a.GaeaTTSVoiceParams(emotion) }
+func (b *VoiceB) TTSLineAudioFor(chJSON string) (map[string]interface{}, error) { return b.a.TTSLineAudioFor(chJSON) }
 func (b *VoiceB) TTSSpeakBase64(text string) (map[string]interface{}, error) { return b.a.TTSSpeakBase64(text) }
 func (b *VoiceB) TTSSpeakBase64WithParams(text string, params tts.TTSParams) (map[string]interface{}, error) { return b.a.TTSSpeakBase64WithParams(text, params) }
 func (b *VoiceB) TTSSpeakStreaming(text string) error { return b.a.TTSSpeakStreaming(text) }
+func (b *VoiceB) TTSVoicePreviewBase64(text string, voiceID string, voiceDescription string) (map[string]interface{}, error) { return b.a.TTSVoicePreviewBase64(text, voiceID, voiceDescription) }
 func (b *VoiceB) VoiceApplySettings(settings map[string]interface{}) error { return b.a.VoiceApplySettings(settings) }
 func (b *VoiceB) VoiceCancelTTS() error { return b.a.VoiceCancelTTS() }
 func (b *VoiceB) VoiceChatText(text string) error { return b.a.VoiceChatText(text) }
@@ -26,6 +28,9 @@ func (b *VoiceB) VoicePushAudio(chunk []byte) error { return b.a.VoicePushAudio(
 func (b *VoiceB) VoiceSetPTTActive(active bool) error { return b.a.VoiceSetPTTActive(active) }
 func (b *VoiceB) VoiceStart(browserASR bool) error { return b.a.VoiceStart(browserASR) }
 func (b *VoiceB) VoiceStop() error { return b.a.VoiceStop() }
+func (b *VoiceB) VoiceV2Ensure() map[string]interface{} { return b.a.VoiceV2Ensure() }
+func (b *VoiceB) VoiceV2Status() map[string]interface{} { return b.a.VoiceV2Status() }
+func (b *VoiceB) VoiceV2Stop() map[string]interface{} { return b.a.VoiceV2Stop() }
 func (b *VoiceB) WeixinReminderAdd(text string, fireAtRFC3339 string) (map[string]interface{}, error) { return b.a.WeixinReminderAdd(text, fireAtRFC3339) }
 func (b *VoiceB) WeixinReminderConfig() (map[string]interface{}, error) { return b.a.WeixinReminderConfig() }
 func (b *VoiceB) WeixinReminderDelete(id string) error { return b.a.WeixinReminderDelete(id) }
