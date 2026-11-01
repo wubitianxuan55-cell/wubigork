@@ -226,11 +226,11 @@ func (a *mediaState) speakFromTTSProviderSteps(text string, steps []ttsPipelineS
 func (a *mediaState) speakFromTTSProviderStepsParams(text string, steps []ttsPipelineStep, params tts.TTSParams) ([]byte, string, error) {
 	for _, st := range steps {
 		if isLocalTTSAssetEngine(st.engineID) {
-			a.ensureLocalTTSService(st.engineID)
+			a.waitLocalTTSReady(st.engineID) // 有界等就绪：冷启动不滑落 edge
 		}
 		audio, mime, err := st.provider.SynthesizeWithParams(text, params)
 		if err != nil || len(audio) == 0 {
-			slog.Debug("TTS 引擎失败，尝试下一个", "engine", st.provider.Name(), "error", err)
+			slog.Warn("TTS 引擎失败，尝试下一个", "engine", st.provider.Name(), "error", err)
 			continue
 		}
 		if mime == "" {

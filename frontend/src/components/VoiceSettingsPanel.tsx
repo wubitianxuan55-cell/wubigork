@@ -300,23 +300,20 @@ export default function VoiceSettingsPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isBreeze])
 
-  // ── 角色音色预设（人格→音色）：切换角色即切换音色 ──
-  interface PersonaRow { id: string; label: string; voiceGuide: string; voiceId: string; desc: string }
+  // ── 角色音色预设（角色库实体→音色）：切换角色即切换音色 ──
+  // 数据源=角色库 chatEnabled 实体（与聊天角色同一 id 空间）；行内编辑走
+  // Get→patch 两字段→Save（全量保存前先取最新，防并发覆盖整卡）。
+  interface PersonaRow { id: string; label: string; gender: string; voiceId: string; desc: string; descSaved: string; dirty?: boolean }
   const [personaRows, setPersonaRows] = useState<PersonaRow[]>([])
   const [personaLoading, setPersonaLoading] = useState(false)
 
   const loadPersonaRows = async () => {
     setPersonaLoading(true)
     try {
-      const list = (await app.WhisperGetPersonalities() || []) as Array<{ id: string; label: string; voiceGuide?: string }>
-      let presets: Record<string, { voiceId?: string; desc?: string }> = {}
-      try {
-        const settings = (await app.VoiceGetSettings()) as { personaVoicePresets?: string }
-        if (settings?.personaVoicePresets) presets = JSON.parse(settings.personaVoicePresets)
-      } catch (_) { /* 预设为空/坏 JSON：按无预设渲染 */ }
-      setPersonaRows(list.map(p => ({
-        id: p.id, label: p.label || p.id, voiceGuide: p.voiceGuide || '',
-        voiceId: presets[p.id]?.voiceId || '', desc: presets[p.id]?.desc || '',
+      const res = await app.CharacterList('', '', true, 1, 500) as { items?: Array<{ id: string; name: string; gender?: string; ttsVoiceId?: string; ttsDesc?: string }> }
+      setPersonaRows((res?.items || []).map(c => ({
+        id: c.id, label: c.name || c.id, gender: c.gender || '',
+        voiceId: c.ttsVoiceId || '', desc: c.ttsDesc || '', descSaved: c.ttsDesc || '',
       })))
     } catch (_) {
       setPersonaRows([])
@@ -325,16 +322,23 @@ export default function VoiceSettingsPanel() {
     }
   }
 
-  const savePersonaPresets = async () => {
-    const map: Record<string, { voiceId: string; desc: string }> = {}
-    for (const r of personaRows) {
-      if (r.voiceId || r.desc.trim()) map[r.id] = { voiceId: r.voiceId.trim(), desc: r.desc.trim() }
-    }
+  const patchPersonaVoice = async (id: string, patch: { voiceId?: string; desc?: string }) => {
+    setPersonaRows(prev => prev.map(r => r.id === id ? { ...r, ...patch, dirty: true } : r))
     try {
-      await app.VoiceApplySettings({ personaVoicePresets: map })
-      message.success(`角色音色预设已保存（${Object.keys(map).length} 个角色）`)
+      const res = await app.CharacterGet(id) as { character?: { [k: string]: unknown } }
+      const card = res?.character
+      if (!card) { message.error('角色不存在或已删除'); return }
+      await app.CharacterSave(JSON.stringify({
+        ...card,
+        ...(patch.voiceId !== undefined ? { ttsVoiceId: patch.voiceId } : {}),
+        ...(patch.desc !== undefined ? { ttsDesc: patch.desc } : {}),
+      }))
+      setPersonaRows(prev => prev.map(r => r.id === id ? {
+        ...r, dirty: false,
+        ...(patch.desc !== undefined ? { descSaved: patch.desc } : {}),
+      } : r))
     } catch (err) {
-      message.error(`保存失败：${err instanceof Error ? err.message : String(err)}`)
+      message.error(`保存角色音色失败：${err instanceof Error ? err.message : String(err)}`)
     }
   }
 
@@ -553,34 +557,31 @@ export default function VoiceSettingsPanel() {
         </Card>
       )}
 
-      {/* 角色音色预设：每人格一套音色（克隆音色 id 或描述），切换角色即切换音色。
-          breeze 合成按当前人格解析；描述留空时回退该角色口吻指南（占位符展示）。 */}
+      {/* 角色音色预设（角色库实体→音色）：聊天选中该角色即用其音色。
+          breeze 合成按当前人格（=角色 id）解析；描述留空回退性别缺省描述。 */}
       <Card size="small" style={{ background: 'var(--color-surface-container)', border: '1px solid var(--color-border)', borderRadius: 8 }} bodyStyle={{ padding: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-          <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>角色音色预设</div>
-          <div style={{ display: 'flex', gap: 4 }}>
-            <Button size="small" type="text" icon={<ReloadOutlined />} loading={personaLoading} onClick={() => { void loadPersonaRows() }} style={{ fontSize: 11 }}>重载</Button>
-            <Button size="small" type="primary" onClick={() => { void savePersonaPresets() }} style={{ fontSize: 11 }} disabled={personaRows.length === 0}>保存预设</Button>
-          </div>
+          <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>角色音色（角色库）</div>
+          <Button size="small" type="text" icon={<ReloadOutlined />} loading={personaLoading} onClick={() => { void loadPersonaRows() }} style={{ fontSize: 11 }}>重载</Button>
         </div>
         {personaRows.length === 0 ? (
           <div style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>
-            暂无角色人格清单（重载试试；人格来自轻语预设）
+            暂无启用聊天的角色——先在角色库创建并开启「聊天」
           </div>
         ) : (
           <div style={{ maxHeight: 240, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
             {personaRows.map(r => (
               <div key={r.id} style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 6 }}>
-                <div style={{ fontSize: 11, marginBottom: 4 }}>
+                <div style={{ fontSize: 11, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
                   {r.label}
-                  <span style={{ opacity: 0.55, fontSize: 10, marginLeft: 6 }}>{r.id}</span>
+                  {r.dirty && <span style={{ fontSize: 10, color: '#f59e0b' }}>保存中…</span>} {/* hex-exempt 保存中琥珀 */}
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <Select
                     size="small"
                     value={r.voiceId}
                     style={{ flex: 1, minWidth: 0 }}
-                    onChange={v => setPersonaRows(prev => prev.map(x => x.id === r.id ? { ...x, voiceId: String(v) } : x))}
+                    onChange={v => { void patchPersonaVoice(r.id, { voiceId: String(v) }) }}
                     options={[
                       { value: '', label: '自动（按描述）' },
                       ...breezeVoices.map(v => ({ value: v.id, label: v.id })),
@@ -591,7 +592,12 @@ export default function VoiceSettingsPanel() {
                     size="small"
                     value={r.desc}
                     style={{ flex: 1, minWidth: 0, fontSize: 11 }}
-                    placeholder={r.voiceGuide || '音色描述（可选）'}
+                    placeholder={r.gender === 'male' ? '缺省：沉稳清晰的青年男性声线' : '缺省：温柔清晰的青年女性声线'}
+                    onBlur={e => {
+                      const v = e.target.value
+                      if (v !== r.descSaved) void patchPersonaVoice(r.id, { desc: v })
+                    }}
+                    onPressEnter={e => { (e.target as HTMLInputElement).blur() }}
                     onChange={e => setPersonaRows(prev => prev.map(x => x.id === r.id ? { ...x, desc: e.target.value } : x))}
                     maxLength={300}
                   />
@@ -601,7 +607,7 @@ export default function VoiceSettingsPanel() {
           </div>
         )}
         <div style={{ fontSize: 10, color: 'var(--color-text-secondary)', marginTop: 4, opacity: 0.75 }}>
-          给角色选克隆音色或写描述后「保存预设」；聊天里切到该角色，朗读与语音对话即用其音色
+          选克隆音色或写描述即存即生效（描述回车保存）；聊天里切到该角色，朗读与语音对话即用其音色
         </div>
       </Card>
 

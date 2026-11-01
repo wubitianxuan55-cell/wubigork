@@ -6,9 +6,11 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/gaea/gaea/internal/characterlib"
 	"github.com/gaea/gaea/internal/config"
 )
 
@@ -51,8 +53,9 @@ func TestBreezeListVoices(t *testing.T) {
 		t.Fatalf("voices 解析不符: %v", res["voices"])
 	}
 
-	// 服务不在：started=false 且不报错（面板据此提示先启动）
-	a2 := &mediaState{core: &core{cfg: &config.Config{BreezePort: portFromURL("http://127.0.0.1:1")}}}
+	// 服务不在：started=false 且不报错（面板据此提示先启动）。
+	// 端口用 freePort——本机可能恰有服务监听小端口（port 1 就被占过且答 200）。
+	a2 := &mediaState{core: &core{cfg: &config.Config{BreezePort: freePort(t)}}}
 	res2 := a2.BreezeListVoices()
 	if res2["started"] != false {
 		t.Fatalf("服务不在时 started = %v, want false", res2["started"])
@@ -215,5 +218,52 @@ func TestVoiceApplySettings_PersonaPresets(t *testing.T) {
 		"personaVoicePresets": map[string]interface{}{"bad": "not-a-map"},
 	}); err == nil {
 		t.Fatal("形状不符应拒绝")
+	}
+}
+
+func TestVoicePersonaPreset_CharLib(t *testing.T) {
+	root := t.TempDir()
+	lib := characterlib.NewStore(filepath.Join(root, "characterlib"))
+	t.Cleanup(func() { _ = lib.Close() }) // Windows 下不关库 TempDir 清理报文件锁
+	a := &mediaState{core: &core{
+		cfg:     &config.Config{},
+		charLib: lib,
+	}}
+	save := func(id, gender, voiceID, desc string) {
+		c := &characterlib.Character{ID: id, Name: id, Gender: gender, ChatEnabled: true,
+			TTSVoiceID: voiceID, TTSDesc: desc, CreatedAt: "2026-11-01", UpdatedAt: "2026-11-01"}
+		if err := a.charLib.Upsert(c); err != nil {
+			t.Fatal(err)
+		}
+	}
+	save("ch_a", "female", "my_voice", "傲娇少女音")
+	save("ch_b", "male", "", "低沉男声")
+	save("ch_c", "female", "", "")
+
+	// ① 角色卡命中：voiceId+desc 齐取
+	if v, d := a.voicePersonaPreset("ch_a"); v != "my_voice" || d != "傲娇少女音" {
+		t.Errorf("A = (%q,%q), want (my_voice, 傲娇少女音)", v, d)
+	}
+	// ① 仅描述：voiceId 空 = design 模式
+	if v, d := a.voicePersonaPreset("ch_b"); v != "" || d != "低沉男声" {
+		t.Errorf("B = (%q,%q), want (空, 低沉男声)", v, d)
+	}
+	// ③ gender 缺省描述（出厂不哑）
+	if v, d := a.voicePersonaPreset("ch_c"); v != "" || d != "温柔清晰的青年女性声线" {
+		t.Errorf("C = (%q,%q), want (空, gender 缺省)", v, d)
+	}
+	// 角色卡字段优先于 config 映射（ch_b 卡上有 desc）
+	a.cfg.VoicePersonaPresets = `{"ch_b":{"voiceId":"","desc":"配置层描述"}}`
+	if _, d := a.voicePersonaPreset("ch_b"); d != "低沉男声" {
+		t.Errorf("角色卡 desc 应优先于 config, got %q", d)
+	}
+	// config 仅在角色卡缺该字段时补位（ch_c 卡上无 desc）
+	a.cfg.VoicePersonaPresets = `{"ch_c":{"voiceId":"","desc":"配置层描述"}}`
+	if _, d := a.voicePersonaPreset("ch_c"); d != "配置层描述" {
+		t.Errorf("config 应补位, got %q", d)
+	}
+	// 不存在角色：无 charLib 数据 → 无 gender 底料 → 空（走全局链）
+	if v, d := a.voicePersonaPreset("ch_none"); v != "" || d != "" {
+		t.Errorf("不存在角色 = (%q,%q), want 空", v, d)
 	}
 }

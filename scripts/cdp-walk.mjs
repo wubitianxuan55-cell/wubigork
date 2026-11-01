@@ -1,7 +1,10 @@
 ﻿// 临时真机走查工具：CDP 9333 → Runtime.evaluate / Page.captureScreenshot
 // 用法：node .tmp/cdp-walk.mjs "<js 表达式>" [--shot out.png] [--await]
 //      [--target <url 片段>]  # 多标签时选定目标页（缺省取第一个 page）
-const list = await (await fetch("http://127.0.0.1:9333/json")).json();
+// 端口可经 GAEA_WALK_PORT 覆盖（默认 9333）——9333 被其他 WebView2 应用
+// （如 kidsabc）占用时，走查壳换端口 + 本工具同端口即可并行不串台。
+const WALK_PORT = process.env.GAEA_WALK_PORT || "9333";
+const list = await (await fetch(`http://127.0.0.1:${WALK_PORT}/json`)).json();
 const targetIdx = process.argv.indexOf("--target");
 const targetHint = targetIdx > 0 ? process.argv[targetIdx + 1] : "";
 const pages = list.filter((t) => t.type === "page");

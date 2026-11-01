@@ -51,6 +51,11 @@ type Character struct {
 	BehaviorRules string                   `json:"behaviorRules,omitempty"`
 	EmotionLogic  string                   `json:"emotionLogic,omitempty"`
 	HiddenPersona *whisper.PersonalityDims `json:"hiddenPersona,omitempty"`
+	// 角色音色预设（TTS）：voiceId=breeze 克隆音色 id（空=design 模式），
+	// desc=音色描述。两字段独立回退（合成侧 voicePersonaPreset），均空时走
+	// 全局缺省链（gender 缺省描述 > 全局 breeze 描述）。
+	TTSVoiceID string `json:"ttsVoiceId,omitempty"`
+	TTSDesc    string `json:"ttsDesc,omitempty"`
 
 	// 助手通道（可选）：assistant 记录仍是微信配置的唯一事实源
 	AssistantID string `json:"assistantId,omitempty"`

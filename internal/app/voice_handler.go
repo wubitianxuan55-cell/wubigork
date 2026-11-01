@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/gaea/gaea/internal/asr"
+	"github.com/gaea/gaea/internal/characterlib"
 	appconfig "github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/gaea/secure"
 	"github.com/gaea/gaea/internal/modelengine"
@@ -301,9 +302,9 @@ func (a *mediaState) synthesizeVoiceTTS(text, voiceDescription string) ([]byte, 
 // /v1/audio/speech（"herdsman" kind）；引擎构造分支（voicedesign/voxcpm/voiceclone）
 // 由 herdsman 工厂收敛，这里零分支。
 func (a *mediaState) tryEngineTTS(engineID, model, text, voiceDescription string) ([]byte, string, bool) {
-	// 本地 TTS 服务兜底：cosyvoice/breeze 未就绪时自动拉起（幂等，已就绪零开销）
+	// 本地 TTS 服务兜底：cosyvoice/breeze 未就绪时有界等就绪（幂等，已就绪零开销）
 	if isLocalTTSAssetEngine(engineID) {
-		a.ensureLocalTTSService(engineID)
+		a.waitLocalTTSReady(engineID)
 	}
 	p, ok := a.ttsProviderForEngine(engineID, model, voiceDescription)
 	if !ok {
@@ -683,24 +684,52 @@ func (a *mediaState) voiceSettingsMap(c *voice.VoiceRuntimeConfig) map[string]in
 
 // voicePersonaPreset 解析当前人格的音色预设（voice_persona_presets JSON）。
 // 坏 JSON/无预设/人格为 plain（无人格）一律返回空——调用方走全局缺省链。
+// voicePersonaPreset 解析当前人格（=角色库角色 id）的音色预设，三级独立回退：
+// ① 角色卡字段（characterlib.Character.TTSVoiceID/TTSDesc，各自非空即用）；
+// ② 全局映射 cfg.VoicePersonaPresets（旧版面板数据，兼容保留）；
+// ③ gender 缺省描述（角色卡未配置时出厂不哑——仅 desc，voice 无缺省）。
+// plain（无人格）/空 id/库失败 → 空，走全局缺省链。
 func (a *mediaState) voicePersonaPreset(personalityID string) (voiceID, desc string) {
-	if a.cfg == nil || personalityID == "" || personalityID == "plain" {
+	if personalityID == "" || personalityID == "plain" {
 		return "", ""
 	}
-	if a.cfg.VoicePersonaPresets == "" {
-		return "", ""
+	// ① 角色卡（一次 Get 同时取音色字段与 gender 缺省底料）
+	var ch *characterlib.Character
+	if a.charLib != nil {
+		// Get 无行时返回 (nil, nil)——必须双守卫
+		if c, err := a.charLib.Get(personalityID); err == nil && c != nil {
+			ch = c
+			voiceID = strings.TrimSpace(c.TTSVoiceID)
+			desc = strings.TrimSpace(c.TTSDesc)
+		}
 	}
-	var m map[string]struct {
-		VoiceID string `json:"voiceId"`
-		Desc    string `json:"desc"`
+	// ② 全局映射（旧版面板数据兼容）
+	if a.cfg != nil && a.cfg.VoicePersonaPresets != "" && (voiceID == "" || desc == "") {
+		var m map[string]struct {
+			VoiceID string `json:"voiceId"`
+			Desc    string `json:"desc"`
+		}
+		if err := json.Unmarshal([]byte(a.cfg.VoicePersonaPresets), &m); err == nil {
+			if p, ok := m[personalityID]; ok {
+				if voiceID == "" {
+					voiceID = strings.TrimSpace(p.VoiceID)
+				}
+				if desc == "" {
+					desc = strings.TrimSpace(p.Desc)
+				}
+			}
+		}
 	}
-	if err := json.Unmarshal([]byte(a.cfg.VoicePersonaPresets), &m); err != nil {
-		return "", ""
+	// ③ gender 缺省描述（角色卡/映射均未配置描述时，出厂不哑）
+	if desc == "" && ch != nil {
+		switch strings.ToLower(ch.Gender) {
+		case "male":
+			desc = "沉稳清晰的青年男性声线"
+		case "female":
+			desc = "温柔清晰的青年女性声线"
+		}
 	}
-	if p, ok := m[personalityID]; ok {
-		return strings.TrimSpace(p.VoiceID), strings.TrimSpace(p.Desc)
-	}
-	return "", ""
+	return voiceID, desc
 }
 
 // herdsmanInstalledModelIDs 返回 Herdsman 引擎当前已安装（可用）模型 ID 列表。

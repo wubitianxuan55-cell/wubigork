@@ -32,6 +32,20 @@ func isLocalTTSAssetEngine(engineID string) bool {
 	return engineID == "cosyvoice" || engineID == "breeze"
 }
 
+// waitLocalTTSReady 合成就绪有界等待：ensure 异步拉起后轮询探活至就绪
+// （≤12s）。此前合成管线「发了就算」——冷启动窗口内 provider 必然
+// connection refused，整段朗读滑落 edge（实弹日志：dial tcp refused）。
+// 朗读按钮同步等待冷启动属可接受 UX（对比：滑落 edge = 错误音色）。
+func (c *core) waitLocalTTSReady(engineID string) {
+	if c.ttsReady(engineID) {
+		return
+	}
+	c.ensureLocalTTSService(engineID)
+	for i := 0; i < 30 && !c.ttsReady(engineID); i++ {
+		time.Sleep(400 * time.Millisecond)
+	}
+}
+
 // ttsCmdFactory 构造 CosyVoice 启动命令；抽为变量便于测试注入（断言参数/模拟启动失败）。
 var ttsCmdFactory = func(cfg *config.Config) *exec.Cmd {
 	return ttsCosyVoiceCmdFor(cfg)

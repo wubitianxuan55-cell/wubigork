@@ -84,6 +84,7 @@ const CharacterLibInspector: React.FC<Props> = ({
   const hasDetail = !!(c && (
     c.personality || c.background || c.arc || c.appearance || c.figure || c.motivation
     || c.voiceGuide || c.behaviorRules || c.emotionLogic || c.notes || tags.length > 0 || samples.length > 0
+    || c.ttsVoiceId || c.ttsDesc
   ))
 
   return (
@@ -104,7 +105,7 @@ const CharacterLibInspector: React.FC<Props> = ({
           <div className="clib-insp-empty">
             <div className="clib-insp-empty-icon"><IdcardOutlined /></div>
             <p className="clib-insp-empty-title">未选中档案</p>
-            <p className="clib-insp-empty-desc">点击左侧档案卡，在此查看立绘 / 详情 / 记忆。</p>
+            <p className="clib-insp-empty-desc">从人物墙选择一位角色，在此查看剧照、设定与人格记忆。</p>
           </div>
         ) : (
           <>
@@ -155,7 +156,7 @@ const CharacterLibInspector: React.FC<Props> = ({
 
             {/* 设定摘要 */}
             <div className="clib-insp-sec">
-              <h4 className="clib-insp-sec-title">档案摘要</h4>
+              <h4 className="clib-insp-sec-title">人物设定</h4>
               {hasDetail ? (
                 <>
                   {field('性格', c.personality)}
@@ -167,6 +168,9 @@ const CharacterLibInspector: React.FC<Props> = ({
                   {field('口吻指南', c.voiceGuide)}
                   {field('行为规则', c.behaviorRules)}
                   {field('情感逻辑', c.emotionLogic)}
+                  {(c.ttsVoiceId || c.ttsDesc) && field('语音音色', c.ttsVoiceId
+                    ? `克隆音色：${c.ttsVoiceId}`
+                    : `描述：${c.ttsDesc}`)}
                   {field('备注', c.notes)}
                   {tags.length > 0 && (
                     <div className="clib-insp-field">
@@ -197,7 +201,7 @@ const CharacterLibInspector: React.FC<Props> = ({
 
             {/* 记忆入口 */}
             <div className="clib-insp-sec">
-              <h4 className="clib-insp-sec-title">记忆</h4>
+              <h4 className="clib-insp-sec-title">人格记忆</h4>
               {c.chatEnabled ? (
                 <p className="clib-insp-text clib-insp-mem-hint">
                   <InboxOutlined aria-hidden /> 聊天状态 / 记忆事实 / 行为追踪请打开「状态 / 记忆」面板查看。

@@ -48,11 +48,17 @@ const voiceMock = vi.hoisted(() => ({
 }))
 
 vi.mock('../hooks/useVoiceChat', () => ({
+  // VoiceConsole 设备快切（角色音色线）消费的设备工具桩：jsdom 无媒体设备，
+  // 列表恒空、无已选设备（Select 恒隐藏，交互断言不依赖）
+  loadMicDeviceId: () => '',
+  saveMicDeviceId: () => {},
+  listMicDevices: async () => [],
   useVoiceChat: (options?: { onTranscript?: (t: string) => void; onReply?: (t: string) => void }) => {
     voiceMock.opts = options || {}
     return {
-      state: { active: false, listening: false, speaking: false, aiSpeaking: false, transcript: '', finalTranscript: '', volume: 0, error: null, mode: 'vad' },
+      state: { active: false, listening: false, speaking: false, aiSpeaking: false, transcript: '', finalTranscript: '', volume: 0, error: null, mode: 'vad', suggestedMic: null },
       start: voiceMock.start, stop: voiceMock.stop, setPTT: vi.fn(), interrupt: voiceMock.interrupt,
+      switchMic: vi.fn(async () => {}),
     }
   },
 }))

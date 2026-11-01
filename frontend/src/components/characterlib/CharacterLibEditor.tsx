@@ -2,6 +2,7 @@
 // 档案眉 → 立绘横幅 → 身份栏 + 卷宗正文 → 底部操作条
 // 随机生成：顶部「随机补全 / 全部随机」，每个字段旁 ↻ 可单独随机（含性格）
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { app } from '../../gaea/lib/bridge'
 import {
   Modal, Input, Select, Switch, Slider, Typography, message, Button, Dropdown,
 } from 'antd'
@@ -127,6 +128,19 @@ const CharacterLibEditor: React.FC<Props> = ({
   const [genDims, setGenDims] = useState(false)
   const [fieldGen, setFieldGen] = useState<string | null>(null)
   const [genPortrait, setGenPortrait] = useState(false)
+  // 克隆音色清单（Breeze 服务在线才有内容；离线时下拉仅「自动」档）
+  const [breezeVoices, setBreezeVoices] = useState<Array<{ id: string; seconds?: number }>>([])
+  useEffect(() => {
+    if (!open) return
+    void (async () => {
+      try {
+        const res = await app.BreezeListVoices() as { voices?: Array<{ id: string; seconds?: number }> }
+        setBreezeVoices(Array.isArray(res?.voices) ? res.voices : [])
+      } catch (_) {
+        setBreezeVoices([])
+      }
+    })()
+  }, [open])
   const [refGenIdx, setRefGenIdx] = useState<number | null>(null)
   const [sheetGen, setSheetGen] = useState(false)
   // 一致性评分进行中的参考图下标（v4.404，文字锚点 v1）
@@ -834,6 +848,23 @@ const CharacterLibEditor: React.FC<Props> = ({
                         onChange={e => patch({ [f.key]: e.target.value })} />
                     </div>
                   ))}
+                  {/* 角色音色预设（TTS）：聊天选中该角色即用其音色（breeze 合成） */}
+                  <div className="cd-field">
+                    <div className="cd-label-row"><label className="cd-label">克隆音色</label></div>
+                    <Select size="small" value={form.ttsVoiceId ?? ''} style={{ width: '100%' }}
+                      onChange={v => patch({ ttsVoiceId: String(v) })}
+                      options={[
+                        { value: '', label: '自动（按下方音色描述）' },
+                        ...breezeVoices.map(v => ({ value: v.id, label: `${v.id}（${(v.seconds ?? 0).toFixed(1)}s）` })),
+                      ]}
+                      notFoundContent="无克隆音色（需 Breeze 服务运行）" />
+                  </div>
+                  <div className="cd-field">
+                    <div className="cd-label-row"><label className="cd-label">音色描述</label></div>
+                    <TextArea className="cd-area" size="small" rows={2} value={form.ttsDesc ?? ''}
+                      placeholder={`按人格写的音色描述；留空按性别缺省（${form.gender === 'male' ? '沉稳清晰的青年男性声线' : '温柔清晰的青年女性声线'}）`}
+                      onChange={e => patch({ ttsDesc: e.target.value })} />
+                  </div>
                 </div>
               ))}
               {form.assistantId && (

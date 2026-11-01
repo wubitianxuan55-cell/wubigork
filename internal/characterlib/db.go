@@ -47,6 +47,11 @@ func GetDatabase(dataDir string) *sql.DB {
 		_ = db.Close()
 		return nil
 	}
+	if err := migrateSchemaV3(db); err != nil {
+		slog.Error("[characterlib-db] SchemaV3 迁移失败", "error", err)
+		_ = db.Close()
+		return nil
+	}
 	pools[dataDir] = db
 	return db
 }
@@ -82,6 +87,24 @@ func migrateSchemaV2(db *sql.DB) error {
 	if !has {
 		if _, err := db.Exec(`ALTER TABLE characters ADD COLUMN reference_scores TEXT NOT NULL DEFAULT '[]'`); err != nil {
 			return fmt.Errorf("新增 reference_scores 列失败: %w", err)
+		}
+	}
+	return nil
+}
+
+// migrateSchemaV3 幂等迁移（角色音色预设）：characters 表补 tts_voice_id /
+// tts_desc 两列（TEXT，空串=未设置）。voiceId=breeze 克隆音色 id，desc=音色
+// 描述（design 模式）；两列独立回退，均空时合成走全局缺省链。
+func migrateSchemaV3(db *sql.DB) error {
+	for _, col := range []string{"tts_voice_id", "tts_desc"} {
+		has, err := hasColumn(db, "characters", col)
+		if err != nil {
+			return err
+		}
+		if !has {
+			if _, err := db.Exec(`ALTER TABLE characters ADD COLUMN ` + col + ` TEXT NOT NULL DEFAULT ''`); err != nil {
+				return fmt.Errorf("新增 %s 列失败: %w", col, err)
+			}
 		}
 	}
 	return nil
