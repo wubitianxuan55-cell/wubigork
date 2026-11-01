@@ -101,6 +101,10 @@ func TestBreezeSynthesize_FieldMapping(t *testing.T) {
 	if ins == "" || !containsAll(ins, "沉稳的青年男声", "平静", "语速稍慢") {
 		t.Errorf("instructions 应含描述+情绪+风格, got %q", ins)
 	}
+	// 情感/风格在场 → cfg_scale=2.5（服务端 cfg=1 会把情感标签念白跳过）
+	if body["cfg_scale"] != 2.5 {
+		t.Errorf("有情绪参数时 cfg_scale = %v, want 2.5", body["cfg_scale"])
+	}
 }
 
 func containsAll(s string, subs ...string) bool {

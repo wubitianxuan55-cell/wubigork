@@ -62,12 +62,17 @@ func (b *BreezeTTS) SynthesizeWithMime(text string) ([]byte, string, error) {
 
 // SynthesizeWithParams 携带单次合成参数合成并返回音频和实际 MIME 类型。
 // Emotion/Style 非空时并入 instructions（breeze 无结构化情绪字段，按自然语言
-// 语气执导消费）；Speed/Pitch 能力外静默忽略（与服务端口径一致）。
+// 语气执导消费），并带 cfg_scale=2.5——服务端口径 cfg=1 时情感标签只是建议
+// 倾向被念白跳过，2~3 才真正触发（实弹：代价仅 +11% 耗时）；Speed/Pitch 能力
+// 外静默忽略（与服务端口径一致）。
 func (b *BreezeTTS) SynthesizeWithParams(text string, p TTSParams) ([]byte, string, error) {
 	body := map[string]interface{}{
 		"model":           b.model, // 服务端忽略，恒发以兼容必带 model 的调用方
 		"input":           text,
 		"response_format": "wav",
+	}
+	if strings.TrimSpace(p.Emotion) != "" || strings.TrimSpace(p.Style) != "" {
+		body["cfg_scale"] = 2.5
 	}
 	if v := strings.TrimSpace(b.voice); v != "" {
 		body["voice"] = v

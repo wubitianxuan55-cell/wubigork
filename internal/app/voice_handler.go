@@ -348,22 +348,10 @@ func (a *mediaState) ttsProviderForEngine(engineID, model, voiceDescription stri
 	}
 
 	// Breeze：OpenAI 兼容 JSON 路径但字段口径不同（instructions/voice，无
-	// /v1/audio/info 音色探测），走 breeze kind。音色解析优先级：
-	// 角色音色预设（当前人格的克隆音色 id）> 面板全局选择 > voice design；
-	// 描述优先级：语音对话管线的人格化描述 > 角色预设描述 > 全局 breeze 描述。
+	// /v1/audio/info 音色探测），走 breeze kind。音色/描述解析单一来源在
+	// breezeVoiceAndInstruction（流播路径共用同一优先级链）。
 	if engineID == "breeze" {
-		presetVoice, presetDesc := a.voicePersonaPreset(a.activePersonalityID)
-		voice := presetVoice
-		if voice == "" {
-			voice = strings.TrimSpace(a.activeTTSVoice)
-		}
-		desc := voiceDescription
-		if desc == "" {
-			desc = presetDesc
-		}
-		if desc == "" && a.cfg != nil {
-			desc = strings.TrimSpace(a.cfg.BreezeVoiceDesc)
-		}
+		voice, desc := a.breezeVoiceAndInstruction(voiceDescription)
 		p, err := tts.NewTTSProvider("breeze", tts.TTSConfig{
 			BaseURL: eng.BaseURL, Model: model,
 			Voice:            voice,

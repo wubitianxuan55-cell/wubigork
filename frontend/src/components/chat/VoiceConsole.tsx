@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { Select } from 'antd'
 import {
   AudioOutlined,
   CloseOutlined,
@@ -8,6 +9,7 @@ import {
   StopOutlined,
 } from '@ant-design/icons'
 import VoiceChatOrb from '../VoiceChatOrb'
+import { listMicDevices, loadMicDeviceId } from '../../hooks/useVoiceChat'
 import type { VoiceChatState } from '../../hooks/useVoiceChat'
 import type { ChatMsg } from '../../pages/chat/types'
 
@@ -38,6 +40,13 @@ export const VoiceConsole: React.FC<VoiceConsoleProps> = ({
 }) => {
   const headingRef = useRef<HTMLHeadingElement>(null)
   const [busy, setBusy] = useState(false)
+
+  // 设备快切：当前录音设备一览+就地切换（switchMic 就地重启采集，会话不断）
+  const [micDevices, setMicDevices] = useState<Array<{ deviceId: string; label: string }>>([])
+  const [currentMic, setCurrentMic] = useState(() => loadMicDeviceId())
+  useEffect(() => {
+    void (async () => setMicDevices(await listMicDevices()))()
+  }, [])
 
   useEffect(() => {
     headingRef.current?.focus()
@@ -136,6 +145,26 @@ export const VoiceConsole: React.FC<VoiceConsoleProps> = ({
             <span>实时转写</span>
             <p>{voice.transcript || (voice.listening ? '正在等待你的声音…' : '还没有新的语音输入')}</p>
           </div>
+
+          {micDevices.length > 1 && onSwitchMic && (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
+              <AudioOutlined style={{ fontSize: 12, color: 'var(--color-text-secondary)' }} />
+              <Select
+                size="small"
+                value={currentMic || 'default'}
+                onChange={v => {
+                  const id = v === 'default' ? '' : String(v)
+                  setCurrentMic(id)
+                  onSwitchMic(id) // switchMic 内含持久化+就地重启采集
+                }}
+                style={{ flex: 1, fontSize: 11 }}
+                options={[
+                  { value: 'default', label: '跟随系统默认' },
+                  ...micDevices.map(d => ({ value: d.deviceId, label: d.label })),
+                ]}
+              />
+            </div>
+          )}
 
           {lastReply && (
             <div className="chat-voice-last-reply">

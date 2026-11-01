@@ -65,12 +65,19 @@ func (a *mediaState) TTSSpeakBase64(text string) (map[string]interface{}, error)
 }
 
 // TTSSpeakStreaming 流式合成：逐句生成（边合成边播）。
-// 合成器列表由注册表驱动（见 ttsStreamingProviders）：
-// Breeze（选中时，首位）→ Herdsman TTS → xAI Grok TTS → Edge TTS → WinTTS (SAPI)。
+// Breeze 选中时优先走真·实时流播（streamBreezeTTS：单请求 SSE delta 推流，
+// 首音 ~300ms、句间无缝，chunk 为迷你 WAV 前端零改动）；未接管再走注册表
+// 驱动的逐句链（ttsStreamingProviders）：
+// Breeze → Herdsman TTS → xAI Grok TTS → Edge TTS → WinTTS (SAPI)。
 func (a *mediaState) TTSSpeakStreaming(text string) error {
 	sentences := tts.SplitSentences(text)
 	if len(sentences) == 0 {
 		return fmt.Errorf("无可朗读的文本")
+	}
+
+	// Breeze 真·实时流播优先。未接管（服务未起/不可达/零 delta）走回退链。
+	if a.streamBreezeTTS(text) {
+		return nil
 	}
 
 	providers := a.ttsStreamingProviders()
