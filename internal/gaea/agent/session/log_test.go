@@ -280,6 +280,81 @@ func TestEntryFromEventAllKinds(t *testing.T) {
 	}
 }
 
+// TestEntryFromEventAttentionPayloads 锁定「注意力事务」判别字段的持久化：
+// 实时事件里早就有的 source/reason/request 不再被日志层丢掉，结果侧事件
+// 以同一 id 成对落盘（旧日志只有请求，这是阶段 1 补的洞）。
+func TestEntryFromEventAttentionPayloads(t *testing.T) {
+	req, err := EntryFromEvent(event.Event{
+		Kind: event.ApprovalRequest,
+		Approval: event.Approval{
+			ID: "a1", Tool: "cost_save", Subject: "写入成本库",
+			Reason: "跨库写入", Request: true, Source: event.ApprovalSourcePermissionRequest,
+		},
+	}, 1700000000)
+	if err != nil {
+		t.Fatalf("approval_request: %v", err)
+	}
+	var reqPayload map[string]any
+	if err := json.Unmarshal(req.Payload, &reqPayload); err != nil {
+		t.Fatalf("unmarshal request payload: %v", err)
+	}
+	if req.Kind != "approval_request" {
+		t.Errorf("kind = %q, want approval_request", req.Kind)
+	}
+	if reqPayload["source"] != "permission_request" {
+		t.Errorf("source = %v, want permission_request（判别字段必须进真相层）", reqPayload["source"])
+	}
+	if reqPayload["reason"] != "跨库写入" || reqPayload["request"] != true {
+		t.Errorf("reason/request = %v/%v, want 跨库写入/true", reqPayload["reason"], reqPayload["request"])
+	}
+
+	resolved, err := EntryFromEvent(event.Event{
+		Kind: event.ApprovalResolved,
+		Resolved: event.ApprovalResolution{
+			ID: "a1", Tool: "cost_save", Subject: "写入成本库",
+			Source: event.ApprovalSourcePermissionRequest, Decision: "allow_once",
+			Outcome: event.OutcomeAllowed, LatencyMS: 1500,
+		},
+	}, 1700000001)
+	if err != nil {
+		t.Fatalf("approval_resolved: %v", err)
+	}
+	var resPayload map[string]any
+	if err := json.Unmarshal(resolved.Payload, &resPayload); err != nil {
+		t.Fatalf("unmarshal resolved payload: %v", err)
+	}
+	if resolved.Kind != "approval_resolved" {
+		t.Errorf("kind = %q, want approval_resolved", resolved.Kind)
+	}
+	for k, want := range map[string]any{
+		"id": "a1", "source": "permission_request", "decision": "allow_once",
+		"outcome": "allowed", "latency_ms": float64(1500),
+	} {
+		if resPayload[k] != want {
+			t.Errorf("resolved[%s] = %v, want %v", k, resPayload[k], want)
+		}
+	}
+
+	resolvedAsk, err := EntryFromEvent(event.Event{
+		Kind:        event.AskResolved,
+		AskResolved: event.AskResolution{ID: "q1", Outcome: event.OutcomeAnswered, Answered: 1, LatencyMS: 800},
+	}, 1700000002)
+	if err != nil {
+		t.Fatalf("ask_resolved: %v", err)
+	}
+	var askPayload map[string]any
+	if err := json.Unmarshal(resolvedAsk.Payload, &askPayload); err != nil {
+		t.Fatalf("unmarshal ask_resolved payload: %v", err)
+	}
+	if resolvedAsk.Kind != "ask_resolved" || askPayload["outcome"] != "answered" || askPayload["answered"] != float64(1) {
+		t.Errorf("ask_resolved = %s %v, want ask_resolved/answered/1", resolvedAsk.Kind, askPayload)
+	}
+
+	if KindString(event.ApprovalResolved) != "approval_resolved" || KindString(event.AskResolved) != "ask_resolved" {
+		t.Error("resolved kind string mapping broken")
+	}
+}
+
 // ─── 消息 → 日志条目 ─────────────────────────────────────────────
 
 func TestToLogEntries(t *testing.T) {

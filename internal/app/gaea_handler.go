@@ -771,7 +771,23 @@ func gaeaEventMap(e event.Event) map[string]interface{} {
 		if e.Approval.Request {
 			am["request"] = true
 		}
+		if e.Approval.Source != "" {
+			am["source"] = e.Approval.Source
+		}
 		m["approval"] = am
+	case event.ApprovalResolved:
+		// 注意力事务结果侧：持久层账本事件。透传线格式便于将来的卡片状态
+		// 对账/补拉；当前前端 reducer 对未知 kind 无操作，不产生 UI 变化。
+		m["resolved"] = map[string]interface{}{
+			"id": e.Resolved.ID, "tool": e.Resolved.Tool, "subject": e.Resolved.Subject,
+			"source": e.Resolved.Source, "decision": e.Resolved.Decision,
+			"outcome": e.Resolved.Outcome, "latencyMs": e.Resolved.LatencyMS,
+		}
+	case event.AskResolved:
+		m["askResolved"] = map[string]interface{}{
+			"id": e.AskResolved.ID, "outcome": e.AskResolved.Outcome,
+			"answered": e.AskResolved.Answered, "latencyMs": e.AskResolved.LatencyMS,
+		}
 	case event.AskRequest:
 		qs := make([]map[string]interface{}, 0, len(e.Ask.Questions))
 		for _, q := range e.Ask.Questions {
@@ -838,6 +854,7 @@ func gaeaKindName(k event.Kind) string {
 		event.Message: "message", event.ToolDispatch: "tool_dispatch", event.ToolResult: "tool_result",
 		event.Usage: "usage", event.Notice: "notice", event.Phase: "phase",
 		event.ApprovalRequest: "approval_request", event.AskRequest: "ask_request",
+		event.ApprovalResolved: "approval_resolved", event.AskResolved: "ask_resolved",
 		event.TurnDone: "turn_done", event.CompactionStarted: "compaction_started",
 		event.CompactionDone: "compaction_done", event.Steer: "notice",
 		event.SubagentMessage: "subagent_message",

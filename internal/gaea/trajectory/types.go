@@ -102,15 +102,30 @@ type CompactRec struct {
 	Summary string `json:"summary,omitempty"`
 }
 
-// AskRec 是一次结构化提问记录（ask 工具）。
+// AskRec 是一次结构化提问记录（ask 工具）。ID 把请求与解决态（ask_resolved）
+// 配成一条注意力事务；Outcome/Answered/LatencyMS 仅在有解决事件时填充
+// （旧日志无解决事件，保持空/零值，omitempty 不改变历史输出）。
 type AskRec struct {
-	Question string `json:"question,omitempty"`
+	ID        string `json:"id,omitempty"`
+	Question  string `json:"question,omitempty"`
+	Outcome   string `json:"outcome,omitempty"`
+	Answered  int    `json:"answered,omitempty"`
+	LatencyMS int64  `json:"latencyMs,omitempty"`
 }
 
-// ApprovalRec 是一次工具调用审批记录。
+// ApprovalRec 是一次工具调用审批记录。ID 把请求与解决态（approval_resolved）
+// 配成一条注意力事务；Source 是触发来源（gate/hard_ask/project_plan/
+// permission_request），Reason 是模型申请理由；Decision/Outcome/LatencyMS
+// 在有解决事件时填充。
 type ApprovalRec struct {
-	Tool    string `json:"tool,omitempty"`
-	Subject string `json:"subject,omitempty"`
+	ID        string `json:"id,omitempty"`
+	Tool      string `json:"tool,omitempty"`
+	Subject   string `json:"subject,omitempty"`
+	Source    string `json:"source,omitempty"`
+	Reason    string `json:"reason,omitempty"`
+	Decision  string `json:"decision,omitempty"`
+	Outcome   string `json:"outcome,omitempty"`
+	LatencyMS int64  `json:"latencyMs,omitempty"`
 }
 
 // SubagentRec 是一条子代理完成回投记录（v4.26 对话流式重造）：子代理

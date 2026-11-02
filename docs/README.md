@@ -83,6 +83,7 @@
 | gaea-unsloth-modelhub-distill-plan-2026-09.md | ⚠️ 已退役（2026-10-18 modelhub 引擎整体删除：引擎/Key/MH4 预热随 Unsloth 退役下线；CU1/CU2 等 ComfyUI 侧蒸馏成果保留）。本文保留作历史蒸馏记录 |
 | gaea-reasonix-2x-distill-2026-10.md | ✅ **Reasonix 2.x 蒸馏重开（2026-10-24）**：A 档八刀+B 档五刀全清随 v4.524.0 发版（readiness 死闸根修/read_subagent_result/出发快照/steer 收据收口） |
 | gaea-zcode-distill-2026-10.md | ✅ **ZCode 蒸馏规划档（Z0~Z18 刀池+十二节跨源合流分析）**：v1 收官随 v4.525.0（运行时 8+产出 5+交汇 2，dfd8e169→faebe184） |
+| gaea-attention-transaction-2026-11.md | 🔄 **注意力事务（2026-11-02，众神殿 super agent 讨论产物）**：第一刀=请求/结果成对事件（`approval_resolved`/`ask_resolved`）+ `source` 判别字段贯通实时层/日志/轨迹，前端零改动；阶段 0 基线统计器 `scripts/attention_report`（只读）；开放项=case_id/step_id 事项维、V5 事件账本对齐、旧日志不可补 |
 | zcode-office-distill-2026-10.md | ✅ ZCode office 域对源蒸馏分析（A1 锚点语法层/F2 doc_render 等交汇刀的对源证据层） |
 | zcode-office-distill-analysis-2026-10.md | ✅ ZCode office 蒸馏子分析报告（机检十二规则/Q1 对源） |
 | zcode-office-decision-memo-2026-10.md | ✅ ZCode office 蒸馏决策备忘（双执行体轮次署名权/取舍记录） |

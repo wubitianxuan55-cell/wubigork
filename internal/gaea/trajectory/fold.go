@@ -108,8 +108,12 @@ func (f *folding) apply(e session.LogEntry) {
 		f.applyCompaction(e)
 	case "ask_request":
 		f.applyAsk(e)
+	case "ask_resolved":
+		f.applyAskResolved(e)
 	case "approval_request":
 		f.applyApproval(e)
+	case "approval_resolved":
+		f.applyApprovalResolved(e)
 	case "subagent_message":
 		// v4.26 对话流式重造：子代理完成回投（旧日志无此 kind，不会进入该
 		// 分支——fold 对未知 kind 的既有跳过行为不变，golden 不受影响）。
@@ -379,6 +383,7 @@ func (f *folding) applyCompaction(e session.LogEntry) {
 
 func (f *folding) applyAsk(e session.LogEntry) {
 	var p struct {
+		ID        string `json:"id"`
 		Questions []struct {
 			Prompt string `json:"prompt"`
 		} `json:"questions"`
@@ -394,7 +399,7 @@ func (f *folding) applyAsk(e session.LogEntry) {
 		Seq:  e.Seq,
 		Kind: "ask",
 		Ts:   e.Ts,
-		Ask:  &AskRec{Question: preview(question, maxTextPreview)},
+		Ask:  &AskRec{ID: p.ID, Question: preview(question, maxTextPreview)},
 	}
 	if f.cur != nil {
 		f.appendRecord(rec)
@@ -403,25 +408,108 @@ func (f *folding) applyAsk(e session.LogEntry) {
 	}
 }
 
+// applyAskResolved 折叠提问卡的解决态（ask_resolved）：按 ID 找回同回合/
+// 轮间区段的请求记录，补齐结果与等待时长，使一张卡成为「有起点有结果」
+// 的事务。找不到请求（截断/旧日志错位）就跳过——日志原文仍是真相。
+func (f *folding) applyAskResolved(e session.LogEntry) {
+	var p struct {
+		ID        string `json:"id"`
+		Outcome   string `json:"outcome"`
+		Answered  int    `json:"answered"`
+		LatencyMS int64  `json:"latency_ms"`
+	}
+	if err := json.Unmarshal(e.Payload, &p); err != nil {
+		return
+	}
+	rec := f.findAttention("ask", p.ID)
+	if rec == nil || rec.Ask == nil {
+		return
+	}
+	rec.Ask.Outcome = p.Outcome
+	rec.Ask.Answered = p.Answered
+	rec.Ask.LatencyMS = p.LatencyMS
+}
+
 func (f *folding) applyApproval(e session.LogEntry) {
 	var p struct {
+		ID      string `json:"id"`
 		Tool    string `json:"tool"`
 		Subject string `json:"subject"`
+		Source  string `json:"source"`
+		Reason  string `json:"reason"`
 	}
 	if err := json.Unmarshal(e.Payload, &p); err != nil {
 		return
 	}
 	rec := Record{
-		Seq:      e.Seq,
-		Kind:     "approval",
-		Ts:       e.Ts,
-		Approval: &ApprovalRec{Tool: p.Tool, Subject: p.Subject},
+		Seq:  e.Seq,
+		Kind: "approval",
+		Ts:   e.Ts,
+		Approval: &ApprovalRec{
+			ID: p.ID, Tool: p.Tool, Subject: p.Subject,
+			Source: p.Source, Reason: preview(p.Reason, maxTextPreview),
+		},
 	}
 	if f.cur != nil {
 		f.appendRecord(rec)
 	} else {
 		f.between = append(f.between, rec)
 	}
+}
+
+// applyApprovalResolved 折叠审批卡的解决态（approval_resolved）：按 ID 配对
+// 请求记录，补齐决策/归一结果/等待时长。来源在请求侧已记，这里仅在解决侧
+// 带值时补（旧请求无 source 时以解决侧为准）。
+func (f *folding) applyApprovalResolved(e session.LogEntry) {
+	var p struct {
+		ID        string `json:"id"`
+		Source    string `json:"source"`
+		Decision  string `json:"decision"`
+		Outcome   string `json:"outcome"`
+		LatencyMS int64  `json:"latency_ms"`
+	}
+	if err := json.Unmarshal(e.Payload, &p); err != nil {
+		return
+	}
+	rec := f.findAttention("approval", p.ID)
+	if rec == nil || rec.Approval == nil {
+		return
+	}
+	rec.Approval.Decision = p.Decision
+	rec.Approval.Outcome = p.Outcome
+	rec.Approval.LatencyMS = p.LatencyMS
+	if rec.Approval.Source == "" {
+		rec.Approval.Source = p.Source
+	}
+}
+
+// findAttention 按卡片 kind（"ask"/"approval"）+ ID 找回请求记录：先查当前
+// 回合，再查轮间区段（回合边界后的悬挂解决事件）。空 ID 恒不匹配。
+func (f *folding) findAttention(kind, id string) *Record {
+	if id == "" {
+		return nil
+	}
+	match := func(rs []Record) *Record {
+		for i := range rs {
+			r := &rs[i]
+			if r.Kind != kind {
+				continue
+			}
+			if r.Ask != nil && r.Ask.ID == id {
+				return r
+			}
+			if r.Approval != nil && r.Approval.ID == id {
+				return r
+			}
+		}
+		return nil
+	}
+	if f.cur != nil {
+		if r := match(f.cur.Records); r != nil {
+			return r
+		}
+	}
+	return match(f.between)
 }
 
 // applySubagentMessage 折叠子代理完成回投（v4.26）：最终答复文本（展示级

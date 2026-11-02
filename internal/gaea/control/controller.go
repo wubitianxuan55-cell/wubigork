@@ -794,7 +794,7 @@ func (c *Controller) hardAskSet() map[string]bool {
 // Ask implements agent.Asker: it emits an AskRequest and blocks until
 // AnswerQuestion(ID, …) answers or ctx is cancelled. promptMu serialises it
 // against tool-approval prompts so at most one user prompt is outstanding.
-func (c *Controller) Ask(ctx context.Context, questions []event.AskQuestion) ([]event.AskAnswer, error) {
+func (c *Controller) Ask(ctx context.Context, questions []event.AskQuestion) (answers []event.AskAnswer, err error) {
 	c.promptMu.Lock()
 	defer c.promptMu.Unlock()
 
@@ -806,6 +806,19 @@ func (c *Controller) Ask(ctx context.Context, questions []event.AskQuestion) ([]
 	c.mu.Unlock()
 
 	c.sink.Emit(event.Event{Kind: event.AskRequest, Ask: event.Ask{ID: id, Questions: questions}})
+
+	// 注意力事务的结果侧：请求有起点、解决有结果。取消（回合终止）也要落
+	// 解决事件，否则日志里会留下一张永远悬空的卡，「打断次数」无法计数。
+	startedAt := time.Now()
+	defer func() {
+		outcome := event.OutcomeCancelled
+		if err == nil {
+			outcome = event.OutcomeAnswered
+		}
+		c.sink.Emit(event.Event{Kind: event.AskResolved, AskResolved: event.AskResolution{
+			ID: id, Outcome: outcome, Answered: len(answers), LatencyMS: attentionLatency(startedAt),
+		}})
+	}()
 
 	select {
 	case ans := <-reply:

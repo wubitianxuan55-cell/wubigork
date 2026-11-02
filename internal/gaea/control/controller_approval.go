@@ -42,19 +42,19 @@ func (g gateApprover) Approve(ctx context.Context, tool, subject string, args js
 	// auto/yolo 权限级别也强制询问，且不记忆会话放行。集合按空间策略
 	// 参数化（S1.5-A：play 产品默认空集 = 不弹审批卡；默认集 = 包级 hardAskTools）。
 	if g.c.hardAskSet()[tool] {
-		return g.c.requestApproval(ctx, tool, approvalSubjectFor(tool, args), true)
+		return g.c.requestApproval(ctx, tool, approvalSubjectFor(tool, args), true, event.ApprovalSourceHardAsk)
 	}
 	// diff 确认闭环刀C：schedule_apply project 通道（args.project 非空=整计划
 	// 替换/生成）毁伤半径最大——任何权限级别（含 auto/yolo）前置强制逐条
 	// 确认，alwaysPrompt 不读不写会话放行（拍板项 2：禁会话记忆）。ops 增量
 	// 通道维持现状闸门（拍板项 3：auto/yolo 豁免弹卡，后置回执+回滚兜底）。
 	if tool == "schedule_apply" && scheduleApplyIsProjectChannel(args) {
-		return g.c.requestApproval(ctx, tool, approvalSubjectFor(tool, args), true)
+		return g.c.requestApproval(ctx, tool, approvalSubjectFor(tool, args), true, event.ApprovalSourceProjectPlan)
 	}
 	if auto {
 		return true, false, nil
 	}
-	return g.c.requestApproval(ctx, tool, subject, false)
+	return g.c.requestApproval(ctx, tool, subject, false, event.ApprovalSourceGate)
 }
 
 // approvalSubjectFor 为硬性审批工具生成可读的确认摘要。
@@ -137,14 +137,46 @@ type approvalPrompt struct {
 	// 规则，因此 allow_once 与 allow_session 同效（写入会话 granted，否则
 	// 批准没有任何可落地的效果）；事件带 Request 标记与 reason 供前端展示。
 	ruleRequest bool
+	// source 是触发来源判别字段（gate / hard_ask / project_plan /
+	// permission_request），随 request 与 resolved 两侧事件落日志与轨迹。
+	source string
+}
+
+// attentionLatency 把卡片请求发出 → 解决之间的墙钟时长折算为毫秒（时钟
+// 回拨/负值按 0，不产生负数计数）。
+func attentionLatency(start time.Time) int64 {
+	if d := time.Since(start).Milliseconds(); d > 0 {
+		return d
+	}
+	return 0
+}
+
+// approvalOutcome 把五决策语义 + ctx 取消归一为计数结果：allowed 合并三种
+// 放行（明细 decision 仍保留），denied 含未知决策串的保守拒绝。
+func approvalOutcome(decision string, err error) string {
+	if err != nil {
+		return event.OutcomeCancelled
+	}
+	switch decision {
+	case DecisionAllowOnce, DecisionAllowSession, DecisionPersistAllow:
+		return event.OutcomeAllowed
+	case DecisionAbort:
+		return event.OutcomeAborted
+	case DecisionTimeout:
+		return event.OutcomeTimeout
+	default:
+		return event.OutcomeDenied
+	}
 }
 
 // requestApproval emits an ApprovalRequest and blocks until Approve(ID, …)
 // answers or ctx is cancelled. A prior session grant for the same tool+subject
 // short-circuits, unless alwaysPrompt is set (敏感写入必须逐条确认）。
 // promptMu serialises outstanding prompts.
-func (c *Controller) requestApproval(ctx context.Context, tool, subject string, alwaysPrompt bool) (bool, bool, error) {
-	allow, remember, _, err := c.promptApproval(ctx, approvalPrompt{tool: tool, subject: subject, alwaysPrompt: alwaysPrompt})
+func (c *Controller) requestApproval(ctx context.Context, tool, subject string, alwaysPrompt bool, source string) (bool, bool, error) {
+	allow, remember, _, err := c.promptApproval(ctx, approvalPrompt{
+		tool: tool, subject: subject, alwaysPrompt: alwaysPrompt, source: source,
+	})
 	return allow, remember, err
 }
 
@@ -195,6 +227,7 @@ func (c *Controller) RequestPermission(ctx context.Context, tool, subject, reaso
 	}
 	_, _, decision, err := c.promptApproval(ctx, approvalPrompt{
 		tool: tool, subject: subject, reason: reason, ruleRequest: true,
+		source: event.ApprovalSourcePermissionRequest,
 	})
 	if err != nil {
 		return false, "", err
@@ -262,8 +295,19 @@ func (c *Controller) promptApproval(ctx context.Context, p approvalPrompt) (allo
 
 	c.sink.Emit(event.Event{Kind: event.ApprovalRequest, Approval: event.Approval{
 		ID: id, Tool: p.tool, Subject: p.subject,
-		Reason: p.reason, Request: p.ruleRequest,
+		Reason: p.reason, Request: p.ruleRequest, Source: p.source,
 	}})
+	// 注意力事务的结果侧：卡一旦真的弹出，就必须有对应解决事件（允许/拒绝/
+	// 取消/超时/中止）+ 等待时长 + 来源，成对落日志与轨迹，使「这张卡后来
+	// 怎样了」可重放、可计数。短路的会话放行不弹卡、不产生事务。
+	startedAt := time.Now()
+	defer func() {
+		c.sink.Emit(event.Event{Kind: event.ApprovalResolved, Resolved: event.ApprovalResolution{
+			ID: id, Tool: p.tool, Subject: p.subject, Source: p.source,
+			Decision: decision, Outcome: approvalOutcome(decision, err),
+			LatencyMS: attentionLatency(startedAt),
+		}})
+	}()
 	// The agent now needs the user's attention; a Notification hook can ping an
 	// external channel (desktop notice, phone) while the run blocks on the reply.
 	switch {

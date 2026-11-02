@@ -267,7 +267,58 @@ func TestFoldAskAndApprovalRecords(t *testing.T) {
 	}
 }
 
-// TestFoldSubagentMessage v4.26 对话流式重造：subagent_message（子代理完成
+// TestFoldAttentionResolvedPairs 锁定「注意力事务」在派生轨迹里的成对性：
+// approval_resolved / ask_resolved 按 id 回填请求记录（outcome/等待时长/
+// decision），而不是新增一条孤立记录；找不到请求的孤立结果事件被忽略
+// （日志原文仍是真相，折叠只是派生视图）。
+func TestFoldAttentionResolvedPairs(t *testing.T) {
+	entries := []session.LogEntry{
+		entry(1, "turn_started", map[string]any{}),
+		entry(2, "user_message", map[string]any{"content": "继续"}),
+		entry(3, "approval_request", map[string]any{
+			"id": "p1", "tool": "cost_save", "subject": "写入成本库：钢材",
+			"source": "permission_request", "reason": "跨库写入", "request": true,
+		}),
+		entry(4, "approval_resolved", map[string]any{
+			"id": "p1", "tool": "cost_save", "subject": "写入成本库：钢材",
+			"source": "permission_request", "decision": "allow_once",
+			"outcome": "allowed", "latency_ms": 1500,
+		}),
+		entry(5, "ask_request", map[string]any{
+			"id": "q1",
+			"questions": []any{
+				map[string]any{"id": "q1", "prompt": "选哪个方案？", "options": []any{}},
+			},
+		}),
+		entry(6, "ask_resolved", map[string]any{"id": "q1", "outcome": "answered", "answered": 1, "latency_ms": 800}),
+		// 孤立的解决事件（请求在别的分片/被重写）：不得新增记录。
+		entry(7, "approval_resolved", map[string]any{"id": "ghost", "outcome": "denied"}),
+	}
+	tl := FoldTrajectory(entries)
+	records := tl.Turns[0].Records
+	if len(records) != 3 {
+		t.Fatalf("records = %d, want 3（孤立的解决事件不建记录）: %+v", len(records), records)
+	}
+	if records[1].Kind != "approval" || records[1].Approval == nil {
+		t.Fatalf("approval record missing: %+v", records[1])
+	}
+	ap := records[1].Approval
+	if ap.Source != "permission_request" || ap.Reason != "跨库写入" {
+		t.Errorf("approval 判别字段未落轨迹: %+v", ap)
+	}
+	if ap.Outcome != "allowed" || ap.Decision != "allow_once" || ap.LatencyMS != 1500 {
+		t.Errorf("approval 结果未回填: %+v", ap)
+	}
+	if records[2].Kind != "ask" || records[2].Ask == nil {
+		t.Fatalf("ask record missing: %+v", records[2])
+	}
+	ask := records[2].Ask
+	if ask.Outcome != "answered" || ask.Answered != 1 || ask.LatencyMS != 800 {
+		t.Errorf("ask 结果未回填: %+v", ask)
+	}
+}
+
+
 // 回投）折叠为 kind=subagent 记录（text 展示级截断 + ref + 父 task 调用 ID）。
 // 旧日志无此 kind 不受影响；未知 kind 仍被跳过（既有行为不变）。
 func TestFoldSubagentMessage(t *testing.T) {

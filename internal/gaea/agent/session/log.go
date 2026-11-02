@@ -63,8 +63,14 @@ func KindString(k event.Kind) string {
 		return "phase"
 	case event.ApprovalRequest:
 		return "approval_request"
+	case event.ApprovalResolved:
+		// 注意力事务的结果侧（与 approval_request 同 ID 成对）：此前 Approve()
+		// 只投内存 channel，持久层看不到卡如何结束——补上这一行才「可重放」。
+		return "approval_resolved"
 	case event.AskRequest:
 		return "ask_request"
+	case event.AskResolved:
+		return "ask_resolved"
 	case event.TurnDone:
 		return "turn_done"
 	case event.CompactionStarted:
@@ -509,7 +515,36 @@ func EntryFromEvent(e event.Event, ts int64) (LogEntry, error) {
 		}
 		payload = map[string]any{"level": level, "text": e.Text}
 	case event.ApprovalRequest:
-		payload = map[string]any{"id": e.Approval.ID, "tool": e.Approval.Tool, "subject": e.Approval.Subject}
+		// source/reason/request 是「这张卡为什么出现、谁触发、是否模型主动申请」
+		// 的判别字段：实时事件层早已携带，旧日志只落了 id/tool/subject，导致
+		// 回放/统计无法区分常规闸门、逐条确认、整计划替换与权限升级申请。
+		payload = map[string]any{
+			"id":      e.Approval.ID,
+			"tool":    e.Approval.Tool,
+			"subject": e.Approval.Subject,
+			"source":  e.Approval.Source,
+			"reason":  e.Approval.Reason,
+			"request": e.Approval.Request,
+		}
+	case event.ApprovalResolved:
+		r := e.Resolved
+		payload = map[string]any{
+			"id":         r.ID,
+			"tool":       r.Tool,
+			"subject":    r.Subject,
+			"source":     r.Source,
+			"decision":   r.Decision,
+			"outcome":    r.Outcome,
+			"latency_ms": r.LatencyMS,
+		}
+	case event.AskResolved:
+		r := e.AskResolved
+		payload = map[string]any{
+			"id":         r.ID,
+			"outcome":    r.Outcome,
+			"answered":   r.Answered,
+			"latency_ms": r.LatencyMS,
+		}
 	case event.AskRequest:
 		payload = askPayloadFromEvent(e)
 	case event.TurnDone:

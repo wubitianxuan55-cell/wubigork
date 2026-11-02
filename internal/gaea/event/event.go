@@ -90,6 +90,16 @@ const (
 	// Kind 落主会话日志——增量全文已由 SubagentMessage 收尾 + 子代理自身
 	// transcript 落盘承载，逐块落主日志只会膨胀体积、污染重放。
 	SubagentText
+	// ApprovalResolved 是审批卡的解决态：与同 ID 的 ApprovalRequest 成对，
+	// 记录用户/超时/取消给出的最终决策、归一结果与等待时长。请求有起点、
+	// 解决有结果，才谈得上「注意力事务可重放、可计数」——此前 Approve()
+	// 只往内存 channel 投递，日志/轨迹层看不到卡是怎么结束的。
+	// 事件本身不进前端卡片流（前端 reducer 对未知 kind 无操作），只作为
+	// 持久层账本：EventLogSink 落盘、轨迹折叠配对。
+	ApprovalResolved
+	// AskResolved 是提问卡的解决态：与同 ID 的 AskRequest 成对，记录
+	// answered（附回答题数）/ cancelled（回合取消）与等待时长。
+	AskResolved
 )
 
 // Level classifies a Notice so sinks can style or filter it.
@@ -148,6 +158,53 @@ type Approval struct {
 	// 工具），而非真实工具调用前的常规审批。前端据此换标题/说明并展示 Reason；
 	// 决策仍走同一 Approve(ID, decision) 通道与五决策语义。
 	Request bool
+	// Source 是这张卡的触发来源（判别字段，贯穿实时事件/持久日志/派生轨迹）：
+	// gate（常规工具闸门）/ hard_ask（逐条确认的持久化写入）/
+	// project_plan（schedule_apply 整计划替换）/ permission_request（模型申请）。
+	// 空值=旧版本事件或未标注，读端按 gate 兜底。
+	Source string
+}
+
+// 注意力卡片的触发来源（Approval.Source 取值）。
+const (
+	ApprovalSourceGate              = "gate"
+	ApprovalSourceHardAsk           = "hard_ask"
+	ApprovalSourceProjectPlan       = "project_plan"
+	ApprovalSourcePermissionRequest = "permission_request"
+)
+
+// 注意力卡片的归一解决结果（ApprovalResolution.Outcome / AskResolution.Outcome）。
+// 与 decision 明细串并存：Outcome 供计数/画像，Decision 保留原始五决策语义。
+const (
+	OutcomeAllowed   = "allowed"
+	OutcomeDenied    = "denied"
+	OutcomeAborted   = "aborted"
+	OutcomeTimeout   = "timeout"
+	OutcomeCancelled = "cancelled"
+	OutcomeAnswered  = "answered"
+)
+
+// ApprovalResolution 是 ApprovalResolved 事件的载荷：一次审批卡从请求到
+// 解决的事务收尾。ID 与 ApprovalRequest 同源；Decision 保留原始决策串
+// （allow_once/allow_session/persist_allow/deny/abort/timeout，取消时为空），
+// Outcome 是归一结果（allowed/denied/aborted/timeout/cancelled）。
+type ApprovalResolution struct {
+	ID        string
+	Tool      string
+	Subject   string
+	Source    string
+	Decision  string
+	Outcome   string
+	LatencyMS int64 // 请求发出 → 解决（含排队/思考）的墙钟毫秒
+}
+
+// AskResolution 是 AskResolved 事件的载荷：一次提问卡从请求到解决的事务收尾。
+// Answered 是实际带回答案的题数（0 表示取消/空答）。
+type AskResolution struct {
+	ID        string
+	Outcome   string // answered | cancelled
+	Answered  int
+	LatencyMS int64
 }
 
 // AskOption is one choice the user can pick for an AskQuestion.
@@ -215,6 +272,9 @@ type Event struct {
 	Level       Level      // Notice
 	Approval    Approval   // ApprovalRequest
 	Ask         Ask        // AskRequest
+	// Resolved / AskResolved 是卡片解决态的载荷（ApprovalResolved / AskResolved）。
+	Resolved     ApprovalResolution
+	AskResolved  AskResolution
 	Err         error      // TurnDone: non-nil on failure
 	Compaction  Compaction // Compaction
 	// Header carries the assembled request header (RequestHeader events):
