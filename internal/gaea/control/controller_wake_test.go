@@ -23,21 +23,22 @@ func runningLocked(c *Controller) bool {
 	return c.running
 }
 
-func newWakeTestController(t *testing.T, sink event.Sink) (*Controller, *jobs.Manager, *atomic.Int32, *atomic.Pointer[string]) {
+func newWakeTestController(t *testing.T, sink event.Sink) (*Controller, *jobs.Manager, *atomic.Int32, *atomic.Pointer[string], *atomic.Pointer[string]) {
 	t.Helper()
 	var turns atomic.Int32
 	lastP := &atomic.Pointer[string]{}
+	triggerP := &atomic.Pointer[string]{}
 	if sink == nil {
 		sink = event.FuncSink(func(event.Event) {})
 	}
 	c := New(Options{
 		Sink:   sink,
-		Runner: wakeRunnerStub{turns: &turns, last: lastP},
+		Runner: wakeRunnerStub{turns: &turns, last: lastP, trigger: triggerP},
 	})
 	jm := jobs.NewManager(event.FuncSink(func(event.Event) {}))
 	c.jobs = jm
 	c.WireJobWake()
-	return c, jm, &turns, lastP
+	return c, jm, &turns, lastP, triggerP
 }
 
 // noticeCounterSink 构造期注入的计数 sink。测试中途热改 c.sink 与回合
@@ -55,21 +56,27 @@ func (s *noticeCounterSink) Emit(e event.Event) {
 }
 
 // wakeRunnerStub 立即完成的 Runner 桩：唤醒回合被拉起即计一数，并捕获
-// 最近一次模型输入（端到端验证完成注记随唤醒回合进入上下文）。
+// 最近一次模型输入（端到端验证完成注记随唤醒回合进入上下文）与回合发起者
+// 判别字段（验证控制器把 trigger 标进 ctx，而不是靠 "[system]" 文本前缀）。
 type wakeRunnerStub struct {
-	turns *atomic.Int32
-	last  *atomic.Pointer[string] // 共享指针：Runner 以值拷贝进接口，字段须自身为指针
+	turns   *atomic.Int32
+	last    *atomic.Pointer[string] // 共享指针：Runner 以值拷贝进接口，字段须自身为指针
+	trigger *atomic.Pointer[string]
 }
 
 func (s wakeRunnerStub) Run(ctx context.Context, input string) (*agent.TurnResult, error) {
 	s.turns.Add(1)
 	in := input
 	s.last.Store(&in)
+	if s.trigger != nil {
+		tr := agent.TurnTriggerFromContext(ctx)
+		s.trigger.Store(&tr)
+	}
 	return &agent.TurnResult{}, nil
 }
 
 func TestWakeJobCompletionStartsIdleTurn(t *testing.T) {
-	c, jm, turns, lastP := newWakeTestController(t, nil)
+	c, jm, turns, lastP, triggerP := newWakeTestController(t, nil)
 	jm.Start("bash", "long task", func(ctx context.Context, out io.Writer) (string, error) {
 		return "ok", nil
 	})
@@ -111,11 +118,16 @@ func TestWakeJobCompletionStartsIdleTurn(t *testing.T) {
 	if !strings.Contains(*p, "NOT USER INPUT") {
 		t.Fatal("唤醒回合输入缺 Z3 防伪造同意条款")
 	}
+	// 发起者判别字段：唤醒轮的 ctx 必须带 wake——合成轮身份由此类型化，
+	// 不再依赖输入文本的 "[system]" 前缀（T4：判别字段贯穿事件/日志/轨迹）。
+	if tr := triggerP.Load(); tr == nil || *tr != event.TriggerWake {
+		t.Fatalf("唤醒回合 trigger 应为 %q，实得 %v", event.TriggerWake, tr)
+	}
 }
 
 func TestWakeSelfExcitationBudget(t *testing.T) {
 	sink := &noticeCounterSink{text: "自激励预算耗尽"}
-	c, _, _, _ := newWakeTestController(t, sink)
+	c, _, _, _, _ := newWakeTestController(t, sink)
 	// 直接压满预算：连续唤醒 wakeMaxConsecutive 次后再触发应被闸住
 	for i := 0; i < wakeMaxConsecutive; i++ {
 		c.maybeWakeByJobs()
@@ -138,7 +150,7 @@ func TestWakeSelfExcitationBudget(t *testing.T) {
 		t.Fatal("预算耗尽后应发 Notice 且不再拉起回合")
 	}
 	// 真人消息复位预算
-	c.sendWithRaw("用户回来了", "用户回来了", true)
+	c.sendWithRaw("用户回来了", "用户回来了", true, event.TriggerUser)
 	c.mu.Lock()
 	chain = c.wakeChain
 	c.mu.Unlock()
@@ -148,7 +160,7 @@ func TestWakeSelfExcitationBudget(t *testing.T) {
 }
 
 func TestWakeRunningSessionSkips(t *testing.T) {
-	c, _, turns, _ := newWakeTestController(t, nil)
+	c, _, turns, _, _ := newWakeTestController(t, nil)
 	// 占住 running：直接拉一个不会立刻结束的回合
 	release := make(chan struct{})
 	c.tryStartTurn(func(ctx context.Context) error {

@@ -118,6 +118,22 @@ const (
 	UsageSourceExecutor = "executor" // 单模型执行阶段
 )
 
+// 回合发起者（TurnStarted.Trigger）——判别字段，贯穿实时事件、会话日志与
+// 派生轨迹：这一轮是谁让它发生的。此前唤醒轮只能靠 wakeJobInput 的
+// "[system]" 文本前缀和路径白名单认出来，靠提示词而不是类型；提示文案或
+// 前缀一改就误分类，统计也无法把「人发起的回合」与「后台唤醒回合」分开，
+// 打断率的分母因此不诚实。
+const (
+	// TriggerUser 是真人发起的回合（Send/Submit/斜杠动词）。缺省值：读端
+	// 遇到没有 trigger 字段的旧日志，一律按它兜底。
+	TriggerUser = "user"
+	// TriggerWake 是后台任务完成后的合成唤醒回合（模型输入是 wakeJobInput，
+	// 自激励预算 wakeMaxConsecutive 约束其链长）。
+	TriggerWake = "wake"
+	// TriggerSubagent 是子代理会话里的回合（task 工具派生的独立会话）。
+	TriggerSubagent = "subagent"
+)
+
 // Tool describes a tool call for ToolDispatch / ToolResult events. On dispatch
 // only ID/Name/Args/ReadOnly are set; on result Output/Err/Truncated are filled
 // in. Args is the raw JSON arguments — a sink compacts it for display.
@@ -258,6 +274,9 @@ type Event struct {
 	Kind      Kind
 	Text      string            // Reasoning / Text / Message / Notice / Phase
 	Reasoning string            // Message: the full reasoning chain
+	// Trigger 标识这一轮是谁发起的（TurnStarted）：user / wake / subagent。
+	// 空值=旧版本事件，读端按 user 兜底。
+	Trigger   string            // TurnStarted
 	Tool      Tool              // ToolDispatch / ToolResult
 	Usage     *provider.Usage   // Usage
 	Pricing   *provider.Pricing // Usage: for cost display (nil = omit cost)

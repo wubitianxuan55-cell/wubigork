@@ -319,6 +319,29 @@ func TestFoldAttentionResolvedPairs(t *testing.T) {
 }
 
 
+// T4：回合发起者判别字段（turn_started.trigger）落轨迹。唤醒轮此前只能靠
+// 输入文本的 "[system]" 前缀反推；类型化之后由物理字段判定。旧日志缺该
+// 字段时保持空（读端语义=user，omitempty 让旧轨迹输出逐字节不变）。
+func TestFoldTurnTrigger(t *testing.T) {
+	entries := []session.LogEntry{
+		entry(1, "turn_started", map[string]any{"trigger": "wake"}),
+		entry(2, "user_message", map[string]any{"content": "[system] 后台任务完成"}),
+		entry(3, "turn_done", map[string]any{}),
+		entry(4, "turn_started", map[string]any{}),
+		entry(5, "turn_done", map[string]any{}),
+	}
+	tl := FoldTrajectory(entries)
+	if len(tl.Turns) != 2 {
+		t.Fatalf("turns = %d, want 2", len(tl.Turns))
+	}
+	if tl.Turns[0].Trigger != "wake" {
+		t.Errorf("唤醒轮 trigger = %q, want wake", tl.Turns[0].Trigger)
+	}
+	if tl.Turns[1].Trigger != "" {
+		t.Errorf("旧日志轮 trigger = %q, want 空（读端按 user 兜底）", tl.Turns[1].Trigger)
+	}
+}
+
 // 回投）折叠为 kind=subagent 记录（text 展示级截断 + ref + 父 task 调用 ID）。
 // 旧日志无此 kind 不受影响；未知 kind 仍被跳过（既有行为不变）。
 func TestFoldSubagentMessage(t *testing.T) {

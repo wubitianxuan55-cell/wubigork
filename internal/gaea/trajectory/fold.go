@@ -69,7 +69,7 @@ func (f *folding) apply(e session.LogEntry) {
 		if f.cur != nil {
 			f.turns = append(f.turns, *f.cur)
 		}
-		f.cur = &Turn{Turn: len(f.turns) + 1, StartedAt: e.Ts}
+		f.cur = &Turn{Turn: len(f.turns) + 1, StartedAt: e.Ts, Trigger: payloadTurnTrigger(e)}
 		f.step = 0
 		f.assistantIdx = -1
 		f.toolByID = nil
@@ -644,6 +644,17 @@ func payloadTurnErr(e session.LogEntry) string {
 	}
 	_ = json.Unmarshal(e.Payload, &p)
 	return p.Err
+}
+
+// payloadTurnTrigger 取 turn_started 的发起者判别字段（user / wake /
+// subagent）。旧日志没有该字段，返回 ""——读端语义等同 user，序列化
+// omitempty 省略，旧轨迹输出逐字节不变。
+func payloadTurnTrigger(e session.LogEntry) string {
+	var p struct {
+		Trigger string `json:"trigger"`
+	}
+	_ = json.Unmarshal(e.Payload, &p)
+	return p.Trigger
 }
 
 // estimateTokens 按仓库既有口径估算文本 token 数（bytes÷4 floor；批 52 收口

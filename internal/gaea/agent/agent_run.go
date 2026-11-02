@@ -55,7 +55,7 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 	// （流中断/审批取消/工具批被抑制）都会让 open 的 mt_ 记录停在 running，
 	// 这里统一收尾为 failed——正常路径由 ToolResult 先删掉 map 条目。
 	defer a.cleanupModelToolRunsOnTurnEnd("回合中断：本地模型工具调用未完成")
-	a.sink.Emit(event.Event{Kind: event.TurnStarted})
+	a.sink.Emit(event.Event{Kind: event.TurnStarted, Trigger: TurnTriggerFromContext(ctx)})
 	// wrap user input with transient language preference blocks
 	// (Design adopted from DeepSeek-Reasonix-V1.12)
 	// A4：若有中断交接记录，先前置 <interrupted-turn-recovery> 块（一次性

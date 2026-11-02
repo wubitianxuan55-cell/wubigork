@@ -41,7 +41,7 @@ func writeLog(t *testing.T, name string, lines []line) string {
 // 旧日志缺 source 记 legacy、未解决卡被列出来。
 func TestScanLogPairsAttention(t *testing.T) {
 	path := writeLog(t, "s1.gaea-log.jsonl", []line{
-		{Kind: kindTurnStarted},
+		{Kind: kindTurnStarted, Payload: map[string]any{"trigger": "user"}},
 		{Kind: kindApprovalRequest, Payload: map[string]any{"id": "a1", "tool": "bash", "subject": "rm"}},
 		{Kind: kindApprovalResolve, Payload: map[string]any{
 			"id": "a1", "tool": "bash", "subject": "rm", "source": "gate",
@@ -56,7 +56,7 @@ func TestScanLogPairsAttention(t *testing.T) {
 		}},
 		{Kind: kindAskResolve, Payload: map[string]any{"id": "q1", "outcome": "answered", "answered": 1, "latency_ms": 800}},
 		{Kind: kindTurnDone, Payload: map[string]any{"err": ""}},
-		{Kind: kindTurnStarted},
+		{Kind: kindTurnStarted, Payload: map[string]any{"trigger": "wake"}},
 		{Kind: kindApprovalRequest, Payload: map[string]any{
 			"id": "a2", "tool": "cost_save", "subject": "写入成本库", "source": "hard_ask",
 		}},
@@ -72,6 +72,11 @@ func TestScanLogPairsAttention(t *testing.T) {
 	}
 	if st.Turns != 2 {
 		t.Errorf("Turns = %d, want 2", st.Turns)
+	}
+	// 发起者拆分：人轮是打断率的分母，唤醒轮不该混进去。
+	if st.TurnsUser != 1 || st.TurnsWake != 1 || st.TurnsSubagent != 0 {
+		t.Errorf("turns user/wake/subagent = %d/%d/%d, want 1/1/0",
+			st.TurnsUser, st.TurnsWake, st.TurnsSubagent)
 	}
 	if st.Approvals != 2 || st.Asks != 1 {
 		t.Errorf("approvals/asks = %d/%d, want 2/1", st.Approvals, st.Asks)

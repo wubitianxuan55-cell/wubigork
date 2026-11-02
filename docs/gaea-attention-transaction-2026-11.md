@@ -109,8 +109,10 @@ go run ./scripts/attention_report -json                            # 机器可�
    事务（requested/resolved）口径不同；后续要么把 V5 账本改成成对，要么在提案里显式声明两者的映射，避免两套账。
 3. **旧日志不可补**：历史 `approval_request` 没有结果侧，永远显示未解决；不要在报表里把它们算成「未响应」。新日志里
    进程被杀留下的悬空卡会在下次恢复时补 `abandoned`（见第九节），两者口径不同，报表按是否有结果事件区分。
-4. **initiator / risk_tier**：众神殿建议的字段族里，`initiator`（谁触发的）与 `risk_tier`（风险档）尚未建模，等有真实消费方再加。
+4. **initiator / risk_tier**：`initiator`（谁触发的）已按回合建模为 `turn_started.trigger`（见第十节，user/wake/subagent）；
+   `risk_tier`（风险档）仍缺，等有真实消费方再加。
 5. **真人打断与自唤醒分离**：`wakeMaxConsecutive=3` 计的是 agent 自唤醒（`controller.go:313`），不是人打断；两套计数不要混。
+   回合发起者类型化后，报表的打断率分母只取人轮，两者口径终于能在同一份日志里分开。
 
 ## 八、验证
 
@@ -123,6 +125,10 @@ go run ./scripts/attention_report -json                            # 机器可�
   原样带回、二次收口为 0（幂等）。
 - `internal/gaea/control/controller_attention_resume_test.go`：造一份「请求行写完、解决事件没来得及写」的崩溃日志，
   `ResumeFromDisk` 后断言无悬空卡，且轨迹折叠出 `outcome=abandoned / latency=0 / source=hard_ask` 的成对记录。
+- `internal/gaea/control/controller_wake_test.go`：唤醒回合的 ctx 里 `trigger=wake`（类型化判别，不再看输入前缀）。
+- `internal/gaea/agent/session/log_test.go`：`TestEntryFromEventTurnTrigger` —— `turn_started` 落 trigger；旧事件仍写 `{}`。
+- `internal/gaea/trajectory/fold_test.go`：`TestFoldTurnTrigger` —— `Turn.Trigger` 落轨迹，旧日志回合保持空。
+- `scripts/attention_report/main_test.go`：轮次按发起者拆分（人轮/唤醒/子代理）。
 
 ## 九、第二刀：悬空卡闭合（进程先死也有结局）
 
@@ -141,4 +147,29 @@ go run ./scripts/attention_report -json                            # 机器可�
 - 失败不阻断恢复：账本收口是尽力而为，日志原文仍是唯一真相。
 
 **它不是什么**：不是看门狗，不设阈值、不计时、不杀回合；它只在恢复这一瞬间承认「这些卡没人回答过」。
+
+## 十、第三刀：回合发起者类型化（合成轮不再靠文本前缀反推）
+
+**为什么**：众神殿风险项之一——「合成唤醒目前依靠 `[system]` 文本前缀和白名单识别，准入规则部分依赖提示词而非
+类型化权限约束」（上游讨论结论档 :46）。文本前缀一改就误分类，而且统计上没法把「真人的回合」与「后台唤醒的回合」
+分开：打断率的分母里混进了唤醒轮和子代理轮，数字就不诚实了。
+
+**做法**（与卡片判别字段同一条线：类型化 → 贯穿实时事件/日志/轨迹/报表）：
+
+- `event`：`TurnStarted` 增 `Trigger` 字段，取值 `TriggerUser="user"` / `TriggerWake="wake"` /
+  `TriggerSubagent="subagent"`；空值=旧事件，读端按 `user` 兜底。
+- `agent`：`WithTurnTrigger(ctx, trigger)` / `TurnTriggerFromContext(ctx)`——判别字段的源头在入口（控制器知道是真人
+  发送还是后台唤醒），而 `TurnStarted` 在 `agent_run.go` 的 `runDirect` 里发射，ctx 是唯一不改 `Run` 签名的贯通路径。
+- `control`：`sendWithRaw(input, raw, resetWake, trigger)` 把发起者一路带进 `runSendTurn`（排队消息也记住自己的
+  trigger），`maybeWakeByJobs` 传 `TriggerWake`，`SendWithRaw`/`Submit` 传 `TriggerUser`；`runSubAgentInternal` 在
+  子代理调用点标 `TriggerSubagent`。
+- `session`：`turn_started` payload 落 `{"trigger": ...}`；空 trigger 时仍写 `{}`，与旧日志逐字节一致。
+- `trajectory`：`Turn.Trigger`（omitempty）——旧轨迹输出不变。
+- `scripts/attention_report`：轮次按发起者拆分（人轮/唤醒/子代理），表头新增三列；打断率的分母只取人轮。
+
+**仍存的文本前缀依赖（诚实边界）**：`interrupted_recovery.go:56` 的 `isSyntheticUserTurn` 仍在扫消息历史时按
+`"[system] "` 等前缀判定合成轮——它作用于消息回扫而非事件，要类型化需要消息级 provenance，本轮不做，留在开放项。
+
+**验证**：`control` 的唤醒测试断言唤醒回合 ctx 里 `trigger=wake`；`session` 断言 payload 落 trigger 且旧事件仍是 `{}`；
+`trajectory` 断言 `Turn.Trigger=wake`、旧日志回合保持空；`report` 断言人轮/唤醒拆分。
 

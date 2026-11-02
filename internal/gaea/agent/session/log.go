@@ -485,7 +485,15 @@ func EntryFromEvent(e event.Event, ts int64) (LogEntry, error) {
 	kind := KindString(e.Kind)
 	var payload any
 	switch e.Kind {
-	case event.TurnStarted, event.Steer:
+	case event.TurnStarted:
+		// 发起者判别字段随回合起点落盘（user / wake / subagent）。空=老事件，
+		// payload 保持 {} 与旧日志逐字节一致，读端按 user 兜底。
+		if e.Trigger != "" {
+			payload = map[string]string{"trigger": e.Trigger}
+		} else {
+			payload = map[string]string{}
+		}
+	case event.Steer:
 		payload = map[string]string{}
 	case event.Reasoning, event.Text, event.Phase, event.Message:
 		payload = map[string]string{"text": e.Text, "reasoning": e.Reasoning}

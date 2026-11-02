@@ -180,8 +180,9 @@ type grantedRule struct {
 // sendRequest 是一条排队等待执行的消息：回合进行中收到 Send 时入队，
 // 当前回合结束后按序执行（T6-2.5 Send 排队）。
 type sendRequest struct {
-	input string
-	raw   string
+	input   string
+	raw     string
+	trigger string // 回合发起者（event.TriggerUser / TriggerWake）
 }
 
 // sendQueueLimit 是 Send 等待队列上限（条）：回合进行中最多排队
@@ -343,7 +344,7 @@ func (c *Controller) maybeWakeByJobs() {
 	}
 	c.wakeChain++
 	c.mu.Unlock()
-	c.sendWithRaw(wakeJobInput, wakeJobInput, false)
+	c.sendWithRaw(wakeJobInput, wakeJobInput, false, event.TriggerWake)
 }
 
 // runGuarded starts a turn unless one is already in flight, guarding against
@@ -403,7 +404,7 @@ func (c *Controller) turnLoop(ctx context.Context, body func(ctx context.Context
 			c.sink.Emit(event.Event{Kind: event.TurnDone, Err: err})
 			ctx = newCtx
 			body = func(ctx context.Context) error {
-				return c.runSendTurn(ctx, next.input, next.raw)
+				return c.runSendTurn(ctx, next.input, next.raw, next.trigger)
 			}
 			continue
 		}
@@ -444,13 +445,14 @@ func (c *Controller) Send(input string) {
 // message with an explicit error Notice. With no turn in flight the message
 // starts a turn immediately (unchanged behaviour).
 func (c *Controller) SendWithRaw(input, raw string) {
-	c.sendWithRaw(input, raw, true)
+	c.sendWithRaw(input, raw, true, event.TriggerUser)
 }
 
-// sendWithRaw 是 SendWithRaw 的内层：isWake=false（后台唤醒合成轮）不重置
+// sendWithRaw 是 SendWithRaw 的内层：resetWake=false（后台唤醒合成轮）不重置
 // 唤醒链——唤醒轮自己也走这条入口，若复位则自激励预算永不变老（Z6 闸
-// 形同虚设），只有真人消息复位。
-func (c *Controller) sendWithRaw(input, raw string, resetWake bool) {
+// 形同虚设），只有真人消息复位。trigger 是这一轮的发起者判别字段（原样带进
+// TurnStarted，落日志与轨迹；不再依赖 wakeJobInput 的 "[system]" 文本前缀）。
+func (c *Controller) sendWithRaw(input, raw string, resetWake bool, trigger string) {
 	if resetWake {
 		c.mu.Lock()
 		c.wakeChain = 0 // 真人消息到：唤醒链重置（Z6 自激励预算的复位点）
@@ -469,20 +471,23 @@ func (c *Controller) sendWithRaw(input, raw string, resetWake bool) {
 				Text: fmt.Sprintf("发送队列已满（最多 %d 条），这条消息未发送 — 请等待当前回合结束", sendQueueLimit)})
 			return
 		}
-		c.pendingSends = append(c.pendingSends, sendRequest{input: input, raw: raw})
+		c.pendingSends = append(c.pendingSends, sendRequest{input: input, raw: raw, trigger: trigger})
 		queued := len(c.pendingSends)
 		c.mu.Unlock()
 		c.notice(fmt.Sprintf("当前回合进行中，消息已加入发送队列（%d/%d），回合结束后自动发送", queued, sendQueueLimit))
 		return
 	}
 	c.launchTurnLocked(func(ctx context.Context) error {
-		return c.runSendTurn(ctx, input, raw)
+		return c.runSendTurn(ctx, input, raw, trigger)
 	})
 }
 
 // runSendTurn runs one Send turn: resolve @-references first (consistent with
 // the Submit path), then run the composed turn.
-func (c *Controller) runSendTurn(ctx context.Context, input, raw string) error {
+func (c *Controller) runSendTurn(ctx context.Context, input, raw, trigger string) error {
+	// 发起者类型化：在进入回合之前标进 ctx，TurnStarted 发射点（agent 层）
+	// 原样取出——判别字段从入口一路贯到日志/轨迹，不靠输入文本反推。
+	ctx = agent.WithTurnTrigger(ctx, trigger)
 	// v4.26 对话流式重造：@ 引用解析（文件读取/MCP 资源/图片识图）可能持续
 	// 数秒，先发 phase 让前端在 TurnStarted 之前就有可见事件（Why：发送后
 	// 长时间静默是本版重点修复的体验缺陷；How：控制器持有 sink，在能拿到

@@ -1180,6 +1180,9 @@ func runSubAgentInternal(ctx context.Context, prov provider.LLMProvider, reg *to
 		subRuns.Store(opts.SessionID, &subRunHandle{runner: sub, cancel: cancelRun})
 		defer func() { cancelRun(); subRuns.Delete(opts.SessionID) }()
 	}
+	// 子代理回合的发起者是 task 工具（不是人）：类型化标在 ctx 上，TurnStarted
+	// 落日志/轨迹时据此与真人回合区分——子代理会话不该混进人的打断率分母。
+	runCtx = WithTurnTrigger(runCtx, event.TriggerSubagent)
 	_, runErr := sub.Run(runCtx, prompt)
 	// Populate subUsage from the sub-agent's last usage so SubUsage() reflects
 	// real token counts for cost tracking.

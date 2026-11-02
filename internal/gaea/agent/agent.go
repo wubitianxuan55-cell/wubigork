@@ -125,6 +125,27 @@ func SpaceFromContext(ctx context.Context) string {
 	return spaces.SpaceWork
 }
 
+// turnTriggerContextKey 把「这一轮是谁发起的」带进运行上下文。与 space 同理：
+// 判别字段的源头在入口（控制器知道是真人发送还是后台唤醒，子代理入口知道
+// 自己是子代理），而 TurnStarted 在 runDirect 里发射——ctx 是唯一不改变
+// Run 签名的贯通路径。
+type turnTriggerContextKey struct{}
+
+// WithTurnTrigger 标记这一轮的发起者（event.TriggerUser / TriggerWake /
+// TriggerSubagent）。
+func WithTurnTrigger(ctx context.Context, trigger string) context.Context {
+	return context.WithValue(ctx, turnTriggerContextKey{}, trigger)
+}
+
+// TurnTriggerFromContext 返回 WithTurnTrigger 标注的发起者，缺省 user
+// （headless 直调、测试与旧调用点都等同于真人回合）。
+func TurnTriggerFromContext(ctx context.Context) string {
+	if t, ok := ctx.Value(turnTriggerContextKey{}).(string); ok && t != "" {
+		return t
+	}
+	return event.TriggerUser
+}
+
 // TurnResult is a structured result produced by an AgentRunner after one turn.
 // It lets upstream callers (e.g. the controller) consume execution outcomes without
 // having to extract them post-hoc from the agent's session.

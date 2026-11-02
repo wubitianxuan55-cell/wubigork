@@ -355,6 +355,31 @@ func TestEntryFromEventAttentionPayloads(t *testing.T) {
 	}
 }
 
+// T4：回合发起者判别字段进真相层。唤醒轮此前只能靠 wakeJobInput 的
+// "[system]" 文本前缀认出来——提示文案一改就误分类，也无法把人的回合与
+// 后台唤醒回合分开计数。类型化后 turn_started.payload.trigger 直接落盘；
+// 空 trigger（旧事件/旧日志）保持 {} 与旧格式逐字节一致。
+func TestEntryFromEventTurnTrigger(t *testing.T) {
+	wake, err := EntryFromEvent(event.Event{Kind: event.TurnStarted, Trigger: event.TriggerWake}, 1700000000)
+	if err != nil {
+		t.Fatalf("turn_started: %v", err)
+	}
+	var p map[string]any
+	if err := json.Unmarshal(wake.Payload, &p); err != nil {
+		t.Fatalf("unmarshal turn_started payload: %v", err)
+	}
+	if wake.Kind != "turn_started" || p["trigger"] != "wake" {
+		t.Errorf("turn_started = %s %v, want turn_started/trigger=wake", wake.Kind, p)
+	}
+	legacy, err := EntryFromEvent(event.Event{Kind: event.TurnStarted}, 1700000001)
+	if err != nil {
+		t.Fatalf("legacy turn_started: %v", err)
+	}
+	if string(legacy.Payload) != "{}" {
+		t.Errorf("legacy payload = %s, want {}（旧格式不变）", legacy.Payload)
+	}
+}
+
 // ─── 消息 → 日志条目 ─────────────────────────────────────────────
 
 func TestToLogEntries(t *testing.T) {

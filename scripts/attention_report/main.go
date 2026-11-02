@@ -41,6 +41,20 @@ const (
 	kindTurnDone        = "turn_done"
 )
 
+// 回合发起者判别字段的取值（turn_started.payload.trigger）：与 event 包
+// TriggerUser/TriggerWake/TriggerSubagent 同源。统计器只关心「人 vs 非人」——
+// 打扰率的分母只能是真人发起的回合。
+const (
+	triggerUser     = "user"
+	triggerWake     = "wake"
+	triggerSubagent = "subagent"
+)
+
+// turnStartedPayload 取回合起点的发起者（旧日志无该字段 → 空 → 按 user）。
+type turnStartedPayload struct {
+	Trigger string `json:"trigger"`
+}
+
 // approvalPayload / askPayload 是请求侧的最小字段面（旧日志缺 source/reason）。
 type approvalPayload struct {
 	ID      string `json:"id"`
@@ -84,6 +98,9 @@ type sessionStat struct {
 	Path          string          `json:"path"`
 	Session       string          `json:"session"`
 	Turns         int             `json:"turns"`
+	TurnsUser     int             `json:"turnsUser"`
+	TurnsWake     int             `json:"turnsWake"`
+	TurnsSubagent int             `json:"turnsSubagent"`
 	Approvals     int             `json:"approvals"`
 	Asks          int             `json:"asks"`
 	Cards         int             `json:"cards"`
@@ -198,6 +215,17 @@ func scanLog(path string) (sessionStat, error) {
 		switch e.Kind {
 		case kindTurnStarted:
 			st.Turns++
+			var p turnStartedPayload
+			_ = json.Unmarshal(e.Payload, &p)
+			switch p.Trigger {
+			case triggerWake:
+				st.TurnsWake++
+			case triggerSubagent:
+				st.TurnsSubagent++
+			default:
+				// 旧日志没有 trigger 字段：按 user 兜底（与轨迹折叠同口径）。
+				st.TurnsUser++
+			}
 		case kindApprovalRequest:
 			var p approvalPayload
 			if json.Unmarshal(e.Payload, &p) != nil || p.ID == "" {
@@ -305,15 +333,20 @@ func printMarkdown(stats []sessionStat) {
 	fmt.Println()
 	fmt.Println("口径：一次打断=一张卡（ask 按卡不按问题数）；「已解决」= 同 id 等到 *_resolved 事件。")
 	fmt.Println("结局含 abandoned（进程先死在卡上，恢复时补写）；latency_ms=0 的卡不计入均等待。")
+	fmt.Println("轮次按发起者拆分：人轮=真人消息/斜杠动词，唤醒轮=后台任务完成的合成回合，子代理轮=task 派生会话；打断率的分母只取人轮。")
 	fmt.Println()
-	fmt.Println("| 会话 | 轮次 | 打断卡 | 审批 | 提问 | 已解决 | 未解决 | 均等待 |")
-	fmt.Println("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
+	fmt.Println("| 会话 | 轮次 | 人轮 | 唤醒 | 子代理 | 打断卡 | 审批 | 提问 | 已解决 | 未解决 | 均等待 |")
+	fmt.Println("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
 	for _, s := range stats {
 		resolved := s.Cards - s.Unresolved
-		fmt.Printf("| %s | %d | %d | %d | %d | %d | %d | %s |\n",
-			shortSession(s.Session), s.Turns, s.Cards, s.Approvals, s.Asks,
+		fmt.Printf("| %s | %d | %d | %d | %d | %d | %d | %d | %d | %d | %s |\n",
+			shortSession(s.Session), s.Turns, s.TurnsUser, s.TurnsWake, s.TurnsSubagent,
+			s.Cards, s.Approvals, s.Asks,
 			resolved, s.Unresolved, formatLatency(s.LatencyN, s.LatencyMS))
 		total.Turns += s.Turns
+		total.TurnsUser += s.TurnsUser
+		total.TurnsWake += s.TurnsWake
+		total.TurnsSubagent += s.TurnsSubagent
 		total.Cards += s.Cards
 		total.Approvals += s.Approvals
 		total.Asks += s.Asks
@@ -332,8 +365,9 @@ func printMarkdown(stats []sessionStat) {
 	if latencyN > 0 {
 		meanMS = latencyTotal / int64(latencyN)
 	}
-	fmt.Printf("| **合计** | %d | %d | %d | %d | %d | %d | %s |\n",
-		total.Turns, total.Cards, total.Approvals, total.Asks,
+	fmt.Printf("| **合计** | %d | %d | %d | %d | %d | %d | %d | %d | %d | %s |\n",
+		total.Turns, total.TurnsUser, total.TurnsWake, total.TurnsSubagent,
+		total.Cards, total.Approvals, total.Asks,
 		total.Cards-total.Unresolved, total.Unresolved, formatLatency(latencyN, meanMS))
 	fmt.Println()
 
