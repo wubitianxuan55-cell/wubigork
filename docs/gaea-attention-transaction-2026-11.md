@@ -63,6 +63,9 @@
 
 `latency_ms` 从「请求事件发出」到「解决事件发出」，覆盖真人思考时间、超时窗口与取消，不扣除。
 
+第六种结局 `abandoned`（进程先死在卡上）：恢复会话时由 `session.CloseOrphanAttention` 补写，`decision` 为空、
+`latency_ms=0`（不知道挂了多久）——统计器把 0 计进结果分布但不进均等待。
+
 ## 四、三层贯通与审计路径
 
 - **实时事件**：`internal/gaea/event/event.go` 增 `ApprovalResolved` / `AskResolved` 与 `ApprovalResolution` /
@@ -104,7 +107,8 @@ go run ./scripts/attention_report -json                            # 机器可�
 1. **事项维**：`case_id` / `step_id` 需要 `internal/caseos`（不存在），暂缺；在它落地前，「每事项打断数」不可报。
 2. **V5 事件账本对齐**：`docs/gaea-v5-case-os-proposal-2026-10.md:381` 的事件集只有 `approval.granted` 单事件，与本刀的成对
    事务（requested/resolved）口径不同；后续要么把 V5 账本改成成对，要么在提案里显式声明两者的映射，避免两套账。
-3. **旧日志不可补**：历史 `approval_request` 没有结果侧，永远显示未解决；不要在报表里把它们算成「未响应」。
+3. **旧日志不可补**：历史 `approval_request` 没有结果侧，永远显示未解决；不要在报表里把它们算成「未响应」。新日志里
+   进程被杀留下的悬空卡会在下次恢复时补 `abandoned`（见第九节），两者口径不同，报表按是否有结果事件区分。
 4. **initiator / risk_tier**：众神殿建议的字段族里，`initiator`（谁触发的）与 `risk_tier`（风险档）尚未建模，等有真实消费方再加。
 5. **真人打断与自唤醒分离**：`wakeMaxConsecutive=3` 计的是 agent 自唤醒（`controller.go:313`），不是人打断；两套计数不要混。
 
@@ -115,3 +119,26 @@ go run ./scripts/attention_report -json                            # 机器可�
 - `internal/gaea/agent/session/log_test.go`：`TestEntryFromEventAttentionPayloads` 断言判别字段进日志、结果事件成对落盘。
 - `internal/gaea/trajectory/fold_test.go`：`TestFoldAttentionResolvedPairs` 断言按 id 回填、孤立结果事件不建记录。
 - `scripts/attention_report/main_test.go`：配对计数、重复结果事件去重、legacy 来源归位、目录展开去重。
+- `internal/gaea/agent/session/attention_test.go`：悬空卡识别（重复请求去重 / 孤立结果无害）、补写 `abandoned` 且 `source`
+  原样带回、二次收口为 0（幂等）。
+- `internal/gaea/control/controller_attention_resume_test.go`：造一份「请求行写完、解决事件没来得及写」的崩溃日志，
+  `ResumeFromDisk` 后断言无悬空卡，且轨迹折叠出 `outcome=abandoned / latency=0 / source=hard_ask` 的成对记录。
+
+## 九、第二刀：悬空卡闭合（进程先死也有结局）
+
+**为什么紧跟着做**：阶段 0 的基线要可信，就必须先让「卡永远悬空」这个洞闭上。否则进程一崩，那张卡在账本里既不是
+「用户拒绝」也不是「用户没看见」，统计器只能读成「未解决」——打断数偏高、解决率偏低，而这两种事实本来完全不同：
+一种是人做了决定，一种是没人做过决定。
+
+**做法**（不碰墙钟、不推断用户意图，只承认事实）：
+
+- `session.UnresolvedAttention(entries)`：流式扫日志，收拢「有请求、无结果」的卡；同 `id` 的重复请求只算一张，孤立结果
+  事件不会凭空造卡，审批的结果不会关闭一张提问卡。
+- `session.CloseOrphanAttention(logPath, space)`：为每张悬空卡追加 `approval_resolved` / `ask_resolved`，
+  `outcome=abandoned`、`decision=""`、`latency_ms=0`；幂等（补写后重跑为 0 张）。
+- 挂点只有一处：`Controller.ResumeFromDisk` 事件模式分支，在 `LoadWithFormat` 之后、`Resume` 之前调用。这是宿主真正
+  「重新接管一份日志」的唯一收敛点（切换会话与启动恢复都走它），而 rewind 的截断重放不走这里，不会被误收口。
+- 失败不阻断恢复：账本收口是尽力而为，日志原文仍是唯一真相。
+
+**它不是什么**：不是看门狗，不设阈值、不计时、不杀回合；它只在恢复这一瞬间承认「这些卡没人回答过」。
+

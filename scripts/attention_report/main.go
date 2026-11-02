@@ -281,8 +281,12 @@ func (s *sessionStat) resolve(id, outcome string, latencyMS int64) {
 		outcome = "unknown"
 	}
 	s.Outcomes[outcome]++
-	s.LatencyMS += latencyMS
-	s.LatencyN++
+	// latency_ms=0 表示「不知道等了多久」（如进程先死的 abandoned 卡）：
+	// 计入结果分布，但不进均等待，否则会把均值往下拽。
+	if latencyMS > 0 {
+		s.LatencyMS += latencyMS
+		s.LatencyN++
+	}
 }
 
 // printMarkdown 渲染人读报告：先逐会话一行，再给分项合计与结论提示。
@@ -300,6 +304,7 @@ func printMarkdown(stats []sessionStat) {
 	fmt.Println("# 注意力事务基线（阶段 0）")
 	fmt.Println()
 	fmt.Println("口径：一次打断=一张卡（ask 按卡不按问题数）；「已解决」= 同 id 等到 *_resolved 事件。")
+	fmt.Println("结局含 abandoned（进程先死在卡上，恢复时补写）；latency_ms=0 的卡不计入均等待。")
 	fmt.Println()
 	fmt.Println("| 会话 | 轮次 | 打断卡 | 审批 | 提问 | 已解决 | 未解决 | 均等待 |")
 	fmt.Println("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")

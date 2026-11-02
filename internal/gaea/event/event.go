@@ -182,6 +182,9 @@ const (
 	OutcomeTimeout   = "timeout"
 	OutcomeCancelled = "cancelled"
 	OutcomeAnswered  = "answered"
+	// OutcomeAbandoned 是「进程先死、卡没人回答」的结局：恢复会话时由
+	// session.CloseOrphanAttention 补写，避免悬空卡永久污染打断计数。
+	OutcomeAbandoned = "abandoned"
 )
 
 // ApprovalResolution 是 ApprovalResolved 事件的载荷：一次审批卡从请求到

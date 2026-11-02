@@ -119,6 +119,11 @@ func (c *Controller) ResumeFromDisk(path string) (*agent.Session, error) {
 		if err != nil {
 			return nil, err
 		}
+		// 悬空卡收口：上次进程被杀/强退时内存里还开着的审批与提问，恢复时
+		// 补一条 outcome=abandoned 的解决事件——否则日志永远停在请求行，
+		// 统计器只能把它读成「用户一直没回答」，「放弃」与「未解决」分不开。
+		// 这是账本的尽力而为：失败不阻断恢复，日志原文仍是真相。
+		_, _ = session.CloseOrphanAttention(session.LogPathFor(path), c.writeSpaceFor(path))
 	}
 	c.Resume(s, path)
 	return s, nil
