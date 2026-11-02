@@ -49,6 +49,9 @@ const (
 	decidedAuto         = "auto"
 	decidedYolo         = "yolo"
 	decidedSessionGrant = "session_grant"
+	// decidedHeadless is the unattended path: the gate would have asked, but the run
+	// has no Approver (subagent / background job / headless), so it proceeded.
+	decidedHeadless = "headless"
 )
 
 // 回合发起者判别字段的取值（turn_started.payload.trigger）：与 event 包
@@ -474,6 +477,8 @@ func autoDecidedLabel(decided string) string {
 		return "yolo 模式全放行"
 	case decidedSessionGrant:
 		return "会话内已有规则"
+	case decidedHeadless:
+		return "无人值守放行（headless，没人可问）"
 	case decidedAuto:
 		return "auto 放行"
 	default:

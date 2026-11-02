@@ -9,6 +9,8 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+
+	"github.com/gaea/gaea/internal/gaea/event"
 )
 
 // Decision is the outcome of evaluating a tool call against a Policy.
@@ -246,6 +248,20 @@ type Gate struct {
 	// 经用户确认（如 cost_save 写入成本库）。非交互运行（Approver 为 nil）
 	// 仍保持自治放行，与既有无界面语义一致。
 	AlwaysAsk map[string]bool
+
+	// OnAutoAllow, when set, is told about a call this Gate let through without
+	// asking a human (nil Approver): the "would have asked, nobody there" path.
+	// It is a ledger hook only — it cannot change the decision. Calls the policy
+	// allowed outright are *not* reported: nothing was overridden there, so a
+	// ledger line would be noise, not history.
+	OnAutoAllow func(toolName, subject, source string)
+}
+
+// recordAuto reports an autonomy override to the ledger hook, if any.
+func (g *Gate) recordAuto(toolName, subject, source string) {
+	if g.OnAutoAllow != nil {
+		g.OnAutoAllow(toolName, subject, source)
+	}
 }
 
 // NewGate wires a Policy to an Approver (nil for non-interactive use).
@@ -257,6 +273,7 @@ func NewGate(p Policy, a Approver) *Gate { return &Gate{Policy: p, Approver: a} 
 func (g *Gate) Check(ctx context.Context, toolName string, args json.RawMessage, readOnly bool) (bool, string, error) {
 	if g.AlwaysAsk[toolName] {
 		if g.Approver == nil {
+			g.recordAuto(toolName, Subject(args), event.ApprovalSourceHardAsk)
 			return true, "", nil // 非交互：保持自治
 		}
 		allow, _, err := g.Approver.Approve(ctx, toolName, Subject(args), args)
@@ -279,6 +296,7 @@ func (g *Gate) Check(ctx context.Context, toolName string, args json.RawMessage,
 		return false, "denied by permission policy — this tool/command is on the deny list. Do not retry it; choose another approach or stop and explain.", nil
 	case Ask:
 		if g.Approver == nil {
+			g.recordAuto(toolName, Subject(args), event.ApprovalSourceGate)
 			return true, "", nil // non-interactive: preserve autonomy
 		}
 		subject := Subject(args)

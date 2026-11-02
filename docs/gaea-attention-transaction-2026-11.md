@@ -113,9 +113,9 @@ go run ./scripts/attention_report -json                            # 机器可�
    `risk_tier`（风险档）仍缺，等有真实消费方再加。
 5. **真人打断与自唤醒分离**：`wakeMaxConsecutive=3` 计的是 agent 自唤醒（`controller.go:313`），不是人打断；两套计数不要混。
    回合发起者类型化后，报表的打断率分母只取人轮，两者口径终于能在同一份日志里分开。
-6. **headless 的自动放行仍无账本**：`internal/gaea/permission/permission.go:259`/`:281` 在 `Approver == nil` 时直接放行
-   （注释 non-interactive: preserve autonomy）。那条路径没有 controller sink，第四刀的 `approval_auto` 记不到它；
-   要让无人值守也留痕，得在 permission 层引入最小 sink 或返回值透传，属下一步。
+6. **headless 的自动放行已收口（第五刀）**：`internal/gaea/permission/permission.go` 的 `Approver == nil` 分支现在经
+   `Gate.OnAutoAllow` 上报「本该问人、实际没问」的放行，`boot` 把它接成 `approval_auto`（`Decided=headless`）。
+   留白：策略本就允许的调用**不记账**（那不是覆盖）；`risk_tier` 仍缺。
 
 ## 八、验证
 
@@ -211,3 +211,27 @@ go run ./scripts/attention_report -json                            # 机器可�
 `report` 断言三种 `decided` 各计 1 且 `Cards`/`Unresolved`/`LatencyN` 均为 0。
 
 
+
+## 十二、第五刀：无人值守放行也留痕（没人可问，也要记下这里本该问人）
+
+**为什么**：第四刀把「机器替你做的决定」记进了账本，但它够不到 `Approver == nil` 的那条路——子代理、后台任务、
+headless 运行都没有 UI 可问，`permission.Gate` 遇到本该问人的工具会直接放行（`permission.go` 原注释
+non-interactive: preserve autonomy）。放行本身是对的（无人值守时问谁），错的是**它在账本里无声**：
+事后看日志，「这个子代理写了 40 个文件」全都是策略允许，分不清哪些是「本来就允许」、哪些是「本该问人但没人可问」。
+
+**做法**（最小 sink，只观察不干预）：
+
+- `permission.Gate` 新增 `OnAutoAllow func(toolName, subject, source string)`：纯账本钩子，不能改变决定。
+  只在两处 nil-Approver 分支触发——`AlwaysAsk` 工具（source=`hard_ask`）与策略 `Ask`（source=`gate`）；
+  **策略本来就 `Allow` 的调用不触发**：那不是覆盖，记账只会变成噪声。
+- `event`：新增 `AutoDecidedHeadless = "headless"`，与 `auto`/`yolo`/`session_grant` 并列。
+- `boot`：装配 `headlessGate` 时挂上钩子，用共享 sink 发 `ApprovalAuto{Tool, Subject, Source, Decided: headless}`。
+  共享 sink 已串到 `session.EventLogSink`，所以它和交互路径的卡落在同一本日志里（子代理/后台任务/headless 共用同一个 gate）。
+- `scripts/attention_report`：`decided=headless` 翻成「无人值守放行（headless，没人可问）」，照旧不进打断与均等待。
+
+**边界**：它只记「本该问人却没问」，不记「策略允许」。所以账本变长的原因是自主越过了审批，而不是跑得更多；
+如果哪天 `headless` 桶暴涨，那正好说明无人值守路径在越过越来越多的审批，这才是要看的信号。
+
+**验证**：`internal/gaea/permission/gate_autoallow_test.go` 五个子测试——ask/hard_ask 各记一条且 source 正确、
+策略 Allow 不记、有 Approver 的交互闸门不记（那是注意力事务不是授权账本）、deny 仍拒绝且不记；
+`scripts/attention_report` 断言 `decided=headless` 单独分桶且不动打断口径。

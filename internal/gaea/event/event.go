@@ -209,6 +209,10 @@ const (
 	// AutoDecidedSessionGrant 是会话内已有规则覆盖时的直接放行（用户此前
 	// 点过「本会话允许」，或 request_permission 批准的规则命中）。
 	AutoDecidedSessionGrant = "session_grant"
+	// AutoDecidedHeadless 是无人值守运行（permission.Gate 的 Approver 为 nil，
+	// 如子代理、后台任务、headless）遇到「本该问人」的工具时按自治放行——
+	// 没人可问，但账上必须留下「这里本该问人」。
+	AutoDecidedHeadless = "headless"
 )
 
 // AutoApproval 是 ApprovalAuto 事件的载荷：一次没弹卡就被放行的工具调用。

@@ -133,25 +133,29 @@ func TestScanLogCountsAutoApprovals(t *testing.T) {
 		{Kind: kindApprovalAuto, Payload: map[string]any{
 			"tool": "cost_save", "subject": "钢材", "source": "gate", "decided": "session_grant",
 		}},
+		{Kind: kindApprovalAuto, Payload: map[string]any{
+			"tool": "bash", "subject": "go build", "source": "hard_ask", "decided": "headless",
+		}},
 	})
 	st, err := scanLog(path)
 	if err != nil {
 		t.Fatalf("scanLog: %v", err)
 	}
-	if st.AutoApprovals != 3 {
-		t.Errorf("AutoApprovals = %d, want 3", st.AutoApprovals)
+	if st.AutoApprovals != 4 {
+		t.Errorf("AutoApprovals = %d, want 4", st.AutoApprovals)
 	}
 	if st.Cards != 0 || st.Unresolved != 0 || st.LatencyN != 0 {
 		t.Errorf("自动放行污染了打断口径: cards=%d unresolved=%d latencyN=%d",
 			st.Cards, st.Unresolved, st.LatencyN)
 	}
 	if st.AutoDecided[decidedYolo] != 1 || st.AutoDecided[decidedAuto] != 1 ||
-		st.AutoDecided[decidedSessionGrant] != 1 {
-		t.Errorf("AutoDecided = %v, want yolo/auto/session_grant 各 1", st.AutoDecided)
+		st.AutoDecided[decidedSessionGrant] != 1 || st.AutoDecided[decidedHeadless] != 1 {
+		t.Errorf("AutoDecided = %v, want yolo/auto/session_grant/headless 各 1", st.AutoDecided)
 	}
 }
 
-// TestCollectLogsExpandsDirs 锁定目录展开与其去重（work/play 分区同扫时// 平铺目录不会重复计入）。
+// TestCollectLogsExpandsDirs 锁定目录展开与其去重（work/play 分区同扫时，
+// 平铺目录不会重复计入）。
 func TestCollectLogsExpandsDirs(t *testing.T) {
 	dir := t.TempDir()
 	writeLogAt(t, filepath.Join(dir, "a.gaea-log.jsonl"))

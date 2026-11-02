@@ -271,6 +271,18 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	perm := cfg.PermissionsForSpace(space)
 	policy := permission.New(perm.Mode, perm.Allow, perm.Ask, perm.Deny)
 	headlessGate := permission.NewGate(policy, nil)
+	// 无人值守放行也要留痕：子代理、后台任务、headless 都没有 UI 可问，遇
+	// 「本该问人」的工具时按自治放行——账上写一条 approval_auto，Source 记清
+	// 是闸门的 ask 还是 hard_ask，Decided=headless。共用 sink 已串到会话事件
+	// 日志（上面的 eventLogSink），所以它和交互路径的卡落在同一本账里。
+	headlessGate.OnAutoAllow = func(toolName, subject, source string) {
+		sink.Emit(event.Event{Kind: event.ApprovalAuto, Auto: event.AutoApproval{
+			Tool:    toolName,
+			Subject: subject,
+			Source:  source,
+			Decided: event.AutoDecidedHeadless,
+		}})
+	}
 
 	// Hooks: load the global settings.json plus the project's (only when trusted —
 	// project hooks run arbitrary shell commands, so cloning a repo must not
