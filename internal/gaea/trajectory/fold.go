@@ -114,6 +114,8 @@ func (f *folding) apply(e session.LogEntry) {
 		f.applyApproval(e)
 	case "approval_resolved":
 		f.applyApprovalResolved(e)
+	case "approval_auto":
+		f.applyApprovalAuto(e)
 	case "subagent_message":
 		// v4.26 对话流式重造：子代理完成回投（旧日志无此 kind，不会进入该
 		// 分支——fold 对未知 kind 的既有跳过行为不变，golden 不受影响）。
@@ -481,6 +483,30 @@ func (f *folding) applyApprovalResolved(e session.LogEntry) {
 	if rec.Approval.Source == "" {
 		rec.Approval.Source = p.Source
 	}
+}
+
+// applyApprovalAuto 折叠一条自动放行账本（没弹卡、由机器决定）：直接建一条
+// 独立记录，不与审批卡配对——它不是注意力事务，没有 id、没有等待。
+func (f *folding) applyApprovalAuto(e session.LogEntry) {
+	var p struct {
+		Tool    string `json:"tool"`
+		Subject string `json:"subject"`
+		Source  string `json:"source"`
+		Decided string `json:"decided"`
+	}
+	if err := json.Unmarshal(e.Payload, &p); err != nil {
+		return
+	}
+	rec := Record{
+		Seq:  e.Seq,
+		Kind: "approval_auto",
+		Ts:   e.Ts,
+		Approval: &ApprovalRec{
+			Tool: p.Tool, Subject: preview(p.Subject, maxTextPreview),
+			Source: p.Source, Decided: p.Decided,
+		},
+	}
+	f.appendRecord(rec)
 }
 
 // findAttention 按卡片 kind（"ask"/"approval"）+ ID 找回请求记录：先查当前

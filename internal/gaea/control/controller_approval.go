@@ -36,8 +36,10 @@ func (g gateApprover) Approve(ctx context.Context, tool, subject string, args js
 	// was the approval) or while YOLO/bypass mode is on. Deny rules already bit
 	// before this point, so they still block.
 	g.c.mu.Lock()
-	auto := g.c.autoApprove || g.c.permLevel != "ask"
+	autoApprove := g.c.autoApprove
+	permLevel := g.c.permLevel
 	g.c.mu.Unlock()
+	auto := autoApprove || permLevel != "ask"
 	// 持久化写入（成本库/记忆/知识库）必须逐条经用户确认：
 	// auto/yolo 权限级别也强制询问，且不记忆会话放行。集合按空间策略
 	// 参数化（S1.5-A：play 产品默认空集 = 不弹审批卡；默认集 = 包级 hardAskTools）。
@@ -52,6 +54,13 @@ func (g gateApprover) Approve(ctx context.Context, tool, subject string, args js
 		return g.c.requestApproval(ctx, tool, approvalSubjectFor(tool, args), true, event.ApprovalSourceProjectPlan)
 	}
 	if auto {
+		// 没弹卡，但这是一次真实的写入授权：记进自动放行账本（谁放的、
+		// 拟执行什么）。不产生注意力事务——没有人被打断。
+		decided := event.AutoDecidedAuto
+		if autoApprove || permLevel == "yolo" {
+			decided = event.AutoDecidedYolo
+		}
+		g.c.emitAutoApproval(tool, subject, event.ApprovalSourceGate, decided)
 		return true, false, nil
 	}
 	return g.c.requestApproval(ctx, tool, subject, false, event.ApprovalSourceGate)
@@ -217,12 +226,22 @@ func (c *Controller) RequestPermission(ctx context.Context, tool, subject, reaso
 	// 规则记入会话规则表，不打扰用户。deny 硬拒与 hardAsk 逐条确认不受影响
 	// （前者已在上方拦截，后者 granted 之外的路径恒弹卡）。
 	c.mu.Lock()
-	auto := c.autoApprove || c.permLevel != "ask"
+	autoApprove := c.autoApprove
+	permLevel := c.permLevel
+	auto := autoApprove || permLevel != "ask"
 	if auto {
 		c.grantRuleLocked(tool, subject)
 	}
 	c.mu.Unlock()
 	if auto {
+		// 规则直接按会话生效：不弹卡、不打扰人，但账本要留下「谁批准的
+		// 这条规则、依据什么模式」，否则事后无法区分人批的规则与 auto/yolo
+		// 下机器替人批的规则。
+		decided := event.AutoDecidedAuto
+		if autoApprove || permLevel == "yolo" {
+			decided = event.AutoDecidedYolo
+		}
+		c.emitAutoApproval(tool, subject, event.ApprovalSourcePermissionRequest, decided)
 		return true, "auto", nil
 	}
 	_, _, decision, err := c.promptApproval(ctx, approvalPrompt{
@@ -258,6 +277,27 @@ func (c *Controller) grantRuleLocked(tool, subject string) {
 	c.grantedRules = append(c.grantedRules, grantedRule{tool: tool, subject: subject})
 }
 
+// emitAutoApproval 记录一次「没弹卡、由机器放行」的授权（ApprovalAuto）。
+// 注意力事务只记「人被打断」，这条账本记「机器替你决定了什么」：两条线
+// 分列，互不冒充。sink 缺省（无事件总线的嵌用场景）静默跳过，不影响放行。
+func (c *Controller) emitAutoApproval(tool, subject, source, decided string) {
+	if c.sink == nil {
+		return
+	}
+	c.sink.Emit(event.Event{Kind: event.ApprovalAuto, Auto: event.AutoApproval{
+		Tool: tool, Subject: subject, Source: source, Decided: decided,
+	}})
+}
+
+// autoSource 给自动放行账本补来源：promptApproval 的调用方都会显式传
+// source，空值只可能来自更早的代码路径，按 gate 兜底（与读端同口径）。
+func autoSource(p approvalPrompt) string {
+	if p.source == "" {
+		return event.ApprovalSourceGate
+	}
+	return p.source
+}
+
 // promptApproval emits one approval prompt per p and blocks until Approve(ID, …)
 // answers, ctx is cancelled, or the configured approval timeout fires. It returns
 // whether the call may proceed, whether a session grant was already in effect
@@ -271,6 +311,10 @@ func (c *Controller) promptApproval(ctx context.Context, p approvalPrompt) (allo
 		grantedAlready := c.ruleGrantedLocked(p.tool, p.subject)
 		c.mu.Unlock()
 		if grantedAlready {
+			// 会话内已有规则覆盖：不弹卡、不产生注意力事务，但账本要记下
+			// 「这次写操作是被一条既有规则放行的」——否则人只看到结果，
+			// 看不到机器替他做过的决定。
+			c.emitAutoApproval(p.tool, p.subject, autoSource(p), event.AutoDecidedSessionGrant)
 			return true, true, DecisionAllowSession, nil // session grant was previously stored
 		}
 	}
@@ -284,6 +328,7 @@ func (c *Controller) promptApproval(ctx context.Context, p approvalPrompt) (allo
 	if !p.alwaysPrompt {
 		if c.ruleGrantedLocked(p.tool, p.subject) {
 			c.mu.Unlock()
+			c.emitAutoApproval(p.tool, p.subject, autoSource(p), event.AutoDecidedSessionGrant)
 			return true, true, DecisionAllowSession, nil // session grant stored while waiting
 		}
 	}

@@ -353,6 +353,36 @@ func TestEntryFromEventAttentionPayloads(t *testing.T) {
 	if KindString(event.ApprovalResolved) != "approval_resolved" || KindString(event.AskResolved) != "ask_resolved" {
 		t.Error("resolved kind string mapping broken")
 	}
+
+	// 自动放行账本：没有 id、没有 latency——它记的是「没弹卡时谁做的决定」，
+	// 与注意力事务分列，不能混进打断计数或均等待。
+	auto, err := EntryFromEvent(event.Event{
+		Kind: event.ApprovalAuto,
+		Auto: event.AutoApproval{
+			Tool: "bash", Subject: "go test ./...",
+			Source: event.ApprovalSourceGate, Decided: event.AutoDecidedYolo,
+		},
+	}, 1700000003)
+	if err != nil {
+		t.Fatalf("approval_auto: %v", err)
+	}
+	var autoPayload map[string]any
+	if err := json.Unmarshal(auto.Payload, &autoPayload); err != nil {
+		t.Fatalf("unmarshal auto payload: %v", err)
+	}
+	if auto.Kind != "approval_auto" || KindString(event.ApprovalAuto) != "approval_auto" {
+		t.Errorf("kind = %q, want approval_auto", auto.Kind)
+	}
+	if autoPayload["decided"] != "yolo" || autoPayload["source"] != "gate" ||
+		autoPayload["tool"] != "bash" || autoPayload["subject"] != "go test ./..." {
+		t.Errorf("auto payload = %v", autoPayload)
+	}
+	if _, ok := autoPayload["id"]; ok {
+		t.Error("自动放行账本不该有 id：它不是可等待的注意力事务")
+	}
+	if _, ok := autoPayload["latency_ms"]; ok {
+		t.Error("自动放行账本不该有 latency_ms：没人等过它")
+	}
 }
 
 // T4：回合发起者判别字段进真相层。唤醒轮此前只能靠 wakeJobInput 的

@@ -23,6 +23,9 @@ const (
 	KindApprovalResolved = "approval_resolved"
 	KindAskRequest       = "ask_request"
 	KindAskResolved      = "ask_resolved"
+	// KindApprovalAuto 是自动放行账本（没弹卡、由机器决定），不属于注意力
+	// 事务：它没有 id、没有等待，只是「谁替人批准了什么」的审计记录。
+	KindApprovalAuto = "approval_auto"
 )
 
 // OrphanAttention 是一张在日志里有请求、没有结果的注意力卡。

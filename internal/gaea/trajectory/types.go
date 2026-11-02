@@ -121,6 +121,10 @@ type AskRec struct {
 // 配成一条注意力事务；Source 是触发来源（gate/hard_ask/project_plan/
 // permission_request），Reason 是模型申请理由；Decision/Outcome/LatencyMS
 // 在有解决事件时填充。
+//
+// Decided 只出现在自动放行记录（Kind="approval_auto"）上：这条调用没有
+// 弹卡，是机器替人决定的（auto/yolo/session_grant）。它与 Decision 语义不同
+// ——Decision 记人点了哪个按钮，Decided 记根本没按钮时谁放的行。
 type ApprovalRec struct {
 	ID        string `json:"id,omitempty"`
 	Tool      string `json:"tool,omitempty"`
@@ -129,6 +133,7 @@ type ApprovalRec struct {
 	Reason    string `json:"reason,omitempty"`
 	Decision  string `json:"decision,omitempty"`
 	Outcome   string `json:"outcome,omitempty"`
+	Decided   string `json:"decided,omitempty"`
 	LatencyMS int64  `json:"latencyMs,omitempty"`
 }
 

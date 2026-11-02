@@ -195,6 +195,78 @@ func TestApprovalResolvedPaired(t *testing.T) {
 		if requests != 1 || resolutions != 1 {
 			t.Fatalf("requests=%d resolutions=%d, want 1/1（会话放行不弹卡、不产生事务）", requests, resolutions)
 		}
+		// 没弹卡的两次放行必须留下授权账本：否则事后无法回答「这条规则谁批的」。
+		var autoInts []event.AutoApproval
+		for _, e := range rec.snapshot() {
+			if e.Kind == event.ApprovalAuto {
+				autoInts = append(autoInts, e.Auto)
+			}
+		}
+		if len(autoInts) != 2 {
+			t.Fatalf("自动放行账本 %d 条, want 2（第 2、3 次由会话规则短路）", len(autoInts))
+		}
+		for _, a := range autoInts {
+			if a.Decided != event.AutoDecidedSessionGrant || a.Source != event.ApprovalSourceGate {
+				t.Errorf("账本 = %+v, want session_grant/gate", a)
+			}
+			if a.Tool != "bash" || a.Subject != "go build" {
+				t.Errorf("账本目标 = %q/%q, want bash/go build", a.Tool, a.Subject)
+			}
+		}
+	})
+}
+
+// TestAutoApprovalLedger 锁定「机器替人放行」也要留痕：auto/yolo 下没有卡、
+// 没有等待，但必须有一条 approval_auto 记录说清「谁放的、放行的是什么」。
+func TestAutoApprovalLedger(t *testing.T) {
+	t.Run("yolo", func(t *testing.T) {
+		rec := newAttentionRecorder()
+		c := New(Options{Sink: rec})
+		c.SetPermLevel("yolo")
+
+		if allow, _, err := (gateApprover{c}).Approve(context.Background(), "bash", "go test ./...", nil); err != nil || !allow {
+			t.Fatalf("yolo 应放行 = (%v,%v)", allow, err)
+		}
+		events := rec.snapshot()
+		var autos []event.AutoApproval
+		for _, e := range events {
+			switch e.Kind {
+			case event.ApprovalAuto:
+				autos = append(autos, e.Auto)
+			case event.ApprovalRequest, event.ApprovalResolved:
+				t.Fatalf("yolo 不该产生注意力事务: %v", kindsOf(events))
+			}
+		}
+		if len(autos) != 1 {
+			t.Fatalf("账本 %d 条, want 1: %v", len(autos), kindsOf(events))
+		}
+		if a := autos[0]; a.Decided != event.AutoDecidedYolo || a.Source != event.ApprovalSourceGate ||
+			a.Tool != "bash" || a.Subject != "go test ./..." {
+			t.Errorf("yolo 账本 = %+v", a)
+		}
+	})
+
+	t.Run("auto", func(t *testing.T) {
+		rec := newAttentionRecorder()
+		c := New(Options{Sink: rec})
+		c.SetPermLevel("auto")
+
+		if allow, _, err := (gateApprover{c}).Approve(context.Background(), "write_file", "a.txt", nil); err != nil || !allow {
+			t.Fatalf("auto 应放行 = (%v,%v)", allow, err)
+		}
+		var got *event.AutoApproval
+		for _, e := range rec.snapshot() {
+			if e.Kind == event.ApprovalAuto {
+				a := e.Auto
+				got = &a
+			}
+		}
+		if got == nil {
+			t.Fatal("auto 放行没有账本")
+		}
+		if got.Decided != event.AutoDecidedAuto || got.Tool != "write_file" {
+			t.Errorf("auto 账本 = %+v", *got)
+		}
 	})
 }
 

@@ -788,6 +788,13 @@ func gaeaEventMap(e event.Event) map[string]interface{} {
 			"id": e.AskResolved.ID, "outcome": e.AskResolved.Outcome,
 			"answered": e.AskResolved.Answered, "latencyMs": e.AskResolved.LatencyMS,
 		}
+	case event.ApprovalAuto:
+		// 自动放行账本（没弹卡、由机器决定）：同样只落持久层，前端 reducer
+		// 无操作；线格式单列是为了将来做「谁替人批了什么」的审计视图。
+		m["auto"] = map[string]interface{}{
+			"tool": e.Auto.Tool, "subject": e.Auto.Subject,
+			"source": e.Auto.Source, "decided": e.Auto.Decided,
+		}
 	case event.AskRequest:
 		qs := make([]map[string]interface{}, 0, len(e.Ask.Questions))
 		for _, q := range e.Ask.Questions {
@@ -855,6 +862,7 @@ func gaeaKindName(k event.Kind) string {
 		event.Usage: "usage", event.Notice: "notice", event.Phase: "phase",
 		event.ApprovalRequest: "approval_request", event.AskRequest: "ask_request",
 		event.ApprovalResolved: "approval_resolved", event.AskResolved: "ask_resolved",
+		event.ApprovalAuto: "approval_auto",
 		event.TurnDone: "turn_done", event.CompactionStarted: "compaction_started",
 		event.CompactionDone: "compaction_done", event.Steer: "notice",
 		event.SubagentMessage: "subagent_message",

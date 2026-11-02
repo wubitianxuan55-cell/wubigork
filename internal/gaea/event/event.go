@@ -100,6 +100,15 @@ const (
 	// AskResolved 是提问卡的解决态：与同 ID 的 AskRequest 成对，记录
 	// answered（附回答题数）/ cancelled（回合取消）与等待时长。
 	AskResolved
+	// ApprovalAuto 是「没弹卡、由机器放行」的授权账本：权限级别 auto/yolo
+	// 的闸门短路、会话内已有规则的直接放行、request_permission 在 auto/yolo
+	// 下的规则直接生效——这些路径都没有打扰人，所以不构成注意力事务
+	// （不产生 ApprovalRequest/Resolved），但「谁替人批准了这次写操作、依据
+	// 什么」仍然必须可审计：此前这些放行在日志里完全不可见，事后无法回答
+	// 「这条规则是什么时候、被谁（人还是策略）批准的」。
+	// 与注意力事务的分工：ApprovalRequest/Resolved 记「人被打断」，
+	// ApprovalAuto 记「机器替你决定」，两者互不冒充、报表分列。
+	ApprovalAuto
 )
 
 // Level classifies a Notice so sinks can style or filter it.
@@ -188,6 +197,29 @@ const (
 	ApprovalSourceProjectPlan       = "project_plan"
 	ApprovalSourcePermissionRequest = "permission_request"
 )
+
+// 自动放行的决策者（AutoApproval.Decided 取值）：谁替人做的这次决定。
+// 与 ApprovalResolution.Decision 的区别——后者记住「人点的是哪个按钮」，
+// 前者记住「根本没弹按钮时是什么在放行」，两者不可混用。
+const (
+	// AutoDecidedAuto 是权限级别为 auto（permLevel != "ask"）的闸门短路。
+	AutoDecidedAuto = "auto"
+	// AutoDecidedYolo 是 autoApprove（YOLO/绕过模式）下的闸门短路。
+	AutoDecidedYolo = "yolo"
+	// AutoDecidedSessionGrant 是会话内已有规则覆盖时的直接放行（用户此前
+	// 点过「本会话允许」，或 request_permission 批准的规则命中）。
+	AutoDecidedSessionGrant = "session_grant"
+)
+
+// AutoApproval 是 ApprovalAuto 事件的载荷：一次没弹卡就被放行的工具调用。
+// 只记「拟执行动作 + 谁放的行 + 来源」，不伪造审批决策与等待时长——没人
+// 等待过，记 latency 会污染均值。
+type AutoApproval struct {
+	Tool    string
+	Subject string // 拟执行动作摘要（与审批卡的 subject 同源）
+	Source  string // ApprovalSource* 四值：这条放行发生在哪个通道上
+	Decided string // AutoDecided* 三值：谁做的决定
+}
 
 // 注意力卡片的归一解决结果（ApprovalResolution.Outcome / AskResolution.Outcome）。
 // 与 decision 明细串并存：Outcome 供计数/画像，Decision 保留原始五决策语义。
@@ -297,6 +329,8 @@ type Event struct {
 	// Resolved / AskResolved 是卡片解决态的载荷（ApprovalResolved / AskResolved）。
 	Resolved     ApprovalResolution
 	AskResolved  AskResolution
+	// Auto 是自动放行账本的载荷（ApprovalAuto）：没弹卡、由机器决定的授权。
+	Auto AutoApproval
 	Err         error      // TurnDone: non-nil on failure
 	Compaction  Compaction // Compaction
 	// Header carries the assembled request header (RequestHeader events):

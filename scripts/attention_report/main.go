@@ -37,8 +37,18 @@ const (
 	kindAskRequest      = "ask_request"
 	kindApprovalResolve = "approval_resolved"
 	kindAskResolve      = "ask_resolved"
+	kindApprovalAuto    = "approval_auto"
 	kindTurnStarted     = "turn_started"
 	kindTurnDone        = "turn_done"
+)
+
+// 自动放行账本的判别值（approval_auto.payload.decided）：说明「没弹卡时是谁
+// 做的决定」。它与注意力结局（outcome）完全不同轴——一侧是「人怎么答」，
+// 一侧是「机器凭什么替人答」。
+const (
+	decidedAuto         = "auto"
+	decidedYolo         = "yolo"
+	decidedSessionGrant = "session_grant"
 )
 
 // 回合发起者判别字段的取值（turn_started.payload.trigger）：与 event 包
@@ -93,6 +103,15 @@ type askResolvedPayload struct {
 	LatencyMS int64  `json:"latency_ms"`
 }
 
+// autoPayload 是自动放行账本：没有 id、没有 latency，只有「拟执行动作 +
+// 来源 + 谁放的」。它不进打断计数，也不进均等待。
+type autoPayload struct {
+	Tool    string `json:"tool"`
+	Subject string `json:"subject"`
+	Source  string `json:"source"`
+	Decided string `json:"decided"`
+}
+
 // sessionStat 是一份日志的统计结果。
 type sessionStat struct {
 	Path          string          `json:"path"`
@@ -111,6 +130,8 @@ type sessionStat struct {
 	LatencyN      int             `json:"latencySamples"`
 	LatencyMS     int64           `json:"latencyMsTotal"`
 	Questions     int             `json:"questions"`
+	AutoApprovals int             `json:"autoApprovals"`
+	AutoDecided   map[string]int  `json:"autoDecided,omitempty"`
 	OpenIDs       []string        `json:"-"`
 	openSet       map[string]bool `json:"-"`
 	legacyIDs     map[string]bool `json:"-"`
@@ -207,6 +228,7 @@ func scanLog(path string) (sessionStat, error) {
 		Sources:   map[string]int{},
 		openSet:   map[string]bool{},
 		legacyIDs: map[string]bool{},
+		AutoDecided: map[string]int{},
 	}
 
 	// legacy：旧日志的 approval_request 没有 source 字段，统一记 legacy，
@@ -270,6 +292,18 @@ func scanLog(path string) (sessionStat, error) {
 				continue
 			}
 			st.resolve(p.ID, p.Outcome, p.LatencyMS)
+		case kindApprovalAuto:
+			// 自动放行：没有卡，因此不改 Cards/OpenSet，也不进均等待。
+			var p autoPayload
+			if json.Unmarshal(e.Payload, &p) != nil {
+				continue
+			}
+			st.AutoApprovals++
+			decided := p.Decided
+			if decided == "" {
+				decided = "unknown"
+			}
+			st.AutoDecided[decided]++
 		}
 	}
 
@@ -326,7 +360,7 @@ func printMarkdown(stats []sessionStat) {
 		return
 	}
 
-	total := sessionStat{Outcomes: map[string]int{}, Sources: map[string]int{}}
+	total := sessionStat{Outcomes: map[string]int{}, Sources: map[string]int{}, AutoDecided: map[string]int{}}
 	var latencyTotal int64
 	var latencyN int
 	fmt.Println("# 注意力事务基线（阶段 0）")
@@ -334,15 +368,16 @@ func printMarkdown(stats []sessionStat) {
 	fmt.Println("口径：一次打断=一张卡（ask 按卡不按问题数）；「已解决」= 同 id 等到 *_resolved 事件。")
 	fmt.Println("结局含 abandoned（进程先死在卡上，恢复时补写）；latency_ms=0 的卡不计入均等待。")
 	fmt.Println("轮次按发起者拆分：人轮=真人消息/斜杠动词，唤醒轮=后台任务完成的合成回合，子代理轮=task 派生会话；打断率的分母只取人轮。")
+	fmt.Println("「自动放行」= auto/yolo/既有会话规则直接放行的写操作：没有卡、不计入打断，单独记「谁替人做的决定」。")
 	fmt.Println()
-	fmt.Println("| 会话 | 轮次 | 人轮 | 唤醒 | 子代理 | 打断卡 | 审批 | 提问 | 已解决 | 未解决 | 均等待 |")
-	fmt.Println("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
+	fmt.Println("| 会话 | 轮次 | 人轮 | 唤醒 | 子代理 | 打断卡 | 审批 | 提问 | 已解决 | 未解决 | 均等待 | 自动放行 |")
+	fmt.Println("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
 	for _, s := range stats {
 		resolved := s.Cards - s.Unresolved
-		fmt.Printf("| %s | %d | %d | %d | %d | %d | %d | %d | %d | %d | %s |\n",
+		fmt.Printf("| %s | %d | %d | %d | %d | %d | %d | %d | %d | %d | %s | %d |\n",
 			shortSession(s.Session), s.Turns, s.TurnsUser, s.TurnsWake, s.TurnsSubagent,
 			s.Cards, s.Approvals, s.Asks,
-			resolved, s.Unresolved, formatLatency(s.LatencyN, s.LatencyMS))
+			resolved, s.Unresolved, formatLatency(s.LatencyN, s.LatencyMS), s.AutoApprovals)
 		total.Turns += s.Turns
 		total.TurnsUser += s.TurnsUser
 		total.TurnsWake += s.TurnsWake
@@ -352,6 +387,10 @@ func printMarkdown(stats []sessionStat) {
 		total.Asks += s.Asks
 		total.Unresolved += s.Unresolved
 		total.Questions += s.Questions
+		total.AutoApprovals += s.AutoApprovals
+		for k, v := range s.AutoDecided {
+			total.AutoDecided[k] += v
+		}
 		latencyTotal += s.LatencyMS * int64(s.LatencyN)
 		latencyN += s.LatencyN
 		for k, v := range s.Outcomes {
@@ -365,10 +404,11 @@ func printMarkdown(stats []sessionStat) {
 	if latencyN > 0 {
 		meanMS = latencyTotal / int64(latencyN)
 	}
-	fmt.Printf("| **合计** | %d | %d | %d | %d | %d | %d | %d | %d | %d | %s |\n",
+	fmt.Printf("| **合计** | %d | %d | %d | %d | %d | %d | %d | %d | %d | %s | %d |\n",
 		total.Turns, total.TurnsUser, total.TurnsWake, total.TurnsSubagent,
 		total.Cards, total.Approvals, total.Asks,
-		total.Cards-total.Unresolved, total.Unresolved, formatLatency(latencyN, meanMS))
+		total.Cards-total.Unresolved, total.Unresolved, formatLatency(latencyN, meanMS),
+		total.AutoApprovals)
 	fmt.Println()
 
 	fmt.Printf("提问卡内问题数合计：%d（仅诊断，不计入打断次数）\n", total.Questions)
@@ -398,6 +438,20 @@ func printMarkdown(stats []sessionStat) {
 		}
 	}
 
+	fmt.Println()
+	fmt.Println("## 自动放行（谁替人做的决定）")
+	if total.AutoApprovals == 0 {
+		fmt.Println("无自动放行记录（旧日志没有 approval_auto；新日志起 auto/yolo/会话规则放行都会留痕）。")
+	} else {
+		for _, k := range sortedKeys(total.AutoDecided) {
+			fmt.Printf("- %s（%s）: %d\n", k, autoDecidedLabel(k), total.AutoDecided[k])
+		}
+		fmt.Println()
+		fmt.Println("注：这些写操作没有打断人，因此不计入打断卡；它们记的是「授权从哪来」，")
+		fmt.Println("    用来事后回答「这条规则是谁批的：人，还是 auto/yolo 模式」。")
+	}
+	fmt.Println()
+
 	var orphans []string
 	for _, s := range stats {
 		for _, id := range s.UnresolvedIDs {
@@ -410,6 +464,20 @@ func printMarkdown(stats []sessionStat) {
 		for _, o := range orphans {
 			fmt.Printf("- %s\n", o)
 		}
+	}
+}
+
+// autoDecidedLabel 把自动放行的判别值翻成一句人话（报告只读给人看）。
+func autoDecidedLabel(decided string) string {
+	switch decided {
+	case decidedYolo:
+		return "yolo 模式全放行"
+	case decidedSessionGrant:
+		return "会话内已有规则"
+	case decidedAuto:
+		return "auto 放行"
+	default:
+		return "未记录的放行来源"
 	}
 }
 

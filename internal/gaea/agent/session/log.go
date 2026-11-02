@@ -71,6 +71,10 @@ func KindString(k event.Kind) string {
 		return "ask_request"
 	case event.AskResolved:
 		return "ask_resolved"
+	case event.ApprovalAuto:
+		// 自动放行账本（没弹卡、由机器决定）：与注意力事务分列，记「谁替人
+		// 批准了什么」，使 auto/yolo/既有规则放行的写操作事后可审计。
+		return KindApprovalAuto
 	case event.TurnDone:
 		return "turn_done"
 	case event.CompactionStarted:
@@ -555,6 +559,15 @@ func EntryFromEvent(e event.Event, ts int64) (LogEntry, error) {
 		}
 	case event.AskRequest:
 		payload = askPayloadFromEvent(e)
+	case event.ApprovalAuto:
+		// 自动放行账本：没有 id、没有 latency——没人被等待，记等待时长会把
+		// 注意力均值算歪。只留「拟执行动作 + 来源 + 谁放的」。
+		payload = map[string]any{
+			"tool":    e.Auto.Tool,
+			"subject": e.Auto.Subject,
+			"source":  e.Auto.Source,
+			"decided": e.Auto.Decided,
+		}
 	case event.TurnDone:
 		errText := ""
 		if e.Err != nil {

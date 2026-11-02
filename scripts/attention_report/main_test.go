@@ -119,8 +119,39 @@ func TestScanLogIgnoresDuplicateResolve(t *testing.T) {
 	}
 }
 
-// TestCollectLogsExpandsDirs 锁定目录展开与其去重（work/play 分区同扫时
-// 平铺目录不会重复计入）。
+// TestScanLogCountsAutoApprovals 锁定自动放行账本的口径：它不弹卡、没有卡、
+// 不进打断计数与均等待，只单独按「谁替人做的决定」分桶。
+func TestScanLogCountsAutoApprovals(t *testing.T) {
+	path := writeLog(t, "s3.gaea-log.jsonl", []line{
+		{Kind: kindTurnStarted, Payload: map[string]any{"trigger": "user"}},
+		{Kind: kindApprovalAuto, Payload: map[string]any{
+			"tool": "bash", "subject": "go test ./...", "source": "gate", "decided": "yolo",
+		}},
+		{Kind: kindApprovalAuto, Payload: map[string]any{
+			"tool": "write_file", "subject": "a.txt", "source": "gate", "decided": "auto",
+		}},
+		{Kind: kindApprovalAuto, Payload: map[string]any{
+			"tool": "cost_save", "subject": "钢材", "source": "gate", "decided": "session_grant",
+		}},
+	})
+	st, err := scanLog(path)
+	if err != nil {
+		t.Fatalf("scanLog: %v", err)
+	}
+	if st.AutoApprovals != 3 {
+		t.Errorf("AutoApprovals = %d, want 3", st.AutoApprovals)
+	}
+	if st.Cards != 0 || st.Unresolved != 0 || st.LatencyN != 0 {
+		t.Errorf("自动放行污染了打断口径: cards=%d unresolved=%d latencyN=%d",
+			st.Cards, st.Unresolved, st.LatencyN)
+	}
+	if st.AutoDecided[decidedYolo] != 1 || st.AutoDecided[decidedAuto] != 1 ||
+		st.AutoDecided[decidedSessionGrant] != 1 {
+		t.Errorf("AutoDecided = %v, want yolo/auto/session_grant 各 1", st.AutoDecided)
+	}
+}
+
+// TestCollectLogsExpandsDirs 锁定目录展开与其去重（work/play 分区同扫时// 平铺目录不会重复计入）。
 func TestCollectLogsExpandsDirs(t *testing.T) {
 	dir := t.TempDir()
 	writeLogAt(t, filepath.Join(dir, "a.gaea-log.jsonl"))

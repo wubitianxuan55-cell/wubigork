@@ -113,6 +113,9 @@ go run ./scripts/attention_report -json                            # 机器可�
    `risk_tier`（风险档）仍缺，等有真实消费方再加。
 5. **真人打断与自唤醒分离**：`wakeMaxConsecutive=3` 计的是 agent 自唤醒（`controller.go:313`），不是人打断；两套计数不要混。
    回合发起者类型化后，报表的打断率分母只取人轮，两者口径终于能在同一份日志里分开。
+6. **headless 的自动放行仍无账本**：`internal/gaea/permission/permission.go:259`/`:281` 在 `Approver == nil` 时直接放行
+   （注释 non-interactive: preserve autonomy）。那条路径没有 controller sink，第四刀的 `approval_auto` 记不到它；
+   要让无人值守也留痕，得在 permission 层引入最小 sink 或返回值透传，属下一步。
 
 ## 八、验证
 
@@ -129,6 +132,11 @@ go run ./scripts/attention_report -json                            # 机器可�
 - `internal/gaea/agent/session/log_test.go`：`TestEntryFromEventTurnTrigger` —— `turn_started` 落 trigger；旧事件仍写 `{}`。
 - `internal/gaea/trajectory/fold_test.go`：`TestFoldTurnTrigger` —— `Turn.Trigger` 落轨迹，旧日志回合保持空。
 - `scripts/attention_report/main_test.go`：轮次按发起者拆分（人轮/唤醒/子代理）。
+- `internal/gaea/control/attention_test.go`：`TestAutoApprovalLedger`（yolo / auto 只发账本、不发卡片）、会话规则短路账本
+  断言 `session_grant`。
+- `internal/gaea/agent/session/log_test.go`：自动放行 payload 四字段，且无 `id` / `latency_ms`。
+- `internal/gaea/trajectory/fold_test.go`：`TestFoldApprovalAuto` 断言独立记录与 `Decided` 落轨迹。
+- `scripts/attention_report/main_test.go`：`TestScanLogCountsAutoApprovals` 断言自动放行不污染打断口径。
 
 ## 九、第二刀：悬空卡闭合（进程先死也有结局）
 
@@ -172,4 +180,34 @@ go run ./scripts/attention_report -json                            # 机器可�
 
 **验证**：`control` 的唤醒测试断言唤醒回合 ctx 里 `trigger=wake`；`session` 断言 payload 落 trigger 且旧事件仍是 `{}`；
 `trajectory` 断言 `Turn.Trigger=wake`、旧日志回合保持空；`report` 断言人轮/唤醒拆分。
+
+## 十一、第四刀：自动放行留痕（没人被打断，也要知道谁替你做的决定）
+
+**为什么**：第一刀特意定下「短路不造事务」——会话里已有放行规则时不再弹卡，也就没有注意力事务。这条纪律是对的
+（没人被打断就不该记一次打断），但它留了个反面看不见的洞：**auto / yolo / 会话规则放行的写操作在日志里完全不存在**。
+事后想回答「这条规则是什么时候、被谁批准的——是我点的，还是某个模式替我点的」时，答案不在账本里。
+众神殿的授权侧建议正好点名了这一点：「触发来源可进一步做成类型化字段，**或在授权模式下仅记录拟执行动作**」，
+以及适用条件里那句「后台或无人值守模式若继续采用 headless auto-allow，需要明确哪些权限允许放行、哪些必须等待人」。
+
+**做法**（与注意力事务分列，不混口径）：
+
+- `event`：新增 `ApprovalAuto` 事件 + `AutoApproval{Tool, Subject, Source, Decided}`；`Decided` 三值
+  `auto`（权限级别 auto）/ `yolo`（全放行模式）/ `session_grant`（会话内已有规则）。它**没有 id、没有 latency**：
+  没人等过它，记等待时长会把注意力均值算歪。
+- `control`：`emitAutoApproval` 在四个不弹卡的出口各记一条——`gateApprover.Approve` 的 auto 短路、
+  `promptApproval` 的两处会话规则短路（入口检查与 promptMu 后的竞态复查）、`RequestPermission` 的 auto 分支。
+  `Source` 沿用注意力那套判别值，说明是闸门、权限申请还是整计划通道放的行。
+- `session`：kind `approval_auto`，payload `{tool,subject,source,decided}`。
+- `trajectory`：`ApprovalRec.Decided` 与 `Decision` 分开——`Decision` 记「人点了哪个按钮」，`Decided` 记「根本没有
+  按钮时谁放的行」；折叠时直接建独立记录，不与任何卡片配对。
+- `scripts/attention_report`：表格新增「自动放行」列，口径行与分项段都写明「不弹卡、不计入打断、不进均等待」。
+
+**为什么值得单独一刀**：注意力事务回答「人被打断了多少次、怎么答的」；自动放行账本回答「机器替人决定了什么」。
+两条线混在一起，两种事实就互相污染——打断数会虚高（把没弹卡的算进去），或者授权史永远缺失（只记有卡的）。
+分开记，才能在同一份日志里同时回答「人累不累」与「授权从哪来」。
+
+**验证**：`control` 的 yolo / auto 子测试断言只发 `ApprovalAuto`、不发请求/解决事件；会话规则短路子测试断言
+账本记 `session_grant` 且不带 `id`/`latency`；`session` 断言 payload 四字段；`trajectory` 断言独立记录落 `Decided`；
+`report` 断言三种 `decided` 各计 1 且 `Cards`/`Unresolved`/`LatencyN` 均为 0。
+
 

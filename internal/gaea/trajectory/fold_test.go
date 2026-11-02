@@ -318,6 +318,33 @@ func TestFoldAttentionResolvedPairs(t *testing.T) {
 	}
 }
 
+// 自动放行账本（approval_auto）落轨迹：它不是注意力事务（没有 id/等待），
+// 直接成为一条独立记录，Decided 说明「没弹卡时谁替人放的行」。
+func TestFoldApprovalAuto(t *testing.T) {
+	entries := []session.LogEntry{
+		entry(1, "turn_started", map[string]any{"trigger": "user"}),
+		entry(2, "approval_auto", map[string]any{
+			"tool": "bash", "subject": "go test ./...",
+			"source": "gate", "decided": "yolo",
+		}),
+	}
+	tl := FoldTrajectory(entries)
+	recs := tl.Turns[0].Records
+	if len(recs) != 1 || recs[0].Kind != "approval_auto" || recs[0].Approval == nil {
+		t.Fatalf("records = %+v, want 单条 approval_auto", recs)
+	}
+	ap := recs[0].Approval
+	if ap.Decided != "yolo" || ap.Source != "gate" {
+		t.Errorf("decided/source = %q/%q, want yolo/gate", ap.Decided, ap.Source)
+	}
+	if ap.Tool != "bash" || ap.Subject != "go test ./..." {
+		t.Errorf("tool/subject = %q/%q", ap.Tool, ap.Subject)
+	}
+	if ap.ID != "" || ap.Outcome != "" {
+		t.Errorf("自动放行不该有 id/outcome: %+v", ap)
+	}
+}
+
 
 // T4：回合发起者判别字段（turn_started.trigger）落轨迹。唤醒轮此前只能靠
 // 输入文本的 "[system]" 前缀反推；类型化之后由物理字段判定。旧日志缺该
