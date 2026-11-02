@@ -116,15 +116,15 @@ gaea 对照面：工具结果错误码族——SubagentStopReason 词汇（compl
   pi-ai-* / cua-* / web-* / desktop-* / 账号通知 / 插件引擎 / 打包基建（Windows runner supervision 等）：
   cordis 组合面/Web 客户端/桌面打包域，gaea 无对应消费面，一行销号。
 
-## 五、刀池汇总（拍板池）
+## 五、刀池汇总（拍板池；2026-11-02 执行批后终态）
 
-| # | 刀 | 性质 | 前置 |
+| # | 刀 | 性质 | 终态 |
 |---|---|---|---|
-| K1 | 切模型压缩门（目标窗口压力预算+拒切保旧头+headroom） | 真增量 | 核会话 runner 压缩窗口是否随 SetActiveEngine 重解析 |
-| K2 | checkpoint 持久化门（写失败停回合） | 小刀 | 核 LogWriter 失败路径现行为 |
-| K3 | 附件引用完整性校验纪律 | 纪律收编 | 核附件/识图读路径取数方式 |
-| K4 | 工具取消 ABORTED/FAILED 双认词汇 | 小纪律 | 核工具面取消 vs 失败可辨性 |
+| K1 | 切模型压缩门 | 真增量 | **已落地（2026-11-02，变体形态）**。刀前核实：主 executor 窗口=构建期 entry.ContextWindow（boot.go:519/127-155），wubigrok bridge 按活跃引擎请求期路由——切引擎后窗口失真，溢出梯子按旧窗压/截断。引擎登记表（modelengine.EngineConfig/ModelInfo）**无窗口元数据**，「切时重解析/拒切」无数据源→改走**溢出错误自学习**：provider.ContextOverflowLimit（三个实测措辞家族正则：OpenAI「maximum context length is N」/Anthropic「N tokens > M maximum 取 M」/Gemini「maximum number of tokens allowed (N)」）+ tryOverflowRecovery 救援前采纳（只缩不涨；0 窗口=禁压缩语义不自启）——切小窗引擎首溢即采纳真实窗口，本轮阶梯与后续轮次按真实值收敛。上游「拒切保旧头」的 gaea 等价面=不拒切、自学习收敛（偏离记录在案） |
+| K2 | checkpoint 持久化门（写失败停回合） | 小刀 | **销号**。核实：EventLogSink 写失败=slog.Warn+return（sink.go:126），回合照跑=「事件日志尽力而为旁路」既有拍板语义；gaea 兜底已足（断电线 fsync 三处 v4.517.0+RepairLogFile torn-tail 修复+回合间关写器）。「写失败停回合」与既有语义冲突且无消费面（单机桌面非 headless API 契约）；上游 sdk-minimal 是 headless 部署形态，若将来 API 化再对齐 |
+| K3 | 附件引用完整性校验 | 纪律收编 | **销号**。核实：GaeaAttachmentDataURL(path)=本地单进程读自己写的文件，无远程附件读 API；上游纪律防的是多客户端远程面的引用伪造，gaea 无此信任边界 |
+| K4 | 工具取消 ABORTED/FAILED 双认词汇 | 小纪律 | **销号**。核实：gaea 已分流——StreamInterruptedError+interrupted bool（agent_run.go:154-166 流中断恢复「re-issue it if still needed」）+SubagentStopReason interrupted/error（P1-C）；取消 vs 失败在回合与子代理两层都可辨 |
 | — | 子代理模型路由（P2 口径更新） | demand-gated | 需求现；落地照「创建时授权+不重采样+空清单全拒」 |
-| — | send_message / 深度记账 / session-reference / compactNow / plan 持久化二刀 | 维持在册 | 不变 |
+| — | send_message / session-reference / compactNow / plan 持久化二刀 | 维持在册 | 不变（深度记账维持销号） |
 
 以上均为调研产出；动刀前逐项走「刀前核实」栏。

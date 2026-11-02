@@ -210,3 +210,31 @@ func TestIsContextOverflow(t *testing.T) {
 		})
 	}
 }
+
+// K1 窗口自学习（dsh model-switch-compaction 蒸馏 2026-11）：
+// ContextOverflowLimit 从溢出错误正文提取 provider 声明的真实窗口；
+// 裸错误码/泛用措辞无数字→不采纳；非溢出错误→不采纳。
+func TestContextOverflowLimit(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want int
+		ok   bool
+	}{
+		{"nil", nil, 0, false},
+		{"openai", errors.New("400 This model's maximum context length is 16385 tokens, context_length_exceeded"), 16385, true},
+		{"anthropic takes maximum", errors.New("invalid_request_error: prompt is too long: 210000 tokens > 200000 maximum"), 200000, true},
+		{"gemini", errors.New("The input token count (1200000) exceeds the maximum number of tokens allowed (1000000)"), 1000000, true},
+		{"bare code no number", errors.New("400 context_length_exceeded"), 0, false},
+		{"generic no number", errors.New("request exceeds the model context window"), 0, false},
+		{"not overflow", errors.New("429 too many requests"), 0, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := ContextOverflowLimit(tt.err)
+			if got != tt.want || ok != tt.ok {
+				t.Errorf("ContextOverflowLimit(%v) = (%d,%v), want (%d,%v)", tt.err, got, ok, tt.want, tt.ok)
+			}
+		})
+	}
+}

@@ -254,3 +254,38 @@ func TestCompactIfOverSkipsHopelessCandidate(t *testing.T) {
 		t.Fatal("跳过应上屏并说明 trigger 口径")
 	}
 }
+
+// K1 窗口自学习（dsh model-switch-compaction 蒸馏 2026-11）：溢出错误正文
+// 带 provider 窗口声明→救援前采纳（本轮阶梯与后续轮次按真实窗口收敛）；
+// 报告值 ≥ 配置窗口→只缩不涨；无数字措辞→窗口维持。
+func TestTryOverflowRecoveryAdoptsProviderWindow(t *testing.T) {
+	// 采纳：1M 配置窗 + provider 报 8192 → 窗口变 8192
+	a := testAgentC(1_000_000, 0.8, 5)
+	a.session = fatSession(t, 30)
+	if !a.tryOverflowRecovery(context.Background(), errors.New("This model's maximum context length is 8192 tokens")) {
+		t.Fatal("overflow error should recover")
+	}
+	if a.compaction.Window != 8192 {
+		t.Fatalf("window not adopted: %d, want 8192", a.compaction.Window)
+	}
+
+	// 只缩不涨：4000 配置窗 + provider 报 65536 → 维持 4000
+	b := testAgentC(4000, 0.8, 5)
+	b.session = fatSession(t, 30)
+	if !b.tryOverflowRecovery(context.Background(), errors.New("This model's maximum context length is 65536 tokens")) {
+		t.Fatal("overflow error should recover")
+	}
+	if b.compaction.Window != 4000 {
+		t.Fatalf("window must not grow: %d, want 4000", b.compaction.Window)
+	}
+
+	// 无数字措辞（裸泛用 marker）：窗口维持
+	c := testAgentC(4000, 0.8, 5)
+	c.session = fatSession(t, 30)
+	if !c.tryOverflowRecovery(context.Background(), errors.New("context window exceeded")) {
+		t.Fatal("overflow error should recover")
+	}
+	if c.compaction.Window != 4000 {
+		t.Fatalf("window must stay on unparseable error: %d, want 4000", c.compaction.Window)
+	}
+}

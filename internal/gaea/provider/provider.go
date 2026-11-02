@@ -9,7 +9,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/nilutil"
@@ -418,4 +420,42 @@ func IsContextOverflow(err error) bool {
 		}
 	}
 	return false
+}
+
+// contextOverflowLimitPatterns 从溢出错误正文提取 provider 声明的真实窗口
+// （K1 窗口自学习，dsh model-switch-compaction 蒸馏 2026-11）。三个实测
+// 措辞家族（与上方 markers 的用例同源），逐一保守——匹配不到数字就不
+// 采纳，调用方维持配置窗口。
+var contextOverflowLimitPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`maximum context length is (\d+) tokens`),     // OpenAI/DeepSeek/vLLM
+	regexp.MustCompile(`(\d+) tokens? > (\d+) maximum`),              // Anthropic（prompt is too long: N tokens > M maximum，取 M）
+	regexp.MustCompile(`maximum number of tokens allowed \((\d+)\)`), // Gemini
+}
+
+// ContextOverflowLimit 从 provider 确认的溢出错误中提取其声明的上下文窗口。
+// IsContextOverflow 命中但正文不含可解析数字（如裸 context_length_exceeded
+// 错误码）时返回 false。这是切引擎/模型后窗口重解析的自学习实现：模型中心
+// 引擎登记表无窗口元数据（刀前核实，docs/gaea-dsh-022-distill-2026-11.md
+// K1），provider 的溢出错误是唯一权威窗口声明源。
+func ContextOverflowLimit(err error) (int, bool) {
+	if err == nil || !IsContextOverflow(err) {
+		return 0, false
+	}
+	s := err.Error()
+	for i, re := range contextOverflowLimitPatterns {
+		m := re.FindStringSubmatch(s)
+		if m == nil {
+			continue
+		}
+		// Anthropic 形态取第二个捕获组（maximum），其余取第一组。
+		idx := 1
+		if i == 1 {
+			idx = 2
+		}
+		n, perr := strconv.Atoi(m[idx])
+		if perr == nil && n > 0 {
+			return n, true
+		}
+	}
+	return 0, false
 }

@@ -263,6 +263,19 @@ func (a *AgentRunner) tryOverflowRecovery(ctx context.Context, err error) bool {
 	if !provider.IsContextOverflow(err) {
 		return false
 	}
+	// K1 窗口自学习（dsh model-switch-compaction 蒸馏 2026-11）：provider
+	// 报错正文里的窗口声明是唯一权威源——模型中心引擎登记表无窗口元数据
+	// （刀前核实），切到小窗口引擎后配置窗口失真，首溢时从此采纳真实值，
+	// 本轮救援阶梯与后续轮次的压力管线都按真实窗口收敛（上游「切路由先查
+	// 目标压力」的 gaea 等价面：不拒切，自学习收敛）。只缩不涨：报告值
+	// ≥ 配置窗口时维持配置（配置还驱动软压缩主动预算，涨上去会让压力
+	// 检查失效）；0 窗口=显式禁压缩语义，不自启。
+	if limit, ok := provider.ContextOverflowLimit(err); ok && a.compaction.Window > 0 && limit < a.compaction.Window {
+		old := a.compaction.Window
+		a.compaction.Window = limit
+		a.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelInfo,
+			Text: fmt.Sprintf("context window adopted from provider error: %d tokens (was %d)", limit, old)})
+	}
 	a.overflowRecoveries++
 	version := a.session.RewriteVersion()
 	if st, perr := a.PruneStaleToolResults(); perr == nil && st.Results > 0 {
