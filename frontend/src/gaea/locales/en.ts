@@ -1267,6 +1267,7 @@ export const en = {
   "subagent.durMin": "{n} min",
   "subagent.durHour": "{n} h",
   "subagent.elapsed": "elapsed {dur}",
+  "subagent.elapsedHint": "Wall-clock elapsed (includes waiting and idle time)",
   "subagent.rootTitle": "Main agent",
   "subagent.threadHint": " (click to open the subagent conversation)",
   "subagent.openThread": "Open thread {title}",

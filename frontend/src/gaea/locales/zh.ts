@@ -1268,6 +1268,7 @@ export const zh: Record<DictKey, string> = {
   "subagent.durMin": "{n} 分",
   "subagent.durHour": "{n} 小时",
   "subagent.elapsed": "已用 {dur}",
+  "subagent.elapsedHint": "墙钟历时（含等待与闲置）",
   "subagent.rootTitle": "主 agent",
   "subagent.threadHint": "（点击打开子代理对话）",
   "subagent.openThread": "打开对话 {title}",

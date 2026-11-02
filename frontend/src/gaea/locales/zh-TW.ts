@@ -1272,6 +1272,7 @@ export const zhTW: Record<DictKey, string> = {
   "subagent.durMin": "{n} 分",
   "subagent.durHour": "{n} 小時",
   "subagent.elapsed": "已用 {dur}",
+  "subagent.elapsedHint": "牆鐘歷時（含等待與閒置）",
   "subagent.rootTitle": "主 agent",
   "subagent.threadHint": "（點擊開啟子代理對話）",
   "subagent.openThread": "開啟對話 {title}",

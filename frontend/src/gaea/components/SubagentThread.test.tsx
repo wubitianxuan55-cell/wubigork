@@ -89,6 +89,27 @@ describe("SubagentThread 子代理对话全面板（v4.27）", () => {
     expect(mocks.SubagentTranscript).not.toHaveBeenCalled();
   });
 
+  it("UA-1 头部历时芯片：带时间戳显示墙钟历时，缺省隐藏", async () => {
+    render(wrap(
+      <SubagentThread
+        sessionPath="s1.jsonl" target="sa_2_b2b2b2b2" task="任务" status="completed"
+        createdAt="2026-11-02T10:00:00Z" updatedAt="2026-11-02T10:05:30Z"
+        onBack={() => {}}
+      />,
+    ));
+    await screen.findByText("任务");
+    // 330s → 三档格式化 5 分（与 AgentTree nodeDuration 同语义）
+    const chip = screen.getByTestId("agent-thread-elapsed");
+    expect(chip.textContent).toBe("已用 5 分");
+    // 诚实标注：tooltip 说明是墙钟历时（上游 subagentTiming 为回合区间累计，判据差异在蒸馏档）
+    expect(chip.getAttribute("title")).toBe("墙钟历时（含等待与闲置）");
+    cleanup();
+    // 无时间戳（旧 tab 快照）→ 芯片不渲染
+    render(wrap(<SubagentThread sessionPath="s1.jsonl" target="sa_2_b2b2b2b2" task="任务" status="completed" onBack={() => {}} />));
+    await screen.findByText("任务");
+    expect(screen.queryByTestId("agent-thread-elapsed")).toBeNull();
+  });
+
   it("运行中：每 3s 轮询刷新对话（实时显示）", async () => {
     vi.useFakeTimers();
     render(wrap(<SubagentThread sessionPath="s1.jsonl" target="sa_2_b2b2b2b2" task="任务" status="running" onBack={() => {}} />));

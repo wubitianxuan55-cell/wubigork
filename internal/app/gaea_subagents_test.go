@@ -314,3 +314,50 @@ func TestSummarizeSubagentTranscript_Activity(t *testing.T) {
 		t.Fatalf("lastTool 应为单行摘要，实际含换行：%q", lastTool)
 	}
 }
+
+// TestSummarizeSubagentTranscript_ArgsActivity：UA-2（dsh LIVE_TOOL_DETAIL_
+// KEYS 蒸馏）——assistant toolCalls 与 tool 结果按 ID 配对后，活动词优先从
+// 参数按既定键优先级提取（file_path 命中 read_file 的「正在读哪个文件」），
+// 无参数/无键命中回落结果头（上方 Activity 用例即兜底路径）。
+func TestSummarizeSubagentTranscript_ArgsActivity(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sa_y.jsonl")
+	lines := []string{
+		`{"role":"user","content":"看一下图纸"}`,
+		`{"role":"assistant","content":"","toolCalls":[{"id":"call_1","name":"read_file","arguments":"{\"path\":\"D:/图/基础平面图.dwg\",\"encoding\":\"utf-8\"}"},{"id":"call_2","name":"cost_search","arguments":"{\"query\":\"机械挖土方\"}"}]}`,
+		`{"role":"tool","toolCallId":"call_1","name":"read_file","content":"图层 12 个\n标注 340 条\n…"}`,
+		`{"role":"tool","toolCallId":"call_2","name":"cost_search","content":"命中 5 条"}`,
+		`{"role":"tool","toolCallId":"call_missing","name":"orphan_tool","content":"孤儿结果头"}`,
+	}
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+		t.Fatalf("写 transcript: %v", err)
+	}
+	_, _, calls, _, lastTool := summarizeSubagentTranscript(path)
+	if calls != 3 {
+		t.Fatalf("工具调用计数异常：%d", calls)
+	}
+	// 最后一行是孤儿工具（无配对参数）→ 回落结果头；倒数第二次写入是
+	// cost_search 的参数活动词。
+	if !strings.Contains(lastTool, "orphan_tool: 孤儿结果头") {
+		t.Fatalf("孤儿工具应回落结果头：%q", lastTool)
+	}
+	// 直测参数活动词：file_path 键命中且空白归一。
+	if got := liveToolDetailFromArgs(`{"path":"D:/图/基础平面图.dwg"}`); got != "D:/图/基础平面图.dwg" {
+		t.Fatalf("file_path 活动词异常：%q", got)
+	}
+	// description 优先于 query（清单顺序）。
+	if got := liveToolDetailFromArgs(`{"description":"检索成本库","query":"机械挖土方"}`); got != "检索成本库" {
+		t.Fatalf("键优先级异常：%q", got)
+	}
+	// 纯字符串数组逗号连接；空白归一。
+	if got := liveToolDetailFromArgs(`{"task":["查  单价","  汇总 "]}`); got != "查 单价, 汇总" {
+		t.Fatalf("数组活动词异常：%q", got)
+	}
+	// 非字符串数组跳过该键继续向后；坏 JSON 返回空。
+	if got := liveToolDetailFromArgs(`{"task":[1,2],"cmd":"ls -la"}`); got != "ls -la" {
+		t.Fatalf("类型不符应跳过：%q", got)
+	}
+	if got := liveToolDetailFromArgs(`{broken`); got != "" {
+		t.Fatalf("坏 JSON 应返回空：%q", got)
+	}
+}

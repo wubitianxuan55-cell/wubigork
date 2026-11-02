@@ -28,6 +28,10 @@ export function useSubagentTabs({ currentSessionKey, currentSessionPath, setChat
       kind?: "subagent" | "model_tool";
       tool?: string;
       status: SubagentThreadStatus;
+      // ISO 时间戳（UA-1，dsh 子代理 UI 蒸馏 2026-11）：SubagentThread 头部
+      // 历时芯片的数据源；tab 打开瞬间快照缺失时由 live runs 合并补齐。
+      createdAt?: string;
+      updatedAt?: string;
     }>
   >([]);
   const [subagentTabId, setSubagentTabId] = useState<string | null>(null);
@@ -42,6 +46,8 @@ export function useSubagentTabs({ currentSessionKey, currentSessionPath, setChat
       task?: string;
       model?: string;
       status: SubagentThreadStatus;
+      createdAt?: string;
+      updatedAt?: string;
     }) => {
       const id = `sub:${p.ref}`;
       setSubagentTabs((prev) => (
@@ -92,12 +98,15 @@ export function useSubagentTabs({ currentSessionKey, currentSessionPath, setChat
         const task = run.task || tab.task;
         const kind = run.kind ?? tab.kind;
         const tool = run.tool ?? tab.tool;
+        const createdAt = tab.createdAt ?? run.createdAt;
+        const updatedAt = run.updatedAt ?? tab.updatedAt;
         if (run.status === tab.status && model === tab.model && task === tab.task &&
-            kind === tab.kind && tool === tab.tool) {
+            kind === tab.kind && tool === tab.tool && createdAt === tab.createdAt &&
+            updatedAt === tab.updatedAt) {
           return tab;
         }
         changed = true;
-        return { ...tab, status: run.status, model, task, kind, tool };
+        return { ...tab, status: run.status, model, task, kind, tool, createdAt, updatedAt };
       });
       return changed ? next : prev;
     });

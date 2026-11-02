@@ -309,9 +309,12 @@ func (t *TaskTool) ReadOnly() bool { return false }
 // CompactDescriptor — V10.11: compact task description for prompt efficiency.
 // CompactDescriptor 无条件替换 provider 面描述（tool.go Schemas()），模型只看
 // 这里——并行语义引导（2026-10 有限并行批）必须落在本行；写进 Description
-// 的版本到不了模型面前（该坑已修正）。
+// 的版本到不了模型面前（该坑已修正）。末两段=dsh 蒸馏 2026-11（SA-E fork
+// 措辞分叉：续跑子代理已见原任务，prompt 只说新增——上游 providerWording
+// (inheritsParentContext=true) 同款；SA-D 被拒操作反重试指引：SUBAGENT_
+// DELEGATION_CONTEXT 纪律「范围 start 时定死，勿重试被拒操作，声明限制」）。
 func (t *TaskTool) CompactDescription() string {
-	return fmt.Sprintf("派发隔离子代理执行子任务(可设置output_schema获取结构化JSON)。同一消息里派发多个独立task即并行执行,并发上限%d路、超限自动排队等槽;要并行写文件的任务各自声明write_paths(字面路径,目录含其下全部,glob被拒)且互不重叠,重叠即拒绝;严格有序的步骤写进同一prompt或同一次调用", SubagentMaxParallel())
+	return fmt.Sprintf("派发隔离子代理执行子任务(可设置output_schema获取结构化JSON)。同一消息里派发多个独立task即并行执行,并发上限%d路、超限自动排队等槽;要并行写文件的任务各自声明write_paths(字面路径,目录含其下全部,glob被拒)且互不重叠,重叠即拒绝;严格有序的步骤写进同一prompt或同一次调用;continue_from续跑的子代理已带原任务与transcript,prompt只补新增部分;工具或路径被拒属权限范围定死,勿重试同一操作,在答复里声明限制", SubagentMaxParallel())
 }
 func (t *TaskTool) CompactSchema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{"prompt":{"type":"string"},"description":{"type":"string"},"write_paths":{"type":"array","items":{"type":"string"}},"tools":{"type":"array","items":{"type":"string"}},"max_steps":{"type":"integer"},"run_in_background":{"type":"boolean"},"output_schema":{"type":"object"},"retry_until":{"type":"object","properties":{"check":{"type":"string"},"max_retries":{"type":"integer"}},"required":["check"]},"continue_from":{"type":"string"},"fork":{"type":"boolean"}},"required":["prompt"]}`)

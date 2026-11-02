@@ -154,7 +154,8 @@ func firstNonEmpty(a, b string) string {
 // summarizeSubagentTranscript 从子代理 transcript JSONL 提取：
 // 任务摘要（首条 user 消息，截断 120 字）、最后一条 assistant 回答（截断 200 字）、
 // 工具调用次数，以及 C2 活动行——最后一段 assistant 文本（截断 160 字）与
-// 最后一次工具调用摘要（name + 结果头部，截断 80 字）。
+// 最后一次工具调用摘要（name + 活动词，截断 80 字；活动词优先从工具参数按
+// 键优先级提取（UA-2，dsh LIVE_TOOL_DETAIL_KEYS 蒸馏），无命中回落结果头）。
 // 错误静默返回空（meta 存在但 transcript 缺失/损坏时面板仍能展示状态）。
 func summarizeSubagentTranscript(path string) (task, answer string, toolCalls int, lastText, lastTool string) {
 	f, err := os.Open(path)
@@ -163,6 +164,10 @@ func summarizeSubagentTranscript(path string) (task, answer string, toolCalls in
 	}
 	defer func() { _ = f.Close() }()
 	dec := json.NewDecoder(f)
+	// 活动词的源在参数里：assistant 消息携带 toolCalls（ID+Arguments），
+	// 结果消息只回带 ToolCallID——按 ID 配对把参数带到工具行（subagentRender
+	// 前端同款配对语义）。
+	pendingArgs := map[string]string{}
 	for {
 		var m provider.Message
 		if err := dec.Decode(&m); err != nil {
@@ -178,14 +183,23 @@ func summarizeSubagentTranscript(path string) (task, answer string, toolCalls in
 				answer = truncateRunes(strings.TrimSpace(m.Content), 200)
 				lastText = truncateRunes(strings.TrimSpace(m.Content), 160)
 			}
+			for _, tc := range m.ToolCalls {
+				if tc.ID != "" && strings.TrimSpace(tc.Arguments) != "" {
+					pendingArgs[tc.ID] = tc.Arguments
+				}
+			}
 		case provider.RoleTool:
 			toolCalls++
 			name := strings.TrimSpace(m.Name)
 			if name == "" {
 				name = "tool"
 			}
-			head := oneLineHead(m.Content, 60)
-			if head != "" {
+			// 「正在做什么」的意图在参数里，结果头是回声：优先参数活动词
+			// （read_file 的 path、cost_search 的 query…），无命中回落结果头
+			// （原语义不变，作兜底）。
+			if activity := liveToolDetailFromArgs(pendingArgs[m.ToolCallID]); activity != "" {
+				lastTool = truncateRunes(name+": "+activity, 80)
+			} else if head := oneLineHead(m.Content, 60); head != "" {
 				lastTool = truncateRunes(name+": "+head, 80)
 			} else {
 				lastTool = truncateRunes(name, 80)
@@ -193,6 +207,63 @@ func summarizeSubagentTranscript(path string) (task, answer string, toolCalls in
 		}
 	}
 	return task, answer, toolCalls, lastText, lastTool
+}
+
+// liveToolDetailKeys 工具活动词提取的键优先级清单（dsh LIVE_TOOL_DETAIL_KEYS
+// 蒸馏，2026-11，逐键同序）：意图类键（title/description/task…）先于动作类键
+// （command/query/path…）。取首个非空命中。
+var liveToolDetailKeys = []string{
+	"title", "description", "objective", "task", "task_name", "name",
+	"question", "questions", "prompt", "message",
+	"command", "cmd", "queries", "query", "pattern", "url", "uri",
+	"file_path", "path", "target", "action", "status",
+}
+
+// liveToolDetailFromArgs 从工具参数 JSON 按键优先级提取活动词；解析失败/
+// 无命中返回空串。字符串值直接取；纯字符串数组逗号连接；空白归一后截
+// 60 rune（truncateRunes 按 rune 截断，CJK 单字安全）。
+func liveToolDetailFromArgs(argsJSON string) string {
+	if strings.TrimSpace(argsJSON) == "" {
+		return ""
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(argsJSON), &m); err != nil {
+		return ""
+	}
+	for _, key := range liveToolDetailKeys {
+		v, ok := m[key]
+		if !ok || v == nil {
+			continue
+		}
+		var text string
+		switch t := v.(type) {
+		case string:
+			text = t
+		case []any:
+			parts := make([]string, 0, len(t))
+			allStrings := true
+			for _, item := range t {
+				s, isStr := item.(string)
+				if !isStr {
+					allStrings = false
+					break
+				}
+				parts = append(parts, s)
+			}
+			if !allStrings {
+				continue
+			}
+			text = strings.Join(parts, ", ")
+		default:
+			continue
+		}
+		text = strings.Join(strings.Fields(text), " ")
+		if text == "" {
+			continue
+		}
+		return truncateRunes(text, 60)
+	}
+	return ""
 }
 
 // SubagentTranscriptMessage 是子代理 transcript 中的一条消息（查看器渲染用）。

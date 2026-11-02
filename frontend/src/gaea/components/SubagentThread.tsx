@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUp, Loader2, Rollback, Save, X } from "../icons";
 import { app, onEvent, onSubagentText } from "../lib/bridge";
 import { useT, type Translator } from "../lib/i18n";
@@ -10,6 +10,16 @@ import { ToolCard } from "./ToolCard";
 import type { Item } from "../lib/store";
 
 type ToolItem = Extract<Item, { kind: "tool" }>;
+
+// 耗时格式化（与 AgentTree nodeDuration/SubagentsPanel 同语义：秒/分/小时三档）。
+function fmtDur(ms: number, t: Translator): string {
+  if (!Number.isFinite(ms) || ms <= 0) return "";
+  const s = Math.max(1, Math.round(ms / 1000));
+  if (s < 60) return t("subagent.durSec", { n: s });
+  const m = Math.floor(s / 60);
+  if (m < 60) return t("subagent.durMin", { n: m });
+  return t("subagent.durHour", { n: Math.floor(m / 60) });
+}
 import { usePollingGate } from "../../hooks/usePollingGate";
 import { useLiveReload } from "../hooks/useLiveReload";
 
@@ -120,6 +130,8 @@ export function SubagentThread({
   task,
   status,
   model,
+  createdAt,
+  updatedAt,
   onBack,
 }: {
   sessionPath: string;
@@ -127,6 +139,9 @@ export function SubagentThread({
   task?: string;
   status: SubagentThreadStatus;
   model?: string;
+  /** ISO 时间戳（UA-1）：缺省=tab 打开瞬间快照未带，历时芯片隐藏。 */
+  createdAt?: string;
+  updatedAt?: string;
   onBack: () => void;
 }) {
   const t = useT();
@@ -345,6 +360,24 @@ export function SubagentThread({
     return () => window.clearInterval(timer);
   }, [live, followUpActive, gate, load]);
 
+  // UA-1（dsh 子代理 UI 蒸馏 2026-11）：头部历时芯片——墙钟历时
+  // （createdAt→updatedAt；running 实时到当前时刻，随 3s 快照轮询刷新）。
+  // 与 AgentTree nodeDuration 同语义；tooltip 诚实标注「含等待」（上游
+  // subagentTiming 是回合区间累计投影，gaea meta 只有墙钟时间戳，判据差异
+  // 在蒸馏档留案）。
+  const elapsedLabel = useMemo(() => {
+    if (!createdAt) return "";
+    const start = Date.parse(createdAt);
+    if (!Number.isFinite(start)) return "";
+    const end = running ? Date.now() : updatedAt ? Date.parse(updatedAt) : NaN;
+    if (!Number.isFinite(end) || end < start) return "";
+    const dur = fmtDur(end - start, t);
+    return dur === "" ? "" : t("subagent.elapsed", { dur });
+    // transcript 刻意在 deps：running 历时借 3s 快照轮询的重渲染刷新（回调
+    // 体内不读它，lint 视为多余——依赖的是它的对象身份变化节奏）。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [createdAt, updatedAt, running, t, transcript]);
+
   return (
     <div className="flex flex-col h-full min-h-0 text-xs" data-testid="agent-thread" style={{ color: "var(--md-sys-color-text-secondary)" }}>
       {/* 头部：返回 + 标题 + 状态 + 模型 + 消息数 + 刷新 */}
@@ -370,6 +403,16 @@ export function SubagentThread({
         {model && (
           <span className="shrink-0 rounded px-1 py-px font-mono text-[9.5px]" style={{ background: "var(--md-sys-color-surface-container-high)" }}>
             {model}
+          </span>
+        )}
+        {elapsedLabel && (
+          <span
+            data-testid="agent-thread-elapsed"
+            className="shrink-0 font-mono text-[9.5px] tabular-nums"
+            style={{ color: "var(--md-sys-color-text-secondary)" }}
+            title={t("subagent.elapsedHint")}
+          >
+            {elapsedLabel}
           </span>
         )}
         <span className="v3-panel-spacer" />

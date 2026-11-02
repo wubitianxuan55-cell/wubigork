@@ -875,6 +875,8 @@ export default function App() {
                     task={activeSubagent.task}
                     status={activeSubagent.status}
                     model={activeSubagent.model}
+                    createdAt={activeSubagent.createdAt}
+                    updatedAt={activeSubagent.updatedAt}
                     onBack={() => closeSubagentTab(activeSubagent.id)}
                   />
                 ) : (
