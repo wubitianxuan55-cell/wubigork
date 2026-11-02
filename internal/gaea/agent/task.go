@@ -220,6 +220,12 @@ type TaskTool struct {
 	subModel  string
 	subEffort string
 
+	// routeFactory 按调用路由的 provider 构造器（2026-11 dsh model-selection
+	// 蒸馏 P2）：boot 接线为 wubigrok bridge（Engine+Model 显式路由）。task
+	// 调用带 engine/model 且通过授权清单（AuthorizeSubagentRoute）时经此构造
+	// 一次性路由 provider；nil=宿主未接线（授权路由如实报错不静默回落）。
+	routeFactory func(engine, model string) (provider.LLMProvider, error)
+
 	// writeClaims 是 A10 写范围声明注册表（Reasonix 2.x fleet 预检蒸馏）：
 	// task 调用声明 write_paths 后在执行期登记，与**正在运行**的其它声明做
 	// 两两重叠检查（目录重叠其下所有路径）——重叠的后到者当场拒绝（fail-fast，
@@ -314,10 +320,16 @@ func (t *TaskTool) ReadOnly() bool { return false }
 // (inheritsParentContext=true) 同款；SA-D 被拒操作反重试指引：SUBAGENT_
 // DELEGATION_CONTEXT 纪律「范围 start 时定死，勿重试被拒操作，声明限制」）。
 func (t *TaskTool) CompactDescription() string {
-	return fmt.Sprintf("派发隔离子代理执行子任务(可设置output_schema获取结构化JSON)。同一消息里派发多个独立task即并行执行,并发上限%d路、超限自动排队等槽;要并行写文件的任务各自声明write_paths(字面路径,目录含其下全部,glob被拒)且互不重叠,重叠即拒绝;严格有序的步骤写进同一prompt或同一次调用;continue_from续跑的子代理已带原任务与transcript,prompt只补新增部分;工具或路径被拒属权限范围定死,勿重试同一操作,在答复里声明限制", SubagentMaxParallel())
+	s := fmt.Sprintf("派发隔离子代理执行子任务(可设置output_schema获取结构化JSON)。同一消息里派发多个独立task即并行执行,并发上限%d路、超限自动排队等槽;要并行写文件的任务各自声明write_paths(字面路径,目录含其下全部,glob被拒)且互不重叠,重叠即拒绝;严格有序的步骤写进同一prompt或同一次调用;continue_from续跑的子代理已带原任务与transcript,prompt只补新增部分;工具或路径被拒属权限范围定死,勿重试同一操作,在答复里声明限制", SubagentMaxParallel())
+	// 按调用路由的「发现」面（dsh model-selection 蒸馏 P2：授权路由动态
+	// 列给模型，零新增发现工具）。清单空=路由关闭，参数给了一律拒绝。
+	if routes := SubagentRoutes(); len(routes) > 0 {
+		s += fmt.Sprintf(";可按授权路由指定engine+model(须同时给,逐字匹配):%s", strings.Join(routes, ","))
+	}
+	return s
 }
 func (t *TaskTool) CompactSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"prompt":{"type":"string"},"description":{"type":"string"},"write_paths":{"type":"array","items":{"type":"string"}},"tools":{"type":"array","items":{"type":"string"}},"max_steps":{"type":"integer"},"run_in_background":{"type":"boolean"},"output_schema":{"type":"object"},"retry_until":{"type":"object","properties":{"check":{"type":"string"},"max_retries":{"type":"integer"}},"required":["check"]},"continue_from":{"type":"string"},"fork":{"type":"boolean"}},"required":["prompt"]}`)
+	return json.RawMessage(`{"type":"object","properties":{"prompt":{"type":"string"},"description":{"type":"string"},"write_paths":{"type":"array","items":{"type":"string"}},"tools":{"type":"array","items":{"type":"string"}},"max_steps":{"type":"integer"},"run_in_background":{"type":"boolean"},"output_schema":{"type":"object"},"retry_until":{"type":"object","properties":{"check":{"type":"string"},"max_retries":{"type":"integer"}},"required":["check"]},"continue_from":{"type":"string"},"fork":{"type":"boolean"},"engine":{"type":"string"},"model":{"type":"string"}},"required":["prompt"]}`)
 }
 
 // Execute 满足 tool.Tool 接口（无父上下文的直接调用方——技能/测试路径）。
@@ -340,12 +352,37 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 		ContinueFrom    string            `json:"continue_from,omitempty"`
 		Fork            bool              `json:"fork,omitempty"`
 		WritePaths      []string          `json:"write_paths,omitempty"`
+		Engine          string            `json:"engine,omitempty"`
+		Model           string            `json:"model,omitempty"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", fmt.Errorf("invalid args: %w", err)
 	}
 	if p.Prompt == "" {
 		return "", fmt.Errorf("prompt is required")
+	}
+	// 模型路由（P2，dsh model-selection 蒸馏 2026-11）：engine/model 须同时
+	// 给（上游「supply provider and model together」）；授权清单逐字核验，
+	// 未授权 fail-loud 点名可用路由——绝不静默回落父路由（静默降级=模型
+	// 以为切过去了）。窗口/计价继承父：窗口由 K1 溢出自学习兜真实值，跨
+	// 引擎差价属模型中心统计面不进子代理账。
+	var routeProv provider.LLMProvider
+	if p.Engine != "" || p.Model != "" {
+		if p.Engine == "" || p.Model == "" {
+			return "", fmt.Errorf("engine and model must be supplied together for sub-agent routing")
+		}
+		route := p.Engine + "/" + p.Model
+		if err := AuthorizeSubagentRoute(route); err != nil {
+			return "", err
+		}
+		if t.routeFactory == nil {
+			return "", fmt.Errorf("sub-agent route %q authorized but no route factory is wired", route)
+		}
+		pr, perr := t.routeFactory(p.Engine, p.Model)
+		if perr != nil {
+			return "", fmt.Errorf("sub-agent route %q unavailable: %w", route, perr)
+		}
+		routeProv = pr
 	}
 	// A10 写范围声明（Reasonix 2.x fleet 预检蒸馏）：glob/逃逸当场拒绝。
 	writePaths, err := normalizeWritePaths(p.WritePaths)
@@ -397,6 +434,13 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 		defer run.Release()
 		// 出发快照（B1）：执行面白名单在排队登记（MarkQueued）前盖到 run 上。
 		run.ToolScope = sortedToolNames(subReg.Names())
+		// send_message 中期回报通道（dsh 蒸馏 2026-11）：ref 就绪后按运行注入
+		// ——工具实例绑定本运行引用，兄弟运行互不可见；父注册表永不持有
+		// （它只属于子代理）。transcripts 缺席（run.Ref 空）不注入：无 ref
+		// 无法署名，诚实缺位优于匿名消息。
+		if ref := subagentRunRef(run); strings.TrimSpace(ref) != "" {
+			subReg.Add(&sendMessageTool{ref: ref})
+		}
 	}
 	childSessionID := subagentRunRef(run)
 	if strings.TrimSpace(childSessionID) == "" {
@@ -422,7 +466,7 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 	// retry_until: foreground only (background retry doesn't make sense across turns).
 	if p.RetryUntil != nil && !p.RunInBackground {
 		result, err := t.runForeground(ctx, run, func(fgCtx context.Context) (string, error) {
-			return t.runSubWithRetrySession(fgCtx, p.Prompt, p.RetryUntil, subReg, run, maxSteps, p.OutputSchema, seed)
+			return t.runSubWithRetrySession(fgCtx, routeProv, p.Prompt, p.RetryUntil, subReg, run, maxSteps, p.OutputSchema, seed)
 		})
 		return t.finalizeRun(result, err, run)
 	}
@@ -442,7 +486,7 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 				bgErr    error
 			)
 			_, bgErr = t.runForeground(ctx, run, func(fgCtx context.Context) (string, error) {
-				bgResult, bgSess, bgErr = t.runSubSession(fgCtx, p.Prompt, subReg, subSink(fgCtx, run), run, maxSteps, p.OutputSchema, nil)
+				bgResult, bgSess, bgErr = t.runSubSession(fgCtx, routeProv, p.Prompt, subReg, subSink(fgCtx, run), run, maxSteps, p.OutputSchema, nil)
 				return bgResult, bgErr
 			})
 			_ = bgSess
@@ -462,7 +506,7 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 		realBackground = true
 		job := jm.StartInheriting(ctx, "task", label, func(jobCtx context.Context, _ io.Writer) (string, error) {
 			defer t.releaseWriteClaim(childSessionID) // A10：后台任务的声明随 job 收尾释放
-			result, _, runErr := t.runSubSession(jobCtx, p.Prompt, subReg, nested, run, maxSteps, p.OutputSchema, nil)
+			result, _, runErr := t.runSubSession(jobCtx, routeProv, p.Prompt, subReg, nested, run, maxSteps, p.OutputSchema, nil)
 			// 后台任务必须在此收尾 transcript（父 Execute 已返回，等不到回合末
 			// finalizeRun 代跑；此前 store 模式下后台子代理从不落盘）。
 			return t.finalizeRun(result, runErr, run)
@@ -476,7 +520,7 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 		subErr    error
 	)
 	_, subErr = t.runForeground(ctx, run, func(fgCtx context.Context) (string, error) {
-		subResult, subSess, subErr = t.runSubSession(fgCtx, p.Prompt, subReg, subSink(fgCtx, run), run, maxSteps, p.OutputSchema, seed)
+		subResult, subSess, subErr = t.runSubSession(fgCtx, routeProv, p.Prompt, subReg, subSink(fgCtx, run), run, maxSteps, p.OutputSchema, seed)
 		return subResult, subErr
 	})
 	_ = subSess // 前台单发不留用子会话（continue 复用走 run.Session）
@@ -661,7 +705,7 @@ func (t *TaskTool) RunNew(ctx context.Context, prompt string, emit func(ref, tex
 		if maxSteps < 5 {
 			maxSteps = 5
 		}
-		result, _, err := t.runSubSession(ctx, prompt, mustSubReg(t, nil), sink, nil, maxSteps, nil, nil)
+		result, _, err := t.runSubSession(ctx, nil, prompt, mustSubReg(t, nil), sink, nil, maxSteps, nil, nil)
 		return result, "", err
 	}
 	defer run.Release()
@@ -678,7 +722,7 @@ func (t *TaskTool) RunNew(ctx context.Context, prompt string, emit func(ref, tex
 	if maxSteps < 5 {
 		maxSteps = 5
 	}
-	result, _, err := t.runSubSession(ctx, prompt, subReg, sink, run, maxSteps, nil, nil)
+	result, _, err := t.runSubSession(ctx, nil, prompt, subReg, sink, run, maxSteps, nil, nil)
 	final, ferr := t.finalizeRun(result, err, run)
 	return final, ref, ferr
 }
@@ -733,7 +777,7 @@ func (t *TaskTool) runFollowUp(ctx context.Context, ref, prompt string, sink eve
 	if maxSteps < 5 {
 		maxSteps = 5
 	}
-	_, _, err = t.runSubSession(ctx, prompt, subReg, sink, run, maxSteps, nil, nil)
+	_, _, err = t.runSubSession(ctx, nil, prompt, subReg, sink, run, maxSteps, nil, nil)
 	if err != nil {
 		_ = t.transcripts.SaveFailed(run)
 		return err
@@ -755,6 +799,11 @@ func (t *TaskTool) SetSubagentProvider(p provider.LLMProvider, pricing *provider
 func (t *TaskTool) SetSubagentIdentity(model, effort string) {
 	t.subModel = strings.TrimSpace(model)
 	t.subEffort = strings.TrimSpace(effort)
+}
+
+// SetSubagentRouteFactory 接线按调用路由的 provider 构造器（2026-11 P2）。
+func (t *TaskTool) SetSubagentRouteFactory(f func(engine, model string) (provider.LLMProvider, error)) {
+	t.routeFactory = f
 }
 
 // WithTranscripts wires the subagent transcript store for continue_from support.
@@ -793,7 +842,7 @@ func (t *TaskTool) WithAccessPolicy(policy tool.AccessPolicy) *TaskTool {
 // from the store is used directly (supporting continue_from). The session actually
 // executed against is returned so callers that loop over attempts (retry_until) can
 // reuse it instead of silently starting a fresh conversation per attempt (GA1-09).
-func (t *TaskTool) runSubSession(ctx context.Context, prompt string, subReg *tool.Registry, sink event.Sink, run *SubagentRun, maxSteps int, outputSchema json.RawMessage, seed []provider.Message) (string, *Session, error) {
+func (t *TaskTool) runSubSession(ctx context.Context, provOverride provider.LLMProvider, prompt string, subReg *tool.Registry, sink event.Sink, run *SubagentRun, maxSteps int, outputSchema json.RawMessage, seed []provider.Message) (string, *Session, error) {
 	// V6.0: sub-agent does NOT inherit parent L1+L2 — uses DefaultTaskSystemPrompt independently.
 	// This saves ~50K tokens per sub-agent call (97% reduction) and keeps cache stats separate.
 	sysPrompt := t.sysPrompt
@@ -801,6 +850,8 @@ func (t *TaskTool) runSubSession(ctx context.Context, prompt string, subReg *too
 	// V5.30 / V10.36: ActiveSchemas sends parent's full tool set to the API so
 	// tools JSON matches — DeepSeek prefix cache hits across parent→sub-agent.
 	// Execution gated by subReg (buildSubReg filtering), meta-tools blocked.
+	// provOverride（2026-11 P2 按调用路由）优先于一切：模型显式给的
+	// engine/model 是本运行的路由事实，覆盖 boot 级 subagentProv。
 	subProv, subPrice, subCtxWin := t.prov, t.pricing, t.contextWindow
 	if t.subagentProv != nil {
 		subProv = t.subagentProv
@@ -810,6 +861,9 @@ func (t *TaskTool) runSubSession(ctx context.Context, prompt string, subReg *too
 		if t.subagentCtxWin > 0 {
 			subCtxWin = t.subagentCtxWin
 		}
+	}
+	if provOverride != nil {
+		subProv = provOverride
 	}
 
 	// v4.61：真机 transcript 实时化——每次子代理尝试开始时把 meta 置
@@ -946,7 +1000,7 @@ func (t *TaskTool) runSubSession(ctx context.Context, prompt string, subReg *too
 // then handed back to this loop so every retry continues the SAME conversation.
 // After each retry the same session accumulates messages so the sub-agent sees
 // the full failure history.
-func (t *TaskTool) runSubWithRetrySession(ctx context.Context, prompt string, cfg *RetryUntilConfig, subReg *tool.Registry, run *SubagentRun, maxSteps int, outputSchema json.RawMessage, seed []provider.Message) (string, error) {
+func (t *TaskTool) runSubWithRetrySession(ctx context.Context, provOverride provider.LLMProvider, prompt string, cfg *RetryUntilConfig, subReg *tool.Registry, run *SubagentRun, maxSteps int, outputSchema json.RawMessage, seed []provider.Message) (string, error) {
 	maxRetries := cfg.MaxRetries
 	if maxRetries <= 0 {
 		maxRetries = 3
@@ -958,7 +1012,7 @@ func (t *TaskTool) runSubWithRetrySession(ctx context.Context, prompt string, cf
 	currentPrompt := prompt
 	var finalResult string
 	for attempt := 0; attempt <= maxRetries; attempt++ {
-		result, subSession, err := t.runSubSession(ctx, currentPrompt, subReg, subSink(ctx, run), run, maxSteps, outputSchema, seed)
+		result, subSession, err := t.runSubSession(ctx, provOverride, currentPrompt, subReg, subSink(ctx, run), run, maxSteps, outputSchema, seed)
 		if err != nil {
 			return result, err
 		}
@@ -1186,6 +1240,10 @@ func runSubAgentInternal(ctx context.Context, prov provider.LLMProvider, reg *to
 	// 子代理回合的发起者是 task 工具（不是人）：类型化标在 ctx 上，TurnStarted
 	// 落日志/轨迹时据此与真人回合区分——子代理会话不该混进人的打断率分母。
 	runCtx = WithTurnTrigger(runCtx, event.TriggerSubagent)
+	// send_message 署名源（dsh 蒸馏 2026-11）：本运行的 sa_ 引用盖章进 ctx
+	// （opts.SessionID 即运行引用——中断句柄 subRuns 以它为键），工具在 ref
+	// 字段缺失时从这里兜底取。
+	runCtx = WithSubagentRef(runCtx, opts.SessionID)
 	_, runErr := sub.Run(runCtx, prompt)
 	// Populate subUsage from the sub-agent's last usage so SubUsage() reflects
 	// real token counts for cost tracking.

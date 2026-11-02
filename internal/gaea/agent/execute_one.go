@@ -174,6 +174,9 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 	}
 	// v4.379 spill 泄洪库盖章（read_spill 工具经 ctx 取库，与 jobs/queue 同注入点）。
 	cctx = spill.WithStore(cctx, a.spill)
+	// send_message 通道（dsh 蒸馏 2026-11）：执行器自盖章，嵌套工具（task）
+	// 派生的子代理凭此把中期回报投进宿主 steer 队列。
+	cctx = WithRunner(cctx, a)
 	if a.promoter != nil {
 		cctx = memory.WithPromoter(cctx, a.promoter)
 	}

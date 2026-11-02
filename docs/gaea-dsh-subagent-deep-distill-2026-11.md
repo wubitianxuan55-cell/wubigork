@@ -190,8 +190,20 @@ refusal 词汇（A6，政策闸若建）；「LIVE scope 权威于 header」（B
 能力 fail-loud/provider 面；ChildLock/drain 序/interrupt 级联；ActivationPool 拒绝语义（gaea 排队维持）；
 并发槽共享/措辞第一工具。
 
-P2 池不变：send_message（demand-gated，归因+尾注+omitClosingText 纪律随行）/模型路由（022 档参考设计
-口径）/深度记账（销号维持，B2 公式留档）。
+P2 池终态（2026-11-02 收官执行批回填）：
+- **send_message 已落地（子→父半边）**：steerFromSubagent 来源+署名信封（ref 必填，agent-message 与 user
+  归因分离纪律）+send_message 工具（送达回执非答案/发消息不结束任务/父看不到过程须自包含）+派发点
+  WithRunner 盖章+runSubAgentInternal WithSubagentRef 署名源+双消费点（下一步界消费/drain 兜底 originNote）
+  。上游「父→子」「冷恢复投递」两半边不落（父→子=既有 SteerSubagent；冷恢复=需常驻概念，demand-gated
+  维持）；omitClosingText 去重无消费面（gaea 结算走任务结果非通知，无同文双载）。
+- **模型路由已落地（配置授权清单形态）**：`[agent] subagent_routes` 清单（空=路由关闭=只许父路由）+
+  task engine/model 参数（须同时给+逐字核验+未授权 fail-loud 点名可用路由）+boot 接线 wubigrok bridge
+  显式 Engine+Model+CompactDescription 动态列授权路由（发现面，零新增工具）。上游「创建时授权记录+不
+  重采样+会话投影」不落（gaea 授权=配置层一次性，无会话级采样面）；窗口/计价继承父（引擎无窗口元数据，
+  K1 自学习兜底）。
+- **session-reference 销号**：已由阶段十 10.3 落地（control/refs_session.go @会话 快照注入，v4.494——
+  021 档成文早于 10.3，池口径过时）。
+- 深度记账：销号维持（B2 公式留档）。**至此 dsh 子代理蒸馏刀池全部销项。**
 
 ## 四、方法学注记
 

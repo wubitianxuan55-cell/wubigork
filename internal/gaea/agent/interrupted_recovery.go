@@ -95,6 +95,8 @@ func (a *AgentRunner) drainSteerOnExit() {
 		originNote := ""
 		if it.origin == steerFromParent {
 			originNote = " (from the parent agent, not the user)"
+		} else if it.origin == steerFromSubagent {
+			originNote = " (from a subagent mid-task report, not the user)"
 		}
 		a.session.Add(provider.Message{
 			Role: provider.RoleUser,

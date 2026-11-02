@@ -146,6 +146,40 @@ func TurnTriggerFromContext(ctx context.Context) string {
 	return event.TriggerUser
 }
 
+// ── send_message 通道的 ctx 贯通（dsh 蒸馏 2026-11）──
+//
+// runnerContextKey：执行器在工具派发时自盖章（execute_one），嵌套工具
+// （task）由此拿到宿主 runner——send_message 工具凭它把子代理的中期回报
+// 投进父代理的 steer 队列。subagentRefContextKey：子代理自己的 sa_ 引用
+// （runSubAgentInternal 盖章），send_message 署名用。
+
+type runnerContextKey struct{}
+type subagentRefContextKey struct{}
+
+// WithRunner 把执行器盖章进 ctx（工具派发单点调用）。
+func WithRunner(ctx context.Context, a *AgentRunner) context.Context {
+	return context.WithValue(ctx, runnerContextKey{}, a)
+}
+
+// RunnerFromContext 返回宿主执行器；无盖章（直调/测试）返回 false。
+func RunnerFromContext(ctx context.Context) (*AgentRunner, bool) {
+	a, ok := ctx.Value(runnerContextKey{}).(*AgentRunner)
+	return a, ok && a != nil
+}
+
+// WithSubagentRef 把子代理运行引用盖章进 ctx（runSubAgentInternal 调用）。
+func WithSubagentRef(ctx context.Context, ref string) context.Context {
+	return context.WithValue(ctx, subagentRefContextKey{}, ref)
+}
+
+// SubagentRefFromContext 返回子代理运行引用（sa_/mt_…）；非子代理上下文为空。
+func SubagentRefFromContext(ctx context.Context) string {
+	if r, ok := ctx.Value(subagentRefContextKey{}).(string); ok {
+		return r
+	}
+	return ""
+}
+
 // TurnResult is a structured result produced by an AgentRunner after one turn.
 // It lets upstream callers (e.g. the controller) consume execution outcomes without
 // having to extract them post-hoc from the agent's session.
@@ -975,6 +1009,16 @@ func (a *AgentRunner) Steer(text string) {
 // 异来源——消费时以 ParentSteerPrefix 呈现（Z3/Z4：来源分面，防同意洗白）。
 func (a *AgentRunner) SteerParent(text string) {
 	a.steerAccept(steerItem{text: text, origin: steerFromParent})
+}
+
+// SteerFromSubagent 子代理中期回报通道（send_message 蒸馏 2026-11，上游
+// sendMessage 邻接双向的子→父半边）：与用户插话同队列、异来源——消费时
+// 以子代理署名信封呈现（上游「transcript 把 agent-message 与 user 合并就是
+// 给子代理记它没说过的话」→ 归因强制分离，Z3/Z4 同款防洗白）。ref 必填
+// 署名：父模型必须知道是哪个孩子在说话。发消息不结束子代理回合（上游
+// 「sending a message does not end your turn」同语义）。
+func (a *AgentRunner) SteerFromSubagent(ref, text string) {
+	a.steerAccept(steerItem{text: subagentSteerEnvelope(ref, text), origin: steerFromSubagent})
 }
 
 // SteerConsumed returns true when the steer queue became empty after the last consume.

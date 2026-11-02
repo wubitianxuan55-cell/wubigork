@@ -83,7 +83,7 @@ workspace/conversation/commands：本轮只做了结构级 skim，未逐机制�
 | 序 | 刀 | 状态 |
 |---|---|---|
 | P1-A | session-title 会话自动命名（本地路由+用户改名钉住+失败自愈） | **本批已落地**（gaea_session_title.go + TurnDone 槽 + 2 测试） |
-| P2-B | session-reference 跨会话 @提及 | 留池（UI+wire 中改，等真实需求） |
+| P2-B | session-reference 跨会话 @提及 | **销号（2026-11-02 执行批盘点）：已由阶段十 10.3 落地**（control/refs_session.go @会话:<关键词> 快照注入+截断诚实文案，v4.494——本档成文早于 10.3 五天，池口径过时） |
 | P2-C | 自动标题随对话演进重生成（latest-wins 全语义） | 观察池（先看 v1 一次定名的用户反馈） |
 | P2-D | /compact 手动压缩命令（参考 compactNow 语义） | 留池（等「上下文焦虑」真实反馈） |
 | — | plan 模式持久化二刀 | 维持既定留池（plan_mode.go 头注释口径） |

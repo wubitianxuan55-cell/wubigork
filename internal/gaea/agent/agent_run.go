@@ -130,6 +130,9 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 			content := midTurnSteerMessage(it.text)
 			if it.origin == steerFromParent {
 				content = midTurnParentSteerMessage(it.text)
+			} else if it.origin == steerFromSubagent {
+				// 子代理中期回报：署名信封在入队时已带（ref 必填），原文呈现。
+				content = it.text
 			}
 			a.session.Add(provider.Message{Role: provider.RoleUser, Content: content})
 			a.sink.Emit(event.Event{Kind: event.Steer, Text: it.text})

@@ -328,6 +328,19 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// 有限并行闸（2026-10）：task/run_skill 前台派生共享的并发上限，超出的
 	// 调用排队（queued 侧车可见）。≤0/超帽在 Set 内钳制，boot 一次装配。
 	agent.SetSubagentMaxParallel(cfg.Agent.SubagentMaxParallel)
+	// 按调用路由授权清单（2026-11，dsh model-selection 蒸馏 P2）：空=路由
+	// 关闭（task engine/model 参数一律拒绝）；非空=逐字核验+CompactDescription
+	// 动态列出授权路由（发现面）。
+	agent.SetSubagentRoutes(cfg.Agent.SubagentRoutes)
+	// 路由 provider 构造器：wubigrok bridge 显式 Engine+Model（批5 真机验证
+	// 同款构造式）。窗口/计价继承父（引擎无窗口元数据→K1 溢出自学习兜底）。
+	taskTool.SetSubagentRouteFactory(func(engine, model string) (provider.LLMProvider, error) {
+		return provider.NewLLM(provider.LLMKindWubigrok, provider.Config{
+			Name:   "task-route",
+			Engine: engine,
+			Model:  model,
+		})
+	})
 
 	// V10.22: resolve subagent model from config. When SubagentModel names a
 	// configured provider, sub-agents use that provider (typically a cheaper

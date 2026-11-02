@@ -605,6 +605,13 @@ type AgentConfig struct {
 	// 超出的调用排队等槽（transcript 侧车标 queued，前端可见）。≤0 = 默认 3；
 	// 硬帽 8（与批次并行度对齐），装配在 agent.SetSubagentMaxParallel 钳制。
 	SubagentMaxParallel int `toml:"subagent_max_parallel"`
+	// SubagentRoutes 是 task 子代理按调用的授权路由清单（2026-11，dsh
+	// model-selection 蒸馏 P2：「无授权政策时显式选择只许父路由；显式未授权
+	// 委派必须失败」）。形如 ["engine/model", ...]；空 = 路由关闭（task 的
+	// engine/model 参数一律拒绝，子代理恒继承父路由——现状行为）。授权在
+	// 配置层一次性给出：task 调用时逐字对清单核验，未授权 fail-loud 点名
+	// 可用路由。窗口元数据缺省继承父（K1 溢出自学习兜真实窗口）。
+	SubagentRoutes []string `toml:"subagent_routes"`
 	// ── 压缩阈值（阶段九 9.1「双阈值可配置」）────────────────────
 	// 三层水位（占 ContextWindow 比例）：Soft 预警通知 / Ratio 触发压缩 /
 	// Force 强制压缩（高水位）。0 值 = 用 agent 包内置缺省（0.5/0.8/0.9，
