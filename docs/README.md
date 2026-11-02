@@ -77,6 +77,9 @@
 | gaea-dsh-016-distill-2026-09.md | 🔄 dsh（deepseek-harness TS monorepo）蒸馏（原误题 Reasonix，已勘误更名）：五刀已落地（v4.373.0：溢出自愈/缓存对齐摘要/shrink 校验/force 多轮/repeat 分级）；留池 12 项按 dsh 口径有效 |
 | gaea-dsh-021-core-distill-2026-10.md | 🔄 dsh v0.2.1 核心域蒸馏（deepseek-harness@dsh-v0.2.1-alpha.2）：压缩域等价销号/todo/plan/ask 同构；落地 session-title 自动命名（TurnDone 槽+办公本地路由数据不出本机）；未深扫域诚实声明十三域 |
 | gaea-dsh-subagent-distill-2026-10.md | 🔄 dsh 0.2.1 子代理板块蒸馏+刀池：P0 interrupt_agent 模型面中断+白名单 fail-loud（e19543bb）；P1 结算 stopReason+diagnostic 卫生面+subagent_list 枚举（f5aa2892）；P2=session-reference/模型路由/深度记账/send_message 在册 |
+| gaea-dsh-022-distill-2026-11.md | 🔄 dsh 0.2.1-rc.1→0.2.2-alpha.2 增量蒸馏（2026-11-02 调研档）：P2 池三项上游演化对账（模型路由上游已给参考设计/depth.ts 零变更）+新刀池 K1 切模型压缩门/K2 checkpoint 持久化门/K3 附件引用完整性/K4 取消错误码词汇，均带刀前核实项；坑=升级指南补写形态/rev-list range 噪声/master 停 rc.2 基线取最高 tag |
+| gaea-dsh-subagent-deep-distill-2026-11.md | 🔄 dsh 0.2.2-alpha.2 子代理板块机制级深挖（2026-11-02，src 6360 行全量+同日第二轮 G 系补遗收官）：A~F 六组+G 八条机制纪律+刀池 SA-A structured_output（执行批销号=task output_schema 已等价实现）/SA-B 委派审批语义（随 V5 在册）/SA-C 失败赢过取消（执行批销号=判据缺失）/SA-D+SA-E 已落地（2026-11-02 执行批）；**UA-1 口径修正=活跃耗时是回合区间累计投影非墙钟**；销号=结算四态/list_agents 已对齐/ActivationPool 拒绝语义（gaea 排队维持）/fork 种子平衡前缀已同构；坑=注释是纪律本体优先读/克隆检出≠调研基线 |
+| gaea-dsh-subagent-ui-distill-2026-11.md | 🔄 dsh 0.2.2-alpha.2 子代理 UI/UX 蒸馏（2026-11-02 补课档，此前从未系统蒸馏）：ui-subagent 谱系树/只读三态/指标行+ui-chat turn-trigger 源徽标/过程聚合/live 活动词提取；刀池 UA-1 SubagentThread 活跃耗时（meta 就绪）/UA-2 活动词优先级清单；谱系树=嵌套若开 UI 预案留档；坑=上游 UI 蒸馏入口=locales 词汇表先读字典反查组件 |
 | gaea-dsh-univer-office-distill-plan-2026-09.md | ✅ 已蒸馏收官（U 系落地 v4.97~v4.109；Univer 零引入） |
 | gaea-dsh-genui-distill-plan-2026-09.md | ✅ 已收官（P0–P5 全部发布，止于 v4.97.0） |
 | gaea-dsh-better-sidebar-long-term-distill-plan-2026.md | 🔄 滚动权威：阶段一/二/二.5/三(3a/3b) 已全销账；3c 与阶段四/五维持「拍板后/若做」 |
