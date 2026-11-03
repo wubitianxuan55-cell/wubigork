@@ -31,6 +31,8 @@ func (b *VoiceB) VoiceStop() error { return b.a.VoiceStop() }
 func (b *VoiceB) VoiceV2AbortTurn(itemID string) map[string]interface{} { return b.a.VoiceV2AbortTurn(itemID) }
 func (b *VoiceB) VoiceV2CommitTurn(topicID string, userText string, assistantText string, responseID string, itemID string) (map[string]interface{}, error) { return b.a.VoiceV2CommitTurn(topicID, userText, assistantText, responseID, itemID) }
 func (b *VoiceB) VoiceV2Ensure() map[string]interface{} { return b.a.VoiceV2Ensure() }
+func (b *VoiceB) VoiceV2ExecuteAction(previewID string, intentHash string) map[string]interface{} { return b.a.VoiceV2ExecuteAction(previewID, intentHash) }
+func (b *VoiceB) VoiceV2PreviewIntent(userText string) map[string]interface{} { return b.a.VoiceV2PreviewIntent(userText) }
 func (b *VoiceB) VoiceV2Status() map[string]interface{} { return b.a.VoiceV2Status() }
 func (b *VoiceB) VoiceV2Stop() map[string]interface{} { return b.a.VoiceV2Stop() }
 func (b *VoiceB) WeixinReminderAdd(text string, fireAtRFC3339 string) (map[string]interface{}, error) { return b.a.WeixinReminderAdd(text, fireAtRFC3339) }

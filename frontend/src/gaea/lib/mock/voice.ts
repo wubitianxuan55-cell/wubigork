@@ -31,6 +31,9 @@ type VoiceMethods = Pick<
   | "VoiceV2Status" | "VoiceV2Ensure" | "VoiceV2Stop" | "VoiceV2CommitTurn"
   // 生成中关闭的精确回滚（P0a-A5f）：mock 无预推进槽位，诚实 no-prepared。
   | "VoiceV2AbortTurn"
+  // P2 确认执行：mock 无意图规则面，诚实未命中/无预览。
+  | "VoiceV2PreviewIntent"
+  | "VoiceV2ExecuteAction"
 >;
 
 export function buildVoice(): VoiceMethods {
@@ -126,6 +129,14 @@ export function buildVoice(): VoiceMethods {
     async VoiceV2AbortTurn(_itemID: string) {
       // mock 无预推进槽位：诚实 no-prepared（真实实现按 itemID 领走并回滚）。
       return { aborted: false, reason: "no-prepared" };
+    },
+    async VoiceV2PreviewIntent(_userText: string) {
+      // mock 无意图规则面：诚实未命中（真实实现 dry-run 命中则登记台账）。
+      return { handled: false };
+    },
+    async VoiceV2ExecuteAction(_previewID: string, _intentHash: string) {
+      // mock 无台账：诚实 no-preview。
+      return { executed: false, reason: "no-preview" };
     },
     async VoiceV2CommitTurn(
       _topicID: string,

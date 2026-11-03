@@ -64,6 +64,12 @@ export interface VoiceBindings {
   // VoiceV2AbortTurn 生成中关闭语音台的精确回滚（P0a-A5f）：按 itemID 领走
   // 并回滚生成前预推进；{aborted, reason?, itemID?, personalityID?}。
   VoiceV2AbortTurn(itemID: string): Promise<Record<string, unknown>>;
+  // VoiceV2PreviewIntent 最终转写 → 意图 dry-run（P1.9/P2）：命中且白名单内
+  // 登记台账，返回 {handled, executable, reply, action, previewId?, intentHash?, ttlMs?}。
+  VoiceV2PreviewIntent(userText: string): Promise<Record<string, unknown>>;
+  // VoiceV2ExecuteAction 确认执行（P2）：幂等/TTL/hash/白名单校验，按台账
+  // 直派执行层——确认后最多执行被预览动作一次。
+  VoiceV2ExecuteAction(previewID: string, intentHash: string): Promise<Record<string, unknown>>;
   // VoiceV2CommitTurn 以 topic mode 为权威人格，单事务写回 V2 聊天并触发
   // 轻语工作记忆/状态/FactStore 异步收尾。responseID 持久判重；itemID
   // 精确关联生成前的 persona 快照，重复话术也不会串轮。

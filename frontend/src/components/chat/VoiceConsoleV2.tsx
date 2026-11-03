@@ -97,13 +97,47 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
   const mountedRef = useRef(true)
   const commitChainRef = useRef<Promise<void>>(Promise.resolve())
   const [turnWarning, setTurnWarning] = useState('')
-  // P1.9 异步动作预览（dry-run）：轮完成后对最终转写跑意图解析，命中出预览
-  // 卡（零副作用——RouteIntent dryRun 恒不执行、不打 LLM；失败=未识别为动作，
-  // 静默）。执行链=P2（preview_id+TTL+幂等），本刀只预览不执行。
-  const [actionPreview, setActionPreview] = useState<{ reply: string; action: string } | null>(null)
+  // P1.9 异步动作预览 + P2 确认执行：轮完成后对最终转写跑 VoiceV2PreviewIntent
+  // （dry-run 零副作用、不打 LLM；命中且白名单内发 previewId/intentHash/TTL 凭据；
+  // 失败=未识别为动作，静默）。执行走 VoiceV2ExecuteAction（幂等/TTL/hash 校验，
+  // 确认后最多执行被预览动作一次），回执短暂显示后自动淡出。
+  const [actionPreview, setActionPreview] = useState<{
+    reply: string; action: string; previewId?: string; intentHash?: string; executable?: boolean
+  } | null>(null)
+  const [actionResult, setActionResult] = useState('')
+  const actionTimerRef = useRef<number | null>(null)
+  const flashActionResult = useCallback((text: string) => {
+    setActionResult(text)
+    if (actionTimerRef.current != null) window.clearTimeout(actionTimerRef.current)
+    actionTimerRef.current = window.setTimeout(() => {
+      actionTimerRef.current = null
+      if (mountedRef.current) setActionResult('')
+    }, 6000)
+  }, [])
   // P1.5：bar 形态下的展开态（浮层整幅控制台）；full 形态恒整幅
   const [expanded, setExpanded] = useState(false)
   const mode: 'full' | 'float' | 'bar' = variant === 'bar' ? (expanded ? 'float' : 'bar') : 'full'
+
+  const executePreview = useCallback(() => {
+    setActionPreview((cur) => {
+      if (!cur?.previewId || !cur.intentHash) return cur
+      void app.VoiceV2ExecuteAction(cur.previewId, cur.intentHash)
+        .then((r) => {
+          if (!mountedRef.current) return
+          if (r?.executed === true) {
+            setActionPreview(null)
+            flashActionResult(`${r.reply ?? '已执行'}`)
+          } else {
+            setActionPreview(null)
+            flashActionResult(`动作未能执行（${String(r?.reason ?? 'unknown')}）`)
+          }
+        })
+        .catch(() => {
+          if (mountedRef.current) flashActionResult('动作执行调用失败')
+        })
+      return null // 领走即清卡（执行中不重复点击）
+    })
+  }, [flashActionResult])
 
   const onTurnComplete = useCallback((turn: {
     user: string; assistant: string; responseId: string; itemId: string
@@ -143,13 +177,20 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
     })
     commitChainRef.current = job
     void job
-    // P1.9：dry-run 预览不进提交链（绝不阻塞对话落库）；新轮覆盖旧预览。
-    // 经微任务调用：桥桩缺 RouteIntent 时同步抛错也能落进 catch（静默）。
+    // P1.9/P2：dry-run 预览不进提交链（绝不阻塞对话落库）；新轮覆盖旧预览。
+    // 经微任务调用：桥桩缺方法时同步抛错也能落进 catch（静默）。
     void Promise.resolve()
-      .then(() => app.RouteIntent(turn.user, true))
+      .then(() => app.VoiceV2PreviewIntent(turn.user))
       .then((r) => {
         if (!mountedRef.current || !r?.handled || !r.reply) return
-        setActionPreview({ reply: r.reply, action: r.action ?? '' })
+        setActionResult('')
+        setActionPreview({
+          reply: String(r.reply),
+          action: String(r.action ?? ''),
+          previewId: typeof r.previewId === 'string' ? r.previewId : undefined,
+          intentHash: typeof r.intentHash === 'string' ? r.intentHash : undefined,
+          executable: r.executable === true,
+        })
       })
       .catch(() => {})
   }, [finalizeTopicAfterSend, getActiveId, setMessages])
@@ -274,12 +315,20 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
           <div className="vc2-action-preview" role="note">
             <ThunderboltOutlined aria-hidden="true" />
             <span className="vc2-action-preview-text">{actionPreview.reply}</span>
-            <span className="vc2-action-preview-tag">识别到动作 · 未执行</span>
+            {actionPreview.executable && (
+              <Button size="small" type="primary" className="vc2-action-preview-exec" onClick={executePreview} data-testid="vc2-action-exec">
+                执行
+              </Button>
+            )}
+            <span className="vc2-action-preview-tag">
+              {actionPreview.executable ? '识别到动作 · 待确认' : '动作暂不支持语音执行'}
+            </span>
             <button className="vc2-action-preview-close" aria-label="关闭动作预览" onClick={() => setActionPreview(null)}>
               <CloseOutlined />
             </button>
           </div>
         )}
+        {actionResult && <p className="vc2-bar-note" role="status">{actionResult}</p>}
       </div>
     )
   }
@@ -458,12 +507,20 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
             <div className="vc2-action-preview" role="note">
               <ThunderboltOutlined aria-hidden="true" />
               <span className="vc2-action-preview-text">{actionPreview.reply}</span>
-              <span className="vc2-action-preview-tag">识别到动作 · 未执行</span>
+              {actionPreview.executable && (
+                <Button size="small" type="primary" className="vc2-action-preview-exec" onClick={executePreview} data-testid="vc2-action-exec">
+                  执行
+                </Button>
+              )}
+              <span className="vc2-action-preview-tag">
+                {actionPreview.executable ? '识别到动作 · 待确认' : '动作暂不支持语音执行'}
+              </span>
               <button className="vc2-action-preview-close" aria-label="关闭动作预览" onClick={() => setActionPreview(null)}>
                 <CloseOutlined />
               </button>
             </div>
           )}
+          {actionResult && <p className="vc2-feedback" role="status">{actionResult}</p>}
           {feedback && (
             <p
               className={`vc2-feedback${v2.phase === 'error' || turnWarning ? ' is-alert' : ''}`}

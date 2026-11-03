@@ -1759,3 +1759,9 @@
   color: var(--vc2-text);
   background: var(--vc2-soft);
 }
+
+.vc2-action-preview-exec.ant-btn-sm {
+  flex: none;
+  min-height: 26px;
+  font-weight: 600;
+}

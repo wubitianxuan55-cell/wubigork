@@ -8,7 +8,6 @@ import VoiceConsoleV2 from './VoiceConsoleV2'
 import type { VoiceChatV2Api } from '../../voice/runtime/useVoiceChatV2'
 import type { VoiceSessionState } from '../../voice/session/voiceSession'
 import type { ChatMsg } from '../../pages/chat/types'
-import type { IntentResultView } from '../../gaea/lib/types/search'
 
 // 钩子整桩：测试只关心视图消费与写回纪律
 const captured: {
@@ -66,12 +65,12 @@ vi.mock('../../voice/runtime/useVoiceChatV2', () => ({
 const commitMock = vi.fn(async (
   _topic: string, _user: string, _assistant: string, _responseId: string, _itemId: string,
 ): Promise<Record<string, unknown>> => ({ committed: true, duplicate: false, memoryScheduled: true }))
-const routeIntentMock = vi.fn(
-  async (_text: string, _dryRun: boolean): Promise<IntentResultView> => ({ handled: false, reply: '' }),
-)
+const previewIntentMock = vi.fn(async (_text: string): Promise<Record<string, unknown>> => ({ handled: false }))
+const executeActionMock = vi.fn(async (_previewID: string, _intentHash: string): Promise<Record<string, unknown>> => ({ executed: false }))
 vi.mock('../../gaea/lib/bridge', () => ({
   app: {
-    RouteIntent: (...args: unknown[]) => routeIntentMock(...(args as [string, boolean])),
+    VoiceV2PreviewIntent: (...args: unknown[]) => previewIntentMock(...(args as [string])),
+    VoiceV2ExecuteAction: (...args: unknown[]) => executeActionMock(...(args as [string, string])),
     VoiceV2CommitTurn: (
       topic: string, user: string, assistant: string, responseId: string, itemId: string,
     ) => commitMock(topic, user, assistant, responseId, itemId),
@@ -103,7 +102,8 @@ function renderConsole(overrides: Partial<VoiceConsoleV2PropsOf> = {}) {
 describe('VoiceConsoleV2', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    routeIntentMock.mockResolvedValue({ handled: false, reply: '' })
+    previewIntentMock.mockResolvedValue({ handled: false })
+    executeActionMock.mockResolvedValue({ executed: false })
     captured.abortInFlightCalls = 0
     runtimeState.phase = 'idle'
     runtimeState.transcripts = []
@@ -316,38 +316,61 @@ describe('VoiceConsoleV2', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('P1.9 轮完成命中动作：dry-run 预览卡异步出现（未执行）', async () => {
-    routeIntentMock.mockResolvedValue({ handled: true, reply: '将打开「运行监测」板块', action: 'navigate' })
+  it('P2 轮完成命中动作：预览卡带凭据出现（待确认），确认执行恰好一次', async () => {
+    previewIntentMock.mockResolvedValue({
+      handled: true, executable: true, reply: '将打开「运行监测」板块', action: 'navigate',
+      previewId: 'vap_1', intentHash: 'hash1', ttlMs: 120000,
+    })
+    executeActionMock.mockResolvedValue({ executed: true, reply: '已打开「运行监测」板块', action: 'navigate' })
     renderConsole()
     await act(async () => {
       captured.onTurnComplete?.({ user: '打开运行监测', assistant: '好', responseId: 'r9', itemId: 'i9' })
       await Promise.resolve()
     })
-    expect(routeIntentMock).toHaveBeenCalledWith('打开运行监测', true)
+    expect(previewIntentMock).toHaveBeenCalledWith('打开运行监测')
     expect(screen.getByText('将打开「运行监测」板块')).toBeTruthy()
-    expect(screen.getByText('识别到动作 · 未执行')).toBeTruthy()
-    act(() => { screen.getByLabelText('关闭动作预览').click() })
-    expect(screen.queryByText('识别到动作 · 未执行')).toBeNull()
+    expect(screen.getByText('识别到动作 · 待确认')).toBeTruthy()
+    await act(async () => {
+      screen.getByTestId('vc2-action-exec').click()
+      await Promise.resolve()
+    })
+    expect(executeActionMock).toHaveBeenCalledWith('vap_1', 'hash1')
+    expect(screen.queryByText('识别到动作 · 待确认')).toBeNull()
+    expect(screen.getByText('已打开「运行监测」板块')).toBeTruthy()
   })
 
-  it('P1.9 未识别为动作：静默无预览', async () => {
-    routeIntentMock.mockResolvedValue({ handled: false, reply: '' })
+  it('P2 白名单外动作：可预览不可执行（无执行钮）', async () => {
+    previewIntentMock.mockResolvedValue({
+      handled: true, executable: false, reply: '将生成图片：日落', action: 'generate_image',
+    })
+    renderConsole()
+    await act(async () => {
+      captured.onTurnComplete?.({ user: '画一张日落图', assistant: '好', responseId: 'r12', itemId: 'i12' })
+      await Promise.resolve()
+    })
+    expect(screen.getByText('将生成图片：日落')).toBeTruthy()
+    expect(screen.getByText('动作暂不支持语音执行')).toBeTruthy()
+    expect(screen.queryByTestId('vc2-action-exec')).toBeNull()
+  })
+
+  it('P2 未识别为动作：静默无预览', async () => {
+    previewIntentMock.mockResolvedValue({ handled: false })
     renderConsole()
     await act(async () => {
       captured.onTurnComplete?.({ user: '今晚想听故事', assistant: '好', responseId: 'r10', itemId: 'i10' })
       await Promise.resolve()
     })
-    expect(screen.queryByText('识别到动作 · 未执行')).toBeNull()
+    expect(screen.queryByText('识别到动作 · 待确认')).toBeNull()
   })
 
-  it('P1.9 预览解析失败静默，不阻塞提交链', async () => {
-    routeIntentMock.mockRejectedValue(new Error('bridge down'))
+  it('P2 预览解析失败静默，不阻塞提交链', async () => {
+    previewIntentMock.mockRejectedValue(new Error('bridge down'))
     renderConsole()
     await act(async () => {
       captured.onTurnComplete?.({ user: '测试', assistant: '答', responseId: 'r11', itemId: 'i11' })
       await Promise.resolve()
     })
     expect(commitMock).toHaveBeenCalledTimes(1)
-    expect(screen.queryByText('识别到动作 · 未执行')).toBeNull()
+    expect(screen.queryByText('识别到动作 · 待确认')).toBeNull()
   })
 })
