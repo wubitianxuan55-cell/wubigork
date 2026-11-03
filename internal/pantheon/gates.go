@@ -126,6 +126,18 @@ func (m *Manager) openGateInSession(session *Session, reason string) bool {
 	return true
 }
 
+// liveSessionLocked 返回该会话的活对象（2026-11-03 V2 P0 真相单源化）：
+// 活循环在场时与其共享同一 Session 指针；否则退回磁盘副本。
+// 五个人类入口此前各自 store.get 磁盘副本，改完再 save 会被活循环手里的
+// 旧指针在下一个保存点整份写回——用户的插话/门/问/答被秒级擦除
+// （pan_1793681319746 r6 擦除窗口清单实证）。
+func (m *Manager) liveSessionLocked(id string) (*Session, error) {
+	if run, ok := m.runs[id]; ok && run != nil {
+		return run, nil
+	}
+	return m.store.get(id)
+}
+
 // AskSeat 让一席向用户提问：席位进入 waiting_input，整场随之停下等回答。
 //
 // 拒绝在席位正在发言时插问，理由很实在：席位背后是外部进程，我们没有办法
@@ -136,7 +148,7 @@ func (m *Manager) AskSeat(id, agentID, question string, options []string) (*Sess
 		return nil, errors.New("提问内容不能为空")
 	}
 	m.mu.Lock()
-	session, err := m.store.get(id)
+	session, err := m.liveSessionLocked(id)
 	if err != nil {
 		m.mu.Unlock()
 		return nil, err
@@ -201,7 +213,7 @@ func (m *Manager) AnswerSeat(id, questionID, body string) (*Session, error) {
 		return nil, errors.New("回答内容不能为空")
 	}
 	m.mu.Lock()
-	session, err := m.store.get(id)
+	session, err := m.liveSessionLocked(id)
 	if err != nil {
 		m.mu.Unlock()
 		return nil, err
@@ -264,7 +276,7 @@ func (m *Manager) AddUserNote(id, content string) (*Session, error) {
 		return nil, errors.New("评论内容不能为空")
 	}
 	m.mu.Lock()
-	session, err := m.store.get(id)
+	session, err := m.liveSessionLocked(id)
 	if err != nil {
 		m.mu.Unlock()
 		return nil, err
@@ -311,7 +323,7 @@ func (m *Manager) OpenGate(id, reason string) (*Session, error) {
 		reason = "用户请求在轮次之间停一下"
 	}
 	m.mu.Lock()
-	session, err := m.store.get(id)
+	session, err := m.liveSessionLocked(id)
 	if err != nil {
 		m.mu.Unlock()
 		return nil, err
@@ -365,10 +377,18 @@ func (m *Manager) ResolveGate(id, action, reason string) (*Session, error) {
 	}
 
 	m.mu.Lock()
-	session, err := m.store.get(id)
+	session, err := m.liveSessionLocked(id)
 	if err != nil {
 		m.mu.Unlock()
 		return nil, err
+	}
+	// 活跑守卫（2026-11-03 V2 P0）：解门会重启 run 循环——活循环在场时解门
+	// 等于双循环并发写同一会话（cancel 覆盖不通知旧 goroutine，旧 defer 还会
+	// delete 新循环的注册）。活场里门只能由循环自己在停车点开（GateEachRound）；
+	// 用户手开门在 waiting_input（循环已停）时处理。
+	if _, running := m.runs[id]; running {
+		m.mu.Unlock()
+		return nil, errors.New("讨论仍在运行：请先终止或等本轮结束再处理决策门")
 	}
 	if !hasOpenGateLocked(session) {
 		m.mu.Unlock()
@@ -397,6 +417,11 @@ func (m *Manager) ResolveGate(id, action, reason string) (*Session, error) {
 	if err != nil {
 		m.mu.Unlock()
 		return nil, err
+	}
+	// 二次复查（探活等了 15 秒，窗口内可能已有活循环起跑——仿 Resume 双查）。
+	if _, running := m.runs[id]; running {
+		m.mu.Unlock()
+		return nil, errors.New("讨论已在运行，无需处理决策门")
 	}
 	if !hasOpenGateLocked(session) {
 		m.mu.Unlock()

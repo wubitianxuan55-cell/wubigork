@@ -1124,7 +1124,31 @@ func (m *Manager) run(
 		// runSeat 执行一席并入库：返回 (贡献, prompt 是否超限, 是否成功)。
 		// 入库（appendContribution）自带锁，并行下安全；clipped 记账由调用方
 		// 单线程收集，避免闭包写共享切片。
+		// drainLiveNotes 把活对象上外部新增的贡献（用户插话，走 AddUserNote 直接
+		// 改活 session）同步进本地 history——否则下一席 prompt 看不到插话
+		// （2026-11-03 V2 P0 交付收据的最小实现：按 ID 对账，幂等）。
+		drainLiveNotes := func() {
+			m.mu.Lock()
+			pending := make([]Contribution, 0, 2)
+			seen := make(map[string]bool, len(history))
+			for _, item := range history {
+				seen[item.ID] = true
+			}
+			for _, item := range session.Contributions {
+				if !seen[item.ID] {
+					pending = append(pending, item)
+				}
+			}
+			m.mu.Unlock()
+			for _, item := range pending {
+				if item.Phase == PhaseUserNote || item.AgentID == "user" {
+					history = append(history, item)
+				}
+			}
+		}
+
 		runSeat := func(agentID string, position int) (Contribution, bool, bool) {
+			drainLiveNotes()
 			status := available[agentID]
 			files := m.transcriptFor(session)
 			var prompt string
@@ -1349,11 +1373,21 @@ func (m *Manager) run(
 		verdict = fallbackVerdict(history)
 		m.addWarning(session, "未能形成自动小结，已保留原始发言供人工整理")
 	}
-	verdict.Partial = verdict.Partial || len(successful) < len(uniqueNonEmpty(session.Request.AgentIDs))
+	// 2026-11-03 V2 P0 事件投影：Partial 与签注缺口读末轮事件重放——累计
+	// successful（「这席曾经说过话」）会把末轮缺席谎报成全员在场；席位
+	// Status 在多轮场是冻结的（终态自环），同样不可读。
+	finalCoverage := seatRoundCoverage(session, actualRounds)
+	succeededLastRound := 0
+	for _, state := range finalCoverage {
+		if state == "succeeded" {
+			succeededLastRound++
+		}
+	}
+	verdict.Partial = verdict.Partial || succeededLastRound < len(uniqueNonEmpty(session.Request.AgentIDs))
 
 	m.mu.Lock()
 	session.Verdict = verdict
-	session.Gaps = seatGaps(session)
+	session.Gaps = append(append([]string(nil), seatGaps(session)...), coverageGaps(session, actualRounds)...)
 	session.Phase = PhaseCompleted
 	session.Status = StatusCompleted
 	session.UpdatedAt = time.Now().UnixMilli()
@@ -1667,7 +1701,20 @@ func (m *Manager) recordAgentStarted(
 	m.mu.Lock()
 	now := time.Now().UnixMilli()
 	session.UpdatedAt = now
-	if err := m.observeSeatLocked(session, status.ID, seatObservation{
+	prevStatus := ""
+	for i := range session.Participants {
+		if session.Participants[i].AgentID == status.ID {
+			prevStatus = session.Participants[i].Status
+			break
+		}
+	}
+	if prevStatus == SeatFinished || prevStatus == SeatFailed || prevStatus == SeatSkipped {
+		// 轮边界具名控制动作（2026-11-03 V2 P0）：上一轮终态 → 本轮 running 是
+		// 新 attempt 的调度事实。转移表拒这笔跨 attempt 写入是对的（单次 attempt
+		// 纪律），此前只记 warning 导致席位状态整场冻结在 finished（12 轮场 58 条
+		// 拒绝实证）——Participant.Status 从此表达「当前 attempt」而非「曾成功过」。
+		m.startSeatRoundLocked(session, status.ID, text, call.CallRef)
+	} else if err := m.observeSeatLocked(session, status.ID, seatObservation{
 		Origin:   OriginLauncher,
 		Status:   SeatRunning,
 		Evidence: text,

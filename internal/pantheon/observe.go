@@ -91,10 +91,36 @@ func shortEvidence(text string) string {
 	}
 	return string([]rune(text)[:limit]) + "…"
 }
+
 // rebindSeatLocked 是一次控制动作，不是观测：重试、重开整场议事都会给席位
 // 发一个新的 attempt，旧 attempt 的终态不该拦住新 attempt 的起步（M12 的
 // 具名例外通道）。因此它直接置状态并抬 incarnation，绕过转移表。
 // 调用方必须持有 m.mu。
+// startSeatRoundLocked 是轮边界的具名控制动作（2026-11-03 V2 P0）：
+// 新一轮启动席位属于宿主调度（OriginLauncher），不是用户动作也不是普通观测——
+// observeSeatLocked 的转移表会拒 finished→running（单次 attempt 纪律，正确），
+// 但跨轮复用的 Participant 需要显式的「新 attempt」语义：直接置 running 并抬
+// Incarnation，与 rebindSeatLocked 同构但出处是启动器，不得冒充用户动作。
+func (m *Manager) startSeatRoundLocked(session *Session, agentID, evidence string, ref CallRef) {
+	for i := range session.Participants {
+		p := &session.Participants[i]
+		if p.AgentID != agentID {
+			continue
+		}
+		p.Status = SeatRunning
+		p.Observed = Observed{
+			Origin:      OriginLauncher,
+			AuthorityID: m.authorityID,
+			Incarnation: p.Observed.Incarnation + 1,
+			Revision:    1,
+			At:          time.Now().UnixMilli(),
+		}
+		p.Evidence = evidence
+		p.CallRef = ref
+		return
+	}
+}
+
 func (m *Manager) rebindSeatLocked(session *Session, agentID, status, evidence string) {
 	for i := range session.Participants {
 		p := &session.Participants[i]
