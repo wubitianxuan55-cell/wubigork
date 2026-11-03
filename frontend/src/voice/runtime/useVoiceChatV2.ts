@@ -34,6 +34,10 @@ export interface UseVoiceChatV2Options {
 }
 
 const DEFAULT_URL = 'ws://127.0.0.1:8791/v1/realtime'
+// P1 有限次自动重连：指数退避 1/2/4/8/15s 封顶，最多 5 次后交还手动
+const RECONNECT_MAX_ATTEMPTS = 5
+const RECONNECT_BASE_MS = 1000
+const RECONNECT_MAX_DELAY_MS = 15000
 
 class WsTransport implements VoiceTransport {
   constructor(private ws: WebSocket) {}
@@ -125,6 +129,14 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
   const serviceSnapshotRef = useRef({
     ready: false, error: '', stage: '',
   })
+  // P1 有限次自动重连：服务就绪后的 WS 掉线是既有自愈盲区（3s 轮询只在
+  // services.ready=false 期间跑）——sidecar 无痕退场实测用户必须手点重连。
+  // 非用户主动断开才按指数退避重试；服务不在了顺路走 Ensure 监护自愈。
+  const reconnectTimerRef = useRef<number | null>(null)
+  const reconnectAttemptRef = useRef(0)
+  const deliberateCloseRef = useRef(false)
+  const autoReconnectingRef = useRef(false)
+  const scheduleReconnectRef = useRef<() => void>(() => {})
   urlRef.current = opts.url ?? DEFAULT_URL
 
   const pushTail = useCallback((line: string) => {
@@ -205,6 +217,13 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
         setConnected(true)
         setNote('')
         pushTail('已连接')
+        // 重连成功：计数归零，退避链作废
+        deliberateCloseRef.current = false
+        reconnectAttemptRef.current = 0
+        if (reconnectTimerRef.current != null) {
+          window.clearTimeout(reconnectTimerRef.current)
+          reconnectTimerRef.current = null
+        }
       },
       onClose: () => {
         if (transportRef.current !== transport) return
@@ -217,8 +236,14 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
         flushSink()
         if (!mountedRef.current) return
         setConnected(false)
-        setNote('连接已断开，可点击重连')
+        // P1 自动重连：有意断开（关台/手动断开）不重连；意外掉线走退避链
+        if (deliberateCloseRef.current) {
+          setNote('')
+          pushTail('连接关闭')
+          return
+        }
         pushTail('连接关闭')
+        scheduleReconnectRef.current()
       },
       onError: (error) => {
         if (!mountedRef.current) return
@@ -241,6 +266,13 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
 
   const connect = useCallback(async () => {
     if (clientRef.current || transportRef.current) return
+    // 手动接管：清掉待触发的退避链；自动重连路径不重置计数（autoReconnecting
+    // 由定时器回调置位），否则每次 connect 都把 attempt 清零=退避链永不耗尽。
+    if (reconnectTimerRef.current != null) {
+      window.clearTimeout(reconnectTimerRef.current)
+      reconnectTimerRef.current = null
+    }
+    if (!autoReconnectingRef.current) reconnectAttemptRef.current = 0
     try {
       await ensureSink()
     } catch (err) {
@@ -279,6 +311,13 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
   }, [buildClient, ensureSink])
 
   const disconnect = useCallback(() => {
+    // 有意断开：豁免自动重连（关台卸载与手动断开都走这里）
+    deliberateCloseRef.current = true
+    if (reconnectTimerRef.current != null) {
+      window.clearTimeout(reconnectTimerRef.current)
+      reconnectTimerRef.current = null
+    }
+    reconnectAttemptRef.current = 0
     const client = clientRef.current
     const transport = transportRef.current
     transportRef.current = null
@@ -475,6 +514,49 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
     }
   }, [refreshServices])
 
+  // P1 有限次自动重连（指数退避 1s→15s 封顶，最多 5 次）。经 ref 间接调用
+  // 解循环依赖：buildClient.onClose → scheduleReconnect → connect → buildClient。
+  // 服务探活失败顺路走 ensureServices（Ensure 幂等，与开台按钮同一监护自愈路径）。
+  const scheduleReconnect = useCallback(() => {
+    if (reconnectTimerRef.current != null) return
+    if (!mountedRef.current || deliberateCloseRef.current) return
+    const attempt = reconnectAttemptRef.current + 1
+    if (attempt > RECONNECT_MAX_ATTEMPTS) {
+      setNote('连接已断开，自动重连未成功，可点击重连')
+      pushTail(`自动重连 ${RECONNECT_MAX_ATTEMPTS} 次未成功，可手动重连`)
+      return
+    }
+    reconnectAttemptRef.current = attempt
+    const delay = Math.min(RECONNECT_BASE_MS * 2 ** (attempt - 1), RECONNECT_MAX_DELAY_MS)
+    setNote(`连接已断开，正在自动重连（${attempt}/${RECONNECT_MAX_ATTEMPTS}）…`)
+    pushTail(`连接断开，${Math.round(delay / 1000)}s 后自动重连（${attempt}/${RECONNECT_MAX_ATTEMPTS}）`)
+    reconnectTimerRef.current = window.setTimeout(() => {
+      reconnectTimerRef.current = null
+      if (!mountedRef.current || deliberateCloseRef.current) return
+      void (async () => {
+        autoReconnectingRef.current = true
+        try {
+          let ready = await refreshServices()
+          if (!ready) ready = await ensureServices()
+          if (!ready) {
+            scheduleReconnect()
+            return
+          }
+          await connect()
+          // transport 没建出来（异常早退、桥不可用）且无人接管退避链——续上
+          if (!transportRef.current && !clientRef.current && reconnectTimerRef.current == null) {
+            scheduleReconnect()
+          }
+        } catch {
+          scheduleReconnect()
+        } finally {
+          autoReconnectingRef.current = false
+        }
+      })()
+    }, delay)
+  }, [connect, ensureServices, pushTail, refreshServices])
+  scheduleReconnectRef.current = scheduleReconnect
+
   const replayEvents = useCallback(async (events: ServerEvent[], paceMs = 90) => {
     if (clientRef.current) {
       setNote('mock 回放需先断开服务连接')
@@ -540,6 +622,10 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
     return () => {
       mountedRef.current = false
       if (pumpRef.current) window.clearInterval(pumpRef.current)
+      if (reconnectTimerRef.current != null) {
+        window.clearTimeout(reconnectTimerRef.current)
+        reconnectTimerRef.current = null
+      }
       void capCtxRef.current?.close()
       void sinkCtxRef.current?.close()
       capStreamRef.current?.getTracks().forEach((t) => t.stop())

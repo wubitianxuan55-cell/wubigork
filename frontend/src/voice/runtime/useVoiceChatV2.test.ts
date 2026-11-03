@@ -149,4 +149,94 @@ describe('useVoiceChatV2', () => {
     await act(async () => { await result.current.connect() })
     expect(transports).toHaveLength(2)
   })
+
+  it('P1 意外掉线按指数退避自动重连，成功后计数复位', async () => {
+    vi.useFakeTimers()
+    try {
+      const transports: FakeTransport[] = []
+      const { result } = renderHook(() => useVoiceChatV2({
+        transportFactory: () => {
+          const t = new FakeTransport()
+          transports.push(t)
+          return t
+        },
+      }))
+      await act(async () => { await result.current.connect() })
+      act(() => { transports[0].onopen?.() })
+      expect(result.current.connected).toBe(true)
+      act(() => { transports[0].onclose?.() })
+      expect(result.current.note).toContain('自动重连')
+      expect(result.current.note).toContain('1/5')
+      await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+      expect(transports).toHaveLength(2) // 服务探活 ready → 直接重连
+      act(() => { transports[1].onopen?.() })
+      expect(result.current.connected).toBe(true)
+      // 再掉线：成功已把计数复位，仍从 1/5 开始
+      act(() => { transports[1].onclose?.() })
+      expect(result.current.note).toContain('1/5')
+      await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+      expect(transports).toHaveLength(3)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('P1 退避耗尽停链，手动重连复位并恢复', async () => {
+    vi.useFakeTimers()
+    try {
+      const status = app.VoiceV2Status as unknown as ReturnType<typeof vi.fn>
+      const ensure = app.VoiceV2Ensure as unknown as ReturnType<typeof vi.fn>
+      status.mockResolvedValue({ sidecar: false, llm: false, breeze: false, gateway: false, ready: false, error: 'sidecar down' })
+      ensure.mockRejectedValue(new Error('bridge down'))
+      const transports: FakeTransport[] = []
+      const { result } = renderHook(() => useVoiceChatV2({
+        transportFactory: () => {
+          const t = new FakeTransport()
+          transports.push(t)
+          return t
+        },
+      }))
+      await act(async () => { await result.current.connect() })
+      act(() => { transports[0].onopen?.() })
+      act(() => { transports[0].onclose?.() })
+      // 5 次退避总时长 1+2+4+8+15=30s；服务始终不可用 → 只耗链不重连
+      await act(async () => { await vi.advanceTimersByTimeAsync(30000) })
+      expect(result.current.note).toContain('自动重连未成功')
+      expect(transports).toHaveLength(1)
+      await act(async () => { await vi.advanceTimersByTimeAsync(60000) })
+      expect(transports).toHaveLength(1) // 链已耗尽，不再尝试
+      // 服务恢复 + 手动重连：计数复位、能连上
+      status.mockResolvedValue({ sidecar: true, llm: true, breeze: true, gateway: true, ready: true, error: '' })
+      await act(async () => { await result.current.connect() })
+      act(() => { transports[1].onopen?.() })
+      expect(result.current.connected).toBe(true)
+      act(() => { transports[1].onclose?.() })
+      expect(result.current.note).toContain('1/5') // 从头计
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('P1 有意断开（关台/手动）不触发自动重连', async () => {
+    vi.useFakeTimers()
+    try {
+      const transports: FakeTransport[] = []
+      const { result } = renderHook(() => useVoiceChatV2({
+        transportFactory: () => {
+          const t = new FakeTransport()
+          transports.push(t)
+          return t
+        },
+      }))
+      await act(async () => { await result.current.connect() })
+      act(() => { transports[0].onopen?.() })
+      act(() => { result.current.disconnect() })
+      expect(result.current.connected).toBe(false)
+      await act(async () => { await vi.advanceTimersByTimeAsync(30000) })
+      expect(transports).toHaveLength(1)
+      expect(result.current.note).toBe('')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
