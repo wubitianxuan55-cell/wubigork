@@ -12,6 +12,7 @@ import type { ChatMsg } from '../../pages/chat/types'
 // 钩子整桩：测试只关心视图消费与写回纪律
 const captured: {
   onTurnComplete?: (t: { user: string; assistant: string; responseId: string; itemId: string }) => void
+  abortInFlightCalls?: number
 } = {}
 const runtimeState = {
   phase: 'idle' as VoiceSessionState['phase'],
@@ -52,6 +53,7 @@ vi.mock('../../voice/runtime/useVoiceChatV2', () => ({
       },
       connect: vi.fn(async () => {}), disconnect: vi.fn(),
       startMic: vi.fn(async () => {}), stopMic: vi.fn(), cancel: vi.fn(),
+      abortInFlight: vi.fn(() => { captured.abortInFlightCalls = (captured.abortInFlightCalls ?? 0) + 1 }),
       ensureServices: vi.fn(async () => runtimeState.ready),
       refreshServices: vi.fn(async () => runtimeState.ready),
       replayEvents: vi.fn(async () => {}),
@@ -96,6 +98,7 @@ function renderConsole(overrides: Partial<VoiceConsoleV2PropsOf> = {}) {
 describe('VoiceConsoleV2', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    captured.abortInFlightCalls = 0
     runtimeState.phase = 'idle'
     runtimeState.transcripts = []
     runtimeState.partialTranscript = ''
@@ -168,22 +171,57 @@ describe('VoiceConsoleV2', () => {
     expect(finalize).toHaveBeenCalledWith('topic_1', '明天天气怎么样')
   })
 
-  it('迟到轮不串台：活动话题已切走时不写回', async () => {
-    const { rerender } = renderConsole()
+  it('P0a-A5e 迟到轮仍提交到捕获 topic，但不写已切走视图的 UI', async () => {
+    const { rerender, messages, setMessages } = renderConsole()
     rerender(
       <VoiceConsoleV2
         companionName="小音"
         instructions="测试指令"
         onClose={() => {}}
         onOpenSettings={() => {}}
-        setMessages={() => {}}
+        setMessages={setMessages}
         getActiveId={() => 'topic_OTHER'}
       />,
     )
     await act(async () => {
       captured.onTurnComplete?.({ user: '旧轮', assistant: '旧答', responseId: 'r2', itemId: 'item-2' })
     })
-    expect(commitMock).not.toHaveBeenCalled()
+    // 提交仍指向捕获 topic（对话发生在那里；后端幂等兜底）——旧口径「切题即丢弃」
+    // 已被用户拍板「继续提交」推翻，串台防线收窄为 UI 增量不写当前视图。
+    expect(commitMock).toHaveBeenCalledWith('topic_1', '旧轮', '旧答', 'r2', 'item-2')
+    expect(messages).toEqual([])
+  })
+
+  it('P0a-A5e 提交链积压中关台：第二笔已完成轮仍提交（继续提交）', async () => {
+    let releaseFirst!: () => void
+    const firstGate = new Promise<void>((resolve) => { releaseFirst = resolve })
+    commitMock
+      .mockImplementationOnce(async () => {
+        await firstGate
+        return { committed: true, duplicate: false, memoryScheduled: true }
+      })
+      .mockResolvedValueOnce({ committed: true, duplicate: false, memoryScheduled: true })
+    const { unmount } = renderConsole()
+    await act(async () => {
+      captured.onTurnComplete?.({ user: '第一问', assistant: '第一答', responseId: 'r1', itemId: 'item-1' })
+      captured.onTurnComplete?.({ user: '第二问', assistant: '第二答', responseId: 'r2', itemId: 'item-2' })
+    })
+    expect(commitMock).toHaveBeenCalledTimes(1)
+    // 第一笔提交阻塞期间用户关闭语音台：第二笔不得被丢弃
+    unmount()
+    await act(async () => {
+      releaseFirst()
+      await Promise.resolve()
+    })
+    expect(commitMock).toHaveBeenCalledTimes(2)
+    expect(commitMock).toHaveBeenLastCalledWith('topic_1', '第二问', '第二答', 'r2', 'item-2')
+  })
+
+  it('P0a-A5f 卸载即触发生成中精确中止', () => {
+    const { unmount } = renderConsole()
+    expect(captured.abortInFlightCalls ?? 0).toBe(0)
+    unmount()
+    expect(captured.abortInFlightCalls).toBe(1)
   })
 
   it('记忆收尾告警可见，但聊天已提交不会改报保存失败', async () => {

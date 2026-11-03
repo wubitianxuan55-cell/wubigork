@@ -128,28 +128,91 @@ func (a *whisperState) restoreVoiceV2PreparedLocked(p *voiceV2PreparedTurn) {
 
 func (a *whisperState) takeVoiceV2PreparedTurn(
 	personalityID, userText, itemID string,
-) (prepared *voiceV2PreparedTurn, blockedByLaterTurn bool) {
+) (prepared *voiceV2PreparedTurn, blockedByLaterTurn, personalityMismatch bool) {
 	a.voiceV2PrepareMu.Lock()
 	defer a.voiceV2PrepareMu.Unlock()
 	p := a.voiceV2Prepared
 	if p == nil {
-		return nil, false
+		return nil, false, false
 	}
 	itemID = strings.TrimSpace(itemID)
+	personalityID = strings.TrimSpace(personalityID)
 	matches := false
 	if p.itemID != "" && itemID != "" {
 		// Protocol item ids are the authoritative correlation key. This also
 		// distinguishes repeated identical utterances that text matching cannot.
-		matches = p.itemID == itemID
+		if p.itemID != itemID {
+			return nil, true, false
+		}
+		matches = true
+		// P0a-A2（众神殿定稿）：item 命中但人格错配——生成按全局人格预推进、
+		// 提交按 topic.Mode 收尾。错配时同锁回滚旧人格预推进并清槽，返回可
+		// 区分 mismatch；调用方不得再走新人格 PreLLMTurn 路径（防幽灵预推进
+		// 与跨人格记忆串写）。
+		if p.personalityID != personalityID {
+			a.restoreVoiceV2PreparedLocked(p)
+			a.voiceV2Prepared = nil
+			return nil, false, true
+		}
 	} else {
 		// Compatibility path for an older sidecar that does not forward item ids.
 		matches = p.personalityID == personalityID && p.userText == strings.TrimSpace(userText)
 	}
 	if !matches {
-		return nil, true
+		return nil, true, false
 	}
 	a.voiceV2Prepared = nil
-	return p, false
+	return p, false, false
+}
+
+// VoiceV2AbortTurn 生成中关闭语音台的精确回滚（P0a-A5f）：生成回合未
+// completed 时由前端关闭路径调用，领走并回滚预推进。与提交共用
+// voiceV2PrepareMu，提交与 abort 竞争时只允许一方成功。
+func (a *whisperState) VoiceV2AbortTurn(itemID string) map[string]interface{} {
+	itemID = strings.TrimSpace(itemID)
+	a.voiceV2PrepareMu.Lock()
+	defer a.voiceV2PrepareMu.Unlock()
+	p := a.voiceV2Prepared
+	if p == nil {
+		return map[string]interface{}{"aborted": false, "reason": "no-prepared"}
+	}
+	if itemID != "" && p.itemID != "" && p.itemID != itemID {
+		return map[string]interface{}{
+			"aborted": false, "reason": "item-mismatch", "preparedItemID": p.itemID,
+		}
+	}
+	a.restoreVoiceV2PreparedLocked(p)
+	a.voiceV2Prepared = nil
+	return map[string]interface{}{
+		"aborted": true, "itemID": p.itemID, "personalityID": p.personalityID,
+	}
+}
+
+// dropVoiceV2PreparedForPlain 在 plain 话题早退路径回收本轮预推进（P0a-A5g：
+// 早退在 take 之前，prepared 若属本轮 item 必须同锁回滚，否则幽灵预推进
+// 会污染同一人格的下一条文本回合）。仅回收与本轮相关的 prepared，无关
+// prepared 留给下一次 prepare 的常规回滚。
+func (a *whisperState) dropVoiceV2PreparedForPlain(itemID, userText string) {
+	a.voiceV2PrepareMu.Lock()
+	defer a.voiceV2PrepareMu.Unlock()
+	p := a.voiceV2Prepared
+	if p == nil {
+		return
+	}
+	itemID = strings.TrimSpace(itemID)
+	matched := false
+	if p.itemID != "" && itemID != "" {
+		matched = p.itemID == itemID
+	} else {
+		matched = p.userText == strings.TrimSpace(userText)
+	}
+	if !matched {
+		return
+	}
+	slog.Warn("Voice V2 plain 话题丢弃人格预推进",
+		"personality", p.personalityID, "itemID", p.itemID)
+	a.restoreVoiceV2PreparedLocked(p)
+	a.voiceV2Prepared = nil
 }
 
 // VoiceV2CommitTurn 由语音台在 response.done(completed) 后调用。话题 mode 是
@@ -210,6 +273,8 @@ func (a *whisperState) VoiceV2CommitTurn(
 		"duplicate": false,
 	}
 	if topic.Mode == "" || topic.Mode == "plain" {
+		// P0a-A5g：plain 早退在 take 之前，先回收本轮预推进再返回。
+		a.dropVoiceV2PreparedForPlain(itemID, userText)
 		result["memoryScheduled"] = false
 		return result, nil
 	}
@@ -270,9 +335,13 @@ func (a *whisperState) finalizeVoiceV2PersonaTurn(
 	if orch == nil {
 		return nil, fmt.Errorf("人格会话未初始化")
 	}
-	prepared, blocked := a.takeVoiceV2PreparedTurn(personalityID, userText, itemID)
+	prepared, blocked, mismatch := a.takeVoiceV2PreparedTurn(personalityID, userText, itemID)
 	if blocked {
 		return nil, fmt.Errorf("后续语音回合已预推进人格状态，当前迟到回合不重复推进")
+	}
+	if mismatch {
+		return nil, fmt.Errorf(
+			"人格错配：生成按其它人格预推进、提交按 %s；预推进已回滚，聊天已保存、人格记忆不写", personalityID)
 	}
 	if prepared != nil && prepared.orch == orch {
 		orch.LockTurn()

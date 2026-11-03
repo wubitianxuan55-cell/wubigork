@@ -694,6 +694,7 @@ export const bindingNames = [
   "VoiceSetPTTActive",
   "VoiceStart",
   "VoiceStop",
+  "VoiceV2AbortTurn",
   "VoiceV2CommitTurn",
   "VoiceV2Ensure",
   "VoiceV2Status",

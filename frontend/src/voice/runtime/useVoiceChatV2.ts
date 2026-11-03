@@ -79,6 +79,9 @@ export interface VoiceChatV2Api {
   startMic: () => Promise<void>
   stopMic: () => void
   cancel: () => void
+  /** 生成中关闭的精确回滚（P0a-A5f）：有未闭合 response 时发 cancel 并调
+   * VoiceV2AbortTurn 回滚后端预推进；已完成轮已入提交链（A5e），此处不触碰。 */
+  abortInFlight: () => void
   /** 依赖链监护（VoiceV2Ensure + 状态轮询刷新） */
   ensureServices: () => Promise<boolean>
   refreshServices: () => Promise<boolean>
@@ -384,6 +387,22 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
     flushSink()
   }, [flushSink])
 
+  // P0a-A5f（众神殿定稿 + 用户拍板「继续提交」）：关闭语音台时若存在未闭合
+  // response（生成中），发 response.cancel 并调 VoiceV2AbortTurn 精确回滚
+  // 后端预推进；已完成轮的 ledger 已 closed、提交任务已在链上，这里不触碰。
+  const abortInFlight = useCallback(() => {
+    const client = clientRef.current
+    if (!client) return
+    const snap = client.snapshot
+    const led = snap.responses[snap.activeResponseId]
+    if (!led || led.closed) return
+    const itemId = led.userItemId
+    client.cancel()
+    void app.VoiceV2AbortTurn(itemId)
+      .then((r) => pushTail(`关闭回滚 ${JSON.stringify(r)}`))
+      .catch((err) => pushTail(`关闭回滚失败: ${err instanceof Error ? err.message : String(err)}`))
+  }, [pushTail])
+
   const refreshServices = useCallback(async (): Promise<boolean> => {
     try {
       const st = (await app.VoiceV2Status()) as Record<string, unknown>
@@ -535,6 +554,7 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
   return {
     phase, transcripts, partialTranscript: partial, assistantText,
     pbText, tail, connected, micOn, note, services, ensuring,
-    connect, disconnect, startMic, stopMic, cancel, ensureServices, refreshServices, replayEvents,
+    connect, disconnect, startMic, stopMic, cancel, abortInFlight,
+    ensureServices, refreshServices, replayEvents,
   }
 }

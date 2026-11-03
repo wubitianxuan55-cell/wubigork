@@ -680,9 +680,17 @@ func (a *mediaState) VoiceApplySettings(settings map[string]interface{}) error {
 	if v, ok := settings["silenceThresholdMs"].(float64); ok {
 		config.SilenceThresholdMs = int(v)
 	}
+	// P0a-A3（众神殿定稿）：人格双读者（V2 网关 activePersonalityID vs V1
+	// config.PersonalityPresetID）必须同点生效。setVoicePersonality 原在本
+	// 分支内提前调用，其后 breezeVoiceDesc/personaVoicePresets 任一失败
+	// return 都会形成「V2 已新、V1 仍旧」的半写；先暂存，移到 ApplyConfig
+	// 紧前统一生效，任何错误路径两个读者都不变。
+	var pendingPersonality string
+	havePendingPersonality := false
 	if v, ok := settings["personalityPresetId"].(string); ok {
 		config.PersonalityPresetID = v
-		a.setVoicePersonality(v)
+		pendingPersonality = v
+		havePendingPersonality = true
 		if err := appconfig.Save(appconfig.KeyVoicePersonality, v); err != nil {
 			slog.Warn("保存语音角色配置失败", "error", err)
 		}
@@ -746,6 +754,11 @@ func (a *mediaState) VoiceApplySettings(settings map[string]interface{}) error {
 		}
 	}
 
+	// P0a-A3：人格双读者同点生效（见 personalityPresetId 分支注释）；紧贴
+	// ApplyConfig 使 V2 网关读者与 V1 配置读者在同一成功点翻转。
+	if havePendingPersonality {
+		a.setVoicePersonality(pendingPersonality)
+	}
 	a.voiceManager.ApplyConfig(config)
 	return nil
 }

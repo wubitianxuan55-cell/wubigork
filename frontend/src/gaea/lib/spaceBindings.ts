@@ -364,6 +364,7 @@ export const GAEA_METHOD_FACETS = {
   VoiceV2Status: "shared",
   VoiceV2Ensure: "shared",
   VoiceV2Stop: "shared",
+  VoiceV2AbortTurn: "shared",
   VoiceV2CommitTurn: "shared",
   // 批次二 legacy 直调转正：语音设置读取（VoiceGetSettings）与
   // VoiceApplySettings patch 写配对，同归 shared（语音设置面板/模型中心两空间共用）。

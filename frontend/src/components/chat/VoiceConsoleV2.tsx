@@ -93,34 +93,37 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
     user: string; assistant: string; responseId: string; itemId: string
   }) => {
     const topicID = sessionTopicRef.current
-    if (!topicID || getActiveId() !== topicID) return
-    // 后端已有 response/item 幂等，但 Wails 调用是异步的；串行提交确保多轮
-    // 完成的聊天顺序与语音发生顺序一致，不让快速连说把问答对颠倒。
+    if (!topicID) return
+    // P0a-A5e（众神殿定稿 + 用户拍板「继续提交」）：已完成回合的提交不依赖
+    // 组件挂载与当前视图——入链后始终提交到捕获 topic（后端 response/item
+    // 幂等兜底）；UI 增量仅在仍挂载且未切题时渲染，防写进当前展示的其它话题。
+    // 串行提交确保多轮完成的聊天顺序与语音发生顺序一致。
     const job = commitChainRef.current.then(async () => {
-      if (!mountedRef.current || getActiveId() !== topicID) return
+      let result: Record<string, unknown>
       try {
-        const result = await app.VoiceV2CommitTurn(
+        result = await app.VoiceV2CommitTurn(
           topicID, turn.user, turn.assistant, turn.responseId, turn.itemId,
         )
-        if (!mountedRef.current || getActiveId() !== topicID) return
-        if (result.duplicate !== true) {
-          const userKey = nextMsgKey()
-          const asstKey = nextMsgKey()
-          setMessages((prev) => [...prev,
-            { key: userKey, role: 'user', content: turn.user, createdAt: nowStr() },
-            { key: asstKey, role: 'assistant', content: turn.assistant, createdAt: nowStr() },
-          ])
-        }
-        const warning = typeof result.warning === 'string' ? result.warning : ''
-        setTurnWarning(warning)
-        if (warning) message.warning(warning)
-        void finalizeTopicAfterSend?.(topicID, turn.user)
       } catch (err: unknown) {
         if (!mountedRef.current || getActiveId() !== topicID) return
         const text = `本轮保存失败：${err instanceof Error ? err.message : String(err)}`
         setTurnWarning(text)
         message.error(text)
+        return
       }
+      if (!mountedRef.current || getActiveId() !== topicID) return
+      if (result.duplicate !== true) {
+        const userKey = nextMsgKey()
+        const asstKey = nextMsgKey()
+        setMessages((prev) => [...prev,
+          { key: userKey, role: 'user', content: turn.user, createdAt: nowStr() },
+          { key: asstKey, role: 'assistant', content: turn.assistant, createdAt: nowStr() },
+        ])
+      }
+      const warning = typeof result.warning === 'string' ? result.warning : ''
+      setTurnWarning(warning)
+      if (warning) message.warning(warning)
+      void finalizeTopicAfterSend?.(topicID, turn.user)
     })
     commitChainRef.current = job
     void job
@@ -138,6 +141,9 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
     return () => {
       mountedRef.current = false
       alive = false
+      // P0a-A5f：生成中关闭=先精确 abort 后端预推进（已完成轮已在提交链，
+      // 不受影响；用户拍板「继续提交」），再断开传输。
+      v2.abortInFlight()
       v2.disconnect()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

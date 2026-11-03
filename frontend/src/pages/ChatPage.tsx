@@ -168,13 +168,24 @@ const ChatPage: React.FC = () => {
   }, [])
 
   // 角色音色预设同步（FE 角色音色线）：人格/模式变化即同步后端
-  // personalityPresetID——朗读（TTSSpeak*）按当前人格解析音色预设；
-  // 语音对话在开麦时另有 VoiceApplySettings 同步，双保险同口径。
+  // personalityPresetID——朗读（TTSSpeak*）按当前人格解析音色预设。
+  // P0a-A1（众神殿定稿）：同步改共享串行队列。旧实现 fire-and-forget 吞错
+  // （.catch(()=>{})），注入侧人格只有尽力而无屏障；现在开台时把「这一笔」
+  // 入队并等待该 Promise，写入被拒则拒绝开台（磁盘落盘失败仅后端告警，不在此列）。
   const modeForPreset = mode === 'plain' ? 'plain' : activePersonality
+  const personaSyncChainRef = useRef<Promise<void>>(Promise.resolve())
+  const enqueuePersonaSync = useCallback((presetId: string) => {
+    const job = personaSyncChainRef.current.then(async () => {
+      // Promise.resolve 包一层：mock 桩可能返回 undefined，防挂载期 TypeError
+      await Promise.resolve(app.VoiceApplySettings({ personalityPresetId: presetId }))
+    })
+    personaSyncChainRef.current = job
+    return job
+  }, [])
   useEffect(() => {
-    // Promise.resolve 包一层：mock 桩可能返回 undefined，防挂载期 TypeError
-    Promise.resolve(app.VoiceApplySettings({ personalityPresetId: modeForPreset })).catch(() => {})
-  }, [modeForPreset])
+    // 后台路径失败不打断输入主链；开台屏障会重新入队并以可见报错拦截
+    enqueuePersonaSync(modeForPreset).catch(() => {})
+  }, [modeForPreset, enqueuePersonaSync])
 
   const inputRef = useRef<React.ComponentRef<typeof Input.TextArea>>(null)
   // 智能滚动（v4.514 对齐办公板 v4.512 手势语义）：跟随清除权唯一归滚轮
@@ -222,10 +233,21 @@ const ChatPage: React.FC = () => {
       message.warning('当前会话尚未准备好，请稍后再试')
       return
     }
+    // P0a-A1 开台屏障：捕获 {topicID, personalityID}，把这一笔人格同步入共
+    // 享队列并等待该 Promise（不是等旧队尾——旧队尾可能还没把本次写入入队），
+    // 成功后才挂载语音台；同步失败拒绝开台并可见报错。
+    const topicID = activeIdRef.current
+    try {
+      await enqueuePersonaSync(modeForPreset)
+    } catch (err) {
+      message.error(`语音人格同步失败，已取消开启语音台：${err instanceof Error ? err.message : String(err)}`)
+      return
+    }
+    if (activeIdRef.current !== topicID) return // 等待期间已切题，放弃开台
     setVoiceConsoleOpen(true)
     if (voiceBackend === 'v2') return // V2 自管会话（VoiceConsoleV2 挂载即连接）
     if (!voiceOn) await toggleVoice()
-  }, [activeIdRef, voiceBackend, voiceOn, toggleVoice])
+  }, [activeIdRef, voiceBackend, voiceOn, toggleVoice, enqueuePersonaSync, modeForPreset])
 
   const closeVoiceConsole = useCallback(() => {
     setVoiceConsoleOpen(false)

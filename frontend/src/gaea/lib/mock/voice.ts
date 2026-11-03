@@ -29,6 +29,8 @@ type VoiceMethods = Pick<
   // Voice V2 档（M4 产品接入刀）：sidecar 依赖链监护（语音设置实验档卡片/
   // 语音台 v2 前置检查消费）。
   | "VoiceV2Status" | "VoiceV2Ensure" | "VoiceV2Stop" | "VoiceV2CommitTurn"
+  // 生成中关闭的精确回滚（P0a-A5f）：mock 无预推进槽位，诚实 no-prepared。
+  | "VoiceV2AbortTurn"
 >;
 
 export function buildVoice(): VoiceMethods {
@@ -120,6 +122,10 @@ export function buildVoice(): VoiceMethods {
     },
     async VoiceV2Stop() {
       return { sidecar: false, llm: false };
+    },
+    async VoiceV2AbortTurn(_itemID: string) {
+      // mock 无预推进槽位：诚实 no-prepared（真实实现按 itemID 领走并回滚）。
+      return { aborted: false, reason: "no-prepared" };
     },
     async VoiceV2CommitTurn(
       _topicID: string,

@@ -61,6 +61,9 @@ export interface VoiceBindings {
   VoiceV2Ensure(): Promise<Record<string, unknown>>;
   // VoiceV2Stop 按端口击杀 sidecar 与 4B（breeze 共享引擎不动）。
   VoiceV2Stop(): Promise<Record<string, unknown>>;
+  // VoiceV2AbortTurn 生成中关闭语音台的精确回滚（P0a-A5f）：按 itemID 领走
+  // 并回滚生成前预推进；{aborted, reason?, itemID?, personalityID?}。
+  VoiceV2AbortTurn(itemID: string): Promise<Record<string, unknown>>;
   // VoiceV2CommitTurn 以 topic mode 为权威人格，单事务写回 V2 聊天并触发
   // 轻语工作记忆/状态/FactStore 异步收尾。responseID 持久判重；itemID
   // 精确关联生成前的 persona 快照，重复话术也不会串轮。
