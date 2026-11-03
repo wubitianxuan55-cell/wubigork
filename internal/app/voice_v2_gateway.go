@@ -225,18 +225,26 @@ func applyVoiceV2PreparedPrompt(payload map[string]interface{}, prepared *voiceV
 	if dynamic == "" {
 		return
 	}
+	// P1 缓存命中刀（2026-11-04）：动态段改为独立消息插在末条 user 之前，
+	// 不再改写 user 消息本体。旧实现把【本轮上下文】拼进 user 消息头部——
+	// 下一轮 sidecar 历史回放的是未经增强的原文，公共前缀在第一条 user 就断
+	// （4B 实测每轮全量 prefill ~1101 tokens）。独立消息只存在于当前请求，
+	// sidecar 历史逐字节稳定，跨轮前缀=[system+全部历史] 全部可复用。
 	messages, _ := payload["messages"].([]interface{})
 	for i := len(messages) - 1; i >= 0; i-- {
 		m, _ := messages[i].(map[string]interface{})
 		if m == nil || m["role"] != "user" {
 			continue
 		}
-		text, ok := m["content"].(string)
-		if !ok {
-			return
+		ctxMsg := map[string]interface{}{
+			"role":    "system",
+			"content": "【本轮上下文】\n" + dynamic + "\n【本轮上下文结束】",
 		}
-		m["content"] = "【本轮上下文】\n" + dynamic + "\n【本轮上下文结束】\n\n用户消息：" + text
-		payload["messages"] = messages
+		inserted := make([]interface{}, 0, len(messages)+1)
+		inserted = append(inserted, messages[:i]...)
+		inserted = append(inserted, ctxMsg)
+		inserted = append(inserted, messages[i:]...)
+		payload["messages"] = inserted
 		return
 	}
 }

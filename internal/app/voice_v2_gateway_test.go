@@ -105,14 +105,24 @@ func TestApplyVoiceV2PreparedPromptInjectsStableAndDynamicContext(t *testing.T) 
 	}}
 	applyVoiceV2PreparedPrompt(payload, prepared)
 
+	// P1 缓存命中刀契约：system 合并稳定人格段；动态段独立成消息插在末条
+	// user 之前；user 消息本体逐字节不动（下一轮 sidecar 历史回放原文，
+	// 公共前缀=[system+全部历史] 才能被引擎前缀缓存复用）。
 	messages := payload["messages"].([]interface{})
+	if len(messages) != 3 {
+		t.Fatalf("动态段应独立成消息（共 3 条），got %d", len(messages))
+	}
 	system := messages[0].(map[string]interface{})["content"].(string)
-	user := messages[1].(map[string]interface{})["content"].(string)
 	if !strings.Contains(system, "sidecar 基础指令") || !strings.Contains(system, "PERSONA_STABLE") {
 		t.Fatalf("稳定人格上下文未合并: %q", system)
 	}
-	if !strings.Contains(user, "EMOTION_CURRENT") || !strings.HasSuffix(user, "今天有点累") {
-		t.Fatalf("动态上下文未按本轮注入: %q", user)
+	dyn := messages[1].(map[string]interface{})
+	if dyn["role"] != "system" || !strings.Contains(dyn["content"].(string), "EMOTION_CURRENT") {
+		t.Fatalf("动态上下文应独立 system 消息: %#v", dyn)
+	}
+	user := messages[2].(map[string]interface{})
+	if user["content"] != "今天有点累" {
+		t.Fatalf("user 消息本体不得被改写: %q", user["content"])
 	}
 }
 
