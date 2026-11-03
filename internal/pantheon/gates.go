@@ -145,7 +145,7 @@ func (m *Manager) AskSeat(id, agentID, question string, options []string) (*Sess
 		m.mu.Unlock()
 		return nil, errors.New("议事不在运行中，无法提问")
 	}
-	if call, ok := m.agentCalls[session.ID]; ok && call != nil && call.agentID == agentID {
+	if call := m.agentCalls[session.ID][agentID]; call != nil {
 		m.mu.Unlock()
 		return nil, errors.New("该席正在发言：外部进程无法中途插问，请等这一席收声后再问")
 	}

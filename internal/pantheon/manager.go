@@ -118,15 +118,17 @@ type Manager struct {
 	root    string
 	workDir string
 
-	mu         sync.Mutex
-	store      *sessionStore
-	runner     commandRunner
-	overrides  map[string]string
-	dshKey     string
-	adapters   map[string]agentAdapter
-	grok       GrokBackend
-	cancels    map[string]context.CancelFunc
-	agentCalls map[string]*activeAgentCall
+	mu        sync.Mutex
+	store     *sessionStore
+	runner    commandRunner
+	overrides map[string]string
+	dshKey    string
+	adapters  map[string]agentAdapter
+	grok      GrokBackend
+	cancels   map[string]context.CancelFunc
+	// agentCalls 会话×席位双键槽：独立开场第 1 轮并行时多席同时持有活动调用，
+	// skip/retry/中止判定按 (sessionID, agentID) 定位（2026-11-03 并行刀）。
+	agentCalls map[string]map[string]*activeAgentCall
 	runs       map[string]*Session
 	wg         sync.WaitGroup
 	emit       func(Event)
@@ -158,14 +160,14 @@ func NewManager(root string, runner commandRunner, emit func(Event)) (*Manager, 
 		runner = osCommandRunner{}
 	}
 	return &Manager{
-		root:       root,
-		workDir:    root,
-		store:      store,
-		runner:     runner,
-		overrides:  overrides,
-		adapters:   buildAdapters(overrides, nil, ""),
-		cancels:    map[string]context.CancelFunc{},
-		agentCalls: map[string]*activeAgentCall{},
+		root:        root,
+		workDir:     root,
+		store:       store,
+		runner:      runner,
+		overrides:   overrides,
+		adapters:    buildAdapters(overrides, nil, ""),
+		cancels:     map[string]context.CancelFunc{},
+		agentCalls:  map[string]map[string]*activeAgentCall{},
 		runs:        map[string]*Session{},
 		emit:        emit,
 		authorityID: fmt.Sprintf("pantheon:%d:%d", os.Getpid(), time.Now().UnixNano()),
@@ -637,8 +639,11 @@ func (m *Manager) endAgentCall(sessionID string, call *activeAgentCall) {
 		return
 	}
 	m.mu.Lock()
-	if m.agentCalls[sessionID] == call {
-		delete(m.agentCalls, sessionID)
+	if slot := m.agentCalls[call.sessionID]; slot[call.agentID] == call {
+		delete(slot, call.agentID)
+		if len(slot) == 0 {
+			delete(m.agentCalls, call.sessionID)
+		}
 	}
 	m.mu.Unlock()
 	call.cancel()
@@ -670,7 +675,7 @@ func (m *Manager) agentCallAborted(call *activeAgentCall) bool {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return call.skipped || call.retry || m.agentCalls[call.sessionID] != call
+	return call.skipped || call.retry || m.agentCalls[call.sessionID][call.agentID] != call
 }
 
 // SkipAgent cancels only the active model/CLI call. The council loop continues
@@ -679,15 +684,11 @@ func (m *Manager) SkipAgent(id, agentID string) error {
 	id = strings.TrimSpace(id)
 	agentID = strings.ToLower(strings.TrimSpace(agentID))
 	m.mu.Lock()
-	call := m.agentCalls[id]
+	// 并行开场下多席同时活动（2026-11-03）：按席位定位槽，不再假设全场单调用。
+	call := m.agentCalls[id][agentID]
 	if call == nil {
 		m.mu.Unlock()
-		return errors.New("当前没有可跳过的 Agent 调用")
-	}
-	if call.agentID != agentID {
-		current := call.agentID
-		m.mu.Unlock()
-		return fmt.Errorf("当前运行的是 %s，无法跳过 %s", current, agentID)
+		return fmt.Errorf("%s 当前没有可跳过的调用", agentID)
 	}
 	if call.skipped {
 		m.mu.Unlock()
@@ -751,15 +752,10 @@ func (m *Manager) RetryAgent(id, agentID string) error {
 	id = strings.TrimSpace(id)
 	agentID = strings.ToLower(strings.TrimSpace(agentID))
 	m.mu.Lock()
-	call := m.agentCalls[id]
+	call := m.agentCalls[id][agentID]
 	if call == nil {
 		m.mu.Unlock()
-		return errors.New("当前没有可重试的 Agent 调用")
-	}
-	if call.agentID != agentID {
-		current := call.agentID
-		m.mu.Unlock()
-		return fmt.Errorf("当前运行的是 %s，无法重试 %s", current, agentID)
+		return fmt.Errorf("%s 当前没有可重试的调用", agentID)
 	}
 	if call.skipped {
 		m.mu.Unlock()
@@ -1118,17 +1114,16 @@ func (m *Manager) run(
 		m.updateRoundPhase(session, phase, round, phaseText)
 		roundOrder := rotateAgentIDs(order, round-1)
 		roundContributions := make([]Contribution, 0, len(roundOrder))
-		for position, agentID := range roundOrder {
-			if ctx.Err() != nil {
-				m.finishCancelled(session)
-				return
-			}
-			// 停车点二：席位之间。已经在跑的那一席不打断（外部进程没法拦腰
-			// 插话），但下一个席位绝不启动。
-			if m.paused(session) {
-				m.notePaused(session)
-				return
-			}
+		// 独立开场第 1 轮并行（2026-11-03 用户拍板）：每位视同首位发言、输入互
+		// 不依赖（openingHistory=nil），串行纯属等待不存在的依赖；并行=最慢一席
+		// 的时间，单场省 40%~70%。圆桌接力第 1 轮与所有协议的第 2 轮起保持串行
+		// ——后位要看前位发言，接力与吸收是轮内语义。
+		parallelOpening := round == 1 && session.Request.Protocol == ProtocolIndependent && len(roundOrder) > 1
+
+		// runSeat 执行一席并入库：返回 (贡献, prompt 是否超限, 是否成功)。
+		// 入库（appendContribution）自带锁，并行下安全；clipped 记账由调用方
+		// 单线程收集，避免闭包写共享切片。
+		runSeat := func(agentID string, position int) (Contribution, bool, bool) {
 			status := available[agentID]
 			files := m.transcriptFor(session)
 			var prompt string
@@ -1142,15 +1137,10 @@ func (m *Manager) run(
 			} else {
 				prompt = discussionPrompt(session.Request, status, history, round, position+1, len(roundOrder), files)
 			}
-			if promptExceedsBudget(prompt) {
-				clippedInputs = append(
-					clippedInputs,
-					fmt.Sprintf("第%d轮·%s", round, status.ID),
-				)
-			}
+			clipped := promptExceedsBudget(prompt)
 			out, duration, callRef, err := m.runAgentWithRetry(ctx, session, status, prompt, phase, round)
 			if err != nil {
-				continue
+				return Contribution{}, clipped, false
 			}
 			consensus := ""
 			if session.Request.UntilConsensus {
@@ -1169,10 +1159,78 @@ func (m *Manager) run(
 				CreatedAt:  time.Now().UnixMilli(),
 				DurationMs: duration.Milliseconds(),
 			}
-			history = append(history, contribution)
-			roundContributions = append(roundContributions, contribution)
 			m.appendContribution(session, contribution)
-			successful[status.ID] = status
+			return contribution, clipped, true
+		}
+
+		if parallelOpening {
+			if ctx.Err() != nil {
+				m.finishCancelled(session)
+				return
+			}
+			if m.paused(session) {
+				m.notePaused(session)
+				return
+			}
+			type seatOutcome struct {
+				contribution Contribution
+				clipped      bool
+				ok           bool
+			}
+			outcomes := make([]seatOutcome, len(roundOrder))
+			var openingWG sync.WaitGroup
+			for position, agentID := range roundOrder {
+				if ctx.Err() != nil {
+					break
+				}
+				openingWG.Add(1)
+				go func(position int, seatID string) {
+					defer openingWG.Done()
+					contribution, clipped, ok := runSeat(seatID, position)
+					outcomes[position] = seatOutcome{contribution, clipped, ok}
+				}(position, agentID)
+			}
+			openingWG.Wait()
+			for position, outcome := range outcomes {
+				if outcome.clipped {
+					clippedInputs = append(
+						clippedInputs,
+						fmt.Sprintf("第%d轮·%s", round, roundOrder[position]),
+					)
+				}
+				if !outcome.ok {
+					continue
+				}
+				history = append(history, outcome.contribution)
+				roundContributions = append(roundContributions, outcome.contribution)
+				successful[roundOrder[position]] = available[roundOrder[position]]
+			}
+		} else {
+			for position, agentID := range roundOrder {
+				if ctx.Err() != nil {
+					m.finishCancelled(session)
+					return
+				}
+				// 停车点二：席位之间。已经在跑的那一席不打断（外部进程没法拦腰
+				// 插话），但下一个席位绝不启动。
+				if m.paused(session) {
+					m.notePaused(session)
+					return
+				}
+				contribution, clipped, ok := runSeat(agentID, position)
+				if clipped {
+					clippedInputs = append(
+						clippedInputs,
+						fmt.Sprintf("第%d轮·%s", round, agentID),
+					)
+				}
+				if !ok {
+					continue
+				}
+				history = append(history, contribution)
+				roundContributions = append(roundContributions, contribution)
+				successful[agentID] = available[agentID]
+			}
 		}
 		if session.Request.UntilConsensus &&
 			round >= 2 &&
@@ -1559,7 +1617,10 @@ func (m *Manager) recordAgentStarted(
 		Kind: EventAgentStart, Text: text, At: time.Now().UnixMilli(),
 	}
 	event = m.appendEventLocked(session, event)
-	m.agentCalls[session.ID] = call
+	if m.agentCalls[session.ID] == nil {
+		m.agentCalls[session.ID] = map[string]*activeAgentCall{}
+	}
+	m.agentCalls[session.ID][status.ID] = call
 	_ = m.store.save(session)
 	m.mu.Unlock()
 	m.emitSafe(event)

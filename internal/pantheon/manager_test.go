@@ -117,7 +117,7 @@ func newTestManager(t *testing.T, runner commandRunner, adapters ...agentAdapter
 	return &Manager{
 		root: root, workDir: root, store: store, runner: runner, adapters: adapterMap,
 		overrides: map[string]string{}, cancels: map[string]context.CancelFunc{},
-		agentCalls: map[string]*activeAgentCall{}, runs: map[string]*Session{},
+		agentCalls: map[string]map[string]*activeAgentCall{}, runs: map[string]*Session{},
 	}
 }
 
@@ -435,15 +435,26 @@ func TestManagerRunsOrderedMultiRoundDiscussion(t *testing.T) {
 	if done.CurrentRound != 2 {
 		t.Fatalf("current round = %d, want 2", done.CurrentRound)
 	}
+	// 第 1 轮并行开场（2026-11-03）：落盘序=完成序（与直播一致，防定稿重排
+	// 跳变），两位都在即可；第 2 轮起串行，轮内恒守既定序（rotate 后 beta 先）。
+	round1 := map[string]bool{}
 	gotOrder := make([]string, 0, 4)
 	for _, contribution := range done.Contributions {
 		if contribution.Phase == PhaseOpening || contribution.Phase == PhaseDiscussion {
-			gotOrder = append(gotOrder, fmt.Sprintf("%d:%s", contribution.Round, contribution.AgentID))
+			key := fmt.Sprintf("%d:%s", contribution.Round, contribution.AgentID)
+			if contribution.Round == 1 {
+				round1[key] = true
+				continue
+			}
+			gotOrder = append(gotOrder, key)
 		}
 	}
-	wantOrder := []string{"1:alpha", "1:beta", "2:beta", "2:alpha"}
+	if len(round1) != 2 || !round1["1:alpha"] || !round1["1:beta"] {
+		t.Fatalf("round-1 parallel contributions missing: %v", round1)
+	}
+	wantOrder := []string{"2:beta", "2:alpha"}
 	if !reflect.DeepEqual(gotOrder, wantOrder) {
-		t.Fatalf("speaking order = %v, want %v", gotOrder, wantOrder)
+		t.Fatalf("round-2 speaking order = %v, want %v", gotOrder, wantOrder)
 	}
 	if done.Request.Workspace != filepath.Clean(workspace) {
 		t.Fatalf("workspace = %q, want %q", done.Request.Workspace, workspace)
@@ -1087,9 +1098,10 @@ func TestManagerSkipDropsResidueDeltas(t *testing.T) {
 
 func TestSupersededAgentCallIsAborted(t *testing.T) {
 	m := newTestManager(t, defaultFakeRunner())
+	// 多槽（会话×席位，2026-11-03 并行刀）：同席替换判定按 (sessionID, agentID)。
 	oldCall := &activeAgentCall{sessionID: "pan_test", CallRef: CallRef{AttemptID: "att_1"}}
-	currentCall := &activeAgentCall{sessionID: "pan_test", CallRef: CallRef{AttemptID: "att_2"}}
-	m.agentCalls["pan_test"] = currentCall
+	currentCall := &activeAgentCall{sessionID: "pan_test", agentID: "alpha", CallRef: CallRef{AttemptID: "att_2"}}
+	m.agentCalls["pan_test"] = map[string]*activeAgentCall{"alpha": currentCall}
 
 	if !m.agentCallAborted(oldCall) {
 		t.Fatal("superseded attempt must be rejected")
@@ -1106,7 +1118,9 @@ func TestManagerRetryCurrentAgentKeepsRoundPosition(t *testing.T) {
 	defer m.Close()
 
 	session, err := m.Start(StartRequest{
-		Topic: "重试当前席位", AgentIDs: []string{"alpha", "beta"}, Rounds: 1,
+		// 圆桌接力协议=串行语义：并行开场（independent 默认）下其它席同时
+		// running 是合法态，「retry 不推进到其它席」的断言只在串行下可判。
+		Topic: "重试当前席位", Protocol: ProtocolCouncil, AgentIDs: []string{"alpha", "beta"}, Rounds: 1,
 	})
 	if err != nil {
 		t.Fatal(err)
