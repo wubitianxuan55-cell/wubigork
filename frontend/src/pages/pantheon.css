@@ -5353,7 +5353,8 @@
   box-shadow: 0 0 18px color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 9%, transparent);
 }
 
-.pantheon-agent-output > header {
+/* header 移入 summary（每轮折叠,2026-11-03）：后代选择器兼容折叠结构 */
+.pantheon-agent-output header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -5363,7 +5364,7 @@
   font-size: 8.5px;
 }
 
-.pantheon-agent-output > header span {
+.pantheon-agent-output header span {
   color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 60%, var(--md-sys-color-text, var(--color-text)));
 }
 
@@ -8198,7 +8199,7 @@
    席位开讲的可见信号升级为每席专属动画形态——身份四色之外再分四型：
    grok=主席金环扩散 / codex=蓝扫描线 / zcode=紫呼吸辉光 / dsh=珊瑚涟漪。
    挂 data-agent-id 分型，未知席位不吃动画（保留既有静态高亮）。 */
-.pantheon-shared-entry.is-agent.is-streaming[data-agent-id] {
+.pantheon-shared-entry.is-agent:is(.is-streaming, .is-seat-speaking)[data-agent-id] {
   position: relative;
 }
 
@@ -8221,7 +8222,7 @@
   }
 }
 
-.pantheon-shared-entry.is-agent.is-streaming[data-agent-id='grok'] {
+.pantheon-shared-entry.is-agent:is(.is-streaming, .is-seat-speaking)[data-agent-id='grok'] {
   animation: pantheon-anim-grok 2.2s cubic-bezier(.25, .6, .35, 1) infinite;
 }
 
@@ -8243,11 +8244,11 @@
   }
 }
 
-.pantheon-shared-entry.is-agent.is-streaming[data-agent-id='codex'] {
+.pantheon-shared-entry.is-agent:is(.is-streaming, .is-seat-speaking)[data-agent-id='codex'] {
   overflow: hidden;
 }
 
-.pantheon-shared-entry.is-agent.is-streaming[data-agent-id='codex']::after {
+.pantheon-shared-entry.is-agent:is(.is-streaming, .is-seat-speaking)[data-agent-id='codex']::after {
   content: '';
   position: absolute;
   inset-inline: 0;
@@ -8278,7 +8279,7 @@
   }
 }
 
-.pantheon-shared-entry.is-agent.is-streaming[data-agent-id='zcode'] {
+.pantheon-shared-entry.is-agent:is(.is-streaming, .is-seat-speaking)[data-agent-id='zcode'] {
   animation: pantheon-anim-zcode 2.8s ease-in-out infinite;
 }
 
@@ -8294,7 +8295,7 @@
   }
 }
 
-.pantheon-shared-entry.is-agent.is-streaming[data-agent-id='dsh']::before {
+.pantheon-shared-entry.is-agent:is(.is-streaming, .is-seat-speaking)[data-agent-id='dsh']::before {
   content: '';
   position: absolute;
   left: 30px;
@@ -8308,13 +8309,13 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pantheon-shared-entry.is-agent.is-streaming[data-agent-id],
-  .pantheon-shared-entry.is-agent.is-streaming[data-agent-id='grok'],
-  .pantheon-shared-entry.is-agent.is-streaming[data-agent-id='zcode'] {
+  .pantheon-shared-entry.is-agent:is(.is-streaming, .is-seat-speaking)[data-agent-id],
+  .pantheon-shared-entry.is-agent:is(.is-streaming, .is-seat-speaking)[data-agent-id='grok'],
+  .pantheon-shared-entry.is-agent:is(.is-streaming, .is-seat-speaking)[data-agent-id='zcode'] {
     animation: none;
   }
-  .pantheon-shared-entry.is-agent.is-streaming[data-agent-id='codex']::after,
-  .pantheon-shared-entry.is-agent.is-streaming[data-agent-id='dsh']::before {
+  .pantheon-shared-entry.is-agent:is(.is-streaming, .is-seat-speaking)[data-agent-id='codex']::after,
+  .pantheon-shared-entry.is-agent:is(.is-streaming, .is-seat-speaking)[data-agent-id='dsh']::before {
     animation: none;
     content: none;
   }
@@ -8386,4 +8387,117 @@
   font-size: 12px;
   display: grid;
   place-items: center;
+}
+
+/* ══ 共享流按席颜色区分加强+时间线形态（2026-11-03 用户反馈）══
+   反馈三点：发言席动画只在流式瞬间闪（→is-seat-speaking 全程持续）；
+   高亮不明显、共享窗没有按颜色区分（→边框/背景/席名/头像环四层席色）；
+   全部摊开不好看（→详情面板每轮折叠，见 agent-output details 段）。 */
+
+/* 时间线：左轴穿过头像列中心，条目按发生时刻纵向排布 */
+.pantheon-shared-stream {
+  position: relative;
+}
+
+.pantheon-shared-stream::before {
+  content: '';
+  position: absolute;
+  left: 17px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  border-radius: 2px;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    color-mix(in srgb, var(--pantheon-accent) 24%, var(--pantheon-line)) 6%,
+    color-mix(in srgb, var(--pantheon-accent) 24%, var(--pantheon-line)) 94%,
+    transparent
+  );
+  pointer-events: none;
+}
+
+.pantheon-shared-entry {
+  position: relative;
+}
+
+/* 头像列：白/底色描边环压住轴线，形成时间线节点 */
+.pantheon-shared-entry .pantheon-shared-avatar {
+  position: relative;
+  z-index: 1;
+}
+
+.pantheon-shared-entry.is-agent .pantheon-shared-agent-avatar {
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--pantheon-surface-raised) 88%, transparent),
+    0 0 0 4px color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 46%, transparent);
+}
+
+.pantheon-shared-entry.is-agent.is-seat-speaking .pantheon-shared-agent-avatar {
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--pantheon-surface-raised) 88%, transparent),
+    0 0 0 4px var(--agent-accent, var(--pantheon-accent));
+}
+
+/* 席色四层加强：全边框混色+左 4px+背景浓度提升+席名着色 */
+.pantheon-shared-entry.is-agent {
+  border-color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 34%, var(--pantheon-line));
+  border-left: 4px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 74%, var(--pantheon-line));
+  background:
+    linear-gradient(100deg, color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 11%, transparent), transparent 58%),
+    color-mix(in srgb, var(--pantheon-surface-raised) 72%, transparent);
+}
+
+.pantheon-shared-entry.is-agent > .pantheon-shared-copy > header strong {
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 74%, var(--md-sys-color-text, var(--color-text)));
+}
+
+.pantheon-shared-entry.is-user .pantheon-shared-avatar {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--pantheon-surface-raised) 88%, transparent);
+}
+
+/* ══ 详情面板每轮输出折叠（2026-11-03 用户反馈「不要全部摊开」）══ */
+.pantheon-agent-output-fold > summary.pantheon-agent-output-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.pantheon-agent-output-fold > summary.pantheon-agent-output-summary::-webkit-details-marker {
+  display: none;
+}
+
+/* header 移入 summary 后保持原版式（后代选择器兼容 .pantheon-agent-output > header 移除） */
+.pantheon-agent-output summary.pantheon-agent-output-summary header {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 0;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10px;
+}
+
+.pantheon-agent-output-chevron {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid color-mix(in srgb, var(--md-sys-color-text-tertiary, var(--color-text-secondary)) 70%, transparent);
+  border-bottom: 1.5px solid color-mix(in srgb, var(--md-sys-color-text-tertiary, var(--color-text-secondary)) 70%, transparent);
+  transform: rotate(-45deg);
+  transition: transform 160ms ease;
+}
+
+.pantheon-agent-output-fold[open] > summary.pantheon-agent-output-summary .pantheon-agent-output-chevron {
+  transform: rotate(45deg);
+}
+
+.pantheon-agent-output-fold > .pantheon-agent-output-markdown {
+  margin-top: 6px;
 }

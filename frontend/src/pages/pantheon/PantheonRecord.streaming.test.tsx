@@ -409,4 +409,40 @@ describe('PantheonRecord streaming', () => {
     fireEvent.click(screen.getByTestId('pantheon-note-send'))
     expect(onAddUserNote).toHaveBeenCalledTimes(1) // 空草稿不重复发送
   })
+
+  it('详情面板每轮输出默认只展开最新一轮，其余折叠（2026-11-03 反馈）', () => {
+    renderRecord({
+      sessionOverrides: { status: 'completed' },
+      contributions: [
+        {
+          id: 'contribution_grok_r1',
+          phase: 'opening',
+          round: 1,
+          agentId: 'grok',
+          agentName: 'Grok',
+          content: '第一轮开场观点。',
+          createdAt: now - 6000,
+        },
+        {
+          id: 'contribution_grok_r2',
+          phase: 'discussion',
+          round: 2,
+          agentId: 'grok',
+          agentName: 'Grok',
+          content: '第二轮补充论证。',
+          createdAt: now - 3000,
+        },
+      ],
+    })
+
+    fireEvent.click(screen.getByTestId('pantheon-topology-node-grok'))
+    const first = screen.getByTestId('pantheon-agent-output-contribution_grok_r1')
+    const second = screen.getByTestId('pantheon-agent-output-contribution_grok_r2')
+    expect(first.querySelector('.pantheon-agent-output-fold')?.hasAttribute('open')).toBe(false)
+    expect(second.querySelector('.pantheon-agent-output-fold')?.hasAttribute('open')).toBe(true)
+
+    // 手动展开第一轮：状态被记录，重渲染不弹回
+    fireEvent.click(first.querySelector('.pantheon-agent-output-summary')!)
+    expect(first.querySelector('.pantheon-agent-output-fold')?.hasAttribute('open')).toBe(true)
+  })
 })

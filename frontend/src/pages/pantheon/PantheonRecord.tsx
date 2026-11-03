@@ -666,6 +666,9 @@ const AgentDetailPanel: React.FC<{
 }) => {
   const liveOutput = outputs.some((output) => output.streaming)
   const running = participant?.status === 'running' || liveOutput
+  // 每轮输出折叠（2026-11-03 用户反馈「不要全部摊开」）：默认只展开最新一轮，
+  // 流式中的恒展开；用户手动开合记录在 map，重渲染不弹回。
+  const [openOutputs, setOpenOutputs] = useState<Record<string, boolean>>({})
 
   return (
     <aside
@@ -748,33 +751,54 @@ const AgentDetailPanel: React.FC<{
         {tab === 'output' ? (
           outputs.length > 0 ? (
             <div className="pantheon-agent-output-list">
-              {outputs.map((output) => (
-                <article
-                  key={output.id}
-                  className={`pantheon-agent-output${output.streaming ? ' is-streaming' : ''}`}
-                  data-testid={`pantheon-agent-output-${output.id}`}
-                >
-                  <header>
-                    <span>
-                      {output.round ? `第 ${output.round} 轮 · ` : ''}
-                      {PHASE_LABEL[output.phase] || output.phase}
-                    </span>
-                    <small>
-                      {output.streaming
-                        ? '正在输出'
-                        : output.durationMs
-                          ? `${(output.durationMs / 1000).toFixed(1)}s`
-                          : '独立观点'}
-                    </small>
-                  </header>
-                  <div className={`pantheon-agent-output-markdown${output.streaming ? ' is-live' : ''}`}>
-                    <MarkdownContent source={output.text} className="md-content" />
-                    {output.streaming && (
-                      <span className="pantheon-agent-output-caret pantheon-stream-caret" aria-label="正在输出" />
-                    )}
-                  </div>
-                </article>
-              ))}
+              {outputs.map((output, index) => {
+                const manuallyToggled = openOutputs[output.id]
+                const expanded = output.streaming
+                  ? true
+                  : manuallyToggled !== undefined
+                    ? manuallyToggled
+                    : index === outputs.length - 1
+                return (
+                  <article
+                    key={output.id}
+                    className={`pantheon-agent-output${output.streaming ? ' is-streaming' : ''}`}
+                    data-testid={`pantheon-agent-output-${output.id}`}
+                  >
+                    <details
+                      className="pantheon-agent-output-fold"
+                      open={expanded}
+                      onToggle={(event) => {
+                        if (output.streaming) return
+                        const next = (event.currentTarget as HTMLDetailsElement).open
+                        setOpenOutputs((current) => ({ ...current, [output.id]: next }))
+                      }}
+                    >
+                      <summary className="pantheon-agent-output-summary">
+                        <header>
+                          <span>
+                            {output.round ? `第 ${output.round} 轮 · ` : ''}
+                            {PHASE_LABEL[output.phase] || output.phase}
+                          </span>
+                          <small>
+                            {output.streaming
+                              ? '正在输出'
+                              : output.durationMs
+                                ? `${(output.durationMs / 1000).toFixed(1)}s`
+                                : '独立观点'}
+                          </small>
+                        </header>
+                        <span className="pantheon-agent-output-chevron" aria-hidden />
+                      </summary>
+                      <div className={`pantheon-agent-output-markdown${output.streaming ? ' is-live' : ''}`}>
+                        <MarkdownContent source={output.text} className="md-content" />
+                        {output.streaming && (
+                          <span className="pantheon-agent-output-caret pantheon-stream-caret" aria-label="正在输出" />
+                        )}
+                      </div>
+                    </details>
+                  </article>
+                )
+              })}
             </div>
           ) : (
             <div className="pantheon-agent-detail-empty">
@@ -1001,6 +1025,12 @@ export const PantheonRecord: React.FC<Props> = ({
     }
     return participants.filter((participant) => activeIds.has(participant.agentId))
   }, [liveStreams, participants])
+  // 发言中席位集合：共享流里该席卡片持续挂专属动画，直到收声（2026-11-03
+  // 用户反馈「动画只在流式瞬间闪一下看不见」——定稿期也要亮）。
+  const speakingAgentIds = useMemo(
+    () => new Set(activeSpeakers.map((speaker) => speaker.agentId)),
+    [activeSpeakers],
+  )
   const skippableParticipant = participants.find((participant) => participant.status === 'running')
     || activeSpeakers[0]
 
@@ -1835,7 +1865,7 @@ export const PantheonRecord: React.FC<Props> = ({
             {sharedEntries.map((entry) => (
               <article
                 key={entry.id}
-                className={`pantheon-shared-entry is-${entry.kind}${entry.streaming ? ' is-streaming' : ''}`}
+                className={`pantheon-shared-entry is-${entry.kind}${entry.streaming ? ' is-streaming' : ''}${entry.kind === 'agent' && entry.agentId && speakingAgentIds.has(entry.agentId) ? ' is-seat-speaking' : ''}`}
                 data-testid={`pantheon-shared-entry-${entry.id}`}
                 data-agent-id={entry.agentId}
                 style={entry.agentId ? {
@@ -1849,7 +1879,7 @@ export const PantheonRecord: React.FC<Props> = ({
                     <PantheonAgentAvatar
                       agentId={entry.agentId}
                       className="pantheon-shared-agent-avatar"
-                      status={entry.streaming ? 'running' : 'finished'}
+                      status={entry.streaming || (entry.kind === 'agent' && entry.agentId && speakingAgentIds.has(entry.agentId)) ? 'running' : 'finished'}
                     />
                   ) : entry.kind === 'topic'
                     ? '你'
