@@ -869,8 +869,8 @@ func (m *Manager) ResultPath(id string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if session.Status != StatusCompleted {
-		return "", errors.New("讨论尚未完成，暂无最终结果文档")
+	if session.Status != StatusCompleted && session.Status != StatusCancelled && session.Status != StatusInterrupted {
+		return "", errors.New("讨论尚未结束，暂无结果文档")
 	}
 	if session.ResultPath != "" {
 		if info, err := os.Stat(session.ResultPath); err == nil && info.Mode().IsRegular() {
@@ -1885,6 +1885,13 @@ func (m *Manager) finishCancelled(session *Session) {
 	}
 	event := Event{Phase: PhaseCancelled, Kind: EventComplete, Text: session.Error, At: session.UpdatedAt}
 	event = m.appendEventLocked(session, event)
+	// 2026-11-03 用户拍板：终止也生成草稿文档，已发表的论证不随终止丢弃；
+	// 草稿身份由文档头的「未收口草稿」标注区分（export.go），删除会话才真正清除。
+	if path, err := m.store.writeResult(session); err == nil {
+		session.ResultPath = path
+	} else {
+		session.Warnings = append(session.Warnings, "终止草稿文档生成失败："+err.Error())
+	}
 	_ = m.store.save(session)
 	m.mu.Unlock()
 	m.emitSafe(event)

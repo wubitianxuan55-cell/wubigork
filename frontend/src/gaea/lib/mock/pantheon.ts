@@ -431,7 +431,7 @@ export function buildPantheon(): PantheonBindings {
     PantheonOpenResult: async (id) => {
       const session = sessions.get(id)
       if (!session) throw new Error('议事不存在')
-      if (session.status !== 'completed') throw new Error('讨论尚未完成，暂无最终结果文档')
+      if (session.status === 'running' || session.status === 'waiting_input') throw new Error('讨论尚未结束，暂无结果文档')
       session.resultPath = session.resultPath || `C:/AI/wubigrok/.gaea/pantheon/results/${id}.md`
       return session.resultPath
     },

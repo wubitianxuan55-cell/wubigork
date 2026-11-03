@@ -163,7 +163,13 @@ func RenderFinalDocument(session *Session) string {
 	b.WriteString("# ")
 	b.WriteString(session.Title)
 	b.WriteString("\n\n")
-	b.WriteString("> 众神殿最终讨论文档\n\n")
+	// 2026-11-03 用户拍板：终止/中断也留草稿文档——已发表的论证不随终止丢弃，
+	// 删除会话才是唯一清除方式。草稿身份在文档头明示，与终稿区分。
+	if session.Status == StatusCancelled || session.Status == StatusInterrupted || session.Status == StatusFailed {
+		b.WriteString("> 未收口草稿——讨论中止于终态前：以下为已发表的论证与机器汇编，未经主席提炼与用户签注\n\n")
+	} else {
+		b.WriteString("> 众神殿最终讨论文档\n\n")
+	}
 	b.WriteString("## 基本信息\n\n")
 	fmt.Fprintf(&b, "- 议题：%s\n", session.Request.Topic)
 	fmt.Fprintf(&b, "- 完成时间：%s\n", formatMillis(session.UpdatedAt))

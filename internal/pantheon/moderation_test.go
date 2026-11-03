@@ -1,6 +1,7 @@
 package pantheon
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -90,5 +91,46 @@ func TestDiscussionPromptCarriesAntiDistortionRules(t *testing.T) {
 	}
 	if !strings.Contains(collaborationRules(), "质量阶梯") {
 		t.Fatal("quality ladder missing from collaboration rules")
+	}
+}
+
+// 终止也生成草稿（2026-11-03 用户拍板）：已发表论证不随终止丢弃。
+func TestCancelledSessionKeepsDraftResult(t *testing.T) {
+	runner := consensusRunner("仍有分歧")
+	runner.outputs["beta"] = func(commandSpec) (string, error) {
+		return "", nil // 模拟一席空转
+	}
+	m := newTestManager(t, runner, fakeAdapter("alpha"), fakeAdapter("beta"))
+	defer m.Close()
+	session, err := m.Start(StartRequest{
+		Topic: "终止草稿", AgentIDs: []string{"alpha", "beta"}, ChairmanAgentID: "alpha",
+		Rounds: 2,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitForStatus(t, m, session.ID, StatusCompleted)
+	cancelled, err := m.Start(StartRequest{
+		Topic: "终止草稿2", AgentIDs: []string{"alpha", "beta"}, ChairmanAgentID: "alpha",
+		Rounds: 2,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.Cancel(cancelled.ID)
+	done := waitForStatus(t, m, cancelled.ID, StatusCancelled)
+	if done.ResultPath == "" {
+		t.Fatal("cancelled session must keep a draft resultPath")
+	}
+	path, err := m.ResultPath(cancelled.ID)
+	if err != nil {
+		t.Fatalf("draft result must be openable: %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "未收口草稿") {
+		t.Fatalf("draft header missing:\n%.200s", data)
 	}
 }
