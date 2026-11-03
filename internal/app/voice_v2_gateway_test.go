@@ -56,6 +56,41 @@ func TestVoiceV2GatewayInjectsModelAndStreamsUpstream(t *testing.T) {
 	}
 }
 
+func TestVoiceV2GatewayStripsToolsPayload(t *testing.T) {
+	// P1 网关剥 tools：对话/动作平面分离（架构定稿）——sidecar 将来启用工具
+	// 透传时，工具定义与选择不得进语音 4B 的 prompt。
+	oldUpstream := voiceV2GatewayUpstream
+	t.Cleanup(func() { voiceV2GatewayUpstream = oldUpstream })
+
+	var got map[string]interface{}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		if err := json.Unmarshal(body, &got); err != nil {
+			t.Errorf("decode upstream body: %v", err)
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\"好\"}}]}\n\n")
+		_, _ = io.WriteString(w, "data: [DONE]\n\n")
+	}))
+	defer upstream.Close()
+	voiceV2GatewayUpstream = upstream.URL
+
+	a := &mediaState{core: &core{}}
+	body := `{"model":"m","stream":true,"tools":[{"type":"function","function":{"name":"gen_image","parameters":{}}}],"tool_choice":"auto","messages":[{"role":"user","content":"画一张图"}]}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	rr := httptest.NewRecorder()
+	a.handleVoiceV2ChatCompletion(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if _, ok := got["tools"]; ok {
+		t.Fatalf("tools 应被网关剥除: %v", got["tools"])
+	}
+	if _, ok := got["tool_choice"]; ok {
+		t.Fatalf("tool_choice 应被网关剥除: %v", got["tool_choice"])
+	}
+}
+
 func TestInjectVoiceV2SystemContextPreservesTurnOrder(t *testing.T) {
 	payload := map[string]interface{}{
 		"messages": []interface{}{

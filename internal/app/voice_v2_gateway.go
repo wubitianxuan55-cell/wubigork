@@ -103,6 +103,12 @@ func (a *mediaState) handleVoiceV2ChatCompletion(w http.ResponseWriter, r *http.
 	}
 	// sidecar 的 model_name 只是兼容字段；真实路由固定到 VoiceV2Ensure 拉起的 4B。
 	payload["model"] = voiceV2LLMName
+	// P1 网关剥 tools（V2 架构定稿：对话平面与动作平面分离——语音 4B 只做
+	// 对话生成，动作走 dry-run 预览+确认执行平面）。sidecar LLM 层支持 tools
+	// 透传，将来 sidecar 配置若启用工具，网关在此收掉，工具定义不得进语音
+	// prompt（省 token 且防模型在语音链上自发起工具调用）。
+	delete(payload, "tools")
+	delete(payload, "tool_choice")
 	userMsg := lastVoiceV2UserMessage(payload)
 	var prepared *voiceV2PreparedTurn
 	isStreaming, _ := payload["stream"].(bool)
