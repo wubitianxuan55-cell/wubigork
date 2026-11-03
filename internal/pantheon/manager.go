@@ -388,7 +388,11 @@ func (m *Manager) Start(req StartRequest) (*Session, error) {
 		}
 		req.Evidence = append(req.Evidence, parentStanceEvidence(parent)...)
 	}
-	req.ReadOnly = true // first release has no workspace-write debate mode
+	// ReadOnly 是会话级声明性标记（无逻辑消费，真实机制见 agentAdapter.runMode
+	// 逐席入档）。2026-11-03 起 codex 单席沙箱放宽 workspace-write+network
+	// （用户拍板全员联网查资料），写面由陈词纪律约束不写盘——本标记不再等于
+	// 「全部席位硬只读」，对外展示以 runMode 为准。
+	req.ReadOnly = true
 	if strings.TrimSpace(req.Title) == "" {
 		req.Title = titleFromTopic(req.Topic)
 	}

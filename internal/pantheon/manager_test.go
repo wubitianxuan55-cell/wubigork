@@ -1533,6 +1533,17 @@ func TestCodexExecEnablesLiveSearchAndImageInput(t *testing.T) {
 	if !containsAdjacent(spec.Args, "-c", `web_search="live"`) {
 		t.Fatalf("codex args do not enable live web search: %v", spec.Args)
 	}
+	// 2026-11-03 用户拍板「都能上网查资料」：read-only 沙箱默认禁网（直连
+	// GitHub API 实测被拦），放宽 workspace-write+network——写限工作区。
+	if !containsAdjacent(spec.Args, "--sandbox", "workspace-write") {
+		t.Fatalf("codex args must use workspace-write sandbox for network: %v", spec.Args)
+	}
+	if !containsAdjacent(spec.Args, "-c", `sandbox_workspace_write.network_access=true`) {
+		t.Fatalf("codex args must enable network access: %v", spec.Args)
+	}
+	if containsAdjacent(spec.Args, "--sandbox", "read-only") {
+		t.Fatalf("codex args must not regress to read-only: %v", spec.Args)
+	}
 	if !containsAdjacent(spec.Args, "--image", image) {
 		t.Fatalf("codex args lost image attachment: %v", spec.Args)
 	}

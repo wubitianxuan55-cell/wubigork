@@ -17,7 +17,7 @@ type agentAdapter struct {
 
 	// runMode 声明本次调用实际施加的只读机制。会话级 ReadOnly 布尔在四席
 	// 的落地方式并不同质（sandbox/plan/环境变量/工具白名单），必须逐席入档
-	// 而不是写成同一个笼统的「已只读」；无硬限制的能力（如 codex 联网搜索）
+	// 而不是写成同一个笼统的「已只读」；无硬限制的能力（如 codex 直连网络）
 	// 在文案中明示降级（2026-10-31 裁决第三刀）。
 	runMode string
 
@@ -142,8 +142,11 @@ func newCodexAdapter(override string) agentAdapter {
 	}
 	return agentAdapter{
 		id: "codex", name: "Codex", kind: "OpenAI Codex CLI",
-		// 联网搜索显式开放（web_search=live），属无硬限制能力，必须降级表述。
-		runMode: "codex sandbox read-only（文件写被沙箱拦截；联网搜索开放，结果按不可信资料处理）",
+		// 2026-11-03 用户拍板「都能上网查资料」：read-only 沙箱默认禁网（直连
+		// GitHub API 实测被拦，内建 web_search 只是特权通道），放宽为
+		// workspace-write+network——写面限工作区且由陈词纪律约束不写盘，
+		// runMode 如实降级表述（裁决第三刀：能力不对称必须逐席入档）。
+		runMode: "codex sandbox workspace-write+network（直连网络开放，结果按不可信资料处理；文件写沙箱限工作区，陈词纪律约束不写盘）",
 		probe: func(ctx context.Context) AgentStatus {
 			status := AgentStatus{
 				ID: "codex", Name: "Codex", Kind: "OpenAI Codex CLI",
@@ -168,8 +171,10 @@ func newCodexAdapter(override string) agentAdapter {
 				return commandSpec{}, err
 			}
 			args := []string{
-				"exec", "--json", "--ephemeral", "--sandbox", "read-only",
-				"-c", `web_search="live"`, "--skip-git-repo-check",
+				"exec", "--json", "--ephemeral", "--sandbox", "workspace-write",
+				"-c", `web_search="live"`,
+				"-c", `sandbox_workspace_write.network_access=true`,
+				"--skip-git-repo-check",
 			}
 			for _, image := range images {
 				args = append(args, "--image", image)
