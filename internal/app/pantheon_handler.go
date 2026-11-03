@@ -175,6 +175,15 @@ func (s *pantheonState) PantheonList() ([]pantheon.SessionSummary, error) {
 	return manager.List()
 }
 
+// PantheonEvaluation is a read-only R6 report over the durable council ledger.
+func (s *pantheonState) PantheonEvaluation(minCases int) (pantheon.EvaluationReport, error) {
+	manager, err := s.managerRef()
+	if err != nil {
+		return pantheon.EvaluationReport{}, err
+	}
+	return manager.EvaluateProtocols(minCases)
+}
+
 func (s *pantheonState) PantheonGet(id string) (*pantheon.Session, error) {
 	manager, err := s.managerRef()
 	if err != nil {

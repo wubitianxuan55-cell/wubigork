@@ -12,6 +12,7 @@ import {
   FolderOpenOutlined,
   FileTextOutlined,
   InfoCircleOutlined,
+  NodeIndexOutlined,
   PictureOutlined,
   PlayCircleOutlined,
   ReloadOutlined,
@@ -103,6 +104,9 @@ const STALL_AFTER_MS = 120_000
 const FOLDABLE_CHARS = 160
 const FOLD_DEFAULT_CHARS = 420
 const FOLD_PREVIEW_CHARS = 72
+const WINDOW_PREVIEW_CHARS = 150
+
+type RecordView = 'topology' | 'shared' | 'agents' | 'ledger'
 
 function charCount(text: string): number {
   return Array.from(text).length
@@ -113,6 +117,17 @@ function previewText(text: string): string {
   const chars = Array.from(flat)
   if (chars.length <= FOLD_PREVIEW_CHARS) return flat
   return `${chars.slice(0, FOLD_PREVIEW_CHARS).join('')}…`
+}
+
+function windowPreviewText(text: string): string {
+  const flat = text.replace(/\s+/g, ' ').trim()
+  const chars = Array.from(flat)
+  if (chars.length <= WINDOW_PREVIEW_CHARS) return flat
+  return `${chars.slice(0, WINDOW_PREVIEW_CHARS).join('')}…`
+}
+
+function seatReturnsResult(status: string): boolean {
+  return status === 'finished' || status === 'finished_unverified'
 }
 
 function shortProtocolID(id: string): string {
@@ -210,6 +225,9 @@ interface SharedEntry {
   text: string
   meta?: string
   at: number
+  round?: number
+  phaseLabel?: string
+  durationMs?: number
   agentId?: string
   streaming?: boolean
   discussionAct?: string
@@ -217,6 +235,16 @@ interface SharedEntry {
   targetIssueId?: string
   challengedClaim?: string
   responseVerdict?: string
+}
+
+interface SharedTimelineSection {
+  key: string
+  heading?: {
+    round?: number
+    phase: string
+    count: number
+  }
+  entries: SharedEntry[]
 }
 
 type AvatarStatus = 'online' | 'offline' | 'running' | 'waiting' | 'finished' | 'skipped' | 'failed' | 'unverified'
@@ -768,6 +796,84 @@ const SharedAgentBody: React.FC<{
   )
 }
 
+const SharedTimelineEntry: React.FC<{
+  entry: SharedEntry
+  speakingAgentIds: Set<string>
+  foldedMap: Record<string, boolean>
+  onFold: (id: string, folded: boolean) => void
+}> = ({ entry, speakingAgentIds, foldedMap, onFold }) => (
+  <article
+    className={`pantheon-shared-entry is-${entry.kind}${entry.streaming ? ' is-streaming' : ''}${entry.kind === 'agent' && entry.agentId && speakingAgentIds.has(entry.agentId) ? ' is-seat-speaking' : ''}`}
+    data-testid={`pantheon-shared-entry-${entry.id}`}
+    data-agent-id={entry.agentId}
+    style={entry.agentId ? {
+      '--agent-accent': AGENT_ACCENTS[entry.agentId] || 'var(--pantheon-accent)',
+    } as React.CSSProperties : undefined}
+  >
+    <span className="pantheon-shared-avatar" aria-hidden>
+      {entry.kind === 'user' ? (
+        '你'
+      ) : entry.kind === 'working' && entry.agentId ? (
+        <PantheonAgentAvatar
+          agentId={entry.agentId}
+          className="pantheon-shared-agent-avatar"
+          status="running"
+        />
+      ) : entry.agentId ? (
+        <PantheonAgentAvatar
+          agentId={entry.agentId}
+          className="pantheon-shared-agent-avatar"
+          status={entry.streaming || (entry.kind === 'agent' && entry.agentId && speakingAgentIds.has(entry.agentId)) ? 'running' : 'finished'}
+        />
+      ) : entry.kind === 'topic'
+        ? '你'
+        : entry.kind === 'warning'
+          ? <WarningOutlined />
+          : entry.kind === 'live'
+            ? <span className="pantheon-live-dot" />
+            : <TeamOutlined />}
+    </span>
+    <div className="pantheon-shared-copy">
+      <header>
+        <strong>{entry.label}</strong>
+        <DiscussionActBadge
+          act={entry.discussionAct}
+          testId={`pantheon-discussion-act-${entry.id}`}
+        />
+        {(entry.kind === 'live' || entry.streaming || entry.kind === 'working') && (
+          <span className="pantheon-streaming-state">
+            {entry.streaming ? '正在发言' : entry.kind === 'working' ? '正在工作' : '正在发生'}
+          </span>
+        )}
+        {entry.kind === 'agent' && entry.durationMs ? (
+          <span className="pantheon-shared-entry-duration">
+            用时 {(entry.durationMs / 1000).toFixed(1)}s
+          </span>
+        ) : null}
+        <time>{entry.at === Number.MAX_SAFE_INTEGER ? '现在' : formatClock(entry.at)}</time>
+      </header>
+      {entry.kind === 'agent' ? (
+        <SharedAgentBody
+          entry={entry}
+          foldedMap={foldedMap}
+          onFold={onFold}
+        />
+      ) : (
+        <p>{entry.text}</p>
+      )}
+      {entry.kind === 'agent' && (
+        <DiscussionActDetail
+          targetContributionId={entry.targetContributionId}
+          targetIssueId={entry.targetIssueId}
+          challengedClaim={entry.challengedClaim}
+          responseVerdict={entry.responseVerdict}
+        />
+      )}
+      {entry.meta && entry.kind !== 'agent' && <small>{entry.meta}</small>}
+    </div>
+  </article>
+)
+
 const ATTESTATION_META: Record<string, { label: string; icon: React.ReactNode }> = {
   support: { label: '支持', icon: <CheckCircleFilled aria-hidden /> },
   conditional: { label: '有条件支持', icon: <ClockCircleOutlined aria-hidden /> },
@@ -1209,6 +1315,99 @@ const AgentDetailPanel: React.FC<{
   )
 }
 
+const AgentWindowWall: React.FC<{
+  participants: PantheonParticipant[]
+  outputsByAgent: Map<string, DiscussionOutput[]>
+  tracesByAgent: Map<string, ToolTraceView[]>
+  speakingAgentIds: Set<string>
+  selectedAgentId: string
+  clockNow: number
+  onSelect: (agentId: string, trigger: HTMLElement) => void
+}> = ({
+  participants,
+  outputsByAgent,
+  tracesByAgent,
+  speakingAgentIds,
+  selectedAgentId,
+  clockNow,
+  onSelect,
+}) => (
+  <section className="pantheon-agent-windows" aria-labelledby="pantheon-agent-windows-title">
+    <header className="pantheon-agent-windows-head">
+      <div>
+        <span className="pantheon-eyebrow">席位视图</span>
+        <h3 id="pantheon-agent-windows-title">各席独立窗口</h3>
+        <p>公开观点按席位归拢；推理与工具调用在展开详情后查看。</p>
+      </div>
+      <span>{participants.length} 席</span>
+    </header>
+    <div className="pantheon-agent-window-grid">
+      {participants.map((participant, index) => {
+        const outputs = outputsByAgent.get(participant.agentId) ?? []
+        const traces = tracesByAgent.get(participant.agentId) ?? []
+        const latest = outputs[outputs.length - 1]
+        const active = speakingAgentIds.has(participant.agentId)
+        const selected = selectedAgentId === participant.agentId
+        return (
+          <button
+            key={participant.agentId}
+            type="button"
+            className={`pantheon-agent-window${active ? ' is-running' : ''}${selected ? ' is-selected' : ''}`}
+            data-testid={`pantheon-agent-window-${participant.agentId}`}
+            aria-expanded={selected}
+            aria-controls="pantheon-agent-detail"
+            aria-label={`${participant.name}，${seatStatusText(participant, clockNow)}，${outputs.length} 条观点，${traces.length} 次工具调用，打开独立窗口`}
+            style={{
+              '--agent-accent': AGENT_ACCENTS[participant.agentId] || 'var(--pantheon-accent)',
+              '--window-order': index,
+            } as React.CSSProperties}
+            onClick={(event) => onSelect(participant.agentId, event.currentTarget)}
+          >
+            <span className="pantheon-agent-window-head">
+              <PantheonAgentAvatar
+                agentId={participant.agentId}
+                className="pantheon-agent-window-avatar"
+                status={active ? 'running' : avatarStatus(participant.status)}
+              />
+              <span>
+                <strong>{participant.name}</strong>
+                <small>
+                  {active && <span className="pantheon-live-dot" aria-hidden />}
+                  {seatStatusText(participant, clockNow)}
+                </small>
+              </span>
+              <span className="pantheon-agent-window-open">
+                {selected ? '已展开' : '打开'}
+              </span>
+            </span>
+            <span className="pantheon-agent-window-body">
+              {latest ? (
+                <>
+                  <small>
+                    第 {Math.max(1, latest.round)} 轮
+                    {latest.streaming ? ' · 正在输出' : ''}
+                  </small>
+                  <span>{windowPreviewText(latest.text)}</span>
+                </>
+              ) : (
+                <>
+                  <small>尚无公开观点</small>
+                  <span>{active ? '正在处理本轮任务。' : '该席位还没有返回可展示的观点。'}</span>
+                </>
+              )}
+            </span>
+            <span className="pantheon-agent-window-foot">
+              <span>观点 {outputs.length}</span>
+              <span>工具 {traces.length}</span>
+              <span>{agentCapabilityLabel(participant.agentId)}</span>
+            </span>
+          </button>
+        )
+      })}
+    </div>
+  </section>
+)
+
 export const PantheonRecord: React.FC<Props> = ({
   session,
   loading,
@@ -1246,15 +1445,38 @@ export const PantheonRecord: React.FC<Props> = ({
   const streamRef = useRef<HTMLDivElement>(null)
   const detailRef = useRef<HTMLElement>(null)
   const detailTriggerRef = useRef<HTMLElement | null>(null)
+  const viewTabsRef = useRef<HTMLElement>(null)
+  const conclusionRef = useRef<HTMLDivElement>(null)
   // 用户中途评论（2026-11-03）：running/waiting_input 皆可发言，不打断当前席位。
   const [noteDraft, setNoteDraft] = useState('')
   const [noteSending, setNoteSending] = useState(false)
   const [selectedAgentId, setSelectedAgentId] = useState('')
   const [detailTab, setDetailTab] = useState<'output' | 'trace'>('output')
   const [metaOpen, setMetaOpen] = useState(false)
+  const [conclusionPreviewOpen, setConclusionPreviewOpen] = useState(false)
+  const [recordView, setRecordView] = useState<RecordView>(() =>
+    session.status === 'running' || session.status === 'waiting_input' ? 'topology' : 'shared',
+  )
   const [foldedEntries, setFoldedEntries] = useState<Record<string, boolean>>({})
+  const [roundOpenState, setRoundOpenState] = useState<Record<string, boolean>>({})
   const toggleFolded = useCallback((id: string, folded: boolean) => {
     setFoldedEntries((current) => ({ ...current, [id]: folded }))
+  }, [])
+  const setRoundOpen = useCallback((key: string, open: boolean) => {
+    setRoundOpenState((current) => (
+      current[key] === open ? current : { ...current, [key]: open }
+    ))
+  }, [])
+  const switchRecordView = useCallback((view: RecordView) => {
+    setRecordView(view)
+    setSelectedAgentId('')
+    window.requestAnimationFrame(() => {
+      const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+      viewTabsRef.current?.scrollIntoView({
+        block: 'start',
+        behavior: reduce ? 'auto' : 'smooth',
+      })
+    })
   }, [])
 
   const participants = useMemo<PantheonParticipant[]>(() => {
@@ -1480,7 +1702,21 @@ export const PantheonRecord: React.FC<Props> = ({
     (session.status === 'failed' || session.status === 'cancelled' || session.status === 'interrupted')
   const showFailureRecovery = !stalled && (runningFailure || terminalRecoverable)
 
-  const completedCount = participants.filter((participant) => participant.status === 'finished').length
+  const completedCount = participants.filter((participant) => seatReturnsResult(participant.status)).length
+  const runningSeatCount = participants.filter(
+    (participant) => speakingAgentIds.has(participant.agentId)
+      || participant.status === 'running'
+      || participant.status === 'retrying',
+  ).length
+  const waitingSeatCount = participants.filter(
+    (participant) => !speakingAgentIds.has(participant.agentId)
+      && (participant.status === 'waiting' || participant.status === 'needs_input'),
+  ).length
+  const failedSeatCount = participants.filter((participant) => participant.status === 'failed').length
+  const openIssueCount = (session.issues || []).filter((issue) => issue.status === 'open').length
+  const publicOutputCount = displayOutputs.filter(
+    (output) => output.phase !== 'user_note' && output.agentId !== 'user',
+  ).length
   const untilConsensus = Boolean(session.request.untilConsensus)
   const totalRounds = Math.max(1, Math.min(20, session.request.rounds || 2))
   const protocol = session.request.protocol
@@ -1500,6 +1736,21 @@ export const PantheonRecord: React.FC<Props> = ({
         { id: 'synthesis', label: '协作汇总', detail: '共识与分歧' },
       ], [totalRounds, untilConsensus])
   const activeRound = Math.max(1, Math.min(totalRounds, session.currentRound || 1))
+  const activeStartTimes = activeSpeakers
+    .map((participant) => agentStartedAt(participant))
+    .filter((startedAt) => startedAt > 0)
+  const activeStartedAt = activeStartTimes.length ? Math.min(...activeStartTimes) : 0
+  const activeNames = activeSpeakers.map((participant) => participant.name)
+  const phaseLabel = PHASE_LABEL[session.phase] || session.phase
+  const activityHeadline = session.status === 'waiting_input'
+    ? '等待你回应后继续'
+    : activeNames.length
+      ? `${joinNames(activeNames)} 正在${phaseLabel}`
+      : running
+        ? `正在${phaseLabel}，等待下一席位`
+        : session.status === 'completed'
+          ? '讨论已归档'
+          : meta.label
   const currentStepIndex = session.status === 'completed'
     ? discussionSteps.length
     : session.phase === 'preparing'
@@ -1574,6 +1825,8 @@ export const PantheonRecord: React.FC<Props> = ({
           PHASE_LABEL[event.phase] || event.phase,
         ].filter(Boolean).join(' · '),
         at: event.at,
+        round: event.round,
+        phaseLabel: PHASE_LABEL[event.phase] || event.phase,
       })
     }
 
@@ -1587,6 +1840,8 @@ export const PantheonRecord: React.FC<Props> = ({
           text: output.text,
           meta: output.round ? `第 ${output.round} 轮 · 全员可见，后续发言优先回应` : '全员可见，后续发言优先回应',
           at: output.at || session.updatedAt,
+          round: output.round,
+          phaseLabel: '用户插话',
           agentId: output.agentId,
         })
         continue
@@ -1602,6 +1857,9 @@ export const PantheonRecord: React.FC<Props> = ({
           output.durationMs ? `用时 ${(output.durationMs / 1000).toFixed(1)}s` : '',
         ].filter(Boolean).join(' · '),
         at: output.streaming ? Number.MAX_SAFE_INTEGER : output.at || session.updatedAt,
+        round: output.round,
+        phaseLabel: PHASE_LABEL[output.phase] || output.phase,
+        durationMs: output.durationMs,
         agentId: output.agentId,
         streaming: output.streaming,
         discussionAct: output.discussionAct,
@@ -1632,6 +1890,8 @@ export const PantheonRecord: React.FC<Props> = ({
           : `正在${PHASE_LABEL[session.phase] || '处理'}，暂无工具调用记录`,
         meta: `第 ${session.currentRound || 1} 轮 · 工具调用也是在工作`,
         at: Number.MAX_SAFE_INTEGER - 1,
+        round: session.currentRound || 1,
+        phaseLabel: PHASE_LABEL[session.phase] || session.phase,
         agentId: speaker.agentId,
       })
     }
@@ -1670,6 +1930,50 @@ export const PantheonRecord: React.FC<Props> = ({
     totalRounds,
     untilConsensus,
   ])
+
+  const latestSharedUpdate = useMemo(() => {
+    const ordered = [...sharedEntries].reverse()
+    return ordered.find((entry) => entry.kind === 'agent' || entry.kind === 'user')
+      || ordered.find((entry) => entry.kind === 'event' || entry.kind === 'warning')
+  }, [sharedEntries])
+
+  const sharedTimelineSections = useMemo<SharedTimelineSection[]>(() => {
+    const counts = new Map<string, number>()
+    for (const entry of sharedEntries) {
+      if (entry.kind !== 'agent' || !entry.phaseLabel) continue
+      const key = `${entry.round || 'phase'}:${entry.phaseLabel}`
+      counts.set(key, (counts.get(key) || 0) + 1)
+    }
+    const sections: SharedTimelineSection[] = [{
+      key: 'shared-prelude',
+      entries: [],
+    }]
+    let currentSection = sections[0]
+    let currentGroup = ''
+    for (const entry of sharedEntries) {
+      const groupKey = entry.kind === 'agent' && entry.phaseLabel
+        ? `${entry.round || 'phase'}:${entry.phaseLabel}`
+        : ''
+      if (groupKey && groupKey !== currentGroup) {
+        currentGroup = groupKey
+        currentSection = {
+          key: `${groupKey}:${sections.length}`,
+          heading: {
+            round: entry.round,
+            phase: entry.phaseLabel || '讨论',
+            count: counts.get(groupKey) || 1,
+          },
+          entries: [],
+        }
+        sections.push(currentSection)
+      }
+      currentSection.entries.push(entry)
+    }
+    return sections.filter((section) => section.entries.length > 0)
+  }, [sharedEntries])
+  const latestTimelineSectionKey = [...sharedTimelineSections]
+    .reverse()
+    .find((section) => section.heading)?.key || ''
 
   const publicTimeline = useMemo(() => (
     [...session.events]
@@ -1750,7 +2054,7 @@ export const PantheonRecord: React.FC<Props> = ({
         <header className="pantheon-record-head">
           <div className="pantheon-record-title">
             <div className="pantheon-record-kicker">
-              <span className="pantheon-eyebrow">共享讨论纪要</span>
+              <span className="pantheon-eyebrow">议事纪要</span>
               <span>{PHASE_LABEL[session.phase] || session.phase}</span>
               {session.request.workspace && (
                 <span className="pantheon-record-workspace" title={session.request.workspace}>
@@ -1779,10 +2083,17 @@ export const PantheonRecord: React.FC<Props> = ({
               <Button
                 type="text"
                 icon={<InfoCircleOutlined />}
-                aria-expanded={metaOpen}
+                aria-expanded={metaOpen && recordView === 'ledger'}
                 aria-controls="pantheon-meta"
                 data-testid="pantheon-meta-toggle"
-                onClick={() => setMetaOpen((current) => !current)}
+                onClick={() => {
+                  if (!metaOpen || recordView !== 'ledger') {
+                    setMetaOpen(true)
+                    switchRecordView('ledger')
+                    return
+                  }
+                  setMetaOpen(false)
+                }}
               >
                 讨论信息
               </Button>
@@ -1977,9 +2288,65 @@ export const PantheonRecord: React.FC<Props> = ({
           })}
         </ol>
 
-        <IssueLedger issues={session.issues} reviews={session.verdict?.issueReviews} />
+        <nav ref={viewTabsRef} className="pantheon-record-tabs" aria-label="纪要视图">
+          <button
+            type="button"
+            className={recordView === 'topology' ? 'is-active' : ''}
+            aria-pressed={recordView === 'topology'}
+            aria-controls="pantheon-panel-topology"
+            data-testid="pantheon-view-topology"
+            onClick={() => switchRecordView('topology')}
+          >
+            <NodeIndexOutlined aria-hidden />
+            <span>拓扑图</span>
+            <small>{participants.length} 席</small>
+          </button>
+          <button
+            type="button"
+            className={recordView === 'shared' ? 'is-active' : ''}
+            aria-pressed={recordView === 'shared'}
+            aria-controls="pantheon-panel-shared"
+            data-testid="pantheon-view-shared"
+            onClick={() => switchRecordView('shared')}
+          >
+            <CommentOutlined aria-hidden />
+            <span>共享窗口</span>
+            <small>{sharedEntries.length} 条</small>
+          </button>
+          <button
+            type="button"
+            className={recordView === 'agents' ? 'is-active' : ''}
+            aria-pressed={recordView === 'agents'}
+            aria-controls="pantheon-panel-agents"
+            data-testid="pantheon-view-agents"
+            onClick={() => switchRecordView('agents')}
+          >
+            <TeamOutlined aria-hidden />
+            <span>Agent 窗口</span>
+            <small>{participants.length} 席</small>
+          </button>
+          <button
+            type="button"
+            className={recordView === 'ledger' ? 'is-active' : ''}
+            aria-pressed={recordView === 'ledger'}
+            aria-controls="pantheon-panel-ledger"
+            data-testid="pantheon-view-ledger"
+            onClick={() => switchRecordView('ledger')}
+          >
+            <FileTextOutlined aria-hidden />
+            <span>分歧台账</span>
+            <small>{session.issues?.length || 0} 条</small>
+          </button>
+        </nav>
 
-        {metaOpen && (
+        <div
+          id="pantheon-panel-ledger"
+          className="pantheon-ledger-view"
+          hidden={recordView !== 'ledger'}
+        >
+          <IssueLedger issues={session.issues} reviews={session.verdict?.issueReviews} />
+
+          {metaOpen && (
           <section
             className="pantheon-meta-disclosure"
             id="pantheon-meta"
@@ -2131,9 +2498,15 @@ export const PantheonRecord: React.FC<Props> = ({
               </div>
             </div>
           </section>
-        )}
+          )}
+        </div>
 
-        <section className="pantheon-team-map" aria-labelledby="pantheon-team-map-title">
+        <section
+          id="pantheon-panel-topology"
+          className="pantheon-team-map"
+          aria-labelledby="pantheon-team-map-title"
+          hidden={recordView !== 'topology'}
+        >
           <header className="pantheon-team-map-head">
             <div>
               <span className="pantheon-eyebrow">团队协作拓扑</span>
@@ -2179,18 +2552,71 @@ export const PantheonRecord: React.FC<Props> = ({
               </svg>
             </div>
 
-            <div className="pantheon-topology-hub">
+            <button
+              type="button"
+              className="pantheon-topology-hub"
+              aria-label={[
+                '打开共享讨论窗口',
+                activityHeadline,
+                `${completedCount} / ${participants.length} 位已返回`,
+                `${runningSeatCount} 位处理中`,
+                waitingSeatCount > 0 ? `${waitingSeatCount} 位候场` : '',
+                failedSeatCount > 0 ? `${failedSeatCount} 位失败` : '',
+                `${publicOutputCount} 条公开观点`,
+                `${toolTraces.length} 次工具调用`,
+                openIssueCount > 0 ? `${openIssueCount} 项分歧待收口` : '',
+              ].filter(Boolean).join('，')}
+              aria-controls="pantheon-panel-shared"
+              data-testid="pantheon-open-shared"
+              onClick={() => switchRecordView('shared')}
+            >
               <span className="pantheon-topology-hub-icon" aria-hidden>
                 <TeamOutlined />
               </span>
-              <span>
-                <strong>共享讨论</strong>
-                <small>
-                  {running && <span className="pantheon-live-dot" aria-hidden />}
-                  {PHASE_LABEL[session.phase] || session.phase}
-                </small>
+              <span className="pantheon-topology-hub-content">
+                <span className="pantheon-topology-hub-title">
+                  <strong>共享讨论</strong>
+                  <span className={`pantheon-topology-hub-state is-${session.status}`}>
+                    {running && <span className="pantheon-live-dot" aria-hidden />}
+                    {meta.label}
+                  </span>
+                </span>
+                <span className={`pantheon-topology-hub-current${activeNames.length ? ' is-live' : ''}`}>
+                  {activeNames.length ? `当前：${activityHeadline}` : activityHeadline}
+                  {activeSpeakers.length === 1 && activeStartedAt > 0 && (
+                    <span className="pantheon-topology-hub-elapsed">
+                      工作 {formatElapsed(clockNow - activeStartedAt)}
+                    </span>
+                  )}
+                </span>
+                <span
+                  className="pantheon-topology-hub-latest"
+                  data-testid="pantheon-shared-card-latest"
+                >
+                  <small>最新</small>
+                  <span>
+                    {latestSharedUpdate
+                      ? `${latestSharedUpdate.label} · ${previewText(latestSharedUpdate.text)}`
+                      : '尚无共享发言；观点会按返回顺序进入主线程。'}
+                  </span>
+                </span>
+                <span className="pantheon-topology-hub-counts">
+                  <span><b>{completedCount}/{participants.length}</b> 已返回</span>
+                  {runningSeatCount > 0 && <span><b>{runningSeatCount}</b> 处理中</span>}
+                  {waitingSeatCount > 0 && <span><b>{waitingSeatCount}</b> 候场</span>}
+                  {failedSeatCount > 0 && <span className="is-warning"><b>{failedSeatCount}</b> 失败</span>}
+                  <span><b>{publicOutputCount}</b> 观点</span>
+                  <span><b>{toolTraces.length}</b> 工具</span>
+                  {openIssueCount > 0 && (
+                    <span className="is-warning"><b>{openIssueCount}</b> 待收口分歧</span>
+                  )}
+                </span>
+                <span className="pantheon-topology-hub-foot">
+                  <span>第 {activeRound} / {totalRounds} 轮 · {phaseLabel}</span>
+                  <span>打开共享窗口 →</span>
+                </span>
               </span>
-            </div>
+            </button>
 
             <div className="pantheon-topology-nodes">
               {participants.map((participant, index) => {
@@ -2199,8 +2625,32 @@ export const PantheonRecord: React.FC<Props> = ({
                 const facilitator = session.request.chairmanAgentId === participant.agentId
                 const outputs = outputsByAgent.get(participant.agentId) ?? []
                 const traces = tracesByAgent.get(participant.agentId) ?? []
+                const latestOutput = outputs[outputs.length - 1]
+                const latestTrace = traces[traces.length - 1]
                 const status = active ? 'running' : participant.status
                 const startedAt = agentStartedAt(participant)
+                const latestTarget = latestOutput?.targetContributionId
+                  ? displayOutputs.find((output) => output.id === latestOutput.targetContributionId)
+                  : undefined
+                const latestIssue = latestOutput?.targetIssueId
+                  ? session.issues?.find((issue) => issue.id === latestOutput.targetIssueId)
+                  : undefined
+                const latestTargetName = latestTarget?.agentName || latestIssue?.agentName
+                const latestAt = Math.max(
+                  latestOutput?.at || 0,
+                  latestTrace?.at || 0,
+                  participant.finishedAt || 0,
+                  startedAt,
+                )
+                const preview = latestOutput
+                  ? windowPreviewText(latestOutput.text)
+                  : participant.status === 'failed'
+                    ? participant.error || '本席调用失败，等待重试或跳过。'
+                    : participant.status === 'skipped'
+                      ? '本轮已跳过，保留此前观点。'
+                      : active
+                        ? `正在处理第 ${activeRound} 轮任务…`
+                        : '尚无公开观点。'
                 return (
                   <div
                     key={participant.agentId}
@@ -2230,6 +2680,7 @@ export const PantheonRecord: React.FC<Props> = ({
                         : '',
                       `${outputs.length} 条观点`,
                       `${traces.length} 次工具调用`,
+                      participant.version ? `版本 ${participant.version}` : '',
                       '点击查看独立输出',
                     ].filter(Boolean).join('，')}
                     title={`查看 ${participant.name} 的独立输出`}
@@ -2239,6 +2690,12 @@ export const PantheonRecord: React.FC<Props> = ({
                       '--node-order': index,
                     } as React.CSSProperties}
                   >
+                    {active && (
+                      <span className="pantheon-topology-current">
+                        <span className="pantheon-live-dot" aria-hidden />
+                        当前
+                      </span>
+                    )}
                     <span className="pantheon-topology-order">{String(index + 1).padStart(2, '0')}</span>
                     <PantheonAgentAvatar
                       agentId={participant.agentId}
@@ -2255,9 +2712,33 @@ export const PantheonRecord: React.FC<Props> = ({
                           : ` · ${agentCapabilityLabel(participant.agentId)}`}
                       </small>
                     </span>
+                    <span className="pantheon-topology-preview">
+                      <span className="pantheon-topology-preview-meta">
+                        <small>
+                          {latestOutput
+                            ? `第 ${Math.max(1, latestOutput.round)} 轮 · ${formatClock(latestOutput.at)}`
+                            : latestAt > 0
+                              ? `最后活动 ${formatClock(latestAt)}`
+                              : '等待活动'}
+                        </small>
+                        <DiscussionActBadge
+                          act={latestOutput?.discussionAct}
+                          testId={`pantheon-topology-act-${participant.agentId}`}
+                        />
+                        {latestTargetName && latestTargetName !== participant.name && (
+                          <span className="pantheon-topology-target">指向 {latestTargetName}</span>
+                        )}
+                      </span>
+                      <span>{preview}</span>
+                    </span>
                     <span className="pantheon-topology-metrics">
                       <span>观点 {outputs.length}</span>
                       <span>工具 {traces.length}</span>
+                      {participant.version && (
+                        <span className="pantheon-topology-version" title="Harness / 模型版本">
+                          {participant.version}
+                        </span>
+                      )}
                       {active && startedAt > 0 && (
                         <AgentElapsed
                           startedAt={startedAt}
@@ -2305,10 +2786,30 @@ export const PantheonRecord: React.FC<Props> = ({
           </div>
         </section>
 
+        <div
+          id="pantheon-panel-agents"
+          className="pantheon-agent-windows-panel"
+          hidden={recordView !== 'agents'}
+        >
+          {recordView === 'agents' && (
+            <AgentWindowWall
+              participants={participants}
+              outputsByAgent={outputsByAgent}
+              tracesByAgent={tracesByAgent}
+              speakingAgentIds={speakingAgentIds}
+              selectedAgentId={selectedAgentId}
+              clockNow={clockNow}
+              onSelect={selectAgent}
+            />
+          )}
+        </div>
+
         <section
+          id="pantheon-panel-shared"
           className={`pantheon-shared-dialogue${running ? ' is-live' : ''}`}
           aria-labelledby="pantheon-shared-title"
           data-testid="pantheon-shared-dialogue"
+          hidden={recordView !== 'shared'}
         >
           <header className="pantheon-shared-head">
             <div>
@@ -2329,6 +2830,162 @@ export const PantheonRecord: React.FC<Props> = ({
             </div>
           </header>
 
+          {session.verdict && (
+            <section
+              className={`pantheon-shared-verdict-preview${conclusionPreviewOpen ? ' is-open' : ''}`}
+              data-testid="pantheon-shared-conclusion-preview"
+            >
+              <button
+                type="button"
+                className="pantheon-shared-verdict-summary"
+                aria-expanded={conclusionPreviewOpen}
+                aria-controls="pantheon-shared-conclusion-preview-body"
+                data-testid="pantheon-shared-conclusion-toggle"
+                onClick={() => setConclusionPreviewOpen((current) => !current)}
+              >
+                <span className="pantheon-shared-verdict-seal" aria-hidden>
+                  {session.signoff ? '阅' : '记'}
+                </span>
+                <span className="pantheon-shared-verdict-copy">
+                  <small>
+                    共享结论 · {session.signoff ? '已记录' : '待你确认'}
+                    {session.verdict.partial ? ' · 信息不完整' : ''}
+                  </small>
+                  <strong title={session.verdict.recommendation}>
+                    {previewText(session.verdict.recommendation || '尚未形成明确的综合建议')}
+                  </strong>
+                </span>
+                <span className="pantheon-shared-verdict-action">
+                  {conclusionPreviewOpen ? '收起' : '预览'}
+                  <DownOutlined aria-hidden />
+                </span>
+              </button>
+              {conclusionPreviewOpen && (
+                <div
+                  id="pantheon-shared-conclusion-preview-body"
+                  className="pantheon-shared-verdict-body"
+                  data-testid="pantheon-shared-conclusion-body"
+                >
+                  {session.verdict.summary && <p>{session.verdict.summary}</p>}
+                  <div className="pantheon-shared-verdict-facts">
+                    {Boolean(session.verdict.proposedActions?.length) && (
+                      <span>{session.verdict.proposedActions?.length} 项行动提案</span>
+                    )}
+                    {Boolean(session.verdict.conditions?.length) && (
+                      <span>{session.verdict.conditions?.length} 项适用条件</span>
+                    )}
+                    {Boolean(session.verdict.disagreements?.length) && (
+                      <span>{session.verdict.disagreements?.length} 项保留分歧</span>
+                    )}
+                    {Boolean(session.verdict.risks?.length) && (
+                      <span>{session.verdict.risks?.length} 项风险</span>
+                    )}
+                    {Boolean(session.verdict.evidenceNotes?.length) && (
+                      <span>{session.verdict.evidenceNotes?.length} 条证据说明</span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="pantheon-shared-verdict-open"
+                    data-testid="pantheon-shared-conclusion-open"
+                    onClick={() => {
+                      const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+                      conclusionRef.current?.scrollIntoView({
+                        block: 'start',
+                        behavior: reduce ? 'auto' : 'smooth',
+                      })
+                    }}
+                  >
+                    查看完整结论
+                    <span aria-hidden>↓</span>
+                  </button>
+                </div>
+              )}
+            </section>
+          )}
+
+          <section
+            className={`pantheon-shared-context${activeNames.length ? ' is-live' : ''}`}
+            data-testid="pantheon-shared-context"
+            aria-label="共享窗口当前状态"
+          >
+            <div className="pantheon-shared-context-main">
+              <div className="pantheon-shared-context-lead" aria-live={running ? 'polite' : undefined}>
+                <span className="pantheon-shared-context-avatars" aria-hidden>
+                  {activeSpeakers.length > 0 ? (
+                    <>
+                      {activeSpeakers.slice(0, 2).map((participant) => (
+                        <PantheonAgentAvatar
+                          key={participant.agentId}
+                          agentId={participant.agentId}
+                          className="pantheon-shared-context-avatar"
+                          status="running"
+                        />
+                      ))}
+                      {activeSpeakers.length > 2 && (
+                        <span className="pantheon-shared-context-more">+{activeSpeakers.length - 2}</span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="pantheon-shared-context-mark">
+                      {session.status === 'completed' ? <CheckCircleFilled /> : <TeamOutlined />}
+                    </span>
+                  )}
+                </span>
+                <span className="pantheon-shared-context-copy">
+                  <small>{activeNames.length ? '当前 Agent' : running ? '协作状态' : '纪要状态'}</small>
+                  <strong>{activityHeadline}</strong>
+                </span>
+                {activeSpeakers.length === 1 && activeStartedAt > 0 && (
+                  <AgentElapsed
+                    startedAt={activeStartedAt}
+                    now={clockNow}
+                    className="pantheon-shared-context-elapsed"
+                    testId="pantheon-shared-current-elapsed"
+                  />
+                )}
+              </div>
+              <div className="pantheon-shared-context-meta">
+                <span>{phaseLabel}</span>
+                <span>{completedCount} / {participants.length} 已返回</span>
+                {openIssueCount > 0 && <span className="is-warning">{openIssueCount} 项分歧待收口</span>}
+              </div>
+            </div>
+            <div className="pantheon-shared-seats" aria-label="各 Agent 当前状态">
+              {participants.map((participant) => {
+                const active = speakingAgentIds.has(participant.agentId)
+                const status = active ? 'running' : participant.status
+                return (
+                  <button
+                    key={participant.agentId}
+                    type="button"
+                    className={`pantheon-shared-seat is-${status}${active ? ' is-current' : ''}`}
+                    data-testid={`pantheon-shared-seat-${participant.agentId}`}
+                    aria-current={active ? 'true' : undefined}
+                    aria-label={`${participant.name}，${seatStatusText(participant, clockNow)}，打开独立窗口`}
+                    style={{
+                      '--agent-accent': AGENT_ACCENTS[participant.agentId] || 'var(--pantheon-accent)',
+                    } as React.CSSProperties}
+                    onClick={(event) => selectAgent(participant.agentId, event.currentTarget)}
+                  >
+                    <PantheonAgentAvatar
+                      agentId={participant.agentId}
+                      className="pantheon-shared-seat-avatar"
+                      status={avatarStatus(status)}
+                    />
+                    <span>
+                      <strong>{participant.name}</strong>
+                      <small>
+                        {active && <span className="pantheon-live-dot" aria-hidden />}
+                        {seatStatusText(participant, clockNow)}
+                      </small>
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </section>
+
           <div
             ref={streamRef}
             className="pantheon-stream pantheon-shared-stream"
@@ -2337,74 +2994,69 @@ export const PantheonRecord: React.FC<Props> = ({
             aria-live={running ? 'polite' : undefined}
             aria-label="共享讨论消息"
           >
-            {sharedEntries.map((entry) => (
-              <article
-                key={entry.id}
-                className={`pantheon-shared-entry is-${entry.kind}${entry.streaming ? ' is-streaming' : ''}${entry.kind === 'agent' && entry.agentId && speakingAgentIds.has(entry.agentId) ? ' is-seat-speaking' : ''}`}
-                data-testid={`pantheon-shared-entry-${entry.id}`}
-                data-agent-id={entry.agentId}
-                style={entry.agentId ? {
-                  '--agent-accent': AGENT_ACCENTS[entry.agentId] || 'var(--pantheon-accent)',
-                } as React.CSSProperties : undefined}
-              >
-                <span className="pantheon-shared-avatar" aria-hidden>
-                  {entry.kind === 'user' ? (
-                    '你'
-                  ) : entry.kind === 'working' && entry.agentId ? (
-                    <PantheonAgentAvatar
-                      agentId={entry.agentId}
-                      className="pantheon-shared-agent-avatar"
-                      status="running"
-                    />
-                  ) : entry.agentId ? (
-                    <PantheonAgentAvatar
-                      agentId={entry.agentId}
-                      className="pantheon-shared-agent-avatar"
-                      status={entry.streaming || (entry.kind === 'agent' && entry.agentId && speakingAgentIds.has(entry.agentId)) ? 'running' : 'finished'}
-                    />
-                  ) : entry.kind === 'topic'
-                    ? '你'
-                    : entry.kind === 'warning'
-                      ? <WarningOutlined />
-                      : entry.kind === 'live'
-                        ? <span className="pantheon-live-dot" />
-                        : <TeamOutlined />}
-                </span>
-                <div className="pantheon-shared-copy">
-                  <header>
-                    <strong>{entry.label}</strong>
-                    <DiscussionActBadge
-                      act={entry.discussionAct}
-                      testId={`pantheon-discussion-act-${entry.id}`}
-                    />
-                    {(entry.kind === 'live' || entry.streaming || entry.kind === 'working') && (
-                      <span className="pantheon-streaming-state">
-                        {entry.streaming ? '正在发言' : entry.kind === 'working' ? '正在工作' : '正在发生'}
+            {sharedTimelineSections.map((section) => {
+              if (!section.heading) {
+                return (
+                  <section key={section.key} className="pantheon-shared-stage is-prelude">
+                    {section.entries.map((entry) => (
+                      <SharedTimelineEntry
+                        key={entry.id}
+                        entry={entry}
+                        speakingAgentIds={speakingAgentIds}
+                        foldedMap={foldedEntries}
+                        onFold={toggleFolded}
+                      />
+                    ))}
+                  </section>
+                )
+              }
+              const open = roundOpenState[section.key]
+                ?? section.key === latestTimelineSectionKey
+              return (
+                <details
+                  key={section.key}
+                  className={`pantheon-shared-stage is-round${open ? ' is-open' : ''}`}
+                  data-testid={`pantheon-shared-stage-${section.heading.round || 'phase'}-${section.heading.phase}`}
+                  open={open}
+                >
+                  <summary
+                    className="pantheon-shared-round"
+                    aria-label={`${section.heading.round ? `第 ${section.heading.round} 轮，` : ''}${section.heading.phase}，共 ${section.heading.count} 条发言，${open ? '收起' : '展开'}`}
+                    onClick={(event) => {
+                      event.preventDefault()
+                      setRoundOpen(section.key, !open)
+                    }}
+                  >
+                    <span className="pantheon-shared-round-marker" aria-hidden>
+                      {section.heading.round ? String(section.heading.round).padStart(2, '0') : '汇'}
+                    </span>
+                    <span className="pantheon-shared-round-copy">
+                      <strong>
+                        {section.heading.round ? `第 ${section.heading.round} 轮` : section.heading.phase}
+                      </strong>
+                      <span>
+                        {section.heading.round ? section.heading.phase : '阶段小结'} · {section.heading.count} 条发言
                       </span>
-                    )}
-                    <time>{entry.at === Number.MAX_SAFE_INTEGER ? '现在' : formatClock(entry.at)}</time>
-                  </header>
-                  {entry.kind === 'agent' ? (
-                    <SharedAgentBody
-                      entry={entry}
-                      foldedMap={foldedEntries}
-                      onFold={toggleFolded}
-                    />
-                  ) : (
-                    <p>{entry.text}</p>
-                  )}
-                  {entry.kind === 'agent' && (
-                    <DiscussionActDetail
-                      targetContributionId={entry.targetContributionId}
-                      targetIssueId={entry.targetIssueId}
-                      challengedClaim={entry.challengedClaim}
-                      responseVerdict={entry.responseVerdict}
-                    />
-                  )}
-                  {entry.meta && <small>{entry.meta}</small>}
-                </div>
-              </article>
-            ))}
+                    </span>
+                    <span className="pantheon-shared-round-toggle">
+                      {open ? '收起' : '展开'}
+                      <DownOutlined aria-hidden />
+                    </span>
+                  </summary>
+                  <div className="pantheon-shared-stage-body">
+                    {section.entries.map((entry) => (
+                      <SharedTimelineEntry
+                        key={entry.id}
+                        entry={entry}
+                        speakingAgentIds={speakingAgentIds}
+                        foldedMap={foldedEntries}
+                        onFold={toggleFolded}
+                      />
+                    ))}
+                  </div>
+                </details>
+              )
+            })}
           </div>
 
           {(running || session.status === 'waiting_input') && (
@@ -2438,7 +3090,7 @@ export const PantheonRecord: React.FC<Props> = ({
           )}
 
           {!running && (
-            <div className="pantheon-record-body" aria-label="讨论小结">
+            <div ref={conclusionRef} className="pantheon-record-body" aria-label="讨论小结">
               <ConclusionPanel
                 session={session}
                 busy={busy}

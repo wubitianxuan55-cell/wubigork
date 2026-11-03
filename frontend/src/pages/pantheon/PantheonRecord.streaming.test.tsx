@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { PantheonRecord } from './PantheonRecord'
 import type { PantheonContribution, PantheonLiveStream, PantheonSession } from './types'
 
@@ -131,6 +131,24 @@ describe('PantheonRecord streaming', () => {
     expect(node.getAttribute('aria-current')).toBe('true')
     expect(node.textContent).toContain('观点 1')
     expect(screen.getByTestId('pantheon-agent-elapsed-grok').textContent).toMatch(/工作 00:\d{2}/)
+
+    const sharedCard = screen.getByTestId('pantheon-open-shared')
+    expect(sharedCard.textContent).toContain('Grok 正在开场陈述')
+    expect(sharedCard.textContent).toContain('0/2 已返回')
+    expect(sharedCard.textContent).toContain('1 处理中')
+    expect(sharedCard.textContent).toContain('1 观点')
+    expect(screen.getByTestId('pantheon-shared-card-latest').textContent)
+      .toContain('Grok · 我正在补充一个关键判断')
+
+    const sharedContext = screen.getByTestId('pantheon-shared-context')
+    expect(sharedContext.textContent).toContain('当前 Agent')
+    expect(sharedContext.textContent).toContain('Grok 正在开场陈述')
+    expect(screen.getByTestId('pantheon-shared-seat-codex').textContent).toContain('候场')
+    const firstRound = document.querySelector('.pantheon-shared-round')
+    expect(firstRound?.textContent).toContain('第 1 轮')
+    expect(firstRound?.textContent).toContain('开场陈述 · 1 条发言')
+    expect(firstRound?.querySelector('.pantheon-shared-round-marker')?.textContent).toBe('01')
+
     fireEvent.click(screen.getByTestId('pantheon-skip-current'))
     expect(onSkipAgent).toHaveBeenCalledWith('grok')
 
@@ -141,6 +159,207 @@ describe('PantheonRecord streaming', () => {
     expect(detail.textContent).toContain('正在输出')
     expect(detail.querySelector('.pantheon-stream-caret')).toBeTruthy()
     expect(detail.textContent).toContain('推理过程与工具调用不会写入中央共享讨论')
+  })
+
+  it('拓扑节点补齐讨论动作、关联席位、版本与工具证据', () => {
+    const topicContribution: PantheonContribution = {
+      id: 'contribution_grok_claim',
+      phase: 'opening',
+      round: 1,
+      agentId: 'grok',
+      agentName: 'Grok',
+      content: '先做可中止的只读验证。',
+      discussionAct: 'claim',
+      createdAt: now - 9000,
+    }
+    const responseContribution: PantheonContribution = {
+      id: 'contribution_codex_reinforce',
+      phase: 'discussion',
+      round: 2,
+      agentId: 'codex',
+      agentName: 'Codex',
+      content: '补一条单 Agent 基线，避免把讨论形式当成质量增益。',
+      discussionAct: 'reinforce',
+      targetContributionId: topicContribution.id,
+      createdAt: now - 2000,
+    }
+
+    renderRecord({
+      contributions: [topicContribution, responseContribution],
+      sessionOverrides: {
+        currentRound: 2,
+        participants: [
+          {
+            ...session.participants[0],
+            version: 'grok-4.1',
+            status: 'finished',
+            finishedAt: now - 8000,
+          },
+          {
+            ...session.participants[1],
+            version: 'codex-cli-0.165',
+            status: 'finished',
+            finishedAt: now - 1000,
+          },
+        ],
+        events: [
+          session.events[0],
+          {
+            seq: 2,
+            sessionId: session.id,
+            phase: 'discussion',
+            round: 2,
+            agentId: 'codex',
+            kind: 'tool_started',
+            toolId: 'tool-codex-1',
+            toolName: 'rg',
+            toolStatus: 'started',
+            at: now - 3000,
+          },
+        ],
+      },
+    })
+
+    const codex = screen.getByTestId('pantheon-topology-node-codex')
+    expect(codex.textContent).toContain('第 2 轮')
+    expect(codex.textContent).toContain('补强')
+    expect(codex.textContent).toContain('指向 Grok')
+    expect(codex.textContent).toContain('codex-cli-0.165')
+    expect(codex.textContent).toContain('工具 1')
+
+    const sharedCard = screen.getByTestId('pantheon-open-shared')
+    expect(sharedCard.textContent).toContain('2/2 已返回')
+    expect(sharedCard.textContent).toContain('2 观点')
+    expect(sharedCard.textContent).toContain('1 工具')
+    expect(screen.getByTestId('pantheon-shared-card-latest').textContent)
+      .toContain('Codex · 补一条单 Agent 基线')
+    expect(document.querySelectorAll('.pantheon-shared-round')).toHaveLength(2)
+    expect(document.querySelectorAll('.pantheon-shared-entry.is-agent small')).toHaveLength(0)
+  })
+
+  it('无轮次的协作汇总仍有阶段标题，不出现多余的 0 轮', () => {
+    renderRecord({
+      contributions: [{
+        id: 'contribution_grok_synthesis',
+        phase: 'synthesis',
+        agentId: 'grok',
+        agentName: 'Grok',
+        content: '各席已形成共同结论。',
+        createdAt: now,
+      }],
+    })
+
+    const headings = document.querySelectorAll('.pantheon-shared-round')
+    expect(headings).toHaveLength(1)
+    expect(headings[0].querySelector('.pantheon-shared-round-copy')?.textContent)
+      .toBe('协作汇总阶段小结 · 1 条发言')
+  })
+
+  it('共享时间线默认展开最新轮次，并可按轮次收起展开', async () => {
+    renderRecord({
+      contributions: [
+        {
+          id: 'contribution_grok_round_1',
+          phase: 'opening',
+          round: 1,
+          agentId: 'grok',
+          agentName: 'Grok',
+          content: '第一轮发言。',
+          createdAt: now - 2000,
+        },
+        {
+          id: 'contribution_codex_round_2',
+          phase: 'discussion',
+          round: 2,
+          agentId: 'codex',
+          agentName: 'Codex',
+          content: '第二轮发言。',
+          createdAt: now - 1000,
+        },
+      ],
+    })
+
+    const rounds = Array.from(document.querySelectorAll('details.pantheon-shared-stage'))
+    expect(rounds).toHaveLength(2)
+    const [firstRound, secondRound] = rounds
+    expect(firstRound.hasAttribute('open')).toBe(false)
+    expect(secondRound.hasAttribute('open')).toBe(true)
+
+    fireEvent.click(firstRound.querySelector('summary')!)
+    await waitFor(() => expect(firstRound.hasAttribute('open')).toBe(true))
+
+    fireEvent.click(firstRound.querySelector('summary')!)
+    await waitFor(() => expect(firstRound.hasAttribute('open')).toBe(false))
+  })
+
+  it('共享结论在时间线上方提供摘要预览和完整结论入口', () => {
+    renderRecord({
+      sessionOverrides: {
+        status: 'completed',
+        phase: 'completed',
+        verdict: {
+          summary: '各席认可先做可逆验证，但周期仍有分歧。',
+          recommendation: '先完成小范围验证，再决定是否扩大。',
+          conditions: ['只读运行'],
+          disagreements: ['验证周期仍待对照'],
+          risks: ['样本不足'],
+          evidenceNotes: ['已有基线记录'],
+          proposedActions: [{
+            id: 'action-preview',
+            action: '完成单席与多席对照',
+          }],
+          chairman: 'grok',
+          partial: false,
+          createdAt: now,
+        },
+      },
+    })
+
+    const preview = screen.getByTestId('pantheon-shared-conclusion-preview')
+    const toggle = screen.getByTestId('pantheon-shared-conclusion-toggle')
+    expect(preview.textContent).toContain('先完成小范围验证，再决定是否扩大。')
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByTestId('pantheon-shared-conclusion-body')).toBeNull()
+
+    fireEvent.click(toggle)
+    const body = screen.getByTestId('pantheon-shared-conclusion-body')
+    expect(body.textContent).toContain('各席认可先做可逆验证，但周期仍有分歧。')
+    expect(body.textContent).toContain('1 项行动提案')
+    expect(body.textContent).toContain('1 项保留分歧')
+    expect(screen.getByTestId('pantheon-shared-conclusion-open').textContent)
+      .toContain('查看完整结论')
+  })
+
+  it('拓扑、共享、各席窗口与台账都有稳定一级入口', () => {
+    renderRecord({ liveStreams })
+
+    const topology = document.getElementById('pantheon-panel-topology') as HTMLElement
+    const shared = document.getElementById('pantheon-panel-shared') as HTMLElement
+    const agents = document.getElementById('pantheon-panel-agents') as HTMLElement
+    const ledger = document.getElementById('pantheon-panel-ledger') as HTMLElement
+    expect(topology.hidden).toBe(false)
+    expect(shared.hidden).toBe(true)
+    expect(agents.hidden).toBe(true)
+
+    fireEvent.click(screen.getByTestId('pantheon-open-shared'))
+    expect(topology.hidden).toBe(true)
+    expect(shared.hidden).toBe(false)
+
+    fireEvent.click(screen.getByTestId('pantheon-view-topology'))
+    expect(topology.hidden).toBe(false)
+    expect(shared.hidden).toBe(true)
+
+    fireEvent.click(screen.getByTestId('pantheon-view-agents'))
+    expect(shared.hidden).toBe(true)
+    expect(agents.hidden).toBe(false)
+    expect(screen.getByTestId('pantheon-agent-window-grok').textContent)
+      .toContain('我正在补充一个关键判断')
+    fireEvent.click(screen.getByTestId('pantheon-agent-window-grok'))
+    expect(screen.getByTestId('pantheon-agent-detail')).toBeTruthy()
+
+    fireEvent.click(screen.getByTestId('pantheon-view-ledger'))
+    expect(agents.hidden).toBe(true)
+    expect(ledger.hidden).toBe(false)
   })
 
   it('讨论动作、目标论证与回应结论在共享流和台账中都可定位', () => {
@@ -222,7 +441,9 @@ describe('PantheonRecord streaming', () => {
       },
     })
     expect(screen.getByText('停止空转')).toBeTruthy()
-    expect(screen.getByText(/没有新的可执行核验动作/)).toBeTruthy()
+    expect(
+      within(screen.getByTestId('pantheon-stream')).getByText(/没有新的可执行核验动作/),
+    ).toBeTruthy()
   })
 
   it('行动提案只读展示依赖、验收与风险', () => {

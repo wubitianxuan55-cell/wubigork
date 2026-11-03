@@ -194,10 +194,13 @@ type StartRequest struct {
 
 type Participant struct {
 	CallRef
-	AgentID    string `json:"agentId"`
-	Name       string `json:"name"`
-	Role       string `json:"role"`
-	Status     string `json:"status"`
+	AgentID string `json:"agentId"`
+	Name    string `json:"name"`
+	Role    string `json:"role"`
+	Status  string `json:"status"`
+	// Version 是开场探针当时看到的 Harness 版本；Grok 席位记录实际模型名。
+	// 对照实验必须在当时固定并留下证据，不能事后用“当前版本”回填历史。
+	Version    string `json:"version,omitempty"`
 	StartedAt  int64  `json:"startedAt,omitempty"`
 	FinishedAt int64  `json:"finishedAt,omitempty"`
 	DurationMs int64  `json:"durationMs,omitempty"`

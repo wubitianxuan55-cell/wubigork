@@ -1,8 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { Modal } from 'antd'
 import PantheonPage from './PantheonPage'
-import type { PantheonAgentStatus, PantheonEvent, PantheonSession } from './pantheon/types'
+import type {
+  PantheonAgentStatus,
+  PantheonEvaluationReport,
+  PantheonEvent,
+  PantheonSession,
+} from './pantheon/types'
 
 const mocks = vi.hoisted(() => ({
   agents: vi.fn<() => Promise<PantheonAgentStatus[]>>(),
@@ -10,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   workspaces: vi.fn(),
   pickWorkspace: vi.fn(),
   list: vi.fn(),
+  evaluation: vi.fn<(minCases: number) => Promise<PantheonEvaluationReport>>(),
   get: vi.fn(),
   start: vi.fn(),
   cancel: vi.fn(),
@@ -44,6 +50,7 @@ vi.mock('../gaea/lib/bridge', () => ({
     PantheonWorkspaces: mocks.workspaces,
     PantheonPickWorkspace: mocks.pickWorkspace,
     PantheonList: mocks.list,
+    PantheonEvaluation: mocks.evaluation,
     PantheonGet: mocks.get,
     PantheonStart: mocks.start,
     PantheonCancel: mocks.cancel,
@@ -80,6 +87,74 @@ const AGENTS: PantheonAgentStatus[] = [
     capabilities: ['shared-image-summary'],
   },
 ]
+
+function evaluationFixture(overrides: Partial<PantheonEvaluationReport> = {}): PantheonEvaluationReport {
+  return {
+    generatedAt: Date.now(),
+    requiredCases: 20,
+    caseCount: 1,
+    qualifiedCases: 0,
+    requiredVariants: ['single', 'independent_synthesis', 'roundtable', 'targeted_challenge'],
+    unsupportedVariants: ['fixed_vote'],
+    gateReady: false,
+    variants: [{
+      variant: 'roundtable',
+      sessions: 1,
+      completedSessions: 1,
+      signedOffSessions: 0,
+      acceptedSessions: 0,
+      avgRounds: 2,
+      avgWallDurationMs: 20_000,
+      avgCalls: 8,
+      gapSessions: 0,
+      dissentIssues: 2,
+    }],
+    cases: [{
+      key: 'case_evalfixture',
+      title: '工作流 A 与工作流 B 的取舍',
+      variants: ['roundtable'],
+      completedVariants: ['roundtable'],
+      missingVariants: ['single', 'independent_synthesis', 'targeted_challenge'],
+    }],
+    runs: [{
+      sessionId: 'pan_eval',
+      caseKey: 'case_evalfixture',
+      title: '工作流 A 与工作流 B 的取舍',
+      variant: 'roundtable',
+      status: 'completed',
+      protocol: 'independent',
+      preset: 'roundtable',
+      agentIds: ['grok', 'codex'],
+      runtimeVersions: { grok: 'grok-4', codex: '1.0' },
+      participantCount: 2,
+      versionedParticipants: 2,
+      expectedRounds: 2,
+      actualRounds: 2,
+      callCount: 8,
+      retryCount: 0,
+      errorCount: 0,
+      toolCallCount: 0,
+      wallDurationMs: 20_000,
+      agentDurationMs: 16_000,
+      gapCount: 0,
+      discussionCount: 4,
+      evidenceHandledCount: 1,
+      unverifiedMentions: 1,
+      userNoteCount: 0,
+      issueCount: 2,
+      resolvedIssueCount: 0,
+      dissentIssueCount: 2,
+      attestationCount: 0,
+      unknownAttestations: 0,
+      createdAt: Date.now() - 30_000,
+    }],
+    warnings: [
+      '有效对照仅 0/20 个议题。',
+      'Token 与费用未入档，本报告不输出成本结论。',
+    ],
+    ...overrides,
+  }
+}
 
 function sessionFixture(overrides: Partial<PantheonSession> = {}): PantheonSession {
   const now = Date.now()
@@ -136,6 +211,7 @@ describe('PantheonPage', () => {
     ])
     mocks.pickWorkspace.mockResolvedValue('')
     mocks.list.mockResolvedValue([])
+    mocks.evaluation.mockResolvedValue(evaluationFixture())
     mocks.get.mockResolvedValue(sessionFixture())
     mocks.start.mockResolvedValue(sessionFixture())
     mocks.cancel.mockResolvedValue(undefined)
@@ -170,18 +246,39 @@ describe('PantheonPage', () => {
     expect(screen.getByTestId('pantheon-agent-dsh')).toBeTruthy()
   })
 
+  it('协议对照从档案栏进入，展示门禁并可直接发起对照议题', async () => {
+    render(<PantheonPage />)
+    await screen.findByRole('heading', { name: /在讨论中彼此补强/ })
+
+    fireEvent.click(screen.getByTestId('pantheon-evaluation-open'))
+
+    expect(await screen.findByRole('heading', { name: '协议对照' })).toBeTruthy()
+    expect(mocks.evaluation).toHaveBeenCalledWith(20)
+    expect(screen.getByTestId('pantheon-evaluation-gate').textContent).toContain('0')
+    expect(screen.getByTestId('pantheon-evaluation-gate').textContent).toContain('20')
+    expect(screen.getByTestId('pantheon-evaluation-variants').textContent).toContain('单席直答')
+    expect(screen.getByTestId('pantheon-evaluation-cases').textContent).toContain('工作流 A 与工作流 B 的取舍')
+
+    fireEvent.click(screen.getByTestId('pantheon-evaluation-start'))
+    expect(await screen.findByTestId('pantheon-composer')).toBeTruthy()
+  })
+
   it('左侧讨论档案栏可以折叠、展开并记住选择', async () => {
     const { container } = render(<PantheonPage />)
     await screen.findByRole('heading', { name: /在讨论中彼此补强/ })
     const shell = container.querySelector('.pantheon-shell')
     expect(shell?.classList.contains('is-rail-collapsed')).toBe(false)
+    expect(screen.getByRole('button', { name: '折叠讨论档案' }).textContent).toContain('收起')
 
     fireEvent.click(screen.getByRole('button', { name: '折叠讨论档案' }))
     expect(shell?.classList.contains('is-rail-collapsed')).toBe(true)
     expect(window.localStorage.getItem('gaea.pantheon.rail-collapsed')).toBe('1')
     expect(screen.getByRole('button', { name: '展开讨论档案' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '展开讨论档案' }).textContent).toContain('展开')
+    expect(screen.getByTestId('pantheon-history-shortcut').textContent).toContain('历史')
+    expect(screen.getByTestId('pantheon-history-shortcut').textContent).toContain('0')
 
-    fireEvent.click(screen.getByRole('button', { name: '展开讨论档案' }))
+    fireEvent.click(screen.getByTestId('pantheon-history-shortcut'))
     expect(shell?.classList.contains('is-rail-collapsed')).toBe(false)
     expect(window.localStorage.getItem('gaea.pantheon.rail-collapsed')).toBe('0')
   })
@@ -539,7 +636,10 @@ describe('PantheonPage', () => {
     expect(await screen.findByText('先批准只读 MVP。')).toBeTruthy()
     expect(screen.getByText('扩展范围尚未一致')).toBeTruthy()
     expect(screen.getByText('CLI 版本漂移')).toBeTruthy()
-    expect(screen.getByText(/待你确认/)).toBeTruthy()
+    expect(
+      within(document.querySelector('.pantheon-verdict') as HTMLElement)
+        .getByText(/待你确认/),
+    ).toBeTruthy()
     const ledger = await screen.findByTestId('pantheon-issue-ledger')
     await waitFor(() => expect(ledger.hasAttribute('open')).toBe(true))
     expect(ledger.textContent).toContain('1 项异议已保留')

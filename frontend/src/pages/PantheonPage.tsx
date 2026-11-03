@@ -3,7 +3,9 @@ import {
   ArrowRightOutlined,
   CrownOutlined,
   DeleteOutlined,
+  ExperimentOutlined,
   FolderOutlined,
+  HistoryOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   PlusOutlined,
@@ -12,6 +14,7 @@ import {
 } from '@ant-design/icons'
 import { Alert, Button, Input, Modal, notification, Tag, Tooltip, message } from 'antd'
 import { PantheonComposer } from './pantheon/PantheonComposer'
+import { PantheonEvaluation } from './pantheon/PantheonEvaluation'
 import { PantheonRecord } from './pantheon/PantheonRecord'
 import { PantheonAgentAvatar } from './pantheon/PantheonAgentAvatar'
 import {
@@ -29,6 +32,7 @@ import {
 import type {
   PantheonAgentStatus,
   PantheonComposerSeed,
+  PantheonEvaluationReport,
   PantheonEvent,
   PantheonLiveStream,
   PantheonSession,
@@ -69,6 +73,7 @@ const SESSION_FILTERS: Array<{ id: SessionFilter; label: string }> = [
 ]
 
 const RAIL_COLLAPSED_KEY = 'gaea.pantheon.rail-collapsed'
+const EVALUATION_MIN_CASES = 20
 
 function readRailCollapsed(): boolean {
   try {
@@ -324,7 +329,7 @@ const WelcomeCanvas: React.FC<{
             <strong>一场讨论，四种视角。</strong>
           </div>
           <span className="pantheon-preview-count">
-            <b>{probing ? '—' : String(available).padStart(2, '0')}</b>
+            <b>{probing ? '-' : String(available).padStart(2, '0')}</b>
             <small>/ {String(seats.length).padStart(2, '0')} 入席</small>
           </span>
         </div>
@@ -374,6 +379,7 @@ const PantheonPage: React.FC = () => {
   const [agents, setAgents] = useState<PantheonAgentStatus[]>([])
   const [active, setActive] = useState<PantheonSession | null>(null)
   const [showComposer, setShowComposer] = useState(false)
+  const [showEvaluation, setShowEvaluation] = useState(false)
   const [composerSeed, setComposerSeed] = useState<PantheonComposerSeed | null>(null)
   const [loadingList, setLoadingList] = useState(true)
   const [loadingSession, setLoadingSession] = useState(false)
@@ -385,6 +391,9 @@ const PantheonPage: React.FC = () => {
   const [sessionQuery, setSessionQuery] = useState('')
   const [sessionFilter, setSessionFilter] = useState<SessionFilter>('all')
   const [railCollapsed, setRailCollapsed] = useState(readRailCollapsed)
+  const [evaluation, setEvaluation] = useState<PantheonEvaluationReport | null>(null)
+  const [evaluationLoading, setEvaluationLoading] = useState(false)
+  const [evaluationError, setEvaluationError] = useState('')
   const activeIDRef = useRef('')
   const canvasRef = useRef<HTMLElement>(null)
   const runningID = active?.status === 'running' ? active.id : ''
@@ -439,7 +448,7 @@ const PantheonPage: React.FC = () => {
       }
       window.clearTimeout(timer)
     }
-  }, [active?.id, composerSeed?.key, showComposer])
+  }, [active?.id, composerSeed?.key, showComposer, showEvaluation])
 
   const loadSessions = useCallback(async () => {
     try {
@@ -456,6 +465,19 @@ const PantheonPage: React.FC = () => {
       setAgents(list)
     } catch (err) {
       setError(`检测本机 Agent 失败：${errorText(err)}`)
+    }
+  }, [])
+
+  const loadEvaluation = useCallback(async () => {
+    setEvaluationLoading(true)
+    setEvaluationError('')
+    try {
+      const report = await pantheonApi.PantheonEvaluation(EVALUATION_MIN_CASES)
+      setEvaluation(report)
+    } catch (err) {
+      setEvaluationError(`读取协议对照失败：${errorText(err)}`)
+    } finally {
+      setEvaluationLoading(false)
     }
   }, [])
 
@@ -623,6 +645,7 @@ const PantheonPage: React.FC = () => {
 
   const openSession = useCallback(async (id: string) => {
     setError('')
+    setShowEvaluation(false)
     setShowComposer(false)
     setActive(null)
     setLiveStreams([])
@@ -640,11 +663,22 @@ const PantheonPage: React.FC = () => {
   }, [])
 
   const openNewCouncil = useCallback(() => {
+    setShowEvaluation(false)
     setComposerSeed(null)
     setShowComposer(true)
     setActive(null)
     setLiveStreams([])
     setError('')
+  }, [])
+
+  const openEvaluation = useCallback(() => {
+    setShowEvaluation(true)
+    setEvaluationError('')
+    void loadEvaluation()
+  }, [loadEvaluation])
+
+  const closeEvaluation = useCallback(() => {
+    setShowEvaluation(false)
   }, [])
 
   const beginCouncil = useCallback(async (request: PantheonStartRequest) => {
@@ -653,6 +687,7 @@ const PantheonPage: React.FC = () => {
     setLiveStreams([])
     try {
       const session = await pantheonApi.PantheonStart(request)
+      setShowEvaluation(false)
       setActive(session)
       activeIDRef.current = session.id
       setComposerSeed(null)
@@ -964,6 +999,7 @@ const PantheonPage: React.FC = () => {
       parentSessionId: session.id,
     })
     setActive(null)
+    setShowEvaluation(false)
     setShowComposer(true)
     setLiveStreams([])
     setError('')
@@ -1044,10 +1080,63 @@ const PantheonPage: React.FC = () => {
                 aria-controls="pantheon-rail-content"
                 data-testid="pantheon-rail-toggle"
                 onClick={toggleRail}
-              />
+              >
+                <span className="pantheon-rail-toggle-label">
+                  {railCollapsed ? '展开' : '收起'}
+                </span>
+              </Button>
             </Tooltip>
           </div>
         </div>
+
+        <nav className="pantheon-mode-dock" aria-label="众神殿视图">
+          <button
+            type="button"
+            className={!showEvaluation ? 'is-active' : ''}
+            aria-pressed={!showEvaluation}
+            aria-label="返回议事厅"
+            title="议事厅"
+            onClick={closeEvaluation}
+          >
+            <CrownOutlined aria-hidden />
+            <span>
+              <strong>议事厅</strong>
+              <small>{active ? '当前纪要' : showComposer ? '正在立题' : '立题与档案'}</small>
+            </span>
+          </button>
+          <button
+            type="button"
+            className={showEvaluation ? 'is-active' : ''}
+            aria-pressed={showEvaluation}
+            aria-label="打开协议对照"
+            title="协议对照"
+            data-testid="pantheon-evaluation-open"
+            onClick={openEvaluation}
+          >
+            <ExperimentOutlined aria-hidden />
+            <span>
+              <strong>协议对照</strong>
+              <small>{evaluation ? `${evaluation.qualifiedCases}/${evaluation.requiredCases} 组就绪` : 'R6 证据门禁'}</small>
+            </span>
+            <b>{evaluation ? `${evaluation.qualifiedCases}/${evaluation.requiredCases}` : 'R6'}</b>
+          </button>
+        </nav>
+        {railCollapsed && (
+          <button
+            type="button"
+            className="pantheon-history-shortcut"
+            aria-label="展开历史议题"
+            aria-controls="pantheon-rail-content"
+            aria-expanded={false}
+            data-testid="pantheon-history-shortcut"
+            title="展开历史议题"
+            onClick={toggleRail}
+          >
+            <HistoryOutlined aria-hidden />
+            <span>历史</span>
+            <b>{sessions.length}</b>
+          </button>
+        )}
 
         <div id="pantheon-rail-content" className="pantheon-rail-scroll">
           <div className="pantheon-rail-section-title">
@@ -1173,58 +1262,73 @@ const PantheonPage: React.FC = () => {
         ref={canvasRef}
         className="pantheon-canvas"
       >
-        {active ? (
-          <PantheonRecord
-            session={active}
-            loading={loadingSession}
-            busy={busy}
-            error={error}
-            liveStreams={liveStreams}
-            onCancel={cancelCouncil}
-            onSkipAgent={(agentId) => void skipAgent(agentId)}
-            onAddUserNote={(content) => void addUserNote(content)}
-            onRetryAgent={(agentId) => void retryAgent(agentId)}
-            onRestart={restartCouncil}
-            onResume={() => void resumeCouncil()}
-            onDelete={() => deleteCouncil(active.id, active.title)}
-            onRefresh={() => void refreshSession(active.id)}
-            onExport={() => void exportCouncil()}
-            onExportJson={exportCouncilJson}
-            onCopy={() => void copyCouncil()}
-            onOpenResult={() => void openResult()}
-            onSignOff={signOffCouncil}
-            onContinue={() => continueCouncil(active)}
-            onAnswer={(questionId, body) => void answerSeat(questionId, body)}
-            onResolveGate={(action, reason) => void resolveCouncilGate(action, reason)}
-          />
-        ) : showComposer ? (
-          <div className="pantheon-flow-stage pantheon-compose-stage">
-            <span className="pantheon-composer-watermark" aria-hidden>问</span>
-            <PantheonComposer
-              agents={agents}
+        <div className="pantheon-view-layer" hidden={showEvaluation}>
+          {active ? (
+            <PantheonRecord
+              session={active}
+              loading={loadingSession}
               busy={busy}
               error={error}
-              seed={composerSeed}
-              onStart={beginCouncil}
-              onRefreshAgents={() => void loadAgents()}
-              onConfigureAgent={openAgentPath}
+              liveStreams={liveStreams}
+              onCancel={cancelCouncil}
+              onSkipAgent={(agentId) => void skipAgent(agentId)}
+              onAddUserNote={(content) => void addUserNote(content)}
+              onRetryAgent={(agentId) => void retryAgent(agentId)}
+              onRestart={restartCouncil}
+              onResume={() => void resumeCouncil()}
+              onDelete={() => deleteCouncil(active.id, active.title)}
+              onRefresh={() => void refreshSession(active.id)}
+              onExport={() => void exportCouncil()}
+              onExportJson={exportCouncilJson}
+              onCopy={() => void copyCouncil()}
+              onOpenResult={() => void openResult()}
+              onSignOff={signOffCouncil}
+              onContinue={() => continueCouncil(active)}
+              onAnswer={(questionId, body) => void answerSeat(questionId, body)}
+              onResolveGate={(action, reason) => void resolveCouncilGate(action, reason)}
             />
-            <CouncilProtocol />
-          </div>
-        ) : (
-          <div className="pantheon-flow-stage pantheon-welcome-stage">
-            <WelcomeCanvas
-              agents={agents}
+          ) : showComposer ? (
+            <div className="pantheon-flow-stage pantheon-compose-stage">
+              <span className="pantheon-composer-watermark" aria-hidden>问</span>
+              <PantheonComposer
+                agents={agents}
+                busy={busy}
+                error={error}
+                seed={composerSeed}
+                onStart={beginCouncil}
+                onRefreshAgents={() => void loadAgents()}
+                onConfigureAgent={openAgentPath}
+              />
+              <CouncilProtocol />
+            </div>
+          ) : (
+            <div className="pantheon-flow-stage pantheon-welcome-stage">
+              <WelcomeCanvas
+                agents={agents}
+                onStart={openNewCouncil}
+              />
+              <CouncilProtocol />
+            </div>
+          )}
+        </div>
+
+        {showEvaluation && (
+          <div className="pantheon-evaluation-stage">
+            <PantheonEvaluation
+              report={evaluation}
+              loading={evaluationLoading}
+              error={evaluationError}
+              onRefresh={() => void loadEvaluation()}
               onStart={openNewCouncil}
+              onOpenSession={(id) => void openSession(id)}
             />
-            <CouncilProtocol />
           </div>
         )}
 
         {loadingSession && !active && (
           <div className="pantheon-loading-cover"><PantheonRecordSkeleton /></div>
         )}
-        {error && !active && !showComposer && (
+        {error && !active && !showComposer && !showEvaluation && (
           <Alert
             className="pantheon-floating-error"
             type="error"

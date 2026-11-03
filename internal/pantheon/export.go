@@ -73,6 +73,9 @@ func ExportMarkdown(session *Session) string {
 	b.WriteString("## 参与者\n\n")
 	for _, p := range session.Participants {
 		fmt.Fprintf(&b, "- %s（`%s`）：%s", p.Name, p.AgentID, p.Status)
+		if p.Version != "" {
+			fmt.Fprintf(&b, "，%s", p.Version)
+		}
 		if p.DurationMs > 0 {
 			fmt.Fprintf(&b, "，%dms", p.DurationMs)
 		}
@@ -86,6 +89,7 @@ func ExportMarkdown(session *Session) string {
 		b.WriteString("\n")
 	}
 	b.WriteString("\n")
+	writeEvaluationMetricsMarkdown(&b, session)
 
 	if session.Verdict != nil {
 		b.WriteString("## 讨论小结\n\n")
@@ -154,6 +158,36 @@ func ExportMarkdown(session *Session) string {
 	b.WriteString("\n---\n\n")
 	b.WriteString("> 本纪要保留多轮讨论与分歧，不等同于用户确认或外部事实保证。\n")
 	return b.String()
+}
+
+func writeEvaluationMetricsMarkdown(b *strings.Builder, session *Session) {
+	run := EvaluateSession(session)
+	b.WriteString("## 运行度量（可复算）\n\n")
+	fmt.Fprintf(b, "- 对照键：`%s`\n", run.CaseKey)
+	fmt.Fprintf(b, "- 对照变体：%s\n", EvaluationVariantLabel(run.Variant))
+	fmt.Fprintf(b, "- 实际轮次：%d / %d\n", run.ActualRounds, run.ExpectedRounds)
+	fmt.Fprintf(b, "- Agent 调用：%d；重试：%d；错误：%d；工具开始：%d\n",
+		run.CallCount, run.RetryCount, run.ErrorCount, run.ToolCallCount)
+	fmt.Fprintf(b, "- 实际耗时：%s；调用耗时合计：%s\n",
+		formatEvaluationDuration(run.WallDurationMs),
+		formatEvaluationDuration(run.AgentDurationMs))
+	fmt.Fprintf(b, "- 讨论陈词：%d；带证据句柄：%d；显式未核验陈述：%d\n",
+		run.DiscussionCount, run.EvidenceHandledCount, run.UnverifiedMentions)
+	fmt.Fprintf(b, "- 用户插话：%d；缺口席位：%d\n", run.UserNoteCount, run.GapCount)
+	fmt.Fprintf(b, "- 分歧台账：%d；已撤回：%d；结案保留：%d\n",
+		run.IssueCount, run.ResolvedIssueCount, run.DissentIssueCount)
+	if run.AttestationCount > 0 {
+		fmt.Fprintf(b, "- 独立确认：%d；未识别立场：%d\n",
+			run.AttestationCount, run.UnknownAttestations)
+	}
+	fmt.Fprintf(b, "- Harness/模型版本：%s\n", formatRuntimeVersions(run.RuntimeVersions))
+	if len(run.RunModes) > 0 {
+		b.WriteString("- 本次实际运行方式：\n")
+		for _, mode := range run.RunModes {
+			fmt.Fprintf(b, "  - %s\n", mode)
+		}
+	}
+	b.WriteString("- Token/费用：未采集，不能把耗时差当作成本结论\n\n")
 }
 
 // RenderFinalDocument produces the compact deliverable owned by the council

@@ -2,6 +2,7 @@ import type {
   PantheonAgentStatus,
   PantheonAttachment,
   PantheonEvidence,
+  PantheonEvaluationReport,
   PantheonSession,
   PantheonSessionSummary,
   PantheonStartRequest,
@@ -41,6 +42,7 @@ export interface PantheonApi {
   PantheonWorkspaces(): Promise<PantheonWorkspace[]>
   PantheonPickWorkspace(): Promise<string>
   PantheonList(): Promise<PantheonSessionSummary[]>
+  PantheonEvaluation(minCases: number): Promise<PantheonEvaluationReport>
   PantheonGet(id: string): Promise<PantheonSession>
   PantheonStart(req: PantheonStartRequest): Promise<PantheonSession>
   PantheonCancel(id: string): Promise<void>

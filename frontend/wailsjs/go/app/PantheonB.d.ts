@@ -14,6 +14,8 @@ export function PantheonCancel(arg1:string):Promise<void>;
 
 export function PantheonDelete(arg1:string):Promise<void>;
 
+export function PantheonEvaluation(arg1:number):Promise<pantheon.EvaluationReport>;
+
 export function PantheonExport(arg1:string):Promise<string>;
 
 export function PantheonGet(arg1:string):Promise<pantheon.Session>;

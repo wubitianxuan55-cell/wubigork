@@ -94,6 +94,8 @@ export interface PantheonParticipant extends PantheonCallRef {
   name: string
   role: string
   status: string
+  /** 开场探针时的 Harness 版本；Grok 席位记录模型名。 */
+  version?: string
   startedAt?: number
   finishedAt?: number
   durationMs?: number
@@ -306,4 +308,77 @@ export interface PantheonSessionSummary {
   openIssueCount?: number
   dissentCount?: number
   error?: string
+}
+
+export interface PantheonEvaluationRun {
+  sessionId: string
+  caseKey: string
+  title: string
+  variant: string
+  status: string
+  protocol: string
+  preset: string
+  agentIds?: string[]
+  runtimeVersions?: Record<string, string>
+  participantCount: number
+  versionedParticipants: number
+  expectedRounds: number
+  actualRounds: number
+  callCount: number
+  retryCount: number
+  errorCount: number
+  toolCallCount: number
+  wallDurationMs: number
+  agentDurationMs: number
+  gapCount: number
+  discussionCount: number
+  evidenceHandledCount: number
+  unverifiedMentions: number
+  userNoteCount: number
+  issueCount: number
+  resolvedIssueCount: number
+  dissentIssueCount: number
+  attestationCount: number
+  unknownAttestations: number
+  verdictPartial?: boolean
+  verdictRevised?: boolean
+  signOffDecision?: string
+  runModes?: string[]
+  createdAt: number
+}
+
+export interface PantheonEvaluationVariantSummary {
+  variant: string
+  sessions: number
+  completedSessions: number
+  signedOffSessions: number
+  acceptedSessions: number
+  avgRounds?: number
+  avgWallDurationMs?: number
+  avgCalls?: number
+  gapSessions?: number
+  dissentIssues?: number
+  revisedVerdicts?: number
+}
+
+export interface PantheonEvaluationCaseCoverage {
+  key: string
+  title: string
+  variants: string[]
+  completedVariants?: string[]
+  missingVariants?: string[]
+}
+
+export interface PantheonEvaluationReport {
+  generatedAt: number
+  requiredCases: number
+  caseCount: number
+  qualifiedCases: number
+  requiredVariants: string[]
+  unsupportedVariants?: string[]
+  gateReady: boolean
+  variants: PantheonEvaluationVariantSummary[]
+  cases: PantheonEvaluationCaseCoverage[]
+  runs: PantheonEvaluationRun[]
+  warnings?: string[]
 }

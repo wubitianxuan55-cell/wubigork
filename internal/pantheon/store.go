@@ -166,6 +166,34 @@ func (s *sessionStore) list() ([]SessionSummary, error) {
 	return out, nil
 }
 
+// all loads every readable session for the read-only protocol report. Broken
+// records are surfaced as warnings instead of blocking the rest of the ledger.
+func (s *sessionStore) all() ([]*Session, []string, error) {
+	dir := filepath.Join(s.root, "sessions")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return []*Session{}, nil, nil
+		}
+		return nil, nil, fmt.Errorf("读取众神殿会话目录: %w", err)
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
+	sessions := make([]*Session, 0, len(entries))
+	var warnings []string
+	for _, entry := range entries {
+		if !entry.IsDir() || !safeSessionID.MatchString(entry.Name()) {
+			continue
+		}
+		session, err := s.get(entry.Name())
+		if err != nil {
+			warnings = append(warnings, fmt.Sprintf("跳过不可读会话 %s：%v", entry.Name(), err))
+			continue
+		}
+		sessions = append(sessions, session)
+	}
+	return sessions, warnings, nil
+}
+
 func (s *sessionStore) delete(id string) error {
 	dir, err := s.sessionDir(id)
 	if err != nil {

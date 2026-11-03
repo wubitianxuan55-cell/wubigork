@@ -26,6 +26,10 @@ export function PantheonDelete(arg1) {
   return window['go']['app']['PantheonB']['PantheonDelete'](arg1);
 }
 
+export function PantheonEvaluation(arg1) {
+  return window['go']['app']['PantheonB']['PantheonEvaluation'](arg1);
+}
+
 export function PantheonExport(arg1) {
   return window['go']['app']['PantheonB']['PantheonExport'](arg1);
 }

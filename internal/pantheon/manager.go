@@ -447,7 +447,10 @@ func (m *Manager) Start(req StartRequest) (*Session, error) {
 	available := map[string]AgentStatus{}
 	for _, id := range selectedIDs {
 		status := byID[id]
-		p := Participant{AgentID: id, Name: status.Name, Role: "participant", Status: "waiting"}
+		p := Participant{
+			AgentID: id, Name: status.Name, Role: "participant", Status: "waiting",
+			Version: status.Version,
+		}
 		if !status.Available {
 			p.Status = "unavailable"
 			p.Error = status.Reason

@@ -743,8 +743,13 @@ export function Sidebar({
             onClick={toggleSidebar}
             title={toggleTitle}
             aria-label={toggleTitle}
+            aria-expanded={!collapsed}
+            data-testid="global-sidebar-toggle"
           >
-            {collapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
+            {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+            {!collapsed && (
+              <span className="office-sidebar__collapse-label">{t("common.collapse")}</span>
+            )}
           </button>
         </div>
 

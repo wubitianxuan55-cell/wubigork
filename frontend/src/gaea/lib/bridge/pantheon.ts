@@ -1,5 +1,6 @@
 import type {
   PantheonAgentStatus,
+  PantheonEvaluationReport,
   PantheonSession,
   PantheonSessionSummary,
   PantheonStartRequest,
@@ -11,6 +12,7 @@ export interface PantheonBindings {
   PantheonWorkspaces(): Promise<PantheonWorkspace[]>
   PantheonPickWorkspace(): Promise<string>
   PantheonList(): Promise<PantheonSessionSummary[]>
+  PantheonEvaluation(minCases: number): Promise<PantheonEvaluationReport>
   PantheonGet(id: string): Promise<PantheonSession>
   PantheonStart(req: PantheonStartRequest): Promise<PantheonSession>
   PantheonCancel(id: string): Promise<void>

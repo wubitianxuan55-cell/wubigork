@@ -16,6 +16,7 @@ func (b *PantheonB) PantheonAnswerSeat(id string, questionID string, body string
 func (b *PantheonB) PantheonAskSeat(id string, agentID string, question string, options []string) (*pantheon.Session, error) { return b.a.PantheonAskSeat(id, agentID, question, options) }
 func (b *PantheonB) PantheonCancel(id string) error { return b.a.PantheonCancel(id) }
 func (b *PantheonB) PantheonDelete(id string) error { return b.a.PantheonDelete(id) }
+func (b *PantheonB) PantheonEvaluation(minCases int) (pantheon.EvaluationReport, error) { return b.a.PantheonEvaluation(minCases) }
 func (b *PantheonB) PantheonExport(id string) (string, error) { return b.a.PantheonExport(id) }
 func (b *PantheonB) PantheonGet(id string) (*pantheon.Session, error) { return b.a.PantheonGet(id) }
 func (b *PantheonB) PantheonList() ([]pantheon.SessionSummary, error) { return b.a.PantheonList() }

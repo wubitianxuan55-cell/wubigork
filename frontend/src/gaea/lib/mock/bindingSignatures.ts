@@ -580,6 +580,7 @@ export const bindingSignatures = {
   PantheonAskSeat: { argc: 4, variadic: false, params: "id string, agentID string, question string, options []string" },
   PantheonCancel: { argc: 1, variadic: false, params: "id string" },
   PantheonDelete: { argc: 1, variadic: false, params: "id string" },
+  PantheonEvaluation: { argc: 1, variadic: false, params: "minCases int" },
   PantheonExport: { argc: 1, variadic: false, params: "id string" },
   PantheonGet: { argc: 1, variadic: false, params: "id string" },
   PantheonList: { argc: 0, variadic: false, params: "" },

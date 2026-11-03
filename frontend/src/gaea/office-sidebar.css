@@ -66,10 +66,39 @@
 }
 
 .office-sidebar__collapse {
-  width: 30px;
-  height: 30px;
+  min-width: 58px;
+  height: 32px;
+  padding: 0 9px;
   flex: none;
+  gap: 5px;
+  border: 1px solid var(--border-soft) !important;
   border-radius: 8px !important;
+  color: var(--fg-dim) !important;
+  background: color-mix(in srgb, var(--bg-elevated) 58%, transparent) !important;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: color 160ms ease, border-color 160ms ease, background 160ms ease !important;
+}
+
+.office-sidebar__collapse:hover {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border-soft)) !important;
+  color: var(--fg) !important;
+  background: color-mix(in srgb, var(--accent) 9%, var(--bg-elevated)) !important;
+}
+
+.office-sidebar__collapse:active {
+  transform: scale(.97);
+}
+
+.office-sidebar[data-narrow="true"]:not([data-collapsed="true"]) .office-sidebar__collapse {
+  min-width: 30px;
+  width: 30px;
+  padding: 0;
+}
+
+.office-sidebar[data-narrow="true"]:not([data-collapsed="true"]) .office-sidebar__collapse-label {
+  display: none;
 }
 
 .gaea-app-layout .office-sidebar .office-sidebar__new {
@@ -702,8 +731,13 @@
 }
 
 .office-sidebar[data-collapsed="true"] .office-sidebar__collapse {
-  width: 28px;
-  height: 28px;
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  padding: 0;
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--border-soft)) !important;
+  color: var(--accent) !important;
+  background: color-mix(in srgb, var(--accent) 8%, transparent) !important;
 }
 
 .office-sidebar :focus-visible {

@@ -2,6 +2,10 @@ import type { PantheonBindings } from '../bridge/pantheon'
 import type {
   PantheonAgentStatus,
   PantheonContribution,
+  PantheonEvaluationCaseCoverage,
+  PantheonEvaluationReport,
+  PantheonEvaluationRun,
+  PantheonEvaluationVariantSummary,
   PantheonEvent,
   PantheonSession,
   PantheonSessionSummary,
@@ -87,15 +91,145 @@ export function buildPantheon(): PantheonBindings {
   ]
   const sessions = new Map<string, PantheonSession>()
 
+  const evaluationReport = (minCases: number): PantheonEvaluationReport => {
+    const requiredVariants = ['single', 'independent_synthesis', 'roundtable', 'targeted_challenge']
+    const runs: PantheonEvaluationRun[] = [...sessions.values()].map((session) => {
+      const preset = session.request.preset || 'roundtable'
+      const agentCount = session.request.agentIds.length
+      const variant = preset === 'targeted_challenge'
+        ? 'targeted_challenge'
+        : preset === 'red_team'
+          ? 'red_team'
+          : agentCount <= 1
+            ? 'single'
+            : session.request.protocol === 'council'
+              ? 'council_relay'
+              : session.request.rounds <= 1
+                ? 'independent_synthesis'
+                : 'roundtable'
+      const discussion = session.contributions.filter(
+        (item) => item.phase === 'opening' || item.phase === 'discussion',
+      )
+      return {
+        sessionId: session.id,
+        caseKey: `case_mock_${session.request.topic.trim()}`,
+        title: session.title,
+        variant,
+        status: session.status,
+        protocol: session.request.protocol || 'independent',
+        preset,
+        agentIds: session.request.agentIds,
+        runtimeVersions: Object.fromEntries(
+          session.participants
+            .filter((participant) => participant.version)
+            .map((participant) => [participant.agentId, participant.version || '']),
+        ),
+        participantCount: session.participants.length,
+        versionedParticipants: session.participants.filter((participant) => participant.version).length,
+        expectedRounds: session.request.rounds,
+        actualRounds: session.currentRound || 0,
+        callCount: session.events.filter((event) => event.kind === 'agent_started').length,
+        retryCount: session.events.filter((event) => event.kind === 'agent_retry').length,
+        errorCount: session.events.filter((event) => event.kind === 'agent_error').length,
+        toolCallCount: session.events.filter((event) => event.kind === 'tool_started').length,
+        wallDurationMs: Math.max(0, session.updatedAt - session.createdAt),
+        agentDurationMs: session.events.reduce((sum, event) => sum + (event.durationMs || 0), 0),
+        gapCount: session.gaps?.length || 0,
+        discussionCount: discussion.length,
+        evidenceHandledCount: discussion.filter((item) => item.evidenceHandle).length,
+        unverifiedMentions: discussion.filter(
+          (item) => item.content.includes('未核验') || item.content.includes('未验证'),
+        ).length,
+        userNoteCount: session.contributions.filter((item) => item.agentId === 'user').length,
+        issueCount: session.issues?.length || 0,
+        resolvedIssueCount: session.issues?.filter((issue) => issue.status === 'resolved').length || 0,
+        dissentIssueCount: session.issues?.filter((issue) => issue.status === 'dissent').length || 0,
+        attestationCount: session.attestations?.length || 0,
+        unknownAttestations: session.attestations?.filter(
+          (attestation) => attestation.position === 'unknown',
+        ).length || 0,
+        verdictPartial: session.verdict?.partial || false,
+        verdictRevised: Boolean(session.verdict?.revisedFromSha256),
+        signOffDecision: session.signoff?.decision,
+        runModes: [...new Set(
+          session.contributions.map((item) => item.runMode).filter((value): value is string => Boolean(value)),
+        )],
+        createdAt: session.createdAt,
+      }
+    })
+    const caseMap = new Map<string, PantheonEvaluationCaseCoverage>()
+    for (const run of runs) {
+      const coverage = caseMap.get(run.caseKey) || {
+        key: run.caseKey,
+        title: run.title,
+        variants: [],
+        completedVariants: [],
+        missingVariants: [],
+      }
+      if (!coverage.variants.includes(run.variant)) coverage.variants.push(run.variant)
+      if (run.status === 'completed' && !coverage.completedVariants?.includes(run.variant)) {
+        coverage.completedVariants?.push(run.variant)
+      }
+      caseMap.set(run.caseKey, coverage)
+    }
+    for (const coverage of caseMap.values()) {
+      coverage.missingVariants = requiredVariants.filter(
+        (variant) => !coverage.completedVariants?.includes(variant),
+      )
+    }
+    const variantMap = new Map<string, PantheonEvaluationVariantSummary>()
+    for (const run of runs) {
+      const item = variantMap.get(run.variant) || {
+        variant: run.variant,
+        sessions: 0,
+        completedSessions: 0,
+        signedOffSessions: 0,
+        acceptedSessions: 0,
+      }
+      item.sessions++
+      if (run.status === 'completed') item.completedSessions++
+      if (run.signOffDecision) {
+        item.signedOffSessions++
+        if (run.signOffDecision === 'accepted') item.acceptedSessions++
+      }
+      variantMap.set(run.variant, item)
+    }
+    const cases = [...caseMap.values()]
+    const qualifiedCases = cases.filter(
+      (coverage) => (coverage.missingVariants?.length || 0) === 0,
+    ).length
+    return {
+      generatedAt: now(),
+      requiredCases: minCases,
+      caseCount: cases.length,
+      qualifiedCases,
+      requiredVariants,
+      unsupportedVariants: ['fixed_vote'],
+      gateReady: qualifiedCases >= minCases,
+      variants: [...variantMap.values()],
+      cases,
+      runs,
+      warnings: [
+        `有效对照仅 ${qualifiedCases}/${minCases} 个议题；每个议题须完成单席、独立多答、圆桌与定向质询。`,
+        'Token 与费用未入档，本报告不输出成本结论。',
+        '事实错误、关键反例、证据覆盖率与复用意願须另附人工评审。',
+      ],
+    }
+  }
+
   const makeSession = (request: PantheonStartRequest): PantheonSession => {
     const stamp = now()
     const id = `pan_mock_${stamp}`
-    const participants = request.agentIds.map((agentID) => ({
-      agentId: agentID,
-      name: agents.find((agent) => agent.id === agentID)?.name || agentID,
-      role: 'participant',
-      status: 'waiting',
-    }))
+    const participants = request.agentIds.map((agentID) => {
+      const agent = agents.find((item) => item.id === agentID)
+      return {
+        agentId: agentID,
+        name: agent?.name || agentID,
+        role: 'participant',
+        status: 'waiting',
+        version: agent?.version,
+      }
+    })
     const events: PantheonEvent[] = [{
       seq: 1,
       sessionId: id,
@@ -435,6 +569,7 @@ export function buildPantheon(): PantheonBindings {
     PantheonList: async () => [...sessions.values()]
       .map(summary)
       .sort((a, b) => b.updatedAt - a.updatedAt),
+    PantheonEvaluation: async (minCases) => evaluationReport(minCases),
     PantheonGet: async (id) => {
       const session = sessions.get(id)
       if (!session) throw new Error('议事不存在')

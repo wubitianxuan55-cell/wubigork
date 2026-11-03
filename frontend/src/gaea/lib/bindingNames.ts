@@ -561,6 +561,7 @@ export const bindingNames = [
   "PantheonAskSeat",
   "PantheonCancel",
   "PantheonDelete",
+  "PantheonEvaluation",
   "PantheonExport",
   "PantheonGet",
   "PantheonList",
