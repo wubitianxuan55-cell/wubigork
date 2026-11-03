@@ -30,7 +30,10 @@ const (
 	PhaseCancelled   = "cancelled"
 	// PhaseUserNote 用户中途评论（2026-11-03 拍板）：不打断当前发言，
 	// 以贡献身份入档并全文注入后续席位提示词。
-	PhaseUserNote     = "user_note"
+	PhaseUserNote = "user_note"
+	// PhaseModeration 主席轮间小结（2026-11-03 拍板）：每轮收尾后主席提炼
+	// 真分歧+裁决建议+下轮必答，注入后续全员提示词——治「轮次膨胀无收口」。
+	PhaseModeration   = "moderation"
 	EventSessionStart = "session_started"
 	EventPhase        = "phase"
 	EventAgentStart   = "agent_started"

@@ -1240,6 +1240,42 @@ func (m *Manager) run(
 			m.recordConsensus(session, round)
 			break
 		}
+		// 主席轮间小结（2026-11-03 拍板）：非最后一轮时，主席先于下一轮提炼
+		// 真分歧+裁决建议+下轮必答（300 字内轻调用），全文注入后续全员提示词。
+		// 失败不阻塞议事（警告可见）；小结席=汇总席（chairman 优先 successful）。
+		if round < session.Request.Rounds && len(roundContributions) > 0 && ctx.Err() == nil {
+			moderator := chairman
+			if _, ok := successful[moderator]; !ok {
+				for _, id := range order {
+					if _, exists := successful[id]; exists {
+						moderator = id
+						break
+					}
+				}
+			}
+			if status, ok := successful[moderator]; ok {
+				prompt := moderationPrompt(session.Request, status, roundContributions, round, session.Request.Rounds-round)
+				out, _, callRef, err := m.runAgentWithRetry(ctx, session, status, prompt, PhaseModeration, round)
+				if err == nil && strings.TrimSpace(out) != "" {
+					// 小结必须同时进本地 history：下一轮 prompt 从这里构建议程。
+					moderation := Contribution{
+						CallRef:   callRef,
+						ID:        fmt.Sprintf("%s-%s-mod-r%d-%d", session.ID, status.ID, round, time.Now().UnixNano()),
+						Phase:     PhaseModeration,
+						Round:     round,
+						AgentID:   status.ID,
+						AgentName: status.Name + "（主持）",
+						Content:   out,
+						RunMode:   m.adapter(status.ID).runMode,
+						CreatedAt: time.Now().UnixMilli(),
+					}
+					m.appendContribution(session, moderation)
+					history = append(history, moderation)
+				} else if err != nil && ctx.Err() == nil {
+					m.addWarning(session, fmt.Sprintf("第 %d 轮主席小结失败（不阻塞议事）：%v", round, err))
+				}
+			}
+		}
 		// 用户要求每轮之间停一次：本轮已收声，就在此处开门，等人放行。
 		if session.Request.GateEachRound && round < session.Request.Rounds {
 			if m.openGateInSession(session, fmt.Sprintf("第 %d 轮结束，按设置停下等你确认", round)) {

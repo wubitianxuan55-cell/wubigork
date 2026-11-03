@@ -429,8 +429,9 @@ func TestManagerRunsOrderedMultiRoundDiscussion(t *testing.T) {
 	if done.Verdict == nil || !strings.Contains(done.Verdict.Recommendation, "只读验证") {
 		t.Fatalf("missing verdict: %+v", done.Verdict)
 	}
-	if len(done.Contributions) != 5 { // 2 agents × 2 rounds + synthesis
-		t.Fatalf("contributions = %d, want 5", len(done.Contributions))
+	// 2 席×2 轮 + 第 1 轮主席小结 + synthesis = 6（2026-11-03 主席轮间小结机制）。
+	if len(done.Contributions) != 6 {
+		t.Fatalf("contributions = %d, want 6", len(done.Contributions))
 	}
 	if done.CurrentRound != 2 {
 		t.Fatalf("current round = %d, want 2", done.CurrentRound)
@@ -460,6 +461,9 @@ func TestManagerRunsOrderedMultiRoundDiscussion(t *testing.T) {
 		t.Fatalf("workspace = %q, want %q", done.Request.Workspace, workspace)
 	}
 	for _, call := range runner.calls {
+		if strings.Contains(call.Stdin, "轮间小结") {
+			continue // 主席小结是对内议程提炼，不携带工作空间范围。
+		}
 		if call.Dir != filepath.Clean(workspace) {
 			t.Fatalf("agent cwd = %q, want %q", call.Dir, workspace)
 		}
@@ -1636,7 +1640,7 @@ func consensusRunner(signal string) *fakeRunner {
 		output := original
 		runner.outputs[id] = func(spec commandSpec) (string, error) {
 			text, err := output(spec)
-			if err == nil && strings.Contains(spec.Stdin, "【全员一致检查】") {
+			if err == nil && strings.Contains(spec.Stdin, "全员一致检查") {
 				text += "\n共识状态：" + signal + "\n剩余分歧：成本边界"
 			}
 			return text, err
@@ -1664,8 +1668,9 @@ func TestManagerStopsWhenEverySeatReachesConsensus(t *testing.T) {
 	if done.CurrentRound != 2 {
 		t.Fatalf("consensus should stop after round 2, got round %d", done.CurrentRound)
 	}
-	if len(done.Contributions) != 5 {
-		t.Fatalf("contributions = %d, want 5", len(done.Contributions))
+	// 2 席×2 轮 + 第 1 轮主席小结 + 汇总 = 6（2026-11-03 主席轮间小结机制）。
+	if len(done.Contributions) != 6 {
+		t.Fatalf("contributions = %d, want 6", len(done.Contributions))
 	}
 	var consensusEvents int
 	for _, event := range done.Events {
@@ -1676,11 +1681,22 @@ func TestManagerStopsWhenEverySeatReachesConsensus(t *testing.T) {
 	if consensusEvents != 1 {
 		t.Fatalf("consensus events = %d, want 1", consensusEvents)
 	}
-	if strings.Contains(done.Contributions[2].Content, "共识状态") {
+	// 2026-11-03 主席小结插位后按下标取贡献会拿错——按「末轮讨论贡献」定位。
+	var lastRoundAlpha *Contribution
+	for i := range done.Contributions {
+		c := done.Contributions[i]
+		if c.AgentID == "alpha" && c.Round == 2 && c.Phase == PhaseDiscussion {
+			lastRoundAlpha = &done.Contributions[i]
+		}
+	}
+	if lastRoundAlpha == nil {
+		t.Fatal("round-2 alpha contribution missing")
+	}
+	if strings.Contains(lastRoundAlpha.Content, "共识状态") {
 		t.Fatal("machine-readable consensus marker leaked into displayed contribution")
 	}
-	if done.Contributions[2].Consensus != "yes" {
-		t.Fatalf("contribution consensus = %q, want yes", done.Contributions[2].Consensus)
+	if lastRoundAlpha.Consensus != "yes" {
+		t.Fatalf("contribution consensus = %q, want yes", lastRoundAlpha.Consensus)
 	}
 	export, err := m.Export(session.ID)
 	if err != nil {
@@ -1709,8 +1725,9 @@ func TestManagerStopsAtConsensusSafetyLimit(t *testing.T) {
 	if done.CurrentRound != 3 {
 		t.Fatalf("safety limit current round = %d, want 3", done.CurrentRound)
 	}
-	if len(done.Contributions) != 7 {
-		t.Fatalf("contributions = %d, want 7", len(done.Contributions))
+	// 2 席×3 轮 + r1/r2 两次主席小结 + 汇总 = 9（2026-11-03 主席轮间小结机制）。
+	if len(done.Contributions) != 9 {
+		t.Fatalf("contributions = %d, want 9", len(done.Contributions))
 	}
 	found := false
 	for _, warning := range done.Warnings {
@@ -1854,9 +1871,10 @@ func TestGrokSeatJoinsCouncilAndChairs(t *testing.T) {
 	backend.mu.Lock()
 	calls := len(backend.prompts)
 	backend.mu.Unlock()
-	// grok 席位自身：2 轮讨论 + 1 次协作汇总 = 3 次，全部走注入后端。
-	if calls != 3 {
-		t.Fatalf("model backend calls = %d, want 3", calls)
+	// grok 席位自身：2 轮讨论 + 1 次第 1 轮主席小结 + 1 次协作汇总 = 4 次
+	// （2026-11-03 主席轮间小结机制；最后一轮不再小结），全部走注入后端。
+	if calls != 4 {
+		t.Fatalf("model backend calls = %d, want 4", calls)
 	}
 }
 
