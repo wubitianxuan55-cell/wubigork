@@ -21,7 +21,7 @@
 
 | 阶段 | 内容 | 出口判据 |
 |---|---|---|
-| **P0a 身份与提交一致性** | A1–A5 验收口径（§3 定稿表） | A1–A5 全部断言绿 + A5e/f/g 真机三例无 N/A 记绿 |
+| **P0a 身份与提交一致性** | A1–A5 验收口径（§3 定稿表） | ✅ **2026-11-04 收官**：A1–A5 断言全绿（提交 3c85b86b）+ A5e/f/g 真机三例全 PASS 无 N/A（§10） |
 | **P1 可靠性与度量** | §13.3 延迟记分卡 + breeze 停顿处置 + 网关剥 tools + 有限次自动重连 + 取消后状态清理 + 微信 orch 并发窗口（少数意见，挂此处） | 记分卡 8 项每项有实测/样本数/判定/豁免理由；p95 转绿 |
 | **P1.5 内嵌形态** | 六态相位条 + 四服务健康卡搬进输入区；会话头恒显绑定话题/人格 | **默认化以 p95 转绿为门**——5.66s 的台不搬进用户每天必经的位置 |
 | **P1.9 异步 dry-run 动作预览** | 最终转写 → 后台 intent.Parse → 预览卡异步事件面；**同步主链已淘汰**（预览含 20 会话扫描延迟未测） | 预览 0 副作用（dry-run 测试基 `intent_router_test.go:116-143`）、对话回复零阻塞、失败按"未识别为动作"静默 |
@@ -80,10 +80,29 @@
 - 测试：`voice_v2_turn_test.go` 补"同 item 不同人格"用例；A5e/f/g 三个集成用例（前置断言 prepared 非空，禁止 N/A 记绿）。
 - **坑位提醒**：`voice_handler.go` 有 DSH 低延迟线（lowLatency/whisperChatCore）在途交错史，动刀前先盘该函数当前态；构建态验证才复现 data:URL worklet 家族坑（vite dev 测不出）；CDP 驱动前查 gaea.exe 进程清单（9333 铁律）。
 
+## 10. P0a 真机三例收官（2026-11-04，全部 PASS，无 N/A）
+
+沙箱走查壳（`GAEA_DATA_ROOT=.tmp/voice-p0a-walk/data` 隔离 + CDP 9333 + 页面级假麦注入）实证，走查脚本 `.tmp/voice-p0a-walk/walk.mjs`，日志锚点全在沙箱 `logs/gaea-20261104.log`：
+
+| 例 | 驱动 | 证据链 | 判定 |
+|---|---|---|---|
+| **A5f 生成中关闭** | UI 开台→开麦→thinking 段 40ms 轮询同拍点关闭 | sidecar `turn_1 rev=1 status=cancelled`（response.cancel 到达）+ LLM/TTS 双取消 + 网关「上游 SSE 中断，已回滚未提交回合」恰好一次 + 话题消息 0→0 + 全程零 commit 锚点 | **PASS** |
+| **A5e 完成未提交仍提交** | UI 完整回合→tail 出现 `response.done completed` 同拍关台→3s 后验库 | `Voice V2 回合已提交 topicID=<捕获话题> personality=gaea memoryScheduled=true` + 落库消息与已知测试语音逐字对账（用户文本含「今晚我想听你讲一个很短的故事」） | **PASS** |
+| **A5g plain 早退回收** | 直驱网关 8792（header 带 itemID）真实填充 prepared → 直驱 `VoiceV2CommitTurn` 到 plain 话题 | 「Voice V2 plain 话题丢弃人格预推进」（personality/itemID 精确匹配）+ 「回合已提交（plain 话题，仅落聊天）」+ `committed=true, memoryScheduled=false` | **PASS** |
+
+**实测认知（后续真机验证配方）**：
+1. `vc2-assistant` 文本出现 ≠ response 闭合（文本 item done 早于 response done）——彼时关台走 abort 路径。A5e 精确信号=tail 里 `response.done completed`。
+2. 循环测试音频=无限 bargein 取消环（下一句在 response 未闭合时到达）；轮完成类测试必须单发语句（loop=false）。
+3. 应用 `stopMic` 会 stop 假麦轨道——假麦补丁必须每次 gUM 调用发一条全新轨道。
+4. A5f 竞争中 `VoiceV2AbortTurn` 绑定未赢（网关 SSE 中断回滚先到，同锁单胜者语义成立，两条路径都只回滚一次）；专用路径由 Go 集成测试锁定，真机按结果对账。
+5. A1 屏障用 UI 的 `activePersonality` 重同步人格（binding 层同步会被覆盖）——设计正确，真机同步事实源=UI。
+6. Wails v2.13 恒注入 `--remote-debugging-port=9333` 且 go-webview2 覆写 `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`——自定义 CDP 口/浏览器旗标环境变量通道无效；CDP 驱动前按 PID 链核实 9333 归属。
+7. 板块切换不卸载 ChatPage（`initRef` 只跑一次）——binding 建的话题不进侧栏，走查造题应走 UI「新建对话」按钮。
+
 ## 9. 风险清单（裁决 risks 原文要点）
 
-1. A5e/f/g 仅静态证据，真机未跑——空绿不构成证据（§3 A4 有验证路径，约三个集成用例一天内）。
-2. P0b instructions 通道 sidecar 侧未经第二席复核——spike 定成败。
+1. ~~A5e/f/g 仅静态证据，真机未跑~~——已消除：2026-11-04 真机三例全 PASS（§10）。
+2. P0b instructions 通道 sidecar 侧未经第二席复核——spike 定成败（已挂起，§6）。
 3. p95 暂红但 n=14 样本不足——扩样再定红绿，决定 P1.5 默认化。
-4. P0a 落地前，切人格后立即开语音台存在零报错串记忆结构洞（概率未实测）——A2/A3 验收覆盖。
+4. ~~P0a 落地前，切人格后立即开语音台存在零报错串记忆结构洞~~——已消除：A2/A3 落地+真机覆盖（§10 实测认知 5）。
 5. ~~决策①未答前 A5e 按默认值执行需返工~~——已消除：2026-11-03 用户拍板「继续提交」，A5e 断言方向定稿。
