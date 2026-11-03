@@ -8123,6 +8123,7 @@ export namespace pantheon {
 	    content: string;
 	    confidence?: string;
 	    consensus?: string;
+	    residual?: string;
 	    runMode?: string;
 	    createdAt: number;
 	    durationMs?: number;
@@ -8146,6 +8147,7 @@ export namespace pantheon {
 	        this.content = source["content"];
 	        this.confidence = source["confidence"];
 	        this.consensus = source["consensus"];
+	        this.residual = source["residual"];
 	        this.runMode = source["runMode"];
 	        this.createdAt = source["createdAt"];
 	        this.durationMs = source["durationMs"];
