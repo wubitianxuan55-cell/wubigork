@@ -1656,3 +1656,44 @@
     animation: none;
   }
 }
+
+/* ═══ P1.5 语音条 UX 打磨（ui-ux-pro-max 规则落地） ═══ */
+
+/* 激活相位=语音条边界发光（动效传达状态；reduced-motion 已兜底） */
+.voice-console-v2--bar.voice-console-v2--listening,
+.voice-console-v2--bar.voice-console-v2--thinking {
+  border-color: var(--vc2-line-strong);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--vc2-text) 6%, transparent),
+    0 0 0 1px var(--vc2-soft-strong),
+    0 6px 22px var(--vc2-soft);
+}
+
+.voice-console-v2--bar.voice-console-v2--speaking {
+  border-color: var(--vc2-line-strong);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--vc2-text) 6%, transparent),
+    0 0 0 1px var(--vc2-soft-strong);
+}
+
+/* 相位点全六态语义色：interrupted=琥珀（已停可续说）、error=红 */
+.voice-console-v2--bar .vc2-bar-dot.is-interrupted {
+  background: #f5a623;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #f5a623 16%, transparent);
+}
+
+/* 指针目标舒适度：bar 按钮 28px 高（WCAG 2.2 AA ≥24px + 相邻间距 ≥8px），
+   主按钮加强调以匹配「一等入口」层级 */
+.voice-console-v2--bar .vc2-bar-btn.ant-btn-sm {
+  min-height: 28px;
+  padding-inline: 10px;
+}
+
+.voice-console-v2--bar .vc2-bar-btn.is-primary.ant-btn-sm {
+  min-height: 30px;
+  font-weight: 600;
+}
+
+.voice-console-v2--bar .vc2-bar-btn + .vc2-bar-btn {
+  margin-inline-start: 2px; /* 间距合计 ≥8px（按钮自身 gap 8px 布局外再保余量） */
+}

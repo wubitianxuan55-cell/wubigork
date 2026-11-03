@@ -289,6 +289,20 @@ describe('VoiceConsoleV2', () => {
     expect(screen.getByTestId('voice-console-v2').className).toContain('voice-console-v2--bar')
   })
 
+  it('P1.5 浮层 Escape 收起回条（键盘可达），bar 相位为原子化 status 播报', () => {
+    renderConsole({ variant: 'bar' })
+    act(() => { screen.getByTestId('vc2-bar-expand').click() })
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    expect(screen.getByTestId('voice-console-v2').className).toContain('voice-console-v2--bar')
+    // 回 bar 后：相位=原子 status；服务健康=汇总 aria-label（不做竞争性 live）
+    const phase = document.querySelector('.vc2-bar-phase')
+    expect(phase?.getAttribute('role')).toBe('status')
+    expect(phase?.getAttribute('aria-atomic')).toBe('true')
+    expect(screen.getByLabelText('语音服务 4/4 就绪')).toBeTruthy()
+  })
+
   it('P1.5 bar 结束=关会话，与整幅关闭同一 onClose 路径', () => {
     const onClose = vi.fn()
     renderConsole({ variant: 'bar', onClose })

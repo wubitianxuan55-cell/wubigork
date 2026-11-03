@@ -160,6 +160,16 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // 浮层键盘可达：Escape 收起回条（会话保持；ui-ux-pro-max 键盘导航优先级 1）
+  useEffect(() => {
+    if (mode !== 'float') return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setExpanded(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [mode])
+
   const ready = v2.services.ready
   const phaseMeta = PHASE_META[v2.phase]
   const feedback = turnWarning || v2.note
@@ -193,6 +203,7 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
     const preview = v2.partialTranscript
       || v2.assistantText
       || (v2.transcripts.length > 0 ? v2.transcripts[v2.transcripts.length - 1] : '')
+    const onlineCount = SERVICE_ITEMS.filter((item) => v2.services[item.key]).length
     return (
       <div
         className={`voice-console-v2 voice-console-v2--bar voice-console-v2--${v2.phase}${ready ? '' : ' is-preflight'}`}
@@ -200,14 +211,20 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
         data-phase={v2.phase}
       >
         <span className={`vc2-bar-dot is-${v2.phase}`} aria-hidden="true" />
-        <span className="vc2-bar-phase" role="status">{phaseMeta.label}</span>
-        <span className="vc2-bar-preview">
+        {/* 原子化状态播报（ui-ux-pro-max ux 规则）：只报相位一处，转写预览不做
+            竞争性 live region（逐字流式会刷屏读屏） */}
+        <span className="vc2-bar-phase" role="status" aria-atomic="true">{phaseMeta.label}</span>
+        <span className="vc2-bar-preview" aria-hidden="true">
           {preview ? preview.slice(-80) : (ready ? '按下开始说话' : '本地语音待启动')}
         </span>
         <span className="vc2-bar-binding" title="语音会话绑定（开台时捕获）">
           {companionName} · {topicTitle || '当前会话'}
         </span>
-        <span className="vc2-bar-health" aria-label="语音服务状态">
+        <span
+          className="vc2-bar-health"
+          role="img"
+          aria-label={`语音服务 ${onlineCount}/${SERVICE_ITEMS.length} 就绪`}
+        >
           {SERVICE_ITEMS.map((item) => (
             <i
               key={item.key}
