@@ -796,6 +796,12 @@ func (a *mediaState) VoiceGetSettings() map[string]interface{} {
 // 获取，健康经 VoiceHealth 的 ttsRouteHealth 探测。
 func (a *mediaState) voiceSettingsMap(c *voice.VoiceRuntimeConfig) map[string]interface{} {
 	m := configToMap(c)
+	// P2 续：V2 对话 LLM 位（空/local-fast=专属快模型 | chat=跟随聊天板块）
+	if a.cfg != nil {
+		m["voiceChatLLM"] = a.cfg.VoiceChatLLM
+	} else {
+		m["voiceChatLLM"] = ""
+	}
 	// 实时语音档（S1）：只回 provider/model 与 hasKey 布尔——明文 Key 永不出后端。
 	m["realtimeProvider"] = c.RealtimeProvider
 	m["realtimeModel"] = c.RealtimeModel
