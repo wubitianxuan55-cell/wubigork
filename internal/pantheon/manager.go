@@ -29,6 +29,10 @@ const (
 
 var consensusMarker = regexp.MustCompile(`(?im)^\s*(?:[-*>]\s*)*(?:共识状态|consensus)\s*[:：]\s*(一致|同意|仍有分歧|不同意|yes|no)`)
 
+// contributionIDPattern 识别发言正文里的贡献 ID 引用（翻转举证的证据句柄）：
+// 形如 pan_xxx-<seat>-r<N>-<ts> 或 pan_xxx-user-<ts>。
+var contributionIDPattern = regexp.MustCompile(`pan_[A-Za-z0-9_-]+-[a-z]+-r?\d*-?\d*`)
+
 var (
 	errAgentSkipped = errors.New("agent skipped")
 	errAgentRetry   = errors.New("agent retry requested")
@@ -1168,8 +1172,27 @@ func (m *Manager) run(
 				return Contribution{}, clipped, false
 			}
 			consensus := ""
+			residual := ""
 			if session.Request.UntilConsensus {
-				out, consensus = extractConsensusSignal(out)
+				out, consensus, residual = extractConsensusSignal(out)
+			}
+			// 翻转举证审计（2026-11-03 V2 P1）：同席从 no 翻到 yes，正文必须带
+			// 证据句柄（贡献 ID 引用）——外部研究实证多 agent 翻转多是从众而非
+			// 被说服；未举证的翻转不阻塞议事但必须留痕，供汇总与用户鉴别。
+			if consensus == "yes" {
+				for i := len(history) - 1; i >= 0; i-- {
+					seat := history[i]
+					if seat.AgentID == status.ID && seat.Consensus == "no" {
+						if !strings.Contains(out, "贡献 ID") && !contributionIDPattern.MatchString(out) {
+							m.mu.Lock()
+							session.Warnings = append(session.Warnings, fmt.Sprintf(
+								"%s 第 %d 轮从「仍有分歧」翻转为「一致」，但正文未引用说服它的证据（贡献 ID）——按从众嫌疑记录",
+								status.Name, round))
+							m.mu.Unlock()
+						}
+						break
+					}
+				}
 			}
 			contribution := Contribution{
 				CallRef:    callRef,
@@ -1180,6 +1203,7 @@ func (m *Manager) run(
 				AgentName:  status.Name,
 				Content:    out,
 				Consensus:  consensus,
+				Residual:   residual,
 				RunMode:    m.adapter(status.ID).runMode,
 				CreatedAt:  time.Now().UnixMilli(),
 				DurationMs: duration.Milliseconds(),
@@ -2061,10 +2085,17 @@ func parseVerdict(raw, chairman string, _ time.Duration) *Verdict {
 	}
 }
 
-func extractConsensusSignal(text string) (string, string) {
+// residualMarker 抽「剩余分歧」行（2026-11-03 V2 P1 停机判据）：grok r2 实证
+// 「自报一致+正文藏分歧」可同时成立且旧测试曾固化为预期——停机门必须读它。
+var residualMarker = regexp.MustCompile(`(?im)^\s*(?:[-*>]\s*)*(?:剩余分歧|residual)\s*[:：]\s*(.+)$`)
+
+// extractConsensusSignal 抽走协议行，返回（净正文, 共识信号, 剩余分歧原文）。
+// 剩余分歧为空或「无」视为无保留；其它任何取值都是未收口的实质保留。
+func extractConsensusSignal(text string) (string, string, string) {
 	lines := strings.Split(text, "\n")
 	clean := make([]string, 0, len(lines))
 	signal := ""
+	residual := ""
 	for _, line := range lines {
 		match := consensusMarker.FindStringSubmatch(line)
 		if len(match) > 1 {
@@ -2076,9 +2107,26 @@ func extractConsensusSignal(text string) (string, string) {
 			}
 			continue
 		}
+		if r := residualMarker.FindStringSubmatch(line); len(r) > 1 {
+			residual = strings.TrimSpace(r[1])
+			continue
+		}
 		clean = append(clean, line)
 	}
-	return strings.TrimSpace(strings.Join(clean, "\n")), signal
+	return strings.TrimSpace(strings.Join(clean, "\n")), signal, residual
+}
+
+// residualBlocksConsensus 报告一条剩余分歧是否实质阻塞收口。
+func residualBlocksConsensus(residual string) bool {
+	residual = strings.TrimSpace(residual)
+	if residual == "" {
+		return false
+	}
+	switch strings.ToLower(residual) {
+	case "无", "无。", "none", "n/a", "-":
+		return false
+	}
+	return true
 }
 
 func roundReachedConsensus(contributions []Contribution, expected int) bool {
@@ -2088,6 +2136,11 @@ func roundReachedConsensus(contributions []Contribution, expected int) bool {
 	seen := make(map[string]bool, expected)
 	for _, contribution := range contributions {
 		if contribution.Consensus != "yes" || seen[contribution.AgentID] {
+			return false
+		}
+		// 2026-11-03 V2 P1 停机判据：「自报一致+剩余分歧非无」不得停机——
+		// grok r2 实证旧门只读共识行，正文里藏的保留会随提前停机被静默接受。
+		if residualBlocksConsensus(contribution.Residual) {
 			return false
 		}
 		seen[contribution.AgentID] = true

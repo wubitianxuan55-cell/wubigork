@@ -8,7 +8,7 @@ import (
 )
 
 // 2026-11-03 论证文件化验收基线：
-//   - 更早轮次发言归档为文件，提示词只带索引行+预览+全文路径；
+//   - 更早轮次发言归档为文件，提示词只带索引行+全文路径；
 //   - 大块材料超阈值归档，简报不再全文内联；
 //   - 归档文件幂等、可自愈（session.json 是权威全文，缺失即从内存补写）。
 
@@ -110,6 +110,33 @@ func TestSmallEvidenceStaysInline(t *testing.T) {
 	}
 }
 
+func TestEvidenceInlineBudgetArchivesOverflow(t *testing.T) {
+	root := t.TempDir()
+	tr, err := newTranscript(root, "pan_evidence_budget")
+	if err != nil {
+		t.Fatal(err)
+	}
+	makeEvidence := func(tail string) string {
+		return strings.Repeat("甲", evidenceInlineRunes-64) + tail
+	}
+	req := StartRequest{
+		Topic: "材料总量预算",
+		Evidence: []EvidenceItem{
+			{Name: "材料一", Content: makeEvidence("ONE")},
+			{Name: "材料二", Content: makeEvidence("TWO")},
+			{Name: "材料三", Content: makeEvidence("THREE")},
+			{Name: "材料四", Content: makeEvidence("FOURTAIL")},
+		},
+	}
+	brief := buildBrief(req, &tr)
+	if !strings.Contains(brief, "全文见文件 ") {
+		t.Fatalf("aggregate inline budget must archive overflow material:\n%s", brief)
+	}
+	if strings.Contains(brief, "FOURTAIL") {
+		t.Fatalf("overflow material tail must not be inlined:\n%s", brief)
+	}
+}
+
 func TestOlderRoundArchivesToIndexedFile(t *testing.T) {
 	root := t.TempDir()
 	tr, err := newTranscript(root, "pan_x")
@@ -132,8 +159,11 @@ func TestOlderRoundArchivesToIndexedFile(t *testing.T) {
 	if strings.Contains(got, "古早轮独有尾部标记ARCH9") {
 		t.Fatalf("archive preview must not carry the tail:\n%s", got)
 	}
-	if !strings.Contains(got, "归档预览截断") {
-		t.Fatalf("preview must be annotated:\n%s", got)
+	if strings.Contains(got, "古早轮第000段论证") {
+		t.Fatalf("archive index must not inline a preview body:\n%s", got)
+	}
+	if !strings.Contains(got, "本轮不内联旧文") {
+		t.Fatalf("index line must state that old body is not inlined:\n%s", got)
 	}
 	// 归档文件真实落盘且全文在位。
 	paths := tr.archiveContributions([]Contribution{item})
@@ -206,8 +236,11 @@ func TestEndToEndOlderRoundsArchiveInPrompts(t *testing.T) {
 		if strings.Contains(call.Stdin, "首轮独有尾部标记E2EARC") {
 			t.Fatalf("round-1 full text must not be inlined into round-3 prompt:\n%s", call.Stdin)
 		}
-		if !strings.Contains(call.Stdin, "首轮阿尔法第000段论证") {
-			t.Fatalf("archive preview head must stay recognizable:\n%s", call.Stdin)
+		if strings.Contains(call.Stdin, "首轮阿尔法第000段论证") {
+			t.Fatalf("archived body preview must not be reinlined:\n%s", call.Stdin)
+		}
+		if !strings.Contains(call.Stdin, "本轮不内联旧文") {
+			t.Fatalf("archive index must state that the body lives in the file:\n%s", call.Stdin)
 		}
 	}
 	if !checked {

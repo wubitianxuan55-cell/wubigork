@@ -20,7 +20,8 @@ import (
 //
 //	同轮发言：全文（超限保完整尾部）——见 prompts.go formatContributionBody；
 //	上一轮：头 800 字立场卡（=既有规则平移）；
-//	更早轮次：索引行 + 头 400 字预览 + 全文路径。
+//	更早轮次：仅索引行 + 全文路径，正文不内联。索引也要随轮次增长，
+//	每轮再塞 400 字预览会让“已文件化”的旧论证继续把 prompt 撑满。
 type transcript struct {
 	dir string // sessions/<id>
 }

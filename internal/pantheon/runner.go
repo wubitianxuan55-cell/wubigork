@@ -40,6 +40,9 @@ type commandSpec struct {
 	Dir        string
 	Stdin      string
 	Env        []string
+	// Cleanup removes per-call transport files after the child process exits.
+	// ZCode uses this for long prompts that cannot fit Windows argv.
+	Cleanup func()
 }
 
 // commandRunner is injectable so protocol tests never call a real model.
@@ -123,6 +126,9 @@ func (r osCommandRunner) runStream(
 	onDelta func(string),
 	onTool func(ToolTrace),
 ) (string, error) {
+	if spec.Cleanup != nil {
+		defer spec.Cleanup()
+	}
 	if strings.TrimSpace(spec.Executable) == "" {
 		return "", errors.New("Agent 可执行文件为空")
 	}

@@ -1613,22 +1613,26 @@ func TestDSHAdapterInjectsDeepseekKey(t *testing.T) {
 }
 
 func TestExtractConsensusSignal(t *testing.T) {
+	// 2026-11-03 V2 P1：剩余分歧行也抽走（Contribution.Residual），停机门读它。
+	// 旧用例曾把「剩余分歧：无」留在正文里当预期——grok r2 实证这正是
+	// 「自报一致+正文藏分歧」能同时成立的洞，已翻转。
 	cases := []struct {
-		name     string
-		input    string
-		wantText string
-		want     string
+		name         string
+		input        string
+		wantText     string
+		want         string
+		wantResidual string
 	}{
-		{"chinese yes", "当前判断保持不变。\n共识状态：一致\n剩余分歧：无", "当前判断保持不变。\n剩余分歧：无", "yes"},
-		{"chinese no", "- 共识状态：仍有分歧\n剩余分歧：成本边界", "剩余分歧：成本边界", "no"},
-		{"english yes", "Conclusion.\nCONSENSUS: yes", "Conclusion.", "yes"},
-		{"missing", "没有结构化信号", "没有结构化信号", ""},
+		{"chinese yes", "当前判断保持不变。\n共识状态：一致\n剩余分歧：无", "当前判断保持不变。", "yes", "无"},
+		{"chinese no", "- 共识状态：仍有分歧\n剩余分歧：成本边界", "", "no", "成本边界"},
+		{"english yes", "Conclusion.\nCONSENSUS: yes", "Conclusion.", "yes", ""},
+		{"missing", "没有结构化信号", "没有结构化信号", "", ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			text, signal := extractConsensusSignal(tc.input)
-			if text != tc.wantText || signal != tc.want {
-				t.Fatalf("got (%q,%q), want (%q,%q)", text, signal, tc.wantText, tc.want)
+			text, signal, residual := extractConsensusSignal(tc.input)
+			if text != tc.wantText || signal != tc.want || residual != tc.wantResidual {
+				t.Fatalf("got (%q,%q,%q), want (%q,%q,%q)", text, signal, residual, tc.wantText, tc.want, tc.wantResidual)
 			}
 		})
 	}
@@ -1641,7 +1645,13 @@ func consensusRunner(signal string) *fakeRunner {
 		runner.outputs[id] = func(spec commandSpec) (string, error) {
 			text, err := output(spec)
 			if err == nil && strings.Contains(spec.Stdin, "全员一致检查") {
-				text += "\n共识状态：" + signal + "\n剩余分歧：成本边界"
+				// 2026-11-03 V2 P1：自报「一致」须配「剩余分歧：无」——
+				// 非无的保留会（正确地）阻止停机。
+				residual := "成本边界"
+				if signal == "一致" || signal == "yes" {
+					residual = "无"
+				}
+				text += "\n共识状态：" + signal + "\n剩余分歧：" + residual
 			}
 			return text, err
 		}

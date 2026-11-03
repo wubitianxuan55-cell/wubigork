@@ -213,7 +213,7 @@ func newZCodeAdapter(override string) agentAdapter {
 	}
 	return agentAdapter{
 		id: "zcode", name: "ZCode", kind: "ZCode CLI",
-		runMode: "plan 模式（提案不落盘，依赖 harness 自身执行；provider 凭据经环境变量注入）",
+		runMode: "plan 模式（提案不落盘；禁用 Agent/Workflow；长任务书经临时文件下发；provider 凭据经环境变量注入）",
 		probe: func(ctx context.Context) AgentStatus {
 			status := AgentStatus{
 				ID: "zcode", Name: "ZCode", Kind: "ZCode CLI",
@@ -244,7 +244,11 @@ func newZCodeAdapter(override string) agentAdapter {
 			if err != nil {
 				return commandSpec{}, err
 			}
-			args := zcodePromptArgs(prompt, cwd, images)
+			promptArg, _, cleanup, err := prepareZCodePrompt(prompt)
+			if err != nil {
+				return commandSpec{}, err
+			}
+			args := zcodePromptArgs(promptArg, cwd, images)
 			if script != "" {
 				args = append([]string{script}, args...)
 			}
@@ -265,20 +269,65 @@ func newZCodeAdapter(override string) agentAdapter {
 				Args:       args,
 				Dir:        cwd,
 				Env:        env,
+				Cleanup:    cleanup,
 			}, nil
 		},
 	}
 }
 
 func zcodePromptArgs(prompt, cwd string, images []string) []string {
-	args := make([]string, 0, 10+len(images)*2)
+	args := make([]string, 0, 14+len(images)*2)
 	for _, image := range images {
 		args = append(args, "--attach", image)
 	}
 	return append(args,
 		"--prompt", clampPrompt(prompt), "--cwd", cwd,
-		"--mode", "plan", "--output-format", "stream-json", "--no-color",
+		"--mode", "plan",
+		// 一席必须代表一个独立判断主体。ZCode 的 Agent/Workflow 会派生
+		// 子代理或后台工作流，既违反圆桌席位契约，也会显著放大延迟。
+		"--disallowed-tools", "Agent", "Workflow",
+		"--output-format", "stream-json", "--no-color",
 	)
+}
+
+const zcodeInlinePromptRunes = 12000
+
+// prepareZCodePrompt keeps Windows argv comfortably below the ~32K
+// CreateProcess limit. Longer discussion prompts are materialized as a
+// short-lived UTF-8 file and ZCode receives only a short instruction to read
+// it. The child is explicitly told this is a discussion turn, not a coding
+// implementation plan, and may not fan out into helper agents.
+func prepareZCodePrompt(prompt string) (promptArg, promptPath string, cleanup func(), err error) {
+	clamped := clampPrompt(prompt)
+	cleanup = func() {}
+	if len([]rune(clamped)) <= zcodeInlinePromptRunes {
+		return clamped, "", cleanup, nil
+	}
+
+	file, err := os.CreateTemp("", "gaea-zcode-prompt-*.md")
+	if err != nil {
+		return "", "", cleanup, fmt.Errorf("创建 ZCode 临时任务书: %w", err)
+	}
+	promptPath = file.Name()
+	cleanup = func() {
+		_ = os.Remove(promptPath)
+	}
+	if _, err := file.WriteString(clamped); err != nil {
+		_ = file.Close()
+		cleanup()
+		return "", "", func() {}, fmt.Errorf("写入 ZCode 临时任务书: %w", err)
+	}
+	if err := file.Close(); err != nil {
+		cleanup()
+		return "", "", func() {}, fmt.Errorf("关闭 ZCode 临时任务书: %w", err)
+	}
+
+	promptArg = fmt.Sprintf(`你是众神殿圆桌讨论中的一个席位。请先用 Read 工具完整读取以下任务书，然后严格执行：
+
+%s
+
+这是议事讨论，不是代码实施计划，也不是等待批准的实施方案。不要派生 subagent、并行助手或 Workflow，不要写文件。只使用完成本轮陈词所必需的只读工具；材料足够后立即输出任务书要求的完整陈词，把未核验项写进置信度或遗留项。`, promptPath)
+	return promptArg, promptPath, cleanup, nil
 }
 
 func newDSHAdapter(override, deepseekKey string) agentAdapter {

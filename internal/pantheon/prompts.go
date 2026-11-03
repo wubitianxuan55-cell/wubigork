@@ -11,6 +11,7 @@ import (
 // 超限截断的另一主因。归档不可用时降级为全文内联，不挡议事。
 func buildBrief(req StartRequest, files *transcript) string {
 	var b strings.Builder
+	remainingInlineRunes := evidenceInlineBudgetRunes
 	b.WriteString("【议题】\n")
 	b.WriteString(strings.TrimSpace(req.Topic))
 	if workspace := strings.TrimSpace(req.Workspace); workspace != "" {
@@ -39,7 +40,10 @@ func buildBrief(req StartRequest, files *transcript) string {
 		content := strings.TrimSpace(evidence.Content)
 		runes := len([]rune(content))
 		inlined := false
-		if files != nil && runes > evidenceInlineRunes {
+		// 单条阈值之外还要守总量：多个“单条不大”的材料仍能把 prompt 撑爆。
+		shouldArchive := files != nil &&
+			(runes > evidenceInlineRunes || runes > remainingInlineRunes)
+		if shouldArchive {
 			if path, err := files.ensureEvidenceFile(index, evidence); err == nil {
 				inlined = true
 				fmt.Fprintf(
@@ -47,7 +51,7 @@ func buildBrief(req StartRequest, files *transcript) string {
 					"\n\n【材料 · %s】（原长 %d 字符，全文见文件 %s，细节请用文件读取工具按需阅读）\n预览：\n",
 					name, runes, path,
 				)
-				b.WriteString(headRunes(content, archivedPreviewRunes))
+				b.WriteString(headRunes(content, evidencePreviewRunes))
 				b.WriteString("\n〔归档预览截断：完整内容读上方全文文件〕")
 			}
 		}
@@ -56,6 +60,7 @@ func buildBrief(req StartRequest, files *transcript) string {
 			b.WriteString(name)
 			b.WriteString("】\n")
 			b.WriteString(content)
+			remainingInlineRunes -= runes
 		}
 	}
 	for index, attachment := range req.Attachments {
@@ -119,11 +124,12 @@ const (
 	// 上一轮立场卡节选长度：机械节选（禁止模型再摘要冒充原文），
 	// 必须标注原长与贡献 ID，截断标记须与作者自己的省略号明确区分。
 	stanceCardRunes = 800
-	// 更早轮次归档预览长度：只保留识别性头部，细节走全文文件按需自读
-	// （2026-11-03 实弹：6 席×3 轮在旧预算下单场 22 次超限截断）。
-	archivedPreviewRunes = 400
 	// 材料内联阈值：超过则归档为文件，简报只带预览与全文路径。
 	evidenceInlineRunes = 2400
+	// 材料内联总量上限：防止多条小材料叠加成另一份“全文 prompt”。
+	evidenceInlineBudgetRunes = 6000
+	// 归档材料的识别性预览；旧轮次贡献不内联预览，只保留索引与路径。
+	evidencePreviewRunes = 400
 )
 
 // consensusLabel 把协议信号还原成人在纪要里可读的措辞。
@@ -136,7 +142,7 @@ func consensusLabel(signal string) string {
 
 // formatContributionBody 把一条历史发言重新分发给后位席位与汇总席。
 // 分层保真（2026-11-03 论证文件化）：同轮发言给全文（超限保完整尾部）；
-// 上一轮降为立场卡（原长+贡献 ID）；更早轮次降为索引行+预览+全文路径，
+// 上一轮降为立场卡（原长+贡献 ID）；更早轮次只保留索引与全文路径，
 // 席位用文件读取工具按需自读。files 为 nil（归档写失败）时更早轮次降级回
 // 立场卡，绝不因分发辅助故障挡议事。所有机械截断都带〔gaea 分发截断〕标记，
 // 与作者自己写的省略号区分开，使信息损失可审计。被协议剥离的共识行也在此
@@ -182,10 +188,9 @@ func formatContributionBody(item Contribution, currentRound int, files *transcri
 			if path, err := files.ensureContributionFile(item); err == nil {
 				archived = true
 				body = fmt.Sprintf(
-					"（归档发言 · 原长 %d 字符 ｜ 贡献 ID %s ｜ 全文见文件 %s）\n",
+					"（归档发言 · 原长 %d 字符 ｜ 贡献 ID %s ｜ 全文见文件 %s；本轮不内联旧文）",
 					runes, item.ID, path,
-				) + headRunes(body, archivedPreviewRunes) +
-					"\n〔归档预览截断：细节请用文件读取工具阅读上方全文文件〕"
+				)
 			}
 		}
 		if !archived && runes > stanceCardRunes {
@@ -332,7 +337,7 @@ func discussionPrompt(
 
 【其他参与者公开分享的观点】
 %s
-（发言分发按轮次分层：本轮发言保持全文；上一轮为立场卡节选并标注原长与贡献 ID；更早轮次已归档为文件，只保留索引行与预览。）
+（发言分发按轮次分层：本轮发言保持全文；上一轮为立场卡节选并标注原长与贡献 ID；更早轮次已归档为文件，只保留轮次、席位、贡献 ID 与原长索引。需要细节时用文件读取工具按索引路径回读，不在当前提示词内重复旧文。）
 
 【转述纪律（2026-11-03 幻觉防线）】
 - 引用他人论点必须带「贡献 ID + 不超过一句的原话摘引」，不得凭印象转述——多轮转述链是失真的主源头。
@@ -411,7 +416,7 @@ func synthesisPrompt(req StartRequest, facilitator AgentStatus, contributions []
 		b.WriteString("\n")
 	}
 	b.WriteString(`
-（讨论记录按轮次分层：最后一轮为全文或完整尾部；上一轮为立场卡节选；更早轮次已归档为文件，只保留索引行与预览——整理时发现某条归档发言可能影响结论，先用文件读取工具按「全文见文件」路径核对原文，再写进小结。）
+（讨论记录按轮次分层：最后一轮为全文或完整尾部；上一轮为立场卡节选；更早轮次已归档为文件，只保留索引行与全文路径——整理时发现某条归档发言可能影响结论，先用文件读取工具按「全文见文件」路径核对原文，再写进小结。）
 
 整理要求（2026-11-03 提炼式汇总——禁止流水账）：
 - summary 是提炼不是过程记录：禁止「谁先说、谁后说、谁补强了谁」的按席/按时序罗列，直接给判断。

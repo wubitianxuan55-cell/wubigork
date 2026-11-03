@@ -286,6 +286,9 @@ type Contribution struct {
 	Content    string `json:"content"`
 	Confidence string `json:"confidence,omitempty"`
 	Consensus  string `json:"consensus,omitempty"`
+	// Residual 是「剩余分歧」协议行的原文（2026-11-03 V2 P1 停机判据）：
+	// 自报「一致」但保留实质分歧的发言，停机门必须读它——空/「无」才放行。
+	Residual string `json:"residual,omitempty"`
 	// RunMode 记录本次调用实际施加的只读机制（裁决第三刀：能力不对称必须
 	// 进每次调用记录，不能把四个标志写成同一个笼统的「已只读」）。
 	RunMode    string `json:"runMode,omitempty"`
