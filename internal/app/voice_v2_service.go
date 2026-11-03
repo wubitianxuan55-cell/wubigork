@@ -27,14 +27,66 @@ const (
 	voiceV2SidecarPort = 8791
 	voiceV2LLMPort     = 8123
 	voiceV2BreezePort  = 8012
-	voiceV2LLMBin      = `C:\AI\uocr2-llama\bin\llama-server.exe`
-	voiceV2LLMModel    = `C:\AI\gaea-voice-v2\models\Qwen3-4B-Q4_K_M.gguf`
-	voiceV2VenvPython  = `C:\AI\gaea-voice-v2\venv\Scripts\python.exe`
+	// 历史装机路径（P3 打包工程化前）：降级为 base 根缺失时的回退值。
+	voiceV2LegacyLLMBin   = `C:\AI\uocr2-llama\bin\llama-server.exe`
+	voiceV2LegacyBaseRoot = `C:\AI\gaea-voice-v2`
 	// 桌面副本的 exe 位于 Desktop，工作目录也不保证是仓库；保留当前装机根
 	// 作为最后候选，确保双击启动仍能找到 sidecar 启动器。
 	voiceV2DefaultRepoRoot = `C:\AI\wubigrok`
 	voiceV2RepoRootEnv     = "GAEA_VOICE_V2_ROOT"
+	voiceV2BaseRootEnv     = "GAEA_VOICE_V2_BASE"
 )
+
+// 相对布局（bundle/安装器目录形态）：base/{venv, models, bin} + scripts/voice_v2。
+var (
+	voiceV2LLMBinRel     = filepath.Join("bin", "llama-server.exe")
+	voiceV2LLMModelRel   = filepath.Join("models", "Qwen3-4B-Q4_K_M.gguf")
+	voiceV2VenvPythonRel = filepath.Join("venv", "Scripts", "python.exe")
+)
+
+// voiceV2BaseRoot 语音 V2 依赖（venv/models/bin）的根目录：安装器/bundle 布局
+// 经 GAEA_VOICE_V2_BASE 指向；缺省=历史装机根（兼容现役机器，不迁移）。
+func voiceV2BaseRoot() string {
+	if v := strings.TrimSpace(os.Getenv(voiceV2BaseRootEnv)); v != "" {
+		return v
+	}
+	return voiceV2LegacyBaseRoot
+}
+
+func voiceV2FileExists(path string) bool {
+	st, err := os.Stat(path)
+	return err == nil && !st.IsDir()
+}
+
+// voiceV2VenvPythonPath 解析 sidecar venv 解释器：base 根 venv 优先，缺失回退
+// 历史装机路径（现役机器不因 bundle 布局变化而被打断）。
+func voiceV2VenvPythonPath() string {
+	if p := filepath.Join(voiceV2BaseRoot(), voiceV2VenvPythonRel); voiceV2FileExists(p) {
+		return p
+	}
+	return filepath.Join(voiceV2LegacyBaseRoot, voiceV2VenvPythonRel)
+}
+
+// voiceV2LLMModelPath 解析 4B gguf：base 根 models 优先，缺失回退历史路径。
+func voiceV2LLMModelPath() string {
+	if p := filepath.Join(voiceV2BaseRoot(), voiceV2LLMModelRel); voiceV2FileExists(p) {
+		return p
+	}
+	return filepath.Join(voiceV2LegacyBaseRoot, voiceV2LLMModelRel)
+}
+
+// voiceV2LLMBinPath 解析 llama-server：base 根 bin 优先（bundle 布局），缺失
+// 回退历史 uocr2-llama 装机；两者皆缺返回 bundle 预期路径（报错信息可读）。
+func voiceV2LLMBinPath() string {
+	bundled := filepath.Join(voiceV2BaseRoot(), voiceV2LLMBinRel)
+	if voiceV2FileExists(bundled) {
+		return bundled
+	}
+	if voiceV2FileExists(voiceV2LegacyLLMBin) {
+		return voiceV2LegacyLLMBin
+	}
+	return bundled
+}
 
 // 探测/命令 seam：测试注入点（internal/app 测试隔离铁律——绝不真拉起 GPU 服务）。
 var (
@@ -287,9 +339,9 @@ func (a *mediaState) VoiceV2Ensure() map[string]interface{} {
 		// ② 4B llama-server
 		emit(false, "正在准备快速模型", "")
 		if !voiceV2Probe(voiceV2LLMPort) {
-			cmd, err := detachedCmd(voiceV2LLMBin, []string{
+			cmd, err := detachedCmd(voiceV2LLMBinPath(), []string{
 				"--host", "127.0.0.1", "--port", fmt.Sprintf("%d", voiceV2LLMPort),
-				"-m", voiceV2LLMModel, "-ngl", "99", "--ctx-size", "8192",
+				"-m", voiceV2LLMModelPath(), "-ngl", "99", "--ctx-size", "8192",
 				"--reasoning", "off", "-np", "1", "--cache-reuse", "256",
 			}, "")
 			if err == nil {
@@ -318,13 +370,13 @@ func (a *mediaState) VoiceV2Ensure() map[string]interface{} {
 			}
 			launcher := filepath.Join(root, "scripts", "voice_v2", "gaea_sidecar_launcher.py")
 			config := filepath.Join(root, "scripts", "voice_v2", "gaea-spike.yaml")
-			if _, err := os.Stat(voiceV2VenvPython); err != nil {
+			if _, err := os.Stat(voiceV2VenvPythonPath()); err != nil {
 				emit(false, "准备语音识别引擎", fmt.Sprintf(
-					"sidecar venv 缺失（%s）——先按 M1 报告装机", voiceV2VenvPython,
+					"sidecar venv 缺失（%s）——先按 M1 报告装机", voiceV2VenvPythonPath(),
 				))
 				return
 			}
-			cmd, err := detachedCmd(voiceV2VenvPython, []string{
+			cmd, err := detachedCmd(voiceV2VenvPythonPath(), []string{
 				launcher, "serve", "-f", config,
 			}, root)
 			if err == nil {
