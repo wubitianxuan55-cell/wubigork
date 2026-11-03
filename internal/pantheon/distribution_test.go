@@ -114,6 +114,24 @@ func TestStanceCardAnnotatesPreviousRounds(t *testing.T) {
 	if strings.Contains(got, "往轮独有尾部标记PLMK") {
 		t.Fatal("card must not silently carry the full text")
 	}
+
+	// 2026-11-03 实弹：立场卡只回写贡献 ID 是空头支票（席位无按 ID 查全文的
+	// 通道）——归档可用时必须带全文文件路径。
+	root := t.TempDir()
+	tr, err := newTranscript(root, "pan_s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got = formatContributionBody(item, 2, &tr)
+	if !strings.Contains(got, "全文见文件 ") {
+		t.Fatalf("stance card must carry full-text file path:\n%s", got)
+	}
+	if !strings.Contains(got, "贡献 ID pan_s-r1-9") {
+		t.Fatalf("path note must keep contribution ID for audit:\n%s", got)
+	}
+	if strings.Contains(got, "往轮独有尾部标记PLMK") {
+		t.Fatal("card must still not carry the full text")
+	}
 }
 
 func TestSynthesisReceivesFinalRoundInFull(t *testing.T) {

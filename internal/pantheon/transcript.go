@@ -17,9 +17,10 @@ import (
 // 补写，旧会话 Resume 与中断恢复不需要迁移步骤。
 //
 // 分发梯度（守 2026-10-31 圆桌裁决第一刀，只降更早轮次）：
-//   同轮发言：全文（超限保完整尾部）——见 prompts.go formatContributionBody；
-//   上一轮：头 800 字立场卡（=既有规则平移）；
-//   更早轮次：索引行 + 头 400 字预览 + 全文路径。
+//
+//	同轮发言：全文（超限保完整尾部）——见 prompts.go formatContributionBody；
+//	上一轮：头 800 字立场卡（=既有规则平移）；
+//	更早轮次：索引行 + 头 400 字预览 + 全文路径。
 type transcript struct {
 	dir string // sessions/<id>
 }

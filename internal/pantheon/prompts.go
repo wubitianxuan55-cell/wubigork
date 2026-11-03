@@ -104,7 +104,8 @@ func toolPolicy(agent AgentStatus) string {
 Windows 命令纪律：执行命令一律直接调用 pwsh.exe（PowerShell），禁止经 cmd.exe 执行——cmd 的中文输出与内部报错都是 GBK 乱码，且 PowerShell cmdlet（Get-Content、Get-ChildItem 等）在 cmd 中不存在只会报错。
 pwsh 管道默认输出编码也是 GBK：凡涉及读取或查看含中文的文件/目录，命令开头先设 UTF-8，例如：
 "C:\\...\\pwsh.exe" -NoProfile -Command "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; Get-Content -LiteralPath 'x.md' -TotalCount 80"
-读大文件用 -TotalCount 或 Select-Object -First 限行，避免大段输出。`
+读大文件用 -TotalCount 或 Select-Object -First 限行，避免大段输出。
+能力边界与降级：若 pwsh.exe 不存在、命令执行或网络请求被沙箱拦截（如直连 GitHub API 失败、浏览器自动化被拒），不要反复重试同一通道——改用 Harness 自带的只读检索（文件读取、代码搜索、内建联网搜索）与本地仓库取证，并在陈词的置信度行写明「未验证（写明被拦的通道）」。一条通道被拦一次即换路，不消耗轮次死磕。`
 }
 
 const (
@@ -150,10 +151,18 @@ func formatContributionBody(item Contribution, currentRound int, files *transcri
 		)
 		body = marker + tailRunes(body, sameRoundKeepRunes)
 	case previousRound && runes > stanceCardRunes:
+		// 2026-11-03 实弹：立场卡只回写贡献 ID 是空头支票（席位无按 ID 查全文
+		// 的通道），与更早轮次同规补全文文件路径；归档不可用降级回 ID 表述。
+		note := fmt.Sprintf("全文见贡献 ID %s", item.ID)
+		if files != nil {
+			if path, err := files.ensureContributionFile(item); err == nil {
+				note = fmt.Sprintf("全文见文件 %s（贡献 ID %s）", path, item.ID)
+			}
+		}
 		head := string([]rune(body)[:stanceCardRunes])
 		body = head + fmt.Sprintf(
-			"\n〔gaea 分发截断：仅保留节选，原长 %d 字符，全文见贡献 ID %s〕",
-			runes, item.ID,
+			"\n〔gaea 分发截断：仅保留节选，原长 %d 字符，%s〕",
+			runes, note,
 		)
 	case !sameRound && !previousRound:
 		if files != nil {

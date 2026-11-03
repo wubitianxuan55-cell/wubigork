@@ -23,8 +23,8 @@ const (
 	// 2026-11-03 实弹：6 席×3 轮往轮立场卡+材料全文在 24000 字符预算下第二轮起
 	// 必爆（单场 22 次「提示词超限截断」），中间段砍掉的正是历史论证主体。
 	// 现代席位上下文 128k+，预算提到 60000；长会议根治走贡献文件化（prompts.go）。
-	maxPromptRunes   = 60000
-	maxAgentOutput   = 200000
+	maxPromptRunes = 60000
+	maxAgentOutput = 200000
 	// 8 分钟：plan/工具型席位（如 zcode 读大型仓库）陈词常超 4 分钟
 	// （2026-10-29 实弹 zcode context deadline exceeded 逮住）
 	defaultAgentLimit = 8 * time.Minute
