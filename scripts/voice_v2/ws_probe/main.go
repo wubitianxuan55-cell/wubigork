@@ -482,7 +482,10 @@ func (p *probe) sendSessionUpdate() error {
 			"audio": map[string]any{
 				"input": map[string]any{
 					"turn_detection": map[string]any{
-						"type": "server_vad", "threshold": 0.6, "interrupt_response": true,
+						// 2026-11-04 P1 记分卡：对齐产品客户端阈值（useVoiceChatV2
+						// vadThreshold 0.75，2026-11-01 实弹修 ③）——探针会话不
+						// 发 override 时落在 yaml 默认 0.6，噪声刺激会假触发。
+						"type": "server_vad", "threshold": 0.75, "interrupt_response": true,
 					},
 				},
 			},
