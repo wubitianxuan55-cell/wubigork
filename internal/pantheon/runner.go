@@ -19,7 +19,10 @@ import (
 )
 
 const (
-	maxProcessOutput = 4 << 20
+	// 2026-11-03 4MB→16MB：zcode 大仓实弹流（reasoning 万条+工具输出）常态超
+	// 4MB（live dump 4,194,323B 正好撞 cap）。截断后尾部环留保收尾事件，但
+	// head 里的增量重装不完整；16MB 让多数流不进截断路径。
+	maxProcessOutput = 16 << 20
 	// 2026-11-03 实弹：6 席×3 轮往轮立场卡+材料全文在 24000 字符预算下第二轮起
 	// 必爆（单场 22 次「提示词超限截断」），中间段砍掉的正是历史论证主体。
 	// 现代席位上下文 128k+，预算提到 60000；长会议根治走贡献文件化（prompts.go）。
@@ -158,8 +161,13 @@ func (r osCommandRunner) runStream(
 	if stream != nil {
 		stream.Flush()
 	}
-	out := strings.TrimSpace(stdout.buf.String())
-	errText := strings.TrimSpace(stderr.buf.String())
+	// 2026-11-03 空结果根修：必须取 cappedBuffer.String()（头+截断标记+尾部环留），
+	// 不能只取 stdout.buf（head）。zcode 大仓流（reasoning 数千条+工具输出）常态
+	// 超 4MB cap，收尾的 turn.completed/result 与 text_delta 全在尾部——live dump
+	// 实证：2616 字正文旁路在流、parse 收到的 head 只有 reasoning → 「Agent 返回
+	// 空结果」。11-02 给 cappedBuffer 加 tail 环留时漏改了这条返回路径。
+	out := strings.TrimSpace(stdout.String())
+	errText := strings.TrimSpace(stderr.String())
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		return out, fmt.Errorf("Agent 调用超时: %w", ctx.Err())
 	}
