@@ -25,7 +25,9 @@ const bridgeMocks = vi.hoisted(() => ({
     BreezeSaveVoice: vi.fn(async () => ({ ok: true })),
     SetChatVoiceModel: vi.fn(async () => undefined),
     StartLocalTTSService: vi.fn(async () => ({ ready: false, starting: true })),
-    VoiceV2Status: vi.fn(async () => ({ sidecar: false, llm: false, breeze: true, ready: false })),
+    VoiceV2Status: vi.fn(async () => ({
+      sidecar: false, llm: false, breeze: true, gateway: false, ready: false,
+    })),
     VoiceV2Ensure: vi.fn(async () => ({ ready: false, starting: true })),
     VoiceV2Stop: vi.fn(async () => ({ sidecar: false, llm: false })),
     CharacterList: vi.fn(async () => ({ items: [] as Array<Record<string, unknown>> })),
@@ -135,6 +137,6 @@ describe('VoiceSettingsPanel 语音对话引擎卡（M4 产品接入刀）', () 
     await waitFor(() =>
       expect(bridgeMocks.app.VoiceApplySettings).toHaveBeenCalledWith({ voiceBackend: 'v2' }))
     await waitFor(() => expect(screen.getByTestId('voice-v2-ensure')).toBeTruthy())
-    expect(screen.getByText(/breeze ✓ · 4B ✗ · sidecar ✗/)).toBeTruthy()
+    expect(screen.getByText(/breeze ✓ · 4B ✗ · 网关 ✗ · sidecar ✗/)).toBeTruthy()
   })
 })

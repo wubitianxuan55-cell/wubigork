@@ -39,9 +39,46 @@ let reminderSeq = 3;
 // 角色库可聊天角色（人格选择器右栏详情数据源；立绘用确定性 SVG 占位）
 const charPortrait = (initial: string, hue: number) =>
   `data:image/svg+xml;utf8,${encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60"><rect width="60" height="60" fill="hsl(${hue},45%,22%)"/><text x="30" y="40" font-size="26" text-anchor="middle" fill="hsl(${hue},70%,80%)" font-family="sans-serif">${initial}</text></svg>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 320">
+      <rect width="240" height="320" fill="hsl(${hue},32%,16%)"/>
+      <circle cx="120" cy="72" r="70" fill="hsl(${hue},42%,26%)" opacity=".7"/>
+      <path d="M38 320c5-76 37-116 82-116s77 40 82 116z" fill="hsl(${hue},30%,24%)"/>
+      <path d="M57 196l63 48 63-48 22 124H35z" fill="hsl(${hue},38%,36%)"/>
+      <path d="M72 130h96v70H72z" fill="hsl(${hue},45%,72%)"/>
+      <ellipse cx="120" cy="103" rx="54" ry="68" fill="hsl(${hue},46%,76%)"/>
+      <path d="M62 108c-5-57 23-84 60-84 42 0 67 31 57 92-9-23-27-39-51-43-24 20-44 31-66 35z" fill="hsl(${hue},28%,20%)"/>
+      <circle cx="99" cy="105" r="3.5" fill="hsl(${hue},35%,24%)"/>
+      <circle cx="141" cy="105" r="3.5" fill="hsl(${hue},35%,24%)"/>
+      <path d="M108 128c8 6 16 6 24 0" fill="none" stroke="hsl(${hue},38%,38%)" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M120 175l-31 38h62z" fill="hsl(${hue},46%,80%)" opacity=".28"/>
+      <text x="120" y="299" font-size="20" text-anchor="middle" fill="hsl(${hue},52%,86%)" font-family="serif">${initial}</text>
+    </svg>`,
   )}`;
 const characters = [
+  {
+    id: "gaea", name: "盖亚", kind: "builtin", gender: "female", age: "28",
+    tags: ["秘书", "工作"], portraitUrl: charPortrait("盖", 168),
+    roleType: "supporting", personality: "沉稳可靠，温和坦诚，结论先行",
+    background: "轻语内置工作人格，专注桌面协作与任务执行。",
+    voiceGuide: "专业严谨的办公秘书口吻，条理清晰", chatEnabled: true,
+    dims: { T: 85, I: 55, S: 20, O: 80, R: 50 },
+  },
+  {
+    id: "muse", name: "缪斯", kind: "builtin", gender: "female",
+    tags: ["创作"], portraitUrl: charPortrait("缪", 286),
+    personality: "灵感充沛的写作伙伴，善比喻",
+    background: "轻语内置创作人格，擅长把模糊想法变成清晰文本。",
+    voiceGuide: "灵感充沛，善用比喻", chatEnabled: true,
+    dims: { T: 60, I: 82, S: 45, O: 88, R: 40 },
+  },
+  {
+    id: "fixer", name: "修哥", kind: "builtin", gender: "male",
+    tags: ["执行"], portraitUrl: charPortrait("修", 32),
+    personality: "干脆利落，直给结论",
+    background: "轻语内置执行人格，偏好短链路解决问题。",
+    voiceGuide: "干脆利落的执行者，直给结论", chatEnabled: true,
+    dims: { T: 72, I: 30, S: 40, O: 55, R: 75 },
+  },
   {
     id: "c_lin", name: "林晚", kind: "custom", gender: "female", tags: ["女主角", "清冷"],
     portraitUrl: charPortrait("林", 265), roleType: "女主", personality: "清冷聪慧，外冷内热",

@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { Modal } from 'antd'
 import PantheonPage from './PantheonPage'
-import type { PantheonAgentStatus, PantheonSession } from './pantheon/types'
+import type { PantheonAgentStatus, PantheonEvent, PantheonSession } from './pantheon/types'
 
 const mocks = vi.hoisted(() => ({
   agents: vi.fn<() => Promise<PantheonAgentStatus[]>>(),
@@ -23,6 +23,19 @@ const mocks = vi.hoisted(() => ({
   setExecutable: vi.fn(),
   saveExportBlob: vi.fn<(blob: Blob, name: string) => Promise<boolean>>(),
 }))
+
+// 事件订阅面单独捕获：直播流护栏测试需要从测试侧驱动 pantheon-event。
+const pantheonApiMocks = vi.hoisted(() => ({
+  subscribe: vi.fn<(handler: (event: PantheonEvent) => void) => () => void>(),
+}))
+
+vi.mock('./pantheon/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./pantheon/api')>()
+  return {
+    ...actual,
+    subscribePantheonEvents: pantheonApiMocks.subscribe,
+  }
+})
 
 vi.mock('../gaea/lib/bridge', () => ({
   app: {
@@ -50,10 +63,22 @@ vi.mock('../gaea/lib/saveFile', () => ({
 }))
 
 const AGENTS: PantheonAgentStatus[] = [
-  { id: 'grok', name: 'Grok', kind: 'Gaea 模型 · xAI', available: true, version: 'grok-4' },
-  { id: 'codex', name: 'Codex', kind: 'Codex CLI', available: true, version: '1.0' },
-  { id: 'zcode', name: 'ZCode', kind: 'ZCode CLI', available: true, version: '0.17' },
-  { id: 'dsh', name: 'DeepSeek Harness', kind: 'DSH headless', available: true, version: '0.2.1' },
+  {
+    id: 'grok', name: 'Grok', kind: 'Gaea 模型 · xAI', available: true, version: 'grok-4',
+    capabilities: ['shared-image-summary', 'image-path-tools'],
+  },
+  {
+    id: 'codex', name: 'Codex', kind: 'Codex CLI', available: true, version: '1.0',
+    capabilities: ['image-input', 'shared-image-summary'],
+  },
+  {
+    id: 'zcode', name: 'ZCode', kind: 'ZCode CLI', available: true, version: '0.17',
+    capabilities: ['image-input', 'shared-image-summary'],
+  },
+  {
+    id: 'dsh', name: 'DeepSeek Harness', kind: 'DSH headless', available: true, version: '0.2.1',
+    capabilities: ['shared-image-summary'],
+  },
 ]
 
 function sessionFixture(overrides: Partial<PantheonSession> = {}): PantheonSession {
@@ -102,6 +127,7 @@ describe('PantheonPage', () => {
     vi.clearAllMocks()
     window.localStorage.removeItem('gaea.pantheon.rail-collapsed')
     window.localStorage.removeItem('gaea.pantheon.inspector-collapsed')
+    pantheonApiMocks.subscribe.mockImplementation(() => () => {})
     mocks.agents.mockResolvedValue(AGENTS)
     mocks.pickFiles.mockResolvedValue([])
     mocks.workspaces.mockResolvedValue([
@@ -255,7 +281,7 @@ describe('PantheonPage', () => {
     expect(await screen.findByTestId('pantheon-record')).toBeTruthy()
   })
 
-  it('图片附件进入议事请求，并显示共享识图说明', async () => {
+  it('图片附件进入议事请求，并显示能力核对说明', async () => {
     mocks.pickFiles.mockResolvedValue([
       {
         path: 'C:\\AI\\wubigrok\\docs\\diagram.png',
@@ -272,7 +298,7 @@ describe('PantheonPage', () => {
     fireEvent.click(screen.getByTestId('pantheon-pick-images'))
 
     expect(await screen.findByText('diagram.png')).toBeTruthy()
-    expect(screen.getByText(/摘要共享给所有席位/)).toBeTruthy()
+    expect(screen.getByText(/开始前核对各席识图能力/)).toBeTruthy()
     const start = screen.getByTestId('pantheon-start')
     await waitFor(() => expect((start as HTMLButtonElement).disabled).toBe(false))
     fireEvent.click(start)
@@ -286,6 +312,56 @@ describe('PantheonPage', () => {
         size: 2048,
       }],
     })
+  })
+
+  it('图片附件与所选席位能力不匹配时阻止开议', async () => {
+    mocks.agents.mockResolvedValue(AGENTS.map((agent) => agent.id === 'dsh'
+      ? { ...agent, capabilities: [] }
+      : agent))
+    mocks.pickFiles.mockResolvedValue([{
+      path: 'C:\\AI\\wubigrok\\docs\\diagram.png',
+      name: 'diagram.png',
+      size: 2048,
+      type: 'image',
+    }])
+    render(<PantheonPage />)
+    fireEvent.click(await screen.findByTestId('pantheon-welcome-start'))
+    fireEvent.change(await screen.findByTestId('pantheon-topic'), {
+      target: { value: '图片能力必须与席位能力匹配。' },
+    })
+    fireEvent.click(screen.getByTestId('pantheon-agent-dsh'))
+    fireEvent.click(screen.getByTestId('pantheon-pick-images'))
+
+    expect(await screen.findByText(
+      'DeepSeek Harness 不支持图片附件，请移除图片或取消该席。',
+    )).toBeTruthy()
+    const start = screen.getByTestId('pantheon-start') as HTMLButtonElement
+    expect(start.disabled).toBe(true)
+
+    fireEvent.click(screen.getByTestId('pantheon-agent-dsh'))
+    await waitFor(() => expect(start.disabled).toBe(false))
+    expect(mocks.start).not.toHaveBeenCalled()
+  })
+
+  it('共享识图摘要能力允许 DSH 携带图片附件参会', async () => {
+    mocks.pickFiles.mockResolvedValue([{
+      path: 'C:\\AI\\wubigrok\\docs\\diagram.png',
+      name: 'diagram.png',
+      size: 2048,
+      type: 'image',
+    }])
+    render(<PantheonPage />)
+    fireEvent.click(await screen.findByTestId('pantheon-welcome-start'))
+    fireEvent.change(await screen.findByTestId('pantheon-topic'), {
+      target: { value: 'DSH 可以通过共享识图摘要理解附件。' },
+    })
+    fireEvent.click(screen.getByTestId('pantheon-agent-dsh'))
+    fireEvent.click(screen.getByTestId('pantheon-pick-images'))
+
+    expect(await screen.findByText('diagram.png')).toBeTruthy()
+    expect(screen.queryByText(/DeepSeek Harness 不支持图片附件/)).toBeNull()
+    const start = screen.getByTestId('pantheon-start') as HTMLButtonElement
+    await waitFor(() => expect(start.disabled).toBe(false))
   })
 
   it('讨论轮次可手动填写到两次以上', async () => {
@@ -756,6 +832,130 @@ describe('PantheonPage', () => {
     expect(await screen.findByText('已跳过当前 Agent，正在进入下一位')).toBeTruthy()
   })
 
+  it('跳过/失败后管道残留增量不得复活直播流（幽灵发言根修）', async () => {
+    let handler: ((event: PantheonEvent) => void) | undefined
+    pantheonApiMocks.subscribe.mockImplementation((fn) => {
+      handler = fn
+      return () => {}
+    })
+    const running = sessionFixture({
+      participants: [
+        { agentId: 'grok', name: 'Grok', role: 'participant', status: 'running' },
+        { agentId: 'codex', name: 'Codex', role: 'participant', status: 'waiting' },
+      ],
+    })
+    mocks.list.mockResolvedValue([{
+      id: running.id,
+      title: running.title,
+      status: running.status,
+      phase: running.phase,
+      createdAt: running.createdAt,
+      updatedAt: running.updatedAt,
+      agentCount: running.participants.length,
+    }])
+    mocks.get.mockResolvedValue(running)
+
+    render(<PantheonPage />)
+    fireEvent.click(await screen.findByTestId('pantheon-session-pan_test'))
+    await screen.findByTestId('pantheon-stream')
+    const emit = (event: Partial<PantheonEvent>) => {
+      act(() => handler?.({
+        seq: 0, sessionId: 'pan_test', phase: 'opening', round: 1,
+        at: Date.now(), ...event,
+      } as PantheonEvent))
+    }
+    const streamText = () => screen.getByTestId('pantheon-stream').textContent ?? ''
+
+    // 正常增量进入共享流
+    emit({ seq: -1, agentId: 'grok', kind: 'agent_delta', text: '增量一' })
+    expect(streamText()).toContain('增量一')
+
+    // 跳过：该席该轮直播清除并封口
+    emit({ seq: 2, agentId: 'grok', kind: 'agent_skipped', text: '已跳过' })
+    expect(streamText()).not.toContain('增量一')
+
+    // 管道残留 delta（跳过事件之后到达）不得按新流复活
+    emit({ seq: -2, agentId: 'grok', kind: 'agent_delta', text: '跳过后残留' })
+    expect(streamText()).not.toContain('跳过后残留')
+
+    // 同席下一轮重新开讲：解封，增量照常直播
+    emit({ seq: 3, agentId: 'grok', kind: 'agent_started', round: 2 })
+    emit({ seq: -3, agentId: 'grok', kind: 'agent_delta', round: 2, text: '第二轮增量' })
+    expect(streamText()).toContain('第二轮增量')
+
+    // 失败路径同样封口：agent_error 清流，其后的残留增量不再出现
+    emit({ seq: 4, agentId: 'grok', kind: 'agent_error', round: 2, text: '调用失败' })
+    expect(streamText()).not.toContain('第二轮增量')
+    emit({ seq: -4, agentId: 'grok', kind: 'agent_delta', round: 2, text: '失败后残留' })
+    expect(streamText()).not.toContain('失败后残留')
+  })
+
+  it('重试后的旧 Attempt 增量不得进入新 Attempt 直播', async () => {
+    let handler: ((event: PantheonEvent) => void) | undefined
+    pantheonApiMocks.subscribe.mockImplementation((fn) => {
+      handler = fn
+      return () => {}
+    })
+    const running = sessionFixture({
+      participants: [
+        { agentId: 'grok', name: 'Grok', role: 'participant', status: 'running' },
+        { agentId: 'codex', name: 'Codex', role: 'participant', status: 'waiting' },
+      ],
+    })
+    mocks.list.mockResolvedValue([{
+      id: running.id,
+      title: running.title,
+      status: running.status,
+      phase: running.phase,
+      createdAt: running.createdAt,
+      updatedAt: running.updatedAt,
+      agentCount: running.participants.length,
+    }])
+    mocks.get.mockResolvedValue(running)
+
+    render(<PantheonPage />)
+    fireEvent.click(await screen.findByTestId('pantheon-session-pan_test'))
+    await screen.findByTestId('pantheon-stream')
+    const emit = (event: Partial<PantheonEvent>) => {
+      act(() => handler?.({
+        seq: 0,
+        sessionId: 'pan_test',
+        phase: 'opening',
+        round: 1,
+        agentId: 'grok',
+        at: Date.now(),
+        ...event,
+      } as PantheonEvent))
+    }
+    const streamText = () => screen.getByTestId('pantheon-stream').textContent ?? ''
+
+    emit({ seq: 1, kind: 'agent_started', callId: 'call_1', attemptId: 'att_1', attempt: 1 })
+    emit({ seq: -1, kind: 'agent_delta', callId: 'call_1', attemptId: 'att_1', text: '旧尝试' })
+    expect(streamText()).toContain('旧尝试')
+
+    emit({ seq: 2, kind: 'agent_retry', callId: 'call_1', attemptId: 'att_1', attempt: 1 })
+    emit({
+      seq: 3,
+      kind: 'agent_started',
+      callId: 'call_1',
+      attemptId: 'att_2',
+      retryOfAttempt: 'att_1',
+      attempt: 2,
+    })
+    emit({
+      seq: -2,
+      kind: 'agent_delta',
+      callId: 'call_1',
+      attemptId: 'att_1',
+      text: '旧尝试迟到',
+    })
+    expect(streamText()).not.toContain('旧尝试迟到')
+
+    emit({ seq: -3, kind: 'agent_delta', callId: 'call_1', attemptId: 'att_2', text: '新尝试' })
+    expect(streamText()).toContain('新尝试')
+    expect(streamText()).not.toContain('旧尝试迟到')
+  })
+
   it('共享线程按顺序展示各 Agent 观点，点击拓扑节点查看独立上下文', async () => {
     const now = Date.now()
     const running = sessionFixture({
@@ -957,6 +1157,56 @@ describe('PantheonPage', () => {
     expect(trace.textContent).toContain('命令')
     expect(trace.textContent).toContain('rg --files')
     expect(trace.textContent).toContain('README.md')
+  })
+
+  it('CLI 结果回执双发（同 ID 无名+异 ID 命名）时工具卡合并为一且保留真实名', async () => {
+    const now = Date.now()
+    const running = sessionFixture({
+      participants: [
+        { agentId: 'zcode', name: 'ZCode', role: 'participant', status: 'running' },
+      ],
+      events: [
+        {
+          seq: 1, sessionId: 'pan_test', phase: 'opening', round: 1, agentId: 'zcode',
+          kind: 'tool_started', text: 'ZCode 正在使用 Bash', toolId: 'call_A',
+          toolName: 'Bash', toolStatus: 'started', toolInput: 'git status', at: now - 900,
+        },
+        {
+          seq: 2, sessionId: 'pan_test', phase: 'opening', round: 1, agentId: 'zcode',
+          kind: 'tool_result', text: 'ZCode 已完成 工具', toolId: 'call_A',
+          toolName: '工具', toolStatus: 'completed', at: now - 800,
+        },
+        {
+          seq: 3, sessionId: 'pan_test', phase: 'opening', round: 1, agentId: 'zcode',
+          kind: 'tool_result', text: 'ZCode 已完成 Bash', toolId: 'tool_subagent_agent_9b79',
+          toolName: 'Bash', toolStatus: 'completed', toolOutput: 'On branch main', at: now - 700,
+        },
+      ],
+    })
+    mocks.list.mockResolvedValue([{
+      id: running.id,
+      title: running.title,
+      status: running.status,
+      phase: running.phase,
+      createdAt: running.createdAt,
+      updatedAt: running.updatedAt,
+      agentCount: running.participants.length,
+    }])
+    mocks.get.mockResolvedValue(running)
+
+    render(<PantheonPage />)
+    fireEvent.click(await screen.findByTestId('pantheon-session-pan_test'))
+    fireEvent.click(await screen.findByTestId('pantheon-topology-node-zcode'))
+    fireEvent.click(screen.getByTestId('pantheon-agent-tab-trace'))
+
+    const cards = await screen.findAllByTestId(/^pantheon-tool-/)
+    expect(cards.length).toBe(1)
+    expect(cards[0].textContent).toContain('Bash')
+    expect(cards[0].textContent).not.toContain('已完成 工具')
+    expect(cards[0].textContent).toContain('git status')
+    expect(cards[0].textContent).toContain('On branch main')
+    const badge = screen.getByTestId('pantheon-topology-node-zcode')
+    expect(badge.textContent).toContain('工具 1')
   })
 
   it('当前发言只在拓扑节点与共享主线程状态中高亮', async () => {

@@ -43,6 +43,30 @@ describe('AnsweredByLine 回显（v4.15）', () => {
     expect(screen.queryByText(/tok\/s/)).toBeNull()
   })
 
+  it('真实用量指标：显示输入、输出、总计、首字、解码和速率', () => {
+    renderLine({
+      engine: 'herdsman',
+      model: 'qwen3-8b',
+      metrics: {
+        prompt_tokens: 2048,
+        completion_tokens: 2798,
+        total_tokens: 4846,
+        first_token_ms: 7300,
+        decode_ms: 45_500,
+        prefill_tps: 280.5,
+        completion_tps: 61.5,
+      },
+    })
+    const metrics = screen.getByTestId('answer-metrics')
+    expect(metrics.textContent).toContain('输入2,048')
+    expect(metrics.textContent).toContain('输出2,798')
+    expect(metrics.textContent).toContain('总计4,846')
+    expect(metrics.textContent).toContain('首字7.30 s')
+    expect(metrics.textContent).toContain('解码45.5 s')
+    expect(metrics.textContent).toContain('预填281 t/s')
+    expect(metrics.textContent).toContain('续写61.5 t/s')
+  })
+
   it('未知 source：原样兜底展示', () => {
     renderLine({ engine: 'x', model: 'y', source: 'custom-source' })
     expect(screen.getByText('由 x/y 回答 · custom-source')).toBeTruthy()

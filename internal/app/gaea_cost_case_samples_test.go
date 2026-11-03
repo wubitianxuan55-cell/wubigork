@@ -50,7 +50,8 @@ func TestCasePriceSamplesMatchAndPrice(t *testing.T) {
 	}
 	mustSaveBillItem(t, a, workcost.BillItem{ProjectID: pid, Title: "直形墙C30加厚", Unit: "m³",
 		QuotaCode: "Q1", QuotaCodes: []string{"Q1"}})
-	// 1:N 组合项：无单一单价，诚实跳过。QuotaCodes 是读侧从 links 表聚合的
+	// 1:N 组合项：无单一现算单价；带原表综合单价快照（SchemaV34）→ 走快照样本
+	// （PriceType=综合单价（原表））。QuotaCodes 是读侧从 links 表聚合的
 	// （SaveBillItem 不写 links），须显式挂接成 1:N 形状；Q2 也须真实存在
 	// （AttachBillQuotaLink 校验定额在库）。
 	if _, err := a.hubWorkcostStore().SaveQuota(workcost.Quota{Code: "Q2", Title: "垫层定额", Unit: "m³",
@@ -60,13 +61,13 @@ func TestCasePriceSamplesMatchAndPrice(t *testing.T) {
 		t.Fatalf("seed quota Q2: %v", err)
 	}
 	combo := mustSaveBillItem(t, a, workcost.BillItem{ProjectID: pid, Title: "直形墙C30组合", Unit: "m³",
-		QuotaCode: "Q1"})
+		QuotaCode: "Q1", ListPrice: 520})
 	for _, code := range []string{"Q1", "Q2"} {
 		if _, err := a.hubWorkcostStore().AttachBillQuotaLink(combo.ID, code, 0); err != nil {
 			t.Fatalf("attach %s: %v", code, err)
 		}
 	}
-	// 无手填价、无定额：跳过
+	// 无手填价、无定额、无快照：仍诚实跳过
 	mustSaveBillItem(t, a, workcost.BillItem{ProjectID: pid, Title: "直形墙C30空行", Unit: "m³",
 		QuotaCodes: []string{}})
 	// 名称不匹配
@@ -77,10 +78,10 @@ func TestCasePriceSamplesMatchAndPrice(t *testing.T) {
 		PriceOverride: 30, QuotaCodes: []string{}})
 
 	samples := a.casePriceSamples("直形墙C30", "m³")
-	if len(samples) != 2 {
-		t.Fatalf("m³ 查询应得 2 样本（手填+现算）: %+v", samples)
+	if len(samples) != 3 {
+		t.Fatalf("m³ 查询应得 3 样本（手填+现算+组合快照）: %+v", samples)
 	}
-	var manual, composed bool
+	var manual, composed, snapshot bool
 	for _, s := range samples {
 		if s.Source != "案例" || s.Region != "成都" {
 			t.Fatalf("来源/地区不符: %+v", s)
@@ -93,15 +94,17 @@ func TestCasePriceSamplesMatchAndPrice(t *testing.T) {
 			manual = true
 		case s.Name == "直形墙C30加厚" && s.Price == 250:
 			composed = true
+		case s.Name == "直形墙C30组合" && s.Price == 520 && s.PriceType == "综合单价（原表）":
+			snapshot = true // 1:N 项现算不出 → 原表快照兜底且口径如实标注
 		}
 	}
-	if !manual || !composed {
-		t.Fatalf("应含手填价 480.5 与现算价 250 两样本: %+v", samples)
+	if !manual || !composed || !snapshot {
+		t.Fatalf("应含手填 480.5 / 现算 250 / 快照 520 三样本: %+v", samples)
 	}
 
 	all := a.casePriceSamples("直形墙C30", "")
-	if len(all) != 3 {
-		t.Fatalf("空单位查询应含模板样本共 3 条: %+v", all)
+	if len(all) != 4 {
+		t.Fatalf("空单位查询应含模板样本共 4 条: %+v", all)
 	}
 }
 

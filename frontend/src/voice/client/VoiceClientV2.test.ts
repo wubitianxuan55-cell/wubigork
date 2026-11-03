@@ -29,13 +29,17 @@ function makeClient() {
   const transport = new ReplayTransport()
   const playbackDone: string[] = []
   const states: string[] = []
+  const done: Array<{ responseId: string; status: string; user: string; itemId: string; assistant: string }> = []
+  const errors: unknown[] = []
   const client = new VoiceClientV2({
     transport,
     instructions: '你是语音助手',
     onState: (s) => states.push(s.phase),
     onPlaybackDone: (id) => playbackDone.push(id),
+    onResponseDone: (info) => done.push(info),
+    onError: (error) => errors.push(error),
   })
-  return { transport, client, playbackDone, states }
+  return { transport, client, playbackDone, states, done, errors }
 }
 
 describe('VoiceClientV2（回放桩）', () => {
@@ -50,7 +54,7 @@ describe('VoiceClientV2（回放桩）', () => {
   })
 
   it('turn 实录：状态到 idle、播放队列闭合回执带 response id', () => {
-    const { client, transport, playbackDone } = makeClient()
+    const { client, transport, playbackDone, done } = makeClient()
     for (const ev of FIXTURE_TURN) transport.emit(ev)
     const s = client.snapshot
     expect(s.phase).toBe('idle')
@@ -62,6 +66,14 @@ describe('VoiceClientV2（回放桩）', () => {
     expect(playbackDone).toEqual([]) // 存量未播 → 尚无回执
     client.playback.drainTo(() => {})
     expect(playbackDone).toEqual(['resp_turn_1'])
+    expect(done).toEqual([{
+      responseId: 'resp_turn_1',
+      status: 'completed',
+      reason: '',
+      user: '你好请用两句话介绍一下你自己',
+      itemId: 'item_user_1',
+      assistant: '你好呀，我是你的语音助手gaea。很高兴跟你聊天，有什么想聊的尽管说！',
+    }])
   })
 
   it('bargein 实录：done(cancelled) 即冲刷未播块，回执带旧 id，新代际不复活', () => {
@@ -105,5 +117,33 @@ describe('VoiceClientV2（回放桩）', () => {
     transport.onmessage?.('{oops')
     expect(client.snapshot.errors).toHaveLength(1)
     expect(client.snapshot.phase).toBe('idle')
+  })
+
+  it('transport 错误交给可见消费方', () => {
+    const { transport, errors } = makeClient()
+    transport.onerror?.(new Error('socket reset'))
+    expect(errors).toHaveLength(1)
+  })
+
+  it('重复 response.done 只发一次终态回执', () => {
+    const { transport, done } = makeClient()
+    for (const ev of FIXTURE_TURN) transport.emit(ev)
+    const final = FIXTURE_TURN[FIXTURE_TURN.length - 1]
+    transport.emit(final)
+    expect(done).toHaveLength(1)
+    expect(done[0].responseId).toBe('resp_turn_1')
+  })
+
+  it('response.done 后仍有未播 PCM 时，speech_started 仍会冲刷旧代际', () => {
+    const { transport, client } = makeClient()
+    for (const ev of FIXTURE_TURN) transport.emit(ev)
+    expect(client.snapshot.phase).toBe('idle')
+    expect(client.playback.stats.pendingChunkCount).toBeGreaterThan(0)
+    transport.emit({
+      type: 'input_audio_buffer.speech_started',
+      audio_start_ms: 5000,
+    })
+    expect(client.playback.stats.pendingChunkCount).toBe(0)
+    expect(client.playback.stats.droppedBytes).toBeGreaterThan(0)
   })
 })

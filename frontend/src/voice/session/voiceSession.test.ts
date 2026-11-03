@@ -59,11 +59,15 @@ describe('reduceVoiceSession（turn）', () => {
 
   it('用户转写定稿唯一且权威', () => {
     expect(st.committedTranscripts).toEqual(['你好请用两句话介绍一下你自己'])
+    expect(st.responses['resp_turn_1'].userTranscript).toBe('你好请用两句话介绍一下你自己')
+    expect(st.responses['resp_turn_1'].userItemId).toBe('item_user_1')
+    expect(st.pendingUserTranscripts).toEqual([])
     expect(st.partialTranscript).toBe('')
   })
 
   it('助手文本=transcript done 全量（非 delta 拼接漂移）', () => {
     expect(st.assistantText).toBe('你好呀，我是你的语音助手gaea。很高兴跟你聊天，有什么想聊的尽管说！')
+    expect(st.responses['resp_turn_1'].assistantText).toBe(st.assistantText)
   })
 
   it('音频与文本账目对齐（12 帧 × 12B；三段 delta 字符数）', () => {
@@ -133,5 +137,59 @@ describe('reduceVoiceSession（bargein）', () => {
     s = reduceVoiceSession(s, { type: 'response.output_audio.delta', response_id: 'resp_barge_1', delta: 'AAAA' }, 4)
     expect(s.responses['resp_barge_1'].staleBytesAfterDone).toBe(4)
     expect(s.phase).toBe('idle') // 不因迟到帧复活 speaking
+  })
+})
+
+describe('response 与用户转写精确配对', () => {
+  it('旧 response.done 迟到时仍取旧轮用户文本，不串到下一句', () => {
+    let s = initialVoiceSession()
+    s = reduceVoiceSession(s, {
+      type: 'conversation.item.input_audio_transcription.completed',
+      item_id: 'u1',
+      transcript: '第一轮问题',
+    })
+    s = reduceVoiceSession(s, { type: 'response.created', response: { id: 'r1', status: 'in_progress' } })
+    s = reduceVoiceSession(s, {
+      type: 'conversation.item.input_audio_transcription.completed',
+      item_id: 'u2',
+      transcript: '第二轮问题',
+    })
+    s = reduceVoiceSession(s, {
+      type: 'response.output_audio_transcript.delta',
+      response_id: 'r1',
+      delta: '第一轮回答',
+    })
+    s = reduceVoiceSession(s, {
+      type: 'response.done',
+      response: { id: 'r1', status: 'completed' },
+    })
+
+    expect(s.responses.r1.userTranscript).toBe('第一轮问题')
+    expect(s.responses.r1.assistantText).toBe('第一轮回答')
+    expect(s.pendingUserTranscripts).toEqual([{ text: '第二轮问题', itemId: 'u2' }])
+    expect(s.activeResponseId).toBe('r1')
+  })
+
+  it('相同用户文本仍按 item_id 保持轮次归属', () => {
+    let s = initialVoiceSession()
+    for (const id of ['u1', 'u2']) {
+      s = reduceVoiceSession(s, {
+        type: 'conversation.item.input_audio_transcription.completed',
+        item_id: id,
+        transcript: '再说一遍',
+      })
+      s = reduceVoiceSession(s, { type: 'response.created', response: { id: `r-${id}`, status: 'in_progress' } })
+    }
+    expect(s.responses['r-u1'].userItemId).toBe('u1')
+    expect(s.responses['r-u2'].userItemId).toBe('u2')
+  })
+
+  it('重复 response.done 不重复闭合或累积错误', () => {
+    let s = replay(FIXTURE_TURN)
+    const done = FIXTURE_TURN[FIXTURE_TURN.length - 1]
+    s = reduceVoiceSession(s, done)
+    expect(s.responses.resp_turn_1.status).toBe('completed')
+    expect(s.responses.resp_turn_1.closed).toBe(true)
+    expect(s.errors).toEqual([])
   })
 })

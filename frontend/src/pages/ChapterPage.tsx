@@ -978,10 +978,14 @@ const ChapterPage: React.FC<ChapterPageProps> = ({ active = true }) => {
       <div style={{ flex: 1, display: 'flex', gap: 8, minHeight: 0 }}>
         {!activeTab ? (
           /* 空态：从左侧大纲选择章节 */
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C('color-text-secondary'), opacity: 0.5 }}>
-            <div style={{ textAlign: 'center' }}>
-              <BookOutlined style={{ fontSize: 48, marginBottom: 16 }} />
-              <div>从左侧大纲选择章节开始阅读</div>
+          <div className="novel-reading-empty">
+            <div className="novel-reading-empty-inner">
+              <span className="novel-reading-empty-kicker">READING ROOM</span>
+              <BookOutlined className="novel-reading-empty-icon" aria-hidden />
+              <h2>选择一章，回到故事里</h2>
+              <p>从左侧大纲选择章节开始阅读</p>
+              <span className="novel-reading-empty-rule" aria-hidden />
+              <small>阅读模式会隐藏编辑痕迹，只保留正文、批注与你的节奏。</small>
             </div>
           </div>
         ) : (

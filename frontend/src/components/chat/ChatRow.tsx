@@ -7,7 +7,7 @@ import React from 'react'
 import { Button, Tooltip } from 'antd'
 import {
   CopyOutlined, CheckOutlined, SoundOutlined, BulbOutlined,
-  ReloadOutlined, CloseCircleOutlined,
+  ReloadOutlined, CloseCircleOutlined, BarChartOutlined, UpOutlined, DownOutlined,
 } from '@ant-design/icons'
 import { C } from '../../utils/theme'
 import ChatMarkdown from '../ChatMarkdown'
@@ -44,6 +44,7 @@ export const ChatRow: React.FC<ChatRowProps> = ({
   copied, speaking, onCopy, onSpeak, onRetry,
 }) => {
   const display = text
+  const [metricsOpen, setMetricsOpen] = React.useState(true)
   // v4.368 流式分段渲染：把累积文本切成「稳定段（段落边界，不再变化）+ 增长尾段」，
   // 稳定段字符串不变时其 MarkdownContent 子树被 memo 跳过——每 chunk 实际重解析的
   // 只有尾段（通常一段），消除原「每 chunk 全量 reparse」的 O(n²)。
@@ -109,7 +110,7 @@ export const ChatRow: React.FC<ChatRowProps> = ({
         </div>
       )}
       {msg.content && !msg.streaming && (
-        <div className="chat-msg-actions">
+        <div className={`chat-msg-actions${msg.extra?.answered_by != null ? ' has-metrics' : ''}`}>
           <Tooltip title={copied ? '已复制' : '复制'}>
             <Button type="text" size="small" aria-label={copied ? '已复制' : '复制'} icon={copied ? <CheckOutlined style={{ color: 'var(--md-sys-color-success)' }} /> : <CopyOutlined />}
               onClick={() => onCopy(msg.content, msg.key)} style={{ color: C('color-text-secondary'), fontSize: 12, padding: '0 4px', height: 22 }} />
@@ -120,12 +121,24 @@ export const ChatRow: React.FC<ChatRowProps> = ({
                 onClick={() => onSpeak(msg.content, msg.key)} style={{ color: C('color-text-secondary'), fontSize: 12, padding: '0 4px', height: 22 }} />
             </Tooltip>
           )}
+          {!msg.error && msg.extra?.answered_by != null && (
+            <button
+              type="button"
+              className="chat-metrics-toggle"
+              aria-expanded={metricsOpen}
+              onClick={() => setMetricsOpen(open => !open)}
+            >
+              <BarChartOutlined aria-hidden />
+              {metricsOpen ? '收起指标' : '输出指标'}
+              {metricsOpen ? <UpOutlined aria-hidden /> : <DownOutlined aria-hidden />}
+            </button>
+          )}
         </div>
       )}
       {/* v4.15：消息级「由谁回答/为何/花了多少」回显——仅当 extra.answered_by 存在时渲染
           （旧消息/旧事件无此字段 → 零渲染，向后兼容）；流式/错误行不渲染。
           （!= null 显式布尔化：extra 值为 unknown，避免 && 链类型污染） */}
-      {!msg.error && !msg.streaming && msg.extra?.answered_by != null && (
+      {!msg.error && !msg.streaming && metricsOpen && msg.extra?.answered_by != null && (
         <AnsweredByLine info={msg.extra.answered_by as AnsweredByInfo} />
       )}
     </div>

@@ -46,7 +46,7 @@ describe('isIndependentBoard（独立窗口分面机制）', () => {
 })
 
 describe('canonical 空间归属表（docs §3，数据面文档化：会话空间/事件分域仍按此分）', () => {
-  it('工位=办公/造价/记忆/青鸟/进度，乐园=聊天/小说/绘梦/角色（原罪 2026-10-27 并入小说）；模型中心/设置/运行监测为 shared', () => {
+  it('工位=办公/造价/记忆/微信助手/进度，乐园=聊天/小说/绘梦/角色（原罪 2026-10-27 并入小说）；模型中心/设置/运行监测为 shared', () => {
     const by = (s: 'work' | 'play' | 'shared') =>
       canonicalBoards.filter((b) => boardSpace(b) === s).map((b) => b.id)
     expect(by('work')).toEqual(expect.arrayContaining(['gaea', 'cost', 'memoryhub', 'weixin', 'schedule']))

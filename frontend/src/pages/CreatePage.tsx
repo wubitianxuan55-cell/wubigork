@@ -1034,7 +1034,8 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
         aiTaste={aiTaste}
         onRunHealth={() => { setHealthOpen(true); setStageClosing(null) }}
       />
-      <div className="novel-create-rail">
+      <div className="novel-create-rail" role="toolbar" aria-label="写作工具">
+        <span className="novel-create-rail-label" aria-hidden>WRITING DESK</span>
         {/* 高频直钮：每章写作循环（计划→分析→去味）零菜单直达 */}
         <Button size="small" onClick={() => { setPlanSeed(''); setPlanChapterOverride(0); setPlanOpen(v => !v) }}>章节计划</Button>
         <Button size="small" onClick={() => setAnalysisOpen(true)}>章节分析</Button>

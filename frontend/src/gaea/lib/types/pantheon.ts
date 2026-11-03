@@ -46,9 +46,48 @@ export interface PantheonStartRequest {
   protocol?: string
   /** 续议来源会话 ID（裁决第三刀：保留父会话谱系；承接以简报为准） */
   parentSessionId?: string
+  /** 每轮之间停下，开一道决策门等人确认（O-E） */
+  gateEachRound?: boolean
 }
 
-export interface PantheonParticipant {
+/** 席位向用户提的问题（O-E）。回答只能绑 QuestionID，答一次就作废。 */
+export interface PantheonQuestion {
+  questionId: string
+  options?: string[]
+  askedBy?: string
+  at?: number
+}
+
+export interface PantheonAnswer {
+  questionId: string
+  body?: string
+  by?: string
+  at?: number
+}
+
+/** 决策门：open 开、resolve 放行、dismiss 放弃（放弃必须写理由）。 */
+export interface PantheonGate {
+  action: 'open' | 'resolve' | 'dismiss' | string
+  reason?: string
+}
+
+export interface PantheonCallRef {
+  callId?: string
+  attemptId?: string
+  retryOfAttempt?: string
+  attempt?: number
+}
+
+/** 席位观测：这条状态是谁在什么时候看见的（Orca agent-status 的圆桌版）。 */
+export interface PantheonObserved {
+  origin?: string
+  authorityId?: string
+  incarnation?: number
+  revision?: number
+  at?: number
+}
+
+export interface PantheonParticipant extends PantheonCallRef {
   agentId: string
   name: string
   role: string
@@ -57,9 +96,12 @@ export interface PantheonParticipant {
   finishedAt?: number
   durationMs?: number
   error?: string
+  /** 一句话证据：这个状态是凭什么来的。 */
+  evidence?: string
+  observed?: PantheonObserved
 }
 
-export interface PantheonEvent {
+export interface PantheonEvent extends PantheonCallRef {
   seq: number
   sessionId: string
   phase: string
@@ -75,9 +117,12 @@ export interface PantheonEvent {
   at: number
   durationMs?: number
   error?: string
+  question?: PantheonQuestion
+  answer?: PantheonAnswer
+  gate?: PantheonGate
 }
 
-export interface PantheonLiveStream {
+export interface PantheonLiveStream extends PantheonCallRef {
   id: string
   agentId: string
   phase: string
@@ -88,7 +133,7 @@ export interface PantheonLiveStream {
   updatedAt?: number
 }
 
-export interface PantheonContribution {
+export interface PantheonContribution extends PantheonCallRef {
   id: string
   phase: string
   round?: number
@@ -118,12 +163,14 @@ export interface PantheonSignOff {
   decision: 'accepted' | 'needs_revision' | 'rejected' | string
   note?: string
   at: number
+  /** 签注时确认的缺口：同样的小结，缺口不同就不是同一个版本（O-H） */
+  gaps?: string[]
 }
 
 export interface PantheonSession {
   id: string
   title: string
-  status: 'running' | 'completed' | 'failed' | 'cancelled' | string
+  status: 'running' | 'completed' | 'failed' | 'cancelled' | 'waiting_input' | 'interrupted' | string
   phase: string
   currentRound?: number
   createdAt: number
@@ -134,6 +181,8 @@ export interface PantheonSession {
   contributions: PantheonContribution[]
   verdict?: PantheonVerdict
   signoff?: PantheonSignOff
+  /** 结案时没交出可用结论的席位（具名 + 原因） */
+  gaps?: string[]
   resultPath?: string
   warnings?: string[]
   error?: string

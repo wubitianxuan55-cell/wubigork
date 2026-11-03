@@ -13,6 +13,8 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+
+	gaeaproc "github.com/gaea/gaea/internal/gaea/proc"
 	"strconv"
 	"strings"
 	"sync"
@@ -131,7 +133,9 @@ func (p *localEngineProc) stop() bool {
 	if cmd == nil || cmd.Process == nil {
 		return false
 	}
-	_, err := exec.Command("taskkill", "/PID", strconv.Itoa(cmd.Process.Pid), "/T", "/F").CombinedOutput()
+	kill := exec.Command("taskkill", "/PID", strconv.Itoa(cmd.Process.Pid), "/T", "/F")
+	gaeaproc.HideWindow(kill) // Windows: 防止弹出 cmd 黑框（关闭收割路径）
+	_, err := kill.CombinedOutput()
 	if err != nil {
 		_ = cmd.Process.Kill()
 	}
@@ -152,7 +156,9 @@ func stopManagedEngine(proc *localEngineProc, port int, wait, poll time.Duration
 	killErr := ""
 	if pid := listeningPortPID(port); pid != 0 {
 		hadProcess = true
-		if out, err := exec.Command("taskkill", "/PID", strconv.Itoa(pid), "/T", "/F").CombinedOutput(); err != nil {
+		kill := exec.Command("taskkill", "/PID", strconv.Itoa(pid), "/T", "/F")
+		gaeaproc.HideWindow(kill) // Windows: 防止弹出 cmd 黑框
+		if out, err := kill.CombinedOutput(); err != nil {
 			// 进程可能在 netstat 与 taskkill 之间自己退出；不要据此提前判失败，
 			// 继续以端口释放为最终判据（否则 UI 会误报停止失败并留下假状态）。
 			killErr = strings.TrimSpace(string(out))
@@ -207,7 +213,9 @@ func probeOpenAIModelsAt(base string, timeout time.Duration) ([]string, bool) {
 
 // listeningPortPID 找指定端口的监听进程 PID（netstat 口径）。
 func listeningPortPID(port int) int {
-	out, err := exec.Command("netstat", "-ano").Output()
+	probe := exec.Command("netstat", "-ano")
+	gaeaproc.HideWindow(probe) // Windows: 防止弹出 cmd 黑框（端口探测）
+	out, err := probe.Output()
 	if err != nil {
 		return 0
 	}

@@ -55,10 +55,20 @@ export interface VoiceBindings {
   // {audio, mimeType, cached:false}。chJSON=角色 JSON（新角色无 id 拒绝）。
   TTSLineAudioFor(chJSON: string): Promise<Record<string, unknown>>;
   // ── Voice V2 档（M4 产品接入刀；voice.backend=v2 消费）──
-  // VoiceV2Status 三依赖只读探测 {sidecar,llm,breeze,ready}。
+  // VoiceV2Status 四依赖只读探测 {sidecar,llm,breeze,gateway,ready}。
   VoiceV2Status(): Promise<Record<string, unknown>>;
   // VoiceV2Ensure 幂等拉起 breeze→4B→sidecar 链（异步，voice-v2-status 事件上报）。
   VoiceV2Ensure(): Promise<Record<string, unknown>>;
   // VoiceV2Stop 按端口击杀 sidecar 与 4B（breeze 共享引擎不动）。
   VoiceV2Stop(): Promise<Record<string, unknown>>;
+  // VoiceV2CommitTurn 以 topic mode 为权威人格，单事务写回 V2 聊天并触发
+  // 轻语工作记忆/状态/FactStore 异步收尾。responseID 持久判重；itemID
+  // 精确关联生成前的 persona 快照，重复话术也不会串轮。
+  VoiceV2CommitTurn(
+    topicID: string,
+    userText: string,
+    assistantText: string,
+    responseID: string,
+    itemID: string,
+  ): Promise<Record<string, unknown>>;
 }

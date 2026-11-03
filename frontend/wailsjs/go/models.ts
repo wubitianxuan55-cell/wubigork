@@ -8073,6 +8073,24 @@ export namespace pantheon {
 	        this.capabilities = source["capabilities"];
 	    }
 	}
+	export class AnswerPayload {
+	    questionId: string;
+	    body?: string;
+	    by?: string;
+	    at: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new AnswerPayload(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.questionId = source["questionId"];
+	        this.body = source["body"];
+	        this.by = source["by"];
+	        this.at = source["at"];
+	    }
+	}
 	export class Attachment {
 	    name: string;
 	    path: string;
@@ -8092,6 +8110,10 @@ export namespace pantheon {
 	    }
 	}
 	export class Contribution {
+	    callId?: string;
+	    attemptId?: string;
+	    retryOfAttempt?: string;
+	    attempt?: number;
 	    id: string;
 	    phase: string;
 	    round?: number;
@@ -8111,6 +8133,10 @@ export namespace pantheon {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.callId = source["callId"];
+	        this.attemptId = source["attemptId"];
+	        this.retryOfAttempt = source["retryOfAttempt"];
+	        this.attempt = source["attempt"];
 	        this.id = source["id"];
 	        this.phase = source["phase"];
 	        this.round = source["round"];
@@ -8125,7 +8151,43 @@ export namespace pantheon {
 	        this.durationMs = source["durationMs"];
 	    }
 	}
+	export class GatePayload {
+	    action: string;
+	    reason?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GatePayload(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.action = source["action"];
+	        this.reason = source["reason"];
+	    }
+	}
+	export class QuestionPayload {
+	    questionId: string;
+	    options?: string[];
+	    askedBy?: string;
+	    at: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new QuestionPayload(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.questionId = source["questionId"];
+	        this.options = source["options"];
+	        this.askedBy = source["askedBy"];
+	        this.at = source["at"];
+	    }
+	}
 	export class Event {
+	    callId?: string;
+	    attemptId?: string;
+	    retryOfAttempt?: string;
+	    attempt?: number;
 	    seq: number;
 	    sessionId: string;
 	    phase: string;
@@ -8141,6 +8203,9 @@ export namespace pantheon {
 	    at: number;
 	    durationMs?: number;
 	    error?: string;
+	    question?: QuestionPayload;
+	    answer?: AnswerPayload;
+	    gate?: GatePayload;
 	
 	    static createFrom(source: any = {}) {
 	        return new Event(source);
@@ -8148,6 +8213,10 @@ export namespace pantheon {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.callId = source["callId"];
+	        this.attemptId = source["attemptId"];
+	        this.retryOfAttempt = source["retryOfAttempt"];
+	        this.attempt = source["attempt"];
 	        this.seq = source["seq"];
 	        this.sessionId = source["sessionId"];
 	        this.phase = source["phase"];
@@ -8163,7 +8232,28 @@ export namespace pantheon {
 	        this.at = source["at"];
 	        this.durationMs = source["durationMs"];
 	        this.error = source["error"];
+	        this.question = this.convertValues(source["question"], QuestionPayload);
+	        this.answer = this.convertValues(source["answer"], AnswerPayload);
+	        this.gate = this.convertValues(source["gate"], GatePayload);
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class EvidenceItem {
 	    name: string;
@@ -8179,6 +8269,7 @@ export namespace pantheon {
 	        this.content = source["content"];
 	    }
 	}
+	
 	export class InputDigest {
 	    kind: string;
 	    name: string;
@@ -8201,7 +8292,31 @@ export namespace pantheon {
 	        this.error = source["error"];
 	    }
 	}
+	export class Observed {
+	    origin?: string;
+	    authorityId?: string;
+	    incarnation?: number;
+	    revision?: number;
+	    at?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Observed(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.origin = source["origin"];
+	        this.authorityId = source["authorityId"];
+	        this.incarnation = source["incarnation"];
+	        this.revision = source["revision"];
+	        this.at = source["at"];
+	    }
+	}
 	export class Participant {
+	    callId?: string;
+	    attemptId?: string;
+	    retryOfAttempt?: string;
+	    attempt?: number;
 	    agentId: string;
 	    name: string;
 	    role: string;
@@ -8210,6 +8325,8 @@ export namespace pantheon {
 	    finishedAt?: number;
 	    durationMs?: number;
 	    error?: string;
+	    observed?: Observed;
+	    evidence?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Participant(source);
@@ -8217,6 +8334,10 @@ export namespace pantheon {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.callId = source["callId"];
+	        this.attemptId = source["attemptId"];
+	        this.retryOfAttempt = source["retryOfAttempt"];
+	        this.attempt = source["attempt"];
 	        this.agentId = source["agentId"];
 	        this.name = source["name"];
 	        this.role = source["role"];
@@ -8225,13 +8346,35 @@ export namespace pantheon {
 	        this.finishedAt = source["finishedAt"];
 	        this.durationMs = source["durationMs"];
 	        this.error = source["error"];
+	        this.observed = this.convertValues(source["observed"], Observed);
+	        this.evidence = source["evidence"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
+	
 	export class SignOff {
 	    decision: string;
 	    note?: string;
 	    at: number;
 	    verdictSha256?: string;
+	    gaps?: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new SignOff(source);
@@ -8243,6 +8386,7 @@ export namespace pantheon {
 	        this.note = source["note"];
 	        this.at = source["at"];
 	        this.verdictSha256 = source["verdictSha256"];
+	        this.gaps = source["gaps"];
 	    }
 	}
 	export class Verdict {
@@ -8289,6 +8433,7 @@ export namespace pantheon {
 	    readOnly: boolean;
 	    protocol?: string;
 	    parentSessionId?: string;
+	    gateEachRound?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new StartRequest(source);
@@ -8311,6 +8456,7 @@ export namespace pantheon {
 	        this.readOnly = source["readOnly"];
 	        this.protocol = source["protocol"];
 	        this.parentSessionId = source["parentSessionId"];
+	        this.gateEachRound = source["gateEachRound"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -8348,6 +8494,7 @@ export namespace pantheon {
 	    resultPath?: string;
 	    inputManifest?: InputDigest[];
 	    warnings?: string[];
+	    gaps?: string[];
 	    error?: string;
 	
 	    static createFrom(source: any = {}) {
@@ -8372,6 +8519,7 @@ export namespace pantheon {
 	        this.resultPath = source["resultPath"];
 	        this.inputManifest = this.convertValues(source["inputManifest"], InputDigest);
 	        this.warnings = source["warnings"];
+	        this.gaps = source["gaps"];
 	        this.error = source["error"];
 	    }
 	
@@ -9180,8 +9328,15 @@ export namespace trajectory {
 	}
 	
 	export class ApprovalRec {
+	    id?: string;
 	    tool?: string;
 	    subject?: string;
+	    source?: string;
+	    reason?: string;
+	    decision?: string;
+	    outcome?: string;
+	    decided?: string;
+	    latencyMs?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new ApprovalRec(source);
@@ -9189,12 +9344,23 @@ export namespace trajectory {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
 	        this.tool = source["tool"];
 	        this.subject = source["subject"];
+	        this.source = source["source"];
+	        this.reason = source["reason"];
+	        this.decision = source["decision"];
+	        this.outcome = source["outcome"];
+	        this.decided = source["decided"];
+	        this.latencyMs = source["latencyMs"];
 	    }
 	}
 	export class AskRec {
+	    id?: string;
 	    question?: string;
+	    outcome?: string;
+	    answered?: number;
+	    latencyMs?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new AskRec(source);
@@ -9202,7 +9368,11 @@ export namespace trajectory {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
 	        this.question = source["question"];
+	        this.outcome = source["outcome"];
+	        this.answered = source["answered"];
+	        this.latencyMs = source["latencyMs"];
 	    }
 	}
 	export class Usage {
@@ -9442,6 +9612,7 @@ export namespace trajectory {
 	export class Turn {
 	    turn: number;
 	    startedAt?: number;
+	    trigger?: string;
 	    durationMs?: number;
 	    end?: TurnEnd;
 	    records: Record[];
@@ -9454,6 +9625,7 @@ export namespace trajectory {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.turn = source["turn"];
 	        this.startedAt = source["startedAt"];
+	        this.trigger = source["trigger"];
 	        this.durationMs = source["durationMs"];
 	        this.end = this.convertValues(source["end"], TurnEnd);
 	        this.records = this.convertValues(source["records"], Record);
@@ -10805,6 +10977,7 @@ export namespace workcost {
 	    quotaCode: string;
 	    feature: string;
 	    priceOverride: number;
+	    listPrice: number;
 	    sort: number;
 	    quotaCodes: string[];
 	
@@ -10825,6 +10998,7 @@ export namespace workcost {
 	        this.quotaCode = source["quotaCode"];
 	        this.feature = source["feature"];
 	        this.priceOverride = source["priceOverride"];
+	        this.listPrice = source["listPrice"];
 	        this.sort = source["sort"];
 	        this.quotaCodes = source["quotaCodes"];
 	    }
@@ -11376,6 +11550,8 @@ export namespace workcost {
 	    feature: string;
 	    quantity: number;
 	    quantityExpr: string;
+	    listPrice: number;
+	    listPriceExpr: string;
 	    categoryPath: string;
 	
 	    static createFrom(source: any = {}) {
@@ -11391,6 +11567,8 @@ export namespace workcost {
 	        this.feature = source["feature"];
 	        this.quantity = source["quantity"];
 	        this.quantityExpr = source["quantityExpr"];
+	        this.listPrice = source["listPrice"];
+	        this.listPriceExpr = source["listPriceExpr"];
 	        this.categoryPath = source["categoryPath"];
 	    }
 	}

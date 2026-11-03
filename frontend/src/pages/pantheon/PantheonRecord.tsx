@@ -21,7 +21,7 @@ import {
   ToolOutlined,
   WarningOutlined,
 } from '@ant-design/icons'
-import { Alert, Button, Dropdown, Empty, Spin, Tag, Tooltip } from 'antd'
+import { Alert, Button, Dropdown, Empty, Input, Spin, Tag, Tooltip } from 'antd'
 import { MarkdownContent, mdStyles } from '../../components/MarkdownContent'
 import { AGENT_ACCENTS, agentCapabilityLabel, protocolLabel } from './visuals'
 import { PantheonAgentAvatar } from './PantheonAgentAvatar'
@@ -52,6 +52,8 @@ interface Props {
   onOpenResult: () => void
   onSignOff: (decision: 'accepted' | 'needs_revision' | 'rejected') => void
   onContinue: () => void
+  onAnswer: (questionId: string, body: string) => void
+  onResolveGate: (action: 'resolve' | 'dismiss', reason: string) => void
 }
 
 const PHASE_LABEL: Record<string, string> = {
@@ -123,19 +125,44 @@ interface SharedEntry {
   streaming?: boolean
 }
 
-type AvatarStatus = 'online' | 'offline' | 'running' | 'waiting' | 'finished' | 'skipped' | 'failed'
+type AvatarStatus = 'online' | 'offline' | 'running' | 'waiting' | 'finished' | 'skipped' | 'failed' | 'unverified'
 
 function participantStatusLabel(status: string): string {
   switch (status) {
     case 'running': return '正在发言'
     case 'finished': return '已返回'
+    case 'finished_unverified': return '未验证返回'
+    case 'needs_input': return '等待回答'
     case 'skipped': return '已跳过'
     case 'retrying': return '正在重试'
     case 'failed': return '失败'
     case 'unavailable': return '不可用'
+    case 'cancelled': return '已终止'
     case 'waiting': return '候场'
     default: return status
   }
+}
+
+/** 席位活性：观测超过 90 秒没有更新，"正在发言"就该让位给"活性未知"。
+ *  这不是失败——外部进程可能只是安静；但界面不能替它保证在干活（M2/M3）。 */
+const SEAT_STALE_AFTER_MS = 90_000
+
+function seatLivenessNote(participant: PantheonParticipant, clockNow: number): string {
+  if (participant.status !== 'running' && participant.status !== 'retrying') return ''
+  const observedAt = participant.observed?.at
+  if (!observedAt) return ''
+  const age = clockNow - observedAt
+  if (age < SEAT_STALE_AFTER_MS) return ''
+  return `活性未知（最近观测 ${Math.round(age / 1000)} 秒前）`
+}
+
+function seatStatusText(
+  participant: PantheonParticipant,
+  clockNow: number,
+): string {
+  const label = participantStatusLabel(participant.status)
+  const note = seatLivenessNote(participant, clockNow)
+  return note ? `${label} · ${note}` : label
 }
 
 function avatarStatus(status?: string): AvatarStatus | undefined {
@@ -147,6 +174,10 @@ function avatarStatus(status?: string): AvatarStatus | undefined {
     case 'retrying':
     case 'failed':
       return status === 'retrying' ? 'running' : status
+    case 'finished_unverified':
+      return 'unverified'
+    case 'needs_input':
+      return 'waiting'
     case 'unavailable':
       return 'offline'
     default:
@@ -158,6 +189,10 @@ function statusMeta(status: string): { label: string; color: string; icon: React
   switch (status) {
     case 'running':
       return { label: '进行中', color: 'processing', icon: <Spin size="small" /> }
+    case 'waiting_input':
+      return { label: '等待回答', color: 'warning', icon: <ClockCircleOutlined /> }
+    case 'interrupted':
+      return { label: '已中断', color: 'warning', icon: <StopOutlined /> }
     case 'completed':
       return { label: '已小结', color: 'success', icon: <CheckCircleFilled /> }
     case 'cancelled':
@@ -186,6 +221,133 @@ function formatClock(ms?: number): string {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+// 等待面板（O-E）：整场停在 waiting_input 时，唯一的出路是把这里处理干净。
+// 问题与门都从事件推导，不另存字段——重启后重新拉一次快照就能原样重建。
+function pendingQuestionItems(events: PantheonEvent[]): Array<{
+  question: NonNullable<PantheonEvent['question']>
+  text: string
+}> {
+  const answered = new Set(
+    events
+      .filter((event) => event.kind === 'answer' && event.answer?.questionId)
+      .map((event) => event.answer!.questionId),
+  )
+  return events
+    .filter(
+      (event) =>
+        event.kind === 'question' &&
+        event.question?.questionId &&
+        !answered.has(event.question.questionId),
+    )
+    .map((event) => ({ question: event.question!, text: event.text || '' }))
+}
+
+function hasOpenGate(events: PantheonEvent[]): boolean {
+  let open = false
+  for (const event of events) {
+    if (event.kind !== 'gate' || !event.gate) continue
+    open = event.gate.action === 'open'
+  }
+  return open
+}
+
+function WaitingPanel({
+  session,
+  busy,
+  onAnswer,
+  onResolveGate,
+}: {
+  session: PantheonSession
+  busy: boolean
+  onAnswer: (questionId: string, body: string) => void
+  onResolveGate: (action: 'resolve' | 'dismiss', reason: string) => void
+}): React.ReactElement | null {
+  const events = session.events ?? []
+  const questions = pendingQuestionItems(events)
+  const gateOpen = hasOpenGate(events)
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
+  const [reason, setReason] = useState('')
+  if (!gateOpen && questions.length === 0) return null
+  const nameOf = (agentId?: string) =>
+    session.participants.find((participant) => participant.agentId === agentId)?.name || '某一席'
+  return (
+    <section
+      className="pantheon-waiting"
+      aria-label="等待你处理"
+      data-testid="pantheon-waiting"
+    >
+      <header>
+        <ClockCircleOutlined aria-hidden />
+        <strong>{gateOpen ? '已停在决策门' : '有席位在等你回答'}</strong>
+        <small>
+          {gateOpen
+            ? '放行后从下一轮继续；放弃则用已有发言收尾，理由必须写。'
+            : '回答只解除阻塞；续跑要点“继续讨论”，不会自动发生。'}
+        </small>
+      </header>
+      {questions.map(({ question, text }) => {
+        const draft = drafts[question.questionId] || ''
+        return (
+          <div className="pantheon-waiting-item" key={question.questionId}>
+            <span className="pantheon-waiting-asker">{nameOf(question.askedBy)} 问</span>
+            <p>{text}</p>
+            {(question.options ?? []).length > 0 && (
+              <div className="pantheon-waiting-options">
+                {(question.options ?? []).map((option) => (
+                  <Button
+                    key={option}
+                    size="small"
+                    disabled={busy}
+                    onClick={() => onAnswer(question.questionId, option)}
+                  >
+                    {option}
+                  </Button>
+                ))}
+              </div>
+            )}
+            <div className="pantheon-waiting-reply">
+              <Input
+                size="small"
+                value={draft}
+                placeholder="写一句回答，只投递给提问的那一席"
+                aria-label={`回答 ${nameOf(question.askedBy)} 的提问`}
+                onChange={(event) =>
+                  setDrafts((current) => ({ ...current, [question.questionId]: event.target.value }))
+                }
+              />
+              <Button
+                size="small"
+                type="primary"
+                disabled={busy || !draft.trim()}
+                onClick={() => onAnswer(question.questionId, draft.trim())}
+              >
+                回答
+              </Button>
+            </div>
+          </div>
+        )
+      })}
+      {gateOpen && (
+        <div className="pantheon-waiting-gate">
+          <Input
+            size="small"
+            value={reason}
+            placeholder="放弃时要写理由（放行可留空）"
+            aria-label="决策门理由"
+            onChange={(event) => setReason(event.target.value)}
+          />
+          <Button size="small" type="primary" disabled={busy} onClick={() => onResolveGate('resolve', reason.trim())}>
+            放行
+          </Button>
+          <Button size="small" danger disabled={busy || !reason.trim()} onClick={() => onResolveGate('dismiss', reason.trim())}>
+            放弃后续轮次
+          </Button>
+        </div>
+      )}
+    </section>
+  )
 }
 
 function formatElapsed(ms: number): string {
@@ -655,10 +817,20 @@ export const PantheonRecord: React.FC<Props> = ({
   onOpenResult,
   onSignOff,
   onContinue,
+  onAnswer,
+  onResolveGate,
 }) => {
   const meta = statusMeta(session.status)
+  // 中断与等待回答都不是"结束"：秒表要继续走，否则界面会显示成停滞。
   const running = session.status === 'running'
-  const clockNow = useSecondClock(running)
+  const liveish = running || session.status === 'interrupted' || session.status === 'waiting_input'
+  const clockNow = useSecondClock(liveish)
+  // 席位级活性单看拓扑节点就够，但整场"有几席其实没证据"得有个总数：读者不该
+  // 靠逐个点开才发现五席里有三席在硬撑（M2）。
+  const staleSeats = useMemo(
+    () => (session.participants ?? []).filter((participant) => seatLivenessNote(participant, clockNow) !== ''),
+    [session.participants, clockNow],
+  )
   const streamRef = useRef<HTMLDivElement>(null)
   const detailRef = useRef<HTMLElement>(null)
   const detailTriggerRef = useRef<HTMLElement | null>(null)
@@ -736,28 +908,62 @@ export const PantheonRecord: React.FC<Props> = ({
   }, [discussionOutputs, liveStreams, participants])
 
   const toolTraces = useMemo<ToolTraceView[]>(() => {
-    const byID = new Map<string, ToolTraceView>()
+    // 一张卡=一次逻辑工具调用。CLI 的结果事件可能带不同 ID（zcode 实弹
+    // 2026-10-31：started 用 callId，结果却发两份——同 ID 无名回执+带
+    // tool_subagent_* 新 ID 的命名回执），按 ID 严格合并会把每条工具卡
+    // 渲染两遍。同席同名 FIFO 配对兜底；无名回执不得抹掉真实工具名。
+    type traceCard = ToolTraceView & { namedDone: boolean }
+    const cards: traceCard[] = []
+    const byID = new Map<string, traceCard>()
+    const anonymous = (name: string) => !name || name === '工具'
     for (const event of session.events) {
       if (event.kind !== 'tool_started' && event.kind !== 'tool_result') continue
-      const id = event.toolId || `tool-event-${event.seq}`
-      const existing = byID.get(id)
-      byID.set(id, {
-        id,
-        agentId: event.agentId || existing?.agentId || '',
-        agentName:
-          participants.find((participant) => participant.agentId === event.agentId)?.name
-          || existing?.agentName
-          || event.agentId
-          || 'Agent',
-        toolName: event.toolName || existing?.toolName || '工具',
-        status: event.toolStatus || existing?.status || 'started',
-        input: event.toolInput || existing?.input || '',
-        output: event.toolOutput || existing?.output || '',
-        error: event.error || existing?.error || '',
-        at: event.at,
-      })
+      const agentId = event.agentId || ''
+      const name = event.toolName || ''
+      const isResult = event.kind === 'tool_result'
+      let card = (event.toolId ? byID.get(event.toolId) : undefined) ?? undefined
+      if (!card && isResult && event.toolId) {
+        if (!anonymous(name)) {
+          card = cards.find((item) => item.agentId === agentId
+            && !item.namedDone
+            && (item.toolName === name || anonymous(item.toolName)))
+        }
+        if (!card && anonymous(name)) {
+          // 无名且配不上任何 started 的回执是纯噪音，丢弃
+          continue
+        }
+      }
+      if (!card) {
+        card = {
+          id: event.toolId || `tool-event-${event.seq}`,
+          agentId,
+          agentName:
+            participants.find((participant) => participant.agentId === agentId)?.name
+            || agentId
+            || 'Agent',
+          toolName: name || '工具',
+          status: event.toolStatus || (isResult ? 'completed' : 'started'),
+          input: event.toolInput || '',
+          output: event.toolOutput || '',
+          error: event.error || '',
+          at: event.at,
+          namedDone: false,
+        }
+        cards.push(card)
+        if (event.toolId) byID.set(event.toolId, card)
+        continue
+      }
+      if (!anonymous(name)) {
+        card.toolName = name
+        card.namedDone = true
+      }
+      card.status = event.toolStatus || card.status
+      card.input = card.input || event.toolInput || ''
+      card.output = card.output || event.toolOutput || ''
+      card.error = card.error || event.error || ''
+      card.at = event.at
     }
-    return [...byID.values()].slice(-80)
+    return cards.slice(-80)
   }, [participants, session.events])
 
   const outputsByAgent = useMemo(() => {
@@ -845,7 +1051,7 @@ export const PantheonRecord: React.FC<Props> = ({
     || '调用没有正常返回'
   const runningFailure = running && (failedParticipants.length > 0 || Boolean(latestAgentError))
   const terminalRecoverable = !running &&
-    (session.status === 'failed' || session.status === 'cancelled')
+    (session.status === 'failed' || session.status === 'cancelled' || session.status === 'interrupted')
   const showFailureRecovery = !stalled && (runningFailure || terminalRecoverable)
 
   const completedCount = participants.filter((participant) => participant.status === 'finished').length
@@ -940,7 +1146,7 @@ export const PantheonRecord: React.FC<Props> = ({
           PHASE_LABEL[output.phase] || output.phase,
           output.durationMs ? `用时 ${(output.durationMs / 1000).toFixed(1)}s` : '',
         ].filter(Boolean).join(' · '),
-        at: output.streaming ? Number.MAX_SAFE_INTEGER - 1 : output.at || session.updatedAt,
+        at: output.streaming ? Number.MAX_SAFE_INTEGER : output.at || session.updatedAt,
         agentId: output.agentId,
         streaming: output.streaming,
       })
@@ -1067,6 +1273,15 @@ export const PantheonRecord: React.FC<Props> = ({
                   <FolderOpenOutlined />
                   {workspaceName(session.request.workspace)}
                 </span>
+              )}
+              {staleSeats.length > 0 && (
+                <Tooltip
+                  title={`${staleSeats.map((participant) => participant.name).join('、')} 最近 ${Math.round(SEAT_STALE_AFTER_MS / 1000)} 秒没有新证据，界面不替它们保证在干活`}
+                >
+                  <span className="pantheon-record-stale" data-testid="pantheon-stale-seats">
+                    {staleSeats.length} 席活性未知
+                  </span>
+                </Tooltip>
               )}
             </div>
             <h2 title={session.title}>{session.title}</h2>
@@ -1248,6 +1463,13 @@ export const PantheonRecord: React.FC<Props> = ({
             )}
           </section>
         )}
+
+        <WaitingPanel
+          session={session}
+          busy={busy}
+          onAnswer={onAnswer}
+          onResolveGate={onResolveGate}
+        />
 
         <ol
           className={`pantheon-phase-track${discussionSteps.length > 6 ? ' is-long' : ''}`}
@@ -1498,7 +1720,7 @@ export const PantheonRecord: React.FC<Props> = ({
                     aria-controls="pantheon-agent-detail"
                     aria-label={[
                       participant.name,
-                      participantStatusLabel(status),
+                      seatStatusText(participant, clockNow),
                       active && startedAt > 0
                         ? `已持续工作 ${formatElapsed(clockNow - startedAt)}`
                         : '',
@@ -1523,7 +1745,7 @@ export const PantheonRecord: React.FC<Props> = ({
                       <strong>{participant.name}</strong>
                       <small>
                         {active && <span className="pantheon-live-dot" aria-hidden />}
-                        {participantStatusLabel(status)}
+                        {seatStatusText(participant, clockNow)}
                         {facilitator
                           ? ' · 汇总'
                           : ` · ${agentCapabilityLabel(participant.agentId)}`}

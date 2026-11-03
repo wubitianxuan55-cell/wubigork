@@ -1785,6 +1785,19 @@
   white-space: nowrap;
 }
 
+/* 活性未知不是失败，但也不能跟正常状态长一个样：虚线框表示"这条消息还没落地"。 */
+.pantheon-record-stale {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border: 1px dashed color-mix(in srgb, var(--md-sys-color-warning, #d89614) 65%, transparent);
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--md-sys-color-warning, #d89614) 85%, var(--color-text, #b8b2a7));
+  font-size: 12px;
+  line-height: 18px;
+  cursor: help;
+}
+
 .pantheon-record-title h2 {
   max-width: 34ch;
   margin: 9px 0 8px;
@@ -3270,14 +3283,14 @@
 }
 
 .pantheon-verdict-head h3 {
-  max-width: min(100%, 20em);
-  margin: 8px 0 0;
+  max-width: min(100%, 36em);
+  margin: 7px 0 0;
   font-family: var(--font-serif, "Noto Serif SC", "Songti SC", serif);
-  font-size: clamp(19px, 1.7vw, 24px);
+  font-size: clamp(14px, 1.05vw, 16px);
   font-weight: 600;
-  line-height: 1.45;
-  letter-spacing: -.02em;
-  text-wrap: balance;
+  line-height: 1.72;
+  letter-spacing: 0;
+  text-wrap: pretty;
   line-break: strict;
 }
 
@@ -5754,6 +5767,15 @@
   background: var(--md-sys-color-warning, #d89614);
 }
 
+/* 未验证返回：看到进程结束了，但没看到收声——不是成功，也不是失败。 */
+.pantheon-agent-avatar-status.is-unverified {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--md-sys-color-warning, #d89614) 0 3px,
+    transparent 3px 6px
+  );
+}
+
 .pantheon-agent-avatar-status.is-offline {
   background: color-mix(in srgb, var(--md-sys-color-text-tertiary, var(--color-text-secondary)) 46%, transparent);
 }
@@ -8095,4 +8117,78 @@
   .pantheon-composer--studio .pantheon-start.ant-btn {
     transition: none;
   }
+}
+
+/* O-E 等待面板：整场停在 waiting_input 时，这里是唯一的出口。 */
+.pantheon-waiting {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  margin-top: 16px;
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-warning, #d89614) 44%, var(--pantheon-line));
+  border-radius: 12px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--md-sys-color-warning, #d89614) 12%, transparent), transparent 68%),
+    var(--pantheon-surface-raised);
+}
+
+.pantheon-waiting > header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pantheon-waiting > header small {
+  color: var(--pantheon-text-muted);
+  font-size: 12px;
+}
+
+.pantheon-waiting-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--pantheon-line);
+}
+
+.pantheon-waiting-asker {
+  font-size: 12px;
+  color: var(--pantheon-text-muted);
+}
+
+.pantheon-waiting-options,
+.pantheon-waiting-reply,
+.pantheon-waiting-gate {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pantheon-waiting-reply .ant-input,
+.pantheon-waiting-gate .ant-input {
+  flex: 1 1 220px;
+}
+
+.pantheon-round-gate {
+  padding: 2px 10px;
+  border: 1px solid var(--pantheon-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--pantheon-text-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pantheon-round-gate.is-on {
+  border-color: color-mix(in srgb, var(--md-sys-color-warning, #d89614) 60%, var(--pantheon-line));
+  color: var(--md-sys-color-text, var(--color-text));
+  background: color-mix(in srgb, var(--md-sys-color-warning, #d89614) 14%, transparent);
+}
+
+.pantheon-round-gate:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

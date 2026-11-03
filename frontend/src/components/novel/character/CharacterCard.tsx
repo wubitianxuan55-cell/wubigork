@@ -36,6 +36,7 @@ const CharacterCard: React.FC<CharacterCardProps> = ({ character, relationCount,
   const statusInfo = STATUS_MAP[normalizeCharacterStatus(ch.status)]
   const preview = ch.personality || ch.motivation || ''
   const roleColor = roleColors[ch.role_type] || 'var(--color-text-secondary)'
+  const initial = Array.from(ch.name.trim())[0] || '?'
 
   return (
     <div
@@ -44,6 +45,7 @@ const CharacterCard: React.FC<CharacterCardProps> = ({ character, relationCount,
       onClick={onClick}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}
       className="char-card"
+      aria-label={`编辑角色「${ch.name}」`}
       style={{ '--char-side': sideColor } as React.CSSProperties}
     >
       {/* 剧照区域 */}
@@ -58,7 +60,9 @@ const CharacterCard: React.FC<CharacterCardProps> = ({ character, relationCount,
             />
           </>
         ) : (
-          <div className="char-card-portrait-placeholder"><UserOutlined /></div>
+          <div className="char-card-portrait-placeholder" data-initial={initial} aria-hidden>
+            <UserOutlined />
+          </div>
         )}
       </div>
 

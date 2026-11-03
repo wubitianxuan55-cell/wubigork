@@ -18,6 +18,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/gaea/gaea/internal/gaea/proc"
 	"time"
 )
 
@@ -92,7 +94,9 @@ func killProcessTree(pid int) error {
 		}
 		return p.Kill()
 	}
-	out, err := exec.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(pid)).CombinedOutput()
+	kill := exec.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(pid))
+	proc.HideWindow(kill) // Windows: 防止弹出 cmd 黑框（关闭收割路径）
+	out, err := kill.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("taskkill /T /F /PID %d 失败: %w（输出: %s）", pid, err, truncateRunes(strings.TrimSpace(string(out)), 200))
 	}
@@ -118,6 +122,7 @@ func runHerdsmanCLI(timeout time.Duration, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	cmd := exec.Command(exe, args...)
+	proc.HideWindow(cmd) // Windows: 防止弹出 cmd 黑框
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

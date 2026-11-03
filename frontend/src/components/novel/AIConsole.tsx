@@ -35,6 +35,9 @@ export function AIConsole() {
   const [expandedLog, setExpandedLog] = useState<number | null>(null)
   const logEnd = useRef<HTMLDivElement>(null)
   const logContainerRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const closeRef = useRef<HTMLButtonElement>(null)
+  const wasOpenRef = useRef(false)
 
   // 切换小说时清空旧项目的调用日志，避免把上一本书的请求混进来
   useEffect(() => {
@@ -73,17 +76,29 @@ export function AIConsole() {
     logContainerRef.current?.scrollTo({ top: logContainerRef.current.scrollHeight, behavior: 'smooth' })
   }, [logs])
 
+  // Opening unmounts the trigger; keep keyboard focus inside the panel, then
+  // return it to the trigger after closing.
+  useEffect(() => {
+    if (consoleOpen) closeRef.current?.focus()
+    else if (wasOpenRef.current) triggerRef.current?.focus()
+    wasOpenRef.current = consoleOpen
+  }, [consoleOpen])
+
   return (
     <>
       {consoleOpen && (
-        <div className="ai-console-panel" role="log" aria-label="AI 控制台">
+        <div id="novel-ai-console" className="ai-console-panel" role="log" aria-label="AI 控制台">
           <div className="ai-console-head">
             <span className="ai-console-head-title">
               <i className={`ai-console-status-dot ${logs.length > 0 ? 'is-live' : 'is-idle'}`} aria-hidden />
-              AI 控制台
+              <span className="ai-console-title-copy">
+                <small>PROCESS TRACE</small>
+                <strong>AI 控制台</strong>
+              </span>
             </span>
             <span className="ai-console-head-count">{logs.length}</span>
             <button
+              ref={closeRef}
               type="button"
               className="ai-console-head-close"
               onClick={() => setConsoleOpen(false)}
@@ -98,6 +113,7 @@ export function AIConsole() {
               <div className="ai-console-empty">
                 <ConsoleSqlOutlined aria-hidden />
                 <div>等待 AI 调用...</div>
+                <span className="ai-console-empty-hint">生成、重写与阅读问答的过程会在这里留下可回看的调用轨迹。</span>
               </div>
             ) : (
               logs.map((l) => {
@@ -147,10 +163,13 @@ export function AIConsole() {
 
       {!consoleOpen && (
         <button
+          ref={triggerRef}
           type="button"
           className="ai-console-fab"
           onClick={() => setConsoleOpen(true)}
           aria-label="打开 AI 控制台"
+          aria-controls="novel-ai-console"
+          aria-expanded="false"
           title="AI 控制台"
         >
           <ConsoleSqlOutlined aria-hidden />

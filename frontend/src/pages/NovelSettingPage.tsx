@@ -331,30 +331,28 @@ const NovelSettingPage: React.FC<NovelSettingPageProps> = ({ active = true }) =>
   )
 
   return (
-    <div style={{
+    <div className="novel-setting-shell" style={{
       display: 'flex', flexDirection: 'column', width: '100%', height: '100%',
       padding: '16px', maxWidth: 1240, margin: '0 auto', gap: 14, minHeight: 0, minWidth: 0,
     }}>
       <style>{mdStyles}</style>
 
       {/* 上行：设定编辑器（Markdown + 维度化 + 渲染）+ 设定 Agent */}
-      <div style={{ display: 'flex', flexDirection: 'row', flex: 1, minHeight: 0, gap: 14 }}>
+      <div className="novel-setting-main" style={{ display: 'flex', flexDirection: 'row', flex: 1, minHeight: 0, gap: 14 }}>
         {/* 左栏：设定编辑器（Markdown + 渲染） */}
-        <div className="novel-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+        <div className="novel-panel novel-setting-editor-card" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
           <div className="novel-panel-head" style={{ flexWrap: 'wrap', rowGap: 6 }}>
             <span className="novel-panel-title"><FileTextOutlined />设定编辑器</span>
             <div style={{ flex: 1 }} />
             <span className="novel-setting-meta">{wordCount.toLocaleString()} 字</span>
             <Space size={8}>
-              <Button size="small" icon={<ImportOutlined />} onClick={handleImport}
-                style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}>
+              <Button size="small" className="novel-setting-action" icon={<ImportOutlined />} onClick={handleImport}>
                 导入
               </Button>
-              <Button size="small" icon={<ExportOutlined />} onClick={handleExport}
-                style={{ borderColor: 'var(--color-warning)', color: 'var(--color-warning)' }}>
+              <Button size="small" className="novel-setting-action" icon={<ExportOutlined />} onClick={handleExport}>
                 导出
               </Button>
-              <Button size="small" type="primary" icon={<SaveOutlined />} onClick={handleSave} loading={saving} disabled={loadFailed}>
+              <Button size="small" type="primary" className="novel-setting-action is-primary" icon={<SaveOutlined />} onClick={handleSave} loading={saving} disabled={loadFailed}>
                 保存
               </Button>
             </Space>
@@ -378,8 +376,9 @@ const NovelSettingPage: React.FC<NovelSettingPageProps> = ({ active = true }) =>
             onChange={handleFileChange}
           />
 
-          <div className="novel-setting-toolbar">
+          <div className="novel-setting-toolbar novel-setting-modebar">
             <Segmented
+              className="novel-setting-segmented"
               size="small"
               value={mode}
               onChange={(val) => setMode(val as EditorMode)}
@@ -391,7 +390,7 @@ const NovelSettingPage: React.FC<NovelSettingPageProps> = ({ active = true }) =>
               ]}
             />
             <div style={{ flex: 1 }} />
-            <Tag style={{ marginInlineEnd: 0 }} color={dirty ? 'warning' : 'success'}>
+            <Tag className={`novel-setting-status ${dirty ? 'is-dirty' : 'is-saved'}`} style={{ marginInlineEnd: 0 }}>
               {dirty ? '有未保存修改' : lastSavedAt ? `已保存 ${lastSavedAt}` : '无修改'}
             </Tag>
           </div>
@@ -405,7 +404,7 @@ const NovelSettingPage: React.FC<NovelSettingPageProps> = ({ active = true }) =>
         </div>
 
         {/* 右栏：设定 Agent 常驻对话 */}
-        <div className="novel-panel" style={{ width: 380, flexShrink: 0, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <div className="novel-panel novel-setting-agent-card" style={{ width: 380, flexShrink: 0, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <ChatPanel
             title="设定 Agent"
             messages={messages}
@@ -420,8 +419,8 @@ const NovelSettingPage: React.FC<NovelSettingPageProps> = ({ active = true }) =>
 
       {/* 下行：伏笔登记表 + 设定事实 + 一致性检查（可折叠；折叠态持久化，收起时仅留一行标题） */}
       {!needsProject && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0, minHeight: 0 }}>
-          <div className="novel-panel-head" style={{ flexShrink: 0 }}>
+        <div className="novel-setting-lower" style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0, minHeight: 0 }}>
+          <div className="novel-panel-head novel-setting-lower-head" style={{ flexShrink: 0 }}>
             <span className="novel-panel-title"><FlagOutlined />伏笔 + 事实 + 一致性</span>
             <div style={{ flex: 1 }} />
             <span className="novel-setting-meta">

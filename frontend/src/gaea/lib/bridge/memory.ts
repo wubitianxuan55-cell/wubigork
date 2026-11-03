@@ -107,7 +107,7 @@ export interface MemoryBindings {
   WhisperWeixinQRStatusWithCode(qrcode: string, verifyCode: string): Promise<Record<string, unknown>>;
   // WhisperWeixinStatus 全部助手的微信通道状态（运行/过期/未配置）。
   WhisperWeixinStatus(): Promise<WeixinAssistantStatusRow[]>;
-  // v4.48 青鸟人格选择器：WeixinPage 经 bridge 消费（原 legacy wailsjsCompat
+  // v4.48 起人格选择器：WeixinPage 经 bridge 消费（原 legacy wailsjsCompat
   // 直调转正，浏览器 dev mock 可达）；从 LegacySurfaceNames 摘除。
   // WhisperGetPersonalities 轻语预设人格清单。
   WhisperGetPersonalities(): Promise<whisper.PersonalityPreset[]>;

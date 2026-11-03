@@ -11,7 +11,7 @@
 //
 // 三层关系：工料机=资源价格 → 定额=每单位消耗 → 清单=工程实体分项（套定额）。
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ListTree, Pencil, Plus, RefreshCw, Search, Trash2, X } from "../../icons";
+import { AlertCircle, ListTree, Pencil, Plus, RefreshCw, Search, Trash2, X } from "../../icons";
 import { app } from "../../lib/bridge";
 import type { WorkcostBillItem, WorkcostBillProject, WorkcostBillQuotaLink, WorkcostCompose, WorkcostQuota } from "../../lib/types";
 
@@ -41,7 +41,7 @@ interface BillRowItem extends WorkcostBillItem {
  *   使用」与引用的定额码——这是企业清单积累的主数据视角。
  * 点定额编码看综合单价分析。项目文件的导入/费率/删除 → 「造价参考」。
  */
-export function WorkcostBillView() {
+export function WorkcostBillView({ onOpenImport }: { onOpenImport?: () => void } = {}) {
   const [projects, setProjects] = useState<WorkcostBillProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [readError, setReadError] = useState("");
@@ -208,66 +208,78 @@ export function WorkcostBillView() {
   }, []);
 
   return (
-    <div className="h-full flex flex-col min-h-0 text-[12.5px]">
+    <div className="cost-bill-view h-full flex flex-col min-h-0" aria-busy={loading}>
       {/* 工具条 */}
-      <div className="shrink-0 flex flex-wrap items-center gap-2 px-5 h-auto min-h-12 py-2 border-b border-border-soft/60">
-        <span className="text-fg font-semibold text-[13px] flex items-center gap-1.5">
-          <ListTree size={14} className="text-accent" /> 清单库
-        </span>
-        <span className="text-[11px] text-fg-faint hidden lg:inline">
-          所有项目累计的分部分项清单 · 项目文件导入与费率在「造价参考」· 加总由五表活公式算
-        </span>
-        <div className="ml-auto flex items-center rounded-lg border border-border bg-bg p-0.5 text-[11px]">
-          <button
-            type="button"
-            className={`px-2 h-6 rounded-md transition-colors ${mode === "detail" ? "bg-accent text-accent-fg" : "text-fg-faint hover:text-fg"}`}
-            onClick={() => setMode("detail")}
-          >
-            按明细
-          </button>
-          <button
-            type="button"
-            className={`px-2 h-6 rounded-md transition-colors ${mode === "grouped" ? "bg-accent text-accent-fg" : "text-fg-faint hover:text-fg"}`}
-            onClick={() => setMode("grouped")}
-            title="同名+同特征+同单位聚合为一条库项"
-          >
-            按库项归并
+      <div className="cost-detail-head shrink-0">
+        <div className="cost-detail-heading">
+          <span className="cost-workbook-kicker">WORKBOOK 01 · PROJECT BILL</span>
+          <span className="cost-detail-title">
+            <ListTree size={14} /> 清单库
+          </span>
+          <span className="cost-detail-description">
+            所有项目累计的分部分项清单 · 项目文件导入与费率在「造价参考」· 加总由五表活公式算
+          </span>
+        </div>
+        <div className="cost-detail-actions">
+          <div className="cost-view-switch" role="group" aria-label="清单视图切换">
+            <button
+              type="button"
+              aria-pressed={mode === "detail"}
+              onClick={() => setMode("detail")}
+            >
+              按明细
+            </button>
+            <button
+              type="button"
+              aria-pressed={mode === "grouped"}
+              onClick={() => setMode("grouped")}
+              title="同名+同特征+同单位聚合为一条库项"
+            >
+              按库项归并
+            </button>
+          </div>
+          {projects.length > 0 && (
+            <button
+              type="button"
+              className={solidBtn}
+              data-testid="workcost-bill-add"
+              title="手工新增一条清单项（归属项目在弹窗内选定；编码留空自动 M 序号）"
+              onClick={() => setCreating(true)}
+            >
+              <Plus size={12} /> 新增清单项
+            </button>
+          )}
+          <button type="button" className={ghostBtn} onClick={reload} title="刷新" aria-label="刷新清单">
+            <RefreshCw size={12} />
           </button>
         </div>
-        {projects.length > 0 && (
-          <button
-            type="button"
-            className={solidBtn}
-            data-testid="workcost-bill-add"
-            title="手工新增一条清单项（归属项目在弹窗内选定；编码留空自动 M 序号）"
-            onClick={() => setCreating(true)}
-          >
-            <Plus size={12} /> 新增清单项
-          </button>
-        )}
-        <button type="button" className={ghostBtn + " ml-auto"} onClick={reload} title="刷新">
-          <RefreshCw size={12} />
-        </button>
       </div>
 
       {toast && (
-        <div className="shrink-0 flex items-center gap-2 px-5 py-1.5 border-b border-border-soft/60 bg-accent/5 text-[11px] text-fg-dim">
+        <div role="status" className="cost-toast shrink-0">
           <span className="flex-1 min-w-0 break-all">{toast}</span>
-          <button type="button" className={iconBtn} onClick={() => setToast("")} title="关闭提示">
+          <button
+            type="button"
+            className={iconBtn}
+            onClick={() => setToast("")}
+            title="关闭提示"
+            aria-label="关闭清单提示"
+          >
             <X size={10} />
           </button>
         </div>
       )}
 
       {readError && (
-        <div role="alert" data-testid="workcost-bill-read-error" className="shrink-0 flex items-center gap-2 px-5 py-1.5 border-b border-amber-400/30 bg-amber-400/10 text-amber-200 text-[11px]">
+        <div role="alert" data-testid="workcost-bill-read-error" className="cost-read-error shrink-0">
+          <AlertCircle size={13} aria-hidden />
           <span className="flex-1 min-w-0">清单读取失败：{readError}</span>
           <button type="button" className={ghostBtn} onClick={reload}>重试</button>
         </div>
       )}
 
       {/* 筛选工具条 */}
-      <div className="shrink-0 flex flex-wrap items-center gap-2 px-5 py-2 border-b border-border-soft/60">
+      <div className="cost-filter-bar shrink-0">
         <select
           className={`${fieldCls} !w-auto min-w-[14rem]`}
           value={selected}
@@ -289,6 +301,7 @@ export function WorkcostBillView() {
         <div className="relative">
           <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-fg-faint" />
           <input
+            type="search"
             className={`${fieldCls} !pl-6 !w-56`}
             value={keyword}
             placeholder="搜索名称/编码/特征/定额"
@@ -296,47 +309,64 @@ export function WorkcostBillView() {
             onChange={(e) => setKeyword(e.target.value)}
           />
         </div>
-        <span className="ml-auto text-[10.5px] text-fg-faint" data-testid="workcost-bill-count">
+        <span className="ml-auto text-[10.5px] text-fg-faint" data-testid="workcost-bill-count" aria-live="polite">
           {visible.length}/{allItems.length} 条
         </span>
       </div>
 
       {/* 累计清单表 */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-5 py-3">
+      <div className="cost-detail-body flex-1 min-h-0 overflow-y-auto">
         {loading ? (
-          <div className="space-y-2 animate-pulse">
-            <div className="v3-panel rounded-xl h-10" />
-            <div className="v3-panel rounded-xl h-64" />
-          </div>
+          <BillTableSkeleton />
         ) : projects.length === 0 ? (
-          <div className="v3-panel rounded-2xl py-16 text-center">
+          <div className="cost-empty-sheet v3-panel" role="status">
             <ListTree size={26} className="mx-auto text-fg-faint" />
             <div className="mt-3 text-[13px] text-fg font-medium">还没有清单</div>
             <p className="mt-1.5 text-[11.5px] text-fg-faint leading-relaxed max-w-md mx-auto">
               到「造价参考」导入项目文件（五表成本测算工作簿）——清单、费率、资源、定额一次录入，
               这里随即出现所有项目累计的清单列表。
             </p>
+            {onOpenImport && (
+              <button type="button" className="cost-primary-button cost-empty-action" onClick={onOpenImport}>
+                去造价参考导入项目
+              </button>
+            )}
           </div>
         ) : visible.length === 0 ? (
-          <div className="v3-panel rounded-2xl py-16 text-center">
+          <div className="cost-empty-sheet v3-panel" role="status">
             <ListTree size={26} className="mx-auto text-fg-faint" />
             <div className="mt-3 text-[13px] text-fg font-medium">没有匹配的清单项</div>
             <p className="mt-1.5 text-[11.5px] text-fg-faint">调整上方筛选（项目/分部/关键字）后重试。</p>
+            <button
+              type="button"
+              className="cost-primary-button cost-empty-action"
+              onClick={() => {
+                setSelected(0);
+                setDivision("");
+                setKeyword("");
+              }}
+            >
+              清除筛选
+            </button>
           </div>
         ) : (
           mode === "detail" ? (
-            <section className="v3-panel rounded-2xl p-4" data-testid="workcost-bill-items">
-              <table className="w-full text-[11.5px]">
+            <>
+              <p className="cost-table-scroll-hint">左右滑动表格可查看完整字段</p>
+              <section className="cost-ledger-sheet" data-testid="workcost-bill-items" aria-label="分部分项清单明细">
+                <table className="cost-ledger-table">
+                <caption className="sr-only">所有项目累计的分部分项清单</caption>
                 <thead>
                   <tr className="text-left text-[10px] text-fg-faint border-b border-border-soft/50">
-                    <th className="py-2 px-2 w-24">项目</th>
-                    <th className="py-2 px-2 w-16">编码</th>
-                    <th className="py-2 px-2">名称</th>
-                    <th className="py-2 px-2">项目特征</th>
-                    <th className="py-2 px-2 w-14">单位</th>
-                    <th className="py-2 px-2 w-24">引用定额</th>
-                    <th className="py-2 px-2 w-24 text-right">单价参考</th>
-                    <th className="py-2 px-2 w-16 text-right">操作</th>
+                    <th scope="col" className="py-2 px-2 w-24">项目</th>
+                    <th scope="col" className="py-2 px-2 w-16">编码</th>
+                    <th scope="col" className="py-2 px-2">名称</th>
+                    <th scope="col" className="py-2 px-2">项目特征</th>
+                    <th scope="col" className="py-2 px-2 w-14">单位</th>
+                    <th scope="col" className="py-2 px-2 w-24">引用定额</th>
+                    <th scope="col" className="py-2 px-2 w-20 text-right">原表单价</th>
+                    <th scope="col" className="py-2 px-2 w-24 text-right">单价参考</th>
+                    <th scope="col" className="py-2 px-2 w-16 text-right">操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -353,16 +383,18 @@ export function WorkcostBillView() {
                   ))}
                 </tbody>
               </table>
-            </section>
+              </section>
+            </>
           ) : (
-            <section className="space-y-2" data-testid="workcost-bill-grouped">
+            <section className="cost-grouped-list" data-testid="workcost-bill-grouped" aria-label="按库项归并的清单">
               {groups.map((g) => {
                 const open = expandedGroups.has(g.key);
                 return (
-                  <div key={g.key} className="v3-panel rounded-xl">
+                  <div key={g.key} className="cost-group-card v3-panel">
                     <button
                       type="button"
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-bg-elev/30 transition-colors"
+                      aria-expanded={open}
                       onClick={() => toggleGroup(g.key)}
                     >
                       <span className="min-w-0 flex-1">
@@ -384,22 +416,38 @@ export function WorkcostBillView() {
                           <li key={it.id} className="flex items-center gap-2 border-t border-border-soft/20 pt-1 first:border-0">
                             <span className="text-fg-faint w-40 truncate" title={it.projectName}>{it.projectName}</span>
                             <span className="font-mono text-[10px] text-fg-faint">{it.code}</span>
+                            {(it.listPrice ?? 0) > 0 && (
+                              <span className="tabular-nums text-fg-faint" title="原表综合单价快照（导入留痕）">原表 {fmtPrice(it.listPrice ?? 0)}</span>
+                            )}
                             {it.quantityExpr && <span className="text-fg-faint truncate">计算式：{it.quantityExpr}</span>}
                             {it.quotaCode && (
                               <button
                                 type="button"
                                 className="ml-auto font-mono text-[10px] px-1.5 py-px rounded bg-accent/10 text-accent hover:bg-accent/20 transition-colors shrink-0"
                                 title={`引用定额 ${it.quotaCode}——点开综合单价分析（按挂接定额分组）`}
+                                aria-label={`引用定额 ${it.quotaCode}，打开综合单价分析`}
                                 onClick={() => setAnalyzeItem(it)}
                               >
                                 {it.quotaCode}
                               </button>
                             )}
                             <span className={`flex items-center gap-1 ${it.quotaCode ? "" : "ml-auto"} shrink-0`}>
-                              <button type="button" className={iconBtn} title={`编辑「${it.title}」`} onClick={() => setEditing(it)}>
+                              <button
+                                type="button"
+                                className={iconBtn}
+                                title={`编辑「${it.title}」`}
+                                aria-label={`编辑「${it.title}」`}
+                                onClick={() => setEditing(it)}
+                              >
                                 <Pencil size={10} />
                               </button>
-                              <button type="button" className={`${iconBtn} hover:text-err`} title={`删除「${it.title}」`} onClick={() => setConfirmDelete(it)}>
+                              <button
+                                type="button"
+                                className={`${iconBtn} hover:text-err`}
+                                title={`删除「${it.title}」`}
+                                aria-label={`删除「${it.title}」`}
+                                onClick={() => setConfirmDelete(it)}
+                              >
                                 <Trash2 size={10} />
                               </button>
                             </span>
@@ -445,6 +493,22 @@ export function WorkcostBillView() {
 // 明细」，此前只有 10px 定额码徽章可点，真机反馈「点击清单无法查看组价明细」
 // ——可点面太小）。手填行同样可点：综合单价分析的挂接区就是给未套定额行补挂
 // 定额的入口。行尾 编辑/删除（录入数据维护面；stopPropagation 防误触分析）。
+function BillTableSkeleton() {
+  return (
+    <div className="cost-table-skeleton" role="status" aria-label="正在读取分部分项清单">
+      <div className="cost-table-skeleton-head" aria-hidden />
+      {Array.from({ length: 6 }).map((_, index) => (
+        <div className="cost-table-skeleton-row" key={index} aria-hidden>
+          <span />
+          <span />
+          <span />
+          <span />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function BillRow({
   item,
   showProject,
@@ -468,21 +532,33 @@ function BillRow({
     >
       {showProject && (
         <td className="py-1.5 px-2 max-w-[9rem]" title={item.projectName}>
-          <span className="block truncate text-[10px] text-fg-faint">{item.projectName}</span>
+          <span className="block truncate text-[11px] text-fg-faint">{item.projectName}</span>
         </td>
       )}
-      <td className="py-1.5 px-2 font-mono text-[10px] text-fg-faint">{item.code}</td>
-      <td className="py-1.5 px-2 text-fg">{item.title}</td>
+      <td className="py-1.5 px-2 font-mono text-[11px] text-fg-faint">{item.code}</td>
+      <td className="cost-bill-name-cell py-1.5 px-2">
+        <button
+          type="button"
+          className="cost-bill-item-link"
+          aria-label={`打开「${item.title}」的综合单价分析`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onAnalyze(item);
+          }}
+        >
+          {item.title}
+        </button>
+      </td>
       <td className="py-1.5 px-2">
         {item.feature || item.quantityExpr ? (
           <span
-            className="block truncate max-w-[14rem] text-[10.5px] text-fg-faint"
+            className="block truncate max-w-[14rem] text-[11px] text-fg-faint"
             title={item.quantityExpr ? `${item.feature}｜计算式：${item.quantityExpr}` : item.feature}
           >
             {item.feature || `计算式：${item.quantityExpr}`}
           </span>
         ) : (
-          <span className="text-fg-faint/50 text-[10.5px]">—</span>
+          <span className="text-fg-faint/50 text-[11px]">—</span>
         )}
       </td>
       <td className="py-1.5 px-2 text-fg-faint">{item.unit || "-"}</td>
@@ -490,17 +566,27 @@ function BillRow({
         {item.quotaCode ? (
           <button
             type="button"
-            className="font-mono text-[10px] px-1.5 py-px rounded bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
+            className="font-mono text-[10.5px] px-1.5 py-px rounded bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
             title={`引用定额 ${item.quotaCode}——点开综合单价分析（按挂接定额分组）`}
+            aria-label={`引用定额 ${item.quotaCode}，打开综合单价分析`}
             onClick={() => onAnalyze(item)}
           >
             {item.quotaCode}
           </button>
         ) : (
-          <span className="text-[10px] text-fg-faint" title="未套定额（手填项）">手填</span>
+          <span className="text-[10.5px] text-fg-faint" title="未套定额（手填项）">手填</span>
         )}
       </td>
       <td className="py-1.5 px-2 text-right">
+        {(item.listPrice ?? 0) > 0 ? (
+          <span className="tabular-nums text-fg-dim" title="原表综合单价快照（导入工作簿留痕）——与右侧现算参考价对照可查漂移">
+            {fmtPrice(item.listPrice ?? 0)}
+          </span>
+        ) : (
+          <span className="text-fg-faint">—</span>
+        )}
+      </td>
+      <td className="cost-ledger-price py-1.5 px-2 text-right">
         {item.quotaCode ? (
           refPrice === undefined ? (
             <span className="text-fg-faint">…</span>
@@ -521,6 +607,7 @@ function BillRow({
             type="button"
             className={iconBtn}
             title={`编辑「${item.title}」`}
+            aria-label={`编辑「${item.title}」`}
             onClick={(e) => {
               e.stopPropagation();
               onEdit(item);
@@ -532,6 +619,7 @@ function BillRow({
             type="button"
             className={`${iconBtn} hover:text-err`}
             title={`删除「${item.title}」（定额挂接随行清理）`}
+            aria-label={`删除「${item.title}」，定额挂接将随行清理`}
             onClick={(e) => {
               e.stopPropagation();
               onDelete(item);
@@ -938,6 +1026,18 @@ function BillItemModal({
               onChange={(e) => set({ priceOverride: Number(e.target.value) || 0 })}
             />
           </label>
+          {!isCreate && (
+            <label className="space-y-1">
+              <span className="text-[10.5px] text-fg-faint">原表综合单价（导入快照，只读）</span>
+              <input
+                className={`${fieldCls} text-fg-faint`}
+                value={(draft.listPrice ?? 0) > 0 ? fmtPrice(draft.listPrice ?? 0) : "—"}
+                disabled
+                readOnly
+                aria-label="原表综合单价快照"
+              />
+            </label>
+          )}
         </div>
         <label className="block space-y-1">
           <span className="text-[10.5px] text-fg-faint">项目特征</span>

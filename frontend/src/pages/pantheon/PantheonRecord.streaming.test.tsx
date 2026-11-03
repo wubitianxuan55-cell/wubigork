@@ -99,6 +99,8 @@ function renderRecord(props: {
       onOpenResult={() => {}}
       onSignOff={() => {}}
       onContinue={() => {}}
+      onAnswer={() => {}}
+      onResolveGate={() => {}}
     />,
   )
 }

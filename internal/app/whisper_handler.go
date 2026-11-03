@@ -1060,6 +1060,9 @@ func (a *whisperState) persistStateAsync(orch *whisper.Orchestrator) {
 // 写入队列（保证末轮 LLM 抽取的事实已进入内存 FactStore，H4），再按全局单写锁
 // 串行持久化所有会话，避免进程退出时末轮记忆/状态丢失。
 func (a *whisperState) drainAndPersistAll() {
+	// V2 已预推进但尚未收到 response.done 的回合属于未提交状态；退出时先
+	// 回滚，避免把幽灵情绪/轮次写进 companion_state。
+	a.rollbackVoiceV2Prepared()
 	whisper.DrainAllMemoryWriteJobs()
 
 	whisperSessionsMu.RLock()

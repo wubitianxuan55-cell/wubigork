@@ -3,6 +3,8 @@ package app
 import (
 	"os"
 	"os/exec"
+
+	"github.com/gaea/gaea/internal/gaea/proc"
 	"strconv"
 	"strings"
 )
@@ -65,6 +67,7 @@ func gitRun(args ...string) (string, error) {
 	argv = append(argv, cleanFilterOverrides(cwd)...)
 	argv = append(argv, args...)
 	cmd := exec.Command("git", argv...)
+	proc.HideWindow(cmd) // Windows: 防止弹出 cmd 黑框（git 面板每次调用）
 	cmd.Env = append(os.Environ(),
 		"GIT_TERMINAL_PROMPT=0", // 永不交互式要凭据（面板场景无 TTY 可答）
 		"GIT_OPTIONAL_LOCKS=0",  // 只读面不写 index.lock 副锁
@@ -94,7 +97,9 @@ func gitHardeningArgs() []string {
 // required off). Best-effort: any error (not a repo, git missing, no
 // filters) yields nil and the caller proceeds without overrides.
 func cleanFilterOverrides(cwd string) []string {
-	list, err := exec.Command("git", "-C", cwd, "config", "--local", "--name-only", "--get-regexp", `^filter\.`).Output()
+	probe := exec.Command("git", "-C", cwd, "config", "--local", "--name-only", "--get-regexp", `^filter\.`)
+	proc.HideWindow(probe) // Windows: 防止弹出 cmd 黑框
+	list, err := probe.Output()
 	if err != nil {
 		// git config 在无匹配时以 exit 1 退出——输出可能仍为空，二者都视为
 		// 「无 filter」。解析失败同样静默放弃（fail-open：不阻塞正常 git 面）。

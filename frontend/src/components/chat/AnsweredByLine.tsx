@@ -21,6 +21,23 @@ export interface AnsweredByInfo {
   cost_cny: number;
   /** 生成速度 tok/s（可选；旧事件无此字段 → 静默跳过） */
   tokens_per_second?: number;
+  /** 本次请求的 token、首字与生成耗时；字段缺省时不虚报 */
+  metrics?: AnswerMetrics;
+}
+
+export interface AnswerMetrics {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+  cache_hit_tokens?: number;
+  cache_miss_tokens?: number;
+  first_token_ms?: number;
+  prefill_ms?: number;
+  decode_ms?: number;
+  duration_ms?: number;
+  prefill_tps?: number;
+  completion_tps?: number;
+  tokens_per_second?: number;
 }
 
 /**
@@ -62,6 +79,23 @@ export function answeredBySpeedText(tps?: number): string | null {
   return `${tps.toFixed(1)} tok/s`;
 }
 
+function formatCount(value?: number): string | null {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(0, Math.round(value)).toLocaleString()
+    : null;
+}
+
+function formatDuration(ms?: number): string | null {
+  if (typeof ms !== 'number' || !Number.isFinite(ms) || ms < 0) return null;
+  if (ms < 1000) return `${Math.round(ms)} ms`;
+  return `${(ms / 1000).toFixed(ms >= 10_000 ? 1 : 2)} s`;
+}
+
+function formatRate(tps?: number): string | null {
+  if (typeof tps !== 'number' || !Number.isFinite(tps) || tps <= 0) return null;
+  return `${tps.toFixed(tps >= 100 ? 0 : 1)} t/s`;
+}
+
 /**
  * 消息底部一行小字（仅当 extra.answered_by 存在时由消息行组件渲染）：
  * 「由 {engine}/{model} 回答 · {sourceLabel}[ · 约 ¥{cost}][ · {tok/s}]」
@@ -78,12 +112,36 @@ function AnsweredByLine({ info }: { info: AnsweredByInfo }) {
   if (speedText) {
     segments.push(speedText);
   }
+  const metrics = info.metrics;
+  const metricItems: Array<[string, string | null]> = metrics ? [
+    ['输入', formatCount(metrics.prompt_tokens)],
+    ['输出', formatCount(metrics.completion_tokens)],
+    ['总计', formatCount(metrics.total_tokens)],
+    ['首字', formatDuration(metrics.first_token_ms ?? metrics.prefill_ms)],
+    ['解码', formatDuration(metrics.decode_ms)],
+    ['预填', formatRate(metrics.prefill_tps)],
+    ['续写', formatRate(metrics.completion_tps ?? metrics.tokens_per_second)],
+  ] : [];
+  const visibleMetrics = metricItems.filter(([, value]) => value !== null);
   return (
-    <div
-      className="text-[10px] leading-none"
-      style={{ color: 'var(--md-sys-color-text-secondary)' }}
-    >
-      {segments.join(' · ')}
+    <div className="chat-answer-meta">
+      <div className="chat-answer-byline">{segments.join(' · ')}</div>
+      {visibleMetrics.length > 0 && (
+        <div className="chat-answer-metrics" data-testid="answer-metrics" aria-label="输出指标">
+          {visibleMetrics.map(([label, value]) => (
+            <span key={label} className="chat-answer-metric">
+              <span>{label}</span>
+              <strong>{value}</strong>
+            </span>
+          ))}
+          {formatCount(metrics?.cache_hit_tokens) && (
+            <span className="chat-answer-metric is-cache">
+              <span>缓存命中</span>
+              <strong>{formatCount(metrics?.cache_hit_tokens)}</strong>
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -561,6 +561,7 @@ export interface WorkcostBillProject {
 
 // WorkcostBillItem 分部分项清单项：编码/名称/单位/工程量 × 引用定额。
 // quotaCode 非空=套定额（综合单价导出时现算参考）；priceOverride>0=手填单价。
+// listPrice=原表综合单价快照（导入时从工作簿落库留痕，SchemaV34；0/缺省=无快照）。
 export interface WorkcostBillItem {
   id: number;
   projectId: number;
@@ -573,6 +574,8 @@ export interface WorkcostBillItem {
   quotaCode: string;
   feature: string;
   priceOverride: number;
+  /** 原表综合单价快照（对照显形与案例样本用，不参与现算）。 */
+  listPrice?: number;
   sort: number;
   /** 挂接的全部定额码（1:N 组合，gf_bill_quota_links 聚合；quotaCode 是主定额）。 */
   quotaCodes?: string[];

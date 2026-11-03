@@ -81,7 +81,11 @@ type ProjectItem struct {
 	Feature      string  `json:"feature"`  // 工序特征
 	Quantity     float64 `json:"quantity"` // 工程量（费用汇总引用工程量表）
 	QuantityExpr string  `json:"quantityExpr"`
-	CategoryPath string  `json:"categoryPath"` // 综合单价/分部
+	// ListPrice 原表综合单价（汇总行/费用汇总的「综合单价」列，原表口径快照；
+	// 0=工作簿未给）。落 gf_bill_items.list_price 做对照显形与案例样本，不参与现算。
+	ListPrice     float64 `json:"listPrice"`
+	ListPriceExpr string  `json:"listPriceExpr"` // 综合单价计算式原文（公式无缓存值时告警用）
+	CategoryPath  string  `json:"categoryPath"`  // 综合单价/分部
 }
 
 // ProjectFeeParams 解析出的取费参数（费用汇总下半段）。

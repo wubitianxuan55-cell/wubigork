@@ -52,4 +52,17 @@ export interface PantheonApi {
   PantheonOpenResult(id: string): Promise<string>
   PantheonSignOff(id: string, decision: string, note: string): Promise<PantheonSession>
   PantheonSetExecutable(id: string, path: string): Promise<PantheonAgentStatus[]>
+  PantheonAskSeat(
+    id: string,
+    agentId: string,
+    question: string,
+    options: string[],
+  ): Promise<PantheonSession>
+  PantheonAnswerSeat(id: string, questionId: string, body: string): Promise<PantheonSession>
+  PantheonOpenGate(id: string, reason: string): Promise<PantheonSession>
+  PantheonResolveGate(
+    id: string,
+    action: 'resolve' | 'dismiss',
+    reason: string,
+  ): Promise<PantheonSession>
 }

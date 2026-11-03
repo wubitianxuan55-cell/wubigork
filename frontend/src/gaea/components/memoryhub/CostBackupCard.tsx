@@ -14,8 +14,6 @@ import { app } from "../../lib/bridge";
 
 const ghostBtn =
   "inline-flex items-center gap-1 px-2.5 h-7 rounded-lg border border-border text-fg-faint hover:text-fg hover:bg-bg-soft transition-colors text-[11.5px]";
-const solidBtn =
-  "inline-flex items-center gap-1 px-2.5 h-7 rounded-lg bg-accent text-accent-fg text-[11.5px] hover:opacity-90 transition-opacity disabled:opacity-50";
 
 function fmtSize(n: number): string {
   if (n >= 1073741824) return (n / 1073741824).toFixed(2) + " GB";
@@ -70,13 +68,13 @@ export function CostBackupCard() {
 
   return (
     <section
-      className="v3-panel rounded-2xl p-4 flex flex-wrap items-center gap-3"
+      className="cost-backup-card v3-panel"
       data-testid="cost-backup-card"
     >
-      <span className="w-8 h-8 rounded-lg bg-bg-elev inline-flex items-center justify-center shrink-0">
-        <Archive size={15} className="text-accent" />
+      <span className="cost-backup-mark" aria-hidden>
+        <Archive size={16} />
       </span>
-      <div className="min-w-0 flex-1">
+      <div className="cost-backup-copy">
         <div className="text-fg text-[12.5px] font-semibold">
           数据备份
           {totalBytes !== null && (
@@ -90,13 +88,26 @@ export function CostBackupCard() {
           恢复备份在 设置 → 数据。建议定期备到另一块盘。
         </p>
       </div>
-      <button type="button" className={solidBtn} onClick={() => void backup()} disabled={busy} title="选择备份目录，生成带时间戳的 zip 快照">
+      <button
+        type="button"
+        className="cost-primary-button"
+        onClick={() => void backup()}
+        disabled={busy}
+        title="选择备份目录，生成带时间戳的 zip 快照"
+      >
         {busy ? "备份中…" : "立即备份"}
       </button>
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 max-w-md v3-panel rounded-xl px-4 py-3 text-[11.5px] text-fg-dim shadow-lg">
+        <div role="status" aria-live="polite" className="cost-backup-toast v3-panel">
           {toast}
-          <button type="button" className={ghostBtn + " ml-2"} onClick={() => setToast("")}>关闭</button>
+          <button
+            type="button"
+            className={ghostBtn}
+            onClick={() => setToast("")}
+            aria-label="关闭备份结果提示"
+          >
+            关闭
+          </button>
         </div>
       )}
     </section>

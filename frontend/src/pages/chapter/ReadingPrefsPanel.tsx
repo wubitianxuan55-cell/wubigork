@@ -17,6 +17,10 @@ interface ReadingPrefsPanelProps {
 
 const ReadingPrefsPanel: React.FC<ReadingPrefsPanelProps> = ({ prefs, onChange }) => (
   <div className="novel-read-prefs">
+    <div className="novel-read-prefs-heading">
+      <span>READING SETTINGS</span>
+      <strong>阅读排版</strong>
+    </div>
     <div className="novel-read-prefs-row">
       <span className="novel-read-prefs-label">字号</span>
       <Button size="small" onClick={() => onChange({ fontSize: clampFontSize(prefs.fontSize - 1) })} disabled={prefs.fontSize <= 14} aria-label="减小字号">A−</Button>

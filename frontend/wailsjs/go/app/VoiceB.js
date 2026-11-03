@@ -66,6 +66,10 @@ export function VoiceStop() {
   return window['go']['app']['VoiceB']['VoiceStop']();
 }
 
+export function VoiceV2CommitTurn(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['app']['VoiceB']['VoiceV2CommitTurn'](arg1, arg2, arg3, arg4, arg5);
+}
+
 export function VoiceV2Ensure() {
   return window['go']['app']['VoiceB']['VoiceV2Ensure']();
 }

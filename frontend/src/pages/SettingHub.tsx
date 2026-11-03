@@ -32,15 +32,24 @@ const SettingHub: React.FC<{ active?: boolean }> = ({ active = true }) => {
   return (
     <div className="novel-setting-hub" data-setting-view={view}>
       <div className="novel-setting-hub-nav">
+        <div className="novel-setting-hub-heading">
+          <span>REFERENCE FILE</span>
+          <strong>故事档案</strong>
+        </div>
         <Segmented
+          className="novel-setting-switch"
           size="small"
           value={view}
           onChange={(v) => changeView(v as SettingView)}
+          aria-label="设定视图"
           options={[
             { value: 'world', label: '世界观', icon: <FileTextOutlined /> },
             { value: 'chars', label: '人物', icon: <UserOutlined /> },
           ]}
         />
+        <p className="novel-setting-hub-hint">
+          {view === 'world' ? '世界如何运转，故事便如何发生。' : '人物如何选择，情节便走向何处。'}
+        </p>
       </div>
       <div className="novel-setting-hub-body">
         <div className={`novel-setting-hub-pane${view === 'world' ? ' is-active' : ''}`}>

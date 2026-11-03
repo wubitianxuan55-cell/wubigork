@@ -153,6 +153,7 @@ type mediaState struct {
 	activeTTSModel      string
 	activeTTSVoice      string
 	activePersonalityID string
+	voicePersonalityMu  sync.RWMutex
 	chatVoiceEngine     string
 	chatVoiceModel      string
 
@@ -162,6 +163,10 @@ type mediaState struct {
 
 	// 语音管道
 	voiceManager *voice.Manager
+
+	// Voice V2 本机对话网关：sidecar → 本服务（人格记忆注入/流式代理）→ 4B。
+	voiceV2GatewayMu sync.Mutex
+	voiceV2Gateway   *http.Server
 
 	// ComfyUI 进程管理（comfyProcMu 保护；写侧有 UI 线程/回收 goroutine/状态轮询
 	// 三路并发，v4.421 P0-2 收口，访问一律走 comfyProcRef* 方法）
@@ -181,6 +186,18 @@ type mediaState struct {
 	comfyTaskElapsed int
 	comfyTaskPercent int
 	comfyTaskNode    string
+}
+
+func (a *mediaState) currentVoicePersonality() string {
+	a.voicePersonalityMu.RLock()
+	defer a.voicePersonalityMu.RUnlock()
+	return a.activePersonalityID
+}
+
+func (a *mediaState) setVoicePersonality(personalityID string) {
+	a.voicePersonalityMu.Lock()
+	a.activePersonalityID = personalityID
+	a.voicePersonalityMu.Unlock()
 }
 
 // whisperState 是轻语域状态（AI 人格/虚拟助手/微信通道）。
@@ -209,6 +226,14 @@ type whisperState struct {
 	// T6-5.3 异步写可观测：记忆写入/持久化协程错误计数 + 最近错误摘要
 	// （内部方法读取，不新增 Wails 绑定）。
 	writeErrors whisperWriteErrors
+
+	// Voice V2 外部生成轮的后端收尾串行闸：同一 response_id 的 WebSocket
+	// 重试/前端重复回执必须只落一次聊天、一次状态推进、一次记忆抽取。
+	voiceV2CommitMu sync.Mutex
+	// V2 生成前已推进的 PreLLMTurn（单语音会话）。提交时消费同一快照；
+	// 上游失败或下一轮抢先到来时回滚，禁止幽灵回合污染人格状态。
+	voiceV2PrepareMu sync.Mutex
+	voiceV2Prepared  *voiceV2PreparedTurn
 
 	// v4.3c：主动关心定时推送（频控 + 作息尊重 + 特殊日期，play 空间）。
 	// proactiveMu 保护配置与「当天已发生日祝福」标记；频控实例各自带锁。
@@ -496,7 +521,7 @@ func (a *App) Startup(ctx context.Context) {
 	a.activeTTSVoice = a.cfg.TTSVoice
 	a.activeOCREngine = a.cfg.ActiveOCREngine
 	a.activeOCRModel = a.cfg.ActiveOCRModel
-	a.activePersonalityID = a.cfg.VoicePersonality
+	a.setVoicePersonality(a.cfg.VoicePersonality)
 	a.chatVoiceEngine = a.cfg.FuncChatVoiceEngine
 	a.chatVoiceModel = a.cfg.FuncChatVoiceModel
 
@@ -572,6 +597,14 @@ func (a *App) Startup(ctx context.Context) {
 	// 是「启动即可见」的唯一时机。
 	a.reportKnowledgeMigrationState()
 	stage("charlib+stores")
+	// Voice V2 的本机记忆网关与 App 同生命周期；sidecar 使用它作为 4B 上游。
+	if a.cfg != nil && a.cfg.VoiceBackend == "v2" {
+		// 旧版 sidecar 可能仍按 8123 直连配置常驻；新 App 启动时先收掉，
+		// 后续由语音台 Ensure 以当前 YAML（8792 记忆网关）重新拉起。
+		a.VoiceV2Stop()
+	}
+	a.startVoiceV2Gateway()
+	stage("voice-v2-gateway")
 
 	// 本地 TTS 服务不再开机自动拉起（2026-10-18 用户拍板删除 CosyVoice2 常驻）：
 	// 平时不占内存；合成链路（tts_handler/voice_handler）与模型中心「启动」按钮
@@ -704,6 +737,12 @@ func (a *App) Shutdown(ctx context.Context) {
 		a.engineMgr.StopGLMCatalogRemote()
 		// 停止引擎健康巡检循环（C 刀 v0）。
 		a.engineMgr.StopHealthProbe()
+	}
+	a.stopVoiceV2Gateway()
+	if a.cfg != nil && a.cfg.VoiceBackend == "v2" {
+		// 4B/sidecar 是 Gaea 代启进程，应用退出后已失去控制面；同步收尸，
+		// 避免 3GB 级模型在后台常驻。breeze 为共享 TTS，不在本停止面。
+		a.VoiceV2Stop()
 	}
 	if a.voiceManager != nil {
 		a.voiceManager.Stop()

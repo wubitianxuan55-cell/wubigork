@@ -213,10 +213,10 @@ export function PriceSourcesPanel({ onChanged }: { onChanged?: () => void }) {
   const countBy = useCallback((cands: PriceCandidate[], status: string) => cands.filter((c) => c.status === status).length, []);
 
   return (
-    <div className="flex flex-col h-full text-fg-dim text-xs">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border-soft">
+    <div className="cost-price-source-panel flex flex-col h-full text-fg-dim text-xs" aria-busy={loading || fetchingAll}>
+      <div className="cost-child-toolbar">
         <span className="flex items-center gap-1.5 font-semibold text-fg text-sm">
-          <CloudUpload size={13} className="text-sky-400" />
+          <CloudUpload size={13} className="text-accent" />
           价格源
         </span>
         <div className="flex items-center gap-1.5">
@@ -224,12 +224,13 @@ export function PriceSourcesPanel({ onChanged }: { onChanged?: () => void }) {
             className="flex items-center justify-center w-6 h-6 border-0 bg-transparent text-fg-faint cursor-pointer hover:text-fg hover:bg-bg-soft rounded"
             onClick={load}
             title="刷新价格源"
+            aria-label="刷新价格源"
             disabled={loading || fetchingAll}
           >
             <RefreshCw size={12} />
           </button>
           <button
-            className="flex items-center gap-1 px-2 h-6 rounded-md bg-sky-400/15 text-sky-300 text-[11px] cursor-pointer hover:bg-sky-400/25 transition-colors disabled:opacity-50"
+            className="flex items-center gap-1 px-2 h-6 rounded-md bg-accent/15 text-accent text-[11px] cursor-pointer hover:bg-accent/25 transition-colors disabled:opacity-50"
             onClick={() => void fetchAll()}
             disabled={loading || fetchingAll || sources.length === 0}
             title="一键抓取全部启用的价格源"
@@ -241,26 +242,27 @@ export function PriceSourcesPanel({ onChanged }: { onChanged?: () => void }) {
             className="flex items-center justify-center w-6 h-6 border-0 bg-transparent text-fg-faint cursor-pointer hover:text-fg hover:bg-bg-soft rounded"
             onClick={openCreate}
             title="新建价格源"
+            aria-label="新建价格源"
           >
             <Plus size={12} />
           </button>
           {sources.length > 0 && (
-            <span className="text-[10px] text-fg-faint border border-border-soft/60 rounded-full px-1.5 py-px">
+            <span className="text-[10px] text-fg-faint border border-border-soft/60 rounded-md px-1.5 py-px">
               {sources.length}
             </span>
           )}
         </div>
       </div>
 
-      <div className="shrink-0 px-3 pt-2 text-[10.5px] text-fg-faint">
+      <div className="cost-child-description">
         订阅造价信息网价格表，手动/定时抓取后确认发布（旧价自动留存历史）
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto p-2 flex flex-col gap-1.5">
+      <div className="cost-child-body flex-1 min-h-0 overflow-y-auto flex flex-col gap-1.5">
         {loading ? (
-          <div className="py-8 text-center text-fg-faint text-[11px]">加载中…</div>
+          <div className="py-8 text-center text-fg-faint text-[11px]" role="status" aria-live="polite">加载中…</div>
         ) : loadFailed ? (
-          <div className="py-8 text-center text-[11px]" role="status" data-testid="price-sources-load-failed">
+          <div className="py-8 text-center text-[11px]" role="alert" data-testid="price-sources-load-failed">
             <span className="text-fg-dim">价格源列表读取失败</span>
             <button type="button" className="ml-2 px-2 h-6 rounded-full bg-accent text-accent-fg text-[10.5px] cursor-pointer" onClick={() => load()}>
               重试

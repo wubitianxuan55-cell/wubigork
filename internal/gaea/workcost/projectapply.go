@@ -283,6 +283,7 @@ func (s *Store) applyBillItems(b *ProjectBundle, items []ProjectItem, resolved m
 			QuantityExpr: it.QuantityExpr,
 			QuotaCode:    firstNonEmpty(resolved[it.Code], it.Code), // 统一码（与定额库锚点一致，便于索引引用）
 			Feature:      it.Feature,
+			ListPrice:    it.ListPrice, // 原表综合单价快照（重导入随工作簿刷新）
 			Sort:         i + 1,
 		}
 		saved, err := s.SaveBillItem(bill)

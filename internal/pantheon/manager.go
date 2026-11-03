@@ -104,6 +104,16 @@ func attachmentPaths(items []Attachment) []string {
 	return out
 }
 
+func supportsImageAttachment(status AgentStatus) bool {
+	for _, capability := range status.Capabilities {
+		switch strings.ToLower(strings.TrimSpace(capability)) {
+		case "image-input", "image-path-tools", "shared-image-summary":
+			return true
+		}
+	}
+	return false
+}
+
 type Manager struct {
 	root    string
 	workDir string
@@ -121,9 +131,14 @@ type Manager struct {
 	wg         sync.WaitGroup
 	emit       func(Event)
 	deltaSeq   int64
+	// authorityID 每次进程启动重生成：席位观测的序号只在同一 authority 内可比，
+	// 换进程后必须从头计数（§2.2）。
+	authorityID string
 }
 
 type activeAgentCall struct {
+	sessionID string
+	CallRef
 	agentID string
 	cancel  context.CancelFunc
 	skipped bool
@@ -151,8 +166,9 @@ func NewManager(root string, runner commandRunner, emit func(Event)) (*Manager, 
 		adapters:   buildAdapters(overrides, nil, ""),
 		cancels:    map[string]context.CancelFunc{},
 		agentCalls: map[string]*activeAgentCall{},
-		runs:       map[string]*Session{},
-		emit:       emit,
+		runs:        map[string]*Session{},
+		emit:        emit,
+		authorityID: fmt.Sprintf("pantheon:%d:%d", os.Getpid(), time.Now().UnixNano()),
 	}, nil
 }
 
@@ -170,6 +186,8 @@ func (m *Manager) RecoverInterrupted() (int, error) {
 	recovered := 0
 	for _, summary := range summaries {
 		if summary.Status != StatusRunning {
+			// waiting_input 是"停着等人"，不是"被中断"：重启不替人解开未答的
+			// 问题或没处理的决策门（M14），所以它原样保持阻塞，等显式处理。
 			continue
 		}
 		session, err := m.store.get(summary.ID)
@@ -178,22 +196,33 @@ func (m *Manager) RecoverInterrupted() (int, error) {
 		}
 		now := time.Now().UnixMilli()
 		reason := "上次运行被应用中断，已保留此前产生的发言与事件"
-		session.Status = StatusFailed
-		session.Phase = PhaseFailed
+		// 重启不是失败：没有人说过这场议事输了，只是没人看见收声（O-D / M3）。
+		// 于是会话落 interrupted、在跑的席位落 finished_unverified，
+		// 而不是伪造一个 failed 让用户以为模型给了否定结论。
+		session.Status = StatusInterrupted
 		session.Error = reason
 		session.UpdatedAt = now
 		for i := range session.Participants {
-			if session.Participants[i].Status == "running" {
-				session.Participants[i].Status = "failed"
-				session.Participants[i].FinishedAt = now
-				session.Participants[i].Error = "应用重启，本次调用被中断"
+			p := &session.Participants[i]
+			if p.Status != SeatRunning {
+				continue
 			}
+			if err := m.observeSeatLocked(session, p.AgentID, seatObservation{
+				Origin:   OriginRecovery,
+				Status:   SeatFinishedUnverified,
+				Evidence: "应用重启，未观测到收声",
+				At:       now,
+			}); err != nil {
+				session.Warnings = append(session.Warnings, fmt.Sprintf("%s 状态未能更新：%s", p.Name, err.Error()))
+			}
+			p.FinishedAt = now
+			p.Error = "应用重启，本次调用被中断"
 		}
 		session.Warnings = append(session.Warnings, reason)
 		m.appendEventLocked(session, Event{
-			Phase: PhaseFailed,
+			Phase: session.Phase,
 			Kind:  EventError,
-			Text:  "议事因应用重启而中断",
+			Text:  "议事因应用重启而中断：未观测到收声的席位标为未验证，可从断点续跑",
 			Error: reason,
 			At:    now,
 		})
@@ -407,6 +436,14 @@ func (m *Manager) Start(req StartRequest) (*Session, error) {
 	if len(available) < 2 && req.Protocol != ProtocolIndependent {
 		return nil, errors.New("可用 Agent 少于两个，无法开始讨论")
 	}
+	if len(attachments) > 0 {
+		for _, id := range selectedIDs {
+			status := byID[id]
+			if status.Available && !supportsImageAttachment(status) {
+				return nil, fmt.Errorf("%s 不支持图片附件，请移除图片或取消该席", status.Name)
+			}
+		}
+	}
 
 	chairman := strings.TrimSpace(req.ChairmanAgentID)
 	if chairman == "" {
@@ -560,11 +597,34 @@ func (m *Manager) beginAgentCall(
 	round int,
 ) (context.Context, *activeAgentCall) {
 	callCtx, cancel := context.WithCancel(ctx)
-	call := &activeAgentCall{agentID: status.ID, cancel: cancel}
-	m.recordAgentStarted(session, status, phase, round)
+	callID := seatCallID(session.ID, status.ID, phase, round)
+	attempt := 1
+	retryOf := ""
 	m.mu.Lock()
-	m.agentCalls[session.ID] = call
+	for _, event := range session.Events {
+		if event.CallID != callID {
+			continue
+		}
+		if event.Kind == EventAgentStart && event.AttemptID != "" {
+			attempt++
+		}
+		if event.Kind == EventAgentRetry && event.AttemptID != "" {
+			retryOf = event.AttemptID
+		}
+	}
 	m.mu.Unlock()
+	call := &activeAgentCall{
+		sessionID: session.ID,
+		CallRef: CallRef{
+			CallID:         callID,
+			AttemptID:      newAttemptID(time.Now().UnixMilli()),
+			RetryOfAttempt: retryOf,
+			Attempt:        attempt,
+		},
+		agentID: status.ID,
+		cancel:  cancel,
+	}
+	m.recordAgentStarted(session, status, phase, round, call)
 	return callCtx, call
 }
 
@@ -596,6 +656,17 @@ func (m *Manager) agentCallRetry(call *activeAgentCall) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return call.retry
+}
+
+// agentCallAborted 报告该次调用是否已被跳过、要求重试或不再是当前 Attempt。
+// 取消只杀进程，管道里已缓冲的输出仍会继续流入；这些残影必须在发射前丢弃。
+func (m *Manager) agentCallAborted(call *activeAgentCall) bool {
+	if call == nil {
+		return false
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return call.skipped || call.retry || m.agentCalls[call.sessionID] != call
 }
 
 // SkipAgent cancels only the active model/CLI call. The council loop continues
@@ -637,7 +708,16 @@ func (m *Manager) SkipAgent(id, agentID string) error {
 			continue
 		}
 		name = participant.Name
-		participant.Status = "skipped"
+		if err := m.observeSeatLocked(session, agentID, seatObservation{
+			Origin:   OriginUser,
+			Status:   SeatSkipped,
+			Evidence: "用户跳过当前调用",
+			CallRef:  call.CallRef,
+			At:       now,
+		}); err != nil {
+			session.Warnings = append(session.Warnings, fmt.Sprintf("%s 无法标记为已跳过：%s", name, err.Error()))
+			continue
+		}
 		participant.FinishedAt = now
 		if participant.StartedAt > 0 && now > participant.StartedAt {
 			participant.DurationMs += now - participant.StartedAt
@@ -646,6 +726,7 @@ func (m *Manager) SkipAgent(id, agentID string) error {
 	}
 	session.UpdatedAt = now
 	event := m.appendEventLocked(session, Event{
+		CallRef: call.CallRef,
 		Phase:   session.Phase,
 		Round:   session.CurrentRound,
 		AgentID: agentID,
@@ -694,6 +775,13 @@ func (m *Manager) RetryAgent(id, agentID string) error {
 		m.mu.Unlock()
 		return errors.New("议事已不在运行")
 	}
+	// 重试要自己声明运行方式（M17）：沿用上一次等于假设它没变，可它可能已经换了
+	// 只读机制。声明不出来就拒绝，让人看见，而不是拿旧口径悄悄再跑一遍。
+	runMode := strings.TrimSpace(m.adapters[agentID].runMode)
+	if runMode == "" {
+		m.mu.Unlock()
+		return fmt.Errorf("%s 没有声明运行方式，重试不能沿用上一次的口径", agentID)
+	}
 	call.retry = true
 	now := time.Now().UnixMilli()
 	name := agentID
@@ -703,17 +791,23 @@ func (m *Manager) RetryAgent(id, agentID string) error {
 			continue
 		}
 		name = participant.Name
-		participant.Status = "retrying"
+		// 重试给席位发一个新的 attempt，旧 attempt 的终态不参与转移判定。
+		m.rebindSeatLocked(session, agentID, SeatRetrying, "用户重试当前调用，保留此前发言")
 		participant.FinishedAt = 0
 		participant.Error = ""
 	}
+	placement := "运行方式：" + runMode
+	if workspace := strings.TrimSpace(session.Request.Workspace); workspace != "" {
+		placement = fmt.Sprintf("运行方式：%s；工作空间：%s", runMode, workspace)
+	}
 	session.UpdatedAt = now
 	event := m.appendEventLocked(session, Event{
+		CallRef: call.CallRef,
 		Phase:   session.Phase,
 		Round:   session.CurrentRound,
 		AgentID: agentID,
 		Kind:    EventAgentRetry,
-		Text:    name + " 正在重新调用，保留此前发言",
+		Text:    name + " 正在重新调用，保留此前发言（" + placement + "）",
 		At:      now,
 	})
 	saveErr := m.store.save(session)
@@ -812,10 +906,13 @@ func (m *Manager) SignOff(id, decision, note string) (*Session, error) {
 	}
 	now := time.Now().UnixMilli()
 	session.SignOff = &SignOff{
-		Decision:      decision,
-		Note:          strings.TrimSpace(note),
-		At:            now,
-		VerdictSHA256: verdictFingerprint(session.Verdict),
+		Decision: decision,
+		Note:     strings.TrimSpace(note),
+		At:       now,
+		// 缺口也进哈希：同样的小结，三席齐全与两席缺一不该签出同一个指纹
+		// （M15 把"谁没交出结论"算作结案事实的一部分）。
+		VerdictSHA256: signoffFingerprint(session.Verdict, session.Gaps),
+		Gaps:          append([]string(nil), session.Gaps...),
 	}
 	session.UpdatedAt = now
 	label := map[string]string{
@@ -865,15 +962,19 @@ func (m *Manager) Resume(id string) (*Session, error) {
 		m.mu.Unlock()
 		return nil, errors.New("该场没有可续的历史发言；请使用「重开整场」")
 	}
+	// 未答的问题和没处理的决策门不是"中断"，是"在等人"：续跑不会替人解开，
+	// 直接拒绝比让 run 立刻又停回去更诚实（M14）。
+	if pending := pendingQuestionsLocked(session); len(pending) > 0 {
+		m.mu.Unlock()
+		return nil, fmt.Errorf("还有 %d 个问题没有回答，请先回答再继续议事", len(pending))
+	}
+	if hasOpenGateLocked(session) {
+		m.mu.Unlock()
+		return nil, errors.New("有一道决策门没被处理，请先放行或放弃")
+	}
 	request := session.Request
 	resumeRound := session.CurrentRound + 1
-	history := make([]Contribution, 0, len(session.Contributions))
-	for _, contribution := range session.Contributions {
-		if contribution.Phase == PhaseSynthesis {
-			continue
-		}
-		history = append(history, contribution)
-	}
+	history := contributionsForResume(session)
 	m.mu.Unlock()
 
 	probeCtx, cancelProbe := context.WithTimeout(context.Background(), 15*time.Second)
@@ -910,14 +1011,20 @@ func (m *Manager) Resume(id string) (*Session, error) {
 	if resumeRound < 1 {
 		resumeRound = 1
 	}
+	// 重开是新的 run，不是会话状态转移：终态会话允许被用户续跑，
+	// 所以这里不走 sessionTransitions，而按"新建 attempt"处理（M12 具名例外）。
 	session.Status = StatusRunning
 	session.Phase = PhasePreparing
 	session.Error = ""
 	session.UpdatedAt = time.Now().UnixMilli()
 	for i := range session.Participants {
-		if session.Participants[i].Status == "failed" {
-			session.Participants[i].Status = "waiting"
-			session.Participants[i].Error = ""
+		p := &session.Participants[i]
+		switch p.Status {
+		case SeatFailed, SeatFinishedUnverified, SeatSkipped, SeatCancelled, SeatUnavailable, SeatNeedsInput:
+			// 旧 attempt 的终态不拦住新 attempt 的起步：抬 incarnation 后回到待发言。
+			m.rebindSeatLocked(session, p.AgentID, SeatWaiting, "整场重开，席位回到待发言")
+			p.Error = ""
+			p.FinishedAt = 0
 		}
 	}
 	event := m.appendEventLocked(session, Event{
@@ -983,11 +1090,20 @@ func (m *Manager) run(
 			successful[item.AgentID] = status
 		}
 	}
-	actualRounds := 0
+	actualRounds := startRound - 1
+	if actualRounds < 0 {
+		actualRounds = 0
+	}
 	consensusRound := 0
 	clippedInputs := make([]string, 0)
 
 	for round := startRound; round <= session.Request.Rounds; round++ {
+		// 停车点一：轮次之间。门没解、问题没答之前不进新一轮，宁可停着，
+		// 也不让界面看起来还在推进（Orca 把这条叫"别伪造活性"）。
+		if m.paused(session) {
+			m.notePaused(session)
+			return
+		}
 		actualRounds = round
 		phase := PhaseDiscussion
 		phaseText := fmt.Sprintf("第 %d 轮补充论证：承接前文，补充证据并澄清分歧", round)
@@ -1003,7 +1119,14 @@ func (m *Manager) run(
 				m.finishCancelled(session)
 				return
 			}
+			// 停车点二：席位之间。已经在跑的那一席不打断（外部进程没法拦腰
+			// 插话），但下一个席位绝不启动。
+			if m.paused(session) {
+				m.notePaused(session)
+				return
+			}
 			status := available[agentID]
+			files := m.transcriptFor(session)
 			var prompt string
 			if round == 1 {
 				openingHistory := history
@@ -1011,9 +1134,9 @@ func (m *Manager) run(
 					// 独立开场基线：第 1 轮不注入同轮前序，每位视同首位发言。
 					openingHistory = nil
 				}
-				prompt = openingPrompt(session.Request, status, openingHistory, position+1, len(roundOrder))
+				prompt = openingPrompt(session.Request, status, openingHistory, position+1, len(roundOrder), files)
 			} else {
-				prompt = discussionPrompt(session.Request, status, history, round, position+1, len(roundOrder))
+				prompt = discussionPrompt(session.Request, status, history, round, position+1, len(roundOrder), files)
 			}
 			if promptExceedsBudget(prompt) {
 				clippedInputs = append(
@@ -1021,7 +1144,7 @@ func (m *Manager) run(
 					fmt.Sprintf("第%d轮·%s", round, status.ID),
 				)
 			}
-			out, duration, err := m.runAgentWithRetry(ctx, session, status, prompt, phase, round)
+			out, duration, callRef, err := m.runAgentWithRetry(ctx, session, status, prompt, phase, round)
 			if err != nil {
 				continue
 			}
@@ -1030,6 +1153,7 @@ func (m *Manager) run(
 				out, consensus = extractConsensusSignal(out)
 			}
 			contribution := Contribution{
+				CallRef:    callRef,
 				ID:         fmt.Sprintf("%s-%s-r%d-%d", session.ID, status.ID, round, time.Now().UnixNano()),
 				Phase:      phase,
 				Round:      round,
@@ -1052,6 +1176,12 @@ func (m *Manager) run(
 			consensusRound = round
 			m.recordConsensus(session, round)
 			break
+		}
+		// 用户要求每轮之间停一次：本轮已收声，就在此处开门，等人放行。
+		if session.Request.GateEachRound && round < session.Request.Rounds {
+			if m.openGateInSession(session, fmt.Sprintf("第 %d 轮结束，按设置停下等你确认", round)) {
+				return
+			}
 		}
 	}
 	if ctx.Err() != nil {
@@ -1086,17 +1216,18 @@ func (m *Manager) run(
 	}
 	var verdict *Verdict
 	if ok {
-		out, duration, err := m.runAgentWithRetry(
+		out, duration, callRef, err := m.runAgentWithRetry(
 			ctx,
 			session,
 			summarizerStatus,
-			synthesisPrompt(session.Request, summarizerStatus, history),
+			synthesisPrompt(session.Request, summarizerStatus, history, m.transcriptFor(session)),
 			PhaseSynthesis,
 			0,
 		)
 		if err == nil && strings.TrimSpace(out) != "" {
 			verdict = parseVerdict(out, summarizerStatus.Name, duration)
 			m.appendContribution(session, Contribution{
+				CallRef:    callRef,
 				ID:         fmt.Sprintf("%s-%s-synthesis-%d", session.ID, summarizerStatus.ID, time.Now().UnixNano()),
 				Phase:      PhaseSynthesis,
 				AgentID:    summarizerStatus.ID,
@@ -1123,6 +1254,7 @@ func (m *Manager) run(
 
 	m.mu.Lock()
 	session.Verdict = verdict
+	session.Gaps = seatGaps(session)
 	session.Phase = PhaseCompleted
 	session.Status = StatusCompleted
 	session.UpdatedAt = time.Now().UnixMilli()
@@ -1130,8 +1262,13 @@ func (m *Manager) run(
 		Phase: PhaseCompleted, Kind: EventVerdict, Text: verdict.Recommendation,
 		At: time.Now().UnixMilli(),
 	})
+	completeText := "讨论小结已形成，等待用户确认"
+	if len(session.Gaps) > 0 {
+		completeText = fmt.Sprintf("讨论小结已形成，但有 %d 席没交出可用结论：%s",
+			len(session.Gaps), strings.Join(session.Gaps, "、"))
+	}
 	m.appendEventLocked(session, Event{
-		Phase: PhaseCompleted, Kind: EventComplete, Text: "讨论小结已形成，等待用户确认",
+		Phase: PhaseCompleted, Kind: EventComplete, Text: completeText,
 		At: time.Now().UnixMilli(),
 	})
 	if path, err := m.store.writeResult(session); err == nil {
@@ -1154,26 +1291,26 @@ func (m *Manager) runAgentWithRetry(
 	prompt string,
 	phase string,
 	round int,
-) (string, time.Duration, error) {
+) (string, time.Duration, CallRef, error) {
 	for {
-		text, duration, err := m.runOne(ctx, session, status, prompt, phase, round)
+		text, duration, callRef, err := m.runOne(ctx, session, status, prompt, phase, round)
 		if errors.Is(err, errAgentRetry) && ctx.Err() == nil {
 			continue
 		}
-		return text, duration, err
+		return text, duration, callRef, err
 	}
 }
 
-func (m *Manager) runOne(ctx context.Context, session *Session, status AgentStatus, prompt, phase string, round int) (string, time.Duration, error) {
+func (m *Manager) runOne(ctx context.Context, session *Session, status AgentStatus, prompt, phase string, round int) (string, time.Duration, CallRef, error) {
 	adapter := m.adapter(status.ID)
 	if adapter.id == "" {
-		return "", 0, fmt.Errorf("未找到 Agent Adapter %s", status.ID)
+		return "", 0, CallRef{}, fmt.Errorf("未找到 Agent Adapter %s", status.ID)
 	}
 	images := attachmentPaths(session.Request.Attachments)
 	if adapter.invoke != nil {
 		callCtx, call := m.beginAgentCall(ctx, session, status, phase, round)
 		defer m.endAgentCall(session.ID, call)
-		return m.runModelSeat(
+		text, duration, err := m.runModelSeat(
 			callCtx,
 			session,
 			status,
@@ -1186,6 +1323,7 @@ func (m *Manager) runOne(ctx context.Context, session *Session, status AgentStat
 			phase,
 			round,
 		)
+		return text, duration, call.CallRef, err
 	}
 	m.mu.Lock()
 	workDir := session.Request.Workspace
@@ -1196,21 +1334,27 @@ func (m *Manager) runOne(ctx context.Context, session *Session, status AgentStat
 	if workDir == "" {
 		workDir = m.root
 	}
-	spec, err := adapter.build(prompt, workDir, images)
-	if err != nil {
-		m.recordAgentError(session, status, phase, err)
-		return "", 0, err
-	}
 	callCtx, call := m.beginAgentCall(ctx, session, status, phase, round)
 	defer m.endAgentCall(session.ID, call)
+	spec, err := adapter.build(prompt, workDir, images)
+	if err != nil {
+		m.recordAgentError(session, status, phase, round, call, err)
+		return "", 0, call.CallRef, err
+	}
 	runCtx, cancel := context.WithTimeout(callCtx, defaultAgentLimit)
 	defer cancel()
 	start := time.Now()
 	onDelta := func(chunk string) {
-		m.recordAgentDelta(session, status, phase, round, chunk)
+		if m.agentCallAborted(call) {
+			return
+		}
+		m.recordAgentDelta(session, status, phase, round, call, chunk)
 	}
 	onTool := func(trace ToolTrace) {
-		m.recordToolTrace(session, status, phase, round, trace)
+		if m.agentCallAborted(call) {
+			return
+		}
+		m.recordToolTrace(session, status, phase, round, call, trace)
 	}
 	var raw string
 	if runner, ok := m.runner.(toolStreamingCommandRunner); ok {
@@ -1222,30 +1366,30 @@ func (m *Manager) runOne(ctx context.Context, session *Session, status AgentStat
 	}
 	duration := time.Since(start)
 	if m.agentCallSkipped(call) {
-		return "", duration, errAgentSkipped
+		return "", duration, call.CallRef, errAgentSkipped
 	}
 	if m.agentCallRetry(call) {
-		return "", duration, errAgentRetry
+		return "", duration, call.CallRef, errAgentRetry
 	}
 	if err != nil {
-		m.recordAgentError(session, status, phase, err)
-		return "", duration, err
+		m.recordAgentError(session, status, phase, round, call, err)
+		return "", duration, call.CallRef, err
 	}
 	text := strings.TrimSpace(parseAgentOutput(raw))
 	if m.agentCallSkipped(call) {
-		return "", duration, errAgentSkipped
+		return "", duration, call.CallRef, errAgentSkipped
 	}
 	if m.agentCallRetry(call) {
-		return "", duration, errAgentRetry
+		return "", duration, call.CallRef, errAgentRetry
 	}
 	if text == "" {
 		err = errors.New("Agent 返回空结果")
-		m.recordAgentError(session, status, phase, err)
-		return "", duration, err
+		m.recordAgentError(session, status, phase, round, call, err)
+		return "", duration, call.CallRef, err
 	}
 	text = trimRunes(text, maxAgentOutput)
-	m.recordAgentOutput(session, status, phase, round, text, duration)
-	return text, duration, nil
+	m.recordAgentOutput(session, status, phase, round, call, text, duration)
+	return text, duration, call.CallRef, nil
 }
 
 // runModelSeat 模型席位执行：无 cwd、无 CLI 包装；提示词即全部输入，输出是
@@ -1276,24 +1420,36 @@ func (m *Manager) runModelSeat(
 	start := time.Now()
 	var text string
 	var err error
+	onDelta := func(chunk string) {
+		if m.agentCallAborted(call) {
+			return
+		}
+		m.recordAgentDelta(session, status, phase, round, call, chunk)
+	}
 	onTool := func(trace ToolTrace) {
-		m.recordToolTrace(session, status, phase, round, trace)
+		if m.agentCallAborted(call) {
+			return
+		}
+		m.recordToolTrace(session, status, phase, round, call, trace)
 	}
 	if streamWithTools != nil {
+		// 归档发言全文路径注入 readPaths 白名单：提示词只带索引行与预览，
+		// grok 席需要引用往轮论证细节时按路径自读（2026-11-03 论证文件化）。
+		readPaths := make([]string, 0, len(images)+len(session.Contributions))
+		readPaths = append(readPaths, images...)
+		if t := m.transcriptFor(session); t != nil {
+			readPaths = append(readPaths, t.archiveContributions(session.Contributions)...)
+		}
 		text, err = streamWithTools(
 			runCtx,
 			clampPrompt(prompt),
 			session.Request.Workspace,
-			images,
-			func(chunk string) {
-				m.recordAgentDelta(session, status, phase, round, chunk)
-			},
+			readPaths,
+			onDelta,
 			onTool,
 		)
 	} else if stream != nil {
-		text, err = stream(runCtx, clampPrompt(prompt), func(chunk string) {
-			m.recordAgentDelta(session, status, phase, round, chunk)
-		})
+		text, err = stream(runCtx, clampPrompt(prompt), onDelta)
 	} else {
 		text, err = invoke(runCtx, clampPrompt(prompt))
 	}
@@ -1305,7 +1461,7 @@ func (m *Manager) runModelSeat(
 		return "", duration, errAgentRetry
 	}
 	if err != nil {
-		m.recordAgentError(session, status, phase, err)
+		m.recordAgentError(session, status, phase, round, call, err)
 		return "", duration, err
 	}
 	text = strings.TrimSpace(text)
@@ -1317,11 +1473,11 @@ func (m *Manager) runModelSeat(
 	}
 	if text == "" {
 		err = errors.New("模型返回空结果")
-		m.recordAgentError(session, status, phase, err)
+		m.recordAgentError(session, status, phase, round, call, err)
 		return "", duration, err
 	}
 	text = trimRunes(text, maxAgentOutput)
-	m.recordAgentOutput(session, status, phase, round, text, duration)
+	m.recordAgentOutput(session, status, phase, round, call, text, duration)
 	return text, duration, nil
 }
 
@@ -1329,6 +1485,16 @@ func (m *Manager) adapter(id string) agentAdapter {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.adapters[id]
+}
+
+// transcriptFor 返回本会话的归档句柄；构建失败（仅非法 ID，实际不可达）返回
+// nil，提示词构建降级为内联节选，绝不因分发辅助故障挡议事。
+func (m *Manager) transcriptFor(session *Session) *transcript {
+	t, err := newTranscript(m.root, session.ID)
+	if err != nil {
+		return nil
+	}
+	return &t
 }
 
 func (m *Manager) updateRoundPhase(session *Session, phase string, round int, text string) {
@@ -1351,33 +1517,74 @@ func (m *Manager) appendContribution(session *Session, contribution Contribution
 	m.mu.Unlock()
 }
 
-func (m *Manager) recordAgentStarted(session *Session, status AgentStatus, phase string, round int) {
+func (m *Manager) recordAgentStarted(
+	session *Session,
+	status AgentStatus,
+	phase string,
+	round int,
+	call *activeAgentCall,
+) {
 	text := fmt.Sprintf("%s 开始%s", status.Name, phaseLabel(phase))
 	if round > 0 {
 		text = fmt.Sprintf("%s 开始第 %d 轮发言", status.Name, round)
 	}
 	m.mu.Lock()
-	session.UpdatedAt = time.Now().UnixMilli()
+	now := time.Now().UnixMilli()
+	session.UpdatedAt = now
+	if err := m.observeSeatLocked(session, status.ID, seatObservation{
+		Origin:   OriginLauncher,
+		Status:   SeatRunning,
+		Evidence: text,
+		CallRef:  call.CallRef,
+		At:       now,
+	}); err != nil {
+		// 状态没更新就照实记一笔：宁可让用户看到"这条状态没写进去"，
+		// 也不要在界面上假装它开始了（M3）。
+		session.Warnings = append(session.Warnings, fmt.Sprintf("%s 状态未能更新：%s", status.Name, err.Error()))
+	}
 	for i := range session.Participants {
 		if session.Participants[i].AgentID == status.ID {
-			session.Participants[i].Status = "running"
-			session.Participants[i].StartedAt = time.Now().UnixMilli()
+			session.Participants[i].StartedAt = now
 			session.Participants[i].FinishedAt = 0
 			session.Participants[i].Error = ""
 		}
 	}
-	event := Event{Phase: phase, Round: round, AgentID: status.ID, Kind: EventAgentStart, Text: text, At: time.Now().UnixMilli()}
+	event := Event{
+		CallRef: call.CallRef,
+		Phase:   phase, Round: round, AgentID: status.ID,
+		Kind: EventAgentStart, Text: text, At: time.Now().UnixMilli(),
+	}
 	event = m.appendEventLocked(session, event)
+	m.agentCalls[session.ID] = call
 	_ = m.store.save(session)
 	m.mu.Unlock()
 	m.emitSafe(event)
 }
 
-func (m *Manager) recordAgentDelta(session *Session, status AgentStatus, phase string, round int, text string) {
+func (m *Manager) recordAgentDelta(
+	session *Session,
+	status AgentStatus,
+	phase string,
+	round int,
+	call *activeAgentCall,
+	text string,
+) {
 	if text == "" {
 		return
 	}
+	now := time.Now().UnixMilli()
+	// 增量是"这个席位还在动"的新鲜证据（M10）：只刷新观测时间，不改状态、
+	// 不落盘——每来一段增量就写一次 session.json 会把磁盘写穿。
+	m.mu.Lock()
+	_ = m.observeSeatLocked(session, status.ID, seatObservation{
+		Origin:  OriginEvent,
+		Status:  SeatRunning,
+		CallRef: call.CallRef,
+		At:      now,
+	})
+	m.mu.Unlock()
 	m.emitSafe(Event{
+		CallRef:   call.CallRef,
 		Seq:       -atomic.AddInt64(&m.deltaSeq, 1),
 		SessionID: session.ID,
 		Phase:     phase,
@@ -1385,7 +1592,7 @@ func (m *Manager) recordAgentDelta(session *Session, status AgentStatus, phase s
 		AgentID:   status.ID,
 		Kind:      EventAgentDelta,
 		Text:      text,
-		At:        time.Now().UnixMilli(),
+		At:        now,
 	})
 }
 
@@ -1394,6 +1601,7 @@ func (m *Manager) recordToolTrace(
 	status AgentStatus,
 	phase string,
 	round int,
+	call *activeAgentCall,
 	trace ToolTrace,
 ) {
 	eventKind := EventToolResult
@@ -1418,6 +1626,7 @@ func (m *Manager) recordToolTrace(
 	now := time.Now().UnixMilli()
 	session.UpdatedAt = now
 	event := Event{
+		CallRef:    call.CallRef,
 		Phase:      phase,
 		Round:      round,
 		AgentID:    status.ID,
@@ -1437,19 +1646,37 @@ func (m *Manager) recordToolTrace(
 	m.emitSafe(event)
 }
 
-func (m *Manager) recordAgentOutput(session *Session, status AgentStatus, phase string, round int, text string, duration time.Duration) {
+func (m *Manager) recordAgentOutput(
+	session *Session,
+	status AgentStatus,
+	phase string,
+	round int,
+	call *activeAgentCall,
+	text string,
+	duration time.Duration,
+) {
 	m.mu.Lock()
 	now := time.Now().UnixMilli()
 	session.UpdatedAt = now
 	for i := range session.Participants {
 		if session.Participants[i].AgentID == status.ID {
-			session.Participants[i].Status = "finished"
+			if err := m.observeSeatLocked(session, status.ID, seatObservation{
+				Origin:   OriginAdapter,
+				Status:   SeatFinished,
+				Evidence: fmt.Sprintf("调用返回，用时 %.1fs", duration.Seconds()),
+				CallRef:  call.CallRef,
+				At:       now,
+			}); err != nil {
+				session.Warnings = append(session.Warnings, fmt.Sprintf("%s 状态未能更新：%s", status.Name, err.Error()))
+			}
 			session.Participants[i].FinishedAt = now
 			session.Participants[i].DurationMs += duration.Milliseconds()
+			session.Participants[i].CallRef = call.CallRef
 		}
 	}
 	event := Event{
-		Phase: phase, Round: round, AgentID: status.ID, Kind: EventAgentOutput,
+		CallRef: call.CallRef,
+		Phase:   phase, Round: round, AgentID: status.ID, Kind: EventAgentOutput,
 		Text: text, At: now, DurationMs: duration.Milliseconds(),
 	}
 	event = m.appendEventLocked(session, event)
@@ -1458,19 +1685,36 @@ func (m *Manager) recordAgentOutput(session *Session, status AgentStatus, phase 
 	m.emitSafe(event)
 }
 
-func (m *Manager) recordAgentError(session *Session, status AgentStatus, phase string, err error) {
+func (m *Manager) recordAgentError(
+	session *Session,
+	status AgentStatus,
+	phase string,
+	round int,
+	call *activeAgentCall,
+	err error,
+) {
 	m.mu.Lock()
 	now := time.Now().UnixMilli()
 	session.UpdatedAt = now
 	for i := range session.Participants {
 		if session.Participants[i].AgentID == status.ID {
-			session.Participants[i].Status = "failed"
+			if observeErr := m.observeSeatLocked(session, status.ID, seatObservation{
+				Origin:   OriginProcess,
+				Status:   SeatFailed,
+				Evidence: shortEvidence(err.Error()),
+				CallRef:  call.CallRef,
+				At:       now,
+			}); observeErr != nil {
+				session.Warnings = append(session.Warnings, fmt.Sprintf("%s 状态未能更新：%s", status.Name, observeErr.Error()))
+			}
 			session.Participants[i].FinishedAt = now
+			session.Participants[i].CallRef = call.CallRef
 			session.Participants[i].Error = err.Error()
 		}
 	}
 	event := Event{
-		Phase: phase, AgentID: status.ID, Kind: EventAgentError,
+		CallRef: call.CallRef,
+		Phase:   phase, Round: round, AgentID: status.ID, Kind: EventAgentError,
 		Text: status.Name + " 调用失败", Error: err.Error(), At: now,
 	}
 	event = m.appendEventLocked(session, event)
@@ -1485,6 +1729,21 @@ func (m *Manager) finishCancelled(session *Session) {
 	session.Phase = PhaseCancelled
 	session.Error = "用户终止了本次议事"
 	session.UpdatedAt = time.Now().UnixMilli()
+	// 取消是对整场议事下的命令：还在跑的席位必须一起收口，
+	// 否则界面会一直显示"某个席位仍在发言"。
+	for i := range session.Participants {
+		p := &session.Participants[i]
+		switch p.Status {
+		case SeatRunning, SeatRetrying, SeatNeedsInput:
+			_ = m.observeSeatLocked(session, p.AgentID, seatObservation{
+				Origin:   OriginUser,
+				Status:   SeatCancelled,
+				Evidence: "用户终止了本次议事",
+				At:       session.UpdatedAt,
+			})
+			p.FinishedAt = session.UpdatedAt
+		}
+	}
 	event := Event{Phase: PhaseCancelled, Kind: EventComplete, Text: session.Error, At: session.UpdatedAt}
 	event = m.appendEventLocked(session, event)
 	_ = m.store.save(session)
@@ -1753,6 +2012,18 @@ func newSessionID(now int64) string {
 		return fmt.Sprintf("pan_%d", now)
 	}
 	return fmt.Sprintf("pan_%d_%s", now, hex.EncodeToString(buf))
+}
+
+func seatCallID(sessionID, agentID, phase string, round int) string {
+	return fmt.Sprintf("%s/%s/%s/%d", sessionID, agentID, phase, round)
+}
+
+func newAttemptID(now int64) string {
+	buf := make([]byte, 6)
+	if _, err := rand.Read(buf); err != nil {
+		return fmt.Sprintf("att_%d", now)
+	}
+	return fmt.Sprintf("att_%d_%s", now, hex.EncodeToString(buf))
 }
 
 func uniqueNonEmpty(in []string) []string {

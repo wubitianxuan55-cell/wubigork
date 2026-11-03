@@ -1,4 +1,4 @@
-// wxFocus.ts — 角色库「创建青鸟助手」→ 青鸟页的深链焦点传递（v4.51 B 线）。
+// wxFocus.ts — 角色库「创建微信助手」→ 微信助手页的深链焦点传递（v4.51 B 线）。
 //
 // 为什么用 sessionStorage 而不是内存单例：导航后 WeixinPage lazy 挂载，事件
 // （NAVIGATE）先于订阅——写入方（CharacterCard）与消费方（WeixinPage）生命
@@ -14,7 +14,7 @@
 /** sessionStorage 键（导出供测试对齐，避免两处魔法串漂移） */
 export const WX_FOCUS_KEY = 'gaea-wx-focus-assistant'
 
-/** 写入待聚焦的青鸟助手 id（创建成功后、派发 NAVIGATE 前调用）。 */
+/** 写入待聚焦的微信助手 id（创建成功后、派发 NAVIGATE 前调用）。 */
 export function setWxFocusAssistant(id: string): void {
   try {
     sessionStorage.setItem(WX_FOCUS_KEY, id)

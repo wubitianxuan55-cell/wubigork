@@ -8,7 +8,7 @@ import { AGENT_ACCENTS } from './visuals'
 interface Props {
   agentId: string
   className?: string
-  status?: 'online' | 'offline' | 'running' | 'waiting' | 'finished' | 'skipped' | 'failed'
+  status?: 'online' | 'offline' | 'running' | 'waiting' | 'finished' | 'skipped' | 'failed' | 'unverified'
 }
 
 const AGENT_LOGOS: Record<string, { src: string; label: string }> = {

@@ -62,8 +62,8 @@ export type ClientEvent =
 export type KnownServerEvent =
   | { type: 'session.created'; session: SessionSnapshot; event_id?: string }
   | { type: 'session.updated'; session: SessionSnapshot; event_id?: string }
-  | { type: 'input_audio_buffer.speech_started'; audio_start_ms?: number; event_id?: string }
-  | { type: 'input_audio_buffer.speech_stopped'; audio_end_ms?: number; event_id?: string }
+  | { type: 'input_audio_buffer.speech_started'; audio_start_ms?: number; item_id?: string; event_id?: string }
+  | { type: 'input_audio_buffer.speech_stopped'; audio_end_ms?: number; item_id?: string; event_id?: string }
   | { type: 'input_audio_buffer.committed'; item_id?: string; event_id?: string }
   | { type: 'conversation.item.created'; item?: Record<string, unknown>; event_id?: string }
   | { type: 'conversation.item.input_audio_transcription.delta'; item_id: string; delta: string; event_id?: string }

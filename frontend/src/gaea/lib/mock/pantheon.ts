@@ -59,11 +59,23 @@ export function buildPantheon(): PantheonBindings {
       kind: 'Gaea 办公席位 · xAI',
       available: true,
       version: 'grok-4 (mock)',
-      capabilities: ['chairman', 'gaea-model', 'gaea-office-tools', 'read-only-tools', 'tool-trajectory'],
+      capabilities: [
+        'chairman', 'gaea-model', 'gaea-office-tools', 'read-only-tools',
+        'tool-trajectory', 'shared-image-summary', 'image-path-tools',
+      ],
     },
-    { id: 'codex', name: 'Codex', kind: 'OpenAI Codex CLI', available: true, version: 'mock', capabilities: ['read-only'] },
-    { id: 'zcode', name: 'ZCode', kind: 'ZCode CLI', available: true, version: 'mock', capabilities: ['plan-mode'] },
-    { id: 'dsh', name: 'DeepSeek Harness', kind: 'DSH headless', available: true, version: 'mock', capabilities: ['read-only'] },
+    {
+      id: 'codex', name: 'Codex', kind: 'OpenAI Codex CLI', available: true,
+      version: 'mock', capabilities: ['read-only', 'image-input', 'shared-image-summary'],
+    },
+    {
+      id: 'zcode', name: 'ZCode', kind: 'ZCode CLI', available: true,
+      version: 'mock', capabilities: ['plan-mode', 'image-input', 'shared-image-summary'],
+    },
+    {
+      id: 'dsh', name: 'DeepSeek Harness', kind: 'DSH headless', available: true,
+      version: 'mock', capabilities: ['read-only', 'shared-image-summary'],
+    },
   ]
   const workspaces: PantheonWorkspace[] = [
     { path: 'C:/AI/wubigrok', name: 'wubigrok', current: true },
@@ -439,6 +451,103 @@ export function buildPantheon(): PantheonBindings {
         ? { ...agent, available: Boolean(path), executable: path, reason: path ? '' : '未配置路径' }
         : agent)
       return agents
+    },
+    // O-E：演示环境同样守"停下等人、答完不自动续跑、门只认显式处理"。
+    PantheonAskSeat: async (id, agentId, question, options) => {
+      const session = sessions.get(id)
+      if (!session) throw new Error('议事不存在')
+      if (session.status !== 'running') throw new Error('议事不在运行中，无法提问')
+      const at = now()
+      const questionId = `${session.id}-q${session.events.length + 1}`
+      session.status = 'waiting_input'
+      const participant = session.participants.find((item) => item.agentId === agentId)
+      if (participant) {
+        participant.status = 'needs_input'
+        participant.evidence = `向用户提问：${question}`
+      }
+      session.events.push({
+        seq: session.events.length + 1,
+        sessionId: session.id,
+        phase: session.phase,
+        round: session.currentRound,
+        agentId,
+        kind: 'question',
+        text: question,
+        question: { questionId, options, askedBy: agentId, at },
+        at,
+      })
+      session.updatedAt = at
+      return structuredClone(session)
+    },
+    PantheonAnswerSeat: async (id, questionId, body) => {
+      const session = sessions.get(id)
+      if (!session) throw new Error('议事不存在')
+      const asked = session.events.find(
+        (event) => event.kind === 'question' && event.question?.questionId === questionId,
+      )
+      if (!asked || !asked.question) throw new Error('该提问不存在或已经回答')
+      const already = session.events.some(
+        (event) => event.kind === 'answer' && event.answer?.questionId === questionId,
+      )
+      if (already) throw new Error('该提问不存在或已经回答')
+      const at = now()
+      const askedBy = asked.question.askedBy
+      session.events.push({
+        seq: session.events.length + 1,
+        sessionId: session.id,
+        phase: session.phase,
+        round: session.currentRound,
+        agentId: askedBy,
+        kind: 'answer',
+        text: body,
+        answer: { questionId, body, by: 'user', at },
+        at,
+      })
+      const participant = session.participants.find((item) => item.agentId === askedBy)
+      if (participant && participant.status === 'needs_input') participant.status = 'waiting'
+      session.updatedAt = at
+      return structuredClone(session)
+    },
+    PantheonOpenGate: async (id, reason) => {
+      const session = sessions.get(id)
+      if (!session) throw new Error('议事不存在')
+      if (session.status !== 'running') throw new Error('只有进行中的议事才能开决策门')
+      const at = now()
+      const text = reason.trim() || '用户请求在轮次之间停一下'
+      session.status = 'waiting_input'
+      session.events.push({
+        seq: session.events.length + 1,
+        sessionId: session.id,
+        phase: session.phase,
+        round: session.currentRound,
+        kind: 'gate',
+        text,
+        gate: { action: 'open', reason: text },
+        at,
+      })
+      session.updatedAt = at
+      return structuredClone(session)
+    },
+    PantheonResolveGate: async (id, action, reason) => {
+      const session = sessions.get(id)
+      if (!session) throw new Error('议事不存在')
+      if (action === 'dismiss' && !reason.trim()) throw new Error('放弃决策门必须写明理由')
+      const at = now()
+      session.events.push({
+        seq: session.events.length + 1,
+        sessionId: session.id,
+        phase: session.phase,
+        round: session.currentRound,
+        kind: 'gate',
+        text: action === 'dismiss' ? `放弃决策门：${reason}` : '放行决策门，议事继续',
+        gate: { action, reason },
+        at,
+      })
+      session.status = 'running'
+      session.error = ''
+      session.updatedAt = at
+      advance(session)
+      return structuredClone(session)
     },
   }
 }

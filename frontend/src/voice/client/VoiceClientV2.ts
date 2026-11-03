@@ -44,8 +44,16 @@ export interface VoiceClientOptions {
   /** 连接生命周期 */
   onOpen?: () => void
   onClose?: () => void
+  onError?: (error: unknown) => void
   /** response.done 终态回执（轮完成/取消的协议级事件；写回聊天等消费方用） */
-  onResponseDone?: (info: { responseId: string; status: string; reason: string }) => void
+  onResponseDone?: (info: {
+    responseId: string
+    status: string
+    reason: string
+    user: string
+    itemId: string
+    assistant: string
+  }) => void
 }
 
 export class VoiceClientV2 {
@@ -82,8 +90,8 @@ export class VoiceClientV2 {
     t.onclose = () => {
       opts.onClose?.()
     }
-    t.onerror = () => {
-      /* 错误面交给 onclose；避免未处理回调炸桩 */
+    t.onerror = (error) => {
+      opts.onError?.(error)
     }
     t.onmessage = (data: string) => {
       const decoded = decodeServerEvent(data)
@@ -97,33 +105,38 @@ export class VoiceClientV2 {
 
   /** 事件唯一入口（transport 与 mock 回放共用） */
   handleServerEvent(ev: ServerEvent): void {
+    const responseId = this.responseId(ev)
+    // WebSocket 重连/服务端重试可能重复 done。终态只消费一次，避免聊天双写。
+    if (ev.type === 'response.done' && responseId && this.state.responses[responseId]?.closed) {
+      return
+    }
     const bytes = ev.type === 'response.output_audio.delta' ? this.decodeAudioBytes(ev.delta) : 0
     switch (ev.type) {
       case 'response.created': {
-        const id = this.responseId(ev)
+        const id = responseId
         if (id) this.playback.open(id)
         break
       }
       case 'response.output_audio.delta': {
-        const id = this.responseId(ev)
+        const id = responseId
         const pcm = this.decodeAudioPcm(ev.delta)
         if (id && pcm) this.playback.append(id, pcm)
         break
       }
       case 'response.done': {
-        const id = this.responseId(ev)
+        const id = responseId
         if (id) {
           this.playback.markClosed(id)
-          const { status, reason } = responseStatusOf(ev)
+          const { status } = responseStatusOf(ev)
           // 非完成态（打断/取消/失败/截断）：未播块立即冲刷，不等下一代际
           if (status !== 'completed') this.playback.flush()
-          this.opts.onResponseDone?.({ responseId: id, status, reason })
         }
         break
       }
       case 'input_audio_buffer.speech_started': {
-        // barge-in 兜底：服务端若先发 speech_started 再补 done，也不留旧音频
-        if (this.state.phase === 'speaking') this.playback.flush()
+        // barge-in 兜底：不能只看 phase——response.done 可能已先把相位置 idle，
+        // 但播放器仍有未播 PCM。此时用户开口必须立即冲刷旧代际。
+        if (this.playback.stats.pendingChunkCount > 0) this.playback.flush()
         break
       }
       default:
@@ -131,6 +144,18 @@ export class VoiceClientV2 {
     }
     this.state = reduceVoiceSession(this.state, ev, bytes)
     this.opts.onState?.(this.state)
+    if (ev.type === 'response.done' && responseId) {
+      const { status, reason } = responseStatusOf(ev)
+      const led = this.state.responses[responseId]
+      this.opts.onResponseDone?.({
+        responseId,
+        status,
+        reason,
+        user: led?.userTranscript ?? '',
+        itemId: led?.userItemId ?? '',
+        assistant: led?.assistantText ?? '',
+      })
+    }
   }
 
   /** 麦克风帧（PCM16@16k 单声道）→ base64 append */

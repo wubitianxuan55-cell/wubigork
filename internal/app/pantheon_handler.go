@@ -27,6 +27,34 @@ type pantheonState struct {
 	manager *pantheon.Manager
 }
 
+// pantheonEventPayload 构造 SSE 事件面。round 必须在场：前端直播残影与定稿
+// 按「席位:轮次」去重，SSE 丢 round 会让所有实时事件轮次归零，每个席位的
+// 定稿+残影各渲染一遍（2026-10-31 实弹「上面一条下面一条」根因）。
+func pantheonEventPayload(event pantheon.Event) map[string]interface{} {
+	return map[string]interface{}{
+		"seq":        event.Seq,
+		"sessionId":  event.SessionID,
+		"phase":      event.Phase,
+		"round":      event.Round,
+		"agentId":    event.AgentID,
+		"kind":       event.Kind,
+		"text":       event.Text,
+		"toolId":     event.ToolID,
+		"toolName":   event.ToolName,
+		"toolStatus": event.ToolStatus,
+		"toolInput":  event.ToolInput,
+		"toolOutput": event.ToolOutput,
+		"at":         event.At,
+		"durationMs": event.DurationMs,
+		"error":      event.Error,
+		// 决策门与提问（O-E）：前端要能凭事件渲染问题卡与门，而不只靠
+		// 重新拉一次快照——直播与定稿必须同源。
+		"question": event.Question,
+		"answer":   event.Answer,
+		"gate":     event.Gate,
+	}
+}
+
 func (s *pantheonState) managerRef() (*pantheon.Manager, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -35,22 +63,7 @@ func (s *pantheonState) managerRef() (*pantheon.Manager, error) {
 	}
 	root := filepath.Join(config.DataRoot(), "pantheon")
 	manager, err := pantheon.NewManager(root, nil, func(event pantheon.Event) {
-		s.app.emit("pantheon-event", map[string]interface{}{
-			"seq":        event.Seq,
-			"sessionId":  event.SessionID,
-			"phase":      event.Phase,
-			"agentId":    event.AgentID,
-			"kind":       event.Kind,
-			"text":       event.Text,
-			"toolId":     event.ToolID,
-			"toolName":   event.ToolName,
-			"toolStatus": event.ToolStatus,
-			"toolInput":  event.ToolInput,
-			"toolOutput": event.ToolOutput,
-			"at":         event.At,
-			"durationMs": event.DurationMs,
-			"error":      event.Error,
-		})
+		s.app.emit("pantheon-event", pantheonEventPayload(event))
 	})
 	if err != nil {
 		return nil, err
@@ -292,4 +305,40 @@ func (s *pantheonState) PantheonSetExecutable(id string, path string) ([]pantheo
 		return nil, err
 	}
 	return manager.SetExecutable(id, path)
+}
+
+// PantheonAskSeat 让一席向用户提问：整场转 waiting_input，等人回答。
+// 不自动续跑——续跑是一次独立、可见的动作（PantheonResume）。
+func (s *pantheonState) PantheonAskSeat(id, agentID, question string, options []string) (*pantheon.Session, error) {
+	manager, err := s.managerRef()
+	if err != nil {
+		return nil, err
+	}
+	return manager.AskSeat(id, agentID, question, options)
+}
+
+func (s *pantheonState) PantheonAnswerSeat(id, questionID, body string) (*pantheon.Session, error) {
+	manager, err := s.managerRef()
+	if err != nil {
+		return nil, err
+	}
+	return manager.AnswerSeat(id, questionID, body)
+}
+
+// PantheonOpenGate 在轮次之间开一道决策门；PantheonResolveGate 放行或放弃。
+func (s *pantheonState) PantheonOpenGate(id, reason string) (*pantheon.Session, error) {
+	manager, err := s.managerRef()
+	if err != nil {
+		return nil, err
+	}
+	return manager.OpenGate(id, reason)
+}
+
+func (s *pantheonState) PantheonResolveGate(id, action, reason string) (*pantheon.Session, error) {
+	manager, err := s.managerRef()
+	if err != nil {
+		return nil, err
+	}
+	manager.SetWorkDir(gaeaCwd())
+	return manager.ResolveGate(id, action, reason)
 }

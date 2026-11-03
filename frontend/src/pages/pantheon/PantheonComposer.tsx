@@ -71,6 +71,14 @@ function formatAttachmentSize(size: number): string {
   return `${(size / (1024 * 1024)).toFixed(1)}MB`
 }
 
+function supportsImageAttachment(agent: PantheonAgentStatus): boolean {
+  return Boolean(agent.capabilities?.some((capability) =>
+    capability === 'image-input'
+    || capability === 'image-path-tools'
+    || capability === 'shared-image-summary',
+  ))
+}
+
 // 议题工作台：左侧先定义问题，右侧以连续索引配置范围、席位与发言顺序；
 // 材料与补充背景按需在主卷下展开。字段与提交契约保持不变。
 export const PantheonComposer: React.FC<Props> = ({
@@ -101,6 +109,8 @@ export const PantheonComposer: React.FC<Props> = ({
     seed?.protocol === 'council' ? 'council' : 'independent',
   )
   const [untilConsensus, setUntilConsensus] = useState(Boolean(seed?.untilConsensus))
+  // 每轮确认（O-E）：勾上后每轮结束开门等人，而不是一口气跑到头。
+  const [gateEachRound, setGateEachRound] = useState(false)
   const [showEvidence, setShowEvidence] = useState(Boolean(initialEvidence))
   const [showAdvanced, setShowAdvanced] = useState(Boolean(
     seed?.title || seed?.context || seed?.successCriteria,
@@ -253,12 +263,22 @@ export const PantheonComposer: React.FC<Props> = ({
     : ''
   const protocolLabel = protocol === 'council' ? '圆桌接力' : '独立开场'
   const seatCount = agents.length || 4
+  const imageIncompatibleNames = attachments.length > 0
+    ? selected
+      .map((id) => agents.find((agent) => agent.id === id))
+      .filter((agent): agent is PantheonAgentStatus =>
+        Boolean(agent?.available && !supportsImageAttachment(agent)),
+      )
+      .map((agent) => agent.name)
+    : []
   const startBlockReason = !workspace
     ? '请先选择讨论范围'
     : selected.length < minSeats
       ? protocol === 'independent' ? '至少选择一位参与者' : '至少选择两位参与者'
       : !topic.trim()
         ? '写下议题后即可开始'
+        : imageIncompatibleNames.length > 0
+          ? `${imageIncompatibleNames.join('、')} 不支持图片附件，请移除图片或取消该席`
         : ''
   const canStart = !startBlockReason && !busy && !attachmentBusy
 
@@ -282,6 +302,8 @@ export const PantheonComposer: React.FC<Props> = ({
       rounds: roundLimit,
       untilConsensus,
       maxRounds: untilConsensus ? roundLimit : undefined,
+      // 至共识本身就有轮次上限，再叠每轮确认只会把一次讨论切成一串手动作业。
+      gateEachRound: untilConsensus ? false : gateEachRound,
       readOnly: true,
       protocol,
       parentSessionId: seed?.parentSessionId,
@@ -298,9 +320,16 @@ export const PantheonComposer: React.FC<Props> = ({
               <strong>图片附件</strong>
               <small>{attachments.length} / {MAX_IMAGE_ATTACHMENTS}</small>
             </span>
-            <small>开始时会先做本地识图，摘要共享给所有席位</small>
+            <small>开始前核对各席识图能力；不支持的席位不能携带图片参会</small>
           </div>
           {attachmentError && <Alert type="warning" showIcon message={attachmentError} />}
+          {imageIncompatibleNames.length > 0 && (
+            <Alert
+              type="warning"
+              showIcon
+              message={`${imageIncompatibleNames.join('、')} 不支持图片附件，请移除图片或取消该席。`}
+            />
+          )}
           {attachments.length > 0 && (
             <ul className="pantheon-image-evidence-list">
               {attachments.map((attachment) => (
@@ -561,6 +590,18 @@ export const PantheonComposer: React.FC<Props> = ({
                     </>
                   )}
                 </div>
+                <Tooltip title="每轮结束先停下，等你放行或放弃再进下一轮">
+                  <button
+                    type="button"
+                    aria-pressed={gateEachRound && !untilConsensus}
+                    data-testid="pantheon-gate-each-round"
+                    className={`pantheon-round-gate${gateEachRound && !untilConsensus ? ' is-on' : ''}`}
+                    onClick={() => setGateEachRound((value) => !value)}
+                    disabled={busy || untilConsensus}
+                  >
+                    每轮确认
+                  </button>
+                </Tooltip>
                 <Button
                   size="small"
                   type="text"
@@ -690,6 +731,7 @@ export const PantheonComposer: React.FC<Props> = ({
           {agents.length === 0 && <span className="pantheon-muted">正在检测本机参与者…</span>}
           {agents.map((agent) => {
             const active = selected.includes(agent.id)
+            const imageIncompatible = attachments.length > 0 && !supportsImageAttachment(agent)
             return (
               <button
                 key={agent.id}
@@ -698,8 +740,16 @@ export const PantheonComposer: React.FC<Props> = ({
                 aria-pressed={active}
                 className={`pantheon-seat-chip${active ? ' is-selected' : ''}${agent.available ? '' : ' is-disabled'}`}
                 disabled={!agent.available || busy}
-                onClick={() => toggleAgent(agent.id)}
-                title={`${agent.name} · ${agentCapabilityLabel(agent.id)}`}
+                onClick={() => {
+                  if (imageIncompatible && !active) {
+                    setAttachmentError(`${agent.name} 不支持当前图片附件`)
+                    return
+                  }
+                  toggleAgent(agent.id)
+                }}
+                title={imageIncompatible
+                  ? `${agent.name} 不支持当前图片附件`
+                  : `${agent.name} · ${agentCapabilityLabel(agent.id)}`}
                 style={{ '--agent-accent': AGENT_ACCENTS[agent.id] || 'var(--pantheon-accent)' } as React.CSSProperties}
               >
                 <PantheonAgentAvatar
@@ -710,7 +760,9 @@ export const PantheonComposer: React.FC<Props> = ({
                 <span className="pantheon-seat-chip-copy">
                   <strong>{agent.name}</strong>
                   <small>
-                    {chairman === agent.id && active
+                    {imageIncompatible
+                      ? '不支持当前图片附件'
+                      : chairman === agent.id && active
                       ? `负责汇总 · ${agentCapabilityLabel(agent.id)}`
                       : agent.available
                         ? agentCapabilityLabel(agent.id)

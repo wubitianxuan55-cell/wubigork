@@ -506,6 +506,13 @@ describe("WorkcostBillView 分部分项清单", () => {
     expect(screen.getByText(/到「造价参考」导入项目文件/)).toBeTruthy();
   });
 
+  it("空清单提供可执行入口，直接导向造价参考导入项目", async () => {
+    const onOpenImport = vi.fn()
+    render(<WorkcostBillView onOpenImport={onOpenImport} />)
+    fireEvent.click(await screen.findByRole("button", { name: "去造价参考导入项目" }))
+    expect(onOpenImport).toHaveBeenCalledTimes(1)
+  })
+
   it("累计列表：项目列/编码/名称/特征/单位/定额/单价参考——无工程量列", async () => {
     state.billProjects = [proj];
     state.billItems = items;
@@ -516,6 +523,7 @@ describe("WorkcostBillView 分部分项清单", () => {
     state.composeMany = { WP01: state.compose! }; // 参考价走批量核算（v4.468）
     render(<WorkcostBillView />);
     expect(await screen.findByText("测量放线")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "打开「测量放线」的综合单价分析" })).toBeTruthy()
     expect(screen.getByText("拐点、分层标高")).toBeTruthy(); // 特征显形
     const chip = screen.getByTitle(/引用定额 WP01——点开综合单价分析/);
     expect(chip.textContent).toBe("WP01");
@@ -525,6 +533,26 @@ describe("WorkcostBillView 分部分项清单", () => {
     expect(screen.queryByText("工程量")).toBeNull();
     expect(screen.queryByText(/直接费/)).toBeNull();
     expect(screen.queryByText(/含税总造价/)).toBeNull();
+  });
+
+  it("原表单价列：导入快照与现算参考并列显形，无快照显 —；编辑弹窗只读回显", async () => {
+    state.billProjects = [proj];
+    state.billItems = [{ ...items[0], listPrice: 234.2 }, items[1]];
+    state.compose = {
+      laborFee: 9, materialFee: 213.75, machineFee: 7.23, outsourcedFee: 0, otherFee: 0,
+      subtotal: 229.98, compositePrice: 229.98, zeroLines: 0, lines: [], warnings: [],
+    };
+    state.composeMany = { WP01: state.compose! };
+    render(<WorkcostBillView />);
+    expect(await screen.findByText("原表单价")).toBeTruthy(); // 列头
+    expect(await screen.findByText("¥234.2")).toBeTruthy(); // 快照（WP01）
+    // 手填行无快照：该行原表单价格显 —（全表只有一处 —，手填价列显 ¥12,000）
+    expect(screen.getByText("¥12,000")).toBeTruthy();
+    // 编辑弹窗：快照只读回显（整卡回传保全，编辑不会抹掉导入留痕）
+    fireEvent.click(screen.getByTitle("编辑「测量放线」"));
+    const ro = await screen.findByLabelText("原表综合单价快照") as HTMLInputElement;
+    expect(ro.value).toBe("¥234.2");
+    expect(ro.disabled).toBe(true);
   });
 
   it("筛选：项目下拉/关键字筛分（计数 N/M 条）", async () => {

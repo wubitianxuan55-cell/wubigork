@@ -85,7 +85,17 @@ func buildAdapters(overrides map[string]string, grok GrokBackend, deepseekKey st
 	return out
 }
 
+func ensureCapability(capabilities []string, capability string) []string {
+	for _, existing := range capabilities {
+		if existing == capability {
+			return capabilities
+		}
+	}
+	return append(capabilities, capability)
+}
+
 func newGrokAdapter(backend GrokBackend) agentAdapter {
+	_, hasToolStreaming := backend.(GrokToolStreamingBackend)
 	adapter := agentAdapter{
 		id:   "grok",
 		name: "Grok",
@@ -93,7 +103,12 @@ func newGrokAdapter(backend GrokBackend) agentAdapter {
 		// 无写工具注册；文件读取以 workspace 与附件 readPaths 为边界。
 		runMode: "Gaea 只读工具白名单（未注册写工具，读取限工作区与附件）",
 		probe: func(ctx context.Context) AgentStatus {
-			return backend.ProbeGrok(ctx)
+			status := backend.ProbeGrok(ctx)
+			status.Capabilities = ensureCapability(status.Capabilities, "shared-image-summary")
+			if hasToolStreaming {
+				status.Capabilities = ensureCapability(status.Capabilities, "image-path-tools")
+			}
+			return status
 		},
 		invoke: backend.CallGrok,
 	}
@@ -133,7 +148,8 @@ func newCodexAdapter(override string) agentAdapter {
 			status := AgentStatus{
 				ID: "codex", Name: "Codex", Kind: "OpenAI Codex CLI",
 				Capabilities: []string{
-					"multi-round-discussion", "read-only-sandbox", "jsonl", "streaming", "tool-trajectory",
+					"multi-round-discussion", "read-only-sandbox", "jsonl", "streaming",
+					"tool-trajectory", "image-input", "shared-image-summary",
 				},
 			}
 			path, err := find()
@@ -197,7 +213,8 @@ func newZCodeAdapter(override string) agentAdapter {
 			status := AgentStatus{
 				ID: "zcode", Name: "ZCode", Kind: "ZCode CLI",
 				Capabilities: []string{
-					"multi-round-discussion", "plan-mode", "stream-json", "streaming", "tool-trajectory",
+					"multi-round-discussion", "plan-mode", "stream-json", "streaming",
+					"tool-trajectory", "image-input", "shared-image-summary",
 				},
 			}
 			node, script, err := resolve()
@@ -316,7 +333,8 @@ func newDSHAdapter(override, deepseekKey string) agentAdapter {
 			status := AgentStatus{
 				ID: "dsh", Name: "DeepSeek Harness", Kind: "DSH headless",
 				Capabilities: []string{
-					"multi-round-discussion", "read-only-permission", "json-events", "streaming", "tool-trajectory",
+					"multi-round-discussion", "read-only-permission", "json-events", "streaming",
+					"tool-trajectory", "shared-image-summary",
 				},
 			}
 			paths, err := resolve()

@@ -96,7 +96,7 @@ func (a *mediaState) initVoice() {
 	if v := strings.TrimSpace(a.activeTTSVoice); v != "" {
 		config.TTSVoice = v
 	}
-	if v := strings.TrimSpace(a.activePersonalityID); v != "" {
+	if v := strings.TrimSpace(a.currentVoicePersonality()); v != "" {
 		config.PersonalityPresetID = v
 	}
 	// Voice V2 档：落盘的后端选择（空 = v1 缺省）
@@ -682,12 +682,13 @@ func (a *mediaState) VoiceApplySettings(settings map[string]interface{}) error {
 	}
 	if v, ok := settings["personalityPresetId"].(string); ok {
 		config.PersonalityPresetID = v
-		a.activePersonalityID = v
+		a.setVoicePersonality(v)
 		if err := appconfig.Save(appconfig.KeyVoicePersonality, v); err != nil {
 			slog.Warn("保存语音角色配置失败", "error", err)
 		}
 	}
 	if v, ok := settings["voiceBackend"].(string); ok {
+		previousBackend := config.VoiceBackend
 		config.VoiceBackend = v
 		config.Validate()
 		// feature flag 落盘（KeyVoicePersonality 同款仅告警先例：非关键路径）
@@ -696,6 +697,11 @@ func (a *mediaState) VoiceApplySettings(settings map[string]interface{}) error {
 		}
 		if a.cfg != nil {
 			a.cfg.VoiceBackend = config.VoiceBackend
+		}
+		if config.VoiceBackend != previousBackend {
+			// sidecar 的 LLM 上游写在 YAML，运行中不能热改。切档时收掉旧进程，
+			// 让下一次 Ensure 从当前配置重建；4B 一起收，避免路由版本错配。
+			a.VoiceV2Stop()
 		}
 		// 即时生效（2026-11-01 实弹教训：切档不通知=用户在 v1 上测了半天 v2 的锅）：
 		// ChatPage 订阅 voice-backend-changed 热切语音台，不用重开页面。

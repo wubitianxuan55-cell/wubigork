@@ -15,6 +15,7 @@ import { app } from '../gaea/lib/bridge'
 import { PortraitImg } from '../components/characterlib/PortraitImg'
 import { SETTING_VIEW_KEY } from './SettingHub'
 import '../novel-workspace.css'
+import '../novel-atelier.css'
 import type { OutlineNode } from '../types'
 
 /** 五个子页统一的 pane props（跨线契约，规格线2「常驻页快捷键门控」）。
@@ -79,12 +80,22 @@ function loadCollapsed(key: string, fallback = false): boolean {
   return fallback
 }
 
+function isCompactNovelViewport(): boolean {
+  try {
+    return typeof window !== 'undefined'
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia('(max-width: 560px)').matches
+  } catch {
+    return false
+  }
+}
+
 const tabItems = [
-  { key: 'home', icon: <HomeOutlined />, label: '书架', component: HomePage },
-  { key: 'novelsetting', icon: <FileTextOutlined />, label: '设定', component: SettingHub },
-  { key: 'create', icon: <ThunderboltOutlined />, label: '创作', component: CreatePage },
-  { key: 'chapter', icon: <BookOutlined />, label: '阅读', component: ChapterPage },
-  { key: 'sin', icon: <FireOutlined />, label: '原罪', component: OriginalSinPage },
+  { key: 'home', index: '01', icon: <HomeOutlined />, label: '书架', note: '馆藏', component: HomePage },
+  { key: 'novelsetting', index: '02', icon: <FileTextOutlined />, label: '设定', note: '档案', component: SettingHub },
+  { key: 'create', index: '03', icon: <ThunderboltOutlined />, label: '创作', note: '书写', component: CreatePage },
+  { key: 'chapter', index: '04', icon: <BookOutlined />, label: '阅读', note: '校阅', component: ChapterPage },
+  { key: 'sin', index: '05', icon: <FireOutlined />, label: '原罪', note: '异闻', component: OriginalSinPage },
 ] as const
 
 /** 书房工坊：身份头栏 + 模式轨 + 按页显隐的分区工作台 */
@@ -101,8 +112,8 @@ const NovelPage: React.FC = () => {
     const all = tabItems.map((t) => t.key)
     return new Set(activeTab === 'sin' ? all : all.filter((k) => k !== 'sin'))
   })
-  const [sideCollapsed, setSideCollapsed] = useState<boolean>(() => loadCollapsed(NOVEL_SIDE_KEY))
-  const [inspectorCollapsed, setInspectorCollapsed] = useState<boolean>(() => loadCollapsed(NOVEL_INSPECTOR_KEY, true))
+  const [sideCollapsed, setSideCollapsed] = useState<boolean>(() => isCompactNovelViewport() || loadCollapsed(NOVEL_SIDE_KEY))
+  const [inspectorCollapsed, setInspectorCollapsed] = useState<boolean>(() => isCompactNovelViewport() || loadCollapsed(NOVEL_INSPECTOR_KEY, true))
   const [activeChapterId, setActiveChapterId] = useState('')
   const [stats, setStats] = useState<{ totalWords: number; chapterCount: number } | null>(null)
   const [focusMode, setFocusMode] = useState(false)
@@ -213,6 +224,7 @@ const NovelPage: React.FC = () => {
 
   return (
     <div className="novel-hub" data-novel-tab={activeTab} data-novel-focus={focusMode ? '1' : '0'}>
+      <a className="novel-skip-link" href="#novel-main">跳到小说正文</a>
       <header className="novel-atelier-bar">
         <div className="novel-atelier-identity">
           {activeTab === 'sin' ? (
@@ -226,8 +238,11 @@ const NovelPage: React.FC = () => {
           ) : (
             <>
               <span className="novel-atelier-kicker">书房</span>
-              <span className="novel-atelier-title">
-                {projectTitle || '未打开小说'}
+              <span className="novel-atelier-titleline">
+                <span className="novel-atelier-title">
+                  {projectTitle || '未打开小说'}
+                </span>
+                <span className="novel-atelier-edition" aria-hidden>MANUSCRIPT</span>
               </span>
               {projectPath && stats ? (
                 <span className="novel-atelier-meta">
@@ -248,15 +263,22 @@ const NovelPage: React.FC = () => {
               className={`novel-subnav-item${activeTab === t.key ? ' is-active' : ''}`}
               onClick={() => changeTab(t.key)}
               aria-current={activeTab === t.key ? 'page' : undefined}
+              data-tab={t.key}
+              title={t.label}
             >
+              <span className="novel-subnav-index" aria-hidden>{t.index}</span>
               {t.icon}
-              {t.label}
+              <span className="novel-subnav-label">{t.label}</span>
+              <span className="novel-subnav-note" aria-hidden>{t.note}</span>
             </button>
           ))}
         </nav>
 
-        {activeTab !== 'sin' && (
-          <div className="novel-atelier-actions">
+        <div className="novel-atelier-actions">
+          <span className="novel-atelier-context" aria-hidden>
+            {activeTab === 'sin' ? 'DARK FICTION' : 'STORY ATELIER'}
+          </span>
+          {activeTab !== 'sin' && (
             <button
               type="button"
               className="novel-atelier-iconbtn"
@@ -268,8 +290,8 @@ const NovelPage: React.FC = () => {
               <PictureOutlined aria-hidden />
               {coverBusy ? '生成中' : '封面'}
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </header>
 
       <div className="novel-workspace">
@@ -284,7 +306,7 @@ const NovelPage: React.FC = () => {
         />
         <div className="v3-grip novel-grip-side" aria-hidden="true" />
 
-        <main className="v3-zone novel-main-zone">
+        <main id="novel-main" className="v3-zone novel-main-zone" tabIndex={-1}>
           {tabItems.map((t) => (
             mountedTabs.has(t.key) ? (
               <div

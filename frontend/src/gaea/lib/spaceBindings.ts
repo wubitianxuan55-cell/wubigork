@@ -82,6 +82,10 @@ export const GAEA_METHOD_FACETS = {
   PantheonOpenResult: "shared",
   PantheonSignOff: "shared",
   PantheonSetExecutable: "shared",
+  PantheonAskSeat: "shared",
+  PantheonAnswerSeat: "shared",
+  PantheonOpenGate: "shared",
+  PantheonResolveGate: "shared",
   Settings: "shared",
   SetDefaultModel: "shared",
   // v4.171 批次一：办公引擎设置整体写回（OfficePanel「保存」，同 Settings 归 shared）。
@@ -358,6 +362,7 @@ export const GAEA_METHOD_FACETS = {
   VoiceV2Status: "shared",
   VoiceV2Ensure: "shared",
   VoiceV2Stop: "shared",
+  VoiceV2CommitTurn: "shared",
   // 批次二 legacy 直调转正：语音设置读取（VoiceGetSettings）与
   // VoiceApplySettings patch 写配对，同归 shared（语音设置面板/模型中心两空间共用）。
   VoiceGetSettings: "shared",

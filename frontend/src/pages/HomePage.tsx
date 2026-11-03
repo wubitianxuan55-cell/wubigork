@@ -310,6 +310,13 @@ const HomePage: React.FC<HomePageProps> = ({ active = true }) => {
     [projects, projectPath],
   )
   const currentProgress = projectPath ? readReadingProgress(projectPath) : null
+  const libraryWords = useMemo(
+    () => projects.reduce((total, card) => total + (card.word_count || 0), 0),
+    [projects],
+  )
+  const currentProgressPct = currentCard && currentProgress && currentCard.chapter_count > 0
+    ? Math.min(100, Math.round((currentProgress.chapterNum / currentCard.chapter_count) * 100))
+    : 0
 
   // --- 未登录：品牌欢迎页 ---
   if (!loggedIn) {
@@ -320,17 +327,31 @@ const HomePage: React.FC<HomePageProps> = ({ active = true }) => {
   return (
     <div className="novel-shelf">
       <div className="novel-shelf-head">
-        <div className="novel-shelf-identity">
-          <h1 className="novel-shelf-title">书架</h1>
-          <span className="novel-shelf-count">
-            {loadingProjects ? '…' : `${projects.length} 部`}
-          </span>
+        <div className="novel-shelf-heading">
+          <span className="novel-shelf-eyebrow">THE COLLECTION</span>
+          <div className="novel-shelf-identity">
+            <h1 className="novel-shelf-title">书架</h1>
+            <span className="novel-shelf-count">
+              {loadingProjects ? '…' : `${projects.length} 部`}
+            </span>
+          </div>
+          <p className="novel-shelf-lede">每一部作品，都是一间只属于你的房间。</p>
+        </div>
+        <div className="novel-shelf-head-stat" aria-label="书架总字数">
+          <span>LIBRARY WORDS</span>
+          <strong>{libraryWords.toLocaleString()}</strong>
+          <small>累计成文</small>
         </div>
       </div>
 
-      {projectOpen && (
+      {projectOpen && !query.trim() && (
         <section className="novel-now-reading" aria-label="正在编辑">
-          <div>
+          <div className="novel-now-reading-cover" aria-hidden>
+            <span className="novel-now-reading-cover-kicker">CURRENT ISSUE</span>
+            <strong>{(projectTitle || '未命名小说').slice(0, 1)}</strong>
+            <i>GAEA / FICTION</i>
+          </div>
+          <div className="novel-now-reading-copy">
             <span className="novel-now-reading-kicker">正在编辑</span>
             <h2 className="novel-now-reading-title">{projectTitle || '未命名小说'}</h2>
             <p className="novel-now-reading-meta">
@@ -339,6 +360,14 @@ const HomePage: React.FC<HomePageProps> = ({ active = true }) => {
                 : '打开后可继续阅读或去创作'}
               {currentProgress ? ` · 读到第${currentProgress.chapterNum}章` : ''}
             </p>
+            {currentProgressPct > 0 && (
+              <div className="novel-now-reading-progress">
+                <div className="novel-now-reading-progress-track" aria-hidden>
+                  <i style={{ width: `${currentProgressPct}%` }} />
+                </div>
+                <span>{currentProgressPct}% 已读</span>
+              </div>
+            )}
           </div>
           <div className="novel-now-reading-actions">
             <Button
@@ -358,70 +387,79 @@ const HomePage: React.FC<HomePageProps> = ({ active = true }) => {
       )}
 
       <div className="novel-shelf-toolbar">
-        <Input
-          allowClear
-          prefix={<SearchOutlined style={{ color: 'var(--color-text-secondary)' }} />}
-          placeholder="搜索书名 / 题材 / 风格…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="novel-shelf-search"
-          aria-label="搜索书架"
-        />
-        <Select
-          value={sortKey}
-          onChange={setSortKey}
-          options={SORT_OPTIONS}
-          size="middle"
-          suffixIcon={<SortAscendingOutlined style={{ color: 'var(--color-text-secondary)' }} />}
-          popupMatchSelectWidth={false}
-          className="novel-shelf-sort"
-          aria-label="书架排序"
-        />
-        <span className="novel-shelf-toolbar-spacer" />
-        <Button
-          icon={<GlobalOutlined aria-hidden />}
-          onClick={() => setBookSearchModal(true)}
-          className="novel-shelf-btn"
-        >
-          在线搜书
-        </Button>
-        <Button
-          icon={<UploadOutlined aria-hidden />}
-          onClick={handlePickImport}
-          className="novel-shelf-btn"
-        >
-          导入小说
-        </Button>
-        <Button
-          type="primary"
-          icon={<PlusOutlined aria-hidden />}
-          onClick={() => { resetForm(); setNewModal(true) }}
-          className="novel-shelf-btn is-primary"
-        >
-          新建小说
-        </Button>
+        <div className="novel-shelf-toolbar-main">
+          <Input
+            allowClear
+            prefix={<SearchOutlined style={{ color: 'var(--color-text-secondary)' }} />}
+            placeholder="搜索书名 / 题材 / 风格…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="novel-shelf-search"
+            aria-label="搜索书架"
+          />
+          <Select
+            value={sortKey}
+            onChange={setSortKey}
+            options={SORT_OPTIONS}
+            size="middle"
+            suffixIcon={<SortAscendingOutlined style={{ color: 'var(--color-text-secondary)' }} />}
+            popupMatchSelectWidth={false}
+            className="novel-shelf-sort"
+            aria-label="书架排序"
+          />
+        </div>
+        <div className="novel-shelf-toolbar-actions">
+          <Button
+            icon={<GlobalOutlined aria-hidden />}
+            onClick={() => setBookSearchModal(true)}
+            className="novel-shelf-btn"
+          >
+            在线搜书
+          </Button>
+          <Button
+            icon={<UploadOutlined aria-hidden />}
+            onClick={handlePickImport}
+            className="novel-shelf-btn"
+          >
+            导入小说
+          </Button>
+          <Button
+            type="primary"
+            icon={<PlusOutlined aria-hidden />}
+            onClick={() => { resetForm(); setNewModal(true) }}
+            className="novel-shelf-btn is-primary"
+          >
+            新建小说
+          </Button>
+        </div>
       </div>
 
       {loadingProjects ? (
         <div className="novel-shelf-grid">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="novel-shelf-card is-skeleton" aria-hidden>
-              <Skeleton active paragraph={{ rows: 3 }} />
+              <div className="novel-skeleton-cover" />
+              <div className="novel-skeleton-body">
+                <Skeleton active title={false} paragraph={{ rows: 3 }} />
+              </div>
             </div>
           ))}
         </div>
       ) : visibleProjects.length === 0 ? (
         query.trim() ? (
-          <div className="novel-shelf-empty">
-            <SearchOutlined aria-hidden />
+          <div className="novel-shelf-empty is-search">
+            <span className="novel-shelf-empty-kicker">ARCHIVE SEARCH</span>
+            <div className="novel-shelf-empty-mark" aria-hidden><SearchOutlined /></div>
             <div className="novel-shelf-empty-title">没有匹配的书</div>
             <div className="novel-shelf-empty-hint">换个关键词试试</div>
+            <Button type="text" onClick={() => setQuery('')}>清除搜索</Button>
           </div>
         ) : projectsError && projects.length === 0 ? (
           // 读取失败的**诚实错误态**（v4.349）：此前失败与「一本都没有」同貌，
           // 用户以为书丢了或从未建过；这里给出原因 + 重试入口。
-          <div className="novel-shelf-empty" data-testid="shelf-load-error">
-            <ReadOutlined aria-hidden />
+          <div className="novel-shelf-empty is-error" data-testid="shelf-load-error">
+            <span className="novel-shelf-empty-kicker">LIBRARY OFFLINE</span>
+            <div className="novel-shelf-empty-mark" aria-hidden><ReadOutlined /></div>
             <div className="novel-shelf-empty-title">书架读取失败</div>
             <div className="novel-shelf-empty-hint">不是「没有书」，是这次没读到：{projectsError}</div>
             <div className="novel-shelf-empty-actions">
@@ -434,10 +472,11 @@ const HomePage: React.FC<HomePageProps> = ({ active = true }) => {
             </div>
           </div>
         ) : projects.length === 0 ? (
-          <div className="novel-shelf-empty">
-            <ReadOutlined aria-hidden />
+          <div className="novel-shelf-empty is-first-edition">
+            <span className="novel-shelf-empty-kicker">FIRST EDITION</span>
+            <div className="novel-shelf-empty-mark" aria-hidden><ReadOutlined /></div>
             <div className="novel-shelf-empty-title">书架空空如也</div>
-            <div className="novel-shelf-empty-hint">Ctrl+N 新建你的第一本小说</div>
+            <div className="novel-shelf-empty-hint">从一部作品开始，建立你的故事档案。也可以按 Ctrl+N 快速新建。</div>
             <div className="novel-shelf-empty-actions">
               <Button type="primary" icon={<PlusOutlined aria-hidden />} onClick={() => { resetForm(); setNewModal(true) }}>
                 新建小说
@@ -451,29 +490,38 @@ const HomePage: React.FC<HomePageProps> = ({ active = true }) => {
           <V3Empty description="没有可显示的小说" className="novel-shelf-antd-empty" />
         )
       ) : (
-        <div className="novel-shelf-grid">
-          {visibleProjects.map((card) => {
-            const progress = readReadingProgress(card.path)
-            const chapterCount = card.chapter_count || 0
-            return (
-              <ProjectCardItem
-                key={card.path}
-                card={card}
-                isActive={projectOpen && card.path === projectPath}
-                isMobile={false}
-                readingChapter={progress
-                  ? `第${progress.chapterNum}章 · ${progress.title}`
-                  : undefined}
-                readingProgress={progress && chapterCount > 0
-                  ? progress.chapterNum / chapterCount
-                  : undefined}
-                onOpen={(c) => handleOpen(c, false)}
-                onContinueReading={(c) => handleOpen(c, true)}
-                onDelete={handleDelete}
-              />
-            )
-          })}
-        </div>
+        <section className="novel-collection" aria-label="全部作品">
+          <div className="novel-collection-head">
+            <div>
+              <span>LIBRARY INDEX</span>
+              <h2>全部作品</h2>
+            </div>
+            <p>{visibleProjects.length} 部 · 按{sortKey === 'recent' ? '最近打开' : sortKey === 'words' ? '总字数' : sortKey === 'chapters' ? '章节数' : '书名'}陈列</p>
+          </div>
+          <div className="novel-shelf-grid">
+            {visibleProjects.map((card) => {
+              const progress = readReadingProgress(card.path)
+              const chapterCount = card.chapter_count || 0
+              return (
+                <ProjectCardItem
+                  key={card.path}
+                  card={card}
+                  isActive={projectOpen && card.path === projectPath}
+                  isMobile={false}
+                  readingChapter={progress
+                    ? `第${progress.chapterNum}章 · ${progress.title}`
+                    : undefined}
+                  readingProgress={progress && chapterCount > 0
+                    ? progress.chapterNum / chapterCount
+                    : undefined}
+                  onOpen={(c) => handleOpen(c, false)}
+                  onContinueReading={(c) => handleOpen(c, true)}
+                  onDelete={handleDelete}
+                />
+              )
+            })}
+          </div>
+        </section>
       )}
 
       {/* Create Novel Modal */}

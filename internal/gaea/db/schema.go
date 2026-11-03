@@ -820,3 +820,13 @@ CREATE VIRTUAL TABLE IF NOT EXISTS semantic_fts USING fts5(
 const SchemaV33 = `
 ALTER TABLE facts ADD COLUMN invalid_at TEXT NOT NULL DEFAULT '';
 `
+
+// SchemaV34 清单「原表综合单价」快照列（用户拍板 2026-11-02「清单单价是造价
+// 库最好的检索对象」）：导入项目表时把综合单价表汇总行/费用汇总的综合单价
+// 落库留痕。读取面现算口径不破坏（综合单价仍按资源现行价现算，量价分离），
+// 快照=原表口径的事实：①清单库「原表单价」列与现算参考价对照可查漂移；
+// ②AI 组价案例样本（casePriceSamples）补上 1:N 组合项/无定额项的单价来源
+// （此前被诚实跳过，工作簿明明给过价）。
+const SchemaV34 = `
+ALTER TABLE gf_bill_items ADD COLUMN list_price REAL NOT NULL DEFAULT 0;
+`

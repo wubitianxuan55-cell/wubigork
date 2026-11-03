@@ -18,8 +18,10 @@ import (
 // 防单字误伤），单位宽松相等（与 ComputePriceBand 的单位过滤同款，空=不过滤）。
 //
 // 单价解析：手填价（PriceOverride>0，外委包干/项目级调价）优先；单定额清单项
-// 按定额现算（ComposeQuotas 批一次，CompositePrice=人材机综合单价口径）；1:N
-// 组合项无单一单价（只取主定额会低估组合价），诚实跳过。
+// 按定额现算（ComposeQuotas 批一次，CompositePrice=人材机综合单价口径）；现算
+// 不出的（1:N 组合项/无定额项）用原表综合单价快照兜底（SchemaV34 list_price，
+// 用户拍板 2026-11-02「清单单价是造价库最好的检索对象」——工作簿给过价的不再
+// 跳过），PriceType 标「综合单价（原表）」与现算口径区分；三者皆无仍诚实跳过。
 //
 // 增强面语义：库不可达/读失败降级（slog.Warn）为仅资料条目样本，绝不挡组价
 // 主流程——案例只是样本增量，与检索主链（GA6-09 语料读不全如实报错）不同层。
@@ -43,7 +45,8 @@ func (a *App) casePriceSamples(desc, unit string) []cost.Summary {
 		projTitle string  // 项目名（样本 Title，证据表溯源到工程）
 		region    string  // 项目地点（样本 Region）
 		price     float64 // 手填单价（>0 即定）
-		quotaCode string  // 待现算定额码（空=手填价已定或跳过）
+		quotaCode string  // 待现算定额码（空=手填价已定或走快照/跳过）
+		snapshot  float64 // 原表综合单价快照（list_price，现算不出时的兜底）
 	}
 	var cands []cand
 	for _, p := range projects {
@@ -59,18 +62,19 @@ func (a *App) casePriceSamples(desc, unit string) []cost.Summary {
 			if wantUnit != "" && iu != wantUnit {
 				continue
 			}
-			c := cand{name: it.Title, unit: iu, projTitle: p.Name, region: p.Location, price: it.PriceOverride}
+			c := cand{name: it.Title, unit: iu, projTitle: p.Name, region: p.Location, price: it.PriceOverride, snapshot: it.ListPrice}
 			if c.price <= 0 {
 				code := strings.TrimSpace(it.QuotaCode)
 				if len(it.QuotaCodes) == 1 {
 					code = strings.TrimSpace(it.QuotaCodes[0])
 				} else if len(it.QuotaCodes) > 1 {
-					continue // 1:N 组合项无单一单价，不做样本
+					code = "" // 1:N 组合项无单一现算单价（只取主定额会低估）——只有快照可救
 				}
-				if code == "" {
-					continue // 无手填价、无定额=无单价来源
+				if code != "" {
+					c.quotaCode = code
+				} else if c.snapshot <= 0 {
+					continue // 无手填价、无定额、无快照=无单价来源
 				}
-				c.quotaCode = code
 			}
 			cands = append(cands, c)
 		}
@@ -100,12 +104,26 @@ func (a *App) casePriceSamples(desc, unit string) []cost.Summary {
 	out := make([]cost.Summary, 0, len(cands))
 	for _, c := range cands {
 		price := c.price
+		fromSnapshot := false
 		if price <= 0 {
-			cp, ok := composes[c.quotaCode]
-			if !ok || cp == nil || cp.CompositePrice <= 0 {
-				continue // 现算不出（定额缺失/零价）——不造 0 价样本
+			if c.quotaCode != "" {
+				cp, ok := composes[c.quotaCode]
+				if !ok || cp == nil || cp.CompositePrice <= 0 {
+					// 现算不出（定额缺失/零价）→ 快照兜底，再无才放弃。
+					if c.snapshot <= 0 {
+						continue
+					}
+					price, fromSnapshot = c.snapshot, true
+				} else {
+					price = cp.CompositePrice
+				}
+			} else {
+				price, fromSnapshot = c.snapshot, true // 1:N/无定额项：原表快照
 			}
-			price = cp.CompositePrice
+		}
+		priceType := "综合单价"
+		if fromSnapshot {
+			priceType = "综合单价（原表）" // 证据表如实区分现算口径与原表快照
 		}
 		out = append(out, cost.Summary{
 			Name:      c.name,
@@ -114,7 +132,7 @@ func (a *App) casePriceSamples(desc, unit string) []cost.Summary {
 			Price:     price,
 			Source:    "案例",
 			Region:    c.region,
-			PriceType: "综合单价",
+			PriceType: priceType,
 		})
 	}
 	return out

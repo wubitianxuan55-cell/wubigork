@@ -54,7 +54,10 @@ type BillItem struct {
 	QuotaCode     string  `json:"quotaCode"`     // 引用定额（空=手填行）
 	Feature       string  `json:"feature"`       // 工序特征
 	PriceOverride float64 `json:"priceOverride"` // 0=按定额现算；>0=手填单价优先
-	Sort          int     `json:"sort"`
+	// ListPrice 原表综合单价快照（导入时从工作簿落库，SchemaV34；0=无快照）。
+	// 读取面现算口径不破坏——现算按资源现行价，快照只做对照显形与案例样本。
+	ListPrice float64 `json:"listPrice"`
+	Sort      int     `json:"sort"`
 	// QuotaCodes 该清单项挂接的全部定额码（gf_bill_quota_links 聚合，1:N 组合；
 	// 单值 QuotaCode 是主定额=旧锚点）。构造即非 nil（JSON null 崩前端）。
 	QuotaCodes []string `json:"quotaCodes"`
@@ -139,8 +142,8 @@ func (s *Store) SaveBillItem(item BillItem) (BillItem, error) {
 	err := s.db.QueryRow(`SELECT id FROM gf_bill_items WHERE project_id=? AND code=?`, item.ProjectID, item.Code).Scan(&existing)
 	if err == nil {
 		item.ID = existing
-		_, err = s.db.Exec(`UPDATE gf_bill_items SET title=?, unit=?, division=?, quantity=?, quantity_expr=?, quota_code=?, feature=?, price_override=?, sort=? WHERE id=?`,
-			item.Title, item.Unit, item.Division, item.Quantity, item.QuantityExpr, item.QuotaCode, item.Feature, item.PriceOverride, item.Sort, existing)
+		_, err = s.db.Exec(`UPDATE gf_bill_items SET title=?, unit=?, division=?, quantity=?, quantity_expr=?, quota_code=?, feature=?, price_override=?, list_price=?, sort=? WHERE id=?`,
+			item.Title, item.Unit, item.Division, item.Quantity, item.QuantityExpr, item.QuotaCode, item.Feature, item.PriceOverride, item.ListPrice, item.Sort, existing)
 		if err != nil {
 			return item, err
 		}
@@ -160,8 +163,8 @@ func (s *Store) SaveBillItem(item BillItem) (BillItem, error) {
 			item.Sort = maxSort + 1
 		}
 	}
-	res, err := s.db.Exec(`INSERT INTO gf_bill_items (project_id, code, title, unit, division, quantity, quantity_expr, quota_code, feature, price_override, sort) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-		item.ProjectID, item.Code, item.Title, item.Unit, item.Division, item.Quantity, item.QuantityExpr, item.QuotaCode, item.Feature, item.PriceOverride, item.Sort)
+	res, err := s.db.Exec(`INSERT INTO gf_bill_items (project_id, code, title, unit, division, quantity, quantity_expr, quota_code, feature, price_override, list_price, sort) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+		item.ProjectID, item.Code, item.Title, item.Unit, item.Division, item.Quantity, item.QuantityExpr, item.QuotaCode, item.Feature, item.PriceOverride, item.ListPrice, item.Sort)
 	if err != nil {
 		return item, err
 	}
@@ -230,7 +233,7 @@ func (s *Store) BillItems(projectID int64) ([]BillItem, error) {
 	if err := s.requireDB(); err != nil {
 		return nil, err
 	}
-	rows, err := s.db.Query(`SELECT id, project_id, code, title, unit, division, quantity, quantity_expr, quota_code, feature, price_override, sort
+	rows, err := s.db.Query(`SELECT id, project_id, code, title, unit, division, quantity, quantity_expr, quota_code, feature, price_override, list_price, sort
 FROM gf_bill_items WHERE project_id=? ORDER BY sort, id`, projectID)
 	if err != nil {
 		return nil, err
@@ -242,7 +245,7 @@ FROM gf_bill_items WHERE project_id=? ORDER BY sort, id`, projectID)
 	for rows.Next() {
 		var it BillItem
 		if err := rows.Scan(&it.ID, &it.ProjectID, &it.Code, &it.Title, &it.Unit, &it.Division,
-			&it.Quantity, &it.QuantityExpr, &it.QuotaCode, &it.Feature, &it.PriceOverride, &it.Sort); err != nil {
+			&it.Quantity, &it.QuantityExpr, &it.QuotaCode, &it.Feature, &it.PriceOverride, &it.ListPrice, &it.Sort); err != nil {
 			continue
 		}
 		it.QuotaCodes = []string{}

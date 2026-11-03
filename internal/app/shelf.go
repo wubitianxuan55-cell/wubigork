@@ -288,6 +288,7 @@ var cfgMemSetters = map[string]func(*config.Config, string) error{
 	config.KeyBreezeDir:            setStr(func(cfg *config.Config, v string) { cfg.BreezeDir = v }),
 	config.KeyBreezePort:           setInt(func(cfg *config.Config, n int) { cfg.BreezePort = n }),
 	config.KeyBreezeVoiceDesc:      setStr(func(cfg *config.Config, v string) { cfg.BreezeVoiceDesc = v }),
+	config.KeyVoicePersonaPresets:  setStr(func(cfg *config.Config, v string) { cfg.VoicePersonaPresets = v }),
 	// 布尔开关（*bool 在盘上，内存为 bool）
 	config.KeyFuncChatEnabled:    setBool(func(cfg *config.Config, b bool) { cfg.FuncChatEnabled = b }),
 	config.KeyFuncNovelEnabled:   setBool(func(cfg *config.Config, b bool) { cfg.FuncNovelEnabled = b }),

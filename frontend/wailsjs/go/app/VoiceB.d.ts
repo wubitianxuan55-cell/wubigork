@@ -36,6 +36,8 @@ export function VoiceStart(arg1:boolean):Promise<void>;
 
 export function VoiceStop():Promise<void>;
 
+export function VoiceV2CommitTurn(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<Record<string, any>>;
+
 export function VoiceV2Ensure():Promise<Record<string, any>>;
 
 export function VoiceV2Status():Promise<Record<string, any>>;

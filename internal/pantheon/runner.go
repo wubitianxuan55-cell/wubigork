@@ -18,7 +18,10 @@ import (
 
 const (
 	maxProcessOutput = 4 << 20
-	maxPromptRunes   = 24000
+	// 2026-11-03 实弹：6 席×3 轮往轮立场卡+材料全文在 24000 字符预算下第二轮起
+	// 必爆（单场 22 次「提示词超限截断」），中间段砍掉的正是历史论证主体。
+	// 现代席位上下文 128k+，预算提到 60000；长会议根治走贡献文件化（prompts.go）。
+	maxPromptRunes   = 60000
 	maxAgentOutput   = 200000
 	// 8 分钟：plan/工具型席位（如 zcode 读大型仓库）陈词常超 4 分钟
 	// （2026-10-29 实弹 zcode context deadline exceeded 逮住）
@@ -266,9 +269,10 @@ func (w *streamTextWriter) emitObject(obj map[string]interface{}) {
 // result、response.done 等）。只在增量已经播过流时拦：纯最终态 CLI（无 delta）
 // 仍要靠这些事件出文本。
 func finalMessageEcho(obj map[string]interface{}) bool {
-	// zcode 信封聚合事件（turn.completed 携带全文）：增量已播过流则必须吞，
-	// 否则前端拼接后整段发言输出两遍（2026-10-31 实弹重复输出根因之一）。
-	if strings.EqualFold(zcodeEnvelopeKind(obj), "turn.completed") {
+	// zcode 信封聚合事件（turn.completed 携带全文，新旧信封布局都认）：
+	// 增量已播过流则必须吞，否则前端拼接后整段发言输出两遍
+	// （2026-10-31 实弹重复输出根因之一）。
+	if zcodeTurnCompleted(obj) {
 		return extractZcodeFinalText(obj) != ""
 	}
 	if item, ok := obj["item"].(map[string]interface{}); ok {
@@ -637,6 +641,15 @@ func trimRunes(s string, limit int) string {
 	return string(r[:limit]) + "…"
 }
 
+// headRunes 与 tailRunes 对称：机械取头，不加修饰，由调用方决定截断标记。
+func headRunes(s string, limit int) string {
+	r := []rune(s)
+	if len(r) <= limit {
+		return s
+	}
+	return string(r[:limit])
+}
+
 func tailRunes(s string, limit int) string {
 	r := []rune(s)
 	if len(r) <= limit {
@@ -679,7 +692,8 @@ func parseAgentOutput(raw string) string {
 	var generic string
 	var stream strings.Builder
 	zcodeFinal := ""
-	sawEnvelopeFinish := false
+	sawTurnCompleted := false
+	sawTurnFailed := false
 	sawPlainLine := false
 	onlyHarnessErrors := true
 	consumeObject := func(obj map[string]interface{}) {
@@ -690,11 +704,19 @@ func parseAgentOutput(raw string) string {
 		onlyHarnessErrors = false
 		if text := extractZcodeFinalText(obj); text != "" {
 			zcodeFinal = text
-			sawEnvelopeFinish = true
+			sawTurnCompleted = true
 			return
 		}
-		if kind := zcodeEnvelopeKind(obj); strings.EqualFold(kind, "finish") {
-			sawEnvelopeFinish = true
+		// 回合级生命周期是唯一可信的完成门：turn.completed（response 为空也
+		// 算完成）/ turn.failed。payload.kind=finish 是**每次模型请求**的收尾
+		// ——工具型回合一次调用里有 N 个 finish，拿它当回合门会把中途夭折
+		// 只剩旁白的流放过去（2026-11-02 实弹 zcode 第 2/3 轮 511/301 字旁白
+		// 冒充陈词的根因）。
+		if zcodeTurnCompleted(obj) {
+			sawTurnCompleted = true
+		}
+		if zcodeTurnFailed(obj) {
+			sawTurnFailed = true
 		}
 		if text := extractKnownText(obj); text != "" {
 			texts = append(texts, text)
@@ -753,11 +775,11 @@ func parseAgentOutput(raw string) string {
 		return trimRunes(generic, maxAgentOutput)
 	}
 	if rebuilt := strings.TrimSpace(stream.String()); rebuilt != "" {
-		// 逐段 delta 重装只信「信封收尾完成」的流：finish/turn.completed 缺席
-		// 意味着调用中途夭折（超时/被杀），此时只有过程旁白、没有最终陈词——
-		// 宁可空结果走 agent_error，也不把旁白存成观点（2026-10-31 实弹
-		// zcode 第 1/3 轮 149/187 字旁白冒充观点的根因）。
-		if sawEnvelopeFinish {
+		// 逐段 delta 重装只信「回合真正完成」的流：turn.completed/turn.failed
+		// 都缺席意味着调用中途夭折（超时/被杀/CLI 静默退出），此时只有过程
+		// 旁白、没有最终陈词——宁可空结果走 agent_error，也不把旁白存成观点
+		// （2026-10-31 实弹 zcode 第 1/3 轮 149/187 字旁白冒充观点的根因）。
+		if sawTurnCompleted && !sawTurnFailed {
 			return trimRunes(rebuilt, maxAgentOutput)
 		}
 		return ""
@@ -865,11 +887,29 @@ func zcodeEnvelopeKind(obj map[string]interface{}) string {
 	return kind
 }
 
-// extractZcodeFinalText 提取信封聚合全文事件（payload.kind=turn.completed 携带
-// response 全文）。这是收尾权威文本，优先于逐段 text_delta 重装——进程输出被
-// 截断时尾部的聚合事件是唯一完整的最终答案（2026-10-31 实弹）。
+// zcodeTurnCompleted 识别「回合完成」事件。新版桌面运行时（2026-11-02 实弹
+// 探针）把完成标记放在顶层 type=turn.completed（payload 无 kind 键，response/
+// usage 都在 payload 里）；旧版是 payload.kind=turn.completed。两种都认。
+func zcodeTurnCompleted(obj map[string]interface{}) bool {
+	if strings.EqualFold(traceString(obj["type"]), "turn.completed") {
+		return true
+	}
+	return strings.EqualFold(zcodeEnvelopeKind(obj), "turn.completed")
+}
+
+// zcodeTurnFailed 识别「回合失败」事件，布局同 zcodeTurnCompleted。
+func zcodeTurnFailed(obj map[string]interface{}) bool {
+	if strings.EqualFold(traceString(obj["type"]), "turn.failed") {
+		return true
+	}
+	return strings.EqualFold(zcodeEnvelopeKind(obj), "turn.failed")
+}
+
+// extractZcodeFinalText 提取回合聚合全文（turn.completed 的 payload.response）。
+// 这是收尾权威文本，优先于逐段 text_delta 重装——进程输出被截断时尾部的聚合
+// 事件是唯一完整的最终答案（2026-10-31 实弹）。
 func extractZcodeFinalText(obj map[string]interface{}) string {
-	if !strings.EqualFold(zcodeEnvelopeKind(obj), "turn.completed") {
+	if !zcodeTurnCompleted(obj) {
 		return ""
 	}
 	payload, _ := obj["payload"].(map[string]interface{})

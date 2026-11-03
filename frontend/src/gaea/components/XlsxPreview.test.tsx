@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { XlsxPreview } from "./XlsxPreview";
+import { SheetGrid } from "./xlsxpreview/SheetGrid";
 import { useComposerInsertStore } from "../lib/store";
 
 const body = JSON.stringify({
@@ -45,6 +46,42 @@ describe("XlsxPreview", () => {
     expect(screen.queryByText("ROW-1")).toBeNull();
     expect(screen.getByText("ROW-30")).toBeTruthy();
     expect(container.querySelectorAll("tbody tr").length).toBeLessThan(100);
+  });
+
+  it("滚动归零只看表名：原地内容刷新（同名新 sheet 对象）保滚动位，真换表才归零", () => {
+    const rows = Array.from({ length: 400 }, (_, i) => [
+      { ref: `A${i + 1}`, value: `ROW-${i + 1}`, type: "string" },
+    ]);
+    // 静默重读/单元格直编/重算都会让 preview.sheets[active] 变成新对象身份，
+    // 若按对象比较会在查看大表中途把用户拽回顶部（keepScroll 语义对 xlsx 同样适用）。
+    const noop = () => {};
+    const mkGrid = (name: string) => (
+      <SheetGrid
+        sheet={{ name, rows, merged: [], colWidths: {} }}
+        selected={null}
+        onSelect={noop}
+        selectedCol={null}
+        onSelectCol={noop}
+        editingRef={null}
+        draft=""
+        onDraftChange={noop}
+        onEditCell={noop}
+        onCommit={noop}
+        onCancelEdit={noop}
+      />
+    );
+    const { rerender } = render(mkGrid("预算"));
+    const container = document.querySelector(".docx-preview-body") as HTMLElement;
+    container.scrollTop = 1000;
+    fireEvent.scroll(container);
+    expect(screen.getByText("ROW-30")).toBeTruthy();
+
+    rerender(mkGrid("预算")); // 同名新对象：不归零
+    expect(container.scrollTop).toBe(1000);
+    expect(screen.getByText("ROW-30")).toBeTruthy();
+
+    rerender(mkGrid("明细")); // 真换表：归零
+    expect(container.scrollTop).toBe(0);
   });
 
   it("小表格保持全量渲染（虚拟化阈值以下行为不变）", () => {

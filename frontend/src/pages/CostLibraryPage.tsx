@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
   CheckCircle, ChevronRight, CloudUpload, Coins, FileSpreadsheet, Gauge, Layers, ListTree,
-  PieChart, Search, TrendingUp,
+  Search, TrendingUp,
 } from "../gaea/icons";
 import { app } from "../gaea/lib/bridge";
 import { CostLibraryView } from "../gaea/components/CostLibraryView";
@@ -19,6 +19,7 @@ import { CostBackupCard } from "../gaea/components/memoryhub/CostBackupCard";
 import "../gaea/styles.css";
 import "../gaea/tailwind.css";
 import "../gaea/components/memoryhub/hub.css";
+import "./cost-database.css";
 
 /**
  * CostLibraryPage — 「造价数据库」一级板块（v4.459 全新设计：工料法成本数据库）。
@@ -53,6 +54,12 @@ const MODULES: { key: CostModule; label: string; icon: ReactNode; hint: string }
   { key: "overview", label: "概览", icon: <Gauge size={14} />, hint: "工料法规模 · 资料库速览 · 关联图谱" },
 ];
 
+const MODULE_GROUPS: { key: string; label: string; modules: CostModule[] }[] = [
+  { key: "authoring", label: "编制", modules: ["bill", "compose", "resources"] },
+  { key: "governance", label: "治理", modules: ["health", "audit", "prices"] },
+  { key: "analysis", label: "研判", modules: ["refs", "overview"] },
+];
+
 const PRICE_VIEWS: { key: PriceView; label: string }[] = [
   { key: "sources", label: "价格源" },
   { key: "repository", label: "价格仓库" },
@@ -83,16 +90,44 @@ const EMPTY_STATS: CostOverviewStats = {
   sourceTotal: 0,
 };
 
-/** 段切换小胶囊（价格数据四段 / 概览双视图共用样式）。 */
-function SegChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
+/** 段切换控件（价格数据四段 / 概览双视图共用样式）。 */
+function SegChip({
+  active,
+  onClick,
+  children,
+  tab = false,
+}: {
+  active: boolean
+  onClick: () => void
+  children: ReactNode
+  tab?: boolean
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-current={active ? "true" : undefined}
-      className={`px-2.5 h-6 rounded-full text-[11px] transition-colors ${
-        active ? "bg-accent text-accent-fg" : "bg-bg-elev text-fg-faint hover:text-fg border border-border"
-      }`}
+      role={tab ? "tab" : undefined}
+      aria-selected={tab ? active : undefined}
+      aria-pressed={tab ? undefined : active}
+      aria-controls={tab ? "cost-price-panel" : undefined}
+      tabIndex={tab ? (active ? 0 : -1) : undefined}
+      className={`cost-seg-chip${active ? " is-active" : ""}`}
+      onKeyDown={tab ? (event) => {
+        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return
+        const tabs = Array.from(
+          event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]') ?? [],
+        )
+        if (tabs.length < 2) return
+        event.preventDefault()
+        const current = tabs.indexOf(event.currentTarget)
+        const next = event.key === "Home"
+          ? 0
+          : event.key === "End"
+            ? tabs.length - 1
+            : (current + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length
+        tabs[next]?.focus()
+        tabs[next]?.click()
+      } : undefined}
     >
       {children}
     </button>
@@ -149,46 +184,76 @@ function CostLibraryPage() {
     if (module === "overview") void loadStats();
   }, [module, loadStats]);
 
-  return (
-    <div className="h-full flex flex-col min-h-0 text-[12.5px]">
-      {/* 顶栏：板块标识 + 工料法口径 */}
-      <div className="shrink-0 flex items-center gap-3 px-5 h-12 border-b border-border-soft/70 bg-bg-elev/40">
-        <span className="flex items-center gap-2 text-fg font-semibold text-[14px] tracking-tight">
-          <span className="w-6 h-6 rounded-lg bg-accent/15 text-accent inline-flex items-center justify-center">
-            <Coins size={14} />
-          </span>
-          造价数据库
-        </span>
-        <span className="hidden md:inline-flex items-center gap-1.5 px-2 h-5 rounded-md border border-border/80 text-[10.5px] text-fg-faint">
-          <PieChart size={10} />
-          工料法：工料机 × 消耗定额 → 综合单价（只含人材机）
-        </span>
-        <span className="text-fg-faint text-[11.5px] hidden lg:inline">
-          录入清单 · 费率 · 模版——加总由五表活公式算
-        </span>
-      </div>
+  const activeModule = MODULES.find((item) => item.key === module) ?? MODULES[0];
 
-      {/* 模块导航：分段工作台（下划线指示，非圆角胶囊） */}
-      <nav className="shrink-0 flex items-center gap-0.5 px-4 border-b border-border-soft/60" aria-label="造价数据库模块">
-        {MODULES.map((m) => (
-          <button
-            key={m.key}
-            type="button"
-            onClick={() => setModule(m.key)}
-            title={m.hint}
-            aria-current={module === m.key ? "page" : undefined}
-            className={`relative inline-flex items-center gap-1.5 px-3 h-9 text-[12px] transition-colors ${
-              module === m.key
-                ? "text-accent font-medium"
-                : "text-fg-faint hover:text-fg hover:bg-bg-soft/50 rounded-t-lg"
-            }`}
-          >
-            {m.icon}
-            {m.label}
-            {module === m.key && <span className="absolute left-2.5 right-2.5 bottom-0 h-0.5 rounded-full bg-accent" />}
-          </button>
+  return (
+    <div className="cost-database h-full flex flex-col min-h-0">
+      <a className="cost-skip-link" href="#cost-database-workspace">跳到造价工作区</a>
+
+      <header className="cost-masthead">
+        <div className="cost-masthead-brand">
+          <span className="cost-masthead-mark" aria-hidden>
+            <Coins size={18} />
+          </span>
+          <div className="cost-masthead-copy">
+            <div className="cost-masthead-kicker">
+              <span>COST LEDGER</span>
+              <span className="cost-local-state"><span aria-hidden />本机资产</span>
+            </div>
+            <div className="cost-masthead-title-row">
+              <h1>造价数据库</h1>
+              <span>工料法成本工作台</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="cost-active-context" aria-live="polite">
+          <span>NOW / 当前工作面</span>
+          <strong>{activeModule.label}</strong>
+          <p>{activeModule.hint}</p>
+        </div>
+
+        <div
+          className="cost-formula"
+          aria-label="计价路径：清单项挂接企业定额，定额消耗量乘工料机价格形成综合单价"
+        >
+          <span><b>01</b>清单项</span>
+          <i aria-hidden>挂</i>
+          <span><b>02</b>企业定额</span>
+          <i aria-hidden>×</i>
+          <span><b>03</b>工料机价</span>
+          <em aria-hidden>→</em>
+          <strong>综合单价</strong>
+        </div>
+      </header>
+
+      <nav className="cost-module-nav" aria-label="造价数据库模块">
+        {MODULE_GROUPS.map((group) => (
+          <div className="cost-nav-group" key={group.key} role="group" aria-label={group.label}>
+            <span className="cost-nav-group-label" aria-hidden>{group.label}</span>
+            <div className="cost-nav-group-buttons">
+              {MODULES.filter((item) => group.modules.includes(item.key)).map((m) => (
+                <button
+                  key={m.key}
+                  type="button"
+                  onClick={() => setModule(m.key)}
+                  title={m.hint}
+                  aria-label={m.label}
+                  aria-current={module === m.key ? "page" : undefined}
+                  aria-controls="cost-database-workspace"
+                  className="cost-module-tab"
+                >
+                  <span className="cost-module-tab-index" aria-hidden>
+                    {String(MODULES.findIndex((item) => item.key === m.key) + 1).padStart(2, "0")}
+                  </span>
+                  {m.icon}
+                  <span>{m.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         ))}
-        <div className="ml-auto flex items-center gap-1.5 pr-1">
+        <div className="cost-nav-utility">
           {module === "overview" ? (
             <>
               <SegChip active={overviewView === "data"} onClick={() => setOverviewView("data")}>数据概览</SegChip>
@@ -197,7 +262,7 @@ function CostLibraryPage() {
           ) : (
             <button
               type="button"
-              className="inline-flex items-center px-2 h-6 rounded text-[11px] text-fg-faint hover:text-accent"
+              className="cost-back-link"
               onClick={() => { setModule("overview"); setOverviewView("data"); }}
               title="回到概览"
             >
@@ -207,9 +272,13 @@ function CostLibraryPage() {
         </div>
       </nav>
 
-      {/* 主区 */}
-      <div className="flex-1 min-h-0">
-        {module === "bill" && <WorkcostBillView />}
+      <section
+        id="cost-database-workspace"
+        className="cost-database-main flex-1 min-h-0"
+        aria-label={`${activeModule.label}工作区`}
+        tabIndex={-1}
+      >
+        {module === "bill" && <WorkcostBillView onOpenImport={() => setModule("refs")} />}
         {module === "compose" && <WorkcostComposeView />}
         {module === "resources" && <WorkcostResourceView />}
         {module === "health" && <CostHealthView />}
@@ -217,15 +286,26 @@ function CostLibraryPage() {
         {module === "refs" && <CostIndicatorsView />}
         {module === "prices" && (
           <div className="h-full flex flex-col min-h-0">
-            <div className="shrink-0 flex items-center gap-1.5 px-4 py-2 border-b border-border-soft/50" role="tablist" aria-label="价格数据子视图">
+            <div
+              className="shrink-0 flex items-center gap-1.5 px-4 py-2 border-b border-border-soft/50"
+              role="tablist"
+              aria-label="价格数据子视图"
+              aria-orientation="horizontal"
+            >
               {PRICE_VIEWS.map((v) => (
-                <SegChip key={v.key} active={priceView === v.key} onClick={() => setPriceView(v.key)}>{v.label}</SegChip>
+                <SegChip tab key={v.key} active={priceView === v.key} onClick={() => setPriceView(v.key)}>{v.label}</SegChip>
               ))}
               <span className="ml-auto text-fg-faint text-[10.5px] hidden md:inline">
                 信息价喂资源现行价 · 询价沉淀 · 旧价格手册归档为「资料条目」
               </span>
             </div>
-            <div className="flex-1 min-h-0">
+            <div
+              id="cost-price-panel"
+              className="flex-1 min-h-0"
+              role="tabpanel"
+              aria-label={PRICE_VIEWS.find((item) => item.key === priceView)?.label}
+              tabIndex={0}
+            >
               {priceView === "sources" && <PriceSourcesPanel />}
               {priceView === "repository" && <PriceSourcesRepository />}
               {priceView === "inquiry" && <CostInquiryPanel />}
@@ -235,17 +315,17 @@ function CostLibraryPage() {
         )}
         {module === "overview" && overviewView === "graph" && <CostGraphView />}
         {module === "overview" && overviewView === "data" && (
-          <div className="h-full overflow-y-auto px-5 py-4 space-y-3">
+          <div className="cost-overview h-full overflow-y-auto">
             {loading ? (
               <OverviewSkeleton />
             ) : statsFailed ? (
-              <div className="v3-panel rounded-2xl p-10 flex flex-col items-center gap-3" data-testid="cost-stats-failed">
+              <div className="cost-error-panel v3-panel" data-testid="cost-stats-failed">
                 <div className="text-[13px] text-fg">造价库读取失败</div>
                 <div className="text-[11.5px] text-fg-faint">数据库暂时读不到，请重试；若持续失败请查看日志</div>
                 <button
                   type="button"
                   onClick={() => void loadStats()}
-                  className="px-3 h-7 rounded-full bg-accent text-accent-fg text-[11.5px]"
+                  className="cost-primary-button"
                 >
                   重试
                 </button>
@@ -259,29 +339,29 @@ function CostLibraryPage() {
             ) : (
               <>
                 {/* 工料法三层 hero + 下一步 */}
-                <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
-                  <section className="v3-panel rounded-2xl p-5 xl:col-span-2 relative overflow-hidden">
+                <div className="cost-overview-top grid grid-cols-1 xl:grid-cols-3">
+                  <section className="cost-overview-hero v3-panel xl:col-span-2">
                     <div className="absolute -top-20 -right-16 w-72 h-72 rounded-full bg-accent/10 blur-3xl pointer-events-none" />
                     <div className="relative flex flex-wrap items-start justify-between gap-4">
                       <div>
                         <div className="text-[10.5px] tracking-wider text-fg-faint">工料法数据库</div>
                         <div className="mt-1.5 flex items-baseline gap-2">
-                          <span className="text-[34px] leading-none font-semibold text-fg tabular-nums tracking-tight">
+                          <span className="cost-overview-total">
                             {stats.resourceTotal}
                           </span>
-                          <span className="text-fg-faint text-[11.5px]">条工料机资源 · {stats.quotaTotal} 条消耗定额</span>
+                          <span className="cost-overview-total-caption">条工料机资源 · {stats.quotaTotal} 条消耗定额</span>
                         </div>
                         <div className="mt-2.5 flex items-center gap-1.5 flex-wrap text-[11px] text-fg-faint">
-                          <span className="inline-flex items-center gap-1 px-1.5 py-px rounded bg-bg-elev">
+                          <span className="cost-metric-chip">
                             <Layers size={10} /> 资源 {stats.resourceTotal}
                           </span>
-                          <span className="inline-flex items-center gap-1 px-1.5 py-px rounded bg-bg-elev">
+                          <span className="cost-metric-chip">
                             <ListTree size={10} /> 定额 {stats.quotaTotal}
                           </span>
-                          <span className="inline-flex items-center gap-1 px-1.5 py-px rounded bg-bg-elev">
+                          <span className="cost-metric-chip">
                             <Coins size={10} /> 资料条目 {stats.entryTotal}
                           </span>
-                          <span className="inline-flex items-center gap-1 px-1.5 py-px rounded bg-bg-elev">
+                          <span className="cost-metric-chip">
                             <CloudUpload size={10} /> 价格源 {stats.sourceTotal}
                           </span>
                         </div>
@@ -289,13 +369,10 @@ function CostLibraryPage() {
                       <div className="text-right">
                         <div className="text-[10.5px] tracking-wider text-fg-faint">资源构成</div>
                         <div className="mt-1.5 text-[11.5px] text-fg-faint tabular-nums">
-                          <span className="text-sky-400/90">人工 {stats.labor}</span>
-                          <span className="mx-1.5 text-border">·</span>
-                          <span className="text-emerald-400/90">材料 {stats.material}</span>
-                          <span className="mx-1.5 text-border">·</span>
-                          <span className="text-amber-400/90">机械 {stats.machine}</span>
-                          <span className="mx-1.5 text-border">·</span>
-                          <span className="text-amber-400/90">外委 {stats.outsourced}</span>
+                          <span className="cost-kind-key is-labor">人工 {stats.labor}</span>
+                          <span className="cost-kind-key is-material">材料 {stats.material}</span>
+                          <span className="cost-kind-key is-machine">机械 {stats.machine}</span>
+                          <span className="cost-kind-key is-outsourced">外委 {stats.outsourced}</span>
                         </div>
                       </div>
                     </div>
@@ -313,7 +390,7 @@ function CostLibraryPage() {
                   </section>
 
                   {/* 下一步引导：按库里最缺的一环指路 */}
-                  <section className="v3-panel rounded-2xl p-5 flex flex-col">
+                  <section className="cost-overview-next v3-panel">
                     <span className="text-[12.5px] font-semibold text-fg">下一步</span>
                     {stats.quotaTotal === 0 ? (
                       <>
@@ -326,7 +403,7 @@ function CostLibraryPage() {
                         <button
                           type="button"
                           onClick={() => setModule("compose")}
-                          className="mt-auto pt-4 inline-flex items-center gap-1 text-[12px] text-accent hover:opacity-80"
+                          className="cost-inline-link mt-auto"
                         >
                           去导入项目表 <ChevronRight size={12} />
                         </button>
@@ -341,7 +418,7 @@ function CostLibraryPage() {
                         <button
                           type="button"
                           onClick={() => setModule("bill")}
-                          className="mt-auto pt-4 inline-flex items-center gap-1 text-[12px] text-accent hover:opacity-80"
+                          className="cost-inline-link mt-auto"
                         >
                           查看分部分项清单 <ChevronRight size={12} />
                         </button>
@@ -351,8 +428,8 @@ function CostLibraryPage() {
                 </div>
 
                 {/* 快捷入口 */}
-                <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
-                  <section className="v3-panel rounded-2xl p-4 xl:col-span-2">
+                <div className="cost-overview-bottom grid grid-cols-1 xl:grid-cols-3">
+                  <section className="cost-quick-panel v3-panel xl:col-span-2">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-fg text-[12.5px] font-semibold">快捷入口</span>
                       <span className="text-[10.5px] text-fg-faint">按工作流排序</span>
@@ -384,7 +461,7 @@ function CostLibraryPage() {
                       />
                     </div>
                   </section>
-                  <section className="v3-panel rounded-2xl p-4 flex flex-col">
+                  <section className="cost-note-panel v3-panel">
                     <span className="text-fg text-[12.5px] font-semibold">口径备忘</span>
                     <ul className="mt-2 space-y-1.5 text-[11px] text-fg-faint leading-relaxed list-disc pl-4">
                       <li>综合单价只含人材机，取费在费用汇总合计层跑一次</li>
@@ -401,7 +478,7 @@ function CostLibraryPage() {
             )}
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }
@@ -427,29 +504,29 @@ function KindBar({
   const seg = (v: number, cls: string, label: string) =>
     v > 0 ? (
       <div
-        className={`h-full ${cls} transition-all duration-500`}
+        className={`cost-kind-segment ${cls}`}
         style={{ width: `${Math.max(2, (v / total) * 100)}%` }}
         title={`${label} ${v} 条`}
       />
     ) : null;
   return (
     <div
-      className={`flex h-2 rounded-full overflow-hidden bg-bg-elev ${className}`}
+      className={`cost-kind-bar ${className}`}
       role="img"
       aria-label={`资源构成：人工 ${labor}，材料 ${material}，机械 ${machine}，外委 ${outsourced}`}
     >
-      {seg(labor, "bg-sky-400/80", "人工")}
-      {seg(material, "bg-emerald-400/80", "材料")}
-      {seg(machine, "bg-amber-400/80", "机械")}
-      {seg(outsourced, "bg-violet-400/80", "外委")}
+      {seg(labor, "is-labor", "人工")}
+      {seg(material, "is-material", "材料")}
+      {seg(machine, "is-machine", "机械")}
+      {seg(outsourced, "is-outsourced", "外委")}
     </div>
   );
 }
 
 function QuickAction({ label, hint, icon, onClick }: { label: string; hint: string; icon: ReactNode; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className="v3-card is-interactive w-full px-2.5 py-2 flex items-center gap-2.5 text-left">
-      <span className="w-7 h-7 rounded-lg bg-bg-elev inline-flex items-center justify-center shrink-0">{icon}</span>
+    <button type="button" onClick={onClick} className="cost-quick-action v3-card is-interactive">
+      <span className="cost-quick-action-icon">{icon}</span>
       <span className="min-w-0 flex-1">
         <span className="block text-fg text-[12px] font-medium leading-tight">{label}</span>
         <span className="block text-fg-faint text-[10.5px] truncate mt-0.5">{hint}</span>
@@ -470,10 +547,10 @@ function GettingStarted({
   onSources: () => void;
 }) {
   return (
-    <div className="h-full flex items-center justify-center p-6">
-      <div className="w-full max-w-2xl">
+    <div className="cost-getting-started">
+      <div className="cost-getting-started-inner">
         <div className="text-center mb-5">
-          <div className="mx-auto w-12 h-12 rounded-2xl bg-accent/15 text-accent inline-flex items-center justify-center">
+          <div className="cost-getting-started-mark">
             <Coins size={22} />
           </div>
           <h2 className="mt-3 text-[16px] font-semibold text-fg tracking-tight">工料法成本数据库还是空的</h2>
@@ -528,9 +605,9 @@ function StepCard({
   cta: string;
 }) {
   return (
-    <button type="button" onClick={onClick} className="v3-card is-interactive p-4 text-left flex flex-col">
-      <span className="text-[10px] tracking-widest text-fg-faint tabular-nums">{step}</span>
-      <span className="mt-1.5 w-8 h-8 rounded-lg bg-bg-elev inline-flex items-center justify-center">{icon}</span>
+    <button type="button" onClick={onClick} className="cost-step-card v3-card is-interactive">
+      <span className="cost-step-card-index">{step}</span>
+      <span className="cost-step-card-icon">{icon}</span>
       <span className="mt-2.5 text-fg text-[13px] font-semibold">{title}</span>
       <span className="mt-1 text-[11px] text-fg-faint leading-relaxed flex-1">{desc}</span>
       <span className="mt-3 text-[11.5px] text-accent inline-flex items-center gap-1">
@@ -543,12 +620,12 @@ function StepCard({
 // ── 骨架屏（与概览布局同构）────────────────────────────────────────
 function OverviewSkeleton() {
   return (
-    <div className="space-y-3 animate-pulse">
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
-        <div className="v3-panel rounded-2xl p-5 xl:col-span-2 h-40" />
-        <div className="v3-panel rounded-2xl p-5 h-40" />
+    <div className="cost-overview-skeleton" aria-label="正在读取造价库概览">
+      <div className="cost-overview-top grid grid-cols-1 xl:grid-cols-3">
+        <div className="v3-panel xl:col-span-2 h-40" />
+        <div className="v3-panel h-40" />
       </div>
-      <div className="v3-panel rounded-2xl p-4 h-40" />
+      <div className="v3-panel h-40" />
     </div>
   );
 }

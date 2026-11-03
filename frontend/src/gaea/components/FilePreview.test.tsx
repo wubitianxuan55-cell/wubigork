@@ -560,3 +560,37 @@ describe("FilePreview .gsched 分发（瘦身刀2 补验 G-5）", () => {
     expect(screen.queryByTestId("sched-file-card")).toBeNull();
   });
 });
+
+describe("FilePreview 换文件滚动回顶", () => {
+  // 外层滚动容器（markdown/text/image/html/error 共用）选择器：容器唯一带
+  // flex-1 + overflow-auto 组合（见 FilePreview 内容区）。
+  const scrollerOf = (container: HTMLElement) =>
+    container.querySelector("div.flex-1.overflow-auto") as HTMLElement;
+
+  it("换文件（relPath 变化）滚动容器强制归零，不等加载完成", async () => {
+    const { rerender, container } = render(wrap(<FilePreview relPath="notes/a.md" onClose={() => {}} />));
+    await screen.findByText("旧内容");
+    const scroller = scrollerOf(container);
+    expect(scroller).toBeTruthy();
+    scroller.scrollTop = 500;
+
+    mocks.preview = markdownPreview({ path: "notes/b.md", name: "b.md", body: "下一份" });
+    rerender(wrap(<FilePreview relPath="notes/b.md" onClose={() => {}} />));
+    expect(scroller.scrollTop).toBe(0); // effect 同步归零
+    expect(await screen.findByText("下一份")).toBeTruthy();
+  });
+
+  it("原地静默刷新（reloadSignal）保持滚动位 —— 归零只属换文件，U4 语义不变", async () => {
+    const { rerender, container } = render(
+      wrap(<FilePreview relPath="notes/a.md" onClose={() => {}} reloadSignal={0} />),
+    );
+    await screen.findByText("旧内容");
+    const scroller = scrollerOf(container);
+    scroller.scrollTop = 400;
+
+    mocks.preview = markdownPreview({ body: "新内容" });
+    rerender(wrap(<FilePreview relPath="notes/a.md" onClose={() => {}} reloadSignal={1} />));
+    expect(await screen.findByText("新内容")).toBeTruthy();
+    expect(scroller.scrollTop).toBe(400);
+  });
+});

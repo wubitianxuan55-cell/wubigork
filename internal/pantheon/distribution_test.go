@@ -82,7 +82,7 @@ func TestFormatContributionKeepsCompleteTailBeyondBudget(t *testing.T) {
 	body := head + "中间填充" + strings.Repeat("中", 6000) + "尾部独有标记QNZW。"
 	item := Contribution{ID: "pan_s-r1-7", Round: 1, AgentID: "alpha", AgentName: "ALPHA", Content: body}
 
-	got := formatContributionBody(item, 1)
+	got := formatContributionBody(item, 1, nil)
 	if !strings.Contains(got, "〔gaea 分发截断：仅保留完整尾部，原长") {
 		t.Fatalf("missing tail-keep marker:\n%s", got)
 	}
@@ -101,7 +101,7 @@ func TestStanceCardAnnotatesPreviousRounds(t *testing.T) {
 	body := longStatement("往轮") + "往轮独有尾部标记PLMK。"
 	item := Contribution{ID: "pan_s-r1-9", Round: 1, AgentID: "alpha", AgentName: "ALPHA", Content: body}
 
-	got := formatContributionBody(item, 2)
+	got := formatContributionBody(item, 2, nil)
 	if !strings.Contains(got, "〔gaea 分发截断：仅保留节选，原长") {
 		t.Fatalf("missing stance-card marker:\n%s", got)
 	}
@@ -125,7 +125,7 @@ func TestSynthesisReceivesFinalRoundInFull(t *testing.T) {
 		ID: "pan_s-r3-4", Round: 3, AgentID: "beta", AgentName: "BETA",
 		Content: longStatement("末轮") + "末轮独有尾部标记WQVN。",
 	}
-	prompt := synthesisPrompt(StartRequest{Topic: "汇总保真"}, AgentStatus{Name: "Grok"}, []Contribution{earlier, final})
+	prompt := synthesisPrompt(StartRequest{Topic: "汇总保真"}, AgentStatus{Name: "Grok"}, []Contribution{earlier, final}, nil)
 	if !strings.Contains(prompt, "末轮独有尾部标记WQVN") {
 		t.Fatal("summarizer must receive final-round statement in full")
 	}
@@ -142,7 +142,7 @@ func TestHistoryRewritesStrippedConsensusSignal(t *testing.T) {
 		ID: "pan_s-r2-2", Round: 2, AgentID: "alpha", AgentName: "ALPHA",
 		Content: "当前判断保持。", Consensus: "no",
 	}
-	got := formatContributionBody(item, 3)
+	got := formatContributionBody(item, 3, nil)
 	if !strings.Contains(got, "（协议行回写 · 该席第 2 轮共识状态：仍有分歧）") {
 		t.Fatalf("stripped consensus line must be rewritten into history:\n%s", got)
 	}
@@ -250,8 +250,9 @@ func TestStopWarningReportsClippedInputs(t *testing.T) {
 	m := newTestManager(t, runner, fakeAdapter("alpha"), fakeAdapter("beta"))
 	defer m.Close()
 	session, err := m.Start(StartRequest{
+		// 预算 60000（2026-11-03 刀A）：材料须超过新预算才能触发超限截断入账。
 		Topic:    "超限截断入账",
-		Context:  strings.Repeat("约束材料。", 5200),
+		Context:  strings.Repeat("约束材料。", 13000),
 		AgentIDs: []string{"alpha", "beta"}, ChairmanAgentID: "alpha",
 		UntilConsensus: true, MaxRounds: 2,
 	})

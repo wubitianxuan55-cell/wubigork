@@ -52,12 +52,21 @@ const ProjectCardItem: React.FC<ProjectCardItemProps> = ({
       onClick={() => onOpen(card)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(card) } }}
       aria-label={`打开小说「${card.title}」`}
+      aria-current={isActive ? 'true' : undefined}
     >
       <div className={`novel-cover ${tone}`}>
         <span className="novel-cover-spine" aria-hidden />
-        {isActive ? <span className="novel-cover-now">正在编辑</span> : null}
+        <div className="novel-cover-topline" aria-hidden>
+          <span>{isActive ? 'NOW OPEN' : 'GAEA FICTION'}</span>
+          <span>{String(card.chapter_count || 0).padStart(2, '0')} CH.</span>
+        </div>
         <BookOutlined aria-hidden className="novel-cover-icon" />
-        <span className="novel-cover-title">{card.title}</span>
+        <div className="novel-cover-bottom">
+          <span className="novel-cover-title">{card.title}</span>
+          <span className="novel-cover-rule" aria-hidden />
+          <span className="novel-cover-imprint">{card.genre || '小说'} · {card.style || '默认风格'}</span>
+        </div>
+        {isActive ? <span className="novel-cover-now">正在编辑</span> : null}
       </div>
 
       <div className="novel-shelf-body">
@@ -98,8 +107,11 @@ const ProjectCardItem: React.FC<ProjectCardItemProps> = ({
 
         {/* 阅读进度条（主色，章节进度） */}
         {pct > 0 && (
-          <div className="novel-progress-track" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`阅读进度 ${pct}%`}>
-            <i className="novel-progress-fill" style={{ width: `${pct}%` }} />
+          <div className="novel-shelf-progress">
+            <div className="novel-progress-track" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`阅读进度 ${pct}%`}>
+              <i className="novel-progress-fill" style={{ width: `${pct}%` }} />
+            </div>
+            <span>{pct}%</span>
           </div>
         )}
 

@@ -43,7 +43,7 @@ func wrapPCMAsWAV(pcm []byte, sampleRate int) []byte {
 // 共用）：角色预设 voiceId > 面板全局选择；描述=入参人格化描述 > 角色预设
 // 描述 > 全局 breeze 描述。
 func (a *mediaState) breezeVoiceAndInstruction(voiceDescription string) (voice, instructions string) {
-	presetVoice, presetDesc := a.voicePersonaPreset(a.activePersonalityID)
+	presetVoice, presetDesc := a.voicePersonaPreset(a.currentVoicePersonality())
 	voice = presetVoice
 	if voice == "" {
 		voice = strings.TrimSpace(a.activeTTSVoice)

@@ -242,6 +242,8 @@ func parseUnitPriceSheet(f *excelize.File, sheet string, b *ProjectBundle) {
 	cItemTitle := colIndex(header, false, "项目名称")
 	cItemUnit := colIndex(header, false, "计量单位", "单位")
 	cKind := colIndex(header, false, "行类")
+	// 综合单价列（汇总行的原表单价快照载体；缺列=工作簿变体，仅身份导入）。
+	cUP := colIndex(header, false, "综合单价")
 	cResCode := colIndex(header, false, "资源编码", "工料机编码")
 	cResTitle := colIndex(header, false, "资源名称", "工料机名称")
 	cUnitQ := colIndex(header, false, "消耗量单位", "消耗单位")
@@ -279,7 +281,8 @@ func parseUnitPriceSheet(f *excelize.File, sheet string, b *ProjectBundle) {
 			continue
 		}
 		if kind == "汇总" || kind == "" {
-			// 汇总行 = 清单项（综合单价的载体）。工程量在费用汇总里，此处只收身份。
+			// 汇总行 = 清单项（综合单价的载体）。工程量在费用汇总里，此处收身份
+			// +原表综合单价快照（SchemaV34：落库留痕，不参与现算）。
 			if itemCode == "" {
 				continue
 			}
@@ -293,12 +296,23 @@ func parseUnitPriceSheet(f *excelize.File, sheet string, b *ProjectBundle) {
 				continue
 			}
 			seenItems[itemCode] = true
-			b.Items = append(b.Items, ProjectItem{
+			it := ProjectItem{
 				Code:         itemCode,
 				Title:        itemTitle,
 				Unit:         strings.TrimSpace(cellAt(f, sheet, r, cItemUnit)),
 				CategoryPath: "综合单价/" + itemTitle,
-			})
+			}
+			if cUP > 0 {
+				cellUP, _ := excelize.CoordinatesToCellName(cUP, r)
+				it.ListPrice = cellValue(f, sheet, cellUP)
+				it.ListPriceExpr = formulaOf(f, sheet, cellUP)
+				// 公式无缓存值（未用 LibreOffice 重算）→ 显形，不静默当 0。
+				if it.ListPrice <= 0 && it.ListPriceExpr != "" {
+					b.Warnings = append(b.Warnings,
+						fmt.Sprintf("清单项 %s（%s）综合单价为公式且无缓存值：%s", it.Code, it.Title, it.ListPriceExpr))
+				}
+			}
+			b.Items = append(b.Items, it)
 			continue
 		}
 		// 明细行 = 工序消耗。
@@ -342,6 +356,8 @@ func parseSummarySheet(f *excelize.File, sheet string, b *ProjectBundle) {
 		cFeature := colIndex(header, false, "工序特征", "项目特征")
 		cUnit := colIndex(header, false, "单位")
 		cQty := colIndex(header, false, "工程量")
+		// 综合单价列（部分工作簿单价在费用汇总而非综合单价表——作快照的兜底来源）。
+		cUP := colIndex(header, false, "综合单价")
 
 		byCode := map[string]*ProjectItem{}
 		for i := range b.Items {
@@ -376,17 +392,29 @@ func parseSummarySheet(f *excelize.File, sheet string, b *ProjectBundle) {
 				}
 				it.Quantity = qty
 				it.QuantityExpr = qtyExpr
+				// 综合单价表没给价的，费用汇总列兜底（同口径快照）。
+				if cUP > 0 && it.ListPrice <= 0 {
+					cellUP, _ := excelize.CoordinatesToCellName(cUP, r)
+					it.ListPrice = cellValue(f, sheet, cellUP)
+					it.ListPriceExpr = formulaOf(f, sheet, cellUP)
+				}
 				it.CategoryPath = "综合单价/" + firstNonEmpty(div, it.Title)
 				continue
 			}
 			// 综合单价表没列到的清单项，按费用汇总补齐（但标记为待补消耗量）。
 			if code != "" {
-				b.Items = append(b.Items, ProjectItem{
+				it := ProjectItem{
 					Code: code, Title: title, Unit: strings.TrimSpace(cellAt(f, sheet, r, cUnit)),
 					Division: div, Feature: strings.TrimSpace(cellAt(f, sheet, r, cFeature)),
 					Quantity: qty, QuantityExpr: qtyExpr,
 					CategoryPath: "综合单价/" + firstNonEmpty(div, title),
-				})
+				}
+				if cUP > 0 {
+					cellUP, _ := excelize.CoordinatesToCellName(cUP, r)
+					it.ListPrice = cellValue(f, sheet, cellUP)
+					it.ListPriceExpr = formulaOf(f, sheet, cellUP)
+				}
+				b.Items = append(b.Items, it)
 				b.Warnings = append(b.Warnings, fmt.Sprintf(
 					"清单项 %s（%s）在综合单价表无汇总行——消耗量待补", code, title))
 			}

@@ -1,7 +1,7 @@
 // voice_v2_service.go — Voice V2（M4 产品接入刀）sidecar 依赖链监护。
 //
-// V2 实时语音链三依赖：breeze TTS(8012) → Qwen3-4B llama-server(8123) →
-// speech-to-speech sidecar(8791)。本文件只做「探测 + 拉起 + 状态上报」，
+// V2 实时语音链四依赖：breeze TTS(8012) / Qwen3-4B llama-server(8123) /
+// Gaea 记忆网关(8792) / speech-to-speech sidecar(8791)。本文件只做「探测 + 拉起 + 状态上报」，
 // 不改 V1 whisper 链任何路径（voice.backend=v2 才有消费方）。
 // 路径口径：spike 装机位（C:\AI\gaea-voice-v2、C:\AI\uocr2-llama、
 // scripts/voice_v2/start_spike.bat）；产品化分发拍板（M1 报告 §6）后收敛进配置。
@@ -9,9 +9,13 @@ package app
 
 import (
 	"fmt"
+	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
+
+	"github.com/gaea/gaea/internal/gaea/proc"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -26,11 +30,20 @@ const (
 	voiceV2LLMBin      = `C:\AI\uocr2-llama\bin\llama-server.exe`
 	voiceV2LLMModel    = `C:\AI\gaea-voice-v2\models\Qwen3-4B-Q4_K_M.gguf`
 	voiceV2VenvPython  = `C:\AI\gaea-voice-v2\venv\Scripts\python.exe`
+	// 桌面副本的 exe 位于 Desktop，工作目录也不保证是仓库；保留当前装机根
+	// 作为最后候选，确保双击启动仍能找到 sidecar 启动器。
+	voiceV2DefaultRepoRoot = `C:\AI\wubigrok`
+	voiceV2RepoRootEnv     = "GAEA_VOICE_V2_ROOT"
 )
 
 // 探测/命令 seam：测试注入点（internal/app 测试隔离铁律——绝不真拉起 GPU 服务）。
 var (
 	voiceV2Probe = func(port int) bool {
+		if port == voiceV2SidecarPort {
+			// speech-to-speech 的 HTTP "/" 可能保持连接不返回；只要 TCP 已监听，
+			// WebSocket 端点就具备连接条件。HTTP 探测会把已启动误判成未就绪。
+			return voiceV2TCPProbe(fmt.Sprintf("127.0.0.1:%d", port), 800*time.Millisecond)
+		}
 		client := &http.Client{Timeout: 1500 * time.Millisecond}
 		resp, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d/", port))
 		if err != nil {
@@ -43,8 +56,10 @@ var (
 		return cmd.Start()
 	}
 	voiceV2KillPort = func(port int) bool {
-		out, err := exec.Command("powershell", "-NoProfile", "-Command",
-			fmt.Sprintf("(Get-NetTCPConnection -LocalPort %d -State Listen | Select-Object -First 1).OwningProcess", port)).Output()
+		probe := exec.Command("powershell", "-NoProfile", "-Command",
+			fmt.Sprintf("(Get-NetTCPConnection -LocalPort %d -State Listen | Select-Object -First 1).OwningProcess", port))
+		proc.HideWindow(probe) // Windows: 防止弹出 cmd 黑框（启动收旧/关闭收割路径）
+		out, err := probe.Output()
 		if err != nil {
 			return false
 		}
@@ -52,14 +67,28 @@ var (
 		if pid == "" {
 			return false
 		}
-		return exec.Command("taskkill", "/PID", pid, "/F").Run() == nil
+		kill := exec.Command("taskkill", "/PID", pid, "/F")
+		proc.HideWindow(kill) // Windows: 防止弹出 cmd 黑框
+		return kill.Run() == nil
 	}
 )
+
+func voiceV2TCPProbe(addr string, timeout time.Duration) bool {
+	conn, err := net.DialTimeout("tcp", addr, timeout)
+	if err != nil {
+		return false
+	}
+	_ = conn.Close()
+	return true
+}
 
 var (
 	voiceV2EnsureMu   sync.Mutex
 	voiceV2Ensuring   bool
 	voiceV2LogDirOnce sync.Once
+	voiceV2StateMu    sync.Mutex
+	voiceV2LastError  string
+	voiceV2Stage      string
 )
 
 func voiceV2LogPath(name string) string {
@@ -70,15 +99,16 @@ func voiceV2LogPath(name string) string {
 
 // detachedCmd Windows 分离进程（父退出不连坐 + 无窗口）。
 func detachedCmd(executable string, args []string, dir string) (*exec.Cmd, error) {
-	if _, err := os.Stat(executable); err != nil {
+	resolved, err := exec.LookPath(executable)
+	if err != nil {
 		return nil, fmt.Errorf("可执行不存在 %s: %w", executable, err)
 	}
-	cmd := exec.Command(executable, args...)
+	cmd := exec.Command(resolved, args...)
 	if dir != "" {
 		cmd.Dir = dir
 	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: 0x00000008 | 0x08000000} // DETACHED_PROCESS | CREATE_NO_WINDOW
-	logf, err := os.OpenFile(voiceV2LogPath(filepath.Base(executable)+".log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	logf, err := os.OpenFile(voiceV2LogPath(filepath.Base(resolved)+".log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return nil, err
 	}
@@ -86,41 +116,123 @@ func detachedCmd(executable string, args []string, dir string) (*exec.Cmd, error
 	return cmd, nil
 }
 
-// repoRootFromExe 从可执行位置向上找 scripts/voice_v2/gaea-spike.yaml（真壳
-// 工作目录不可靠；dev 跑在仓库内时两三跳即中）。
-func repoRootFromExe() string {
-	if wd, err := os.Getwd(); err == nil {
-		if _, err := os.Stat(filepath.Join(wd, "scripts", "voice_v2", "gaea-spike.yaml")); err == nil {
-			return wd
+func setVoiceV2Error(message string) {
+	voiceV2StateMu.Lock()
+	voiceV2LastError = strings.TrimSpace(message)
+	voiceV2StateMu.Unlock()
+}
+
+func currentVoiceV2Error() string {
+	voiceV2StateMu.Lock()
+	defer voiceV2StateMu.Unlock()
+	return voiceV2LastError
+}
+
+func setVoiceV2Stage(stage string) {
+	voiceV2StateMu.Lock()
+	voiceV2Stage = strings.TrimSpace(stage)
+	voiceV2StateMu.Unlock()
+}
+
+func currentVoiceV2Stage() string {
+	voiceV2StateMu.Lock()
+	defer voiceV2StateMu.Unlock()
+	return voiceV2Stage
+}
+
+func isVoiceV2Ensuring() bool {
+	voiceV2EnsureMu.Lock()
+	defer voiceV2EnsureMu.Unlock()
+	return voiceV2Ensuring
+}
+
+func hasVoiceV2RepoFiles(root string) bool {
+	if strings.TrimSpace(root) == "" {
+		return false
+	}
+	for _, rel := range []string{
+		filepath.Join("scripts", "voice_v2", "gaea-spike.yaml"),
+		filepath.Join("scripts", "voice_v2", "gaea_sidecar_launcher.py"),
+	} {
+		if info, err := os.Stat(filepath.Join(root, rel)); err != nil || info.IsDir() {
+			return false
 		}
 	}
-	exe, err := os.Executable()
-	if err != nil {
-		return ""
-	}
-	for dir := filepath.Dir(exe); dir != filepath.VolumeName(dir); dir = filepath.Dir(dir) {
-		if _, err := os.Stat(filepath.Join(dir, "scripts", "voice_v2", "gaea-spike.yaml")); err == nil {
-			return dir
+	return true
+}
+
+// findRepoRootFromStarts 从工作目录和可执行文件目录向上查找仓库脚本。
+// Windows 卷根目录的 filepath.Dir 会返回自身；必须用 parent==dir 终止，
+// 不能拿 C:\ 与 VolumeName 返回的 C: 比较（旧实现会在根目录永久 Stat）。
+func findRepoRootFromStarts(starts []string, valid func(string) bool) string {
+	seen := make(map[string]bool)
+	for _, start := range starts {
+		dir := filepath.Clean(strings.TrimSpace(start))
+		if dir == "." || dir == "" {
+			continue
+		}
+		for {
+			key := strings.ToLower(dir)
+			if !seen[key] {
+				seen[key] = true
+				if valid(dir) {
+					return dir
+				}
+			}
+			parent := filepath.Dir(dir)
+			if parent == dir {
+				break
+			}
+			dir = parent
 		}
 	}
 	return ""
 }
 
-// VoiceV2Status 三依赖探测（幂等、只读）。
+// repoRootFromExe 优先使用显式配置，再检查工作目录/可执行文件祖先，最后回退
+// 到本机 spike 装机根。所有分支均保证在卷根目录终止。
+func repoRootFromExe() string {
+	var starts []string
+	if root := strings.TrimSpace(os.Getenv(voiceV2RepoRootEnv)); root != "" {
+		starts = append(starts, root)
+	}
+	if wd, err := os.Getwd(); err == nil {
+		starts = append(starts, wd)
+	}
+	if exe, err := os.Executable(); err == nil {
+		starts = append(starts, filepath.Dir(exe))
+	}
+	starts = append(starts, voiceV2DefaultRepoRoot)
+	return findRepoRootFromStarts(starts, hasVoiceV2RepoFiles)
+}
+
+// VoiceV2Status 四依赖探测（幂等、只读）。
 func (a *mediaState) VoiceV2Status() map[string]interface{} {
+	// 同一快照内每个端口只探一次：旧实现 ready 再探三项，既放大冷探测延迟，
+	// 也可能出现 sidecar=true/ready=false 的自相矛盾快照（进程刚好退出时）。
+	sidecar := voiceV2Probe(voiceV2SidecarPort)
+	llm := voiceV2Probe(voiceV2LLMPort)
+	breeze := voiceV2Probe(voiceV2BreezePort)
+	gateway := voiceV2Probe(voiceV2GatewayPort)
 	return map[string]interface{}{
-		"sidecar": voiceV2Probe(voiceV2SidecarPort),
-		"llm":     voiceV2Probe(voiceV2LLMPort),
-		"breeze":  voiceV2Probe(voiceV2BreezePort),
-		"ready":   voiceV2Probe(voiceV2SidecarPort) && voiceV2Probe(voiceV2LLMPort) && voiceV2Probe(voiceV2BreezePort),
+		"sidecar":  sidecar,
+		"llm":      llm,
+		"breeze":   breeze,
+		"gateway":  gateway,
+		"ready":    sidecar && llm && breeze && gateway,
+		"starting": isVoiceV2Ensuring(),
+		"stage":    currentVoiceV2Stage(),
+		"error":    currentVoiceV2Error(),
 	}
 }
 
-// VoiceV2Ensure 幂等拉起三依赖链（异步，voice-v2-status 事件上报进度；
+// VoiceV2Ensure 幂等拉起依赖链（异步，voice-v2-status 事件上报进度；
 // 拉起顺序 breeze→llm→sidecar，前置不就绪不拉后置）。
 func (a *mediaState) VoiceV2Ensure() map[string]interface{} {
 	st := a.VoiceV2Status()
 	if ready, _ := st["ready"].(bool); ready {
+		setVoiceV2Error("")
+		setVoiceV2Stage("")
 		return map[string]interface{}{"ready": true, "starting": false}
 	}
 
@@ -131,6 +243,8 @@ func (a *mediaState) VoiceV2Ensure() map[string]interface{} {
 	}
 	voiceV2Ensuring = true
 	voiceV2EnsureMu.Unlock()
+	setVoiceV2Error("")
+	setVoiceV2Stage("正在检测本地语音服务")
 
 	go func() {
 		defer func() {
@@ -138,18 +252,40 @@ func (a *mediaState) VoiceV2Ensure() map[string]interface{} {
 			voiceV2Ensuring = false
 			voiceV2EnsureMu.Unlock()
 		}()
-		emit := func(ready bool, errMsg string) {
+		emit := func(ready bool, stage, errMsg string) {
+			if stage != "" {
+				setVoiceV2Stage(stage)
+			}
+			setVoiceV2Error(errMsg)
 			ev := map[string]interface{}{"ready": ready}
+			if stage != "" {
+				ev["stage"] = stage
+			}
 			if errMsg != "" {
 				ev["error"] = errMsg
+				slog.Warn("Voice V2 依赖拉起失败", "error", errMsg)
+			} else if stage != "" {
+				slog.Info("Voice V2 依赖拉起进度", "stage", stage)
+			} else {
+				slog.Info("Voice V2 依赖链就绪")
 			}
 			a.emit("voice-v2-status", ev)
 		}
+		if !voiceV2Probe(voiceV2GatewayPort) {
+			emit(false, "检查记忆网关", "Gaea Voice V2 记忆网关未就绪（检查 8792 端口）")
+			return
+		}
 		// ① breeze：复用既有按需拉起线（自带 tts-service-status 事件）
+		emit(false, "正在准备 Breeze 声线服务", "")
 		if !voiceV2Probe(voiceV2BreezePort) {
 			a.ensureLocalTTSService("breeze")
 		}
+		if !voiceV2WaitPort(voiceV2BreezePort, 90*time.Second) {
+			emit(false, "准备 Breeze 声线服务", "Breeze TTS 90s 未就绪")
+			return
+		}
 		// ② 4B llama-server
+		emit(false, "正在准备快速模型", "")
 		if !voiceV2Probe(voiceV2LLMPort) {
 			cmd, err := detachedCmd(voiceV2LLMBin, []string{
 				"--host", "127.0.0.1", "--port", fmt.Sprintf("%d", voiceV2LLMPort),
@@ -160,40 +296,50 @@ func (a *mediaState) VoiceV2Ensure() map[string]interface{} {
 				err = voiceV2Spawn("llm", cmd)
 			}
 			if err != nil {
-				emit(false, fmt.Sprintf("4B 模型拉起失败: %v", err))
+				emit(false, "准备快速模型", fmt.Sprintf("4B 模型拉起失败: %v", err))
 				return
 			}
 		}
 		if !voiceV2WaitPort(voiceV2LLMPort, 90*time.Second) {
-			emit(false, "4B 模型 90s 未就绪")
+			emit(false, "准备快速模型", "4B 模型 90s 未就绪")
 			return
 		}
-		// ③ sidecar（start_spike.bat：venv python -m speech_to_speech.cli serve）
+		// ③ sidecar：直接执行 venv Python，绕开 cmd.exe 对批处理路径的解析，
+		// 启动失败能带着具体脚本路径上屏。
+		emit(false, "正在准备语音识别引擎", "")
 		if !voiceV2Probe(voiceV2SidecarPort) {
 			root := repoRootFromExe()
-			bat := filepath.Join(root, "scripts", "voice_v2", "start_spike.bat")
-			if _, err := os.Stat(bat); err != nil {
-				emit(false, fmt.Sprintf("sidecar 脚本缺失（%s）——先按 M1 报告装机", bat))
+			if root == "" {
+				emit(false, "准备语音识别引擎", fmt.Sprintf(
+					"sidecar 脚本缺失——设置 %s 指向 gaea 仓库（当前尝试含 %s）",
+					voiceV2RepoRootEnv, voiceV2DefaultRepoRoot,
+				))
 				return
 			}
+			launcher := filepath.Join(root, "scripts", "voice_v2", "gaea_sidecar_launcher.py")
+			config := filepath.Join(root, "scripts", "voice_v2", "gaea-spike.yaml")
 			if _, err := os.Stat(voiceV2VenvPython); err != nil {
-				emit(false, fmt.Sprintf("sidecar venv 缺失（%s）——先按 M1 报告装机", voiceV2VenvPython))
+				emit(false, "准备语音识别引擎", fmt.Sprintf(
+					"sidecar venv 缺失（%s）——先按 M1 报告装机", voiceV2VenvPython,
+				))
 				return
 			}
-			cmd, err := detachedCmd("cmd", []string{"/C", bat}, root)
+			cmd, err := detachedCmd(voiceV2VenvPython, []string{
+				launcher, "serve", "-f", config,
+			}, root)
 			if err == nil {
 				err = voiceV2Spawn("sidecar", cmd)
 			}
 			if err != nil {
-				emit(false, fmt.Sprintf("sidecar 拉起失败: %v", err))
+				emit(false, "准备语音识别引擎", fmt.Sprintf("sidecar 拉起失败: %v", err))
 				return
 			}
 		}
-		if !voiceV2WaitPort(voiceV2SidecarPort, 90*time.Second) {
-			emit(false, "sidecar 90s 未就绪")
+		if !voiceV2WaitPort(voiceV2SidecarPort, 180*time.Second) {
+			emit(false, "准备语音识别引擎", "sidecar 180s 未就绪")
 			return
 		}
-		emit(true, "")
+		emit(true, "", "")
 	}()
 
 	return map[string]interface{}{"ready": false, "starting": true}

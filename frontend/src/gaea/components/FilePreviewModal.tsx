@@ -52,6 +52,8 @@ export function FilePreviewModal() {
   const ocrProgress = usePreviewProgress(previewFile);
   const [loadKey, setLoadKey] = useState(0);
   const panelRef = useRef<HTMLDivElement>(null);
+  // 换文件滚动回顶：内容区滚动容器（与 FilePreview 主区同语义）
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   // v4.31 B：弹窗 pdf（.pptx → soffice PDF）逐页预览的页图容器——
   // 大纲卡条目按 data-pptx-page 锚点滚动（与 FilePreview v4.28 B2 同机制）。
   const pptxPagesRef = useRef<HTMLDivElement | null>(null);
@@ -77,6 +79,9 @@ export function FilePreviewModal() {
     let live = true;
     setLoading(true);
     setPreview(null);
+    // 换文件（含「上一份/下一份」导航与重新加载）强制滚动回顶；原地内容
+    // 不经此 effect，行为不变。
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
     app.Preview(previewFile)
       .then((r) => { if (live) setPreview(r); })
       .catch(() => { if (live) setPreview({ path: previewFile, name: previewFile.split("/").pop() ?? previewFile, ext: "", size: 0, kind: "error", body: "", dataUrl: "", error: "读取文件失败" }); })
@@ -224,7 +229,7 @@ export function FilePreviewModal() {
         </div>
 
         {/* 内容 */}
-        <div className="flex-1 min-h-0 overflow-auto bg-bg">
+        <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto bg-bg">
           {loading && (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-fg-faint text-[13px]">
               {ocrProgress ? (

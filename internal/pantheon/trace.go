@@ -67,9 +67,31 @@ func verdictFingerprint(verdict *Verdict) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// signoffFingerprint binds a sign-off to the exact verdict version AND the
+// seat gaps it was signed over: identical verdicts with different missing
+// seats must not collide, or a forwarded deliverable would claim a fuller
+// round than actually happened.
+func signoffFingerprint(verdict *Verdict, gaps []string) string {
+	base := verdictFingerprint(verdict)
+	// 无缺口时保持原有指纹口径，老交付物的签注仍然可比。
+	if len(gaps) == 0 {
+		return base
+	}
+	payload := struct {
+		Verdict string   `json:"verdict"`
+		Gaps    []string `json:"gaps"`
+	}{Verdict: base, Gaps: gaps}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
+}
+
 // parentStanceHistoryLimit bounds how many previous-round statements a
-// continuation carries into its brief (newest first), keeping the 24000
-// prompt budget comfortable for the new brief itself.
+// continuation carries into its brief (newest first), keeping the prompt
+// budget comfortable for the new brief itself.
 const parentStanceHistoryLimit = 8
 
 // parentStanceCardRunes is the mechanical excerpt length for one inherited

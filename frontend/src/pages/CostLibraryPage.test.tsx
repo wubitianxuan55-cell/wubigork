@@ -144,12 +144,26 @@ describe('CostLibraryPage 造价数据库全新设计（v4.459 工料法 IA）',
     expect(seg.textContent).toContain('资料条目')
     expect(await screen.findByText('价格源面板桩', {}, LOAD)).toBeTruthy()
 
-    fireEvent.click(within(seg).getByRole('button', { name: '资料条目' }))
+    fireEvent.click(within(seg).getByRole('tab', { name: '资料条目' }))
     expect(screen.getByText('资料条目视图桩')).toBeTruthy()
-    fireEvent.click(within(seg).getByRole('button', { name: '询价库' }))
+    fireEvent.click(within(seg).getByRole('tab', { name: '询价库' }))
     expect(screen.getByText('询价库面板桩')).toBeTruthy()
-    fireEvent.click(within(seg).getByRole('button', { name: '价格仓库' }))
+    fireEvent.click(within(seg).getByRole('tab', { name: '价格仓库' }))
     expect(screen.getByText('价格仓库面板桩')).toBeTruthy()
+  })
+
+  it('价格数据标签支持方向键切换并同步选中态', async () => {
+    await renderPage()
+    fireEvent.click(screen.getByTitle('价格源 · 价格仓库 · 询价库 · 资料条目'))
+    const tablist = screen.getByRole('tablist', { name: '价格数据子视图' })
+    const sources = within(tablist).getByRole('tab', { name: '价格源' })
+    expect(sources.getAttribute('aria-selected')).toBe('true')
+    sources.focus()
+    fireEvent.keyDown(sources, { key: 'ArrowRight' })
+    const repository = within(tablist).getByRole('tab', { name: '价格仓库' })
+    expect(repository.getAttribute('aria-selected')).toBe('true')
+    expect(document.activeElement).toBe(repository)
+    expect(await screen.findByText('价格仓库面板桩', {}, LOAD)).toBeTruthy()
   })
 
   it('概览=工料法仪表盘：三层规模、四类构成与资料库速览', async () => {

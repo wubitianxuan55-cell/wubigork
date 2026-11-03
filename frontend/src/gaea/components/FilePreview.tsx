@@ -93,6 +93,8 @@ export function FilePreview({
   const [mdView, setMdView] = useState<MdViewMode>(readMdViewPref);
   // v4.28 B2 pptx 逐页预览：页图容器（大纲卡点页条目按 data-pptx-page 锚点滚动）
   const pptxPagesRef = useRef<HTMLDivElement | null>(null);
+  // 换文件滚动回顶：外层滚动容器（markdown/text/image/html/error 共用）
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   // v4.156 pptx 真编辑刀2：编辑面板打开时的初始页码（大纲卡「编辑此页」/
   // 文本框条目回调）；null = 面板关闭。宿主形态与 DocxQueuePanel 同款右栏侧栏。
   const [pptxEditSlide, setPptxEditSlide] = useState<number | null>(null);
@@ -118,6 +120,10 @@ export function FilePreview({
     setDirty(false);
     setSaveState("idle");
     setPptxEditSlide(null); // 换文件时收起 pptx 编辑面板（面板归属旧文件）
+    // 换文件强制滚动回顶（主区/嵌入 tab/上一份下一份导航同一语义）：显式归零
+    // 替代此前「loading 收窄内容靠浏览器 clamp 隐式归零」的脆弱行为。原地内容
+    // 刷新（下方 reloadSignal effect）不走这里，滚动位保持 —— U4 语义不变。
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
     app.Preview(relPath)
       .then((r) => { if (live) setPreview(r); })
       .catch(() => { if (live) setPreview({ path: relPath, name: relPath.split("/").pop() ?? relPath, ext: "", size: 0, kind: "error", body: "", dataUrl: "", error: "读取文件失败" }); })
@@ -367,7 +373,7 @@ export function FilePreview({
       )}
 
       {/* 预览内容 / 编辑区 */}
-      <div className="flex-1 overflow-auto">
+      <div ref={scrollRef} className="flex-1 overflow-auto">
         {editing ? (
           <>
             {confirmDiscard && (

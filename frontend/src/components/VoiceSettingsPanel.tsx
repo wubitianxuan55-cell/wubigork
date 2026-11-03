@@ -106,9 +106,13 @@ export default function VoiceSettingsPanel() {
 
   // ── 语音对话引擎（M4 产品接入刀）：v1 whisper 链 / v2 实时 sidecar ──
   const [voiceBackend, setVoiceBackend] = useState<'v1' | 'v2'>('v1')
-  const [v2Status, setV2Status] = useState<{ sidecar: boolean; llm: boolean; breeze: boolean; ready: boolean } | null>(null)
+  const [v2Status, setV2Status] = useState<{
+    sidecar: boolean; llm: boolean; breeze: boolean; gateway: boolean; ready: boolean
+    error: string; stage: string
+  } | null>(null)
   const [v2Ensuring, setV2Ensuring] = useState(false)
   const [v2Switching, setV2Switching] = useState(false)
+  const v2ErrorRef = useRef('')
 
   const breezeModelId = routeGlobal.engine === 'breeze' && routeGlobal.model ? routeGlobal.model : 'breeze-tts-2'
 
@@ -116,21 +120,54 @@ export default function VoiceSettingsPanel() {
     routeChat.engine === 'breeze' ? 'breeze' : routeChat.engine ? 'custom' : 'global'
 
   // V2 依赖链状态刷新 + 拉起（VoiceV2Ensure 幂等；事件 voice-v2-status 亦有上报）
-  const refreshV2Status = async () => {
+  const refreshV2Status = async (): Promise<boolean> => {
     try {
-      const st = (await app.VoiceV2Status()) as { sidecar?: boolean; llm?: boolean; breeze?: boolean; ready?: boolean }
-      setV2Status({ sidecar: !!st.sidecar, llm: !!st.llm, breeze: !!st.breeze, ready: !!st.ready })
-    } catch (_) { setV2Status(null) }
+      const st = (await app.VoiceV2Status()) as {
+        sidecar?: boolean; llm?: boolean; breeze?: boolean; gateway?: boolean; ready?: boolean
+        error?: string; stage?: string
+      }
+      v2ErrorRef.current = typeof st.error === 'string' ? st.error.trim() : ''
+      setV2Status({
+        sidecar: !!st.sidecar, llm: !!st.llm, breeze: !!st.breeze,
+        gateway: !!st.gateway, ready: !!st.ready,
+        error: v2ErrorRef.current,
+        stage: typeof st.stage === 'string' ? st.stage.trim() : '',
+      })
+      return !!st.ready
+    } catch (_) {
+      setV2Status(null)
+      return false
+    }
   }
   const ensureV2 = async () => {
     if (v2Ensuring) return
     setV2Ensuring(true)
+    v2ErrorRef.current = ''
     try {
-      await app.VoiceV2Ensure()
-      for (let i = 0; i < 10; i++) {
-        await new Promise((r) => setTimeout(r, 3000))
+      const initial = (await app.VoiceV2Ensure()) as Record<string, unknown>
+      const initialError = typeof initial.error === 'string' ? initial.error.trim() : ''
+      if (initialError) {
+        v2ErrorRef.current = initialError
+        message.error(`拉起失败：${initialError}`)
+        return
+      }
+      if (initial.ready === true) {
         await refreshV2Status()
-        if (v2Status?.ready) break
+        return
+      }
+      let ready = false
+      for (let i = 0; i < 60; i++) {
+        await new Promise((r) => setTimeout(r, 3000))
+        if (await refreshV2Status()) {
+          ready = true
+          break
+        }
+        if (v2ErrorRef.current) break
+      }
+      if (!ready) {
+        message.error(v2ErrorRef.current
+          ? `拉起失败：${v2ErrorRef.current}`
+          : '依赖链未在 180s 内就绪，请检查语音引擎日志')
       }
     } catch (err) {
       message.error(`拉起失败：${err instanceof Error ? err.message : String(err)}`)
@@ -144,7 +181,8 @@ export default function VoiceSettingsPanel() {
     try {
       await app.VoiceApplySettings({ voiceBackend: mode })
       setVoiceBackend(mode)
-      message.success(mode === 'v2' ? '已切 V2 实时档（下次打开语音台生效）' : '已切回 V1（whisper 链）')
+      await refreshV2Status()
+      message.success(mode === 'v2' ? '已切 V2 实时档（依赖会按新网关配置重建）' : '已切回 V1（whisper 链）')
     } catch (err) {
       message.error(`切换失败：${err instanceof Error ? err.message : String(err)}`)
     } finally {
@@ -519,11 +557,16 @@ export default function VoiceSettingsPanel() {
         {voiceBackend === 'v2' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>
-              breeze {v2Status?.breeze ? '✓' : '✗'} · 4B {v2Status?.llm ? '✓' : '✗'} · sidecar {v2Status?.sidecar ? '✓' : '✗'}
+              breeze {v2Status?.breeze ? '✓' : '✗'} · 4B {v2Status?.llm ? '✓' : '✗'} · 网关 {v2Status?.gateway ? '✓' : '✗'} · sidecar {v2Status?.sidecar ? '✓' : '✗'}
             </span>
             <Button size="small" loading={v2Ensuring} onClick={() => { void ensureV2() }} data-testid="voice-v2-ensure">
               拉起依赖链
             </Button>
+            {!v2Status?.ready && (v2Status?.error || v2Status?.stage) && (
+              <div style={{ flexBasis: '100%', fontSize: 10, color: v2Status.error ? 'var(--color-destructive)' : 'var(--color-text-secondary)' }}>
+                {v2Status.error || v2Status.stage}
+              </div>
+            )}
           </div>
         )}
       </Card>

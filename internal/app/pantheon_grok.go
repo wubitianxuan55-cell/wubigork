@@ -40,6 +40,8 @@ func (s *pantheonGrokSeat) ProbeGrok(_ context.Context) pantheon.AgentStatus {
 			"read-only-tools",
 			"tool-trajectory",
 			"streaming",
+			"shared-image-summary",
+			"image-path-tools",
 		},
 	}
 	a := s.app

@@ -98,12 +98,16 @@ export function SheetGrid({
     return undefined;
   }, []);
 
-  // 切换 sheet 重置滚动位置（不同表总高不同，防残留偏移）
+  // 切换 sheet 重置滚动位置（不同表总高不同，防残留偏移）。依赖用 sheet.name
+  // 而非 sheet 对象：XlsxPreview 每次渲染都重取 preview.sheets[active]，静默
+  // 重读/单元格直编/重算都会让它变成新对象身份，按对象比较会把查看大表中途
+  // 的用户拽回顶部；原地内容刷新保滚动位（与 docx keepScroll 同语义），仅真换表归零。
+  const sheetName = sheet.name;
   useEffect(() => {
     setScrollTop(0);
     const el = containerRef.current;
     if (el) el.scrollTop = 0;
-  }, [sheet]);
+  }, [sheetName]);
 
   const virtualize = maxRow > VIRTUALIZE_MIN_ROWS;
   const frozen = Math.min(freezeRow, maxRow);

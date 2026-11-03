@@ -87,6 +87,8 @@
 | gaea-reasonix-2x-distill-2026-10.md | ✅ **Reasonix 2.x 蒸馏重开（2026-10-24）**：A 档八刀+B 档五刀全清随 v4.524.0 发版（readiness 死闸根修/read_subagent_result/出发快照/steer 收据收口） |
 | gaea-zcode-distill-2026-10.md | ✅ **ZCode 蒸馏规划档（Z0~Z18 刀池+十二节跨源合流分析）**：v1 收官随 v4.525.0（运行时 8+产出 5+交汇 2，dfd8e169→faebe184） |
 | gaea-attention-transaction-2026-11.md | 🔄 **注意力事务（2026-11-02，众神殿 super agent 讨论产物）**：第一刀=请求/结果成对事件（`approval_resolved`/`ask_resolved`）+ `source` 判别字段贯通实时层/日志/轨迹，前端零改动；阶段 0 基线统计器 `scripts/attention_report`（只读）；开放项=case_id/step_id 事项维、V5 事件账本对齐、旧日志不可补 |
+| gaea-orca-pantheon-distill-2026-11.md | 🔄 **Orca 1.4.214 × 众神殿机制蒸馏（2026-11-02）**：判定 Orca 是 Agent 工作台而非议事系统；提炼 Attempt 身份、状态证据、完成权威、单写者租约、工作树边界与外置委派纪律；**P0 O-A/O-B/O-C 已落地**（AttemptRef 贯通、旧 Attempt 封口、禁隐性派生、原生/路径/共享摘要三路图片能力门），O-D 起按门控后置；明确不照搬完整自治与“worktree 即沙箱” |
+| gaea-orca-pantheon-distill-round2-2026-11.md | 🔄 **Orca 第二轮蒸馏：投递/观测空间/结案纪律（2026-11-02）**：修正第一轮三处口径（新鲜度分判定 60s 与展示 30min 两层、序号只在同一 authority 内可比、租约防进程复用而 dispatchId 防迟到）；新增 M9–M17（投递状态机、快照不续命、未知态五档、终态图+唯一例外、兄弟在跑不结案、门重阻塞、三句式陈词、释放与归档分离、重试重声明）；刀池重排 O-D/O-E/O-H/O-I，带 Go 形状与逐条验收 |
 | zcode-office-distill-2026-10.md | ✅ ZCode office 域对源蒸馏分析（A1 锚点语法层/F2 doc_render 等交汇刀的对源证据层） |
 | zcode-office-distill-analysis-2026-10.md | ✅ ZCode office 蒸馏子分析报告（机检十二规则/Q1 对源） |
 | zcode-office-decision-memo-2026-10.md | ✅ ZCode office 蒸馏决策备忘（双执行体轮次署名权/取舍记录） |

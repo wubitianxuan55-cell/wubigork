@@ -39,6 +39,8 @@ import './pantheon.css'
 
 const STATUS_LABEL: Record<string, string> = {
   running: '进行中',
+  waiting_input: '等待回答',
+  interrupted: '已中断',
   completed: '已小结',
   failed: '失败',
   cancelled: '已终止',
@@ -167,8 +169,8 @@ const SessionRailItem: React.FC<{
       className="pantheon-session-delete"
       data-testid={`pantheon-session-delete-${item.id}`}
       aria-label={`删除议题：${item.title}`}
-      title={item.status === 'running' ? '请先终止正在进行的议题' : '删除议题'}
-      disabled={item.status === 'running'}
+      title={(item.status === 'running' || item.status === 'waiting_input') ? '请先终止正在进行的议题' : '删除议题'}
+      disabled={item.status === 'running' || item.status === 'waiting_input'}
       onClick={onDelete}
     >
       <DeleteOutlined />
@@ -379,12 +381,17 @@ const PantheonPage: React.FC = () => {
   const runningID = active?.status === 'running' ? active.id : ''
   const activeStatus = active?.status
   const requestSeq = useRef(0)
+  // 已封口的 Attempt：跳过/失败/重试调用没有 agent_output 收尾，其残留
+  // delta 不得在下一 Attempt 开始后复活。旧事件无 attemptId 时退回轮次键。
+  const closedStreamsRef = useRef<Set<string>>(new Set())
   const [messageApi, contextHolder] = message.useMessage()
   const filteredSessions = useMemo(() => {
     const query = sessionQuery.trim().toLocaleLowerCase('zh-CN')
     return sessions.filter((item) => {
-      if (sessionFilter === 'running' && item.status !== 'running') return false
-      if (sessionFilter === 'finished' && item.status === 'running') return false
+      // 等待回答的议题还活着：既不算"进行中"也不该被归进已结束。
+      const live = item.status === 'running' || item.status === 'waiting_input'
+      if (sessionFilter === 'running' && !live) return false
+      if (sessionFilter === 'finished' && live) return false
       if (!query) return true
       return [
         item.title,
@@ -396,8 +403,8 @@ const PantheonPage: React.FC = () => {
   }, [sessionFilter, sessionQuery, sessions])
   const sessionFilterCounts = useMemo(() => ({
     all: sessions.length,
-    running: sessions.filter((item) => item.status === 'running').length,
-    finished: sessions.filter((item) => item.status !== 'running').length,
+    running: sessions.filter((item) => item.status === 'running' || item.status === 'waiting_input').length,
+    finished: sessions.filter((item) => item.status !== 'running' && item.status !== 'waiting_input').length,
   }), [sessions])
 
   useEffect(() => {
@@ -444,27 +451,58 @@ const PantheonPage: React.FC = () => {
 
   const applyLiveEvent = useCallback((event: PantheonEvent) => {
     if (!event.agentId || !event.sessionId) return
-    if (event.kind === 'agent_skipped' || event.kind === 'agent_retry') {
-      setLiveStreams((current) => current.filter((item) => item.agentId !== event.agentId))
+    const roundKey = `${event.sessionId}:${event.agentId}:${event.round || 0}`
+    const attemptKey = event.attemptId ? `attempt:${event.attemptId}` : `round:${roundKey}`
+    const sameLegacyStream = (item: PantheonLiveStream) =>
+      item.agentId === event.agentId && (item.round || 0) === (event.round || 0)
+    const sameAttemptStream = (item: PantheonLiveStream) =>
+      event.attemptId
+        ? item.attemptId === event.attemptId
+        : sameLegacyStream(item)
+    const closeAttempt = (key: string) => {
+      closedStreamsRef.current.delete(key)
+      closedStreamsRef.current.add(key)
+      if (closedStreamsRef.current.size > 256) {
+        const oldest = closedStreamsRef.current.values().next().value
+        if (oldest !== undefined) closedStreamsRef.current.delete(oldest)
+      }
+    }
+    if (event.kind === 'agent_skipped' || event.kind === 'agent_error') {
+      // 跳过/失败的调用没有 agent_output 收尾。登记封口并清掉该席该轮直播：
+      // 进程被杀后管道里的残留 delta 若放行，会按新流复活成永不收尾的幽灵
+      // 直播——讨论流里出现两个"正在发言"（2026-10-31 实弹根修）。
+      closeAttempt(attemptKey)
+      setLiveStreams((current) => current.filter((item) => !sameAttemptStream(item)))
+      return
+    }
+    if (event.kind === 'agent_retry') {
+      // 重试产生新的 Attempt；旧 Attempt 永久封口，新 Attempt 用新 ID 重开。
+      closeAttempt(attemptKey)
+      setLiveStreams((current) => current.filter((item) => !sameAttemptStream(item)))
+      return
+    }
+    if (event.kind === 'agent_started') {
+      closedStreamsRef.current.delete(attemptKey)
       return
     }
     if (event.kind !== 'agent_delta' && event.kind !== 'agent_output') return
-    const id = `${event.sessionId}:${event.agentId}:${event.phase}:${event.round || 0}`
+    if (closedStreamsRef.current.has(attemptKey)) return
+    const id = `${event.sessionId}:${event.agentId}:${event.phase}:${event.round || 0}:${event.attemptId || 'legacy'}`
     setLiveStreams((current) => {
       // 定稿落位即清掉该席该轮的一切直播残影（含 phase 字符串漂移的旧条目），
       // 防止同一发言以直播+定稿两份并存（2026-10-31 实弹重复输出护栏）。
       const base = event.kind === 'agent_output'
-        ? current.filter((item) => !(
-          item.agentId === event.agentId
-          && (item.round || 0) === (event.round || 0)
-          && item.id !== id
-        ))
+        ? current.filter((item) => !sameAttemptStream(item) || item.id === id)
         : current
       const index = base.findIndex((item) => item.id === id)
       const existing = index >= 0 ? base[index] : undefined
       if (event.kind === 'agent_delta' && existing && !existing.streaming) return current
       const next: PantheonLiveStream = {
         id,
+        callId: event.callId,
+        attemptId: event.attemptId,
+        retryOfAttempt: event.retryOfAttempt,
+        attempt: event.attempt,
         agentId: event.agentId || '',
         phase: event.phase,
         round: event.round || 0,
@@ -757,6 +795,46 @@ const PantheonPage: React.FC = () => {
       setBusy(false)
     }
   }, [active, loadSessions, messageApi])
+
+  // O-E：回答只解除阻塞，不替用户续跑——续跑仍是上面那个显式动作。
+  const answerSeat = useCallback(
+    async (questionId: string, body: string) => {
+      if (!active) return
+      setBusy(true)
+      setError('')
+      try {
+        const session = await pantheonApi.PantheonAnswerSeat(active.id, questionId, body)
+        setActive(session)
+        await loadSessions()
+        messageApi.success('已把回答投递给提问的那一席；继续讨论由你决定')
+      } catch (err) {
+        setError(`回答失败：${errorText(err)}`)
+      } finally {
+        setBusy(false)
+      }
+    },
+    [active, loadSessions, messageApi],
+  )
+
+  const resolveCouncilGate = useCallback(
+    async (action: 'resolve' | 'dismiss', reason: string) => {
+      if (!active) return
+      setBusy(true)
+      setError('')
+      try {
+        const session = await pantheonApi.PantheonResolveGate(active.id, action, reason)
+        setActive(session)
+        setLiveStreams([])
+        await loadSessions()
+        messageApi.success(action === 'resolve' ? '已放行，讨论继续' : '已放弃后续轮次，转入收尾')
+      } catch (err) {
+        setError(`处理决策门失败：${errorText(err)}`)
+      } finally {
+        setBusy(false)
+      }
+    },
+    [active, loadSessions, messageApi],
+  )
 
   const signOffCouncil = useCallback((decision: 'accepted' | 'needs_revision' | 'rejected') => {
     if (!active) return
@@ -1057,6 +1135,8 @@ const PantheonPage: React.FC = () => {
             onOpenResult={() => void openResult()}
             onSignOff={signOffCouncil}
             onContinue={() => continueCouncil(active)}
+            onAnswer={(questionId, body) => void answerSeat(questionId, body)}
+            onResolveGate={(action, reason) => void resolveCouncilGate(action, reason)}
           />
         ) : showComposer ? (
           <div className="pantheon-flow-stage pantheon-compose-stage">

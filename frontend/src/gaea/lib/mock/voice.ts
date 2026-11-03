@@ -28,7 +28,7 @@ type VoiceMethods = Pick<
   | "TTSVoiceParams"
   // Voice V2 档（M4 产品接入刀）：sidecar 依赖链监护（语音设置实验档卡片/
   // 语音台 v2 前置检查消费）。
-  | "VoiceV2Status" | "VoiceV2Ensure" | "VoiceV2Stop"
+  | "VoiceV2Status" | "VoiceV2Ensure" | "VoiceV2Stop" | "VoiceV2CommitTurn"
 >;
 
 export function buildVoice(): VoiceMethods {
@@ -112,7 +112,7 @@ export function buildVoice(): VoiceMethods {
     // ── Voice V2 档（M4 产品接入刀）──────────────────────────────
     async VoiceV2Status() {
       // 浏览器开发无 sidecar 链：诚实全 false，实验档卡片显示未就绪。
-      return { sidecar: false, llm: false, breeze: false, ready: false };
+      return { sidecar: false, llm: false, breeze: false, gateway: false, ready: false };
     },
     async VoiceV2Ensure() {
       // mock 无进程可拉：直接回未就绪（带 error 说明），不谎报 starting。
@@ -120,6 +120,15 @@ export function buildVoice(): VoiceMethods {
     },
     async VoiceV2Stop() {
       return { sidecar: false, llm: false };
+    },
+    async VoiceV2CommitTurn(
+      _topicID: string,
+      _userText: string,
+      _assistantText: string,
+      _responseID: string,
+      _itemID: string,
+    ) {
+      return { committed: true, duplicate: false, memoryScheduled: false };
     },
   };
 }

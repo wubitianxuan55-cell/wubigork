@@ -4,6 +4,10 @@ import {pantheon} from '../models';
 
 export function PantheonAgents():Promise<Array<pantheon.AgentStatus>>;
 
+export function PantheonAnswerSeat(arg1:string,arg2:string,arg3:string):Promise<pantheon.Session>;
+
+export function PantheonAskSeat(arg1:string,arg2:string,arg3:string,arg4:Array<string>):Promise<pantheon.Session>;
+
 export function PantheonCancel(arg1:string):Promise<void>;
 
 export function PantheonDelete(arg1:string):Promise<void>;
@@ -14,9 +18,13 @@ export function PantheonGet(arg1:string):Promise<pantheon.Session>;
 
 export function PantheonList():Promise<Array<pantheon.SessionSummary>>;
 
+export function PantheonOpenGate(arg1:string,arg2:string):Promise<pantheon.Session>;
+
 export function PantheonOpenResult(arg1:string):Promise<string>;
 
 export function PantheonPickWorkspace():Promise<string>;
+
+export function PantheonResolveGate(arg1:string,arg2:string,arg3:string):Promise<pantheon.Session>;
 
 export function PantheonRestart(arg1:string):Promise<pantheon.Session>;
 

@@ -26,10 +26,11 @@ blocks:
     settings:
       # M4：语音专属快模型路由（独立进程=路由隔离，方案 §12 voice_chat_engine/
       # voice_chat_model 的 spike 等价物）。Qwen3-4B Q4_K_M @8123（--reasoning off）。
+      # 经 Gaea 本机网关 @8792：注入当前人格长期记忆后透明流式转发到 4B。
       # 35B 慢速对照：base_url http://127.0.0.1:8080/v1 + model_name
       # Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_P-MTP-r2
       model_name: qwen3-4b
-      responses_api_base_url: http://127.0.0.1:8123/v1
+      responses_api_base_url: http://127.0.0.1:8792/v1
       responses_api_api_key: local-spike
       init_chat_prompt: >-
         你是 gaea 的语音对话助手。请用口语化中文回答，每轮尽量控制在两句话以内，

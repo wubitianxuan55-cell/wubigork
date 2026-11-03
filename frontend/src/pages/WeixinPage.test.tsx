@@ -1,4 +1,4 @@
-// WeixinPage.test.tsx — 青鸟（微信助手）「通讯枢纽」工作台测试。
+// WeixinPage.test.tsx — 微信助手「通讯枢纽」工作台测试。
 // 桥接经 vi.mock('../gaea/lib/bridge') 注入确定性数据（app.* 方法逐个 mock），
 // 覆盖：①多助手通道轨道渲染（状态字/状态点/头像回退/详情人格 Tag）②启停翻转
 // 调用 Save 且 enabled 正确（携带完整对象）③gaea 核心助手禁删禁停（亦无编辑）
@@ -6,7 +6,7 @@
 // 扫码流确认后 Save ⑥离线提醒视图（列表渲染 + 全局开关 + 删除）⑦使用指南
 // ⑧会话过期警示 ⑨人格选择器分组/详情/立绘 ⑩编辑助手（预填 + 改名换人格 →
 // Save 合并 viewOf 携带新名字/人格与原 token）⑪-⑭ 深链聚焦（v4.51：角色库
-// 「创建青鸟助手」→ 跳青鸟自动选中 + 未绑定直进扫码 + 降级分支）。
+// 「创建微信助手」→ 跳微信助手自动选中 + 未绑定直进扫码 + 降级分支）。
 
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -25,7 +25,6 @@ const mocks = vi.hoisted(() => ({
   WeixinReminderAdd: vi.fn(),
   WeixinReminderDelete: vi.fn(),
   WeixinReminderSetConfig: vi.fn(),
-  WhisperGetPersonalities: vi.fn(),
   CharacterList: vi.fn(),
 }))
 vi.mock('../gaea/lib/bridge', () => ({ app: mocks }))
@@ -88,30 +87,48 @@ beforeEach(() => {
   mocks.WeixinReminderAdd.mockResolvedValue({ id: 'r1', fireAt: '', status: 'pending' })
   mocks.WeixinReminderDelete.mockResolvedValue(undefined)
   mocks.WeixinReminderSetConfig.mockResolvedValue(undefined)
-  mocks.WhisperGetPersonalities.mockResolvedValue([
-    { id: 'gaea', label: '盖亚', gender: 'female', tags: ['秘书', '工作'], voiceGuide: '专业严谨的办公秘书口吻' },
-    { id: 'muse', label: '缪斯', gender: 'female', tags: ['创作'], voiceGuide: '灵感充沛的写作伙伴' },
-    { id: 'fixer', label: '修哥', gender: 'male', tags: ['执行'], voiceGuide: '干脆利落' },
-  ])
   mocks.CharacterList.mockResolvedValue({
     items: [
       {
+        id: 'gaea', name: '盖亚', kind: 'builtin', gender: 'female', age: '28',
+        tags: ['秘书', '工作'], portraitUrl: 'http://example.com/gaea.png',
+        roleType: 'supporting', personality: '沉稳可靠，温和坦诚，结论先行',
+        background: '轻语内置工作人格，专注桌面协作与任务执行。',
+        voiceGuide: '专业严谨的办公秘书口吻', chatEnabled: true,
+      },
+      {
+        id: 'muse', name: '缪斯', kind: 'builtin', gender: 'female',
+        tags: ['创作'], portraitUrl: 'http://example.com/muse.png',
+        personality: '灵感充沛的写作伙伴，善比喻',
+        background: '轻语内置创作人格，擅长把模糊想法变成清晰文本。',
+        voiceGuide: '灵感充沛，善用比喻', chatEnabled: true,
+      },
+      {
+        id: 'fixer', name: '修哥', kind: 'builtin', gender: 'male',
+        tags: ['执行'], portraitUrl: 'http://example.com/fixer.png',
+        personality: '干脆利落，直给结论',
+        background: '轻语内置执行人格，偏好短链路解决问题。',
+        voiceGuide: '干脆利落的执行者', chatEnabled: true,
+      },
+      {
         id: 'c_lin', name: '林晚', kind: 'custom', gender: 'female', tags: ['女主角', '清冷'],
-        portraitUrl: 'http://example.com/lin.png', personality: '清冷聪慧，外冷内热',
+        portraitUrl: 'http://example.com/lin.png',
+        galleryImages: ['http://example.com/lin-2.png'],
+        personality: '清冷聪慧，外冷内热',
         background: '前朝遗孤，隐姓埋名于市井', chatEnabled: true,
       },
     ],
-    total: 1,
+    total: 4,
   })
 })
 
-describe('青鸟工作台 · 通道轨道与详情', () => {
+describe('微信助手工作台 · 通道轨道与详情', () => {
   it('⓪ 两路数据全失败：显示载入失败提示而非「暂无助手」假空态（v4.351）', async () => {
     mocks.WhisperWeixinStatus.mockRejectedValue(new Error('backend down'))
     mocks.WhisperAssistantList.mockRejectedValue(new Error('backend down'))
     const { container } = await renderPage()
     expect(await screen.findByText('助手列表载入失败，稍后自动重试', undefined, LOAD)).toBeTruthy()
-    expect(screen.queryByText('暂无青鸟助手')).toBeNull()
+    expect(screen.queryByText('暂无微信助手')).toBeNull()
     // 单路失败仍走兜底视图（另一路照常），不误报
     mocks.WhisperWeixinStatus.mockResolvedValue(STATUS_ROWS)
     mocks.WhisperAssistantList.mockRejectedValue(new Error('still down'))
@@ -119,7 +136,7 @@ describe('青鸟工作台 · 通道轨道与详情', () => {
     expect(screen.queryByText('助手列表载入失败，稍后自动重试')).toBeNull()
   })
 
-  it('① 轨道渲染多助手：名字/状态字/状态点/头像（有图用图、无图回退首字），详情显示人格 Tag', async () => {
+  it('① 轨道渲染多助手：名字/状态字/状态点/角色库头像，详情显示人格 Tag', async () => {
     const { container } = await renderPage()
     // 通道轨道 3 条助手项（新增/提醒/指南按钮除外）
     const channelItems = container.querySelectorAll('.wx-rail .wx-rail-ch')
@@ -131,17 +148,54 @@ describe('青鸟工作台 · 通道轨道与详情', () => {
     expect(container.querySelector('.wx-dot.is-running')).toBeTruthy()
     expect(container.querySelector('.wx-dot.is-unbound')).toBeTruthy()
     expect(container.querySelector('.wx-dot.is-stopped')).toBeTruthy()
-    // 小雨有 portraitUrl → 头像为图片；gaea 无 → 名字首字回退
-    // （ant-avatar-image 类在 Avatar 的 span 宿主上，img 为其子元素）
-    const xiaoyuAvatar = container.querySelector('.wx-rail .ant-avatar-image img') as HTMLImageElement
-    expect(xiaoyuAvatar?.getAttribute('src')).toBe('http://example.com/xiaoyu.png')
-    const gaeaAvatar = container.querySelector('.wx-rail-item .ant-avatar')
-    expect(gaeaAvatar?.textContent).toBe('g')
+    // 角色库剧照优先：助手行里的旧 portraitUrl 不得覆盖角色库当前剧照
+    const xiaoyuAvatar = channelItems[1]?.querySelector('.wx-avatar img') as HTMLImageElement
+    expect(xiaoyuAvatar?.getAttribute('src')).toBe('http://example.com/muse.png')
+    const gaeaAvatar = channelItems[0]?.querySelector('.wx-avatar img') as HTMLImageElement
+    expect(gaeaAvatar?.getAttribute('src')).toBe('http://example.com/gaea.png')
     // 默认选中首条通道 gaea → 详情显示人格 Tag
     expect(await screen.findByText('人格 gaea', undefined, LOAD)).toBeTruthy()
+    // 每个通道都带可读人格；详情档案展示预设口吻与来源
+    const railPersonas = Array.from(container.querySelectorAll('.wx-rail-ch .wx-rail-persona')).map((el) => el.textContent)
+    expect(railPersonas).toEqual([
+      '盖亚 · 角色库 · 内置',
+      '缪斯 · 角色库 · 内置',
+      '修哥 · 角色库 · 内置',
+    ])
+    const dossier = container.querySelector('.wx-persona-dossier') as HTMLElement
+    expect(within(dossier).getByText('盖亚')).toBeTruthy()
+    expect(within(dossier).getByText('沉稳可靠，温和坦诚，结论先行')).toBeTruthy()
+    // 通讯航路：运行助手应点亮三段链路，底部入口可直达提醒工作流
+    expect(container.querySelector('.wx-signal-map.is-running')).toBeTruthy()
+    expect(container.querySelectorAll('.wx-signal-node').length).toBe(3)
     // 切到小雨 → 人格 muse
     await selectChannel('小雨')
     expect(screen.getByText('人格 muse')).toBeTruthy()
+    expect(within(container.querySelector('.wx-persona-dossier') as HTMLElement).getByText('缪斯')).toBeTruthy()
+    expect(container.querySelector('.wx-signal-map.is-unbound')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /让微信助手到点提醒你/ }))
+    expect(await screen.findByText('离线代办提醒', undefined, LOAD)).toBeTruthy()
+  })
+
+  it('人物剧照：角色库 portraitUrl 同时进入轨道头像与档案主剧照', async () => {
+    mocks.WhisperWeixinStatus.mockResolvedValue([
+      { id: 'wx_lin', name: '林晚助理', personalityId: 'c_lin', enabled: true, hasToken: true, wxRunning: true },
+    ])
+    mocks.WhisperAssistantList.mockResolvedValue([
+      {
+        id: 'wx_lin', name: '林晚助理', personalityId: 'c_lin', enabled: true,
+        wxToken: 'tok-lin', portraitUrl: 'http://example.com/lin.png',
+      },
+    ])
+    const { container } = await renderPage()
+    const still = await screen.findByAltText('林晚 人物剧照', undefined, LOAD) as HTMLImageElement
+    expect(still.getAttribute('src')).toBe('http://example.com/lin.png')
+    const railPortrait = container.querySelector('.wx-rail-ch .wx-avatar img') as HTMLImageElement
+    expect(railPortrait.getAttribute('src')).toBe('http://example.com/lin.png')
+    expect((await screen.findByAltText('林晚 人物剧照 2', undefined, LOAD) as HTMLImageElement).getAttribute('src'))
+      .toBe('http://example.com/lin-2.png')
+    expect(screen.getByText('清冷聪慧，外冷内热')).toBeTruthy()
+    expect(screen.getByText('前朝遗孤，隐姓埋名于市井')).toBeTruthy()
   })
 
   it('② 启停翻转：选中阿修后拨开关，WhisperAssistantSave 携带完整对象与翻转后的 enabled，并立即刷新两路数据', async () => {
@@ -196,7 +250,7 @@ describe('青鸟工作台 · 通道轨道与详情', () => {
     // 先 wait_scan 验「扫码」步，再切 confirmed 验「完成」步与保存
     mocks.WhisperWeixinQRStatus.mockResolvedValue({ status: 'wait_scan' })
     await renderPage()
-    fireEvent.click(await screen.findByRole('button', { name: '新增青鸟助手' }, LOAD))
+    fireEvent.click(await screen.findByRole('button', { name: '新增微信助手' }, LOAD))
     // 人格选择器加载：默认选中 gaea 预设（盖亚）
     await waitFor(() => {
       expect(document.querySelector('.wx-pk-item.is-active')?.textContent).toContain('盖亚')
@@ -223,15 +277,15 @@ describe('青鸟工作台 · 通道轨道与详情', () => {
     }, LOAD)
   })
 
-  it('⑨ 人格选择器：分组渲染（预设/角色库）+ 详情面板 + 立绘随 Save 带出', async () => {
+  it('⑨ 人格选择器：直接消费角色库分组与剧照 + 立绘随 Save 带出', async () => {
     mocks.WhisperWeixinQRStatus.mockResolvedValue({ status: 'confirmed', botToken: 'tok-n', botId: 'bot-n', userId: 'uid-n' })
     await renderPage()
-    fireEvent.click(await screen.findByRole('button', { name: '新增青鸟助手' }, LOAD))
-    // 分组列表：预设（盖亚/缪斯）+ 角色库（林晚）；文案断言收在 listbox 内
+    fireEvent.click(await screen.findByRole('button', { name: '新增微信助手' }, LOAD))
+    // 分组列表：角色库内置（盖亚/缪斯）+ 自建（林晚）；文案断言收在 listbox 内
     //（footer 说明句含同词，全屏 getByText 会多匹配）
     const listbox = await screen.findByRole('listbox', { name: '人格选择' }, LOAD)
     expect(listbox.querySelectorAll('.wx-pk-group').length).toBe(2)
-    expect(listbox.querySelector('.wx-pk-group')?.textContent).toBe('轻语预设')
+    expect(listbox.querySelector('.wx-pk-group')?.textContent).toBe('角色库 · 内置人格')
     expect(within(listbox).getByRole('option', { name: '选择人格 盖亚' })).toBeTruthy()
     expect(within(listbox).getByRole('option', { name: '选择人格 缪斯' })).toBeTruthy()
     expect(within(listbox).getByRole('option', { name: '选择人格 林晚' })).toBeTruthy()
@@ -286,7 +340,7 @@ describe('青鸟工作台 · 通道轨道与详情', () => {
   })
 })
 
-describe('青鸟工作台 · 提醒与指南', () => {
+describe('微信助手工作台 · 提醒与指南', () => {
   it('⑥ 离线提醒视图：列表渲染（状态/来源/时间）+ 全局开关翻转 + 删除', async () => {
     mocks.WeixinReminderList.mockResolvedValue(REMINDER_ROWS)
     const { container } = await renderPage()
@@ -332,9 +386,9 @@ describe('青鸟工作台 · 提醒与指南', () => {
   })
 })
 
-describe('青鸟工作台 · 深链聚焦（角色库创建 → 跳青鸟直进扫码）', () => {
+describe('微信助手工作台 · 深链聚焦（角色库创建 → 跳微信助手直进扫码）', () => {
   it('⑪ 焦点指向未绑定助手：挂载后自动选中该通道并直接打开其扫码绑定流', async () => {
-    // 角色库「创建青鸟助手」落库形态：wxToken 空 = 未绑定（小雨即此形态）
+    // 角色库「创建微信助手」落库形态：wxToken 空 = 未绑定（小雨即此形态）
     sessionStorage.setItem(WX_FOCUS_KEY, 'wx_muse')
     await renderPage()
     // 焦点消费：主区落在小雨通道（而非默认首条 gaea）
@@ -375,8 +429,8 @@ describe('青鸟工作台 · 深链聚焦（角色库创建 → 跳青鸟直进�
 // ── FE5-05：轮询双门控（窗口可见性 + 板块可见性）────────────────────────
 // 壳层 keepAlive 对访问过的板块只 display:none（组件不卸载），故「窗口可见」
 // 不等于「本板块可见」：本页必须自己判 useBoardActive('weixin')，否则进过一次
-// 青鸟页后停在任意板块都会每 5s 打 4 个绑定。
-describe('青鸟工作台 · 轮询门控（FE5-05）', () => {
+// 微信助手页后停在任意板块都会每 5s 打 4 个绑定。
+describe('微信助手工作台 · 轮询门控（FE5-05）', () => {
   const POLL_MS = 5000
 
   beforeEach(() => {
@@ -390,7 +444,7 @@ describe('青鸟工作台 · 轮询门控（FE5-05）', () => {
   })
 
   it('⑮ 板块不可见（壳层已切到别的板块）：首拉与 5s 轮询都不触达绑定；切回后立即恢复', async () => {
-    notifyBoardActive('novel') // 壳层声明当前可见板块=小说，青鸟仍挂着（keepAlive）
+    notifyBoardActive('novel') // 壳层声明当前可见板块=小说，微信助手仍挂着（keepAlive）
     render(<WeixinPage />)
     await flushAsync()
 
@@ -409,7 +463,7 @@ describe('青鸟工作台 · 轮询门控（FE5-05）', () => {
     expect(mocks.WeixinReminderList).not.toHaveBeenCalled()
     expect(mocks.WeixinReminderConfig).not.toHaveBeenCalled()
 
-    // 正控：壳层切回青鸟 → effect 重跑，立即补拉（证明门控是「暂停」而非「断了」）
+    // 正控：壳层切回微信助手 → effect 重跑，立即补拉（证明门控是「暂停」而非「断了」）
     await act(async () => {
       notifyBoardActive('weixin')
     })

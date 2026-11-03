@@ -207,6 +207,28 @@ describe('v4.15 消息级回显（extra.answered_by）', () => {
     expect(screen.getByText('由 deepseek/deepseek-v4-flash 回答 · 功能绑定 · 约 ¥0.01')).toBeTruthy()
   })
 
+  it('输出指标默认展开，可通过操作行收起并再次展开', () => {
+    render(
+      <MessageList
+        {...baseProps}
+        messages={[{
+          key: 'kMetrics', role: 'assistant', content: '回复内容', createdAt: '2026-01-01T00:00:00Z',
+          extra: {
+            answered_by: {
+              engine: 'herdsman', model: 'qwen3-8b', source: 'feature', cost_cny: 0,
+              metrics: { prompt_tokens: 20, completion_tokens: 40, total_tokens: 60, first_token_ms: 300 },
+            },
+          },
+        }]}
+      />,
+    )
+    expect(screen.getByTestId('answer-metrics').textContent).toContain('输入20')
+    fireEvent.click(screen.getByRole('button', { name: '收起指标' }))
+    expect(screen.queryByTestId('answer-metrics')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '输出指标' }))
+    expect(screen.getByTestId('answer-metrics')).toBeTruthy()
+  })
+
   it('旧消息（无 extra.answered_by）：零渲染，向后兼容', () => {
     render(<MessageList {...baseProps} messages={makeMessages(2)} />)
     expect(screen.queryByText(/由 .* 回答/)).toBeNull()

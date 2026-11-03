@@ -21,6 +21,12 @@ export interface ResponseLedger {
   id: string
   status: string
   reason: string
+  /** 本轮输入协议 item_id（sidecar 请求头与提交回执共用，重复话术仍可区分） */
+  userItemId: string
+  /** 本轮定稿用户转写（response.created 时从未配对队列取首项） */
+  userTranscript: string
+  /** 本轮助手文本（终稿 transcript.done 权威替换） */
+  assistantText: string
   /** transcript delta 累积字符数 */
   textChars: number
   /** 下行 PCM 字节数（base64 解码后） */
@@ -37,6 +43,11 @@ export interface VoiceSessionState {
   partialTranscript: string
   /** 每轮用户转写定稿（latest 在末尾） */
   committedTranscripts: string[]
+  /**
+   * 尚未与 response 配对的用户转写。旧轮 response.done 迟到时仍从自己的
+   * ledger 取用户文本，不再用「全局最后一句」猜配对。
+   */
+  pendingUserTranscripts: PendingUserTranscript[]
   /** 活动 response 的助手文本（transcript delta 累积） */
   assistantText: string
   responses: Record<string, ResponseLedger>
@@ -48,12 +59,18 @@ export interface VoiceSessionState {
   errors: string[]
 }
 
+export interface PendingUserTranscript {
+  text: string
+  itemId: string
+}
+
 export function initialVoiceSession(): VoiceSessionState {
   return {
     phase: 'idle',
     sessionId: '',
     partialTranscript: '',
     committedTranscripts: [],
+    pendingUserTranscripts: [],
     assistantText: '',
     responses: {},
     responseOrder: [],
@@ -68,7 +85,10 @@ export function initialVoiceSession(): VoiceSessionState {
 function ledger(state: VoiceSessionState, id: string): ResponseLedger {
   let led = state.responses[id]
   if (!led) {
-    led = { id, status: '', reason: '', textChars: 0, audioBytes: 0, staleBytesAfterDone: 0, closed: false }
+    led = {
+      id, status: '', reason: '', userItemId: '', userTranscript: '', assistantText: '',
+      textChars: 0, audioBytes: 0, staleBytesAfterDone: 0, closed: false,
+    }
     state.responses[id] = led
     state.responseOrder.push(id)
   }
@@ -105,6 +125,10 @@ export function reduceVoiceSession(state: VoiceSessionState, ev: ServerEvent, au
     case 'conversation.item.input_audio_transcription.completed': {
       const transcript = typeof ev.transcript === 'string' ? ev.transcript : ''
       next.committedTranscripts = [...next.committedTranscripts, transcript]
+      next.pendingUserTranscripts = [...next.pendingUserTranscripts, {
+        text: transcript,
+        itemId: typeof ev.item_id === 'string' ? ev.item_id : '',
+      }]
       next.partialTranscript = ''
       return next
     }
@@ -112,6 +136,12 @@ export function reduceVoiceSession(state: VoiceSessionState, ev: ServerEvent, au
       const id = responseIdOf(ev)
       const led = ledger(next, id)
       led.status = 'in_progress'
+      const pending = next.pendingUserTranscripts[0]
+      led.userTranscript = pending?.text ?? ''
+      led.userItemId = pending?.itemId ?? ''
+      if (next.pendingUserTranscripts.length > 0) {
+        next.pendingUserTranscripts = next.pendingUserTranscripts.slice(1)
+      }
       next.activeResponseId = id
       next.assistantText = ''
       next.phase = 'thinking'
@@ -122,12 +152,17 @@ export function reduceVoiceSession(state: VoiceSessionState, ev: ServerEvent, au
       const led = ledger(next, id)
       if (typeof ev.delta === 'string') {
         led.textChars += ev.delta.length
-        if (id === next.activeResponseId) next.assistantText += ev.delta
+        if (!led.closed) {
+          led.assistantText += ev.delta
+          if (id === next.activeResponseId) next.assistantText += ev.delta
+        }
       }
       return next
     }
     case 'response.output_audio_transcript.done': {
       const id = responseIdOf(ev)
+      const led = ledger(next, id)
+      if (typeof ev.transcript === 'string') led.assistantText = ev.transcript
       if (id === next.activeResponseId && typeof ev.transcript === 'string') {
         // 终稿权威替换累积（协议语义：done.transcript 为全量）
         next.assistantText = ev.transcript
@@ -151,6 +186,8 @@ export function reduceVoiceSession(state: VoiceSessionState, ev: ServerEvent, au
     case 'response.done': {
       const id = responseIdOf(ev)
       const led = ledger(next, id)
+      // 重复 done 不得再次触发写回；事件计数仍由原始流保留。
+      if (led.closed) return next
       const { status, reason } = responseStatusOf(ev)
       led.status = status
       led.reason = reason

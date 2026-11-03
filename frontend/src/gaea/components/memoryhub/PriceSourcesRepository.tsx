@@ -35,10 +35,10 @@ export function PriceSourcesRepository() {
   };
 
   return (
-    <div className="flex flex-col h-full text-fg-dim text-xs">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border-soft">
+    <div className="cost-price-source-panel flex flex-col h-full text-fg-dim text-xs" aria-busy={loading}>
+      <div className="cost-child-toolbar">
         <span className="flex items-center gap-1.5 font-semibold text-fg text-sm">
-          <CloudUpload size={13} className="text-sky-400" />
+          <CloudUpload size={13} className="text-accent" />
           价格源阅览仓库
         </span>
         <div className="flex items-center gap-2">
@@ -51,6 +51,7 @@ export function PriceSourcesRepository() {
             className="flex items-center justify-center w-6 h-6 border-0 bg-transparent text-fg-faint cursor-pointer hover:text-fg hover:bg-bg-soft rounded"
             onClick={load}
             title="刷新仓库"
+            aria-label="刷新价格源仓库"
             disabled={loading}
           >
             <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
@@ -58,17 +59,17 @@ export function PriceSourcesRepository() {
         </div>
       </div>
 
-      <div className="shrink-0 px-3 pt-2 text-[10.5px] text-fg-faint">
+      <div className="cost-child-description">
         系统内全部已添加的价格源地址一览（管理/抓取在「价格源」页）
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto p-2">
+      <div className="cost-child-body flex-1 min-h-0 overflow-y-auto">
         {loading ? (
-          <div className="py-8 text-center text-fg-faint text-[11px]">加载中…</div>
+          <div className="py-8 text-center text-fg-faint text-[11px]" role="status" aria-live="polite">加载中…</div>
         ) : loadFailed ? (
-          <div className="py-8 text-center text-[11px]" role="status" data-testid="price-sources-load-failed">
+          <div className="py-8 text-center text-[11px]" role="alert" data-testid="price-sources-load-failed">
             <span className="text-fg-dim">价格源列表读取失败</span>
-            <button type="button" className="ml-2 px-2 h-6 rounded-full bg-accent text-accent-fg text-[10.5px] cursor-pointer" onClick={() => load()}>
+            <button type="button" className="cost-primary-button ml-2" onClick={() => load()}>
               重试
             </button>
           </div>

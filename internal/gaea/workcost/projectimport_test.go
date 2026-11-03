@@ -33,6 +33,16 @@ func findLine(list []ProjectConsumption, itemCode, resCode string) *ProjectConsu
 	return nil
 }
 
+// findItem 按编码取清单项。
+func findItem(list []ProjectItem, code string) *ProjectItem {
+	for i := range list {
+		if list[i].Code == code {
+			return &list[i]
+		}
+	}
+	return nil
+}
+
 // TestParseProjectWorkbookWangping 真实产物解析金样（旺平矿业，2026-10-07）。
 func TestParseProjectWorkbookWangping(t *testing.T) {
 	b, err := ParseProjectWorkbook(filepath.FromSlash(fixtureWangping))
@@ -104,6 +114,25 @@ func TestParseProjectWorkbookWangping(t *testing.T) {
 	}
 	closeTo(t, "AGG 消耗量", l.Quantity, 0.75)
 	closeTo(t, "AGG 金额", l.Amount, 58.5)
+
+	// 原表综合单价快照（SchemaV34）：汇总行「综合单价」列逐项解析（人工核对 WP02=234.2）。
+	wp02 := findItem(b.Items, "WP02")
+	if wp02 == nil {
+		t.Fatal("缺清单项 WP02")
+	}
+	closeTo(t, "WP02 原表综合单价", wp02.ListPrice, 234.2)
+	if !strings.Contains(wp02.ListPriceExpr, "K7") {
+		t.Errorf("综合单价计算式应保留原文，得到 %q", wp02.ListPriceExpr)
+	}
+	withList := 0
+	for _, it := range b.Items {
+		if it.ListPrice > 0 {
+			withList++
+		}
+	}
+	if withList != len(b.Items) {
+		t.Errorf("旺平 32 项都应带原表综合单价，%d/%d", withList, len(b.Items))
+	}
 
 	// 异常清单项（综合单价表无汇总行）必须显形为告警而非静默。
 	if len(b.Skipped) > 0 {
@@ -262,24 +291,44 @@ func TestApplyProjectBundleEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读清单失败: %v", err)
 	}
-	withQty, withQuota := 0, 0
-	for _, it := range bills {
+	withQty, withQuota, withList := 0, 0, 0
+	var wp02Bill *BillItem
+	for i := range bills {
+		it := &bills[i]
 		if it.Quantity > 0 {
 			withQty++
 		}
 		if it.QuotaCode != "" {
 			withQuota++
 		}
+		if it.ListPrice > 0 {
+			withList++
+		}
+		if it.Code == "WP02" {
+			wp02Bill = it
+		}
 	}
 	if withQuota != len(bills) {
 		t.Errorf("每条清单项都应套定额，%d/%d 套上", withQuota, len(bills))
 	}
+	if withList != len(bills) {
+		t.Errorf("每条清单项都应带原表综合单价快照，%d/%d", withList, len(bills))
+	}
+	if wp02Bill == nil {
+		t.Fatal("落库清单缺 WP02")
+	}
+	closeTo(t, "落库 WP02 原表综合单价", wp02Bill.ListPrice, 234.2)
 	t.Logf("清单 %d 条落库，其中带工程量 %d 条（其余待工程量计算表补录）", len(bills), withQty)
-	// 幂等：重复导入后清单不翻倍。
+	// 幂等：重复导入后清单不翻倍，快照随重导入刷新（改簿重导=口径可更新）。
 	s.ApplyProjectBundle(b)
 	again2, _ := s.BillItems(proj.ID)
 	if len(again2) != len(bills) {
 		t.Errorf("重复导入清单应幂等：%d → %d", len(bills), len(again2))
+	}
+	for _, it := range again2 {
+		if it.Code == "WP02" && it.ListPrice != wp02Bill.ListPrice {
+			t.Errorf("重复导入后 WP02 快照应保持 %.2f，得到 %.2f", wp02Bill.ListPrice, it.ListPrice)
+		}
 	}
 
 	// 按落库后的定额核算综合单价：WP02 施工便道 = 人工 + 级配碎石 + C20 + 装载机 + 压路机。

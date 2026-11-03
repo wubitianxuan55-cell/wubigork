@@ -94,6 +94,21 @@ describe("FilePreviewModal", () => {
     expect(container.firstChild).toBeNull();
   });
 
+  it("换文件滚动回顶：切换 previewFile 后内容区 scrollTop 归零", async () => {
+    mocks.preview = { path: "a.md", name: "a.md", ext: ".md", size: 3, kind: "markdown", body: "旧内容", dataUrl: "", error: "" };
+    usePreviewStore.setState({ previewFile: "a.md" });
+    render(<FilePreviewModal />);
+    expect(await screen.findByText("旧内容")).toBeTruthy();
+    const scroller = document.querySelector("div.flex-1.min-h-0.overflow-auto") as HTMLElement;
+    expect(scroller).toBeTruthy();
+    scroller.scrollTop = 500;
+
+    mocks.preview = { path: "b.md", name: "b.md", ext: ".md", size: 3, kind: "markdown", body: "下一份", dataUrl: "", error: "" };
+    act(() => { usePreviewStore.setState({ previewFile: "b.md" }); });
+    expect(scroller.scrollTop).toBe(0);
+    expect(await screen.findByText("下一份")).toBeTruthy();
+  });
+
   it("PDF 预览页数截断时显示提示", async () => {
     usePreviewStore.setState({ previewFile: "big.pdf" });
     render(<FilePreviewModal />);

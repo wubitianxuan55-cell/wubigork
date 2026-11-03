@@ -103,6 +103,41 @@ func TestBillItemSaveAndAutoCode(t *testing.T) {
 	}
 }
 
+// TestBillItemListPriceRoundtrip 原表综合单价快照（SchemaV34）：保存即落、
+// 读回即有；UI 编辑整卡回传保全；置 0 = 导入刷新口径（工作簿撤价）。
+func TestBillItemListPriceRoundtrip(t *testing.T) {
+	s, cleanup := newWorkcostStore(t)
+	defer cleanup()
+
+	id, _ := s.UpsertBillProject("快照项目", "b.xlsx", "", "", "", "", nil, false, 0)
+	if _, err := s.SaveBillItem(BillItem{ProjectID: id, Code: "WP01", Title: "施工便道", Unit: "m", Quantity: 850, QuotaCode: "WP01", ListPrice: 234.2}); err != nil {
+		t.Fatalf("保存清单项失败: %v", err)
+	}
+	items, err := s.BillItems(id)
+	if err != nil || len(items) != 1 {
+		t.Fatalf("清单应 1 条，得到 %d（err=%v）", len(items), err)
+	}
+	if items[0].ListPrice != 234.2 {
+		t.Errorf("原表综合单价快照应 234.2，得到 %v", items[0].ListPrice)
+	}
+
+	// 编辑回传整卡（含快照）→ 快照保全。
+	if _, err := s.SaveBillItem(BillItem{ProjectID: id, Code: "WP01", Title: "施工便道改", Unit: "m", Quantity: 900, QuotaCode: "WP01", ListPrice: 234.2}); err != nil {
+		t.Fatalf("更新清单项失败: %v", err)
+	}
+	if items, _ = s.BillItems(id); len(items) != 1 || items[0].ListPrice != 234.2 {
+		t.Errorf("整卡回传后快照应保全 234.2，得到 %.2f", items[0].ListPrice)
+	}
+
+	// 置 0 再存 = 撤快照（重导入工作簿未给价的口径）。
+	if _, err := s.SaveBillItem(BillItem{ProjectID: id, Code: "WP01", Title: "施工便道改", Unit: "m", Quantity: 900, QuotaCode: "WP01"}); err != nil {
+		t.Fatalf("清零保存失败: %v", err)
+	}
+	if items, _ = s.BillItems(id); len(items) != 1 || items[0].ListPrice != 0 {
+		t.Errorf("清零保存后快照应为 0，得到 %.2f", items[0].ListPrice)
+	}
+}
+
 // TestResolveQuotaCodeUnification 定额编码统一规则四态（V29）：
 // 空库直用 / 同源重导入复用 / 内容全等跨项目复用 / 冲突消歧。
 func TestResolveQuotaCodeUnification(t *testing.T) {

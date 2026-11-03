@@ -89,7 +89,10 @@ func (r *toolStreamingFakeRunner) RunStreamWithTools(
 }
 
 func fakeAdapter(id string) agentAdapter {
-	status := AgentStatus{ID: id, Name: strings.ToUpper(id), Kind: "fake", Available: true, Executable: id}
+	status := AgentStatus{
+		ID: id, Name: strings.ToUpper(id), Kind: "fake", Available: true, Executable: id,
+		Capabilities: []string{"image-input"},
+	}
 	return agentAdapter{
 		id: id, name: status.Name, kind: status.Kind,
 		runMode: "内存桩（只读）",
@@ -237,6 +240,40 @@ func waitForStatus(t *testing.T, m *Manager, id, status string) *Session {
 	}
 	t.Fatalf("session %s did not reach %s", id, status)
 	return nil
+}
+
+func TestManagerPersistsCallRefsAcrossContributionEvidence(t *testing.T) {
+	m := newTestManager(t, defaultFakeRunner(), fakeAdapter("alpha"))
+	defer m.Close()
+
+	session, err := m.Start(StartRequest{
+		Topic: "Attempt 身份贯通", AgentIDs: []string{"alpha"},
+		Protocol: ProtocolIndependent, Rounds: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	completed := waitForStatus(t, m, session.ID, StatusCompleted)
+	if len(completed.Contributions) < 2 {
+		t.Fatalf("contributions = %d, want opening + synthesis", len(completed.Contributions))
+	}
+	for _, contribution := range completed.Contributions {
+		if contribution.CallID == "" || contribution.AttemptID == "" || contribution.Attempt < 1 {
+			t.Fatalf("contribution missing call identity: %+v", contribution)
+		}
+		var sawStart, sawOutput bool
+		for _, event := range completed.Events {
+			if event.CallID != contribution.CallID ||
+				event.AttemptID != contribution.AttemptID {
+				continue
+			}
+			sawStart = sawStart || event.Kind == EventAgentStart
+			sawOutput = sawOutput || event.Kind == EventAgentOutput
+		}
+		if !sawStart || !sawOutput {
+			t.Fatalf("contribution lacks matching start/output evidence: %+v", contribution)
+		}
+	}
 }
 
 func TestStoreRoundTripListAndExport(t *testing.T) {
@@ -577,6 +614,12 @@ func TestStreamingLineParser(t *testing.T) {
 		{name: "delta", line: `{"type":"delta","delta":"正在补强"}`, want: "正在补强"},
 		{name: "completed", line: `{"type":"item.completed","item":{"type":"agent_message","text":"完整观点"}}`, want: "完整观点"},
 		{name: "zcode text", line: `{"type":"model.streaming","payload":{"kind":"text_delta","delta":"实时增量"}}`, want: "实时增量"},
+		{
+			// 新版信封：顶层 type=turn.completed，聚合全文直播时作为最终态播出。
+			name: "zcode new envelope final",
+			line: `{"eventId":"x","type":"turn.completed","payload":{"response":"聚合全文","resultType":"success"}}`,
+			want: "聚合全文",
+		},
 		{name: "dsh text", line: `{"type":"text","text":"最终文本"}`, want: "最终文本"},
 		{name: "plain", line: "普通流式输出", want: "普通流式输出\n"},
 		{name: "control", line: `{"type":"thread.started","thread_id":"t1"}`, want: ""},
@@ -598,7 +641,9 @@ func TestStreamingLineParser(t *testing.T) {
 }
 
 func TestParseAgentOutputSplitsConcatenatedZCodeEvents(t *testing.T) {
-	raw := `{"eventId":"e1","messageId":"msg_bad_wall_payload","type":"session.titleUpdated","payload":{"title":"提示词"}} {"eventId":"e2","type":"model.streaming","payload":{"kind":"reasoning_delta","delta":"内部推理"}} {"eventId":"e3","type":"model.streaming","payload":{"kind":"text_delta","delta":"最终"}} {"eventId":"e4","type":"model.streaming","payload":{"kind":"text_delta","delta":"答复"}} {"eventId":"e5","payload":{"kind":"finish","done":true}}`
+	// 2026-11-02 实弹探针：新版桌面运行时的回合完成在顶层 type=turn.completed
+	// （payload 无 kind 键），response 全文在 payload 里。
+	raw := `{"eventId":"e1","messageId":"msg_bad_wall_payload","type":"session.titleUpdated","payload":{"title":"提示词"}} {"eventId":"e2","type":"model.streaming","payload":{"kind":"reasoning_delta","delta":"内部推理"}} {"eventId":"e3","type":"model.streaming","payload":{"kind":"text_delta","delta":"最终"}} {"eventId":"e4","type":"model.streaming","payload":{"kind":"text_delta","delta":"答复"}} {"eventId":"e5","type":"model.streaming","payload":{"kind":"finish","done":true}} {"eventId":"e6","type":"turn.completed","payload":{"response":"最终答复","usage":{"outputTokens":43}}}`
 	got := parseAgentOutput(raw)
 	if got != "最终答复" {
 		t.Fatalf("parseAgentOutput = %q, want 最终答复", got)
@@ -646,6 +691,8 @@ func TestStreamWriterSuppressesFullTextEchoAfterDeltas(t *testing.T) {
 		`{"type":"item.delta","delta":"段增量"}`,
 		`{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"第一段增量"}}`,
 		`{"type":"thread.completed","usage":{"tokens":10}}`,
+		// 新版信封（顶层 type）：聚合全文在增量之后到达，同样必须吞。
+		`{"eventId":"x","type":"turn.completed","payload":{"response":"第一段增量","resultType":"success"}}`,
 	}, "\n")
 	if _, err := writer.Write([]byte(stream)); err != nil {
 		t.Fatal(err)
@@ -666,6 +713,19 @@ func TestStreamWriterSuppressesFullTextEchoAfterDeltas(t *testing.T) {
 	plain.Flush()
 	if got := strings.Join(finalOnly, ""); got != "只有全文" {
 		t.Fatalf("final-only deltas = %q, want 只有全文", got)
+	}
+
+	// 新版信封无增量：turn.completed 聚合全文是唯一文本来源，同样播出一次。
+	var envelopeOnly []string
+	envelope := &streamTextWriter{
+		onDelta: func(text string) { envelopeOnly = append(envelopeOnly, text) },
+	}
+	if _, err := envelope.Write([]byte(`{"eventId":"x","type":"turn.completed","payload":{"response":"信封全文"}}`)); err != nil {
+		t.Fatal(err)
+	}
+	envelope.Flush()
+	if got := strings.Join(envelopeOnly, ""); got != "信封全文" {
+		t.Fatalf("envelope-only deltas = %q, want 信封全文", got)
 	}
 }
 
@@ -937,6 +997,108 @@ func TestManagerSkipCurrentAgentContinuesToNext(t *testing.T) {
 	waitForStatus(t, m, session.ID, StatusCancelled)
 }
 
+// residueRunner 模拟进程被杀后管道余量继续流入：ctx 取消后仍向 onDelta 发射
+// 残留增量再返回（实弹 2026-10-31：agent_skipped 事件之后 1.6s 内还有
+// tool/delta 事件从被跳过席位的管道排空）。
+type residueRunner struct{}
+
+func (residueRunner) Run(ctx context.Context, _ commandSpec) (string, error) {
+	return "", ctx.Err()
+}
+
+func (residueRunner) RunStream(ctx context.Context, _ commandSpec, onDelta func(string)) (string, error) {
+	<-ctx.Done()
+	onDelta("跳过后管道残留增量")
+	return "", ctx.Err()
+}
+
+func TestManagerSkipDropsResidueDeltas(t *testing.T) {
+	m := newTestManager(t, residueRunner{}, fakeAdapter("alpha"), fakeAdapter("beta"))
+	defer m.Close()
+	var mu sync.Mutex
+	var deltas []Event
+	m.emit = func(event Event) {
+		if event.Kind != EventAgentDelta {
+			return
+		}
+		mu.Lock()
+		deltas = append(deltas, event)
+		mu.Unlock()
+	}
+
+	session, err := m.Start(StartRequest{
+		Topic: "跳过后残影不得入流", AgentIDs: []string{"alpha", "beta"}, Rounds: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var current string
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		got, err := m.Get(session.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, participant := range got.Participants {
+			if participant.Status == "running" {
+				current = participant.AgentID
+				break
+			}
+		}
+		if current != "" {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if current == "" {
+		t.Fatal("no agent started running")
+	}
+	if err := m.SkipAgent(session.ID, current); err != nil {
+		t.Fatal(err)
+	}
+	deadline = time.Now().Add(2 * time.Second)
+	var advanced bool
+	for time.Now().Before(deadline) {
+		got, err := m.Get(session.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, participant := range got.Participants {
+			if participant.AgentID != current && participant.Status == "running" {
+				advanced = true
+			}
+		}
+		if advanced {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !advanced {
+		t.Fatal("discussion did not advance after skip")
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	for _, delta := range deltas {
+		if delta.AgentID == current {
+			t.Fatalf("残影增量未被丢弃：%+v", delta)
+		}
+	}
+}
+
+func TestSupersededAgentCallIsAborted(t *testing.T) {
+	m := newTestManager(t, defaultFakeRunner())
+	oldCall := &activeAgentCall{sessionID: "pan_test", CallRef: CallRef{AttemptID: "att_1"}}
+	currentCall := &activeAgentCall{sessionID: "pan_test", CallRef: CallRef{AttemptID: "att_2"}}
+	m.agentCalls["pan_test"] = currentCall
+
+	if !m.agentCallAborted(oldCall) {
+		t.Fatal("superseded attempt must be rejected")
+	}
+	if m.agentCallAborted(currentCall) {
+		t.Fatal("current attempt must remain writable")
+	}
+}
+
 func TestManagerRetryCurrentAgentKeepsRoundPosition(t *testing.T) {
 	block := make(chan struct{})
 	m := newTestManager(t, blockingRunner{release: block}, fakeAdapter("alpha"), fakeAdapter("beta"))
@@ -951,6 +1113,7 @@ func TestManagerRetryCurrentAgentKeepsRoundPosition(t *testing.T) {
 	}
 	var current string
 	var firstStart int64
+	var firstCall CallRef
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		got, err := m.Get(session.ID)
@@ -961,6 +1124,7 @@ func TestManagerRetryCurrentAgentKeepsRoundPosition(t *testing.T) {
 			if participant.Status == "running" {
 				current = participant.AgentID
 				firstStart = participant.StartedAt
+				firstCall = participant.CallRef
 				break
 			}
 		}
@@ -971,6 +1135,9 @@ func TestManagerRetryCurrentAgentKeepsRoundPosition(t *testing.T) {
 	}
 	if current == "" {
 		t.Fatal("no agent started running")
+	}
+	if firstCall.CallID == "" || firstCall.AttemptID == "" || firstCall.Attempt != 1 {
+		t.Fatalf("first attempt identity missing: %+v", firstCall)
 	}
 	time.Sleep(10 * time.Millisecond)
 	if err := m.RetryAgent(session.ID, current); err != nil {
@@ -1010,10 +1177,40 @@ func TestManagerRetryCurrentAgentKeepsRoundPosition(t *testing.T) {
 	if retried == nil {
 		t.Fatal("current agent was not retried in place")
 	}
+	var retriedCall CallRef
+	for _, participant := range retried.Participants {
+		if participant.AgentID == current {
+			retriedCall = participant.CallRef
+		}
+	}
+	if retriedCall.CallID != firstCall.CallID {
+		t.Fatalf("retry changed logical call ID: %+v -> %+v", firstCall, retriedCall)
+	}
+	if retriedCall.AttemptID == firstCall.AttemptID || retriedCall.Attempt != 2 {
+		t.Fatalf("retry did not create a new attempt: %+v -> %+v", firstCall, retriedCall)
+	}
+	if retriedCall.RetryOfAttempt != firstCall.AttemptID {
+		t.Fatalf("retry lineage = %q, want %q", retriedCall.RetryOfAttempt, firstCall.AttemptID)
+	}
+	var sawRetry, sawRetryStart bool
 	for _, event := range retried.Events {
 		if event.Kind == EventAgentError && event.AgentID == current {
 			t.Fatalf("retry must not be recorded as an error: %+v", event)
 		}
+		if event.Kind == EventAgentRetry && event.AgentID == current {
+			sawRetry = event.CallID == firstCall.CallID && event.AttemptID == firstCall.AttemptID
+		}
+		if event.Kind == EventAgentStart &&
+			event.AgentID == current &&
+			event.Attempt == 2 &&
+			event.AttemptID == retriedCall.AttemptID {
+			sawRetryStart = event.CallID == firstCall.CallID &&
+				event.RetryOfAttempt == firstCall.AttemptID
+		}
+	}
+	if !sawRetry || !sawRetryStart {
+		t.Fatalf("retry events missing attempt lineage: retry=%v start=%v events=%+v",
+			sawRetry, sawRetryStart, retried.Events)
 	}
 	if err := m.Cancel(session.ID); err != nil {
 		t.Fatal(err)
@@ -1094,24 +1291,52 @@ func TestParseAgentOutputFormats(t *testing.T) {
 		{
 			// zcode 新版桌面运行时：答案只存在于 text_delta 增量流里
 			// （reasoning_delta 不算发言），按序重装全文（2026-10-30 实弹线）。
-			// 2026-10-31 起增量重装须见到信封收尾（finish/turn.completed）——
-			// 中途夭折的流只有过程旁白，宁空不假。
-			name: "zcode text_delta stream",
+			// 增量重装须见到**回合级**完成（turn.completed）——payload.kind=
+			// finish 是每次模型请求的收尾，工具型回合有 N 个，不算回合完成。
+			name: "zcode text_delta stream with turn completion",
 			raw: `{"type":"model.streaming","payload":{"kind":"reasoning_delta","delta":"思考"}}
 {"type":"model.streaming","payload":{"kind":"text_delta","delta":"最终"}}
 {"type":"model.streaming","payload":{"kind":"text_delta","delta":"答复"}}
-{"type":"model.streaming","payload":{"kind":"finish","done":true}}`,
+{"type":"model.streaming","payload":{"kind":"finish","done":true}}
+{"type":"turn.completed","payload":{"response":"最终答复","usage":{"outputTokens":43}}}`,
 			want: "最终答复",
+		},
+		{
+			// 2026-11-02 实弹 zcode 第 2/3 轮（511/301 字旁白冒充陈词）的根因
+			// 回归：CLI 中途静默退出（exit 0），只有 text_delta 旁白和模型请求
+			// 级 finish、没有 turn.completed/result——必须返回空走 agent_error。
+			name: "zcode bare finish without turn completion",
+			raw: `{"type":"model.streaming","payload":{"kind":"reasoning_delta","delta":"思考"}}
+{"type":"model.streaming","payload":{"kind":"text_delta","delta":"收到，我先做两件只读核验。"}}
+{"type":"model.streaming","payload":{"kind":"text_delta","delta":"再查两个子目录确认是否藏在不存在的目录里："}}
+{"type":"model.streaming","payload":{"kind":"finish","done":true}}`,
+			want: "",
 		},
 		{
 			// 信封聚合事件（turn.completed.response）是收尾权威全文：即使增量
 			// 缺失或尾部被截断也能恢复答案（2026-10-31 实弹 zcode 格式）。
+			// 旧版布局：payload.kind=turn.completed。
 			name: "zcode envelope aggregated final",
 			raw: `{"eventId":"a","payload":{"kind":"reasoning_delta","delta":"推理"}}
 {"eventId":"b","payload":{"kind":"text_delta","delta":"收到"}}
 {"eventId":"c","payload":{"kind":"finish","done":true}}
 {"eventId":"d","payload":{"kind":"turn.completed","response":"收到，这是完整最终陈词。","usage":{"outputTokens":43}}}`,
 			want: "收到，这是完整最终陈词。",
+		},
+		{
+			// 新版布局（2026-11-02 实弹探针）：顶层 type=turn.completed，
+			// payload 无 kind 键，response/usage 都在 payload 里。
+			name: "zcode new envelope turn.completed",
+			raw: `{"eventId":"a","type":"model.streaming","payload":{"kind":"text_delta","delta":"收到"}}
+{"eventId":"b","type":"turn.completed","payload":{"response":"收到，正式陈述全文。","resultType":"success","usage":{"outputTokens":43}}}`,
+			want: "收到，正式陈述全文。",
+		},
+		{
+			// 回合失败（turn.failed）：即使有增量残留也不得入档。
+			name: "zcode turn.failed",
+			raw: `{"type":"model.streaming","payload":{"kind":"text_delta","delta":"旁白片段"}}
+{"type":"turn.failed","payload":{"error":"provider overload"}}`,
+			want: "",
 		},
 		{
 			// 中途夭折（超时/被杀）：只有 text_delta 旁白、无 finish 收尾——
@@ -1209,6 +1434,51 @@ func TestToolPolicyMatchesSeatCapabilities(t *testing.T) {
 	grok := toolPolicy(AgentStatus{ID: "grok", Name: "Grok"})
 	if !strings.Contains(grok, "Gaea 办公工具") || !strings.Contains(grok, "不得写盘") {
 		t.Fatalf("grok office tool policy is not truthful:\n%s", grok)
+	}
+}
+
+func TestCollaborationRulesForbidImplicitDelegation(t *testing.T) {
+	rules := collaborationRules()
+	for _, want := range []string{"亲自完成本轮发言", "不得派生 subagent", "二次委派"} {
+		if !strings.Contains(rules, want) {
+			t.Fatalf("collaboration rules missing %q:\n%s", want, rules)
+		}
+	}
+}
+
+func TestSupportsImageAttachmentChannels(t *testing.T) {
+	for _, capability := range []string{"image-input", "image-path-tools", "shared-image-summary"} {
+		if !supportsImageAttachment(AgentStatus{Capabilities: []string{capability}}) {
+			t.Fatalf("capability %q must satisfy image attachment preflight", capability)
+		}
+	}
+	if supportsImageAttachment(AgentStatus{}) {
+		t.Fatal("seat without an image channel must be rejected")
+	}
+}
+
+func TestManagerRejectsImagesForUnsupportedSeat(t *testing.T) {
+	withoutImages := fakeAdapter("alpha")
+	withoutImages.probe = func(context.Context) AgentStatus {
+		return AgentStatus{
+			ID: "alpha", Name: "Alpha", Kind: "fake", Available: true, Executable: "alpha",
+		}
+	}
+	m := newTestManager(t, defaultFakeRunner(), withoutImages, fakeAdapter("beta"))
+	defer m.Close()
+
+	image := filepath.Join(m.root, "diagram.png")
+	if err := os.WriteFile(image, []byte("png"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := m.Start(StartRequest{
+		Topic:       "图片能力门",
+		Attachments: []Attachment{{Name: "diagram.png", Path: image}},
+		AgentIDs:    []string{"alpha", "beta"},
+		Rounds:      1,
+	})
+	if err == nil || !strings.Contains(err.Error(), "Alpha 不支持图片附件") {
+		t.Fatalf("Start error = %v, want unsupported image capability", err)
 	}
 }
 
@@ -1484,7 +1754,7 @@ func TestRecoverInterruptedCouncilPreservesPartialRecord(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Status != StatusFailed || got.Phase != PhaseFailed {
+	if got.Status != StatusInterrupted || got.Phase != PhaseOpening {
 		t.Fatalf("recovered status = %s/%s", got.Status, got.Phase)
 	}
 	if !strings.Contains(got.Error, "上次运行被应用中断") {
@@ -1493,8 +1763,16 @@ func TestRecoverInterruptedCouncilPreservesPartialRecord(t *testing.T) {
 	if len(got.Contributions) != 1 || got.Contributions[0].Content != "保留这条发言" {
 		t.Fatal("partial contributions were not preserved")
 	}
-	if got.Participants[0].Status != "failed" || got.Participants[0].Error == "" {
-		t.Fatalf("running participant not closed: %+v", got.Participants[0])
+	// 重启不是失败：席位应当落 finished_unverified，而不是被写成"失败"。
+	if got.Participants[0].Status != SeatFinishedUnverified || got.Participants[0].Error == "" {
+		t.Fatalf("running participant not closed as unverified: %+v", got.Participants[0])
+	}
+	if got.Participants[0].Evidence == "" || got.Participants[0].Observed.Origin != OriginRecovery {
+		t.Fatalf("recovery observation not recorded: %+v", got.Participants[0].Observed)
+	}
+	// 已收声的席位不许被重启波及。
+	if got.Participants[1].Status != SeatFinished {
+		t.Fatalf("finished participant was disturbed: %+v", got.Participants[1])
 	}
 	if len(got.Events) != 1 || got.Events[0].Kind != EventError {
 		t.Fatalf("recovery event missing: %+v", got.Events)
@@ -1582,8 +1860,37 @@ func TestGrokToolAwareBackendReceivesWorkspaceAndEmitsTrajectory(t *testing.T) {
 	if gotWorkspace != filepath.Clean(workspace) {
 		t.Fatalf("Grok workspace = %q, want %q", gotWorkspace, filepath.Clean(workspace))
 	}
-	if len(gotReadPaths) != 1 || gotReadPaths[0] != filepath.Clean(image) {
-		t.Fatalf("Grok image read roots = %v, want %q", gotReadPaths, filepath.Clean(image))
+	// 2026-11-03 论证文件化：附件图路径之外，归档发言全文路径进 readPaths
+	// 白名单。捕获的是最后一次 grok 调用（其自身贡献尚未入库），汇总席由
+	// 主席 alpha 承担，因此排除 grok 最后一条讨论贡献与汇总本身。
+	if len(gotReadPaths) == 0 || gotReadPaths[0] != filepath.Clean(image) {
+		t.Fatalf("Grok image read roots = %v, want first %q", gotReadPaths, filepath.Clean(image))
+	}
+	tr, err := newTranscript(m.root, session.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var lastGrokDiscourse string
+	for _, c := range done.Contributions {
+		if c.AgentID == "grok" && c.Phase != PhaseSynthesis {
+			lastGrokDiscourse = c.ID
+		}
+	}
+	for _, c := range done.Contributions {
+		if c.Phase == PhaseSynthesis || c.ID == lastGrokDiscourse {
+			continue
+		}
+		want := tr.contributionPath(c.ID)
+		found := false
+		for _, p := range gotReadPaths {
+			if p == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("archived contribution %s missing from Grok read paths:\n%v", c.ID, gotReadPaths)
+		}
 	}
 	var starts, results int
 	for _, event := range done.Events {
