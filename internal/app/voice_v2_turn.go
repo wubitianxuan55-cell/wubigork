@@ -183,6 +183,8 @@ func (a *whisperState) VoiceV2AbortTurn(itemID string) map[string]interface{} {
 	}
 	a.restoreVoiceV2PreparedLocked(p)
 	a.voiceV2Prepared = nil
+	// 真机取证锚点：生成中关闭的精确回滚（A5f 验收与运行期排障都靠这行对账）。
+	slog.Info("Voice V2 生成中关闭回滚预推进", "itemID", p.itemID, "personality", p.personalityID)
 	return map[string]interface{}{
 		"aborted": true, "itemID": p.itemID, "personalityID": p.personalityID,
 	}
@@ -276,6 +278,8 @@ func (a *whisperState) VoiceV2CommitTurn(
 		// P0a-A5g：plain 早退在 take 之前，先回收本轮预推进再返回。
 		a.dropVoiceV2PreparedForPlain(itemID, userText)
 		result["memoryScheduled"] = false
+		slog.Info("Voice V2 回合已提交（plain 话题，仅落聊天）",
+			"topicID", topicID, "responseID", responseID, "itemID", itemID)
 		return result, nil
 	}
 
@@ -284,6 +288,8 @@ func (a *whisperState) VoiceV2CommitTurn(
 	for k, v := range info {
 		result[k] = v
 	}
+	slog.Info("Voice V2 回合已提交", "topicID", topicID, "responseID", responseID,
+		"itemID", itemID, "personality", topic.Mode, "memoryScheduled", result["memoryScheduled"])
 	if warning != nil {
 		result["warning"] = "聊天已保存，但人格记忆收尾失败: " + warning.Error()
 		slog.Warn("Voice V2 人格记忆收尾失败（聊天已落库）",
