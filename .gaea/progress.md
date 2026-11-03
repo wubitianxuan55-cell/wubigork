@@ -1,3 +1,11 @@
+## 众神殿四框架机制落地与 Git 打包 · 2026-11-03
+
+- **功能提交 `a4385d4e`（38 文件，未 push）**：按四框架专项调研完成 R1–R5。动作/目标贡献/回应契约 + 同一分歧台账；用户插话 `origin=user` 可被各席定向回应；`roundtable / targeted_challenge / red_team` preset；至共识按 DID 指纹续跑并在事件/导出留痕；红队汇总后全席独立确认，反对触发主席一次修订并保留原稿哈希；`Verdict.proposedActions` 只读行动提案，不自动执行。
+- **文件记录**：`docs/gaea-pantheon-v2-roadmap-2026-11-03.md` 增补 R3/R4/R5 落地记录；四框架专项调研状态同步；`design-system/gaea/pages/pantheon.md` 增补动作/用户插话/独立确认/行动提案契约；`docs/README.md` 维持主报告与证据附录索引；Wails models、前端 types、mock、binding signatures 已同步。
+- **验证**：`go test ./internal/pantheon/`、`go vet ./internal/pantheon/`、`internal/app` Pantheon 定向、`tsc -b`、ESLint 0 error、Pantheon+签名契约 60/60、生产构建、文档守卫、绑定漂移全过。全仓既有无关红项=`internal/gaea/tool` compact schema（task.engine/model 漂移）与 `NovelSettingPage` 单例；另全量前端曾出现 jsdom `scrollTop` 只读异常，未触碰相关文件。
+- **记忆状态**：Hindsight CLI/plugin 本机无配置目录（`~/.hindsight` 不存在），本会话也未暴露 `hindsight_ingest_document` MCP 工具；已按仓库既有长期记忆机制写入 `.gaea/AGENTS.md` 与本文件，作为当前权威记录。若后续安装 Hindsight，应以标题「众神殿四框架机制落地 2026-11-03」补录。
+- **下一步**：R6 协议对照评测，需要 20–30 个真实议题和固定 Harness/模型/权限基线；在评测前不把红队确认设为默认，也不把行动提案交给执行器。
+
 ## 众神殿 V2 一日十四提交 · 2026-11-03
 
 - **众神殿单日大版本日（2026-11-03，ZCode 会话，16 提交 8dadd38f..be219425 全部未 push）**——从「实弹 22 次提示词截断」一路收到「V2 P0 真相单源化+P1 收口机制」，全部经 build.bat 全链+双端同哈希交付（最终 exe 39eb4402… SHA256 前缀，新壳 PID 40952）。批次序：
