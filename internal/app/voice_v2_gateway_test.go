@@ -322,7 +322,7 @@ func TestVoiceV2GatewayUpstreamFailureRollsBackPreparedTurn(t *testing.T) {
 		t.Fatalf("上游失败后预推进未回滚: totalTurns=%d", got)
 	}
 	a.whisperState.voiceV2PrepareMu.Lock()
-	pending := a.whisperState.voiceV2Prepared != nil
+	pending := len(a.whisperState.voiceV2PreparedLedger) > 0
 	a.whisperState.voiceV2PrepareMu.Unlock()
 	if pending {
 		t.Fatal("上游失败后仍残留 prepared turn")
@@ -366,8 +366,11 @@ func TestVoiceV2GatewayBindsProtocolItemIDToPreparedTurn(t *testing.T) {
 	}
 
 	a.whisperState.voiceV2PrepareMu.Lock()
-	prepared := a.whisperState.voiceV2Prepared
+	prepared := a.whisperState.voiceV2PreparedLedger["msg_v2_17"]
 	a.whisperState.voiceV2PrepareMu.Unlock()
+	if prepared == nil {
+		t.Fatal("prepared 台账应含 msg_v2_17")
+	}
 	if prepared == nil {
 		t.Fatal("网关未保留待提交预推进回合")
 	}

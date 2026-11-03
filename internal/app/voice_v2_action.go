@@ -50,10 +50,10 @@ var voiceV2PreviewID = func() string {
 // 读屏留到单独权限设计之后——白名单外「可预览不可执行」）。白名单再窄不做，
 // 执行层复用 intent_router 既有能力（与命令面板同权限面）。
 var voiceV2ExecutableActions = map[string]bool{
-	string(intent.ActionNavigate):  true,
-	string(intent.ActionStatus):    true,
-	string(intent.ActionReminder):  true,
-	string(intent.ActionSaveTask):  true,
+	string(intent.ActionNavigate): true,
+	string(intent.ActionStatus):   true,
+	string(intent.ActionReminder): true,
+	string(intent.ActionSaveTask): true,
 }
 
 func voiceV2PreviewHash(action, target, reply string) string {

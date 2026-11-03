@@ -277,7 +277,7 @@ func TestVoiceV2PreparedTurnTakeRejectsCrossPersonality(t *testing.T) {
 		t.Fatalf("跨人格认领应返回可区分 mismatch: prepared=%v blocked=%v mismatch=%v",
 			prepared != nil, blocked, mismatch)
 	}
-	if a.whisperState.voiceV2Prepared != nil {
+	if len(a.whisperState.voiceV2PreparedEntries()) > 0 {
 		t.Fatal("错配后 prepared 槽未清空")
 	}
 	if got := orchA.State.Counters.TotalTurns; got != 0 {
@@ -393,7 +393,7 @@ func TestVoiceV2CommitPlainDropsPreparedTurn(t *testing.T) {
 	if result["memoryScheduled"] != false {
 		t.Fatalf("plain 不写记忆: %#v", result)
 	}
-	if a.whisperState.voiceV2Prepared != nil {
+	if len(a.whisperState.voiceV2PreparedEntries()) > 0 {
 		t.Fatal("plain 提交后 prepared 残留（A5g）")
 	}
 	if got := orch.State.Counters.TotalTurns; got != 0 {
@@ -432,7 +432,7 @@ func TestVoiceV2AbortTurnRollsBackPrepared(t *testing.T) {
 	if r := a.whisperState.VoiceV2AbortTurn("item-other"); r["aborted"] != false || r["reason"] != "item-mismatch" {
 		t.Fatalf("异 item abort 应拒绝: %#v", r)
 	}
-	if a.whisperState.voiceV2Prepared == nil {
+	if len(a.whisperState.voiceV2PreparedEntries()) == 0 {
 		t.Fatal("拒绝路径不得清槽")
 	}
 	// item 命中：回滚并清槽
@@ -440,7 +440,7 @@ func TestVoiceV2AbortTurnRollsBackPrepared(t *testing.T) {
 	if r["aborted"] != true || r["personalityID"] != pid {
 		t.Fatalf("abort 回执不符: %#v", r)
 	}
-	if a.whisperState.voiceV2Prepared != nil {
+	if len(a.whisperState.voiceV2PreparedEntries()) > 0 {
 		t.Fatal("abort 后 prepared 残留")
 	}
 	if got := orch.State.Counters.TotalTurns; got != 0 {

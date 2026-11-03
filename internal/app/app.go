@@ -230,10 +230,13 @@ type whisperState struct {
 	// Voice V2 外部生成轮的后端收尾串行闸：同一 response_id 的 WebSocket
 	// 重试/前端重复回执必须只落一次聊天、一次状态推进、一次记忆抽取。
 	voiceV2CommitMu sync.Mutex
-	// V2 生成前已推进的 PreLLMTurn（单语音会话）。提交时消费同一快照；
-	// 上游失败或下一轮抢先到来时回滚，禁止幽灵回合污染人格状态。
-	voiceV2PrepareMu sync.Mutex
-	voiceV2Prepared  *voiceV2PreparedTurn
+	// V2 生成前已推进的 PreLLMTurn 台账（M5 前置，2026-11-05 单槽重构）：
+	// key = itemID（协议权威关联键；旧 sidecar 无 itemID 用 "" 兼容键）。提交时
+	// 消费同一快照；上游失败/生成中关闭/下一轮抢先到来时回滚，禁止幽灵回合
+	// 污染人格状态。当前行为等价约束：新预推进抢先回滚全部存量（容量恒 ≤1）
+	// ——M5 推测生成（同 turn 多 revision）只需放开本约束，容器与关联键已就位。
+	voiceV2PrepareMu      sync.Mutex
+	voiceV2PreparedLedger map[string]*voiceV2PreparedTurn
 
 	// v4.3c：主动关心定时推送（频控 + 作息尊重 + 特殊日期，play 空间）。
 	// proactiveMu 保护配置与「当天已发生日祝福」标记；频控实例各自带锁。
