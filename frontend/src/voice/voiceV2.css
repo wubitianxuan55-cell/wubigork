@@ -1512,6 +1512,7 @@
 .voice-console-v2--bar {
   flex: none;
   flex-direction: row;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
@@ -1696,4 +1697,65 @@
 
 .voice-console-v2--bar .vc2-bar-btn + .vc2-bar-btn {
   margin-inline-start: 2px; /* 间距合计 ≥8px（按钮自身 gap 8px 布局外再保余量） */
+}
+
+/* ═══ P1.9 动作预览卡（dry-run，异步事件面） ═══ */
+
+.vc2-action-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border: 1px solid var(--vc2-line-strong);
+  border-radius: var(--md-sys-radius-m, 12px);
+  background: var(--vc2-soft);
+  font-size: 12px;
+  color: var(--vc2-text);
+}
+
+.vc2-action-preview > .anticon {
+  flex: none;
+  color: var(--vc2-accent);
+}
+
+.vc2-action-preview-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.voice-console-v2--bar .vc2-action-preview {
+  flex-basis: 100%;
+}
+
+.vc2-action-preview-tag {
+  flex: none;
+  font-size: 11px;
+  color: var(--vc2-text-3);
+  border: 1px solid var(--vc2-line);
+  border-radius: 999px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+
+.vc2-action-preview-close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--vc2-text-3);
+  cursor: pointer;
+}
+
+.vc2-action-preview-close:hover,
+.vc2-action-preview-close:focus-visible {
+  color: var(--vc2-text);
+  background: var(--vc2-soft);
 }

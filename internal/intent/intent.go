@@ -50,6 +50,13 @@ var boardAliases = []struct{ alias, id string }{
 	{"角色库", "characterlib"}, {"角色", "characterlib"}, {"人物", "characterlib"},
 	{"设置", "settings"}, {"偏好", "settings"},
 	{"青鸟", "weixin"}, {"微信助手", "weixin"}, {"微信", "weixin"}, // 青鸟保留为旧名称兼容别名
+	// 2026-11-05 P1.9 补遗：三板块上线时漏进别名表（语音动作预览实测暴露——
+	// 「打开运行监测」dry-run 未命中按静默处理，契约正确、别名表欠账）。
+	// 执行层/预览层仍会按 manifest 二次校验（boardLabel），别名先行只影响
+	// 规则命中。
+	{"运行监测", "runtime"}, {"监测", "runtime"},
+	{"众神殿", "pantheon"},
+	{"进度计划", "schedule"}, {"日程", "schedule"},
 }
 
 // lookupBoard 别名匹配。

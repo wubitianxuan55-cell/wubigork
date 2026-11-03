@@ -20,6 +20,7 @@ import {
   ShrinkOutlined,
   SoundOutlined,
   StopOutlined,
+  ThunderboltOutlined,
   WarningOutlined,
   WifiOutlined,
 } from '@ant-design/icons'
@@ -96,6 +97,10 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
   const mountedRef = useRef(true)
   const commitChainRef = useRef<Promise<void>>(Promise.resolve())
   const [turnWarning, setTurnWarning] = useState('')
+  // P1.9 异步动作预览（dry-run）：轮完成后对最终转写跑意图解析，命中出预览
+  // 卡（零副作用——RouteIntent dryRun 恒不执行、不打 LLM；失败=未识别为动作，
+  // 静默）。执行链=P2（preview_id+TTL+幂等），本刀只预览不执行。
+  const [actionPreview, setActionPreview] = useState<{ reply: string; action: string } | null>(null)
   // P1.5：bar 形态下的展开态（浮层整幅控制台）；full 形态恒整幅
   const [expanded, setExpanded] = useState(false)
   const mode: 'full' | 'float' | 'bar' = variant === 'bar' ? (expanded ? 'float' : 'bar') : 'full'
@@ -138,6 +143,15 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
     })
     commitChainRef.current = job
     void job
+    // P1.9：dry-run 预览不进提交链（绝不阻塞对话落库）；新轮覆盖旧预览。
+    // 经微任务调用：桥桩缺 RouteIntent 时同步抛错也能落进 catch（静默）。
+    void Promise.resolve()
+      .then(() => app.RouteIntent(turn.user, true))
+      .then((r) => {
+        if (!mountedRef.current || !r?.handled || !r.reply) return
+        setActionPreview({ reply: r.reply, action: r.action ?? '' })
+      })
+      .catch(() => {})
   }, [finalizeTopicAfterSend, getActiveId, setMessages])
 
   const v2 = useVoiceChatV2({ instructions, voice: voiceId, onTurnComplete })
@@ -256,6 +270,16 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
           结束
         </Button>
         {feedback && <p className="vc2-bar-note" role="status">{feedback}</p>}
+        {actionPreview && (
+          <div className="vc2-action-preview" role="note">
+            <ThunderboltOutlined aria-hidden="true" />
+            <span className="vc2-action-preview-text">{actionPreview.reply}</span>
+            <span className="vc2-action-preview-tag">识别到动作 · 未执行</span>
+            <button className="vc2-action-preview-close" aria-label="关闭动作预览" onClick={() => setActionPreview(null)}>
+              <CloseOutlined />
+            </button>
+          </div>
+        )}
       </div>
     )
   }
@@ -430,6 +454,16 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
 
       {ready && (
         <footer className="vc2-command-dock">
+          {actionPreview && (
+            <div className="vc2-action-preview" role="note">
+              <ThunderboltOutlined aria-hidden="true" />
+              <span className="vc2-action-preview-text">{actionPreview.reply}</span>
+              <span className="vc2-action-preview-tag">识别到动作 · 未执行</span>
+              <button className="vc2-action-preview-close" aria-label="关闭动作预览" onClick={() => setActionPreview(null)}>
+                <CloseOutlined />
+              </button>
+            </div>
+          )}
           {feedback && (
             <p
               className={`vc2-feedback${v2.phase === 'error' || turnWarning ? ' is-alert' : ''}`}
