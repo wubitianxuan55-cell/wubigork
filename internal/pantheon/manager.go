@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -1354,12 +1355,49 @@ func (m *Manager) runAgentWithRetry(
 	phase string,
 	round int,
 ) (string, time.Duration, CallRef, error) {
+	autoRetried := false
 	for {
 		text, duration, callRef, err := m.runOne(ctx, session, status, prompt, phase, round)
 		if errors.Is(err, errAgentRetry) && ctx.Err() == nil {
 			continue
 		}
+		// 空结果自动重试一次（2026-11-03 并行实弹）：并行开场 4 进程并发下
+		// zcode 中途夭折零正文=11-02 在册老病（完成门收紧后判空），偶发性强、
+		// 新鲜进程重跑成功率高。只对空结果类失败放行（凭据/路径错误重试无用），
+		// 每次调用至多一次，事件可见不静默。
+		if err != nil && isEmptyResultErr(err) && !autoRetried && ctx.Err() == nil {
+			autoRetried = true
+			m.recordAutoRetry(session, status, phase, round, err)
+			continue
+		}
 		return text, duration, callRef, err
+	}
+}
+
+func isEmptyResultErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "返回空结果")
+}
+
+// recordAutoRetry 自动重试留痕：复用 EventAgentRetry（前端 closedStreams 台账
+// 已按 retry 解封直播流，兼容现成），用户在流里看得见「自动重试」，不静默换跑。
+func (m *Manager) recordAutoRetry(session *Session, status AgentStatus, phase string, round int, cause error) {
+	m.mu.Lock()
+	event := m.appendEventLocked(session, Event{
+		Phase:   phase,
+		Round:   round,
+		AgentID: status.ID,
+		Kind:    EventAgentRetry,
+		Text:    fmt.Sprintf("%s 返回空结果，自动重试一次（%v）", status.Name, cause),
+		At:      time.Now().UnixMilli(),
+	})
+	saveErr := m.store.save(session)
+	m.mu.Unlock()
+	m.emitSafe(event)
+	if saveErr != nil {
+		slog.Warn("自动重试事件落盘失败", "session", session.ID, "error", saveErr)
 	}
 }
 

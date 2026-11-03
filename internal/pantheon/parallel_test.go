@@ -165,3 +165,98 @@ func TestCouncilOpeningRemainsSequential(t *testing.T) {
 		t.Fatal("no contributions")
 	}
 }
+
+// 空结果自动重试（2026-11-03 并行实弹）：zcode 中途夭折零正文=11-02 在册老病,
+// 偶发——自动重试一次须留痕且成功入库;连续两次空才判失败。
+func TestEmptyResultAutoRetriesOnce(t *testing.T) {
+	runner := defaultFakeRunner()
+	calls := map[string]int{}
+	var mu sync.Mutex
+	runner.outputs["alpha"] = func(spec commandSpec) (string, error) {
+		if strings.Contains(spec.Stdin, "汇总人") {
+			return "alpha 汇总完成。", nil
+		}
+		mu.Lock()
+		calls["alpha"]++
+		n := calls["alpha"]
+		mu.Unlock()
+		if n == 1 {
+			return "", nil // 第一遍夭折：空正文 → 「Agent 返回空结果」
+		}
+		return "alpha 重试后正常陈词。", nil
+	}
+	runner.outputs["beta"] = func(spec commandSpec) (string, error) {
+		return "beta 正常陈词。", nil
+	}
+	m := newTestManager(t, runner, fakeAdapter("alpha"), fakeAdapter("beta"))
+	defer m.Close()
+	session, err := m.Start(StartRequest{
+		Topic: "空结果自愈", AgentIDs: []string{"alpha", "beta"}, ChairmanAgentID: "alpha",
+		Rounds: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := waitForStatus(t, m, session.ID, StatusCompleted)
+	mu.Lock()
+	n := calls["alpha"]
+	mu.Unlock()
+	if n != 2 {
+		t.Fatalf("alpha calls = %d, want 2 (auto retry once)", n)
+	}
+	retryEvent := false
+	for _, event := range done.Events {
+		if event.Kind == EventAgentRetry && event.AgentID == "alpha" {
+			retryEvent = true
+		}
+	}
+	if !retryEvent {
+		t.Fatal("auto retry must be visible as agent_retry event")
+	}
+	landed := false
+	for _, contribution := range done.Contributions {
+		if contribution.AgentID == "alpha" && strings.Contains(contribution.Content, "重试后正常陈词") {
+			landed = true
+		}
+	}
+	if !landed {
+		t.Fatal("retried contribution must land")
+	}
+}
+
+func TestEmptyResultFailsAfterSecondBlank(t *testing.T) {
+	runner := defaultFakeRunner()
+	runner.outputs["alpha"] = func(commandSpec) (string, error) {
+		return "", nil // 两遍都空：重试后仍失败，走 agent_error
+	}
+	m := newTestManager(t, runner, fakeAdapter("alpha"), fakeAdapter("beta"))
+	defer m.Close()
+	session, err := m.Start(StartRequest{
+		Topic: "连续空失败", AgentIDs: []string{"alpha", "beta"}, ChairmanAgentID: "alpha",
+		Rounds: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := waitForStatus(t, m, session.ID, StatusCompleted)
+	blank := 0
+	for _, contribution := range done.Contributions {
+		if contribution.AgentID == "alpha" && contribution.Phase == PhaseOpening {
+			if strings.TrimSpace(contribution.Content) == "" {
+				blank++
+			}
+		}
+	}
+	if blank != 0 {
+		t.Fatalf("empty contributions must not land: %d", blank)
+	}
+	retries := 0
+	for _, event := range done.Events {
+		if event.Kind == EventAgentRetry && event.AgentID == "alpha" {
+			retries++
+		}
+	}
+	if retries != 1 {
+		t.Fatalf("auto retries = %d, want exactly 1", retries)
+	}
+}
