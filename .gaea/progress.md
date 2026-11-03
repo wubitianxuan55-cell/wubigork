@@ -1,3 +1,24 @@
+## 众神殿 V2 一日十四提交 · 2026-11-03
+
+- **众神殿单日大版本日（2026-11-03，ZCode 会话，16 提交 8dadd38f..be219425 全部未 push）**——从「实弹 22 次提示词截断」一路收到「V2 P0 真相单源化+P1 收口机制」，全部经 build.bat 全链+双端同哈希交付（最终 exe 39eb4402… SHA256 前缀，新壳 PID 40952）。批次序：
+  1. **多线合流 8dadd38f**（153 文件：语音 V2 实弹线/众神殿论证文件化+DSH 席位状态机/办公预览滚动两刀/造价原表单价）+cmd 弹窗根修（启动/关闭路径 taskkill/netstat/powershell/git 九点 proc.HideWindow）。
+  2. **论证文件化（22 次截断根修）**：maxPromptRunes 24000→60000+贡献/大材料归档 sessions/<id>/contrib|evidence（session.json 权威+惰性自愈）+分发梯度（同轮全文/上轮立场卡/更早索引行+全文路径）+grok 归档路径入 readPaths。
+  3. **席位启动黑框+专属发言动画**（2e9a9221）：pantheon runner.go CLI 拉起 HideWindow 补刀（首轮漏扫 internal/pantheon 包）+CSS 按 data-agent-id 四款动画。
+  4. **实弹四连问**（aae0454c）：上一轮立场卡补全文路径（贡献 ID 空头支票根修）+四席能力矩阵澄清+toolPolicy 降级指引+轮换顺序答疑（rotateAgentIDs 确定性非随机）。
+  5. **全员联网**（253eb88f 用户拍板）：codex read-only→workspace-write+network_access（read-only 默认禁网=GitHub API 直连失败真因）。
+  6. **用户中途评论**（5c0a370e）：AddUserNote+user_note 全文分发+讨论流插话输入框+绑定面 717 四表同批。
+  7. **共享流可视四刀**（4c447621）：is-seat-speaking 全程动画+席色四层+详情面板每轮折叠+左轴时间线。
+  8. **并行开场**（a58b21e3 用户拍板）：独立开场第 1 轮 goroutine per seat+agentCalls 会话×席位双键多槽+落盘序=完成序；区间重叠证明法测试。
+  9. **zcode 空结果真根修**（b4e2c116）：**runStream 只取 cappedBuffer.buf(head) 丢弃 11-02 加的 tail 环留**——大仓流撞 4MB cap 时收尾事件全在被丢尾部（live dump：旁路 2616 字正文在手 parse=0→修后 2933 字全文）；cap→16MB。
+  10. **议事质量五刀**（2490602a，实弹 pan_1793681319746 病例驱动——先被骂没看案例）：插话段条件注入（治四席复读回归）/主席轮间小结实权/共识三行制遗留台账/汇总提炼式/转述纪律+质量阶梯。
+  11. **V2 规划落档**（6656b8fd）：docs/gaea-pantheon-v2-roadmap-2026-11-03.md（九轮讨论全文提炼：P0 真相单源化→P1 收口改造→P2 协议形态）+**终止草稿刀**（bf0d1dbd：finishCancelled 落 resultPath，未收口草稿标注）。
+  12. **V2 P0 真相单源化四刀**（76b05d11）：五入口 liveSessionLocked 同源+插话 drain 交付/ResolveGate 双守卫防双活循环/seatRoundCoverage 事件投影进 Gaps+Partial/startSeatRoundLocked 轮边界具名动作（席位跨轮解冻，58 条拒绝警告洪水根除）。
+  13. **V2 P1 停机判据+翻转举证**（c3b6eb18）：Contribution.Residual 抽「剩余分歧」行+停机门增判（自报一致+保留实质分歧不得停机，grok r2 洞根修，旧测试固化病翻转）+no→yes 翻转审计无证据句柄→从众嫌疑留痕。
+  14. **V2 P1 分歧台账**（be219425）：Issue 全生命周期=剩余分歧行自动开条（同席去重）→resolved 带撤回轮次/结案 dissent 永久入档；open 贯穿注入 prompt+汇总按条交代去向+导出台账段。
+- **用户中途插话刀**（5c0a370e 前身 2dbb22f5→amend wailsjs）与启动铭牌+拓扑每席跳过钮+工具期工作卡（c49c050d：金线框铭牌 notification/恒显每席跳过钮/working 工作卡）并入上列 6/7 批次叙述。
+- **V2 余量（挂下批）**：分歧台账 Issue{id,双方,证据,状态,阻塞,核验,去向} 完整结构化+主席小结结构化输出台账、收口轮并行隔离（问「你会不会签」）、P0 防御性 saveSessionLocked 写路径收口+完整版本检查、P2 协议形态按需。
+- **验证基线**：每批次 go test pantheon 全绿+app 包多轮 150~190s 绿+tsc/vet 0+build.bat 冒烟 200+桌面副本同哈希+新壳 PID>构建时刻核验；DSH 流水线同树在途（zcode argv 32K 临时文件刀随包内 add 卷入 c3b6eb18，绿不拆记档；deliberation-frameworks 调研文档随 chore 入库）。
+
 ## Orca 蒸馏 P0 · 2026-11-02
 
 - **Attempt 身份闭环 + 隐性派生禁令 + 图片能力门（未发布）**——依据 `docs/gaea-orca-pantheon-distill-2026-11.md` 首批 P0 落地。①`pantheon.CallRef` 嵌入 `Participant/Event/Contribution`：`CallID` 在同一 session/agent/phase/round 的重试间稳定，`AttemptID` 每次实际调用重生成，`RetryOfAttempt` 指向上一 Attempt；start/delta/tool/output/error/skip/retry 全链携带。`activeAgentCall` 现在同时按 skip/retry 与“是否仍是当前调用”拒绝残影，旧调用结束后再到的 delta/tool 不写状态。②前端直播键加 AttemptID，封口键按 Attempt（历史无 ID 退席轮）；跳过、失败、重试只清对应 Attempt，新 Attempt 开始不会解封旧 Attempt。③协作守则明确“亲自完成本轮，不派生 subagent/并行助手/二次委派”。④图片通道显式化：Codex/ZCode `image-input`、Grok `image-path-tools`、四席 app 层共享 `shared-image-summary`；有附件时后端逐席 preflight，三者全无才拒绝，Composer 同步点名并禁用开议；DSH 仍走共享摘要。边界=不做类型化未知态 O-D、决策门 O-E、写执行 O-F、daemon O-G。验证=`go test ./internal/pantheon` 绿、PantheonPage+streaming 44/44 绿、`tsc -b` 绿、Wails 绑定重生成成功；共享工作树内 `internal/gaea/agent/task.go` 的并行在制 `routeProv` 未使用会挡全仓构建，本刀未代改该文件，临时编译 shim 已撤。未抬版本、未 commit/push。
