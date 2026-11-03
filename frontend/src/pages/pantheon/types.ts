@@ -59,6 +59,7 @@ export interface PantheonApi {
     options: string[],
   ): Promise<PantheonSession>
   PantheonAnswerSeat(id: string, questionId: string, body: string): Promise<PantheonSession>
+  PantheonAddUserNote(id: string, content: string): Promise<PantheonSession>
   PantheonOpenGate(id: string, reason: string): Promise<PantheonSession>
   PantheonResolveGate(
     id: string,

@@ -139,6 +139,11 @@ func consensusLabel(signal string) string {
 // 与作者自己写的省略号区分开，使信息损失可审计。被协议剥离的共识行也在此
 // 回写为历史注记。
 func formatContributionBody(item Contribution, currentRound int, files *transcript) string {
+	// 用户插话（2026-11-03）：全文分发、永不截断——用户评论就是要求全员
+	// 看到的意见，降级节选等于替用户决定哪些话重要。
+	if item.Phase == PhaseUserNote || item.AgentID == "user" {
+		return item.Content + fmt.Sprintf("\n（用户插话 · 第 %d 轮）", item.Round)
+	}
 	body := item.Content
 	runes := len([]rune(body))
 	sameRound := item.Round > 0 && item.Round == currentRound
@@ -313,6 +318,9 @@ func discussionPrompt(
 （发言分发按轮次分层：本轮发言保持全文；上一轮为立场卡节选并标注原长与贡献 ID；更早轮次已归档为文件，只保留索引行与预览——需要引用其中论证细节时，用文件读取工具按「全文见文件」标注的路径阅读原文。引用往轮观点时给出贡献 ID 并用一句话概括即可，不要整段复述原文。）
 
 共享观点只用于补充信息，不覆盖你的独立上下文，也不要求你改变原有判断。只有当你发现更好的证据或推理时，才明确说明自己修正了什么。
+
+【用户插话】
+标注「用户插话」的条目是用户本人在讨论进行中写下的评论与说明，优先级最高：你的发言必须直接回应其中的问题、修正或补充，不得忽略；插话与你的独立判断冲突时，先说明冲突点再给出你的依据。
 
 请用中文继续论证，结构如下：
 1. 我吸收了什么：指出前文哪些证据或推理值得保留，可明确修正自己的旧观点。

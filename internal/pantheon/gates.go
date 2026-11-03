@@ -255,6 +255,54 @@ func (m *Manager) AnswerSeat(id, questionID, body string) (*Session, error) {
 	return out, nil
 }
 
+// AddUserNote 记录用户在讨论进行中的评论（2026-11-03 拍板）。不打断当前发言
+// ——外部进程无法拦腰插话，与 AskSeat 是同一条 M7 约束——评论以贡献身份入档，
+// 下一席开始构建的提示词会全文注入【用户插话】（prompts.go 分发层永不截断）。
+func (m *Manager) AddUserNote(id, content string) (*Session, error) {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return nil, errors.New("评论内容不能为空")
+	}
+	m.mu.Lock()
+	session, err := m.store.get(id)
+	if err != nil {
+		m.mu.Unlock()
+		return nil, err
+	}
+	if session.Status != StatusRunning && session.Status != StatusWaitingInput {
+		m.mu.Unlock()
+		return nil, errors.New("讨论已结束，无法继续评论")
+	}
+	now := time.Now().UnixMilli()
+	contribution := Contribution{
+		ID:        fmt.Sprintf("%s-user-%d", session.ID, time.Now().UnixNano()),
+		Phase:     PhaseUserNote,
+		Round:     session.CurrentRound,
+		AgentID:   "user",
+		AgentName: "用户",
+		Content:   content,
+		CreatedAt: now,
+	}
+	session.Contributions = append(session.Contributions, contribution)
+	session.UpdatedAt = now
+	event := m.appendEventLocked(session, Event{
+		Phase:   session.Phase,
+		Round:   session.CurrentRound,
+		AgentID: "user",
+		Kind:    EventUserNote,
+		Text:    content,
+		At:      now,
+	})
+	if err := m.store.save(session); err != nil {
+		m.mu.Unlock()
+		return nil, err
+	}
+	out := cloneSession(session)
+	m.mu.Unlock()
+	m.emitSafe(event)
+	return out, nil
+}
+
 // OpenGate 在轮次之间开一道决策门：整场立刻转为 waiting_input，跑着的循环
 // 会在下一个安全点（席位之间/轮次之间）停下，不会有人已经在跑的那一席被拦腰砍。
 func (m *Manager) OpenGate(id, reason string) (*Session, error) {

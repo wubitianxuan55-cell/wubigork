@@ -42,6 +42,7 @@ interface Props {
   onCancel: () => void
   onSkipAgent: (agentId: string) => void
   onRetryAgent: (agentId: string) => void
+  onAddUserNote: (content: string) => void
   onRestart: () => void
   onResume: () => void
   onDelete: () => void
@@ -116,7 +117,7 @@ interface ToolTraceView {
 
 interface SharedEntry {
   id: string
-  kind: 'topic' | 'orchestrator' | 'agent' | 'event' | 'live' | 'warning'
+  kind: 'topic' | 'orchestrator' | 'agent' | 'event' | 'live' | 'warning' | 'user'
   label: string
   text: string
   meta?: string
@@ -806,6 +807,7 @@ export const PantheonRecord: React.FC<Props> = ({
   liveStreams,
   onCancel,
   onSkipAgent,
+  onAddUserNote,
   onRetryAgent,
   onRestart,
   onResume,
@@ -834,6 +836,9 @@ export const PantheonRecord: React.FC<Props> = ({
   const streamRef = useRef<HTMLDivElement>(null)
   const detailRef = useRef<HTMLElement>(null)
   const detailTriggerRef = useRef<HTMLElement | null>(null)
+  // 用户中途评论（2026-11-03）：running/waiting_input 皆可发言，不打断当前席位。
+  const [noteDraft, setNoteDraft] = useState('')
+  const [noteSending, setNoteSending] = useState(false)
   const [selectedAgentId, setSelectedAgentId] = useState('')
   const [detailTab, setDetailTab] = useState<'output' | 'trace'>('output')
   const [metaOpen, setMetaOpen] = useState(false)
@@ -1088,6 +1093,18 @@ export const PantheonRecord: React.FC<Props> = ({
               ? Math.max(0, activeRound - 1)
               : 0
 
+  const submitUserNote = useCallback(() => {
+    const content = noteDraft.trim()
+    if (!content || noteSending) return
+    setNoteSending(true)
+    try {
+      onAddUserNote(content)
+      setNoteDraft('')
+    } finally {
+      setNoteSending(false)
+    }
+  }, [noteDraft, noteSending, onAddUserNote])
+
   const sharedEntries = useMemo<SharedEntry[]>(() => {
     const entries: SharedEntry[] = [
       {
@@ -1136,6 +1153,19 @@ export const PantheonRecord: React.FC<Props> = ({
     }
 
     for (const output of displayOutputs) {
+      // 用户中途评论（2026-11-03）：独立卡片形态，标注「你」，不被折叠逻辑当 agent 发言处理。
+      if (output.phase === 'user_note' || output.agentId === 'user') {
+        entries.push({
+          id: `shared-output-${output.id}`,
+          kind: 'user',
+          label: '你（插话）',
+          text: output.text,
+          meta: output.round ? `第 ${output.round} 轮 · 全员可见，后续发言优先回应` : '全员可见，后续发言优先回应',
+          at: output.at || session.updatedAt,
+          agentId: output.agentId,
+        })
+        continue
+      }
       entries.push({
         id: `shared-output-${output.id}`,
         kind: 'agent',
@@ -1813,7 +1843,9 @@ export const PantheonRecord: React.FC<Props> = ({
                 } as React.CSSProperties : undefined}
               >
                 <span className="pantheon-shared-avatar" aria-hidden>
-                  {entry.agentId ? (
+                  {entry.kind === 'user' ? (
+                    '你'
+                  ) : entry.agentId ? (
                     <PantheonAgentAvatar
                       agentId={entry.agentId}
                       className="pantheon-shared-agent-avatar"
@@ -1851,6 +1883,36 @@ export const PantheonRecord: React.FC<Props> = ({
               </article>
             ))}
           </div>
+
+          {(running || session.status === 'waiting_input') && (
+            <div className="pantheon-note-composer" data-testid="pantheon-note-composer">
+              <textarea
+                className="pantheon-note-input"
+                data-testid="pantheon-note-input"
+                value={noteDraft}
+                onChange={(event) => setNoteDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault()
+                    submitUserNote()
+                  }
+                }}
+                placeholder="插话评论：你的说明会进入讨论流，后续发言优先回应（Enter 发送，Shift+Enter 换行）"
+                rows={2}
+                aria-label="用户插话"
+              />
+              <button
+                type="button"
+                className="pantheon-note-send"
+                data-testid="pantheon-note-send"
+                onClick={submitUserNote}
+                disabled={!noteDraft.trim() || noteSending}
+                aria-label="发送插话"
+              >
+                发送
+              </button>
+            </div>
+          )}
 
           {!running && (
             <div className="pantheon-record-body" aria-label="讨论小结">

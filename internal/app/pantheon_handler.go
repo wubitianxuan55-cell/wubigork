@@ -325,6 +325,16 @@ func (s *pantheonState) PantheonAnswerSeat(id, questionID, body string) (*panthe
 	return manager.AnswerSeat(id, questionID, body)
 }
 
+// PantheonAddUserNote 记录用户在讨论进行中的评论：不打断当前发言，下一席
+// 开始全文注入【用户插话】（2026-11-03 拍板）。
+func (s *pantheonState) PantheonAddUserNote(id, content string) (*pantheon.Session, error) {
+	manager, err := s.managerRef()
+	if err != nil {
+		return nil, err
+	}
+	return manager.AddUserNote(id, content)
+}
+
 // PantheonOpenGate 在轮次之间开一道决策门；PantheonResolveGate 放行或放弃。
 func (s *pantheonState) PantheonOpenGate(id, reason string) (*pantheon.Session, error) {
 	manager, err := s.managerRef()

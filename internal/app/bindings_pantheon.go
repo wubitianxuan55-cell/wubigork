@@ -10,6 +10,7 @@ import (
 // 方法体零改动——纯委托给 App 实例（b.a.<Method>）。
 type PantheonB struct{ a *App }
 
+func (b *PantheonB) PantheonAddUserNote(id string, content string) (*pantheon.Session, error) { return b.a.PantheonAddUserNote(id, content) }
 func (b *PantheonB) PantheonAgents() ([]pantheon.AgentStatus, error) { return b.a.PantheonAgents() }
 func (b *PantheonB) PantheonAnswerSeat(id string, questionID string, body string) (*pantheon.Session, error) { return b.a.PantheonAnswerSeat(id, questionID, body) }
 func (b *PantheonB) PantheonAskSeat(id string, agentID string, question string, options []string) (*pantheon.Session, error) { return b.a.PantheonAskSeat(id, agentID, question, options) }

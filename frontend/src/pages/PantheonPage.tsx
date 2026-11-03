@@ -816,6 +816,20 @@ const PantheonPage: React.FC = () => {
     [active, loadSessions, messageApi],
   )
 
+  const addUserNote = useCallback(
+    async (content: string) => {
+      if (!active) return
+      try {
+        const session = await pantheonApi.PantheonAddUserNote(active.id, content)
+        setActive(session)
+        messageApi.success('插话已进入讨论流，后续发言会优先回应')
+      } catch (err) {
+        setError(`插话失败：${errorText(err)}`)
+      }
+    },
+    [active, messageApi],
+  );
+
   const resolveCouncilGate = useCallback(
     async (action: 'resolve' | 'dismiss', reason: string) => {
       if (!active) return
@@ -1124,6 +1138,7 @@ const PantheonPage: React.FC = () => {
             liveStreams={liveStreams}
             onCancel={cancelCouncil}
             onSkipAgent={(agentId) => void skipAgent(agentId)}
+            onAddUserNote={(content) => void addUserNote(content)}
             onRetryAgent={(agentId) => void retryAgent(agentId)}
             onRestart={restartCouncil}
             onResume={() => void resumeCouncil()}

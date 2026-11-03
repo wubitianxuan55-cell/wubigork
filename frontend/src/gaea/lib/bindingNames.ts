@@ -556,6 +556,7 @@ export const bindingNames = [
   "OpenNovelImagesDir",
   "OpenProject",
   "PantheonAgents",
+  "PantheonAddUserNote",
   "PantheonAnswerSeat",
   "PantheonAskSeat",
   "PantheonCancel",

@@ -82,6 +82,7 @@ export const GAEA_METHOD_FACETS = {
   PantheonOpenResult: "shared",
   PantheonSignOff: "shared",
   PantheonSetExecutable: "shared",
+  PantheonAddUserNote: "shared",
   PantheonAskSeat: "shared",
   PantheonAnswerSeat: "shared",
   PantheonOpenGate: "shared",

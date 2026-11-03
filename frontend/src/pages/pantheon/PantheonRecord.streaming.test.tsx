@@ -74,6 +74,7 @@ function renderRecord(props: {
   onSkipAgent?: (agentId: string) => void
   onRetryAgent?: (agentId: string) => void
   onRestart?: () => void
+  onAddUserNote?: (content: string) => void
 } = {}) {
   return render(
     <PantheonRecord
@@ -101,6 +102,7 @@ function renderRecord(props: {
       onContinue={() => {}}
       onAnswer={() => {}}
       onResolveGate={() => {}}
+      onAddUserNote={props.onAddUserNote ?? (() => {})}
     />,
   )
 }
@@ -368,5 +370,43 @@ describe('PantheonRecord streaming', () => {
     expect(finalized.textContent).not.toContain('正在输出')
     expect(finalized.querySelector('.pantheon-stream-caret')).toBeNull()
     expect(screen.queryByTestId('pantheon-agent-output-pan_stream:grok:opening:1')).toBeNull()
+  })
+
+  it('用户中途评论以独立卡片进入讨论流，标「你」不被折叠当 agent 发言', () => {
+    renderRecord({
+      contributions: [{
+        id: 'contribution_user_1',
+        phase: 'user_note',
+        round: 2,
+        agentId: 'user',
+        agentName: '用户',
+        content: '请重点比较两案的运维成本。',
+        createdAt: now - 300,
+      }],
+    })
+
+    const stream = screen.getByTestId('pantheon-stream')
+    const note = stream.querySelector('.pantheon-shared-entry.is-user')
+    expect(note).not.toBeNull()
+    expect(note?.textContent).toContain('你（插话）')
+    expect(note?.textContent).toContain('请重点比较两案的运维成本。')
+    expect(note?.textContent).toContain('优先回应')
+  })
+
+  it('运行中输入框发送插话回调 onAddUserNote，Enter 直发 Shift+Enter 换行', () => {
+    const onAddUserNote = vi.fn()
+    renderRecord({ onAddUserNote, sessionOverrides: { status: 'running' } })
+
+    const input = screen.getByTestId('pantheon-note-input') as HTMLTextAreaElement
+    fireEvent.change(input, { target: { value: '插一句：风险优先。' } })
+    fireEvent.keyDown(input, { key: 'Enter', shiftKey: true })
+    expect(onAddUserNote).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onAddUserNote).toHaveBeenCalledTimes(1)
+    expect(onAddUserNote).toHaveBeenCalledWith('插一句：风险优先。')
+
+    fireEvent.click(screen.getByTestId('pantheon-note-send'))
+    expect(onAddUserNote).toHaveBeenCalledTimes(1) // 空草稿不重复发送
   })
 })

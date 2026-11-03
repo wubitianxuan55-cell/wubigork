@@ -508,6 +508,35 @@ export function buildPantheon(): PantheonBindings {
       session.updatedAt = at
       return structuredClone(session)
     },
+    PantheonAddUserNote: async (id, content) => {
+      const session = sessions.get(id)
+      if (!session) throw new Error('议事不存在')
+      if (session.status !== 'running' && session.status !== 'waiting_input') {
+        throw new Error('讨论已结束，无法继续评论')
+      }
+      const at = now()
+      session.contributions.push({
+        id: `${session.id}-user-${at}`,
+        phase: 'user_note',
+        round: session.currentRound,
+        agentId: 'user',
+        agentName: '用户',
+        content,
+        createdAt: at,
+      })
+      session.events.push({
+        seq: session.events.length + 1,
+        sessionId: session.id,
+        phase: session.phase,
+        round: session.currentRound,
+        agentId: 'user',
+        kind: 'user_note',
+        text: content,
+        at,
+      })
+      session.updatedAt = at
+      return structuredClone(session)
+    },
     PantheonOpenGate: async (id, reason) => {
       const session = sessions.get(id)
       if (!session) throw new Error('议事不存在')
