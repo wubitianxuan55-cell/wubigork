@@ -1,13 +1,17 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/gaea/gaea/internal/ai"
+	"github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/whisper"
 )
 
@@ -91,6 +95,72 @@ func TestVoiceV2GatewayStripsToolsPayload(t *testing.T) {
 	}
 }
 
+func TestVoiceV2GatewayChatModelLegReemitsSSE(t *testing.T) {
+	// P1 续刀「语音对话模型」：voice_chat_llm=chat → LLM 位走 ai.Client 流式，
+	// 网关以 OpenAI chat chunk 形状重发；reasoning delta 不转发（语音不朗读思考）。
+	oldStream := voiceV2ChatLLMStream
+	t.Cleanup(func() { voiceV2ChatLLMStream = oldStream })
+
+	var gotMsgs []ai.ChatMessage
+	var gotFeature string
+	voiceV2ChatLLMStream = func(_ context.Context, _ *mediaState, msgs []ai.ChatMessage) (<-chan ai.SSEChunk, error) {
+		gotMsgs = msgs
+		gotFeature = "voice_v2"
+		ch := make(chan ai.SSEChunk, 4)
+		ch <- ai.SSEChunk{Reasoning: "思考过程"}
+		ch <- ai.SSEChunk{Content: "你好"}
+		ch <- ai.SSEChunk{Content: "呀"}
+		ch <- ai.SSEChunk{Done: true}
+		close(ch)
+		return ch, nil
+	}
+
+	a := &mediaState{core: &core{cfg: &config.Config{VoiceChatLLM: "chat"}}}
+	body := `{"model":"sidecar-model","stream":true,"messages":[` +
+		`{"role":"system","content":"你是短句语音助手"},` +
+		`{"role":"user","content":"你好"}]}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	rr := httptest.NewRecorder()
+	a.handleVoiceV2ChatCompletion(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if len(gotMsgs) != 2 || gotMsgs[1].Content != "你好" {
+		t.Fatalf("消息数组未透传: %+v", gotMsgs)
+	}
+	if gotFeature != "voice_v2" {
+		t.Fatalf("feature 标签 = %q", gotFeature)
+	}
+	respBody := rr.Body.String()
+	if strings.Contains(respBody, "思考过程") {
+		t.Fatalf("reasoning delta 不得转发: %q", respBody)
+	}
+	if !strings.Contains(respBody, `"content":"你好"`) || !strings.Contains(respBody, `"content":"呀"`) {
+		t.Fatalf("content delta 未重发: %q", respBody)
+	}
+	if !strings.Contains(respBody, "data: [DONE]") {
+		t.Fatalf("缺终止行: %q", respBody)
+	}
+}
+
+func TestVoiceV2GatewayChatModelLegErrorRollsBack(t *testing.T) {
+	oldStream := voiceV2ChatLLMStream
+	t.Cleanup(func() { voiceV2ChatLLMStream = oldStream })
+	voiceV2ChatLLMStream = func(_ context.Context, _ *mediaState, _ []ai.ChatMessage) (<-chan ai.SSEChunk, error) {
+		return nil, fmt.Errorf("模型不可用")
+	}
+
+	a := &mediaState{core: &core{cfg: &config.Config{VoiceChatLLM: "chat"}}}
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions",
+		strings.NewReader(`{"model":"m","stream":true,"messages":[{"role":"user","content":"hi"}]}`))
+	rr := httptest.NewRecorder()
+	a.handleVoiceV2ChatCompletion(rr, req)
+	if rr.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, want 502", rr.Code)
+	}
+}
+
 func TestInjectVoiceV2SystemContextPreservesTurnOrder(t *testing.T) {
 	payload := map[string]interface{}{
 		"messages": []interface{}{
@@ -152,8 +222,10 @@ func TestApplyVoiceV2PreparedPromptInjectsStableAndDynamicContext(t *testing.T) 
 		t.Fatalf("稳定人格上下文未合并: %q", system)
 	}
 	dyn := messages[1].(map[string]interface{})
-	if dyn["role"] != "system" || !strings.Contains(dyn["content"].(string), "EMOTION_CURRENT") {
-		t.Fatalf("动态上下文应独立 system 消息: %#v", dyn)
+	// 角色用 user：herdsman 35B 模板拒绝会话中 system（chat 模型接入实测），
+	// user 角色任何模板都收且前缀缓存性质不变。
+	if dyn["role"] != "user" || !strings.Contains(dyn["content"].(string), "EMOTION_CURRENT") {
+		t.Fatalf("动态上下文应独立 user 消息: %#v", dyn)
 	}
 	user := messages[2].(map[string]interface{})
 	if user["content"] != "今天有点累" {

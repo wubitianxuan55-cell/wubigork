@@ -715,6 +715,21 @@ func (a *mediaState) VoiceApplySettings(settings map[string]interface{}) error {
 		// ChatPage 订阅 voice-backend-changed 热切语音台，不用重开页面。
 		a.emit("voice-backend-changed", map[string]interface{}{"backend": config.VoiceBackend})
 	}
+	if v, ok := settings["voiceChatLLM"].(string); ok {
+		// V2 对话 LLM 位（P1 续刀）：空/local-fast=专属快模型（VoiceV2Ensure
+		// 拉起的 4B），chat=跟随聊天板块模型（routeModel("chat") 经 ai.Client
+		// 流式）。未知值拒绝保存（save 层同校验）；网关逐请求读配置=即时生效。
+		if v != "" && v != "local-fast" && v != "chat" {
+			return fmt.Errorf("voiceChatLLM 仅支持空/local-fast/chat（当前值: %s）", v)
+		}
+		if err := appconfig.Save(appconfig.KeyVoiceChatLLM, v); err != nil {
+			slog.Warn("保存语音对话模型配置失败", "error", err)
+		}
+		if a.cfg != nil {
+			a.cfg.VoiceChatLLM = v
+		}
+		a.emit("voice-chat-llm-changed", map[string]interface{}{"llm": v})
+	}
 	if v, ok := settings["breezeVoiceDesc"].(string); ok {
 		// Breeze voice design 音色描述：只落盘（provider 在 ttsProviderForEngine
 		// 处实时读 cfg，不进 voice 运行时配置——语音对话的人格化描述优先级更高）

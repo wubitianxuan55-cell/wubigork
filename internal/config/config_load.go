@@ -469,6 +469,9 @@ func applyConfigFile(cfg *Config, home string) {
 			if cf.VoiceBackend != "" {
 				cfg.VoiceBackend = cf.VoiceBackend
 			}
+			if cf.VoiceChatLLM != "" {
+				cfg.VoiceChatLLM = cf.VoiceChatLLM
+			}
 			if cf.RealtimeModel != "" {
 				cfg.RealtimeModel = cf.RealtimeModel
 			}

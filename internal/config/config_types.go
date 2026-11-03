@@ -121,6 +121,8 @@ type configFile struct {
 	BreezeVoiceDesc string `json:"breeze_voice_desc,omitempty"`
 	// 角色音色预设（人格→音色，JSON 对象）
 	VoicePersonaPresets string `json:"voice_persona_presets,omitempty"`
+	// V2 对话 LLM 位（空/local-fast=专属快模型 | chat=跟随聊天板块模型，P1 续刀）
+	VoiceChatLLM string `json:"voice_chat_llm,omitempty"`
 	// tianxuan 独立引擎项目根目录（模型、二进制与启动档位由项目自身管理）。
 	TianxuanPath string `json:"tianxuan_path,omitempty"`
 	// strata 独立引擎项目根目录（.venv / serve / 档位 JSON 均在此目录）。
@@ -323,4 +325,7 @@ type Config struct {
 
 	// 语音对话后端（v1 | v2，默认 v1；M4 产品接入刀）
 	VoiceBackend string
+
+	// V2 对话 LLM 位（空/local-fast=专属快模型 | chat=跟随聊天板块模型）
+	VoiceChatLLM string
 }

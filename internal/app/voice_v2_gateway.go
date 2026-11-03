@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/httpbridge"
 )
 
@@ -123,6 +124,14 @@ func (a *mediaState) handleVoiceV2ChatCompletion(w http.ResponseWriter, r *http.
 	} else if memory := a.voiceV2LongTermContext(userMsg); memory != "" {
 		injectVoiceV2SystemContext(payload, memory)
 	}
+	// P1 续刀「语音对话模型」：voice_chat_llm=chat 时 LLM 位改走聊天板块模型
+	// （routeModel("chat") 经 ai.Client 流式），跳过专属 4B HTTP 代理；人格/
+	// 记忆预推进与提交语义完全不变（prepared 由本函数退出路径负责回滚）。
+	// plain 会话（prepared=nil）同样切换——chat 模式作用于整条 LLM 位。
+	if isStreaming && a.cfg != nil && a.cfg.VoiceChatLLM == "chat" {
+		a.serveVoiceV2ViaChatModel(w, r, payload, prepared)
+		return
+	}
 	augmented, err := json.Marshal(payload)
 	if err != nil {
 		http.Error(w, "编码语音对话请求失败", http.StatusInternalServerError)
@@ -167,6 +176,97 @@ func (a *mediaState) rollbackPrepared(prepared *voiceV2PreparedTurn) {
 		return
 	}
 	a.app.whisperState.rollbackVoiceV2PreparedTurn(prepared)
+}
+
+// voiceV2ChatLLMStream 语音对话「跟随聊天板块」腿的可桩点（测试替身注入）。
+var voiceV2ChatLLMStream = func(ctx context.Context, a *mediaState, msgs []ai.ChatMessage) (<-chan ai.SSEChunk, error) {
+	if a.clientRef() == nil {
+		return nil, fmt.Errorf("AI 客户端未初始化")
+	}
+	eng, model, _ := a.routeModel("chat")
+	if model == "" {
+		return nil, fmt.Errorf("聊天板块模型不可用")
+	}
+	return a.clientRef().ChatStream(ctx, &ai.ChatRequest{
+		Model: model, EngineID: eng, Feature: "voice_v2",
+		Messages: msgs, Stream: true,
+	})
+}
+
+// serveVoiceV2ViaChatModel 8792 网关的「跟随聊天板块」LLM 腿：把已注入人格
+// 稳定段/动态段与历史的消息数组交给 ai.Client 流式，再以 OpenAI chat chunk
+// 形状重发给 sidecar（reasoning delta 不转发——语音不朗读思考）。客户端断开
+// 或流错误时回滚预推进（与 4B 代理腿的 SSE 中断回滚语义对齐）。
+func (a *mediaState) serveVoiceV2ViaChatModel(
+	w http.ResponseWriter, r *http.Request, payload map[string]interface{}, prepared *voiceV2PreparedTurn,
+) {
+	msgs := voiceV2PayloadMessages(payload)
+	chunks, err := voiceV2ChatLLMStream(r.Context(), a, msgs)
+	if err != nil {
+		a.rollbackPrepared(prepared)
+		slog.Warn("Voice V2 聊天板块模型调用失败", "error", err)
+		http.Error(w, "语音模型暂不可用", http.StatusBadGateway)
+		return
+	}
+	defer func() {
+		// 客户端中途断开=上游 SSE 中断同族：预推进无人消费，回滚防幽灵
+		if r.Context().Err() != nil {
+			a.rollbackPrepared(prepared)
+		}
+	}()
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.WriteHeader(http.StatusOK)
+	flusher, _ := w.(http.Flusher)
+	for chunk := range chunks {
+		if chunk.Error != "" {
+			a.rollbackPrepared(prepared)
+			slog.Warn("Voice V2 聊天板块模型流式错误", "error", chunk.Error)
+			return
+		}
+		if chunk.Done {
+			break
+		}
+		if chunk.Content == "" {
+			continue
+		}
+		b, mErr := json.Marshal(map[string]interface{}{
+			"choices": []map[string]interface{}{
+				{"delta": map[string]interface{}{"content": chunk.Content}},
+			},
+		})
+		if mErr != nil {
+			continue
+		}
+		_, _ = w.Write([]byte("data: " + string(b) + "\n\n"))
+		if flusher != nil {
+			flusher.Flush()
+		}
+	}
+	_, _ = w.Write([]byte("data: [DONE]\n\n"))
+	if flusher != nil {
+		flusher.Flush()
+	}
+}
+
+// voiceV2PayloadMessages 网关 payload 的最终 messages → ai.ChatMessage。
+func voiceV2PayloadMessages(payload map[string]interface{}) []ai.ChatMessage {
+	raw, _ := payload["messages"].([]interface{})
+	msgs := make([]ai.ChatMessage, 0, len(raw))
+	for _, item := range raw {
+		m, _ := item.(map[string]interface{})
+		if m == nil {
+			continue
+		}
+		role, _ := m["role"].(string)
+		content, _ := m["content"].(string)
+		if role == "" || content == "" {
+			continue
+		}
+		msgs = append(msgs, ai.ChatMessage{Role: role, Content: content})
+	}
+	return msgs
 }
 
 func voiceV2TurnMetadata(r *http.Request) (itemID, turnID string, revision int) {
@@ -236,6 +336,9 @@ func applyVoiceV2PreparedPrompt(payload map[string]interface{}, prepared *voiceV
 	// 下一轮 sidecar 历史回放的是未经增强的原文，公共前缀在第一条 user 就断
 	// （4B 实测每轮全量 prefill ~1101 tokens）。独立消息只存在于当前请求，
 	// sidecar 历史逐字节稳定，跨轮前缀=[system+全部历史] 全部可复用。
+	// 角色用 user 而非 system：herdsman 35B 的 Qwen3.6 模板拒绝会话中 system
+	// （"System message must be at the beginning"，chat 模型接入实测暴露），
+	// user 角色任何模板都收，前缀缓存性质不变。
 	messages, _ := payload["messages"].([]interface{})
 	for i := len(messages) - 1; i >= 0; i-- {
 		m, _ := messages[i].(map[string]interface{})
@@ -243,7 +346,7 @@ func applyVoiceV2PreparedPrompt(payload map[string]interface{}, prepared *voiceV
 			continue
 		}
 		ctxMsg := map[string]interface{}{
-			"role":    "system",
+			"role":    "user",
 			"content": "【本轮上下文】\n" + dynamic + "\n【本轮上下文结束】",
 		}
 		inserted := make([]interface{}, 0, len(messages)+1)
