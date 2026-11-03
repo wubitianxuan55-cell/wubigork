@@ -42,6 +42,10 @@ export function VoiceV2CommitTurn(arg1:string,arg2:string,arg3:string,arg4:strin
 
 export function VoiceV2Ensure():Promise<Record<string, any>>;
 
+export function VoiceV2ExecuteAction(arg1:string,arg2:string):Promise<Record<string, any>>;
+
+export function VoiceV2PreviewIntent(arg1:string):Promise<Record<string, any>>;
+
 export function VoiceV2Status():Promise<Record<string, any>>;
 
 export function VoiceV2Stop():Promise<Record<string, any>>;

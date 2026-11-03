@@ -78,6 +78,14 @@ export function VoiceV2Ensure() {
   return window['go']['app']['VoiceB']['VoiceV2Ensure']();
 }
 
+export function VoiceV2ExecuteAction(arg1, arg2) {
+  return window['go']['app']['VoiceB']['VoiceV2ExecuteAction'](arg1, arg2);
+}
+
+export function VoiceV2PreviewIntent(arg1) {
+  return window['go']['app']['VoiceB']['VoiceV2PreviewIntent'](arg1);
+}
+
 export function VoiceV2Status() {
   return window['go']['app']['VoiceB']['VoiceV2Status']();
 }
