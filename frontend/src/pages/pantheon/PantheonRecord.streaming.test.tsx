@@ -445,4 +445,22 @@ describe('PantheonRecord streaming', () => {
     fireEvent.click(first.querySelector('.pantheon-agent-output-summary')!)
     expect(first.querySelector('.pantheon-agent-output-fold')?.hasAttribute('open')).toBe(true)
   })
+
+  it('纯工具期（running 无正文直播流）显示工作卡，标注正在调用工具（2026-11-03 反馈）', () => {
+    renderRecord({ sessionOverrides: { status: 'running' } })
+
+    // fakeAdapter 场景无 liveStreams：running 席以工作卡呈现，不再隐形
+    const working = document.querySelectorAll('.pantheon-shared-entry.is-working')
+    expect(working.length).toBeGreaterThan(0)
+    expect(working[0].textContent).toContain('正在')
+  })
+
+  it('拓扑节点恒显独立跳过钮，可指定席跳过（并行语义：running 席皆可跳）', () => {
+    const onSkipAgent = vi.fn()
+    renderRecord({ onSkipAgent, sessionOverrides: { status: 'running' } })
+
+    const button = screen.getByTestId('pantheon-skip-seat-grok')
+    fireEvent.click(button)
+    expect(onSkipAgent).toHaveBeenCalledWith('grok')
+  })
 })

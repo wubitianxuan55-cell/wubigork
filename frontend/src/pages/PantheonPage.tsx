@@ -10,7 +10,7 @@ import {
   SafetyCertificateOutlined,
   SearchOutlined,
 } from '@ant-design/icons'
-import { Alert, Button, Input, Modal, Tag, Tooltip, message } from 'antd'
+import { Alert, Button, Input, Modal, notification, Tag, Tooltip, message } from 'antd'
 import { PantheonComposer } from './pantheon/PantheonComposer'
 import { PantheonRecord } from './pantheon/PantheonRecord'
 import { PantheonAgentAvatar } from './pantheon/PantheonAgentAvatar'
@@ -384,7 +384,8 @@ const PantheonPage: React.FC = () => {
   // 已封口的 Attempt：跳过/失败/重试调用没有 agent_output 收尾，其残留
   // delta 不得在下一 Attempt 开始后复活。旧事件无 attemptId 时退回轮次键。
   const closedStreamsRef = useRef<Set<string>>(new Set())
-  const [messageApi, contextHolder] = message.useMessage()
+  const [messageApi, messageContextHolder] = message.useMessage()
+  const [notificationApi, notificationContextHolder] = notification.useNotification()
   const filteredSessions = useMemo(() => {
     const query = sessionQuery.trim().toLocaleLowerCase('zh-CN')
     return sessions.filter((item) => {
@@ -483,6 +484,38 @@ const PantheonPage: React.FC = () => {
     }
     if (event.kind === 'agent_started') {
       closedStreamsRef.current.delete(attemptKey)
+      // 席位启动公告动画（2026-11-03 用户拍板「弹窗动画显示(2s),不影响正常工作」）：
+      // 右上 notification 2s 自消、非模态不阻塞；各席专属动画条（grok 金环/codex
+      // 扫描线/zcode 呼吸/dsh 涟漪）。并行开场多席同时启动时天然堆叠。
+      if (active && event.sessionId === active.id) {
+        const accent = AGENT_ACCENTS[event.agentId] || 'var(--pantheon-accent)'
+        // 众神殿铭牌风（用户拍板「动画要有众神殿风格」）：金线框+衬线席名+
+        // eyebrow 轮次铭文+各席专属动画条；右上浮层 2s 自消、非模态不阻塞。
+        notificationApi.open({
+          key: `seat-live-${event.sessionId}:${event.agentId}:${event.round || 0}`,
+          message: (
+            <div
+              className={`pantheon-seat-toast pantheon-seat-anim-${event.agentId}`}
+              style={{ '--agent-accent': accent } as React.CSSProperties}
+            >
+              <div className="pantheon-seat-toast-eyebrow">
+                众神殿 · 第 {event.round || 1} 轮
+              </div>
+              <div className="pantheon-seat-toast-name">
+                {agentCompactName(event.agentId, event.agentId)}
+              </div>
+              <div className="pantheon-seat-toast-line">
+                <span className="pantheon-seat-toast-bar" />
+              </div>
+            </div>
+          ),
+          description: null,
+          duration: 2,
+          placement: 'topRight',
+          closeIcon: <span />,
+          className: 'pantheon-seat-toast-presentation',
+        })
+      }
       return
     }
     if (event.kind !== 'agent_delta' && event.kind !== 'agent_output') return
@@ -957,7 +990,8 @@ const PantheonPage: React.FC = () => {
 
   return (
     <div className={`pantheon-shell${railCollapsed ? ' is-rail-collapsed' : ''}`}>
-      {contextHolder}
+      {messageContextHolder}
+      {notificationContextHolder}
       <aside
         id="pantheon-archive-rail"
         className={`pantheon-rail${railCollapsed ? ' is-collapsed' : ''}`}

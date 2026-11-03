@@ -117,7 +117,7 @@ interface ToolTraceView {
 
 interface SharedEntry {
   id: string
-  kind: 'topic' | 'orchestrator' | 'agent' | 'event' | 'live' | 'warning' | 'user'
+  kind: 'topic' | 'orchestrator' | 'agent' | 'event' | 'live' | 'warning' | 'user' | 'working'
   label: string
   text: string
   meta?: string
@@ -1214,6 +1214,28 @@ export const PantheonRecord: React.FC<Props> = ({
 
     entries.sort((a, b) => a.at - b.at)
 
+    // 工具期工作条（2026-11-03 用户反馈「是否工作不是只看正文,工具调用也是在工作」）：
+    // running 且当前没有正文直播条目的席，补一张工作卡显示最新工具——纯工具期不再隐形。
+    const streamingAgents = new Set(
+      displayOutputs.filter((output) => output.streaming).map((output) => output.agentId),
+    )
+    for (const speaker of activeSpeakers) {
+      if (streamingAgents.has(speaker.agentId)) continue
+      const traces = tracesByAgent.get(speaker.agentId) ?? []
+      const latest = traces[traces.length - 1]
+      entries.push({
+        id: `shared-working-${speaker.agentId}`,
+        kind: 'working',
+        label: speaker.name,
+        text: latest
+          ? `正在调用工具：${latest.toolName}（本轮已 ${traces.length} 次调用）`
+          : `正在${PHASE_LABEL[session.phase] || '处理'}，暂无工具调用记录`,
+        meta: `第 ${session.currentRound || 1} 轮 · 工具调用也是在工作`,
+        at: Number.MAX_SAFE_INTEGER - 1,
+        agentId: speaker.agentId,
+      })
+    }
+
     if (running) {
       const speakerNames = activeSpeakers.map((participant) => participant.name)
       entries.push({
@@ -1236,6 +1258,8 @@ export const PantheonRecord: React.FC<Props> = ({
     participants,
     running,
     session.createdAt,
+    session.currentRound,
+    tracesByAgent,
     session.events,
     session.phase,
     session.request.attachments,
@@ -1765,8 +1789,15 @@ export const PantheonRecord: React.FC<Props> = ({
                 const status = active ? 'running' : participant.status
                 const startedAt = agentStartedAt(participant)
                 return (
-                  <button
+                  <div
                     key={participant.agentId}
+                    className="pantheon-topology-node-wrap"
+                    data-agent-id={participant.agentId}
+                    style={{
+                      '--agent-accent': AGENT_ACCENTS[participant.agentId] || 'var(--pantheon-accent)',
+                    } as React.CSSProperties}
+                  >
+                  <button
                     type="button"
                     className={[
                       'pantheon-topology-node',
@@ -1824,6 +1855,37 @@ export const PantheonRecord: React.FC<Props> = ({
                       )}
                     </span>
                   </button>
+                  {participant.status === 'running' && (
+                    <button
+                      type="button"
+                      className="pantheon-topology-node-skip"
+                      data-testid={`pantheon-skip-seat-${participant.agentId}`}
+                      aria-label={`跳过 ${participant.name} 当前调用`}
+                      title={`跳过 ${participant.name} 当前调用`}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onSkipAgent(participant.agentId)
+                      }}
+                    >
+                      <StepForwardOutlined />
+                    </button>
+                  )}
+                  {participant.status === 'failed' && (
+                    <button
+                      type="button"
+                      className="pantheon-topology-node-skip is-retry"
+                      data-testid={`pantheon-retry-seat-${participant.agentId}`}
+                      aria-label={`重试 ${participant.name}`}
+                      title={`重试 ${participant.name}`}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onRetryAgent(participant.agentId)
+                      }}
+                    >
+                      <ReloadOutlined />
+                    </button>
+                  )}
+                  </div>
                 )
               })}
             </div>
@@ -1875,6 +1937,12 @@ export const PantheonRecord: React.FC<Props> = ({
                 <span className="pantheon-shared-avatar" aria-hidden>
                   {entry.kind === 'user' ? (
                     '你'
+                  ) : entry.kind === 'working' && entry.agentId ? (
+                    <PantheonAgentAvatar
+                      agentId={entry.agentId}
+                      className="pantheon-shared-agent-avatar"
+                      status="running"
+                    />
                   ) : entry.agentId ? (
                     <PantheonAgentAvatar
                       agentId={entry.agentId}
@@ -1892,9 +1960,9 @@ export const PantheonRecord: React.FC<Props> = ({
                 <div className="pantheon-shared-copy">
                   <header>
                     <strong>{entry.label}</strong>
-                    {(entry.kind === 'live' || entry.streaming) && (
+                    {(entry.kind === 'live' || entry.streaming || entry.kind === 'working') && (
                       <span className="pantheon-streaming-state">
-                        {entry.streaming ? '正在发言' : '正在发生'}
+                        {entry.streaming ? '正在发言' : entry.kind === 'working' ? '正在工作' : '正在发生'}
                       </span>
                     )}
                     <time>{entry.at === Number.MAX_SAFE_INTEGER ? '现在' : formatClock(entry.at)}</time>
