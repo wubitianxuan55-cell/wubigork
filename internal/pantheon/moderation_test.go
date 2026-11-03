@@ -15,7 +15,7 @@ import (
 
 func TestUserNoteInstructionOnlyWhenRealNote(t *testing.T) {
 	plain := discussionPrompt(StartRequest{Topic: "无插话"}, AgentStatus{ID: "beta", Name: "BETA"},
-		[]Contribution{{ID: "c1", Round: 1, AgentID: "alpha", AgentName: "ALPHA", Content: "观点"}}, 2, 1, 2, nil)
+		[]Contribution{{ID: "c1", Round: 1, AgentID: "alpha", AgentName: "ALPHA", Content: "观点"}}, 2, 1, 2, nil, nil)
 	if strings.Contains(plain, "【用户插话】") {
 		t.Fatalf("no real note must not inject the block:\n%s", plain)
 	}
@@ -23,7 +23,7 @@ func TestUserNoteInstructionOnlyWhenRealNote(t *testing.T) {
 		[]Contribution{
 			{ID: "c1", Round: 1, AgentID: "alpha", AgentName: "ALPHA", Content: "观点"},
 			{ID: "u1", Phase: PhaseUserNote, Round: 1, AgentID: "user", AgentName: "用户", Content: "聚焦成本"},
-		}, 2, 1, 2, nil)
+		}, 2, 1, 2, nil, nil)
 	if !strings.Contains(withNote, "【用户插话】") || !strings.Contains(withNote, "聚焦成本") {
 		t.Fatalf("real note must inject the block and dispatch in full:\n%s", withNote)
 	}
@@ -65,7 +65,7 @@ func TestModerationRunsBetweenRounds(t *testing.T) {
 
 func TestConsensusInstructionCarriesLedger(t *testing.T) {
 	prompt := discussionPrompt(StartRequest{Topic: "台账", UntilConsensus: true},
-		AgentStatus{ID: "beta", Name: "BETA"}, nil, 2, 1, 2, nil)
+		AgentStatus{ID: "beta", Name: "BETA"}, nil, 2, 1, 2, nil, nil)
 	for _, want := range []string{"遗留台账", "不是分歧，是台账", "共识状态：一致"} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("consensus instruction misses %q", want)
@@ -74,7 +74,7 @@ func TestConsensusInstructionCarriesLedger(t *testing.T) {
 }
 
 func TestSynthesisDemandsDistillation(t *testing.T) {
-	prompt := synthesisPrompt(StartRequest{Topic: "提炼"}, AgentStatus{Name: "Grok"}, nil, nil)
+	prompt := synthesisPrompt(StartRequest{Topic: "提炼"}, AgentStatus{Name: "Grok"}, nil, nil, nil)
 	for _, want := range []string{"禁止流水账", "核心结论最多 3 条", "被淘汰的方案", "验证路径", "偏航"} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("synthesis misses %q", want)
@@ -83,7 +83,7 @@ func TestSynthesisDemandsDistillation(t *testing.T) {
 }
 
 func TestDiscussionPromptCarriesAntiDistortionRules(t *testing.T) {
-	prompt := discussionPrompt(StartRequest{Topic: "转述"}, AgentStatus{ID: "beta", Name: "BETA"}, nil, 2, 1, 2, nil)
+	prompt := discussionPrompt(StartRequest{Topic: "转述"}, AgentStatus{ID: "beta", Name: "BETA"}, nil, 2, 1, 2, nil, nil)
 	for _, want := range []string{"转述纪律", "贡献 ID", "【工具核验】", "【未核验】"} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("anti-distortion rules miss %q", want)

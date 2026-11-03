@@ -8294,6 +8294,32 @@ export namespace pantheon {
 	        this.error = source["error"];
 	    }
 	}
+	export class Issue {
+	    id: string;
+	    round: number;
+	    agentId: string;
+	    agentName: string;
+	    summary: string;
+	    status: string;
+	    resolvedAt?: number;
+	    resolvedIn?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Issue(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.round = source["round"];
+	        this.agentId = source["agentId"];
+	        this.agentName = source["agentName"];
+	        this.summary = source["summary"];
+	        this.status = source["status"];
+	        this.resolvedAt = source["resolvedAt"];
+	        this.resolvedIn = source["resolvedIn"];
+	    }
+	}
 	export class Observed {
 	    origin?: string;
 	    authorityId?: string;
@@ -8497,6 +8523,7 @@ export namespace pantheon {
 	    inputManifest?: InputDigest[];
 	    warnings?: string[];
 	    gaps?: string[];
+	    issues?: Issue[];
 	    error?: string;
 	
 	    static createFrom(source: any = {}) {
@@ -8522,6 +8549,7 @@ export namespace pantheon {
 	        this.inputManifest = this.convertValues(source["inputManifest"], InputDigest);
 	        this.warnings = source["warnings"];
 	        this.gaps = source["gaps"];
+	        this.issues = this.convertValues(source["issues"], Issue);
 	        this.error = source["error"];
 	    }
 	

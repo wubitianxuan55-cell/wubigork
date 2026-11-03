@@ -1155,6 +1155,9 @@ func (m *Manager) run(
 			drainLiveNotes()
 			status := available[agentID]
 			files := m.transcriptFor(session)
+			m.mu.Lock()
+			openIssues := openIssuesLocked(session)
+			m.mu.Unlock()
 			var prompt string
 			if round == 1 {
 				openingHistory := history
@@ -1164,7 +1167,7 @@ func (m *Manager) run(
 				}
 				prompt = openingPrompt(session.Request, status, openingHistory, position+1, len(roundOrder), files)
 			} else {
-				prompt = discussionPrompt(session.Request, status, history, round, position+1, len(roundOrder), files)
+				prompt = discussionPrompt(session.Request, status, history, round, position+1, len(roundOrder), files, openIssues)
 			}
 			clipped := promptExceedsBudget(prompt)
 			out, duration, callRef, err := m.runAgentWithRetry(ctx, session, status, prompt, phase, round)
@@ -1208,6 +1211,7 @@ func (m *Manager) run(
 				CreatedAt:  time.Now().UnixMilli(),
 				DurationMs: duration.Milliseconds(),
 			}
+			m.recordIssueLedger(session, contribution)
 			m.appendContribution(session, contribution)
 			return contribution, clipped, true
 		}
@@ -1367,7 +1371,7 @@ func (m *Manager) run(
 			ctx,
 			session,
 			summarizerStatus,
-			synthesisPrompt(session.Request, summarizerStatus, history, m.transcriptFor(session)),
+			synthesisPrompt(session.Request, summarizerStatus, history, m.transcriptFor(session), sessionIssuesSnapshot(session)),
 			PhaseSynthesis,
 			0,
 		)
@@ -1412,6 +1416,13 @@ func (m *Manager) run(
 	m.mu.Lock()
 	session.Verdict = verdict
 	session.Gaps = append(append([]string(nil), seatGaps(session)...), coverageGaps(session, actualRounds)...)
+	// 台账终态（2026-11-03 V2 P1）：结案仍 open 的分歧转 dissent——收口不等于
+	// 消灭分歧，消灭的是「没人记得它」；dissent 条目随文档导出永久在档。
+	for i := range session.Issues {
+		if session.Issues[i].Status == "open" {
+			session.Issues[i].Status = "dissent"
+		}
+	}
 	session.Phase = PhaseCompleted
 	session.Status = StatusCompleted
 	session.UpdatedAt = time.Now().UnixMilli()
@@ -1701,6 +1712,67 @@ func (m *Manager) updateRoundPhase(session *Session, phase string, round int, te
 	_ = m.store.save(session)
 	m.mu.Unlock()
 	m.emitSafe(event)
+}
+
+// recordIssueLedger 维护分歧台账（2026-11-03 V2 P1）：实质「剩余分歧」自动
+// 开条（每席同轮只一条，旧条未闭先闭再开新）；同席后续轮无保留地声明一致
+// （Consensus=yes 且 Residual 空）则闭合其 open 条——翻转举证审计在别处留痕，
+// 这里只记账。调用方须持锁外（本函数自锁）。
+func (m *Manager) recordIssueLedger(session *Session, contribution Contribution) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	now := time.Now().UnixMilli()
+	for i := range session.Issues {
+		issue := &session.Issues[i]
+		if issue.AgentID != contribution.AgentID || issue.Status != "open" {
+			continue
+		}
+		if contribution.Consensus == "yes" && !residualBlocksConsensus(contribution.Residual) {
+			issue.Status = "resolved"
+			issue.ResolvedAt = now
+			issue.ResolvedIn = contribution.Round
+		}
+	}
+	if residualBlocksConsensus(contribution.Residual) {
+		// 同席同一保留连续多轮只记一条（重复保留=同一分歧仍在，非新分歧）；
+		// 措辞变化则视为分歧演化开新条——旧措辞条未被明确撤回，结案自然转 dissent。
+		summary := trimRunes(contribution.Residual, 200)
+		duplicate := false
+		for _, issue := range session.Issues {
+			if issue.AgentID == contribution.AgentID && issue.Status == "open" && issue.Summary == summary {
+				duplicate = true
+				break
+			}
+		}
+		if !duplicate {
+			session.Issues = append(session.Issues, Issue{
+				ID:        fmt.Sprintf("%s-issue-%d", session.ID, len(session.Issues)+1),
+				Round:     contribution.Round,
+				AgentID:   contribution.AgentID,
+				AgentName: contribution.AgentName,
+				Summary:   summary,
+				Status:    "open",
+			})
+		}
+	}
+}
+
+// sessionIssuesSnapshot 纯读快照（供汇总席注入，不带锁进模型调用）。
+func sessionIssuesSnapshot(session *Session) []Issue {
+	out := make([]Issue, 0, len(session.Issues))
+	out = append(out, session.Issues...)
+	return out
+}
+
+// openIssuesLocked 返回台账中未闭合条目（供 prompt 注入与导出）。
+func openIssuesLocked(session *Session) []Issue {
+	out := make([]Issue, 0)
+	for _, issue := range session.Issues {
+		if issue.Status == "open" {
+			out = append(out, issue)
+		}
+	}
+	return out
 }
 
 func (m *Manager) appendContribution(session *Session, contribution Contribution) {

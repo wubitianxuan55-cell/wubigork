@@ -296,6 +296,21 @@ type Contribution struct {
 	DurationMs int64  `json:"durationMs,omitempty"`
 }
 
+// Issue 是分歧台账条目（2026-11-03 V2 P1）：按分歧点（非按席位）记账、贯穿
+// 轮次注入、逐条闭合——宿主从「剩余分歧」协议行自动开条，不依赖模型自觉。
+type Issue struct {
+	ID        string `json:"id"`
+	Round     int    `json:"round"`
+	AgentID   string `json:"agentId"`
+	AgentName string `json:"agentName"`
+	Summary   string `json:"summary"`
+	// Status: open=未闭合 / resolved=提出者后续轮撤回（须翻转举证） /
+	// dissent=讨论结束仍保留（合法终态，收口不等于消灭分歧）。
+	Status     string `json:"status"`
+	ResolvedAt int64  `json:"resolvedAt,omitempty"`
+	ResolvedIn int    `json:"resolvedIn,omitempty"`
+}
+
 type Verdict struct {
 	Summary        string   `json:"summary"`
 	Recommendation string   `json:"recommendation"`
@@ -340,8 +355,12 @@ type Session struct {
 	// Gaps 列出结案时不能算成功的席位（finished_unverified | unavailable |
 	// skipped），并进入 SignOff 的哈希范围（§4.2）：断线的第五席留在缺口里，
 	// 不能悄悄算成弃权。
-	Gaps  []string `json:"gaps,omitempty"`
-	Error string   `json:"error,omitempty"`
+	Gaps []string `json:"gaps,omitempty"`
+	// Issues 是分歧台账（2026-11-03 V2 P1）：从「剩余分歧」协议行自动开条，
+	// 贯穿轮次注入 prompt，逐条闭合；结案仍 open 的转 dissent——收口不等于
+	// 消灭分歧，消灭的是「没人记得它」。
+	Issues []Issue `json:"issues,omitempty"`
+	Error  string  `json:"error,omitempty"`
 }
 
 // InputDigest pins one start-time input so later re-runs and path comparisons

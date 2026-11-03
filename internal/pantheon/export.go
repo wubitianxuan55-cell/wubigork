@@ -317,6 +317,24 @@ func writeStopSignals(b *strings.Builder, session *Session) {
 			fmt.Fprintf(b, "- 末轮（第 %d 轮）各席：%s\n", lastRound, strings.Join(entries, "；"))
 		}
 	}
+	// 分歧台账导出（2026-11-03 V2 P1）：分歧的去向逐条在档——resolved 写明
+	// 撤回轮次，dissent 永久保留；收口不等于消灭分歧，消灭的是「没人记得它」。
+	if len(session.Issues) > 0 {
+		b.WriteString("\n### 分歧台账\n\n")
+		for _, issue := range session.Issues {
+			switch issue.Status {
+			case "resolved":
+				fmt.Fprintf(b, "- %s（第 %d 轮 %s 提出）：%s —— 已于第 %d 轮撤回\n",
+					issue.ID, issue.Round, issue.AgentName, issue.Summary, issue.ResolvedIn)
+			case "dissent":
+				fmt.Fprintf(b, "- %s（第 %d 轮 %s 提出）：%s —— 保留异议至收口\n",
+					issue.ID, issue.Round, issue.AgentName, issue.Summary)
+			default:
+				fmt.Fprintf(b, "- %s（第 %d 轮 %s 提出）：%s —— %s\n",
+					issue.ID, issue.Round, issue.AgentName, issue.Summary, issue.Status)
+			}
+		}
+	}
 	b.WriteString("\n")
 }
 

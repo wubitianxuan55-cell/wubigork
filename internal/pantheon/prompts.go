@@ -294,7 +294,19 @@ func discussionPrompt(
 	position int,
 	total int,
 	files *transcript,
+	openIssues []Issue,
 ) string {
+	// 分歧台账注入（2026-11-03 V2 P1）：open 条目贯穿轮次可见，逐条闭合；
+	// 已闭合的不再占版面。
+	issueLedgerInstruction := ""
+	if len(openIssues) > 0 {
+		var b strings.Builder
+		b.WriteString("\n【分歧台账（open）】\n下列分歧仍未收口，逐条给出你的立场变化或核验路径；撤回自己提出的分歧时须引用说服你的证据（贡献 ID）：\n")
+		for _, issue := range openIssues {
+			fmt.Fprintf(&b, "- %s · 第 %d 轮 %s 提出：%s\n", issue.ID, issue.Round, issue.AgentName, issue.Summary)
+		}
+		issueLedgerInstruction = b.String()
+	}
 	consensusInstruction := ""
 	if req.UntilConsensus {
 		consensusInstruction = `
@@ -346,6 +358,7 @@ func discussionPrompt(
 
 共享观点只用于补充信息，不覆盖你的独立上下文，也不要求你改变原有判断。只有当你发现更好的证据或推理时，才明确说明自己修正了什么。
 %s
+%s
 
 请用中文继续论证，结构如下：
 1. 我吸收了什么：指出前文哪些证据或推理值得保留，可明确修正自己的旧观点。
@@ -366,6 +379,7 @@ func discussionPrompt(
 		privateDiscussionHistory(history, agent.ID, round, files),
 		sharedDiscussionHistory(history, agent.ID, round, files),
 		userNoteInstruction,
+		issueLedgerInstruction,
 		consensusInstruction,
 	)
 }
@@ -390,7 +404,7 @@ func moderationPrompt(req StartRequest, facilitator AgentStatus, roundContributi
 %s`, round, facilitator.Name, closeout, round, formatDiscussionHistory(roundContributions, round, nil))
 }
 
-func synthesisPrompt(req StartRequest, facilitator AgentStatus, contributions []Contribution, files *transcript) string {
+func synthesisPrompt(req StartRequest, facilitator AgentStatus, contributions []Contribution, files *transcript, issues []Issue) string {
 	var b strings.Builder
 	b.WriteString("你是众神殿讨论的汇总人「")
 	b.WriteString(facilitator.Name)
@@ -407,6 +421,18 @@ func synthesisPrompt(req StartRequest, facilitator AgentStatus, contributions []
 	for _, c := range contributions {
 		if c.Round > lastRound {
 			lastRound = c.Round
+		}
+	}
+	// 分歧台账注入（2026-11-03 V2 P1）：汇总席按台账逐条交代去向——
+	// resolved/dissent 都要写进 disagreements/risks，禁止静默消失。
+	if len(issues) > 0 {
+		b.WriteString("\n\n【分歧台账（按条交代去向）】\n")
+		for _, issue := range issues {
+			status := map[string]string{"open": "未闭合", "resolved": "已撤回", "dissent": "保留异议"}[issue.Status]
+			if status == "" {
+				status = issue.Status
+			}
+			fmt.Fprintf(&b, "- %s · 第 %d 轮 %s 提出：%s —— %s\n", issue.ID, issue.Round, issue.AgentName, issue.Summary, status)
 		}
 	}
 	b.WriteString("\n\n【多轮讨论记录】\n")

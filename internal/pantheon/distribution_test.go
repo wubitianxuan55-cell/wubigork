@@ -143,7 +143,7 @@ func TestSynthesisReceivesFinalRoundInFull(t *testing.T) {
 		ID: "pan_s-r3-4", Round: 3, AgentID: "beta", AgentName: "BETA",
 		Content: longStatement("末轮") + "末轮独有尾部标记WQVN。",
 	}
-	prompt := synthesisPrompt(StartRequest{Topic: "汇总保真"}, AgentStatus{Name: "Grok"}, []Contribution{earlier, final}, nil)
+	prompt := synthesisPrompt(StartRequest{Topic: "汇总保真"}, AgentStatus{Name: "Grok"}, []Contribution{earlier, final}, nil, nil)
 	if !strings.Contains(prompt, "末轮独有尾部标记WQVN") {
 		t.Fatal("summarizer must receive final-round statement in full")
 	}

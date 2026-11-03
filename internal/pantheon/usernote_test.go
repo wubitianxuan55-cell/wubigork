@@ -92,7 +92,7 @@ func TestDiscussionPromptCarriesUserNoteGuidance(t *testing.T) {
 	}
 	prompt := discussionPrompt(
 		StartRequest{Topic: "插话指引"}, AgentStatus{ID: "beta", Name: "BETA"},
-		[]Contribution{note}, 2, 1, 2, nil,
+		[]Contribution{note}, 2, 1, 2, nil, nil,
 	)
 	if !strings.Contains(prompt, "请聚焦第二方案的落地风险。") {
 		t.Fatalf("prompt must carry the user note verbatim:\n%s", prompt)
