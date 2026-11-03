@@ -12,6 +12,7 @@ import type {
 const now = () => Date.now()
 
 function summary(session: PantheonSession): PantheonSessionSummary {
+  const issues = session.issues || []
   return {
     id: session.id,
     title: session.title,
@@ -22,6 +23,9 @@ function summary(session: PantheonSession): PantheonSessionSummary {
     updatedAt: session.updatedAt,
     agentCount: session.participants.length,
     verdictSummary: session.verdict?.recommendation,
+    issueCount: issues.length,
+    openIssueCount: issues.filter((issue) => issue.status === 'open').length,
+    dissentCount: issues.filter((issue) => issue.status === 'dissent').length,
     error: session.error,
   }
 }
@@ -228,6 +232,7 @@ export function buildPantheon(): PantheonBindings {
       roundOrder.forEach((agentID, index) => {
         const participant = session.participants.find((item) => item.agentId === agentID)
         if (!participant) return
+        const targetContributionId = `${session.id}-${order[0]}-round-1`
         contributions.push({
           id: `${session.id}-${agentID}-round-${round}`,
           phase: round === 1 ? 'opening' : 'discussion',
@@ -238,6 +243,15 @@ export function buildPantheon(): PantheonBindings {
             ? `我的理解：建议先用可中止的垂直切片验证方向。\n主要依据：改造成本与失败边界可控，但缺少长期复用数据。\n协作请求：请帮助补充失败条件和验证指标。\n置信度：${index === 0 ? '高' : '中'}。`
             : '我吸收了前文的成本边界建议，补充一个验证策略：先记录单 Agent 基线，再加入多席讨论，避免把形式收益误当成质量收益。\n仍待验证：多轮讨论是否会带来可观增益。',
           consensus: round > 1 ? 'yes' : undefined,
+          discussionAct: round === 1
+            ? 'claim'
+            : agentID === 'dsh'
+              ? 'challenge'
+              : 'reinforce',
+          targetContributionId: round > 1 && agentID === 'dsh' ? targetContributionId : undefined,
+          challengedClaim: round > 1 && agentID === 'dsh'
+            ? '两轮讨论一定优于单 Agent 直答'
+            : undefined,
           createdAt: session.createdAt + 500 + round * 400 + index * 80,
         })
       })
@@ -300,9 +314,106 @@ export function buildPantheon(): PantheonBindings {
         : ['验证周期是否应超过两轮仍缺少一致意见'],
       risks: ['CLI 版本漂移', '多 Agent 调用成本高于单 Agent', '模型共识不等于事实正确'],
       evidenceNotes: ['竞品验证了议事形态，但没有证明本项目用户会持续复用'],
+      proposedActions: [{
+        id: 'action-1',
+        action: '完成单 Agent 与四席同题对照',
+        rationale: '先验证讨论是否带来可观测增益',
+        dependsOn: ['冻结参与席模型版本'],
+        acceptanceEvidence: '10 组原始记录、耗时与用户接受结果',
+        suggestedOwner: '用户',
+        risk: '样本不足会放大随机差异',
+      }],
       chairman: session.request.chairmanAgentId,
       partial: false,
       createdAt: now(),
+    }
+    if (session.request.preset === 'red_team') {
+      session.attestations = session.participants.map((participant, index) => ({
+        agentId: participant.agentId,
+        agentName: participant.name,
+        position: index === session.participants.length - 1 ? 'oppose' : 'support',
+        reason: index === session.participants.length - 1
+          ? '成本证据仍不足，反对直接扩大范围'
+          : '当前结论与已核验材料一致',
+        conditions: index === session.participants.length - 1
+          ? ['先完成同任务对照']
+          : undefined,
+        issueIds: index === session.participants.length - 1
+          ? [`${session.id}-issue-1`]
+          : undefined,
+        verdictSha256: 'mock-original',
+        createdAt: now(),
+      }))
+      session.verdict.revisedFromSha256 = 'mock-original'
+      session.verdict.revisionReason = '吸收成本证据缺口，保留有条件的只读试点建议'
+    }
+    session.issues = [{
+      id: `${session.id}-issue-1`,
+      round: 1,
+      agentId: 'zcode',
+      agentName: 'ZCode',
+      summary: '验证周期是否应先限定为两轮，缺少可对照的实测基线',
+      origin: 'residual',
+      claimAgentIds: ['codex'],
+      claimAgentNames: ['Codex'],
+      dissentAgentIds: ['zcode'],
+      dissentAgentNames: ['ZCode'],
+      counterpointIds: [`${session.id}-codex-round-1`],
+      evidence: '首轮讨论中的成本边界与失败条件记录',
+      flipCondition: '若两轮试点无法区分单席与多席收益，则延长到四轮',
+      verification: '第 2 轮补充单 Agent 与四席同题对照记录',
+      blocking: true,
+      disposition: '第 2 轮撤回',
+      resolutionEvidence: 'Codex 第 2 轮提供的单 Agent 基线方案',
+      lastSeenIn: 1,
+      status: 'resolved',
+      resolvedAt: now(),
+      resolvedIn: 2,
+    }]
+    if (!session.request.untilConsensus) {
+      session.issues.push({
+        id: `${session.id}-issue-2`,
+        round: 2,
+        agentId: 'dsh',
+        agentName: 'DeepSeek Harness',
+        summary: '多席讨论的稳定增益仍需与单 Agent 基线对照后确认',
+        origin: 'challenge',
+        targetContributionId: `${session.id}-${session.request.agentIds[0]}-round-1`,
+        challengedClaim: '多席讨论一定带来稳定增益',
+        claimAgentIds: ['grok', 'codex'],
+        claimAgentNames: ['Grok', 'Codex'],
+        dissentAgentIds: ['dsh'],
+        dissentAgentNames: ['DeepSeek Harness'],
+        counterpointIds: [`${session.id}-grok-round-2`, `${session.id}-codex-round-2`],
+        evidence: '当前缺少同任务、同材料的单 Agent 对照数据【未核验】',
+        responseVerdict: 'reject',
+        responseEvidence: '现有方向判断认为共享上下文有价值，但尚未提供对照数据',
+        responseAgentIds: [session.request.agentIds[0]],
+        responseAgentNames: [session.participants.find(
+          (participant) => participant.agentId === session.request.agentIds[0],
+        )?.name || session.request.agentIds[0]],
+        responseContributionIds: [`${session.id}-${session.request.agentIds[0]}-round-2`],
+        flipCondition: '出现至少 8 组同任务对照，且多席反例发现率显著更高',
+        verification: '用 10 组同题盲测记录反例数量、质量与调用成本',
+        blocking: true,
+        disposition: '讨论结束仍保留',
+        lastSeenIn: 2,
+        status: 'dissent',
+      })
+    }
+    session.verdict.issueReviews = [{
+      issueId: session.issues[0].id,
+      outcome: 'resolved',
+      reason: '提出者已用第 2 轮对照记录撤回，建议结案。',
+      evidence: session.issues[0].resolutionEvidence,
+    }]
+    if (!session.request.untilConsensus) {
+      session.verdict.issueReviews.push({
+        issueId: session.issues[1].id,
+        outcome: 'needs_verification',
+        reason: '当前只有方向判断，建议先完成单席与多席盲测。',
+        evidence: '尚无同任务对照数据',
+      })
     }
   }
 
@@ -515,8 +626,9 @@ export function buildPantheon(): PantheonBindings {
         throw new Error('讨论已结束，无法继续评论')
       }
       const at = now()
+      const contributionID = `${session.id}-user-${at}`
       session.contributions.push({
-        id: `${session.id}-user-${at}`,
+        id: contributionID,
         phase: 'user_note',
         round: session.currentRound,
         agentId: 'user',
@@ -524,6 +636,25 @@ export function buildPantheon(): PantheonBindings {
         content,
         createdAt: at,
       })
+      session.issues = [
+        ...(session.issues || []),
+        {
+          id: `${session.id}-issue-${(session.issues?.length || 0) + 1}`,
+          round: session.currentRound || 1,
+          agentId: 'user',
+          agentName: '用户',
+          summary: content.slice(0, 200),
+          origin: 'user',
+          targetContributionId: contributionID,
+          evidence: contributionID,
+          flipCondition: '用户补充新指令、材料或明确撤回该插话',
+          verification: '各席在后续发言中回应并说明如何纳入本轮判断',
+          blocking: true,
+          disposition: '等待各席回应',
+          lastSeenIn: session.currentRound || 1,
+          status: 'open',
+        },
+      ]
       session.events.push({
         seq: session.events.length + 1,
         sessionId: session.id,

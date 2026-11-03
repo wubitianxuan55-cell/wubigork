@@ -23,7 +23,7 @@ import type {
   PantheonStartRequest,
   PantheonWorkspace,
 } from './types'
-import { AGENT_ACCENTS, agentCapabilityLabel } from './visuals'
+import { AGENT_ACCENTS, agentCapabilityLabel, presetLabel } from './visuals'
 
 interface Props {
   agents: PantheonAgentStatus[]
@@ -104,9 +104,16 @@ export const PantheonComposer: React.FC<Props> = ({
   const [rounds, setRounds] = useState(
     Math.max(1, Math.min(MANUAL_ROUNDS_MAX, seed?.rounds || 2)),
   )
+  const [preset, setPreset] = useState<'roundtable' | 'targeted_challenge' | 'red_team'>(
+    seed?.preset === 'targeted_challenge' || seed?.preset === 'red_team'
+      ? seed.preset
+      : 'roundtable',
+  )
   const [protocol, setProtocol] = useState<'council' | 'independent'>(
     // 2026-10-31 用户拍板：默认独立开场——首轮各抒己见，第二轮起共享信息再议论。
-    seed?.protocol === 'council' ? 'council' : 'independent',
+    (seed?.preset === 'targeted_challenge' || seed?.preset === 'red_team')
+      ? 'independent'
+      : seed?.protocol === 'council' ? 'council' : 'independent',
   )
   const [untilConsensus, setUntilConsensus] = useState(Boolean(seed?.untilConsensus))
   // 每轮确认（O-E）：勾上后每轮结束开门等人，而不是一口气跑到头。
@@ -257,7 +264,8 @@ export const PantheonComposer: React.FC<Props> = ({
     setAttachmentError('')
   }
 
-  const minSeats = protocol === 'independent' ? 1 : 2
+  const targetedChallenge = preset !== 'roundtable'
+  const minSeats = targetedChallenge ? 2 : protocol === 'independent' ? 1 : 2
   const topicError = topicTouched && !topic.trim()
     ? '请先写下这次讨论需要回答的问题。'
     : ''
@@ -274,7 +282,9 @@ export const PantheonComposer: React.FC<Props> = ({
   const startBlockReason = !workspace
     ? '请先选择讨论范围'
     : selected.length < minSeats
-      ? protocol === 'independent' ? '至少选择一位参与者' : '至少选择两位参与者'
+      ? targetedChallenge
+        ? `${presetLabel(preset)}至少需要两位参与者`
+        : protocol === 'independent' ? '至少选择一位参与者' : '至少选择两位参与者'
       : !topic.trim()
         ? '写下议题后即可开始'
         : imageIncompatibleNames.length > 0
@@ -306,6 +316,7 @@ export const PantheonComposer: React.FC<Props> = ({
       gateEachRound: untilConsensus ? false : gateEachRound,
       readOnly: true,
       protocol,
+      preset,
       parentSessionId: seed?.parentSessionId,
     })
   }
@@ -486,7 +497,7 @@ export const PantheonComposer: React.FC<Props> = ({
             <div className="pantheon-compose-meta" id="pantheon-topic-meta">
               <span>{topic.trim().length > 0 ? `${topic.trim().length} 字` : '尚未填写'}</span>
               <span>{selected.length} 位参与</span>
-              <span>{protocolLabel}</span>
+              <span>{presetLabel(preset)} · {protocolLabel}</span>
             </div>
             <div className="pantheon-chatbar">
               <div className="pantheon-toolbar-options">
@@ -514,6 +525,28 @@ export const PantheonComposer: React.FC<Props> = ({
                 >
                   图片{attachments.length > 0 ? ` ${attachments.length}` : ''}
                 </Button>
+                <Tooltip title="圆桌会诊：共享讨论后综合。定向质询：围绕台账逐条质疑与回应。红队评审：重点寻找反例，结论后全席独立确认。">
+                  <Select
+                    size="small"
+                    data-testid="pantheon-preset"
+                    value={preset}
+                    options={[
+                      { label: '圆桌会诊', value: 'roundtable' },
+                      { label: '定向质询', value: 'targeted_challenge' },
+                      { label: '红队评审', value: 'red_team' },
+                    ]}
+                    onChange={(value) => {
+                      setPreset(value)
+                      if (value !== 'roundtable') {
+                        setProtocol('independent')
+                        setRounds((current) => Math.max(2, current))
+                      }
+                    }}
+                    disabled={busy}
+                    className="pantheon-chatbar-select"
+                    aria-label="议事形态"
+                  />
+                </Tooltip>
                 <Tooltip title="独立开场：第 1 轮各自独立作答；圆桌接力：同轮发言按顺序互相可见。">
                   <Select
                     size="small"
@@ -524,7 +557,7 @@ export const PantheonComposer: React.FC<Props> = ({
                       { label: '圆桌接力', value: 'council' },
                     ]}
                     onChange={(value) => setProtocol(value)}
-                    disabled={busy}
+                    disabled={busy || targetedChallenge}
                     className="pantheon-chatbar-select"
                     aria-label="议事路径"
                   />
@@ -574,7 +607,7 @@ export const PantheonComposer: React.FC<Props> = ({
                     <>
                       <InputNumber
                         size="small"
-                        min={1}
+                        min={targetedChallenge ? 2 : 1}
                         max={MANUAL_ROUNDS_MAX}
                         precision={0}
                         value={rounds}

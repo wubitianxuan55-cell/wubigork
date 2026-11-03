@@ -44,6 +44,8 @@ export interface PantheonStartRequest {
   readOnly: boolean
   /** 议事路径：council=圆桌接力；independent=独立开场（默认，第 1 轮不注入同轮前序） */
   protocol?: string
+  /** 议事形态：roundtable=圆桌会诊（默认）；targeted_challenge=定向质询 */
+  preset?: 'roundtable' | 'targeted_challenge' | string
   /** 续议来源会话 ID（裁决第三刀：保留父会话谱系；承接以简报为准） */
   parentSessionId?: string
   /** 每轮之间停下，开一道决策门等人确认（O-E） */
@@ -120,6 +122,8 @@ export interface PantheonEvent extends PantheonCallRef {
   question?: PantheonQuestion
   answer?: PantheonAnswer
   gate?: PantheonGate
+  /** DID 续跑事件消费的核验动作指纹 */
+  didKeys?: string[]
 }
 
 export interface PantheonLiveStream extends PantheonCallRef {
@@ -143,6 +147,22 @@ export interface PantheonContribution extends PantheonCallRef {
   content: string
   confidence?: string
   consensus?: 'yes' | 'no' | string
+  residual?: string
+  residualEvidence?: string
+  residualAgainst?: string
+  residualFlipCondition?: string
+  residualVerification?: string
+  /** 讨论动作：claim / challenge / respond / revise / reinforce / broaden */
+  discussionAct?: string
+  /** 质疑、回应或修正所指向的前文贡献 ID */
+  targetContributionId?: string
+  /** 同一目标贡献存在多条分歧时，回应所指向的台账 ID */
+  targetIssueId?: string
+  challengedClaim?: string
+  evidenceHandle?: string
+  /** 回应既有质疑：accept / partial / reject */
+  responseVerdict?: string
+  runMode?: string
   createdAt: number
   durationMs?: number
 }
@@ -154,9 +174,49 @@ export interface PantheonVerdict {
   disagreements?: string[]
   risks?: string[]
   evidenceNotes?: string[]
+  issueReviews?: PantheonIssueReview[]
+  proposedActions?: PantheonProposedAction[]
+  revisedFromSha256?: string
+  revisionReason?: string
   chairman: string
   partial: boolean
   createdAt: number
+}
+
+export interface PantheonAttestation {
+  agentId: string
+  agentName: string
+  position: 'support' | 'conditional' | 'oppose' | 'unknown' | string
+  reason?: string
+  conditions?: string[]
+  issueIds?: string[]
+  verdictSha256?: string
+  error?: string
+  createdAt: number
+}
+
+export interface PantheonVerdictRevision {
+  verdict: PantheonVerdict
+  sha256: string
+  reason: string
+  at: number
+}
+
+export interface PantheonProposedAction {
+  id?: string
+  action: string
+  rationale?: string
+  dependsOn?: string[]
+  acceptanceEvidence?: string
+  suggestedOwner?: string
+  risk?: string
+}
+
+export interface PantheonIssueReview {
+  issueId: string
+  outcome: 'resolved' | 'retain' | 'user_decision' | 'needs_verification' | string
+  reason: string
+  evidence?: string
 }
 
 export interface PantheonSignOff {
@@ -165,6 +225,46 @@ export interface PantheonSignOff {
   at: number
   /** 签注时确认的缺口：同样的小结，缺口不同就不是同一个版本（O-H） */
   gaps?: string[]
+}
+
+export interface PantheonIssue {
+  id: string
+  round: number
+  agentId: string
+  agentName: string
+  summary: string
+  /** challenge=定向质疑开条；residual=剩余分歧兜底开条；user=用户插话 */
+  origin?: 'challenge' | 'residual' | 'user' | string
+  targetContributionId?: string
+  challengedClaim?: string
+  claimAgentIds?: string[]
+  claimAgentNames?: string[]
+  dissentAgentIds?: string[]
+  dissentAgentNames?: string[]
+  counterpointIds?: string[]
+  /** 支持保留异议的证据句柄、文件、命令或显式“未核验” */
+  evidence?: string
+  /** 出现什么新证据时，提出者承诺重新判断 */
+  flipCondition?: string
+  /** 下一项可执行、能减少不确定性的核验动作 */
+  verification?: string
+  responseVerdict?: 'accept' | 'partial' | 'reject' | string
+  responseEvidence?: string
+  responseAgentIds?: string[]
+  responseAgentNames?: string[]
+  responseContributionIds?: string[]
+  /** 该分歧是否实际阻塞过收口 */
+  blocking?: boolean
+  /** 台账去向：等待回应、撤回轮次或结案保留 */
+  disposition?: string
+  /** 撤回时引用的证据；空值表示翻转未举证 */
+  resolutionEvidence?: string
+  /** 同一分歧最近一次仍被保留的轮次 */
+  lastSeenIn?: number
+  /** open=仍待回应 / resolved=提出者已撤回 / dissent=结案仍保留 */
+  status: 'open' | 'resolved' | 'dissent' | string
+  resolvedAt?: number
+  resolvedIn?: number
 }
 
 export interface PantheonSession {
@@ -183,6 +283,10 @@ export interface PantheonSession {
   signoff?: PantheonSignOff
   /** 结案时没交出可用结论的席位（具名 + 原因） */
   gaps?: string[]
+  /** 分歧台账：从「剩余分歧」协议行自动开条，逐轮保留去向 */
+  issues?: PantheonIssue[]
+  attestations?: PantheonAttestation[]
+  verdictRevisions?: PantheonVerdictRevision[]
   resultPath?: string
   warnings?: string[]
   error?: string
@@ -198,5 +302,8 @@ export interface PantheonSessionSummary {
   updatedAt: number
   agentCount: number
   verdictSummary?: string
+  issueCount?: number
+  openIssueCount?: number
+  dissentCount?: number
   error?: string
 }

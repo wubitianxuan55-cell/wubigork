@@ -140,6 +140,15 @@ func (s *sessionStore) list() ([]SessionSummary, error) {
 			AgentCount: len(session.Participants),
 			Error:      session.Error,
 		}
+		for _, issue := range session.Issues {
+			summary.IssueCount++
+			switch issue.Status {
+			case "open":
+				summary.OpenIssueCount++
+			case "dissent":
+				summary.DissentCount++
+			}
+		}
 		if session.Verdict != nil {
 			summary.VerdictSummary = session.Verdict.Recommendation
 			if summary.VerdictSummary == "" {

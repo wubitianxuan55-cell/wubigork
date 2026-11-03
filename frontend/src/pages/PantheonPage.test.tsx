@@ -241,6 +241,7 @@ describe('PantheonPage', () => {
       rounds: 2,
       readOnly: true,
       protocol: 'independent', // 2026-10-31 拍板：默认独立开场（首轮各抒己见）
+      preset: 'roundtable',
     })
     expect(request.agentIds).toEqual(['codex', 'grok', 'zcode'])
     expect(await screen.findByTestId('pantheon-record')).toBeTruthy()
@@ -279,6 +280,45 @@ describe('PantheonPage', () => {
     expect(request.agentIds).toEqual(['grok'])
     expect(request.rounds).toBe(1)
     expect(await screen.findByTestId('pantheon-record')).toBeTruthy()
+  })
+
+  it('定向质询 preset 强制独立开场并写入请求', async () => {
+    render(<PantheonPage />)
+    await screen.findByRole('heading', { name: /在讨论中彼此补强/ })
+    fireEvent.click(screen.getByTestId('pantheon-welcome-start'))
+    fireEvent.click(await screen.findByTestId('pantheon-workspace-gaea-research'))
+
+    // 先选圆桌接力，再切定向质询：preset 必须把它收回独立开场。
+    fireEvent.mouseDown(
+      screen.getByTestId('pantheon-protocol').querySelector('.ant-select-selector')!,
+    )
+    const council = await screen.findByText('圆桌接力', {
+      selector: '.ant-select-item-option-content',
+    })
+    fireEvent.click(council.closest('.ant-select-item-option')!)
+
+    fireEvent.mouseDown(
+      screen.getByTestId('pantheon-preset').querySelector('.ant-select-selector')!,
+    )
+    expect(await screen.findByText('红队评审', {
+      selector: '.ant-select-item-option-content',
+    })).toBeTruthy()
+    const targeted = await screen.findByText('定向质询', {
+      selector: '.ant-select-item-option-content',
+    })
+    fireEvent.click(targeted.closest('.ant-select-item-option')!)
+    fireEvent.change(screen.getByTestId('pantheon-topic'), {
+      target: { value: '定向核验成本边界' },
+    })
+
+    const start = screen.getByTestId('pantheon-start')
+    await waitFor(() => expect((start as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(start)
+    await waitFor(() => expect(mocks.start).toHaveBeenCalledTimes(1))
+    const request = mocks.start.mock.calls[0][0]
+    expect(request.preset).toBe('targeted_challenge')
+    expect(request.protocol).toBe('independent')
+    expect(request.agentIds.length).toBeGreaterThanOrEqual(2)
   })
 
   it('图片附件进入议事请求，并显示能力核对说明', async () => {
@@ -408,6 +448,49 @@ describe('PantheonPage', () => {
     const completed = sessionFixture({
       status: 'completed',
       phase: 'completed',
+      issues: [
+        {
+          id: 'issue-resolved',
+          round: 1,
+          agentId: 'codex',
+          agentName: 'Codex',
+          summary: '验证周期先限定为两轮',
+          claimAgentIds: ['grok'],
+          claimAgentNames: ['Grok'],
+          dissentAgentIds: ['codex'],
+          dissentAgentNames: ['Codex'],
+          counterpointIds: ['pan_test-grok-r1-90'],
+          evidence: 'pan_test-codex-r1-100 的两轮对照记录',
+          flipCondition: '两轮无法区分收益时延长到四轮',
+          verification: '由 Codex 记录单席与四席同题结果',
+          blocking: true,
+          disposition: '第 2 轮撤回',
+          resolutionEvidence: 'pan_test-dsh-r2-200 的对照结果',
+          lastSeenIn: 1,
+          status: 'resolved',
+          resolvedAt: Date.now(),
+          resolvedIn: 2,
+        },
+        {
+          id: 'issue-dissent',
+          round: 2,
+          agentId: 'dsh',
+          agentName: 'DeepSeek Harness',
+          summary: '多席增益仍需单 Agent 基线对照',
+          claimAgentIds: ['grok', 'codex'],
+          claimAgentNames: ['Grok', 'Codex'],
+          dissentAgentIds: ['dsh'],
+          dissentAgentNames: ['DeepSeek Harness'],
+          counterpointIds: ['pan_test-grok-r2-190', 'pan_test-codex-r2-200'],
+          evidence: '缺少同任务基线【未核验】',
+          flipCondition: '8 组对照中反例发现率显著更高',
+          verification: '进行 10 组同题盲测并记录成本',
+          blocking: true,
+          disposition: '讨论结束仍保留',
+          lastSeenIn: 2,
+          status: 'dissent',
+        },
+      ],
       verdict: {
         summary: '参与者支持只读试点。',
         recommendation: '先批准只读 MVP。',
@@ -415,6 +498,20 @@ describe('PantheonPage', () => {
         disagreements: ['扩展范围尚未一致'],
         risks: ['CLI 版本漂移'],
         evidenceNotes: ['竞品样本支持议事形态'],
+        issueReviews: [
+          {
+            issueId: 'issue-resolved',
+            outcome: 'resolved',
+            reason: '提出者已撤回。',
+            evidence: 'Codex 第 2 轮对照结果',
+          },
+          {
+            issueId: 'issue-dissent',
+            outcome: 'needs_verification',
+            reason: '先完成单席基线。',
+            evidence: '尚无同任务对照数据',
+          },
+        ],
         chairman: 'Codex',
         partial: false,
         createdAt: Date.now(),
@@ -429,15 +526,30 @@ describe('PantheonPage', () => {
       updatedAt: completed.updatedAt,
       agentCount: completed.participants.length,
       verdictSummary: completed.verdict?.recommendation,
+      issueCount: 2,
+      openIssueCount: 0,
+      dissentCount: 1,
     }])
     mocks.get.mockResolvedValue(completed)
 
     const { container } = render(<PantheonPage />)
-    fireEvent.click(await screen.findByTestId(`pantheon-session-${completed.id}`))
+    const railItem = await screen.findByTestId(`pantheon-session-${completed.id}`)
+    expect(railItem.textContent).toContain('2 项分歧')
+    fireEvent.click(railItem)
     expect(await screen.findByText('先批准只读 MVP。')).toBeTruthy()
     expect(screen.getByText('扩展范围尚未一致')).toBeTruthy()
     expect(screen.getByText('CLI 版本漂移')).toBeTruthy()
     expect(screen.getByText(/待你确认/)).toBeTruthy()
+    const ledger = await screen.findByTestId('pantheon-issue-ledger')
+    await waitFor(() => expect(ledger.hasAttribute('open')).toBe(true))
+    expect(ledger.textContent).toContain('1 项异议已保留')
+    expect(screen.getByTestId('pantheon-issue-issue-resolved').textContent).toContain('第 2 轮')
+    expect(screen.getByTestId('pantheon-issue-issue-dissent').textContent).toContain('讨论结束仍保留')
+    expect(screen.getByTestId('pantheon-issue-issue-dissent').textContent).toContain('主张方：Grok、Codex')
+    expect(screen.getByText('主席审阅 · 先补核验')).toBeTruthy()
+    expect(screen.getByText('先完成单席基线。')).toBeTruthy()
+    expect(screen.getByText('由 Codex 记录单席与四席同题结果')).toBeTruthy()
+    expect(screen.getByText('进行 10 组同题盲测并记录成本')).toBeTruthy()
     const progress = screen.getByLabelText('多轮讨论进度')
     expect(progress.textContent).toContain('开场陈述')
     expect(progress.textContent).toContain('第 2 轮')
@@ -452,6 +564,48 @@ describe('PantheonPage', () => {
     expect(container.querySelector('.pantheon-shared-stream')?.compareDocumentPosition(verdict as Node)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     )
+  })
+
+  it('旧纪要缺少结构化分歧字段时明确提示待补', async () => {
+    const legacy = sessionFixture({
+      status: 'completed',
+      phase: 'completed',
+      issues: [{
+        id: 'issue-legacy',
+        round: 1,
+        agentId: 'codex',
+        agentName: 'Codex',
+        summary: '旧版纪要只记录了分歧标题',
+        status: 'dissent',
+      }],
+      verdict: {
+        summary: '旧版纪要。',
+        recommendation: '先补核验路径。',
+        chairman: 'Codex',
+        partial: false,
+        createdAt: Date.now(),
+      },
+    })
+    mocks.list.mockResolvedValue([{
+      id: legacy.id,
+      title: legacy.title,
+      status: legacy.status,
+      phase: legacy.phase,
+      createdAt: legacy.createdAt,
+      updatedAt: legacy.updatedAt,
+      agentCount: legacy.participants.length,
+      verdictSummary: legacy.verdict?.recommendation,
+      issueCount: 1,
+      openIssueCount: 0,
+      dissentCount: 1,
+    }])
+    mocks.get.mockResolvedValue(legacy)
+
+    render(<PantheonPage />)
+    fireEvent.click(await screen.findByTestId(`pantheon-session-${legacy.id}`))
+    const ledger = await screen.findByTestId('pantheon-issue-ledger')
+    expect(ledger.textContent).toContain('1 待补证据')
+    expect(screen.getAllByText('未提供，下一轮需补齐')).toHaveLength(3)
   })
 
   it('用户可以确认最终讨论小结', async () => {

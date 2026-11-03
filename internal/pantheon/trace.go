@@ -71,16 +71,23 @@ func verdictFingerprint(verdict *Verdict) string {
 // seat gaps it was signed over: identical verdicts with different missing
 // seats must not collide, or a forwarded deliverable would claim a fuller
 // round than actually happened.
-func signoffFingerprint(verdict *Verdict, gaps []string) string {
+func signoffFingerprint(
+	verdict *Verdict,
+	gaps []string,
+	attestations []Attestation,
+	revisions []VerdictRevision,
+) string {
 	base := verdictFingerprint(verdict)
 	// 无缺口时保持原有指纹口径，老交付物的签注仍然可比。
-	if len(gaps) == 0 {
+	if len(gaps) == 0 && len(attestations) == 0 && len(revisions) == 0 {
 		return base
 	}
 	payload := struct {
-		Verdict string   `json:"verdict"`
-		Gaps    []string `json:"gaps"`
-	}{Verdict: base, Gaps: gaps}
+		Verdict      string            `json:"verdict"`
+		Gaps         []string          `json:"gaps,omitempty"`
+		Attestations []Attestation     `json:"attestations,omitempty"`
+		Revisions    []VerdictRevision `json:"verdictRevisions,omitempty"`
+	}{Verdict: base, Gaps: gaps, Attestations: attestations, Revisions: revisions}
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return ""

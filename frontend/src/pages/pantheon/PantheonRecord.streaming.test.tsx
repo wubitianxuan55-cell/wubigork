@@ -143,6 +143,161 @@ describe('PantheonRecord streaming', () => {
     expect(detail.textContent).toContain('推理过程与工具调用不会写入中央共享讨论')
   })
 
+  it('讨论动作、目标论证与回应结论在共享流和台账中都可定位', () => {
+    const challenge: PantheonContribution = {
+      id: 'contribution_grok_2',
+      phase: 'discussion',
+      round: 2,
+      agentId: 'grok',
+      agentName: 'Grok',
+      content: '成本边界仍缺少同任务实测。',
+      discussionAct: 'challenge',
+      targetContributionId: 'contribution_codex_1',
+      challengedClaim: '两轮讨论一定优于单席直答',
+      responseVerdict: 'partial',
+      createdAt: now,
+    }
+    renderRecord({
+      contributions: [finalizedContributions[0], challenge],
+      sessionOverrides: {
+        status: 'completed',
+        phase: 'completed',
+        currentRound: 2,
+        issues: [{
+          id: 'issue-challenge',
+          round: 2,
+          agentId: 'grok',
+          agentName: 'Grok',
+          summary: '成本边界缺少同任务实测',
+          origin: 'challenge',
+          targetContributionId: 'contribution_codex_1',
+          challengedClaim: '两轮讨论一定优于单席直答',
+          claimAgentIds: ['codex'],
+          claimAgentNames: ['Codex'],
+          dissentAgentIds: ['grok'],
+          dissentAgentNames: ['Grok'],
+          evidence: '当前只有单席估算【未核验】',
+          responseVerdict: 'partial',
+          responseEvidence: '两轮仅在反例发现率上领先',
+          flipCondition: '完成 8 组同任务对照',
+          verification: '记录单席与四席的反例数和调用成本',
+          blocking: true,
+          disposition: '部分接受；适用条件仍待闭合',
+          status: 'dissent',
+        }],
+      },
+    })
+
+    const entry = screen.getByTestId('pantheon-shared-entry-shared-output-contribution_grok_2')
+    expect(within(entry).getByTestId('pantheon-discussion-act-shared-output-contribution_grok_2').textContent)
+      .toBe('质疑')
+    expect(entry.textContent).toContain('被挑战命题：两轮讨论一定优于单席直答')
+    expect(entry.textContent).toContain('目标贡献：contribution_codex_1')
+    expect(entry.textContent).toContain('回应结论：部分接受')
+
+    const ledger = screen.getByTestId('pantheon-issue-ledger')
+    expect(ledger.textContent).toContain('来源：定向质疑')
+    expect(ledger.textContent).toContain('回应结论部分接受')
+    expect(ledger.textContent).toContain('回应证据两轮仅在反例发现率上领先')
+  })
+
+  it('DID 停止事件进入共享时间线而不是静默缩短轮次', () => {
+    renderRecord({
+      sessionOverrides: {
+        status: 'completed',
+        phase: 'completed',
+        events: [
+          ...session.events,
+          {
+            seq: 2,
+            sessionId: session.id,
+            phase: 'discussion',
+            round: 2,
+            kind: 'did_stop',
+            text: '第 2 轮后没有新的可执行核验动作（DID）；停止追加轮次。',
+            didKeys: [],
+            at: now + 1,
+          },
+        ],
+      },
+    })
+    expect(screen.getByText('停止空转')).toBeTruthy()
+    expect(screen.getByText(/没有新的可执行核验动作/)).toBeTruthy()
+  })
+
+  it('行动提案只读展示依赖、验收与风险', () => {
+    renderRecord({
+      sessionOverrides: {
+        status: 'completed',
+        phase: 'completed',
+        verdict: {
+          summary: '结论',
+          recommendation: '先验证',
+          proposedActions: [{
+            id: 'action-1',
+            action: '执行 8 组同任务对照',
+            rationale: '验证讨论增益',
+            dependsOn: ['冻结模型版本'],
+            acceptanceEvidence: '8 组原始记录',
+            suggestedOwner: '用户',
+            risk: '样本不足',
+          }],
+          chairman: 'Grok',
+          partial: false,
+          createdAt: now,
+        },
+      },
+    })
+    const plan = screen.getByTestId('pantheon-proposed-actions')
+    expect(plan.textContent).toContain('行动提案 · 只读')
+    expect(plan.textContent).toContain('执行 8 组同任务对照')
+    expect(plan.textContent).toContain('8 组原始记录')
+    expect(plan.textContent).toContain('不会自动运行')
+  })
+
+  it('红队评审展示独立确认和修订理由', () => {
+    renderRecord({
+      sessionOverrides: {
+        status: 'completed',
+        phase: 'completed',
+        verdict: {
+          summary: '修订后的结论',
+          recommendation: '先补成本证据',
+          revisedFromSha256: 'original-hash',
+          revisionReason: '吸收 Beta 的成本证据缺口',
+          chairman: 'Grok',
+          partial: false,
+          createdAt: now,
+        },
+        attestations: [
+          {
+            agentId: 'grok',
+            agentName: 'Grok',
+            position: 'support',
+            reason: '结论与证据一致',
+            verdictSha256: 'original-hash',
+            createdAt: now,
+          },
+          {
+            agentId: 'codex',
+            agentName: 'Codex',
+            position: 'oppose',
+            reason: '成本证据不足',
+            conditions: ['先完成 8 组对照'],
+            issueIds: ['issue-cost'],
+            verdictSha256: 'original-hash',
+            createdAt: now,
+          },
+        ],
+      },
+    })
+    const panel = screen.getByTestId('pantheon-attestations')
+    expect(panel.textContent).toContain('1 支持 · 0 有条件 · 1 反对')
+    expect(panel.textContent).toContain('已修订一次')
+    expect(panel.textContent).toContain('吸收 Beta 的成本证据缺口')
+    expect(panel.textContent).toContain('成本证据不足')
+  })
+
   it('共享流长发言默认折叠成预览并可展开收起，流式与短发言不折叠', () => {
     const longText = '开场判断：先从可中止的垂直切片验证方向。'
       + '补充论据：成本边界可控，失败条件明确，需要更多长期复用数据支撑。'.repeat(14)

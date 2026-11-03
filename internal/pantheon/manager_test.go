@@ -1638,6 +1638,87 @@ func TestExtractConsensusSignal(t *testing.T) {
 	}
 }
 
+func TestExtractConsensusSignalDetails(t *testing.T) {
+	input := `当前判断保持不变。
+共识状态：仍有分歧
+剩余分歧：接口契约未冻结
+分歧依据：pan_stream-beta-r1-123 的接口差异清单
+分歧对象：pan_stream-beta-r1-123
+翻转条件：接口差异低于 3 项且有迁移验证
+下一步核验：读取 api/schema.json 并与 v2 客户端对拍
+置信度：中`
+	details := extractConsensusSignalDetails(input)
+	if details.Text != "当前判断保持不变。\n置信度：中" {
+		t.Fatalf("clean text = %q", details.Text)
+	}
+	if details.Consensus != "no" || details.Residual != "接口契约未冻结" {
+		t.Fatalf("signal/residual = %q/%q", details.Consensus, details.Residual)
+	}
+	if details.ResidualEvidence != "pan_stream-beta-r1-123 的接口差异清单" ||
+		details.ResidualAgainst != "pan_stream-beta-r1-123" ||
+		details.ResidualFlipCondition != "接口差异低于 3 项且有迁移验证" ||
+		details.ResidualVerification != "读取 api/schema.json 并与 v2 客户端对拍" {
+		t.Fatalf("structured details missing: %+v", details)
+	}
+}
+
+func TestIssueCounterpointsUsesOnlyExplicitKnownContributions(t *testing.T) {
+	history := []Contribution{
+		{ID: "pan_demo-alpha-r1-100", AgentID: "alpha", AgentName: "Alpha"},
+		{ID: "pan_demo-beta-r1-200", AgentID: "beta", AgentName: "Beta"},
+	}
+	contribution := Contribution{
+		AgentID:         "beta",
+		AgentName:       "Beta",
+		ResidualAgainst: "pan_demo-alpha-r1-100, pan_demo-beta-r1-200, pan_demo-unknown-r1-999",
+	}
+	refs := issueCounterpoints(contribution, history)
+	if len(refs) != 1 || refs[0].AgentID != "alpha" {
+		t.Fatalf("counterpoints = %+v, want only alpha's explicit contribution", refs)
+	}
+	issue := &Issue{AgentID: "beta", AgentName: "Beta"}
+	applyIssueAttribution(issue, contribution, refs)
+	if len(issue.DissentAgentNames) != 1 || issue.DissentAgentNames[0] != "Beta" ||
+		len(issue.ClaimAgentNames) != 1 || issue.ClaimAgentNames[0] != "Alpha" ||
+		len(issue.CounterpointIDs) != 1 || issue.CounterpointIDs[0] != "pan_demo-alpha-r1-100" {
+		t.Fatalf("attribution = %+v", issue)
+	}
+}
+
+func TestParseVerdictCarriesStructuredIssueReviews(t *testing.T) {
+	raw := `{"summary":"结论","recommendation":"建议","issueReviews":[` +
+		`{"issueId":"issue-a","outcome":"建议撤回","reason":"证据已补齐","evidence":"pan_stream-alpha-r2-100"},` +
+		`{"issueId":"issue-b","outcome":"needs-verification","reason":"先做对照","evidence":"未提供"}]}`
+	verdict := parseVerdict(raw, "Chair", 0)
+	if len(verdict.IssueReviews) != 2 {
+		t.Fatalf("issue reviews = %+v", verdict.IssueReviews)
+	}
+	if verdict.IssueReviews[0].Outcome != "resolved" ||
+		verdict.IssueReviews[1].Outcome != "needs_verification" {
+		t.Fatalf("normalized outcomes = %+v", verdict.IssueReviews)
+	}
+}
+
+func TestValidateIssueReviewsKeepsUnknownAndMissingVisible(t *testing.T) {
+	issues := []Issue{{ID: "issue-a"}, {ID: "issue-b"}}
+	reviews := []IssueReview{
+		{IssueID: "issue-a", Outcome: "resolved", Reason: "已解决"},
+		{IssueID: "issue-a", Outcome: "retain", Reason: "重复"},
+		{IssueID: "issue-ghost", Outcome: "retain", Reason: "虚构"},
+	}
+	valid, warnings := validateIssueReviews(reviews, issues)
+	if len(valid) != 1 || valid[0].IssueID != "issue-a" {
+		t.Fatalf("valid reviews = %+v", valid)
+	}
+	joined := strings.Join(warnings, "\n")
+	if !strings.Contains(joined, "未附支持证据") ||
+		!strings.Contains(joined, "重复审阅分歧 issue-a") ||
+		!strings.Contains(joined, "不存在的分歧 ID：issue-ghost") ||
+		!strings.Contains(joined, "遗漏了分歧审阅：issue-b") {
+		t.Fatalf("warnings = %s", joined)
+	}
+}
+
 func consensusRunner(signal string) *fakeRunner {
 	runner := defaultFakeRunner()
 	for id, original := range runner.outputs {
@@ -1652,6 +1733,11 @@ func consensusRunner(signal string) *fakeRunner {
 					residual = "无"
 				}
 				text += "\n共识状态：" + signal + "\n剩余分歧：" + residual
+				if residual != "无" {
+					text += "\n分歧依据：当前只有单席估算【未核验】" +
+						"\n翻转条件：完成 8 组同任务对照" +
+						"\n下一步核验：由 alpha 记录单席与多席同任务成本"
+				}
 			}
 			return text, err
 		}

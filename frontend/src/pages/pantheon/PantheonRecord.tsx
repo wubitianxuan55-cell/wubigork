@@ -23,11 +23,13 @@ import {
 } from '@ant-design/icons'
 import { Alert, Button, Dropdown, Empty, Input, Spin, Tag, Tooltip } from 'antd'
 import { MarkdownContent, mdStyles } from '../../components/MarkdownContent'
-import { AGENT_ACCENTS, agentCapabilityLabel, protocolLabel } from './visuals'
+import { AGENT_ACCENTS, agentCapabilityLabel, presetLabel, protocolLabel } from './visuals'
 import { PantheonAgentAvatar } from './PantheonAgentAvatar'
 import type {
   PantheonContribution,
   PantheonEvent,
+  PantheonIssue,
+  PantheonIssueReview,
   PantheonLiveStream,
   PantheonParticipant,
   PantheonSession,
@@ -62,6 +64,7 @@ const PHASE_LABEL: Record<string, string> = {
   opening: '开场陈述',
   discussion: '补充论证',
   synthesis: '协作汇总',
+  attestation: '独立确认',
   independent: '开场陈述',
   review: '互相澄清',
   challenge: '补充论证',
@@ -69,6 +72,27 @@ const PHASE_LABEL: Record<string, string> = {
   completed: '已完成',
   failed: '失败',
   cancelled: '已终止',
+}
+
+const DISCUSSION_ACT_META: Record<string, { label: string; hint: string }> = {
+  claim: { label: '主张', hint: '提出或重述一条可讨论的主张' },
+  challenge: { label: '质疑', hint: '针对具体论证提出证据或适用条件问题' },
+  respond: { label: '回应', hint: '对既有质疑给出接受、部分接受或拒绝' },
+  revise: { label: '修正', hint: '依据前文证据修订自己的主张' },
+  reinforce: { label: '补强', hint: '补充证据或推理支撑既有主张' },
+  broaden: { label: '拓宽', hint: '补充新的视角、边界或备选方案' },
+}
+
+const RESPONSE_VERDICT_LABEL: Record<string, string> = {
+  accept: '接受',
+  partial: '部分接受',
+  reject: '拒绝',
+}
+
+const ISSUE_ORIGIN_LABEL: Record<string, string> = {
+  challenge: '定向质疑',
+  residual: '剩余分歧',
+  user: '用户插话',
 }
 
 const TOOL_TRACE_LIMIT = 60
@@ -91,6 +115,65 @@ function previewText(text: string): string {
   return `${chars.slice(0, FOLD_PREVIEW_CHARS).join('')}…`
 }
 
+function shortProtocolID(id: string): string {
+  if (id.length <= 28) return id
+  return `${id.slice(0, 14)}…${id.slice(-8)}`
+}
+
+const DiscussionActBadge: React.FC<{
+  act?: string
+  testId?: string
+}> = ({ act, testId }) => {
+  const meta = act ? DISCUSSION_ACT_META[act] : undefined
+  if (!act || !meta) return null
+  return (
+    <span
+      className={`pantheon-discussion-act is-${act}`}
+      title={meta.hint}
+      data-testid={testId}
+    >
+      {meta.label}
+    </span>
+  )
+}
+
+const DiscussionActDetail: React.FC<{
+  targetContributionId?: string
+  targetIssueId?: string
+  challengedClaim?: string
+  responseVerdict?: string
+}> = ({
+  targetContributionId,
+  targetIssueId,
+  challengedClaim,
+  responseVerdict,
+}) => {
+  const responseLabel = responseVerdict ? RESPONSE_VERDICT_LABEL[responseVerdict] : ''
+  if (!targetContributionId && !targetIssueId && !challengedClaim && !responseLabel) return null
+  return (
+    <div className="pantheon-discussion-relation">
+      {challengedClaim && (
+        <span>
+          被挑战命题：<strong>{challengedClaim}</strong>
+        </span>
+      )}
+      {targetContributionId && (
+        <span>
+          目标贡献：
+          <code title={targetContributionId}>{shortProtocolID(targetContributionId)}</code>
+        </span>
+      )}
+      {targetIssueId && (
+        <span>
+          目标分歧：
+          <code title={targetIssueId}>{shortProtocolID(targetIssueId)}</code>
+        </span>
+      )}
+      {responseLabel && <span>回应结论：<strong>{responseLabel}</strong></span>}
+    </div>
+  )
+}
+
 interface DiscussionOutput {
   id: string
   agentId: string
@@ -101,6 +184,11 @@ interface DiscussionOutput {
   durationMs?: number
   streaming?: boolean
   at?: number
+  discussionAct?: string
+  targetContributionId?: string
+  targetIssueId?: string
+  challengedClaim?: string
+  responseVerdict?: string
 }
 
 interface ToolTraceView {
@@ -124,6 +212,11 @@ interface SharedEntry {
   at: number
   agentId?: string
   streaming?: boolean
+  discussionAct?: string
+  targetContributionId?: string
+  targetIssueId?: string
+  challengedClaim?: string
+  responseVerdict?: string
 }
 
 type AvatarStatus = 'online' | 'offline' | 'running' | 'waiting' | 'finished' | 'skipped' | 'failed' | 'unverified'
@@ -418,6 +511,9 @@ function eventTitle(event: PantheonEvent): string {
   if (event.kind === 'agent_skipped') return '跳过当前 Agent'
   if (event.kind === 'agent_retry') return '重试当前 Agent'
   if (event.kind === 'consensus') return '全员一致'
+  if (event.kind === 'did_used') return '发现新的核验动作'
+  if (event.kind === 'did_stop') return '停止空转'
+  if (event.kind === 'attestation') return '独立确认'
   if (event.kind === 'completed') return '讨论完成'
   if (event.kind === 'verdict') return '协作小结'
   if (event.kind === 'warning') return '运行警示'
@@ -438,6 +534,192 @@ const FieldList: React.FC<{ title: string; items?: string[]; tone?: 'risk' | 'di
         {items.map((item, index) => <li key={`${title}-${index}`}>{item}</li>)}
       </ul>
     </section>
+  )
+}
+
+const ISSUE_STATUS_META: Record<string, {
+  label: string
+  note: string
+  icon: React.ReactNode
+}> = {
+  open: {
+    label: '待收口',
+    note: '等待提出者在后续轮次回应',
+    icon: <ClockCircleOutlined aria-hidden />,
+  },
+  resolved: {
+    label: '已撤回',
+    note: '提出者已撤回该分歧',
+    icon: <CheckCircleFilled aria-hidden />,
+  },
+  dissent: {
+    label: '保留异议',
+    note: '结案时仍未撤回，已随纪要留档',
+    icon: <WarningOutlined aria-hidden />,
+  },
+}
+
+const ISSUE_REVIEW_META: Record<string, { label: string; icon: React.ReactNode }> = {
+  resolved: { label: '建议撤回', icon: <CheckCircleFilled aria-hidden /> },
+  retain: { label: '建议保留', icon: <WarningOutlined aria-hidden /> },
+  user_decision: { label: '交用户裁决', icon: <InfoCircleOutlined aria-hidden /> },
+  needs_verification: { label: '先补核验', icon: <ClockCircleOutlined aria-hidden /> },
+}
+
+const IssueLedger: React.FC<{
+  issues?: PantheonIssue[]
+  reviews?: PantheonIssueReview[]
+}> = ({ issues, reviews }) => {
+  const [expanded, setExpanded] = useState(false)
+  const issueCount = issues?.length || 0
+  useEffect(() => {
+    // 讨论运行中首次出现台账时自动展开；用户随后主动收起时，不因普通重渲染反复弹开。
+    if (issueCount > 0) setExpanded(true)
+  }, [issueCount])
+  if (!issues?.length) return null
+  const reviewByIssue = new Map((reviews || []).map((review) => [review.issueId, review]))
+  const openCount = issues.filter((issue) => issue.status === 'open').length
+  const resolvedCount = issues.filter((issue) => issue.status === 'resolved').length
+  const dissentCount = issues.filter((issue) => issue.status === 'dissent').length
+  const incompleteCount = issues.filter((issue) => (
+    !issue.evidence?.trim()
+    || !issue.flipCondition?.trim()
+    || !issue.verification?.trim()
+    || (issue.status === 'resolved' && !issue.resolutionEvidence?.trim())
+  )).length
+  const headline = openCount > 0
+    ? `${openCount} 项分歧仍待收口`
+    : dissentCount > 0
+      ? `${dissentCount} 项异议已保留`
+      : `${resolvedCount} 项分歧均已撤回`
+
+  return (
+    <details
+      className="pantheon-issue-ledger"
+      data-testid="pantheon-issue-ledger"
+      open={expanded}
+      onToggle={(event) => setExpanded(event.currentTarget.open)}
+    >
+      <summary>
+        <span className="pantheon-issue-ledger-mark" aria-hidden>
+          <TeamOutlined />
+        </span>
+        <span className="pantheon-issue-ledger-title">
+          <small>分歧台账 · Issue ledger</small>
+          <strong>{headline}</strong>
+        </span>
+        <span className="pantheon-issue-ledger-counts" aria-label="分歧状态统计">
+          {openCount > 0 && <span className="is-open">{openCount} 待收口</span>}
+          {dissentCount > 0 && <span className="is-dissent">{dissentCount} 保留</span>}
+          {resolvedCount > 0 && <span className="is-resolved">{resolvedCount} 已撤回</span>}
+          {incompleteCount > 0 && <span className="is-incomplete">{incompleteCount} 待补证据</span>}
+        </span>
+        <DownOutlined className="pantheon-issue-ledger-chevron" aria-hidden />
+      </summary>
+      <div className="pantheon-issue-ledger-body">
+        <p>按提出者记录，不因汇总省略而消失；证据、翻转条件与核验路径逐条保留。</p>
+        <ol>
+          {issues.map((issue, index) => {
+            const status = ISSUE_STATUS_META[issue.status] || {
+              label: issue.status,
+              note: '状态未归类',
+              icon: <ClockCircleOutlined aria-hidden />,
+            }
+            const fields = [
+              ...(issue.origin === 'challenge'
+                || (!issue.origin && (issue.targetContributionId || issue.challengedClaim))
+                ? [
+                  { label: '目标贡献', value: issue.targetContributionId },
+                  { label: '被挑战命题', value: issue.challengedClaim },
+                ]
+                : []),
+              { label: '分歧依据', value: issue.evidence },
+              ...(issue.responseVerdict
+                ? [{ label: '回应结论', value: RESPONSE_VERDICT_LABEL[issue.responseVerdict] || issue.responseVerdict }]
+                : []),
+              ...(issue.responseEvidence
+                ? [{ label: '回应证据', value: issue.responseEvidence }]
+                : []),
+              { label: '翻转条件', value: issue.flipCondition },
+              { label: '下一步核验', value: issue.verification },
+              ...(issue.status === 'resolved'
+                ? [{ label: '撤回依据', value: issue.resolutionEvidence }]
+                : []),
+            ]
+            const review = reviewByIssue.get(issue.id)
+            const reviewMeta = review
+              ? ISSUE_REVIEW_META[review.outcome] || {
+                label: review.outcome,
+                icon: <InfoCircleOutlined aria-hidden />,
+              }
+              : undefined
+            return (
+              <li
+                key={issue.id}
+                className={`is-${issue.status}`}
+                data-testid={`pantheon-issue-${issue.id}`}
+                title={`台账编号：${issue.id}`}
+              >
+                <span className="pantheon-issue-index" aria-hidden>
+                  {String(index + 1).padStart(2, '0')}
+                </span>
+                <div className="pantheon-issue-copy">
+                  <div className="pantheon-issue-head">
+                    <strong>{issue.summary}</strong>
+                    <span className={`pantheon-issue-status is-${issue.status}`}>
+                      {status.icon}
+                      {status.label}
+                    </span>
+                  </div>
+                  <p>
+                    <span>
+                      第 {issue.round} 轮 · 异议方：{issue.agentName}
+                      {(issue.lastSeenIn || 0) > issue.round
+                        ? ` · 第 ${issue.lastSeenIn} 轮再次保留`
+                        : ''}
+                    </span>
+                    <span>
+                      主张方：{issue.claimAgentNames?.length
+                        ? issue.claimAgentNames.join('、')
+                        : '未定位'}
+                    </span>
+                    <span>来源：{ISSUE_ORIGIN_LABEL[issue.origin || ''] || '未标注'}</span>
+                    <span>去向：{issue.disposition || status.note}</span>
+                  </p>
+                  <dl className="pantheon-issue-fields" aria-label={`${issue.agentName} 提出的分歧审计字段`}>
+                    {fields.map((field) => {
+                      const value = field.value?.trim()
+                      return (
+                        <div
+                          key={field.label}
+                          className={value ? undefined : 'is-missing'}
+                        >
+                          <dt>{field.label}</dt>
+                          <dd>{value || '未提供，下一轮需补齐'}</dd>
+                        </div>
+                      )
+                    })}
+                  </dl>
+                  {review && reviewMeta && (
+                    <div className={`pantheon-issue-review is-${review.outcome}`}>
+                      <div>
+                        <strong>
+                          {reviewMeta.icon}
+                          主席审阅 · {reviewMeta.label}
+                        </strong>
+                        <small>仅作整理建议，不替代提出者撤回</small>
+                      </div>
+                      <p>{review.reason}</p>
+                      {review.evidence && <small>依据：{review.evidence}</small>}
+                    </div>
+                  )}
+                </div>
+              </li>
+            )
+          })}
+        </ol>
+      </div>
+    </details>
   )
 }
 
@@ -486,6 +768,58 @@ const SharedAgentBody: React.FC<{
   )
 }
 
+const ATTESTATION_META: Record<string, { label: string; icon: React.ReactNode }> = {
+  support: { label: '支持', icon: <CheckCircleFilled aria-hidden /> },
+  conditional: { label: '有条件支持', icon: <ClockCircleOutlined aria-hidden /> },
+  oppose: { label: '反对', icon: <CloseCircleFilled aria-hidden /> },
+  unknown: { label: '未识别', icon: <WarningOutlined aria-hidden /> },
+}
+
+const AttestationPanel: React.FC<{ session: PantheonSession }> = ({ session }) => {
+  if (!session.attestations?.length) return null
+  const support = session.attestations.filter((item) => item.position === 'support').length
+  const conditional = session.attestations.filter((item) => item.position === 'conditional').length
+  const oppose = session.attestations.filter((item) => item.position === 'oppose').length
+  return (
+    <section className="pantheon-attestations" data-testid="pantheon-attestations">
+      <header>
+        <div>
+          <span className="pantheon-eyebrow">独立确认 · Attestation</span>
+          <strong>
+            {support} 支持 · {conditional} 有条件 · {oppose} 反对
+          </strong>
+        </div>
+        <Tag>{session.verdict?.revisedFromSha256 ? '已修订一次' : '原稿待签注'}</Tag>
+      </header>
+      {session.verdict?.revisionReason && (
+        <p className="pantheon-attestation-revision">
+          {session.verdict.revisionReason}
+        </p>
+      )}
+      <ol>
+        {session.attestations.map((attestation) => {
+          const meta = ATTESTATION_META[attestation.position] || ATTESTATION_META.unknown
+          return (
+            <li key={attestation.agentId} className={`is-${attestation.position}`}>
+              <span>{meta.icon}{meta.label}</span>
+              <div>
+                <strong>{attestation.agentName}</strong>
+                <p>{attestation.reason || attestation.error || '未提供理由'}</p>
+                {attestation.conditions?.length ? (
+                  <small>条件：{attestation.conditions.join('；')}</small>
+                ) : null}
+                {attestation.issueIds?.length ? (
+                  <small>相关分歧：{attestation.issueIds.join('、')}</small>
+                ) : null}
+              </div>
+            </li>
+          )
+        })}
+      </ol>
+    </section>
+  )
+}
+
 const ConclusionPanel: React.FC<{
   session: PantheonSession
   busy: boolean
@@ -528,6 +862,43 @@ const ConclusionPanel: React.FC<{
         </Tag>
       </div>
       {session.verdict.summary && <p className="pantheon-verdict-summary">{session.verdict.summary}</p>}
+
+      {session.verdict.proposedActions?.length ? (
+        <section className="pantheon-action-plan" data-testid="pantheon-proposed-actions">
+          <header>
+            <div>
+              <span className="pantheon-eyebrow">行动提案 · 只读</span>
+              <strong>{session.verdict.proposedActions.length} 项，签注后另行授权执行</strong>
+            </div>
+            <Tag>不会自动运行</Tag>
+          </header>
+          <ol>
+            {session.verdict.proposedActions.map((action, index) => (
+              <li key={action.id || `${action.action}-${index}`}>
+                <span>{action.id || `action-${index + 1}`}</span>
+                <div>
+                  <strong>{action.action}</strong>
+                  {action.rationale && <p>{action.rationale}</p>}
+                  <dl>
+                    {action.dependsOn?.length ? (
+                      <div><dt>依赖</dt><dd>{action.dependsOn.join('、')}</dd></div>
+                    ) : null}
+                    {action.acceptanceEvidence && (
+                      <div><dt>验收证据</dt><dd>{action.acceptanceEvidence}</dd></div>
+                    )}
+                    {action.suggestedOwner && (
+                      <div><dt>建议负责人</dt><dd>{action.suggestedOwner}</dd></div>
+                    )}
+                    {action.risk && <div><dt>风险</dt><dd>{action.risk}</dd></div>}
+                  </dl>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : null}
+
+      <AttestationPanel session={session} />
 
       {detailCount > 0 && (
         <details className="pantheon-verdict-details">
@@ -778,6 +1149,15 @@ const AgentDetailPanel: React.FC<{
                           <span>
                             {output.round ? `第 ${output.round} 轮 · ` : ''}
                             {PHASE_LABEL[output.phase] || output.phase}
+                            {output.discussionAct && (
+                              <>
+                                {' · '}
+                                <DiscussionActBadge
+                                  act={output.discussionAct}
+                                  testId={`pantheon-agent-discussion-act-${output.id}`}
+                                />
+                              </>
+                            )}
                           </span>
                           <small>
                             {output.streaming
@@ -791,6 +1171,12 @@ const AgentDetailPanel: React.FC<{
                       </summary>
                       <div className={`pantheon-agent-output-markdown${output.streaming ? ' is-live' : ''}`}>
                         <MarkdownContent source={output.text} className="md-content" />
+                        <DiscussionActDetail
+                          targetContributionId={output.targetContributionId}
+                          targetIssueId={output.targetIssueId}
+                          challengedClaim={output.challengedClaim}
+                          responseVerdict={output.responseVerdict}
+                        />
                         {output.streaming && (
                           <span className="pantheon-agent-output-caret pantheon-stream-caret" aria-label="正在输出" />
                         )}
@@ -892,6 +1278,11 @@ export const PantheonRecord: React.FC<Props> = ({
         text: item.content,
         durationMs: item.durationMs,
         at: item.createdAt,
+        discussionAct: item.discussionAct,
+        targetContributionId: item.targetContributionId,
+        targetIssueId: item.targetIssueId,
+        challengedClaim: item.challengedClaim,
+        responseVerdict: item.responseVerdict,
       }))
     }
     return (session.events ?? [])
@@ -1164,7 +1555,11 @@ export const PantheonRecord: React.FC<Props> = ({
 
     const seenEvents = new Set<string>()
     for (const event of session.events) {
-      if (!['phase', 'consensus', 'warning', 'error', 'agent_skipped', 'agent_retry'].includes(event.kind)) continue
+      if (![
+        'phase', 'consensus', 'did_used', 'did_stop',
+        'attestation',
+        'warning', 'error', 'agent_skipped', 'agent_retry',
+      ].includes(event.kind)) continue
       if (!event.text) continue
       const key = `${event.kind}:${event.phase}:${event.round || 0}:${event.text}`
       if (seenEvents.has(key)) continue
@@ -1209,6 +1604,11 @@ export const PantheonRecord: React.FC<Props> = ({
         at: output.streaming ? Number.MAX_SAFE_INTEGER : output.at || session.updatedAt,
         agentId: output.agentId,
         streaming: output.streaming,
+        discussionAct: output.discussionAct,
+        targetContributionId: output.targetContributionId,
+        targetIssueId: output.targetIssueId,
+        challengedClaim: output.challengedClaim,
+        responseVerdict: output.responseVerdict,
       })
     }
 
@@ -1577,6 +1977,8 @@ export const PantheonRecord: React.FC<Props> = ({
           })}
         </ol>
 
+        <IssueLedger issues={session.issues} reviews={session.verdict?.issueReviews} />
+
         {metaOpen && (
           <section
             className="pantheon-meta-disclosure"
@@ -1596,6 +1998,17 @@ export const PantheonRecord: React.FC<Props> = ({
                     <dt>议事路径</dt>
                     <dd title={protocol === 'independent' ? '第 1 轮不注入同轮前序，各自独立作答' : '同轮发言按顺序互相可见'}>
                       {protocolLabel(session.request.protocol)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>议事形态</dt>
+                    <dd title={session.request.preset === 'targeted_challenge'
+                      ? '围绕分歧台账逐条质疑、回应与核验'
+                      : session.request.preset === 'red_team'
+                        ? '围绕最强反例与失败模式讨论，结论生成后全席独立确认'
+                        : '独立开场后共享讨论并协作综合'}
+                    >
+                      {presetLabel(session.request.preset)}
                     </dd>
                   </div>
                   <div><dt>运行边界</dt><dd>只读</dd></div>
@@ -1960,6 +2373,10 @@ export const PantheonRecord: React.FC<Props> = ({
                 <div className="pantheon-shared-copy">
                   <header>
                     <strong>{entry.label}</strong>
+                    <DiscussionActBadge
+                      act={entry.discussionAct}
+                      testId={`pantheon-discussion-act-${entry.id}`}
+                    />
                     {(entry.kind === 'live' || entry.streaming || entry.kind === 'working') && (
                       <span className="pantheon-streaming-state">
                         {entry.streaming ? '正在发言' : entry.kind === 'working' ? '正在工作' : '正在发生'}
@@ -1975,6 +2392,14 @@ export const PantheonRecord: React.FC<Props> = ({
                     />
                   ) : (
                     <p>{entry.text}</p>
+                  )}
+                  {entry.kind === 'agent' && (
+                    <DiscussionActDetail
+                      targetContributionId={entry.targetContributionId}
+                      targetIssueId={entry.targetIssueId}
+                      challengedClaim={entry.challengedClaim}
+                      responseVerdict={entry.responseVerdict}
+                    />
                   )}
                   {entry.meta && <small>{entry.meta}</small>}
                 </div>

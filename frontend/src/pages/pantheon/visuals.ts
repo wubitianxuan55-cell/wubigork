@@ -38,3 +38,13 @@ export const PROTOCOL_LABELS: Record<string, string> = {
 export function protocolLabel(protocol?: string): string {
   return (protocol && PROTOCOL_LABELS[protocol]) || '圆桌接力'
 }
+
+export const PRESET_LABELS: Record<string, string> = {
+  roundtable: '圆桌会诊',
+  targeted_challenge: '定向质询',
+  red_team: '红队评审',
+}
+
+export function presetLabel(preset?: string): string {
+  return (preset && PRESET_LABELS[preset]) || '圆桌会诊'
+}

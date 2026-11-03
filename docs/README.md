@@ -1,6 +1,6 @@
 # docs/ 文档索引
 
-> 2026-09-09 立索引（同日状态大清算）；**2026-09-10 复核重建**——**2026-10-29 计数校正：96 份顶层文档（守卫口径，不含本 README）+ 4 个子目录（`archive/` `distill/` `snapshots/` `code-audit-2026-10-02/`）全部登记**（计数以 `node scripts/check-docs.mjs` 输出为准，勿在文中硬写）。状态行与 git log 逐版核对。**归档件在 `docs/archive/`**；发布物全文在 `releases/`；版本动态速览在 `.gaea/AGENTS.md`（其历史版本段已分流至 `docs/archive/agents-version-history-2026-09.md`）。
+> 2026-09-09 立索引（同日状态大清算）；**2026-09-10 复核重建**——**2026-11-03 计数校正：105 份顶层文档（守卫口径，不含本 README）+ 4 个子目录（`archive/` `distill/` `snapshots/` `code-audit-2026-10-02/`）全部登记**（计数以 `node scripts/check-docs.mjs` 输出为准，勿在文中硬写）。状态行与 git log 逐版核对。**归档件在 `docs/archive/`**；发布物全文在 `releases/`；版本动态速览在 `.gaea/AGENTS.md`（其历史版本段已分流至 `docs/archive/agents-version-history-2026-09.md`）。
 >
 > **维护规则（防孤儿）**：新增/移动文档必须同步本索引；**未登记文档视同孤儿**，下一轮整理按「未登记 = 待归档或待登记」处理。引用任文档前先读其头部状态行。**守卫**：`node scripts/check-docs.mjs`（孤儿登记 / `docs/` 悬空引用 / `.gaea/AGENTS.md` 指令预算 / **含非 ASCII 的 .ps1 必须带 BOM** 四查），已接入 `scripts/ci.ps1` 全门禁。
 
@@ -15,6 +15,7 @@
 | gaea-v5-case-os-proposal-2026-10.md | 🔄 **V5 架构立项建议（2026-10-29，待拍板）**：市场/社区/GitHub/V4 审计四路取证 → 判断 V4 结构触顶（686 绑定/48 工具/60 表/无 case 维）；提出「事项—事务—证据」主轴（案头/Case OS）、四层架构、R0–R3 风险与监督预算、48 能力契约、SQLite 三表持久执行、6 周 P0 + 12 个月路线与 kill gate；含备选方案 A–E 与 8 项拍板 |
 | gaea-v5-zcode-debate-2026-10-29.md | 🗣 **V5 立项辩论（进行中）**：Codex 主张只批六周 Case Kernel P0，暂缓 V5 唯一主轴、12 个月路线与 P1 冻结；与 ZCode 按只追加协议逐轮核验事实、指标与真人使用门槛 |
 | gaea-pantheon-market-research-2026-10-29.md | 🏛 **众神殿市场调研 + 圆桌讨论 V2（2026-10-29）**：一级板块、Grok/Codex/ZCode/DSH 参与者（Grok 为 Gaea 办公席位）、手动 2–20 轮或不限轮次至全员共识、顺序轮换、工作空间范围、实时工具轨迹与持久化纪要已实现；含竞品/论文证据、公正协作协议与验证记录 |
+| gaea-pantheon-v2-roadmap-2026-11-03.md | 🏛 **众神殿 V2 讨论协议整合报告（2026-11-03，活跃指导）**：分歧台账与真相单源化 → 动作/目标贡献/DID 收口 → 独立确认与只读行动清单；整合市场、Orca 与四框架专项调研，明确 144 配置不上 UI、投票不等于事实、执行须另签 |
 | gaea-slim-masterplan-2026-09.md | 🔄 **瘦身长期总规划（活跃权威）**：七面体检×七轨道×六阶段；**P0–P4 已收官**（v4.167–v4.177）+ 清点刀 v4.179；余 P5 维持与观察池审判 |
 | gaea-convergence-plan-2026-09.md | 🔄 **收敛期叠加层**：W1 卫生刀 ✅（v4.164/165）、W2 知识外化三件 ✅、W3-4 office 枢纽解耦 ✅（v4.197）；冲突时以「不加新板块」为先 |
 | gaea-competitive-landscape-2026.md | 竞品格局与差异化定位（参考基线 2026-08-29，注意时效） |
@@ -89,6 +90,7 @@
 | gaea-attention-transaction-2026-11.md | 🔄 **注意力事务（2026-11-02，众神殿 super agent 讨论产物）**：第一刀=请求/结果成对事件（`approval_resolved`/`ask_resolved`）+ `source` 判别字段贯通实时层/日志/轨迹，前端零改动；阶段 0 基线统计器 `scripts/attention_report`（只读）；开放项=case_id/step_id 事项维、V5 事件账本对齐、旧日志不可补 |
 | gaea-orca-pantheon-distill-2026-11.md | 🔄 **Orca 1.4.214 × 众神殿机制蒸馏（2026-11-02）**：判定 Orca 是 Agent 工作台而非议事系统；提炼 Attempt 身份、状态证据、完成权威、单写者租约、工作树边界与外置委派纪律；**P0 O-A/O-B/O-C 已落地**（AttemptRef 贯通、旧 Attempt 封口、禁隐性派生、原生/路径/共享摘要三路图片能力门），O-D 起按门控后置；明确不照搬完整自治与“worktree 即沙箱” |
 | gaea-orca-pantheon-distill-round2-2026-11.md | 🔄 **Orca 第二轮蒸馏：投递/观测空间/结案纪律（2026-11-02）**：修正第一轮三处口径（新鲜度分判定 60s 与展示 30min 两层、序号只在同一 authority 内可比、租约防进程复用而 dispatchId 防迟到）；新增 M9–M17（投递状态机、快照不续命、未知态五档、终态图+唯一例外、兄弟在跑不结案、门重阻塞、三句式陈词、释放与归档分离、重试重声明）；刀池重排 O-D/O-E/O-H/O-I，带 Go 形状与逐条验收 |
+| gaea-pantheon-deliberation-frameworks-research-2026-11-03.md | 🔄 **众神殿讨论/辩论框架专项调研（2026-11-03，证据附录）**：MALLM 四轴与评测、Captain Claw 动作/主持/确认、ARTEMIS 生成与评审分离、AgentTeams 人工干预与执行账本；逐项写明吸收/不吸收、源码快照与产品边界，优先级由 V2 整合报告 R1–R6 决定 |
 | zcode-office-distill-2026-10.md | ✅ ZCode office 域对源蒸馏分析（A1 锚点语法层/F2 doc_render 等交汇刀的对源证据层） |
 | zcode-office-distill-analysis-2026-10.md | ✅ ZCode office 蒸馏子分析报告（机检十二规则/Q1 对源） |
 | zcode-office-decision-memo-2026-10.md | ✅ ZCode office 蒸馏决策备忘（双执行体轮次署名权/取舍记录） |

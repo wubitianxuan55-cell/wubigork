@@ -83,7 +83,7 @@ func collaborationRules() string {
 - 主动提供能帮助其他参与者补强的信息、反例、验证方法和下一步建议。
 - 如果他人说服了你，明确说明改变了什么；如果没有，也平静说明仍缺少什么证据。
 - 不以达成表面共识为目标。保留合理分歧比强行统一更有价值。
-- 论证强度要求（2026-11-03 质量阶梯）：结构性主张必须给出影响量级（高/中/低）与代价取舍；每轮至少点名挑战一个你认为最弱的前文论证——客气不是美德，放过弱论证才是失职；纯附和、纯复述、纯过程汇报视为无效发言。
+- 论证强度要求（2026-11-03 质量阶梯）：结构性主张必须给出影响量级（高/中/低）与代价取舍；每轮至少点明一个你实际审视过的前文论证，发现证据不足或不适用时发起可定位质疑；不要为了凑格式攻击无关论证；纯附和、纯复述、纯过程汇报视为无效发言。
 - 发言永远锚定议题核心目标：先答「这段论证如何推进核心目标」；与核心目标无关的实现接缝细节，除非正在阻塞决策，否则一句带过或进遗留台账。
 - 每个席位必须亲自完成本轮发言；不得派生 subagent、并行助手或二次委派。确需额外调查时，只使用当前只读工具，并在陈词中说明证据与缺口。
 （主持人裁决纪律）持续两轮以上未收口的分歧，任何席位都可以提出裁决动议——双方论点、证据强度对比、裁决建议与验证路径；主持人（汇总席）有义务先行。`
@@ -97,7 +97,17 @@ func collaborationRules() string {
 func contributionContract() string {
 	return `【陈词契约】
 每轮发言末尾必须收声，三句以内依次交代：第一句做了什么（读了哪个文件、跑了哪条命令、核对到哪一步），第二句发现什么（结论、反例或仍然缺的证据），第三句还剩什么（没做完的项、需要谁补什么）。正文按后文“结构如下”的要求展开，这三句只是收尾报告，不重复正文，不写“综上”“以上”这类过场话。
-没做成的事必须进结论行，不许只写在正文里等别人看出来：本轮有没做成的项（文件读不到、命令跑不通、材料缺失、事实无法核验）时，末尾单独一行写“置信度：未验证（一句话写失败点）”；全部做成时写“置信度：高”或“置信度：中”或“置信度：低”。开启全员一致检查时，“共识状态”“剩余分歧”两行照写，置信度行另起一行，三行互不合并、不省略。
+没做成的事必须进结论行，不许只写在正文里等别人看出来：本轮有没做成的项（文件读不到、命令跑不通、材料缺失、事实无法核验）时，末尾单独一行写“置信度：未验证（一句话写失败点）”；全部做成时写“置信度：高”或“置信度：中”或“置信度：低”。
+每轮另写一行“剩余分歧：无”，或写“剩余分歧：一句话说明最关键且仍阻塞推荐的争议”。不是“无”时，紧接三行且不得省略：
+分歧依据：引用贡献 ID、文件、命令或明确写“未核验”
+分歧对象：列出该异议所针对的主张贡献 ID；没有明确对象写“未定位”
+翻转条件：出现什么新证据时你承诺重新判断
+下一步核验：由谁、用什么方法、核验什么，须能实际执行
+每轮另写一行讨论动作，取值：主张、质疑、回应、修正、补强、拓宽。
+质疑或修正时，必须再写“目标贡献：<前文实际贡献 ID>”和“被挑战命题：<一句话，必须能在目标贡献中定位>”。
+回应既有质疑时写“目标贡献：<被质疑的贡献 ID>”和“回应结论：接受/部分接受/拒绝”；若同一目标贡献对应多条未闭合分歧，再写“目标分歧：<台账 ID>”消除歧义。
+需要独立支撑动作时写“证据句柄：<贡献 ID、文件、命令或未核验>”；证据句柄不是第二份证据，只负责把正文里的依据定位出来。
+开启全员一致检查时，再另写“共识状态：一致/仍有分歧”和“遗留台账：……（无则写无）”；置信度行独立保留。
 证据只填真实值：路径、命令、版本、行号一律填本轮实际读取或执行到的原样值；没核验过的写“未验证”，不许编造，不许用占位符（如 xxx、TODO、<路径>），不许把示例值或记忆里的旧值当成实测值。`
 }
 
@@ -138,6 +148,38 @@ func consensusLabel(signal string) string {
 		return "仍有分歧"
 	}
 	return "一致"
+}
+
+func issuePromptDetails(issue Issue) string {
+	fields := make([]string, 0, 5)
+	for _, field := range []struct {
+		label string
+		value string
+	}{
+		{"目标贡献", issue.TargetContributionID},
+		{"被挑战命题", issue.ChallengedClaim},
+		{"分歧依据", issue.Evidence},
+		{"主张方", issueSideNames(issue.ClaimAgentNames, "未定位")},
+		{"异议方", issueSideNames(issue.DissentAgentNames, issue.AgentName)},
+		{"回应结论", responseVerdictLabel(issue.ResponseVerdict)},
+		{"回应证据", issue.ResponseEvidence},
+		{"翻转条件", issue.FlipCondition},
+		{"下一步核验", issue.Verification},
+		{"撤回依据", issue.ResolutionEvidence},
+		{"去向", issue.Disposition},
+	} {
+		if value := strings.TrimSpace(field.value); value != "" {
+			fields = append(fields, field.label+"="+value)
+		}
+	}
+	return strings.Join(fields, "；")
+}
+
+func issueSideNames(names []string, fallback string) string {
+	if len(names) > 0 {
+		return strings.Join(names, "、")
+	}
+	return fallback
 }
 
 // formatContributionBody 把一条历史发言重新分发给后位席位与汇总席。
@@ -208,6 +250,22 @@ func formatContributionBody(item Contribution, currentRound int, files *transcri
 			item.Round, consensusLabel(item.Consensus),
 		)
 	}
+	if item.DiscussionAct != "" {
+		action := fmt.Sprintf("\n（讨论动作回写 · %s", discussionActLabel(item.DiscussionAct))
+		if item.TargetContributionID != "" {
+			action += "；目标贡献=" + item.TargetContributionID
+		}
+		if item.TargetIssueID != "" {
+			action += "；目标分歧=" + item.TargetIssueID
+		}
+		if item.ChallengedClaim != "" {
+			action += "；被挑战命题=" + trimRunes(item.ChallengedClaim, 200)
+		}
+		if item.ResponseVerdict != "" {
+			action += "；回应=" + responseVerdictLabel(item.ResponseVerdict)
+		}
+		body += action + "）"
+	}
 	return body
 }
 
@@ -222,6 +280,7 @@ func formatDiscussionHistory(contributions []Contribution, currentRound int, fil
 	var b strings.Builder
 	for _, item := range contributions {
 		fmt.Fprintf(&b, "\n【第 %d 轮｜%s】\n", item.Round, item.AgentName)
+		fmt.Fprintf(&b, "贡献 ID：%s\n", item.ID)
 		b.WriteString(formatContributionBody(item, currentRound, files))
 		b.WriteString("\n")
 	}
@@ -262,8 +321,19 @@ func openingPrompt(
 	total int,
 	files *transcript,
 ) string {
+	presetInstruction := ""
+	if isDirectedPreset(req.Preset) {
+		presetInstruction = `
+
+【定向质询模式】
+本轮先独立给出可定位的主张；不要引用同轮其他席位尚未发生的发言。第二轮起只筛选最影响推荐的分歧，每次最多处理一个主要质疑或回应。`
+		if req.Preset == PresetRedTeam {
+			presetInstruction += `红队评审还要主动寻找最强反例、最坏条件和不可逆风险；汇总后所有有效席位将独立确认结论。`
+		}
+	}
 	return `你是众神殿圆桌讨论的参与者「` + agent.Name + `」。当前是第 1 轮开场陈述。
 你在本轮第 ` + fmt.Sprint(position) + ` 位发言，本轮共 ` + fmt.Sprint(total) + ` 位。
+` + presetInstruction + `
 
 ` + collaborationRules() + `
 
@@ -296,6 +366,20 @@ func discussionPrompt(
 	files *transcript,
 	openIssues []Issue,
 ) string {
+	presetInstruction := ""
+	if isDirectedPreset(req.Preset) {
+		presetInstruction = `
+
+【定向质询模式】
+本轮只处理一个最影响推荐的分歧，不要铺开成自由辩论：
+- 台账中有与你相关的未决条目时，先回应或复核该条目；
+- 被质疑方必须给出「回应结论：接受/部分接受/拒绝」；
+- 需要发起新质疑时，必须点名目标贡献和被挑战命题；
+- 没有可定位的新目标时，写「动作：主张」并说明为什么本轮不新增质疑。`
+		if req.Preset == PresetRedTeam {
+			presetInstruction += `红队席位优先攻击最强方案的前提与失败模式；不要把“还有风险”当结论，必须给出可验证反例。`
+		}
+	}
 	// 分歧台账注入（2026-11-03 V2 P1）：open 条目贯穿轮次可见，逐条闭合；
 	// 已闭合的不再占版面。
 	issueLedgerInstruction := ""
@@ -304,6 +388,11 @@ func discussionPrompt(
 		b.WriteString("\n【分歧台账（open）】\n下列分歧仍未收口，逐条给出你的立场变化或核验路径；撤回自己提出的分歧时须引用说服你的证据（贡献 ID）：\n")
 		for _, issue := range openIssues {
 			fmt.Fprintf(&b, "- %s · 第 %d 轮 %s 提出：%s\n", issue.ID, issue.Round, issue.AgentName, issue.Summary)
+			if details := issuePromptDetails(issue); details != "" {
+				fmt.Fprintf(&b, "  %s\n", details)
+			} else {
+				b.WriteString("  证据、翻转条件与下一步核验均待补。\n")
+			}
 		}
 		issueLedgerInstruction = b.String()
 	}
@@ -312,10 +401,10 @@ func discussionPrompt(
 		consensusInstruction = `
 
 【全员一致检查（2026-11-03 收口判据改造）】
-本轮最后单独写三行：
+本轮最后另写两行：
 共识状态：一致 或 共识状态：仍有分歧
-剩余分歧：无（一致时）或一句话说明最关键的阻塞分歧
 遗留台账：仍存在但不阻塞收口的实现缺口/待验证项，逐条一句话（无则写「无」）
+「剩余分歧」及必要时的分歧依据、翻转条件、下一步核验按陈词契约照写。
 
 「一致」的判据：讨论的核心方向没有阻塞分歧即算一致——实现层还能再抠的接缝、
 尚未跑完的验证，写进「遗留台账」即可，不得拿它们当分歧扣住收口。
@@ -335,6 +424,7 @@ func discussionPrompt(
 	}
 	return fmt.Sprintf(`你是众神殿圆桌讨论的参与者「%s」。当前是第 %d 轮补充论证。
 你在本轮第 %d 位发言，本轮共 %d 位。后续轮次会自动轮换首位，避免固定顺序造成偏置。
+%s
 
 %s
 
@@ -367,11 +457,13 @@ func discussionPrompt(
 4. 互相补强：说明哪些观点可以组合，或你可以为其他参与者提供什么帮助。
 5. 当前判断：给出修订后的判断、适用条件、开放问题和置信度。
 
-保持平和、具体、可核查。不要打分排名，不要使用辩论胜负、攻击弱点或持续反驳的语气。%s`,
+保持平和、具体、可核查。不要打分排名，不要使用辩论胜负叙事或攻击席位人格；
+可以明确指出并质疑具体论证，但必须给出证据或可执行核验路径。%s`,
 		agent.Name,
 		round,
 		position,
 		total,
+		presetInstruction,
 		collaborationRules(),
 		contributionContract(),
 		toolPolicy(agent),
@@ -393,7 +485,13 @@ func moderationPrompt(req StartRequest, facilitator AgentStatus, roundContributi
 		closeout = `
 本轮起必须考虑收口：核心方向已定的分歧给裁决建议，未定分歧给「用户决策选项」（各选项代价一句话）；禁止用「继续讨论」当结论。`
 	}
+	targeted := ""
+	if isDirectedPreset(req.Preset) {
+		targeted = `
+定向质询模式：下轮必答必须点名一条台账 ID 或目标贡献 ID；若没有任何新的可执行核验动作，明确写「建议直接收口」。`
+	}
 	return fmt.Sprintf(`你是众神殿第 %d 轮的主持人「%s」。各席本轮发言已收齐（附后），现在做轮间小结，供下一轮全员以此为议程继续。
+%s
 %s
 输出三段，总共 300 字内：
 1. 真分歧（≤3 条）：一句话一条，注明对峙双方贡献 ID；已达成的方向共识一句带过。
@@ -401,7 +499,7 @@ func moderationPrompt(req StartRequest, facilitator AgentStatus, roundContributi
 3. 下轮必答（1 问）：全员下一轮必须先回答的一个问题——推向收口，不推向展开。
 
 第 %d 轮发言：
-%s`, round, facilitator.Name, closeout, round, formatDiscussionHistory(roundContributions, round, nil))
+%s`, round, facilitator.Name, closeout, targeted, round, formatDiscussionHistory(roundContributions, round, nil))
 }
 
 func synthesisPrompt(req StartRequest, facilitator AgentStatus, contributions []Contribution, files *transcript, issues []Issue) string {
@@ -433,7 +531,11 @@ func synthesisPrompt(req StartRequest, facilitator AgentStatus, contributions []
 				status = issue.Status
 			}
 			fmt.Fprintf(&b, "- %s · 第 %d 轮 %s 提出：%s —— %s\n", issue.ID, issue.Round, issue.AgentName, issue.Summary, status)
+			if details := issuePromptDetails(issue); details != "" {
+				fmt.Fprintf(&b, "  %s\n", details)
+			}
 		}
+		b.WriteString("汇总时必须保留上述每条争议的证据与翻转条件；无法闭合的写清仍缺哪条证据、谁下一步核验，不得只改写措辞。\n")
 	}
 	b.WriteString("\n\n【多轮讨论记录】\n")
 	for _, c := range contributions {
@@ -452,6 +554,9 @@ func synthesisPrompt(req StartRequest, facilitator AgentStatus, contributions []
 - recommendation 是行动建议：用户下一步做什么、按什么顺序做；证据不足时明确说哪一步先补证据。
 - 议题核心目标必须显式回应：讨论结果是解决/部分解决/偏航——若轮次后期漂移到实现细节，在 summary 里点名漂移并拉回。
 - 保留少数意见，特别是可验证反例或关键风险；但须与「已被证据压倒的意见」区分。
+- issueReviews 必须逐条覆盖输入台账中的每个 issueId，不得遗漏或虚构 ID。每条只给审阅建议，不改变提出者是否撤回；outcome 只能是 resolved / retain / user_decision / needs_verification。
+- 主席建议 resolved 时，evidence 必须写明哪条证据支持撤回；提出者尚未撤回的条目，summary 仍须保留其异议身份。
+- proposedActions 只写签注后可审核的行动提案，不得声称已经执行；没有明确下一步时输出空数组。
 - 语言客观、协助；不做法庭式裁决叙事，但该裁决的分歧要给裁决建议。
 
 只输出一个 JSON 对象，不要 Markdown 围栏。字段：
@@ -461,7 +566,26 @@ func synthesisPrompt(req StartRequest, facilitator AgentStatus, contributions []
   "conditions": ["适用条件"],
   "disagreements": ["仍存在且值得保留的分歧（含被淘汰方案及理由）"],
   "risks": ["开放问题、反例或待验证风险（各配验证路径）"],
-  "evidenceNotes": ["重要证据：支持/修正/推翻了哪一部分，证据等级与贡献 ID"]
+  "evidenceNotes": ["重要证据：支持/修正/推翻了哪一部分，证据等级与贡献 ID"],
+  "issueReviews": [
+    {
+      "issueId": "原样复制输入台账 ID",
+      "outcome": "resolved | retain | user_decision | needs_verification",
+      "reason": "一句原因，不复述整段讨论",
+      "evidence": "支持该去向的贡献 ID、文件或验证结果；没有写未提供"
+    }
+  ],
+  "proposedActions": [
+    {
+      "id": "action-1",
+      "action": "具体动作",
+      "rationale": "为什么现在做",
+      "dependsOn": ["前置动作 ID"],
+      "acceptanceEvidence": "怎样算完成及证据",
+      "suggestedOwner": "用户/某类能力席位",
+      "risk": "失败或越权风险"
+    }
+  ]
 }`)
 	return b.String()
 }

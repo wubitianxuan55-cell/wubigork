@@ -1,9 +1,16 @@
 # 众神殿多智能体议事框架调研：MALLM / Agent Council / ARTEMIS / AgentTeams
 
 > 日期：2026-11-03
-> 状态：调研完成；本文件不改运行时代码。
+> 状态：调研完成；已并入 `docs/gaea-pantheon-v2-roadmap-2026-11-03.md`。
+> 本文件保留上游源码证据、机制细节与边界，不单独决定施工优先级；施工顺序以整合报告
+> 的 R1-R6 为准。
 > 范围：围绕“讨论、质疑、收敛、评审，以及讨论后推进任务”的机制蒸馏。
 > 取证纪律：优先读上游源码和官方论文/文档；star、功能清单和自述不能替代机制证据。
+>
+> 当前承接面（2026-11-03 工作树）：分歧台账、主席逐条审阅、停止信号导出与
+> “剩余分歧阻止假共识”已实现；结构化动作/目标贡献、定向质询 preset、
+> 用户插话台账、回应闭环、DID 续跑判据、红队独立确认与只读行动清单也已接通。
+> 协议对照评测仍未实现，红队确认保持显式选择，不进入默认流程。
 
 ## 0. 结论
 
@@ -514,8 +521,8 @@ Manager 不穿透团队，只和 Team Leader 通信；Team Leader 负责内部�
 ### AgentTeams
 
 - 仓库：[agentscope-ai/AgentTeams](https://github.com/agentscope-ai/AgentTeams/tree/d9366ac43a153d31c73ef4def125e378869b8d85)
-- 架构：[`docs/design/k8s-native-orchestration.md`](https://github.com/agentscope-ai/AgentTeams/blob/d9366ac43a153d31c73ef4def125e378869b8d85/docs/design/k8s-native-orchestration.md)
-- 快速开始与人工干预：[`docs/quickstart.md`](https://github.com/agentscope-ai/AgentTeams/blob/d9366ac43a153d31c73ef4def125e378869b8d85/docs/quickstart.md)
+- 架构：[AgentTeams 架构文档目录](https://github.com/agentscope-ai/AgentTeams/tree/d9366ac43a153d31c73ef4def125e378869b8d85/docs/design)
+- 快速开始与人工干预：[AgentTeams 文档目录](https://github.com/agentscope-ai/AgentTeams/tree/d9366ac43a153d31c73ef4def125e378869b8d85/docs)
 - 任务状态机：[`manager/src/agentteams_manager/agentteams_manager/task.py`](https://github.com/agentscope-ai/AgentTeams/blob/d9366ac43a153d31c73ef4def125e378869b8d85/manager/src/agentteams_manager/agentteams_manager/task.py)
 - Matrix 任务工具：[`manager/src/agentteams_manager/agentteams_manager/tools/taskflow.py`](https://github.com/agentscope-ai/AgentTeams/blob/d9366ac43a153d31c73ef4def125e378869b8d85/manager/src/agentteams_manager/agentteams_manager/tools/taskflow.py)
 - 人工插话测试：[`tests/test-04-human-intervene.sh`](https://github.com/agentscope-ai/AgentTeams/blob/d9366ac43a153d31c73ef4def125e378869b8d85/tests/test-04-human-intervene.sh)

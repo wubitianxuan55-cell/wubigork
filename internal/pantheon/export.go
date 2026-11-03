@@ -39,7 +39,8 @@ func ExportMarkdown(session *Session) string {
 	// 缺失必须明示不可比，避免把耗时差异误读成成本结论。
 	fmt.Fprintf(
 		&b,
-		"- 议事路径：%s\n- 对照注记：费用未采集（harness 未暴露 token/费用事件）；耗时仅可同席自比\n\n",
+		"- 议事形态：%s\n- 议事路径：%s\n- 对照注记：费用未采集（harness 未暴露 token/费用事件）；耗时仅可同席自比\n\n",
+		PresetLabel(session.Request.Preset),
 		ProtocolLabel(session.Request.Protocol),
 	)
 	if session.Request.Workspace != "" {
@@ -103,6 +104,8 @@ func ExportMarkdown(session *Session) string {
 		writeList(&b, "保留分歧", session.Verdict.Disagreements)
 		writeList(&b, "开放问题与风险", session.Verdict.Risks)
 		writeList(&b, "证据注记", session.Verdict.EvidenceNotes)
+		writeProposedActionsMarkdown(&b, session.Verdict.ProposedActions)
+		writeAttestationsMarkdown(&b, session.Attestations, session.VerdictRevisions)
 		fmt.Fprintf(&b, "- 主持与汇总：%s\n\n", session.Verdict.Chairman)
 	}
 	if session.SignOff != nil {
@@ -121,6 +124,7 @@ func ExportMarkdown(session *Session) string {
 		b.WriteString("\n")
 	}
 
+	writeIssueLedgerMarkdown(&b, session)
 	b.WriteString("## 讨论时间线\n\n")
 	for _, event := range session.Events {
 		actor := ""
@@ -174,6 +178,7 @@ func RenderFinalDocument(session *Session) string {
 	fmt.Fprintf(&b, "- 议题：%s\n", session.Request.Topic)
 	fmt.Fprintf(&b, "- 完成时间：%s\n", formatMillis(session.UpdatedAt))
 	fmt.Fprintf(&b, "- 讨论轮次：%d\n", session.CurrentRound)
+	fmt.Fprintf(&b, "- 议事形态：%s\n", PresetLabel(session.Request.Preset))
 	fmt.Fprintf(&b, "- 议事路径：%s（费用未采集，耗时仅可同席自比）\n", ProtocolLabel(session.Request.Protocol))
 	if session.Request.Workspace != "" {
 		fmt.Fprintf(&b, "- 工作空间：`%s`\n", session.Request.Workspace)
@@ -206,6 +211,8 @@ func RenderFinalDocument(session *Session) string {
 		writeList(&b, "保留分歧", session.Verdict.Disagreements)
 		writeList(&b, "风险与开放问题", session.Verdict.Risks)
 		writeList(&b, "证据依据", session.Verdict.EvidenceNotes)
+		writeProposedActionsMarkdown(&b, session.Verdict.ProposedActions)
+		writeAttestationsMarkdown(&b, session.Attestations, session.VerdictRevisions)
 	}
 
 	b.WriteString("## 参与者\n\n")
@@ -229,6 +236,7 @@ func RenderFinalDocument(session *Session) string {
 		if contribution.RunMode != "" {
 			fmt.Fprintf(&b, "_运行方式：%s_\n\n", contribution.RunMode)
 		}
+		writeDiscussionActionMarkdown(&b, contribution)
 		b.WriteString(contribution.Content)
 		if contribution.Consensus != "" {
 			// The protocol line was stripped from the body; write the signal
@@ -275,16 +283,34 @@ func writeStopSignals(b *strings.Builder, session *Session) {
 		return
 	}
 	consensusRound := 0
+	didStopRound := 0
 	for _, event := range session.Events {
 		if event.Kind == EventConsensus && event.Round > consensusRound {
 			consensusRound = event.Round
+		}
+		if event.Kind == EventDIDStop && event.Round > didStopRound {
+			didStopRound = event.Round
 		}
 	}
 	b.WriteString("## 停止信号\n\n")
 	if consensusRound > 0 {
 		fmt.Fprintf(b, "- 结果：第 %d 轮达成全员一致，提前停止\n", consensusRound)
+	} else if didStopRound > 0 {
+		fmt.Fprintf(b, "- 结果：第 %d 轮后没有新的可执行核验动作（DID），停止追加轮次\n", didStopRound)
 	} else {
 		fmt.Fprintf(b, "- 结果：达到安全上限 %d 轮，未达成全员一致\n", session.Request.Rounds)
+	}
+	for _, event := range session.Events {
+		switch event.Kind {
+		case EventDIDUsed:
+			if event.Text != "" {
+				fmt.Fprintf(b, "- DID：%s\n", event.Text)
+			}
+		case EventDIDStop:
+			if event.Text != "" {
+				fmt.Fprintf(b, "- 停止判断：%s\n", event.Text)
+			}
+		}
 	}
 	lastRound := session.CurrentRound
 	if lastRound <= 0 {
@@ -317,25 +343,117 @@ func writeStopSignals(b *strings.Builder, session *Session) {
 			fmt.Fprintf(b, "- 末轮（第 %d 轮）各席：%s\n", lastRound, strings.Join(entries, "；"))
 		}
 	}
-	// 分歧台账导出（2026-11-03 V2 P1）：分歧的去向逐条在档——resolved 写明
-	// 撤回轮次，dissent 永久保留；收口不等于消灭分歧，消灭的是「没人记得它」。
-	if len(session.Issues) > 0 {
-		b.WriteString("\n### 分歧台账\n\n")
-		for _, issue := range session.Issues {
-			switch issue.Status {
-			case "resolved":
-				fmt.Fprintf(b, "- %s（第 %d 轮 %s 提出）：%s —— 已于第 %d 轮撤回\n",
-					issue.ID, issue.Round, issue.AgentName, issue.Summary, issue.ResolvedIn)
-			case "dissent":
-				fmt.Fprintf(b, "- %s（第 %d 轮 %s 提出）：%s —— 保留异议至收口\n",
-					issue.ID, issue.Round, issue.AgentName, issue.Summary)
-			default:
-				fmt.Fprintf(b, "- %s（第 %d 轮 %s 提出）：%s —— %s\n",
-					issue.ID, issue.Round, issue.AgentName, issue.Summary, issue.Status)
+	writeIssueLedgerMarkdown(b, session)
+	b.WriteString("\n")
+}
+
+func writeIssueLedgerMarkdown(b *strings.Builder, session *Session) {
+	// 分歧台账导出（2026-11-03 V2 P1/R2）：resolved 写明撤回轮次，dissent
+	// 永久保留；质疑目标、回应结论与响应证据同条入档，收口不等于消灭分歧。
+	if session == nil || len(session.Issues) == 0 {
+		return
+	}
+	reviews := make(map[string]IssueReview, len(session.Issues))
+	if session.Verdict != nil {
+		for _, review := range session.Verdict.IssueReviews {
+			reviews[review.IssueID] = review
+		}
+	}
+	b.WriteString("\n### 分歧台账\n\n")
+	for _, issue := range session.Issues {
+		switch issue.Status {
+		case "resolved":
+			fmt.Fprintf(b, "- %s（第 %d 轮 %s 提出）：%s —— 已于第 %d 轮撤回\n",
+				issue.ID, issue.Round, issue.AgentName, issue.Summary, issue.ResolvedIn)
+		case "dissent":
+			fmt.Fprintf(b, "- %s（第 %d 轮 %s 提出）：%s —— 保留异议至收口\n",
+				issue.ID, issue.Round, issue.AgentName, issue.Summary)
+		default:
+			fmt.Fprintf(b, "- %s（第 %d 轮 %s 提出）：%s —— %s\n",
+				issue.ID, issue.Round, issue.AgentName, issue.Summary, issue.Status)
+		}
+		writeIssueAuditField(b, "来源", issueOriginLabel(issue.Origin))
+		writeIssueAuditField(b, "目标贡献", issue.TargetContributionID)
+		writeIssueAuditField(b, "被挑战命题", issue.ChallengedClaim)
+		writeIssueAuditField(b, "主张方", issueSideNames(issue.ClaimAgentNames, "未定位"))
+		writeIssueAuditField(b, "异议方", issueSideNames(issue.DissentAgentNames, issue.AgentName))
+		writeIssueAuditField(b, "分歧依据", issue.Evidence)
+		writeIssueAuditField(b, "回应结论", responseVerdictLabel(issue.ResponseVerdict))
+		writeIssueAuditField(b, "回应证据", issue.ResponseEvidence)
+		writeIssueAuditField(b, "翻转条件", issue.FlipCondition)
+		writeIssueAuditField(b, "下一步核验", issue.Verification)
+		if issue.Status == "resolved" {
+			writeIssueAuditField(b, "撤回依据", issue.ResolutionEvidence)
+		}
+		writeIssueAuditField(b, "去向", issue.Disposition)
+		if review, ok := reviews[issue.ID]; ok {
+			writeIssueAuditField(b, "主席审阅", issueReviewLabel(review.Outcome)+"："+review.Reason)
+			if review.Evidence != "" {
+				writeIssueAuditField(b, "审阅证据", review.Evidence)
 			}
 		}
 	}
-	b.WriteString("\n")
+}
+
+func writeDiscussionActionMarkdown(b *strings.Builder, contribution Contribution) {
+	if contribution.DiscussionAct == "" &&
+		contribution.TargetContributionID == "" &&
+		contribution.ResponseVerdict == "" {
+		return
+	}
+	parts := make([]string, 0, 5)
+	if contribution.DiscussionAct != "" {
+		parts = append(parts, "动作："+discussionActLabel(contribution.DiscussionAct))
+	}
+	if contribution.TargetContributionID != "" {
+		parts = append(parts, "目标贡献："+contribution.TargetContributionID)
+	}
+	if contribution.TargetIssueID != "" {
+		parts = append(parts, "目标分歧："+contribution.TargetIssueID)
+	}
+	if contribution.ChallengedClaim != "" {
+		parts = append(parts, "被挑战命题："+trimRunes(contribution.ChallengedClaim, 200))
+	}
+	if contribution.ResponseVerdict != "" {
+		parts = append(parts, "回应结论："+responseVerdictLabel(contribution.ResponseVerdict))
+	}
+	fmt.Fprintf(b, "> %s\n\n", strings.Join(parts, "；"))
+}
+
+func issueOriginLabel(origin string) string {
+	switch origin {
+	case "challenge":
+		return "定向质疑"
+	case "residual":
+		return "剩余分歧"
+	case "user":
+		return "用户插话"
+	default:
+		return origin
+	}
+}
+
+func issueReviewLabel(outcome string) string {
+	switch outcome {
+	case "resolved":
+		return "建议撤回"
+	case "retain":
+		return "建议保留"
+	case "user_decision":
+		return "交用户裁决"
+	case "needs_verification":
+		return "先补核验"
+	default:
+		return outcome
+	}
+}
+
+func writeIssueAuditField(b *strings.Builder, label, value string) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		value = "未提供"
+	}
+	fmt.Fprintf(b, "  - %s：%s\n", label, value)
 }
 
 // writeInputManifest prints the start-time input snapshot: brief evidence and
@@ -385,6 +503,49 @@ func writeList(b *strings.Builder, title string, items []string) {
 		b.WriteString("- ")
 		b.WriteString(item)
 		b.WriteString("\n")
+	}
+	b.WriteString("\n")
+}
+
+func writeProposedActionsMarkdown(b *strings.Builder, actions []ProposedAction) {
+	if len(actions) == 0 {
+		return
+	}
+	b.WriteString("### 行动提案（只读）\n\n")
+	for _, action := range actions {
+		fmt.Fprintf(b, "- **%s**：%s\n", action.ID, action.Action)
+		writeIssueAuditField(b, "理由", action.Rationale)
+		writeIssueAuditField(b, "依赖", strings.Join(action.DependsOn, "、"))
+		writeIssueAuditField(b, "验收证据", action.AcceptanceEvidence)
+		writeIssueAuditField(b, "建议负责人", action.SuggestedOwner)
+		writeIssueAuditField(b, "风险", action.Risk)
+	}
+	b.WriteString("\n> 行动提案未执行，须由用户签注后再决定是否进入独立执行模式。\n\n")
+}
+
+func writeAttestationsMarkdown(b *strings.Builder, attestations []Attestation, revisions []VerdictRevision) {
+	if len(attestations) > 0 {
+		b.WriteString("### 独立确认\n\n")
+		for _, attestation := range attestations {
+			fmt.Fprintf(b, "- **%s · %s**：%s\n",
+				attestation.AgentName,
+				attestationPositionLabel(attestation.Position),
+				firstNonEmpty(attestation.Reason, attestation.Error, "未提供理由"))
+			writeIssueAuditField(b, "条件", strings.Join(attestation.Conditions, "；"))
+			writeIssueAuditField(b, "相关分歧", strings.Join(attestation.IssueIDs, "、"))
+			if attestation.VerdictSHA256 != "" {
+				writeIssueAuditField(b, "绑定小结", "sha256:"+attestation.VerdictSHA256)
+			}
+		}
+		b.WriteString("\n")
+	}
+	if len(revisions) == 0 {
+		return
+	}
+	b.WriteString("### 修订历史\n\n")
+	for _, revision := range revisions {
+		fmt.Fprintf(b, "- 原版本 `sha256:%s`：%s\n", revision.SHA256, revision.Reason)
+		writeIssueAuditField(b, "原建议", revision.Verdict.Recommendation)
 	}
 	b.WriteString("\n")
 }

@@ -160,6 +160,15 @@ const SessionRailItem: React.FC<{
         <span className="pantheon-session-meta">
           {STATUS_LABEL[item.status] || item.status}
           <span>{item.agentCount} 位</span>
+          {(item.openIssueCount || 0) > 0 ? (
+            <span className="is-attention" title="仍有分歧等待提出者撤回或给出核验路径">
+              {item.openIssueCount} 项待收口
+            </span>
+          ) : (item.issueCount || 0) > 0 ? (
+            <span title="分歧台账已随纪要留档">
+              {item.issueCount} 项分歧
+            </span>
+          ) : null}
         </span>
       </span>
       <time>{formatListTime(item.updatedAt)}</time>
@@ -951,6 +960,7 @@ const PantheonPage: React.FC = () => {
       untilConsensus: Boolean(session.request.untilConsensus),
       maxRounds: session.request.maxRounds,
       protocol: session.request.protocol,
+      preset: session.request.preset,
       parentSessionId: session.id,
     })
     setActive(null)

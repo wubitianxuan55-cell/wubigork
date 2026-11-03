@@ -8124,6 +8124,16 @@ export namespace pantheon {
 	    confidence?: string;
 	    consensus?: string;
 	    residual?: string;
+	    residualEvidence?: string;
+	    residualFlipCondition?: string;
+	    residualVerification?: string;
+	    residualAgainst?: string;
+	    discussionAct?: string;
+	    targetContributionId?: string;
+	    targetIssueId?: string;
+	    challengedClaim?: string;
+	    evidenceHandle?: string;
+	    responseVerdict?: string;
 	    runMode?: string;
 	    createdAt: number;
 	    durationMs?: number;
@@ -8148,6 +8158,16 @@ export namespace pantheon {
 	        this.confidence = source["confidence"];
 	        this.consensus = source["consensus"];
 	        this.residual = source["residual"];
+	        this.residualEvidence = source["residualEvidence"];
+	        this.residualFlipCondition = source["residualFlipCondition"];
+	        this.residualVerification = source["residualVerification"];
+	        this.residualAgainst = source["residualAgainst"];
+	        this.discussionAct = source["discussionAct"];
+	        this.targetContributionId = source["targetContributionId"];
+	        this.targetIssueId = source["targetIssueId"];
+	        this.challengedClaim = source["challengedClaim"];
+	        this.evidenceHandle = source["evidenceHandle"];
+	        this.responseVerdict = source["responseVerdict"];
 	        this.runMode = source["runMode"];
 	        this.createdAt = source["createdAt"];
 	        this.durationMs = source["durationMs"];
@@ -8208,6 +8228,7 @@ export namespace pantheon {
 	    question?: QuestionPayload;
 	    answer?: AnswerPayload;
 	    gate?: GatePayload;
+	    didKeys?: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new Event(source);
@@ -8237,6 +8258,7 @@ export namespace pantheon {
 	        this.question = this.convertValues(source["question"], QuestionPayload);
 	        this.answer = this.convertValues(source["answer"], AnswerPayload);
 	        this.gate = this.convertValues(source["gate"], GatePayload);
+	        this.didKeys = source["didKeys"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -8300,6 +8322,26 @@ export namespace pantheon {
 	    agentId: string;
 	    agentName: string;
 	    summary: string;
+	    origin?: string;
+	    targetContributionId?: string;
+	    challengedClaim?: string;
+	    claimAgentIds?: string[];
+	    claimAgentNames?: string[];
+	    dissentAgentIds?: string[];
+	    dissentAgentNames?: string[];
+	    counterpointIds?: string[];
+	    evidence?: string;
+	    flipCondition?: string;
+	    verification?: string;
+	    responseVerdict?: string;
+	    responseEvidence?: string;
+	    responseAgentIds?: string[];
+	    responseAgentNames?: string[];
+	    responseContributionIds?: string[];
+	    blocking?: boolean;
+	    disposition?: string;
+	    resolutionEvidence?: string;
+	    lastSeenIn?: number;
 	    status: string;
 	    resolvedAt?: number;
 	    resolvedIn?: number;
@@ -8315,9 +8357,99 @@ export namespace pantheon {
 	        this.agentId = source["agentId"];
 	        this.agentName = source["agentName"];
 	        this.summary = source["summary"];
+	        this.origin = source["origin"];
+	        this.targetContributionId = source["targetContributionId"];
+	        this.challengedClaim = source["challengedClaim"];
+	        this.claimAgentIds = source["claimAgentIds"];
+	        this.claimAgentNames = source["claimAgentNames"];
+	        this.dissentAgentIds = source["dissentAgentIds"];
+	        this.dissentAgentNames = source["dissentAgentNames"];
+	        this.counterpointIds = source["counterpointIds"];
+	        this.evidence = source["evidence"];
+	        this.flipCondition = source["flipCondition"];
+	        this.verification = source["verification"];
+	        this.responseVerdict = source["responseVerdict"];
+	        this.responseEvidence = source["responseEvidence"];
+	        this.responseAgentIds = source["responseAgentIds"];
+	        this.responseAgentNames = source["responseAgentNames"];
+	        this.responseContributionIds = source["responseContributionIds"];
+	        this.blocking = source["blocking"];
+	        this.disposition = source["disposition"];
+	        this.resolutionEvidence = source["resolutionEvidence"];
+	        this.lastSeenIn = source["lastSeenIn"];
 	        this.status = source["status"];
 	        this.resolvedAt = source["resolvedAt"];
 	        this.resolvedIn = source["resolvedIn"];
+	    }
+	}
+	export class IssueReview {
+	    issueId: string;
+	    outcome: string;
+	    reason: string;
+	    evidence?: string;
+
+	    static createFrom(source: any = {}) {
+	        return new IssueReview(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.issueId = source["issueId"];
+	        this.outcome = source["outcome"];
+	        this.reason = source["reason"];
+	        this.evidence = source["evidence"];
+	    }
+	}
+	export class ProposedAction {
+	    id?: string;
+	    action: string;
+	    rationale?: string;
+	    dependsOn?: string[];
+	    acceptanceEvidence?: string;
+	    suggestedOwner?: string;
+	    risk?: string;
+
+	    static createFrom(source: any = {}) {
+	        return new ProposedAction(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.action = source["action"];
+	        this.rationale = source["rationale"];
+	        this.dependsOn = source["dependsOn"];
+	        this.acceptanceEvidence = source["acceptanceEvidence"];
+	        this.suggestedOwner = source["suggestedOwner"];
+	        this.risk = source["risk"];
+	    }
+	}
+	export class Attestation {
+	    agentId: string;
+	    agentName: string;
+	    position: string;
+	    reason?: string;
+	    conditions?: string[];
+	    issueIds?: string[];
+	    verdictSha256?: string;
+	    error?: string;
+	    createdAt: number;
+
+	    static createFrom(source: any = {}) {
+	        return new Attestation(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.agentId = source["agentId"];
+	        this.agentName = source["agentName"];
+	        this.position = source["position"];
+	        this.reason = source["reason"];
+	        this.conditions = source["conditions"];
+	        this.issueIds = source["issueIds"];
+	        this.verdictSha256 = source["verdictSha256"];
+	        this.error = source["error"];
+	        this.createdAt = source["createdAt"];
 	    }
 	}
 	export class Observed {
@@ -8326,7 +8458,7 @@ export namespace pantheon {
 	    incarnation?: number;
 	    revision?: number;
 	    at?: number;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new Observed(source);
 	    }
@@ -8424,10 +8556,14 @@ export namespace pantheon {
 	    disagreements?: string[];
 	    risks?: string[];
 	    evidenceNotes?: string[];
+	    issueReviews?: IssueReview[];
+	    proposedActions?: ProposedAction[];
+	    revisedFromSha256?: string;
+	    revisionReason?: string;
 	    chairman: string;
 	    partial: boolean;
 	    createdAt: number;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new Verdict(source);
 	    }
@@ -8440,10 +8576,32 @@ export namespace pantheon {
 	        this.disagreements = source["disagreements"];
 	        this.risks = source["risks"];
 	        this.evidenceNotes = source["evidenceNotes"];
+	        this.issueReviews = this.convertValues(source["issueReviews"], IssueReview);
+	        this.proposedActions = this.convertValues(source["proposedActions"], ProposedAction);
+	        this.revisedFromSha256 = source["revisedFromSha256"];
+	        this.revisionReason = source["revisionReason"];
 	        this.chairman = source["chairman"];
 	        this.partial = source["partial"];
 	        this.createdAt = source["createdAt"];
 	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class StartRequest {
 	    title: string;
@@ -8460,6 +8618,7 @@ export namespace pantheon {
 	    maxRounds?: number;
 	    readOnly: boolean;
 	    protocol?: string;
+	    preset?: string;
 	    parentSessionId?: string;
 	    gateEachRound?: boolean;
 	
@@ -8483,10 +8642,47 @@ export namespace pantheon {
 	        this.maxRounds = source["maxRounds"];
 	        this.readOnly = source["readOnly"];
 	        this.protocol = source["protocol"];
+	        this.preset = source["preset"];
 	        this.parentSessionId = source["parentSessionId"];
 	        this.gateEachRound = source["gateEachRound"];
 	    }
 	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class VerdictRevision {
+	    verdict: Verdict;
+	    sha256: string;
+	    reason: string;
+	    at: number;
+
+	    static createFrom(source: any = {}) {
+	        return new VerdictRevision(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.verdict = this.convertValues(source["verdict"], Verdict);
+	        this.sha256 = source["sha256"];
+	        this.reason = source["reason"];
+	        this.at = source["at"];
+	    }
+
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -8524,6 +8720,8 @@ export namespace pantheon {
 	    warnings?: string[];
 	    gaps?: string[];
 	    issues?: Issue[];
+	    attestations?: Attestation[];
+	    verdictRevisions?: VerdictRevision[];
 	    error?: string;
 	
 	    static createFrom(source: any = {}) {
@@ -8550,6 +8748,8 @@ export namespace pantheon {
 	        this.warnings = source["warnings"];
 	        this.gaps = source["gaps"];
 	        this.issues = this.convertValues(source["issues"], Issue);
+	        this.attestations = this.convertValues(source["attestations"], Attestation);
+	        this.verdictRevisions = this.convertValues(source["verdictRevisions"], VerdictRevision);
 	        this.error = source["error"];
 	    }
 	
@@ -8581,6 +8781,9 @@ export namespace pantheon {
 	    updatedAt: number;
 	    agentCount: number;
 	    verdictSummary?: string;
+	    issueCount?: number;
+	    openIssueCount?: number;
+	    dissentCount?: number;
 	    error?: string;
 	
 	    static createFrom(source: any = {}) {
@@ -8598,6 +8801,9 @@ export namespace pantheon {
 	        this.updatedAt = source["updatedAt"];
 	        this.agentCount = source["agentCount"];
 	        this.verdictSummary = source["verdictSummary"];
+	        this.issueCount = source["issueCount"];
+	        this.openIssueCount = source["openIssueCount"];
+	        this.dissentCount = source["dissentCount"];
 	        this.error = source["error"];
 	    }
 	}

@@ -68,7 +68,7 @@ PID 命中不够，还要 `process-start-time` 或 `spawn-token`（`:20-24`）�
 
 > A PID match needs reuse-safe start-time/token evidence; otherwise liveness is indeterminate.
 
-但租约**不负责**拒绝迟到的完成报告——那是 `taskId + dispatchId` 双命中的事（`task_dispatch_mismatch` / `stale_dispatch`，CLI 文档也写了"Include both task and dispatch IDs so stale retries cannot complete the wrong dispatch"，`docs/site/content/docs/cli/orchestration.mdx:138`）。第一轮把两条写在一段里，落地时容易以为有租约就不用校验 dispatchId。
+但租约**不负责**拒绝迟到的完成报告——那是 `taskId + dispatchId` 双命中的事（`task_dispatch_mismatch` / `stale_dispatch`，CLI 文档也写了"Include both task and dispatch IDs so stale retries cannot complete the wrong dispatch"，Orca 仓库的 CLI 文档已登记这一约束）。第一轮把两条写在一段里，落地时容易以为有租约就不用校验 dispatchId。
 
 ---
 

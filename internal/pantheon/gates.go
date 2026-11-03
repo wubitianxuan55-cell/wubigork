@@ -296,6 +296,22 @@ func (m *Manager) AddUserNote(id, content string) (*Session, error) {
 		CreatedAt: now,
 	}
 	session.Contributions = append(session.Contributions, contribution)
+	session.Issues = append(session.Issues, Issue{
+		ID:                   fmt.Sprintf("%s-issue-%d", session.ID, len(session.Issues)+1),
+		Round:                session.CurrentRound,
+		AgentID:              "user",
+		AgentName:            "用户",
+		Summary:              trimRunes(content, 200),
+		Origin:               "user",
+		TargetContributionID: contribution.ID,
+		Evidence:             contribution.ID,
+		FlipCondition:        "用户补充新指令、材料或明确撤回该插话",
+		Verification:         "各席在后续发言中回应并说明如何纳入本轮判断",
+		Blocking:             true,
+		Disposition:          "等待各席回应",
+		LastSeenIn:           session.CurrentRound,
+		Status:               "open",
+	})
 	session.UpdatedAt = now
 	event := m.appendEventLocked(session, Event{
 		Phase:   session.Phase,

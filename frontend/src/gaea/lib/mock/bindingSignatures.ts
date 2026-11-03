@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 712 名（原生变参 7 名已收窄标注）。
+// 共 717 名（原生变参 7 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -574,14 +574,19 @@ export const bindingSignatures = {
   OpenImageSaveDir: { argc: 0, variadic: false, params: "" },
   OpenNovelImagesDir: { argc: 0, variadic: false, params: "" },
   OpenProject: { argc: 1, variadic: false, params: "dir string" },
+  PantheonAddUserNote: { argc: 2, variadic: false, params: "id string, content string" },
   PantheonAgents: { argc: 0, variadic: false, params: "" },
+  PantheonAnswerSeat: { argc: 3, variadic: false, params: "id string, questionID string, body string" },
+  PantheonAskSeat: { argc: 4, variadic: false, params: "id string, agentID string, question string, options []string" },
   PantheonCancel: { argc: 1, variadic: false, params: "id string" },
   PantheonDelete: { argc: 1, variadic: false, params: "id string" },
   PantheonExport: { argc: 1, variadic: false, params: "id string" },
   PantheonGet: { argc: 1, variadic: false, params: "id string" },
   PantheonList: { argc: 0, variadic: false, params: "" },
+  PantheonOpenGate: { argc: 2, variadic: false, params: "id string, reason string" },
   PantheonOpenResult: { argc: 1, variadic: false, params: "id string" },
   PantheonPickWorkspace: { argc: 0, variadic: false, params: "" },
+  PantheonResolveGate: { argc: 3, variadic: false, params: "id string, action string, reason string" },
   PantheonRestart: { argc: 1, variadic: false, params: "id string" },
   PantheonResume: { argc: 1, variadic: false, params: "id string" },
   PantheonRetryAgent: { argc: 2, variadic: false, params: "id string, agentID string" },
@@ -733,5 +738,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 712。
-export const bindingSignatureCount = 712;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 717。
+export const bindingSignatureCount = 717;

@@ -190,8 +190,8 @@ func TestSeatGapsNamesEveryUnfinishedSeat(t *testing.T) {
 // 同样的小结、不同的缺口，签注指纹必须不同；否则转发件会声称一场比实际更整齐的议事。
 func TestSignoffFingerprintDistinguishesGaps(t *testing.T) {
 	verdict := &Verdict{Recommendation: "按方案 A 推进"}
-	full := signoffFingerprint(verdict, nil)
-	gapped := signoffFingerprint(verdict, []string{"BETA（未验证返回）"})
+	full := signoffFingerprint(verdict, nil, nil, nil)
+	gapped := signoffFingerprint(verdict, []string{"BETA（未验证返回）"}, nil, nil)
 	if full != verdictFingerprint(verdict) {
 		t.Fatal("无缺口时指纹口径应保持原样")
 	}

@@ -378,9 +378,18 @@ func (m *Manager) Start(req StartRequest) (*Session, error) {
 		return nil, err
 	}
 	req.Attachments = attachments
+	preset, err := NormalizePreset(req.Preset)
+	if err != nil {
+		return nil, err
+	}
+	req.Preset = preset
 	protocol, err := NormalizeProtocol(req.Protocol)
 	if err != nil {
 		return nil, err
+	}
+	if isDirectedPreset(preset) {
+		// 定向质询必须从各席独立主张开始，否则首位发言会锚定后续质疑对象。
+		protocol = ProtocolIndependent
 	}
 	req.Protocol = protocol
 	req.ParentSessionID = strings.TrimSpace(req.ParentSessionID)
@@ -425,6 +434,9 @@ func (m *Manager) Start(req StartRequest) (*Session, error) {
 	if len(selectedIDs) < 2 && req.Protocol != ProtocolIndependent {
 		return nil, errors.New("众神殿至少需要选择两个 Agent")
 	}
+	if isDirectedPreset(preset) && len(selectedIDs) < 2 {
+		return nil, fmt.Errorf("%s至少需要选择两个 Agent", PresetLabel(preset))
+	}
 	for _, id := range selectedIDs {
 		if _, ok := byID[id]; !ok {
 			return nil, fmt.Errorf("未知 Agent %q", id)
@@ -446,6 +458,9 @@ func (m *Manager) Start(req StartRequest) (*Session, error) {
 	}
 	if len(available) < 2 && req.Protocol != ProtocolIndependent {
 		return nil, errors.New("可用 Agent 少于两个，无法开始讨论")
+	}
+	if isDirectedPreset(preset) && len(available) < 2 {
+		return nil, fmt.Errorf("%s至少需要两个可用 Agent", PresetLabel(preset))
 	}
 	if len(attachments) > 0 {
 		for _, id := range selectedIDs {
@@ -562,6 +577,9 @@ func normalizeRoundSettings(req *StartRequest) {
 	}
 	if req.Rounds > maxManualRounds {
 		req.Rounds = maxManualRounds
+	}
+	if isDirectedPreset(req.Preset) && req.Rounds < 2 {
+		req.Rounds = 2
 	}
 }
 
@@ -916,7 +934,7 @@ func (m *Manager) SignOff(id, decision, note string) (*Session, error) {
 		At:       now,
 		// 缺口也进哈希：同样的小结，三席齐全与两席缺一不该签出同一个指纹
 		// （M15 把"谁没交出结论"算作结案事实的一部分）。
-		VerdictSHA256: signoffFingerprint(session.Verdict, session.Gaps),
+		VerdictSHA256: signoffFingerprint(session.Verdict, session.Gaps, session.Attestations, session.VerdictRevisions),
 		Gaps:          append([]string(nil), session.Gaps...),
 	}
 	session.UpdatedAt = now
@@ -1101,6 +1119,10 @@ func (m *Manager) run(
 	}
 	consensusRound := 0
 	clippedInputs := make([]string, 0)
+	m.mu.Lock()
+	eventSnapshot := append([]Event(nil), session.Events...)
+	m.mu.Unlock()
+	didSeen := didSeenFromEvents(eventSnapshot)
 
 	for round := startRound; round <= session.Request.Rounds; round++ {
 		// 停车点一：轮次之间。门没解、问题没答之前不进新一轮，宁可停着，
@@ -1174,11 +1196,12 @@ func (m *Manager) run(
 			if err != nil {
 				return Contribution{}, clipped, false
 			}
-			consensus := ""
-			residual := ""
-			if session.Request.UntilConsensus {
-				out, consensus, residual = extractConsensusSignal(out)
-			}
+			act := extractDiscussionActDetails(out)
+			out = act.Text
+			signal := extractConsensusSignalDetails(out)
+			out = signal.Text
+			consensus := signal.Consensus
+			residual := signal.Residual
 			// 翻转举证审计（2026-11-03 V2 P1）：同席从 no 翻到 yes，正文必须带
 			// 证据句柄（贡献 ID 引用）——外部研究实证多 agent 翻转多是从众而非
 			// 被说服；未举证的翻转不阻塞议事但必须留痕，供汇总与用户鉴别。
@@ -1186,7 +1209,8 @@ func (m *Manager) run(
 				for i := len(history) - 1; i >= 0; i-- {
 					seat := history[i]
 					if seat.AgentID == status.ID && seat.Consensus == "no" {
-						if !strings.Contains(out, "贡献 ID") && !contributionIDPattern.MatchString(out) {
+						evidence := evidenceHandleSummary(out, signal.ResidualEvidence, history)
+						if !strings.Contains(out, "贡献 ID") && !contributionIDPattern.MatchString(out) && evidence == "" {
 							m.mu.Lock()
 							session.Warnings = append(session.Warnings, fmt.Sprintf(
 								"%s 第 %d 轮从「仍有分歧」翻转为「一致」，但正文未引用说服它的证据（贡献 ID）——按从众嫌疑记录",
@@ -1198,21 +1222,34 @@ func (m *Manager) run(
 				}
 			}
 			contribution := Contribution{
-				CallRef:    callRef,
-				ID:         fmt.Sprintf("%s-%s-r%d-%d", session.ID, status.ID, round, time.Now().UnixNano()),
-				Phase:      phase,
-				Round:      round,
-				AgentID:    status.ID,
-				AgentName:  status.Name,
-				Content:    out,
-				Consensus:  consensus,
-				Residual:   residual,
-				RunMode:    m.adapter(status.ID).runMode,
-				CreatedAt:  time.Now().UnixMilli(),
-				DurationMs: duration.Milliseconds(),
+				CallRef:               callRef,
+				ID:                    fmt.Sprintf("%s-%s-r%d-%d", session.ID, status.ID, round, time.Now().UnixNano()),
+				Phase:                 phase,
+				Round:                 round,
+				AgentID:               status.ID,
+				AgentName:             status.Name,
+				Content:               out,
+				Consensus:             consensus,
+				Residual:              residual,
+				ResidualEvidence:      signal.ResidualEvidence,
+				ResidualFlipCondition: signal.ResidualFlipCondition,
+				ResidualVerification:  signal.ResidualVerification,
+				ResidualAgainst:       signal.ResidualAgainst,
+				DiscussionAct:         act.DiscussionAct,
+				TargetContributionID:  act.TargetContributionID,
+				TargetIssueID:         act.TargetIssueID,
+				ChallengedClaim:       act.ChallengedClaim,
+				EvidenceHandle:        act.EvidenceHandle,
+				ResponseVerdict:       act.ResponseVerdict,
+				RunMode:               m.adapter(status.ID).runMode,
+				CreatedAt:             time.Now().UnixMilli(),
+				DurationMs:            duration.Milliseconds(),
 			}
-			m.recordIssueLedger(session, contribution)
+			ledgerWarnings := m.recordIssueLedger(session, contribution, act.RawAction)
 			m.appendContribution(session, contribution)
+			for _, warning := range ledgerWarnings {
+				m.addWarning(session, warning)
+			}
 			return contribution, clipped, true
 		}
 
@@ -1290,6 +1327,12 @@ func (m *Manager) run(
 			roundReachedConsensus(roundContributions, len(order)) {
 			consensusRound = round
 			m.recordConsensus(session, round)
+			break
+		}
+		if session.Request.UntilConsensus &&
+			round >= 2 &&
+			round < session.Request.Rounds &&
+			!m.didAllowsNextRound(session, round, didSeen) {
 			break
 		}
 		// 主席轮间小结（2026-11-03 拍板）：非最后一轮时，主席先于下一轮提炼
@@ -1377,6 +1420,11 @@ func (m *Manager) run(
 		)
 		if err == nil && strings.TrimSpace(out) != "" {
 			verdict = parseVerdict(out, summarizerStatus.Name, duration)
+			normalizedReviews, reviewWarnings := validateIssueReviews(verdict.IssueReviews, session.Issues)
+			verdict.IssueReviews = normalizedReviews
+			for _, warning := range reviewWarnings {
+				m.addWarning(session, warning)
+			}
 			m.appendContribution(session, Contribution{
 				CallRef:    callRef,
 				ID:         fmt.Sprintf("%s-%s-synthesis-%d", session.ID, summarizerStatus.ID, time.Now().UnixNano()),
@@ -1414,13 +1462,57 @@ func (m *Manager) run(
 	verdict.Partial = verdict.Partial || succeededLastRound < len(uniqueNonEmpty(session.Request.AgentIDs))
 
 	m.mu.Lock()
+	gaps := append(append([]string(nil), seatGaps(session)...), coverageGaps(session, actualRounds)...)
+	issueSnapshot := append([]Issue(nil), session.Issues...)
+	m.mu.Unlock()
+
+	var attestations []Attestation
+	var revisions []VerdictRevision
+	if session.Request.Preset == PresetRedTeam && ctx.Err() == nil {
+		statuses := make([]AgentStatus, 0, len(order))
+		for _, id := range order {
+			if status, ok := successful[id]; ok {
+				statuses = append(statuses, status)
+			}
+		}
+		if len(statuses) == 0 {
+			m.addWarning(session, "红队评审没有可用的独立确认席位，保留原小结并交用户复核")
+		}
+		m.updateRoundPhase(session, PhaseAttestation, actualRounds, "所有有效席位正在独立确认待签注小结")
+		attestations = m.runIndependentAttestations(ctx, session, statuses, verdict, issueSnapshot, gaps)
+		for _, attestation := range attestations {
+			if attestation.Error != "" {
+				m.addWarning(session, fmt.Sprintf("%s 独立确认未完成：%s", attestation.AgentName, attestation.Error))
+			}
+		}
+		if ok {
+			revised, revisionHistory := m.reviseAfterAttestations(
+				ctx, session, summarizerStatus, verdict, attestations, issueSnapshot, gaps,
+			)
+			if revised != nil {
+				verdict = revised
+				revisions = revisionHistory
+			}
+		}
+		verdict = mergeAttestationFindings(verdict, attestations)
+	}
+	if ctx.Err() != nil {
+		m.finishCancelled(session)
+		return
+	}
+
+	m.mu.Lock()
 	session.Verdict = verdict
-	session.Gaps = append(append([]string(nil), seatGaps(session)...), coverageGaps(session, actualRounds)...)
+	session.Gaps = gaps
+	session.Attestations = attestations
+	session.VerdictRevisions = revisions
 	// 台账终态（2026-11-03 V2 P1）：结案仍 open 的分歧转 dissent——收口不等于
 	// 消灭分歧，消灭的是「没人记得它」；dissent 条目随文档导出永久在档。
 	for i := range session.Issues {
 		if session.Issues[i].Status == "open" {
 			session.Issues[i].Status = "dissent"
+			session.Issues[i].Blocking = true
+			session.Issues[i].Disposition = "讨论结束仍保留"
 		}
 	}
 	session.Phase = PhaseCompleted
@@ -1714,47 +1806,396 @@ func (m *Manager) updateRoundPhase(session *Session, phase string, round int, te
 	m.emitSafe(event)
 }
 
-// recordIssueLedger 维护分歧台账（2026-11-03 V2 P1）：实质「剩余分歧」自动
-// 开条（每席同轮只一条，旧条未闭先闭再开新）；同席后续轮无保留地声明一致
-// （Consensus=yes 且 Residual 空）则闭合其 open 条——翻转举证审计在别处留痕，
-// 这里只记账。调用方须持锁外（本函数自锁）。
-func (m *Manager) recordIssueLedger(session *Session, contribution Contribution) {
+// recordIssueLedger 维护分歧台账（2026-11-03 V2 P1/R2）：剩余分歧仍是兜底入口，
+// 定向质疑可以直接开条，接受/部分接受/拒绝/修正可以更新同一条目。
+// 响应本身不替提出者撤回；只有提出者后续明确无残留地声明一致时，现有闭合门
+// 才改状态。调用方须持锁外（本函数自锁），返回供事件层落痕的格式告警。
+func (m *Manager) recordIssueLedger(
+	session *Session,
+	contribution Contribution,
+	rawAction string,
+) []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	now := time.Now().UnixMilli()
+	warnings := make([]string, 0, 3)
+	warnf := func(format string, args ...any) {
+		warnings = append(warnings, fmt.Sprintf(format, args...))
+	}
+	if strings.TrimSpace(rawAction) != "" && contribution.DiscussionAct == "" {
+		warnf("%s 第 %d 轮声明的动作「%s」无法识别，已按普通陈词保存",
+			contribution.AgentName, contribution.Round, trimRunes(strings.TrimSpace(rawAction), 80))
+	}
+	resolutionEvidence := evidenceHandleSummary(
+		issueAuditText(contribution),
+		firstNonEmpty(contribution.EvidenceHandle, contribution.ResidualEvidence),
+		session.Contributions,
+	)
+	counterpoints := issueCounterpoints(contribution, session.Contributions)
+
+	// 旧条目先按提出者自身信号闭合；随后才处理本轮动作，避免同一轮新开的
+	// 质疑被本轮“一致”信号当场误关。
 	for i := range session.Issues {
 		issue := &session.Issues[i]
 		if issue.AgentID != contribution.AgentID || issue.Status != "open" {
 			continue
 		}
 		if contribution.Consensus == "yes" && !residualBlocksConsensus(contribution.Residual) {
+			applyIssueAttribution(issue, contribution, counterpoints)
 			issue.Status = "resolved"
 			issue.ResolvedAt = now
 			issue.ResolvedIn = contribution.Round
+			issue.Blocking = false
+			issue.Disposition = fmt.Sprintf("第 %d 轮撤回", contribution.Round)
+			issue.ResolutionEvidence = resolutionEvidence
 		}
 	}
+
+	switch contribution.DiscussionAct {
+	case DiscussionActChallenge:
+		if warning := recordChallengeIssueLocked(session, contribution, counterpoints); warning != "" {
+			warnf("%s", warning)
+		}
+	case DiscussionActRespond:
+		if warning := recordIssueResponseLocked(session, contribution, now); warning != "" {
+			warnf("%s", warning)
+		}
+	case DiscussionActRevise:
+		if warning := recordIssueRevisionLocked(session, contribution); warning != "" {
+			warnf("%s", warning)
+		}
+	default:
+		if discussionActNeedsTarget(contribution.DiscussionAct) &&
+			strings.TrimSpace(contribution.TargetContributionID) == "" &&
+			strings.TrimSpace(contribution.TargetIssueID) == "" {
+			warnf("%s 第 %d 轮的「%s」动作缺少目标贡献或目标分歧，未建立关系",
+				contribution.AgentName, contribution.Round, contribution.DiscussionAct)
+		}
+	}
+
 	if residualBlocksConsensus(contribution.Residual) {
 		// 同席同一保留连续多轮只记一条（重复保留=同一分歧仍在，非新分歧）；
 		// 措辞变化则视为分歧演化开新条——旧措辞条未被明确撤回，结案自然转 dissent。
 		summary := trimRunes(contribution.Residual, 200)
-		duplicate := false
-		for _, issue := range session.Issues {
-			if issue.AgentID == contribution.AgentID && issue.Status == "open" && issue.Summary == summary {
-				duplicate = true
-				break
+		evidence := evidenceHandleSummary(
+			issueAuditText(contribution),
+			firstNonEmpty(contribution.EvidenceHandle, contribution.ResidualEvidence),
+			session.Contributions,
+		)
+		for i := range session.Issues {
+			issue := &session.Issues[i]
+			sameChallenge := issue.AgentID == contribution.AgentID &&
+				issue.Status == "open" &&
+				issue.Round == contribution.Round &&
+				issue.TargetContributionID != "" &&
+				issue.TargetContributionID == contribution.TargetContributionID
+			if issue.AgentID == contribution.AgentID &&
+				issue.Status == "open" &&
+				(issue.Summary == summary || sameChallenge) {
+				applyIssueAttribution(issue, contribution, counterpoints)
+				issue.LastSeenIn = contribution.Round
+				issue.Blocking = true
+				if issue.Disposition == "" {
+					issue.Disposition = "等待提出者回应"
+				}
+				if issue.Evidence == "" {
+					issue.Evidence = evidence
+				}
+				if issue.FlipCondition == "" {
+					issue.FlipCondition = trimRunes(contribution.ResidualFlipCondition, 600)
+				}
+				if issue.Verification == "" {
+					issue.Verification = trimRunes(contribution.ResidualVerification, 600)
+				}
+				return warnings
 			}
 		}
-		if !duplicate {
-			session.Issues = append(session.Issues, Issue{
-				ID:        fmt.Sprintf("%s-issue-%d", session.ID, len(session.Issues)+1),
-				Round:     contribution.Round,
-				AgentID:   contribution.AgentID,
-				AgentName: contribution.AgentName,
-				Summary:   summary,
-				Status:    "open",
-			})
+		issue := Issue{
+			ID:            fmt.Sprintf("%s-issue-%d", session.ID, len(session.Issues)+1),
+			Round:         contribution.Round,
+			AgentID:       contribution.AgentID,
+			AgentName:     contribution.AgentName,
+			Summary:       summary,
+			Origin:        "residual",
+			Evidence:      evidence,
+			FlipCondition: trimRunes(contribution.ResidualFlipCondition, 600),
+			Verification:  trimRunes(contribution.ResidualVerification, 600),
+			Blocking:      true,
+			Disposition:   "等待提出者回应",
+			LastSeenIn:    contribution.Round,
+			Status:        "open",
+		}
+		applyIssueAttribution(&issue, contribution, counterpoints)
+		session.Issues = append(session.Issues, issue)
+	}
+	return warnings
+}
+
+func recordChallengeIssueLocked(
+	session *Session,
+	contribution Contribution,
+	counterpoints []Contribution,
+) string {
+	targetID := strings.TrimSpace(contribution.TargetContributionID)
+	if targetID == "" {
+		return fmt.Sprintf("%s 第 %d 轮提出质疑，但未给出目标贡献 ID，质疑未进入关系图",
+			contribution.AgentName, contribution.Round)
+	}
+	target, ok := contributionByID(session.Contributions, targetID)
+	if !ok {
+		return fmt.Sprintf("%s 第 %d 轮质疑的目标贡献 %s 不存在，原文已保留但未开条",
+			contribution.AgentName, contribution.Round, targetID)
+	}
+	if target.AgentID == contribution.AgentID {
+		return fmt.Sprintf("%s 第 %d 轮质疑了自己的贡献 %s，未建立分歧关系",
+			contribution.AgentName, contribution.Round, trimRunes(targetID, 80))
+	}
+	summary := trimRunes(strings.TrimSpace(contribution.ChallengedClaim), 200)
+	if summary == "" {
+		summary = "质疑 " + target.AgentName + " 的主张：" + trimRunes(firstParagraph(target.Content), 120)
+	}
+	evidence := evidenceHandleSummary(
+		issueAuditText(contribution),
+		firstNonEmpty(contribution.EvidenceHandle, contribution.ResidualEvidence),
+		session.Contributions,
+	)
+	for i := range session.Issues {
+		issue := &session.Issues[i]
+		if issue.AgentID != contribution.AgentID ||
+			issue.Status != "open" ||
+			issue.TargetContributionID != targetID ||
+			normalizeIssueSummary(issue.Summary) != normalizeIssueSummary(summary) {
+			continue
+		}
+		issue.LastSeenIn = contribution.Round
+		issue.Blocking = true
+		issue.ChallengedClaim = summary
+		if issue.Evidence == "" {
+			issue.Evidence = evidence
+		}
+		if issue.FlipCondition == "" {
+			issue.FlipCondition = trimRunes(contribution.ResidualFlipCondition, 600)
+		}
+		if issue.Verification == "" {
+			issue.Verification = trimRunes(contribution.ResidualVerification, 600)
+		}
+		applyIssueAttribution(issue, contribution, counterpoints)
+		return ""
+	}
+	issue := Issue{
+		ID:                   fmt.Sprintf("%s-issue-%d", session.ID, len(session.Issues)+1),
+		Round:                contribution.Round,
+		AgentID:              contribution.AgentID,
+		AgentName:            contribution.AgentName,
+		Summary:              summary,
+		Origin:               "challenge",
+		TargetContributionID: targetID,
+		ChallengedClaim:      summary,
+		Evidence:             evidence,
+		FlipCondition:        trimRunes(contribution.ResidualFlipCondition, 600),
+		Verification:         trimRunes(contribution.ResidualVerification, 600),
+		Blocking:             true,
+		Disposition:          "等待被质疑方回应",
+		LastSeenIn:           contribution.Round,
+		Status:               "open",
+	}
+	applyIssueAttribution(&issue, contribution, counterpoints)
+	session.Issues = append(session.Issues, issue)
+	return ""
+}
+
+func recordIssueResponseLocked(session *Session, contribution Contribution, now int64) string {
+	issue, warning := matchIssueForResponseLocked(session, contribution)
+	if warning != "" {
+		return warning
+	}
+	verdict := contribution.ResponseVerdict
+	if verdict == "" {
+		return fmt.Sprintf("%s 第 %d 轮的回应缺少「回应结论：接受/部分接受/拒绝」，未更新台账",
+			contribution.AgentName, contribution.Round)
+	}
+	applyIssueResponseLocked(issue, contribution, verdict)
+	if issue.Origin == "user" && issue.Status == "resolved" {
+		issue.Disposition = fmt.Sprintf("已闭合；第 %d 轮追加回应：%s",
+			contribution.Round, responseVerdictLabel(verdict))
+		return ""
+	}
+	if issue.Origin == "user" && verdict == ResponseAccept {
+		if issue.Status != "resolved" {
+			issue.Status = "resolved"
+			issue.Blocking = false
+			issue.ResolvedAt = now
+			issue.ResolvedIn = contribution.Round
+			issue.Disposition = fmt.Sprintf("第 %d 轮已由 %s 接受并纳入判断", contribution.Round, contribution.AgentName)
+		}
+		issue.ResolutionEvidence = firstNonEmpty(issue.ResponseEvidence, contribution.ID)
+		return ""
+	}
+	switch verdict {
+	case ResponseAccept:
+		issue.Disposition = fmt.Sprintf("第 %d 轮收到接受回应；等待提出者复核后撤回", contribution.Round)
+	case ResponsePartiallyAccept:
+		issue.Disposition = fmt.Sprintf("第 %d 轮部分接受；适用条件与核验仍待闭合", contribution.Round)
+	case ResponseReject:
+		issue.Disposition = fmt.Sprintf("第 %d 轮拒绝质疑；异议继续保留", contribution.Round)
+	}
+	return ""
+}
+
+func recordIssueRevisionLocked(session *Session, contribution Contribution) string {
+	issue, warning := matchIssueForResponseLocked(session, contribution)
+	if warning != "" {
+		return warning
+	}
+	evidence := evidenceHandleSummary(
+		issueAuditText(contribution),
+		firstNonEmpty(contribution.EvidenceHandle, contribution.ResidualEvidence),
+		session.Contributions,
+	)
+	issue.ResponseAgentIDs = appendUniqueStrings(issue.ResponseAgentIDs, contribution.AgentID)
+	issue.ResponseAgentNames = appendUniqueStrings(issue.ResponseAgentNames, contribution.AgentName)
+	issue.ResponseContributionIDs = appendUniqueStrings(issue.ResponseContributionIDs, contribution.ID)
+	if evidence != "" {
+		issue.ResponseEvidence = evidence
+	}
+	issue.Disposition = fmt.Sprintf("第 %d 轮已提出修正；等待提出者复核", contribution.Round)
+	issue.ResponseEvidence = trimRunes(issue.ResponseEvidence, 1200)
+	return ""
+}
+
+func matchIssueForResponseLocked(session *Session, contribution Contribution) (*Issue, string) {
+	if targetID := strings.TrimSpace(contribution.TargetIssueID); targetID != "" {
+		for i := range session.Issues {
+			if session.Issues[i].ID == targetID {
+				if session.Issues[i].Status == "open" || session.Issues[i].Origin == "user" {
+					return &session.Issues[i], ""
+				}
+				return nil, fmt.Sprintf("%s 第 %d 轮的目标分歧 %s 已闭合，不重开条目",
+					contribution.AgentName, contribution.Round, targetID)
+			}
+		}
+		return nil, fmt.Sprintf("%s 第 %d 轮回应的目标分歧 %s 不存在，未更新台账",
+			contribution.AgentName, contribution.Round, targetID)
+	}
+	targetContributionID := strings.TrimSpace(contribution.TargetContributionID)
+	if targetContributionID == "" {
+		return nil, fmt.Sprintf("%s 第 %d 轮的回应缺少目标分歧或目标贡献，未更新台账",
+			contribution.AgentName, contribution.Round)
+	}
+	matches := make([]*Issue, 0, 2)
+	for i := range session.Issues {
+		issue := &session.Issues[i]
+		if (issue.Status != "open" && issue.Origin != "user") ||
+			issue.TargetContributionID != targetContributionID {
+			continue
+		}
+		matches = append(matches, issue)
+	}
+	switch len(matches) {
+	case 0:
+		return nil, fmt.Sprintf("%s 第 %d 轮回应未命中目标贡献 %s 的未闭合分歧",
+			contribution.AgentName, contribution.Round, trimRunes(targetContributionID, 80))
+	case 1:
+		return matches[0], ""
+	default:
+		return nil, fmt.Sprintf("%s 第 %d 轮回应命中 %d 条分歧，必须用「目标分歧」指定条目",
+			contribution.AgentName, contribution.Round, len(matches))
+	}
+}
+
+func applyIssueResponseLocked(issue *Issue, contribution Contribution, verdict string) {
+	evidence := evidenceHandleSummary(
+		issueAuditText(contribution),
+		firstNonEmpty(contribution.EvidenceHandle, contribution.ResidualEvidence),
+		nil,
+	)
+	issue.ResponseVerdict = verdict
+	issue.ResponseAgentIDs = appendUniqueStrings(issue.ResponseAgentIDs, contribution.AgentID)
+	issue.ResponseAgentNames = appendUniqueStrings(issue.ResponseAgentNames, contribution.AgentName)
+	issue.ResponseContributionIDs = appendUniqueStrings(issue.ResponseContributionIDs, contribution.ID)
+	if evidence != "" {
+		issue.ResponseEvidence = evidence
+	}
+	if issue.Status == "open" {
+		issue.Blocking = true
+	}
+}
+
+func contributionByID(history []Contribution, id string) (Contribution, bool) {
+	for _, contribution := range history {
+		if contribution.ID == id {
+			return contribution, true
 		}
 	}
+	return Contribution{}, false
+}
+
+func normalizeIssueSummary(value string) string {
+	return strings.ToLower(strings.Join(strings.Fields(value), " "))
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
+func issueAuditText(contribution Contribution) string {
+	return strings.Join([]string{
+		contribution.Content,
+		contribution.Residual,
+		contribution.TargetContributionID,
+		contribution.ChallengedClaim,
+		contribution.EvidenceHandle,
+		contribution.ResidualAgainst,
+		contribution.ResidualEvidence,
+	}, "\n")
+}
+
+// issueCounterpoints resolves only explicit contribution IDs. The ledger must
+// never guess that every other seat belongs to the opposing side.
+func issueCounterpoints(contribution Contribution, history []Contribution) []Contribution {
+	text := issueAuditText(contribution)
+	out := make([]Contribution, 0, 3)
+	seen := map[string]bool{}
+	for _, item := range history {
+		if item.AgentID == contribution.AgentID || item.AgentID == "user" {
+			continue
+		}
+		if strings.Contains(text, item.ID) && !seen[item.ID] {
+			seen[item.ID] = true
+			out = append(out, item)
+		}
+	}
+	return out
+}
+
+func applyIssueAttribution(issue *Issue, contribution Contribution, counterpoints []Contribution) {
+	issue.DissentAgentIDs = appendUniqueStrings(issue.DissentAgentIDs, contribution.AgentID)
+	issue.DissentAgentNames = appendUniqueStrings(issue.DissentAgentNames, contribution.AgentName)
+	for _, item := range counterpoints {
+		issue.ClaimAgentIDs = appendUniqueStrings(issue.ClaimAgentIDs, item.AgentID)
+		issue.ClaimAgentNames = appendUniqueStrings(issue.ClaimAgentNames, item.AgentName)
+		issue.CounterpointIDs = appendUniqueStrings(issue.CounterpointIDs, item.ID)
+	}
+}
+
+func appendUniqueStrings(values []string, additions ...string) []string {
+	seen := make(map[string]bool, len(values)+len(additions))
+	for _, value := range values {
+		seen[value] = true
+	}
+	for _, value := range additions {
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		values = append(values, value)
+	}
+	return values
 }
 
 // sessionIssuesSnapshot 纯读快照（供汇总席注入，不带锁进模型调用）。
@@ -2130,22 +2571,28 @@ func parseVerdict(raw, chairman string, _ time.Duration) *Verdict {
 	end := strings.LastIndex(trimmed, "}")
 	if start >= 0 && end > start {
 		var parsed struct {
-			Summary        string   `json:"summary"`
-			Recommendation string   `json:"recommendation"`
-			Conditions     []string `json:"conditions"`
-			Disagreements  []string `json:"disagreements"`
-			Risks          []string `json:"risks"`
-			EvidenceNotes  []string `json:"evidenceNotes"`
+			Summary         string           `json:"summary"`
+			Recommendation  string           `json:"recommendation"`
+			Conditions      []string         `json:"conditions"`
+			Disagreements   []string         `json:"disagreements"`
+			Risks           []string         `json:"risks"`
+			EvidenceNotes   []string         `json:"evidenceNotes"`
+			IssueReviews    []IssueReview    `json:"issueReviews"`
+			ProposedActions []ProposedAction `json:"proposedActions"`
+			RevisionReason  string           `json:"revisionReason"`
 		}
 		if json.Unmarshal([]byte(trimmed[start:end+1]), &parsed) == nil {
 			if strings.TrimSpace(parsed.Recommendation) != "" || strings.TrimSpace(parsed.Summary) != "" {
 				return &Verdict{
 					Summary: parsed.Summary, Recommendation: parsed.Recommendation,
-					Conditions:    cleanStrings(parsed.Conditions),
-					Disagreements: cleanStrings(parsed.Disagreements),
-					Risks:         cleanStrings(parsed.Risks),
-					EvidenceNotes: cleanStrings(parsed.EvidenceNotes),
-					Chairman:      chairman, CreatedAt: time.Now().UnixMilli(),
+					Conditions:      cleanStrings(parsed.Conditions),
+					Disagreements:   cleanStrings(parsed.Disagreements),
+					Risks:           cleanStrings(parsed.Risks),
+					EvidenceNotes:   cleanStrings(parsed.EvidenceNotes),
+					IssueReviews:    cleanIssueReviews(parsed.IssueReviews),
+					ProposedActions: cleanProposedActions(parsed.ProposedActions),
+					RevisionReason:  strings.TrimSpace(parsed.RevisionReason),
+					Chairman:        chairman, CreatedAt: time.Now().UnixMilli(),
 				}
 			}
 		}
@@ -2157,35 +2604,188 @@ func parseVerdict(raw, chairman string, _ time.Duration) *Verdict {
 	}
 }
 
+func cleanProposedActions(actions []ProposedAction) []ProposedAction {
+	out := make([]ProposedAction, 0, len(actions))
+	for i, action := range actions {
+		action.ID = strings.TrimSpace(action.ID)
+		if action.ID == "" {
+			action.ID = fmt.Sprintf("action-%d", i+1)
+		}
+		action.Action = strings.TrimSpace(action.Action)
+		action.Rationale = strings.TrimSpace(action.Rationale)
+		action.DependsOn = cleanStrings(action.DependsOn)
+		action.AcceptanceEvidence = strings.TrimSpace(action.AcceptanceEvidence)
+		action.SuggestedOwner = strings.TrimSpace(action.SuggestedOwner)
+		action.Risk = strings.TrimSpace(action.Risk)
+		if action.Action == "" {
+			continue
+		}
+		out = append(out, action)
+	}
+	return out
+}
+
+func cleanIssueReviews(reviews []IssueReview) []IssueReview {
+	out := make([]IssueReview, 0, len(reviews))
+	for _, review := range reviews {
+		review.IssueID = strings.TrimSpace(review.IssueID)
+		review.Outcome = normalizeIssueOutcome(review.Outcome)
+		review.Reason = strings.TrimSpace(review.Reason)
+		review.Evidence = strings.TrimSpace(review.Evidence)
+		if review.IssueID == "" || review.Outcome == "" {
+			continue
+		}
+		out = append(out, review)
+	}
+	return out
+}
+
+func normalizeIssueOutcome(outcome string) string {
+	switch strings.ToLower(strings.TrimSpace(outcome)) {
+	case "resolved", "resolve", "撤回", "已撤回", "建议撤回":
+		return "resolved"
+	case "retain", "retained", "保留", "建议保留":
+		return "retain"
+	case "user_decision", "user-decision", "用户裁决", "交用户裁决":
+		return "user_decision"
+	case "needs_verification", "needs-verification", "verification", "待核验", "先补核验":
+		return "needs_verification"
+	default:
+		return ""
+	}
+}
+
+func validateIssueReviews(reviews []IssueReview, issues []Issue) ([]IssueReview, []string) {
+	if len(issues) == 0 {
+		if len(reviews) == 0 {
+			return nil, nil
+		}
+		return nil, []string{"协作汇总返回了分歧审阅，但本次议事没有台账条目；已忽略虚构审阅"}
+	}
+	known := make(map[string]Issue, len(issues))
+	for _, issue := range issues {
+		known[issue.ID] = issue
+	}
+	valid := make([]IssueReview, 0, len(reviews))
+	seen := map[string]bool{}
+	unknown := make([]string, 0)
+	var warnings []string
+	for _, review := range reviews {
+		if _, ok := known[review.IssueID]; !ok {
+			unknown = append(unknown, review.IssueID)
+			continue
+		}
+		if seen[review.IssueID] {
+			warnings = append(warnings, fmt.Sprintf("协作汇总重复审阅分歧 %s，保留第一次记录", review.IssueID))
+			continue
+		}
+		seen[review.IssueID] = true
+		if review.Outcome == "resolved" && review.Evidence == "" {
+			warnings = append(warnings, fmt.Sprintf("协作汇总建议撤回分歧 %s，但未附支持证据", review.IssueID))
+		}
+		valid = append(valid, review)
+	}
+	if len(unknown) > 0 {
+		warnings = append(warnings, "协作汇总引用了不存在的分歧 ID："+strings.Join(unknown, "、"))
+	}
+	missing := make([]string, 0)
+	for _, issue := range issues {
+		if !seen[issue.ID] {
+			missing = append(missing, issue.ID)
+		}
+	}
+	if len(missing) > 0 {
+		warnings = append(warnings, "协作汇总遗漏了分歧审阅："+strings.Join(missing, "、"))
+	}
+	return valid, warnings
+}
+
 // residualMarker 抽「剩余分歧」行（2026-11-03 V2 P1 停机判据）：grok r2 实证
 // 「自报一致+正文藏分歧」可同时成立且旧测试曾固化为预期——停机门必须读它。
 var residualMarker = regexp.MustCompile(`(?im)^\s*(?:[-*>]\s*)*(?:剩余分歧|residual)\s*[:：]\s*(.+)$`)
 
+var residualEvidenceMarker = regexp.MustCompile(`(?im)^\s*(?:[-*>]\s*)*(?:分歧依据|异议依据|剩余分歧依据|撤回依据|residual evidence|withdrawal evidence)\s*[:：]\s*(.*)$`)
+var residualAgainstMarker = regexp.MustCompile(`(?im)^\s*(?:[-*>]\s*)*(?:分歧对象|主张贡献|异议对象|residual against|counterpoint)\s*[:：]\s*(.*)$`)
+var residualFlipMarker = regexp.MustCompile(`(?im)^\s*(?:[-*>]\s*)*(?:翻转条件|撤回条件|可翻转条件|residual flip|flip condition)\s*[:：]\s*(.*)$`)
+var residualVerificationMarker = regexp.MustCompile(`(?im)^\s*(?:[-*>]\s*)*(?:下一步核验|下一轮核验|核验路径|residual verification|verification path)\s*[:：]\s*(.*)$`)
+
+type consensusSignalDetails struct {
+	Text                  string
+	Consensus             string
+	Residual              string
+	ResidualEvidence      string
+	ResidualAgainst       string
+	ResidualFlipCondition string
+	ResidualVerification  string
+}
+
 // extractConsensusSignal 抽走协议行，返回（净正文, 共识信号, 剩余分歧原文）。
 // 剩余分歧为空或「无」视为无保留；其它任何取值都是未收口的实质保留。
 func extractConsensusSignal(text string) (string, string, string) {
+	details := extractConsensusSignalDetails(text)
+	return details.Text, details.Consensus, details.Residual
+}
+
+func extractConsensusSignalDetails(text string) consensusSignalDetails {
 	lines := strings.Split(text, "\n")
 	clean := make([]string, 0, len(lines))
-	signal := ""
-	residual := ""
+	result := consensusSignalDetails{}
 	for _, line := range lines {
 		match := consensusMarker.FindStringSubmatch(line)
 		if len(match) > 1 {
 			switch strings.ToLower(strings.TrimSpace(match[1])) {
 			case "一致", "同意", "yes":
-				signal = "yes"
+				result.Consensus = "yes"
 			case "仍有分歧", "不同意", "no":
-				signal = "no"
+				result.Consensus = "no"
 			}
 			continue
 		}
 		if r := residualMarker.FindStringSubmatch(line); len(r) > 1 {
-			residual = strings.TrimSpace(r[1])
+			result.Residual = strings.TrimSpace(r[1])
+			continue
+		}
+		if r := residualEvidenceMarker.FindStringSubmatch(line); len(r) > 1 {
+			result.ResidualEvidence = strings.TrimSpace(r[1])
+			continue
+		}
+		if r := residualAgainstMarker.FindStringSubmatch(line); len(r) > 1 {
+			result.ResidualAgainst = strings.TrimSpace(r[1])
+			continue
+		}
+		if r := residualFlipMarker.FindStringSubmatch(line); len(r) > 1 {
+			result.ResidualFlipCondition = strings.TrimSpace(r[1])
+			continue
+		}
+		if r := residualVerificationMarker.FindStringSubmatch(line); len(r) > 1 {
+			result.ResidualVerification = strings.TrimSpace(r[1])
 			continue
 		}
 		clean = append(clean, line)
 	}
-	return strings.TrimSpace(strings.Join(clean, "\n")), signal, residual
+	result.Text = strings.TrimSpace(strings.Join(clean, "\n"))
+	return result
+}
+
+// evidenceHandleSummary prefers the explicit evidence protocol line, then
+// falls back to contribution IDs already present in the speech. The returned
+// string is a readable audit value, not a second source of truth.
+func evidenceHandleSummary(text, declared string, history []Contribution) string {
+	if value := strings.TrimSpace(declared); value != "" {
+		return trimRunes(value, 600)
+	}
+	seen := map[string]bool{}
+	refs := make([]string, 0, 4)
+	for _, contribution := range history {
+		if strings.Contains(text, contribution.ID) && !seen[contribution.ID] {
+			seen[contribution.ID] = true
+			refs = append(refs, contribution.ID)
+		}
+	}
+	if len(refs) == 0 {
+		refs = append(refs, contributionIDPattern.FindAllString(text, 4)...)
+	}
+	return trimRunes(strings.Join(refs, "、"), 600)
 }
 
 // residualBlocksConsensus 报告一条剩余分歧是否实质阻塞收口。
@@ -2288,6 +2888,8 @@ func phaseLabel(phase string) string {
 		return "补充论证"
 	case PhaseSynthesis:
 		return "协作汇总"
+	case PhaseAttestation:
+		return "独立确认"
 	case PhaseIndependent:
 		return "开场陈述"
 	case PhaseReview:

@@ -25,6 +25,7 @@ export interface PantheonComposerSeed {
   untilConsensus?: boolean
   maxRounds?: number
   protocol?: string
+  preset?: string
   parentSessionId?: string
 }
 

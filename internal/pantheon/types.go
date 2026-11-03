@@ -25,6 +25,7 @@ const (
 	PhaseReview      = "review"
 	PhaseChallenge   = "challenge"
 	PhaseVerdict     = "verdict"
+	PhaseAttestation = "attestation"
 	PhaseCompleted   = "completed"
 	PhaseFailed      = "failed"
 	PhaseCancelled   = "cancelled"
@@ -45,16 +46,19 @@ const (
 	EventUserNote     = "user_note"
 	// §4.5 决策门三事件：提问、回答、门自身（开/关/驳回）。载荷见
 	// QuestionPayload / AnswerPayload / GatePayload。
-	EventQuestion   = "question"
-	EventAnswer     = "answer"
-	EventGate       = "gate"
-	EventToolStart  = "tool_started"
-	EventToolResult = "tool_result"
-	EventVerdict    = "verdict"
-	EventConsensus  = "consensus"
-	EventSignOff    = "signoff"
-	EventComplete   = "completed"
-	EventError      = "error"
+	EventQuestion    = "question"
+	EventAnswer      = "answer"
+	EventGate        = "gate"
+	EventToolStart   = "tool_started"
+	EventToolResult  = "tool_result"
+	EventVerdict     = "verdict"
+	EventConsensus   = "consensus"
+	EventDIDUsed     = "did_used"
+	EventDIDStop     = "did_stop"
+	EventAttestation = "attestation"
+	EventSignOff     = "signoff"
+	EventComplete    = "completed"
+	EventError       = "error"
 )
 
 // CallRef identifies one logical seat call and the concrete execution attempt
@@ -175,6 +179,10 @@ type StartRequest struct {
 	// Protocol records which deliberation path produced the session
 	// (2026-10-31 裁决第二刀：对照实验必须可表达、可比对必须可打标签).
 	Protocol string `json:"protocol,omitempty"`
+	// Preset is the user-visible deliberation shape. Protocol remains the
+	// information-visibility axis; targeted challenge forces an independent
+	// opening and then privileges issue-directed challenge/response.
+	Preset string `json:"preset,omitempty"`
 	// ParentSessionID links a follow-up council to the session it continues
 	// (2026-10-31 裁决第三刀：续议保留父会话；承接内容以简报为准，不冒充继承全文).
 	ParentSessionID string `json:"parentSessionId,omitempty"`
@@ -259,6 +267,9 @@ type Event struct {
 	Question *QuestionPayload `json:"question,omitempty"`
 	Answer   *AnswerPayload   `json:"answer,omitempty"`
 	Gate     *GatePayload     `json:"gate,omitempty"`
+	// DIDKeys 记录这一轮被消费的核验动作指纹；恢复时据此避免把同一核验
+	// 动作重复算成继续讨论的理由。
+	DIDKeys []string `json:"didKeys,omitempty"`
 }
 
 // ToolTrace is the provider-neutral representation of one live tool action.
@@ -271,6 +282,22 @@ type ToolTrace struct {
 	Output string
 	Error  string
 }
+
+// Discussion actions are rendered as protocol lines at the tail of a
+// contribution. They are deliberately provider-neutral: heterogeneous CLI
+// output must not be required to produce a complete JSON object.
+const (
+	DiscussionActClaim     = "claim"
+	DiscussionActChallenge = "challenge"
+	DiscussionActRespond   = "respond"
+	DiscussionActRevise    = "revise"
+	DiscussionActReinforce = "reinforce"
+	DiscussionActBroaden   = "broaden"
+
+	ResponseAccept          = "accept"
+	ResponsePartiallyAccept = "partial"
+	ResponseReject          = "reject"
+)
 
 // Contribution preserves the raw model output. Structured metadata is kept
 // deliberately small because heterogeneous CLI output is not guaranteed to be
@@ -289,6 +316,24 @@ type Contribution struct {
 	// Residual 是「剩余分歧」协议行的原文（2026-11-03 V2 P1 停机判据）：
 	// 自报「一致」但保留实质分歧的发言，停机门必须读它——空/「无」才放行。
 	Residual string `json:"residual,omitempty"`
+	// ResidualEvidence / ResidualFlipCondition / ResidualVerification 把一条
+	// 分歧从「一句话」补成可闭合的记录：凭什么保留、什么证据能改变判断、
+	// 下一步由谁用什么方法核验。模型缺失时保留空值，前端明确显示待补。
+	ResidualEvidence      string `json:"residualEvidence,omitempty"`
+	ResidualFlipCondition string `json:"residualFlipCondition,omitempty"`
+	ResidualVerification  string `json:"residualVerification,omitempty"`
+	// ResidualAgainst 指向异议所针对的主张贡献，供宿主归因「主张方」。
+	ResidualAgainst string `json:"residualAgainst,omitempty"`
+	// DiscussionAct / TargetContributionID / ChallengedClaim / EvidenceHandle
+	// 把普通发言变成可定位的讨论动作。字段全部可选：动作缺失或解析失败时，
+	// 原文仍然有效，不能让格式问题吞掉一次发言。
+	DiscussionAct        string `json:"discussionAct,omitempty"`
+	TargetContributionID string `json:"targetContributionId,omitempty"`
+	TargetIssueID        string `json:"targetIssueId,omitempty"`
+	ChallengedClaim      string `json:"challengedClaim,omitempty"`
+	EvidenceHandle       string `json:"evidenceHandle,omitempty"`
+	// ResponseVerdict 仅在回应既有质疑时使用：accept / partial / reject。
+	ResponseVerdict string `json:"responseVerdict,omitempty"`
 	// RunMode 记录本次调用实际施加的只读机制（裁决第三刀：能力不对称必须
 	// 进每次调用记录，不能把四个标志写成同一个笼统的「已只读」）。
 	RunMode    string `json:"runMode,omitempty"`
@@ -304,6 +349,41 @@ type Issue struct {
 	AgentID   string `json:"agentId"`
 	AgentName string `json:"agentName"`
 	Summary   string `json:"summary"`
+	// Origin 区分条目来源：challenge=定向质疑直接开条；residual=从剩余分歧行兜底开条。
+	// 两条入口共用同一台账，不能生成两套并行真相。
+	Origin string `json:"origin,omitempty"`
+	// TargetContributionID / ChallengedClaim 是质疑的关系骨架；目标无法定位时留空，
+	// 由 UI 明确显示“未定位”，不按措辞相似度猜测。
+	TargetContributionID string `json:"targetContributionId,omitempty"`
+	ChallengedClaim      string `json:"challengedClaim,omitempty"`
+	// 主张方与异议方分开保存；主张方只从模型明确引用的贡献归因，未引用时留空，
+	// 不用“其他席位都算”这种猜测补位。
+	ClaimAgentIDs     []string `json:"claimAgentIds,omitempty"`
+	ClaimAgentNames   []string `json:"claimAgentNames,omitempty"`
+	DissentAgentIDs   []string `json:"dissentAgentIds,omitempty"`
+	DissentAgentNames []string `json:"dissentAgentNames,omitempty"`
+	CounterpointIDs   []string `json:"counterpointIds,omitempty"`
+	// Evidence 是支持保留异议的证据句柄（贡献 ID、文件、命令或明确标注的未核验项）。
+	Evidence string `json:"evidence,omitempty"`
+	// FlipCondition 说明出现什么新证据时，提出者承诺重新判断。
+	FlipCondition string `json:"flipCondition,omitempty"`
+	// Verification 是下一项可执行、能减少不确定性的核验动作。
+	Verification string `json:"verification,omitempty"`
+	// ResponseVerdict 与响应证据记录被质疑方最近一次明确回应；它只更新条目，
+	// 不能代替提出者撤回，也不会自动把分歧标成已解决。
+	ResponseVerdict         string   `json:"responseVerdict,omitempty"`
+	ResponseEvidence        string   `json:"responseEvidence,omitempty"`
+	ResponseAgentIDs        []string `json:"responseAgentIds,omitempty"`
+	ResponseAgentNames      []string `json:"responseAgentNames,omitempty"`
+	ResponseContributionIDs []string `json:"responseContributionIds,omitempty"`
+	// Blocking 表示该分歧曾实际阻止把全员一致当作停机条件。
+	Blocking bool `json:"blocking,omitempty"`
+	// Disposition 是台账去向：等待回应、第 N 轮撤回或结案仍保留。
+	Disposition string `json:"disposition,omitempty"`
+	// ResolutionEvidence 记录撤回时引用的证据；空值意味着翻转未举证。
+	ResolutionEvidence string `json:"resolutionEvidence,omitempty"`
+	// LastSeenIn 记录同一分歧最近一次仍被保留的轮次。
+	LastSeenIn int `json:"lastSeenIn,omitempty"`
 	// Status: open=未闭合 / resolved=提出者后续轮撤回（须翻转举证） /
 	// dissent=讨论结束仍保留（合法终态，收口不等于消灭分歧）。
 	Status     string `json:"status"`
@@ -311,16 +391,70 @@ type Issue struct {
 	ResolvedIn int    `json:"resolvedIn,omitempty"`
 }
 
+// IssueReview 是主席对一条既有分歧的结构化审阅建议。它不改变宿主维护的
+// Open/Resolved/Dissent 状态；只有提出者后续撤回才会改状态。Outcome:
+// resolved=建议撤回 / retain=建议保留 / user_decision=交用户裁决 /
+// needs_verification=先补核验。
+type IssueReview struct {
+	IssueID  string `json:"issueId"`
+	Outcome  string `json:"outcome"`
+	Reason   string `json:"reason"`
+	Evidence string `json:"evidence,omitempty"`
+}
+
+// ProposedAction is a sign-off review artifact, never an execution request.
+// It turns the verdict into a reviewable plan while keeping execution in a
+// separate mode with its own permissions and workspace.
+type ProposedAction struct {
+	ID                 string   `json:"id,omitempty"`
+	Action             string   `json:"action"`
+	Rationale          string   `json:"rationale,omitempty"`
+	DependsOn          []string `json:"dependsOn,omitempty"`
+	AcceptanceEvidence string   `json:"acceptanceEvidence,omitempty"`
+	SuggestedOwner     string   `json:"suggestedOwner,omitempty"`
+	Risk               string   `json:"risk,omitempty"`
+}
+
+const (
+	AttestationSupport     = "support"
+	AttestationConditional = "conditional"
+	AttestationOppose      = "oppose"
+	AttestationUnknown     = "unknown"
+)
+
+type Attestation struct {
+	AgentID       string   `json:"agentId"`
+	AgentName     string   `json:"agentName"`
+	Position      string   `json:"position"`
+	Reason        string   `json:"reason,omitempty"`
+	Conditions    []string `json:"conditions,omitempty"`
+	IssueIDs      []string `json:"issueIds,omitempty"`
+	VerdictSHA256 string   `json:"verdictSha256,omitempty"`
+	Error         string   `json:"error,omitempty"`
+	CreatedAt     int64    `json:"createdAt"`
+}
+
+type VerdictRevision struct {
+	Verdict Verdict `json:"verdict"`
+	SHA256  string  `json:"sha256"`
+	Reason  string  `json:"reason"`
+	At      int64   `json:"at"`
+}
+
 type Verdict struct {
-	Summary        string   `json:"summary"`
-	Recommendation string   `json:"recommendation"`
-	Conditions     []string `json:"conditions,omitempty"`
-	Disagreements  []string `json:"disagreements,omitempty"`
-	Risks          []string `json:"risks,omitempty"`
-	EvidenceNotes  []string `json:"evidenceNotes,omitempty"`
-	Chairman       string   `json:"chairman"`
-	Partial        bool     `json:"partial"`
-	CreatedAt      int64    `json:"createdAt"`
+	Summary           string           `json:"summary"`
+	Recommendation    string           `json:"recommendation"`
+	Conditions        []string         `json:"conditions,omitempty"`
+	Disagreements     []string         `json:"disagreements,omitempty"`
+	Risks             []string         `json:"risks,omitempty"`
+	EvidenceNotes     []string         `json:"evidenceNotes,omitempty"`
+	IssueReviews      []IssueReview    `json:"issueReviews,omitempty"`
+	ProposedActions   []ProposedAction `json:"proposedActions,omitempty"`
+	RevisedFromSHA256 string           `json:"revisedFromSha256,omitempty"`
+	RevisionReason    string           `json:"revisionReason,omitempty"`
+	Chairman          string           `json:"chairman"`
+	Partial           bool             `json:"partial"`
+	CreatedAt         int64            `json:"createdAt"`
 }
 
 type SignOff struct {
@@ -359,8 +493,10 @@ type Session struct {
 	// Issues 是分歧台账（2026-11-03 V2 P1）：从「剩余分歧」协议行自动开条，
 	// 贯穿轮次注入 prompt，逐条闭合；结案仍 open 的转 dissent——收口不等于
 	// 消灭分歧，消灭的是「没人记得它」。
-	Issues []Issue `json:"issues,omitempty"`
-	Error  string  `json:"error,omitempty"`
+	Issues           []Issue           `json:"issues,omitempty"`
+	Attestations     []Attestation     `json:"attestations,omitempty"`
+	VerdictRevisions []VerdictRevision `json:"verdictRevisions,omitempty"`
+	Error            string            `json:"error,omitempty"`
 }
 
 // InputDigest pins one start-time input so later re-runs and path comparisons
@@ -386,5 +522,10 @@ type SessionSummary struct {
 	UpdatedAt      int64  `json:"updatedAt"`
 	AgentCount     int    `json:"agentCount"`
 	VerdictSummary string `json:"verdictSummary,omitempty"`
+	// IssueCount / OpenIssueCount / DissentCount 让档案栏不必打开整场讨论，
+	// 也能看出一场议题留下了多少分歧、其中多少仍待收口。
+	IssueCount     int    `json:"issueCount,omitempty"`
+	OpenIssueCount int    `json:"openIssueCount,omitempty"`
+	DissentCount   int    `json:"dissentCount,omitempty"`
 	Error          string `json:"error,omitempty"`
 }
