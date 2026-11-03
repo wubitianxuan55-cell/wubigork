@@ -66,15 +66,26 @@ func main() {
 	// 设备权限（仅作用本壳 WebView2 页面，本地 UI 无远程内容）。追加不覆盖：
 	// 与调试旗标（--remote-debugging-port）或用户自设参数共存，重复启动幂等。
 	const micPermFlag = "--use-fake-ui-for-media-stream"
+	// 开机仪式音效需要在无用户手势时启动。该旗标只作用于本应用自己的
+	// WebView2 页面，不改变系统浏览器；否则 Chromium 会把 AudioContext
+	// 保持在 suspended，导致桌面端看起来“有音效开关但完全没声音”。
+	const autoplayFlag = "--autoplay-policy=no-user-gesture-required"
 	extraArgs := os.Getenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS")
-	if !strings.Contains(extraArgs, micPermFlag) {
-		if extraArgs == "" {
-			extraArgs = micPermFlag
-		} else {
-			extraArgs += " " + micPermFlag
+	addedFlag := false
+	for _, flag := range []string{micPermFlag, autoplayFlag} {
+		if strings.Contains(extraArgs, flag) {
+			continue
 		}
+		if extraArgs == "" {
+			extraArgs = flag
+		} else {
+			extraArgs += " " + flag
+		}
+		addedFlag = true
+	}
+	if addedFlag {
 		_ = os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", extraArgs)
-		slog.Info("WebView2 媒体权限已自动放行（麦克风，语音对话依赖；仅作用于本壳页面）")
+		slog.Info("WebView2 媒体权限与启动音效已放行（仅作用于本壳页面）")
 	}
 
 	err := wails.Run(&options.App{
