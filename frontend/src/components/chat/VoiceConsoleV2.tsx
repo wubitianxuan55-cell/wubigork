@@ -12,10 +12,12 @@ import {
   CheckCircleFilled,
   CloseOutlined,
   DisconnectOutlined,
+  ExpandOutlined,
   LoadingOutlined,
   MinusCircleOutlined,
   PauseOutlined,
   SettingOutlined,
+  ShrinkOutlined,
   SoundOutlined,
   StopOutlined,
   WarningOutlined,
@@ -33,6 +35,11 @@ export interface VoiceConsoleV2Props {
   instructions: string
   /** 人格音色（breeze 克隆 id；空=服务端缺省）——音色漂移根修 */
   voiceId?: string
+  /** P1.5 内嵌形态：bar=输入区内嵌语音条（默认入口，可展开浮层）；
+   * full=传统整幅控制台（默认，行为不变）。同一实例同一条会话线，不双开麦。 */
+  variant?: 'full' | 'bar'
+  /** 会话头恒显绑定：当前话题标题（开台时捕获）。 */
+  topicTitle?: string
   onClose: () => void
   onOpenSettings: () => void
   setMessages: React.Dispatch<React.SetStateAction<ChatMsg[]>>
@@ -81,13 +88,17 @@ const SERVICE_ITEMS = [
 ] as const
 
 const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
-  companionName, instructions, voiceId, onClose, onOpenSettings, setMessages, getActiveId, finalizeTopicAfterSend,
+  companionName, instructions, voiceId, variant = 'full', topicTitle,
+  onClose, onOpenSettings, setMessages, getActiveId, finalizeTopicAfterSend,
 }) => {
   // 会话话题绑定：开启时锁定；切话题/关闭后迟到轮不写新会话（V1 同款纪律）
   const sessionTopicRef = useRef(getActiveId())
   const mountedRef = useRef(true)
   const commitChainRef = useRef<Promise<void>>(Promise.resolve())
   const [turnWarning, setTurnWarning] = useState('')
+  // P1.5：bar 形态下的展开态（浮层整幅控制台）；full 形态恒整幅
+  const [expanded, setExpanded] = useState(false)
+  const mode: 'full' | 'float' | 'bar' = variant === 'bar' ? (expanded ? 'float' : 'bar') : 'full'
 
   const onTurnComplete = useCallback((turn: {
     user: string; assistant: string; responseId: string; itemId: string
@@ -177,9 +188,64 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
     else void v2.startMic()
   }
 
+  // ── P1.5 内嵌语音条（输入区一等入口；展开=浮层整幅，同一会话线不重挂） ──
+  if (mode === 'bar') {
+    const preview = v2.partialTranscript
+      || v2.assistantText
+      || (v2.transcripts.length > 0 ? v2.transcripts[v2.transcripts.length - 1] : '')
+    return (
+      <div
+        className={`voice-console-v2 voice-console-v2--bar voice-console-v2--${v2.phase}${ready ? '' : ' is-preflight'}`}
+        data-testid="voice-console-v2"
+        data-phase={v2.phase}
+      >
+        <span className={`vc2-bar-dot is-${v2.phase}`} aria-hidden="true" />
+        <span className="vc2-bar-phase" role="status">{phaseMeta.label}</span>
+        <span className="vc2-bar-preview">
+          {preview ? preview.slice(-80) : (ready ? '按下开始说话' : '本地语音待启动')}
+        </span>
+        <span className="vc2-bar-binding" title="语音会话绑定（开台时捕获）">
+          {companionName} · {topicTitle || '当前会话'}
+        </span>
+        <span className="vc2-bar-health" aria-label="语音服务状态">
+          {SERVICE_ITEMS.map((item) => (
+            <i
+              key={item.key}
+              className={v2.services[item.key] ? 'is-online' : ''}
+              title={`${item.label}${v2.services[item.key] ? '已就绪' : '未启动'}`}
+            />
+          ))}
+        </span>
+        <Button
+          size="small"
+          type="primary"
+          className="vc2-bar-btn is-primary"
+          icon={<PrimaryIcon />}
+          loading={v2.ensuring}
+          onClick={runPrimaryAction}
+          data-testid={v2.connected ? 'vc2-bar-mic' : 'vc2-bar-start'}
+        >
+          {primaryLabel.replace('本地', '')}
+        </Button>
+        {v2.connected && (
+          <Button size="small" className="vc2-bar-btn" icon={<StopOutlined />} onClick={v2.cancel} data-testid="vc2-bar-cancel">
+            打断
+          </Button>
+        )}
+        <Button size="small" className="vc2-bar-btn" icon={<ExpandOutlined />} onClick={() => setExpanded(true)} data-testid="vc2-bar-expand">
+          展开
+        </Button>
+        <Button size="small" className="vc2-bar-btn is-danger" icon={<CloseOutlined />} onClick={onClose} data-testid="vc2-bar-close" aria-label="结束语音会话">
+          结束
+        </Button>
+        {feedback && <p className="vc2-bar-note" role="status">{feedback}</p>}
+      </div>
+    )
+  }
+
   return (
     <div
-      className={`voice-console-v2 voice-console-v2--${v2.phase}${ready ? '' : ' is-preflight'}`}
+      className={`voice-console-v2${mode === 'float' ? ' voice-console-v2--float' : ''} voice-console-v2--${v2.phase}${ready ? '' : ' is-preflight'}`}
       data-testid="voice-console-v2"
       data-phase={v2.phase}
     >
@@ -206,6 +272,11 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
             {!ready ? '依赖待准备' : v2.connected ? '已连接' : '可连接'}
           </span>
           <div className="vc2-actions">
+            {variant === 'bar' && (
+              <Tooltip title="收起到输入区语音条">
+                <Button type="text" icon={<ShrinkOutlined />} onClick={() => setExpanded(false)} aria-label="收起语音台" />
+              </Tooltip>
+            )}
             <Tooltip title="语音设置">
               <Button type="text" icon={<SettingOutlined />} onClick={onOpenSettings} aria-label="语音设置" />
             </Tooltip>

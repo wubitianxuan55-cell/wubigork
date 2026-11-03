@@ -563,31 +563,18 @@ const ChatPage: React.FC = () => {
           </div>
         </header>
 
-        {voiceConsoleOpen ? (
-          voiceBackend === 'v2' ? (
-            <VoiceConsoleV2
-              companionName={companionName}
-              instructions={v2Instructions}
-              voiceId={v2VoiceId}
-              onClose={handleCloseVoiceConsole}
-              onOpenSettings={handleOpenVoiceSettings}
-              setMessages={setMessages}
-              getActiveId={() => activeIdRef.current}
-              finalizeTopicAfterSend={finalizeTopicAfterSend}
-            />
-          ) : (
-            <VoiceConsole
-              voice={voice}
-              voiceOn={voiceOn}
-              messages={messages}
-              companionName={companionName}
-              onToggleVoice={toggleVoice}
-              onInterruptVoice={interruptVoice}
-              onOpenSettings={handleOpenVoiceSettings}
-              onClose={handleCloseVoiceConsole}
-              onSwitchMic={switchMic}
-            />
-          )
+        {voiceConsoleOpen && voiceBackend !== 'v2' ? (
+          <VoiceConsole
+            voice={voice}
+            voiceOn={voiceOn}
+            messages={messages}
+            companionName={companionName}
+            onToggleVoice={toggleVoice}
+            onInterruptVoice={interruptVoice}
+            onOpenSettings={handleOpenVoiceSettings}
+            onClose={handleCloseVoiceConsole}
+            onSwitchMic={switchMic}
+          />
         ) : (
           <>
             {/* 人格状态条（临场感：头像常驻 + 名字；状态/记忆归角色库） */}
@@ -656,6 +643,23 @@ const ChatPage: React.FC = () => {
               <button className="chat-scroll-bottom" onClick={scrollToBottom} aria-label="回到底部">
                 <DownOutlined /> 回到底部
               </button>
+            )}
+
+            {/* P1.5 内嵌语音条：V2 默认入口在输入区（bar），展开=浮层整幅；
+                同一实例同一条会话线，工作区不再被开台接管 */}
+            {voiceConsoleOpen && voiceBackend === 'v2' && (
+              <VoiceConsoleV2
+                companionName={companionName}
+                instructions={v2Instructions}
+                voiceId={v2VoiceId}
+                variant="bar"
+                topicTitle={topics.find(t => t.id === activeId)?.title}
+                onClose={handleCloseVoiceConsole}
+                onOpenSettings={handleOpenVoiceSettings}
+                setMessages={setMessages}
+                getActiveId={() => activeIdRef.current}
+                finalizeTopicAfterSend={finalizeTopicAfterSend}
+              />
             )}
 
             {/* 输入岛 */}

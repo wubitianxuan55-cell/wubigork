@@ -1506,3 +1506,153 @@
 .ui-reduced-motion .v2l-btn {
   transition: none;
 }
+
+/* ═══ P1.5 内嵌语音条（输入区一等入口）+ 浮层整幅 ═══ */
+
+.voice-console-v2--bar {
+  flex: none;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin: 0 0 8px;
+  overflow: visible;
+  border-radius: var(--md-sys-radius-l, 16px);
+  min-height: 44px;
+}
+
+.voice-console-v2--bar::before {
+  display: none;
+}
+
+.voice-console-v2--bar .vc2-bar-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--vc2-text-3);
+  box-shadow: 0 0 0 3px var(--vc2-soft);
+}
+
+.voice-console-v2--bar .vc2-bar-dot.is-listening,
+.voice-console-v2--bar .vc2-bar-dot.is-thinking {
+  background: var(--vc2-accent);
+  animation: vc2-bar-pulse 1.6s ease-in-out infinite;
+}
+
+.voice-console-v2--bar .vc2-bar-dot.is-speaking {
+  background: var(--vc2-accent);
+  box-shadow: 0 0 0 3px var(--vc2-soft-strong);
+}
+
+.voice-console-v2--bar .vc2-bar-dot.is-error {
+  background: #e5484d;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #e5484d 16%, transparent);
+}
+
+.voice-console-v2--bar .vc2-bar-phase {
+  flex: none;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--vc2-text);
+}
+
+.voice-console-v2--bar .vc2-bar-preview {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--vc2-text-2);
+}
+
+.voice-console-v2--bar .vc2-bar-binding {
+  flex: none;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--vc2-text-3);
+  border: 1px solid var(--vc2-line);
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: var(--vc2-soft);
+}
+
+.voice-console-v2--bar .vc2-bar-health {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.voice-console-v2--bar .vc2-bar-health i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--vc2-text-3);
+  opacity: 0.5;
+}
+
+.voice-console-v2--bar .vc2-bar-health i.is-online {
+  background: var(--vc2-accent);
+  opacity: 1;
+}
+
+.voice-console-v2--bar .vc2-bar-btn.ant-btn-sm {
+  flex: none;
+  border-color: var(--vc2-line);
+  background: var(--vc2-panel);
+  color: var(--vc2-text);
+  box-shadow: none;
+}
+
+.voice-console-v2--bar .vc2-bar-btn.is-primary.ant-btn-sm {
+  background: var(--vc2-accent);
+  border-color: transparent;
+  color: color-mix(in srgb, var(--vc2-surface) 88%, var(--vc2-accent));
+}
+
+.voice-console-v2--bar .vc2-bar-btn.is-danger.ant-btn-sm {
+  color: #e5484d;
+  border-color: color-mix(in srgb, #e5484d 36%, transparent);
+}
+
+.voice-console-v2--bar .vc2-bar-note {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 11px;
+  color: var(--vc2-text-2);
+}
+
+.voice-console-v2--bar.is-preflight .vc2-bar-preview {
+  color: var(--vc2-text-3);
+}
+
+@keyframes vc2-bar-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px var(--vc2-soft); }
+  50% { box-shadow: 0 0 0 6px var(--vc2-soft-strong); }
+}
+
+/* 展开态：bar 原位升起整幅浮层（同一实例不重挂，会话线不断） */
+.voice-console-v2--float {
+  position: fixed;
+  z-index: 900;
+  inset: 12px;
+  overflow: auto;
+  background:
+    radial-gradient(circle at 18% 12%, var(--vc2-soft), transparent 34%),
+    radial-gradient(circle at 86% 82%, color-mix(in srgb, var(--vc2-accent) 5%, transparent), transparent 32%),
+    var(--vc2-surface);
+  box-shadow: 0 30px 90px color-mix(in srgb, var(--vc2-text) 26%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-console-v2--bar .vc2-bar-dot.is-listening,
+  .voice-console-v2--bar .vc2-bar-dot.is-thinking {
+    animation: none;
+  }
+}

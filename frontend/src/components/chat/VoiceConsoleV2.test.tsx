@@ -262,4 +262,37 @@ describe('VoiceConsoleV2', () => {
     expect(commitMock).toHaveBeenCalledTimes(2)
     expect(messages.map((m) => m.content)).toEqual(['第一问', '第一答', '第二问', '第二答'])
   })
+
+  it('P1.5 bar 形态：紧凑条呈现相位/绑定/服务健康，不接管工作区', () => {
+    runtimeState.phase = 'listening'
+    runtimeState.partialTranscript = '今晚我想听一个很短的故事'
+    renderConsole({ variant: 'bar', topicTitle: 'P0a-walk-persona' })
+    const root = screen.getByTestId('voice-console-v2')
+    expect(root.className).toContain('voice-console-v2--bar')
+    expect(root.dataset.phase).toBe('listening')
+    expect(screen.getByText('正在聆听')).toBeTruthy()
+    expect(screen.getByText(/小音 · P0a-walk-persona/)).toBeTruthy()
+    expect(screen.getByTestId('vc2-bar-mic')).toBeTruthy()
+    expect(screen.getByTestId('vc2-bar-cancel')).toBeTruthy()
+    expect(screen.getByTestId('vc2-bar-expand')).toBeTruthy()
+    expect(document.querySelectorAll('.vc2-bar-health i.is-online')).toHaveLength(4)
+    // 整幅专有区不存在=工作区仍归聊天流
+    expect(screen.queryByTestId('vc2-transcripts')).toBeNull()
+  })
+
+  it('P1.5 bar→展开→收起：浮层整幅往返，同一实例会话线不断', () => {
+    renderConsole({ variant: 'bar', topicTitle: 'T' })
+    act(() => { screen.getByTestId('vc2-bar-expand').click() })
+    expect(screen.getByTestId('voice-console-v2').className).toContain('voice-console-v2--float')
+    expect(screen.getByLabelText('收起语音台')).toBeTruthy()
+    act(() => { screen.getByLabelText('收起语音台').click() })
+    expect(screen.getByTestId('voice-console-v2').className).toContain('voice-console-v2--bar')
+  })
+
+  it('P1.5 bar 结束=关会话，与整幅关闭同一 onClose 路径', () => {
+    const onClose = vi.fn()
+    renderConsole({ variant: 'bar', onClose })
+    act(() => { screen.getByTestId('vc2-bar-close').click() })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
 })
