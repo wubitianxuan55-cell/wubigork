@@ -9,6 +9,8 @@ import (
 	"io"
 	"os"
 	"os/exec"
+
+	"github.com/gaea/gaea/internal/gaea/proc"
 	"path/filepath"
 	goruntime "runtime"
 	"strconv"
@@ -122,6 +124,7 @@ func (r osCommandRunner) runStream(
 		return "", errors.New("Agent 可执行文件为空")
 	}
 	cmd := exec.CommandContext(ctx, spec.Executable, spec.Args...)
+	proc.HideWindow(cmd) // Windows: 席位 CLI 启动不弹 cmd 黑框（zcode/codex/dsh 每席开讲一次）
 	if goruntime.GOOS == "windows" {
 		// Windows agent launchers are often batch/JS wrappers. Killing only the
 		// direct process can orphan the real agent child tree.
@@ -129,7 +132,9 @@ func (r osCommandRunner) runStream(
 			if cmd.Process == nil {
 				return os.ErrProcessDone
 			}
-			_ = exec.Command("taskkill", "/PID", strconv.Itoa(cmd.Process.Pid), "/T", "/F").Run()
+			kill := exec.Command("taskkill", "/PID", strconv.Itoa(cmd.Process.Pid), "/T", "/F")
+			proc.HideWindow(kill) // Windows: 跳过/超时杀树同样不弹黑框
+			_ = kill.Run()
 			return nil
 		}
 	}

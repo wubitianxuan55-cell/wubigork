@@ -8192,3 +8192,130 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ══ 各席专属「正在发言」动画（2026-11-03 用户拍板）══
+   后端席位 CLI 启动已隐藏 cmd 黑框（runner.go proc.HideWindow）；
+   席位开讲的可见信号升级为每席专属动画形态——身份四色之外再分四型：
+   grok=主席金环扩散 / codex=蓝扫描线 / zcode=紫呼吸辉光 / dsh=珊瑚涟漪。
+   挂 data-agent-id 分型，未知席位不吃动画（保留既有静态高亮）。 */
+.pantheon-shared-entry.is-agent.is-streaming[data-agent-id] {
+  position: relative;
+}
+
+/* grok：金环由贴边周期扩散——王座声呐，主席在场 */
+@keyframes pantheon-anim-grok {
+  0% {
+    box-shadow:
+      0 8px 24px color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 8%, transparent),
+      0 0 0 0 color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 34%, transparent);
+  }
+  70% {
+    box-shadow:
+      0 8px 24px color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 8%, transparent),
+      0 0 0 13px transparent;
+  }
+  100% {
+    box-shadow:
+      0 8px 24px color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 8%, transparent),
+      0 0 0 0 transparent;
+  }
+}
+
+.pantheon-shared-entry.is-agent.is-streaming[data-agent-id='grok'] {
+  animation: pantheon-anim-grok 2.2s cubic-bezier(.25, .6, .35, 1) infinite;
+}
+
+/* codex：一条蓝线自顶扫至底——工程扫描线 */
+@keyframes pantheon-anim-codex-scan {
+  0% {
+    top: -2px;
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  84% {
+    opacity: 1;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+.pantheon-shared-entry.is-agent.is-streaming[data-agent-id='codex'] {
+  overflow: hidden;
+}
+
+.pantheon-shared-entry.is-agent.is-streaming[data-agent-id='codex']::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  top: -2px;
+  height: 2px;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 82%, transparent) 30%,
+    color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 82%, transparent) 70%,
+    transparent
+  );
+  animation: pantheon-anim-codex-scan 1.9s cubic-bezier(.45, 0, .4, 1) infinite;
+}
+
+/* zcode：紫色边辉缓慢呼吸——沉思感 */
+@keyframes pantheon-anim-zcode {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 14%, transparent),
+      0 0 14px color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 7%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 42%, transparent),
+      0 0 26px color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 22%, transparent);
+  }
+}
+
+.pantheon-shared-entry.is-agent.is-streaming[data-agent-id='zcode'] {
+  animation: pantheon-anim-zcode 2.8s ease-in-out infinite;
+}
+
+/* dsh：头像位点涌出涟漪圆环——语流扩散 */
+@keyframes pantheon-anim-dsh {
+  0% {
+    opacity: .75;
+    transform: translate(-50%, -50%) scale(.55);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(5.4);
+  }
+}
+
+.pantheon-shared-entry.is-agent.is-streaming[data-agent-id='dsh']::before {
+  content: '';
+  position: absolute;
+  left: 30px;
+  top: 24px;
+  width: 12px;
+  height: 12px;
+  border: 2px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 52%, transparent);
+  border-radius: 999px;
+  pointer-events: none;
+  animation: pantheon-anim-dsh 2.1s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pantheon-shared-entry.is-agent.is-streaming[data-agent-id],
+  .pantheon-shared-entry.is-agent.is-streaming[data-agent-id='grok'],
+  .pantheon-shared-entry.is-agent.is-streaming[data-agent-id='zcode'] {
+    animation: none;
+  }
+  .pantheon-shared-entry.is-agent.is-streaming[data-agent-id='codex']::after,
+  .pantheon-shared-entry.is-agent.is-streaming[data-agent-id='dsh']::before {
+    animation: none;
+    content: none;
+  }
+}
