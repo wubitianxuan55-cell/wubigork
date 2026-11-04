@@ -97,11 +97,14 @@ echo [OK] smoke test passed
 :skip_smoke
 
 echo === desktop copy ===
+REM Desktop copy carries the voice DLLs too (cgo-linked exe cannot start
+REM without them beside it — same layout rule as exe dir resolution).
 copy /Y "build\bin\gaea.exe" "%USERPROFILE%\Desktop\gaea.exe" >nul 2>&1
-if errorlevel 1 (
-    echo [WARN] desktop copy failed - SAC may block; artifact is still at build\bin\gaea.exe
-) else (
-    echo [OK] desktop copy done
+copy /Y build\bin\onnxruntime.dll "%USERPROFILE%\Desktop\" >nul 2>&1
+copy /Y build\bin\sherpa-onnx-c-api.dll "%USERPROFILE%\Desktop\" >nul 2>&1
+copy /Y build\bin\sherpa-onnx-cxx-api.dll "%USERPROFILE%\Desktop\" >nul 2>&1
+if not exist "%USERPROFILE%\Desktop\onnxruntime.dll" (
+    echo [WARN] desktop DLL copy failed - SAC may block; artifact is still at build\bin\gaea.exe
 )
 
 echo.
