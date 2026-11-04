@@ -7,59 +7,59 @@ import "testing"
 func TestRemoveModel_RetiresAndClearsDefault(t *testing.T) {
 	m := NewManager("", "")
 	m.SaveEngine(EngineConfig{
-		ID:           "cosyvoice",
+		ID:           "xai",
 		Enabled:      true,
-		DefaultModel: "CosyVoice2-0.5B",
+		DefaultModel: "grok-old-tts",
 		Models: []ModelInfo{
-			{ID: "CosyVoice2-0.5B"},
-			{ID: "Fun-CosyVoice3-0.5B"},
+			{ID: "grok-old-tts"},
+			{ID: "grok-tts"},
 		},
 	})
 
-	m.RemoveModel("cosyvoice", "CosyVoice2-0.5B")
+	m.RemoveModel("xai", "grok-old-tts")
 
-	e, ok := m.GetEngine("cosyvoice")
+	e, ok := m.GetEngine("xai")
 	if !ok {
 		t.Fatal("引擎不应被删除")
 	}
 	for _, mdl := range e.Models {
-		if mdl.ID == "CosyVoice2-0.5B" {
+		if mdl.ID == "grok-old-tts" {
 			t.Error("存量模型应被移除")
 		}
 	}
-	if len(e.Models) != 1 || e.Models[0].ID != "Fun-CosyVoice3-0.5B" {
-		t.Errorf("剩余模型 = %v, want 只剩 Fun-CosyVoice3-0.5B", e.Models)
+	if len(e.Models) != 1 || e.Models[0].ID != "grok-tts" {
+		t.Errorf("剩余模型 = %v, want 只剩 grok-tts", e.Models)
 	}
-	if e.DefaultModel == "CosyVoice2-0.5B" {
+	if e.DefaultModel == "grok-old-tts" {
 		t.Error("默认模型指向被删模型时应被清空")
 	}
 
 	// 幂等：再删一次不 panic 不误删其它模型
-	m.RemoveModel("cosyvoice", "CosyVoice2-0.5B")
-	e, _ = m.GetEngine("cosyvoice")
+	m.RemoveModel("xai", "grok-old-tts")
+	e, _ = m.GetEngine("xai")
 	if len(e.Models) != 1 {
 		t.Errorf("重复删除后模型数 = %d, want 1", len(e.Models))
 	}
 	// 不存在的引擎/模型：静默 no-op
 	m.RemoveModel("no-such", "x")
-	m.RemoveModel("cosyvoice", "not-in-list")
+	m.RemoveModel("xai", "not-in-list")
 }
 
 // TestRemoveModel_KeepsOtherDefault 默认模型不指向被删模型时保持不动。
 func TestRemoveModel_KeepsOtherDefault(t *testing.T) {
 	m := NewManager("", "")
 	m.SaveEngine(EngineConfig{
-		ID:           "cosyvoice",
+		ID:           "xai",
 		Enabled:      true,
-		DefaultModel: "Fun-CosyVoice3-0.5B",
+		DefaultModel: "grok-tts",
 		Models: []ModelInfo{
-			{ID: "CosyVoice2-0.5B"},
-			{ID: "Fun-CosyVoice3-0.5B"},
+			{ID: "grok-old-tts"},
+			{ID: "grok-tts"},
 		},
 	})
-	m.RemoveModel("cosyvoice", "CosyVoice2-0.5B")
-	e, _ := m.GetEngine("cosyvoice")
-	if e.DefaultModel != "Fun-CosyVoice3-0.5B" {
-		t.Errorf("DefaultModel = %q, want 保持 Fun-CosyVoice3-0.5B", e.DefaultModel)
+	m.RemoveModel("xai", "grok-old-tts")
+	e, _ := m.GetEngine("xai")
+	if e.DefaultModel != "grok-tts" {
+		t.Errorf("DefaultModel = %q, want 保持 grok-tts", e.DefaultModel)
 	}
 }

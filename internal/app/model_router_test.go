@@ -100,7 +100,7 @@ func TestRouteModelFeatureReenabledByRebind(t *testing.T) {
 // 全局活跃引擎也不可用 → 首个启用引擎兜底。
 func TestRouteModelFirstEnabledFallback(t *testing.T) {
 	c := newRouterTestCore(t)
-	// NewManager 自带默认引擎（如 ollama 启用）：只保留 herdsman，验证"首个可用"兜底。
+	// NewManager 自带预置启用引擎：只保留 herdsman，验证"首个可用"兜底。
 	for _, e := range c.engineMgr.GetEngines() {
 		if e.ID == "herdsman" {
 			continue
@@ -194,16 +194,16 @@ func TestSensitiveLocalDefaultOn(t *testing.T) {
 
 // ── v4.8 全局离线模式（offline_mode）路由门控 ──────────────────
 
-// 离线开启：云端功能绑定/全局被跳过，落回首个本地引擎（注册序 ollama 在前）；
+// 离线开启：云端功能绑定/全局被跳过，落回首个本地引擎（注册序 herdsman 在前）；
 // 本地引擎全部停用则路由为空。
 func TestRouteModelOfflineMode(t *testing.T) {
 	c := newRouterTestCore(t)
 	c.cfg.OfflineMode = true
 
-	// 全局活跃 = xai（云端）→ 应被跳过，落回首个本地引擎（ollama 注册序在前）
+	// 全局活跃 = xai（云端）→ 应被跳过，落回首个本地引擎（herdsman 注册序在前）
 	eng, _, source := c.routeModel("chat")
-	if eng != "ollama" || source != "fallback" {
-		t.Fatalf("离线模式 route = (%q,%q)，期望落回本地 ollama/fallback", eng, source)
+	if eng != "herdsman" || source != "fallback" {
+		t.Fatalf("离线模式 route = (%q,%q)，期望落回本地 herdsman/fallback", eng, source)
 	}
 
 	// 功能绑定云端引擎 → 同样被跳过
@@ -211,12 +211,12 @@ func TestRouteModelOfflineMode(t *testing.T) {
 		t.Fatal(err)
 	}
 	eng, _, _ = c.routeModel("office")
-	if eng != "ollama" {
+	if eng != "herdsman" {
 		t.Fatalf("离线模式云端功能绑定应被跳过，实际 %q", eng)
 	}
 
 	// 停用全部本地引擎 → 无可用路由（调用方按模型不可用降级）
-	for _, id := range []string{"ollama", "herdsman", "cosyvoice", "strata", "llama"} {
+	for _, id := range []string{"herdsman", "breeze", "strata", "llama"} {
 		if e, ok := c.engineMgr.GetEngine(id); ok {
 			e.Enabled = false
 			if err := c.engineMgr.SaveEngine(*e); err != nil {

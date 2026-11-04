@@ -30,7 +30,7 @@ const ledger = {
   total: { calls: 100, tokens_in: 12000, tokens_out: 8000, cost_cny: 12.34, avg_ms: 1500, success_rate: 0.95 },
   features: [
     { feature: 'chat', engine_id: 'glm', model: 'glm-5.3', calls: 60, tokens_in: 10000, tokens_out: 6000, cost_cny: 9.5, avg_ms: 1200, success_rate: 0.98 },
-    { feature: 'chat', engine_id: 'ollama', model: 'qwen3-8b', calls: 10, tokens_in: 500, tokens_out: 300, cost_cny: 0, avg_ms: 3000, success_rate: 1 },
+    { feature: 'chat', engine_id: 'herdsman', model: 'qwen3-8b', calls: 10, tokens_in: 500, tokens_out: 300, cost_cny: 0, avg_ms: 3000, success_rate: 1 },
     { feature: 'novel', engine_id: 'herdsman', model: 'glm-air-local', calls: 5, tokens_in: 1000, tokens_out: 500, cost_cny: 0, avg_ms: 800, success_rate: 1 },
     // 「未标记」桶：升级前无功能维度的历史数据（feature=""）
     { feature: '', engine_id: 'xai', model: 'grok-4.20', calls: 40, tokens_in: 2000, tokens_out: 2000, cost_cny: 2.84, avg_ms: 2100, success_rate: 0.9 },

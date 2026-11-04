@@ -18,7 +18,7 @@ import {
   getEngines, saveEngine, testEngineConnection, refreshEngineModels, setEngineDefaultModel,
   setActiveEngine, getActiveEngine, setDeepseekKey, getDeepseekKeyStatus,
   setGlmKey, getGlmKeyStatus, setGlmEndpoint,
-  setOpencodeGoKey, getOpencodeGoKeyStatus, setOpencodeZenKey, getOpencodeZenKeyStatus,
+  setOpencodeGoKey, getOpencodeGoKeyStatus,
   startStrataModel, startTianxuanModel,
   addCustomEngine, updateCustomEngine, removeCustomEngine,
   type EngineConfig, type EngineStatus,
@@ -44,9 +44,6 @@ export interface EngineState {
   opencodeGoKey: string
   setOpencodeGoKeyState: (v: string) => void
   opencodeGoKeyMasked: string
-  opencodeZenKey: string
-  setOpencodeZenKeyState: (v: string) => void
-  opencodeZenKeyMasked: string
   settingGlmEndpoint: boolean
   handleSetGlmEndpoint: (family: 'std' | 'coding') => Promise<void>
   loadAll: () => Promise<void>
@@ -67,7 +64,6 @@ export interface EngineState {
   handleSaveDeepseekKey: () => Promise<void>
   handleSaveGlmKey: () => Promise<void>
   handleSaveOpencodeGoKey: () => Promise<void>
-  handleSaveOpencodeZenKey: () => Promise<void>
   // A 刀「自定义引擎」：成功返回 true（表单据此关闭）；失败已弹错并返回 false
   handleAddCustomEngine: (name: string, baseURL: string, apiKey: string) => Promise<boolean>
   handleUpdateCustomEngine: (engineID: string, name: string, baseURL: string, apiKey: string) => Promise<boolean>
@@ -90,8 +86,6 @@ export function useEngineState(category: Category): EngineState {
   const [glmKeyMasked, setGlmKeyMasked] = useState('')
   const [opencodeGoKey, setOpencodeGoKeyState] = useState('')
   const [opencodeGoKeyMasked, setOpencodeGoKeyMasked] = useState('')
-  const [opencodeZenKey, setOpencodeZenKeyState] = useState('')
-  const [opencodeZenKeyMasked, setOpencodeZenKeyMasked] = useState('')
 
   // T6-6.5 竞态守卫：loadAll 的最新请求序号，晚到的旧响应直接丢弃。
   const loadAllSeq = useRef(0)
@@ -127,10 +121,6 @@ export function useEngineState(category: Category): EngineState {
         const ks = await getOpencodeGoKeyStatus()
         if (ks) { setOpencodeGoKeyMasked(ks.masked || '') }
       } catch (_) {}
-      try {
-        const ks = await getOpencodeZenKeyStatus()
-        if (ks) { setOpencodeZenKeyMasked(ks.masked || '') }
-      } catch (_) {}
     } catch (err: unknown) {
       if (seq === loadAllSeq.current) {
         message.error(errText(err, '加载引擎列表失败，请重试'))
@@ -145,7 +135,7 @@ export function useEngineState(category: Category): EngineState {
   // 返回时序号不匹配即丢弃（不触发 loadAll，避免旧结果覆盖新分类视图）。
   const refreshLocalModels = useCallback(async () => {
     const seq = ++refreshSeq.current
-    await Promise.allSettled(['herdsman', 'ollama', 'cosyvoice', 'breeze', 'strata', 'tianxuan'].map(id => refreshEngineModels(id)))
+    await Promise.allSettled(['herdsman', 'breeze', 'strata', 'llama'].map(id => refreshEngineModels(id)))
     if (seq !== refreshSeq.current) return // 过期刷新结果：切分类后已作废，丢弃
     await loadAll()
   }, [loadAll])
@@ -165,7 +155,7 @@ export function useEngineState(category: Category): EngineState {
   const handleStartModel = async (card: ModelCardData) => {
     const kind = kindOf(card)
     if (kind === 'tts') {
-      // 本地 TTS 模型：启动对应本地服务（CosyVoice2 8010，幂等）
+      // 本地 TTS 模型：启动对应本地服务（breeze-server 按需拉起，幂等）
       try {
         const res = await app.StartLocalTTSService(card.engineId)
         if (res?.ready) message.success(`本地 TTS 服务已就绪：${card.engineName}`)
@@ -293,17 +283,6 @@ export function useEngineState(category: Category): EngineState {
     } catch (err: unknown) { message.error(errText(err, '操作失败')) }
   }
 
-  const handleSaveOpencodeZenKey = async () => {
-    if (!opencodeZenKey.trim()) { message.warning('请输入 API Key'); return }
-    try {
-      await setOpencodeZenKey(opencodeZenKey.trim())
-      message.success('OpenCode Zen Key 已保存')
-      const ks = await getOpencodeZenKeyStatus()
-      if (ks) setOpencodeZenKeyMasked(ks.masked || '')
-      setOpencodeZenKeyState('')
-    } catch (err: unknown) { message.error(errText(err, '操作失败')) }
-  }
-
   // ── A 刀「自定义引擎」（OpenAI 兼容，后端 Add/Update/RemoveCustomEngine） ──
   // 表单层已做「名称非空 + 地址 http(s) 前缀」校验（与后端 validBaseURL 同口径
   // 双保险，防 Key 粘进地址框）；这里只负责调用、提示与刷新。
@@ -384,9 +363,6 @@ export function useEngineState(category: Category): EngineState {
     opencodeGoKey,
     setOpencodeGoKeyState,
     opencodeGoKeyMasked,
-    opencodeZenKey,
-    setOpencodeZenKeyState,
-    opencodeZenKeyMasked,
     settingGlmEndpoint,
     handleSetGlmEndpoint,
     loadAll,
@@ -403,7 +379,6 @@ export function useEngineState(category: Category): EngineState {
     handleSaveDeepseekKey,
     handleSaveGlmKey,
     handleSaveOpencodeGoKey,
-    handleSaveOpencodeZenKey,
     handleAddCustomEngine,
     handleUpdateCustomEngine,
     handleRemoveCustomEngine,

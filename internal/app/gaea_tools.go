@@ -15,7 +15,7 @@ import (
 )
 
 // imageGenTool 生图工具：让 gaea 智能体像 Codex 一样自行生成图片。
-// 复用模型中心的图片后端（xAI / Herdsman / Ollama / ComfyUI），
+// 复用模型中心的图片后端（xAI / Herdsman / ComfyUI），
 // 结果保存到工作区 .gaea/uploads/ 并返回文件路径。
 type imageGenTool struct {
 	a *App

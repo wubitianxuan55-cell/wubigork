@@ -32,7 +32,7 @@ func newVoiceRouteTestState(t *testing.T, models []modelengine.ModelInfo) *media
 	a := newVoiceSettingsTestState(t, models)
 	// 探活隔离：塞死端口防误连真机本地 TTS 服务（breeze 8012 常驻在跑，
 	// 不隔离则离线用例被真服务喂成假绿——同 uocr2 测试塞死值坑律）。
-	a.cfg = &config.Config{BreezePort: 1, CosyVoicePort: 1}
+	a.cfg = &config.Config{BreezePort: 1}
 	a.voiceManager = voice.NewManager(nil, voice.DefaultVoiceConfig())
 	return a
 }

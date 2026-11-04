@@ -177,7 +177,7 @@ func TestHealthProbe_NotifyOnlyOnChange(t *testing.T) {
 	}
 }
 
-// TestHealthProbe_SkipsLocalAndDisabled 本地引擎（ollama，保活机制管理）与
+// TestHealthProbe_SkipsLocalAndDisabled 本地引擎（herdsman，保活机制管理）与
 // 停用引擎不探测。
 func TestHealthProbe_SkipsLocalAndDisabled(t *testing.T) {
 	var hits atomic.Int32
@@ -188,8 +188,8 @@ func TestHealthProbe_SkipsLocalAndDisabled(t *testing.T) {
 	defer srv.Close()
 
 	m := newProbeTestManager(t, srv.URL)
-	// ollama 本地 + 启用 → 跳过；deepseek 云端 + 停用 → 跳过
-	if err := m.SaveEngine(EngineConfig{ID: "ollama", BaseURL: srv.URL, Enabled: true}); err != nil {
+	// herdsman 本地 + 启用 → 跳过；deepseek 云端 + 停用 → 跳过
+	if err := m.SaveEngine(EngineConfig{ID: "herdsman", BaseURL: srv.URL, Enabled: true}); err != nil {
 		t.Fatal(err)
 	}
 	if err := m.SaveEngine(EngineConfig{ID: "deepseek", BaseURL: srv.URL, Enabled: false}); err != nil {
@@ -333,12 +333,12 @@ func TestFailoverCandidates(t *testing.T) {
 		m.engines[id].Status.Connected = connected
 		m.mu.Unlock()
 	}
-	// order: xai, ollama, herdsman, deepseek, glm, cosyvoice, opencode-go, opencode-zen
-	setConnected("xai", true)       // 候选（grok-4.20 → llm）
-	setConnected("deepseek", true)  // 候选
-	setConnected("ollama", true)    // 本地但 default_model 空 → 排除
-	setConnected("cosyvoice", true) // default_model 判型 tts → 排除
-	setConnected("glm", false)      // 未连通 → 排除
+	// order: xai, herdsman, deepseek, glm, breeze, strata, llama, opencode-go
+	setConnected("xai", true)      // 候选（grok-4.20 → llm）
+	setConnected("deepseek", true) // 候选
+	setConnected("herdsman", true) // 本地但 default_model 空 → 排除
+	setConnected("breeze", true)   // default_model 判型 tts → 排除
+	setConnected("glm", false)     // 未连通 → 排除
 	if err := m.SaveEngine(EngineConfig{ID: "opencode-go", Enabled: false}); err != nil {
 		t.Fatal(err)
 	}

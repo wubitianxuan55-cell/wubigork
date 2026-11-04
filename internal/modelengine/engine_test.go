@@ -20,15 +20,13 @@ func TestNewManager_Presets(t *testing.T) {
 	if m == nil {
 		t.Fatal("NewManager returned nil")
 	}
-	// 预置 9 引擎
+	// 预置 8 引擎（ollama/cosyvoice/opencode-zen 已于 2026-11-04 用户拍板退役）
 	want := map[string]EngineType{
-		"xai": EngineXAI, "ollama": EngineOllama,
+		"xai":      EngineXAI,
 		"herdsman": EngineHerdsman, "deepseek": EngineDeepseek,
 		"glm":         EngineGLM,
-		"opencode-go": EngineOpencodeGo, "opencode-zen": EngineOpencodeZen,
-	}
-	if _, ok := m.GetEngine("cosyvoice"); !ok {
-		t.Error("引擎 cosyvoice 未预置")
+		"breeze":      EngineBreeze, "strata": EngineStrata, "llama": EngineLlama,
+		"opencode-go": EngineOpencodeGo,
 	}
 	for id, typ := range want {
 		e, ok := m.GetEngine(id)
@@ -68,10 +66,10 @@ func TestGetEngine_Missing(t *testing.T) {
 
 func TestGetEngine_ReturnsCopy(t *testing.T) {
 	m := NewManager("", "")
-	e, _ := m.GetEngine("ollama")
+	e, _ := m.GetEngine("herdsman")
 	e.DefaultModel = "hacked"
 	// 内部不应被修改
-	again, _ := m.GetEngine("ollama")
+	again, _ := m.GetEngine("herdsman")
 	if again.DefaultModel == "hacked" {
 		t.Error("GetEngine 返回了内部指针，外部修改泄漏")
 	}
@@ -92,8 +90,8 @@ func TestGetEngine_StripsAPIKey(t *testing.T) {
 func TestGetEngines_CountAndKeys(t *testing.T) {
 	m := NewManager("", "")
 	es := m.GetEngines()
-	if len(es) != 11 {
-		t.Fatalf("GetEngines 数量 = %d, want 11", len(es))
+	if len(es) != 8 {
+		t.Fatalf("GetEngines 数量 = %d, want 8", len(es))
 	}
 	for _, e := range es {
 		if e.APIKey != "" {
@@ -108,14 +106,14 @@ func TestSaveEngine_UpdateFields(t *testing.T) {
 	m := NewManager("", "")
 	// 只更新 BaseURL + Enabled，不应清空其他字段
 	err := m.SaveEngine(EngineConfig{
-		ID:      "ollama",
+		ID:      "herdsman",
 		BaseURL: "http://new-host:11434/v1",
 		Enabled: false,
 	})
 	if err != nil {
 		t.Fatalf("SaveEngine: %v", err)
 	}
-	e, _ := m.GetEngine("ollama")
+	e, _ := m.GetEngine("herdsman")
 	if e.BaseURL != "http://new-host:11434/v1" {
 		t.Errorf("BaseURL = %q, want new-host", e.BaseURL)
 	}
@@ -173,7 +171,7 @@ func TestSetDefaultModel_NotInList(t *testing.T) {
 func TestSetDefaultModel_EmptyModelsAllowsAny(t *testing.T) {
 	m := NewManager("", "")
 	// 模型列表为空时（如未拉取过），允许任意模型名
-	if err := m.SetDefaultModel("ollama", "qwen3"); err != nil {
+	if err := m.SetDefaultModel("herdsman", "qwen3"); err != nil {
 		t.Errorf("空模型列表应允许设置: %v", err)
 	}
 }
@@ -196,8 +194,8 @@ func TestGetDefaultModel_MissingEngine(t *testing.T) {
 
 func TestBuildChatURL_TrailingSlash(t *testing.T) {
 	m := NewManager("", "")
-	m.SaveEngine(EngineConfig{ID: "ollama", BaseURL: "http://localhost:11434/v1/", Enabled: true})
-	url, _, err := m.BuildChatURL("ollama")
+	m.SaveEngine(EngineConfig{ID: "herdsman", BaseURL: "http://localhost:11434/v1/", Enabled: true})
+	url, _, err := m.BuildChatURL("herdsman")
 	if err != nil {
 		t.Fatalf("BuildChatURL: %v", err)
 	}
@@ -208,8 +206,8 @@ func TestBuildChatURL_TrailingSlash(t *testing.T) {
 
 func TestBuildChatURL_Disabled(t *testing.T) {
 	m := NewManager("", "")
-	m.SaveEngine(EngineConfig{ID: "ollama", Enabled: false})
-	if _, _, err := m.BuildChatURL("ollama"); err == nil {
+	m.SaveEngine(EngineConfig{ID: "herdsman", Enabled: false})
+	if _, _, err := m.BuildChatURL("herdsman"); err == nil {
 		t.Error("未启用引擎应报错")
 	}
 }
@@ -327,7 +325,7 @@ func newTestManager(t *testing.T, handler http.Handler) *Manager {
 	t.Cleanup(srv.Close)
 	m := NewManager("xai-tok", "ds-key")
 	// 把 ollama 引擎指向测试服务器（不启用认证）
-	m.SaveEngine(EngineConfig{ID: "ollama", BaseURL: srv.URL, Enabled: true})
+	m.SaveEngine(EngineConfig{ID: "herdsman", BaseURL: srv.URL, Enabled: true})
 	// 把 xai 引擎也指向测试服务器（验证 Bearer 头）
 	m.SaveEngine(EngineConfig{ID: "xai", BaseURL: srv.URL, Enabled: true})
 	return m
@@ -486,99 +484,11 @@ func TestOpencodeGo_RefreshModels_401(t *testing.T) {
 	}
 }
 
-// ─── OpenCode Zen 引擎 ───────────────────────────────────────
-
-func TestOpencodeZen_DefaultConfig(t *testing.T) {
-	m := NewManager("", "")
-	e, ok := m.GetEngine("opencode-zen")
-	if !ok {
-		t.Fatal("opencode-zen 引擎未预置")
-	}
-	if e.Type != EngineOpencodeZen {
-		t.Errorf("类型 = %s, want opencode-zen", e.Type)
-	}
-	if e.BaseURL != "https://opencode.ai/zen/v1" {
-		t.Errorf("BaseURL = %q, want https://opencode.ai/zen/v1", e.BaseURL)
-	}
-}
-
-func TestOpencodeZen_BuildChatURL(t *testing.T) {
-	m := NewManager("", "")
-	m.UpdateOpencodeZenKey("zen-key-456")
-	url, key, err := m.BuildChatURL("opencode-zen")
-	if err != nil {
-		t.Fatalf("BuildChatURL(opencode-zen): %v", err)
-	}
-	if key != "zen-key-456" {
-		t.Errorf("key = %q, want zen-key-456", key)
-	}
-	if url != "https://opencode.ai/zen/v1/chat/completions" {
-		t.Errorf("URL = %q, want .../v1/chat/completions", url)
-	}
-}
-
-func TestOpencodeZen_RefreshModels_FiltersIncompatible(t *testing.T) {
-	var gotAuth string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotAuth = r.Header.Get("Authorization")
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
-			"data": []map[string]any{
-				{"id": "deepseek-v4-pro", "owned_by": "opencode"},
-				{"id": "glm-5.2", "owned_by": "opencode"},
-				{"id": "minimax-m3", "owned_by": "opencode"},       // Zen 走 chat/completions，应保留
-				{"id": "gpt-5.5", "owned_by": "opencode"},          // /responses，应过滤
-				{"id": "claude-opus-4-5", "owned_by": "opencode"},  // /messages，应过滤
-				{"id": "gemini-3.5-flash", "owned_by": "opencode"}, // 专用端点，应过滤
-				{"id": "qwen3.7-max", "owned_by": "opencode"},      // /messages，应过滤
-				{"id": "grok-4.5", "owned_by": "opencode"},         // Zen 走 /responses，应过滤
-			},
-		})
-	}))
-	t.Cleanup(srv.Close)
-	m := NewManager("", "")
-	m.SaveEngine(EngineConfig{ID: "opencode-zen", BaseURL: srv.URL, Enabled: true})
-	m.UpdateOpencodeZenKey("zen-key")
-	models, err := m.RefreshModels(context.Background(), "opencode-zen")
-	if err != nil {
-		t.Fatalf("RefreshModels(opencode-zen): %v", err)
-	}
-	if gotAuth != "Bearer zen-key" {
-		t.Errorf("Authorization = %q, want Bearer zen-key", gotAuth)
-	}
-	want := []string{"deepseek-v4-pro", "glm-5.2", "minimax-m3"}
-	if len(models) != len(want) {
-		t.Fatalf("过滤后模型数 = %d, want %d: %+v", len(models), len(want), models)
-	}
-	for i, id := range want {
-		if models[i].ID != id {
-			t.Errorf("models[%d].ID = %q, want %q", i, models[i].ID, id)
-		}
-	}
-}
-
-func TestOpencodeZen_RefreshModels_401(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusUnauthorized)
-	}))
-	t.Cleanup(srv.Close)
-	m := NewManager("", "")
-	m.SaveEngine(EngineConfig{ID: "opencode-zen", BaseURL: srv.URL, Enabled: true})
-	m.UpdateOpencodeZenKey("zen-key")
-	_, err := m.RefreshModels(context.Background(), "opencode-zen")
-	if err == nil {
-		t.Fatal("401 应报错")
-	}
-	if !strings.Contains(err.Error(), "OpenCode Zen API Key") {
-		t.Errorf("错误信息 = %q, want 包含 OpenCode Zen Key 提示", err.Error())
-	}
-}
-
 func TestRefreshModels_ServerError(t *testing.T) {
 	m := newTestManager(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
-	if _, err := m.RefreshModels(context.Background(), "ollama"); err == nil {
+	if _, err := m.RefreshModels(context.Background(), "herdsman"); err == nil {
 		t.Error("500 应报错")
 	}
 }
@@ -587,7 +497,7 @@ func TestRefreshModels_BadJSON(t *testing.T) {
 	m := newTestManager(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("not-json{"))
 	}))
-	if _, err := m.RefreshModels(context.Background(), "ollama"); err == nil {
+	if _, err := m.RefreshModels(context.Background(), "herdsman"); err == nil {
 		t.Error("非法 JSON 应报错")
 	}
 }
@@ -606,7 +516,7 @@ func TestTestConnection_Success(t *testing.T) {
 			"data": []map[string]any{{"id": "m1"}, {"id": "m2"}, {"id": "m3"}},
 		})
 	}))
-	status, err := m.TestConnection(context.Background(), "ollama")
+	status, err := m.TestConnection(context.Background(), "herdsman")
 	if err != nil {
 		t.Fatalf("TestConnection: %v", err)
 	}
@@ -629,7 +539,7 @@ func TestTestConnection_Failure(t *testing.T) {
 		w.WriteHeader(http.StatusBadGateway)
 	}))
 	// TestConnection 失败时不返回 error，而是把错误放进 status.Error（前端展示）
-	status, err := m.TestConnection(context.Background(), "ollama")
+	status, err := m.TestConnection(context.Background(), "herdsman")
 	if err != nil {
 		t.Fatalf("TestConnection 不应返回 error: %v", err)
 	}
@@ -679,39 +589,39 @@ func TestClassifyModelKind_AllKinds(t *testing.T) {
 		want   string
 	}{
 		// tts：引擎特判 + 关键词（tts/voice/edge/speech/voxcpm）
-		{EngineCosyVoice, "CosyVoice2-0.5B", "tts"},
+		{EngineBreeze, "breeze-tts-2", "tts"},
 		{EngineXAI, "grok-tts", "tts"},
-		{EngineOllama, "edge-tts", "tts"},
+		{EngineHerdsman, "edge-tts", "tts"},
 		{EngineDeepseek, "qwen3-voiceclone", "tts"},
-		{EngineOllama, "voxcpm2", "tts"},
+		{EngineHerdsman, "voxcpm2", "tts"},
 		// stt
-		{EngineOllama, "whisper-base", "stt"},
+		{EngineHerdsman, "whisper-base", "stt"},
 		{EngineHerdsman, "sherpa-onnx-zh", "stt"},
-		{EngineOllama, "zipformer-ctc", "stt"},
+		{EngineHerdsman, "zipformer-ctc", "stt"},
 		{EngineHerdsman, "funasr-large", "stt"},
-		{EngineOllama, "asr-server", "stt"},
+		{EngineHerdsman, "asr-server", "stt"},
 		// ocr
 		{EngineHerdsman, "paddleocr-server", "ocr"},
-		{EngineOllama, "ocr-model", "ocr"},
+		{EngineHerdsman, "ocr-model", "ocr"},
 		{EngineHerdsman, "mineru-pp", "ocr"},
 		// rerank
 		{EngineHerdsman, "bge-reranker-v2-m3", "rerank"},
-		{EngineOllama, "rerank-model", "rerank"},
+		{EngineHerdsman, "rerank-model", "rerank"},
 		// embedding
 		{EngineHerdsman, "bge-m3", "embedding"},
-		{EngineOllama, "text-embedding-v3", "embedding"},
-		{EngineOllama, "bge-large", "embedding"},
+		{EngineHerdsman, "text-embedding-v3", "embedding"},
+		{EngineHerdsman, "bge-large", "embedding"},
 		// image：关键词（image/zimage/flux/turbo/sd/dalle/krea）
 		{EngineXAI, "grok-imagine-image-quality", "image"},
-		{EngineOllama, "z-image-turbo", "image"},
-		{EngineOllama, "flux-dev", "image"},
+		{EngineHerdsman, "z-image-turbo", "image"},
+		{EngineHerdsman, "flux-dev", "image"},
 		{EngineHerdsman, "sd-xl", "image"},
 		{EngineXAI, "dalle-3", "image"},
 		{EngineType("comfyui"), "krea2", "image"}, // 引擎未知时仍按关键词分类
 		// llm：无关键词命中回落
 		{EngineXAI, "grok-4.20", "llm"},
 		{EngineDeepseek, "deepseek-v4-pro", "llm"},
-		{EngineOllama, "qwen3", "llm"},
+		{EngineHerdsman, "qwen3", "llm"},
 		{EngineOpencodeGo, "deepseek-v4-pro", "llm"},
 	}
 	for _, c := range cases {
@@ -741,7 +651,7 @@ func TestClassifyModelByName_EngineIndependent(t *testing.T) {
 		}
 	}
 	// 按名分类 = ClassifyModelKind 的引擎无关分支：关键词命中即分类（含 voice 等），
-	// 纯引擎特判（EngineCosyVoice → tts）不在此路径。
+	// 纯引擎特判（EngineBreeze → tts）不在此路径。
 	if got := ClassifyModelByName("CosyVoice2-0.5B"); got != "tts" {
 		t.Errorf("ClassifyModelByName(CosyVoice2-0.5B) = %q, want tts（voice 关键词命中）", got)
 	}

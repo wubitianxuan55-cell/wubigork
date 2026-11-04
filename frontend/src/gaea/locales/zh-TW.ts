@@ -868,7 +868,7 @@ export const zhTW: Record<DictKey, string> = {
   "settings.security.officeDesc": "辦公板塊的功能級 AI 呼叫（Word/Excel 編輯、資料摘要、知識匯入、記憶整理）預設路由本機 Herdsman：資料不出本機、不燒 token；關閉後按常規路由可回雲端。",
   "settings.security.officeScope": "聊天主 agent（統籌規劃）不受此開關影響，仍按模型中心綁定走。Herdsman 引擎停用或不可用時自動回退常規路由。",
   "settings.security.offlineTitle": "全域離線模式",
-  "settings.security.offlineDesc": "資料不出本機的總閘：開啟後所有 AI 路由只允許本機引擎（Herdsman/Ollama/CosyVoice），雲端引擎（Grok/DeepSeek/OpenCode）一律跳過；無本機可用時按「模型不可用」如實降級。",
+  "settings.security.offlineDesc": "資料不出本機的總閘：開啟後所有 AI 路由只允許本機引擎（Herdsman/Strata/Llama），雲端引擎（Grok/DeepSeek/OpenCode Go）一律跳過；無本機可用時按「模型不可用」如實降級。",
   "settings.security.offlineOn": "僅本機（離線）",
   "settings.security.offlineOff": "關閉（預設）",
   "settings.security.offlineNote": "與「敏感域/辦公本機優先」疊加生效：那兩個開關只約束各自功能域，本開關約束全部 AI 呼叫（含意圖 LLM 兜底）。",

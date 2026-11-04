@@ -40,13 +40,13 @@ const danglingStaleModel = "Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_
 func TestRefreshModels_RepairsDanglingDefault(t *testing.T) {
 	srv := danglingModelsServer(t, "bge-m3", "llm-a")
 	m := NewManager("", "")
-	if err := m.SaveEngine(EngineConfig{ID: "ollama", BaseURL: srv.URL, Enabled: true, DefaultModel: danglingStaleModel}); err != nil {
+	if err := m.SaveEngine(EngineConfig{ID: "herdsman", BaseURL: srv.URL, Enabled: true, DefaultModel: danglingStaleModel}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := m.RefreshModels(context.Background(), "ollama"); err != nil {
+	if _, err := m.RefreshModels(context.Background(), "herdsman"); err != nil {
 		t.Fatalf("RefreshModels: %v", err)
 	}
-	e, _ := m.GetEngine("ollama")
+	e, _ := m.GetEngine("herdsman")
 	if e.DefaultModel != "llm-a" {
 		t.Errorf("悬空默认接班 = %q, want llm-a（首个 llm 档，跳过 bge-m3）", e.DefaultModel)
 	}
@@ -56,13 +56,13 @@ func TestRefreshModels_RepairsDanglingDefault(t *testing.T) {
 func TestRefreshModels_KeepsDefaultInList(t *testing.T) {
 	srv := danglingModelsServer(t, "llm-a", "llm-b")
 	m := NewManager("", "")
-	if err := m.SaveEngine(EngineConfig{ID: "ollama", BaseURL: srv.URL, Enabled: true, DefaultModel: "llm-b"}); err != nil {
+	if err := m.SaveEngine(EngineConfig{ID: "herdsman", BaseURL: srv.URL, Enabled: true, DefaultModel: "llm-b"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := m.RefreshModels(context.Background(), "ollama"); err != nil {
+	if _, err := m.RefreshModels(context.Background(), "herdsman"); err != nil {
 		t.Fatalf("RefreshModels: %v", err)
 	}
-	e, _ := m.GetEngine("ollama")
+	e, _ := m.GetEngine("herdsman")
 	if e.DefaultModel != "llm-b" {
 		t.Errorf("清单内默认被改写 = %q, want llm-b", e.DefaultModel)
 	}
@@ -73,13 +73,13 @@ func TestRefreshModels_KeepsDefaultInList(t *testing.T) {
 func TestRefreshModels_ClearsDefaultWhenNoLLM(t *testing.T) {
 	srv := danglingModelsServer(t, "bge-m3")
 	m := NewManager("", "")
-	if err := m.SaveEngine(EngineConfig{ID: "ollama", BaseURL: srv.URL, Enabled: true, DefaultModel: "llm-a"}); err != nil {
+	if err := m.SaveEngine(EngineConfig{ID: "herdsman", BaseURL: srv.URL, Enabled: true, DefaultModel: "llm-a"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := m.RefreshModels(context.Background(), "ollama"); err != nil {
+	if _, err := m.RefreshModels(context.Background(), "herdsman"); err != nil {
 		t.Fatalf("RefreshModels: %v", err)
 	}
-	e, _ := m.GetEngine("ollama")
+	e, _ := m.GetEngine("herdsman")
 	if e.DefaultModel != "" {
 		t.Errorf("无 llm 可接班时默认 = %q, want 空", e.DefaultModel)
 	}
@@ -146,20 +146,20 @@ func TestFailoverCandidates_SkipsDanglingDefault(t *testing.T) {
 	h.Status.Connected = true
 	h.DefaultModel = danglingStaleModel
 	h.Models = []ModelInfo{{ID: "Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_P-MTP-r2", Kind: "llm"}}
-	o := m.engines["ollama"]
+	o := m.engines["xai"]
 	o.Status.Connected = true
 	o.DefaultModel = "llm-x" // 清单为空：无从校验，维持旧口径放行
 	m.mu.Unlock()
 
-	if got := m.FailoverCandidates(""); len(got) != 1 || got[0].ID != "ollama" {
-		t.Fatalf("候选 = %v, want 仅 ollama（herdsman 悬空默认应被拦下）", idsOf(got))
+	if got := m.FailoverCandidates(""); len(got) != 1 || got[0].ID != "xai" {
+		t.Fatalf("候选 = %v, want 仅 xai（herdsman 悬空默认应被拦下）", idsOf(got))
 	}
 
 	m.mu.Lock()
 	m.engines["herdsman"].DefaultModel = "Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_P-MTP-r2"
 	m.mu.Unlock()
 	got := m.FailoverCandidates("")
-	if len(got) != 2 || got[0].ID != "ollama" || got[1].ID != "herdsman" {
-		t.Fatalf("默认回清单后候选 = %v, want [ollama herdsman]（按 order 序）", idsOf(got))
+	if len(got) != 2 || got[0].ID != "xai" || got[1].ID != "herdsman" {
+		t.Fatalf("默认回清单后候选 = %v, want [xai herdsman]（按 order 序）", idsOf(got))
 	}
 }

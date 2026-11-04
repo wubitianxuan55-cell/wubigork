@@ -210,8 +210,8 @@ func TestUserPrice_LoadStateRestore(t *testing.T) {
 // （手改/异常路径写入），estimatePrice 的本地短路也先于用户价目消费。
 func TestUserPrice_LocalEnginesStayFree(t *testing.T) {
 	resetUserPriceTable(t)
-	replaceUserPriceTable(map[string]modelPrice{"ollama": {1, 1, "CNY", ""}, "herdsman": {1, 1, "CNY", ""}})
-	assertPrice(t, "本地引擎应不计价", estimatePrice("ollama", "qwen3-8b"), modelPrice{})
+	replaceUserPriceTable(map[string]modelPrice{"breeze": {1, 1, "CNY", ""}, "herdsman": {1, 1, "CNY", ""}})
+	assertPrice(t, "本地引擎应不计价", estimatePrice("breeze", "qwen3-8b"), modelPrice{})
 	assertPrice(t, "herdsman 应不计价", estimatePrice("herdsman", "qwen3-8b"), modelPrice{})
 }
 

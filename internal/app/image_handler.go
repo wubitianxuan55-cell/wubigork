@@ -349,7 +349,7 @@ func (a *mediaState) runImageGenLoop(spec imageGenLoopSpec) ([]imageItem, string
 		if spec.backend == ai.ImageBackendTypeComfyUI {
 			imgReq.ProgressCallback = a.updateComfyTaskProgress
 		}
-		// xAI / Ollama 后端不接受 size 参数（xAI 返回 400）；herdsman 文档明确支持
+		// xAI 后端不接受 size 参数（xAI 返回 400）；herdsman 文档明确支持
 		// size；GLM 官方 schema 同样接受 size（glm-image 默认 1280x1280）
 		if spec.backend != ai.ImageBackendTypeComfyUI && spec.backend != ai.ImageBackendTypeHerdsman && spec.backend != ai.ImageBackendTypeGLM {
 			imgReq.Size = ""
@@ -905,7 +905,7 @@ func (a *mediaState) SetImageBackend(backend string, comfyUIURL string, imageMod
 		a.cfg.ImageSaveDir = filepath.Join(os.Getenv("USERPROFILE"), "Pictures", "gaea")
 	}
 	// 构造统一走 resolveImageBackend（IN2-03 收敛）。cfg 落盘顺序保留收敛前
-	// 口径：comfyui 先并 URL 再构造；herdsman/ollama/glm 先校验（引擎/Key 原文案
+	// 口径：comfyui 先并 URL 再构造；herdsman/glm 先校验（引擎/Key 原文案
 	// 原顺序）再落配置——校验失败不动任何配置。xai 无实例（client 内置管线）。
 	var r resolvedImageBackend
 	switch backend {
@@ -928,7 +928,7 @@ func (a *mediaState) SetImageBackend(backend string, comfyUIURL string, imageMod
 		a.cfg.ImageBackend = ai.ImageBackendTypeXAI
 		a.cfg.ImageModel = "grok-imagine-image-quality" // 角色剧照默认高质量模型
 		r = resolvedImageBackend{Kind: ai.ImageBackendTypeXAI}
-	case ai.ImageBackendTypeHerdsman, ai.ImageBackendTypeOllama, ai.ImageBackendTypeGLM:
+	case ai.ImageBackendTypeHerdsman, ai.ImageBackendTypeGLM:
 		rr, rerr := resolveImageBackend(backend, a.cfg, a.engineMgr)
 		if rerr != nil {
 			var re *imageBackendResolveError
@@ -948,7 +948,7 @@ func (a *mediaState) SetImageBackend(backend string, comfyUIURL string, imageMod
 			a.cfg.ImageModel = imageModel
 		}
 	default:
-		return fmt.Errorf("不支持的后端: %s（支持 xai / comfyui / herdsman / ollama / glm）", backend)
+		return fmt.Errorf("不支持的后端: %s（支持 xai / comfyui / herdsman / glm）", backend)
 	}
 	a.clientRef().SetImageBackend(r.Backend, r.Kind)
 
@@ -988,7 +988,7 @@ func (a *mediaState) GetImageBackendConfig() map[string]interface{} {
 	// 根据后端类型构建可用模型列表
 	var availableModels []map[string]string
 
-	// 1. 从已启用的引擎中收集图像模型（Herdsman/Ollama/DeepSeek 等）
+	// 1. 从已启用的引擎中收集图像模型（Herdsman/DeepSeek 等）
 	if a.engineMgr != nil {
 		for _, eng := range a.engineMgr.GetEngines() {
 			if !eng.Enabled {

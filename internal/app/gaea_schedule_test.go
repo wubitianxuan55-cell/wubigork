@@ -7,10 +7,7 @@ package app
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -417,99 +414,6 @@ func TestGaeaModelSwitchEstimateUnknown(t *testing.T) {
 	}
 }
 
-// ─── v4.126 刀2：ollama 换模预估（按目标模型） ──
-
-// ollamaStub 假 Ollama：/api/ps（已加载）与 /api/tags（已安装）两个端点
-// 可独立设置内容或断连，覆盖预估全分支。
-type ollamaStub struct {
-	psNames   []string
-	tagsNames []string
-	psDown    bool
-	tagsDown  bool
-}
-
-func newOllamaStub(t *testing.T) (*ollamaStub, *httptest.Server) {
-	t.Helper()
-	st := &ollamaStub{}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		names, down := st.tagsNames, st.tagsDown
-		if r.URL.Path == "/api/ps" {
-			names, down = st.psNames, st.psDown
-		}
-		if down {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			return
-		}
-		list := []map[string]string{}
-		for _, n := range names {
-			list = append(list, map[string]string{"name": n})
-		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"models": list})
-	}))
-	t.Cleanup(srv.Close)
-	return st, srv
-}
-
-// TestGaeaModelSwitchEstimateOllama 已加载→hot / 已安装未加载→cold /
-// 未安装→download / ps 挂而 tags 活→保守 cold / 双挂→unknown；
-// ":latest" 后缀归一互通。
-func TestGaeaModelSwitchEstimateOllama(t *testing.T) {
-	cases := []struct {
-		name       string
-		stub       ollamaStub
-		model      string
-		wantStatus string
-	}{
-		{"已加载→hot", ollamaStub{psNames: []string{"q3:8b"}, tagsNames: []string{"q3:8b"}}, "q3:8b", "hot"},
-		{"latest 归一命中→hot", ollamaStub{psNames: []string{"m1:latest"}}, "m1", "hot"},
-		{"已安装未加载→cold", ollamaStub{psNames: []string{"other"}, tagsNames: []string{"q3:8b"}}, "q3:8b", "cold"},
-		{"请求带 latest 安装为裸名→cold", ollamaStub{tagsNames: []string{"m1"}}, "m1:latest", "cold"},
-		{"未安装→download", ollamaStub{psNames: []string{"other"}, tagsNames: []string{"other"}}, "q3:8b", "download"},
-		{"ps 挂 tags 活且无此模型→download", ollamaStub{psDown: true, tagsNames: []string{"other"}}, "q3:8b", "download"},
-		{"ps 活 tags 挂且未加载→保守 cold", ollamaStub{psNames: []string{"other"}, tagsDown: true}, "q3:8b", "cold"},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			st, srv := newOllamaStub(t)
-			*st = c.stub
-			a := scheduleTestApp(&config.Config{})
-			if err := a.engineMgr.SaveEngine(modelengine.EngineConfig{ID: "ollama", BaseURL: srv.URL + "/v1", Enabled: true}); err != nil {
-				t.Fatalf("SaveEngine: %v", err)
-			}
-			e := a.GaeaModelSwitchEstimate("ollama", c.model)
-			if e.Status != c.wantStatus {
-				t.Errorf("status = %q, want %q（note=%q）", e.Status, c.wantStatus, e.Note)
-			}
-		})
-	}
-
-	t.Run("Ollama 不可达→unknown", func(t *testing.T) {
-		st, srv := newOllamaStub(t)
-		st.psDown, st.tagsDown = true, true
-		a := scheduleTestApp(&config.Config{})
-		if err := a.engineMgr.SaveEngine(modelengine.EngineConfig{ID: "ollama", BaseURL: srv.URL + "/v1", Enabled: true}); err != nil {
-			t.Fatalf("SaveEngine: %v", err)
-		}
-		e := a.GaeaModelSwitchEstimate("ollama", "q3:8b")
-		if e.Status != "unknown" {
-			t.Errorf("双路不可达应 unknown，got %q", e.Status)
-		}
-	})
-}
-
-// TestOllamaNativeRoot OpenAI 兼容地址推原生 API 根。
-func TestOllamaNativeRoot(t *testing.T) {
-	cases := []struct{ in, want string }{
-		{"http://localhost:11434/v1", "http://localhost:11434"},
-		{"http://localhost:11434/v1/", "http://localhost:11434"},
-		{"http://localhost:11434", "http://localhost:11434"},
-	}
-	for _, c := range cases {
-		if got := ollamaNativeRoot(c.in); got != c.want {
-			t.Errorf("ollamaNativeRoot(%q) = %q, want %q", c.in, got, c.want)
-		}
-	}
-}
 
 // ─── 绑定开关（T5-3a/b） ───────────────────────────────────
 

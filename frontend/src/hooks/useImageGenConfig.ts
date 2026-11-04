@@ -132,7 +132,7 @@ export function useImageGenConfig() {
 
   // ── 引擎状态轮询 ──
   useEffect(() => {
-    const isLocal = ['comfyui', 'herdsman', 'ollama'].includes(backend)
+    const isLocal = ['comfyui', 'herdsman'].includes(backend)
     if (!isLocal) { setEngineRunning(true); setEngineModelCount(0); return }
 
     // ComfyUI 用专用状态 API，其他本地引擎用通用 testEngineConnection

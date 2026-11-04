@@ -57,7 +57,6 @@ func TestGenerateFreeImage_sizeCleanup(t *testing.T) {
 		{"comfyui", true},
 		{"xai", false},
 		{"herdsman", true},
-		{"ollama", false},
 		{"glm", true},
 	}
 

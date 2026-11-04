@@ -126,7 +126,7 @@ func (c *Client) currentProxySpec() netclient.ProxySpec {
 }
 
 // proxySpec 返回按应用代理配置解析的 ProxySpec，并强制本地引擎直连：
-// localhost / 127.0.0.1 / ::1（回环）一律不走代理（herdsman/ComfyUI/Ollama
+// localhost / 127.0.0.1 / ::1（回环）一律不走代理（herdsman/ComfyUI 等
 // 都是本机服务），云端引擎（xAI/DeepSeek/MiMo 等外部域名）按配置走代理。
 func (c *Client) proxySpec() netclient.ProxySpec {
 	spec := c.currentProxySpec()

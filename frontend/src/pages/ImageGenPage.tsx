@@ -191,7 +191,7 @@ const ImageGenPage: React.FC = () => {
       message.warning('图片数据不可用（本地文件缺失且无内存数据），请重新生成')
       return
     }
-    // 引擎门禁：图生图仅 ComfyUI / Herdsman 支持；其它引擎（xAI / Ollama /
+    // 引擎门禁：图生图仅 ComfyUI / Herdsman 支持；其它引擎（xAI /
     // GLM）先把参考图就位，切到支持引擎后即可改。
     const supportsImg2Img = ['comfyui', 'herdsman'].includes(backend)
     setMode('img2img')

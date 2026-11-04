@@ -162,7 +162,7 @@ func (a *mediaState) TTSSpeakStreaming(text string) error {
 
 // ── TTS 提供者注册表驱动（Step 3c seam 消费者） ─────────────────────────────
 
-// ttsPipelineStep 一步 TTS 回退：提供者 + 引擎 id（cosyvoice 步骤在合成前惰性
+// ttsPipelineStep 一步 TTS 回退：提供者 + 引擎 id（breeze 步骤在合成前惰性
 // ensure 本地服务，避免链前面成功时仍拉起本地服务；其余引擎无需 ensure）。
 type ttsPipelineStep struct {
 	provider tts.TTSProvider
@@ -183,7 +183,7 @@ func (a *mediaState) ttsProviderPipeline(includeScan bool) []ttsPipelineStep {
 
 	// 2. 扫描所有引擎的 TTS 模型列表
 	if includeScan && a.engineMgr != nil {
-		for _, eid := range []string{"herdsman", "cosyvoice", "breeze", "ollama", "xai", "deepseek"} {
+		for _, eid := range []string{"herdsman", "breeze", "xai", "deepseek"} {
 			eng, ok := a.engineMgr.GetEngine(eid)
 			if !ok || !eng.Enabled {
 				continue
@@ -215,7 +215,7 @@ func (a *mediaState) ttsProviderPipeline(includeScan bool) []ttsPipelineStep {
 }
 
 // speakFromTTSProviderSteps 依次尝试各步骤合成，返回第一个成功的 (音频, MIME)。
-// cosyvoice 步骤首次合成前惰性 ensure 本地服务（幂等，已就绪零开销）。
+// breeze 步骤首次合成前惰性 ensure 本地服务（幂等，已就绪零开销）。
 // 参数版本委托 speakFromTTSProviderStepsParams（零值参数 = 引擎默认）。
 func (a *mediaState) speakFromTTSProviderSteps(text string, steps []ttsPipelineStep) ([]byte, string, error) {
 	return a.speakFromTTSProviderStepsParams(text, steps, tts.TTSParams{})
@@ -423,7 +423,7 @@ type breezeStreamProvider struct {
 func (b *breezeStreamProvider) ensureReady() {
 	b.ready.Do(func() {
 		b.ms.ensureLocalTTSService("breeze")
-		for i := 0; i < 5 && !b.ms.ttsReady("breeze"); i++ {
+		for i := 0; i < 5 && !b.ms.ttsReady(); i++ {
 			time.Sleep(2 * time.Second)
 		}
 	})

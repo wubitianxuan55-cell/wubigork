@@ -23,9 +23,6 @@ func newImageBackendTestEnv(t *testing.T) (*config.Config, *modelengine.Manager)
 	if err := mgr.SaveEngine(modelengine.EngineConfig{ID: "herdsman", Enabled: false}); err != nil {
 		t.Fatalf("SaveEngine herdsman: %v", err)
 	}
-	if err := mgr.SaveEngine(modelengine.EngineConfig{ID: "ollama", BaseURL: "http://127.0.0.1:9/ollama/v1", Enabled: true}); err != nil {
-		t.Fatalf("SaveEngine ollama: %v", err)
-	}
 	if err := mgr.SaveEngine(modelengine.EngineConfig{ID: "glm", BaseURL: "https://glm.example/api/paas/v4", Enabled: true}); err != nil {
 		t.Fatalf("SaveEngine glm: %v", err)
 	}
@@ -111,7 +108,7 @@ func TestResolveImageBackend(t *testing.T) {
 	})
 
 	t.Run("engineMgr 为 nil 一律按引擎不可用", func(t *testing.T) {
-		for _, name := range []string{"herdsman", "ollama", "glm"} {
+		for _, name := range []string{"herdsman", "glm"} {
 			_, err := resolveImageBackend(name, cfg, nil)
 			var re *imageBackendResolveError
 			if !errors.As(err, &re) || re.Reason != reasonEngineDisabled {
@@ -121,7 +118,7 @@ func TestResolveImageBackend(t *testing.T) {
 	})
 
 	t.Run("报错文案显示名映射", func(t *testing.T) {
-		for name, want := range map[string]string{"herdsman": "Herdsman", "ollama": "Ollama", "glm": "GLM", "xai": "xai"} {
+		for name, want := range map[string]string{"herdsman": "Herdsman", "glm": "GLM", "xai": "xai"} {
 			if got := imageEngineDisplayName(name); got != want {
 				t.Fatalf("imageEngineDisplayName(%q)=%q，期望 %q", name, got, want)
 			}

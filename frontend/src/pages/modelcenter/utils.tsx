@@ -149,13 +149,13 @@ export const hasPointsCoef = (meta?: ModelMeta): boolean =>
   !!meta && (meta.points_in != null || meta.points_cached != null || meta.points_out != null)
 
 export const engineIcons: Record<string, ReactNode> = {
-  xai: <CloudOutlined />, ollama: <DesktopOutlined />, herdsman: <RocketOutlined />, deepseek: <KeyOutlined />, glm: <KeyOutlined />, cosyvoice: <RocketOutlined />, 'opencode-go': <GlobalOutlined />, 'opencode-zen': <GlobalOutlined />, strata: <DesktopOutlined />, tianxuan: <DesktopOutlined />, custom: <GlobalOutlined />,
+  xai: <CloudOutlined />, herdsman: <RocketOutlined />, deepseek: <KeyOutlined />, glm: <KeyOutlined />, 'opencode-go': <GlobalOutlined />, strata: <DesktopOutlined />, llama: <DesktopOutlined />, custom: <GlobalOutlined />,
 }
 export const engineColors: Record<string, string> = {
-  xai: '#60a5fa', ollama: '#f59e0b', herdsman: '#84cc16', deepseek: '#8b5cf6', glm: '#38bdf8', cosyvoice: '#f472b6', 'opencode-go': '#22d3ee', 'opencode-zen': '#a78bfa', strata: '#34d399', tianxuan: '#fb923c', custom: '#94a3b8', // hex-exempt 引擎品牌识别色（模型中心身份色板）
+  xai: '#60a5fa', herdsman: '#84cc16', deepseek: '#8b5cf6', glm: '#38bdf8', 'opencode-go': '#22d3ee', strata: '#34d399', llama: '#22d3ee', custom: '#94a3b8', // hex-exempt 引擎品牌识别色（模型中心身份色板）
 }
 export const engineLabels: Record<string, string> = {
-  xai: 'xAI 云端', ollama: 'Ollama 本地', herdsman: 'Herdsman 本地', deepseek: 'DeepSeek 云端', glm: 'GLM 云端', cosyvoice: 'CosyVoice3 本地', 'opencode-go': 'OpenCode Go 云端', 'opencode-zen': 'OpenCode Zen 云端', strata: 'Strata 本地', tianxuan: '天璇引擎 本地', custom: '自定义 OpenAI 兼容',
+  xai: 'xAI 云端', herdsman: 'Herdsman 本地', deepseek: 'DeepSeek 云端', glm: 'GLM 云端', 'opencode-go': 'OpenCode Go 云端', breeze: 'Breeze-TTS 本地', strata: 'Strata 本地', llama: 'Llama 本地', custom: '自定义 OpenAI 兼容',
 }
 
 // ── 自定义引擎（A 刀：OpenAI 兼容自定义服务商，type=custom / id=custom-*） ──
@@ -391,7 +391,7 @@ export const fmtCompact = (v: number): string => {
   if (v >= 1e3) return `${(v / 1e3).toFixed(1)}k`
   return `${Math.round(v)}`
 }
-export const isLocalEngine = (id: string) => id === 'ollama' || id === 'herdsman' || id === 'cosyvoice' || id === 'strata' || id === 'tianxuan'
+export const isLocalEngine = (id: string) => id === 'herdsman' || id === 'breeze' || id === 'strata' || id === 'llama'
 export const costToCNY = (cost: number, currency?: string, rate: number = USD_TO_CNY) => (currency === 'USD' ? cost * rate : cost)
 
 // 本地 TTS 引擎的服务端音色兜底：CosyVoice2 4 个内置音色（中文女/男、英文女/男）

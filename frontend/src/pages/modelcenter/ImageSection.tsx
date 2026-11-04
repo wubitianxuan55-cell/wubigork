@@ -61,7 +61,6 @@ export function ImageSection() {
                 { value: 'xai', label: 'xAI 云端' },
                 { value: 'comfyui', label: 'ComfyUI 本地' },
                 { value: 'herdsman', label: 'Herdsman' },
-                { value: 'ollama', label: 'Ollama' },
                 { value: 'glm', label: 'GLM 云端' },
               ]}
             />

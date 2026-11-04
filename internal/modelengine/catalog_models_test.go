@@ -16,7 +16,7 @@ import (
 // ── 目录锚定（官方核实 2026-09-02，schema v1）──────────────────
 
 // TestModelCatalogEmbeddedV1 内嵌 model_catalog.json schema v1 锚定：
-// 顶层 version/updated/engines 三键、引擎集合恰好 deepseek/xai/opencode-zen、
+// 顶层 version/updated/engines 三键、引擎集合恰好 deepseek/xai、
 // 条目数与代表字段不漂移。
 func TestModelCatalogEmbeddedV1(t *testing.T) {
 	doc, err := parseModelCatalog(modelCatalogJSON)
@@ -26,7 +26,7 @@ func TestModelCatalogEmbeddedV1(t *testing.T) {
 	if doc.Version != 1 || doc.Updated != "2026-09-02" {
 		t.Errorf("version/updated = %d/%q, want 1/2026-09-02", doc.Version, doc.Updated)
 	}
-	wantEngines := map[string]int{"deepseek": 3, "xai": 7, "opencode-zen": 15}
+	wantEngines := map[string]int{"deepseek": 3, "xai": 7}
 	if len(doc.Engines) != len(wantEngines) {
 		t.Fatalf("engines 集合 = %v, want 恰好 %v", keysOf(doc.Engines), wantEngines)
 	}
@@ -53,7 +53,7 @@ func TestModelCatalogEmbeddedV1(t *testing.T) {
 		}
 	}
 	// 目录外引擎（opencode-go 订阅制拍板不进目录 / custom / glm 走专属目录）
-	for _, eng := range []string{"opencode-go", "custom-x", "glm", "ollama"} {
+	for _, eng := range []string{"opencode-go", "custom-x", "glm", "breeze"} {
 		if _, ok := engineCatalogInfo(eng); ok {
 			t.Errorf("engineCatalogInfo(%q) 不应命中", eng)
 		}
@@ -143,75 +143,6 @@ func TestModelCatalogXAIEntries(t *testing.T) {
 	}
 }
 
-// TestModelCatalogZenEntries opencode-zen 条目锚定（opencode.ai/docs/zen，
-// 2026-09-02；条目裸名；官方仅给计费断点 → context_length 不填；caps 不填）。
-func TestModelCatalogZenEntries(t *testing.T) {
-	models, ok := engineCatalogInfo("opencode-zen")
-	if !ok {
-		t.Fatal("opencode-zen 目录缺失")
-	}
-	byID := map[string]ModelInfo{}
-	for _, m := range models {
-		byID[m.ID] = m
-		if m.ContextLength != 0 || len(m.Caps) != 0 {
-			t.Errorf("%s ctx/caps = %d/%v, want 0/空（官方未给不填）", m.ID, m.ContextLength, m.Caps)
-		}
-		if m.Currency != "USD" && !m.Free {
-			t.Errorf("%s currency = %q, want USD（免费条目除外）", m.ID, m.Currency)
-		}
-	}
-	wantPrice := map[string][2]float64{
-		"gpt-5.6-sol":      {2, 10},
-		"gpt-5.5":          {5, 30},
-		"gpt-5.6-luna":     {0.2, 1.2},
-		"claude-opus-5":    {5, 25},
-		"claude-sonnet-5":  {2, 10},
-		"claude-haiku-4.5": {1, 5},
-		"gemini-3.1-pro":   {2, 12},
-		"grok-4.6":         {2, 6},
-		"deepseek-v4-pro":  {0.66, 1.98},
-		"glm-5.2":          {1.4, 4.4},
-		"kimi-k3":          {3, 15},
-		"qwen3.7-max":      {2.5, 7.5},
-	}
-	for id, price := range wantPrice {
-		got, ok := byID[id]
-		if !ok {
-			t.Errorf("zen 目录缺 %q", id)
-			continue
-		}
-		if got.PriceIn != price[0] || got.PriceOut != price[1] {
-			t.Errorf("%s 价 = %v/%v, want %v/%v USD", id, got.PriceIn, got.PriceOut, price[0], price[1])
-		}
-	}
-	if got := byID["gpt-5.6-sol"]; !strings.Contains(got.PriceNote, ">272K") || !strings.Contains(got.PriceNote, "2026-09-18") {
-		t.Errorf("gpt-5.6-sol price_note = %q, want 含分档断点与促销截止", got.PriceNote)
-	}
-	if got := byID["gemini-3.1-pro"]; !strings.Contains(got.PriceNote, ">200K") {
-		t.Errorf("gemini-3.1-pro price_note = %q, want 含 >200K 断点", got.PriceNote)
-	}
-	// 免费系（官方文档核实 ID）：free=true、无绝对价
-	for _, id := range []string{"big-pickle", "mimo-v2.5-free", "nemotron-3-ultra-free"} {
-		got, ok := byID[id]
-		if !ok {
-			t.Errorf("zen 目录缺免费条目 %q", id)
-			continue
-		}
-		if !got.Free || got.PriceIn != 0 || got.PriceOut != 0 {
-			t.Errorf("%s = free %v 价 %v/%v, want true/0/0", id, got.Free, got.PriceIn, got.PriceOut)
-		}
-	}
-	freeCount := 0
-	for _, m := range models {
-		if m.Free {
-			freeCount++
-		}
-	}
-	if freeCount != 3 {
-		t.Errorf("免费条目数 = %d, want 3", freeCount)
-	}
-}
-
 // ── 坏 JSON / 版本不符：静默回退（无目录 = 估算走内置表）─────────
 
 func TestModelCatalogBadJSONFallsBack(t *testing.T) {
@@ -271,16 +202,6 @@ func TestEngineCatalogPriceTiers(t *testing.T) {
 	if p, ok := engineCatalogPrice("deepseek", "deepseek-v4-pro-high"); !ok || p.InputPerM != 1.32 {
 		t.Errorf("前缀命中 v4-pro = %+v/%v, want 1.32 USD", p, ok)
 	}
-	// 免费条目：{0,0,"CNY"} 口径（与 GLM 免费档一致），费用恒 0 但有币种
-	if p, ok := engineCatalogPrice("opencode-zen", "big-pickle"); !ok || p.InputPerM != 0 || p.OutputPerM != 0 || p.Currency != "CNY" {
-		t.Errorf("免费条目 = %+v/%v, want 0/0/CNY", p, ok)
-	}
-	if c, cur := estimatedCostFor("opencode-zen", "mimo-v2.5-free", 1e6, 1e6); c != 0 || cur != "CNY" {
-		t.Errorf("免费条目估算 = %v/%q, want 0/CNY", c, cur)
-	}
-	if got := EstimateCostCNY("opencode-zen", "nemotron-3-ultra-free", 1e6, 1e6, 7.2); got != 0 {
-		t.Errorf("免费条目 EstimateCostCNY = %v, want 0", got)
-	}
 	// 无价条目/无匹配：回退内置表
 	if _, ok := engineCatalogPrice("xai", "grok-4"); ok {
 		t.Error("grok-4 不应命中目录（官方已不列）")
@@ -298,19 +219,16 @@ func TestEngineCatalogPriceTiers(t *testing.T) {
 	if p := estimatePrice("custom-abc", "claude-opus-4-8"); p.InputPerM != 5 || p.OutputPerM != 25 || p.Currency != "USD" {
 		t.Errorf("custom 引擎应走内置表, got %+v", p)
 	}
-	// 新增计价（内置表此前无此模型）：grok-build-0.1 / kimi-k3 / qwen3.7-max
+	// 新增计价（内置表此前无此模型）：grok-build-0.1
 	if p, ok := engineCatalogPrice("xai", "grok-build-0.1"); !ok || p.InputPerM != 1 || p.OutputPerM != 2 {
 		t.Errorf("grok-build-0.1 = %+v/%v, want 1/2 USD", p, ok)
-	}
-	if p, ok := engineCatalogPrice("opencode-zen", "kimi-k3"); !ok || p.InputPerM != 3 || p.OutputPerM != 15 {
-		t.Errorf("kimi-k3 = %+v/%v, want 3/15 USD", p, ok)
 	}
 }
 
 // ── 估算切换锁值（EstimateCostCNY，汇率 7.2）────────────────────
 
 // TestEstimateCostCNY_CatalogSwitchLocks C 刀目录通用化后的估算锁值：
-// 目录引擎（deepseek/xai/opencode-zen）目录价优先；内置表兜底模型逐位不变
+// 目录引擎（deepseek/xai）目录价优先；内置表兜底模型逐位不变
 // （回归锁）；本地引擎恒 0；GLM 锁值不变。
 func TestEstimateCostCNY_CatalogSwitchLocks(t *testing.T) {
 	defer setGLMCatalogPath("")
@@ -331,25 +249,15 @@ func TestEstimateCostCNY_CatalogSwitchLocks(t *testing.T) {
 		{"grok-4.5 目录价", "xai", "grok-4.5", 1e6, 1e6, (2 + 6) * 7.2},                        // 57.6
 		{"grok-4.3 目录价", "xai", "grok-4.3", 1e6, 1e6, (1.25 + 2.5) * 7.2},                   // 27
 		{"grok-0309 系目录价", "xai", "grok-4.20-0309-reasoning", 1e6, 1e6, (1.25 + 2.5) * 7.2}, // 27
-		{"gpt-5.6-sol 目录价", "opencode-zen", "gpt-5.6-sol", 1e6, 1e6, (2 + 10) * 7.2},        // 86.4
-		{"gpt-5.6-sol opencode/ 前缀归一命中", "opencode-zen", "opencode/gpt-5.6-sol", 1e6, 1e6, (2 + 10) * 7.2},
-		{"claude-opus-5 目录价", "opencode-zen", "claude-opus-5", 1e6, 1e6, (5 + 25) * 7.2},              // 216
-		{"zen deepseek-v4-pro 目录价", "opencode-zen", "deepseek-v4-pro", 1e6, 1e6, (0.66 + 1.98) * 7.2}, // 19.008
-		{"zen glm-5.2 目录价（与内置表同值）", "opencode-zen", "glm-5.2", 1e6, 1e6, (1.4 + 4.4) * 7.2},           // 41.76
-		// 免费条目
-		{"zen 免费系", "opencode-zen", "big-pickle", 1e6, 1e6, 0},
 		// 内置表兜底回归锁（值与迁移前逐位一致）
 		{"deepseek-chat 内置表", "deepseek", "deepseek-chat", 1e6, 1e6, 3},                      // (1+2) CNY 直用
 		{"grok-4.20 内置表", "xai", "grok-4.20", 1e6, 1e6, (2 + 6) * 7.2},                       // 57.6
 		{"grok-4 内置表", "xai", "grok-4", 1e6, 1e6, (3 + 15) * 7.2},                            // 129.6
 		{"claude-opus-4-8 内置表", "opencode-go", "claude-opus-4-8", 1e6, 1e6, (5 + 25) * 7.2},  // 216
 		{"gpt-5.5 内置表（opencode-go 无目录）", "opencode-go", "gpt-5.5", 1e6, 1e6, (5 + 30) * 7.2}, // 252
-		{"gpt-5.5 zen 目录价与内置表同值", "opencode-zen", "gpt-5.5", 1e6, 1e6, (5 + 30) * 7.2},       // 252
 		{"gemini-3-pro 内置表", "custom-x", "gemini-3-pro", 1e6, 1e6, (2 + 12) * 7.2},           // 100.8
 		{"kimi-k2 内置表", "custom-x", "kimi-k2", 1e6, 1e6, 20},                                 // (4+16) CNY 直用
-		{"zen deepseek-v4-flash 不在目录走内置表", "opencode-zen", "deepseek-v4-flash", 1e6, 1e6, 3}, // (1+2) CNY 直用
 		// 本地引擎恒 0
-		{"ollama 恒 0", "ollama", "qwen3", 1e6, 1e6, 0},
 		{"herdsman 恒 0", "herdsman", "qwen3", 1e6, 1e6, 0},
 		// GLM 锁值不变
 		{"glm-5.3 锁值", "glm", "glm-5.3", 1e6, 0, 1.4 * 7.2}, // 10.08
@@ -368,25 +276,25 @@ func TestEstimateCostCNY_CatalogSwitchLocks(t *testing.T) {
 
 func TestEnrichCatalogMeta(t *testing.T) {
 	models := []ModelInfo{
-		{ID: "opencode/gpt-5.6-sol", OwnedBy: "opencode"}, // 前缀归一命中裸名
-		{ID: "grok-4.6-2026-01-09", OwnedBy: "xai"},       // 日期后缀变体
+		{ID: "xai/grok-4.6", OwnedBy: "xai"},                // 供应商前缀归一命中裸名
+		{ID: "grok-4.6-2026-01-09", OwnedBy: "xai"},         // 日期后缀变体
 		// 引擎返回已有值：只填空字段，绝不覆盖
-		{ID: "glm-5.2", OwnedBy: "opencode", ContextLength: 123, PriceIn: 9.9, Currency: "CNY", Caps: []string{"x"}, PriceNote: "own"},
-		{ID: "totally-unknown-model", OwnedBy: "opencode"}, // 目录外原样
+		{ID: "grok-build-0.1", OwnedBy: "xai", ContextLength: 123, PriceIn: 9.9, Currency: "CNY", Caps: []string{"x"}, PriceNote: "own"},
+		{ID: "totally-unknown-model", OwnedBy: "xai"}, // 目录外原样
 	}
-	got := enrichCatalogMeta("opencode-zen", models)
+	got := enrichCatalogMeta("xai", models)
 	if !reflect.DeepEqual(got, models) {
 		t.Fatalf("enrich 应原地修改并返回同一切片")
 	}
 	sol := models[0]
-	if sol.PriceIn != 2 || sol.PriceOut != 10 || sol.Currency != "USD" || sol.PriceNote == "" {
-		t.Errorf("gpt-5.6-sol 补充 = %+v", sol)
+	if sol.PriceIn != 2 || sol.PriceOut != 6 || sol.Currency != "USD" || !strings.Contains(sol.PriceNote, "≥200k") {
+		t.Errorf("grok-4.6 补充 = %+v", sol)
 	}
-	if sol.ContextLength != 0 || len(sol.Caps) != 0 || sol.Kind != "" {
-		t.Errorf("gpt-5.6-sol 不应被填 ctx/caps/kind（目录未给）, got %+v", sol)
+	if sol.ContextLength != 500000 || len(sol.Caps) != 0 || sol.Kind != "" {
+		t.Errorf("grok-4.6 应被填 ctx、不应填 caps/kind, got %+v", sol)
 	}
 	grok := models[1]
-	if grok.PriceIn != 2 || grok.PriceOut != 6 || grok.Currency != "USD" || !strings.Contains(grok.PriceNote, ">200K") {
+	if grok.PriceIn != 2 || grok.PriceOut != 6 || grok.Currency != "USD" || !strings.Contains(grok.PriceNote, "≥200k") {
 		t.Errorf("日期后缀变体应命中 grok-4.6, got %+v", grok)
 	}
 	glm := models[2]
@@ -394,18 +302,18 @@ func TestEnrichCatalogMeta(t *testing.T) {
 		!reflect.DeepEqual(glm.Caps, []string{"x"}) || glm.PriceNote != "own" {
 		t.Errorf("既有值不得被覆盖, got %+v", glm)
 	}
-	if glm.PriceOut != 4.4 {
-		t.Errorf("空字段应被补齐 PriceOut=4.4, got %v", glm.PriceOut)
+	if glm.PriceOut != 2 {
+		t.Errorf("空字段应被补齐 PriceOut=2, got %v", glm.PriceOut)
 	}
 	if models[3].PriceIn != 0 || models[3].Currency != "" || models[3].ContextLength != 0 {
 		t.Errorf("目录外模型应原样, got %+v", models[3])
 	}
 
 	// 归一化口径：大写/冒号/[1m] 变体命中
-	for _, raw := range []string{"DEEPSEEK-V4-PRO[1m]", "deepseek-v4-pro:latest", "opencode/deepseek-v4-pro"} {
-		got := enrichCatalogMeta("opencode-zen", []ModelInfo{{ID: raw}})
-		if got[0].PriceIn != 0.66 || got[0].PriceOut != 1.98 || got[0].Currency != "USD" {
-			t.Errorf("%q enrich = %+v, want 0.66/1.98 USD", raw, got[0])
+	for _, raw := range []string{"DEEPSEEK-V4-PRO[1m]", "deepseek-v4-pro:latest", "deepseek/deepseek-v4-pro"} {
+		got := enrichCatalogMeta("deepseek", []ModelInfo{{ID: raw}})
+		if got[0].PriceIn != 1.32 || got[0].PriceOut != 3.96 || got[0].Currency != "USD" {
+			t.Errorf("%q enrich = %+v, want 1.32/3.96 USD", raw, got[0])
 		}
 	}
 
@@ -427,7 +335,7 @@ func TestEnrichCatalogMeta(t *testing.T) {
 
 	// 目录外引擎无效果（opencode-go 订阅制拍板不进目录；custom 同理）
 	unchanged := []ModelInfo{{ID: "deepseek-v4-pro", PriceIn: 1}, {ID: "grok-4.6"}}
-	for _, eng := range []string{"opencode-go", "custom-x", "glm", "ollama"} {
+	for _, eng := range []string{"opencode-go", "custom-x", "glm", "breeze"} {
 		got := enrichCatalogMeta(eng, append([]ModelInfo(nil), unchanged...))
 		if !reflect.DeepEqual(got, unchanged) {
 			t.Errorf("enrichCatalogMeta(%q) 应无效果, got %+v", eng, got)

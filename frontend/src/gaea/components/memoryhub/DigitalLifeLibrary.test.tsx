@@ -36,7 +36,7 @@ const LIFE = {
       conflict: 0,
       last_interacted_at: "2026-08-09T00:17:07+08:00",
       memory_summary: "关系画像: 稳定互动 / 用户主动联系",
-      highlights: ["CosyVoice 部署", "AMD ROCm"],
+      highlights: ["本地引擎部署", "AMD ROCm"],
       memory_event_count: 12,
       reinforcement: 32,
       updated_at: "",

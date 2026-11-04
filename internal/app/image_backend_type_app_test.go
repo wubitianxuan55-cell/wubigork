@@ -19,7 +19,6 @@ func TestImageBackendTypeBindingPassthrough(t *testing.T) {
 		ai.ImageBackendTypeXAI,
 		ai.ImageBackendTypeComfyUI,
 		ai.ImageBackendTypeHerdsman,
-		ai.ImageBackendTypeOllama,
 		ai.ImageBackendTypeGLM,
 	}
 	for _, name := range names {
@@ -45,8 +44,7 @@ func TestImageBackendInfoBackendJudgments(t *testing.T) {
 			ai.ImageBackendTypeXAI,
 			ai.ImageBackendTypeComfyUI,
 			ai.ImageBackendTypeHerdsman,
-			ai.ImageBackendTypeOllama,
-			ai.ImageBackendTypeGLM,
+				ai.ImageBackendTypeGLM,
 		} {
 			c := &ai.Client{}
 			c.SetImageBackend(nil, name)

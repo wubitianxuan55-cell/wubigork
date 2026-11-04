@@ -34,7 +34,7 @@ func TestSaveConfig_AllSyncedKeys(t *testing.T) {
 		{config.KeyImageModel, "flux", func(c *config.Config) bool { return c.ImageModel == "flux" }},
 		{config.KeyPortraitBackend, "herdsman", func(c *config.Config) bool { return c.PortraitBackend == "herdsman" }},
 		{config.KeyPortraitModel, "portrait-m", func(c *config.Config) bool { return c.PortraitModel == "portrait-m" }},
-		{config.KeySinImageBackend, "ollama", func(c *config.Config) bool { return c.SinImageBackend == "ollama" }},
+		{config.KeySinImageBackend, "herdsman", func(c *config.Config) bool { return c.SinImageBackend == "herdsman" }},
 		{config.KeySinImageModel, "sin-img-m", func(c *config.Config) bool { return c.SinImageModel == "sin-img-m" }},
 		{config.KeyComfyUIPath, "C:/comfyui", func(c *config.Config) bool { return c.ComfyUIPath == "C:/comfyui" }},
 		{config.KeyComfyUIPythonPath, "C:/python/python.exe", func(c *config.Config) bool { return c.ComfyUIPythonPath == "C:/python/python.exe" }},
@@ -43,10 +43,9 @@ func TestSaveConfig_AllSyncedKeys(t *testing.T) {
 		{config.KeyActiveEngineID, "deepseek", func(c *config.Config) bool { return c.ActiveEngineID == "deepseek" }},
 		{config.KeyDeepseekAPIKey, "sk-deepseek-1", func(c *config.Config) bool { return c.DeepseekAPIKey == "sk-deepseek-1" }},
 		{config.KeyOpencodeGoAPIKey, "sk-ocgo-1", func(c *config.Config) bool { return c.OpenCodeGoAPIKey == "sk-ocgo-1" }},
-		{config.KeyOpencodeZenAPIKey, "sk-oczen-1", func(c *config.Config) bool { return c.OpenCodeZenAPIKey == "sk-oczen-1" }},
 		{config.KeyActiveASREngine, "herdsman", func(c *config.Config) bool { return c.ActiveASREngine == "herdsman" }},
 		{config.KeyActiveASRModel, "asr-m", func(c *config.Config) bool { return c.ActiveASRModel == "asr-m" }},
-		{config.KeyActiveTTSEngine, "cosyvoice", func(c *config.Config) bool { return c.ActiveTTSEngine == "cosyvoice" }},
+		{config.KeyActiveTTSEngine, "breeze", func(c *config.Config) bool { return c.ActiveTTSEngine == "breeze" }},
 		{config.KeyActiveTTSModel, "tts-m", func(c *config.Config) bool { return c.ActiveTTSModel == "tts-m" }},
 		{config.KeyTTSVoice, "轻语", func(c *config.Config) bool { return c.TTSVoice == "轻语" }},
 		{config.KeyActiveOCREngine, "paddle", func(c *config.Config) bool { return c.ActiveOCREngine == "paddle" }},
@@ -60,13 +59,12 @@ func TestSaveConfig_AllSyncedKeys(t *testing.T) {
 		{config.KeyFuncNovelModel, "novel-m", func(c *config.Config) bool { return c.FuncNovelModel == "novel-m" }},
 		{config.KeyFuncOfficeEngine, "herdsman", func(c *config.Config) bool { return c.FuncOfficeEngine == "herdsman" }},
 		{config.KeyFuncOfficeModel, "office-m", func(c *config.Config) bool { return c.FuncOfficeModel == "office-m" }},
-		{config.KeyFuncGaeaEngine, "ollama", func(c *config.Config) bool { return c.FuncGaeaEngine == "ollama" }},
+		{config.KeyFuncGaeaEngine, "herdsman", func(c *config.Config) bool { return c.FuncGaeaEngine == "herdsman" }},
 		{config.KeyFuncGaeaModel, "gaea-m", func(c *config.Config) bool { return c.FuncGaeaModel == "gaea-m" }},
 		{config.KeyFuncCharLibEngine, "herdsman", func(c *config.Config) bool { return c.FuncCharLibEngine == "herdsman" }},
 		{config.KeyFuncCharLibModel, "charlib-m", func(c *config.Config) bool { return c.FuncCharLibModel == "charlib-m" }},
-		{config.KeyFuncRoutineEngine, "ollama", func(c *config.Config) bool { return c.FuncRoutineEngine == "ollama" }},
+		{config.KeyFuncRoutineEngine, "opencode-go", func(c *config.Config) bool { return c.FuncRoutineEngine == "opencode-go" }},
 		{config.KeyFuncRoutineModel, "routine-m", func(c *config.Config) bool { return c.FuncRoutineModel == "routine-m" }},
-		{config.KeyCosyVoiceDir, "C:/cosyvoice-x", func(c *config.Config) bool { return c.CosyVoiceDir == "C:/cosyvoice-x" }},
 		// ── 整数键（6；含 0 值一例钉「合法值不得被跳过」）──
 		{config.KeyHTTPTimeoutSeconds, "233", func(c *config.Config) bool { return c.HTTPTimeoutSeconds == 233 }},
 		{config.KeyHTTPTimeoutSeconds, "-5", func(c *config.Config) bool { return c.HTTPTimeoutSeconds == -5 }},
@@ -74,7 +72,6 @@ func TestSaveConfig_AllSyncedKeys(t *testing.T) {
 		{config.KeyQualityThreshold, "0", func(c *config.Config) bool { return c.QualityThreshold == 0 }},
 		{config.KeyQualityMaxRetries, "4", func(c *config.Config) bool { return c.QualityMaxRetries == 4 }},
 		{config.KeyTTSPort, "8971", func(c *config.Config) bool { return c.TTSPort == 8971 }},
-		{config.KeyCosyVoicePort, "8023", func(c *config.Config) bool { return c.CosyVoicePort == 8023 }},
 		{config.KeyModelIdleExitMinutes, "15", func(c *config.Config) bool { return c.ModelIdleExitMinutes == 15 }},
 		// ── 浮点键（4）──
 		{config.KeyDefaultTemperature, "0.63", func(c *config.Config) bool { return c.DefaultTemperature == 0.63 }},
@@ -196,7 +193,6 @@ func TestSaveConfig_InvalidValueErrorsBeforeMemSync(t *testing.T) {
 	a := shelfTestApp(t)
 	a.cfg.HTTPTimeoutSeconds = 30
 	a.cfg.TTSSpeed = 1.0
-	a.cfg.CosyVoicePort = 8010
 	a.cfg.FuncChatEnabled = true
 
 	cases := []struct {
@@ -205,7 +201,6 @@ func TestSaveConfig_InvalidValueErrorsBeforeMemSync(t *testing.T) {
 	}{
 		{config.KeyHTTPTimeoutSeconds, "abc", func(c *config.Config) bool { return c.HTTPTimeoutSeconds == 30 }},
 		{config.KeyTTSSpeed, "9.9", func(c *config.Config) bool { return c.TTSSpeed == 1.0 }}, // 越界 0.25-4.0
-		{config.KeyCosyVoicePort, "0", func(c *config.Config) bool { return c.CosyVoicePort == 8010 }},
 		{config.KeyFuncChatEnabled, "maybe", func(c *config.Config) bool { return c.FuncChatEnabled }},
 	}
 	for _, tc := range cases {

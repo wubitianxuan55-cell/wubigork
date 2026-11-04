@@ -16,7 +16,7 @@ function renderOverview(engineStatuses: Record<string, EngineStatus>) {
     engines: [
       { id: 'glm', name: 'GLM', type: 'glm', label: 'GLM 云端', enabled: true, base_url: '', default_model: '', models: [] },
       // 禁用引擎不进卡片网格
-      { id: 'ollama', name: 'Ollama', type: 'ollama', enabled: false, base_url: '', default_model: '', models: [] },
+      { id: 'breeze', name: 'Breeze-TTS-2', type: 'breeze', enabled: false, base_url: '', default_model: '', models: [] },
     ],
     engineStatuses,
     callStats: null,

@@ -32,7 +32,7 @@ func (t routineLLMTool) Schema() json.RawMessage {
 "properties":{
   "prompt":{"type":"string","description":"要执行的常规任务指令（完整描述输入与期望输出）"},
   "system":{"type":"string","description":"可选：系统提示词，如输出格式/角色要求"},
-  "engine":{"type":"string","description":"可选：临时指定引擎（如 herdsman/ollama/opencode-zen），默认用模型中心「常规办公」绑定，未绑定则用本地 herdsman"},
+  "engine":{"type":"string","description":"可选：临时指定引擎（如 herdsman/llama），默认用模型中心「常规办公」绑定，未绑定则用本地 herdsman"},
   "model":{"type":"string","description":"可选：临时指定模型名，默认用「常规办公」绑定或引擎默认模型"},
   "max_tokens":{"type":"integer","description":"可选：输出 token 上限"},
   "temperature":{"type":"number","description":"可选：采样温度（默认 0.3，常规任务偏低）"}

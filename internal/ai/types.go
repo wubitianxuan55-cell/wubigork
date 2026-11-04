@@ -70,7 +70,7 @@ type ChatRequest struct {
 	StreamOptions      *ChatStreamOptions `json:"stream_options,omitempty"`       // 流式用量上报（include_usage）
 
 	// ── 防重复采样（阶段八 8.7）──
-	// llama.cpp server 顶层键（herdsman 真机验证接受；ollama 兼容层宽容忽略）。
+	// llama.cpp server 顶层键（herdsman 真机验证接受）
 	// 云端 OpenAI 兼容服务对未知字段不保证容忍——由调用方（app 层）只对本地
 	// 引擎注入，本结构不设引擎门控（传输层保持哑管道）。strata 服务层只透传
 	// temperature/top_p/top_k/seed（前置核实 2026-10-15），这些键发了无效，调用
@@ -103,7 +103,7 @@ type ChatSimpleOptions struct {
 	//
 	// 只有带用户可见思考开关的调用方需要置位（聊天页/轻语人格的 thinking 开关）。
 	// 两个字段都为零值 = 调用方未表态，由引擎缺省决定：
-	//   - herdsman/ollama：缺省关，EnableThinking 显式开；
+	//   - herdsman：缺省关，EnableThinking 显式开；
 	//   - strata：缺省开（思考原生引擎），DisableThinking 显式关。
 	// 缺了「关」侧，strata 这种服务端默认开思考的引擎就无法被用户关掉——
 	// 界面上思考开关会变成空钮，推理照跑、预算照烧。

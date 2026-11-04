@@ -499,7 +499,7 @@ func (c *Client) ChatSimpleStreamWithOptions(ctx context.Context, model, systemP
 }
 
 // ChatSimpleStreamDetailed 与 ChatSimpleStreamWithOptions 相同，但额外返回思考链。
-// opts.EnableThinking 对本地 Qwen3 系模型（herdsman/ollama）开启思考模式，
+// opts.EnableThinking 对本地 Qwen3 系模型（herdsman）开启思考模式，
 // 服务端会流式下发 reasoning_content，函数累计后随正文一起返回。
 func (c *Client) ChatSimpleStreamDetailed(ctx context.Context, model, systemPrompt, userMsg string, opts ChatSimpleOptions) (string, string, error) {
 	chunks, cancel, err := c.ChatStreamChunks(ctx, model, systemPrompt, userMsg, opts)

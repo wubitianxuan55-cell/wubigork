@@ -78,8 +78,8 @@ if (Test-Path $legacyPath) {
     # （A1① 已清册；余下为登记在册的预留死绑定，附理由）
     # 单模型级启停：模型中心启停钮走引擎级 stop*Engine（v4.507 删零消费 api
     # 包装时拍板 Go 绑定保留——单模型引擎停模型=停引擎，前端面收窄）。
-    'StrataModelStop',
-    'TianxuanModelStop'
+    'StrataModelStop'
+    # TianxuanModelStop 已随 tianxuan 引擎退役清册（2026-11-04，绑定面全删）。
   )
 
   # 4a. legacy 名单（生成物，勿手改）。行尾可能挂版本注释（生成器

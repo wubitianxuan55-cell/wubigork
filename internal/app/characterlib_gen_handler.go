@@ -534,7 +534,7 @@ func img2imgCapableModel(model string) bool {
 
 // checkPortraitRefSupport 参考图生成的前置门禁：comfyui 后端仅 krea2 /
 // z-image-turbo 支持 img2img（后端对其它模型直接报错），提前给出中文错误；
-// 其它后端（herdsman/ollama/xai 等）交给后端/API 自行裁决。
+// 其它后端（herdsman/xai 等）交给后端/API 自行裁决。
 func checkPortraitRefSupport(backend, imgModel string) error {
 	if backend == "comfyui" && !img2imgCapableModel(imgModel) {
 		return fmt.Errorf("模型 %s 暂不支持参考图生成（支持 krea2 / z-image-turbo）", imgModel)
@@ -655,7 +655,7 @@ func (a *App) buildPortraitClient() (*ai.Client, error) {
 
 // buildImageClientFor 按后端名构建独立图片客户端（不改变全局当前后端；
 // v4.388 从 buildPortraitClient 通用化，角色剧照与原罪插图共用）。
-// backend: comfyui / herdsman / ollama / glm 走对应后端，xai 或空走 xAI
+// backend: comfyui / herdsman / glm 走对应后端，xai 或空走 xAI
 // 原生管线；featureLabel 仅用于未启用/缺 Key 的报错文案点名。
 // 构造统一走 resolveImageBackend（IN2-03 收敛），此处只保留本站点的报错文案。
 func (a *App) buildImageClientFor(backend, featureLabel string) (*ai.Client, error) {

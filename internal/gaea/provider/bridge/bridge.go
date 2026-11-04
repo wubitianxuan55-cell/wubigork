@@ -52,7 +52,7 @@ func (p *Provider) Stream(ctx context.Context, req provider.Request) (<-chan pro
 	// chat_template_kwargs）后服务端才会流式下发 reasoning_content，
 	// 前端据此显示思考链。
 	switch p.engine {
-	case "herdsman", "ollama":
+	case "herdsman":
 		t := true
 		creq.EnableThinking = &t
 		creq.ChatTemplateKwargs = map[string]any{"enable_thinking": true}

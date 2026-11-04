@@ -164,7 +164,7 @@ func EncodeBase64(data []byte) string {
 }
 
 // openAIEndpoint 将 OpenAI 兼容 base URL 与 API 路径拼接：
-// baseURL 可能以 /v1 结尾（Herdsman/Ollama/xAI），也可能不带（DeepSeek），统一得到 .../v1<path>
+// baseURL 可能以 /v1 结尾（Herdsman/xAI），也可能不带（DeepSeek），统一得到 .../v1<path>
 func openAIEndpoint(baseURL, path string) string {
 	base := strings.TrimRight(baseURL, "/")
 	base = strings.TrimSuffix(base, "/v1")

@@ -80,7 +80,6 @@ function renderSection(opts: { engineStatuses?: Record<string, EngineStatus> } =
     deepseekKey: '', setDeepseekKeyState: () => {}, deepseekKeyMasked: '',
     glmKey: '', setGlmKeyState: () => {}, glmKeyMasked: '',
     opencodeGoKey: '', setOpencodeGoKeyState: () => {}, opencodeGoKeyMasked: '',
-    opencodeZenKey: '', setOpencodeZenKeyState: () => {}, opencodeZenKeyMasked: '',
     settingGlmEndpoint: false,
     handleSetGlmEndpoint: async () => {},
     handleTestConnection: async () => {},
@@ -91,7 +90,6 @@ function renderSection(opts: { engineStatuses?: Record<string, EngineStatus> } =
     handleSaveDeepseekKey: async () => {},
     handleSaveGlmKey: async () => {},
     handleSaveOpencodeGoKey: async () => {},
-    handleSaveOpencodeZenKey: async () => {},
     handleAddCustomEngine,
     handleUpdateCustomEngine,
     handleRemoveCustomEngine,
@@ -245,9 +243,9 @@ describe('EngineSection · 自定义引擎', () => {
   it('⑦c Strata 生命周期：默认 uncensored 档，启动成功后显示档位', async () => {
     mStatusStrata.mockResolvedValue({
       running: false,
-      default_profile: 'qwen36_uncensored',
+      default_profile: 'qwen38fn_flash',
       profiles: [
-        { id: 'qwen36_uncensored', label: 'qwen3.6-35b-a3b-uncensored-q4_k_p' },
+        { id: 'qwen38fn_flash', label: 'qwen3.8-flash-next-uncensored (UD-IQ4_XS)' },
       ],
     })
     renderSection()
@@ -255,12 +253,12 @@ describe('EngineSection · 自定义引擎', () => {
     mStartStrata.mockResolvedValueOnce({
       started: true,
       waited_ms: 23000,
-      profile: 'qwen36_uncensored',
-      served_models: ['qwen3.6-35b-a3b-uncensored-q4_k_p'],
+      profile: 'qwen38fn_flash',
+      served_models: ['qwen3.8-flash-next-uncensored'],
     })
     fireEvent.click(within(strataCard).getByRole('button', { name: /启\s*动\s*档\s*位/ }))
-    await waitFor(() => expect(mStartStrata).toHaveBeenCalledWith('qwen36_uncensored'))
-    await waitFor(() => expect(within(strataCard).getByText(/运行中 · qwen3.6-35b-a3b-uncensored-q4_k_p/)).toBeTruthy())
+    await waitFor(() => expect(mStartStrata).toHaveBeenCalledWith('qwen38fn_flash'))
+    await waitFor(() => expect(within(strataCard).getByText(/运行中 · qwen3.8-flash-next-uncensored/)).toBeTruthy())
   })
 
   it('⑦d 受管引擎停止态不回显旧连接错误，显示未启动提示', async () => {

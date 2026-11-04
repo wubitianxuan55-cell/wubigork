@@ -1,7 +1,7 @@
 import React from 'react'
 import { Input, InputNumber, Button, Typography, Slider, Select, Tooltip, message, Radio } from 'antd'
 import {
-  CloudOutlined, DesktopOutlined, RocketOutlined, KeyOutlined,
+  CloudOutlined, DesktopOutlined, RocketOutlined,
   EditOutlined, SlidersOutlined, CloudServerOutlined, DashboardOutlined,
   RobotOutlined, ExperimentOutlined, PictureOutlined, ShakeOutlined, NumberOutlined,
   MinusCircleOutlined, PlusCircleOutlined, AppstoreOutlined,
@@ -55,7 +55,6 @@ const BACKEND_ICONS: Record<string, React.ReactNode> = {
   xai: <CloudOutlined />,
   comfyui: <DesktopOutlined />,
   herdsman: <RocketOutlined />,
-  ollama: <KeyOutlined />,
   glm: <CloudOutlined />,
 }
 
@@ -156,7 +155,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   // 时给出专属警告；这类引擎不参与 needsComfy「缺引擎」提示（否则两条警告
   // 叠加，语义重复）。
   const glmOffMode = backend === 'glm' && mode !== 'txt2img'
-  // 图生图门禁白名单：comfyui / herdsman（glm/xai/ollama 无图生图参数）
+  // 图生图门禁白名单：comfyui / herdsman（glm/xai 无图生图参数）
   const needsComfy = (mode === 't2v' && backend !== 'comfyui' && backend !== 'glm')
     || (mode === 'img2img' && backend !== 'comfyui' && backend !== 'herdsman' && backend !== 'glm')
 

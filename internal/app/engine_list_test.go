@@ -21,8 +21,8 @@ func TestGetEngineList_NilManager(t *testing.T) {
 func TestGetEngineList_WithEngines(t *testing.T) {
 	a := &App{core: &core{engineMgr: modelengine.NewManager("", "")}, whisperState: &whisperState{core: &core{engineMgr: modelengine.NewManager("", "")}}}
 	got := a.GetEngineList()
-	// NewManager 预置 xai/ollama 等引擎，必须全部出现在列表中
-	for _, id := range []string{"xai", "ollama"} {
+	// NewManager 预置 xai/herdsman 等引擎，必须全部出现在列表中
+	for _, id := range []string{"xai", "herdsman"} {
 		found := false
 		for _, g := range got {
 			if g == id {

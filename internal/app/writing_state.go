@@ -73,9 +73,6 @@ func (w *writingState) restoreImageBackend() {
 	case "herdsman":
 		w.client.SetImageBackend(r.Backend, r.Kind)
 		slog.Info("已恢复 Herdsman 图像后端", "url", r.BaseURL)
-	case "ollama":
-		w.client.SetImageBackend(r.Backend, r.Kind)
-		slog.Info("已恢复 Ollama 图像后端")
 	case "glm":
 		w.client.SetImageBackend(r.Backend, r.Kind)
 		slog.Info("已恢复 GLM 图像后端", "url", r.BaseURL)

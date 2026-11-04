@@ -53,7 +53,7 @@ func TestBuildUsageOverview_NoEventsFallback(t *testing.T) {
 		PerModel: []modelengine.ModelUsageStats{
 			{EngineID: "herdsman", Model: "qwen3-8b", CallCount: 4, SuccessCount: 4,
 				InputTokens: 400, OutputTokens: 200, TotalTokens: 600},
-			{EngineID: "ollama", Model: "qwen2.5", CallCount: 1, SuccessCount: 1,
+			{EngineID: "herdsman", Model: "qwen2.5", CallCount: 1, SuccessCount: 1,
 				InputTokens: 10, OutputTokens: 5, TotalTokens: 15},
 		},
 	}
@@ -80,7 +80,7 @@ func TestBuildUsageOverview_CacheHitRate(t *testing.T) {
 			{EngineID: "xai", Model: "grok-4.20", CallCount: 1, SuccessCount: 1,
 				InputTokens: 200, OutputTokens: 20, TotalTokens: 220,
 				CacheHitTokens: 50, CacheMissTokens: 150},
-			{EngineID: "ollama", Model: "qwen2.5", CallCount: 1, SuccessCount: 1,
+			{EngineID: "herdsman", Model: "qwen2.5", CallCount: 1, SuccessCount: 1,
 				InputTokens: 100, OutputTokens: 10, TotalTokens: 110,
 				CacheHitTokens: 90, CacheMissTokens: 10},
 		},

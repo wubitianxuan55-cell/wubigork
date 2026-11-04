@@ -15,7 +15,7 @@ type configFile struct {
 	QualityMaxRetries   int               `json:"quality_max_retries"` // 最大自动重试次数
 	TTSBinaryPath       string            `json:"tts_binary_path,omitempty"`
 	TTSModelPath        string            `json:"tts_model_path,omitempty"`
-	ImageBackend        string            `json:"image_backend,omitempty"` // "xai" (默认) | "comfyui" | "herdsman" | "ollama"
+	ImageBackend        string            `json:"image_backend,omitempty"` // "xai" (默认) | "comfyui" | "herdsman" | "glm"
 	ComfyUIURL          string            `json:"comfyui_url,omitempty"`
 	ImageSaveDir        string            `json:"image_save_dir,omitempty"`         // 图片生成存放目录
 	ImageModel          string            `json:"image_model,omitempty"`            // 图片模型
@@ -33,7 +33,6 @@ type configFile struct {
 	DeepseekAPIKey      string            `json:"deepseek_api_key,omitempty"`       // DeepSeek API Key
 	GLMAPIKey           string            `json:"glm_api_key,omitempty"`            // GLM (智谱) API Key
 	OpenCodeGoAPIKey    string            `json:"opencode_go_api_key,omitempty"`    // OpenCode Go API Key
-	OpenCodeZenAPIKey   string            `json:"opencode_zen_api_key,omitempty"`   // OpenCode Zen API Key
 	CustomEngineKeys    map[string]string `json:"custom_engine_keys,omitempty"`     // 自定义引擎 Key 库（engineID → 密文）
 	ActiveASREngine     string            `json:"active_asr_engine,omitempty"`      // 语音识别激活引擎
 	ActiveASRModel      string            `json:"active_asr_model,omitempty"`       // 语音识别激活模型
@@ -111,9 +110,6 @@ type configFile struct {
 	GLMCatalogPath string `json:"glm_catalog_path,omitempty"`
 	// GLM 目录远程热更新 URL（空=禁用）
 	GLMCatalogURL string `json:"glm_catalog_url,omitempty"`
-	// CosyVoice 本地 TTS 服务（T6-9.5）：路径/端口可配置，空值回退默认。
-	CosyVoiceDir  string `json:"cosyvoice_dir,omitempty"`
-	CosyVoicePort int    `json:"cosyvoice_port,omitempty"`
 	// Breeze 本地 TTS 服务（Breeze-TTS-2）：路径/端口可配置，空值回退默认。
 	BreezeDir  string `json:"breeze_dir,omitempty"`
 	BreezePort int    `json:"breeze_port,omitempty"`
@@ -178,7 +174,7 @@ type Config struct {
 	TTSBackend    string  // 推理后端: cpu / cuda / vulkan（默认 cuda）
 	TTSSpeed      float64 // 默认朗读语速（0.25-4.0，默认 1.0）
 	// 图片生成后端
-	ImageBackend      string // "xai" (默认) | "comfyui" | "herdsman" | "ollama"
+	ImageBackend      string // "xai" (默认) | "comfyui" | "herdsman" | "glm"
 	ComfyUIURL        string // ComfyUI 服务地址，默认 http://127.0.0.1:8188
 	ImageSaveDir      string // 生成图片存放目录，空字符串=不存盘
 	ImageModel        string // 图片模型: "grok-imagine-image-quality" (xAI默认) | "krea2" | "z-image-turbo" | "qwen-image-2.1-turbo" | "qwen-image-2.1-edit" | "flux"
@@ -193,7 +189,7 @@ type Config struct {
 	// strata 独立引擎项目根目录（C:\AI\strata\repo）。
 	StrataPath string
 
-	// 活跃模型引擎 ID（"xai" | "ollama" | "herdsman" | "deepseek"）
+	// 活跃模型引擎 ID（"xai" | "herdsman" | "deepseek" 等）
 	ActiveEngineID string
 
 	// DeepSeek API Key
@@ -204,9 +200,6 @@ type Config struct {
 
 	// OpenCode Go API Key（opencode.ai 订阅，模型中心配置）
 	OpenCodeGoAPIKey string
-
-	// OpenCode Zen API Key（按量付费，opencode.ai/auth 获取）
-	OpenCodeZenAPIKey string
 
 	// 自定义引擎 Key 库（A 刀自定义引擎）：engineID → secure.EncryptString
 	// 密文。app 层启动时解密为明文后注入 modelengine.Manager（明文只存内存）。
@@ -302,10 +295,6 @@ type Config struct {
 	// GLM 目录远程热更新 URL（模型中心成本层，空=禁用；非空时启动异步
 	// 拉取循环，v2 响应写缓存 glm_catalog_remote.json）
 	GLMCatalogURL string
-
-	// CosyVoice 本地 TTS 服务（T6-9.5）：路径/端口可配置，默认 C:\AI\cosyvoice / 8010。
-	CosyVoiceDir  string
-	CosyVoicePort int
 
 	// Breeze 本地 TTS 服务（Breeze-TTS-2）：路径/端口可配置，默认 C:\AI\breeze-tts2 / 8012。
 	BreezeDir  string

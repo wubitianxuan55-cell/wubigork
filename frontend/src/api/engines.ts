@@ -36,7 +36,7 @@ export interface EngineConfig {
   // custom = 用户自建 OpenAI 兼容服务商（A 刀），id 以 custom- 开头
   // strata = 本地 Strata 推理引擎（默认 127.0.0.1:8091/v1，
   // 免鉴权；离线模式按本地引擎放行；档位目录现仅 uncensored 一档）
-  type: 'xai' | 'ollama' | 'herdsman' | 'deepseek' | 'glm' | 'cosyvoice' | 'breeze' | 'opencode-go' | 'opencode-zen' | 'custom' | 'strata' | 'llama'
+  type: 'xai' | 'herdsman' | 'deepseek' | 'glm' | 'breeze' | 'opencode-go' | 'custom' | 'strata' | 'llama'
   label?: string
   color?: string
   icon?: string
@@ -442,8 +442,8 @@ export async function getStrataEngineStatus(): Promise<ManagedEngineStatusResult
   return result as ManagedEngineStatusResult
 }
 
-/** 启动 Strata 指定档位（目录现仅 qwen36_uncensored 一档；幂等） */
-export async function startStrataEngine(profile = 'qwen36_uncensored'): Promise<ManagedEngineStartResult> {
+/** 启动 Strata 指定档位（现阶段仅 qwen38fn_flash 一档；幂等） */
+export async function startStrataEngine(profile = 'qwen38fn_flash'): Promise<ManagedEngineStartResult> {
   const result = await App().StrataEngineStart(profile)
   return result as ManagedEngineStartResult
 }
@@ -582,17 +582,6 @@ export async function setOpencodeGoKey(apiKey: string): Promise<void> {
 /** 获取 OpenCode Go Key 状态（脱敏显示） */
 export async function getOpencodeGoKeyStatus(): Promise<{ configured: boolean; masked: string }> {
   const result = await App().GetOpencodeGoKeyStatus()
-  return result as { configured: boolean; masked: string }
-}
-
-/** 设置 OpenCode Zen API Key */
-export async function setOpencodeZenKey(apiKey: string): Promise<void> {
-  await App().SetOpencodeZenKey(apiKey)
-}
-
-/** 获取 OpenCode Zen Key 状态（脱敏显示） */
-export async function getOpencodeZenKeyStatus(): Promise<{ configured: boolean; masked: string }> {
-  const result = await App().GetOpencodeZenKeyStatus()
   return result as { configured: boolean; masked: string }
 }
 

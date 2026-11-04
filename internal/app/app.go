@@ -450,17 +450,14 @@ func (a *App) Startup(ctx context.Context) {
 	encryptSecretIfLegacy(config.KeyDeepseekAPIKey, &a.cfg.DeepseekAPIKey)
 	encryptSecretIfLegacy(config.KeyGLMAPIKey, &a.cfg.GLMAPIKey)
 	encryptSecretIfLegacy(config.KeyOpencodeGoAPIKey, &a.cfg.OpenCodeGoAPIKey)
-	encryptSecretIfLegacy(config.KeyOpencodeZenAPIKey, &a.cfg.OpenCodeZenAPIKey)
 	deepseekKey, _ := secure.DecryptString(a.cfg.DeepseekAPIKey)
 	glmKey, _ := secure.DecryptString(a.cfg.GLMAPIKey)
 	opencodeGoKey, _ := secure.DecryptString(a.cfg.OpenCodeGoAPIKey)
-	opencodeZenKey, _ := secure.DecryptString(a.cfg.OpenCodeZenAPIKey)
 
 	// 初始化模型引擎管理器，尝试恢复已保存的 xAI token
 	a.engineMgr = modelengine.NewManager("", deepseekKey)
 	a.engineMgr.UpdateGLMKey(glmKey)
 	a.engineMgr.UpdateOpencodeKey(opencodeGoKey)
-	a.engineMgr.UpdateOpencodeZenKey(opencodeZenKey)
 	// A 刀自定义引擎：custom_engine_keys 密文解密为明文后注入 Manager（Key 只存
 	// 内存；引擎本体由下方 LoadState 从状态文件恢复，Key 与引擎分离存储）。
 	a.engineMgr.SetCustomEngineKeys(decryptCustomEngineKeys(a.cfg.CustomEngineKeys))
@@ -496,11 +493,6 @@ func (a *App) Startup(ctx context.Context) {
 	a.startManagedEngineIdleReaper(a.ctx)
 	// 确保 xAI 引擎始终提供内置语音模型 grok-tts（TTS API 不返回在 /v1/models 列表）
 	a.engineMgr.EnsureModel("xai", "grok-tts")
-	// 本地 CosyVoice 引擎目录只留 Fun-CosyVoice3-0.5B（2026-10-18 用户拍板删除
-	// CosyVoice2：不再常驻占内存；外部 server.py 以 V3 为正牌，CosyVoice2 仅
-	// 其内部回退，不再进 gaea 模型目录）。RemoveModel 清存量 engines.json。
-	a.engineMgr.EnsureModel("cosyvoice", "Fun-CosyVoice3-0.5B")
-	a.engineMgr.RemoveModel("cosyvoice", "CosyVoice2-0.5B")
 	// Breeze-TTS-2（breeze-server 托管）：单模型目录种子（服务端忽略模型名，
 	// 恒发 breeze-tts-2）。不加开机自启——884cdd10 口径：合成前按需拉起。
 	a.engineMgr.EnsureModel("breeze", "breeze-tts-2")
@@ -607,9 +599,10 @@ func (a *App) Startup(ctx context.Context) {
 	a.startVoiceV2Gateway()
 	stage("voice-v2-gateway")
 
-	// 本地 TTS 服务不再开机自动拉起（2026-10-18 用户拍板删除 CosyVoice2 常驻）：
-	// 平时不占内存；合成链路（tts_handler/voice_handler）与模型中心「启动」按钮
-	// 都有幂等兜底，真用语音时按需拉起。
+	// 本地 TTS 服务不再开机自动拉起（884cdd10 口径；2026-11-04 起 cosyvoice
+	// 引擎亦已退役，breeze 为唯一按需拉起的本地 TTS）：平时不占内存；合成链路
+	// （tts_handler/voice_handler）与模型中心「启动」按钮都有幂等兜底，真用语音
+	// 时按需拉起。
 
 	// 阶段 5 T5-1：通用任务调度器（价格抓取/文件索引等长任务统一异步化）。
 	a.startTaskScheduler()
@@ -637,7 +630,7 @@ func (a *App) Startup(ctx context.Context) {
 		"stages", strings.Join(stages, " "))
 
 	// 后台刷新所有引擎模型列表
-	for _, eid := range []string{"xai", "herdsman", "ollama", "deepseek"} {
+	for _, eid := range []string{"xai", "herdsman", "deepseek"} {
 		go func(id string) {
 			defer func() {
 				if r := recover(); r != nil {
@@ -711,8 +704,6 @@ func (a *App) initImageBackend() {
 		slog.Info("图片后端: ComfyUI", "url", a.cfg.ComfyUIURL)
 	case ai.ImageBackendTypeHerdsman:
 		slog.Info("图片后端: Herdsman", "url", r.BaseURL)
-	case ai.ImageBackendTypeOllama:
-		slog.Info("图片后端: Ollama", "url", r.BaseURL)
 	case ai.ImageBackendTypeGLM:
 		slog.Info("图片后端: GLM", "url", r.BaseURL)
 	default:

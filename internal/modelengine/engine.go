@@ -23,27 +23,23 @@ type EngineType string
 
 const (
 	EngineXAI      EngineType = "xai"
-	EngineOllama   EngineType = "ollama"
 	EngineHerdsman EngineType = "herdsman"
 	EngineDeepseek EngineType = "deepseek"
 	// EngineGLM 智谱 GLM 云端（OpenAI 兼容 /api/paas/v4）
 	EngineGLM EngineType = "glm"
-	// EngineCosyVoice 本地 CosyVoice TTS 服务（OpenAI 兼容 /v1/audio/speech；
-	// 目录只留 Fun-CosyVoice3-0.5B，CosyVoice2 已于 2026-10-18 用户拍板删除）
-	EngineCosyVoice EngineType = "cosyvoice"
 	// EngineBreeze 本地 Breeze-TTS-2 引擎（BreezeBlue 3.47B 中英双语 TTS，
 	// HoppouAI/Breeze-TTS-2.cpp 的 breeze-server 托管；OpenAI 兼容 JSON 路径
 	// /v1/audio/speech，字段口径 instructions/voice/response_format，探活走
 	// /health——无 /v1/models，故 TestConnection/RefreshModels 需专用分支）。
 	// 无预置音色：voice 留空走 voice design（instructions 即音色描述）。
 	// 红线：权重为 BreezeBlue Research and Non-Commercial License，自托管
-	// 输出仅限非商业用途。默认端口 8012（8080 herdsman / 8010 cosyvoice /
-	// 8091 strata / 8094 tianxuan / 8188 comfyui）。
+	// 输出仅限非商业用途。默认端口 8012（8080 herdsman / 8091 strata /
+	// 8124 llama / 8188 comfyui）。
+	// CosyVoice 本地 TTS 引擎与 OpenCode Zen 云端目录已于 2026-11-04 用户
+	// 拍板删除退役（连同 Ollama 引擎），不再保留代码面。
 	EngineBreeze EngineType = "breeze"
 	// EngineOpencodeGo OpenCode Go 云端目录（OpenAI 兼容 /chat/completions）
 	EngineOpencodeGo EngineType = "opencode-go"
-	// EngineOpencodeZen OpenCode Zen 云端目录（OpenAI 兼容 /chat/completions 子集）
-	EngineOpencodeZen EngineType = "opencode-zen"
 	// EngineCustom 自定义引擎（A 刀）：用户自带的 OpenAI 兼容服务商
 	// （自定义 BaseURL + /chat/completions + /models），Key 只存 Manager 内存
 	// customKeys（落盘走 config 层 custom_engine_keys 密文）。IsLocal=false（云端语义，
@@ -72,11 +68,11 @@ const (
 )
 
 // IsLocal 引擎是否本地服务（数据不出本机）——全局离线模式（v4.8）据此
-// 门控路由：offline 开启时只允许本地引擎（ollama/herdsman/cosyvoice/strata/
-// tianxuan），云端（xai/deepseek/opencode-*）一律跳过。
+// 门控路由：offline 开启时只允许本地引擎（herdsman/breeze/strata/llama），
+// 云端（xai/deepseek/opencode-go）一律跳过。
 func (t EngineType) IsLocal() bool {
 	switch t {
-	case EngineOllama, EngineHerdsman, EngineCosyVoice, EngineBreeze, EngineStrata, EngineLlama:
+	case EngineHerdsman, EngineBreeze, EngineStrata, EngineLlama:
 		return true
 	}
 	return false
@@ -96,22 +92,16 @@ func BuiltinEngineTypeOf(id string) EngineType {
 	switch id {
 	case "xai":
 		return EngineXAI
-	case "ollama":
-		return EngineOllama
 	case "herdsman":
 		return EngineHerdsman
 	case "deepseek":
 		return EngineDeepseek
 	case "glm":
 		return EngineGLM
-	case "cosyvoice":
-		return EngineCosyVoice
 	case "breeze":
 		return EngineBreeze
 	case "opencode-go":
 		return EngineOpencodeGo
-	case "opencode-zen":
-		return EngineOpencodeZen
 	case "strata":
 		return EngineStrata
 	case "llama":
@@ -130,7 +120,7 @@ type ModelInfo struct {
 	Kind    string `json:"kind,omitempty"`   // "llm" / "tts" / "stt" / "image"，由后端按引擎/名称分类，前端不再猜测
 	// Name 展示名（可选）：服务商 /models 下发 display_name 或由 ID/别名解析
 	// 出的友好名。请求路由仍一律使用 ID——展示名与请求名解耦，避免把
-	// URL 编码的 ollama-manifest 别名直接当模型名展示给用户。
+	// URL 编码的 manifest 别名直接当模型名展示给用户。
 	Name string `json:"name,omitempty"`
 	// AliasOf coding 端点家族下服务端实际服务的模型（套餐旧名自动切换，
 	// 见 glm_alias.go）；std 家族为空。诚实展示注记，请求模型名不改写。
@@ -158,7 +148,7 @@ type EngineConfig struct {
 	ID           string       `json:"id"`
 	Name         string       `json:"name"`
 	Type         EngineType   `json:"type"`
-	Label        string       `json:"label,omitempty"`    // 展示名（如 "Ollama 本地"），前端优先使用
+	Label        string       `json:"label,omitempty"`    // 展示名（如 "Herdsman 本地"），前端优先使用
 	Color        string       `json:"color,omitempty"`    // 主题色（十六进制），前端优先使用
 	Icon         string       `json:"icon,omitempty"`     // 图标键（cloud/desktop/rocket/key/global），前端映射
 	IsLocal      bool         `json:"is_local,omitempty"` // 本地引擎（免费/本机资源）
@@ -200,7 +190,6 @@ type Manager struct {
 	deepseekKey    string            // DeepSeek API key（用户手动配置）
 	glmKey         string            // 智谱 GLM API key（用户手动配置）
 	opencodeKey    string            // OpenCode Go API key（用户手动配置，订阅后从 console 获取）
-	opencodeZenKey string            // OpenCode Zen API key（按量付费，opencode.ai/auth 获取）
 	customKeys     map[string]string // 自定义引擎 Key（engineID → 明文，仅内存；落盘走 config 层密文）
 	httpClient     *http.Client
 	statsMu        sync.Mutex     // 保护 statsRec 的懒初始化
@@ -220,7 +209,7 @@ type Manager struct {
 func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 	m := &Manager{
 		engines:     make(map[string]*EngineConfig),
-		order:       []string{"xai", "ollama", "herdsman", "deepseek", "glm", "cosyvoice", "breeze", "strata", "llama", "opencode-go", "opencode-zen"},
+		order:       []string{"xai", "herdsman", "deepseek", "glm", "breeze", "strata", "llama", "opencode-go"},
 		xaiKey:      xaiAPIKey,
 		deepseekKey: deepseekKey,
 		customKeys:  make(map[string]string),
@@ -238,18 +227,6 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 		BaseURL:      "https://api.x.ai/v1",
 		Enabled:      true,
 		DefaultModel: "grok-4.20",
-	}
-	m.engines["ollama"] = &EngineConfig{
-		ID:           "ollama",
-		Name:         "Ollama",
-		Type:         EngineOllama,
-		Label:        "Ollama 本地",
-		Color:        "#f59e0b",
-		Icon:         "desktop",
-		IsLocal:      true,
-		BaseURL:      "http://localhost:11434/v1",
-		Enabled:      true,
-		DefaultModel: "",
 	}
 	m.engines["herdsman"] = &EngineConfig{
 		ID:           "herdsman",
@@ -285,18 +262,6 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 		Enabled:      true,
 		DefaultModel: "glm-5.3",
 	}
-	m.engines["cosyvoice"] = &EngineConfig{
-		ID:           "cosyvoice",
-		Name:         "CosyVoice3 (本地)",
-		Type:         EngineCosyVoice,
-		Label:        "CosyVoice3 本地",
-		Color:        "#f472b6",
-		Icon:         "rocket",
-		IsLocal:      true,
-		BaseURL:      "http://127.0.0.1:8010/v1",
-		Enabled:      true,
-		DefaultModel: "Fun-CosyVoice3-0.5B",
-	}
 	m.engines["breeze"] = &EngineConfig{
 		ID:      "breeze",
 		Name:    "Breeze-TTS-2 (本地)",
@@ -322,17 +287,6 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 		Color:        "#22d3ee",
 		Icon:         "global",
 		BaseURL:      "https://opencode.ai/zen/go/v1",
-		Enabled:      true,
-		DefaultModel: "deepseek-v4-pro",
-	}
-	m.engines["opencode-zen"] = &EngineConfig{
-		ID:           "opencode-zen",
-		Name:         "OpenCode Zen (云端)",
-		Type:         EngineOpencodeZen,
-		Label:        "OpenCode Zen 云端",
-		Color:        "#a78bfa",
-		Icon:         "global",
-		BaseURL:      "https://opencode.ai/zen/v1",
 		Enabled:      true,
 		DefaultModel: "deepseek-v4-pro",
 	}

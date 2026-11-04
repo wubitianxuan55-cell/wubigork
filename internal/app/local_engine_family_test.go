@@ -20,12 +20,12 @@ import (
 
 // TestIsLocalEngine_LocalFamily 本地族齐五、云端族五个全假。
 func TestIsLocalEngine_LocalFamily(t *testing.T) {
-	for _, id := range []string{"ollama", "herdsman", "cosyvoice", "strata"} {
+	for _, id := range []string{"herdsman", "breeze", "strata", "llama"} {
 		if !isLocalEngine(id) {
 			t.Errorf("%s 是本地引擎（占本机资源，应计入加载预警）", id)
 		}
 	}
-	for _, id := range []string{"xai", "deepseek", "glm", "opencode-go", "opencode-zen", "custom-abc", ""} {
+	for _, id := range []string{"xai", "deepseek", "glm", "opencode-go", "custom-abc", ""} {
 		if isLocalEngine(id) {
 			t.Errorf("%s 不是本地引擎，不应计入加载预警", id)
 		}

@@ -1,6 +1,6 @@
 package ai
 
-// IN2-14 思考预算守护回归：herdsman/ollama 与 strata 分支共用（tianxuan 已退役）
+// IN2-14 思考预算守护回归：herdsman 与 strata 分支共用（tianxuan 已退役）
 // clampThinkingBudget（原两处逐字复制、magic 4096 各写一遍），预算下限收口为
 // minThinkingBudget，流式默认 max_tokens 与其同源。直接驱动 prepareStreamRequest
 // 逐字段断言（守护逻辑不经过网络）。
@@ -12,11 +12,11 @@ import (
 	"testing"
 )
 
-// TestClampThinkingBudget_HerdsmanOllamaBranch herdsman/ollama 分支：开思考
+// TestClampThinkingBudget_HerdsmanBranch herdsman 分支：开思考
 // 显式小预算抬到 4096，同时置顶层 enable_thinking 与 chat_template_kwargs。
-func TestClampThinkingBudget_HerdsmanOllamaBranch(t *testing.T) {
-	c := &Client{} // engineMgr nil → 走 herdsman/ollama 分支
-	for _, engine := range []string{"herdsman", "ollama"} {
+func TestClampThinkingBudget_HerdsmanBranch(t *testing.T) {
+	c := &Client{} // engineMgr nil → 走 herdsman 分支
+	for _, engine := range []string{"herdsman"} {
 		req := c.prepareStreamRequest("qwen3-8b", nil, ChatSimpleOptions{EngineID: engine, MaxTokens: 1024, EnableThinking: true})
 		if req.MaxTokens != 4096 {
 			t.Errorf("%s 开思考显式小预算应抬到 4096，got %d", engine, req.MaxTokens)
@@ -52,10 +52,10 @@ func TestClampThinkingBudget_GuardDoesNotFire(t *testing.T) {
 		t.Errorf("未开思考不应带 chat_template_kwargs，got %v", req.ChatTemplateKwargs)
 	}
 
-	// 非 herdsman/ollama 引擎不开思考也不抬预算
+	// 非 herdsman 引擎不开思考也不抬预算
 	req = c.prepareStreamRequest("m", nil, ChatSimpleOptions{EngineID: "custom-1", MaxTokens: 1024, EnableThinking: true})
 	if req.MaxTokens != 1024 {
-		t.Errorf("非 herdsman/ollama 引擎不应抬预算，got %d", req.MaxTokens)
+		t.Errorf("非 herdsman 引擎不应抬预算，got %d", req.MaxTokens)
 	}
 }
 
@@ -66,7 +66,7 @@ func TestStreamDefaultMaxTokensIsThinkingBudgetFloor(t *testing.T) {
 		t.Fatalf("minThinkingBudget 应为 4096，got %d", minThinkingBudget)
 	}
 	c := &Client{}
-	for _, engine := range []string{"herdsman", "ollama"} {
+	for _, engine := range []string{"herdsman"} {
 		req := c.prepareStreamRequest("m", nil, ChatSimpleOptions{EngineID: engine})
 		if req.MaxTokens != 4096 {
 			t.Errorf("%s 未配置 max_tokens 默认应为 4096，got %d", engine, req.MaxTokens)

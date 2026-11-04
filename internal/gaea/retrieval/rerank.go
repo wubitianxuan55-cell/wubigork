@@ -154,7 +154,7 @@ type RerankProvider interface {
 	Rerank(ctx context.Context, query string, docs []string, topN int) ([]ScoredDoc, error)
 }
 
-// RerankerKindOpenAI OpenAI 兼容 rerank 后端 kind（覆盖 Herdsman/Ollama
+// RerankerKindOpenAI OpenAI 兼容 rerank 后端 kind（覆盖 Herdsman
 // 等 /v1/rerank 兼容服务）。
 const RerankerKindOpenAI = "openai"
 

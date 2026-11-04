@@ -150,7 +150,7 @@ type ModelMethods = Pick<
   // 路由学习四名（阶段七 7.1-2，ModelB 门面）：账本/建议/采纳/忽略。
   | "GaeaRouteLedger" | "GaeaRouteSuggestions" | "GaeaRouteSuggestionApply" | "GaeaRouteSuggestionIgnore"
 > & LegacyModelMethods & LegacyHerdsmanMethods & LegacyBenchmarkMethods &
-  LegacyOpencodeKeyMethods;
+  LegacyOpencodeKeyMethods & LegacyQwen35EngineMethods;
 
 // HerdsmanCatalogModel 本地视图（对齐 internal/app/herdsman_catalog.go 的 json
 // 字段；mock 层不 import Go 侧，字段漂移由 mock-contract-herdsman 兜底）。
@@ -252,13 +252,22 @@ const HERDSMAN_CATALOG_SAMPLE: HerdsmanCatalogModelMock[] = [
   },
 ];
 
-// OpenCode Go/Zen Key（v4.4x 既有的 legacy 直调族，modelcenter 引擎管理同屏消费；
+// OpenCode Go Key（v4.4x 既有的 legacy 直调族，modelcenter 引擎管理同屏消费；
 // 补 mock 消「引擎管理运行态报错」同族欠账）。语义同上：内存态联动、无持久化。
+// Zen Key 方法族已随 OpenCode Zen 引擎退役删除（2026-11-04 用户拍板）。
 type LegacyOpencodeKeyMethods = {
   SetOpencodeGoKey(apiKey: string): Promise<void>;
   GetOpencodeGoKeyStatus(): Promise<{ configured: boolean; masked: string }>;
-  SetOpencodeZenKey(apiKey: string): Promise<void>;
-  GetOpencodeZenKeyStatus(): Promise<{ configured: boolean; masked: string }>;
+};
+
+// Qwen35 自管 llama 引擎（P3 刀一 legacy 直调族）：mock 恒「未运行」诚实空态。
+type LegacyQwen35EngineMethods = {
+  Qwen35EngineStart(): Promise<{ running: boolean; started: boolean }>;
+  Qwen35EngineStatus(): Promise<{
+    running: boolean; port: number; modelPath: string; modelReady: boolean;
+    binPath: string; binReady: boolean; healthCheck: string;
+  }>;
+  Qwen35EngineStop(): Promise<{ stopped: boolean }>;
 };
 
 // 脱敏口径对齐 internal/app/model_engine_handler.go maskKeyStatus：
@@ -272,17 +281,16 @@ function maskMockKey(key: string): { configured: boolean; masked: string } {
 export function buildModel(s: MakeMockState): ModelMethods {
   // Key 内存态（makeMockApp 每次新建=重置；?mock=1 刷新即回未配置，诚实语义）
   let opencodeGoKey = "";
-  let opencodeZenKey = "";
   return {
     async Models() {
       // 契约对齐 Go GaeaModels（internal/app/gaea_ui_meta.go，v4.126 刀1）：
       // 按引擎展开全部对话模型（本地引擎置前、local/status/label 透传），空清单
       // 引擎回退 "(默认)" 一条。ref = 引擎ID + "/" + 模型，current = 活跃引擎
-      // 且为引擎默认模型。演示两个 ollama 模型（一加载一未加载带展示名），
+      // 且为引擎默认模型。演示两个 llama 模型（一加载一未加载带展示名），
       // 供切换器分组/徽标/预估确认走查。
       return [
-        { ref: "ollama/qwen3:8b", provider: "ollama", model: "qwen3:8b", current: false, local: true, status: "running" },
-        { ref: "ollama/qwen3:14b", provider: "ollama", model: "qwen3:14b", current: false, local: true },
+        { ref: "llama/qwen35", provider: "llama", model: "qwen35", current: false, local: true, status: "running" },
+        { ref: "llama/qwen35-uncensored", provider: "llama", model: "qwen35-uncensored", current: false, local: true },
         { ref: "strata/qwen3.8-flash:tiny", provider: "strata", model: "qwen3.8-flash:tiny", current: false, local: true, status: "stopped", label: "Tinyrick Q6" },
         { ref: "herdsman/(默认)", provider: "herdsman", model: "(默认)", current: false, local: true },
         { ref: "xai/grok-4.20", provider: "xai", model: "grok-4.20", current: false },
@@ -313,19 +321,18 @@ export function buildModel(s: MakeMockState): ModelMethods {
       s.setEngineFailover(enabled);
     },
     async ModelSwitchEstimate(engineID: string, model = ""): Promise<ModelSwitchEstimate> {
-      // 契约对齐 Go GaeaModelSwitchEstimate（internal/app/gaea_schedule.go，
-      // v4.126 刀2）：云端引擎恒 hot；本地引擎按目标模型演示——ollama 未在
-      // 运行列表 → cold（不假报秒数），herdsman → cold 20s（实测口径），
-      // strata 未加载 → cold。
-      if (engineID !== "herdsman" && engineID !== "ollama" && engineID !== "strata") {
+      // 契约对齐 Go GaeaModelSwitchEstimate（internal/app/gaea_schedule.go）：
+      // 云端引擎恒 hot；本地引擎按目标模型演示——llama 未加载档 → cold
+      // （不假报秒数），herdsman → cold 20s（实测口径），strata 未加载 → cold。
+      if (engineID !== "herdsman" && engineID !== "llama" && engineID !== "strata") {
         return { engine: engineID, model, status: "hot", waitSeconds: 1, note: "引擎已就绪" };
       }
-      if (engineID === "ollama" && model.endsWith(":8b")) {
+      if (engineID === "llama" && model === "qwen35") {
         return { engine: engineID, model, status: "hot", waitSeconds: 1, note: "模型已加载，可直接切换" };
       }
       const notes: Record<string, string> = {
         herdsman: "本地模型需冷启动，实测约 15-20 秒（mock）",
-        ollama: "模型已安装未加载，切换后首次对话需等待加载（mock）",
+        llama: "模型未加载，切换后首次对话需等待加载（mock）",
         strata: "模型未加载，切换后首次对话需等待加载（mock）",
       };
       return {
@@ -549,12 +556,24 @@ export function buildModel(s: MakeMockState): ModelMethods {
     async GetOpencodeGoKeyStatus() {
       return maskMockKey(opencodeGoKey);
     },
-    async SetOpencodeZenKey(apiKey: string): Promise<void> {
-      if (!apiKey || !apiKey.trim()) throw new Error("API Key 不能为空");
-      opencodeZenKey = apiKey.trim();
+    // ── Qwen35 自管 llama 引擎（P3 刀一 legacy 直调族）：浏览器 mock 无进程
+    // 可管，恒回「未运行」诚实空态（Start 不假装拉起、Stop 假装停了也无害）。
+    async Qwen35EngineStart() {
+      return { running: false, started: false };
     },
-    async GetOpencodeZenKeyStatus() {
-      return maskMockKey(opencodeZenKey);
+    async Qwen35EngineStatus() {
+      return {
+        running: false,
+        port: 8124,
+        modelPath: "",
+        modelReady: false,
+        binPath: "",
+        binReady: false,
+        healthCheck: "",
+      };
+    },
+    async Qwen35EngineStop() {
+      return { stopped: false };
     },
   };
 }

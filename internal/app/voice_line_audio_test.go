@@ -17,7 +17,7 @@ func stubVoiceLineAudioSeams(t *testing.T, synth func(a *mediaState, text, voice
 	t.Helper()
 	t.Cleanup(func() {
 		ttsVoicePreviewAudioFn = (*mediaState).ttsVoicePreviewAudio
-		breezeStreamProbe = func(a *mediaState) bool { return a.ttsReady("breeze") }
+		breezeStreamProbe = func(a *mediaState) bool { return a.ttsReady() }
 		breezeStreamEnsure = func(a *mediaState) { a.ensureLocalTTSService("breeze") }
 		breezeStreamPollInterval = 200 * time.Millisecond
 	})

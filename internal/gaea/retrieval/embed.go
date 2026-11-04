@@ -152,7 +152,7 @@ type EmbeddingProvider interface {
 	Embed(ctx context.Context, texts []string) ([][]float32, error)
 }
 
-// EmbedderKindOpenAI OpenAI 兼容 embedding 后端 kind（覆盖 Herdsman/Ollama
+// EmbedderKindOpenAI OpenAI 兼容 embedding 后端 kind（覆盖 Herdsman
 // 等 /v1/embeddings 兼容服务）。
 const EmbedderKindOpenAI = "openai"
 

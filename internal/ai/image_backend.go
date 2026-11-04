@@ -15,7 +15,7 @@ type ImageBackend interface {
 // 具体后端实现由各 provider 文件 init() 自注册到注册表。
 const (
 	// ImageBackendKindOpenAI OpenAI 兼容图片后端（/v1/images/generations）：
-	// 覆盖 xAI / Herdsman / Ollama 等兼容服务。
+	// 覆盖 xAI / Herdsman 等兼容服务。
 	ImageBackendKindOpenAI = "openai"
 	// ImageBackendKindComfyUI 本地 ComfyUI 后端（REST API + 工作流）。
 	ImageBackendKindComfyUI = "comfyui"
@@ -34,17 +34,16 @@ const (
 //	xai（含空）| ImageBackendKindOpenAI  | 无实例（client 内置 xAI 管线） | 前端默认出图/页签
 //	comfyui    | ImageBackendKindComfyUI | NewComfyUIBackend             | ComfyUI 预热/进度/中断
 //	herdsman   | ImageBackendKindOpenAI  | NewOpenAIImageBackend         | 模型目录/图生图分支
-//	ollama     | ImageBackendKindOpenAI  | NewOpenAIImageBackend         | 同上（herdsman/ollama 仅靠类型名区分）
 //	glm        | ImageBackendKindGLM     | NewGLMImageBackend            | GLM 模型归位/面板分支
 //
-// 彻底统一两套口径（herdsman/ollama 并入 openai + 显式 engineID 承载）会改
+// ollama 后端类型已随 Ollama 引擎退役删除（2026-11-04 用户拍板）。
+// 彻底统一两套口径（herdsman 并入 openai + 显式 engineID 承载）会改
 // 配置文件字段值、前端分支与绑定返回值，需配置迁移拍板后另立批次；本批只
 // 收敛常量来源与判据单点（IN2-07 最小收窄路线）。
 const (
 	ImageBackendTypeXAI      = "xai"      // 兼容服务原生管线（含空值回退）
 	ImageBackendTypeComfyUI  = "comfyui"  // = ImageBackendKindComfyUI
 	ImageBackendTypeHerdsman = "herdsman" // OpenAI 兼容引擎，kind 归 ImageBackendKindOpenAI
-	ImageBackendTypeOllama   = "ollama"   // OpenAI 兼容引擎，kind 归 ImageBackendKindOpenAI
 	ImageBackendTypeGLM      = "glm"      // = ImageBackendKindGLM
 )
 

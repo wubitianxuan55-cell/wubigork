@@ -29,7 +29,7 @@ import type { EngineConfig } from '../../api/engines'
 
 const engines: EngineConfig[] = [
   {
-    id: 'herdsman', name: 'Herdsman', type: 'herdsman', base_url: '', enabled: true, default_model: '',
+    id: 'llama', name: 'Llama', type: 'llama', base_url: '', enabled: true, default_model: '',
     models: [
       { id: 'qwen3-8b', owned_by: 'local', status: 'running', kind: 'llm' },
       { id: 'flux-dev', owned_by: 'local', status: 'running', kind: 'image' },
@@ -37,7 +37,7 @@ const engines: EngineConfig[] = [
     ],
   },
   {
-    id: 'ollama', name: 'Ollama', type: 'ollama', base_url: '', enabled: false, default_model: '',
+    id: 'herdsman', name: 'Herdsman', type: 'herdsman', base_url: '', enabled: false, default_model: '',
     models: [],
   },
 ]
@@ -58,21 +58,21 @@ describe('模型中心 utils', () => {
   })
 
   it('引擎后端只列出该引擎的图片模型', () => {
-    const opts = imageModelOptionsFor('herdsman', engines)
+    const opts = imageModelOptionsFor('llama', engines)
     expect(opts.map(o => o.value)).toEqual(['flux-dev'])
   })
 
   it('引擎无图片模型时回退保留当前模型，避免表单悬空', () => {
-    const opts = imageModelOptionsFor('ollama', engines, 'qwen-image')
+    const opts = imageModelOptionsFor('herdsman', engines, 'qwen-image')
     expect(opts).toEqual([{ value: 'qwen-image', label: 'qwen-image' }])
-    expect(imageModelOptionsFor('ollama', engines)).toEqual([])
+    expect(imageModelOptionsFor('herdsman', engines)).toEqual([])
   })
 
   it('切换后端返回合理默认模型', () => {
     expect(imageModelDefaultFor('xai', engines)).toBe('grok-imagine-image-quality')
     expect(imageModelDefaultFor('comfyui', engines)).toBe('krea2')
-    expect(imageModelDefaultFor('herdsman', engines)).toBe('flux-dev')
-    expect(imageModelDefaultFor('ollama', engines)).toBe('')
+    expect(imageModelDefaultFor('llama', engines)).toBe('flux-dev')
+    expect(imageModelDefaultFor('herdsman', engines)).toBe('')
   })
 
   it('isImageModel 优先使用后端 kind，缺失时回退名称启发式', () => {
@@ -194,7 +194,7 @@ describe('模型中心 modelOptionsForEngine', () => {
 describe('模型中心 filterEnginesByEnabled', () => {
   const engines: EngineConfig[] = [
     { id: 'xai', name: 'xAI', type: 'xai', base_url: '', enabled: true, default_model: '', models: [] },
-    { id: 'ollama', name: 'Ollama', type: 'ollama', base_url: '', enabled: false, default_model: '', models: [] },
+    { id: 'herdsman', name: 'Herdsman', type: 'herdsman', base_url: '', enabled: false, default_model: '', models: [] },
   ]
 
   it('onlyEnabled=true 只保留已启用引擎', () => {
@@ -202,7 +202,7 @@ describe('模型中心 filterEnginesByEnabled', () => {
   })
 
   it('onlyEnabled=false 保留全部引擎', () => {
-    expect(filterEnginesByEnabled(engines, false).map(e => e.id)).toEqual(['xai', 'ollama'])
+    expect(filterEnginesByEnabled(engines, false).map(e => e.id)).toEqual(['xai', 'herdsman'])
   })
 })
 

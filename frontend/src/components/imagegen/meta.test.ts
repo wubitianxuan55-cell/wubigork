@@ -29,7 +29,7 @@ describe('历史元数据有界化（v4.351）', () => {
 describe('引擎枚举（单源化）', () => {
   it('枚举覆盖 5 个后端，GLM 标 txt2imgOnly（百炼已下线）', () => {
     const values = BACKEND_OPTIONS.map((o) => o.value)
-    expect(values).toEqual(['xai', 'comfyui', 'herdsman', 'ollama', 'glm'])
+    expect(values).toEqual(['xai', 'comfyui', 'herdsman', 'glm'])
     const glm = BACKEND_OPTIONS.find((o) => o.value === 'glm')
     expect(glm?.txt2imgOnly).toBe(true)
     // 百炼（dashscope）v4.45 下线后不再出现在引擎枚举
@@ -46,7 +46,7 @@ describe('引擎枚举（单源化）', () => {
   it('isLocalBackend：本地引擎判定与绘梦启停一致', () => {
     expect(isLocalBackend('comfyui')).toBe(true)
     expect(isLocalBackend('herdsman')).toBe(true)
-    expect(isLocalBackend('ollama')).toBe(true)
+    expect(isLocalBackend('breeze')).toBe(false) // breeze 仅 TTS，不在生图后端本地族
     expect(isLocalBackend('xai')).toBe(false)
     expect(isLocalBackend('glm')).toBe(false)
   })

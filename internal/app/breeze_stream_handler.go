@@ -69,7 +69,7 @@ type breezeSSEEvent struct {
 // 用例双桩隔离，生产语义不变。
 var (
 	breezeStreamEnsure       = func(a *mediaState) { a.ensureLocalTTSService("breeze") }
-	breezeStreamProbe        = func(a *mediaState) bool { return a.ttsReady("breeze") }
+	breezeStreamProbe        = func(a *mediaState) bool { return a.ttsReady() }
 	breezeStreamPollInterval = 200 * time.Millisecond
 	breezeStreamPollAttempts = 60
 )

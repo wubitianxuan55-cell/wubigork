@@ -131,7 +131,7 @@ const imageSafePromptSuffix = "。内容安全要求：画面须健康积极、�
 
 // applyImageSafeMode 在安全模式开启时为生图提示词追加安全段（提交前注入）。
 // 未启用或提示词为空时原样返回。后端 NSFW 开关位：ai 图片后端（xAI/
-// Herdsman/Ollama/ComfyUI）的 ImageGenerationRequest 无 NSFW 透传字段
+// Herdsman/ComfyUI）的 ImageGenerationRequest 无 NSFW 透传字段
 // （按后端能力缺省关），无法透传时仅注入本提示词安全段。
 func applyImageSafeMode(prompt string, safe bool) string {
 	if !safe || strings.TrimSpace(prompt) == "" {

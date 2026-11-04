@@ -81,8 +81,6 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 		req.Header.Set("Authorization", "Bearer "+m.glmKey)
 	} else if engine.Type == EngineOpencodeGo && m.opencodeKey != "" {
 		req.Header.Set("Authorization", "Bearer "+m.opencodeKey)
-	} else if engine.Type == EngineOpencodeZen && m.opencodeZenKey != "" {
-		req.Header.Set("Authorization", "Bearer "+m.opencodeZenKey)
 	} else if engine.Type == EngineCustom {
 		// 自定义引擎：Key 在内存 customKeys（KeyStore 同源），空 Key 不带
 		// Authorization 头（兼容无鉴权的本地 OpenAI 兼容服务）。
@@ -107,8 +105,6 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 				return nil, fmt.Errorf("HTTP 401: GLM API Key 无效或未配置，请在模型中心配置（open.bigmodel.cn 获取）")
 			} else if engine.Type == EngineOpencodeGo {
 				return nil, fmt.Errorf("HTTP 401: OpenCode Go API Key 无效或未配置，请先在模型中心配置（opencode.ai 订阅获取）")
-			} else if engine.Type == EngineOpencodeZen {
-				return nil, fmt.Errorf("HTTP 401: OpenCode Zen API Key 无效或未配置，请先在模型中心配置（opencode.ai/auth 获取）")
 			} else if engine.Type == EngineCustom {
 				return nil, fmt.Errorf("HTTP 401: 自定义引擎 API Key 无效或未配置，请在模型中心自定义引擎卡片修正")
 			}
@@ -123,13 +119,10 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 
 	models := make([]ModelInfo, len(result.Data))
 	for i, d := range result.Data {
-		// OpenCode 目录端点分布与 Go 不同（如 grok 在 Zen 走 /responses、
-		// minimax 在 Zen 走 chat/completions），按引擎分别过滤，
-		// 只保留当前聊天客户端支持的 OpenAI 兼容 /chat/completions 模型。
+		// OpenCode 目录端点分布与通用 /chat/completions 不同（如 grok 走
+		// /responses），过滤只保留当前聊天客户端支持的 OpenAI 兼容
+		// /chat/completions 模型。
 		if engine.Type == EngineOpencodeGo && !opencodeGoCompatible(d.ID) {
-			continue
-		}
-		if engine.Type == EngineOpencodeZen && !opencodeZenCompatible(d.ID) {
 			continue
 		}
 		models[i] = ModelInfo{
@@ -141,7 +134,7 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 	}
 
 	// 过滤后可能有空洞（continue 跳过），压缩数组
-	if engine.Type == EngineOpencodeGo || engine.Type == EngineOpencodeZen {
+	if engine.Type == EngineOpencodeGo {
 		filtered := make([]ModelInfo, 0, len(models))
 		for _, m := range models {
 			if m.ID != "" {
@@ -236,7 +229,7 @@ func (m *Manager) StrataModelLoaded(ctx context.Context, modelID string) (bool, 
 // 直接落通用关键词表、默认 llm——刻意不加类型分支（避免死代码），由测试锚定该行为。
 func ClassifyModelKind(engineType EngineType, modelID string) string {
 	l := strings.ToLower(modelID)
-	if engineType == EngineCosyVoice || engineType == EngineBreeze ||
+	if engineType == EngineBreeze ||
 		strings.Contains(l, "tts") || strings.Contains(l, "voice") ||
 		strings.Contains(l, "edge") || strings.Contains(l, "speech") ||
 		strings.Contains(l, "voxcpm") {
@@ -350,20 +343,6 @@ func opencodeGoCompatible(modelID string) bool {
 	id := strings.ToLower(modelID)
 	if strings.HasPrefix(id, "qwen3") || strings.HasPrefix(id, "minimax") || id == "gpt-5.6-luna" {
 		return false
-	}
-	return true
-}
-
-// opencodeZenCompatible 判断 OpenCode Zen 模型是否走 OpenAI /chat/completions 端点。
-// 参考 https://dev.opencode.ai/docs/zen 端点分类表：
-//   - gpt-* / grok-* → /responses；claude-* / qwen3* → /messages；gemini-* → 专用端点
-//   - deepseek-* / minimax-* / glm-* / kimi-* / mimo-* / 免费模型等 → /chat/completions
-func opencodeZenCompatible(modelID string) bool {
-	id := strings.ToLower(modelID)
-	for _, prefix := range []string{"gpt-", "claude-", "gemini-", "qwen3", "grok-"} {
-		if strings.HasPrefix(id, prefix) {
-			return false
-		}
 	}
 	return true
 }

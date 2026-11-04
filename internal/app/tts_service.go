@@ -17,8 +17,8 @@ import (
 )
 
 // 本地 TTS 服务（模型中心“启动”按钮 / gaea 启动保活 / 合成前兜底共用）。
-// T6-9.5：CosyVoice 路径/端口可配置（config.CosyVoiceDir / CosyVoicePort），
-// 未配置时回退历史硬编码默认值（C:\AI\cosyvoice / 8010），行为与旧版本完全一致。
+// cosyvoice 引擎已于 2026-11-04 用户拍板退役（连同其路径/端口配置），breeze
+// 为唯一按需拉起的本地 TTS 资产引擎。
 
 // ttsStartMaxRetries 启动失败后的最大重试次数（指数退避 1s/2s/4s）。
 var ttsStartMaxRetries = 3
@@ -27,9 +27,9 @@ var ttsStartMaxRetries = 3
 var ttsStartBackoff = []time.Duration{time.Second, 2 * time.Second, 4 * time.Second}
 
 // isLocalTTSAssetEngine 需要按需拉起本地服务进程的 TTS 引擎（合成前惰性
-// ensure，已就绪零开销）：cosyvoice（python server.py）与 breeze（breeze-server.exe）。
+// ensure，已就绪零开销）：breeze（breeze-server.exe）。cosyvoice 已退役。
 func isLocalTTSAssetEngine(engineID string) bool {
-	return engineID == "cosyvoice" || engineID == "breeze"
+	return engineID == "breeze"
 }
 
 // waitLocalTTSReady 合成就绪有界等待：ensure 异步拉起后轮询探活至就绪
@@ -37,36 +37,19 @@ func isLocalTTSAssetEngine(engineID string) bool {
 // connection refused，整段朗读滑落 edge（实弹日志：dial tcp refused）。
 // 朗读按钮同步等待冷启动属可接受 UX（对比：滑落 edge = 错误音色）。
 func (c *core) waitLocalTTSReady(engineID string) {
-	if c.ttsReady(engineID) {
+	if c.ttsReady() {
 		return
 	}
 	c.ensureLocalTTSService(engineID)
-	for i := 0; i < 30 && !c.ttsReady(engineID); i++ {
+	for i := 0; i < 30 && !c.ttsReady(); i++ {
 		time.Sleep(400 * time.Millisecond)
 	}
-}
-
-// ttsCmdFactory 构造 CosyVoice 启动命令；抽为变量便于测试注入（断言参数/模拟启动失败）。
-var ttsCmdFactory = func(cfg *config.Config) *exec.Cmd {
-	return ttsCosyVoiceCmdFor(cfg)
 }
 
 // breezeCmdFactory 构造 breeze-server 启动命令；抽为变量便于测试注入。
 // 启动失败（未安装/无模型）返回错误，由 startTTSServiceWithRetry 统一退避重试。
 var breezeCmdFactory = func(cfg *config.Config) (*exec.Cmd, error) {
 	return breezeCmdFor(cfg)
-}
-
-// ttsCosyVoiceCmdFor 由配置推导 CosyVoice 启动命令：python 与 server.py 均位于
-// 配置目录下（venv\Scripts\python.exe / server.py），默认目录 C:\AI\cosyvoice。
-func ttsCosyVoiceCmdFor(cfg *config.Config) *exec.Cmd {
-	dir := config.DefaultCosyVoiceDir
-	if cfg != nil && cfg.CosyVoiceDir != "" {
-		dir = cfg.CosyVoiceDir
-	}
-	cmd := exec.Command(filepath.Join(dir, "venv", "Scripts", "python.exe"), filepath.Join(dir, "server.py"))
-	cmd.Dir = dir
-	return cmd
 }
 
 // breezeCmdFor 由配置推导 breeze-server 启动命令（Breeze-TTS-2，breezeCmdFactory 的实体）。
@@ -134,16 +117,6 @@ var (
 	ttsEnsuring = map[string]bool{}
 )
 
-// ttsURL 由配置推导 CosyVoice 探活 URL（http://127.0.0.1:<port>/v1/models），
-// 默认端口 8010，与历史硬编码一致（T6-9.5）。
-func (c *core) ttsURL() string {
-	port := config.DefaultCosyVoicePort
-	if c.cfg != nil && c.cfg.CosyVoicePort > 0 {
-		port = c.cfg.CosyVoicePort
-	}
-	return fmt.Sprintf("http://127.0.0.1:%d/v1/models", port)
-}
-
 // breezeURL breeze-server 探活 URL（/health，模型加载完成才监听——200 即热）。
 func (c *core) breezeURL() string {
 	port := config.DefaultBreezePort
@@ -153,13 +126,10 @@ func (c *core) breezeURL() string {
 	return fmt.Sprintf("http://127.0.0.1:%d/health", port)
 }
 
-func (c *core) ttsReady(engineID string) bool {
-	probeURL := c.ttsURL()
-	if engineID == "breeze" {
-		probeURL = c.breezeURL()
-	}
+// ttsReady 本地 TTS 探活（breeze-server /health，模型加载完成才监听——200 即热）。
+func (c *core) ttsReady() bool {
 	client := &http.Client{Timeout: 2 * time.Second}
-	resp, err := client.Get(probeURL)
+	resp, err := client.Get(c.breezeURL())
 	if err != nil {
 		return false
 	}
@@ -171,8 +141,6 @@ func (c *core) ttsReady(engineID string) bool {
 func (c *core) startTTSService(engineID string) error {
 	var cmd *exec.Cmd
 	switch engineID {
-	case "cosyvoice":
-		cmd = ttsCmdFactory(c.cfg)
 	case "breeze":
 		breezeCmd, err := breezeCmdFactory(c.cfg)
 		if err != nil {
@@ -220,7 +188,7 @@ func (c *core) ensureLocalTTSService(engineID string) map[string]interface{} {
 	if !isLocalTTSAssetEngine(engineID) {
 		return map[string]interface{}{"engine": engineID, "ready": false, "starting": false, "error": "unsupported engine"}
 	}
-	if c.ttsReady(engineID) {
+	if c.ttsReady() {
 		return map[string]interface{}{"engine": engineID, "ready": true, "starting": false}
 	}
 
@@ -250,7 +218,7 @@ func (c *core) ensureLocalTTSService(engineID string) map[string]interface{} {
 		timeout := 90 * time.Second
 		deadline := time.Now().Add(timeout)
 		for time.Now().Before(deadline) {
-			if c.ttsReady(engineID) {
+			if c.ttsReady() {
 				c.emit("tts-service-status", map[string]interface{}{"engine": engineID, "ready": true})
 				slog.Info("本地 TTS 服务已就绪", "engine", engineID)
 				return

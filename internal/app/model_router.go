@@ -14,12 +14,12 @@ import (
 // 降级链：功能绑定 → 全局活跃 → 首个可用引擎。
 // source: feature | global | fallback（供前端与诊断展示）。
 // 全局离线模式（v4.8，offline_mode）开启时只允许本地引擎
-// （EngineType.IsLocal：ollama/herdsman/cosyvoice/strata/tianxuan）——云端引擎在各步一律
+// （EngineType.IsLocal：herdsman/breeze/strata/llama）——云端引擎在各步一律
 // 跳过；无本地可用则返回空（调用方按「模型不可用」既有降级路径处理）。
-// TTS-only 引擎（cosyvoice/breeze）对 routeModel 的全部 feature 无能力（语音
+// TTS-only 引擎（breeze）对 routeModel 的全部 feature 无能力（语音
 // 消费走 TTS 专用链，不经此处），三步一律跳过——breeze 接入时实测暴露：
-// 离线 fallback「首个启用引擎」曾把 chat 误路由到语音引擎（cosyvoice 靠注册序
-// 排在 herdsman 之后侥幸未触发）。
+// 离线 fallback「首个启用引擎」曾把 chat 误路由到语音引擎（当时 cosyvoice
+// 靠注册序排在 herdsman 之后侥幸未触发；cosyvoice 引擎已于 2026-11-04 退役）。
 func (c *core) routeModel(feature string) (engine, model, source string) {
 	offline := c.cfg != nil && c.cfg.GetOfflineMode()
 	// 1. 功能绑定（功能启用 + 引擎必须存在且启用；FeatureModelBar 停用后回退全局）
@@ -63,7 +63,7 @@ func (c *core) routeModel(feature string) (engine, model, source string) {
 
 // isTTSOnlyEngine TTS-only 引擎（只能合成语音，不能当 LLM/视觉等路由目标）。
 func isTTSOnlyEngine(t modelengine.EngineType) bool {
-	return t == modelengine.EngineCosyVoice || t == modelengine.EngineBreeze
+	return t == modelengine.EngineBreeze
 }
 
 // emitModelRoute 发布路由决策（ctx 未启动时跳过，测试安全）。

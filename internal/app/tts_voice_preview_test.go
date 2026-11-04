@@ -17,7 +17,7 @@ func stubBreezeStreamReady(t *testing.T) {
 	t.Helper()
 	t.Cleanup(func() {
 		breezeStreamEnsure = func(a *mediaState) { a.ensureLocalTTSService("breeze") }
-		breezeStreamProbe = func(a *mediaState) bool { return a.ttsReady("breeze") }
+		breezeStreamProbe = func(a *mediaState) bool { return a.ttsReady() }
 	})
 	breezeStreamEnsure = func(*mediaState) {}
 	breezeStreamProbe = func(*mediaState) bool { return true }

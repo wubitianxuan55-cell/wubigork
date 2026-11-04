@@ -116,7 +116,7 @@ const ModelCenterPage: React.FC = () => {
     const reloadVoice = () => { loadVoiceCfgSync() }
     const unsub1 = runtimeOn('model-changed', reload)
     const unsub2 = runtimeOn('voice-model-changed', reloadVoice)
-    // 本地 TTS 服务就绪/失败后同步刷新（CosyVoice2 异步启动约 1–2 分钟）
+    // 本地 TTS 服务就绪/失败后同步刷新（breeze 冷启动含模型加载，约 6–10 秒）
     const unsub3 = runtimeOn('tts-service-status', reload)
     return () => {
       try { unsub1?.() } catch (_) {}
@@ -167,7 +167,6 @@ const ModelCenterPage: React.FC = () => {
     deepseekKey: engine.deepseekKey, deepseekKeyMasked: engine.deepseekKeyMasked,
     glmKey: engine.glmKey, glmKeyMasked: engine.glmKeyMasked,
     opencodeGoKey: engine.opencodeGoKey, opencodeGoKeyMasked: engine.opencodeGoKeyMasked,
-    opencodeZenKey: engine.opencodeZenKey, opencodeZenKeyMasked: engine.opencodeZenKeyMasked,
     settingGlmEndpoint: engine.settingGlmEndpoint,
     callStats: stats.callStats, statsSort: stats.statsSort,
     loadError: stats.loadError,
@@ -198,7 +197,6 @@ const ModelCenterPage: React.FC = () => {
     setDeepseekKeyState: engine.setDeepseekKeyState,
     setGlmKeyState: engine.setGlmKeyState,
     setOpencodeGoKeyState: engine.setOpencodeGoKeyState,
-    setOpencodeZenKeyState: engine.setOpencodeZenKeyState,
     setStatsSort: stats.setStatsSort,
     setTrendRange: stats.setTrendRange,
     setImageBackend: image.setImageBackend,
@@ -220,7 +218,6 @@ const ModelCenterPage: React.FC = () => {
     handleSaveDeepseekKey: engine.handleSaveDeepseekKey,
     handleSaveGlmKey: engine.handleSaveGlmKey,
     handleSaveOpencodeGoKey: engine.handleSaveOpencodeGoKey,
-    handleSaveOpencodeZenKey: engine.handleSaveOpencodeZenKey,
     handleAddCustomEngine: engine.handleAddCustomEngine,
     handleUpdateCustomEngine: engine.handleUpdateCustomEngine,
     handleRemoveCustomEngine: engine.handleRemoveCustomEngine,

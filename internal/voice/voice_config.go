@@ -83,7 +83,7 @@ type VoiceRuntimeConfig struct {
 	// S1 已接：三项经 internal/config 落盘（realtime_provider / realtime_model /
 	// realtime_api_key），APIKey 落盘口径为 secure.EncryptString 密文，app 层
 	// initVoice 启动时经 secure.DecryptString 解出明文注入（先例见
-	// model_engine_handler.go SetOpencodeZenKey）；保存路径由 app 层绑定刀负责。
+	// model_engine_handler.go SetOpencodeGoKey）；保存路径由 app 层绑定刀负责。
 
 	// Realtime 供应商 kind（"openai"；空 = 未启用实时语音档）
 	RealtimeProvider string `json:"realtimeProvider,omitempty"`

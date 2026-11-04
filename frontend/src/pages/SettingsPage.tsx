@@ -94,7 +94,7 @@ const CATEGORIES: Category[] = [
     labelKey: 'settings.cat.model',
     desc: '全局模型',
     descKey: 'settings.cat.modelDesc',
-    keywords: ['模型', '推理', '强度', '引擎', 'grok', 'deepseek', 'ollama', 'herdsman', 'xai', 'api', 'key'],
+    keywords: ['模型', '推理', '强度', '引擎', 'grok', 'deepseek', 'herdsman', 'xai', 'api', 'key'],
     panel: <ModelPanel />,
   },
   {

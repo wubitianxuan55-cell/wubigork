@@ -36,9 +36,9 @@ func TestGaeaModelsExpandsModels(t *testing.T) {
 		}
 	}
 	setEngines := func() {
-		// ollama（本地）：llm+tts+embedding，默认 q3 —— tts/embedding 不进切换器。
+		// herdsman（本地）：llm+tts+embedding，默认 q3 —— tts/embedding 不进切换器。
 		if err := mgr.SaveEngine(modelengine.EngineConfig{
-			ID: "ollama", Enabled: true, DefaultModel: "q3",
+			ID: "herdsman", Enabled: true, DefaultModel: "q3",
 			Models: []modelengine.ModelInfo{
 				{ID: "q3", Kind: "llm"},
 				{ID: "q3-turbo", Kind: "image"}, // turbo 关键词判生图，不进聊天切换器
@@ -46,7 +46,7 @@ func TestGaeaModelsExpandsModels(t *testing.T) {
 				{ID: "bge-m3", Kind: "embedding"},
 			},
 		}); err != nil {
-			t.Fatalf("SaveEngine ollama: %v", err)
+			t.Fatalf("SaveEngine herdsman: %v", err)
 		}
 		// strata（本地）：模型带加载态与展示名。
 		if err := mgr.SaveEngine(modelengine.EngineConfig{
@@ -75,13 +75,13 @@ func TestGaeaModelsExpandsModels(t *testing.T) {
 	a.client.SetActiveEngine("strata")
 	got := a.GaeaModels()
 
-	// 期望序列：本地引擎（ollama→strata 注册序）在前、云端在后。
+	// 期望序列：本地引擎（herdsman→strata 注册序）在前、云端在后。
 	type want struct {
 		ref     string
 		current bool
 	}
 	wants := []want{
-		{"ollama/q3", false},
+		{"herdsman/q3", false},
 		{"strata/q3.8-flash-iq2xs", true}, // 活跃引擎默认模型
 		{"strata/q3.8-base-iq2xs", false},
 		{"xai/grok-4.20", false},
@@ -100,7 +100,7 @@ func TestGaeaModelsExpandsModels(t *testing.T) {
 	}
 	// 本地/加载态/展示名透传。
 	if !got[0].Local {
-		t.Error("ollama 条目应标记 Local")
+		t.Error("herdsman 条目应标记 Local")
 	}
 	if got[1].Status != "running" || got[1].Label != "Flash IQ2" {
 		t.Errorf("strata 条目 status/label = %q/%q, want running/Flash IQ2", got[1].Status, got[1].Label)
@@ -116,21 +116,21 @@ func TestGaeaSetModelEngineModel(t *testing.T) {
 	a := modelsTestApp(t)
 	mgr := a.engineMgr
 	if err := mgr.SaveEngine(modelengine.EngineConfig{
-		ID: "ollama", Enabled: true, DefaultModel: "q3",
+		ID: "herdsman", Enabled: true, DefaultModel: "q3",
 		Models: []modelengine.ModelInfo{{ID: "q3", Kind: "llm"}, {ID: "q7", Kind: "llm"}},
 	}); err != nil {
 		t.Fatalf("SaveEngine: %v", err)
 	}
 
 	// 精确切换：默认模型与活跃引擎同时生效。
-	if err := a.GaeaSetModel("ollama/q7"); err != nil {
+	if err := a.GaeaSetModel("herdsman/q7"); err != nil {
 		t.Fatalf("GaeaSetModel: %v", err)
 	}
-	if m, _ := mgr.GetDefaultModel("ollama"); m != "q7" {
+	if m, _ := mgr.GetDefaultModel("herdsman"); m != "q7" {
 		t.Errorf("默认模型 = %q, want q7", m)
 	}
-	if eng := a.GetActiveEngine(); eng != "ollama" {
-		t.Errorf("活跃引擎 = %q, want ollama", eng)
+	if eng := a.GetActiveEngine(); eng != "herdsman" {
+		t.Errorf("活跃引擎 = %q, want herdsman", eng)
 	}
 
 	// "(默认)" 占位：只切引擎，不动默认模型。
@@ -140,15 +140,15 @@ func TestGaeaSetModelEngineModel(t *testing.T) {
 	if err := a.GaeaSetModel("deepseek/(默认)"); err != nil {
 		t.Fatalf("GaeaSetModel (默认): %v", err)
 	}
-	if m, _ := mgr.GetDefaultModel("ollama"); m != "q7" {
-		t.Errorf("(默认) 不应改 ollama 默认模型，got %q", m)
+	if m, _ := mgr.GetDefaultModel("herdsman"); m != "q7" {
+		t.Errorf("(默认) 不应改 herdsman 默认模型，got %q", m)
 	}
 	if eng := a.GetActiveEngine(); eng != "deepseek" {
 		t.Errorf("活跃引擎 = %q, want deepseek", eng)
 	}
 
 	// 模型不在清单：报错且引擎不切换（fail-closed，防悄悄回落默认）。
-	if err := a.GaeaSetModel("ollama/ghost"); err == nil {
+	if err := a.GaeaSetModel("herdsman/ghost"); err == nil {
 		t.Error("清单外模型应报错")
 	}
 	if eng := a.GetActiveEngine(); eng != "deepseek" {

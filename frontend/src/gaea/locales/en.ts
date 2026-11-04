@@ -863,7 +863,7 @@ export const en = {
   "settings.security.officeDesc": "Feature-level AI calls in the office board (Word/Excel editing, document summaries, knowledge import, memory organization) route to local Herdsman by default: data never leaves this machine and no tokens are burned; turn off to route back to the cloud as usual.",
   "settings.security.officeScope": "The chat main agent (orchestration/planning) is unaffected by this switch and still follows Model Center bindings. Falls back to normal routing automatically when the Herdsman engine is disabled or unavailable.",
   "settings.security.offlineTitle": "Global offline mode",
-  "settings.security.offlineDesc": "The master switch for keeping data on this machine: when on, all AI routes only allow local engines (Herdsman/Ollama/CosyVoice) and cloud engines (Grok/DeepSeek/OpenCode) are always skipped; when nothing local is available it degrades honestly as “model unavailable”.",
+  "settings.security.offlineDesc": "The master switch for keeping data on this machine: when on, all AI routes only allow local engines (Herdsman/Strata/Llama) and cloud engines (Grok/DeepSeek/OpenCode Go) are always skipped; when nothing local is available it degrades honestly as “model unavailable”.",
   "settings.security.offlineOn": "Local only (offline)",
   "settings.security.offlineOff": "Off (default)",
   "settings.security.offlineNote": "Stacks with “sensitive-domain/office local-first”: those two switches constrain only their own feature domains, this one constrains every AI call (including intent-LLM fallback).",

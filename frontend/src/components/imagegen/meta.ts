@@ -18,14 +18,13 @@ export const BACKEND_OPTIONS: BackendOptionMeta[] = [
   { value: 'xai', label: 'xAI' },
   { value: 'comfyui', label: 'ComfyUI' },
   { value: 'herdsman', label: 'Herdsman' },
-  { value: 'ollama', label: 'Ollama' },
   // GLM 官方图像端点仅文生图（/images/generations 无图生图参数）
   { value: 'glm', label: 'GLM', txt2imgOnly: true },
 ]
 
 /** 后端是否本地引擎（顶条/启停块据此区分云端/本地） */
 export function isLocalBackend(backend: string): boolean {
-  return ['comfyui', 'herdsman', 'ollama'].includes(backend)
+  return ['comfyui', 'herdsman'].includes(backend)
 }
 
 /** 后端显示名（顶条/启动消息用）；未知后端回退原始 id */

@@ -74,10 +74,3 @@ func (m *Manager) UpdateOpencodeKey(key string) {
 	defer m.mu.Unlock()
 	m.opencodeKey = key
 }
-
-// UpdateOpencodeZenKey 更新 OpenCode Zen API key
-func (m *Manager) UpdateOpencodeZenKey(key string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.opencodeZenKey = key
-}

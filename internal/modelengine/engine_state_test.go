@@ -15,7 +15,7 @@ import (
 
 func TestGetEngines_StableOrder(t *testing.T) {
 	m := NewManager("", "")
-	want := []string{"xai", "ollama", "herdsman", "deepseek", "glm", "cosyvoice", "breeze", "strata", "llama", "opencode-go", "opencode-zen"}
+	want := []string{"xai", "herdsman", "deepseek", "glm", "breeze", "strata", "llama", "opencode-go"}
 	for i := 0; i < 5; i++ {
 		got := m.GetEngines()
 		if len(got) != len(want) {
@@ -48,16 +48,16 @@ func TestStatePersistence_RoundTrip(t *testing.T) {
 		t.Fatalf("LoadState(空文件) = %v, want nil", err)
 	}
 
-	// 变更：停用 ollama、改 BaseURL、设默认模型、带模型列表
+	// 变更：停用 herdsman、改 BaseURL、设默认模型、带模型列表
 	if err := m.SaveEngine(EngineConfig{
-		ID:      "ollama",
+		ID:      "herdsman",
 		BaseURL: "http://192.168.1.10:11434/v1",
 		Enabled: false,
 		Models:  []ModelInfo{{ID: "qwen3", Status: "running"}, {ID: "llama3"}},
 	}); err != nil {
 		t.Fatalf("SaveEngine: %v", err)
 	}
-	if err := m.SetDefaultModel("ollama", "qwen3"); err != nil {
+	if err := m.SetDefaultModel("herdsman", "qwen3"); err != nil {
 		t.Fatalf("SetDefaultModel: %v", err)
 	}
 
@@ -66,9 +66,9 @@ func TestStatePersistence_RoundTrip(t *testing.T) {
 	if err := m2.LoadState(statePath); err != nil {
 		t.Fatalf("m2.LoadState = %v, want nil", err)
 	}
-	e, ok := m2.GetEngine("ollama")
+	e, ok := m2.GetEngine("herdsman")
 	if !ok {
-		t.Fatal("恢复后 ollama 引擎缺失")
+		t.Fatal("恢复后 herdsman 引擎缺失")
 	}
 	if e.Enabled {
 		t.Error("恢复后 Enabled 应为 false（已停用）")
@@ -89,7 +89,7 @@ func TestStatePersistence_ExcludesKeys(t *testing.T) {
 	statePath := filepath.Join(t.TempDir(), "engines.json")
 	m := NewManager("", "")
 	_ = m.LoadState(statePath)
-	_ = m.SaveEngine(EngineConfig{ID: "ollama", Enabled: false})
+	_ = m.SaveEngine(EngineConfig{ID: "herdsman", Enabled: false})
 
 	data, err := os.ReadFile(statePath)
 	if err != nil {
@@ -110,8 +110,8 @@ func TestLoadState_MissingFile(t *testing.T) {
 	}
 	// 预置引擎不受影响
 	es := m.GetEngines()
-	if len(es) != 11 {
-		t.Fatalf("引擎数量 = %d, want 11", len(es))
+	if len(es) != 8 {
+		t.Fatalf("引擎数量 = %d, want 8", len(es))
 	}
 }
 
@@ -149,16 +149,16 @@ func TestRefreshModels_UpdatesStatusCache(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	m := NewManager("", "")
-	if err := m.SaveEngine(EngineConfig{ID: "ollama", BaseURL: srv.URL, Enabled: true}); err != nil {
+	if err := m.SaveEngine(EngineConfig{ID: "herdsman", BaseURL: srv.URL, Enabled: true}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := m.RefreshModels(context.Background(), "ollama"); err != nil {
+	if _, err := m.RefreshModels(context.Background(), "herdsman"); err != nil {
 		t.Fatalf("RefreshModels: %v", err)
 	}
 
 	es := m.GetEngines()
 	for _, e := range es {
-		if e.ID != "ollama" {
+		if e.ID != "herdsman" {
 			continue
 		}
 		if !e.Status.Connected {
@@ -172,7 +172,7 @@ func TestRefreshModels_UpdatesStatusCache(t *testing.T) {
 		}
 		return
 	}
-	t.Fatal("GetEngines 未返回 ollama")
+	t.Fatal("GetEngines 未返回 herdsman")
 }
 
 // TestRefreshModels_FailureMarksDisconnected 本地引擎停掉后刷新失败，状态缓存

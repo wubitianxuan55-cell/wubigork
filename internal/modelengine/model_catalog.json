@@ -15,23 +15,6 @@
       {"id": "grok-4.20-0309-non-reasoning", "context_length": 1000000, "price_in": 1.25, "price_out": 2.5, "currency": "USD", "price_note": "≥200k 长上下文档：全请求按约 2 倍计费"},
       {"id": "grok-4.20-multi-agent-0309", "context_length": 1000000, "price_in": 1.25, "price_out": 2.5, "currency": "USD", "price_note": "≥200k 长上下文档：全请求按约 2 倍计费"},
       {"id": "grok-build-0.1", "context_length": 256000, "price_in": 1, "price_out": 2, "currency": "USD", "price_note": "≥200k 长上下文档：全请求按约 2 倍计费"}
-    ],
-    "opencode-zen": [
-      {"id": "gpt-5.6-sol", "price_in": 2, "price_out": 10, "currency": "USD", "price_note": ">272K：输入 $4.00/输出 $15.00；官方 5 折促销至 2026-09-18"},
-      {"id": "gpt-5.5", "price_in": 5, "price_out": 30, "currency": "USD", "price_note": ">272K：输入 $10.00/输出 $45.00"},
-      {"id": "gpt-5.6-luna", "price_in": 0.2, "price_out": 1.2, "currency": "USD"},
-      {"id": "claude-opus-5", "price_in": 5, "price_out": 25, "currency": "USD"},
-      {"id": "claude-sonnet-5", "price_in": 2, "price_out": 10, "currency": "USD"},
-      {"id": "claude-haiku-4.5", "price_in": 1, "price_out": 5, "currency": "USD"},
-      {"id": "gemini-3.1-pro", "price_in": 2, "price_out": 12, "currency": "USD", "price_note": ">200K：输入 $4.00/输出 $18.00"},
-      {"id": "grok-4.6", "price_in": 2, "price_out": 6, "currency": "USD", "price_note": ">200K：输入 $4.00/输出 $12.00"},
-      {"id": "deepseek-v4-pro", "price_in": 0.66, "price_out": 1.98, "currency": "USD", "price_note": "官方峰谷双价取第一档（谷价）；峰值 $1.32/$3.96（谷价减半）"},
-      {"id": "glm-5.2", "price_in": 1.4, "price_out": 4.4, "currency": "USD"},
-      {"id": "kimi-k3", "price_in": 3, "price_out": 15, "currency": "USD"},
-      {"id": "qwen3.7-max", "price_in": 2.5, "price_out": 7.5, "currency": "USD"},
-      {"id": "big-pickle", "free": true},
-      {"id": "mimo-v2.5-free", "free": true},
-      {"id": "nemotron-3-ultra-free", "free": true}
     ]
   }
 }

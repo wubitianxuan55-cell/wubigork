@@ -8,7 +8,7 @@ import { BACKEND_OPTIONS, isLocalBackend } from '../imagegen/meta'
 import { useT } from '../../gaea/lib/i18n'
 
 // 固定后端（非引擎型，恒可选）：xai / comfyui——标签与绘梦页同源（meta.ts）。
-// herdsman/ollama/glm 等为引擎型，由下方「已启用引擎」列表按启用状态呈现。
+// herdsman/glm 等为引擎型，由下方「已启用引擎」列表按启用状态呈现。
 const FIXED_BACKEND_VALUES = ['xai', 'comfyui']
 
 /** ImageGenPanel — 绘梦（AI 图像）后端设置 */

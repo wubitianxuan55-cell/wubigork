@@ -77,37 +77,6 @@ func TestBridge_Chat_StreamError(t *testing.T) {
 }
 
 // ── 现有按引擎分支行为以测试固化（seam 验收硬要求） ──────────
-// bridge.go Stream 的 "p.engine == herdsman || p.engine == ollama" 分支：
-// 本地引擎强制开启 thinking 并守护 max_tokens >= 4096。herdsman 已有测试
-// （TestBridge_Stream_Reasoning / TestBridge_Stream_ThinkingMaxTokensGuard），
-// 此处补 ollama（同一分支）与空引擎（不触发）以钉死整条分支行为。
-
-// TestBridge_Stream_OllamaEnablesThinking 冻结 ollama 与 herdsman 同一分支：
-// EnableThinking=true + chat_template_kwargs + 小预算抬到 4096。
-func TestBridge_Stream_OllamaEnablesThinking(t *testing.T) {
-	mc := &mockClient{chunks: []ai.SSEChunk{{Done: true}}}
-	SetClient(mc)
-	p := &Provider{name: "gaea", model: "m", engine: "ollama", client: mc}
-	if _, err := p.Stream(context.Background(), provider.Request{
-		Messages:  []provider.Message{{Role: provider.RoleUser, Content: "hi"}},
-		MaxTokens: 1024,
-	}); err != nil {
-		t.Fatalf("Stream: %v", err)
-	}
-	if mc.gotReq == nil {
-		t.Fatal("client 未收到请求")
-	}
-	if mc.gotReq.EnableThinking == nil || !*mc.gotReq.EnableThinking {
-		t.Errorf("ollama 应开启 enable_thinking: %+v", mc.gotReq.EnableThinking)
-	}
-	if v, _ := mc.gotReq.ChatTemplateKwargs["enable_thinking"].(bool); !v {
-		t.Errorf("ollama 应携带 chat_template_kwargs.enable_thinking: %+v", mc.gotReq.ChatTemplateKwargs)
-	}
-	if mc.gotReq.MaxTokens != 4096 {
-		t.Errorf("MaxTokens = %d, want 4096（本地引擎思考模式守护）", mc.gotReq.MaxTokens)
-	}
-}
-
 // TestBridge_Stream_EmptyEngineNoThinking 冻结空引擎分支：无引擎（跟随全局
 // 活跃引擎）时不强制 thinking，MaxTokens 原样透传。
 func TestBridge_Stream_EmptyEngineNoThinking(t *testing.T) {

@@ -212,9 +212,6 @@ func (a *mediaState) GetTTSSpeakers(model string) ([]string, error) {
 		return nil, fmt.Errorf("引擎管理器未初始化")
 	}
 	engineID := "herdsman"
-	if strings.Contains(strings.ToLower(model), "cosyvoice") {
-		engineID = "cosyvoice"
-	}
 	eng, ok := a.engineMgr.GetEngine(engineID)
 	if !ok || !eng.Enabled {
 		return nil, fmt.Errorf("%s 引擎未启用", engineID)

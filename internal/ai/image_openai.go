@@ -21,7 +21,7 @@ import (
 )
 
 // OpenAIImageBackend 通用 OpenAI 兼容图片生成后端
-// 支持任何提供 /v1/images/generations 端点的服务（Herdsman、Ollama 等）
+// 支持任何提供 /v1/images/generations 端点的服务（Herdsman 等）
 type OpenAIImageBackend struct {
 	baseURL    string
 	apiKey     string
@@ -40,7 +40,7 @@ func NewOpenAIImageBackend(baseURL string, apiKey string) *OpenAIImageBackend {
 }
 
 // init 自注册：OpenAI 兼容后端经注册表提供（kind = ImageBackendKindOpenAI）。
-// 覆盖 xAI / Herdsman / Ollama 等提供 /v1/images/generations 的服务。
+// 覆盖 xAI / Herdsman 等提供 /v1/images/generations 的服务。
 func init() {
 	RegisterImageBackend(ImageBackendKindOpenAI, func(cfg ImageBackendConfig) (ImageBackend, error) {
 		if strings.TrimSpace(cfg.BaseURL) == "" {

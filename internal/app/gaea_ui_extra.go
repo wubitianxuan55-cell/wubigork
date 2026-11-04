@@ -215,7 +215,7 @@ func (a *App) GaeaSaveSettings(view SettingsView) error {
 }
 
 // GaeaSaveProvider 保存模型中心引擎配置（更新已有引擎）。
-// 模型中心引擎为固定四大引擎（xai/ollama/herdsman/deepseek），不支持新增。
+// 模型中心引擎为固定预置清单（xai/herdsman/deepseek 等），不支持新增。
 func (a *App) GaeaSaveProvider(p ProviderView) error {
 	if a.engineMgr == nil {
 		return errors.New("gaea: 模型中心未初始化")

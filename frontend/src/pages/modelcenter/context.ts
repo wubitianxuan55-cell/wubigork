@@ -25,8 +25,6 @@ export interface ModelCenterStateValue {
   glmKeyMasked: string
   opencodeGoKey: string
   opencodeGoKeyMasked: string
-  opencodeZenKey: string
-  opencodeZenKeyMasked: string
   settingGlmEndpoint: boolean
   callStats: ModelStatsSummary | null
   loadError: string | null
@@ -80,7 +78,6 @@ export interface ModelCenterActionsValue {
   setDeepseekKeyState: (v: string) => void
   setGlmKeyState: (v: string) => void
   setOpencodeGoKeyState: (v: string) => void
-  setOpencodeZenKeyState: (v: string) => void
   setStatsSort: (v: StatsSort) => void
   setTrendRange: (v: TrendRange) => void
   setImageBackend: (v: string) => void
@@ -103,7 +100,6 @@ export interface ModelCenterActionsValue {
   handleSaveDeepseekKey: () => Promise<void>
   handleSaveGlmKey: () => Promise<void>
   handleSaveOpencodeGoKey: () => Promise<void>
-  handleSaveOpencodeZenKey: () => Promise<void>
   // A 刀「自定义引擎」：add/update 成功返回 true（表单据此关闭）
   handleAddCustomEngine: (name: string, baseURL: string, apiKey: string) => Promise<boolean>
   handleUpdateCustomEngine: (engineID: string, name: string, baseURL: string, apiKey: string) => Promise<boolean>

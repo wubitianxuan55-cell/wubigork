@@ -183,7 +183,7 @@ func (c *core) GetFeatureModel(feature string) map[string]string {
 }
 
 // GetModelMonitor 模型监控：返回已启用引擎的模型列表 + 系统资源。
-// isLocal 标记本地模型（herdsman/ollama 占本机资源，预警统计用；云端 xai/deepseek 不算）；
+// isLocal 标记本地模型（herdsman 等占本机资源，预警统计用；云端 xai/deepseek 不算）；
 // comfyRunning 标记 ComfyUI 是否运行中（本地大模型加载，预警需计入）。
 func (a *App) GetModelMonitor() map[string]interface{} {
 	engines := []map[string]interface{}{}
@@ -217,7 +217,7 @@ func (a *App) GetModelMonitor() map[string]interface{} {
 // 云端引擎（xai/deepseek 走 API）不加载到本机，不计入模型加载预警。
 //
 // 按 modelengine 的 Type.IsLocal() 单一真相口判定，不再维护引擎名名单——
-// 此前写死 `case "herdsman", "ollama", "cosyvoice"`，strata（125B MoE 加载进
+// 此前写死 `case "herdsman", "ollama", "cosyvoice"` 名单（两引擎已退役），strata（125B MoE 加载进
 // 显存/内存）加入时漏改，最吃本机资源的引擎反而被当成云端、不计入加载预警。
 func isLocalEngine(id string) bool {
 	return modelengine.BuiltinEngineTypeOf(id).IsLocal()

@@ -244,7 +244,7 @@ func TestClientState_ConcurrentAccess(t *testing.T) {
 	}
 	c.token = &auth.Token{AccessToken: "concurrent-token", ObtainedAt: time.Now(), ExpiresIn: 7200}
 
-	ids := []string{"xai", "ollama", "comfyui"}
+	ids := []string{"xai", "herdsman", "comfyui"}
 	types := []string{"", "xai", "comfyui", "herdsman"}
 
 	var wg sync.WaitGroup

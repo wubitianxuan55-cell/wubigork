@@ -341,7 +341,6 @@ export function BindSection() {
                 { value: 'xai', label: 'xAI 云端' },
                 { value: 'comfyui', label: 'ComfyUI 本地' },
                 { value: 'herdsman', label: 'Herdsman 本地' },
-                { value: 'ollama', label: 'Ollama 本地' },
               ]}
             />
             <Select
@@ -374,7 +373,7 @@ export function BindSection() {
             </StatusChip>
           </div>
           <div className="mc-bind-desc">
-            原罪故事的插图/生图使用独立后端与模型（跨引擎可选：xAI / ComfyUI / Herdsman / Ollama / GLM）；留空则跟随全局生图设置
+            原罪故事的插图/生图使用独立后端与模型（跨引擎可选：xAI / ComfyUI / Herdsman / GLM）；留空则跟随全局生图设置
           </div>
           <div className="mc-bind-row">
             <Select
@@ -389,7 +388,6 @@ export function BindSection() {
                 { value: 'xai', label: 'xAI 云端' },
                 { value: 'comfyui', label: 'ComfyUI 本地' },
                 { value: 'herdsman', label: 'Herdsman 本地' },
-                { value: 'ollama', label: 'Ollama 本地' },
                 { value: 'glm', label: 'GLM 云端' },
               ]}
             />

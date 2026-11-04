@@ -67,15 +67,15 @@ func TestBuildImageClientFor(t *testing.T) {
 	if c, err := a.buildImageClientFor("comfyui", "原罪插图"); err != nil || c == nil {
 		t.Fatalf("comfyui 分支应构建成功（不拨号）: %v", err)
 	}
-	// 种子目录 ollama 恒 Enabled（构建即成功）——禁用后走「未启用」分支。
-	if eng, ok := a.engineMgr.GetEngine("ollama"); ok {
+	// 种子目录 herdsman 恒 Enabled（构建即成功）——禁用后走「未启用」分支。
+	if eng, ok := a.engineMgr.GetEngine("herdsman"); ok {
 		eng.Enabled = false
 		if err := a.engineMgr.SaveEngine(*eng); err != nil {
-			t.Fatalf("disable ollama: %v", err)
+			t.Fatalf("disable herdsman: %v", err)
 		}
 	}
-	if _, err := a.buildImageClientFor("ollama", "原罪插图"); err == nil {
-		t.Fatal("ollama 未启用应报错")
+	if _, err := a.buildImageClientFor("herdsman", "原罪插图"); err == nil {
+		t.Fatal("herdsman 未启用应报错")
 	}
 	// ComfyUIURL 未配置 → 明确报错。
 	a.cfg.ComfyUIURL = ""

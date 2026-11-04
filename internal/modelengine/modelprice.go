@@ -108,12 +108,12 @@ func normalizeModelID(raw string) string {
 // estimatePrice 返回模型定价；本地引擎与未知模型返回空定价。
 // 价目 v1：自定义引擎用户价目最高优先（userEnginePrice 注册表，Manager 随
 // 引擎配置加载/保存重建——用户对中转站实际计费的声明，理应压过按模型名的
-// 目录/内置前缀猜测；本地引擎（Type.IsLocal()：ollama/herdsman/cosyvoice/
-// strata）恒不计价，不消费用户价，见 user_price.go）。
+// 目录/内置前缀猜测；本地引擎（Type.IsLocal()：herdsman/breeze/strata/
+// llama）恒不计价，不消费用户价，见 user_price.go）。
 // GLM 引擎先查 GLM 目录（normalizeModelID 归一后精确匹配→最长前缀匹配；
 // 条目 free=true→{0,0,"CNY"}；带价→用目录价含 unit 判断；目录无价→回退
 // 内置表，现状不变——glm-asr-2512/glm-4.7 等内置条目价格由此保持）。
-// deepseek/xai/opencode-zen（C 刀目录通用化）先查通用目录（engineCatalogPrice，
+// deepseek/xai（C 刀目录通用化）先查通用目录（engineCatalogPrice，
 // 同归一化与最长前缀口径），目录无价回退内置表；其余引擎（opencode-go/
 // custom 等不在通用目录内）行为不变——opencode-go 订阅制无按量售价，刻意
 // 不进目录（见 catalog_models.go 拍板决策）。
@@ -159,7 +159,7 @@ func estimatedCostFor(engineID, model string, inputTokens, outputTokens int64) (
 
 // EstimateCostCNY 估算单次调用的费用并统一折算为人民币（v4.15 聊天
 // answered_by 回显用）。口径与 estimatedCostFor 完全一致：本地引擎
-// （ollama/herdsman）与未知模型恒 0；USD 计价按 usdCny 汇率折算 CNY，
+// 与未知模型恒 0；USD 计价按 usdCny 汇率折算 CNY，
 // CNY 计价直用。汇率守卫与 statsRecorder.usdToCNYRate 一致：usdCny 非法
 // （<=0 / NaN / Inf）时回退默认 7.2，绝不用 0 汇率把 USD 费用抹成 0。
 func EstimateCostCNY(engineID, model string, inTok, outTok int64, usdCny float64) float64 {

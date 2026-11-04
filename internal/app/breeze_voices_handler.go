@@ -33,20 +33,20 @@ func (c *core) breezeBaseURL() string {
 // breezeWaitReady 服务未就绪时异步拉起并同步等待（克隆/列表都需要服务在线；
 // 模型加载+预热约 6~10s，上限 20s）。
 func (a *mediaState) breezeWaitReady() bool {
-	if a.ttsReady("breeze") {
+	if a.ttsReady() {
 		return true
 	}
 	a.ensureLocalTTSService("breeze")
-	for i := 0; i < 10 && !a.ttsReady("breeze"); i++ {
+	for i := 0; i < 10 && !a.ttsReady(); i++ {
 		time.Sleep(2 * time.Second)
 	}
-	return a.ttsReady("breeze")
+	return a.ttsReady()
 }
 
 // BreezeListVoices 列出已保存/缓存的克隆音色（GET /v1/voices，不加载模型但
 // 服务必须在线）。服务未运行时返回 started=false，前端提示先启动 Breeze。
 func (a *mediaState) BreezeListVoices() map[string]interface{} {
-	if !a.ttsReady("breeze") {
+	if !a.ttsReady() {
 		return map[string]interface{}{"started": false, "voices": []interface{}{}}
 	}
 	client := &http.Client{Timeout: 5 * time.Second}
@@ -133,7 +133,7 @@ func (a *mediaState) BreezeDeleteVoice(id string) map[string]interface{} {
 	if !breezeVoiceNameRe.MatchString(trimBreezeVoiceName(id)) {
 		return map[string]interface{}{"ok": false, "error": "非法音色 id"}
 	}
-	if !a.ttsReady("breeze") {
+	if !a.ttsReady() {
 		return map[string]interface{}{"ok": false, "error": "Breeze 服务未运行"}
 	}
 	client := &http.Client{Timeout: 5 * time.Second}

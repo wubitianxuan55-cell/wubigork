@@ -43,7 +43,6 @@ func TestSaveConfig_SyncsStringNumericKeys(t *testing.T) {
 		{config.KeyTTSSpeed, "1.5", func() bool { return a.cfg.TTSSpeed == 1.5 }},
 		{config.KeyTTSPort, "8888", func() bool { return a.cfg.TTSPort == 8888 }},
 		{config.KeyUsdCnyRate, "7.5", func() bool { return a.cfg.UsdCnyRate == 7.5 }},
-		{config.KeyCosyVoicePort, "8011", func() bool { return a.cfg.CosyVoicePort == 8011 }},
 		{config.KeyReasoningEffort, "low", func() bool { return a.cfg.ReasoningEffort == "low" }},
 		{config.KeyTTSBinaryPath, "C:/tts/run.exe", func() bool { return a.cfg.TTSBinaryPath == "C:/tts/run.exe" }},
 	}

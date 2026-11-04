@@ -23,7 +23,7 @@ import (
 
 // 图片后端暂不可构造的原因（imageBackendResolveError.Reason）。
 const (
-	reasonEngineDisabled  = "engine-disabled"     // 引擎不存在或未启用（herdsman/ollama/glm）
+	reasonEngineDisabled  = "engine-disabled"     // 引擎不存在或未启用（herdsman/glm）
 	reasonGLMKeyMissing   = "glm-key-missing"     // GLM 引擎已启用但 API Key 未配置
 	reasonComfyURLMissing = "comfyui-url-missing" // ComfyUI 地址未配置
 )
@@ -51,7 +51,7 @@ func (e *imageBackendResolveError) Error() string {
 // 无需实例——Backend 为 nil。
 type resolvedImageBackend struct {
 	Backend ai.ImageBackend // 图片后端实例；xai 为 nil
-	Kind    string          // 规范后端名（"xai"/"comfyui"/"herdsman"/"ollama"/"glm"）
+	Kind    string          // 规范后端名（"xai"/"comfyui"/"herdsman"/"glm"）
 	BaseURL string          // 构造所用服务地址（引擎来源时为 eng.BaseURL；仅日志用）
 }
 
@@ -74,7 +74,7 @@ func resolveImageBackend(name string, cfg *config.Config, mgr *modelengine.Manag
 			cb.SetUsageHook(func() { mgr.TouchEngine("comfyui") })
 		}
 		return resolvedImageBackend{Backend: cb, Kind: "comfyui", BaseURL: cfg.ComfyUIURL}, nil
-	case "herdsman", "ollama":
+	case "herdsman":
 		eng, err := imageEngineReady(mgr, name)
 		if err != nil {
 			return resolvedImageBackend{Kind: name}, err
@@ -108,13 +108,11 @@ func imageEngineReady(mgr *modelengine.Manager, id string) (*modelengine.EngineC
 }
 
 // imageEngineDisplayName 后端名 → 用户报错文案里的引擎显示名（原
-// mediaState.SetImageBackend 各分支的首字母大写口径：Herdsman/Ollama/GLM）。
+// mediaState.SetImageBackend 各分支的首字母大写口径：Herdsman/GLM）。
 func imageEngineDisplayName(backend string) string {
 	switch backend {
 	case "herdsman":
 		return "Herdsman"
-	case "ollama":
-		return "Ollama"
 	case "glm":
 		return "GLM"
 	}

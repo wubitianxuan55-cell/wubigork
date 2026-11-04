@@ -801,42 +801,6 @@ func TestLoad_CorruptFileBackupAndRecover(t *testing.T) {
 	}
 }
 
-// TestSave_CosyVoicePathPortRoundTrip CosyVoice 路径/端口（T6-9.5）持久化：
-// 默认值不变（C:\\AI\\cosyvoice / 8010）；合法值写入可读回；
-// 非法端口（0/负数/超范围/非数字）拒绝写入且保留合法值。
-func TestSave_CosyVoicePathPortRoundTrip(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("USERPROFILE", home)
-
-	// 未配置时默认值（与历史硬编码一致）
-	if cfg := Load(); cfg.CosyVoiceDir != "C:\\AI\\cosyvoice" || cfg.CosyVoicePort != 8010 {
-		t.Errorf("默认 CosyVoice = (%q,%d), want (C:\\AI\\cosyvoice,8010)", cfg.CosyVoiceDir, cfg.CosyVoicePort)
-	}
-
-	if err := Save(KeyCosyVoiceDir, "D:\\voice\\cosy"); err != nil {
-		t.Fatalf("Save cosyvoice_dir 失败: %s", err)
-	}
-	if err := Save(KeyCosyVoicePort, "9020"); err != nil {
-		t.Fatalf("Save cosyvoice_port 失败: %s", err)
-	}
-	cfg := Load()
-	if cfg.CosyVoiceDir != "D:\\voice\\cosy" || cfg.CosyVoicePort != 9020 {
-		t.Errorf("CosyVoice = (%q,%d), want (D:\\voice\\cosy,9020)", cfg.CosyVoiceDir, cfg.CosyVoicePort)
-	}
-
-	// 非法端口拒绝
-	for _, bad := range []string{"0", "-1", "70000", "abc"} {
-		if err := Save(KeyCosyVoicePort, bad); err == nil {
-			t.Errorf("端口 %q 应返回 error", bad)
-		}
-	}
-	// 非法值被拒后文件中的合法值保持不变
-	if cfg := Load(); cfg.CosyVoicePort != 9020 {
-		t.Errorf("非法端口被拒后 = %d, want 保持 9020", cfg.CosyVoicePort)
-	}
-}
-
 // TestSave_BreezePathPortRoundTrip Breeze 路径/端口持久化：
 // 默认值（C:\\AI\\breeze-tts2 / 8012）；合法值写入可读回；非法端口拒绝。
 func TestSave_BreezePathPortRoundTrip(t *testing.T) {

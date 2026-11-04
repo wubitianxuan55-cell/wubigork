@@ -13,7 +13,6 @@ vi.mock('../../../api/engines', () => ({
   getActiveEngine: vi.fn(),
   getDeepseekKeyStatus: vi.fn(),
   getOpencodeGoKeyStatus: vi.fn(),
-  getOpencodeZenKeyStatus: vi.fn(),
   refreshEngineModels: vi.fn(),
   saveEngine: vi.fn(),
   testEngineConnection: vi.fn(),
@@ -21,7 +20,6 @@ vi.mock('../../../api/engines', () => ({
   setActiveEngine: vi.fn(),
   setDeepseekKey: vi.fn(),
   setOpencodeGoKey: vi.fn(),
-  setOpencodeZenKey: vi.fn(),
   addCustomEngine: vi.fn(),
   updateCustomEngine: vi.fn(),
   removeCustomEngine: vi.fn(),
@@ -37,7 +35,7 @@ vi.mock('../../../gaea/lib/bridge', async (importOriginal) => ({
 
 import {
   getEngines, getActiveEngine, getDeepseekKeyStatus,
-  getOpencodeGoKeyStatus, getOpencodeZenKeyStatus, refreshEngineModels,
+  getOpencodeGoKeyStatus, refreshEngineModels,
   addCustomEngine, updateCustomEngine, removeCustomEngine,
   type EngineConfig,
 } from '../../../api/engines'
@@ -56,7 +54,6 @@ beforeEach(() => {
   vi.mocked(getActiveEngine).mockResolvedValue('xai')
   vi.mocked(getDeepseekKeyStatus).mockResolvedValue({ configured: false, masked: '' })
   vi.mocked(getOpencodeGoKeyStatus).mockResolvedValue({ configured: false, masked: '' })
-  vi.mocked(getOpencodeZenKeyStatus).mockResolvedValue({ configured: false, masked: '' })
   mRefresh.mockResolvedValue([])
   vi.mocked(app.GetActiveModel).mockResolvedValue('')
 })
@@ -111,10 +108,10 @@ describe('useEngineState · T6-6.5 竞态守卫', () => {
       await act(async () => { vi.advanceTimersByTime(4900) }) // t=8900 旧定时器若未重置早已触发
       expect(mRefresh).not.toHaveBeenCalled()
 
-      // 新分类下定时器到达 5s：触发一次刷新（一次刷新 = 6 个本地引擎各刷一次：
-      // herdsman / ollama / cosyvoice / breeze / strata / tianxuan）
+      // 新分类下定时器到达 5s：触发一次刷新（一次刷新 = 4 个本地引擎各刷一次：
+      // herdsman / breeze / strata / llama）
       await act(async () => { vi.advanceTimersByTime(200) }) // t=9100
-      expect(mRefresh).toHaveBeenCalledTimes(6)
+      expect(mRefresh).toHaveBeenCalledTimes(4)
     } finally {
       vi.useRealTimers()
     }

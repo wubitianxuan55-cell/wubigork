@@ -276,7 +276,7 @@ func cacheSplitForUsage(u *ChatUsage) (hit, miss int64) {
 // §8.1/§9）。流式请求 max_tokens 的默认值与其同源。
 const minThinkingBudget = 4096
 
-// clampThinkingBudget 思考预算守护（herdsman / ollama / strata 各
+// clampThinkingBudget 思考预算守护（herdsman / strata 各
 // 分支共用，IN2-14 收口——原来两处逐字复制）：开启思考且显式给出小预算时抬到
 // minThinkingBudget；未开思考或未显式配置（<=0）不动。
 func clampThinkingBudget(req *ChatRequest, wantThinking bool) {
@@ -391,7 +391,7 @@ func (c *Client) prepareStreamRequest(model string, messages []ChatMessage, opts
 	switch {
 	case engType == modelengine.EngineStrata:
 		// Strata（Qwen3.8-Flash-Next 125B MoE）：思考原生引擎——服务端默认开
-		// 思考，reasoning_content 与正文共享 max_tokens。与 herdsman/ollama
+		// 思考，reasoning_content 与正文共享 max_tokens。与 herdsman
 		// 「缺省关、显式开」相反，本分支缺省即开（要关得由调用方显式表态，
 		// 见 ChatSimpleOptions.DisableThinking 三态语义）。
 		//
@@ -407,7 +407,7 @@ func (c *Client) prepareStreamRequest(model string, messages []ChatMessage, opts
 		//
 		// 与 play 护栏的优先序（有意为之，非疏漏）：applyChatSimpleMaxTokens
 		// 以 4096 为基线「只降不升」，本守护在此「只升不降」——两者相对，
-		// 即思考优先于输出上限，与 herdsman/ollama 的 clampThinkingBudget
+		// 即思考优先于输出上限，与 herdsman 的 clampThinkingBudget
 		// 同一条先例。要按护栏上限出字须显式关思考（DisableThinking，见下），
 		// 那时本守护不生效、上限被尊重。
 		wantThinking := !opts.DisableThinking
@@ -415,7 +415,7 @@ func (c *Client) prepareStreamRequest(model string, messages []ChatMessage, opts
 		clampThinkingBudget(req, wantThinking)
 
 	case opts.EnableThinking:
-		if reqEngine == "herdsman" || reqEngine == "ollama" {
+		if reqEngine == "herdsman" {
 			t := true
 			req.EnableThinking = &t
 			req.ChatTemplateKwargs = map[string]any{"enable_thinking": true}

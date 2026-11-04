@@ -45,11 +45,11 @@ data: [DONE]
 		t.Fatalf("SaveEngine herdsman: %v", err)
 	}
 	if err := engMgr.SaveEngine(modelengine.EngineConfig{
-		ID: "opencode-zen", Name: "OpenCode Zen", Type: modelengine.EngineOpencodeZen,
+		ID: "opencode-go", Name: "OpenCode Go", Type: modelengine.EngineOpencodeGo,
 		BaseURL: srv.URL, Enabled: true, DefaultModel: "zen-1",
 		Models: []modelengine.ModelInfo{{ID: "zen-1"}},
 	}); err != nil {
-		t.Fatalf("SaveEngine opencode-zen: %v", err)
+		t.Fatalf("SaveEngine opencode-go: %v", err)
 	}
 
 	client := ai.NewClient(cfg)
@@ -126,7 +126,7 @@ func TestRoutineLLM_DefaultPicksRunningModel(t *testing.T) {
 func TestRoutineLLM_FeatureBinding(t *testing.T) {
 	a, got, _ := routineLLMTestEnv(t)
 	a.cfg.FuncRoutineEnabled = true
-	a.cfg.FuncRoutineEngine = "opencode-zen"
+	a.cfg.FuncRoutineEngine = "opencode-go"
 	a.cfg.FuncRoutineModel = "zen-1"
 	tool := routineLLMTool{a: a}
 
@@ -147,7 +147,7 @@ func TestRoutineLLM_FeatureBinding(t *testing.T) {
 func TestRoutineLLM_ExplicitOverride(t *testing.T) {
 	a, got, _ := routineLLMTestEnv(t)
 	a.cfg.FuncRoutineEnabled = true
-	a.cfg.FuncRoutineEngine = "opencode-zen"
+	a.cfg.FuncRoutineEngine = "opencode-go"
 	a.cfg.FuncRoutineModel = "zen-1"
 	tool := routineLLMTool{a: a}
 

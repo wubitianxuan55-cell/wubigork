@@ -49,8 +49,6 @@ export function GetNovelsDir():Promise<string>;
 
 export function GetOpencodeGoKeyStatus():Promise<Record<string, any>>;
 
-export function GetOpencodeZenKeyStatus():Promise<Record<string, any>>;
-
 export function GetPreloadPlan():Promise<boolean>;
 
 export function GetProjectInfo():Promise<Record<string, any>>;
@@ -104,8 +102,6 @@ export function SetGlmKey(arg1:string):Promise<void>;
 export function SetKeepWarm(arg1:boolean):Promise<void>;
 
 export function SetOpencodeGoKey(arg1:string):Promise<void>;
-
-export function SetOpencodeZenKey(arg1:string):Promise<void>;
 
 export function SetPreloadPlan(arg1:boolean):Promise<void>;
 

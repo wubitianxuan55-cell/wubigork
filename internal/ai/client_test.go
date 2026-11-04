@@ -303,9 +303,9 @@ func TestActiveEngineID_Default(t *testing.T) {
 	if got := c.ActiveEngineID(); got != "xai" {
 		t.Errorf("ActiveEngineID = %q, want xai（默认）", got)
 	}
-	c.SetActiveEngine("ollama")
-	if got := c.ActiveEngineID(); got != "ollama" {
-		t.Errorf("ActiveEngineID = %q, want ollama", got)
+	c.SetActiveEngine("herdsman")
+	if got := c.ActiveEngineID(); got != "herdsman" {
+		t.Errorf("ActiveEngineID = %q, want herdsman", got)
 	}
 	c.SetActiveEngine("")
 	if got := c.ActiveEngineID(); got != "xai" {

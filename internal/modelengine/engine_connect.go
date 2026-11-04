@@ -159,8 +159,6 @@ func (m *Manager) apiKeyForLocked(engine *EngineConfig) string {
 		return m.glmKey
 	case EngineOpencodeGo:
 		return m.opencodeKey
-	case EngineOpencodeZen:
-		return m.opencodeZenKey
 	case EngineCustom:
 		return m.customKeys[engine.ID]
 	}

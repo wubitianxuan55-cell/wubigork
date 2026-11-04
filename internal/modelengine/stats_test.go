@@ -141,31 +141,18 @@ func TestNormalizeModelID(t *testing.T) {
 
 // TestEstimateCost_LocalAndUnknown 本地/未知模型不计费。
 func TestEstimateCost_LocalAndUnknown(t *testing.T) {
-	if c, cur := estimatedCostFor("ollama", "qwen2.5-coder:14b", 1000, 500); c != 0 || cur != "" {
-		t.Errorf("ollama 应免费, got %v %q", c, cur)
+	if c, cur := estimatedCostFor("herdsman", "qwen2.5-coder:14b", 1000, 500); c != 0 || cur != "" {
+		t.Errorf("herdsman 应免费, got %v %q", c, cur)
 	}
 	if c, cur := estimatedCostFor("xai", "some-future-model-x", 1000, 500); c != 0 || cur != "" {
 		t.Errorf("未知模型应不计费, got %v %q", c, cur)
-	}
-	// OpenCode 前缀模型（opencode/ 前缀归一后命中裸名）：C 刀后 opencode-zen
-	// deepseek-v4-pro 命中 Zen 目录官方核实价（USD 0.66，原内置表 CNY 12）
-	if c, cur := estimatedCostFor("opencode-zen", "opencode/deepseek-v4-pro", 1e6, 0); c != 0.66 || cur != "USD" {
-		t.Errorf("opencode deepseek-v4-pro = %v %q, want 0.66 USD", c, cur)
-	}
-	// Zen 目录未核实全的条目仍走内置表（回归锁）：gpt-5.3-codex 1.75 USD
-	if c, cur := estimatedCostFor("opencode-zen", "opencode/gpt-5.3-codex", 1e6, 0); c != 1.75 || cur != "USD" {
-		t.Errorf("opencode gpt-5.3-codex = %v %q, want 1.75 USD", c, cur)
-	}
-	// deepseek-v4-flash 不在 Zen 目录（目录只收 deepseek-v4-pro）：内置表 CNY 兜底不变
-	if c, cur := estimatedCostFor("opencode-zen", "deepseek-v4-flash", 1e6, 0); c != 1 || cur != "CNY" {
-		t.Errorf("opencode deepseek-v4-flash = %v %q, want 1 CNY", c, cur)
 	}
 }
 
 // TestRecordCall_EmptyModel 空模型归入引擎维度。
 func TestRecordCall_EmptyModel(t *testing.T) {
 	m := NewManager("", "")
-	m.RecordCall(ModelCallUsage{EngineID: "ollama", Model: "", InputTokens: 7, Success: true})
+	m.RecordCall(ModelCallUsage{EngineID: "herdsman", Model: "", InputTokens: 7, Success: true})
 	sum := m.GetModelCallStats()
 	if len(sum.PerModel) != 1 {
 		t.Fatalf("PerModel 数量 = %d, want 1", len(sum.PerModel))
@@ -183,7 +170,7 @@ func TestStats_PersistAcrossRestart(t *testing.T) {
 	m := NewManager("", "")
 	m.SetStatsPath(statsPath)
 	m.RecordCall(ModelCallUsage{
-		EngineID: "opencode-zen", Model: "deepseek-v4-flash",
+		EngineID: "opencode-go", Model: "deepseek-v4-flash",
 		InputTokens: 33, OutputTokens: 12, DurationMs: 500, Success: true,
 		CacheHitTokens: 20, CacheMissTokens: 13,
 	})

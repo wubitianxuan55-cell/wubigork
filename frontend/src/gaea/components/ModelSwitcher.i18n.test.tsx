@@ -98,27 +98,27 @@ describe("ModelSwitcher i18n 冒烟", () => {
   it("刀1 分组：本地引擎组置前且带「本地」标，组内条目按引擎聚拢；运行中徽标", async () => {
     mocks.Models.mockResolvedValue([
       { ref: "xai/grok-4.20", provider: "xai", model: "grok-4.20", current: false },
-      { ref: "ollama/q3:14b", provider: "ollama", model: "q3:14b", current: false, local: true },
-      { ref: "ollama/q3:8b", provider: "ollama", model: "q3:8b", current: true, local: true, status: "running" },
+      { ref: "llama/qwen35-2", provider: "llama", model: "qwen35-2", current: false, local: true },
+      { ref: "llama/qwen35", provider: "llama", model: "qwen35", current: true, local: true, status: "running" },
       { ref: "deepseek/(默认)", provider: "deepseek", model: "(默认)", current: false },
     ]);
     const onPick = vi.fn();
-    renderT(<ModelSwitcher label="ollama/q3:8b" onPick={onPick} />);
+    renderT(<ModelSwitcher label="llama/qwen35" onPick={onPick} />);
     fireEvent.click(screen.getByTitle("切换模型"));
     // 组名 caption：provider id + 「本地」标。
-    expect(await screen.findByText("ollama")).toBeTruthy();
+    expect(await screen.findByText("llama")).toBeTruthy();
     expect(screen.getByText("· 本地")).toBeTruthy();
     expect(screen.getByText("xai")).toBeTruthy();
     // 运行中徽标只标 running 条目。
     expect(screen.getByText("运行中")).toBeTruthy();
-    // 序断言：ollama 组条目先于 xai 条目出现（本地置前）。
+    // 序断言：llama 组条目先于 xai 条目出现（本地置前）。
     const items = [...screen.getAllByRole("option")].map((el) => el.textContent);
-    expect(items.findIndex((s) => s?.includes("q3:8b"))).toBeLessThan(items.findIndex((s) => s?.includes("grok-4.20")));
+    expect(items.findIndex((s) => s?.includes("qwen35"))).toBeLessThan(items.findIndex((s) => s?.includes("grok-4.20")));
     // 点选未加载的本地模型：走预估（hot 即静默直切），展示名/模型名文本可点。
     mocks.ModelSwitchEstimate.mockResolvedValue({ status: "hot", waitSeconds: 1, note: "模型已加载" });
-    fireEvent.click(screen.getByText("q3:14b"));
-    await vi.waitFor(() => expect(onPick).toHaveBeenCalledWith("ollama/q3:14b"));
-    expect(mocks.ModelSwitchEstimate).toHaveBeenCalledWith("ollama", "q3:14b");
+    fireEvent.click(screen.getByText("qwen35-2"));
+    await vi.waitFor(() => expect(onPick).toHaveBeenCalledWith("llama/qwen35-2"));
+    expect(mocks.ModelSwitchEstimate).toHaveBeenCalledWith("llama", "qwen35-2");
   });
 
   it("展示名 label 优先渲染，title 保留模型 id", async () => {

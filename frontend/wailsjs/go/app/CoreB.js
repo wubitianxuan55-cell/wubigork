@@ -90,10 +90,6 @@ export function GetOpencodeGoKeyStatus() {
   return window['go']['app']['CoreB']['GetOpencodeGoKeyStatus']();
 }
 
-export function GetOpencodeZenKeyStatus() {
-  return window['go']['app']['CoreB']['GetOpencodeZenKeyStatus']();
-}
-
 export function GetPreloadPlan() {
   return window['go']['app']['CoreB']['GetPreloadPlan']();
 }
@@ -200,10 +196,6 @@ export function SetKeepWarm(arg1) {
 
 export function SetOpencodeGoKey(arg1) {
   return window['go']['app']['CoreB']['SetOpencodeGoKey'](arg1);
-}
-
-export function SetOpencodeZenKey(arg1) {
-  return window['go']['app']['CoreB']['SetOpencodeZenKey'](arg1);
 }
 
 export function SetPreloadPlan(arg1) {

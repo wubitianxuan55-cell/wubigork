@@ -28,72 +28,27 @@ func coreWithCfg(cfg *config.Config) *core {
 	return &core{cfg: cfg}
 }
 
-// TestTTSURLDerivation 配置推导（T6-9.5）：探活 URL 由端口推导；
-// 零配置回退默认 8010（与历史硬编码一致）。
-func TestTTSURLDerivation(t *testing.T) {
-	if got := coreWithCfg(nil).ttsURL(); got != "http://127.0.0.1:8010/v1/models" {
-		t.Errorf("零配置 ttsURL = %q, want 默认 8010（历史一致）", got)
-	}
-	if got := coreWithCfg(&config.Config{CosyVoicePort: 9020}).ttsURL(); got != "http://127.0.0.1:9020/v1/models" {
-		t.Errorf("配置端口 9020 后 ttsURL = %q", got)
-	}
-}
-
-// TestTTSCosyVoiceCmdFromConfig 命令构造（T6-9.5）：python/script 由配置目录推导；
-// 零配置回退默认 C:\AI\cosyvoice（与历史硬编码一致）。
-func TestTTSCosyVoiceCmdFromConfig(t *testing.T) {
-	defDir := filepath.FromSlash("C:/AI/cosyvoice")
-
-	// 零配置 → 默认目录
-	cmd := ttsCosyVoiceCmdFor(&config.Config{})
-	if cmd.Dir != defDir {
-		t.Errorf("默认 cmd.Dir = %q, want %q", cmd.Dir, defDir)
-	}
-	wantArgs := []string{
-		filepath.Join(defDir, "venv", "Scripts", "python.exe"),
-		filepath.Join(defDir, "server.py"),
-	}
-	if len(cmd.Args) != 2 || cmd.Args[0] != wantArgs[0] || cmd.Args[1] != wantArgs[1] {
-		t.Errorf("默认 cmd.Args = %v, want %v", cmd.Args, wantArgs)
-	}
-
-	// 自定义目录 → 推导路径
-	cfgDir := filepath.FromSlash("D:/voice/cosy")
-	cmd = ttsCosyVoiceCmdFor(&config.Config{CosyVoiceDir: cfgDir})
-	if cmd.Dir != cfgDir {
-		t.Errorf("自定义 cmd.Dir = %q, want %q", cmd.Dir, cfgDir)
-	}
-	wantArgs = []string{
-		filepath.Join(cfgDir, "venv", "Scripts", "python.exe"),
-		filepath.Join(cfgDir, "server.py"),
-	}
-	if len(cmd.Args) != 2 || cmd.Args[0] != wantArgs[0] || cmd.Args[1] != wantArgs[1] {
-		t.Errorf("自定义 cmd.Args = %v, want %v", cmd.Args, wantArgs)
-	}
-}
-
-// TestStartTTSService_RetryBackoff 退避重试（T6-9.5）：注入必然失败的 cmd 工厂，
+// TestStartTTSService_RetryBackoff 退避重试：注入必然失败的 breezeCmdFactory，
 // startTTSServiceWithRetry 初始 1 次 + 最多 3 次退避重试（≥2 次重试），
 // 全部失败后返回错误。
 func TestStartTTSService_RetryBackoff(t *testing.T) {
 	var attempts int32
-	origFactory := ttsCmdFactory
+	origFactory := breezeCmdFactory
 	origBackoff := ttsStartBackoff
 	origMax := ttsStartMaxRetries
-	missing := filepath.Join(t.TempDir(), "missing-python.exe")
-	ttsCmdFactory = func(cfg *config.Config) *exec.Cmd {
+	breezeCmdFactory = func(cfg *config.Config) (*exec.Cmd, error) {
 		atomic.AddInt32(&attempts, 1)
-		return exec.Command(missing, "server.py")
+		return nil, fmt.Errorf("未找到 breeze-server.exe（测试桩）")
 	}
 	ttsStartBackoff = []time.Duration{time.Millisecond, time.Millisecond, time.Millisecond}
 	ttsStartMaxRetries = 3
 	t.Cleanup(func() {
-		ttsCmdFactory = origFactory
+		breezeCmdFactory = origFactory
 		ttsStartBackoff = origBackoff
 		ttsStartMaxRetries = origMax
 	})
 
-	err := coreWithCfg(nil).startTTSServiceWithRetry("cosyvoice")
+	err := coreWithCfg(nil).startTTSServiceWithRetry("breeze")
 	if err == nil {
 		t.Fatal("全部启动失败后应返回 error")
 	}
@@ -110,25 +65,24 @@ func TestStartTTSService_RetryBackoff(t *testing.T) {
 // （ready=false 且带 error），并正确清理 ttsEnsuring（幂等防重入复原）。
 func TestEnsureLocalTTSService_RetriesThenEmitsError(t *testing.T) {
 	var attempts int32
-	origFactory := ttsCmdFactory
+	origFactory := breezeCmdFactory
 	origBackoff := ttsStartBackoff
 	origMax := ttsStartMaxRetries
-	missing := filepath.Join(t.TempDir(), "missing-python.exe")
-	ttsCmdFactory = func(cfg *config.Config) *exec.Cmd {
+	breezeCmdFactory = func(cfg *config.Config) (*exec.Cmd, error) {
 		atomic.AddInt32(&attempts, 1)
-		return exec.Command(missing, "server.py")
+		return nil, fmt.Errorf("未找到 breeze-server.exe（测试桩）")
 	}
 	ttsStartBackoff = []time.Duration{time.Millisecond, time.Millisecond, time.Millisecond}
 	ttsStartMaxRetries = 3
 	t.Cleanup(func() {
-		ttsCmdFactory = origFactory
+		breezeCmdFactory = origFactory
 		ttsStartBackoff = origBackoff
 		ttsStartMaxRetries = origMax
 	})
 
-	// 用空闲端口构造 core：本机可能恰好有真实 CosyVoice 跑在默认 8010，
+	// 用空闲端口构造 core：本机可能恰好有真实 breeze-server 跑在默认 8012，
 	// 测试不依赖机器端口状态（探活走真实 HTTP，空闲端口必然 connection refused）。
-	c := coreWithCfg(&config.Config{CosyVoicePort: freePort(t)})
+	c := coreWithCfg(&config.Config{BreezePort: freePort(t)})
 
 	// 订阅 tts-service-status（httpbridge 全局 hub），验证最终 emit 错误事件
 	ts := httptest.NewServer(httpbridge.New(nil).Handler())
@@ -163,7 +117,7 @@ func TestEnsureLocalTTSService_RetriesThenEmitsError(t *testing.T) {
 		return ok
 	}, "SSE connected")
 
-	res := c.ensureLocalTTSService("cosyvoice")
+	res := c.ensureLocalTTSService("breeze")
 	if res["starting"] != true {
 		t.Errorf("ensure 应返回 starting=true, got %v", res)
 	}
@@ -184,7 +138,7 @@ func TestEnsureLocalTTSService_RetriesThenEmitsError(t *testing.T) {
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		ttsEnsureMu.Lock()
-		ensuring := ttsEnsuring["cosyvoice"]
+		ensuring := ttsEnsuring["breeze"]
 		ttsEnsureMu.Unlock()
 		if !ensuring {
 			break
@@ -232,14 +186,14 @@ func waitStreamEvent(t *testing.T, ch <-chan string, match func(map[string]inter
 	}
 }
 
-// TestIsLocalTTSAssetEngine 按需拉起名单：cosyvoice/breeze 在列，其余不在。
+// TestIsLocalTTSAssetEngine 按需拉起名单：仅 breeze 在列（cosyvoice 已退役）。
 func TestIsLocalTTSAssetEngine(t *testing.T) {
-	for _, id := range []string{"cosyvoice", "breeze"} {
+	for _, id := range []string{"breeze"} {
 		if !isLocalTTSAssetEngine(id) {
 			t.Errorf("isLocalTTSAssetEngine(%q) = false, want true", id)
 		}
 	}
-	for _, id := range []string{"herdsman", "xai", "ollama", "strata", "tianxuan", ""} {
+	for _, id := range []string{"herdsman", "xai", "strata", "llama", "cosyvoice", ""} {
 		if isLocalTTSAssetEngine(id) {
 			t.Errorf("isLocalTTSAssetEngine(%q) = true, want false", id)
 		}
@@ -324,7 +278,7 @@ func TestBreezeCmdFor_MissingModel(t *testing.T) {
 
 // TestStartTTSService_BreezeUnsupportedAndFactory breeze 启动：注入必然失败的
 // breezeCmdFactory，startTTSService 透传错误（退避重试由 startTTSServiceWithRetry
-// 负责，与 cosyvoice 同一壳）。
+// 负责）。
 func TestStartTTSService_BreezeFactoryError(t *testing.T) {
 	origFactory := breezeCmdFactory
 	t.Cleanup(func() { breezeCmdFactory = origFactory })

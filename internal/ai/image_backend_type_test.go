@@ -7,7 +7,7 @@ package ai
 // image_backend.go 常量块。本文件钉住：
 //  1. 类型名常量 = 历史字面量（防改名漂移：改一个字符即红）；
 //  2. SetImageBackend/GetImageBackendType 对每个类型名原样往返 + 空值回退 xAI；
-//  3. 两套口径的边界事实：comfyui/glm 与 kind 同拼写，xai/herdsman/ollama
+//  3. 两套口径的边界事实：comfyui/glm 与 kind 同拼写，xai/herdsman
 //     不是注册表 kind（它们共用 ImageBackendKindOpenAI 构造，引擎名只靠类型名承载）。
 
 import "testing"
@@ -18,7 +18,6 @@ func TestImageBackendTypeConstants_LiteralConformance(t *testing.T) {
 		ImageBackendTypeXAI:      "xai",
 		ImageBackendTypeComfyUI:  "comfyui",
 		ImageBackendTypeHerdsman: "herdsman",
-		ImageBackendTypeOllama:   "ollama",
 		ImageBackendTypeGLM:      "glm",
 	}
 	for got, exp := range want {
@@ -33,7 +32,6 @@ func TestImageBackendType_RoundTripAndDefault(t *testing.T) {
 		ImageBackendTypeXAI,
 		ImageBackendTypeComfyUI,
 		ImageBackendTypeHerdsman,
-		ImageBackendTypeOllama,
 		ImageBackendTypeGLM,
 	}
 	for _, name := range names {
@@ -72,13 +70,13 @@ func TestImageBackendType_VsRegistryKind_TwoConventions(t *testing.T) {
 	if !registered[ImageBackendKindOpenAI] {
 		t.Fatalf("注册表应含 kind %q（openai 兼容构造入口），got %v", ImageBackendKindOpenAI, ImageBackendKinds())
 	}
-	for _, name := range []string{ImageBackendTypeXAI, ImageBackendTypeHerdsman, ImageBackendTypeOllama} {
+	for _, name := range []string{ImageBackendTypeXAI, ImageBackendTypeHerdsman} {
 		if registered[name] {
 			t.Errorf("类型名 %q 不应同时是注册表 kind（两套口径边界被打破）", name)
 		}
 	}
 	// 对照表的落点：openai 兼容 trio 的实例都经 ImageBackendKindOpenAI 工厂可构造
 	if _, err := NewImageBackend(ImageBackendKindOpenAI, ImageBackendConfig{BaseURL: "http://127.0.0.1:1/v1"}); err != nil {
-		t.Errorf("ImageBackendKindOpenAI 工厂应可构造（herdsman/ollama/xai 的 kind 归宿）: %v", err)
+		t.Errorf("ImageBackendKindOpenAI 工厂应可构造（herdsman/xai 的 kind 归宿）: %v", err)
 	}
 }

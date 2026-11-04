@@ -68,9 +68,6 @@ func loadDefaults(home string) *Config {
 		ProjectBrief: true,
 		// 汇率默认 7.2（费用估算折算口径）。
 		UsdCnyRate: DefaultUsdCnyRate,
-		// CosyVoice 本地 TTS 服务（T6-9.5，默认与历史硬编码一致）。
-		CosyVoiceDir:  DefaultCosyVoiceDir,
-		CosyVoicePort: DefaultCosyVoicePort,
 		// Breeze 本地 TTS 服务（Breeze-TTS-2）。
 		BreezeDir:  DefaultBreezeDir,
 		BreezePort: DefaultBreezePort,
@@ -283,9 +280,6 @@ func applyConfigFile(cfg *Config, home string) {
 			if cf.OpenCodeGoAPIKey != "" {
 				cfg.OpenCodeGoAPIKey = cf.OpenCodeGoAPIKey
 			}
-			if cf.OpenCodeZenAPIKey != "" {
-				cfg.OpenCodeZenAPIKey = cf.OpenCodeZenAPIKey
-			}
 			if len(cf.CustomEngineKeys) > 0 {
 				cfg.CustomEngineKeys = cf.CustomEngineKeys
 			}
@@ -444,12 +438,6 @@ func applyConfigFile(cfg *Config, home string) {
 			}
 			if cf.GLMCatalogURL != "" {
 				cfg.GLMCatalogURL = cf.GLMCatalogURL
-			}
-			if cf.CosyVoiceDir != "" {
-				cfg.CosyVoiceDir = cf.CosyVoiceDir
-			}
-			if cf.CosyVoicePort != 0 {
-				cfg.CosyVoicePort = cf.CosyVoicePort
 			}
 			if cf.BreezeDir != "" {
 				cfg.BreezeDir = cf.BreezeDir

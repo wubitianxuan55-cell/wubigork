@@ -159,18 +159,6 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 		cf.TTSPort = n
 		return nil
 	},
-	KeyCosyVoiceDir: func(cf *configFile, v string) error { cf.CosyVoiceDir = v; return nil },
-	KeyCosyVoicePort: func(cf *configFile, v string) error {
-		n, err := strconv.Atoi(v)
-		if err != nil {
-			return err
-		}
-		if n < 1 || n > 65535 {
-			return fmt.Errorf("CosyVoice 端口必须在 1-65535 之间（当前值: %s）", v)
-		}
-		cf.CosyVoicePort = n
-		return nil
-	},
 	KeyBreezeDir: func(cf *configFile, v string) error { cf.BreezeDir = v; return nil },
 	KeyBreezeVoiceDesc: func(cf *configFile, v string) error {
 		if len(v) > 4096 {
@@ -220,7 +208,6 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 	KeyDeepseekAPIKey:    func(cf *configFile, v string) error { cf.DeepseekAPIKey = v; return nil },
 	KeyGLMAPIKey:         func(cf *configFile, v string) error { cf.GLMAPIKey = v; return nil },
 	KeyOpencodeGoAPIKey:  func(cf *configFile, v string) error { cf.OpenCodeGoAPIKey = v; return nil },
-	KeyOpencodeZenAPIKey: func(cf *configFile, v string) error { cf.OpenCodeZenAPIKey = v; return nil },
 	KeyCustomEngineKeys: func(cf *configFile, v string) error {
 		// 值为 JSON map[string]string（engineID → secure 密文）；空串 = 清空。
 		if v == "" {

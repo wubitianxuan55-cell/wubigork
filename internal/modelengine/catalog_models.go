@@ -10,7 +10,7 @@ import (
 
 // ── 通用模型目录（C 刀：目录通用化）────────────────────────────
 //
-// deepseek / xai / opencode-zen 三引擎的官方元数据目录（徽标数据 + 费用
+// deepseek / xai 双引擎的官方元数据目录（徽标数据 + 费用
 // 估算），内嵌 JSON 随二进制发布。与 GLM 专属目录（glm_catalog.go，含覆盖
 // 文件与远程缓存热更新）刻意分开：这三家价格稳定、变更随版本发布——
 // 无覆盖文件、无远程拉取，GLM 专属热更新链路不动。
@@ -20,7 +20,7 @@ import (
 // custom 自定义引擎同理不进目录（用户自带 OpenAI 兼容服务商，价格未知）。
 //
 // schema v1：顶层 {"version":1,"updated":"...","engines":{"deepseek":[...],
-// "xai":[...],"opencode-zen":[...]}}；条目 schema 与 glmCatalogEntry 一致
+// "xai":[...]}}；条目 schema 与 glmCatalogEntry 一致
 // （同字段名，points_* 这些引擎用不到但 schema 保持统一）。version 非 1
 // 按无目录处理（估算回退内置表，只打日志）——防止未来 schema 升级被旧
 // 解析器误读出脏数据。
@@ -34,12 +34,8 @@ import (
 //     双档取第一档，≥200k 长上下文档加价记 price_note；官方未逐模型标注
 //     能力矩阵，caps 一律不填（宁缺勿滥）。grok-4/grok-4-fast/grok-3 系
 //     官方已不列，不加条目（内置表兜底）。
-//   - opencode-zen：opencode.ai/docs/zen，2026-09-02（免费条目 ID 已对照
-//     官方文档核实）。官方模型 ID 形如 opencode/<id>，条目写裸名
-//     （normalizeModelID 会去前缀，双方归一后精确匹配）；官方仅给计费
-//     分档断点非 ctx 上限，context_length 一律不填（断点记 price_note）；
-//     无能力矩阵，caps 不填。其余 Zen 条目价格未核实全，不加条目
-//     （内置表兜底）。
+//   - opencode-zen 条目已随引擎退役删除（2026-11-04 用户拍板，引擎代码面
+//     全删；OpenCode Go 订阅制本就不进目录）。
 
 //go:embed model_catalog.json
 var modelCatalogJSON []byte
@@ -234,7 +230,7 @@ func fillCatalogMeta(m *ModelInfo, c ModelInfo) {
 	}
 }
 
-// engineCatalogInfo 引擎目录快照（deepseek/xai/opencode-zen；其余引擎
+// engineCatalogInfo 引擎目录快照（deepseek/xai；其余引擎
 // ok=false）。估算与徽标的目录层数据源，GLM 目录（glmStaticModels）之外
 // 的通用形态。
 func engineCatalogInfo(engineID string) ([]ModelInfo, bool) {

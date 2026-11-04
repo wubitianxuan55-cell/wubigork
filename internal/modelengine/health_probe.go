@@ -16,7 +16,7 @@ import (
 //
 // 健康巡检：周期性轻量探测云端引擎连通性，只探 enabled 且非本地
 // （EngineType.IsLocal()==false）的引擎（xai/deepseek/glm/opencode-*/custom-*）；
-// 本地引擎（ollama/herdsman/cosyvoice）由保活机制（keep-warm）管理，巡检跳过。
+// 本地引擎（herdsman/llama 等）由保活机制（keep-warm）管理，巡检跳过。
 //
 // 探测口径：GET {BaseURL}/models（与 fetchModels 的 /models 端点同源拼法），
 // 带按引擎的鉴权头（与 fetchModels/BuildChatURL 同一取 Key 链；custom 无 Key
@@ -228,8 +228,6 @@ func (m *Manager) probeAuthKey(e *EngineConfig) string {
 		return m.glmKey
 	case EngineOpencodeGo:
 		return m.opencodeKey
-	case EngineOpencodeZen:
-		return m.opencodeZenKey
 	case EngineCustom:
 		return m.customKeys[e.ID]
 	}
@@ -251,7 +249,7 @@ func sanitizeProbeError(key, msg string) string {
 // FailoverCandidates 返回故障转移候选引擎快照（按 m.order 稳定顺序，活跃
 // 引擎排最前的语义已隐含在 order 内）：
 //   - enabled 且最近 Status.Connected（巡检/测试连接成功）；
-//   - default_model 非空且判型为 llm（排除 cosyvoice 等 TTS/图像引擎）；
+//   - default_model 非空且判型为 llm（排除 breeze 等 TTS/图像引擎）；
 //   - default_model 在引擎自己的模型清单内（悬空默认直发必 404
 //     model_not_found——2026-10-19 真机实锤：herdsman 换装后旧默认退役，
 //     转移重试报 Model not found 且配置类错误不再二次转移，办公整板不可用。

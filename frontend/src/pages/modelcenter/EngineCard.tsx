@@ -32,8 +32,6 @@ export function EngineCard({ engine, editingCustom, savedPrice, onToggleEdit, on
     glmKeyMasked,
     opencodeGoKey,
     opencodeGoKeyMasked,
-    opencodeZenKey,
-    opencodeZenKeyMasked,
     settingGlmEndpoint,
   } = useModelCenterState()
   const {
@@ -41,7 +39,6 @@ export function EngineCard({ engine, editingCustom, savedPrice, onToggleEdit, on
     setDeepseekKeyState,
     setGlmKeyState,
     setOpencodeGoKeyState,
-    setOpencodeZenKeyState,
     handleSetGlmEndpoint,
     handleTestConnection,
     handleRefreshModels,
@@ -50,7 +47,6 @@ export function EngineCard({ engine, editingCustom, savedPrice, onToggleEdit, on
     handleSaveDeepseekKey,
     handleSaveGlmKey,
     handleSaveOpencodeGoKey,
-    handleSaveOpencodeZenKey,
     handleRemoveCustomEngine,
     makeModels,
   } = useModelCenterActions()
@@ -92,13 +88,6 @@ export function EngineCard({ engine, editingCustom, savedPrice, onToggleEdit, on
       setter: setOpencodeGoKeyState,
       placeholder: opencodeGoKeyMasked || 'oc-...（opencode.ai 订阅获取）',
       save: handleSaveOpencodeGoKey,
-    },
-    {
-      type: 'opencode-zen',
-      value: opencodeZenKey,
-      setter: setOpencodeZenKeyState,
-      placeholder: opencodeZenKeyMasked || 'zen-...（opencode.ai/auth 获取）',
-      save: handleSaveOpencodeZenKey,
     },
   ] as {
     type: string

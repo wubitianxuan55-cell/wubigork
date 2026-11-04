@@ -94,7 +94,7 @@ const (
 	// 意图 LLM 兜底硬超时（毫秒，默认 2000）：超时立即走聊天管道不重试。
 	KeyIntentsLLMTimeoutMS = "intents_llm_timeout_ms"
 	// 全局离线模式（v4.8）：开启后所有 AI 路由只允许本地引擎
-	// （ollama/herdsman/cosyvoice/strata/tianxuan），云端引擎（xai/deepseek/opencode-*）
+	// （herdsman/breeze/strata/llama），云端引擎（xai/deepseek/opencode-go）
 	// 一律跳过——数据不出本机的总闸。默认关闭。
 	KeyOfflineMode = "offline_mode"
 	// 引擎故障转移（C 刀 v0）：开启后聊天请求链（流式/非流式）首请求失败且为
@@ -118,8 +118,7 @@ const (
 	KeyProjectBrief      = "project_brief"
 	KeyDeepseekAPIKey    = "deepseek_api_key"
 	KeyGLMAPIKey         = "glm_api_key"
-	KeyOpencodeGoAPIKey  = "opencode_go_api_key"
-	KeyOpencodeZenAPIKey = "opencode_zen_api_key"
+	KeyOpencodeGoAPIKey = "opencode_go_api_key"
 	// 自定义引擎 Key 库（A 刀自定义引擎）：值为 JSON map[string]string
 	// （engineID → secure.EncryptString 密文）。config 层只存取字符串/JSON、
 	// 不做加解密（明文↔密文由 app 层 secure 负责，先例 realtime_api_key）。
@@ -135,9 +134,6 @@ const (
 	// 远程目录仅影响展示与费用估算，不影响请求路由/alias 判定/鉴权。
 	// 默认空=禁用。
 	KeyGLMCatalogURL = "glm_catalog_url"
-	// CosyVoice 本地 TTS 服务（T6-9.5）：路径/端口可配置，默认与历史硬编码一致。
-	KeyCosyVoiceDir  = "cosyvoice_dir"
-	KeyCosyVoicePort = "cosyvoice_port"
 	// Breeze 本地 TTS 服务（Breeze-TTS-2，breeze-server 托管）：路径/端口可配置。
 	// exe/模型 GGUF 按目录约定自动发现（bin\*\breeze-server.exe / model\*.gguf）。
 	// voice_desc = voice design 模式的音色描述（朗读/语音对话未带人格化描述时
@@ -153,7 +149,7 @@ const (
 	// 三项落盘。provider 空字符串 = 未配置（实时语音档关闭，走现拼接管线）；
 	// 非空只允许 "openai"。realtime_api_key 存储口径 = secure.EncryptString
 	// 的密文——config 层不做加解密、只存取字符串（明文↔密文转换由 app 层
-	// secure 负责，先例 model_engine_handler.go SetOpencodeZenKey）。
+	// secure 负责，先例 model_engine_handler.go SetOpencodeGoKey）。
 	KeyRealtimeProvider = "realtime_provider"
 	KeyVoiceBackend     = "voice_backend"  // 语音对话后端（v1=whisper 链 | v2=实时 sidecar 实验档，M4 产品接入刀）
 	KeyVoiceChatLLM     = "voice_chat_llm" // V2 对话 LLM 位（空/local-fast=专属快模型 | chat=跟随聊天板块模型，P1 续刀）
@@ -168,14 +164,8 @@ const (
 // DefaultUsdCnyRate 美元→人民币汇率默认值（费用估算折算口径）。
 const DefaultUsdCnyRate = 7.2
 
-// CosyVoice 本地服务默认值（T6-9.5：路径/端口可配置，未配置时与历史硬编码一致）。
-const (
-	DefaultCosyVoiceDir  = `C:\AI\cosyvoice`
-	DefaultCosyVoicePort = 8010
-)
-
 // Breeze 本地服务默认值（Breeze-TTS-2）：8012 避开在用端口
-// （8080 herdsman / 8010 cosyvoice / 8091 strata / 8094 tianxuan / 8188 comfyui）。
+// （8080 herdsman / 8091 strata / 8124 llama / 8188 comfyui）。
 const (
 	DefaultBreezeDir  = `C:\AI\breeze-tts2`
 	DefaultBreezePort = 8012

@@ -43,12 +43,12 @@ func TestParseQuantLevel_MixedTakesLowest(t *testing.T) {
 
 func TestToolCallQuantWarning(t *testing.T) {
 	// 低比特本地引擎 → 警告
-	w := ToolCallQuantWarning(EngineOllama, "qwen3-8b-iq2_xs")
+	w := ToolCallQuantWarning(EngineLlama, "qwen3-8b-iq2_xs")
 	if w == "" || !contains(w, "IQ2_XS") || !contains(w, "Q4") {
 		t.Fatalf("IQ2 本地应警告: %q", w)
 	}
 	// Q4 达标下限 → 不警告
-	if w := ToolCallQuantWarning(EngineOllama, "model-Q4_K_P"); w != "" {
+	if w := ToolCallQuantWarning(EngineLlama, "model-Q4_K_P"); w != "" {
 		t.Fatalf("Q4 达标不应警告: %q", w)
 	}
 	// 云端低比特名 → 不警告（云端不经本地量化红线）

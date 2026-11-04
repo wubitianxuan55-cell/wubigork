@@ -26,9 +26,9 @@ func TestPlainChatOfflineFilter(t *testing.T) {
 	}
 	c.cfg.OfflineMode = true
 
-	// 停用 ollama/cosyvoice；herdsman 注册序在 strata 之前，仍为本地兜底首选
+	// 停用其余本地引擎（breeze/strata/llama），herdsman 仍为本地兜底首选
 	// （xai 云端被滤）。
-	for _, id := range []string{"ollama", "cosyvoice"} {
+	for _, id := range []string{"breeze", "strata", "llama"} {
 		if e, ok := c.engineMgr.GetEngine(id); ok {
 			e.Enabled = false
 			if err := c.engineMgr.SaveEngine(*e); err != nil {

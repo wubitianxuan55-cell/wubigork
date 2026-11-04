@@ -2,9 +2,9 @@ package app
 
 // 分流统计（D3-2）：打通 gaea 侧调用记录（含费用估算）与 Herdsman
 // events.jsonl 本地遥测，输出「本地 vs 云端」分流视图与节省对比。
-// 口径：云端 = 经 gaea 调用云端引擎（xai/deepseek/opencode-*）的用量；
+// 口径：云端 = 经 gaea 调用云端引擎（xai/deepseek/opencode-go）的用量；
 // 本地 = Herdsman events.jsonl 全量（含 herdsman UI 直接调用）+ gaea 侧
-// 本地引擎（ollama/cosyvoice 等）用量；节省 = 本地调用若按用户云端实际
+// 本地引擎（herdsman/breeze/llama 等）用量；节省 = 本地调用若按用户云端实际
 // 混合单价折算需花费的金额（本地实际费用 ≈ 0）。
 
 import (
@@ -52,9 +52,9 @@ type UsageOverview struct {
 	CacheHitRate    float64 `json:"cache_hit_rate"`    // hit/(hit+miss)；无数据时 0
 }
 
-// cloudEngineSet 云端引擎（费用估算表有价；herdsman/ollama/cosyvoice 为本地）。
+// cloudEngineSet 云端引擎（费用估算表有价；herdsman/breeze/llama 为本地）。
 var cloudEngineSet = map[string]bool{
-	"xai": true, "deepseek": true, "glm": true, "opencode-go": true, "opencode-zen": true,
+	"xai": true, "deepseek": true, "glm": true, "opencode-go": true,
 }
 
 // GaeaUsageOverview 汇总分流统计（模型中心「本地 vs 云端」面板）。
@@ -104,7 +104,7 @@ func buildUsageOverview(gaeaStats modelengine.ModelStatsSummary, hm HerdsmanMode
 			out.Local.TotalTokens += m.InputTokens + m.OutputTokens
 			out.Local.TotalDurationMs += m.TotalDurationMs
 		}
-		// 其他本地引擎（ollama/cosyvoice 等）在 events.jsonl 之外。
+		// 其他本地引擎（breeze/llama 等）在 events.jsonl 之外。
 		out.Local.add(nonHerdGaea)
 	} else {
 		// events.jsonl 不可用：退化到 gaea 侧本地引擎记录（herdsman + 其他）。

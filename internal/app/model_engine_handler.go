@@ -47,13 +47,6 @@ func (c *core) TestEngineConnection(engineID string) (*modelengine.EngineStatus,
 		c.engineMgr.SetStatus(engineID, st)
 		return &st, nil
 	}
-	// 本地 TTS 引擎：先确保服务在起（幂等），刚拉起时短暂等待，避免“测试连接”必失败
-	if engineID == "cosyvoice" {
-		c.ensureLocalTTSService(engineID)
-		for i := 0; i < 4 && !c.ttsReady(engineID); i++ {
-			time.Sleep(2 * time.Second)
-		}
-	}
 	// breeze-server 无 /v1/models（探活走 /health），通用 TestConnection 链
 	// 不适用：ensure + 状态回写单点在此（模型目录恒为种子单条，服务端忽略模型名）。
 	if engineID == "breeze" {
@@ -66,10 +59,10 @@ func (c *core) TestEngineConnection(engineID string) (*modelengine.EngineStatus,
 // 冷启动含模型加载+预热（约 6~10s），轮询上限 16s。
 func (c *core) breezeConnectStatus() *modelengine.EngineStatus {
 	c.ensureLocalTTSService("breeze")
-	for i := 0; i < 8 && !c.ttsReady("breeze"); i++ {
+	for i := 0; i < 8 && !c.ttsReady(); i++ {
 		time.Sleep(2 * time.Second)
 	}
-	ready := c.ttsReady("breeze")
+	ready := c.ttsReady()
 	errMsg := ""
 	if !ready {
 		errMsg = "Breeze TTS 服务未运行（未安装或启动失败）"
@@ -97,7 +90,7 @@ func (c *core) RefreshEngineModels(engineID string) ([]modelengine.ModelInfo, er
 	if engineID == "breeze" {
 		c.breezeConnectStatus()
 		status := "stopped"
-		if c.ttsReady("breeze") {
+		if c.ttsReady() {
 			status = "running"
 		}
 		return []modelengine.ModelInfo{{ID: "breeze-tts-2", Kind: "tts", Name: "Breeze-TTS-2", Status: status}}, nil
@@ -377,34 +370,6 @@ func (c *core) SetOpencodeGoKey(apiKey string) error {
 // GetOpencodeGoKeyStatus 获取 OpenCode Go API Key 配置状态
 func (c *core) GetOpencodeGoKeyStatus() map[string]interface{} {
 	hasKey, masked := maskKeyStatus(c.cfg.OpenCodeGoAPIKey)
-	return map[string]interface{}{
-		"configured": hasKey,
-		"masked":     masked,
-	}
-}
-
-// SetOpencodeZenKey 设置 OpenCode Zen API Key
-func (c *core) SetOpencodeZenKey(apiKey string) error {
-	if c.engineMgr == nil {
-		return errNoEngineMgr
-	}
-	enc, err := secure.EncryptString(apiKey)
-	if err != nil {
-		return &appError{"API Key 加密失败: " + err.Error()}
-	}
-	c.engineMgr.UpdateOpencodeZenKey(apiKey)
-	c.cfg.OpenCodeZenAPIKey = enc
-	if err := config.Save(config.KeyOpencodeZenAPIKey, enc); err != nil {
-		slog.Warn("保存 OpenCode Zen API Key 失败", "error", err)
-		return err
-	}
-	slog.Info("OpenCode Zen API Key 已更新")
-	return nil
-}
-
-// GetOpencodeZenKeyStatus 获取 OpenCode Zen API Key 配置状态
-func (c *core) GetOpencodeZenKeyStatus() map[string]interface{} {
-	hasKey, masked := maskKeyStatus(c.cfg.OpenCodeZenAPIKey)
 	return map[string]interface{}{
 		"configured": hasKey,
 		"masked":     masked,

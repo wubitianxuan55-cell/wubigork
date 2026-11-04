@@ -81,7 +81,6 @@ func TestImageGenTool_SizeByBackendKind(t *testing.T) {
 		{ai.ImageBackendKindOpenAI, false},
 		{"xai", false},
 		{"herdsman", false},
-		{"ollama", false},
 	}
 	for _, tt := range cases {
 		t.Run(tt.backend, func(t *testing.T) {
