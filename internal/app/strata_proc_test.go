@@ -56,7 +56,7 @@ func TestStrataEngineStatus_Shape(t *testing.T) {
 	if st["project"] != config.DefaultStrataPath {
 		t.Fatalf("unexpected project: %v", st["project"])
 	}
-	if st["default_profile"] != "qwen36_uncensored" {
+	if st["default_profile"] != "qwen38fn_flash" {
 		t.Fatalf("unexpected default profile: %v", st["default_profile"])
 	}
 	profiles, ok := st["profiles"].([]map[string]string)
@@ -77,7 +77,7 @@ func TestStrataProjectPath_DefaultAndConfigured(t *testing.T) {
 
 func TestStrataServeInvocation_ExternalProjectContract(t *testing.T) {
 	project := `C:\AI\strata\repo`
-	for _, profile := range []string{"qwen36_uncensored"} {
+	for _, profile := range []string{"qwen38fn_flash"} {
 		bin, argv, cfgPath, err := strataServeInvocation(project, profile, 8091)
 		if err != nil {
 			t.Fatalf("invocation(%s): %v", profile, err)
@@ -118,15 +118,15 @@ func TestStrataProfileFromModels(t *testing.T) {
 		model   string
 		want    string
 	}{
-		{"qwen36_uncensored", "qwen3.6-35b-a3b-uncensored-q4_k_p", "qwen36_uncensored"},
+		{"qwen38fn_flash", "qwen3.8-flash-next-uncensored", "qwen38fn_flash"},
 	}
 	for _, tc := range cases {
 		if got := strataProfileFromModels([]string{tc.model}); got != tc.want {
 			t.Fatalf("%s: profile = %q, want %q", tc.profile, got, tc.want)
 		}
 	}
-	// 已退役档位（flash IQ2 / 普通 UD）不再映射：gaea 目录只认 uncensored 档。
-	for _, model := range []string{"qwen3.8-flash-next-iq2_xs", "qwen3.6-35b-a3b-ud-q4_k_m", "unknown-model"} {
+	// 未注册档位名不再映射：普通 UD 档与未知模型不认。
+	for _, model := range []string{"qwen3.6-35b-a3b-ud-q4_k_m", "unknown-model"} {
 		if got := strataProfileFromModels([]string{model}); got != "" {
 			t.Fatalf("retired/unknown model %s: profile = %q, want empty", model, got)
 		}

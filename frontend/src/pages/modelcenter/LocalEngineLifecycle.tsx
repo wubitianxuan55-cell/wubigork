@@ -27,9 +27,9 @@ interface LifecycleAPI {
 // 外部项目的档位契约在 Go 侧是单一来源；这里只做状态接口失败时的展示兜底。
 const API: Record<ManagedEngineID, LifecycleAPI> = {
   strata: {
-    defaultProfile: 'qwen36_uncensored',
+    defaultProfile: 'qwen38fn_flash',
     fallbackProfiles: [
-      { id: 'qwen36_uncensored', label: 'qwen3.6-35b-a3b-uncensored-q4_k_p' },
+      { id: 'qwen38fn_flash', label: 'qwen3.8-flash-next-uncensored (UD-IQ4_XS)' },
     ],
     status: getStrataEngineStatus,
     start: startStrataEngine,
@@ -112,8 +112,6 @@ export function LocalEngineLifecycle({ engineId, name, onReady, onRunningChange,
         setRunningState(true)
         setCurrentProfile(r.profile ?? '')
         await onReady?.()
-      } else if (r.reason === 'other-engine-running') {
-        message.warning(`另一个本地引擎（${r.other ?? 'strata/tianxuan'}）正在运行，请先停止它再启动${name}`)
       } else {
         const tail = r.error ? (r.error.length > 240 ? r.error.slice(-240) : r.error) : ''
         const detail = tail ? `：${tail}` : ''

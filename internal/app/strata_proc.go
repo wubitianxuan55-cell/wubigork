@@ -30,12 +30,16 @@ const (
 	strataStopPollStep = 500 * time.Millisecond
 )
 
-// strataProfiles 对齐 C:\AI\strata\repo 现有的 setup 生成档位 JSON。
+// strataProfiles 对齐 C:\AI\strata\repo 现有档位 JSON。
 // 8091 由 gaea 统一传入，JSON 里的 port 字段只作项目自身默认值。
-// 目录只保留 uncensored 档（2026-10-18 拍板：qwen3.8-flash IQ2 档与
-// qwen3.6 普通 UD 档退役，仅留 qwen3.6-35b-a3b-uncensored-q4_k_p）。
+// 2026-11-04 用户拍板：现阶段只接 flash-next 档（tianxuan 遗产
+// qwen3.8-flash-next-uncensored，177B MoE Heretic 消融 UD-IQ4_XS 41 分片 +
+// mtp-rt 草稿层 + iq_pack，wrapper JSON 配方按 strata 官方 docs/AMD_HIP.md
+// flash-next HIP 档：--pack/--native shard1/--ple-gguf shard2 PLE 表/
+// --spec 4 --mtp rt/--kv int8）。35B uncensored 档删除（gguf 保留=llama 8124
+// 正在服务同一份文件；wrapper JSON 已删，复档可按 git 史重建）。
 var strataProfiles = []engineProfileOption{
-	{ID: "qwen36_uncensored", Label: "qwen3.6-35b-a3b-uncensored-q4_k_p", ModelID: "qwen3.6-35b-a3b-uncensored-q4_k_p", Config: `strata-qwen36-uncensored-q4_k_p.json`},
+	{ID: "qwen38fn_flash", Label: "qwen3.8-flash-next-uncensored (UD-IQ4_XS)", ModelID: "qwen3.8-flash-next-uncensored", Config: `strata-qwen38fn-flash.json`},
 }
 
 // strataProjectPath 返回 Strata 独立引擎项目根目录。配置为空时回退本机固定工作区。
@@ -68,8 +72,8 @@ func strataServeInvocation(projectPath, profile string, port int) (string, []str
 
 func strataProfileFromModels(served []string) string {
 	for _, id := range served {
-		if strings.Contains(strings.ToLower(id), "uncensored") {
-			return "qwen36_uncensored"
+		if strings.Contains(strings.ToLower(id), "flash") {
+			return "qwen38fn_flash"
 		}
 	}
 	return ""
@@ -104,7 +108,7 @@ func (a *App) StrataEngineStatus() map[string]interface{} {
 		"running":         ok,
 		"port":            strataPort,
 		"profile":         profile,
-		"default_profile": "qwen36_uncensored",
+		"default_profile": "qwen38fn_flash",
 		"profiles":        engineProfileJSON(strataProfiles),
 		"project":         project,
 		"serve_script":    filepath.Join(project, strataServeEntry),
@@ -116,7 +120,7 @@ func (a *App) StrataEngineStatus() map[string]interface{} {
 // 端口占用→port-occupied；启动后轮询 /v1/models 至就绪（上限 300s）。
 func (a *App) StrataEngineStart(profile string) map[string]interface{} {
 	if strings.TrimSpace(profile) == "" {
-		profile = "qwen36_uncensored"
+		profile = "qwen38fn_flash"
 	}
 	project := a.strataProjectPath()
 	if served, ok := strataProbe(); ok {
@@ -129,16 +133,9 @@ func (a *App) StrataEngineStart(profile string) map[string]interface{} {
 			"served_models": served,
 		}
 	}
-	// 与自管 llama 共用同一块 UMA/VRAM；同时驻留会直接拖进换页，先停 llama 再启 Strata。
-	if _, ok := llamaProbe(); ok {
-		return map[string]interface{}{
-			"started": false,
-			"reason":  "other-engine-running",
-			"other":   "llama",
-			"profile": profile,
-			"project": project,
-		}
-	}
+	// 自管 llama（8124，语音线用）与本引擎（8091，聊天用）分板块并行：
+	// 2026-11-04 用户拍板「两个都能启动，用的板块不一样」——删除原「同驻换页」
+	// 互斥守卫，两引擎可同时驻留（内存吃紧由用户自行取舍启停）。
 	if ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", strataPort)); err != nil {
 		return map[string]interface{}{
 			"started": false,

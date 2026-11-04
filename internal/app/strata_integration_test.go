@@ -3,7 +3,7 @@
 package app
 
 // strata_integration_test.go — Strata 真实生命周期验证（默认不编译）。
-// 使用 `go test -tags strata_integration` 启动 8091 的 qwen36_uncensored 档（目录
+// 使用 `go test -tags strata_integration` 启动 8091 的 qwen38fn_flash 档（目录
 // 现存唯一档位），验证 Python 启动入口、/v1/models 探活、默认模型同步与停止；
 // CI/日常单测不受影响。
 
@@ -22,7 +22,7 @@ func TestStrataQwen36UncensoredLifecycle_Integration(t *testing.T) {
 		t.Logf("stop: %v", stop)
 		if stopped, _ := stop["stopped"].(bool); !stopped {
 			if reason, _ := stop["reason"].(string); reason != "not-running" {
-				t.Errorf("strata qwen36_uncensored profile did not stop cleanly: %v", stop)
+				t.Errorf("strata qwen38fn_flash profile did not stop cleanly: %v", stop)
 			}
 		}
 	}()
@@ -31,15 +31,15 @@ func TestStrataQwen36UncensoredLifecycle_Integration(t *testing.T) {
 	res := a.StrataModelStart(modelID)
 	t.Logf("start: %v", res)
 	if started, _ := res["started"].(bool); !started {
-		t.Fatalf("strata qwen36_uncensored model did not start: %v", res)
+		t.Fatalf("strata qwen38fn_flash model did not start: %v", res)
 	}
 	st := a.StrataEngineStatus()
 	t.Logf("status: %v", st)
 	if running, _ := st["running"].(bool); !running {
 		t.Fatalf("status did not see the running strata engine: %v", st)
 	}
-	if profile, _ := st["profile"].(string); profile != "qwen36_uncensored" {
-		t.Fatalf("profile = %q, want qwen36_uncensored (%v)", profile, st)
+	if profile, _ := st["profile"].(string); profile != "qwen38fn_flash" {
+		t.Fatalf("profile = %q, want qwen38fn_flash (%v)", profile, st)
 	}
 	// 模型启动只刷新完整目录，不替用户改默认模型或功能绑定。
 	if _, err := a.RefreshEngineModels("strata"); err != nil {
