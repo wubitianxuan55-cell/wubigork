@@ -1,6 +1,6 @@
 # 语音管线 Go 原生重写（sidecar 退役）主计划
 
-- 状态：**进行中**（刀1 已落地，刀2~6 待续）
+- 状态：**进行中**（刀1~5 已提交；刀6 代码面 2026-11-05 落地未提交：sidecar/4B 拉起链退役〔工作树前批〕+启动连接卡死根修+**8792 网关退役**〔注入逻辑吸收进进程内 LLM 腿 voiceNativeLLMLeg，路由恒走聊天板块功能绑定，voice_chat_llm radio/8792 服务/qwen35 语音直代全退役；R3 零输出 status 瑕疵+6400B 尾批 flush 销项〕；余=发版；**bundle v2 已落地**（2026-11-05：模型路径可重定位 voiceNativeModelPath（BASE 优先/统一根兜底）+package_voice_bundle.py 重写（exe+三 DLL+models/voice+装机脚本+SHA256 清单，venv/4B/launcher 出局）+bundle 布局冷启实弹过：装配 3.49s+wire turn 全事件+兜底 delta 在线）
 - 拍板：2026-11-04 用户拍板「sidecar 用 Go 重写，植入 gaea 语音系统，不要再搞这种了，严重影响使用」+「LLM 腿=刚刚优化的 llama 引擎里的 35B 模型，与聊天板块的功能绑定挂钩」+「直接动刀，不做过渡止血」
 - 本文件为唯一事实源；语音 V2 前史见 `gaea-voice-v2-optimization-roadmap-20261103.md`
 

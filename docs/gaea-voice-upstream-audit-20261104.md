@@ -105,7 +105,7 @@
 |----|------|--------|------|
 | R1 | LLM 快照隔离生成（deep copy） | promptRequest.history 在 sttStage 时点快照 | ✅对齐 |
 | R2 | **anchor 写回：assistant 钉在快照锚点之后**——生成期 soft-end 非打断语音（vadhandler.go:255 InterruptResponse=false）追加的 user 不被越过 | 尾插 append——非打断路径会错序 | ❌需修（F7：writeAssistantAnchor，按 rs.turnID 锚插+越 assistant+锚缺失尾插兜底） |
-| R3 | LLM 阶段陈旧请求前置跳过 | dead/closedKeys 短路+首 delta gate Drop；gate Drop 后响应以 completed+空输出收口（status 语义瑕疵） | 🔵近似记理由（LLM 调用浪费面=gaea 本地 35B 零成本；status 瑕疵挂刀6 复核池） |
+| R3 | LLM 阶段陈旧请求前置跳过 | dead/closedKeys 短路+首 delta gate Drop；**2026-11-05 已修**：audioEmitted 计数 + done 哨兵零输出→cancelled/empty_output（O3 回滚空暂存，TestEmptyOutputResponseCancels 固化）；连带修=6400B 音频批尾批 flush 缺失（每轮尾部 ≤200ms 被吞） | ✅已修（刀6 复核池销项） |
 | R4 | 工具生成期逐 chunk history capture | 无工具面 | 🔵不移植（gaea 无工具） |
 | R5 | compactor 历史压缩 | 无 | 🔵不移植（O6 同判） |
 | R6 | item.create 注入 chat+响应期 deferred | server.go 仅回声不入 chat（gaea 前端无 item.create 注入面，文本走 commit 路径） | 🔵不移植记理由 |
