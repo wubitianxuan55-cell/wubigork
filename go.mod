@@ -10,16 +10,19 @@ require (
 	github.com/carmel/gooxml v0.0.0-20220216072414-40ff56130850
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gorilla/websocket v1.5.3
+	github.com/k2-fsa/sherpa-onnx-go-windows/v2 v2.0.1
 	github.com/mattn/go-runewidth v0.0.23
 	github.com/richardlehane/mscfb v1.0.8
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/unitedrhino/go-cad v0.0.0-20261001090957-ddd91eea9618
 	github.com/wailsapp/wails/v2 v2.13.0
 	github.com/xuri/excelize/v2 v2.11.1-0.20261020033641-611b222fd8f7
+	github.com/yalue/onnxruntime_go v1.28.0
 	golang.org/x/image v0.46.0
 	golang.org/x/net v0.61.0
 	golang.org/x/sys v0.49.0
 	golang.org/x/text v0.43.0
+	gonum.org/v1/gonum v0.17.0
 	modernc.org/sqlite v1.55.0
 )
 

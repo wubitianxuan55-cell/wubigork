@@ -38,12 +38,30 @@ if errorlevel 1 (
 )
 cd ..
 
+REM Voice native engines (sherpa-onnx / onnxruntime_go) are cgo-linked: the
+REM release build needs CGO + a gcc on PATH (MSYS2 ucrt64).
+REM System32 may hold a stale global onnxruntime.dll; the loader resolves
+REM imports from the EXE directory first, so the copy step below is mandatory.
+set CGO_ENABLED=1
+set CC=C:\msys64\ucrt64\bin\gcc.exe
 call wails build -s -ldflags "-s -w" -trimpath
 if errorlevel 1 (
     echo [FAIL] wails build failed
     exit /b 1
 )
 echo [OK] wails build completed
+
+REM Ship the voice native DLLs beside the exe (loader resolves from exe dir
+REM before System32, which neutralizes any stale global onnxruntime.dll).
+REM DLLs are versioned at build\voice-dlls\ (onnxruntime 1.31.1 from the
+REM validated pairing; sherpa-onnx-c-api 2.0.1 — do NOT mix with System32/PATH copies).
+copy /Y build\voice-dlls\onnxruntime.dll build\bin\ >nul
+copy /Y build\voice-dlls\sherpa-onnx-c-api.dll build\bin\ >nul
+copy /Y build\voice-dlls\sherpa-onnx-cxx-api.dll build\bin\ >nul
+if not exist build\bin\onnxruntime.dll (
+    echo [FAIL] voice native DLL copy failed
+    exit /b 1
+)
 
 if not exist build\bin\gaea.exe (
     echo [FAIL] build\bin\gaea.exe was not produced by this build
