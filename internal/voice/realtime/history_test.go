@@ -294,3 +294,39 @@ func TestCancelFlushQueuedPrompt(t *testing.T) {
 		t.Fatalf("LLM 调用数=%d（want 1：慢速请求 1 次，dead 请求 0 次）", n)
 	}
 }
+
+// TestHistoryAnchorWriteBack — R2：assistant 落在快照锚点（本轮 user）之后。
+// 上游 language_model.py:631/679：生成期 soft-end 非打断语音可追加更新 user，
+// 写回必须在锚点之后插入，不得把本轮回复越过新 user 尾插到末尾。
+func TestHistoryAnchorWriteBack(t *testing.T) {
+	p := newFakePipeline(t, &fakeLegs{reply: "好的"})
+	p.muHist.Lock()
+	p.chat = append(p.chat,
+		ChatMessage{Role: "user", Content: "问一", turnKey: "turn_1"},
+		ChatMessage{Role: "user", Content: "问二", turnKey: "turn_2"}, // 生成期追加
+	)
+	p.muHist.Unlock()
+
+	rs := &responseState{key: randHex(16), turnID: "turn_1", ctx: context.Background()}
+	p.muHist.Lock()
+	p.writeAssistantAnchor(rs, "答一")
+	p.muHist.Unlock()
+
+	p.muHist.Lock()
+	defer p.muHist.Unlock()
+	if len(p.chat) != 3 {
+		t.Fatalf("chat 长度=%d want 3", len(p.chat))
+	}
+	if p.chat[1].Role != "assistant" || p.chat[1].Content != "答一" {
+		t.Fatalf("assistant 应插在锚点（turn_1 user 之后）：got %s/%s", p.chat[1].Role, p.chat[1].Content)
+	}
+	if p.chat[2].Role != "user" || p.chat[2].turnKey != "turn_2" {
+		t.Fatalf("生成期追加的 turn_2 user 不得被越过：got %s/%v", p.chat[2].Role, p.chat[2].turnKey)
+	}
+	// 锚点缺失（已被裁剪）→ 尾插兜底
+	rs2 := &responseState{key: randHex(16), turnID: "turn_x", ctx: context.Background()}
+	p.writeAssistantAnchor(rs2, "答x")
+	if p.chat[len(p.chat)-1].Role != "assistant" || p.chat[len(p.chat)-1].Content != "答x" {
+		t.Fatalf("锚点缺失应尾插兜底")
+	}
+}

@@ -541,7 +541,7 @@ func (p *Pipeline) llmStage(req *promptRequest) {
 		// 取消回滚/完成 finalize 由 finishResponse 终态处置负责（O2/O3）
 		if err == nil && rs.ctx.Err() == nil {
 			p.muHist.Lock()
-			p.chat = append(p.chat, ChatMessage{Role: "assistant", Content: full, respKey: rs.key, provisional: true})
+			p.writeAssistantAnchor(rs, full)
 			p.trimChatTurnsLocked()
 			p.muHist.Unlock()
 		}
@@ -1078,6 +1078,26 @@ func (p *Pipeline) currentItemID(turnID string, rev int) string {
 		}
 	}
 	return ""
+}
+
+// writeAssistantAnchor O1 暂存写入 + R2 anchor 写回（language_model.py:631/679 同位）：
+// assistant 落在本轮 user 条目之后——生成期 soft-end 非打断语音（vadhandler 补发路径
+// InterruptResponse=false）追加的更新 user 不被本轮回复越过。须持 muHist。
+func (p *Pipeline) writeAssistantAnchor(rs *responseState, full string) {
+	insertAt := len(p.chat)
+	for i, m := range p.chat {
+		if m.Role == "user" && m.turnKey == rs.turnID {
+			insertAt = i + 1
+			// 越过该轮已有的 assistant（同轮重开 replace 场景写入位置仍在其后）
+			for insertAt < len(p.chat) && p.chat[insertAt].Role == "assistant" {
+				insertAt++
+			}
+			break
+		}
+	}
+	p.chat = append(p.chat, ChatMessage{})
+	copy(p.chat[insertAt+1:], p.chat[insertAt:])
+	p.chat[insertAt] = ChatMessage{Role: "assistant", Content: full, respKey: rs.key, provisional: true}
 }
 
 // trimChatTurnsLocked O7 同位：user_turn_count > size 时同步逐出最旧完整轮

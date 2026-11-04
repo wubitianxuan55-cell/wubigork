@@ -1,6 +1,6 @@
 # 语音管线复刻审计台账（REA 纪律：义务须锚上游 file:line 原文）
 
-- 状态：**进行中**
+- 状态：**已收口（批1~批4 全部完成，2026-11-05）**
 - 方法：逐文件读上游原文（`.tmp/research-hf-sts/src/speech_to_speech/`，6feb527）→ 义务条目（ID/证据引用/引文/Go 现状/判罚）→ 差距修复（一处一刀：build+单测+ws_probe）
 - 判罚：✅对齐 / ⚠️偏差（需修）/ ❌缺失（需补）/ 🔵上游死代码或 gaea 未用（不移植，记理由）
 - 上游文件清单与进度：
@@ -11,10 +11,10 @@
   5. `STT/base_stt_handler.py` — ✅已读（输入门/2048 集）
   6. `VAD/vad_handler.py`+`vad_iterator.py`+`smart_turn.py` — ✅已读
   7. `api/openai_realtime/service.py` — ✅已读（2026-11-05 批1 逐行：dispatch 顺序/归属解析/终态收口）
-  8. **`pipeline/history.py` + `api/openai_realtime/handlers/history.py` — 🔴完全未读**（spec 歧义#10：hold/accept/reject/close/finalize 语义——取消回滚聊天历史的机制）
-  9. **`pipeline/messages.py` Chat 类 — 🔴未读**（chat_size 裁剪/trim_if_needed/硬上限 2×size 逐出/provisional generations）
-  10. **`LLM/chat_completions_language_model.py` 历史写回 — 🟡部分**（ResponseHistory.capture/history_anchor_id 语义）
-  11. `api/openai_realtime/handlers/conversation.py`+`audio.py` — 🟡经转述（input_item 复用/resolve 规则已移植；_ack_item/previous_item_id 链已移植）
+  8. `pipeline/history.py` + `api/openai_realtime/handlers/history.py` — ✅已读（批2：hold/accept/reject/close/finalize 语义）
+  9. `pipeline/messages.py` Chat 类 — ✅已读（批3：chat_size 裁剪/trim_if_needed/硬上限 2×size 逐出）
+  10. `LLM/language_model.py` 历史写回 — ✅已读（批4：快照/anchor/capture；chat_completions_* 为 provider 适配器面 n/a）
+  11. `api/openai_realtime/handlers/conversation.py`+`audio.py` — ✅已读（批4：全量逐行）
 
 ## 审计批次
 
@@ -86,6 +86,39 @@
 |----|------|--------|------|
 | O7 | 裁剪按轮计数（user+配对 assistant 整轮逐出，12 轮） | ✅已修：userTurns>size 逐出最旧轮（user+紧邻 assistant）；全套单测绿 | ✅对齐 |
 | O8 | 2×size 硬上限 admission | FIFO 窗口天然有界 | 🔵近似可接受（同效不同粒度，记理由） |
+
+## 义务条目（批4：#10 LLM 历史写回 + #11 conversation/audio 已逐行读完）
+
+### 批4 证据（原文锚点）
+- language_model.py:624-631 快照隔离生成：`active_chat = original_chat.copy(deep=True)` + `history_anchor_id = active_chat.history_anchor_id()`
+- language_model.py:679/700-703 ResponseHistory.capture(original_chat, items, after_item_id=history_anchor_id, complete=True)——写回钉在快照锚点之后
+- language_model.py:612-620 LLM 阶段陈旧请求前置跳过（_turn_is_latest→EndOfResponse）
+- language_model.py:693-696 turn_output_allowed/commit_allowed 门
+- conversation.py:118-159 item.create/delete 响应期 deferred（工具面）+ :321-389 partial delta 稳定词前缀（双假设锚定）
+- conversation.py:417-449 on_transcription_completed 终态化+时长 usage
+- audio.py:177-231 _input_terminal_disposition 规则表（Go resolveInputTerminals 逐规则同构：超龄同轮 discard/跨轮 publish+input_closed/started 守卫/unanswered||failed→gate(commit)/无响应收口 turns.close/is_committed→publish/else hold）
+- audio.py:232-271 publish 顺序 speech_stopped→committed→item.created→transcription（Go publishTerminal 同构）
+
+### 批4 义务与判罚
+
+| ID | 义务 | Go 现状 | 判罚 |
+|----|------|--------|------|
+| R1 | LLM 快照隔离生成（deep copy） | promptRequest.history 在 sttStage 时点快照 | ✅对齐 |
+| R2 | **anchor 写回：assistant 钉在快照锚点之后**——生成期 soft-end 非打断语音（vadhandler.go:255 InterruptResponse=false）追加的 user 不被越过 | 尾插 append——非打断路径会错序 | ❌需修（F7：writeAssistantAnchor，按 rs.turnID 锚插+越 assistant+锚缺失尾插兜底） |
+| R3 | LLM 阶段陈旧请求前置跳过 | dead/closedKeys 短路+首 delta gate Drop；gate Drop 后响应以 completed+空输出收口（status 语义瑕疵） | 🔵近似记理由（LLM 调用浪费面=gaea 本地 35B 零成本；status 瑕疵挂刀6 复核池） |
+| R4 | 工具生成期逐 chunk history capture | 无工具面 | 🔵不移植（gaea 无工具） |
+| R5 | compactor 历史压缩 | 无 | 🔵不移植（O6 同判） |
+| R6 | item.create 注入 chat+响应期 deferred | server.go 仅回声不入 chat（gaea 前端无 item.create 注入面，文本走 commit 路径） | 🔵不移植记理由 |
+| R7 | partial transcription delta 稳定词前缀 | gaea STT=paraformer 全句转写，无部分假设流 | 🔵不移植记理由 |
+| R8 | conversation item.delete 全链 | 前端无删除面 | 🔵不移植（S8 同判） |
+| R9 | 512 块 framing+跨帧余数 | OnAudio pendingSamples | ✅对齐 |
+| R10 | 输入重采样（session.update 采样协商） | 协议固定 16k PCM16 | 🔵不移植记理由 |
+| R11 | conversation.item.truncate 输出截断 | barge-in=cancel 语义，前端不发 truncate | 🔵不移植记理由 |
+| R12 | terminal disposition 规则表+publish 顺序 | resolveInputTerminals/publishTerminal 逐规则同构 | ✅对齐 |
+
+### 批4 修复（F7，2026-11-05）
+- writeAssistantAnchor：assistant 插入本轮 user（turnKey==rs.turnID）之后、越过后排 assistant；锚缺失尾插兜底
+- 测试：TestHistoryAnchorWriteBack（锚点中插/新 user 不被越过/锚缺失兜底三断言）
 
 ## 义务条目（批2：history 两文件已逐行读完）
 
