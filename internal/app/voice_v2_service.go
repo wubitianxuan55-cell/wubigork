@@ -348,10 +348,13 @@ func (a *mediaState) VoiceV2Ensure() map[string]interface{} {
 		// 进程内 realtime 服务器直接顶 8791（协议回声/后续真管线），不再拉
 		// breeze/4B/sidecar。刀6 默认切换并删除本分支。
 		if os.Getenv("GAEA_VOICE_REALTIME_GO") != "" {
+			emit(false, "正在装配语音引擎（Go 原生）", "")
+			start := time.Now()
 			if err := voiceV2RealtimeStart(); err != nil {
-				emit(false, "正在准备语音识别引擎", fmt.Sprintf("Go realtime 启动失败: %v", err))
+				emit(false, "正在装配语音引擎（Go 原生）", fmt.Sprintf("Go realtime 启动失败: %v", err))
 				return
 			}
+			slog.Info("Voice V2 Go 管线就绪", "装配耗时", time.Since(start).String())
 			emit(true, "", "")
 			return
 		}
@@ -493,12 +496,14 @@ func voiceV2RealtimeStart() error {
 		return nil
 	}
 	// 原生引擎装配（首次 ~1-2s：paraformer int8 加载+warmup）。
+	engStart := time.Now()
 	eng, err := native.New(native.Config{
 		ORTRuntimePath:       native.OrtDLLPath(),
 		SmartTurnModelPath:   voiceNativeSmartTurnOnnx,
 		ParaformerModelPath:  voiceNativeParaformerOnnx,
 		ParaformerTokensPath: voiceNativeParaformerTok,
 	})
+	slog.Info("Voice V2 Go 原生引擎装配完成", "耗时", time.Since(engStart).String(), "error", err)
 	if err == nil {
 		var silero *native.SileroVAD
 		silero, err = eng.NewSileroVAD(voiceNativeSileroOnnx)
@@ -535,6 +540,7 @@ func voiceV2RealtimeStart() error {
 		return err
 	}
 	voiceV2RealtimeSrv = srv
+	slog.Info("Voice V2 Go realtime 服务器已监听", "addr", srv.Addr)
 	return nil
 }
 
