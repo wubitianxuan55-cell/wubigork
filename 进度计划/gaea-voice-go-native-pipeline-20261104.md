@@ -63,6 +63,15 @@
 - **坑新增**：①silero LSTM 态须 stateN→state 回拷（漏拷=概率恒近随机）；②yalue 不支持 0 维标量（sr 输入）→ 图手术常量化（fix_silero_sr.py 产 silero_vad_v5_16k.onnx，等价性验证过）；③OnAudio 512 块化须跨帧累积余数（前端 320 样本帧粒度，否则全丢）；④app 包测试二进制链接 sherpa DLL 后，go test 须 PATH 带 DLL 目录
 - 余：ws_probe turn/bargein/cancel 三场景门挂刀5（响应腿是前置）
 
+## 2.6 刀5 已落地（2026-11-04，代码面；实弹门挂下步）
+
+- `realtime/response.go`：response 装配（created 顺序守卫/assistant item 链/6400B 音频批/finishResponse{usage+turn_latency metadata}/tracker close/128 墓碑/chat 历史 12 窗）+ ResponseLegs 接口（Reply 带 turn/rev/itemID 供关联头）
+- `realtime/latency.go`：延迟日志行逐字（stt/llm/tts_ttfa/e2e/vad_decision/hold/smart_turn_status/status[ tts=cut]/source=speech/response_key=...）+ spokenSplit 口语分句（CJK 句读+西文句读边界守卫+60 rune 强切）
+- `internal/app/voice_v2_go_legs.go`：LLM 腿=直连现役 8792 网关 SSE（persona 注入/prepared 台账/功能绑定路由**零漂移复用**，X-Gaea 三头照旧骑行；用户拍板「跟随聊天绑定→35B」由 voice_chat_llm=chat 配置兑现）+ TTS 腿=breeze 8012 流式 PCM（16k 直出/24k 线性重采样跨块 carry）+ voiceResponseLegs 组合
+- pipeline.generateResponse：转写非空 → chat user → beginResponse → created → LLM 流（增量开输出+transcript.delta+分句下发）→ 逐句 speakSentence（gate commit=true 首音频提交轮+TTFA/e2e 记账）→ finishResponse(completed)；LLM 失败兜底语；barge-in=cancel ctx+finishResponse(cancelled/turn_detected)
+- GAEA_VOICE_REALTIME_GO 模式接线组合腿（网关 8792 启动期已在跑，依赖零新增）
+- **余（下会话实弹）**：ws_probe turn/bargein/cancel 三场景打 Go 版（需 gaea 壳+网关+breeze+35B 在跑）；真机全链路+e2e 记分卡（门 ≤2.5s，对照 0.79s）；前端联通目检
+
 ## 3. 刀2~6 计划
 
 - **刀2 WS 服务器+协议层**：8791 `/v1/realtime`（gorilla/websocket），session pool=1（第二条 `session_limit_reached`+close 1008）、session.created/updated、events.ts 全事件、response.created 顺序守卫、response_key 墓碑（≤128）、下行 6400B 分块；门=前端可连 + orderingViolations() 干净

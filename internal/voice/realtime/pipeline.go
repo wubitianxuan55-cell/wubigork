@@ -8,6 +8,7 @@ package realtime
 import (
 	"log/slog"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -25,7 +26,11 @@ type STTEngine interface {
 // PipelineConfig 管线配置。
 type PipelineConfig struct {
 	VAD VADHandlerConfig
-	// CreateResponse 转写后是否产生响应（刀5 LLM 腿接线后恒 true）。
+	// Legs LLM/TTS 腿（nil=无响应能力，转写后持发等待——刀3/4 态）。
+	Legs ResponseLegs
+	// ChatSize LLM 对话历史窗口（sidecar chat_size=12）。
+	ChatSize int
+	// CreateResponse 转写后是否产生响应（Legs!=nil 时恒 true）。
 	CreateResponse bool
 }
 
@@ -44,12 +49,30 @@ type Pipeline struct {
 	lastItemID          string
 	completedFinalRevs  map[turnKey]bool // completed-final 集合（FIFO 上限 2048）
 	completedFinalOrder []turnKey
-	// —— 响应状态（刀5 扩展）——
+	instructions        string // session.update 指令（app 层 LLM 适配读取）
+	voiceID             string // session.update 输出音色（breeze 克隆 id）
+	// —— 响应状态（刀5）——
+	legs           ResponseLegs
+	chatSize       int
+	chat           []ChatMessage
+	respState      *responseState
 	inResponse     bool
 	responseID     string
 	responseTurnID string
 	responseRev    int
 	responseMux    sync.Mutex
+	// 延迟账 + 墓碑
+	muLatency       sync.Mutex
+	lat             latencyRec
+	lastSTT         float64
+	lastLLM         float64
+	lastTTFA        float64
+	lastE2E         float64
+	lastVADDecision float64
+	lastSmart       string
+	lastHold        float64
+	closedKeys      map[string]bool
+	closedOrder     []string
 	// 音频时钟
 	totalSamples   int
 	pendingSamples []float32 // 512 块化余数（跨帧累积）
@@ -166,6 +189,16 @@ func (p *Pipeline) OnSessionConfig(s *Session, cfg SessionConfig) {
 	if cfg.VAD.Threshold != nil {
 		p.vad.SetThreshold(*cfg.VAD.Threshold)
 	}
+	p.muItems.Lock()
+	p.voiceID = cfg.Voice
+	p.muItems.Unlock()
+}
+
+// Voice 当前输出音色。
+func (p *Pipeline) Voice() string {
+	p.muItems.Lock()
+	defer p.muItems.Unlock()
+	return p.voiceID
 }
 
 // OnSessionEnd 会话结束复位。
@@ -294,6 +327,7 @@ func (p *Pipeline) transcribe(s *Session, f *VADFinal) {
 		return // input-after-final
 	}
 	text := ""
+	sttStart := time.Now()
 	if p.stt != nil && len(f.Audio) > 0 {
 		if t, err := p.stt.Transcribe(f.Audio, p.cfg.VAD.SampleRate); err == nil {
 			text = t
@@ -301,6 +335,11 @@ func (p *Pipeline) transcribe(s *Session, f *VADFinal) {
 			slog.Warn("STT 失败", "turn", f.TurnID, "rev", f.Rev, "error", err)
 		}
 	}
+	p.muLatency.Lock()
+	p.lastSTT = time.Since(sttStart).Seconds()
+	p.lastVADDecision = f.VADDecisionS
+	p.lastSmart = f.SmartStatus
+	p.muLatency.Unlock()
 	itemID, ok := p.inputItemForTurn(f.TurnID, f.Rev, false)
 	if !ok {
 		return
@@ -326,8 +365,137 @@ func (p *Pipeline) transcribe(s *Session, f *VADFinal) {
 	slog.Info("Transcription completed (language=zh): chars=" + strconv.Itoa(len([]rune(text))) +
 		" turn=" + f.TurnID + " rev=" + strconv.Itoa(f.Rev))
 
-	// 刀5：CreateResponse → LLM。当前 unanswered 路径在 resolve 中 commit+close。
+	// 响应腿（刀5）：转写非空 → chat 历史 → LLM 流 → 分句 TTS → response 链。
+	// 空转写：移除 chat user 消息等价=不入历史，直接返回（terminal 继续持发）。
+	if text != "" && p.legs != nil && p.cfg.CreateResponse {
+		p.chatAppend("user", text)
+		p.generateResponse(s, text, f)
+	}
 	p.resolveInputTerminals(s, "")
+}
+
+// generateResponse 响应全链（LLM 流 + 分句 TTS + finish）。
+func (p *Pipeline) generateResponse(s *Session, userText string, f *VADFinal) {
+	history := p.chatSnapshot()
+	// 历史含刚追加的 user 消息——LLM 侧剔除末条（adapter 自行组装 persona 注入）
+	if len(history) > 0 {
+		history = history[:len(history)-1]
+	}
+	rs := p.beginResponse(s, userText, f.TurnID, f.Rev, f.SpeechEndAt)
+	// 提交轮（commit=true）：首个输出前提交（解除 hold、进入 ANSWERING）
+	if g := p.turns.Gate(f.TurnID, f.Rev, false, time.Time{}, true); g.Action != GateAccept {
+		// DROP=轮已过期；静默放弃
+		return
+	}
+	p.sendResponseCreated(s, rs)
+
+	llmStart := time.Now()
+	sentenceCh := make(chan string, 64)
+	done := make(chan error, 1)
+	go func() {
+		full, inT, outT, err := p.legs.Reply(rs.ctx, userText, history, f.TurnID, f.Rev, p.currentItemID(f.TurnID, f.Rev), func(delta string) {
+			// 增量：开输出 + transcript.delta（规格：文本先于音频可见）
+			p.beginAssistantOutput(s, rs)
+			p.streamAssistantText(s, rs, delta)
+			// 分句批切（stream_batch_sentences=1）
+			p.pendSentence(rs, delta, sentenceCh)
+		})
+		rs.inTokens, rs.outTokens = inT, outT
+		p.muLatency.Lock()
+		p.lastLLM = time.Since(llmStart).Seconds()
+		p.muLatency.Unlock()
+		p.flushSentence(rs, sentenceCh)
+		close(sentenceCh)
+		done <- err
+		_ = full
+	}()
+
+	speakErr := error(nil)
+	first := true
+	for sentence := range sentenceCh {
+		if !p.speakSentence(s, rs, sentence, first) {
+			speakErr = errInterrupted
+			first = false
+			break
+		}
+		first = false
+	}
+	if speakErr == errInterrupted {
+		// barge-in 已在 onSpeechStarted 里 finishResponse(cancelled/turn_detected)
+		<-done
+		return
+	}
+	if err := <-done; err != nil {
+		if rs.ctx.Err() != nil {
+			return // 已取消路径
+		}
+		slog.Warn("LLM 生成失败", "error", err)
+		// 兜底语（sidecar PROVIDER_FAILURE_FALLBACK 语义）
+		p.beginAssistantOutput(s, rs)
+		p.streamAssistantText(s, rs, "我现在有点跟不上，请再说一遍。")
+		if !p.speakSentence(s, rs, "我现在有点跟不上，请再说一遍。", false) {
+			return
+		}
+		p.finishResponse(s, rs, "failed", "response_failed")
+		return
+	}
+	p.finishResponse(s, rs, "completed", "")
+}
+
+// currentItemID 当前轮协议 item id（LLM 关联头用）。
+func (p *Pipeline) currentItemID(turnID string, rev int) string {
+	p.muItems.Lock()
+	defer p.muItems.Unlock()
+	if id, ok := p.inputItemByTurnRev[turnKey{id: turnID, rev: rev}]; ok {
+		return id
+	}
+	for k, id := range p.inputItemByTurnRev {
+		if k.id == turnID {
+			return id
+		}
+	}
+	return ""
+}
+
+var errInterrupted = errorString("interrupted")
+
+type errorString string
+
+func (e errorString) Error() string { return string(e) }
+
+// pendSentence 流式分句累积（跨 delta）。
+func (p *Pipeline) pendSentence(rs *responseState, delta string, ch chan<- string) {
+	rs.mu.Lock()
+	rs.sb += delta
+	text := rs.sb
+	rs.mu.Unlock()
+	sentences := spokenSplit(text)
+	if len(sentences) > 1 {
+		// 除最后一段（可能未完）外全部下发
+		complete := ""
+		for i := 0; i < len(sentences)-1; i++ {
+			complete += sentences[i]
+		}
+		rs.mu.Lock()
+		rs.sb = sentences[len(sentences)-1]
+		rs.parts = append(rs.parts, sentences[:len(sentences)-1]...)
+		rs.mu.Unlock()
+		ch <- complete
+	}
+}
+
+// flushSentence 响应结束前冲掉残余半句。
+func (p *Pipeline) flushSentence(rs *responseState, ch chan<- string) {
+	rs.mu.Lock()
+	rest := strings.TrimSpace(rs.sb)
+	rs.sb = ""
+	if rest != "" {
+		rs.parts = append(rs.parts, rest)
+	}
+	rs.mu.Unlock()
+	if rest != "" {
+		ch <- rest
+	}
 }
 
 // inputItemForTurn 取/建输入协议 item id。isReopen 时复用同 turn 既有 revision 的

@@ -510,9 +510,23 @@ func voiceV2RealtimeStart() error {
 	if err != nil {
 		return fmt.Errorf("语音原生引擎装配失败: %w", err)
 	}
+	var pipeRef *realtime.Pipeline
+	legs := voiceResponseLegs{
+		llm: voiceLLMLeg{base: "http://127.0.0.1:8792/v1"},
+		tts: voiceTTSLeg{base: "http://127.0.0.1:8012/v1", model: "breeze-tts-2",
+			voice: func() string {
+				if pipeRef != nil {
+					return pipeRef.Voice()
+				}
+				return "char_gaea"
+			}},
+	}
 	pipe := realtime.NewPipeline(realtime.PipelineConfig{
-		VAD: realtime.DefaultVADConfig(),
+		VAD:            realtime.DefaultVADConfig(),
+		Legs:           legs,
+		CreateResponse: true,
 	}, voiceV2NativeSilero, voiceEOTAdapter{eng}, voiceSTTAdapter{eng})
+	pipeRef = pipe
 	srv := &realtime.Server{
 		Addr:    fmt.Sprintf("127.0.0.1:%d", voiceV2SidecarPort),
 		Handler: pipe,
