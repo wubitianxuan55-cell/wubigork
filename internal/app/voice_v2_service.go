@@ -358,6 +358,16 @@ func (a *mediaState) VoiceV2Ensure() map[string]interface{} {
 		}
 		// ③ sidecar：直接执行 venv Python，绕开 cmd.exe 对批处理路径的解析，
 		// 启动失败能带着具体脚本路径上屏。
+		// ②b 自管 35B（P2 续拍板）：voice_chat_llm=qwen35 时先拉 35B 再启
+		// sidecar——sidecar 启动自检经网关走 qwen35 直代腿，8124 必须先就绪。
+		if a.cfg != nil && a.cfg.VoiceChatLLM == "qwen35" && !qwen35Running() {
+			emit(false, "正在准备自管 35B", "")
+			res := a.app.qwen35Ensure()
+			if res["running"] != true {
+				emit(false, "准备自管 35B", fmt.Sprintf("%v", res["error"]))
+				return
+			}
+		}
 		emit(false, "正在准备语音识别引擎", "")
 		if !voiceV2Probe(voiceV2SidecarPort) {
 			root := repoRootFromExe()

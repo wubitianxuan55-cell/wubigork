@@ -45,6 +45,9 @@ func (b *CoreB) Login() error { return b.a.Login() }
 func (b *CoreB) Logout() error { return b.a.Logout() }
 func (b *CoreB) OpenProject(dir string) (map[string]interface{}, error) { return b.a.OpenProject(dir) }
 func (b *CoreB) QuantSuitability(model string) (string, error) { return b.a.QuantSuitability(model) }
+func (b *CoreB) Qwen35EngineStart() map[string]interface{} { return b.a.Qwen35EngineStart() }
+func (b *CoreB) Qwen35EngineStatus() map[string]interface{} { return b.a.Qwen35EngineStatus() }
+func (b *CoreB) Qwen35EngineStop() map[string]interface{} { return b.a.Qwen35EngineStop() }
 func (b *CoreB) RefreshEngineModels(engineID string) ([]modelengine.ModelInfo, error) { return b.a.RefreshEngineModels(engineID) }
 func (b *CoreB) RemoveCustomEngine(engineID string) error { return b.a.RemoveCustomEngine(engineID) }
 func (b *CoreB) ResetModelCallStats() { b.a.ResetModelCallStats() }

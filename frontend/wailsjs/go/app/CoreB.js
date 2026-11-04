@@ -134,6 +134,18 @@ export function QuantSuitability(arg1) {
   return window['go']['app']['CoreB']['QuantSuitability'](arg1);
 }
 
+export function Qwen35EngineStart() {
+  return window['go']['app']['CoreB']['Qwen35EngineStart']();
+}
+
+export function Qwen35EngineStatus() {
+  return window['go']['app']['CoreB']['Qwen35EngineStatus']();
+}
+
+export function Qwen35EngineStop() {
+  return window['go']['app']['CoreB']['Qwen35EngineStop']();
+}
+
 export function RefreshEngineModels(arg1) {
   return window['go']['app']['CoreB']['RefreshEngineModels'](arg1);
 }

@@ -124,6 +124,18 @@ func (a *mediaState) handleVoiceV2ChatCompletion(w http.ResponseWriter, r *http.
 	} else if memory := a.voiceV2LongTermContext(userMsg); memory != "" {
 		injectVoiceV2SystemContext(payload, memory)
 	}
+	// P2 续拍板：voice_chat_llm=qwen35 时 LLM 位直代自管 35B（8124）——与 4B 腿
+	// 同构的 HTTP 代理（人格/记忆预推进照常），无 ai.Client/routeModel 依赖。
+	// 非流式同样直代（sidecar 启动自检也过这条腿）。
+	qwen35Mode := a.cfg != nil && a.cfg.VoiceChatLLM == "qwen35"
+	if qwen35Mode && !qwen35Running() {
+		if prepared != nil {
+			a.rollbackPrepared(prepared)
+		}
+		slog.Warn("Voice V2 自管 35B 未就绪")
+		http.Error(w, "自管 35B 未就绪（语音设置里重试或先启动引擎）", http.StatusServiceUnavailable)
+		return
+	}
 	// P1 续刀「语音对话模型」：voice_chat_llm=chat 时 LLM 位改走聊天板块模型
 	// （routeModel("chat") 经 ai.Client 流式），跳过专属 4B HTTP 代理；人格/
 	// 记忆预推进与提交语义完全不变（prepared 由本函数退出路径负责回滚）。
@@ -137,7 +149,11 @@ func (a *mediaState) handleVoiceV2ChatCompletion(w http.ResponseWriter, r *http.
 		http.Error(w, "编码语音对话请求失败", http.StatusInternalServerError)
 		return
 	}
-	url := strings.TrimRight(voiceV2GatewayUpstream, "/") + "/v1/chat/completions"
+	upstream := voiceV2GatewayUpstream
+	if qwen35Mode {
+		upstream = fmt.Sprintf("http://127.0.0.1:%d", qwen35Port)
+	}
+	url := strings.TrimRight(upstream, "/") + "/v1/chat/completions"
 	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, url, bytes.NewReader(augmented))
 	if err != nil {
 		a.rollbackPrepared(prepared)

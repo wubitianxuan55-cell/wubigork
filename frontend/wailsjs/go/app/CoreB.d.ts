@@ -71,6 +71,12 @@ export function OpenProject(arg1:string):Promise<Record<string, any>>;
 
 export function QuantSuitability(arg1:string):Promise<string>;
 
+export function Qwen35EngineStart():Promise<Record<string, any>>;
+
+export function Qwen35EngineStatus():Promise<Record<string, any>>;
+
+export function Qwen35EngineStop():Promise<Record<string, any>>;
+
 export function RefreshEngineModels(arg1:string):Promise<Array<modelengine.ModelInfo>>;
 
 export function RemoveCustomEngine(arg1:string):Promise<void>;

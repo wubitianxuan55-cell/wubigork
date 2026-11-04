@@ -108,7 +108,7 @@ export default function VoiceSettingsPanel() {
   // ── 语音对话引擎（M4 产品接入刀）：v1 whisper 链 / v2 实时 sidecar ──
   const [voiceBackend, setVoiceBackend] = useState<'v1' | 'v2'>('v1')
   // P2 续：V2 对话 LLM 位（空/local-fast=专属快模型 | chat=跟随聊天板块）
-  const [voiceChatLLM, setVoiceChatLLM] = useState<'local-fast' | 'chat'>('local-fast')
+  const [voiceChatLLM, setVoiceChatLLM] = useState<'local-fast' | 'chat' | 'qwen35'>('local-fast')
   const [v2Status, setV2Status] = useState<{
     sidecar: boolean; llm: boolean; breeze: boolean; gateway: boolean; ready: boolean
     error: string; stage: string
@@ -361,7 +361,10 @@ export default function VoiceSettingsPanel() {
       if (settings.realtimeHasKey !== undefined) setRtHasKey(!!settings.realtimeHasKey)
       if (settings.breezeVoiceDesc !== undefined) setBreezeDesc(String(settings.breezeVoiceDesc || ''))
       if (settings.voiceBackend !== undefined) setVoiceBackend(settings.voiceBackend === 'v2' ? 'v2' : 'v1')
-      if (settings.voiceChatLLM !== undefined) setVoiceChatLLM(String(settings.voiceChatLLM) === 'chat' ? 'chat' : 'local-fast')
+      if (settings.voiceChatLLM !== undefined) {
+        const v = String(settings.voiceChatLLM)
+        setVoiceChatLLM(v === 'chat' || v === 'qwen35' ? v : 'local-fast')
+      }
 
       const p = (pipeline as VoicePipelineInfo | undefined)
       setRouteChat({ engine: p?.chatTts?.engine || '', model: p?.chatTts?.model || '' })
@@ -579,7 +582,7 @@ export default function VoiceSettingsPanel() {
               size="small"
               value={voiceChatLLM}
               onChange={(e) => {
-                const next = e.target.value as 'local-fast' | 'chat'
+                const next = e.target.value as 'local-fast' | 'chat' | 'qwen35'
                 setVoiceChatLLM(next)
                 void app.VoiceApplySettings({ voiceChatLLM: next }).catch(() => { setVoiceChatLLM(voiceChatLLM) })
               }}
@@ -587,6 +590,7 @@ export default function VoiceSettingsPanel() {
               style={{ flexBasis: '100%' }}
             >
               <Radio.Button value="local-fast">专属快模型（推荐）</Radio.Button>
+              <Radio.Button value="qwen35">自管 35B（语音+聊天）</Radio.Button>
               <Radio.Button value="chat">跟随聊天板块（实验）</Radio.Button>
             </Radio.Group>
           </div>
