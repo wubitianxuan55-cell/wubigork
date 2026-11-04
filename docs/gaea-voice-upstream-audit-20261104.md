@@ -10,7 +10,7 @@
   4. `pipeline/turn_latency.py` — ✅已读（日志行逐字）
   5. `STT/base_stt_handler.py` — ✅已读（输入门/2048 集）
   6. `VAD/vad_handler.py`+`vad_iterator.py`+`smart_turn.py` — ✅已读
-  7. **`api/openai_realtime/service.py` — 🔴未逐行**（只经子代理转述；_end_response/history staging/should_listen 细节）
+  7. `api/openai_realtime/service.py` — ✅已读（2026-11-05 批1 逐行：dispatch 顺序/归属解析/终态收口）
   8. **`pipeline/history.py` + `api/openai_realtime/handlers/history.py` — 🔴完全未读**（spec 歧义#10：hold/accept/reject/close/finalize 语义——取消回滚聊天历史的机制）
   9. **`pipeline/messages.py` Chat 类 — 🔴未读**（chat_size 裁剪/trim_if_needed/硬上限 2×size 逐出/provisional generations）
   10. **`LLM/chat_completions_language_model.py` 历史写回 — 🟡部分**（ResponseHistory.capture/history_anchor_id 语义）
@@ -18,12 +18,64 @@
 
 ## 审计批次
 
+- 批1 已完成（#7 service.py 逐行+S1~S20 判罚+F1~F6 修复，见下）
+- 批2 已完成（#8 history 两文件，O1~O4；**O2/O3 修复为假绿——批1 复核证伪后补真修**）
 - 批3 已完成（O7 修复+O8 记理由）
-- 批1（当前）：#7 service.py 逐行 → 义务条目
-- 批2：#8 history 两文件（取消回滚聊天=用户可感知行为）
-- 批3：#9 messages.py Chat 裁剪语义
-- 批4：#10/#11 补读收口
+- 批4：#10/#11 补读收口（待续）
 - 每批产出：义务表+判罚+修复提交
+
+## 义务条目（批1：service.py 已逐行读完）
+
+### 批1 证据（原文锚点）
+- service.py:328-352 mark/clear/close response key（pending 集+128 墓碑+response_pending 旗）
+- service.py:407-422 register：新连接重置 speculative turns+**新建 Chat（每连接独立历史）**
+- service.py:424-443 unregister：history.close_session+chat.close()（抑制在途压缩/后续计费）+用量卷积+latency 清理
+- service.py:562-593 close_pending_responses/close_response_key：逐 pending key 收口（用量保留+tracker discard+history.close+墓碑）
+- service.py:610-669 dispatch 顺序：TokenUsage 永不判陈旧 → failed 响应抑制 assistant 输出（617-628）→ deleted turn 丢弃 → 陈旧 turn 丢弃（resolve future+discard pending turn）→ history.stage → HistoryCommitError→response.failed
+- service.py:671-680 is_turn_output_held（发送循环复查不阻塞事件环）
+- service.py:690-769 response_latency_context/_response_input：生成归属解析（工具延续归 call；**新轮已关闭→响应改挂当前轮** 761-769）
+- service.py:771-794 record_input_turn（按保留 chat 修剪 item→turn 映射+anchors 128 上限）+ _input_turn_accounting（新轮清旧账 791-793）
+- service.py:798-873 _on_transcription_completed：replace user 文本（826）/空转写移除 user（839-841）/不排队 prompt（844）/discard pending turn（861）/terminal 持发（866）
+- service.py:875-900 _on_transcription_failed：should_listen 置位+移除 user+零计账+持发
+- service.py:902-961 _on_audio_input_completed（audio 直入 LLM：gaea 无此腿）
+- service.py:965-1044 token usage 暂存卷积（pending_token_usage）+_on_response_failed（keyed 路由 1022-1029+先 reject 后 failed 1038-1039+音尾哨兵关闭）
+
+### 批1 义务与判罚
+
+| ID | 义务 | Go 现状 | 判罚 |
+|----|------|--------|------|
+| S1 | pending/closed key 双集+128 墓碑 | closedKeys 128 墓碑 ✓；pending 集无（单响应在途拓扑，无排队多响应面） | 🔵近似记理由 |
+| S2 | register：新连接重置 turns | OnSessionEnd→turns.Reset ✓ | ✅对齐 |
+| S3 | register：每连接新建 Chat | Pipeline 常驻单例，OnSessionEnd **不清 chat**——跨会话残留 | ⚠️需修（F6） |
+| S4 | unregister：收口+用量卷积+latency 清理 | 队列/映射/turns/vad 清 ✓；用量卷积无消费方（gaea 每响应日志口径） | ✅/🔵记理由 |
+| S5 | close_response_key：墓碑+tracker close+history.close | 墓碑+turns.Close ✓；**history.close 缺失（O2 回滚/O3 finalize 未实现）** | ❌需修（F2） |
+| S6 | barge-in flush prompt 队列且标 dead | cancelActiveResponse **双接收错**：首载荷静默丢弃不标 dead+第二接收可阻塞发送循环 | ❌需修（F3） |
+| S7 | failed 响应抑制 assistant 输出 | LLM 失败→兜底句走完 completed（有意 UX 偏差，前端无 error UI 面） | ⚠️记理由（有意偏差） |
+| S8 | 陈旧 turn 丢弃+deleted turn 丢弃 | completedFinalRevs 去重+IsLatest 闸 ✓；conversation.item.delete 不支持（gaea 前端无此面） | ✅/🔵记理由 |
+| S9 | HOLD 输出停靠+发送循环复查 | pendingText/parkedAudio/10ms 复查 ✓ | ✅对齐 |
+| S10 | 新轮已关闭→响应改挂当前轮（761-769） | gate Drop→rs.dead 静默；gaea 全程 barge-in 已先行取消该响应，场景坍缩进 cancel | 🔵记理由 |
+| S11 | record_input_turn 修剪+anchors 上限 | inputItemByTurnRev 无修剪（会话期有界+OnSessionEnd 清） | 🔵近似记理由 |
+| S12 | 空转写：移除 user+不排队 prompt | text=="" 不写 chat/不排队 ✓；turn 收口走 turns 机 | ✅对齐 |
+| S13 | transcription_failed 客户端帧+移除 user | STT 错误→空文本 completed 帧（无 failed 帧；前端对空文本兼容） | 🔵近似记理由 |
+| S14 | token usage 暂存卷积 | Reply 同步返回 usage 入 done 帧，无跨线程时序面 | 🔵近似记理由 |
+| S15 | _on_response_failed 先 reject 后 failed+begin announce | 失败→兜底句 completed（同 S7 有意偏差） | ⚠️记理由 |
+| S16 | 失败响应不写历史 | `rs.ctx.Err()==nil` 即写——**err≠nil 也写半截**（上游 reject=全撤） | ⚠️需修（F4） |
+| S17 | O2 取消回滚暂存条目 | **未实现**（批2 台账误记已修）；TestHistoryRollbackOnCancel 靠 ctx 断流不写入侥幸绿 | ❌需修（F2） |
+| S18 | O3 完成 finalize（provisional=false） | **未实现**；测试等待循环超时后不校验 provisional=假绿 | ❌需修（F2） |
+| S19 | O7 轮制裁剪同样约束 assistant 追加处 | llmStage 追加处仍按**消息数**裁剪——可拆散 user/assistant 配对 | ⚠️需修（F5） |
+| S20 | chat 并发写串行化 | sttStage 写 chat **无锁**，与 llmStage goroutine（持 muHist）竞争=数据竞争 | ❌需修（F1） |
+
+### 批1 修复（F1~F6，2026-11-05）
+
+- F1 muHist 全覆盖：sttStage 的 O4 替换/O7 裁剪/append/快照全部持锁（S20）
+- F2 finishResponse 终态处置：completed→finalize（provisional=false）；cancelled/failed→删除该 respKey 暂存条目（S17/S18，批2 假绿补真修）
+- F3 cancelActiveResponse flush 改单接收+标 dead；llmStage 入口 dead 短路（S6）
+- F4 O1 写入条件收紧为 err==nil && ctx 活（S16）
+- F5 轮制裁剪抽 trimChatTurnsLocked 共用（sttStage+llmStage）（S19）
+- F6 OnSessionEnd 清 chat/closedKeys（每连接新建 Chat 同位）（S3）
+- 测试：TestHistoryWriteOnComplete 改硬校验 finalize；新增 TestHistoryRollbackAfterWrite（写完再取消必回滚/完成必 finalize）；TestCancelFlushQueuedPrompt（单请求 flush 不阻塞+dead 短路零生成）；回归 -race 全绿
+- **ws_probe 实弹回归（Go 管线，8791 归属=gaea 进程验证后打）**：turn 8/8（speech_end→首音频 216ms，门 ≤2.5s）+bargein 10/10（cancelled/turn_detected+旧代际零泄漏+新响应 completed）+cancel 8/8（client_cancelled+零后置音频）——F2 取消回滚/F3 flush 全链实弹过门
+- **坑新增（此批踩实）**：①无 BOM UTF-8 中文注释 .ps1 被 PS5.1 按 ANSI 乱码解析，**吞掉后续 $env: 赋值行**——ps1 必须 ASCII-only（build.bat 同款纪律）；②壳 env 失效时 ensure 走非 Go 分支拉起 sidecar，**ws_probe 会打在 sidecar 上假绿**——打门前必须验 8791 归属进程是 gaea（netstat+Get-Process），sidecar 启动的 8791 属 python
 
 ### 批3 证据（chat.py:475-493 trim_if_needed；500-516 replace；已逐行）
 - 裁剪按 **user_turn_count > size** 触发（不是消息数）；compactor=None（gaea 配置）→ 同步逐出最旧完整轮

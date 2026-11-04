@@ -319,6 +319,12 @@ func (p *Pipeline) OnSessionEnd(_ *Session) {
 	p.totalSamples = 0
 	p.pendingSamples = nil
 	p.session = nil
+	// S3：每连接新建 Chat（service.py:413 register 同位）——历史不跨 WS 会话残留
+	p.muHist.Lock()
+	p.chat = nil
+	p.muHist.Unlock()
+	p.closedKeys = map[string]bool{}
+	p.closedOrder = nil
 	p.turns.Reset()
 	p.vad.OnSessionEnd()
 }
@@ -355,11 +361,12 @@ func (p *Pipeline) cancelActiveResponse(reason string) {
 	if !inResp && rs == nil {
 		return
 	}
-	// flush text_prompt_queue：丢弃排队请求
+	// flush text_prompt_queue：逐个取出标记 dead（上游 close_pending_responses 同位：
+	// 排队响应逐 key 收口）。单接收——旧双接收写法首载荷静默丢弃且单请求时会阻塞发送循环。
 	for {
 		select {
-		case <-p.promptCh:
-			if pr := <-p.promptCh; pr != nil {
+		case pr := <-p.promptCh:
+			if pr != nil && pr.resp != nil {
 				pr.resp.dead = true
 			}
 			continue
@@ -484,6 +491,7 @@ func (p *Pipeline) sttStage(f *VADFinal) {
 
 	// GenerateResponseRequest（text_prompt_queue）——转写 terminal 持发，随响应提交发布
 	if text != "" && p.legs != nil && p.cfg.CreateResponse {
+		p.muHist.Lock()
 		// O4：同轮重开替换 user 文本（replace_user_message_text 同位），不新增条目
 		tk := f.TurnID
 		replaced := false
@@ -497,24 +505,12 @@ func (p *Pipeline) sttStage(f *VADFinal) {
 		if !replaced {
 			p.chat = append(p.chat, ChatMessage{Role: "user", Content: text, turnKey: tk})
 		}
-		// O7：按轮裁剪（chat.py trim_if_needed 同位——user_turn_count > size 时
-		// 同步逐出最旧完整轮：user 及其紧邻 assistant）
-		userTurns := 0
-		for _, m := range p.chat {
-			if m.Role == "user" {
-				userTurns++
-			}
-		}
-		for userTurns > p.chatSize && len(p.chat) > 0 {
-			drop := 1
-			for drop < len(p.chat) && p.chat[drop].Role == "assistant" {
-				drop++
-			}
-			p.chat = p.chat[drop:]
-			userTurns--
-		}
+		// O7：按轮裁剪（chat.py trim_if_needed 同位）
+		p.trimChatTurnsLocked()
+		snap := p.chatSnapshot()
+		p.muHist.Unlock()
 		rs := p.newResponseState(f.TurnID, f.Rev, f.SpeechEndAt)
-		p.promptCh <- &promptRequest{resp: rs, userText: text, history: p.chatSnapshot(), speechStoppedAt: f.SpeechEndAt}
+		p.promptCh <- &promptRequest{resp: rs, userText: text, history: snap, speechStoppedAt: f.SpeechEndAt}
 		p.notify()
 	}
 	p.notify()
@@ -523,7 +519,8 @@ func (p *Pipeline) sttStage(f *VADFinal) {
 // llmStage LLM 流 → delta 事件 + 分句入 TTS 队列。
 func (p *Pipeline) llmStage(req *promptRequest) {
 	rs := req.resp
-	if p.closedKeys[rs.key] {
+	// dead 短路：barge-in flush 标记的排队请求不再生成（上游 LM 阶段查 cancel scope 同位）
+	if rs.dead || p.closedKeys[rs.key] {
 		return
 	}
 	llmStart := time.Now()
@@ -539,14 +536,13 @@ func (p *Pipeline) llmStage(req *promptRequest) {
 			p.pendSentence(rs, delta, sentenceCh)
 			p.notify()
 		})
-		// O1：完整回复作为暂存代际写入历史（add_provisional_generation_items 同位；
-		// 被取消时 ctx 断流，不写）——取消回滚由 finishResponse(cancelled) 负责（O2）
-		if rs.ctx.Err() == nil {
+		// O1：完整回复作为暂存代际写入历史（add_provisional_generation_items 同位）。
+		// 仅成功且未被取消时写入——上游失败响应 reject=全撤（S16），半截不进历史；
+		// 取消回滚/完成 finalize 由 finishResponse 终态处置负责（O2/O3）
+		if err == nil && rs.ctx.Err() == nil {
 			p.muHist.Lock()
 			p.chat = append(p.chat, ChatMessage{Role: "assistant", Content: full, respKey: rs.key, provisional: true})
-			for len(p.chat) > p.chatSize {
-				p.chat = p.chat[1:]
-			}
+			p.trimChatTurnsLocked()
 			p.muHist.Unlock()
 		}
 		rs.inTokens, rs.outTokens = inT, outT
@@ -997,6 +993,26 @@ func (p *Pipeline) finishResponse(s *Session, rs *responseState, status, reason 
 		vadDecideS: p.lastVADDecision, holdS: p.lastHold, smart: p.lastSmart}
 	p.muLatency.Unlock()
 	slogLatencyLine(rs, lat, status)
+	// O2/O3 终态处置暂存代际（handlers/history.py close()/finalize 同位）：
+	// completed → finalize 转永久；cancelled/failed → 回滚撤销该响应写入的内容
+	p.muHist.Lock()
+	if status == "completed" {
+		for i := range p.chat {
+			if p.chat[i].Role == "assistant" && p.chat[i].respKey == rs.key {
+				p.chat[i].provisional = false
+			}
+		}
+	} else {
+		out := p.chat[:0]
+		for _, m := range p.chat {
+			if m.Role == "assistant" && m.respKey == rs.key {
+				continue
+			}
+			out = append(out, m)
+		}
+		p.chat = out
+	}
+	p.muHist.Unlock()
 	p.turns.Close(rs.turnID, rs.rev)
 	p.closedKeys[rs.key] = true
 	p.closedOrder = append(p.closedOrder, rs.key)
@@ -1064,6 +1080,26 @@ func (p *Pipeline) currentItemID(turnID string, rev int) string {
 	return ""
 }
 
+// trimChatTurnsLocked O7 同位：user_turn_count > size 时同步逐出最旧完整轮
+// （user 及其紧邻 assistant）；须持 muHist 调用。
+func (p *Pipeline) trimChatTurnsLocked() {
+	userTurns := 0
+	for _, m := range p.chat {
+		if m.Role == "user" {
+			userTurns++
+		}
+	}
+	for userTurns > p.chatSize && len(p.chat) > 0 {
+		drop := 1
+		for drop < len(p.chat) && p.chat[drop].Role == "assistant" {
+			drop++
+		}
+		p.chat = p.chat[drop:]
+		userTurns--
+	}
+}
+
+// chatSnapshot 快照（须持 muHist 调用）。
 func (p *Pipeline) chatSnapshot() []ChatMessage {
 	out := make([]ChatMessage, len(p.chat))
 	copy(out, p.chat)

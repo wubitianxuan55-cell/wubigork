@@ -4,6 +4,7 @@ package realtime
 import (
 	"context"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -11,9 +12,11 @@ import (
 type fakeLegs struct {
 	reply string
 	slow  bool
+	calls int32
 }
 
 func (f *fakeLegs) Reply(ctx context.Context, userText string, history []ChatMessage, turnID string, rev int, itemID string, onDelta func(string)) (string, int, int, error) {
+	atomic.AddInt32(&f.calls, 1)
 	for _, part := range strings.Split(f.reply, "") {
 		if ctx.Err() != nil {
 			return "", 0, 0, ctx.Err()
@@ -103,14 +106,15 @@ func countRoles(p *Pipeline, role string) int {
 
 // TestHistoryWriteOnComplete — O1/O3：完成响应的回复写入历史并 finalize。
 func TestHistoryWriteOnComplete(t *testing.T) {
-	p := newFakePipeline(t, &fakeLegs{reply: "好的"})
+	legs := &fakeLegs{reply: "好的"}
+	p := newFakePipeline(t, legs)
 	p.turns.StartTurn()
 	p.turns.SegmentFinalized(1000, 800, 0)
 	p.sttCh <- &VADFinal{Audio: make([]float32, 4096), TurnID: "turn_1", Rev: 0}
 	deadline := time.Now().Add(3 * time.Second)
+	finalized := false
 	for time.Now().Before(deadline) {
 		p.muHist.Lock()
-		finalized := false
 		for _, m := range p.chat {
 			if m.Role == "assistant" && !m.provisional {
 				finalized = true
@@ -126,6 +130,7 @@ func TestHistoryWriteOnComplete(t *testing.T) {
 	defer p.muHist.Unlock()
 	users, assistants := 0, 0
 	assistantText := ""
+	anyProvisional := false
 	for _, m := range p.chat {
 		switch m.Role {
 		case "user":
@@ -133,6 +138,9 @@ func TestHistoryWriteOnComplete(t *testing.T) {
 		case "assistant":
 			assistants++
 			assistantText = m.Content
+			if m.provisional {
+				anyProvisional = true
+			}
 		}
 	}
 	if users != 1 || assistants != 1 {
@@ -140,6 +148,10 @@ func TestHistoryWriteOnComplete(t *testing.T) {
 	}
 	if assistantText != "好的" {
 		t.Fatalf("assistant 文本=%q want 好的", assistantText)
+	}
+	// O3 硬校验：等待循环可能超时，终态断言不依赖它（批2 假绿回归门）
+	if !finalized || anyProvisional {
+		t.Fatalf("完成响应的 assistant 应 finalize（provisional=false）")
 	}
 }
 
@@ -188,5 +200,97 @@ func TestHistoryUserReplacedOnReopen(t *testing.T) {
 	// 注：turnKey 取 f.TurnID（rev 无关），两次同 turn_1 → 替换
 	if users > 2 {
 		t.Fatalf("同轮两次转写 user 条目=%d（应≤2：替换语义）", users)
+	}
+}
+
+// TestHistoryRollbackAfterWrite — O2/O3 确定性验证：暂存写入后的终态处置。
+// 批2 假绿回归门：「ctx 断流不写入」≠回滚——写完暂存再取消必须删除，完成必须 finalize。
+func TestHistoryRollbackAfterWrite(t *testing.T) {
+	p := newFakePipeline(t, &fakeLegs{reply: "好的"})
+	p.turns.StartTurn()
+	p.turns.SegmentFinalized(1000, 800, 0)
+	rs := p.newResponseState("turn_1", 0, time.Time{})
+	p.muHist.Lock()
+	p.chat = append(p.chat,
+		ChatMessage{Role: "user", Content: "你好", turnKey: "turn_1"},
+		ChatMessage{Role: "assistant", Content: "半截回复", respKey: rs.key, provisional: true},
+	)
+	p.muHist.Unlock()
+
+	// 取消 → 该 respKey 暂存 assistant 撤销，user 保留（O2 close 同位）
+	p.finishResponse(p.session, rs, "cancelled", "turn_detected")
+	p.muHist.Lock()
+	users, assistants := 0, 0
+	for _, m := range p.chat {
+		switch m.Role {
+		case "user":
+			users++
+		case "assistant":
+			assistants++
+		}
+	}
+	p.muHist.Unlock()
+	if users != 1 || assistants != 0 {
+		t.Fatalf("取消后应回滚 assistant（want user=1/assistant=0），实际 user=%d assistant=%d", users, assistants)
+	}
+
+	// 完成 → finalize（provisional=false）（O3 finalize 同位）
+	p.turns.StartTurn()
+	p.turns.SegmentFinalized(1000, 800, 0)
+	rs2 := p.newResponseState("turn_2", 0, time.Time{})
+	p.muHist.Lock()
+	p.chat = append(p.chat,
+		ChatMessage{Role: "user", Content: "再问", turnKey: "turn_2"},
+		ChatMessage{Role: "assistant", Content: "完整回复", respKey: rs2.key, provisional: true},
+	)
+	p.muHist.Unlock()
+	p.finishResponse(p.session, rs2, "completed", "")
+	p.muHist.Lock()
+	defer p.muHist.Unlock()
+	for _, m := range p.chat {
+		if m.Role == "assistant" && m.respKey == rs2.key && m.provisional {
+			t.Fatalf("完成响应的 assistant 应 finalize（provisional=false）")
+		}
+	}
+}
+
+// TestCancelFlushQueuedPrompt — S6：取消 flush 排队 prompt 必须逐个标 dead 且不阻塞。
+// 批1 复核：旧双接收写法首载荷静默丢弃不标 dead，且仅一条排队请求时第二接收可阻塞发送循环。
+// 确定性构造：慢速回复占住 LLM 阶段，第二请求滞留队列，取消时必被 flush 标 dead。
+func TestCancelFlushQueuedPrompt(t *testing.T) {
+	legs := &fakeLegs{reply: "好的我来说", slow: true} // ~200ms 生成，占住 LLM 阶段
+	p := newFakePipeline(t, legs)
+	turnID, _ := p.turns.StartTurn() // turns 机自生成 ID，必须用返回值（自造 ID 会被 gate 丢弃）
+	p.turns.SegmentFinalized(1000, 800, 0)
+	p.sttCh <- &VADFinal{Audio: make([]float32, 4096), TurnID: turnID, Rev: 0}
+	deadline := time.Now().Add(2 * time.Second)
+	for atomic.LoadInt32(&legs.calls) == 0 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if atomic.LoadInt32(&legs.calls) == 0 {
+		t.Fatalf("慢速请求未被 LLM 阶段消费")
+	}
+	// LLM 忙 → 排队请求滞留 promptCh（裸 responseState：不经 newResponseState 免动 respState）
+	rsB := &responseState{id: "resp_b", key: randHex(16), turnID: "turn_b", rev: 0, itemID: "item_b"}
+	p.promptCh <- &promptRequest{resp: rsB, userText: "乙"}
+
+	done := make(chan struct{})
+	go func() {
+		p.cancelActiveResponse("client_cancelled")
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatalf("cancelActiveResponse 在单排队请求下阻塞（flush 双接收病）")
+	}
+	if !rsB.dead {
+		t.Fatalf("排队请求的 resp 应被标记 dead")
+	}
+	// dead 短路：标 dead 的请求再入队也不得触发生成（总调用数保持 1）
+	p.promptCh <- &promptRequest{resp: rsB, userText: "乙"}
+	time.Sleep(300 * time.Millisecond) // 等 LLM 阶段消化队尾
+	if n := atomic.LoadInt32(&legs.calls); n != 1 {
+		t.Fatalf("LLM 调用数=%d（want 1：慢速请求 1 次，dead 请求 0 次）", n)
 	}
 }
