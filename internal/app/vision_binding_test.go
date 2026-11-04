@@ -150,31 +150,26 @@ func TestVisionBoundRuntime_FeatureModelKeysRegistered(t *testing.T) {
 // ── 识图跟随聊天模型（2026-10-19：本地多模态主力在线时不另找第二个识图模型）──
 
 // seedTianxuan 给天璇引擎植入双档目录（syncManagedCatalog 保存形状）。
-func seedTianxuan(t *testing.T, c *core, running string) {
+func seedLlama(t *testing.T, c *core, running string) {
 	t.Helper()
-	models := []modelengine.ModelInfo{
-		{ID: "qwen3.6-35b-a3b-uncensored", Kind: "llm", Status: "stopped"},
-		{ID: "qwen3.8-flash-next-uncensored", Kind: "llm", Status: "stopped"},
-	}
+	status := "stopped"
 	if running != "" {
-		for i := range models {
-			if models[i].ID == running {
-				models[i].Status = "running"
-			}
-		}
+		status = "running"
 	}
-	if err := c.engineMgr.SaveEngine(modelengine.EngineConfig{ID: "tianxuan", Enabled: true, Models: models}); err != nil {
-		t.Fatalf("seedTianxuan: %v", err)
+	models := []modelengine.ModelInfo{
+		{ID: "qwen35", Kind: "llm", Status: status},
+	}
+	if err := c.engineMgr.SaveEngine(modelengine.EngineConfig{ID: "llama", Enabled: true, Models: models}); err != nil {
+		t.Fatalf("seedLlama: %v", err)
 	}
 }
 
-// TestVisionBoundRuntime_FollowsServedTianxuanProfile 聊天引擎=天璇且 flash
-// 档在服务：识图直接跟随该档（=聊天正用的多模态模型），压过指向别处的
+// TestVisionBoundRuntime_FollowsServedLlamaProfile 聊天引擎=llama 且档在服务：识图直接跟随该档（=聊天正用的多模态模型），压过指向别处的
 // func_vision 独立绑定——单模型引擎只认当前服务档，绑另一档必 404。
-func TestVisionBoundRuntime_FollowsServedTianxuanProfile(t *testing.T) {
+func TestVisionBoundRuntime_FollowsServedLlamaProfile(t *testing.T) {
 	c := newTestCore(t)
-	seedTianxuan(t, c, "qwen3.8-flash-next-uncensored")
-	if err := c.SetFeatureModel("gaea", "tianxuan", "qwen3.8-flash-next-uncensored"); err != nil {
+	seedLlama(t, c, "qwen3.8-flash-next-uncensored")
+	if err := c.SetFeatureModel("gaea", "llama", "qwen35"); err != nil {
 		t.Fatalf("SetFeatureModel(gaea): %v", err)
 	}
 	// 识图独立绑定到 herdsman 另一模型：跟随优先，不另找第二个识图模型
@@ -183,24 +178,24 @@ func TestVisionBoundRuntime_FollowsServedTianxuanProfile(t *testing.T) {
 	}
 	r, ok := c.visionBoundRuntime()
 	if !ok {
-		t.Fatal("天璇在服务档位时应跟随命中")
+		t.Fatal("llama 在服务档位时应跟随命中")
 	}
-	e, _ := c.engineMgr.GetEngine("tianxuan")
+	e, _ := c.engineMgr.GetEngine("llama")
 	if r.BaseURL != e.BaseURL {
-		t.Errorf("BaseURL = %q, want 天璇端点 %q", r.BaseURL, e.BaseURL)
+		t.Errorf("BaseURL = %q, want llama 端点 %q", r.BaseURL, e.BaseURL)
 	}
-	if r.Model != "qwen3.8-flash-next-uncensored" {
-		t.Errorf("Model = %q, want 当前服务档 qwen3.8-flash-next-uncensored", r.Model)
+	if r.Model != "qwen35" {
+		t.Errorf("Model = %q, want 当前服务档 qwen35", r.Model)
 	}
 }
 
-// TestVisionBoundRuntime_TianxuanDownFallsToHerdsmanDefault 天璇未运行（无
+// TestVisionBoundRuntime_LlamaDownFallsToHerdsmanDefault llama 未运行（无
 // running 档）：herdsman 可用（启用+默认 llm）时以其默认模型兜底——聊天此刻
 // 多半已故障转移到 herdsman，识图就近复用，不再去找未服务的档位。
-func TestVisionBoundRuntime_TianxuanDownFallsToHerdsmanDefault(t *testing.T) {
+func TestVisionBoundRuntime_LlamaDownFallsToHerdsmanDefault(t *testing.T) {
 	c := newTestCore(t)
-	seedTianxuan(t, c, "")
-	if err := c.SetFeatureModel("gaea", "tianxuan", "qwen3.8-flash-next-uncensored"); err != nil {
+	seedLlama(t, c, "")
+	if err := c.SetFeatureModel("gaea", "llama", "qwen35"); err != nil {
 		t.Fatalf("SetFeatureModel(gaea): %v", err)
 	}
 	if err := c.engineMgr.SetDefaultModel("herdsman", "qwen3-8b"); err != nil {
@@ -328,18 +323,18 @@ func TestVisionRoute_MirrorsBoundRuntimeChain(t *testing.T) {
 		t.Errorf("feature 态 = (%q,%q,%q), want (herdsman,qwen3-8b,feature)", eng, model, source)
 	}
 
-	// 聊天切天璇且档位在服务：跟随压过绑定。
-	seedTianxuan(t, c, "qwen3.8-flash-next-uncensored")
-	if err := c.SetFeatureModel("gaea", "tianxuan", "qwen3.8-flash-next-uncensored"); err != nil {
+	// 聊天切 llama 且档位在服务：跟随压过绑定。
+	seedLlama(t, c, "qwen35")
+	if err := c.SetFeatureModel("gaea", "llama", "qwen35"); err != nil {
 		t.Fatalf("SetFeatureModel(gaea): %v", err)
 	}
 	eng, model, source = parseVisionRoute(t, mustVisionRoute(t, a))
-	if source != "chat-follow" || eng != "tianxuan" || model != "qwen3.8-flash-next-uncensored" {
-		t.Errorf("chat-follow 态 = (%q,%q,%q), want (tianxuan,当前服务档,chat-follow)", eng, model, source)
+	if source != "chat-follow" || eng != "llama" || model != "qwen35" {
+		t.Errorf("chat-follow 态 = (%q,%q,%q), want (llama,当前服务档,chat-follow)", eng, model, source)
 	}
 
 	// 天璇停机 + herdsman 主力可用：chat-follow-fallback。
-	seedTianxuan(t, c, "")
+	seedLlama(t, c, "")
 	if err := c.engineMgr.SetDefaultModel("herdsman", "qwen3-8b"); err != nil {
 		t.Fatalf("SetDefaultModel: %v", err)
 	}
@@ -364,8 +359,8 @@ func mustVisionRoute(t *testing.T, a *App) string {
 func TestVisionRoute_DoesNotAccountUsage(t *testing.T) {
 	c := newTestCore(t)
 	a := &App{core: c}
-	seedTianxuan(t, c, "qwen3.8-flash-next-uncensored")
-	if err := c.SetFeatureModel("gaea", "tianxuan", "qwen3.8-flash-next-uncensored"); err != nil {
+	seedLlama(t, c, "qwen3.8-flash-next-uncensored")
+	if err := c.SetFeatureModel("gaea", "llama", "qwen35"); err != nil {
 		t.Fatalf("SetFeatureModel(gaea): %v", err)
 	}
 	for i := 0; i < 3; i++ {
@@ -373,14 +368,14 @@ func TestVisionRoute_DoesNotAccountUsage(t *testing.T) {
 			t.Fatalf("VisionRoute: %v", err)
 		}
 	}
-	if at := c.engineMgr.EngineLastActivity("tianxuan"); !at.IsZero() {
-		t.Errorf("VisionRoute 不应记账，tianxuan lastActivity = %v", at)
+	if at := c.engineMgr.EngineLastActivity("llama"); !at.IsZero() {
+		t.Errorf("VisionRoute 不应记账，llama lastActivity = %v", at)
 	}
 	// 对照：真实识图调用路径（visionBoundRuntime）才记账。
 	if _, ok := c.visionBoundRuntime(); !ok {
 		t.Fatal("跟随命中应成功")
 	}
-	if at := c.engineMgr.EngineLastActivity("tianxuan"); at.IsZero() {
+	if at := c.engineMgr.EngineLastActivity("llama"); at.IsZero() {
 		t.Error("visionBoundRuntime 解析即记账，lastActivity 应非零")
 	}
 }

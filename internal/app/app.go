@@ -322,7 +322,6 @@ type App struct {
 
 	// 外部本地引擎进程引用——gaea 代启时登记，停止/状态走 *_proc.go。
 	// 外部启动器起的实例不登记（netstat 停止）。
-	tianxuanProc localEngineProc
 	strataProc   localEngineProc
 
 	// intentClassifierFn 意图 LLM 兜底分类 seam（v4.8，测试注入点；nil=内置 LLM 分类器）。
@@ -507,7 +506,6 @@ func (a *App) Startup(ctx context.Context) {
 	a.engineMgr.EnsureModel("breeze", "breeze-tts-2")
 	// 外部单模型引擎的完整档位目录（Herdsman 式模型目录）：启动时就写入
 	// 引擎模型列表，语言模型页与功能绑定不必等进程起来才看到候选。
-	_ = a.TianxuanEngineStatus()
 	_ = a.StrataEngineStatus()
 	if tok, err := auth.NewTokenStore(a.cfg.TokenStorePath).Load(); err == nil && tok != nil && !tok.IsExpired() {
 		a.engineMgr.UpdateXAIKey(tok.AccessToken)

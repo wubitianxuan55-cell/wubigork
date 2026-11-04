@@ -3,13 +3,13 @@ package app
 import "testing"
 
 func TestManagedCatalogModels_MarksOnlyActiveProfileRunning(t *testing.T) {
-	// 2026-10-18 随批修正：35B 档退役后 tianxuanProfiles 只剩 2 档，原硬编码
+	// 2026-10-18 随批修正：35B 档退役后 llamaProfiles 只剩 2 档，原硬编码
 	// 下标 [3] 越界；改为按末档判定，意图不变（仅活跃档 running，其余 stopped）。
-	active := tianxuanProfiles[len(tianxuanProfiles)-1]
+	active := llamaProfiles[len(llamaProfiles)-1]
 	served := []string{active.ModelID}
-	models := managedCatalogModels(tianxuanProfiles, served, active.ID)
-	if len(models) != len(tianxuanProfiles) {
-		t.Fatalf("catalog size = %d, want %d", len(models), len(tianxuanProfiles))
+	models := managedCatalogModels(llamaProfiles, served, active.ID)
+	if len(models) != len(llamaProfiles) {
+		t.Fatalf("catalog size = %d, want %d", len(models), len(llamaProfiles))
 	}
 	for _, m := range models {
 		want := "stopped"
@@ -38,7 +38,7 @@ func TestManagedCatalogModels_StoppedEngineKeepsFullCatalog(t *testing.T) {
 }
 
 func TestManagedProfileForModel_MatchesIdAndModelId(t *testing.T) {
-	for _, profiles := range [][]engineProfileOption{tianxuanProfiles, strataProfiles} {
+	for _, profiles := range [][]engineProfileOption{llamaProfiles, strataProfiles} {
 		for _, p := range profiles {
 			if got, ok := managedProfileForModel(profiles, p.ID); !ok || got.ID != p.ID {
 				t.Fatalf("profile id %q not matched: %+v", p.ID, got)

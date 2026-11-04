@@ -61,15 +61,6 @@ const (
 	// 全链（3.32s/4.61s）。语音（voice_chat_llm=qwen35 网关直代）与聊天板块
 	// （功能绑定/自定义路由）共用。与 herdsman 实例可共存（双 35B 驻留实测）。
 	EngineLlama EngineType = "llama"
-	// EngineTianxuan 本地天璇引擎（Tianxuan Engine）：V1.0 起以 Strata v0.1.45
-	// 为基座（C:\AI\tianxuan 独立项目），面向 Ryzen AI Max+ 395 / gfx1151 的
-	// Windows HIP 推理线。档位目录为两个 uncensored 档——uncensored（
-	// qwen3.6-35b-a3b-uncensored 主力）与 flash（qwen3.8-flash-next-uncensored，
-	// 177B 消融深度档），由外部项目持有，gaea 只负责 8094 探活、启停与模型
-	// 路由同步。与用户侧「天璇 · Tianxuan」编程助手是两个产品，本条目是推理
-	// 引擎。默认端口 8094（8080 herdsman / 8091 strata），免鉴权（Key 留空即
-	// 不带 Authorization 头）。
-	EngineTianxuan EngineType = "tianxuan"
 )
 
 // GLM 官方双端点（docs.bigmodel.cn coding-plan/quick-start）：标准=按量付费，
@@ -85,7 +76,7 @@ const (
 // tianxuan），云端（xai/deepseek/opencode-*）一律跳过。
 func (t EngineType) IsLocal() bool {
 	switch t {
-	case EngineOllama, EngineHerdsman, EngineCosyVoice, EngineBreeze, EngineStrata, EngineTianxuan, EngineLlama:
+	case EngineOllama, EngineHerdsman, EngineCosyVoice, EngineBreeze, EngineStrata, EngineLlama:
 		return true
 	}
 	return false
@@ -123,8 +114,6 @@ func BuiltinEngineTypeOf(id string) EngineType {
 		return EngineOpencodeZen
 	case "strata":
 		return EngineStrata
-	case "tianxuan":
-		return EngineTianxuan
 	case "llama":
 		return EngineLlama
 	}
@@ -231,7 +220,7 @@ type Manager struct {
 func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 	m := &Manager{
 		engines:     make(map[string]*EngineConfig),
-		order:       []string{"xai", "ollama", "herdsman", "deepseek", "glm", "cosyvoice", "breeze", "strata", "tianxuan", "llama", "opencode-go", "opencode-zen"},
+		order:       []string{"xai", "ollama", "herdsman", "deepseek", "glm", "cosyvoice", "breeze", "strata", "llama", "opencode-go", "opencode-zen"},
 		xaiKey:      xaiAPIKey,
 		deepseekKey: deepseekKey,
 		customKeys:  make(map[string]string),
@@ -362,23 +351,6 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 		// 由刷新 /models 后取首个（TestConnection 同口径）。
 		BaseURL: "http://127.0.0.1:8091/v1",
 		Enabled: true,
-	}
-	m.engines["tianxuan"] = &EngineConfig{
-		ID:      "tianxuan",
-		Name:    "Tianxuan",
-		Type:    EngineTianxuan,
-		Label:   "天璇引擎 本地",
-		Color:   "#fb923c",
-		Icon:    "desktop",
-		IsLocal: true,
-		// 天璇引擎（gufo 的 Strix Halo 垂直线）：标准 GGUF + MTP/DFlash2 投机
-		// 解码，thinking 走 chat_template_kwargs（client_chat.go tianxuan 分支
-		// 同 strata 口径）。8094 空闲端口（8080 herdsman / 8091 strata）；
-		// 免鉴权。模型清单随引擎加载状态变化，DefaultModel
-		// 留空由刷新 /models 后取首个（与 strata 同口径）。
-		BaseURL: "http://127.0.0.1:8094/v1",
-		Enabled: false, // 2026-11-05 停用：引擎资产已删（C:\AI\tianxuan 3.2G），35B 线由自管 llama 引擎接手；代码面保留防历史用户升级破损
-
 	}
 	m.engines["llama"] = &EngineConfig{
 		ID:           "llama",

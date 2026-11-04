@@ -66,18 +66,9 @@ func (a *App) reapIdleManagedEngines() {
 	a.reapManagedEngineIdleOnce(time.Now(), time.Duration(minutes)*time.Minute, a.managedIdleTargets())
 }
 
-// managedIdleTargets 生产目标表（天璇 8094 / Strata 8091 / ComfyUI 8188）。
+// managedIdleTargets 生产目标表（Strata 8091 / Llama 8124 / ComfyUI 8188；天璇已退役）。
 func (a *App) managedIdleTargets() []managedIdleTarget {
 	return []managedIdleTarget{
-		{
-			id:         "tianxuan",
-			registered: a.tianxuanProc.registered,
-			probe: func() bool {
-				_, ok := tianxuanProbe()
-				return ok
-			},
-			stop: func() { _ = a.TianxuanEngineStop() },
-		},
 		{
 			id:         "strata",
 			registered: a.strataProc.registered,

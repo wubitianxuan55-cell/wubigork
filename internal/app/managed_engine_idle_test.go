@@ -40,7 +40,7 @@ func TestReapIdle_Gates(t *testing.T) {
 
 	t.Run("未登记不收", func(t *testing.T) {
 		stopped := a.reapManagedEngineIdleOnce(now, idle, []managedIdleTarget{{
-			id: "tianxuan", registered: func() bool { return false }, // 外部实例：无登记
+			id: "llama", registered: func() bool { return false }, // 外部实例：无登记
 			probe: func() bool { return true },
 			stop:  func() { t.Error("外部实例不应被代停") },
 		}})
@@ -51,7 +51,7 @@ func TestReapIdle_Gates(t *testing.T) {
 
 	t.Run("无使用记录不收", func(t *testing.T) {
 		stopped := a.reapManagedEngineIdleOnce(now, idle, []managedIdleTarget{{
-			id: "tianxuan", registered: registeredProc().registered, // 本会话从未经手
+			id: "llama", registered: registeredProc().registered, // 本会话从未经手
 			probe: func() bool { return true },
 			stop:  func() { t.Error("无使用记录不应收割") },
 		}})
@@ -61,9 +61,9 @@ func TestReapIdle_Gates(t *testing.T) {
 	})
 
 	t.Run("空闲未超阈不收", func(t *testing.T) {
-		a.engineMgr.TouchEngineAt("tianxuan", now.Add(-9*time.Minute))
+		a.engineMgr.TouchEngineAt("llama", now.Add(-9*time.Minute))
 		stopped := a.reapManagedEngineIdleOnce(now, idle, []managedIdleTarget{{
-			id: "tianxuan", registered: registeredProc().registered,
+			id: "llama", registered: registeredProc().registered,
 			probe: func() bool { return true },
 			stop:  func() { t.Error("未超阈值不应收割") },
 		}})
@@ -85,15 +85,15 @@ func TestReapIdle_Gates(t *testing.T) {
 	})
 
 	t.Run("四闸全过即收割", func(t *testing.T) {
-		a.engineMgr.TouchEngineAt("tianxuan", now.Add(-11*time.Minute))
+		a.engineMgr.TouchEngineAt("llama", now.Add(-11*time.Minute))
 		stopCalled := 0
 		stopped := a.reapManagedEngineIdleOnce(now, idle, []managedIdleTarget{{
-			id: "tianxuan", registered: registeredProc().registered,
+			id: "llama", registered: registeredProc().registered,
 			probe: func() bool { return true },
 			stop:  func() { stopCalled++ },
 		}})
-		if len(stopped) != 1 || stopped[0] != "tianxuan" || stopCalled != 1 {
-			t.Errorf("stopped = %v stopCalled = %d, want [tianxuan]/1", stopped, stopCalled)
+		if len(stopped) != 1 || stopped[0] != "llama" || stopCalled != 1 {
+			t.Errorf("stopped = %v stopCalled = %d, want [llama]/1", stopped, stopCalled)
 		}
 	})
 }
@@ -111,7 +111,7 @@ func TestManagedIdleTargets_CoversAllManagedEngines(t *testing.T) {
 			t.Errorf("target %s 缺谓词（registered/probe/stop 必须齐）", tg.id)
 		}
 	}
-	for _, want := range []string{"tianxuan", "strata", "comfyui"} {
+	for _, want := range []string{"strata", "comfyui"} {
 		if !got[want] {
 			t.Errorf("目标表缺 %s: %v", want, got)
 		}
@@ -126,7 +126,7 @@ func TestReapIdle_ThresholdGate(t *testing.T) {
 		t.Fatalf("阈值 = %d, want 0", a.managedIdleExitMinutes())
 	}
 	// 即使记账早已超阈、探活在运行：总闸关闭也不得收割
-	a.engineMgr.TouchEngineAt("tianxuan", time.Now().Add(-2*time.Hour))
+	a.engineMgr.TouchEngineAt("llama", time.Now().Add(-2*time.Hour))
 	stopped := a.reapManagedEngineIdleOnce(time.Now(), 10*time.Minute, []managedIdleTarget{})
 	_ = stopped // once 直调不受闸控——闸在 reapIdleManagedEngines；此处只验阈值读取
 }

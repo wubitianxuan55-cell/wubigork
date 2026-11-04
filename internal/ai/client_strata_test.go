@@ -129,7 +129,7 @@ func TestStrata_DisableThinkingExplicit(t *testing.T) {
 // TestStrata_DisableThinkingDoesNotLeak 三态「关」侧不外溢：只对 strata 生效，
 // herdsman/ollama 分支的开关语义不受影响（它们缺省关、只认 EnableThinking）。
 func TestStrata_DisableThinkingDoesNotLeak(t *testing.T) {
-	c := &Client{} // engineMgr nil → 非 strata/tianxuan，走 herdsman/ollama 分支判定
+	c := &Client{} // engineMgr nil → 非 strata，走 herdsman/ollama 分支判定
 
 	for _, engine := range []string{"herdsman", "ollama"} {
 		req := c.prepareStreamRequest("qwen3-8b", nil, ChatSimpleOptions{EngineID: engine, MaxTokens: 1024, DisableThinking: true})

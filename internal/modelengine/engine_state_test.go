@@ -15,7 +15,7 @@ import (
 
 func TestGetEngines_StableOrder(t *testing.T) {
 	m := NewManager("", "")
-	want := []string{"xai", "ollama", "herdsman", "deepseek", "glm", "cosyvoice", "breeze", "strata", "tianxuan", "llama", "opencode-go", "opencode-zen"}
+	want := []string{"xai", "ollama", "herdsman", "deepseek", "glm", "cosyvoice", "breeze", "strata", "llama", "opencode-go", "opencode-zen"}
 	for i := 0; i < 5; i++ {
 		got := m.GetEngines()
 		if len(got) != len(want) {
@@ -110,8 +110,8 @@ func TestLoadState_MissingFile(t *testing.T) {
 	}
 	// 预置引擎不受影响
 	es := m.GetEngines()
-	if len(es) != 12 {
-		t.Fatalf("引擎数量 = %d, want 12", len(es))
+	if len(es) != 11 {
+		t.Fatalf("引擎数量 = %d, want 11", len(es))
 	}
 }
 

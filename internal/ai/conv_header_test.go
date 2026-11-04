@@ -17,7 +17,7 @@ func TestApplyConvHeader(t *testing.T) {
 	}{
 		{"xai 带会话键 设头", "xai", "sess-123", true},
 		{"xai 空键 不设", "xai", "", false},
-		{"其他引擎带键 不设", "tianxuan", "sess-123", false},
+		{"其他引擎带键 不设", "llama", "sess-123", false},
 		{"空引擎 不设", "", "sess-123", false},
 	}
 	for _, tc := range cases {

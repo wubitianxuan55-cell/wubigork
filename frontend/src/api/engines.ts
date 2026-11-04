@@ -36,11 +36,7 @@ export interface EngineConfig {
   // custom = 用户自建 OpenAI 兼容服务商（A 刀），id 以 custom- 开头
   // strata = 本地 Strata 推理引擎（默认 127.0.0.1:8091/v1，
   // 免鉴权；离线模式按本地引擎放行；档位目录现仅 uncensored 一档）
-  // tianxuan = 本地天璇引擎（V1.0 Strata 基座，默认 127.0.0.1:8094/v1，
-  // uncensored/flash 两个 uncensored 档；与「天璇」编程助手是两个产品）
-  // breeze = 本地 Breeze-TTS-2（breeze-server 托管，默认 127.0.0.1:8012/v1，
-  // OpenAI 兼容 /v1/audio/speech；无预置音色，design 模式走 instructions）
-  type: 'xai' | 'ollama' | 'herdsman' | 'deepseek' | 'glm' | 'cosyvoice' | 'breeze' | 'opencode-go' | 'opencode-zen' | 'custom' | 'strata' | 'tianxuan' | 'llama'
+  type: 'xai' | 'ollama' | 'herdsman' | 'deepseek' | 'glm' | 'cosyvoice' | 'breeze' | 'opencode-go' | 'opencode-zen' | 'custom' | 'strata' | 'llama'
   label?: string
   color?: string
   icon?: string
@@ -368,7 +364,7 @@ import { app as bridgeApp } from '../gaea/lib/bridge'
 
 const App = (): AppFacade => (window.go?.app?.App ?? bridgeApp) as unknown as AppFacade
 
-// ── 外部本地引擎进程生命周期（strata_proc.go / tianxuan_proc.go） ──
+// ── 外部本地引擎进程生命周期（strata_proc.go / qwen35_proc.go） ──
 
 export interface EngineProfileOption {
   id: string
@@ -413,27 +409,6 @@ export interface ManagedEngineStopResult {
   reason?: string
 }
 
-export type TianxuanEngineStatusResult = ManagedEngineStatusResult
-export type TianxuanEngineStartResult = ManagedEngineStartResult
-export type TianxuanEngineStopResult = ManagedEngineStopResult
-
-/** 天璇引擎运行状态（8094 /v1/models 探活） */
-export async function getTianxuanEngineStatus(): Promise<TianxuanEngineStatusResult> {
-  const result = await App().TianxuanEngineStatus()
-  return result as TianxuanEngineStatusResult
-}
-
-/** 启动天璇引擎指定档位（uncensored/flash 两个 uncensored 档；幂等——已运行返回 already-running） */
-export async function startTianxuanEngine(profile = 'uncensored'): Promise<TianxuanEngineStartResult> {
-  const result = await App().TianxuanEngineStart(profile)
-  return result as TianxuanEngineStartResult
-}
-
-/** 停止天璇引擎（不管谁启动的都能停；空闲时调用——生成中硬杀有 D 状态风险） */
-export async function stopTianxuanEngine(): Promise<TianxuanEngineStopResult> {
-  const result = await App().TianxuanEngineStop()
-  return result as TianxuanEngineStopResult
-}
 
 // ── 自管 Llama 引擎（8124，Qwen3.6-35B MTP；语音+聊天共用，P2 续拍板） ──
 export type LlamaEngineStatusResult = ManagedEngineStatusResult

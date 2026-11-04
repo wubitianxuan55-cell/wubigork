@@ -74,11 +74,11 @@ func TestRuntimeMonitor_Aggregation(t *testing.T) {
 		engineMgr: modelengine.NewManager("", ""),
 	}}
 	// 天璇指到假 /metrics 且启用（strata 留默认停用分支）
-	if err := a.engineMgr.SaveEngine(modelengine.EngineConfig{ID: "tianxuan", Enabled: true, BaseURL: metrics.URL}); err != nil {
+	if err := a.engineMgr.SaveEngine(modelengine.EngineConfig{ID: "llama", Enabled: true, BaseURL: metrics.URL}); err != nil {
 		t.Fatal(err)
 	}
 	// 一笔记账（recent_calls/totals 出数）
-	a.engineMgr.RecordCall(modelengine.ModelCallUsage{EngineID: "tianxuan", Model: "flash", InputTokens: 100, OutputTokens: 20, DurationMs: 1500, Success: true})
+	a.engineMgr.RecordCall(modelengine.ModelCallUsage{EngineID: "llama", Model: "flash", InputTokens: 100, OutputTokens: 20, DurationMs: 1500, Success: true})
 
 	snap := a.RuntimeMonitor()
 
@@ -86,7 +86,7 @@ func TestRuntimeMonitor_Aggregation(t *testing.T) {
 	if len(engines) == 0 {
 		t.Fatal("engines 表为空")
 	}
-	tx, _ := snap["tianxuan"].(map[string]interface{})
+	tx, _ := snap["llama"].(map[string]interface{})
 	if tx == nil {
 		t.Fatal("天璇启用且地址可达，/metrics 代理应为非 nil")
 	}
@@ -141,11 +141,11 @@ func TestRuntimeMonitor_MetricsDownIsNil(t *testing.T) {
 	dead := httptest.NewServer(http.NewServeMux())
 	dead.Close()
 	a := &App{core: &core{engineMgr: modelengine.NewManager("", "")}}
-	if err := a.engineMgr.SaveEngine(modelengine.EngineConfig{ID: "tianxuan", Enabled: true, BaseURL: dead.URL}); err != nil {
+	if err := a.engineMgr.SaveEngine(modelengine.EngineConfig{ID: "llama", Enabled: true, BaseURL: dead.URL}); err != nil {
 		t.Fatal(err)
 	}
 	snap := a.RuntimeMonitor()
-	if v, _ := snap["tianxuan"].(map[string]interface{}); v != nil {
+	if v, _ := snap["llama"].(map[string]interface{}); v != nil {
 		t.Error("引擎停机（拒连）时代理应为 nil")
 	}
 }

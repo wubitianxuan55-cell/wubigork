@@ -123,7 +123,7 @@ func TestSaveEngine_CatalogReplacementRepairsDangling(t *testing.T) {
 	}
 
 	// 天璇双档目录：默认指向未启动档（stopped）必须保留——启动档位≠改绑定。
-	if err := m.SaveEngine(EngineConfig{ID: "tianxuan", Enabled: true,
+	if err := m.SaveEngine(EngineConfig{ID: "llama", Enabled: true,
 		Models: []ModelInfo{
 			{ID: "qwen3.6-35b-a3b-uncensored", Kind: "llm", Status: "running"},
 			{ID: "qwen3.8-flash-next-uncensored", Kind: "llm", Status: "stopped"},
@@ -131,7 +131,7 @@ func TestSaveEngine_CatalogReplacementRepairsDangling(t *testing.T) {
 		DefaultModel: "qwen3.8-flash-next-uncensored"}); err != nil {
 		t.Fatal(err)
 	}
-	e, _ = m.GetEngine("tianxuan")
+	e, _ = m.GetEngine("llama")
 	if e.DefaultModel != "qwen3.8-flash-next-uncensored" {
 		t.Errorf("清单内 stopped 档默认被改写 = %q, want qwen3.8-flash-next-uncensored", e.DefaultModel)
 	}

@@ -9,12 +9,12 @@ import (
 // 原样落账；从未记账返回零值；空 engineID 忽略。
 func TestEngineActivity_TouchAndRead(t *testing.T) {
 	m := NewManager("", "")
-	if !m.EngineLastActivity("tianxuan").IsZero() {
+	if !m.EngineLastActivity("llama").IsZero() {
 		t.Error("从未记账应返回零值")
 	}
 
-	m.TouchEngine("tianxuan")
-	if m.EngineLastActivity("tianxuan").IsZero() {
+	m.TouchEngine("llama")
+	if m.EngineLastActivity("llama").IsZero() {
 		t.Error("TouchEngine 后应非零")
 	}
 
@@ -36,13 +36,13 @@ func TestEngineActivity_TouchAndRead(t *testing.T) {
 // 使用（空闲自动退出的记账点）；引擎不存在/未启用的错误路径不记账。
 func TestEngineActivity_BuildChatURLTouches(t *testing.T) {
 	m := NewManager("", "")
-	m.SaveEngine(EngineConfig{ID: "tianxuan", BaseURL: "http://127.0.0.1:8094/v1", Enabled: true})
+	m.SaveEngine(EngineConfig{ID: "llama", BaseURL: "http://127.0.0.1:8094/v1", Enabled: true})
 	m.SaveEngine(EngineConfig{ID: "offline-eng", BaseURL: "http://127.0.0.1:1/v1", Enabled: false})
 
-	if _, _, err := m.BuildChatURL("tianxuan"); err != nil {
+	if _, _, err := m.BuildChatURL("llama"); err != nil {
 		t.Fatalf("BuildChatURL: %v", err)
 	}
-	if m.EngineLastActivity("tianxuan").IsZero() {
+	if m.EngineLastActivity("llama").IsZero() {
 		t.Error("成功解析端点应记账")
 	}
 

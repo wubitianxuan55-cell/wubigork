@@ -361,8 +361,8 @@ func (a *App) GaeaModelSwitchEstimate(engineID, model string) ModelSwitchEstimat
 		return a.estimateOllamaModelSwitch(eng, model, out)
 	case "strata":
 		return a.estimateStrataModelSwitch(model, out)
-	default: // "tianxuan"（上方 switch 已收窄本地引擎集合）
-		return a.estimateTianxuanModelSwitch(model, out)
+	default:
+		return estimateUnknown(out, "该引擎暂不支持切换预估")
 	}
 }
 
@@ -441,32 +441,6 @@ func (a *App) estimateStrataModelSwitch(model string, out ModelSwitchEstimate) M
 	return out
 }
 
-// estimateTianxuanModelSwitch 探测天璇引擎 /v1/models：命中→hot；未命中→cold，
-// 并如实说明「天璇启动即固定模型，换模需重启 serve 引擎」——gufo 把 `-m` 的模型
-// 固定进进程，请求 model 名不符直接 404（model_not_found），不会按需自动加载；
-// 把它写成「首次对话需等待加载」是会误导用户的假承诺（真机实测 8094）。
-// 探测失败如实 unknown。
-func (a *App) estimateTianxuanModelSwitch(model string, out ModelSwitchEstimate) ModelSwitchEstimate {
-	ctx, cancel := context.WithTimeout(context.Background(), ollamaProbeTimeout)
-	defer cancel()
-	served, err := a.engineMgr.TianxuanServedModels(ctx)
-	if err != nil {
-		return estimateUnknown(out, "无法连接天璇引擎，无法确认模型状态")
-	}
-	for _, id := range served {
-		if id == model {
-			out.Status, out.WaitSeconds, out.Note = "hot", 1, "模型已加载，可直接切换"
-			return out
-		}
-	}
-	out.Status = "cold"
-	if len(served) > 0 {
-		out.Note = "天璇引擎启动即固定模型（当前服务 " + served[0] + "），换模需重启 serve 引擎"
-	} else {
-		out.Note = "模型未加载；天璇引擎启动即固定模型，换模需重启 serve 引擎"
-	}
-	return out
-}
 
 // ollamaNativeRoot 由 OpenAI 兼容 BaseURL（…/v1）推 Ollama 原生 API 根地址。
 func ollamaNativeRoot(baseURL string) string {

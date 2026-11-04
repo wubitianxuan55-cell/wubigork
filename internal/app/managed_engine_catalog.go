@@ -14,6 +14,31 @@ import (
 	"github.com/gaea/gaea/internal/modelengine"
 )
 
+func engineProfileByID(profiles []engineProfileOption, id string) (engineProfileOption, bool) {
+	for _, p := range profiles {
+		if p.ID == id {
+			return p, true
+		}
+	}
+	return engineProfileOption{}, false
+}
+func engineProfileJSON(profiles []engineProfileOption) []map[string]string {
+	out := make([]map[string]string, 0, len(profiles))
+	for _, p := range profiles {
+		out = append(out, map[string]string{"id": p.ID, "label": p.Label})
+	}
+	return out
+}
+
+// engineProfileOption 外部本地引擎的档位目录条目（原 tianxuan_proc.go，
+// 2026-11-05 天璇退役后迁此——strata/llama 目录层仍消费）。
+type engineProfileOption struct {
+	ID      string `json:"id"`
+	Label   string `json:"label"`
+	Config  string `json:"-"` // Strata 档位 JSON（llama/天璇为空）
+	ModelID string `json:"-"` // 该档位实际服务的模型 id（目录/请求路由用）
+}
+
 func managedCatalogModels(profiles []engineProfileOption, served []string, activeProfile string) []modelengine.ModelInfo {
 	activeID := ""
 	if len(served) > 0 {
@@ -59,9 +84,6 @@ func (c *core) syncManagedEngineCatalog(engineID string, profiles []engineProfil
 // managedEngineSpec 返回引擎的档位目录与当前 /v1/models 探活结果。
 func managedEngineSpec(engineID string) ([]engineProfileOption, []string, bool) {
 	switch engineID {
-	case "tianxuan":
-		served, ok := tianxuanProbe()
-		return tianxuanProfiles, served, ok
 	case "strata":
 		served, ok := strataProbe()
 		return strataProfiles, served, ok
@@ -74,8 +96,6 @@ func managedEngineSpec(engineID string) ([]engineProfileOption, []string, bool) 
 
 func managedEngineProfileFromModels(engineID string, served []string) string {
 	switch engineID {
-	case "tianxuan":
-		return tianxuanProfileFromModels(served)
 	case "strata":
 		return strataProfileFromModels(served)
 	case "llama":

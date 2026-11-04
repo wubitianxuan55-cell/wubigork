@@ -3,11 +3,8 @@ import { Button, message, Popconfirm, Select } from 'antd'
 import { StatusChip } from './ui'
 import {
   getStrataEngineStatus,
-  getTianxuanEngineStatus,
   startStrataEngine,
-  startTianxuanEngine,
   stopStrataEngine,
-  stopTianxuanEngine,
   type EngineProfileOption,
   type ManagedEngineStartResult,
   type ManagedEngineStatusResult,
@@ -17,7 +14,7 @@ import {
   stopLlamaEngine,
 } from '../../api/engines'
 
-type ManagedEngineID = 'strata' | 'tianxuan' | 'llama'
+type ManagedEngineID = 'strata' | 'llama'
 
 interface LifecycleAPI {
   defaultProfile: string
@@ -37,16 +34,6 @@ const API: Record<ManagedEngineID, LifecycleAPI> = {
     status: getStrataEngineStatus,
     start: startStrataEngine,
     stop: stopStrataEngine,
-  },
-  tianxuan: {
-    defaultProfile: 'uncensored',
-    fallbackProfiles: [
-      { id: 'uncensored', label: 'qwen3.6-35b-a3b-uncensored' },
-      { id: 'flash', label: 'qwen3.8-flash-next-uncensored' },
-    ],
-    status: getTianxuanEngineStatus,
-    start: startTianxuanEngine,
-    stop: stopTianxuanEngine,
   },
   llama: {
     defaultProfile: 'qwen35',

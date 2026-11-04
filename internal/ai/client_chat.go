@@ -310,10 +310,9 @@ func ClampThinkingMaxTokens(n int) int {
 // 稳定复现「推理吃光预算、正文截断或整个为空」。
 //
 // 判据取引擎类型（非引擎名），思考原生引擎需要：服务端默认开思考，调用方不表态
-// 就是开。目前是 Strata（Qwen3.8-Flash-Next）与 Tianxuan（gufo，Qwen3.8/3.6 系）
-// 两家——同族模板（缺省开思考、reasoning_content 与正文共享 max_tokens），同一条
-// ctk 通道，故同一道守护。调用方显式 ctk=false 时不抬预算（推理不再抢预算，
-// 该尊重调用方自己的上限）。
+// 就是开。目前是 Strata（Qwen3.8-Flash-Next）一家——模板缺省开思考、
+// reasoning_content 与正文共享 max_tokens。调用方显式 ctk=false 时不抬预算
+// （推理不再抢预算，该尊重调用方自己的上限）。
 //
 // 接入 Tianxuan 时漏掉的正是这里：模型中心的简单对话走 prepareStreamRequest
 // 有守护，可手装 ChatRequest 的几个短预算调用点（章节直连/copilot 续写/wx_agent/
@@ -328,7 +327,7 @@ func (c *Client) applyThinkingBudgetGuard(req *ChatRequest, engineID string) {
 		return
 	}
 	eng, ok := c.engineMgr.GetEngine(engineID)
-	if !ok || (eng.Type != modelengine.EngineStrata && eng.Type != modelengine.EngineTianxuan) {
+	if !ok || eng.Type != modelengine.EngineStrata {
 		return
 	}
 	// 显式关思考（ctk false）：预算不守护。nil map 读取安全，缺键即「未表态」。
@@ -411,17 +410,6 @@ func (c *Client) prepareStreamRequest(model string, messages []ChatMessage, opts
 		// 即思考优先于输出上限，与 herdsman/ollama 的 clampThinkingBudget
 		// 同一条先例。要按护栏上限出字须显式关思考（DisableThinking，见下），
 		// 那时本守护不生效、上限被尊重。
-		wantThinking := !opts.DisableThinking
-		req.ChatTemplateKwargs = map[string]any{"enable_thinking": wantThinking}
-		clampThinkingBudget(req, wantThinking)
-
-	case engType == modelengine.EngineTianxuan:
-		// 天璇引擎（gufo，Strix Halo 垂直线）：与 strata 同族的「思考原生」
-		// 本地引擎——Qwen3.8/3.6 系模板缺省开思考，reasoning_content 与正文
-		// 共享预算。通道真机实测（8094 27B）：chat_template_kwargs 生效
-		// （enable_thinking=false 时 reasoning_content 缺席、true 时下发），
-		// 与 strata 同一 ctk 通道，不发顶层字段。预算守护同 strata
-		// 先例：推理烧穿小预算即正文截断，4096 只升不降。
 		wantThinking := !opts.DisableThinking
 		req.ChatTemplateKwargs = map[string]any{"enable_thinking": wantThinking}
 		clampThinkingBudget(req, wantThinking)

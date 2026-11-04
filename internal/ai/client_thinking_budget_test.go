@@ -1,6 +1,6 @@
 package ai
 
-// IN2-14 思考预算守护回归：herdsman/ollama 与 strata/tianxuan 各分支共用
+// IN2-14 思考预算守护回归：herdsman/ollama 与 strata 分支共用（tianxuan 已退役）
 // clampThinkingBudget（原两处逐字复制、magic 4096 各写一遍），预算下限收口为
 // minThinkingBudget，流式默认 max_tokens 与其同源。直接驱动 prepareStreamRequest
 // 逐字段断言（守护逻辑不经过网络）。

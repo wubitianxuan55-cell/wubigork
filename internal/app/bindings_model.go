@@ -56,9 +56,4 @@ func (b *ModelB) StrataEngineStatus() map[string]interface{} { return b.a.Strata
 func (b *ModelB) StrataEngineStop() map[string]interface{} { return b.a.StrataEngineStop() }
 func (b *ModelB) StrataModelStart(model string) map[string]interface{} { return b.a.StrataModelStart(model) }
 func (b *ModelB) StrataModelStop(model string) map[string]interface{} { return b.a.StrataModelStop(model) }
-func (b *ModelB) TianxuanEngineStart(profile string) map[string]interface{} { return b.a.TianxuanEngineStart(profile) }
-func (b *ModelB) TianxuanEngineStatus() map[string]interface{} { return b.a.TianxuanEngineStatus() }
-func (b *ModelB) TianxuanEngineStop() map[string]interface{} { return b.a.TianxuanEngineStop() }
-func (b *ModelB) TianxuanModelStart(model string) map[string]interface{} { return b.a.TianxuanModelStart(model) }
-func (b *ModelB) TianxuanModelStop(model string) map[string]interface{} { return b.a.TianxuanModelStop(model) }
 func (b *ModelB) VisionRoute() (string, error) { return b.a.VisionRoute() }

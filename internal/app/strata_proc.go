@@ -129,12 +129,12 @@ func (a *App) StrataEngineStart(profile string) map[string]interface{} {
 			"served_models": served,
 		}
 	}
-	// 与天璇共用同一块 UMA/VRAM；同时驻留会直接拖进换页，先停天璇再启 Strata。
-	if _, ok := tianxuanProbe(); ok {
+	// 与自管 llama 共用同一块 UMA/VRAM；同时驻留会直接拖进换页，先停 llama 再启 Strata。
+	if _, ok := llamaProbe(); ok {
 		return map[string]interface{}{
 			"started": false,
 			"reason":  "other-engine-running",
-			"other":   "tianxuan",
+			"other":   "llama",
 			"profile": profile,
 			"project": project,
 		}

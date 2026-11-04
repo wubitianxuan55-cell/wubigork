@@ -25,7 +25,7 @@ func TestBuiltinEngineTypeOf_MatchesSeeds(t *testing.T) {
 	// 反向：名单不得虚报 NewManager 未种子的 ID。
 	for _, id := range []string{
 		"xai", "ollama", "herdsman", "deepseek", "glm", "cosyvoice",
-		"strata", "tianxuan", "llama", "opencode-go", "opencode-zen",
+		"strata", "llama", "opencode-go", "opencode-zen",
 	} {
 		if _, ok := m.engines[id]; !ok {
 			t.Errorf("名单含 %q，但 NewManager 未种子该引擎", id)
@@ -49,7 +49,7 @@ func TestBuiltinEngineTypeOf_MatchesSeeds(t *testing.T) {
 func TestBuiltinEngineTypeOf_LocalFamily(t *testing.T) {
 	local := map[string]bool{
 		"ollama": true, "herdsman": true, "cosyvoice": true,
-		"strata": true, "tianxuan": true, "llama": true,
+		"strata": true, "llama": true,
 	}
 	for id, want := range local {
 		if got := BuiltinEngineTypeOf(id).IsLocal(); got != want {
@@ -68,7 +68,7 @@ func TestBuiltinEngineTypeOf_LocalFamily(t *testing.T) {
 // 表」的模型名（gpt-5）作探针，排除「没命中所以为 0」的假绿；末尾用非本地引擎
 // 做反向对照，证明该探针确实会命中。
 func TestEstimatePrice_LocalFamilyFree(t *testing.T) {
-	for _, id := range []string{"ollama", "herdsman", "cosyvoice", "strata", "tianxuan", "llama"} {
+	for _, id := range []string{"ollama", "herdsman", "cosyvoice", "strata", "llama"} {
 		if p := estimatePrice(id, "gpt-5"); p.Currency != "" || p.InputPerM != 0 || p.OutputPerM != 0 {
 			t.Errorf("本地引擎 %s 不应计价，got %+v", id, p)
 		}

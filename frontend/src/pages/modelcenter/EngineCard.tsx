@@ -11,7 +11,7 @@ import { useModelCenterActions, useModelCenterState } from './context'
 import { LocalEngineLifecycle } from './LocalEngineLifecycle'
 import { EditCustomEngineForm, type EnginePrices } from './CustomEngineForm'
 
-const isManagedEngine = (id: string) => id === 'strata' || id === 'tianxuan'
+const isManagedEngine = (id: string) => id === 'strata' || id === 'llama'
 
 export function EngineCard({ engine, editingCustom, savedPrice, onToggleEdit, onPriceSaved }: {
   engine: EngineConfig
@@ -155,10 +155,10 @@ export function EngineCard({ engine, editingCustom, savedPrice, onToggleEdit, on
           >
             测试连接
           </Button>
-          {(engine.id === 'tianxuan' || engine.id === 'strata' || engine.id === 'llama') && (
+          {(engine.id === 'strata' || engine.id === 'llama') && (
             <LocalEngineLifecycle
               engineId={engine.id}
-              name={engine.id === 'tianxuan' ? '天璇' : engine.id === 'llama' ? 'Llama' : 'Strata'}
+              name={engine.id === 'llama' ? 'Llama' : 'Strata'}
               onReady={() => handleRefreshModels(engine.id)}
               onRunningChange={(running) => {
                 setManagedRunning(prev => prev === running ? prev : running)

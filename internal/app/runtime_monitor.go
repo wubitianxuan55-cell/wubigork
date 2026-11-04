@@ -9,7 +9,7 @@ package app
 //     而非编造数值）；
 //   - engines：模型中心引擎表（启用/连通/延迟/默认模型 + herdsman 侧模型级
 //     running 标记），复用 engineMgr 内存态，零额外探测；
-//   - strata/tianxuan：引擎启用且配置了地址时代理其 /metrics（live 状态、
+//   - strata/llama：引擎启用且配置了地址时代理其 /metrics（tianxuan 已退役）（live 状态、
 //     tok/s、槽位、最近请求、硬件分钟级序列——Strata 系引擎自带的遥测面，
 //     天璇同款）；引擎停机/拉取失败为 null，不拖慢快照（1.5s 超时并发拉取）；
 //   - recentCalls：gaea 侧全部引擎（含云端）最近调用记账（modelengine 环形
@@ -99,7 +99,7 @@ func (a *App) RuntimeMonitor() map[string]interface{} {
 		}
 		results := make(chan metricsResult, 2)
 		pending := 0
-		for _, id := range []string{"strata", "tianxuan"} {
+		for _, id := range []string{"strata", "llama"} {
 			eng, ok := c.engineMgr.GetEngine(id)
 			if !ok || !eng.Enabled || !strings.HasPrefix(eng.BaseURL, "http") {
 				out[id] = nil
@@ -119,7 +119,7 @@ func (a *App) RuntimeMonitor() map[string]interface{} {
 			}
 		}
 	} else {
-		out["strata"], out["tianxuan"] = nil, nil
+		out["strata"], out["llama"] = nil, nil
 	}
 
 	// gaea 侧最近调用（全引擎，含云端）与聚合计账标量。
