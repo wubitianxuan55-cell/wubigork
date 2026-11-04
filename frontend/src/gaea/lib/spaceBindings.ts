@@ -369,6 +369,10 @@ export const GAEA_METHOD_FACETS = {
   // P2 确认执行：动作预览台账（dry-run 登记）+ 确认执行（幂等/TTL/hash）。
   VoiceV2PreviewIntent: "shared",
   VoiceV2ExecuteAction: "shared",
+  // P2 续：自管 35B llama 引擎（8124，语音+聊天共用）——语音设置面板启停。
+  Qwen35EngineStart: "shared",
+  Qwen35EngineStop: "shared",
+  Qwen35EngineStatus: "shared",
   // 批次二 legacy 直调转正：语音设置读取（VoiceGetSettings）与
   // VoiceApplySettings patch 写配对，同归 shared（语音设置面板/模型中心两空间共用）。
   VoiceGetSettings: "shared",

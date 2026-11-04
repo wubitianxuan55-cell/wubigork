@@ -107,8 +107,28 @@ export default function VoiceSettingsPanel() {
 
   // ── 语音对话引擎（M4 产品接入刀）：v1 whisper 链 / v2 实时 sidecar ──
   const [voiceBackend, setVoiceBackend] = useState<'v1' | 'v2'>('v1')
-  // P2 续：V2 对话 LLM 位（空/local-fast=专属快模型 | chat=跟随聊天板块）
+  // P2 续：V2 对话 LLM 位（空/local-fast=专属快模型 | chat=跟随聊天板块 | qwen35=自管 35B）
   const [voiceChatLLM, setVoiceChatLLM] = useState<'local-fast' | 'chat' | 'qwen35'>('local-fast')
+  const [qwen35State, setQwen35State] = useState<{ running: boolean; modelReady: boolean; binReady: boolean } | null>(null)
+  const [qwen35Busy, setQwen35Busy] = useState(false)
+  const refreshQwen35 = async () => {
+    try {
+      const st = (await app.Qwen35EngineStatus()) as { running?: boolean; modelReady?: boolean; binReady?: boolean }
+      setQwen35State({ running: !!st.running, modelReady: !!st.modelReady, binReady: !!st.binReady })
+      return !!st.running
+    } catch {
+      return false
+    }
+  }
+  const startQwen35 = async () => {
+    setQwen35Busy(true)
+    try {
+      await app.Qwen35EngineStart()
+      await refreshQwen35()
+    } finally {
+      setQwen35Busy(false)
+    }
+  }
   const [v2Status, setV2Status] = useState<{
     sidecar: boolean; llm: boolean; breeze: boolean; gateway: boolean; ready: boolean
     error: string; stage: string
@@ -585,6 +605,7 @@ export default function VoiceSettingsPanel() {
                 const next = e.target.value as 'local-fast' | 'chat' | 'qwen35'
                 setVoiceChatLLM(next)
                 void app.VoiceApplySettings({ voiceChatLLM: next }).catch(() => { setVoiceChatLLM(voiceChatLLM) })
+                if (next === 'qwen35') { void refreshQwen35() }
               }}
               data-testid="voice-chat-llm-radio"
               style={{ flexBasis: '100%' }}
@@ -593,6 +614,19 @@ export default function VoiceSettingsPanel() {
               <Radio.Button value="qwen35">自管 35B（语音+聊天）</Radio.Button>
               <Radio.Button value="chat">跟随聊天板块（实验）</Radio.Button>
             </Radio.Group>
+            {voiceChatLLM === 'qwen35' && (
+              <div style={{ flexBasis: '100%', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>
+                  35B 引擎 {qwen35State?.running ? '✓ 运行中（8124）' : qwen35State && !qwen35State.modelReady ? '✗ gguf 缺失' : '未启动'}
+                </span>
+                <Button size="small" loading={qwen35Busy} onClick={() => { void startQwen35() }} data-testid="voice-qwen35-start">
+                  启动 35B
+                </Button>
+                <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>
+                  聊天板块：模型中心 → 自定义引擎 → 127.0.0.1:8124/v1，再在功能绑定选用
+                </span>
+              </div>
+            )}
           </div>
         )}
       </Card>

@@ -243,6 +243,10 @@ export interface CoreBindings {
   // 面板据此渲染指令预览卡；用户显式确认后以 dryRun=false 真执行并返回回执。
   // 预览-确认制 = 「宁漏勿误」纪律在搜索框面的落地（搜索词不是整句指令入口）。
   RouteIntent(text: string, dryRun: boolean): Promise<IntentResultView>;
+  // Qwen35Engine* 自管 35B llama 引擎（8124，语音+聊天共用）：幂等拉起/停止/探活。
+  Qwen35EngineStart(): Promise<Record<string, unknown>>;
+  Qwen35EngineStop(): Promise<Record<string, unknown>>;
+  Qwen35EngineStatus(): Promise<Record<string, unknown>>;
   // RetrievalEvalRun 运行检索质量测评：内置查询集统计平均 recall@10，
   // 达标门槛后端固定 0.8，返回指标 + 逐查询命中明细。
   RetrievalEvalRun(): Promise<RetrievalEvalReport>;
