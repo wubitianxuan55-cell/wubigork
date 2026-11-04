@@ -1,11 +1,22 @@
-// pipeline.go — 语音管线（VAD→EOT→STT→LLM→TTS）的会话/协议胶水层。
+// pipeline.go — 语音管线：5 阶段 goroutine + 信号驱动发送循环。
 //
-// 输入项生命周期/持发规则/响应装配语义逐字对齐 sidecar api/openai_realtime
-// （规格 §5.1/5.2）。LLM 腿与 TTS 腿在刀5 接入（当前 final 之后只发布转写，
-// 不产生响应——unanswered 路径直接 commit+close）。
+// 拓扑逐字对齐 sidecar s2s_pipeline.py build_configured_server 的队列图（8 队列 5 线程）
+// 与 websocket_router._send_loop_for（output_signal 驱动、文本侧先于音频、
+// 停靠/HOLD 重试、barge-in 三队列 flush、每轮 resolve_input_terminals）：
+//
+//	WS read ─► audioCh ─► [VAD 线程] ─► sttCh（utterance）
+//	                              └─► textCh（started/stopped）
+//	          [STT 线程] sttCh ─► textCh（transcription）─► promptCh（GenerateResponse）
+//	          [LLM 线程] promptCh ─► textCh（assistant delta）+ ttsCh（句子）
+//	          [TTS 线程] ttsCh ─► audioOutCh（PCM 块 + done 哨兵）
+//	发送循环：signal 唤醒 → 文本侧（停靠/HOLD）→ 协议翻译全在此 → 音频批 6400B
+//
+// 协议翻译（resolve terminals/barge-in/response 装配）只在发送循环单线程发生
+// ——sidecar 的 service.dispatch_pipeline_event 同位。规格：进度计划/gaea-voice-sidecar-port-spec-20261104.md §5。
 package realtime
 
 import (
+	"context"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -18,103 +29,178 @@ type EOTEngine interface {
 	Predict(pcm []float32) (probability float32, took time.Duration, err error)
 }
 
-// STTEngine 转写引擎（native.Engine.Transcribe 直配）。
+type eotEngineAdapter struct{ e EOTEngine }
+
+func (a eotEngineAdapter) Predict(pcm []float32) (float32, time.Duration, error) {
+	return a.e.Predict(pcm)
+}
+
+// STTEngine 转写引擎。
 type STTEngine interface {
 	Transcribe(pcm []float32, sampleRate int) (string, error)
 }
 
+// ResponseLegs LLM/TTS 腿（app 层适配注入）。
+type ResponseLegs interface {
+	Reply(ctx context.Context, userText string, history []ChatMessage, turnID string, rev int, itemID string, onDelta func(string)) (fullText string, inTokens, outTokens int, err error)
+	Speak(ctx context.Context, sentence string, onAudio func([]byte)) error
+}
+
+// cancelScope 统一取消信号（pipeline/cancel_scope.py 同位）：
+// 代际计数让管线线程检测取消；discarding 让发送循环丢弃陈旧输出。
+type cancelScope struct {
+	mu         sync.Mutex
+	gen        int
+	discarding bool
+}
+
+func (c *cancelScope) current() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.gen
+}
+
+// cancel 递增代际并进入丢弃窗口（barge-in/客户端取消）。
+func (c *cancelScope) cancel() {
+	c.mu.Lock()
+	c.gen++
+	c.discarding = true
+	c.mu.Unlock()
+}
+
+// isStale 捕获的代际是否已被取消淘汰。
+func (c *cancelScope) isStale(gen int) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return gen < c.gen
+}
+
+// discardable 规格同 _generation_is_discardable（含 discarding 窗口分支）。
+func (c *cancelScope) discardable(gen int) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if gen < c.gen {
+		return true
+	}
+	return c.discarding && gen != c.gen
+}
+
+// clearDiscarding 终态处理完毕清除丢弃窗口（response_done 同位）。
+func (c *cancelScope) clearDiscarding() {
+	c.mu.Lock()
+	c.discarding = false
+	c.mu.Unlock()
+}
+
 // PipelineConfig 管线配置。
 type PipelineConfig struct {
-	VAD VADHandlerConfig
-	// Legs LLM/TTS 腿（nil=无响应能力，转写后持发等待——刀3/4 态）。
-	Legs ResponseLegs
-	// ChatSize LLM 对话历史窗口（sidecar chat_size=12）。
-	ChatSize int
-	// CreateResponse 转写后是否产生响应（Legs!=nil 时恒 true）。
+	VAD            VADHandlerConfig
+	Legs           ResponseLegs
+	ChatSize       int
 	CreateResponse bool
 }
 
-// Pipeline 单会话语音管线（实现 Handler；单会话池由 Server 保证）。
+// ─────────── 管线消息（pipeline/messages.py 同位） ───────────
+
+// textEvent 文本侧通道事件（text_output_queue 载荷）。
+type textEvent struct {
+	kind       int
+	started    *VADStarted
+	stopped    *VADStopped
+	turnID     string
+	rev        int
+	itemID     string
+	transcript string
+	resp       *responseState
+}
+
+const (
+	evKindSpeechStarted = iota
+	evKindSpeechStopped
+	evKindTranscription
+	evKindAssistantDelta
+)
+
+// promptRequest GenerateResponseRequest（text_prompt_queue 载荷）。
+type promptRequest struct {
+	resp            *responseState
+	userText        string
+	history         []ChatMessage
+	speechStoppedAt time.Time
+}
+
+// ttsRequest 单句合成（lm_processed_queue 载荷）。
+type ttsRequest struct {
+	resp     *responseState
+	sentence string
+	last     bool // 响应最后一句（合成完发 done 哨兵）
+}
+
+// audioOut send_audio_chunks 载荷：音频块或 done 哨兵。
+type audioOut struct {
+	resp *responseState
+	pcm  []byte
+	done bool
+	gen  int
+}
+
+// Pipeline 单会话语音管线（实现 Handler）。
 type Pipeline struct {
 	cfg   PipelineConfig
 	turns *SpeculativeTurns
 	vad   *VADHandler
 	eot   EOTEngine
 	stt   STTEngine
+	legs  ResponseLegs
 
-	// —— 输入项状态（§5.1）——
-	muItems             sync.Mutex
-	inputItemByTurnRev  map[turnKey]string
-	pendingTerminals    map[string]*pendingInputTerminal // itemID → terminal
-	lastItemID          string
-	completedFinalRevs  map[turnKey]bool // completed-final 集合（FIFO 上限 2048）
-	completedFinalOrder []turnKey
-	instructions        string // session.update 指令（app 层 LLM 适配读取）
-	voiceID             string // session.update 输出音色（breeze 克隆 id）
-	// —— 响应状态（刀5）——
-	legs           ResponseLegs
-	chatSize       int
-	chat           []ChatMessage
-	respState      *responseState
-	inResponse     bool
-	responseID     string
-	responseTurnID string
-	responseRev    int
-	responseMux    sync.Mutex
-	// 延迟账 + 墓碑
+	// —— 队列（s2s_pipeline 拓扑同位）——
+	audioCh  chan []float32      // recv_audio_chunks_queue
+	sttCh    chan *VADFinal      // spoken_prompt_queue
+	promptCh chan *promptRequest // text_prompt_queue
+	ttsCh    chan *ttsRequest    // lm_processed_queue
+	audioOut chan *audioOut      // send_audio_chunks_queue
+	textCh   chan *textEvent     // text_output_queue
+	cancelCh chan string         // 客户端取消请求（发送循环消费）
+	signal   chan struct{}       // output_signal（NotifyingQueue 聚合）
+
+	// —— 发送循环服务状态（单线程访问；sidecar SessionState 同位）——
+	inputItemByTurnRev map[turnKey]string
+	pendingTerminals   map[string]*pendingInputTerminal
+	lastItemID         string
+	completedFinalRevs map[turnKey]bool
+	completedOrder     []turnKey
+	inResponse         bool
+	respState          *responseState
+	responseTurnID     string
+	closedKeys         map[string]bool
+	closedOrder        []string
+	chat               []ChatMessage
+	chatSize           int
+	voiceID            string
+	pendingText        []*textEvent // 停靠文本事件（pending_text_output_items）
+	parkedAudio        *audioOut    // pending_output_item（单停靠位）
+	audioBatch         []byte
+
+	scope cancelScope // 统一取消信号（代际）
+	// 延迟账（多 worker 写，发送循环读）
 	muLatency       sync.Mutex
-	lat             latencyRec
 	lastSTT         float64
 	lastLLM         float64
+	lastLLMTTFT     float64
 	lastTTFA        float64
 	lastE2E         float64
 	lastVADDecision float64
 	lastSmart       string
 	lastHold        float64
-	closedKeys      map[string]bool
-	closedOrder     []string
-	// 音频时钟
+
+	session        *Session
 	totalSamples   int
-	pendingSamples []float32 // 512 块化余数（跨帧累积）
-
-	// 持发重试泵（sidecar send-loop HOLD retry 语义：被 candidate/grace 挂住的
-	// terminal 到期后要有东西再 resolve——这里用 50ms 泵替代其发送循环重试）
-	pumpOnce sync.Once
-	stopPump chan struct{}
-	pumpSess *Session
-	pumpMu   sync.Mutex
+	pendingSamples []float32
+	stopped        chan struct{}
+	startOnce      sync.Once
 }
 
-func (p *Pipeline) startPump(s *Session) {
-	p.pumpOnce.Do(func() {
-		p.pumpMu.Lock()
-		p.pumpSess = s
-		p.stopPump = make(chan struct{})
-		stop := p.stopPump
-		p.pumpMu.Unlock()
-		go func() {
-			t := time.NewTicker(50 * time.Millisecond)
-			defer t.Stop()
-			for {
-				select {
-				case <-t.C:
-					p.muItems.Lock()
-					empty := len(p.pendingTerminals) == 0
-					p.muItems.Unlock()
-					if empty {
-						continue
-					}
-					for _, ev := range p.resolveInputTerminals(p.pumpSess, "") {
-						p.pumpSess.Send(ev)
-					}
-				case <-stop:
-					return
-				}
-			}
-		}()
-	})
-}
-
+// pendingInputTerminal 持发的输入项终态。
 type pendingInputTerminal struct {
 	itemID        string
 	turnID        string
@@ -124,19 +210,37 @@ type pendingInputTerminal struct {
 	inputClosed   bool
 }
 
-const maxCompletedFinals = 2048
+const (
+	maxCompletedFinals = 2048
+	maxClosedKeys      = 128
+)
 
-// NewPipeline 构造（eng 可为 nil→VAD/EOT/STT 缺席，仅协议壳）。
+// NewPipeline 构造。
 func NewPipeline(cfg PipelineConfig, scorer VadScorer, eot EOTEngine, stt STTEngine) *Pipeline {
+	if cfg.ChatSize <= 0 {
+		cfg.ChatSize = 12
+	}
 	turns := NewSpeculativeTurns()
 	p := &Pipeline{
 		cfg:                cfg,
 		turns:              turns,
 		eot:                eot,
 		stt:                stt,
+		legs:               cfg.Legs,
+		chatSize:           cfg.ChatSize,
+		audioCh:            make(chan []float32, 8192),
+		sttCh:              make(chan *VADFinal, 16),
+		promptCh:           make(chan *promptRequest, 16),
+		ttsCh:              make(chan *ttsRequest, 64),
+		audioOut:           make(chan *audioOut, 4096),
+		textCh:             make(chan *textEvent, 256),
+		cancelCh:           make(chan string, 4),
+		signal:             make(chan struct{}, 1),
 		inputItemByTurnRev: map[turnKey]string{},
 		pendingTerminals:   map[string]*pendingInputTerminal{},
 		completedFinalRevs: map[turnKey]bool{},
+		closedKeys:         map[string]bool{},
+		stopped:            make(chan struct{}),
 	}
 	var eotAn EOTAnalyzer
 	if eot != nil {
@@ -146,26 +250,22 @@ func NewPipeline(cfg PipelineConfig, scorer VadScorer, eot EOTEngine, stt STTEng
 	return p
 }
 
-type eotEngineAdapter struct{ e EOTEngine }
-
-func (a eotEngineAdapter) Predict(pcm []float32) (float32, time.Duration, error) {
-	return a.e.Predict(pcm)
+func (p *Pipeline) notify() {
+	select {
+	case p.signal <- struct{}{}:
+	default:
+	}
 }
 
-// —— Handler 接口 ——
+// ─────────── Handler 接口（WS 读线程；绝不阻塞） ───────────
 
-// OnAudio 上行音频：PCM16 字节 → float32 → 512 块喂 VAD。
-// 不足 512 的余数跨帧累积（前端 320 样本/帧粒度；sidecar service 同语义）。
 func (p *Pipeline) OnAudio(s *Session, pcm []byte) {
+	p.session = s
 	n := len(pcm) / 2
 	if n == 0 {
 		return
 	}
-	p.startPump(s)
-	p.muItems.Lock()
 	p.totalSamples += n
-	p.muItems.Unlock()
-
 	samples := make([]float32, 0, len(p.pendingSamples)+n)
 	samples = append(samples, p.pendingSamples...)
 	for i := 0; i < n; i++ {
@@ -174,157 +274,180 @@ func (p *Pipeline) OnAudio(s *Session, pcm []byte) {
 	const chunk = 512
 	off := 0
 	for off+chunk <= len(samples) {
-		for _, ev := range p.vad.Process(samples[off : off+chunk]) {
-			p.dispatchVADEvent(s, ev)
-		}
+		buf := make([]float32, chunk)
+		copy(buf, samples[off:off+chunk])
 		off += chunk
+		select {
+		case p.audioCh <- buf:
+		case <-p.stopped:
+			return
+		}
 	}
-	p.muItems.Lock()
 	p.pendingSamples = append([]float32(nil), samples[off:]...)
-	p.muItems.Unlock()
+	p.startOnce.Do(p.runStages)
+	p.notify()
 }
 
-// OnSessionConfig session.update：阈值运行时生效。
-func (p *Pipeline) OnSessionConfig(s *Session, cfg SessionConfig) {
+func (p *Pipeline) OnSessionConfig(_ *Session, cfg SessionConfig) {
 	if cfg.VAD.Threshold != nil {
 		p.vad.SetThreshold(*cfg.VAD.Threshold)
 	}
-	p.muItems.Lock()
 	p.voiceID = cfg.Voice
-	p.muItems.Unlock()
 }
 
-// Voice 当前输出音色。
-func (p *Pipeline) Voice() string {
-	p.muItems.Lock()
-	defer p.muItems.Unlock()
-	return p.voiceID
-}
+func (p *Pipeline) Voice() string { return p.voiceID }
 
-// OnSessionEnd 会话结束复位。
-func (p *Pipeline) OnSessionEnd(s *Session) {
-	p.muItems.Lock()
+// OnSessionEnd 会话断开：清队列+会话态，常驻阶段线程不清（管线=应用生命周期，
+// 第二次进语音必须照常工作——stopped 通道只在应用退出时关闭）。
+func (p *Pipeline) OnSessionEnd(_ *Session) {
+	if p.respState != nil {
+		p.respState.cancel()
+		p.respState = nil
+	}
+	p.inResponse = false
+	p.drainQueues()
+	p.pendingText = nil
+	p.parkedAudio = nil
+	p.audioBatch = nil
 	p.inputItemByTurnRev = map[turnKey]string{}
 	p.pendingTerminals = map[string]*pendingInputTerminal{}
 	p.lastItemID = ""
 	p.completedFinalRevs = map[turnKey]bool{}
-	p.completedFinalOrder = nil
+	p.completedOrder = nil
 	p.totalSamples = 0
 	p.pendingSamples = nil
-	p.muItems.Unlock()
-	p.pumpMu.Lock()
-	if p.stopPump != nil {
-		close(p.stopPump)
-		p.stopPump = nil
-	}
-	p.pumpOnce = sync.Once{}
-	p.pumpSess = nil
-	p.pumpMu.Unlock()
+	p.session = nil
 	p.turns.Reset()
 	p.vad.OnSessionEnd()
 }
 
-// OnResponseCancel 客户端取消（刀5 实装完整取消链）。
-func (p *Pipeline) OnResponseCancel(s *Session) {
-	p.responseMux.Lock()
-	had := p.inResponse
-	p.responseMux.Unlock()
-	if had {
-		s.Send(evResponseDone(ResponseDonePayload{
-			ID:            p.responseID,
-			Status:        "cancelled",
-			StatusDetails: map[string]any{"reason": "client_cancelled"},
-		}))
-	}
-	p.responseMux.Lock()
-	p.inResponse = false
-	p.responseMux.Unlock()
-}
-
-// OnResponseCreate 客户端显式请求（刀5 LLM 腿接入；当前回声占位由 Server 层兜）。
-func (p *Pipeline) OnResponseCreate(s *Session) {
-	// 刀5：LLM 生成链。当前无 LLM 腿——静默忽略（前端可再发起）。
-}
-
-// —— VAD 事件 → 协议发射（§5.1） ——
-
-func (p *Pipeline) dispatchVADEvent(s *Session, ev VADEvent) {
-	switch ev.Kind {
-	case VADEventStarted:
-		p.onSpeechStarted(s, ev.Started)
-	case VADEventStopped:
-		// 被持：pending terminal（不发）
-		p.holdSpeechStopped(ev.Stopped)
-	case VADEventFinal:
-		p.onFinal(s, ev.Final)
-	}
-}
-
-func (p *Pipeline) onSpeechStarted(s *Session, st *VADStarted) {
-	events := p.resolveInputTerminals(s, st.TurnID)
-
-	// barge-in：响应中 + 允许打断 → cancelled/turn_detected
-	p.responseMux.Lock()
-	interrupt := p.inResponse
-	if st.InterruptResponse {
-		_ = interrupt // 刀5 在此 finish_response(cancelled, turn_detected) + 队列 flush
-	}
-	p.responseMux.Unlock()
-
-	isReopen := st.Reopened && st.TurnID != ""
-	itemID, existed := p.inputItemForTurn(st.TurnID, st.Rev, isReopen)
-	if existed && isReopen {
-		// 复用同一协议 item，不重发 speech_started
-		for _, e := range events {
-			s.Send(e)
+// drainQueues 非阻塞清空全部管线队列（会话断开时丢弃在途工作）。
+func (p *Pipeline) drainQueues() {
+	for {
+		select {
+		case <-p.audioCh:
+		case <-p.sttCh:
+		case <-p.promptCh:
+		case <-p.ttsCh:
+		case <-p.audioOut:
+		case <-p.textCh:
+		default:
+			return
 		}
+	}
+}
+
+// OnResponseCancel 客户端取消：cancelled/client_cancelled（规格 §5.5）。
+// 发送循环线程安全：经 textCh 序列化（避免与发送循环状态竞争）。
+func (p *Pipeline) OnResponseCancel(s *Session) {
+	p.cancelCh <- "client_cancelled"
+}
+
+func (p *Pipeline) OnResponseCreate(_ *Session) {}
+
+// cancelActiveResponse barge-in/客户端取消共用（规格 §5.4/5.5）：
+// cancel scope（resp.ctx）+ flush prompt/tts 队列 + finish_response(cancelled)。
+func (p *Pipeline) cancelActiveResponse(reason string) {
+	rs := p.respState
+	inResp := p.inResponse
+	if !inResp && rs == nil {
 		return
 	}
-	s.Send(evSpeechStarted(itemID, st.AudioStartMs))
-	for _, e := range events {
-		s.Send(e)
+	// flush text_prompt_queue：丢弃排队请求
+	for {
+		select {
+		case <-p.promptCh:
+			if pr := <-p.promptCh; pr != nil {
+				pr.resp.dead = true
+			}
+			continue
+		default:
+		}
+		break
+	}
+	if rs != nil {
+		rs.cancel()
+		p.finishResponse(p.session, rs, "cancelled", reason)
 	}
 }
 
-func (p *Pipeline) holdSpeechStopped(st *VADStopped) {
-	p.muItems.Lock()
-	defer p.muItems.Unlock()
-	key := turnKey{id: st.TurnID, rev: st.Rev}
-	itemID, ok := p.inputItemByTurnRev[key]
-	if !ok {
-		slog.Debug("speech_stopped 无输入项（丢弃）", "turn", st.TurnID, "rev", st.Rev)
-		return
-	}
-	term := p.pendingTerminals[itemID]
-	if term == nil {
-		term = &pendingInputTerminal{itemID: itemID, turnID: st.TurnID, rev: st.Rev}
-		p.pendingTerminals[itemID] = term
-	}
-	term.speechStopped = evSpeechStopped(itemID, st.AudioEndMs)
-	if st.DurationS > 0 {
-		term.speechStopped["duration_s"] = st.DurationS
-	}
+// ─────────── 阶段线程 ───────────
+
+// runStages 启动全部阶段线程（首次音频时）。
+func (p *Pipeline) runStages() {
+	// VAD 线程：audioCh → VAD → started/stopped→textCh；final→sttCh
+	go func() {
+		for {
+			select {
+			case <-p.stopped:
+				return
+			case x := <-p.audioCh:
+				for _, ev := range p.vad.Process(x) {
+					switch ev.Kind {
+					case VADEventStarted:
+						p.textCh <- &textEvent{kind: evKindSpeechStarted, started: ev.Started}
+					case VADEventStopped:
+						p.textCh <- &textEvent{kind: evKindSpeechStopped, stopped: ev.Stopped}
+					case VADEventFinal:
+						p.sttCh <- ev.Final
+					}
+					p.notify()
+				}
+			}
+		}
+	}()
+	// STT 线程：utterance → 输入门 → 转写 → textCh + promptCh
+	go func() {
+		for {
+			select {
+			case <-p.stopped:
+				return
+			case f := <-p.sttCh:
+				p.sttStage(f)
+			}
+		}
+	}()
+	// LLM 线程：prompt → 流式 delta → textCh；分句 → ttsCh
+	go func() {
+		for {
+			select {
+			case <-p.stopped:
+				return
+			case req := <-p.promptCh:
+				p.llmStage(req)
+			}
+		}
+	}()
+	// TTS 线程：句子 → gate 提交（首音频提交轮）→ 合成 → audioOut + done 哨兵
+	go func() {
+		for {
+			select {
+			case <-p.stopped:
+				return
+			case t := <-p.ttsCh:
+				p.ttsStage(t)
+			}
+		}
+	}()
+	// 发送循环
+	go p.sendLoop()
 }
 
-// onFinal mode=final：STT 输入门 → 转写 → chat/响应（刀5）→ 持 terminal。
-func (p *Pipeline) onFinal(s *Session, f *VADFinal) {
-	// STT 输入门（§4）：final 稳定等待 = max(0, processing_delay − age)；
-	// current 轮有 tracker processing_deadline 时用剩余时间替代。
-	holdUntil := time.Time{}
-	deadline, ok := p.turns.ProcessingDeadline(f.TurnID, f.Rev)
-	if ok && deadline.After(time.Now()) {
-		holdUntil = deadline
-	}
-	if p.turns.WaitForGate(f.TurnID, f.Rev, false, holdUntil) {
-		p.transcribe(s, f)
-	}
-}
-
-// transcribe STT + 转写完成事件 + 持 terminal。
-func (p *Pipeline) transcribe(s *Session, f *VADFinal) {
+// sttStage STT 输入门 + 转写（规格 §4）。
+func (p *Pipeline) sttStage(f *VADFinal) {
 	key := turnKey{id: f.TurnID, rev: f.Rev}
 	if p.completedFinalRevs[key] {
-		return // input-after-final
+		return
+	}
+	// 输入门：final 稳定等待（processing deadline 或 delay−age）
+	wait := time.Time{}
+	if d, ok := p.turns.ProcessingDeadline(f.TurnID, f.Rev); ok && d.After(time.Now()) {
+		wait = d
+	} else if f.ProcessingDelayS > 0 {
+		wait = time.Now().Add(time.Duration(f.ProcessingDelayS * float64(time.Second)))
+	}
+	if !p.turns.WaitForGate(f.TurnID, f.Rev, false, wait) {
+		return
 	}
 	text := ""
 	sttStart := time.Now()
@@ -340,16 +463,13 @@ func (p *Pipeline) transcribe(s *Session, f *VADFinal) {
 	p.lastVADDecision = f.VADDecisionS
 	p.lastSmart = f.SmartStatus
 	p.muLatency.Unlock()
-	itemID, ok := p.inputItemForTurn(f.TurnID, f.Rev, false)
-	if !ok {
-		return
-	}
-	p.muItems.Lock()
+
+	itemID, _ := p.inputItemForTurn(f.TurnID, f.Rev, false)
 	p.completedFinalRevs[key] = true
-	p.completedFinalOrder = append(p.completedFinalOrder, key)
-	for len(p.completedFinalOrder) > maxCompletedFinals {
-		delete(p.completedFinalRevs, p.completedFinalOrder[0])
-		p.completedFinalOrder = p.completedFinalOrder[1:]
+	p.completedOrder = append(p.completedOrder, key)
+	for len(p.completedOrder) > maxCompletedFinals {
+		delete(p.completedFinalRevs, p.completedOrder[0])
+		p.completedOrder = p.completedOrder[1:]
 	}
 	term := p.pendingTerminals[itemID]
 	if term == nil {
@@ -357,48 +477,40 @@ func (p *Pipeline) transcribe(s *Session, f *VADFinal) {
 		p.pendingTerminals[itemID] = term
 	}
 	term.transcription = evTranscriptionCompleted(itemID, text)
-	// chat 写入（刀5 LLM 腿时同批）。terminal 保持持发（sidecar 语义）：
-	// 提前 commit+close 会杀死 speculative reopen（后续语音必须能 rev+1 重开
-	// 同轮，被超龄 revision 的 terminal 由「下一轮开始」或「响应提交」处置）。
-	p.muItems.Unlock()
-
 	slog.Info("Transcription completed (language=zh): chars=" + strconv.Itoa(len([]rune(text))) +
 		" turn=" + f.TurnID + " rev=" + strconv.Itoa(f.Rev))
 
-	// 响应腿（刀5）：转写非空 → chat 历史 → LLM 流 → 分句 TTS → response 链。
-	// 空转写：移除 chat user 消息等价=不入历史，直接返回（terminal 继续持发）。
+	// GenerateResponseRequest（text_prompt_queue）——转写 terminal 持发，随响应提交发布
 	if text != "" && p.legs != nil && p.cfg.CreateResponse {
-		p.chatAppend("user", text)
-		p.generateResponse(s, text, f)
+		p.chat = append(p.chat, ChatMessage{Role: "user", Content: text})
+		for len(p.chat) > p.chatSize {
+			p.chat = p.chat[1:]
+		}
+		rs := p.newResponseState(f.TurnID, f.Rev, f.SpeechEndAt)
+		p.promptCh <- &promptRequest{resp: rs, userText: text, history: p.chatSnapshot(), speechStoppedAt: f.SpeechEndAt}
+		p.notify()
 	}
-	p.resolveInputTerminals(s, "")
+	p.notify()
 }
 
-// generateResponse 响应全链（LLM 流 + 分句 TTS + finish）。
-func (p *Pipeline) generateResponse(s *Session, userText string, f *VADFinal) {
-	history := p.chatSnapshot()
-	// 历史含刚追加的 user 消息——LLM 侧剔除末条（adapter 自行组装 persona 注入）
-	if len(history) > 0 {
-		history = history[:len(history)-1]
-	}
-	rs := p.beginResponse(s, userText, f.TurnID, f.Rev, f.SpeechEndAt)
-	// 提交轮（commit=true）：首个输出前提交（解除 hold、进入 ANSWERING）
-	if g := p.turns.Gate(f.TurnID, f.Rev, false, time.Time{}, true); g.Action != GateAccept {
-		// DROP=轮已过期；静默放弃
+// llmStage LLM 流 → delta 事件 + 分句入 TTS 队列。
+func (p *Pipeline) llmStage(req *promptRequest) {
+	rs := req.resp
+	if p.closedKeys[rs.key] {
 		return
 	}
-	p.sendResponseCreated(s, rs)
-
 	llmStart := time.Now()
+	history := req.history
+	if len(history) > 0 {
+		history = history[:len(history)-1] // 末条 user 由本次请求携带
+	}
 	sentenceCh := make(chan string, 64)
 	done := make(chan error, 1)
 	go func() {
-		full, inT, outT, err := p.legs.Reply(rs.ctx, userText, history, f.TurnID, f.Rev, p.currentItemID(f.TurnID, f.Rev), func(delta string) {
-			// 增量：开输出 + transcript.delta（规格：文本先于音频可见）
-			p.beginAssistantOutput(s, rs)
-			p.streamAssistantText(s, rs, delta)
-			// 分句批切（stream_batch_sentences=1）
+		full, inT, outT, err := p.legs.Reply(rs.ctx, req.userText, history, rs.turnID, rs.rev, p.currentItemID(rs.turnID, rs.rev), func(delta string) {
+			p.textCh <- &textEvent{kind: evKindAssistantDelta, resp: rs, transcript: delta}
 			p.pendSentence(rs, delta, sentenceCh)
+			p.notify()
 		})
 		rs.inTokens, rs.outTokens = inT, outT
 		p.muLatency.Lock()
@@ -409,100 +521,484 @@ func (p *Pipeline) generateResponse(s *Session, userText string, f *VADFinal) {
 		done <- err
 		_ = full
 	}()
-
-	speakErr := error(nil)
 	first := true
 	for sentence := range sentenceCh {
-		if !p.speakSentence(s, rs, sentence, first) {
-			speakErr = errInterrupted
-			first = false
-			break
-		}
+		p.ttsCh <- &ttsRequest{resp: rs, sentence: sentence, last: false}
 		first = false
 	}
-	if speakErr == errInterrupted {
-		// barge-in 已在 onSpeechStarted 里 finishResponse(cancelled/turn_detected)
-		<-done
-		return
-	}
-	if err := <-done; err != nil {
-		if rs.ctx.Err() != nil {
-			return // 已取消路径
-		}
+	_ = first
+	if err := <-done; err != nil && rs.ctx.Err() == nil && !rs.dead {
 		slog.Warn("LLM 生成失败", "error", err)
-		// 兜底语（sidecar PROVIDER_FAILURE_FALLBACK 语义）
-		p.beginAssistantOutput(s, rs)
-		p.streamAssistantText(s, rs, "我现在有点跟不上，请再说一遍。")
-		if !p.speakSentence(s, rs, "我现在有点跟不上，请再说一遍。", false) {
+		if !rs.dead {
+			p.ttsCh <- &ttsRequest{resp: rs, sentence: "我现在有点跟不上，请再说一遍。", last: true}
 			return
 		}
-		p.finishResponse(s, rs, "failed", "response_failed")
+	}
+	// 正常结束：给 TTS 线程发最后一句标记（done 哨兵跟在其合成后）
+	p.ttsCh <- &ttsRequest{resp: rs, sentence: "\x00mark", last: true}
+}
+
+// ttsStage gate 提交（首音频提交轮）→ 合成 → 音频块 + done 哨兵。
+func (p *Pipeline) ttsStage(t *ttsRequest) {
+	rs := t.resp
+	if t.sentence == "\x00mark" {
+		p.audioOut <- &audioOut{resp: rs, done: true}
 		return
 	}
-	p.finishResponse(s, rs, "completed", "")
+	g := p.turns.Gate(rs.turnID, rs.rev, true, time.Time{}, true)
+	if g.Action == GateHold {
+		if !p.turns.WaitForGate(rs.turnID, rs.rev, true, time.Time{}) {
+			return
+		}
+	} else if g.Action == GateDrop {
+		return
+	}
+	ttfaStart := time.Now()
+	firstAudio := true
+	err := p.legs.Speak(rs.ctx, t.sentence, func(pcm []byte) {
+		if firstAudio {
+			firstAudio = false
+			p.muLatency.Lock()
+			p.lastTTFA = time.Since(ttfaStart).Seconds()
+			if !rs.speechAnchor.IsZero() {
+				p.lastE2E = time.Since(rs.speechAnchor).Seconds()
+			}
+			p.muLatency.Unlock()
+		}
+		p.audioOut <- &audioOut{resp: rs, pcm: pcm, gen: rs.generation}
+		p.notify()
+	})
+	if err != nil && rs.ctx.Err() == nil {
+		slog.Warn("TTS 句失败", "error", err)
+	}
+	if t.last {
+		p.audioOut <- &audioOut{resp: rs, done: true, gen: rs.generation}
+		p.notify()
+	}
 }
 
-// currentItemID 当前轮协议 item id（LLM 关联头用）。
-func (p *Pipeline) currentItemID(turnID string, rev int) string {
-	p.muItems.Lock()
-	defer p.muItems.Unlock()
-	if id, ok := p.inputItemByTurnRev[turnKey{id: turnID, rev: rev}]; ok {
-		return id
-	}
-	for k, id := range p.inputItemByTurnRev {
-		if k.id == turnID {
-			return id
+// ─────────── 发送循环（websocket_router._send_loop_for 同位） ───────────
+
+func (p *Pipeline) sendLoop() {
+	for {
+		// HOLD 重试语义（SEND_LOOP_HOLD_RETRY_S=10ms）：有停靠项时短周期复查；
+		// 空闲 50ms 安全网兜底（notify 是快路径，定时器防信号链断裂）
+		wait := 50 * time.Millisecond
+		if len(p.pendingText) > 0 || p.parkedAudio != nil {
+			wait = 10 * time.Millisecond
+		}
+		select {
+		case <-p.stopped:
+			return
+		case reason := <-p.cancelCh:
+			p.cancelActiveResponse(reason)
+			continue
+		case <-p.signal:
+		case <-time.After(wait):
+		}
+		for i := 0; i < 4096; i++ {
+			if !p.drainOnce() {
+				break
+			}
 		}
 	}
-	return ""
 }
 
-var errInterrupted = errorString("interrupted")
-
-type errorString string
-
-func (e errorString) Error() string { return string(e) }
-
-// pendSentence 流式分句累积（跨 delta）。
-func (p *Pipeline) pendSentence(rs *responseState, delta string, ch chan<- string) {
-	rs.mu.Lock()
-	rs.sb += delta
-	text := rs.sb
-	rs.mu.Unlock()
-	sentences := spokenSplit(text)
-	if len(sentences) > 1 {
-		// 除最后一段（可能未完）外全部下发
-		complete := ""
-		for i := 0; i < len(sentences)-1; i++ {
-			complete += sentences[i]
+// drainOnce 单次：文本侧优先 → resolve terminals → 音频；返回是否还有活干。
+func (p *Pipeline) drainOnce() bool {
+	// ① 停靠文本复查（HOLD 重试语义：发送循环每轮复查停靠列表）
+	for i, ev := range p.pendingText {
+		if !p.outputIsHeld(ev) {
+			p.pendingText = append(p.pendingText[:i], p.pendingText[i+1:]...)
+			p.dispatchText(ev)
+			return true
 		}
-		rs.mu.Lock()
-		rs.sb = sentences[len(sentences)-1]
-		rs.parts = append(rs.parts, sentences[:len(sentences)-1]...)
-		rs.mu.Unlock()
-		ch <- complete
+	}
+	select {
+	case ev := <-p.textCh:
+		if p.outputIsHeld(ev) {
+			p.pendingText = append(p.pendingText, ev)
+			return false
+		}
+		p.dispatchText(ev)
+		return true
+	default:
+	}
+	// ② resolve terminals（每轮）
+	p.resolveInputTerminals("")
+	// ③ 停靠音频
+	if p.parkedAudio != nil && !p.audioHeld(p.parkedAudio) {
+		a := p.parkedAudio
+		p.parkedAudio = nil
+		p.dispatchAudio(a)
+		return true
+	}
+	// ④ 音频队列
+	select {
+	case a := <-p.audioOut:
+		// router:1134 同位——代际丢弃（含 done 哨兵）先于一切处理
+		if p.scope.discardable(a.gen) {
+			return true
+		}
+		if a.done {
+			if p.closedKeys[a.resp.key] {
+				return true // router:1138 墓葬同位
+			}
+			p.scope.clearDiscarding()
+			p.finishResponse(p.session, a.resp, "completed", "")
+			return true
+		}
+		if p.audioHeld(a) {
+			if p.parkedAudio == nil {
+				p.parkedAudio = a
+			}
+			return false
+		}
+		p.dispatchAudio(a)
+		return true
+	default:
+	}
+	return false
+}
+
+// outputIsHeld 文本事件停靠判定（宽限+候选持有期间 assistant 输出被持）。
+func (p *Pipeline) outputIsHeld(ev *textEvent) bool {
+	if ev.kind == evKindAssistantDelta {
+		rs := ev.resp
+		if rs.dead || p.closedKeys[rs.key] {
+			return false
+		}
+		g := p.turns.Gate(rs.turnID, rs.rev, true, time.Time{}, false)
+		return g.Action == GateHold
+	}
+	return false
+}
+
+func (p *Pipeline) audioHeld(a *audioOut) bool {
+	if a.done {
+		return false
+	}
+	g := p.turns.Gate(a.resp.turnID, a.resp.rev, true, time.Time{}, false)
+	return g.Action == GateHold
+}
+
+// dispatchText 协议翻译（service.dispatch_pipeline_event 同位；发送循环单线程）。
+func (p *Pipeline) dispatchText(ev *textEvent) {
+	switch ev.kind {
+	case evKindSpeechStarted:
+		// 规格顺序：先处置旧 terminal（started_turn_id 绑定）→ barge-in → started 帧
+		p.resolveInputTerminals(ev.started.TurnID)
+		rs := p.respState
+		if p.inResponse && rs != nil && ev.started.InterruptResponse {
+			p.cancelActiveResponse("turn_detected")
+			slog.Info("Pipeline 0: speech during response: cancelled, queue flushed")
+		}
+		isReopen := ev.started.Reopened && ev.started.TurnID != ""
+		itemID, existed := p.inputItemForTurn(ev.started.TurnID, ev.started.Rev, isReopen)
+		if existed && isReopen {
+			return // 复用 item，不重发 started（规格 §5.1）
+		}
+		if p.session != nil {
+			p.session.Send(evSpeechStarted(itemID, ev.started.AudioStartMs))
+		}
+	case evKindSpeechStopped:
+		p.holdSpeechStopped(ev.stopped)
+	case evKindTranscription:
+		// terminal 持发，随 resolve/提交发布
+	case evKindAssistantDelta:
+		rs := ev.resp
+		if rs.dead || p.closedKeys[rs.key] {
+			return
+		}
+		// 首增量：提交轮 → resolve（user terminal 先行）→ created → 输出帧（规格 §5.3）
+		if !rs.committedSent {
+			g := p.turns.Gate(rs.turnID, rs.rev, false, time.Time{}, true)
+			if g.Action != GateAccept {
+				rs.dead = true
+				return
+			}
+			rs.committedSent = true
+			p.muLatency.Lock()
+			p.lastLLMTTFT = time.Since(rs.startedAt).Seconds()
+			p.muLatency.Unlock()
+			p.resolveInputTerminals("")
+		}
+		p.sendResponseCreated(rs)
+		p.beginAssistantOutput(rs)
+		p.streamAssistantText(rs, ev.transcript)
+		rs.parts = append(rs.parts, ev.transcript)
 	}
 }
 
-// flushSentence 响应结束前冲掉残余半句。
-func (p *Pipeline) flushSentence(rs *responseState, ch chan<- string) {
-	rs.mu.Lock()
-	rest := strings.TrimSpace(rs.sb)
-	rs.sb = ""
-	if rest != "" {
-		rs.parts = append(rs.parts, rest)
+// dispatchAudio 音频批 6400B（MAX_AUDIO_BATCH_BYTES 同位）。
+func (p *Pipeline) dispatchAudio(a *audioOut) {
+	if p.closedKeys[a.resp.key] {
+		return
 	}
-	rs.mu.Unlock()
-	if rest != "" {
-		ch <- rest
+	p.sendResponseCreated(a.resp)
+	p.beginAssistantOutput(a.resp)
+	p.audioBatch = append(p.audioBatch, a.pcm...)
+	for len(p.audioBatch) >= 6400 {
+		chunk := make([]byte, 6400)
+		copy(chunk, p.audioBatch[:6400])
+		p.audioBatch = p.audioBatch[6400:]
+		if p.session != nil {
+			p.session.Send(evAudioDelta(a.resp.id, a.resp.itemID, chunk))
+		}
 	}
 }
 
-// inputItemForTurn 取/建输入协议 item id。isReopen 时复用同 turn 既有 revision 的
-// item（sidecar _reuse_input_item：重开不重发 speech_started）。
+// holdSpeechStopped speech_stopped 挂 terminal（不立即下行）。
+func (p *Pipeline) holdSpeechStopped(st *VADStopped) {
+	key := turnKey{id: st.TurnID, rev: st.Rev}
+	itemID, ok := p.inputItemByTurnRev[key]
+	if !ok {
+		return
+	}
+	term := p.pendingTerminals[itemID]
+	if term == nil {
+		term = &pendingInputTerminal{itemID: itemID, turnID: st.TurnID, rev: st.Rev}
+		p.pendingTerminals[itemID] = term
+	}
+	term.speechStopped = evSpeechStopped(itemID, st.AudioEndMs)
+	if st.DurationS > 0 {
+		term.speechStopped["duration_s"] = st.DurationS
+	}
+}
+
+// resolveInputTerminals 持发处置（规格 §5.1 规则表；发送循环单线程）。
+// startedTurnID：speech_started 触发的处置轮（其余调用传空）。
+func (p *Pipeline) resolveInputTerminals(startedTurnID string) {
+	for itemID, term := range p.pendingTerminals {
+		var disposition string
+		if term.turnID == "" || !p.turns.IsLatest(term.turnID, term.rev) {
+			if p.turns.IsCurrentTurn(term.turnID) {
+				disposition = "discard" // 同 live turn 的超龄 revision（客户端从未见过）
+			} else {
+				term.inputClosed = true
+				disposition = "publish"
+			}
+		} else if startedTurnID != "" && term.turnID != startedTurnID {
+			disposition = "publish" // 新轮开始时处置旧轮 terminal（sidecar 同守卫）
+		} else {
+			// 规格规则表原序：unanswered/failed → gate 提交；is_committed → publish；else hold
+			hasResponse := (p.inResponse && (p.responseTurnID == "" || p.responseTurnID == term.turnID)) ||
+				p.turns.IsCommitted(term.turnID, term.rev)
+			unanswered := term.inputClosed && !hasResponse
+			failed := term.transcription != nil &&
+				term.transcription["type"] == "conversation.item.input_audio_transcription.failed"
+			switch {
+			case unanswered || failed:
+				g := p.turns.Gate(term.turnID, term.rev, false, time.Time{}, true)
+				switch g.Action {
+				case GateHold:
+					disposition = "hold"
+				case GateAccept:
+					if !hasResponse {
+						p.turns.Close(term.turnID, term.rev)
+					}
+					disposition = "publish"
+				default:
+					disposition = "discard"
+				}
+			case p.turns.IsCommitted(term.turnID, term.rev):
+				disposition = "publish"
+			default:
+				disposition = "hold"
+			}
+		}
+		switch disposition {
+		case "publish":
+			p.publishTerminal(term)
+		case "discard":
+			delete(p.pendingTerminals, itemID)
+		}
+	}
+}
+
+// publishTerminal 发布顺序：speech_stopped → committed → item.created → transcription。
+func (p *Pipeline) publishTerminal(term *pendingInputTerminal) {
+	if p.session == nil {
+		return
+	}
+	if term.speechStopped != nil {
+		p.session.Send(term.speechStopped)
+		term.speechStopped = nil
+	}
+	p.session.Send(map[string]any{
+		"type":             "input_audio_buffer.committed",
+		"item_id":          term.itemID,
+		"previous_item_id": p.lastItemID,
+	})
+	p.session.Send(evItemCreated(map[string]any{
+		"id":               term.itemID,
+		"object":           "realtime.item",
+		"type":             "message",
+		"role":             "user",
+		"status":           "completed",
+		"content":          []map[string]any{{"type": "input_audio"}},
+		"previous_item_id": p.lastItemID,
+	}))
+	p.lastItemID = term.itemID
+	if term.transcription != nil {
+		p.session.Send(term.transcription)
+		term.transcription = nil
+	}
+	if term.inputClosed {
+		delete(p.pendingTerminals, term.itemID)
+	}
+}
+
+// ─────────── response 装配（发送循环调用） ───────────
+
+type responseState struct {
+	id            string
+	key           string
+	turnID        string
+	rev           int
+	itemID        string
+	generation    int
+	cancel        context.CancelFunc
+	ctx           context.Context
+	startedAt     time.Time
+	speechAnchor  time.Time
+	createdSent   bool
+	committedSent bool
+	dead          bool
+	textSent      bool
+	inTokens      int
+	outTokens     int
+	parts         []string
+	sb            string
+}
+
+func (p *Pipeline) newResponseState(turnID string, rev int, anchor time.Time) *responseState {
+	ctx, cancel := context.WithCancel(context.Background())
+	rs := &responseState{
+		id:           "resp_" + randHex(6),
+		key:          randHex(16),
+		turnID:       turnID,
+		rev:          rev,
+		itemID:       "item_" + randHex(8),
+		generation:   p.scope.current(),
+		cancel:       cancel,
+		ctx:          ctx,
+		startedAt:    time.Now(),
+		speechAnchor: anchor,
+	}
+	p.inResponse = true
+	p.respState = rs
+	p.responseTurnID = turnID
+	return rs
+}
+
+func (p *Pipeline) sendResponseCreated(rs *responseState) {
+	if rs.createdSent {
+		return
+	}
+	rs.createdSent = true
+	if p.session != nil {
+		p.session.Send(evResponseCreated(rs.id))
+	}
+}
+
+func (p *Pipeline) beginAssistantOutput(rs *responseState) {
+	if rs.textSent {
+		return
+	}
+	rs.textSent = true
+	if p.session != nil {
+		p.session.Send(evOutputItemAdded(rs.id, rs.itemID, 0))
+		p.session.Send(evContentPartAdded(rs.id, rs.itemID))
+	}
+}
+
+func (p *Pipeline) streamAssistantText(rs *responseState, delta string) {
+	if delta == "" || p.session == nil {
+		return
+	}
+	p.session.Send(evTranscriptDelta(rs.id, rs.itemID, delta))
+}
+
+// finishResponse 终态装配 + tracker close + 墓碑（发送循环）。
+// 终态守卫：cancelled 后 TTS 队列残余的 done 哨兵不得重复装配（规格：一响应一终态）。
+func (p *Pipeline) finishResponse(s *Session, rs *responseState, status, reason string) {
+	// response.py:991 同位：key 与当前响应不符（含已终结）→ 空操作。
+	// 双终态防护由代际丢弃（哨兵过不了闸）+ 此守卫共同承担，不用手搓标志。
+	if p.respState != nil && p.respState.key != rs.key {
+		return
+	}
+	if p.respState == nil && p.closedKeys[rs.key] {
+		return
+	}
+	full := strings.Join(rs.parts, " ")
+	if rs.textSent && s != nil {
+		s.Send(evTranscriptDone(rs.id, rs.itemID, full))
+		s.Send(evContentPartDone(rs.id, rs.itemID))
+		s.Send(evOutputItemDone(rs.id, rs.itemID, 0))
+	}
+	if s != nil {
+		done := evResponseDone(ResponseDonePayload{
+			ID:            rs.id,
+			Status:        status,
+			StatusDetails: map[string]any{"reason": reason},
+			Usage: map[string]any{
+				"input_tokens":         rs.inTokens,
+				"output_tokens":        rs.outTokens,
+				"total_tokens":         rs.inTokens + rs.outTokens,
+				"input_token_details":  map[string]any{"audio_tokens": 0, "cached_tokens": 0, "image_tokens": 0, "text_tokens": rs.inTokens},
+				"output_token_details": map[string]any{"audio_tokens": 0, "text_tokens": rs.outTokens},
+			},
+		})
+		done["metadata"] = map[string]any{
+			"speech_to_speech.turn_latency": p.latencyMetadata(rs, status),
+		}
+		s.Send(done)
+	}
+	p.muLatency.Lock()
+	lat := latencyRec{sttS: p.lastSTT, llmS: p.lastLLM, ttsTTFA: p.lastTTFA, e2eS: p.lastE2E,
+		vadDecideS: p.lastVADDecision, holdS: p.lastHold, smart: p.lastSmart}
+	p.muLatency.Unlock()
+	slogLatencyLine(rs, lat, status)
+	p.turns.Close(rs.turnID, rs.rev)
+	p.closedKeys[rs.key] = true
+	p.closedOrder = append(p.closedOrder, rs.key)
+	for len(p.closedOrder) > maxClosedKeys {
+		delete(p.closedKeys, p.closedOrder[0])
+		p.closedOrder = p.closedOrder[1:]
+	}
+	if p.respState == rs {
+		p.inResponse = false
+		p.respState = nil
+	}
+	p.resolveInputTerminals("")
+	p.notify()
+}
+
+// latencyMetadata response.done metadata（§5.8）。
+func (p *Pipeline) latencyMetadata(rs *responseState, status string) map[string]any {
+	p.muLatency.Lock()
+	defer p.muLatency.Unlock()
+	return map[string]any{
+		"version":        2,
+		"source":         "speech",
+		"turn_id":        rs.turnID,
+		"turn_revision":  rs.rev,
+		"response_key":   rs.key,
+		"stt_s":          p.lastSTT,
+		"llm_s":          p.lastLLM,
+		"tts_ttfa_s":     p.lastTTFA,
+		"e2e_s":          p.lastE2E,
+		"vad_decision_s": p.lastVADDecision,
+		"smart_status":   p.lastSmart,
+		"hold_s":         p.lastHold,
+		"status":         status,
+	}
+}
+
+// ─────────── 服务态辅助 ───────────
+
 func (p *Pipeline) inputItemForTurn(turnID string, rev int, isReopen bool) (string, bool) {
-	p.muItems.Lock()
-	defer p.muItems.Unlock()
 	if id, ok := p.inputItemByTurnRev[turnKey{id: turnID, rev: rev}]; ok {
 		return id, true
 	}
@@ -519,85 +1015,39 @@ func (p *Pipeline) inputItemForTurn(turnID string, rev int, isReopen bool) (stri
 	return id, false
 }
 
-// resolveInputTerminals 持发处置（§5.1 规则表）。
-func (p *Pipeline) resolveInputTerminals(s *Session, startedTurnID string) []map[string]any {
-	p.muItems.Lock()
-	defer p.muItems.Unlock()
-	var out []map[string]any
-	for itemID, term := range p.pendingTerminals {
-		var disposition string // publish | hold | discard
-		if term.turnID == "" || !p.turns.IsLatest(term.turnID, term.rev) {
-			if p.turns.IsCurrentTurn(term.turnID) {
-				disposition = "discard" // 同 live turn 的超龄 revision
-			} else {
-				term.inputClosed = true
-				disposition = "publish"
-			}
-		} else if startedTurnID != "" && term.turnID != startedTurnID {
-			disposition = "publish"
-		} else {
-			hasResponse := (p.inResponse && p.responseTurnID == term.turnID) ||
-				p.turns.IsCommitted(term.turnID, term.rev)
-			unanswered := term.inputClosed && !hasResponse
-			failed := term.transcription != nil && term.transcription["type"] == "conversation.item.input_audio_transcription.failed"
-			if unanswered || failed {
-				g := p.turns.Gate(term.turnID, term.rev, false, time.Time{}, true)
-				if g.Action == GateHold {
-					disposition = "hold"
-				} else if g.Action == GateAccept {
-					if !hasResponse {
-						p.turns.Close(term.turnID, term.rev)
-					}
-					disposition = "publish"
-				} else {
-					disposition = "discard"
-				}
-			} else if p.turns.IsCommitted(term.turnID, term.rev) {
-				disposition = "publish"
-			} else {
-				disposition = "hold"
-			}
-		}
-		switch disposition {
-		case "publish":
-			out = append(out, p.publishTerminalLocked(term)...)
-		case "discard":
-			delete(p.pendingTerminals, itemID)
-		case "hold":
-			// 继续持
+func (p *Pipeline) currentItemID(turnID string, rev int) string {
+	if id, ok := p.inputItemByTurnRev[turnKey{id: turnID, rev: rev}]; ok {
+		return id
+	}
+	for k, id := range p.inputItemByTurnRev {
+		if k.id == turnID {
+			return id
 		}
 	}
+	return ""
+}
+
+func (p *Pipeline) chatSnapshot() []ChatMessage {
+	out := make([]ChatMessage, len(p.chat))
+	copy(out, p.chat)
 	return out
 }
 
-// publishTerminalLocked 发射顺序：speech_stopped → committed → item.created → transcription。
-func (p *Pipeline) publishTerminalLocked(term *pendingInputTerminal) []map[string]any {
-	var out []map[string]any
-	if term.speechStopped != nil {
-		out = append(out, term.speechStopped)
-		term.speechStopped = nil
+// pendSentence/flushSentence 分句批切（stream_batch_sentences=1）。
+func (p *Pipeline) pendSentence(rs *responseState, delta string, ch chan<- string) {
+	rs.sb += delta
+	sentences := spokenSplit(rs.sb)
+	if len(sentences) > 1 {
+		complete := strings.Join(sentences[:len(sentences)-1], "")
+		rs.sb = sentences[len(sentences)-1]
+		ch <- complete
 	}
-	out = append(out, map[string]any{
-		"type":             "input_audio_buffer.committed",
-		"item_id":          term.itemID,
-		"previous_item_id": p.lastItemID,
-	})
-	out = append(out, evItemCreated(map[string]any{
-		"id":               term.itemID,
-		"object":           "realtime.item",
-		"type":             "message",
-		"role":             "user",
-		"status":           "completed",
-		"content":          []map[string]any{{"type": "input_audio"}},
-		"previous_item_id": p.lastItemID,
-	}))
-	p.lastItemID = term.itemID
-	if term.transcription != nil {
-		out = append(out, term.transcription)
-		term.transcription = nil
+}
+
+func (p *Pipeline) flushSentence(rs *responseState, ch chan<- string) {
+	rest := strings.TrimSpace(rs.sb)
+	rs.sb = ""
+	if rest != "" {
+		ch <- rest
 	}
-	if term.inputClosed {
-		delete(p.pendingTerminals, term.itemID)
-	}
-	return out
 }

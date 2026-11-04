@@ -36,14 +36,22 @@ func newNativePipeline(t *testing.T) *Pipeline {
 	if err != nil {
 		t.Fatalf("引擎装配: %v", err)
 	}
-	t.Cleanup(eng.Close)
+	// 清理 LIFO：管线阶段线程是常驻 goroutine——先停管线（最后注册=最先执行），
+	// 等 worker 退出 select 后再 Destroy 引擎，避免 use-after-Destroy 竞态。
 	silero, err := eng.NewSileroVAD(filepath.Join(pipelineModelsRoot, "silero_vad_v5_16k.onnx"))
 	if err != nil {
+		eng.Close()
 		t.Fatalf("silero 装配: %v", err)
 	}
-	t.Cleanup(silero.Destroy)
-	return NewPipeline(PipelineConfig{VAD: DefaultVADConfig()}, silero,
+	pipe := NewPipeline(PipelineConfig{VAD: DefaultVADConfig()}, silero,
 		nativeEOTAdapter{eng}, nativeSTTAdapter{eng})
+	t.Cleanup(func() {
+		pipe.OnSessionEnd(nil)
+		time.Sleep(300 * time.Millisecond) // 等 VAD/STT worker 从 ORT 调用返回
+		silero.Destroy()
+		eng.Close()
+	})
+	return pipe
 }
 
 type nativeEOTAdapter struct{ e *native.Engine }

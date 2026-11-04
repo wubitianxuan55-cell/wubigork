@@ -72,6 +72,21 @@
 - GAEA_VOICE_REALTIME_GO 模式接线组合腿（网关 8792 启动期已在跑，依赖零新增）
 - **余（下会话实弹）**：ws_probe turn/bargein/cancel 三场景打 Go 版（需 gaea 壳+网关+breeze+35B 在跑）；真机全链路+e2e 记分卡（门 ≤2.5s，对照 0.79s）；前端联通目检
 
+## 2.7 管线架构重写为源码同构拓扑（2026-11-04 晚，用户指令"不要手搓，看复刻源码"后）
+
+- **推倒重来**：pipeline.go 按 s2s_pipeline.py 队列图+websocket_router._send_loop_for 重写——
+  audioCh/sttCh/promptCh/ttsCh/audioOut/textCh 六队列 + VAD/STT/LLM/TTS 四阶段线程 + 信号驱动发送循环；
+  协议翻译（resolve terminals/barge-in/response 装配）只在发送循环单线程（service.dispatch_pipeline_event 同位）
+- **代际取消（用户问"上游如何解决"后照搬）**：cancelScope（cancel_scope.py 同位：gen 计数+discarding 窗口）
+  + audioOut 带代际、发送循环 discardable 闸（router:1134 同位，含 done 哨兵）+ finishResponse key-vs-current
+  守卫（response.py:991 同位）——撤掉手搓 finished 标志
+- **ws_probe 三场景全绿（同一二进制）**：turn 8/8（e2e 304~529ms）、bargein 9/9（cancelled/turn_detected+
+  零泄漏+新响应 completed+两轮转写）、cancel 8/8（client_cancelled+零后置音频）
+- **自测基建定型**：CDP 直调 `window.go.app.VoiceB.VoiceV2Ensure` 免点击 + ws_probe + Start-Process 单实例
+  （bash 后台 & 会双开竞态）；测试壳日志在 %TEMP%\gaea-voice-v2 与 gaea 日志双处
+- **教训固化**：①上游答疑优先读源码原文（cancel_scope.py 的 generation 设计一句话顶半天调试）
+  ②每改一处→build+单测+ws_probe 单场景，一次一刀 ③批量字符串补丁是错漏之源，改用整文件重写
+
 ## 3. 刀2~6 计划
 
 - **刀2 WS 服务器+协议层**：8791 `/v1/realtime`（gorilla/websocket），session pool=1（第二条 `session_limit_reached`+close 1008）、session.created/updated、events.ts 全事件、response.created 顺序守卫、response_key 墓碑（≤128）、下行 6400B 分块；门=前端可连 + orderingViolations() 干净

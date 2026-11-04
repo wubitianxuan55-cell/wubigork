@@ -27,16 +27,15 @@ func fmtS(v float64) string {
 	return strconv.FormatFloat(v, 'f', 2, 64)
 }
 
+// ChatMessage LLM 对话历史条目。
+type ChatMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
 // slogLatencyLine 逐字对齐：
 // "Turn {turn} rev={rev} latency: stt=...s llm=...s tts_ttfa=...s e2e=...s vad_decision=...s hold=...s smart_turn_status=... status=...[ tts=cut][ source=speech] response_key=..."
-func slogLatencyLine(rs *responseState, status, reason, _ string) {
-	p := rs.pipeline
-	var rec latencyRec
-	if p != nil {
-		p.muLatency.Lock()
-		rec = p.lat
-		p.muLatency.Unlock()
-	}
+func slogLatencyLine(rs *responseState, rec latencyRec, status string) {
 	rev := rs.rev
 	var b strings.Builder
 	b.WriteString("Turn ")
@@ -63,7 +62,7 @@ func slogLatencyLine(rs *responseState, status, reason, _ string) {
 	}
 	b.WriteString(" status=")
 	b.WriteString(status)
-	if status == "cancelled" && rec.ttsTTFA >= 0 {
+	if status == "cancelled" && rec.ttsTTFA > 0 {
 		b.WriteString(" tts=cut")
 	}
 	b.WriteString(" source=speech")
