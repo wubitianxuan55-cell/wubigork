@@ -735,8 +735,12 @@ func (p *probe) collectChecks() {
 	case "turn":
 		r := p.lastResp()
 		p.addCheck("response.done=completed", p.doneStatus(r) == "completed", p.respDone[r].text)
+		audioBytes := 0
+		if buf := p.audio[r]; buf != nil {
+			audioBytes = buf.Len()
+		}
 		p.addCheck("有下行文本与音频", p.firstText[r].t > 0 && p.firstAudio[r].t > 0,
-			fmt.Sprintf("audio=%dB", p.audio[r].Len()))
+			fmt.Sprintf("audio=%dB", audioBytes))
 	case "cancel":
 		r := p.lastResp()
 		d := p.respDone[r]
