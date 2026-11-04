@@ -48,7 +48,9 @@ func (v *vadIterator) windowSize() int { return 512 }
 
 // resetStates 全量重置（会话结束）。
 func (v *vadIterator) resetStates() {
-	v.scorer.Reset()
+	if v.scorer != nil {
+		v.scorer.Reset()
+	}
 	v.triggered = false
 	v.tempEnd = 0
 	v.currentSample = 0
@@ -65,6 +67,9 @@ func (v *vadIterator) resetStates() {
 
 // process 一块 512 样本：nil=无段；非 nil=utterance（prefix+buffer 已拼接拷贝）。
 func (v *vadIterator) process(x []float32) [][]float32 {
+	if v.scorer == nil {
+		return nil // 无打分器（测试桩态）：VAD 不迭代
+	}
 	prob, err := v.scorer.Prob(x)
 	if err != nil {
 		// 推理失败按静音处理（sidecar 无此分支：torch 不会失败；Go 侧诚实降级）

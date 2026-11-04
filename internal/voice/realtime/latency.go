@@ -27,10 +27,13 @@ func fmtS(v float64) string {
 	return strconv.FormatFloat(v, 'f', 2, 64)
 }
 
-// ChatMessage LLM 对话历史条目。
+// ChatMessage LLM 对话历史条目（handlers/history.py 同位：暂存代际制）。
 type ChatMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role        string `json:"role"`
+	Content     string `json:"content"`
+	respKey     string // 非空=某响应的暂存输出（可回滚）
+	provisional bool   // true=未 finalize（取消即回滚）
+	turnKey     string // user 条目的轮次键（同轮重开替换文本）
 }
 
 // slogLatencyLine 逐字对齐：

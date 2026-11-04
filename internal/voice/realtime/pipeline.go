@@ -182,6 +182,8 @@ type Pipeline struct {
 	audioBatch         []byte
 
 	scope cancelScope // 统一取消信号（代际）
+	// 聊天历史互斥（STT/LLM 线程写，发送循环读）
+	muHist sync.Mutex
 	// 延迟账（多 worker 写，发送循环读）
 	muLatency       sync.Mutex
 	lastSTT         float64
@@ -482,7 +484,19 @@ func (p *Pipeline) sttStage(f *VADFinal) {
 
 	// GenerateResponseRequest（text_prompt_queue）——转写 terminal 持发，随响应提交发布
 	if text != "" && p.legs != nil && p.cfg.CreateResponse {
-		p.chat = append(p.chat, ChatMessage{Role: "user", Content: text})
+		// O4：同轮重开替换 user 文本（replace_user_message_text 同位），不新增条目
+		tk := f.TurnID
+		replaced := false
+		for i := range p.chat {
+			if p.chat[i].Role == "user" && p.chat[i].turnKey == tk {
+				p.chat[i].Content = text
+				replaced = true
+				break
+			}
+		}
+		if !replaced {
+			p.chat = append(p.chat, ChatMessage{Role: "user", Content: text, turnKey: tk})
+		}
 		for len(p.chat) > p.chatSize {
 			p.chat = p.chat[1:]
 		}
@@ -512,6 +526,16 @@ func (p *Pipeline) llmStage(req *promptRequest) {
 			p.pendSentence(rs, delta, sentenceCh)
 			p.notify()
 		})
+		// O1：完整回复作为暂存代际写入历史（add_provisional_generation_items 同位；
+		// 被取消时 ctx 断流，不写）——取消回滚由 finishResponse(cancelled) 负责（O2）
+		if rs.ctx.Err() == nil {
+			p.muHist.Lock()
+			p.chat = append(p.chat, ChatMessage{Role: "assistant", Content: full, respKey: rs.key, provisional: true})
+			for len(p.chat) > p.chatSize {
+				p.chat = p.chat[1:]
+			}
+			p.muHist.Unlock()
+		}
 		rs.inTokens, rs.outTokens = inT, outT
 		p.muLatency.Lock()
 		p.lastLLM = time.Since(llmStart).Seconds()
