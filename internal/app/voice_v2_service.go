@@ -276,9 +276,26 @@ func repoRootFromExe() string {
 }
 
 // VoiceV2Status 四依赖探测（幂等、只读）。
+// Go 灰度模式语义：8791=Go realtime、LLM 腿经 8792 网关功能绑定承载（无独立 4B，
+// 快速模型项按网关探活上报）、breeze 仍是 TTS 腿必需。
 func (a *mediaState) VoiceV2Status() map[string]interface{} {
 	// 同一快照内每个端口只探一次：旧实现 ready 再探三项，既放大冷探测延迟，
 	// 也可能出现 sidecar=true/ready=false 的自相矛盾快照（进程刚好退出时）。
+	if voiceV2GoModeActive() {
+		rt := voiceV2Probe(voiceV2SidecarPort)
+		breeze := voiceV2Probe(voiceV2BreezePort)
+		gateway := voiceV2Probe(voiceV2GatewayPort)
+		return map[string]interface{}{
+			"sidecar":  rt,
+			"llm":      gateway,
+			"breeze":   breeze,
+			"gateway":  gateway,
+			"ready":    rt && breeze && gateway,
+			"starting": isVoiceV2Ensuring(),
+			"stage":    currentVoiceV2Stage(),
+			"error":    currentVoiceV2Error(),
+		}
+	}
 	sidecar := voiceV2Probe(voiceV2SidecarPort)
 	llm := voiceV2Probe(voiceV2LLMPort)
 	breeze := voiceV2Probe(voiceV2BreezePort)
@@ -293,6 +310,13 @@ func (a *mediaState) VoiceV2Status() map[string]interface{} {
 		"stage":    currentVoiceV2Stage(),
 		"error":    currentVoiceV2Error(),
 	}
+}
+
+// voiceV2GoModeActive Go 原生管线灰度是否已接管 8791。
+func voiceV2GoModeActive() bool {
+	voiceV2RealtimeMu.Lock()
+	defer voiceV2RealtimeMu.Unlock()
+	return voiceV2RealtimeSrv != nil
 }
 
 // VoiceV2Ensure 幂等拉起依赖链（异步，voice-v2-status 事件上报进度；
@@ -348,6 +372,15 @@ func (a *mediaState) VoiceV2Ensure() map[string]interface{} {
 		// 进程内 realtime 服务器直接顶 8791（协议回声/后续真管线），不再拉
 		// breeze/4B/sidecar。刀6 默认切换并删除本分支。
 		if os.Getenv("GAEA_VOICE_REALTIME_GO") != "" {
+			// TTS 腿依赖 breeze：未起先拉（8012；breeze 共享引擎，常驻时直过）
+			if !voiceV2Probe(voiceV2BreezePort) {
+				emit(false, "正在准备 Breeze 声线服务", "")
+				a.ensureLocalTTSService("breeze")
+				if !voiceV2WaitPort(voiceV2BreezePort, 90*time.Second) {
+					emit(false, "正在准备 Breeze 声线服务", "Breeze TTS 90s 未就绪")
+					return
+				}
+			}
 			emit(false, "正在装配语音引擎（Go 原生）", "")
 			start := time.Now()
 			if err := voiceV2RealtimeStart(); err != nil {

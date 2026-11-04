@@ -117,6 +117,7 @@ func (l voiceTTSLeg) Speak(ctx context.Context, sentence string, onAudio func([]
 		"input":           sentence,
 		"voice":           l.voice(),
 		"response_format": "pcm",
+		"stream_format":   "sse", // 缺省=裸 PCM 流，SSE 解析器将静音（对齐 streamBreezeTTS）
 		"stream":          true,
 	})
 	req, err := http.NewRequestWithContext(ctx, "POST", l.base+"/audio/speech", bytes.NewReader(payload))
