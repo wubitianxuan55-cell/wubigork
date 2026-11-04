@@ -182,26 +182,6 @@ export function StrataModelStop(arg1) {
   return window['go']['app']['ModelB']['StrataModelStop'](arg1);
 }
 
-export function TianxuanEngineStart(arg1) {
-  return window['go']['app']['ModelB']['TianxuanEngineStart'](arg1);
-}
-
-export function TianxuanEngineStatus() {
-  return window['go']['app']['ModelB']['TianxuanEngineStatus']();
-}
-
-export function TianxuanEngineStop() {
-  return window['go']['app']['ModelB']['TianxuanEngineStop']();
-}
-
-export function TianxuanModelStart(arg1) {
-  return window['go']['app']['ModelB']['TianxuanModelStart'](arg1);
-}
-
-export function TianxuanModelStop(arg1) {
-  return window['go']['app']['ModelB']['TianxuanModelStop'](arg1);
-}
-
 export function VisionRoute() {
   return window['go']['app']['ModelB']['VisionRoute']();
 }

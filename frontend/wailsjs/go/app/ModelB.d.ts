@@ -94,14 +94,4 @@ export function StrataModelStart(arg1:string):Promise<Record<string, any>>;
 
 export function StrataModelStop(arg1:string):Promise<Record<string, any>>;
 
-export function TianxuanEngineStart(arg1:string):Promise<Record<string, any>>;
-
-export function TianxuanEngineStatus():Promise<Record<string, any>>;
-
-export function TianxuanEngineStop():Promise<Record<string, any>>;
-
-export function TianxuanModelStart(arg1:string):Promise<Record<string, any>>;
-
-export function TianxuanModelStop(arg1:string):Promise<Record<string, any>>;
-
 export function VisionRoute():Promise<string>;
