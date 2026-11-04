@@ -74,10 +74,6 @@ func slogLatencyLine(rs *responseState, rec latencyRec, status string) {
 	slog.Info(b.String())
 }
 
-// slogInfo/slogWarn 轻壳（false_interrupt_bound 解析的 "speech during ... cancelled" 行）。
-func slogInfo(msg string)            { slog.Info(msg) }
-func slogWarn(msg string, kv ...any) { slog.Warn(msg, kv...) }
-
 // spokenSplit 口语分句（流式批切，stream_batch_sentences=1 语义）。
 // CJK 句读 + 中西标点；保留省略号/引号闭合；长度上限兜底（60 rune 强切）。
 func spokenSplit(text string) []string {

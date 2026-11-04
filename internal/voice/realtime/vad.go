@@ -44,8 +44,6 @@ func newVADIterator(scorer VadScorer, threshold float64, sampleRate int, minSile
 	}
 }
 
-func (v *vadIterator) windowSize() int { return 512 }
-
 // resetStates 全量重置（会话结束）。
 func (v *vadIterator) resetStates() {
 	if v.scorer != nil {

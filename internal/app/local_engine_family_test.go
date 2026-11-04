@@ -177,10 +177,6 @@ func TestStrataModelLoaded_NonStandardStatus(t *testing.T) {
 	}
 }
 
-// tianxuanModelsJSON 真机形状：天璇引擎（gufo）/v1/models 是标准形状
-// （无 strata 的 flexStatus 异形），只列已加载集合。
-const tianxuanModelsJSON = `{"object":"list","data":[{"id":"Qwen3.8-27B-UD-Q4_K_M","object":"model","created":1792236665,"owned_by":"gufo"}]}`
-
 // TestGaeaModelSwitchEstimate_Tianxuan 换模预估：tianxuan 走本地引擎分支
 // （不再恒报 hot），已加载→hot、未加载→cold、不可达→unknown。
 

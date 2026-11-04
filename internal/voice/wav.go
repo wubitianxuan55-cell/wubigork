@@ -47,10 +47,3 @@ func wrapPCMAsWAVAt(pcm []byte, sampleRate int) []byte {
 	wav = append(wav, pcm...)
 	return wav
 }
-
-// wrapPCMAsWAV24k wraps raw PCM16 / 24kHz / mono bytes into a WAV container
-// （S2 realtime 输出音频冲洗用：response.done 聚合器冲出的 24k PCM 原样
-// 加 24kHz 头，前端现播放环 decodeAudioData 直接吃）。
-func wrapPCMAsWAV24k(pcm []byte) []byte {
-	return wrapPCMAsWAVAt(pcm, RealtimeSampleRate)
-}

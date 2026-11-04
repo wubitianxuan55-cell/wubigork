@@ -115,7 +115,7 @@ func CloseOrphanAttention(logPath, space string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer w.Close()
+	defer func() { _ = w.Close() }()
 
 	for _, o := range orphans {
 		kind := KindApprovalResolved

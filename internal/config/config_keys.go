@@ -114,10 +114,10 @@ const (
 	// 晨报预载（v4.16 刀④）：work 空间会话装配时把高频工作记忆确定性聚合为
 	// 「晨报预载」块预装配进 agent 上下文（零 LLM、预算受限、work 只读）。
 	// 只影响上下文注入，与首页晨报卡片（GaeaMemoryMorningBrief）无关。默认开启。
-	KeyMorningPreload    = "morning_preload"
-	KeyProjectBrief      = "project_brief"
-	KeyDeepseekAPIKey    = "deepseek_api_key"
-	KeyGLMAPIKey         = "glm_api_key"
+	KeyMorningPreload   = "morning_preload"
+	KeyProjectBrief     = "project_brief"
+	KeyDeepseekAPIKey   = "deepseek_api_key"
+	KeyGLMAPIKey        = "glm_api_key"
 	KeyOpencodeGoAPIKey = "opencode_go_api_key"
 	// 自定义引擎 Key 库（A 刀自定义引擎）：值为 JSON map[string]string
 	// （engineID → secure.EncryptString 密文）。config 层只存取字符串/JSON、

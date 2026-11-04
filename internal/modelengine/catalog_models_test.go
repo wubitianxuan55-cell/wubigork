@@ -276,8 +276,8 @@ func TestEstimateCostCNY_CatalogSwitchLocks(t *testing.T) {
 
 func TestEnrichCatalogMeta(t *testing.T) {
 	models := []ModelInfo{
-		{ID: "xai/grok-4.6", OwnedBy: "xai"},                // 供应商前缀归一命中裸名
-		{ID: "grok-4.6-2026-01-09", OwnedBy: "xai"},         // 日期后缀变体
+		{ID: "xai/grok-4.6", OwnedBy: "xai"},        // 供应商前缀归一命中裸名
+		{ID: "grok-4.6-2026-01-09", OwnedBy: "xai"}, // 日期后缀变体
 		// 引擎返回已有值：只填空字段，绝不覆盖
 		{ID: "grok-build-0.1", OwnedBy: "xai", ContextLength: 123, PriceIn: 9.9, Currency: "CNY", Caps: []string{"x"}, PriceNote: "own"},
 		{ID: "totally-unknown-model", OwnedBy: "xai"}, // 目录外原样

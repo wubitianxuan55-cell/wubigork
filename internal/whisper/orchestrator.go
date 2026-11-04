@@ -35,19 +35,19 @@ type PreLLMResult struct {
 	AdultState      string
 	IntensityMod    float64 // 强度调制参数（0.5~1.5），供 LLM 温度使用
 	SkipLLM         bool
-	RedlineReply string
+	RedlineReply    string
 }
 
 // ─── Orchestrator ─────────────────────────────────────────────
 
 type Orchestrator struct {
-	State            FullState
-	SessionID        string
-	Preset           PersonalityPreset
-	AssistantName    string // 助手自定义名字（空=回退"gaea"）
-	FactStore        *FactStore
-	KG               *KnowledgeGraph
-	WM               *WorkingMemory
+	State         FullState
+	SessionID     string
+	Preset        PersonalityPreset
+	AssistantName string // 助手自定义名字（空=回退"gaea"）
+	FactStore     *FactStore
+	KG            *KnowledgeGraph
+	WM            *WorkingMemory
 	// HistoryInMessages 历史走真实 append-only messages（调用方经
 	// PreLLMResult.RecentExchanges 构造），runtimeHint 不再拼最近对话。
 	// KV 前缀稳定化二刀（2026-11-01 提速）。
@@ -59,7 +59,7 @@ type Orchestrator struct {
 	// 永远无法命中；②WM 存原始 userMsg，与本轮实际发送内容（含动态前缀）
 	// 字节不一致，前缀在轮尾即断。裁剪轮付一次全量 prefill，其余轮前缀
 	// 全命中。
-	PromptHistory []Exchange
+	PromptHistory    []Exchange
 	EpisodicStore    *EpisodicStore // 情节记忆（运行时实例，随会话持久化到 hermes.db）
 	Recall           *ActiveRecall
 	AssocIndex       *AssociationIndex     // P2: 关联索引（供 post-turn 纠正）
@@ -556,14 +556,14 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 		DynamicContext:  dynamicContext,
 		RecentExchanges: recentExchanges,
 		NewState:        newState,
-		Trace:          trace,
-		Event:          event,
-		Silent:         silent,
-		Rhythm:         rhythm,
-		Emergence:      emergence,
-		DesireHints:    desireHints,
-		AdultState:     adultState,
-		IntensityMod:   intensityMod,
+		Trace:           trace,
+		Event:           event,
+		Silent:          silent,
+		Rhythm:          rhythm,
+		Emergence:       emergence,
+		DesireHints:     desireHints,
+		AdultState:      adultState,
+		IntensityMod:    intensityMod,
 	}
 }
 

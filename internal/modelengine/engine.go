@@ -182,18 +182,18 @@ type EngineStatus struct {
 // ── 引擎管理器 ─────────────────────────────────────────────
 
 type Manager struct {
-	mu             sync.RWMutex
-	engines        map[string]*EngineConfig
-	order          []string          // 稳定展示顺序（GetEngines 按此返回，避免 map 随机序）
-	statePath      string            // 状态文件路径（空=不落盘）
-	xaiKey         string            // xAI API key（来自 OAuth token）
-	deepseekKey    string            // DeepSeek API key（用户手动配置）
-	glmKey         string            // 智谱 GLM API key（用户手动配置）
-	opencodeKey    string            // OpenCode Go API key（用户手动配置，订阅后从 console 获取）
-	customKeys     map[string]string // 自定义引擎 Key（engineID → 明文，仅内存；落盘走 config 层密文）
-	httpClient     *http.Client
-	statsMu        sync.Mutex     // 保护 statsRec 的懒初始化
-	statsRec       *statsRecorder // 模型调用统计（可为 nil，首次记录时创建）
+	mu          sync.RWMutex
+	engines     map[string]*EngineConfig
+	order       []string          // 稳定展示顺序（GetEngines 按此返回，避免 map 随机序）
+	statePath   string            // 状态文件路径（空=不落盘）
+	xaiKey      string            // xAI API key（来自 OAuth token）
+	deepseekKey string            // DeepSeek API key（用户手动配置）
+	glmKey      string            // 智谱 GLM API key（用户手动配置）
+	opencodeKey string            // OpenCode Go API key（用户手动配置，订阅后从 console 获取）
+	customKeys  map[string]string // 自定义引擎 Key（engineID → 明文，仅内存；落盘走 config 层密文）
+	httpClient  *http.Client
+	statsMu     sync.Mutex     // 保护 statsRec 的懒初始化
+	statsRec    *statsRecorder // 模型调用统计（可为 nil，首次记录时创建）
 	// catalogRemoteStop GLM 目录远程热更新拉取循环的停止通道（nil=未启动，
 	// 见 catalog_remote.go；app Shutdown 关闭）。
 	catalogRemoteStop chan struct{}

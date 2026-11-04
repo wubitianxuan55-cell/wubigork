@@ -24,8 +24,8 @@ func TestNewManager_Presets(t *testing.T) {
 	want := map[string]EngineType{
 		"xai":      EngineXAI,
 		"herdsman": EngineHerdsman, "deepseek": EngineDeepseek,
-		"glm":         EngineGLM,
-		"breeze":      EngineBreeze, "strata": EngineStrata, "llama": EngineLlama,
+		"glm":    EngineGLM,
+		"breeze": EngineBreeze, "strata": EngineStrata, "llama": EngineLlama,
 		"opencode-go": EngineOpencodeGo,
 	}
 	for id, typ := range want {

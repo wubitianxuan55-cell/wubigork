@@ -102,6 +102,9 @@ func (a *mediaState) streamBreezeTTS(text string) bool {
 
 	voice, instructions := a.breezeVoiceAndInstruction("")
 	reqBody := map[string]interface{}{
+		// model 随请求下发（ineffassign 根修）：V2 TTS 腿同款口径
+		// （voice_v2_go_legs.go），breeze-server 按已加载模型受理。
+		"model":           model,
 		"input":           text,
 		"response_format": "pcm",
 		"stream_format":   "sse",

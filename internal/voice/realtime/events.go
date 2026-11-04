@@ -152,14 +152,6 @@ func evItemCreated(item map[string]any) map[string]any {
 	return map[string]any{"type": "conversation.item.created", "item": item}
 }
 
-func evTranscriptionDelta(itemID, delta string) map[string]any {
-	return map[string]any{
-		"type":    "conversation.item.input_audio_transcription.delta",
-		"item_id": itemID,
-		"delta":   delta,
-	}
-}
-
 func evTranscriptionCompleted(itemID, transcript string) map[string]any {
 	return map[string]any{
 		"type":       "conversation.item.input_audio_transcription.completed",

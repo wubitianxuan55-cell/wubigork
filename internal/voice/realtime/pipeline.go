@@ -61,21 +61,6 @@ func (c *cancelScope) current() int {
 }
 
 // cancel 递增代际并进入丢弃窗口（barge-in/客户端取消）。
-func (c *cancelScope) cancel() {
-	c.mu.Lock()
-	c.gen++
-	c.discarding = true
-	c.mu.Unlock()
-}
-
-// isStale 捕获的代际是否已被取消淘汰。
-func (c *cancelScope) isStale(gen int) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return gen < c.gen
-}
-
-// discardable 规格同 _generation_is_discardable（含 discarding 窗口分支）。
 func (c *cancelScope) discardable(gen int) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -107,9 +92,6 @@ type textEvent struct {
 	kind       int
 	started    *VADStarted
 	stopped    *VADStopped
-	turnID     string
-	rev        int
-	itemID     string
 	transcript string
 	resp       *responseState
 }
@@ -184,6 +166,11 @@ type Pipeline struct {
 	scope cancelScope // 统一取消信号（代际）
 	// 聊天历史互斥（STT/LLM 线程写，发送循环读）
 	muHist sync.Mutex
+	// muTerm 终态段锁：closedKeys/closedOrder/respState 翻转的写写互斥。
+	// 生产路径 finishResponse 只在 sendLoop 单线程；测试（F3 回归钉）与
+	// 潜在新调用方直调 cancelActiveResponse 时兜住并发写（2026-11-05
+	// 全量套件实弹 panic：closedKeys 并发写）。
+	muTerm sync.Mutex
 	// 延迟账（多 worker 写，发送循环读）
 	muLatency       sync.Mutex
 	lastSTT         float64
@@ -1051,6 +1038,7 @@ func (p *Pipeline) finishResponse(s *Session, rs *responseState, status, reason 
 		p.chat = out
 	}
 	p.muHist.Unlock()
+	p.muTerm.Lock()
 	p.turns.Close(rs.turnID, rs.rev)
 	p.closedKeys[rs.key] = true
 	p.closedOrder = append(p.closedOrder, rs.key)
@@ -1062,6 +1050,7 @@ func (p *Pipeline) finishResponse(s *Session, rs *responseState, status, reason 
 		p.inResponse = false
 		p.respState = nil
 	}
+	p.muTerm.Unlock()
 	p.resolveInputTerminals("")
 	p.notify()
 }

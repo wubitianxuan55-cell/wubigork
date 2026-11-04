@@ -164,7 +164,7 @@ const (
 // ─── 知识图谱 ──────────────────────────────────────────────────
 
 const (
-	KGQueryMaxTriples                = 8
+	KGQueryMaxTriples = 8
 	// KGCharBudget 知识图谱注入预算。2026-11-01 提速刀：800→300（动态段
 	// 每轮全新 prefill，与 TierBCharBudget 同批节食）。
 	KGCharBudget                     = 300

@@ -308,14 +308,14 @@ type AskAnswer struct {
 // for Kind; the others are zero.
 type Event struct {
 	Kind      Kind
-	Text      string            // Reasoning / Text / Message / Notice / Phase
-	Reasoning string            // Message: the full reasoning chain
+	Text      string // Reasoning / Text / Message / Notice / Phase
+	Reasoning string // Message: the full reasoning chain
 	// Trigger 标识这一轮是谁发起的（TurnStarted）：user / wake / subagent。
 	// 空值=旧版本事件，读端按 user 兜底。
-	Trigger   string            // TurnStarted
-	Tool      Tool              // ToolDispatch / ToolResult
-	Usage     *provider.Usage   // Usage
-	Pricing   *provider.Pricing // Usage: for cost display (nil = omit cost)
+	Trigger string            // TurnStarted
+	Tool    Tool              // ToolDispatch / ToolResult
+	Usage   *provider.Usage   // Usage
+	Pricing *provider.Pricing // Usage: for cost display (nil = omit cost)
 	// UsageSource tags the origin of a Usage event so the frontend can
 	// split stats between the main agent and sub-agents. "main" for the
 	// parent agent's own API calls; "subagent" for spawned tasks.
@@ -324,19 +324,19 @@ type Event struct {
 	// session (Usage events only), so a frontend can show the aggregate hit-rate
 	// — which doesn't crater on a short turn or after compaction — alongside
 	// Usage's single-turn numbers.
-	SessionHit  int        // Usage: cumulative cache-hit prompt tokens this session
-	SessionMiss int        // Usage: cumulative cache-miss prompt tokens this session
-	Turn        int        // Usage: 会话 API 调用轮次（从 1 开始，由 AgentRunner 维护）
-	Level       Level      // Notice
-	Approval    Approval   // ApprovalRequest
-	Ask         Ask        // AskRequest
+	SessionHit  int      // Usage: cumulative cache-hit prompt tokens this session
+	SessionMiss int      // Usage: cumulative cache-miss prompt tokens this session
+	Turn        int      // Usage: 会话 API 调用轮次（从 1 开始，由 AgentRunner 维护）
+	Level       Level    // Notice
+	Approval    Approval // ApprovalRequest
+	Ask         Ask      // AskRequest
 	// Resolved / AskResolved 是卡片解决态的载荷（ApprovalResolved / AskResolved）。
-	Resolved     ApprovalResolution
-	AskResolved  AskResolution
+	Resolved    ApprovalResolution
+	AskResolved AskResolution
 	// Auto 是自动放行账本的载荷（ApprovalAuto）：没弹卡、由机器决定的授权。
-	Auto AutoApproval
-	Err         error      // TurnDone: non-nil on failure
-	Compaction  Compaction // Compaction
+	Auto       AutoApproval
+	Err        error      // TurnDone: non-nil on failure
+	Compaction Compaction // Compaction
 	// Header carries the assembled request header (RequestHeader events):
 	// the system prompt text and the tool schemas sent to the provider.
 	Header RequestHeaderInfo

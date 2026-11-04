@@ -225,12 +225,12 @@ func scanLog(path string) (sessionStat, error) {
 		return sessionStat{}, err
 	}
 	st := sessionStat{
-		Path:      path,
-		Session:   strings.TrimSuffix(filepath.Base(path), ".gaea-log.jsonl"),
-		Outcomes:  map[string]int{},
-		Sources:   map[string]int{},
-		openSet:   map[string]bool{},
-		legacyIDs: map[string]bool{},
+		Path:        path,
+		Session:     strings.TrimSuffix(filepath.Base(path), ".gaea-log.jsonl"),
+		Outcomes:    map[string]int{},
+		Sources:     map[string]int{},
+		openSet:     map[string]bool{},
+		legacyIDs:   map[string]bool{},
 		AutoDecided: map[string]int{},
 	}
 

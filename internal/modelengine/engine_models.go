@@ -220,7 +220,6 @@ func (m *Manager) StrataModelLoaded(ctx context.Context, modelID string) (bool, 
 	return false, nil
 }
 
-
 // ClassifyModelKind 按引擎类型与模型名分类（llm/tts/stt/ocr/rerank/embedding/image）。
 // 3.0 Step 3d：模型能力关键词分类的单一来源——语音（voice_handler.go:isSTTModel）、
 // OCR（gaea_ocr.go:pickHerdsmanModel）等消费点委托到本函数，不再各自维护关键词表。

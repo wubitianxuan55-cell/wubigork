@@ -23,11 +23,11 @@ var seatTransitions = map[string][]string{
 	SeatFinishedUnverified: {SeatFinished},
 	// retrying 到 cancelled：重试期间用户终止整场议事，席位要跟着收口。
 	SeatRetrying:    {SeatRunning, SeatFailed, SeatSkipped, SeatCancelled},
-	SeatFinished:           {SeatFinished},
-	SeatFailed:             {SeatFailed},
-	SeatSkipped:            {SeatSkipped},
-	SeatUnavailable:        {SeatUnavailable},
-	SeatCancelled:          {SeatCancelled},
+	SeatFinished:    {SeatFinished},
+	SeatFailed:      {SeatFailed},
+	SeatSkipped:     {SeatSkipped},
+	SeatUnavailable: {SeatUnavailable},
+	SeatCancelled:   {SeatCancelled},
 }
 
 // sessionTransitions 是议事会话状态的显式转移图（§4.1）。

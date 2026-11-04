@@ -19,7 +19,7 @@ type Turn struct {
 	// Trigger 是这一轮的发起者（判别字段，与实时事件/日志同源）：
 	// user / wake / subagent。空=旧日志（该字段上线前的回合），读端按 user
 	// 兜底——omitempty 让旧轨迹输出逐字节不变。
-	Trigger   string `json:"trigger,omitempty"`
+	Trigger string `json:"trigger,omitempty"`
 	// DurationMs 是轮级耗时（ms）= turn_done.Ts − turn_started.Ts 再 ×1000，
 	// 对齐 Record.DurationMs 的换算与命名（日志 Ts 为 unix 秒）。仅 turn_done
 	// 到达且 Ts > StartedAt 时计算；悬挂轮/时钟异常保持 0，omitempty 省略——

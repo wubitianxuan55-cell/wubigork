@@ -1,6 +1,7 @@
 // voice_backfill — 台词语音初始文件一次性补齐（真库真引擎，命令行直跑）。
 //
 // 为现有角色立即生成 voices/ 语音文件，不等下次启动的壳内批量：
+//
 //	go run ./scripts/voice_backfill
 //
 // 与壳内 bootstrapVoiceLineAudio 完全同一套内容寻址键
@@ -132,7 +133,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "角色库打开失败：", dataDir)
 		os.Exit(1)
 	}
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	items, _, err := s.List("", "", false, 500, 0)
 	if err != nil {

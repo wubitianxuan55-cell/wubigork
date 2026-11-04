@@ -345,7 +345,6 @@ func TestFoldApprovalAuto(t *testing.T) {
 	}
 }
 
-
 // T4：回合发起者判别字段（turn_started.trigger）落轨迹。唤醒轮此前只能靠
 // 输入文本的 "[system]" 前缀反推；类型化之后由物理字段判定。旧日志缺该
 // 字段时保持空（读端语义=user，omitempty 让旧轨迹输出逐字节不变）。

@@ -10,7 +10,6 @@
 package app
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -20,59 +19,12 @@ import (
 	"github.com/gaea/gaea/internal/characterlib"
 	appconfig "github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/tts"
-	"github.com/gaea/gaea/internal/voice"
 )
 
 // ── 初始化 ──
 
 // initVoice 初始化语音管理器（在 Startup 中调用）
 
-func (a *mediaState) synthesizeVoiceTTS(text, voiceDescription string) ([]byte, string, error) {
-	// 1. 功能绑定「聊天语音」优先（模型中心 → 功能绑定）
-	if a.chatVoiceEngine != "" && a.chatVoiceModel != "" {
-		if audio, mime, ok := a.tryEngineTTS(a.chatVoiceEngine, a.chatVoiceModel, text, voiceDescription); ok {
-			return audio, mime, nil
-		}
-		slog.Debug("聊天语音绑定模型失败，回退全局 TTS", "engine", a.chatVoiceEngine, "model", a.chatVoiceModel)
-	}
-	// 2. 全局 TTS（模型中心 → 语音模型）
-	if a.activeTTSModel != "" {
-		if audio, mime, ok := a.tryEngineTTS(a.activeTTSEngine, a.activeTTSModel, text, voiceDescription); ok {
-			return audio, mime, nil
-		}
-		slog.Debug("用户选中 TTS 模型失败，回退自动路由", "engine", a.activeTTSEngine, "model", a.activeTTSModel)
-	}
-
-	// 3. 统一路由（TTSSpeakBase64：扫描引擎 TTS 模型 → Edge → SAPI）
-	return a.synthesizeFromBase64(text)
-}
-
-// tryEngineTTS 用指定引擎+模型尝试 TTS 合成（seam 消费者：统一路由到 TTS 提供者
-// 注册表）。xAI 走云端 Grok TTS（"xai" kind），其余引擎走 Herdsman 风格
-// /v1/audio/speech（"herdsman" kind）；引擎构造分支（voicedesign/voxcpm/voiceclone）
-// 由 herdsman 工厂收敛，这里零分支。
-func (a *mediaState) tryEngineTTS(engineID, model, text, voiceDescription string) ([]byte, string, bool) {
-	// 本地 TTS 服务兜底：breeze 未就绪时有界等就绪（幂等，已就绪零开销）
-	if isLocalTTSAssetEngine(engineID) {
-		a.waitLocalTTSReady(engineID)
-	}
-	p, ok := a.ttsProviderForEngine(engineID, model, voiceDescription)
-	if !ok {
-		return nil, "", false
-	}
-	audio, mime, err := p.SynthesizeWithMime(text)
-	if err != nil || len(audio) == 0 {
-		return nil, "", false
-	}
-	if mime == "" {
-		mime = "audio/mp3"
-	}
-	return audio, mime, true
-}
-
-// ttsProviderForEngine 经 TTS 提供者注册表构造指定引擎+模型的提供者：
-// xAI → "xai" kind；其余 OpenAI 兼容引擎（herdsman/deepseek）→
-// "herdsman" kind。引擎未启用/缺少凭据时返回 false（与历史 tryEngineTTS 一致）。
 func (a *mediaState) ttsProviderForEngine(engineID, model, voiceDescription string) (tts.TTSProvider, bool) {
 	if a.engineMgr == nil {
 		return nil, false
@@ -165,27 +117,6 @@ func (a *mediaState) ttsProviderForEngineWithVoice(engineID, model, voiceID, voi
 		return nil, false
 	}
 	return p, true
-}
-
-// synthesizeFromBase64 通过 TTSSpeakBase64 路由合成并解码
-func (a *mediaState) synthesizeFromBase64(text string) ([]byte, string, error) {
-	result, err := a.TTSSpeakBase64(text)
-	if err != nil {
-		return nil, "", err
-	}
-	b64, _ := result["base64"].(string)
-	mime, _ := result["mimeType"].(string)
-	if b64 == "" {
-		return nil, "", fmt.Errorf("TTS 返回空音频")
-	}
-	if mime == "" {
-		mime = "audio/mp3"
-	}
-	audio, err := base64.StdEncoding.DecodeString(b64)
-	if err != nil {
-		return nil, "", fmt.Errorf("TTS base64 解码失败: %w", err)
-	}
-	return audio, mime, nil
 }
 
 // ── Wails API 端点 ──
@@ -387,11 +318,3 @@ func (a *mediaState) ttsRouteHealth() (bool, string) {
 
 // VoiceRestartService 重启语音服务（重新检测 ASR/TTS 可用性）
 // ── 工具函数 ──
-
-// configToMap 朗读/音色设置回显面（V1 运行参数已随链退役）。
-func configToMap(c *voice.VoiceRuntimeConfig) map[string]interface{} {
-	return map[string]interface{}{
-		"ttsVoice":            c.TTSVoice,
-		"personalityPresetId": c.PersonalityPresetID,
-	}
-}

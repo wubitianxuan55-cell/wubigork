@@ -77,29 +77,6 @@ func newFakePipelineSTT(t *testing.T, legs ResponseLegs, stt STTEngine) *Pipelin
 	return p
 }
 
-// driveTurn 模拟一轮：started → (直接投递 final 到 STT 队列) → 等 STT+LLM 处理。
-func driveTurn(t *testing.T, p *Pipeline, turn string, text string) {
-	t.Helper()
-	p.dispatchText(&textEvent{kind: evKindSpeechStarted,
-		started: &VADStarted{TurnID: turn, InterruptResponse: true}})
-	p.sttCh <- &VADFinal{Audio: make([]float32, 4096), TurnID: turn, Rev: 0}
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		p.muHist.Lock()
-		hasAssistant := false
-		for _, m := range p.chat {
-			if m.Role == "assistant" {
-				hasAssistant = true
-			}
-		}
-		p.muHist.Unlock()
-		if text == "" || hasAssistant {
-			break
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-}
-
 func countRoles(p *Pipeline, role string) int {
 	p.muHist.Lock()
 	defer p.muHist.Unlock()
@@ -170,7 +147,10 @@ func TestHistoryRollbackOnCancel(t *testing.T) {
 	p.turns.SegmentFinalized(1000, 800, 0)
 	p.sttCh <- &VADFinal{Audio: make([]float32, 4096), TurnID: "turn_1", Rev: 0}
 	time.Sleep(120 * time.Millisecond) // 让 LLM 流出部分文本
-	p.cancelActiveResponse("turn_detected")
+	// 生产入口 = cancelCh（sendLoop 单线程消费）；直调 cancelActiveResponse 会
+	// 与 sendLoop 的 finishResponse 并发写 closedKeys（2026-11-05 全量套件实弹
+	// panic，潜优 race 被 finish 路径时序变化带出）。
+	p.cancelCh <- "turn_detected"
 	time.Sleep(150 * time.Millisecond) // 等 TTS/哨兵链清完
 	if n := countRoles(p, "assistant"); n != 0 {
 		t.Fatalf("取消后 assistant 历史应被回滚，残留 %d 条", n)
@@ -367,7 +347,6 @@ func TestEmptyOutputResponseCancels(t *testing.T) {
 	}
 }
 
-
 // TestTranscriptDeltaOnWire — 线缆契约钉：LLM 流式期间 transcript.delta 必须
 // 逐增量下行（2026-11-05 ws_probe turn 场景 FAIL=delta 全程缺席，助手文本只在
 // done 出现——用户看不到流式回复）。持发窗口内的增量必须停靠续放，不得判死。
@@ -386,7 +365,7 @@ func TestTranscriptDeltaOnWire(t *testing.T) {
 	}
 	deltas := 0
 	dones := 0
-	loop:
+loop:
 	for {
 		select {
 		case ev := <-p.session.out:
@@ -473,7 +452,6 @@ loop:
 		t.Fatalf("done 转写全文缺兜底语: %q 线缆帧=%v", doneText, types)
 	}
 }
-
 
 // TestTerminalsPublishWhileResponseInFlight — F2：响应生成期（turn 未显式
 // commit）user terminal 必须即时发布，不得悬挂到会话结束。

@@ -202,12 +202,12 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 		cf.TTSSpeed = f
 		return nil
 	},
-	KeyTTSBackend:        func(cf *configFile, v string) error { cf.TTSBackend = v; return nil },
-	KeyActiveEngineID:    func(cf *configFile, v string) error { cf.ActiveEngineID = v; return nil },
-	KeyModel:             func(cf *configFile, v string) error { cf.Model = v; return nil },
-	KeyDeepseekAPIKey:    func(cf *configFile, v string) error { cf.DeepseekAPIKey = v; return nil },
-	KeyGLMAPIKey:         func(cf *configFile, v string) error { cf.GLMAPIKey = v; return nil },
-	KeyOpencodeGoAPIKey:  func(cf *configFile, v string) error { cf.OpenCodeGoAPIKey = v; return nil },
+	KeyTTSBackend:       func(cf *configFile, v string) error { cf.TTSBackend = v; return nil },
+	KeyActiveEngineID:   func(cf *configFile, v string) error { cf.ActiveEngineID = v; return nil },
+	KeyModel:            func(cf *configFile, v string) error { cf.Model = v; return nil },
+	KeyDeepseekAPIKey:   func(cf *configFile, v string) error { cf.DeepseekAPIKey = v; return nil },
+	KeyGLMAPIKey:        func(cf *configFile, v string) error { cf.GLMAPIKey = v; return nil },
+	KeyOpencodeGoAPIKey: func(cf *configFile, v string) error { cf.OpenCodeGoAPIKey = v; return nil },
 	KeyCustomEngineKeys: func(cf *configFile, v string) error {
 		// 值为 JSON map[string]string（engineID → secure 密文）；空串 = 清空。
 		if v == "" {

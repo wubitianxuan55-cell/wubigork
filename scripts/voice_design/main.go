@@ -176,7 +176,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "角色库打开失败：", dataDir)
 		os.Exit(1)
 	}
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	items, _, err := s.List("", "", false, 500, 0)
 	if err != nil {
