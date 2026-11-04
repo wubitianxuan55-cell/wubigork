@@ -18,11 +18,22 @@
 
 ## 审计批次
 
+- 批3 已完成（O7 修复+O8 记理由）
 - 批1（当前）：#7 service.py 逐行 → 义务条目
 - 批2：#8 history 两文件（取消回滚聊天=用户可感知行为）
 - 批3：#9 messages.py Chat 裁剪语义
 - 批4：#10/#11 补读收口
 - 每批产出：义务表+判罚+修复提交
+
+### 批3 证据（chat.py:475-493 trim_if_needed；500-516 replace；已逐行）
+- 裁剪按 **user_turn_count > size** 触发（不是消息数）；compactor=None（gaea 配置）→ 同步逐出最旧完整轮
+- 2×size 硬上限在 _add_item_locked 内联逐出（admission control，语义同效不同粒度）
+- replace_user_message_text 按 item_id 替换（O4 已对齐 ✓）
+
+| ID | 义务 | Go 现状 | 判罚 |
+|----|------|--------|------|
+| O7 | 裁剪按轮计数（user+配对 assistant 整轮逐出，12 轮） | ✅已修：userTurns>size 逐出最旧轮（user+紧邻 assistant）；全套单测绿 | ✅对齐 |
+| O8 | 2×size 硬上限 admission | FIFO 窗口天然有界 | 🔵近似可接受（同效不同粒度，记理由） |
 
 ## 义务条目（批2：history 两文件已逐行读完）
 

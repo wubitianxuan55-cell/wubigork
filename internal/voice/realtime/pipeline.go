@@ -497,8 +497,21 @@ func (p *Pipeline) sttStage(f *VADFinal) {
 		if !replaced {
 			p.chat = append(p.chat, ChatMessage{Role: "user", Content: text, turnKey: tk})
 		}
-		for len(p.chat) > p.chatSize {
-			p.chat = p.chat[1:]
+		// O7：按轮裁剪（chat.py trim_if_needed 同位——user_turn_count > size 时
+		// 同步逐出最旧完整轮：user 及其紧邻 assistant）
+		userTurns := 0
+		for _, m := range p.chat {
+			if m.Role == "user" {
+				userTurns++
+			}
+		}
+		for userTurns > p.chatSize && len(p.chat) > 0 {
+			drop := 1
+			for drop < len(p.chat) && p.chat[drop].Role == "assistant" {
+				drop++
+			}
+			p.chat = p.chat[drop:]
+			userTurns--
 		}
 		rs := p.newResponseState(f.TurnID, f.Rev, f.SpeechEndAt)
 		p.promptCh <- &promptRequest{resp: rs, userText: text, history: p.chatSnapshot(), speechStoppedAt: f.SpeechEndAt}
