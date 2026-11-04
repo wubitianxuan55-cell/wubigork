@@ -72,7 +72,12 @@ set ARG=%~1
 if /i "%ARG%"=="skip-smoke" goto :skip_smoke
 
 echo === smoke test ===
+REM Smoke copy MUST carry the voice DLLs beside it (production layout rule:
+REM a cgo-linked exe without its DLLs beside it will not come up).
 copy /Y build\bin\gaea.exe .tmp\smoke-gaea.exe >nul
+copy /Y build\bin\onnxruntime.dll .tmp\ >nul
+copy /Y build\bin\sherpa-onnx-c-api.dll .tmp\ >nul
+copy /Y build\bin\sherpa-onnx-cxx-api.dll .tmp\ >nul
 if errorlevel 1 (
     echo [FAIL] cannot stage smoke copy at .tmp\smoke-gaea.exe
     exit /b 1
