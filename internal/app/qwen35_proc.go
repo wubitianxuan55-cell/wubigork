@@ -24,9 +24,10 @@ const (
 	qwen35HealthScript = `{"model":"qwen35","stream":false,"max_tokens":1,"messages":[{"role":"user","content":"hi"}]}`
 )
 
-// qwen35ModelPath 35B gguf：base 根 models 优先（P3 布局），缺失回退历史路径。
+// qwen35ModelPath 35B gguf：统一模型根 C:\AI\models 优先（单副本原则），缺失
+// 回退 base/models（历史布局兼容）。不复制模型——多处引用同一文件。
 func qwen35ModelPath() string {
-	if p := filepath.Join(voiceV2BaseRoot(), "models", qwen35ModelFile); voiceV2FileExists(p) {
+	if p := filepath.Join(voiceV2ModelsRoot, "qwen35-uncensored", qwen35ModelFile); voiceV2FileExists(p) {
 		return p
 	}
 	return filepath.Join(voiceV2LegacyBaseRoot, "models", qwen35ModelFile)

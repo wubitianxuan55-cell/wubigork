@@ -377,7 +377,8 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 		// 免鉴权。模型清单随引擎加载状态变化，DefaultModel
 		// 留空由刷新 /models 后取首个（与 strata 同口径）。
 		BaseURL: "http://127.0.0.1:8094/v1",
-		Enabled: true,
+		Enabled: false, // 2026-11-05 停用：引擎资产已删（C:\AI\tianxuan 3.2G），35B 线由自管 llama 引擎接手；代码面保留防历史用户升级破损
+
 	}
 	m.engines["llama"] = &EngineConfig{
 		ID:           "llama",

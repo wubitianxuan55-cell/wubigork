@@ -30,6 +30,9 @@ const (
 	// 历史装机路径（P3 打包工程化前）：降级为 base 根缺失时的回退值。
 	voiceV2LegacyLLMBin   = `C:\AI\uocr2-llama\bin\llama-server.exe`
 	voiceV2LegacyBaseRoot = `C:\AI\gaea-voice-v2`
+	// 模型统一根（P3 2026-11-05 用户拍板）：所有本地模型只存这一处，多处引用
+	// 不复制（消除 26.8GB×N 重复）。llama/strata/herdsman 档位均指此根。
+	voiceV2ModelsRoot = `C:\AI\models`
 	// 桌面副本的 exe 位于 Desktop，工作目录也不保证是仓库；保留当前装机根
 	// 作为最后候选，确保双击启动仍能找到 sidecar 启动器。
 	voiceV2DefaultRepoRoot = `C:\AI\wubigrok`
@@ -43,6 +46,18 @@ var (
 	voiceV2LLMModelRel   = filepath.Join("models", "Qwen3-4B-Q4_K_M.gguf")
 	voiceV2VenvPythonRel = filepath.Join("venv", "Scripts", "python.exe")
 )
+
+// voiceV2ModelPath 按统一模型根解析模型文件；缺失回退历史 base/models 布局
+// （老安装兼容）。modelsRoot 下的相对路径示例：qwen35-uncensored/xxx.gguf。
+func voiceV2ModelPath(modelsRootRel string, legacyFallback string) string {
+	if p := filepath.Join(voiceV2ModelsRoot, modelsRootRel); voiceV2FileExists(p) {
+		return p
+	}
+	if legacyFallback != "" && voiceV2FileExists(legacyFallback) {
+		return legacyFallback
+	}
+	return filepath.Join(voiceV2BaseRoot(), voiceV2LLMModelRel)
+}
 
 // voiceV2BaseRoot 语音 V2 依赖（venv/models/bin）的根目录：安装器/bundle 布局
 // 经 GAEA_VOICE_V2_BASE 指向；缺省=历史装机根（兼容现役机器，不迁移）。
@@ -341,7 +356,10 @@ func (a *mediaState) VoiceV2Ensure() map[string]interface{} {
 		if !voiceV2Probe(voiceV2LLMPort) {
 			cmd, err := detachedCmd(voiceV2LLMBinPath(), []string{
 				"--host", "127.0.0.1", "--port", fmt.Sprintf("%d", voiceV2LLMPort),
-				"-m", voiceV2LLMModelPath(), "-ngl", "99", "--ctx-size", "8192",
+				"-m", voiceV2ModelPath(
+					filepath.Join("qwen35-uncensored", "Qwen3-4B-Q4_K_M.gguf"),
+					filepath.Join(voiceV2LegacyBaseRoot, voiceV2LLMModelRel),
+				), "-ngl", "99", "--ctx-size", "8192",
 				"--reasoning", "off", "-np", "1", "--cache-reuse", "256",
 			}, "")
 			if err == nil {
