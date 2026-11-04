@@ -128,13 +128,18 @@ func (a *mediaState) handleVoiceV2ChatCompletion(w http.ResponseWriter, r *http.
 	// 同构的 HTTP 代理（人格/记忆预推进照常），无 ai.Client/routeModel 依赖。
 	// 非流式同样直代（sidecar 启动自检也过这条腿）。
 	qwen35Mode := a.cfg != nil && a.cfg.VoiceChatLLM == "qwen35"
-	if qwen35Mode && !qwen35Running() {
-		if prepared != nil {
-			a.rollbackPrepared(prepared)
+	if qwen35Mode && !qwen35Running() && a.app != nil {
+		// 未就绪时自动冷启（Ensure 同款幂等拉起）：sidecar 启动自检经网关走
+		// qwen35 腿，硬 503 会让自检失败连锁（冷壳启动顺序脆性，2026-11-05
+		// 实测两例）——就地拉起自愈，同步等待 300s 上限与 Ensure 同口径。
+		if res := a.app.qwen35Ensure(); res["running"] != true {
+			if prepared != nil {
+				a.rollbackPrepared(prepared)
+			}
+			slog.Warn("Voice V2 自管 35B 自动拉起失败", "error", res["error"])
+			http.Error(w, fmt.Sprintf("自管 35B 拉起失败: %v", res["error"]), http.StatusServiceUnavailable)
+			return
 		}
-		slog.Warn("Voice V2 自管 35B 未就绪")
-		http.Error(w, "自管 35B 未就绪（语音设置里重试或先启动引擎）", http.StatusServiceUnavailable)
-		return
 	}
 	// P1 续刀「语音对话模型」：voice_chat_llm=chat 时 LLM 位改走聊天板块模型
 	// （routeModel("chat") 经 ai.Client 流式），跳过专属 4B HTTP 代理；人格/
