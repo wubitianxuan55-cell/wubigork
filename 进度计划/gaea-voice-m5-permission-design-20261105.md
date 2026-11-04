@@ -65,3 +65,4 @@
 | 2 | 语音确认词增强通道是否立项？ | 立项（默认关）/ 不立项（按钮已够） |
 | 3 | M5 首批工具清单 | §4 提案（status+save_task）/ 自定 |
 | 4 | 读屏 OCR 是否永久禁语音执行 | 永久禁（提案）/ 未来随权限系统重评 |
+| 2b | **35B 聊天模型改走自管 llama 引擎（不用 herdsman）？** | **2026-11-05 实测（scripts/voice_v2/llm_bench.py）**：同 gguf 三形态——herdsman 全链 TTFT 3.32s/total 4.61s → 后端直连 1.33s/2.45s → **自管 llama（b11980+cache-reuse+ctx8192）0.08s/1.22s**；双 35B 实例共存验证通过；语音 e2e 投影 ≈1.9s（与 4B 同档）。**采纳则**：35B gguf 落语音 base 根 + voice_chat_llm=chat 时 Ensure 自管 35B（8124 族）+聊天板块可选自定义引擎同实例；**决策点=双实例共存（现状可行）vs 停用 herdsman 35B（聊天板块同迁，动 herdsman 地盘）** |
