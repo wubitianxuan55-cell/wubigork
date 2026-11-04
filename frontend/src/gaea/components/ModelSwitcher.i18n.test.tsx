@@ -38,7 +38,7 @@ describe("ModelSwitcher i18n 冒烟", () => {
     mocks.Models.mockReset();
     mocks.ModelSwitchEstimate.mockReset();
     noticeCalls = [];
-    vi.spyOn(message, "info").mockImplementation(((content?: any) => {
+    vi.spyOn(message, "info").mockImplementation(((content?: unknown) => {
       noticeCalls.push({ content: String(content) });
       return undefined as never;
     }) as never);
