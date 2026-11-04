@@ -1,157 +1,150 @@
-# package_voice_bundle.py — 语音 V2 bundle 打包脚本（P3 产品化收口 刀一）。
+# package_voice_bundle.py — 语音 V2 bundle 打包脚本（bundle v2，2026-11-05）。
 #
-# stage 出可重定位布局（gaea 进程经 GAEA_VOICE_V2_BASE/GAEA_VOICE_V2_ROOT 指向）：
+# sidecar/venv/4B 已随 V1 语音链退役——bundle v2 = 全新净布局：
 #   bundle/
-#     venv/                            # sidecar Python 环境（整目录复制）
-#     models/Qwen3-4B-Q4_K_M.gguf      # 4B 快模型（+sherpa 若在）
-#     bin/llama-server.exe             # llama.cpp 服务端（现役二进制）
-#     scripts/voice_v2/                # launcher + headers + gaea-spike.yaml
+#     gaea.exe                        # V2-only 构建（语音引擎进程内：realtime/EOT/STT/VAD）
+#     onnxruntime.dll                 # 语音引擎三 DLL（铁律：必须与 exe 同目录，System32 劫持前科）
+#     sherpa-onnx-c-api.dll
+#     sherpa-onnx-cxx-api.dll
+#     models/voice/                   # silero_vad_v5_16k / smart-turn-v3.2 / paraformer int8 / tokens
+#     scripts/voice_v2/               # 手动回滚物（保留一版期，非运行依赖）
+#     gaea_install.ps1                # 装机/更新（复制到 C:\AI\gaea-app + 桌面快捷方式）
+#     BUNDLE.md                       # 布局说明 + SHA256 清单
+#
+# 模型解析：进程按 GAEA_VOICE_V2_BASE -> <base>/models/voice/ 优先，回落
+# C:\AI\models\voice\（统一根）——bundle 自带模型即离线完整。
 #
 # 已知边界（如实记录）：
-#   - venv 整目录复制仅保证本机重定位（venv 内嵌解释器绝对路径，跨机脆弱）；
-#     跨机分发走安装器内 venv bootstrap 或 §16.3 提取线——本脚本不解决。
-#   - breeze TTS(8012) 是用户本地引擎，不入 bundle（breeze 权重非商业红线）。
+#   - breeze TTS(8012) 是用户本地引擎，不入 bundle（breeze 权重非商业红线）；
+#     TTS 腿按需拉起（ensure 链）。
+#   - 跨机分发需目标机 WebView2 运行时（Wails 前提）。
 #
 # 用法：
-#   python package_voice_bundle.py --out <bundle-dir> [--skip-venv] [--smoke]
-#   --smoke：从 bundle 布局冷启 sidecar（等 8791 → TCP 可连 → 杀掉），验证
-#   布局自洽（yaml 仅含 URL+端口本就可重定位）。冒烟会短暂占用 8791。
+#   python package_voice_bundle.py --out <bundle-dir> [--exe <gaea.exe>] [--smoke]
+#   --smoke：布局自洽校验（四件+模型+脚本齐全，DLL 与 exe 同目录）。
 from __future__ import annotations
 
 import argparse
-import os
+import hashlib
 import shutil
-import socket
-import subprocess
 import sys
-import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-LEGACY_BASE = Path(r"C:\AI\gaea-voice-v2")
-LEGACY_LLAMA_BIN = Path(r"C:\AI\uocr2-llama\bin\llama-server.exe")
-SCRIPT_FILES = ["gaea_sidecar_launcher.py", "gaea_sidecar_headers.py", "gaea-spike.yaml"]
-MODEL_FILES = ["models/Qwen3-4B-Q4_K_M.gguf"]
-MODEL_DIRS = ["models/sherpa-zh-14m"]
+BUILD_BIN = REPO / "build" / "bin"
+UNIFIED_MODELS = Path(r"C:\AI\models\voice")
+VOICE_MODEL_FILES = [
+    "silero_vad_v5_16k.onnx",
+    "smart-turn-v3.2-cpu.onnx",
+    "model.int8.onnx",
+    "tokens.txt",
+]
+DLL_FILES = ["onnxruntime.dll", "sherpa-onnx-c-api.dll", "sherpa-onnx-cxx-api.dll"]
 
 
-def copytree(src: Path, dst: Path) -> None:
-    print(f"  copy {src} -> {dst}")
-    shutil.copytree(src, dst, dirs_exist_ok=True)
+def sha256_of(p: Path) -> str:
+    h = hashlib.sha256()
+    with p.open("rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
-def stage(out: Path, skip_venv: bool) -> list[str]:
+def stage(out: Path, exe: Path) -> list[str]:
     problems: list[str] = []
-    (out / "scripts" / "voice_v2").mkdir(parents=True, exist_ok=True)
-    (out / "bin").mkdir(parents=True, exist_ok=True)
-    (out / "models").mkdir(parents=True, exist_ok=True)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "models" / "voice").mkdir(parents=True, exist_ok=True)
 
-    # venv：优先历史装机根
-    venv_src = LEGACY_BASE / "venv"
-    if not skip_venv:
-        if venv_src.is_dir():
-            copytree(venv_src, out / "venv")
-        else:
-            problems.append(f"venv 缺失: {venv_src}")
-
-    # models
-    for rel in MODEL_FILES:
-        src = LEGACY_BASE / rel
+    # exe + 三 DLL（同目录铁律）
+    shutil.copy2(exe, out / "gaea.exe")
+    print(f"  copy {exe}")
+    for name in DLL_FILES:
+        src = exe.parent / name
         if src.is_file():
-            shutil.copy2(src, out / rel)
+            shutil.copy2(src, out / name)
             print(f"  copy {src}")
         else:
-            problems.append(f"模型缺失: {src}")
-    for rel in MODEL_DIRS:
-        src = LEGACY_BASE / rel
-        if src.is_dir():
-            copytree(src, out / rel)
-        else:
-            print(f"  (可选跳过) {src}")
+            problems.append(f"DLL 缺失: {src}（cgo 构建须随 exe 派发）")
 
-    # bin：llama-server 现役二进制
-    if LEGACY_LLAMA_BIN.is_file():
-        shutil.copy2(LEGACY_LLAMA_BIN, out / "bin" / "llama-server.exe")
-        print(f"  copy {LEGACY_LLAMA_BIN}")
-    else:
-        problems.append(f"llama-server 缺失: {LEGACY_LLAMA_BIN}")
-
-    # scripts
-    for name in SCRIPT_FILES:
-        src = REPO / "scripts" / "voice_v2" / name
+    # 语音模型（统一根 -> bundle）
+    for name in VOICE_MODEL_FILES:
+        src = UNIFIED_MODELS / name
         if src.is_file():
-            shutil.copy2(src, out / "scripts" / "voice_v2" / name)
+            shutil.copy2(src, out / "models" / "voice" / name)
+            print(f"  copy {src}")
         else:
-            problems.append(f"脚本缺失: {src}")
+            problems.append(f"语音模型缺失: {src}")
+
+    # 手动回滚物（保留一版期，非运行依赖）
+    roll = REPO / "scripts" / "voice_v2"
+    dst = out / "scripts" / "voice_v2"
+    dst.mkdir(parents=True, exist_ok=True)
+    for name in ["gaea-spike.yaml", "gaea_sidecar_launcher.py", "gaea_sidecar_headers.py"]:
+        src = roll / name
+        if src.is_file():
+            shutil.copy2(src, dst / name)
+
+    # 装机脚本
+    installer = REPO / "scripts" / "gaea_install.ps1"
+    if installer.is_file():
+        shutil.copy2(installer, out / "gaea_install.ps1")
+    else:
+        problems.append(f"装机脚本缺失: {installer}")
+
+    # 布局说明 + SHA256 清单
+    lines = [
+        "# gaea voice bundle v2",
+        "",
+        "- 语音对话唯一路径 = V2 Go 原生管线（进程内 realtime 8791 + breeze TTS 腿 + 聊天绑定 LLM 腿）。",
+        "- 铁律：三只 DLL 必须与 gaea.exe 同目录（Windows DLL 搜索序 + System32 旧版 ORT 劫持前科）。",
+        "- 模型解析：GAEA_VOICE_V2_BASE=<本目录> 时优先 <base>/models/voice/，回落统一根 C:/AI/models/voice。",
+        "- 装机：运行 gaea_install.ps1 -Launch（复制到 C:/AI/gaea-app + 桌面快捷方式）。",
+        "",
+        "## SHA256",
+        "",
+    ]
+    for f in sorted(out.rglob("*")):
+        if f.is_file() and f.suffix in {".exe", ".dll", ".onnx", ".ps1"}:
+            lines.append(f"- {f.relative_to(out)}: {sha256_of(f)[:16]}")
+    (out / "BUNDLE.md").write_text("\n".join(lines), encoding="utf-8")
     return problems
 
 
-def wait_port(port: int, seconds: float) -> bool:
-    deadline = time.time() + seconds
-    while time.time() < deadline:
-        with socket.socket() as s:
-            s.settimeout(0.5)
-            try:
-                s.connect(("127.0.0.1", port))
-                return True
-            except OSError:
-                time.sleep(1)
-    return False
-
-
-def smoke(bundle: Path) -> int:
-    # 冒烟前提：8791 空闲（真实 sidecar 在跑则先让位）
-    with socket.socket() as s:
-        try:
-            s.bind(("127.0.0.1", 8791))
-        except OSError:
-            print("SMOKE SKIP: 8791 被占用（真实 sidecar 在跑？先停再冒烟）")
-            return 2
-    python = bundle / "venv" / "Scripts" / "python.exe"
-    launcher = bundle / "scripts" / "voice_v2" / "gaea_sidecar_launcher.py"
-    config = bundle / "scripts" / "voice_v2" / "gaea-spike.yaml"
-    if not python.is_file():
-        print("SMOKE FAIL: bundle venv 不完整")
-        return 1
-    env = os.environ.copy()
-    env["GAEA_VOICE_V2_BASE"] = str(bundle)
-    env["GAEA_VOICE_V2_ROOT"] = str(bundle)
-    proc = subprocess.Popen(
-        [str(python), str(launcher), "serve", "-f", str(config)],
-        cwd=str(bundle), env=env,
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
-    try:
-        if wait_port(8791, 180):
-            print("SMOKE PASS: bundle 布局冷启 sidecar 成功（8791 可连）")
-            return 0
-        print("SMOKE FAIL: 180s 内 8791 未就绪")
-        return 1
-    finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+def smoke(out: Path) -> int:
+    failures = 0
+    must = ["gaea.exe", "BUNDLE.md", "gaea_install.ps1", *DLL_FILES,
+            *(f"models/voice/{n}" for n in VOICE_MODEL_FILES)]
+    for rel in must:
+        p = out / rel
+        ok = p.is_file()
+        print(f"  {'PASS' if ok else 'FAIL'} {rel}")
+        failures += 0 if ok else 1
+    return failures
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", required=True, help="bundle 输出目录")
-    ap.add_argument("--skip-venv", action="store_true", help="跳过 venv 复制（已有布局补齐用）")
-    ap.add_argument("--smoke", action="store_true", help="stage 后从 bundle 冷启 sidecar 冒烟")
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--exe", default=str(BUILD_BIN / "gaea.exe"))
+    ap.add_argument("--smoke", action="store_true")
     args = ap.parse_args()
-    out = Path(args.out).resolve()
-    print(f"staging voice bundle -> {out}")
-    problems = stage(out, args.skip_venv)
-    for p in problems:
-        print(f"  [缺] {p}")
-    if problems:
-        print("STAGE INCOMPLETE")
-        return 1
-    print("STAGE OK")
+    out = Path(args.out)
+    exe = Path(args.exe)
+    if not exe.is_file():
+        print(f"FAIL exe 缺失: {exe}", file=sys.stderr)
+        return 2
+    problems = stage(out, exe)
     if args.smoke:
-        return smoke(out)
+        failures = smoke(out)
+        if failures or problems:
+            for pr in problems:
+                print(f"FAIL {pr}", file=sys.stderr)
+            return 1
+    elif problems:
+        for pr in problems:
+            print(f"FAIL {pr}", file=sys.stderr)
+        return 1
+    print(f"OK bundle -> {out}")
     return 0
 
 
