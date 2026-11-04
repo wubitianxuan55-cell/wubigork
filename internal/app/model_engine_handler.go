@@ -35,7 +35,7 @@ func (c *core) TestEngineConnection(engineID string) (*modelengine.EngineStatus,
 	if c.engineMgr == nil {
 		return nil, errNoEngineMgr
 	}
-	if engineID == "tianxuan" || engineID == "strata" {
+	if engineID == "tianxuan" || engineID == "strata" || engineID == "llama" {
 		profiles, served, ok := managedEngineSpec(engineID)
 		profile := managedEngineProfileFromModels(engineID, served)
 		c.syncManagedEngineCatalog(engineID, profiles, served, profile)
@@ -90,7 +90,7 @@ func (c *core) RefreshEngineModels(engineID string) ([]modelengine.ModelInfo, er
 	if c.engineMgr == nil {
 		return nil, errNoEngineMgr
 	}
-	if engineID == "tianxuan" || engineID == "strata" {
+	if engineID == "tianxuan" || engineID == "strata" || engineID == "llama" {
 		return c.refreshManagedEngineModels(engineID)
 	}
 	// breeze-server 无 /v1/models：刷新 = ensure + 按探活结果回写模型运行态。

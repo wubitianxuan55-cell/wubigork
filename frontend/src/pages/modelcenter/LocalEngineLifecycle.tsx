@@ -12,9 +12,12 @@ import {
   type ManagedEngineStartResult,
   type ManagedEngineStatusResult,
   type ManagedEngineStopResult,
+  getLlamaEngineStatus,
+  startLlamaEngine,
+  stopLlamaEngine,
 } from '../../api/engines'
 
-type ManagedEngineID = 'strata' | 'tianxuan'
+type ManagedEngineID = 'strata' | 'tianxuan' | 'llama'
 
 interface LifecycleAPI {
   defaultProfile: string
@@ -44,6 +47,15 @@ const API: Record<ManagedEngineID, LifecycleAPI> = {
     status: getTianxuanEngineStatus,
     start: startTianxuanEngine,
     stop: stopTianxuanEngine,
+  },
+  llama: {
+    defaultProfile: 'qwen35',
+    fallbackProfiles: [
+      { id: 'qwen35', label: 'qwen3.6-35b-a3b-mtp（自管 llama）' },
+    ],
+    status: getLlamaEngineStatus,
+    start: startLlamaEngine,
+    stop: stopLlamaEngine,
   },
 }
 

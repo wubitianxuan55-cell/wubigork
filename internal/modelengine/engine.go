@@ -55,6 +55,12 @@ const (
 	// /v1/models 的 status 字段是非标对象（{"value":"loaded"}），解码走
 	// engine_models.go 的 flexStatus 宽容层。默认端口 8091（8080 是 herdsman）。
 	EngineStrata EngineType = "strata"
+	// EngineLlama 本地 Llama 引擎（P3 续 2026-11-05）：gaea 自管 llama-server
+	// （uocr2-llama 构建，语音 Ensure/设置面板启停，端口 8124），当前服务
+	// Qwen3.6-35B MTP gguf——实测自管 TTFT 0.08s/total 1.22s，远优于 herdsman
+	// 全链（3.32s/4.61s）。语音（voice_chat_llm=qwen35 网关直代）与聊天板块
+	// （功能绑定/自定义路由）共用。与 herdsman 实例可共存（双 35B 驻留实测）。
+	EngineLlama EngineType = "llama"
 	// EngineTianxuan 本地天璇引擎（Tianxuan Engine）：V1.0 起以 Strata v0.1.45
 	// 为基座（C:\AI\tianxuan 独立项目），面向 Ryzen AI Max+ 395 / gfx1151 的
 	// Windows HIP 推理线。档位目录为两个 uncensored 档——uncensored（
@@ -79,7 +85,7 @@ const (
 // tianxuan），云端（xai/deepseek/opencode-*）一律跳过。
 func (t EngineType) IsLocal() bool {
 	switch t {
-	case EngineOllama, EngineHerdsman, EngineCosyVoice, EngineBreeze, EngineStrata, EngineTianxuan:
+	case EngineOllama, EngineHerdsman, EngineCosyVoice, EngineBreeze, EngineStrata, EngineTianxuan, EngineLlama:
 		return true
 	}
 	return false
@@ -119,6 +125,8 @@ func BuiltinEngineTypeOf(id string) EngineType {
 		return EngineStrata
 	case "tianxuan":
 		return EngineTianxuan
+	case "llama":
+		return EngineLlama
 	}
 	return ""
 }
@@ -223,7 +231,7 @@ type Manager struct {
 func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 	m := &Manager{
 		engines:     make(map[string]*EngineConfig),
-		order:       []string{"xai", "ollama", "herdsman", "deepseek", "glm", "cosyvoice", "breeze", "strata", "tianxuan", "opencode-go", "opencode-zen"},
+		order:       []string{"xai", "ollama", "herdsman", "deepseek", "glm", "cosyvoice", "breeze", "strata", "tianxuan", "llama", "opencode-go", "opencode-zen"},
 		xaiKey:      xaiAPIKey,
 		deepseekKey: deepseekKey,
 		customKeys:  make(map[string]string),
@@ -370,6 +378,21 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 		// 留空由刷新 /models 后取首个（与 strata 同口径）。
 		BaseURL: "http://127.0.0.1:8094/v1",
 		Enabled: true,
+	}
+	m.engines["llama"] = &EngineConfig{
+		ID:           "llama",
+		Name:         "Llama",
+		Type:         EngineLlama,
+		Label:        "Llama 本地",
+		Color:        "#22d3ee",
+		Icon:         "desktop",
+		IsLocal:      true,
+		BaseURL:      "http://127.0.0.1:8124/v1",
+		Enabled:      true,
+		DefaultModel: "qwen35",
+		// 自管 llama-server（uocr2-llama 构建，Qwen35EngineStart 拉起）：
+		// 当前服务 Qwen3.6-35B MTP gguf（P2 续拍板，语音+聊天共用）。
+		// 模型清单由 syncManagedEngineCatalog 按运行态回写。
 	}
 
 	return m

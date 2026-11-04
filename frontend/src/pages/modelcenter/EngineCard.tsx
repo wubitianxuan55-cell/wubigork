@@ -155,10 +155,10 @@ export function EngineCard({ engine, editingCustom, savedPrice, onToggleEdit, on
           >
             测试连接
           </Button>
-          {(engine.id === 'tianxuan' || engine.id === 'strata') && (
+          {(engine.id === 'tianxuan' || engine.id === 'strata' || engine.id === 'llama') && (
             <LocalEngineLifecycle
               engineId={engine.id}
-              name={engine.id === 'tianxuan' ? '天璇' : 'Strata'}
+              name={engine.id === 'tianxuan' ? '天璇' : engine.id === 'llama' ? 'Llama' : 'Strata'}
               onReady={() => handleRefreshModels(engine.id)}
               onRunningChange={(running) => {
                 setManagedRunning(prev => prev === running ? prev : running)

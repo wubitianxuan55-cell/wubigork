@@ -20,7 +20,8 @@ import { ModelCenterActionsContext, ModelCenterContext, ModelCenterStateContext,
 import { EngineSection } from './EngineSection'
 import {
   getStrataEngineStatus, getTianxuanEngineStatus, saveEngine,
-  startStrataEngine, startTianxuanEngine, type EngineConfig, type EngineStatus,
+  startStrataEngine, startTianxuanEngine,
+  type EngineConfig, type EngineStatus,
 } from '../../api/engines'
 
 // 价目 v1：价目保存走既有 SaveEngine 通道（不经 context handler），mock 掉
@@ -29,6 +30,9 @@ vi.mock('../../api/engines', () => ({
   saveEngine: vi.fn(),
   // 外部本地引擎生命周期（EngineSection 挂载即探活）：默认已停止。
   getTianxuanEngineStatus: vi.fn(async () => ({ running: false })),
+  getLlamaEngineStatus: vi.fn(async () => ({ running: false })),
+  startLlamaEngine: vi.fn(async () => ({ started: false, reason: 'already-running' })),
+  stopLlamaEngine: vi.fn(async () => ({ stopped: true })),
   startTianxuanEngine: vi.fn(async () => ({ started: false, reason: 'already-running' })),
   stopTianxuanEngine: vi.fn(async () => ({ stopped: true })),
   getStrataEngineStatus: vi.fn(async () => ({ running: false })),

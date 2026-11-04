@@ -65,6 +65,9 @@ func managedEngineSpec(engineID string) ([]engineProfileOption, []string, bool) 
 	case "strata":
 		served, ok := strataProbe()
 		return strataProfiles, served, ok
+	case "llama":
+		served, ok := llamaProbe()
+		return llamaProfiles, served, ok
 	}
 	return nil, nil, false
 }
@@ -75,6 +78,8 @@ func managedEngineProfileFromModels(engineID string, served []string) string {
 		return tianxuanProfileFromModels(served)
 	case "strata":
 		return strataProfileFromModels(served)
+	case "llama":
+		return llamaProfileFromModels(served)
 	}
 	return ""
 }

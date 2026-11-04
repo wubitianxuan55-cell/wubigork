@@ -40,7 +40,7 @@ export interface EngineConfig {
   // uncensored/flash 两个 uncensored 档；与「天璇」编程助手是两个产品）
   // breeze = 本地 Breeze-TTS-2（breeze-server 托管，默认 127.0.0.1:8012/v1，
   // OpenAI 兼容 /v1/audio/speech；无预置音色，design 模式走 instructions）
-  type: 'xai' | 'ollama' | 'herdsman' | 'deepseek' | 'glm' | 'cosyvoice' | 'breeze' | 'opencode-go' | 'opencode-zen' | 'custom' | 'strata' | 'tianxuan'
+  type: 'xai' | 'ollama' | 'herdsman' | 'deepseek' | 'glm' | 'cosyvoice' | 'breeze' | 'opencode-go' | 'opencode-zen' | 'custom' | 'strata' | 'tianxuan' | 'llama'
   label?: string
   color?: string
   icon?: string
@@ -433,6 +433,26 @@ export async function startTianxuanEngine(profile = 'uncensored'): Promise<Tianx
 export async function stopTianxuanEngine(): Promise<TianxuanEngineStopResult> {
   const result = await App().TianxuanEngineStop()
   return result as TianxuanEngineStopResult
+}
+
+// ── 自管 Llama 引擎（8124，Qwen3.6-35B MTP；语音+聊天共用，P2 续拍板） ──
+export type LlamaEngineStatusResult = ManagedEngineStatusResult
+export type LlamaEngineStartResult = ManagedEngineStartResult
+export type LlamaEngineStopResult = ManagedEngineStopResult
+
+export async function getLlamaEngineStatus(): Promise<LlamaEngineStatusResult> {
+  const result = await App().Qwen35EngineStatus()
+  return result as LlamaEngineStatusResult
+}
+
+export async function startLlamaEngine(_profile = 'qwen35'): Promise<LlamaEngineStartResult> {
+  const result = await App().Qwen35EngineStart()
+  return result as LlamaEngineStartResult
+}
+
+export async function stopLlamaEngine(): Promise<LlamaEngineStopResult> {
+  const result = await App().Qwen35EngineStop()
+  return result as LlamaEngineStopResult
 }
 
 /** 启动/切换到天璇模型目录中的某个档位模型（会先停掉当前档位） */

@@ -7,9 +7,12 @@
 package app
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -31,6 +34,49 @@ func qwen35ModelPath() string {
 
 func qwen35Running() bool {
 	return voiceV2TCPProbe(fmt.Sprintf("127.0.0.1:%d", qwen35Port), 800*time.Millisecond)
+}
+
+// ── managed 引擎目录层（模型中心，参照 strata/tianxuan 模板） ──
+
+var llamaProfiles = []engineProfileOption{
+	{ID: "qwen35", Label: "qwen3.6-35b-a3b-mtp（自管 llama）", ModelID: "qwen35"},
+}
+
+// llamaProbe 探活 + /v1/models 实际 served id（llama-server 返回 gguf 文件名）。
+func llamaProbe() ([]string, bool) {
+	client := &http.Client{Timeout: 1500 * time.Millisecond}
+	resp, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d/v1/models", qwen35Port))
+	if err != nil {
+		return nil, false
+	}
+	defer func() { _ = resp.Body.Close() }()
+	var payload struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if json.NewDecoder(resp.Body).Decode(&payload) != nil {
+		return nil, false
+	}
+	ids := make([]string, 0, len(payload.Data))
+	for _, m := range payload.Data {
+		if m.ID != "" {
+			ids = append(ids, m.ID)
+		}
+	}
+	return ids, len(ids) > 0
+}
+
+func llamaProfileFromModels(served []string) string {
+	if len(served) == 0 {
+		return ""
+	}
+	for _, p := range llamaProfiles {
+		if strings.Contains(served[0], "35B") || strings.Contains(served[0], "Qwen3.6") {
+			return p.ID
+		}
+	}
+	return llamaProfiles[0].ID
 }
 
 // qwen35Ensure 幂等拉起自管 35B（语音 Ensure 链与聊天前置共用）。
