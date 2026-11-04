@@ -564,6 +564,16 @@
   color: color-mix(in srgb, var(--vc2-accent) 72%, var(--vc2-text-3));
 }
 
+/* 麦克风实时电平点：直径随 worklet RMS 呼吸（0=6px 灰底=哑麦诚实态） */
+.vc2-mic-level {
+  width: calc(6px + var(--vc2-live, 0) * 6px);
+  height: calc(6px + var(--vc2-live, 0) * 6px);
+  border-radius: 50%;
+  background: var(--vc2-accent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--vc2-accent) calc(30% + var(--vc2-live, 0) * 50%), transparent);
+  transition: width var(--md-sys-transition-fast, 200ms) ease-out, height var(--md-sys-transition-fast, 200ms) ease-out;
+}
+
 .vc2-dialogue {
   min-width: 0;
   display: flex;
@@ -1460,6 +1470,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .voice-console-v2--bar .vc2-bar-meter i,
   .vc2-orb *,
   .voice-console-v2 .anticon-spin,
   .v2l-panel .anticon-spin,
@@ -1653,12 +1664,114 @@
 
 @media (prefers-reduced-motion: reduce) {
   .voice-console-v2--bar .vc2-bar-dot.is-listening,
-  .voice-console-v2--bar .vc2-bar-dot.is-thinking {
+  .voice-console-v2--bar .vc2-bar-dot.is-thinking,
+  .voice-console-v2--bar .vc2-bar-meter i {
     animation: none;
   }
 }
 
 /* ═══ P1.5 语音条 UX 打磨（ui-ux-pro-max 规则落地） ═══ */
+
+/* 相位电平条（dot→meter 升级）：五根迷你 bar，相位语义直接映射动效——
+   listening/speaking=错峰起伏、thinking=呼吸、error/interrupted=语义色静态、
+   idle=熄平。纯 CSS、无 animationend 依赖（瞬时可打断规则）。 */
+.voice-console-v2--bar .vc2-bar-meter {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 18px;
+}
+
+.voice-console-v2--bar .vc2-bar-meter i {
+  width: 3px;
+  height: calc(4px + var(--vc2-m, 0.5) * 10px);
+  border-radius: 99px;
+  background: var(--vc2-text-3);
+  opacity: 0.4;
+  transform: scaleY(0.62);
+  transform-origin: center;
+  transition:
+    background var(--md-sys-transition-fast, 200ms) ease-out,
+    opacity var(--md-sys-transition-fast, 200ms) ease-out;
+}
+
+.voice-console-v2--bar .vc2-bar-meter.is-listening i,
+.voice-console-v2--bar .vc2-bar-meter.is-speaking i {
+  background: var(--vc2-accent);
+  opacity: 0.9;
+  animation: vc2-level 760ms ease-in-out infinite alternate;
+}
+
+/* listening 真实电平调制：高度=worklet RMS（哑麦时贴地=诚实），错峰动画保留活性 */
+.voice-console-v2--bar .vc2-bar-meter.is-listening i {
+  height: calc(4px + (var(--vc2-m, 0.5) * 0.25 + var(--vc2-live, 0) * 0.75) * 14px);
+  opacity: calc(0.45 + var(--vc2-live, 0) * 0.55);
+}
+
+.voice-console-v2--bar .vc2-bar-meter.is-speaking i {
+  animation-duration: 460ms;
+}
+
+.voice-console-v2--bar .vc2-bar-meter.is-listening i:nth-child(2n),
+.voice-console-v2--bar .vc2-bar-meter.is-speaking i:nth-child(2n) {
+  animation-duration: 620ms;
+  animation-delay: -160ms;
+}
+
+.voice-console-v2--bar .vc2-bar-meter.is-listening i:nth-child(3n),
+.voice-console-v2--bar .vc2-bar-meter.is-speaking i:nth-child(3n) {
+  animation-duration: 1.05s;
+  animation-delay: -280ms;
+}
+
+.voice-console-v2--bar .vc2-bar-meter.is-thinking i {
+  background: var(--md-sys-color-info);
+  opacity: 0.85;
+  animation: vc2-breathe 1.8s ease-in-out infinite;
+}
+
+.voice-console-v2--bar .vc2-bar-meter.is-error i,
+.voice-console-v2--bar .vc2-bar-meter.is-interrupted i {
+  opacity: 0.92;
+  transform: none;
+}
+
+.voice-console-v2--bar .vc2-bar-meter.is-error i {
+  background: #e5484d;
+}
+
+.voice-console-v2--bar .vc2-bar-meter.is-error i:first-child {
+  transform: scaleY(1.7);
+}
+
+.voice-console-v2--bar .vc2-bar-meter.is-interrupted i {
+  background: #f5a623;
+}
+
+.voice-console-v2--bar .vc2-bar-meter.is-interrupted i:nth-child(2n) {
+  transform: scaleY(1.7);
+}
+
+/* bar 错误 note 语义色（与 full 模式 vc2-feedback.is-alert 同口径） */
+.voice-console-v2--bar .vc2-bar-note.is-alert {
+  color: var(--md-sys-color-destructive);
+}
+
+/* preflight 装配中态：服务卡呼吸强调（长等待可解释—— High 规则落地） */
+.vc2-service-item.is-starting {
+  border-color: var(--vc2-line-strong);
+  background: var(--vc2-soft);
+}
+
+.vc2-service-item.is-starting > .anticon,
+.vc2-service-item.is-starting .vc2-service-state {
+  color: var(--vc2-accent);
+}
+
+.vc2-service-item.is-starting .vc2-service-state::after {
+  content: "…";
+}
 
 /* 激活相位=语音条边界发光（动效传达状态；reduced-motion 已兜底） */
 .voice-console-v2--bar.voice-console-v2--listening,

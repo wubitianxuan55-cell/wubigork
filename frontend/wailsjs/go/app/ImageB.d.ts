@@ -48,8 +48,6 @@ export function OpenImageSaveDir():Promise<void>;
 
 export function OpenNovelImagesDir():Promise<void>;
 
-export function SetActiveASRModel(arg1:string,arg2:string):Promise<void>;
-
 export function SetActiveTTSModel(arg1:string,arg2:string):Promise<void>;
 
 export function SetCharacterPortrait(arg1:string,arg2:string):Promise<void>;

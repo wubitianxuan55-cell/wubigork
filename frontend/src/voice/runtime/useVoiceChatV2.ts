@@ -1,8 +1,8 @@
 /**
  * voice/runtime/useVoiceChatV2.ts — Voice V2 会话运行时钩子（M4 产品接入刀）。
  *
- * 聚合：VoiceClientV2（协议/状态机/播放队列）+ AudioWorklet 采集/播放 + sidecar
- * 依赖链监护（VoiceV2Ensure/VoiceV2Status）。transport 可注入（实验页 mock 回放
+ * 聚合：VoiceClientV2（协议/状态机/播放队列）+ AudioWorklet 采集/播放 + 依赖链
+ * 监护（VoiceV2Ensure/VoiceV2Status，Go 原生管线唯一路径）。transport 可注入（实验页 mock 回放
  * /测试桩）；jsdom 无 audioWorklet 时开麦诚实降级为 note 提示。
  * 消费方：语音台 V2 视图（VoiceConsole 内 v2 分支）与 ?voicev2=1 实验页。
  */
@@ -38,6 +38,10 @@ const DEFAULT_URL = 'ws://127.0.0.1:8791/v1/realtime'
 const RECONNECT_MAX_ATTEMPTS = 5
 const RECONNECT_BASE_MS = 1000
 const RECONNECT_MAX_DELAY_MS = 15000
+// 重连计数复位窗：连接须稳定保持此时长才算"真正恢复"。open 即清零的旧语义
+// 在闪断链路（连接被服务端会话槽秒弹）下每次 open 都清零=1s 重连循环永不耗尽，
+// 2026-11-04 实弹三次重启同一死局（启动连接卡死）根因之一。
+const RECONNECT_STABLE_MS = 10000
 
 class WsTransport implements VoiceTransport {
   constructor(private ws: WebSocket) {}
@@ -71,9 +75,13 @@ export interface VoiceChatV2Api {
   tail: string[]
   connected: boolean
   micOn: boolean
+  /** 采集电平（0..1，worklet RMS 每 ~240ms 上报；0=静音） */
+  micLevel: number
+  /** 哑麦诚实检测：开麦且已连接但持续 3s 无信号（虚拟设备/选错设备/静音） */
+  micSilent: boolean
   note: string
   services: {
-    sidecar: boolean; llm: boolean; breeze: boolean; gateway: boolean
+    realtime: boolean; breeze: boolean
     ready: boolean; error: string
   }
   /** VoiceV2Ensure 正在冷启动依赖，按钮/重复调用可据此禁用 */
@@ -102,9 +110,11 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
   const [tail, setTail] = useState<string[]>([])
   const [connected, setConnected] = useState(false)
   const [micOn, setMicOn] = useState(false)
+  const [micLevel, setMicLevel] = useState(0)
+  const [micSilent, setMicSilent] = useState(false)
   const [note, setNote] = useState('')
   const [services, setServices] = useState({
-    sidecar: false, llm: false, breeze: false, gateway: false, ready: false, error: '',
+    realtime: false, breeze: false, ready: false, error: '',
   })
   const [ensuring, setEnsuring] = useState(false)
 
@@ -113,6 +123,9 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
   const connectedRef = useRef(false)
   const mountedRef = useRef(true)
   const stopMicRef = useRef<() => void>(() => {})
+  // 哑麦检测：最近一次有信号时刻（level 消息热路径走 ref，1s 兜底轮询只碰 state）
+  const lastSoundTsRef = useRef(0)
+  const micSilentTimerRef = useRef<number | null>(null)
   const speechStartRef = useRef(0)
   const responseIdRef = useRef('')
   const optsRef = useRef(opts)
@@ -130,7 +143,7 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
     ready: false, error: '', stage: '',
   })
   // P1 有限次自动重连：服务就绪后的 WS 掉线是既有自愈盲区（3s 轮询只在
-  // services.ready=false 期间跑）——sidecar 无痕退场实测用户必须手点重连。
+  // services.ready=false 期间跑）——服务无痕退场实测用户必须手点重连。
   // 非用户主动断开才按指数退避重试；服务不在了顺路走 Ensure 监护自愈。
   const reconnectTimerRef = useRef<number | null>(null)
   const reconnectAttemptRef = useRef(0)
@@ -138,6 +151,14 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
   const autoReconnectingRef = useRef(false)
   const scheduleReconnectRef = useRef<() => void>(() => {})
   urlRef.current = opts.url ?? DEFAULT_URL
+  // 并发 connect 去重（2026-11-04 卡死根因①）：就绪事件/低频轮询/按钮回调三条
+  // 自动连接路径会在同一 tick 各自调用 connect；connect 的引用 guard 要等
+  // ensureSink 之后的同步段才置位，不先挡住=三个 WebSocket 同时建连，第一个
+  // 抢到服务端会话槽（会话池=1）后被引用覆盖成孤儿——无人 close、浏览器 pong
+  // 保活，服务端永远清不掉，后续所有连接被 session_limit_reached 弹回。
+  const connectingRef = useRef(false)
+  // 连接稳定窗定时器：稳定 RECONNECT_STABLE_MS 才清重连计数（见常量注）
+  const reconnectStableTimerRef = useRef<number | null>(null)
 
   const pushTail = useCallback((line: string) => {
     const next = [...tailRef.current, line].slice(-14)
@@ -217,13 +238,21 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
         setConnected(true)
         setNote('')
         pushTail('已连接')
-        // 重连成功：计数归零，退避链作废
+        // 重连成功：有意断开标记作废
         deliberateCloseRef.current = false
-        reconnectAttemptRef.current = 0
         if (reconnectTimerRef.current != null) {
           window.clearTimeout(reconnectTimerRef.current)
           reconnectTimerRef.current = null
         }
+        // 重连计数不随 open 立即清零：闪断链路 open→秒断每次清零=退避链永不
+        // 耗尽（2026-11-04 卡死根因③）。稳定保持 RECONNECT_STABLE_MS 才算恢复。
+        if (reconnectStableTimerRef.current != null) {
+          window.clearTimeout(reconnectStableTimerRef.current)
+        }
+        reconnectStableTimerRef.current = window.setTimeout(() => {
+          reconnectStableTimerRef.current = null
+          if (mountedRef.current && connectedRef.current) reconnectAttemptRef.current = 0
+        }, RECONNECT_STABLE_MS)
       },
       onClose: () => {
         if (transportRef.current !== transport) return
@@ -231,6 +260,10 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
         transportRef.current = null
         clientRef.current = null
         connectedRef.current = false
+        if (reconnectStableTimerRef.current != null) {
+          window.clearTimeout(reconnectStableTimerRef.current)
+          reconnectStableTimerRef.current = null
+        }
         stopMicRef.current()
         client?.playback.reset()
         flushSink()
@@ -266,48 +299,54 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
 
   const connect = useCallback(async () => {
     if (clientRef.current || transportRef.current) return
-    // 手动接管：清掉待触发的退避链；自动重连路径不重置计数（autoReconnecting
-    // 由定时器回调置位），否则每次 connect 都把 attempt 清零=退避链永不耗尽。
-    if (reconnectTimerRef.current != null) {
-      window.clearTimeout(reconnectTimerRef.current)
-      reconnectTimerRef.current = null
-    }
-    if (!autoReconnectingRef.current) reconnectAttemptRef.current = 0
+    if (connectingRef.current) return
+    connectingRef.current = true
     try {
-      await ensureSink()
-    } catch (err) {
-      // 播放引擎起不来必须可见（开麦/播报都依赖 sink；此前 void 吞异常=按钮无反应）
-      setNote(`音频引擎初始化失败: ${err instanceof Error ? err.message : String(err)}`)
-      return
+      // 手动接管：清掉待触发的退避链；自动重连路径不重置计数（autoReconnecting
+      // 由定时器回调置位），否则每次 connect 都把 attempt 清零=退避链永不耗尽。
+      if (reconnectTimerRef.current != null) {
+        window.clearTimeout(reconnectTimerRef.current)
+        reconnectTimerRef.current = null
+      }
+      if (!autoReconnectingRef.current) reconnectAttemptRef.current = 0
+      try {
+        await ensureSink()
+      } catch (err) {
+        // 播放引擎起不来必须可见（开麦/播报都依赖 sink；此前 void 吞异常=按钮无反应）
+        setNote(`音频引擎初始化失败: ${err instanceof Error ? err.message : String(err)}`)
+        return
+      }
+      // url 实时读 optsRef（实验页改 URL 后免重渲染即连）
+      const targetUrl = optsRef.current.url ?? DEFAULT_URL
+      let transport: VoiceTransport
+      try {
+        transport = optsRef.current.transportFactory
+          ? optsRef.current.transportFactory(targetUrl)
+          : adaptWs(new WebSocket(targetUrl))
+      } catch (err) {
+        setNote(`连接失败: ${err instanceof Error ? err.message : String(err)}`)
+        return
+      }
+      if (!mountedRef.current) {
+        transport.close()
+        return
+      }
+      // 新会话清掉上一连接的可视账；聊天持久化不在这里删除。
+      setPhase('idle')
+      setTranscripts([])
+      setPartial('')
+      setAssistantText('')
+      setPbText('')
+      setConnected(false)
+      connectedRef.current = false
+      speechStartRef.current = 0
+      responseIdRef.current = ''
+      setNote('连接中…')
+      transportRef.current = transport
+      clientRef.current = buildClient(transport)
+    } finally {
+      connectingRef.current = false
     }
-    // url 实时读 optsRef（实验页改 URL 后免重渲染即连）
-    const targetUrl = optsRef.current.url ?? DEFAULT_URL
-    let transport: VoiceTransport
-    try {
-      transport = optsRef.current.transportFactory
-        ? optsRef.current.transportFactory(targetUrl)
-        : adaptWs(new WebSocket(targetUrl))
-    } catch (err) {
-      setNote(`连接失败: ${err instanceof Error ? err.message : String(err)}`)
-      return
-    }
-    if (!mountedRef.current) {
-      transport.close()
-      return
-    }
-    // 新会话清掉上一连接的可视账；聊天持久化不在这里删除。
-    setPhase('idle')
-    setTranscripts([])
-    setPartial('')
-    setAssistantText('')
-    setPbText('')
-    setConnected(false)
-    connectedRef.current = false
-    speechStartRef.current = 0
-    responseIdRef.current = ''
-    setNote('连接中…')
-    transportRef.current = transport
-    clientRef.current = buildClient(transport)
   }, [buildClient, ensureSink])
 
   const disconnect = useCallback(() => {
@@ -316,6 +355,10 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
     if (reconnectTimerRef.current != null) {
       window.clearTimeout(reconnectTimerRef.current)
       reconnectTimerRef.current = null
+    }
+    if (reconnectStableTimerRef.current != null) {
+      window.clearTimeout(reconnectStableTimerRef.current)
+      reconnectStableTimerRef.current = null
     }
     reconnectAttemptRef.current = 0
     const client = clientRef.current
@@ -337,6 +380,12 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
   }, [flushSink, pushTail])
 
   const stopMic = useCallback(() => {
+    if (micSilentTimerRef.current != null) {
+      window.clearInterval(micSilentTimerRef.current)
+      micSilentTimerRef.current = null
+    }
+    setMicLevel(0)
+    setMicSilent(false)
     capNodeRef.current?.port.close()
     capNodeRef.current?.disconnect()
     capNodeRef.current = null
@@ -390,7 +439,14 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
       const src = ctx.createMediaStreamSource(stream)
       const node = new AudioWorkletNode(ctx, 'gaea-voice-capture')
       node.port.onmessage = (e) => {
-        clientRef.current?.sendAudioChunk(new Int16Array(e.data))
+        const data: unknown = e.data
+        if (data && typeof data === 'object' && '__gaeaLevel' in (data as Record<string, unknown>)) {
+          const lv = Number((data as Record<string, unknown>).__gaeaLevel) || 0
+          setMicLevel(lv)
+          if (lv > 0.02) lastSoundTsRef.current = Date.now()
+          return
+        }
+        clientRef.current?.sendAudioChunk(new Int16Array(data as ArrayBuffer))
       }
       src.connect(node)
       at('state')
@@ -398,6 +454,15 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
       capStreamRef.current = stream
       capNodeRef.current = node
       setMicOn(true)
+      lastSoundTsRef.current = Date.now()
+      setMicSilent(false)
+      if (micSilentTimerRef.current != null) window.clearInterval(micSilentTimerRef.current)
+      micSilentTimerRef.current = window.setInterval(() => {
+        // 开麦 + 已连接 + 持续 3s 无信号 = 哑麦诚实提示（虚拟设备/选错设备/静音）
+        setMicSilent(
+          connectedRef.current && Date.now() - lastSoundTsRef.current > 3000,
+        )
+      }, 1000)
       pushTail('采集开始（20ms/320 Int16@16k）')
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -451,10 +516,8 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
       serviceSnapshotRef.current = { ready, error, stage }
       if (mountedRef.current) {
         setServices({
-          sidecar: st.sidecar === true,
-          llm: st.llm === true,
+          realtime: st.realtime === true,
           breeze: st.breeze === true,
-          gateway: st.gateway === true,
           ready,
           error,
         })
@@ -485,9 +548,9 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
         if (ready) setNote('')
         return ready
       }
-      // sidecar 首次加载 Paraformer/Smart Turn 实测可超过 90s；与后端 180s
+      // Go 原生引擎首次装配（模型加载）与 breeze 冷启实测可超过 90s；与后端
       // 硬超时同口径，保持进度可见；一旦后端回报终止错误立即停轮询，不能让
-      // 缺脚本/缺 venv 的失败仍把按钮锁满三分钟。
+      // 依赖缺失的失败仍把按钮锁满三分钟。
       for (let i = 0; i < 60; i++) {
         await new Promise((r) => setTimeout(r, 3000))
         if (!mountedRef.current) return false
@@ -626,6 +689,10 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
         window.clearTimeout(reconnectTimerRef.current)
         reconnectTimerRef.current = null
       }
+      if (reconnectStableTimerRef.current != null) {
+        window.clearTimeout(reconnectStableTimerRef.current)
+        reconnectStableTimerRef.current = null
+      }
       void capCtxRef.current?.close()
       void sinkCtxRef.current?.close()
       capStreamRef.current?.getTracks().forEach((t) => t.stop())
@@ -639,7 +706,7 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
 
   return {
     phase, transcripts, partialTranscript: partial, assistantText,
-    pbText, tail, connected, micOn, note, services, ensuring,
+    pbText, tail, connected, micOn, micLevel, micSilent, note, services, ensuring,
     connect, disconnect, startMic, stopMic, cancel, abortInFlight,
     ensureServices, refreshServices, replayEvents,
   }

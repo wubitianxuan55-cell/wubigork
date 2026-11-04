@@ -30,40 +30,12 @@ export function VoiceApplySettings(arg1) {
   return window['go']['app']['VoiceB']['VoiceApplySettings'](arg1);
 }
 
-export function VoiceCancelTTS() {
-  return window['go']['app']['VoiceB']['VoiceCancelTTS']();
-}
-
-export function VoiceChatText(arg1) {
-  return window['go']['app']['VoiceB']['VoiceChatText'](arg1);
-}
-
 export function VoiceGetSettings() {
   return window['go']['app']['VoiceB']['VoiceGetSettings']();
 }
 
 export function VoiceHealth() {
   return window['go']['app']['VoiceB']['VoiceHealth']();
-}
-
-export function VoicePlaybackDone() {
-  return window['go']['app']['VoiceB']['VoicePlaybackDone']();
-}
-
-export function VoicePushAudio(arg1) {
-  return window['go']['app']['VoiceB']['VoicePushAudio'](arg1);
-}
-
-export function VoiceSetPTTActive(arg1) {
-  return window['go']['app']['VoiceB']['VoiceSetPTTActive'](arg1);
-}
-
-export function VoiceStart(arg1) {
-  return window['go']['app']['VoiceB']['VoiceStart'](arg1);
-}
-
-export function VoiceStop() {
-  return window['go']['app']['VoiceB']['VoiceStop']();
 }
 
 export function VoiceV2AbortTurn(arg1) {

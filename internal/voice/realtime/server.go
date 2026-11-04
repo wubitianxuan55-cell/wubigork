@@ -17,11 +17,19 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
+
+// voiceSessionIdleTakeover 占位会话空闲接管阈值。占位连接可能是孤儿（客户端已
+// 丢弃引用但从未 close——浏览器仍代回 pong，读超时 60s 永远杀不掉），表现为会话
+// 槽被永久占用、后续所有连接被 session_limit_reached 弹回=语音台无限重连卡死。
+// 判据：活跃会话（开麦）每 20ms 上行音频帧永不空闲；静麦闲置会话在有人新连接
+// 时让位=换台语义。2026-11-04 实弹三次重启同一死局后的自愈刀。
+const voiceSessionIdleTakeover = 60 * time.Second
 
 // Handler 管线接缝：session 生命周期事件下沉点。
 type Handler interface {
@@ -58,6 +66,12 @@ type Session struct {
 	done    chan struct{}
 	closeMu sync.Mutex
 	closed  bool
+	// lastInbound 最近一次客户端帧（UnixNano，dispatch 刷新）。孤儿连接只有
+	// 浏览器协议层 pong、零应用帧，据此与服务端读超时（pong 会喂）区分开。
+	lastInbound atomic.Int64
+	// exit handleWS 全程（含 readLoop 与 OnSessionEnd）完成后关闭。空闲接管
+	// 必须等它：OnSessionEnd 是管线全量重置，晚到会抹掉新会话已写入的配置。
+	exit chan struct{}
 }
 
 // Config 会话配置快照（读并发安全）。
@@ -139,29 +153,56 @@ var upgrader = websocket.Upgrader{
 }
 
 func (srv *Server) handleWS(w http.ResponseWriter, r *http.Request) {
-	srv.mu.Lock()
-	if srv.cur != nil {
-		srv.mu.Unlock()
-		conn, err := upgrader.Upgrade(w, r, nil)
-		if err == nil {
-			_ = conn.WriteJSON(evError("session_limit_reached"))
-			_ = conn.WriteControl(websocket.CloseMessage,
-				websocket.FormatCloseMessage(1008, "session_limit_reached"),
-				time.Now().Add(time.Second))
-			_ = conn.Close()
+	for {
+		srv.mu.Lock()
+		if srv.cur == nil {
+			break // 空槽在手（保持持锁），落到下方抢占
 		}
-		return
+		idle := time.Since(time.Unix(0, srv.cur.lastInbound.Load()))
+		if idle <= voiceSessionIdleTakeover {
+			srv.mu.Unlock()
+			conn, err := upgrader.Upgrade(w, r, nil)
+			if err == nil {
+				// 拒绝必须留痕：2026-11-04 卡死排查时服务端对弹连完全静默，
+				// 只能靠前端倒推。idle 一并记录，便于区分活会话与僵尸占位。
+				slog.Warn("voice realtime 拒绝第二连接（会话池=1）", "incumbent_idle", idle.Round(time.Millisecond))
+				_ = conn.WriteJSON(evError("session_limit_reached"))
+				_ = conn.WriteControl(websocket.CloseMessage,
+					websocket.FormatCloseMessage(1008, "session_limit_reached"),
+					time.Now().Add(time.Second))
+				_ = conn.Close()
+			}
+			return
+		}
+		// 僵尸占位自愈：占位会话超过阈值零客户端帧=孤儿连接（浏览器 pong
+		// 保活使其对读超时免疫），收走会话槽放行新连接，旧连接异步关闭。
+		// 必须等旧会话 epilogue（OnSessionEnd 全量重置）走完再放行，
+		// 否则晚到的重置会抹掉新会话已写入的 VAD/voice 配置。
+		stale := srv.cur
+		srv.cur = nil
+		srv.mu.Unlock()
+		slog.Warn("voice realtime 接管空闲占位会话", "stale", stale.ID, "idle", idle.Round(time.Millisecond))
+		stale.Close()
+		select {
+		case <-stale.exit:
+		case <-time.After(5 * time.Second):
+			slog.Warn("voice realtime 等待旧会话退出超时（照常放行）", "stale", stale.ID)
+		}
+		// 重回循环：等待期间可能有别的连接已抢槽
 	}
-	// 抢占会话槽（未升级成功也要清槽）
+	// 抢占会话槽（持锁自循环落入；未升级成功也要清槽）
 	sess := &Session{
 		ID:     "session_" + randHex(16),
 		ConvID: "conv_" + randHex(16),
 		srv:    srv,
 		out:    make(chan map[string]any, 512),
 		done:   make(chan struct{}),
+		exit:   make(chan struct{}),
 	}
+	sess.lastInbound.Store(time.Now().UnixNano())
 	srv.cur = sess
 	srv.mu.Unlock()
+	defer close(sess.exit)
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -246,6 +287,7 @@ func (srv *Server) readLoop(sess *Session) {
 }
 
 func (srv *Server) dispatch(sess *Session, raw []byte) {
+	sess.lastInbound.Store(time.Now().UnixNano())
 	var env clientEnvelope
 	if err := json.Unmarshal(raw, &env); err != nil || env.Type == "" {
 		sess.Send(evError("invalid event: missing or bad type"))

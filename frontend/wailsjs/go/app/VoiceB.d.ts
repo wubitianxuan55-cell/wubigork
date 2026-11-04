@@ -18,23 +18,9 @@ export function TTSVoicePreviewBase64(arg1:string,arg2:string,arg3:string):Promi
 
 export function VoiceApplySettings(arg1:Record<string, any>):Promise<void>;
 
-export function VoiceCancelTTS():Promise<void>;
-
-export function VoiceChatText(arg1:string):Promise<void>;
-
 export function VoiceGetSettings():Promise<Record<string, any>>;
 
 export function VoiceHealth():Promise<Record<string, any>>;
-
-export function VoicePlaybackDone():Promise<void>;
-
-export function VoicePushAudio(arg1:Array<number>):Promise<void>;
-
-export function VoiceSetPTTActive(arg1:boolean):Promise<void>;
-
-export function VoiceStart(arg1:boolean):Promise<void>;
-
-export function VoiceStop():Promise<void>;
 
 export function VoiceV2AbortTurn(arg1:string):Promise<Record<string, any>>;
 

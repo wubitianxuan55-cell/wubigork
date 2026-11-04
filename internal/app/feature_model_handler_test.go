@@ -157,19 +157,7 @@ func TestSetFeatureModel_RebindReenables(t *testing.T) {
 	}
 }
 
-// TestSetActiveASRModel_Validation 模型不在引擎列表时必须报错（防静默配置无效 ASR）
-func TestSetActiveASRModel_Validation(t *testing.T) {
-	c := newTestCore(t)
-	m := &mediaState{core: c, app: &App{}}
-
-	if err := m.SetActiveASRModel("herdsman", "qwen3-8b"); err != nil {
-		t.Fatalf("合法模型应通过: %v", err)
-	}
-	if err := m.SetActiveASRModel("herdsman", "not-a-model"); err == nil {
-		t.Fatal("无效模型应报错，实际 nil")
-	}
-}
-
+// （TestSetActiveASRModel_Validation 随 V1 语音链退役删除——绑定已不在册）
 // TestGetModelMonitor 启用引擎进入监控列表，isLocal 标记本地/云端
 func TestGetModelMonitor(t *testing.T) {
 	c := newTestCore(t)

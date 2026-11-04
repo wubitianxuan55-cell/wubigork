@@ -314,7 +314,6 @@ export const GAEA_METHOD_FACETS = {
   NovelEvalBaselineSet: "play",
   NovelEvalCompare: "play",
   // 批次二：语音对话文本入口（VoiceB 门面），轻语/语音聊天 play 数据面。
-  VoiceChatText: "play",
   // 批次二：绘梦后端配置（SetImageBackend），同 GetImageBackendInfo/
   // SetPortraitConfig 归 play。
   SetImageBackend: "play",
@@ -326,7 +325,6 @@ export const GAEA_METHOD_FACETS = {
   // 设置写口（SetActiveASRModel/SetActiveTTSModel 激活识别/合成模型、
   // SetChatVoiceModel 功能绑定聊天语音）——同 GetTTSSpeakers/GetVoicePipelineConfig
   // 模型配置读写面，模型中心/语音设置两空间共用 → shared。
-  SetActiveASRModel: "shared",
   SetActiveTTSModel: "shared",
   SetChatVoiceModel: "shared",
   // Breeze 克隆音色管理（Go ImageB breeze_voices_handler.go）：列表/保存/删除
@@ -346,12 +344,6 @@ export const GAEA_METHOD_FACETS = {
   // 角色台词语音文件（内容寻址缓存优先）：试听链同上归 shared。
   TTSLineAudioFor: "shared",
   WhisperClearSession: "play",
-  VoiceStart: "play",
-  VoiceStop: "play",
-  VoicePlaybackDone: "play",
-  VoiceCancelTTS: "play",
-  VoicePushAudio: "play",
-  VoiceSetPTTActive: "play",
   // 批次四 bridge 双轨退役终局（Go VoiceB bindings_voice.go:27）：语音服务健康
   // 状态（语音设置面板「检测」按钮消费）——语音运行时状态面，同启停族归 play。
   VoiceHealth: "play",

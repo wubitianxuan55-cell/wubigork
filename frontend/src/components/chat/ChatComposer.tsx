@@ -23,12 +23,11 @@ export interface ChatComposerProps {
   onInputChange: (v: string) => void
   onKeyDown: (e: React.KeyboardEvent) => void
   inputRef: React.RefObject<React.ComponentRef<typeof Input.TextArea>>
-  voiceOn: boolean
-  voiceTranscript: string
   /** FE6-02：麦克风不可用（hook 降级位）——可选、缺省 false ⇒ 既有调用方零变化。
    *  降级时输入框绝不写「正在聆听…请说话」（用户会对着没插好的麦克风说话），
    *  且必须可打字（否则「请输入文字」写在一个 disabled 的框上，是另一种撒谎）。 */
-  voiceDegraded?: boolean
+  /** 语音台（V2）是否展开（按钮开合态） */
+  voiceOpen: boolean
   onToggleVoice: () => void
   sending: boolean
   forceSearch: boolean
@@ -66,7 +65,7 @@ const ComposerTool: React.FC<{
 
 const ChatComposerInner: React.FC<ChatComposerProps> = ({
   mode, input, onInputChange, onKeyDown, inputRef,
-  voiceOn, voiceTranscript, voiceDegraded = false, onToggleVoice, sending,
+  voiceOpen, onToggleVoice, sending,
   forceSearch, onToggleForceSearch, thinking, onToggleThinking, onSend, onStop, onFillInput,
 }) => (
   <div className="chat-composer-wrap">
@@ -96,15 +95,12 @@ const ChatComposerInner: React.FC<ChatComposerProps> = ({
         ariaLabel={thinking ? '关闭深度思考' : '开启深度思考'}
       />
       <ComposerTool
-        active={voiceOn}
+        active={voiceOpen}
         onClick={onToggleVoice}
         label="语音"
-        icon={voiceOn ? <StopOutlined /> : <AudioOutlined />}
-        // FE6-02：降级时不得再称「聆听」（未在采集音频），按钮语义改为结束语音会话
-        title={voiceDegraded
-          ? '结束语音（麦克风不可用，未在采集音频）'
-          : voiceOn ? '结束聆听' : '语音输入（说话识别为文本对话）'}
-        ariaLabel={voiceDegraded ? '结束语音' : voiceOn ? '结束聆听' : '语音输入'}
+        icon={voiceOpen ? <StopOutlined /> : <AudioOutlined />}
+        title={voiceOpen ? '结束语音会话' : '语音对话（实时语音台）'}
+        ariaLabel={voiceOpen ? '结束语音' : '语音输入'}
       />
       <span className="chat-composer-hint">
         {sending && <span className="chat-composer-running" aria-live="polite">正在生成</span>}
@@ -117,11 +113,8 @@ const ChatComposerInner: React.FC<ChatComposerProps> = ({
         value={input}
         onChange={e => onInputChange(e.target.value)}
         onKeyDown={onKeyDown}
-        placeholder={voiceDegraded
-          ? '麦克风不可用，请输入文字'
-          : voiceOn ? (voiceTranscript || '正在聆听…请说话') : '输入消息…'}
-        // 降级时放行文字输入（语音会话仍开着，但没有音频可采）
-        disabled={sending || (voiceOn && !voiceDegraded)}
+        placeholder='输入消息…'
+        disabled={sending}
         autoSize={{ minRows: 1, maxRows: 6 }}
         className="chat-input-textarea"
         aria-label="聊天消息"
@@ -143,7 +136,7 @@ const ChatComposerInner: React.FC<ChatComposerProps> = ({
             type="primary"
             icon={<SendOutlined />}
             onClick={onSend}
-            disabled={!input.trim() || (voiceOn && !voiceDegraded)}
+            disabled={!input.trim() || sending}
             aria-label="发送"
             className={`chat-send-button${input.trim() ? ' is-ready' : ''}`}
           />

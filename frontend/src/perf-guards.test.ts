@@ -107,12 +107,12 @@ describe('后台空转与流式节流守卫（v4.365）', () => {
     expect(src).not.toContain('setTimeout(r, 14)')
   })
 
-  it('五个常驻 canvas 循环都有隐藏挂起守卫（keepAlive 页后台不烧绘制）', () => {
+  it('四个常驻 canvas 循环都有隐藏挂起守卫（keepAlive 页后台不烧绘制）', () => {
     for (const f of ['components/ParticleFlow.tsx', 'components/SoundWaveOverlay.tsx', 'components/CompanionAvatar.tsx']) {
       const src = read(f)
       expect(src).toMatch(/document\.hidden \|\| canvas\.offsetParent === null/)
     }
-    expect(read('components/VoiceChatOrb.tsx')).toMatch(/document\.hidden \|\| canvasRef\.current\?\.offsetParent === null/)
+    // VoiceChatOrb 随 V1 语音链退役（2026-11-05），守卫名单同步减一
     expect(read('components/RelationGraph.tsx')).toMatch(/document\.hidden \|\| !canvas \|\| canvas\.offsetParent === null/)
   })
 

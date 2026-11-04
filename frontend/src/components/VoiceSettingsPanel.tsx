@@ -1,15 +1,15 @@
 // VoiceSettingsPanel.tsx — 聊天语音设置面板
 
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { Card, Switch, Select, Slider, Button, Typography, Tag, Input, Radio, Collapse, message } from 'antd'
+import { Card, Select, Button, Typography, Tag, Input, Radio, message } from 'antd'
 import { AudioOutlined, ReloadOutlined, CheckCircleOutlined, CloseCircleOutlined, PlusOutlined, WarningOutlined } from '@ant-design/icons'
 import { app } from '../gaea/lib/bridge'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
-import { listMicDevices, loadMicDeviceId, saveMicDeviceId } from '../hooks/useVoiceChat'
+import { listMicDevices, loadMicDeviceId, saveMicDeviceId } from '../utils/micDevices'
 
 const { Text } = Typography
 
-/** 语音服务健康状态（后端 VoiceHealth 动态载荷的最小消费面）。
+/** 语音服务健康状态（后端 VoiceHealth 动态载荷的最小消费面；V1 退役后只剩 TTS/朗读面）。
  *  2026-11-01 诚实化：ttsReady=真实路由第一跳探测（detail 说明），browserAsr=
  *  浏览器识别路径标注（语音对话默认走 WebView2 Web Speech，无需本地模型）。 */
 interface VoiceHealthInfo {
@@ -24,17 +24,13 @@ interface VoiceHealthInfo {
 
 /** VoiceGetSettings 动态载荷（bridge Record<string, unknown>）在本面板的消费面 */
 interface VoiceSettingsInfo {
-  ttsEnabled?: boolean
   ttsVoice?: string
   voiceMode?: string
   interruptThresholdMs?: number
   silenceThresholdMs?: number
-  realtimeProvider?: string
-  realtimeModel?: string
   realtimeHasKey?: boolean
   breezeVoiceDesc?: string
   voiceBackend?: string
-  voiceChatLLM?: string
 }
 
 /** GetVoicePipelineConfig 动态载荷中 TTS 路由读取面（聊天绑定→全局→扫描链） */
@@ -78,21 +74,12 @@ export default function VoiceSettingsPanel() {
   const [checking, setChecking] = useState(false)
 
   // 语音设置
-  const [ttsEnabled, setTtsEnabled] = useState(true)
   const [ttsVoice, setTtsVoice] = useState('zh-CN-YunxiNeural')
   const [ttsModel, setTtsModel] = useState('')
   const [herdsmanVoices, setHerdsmanVoices] = useState<string[]>([])
-  const [voiceMode, setVoiceMode] = useState<'vad' | 'ptt'>('vad')
-  const [interruptMs, setInterruptMs] = useState(500)
-  const [silenceMs, setSilenceMs] = useState(1000)
 
   // 实时语音 Realtime 档（v4.8.1 S1）：provider/model/key（key 回显只有 hasKey 布尔，
   // 明文永不回传前端）
-  const [rtProvider, setRtProvider] = useState('')
-  const [rtModel, setRtModel] = useState('')
-  const [rtKey, setRtKey] = useState('')
-  const [rtHasKey, setRtHasKey] = useState(false)
-  const [rtSaving, setRtSaving] = useState(false)
 
   // 麦克风设备选择（FE6-02 终局配套）：默认设备可能是零信号虚拟音频，
   // 采集侧 getUserMedia 以此为准（localStorage 持久化，前端纯关注点）
@@ -106,35 +93,11 @@ export default function VoiceSettingsPanel() {
   const [breezeStarting, setBreezeStarting] = useState(false)
 
   // ── 语音对话引擎（M4 产品接入刀）：v1 whisper 链 / v2 实时 sidecar ──
-  const [voiceBackend, setVoiceBackend] = useState<'v1' | 'v2'>('v1')
-  // P2 续：V2 对话 LLM 位（空/local-fast=专属快模型 | chat=跟随聊天板块 | qwen35=自管 35B）
-  const [voiceChatLLM, setVoiceChatLLM] = useState<'local-fast' | 'chat' | 'qwen35'>('local-fast')
-  const [qwen35State, setQwen35State] = useState<{ running: boolean; modelReady: boolean; binReady: boolean } | null>(null)
-  const [qwen35Busy, setQwen35Busy] = useState(false)
-  const refreshQwen35 = async () => {
-    try {
-      const st = (await app.Qwen35EngineStatus()) as { running?: boolean; modelReady?: boolean; binReady?: boolean }
-      setQwen35State({ running: !!st.running, modelReady: !!st.modelReady, binReady: !!st.binReady })
-      return !!st.running
-    } catch {
-      return false
-    }
-  }
-  const startQwen35 = async () => {
-    setQwen35Busy(true)
-    try {
-      await app.Qwen35EngineStart()
-      await refreshQwen35()
-    } finally {
-      setQwen35Busy(false)
-    }
-  }
   const [v2Status, setV2Status] = useState<{
-    sidecar: boolean; llm: boolean; breeze: boolean; gateway: boolean; ready: boolean
+    realtime: boolean; breeze: boolean; ready: boolean
     error: string; stage: string
   } | null>(null)
   const [v2Ensuring, setV2Ensuring] = useState(false)
-  const [v2Switching, setV2Switching] = useState(false)
   const v2ErrorRef = useRef('')
 
   const breezeModelId = routeGlobal.engine === 'breeze' && routeGlobal.model ? routeGlobal.model : 'breeze-tts-2'
@@ -146,13 +109,13 @@ export default function VoiceSettingsPanel() {
   const refreshV2Status = async (): Promise<boolean> => {
     try {
       const st = (await app.VoiceV2Status()) as {
-        sidecar?: boolean; llm?: boolean; breeze?: boolean; gateway?: boolean; ready?: boolean
+        realtime?: boolean; breeze?: boolean; ready?: boolean
         error?: string; stage?: string
       }
       v2ErrorRef.current = typeof st.error === 'string' ? st.error.trim() : ''
       setV2Status({
-        sidecar: !!st.sidecar, llm: !!st.llm, breeze: !!st.breeze,
-        gateway: !!st.gateway, ready: !!st.ready,
+        realtime: !!st.realtime, breeze: !!st.breeze,
+        ready: !!st.ready,
         error: v2ErrorRef.current,
         stage: typeof st.stage === 'string' ? st.stage.trim() : '',
       })
@@ -196,20 +159,6 @@ export default function VoiceSettingsPanel() {
       message.error(`拉起失败：${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setV2Ensuring(false)
-    }
-  }
-  const switchVoiceBackend = async (mode: 'v1' | 'v2') => {
-    if (v2Switching) return
-    setV2Switching(true)
-    try {
-      await app.VoiceApplySettings({ voiceBackend: mode })
-      setVoiceBackend(mode)
-      await refreshV2Status()
-      message.success(mode === 'v2' ? '已切 V2 实时档（依赖会按新网关配置重建）' : '已切回 V1（whisper 链）')
-    } catch (err) {
-      message.error(`切换失败：${err instanceof Error ? err.message : String(err)}`)
-    } finally {
-      setV2Switching(false)
     }
   }
 
@@ -371,20 +320,8 @@ export default function VoiceSettingsPanel() {
         app.GetVoicePipelineConfig(),
       ])
       const settings = (v || {}) as VoiceSettingsInfo
-      if (settings.ttsEnabled !== undefined) setTtsEnabled(!!settings.ttsEnabled)
       if (settings.ttsVoice) setTtsVoice(settings.ttsVoice)
-      if (settings.voiceMode) setVoiceMode(settings.voiceMode === 'ptt' ? 'ptt' : 'vad')
-      if (settings.interruptThresholdMs) setInterruptMs(settings.interruptThresholdMs)
-      if (settings.silenceThresholdMs) setSilenceMs(settings.silenceThresholdMs)
-      if (settings.realtimeProvider !== undefined) setRtProvider(String(settings.realtimeProvider || ''))
-      if (settings.realtimeModel !== undefined) setRtModel(String(settings.realtimeModel || ''))
-      if (settings.realtimeHasKey !== undefined) setRtHasKey(!!settings.realtimeHasKey)
       if (settings.breezeVoiceDesc !== undefined) setBreezeDesc(String(settings.breezeVoiceDesc || ''))
-      if (settings.voiceBackend !== undefined) setVoiceBackend(settings.voiceBackend === 'v2' ? 'v2' : 'v1')
-      if (settings.voiceChatLLM !== undefined) {
-        const v = String(settings.voiceChatLLM)
-        setVoiceChatLLM(v === 'chat' || v === 'qwen35' ? v : 'local-fast')
-      }
 
       const p = (pipeline as VoicePipelineInfo | undefined)
       setRouteChat({ engine: p?.chatTts?.engine || '', model: p?.chatTts?.model || '' })
@@ -416,25 +353,6 @@ export default function VoiceSettingsPanel() {
     app.VoiceApplySettings(patch).catch(() => message.error('语音设置保存失败，请重试'))
   }
 
-  // 保存实时语音配置（S1）：key 只在用户填了新值时下发（空=不改动；填空格并
-  // 保存=清除——后端 trim 后落盘），provider/model 即时持久化。
-  const saveRealtime = async () => {
-    setRtSaving(true)
-    try {
-      const patch: Record<string, unknown> = { realtimeProvider: rtProvider, realtimeModel: rtModel }
-      const key = rtKey.trim()
-      if (rtKey !== '') patch.realtimeAPIKey = key // 未输入=不改动已存 key
-      await app.VoiceApplySettings(patch)
-      setRtKey('')
-      const v = await app.VoiceGetSettings()
-      if (v) setRtHasKey(!!v.realtimeHasKey)
-      message.success(rtProvider ? '实时语音配置已保存' : '实时语音已关闭')
-    } catch (_) {
-      message.error('保存失败，请重试')
-    } finally {
-      setRtSaving(false)
-    }
-  }
 
   // 根据当前 TTS 模型决定音色选项：qwen3/customvoice → Herdsman 音色，其余 → Edge 音色
   const isHerdsman = useMemo(() => {
@@ -560,31 +478,21 @@ export default function VoiceSettingsPanel() {
         </Card>
       )}
 
-      {/* 语音对话引擎（M4 产品接入刀）：v1 whisper 链 / v2 实时 sidecar 实验档。
-          V1 全保留（回退=切回 v1）；V2 = VoiceClientV2 → ws://127.0.0.1:8791。 */}
+      {/* 语音对话引擎：V2 实时档唯一（2026-11-05 用户拍板 V1 退役）。
+          Go 原生管线 = 进程内 realtime(8791) + breeze TTS 腿 + 聊天绑定 LLM 腿。 */}
       <Card size="small" style={{ background: 'var(--color-surface-container)', border: '1px solid var(--color-border)', borderRadius: 8 }} bodyStyle={{ padding: 12 }} data-testid="voice-backend-card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-          <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>语音对话引擎</div>
+          <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>语音对话引擎（V2 实时档）</div>
           {v2Status && (
             <Tag color={v2Status.ready ? 'green' : 'default'} style={{ fontSize: 10, margin: 0 }}>
-              V2 依赖 {v2Status.ready ? '就绪' : '未就绪'}
+              依赖 {v2Status.ready ? '就绪' : '未就绪'}
             </Tag>
           )}
         </div>
-        <Radio.Group
-          value={voiceBackend}
-          onChange={(e) => { void switchVoiceBackend(e.target.value as 'v1' | 'v2') }}
-          disabled={v2Switching}
-          style={{ marginBottom: 8 }}
-          data-testid="voice-backend-radio"
-        >
-          <Radio.Button value="v1">V1 拼接管线</Radio.Button>
-          <Radio.Button value="v2">V2 实时（实验）</Radio.Button>
-        </Radio.Group>
-        {voiceBackend === 'v2' && (
+        {(
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>
-              breeze {v2Status?.breeze ? '✓' : '✗'} · 4B {v2Status?.llm ? '✓' : '✗'} · 网关 {v2Status?.gateway ? '✓' : '✗'} · sidecar {v2Status?.sidecar ? '✓' : '✗'}
+              实时管线 {v2Status?.realtime ? '✓' : '✗'} · breeze {v2Status?.breeze ? '✓' : '✗'}
             </span>
             <Button size="small" loading={v2Ensuring} onClick={() => { void ensureV2() }} data-testid="voice-v2-ensure">
               拉起依赖链
@@ -594,39 +502,11 @@ export default function VoiceSettingsPanel() {
                 {v2Status.error || v2Status.stage}
               </div>
             )}
-            {/* P2 续：语音对话模型（voice_chat_llm）。专属快模型=Ensure 拉起的 4B
-                （语音实测 e2e 1.88s）；跟随聊天板块=routeModel("chat")（35B 实测
-                9~13.5s，质量更好但远超语音门限，实验档）。 */}
-            <div style={{ flexBasis: '100%', fontSize: 10, color: 'var(--color-text-secondary)' }}>语音对话模型</div>
-            <Radio.Group
-              size="small"
-              value={voiceChatLLM}
-              onChange={(e) => {
-                const next = e.target.value as 'local-fast' | 'chat' | 'qwen35'
-                setVoiceChatLLM(next)
-                void app.VoiceApplySettings({ voiceChatLLM: next }).catch(() => { setVoiceChatLLM(voiceChatLLM) })
-                if (next === 'qwen35') { void refreshQwen35() }
-              }}
-              data-testid="voice-chat-llm-radio"
-              style={{ flexBasis: '100%' }}
-            >
-              <Radio.Button value="local-fast">专属快模型（推荐）</Radio.Button>
-              <Radio.Button value="qwen35">自管 35B（语音+聊天）</Radio.Button>
-              <Radio.Button value="chat">跟随聊天板块（实验）</Radio.Button>
-            </Radio.Group>
-            {voiceChatLLM === 'qwen35' && (
-              <div style={{ flexBasis: '100%', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>
-                  35B 引擎 {qwen35State?.running ? '✓ 运行中（8124）' : qwen35State && !qwen35State.modelReady ? '✗ gguf 缺失' : '未启动'}
-                </span>
-                <Button size="small" loading={qwen35Busy} onClick={() => { void startQwen35() }} data-testid="voice-qwen35-start">
-                  启动 35B
-                </Button>
-                <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>
-                  聊天板块：模型中心 → 自定义引擎 → 127.0.0.1:8124/v1，再在功能绑定选用
-                </span>
-              </div>
-            )}
+            {/* 刀6：voice_chat_llm radio 随 8792 网关退役——LLM 腿恒走聊天板块
+                功能绑定（模型中心可换绑），语音不再有独立模型档位。 */}
+            <div style={{ flexBasis: '100%', fontSize: 10, color: 'var(--color-text-secondary)' }}>
+              对话模型：跟随聊天板块功能绑定（模型中心 → 功能绑定换绑）
+            </div>
           </div>
         )}
       </Card>
@@ -680,20 +560,6 @@ export default function VoiceSettingsPanel() {
             </span>
           </div>
         )}
-      </Card>
-
-      {/* TTS 开关 */}
-      <Card size="small" style={{ background: 'var(--color-surface-container)', border: '1px solid var(--color-border)', borderRadius: 8 }} bodyStyle={{ padding: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>朗读回复</div>
-            <div style={{ fontSize: 10, color: 'var(--color-text-secondary)', marginTop: 2, opacity: 0.75 }}>AI 回复时自动朗读</div>
-          </div>
-          <Switch size="small" checked={ttsEnabled} onChange={v => {
-            setTtsEnabled(v)
-            applyVoiceSettings({ ttsEnabled: v })
-          }} />
-        </div>
       </Card>
 
       {/* TTS 音色 */}
@@ -979,98 +845,6 @@ export default function VoiceSettingsPanel() {
         </div>
       </Card>
 
-      {/* 输入与灵敏度（2026-11-01 合并：模式+打断+静默一张卡） */}
-      <Card size="small" style={{ background: 'var(--color-surface-container)', border: '1px solid var(--color-border)', borderRadius: 8 }} bodyStyle={{ padding: 12 }}>
-        <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 8 }}>输入与灵敏度</div>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          <Tag.CheckableTag
-            checked={voiceMode === 'vad'}
-            onChange={() => { setVoiceMode('vad'); applyVoiceSettings({ voiceMode: 'vad' }) }}
-            style={{ fontSize: 12, padding: '4px 12px', borderRadius: 6 }}
-          >
-            <AudioOutlined style={{ marginRight: 4 }} /> 自动检测 (VAD)
-          </Tag.CheckableTag>
-          <Tag.CheckableTag
-            checked={voiceMode === 'ptt'}
-            onChange={() => { setVoiceMode('ptt'); applyVoiceSettings({ voiceMode: 'ptt' }) }}
-            style={{ fontSize: 12, padding: '4px 12px', borderRadius: 6 }}
-          >
-            <AudioOutlined /> 按住说话 (PTT)
-          </Tag.CheckableTag>
-        </div>
-        <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 4 }}>
-          打断阈值: {interruptMs}ms
-        </div>
-        <Slider
-          min={100} max={2000} step={100}
-          value={interruptMs}
-          onChange={v => setInterruptMs(v as number)}
-          onAfterChange={v => applyVoiceSettings({ interruptThresholdMs: v })}
-          styles={{ track: { background: '#e85388' } }} // hex-exempt 品牌识别色（阈值轨道）
-        />
-        <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 4, marginTop: 8 }}>
-          静默阈值: {silenceMs}ms
-        </div>
-        <Slider
-          min={200} max={3000} step={100}
-          value={silenceMs}
-          onChange={v => setSilenceMs(v as number)}
-          onAfterChange={v => applyVoiceSettings({ silenceThresholdMs: v })}
-          styles={{ track: { background: '#a855f7' } }} // hex-exempt 品牌识别色（阈值轨道）
-        />
-      </Card>
-      {/* 实时语音 Realtime 档（v4.8.1 S1；2026-11-01 降折叠——功能保留，默认收起） */}
-      <Card size="small" style={{ background: 'var(--color-surface-container)', border: '1px solid var(--color-border)', borderRadius: 8 }} bodyStyle={{ padding: '0 12px' }}>
-        <Collapse
-          ghost
-          items={[{
-            key: 'rt',
-            label: <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>实时语音（实验{rtProvider ? '·已启用' : '·未启用'}）</span>,
-            children: (
-              <>
-                <div style={{ fontSize: 10, color: 'var(--color-text-secondary)', marginBottom: 8, opacity: 0.75 }}>
-                  端到端语音档：OpenAI Realtime API（需 API Key）。未配置时走现拼接管线，互不影响。
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <Select
-                    size="small"
-                    value={rtProvider || 'off'}
-                    onChange={v => setRtProvider(v === 'off' ? '' : v)}
-                    style={{ width: '100%' }}
-                    options={[
-                      { value: 'off', label: '关闭（走现拼接管线）' },
-                      { value: 'openai', label: 'OpenAI Realtime' },
-                    ]}
-                  />
-                  {rtProvider === 'openai' && (
-                    <>
-                      <Input
-                        size="small"
-                        placeholder="模型（如 gpt-realtime）"
-                        value={rtModel}
-                        onChange={e => setRtModel(e.target.value)}
-                      />
-                      <Input.Password
-                        size="small"
-                        placeholder={rtHasKey ? '已配置 Key（输入新值可更换）' : 'API Key（sk-…）'}
-                        value={rtKey}
-                        onChange={e => setRtKey(e.target.value)}
-                        autoComplete="new-password"
-                      />
-                      <div style={{ fontSize: 10, color: 'var(--color-text-secondary)', opacity: 0.75 }}>
-                        Key 经 Windows DPAPI 加密落盘，仅本机可解；界面不回显明文。
-                      </div>
-                    </>
-                  )}
-                  <Button size="small" type="primary" loading={rtSaving} onClick={() => void saveRealtime()}>
-                    保存
-                  </Button>
-                </div>
-              </>
-            ),
-          }]}
-        />
-      </Card>
     </div>
   )
 }

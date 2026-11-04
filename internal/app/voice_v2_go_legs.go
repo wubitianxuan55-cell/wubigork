@@ -1,8 +1,9 @@
-// voice_v2_go_legs.go — Go 原生管线的 LLM/TTS 腿适配（刀5）。
+// voice_v2_go_legs.go — Go 原生管线的 LLM/TTS 腿适配（刀5 引入；刀6 网关退役改进程内）。
 //
-// LLM 腿：直连现役 8792 记忆网关（persona 注入/prepared 台账/功能绑定路由
-// 逐字复用已验证链路；用户拍板「跟随聊天绑定→35B」= voice_chat_llm=chat 配置兑现，
-// 三根 X-Gaea-Voice 头照旧骑行——网关靠它们做轮次关联）。
+// LLM 腿（刀6）：8792 网关退役，人格预推进+prompt 装配原位吸收（applyVoiceV2PreparedPrompt
+// 语义逐字保留：稳定段 system + 【本轮上下文】独立 user 消息插在末条 user 前，保跨轮
+// prefix cache）；路由恒走聊天板块功能绑定（routeModel("chat") 经 ai.Client 流式）——
+// voice_chat_llm 三值 radio 随网关一并退役（用户拍板「LLM 腿=35B 挂聊天功能绑定」）。
 // TTS 腿：直连 breeze 8012 流式 PCM（16k 优先，24k 回退线性重采样）。
 package app
 
@@ -17,90 +18,164 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/voice/realtime"
 )
 
-// voiceLLMLeg 网关 SSE 客户端。
-type voiceLLMLeg struct {
-	base string // http://127.0.0.1:8792/v1
+// voiceNativeLLMLeg 进程内 LLM 腿（原 voiceLLMLeg+8792 网关的组合体）。
+type voiceNativeLLMLeg struct {
+	a *mediaState
 }
 
-// Reply realtime.ResponseLegs 实现。
-func (l voiceLLMLeg) Reply(ctx context.Context, userText string, history []realtime.ChatMessage, turnID string, rev int, itemID string, onDelta func(string)) (string, int, int, error) {
-	type msg struct {
-		Role    string `json:"role"`
-		Content string `json:"content"`
+// Reply realtime.ResponseLegs 实现。生成前预推进人格状态（prepared 台账），
+// 失败/取消回滚，提交由 VoiceV2CommitTurn→takeVoiceV2PreparedTurn 消费——
+// 与网关时代的 prepare/rollback/commit 三角语义完全一致。
+func (l voiceNativeLLMLeg) Reply(
+	ctx context.Context, userText string, history []realtime.ChatMessage,
+	turnID string, rev int, itemID string, onDelta func(string),
+) (string, int, int, error) {
+	userText = strings.TrimSpace(userText)
+	// ① 人格预推进（原网关 handleVoiceV2ChatCompletion 同位；plain/无人格=nil）
+	var prepared *voiceV2PreparedTurn
+	if l.a.app != nil && l.a.app.whisperState != nil {
+		prepared = l.a.app.whisperState.prepareVoiceV2Turn(
+			l.a.currentVoicePersonality(), userText, itemID, turnID, rev,
+		)
 	}
-	msgs := make([]msg, 0, len(history)+1)
-	for _, h := range history {
-		msgs = append(msgs, msg{Role: h.Role, Content: h.Content})
-	}
-	msgs = append(msgs, msg{Role: "user", Content: userText})
-	payload, _ := json.Marshal(map[string]any{
-		"model":    "qwen3-4b", // 网关强制覆写（compat-only，见 voice_v2_gateway）
-		"messages": msgs,
-		"stream":   true,
-	})
-	req, err := http.NewRequestWithContext(ctx, "POST", l.base+"/chat/completions", bytes.NewReader(payload))
+	// ② 消息装配（稳定段/动态段/长期记忆注入，applyVoiceV2PreparedPrompt 同位）
+	msgs := l.assembleMessages(prepared, userText, history)
+	// ③ 聊天板块功能绑定流式（voiceV2ChatLLMStream=网关 chat 腿的可桩点原样骑行）
+	chunks, err := voiceV2ChatLLMStream(ctx, l.a, msgs)
 	if err != nil {
+		l.a.rollbackPrepared(prepared)
 		return "", 0, 0, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer local-spike")
-	// 轮次关联三头（sidecar monkeypatch 的原生等价物——走 HTTP 骑行）
-	req.Header.Set("X-Gaea-Voice-Turn-Id", turnID)
-	if rev >= 0 {
-		req.Header.Set("X-Gaea-Voice-Turn-Revision", strconv.Itoa(rev))
-	}
-	if itemID != "" {
-		req.Header.Set("X-Gaea-Voice-Item-Id", itemID)
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", 0, 0, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return "", 0, 0, fmt.Errorf("网关 %d: %s", resp.StatusCode, string(body))
 	}
 	var full strings.Builder
 	inT, outT := 0, 0
-	sc := bufio.NewScanner(resp.Body)
-	sc.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
-	for sc.Scan() {
-		line := sc.Text()
-		if !strings.HasPrefix(line, "data:") {
-			continue
-		}
-		data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
-		if data == "[DONE]" {
-			break
-		}
-		var chunk struct {
-			Choices []struct {
-				Delta struct {
-					Content string `json:"content"`
-				} `json:"delta"`
-			} `json:"choices"`
-			Usage *struct {
-				PromptTokens     int `json:"prompt_tokens"`
-				CompletionTokens int `json:"completion_tokens"`
-			} `json:"usage"`
-		}
-		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
-			continue
+	for chunk := range chunks {
+		if chunk.Error != "" {
+			l.a.rollbackPrepared(prepared)
+			return full.String(), inT, outT, fmt.Errorf("voice LLM 流式错误: %s", chunk.Error)
 		}
 		if chunk.Usage != nil {
-			inT, outT = chunk.Usage.PromptTokens, chunk.Usage.CompletionTokens
+			inT, outT = int(chunk.Usage.PromptTokens), int(chunk.Usage.CompletionTokens)
 		}
-		if len(chunk.Choices) > 0 && chunk.Choices[0].Delta.Content != "" {
-			full.WriteString(chunk.Choices[0].Delta.Content)
-			onDelta(chunk.Choices[0].Delta.Content)
+		if chunk.Done {
+			break
+		}
+		// reasoning delta 不转发——语音不朗读思考（网关 serveVoiceV2ViaChatModel 同位）
+		if chunk.Content == "" {
+			continue
+		}
+		full.WriteString(chunk.Content)
+		onDelta(chunk.Content)
+	}
+	if ctx.Err() != nil {
+		// barge-in/取消：预推进无人消费，回滚防幽灵（网关客户端断开回滚同位）
+		l.a.rollbackPrepared(prepared)
+		return full.String(), inT, outT, ctx.Err()
+	}
+	return full.String(), inT, outT, nil
+}
+
+// assembleMessages 生成 LLM 消息序列：稳定段 system + 历史 + 【本轮上下文】独立
+// user 消息 + 本轮 user。动态段独立消息（不改写 user 本体）保证 sidecar 历史
+// 逐字节稳定，跨轮公共前缀=[system+全部历史] 全部可复用（P1 缓存命中刀同位）；
+// 角色用 user 而非 system：Qwen3.6 模板拒绝会话中 system，user 角色任何模板都收，
+// 前缀缓存性质不变。plain 会话（prepared=nil）回退只读长期记忆注入。
+func (l voiceNativeLLMLeg) assembleMessages(
+	prepared *voiceV2PreparedTurn, userText string, history []realtime.ChatMessage,
+) []ai.ChatMessage {
+	msgs := make([]ai.ChatMessage, 0, len(history)+3)
+	if prepared != nil {
+		if system := strings.TrimSpace(prepared.pre.SystemPrompt); system != "" {
+			msgs = append(msgs, ai.ChatMessage{Role: "system", Content: "【Gaea 人格与关系稳定设定】\n" + system})
+		}
+	} else if memory := l.a.voiceV2LongTermContext(userText); memory != "" {
+		msgs = append(msgs, ai.ChatMessage{Role: "system", Content: memory})
+	}
+	for _, h := range history {
+		if h.Role == "" || h.Content == "" {
+			continue
+		}
+		msgs = append(msgs, ai.ChatMessage{Role: h.Role, Content: h.Content})
+	}
+	if prepared != nil {
+		if dynamic := strings.TrimSpace(prepared.pre.DynamicContext); dynamic != "" {
+			// 管线 history 已剥离末条 user（llmStage：末条 user 由本次请求携带），
+			// 插在 history 与本轮 user 之间=网关「末条 user 之前」同位。
+			msgs = append(msgs, ai.ChatMessage{Role: "user", Content: "【本轮上下文】\n" + dynamic + "\n【本轮上下文结束】"})
 		}
 	}
-	return full.String(), inT, outT, sc.Err()
+	msgs = append(msgs, ai.ChatMessage{Role: "user", Content: userText})
+	return msgs
+}
+
+// rollbackPrepared LLM 腿失败路径的预推进回滚（原网关退出路径同位）。
+func (a *mediaState) rollbackPrepared(prepared *voiceV2PreparedTurn) {
+	if prepared == nil || a.app == nil || a.app.whisperState == nil {
+		return
+	}
+	a.app.whisperState.rollbackVoiceV2PreparedTurn(prepared)
+}
+
+// voiceV2LongTermContext plain 会话（无人格预推进）的只读长期记忆注入段：
+// 触发词命中+高权重/核心记忆，总预算压在一段短提示内（首轮 prefill 不被回忆拖长）。
+func (a *mediaState) voiceV2LongTermContext(userMsg string) string {
+	if a.app == nil || a.app.whisperState == nil {
+		return ""
+	}
+	pid := strings.TrimSpace(a.currentVoicePersonality())
+	if pid == "" || pid == "plain" {
+		return ""
+	}
+	orch := a.app.whisperState.getOrCreateOrch(pid)
+	if orch == nil || orch.FactStore == nil {
+		return ""
+	}
+	candidates := append(orch.FactStore.SearchByTriggers(userMsg), orch.FactStore.SelectForInjection(1200, 0.55, 0, 50)...)
+	candidates = append(candidates, orch.FactStore.SelectCoreFacts(4)...)
+	seen := map[string]bool{}
+	var lines []string
+	used := 0
+	for _, f := range candidates {
+		if f == nil || !f.IsActive() || seen[f.ID] {
+			continue
+		}
+		seen[f.ID] = true
+		summary := strings.TrimSpace(f.Summary)
+		if summary == "" {
+			continue
+		}
+		line := "- " + summary
+		runes := len([]rune(line))
+		if used+runes > 900 || len(lines) >= 8 {
+			break
+		}
+		lines = append(lines, line)
+		used += runes + 1
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+	return "【Gaea 长期记忆（只读，可能过时；自然接续，不要逐条复述）】\n" + strings.Join(lines, "\n")
+}
+
+// voiceV2ChatLLMStream 语音对话「跟随聊天板块」腿的可桩点（测试替身注入）。
+var voiceV2ChatLLMStream = func(ctx context.Context, a *mediaState, msgs []ai.ChatMessage) (<-chan ai.SSEChunk, error) {
+	if a.clientRef() == nil {
+		return nil, fmt.Errorf("AI 客户端未初始化")
+	}
+	eng, model, _ := a.routeModel("chat")
+	if model == "" {
+		return nil, fmt.Errorf("聊天板块模型不可用")
+	}
+	return a.clientRef().ChatStream(ctx, &ai.ChatRequest{
+		Model: model, EngineID: eng, Feature: "voice_v2",
+		Messages: msgs, Stream: true,
+	})
 }
 
 // voiceTTSLeg breeze 流式合成（16k 优先；24k 回退抽点重采样）。
@@ -120,14 +195,52 @@ func (l voiceTTSLeg) Speak(ctx context.Context, sentence string, onAudio func([]
 		"stream_format":   "sse", // 缺省=裸 PCM 流，SSE 解析器将静音（对齐 streamBreezeTTS）
 		"stream":          true,
 	})
-	req, err := http.NewRequestWithContext(ctx, "POST", l.base+"/audio/speech", bytes.NewReader(payload))
-	if err != nil {
-		return err
+	newReq := func() (*http.Request, error) {
+		req, err := http.NewRequestWithContext(ctx, "POST", l.base+"/audio/speech", bytes.NewReader(payload))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		return req, nil
 	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
+	// 共享引擎抢占重试：breeze 同时服务朗读/台词/微信语音，409（generation slot
+	// 全被占）是常态竞争而非故障——400ms/800ms/1600ms 退避各重试一次再放弃。
+	// 一次 409 就丢整句会让整轮响应零音频（R3 判 cancelled=用户听到半句没有）。
+	var resp *http.Response
+	var lastErr error
+	var err error
+	for attempt := 0; attempt < 4; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(time.Duration(400*(1<<(attempt-1))) * time.Millisecond):
+			}
+		}
+		req, rerr := newReq()
+		if rerr != nil {
+			return rerr
+		}
+		resp, err = http.DefaultClient.Do(req)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		if resp.StatusCode == http.StatusConflict {
+			body, _ := io.ReadAll(io.LimitReader(resp.Body, 256))
+			_ = resp.Body.Close()
+			lastErr = fmt.Errorf("breeze 409: %s", string(body))
+			resp = nil
+			continue
+		}
+		lastErr = nil
+		break
+	}
+	if lastErr != nil {
+		return fmt.Errorf("breeze 不可用（重试后仍失败）: %w", lastErr)
+	}
+	if resp == nil {
+		return fmt.Errorf("breeze 不可用（重试耗尽）")
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -211,7 +324,7 @@ func (l voiceTTSLeg) Speak(ctx context.Context, sentence string, onAudio func([]
 
 // voiceResponseLegs LLM+TTS 组合腿。
 type voiceResponseLegs struct {
-	llm voiceLLMLeg
+	llm voiceNativeLLMLeg
 	tts voiceTTSLeg
 }
 

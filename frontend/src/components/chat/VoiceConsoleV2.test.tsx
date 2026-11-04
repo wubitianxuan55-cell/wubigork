@@ -41,13 +41,13 @@ vi.mock('../../voice/runtime/useVoiceChatV2', () => ({
       tail: runtimeState.tail,
       connected: runtimeState.connected,
       micOn: runtimeState.micOn,
+      micLevel: 0,
+      micSilent: false,
       note: runtimeState.note,
       ensuring: runtimeState.ensuring,
       services: {
-        sidecar: runtimeState.ready,
-        llm: runtimeState.ready,
+        realtime: runtimeState.ready,
         breeze: runtimeState.ready,
-        gateway: runtimeState.ready,
         ready: runtimeState.ready,
         error: '',
       },
@@ -126,12 +126,12 @@ describe('VoiceConsoleV2', () => {
     expect(screen.getByTestId('vc2-mic').textContent).toContain('开始聆听')
   })
 
-  it('sidecar 未就绪显示警示与拉起钮', () => {
+  it('依赖未就绪显示警示与拉起钮', () => {
     runtimeState.ready = false
     renderConsole()
     expect(screen.getByTestId('vc2-ensure').textContent).toContain('启动本地语音')
     expect(screen.getByTestId('vc2-warn').textContent).toContain('依赖待准备')
-    expect(screen.getByRole('heading', { name: '准备本地语音' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: '装配本地语音' })).toBeTruthy()
   })
 
   it('依赖拉起中按钮禁用并显示明确进度态，防止重复点满屏轮询', () => {
@@ -281,7 +281,7 @@ describe('VoiceConsoleV2', () => {
     expect(screen.getByTestId('vc2-bar-mic')).toBeTruthy()
     expect(screen.getByTestId('vc2-bar-cancel')).toBeTruthy()
     expect(screen.getByTestId('vc2-bar-expand')).toBeTruthy()
-    expect(document.querySelectorAll('.vc2-bar-health i.is-online')).toHaveLength(4)
+    expect(document.querySelectorAll('.vc2-bar-health i.is-online')).toHaveLength(2)
     // 整幅专有区不存在=工作区仍归聊天流
     expect(screen.queryByTestId('vc2-transcripts')).toBeNull()
   })
@@ -306,7 +306,7 @@ describe('VoiceConsoleV2', () => {
     const phase = document.querySelector('.vc2-bar-phase')
     expect(phase?.getAttribute('role')).toBe('status')
     expect(phase?.getAttribute('aria-atomic')).toBe('true')
-    expect(screen.getByLabelText('语音服务 4/4 就绪')).toBeTruthy()
+    expect(screen.getByLabelText('语音服务 2/2 就绪')).toBeTruthy()
   })
 
   it('P1.5 bar 结束=关会话，与整幅关闭同一 onClose 路径', () => {

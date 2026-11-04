@@ -11,11 +11,11 @@ type VoiceMethods = Pick<
   | "VoiceApplySettings"
   | "WhisperGetState" | "WhisperGetFacts" | "WhisperGetTraces"
   | "WhisperDeleteFact" | "WhisperUpdateFact"
-  // 批次二 legacy 直调转正（VoiceB 门面）：设置读 + 语音对话文本。
-  | "VoiceGetSettings" | "VoiceChatText"
-  // 批次三a legacy 直调转正（VoiceB 门面）：语音运行时族 + 轻语清会话 + TTS base64 合成。
-  | "VoiceStart" | "VoiceStop" | "VoicePlaybackDone" | "VoiceCancelTTS"
-  | "VoicePushAudio" | "VoiceSetPTTActive" | "WhisperClearSession"
+  // 批次二 legacy 直调转正（VoiceB 门面）：设置读（V1 对话文本绑定已随链退役）。
+  | "VoiceGetSettings"
+  // 批次三a legacy 直调转正（VoiceB 门面）：轻语清会话 + TTS base64 合成
+  // （语音运行时族 VoiceStart/Stop/PushAudio/PTT/CancelTTS 已随 V1 退役）。
+  | "WhisperClearSession"
   | "TTSSpeakBase64" | "TTSSpeakBase64WithParams"
   // 角色档案试听段（角色库编辑器/检查器试听钮消费；显式音色/描述覆盖合成）。
   | "TTSVoicePreviewBase64"
@@ -63,28 +63,6 @@ export function buildVoice(): VoiceMethods {
     async VoiceGetSettings() {
       // 未配置语音设置：空对象（消费方 ?? 兜底，不编造引擎/参数）。
       return {};
-    },
-    async VoiceChatText(_text: string) {
-      // mock: no-op——浏览器开发无语音服务实例（真实实现把文本送入语音对话管线）。
-    },
-    // ── 批次三a legacy 直调转正（Go VoiceB，同名前缀）────────────────
-    async VoiceStart(_browserASR: boolean) {
-      // mock: no-op——浏览器开发无语音会话实例可启动（真实实现按 browserASR 启停）。
-    },
-    async VoiceStop() {
-      // mock: no-op——同 VoiceStart，无会话可停。
-    },
-    async VoicePlaybackDone() {
-      // mock: no-op——无播放中的 TTS 音频，回执空转。
-    },
-    async VoiceCancelTTS() {
-      // mock: no-op——无待合成队列可取消。
-    },
-    async VoicePushAudio(_chunk: string) {
-      // mock: no-op——无语音服务接收音频块（真实实现把 base64 解码 []byte 推送）。
-    },
-    async VoiceSetPTTActive(_active: boolean) {
-      // mock: no-op——无 PTT 会话态可设置。
     },
     async WhisperClearSession(_personalityID: string) {
       // mock: no-op——无真实轻语会话可清空（消费方按成功语义继续，不编造记忆）。

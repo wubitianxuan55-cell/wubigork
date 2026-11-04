@@ -26,10 +26,10 @@ const bridgeMocks = vi.hoisted(() => ({
     SetChatVoiceModel: vi.fn(async () => undefined),
     StartLocalTTSService: vi.fn(async () => ({ ready: false, starting: true })),
     VoiceV2Status: vi.fn(async () => ({
-      sidecar: false, llm: false, breeze: true, gateway: false, ready: false,
+      realtime: false, breeze: true, ready: false,
     })),
     VoiceV2Ensure: vi.fn(async () => ({ ready: false, starting: true })),
-    VoiceV2Stop: vi.fn(async () => ({ sidecar: false, llm: false })),
+    VoiceV2Stop: vi.fn(async () => ({ realtime: true })),
     CharacterList: vi.fn(async () => ({ items: [] as Array<Record<string, unknown>> })),
     CharacterGet: vi.fn(async () => ({ character: {} })),
     CharacterSave: vi.fn(async () => undefined),
@@ -127,16 +127,11 @@ describe('VoiceSettingsPanel 语音对话引擎卡（M4 产品接入刀）', () 
   })
   afterEach(cleanup)
 
-  it('默认 v1；切 V2 调 VoiceApplySettings 并显示依赖链拉起', async () => {
+  it('V2 恒定：后端卡直出依赖链拉起（v1/v2 radio 已随 V1 退役）', async () => {
     render(wrap(<VoiceSettingsPanel />))
     await waitFor(() => expect(screen.getByTestId('voice-backend-card')).toBeTruthy())
-    expect(screen.queryByTestId('voice-v2-ensure')).toBeNull()
-    const radio = screen.getByTestId('voice-backend-radio')
-    const v2btn = radio.querySelectorAll('label')[1]
-    fireEvent.click(v2btn)
-    await waitFor(() =>
-      expect(bridgeMocks.app.VoiceApplySettings).toHaveBeenCalledWith({ voiceBackend: 'v2' }))
+    expect(screen.queryByTestId('voice-backend-radio')).toBeNull()
     await waitFor(() => expect(screen.getByTestId('voice-v2-ensure')).toBeTruthy())
-    expect(screen.getByText(/breeze ✓ · 4B ✗ · 网关 ✗ · sidecar ✗/)).toBeTruthy()
+    expect(screen.getByText(/实时管线 ✗ · breeze ✓/)).toBeTruthy()
   })
 })

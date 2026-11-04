@@ -94,10 +94,6 @@ export function OpenNovelImagesDir() {
   return window['go']['app']['ImageB']['OpenNovelImagesDir']();
 }
 
-export function SetActiveASRModel(arg1, arg2) {
-  return window['go']['app']['ImageB']['SetActiveASRModel'](arg1, arg2);
-}
-
 export function SetActiveTTSModel(arg1, arg2) {
   return window['go']['app']['ImageB']['SetActiveTTSModel'](arg1, arg2);
 }

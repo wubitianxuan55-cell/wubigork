@@ -187,6 +187,43 @@ func TestSessionLimitReached(t *testing.T) {
 	}
 }
 
+// TestIdleSessionTakeover 僵尸占位自愈：占位会话超过接管阈值零客户端帧（孤儿
+// 连接由浏览器 pong 保活、读超时杀不掉）时，新连接收走会话槽，旧会话走完
+// OnSessionEnd。2026-11-04 实弹：前端并发 connect 竞态造出孤儿会话锁死会话池，
+// 语音台无限重连卡死——服务端必须有自愈出口。
+func TestIdleSessionTakeover(t *testing.T) {
+	h := &recordingHandler{}
+	srv := testServer(t, h)
+	conn1 := dial(t, srv)
+	recvUntil(t, conn1, func(ev map[string]any) bool { return mustType(t, ev) == "session.created" }, 2*time.Second)
+
+	// 把占位会话回拨成僵尸：接管阈值×2 之前无任何客户端帧
+	srv.mu.Lock()
+	srv.cur.lastInbound.Store(time.Now().Add(-2 * voiceSessionIdleTakeover).UnixNano())
+	staleID := srv.cur.ID
+	srv.mu.Unlock()
+
+	conn2 := dial(t, srv)
+	created := recvUntil(t, conn2, func(ev map[string]any) bool {
+		return mustType(t, ev) == "session.created"
+	}, 2*time.Second)
+	sess, _ := created["session"].(map[string]any)
+	if sess == nil || sess["id"] == staleID {
+		t.Fatalf("新连接应接管空闲占位会话: got %v want != %s", created, staleID)
+	}
+	// 新会话可用：session.update 正常应答
+	_ = conn2.WriteJSON(map[string]any{"type": "session.update", "session": json.RawMessage(`{"type":"realtime"}`)})
+	recvUntil(t, conn2, func(ev map[string]any) bool { return mustType(t, ev) == "session.updated" }, 2*time.Second)
+	// 旧会话异步收走：等其 epilogue（OnSessionEnd）落地
+	deadline := time.Now().Add(2 * time.Second)
+	for h.ends == 0 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if h.ends != 1 {
+		t.Fatalf("被接管的旧会话应触发 OnSessionEnd: ends=%d", h.ends)
+	}
+}
+
 func TestEchoResponseChainOrder(t *testing.T) {
 	srv := testServer(t, ProtocolEcho{})
 	conn := dial(t, srv)

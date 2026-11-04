@@ -10,7 +10,6 @@
 package app
 
 import (
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -18,320 +17,16 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gaea/gaea/internal/asr"
 	"github.com/gaea/gaea/internal/characterlib"
 	appconfig "github.com/gaea/gaea/internal/config"
-	"github.com/gaea/gaea/internal/gaea/secure"
-	"github.com/gaea/gaea/internal/modelengine"
-	"github.com/gaea/gaea/internal/realtime"
 	"github.com/gaea/gaea/internal/tts"
 	"github.com/gaea/gaea/internal/voice"
 )
 
-// ── 语音事件名称常量（对齐 Ackem IPC channel 命名） ──
-
-const (
-	VoiceEventState      = "voice:state"
-	VoiceEventTranscript = "voice:transcript"
-	VoiceEventReplyDelta = "voice:reply-delta"
-	VoiceEventTTSAudio   = "voice:tts-audio"
-	VoiceEventTTSSpeak   = "voice:tts-speak-text"
-	VoiceEventTTSCancel  = "voice:tts-speak-cancel"
-	VoiceEventListening  = "voice:listening"
-	VoiceEventThinking   = "voice:thinking"
-)
-
-// ── App 事件发射器适配 ──
-
-// voiceEmitter 实现 voice.EventEmitter，将语音事件桥接到 Wails 前端
-type voiceEmitter struct {
-	app *App
-}
-
-func (e *voiceEmitter) EmitVoiceState(state voice.VoiceState) {
-	e.app.emit(VoiceEventState, map[string]interface{}{"state": string(state)})
-}
-
-func (e *voiceEmitter) EmitVoiceTranscript(text string, isFinal bool) {
-	e.app.emit(VoiceEventTranscript, map[string]interface{}{"text": text, "isFinal": isFinal})
-}
-
-func (e *voiceEmitter) EmitVoiceReply(text string) {
-	e.app.emit("voice:reply", map[string]interface{}{"text": text})
-}
-
-func (e *voiceEmitter) EmitVoiceReplyDelta(text string) {
-	e.app.emit(VoiceEventReplyDelta, map[string]interface{}{"text": text})
-}
-
-func (e *voiceEmitter) EmitVoiceTTSAudio(audio []byte, mimeType string) {
-	e.app.emit(VoiceEventTTSAudio, map[string]interface{}{"audio": audio, "mimeType": mimeType})
-}
-
-func (e *voiceEmitter) EmitVoiceTTSSpeakText(text string) {
-	e.app.emit(VoiceEventTTSSpeak, map[string]interface{}{"text": text})
-}
-
-func (e *voiceEmitter) EmitVoiceTTSCancel() {
-	e.app.emit(VoiceEventTTSCancel, map[string]interface{}{})
-}
-
-func (e *voiceEmitter) EmitVoiceListening(active bool) {
-	e.app.emit(VoiceEventListening, map[string]interface{}{"active": active})
-}
-
-func (e *voiceEmitter) EmitVoiceThinking(active bool) {
-	e.app.emit(VoiceEventThinking, map[string]interface{}{"active": active})
-}
-
-func (e *voiceEmitter) EmitVoiceError(err error) {
-	e.app.emit("voice:error", map[string]interface{}{"error": err.Error()})
-}
-
 // ── 初始化 ──
 
 // initVoice 初始化语音管理器（在 Startup 中调用）
-func (a *mediaState) initVoice() {
-	config := voice.DefaultVoiceConfig()
-	if v := strings.TrimSpace(a.activeTTSVoice); v != "" {
-		config.TTSVoice = v
-	}
-	if v := strings.TrimSpace(a.currentVoicePersonality()); v != "" {
-		config.PersonalityPresetID = v
-	}
-	// Voice V2 档：落盘的后端选择（空 = v1 缺省）
-	if a.cfg != nil {
-		if v := strings.TrimSpace(a.cfg.GetVoiceBackend()); v != "" {
-			config.VoiceBackend = v
-		}
-	}
-	// S1 沿用：从 ~/.gaea_config.json 读取 realtime_provider / realtime_model /
-	// realtime_api_key 三项落盘值注入运行时配置（APIKey 存储口径为
-	// secure.EncryptString 密文，这里解出内存明文；解密失败 → 告警 + 置空，
-	// realtimeReady 将为 false）。Provider 为空（未配置）→ 三项零填入，现拼接
-	// 管线零变化。会话构造与注入在 NewManager 之后进行（见下方 S2 块）。
-	if provider, model, apiKey := a.realtimeRuntimeCfg(); provider != "" {
-		config.RealtimeProvider = provider
-		config.RealtimeModel = model
-		config.RealtimeAPIKey = apiKey
-	}
-	emitter := &voiceEmitter{app: a.app}
-	a.voiceManager = voice.NewManager(emitter, config)
 
-	// 设置 ASR 客户端（模型中心 STT 模型路由）
-	a.applyASRClient()
-
-	// 设置 whisper 对话回调（默认轻语人格对话，使用搜索增强版，语音也能上网查）
-	a.setWhisperChatFn()
-
-	// 设置 TTS 合成回调（seam 消费者：经 synthesizeVoiceTTS → tryEngineTTS /
-	// TTSSpeakBase64 统一路由到 TTS 提供者注册表）
-	a.voiceManager.SetTTSSynthesizeFn(func(text, voiceDescription string) ([]byte, string, error) {
-		return a.synthesizeVoiceTTS(text, voiceDescription)
-	})
-	a.voiceManager.SetTTSStreamSynthesizeFn(func(
-		ctx context.Context,
-		text, voiceDescription string,
-		onAudio func([]byte, string) error,
-	) error {
-		return a.streamVoiceTTS(ctx, text, voiceDescription, onAudio)
-	})
-
-	// S2 Realtime：provider 配置时经注册表构造真实会话注入 Manager（替换 S1
-	// 纯探测——探测只证明"可构造"，注入后 VoiceStart 时才拨号激活端到端事件
-	// 环）。构造失败（含解密失败置空 Key）→ 优雅降级仅告警，不崩、不阻塞现有
-	// 语音，拼接管线零变化；未配置（Provider 空）→ 完全跳过。
-	if config.RealtimeProvider != "" {
-		if sess, err := realtime.New(config.RealtimeProvider, realtime.Config{
-			Model:  config.RealtimeModel,
-			APIKey: config.RealtimeAPIKey,
-		}); err != nil {
-			slog.Warn("Realtime 会话构造失败，回退拼接语音管线", "kind", config.RealtimeProvider, "error", err)
-		} else {
-			a.voiceManager.SetRealtimeSession(sess)
-			slog.Info("Realtime 会话已注入（S2：VoiceStart 时拨号激活端到端模式）", "kind", config.RealtimeProvider, "model", config.RealtimeModel)
-		}
-	}
-
-	slog.Info("语音管理器已初始化")
-}
-
-// realtimeRuntimeCfg 读取落盘 Realtime 配置并解密 API Key（S1 接线共用：
-// initVoice 注入 + VoiceHealth 实时就绪判定，与 initVoice 探测结论一致）。
-// realtime_api_key 存储口径 = secure.EncryptString 密文；解密失败 → slog.Warn
-// 并返回空 Key（降级不崩，realtimeReady 将为 false）。Provider 为空（未配置）
-// → 返回零值，调用方按现状零变化处理。
-func (a *mediaState) realtimeRuntimeCfg() (provider, model, apiKey string) {
-	if a == nil || a.cfg == nil {
-		return "", "", ""
-	}
-	provider = strings.TrimSpace(a.cfg.GetRealtimeProvider())
-	if provider == "" {
-		return "", "", ""
-	}
-	model = strings.TrimSpace(a.cfg.GetRealtimeModel())
-	dec, err := secure.DecryptString(a.cfg.GetRealtimeAPIKey())
-	if err != nil {
-		slog.Warn("Realtime API Key 解密失败，实时语音档降级为未就绪", "error", err)
-		return provider, model, ""
-	}
-	return provider, model, dec
-}
-
-// probeRealtime Realtime 档就绪探测（seam 消费者）：未配置（RealtimeProvider 空）
-// → 跳过返回 false（现拼接管线零变化）；配置了但注册表构造失败 → slog.Warn
-// 优雅降级返回 false（不崩、不阻塞现有语音）。注册表构造不做网络 I/O、结果
-// 确定，VoiceHealth.realtimeReady 经此实时计算。S2 起 initVoice 不再用它做
-// 探测（改为构造真实会话注入 Manager），本函数保留供 VoiceHealth 实时就绪
-// 判定。入参三字段由落盘配置 + secure.DecryptString 解密后的明文 Key 填充，
-// 见 realtimeRuntimeCfg。
-func probeRealtime(cfg voice.VoiceRuntimeConfig) bool {
-	kind := strings.TrimSpace(cfg.RealtimeProvider)
-	if kind == "" {
-		return false
-	}
-	if _, err := realtime.New(kind, realtime.Config{
-		Model:  cfg.RealtimeModel,
-		APIKey: cfg.RealtimeAPIKey,
-	}); err != nil {
-		slog.Warn("Realtime 档不可用，回退现拼接语音管线（S0 优雅降级）", "kind", kind, "error", err)
-		return false
-	}
-	return true
-}
-
-// setWhisperChatFn 设置默认对话回调（轻语人格化对话，搜索增强）
-func (a *mediaState) setWhisperChatFn() {
-	a.voiceManager.SetWhisperChatFn(func(userMsg, personalityID string) (string, string, [4]float64, error) {
-		// v4.5 指令中枢（S4.3）：语音文本先过统一意图路由——命中即能力执行，
-		// 回复文本经下方同一 TTS 流程播报；未命中走原轻语对话管道。
-		if a.app != nil {
-			if reply, handled := a.app.routeIntent(userMsg); handled {
-				return reply, "CALM_RATIONAL", [4]float64{}, nil
-			}
-		}
-		result, err := a.app.WhisperChatWithSearch(userMsg, personalityID, false, false)
-		if err != nil {
-			return "", "", [4]float64{}, err
-		}
-		reply, _ := result["reply"].(string)
-		emotion, _ := result["emotion"].(string)
-		if emotion == "" {
-			emotion = "CALM_RATIONAL"
-		}
-		// v4.6 Mood→TTS 闭环：透传 whisper 长期心境 4D EWMA（全 0 = 未播种）。
-		// 语音路径是进程内直调（Go [4]float64）；Wails 绑定路径经 JSON 往返
-		// 是 []float64——两种形态都接。
-		var mood [4]float64
-		switch raw := result["mood"].(type) {
-		case [4]float64:
-			mood = raw
-		case []float64:
-			if len(raw) == 4 {
-				copy(mood[:], raw)
-			}
-		}
-		return reply, emotion, mood, nil
-	})
-
-	// 低延迟语音链：模型正文边生成边交给 VoiceManager，首句完成即进入 TTS。
-	// 阻塞回调保留为兼容路径与旧测试 seam。
-	a.voiceManager.SetWhisperChatStreamFn(func(
-		ctx context.Context,
-		userMsg, personalityID string,
-		onDelta func(string),
-	) (string, string, [4]float64, error) {
-		if a.app != nil {
-			if reply, handled := a.app.routeIntent(userMsg); handled {
-				if onDelta != nil {
-					onDelta(reply)
-				}
-				return reply, "CALM_RATIONAL", [4]float64{}, nil
-			}
-		}
-		result, err := a.app.whisperChatStream(ctx, userMsg, personalityID, true, false, false, true, onDelta, nil)
-		if err != nil {
-			return "", "", [4]float64{}, err
-		}
-		reply, _ := result["reply"].(string)
-		emotion, _ := result["emotion"].(string)
-		if emotion == "" {
-			emotion = "CALM_RATIONAL"
-		}
-		var mood [4]float64
-		switch raw := result["mood"].(type) {
-		case [4]float64:
-			mood = raw
-		case []float64:
-			if len(raw) == 4 {
-				copy(mood[:], raw)
-			}
-		}
-		return reply, emotion, mood, nil
-	})
-}
-
-// applyASRClient 配置 ASR 客户端（模型中心 STT 模型引擎路由）
-
-// applyASRClient 配置 ASR 客户端（模型中心 STT 模型引擎路由）
-// 优先级：用户选中的 STT 模型（模型中心）→ 扫描各引擎 STT 模型 → 默认 herdsman whisper-base
-func (a *mediaState) applyASRClient() {
-	if a.voiceManager == nil || a.engineMgr == nil {
-		return
-	}
-
-	// 1. 用户选中的 ASR 模型（模型中心）
-	if a.activeASREngine != "" && a.activeASRModel != "" {
-		if eng, ok := a.engineMgr.GetEngine(a.activeASREngine); ok && eng.Enabled {
-			a.voiceManager.SetASRProvider(a.newASRProvider(eng.BaseURL, a.activeASRModel))
-			slog.Info("ASR 提供者已配置（用户选择）", "engine", a.activeASREngine, "model", a.activeASRModel)
-			return
-		}
-		slog.Warn("用户选中的 ASR 引擎不可用，自动扫描", "engine", a.activeASREngine)
-	}
-
-	// 2. 扫描所有引擎的 STT 模型
-	for _, eid := range []string{"herdsman", "xai", "deepseek"} {
-		eng, ok := a.engineMgr.GetEngine(eid)
-		if !ok || !eng.Enabled {
-			continue
-		}
-		for _, m := range eng.Models {
-			if isSTTModel(m.ID) {
-				a.voiceManager.SetASRProvider(a.newASRProvider(eng.BaseURL, m.ID))
-				slog.Info("ASR 提供者已配置（自动扫描）", "engine", eid, "model", m.ID)
-				return
-			}
-		}
-	}
-
-	// 3. 默认 herdsman whisper-base
-	if eng, ok := a.engineMgr.GetEngine("herdsman"); ok && eng.Enabled {
-		a.voiceManager.SetASRProvider(a.newASRProvider(eng.BaseURL, "whisper-base"))
-		slog.Info("ASR 提供者已配置（默认）", "baseURL", eng.BaseURL)
-	}
-}
-
-// newASRProvider 经 ASR 注册表构造 herdsman 提供者（seam 消费者；kind 固定
-// "herdsman"——当前唯一实现，后续新增引擎只改注册表，调用方零改动）。
-func (a *mediaState) newASRProvider(baseURL, model string) asr.ASRProvider {
-	p, err := asr.NewASRProvider("herdsman", asr.ASRConfig{BaseURL: baseURL, Model: model})
-	if err != nil {
-		slog.Warn("ASR 提供者构造失败", "error", err)
-		return nil
-	}
-	return p
-}
-
-// isSTTModel 判断模型 ID 是否为语音识别模型。
-// 3.0 Step 3c：委托 modelengine.ClassifyModelByName（Track G 已导出；关键词表与
-// 历史 isSTTModel 完全一致，避免双源漂移）。
-func isSTTModel(id string) bool {
-	return modelengine.ClassifyModelByName(id) == "stt"
-}
-
-// synthesizeVoiceTTS 语音管道专用的 TTS 合成（带情感参数）
-// 优先级：功能绑定「聊天语音」→ 模型中心全局 TTS → TTSSpeakBase64 统一路由
 func (a *mediaState) synthesizeVoiceTTS(text, voiceDescription string) ([]byte, string, error) {
 	// 1. 功能绑定「聊天语音」优先（模型中心 → 功能绑定）
 	if a.chatVoiceEngine != "" && a.chatVoiceModel != "" {
@@ -497,242 +192,26 @@ func (a *mediaState) synthesizeFromBase64(text string) ([]byte, string, error) {
 
 // VoiceStart 启动语音管道。browserASR 为 true 时使用浏览器端
 // Web Speech API 识别（无需 herdsman STT 模型），后端只负责对话与 TTS。
-// S2：realtime 会话在位时以 realtimeReady 为门——输入转写与对话回复都由
-// 服务端完成（事件泵走 response 事件，不经 whisperChatFn/本地 ASR），因此
-// ASRReady 与 WhisperReady 双门都跳过；会话不在位时维持原双门（ASRReady +
-// WhisperReady，拼接管线行为逐字节不变）。
-func (a *mediaState) VoiceStart(browserASR bool) error {
-	if a.voiceManager == nil {
-		a.initVoice()
-	}
-	if a.voiceManager == nil {
-		return fmt.Errorf("语音管理器未初始化")
-	}
-	realtimeMode := a.voiceManager.RealtimeReady()
-	if !browserASR && !realtimeMode {
-		if !a.voiceManager.ASRReady() {
-			return fmt.Errorf("语音识别未就绪：请在模型中心启用 STT 模型（如 whisper-base / funasr-nano）并确认 herdsman 引擎可用，或改用浏览器端语音识别")
-		}
-	}
-	// 端到端实时模式无需 whisper 对话回调（服务端经 response 事件回话）；
-	// 拼接管线才依赖它。浏览器端识别（browserASR）同样依赖 whisper 对话回调
-	// 生成回复，故非 realtime 时门保留。
-	if !realtimeMode && !a.voiceManager.WhisperReady() {
-		return fmt.Errorf("语音对话引擎未就绪，请检查模型中心配置")
-	}
-	return a.voiceManager.Start()
-}
-
-// VoiceChatText 浏览器端识别文本直接进入对话管道（跳过 herdsman ASR）
-func (a *mediaState) VoiceChatText(text string) error {
-	if a.voiceManager == nil {
-		a.initVoice()
-	}
-	if a.voiceManager == nil {
-		return fmt.Errorf("语音管理器未初始化")
-	}
-	a.voiceManager.HandleUserText(text)
-	return nil
-}
-
-// VoicePlaybackDone 前端 TTS 播放完成回调，释放后端状态机继续监听
-func (a *mediaState) VoicePlaybackDone() error {
-	if a.voiceManager == nil {
-		return nil
-	}
-	a.voiceManager.PlaybackDone()
-	return nil
-}
-
-// VoiceStop 停止语音管道
-func (a *mediaState) VoiceStop() error {
-	if a.voiceManager == nil {
-		return nil
-	}
-	a.voiceManager.Stop()
-	return nil
-}
-
-// VoicePushAudio 推送麦克风 PCM 音频块（16kHz/16bit/mono）
-// 对齐 Ackem voice:audio-chunk IPC
-func (a *mediaState) VoicePushAudio(chunk []byte) error {
-	if a.voiceManager == nil {
-		return fmt.Errorf("语音管理器未初始化")
-	}
-	return a.voiceManager.PushAudioChunk(chunk)
-}
-
-// VoiceSetMode 设置语音输入模式
-// mode: "vad" | "ptt" | "off"
-func (a *mediaState) VoiceSetMode(mode string) error {
-	if a.voiceManager == nil {
-		a.initVoice()
-	}
-	config := a.voiceManager.GetConfig()
-	switch mode {
-	case "vad":
-		config.VoiceMode = voice.VoiceModeVAD
-	case "ptt":
-		config.VoiceMode = voice.VoiceModePTT
-	case "off":
-		config.VoiceMode = voice.VoiceModeOff
-	default:
-		return fmt.Errorf("未知模式: %s", mode)
-	}
-	a.voiceManager.ApplyConfig(config)
-	return nil
-}
-
-// VoiceSetInputChannel 设置输入通道
-// channel: "dual" | "voice-only" | "text-only"
-func (a *mediaState) VoiceSetInputChannel(channel string) error {
-	if a.voiceManager == nil {
-		a.initVoice()
-	}
-	config := a.voiceManager.GetConfig()
-	switch channel {
-	case "dual":
-		config.InputChannel = voice.InputDual
-	case "voice-only":
-		config.InputChannel = voice.InputVoiceOnly
-	case "text-only":
-		config.InputChannel = voice.InputTextOnly
-	default:
-		return fmt.Errorf("未知通道: %s", channel)
-	}
-	a.voiceManager.ApplyConfig(config)
-	return nil
-}
-
-// VoiceApplySettings 应用语音设置（对齐 Ackem voice:apply-settings）
 func (a *mediaState) VoiceApplySettings(settings map[string]interface{}) error {
-	if a.voiceManager == nil {
-		a.initVoice()
-	}
-	config := a.voiceManager.GetConfig()
-
-	if v, ok := settings["enabled"].(bool); ok {
-		config.Enabled = v
-	}
-	if v, ok := settings["ttsEnabled"].(bool); ok {
-		config.TTSEnabled = v
-	}
-	if v, ok := settings["voiceMode"].(string); ok {
-		config.VoiceMode = voice.VoiceMode(v)
-	}
-	if v, ok := settings["inputChannel"].(string); ok {
-		config.InputChannel = voice.InputChannel(v)
-	}
+	// V1 拼接链退役（2026-11-05 用户拍板）后，本绑定只剩朗读/音色/人格设定面；
+	// V2 实时档运行参数不经此（VAD 阈值走 session.update，模型路由走功能绑定）。
 	if v, ok := settings["ttsVoice"].(string); ok {
-		config.TTSVoice = v
 		a.activeTTSVoice = v
 		if err := appconfig.Save(appconfig.KeyTTSVoice, v); err != nil {
 			slog.Warn("保存 TTS 音色配置失败", "error", err)
 		}
 	}
-	// 实时语音 Realtime 档（v4.8.1 S1）：provider/model 明文落盘；APIKey 明文进
-	// 内存（本进程实时用）、DPAPI 密文落盘（仅本机可解）。保存失败返回错误——
-	// 静默丢 key 会让「已配置」假象带到下次启动（这里不复用 TTSVoice 的仅告警
-	// 先例，key 属凭据，丢=配置作废）。
-	if v, ok := settings["realtimeProvider"].(string); ok {
-		if err := appconfig.Save(appconfig.KeyRealtimeProvider, v); err != nil {
-			return fmt.Errorf("保存实时语音供应商失败: %w", err)
-		}
-		config.RealtimeProvider = v
-	}
-	if v, ok := settings["realtimeModel"].(string); ok {
-		if err := appconfig.Save(appconfig.KeyRealtimeModel, v); err != nil {
-			return fmt.Errorf("保存实时语音模型失败: %w", err)
-		}
-		config.RealtimeModel = v
-	}
-	if v, ok := settings["realtimeAPIKey"].(string); ok {
-		key := strings.TrimSpace(v)
-		cipher := ""
-		if key != "" {
-			c, err := secure.EncryptString(key)
-			if err != nil {
-				return fmt.Errorf("加密实时语音 Key 失败: %w", err)
-			}
-			cipher = c
-		}
-		if err := appconfig.Save(appconfig.KeyRealtimeAPIKey, cipher); err != nil {
-			return fmt.Errorf("保存实时语音 Key 失败: %w", err)
-		}
-		config.RealtimeAPIKey = key
-	}
-	if v, ok := settings["ttsEngine"].(string); ok {
-		config.TTSEngine = voice.TTSEngine(v)
-	}
-	if v, ok := settings["asrModel"].(string); ok {
-		config.ASRModel = voice.ASRModel(v)
-		// 动态切换 ASR 模型（经注册表构造 herdsman 提供者）
-		if a.voiceManager != nil {
-			eng, engOk := a.engineMgr.GetEngine("herdsman")
-			if engOk && eng.Enabled {
-				a.voiceManager.SetASRProvider(a.newASRProvider(eng.BaseURL, v))
-			}
-		}
-	}
-	if v, ok := settings["interruptThresholdMs"].(float64); ok {
-		config.InterruptThresholdMs = int(v)
-	}
-	if v, ok := settings["silenceThresholdMs"].(float64); ok {
-		config.SilenceThresholdMs = int(v)
-	}
-	// P0a-A3（众神殿定稿）：人格双读者（V2 网关 activePersonalityID vs V1
-	// config.PersonalityPresetID）必须同点生效。setVoicePersonality 原在本
-	// 分支内提前调用，其后 breezeVoiceDesc/personaVoicePresets 任一失败
-	// return 都会形成「V2 已新、V1 仍旧」的半写；先暂存，移到 ApplyConfig
-	// 紧前统一生效，任何错误路径两个读者都不变。
-	var pendingPersonality string
-	havePendingPersonality := false
+	// P0a-A3：人格双读者同点生效——setVoicePersonality（V2 读者）与
+	// KeyVoicePersonality 落盘（朗读/台词读者）在同一成功点翻转。
 	if v, ok := settings["personalityPresetId"].(string); ok {
-		config.PersonalityPresetID = v
-		pendingPersonality = v
-		havePendingPersonality = true
 		if err := appconfig.Save(appconfig.KeyVoicePersonality, v); err != nil {
 			slog.Warn("保存语音角色配置失败", "error", err)
 		}
-	}
-	if v, ok := settings["voiceBackend"].(string); ok {
-		previousBackend := config.VoiceBackend
-		config.VoiceBackend = v
-		config.Validate()
-		// feature flag 落盘（KeyVoicePersonality 同款仅告警先例：非关键路径）
-		if err := appconfig.Save(appconfig.KeyVoiceBackend, config.VoiceBackend); err != nil {
-			slog.Warn("保存语音后端配置失败", "error", err)
-		}
-		if a.cfg != nil {
-			a.cfg.VoiceBackend = config.VoiceBackend
-		}
-		if config.VoiceBackend != previousBackend {
-			// sidecar 的 LLM 上游写在 YAML，运行中不能热改。切档时收掉旧进程，
-			// 让下一次 Ensure 从当前配置重建；4B 一起收，避免路由版本错配。
-			a.VoiceV2Stop()
-		}
-		// 即时生效（2026-11-01 实弹教训：切档不通知=用户在 v1 上测了半天 v2 的锅）：
-		// ChatPage 订阅 voice-backend-changed 热切语音台，不用重开页面。
-		a.emit("voice-backend-changed", map[string]interface{}{"backend": config.VoiceBackend})
-	}
-	if v, ok := settings["voiceChatLLM"].(string); ok {
-		// V2 对话 LLM 位（P1 续刀）：空/local-fast=专属快模型（VoiceV2Ensure
-		// 拉起的 4B），chat=跟随聊天板块模型（routeModel("chat") 经 ai.Client
-		// 流式）。未知值拒绝保存（save 层同校验）；网关逐请求读配置=即时生效。
-		if v != "" && v != "local-fast" && v != "chat" && v != "qwen35" {
-			return fmt.Errorf("voiceChatLLM 仅支持空/local-fast/chat/qwen35（当前值: %s）", v)
-		}
-		if err := appconfig.Save(appconfig.KeyVoiceChatLLM, v); err != nil {
-			slog.Warn("保存语音对话模型配置失败", "error", err)
-		}
-		if a.cfg != nil {
-			a.cfg.VoiceChatLLM = v
-		}
-		a.emit("voice-chat-llm-changed", map[string]interface{}{"llm": v})
+		a.setVoicePersonality(v)
 	}
 	if v, ok := settings["breezeVoiceDesc"].(string); ok {
 		// Breeze voice design 音色描述：只落盘（provider 在 ttsProviderForEngine
-		// 处实时读 cfg，不进 voice 运行时配置——语音对话的人格化描述优先级更高）
+		// 处实时读 cfg，不进 voice 运行时配置）
 		if err := appconfig.Save(appconfig.KeyBreezeVoiceDesc, v); err != nil {
 			return fmt.Errorf("保存 Breeze 音色描述失败: %w", err)
 		}
@@ -768,46 +247,13 @@ func (a *mediaState) VoiceApplySettings(settings map[string]interface{}) error {
 			a.cfg.VoicePersonaPresets = string(b)
 		}
 	}
-
-	// P0a-A3：人格双读者同点生效（见 personalityPresetId 分支注释）；紧贴
-	// ApplyConfig 使 V2 网关读者与 V1 配置读者在同一成功点翻转。
-	if havePendingPersonality {
-		a.setVoicePersonality(pendingPersonality)
-	}
-	a.voiceManager.ApplyConfig(config)
 	return nil
 }
 
-// VoiceGetSettings 获取当前语音设置
 func (a *mediaState) VoiceGetSettings() map[string]interface{} {
-	if a.voiceManager == nil {
-		config := voice.DefaultVoiceConfig()
-		return a.voiceSettingsMap(&config)
+	m := map[string]interface{}{
+		"ttsVoice": a.activeTTSVoice,
 	}
-	config := a.voiceManager.GetConfig()
-	return a.voiceSettingsMap(&config)
-}
-
-// voiceSettingsMap 构建语音设置映射。
-// 2026-11-01 诚实化：退役 TTSHerdsmanModel 展示链（ResolveHerdsmanTTSModel 死链）——
-// 该字段不落盘、不参与合成路由（真实路由=聊天语音绑定→全局 TTS→TTSSpeakBase64
-// 扫描链，见 synthesizeVoiceTTS），展示解析值只会误导（每次回显触发
-// 「resolved=edge-tts」假 fallback 日志）。真实路由前端经 GetVoicePipelineConfig
-// 获取，健康经 VoiceHealth 的 ttsRouteHealth 探测。
-func (a *mediaState) voiceSettingsMap(c *voice.VoiceRuntimeConfig) map[string]interface{} {
-	m := configToMap(c)
-	// P2 续：V2 对话 LLM 位（空/local-fast=专属快模型 | chat=跟随聊天板块）
-	if a.cfg != nil {
-		m["voiceChatLLM"] = a.cfg.VoiceChatLLM
-	} else {
-		m["voiceChatLLM"] = ""
-	}
-	// 实时语音档（S1）：只回 provider/model 与 hasKey 布尔——明文 Key 永不出后端。
-	m["realtimeProvider"] = c.RealtimeProvider
-	m["realtimeModel"] = c.RealtimeModel
-	m["realtimeHasKey"] = c.RealtimeAPIKey != ""
-	// Breeze voice design 音色描述（breeze 引擎音色面板回显用）+ 角色音色预设
-	// （原始 JSON 串，前端解析渲染逐人格行）
 	if a.cfg != nil {
 		m["breezeVoiceDesc"] = a.cfg.BreezeVoiceDesc
 		m["personaVoicePresets"] = a.cfg.VoicePersonaPresets
@@ -891,63 +337,17 @@ func (a *mediaState) herdsmanInstalledModelIDs() []string {
 	return ids
 }
 
-// VoiceCancelTTS 打断当前 TTS 播放（对齐 Ackem voice:cancel-tts）
-func (a *mediaState) VoiceCancelTTS() error {
-	if a.voiceManager == nil {
-		return nil
-	}
-	a.voiceManager.CancelTTS()
-	return nil
-}
-
-// VoiceSetPTTActive PTT 按键按下/释放（对齐 Ackem voice:ptt-active）
-func (a *mediaState) VoiceSetPTTActive(active bool) error {
-	if a.voiceManager == nil {
-		return fmt.Errorf("语音管理器未初始化")
-	}
-	a.voiceManager.SetPTTActive(active)
-	return nil
-}
-
-// VoiceHealth 健康检查（对齐 Ackem voice:health）。
-// 2026-11-01 诚实化：ttsReady 覆写为按真实合成路由第一跳探测（原值只查
-// synthFn 回调注入=恒 true 的假绿）；asrReady 补 browserAsr 标注——语音对话
-// 默认走 WebView2 浏览器识别，后端 ASR provider 只是 PCM 推送路径的依赖。
+// VoiceHealth 健康检查（V1 退役后只剩朗读/TTS 路由面；ttsReady=真实合成路由
+// 第一跳探测，2026-11-01 诚实化口径不变）。
 func (a *mediaState) VoiceHealth() map[string]interface{} {
-	if a.voiceManager == nil {
-		return map[string]interface{}{
-			"asrReady":      false,
-			"ttsReady":      false,
-			"realtimeReady": false,
-			"state":         "idle",
-			"browserAsr":    true,
-			"ttsDetail":     "语音管理器未初始化",
-			"asrDetail":     "语音对话默认走浏览器识别（无需本地模型）",
-		}
-	}
-	hc := a.voiceManager.HealthCheck()
-	// S1 Realtime 档：realtimeReady = 配置了 provider 且 seam 构造成功（经注册
-	// 表实时探测，构造无网络 I/O；未配置恒为 false）。APIKey 以落盘密文解密后
-	// 注入，与 initVoice 探测结论一致。
-	provider, model, apiKey := a.realtimeRuntimeCfg()
-	hc["realtimeReady"] = probeRealtime(voice.VoiceRuntimeConfig{
-		RealtimeProvider: provider,
-		RealtimeModel:    model,
-		RealtimeAPIKey:   apiKey,
-	})
 	ready, detail := a.ttsRouteHealth()
-	hc["ttsReady"] = ready
-	hc["ttsDetail"] = detail
-	hc["browserAsr"] = true
-	hc["asrDetail"] = "语音对话默认走浏览器识别（无需本地模型）；后端 ASR 用于 PCM 推送路径"
-	return hc
+	return map[string]interface{}{
+		"ttsReady":  ready,
+		"state":     "idle",
+		"ttsDetail": detail,
+	}
 }
 
-// ttsRouteHealth 按真实合成路由（聊天语音绑定→全局 TTS→TTSSpeakBase64 扫描
-// 链，优先级对齐 synthesizeVoiceTTS）探测第一跳，返回 (立即可用, 说明)。
-// 只读探测不拉起（拉起是合成路径行为）；本地引擎离线时合成会自动拉起（路
-// 径可走通），但「立即可用」如实报 false——前端红点+「朗读时自动拉起」说明，
-// 不再假绿。
 func (a *mediaState) ttsRouteHealth() (bool, string) {
 	engineID, modelID, hop := "", "", ""
 	switch {
@@ -986,48 +386,12 @@ func (a *mediaState) ttsRouteHealth() (bool, string) {
 }
 
 // VoiceRestartService 重启语音服务（重新检测 ASR/TTS 可用性）
-func (a *mediaState) VoiceRestartService() error {
-	if a.voiceManager != nil {
-		a.voiceManager.Stop()
-	}
-	a.initVoice()
-	return nil
-}
-
-// VoiceGetState 获取当前语音状态
-func (a *mediaState) VoiceGetState() map[string]interface{} {
-	if a.voiceManager == nil {
-		return map[string]interface{}{
-			"active":    false,
-			"listening": false,
-			"speaking":  false,
-			"thinking":  false,
-		}
-	}
-	s := a.voiceManager.GetState()
-	return map[string]interface{}{
-		"active":    s != voice.StateIdle,
-		"listening": s == voice.StateListening,
-		"speaking":  s == voice.StateSpeaking,
-		"thinking":  s == voice.StateThinking,
-		"state":     string(s),
-	}
-}
-
 // ── 工具函数 ──
 
+// configToMap 朗读/音色设置回显面（V1 运行参数已随链退役）。
 func configToMap(c *voice.VoiceRuntimeConfig) map[string]interface{} {
 	return map[string]interface{}{
-		"enabled":              c.Enabled,
-		"ttsEnabled":           c.TTSEnabled,
-		"asrModel":             string(c.ASRModel),
-		"ttsEngine":            string(c.TTSEngine),
-		"ttsVoice":             c.TTSVoice,
-		"voiceMode":            string(c.VoiceMode),
-		"interruptThresholdMs": c.InterruptThresholdMs,
-		"silenceThresholdMs":   c.SilenceThresholdMs,
-		"inputChannel":         string(c.InputChannel),
-		"personalityPresetId":  c.PersonalityPresetID,
-		"voiceBackend":         c.VoiceBackend,
+		"ttsVoice":            c.TTSVoice,
+		"personalityPresetId": c.PersonalityPresetID,
 	}
 }

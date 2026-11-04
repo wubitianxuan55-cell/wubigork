@@ -29,7 +29,15 @@ func (f *fakeLegs) Reply(ctx context.Context, userText string, history []ChatMes
 	return f.reply, 10, 20, nil
 }
 
-func (f *fakeLegs) Speak(_ context.Context, _ string, _ func([]byte)) error { return nil }
+// Speak 生产同形：非空句必产音频（breeze 真腿保证）——零音频只剩 LLM 空回复
+// 一种来源，R3 的 cancelled/empty_output 判定才不误伤正常轮。
+func (f *fakeLegs) Speak(_ context.Context, sentence string, onAudio func([]byte)) error {
+	if sentence == "" || strings.HasSuffix(sentence, "mark") {
+		return nil
+	}
+	onAudio(make([]byte, 6400))
+	return nil
+}
 
 type fakeSTT struct{ text string }
 
@@ -328,5 +336,178 @@ func TestHistoryAnchorWriteBack(t *testing.T) {
 	p.writeAssistantAnchor(rs2, "答x")
 	if p.chat[len(p.chat)-1].Role != "assistant" || p.chat[len(p.chat)-1].Content != "答x" {
 		t.Fatalf("锚点缺失应尾插兜底")
+	}
+}
+
+// TestEmptyOutputResponseCancels — R3（audit 复核池）：LLM 空回复=零音频下行，
+// done 哨兵收口必须 cancelled/empty_output 且 O3 回滚空暂存（不得以
+// completed+空输出谎报完成、不得把空 assistant 留在历史）。
+func TestEmptyOutputResponseCancels(t *testing.T) {
+	legs := &fakeLegs{reply: ""}
+	p := newFakePipeline(t, legs)
+	p.turns.StartTurn()
+	p.turns.SegmentFinalized(1000, 800, 0)
+	p.sttCh <- &VADFinal{Audio: make([]float32, 4096), TurnID: "turn_1", Rev: 0}
+	// 等响应收口（done 哨兵 → finishResponse 墓碑），再断言终态
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if len(p.closedKeys) > 0 {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if len(p.closedKeys) == 0 {
+		t.Fatal("响应未收口（无墓碑）")
+	}
+	if countRoles(p, "assistant") != 0 {
+		t.Fatal("空回复不得留 assistant 条目（O3 回滚）")
+	}
+	if countRoles(p, "user") != 1 {
+		t.Fatalf("user 轮应保留，got %d", countRoles(p, "user"))
+	}
+}
+
+
+// TestTranscriptDeltaOnWire — 线缆契约钉：LLM 流式期间 transcript.delta 必须
+// 逐增量下行（2026-11-05 ws_probe turn 场景 FAIL=delta 全程缺席，助手文本只在
+// done 出现——用户看不到流式回复）。持发窗口内的增量必须停靠续放，不得判死。
+func TestTranscriptDeltaOnWire(t *testing.T) {
+	legs := &fakeLegs{reply: "流式回复文本"}
+	p := newFakePipeline(t, legs)
+	p.turns.StartTurn()
+	p.turns.SegmentFinalized(1000, 800, 0)
+	p.sttCh <- &VADFinal{Audio: make([]float32, 4096), TurnID: "turn_1", Rev: 0}
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if len(p.closedKeys) > 0 {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	deltas := 0
+	dones := 0
+	loop:
+	for {
+		select {
+		case ev := <-p.session.out:
+			switch ev["type"] {
+			case "response.output_audio_transcript.delta":
+				deltas++
+			case "response.done":
+				dones++
+			}
+		default:
+			break loop
+		}
+	}
+	if dones == 0 {
+		t.Fatal("响应未收口（线缆无 response.done）")
+	}
+	if deltas == 0 {
+		t.Fatal("线缆上没有任何 transcript.delta（流式助手文本丢失）")
+	}
+}
+
+// failingLegs LLM 失败腿（F1 兜底路径钉）。
+type failingLegs struct{}
+
+func (failingLegs) Reply(context.Context, string, []ChatMessage, string, int, string, func(string)) (string, int, int, error) {
+	return "", 0, 0, context.DeadlineExceeded
+}
+func (failingLegs) Speak(_ context.Context, sentence string, onAudio func([]byte)) error {
+	if sentence == "" || strings.HasSuffix(sentence, "mark") {
+		return nil
+	}
+	onAudio(make([]byte, 6400))
+	return nil
+}
+
+// TestFallbackTextOnWire — F1：LLM 失败走兜底语时，兜底文本必须进转写面
+// （transcript.delta + done 全文），不得只在 TTS 里出声、转写面板空白。
+func TestFallbackTextOnWire(t *testing.T) {
+	p := newFakePipeline(t, failingLegs{})
+	p.turns.StartTurn()
+	p.turns.SegmentFinalized(1000, 800, 0)
+	p.sttCh <- &VADFinal{Audio: make([]float32, 4096), TurnID: "turn_1", Rev: 0}
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if len(p.closedKeys) > 0 {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	var doneText string
+	deltas := 0
+loop:
+	for {
+		select {
+		case ev := <-p.session.out:
+			switch ev["type"] {
+			case "response.output_audio_transcript.delta":
+				deltas++
+			case "response.output_audio_transcript.done":
+				if t, ok := ev["transcript"].(string); ok {
+					doneText = t
+				}
+			}
+		default:
+			break loop
+		}
+	}
+	if deltas == 0 {
+		t.Fatal("兜底语未进转写 delta 面")
+	}
+	if !strings.Contains(doneText, "我现在有点跟不上") {
+		types := []string{}
+	loop2:
+		for {
+			select {
+			case ev := <-p.session.out:
+				if t2, ok := ev["type"].(string); ok {
+					types = append(types, t2)
+				}
+			default:
+				break loop2
+			}
+		}
+		t.Fatalf("done 转写全文缺兜底语: %q 线缆帧=%v", doneText, types)
+	}
+}
+
+
+// TestTerminalsPublishWhileResponseInFlight — F2：响应生成期（turn 未显式
+// commit）user terminal 必须即时发布，不得悬挂到会话结束。
+func TestTerminalsPublishWhileResponseInFlight(t *testing.T) {
+	p := newFakePipeline(t, failingLegs{})
+	p.turns.StartTurn()
+	p.turns.SegmentFinalized(1000, 800, 0)
+	p.sttCh <- &VADFinal{Audio: make([]float32, 4096), TurnID: "turn_1", Rev: 0}
+	deadline := time.Now().Add(3 * time.Second)
+	published := map[string]int{}
+	for time.Now().Before(deadline) {
+		select {
+		case ev := <-p.session.out:
+			typ, _ := ev["type"].(string)
+			switch typ {
+			case "input_audio_buffer.committed", "conversation.item.created",
+				"conversation.item.input_audio_transcription.completed":
+				published[typ]++
+			}
+		default:
+			if len(p.closedKeys) > 0 {
+				// 收口后再扫一轮余量即止
+				time.Sleep(50 * time.Millisecond)
+				continue
+			}
+		}
+		if len(p.closedKeys) > 0 && len(published) >= 3 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if published["input_audio_buffer.committed"] == 0 ||
+		published["conversation.item.created"] == 0 ||
+		published["conversation.item.input_audio_transcription.completed"] == 0 {
+		t.Fatalf("响应期 user terminal 未发布: %v", published)
 	}
 }

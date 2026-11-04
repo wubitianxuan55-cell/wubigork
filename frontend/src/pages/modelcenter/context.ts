@@ -111,7 +111,7 @@ export interface ModelCenterActionsValue {
   openStatsDrawer: () => void
   handleToggleComfy: () => Promise<void>
   handleSaveImageBackend: () => Promise<void>
-  handleSetVoiceModel: (kind: 'asr' | 'tts', engineId: string, modelId: string) => Promise<void>
+  handleSetVoiceModel: (kind: 'tts', engineId: string, modelId: string) => Promise<void>
   handleSetOCRModel: (engineId: string, modelId: string) => Promise<void>
   handleSaveFeature: (key: string) => Promise<void>
   handleToggleFeatureEnabled: (key: string, enabled: boolean) => Promise<void>

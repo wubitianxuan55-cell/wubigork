@@ -62,7 +62,6 @@ export interface ImageBindings {
   // 语音管道激活的识别/合成模型；SetChatVoiceModel 设置功能绑定「聊天语音」
   // （空串=清除绑定回退全局 TTS）。模型中心 useVoiceState 消费，
   // 同 GetTTSSpeakers 模型配置读写面归 shared。
-  SetActiveASRModel(engineID: string, modelID: string): Promise<void>;
   SetActiveTTSModel(engineID: string, modelID: string): Promise<void>;
   SetChatVoiceModel(engineID: string, modelID: string): Promise<void>;
   // ── Breeze 克隆音色管理（Go ImageB 门面 breeze_voices_handler.go，同名）──

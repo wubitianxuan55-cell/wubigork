@@ -81,11 +81,12 @@ const PHASE_META = {
   },
 }
 
+// 刀6 起 Go 原生管线=唯一路径：sidecar/快速模型（4B）项退役，
+// realtime=进程内 Go realtime 服务器（8791）；8792 记忆网关已退役
+// （LLM 腿进程内直连聊天板块功能绑定，无本地端口可探）。
 const SERVICE_ITEMS = [
-  { key: 'sidecar', label: '语音引擎' },
-  { key: 'llm', label: '快速模型' },
+  { key: 'realtime', label: '实时管线' },
   { key: 'breeze', label: '声线服务' },
-  { key: 'gateway', label: '记忆网关' },
 ] as const
 
 const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
@@ -233,7 +234,9 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
     ? v2.ensuring ? LoadingOutlined : AudioOutlined
     : !v2.connected ? WifiOutlined : v2.micOn ? PauseOutlined : AudioOutlined
   const primaryLabel = !ready
-    ? v2.ensuring ? '正在准备本地语音' : '启动本地语音'
+    ? v2.ensuring
+      ? '正在准备本地语音'
+      : v2.services.error ? '重试语音启动' : '启动本地语音'
     : !v2.connected
       ? '连接语音'
       : v2.micOn ? '暂停聆听' : '开始聆听'
@@ -265,7 +268,15 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
         data-testid="voice-console-v2"
         data-phase={v2.phase}
       >
-        <span className={`vc2-bar-dot is-${v2.phase}`} aria-hidden="true" />
+        <span
+          className={`vc2-bar-meter is-${v2.phase}`}
+          aria-hidden="true"
+          style={{ '--vc2-live': v2.micOn ? v2.micLevel.toFixed(3) : '0' } as React.CSSProperties}
+        >
+          {Array.from({ length: 5 }, (_, i) => (
+            <i key={i} style={{ '--vc2-m': `${0.3 + ((i * 13) % 7) / 10}` } as React.CSSProperties} />
+          ))}
+        </span>
         {/* 原子化状态播报（ui-ux-pro-max ux 规则）：只报相位一处，转写预览不做
             竞争性 live region（逐字流式会刷屏读屏） */}
         <span className="vc2-bar-phase" role="status" aria-atomic="true">{phaseMeta.label}</span>
@@ -310,7 +321,12 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
         <Button size="small" className="vc2-bar-btn is-danger" icon={<CloseOutlined />} onClick={onClose} data-testid="vc2-bar-close" aria-label="结束语音会话">
           结束
         </Button>
-        {feedback && <p className="vc2-bar-note" role="status">{feedback}</p>}
+        {v2.micSilent && (
+          <p className="vc2-bar-note is-alert" role="alert">
+            麦克风无信号——可能是虚拟音频设备/选错设备/静音；可在语音设置「麦克风设备」里检测切换。
+          </p>
+        )}
+        {feedback && <p className={`vc2-bar-note${v2.phase === 'error' ? ' is-alert' : ''}`} role="status">{feedback}</p>}
         {actionPreview && (
           <div className="vc2-action-preview" role="note">
             <ThunderboltOutlined aria-hidden="true" />
@@ -381,17 +397,18 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
         <section className="vc2-preflight" aria-labelledby="vc2-preflight-title">
           <div className="vc2-preflight-copy">
             <span className="vc2-eyebrow">FIRST RUN</span>
-            <h3 id="vc2-preflight-title">准备本地语音</h3>
-            <p>首次启动会加载语音识别、快速模型与声线服务，通常需要几十秒。</p>
+            <h3 id="vc2-preflight-title">装配本地语音</h3>
+            <p>首次启动装配本机语音引擎与声线服务，通常数秒完成；装配期间可随时返回，之后从输入区语音条继续。</p>
           </div>
           <div className="vc2-service-list" aria-label="语音服务状态">
             {SERVICE_ITEMS.map((item) => {
               const online = v2.services[item.key]
+              const starting = v2.ensuring && !online
               return (
-                <div className={`vc2-service-item${online ? ' is-online' : ''}`} key={item.key}>
-                  {online ? <CheckCircleFilled /> : <MinusCircleOutlined />}
+                <div className={`vc2-service-item${online ? ' is-online' : starting ? ' is-starting' : ''}`} key={item.key}>
+                  {online ? <CheckCircleFilled /> : starting ? <LoadingOutlined spin /> : <MinusCircleOutlined />}
                   <span>{item.label}</span>
-                  <span className="vc2-service-state">{online ? '已就绪' : '未启动'}</span>
+                  <span className="vc2-service-state">{online ? '已就绪' : starting ? '装配中' : '未启动'}</span>
                 </div>
               )
             })}
@@ -443,7 +460,12 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
             </div>
 
             <footer className="vc2-stage-facts">
-              <span><AudioOutlined /> 麦克风{v2.micOn ? '开启' : '关闭'}</span>
+              <span>
+                <AudioOutlined /> 麦克风{v2.micOn ? (v2.micSilent ? '无信号' : '开启') : '关闭'}
+                {v2.micOn && !v2.micSilent && (
+                  <i className="vc2-mic-level" aria-hidden="true" style={{ '--vc2-live': v2.micLevel.toFixed(3) } as React.CSSProperties} />
+                )}
+              </span>
               <span><CheckCircleFilled /> 本机处理</span>
               <span>{v2.connected ? '实时连接' : '等待连接'}</span>
             </footer>

@@ -6,7 +6,6 @@ import (
 
 	"github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/modelengine"
-	"github.com/gaea/gaea/internal/voice"
 )
 
 // newVoiceSettingsTestState 构造测试用 mediaState（voiceManager 为 nil，原
@@ -33,7 +32,6 @@ func newVoiceRouteTestState(t *testing.T, models []modelengine.ModelInfo) *media
 	// 探活隔离：塞死端口防误连真机本地 TTS 服务（breeze 8012 常驻在跑，
 	// 不隔离则离线用例被真服务喂成假绿——同 uocr2 测试塞死值坑律）。
 	a.cfg = &config.Config{BreezePort: 1}
-	a.voiceManager = voice.NewManager(nil, voice.DefaultVoiceConfig())
 	return a
 }
 
@@ -99,26 +97,8 @@ func TestTTSRouteHealth_GlobalHerdsmanNotInstalled(t *testing.T) {
 
 // TestVoiceHealth_HonestTTS：VoiceHealth 覆写 ttsReady 为路由探测结果，
 // 并带 browserAsr/ttsDetail/asrDetail 诚实化标注。
-func TestVoiceHealth_HonestTTS(t *testing.T) {
-	a := newVoiceRouteTestState(t, nil)
-	a.chatVoiceEngine = "breeze"
-	a.chatVoiceModel = "breeze-tts-2"
-	hc := a.VoiceHealth()
-	if hc["ttsReady"] != false {
-		t.Errorf("ttsReady = %v, want false（breeze 离线）", hc["ttsReady"])
-	}
-	if hc["browserAsr"] != true {
-		t.Errorf("browserAsr = %v, want true", hc["browserAsr"])
-	}
-	for _, k := range []string{"ttsDetail", "asrDetail"} {
-		if s, _ := hc[k].(string); s == "" {
-			t.Errorf("%s 缺失", k)
-		}
-	}
-}
-
-// TestVoiceGetSettings_NoDeadHerdsmanModel：死链字段退役后不再回显
-// ttsHerdsmanModel/两个 fallback 标志键。
+// （TestVoiceHealth_HonestTTS 的 asrReady/browserAsr 断言随 V1 退役删除；
+// ttsReady 路由探测诚实化由 TestTTSRouteHealth_* 系列继续覆盖）
 func TestVoiceGetSettings_NoDeadHerdsmanModel(t *testing.T) {
 	a := newVoiceRouteTestState(t, nil)
 	got := a.VoiceGetSettings()

@@ -18,6 +18,10 @@ class CaptureProcessor extends AudioWorkletProcessor {
     this.phase = 0
     this.sum = 0
     this.count = 0
+    // 电平上报（哑麦诚实化）：每 12 帧（~240ms）回报一次帧内 RMS，
+    // 主线程据此驱动真实电平可视化与「无信号」检测。
+    this.levelEvery = 12
+    this.levelCountdown = this.levelEvery
   }
 
   process(inputs) {
@@ -44,13 +48,21 @@ class CaptureProcessor extends AudioWorkletProcessor {
   push(sample) {
     this.buf[this.n++] = sample
     if (this.n === this.target) {
+      let sq = 0
       const int16 = new Int16Array(this.target)
       for (let j = 0; j < this.target; j++) {
         const s = Math.max(-1, Math.min(1, this.buf[j]))
+        sq += s * s
         int16[j] = s < 0 ? s * 0x8000 : s * 0x7fff
       }
       this.port.postMessage(int16.buffer, [int16.buffer])
       this.n = 0
+      // RMS 电平（0..1 线性刻度）：语音典型 0.02~0.35，静音 ≈0
+      if (--this.levelCountdown <= 0) {
+        this.levelCountdown = this.levelEvery
+        const rms = Math.sqrt(sq / this.target)
+        this.port.postMessage({ __gaeaLevel: Math.min(1, rms * 8) })
+      }
     }
   }
 }

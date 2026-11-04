@@ -40,7 +40,6 @@ import (
 	"github.com/gaea/gaea/internal/prompt"
 	"github.com/gaea/gaea/internal/promptstore"
 	"github.com/gaea/gaea/internal/skill"
-	"github.com/gaea/gaea/internal/voice"
 	"github.com/gaea/gaea/internal/whisper"
 	whisperdb "github.com/gaea/gaea/internal/whisper/db"
 	"github.com/gaea/gaea/internal/worldview"
@@ -160,13 +159,6 @@ type mediaState struct {
 	// ASR 语音识别（模型中心选择）
 	activeASREngine string
 	activeASRModel  string
-
-	// 语音管道
-	voiceManager *voice.Manager
-
-	// Voice V2 本机对话网关：sidecar → 本服务（人格记忆注入/流式代理）→ 4B。
-	voiceV2GatewayMu sync.Mutex
-	voiceV2Gateway   *http.Server
 
 	// ComfyUI 进程管理（comfyProcMu 保护；写侧有 UI 线程/回收 goroutine/状态轮询
 	// 三路并发，v4.421 P0-2 收口，访问一律走 comfyProcRef* 方法）
@@ -518,9 +510,8 @@ func (a *App) Startup(ctx context.Context) {
 	a.chatVoiceEngine = a.cfg.FuncChatVoiceEngine
 	a.chatVoiceModel = a.cfg.FuncChatVoiceModel
 
-	a.initVoice()
 	a.initWeixin()
-	stage("voice+weixin")
+	stage("voice+weixin") // 语音管理器（V1）已退役——voice 域只剩 V2 realtime/朗读 TTS/轻语域
 
 	// 全局角色库：内置人格 + 助手全部种子化为统一角色
 	a.charLib = characterlib.NewStore(filepath.Join(a.whisperDataRoot, "characterlib"))
@@ -590,14 +581,12 @@ func (a *App) Startup(ctx context.Context) {
 	// 是「启动即可见」的唯一时机。
 	a.reportKnowledgeMigrationState()
 	stage("charlib+stores")
-	// Voice V2 的本机记忆网关与 App 同生命周期；sidecar 使用它作为 4B 上游。
+	// Voice V2（刀6）：8792 记忆网关已退役——LLM 腿进程内直连聊天板块功能绑定
+	// （voice_v2_go_legs.go），无独立本地服务。旧 sidecar 的 8123 直连残留由
+	// VoiceV2Stop 统一收尸。
 	if a.cfg != nil && a.cfg.VoiceBackend == "v2" {
-		// 旧版 sidecar 可能仍按 8123 直连配置常驻；新 App 启动时先收掉，
-		// 后续由语音台 Ensure 以当前 YAML（8792 记忆网关）重新拉起。
 		a.VoiceV2Stop()
 	}
-	a.startVoiceV2Gateway()
-	stage("voice-v2-gateway")
 
 	// 本地 TTS 服务不再开机自动拉起（884cdd10 口径；2026-11-04 起 cosyvoice
 	// 引擎亦已退役，breeze 为唯一按需拉起的本地 TTS）：平时不占内存；合成链路
@@ -644,8 +633,8 @@ func (a *App) Startup(ctx context.Context) {
 			if _, err := a.engineMgr.RefreshModels(context.Background(), id); err != nil {
 				slog.Warn("刷新"+id+"模型列表失败", "error", err)
 			} else {
-				// 模型列表就绪后重配 ASR（用户选择/自动扫描 STT 模型）
-				a.applyASRClient()
+				// 模型列表就绪后刷新（ASR 重配面随 V1 退役）
+				_ = id
 			}
 		}(eid)
 	}
@@ -730,14 +719,10 @@ func (a *App) Shutdown(ctx context.Context) {
 		// 停止引擎健康巡检循环（C 刀 v0）。
 		a.engineMgr.StopHealthProbe()
 	}
-	a.stopVoiceV2Gateway()
 	if a.cfg != nil && a.cfg.VoiceBackend == "v2" {
 		// 4B/sidecar 是 Gaea 代启进程，应用退出后已失去控制面；同步收尸，
 		// 避免 3GB 级模型在后台常驻。breeze 为共享 TTS，不在本停止面。
 		a.VoiceV2Stop()
-	}
-	if a.voiceManager != nil {
-		a.voiceManager.Stop()
 	}
 	if a.weixinServers != nil {
 		a.weixinMu.Lock()

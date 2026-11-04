@@ -123,12 +123,7 @@ type configFile struct {
 	TianxuanPath string `json:"tianxuan_path,omitempty"`
 	// strata 独立引擎项目根目录（.venv / serve / 档位 JSON 均在此目录）。
 	StrataPath string `json:"strata_path,omitempty"`
-	// 实时语音 Realtime 档（S1）：provider/model + API Key（存储口径 =
-	// secure.EncryptString 密文，config 层只存取字符串不做加解密）。
-	RealtimeProvider string `json:"realtime_provider,omitempty"`
-	VoiceBackend     string `json:"voice_backend,omitempty"`
-	RealtimeModel    string `json:"realtime_model,omitempty"`
-	RealtimeAPIKey   string `json:"realtime_api_key,omitempty"`
+	VoiceBackend string `json:"voice_backend,omitempty"`
 }
 type Config struct {
 	// XAI OAuth 配置
@@ -307,9 +302,7 @@ type Config struct {
 	// 实时语音 Realtime 档（S1，internal/realtime seam）：三项来自落盘配置，
 	// 默认空 = 未配置。RealtimeAPIKey 为 secure.EncryptString 密文（config 层
 	// 只存取，不加减密）；app 层 initVoice 启动时经 secure.DecryptString 解出
-	// 内存明文再注入语音运行时配置。
-	RealtimeProvider string
-	RealtimeModel    string
+	// 内存明文再注入语音运行时配置。	RealtimeModel    string
 	RealtimeAPIKey   string
 
 	// 语音对话后端（v1 | v2，默认 v1；M4 产品接入刀）

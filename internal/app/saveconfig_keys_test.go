@@ -43,8 +43,6 @@ func TestSaveConfig_AllSyncedKeys(t *testing.T) {
 		{config.KeyActiveEngineID, "deepseek", func(c *config.Config) bool { return c.ActiveEngineID == "deepseek" }},
 		{config.KeyDeepseekAPIKey, "sk-deepseek-1", func(c *config.Config) bool { return c.DeepseekAPIKey == "sk-deepseek-1" }},
 		{config.KeyOpencodeGoAPIKey, "sk-ocgo-1", func(c *config.Config) bool { return c.OpenCodeGoAPIKey == "sk-ocgo-1" }},
-		{config.KeyActiveASREngine, "herdsman", func(c *config.Config) bool { return c.ActiveASREngine == "herdsman" }},
-		{config.KeyActiveASRModel, "asr-m", func(c *config.Config) bool { return c.ActiveASRModel == "asr-m" }},
 		{config.KeyActiveTTSEngine, "breeze", func(c *config.Config) bool { return c.ActiveTTSEngine == "breeze" }},
 		{config.KeyActiveTTSModel, "tts-m", func(c *config.Config) bool { return c.ActiveTTSModel == "tts-m" }},
 		{config.KeyTTSVoice, "轻语", func(c *config.Config) bool { return c.TTSVoice == "轻语" }},
@@ -139,9 +137,6 @@ func TestSaveConfig_DiskOnlyKeysWarnNoSync(t *testing.T) {
 	a.cfg.MorningPreload = true
 	a.cfg.GLMCatalogPath = "old-path"
 	a.cfg.GLMCatalogURL = "old-url"
-	a.cfg.RealtimeProvider = "old"
-	a.cfg.RealtimeModel = "old-rt-m"
-	a.cfg.RealtimeAPIKey = "old-rt-k"
 
 	cases := []struct {
 		key, value string
@@ -166,9 +161,6 @@ func TestSaveConfig_DiskOnlyKeysWarnNoSync(t *testing.T) {
 		{config.KeyMorningPreload, "false", func(c *config.Config) bool { return c.MorningPreload }},
 		{config.KeyGLMCatalogPath, "new-path", func(c *config.Config) bool { return c.GLMCatalogPath == "old-path" }},
 		{config.KeyGLMCatalogURL, "http://cat.example", func(c *config.Config) bool { return c.GLMCatalogURL == "old-url" }},
-		{config.KeyRealtimeProvider, "openai", func(c *config.Config) bool { return c.RealtimeProvider == "old" }},
-		{config.KeyRealtimeModel, "rt-m-2", func(c *config.Config) bool { return c.RealtimeModel == "old-rt-m" }},
-		{config.KeyRealtimeAPIKey, "rt-k-2", func(c *config.Config) bool { return c.RealtimeAPIKey == "old-rt-k" }},
 	}
 	for _, tc := range cases {
 		records := captureLogs(t, func() {

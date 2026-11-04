@@ -21,22 +21,8 @@ export interface VoiceBindings {
   // WhisperUpdateFact 对既有事实做字段级部分更新（updates 只写给定键）。
   WhisperUpdateFact(personalityID: string, factID: string, updates: Record<string, unknown>): Promise<void>;
   // ── 批次二 wailsjsCompat 双轨退役转正（Go VoiceB 门面，同名前缀）──
-  // VoiceGetSettings 读取语音设置快照（与 VoiceApplySettings patch 写配对）；
-  // VoiceChatText 把文本送入语音对话管线（Voice 域发消息入口，no-op 语义
-  // 由调用方结合事件流理解）。
+  // VoiceGetSettings 读取语音设置快照（与 VoiceApplySettings patch 写配对）。
   VoiceGetSettings(): Promise<Record<string, unknown>>;
-  VoiceChatText(text: string): Promise<void>;
-  // ── 批次三a legacy 直调转正（Go VoiceB 门面，同名前缀无需映射）──
-  // 语音运行时族：VoiceStart 带 browserASR 启停语音会话；VoiceStop 停止；
-  // VoicePlaybackDone 播放完成回执；VoiceCancelTTS 取消待合成队列；
-  // VoicePushAudio 推送音频块（Go []byte，前端传 base64 字符串）；
-  // VoiceSetPTTActive 设置按键说话（PTT）激活态。
-  VoiceStart(browserASR: boolean): Promise<void>;
-  VoiceStop(): Promise<void>;
-  VoicePlaybackDone(): Promise<void>;
-  VoiceCancelTTS(): Promise<void>;
-  VoicePushAudio(chunk: string): Promise<void>;
-  VoiceSetPTTActive(active: boolean): Promise<void>;
   // WhisperClearSession 清空指定人格的轻语会话（重开一段干净对话）。
   WhisperClearSession(personalityID: string): Promise<void>;
   // TTSSpeakBase64 合成 TTS 音频并返回 base64（text → {base64, mimeType}）；
@@ -55,11 +41,11 @@ export interface VoiceBindings {
   // {audio, mimeType, cached:false}。chJSON=角色 JSON（新角色无 id 拒绝）。
   TTSLineAudioFor(chJSON: string): Promise<Record<string, unknown>>;
   // ── Voice V2 档（M4 产品接入刀；voice.backend=v2 消费）──
-  // VoiceV2Status 四依赖只读探测 {sidecar,llm,breeze,gateway,ready}。
+  // VoiceV2Status 依赖只读探测 {realtime,breeze,gateway,ready}（刀6 起 Go 原生管线唯一路径）。
   VoiceV2Status(): Promise<Record<string, unknown>>;
-  // VoiceV2Ensure 幂等拉起 breeze→4B→sidecar 链（异步，voice-v2-status 事件上报）。
+  // VoiceV2Ensure 幂等拉起 网关→breeze→Go 原生管线 链（异步，voice-v2-status 事件上报）。
   VoiceV2Ensure(): Promise<Record<string, unknown>>;
-  // VoiceV2Stop 按端口击杀 sidecar 与 4B（breeze 共享引擎不动）。
+  // VoiceV2Stop 停进程内 Go realtime 服务器（8791 本进程持有禁端口杀；breeze 共享引擎不动）。
   VoiceV2Stop(): Promise<Record<string, unknown>>;
   // VoiceV2AbortTurn 生成中关闭语音台的精确回滚（P0a-A5f）：按 itemID 领走
   // 并回滚生成前预推进；{aborted, reason?, itemID?, personalityID?}。

@@ -1,10 +1,9 @@
-// voice_v2_service.go — Voice V2（M4 产品接入刀）sidecar 依赖链监护。
+// voice_v2_service.go — Voice V2 依赖链监护（刀6：Go 原生管线=唯一路径）。
 //
-// V2 实时语音链四依赖：breeze TTS(8012) / Qwen3-4B llama-server(8123) /
-// Gaea 记忆网关(8792) / speech-to-speech sidecar(8791)。本文件只做「探测 + 拉起 + 状态上报」，
+// V2 实时语音链依赖：breeze TTS(8012)；8791=进程内 Go realtime（WS 服务器，
+// 会话池=1）；LLM 腿=聊天板块功能绑定进程内直连（8792 网关已退役，见
+// voice_v2_go_legs.go）。本文件只做「探测 + 拉起 + 状态上报」，
 // 不改 V1 whisper 链任何路径（voice.backend=v2 才有消费方）。
-// 路径口径：spike 装机位（C:\AI\gaea-voice-v2、C:\AI\uocr2-llama、
-// scripts/voice_v2/start_spike.bat）；产品化分发拍板（M1 报告 §6）后收敛进配置。
 package app
 
 import (
@@ -34,34 +33,17 @@ const (
 	voiceV2LegacyBaseRoot = `C:\AI\gaea-voice-v2`
 	// 模型统一根（P3 2026-11-05 用户拍板）：所有本地模型只存这一处，多处引用
 	// 不复制（消除 26.8GB×N 重复）。llama/strata/herdsman 档位均指此根。
-	voiceV2ModelsRoot = `C:\AI\models`
-	// 桌面副本的 exe 位于 Desktop，工作目录也不保证是仓库；保留当前装机根
-	// 作为最后候选，确保双击启动仍能找到 sidecar 启动器。
-	voiceV2DefaultRepoRoot = `C:\AI\wubigrok`
-	voiceV2RepoRootEnv     = "GAEA_VOICE_V2_ROOT"
-	voiceV2BaseRootEnv     = "GAEA_VOICE_V2_BASE"
+	voiceV2ModelsRoot  = `C:\AI\models`
+	voiceV2BaseRootEnv = "GAEA_VOICE_V2_BASE"
 )
 
-// 相对布局（bundle/安装器目录形态）：base/{venv, models, bin} + scripts/voice_v2。
+// 相对布局（bundle/安装器目录形态）：base/{bin} —— venv（sidecar）与 4B gguf
+// 已随刀6 sidecar/4B 退役出局，llama-server bin 布局保留（qwen35 自管引擎复用）。
 var (
-	voiceV2LLMBinRel     = filepath.Join("bin", "llama-server.exe")
-	voiceV2LLMModelRel   = filepath.Join("models", "Qwen3-4B-Q4_K_M.gguf")
-	voiceV2VenvPythonRel = filepath.Join("venv", "Scripts", "python.exe")
+	voiceV2LLMBinRel = filepath.Join("bin", "llama-server.exe")
 )
 
-// voiceV2ModelPath 按统一模型根解析模型文件；缺失回退历史 base/models 布局
-// （老安装兼容）。modelsRoot 下的相对路径示例：qwen35-uncensored/xxx.gguf。
-func voiceV2ModelPath(modelsRootRel string, legacyFallback string) string {
-	if p := filepath.Join(voiceV2ModelsRoot, modelsRootRel); voiceV2FileExists(p) {
-		return p
-	}
-	if legacyFallback != "" && voiceV2FileExists(legacyFallback) {
-		return legacyFallback
-	}
-	return filepath.Join(voiceV2BaseRoot(), voiceV2LLMModelRel)
-}
-
-// voiceV2BaseRoot 语音 V2 依赖（venv/models/bin）的根目录：安装器/bundle 布局
+// voiceV2BaseRoot 语音 V2 依赖（bin）的根目录：安装器/bundle 布局
 // 经 GAEA_VOICE_V2_BASE 指向；缺省=历史装机根（兼容现役机器，不迁移）。
 func voiceV2BaseRoot() string {
 	if v := strings.TrimSpace(os.Getenv(voiceV2BaseRootEnv)); v != "" {
@@ -73,23 +55,6 @@ func voiceV2BaseRoot() string {
 func voiceV2FileExists(path string) bool {
 	st, err := os.Stat(path)
 	return err == nil && !st.IsDir()
-}
-
-// voiceV2VenvPythonPath 解析 sidecar venv 解释器：base 根 venv 优先，缺失回退
-// 历史装机路径（现役机器不因 bundle 布局变化而被打断）。
-func voiceV2VenvPythonPath() string {
-	if p := filepath.Join(voiceV2BaseRoot(), voiceV2VenvPythonRel); voiceV2FileExists(p) {
-		return p
-	}
-	return filepath.Join(voiceV2LegacyBaseRoot, voiceV2VenvPythonRel)
-}
-
-// voiceV2LLMModelPath 解析 4B gguf：base 根 models 优先，缺失回退历史路径。
-func voiceV2LLMModelPath() string {
-	if p := filepath.Join(voiceV2BaseRoot(), voiceV2LLMModelRel); voiceV2FileExists(p) {
-		return p
-	}
-	return filepath.Join(voiceV2LegacyBaseRoot, voiceV2LLMModelRel)
 }
 
 // voiceV2LLMBinPath 解析 llama-server：base 根 bin 优先（bundle 布局），缺失
@@ -215,97 +180,16 @@ func isVoiceV2Ensuring() bool {
 	return voiceV2Ensuring
 }
 
-func hasVoiceV2RepoFiles(root string) bool {
-	if strings.TrimSpace(root) == "" {
-		return false
-	}
-	for _, rel := range []string{
-		filepath.Join("scripts", "voice_v2", "gaea-spike.yaml"),
-		filepath.Join("scripts", "voice_v2", "gaea_sidecar_launcher.py"),
-	} {
-		if info, err := os.Stat(filepath.Join(root, rel)); err != nil || info.IsDir() {
-			return false
-		}
-	}
-	return true
-}
-
-// findRepoRootFromStarts 从工作目录和可执行文件目录向上查找仓库脚本。
-// Windows 卷根目录的 filepath.Dir 会返回自身；必须用 parent==dir 终止，
-// 不能拿 C:\ 与 VolumeName 返回的 C: 比较（旧实现会在根目录永久 Stat）。
-func findRepoRootFromStarts(starts []string, valid func(string) bool) string {
-	seen := make(map[string]bool)
-	for _, start := range starts {
-		dir := filepath.Clean(strings.TrimSpace(start))
-		if dir == "." || dir == "" {
-			continue
-		}
-		for {
-			key := strings.ToLower(dir)
-			if !seen[key] {
-				seen[key] = true
-				if valid(dir) {
-					return dir
-				}
-			}
-			parent := filepath.Dir(dir)
-			if parent == dir {
-				break
-			}
-			dir = parent
-		}
-	}
-	return ""
-}
-
-// repoRootFromExe 优先使用显式配置，再检查工作目录/可执行文件祖先，最后回退
-// 到本机 spike 装机根。所有分支均保证在卷根目录终止。
-func repoRootFromExe() string {
-	var starts []string
-	if root := strings.TrimSpace(os.Getenv(voiceV2RepoRootEnv)); root != "" {
-		starts = append(starts, root)
-	}
-	if wd, err := os.Getwd(); err == nil {
-		starts = append(starts, wd)
-	}
-	if exe, err := os.Executable(); err == nil {
-		starts = append(starts, filepath.Dir(exe))
-	}
-	starts = append(starts, voiceV2DefaultRepoRoot)
-	return findRepoRootFromStarts(starts, hasVoiceV2RepoFiles)
-}
-
-// VoiceV2Status 四依赖探测（幂等、只读）。
-// Go 灰度模式语义：8791=Go realtime、LLM 腿经 8792 网关功能绑定承载（无独立 4B，
-// 快速模型项按网关探活上报）、breeze 仍是 TTS 腿必需。
+// VoiceV2Status 依赖快照（幂等、只读；刀6 起 Go 原生管线=唯一路径，网关退役）。
+// 8791=进程内 Go realtime（voiceV2GoModeActive 为准，端口探活看不到进程内态）、
+// breeze 仍是 TTS 腿必需；LLM 腿=聊天板块功能绑定进程内直连（无本地端口可探）。
 func (a *mediaState) VoiceV2Status() map[string]interface{} {
-	// 同一快照内每个端口只探一次：旧实现 ready 再探三项，既放大冷探测延迟，
-	// 也可能出现 sidecar=true/ready=false 的自相矛盾快照（进程刚好退出时）。
-	if voiceV2GoModeActive() {
-		rt := voiceV2Probe(voiceV2SidecarPort)
-		breeze := voiceV2Probe(voiceV2BreezePort)
-		gateway := voiceV2Probe(voiceV2GatewayPort)
-		return map[string]interface{}{
-			"sidecar":  rt,
-			"llm":      gateway,
-			"breeze":   breeze,
-			"gateway":  gateway,
-			"ready":    rt && breeze && gateway,
-			"starting": isVoiceV2Ensuring(),
-			"stage":    currentVoiceV2Stage(),
-			"error":    currentVoiceV2Error(),
-		}
-	}
-	sidecar := voiceV2Probe(voiceV2SidecarPort)
-	llm := voiceV2Probe(voiceV2LLMPort)
+	rt := voiceV2GoModeActive()
 	breeze := voiceV2Probe(voiceV2BreezePort)
-	gateway := voiceV2Probe(voiceV2GatewayPort)
 	return map[string]interface{}{
-		"sidecar":  sidecar,
-		"llm":      llm,
+		"realtime": rt,
 		"breeze":   breeze,
-		"gateway":  gateway,
-		"ready":    sidecar && llm && breeze && gateway,
+		"ready":    rt && breeze,
 		"starting": isVoiceV2Ensuring(),
 		"stage":    currentVoiceV2Stage(),
 		"error":    currentVoiceV2Error(),
@@ -320,7 +204,7 @@ func voiceV2GoModeActive() bool {
 }
 
 // VoiceV2Ensure 幂等拉起依赖链（异步，voice-v2-status 事件上报进度；
-// 拉起顺序 breeze→llm→sidecar，前置不就绪不拉后置）。
+// 拉起顺序 breeze→Go 原生管线；LLM 腿无本地依赖，前置不就绪不拉后置）。
 func (a *mediaState) VoiceV2Ensure() map[string]interface{} {
 	st := a.VoiceV2Status()
 	if ready, _ := st["ready"].(bool); ready {
@@ -364,149 +248,63 @@ func (a *mediaState) VoiceV2Ensure() map[string]interface{} {
 			}
 			a.emit("voice-v2-status", ev)
 		}
-		if !voiceV2Probe(voiceV2GatewayPort) {
-			emit(false, "检查记忆网关", "Gaea Voice V2 记忆网关未就绪（检查 8792 端口）")
-			return
-		}
-		// Go 原生实时管线灰度模式（刀2~5 开发期）：GAEA_VOICE_REALTIME_GO=1 时
-		// 进程内 realtime 服务器直接顶 8791（协议回声/后续真管线），不再拉
-		// breeze/4B/sidecar。刀6 默认切换并删除本分支。
-		if os.Getenv("GAEA_VOICE_REALTIME_GO") != "" {
-			// TTS 腿依赖 breeze：未起先拉（8012；breeze 共享引擎，常驻时直过）
-			if !voiceV2Probe(voiceV2BreezePort) {
-				emit(false, "正在准备 Breeze 声线服务", "")
-				a.ensureLocalTTSService("breeze")
-				if !voiceV2WaitPort(voiceV2BreezePort, 90*time.Second) {
-					emit(false, "正在准备 Breeze 声线服务", "Breeze TTS 90s 未就绪")
-					return
-				}
-			}
-			emit(false, "正在装配语音引擎（Go 原生）", "")
-			start := time.Now()
-			if err := voiceV2RealtimeStart(); err != nil {
-				emit(false, "正在装配语音引擎（Go 原生）", fmt.Sprintf("Go realtime 启动失败: %v", err))
-				return
-			}
-			slog.Info("Voice V2 Go 管线就绪", "装配耗时", time.Since(start).String())
-			emit(true, "", "")
-			return
-		}
-		// ① breeze：复用既有按需拉起线（自带 tts-service-status 事件）
-		emit(false, "正在准备 Breeze 声线服务", "")
+		// Go 原生实时管线（刀6 起唯一路径）：进程内 realtime 服务器顶 8791，
+		// breeze 仍按需拉起（TTS 腿）。sidecar/4B/8792 网关拉起链已退役——
+		// scripts/voice_v2 手动回滚物保留一版期。
+		// TTS 腿依赖 breeze：未起先拉（8012；breeze 共享引擎，常驻时直过）
 		if !voiceV2Probe(voiceV2BreezePort) {
+			emit(false, "正在准备 Breeze 声线服务", "")
 			a.ensureLocalTTSService("breeze")
+			if !voiceV2WaitPort(voiceV2BreezePort, 90*time.Second) {
+				emit(false, "正在准备 Breeze 声线服务", "Breeze TTS 90s 未就绪")
+				return
+			}
 		}
-		if !voiceV2WaitPort(voiceV2BreezePort, 90*time.Second) {
-			emit(false, "准备 Breeze 声线服务", "Breeze TTS 90s 未就绪")
+		emit(false, "正在装配语音引擎（Go 原生）", "")
+		start := time.Now()
+		if err := voiceV2RealtimeStartFn(a); err != nil {
+			emit(false, "正在装配语音引擎（Go 原生）", fmt.Sprintf("Go realtime 启动失败: %v", err))
 			return
 		}
-		// ② 4B llama-server
-		emit(false, "正在准备快速模型", "")
-		if !voiceV2Probe(voiceV2LLMPort) {
-			cmd, err := detachedCmd(voiceV2LLMBinPath(), []string{
-				"--host", "127.0.0.1", "--port", fmt.Sprintf("%d", voiceV2LLMPort),
-				"-m", voiceV2ModelPath(
-					filepath.Join("qwen35-uncensored", "Qwen3-4B-Q4_K_M.gguf"),
-					filepath.Join(voiceV2LegacyBaseRoot, voiceV2LLMModelRel),
-				), "-ngl", "99", "--ctx-size", "8192",
-				"--reasoning", "off", "-np", "1", "--cache-reuse", "256",
-			}, "")
-			if err == nil {
-				err = voiceV2Spawn("llm", cmd)
-			}
-			if err != nil {
-				emit(false, "准备快速模型", fmt.Sprintf("4B 模型拉起失败: %v", err))
-				return
-			}
-		}
-		if !voiceV2WaitPort(voiceV2LLMPort, 90*time.Second) {
-			emit(false, "准备快速模型", "4B 模型 90s 未就绪")
-			return
-		}
-		// ③ sidecar：直接执行 venv Python，绕开 cmd.exe 对批处理路径的解析，
-		// 启动失败能带着具体脚本路径上屏。
-		// ②b 自管 35B（P2 续拍板）：voice_chat_llm=qwen35 时先拉 35B 再启
-		// sidecar——sidecar 启动自检经网关走 qwen35 直代腿，8124 必须先就绪。
-		if a.cfg != nil && a.cfg.VoiceChatLLM == "qwen35" && !qwen35Running() {
-			emit(false, "正在准备自管 35B", "")
-			res := a.app.qwen35Ensure()
-			if res["running"] != true {
-				emit(false, "准备自管 35B", fmt.Sprintf("%v", res["error"]))
-				return
-			}
-		}
-		emit(false, "正在准备语音识别引擎", "")
-		if !voiceV2Probe(voiceV2SidecarPort) {
-			root := repoRootFromExe()
-			if root == "" {
-				emit(false, "准备语音识别引擎", fmt.Sprintf(
-					"sidecar 脚本缺失——设置 %s 指向 gaea 仓库（当前尝试含 %s）",
-					voiceV2RepoRootEnv, voiceV2DefaultRepoRoot,
-				))
-				return
-			}
-			launcher := filepath.Join(root, "scripts", "voice_v2", "gaea_sidecar_launcher.py")
-			config := filepath.Join(root, "scripts", "voice_v2", "gaea-spike.yaml")
-			if _, err := os.Stat(voiceV2VenvPythonPath()); err != nil {
-				emit(false, "准备语音识别引擎", fmt.Sprintf(
-					"sidecar venv 缺失（%s）——先按 M1 报告装机", voiceV2VenvPythonPath(),
-				))
-				return
-			}
-			cmd, err := detachedCmd(voiceV2VenvPythonPath(), []string{
-				launcher, "serve", "-f", config,
-			}, root)
-			if err == nil {
-				err = voiceV2Spawn("sidecar", cmd)
-			}
-			if err != nil {
-				emit(false, "准备语音识别引擎", fmt.Sprintf("sidecar 拉起失败: %v", err))
-				return
-			}
-		}
-		if !voiceV2WaitPort(voiceV2SidecarPort, 180*time.Second) {
-			emit(false, "准备语音识别引擎", "sidecar 180s 未就绪")
-			return
-		}
+		slog.Info("Voice V2 Go 管线就绪", "装配耗时", time.Since(start).String())
 		emit(true, "", "")
 	}()
 
 	return map[string]interface{}{"ready": false, "starting": true}
 }
 
-// VoiceV2Stop 按端口击杀 sidecar 与 4B（breeze 是共享引擎不动）。
-// Go 原生 realtime 模式下 8791 由本进程持有——绝不能走端口杀（等于自杀），
-// 只 Stop 服务器对象。
+// VoiceV2Stop 结束语音 V2：停进程内 Go realtime 服务器（8791 由本进程持有，
+// 绝不能走端口杀=自杀；breeze 是共享引擎不动；sidecar/4B 拉起链已退役）。
 func (a *mediaState) VoiceV2Stop() map[string]interface{} {
-	voiceV2RealtimeMu.Lock()
-	goOwns8791 := voiceV2RealtimeSrv != nil
-	voiceV2RealtimeMu.Unlock()
-	var k1, k2 bool
-	if goOwns8791 {
-		voiceV2RealtimeStop()
-		k1 = true
-	} else {
-		k1 = voiceV2KillPort(voiceV2SidecarPort)
-	}
-	k2 = voiceV2KillPort(voiceV2LLMPort)
-	return map[string]interface{}{"sidecar": k1, "llm": k2}
+	voiceV2RealtimeStop()
+	return map[string]interface{}{"realtime": true}
 }
 
-// Go 原生 realtime 服务器（GAEA_VOICE_REALTIME_GO 灰度模式，刀2~5 开发期）。
+// Go 原生 realtime 服务器（刀6 起唯一路径）。
 var (
 	voiceV2RealtimeMu   sync.Mutex
 	voiceV2RealtimeSrv  *realtime.Server
 	voiceV2NativeEng    *native.Engine
 	voiceV2NativeSilero *native.SileroVAD
+	// voiceV2RealtimeStartFn 测试缝（probe/spawn 全桩纪律同族）。
+	voiceV2RealtimeStartFn = func(a *mediaState) error { return voiceV2RealtimeStart(a) }
 )
 
-// voice 原生模型布局（模型统一根 voice/ 子目录）。
-const (
-	voiceNativeSileroOnnx     = `C:\AI\models\voice\silero_vad_v5_16k.onnx`
-	voiceNativeSmartTurnOnnx  = `C:\AI\models\voice\smart-turn-v3.2-cpu.onnx`
-	voiceNativeParaformerOnnx = `C:\AI\models\voice\model.int8.onnx`
-	voiceNativeParaformerTok  = `C:\AI\models\voice\tokens.txt`
-)
+// voice 原生模型布局：bundle 根（GAEA_VOICE_V2_BASE）的 models/voice/ 优先
+// （可重定位分发），缺省回落模型统一根 C:\AI\modelsoice\（现役装机口径）。
+func voiceNativeModelPath(name string) string {
+	if p := filepath.Join(voiceV2BaseRoot(), "models", "voice", name); voiceV2FileExists(p) {
+		return p
+	}
+	return filepath.Join(voiceV2ModelsRoot, "voice", name)
+}
+
+func voiceNativeModelPaths() (silero, smartTurn, paraformer, tokens string) {
+	return voiceNativeModelPath("silero_vad_v5_16k.onnx"),
+		voiceNativeModelPath("smart-turn-v3.2-cpu.onnx"),
+		voiceNativeModelPath("model.int8.onnx"),
+		voiceNativeModelPath("tokens.txt")
+}
 
 // voiceEOTAdapter smart-turn 适配。
 type voiceEOTAdapter struct{ e *native.Engine }
@@ -522,24 +320,28 @@ func (a voiceSTTAdapter) Transcribe(pcm []float32, sampleRate int) (string, erro
 	return a.e.Transcribe(pcm, sampleRate)
 }
 
-func voiceV2RealtimeStart() error {
+func voiceV2RealtimeStart(a *mediaState) error {
 	voiceV2RealtimeMu.Lock()
 	defer voiceV2RealtimeMu.Unlock()
 	if voiceV2RealtimeSrv != nil {
 		return nil
 	}
+	if a == nil {
+		return fmt.Errorf("mediaState 未就绪（进程内 LLM 腿需要 app 上下文）")
+	}
 	// 原生引擎装配（首次 ~1-2s：paraformer int8 加载+warmup）。
 	engStart := time.Now()
+	sileroOnnx, smartTurnOnnx, paraformerOnnx, paraformerTok := voiceNativeModelPaths()
 	eng, err := native.New(native.Config{
 		ORTRuntimePath:       native.OrtDLLPath(),
-		SmartTurnModelPath:   voiceNativeSmartTurnOnnx,
-		ParaformerModelPath:  voiceNativeParaformerOnnx,
-		ParaformerTokensPath: voiceNativeParaformerTok,
+		SmartTurnModelPath:   smartTurnOnnx,
+		ParaformerModelPath:  paraformerOnnx,
+		ParaformerTokensPath: paraformerTok,
 	})
 	slog.Info("Voice V2 Go 原生引擎装配完成", "耗时", time.Since(engStart).String(), "error", err)
 	if err == nil {
 		var silero *native.SileroVAD
-		silero, err = eng.NewSileroVAD(voiceNativeSileroOnnx)
+		silero, err = eng.NewSileroVAD(sileroOnnx)
 		if err == nil {
 			voiceV2NativeEng = eng
 			voiceV2NativeSilero = silero
@@ -550,7 +352,7 @@ func voiceV2RealtimeStart() error {
 	}
 	var pipeRef *realtime.Pipeline
 	legs := voiceResponseLegs{
-		llm: voiceLLMLeg{base: "http://127.0.0.1:8792/v1"},
+		llm: voiceNativeLLMLeg{a: a},
 		tts: voiceTTSLeg{base: "http://127.0.0.1:8012/v1", model: "breeze-tts-2",
 			voice: func() string {
 				if pipeRef != nil {

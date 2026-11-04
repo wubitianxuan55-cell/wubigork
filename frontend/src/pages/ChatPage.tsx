@@ -6,7 +6,6 @@ import { createPortal } from 'react-dom'
 import { Typography, Modal, message, Input } from 'antd'
 import { DownOutlined } from '@ant-design/icons'
 import { app } from '../gaea/lib/bridge'
-import { subscribeWailsEvent } from '../gaea/lib/wailsEvents'
 import { b64ToBytes } from '../gaea/lib/bytes'
 import { copyToClipboard } from '../gaea/lib/clipboard'
 import { useFollowScroll } from '../utils/followScroll'
@@ -20,7 +19,6 @@ import { SoundWaveOverlay } from '../components/SoundWaveOverlay'
 import VoiceSettingsPanel from '../components/VoiceSettingsPanel'
 import { useChatTopics } from '../hooks/useChatTopics'
 import { useChatStream } from '../hooks/useChatStream'
-import { useChatVoice } from '../hooks/useChatVoice'
 import { ChatModeBar } from '../components/chat/ChatModeBar'
 import { ChatPersonaBar } from '../components/chat/ChatPersonaBar'
 import { MessageList } from '../components/chat/MessageList'
@@ -28,7 +26,6 @@ import { WelcomeScreen } from '../components/chat/WelcomeScreen'
 import { ChatComposer, QUICK_REPLIES } from '../components/chat/ChatComposer'
 const EMPTY_REPLIES: Array<{ label: string; text: string }> = []
 import { ChatInspector } from '../components/chat/ChatInspector'
-import { VoiceConsole } from '../components/chat/VoiceConsole'
 import VoiceConsoleV2 from '../components/chat/VoiceConsoleV2'
 import { STREAM_SILENCE_TIMEOUT_MS, EMO_COLORS } from './chat/constants'
 import { navigateToCharacterLib, loadCompanionName, toUpdatedAt, loadPersonality } from './chat/utils'
@@ -81,21 +78,6 @@ const ChatPage: React.FC = () => {
   const [voiceConsoleOpen, setVoiceConsoleOpen] = useState(false)
   // Voice V2 档（M4 产品接入刀）：v2=实时 sidecar（VoiceConsoleV2）；读取一次，
   // 设置面板切档下次打开语音台生效（V1 全保留，回退=切回 v1）。
-  const [voiceBackend, setVoiceBackend] = useState<'v1' | 'v2'>('v1')
-  useEffect(() => {
-    void app.VoiceGetSettings().then((s) => {
-      if ((s as Record<string, unknown>).voiceBackend === 'v2') setVoiceBackend('v2')
-    }).catch(() => { /* 桥不可用维持 v1 */ })
-  }, [])
-  // 切档即时生效（2026-11-01 实弹教训：设置面板切了 v2，页面还停在 v1 读数，
-  // 用户实测跑了半天 V1）。后端 VoiceApplySettings 发 voice-backend-changed。
-  useEffect(() => {
-    if (!window.runtime?.EventsOn) return
-    return subscribeWailsEvent(window.runtime, 'voice-backend-changed', (payload) => {
-      const backend = (payload as { backend?: string })?.backend === 'v2' ? 'v2' : 'v1'
-      setVoiceBackend(backend)
-    })
-  }, [])
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [speakingId, setSpeakingId] = useState<string | null>(null)
   // v4.3d 朗读情绪：手动选择（'' = 跟随会话最近一轮情绪）；朗读时作为
@@ -213,20 +195,11 @@ const ChatPage: React.FC = () => {
   })
   const { sending, streamKey, streamText, send, stop, cancelTyping } = streamApi
 
-  // ── 语音集成（T6-3.3 语音消息落库在 hook 内） ──
-  const voiceApi = useChatVoice({
-    setMessages,
-    getActiveId: useCallback(() => activeIdRef.current, [activeIdRef]),
-    getMode: useCallback(() => modeRef.current, [modeRef]),
-    finalizeTopicAfterSend,
-  })
-  const { voice, voiceOn, toggleVoice, stopVoiceSession, interruptVoice, switchMic } = voiceApi
-
+  // ── 语音台（V2 唯一；V1 whisper 链已退役 2026-11-05 用户拍板） ──
   useEffect(() => {
     if (chatActive) return
-    setVoiceConsoleOpen(false)
-    stopVoiceSession()
-  }, [chatActive, stopVoiceSession])
+    setVoiceConsoleOpen(false) // V2 控制台卸载即断开（组件内自治）
+  }, [chatActive])
 
   const openVoiceConsole = useCallback(async () => {
     if (!activeIdRef.current) {
@@ -244,16 +217,12 @@ const ChatPage: React.FC = () => {
       return
     }
     if (activeIdRef.current !== topicID) return // 等待期间已切题，放弃开台
-    setVoiceConsoleOpen(true)
-    if (voiceBackend === 'v2') return // V2 自管会话（VoiceConsoleV2 挂载即连接）
-    if (!voiceOn) await toggleVoice()
-  }, [activeIdRef, voiceBackend, voiceOn, toggleVoice, enqueuePersonaSync, modeForPreset])
+    setVoiceConsoleOpen(true) // V2 自管会话（VoiceConsoleV2 挂载即连接）
+  }, [activeIdRef, enqueuePersonaSync, modeForPreset])
 
   const closeVoiceConsole = useCallback(() => {
     setVoiceConsoleOpen(false)
-    if (voiceBackend === 'v2') return // V2 卸载即断开
-    stopVoiceSession()
-  }, [voiceBackend, stopVoiceSession])
+  }, [])
   const handleOpenVoiceConsole = useCallback(() => {
     void openVoiceConsole()
   }, [openVoiceConsole])
@@ -294,13 +263,7 @@ const ChatPage: React.FC = () => {
     ? '语音对话'
     : activeTopic?.title || (mode === 'plain' ? '新对话' : companionName)
   const workspaceStatus = voiceConsoleOpen
-    ? voice.degraded === 'mic-unavailable'
-      ? '麦克风不可用'
-      : voice.aiSpeaking
-        ? '正在回应'
-        : voice.listening
-          ? '正在聆听'
-          : voiceOn ? '等待发言' : '语音暂停'
+    ? '语音会话中'
     : sending
       ? '正在生成'
       : hasMessages
@@ -563,20 +526,7 @@ const ChatPage: React.FC = () => {
           </div>
         </header>
 
-        {voiceConsoleOpen && voiceBackend !== 'v2' ? (
-          <VoiceConsole
-            voice={voice}
-            voiceOn={voiceOn}
-            messages={messages}
-            companionName={companionName}
-            onToggleVoice={toggleVoice}
-            onInterruptVoice={interruptVoice}
-            onOpenSettings={handleOpenVoiceSettings}
-            onClose={handleCloseVoiceConsole}
-            onSwitchMic={switchMic}
-          />
-        ) : (
-          <>
+        <>
             {/* 人格状态条（临场感：头像常驻 + 名字；状态/记忆归角色库） */}
             {mode !== 'plain' && hasMessages && (
               <ChatPersonaBar
@@ -605,7 +555,6 @@ const ChatPage: React.FC = () => {
                   mode={mode}
                   personaLabel={personaLabel}
                   companionName={companionName}
-                  voice={voice}
                   emoColor={emoColor}
                   activePersonality={activePersonality}
                   onSwitchPersonality={handleSwitchPersonality}
@@ -613,7 +562,6 @@ const ChatPage: React.FC = () => {
                   onFillInput={handleFillInput}
                   onSuggestion={handleSuggestion}
                   onOpenVoiceConsole={handleOpenVoiceConsole}
-                  onSwitchMic={switchMic}
                 />
               ) : (
                 <GenuiScopeProvider scope={activeId ? { scope: 'chat', sessionKey: activeId } : null}>
@@ -647,7 +595,7 @@ const ChatPage: React.FC = () => {
 
             {/* P1.5 内嵌语音条：V2 默认入口在输入区（bar），展开=浮层整幅；
                 同一实例同一条会话线，工作区不再被开台接管 */}
-            {voiceConsoleOpen && voiceBackend === 'v2' && (
+            {voiceConsoleOpen && (
               <VoiceConsoleV2
                 companionName={companionName}
                 instructions={v2Instructions}
@@ -669,9 +617,7 @@ const ChatPage: React.FC = () => {
               onInputChange={setInput}
               onKeyDown={handleKeyDown}
               inputRef={inputRef}
-              voiceOn={voiceOn}
-              voiceTranscript={voice.transcript}
-              voiceDegraded={voice.degraded === 'mic-unavailable'}
+              voiceOpen={voiceConsoleOpen}
               onToggleVoice={handleOpenVoiceConsole}
               sending={sending}
               forceSearch={forceSearch}
@@ -682,8 +628,7 @@ const ChatPage: React.FC = () => {
               onStop={stop}
               onFillInput={handleFillInput}
             />
-          </>
-        )}
+        </>
       </main>
 
       <div className="v3-split-v" aria-hidden="true" />

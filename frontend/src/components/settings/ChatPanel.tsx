@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { Input, Radio, Select, Switch, Typography, message } from 'antd'
+import { Input, Radio, Select, Typography, message } from 'antd'
 import { TeamOutlined, SmileOutlined, AudioOutlined } from '@ant-design/icons'
 import { app } from '../../gaea/lib/bridge'
 import { applyVoiceSettings, getVoiceSettings } from '../../api/settings'
@@ -218,20 +218,6 @@ const ChatPanel: React.FC = () => {
         instant
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <div style={{ fontSize: 13, color: 'var(--md-sys-color-text)' }}>{t('settings.chat.voiceTitle')}</div>
-              <div style={{ fontSize: 11, color: 'var(--md-sys-color-text-secondary)' }}>{t('settings.chat.voiceEnableDesc')}</div>
-            </div>
-            <Switch size="small" checked={!!voice.enabled} onChange={(v) => patchVoice('enabled', v)} />
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <div style={{ fontSize: 13, color: 'var(--md-sys-color-text)' }}>{t('settings.chat.ttsRow')}</div>
-              <div style={{ fontSize: 11, color: 'var(--md-sys-color-text-secondary)' }}>{t('settings.chat.ttsDesc')}</div>
-            </div>
-            <Switch size="small" checked={!!voice.ttsEnabled} onChange={(v) => patchVoice('ttsEnabled', v)} />
-          </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
               <div style={{ fontSize: 13, color: 'var(--md-sys-color-text)' }}>{t('settings.chat.voiceSelRow')}</div>

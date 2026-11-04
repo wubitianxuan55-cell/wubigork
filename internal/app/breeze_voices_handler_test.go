@@ -195,11 +195,6 @@ func TestVoicePersonaPreset(t *testing.T) {
 
 func TestVoiceApplySettings_PersonaPresets(t *testing.T) {
 	a := &mediaState{core: &core{cfg: &config.Config{}}}
-	a.voiceManager = nil
-	a.initVoice()
-	if a.voiceManager == nil {
-		t.Skip("voiceManager 不可用（依赖缺失环境）")
-	}
 
 	// 合法对象：规范化落盘（空字段保留为空串键）
 	err := a.VoiceApplySettings(map[string]interface{}{

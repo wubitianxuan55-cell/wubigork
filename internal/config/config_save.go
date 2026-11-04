@@ -221,8 +221,6 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 		cf.CustomEngineKeys = m
 		return nil
 	},
-	KeyActiveASREngine:     func(cf *configFile, v string) error { cf.ActiveASREngine = v; return nil },
-	KeyActiveASRModel:      func(cf *configFile, v string) error { cf.ActiveASRModel = v; return nil },
 	KeyActiveTTSEngine:     func(cf *configFile, v string) error { cf.ActiveTTSEngine = v; return nil },
 	KeyActiveTTSModel:      func(cf *configFile, v string) error { cf.ActiveTTSModel = v; return nil },
 	KeyTTSVoice:            func(cf *configFile, v string) error { cf.TTSVoice = v; return nil },
@@ -443,19 +441,8 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 		cf.VoiceChatLLM = v
 		return nil
 	},
-	KeyRealtimeProvider: func(cf *configFile, v string) error {
-		// 空 = 关闭实时语音档（允许清空回未配置态）；非空只允许已注册 kind
-		// "openai"（与 internal/realtime 注册表一致，非法值保存即拒绝）。
-		if v != "" && v != "openai" {
-			return fmt.Errorf("实时语音 provider 仅支持 openai（当前值: %s）", v)
-		}
-		cf.RealtimeProvider = v
-		return nil
-	},
-	KeyRealtimeModel:  func(cf *configFile, v string) error { cf.RealtimeModel = v; return nil },
 	KeyGLMCatalogPath: func(cf *configFile, v string) error { cf.GLMCatalogPath = v; return nil },
 	KeyGLMCatalogURL:  func(cf *configFile, v string) error { cf.GLMCatalogURL = v; return nil },
-	KeyRealtimeAPIKey: func(cf *configFile, v string) error { cf.RealtimeAPIKey = v; return nil },
 }
 
 // parseBoolPtr 解析 "true"/"1"/"0" 等布尔值并返回指针（用于 *bool 配置项）。

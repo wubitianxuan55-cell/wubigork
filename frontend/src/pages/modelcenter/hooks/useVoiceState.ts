@@ -35,7 +35,7 @@ export interface VoiceState {
   chatVoiceOptions: { value: string; label: string }[]
   chatVoiceValue?: string
   loadVoiceCfg: () => Promise<void>
-  handleSetVoiceModel: (kind: 'asr' | 'tts', engineId: string, modelId: string) => Promise<void>
+  handleSetVoiceModel: (kind: 'tts', engineId: string, modelId: string) => Promise<void>
   handleSetOCRModel: (engineId: string, modelId: string) => Promise<void>
   handleSaveChatVoice: () => Promise<void>
   handleClearChatVoice: () => Promise<void>
@@ -77,11 +77,10 @@ export function useVoiceState(): VoiceState {
   useEffect(() => { void loadVoiceCfg(); void loadOCRCfg() }, [loadVoiceCfg, loadOCRCfg])
 
   // 设为语音识别/合成（模型中心 → 语音管道）
-  const handleSetVoiceModel = async (kind: 'asr' | 'tts', engineId: string, modelId: string) => {
+  const handleSetVoiceModel = async (_kind: 'tts', engineId: string, modelId: string) => {
     try {
-      if (kind === 'asr') await app.SetActiveASRModel(engineId, modelId)
-      else await app.SetActiveTTSModel(engineId, modelId)
-      message.success(`已设为${kind === 'asr' ? '语音识别' : '语音合成'}：${modelId}`)
+      await app.SetActiveTTSModel(engineId, modelId)
+      message.success(`已设为语音合成：${modelId}`)
       loadVoiceCfg()
     } catch (err: unknown) {
       message.error(errText(err, '设置失败'))

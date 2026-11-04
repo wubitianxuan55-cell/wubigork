@@ -563,7 +563,11 @@ func (p *Pipeline) llmStage(req *promptRequest) {
 	if err := <-done; err != nil && rs.ctx.Err() == nil && !rs.dead {
 		slog.Warn("LLM 生成失败", "error", err)
 		if !rs.dead {
-			p.ttsCh <- &ttsRequest{resp: rs, sentence: "我现在有点跟不上，请再说一遍。", last: true}
+			// 兜底语进转写面（F1，2026-11-05 ws_probe 实弹）：直推 TTS 会绕过
+			// delta/parts——用户听到的话在转写面板空白、done 文本为空。
+			p.textCh <- &textEvent{kind: evKindAssistantDelta, resp: rs, transcript: voiceLLMFallbackText}
+			p.notify()
+			p.ttsCh <- &ttsRequest{resp: rs, sentence: voiceLLMFallbackText, last: true}
 			return
 		}
 	}
@@ -609,6 +613,9 @@ func (p *Pipeline) ttsStage(t *ttsRequest) {
 		p.notify()
 	}
 }
+
+// voiceLLMFallbackText LLM 失败兜底语（单一来源：转写面与 TTS 面同文本）。
+const voiceLLMFallbackText = "我现在有点跟不上，请再说一遍。"
 
 // ─────────── 发送循环（websocket_router._send_loop_for 同位） ───────────
 
@@ -678,6 +685,12 @@ func (p *Pipeline) drainOnce() bool {
 				return true // router:1138 墓葬同位
 			}
 			p.scope.clearDiscarding()
+			// R3（audit 复核池）：零输出响应不得谎报 completed——空回复/丢弃
+			// 残留按 cancelled 收口，O3 回滚撤销空暂存，前端不再误报完成。
+			if a.resp.audioEmitted == 0 {
+				p.finishResponse(p.session, a.resp, "cancelled", "empty_output")
+				return true
+			}
 			p.finishResponse(p.session, a.resp, "completed", "")
 			return true
 		}
@@ -768,6 +781,7 @@ func (p *Pipeline) dispatchAudio(a *audioOut) {
 	if p.closedKeys[a.resp.key] {
 		return
 	}
+	a.resp.audioEmitted++
 	p.sendResponseCreated(a.resp)
 	p.beginAssistantOutput(a.resp)
 	p.audioBatch = append(p.audioBatch, a.pcm...)
@@ -834,7 +848,7 @@ func (p *Pipeline) resolveInputTerminals(startedTurnID string) {
 				default:
 					disposition = "discard"
 				}
-			case p.turns.IsCommitted(term.turnID, term.rev):
+			case hasResponse || p.turns.IsCommitted(term.turnID, term.rev):
 				disposition = "publish"
 			default:
 				disposition = "hold"
@@ -899,10 +913,14 @@ type responseState struct {
 	committedSent bool
 	dead          bool
 	textSent      bool
-	inTokens      int
-	outTokens     int
-	parts         []string
-	sb            string
+	// audioEmitted 过闸下行的音频批次数（dispatchAudio 计数）。done 哨兵收口时
+	// 为 0=整响应零输出（LLM 空回复/代际丢弃残留）——按 cancelled 收口走 O3
+	// 回滚，不再以 completed+空输出谎报完成（audit R3 刀6 复核池销项）。
+	audioEmitted int
+	inTokens     int
+	outTokens    int
+	parts        []string
+	sb           string
 }
 
 func (p *Pipeline) newResponseState(turnID string, rev int, anchor time.Time) *responseState {
@@ -964,11 +982,31 @@ func (p *Pipeline) finishResponse(s *Session, rs *responseState, status, reason 
 	if p.respState == nil && p.closedKeys[rs.key] {
 		return
 	}
+	// 终态前冲刷本响应的停靠 delta（grace/候选窗口内入队的兜底语等）：
+	// 终态帧之后不允许再有本响应文本帧，且 parts 必须含全部已播报文本——
+	// 否则 done 转写空白、面板无声（F1 配套，ws_probe 实弹钉）。
+	remaining := p.pendingText[:0]
+	for _, ev := range p.pendingText {
+		if ev.resp.key == rs.key {
+			p.dispatchText(ev)
+			continue
+		}
+		remaining = append(remaining, ev)
+	}
+	p.pendingText = remaining
 	full := strings.Join(rs.parts, " ")
 	if rs.textSent && s != nil {
 		s.Send(evTranscriptDone(rs.id, rs.itemID, full))
 		s.Send(evContentPartDone(rs.id, rs.itemID))
 		s.Send(evOutputItemDone(rs.id, rs.itemID, 0))
+	}
+	// 尾批 flush：6400B 批的 remainder 必须在响应收口时下行（上游 audio 输出
+	// flush-remainder 语义；漏 flush=每轮尾部 ≤200ms 音频被静默吞掉）。仅
+	// completed 下发——cancelled 的尾部残余随播放冲刷语义一并丢弃。
+	if status == "completed" && s != nil && len(p.audioBatch) > 0 {
+		tail := p.audioBatch
+		p.audioBatch = nil
+		s.Send(evAudioDelta(rs.id, rs.itemID, tail))
 	}
 	if s != nil {
 		done := evResponseDone(ResponseDonePayload{

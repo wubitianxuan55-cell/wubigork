@@ -451,20 +451,11 @@ func applyConfigFile(cfg *Config, home string) {
 			if cf.VoicePersonaPresets != "" {
 				cfg.VoicePersonaPresets = cf.VoicePersonaPresets
 			}
-			if cf.RealtimeProvider != "" {
-				cfg.RealtimeProvider = cf.RealtimeProvider
-			}
 			if cf.VoiceBackend != "" {
 				cfg.VoiceBackend = cf.VoiceBackend
 			}
 			if cf.VoiceChatLLM != "" {
 				cfg.VoiceChatLLM = cf.VoiceChatLLM
-			}
-			if cf.RealtimeModel != "" {
-				cfg.RealtimeModel = cf.RealtimeModel
-			}
-			if cf.RealtimeAPIKey != "" {
-				cfg.RealtimeAPIKey = cf.RealtimeAPIKey
 			}
 			// 2.x 聊天/轻语合并：旧配置只写 func_whisper_* 时迁移到 func_chat；
 			// chat 显式配置优先，不覆盖；func_whisper_enabled=false 同步为 chat 停用。
