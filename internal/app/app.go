@@ -322,7 +322,7 @@ type App struct {
 
 	// 外部本地引擎进程引用——gaea 代启时登记，停止/状态走 *_proc.go。
 	// 外部启动器起的实例不登记（netstat 停止）。
-	strataProc   localEngineProc
+	strataProc localEngineProc
 
 	// intentClassifierFn 意图 LLM 兜底分类 seam（v4.8，测试注入点；nil=内置 LLM 分类器）。
 	intentClassifierFn func(text string) *intent.Intent

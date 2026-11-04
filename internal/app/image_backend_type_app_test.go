@@ -44,7 +44,7 @@ func TestImageBackendInfoBackendJudgments(t *testing.T) {
 			ai.ImageBackendTypeXAI,
 			ai.ImageBackendTypeComfyUI,
 			ai.ImageBackendTypeHerdsman,
-				ai.ImageBackendTypeGLM,
+			ai.ImageBackendTypeGLM,
 		} {
 			c := &ai.Client{}
 			c.SetImageBackend(nil, name)

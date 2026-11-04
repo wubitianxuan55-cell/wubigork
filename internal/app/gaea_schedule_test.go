@@ -414,7 +414,6 @@ func TestGaeaModelSwitchEstimateUnknown(t *testing.T) {
 	}
 }
 
-
 // ─── 绑定开关（T5-3a/b） ───────────────────────────────────
 
 // TestScheduleConfigBindings 开关读绑定走配置（默认 true 由 config.Load 保证）。

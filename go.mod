@@ -9,6 +9,7 @@ require (
 	github.com/bmaupin/go-epub v1.1.0
 	github.com/carmel/gooxml v0.0.0-20220216072414-40ff56130850
 	github.com/fsnotify/fsnotify v1.9.0
+	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/k2-fsa/sherpa-onnx-go-windows/v2 v2.0.1
 	github.com/mattn/go-runewidth v0.0.23
@@ -35,7 +36,6 @@ require (
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/gofrs/uuid v3.1.0+incompatible // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/jchv/go-winloader v0.0.0-20210711035445-715c2860da7e // indirect
 	github.com/labstack/echo/v4 v4.13.3 // indirect
 	github.com/labstack/gommon v0.4.2 // indirect

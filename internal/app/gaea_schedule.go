@@ -400,7 +400,6 @@ func (a *App) estimateStrataModelSwitch(model string, out ModelSwitchEstimate) M
 	return out
 }
 
-
 // ─── 绑定：保活/预载开关（T5-3a/b，持久化到 ~/.gaea_config.json） ──
 
 // GetKeepWarm 读取本地模型保活开关（默认开启）。

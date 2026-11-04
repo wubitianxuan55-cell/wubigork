@@ -863,7 +863,7 @@ func gaeaKindName(k event.Kind) string {
 		event.ApprovalRequest: "approval_request", event.AskRequest: "ask_request",
 		event.ApprovalResolved: "approval_resolved", event.AskResolved: "ask_resolved",
 		event.ApprovalAuto: "approval_auto",
-		event.TurnDone: "turn_done", event.CompactionStarted: "compaction_started",
+		event.TurnDone:     "turn_done", event.CompactionStarted: "compaction_started",
 		event.CompactionDone: "compaction_done", event.Steer: "notice",
 		event.SubagentMessage: "subagent_message",
 	}
