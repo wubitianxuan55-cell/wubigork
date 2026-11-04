@@ -226,7 +226,6 @@ func (e *Engine) Transcribe(pcm []float32, sampleRate int) (string, error) {
 }
 
 // --- VAD（sherpa silero；仅冒烟/调试，管线轮次机用 ORT 原始概率自建迟滞）---
-
 func (e *Engine) initVAD() error {
 	cfg := &sherpa_onnx.VadModelConfig{
 		SileroVad: sherpa_onnx.SileroVadModelConfig{
@@ -273,4 +272,107 @@ func (e *Engine) VADSegments(pcm []float32) [][]float32 {
 		e.vad.Pop()
 	}
 	return out
+}
+
+// --- SileroVAD（silero v5 直跑，LSTM 态内持；管线轮次机用） ---
+
+// SileroVAD silero v5 ONNX 会话（512 样本@16k；state [2,1,128]）。
+type SileroVAD struct {
+	sess   *ort.AdvancedSession
+	in     *ort.Tensor[float32]
+	state  *ort.Tensor[float32]
+	out    *ort.Tensor[float32]
+	stateN *ort.Tensor[float32]
+	mu     sync.Mutex
+}
+
+// NewSileroVAD 装配 silero v5。
+func (e *Engine) NewSileroVAD(modelPath string) (*SileroVAD, error) {
+	if err := initORT(e.cfg.ORTRuntimePath); err != nil {
+		return nil, fmt.Errorf("onnxruntime 初始化失败: %w", err)
+	}
+	in, err := ort.NewTensor(ort.NewShape(1, 512), make([]float32, 512))
+	if err != nil {
+		return nil, fmt.Errorf("VAD 输入张量创建失败: %w", err)
+	}
+	state, err := ort.NewTensor(ort.NewShape(2, 1, 128), make([]float32, 256))
+	if err != nil {
+		in.Destroy()
+		return nil, fmt.Errorf("VAD 状态张量创建失败: %w", err)
+	}
+	out, err := ort.NewTensor(ort.NewShape(1, 1), make([]float32, 1))
+	if err != nil {
+		in.Destroy()
+		state.Destroy()
+		return nil, fmt.Errorf("VAD 输出张量创建失败: %w", err)
+	}
+	stateN, err := ort.NewTensor(ort.NewShape(2, 1, 128), make([]float32, 256))
+	if err != nil {
+		in.Destroy()
+		state.Destroy()
+		out.Destroy()
+		return nil, fmt.Errorf("VAD 状态输出张量创建失败: %w", err)
+	}
+	opts, err := ort.NewSessionOptions()
+	if err != nil {
+		in.Destroy()
+		state.Destroy()
+		out.Destroy()
+		stateN.Destroy()
+		return nil, fmt.Errorf("VAD 会话选项创建失败: %w", err)
+	}
+	defer opts.Destroy()
+	// 模型须为 sr 常量化版（silero_vad_v5_16k.onnx——yalue 不支持 0 维标量输入，
+	// sr=16000 已烘进图，.tmp/voice-native-gen/fix_silero_sr.py 生成并等价验证）。
+	sess, err := ort.NewAdvancedSession(modelPath,
+		[]string{"input", "state"}, []string{"output", "stateN"},
+		[]ort.Value{in, state}, []ort.Value{out, stateN}, opts)
+	if err != nil {
+		in.Destroy()
+		state.Destroy()
+		out.Destroy()
+		stateN.Destroy()
+		return nil, fmt.Errorf("VAD 会话创建失败: %w", err)
+	}
+	return &SileroVAD{sess: sess, in: in, state: state, out: out, stateN: stateN}, nil
+}
+
+// Prob 一块 512 样本的语音概率（状态推进）。
+func (s *SileroVAD) Prob(x []float32) (float32, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	copy(s.in.GetData(), x)
+	if err := s.sess.Run(); err != nil {
+		return 0, fmt.Errorf("VAD 推理失败: %w", err)
+	}
+	// LSTM 态推进：stateN → state（下一块的输入态）
+	copy(s.state.GetData(), s.stateN.GetData())
+	return s.out.GetData()[0], nil
+}
+
+// Reset LSTM 态清零。
+func (s *SileroVAD) Reset() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	d := s.state.GetData()
+	for i := range d {
+		d[i] = 0
+	}
+}
+
+// Destroy 释放。
+func (s *SileroVAD) Destroy() {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.sess != nil {
+		s.sess.Destroy()
+		s.sess = nil
+	}
+	s.in.Destroy()
+	s.state.Destroy()
+	s.out.Destroy()
+	s.stateN.Destroy()
 }

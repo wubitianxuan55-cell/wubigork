@@ -16,6 +16,7 @@ import (
 	"os/exec"
 
 	"github.com/gaea/gaea/internal/gaea/proc"
+	"github.com/gaea/gaea/internal/voice/native"
 	"github.com/gaea/gaea/internal/voice/realtime"
 	"path/filepath"
 	"strings"
@@ -457,9 +458,33 @@ func (a *mediaState) VoiceV2Stop() map[string]interface{} {
 
 // Go 原生 realtime 服务器（GAEA_VOICE_REALTIME_GO 灰度模式，刀2~5 开发期）。
 var (
-	voiceV2RealtimeMu  sync.Mutex
-	voiceV2RealtimeSrv *realtime.Server
+	voiceV2RealtimeMu   sync.Mutex
+	voiceV2RealtimeSrv  *realtime.Server
+	voiceV2NativeEng    *native.Engine
+	voiceV2NativeSilero *native.SileroVAD
 )
+
+// voice 原生模型布局（模型统一根 voice/ 子目录）。
+const (
+	voiceNativeSileroOnnx     = `C:\AI\models\voice\silero_vad_v5_16k.onnx`
+	voiceNativeSmartTurnOnnx  = `C:\AI\models\voice\smart-turn-v3.2-cpu.onnx`
+	voiceNativeParaformerOnnx = `C:\AI\models\voice\model.int8.onnx`
+	voiceNativeParaformerTok  = `C:\AI\models\voice\tokens.txt`
+)
+
+// voiceEOTAdapter smart-turn 适配。
+type voiceEOTAdapter struct{ e *native.Engine }
+
+func (a voiceEOTAdapter) Predict(pcm []float32) (float32, time.Duration, error) {
+	return a.e.EndOfTurnTiming(pcm, native.SampleRate)
+}
+
+// voiceSTTAdapter paraformer 适配。
+type voiceSTTAdapter struct{ e *native.Engine }
+
+func (a voiceSTTAdapter) Transcribe(pcm []float32, sampleRate int) (string, error) {
+	return a.e.Transcribe(pcm, sampleRate)
+}
 
 func voiceV2RealtimeStart() error {
 	voiceV2RealtimeMu.Lock()
@@ -467,9 +492,30 @@ func voiceV2RealtimeStart() error {
 	if voiceV2RealtimeSrv != nil {
 		return nil
 	}
+	// 原生引擎装配（首次 ~1-2s：paraformer int8 加载+warmup）。
+	eng, err := native.New(native.Config{
+		ORTRuntimePath:       native.OrtDLLPath(),
+		SmartTurnModelPath:   voiceNativeSmartTurnOnnx,
+		ParaformerModelPath:  voiceNativeParaformerOnnx,
+		ParaformerTokensPath: voiceNativeParaformerTok,
+	})
+	if err == nil {
+		var silero *native.SileroVAD
+		silero, err = eng.NewSileroVAD(voiceNativeSileroOnnx)
+		if err == nil {
+			voiceV2NativeEng = eng
+			voiceV2NativeSilero = silero
+		}
+	}
+	if err != nil {
+		return fmt.Errorf("语音原生引擎装配失败: %w", err)
+	}
+	pipe := realtime.NewPipeline(realtime.PipelineConfig{
+		VAD: realtime.DefaultVADConfig(),
+	}, voiceV2NativeSilero, voiceEOTAdapter{eng}, voiceSTTAdapter{eng})
 	srv := &realtime.Server{
 		Addr:    fmt.Sprintf("127.0.0.1:%d", voiceV2SidecarPort),
-		Handler: realtime.ProtocolEcho{},
+		Handler: pipe,
 	}
 	if err := srv.Start(); err != nil {
 		return err
@@ -485,6 +531,16 @@ func voiceV2RealtimeStop() {
 	voiceV2RealtimeMu.Unlock()
 	if srv != nil {
 		srv.Stop()
+	}
+	voiceV2RealtimeMu.Lock()
+	eng, silero := voiceV2NativeEng, voiceV2NativeSilero
+	voiceV2NativeEng, voiceV2NativeSilero = nil, nil
+	voiceV2RealtimeMu.Unlock()
+	if silero != nil {
+		silero.Destroy()
+	}
+	if eng != nil {
+		eng.Close()
 	}
 }
 

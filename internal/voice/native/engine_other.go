@@ -34,3 +34,18 @@ func (e *Engine) VADSegments(pcm []float32) [][]float32 { return nil }
 
 // OrtDLLPath stub。
 func OrtDLLPath() string { return "" }
+
+// SileroVAD stub。
+type SileroVAD struct{}
+
+// NewSileroVAD stub。
+func (e *Engine) NewSileroVAD(string) (*SileroVAD, error) { return nil, ErrNotSupported }
+
+// Prob stub。
+func (s *SileroVAD) Prob([]float32) (float32, error) { return 0, ErrNotSupported }
+
+// Reset stub。
+func (s *SileroVAD) Reset() {}
+
+// Destroy stub。
+func (s *SileroVAD) Destroy() {}

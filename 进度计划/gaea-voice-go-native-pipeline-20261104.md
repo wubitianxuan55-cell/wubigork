@@ -55,6 +55,14 @@
 - `C:\AI\models\voice\`：model.int8.onnx（paraformer 214MB）+ tokens.txt + smart-turn-v3.2-cpu.onnx（8.7MB，HF 缓存拷入）+ silero_vad_v5.onnx（2.3MB）
 - ORT 版本配对：onnxruntime.dll 1.31.1 ↔ yalue v1.28.0（API 28）↔ sherpa 2.0.1（API ≤28）；升任一方须三对齐复验
 
+## 2.5 刀3 已落地（2026-11-04）
+
+- `internal/voice/realtime`：turns.go（SpeculativeTurnTracker 全语义：grace 仅延长/候选 HOLD 2s/音频时钟 7000ms/提交 vs 关闭——9 单测固化）+ vad.go（silero 状态机：滞回带 threshold-0.15/样本钟 64ms 静音/pre-speech pad 500ms/500ms 空闲模型复位）+ vadhandler.go（延迟确认 384/192+候选先行/幻影/discard/soft-end+Smart Turn 宽限表+前缀拼接；日志行逐字保 sidecar 格式）+ pipeline.go（输入项生命周期+持发规则+STT 门+item 复用重开+50ms 持发重试泵）+ native SileroVAD 直跑（ORT）
+- **实弹验证（breeze 合成句回放）**：384ms fragment → soft-end → Smart Turn complete → 续说 192ms 判据 → **同轮 rev=1 重开**（item 复用，仅一次 speech_started）→ 12 字全句转写（前缀拼接生效）——speculative reopen 全链实证
+- **语义保真要点**：转写完不提前 commit+close（会杀死 reopen）；terminal 持发至「响应提交/下一轮开始/会话结束」；无响应腿（刀5 前）下 stopped/committed/transcription 持而不发=正确行为
+- **坑新增**：①silero LSTM 态须 stateN→state 回拷（漏拷=概率恒近随机）；②yalue 不支持 0 维标量（sr 输入）→ 图手术常量化（fix_silero_sr.py 产 silero_vad_v5_16k.onnx，等价性验证过）；③OnAudio 512 块化须跨帧累积余数（前端 320 样本帧粒度，否则全丢）；④app 包测试二进制链接 sherpa DLL 后，go test 须 PATH 带 DLL 目录
+- 余：ws_probe turn/bargein/cancel 三场景门挂刀5（响应腿是前置）
+
 ## 3. 刀2~6 计划
 
 - **刀2 WS 服务器+协议层**：8791 `/v1/realtime`（gorilla/websocket），session pool=1（第二条 `session_limit_reached`+close 1008）、session.created/updated、events.ts 全事件、response.created 顺序守卫、response_key 墓碑（≤128）、下行 6400B 分块；门=前端可连 + orderingViolations() 干净
