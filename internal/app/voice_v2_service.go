@@ -16,6 +16,7 @@ import (
 	"os/exec"
 
 	"github.com/gaea/gaea/internal/gaea/proc"
+	"github.com/gaea/gaea/internal/voice/realtime"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -342,6 +343,17 @@ func (a *mediaState) VoiceV2Ensure() map[string]interface{} {
 			emit(false, "检查记忆网关", "Gaea Voice V2 记忆网关未就绪（检查 8792 端口）")
 			return
 		}
+		// Go 原生实时管线灰度模式（刀2~5 开发期）：GAEA_VOICE_REALTIME_GO=1 时
+		// 进程内 realtime 服务器直接顶 8791（协议回声/后续真管线），不再拉
+		// breeze/4B/sidecar。刀6 默认切换并删除本分支。
+		if os.Getenv("GAEA_VOICE_REALTIME_GO") != "" {
+			if err := voiceV2RealtimeStart(); err != nil {
+				emit(false, "正在准备语音识别引擎", fmt.Sprintf("Go realtime 启动失败: %v", err))
+				return
+			}
+			emit(true, "", "")
+			return
+		}
 		// ① breeze：复用既有按需拉起线（自带 tts-service-status 事件）
 		emit(false, "正在准备 Breeze 声线服务", "")
 		if !voiceV2Probe(voiceV2BreezePort) {
@@ -426,10 +438,54 @@ func (a *mediaState) VoiceV2Ensure() map[string]interface{} {
 }
 
 // VoiceV2Stop 按端口击杀 sidecar 与 4B（breeze 是共享引擎不动）。
+// Go 原生 realtime 模式下 8791 由本进程持有——绝不能走端口杀（等于自杀），
+// 只 Stop 服务器对象。
 func (a *mediaState) VoiceV2Stop() map[string]interface{} {
-	k1 := voiceV2KillPort(voiceV2SidecarPort)
-	k2 := voiceV2KillPort(voiceV2LLMPort)
+	voiceV2RealtimeMu.Lock()
+	goOwns8791 := voiceV2RealtimeSrv != nil
+	voiceV2RealtimeMu.Unlock()
+	var k1, k2 bool
+	if goOwns8791 {
+		voiceV2RealtimeStop()
+		k1 = true
+	} else {
+		k1 = voiceV2KillPort(voiceV2SidecarPort)
+	}
+	k2 = voiceV2KillPort(voiceV2LLMPort)
 	return map[string]interface{}{"sidecar": k1, "llm": k2}
+}
+
+// Go 原生 realtime 服务器（GAEA_VOICE_REALTIME_GO 灰度模式，刀2~5 开发期）。
+var (
+	voiceV2RealtimeMu  sync.Mutex
+	voiceV2RealtimeSrv *realtime.Server
+)
+
+func voiceV2RealtimeStart() error {
+	voiceV2RealtimeMu.Lock()
+	defer voiceV2RealtimeMu.Unlock()
+	if voiceV2RealtimeSrv != nil {
+		return nil
+	}
+	srv := &realtime.Server{
+		Addr:    fmt.Sprintf("127.0.0.1:%d", voiceV2SidecarPort),
+		Handler: realtime.ProtocolEcho{},
+	}
+	if err := srv.Start(); err != nil {
+		return err
+	}
+	voiceV2RealtimeSrv = srv
+	return nil
+}
+
+func voiceV2RealtimeStop() {
+	voiceV2RealtimeMu.Lock()
+	srv := voiceV2RealtimeSrv
+	voiceV2RealtimeSrv = nil
+	voiceV2RealtimeMu.Unlock()
+	if srv != nil {
+		srv.Stop()
+	}
 }
 
 func voiceV2WaitPort(port int, timeout time.Duration) bool {
