@@ -347,7 +347,7 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 	}
 
 	// 策略注入
-	psycheBlock = o.injectStrategy(psycheBlock, silent)
+	psycheBlock, strategyLevel := o.injectStrategy(psycheBlock, silent)
 
 	// 话题仲裁 — 使用策略模块
 	topicInjection := o.resolveTopicInjection(emergence, desireHints)
@@ -372,6 +372,7 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 	// 冲突；微信实测「你会什么」只回 45 字即此因）。
 	gate := EvaluateProactiveGate(newEmotion.Aff, newEmotion.Aro, newEmotion.Sec,
 		newL1.Trust, newL1.Rifts, newL1.Stage, timeOfDayKey(), o.AdultMode)
+	gateLevel := gate.Level
 	if o.Preset.ID != "gaea" {
 		if gate.Level == "silent" {
 			psycheBlock += "\n\n【本轮策略 · silent】本轮只做简短回应，不开启任何新话题。"
@@ -391,7 +392,8 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 
 	// 用户啰嗦度（v4.8.3：短但含疑问的消息豁免镜像——「你是谁/你会什么」
 	// 是提问不是寒暄，≤15 字钳制会把答案掐死）。
-	if DetectUserVerbosity(userMsg) == "terse" && !isShortQuestion(userMsg) {
+	clampInjected := DetectUserVerbosity(userMsg) == "terse" && !isShortQuestion(userMsg)
+	if clampInjected {
 		psycheBlock += "\n\n用户回复简短，你的回复也要简短，不超过15字。"
 	}
 
@@ -451,7 +453,7 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 	o.State = newState
 
 	// ═══ Tier B 记忆检索 ═══
-	tierBBlock, memEcho := o.buildTierBBlock(userMsg, newEmotion.Aff, turnIndex)
+	tierBBlock, memEcho, injectedFactIDs := o.buildTierBBlock(userMsg, newEmotion.Aff, turnIndex)
 
 	// 记忆回声叠加到状态情绪（对齐 ackem applyMemoryEcho）
 	if memEcho != (MemoryEcho{}) {
@@ -544,7 +546,8 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 		L0:   TurnTraceL0{Type: event.Type, Intensity: event.Intensity, Sincerity: event.Sincerity},
 		L1:   TurnTraceL1{Trust: newL1.Trust, Rifts: newL1.Rifts, Stage: newL1.Stage, Atmosphere: newL1.Atmosphere},
 		L2:   TurnTraceL2{Aff: newEmotion.Aff, Sec: newEmotion.Sec, Aro: newEmotion.Aro, Dom: newEmotion.Dom, Label: newEmotion.PrimaryLabel},
-		L3:   TurnTraceL3{Silent: silent, TierBChars: len(psycheBlock), FactsUsed: len(o.FactStore.ListActive())},
+		L3: TurnTraceL3{Silent: silent, TierBChars: len(psycheBlock), FactsUsed: len(o.FactStore.ListActive()),
+			GateLevel: gateLevel, StrategyLevel: strategyLevel, ClampInjected: clampInjected, InjectedFactIDs: injectedFactIDs},
 		L4:   TurnTraceL4{Wrote: false},
 	}
 	trace.Timestamp = &now
@@ -785,7 +788,7 @@ func (o *Orchestrator) runEmergence(state FullState, emotion EmotionState, l1 L1
 
 // ─── 策略注入 ────────────────────────────────────────────────
 
-func (o *Orchestrator) injectStrategy(psycheBlock string, silent bool) string {
+func (o *Orchestrator) injectStrategy(psycheBlock string, silent bool) (string, string) {
 	level := "proactive"
 	if silent {
 		level = "silent"
@@ -800,7 +803,7 @@ func (o *Orchestrator) injectStrategy(psycheBlock string, silent bool) string {
 	case "proactive":
 		psycheBlock += "\n\n【本轮策略 · proactive】可以适当多聊几句。"
 	}
-	return psycheBlock
+	return psycheBlock, level
 }
 
 // ─── 话题仲裁 ────────────────────────────────────────────────
@@ -951,7 +954,7 @@ func (o *Orchestrator) buildTierASnapshot(l1 L1State, emotion EmotionState) (sta
 
 // ─── Tier B 记忆上下文 ───────────────────────────────────────
 
-func (o *Orchestrator) buildTierBBlock(userMsg string, currentAff float64, turnIndex int) (string, MemoryEcho) {
+func (o *Orchestrator) buildTierBBlock(userMsg string, currentAff float64, turnIndex int) (string, MemoryEcho, []string) {
 	var parts []string
 
 	// KV 前缀稳定化二刀配套：历史走 append-only messages 后，WM「近期对话」
@@ -1092,7 +1095,13 @@ func (o *Orchestrator) buildTierBBlock(userMsg string, currentAff float64, turnI
 			result = string(runes[:TierBCharBudget])
 		}
 	}
-	return result, echo
+	// 探针归因：进入本轮注入清单的事实 ID（ranked 全量；尾部可能被上面
+	// TierBCharBudget 截断，验收时按此口径解读）。
+	injectedIDs := make([]string, 0, len(ranked))
+	for _, sf := range ranked {
+		injectedIDs = append(injectedIDs, sf.fact.ID)
+	}
+	return result, echo, injectedIDs
 }
 
 // ─── 人格一致性守卫 ──────────────────────────────────────────

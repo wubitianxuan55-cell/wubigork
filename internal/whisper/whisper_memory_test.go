@@ -397,7 +397,7 @@ func TestOrchestrator_BuildTierBBlockIncludesEpisodes(t *testing.T) {
 		Domain: "preference", Subcategory: "FOOD", Subject: "用户",
 		Summary: "喜欢吃辣", Weight: 2,
 	})
-	block, _ := orch.buildTierBBlock("你喜欢雨天散步吗", 60, 1)
+	block, _, _ := orch.buildTierBBlock("你喜欢雨天散步吗", 60, 1)
 	if !strings.Contains(block, "相关记忆片段") || !strings.Contains(block, "雨天散步") {
 		t.Fatalf("buildTierBBlock 应注入情节记忆片段: %s", block)
 	}
@@ -413,7 +413,7 @@ func TestOrchestrator_MemoryEchoComputed(t *testing.T) {
 		Summary: "用户上次夸奖过Hermes", Weight: 1, SelfRelevance: 0.8, Confidence: 0.7,
 		EmotionalContext: &EmotionalContext{Valence: 60, Intensity: 0.8, Trust: 70},
 	})
-	_, echo := orch.buildTierBBlock("你记得夸奖", 60, 1)
+	_, echo, _ := orch.buildTierBBlock("你记得夸奖", 60, 1)
 	if echo == (MemoryEcho{}) {
 		t.Fatal("有情感事实时记忆回声不应为零")
 	}
@@ -423,7 +423,7 @@ func TestOrchestrator_MemoryEchoComputed(t *testing.T) {
 
 	// 无事实时回声为零
 	orch2 := NewOrchestrator("sess-t2", PersonalityPresets[0])
-	_, echo2 := orch2.buildTierBBlock("随便聊聊", 60, 1)
+	_, echo2, _ := orch2.buildTierBBlock("随便聊聊", 60, 1)
 	if echo2 != (MemoryEcho{}) {
 		t.Fatalf("无事实时记忆回声应为零: %+v", echo2)
 	}
@@ -457,7 +457,7 @@ func TestOrchestrator_BuildTierBBlockAssociationSpread(t *testing.T) {
 	})
 	orch.AssocIndex.StrengthenOrCreate(f1.ID, f2.ID, "thematic", 0.8)
 
-	block, _ := orch.buildTierBBlock("你记得我吃辣吗", 60, 1)
+	block, _, _ := orch.buildTierBBlock("你记得我吃辣吗", 60, 1)
 	if !strings.Contains(block, "关联记忆") || !strings.Contains(block, "冰红茶") {
 		t.Fatalf("buildTierBBlock 应扩散关联记忆: %s", block)
 	}
@@ -496,7 +496,7 @@ func TestOrchestrator_BuildTierBBlockFTSSearch(t *testing.T) {
 		return nil
 	}
 
-	block, _ := orch.buildTierBBlock("她平时喝什么", 60, 1)
+	block, _, _ := orch.buildTierBBlock("她平时喝什么", 60, 1)
 	if !strings.Contains(block, "美式咖啡") {
 		t.Fatalf("FTS 命中事实应补入 TierB 候选: %s", block)
 	}
@@ -510,7 +510,7 @@ func TestOrchestrator_BuildTierBBlockFTSSearchEmpty(t *testing.T) {
 		Weight: 2, Confidence: 0.9, SelfRelevance: 0.8,
 	})
 	// 无 FTS 回调（DataRoot 未注入）→ 保持原行为不 panic
-	block, _ := orch.buildTierBBlock("随便聊聊", 60, 1)
+	block, _, _ := orch.buildTierBBlock("随便聊聊", 60, 1)
 	_ = block // 不崩溃即可；触发词未命中时无检索块也正常
 }
 
@@ -521,7 +521,7 @@ func TestOrchestrator_BuildTierBBlockFTSNilCallback(t *testing.T) {
 		Summary: "她喜欢喝美式咖啡", Triggers: []string{"咖啡"},
 		Weight: 2, Confidence: 0.9, SelfRelevance: 0.8,
 	})
-	block, echo := orch.buildTierBBlock("她平时喝什么", 60, 1)
+	block, echo, _ := orch.buildTierBBlock("她平时喝什么", 60, 1)
 	_ = block
 	_ = echo
 }

@@ -387,6 +387,15 @@ type TurnTraceL3 struct {
 	EmbeddingHits int           `json:"embeddingHits,omitempty"`
 	TopicSource   string        `json:"topicSource,omitempty"`
 	EmergenceType EmergenceType `json:"emergenceType,omitempty"`
+	// 探针归因字段（众神殿人格论证刀0，进度计划/gaea-chat-persona-optimization-20261105.md §1.5）：
+	// Silent 记录的是 CalcSilence、FactsUsed 是活跃事实总数，均不能承担归因；
+	// 验收须看本轮实际注入面。GateLevel/StrategyLevel 是本轮门控与策略档位，
+	// ClampInjected 是 ≤15 字钳制是否注入，InjectedFactIDs 是 Tier B 实际进入
+	// 注入清单的事实 ID（ranked 全量，尾部可能被 TierBCharBudget 截断）。
+	GateLevel       string   `json:"gateLevel,omitempty"`
+	StrategyLevel   string   `json:"strategyLevel,omitempty"`
+	ClampInjected   bool     `json:"clampInjected,omitempty"`
+	InjectedFactIDs []string `json:"injectedFactIds,omitempty"`
 }
 
 type TurnTraceL4 struct {

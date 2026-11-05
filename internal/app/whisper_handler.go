@@ -407,6 +407,23 @@ func (a *whisperState) whisperChatCore(
 		streamStats = append(streamStats, "ttftMs", firstTokenAt.Sub(requestStart).Milliseconds())
 	}
 	slog.Info("[whisper] LLM stream stats", streamStats...)
+	// 探针归因日志（众神殿人格论证刀0）：start 日志只预览 40 rune（搜索块被截掉），
+	// 此处补 raw/llm 两形态长度+哈希、历史面与终态，供五桶探针逐轮取材。
+	rawSum := sha1.Sum([]byte(userMsg))
+	llmSum := sha1.Sum([]byte(llmUserMsg))
+	slog.Info("[whisper] turn probe",
+		"personality", personalityID,
+		"rawUserMsgChars", len([]rune(userMsg)), "rawHash", fmt.Sprintf("%x", rawSum)[:8],
+		"llmUserMsgChars", len([]rune(llmUserMsg)), "llmHash", fmt.Sprintf("%x", llmSum)[:8],
+		"replyChars", len([]rune(reply)), "emptyReply", strings.TrimSpace(reply) == "",
+		"cancelled", cancelled,
+		"promptHistoryLen", len(orch.PromptHistory),
+		"recentExchangesLen", len(preResult.RecentExchanges),
+		"eventType", string(preResult.Event.Type),
+		"gateLevel", preResult.Trace.L3.GateLevel,
+		"strategyLevel", preResult.Trace.L3.StrategyLevel,
+		"clampInjected", preResult.Trace.L3.ClampInjected,
+		"ttftMs", finishedAt.Sub(requestStart).Milliseconds())
 
 	// 节奏标记归一（v4.9.1）：chatter 模式要求模型用 [SPLIT] 分条连发，但该
 	// 标记是内部格式协议——本函数是 GUI/微信/语音三个出口的共同上游，在这
