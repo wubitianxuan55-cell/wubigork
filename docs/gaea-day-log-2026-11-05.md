@@ -142,3 +142,13 @@ status+save_task/读屏挂未来重评），M5 解冻待排刀。
   三包全量绿，build/vet 0。
 - 余：主源 A/B 待用户拍板（刀3+A 臂基线前置）；30 query keyless 基线待跑（保留窗/
   覆盖门阈值定数）；刀2 短窗合并+主源保留窗+覆盖门 v0 按基线数值落。
+
+## Tavily 主源接线（晚间续）
+
+- 用户注册 Tavily key 并拍板 A 路线后接线：tvly CLI 0.2.1 装机+认证；Tavily Agent Skills 全局装入
+  ~/.zcode/skills（重扫生效）；gaea 三面接线=user env setx TAVILY_API_KEY + repo .env（gitignored）
+  + %APPDATA%\gaea\config.toml [search] tavily_api_key_env="TAVILY_API_KEY"。运行中壳（PID 31988）须重启生效。
+- 真实执行面冒烟（.tmp/websearch_probe，统一检索核）：tavily-only 探针 5/5 正题（当日中间价 6.7150），
+  key 链路通；全引擎臂抓到首胜竞速活案例——bing 672ms 先胜但 5 条全离题 vs tavily 1122ms 5 条全正题
+  （单槽丢弃 tavily）=刀2 主源保留窗实证支点，首批 A 臂校准数据点（bing≈0.7s / tavily≈1.1s）。
+- 余：30 query A 臂基线（30q/1000 月额度）→刀2 按分布落保留窗；刀3 向导按 A 落。
