@@ -339,6 +339,8 @@ export const GAEA_METHOD_FACETS = {
   // 同 WhisperGetState/GetFacts 等轻语数据面归 play；语音运行时启停族归 play）。
   TTSSpeakBase64: "shared",
   TTSSpeakBase64WithParams: "shared",
+  // M5 刀一执行回执 TTS 朗读（VoiceConsoleV2 speakActionAck；同朗读面 shared）
+  TTSSpeakStreaming: "shared",
   // 角色档案试听段（角色库编辑器/检查器试听钮）：合成入口同 TTSSpeakBase64 归 shared。
   TTSVoicePreviewBase64: "shared",
   // 角色台词语音文件（内容寻址缓存优先）：试听链同上归 shared。

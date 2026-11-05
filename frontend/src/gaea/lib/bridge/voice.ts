@@ -66,4 +66,7 @@ export interface VoiceBindings {
     responseID: string,
     itemID: string,
   ): Promise<Record<string, unknown>>;
+  // TTSSpeakStreaming 流式朗读（边合成边播，后端播报 fire-and-forget；M5 刀一
+  // 执行回执 TTS 朗读消费；Go VoiceB 门面 bindings_voice.go:19）。
+  TTSSpeakStreaming(text: string): Promise<void>;
 }

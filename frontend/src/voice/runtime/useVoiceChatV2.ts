@@ -91,6 +91,8 @@ export interface VoiceChatV2Api {
   startMic: () => Promise<void>
   stopMic: () => void
   cancel: () => void
+  /** 运行时改监听阈值（M5 刀一回执朗读的回声门：朗读期拉高防扬声器残余回声假插话） */
+  updateVADThreshold: (threshold: number) => void
   /** 生成中关闭的精确回滚（P0a-A5f）：有未闭合 response 时发 cancel 并调
    * VoiceV2AbortTurn 回滚后端预推进；已完成轮已入提交链（A5e），此处不触碰。 */
   abortInFlight: () => void
@@ -708,10 +710,14 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const updateVADThreshold = useCallback((threshold: number) => {
+    clientRef.current?.updateVADThreshold(threshold)
+  }, [])
+
   return {
     phase, transcripts, partialTranscript: partial, assistantText,
     pbText, tail, connected, micOn, micLevel, micSilent, note, services, ensuring,
-    connect, disconnect, startMic, stopMic, cancel, abortInFlight,
+    connect, disconnect, startMic, stopMic, cancel, abortInFlight, updateVADThreshold,
     ensureServices, refreshServices, replayEvents,
   }
 }

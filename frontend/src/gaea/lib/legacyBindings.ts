@@ -87,7 +87,8 @@ export const legacyBindings = [
   "StrataEngineStop",
   "StrataModelStart",
   "StrataModelStop",
-  "TTSSpeakStreaming",
+  // "TTSSpeakStreaming" 已认领 shared（M5 刀一执行回执朗读，bridge/voice.ts），
+  // 按重叠锁 FE4-04 摘出 legacy 清单。
   "TestEngineConnection",
   "UpdateCustomEngine",
   "UpdateProjectMeta", // v4.439 项目元信息更新（小说创作间本书定位；wailsApp 直调 legacy 面）

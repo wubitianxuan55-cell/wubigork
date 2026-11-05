@@ -9,9 +9,11 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Button, message, Tooltip } from 'antd'
 import {
   AudioOutlined,
+  ArrowLeftOutlined,
   CheckCircleFilled,
   CloseOutlined,
   DisconnectOutlined,
+  DownOutlined,
   ExpandOutlined,
   LoadingOutlined,
   MinusCircleOutlined,
@@ -51,12 +53,12 @@ export interface VoiceConsoleV2Props {
 const PHASE_META = {
   idle: {
     label: '待机',
-    hint: '准备好后开始说话',
+    hint: '按下开始说话，准备好后直接开口',
     icon: <AudioOutlined />,
   },
   listening: {
     label: '正在聆听',
-    hint: '我在听，请直接说',
+    hint: '正在听，说完停顿一下即可',
     icon: <AudioOutlined />,
   },
   thinking: {
@@ -66,7 +68,7 @@ const PHASE_META = {
   },
   speaking: {
     label: '正在回应',
-    hint: '回应中，开口即可打断',
+    hint: '回应中，开口或按“打断本轮”即可停止',
     icon: <SoundOutlined />,
   },
   interrupted: {
@@ -76,7 +78,7 @@ const PHASE_META = {
   },
   error: {
     label: '本轮异常',
-    hint: '语音没有完成，可以重新开始',
+    hint: '语音没有完成，请重试或查看连接详情',
     icon: <WarningOutlined />,
   },
 }
@@ -89,6 +91,14 @@ const SERVICE_ITEMS = [
   { key: 'breeze', label: '声线服务' },
 ] as const
 
+function userFacingVoiceNote(note: string): string {
+  if (!note) return ''
+  if (/Go realtime|voice native engine|语音原生引擎|启动失败/i.test(note)) {
+    return '本机语音引擎未能启动。请检查 Windows 版语音组件后重试。'
+  }
+  return note
+}
+
 const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
   companionName, instructions, voiceId, variant = 'full', topicTitle,
   onClose, onOpenSettings, setMessages, getActiveId, finalizeTopicAfterSend,
@@ -97,6 +107,10 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
   const sessionTopicRef = useRef(getActiveId())
   const mountedRef = useRef(true)
   const commitChainRef = useRef<Promise<void>>(Promise.resolve())
+  const rootRef = useRef<HTMLDivElement>(null)
+  const threadRef = useRef<HTMLDivElement>(null)
+  const threadFollowingRef = useRef(true)
+  const [threadFollowing, setThreadFollowing] = useState(true)
   const [turnWarning, setTurnWarning] = useState('')
   // P1.9 异步动作预览 + P2 确认执行：轮完成后对最终转写跑 VoiceV2PreviewIntent
   // （dry-run 零副作用、不打 LLM；命中且白名单内发 previewId/intentHash/TTL 凭据；
@@ -119,6 +133,28 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
   const [expanded, setExpanded] = useState(false)
   const mode: 'full' | 'float' | 'bar' = variant === 'bar' ? (expanded ? 'float' : 'bar') : 'full'
 
+  // M5 刀一：T1 执行成功也朗读回执（与 T0 直执行同款反馈闭环）
+  // 回声门：朗读走后端 TTSSpeakStreaming（fire-and-forget，播完时机不可知）
+  // → 前端拉 session.update 阈值 0.9（≈禁听，防扬声器残余回声假插话——11-01
+  // 教训 0.6 被回声触发）+ 估时恢复 0.5（2s 底+220ms/字，上限 8s，宁长勿短）。
+  // v2 在 onTurnComplete 之后创建（循环依赖），阈值控制经 ref 注入。
+  const vadCtlRef = useRef<(v: number) => void>(() => {})
+  const ackGateTimerRef = useRef<number | null>(null)
+  const speakActionAck = useCallback((ack: string) => {
+    if (!mountedRef.current) return
+    vadCtlRef.current(0.9)
+    void Promise.resolve()
+      .then(() => app.TTSSpeakStreaming(ack))
+      .catch(() => {}) // 朗读失败静默（回执已上屏，不打扰）
+    if (ackGateTimerRef.current != null) window.clearTimeout(ackGateTimerRef.current)
+    const chars = [...ack].length
+    const holdMs = Math.min(8000, 2000 + chars * 220)
+    ackGateTimerRef.current = window.setTimeout(() => {
+      ackGateTimerRef.current = null
+      if (mountedRef.current) vadCtlRef.current(0.5)
+    }, holdMs)
+  }, [])
+
   const executePreview = useCallback(() => {
     setActionPreview((cur) => {
       if (!cur?.previewId || !cur.intentHash) return cur
@@ -127,7 +163,9 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
           if (!mountedRef.current) return
           if (r?.executed === true) {
             setActionPreview(null)
-            flashActionResult(`${r.reply ?? '已执行'}`)
+            const ack = String(r.reply ?? '已执行')
+            flashActionResult(ack)
+            speakActionAck(ack)
           } else {
             setActionPreview(null)
             flashActionResult(`动作未能执行（${String(r?.reason ?? 'unknown')}）`)
@@ -138,7 +176,7 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
         })
       return null // 领走即清卡（执行中不重复点击）
     })
-  }, [flashActionResult])
+  }, [flashActionResult, speakActionAck])
 
   const onTurnComplete = useCallback((turn: {
     user: string; assistant: string; responseId: string; itemId: string
@@ -179,11 +217,27 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
     commitChainRef.current = job
     void job
     // P1.9/P2：dry-run 预览不进提交链（绝不阻塞对话落库）；新轮覆盖旧预览。
+    // M5 刀一：T0（navigate/status）后端已直执行（executed=true/false）——
+    // 前端出回执不出确认卡，并 TTS 朗读回执（设计稿 §3 反馈闭环）；朗读期
+    // 拉监听阈值 0.9 防扬声器残余回声假插话（11-01 教训），估时恢复 0.5
+    // （宁长勿短，上限 8s）。T1 维持预览台账+确认卡。
     // 经微任务调用：桥桩缺方法时同步抛错也能落进 catch（静默）。
     void Promise.resolve()
       .then(() => app.VoiceV2PreviewIntent(turn.user))
       .then((r) => {
-        if (!mountedRef.current || !r?.handled || !r.reply) return
+        if (!mountedRef.current || !r?.handled) return
+        if (typeof r.executed === 'boolean') {
+          setActionResult('')
+          if (r.executed) {
+            const ack = String(r.reply ?? '已执行')
+            flashActionResult(ack)
+            speakActionAck(ack)
+          } else {
+            flashActionResult('动作未能执行，请再说一次')
+          }
+          return
+        }
+        if (!r.reply) return
         setActionResult('')
         setActionPreview({
           reply: String(r.reply),
@@ -194,7 +248,7 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
         })
       })
       .catch(() => {})
-  }, [finalizeTopicAfterSend, getActiveId, setMessages])
+  }, [finalizeTopicAfterSend, flashActionResult, getActiveId, setMessages, speakActionAck])
 
   const v2 = useVoiceChatV2({ instructions, voice: voiceId, onTurnComplete })
 
@@ -208,6 +262,8 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
     return () => {
       mountedRef.current = false
       alive = false
+      // M5 刀一：卸载清回声门计时器（残留会在无会话态调阈值——无害但脏）
+      if (ackGateTimerRef.current != null) window.clearTimeout(ackGateTimerRef.current)
       // P0a-A5f：生成中关闭=先精确 abort 后端预推进（已完成轮已在提交链，
       // 不受影响；用户拍板「继续提交」），再断开传输。
       v2.abortInFlight()
@@ -216,20 +272,57 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // 浮层键盘可达：Escape 收起回条（会话保持；ui-ux-pro-max 键盘导航优先级 1）
+  // 回声门阈值控制注入（speakActionAck 定义于 v2 之前，经 ref 解循环）
   useEffect(() => {
-    if (mode !== 'float') return
+    vadCtlRef.current = (v: number) => v2.updateVADThreshold(v)
+  }, [v2.updateVADThreshold])
+
+  // Dedicated room: move focus into the workspace on entry. Float keeps the
+  // compact bar and collapses back into it. Escape follows the same hierarchy.
+  useEffect(() => {
+    if (mode === 'full') rootRef.current?.focus()
+    if (mode === 'bar') return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setExpanded(false)
+      if (e.key !== 'Escape') return
+      if (mode === 'float') setExpanded(false)
+      else onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [mode])
+  }, [mode, onClose])
+
+  // Keep the live transcript anchored to the newest turn while the temporary
+  // transcript and assistant response stream in. If the reader has moved up to
+  // inspect an earlier turn, new chunks must not pull the viewport away.
+  useEffect(() => {
+    const el = threadRef.current
+    if (!el || !threadFollowingRef.current) return
+    el.scrollTop = el.scrollHeight
+  }, [v2.transcripts, v2.partialTranscript, v2.assistantText])
+
+  const handleThreadScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget
+    const following = el.scrollHeight - el.scrollTop - el.clientHeight <= 56
+    if (threadFollowingRef.current === following) return
+    threadFollowingRef.current = following
+    setThreadFollowing(following)
+  }, [])
+
+  const scrollThreadToLatest = useCallback(() => {
+    const el = threadRef.current
+    if (!el) return
+    threadFollowingRef.current = true
+    setThreadFollowing(true)
+    el.scrollTop = el.scrollHeight
+  }, [])
 
   const ready = v2.services.ready
   const phaseMeta = PHASE_META[v2.phase]
-  const feedback = turnWarning || v2.note
+  const feedback = turnWarning || userFacingVoiceNote(v2.note)
   const hasConversation = v2.transcripts.length > 0 || Boolean(v2.partialTranscript) || Boolean(v2.assistantText)
+  const liveLine = v2.partialTranscript
+    || (v2.phase === 'speaking' ? v2.assistantText : '')
+    || (v2.connected ? phaseMeta.hint : '连接后即可开始实时语音对话')
   const PrimaryIcon = !ready
     ? v2.ensuring ? LoadingOutlined : AudioOutlined
     : !v2.connected ? WifiOutlined : v2.micOn ? PauseOutlined : AudioOutlined
@@ -240,6 +333,9 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
     : !v2.connected
       ? '连接语音'
       : v2.micOn ? '暂停聆听' : '开始聆听'
+  const responseActive = v2.phase === 'thinking' || v2.phase === 'speaking'
+  const DockPrimaryIcon = responseActive ? StopOutlined : PrimaryIcon
+  const dockPrimaryLabel = responseActive ? '打断回答' : primaryLabel
 
   const runPrimaryAction = () => {
     if (!ready) {
@@ -254,6 +350,14 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
     }
     if (v2.micOn) v2.stopMic()
     else void v2.startMic()
+  }
+
+  const runDockPrimaryAction = () => {
+    if (responseActive) {
+      v2.cancel()
+      return
+    }
+    runPrimaryAction()
   }
 
   // ── P1.5 内嵌语音条（输入区一等入口；展开=浮层整幅，同一会话线不重挂） ──
@@ -306,24 +410,26 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
           icon={<PrimaryIcon />}
           loading={v2.ensuring}
           onClick={runPrimaryAction}
+          aria-label={primaryLabel}
+          aria-pressed={v2.connected ? v2.micOn : undefined}
           data-testid={v2.connected ? 'vc2-bar-mic' : 'vc2-bar-start'}
         >
-          {primaryLabel.replace('本地', '')}
+          <span className="vc2-bar-label">{primaryLabel.replace('本地', '')}</span>
         </Button>
         {v2.connected && (
-          <Button size="small" className="vc2-bar-btn" icon={<StopOutlined />} onClick={v2.cancel} data-testid="vc2-bar-cancel">
-            打断
+          <Button size="small" className="vc2-bar-btn" icon={<StopOutlined />} onClick={v2.cancel} data-testid="vc2-bar-cancel" aria-label="打断本轮回应">
+            <span className="vc2-bar-label">打断</span>
           </Button>
         )}
-        <Button size="small" className="vc2-bar-btn" icon={<ExpandOutlined />} onClick={() => setExpanded(true)} data-testid="vc2-bar-expand">
-          展开
+        <Button size="small" className="vc2-bar-btn" icon={<ExpandOutlined />} onClick={() => setExpanded(true)} data-testid="vc2-bar-expand" aria-label="展开语音台">
+          <span className="vc2-bar-label">展开</span>
         </Button>
         <Button size="small" className="vc2-bar-btn is-danger" icon={<CloseOutlined />} onClick={onClose} data-testid="vc2-bar-close" aria-label="结束语音会话">
-          结束
+          <span className="vc2-bar-label">结束</span>
         </Button>
         {v2.micSilent && (
           <p className="vc2-bar-note is-alert" role="alert">
-            麦克风无信号——可能是虚拟音频设备/选错设备/静音；可在语音设置「麦克风设备」里检测切换。
+            麦克风无信号。可能是虚拟音频设备、选错设备或静音；可在语音设置的「麦克风设备」里检测切换。
           </p>
         )}
         {feedback && <p className={`vc2-bar-note${v2.phase === 'error' ? ' is-alert' : ''}`} role="status">{feedback}</p>}
@@ -351,22 +457,39 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
 
   return (
     <div
+      ref={rootRef}
+      id="voice-workspace"
+      tabIndex={-1}
+      aria-label="实时语音对话"
       className={`voice-console-v2${mode === 'float' ? ' voice-console-v2--float' : ''} voice-console-v2--${v2.phase}${ready ? '' : ' is-preflight'}`}
       data-testid="voice-console-v2"
       data-phase={v2.phase}
     >
       <header className="vc2-header">
-        <div className="vc2-identity">
-          <span className="vc2-brand-sigil" aria-hidden="true">
-            <span />
-          </span>
-          <div>
-            <span className="vc2-eyebrow">VOICE SESSION</span>
-            <div className="vc2-title-row">
-              <h2>{companionName}</h2>
-              <span className="vc2-badge">实时语音</span>
+        <div className="vc2-header-leading">
+          {mode === 'full' && (
+            <Tooltip title="返回聊天">
+              <Button
+                type="text"
+                className="vc2-back-button"
+                icon={<ArrowLeftOutlined />}
+                onClick={onClose}
+                aria-label="返回聊天"
+              />
+            </Tooltip>
+          )}
+          <div className="vc2-identity">
+            <span className="vc2-brand-sigil" aria-hidden="true">
+              <span />
+            </span>
+            <div>
+              <span className="vc2-eyebrow">实时语音</span>
+              <div className="vc2-title-row">
+                <h2>{companionName}</h2>
+                <span className="vc2-badge">语音空间</span>
+              </div>
+              <p>本地实时对话，声音与会话记录留在这台设备</p>
             </div>
-            <p>本地实时对话 · 声音与记忆留在这台设备</p>
           </div>
         </div>
         <div className="vc2-header-actions">
@@ -378,7 +501,7 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
             {!ready ? '依赖待准备' : v2.connected ? '已连接' : '可连接'}
           </span>
           <div className="vc2-actions">
-            {variant === 'bar' && (
+            {mode === 'float' && (
               <Tooltip title="收起到输入区语音条">
                 <Button type="text" icon={<ShrinkOutlined />} onClick={() => setExpanded(false)} aria-label="收起语音台" />
               </Tooltip>
@@ -386,9 +509,9 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
             <Tooltip title="语音设置">
               <Button type="text" icon={<SettingOutlined />} onClick={onOpenSettings} aria-label="语音设置" />
             </Tooltip>
-            <Tooltip title="关闭语音台">
+            {mode !== 'full' && <Tooltip title="关闭语音台">
               <Button type="text" icon={<CloseOutlined />} onClick={onClose} aria-label="关闭语音台" />
-            </Tooltip>
+            </Tooltip>}
           </div>
         </div>
       </header>
@@ -396,9 +519,17 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
       {!ready ? (
         <section className="vc2-preflight" aria-labelledby="vc2-preflight-title">
           <div className="vc2-preflight-copy">
-            <span className="vc2-eyebrow">FIRST RUN</span>
+            <span className="vc2-eyebrow">本机语音</span>
             <h3 id="vc2-preflight-title">装配本地语音</h3>
-            <p>首次启动装配本机语音引擎与声线服务，通常数秒完成；装配期间可随时返回，之后从输入区语音条继续。</p>
+            <p>首次使用会准备本机语音引擎与声线服务，通常数秒完成。准备期间仍可继续输入文字。</p>
+          </div>
+          <div className="vc2-preflight-orb" aria-hidden="true">
+            <VoiceV2Orb
+              phase="idle"
+              active={false}
+              connected={false}
+            />
+            <span>{v2.services.error ? '语音场等待修复' : '语音场待启动'}</span>
           </div>
           <div className="vc2-service-list" aria-label="语音服务状态">
             {SERVICE_ITEMS.map((item) => {
@@ -434,23 +565,34 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
           <section className="vc2-stage" aria-label="语音状态">
             <header className="vc2-section-head">
               <div>
-                <span className="vc2-eyebrow">VOICE FIELD</span>
-                <h3>实时声场</h3>
+                <span className="vc2-eyebrow">声音状态</span>
+                <h3>现在正在发生什么</h3>
               </div>
               <span className={`vc2-live-marker${v2.connected ? ' is-live' : ''}`}>
                 <span aria-hidden="true" />
-                {v2.connected ? 'LIVE' : 'READY'}
+                {v2.connected ? '实时' : '就绪'}
               </span>
             </header>
 
             <div className="vc2-field">
-              <VoiceV2Orb phase={v2.phase} active={v2.micOn || v2.phase === 'speaking'} connected={v2.connected} />
-              <div className="vc2-stage-copy" role="status" aria-live="polite">
-                <span className={`vc2-phase vc2-phase-${v2.phase}`} data-testid="vc2-phase">
+              <VoiceV2Orb
+                phase={v2.phase}
+                active={v2.micOn || v2.phase === 'speaking'}
+                connected={v2.connected}
+                level={v2.micOn ? v2.micLevel : 0}
+              />
+              <div className="vc2-stage-copy">
+                <span
+                  className={`vc2-phase vc2-phase-${v2.phase}`}
+                  data-testid="vc2-phase"
+                  role="status"
+                  aria-atomic="true"
+                >
                   {phaseMeta.icon}
                   {phaseMeta.label}
                 </span>
-                <p>{v2.connected ? phaseMeta.hint : '连接后即可开始实时语音对话'}</p>
+                <p className="vc2-live-line" aria-hidden="true">{liveLine}</p>
+                <span className="vc2-stage-hint">{phaseMeta.hint}</span>
               </div>
               <div className="vc2-wave-field" aria-hidden="true">
                 {Array.from({ length: 24 }, (_, index) => (
@@ -474,18 +616,36 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
           <aside className="vc2-dialogue" aria-labelledby="vc2-dialogue-title">
             <header className="vc2-section-head">
               <div>
-                <span className="vc2-eyebrow">LIVE TRANSCRIPT</span>
-                <h3 id="vc2-dialogue-title">实时对话</h3>
+                <span className="vc2-eyebrow">对话记录</span>
+                <h3 id="vc2-dialogue-title">这一轮聊了什么</h3>
               </div>
-              <span className="vc2-turn-count">{v2.transcripts.length} 轮</span>
+              <div className="vc2-dialogue-tools">
+                <span className="vc2-turn-count">{v2.transcripts.length} 轮对话</span>
+                {hasConversation && !threadFollowing && (
+                  <button
+                    type="button"
+                    className="vc2-thread-jump"
+                    onClick={scrollThreadToLatest}
+                    aria-label="回到最新一条对话"
+                    data-testid="vc2-jump-latest"
+                  >
+                    <DownOutlined aria-hidden="true" />
+                    <span>回到最新</span>
+                  </button>
+                )}
+              </div>
             </header>
 
             <div
+              ref={threadRef}
               className="vc2-thread"
               data-testid="vc2-transcripts"
               role="log"
+              aria-label="实时语音转写"
               aria-live="polite"
               aria-busy={v2.phase === 'thinking'}
+              tabIndex={0}
+              onScroll={handleThreadScroll}
             >
               {v2.transcripts.map((transcript, index) => (
                 <article className="vc2-message is-user" key={`${transcript}-${index}`}>
@@ -508,8 +668,8 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
               {!hasConversation && (
                 <div className="vc2-dialogue-empty">
                   <span className="vc2-empty-mark" aria-hidden="true"><SoundOutlined /></span>
-                  <strong>{v2.connected ? '从一句话开始' : '等待语音连接'}</strong>
-                  <p>{v2.connected ? '安静地说，停顿后我会自然接续。' : `${companionName} 的实时转写会出现在这里。`}</p>
+                  <strong>{v2.connected ? '从一句话开始' : '连接后开始对话'}</strong>
+                  <p>{v2.connected ? '自然地说，停顿后我会接续。转写会同步写回当前会话。' : `${companionName} 的转写与回答会出现在这里。`}</p>
                 </div>
               )}
               {v2.phase === 'thinking' && !v2.assistantText && (
@@ -557,28 +717,27 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
               <Button
                 type="primary"
                 size="large"
-                className="vc2-primary-button vc2-mic-button"
-                icon={<PrimaryIcon />}
-                onClick={runPrimaryAction}
-                data-testid={v2.connected ? 'vc2-mic' : 'vc2-connect'}
+                className={`vc2-primary-button vc2-mic-button${responseActive ? ' is-interrupting' : ''}`}
+                icon={<DockPrimaryIcon />}
+                onClick={runDockPrimaryAction}
+                aria-label={dockPrimaryLabel}
+                aria-pressed={v2.connected && !responseActive ? v2.micOn : undefined}
+                data-testid={responseActive ? 'vc2-interrupt-primary' : v2.connected ? 'vc2-mic' : 'vc2-connect'}
               >
-                {primaryLabel}
+                {dockPrimaryLabel}
               </Button>
-              {v2.connected && (
-                <Button
-                  size="large"
-                  className="vc2-interrupt-button"
-                  icon={<StopOutlined />}
-                  onClick={v2.cancel}
-                  data-testid="vc2-cancel"
-                >
-                  打断本轮
-                </Button>
-              )}
             </div>
-            <span className="vc2-command-hint">
-              {v2.micOn ? '说话后停顿，我会自动接续' : v2.connected ? '打开麦克风开始对话' : '服务就绪后建立实时连接'}
-            </span>
+            <Button
+              size="large"
+              className="vc2-end-session"
+              icon={<CloseOutlined />}
+              onClick={onClose}
+              aria-label="结束语音会话"
+              title="结束语音会话"
+              data-testid="vc2-end-session"
+            >
+              <span className="vc2-end-session-label">结束语音</span>
+            </Button>
           </div>
 
           <details className="vc2-diagnostics">
@@ -592,7 +751,7 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
                   </span>
                 ))}
               </div>
-              <span className="vc2-mono" data-testid="vc2-pb">{v2.pbText || '播放队列：—'}</span>
+              <span className="vc2-mono" data-testid="vc2-pb">{v2.pbText || '播放队列：暂无'}</span>
               <div className="vc2-tail" data-testid="vc2-tail">
                 {v2.tail.length > 0
                   ? v2.tail.map((line, index) => <span key={index}>{line}</span>)

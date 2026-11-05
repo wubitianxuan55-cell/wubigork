@@ -2,7 +2,7 @@
  * VoiceConsoleV2.test.tsx — 语音台 V2 视图：渲染 + 轮完成写回纪律。
  */
 import React from 'react'
-import { render, screen, act } from '@testing-library/react'
+import { render, screen, act, fireEvent } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import VoiceConsoleV2 from './VoiceConsoleV2'
 import type { VoiceChatV2Api } from '../../voice/runtime/useVoiceChatV2'
@@ -27,6 +27,7 @@ const runtimeState = {
   ready: true,
   ensuring: false,
 }
+const cancelMock = vi.fn()
 vi.mock('../../voice/runtime/useVoiceChatV2', () => ({
   useVoiceChatV2: (opts: {
     onTurnComplete?: (t: { user: string; assistant: string; responseId: string; itemId: string }) => void
@@ -52,7 +53,8 @@ vi.mock('../../voice/runtime/useVoiceChatV2', () => ({
         error: '',
       },
       connect: vi.fn(async () => {}), disconnect: vi.fn(),
-      startMic: vi.fn(async () => {}), stopMic: vi.fn(), cancel: vi.fn(),
+      startMic: vi.fn(async () => {}), stopMic: vi.fn(), cancel: cancelMock,
+      updateVADThreshold: vi.fn(),
       abortInFlight: vi.fn(() => { captured.abortInFlightCalls = (captured.abortInFlightCalls ?? 0) + 1 }),
       ensureServices: vi.fn(async () => runtimeState.ready),
       refreshServices: vi.fn(async () => runtimeState.ready),
@@ -67,6 +69,7 @@ const commitMock = vi.fn(async (
 ): Promise<Record<string, unknown>> => ({ committed: true, duplicate: false, memoryScheduled: true }))
 const previewIntentMock = vi.fn(async (_text: string): Promise<Record<string, unknown>> => ({ handled: false }))
 const executeActionMock = vi.fn(async (_previewID: string, _intentHash: string): Promise<Record<string, unknown>> => ({ executed: false }))
+const speakAckMock = vi.fn(async (_text: string): Promise<void> => {})
 vi.mock('../../gaea/lib/bridge', () => ({
   app: {
     VoiceV2PreviewIntent: (...args: unknown[]) => previewIntentMock(...(args as [string])),
@@ -74,6 +77,7 @@ vi.mock('../../gaea/lib/bridge', () => ({
     VoiceV2CommitTurn: (
       topic: string, user: string, assistant: string, responseId: string, itemId: string,
     ) => commitMock(topic, user, assistant, responseId, itemId),
+    TTSSpeakStreaming: (...args: unknown[]) => speakAckMock(...(args as [string])),
   },
 }))
 
@@ -102,6 +106,8 @@ function renderConsole(overrides: Partial<VoiceConsoleV2PropsOf> = {}) {
 describe('VoiceConsoleV2', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    cancelMock.mockClear()
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
     previewIntentMock.mockResolvedValue({ handled: false })
     executeActionMock.mockResolvedValue({ executed: false })
     captured.abortInFlightCalls = 0
@@ -152,13 +158,43 @@ describe('VoiceConsoleV2', () => {
     expect(screen.getByTestId('vc2-mic').textContent).toContain('暂停聆听')
   })
 
+  it('回应中把主操作收束为“打断回答”，不再并列第二个打断按钮', () => {
+    runtimeState.phase = 'speaking'
+    runtimeState.micOn = true
+    renderConsole()
+    const primary = screen.getByTestId('vc2-interrupt-primary')
+    expect(primary.textContent).toContain('打断回答')
+    expect(screen.queryByTestId('vc2-cancel')).toBeNull()
+    fireEvent.click(primary)
+    expect(cancelMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('用户回看历史时不被新转写拉回底部，可一键回到最新', () => {
+    runtimeState.transcripts = ['第一轮问题', '第二轮问题']
+    runtimeState.assistantText = '这是正在增长的较长回答，用于撑开实时转写区域。'
+    renderConsole()
+    const thread = screen.getByTestId('vc2-transcripts')
+    Object.defineProperties(thread, {
+      clientHeight: { configurable: true, value: 300 },
+      scrollHeight: { configurable: true, value: 900 },
+      scrollTop: { configurable: true, value: 420, writable: true },
+    })
+
+    fireEvent.scroll(thread)
+    expect(screen.getByTestId('vc2-jump-latest').textContent).toContain('回到最新')
+
+    fireEvent.click(screen.getByTestId('vc2-jump-latest'))
+    expect(thread.scrollTop).toBe(900)
+    expect(screen.queryByTestId('vc2-jump-latest')).toBeNull()
+  })
+
   it('实时对话流同时呈现用户转写、临时转写和助手回答', () => {
     runtimeState.transcripts = ['帮我安排今天的任务']
     runtimeState.partialTranscript = '下午优先处理'
     runtimeState.assistantText = '我先从下午的事项开始安排。'
     renderConsole()
     expect(screen.getByText('帮我安排今天的任务')).toBeTruthy()
-    expect(screen.getByText(/下午优先处理/)).toBeTruthy()
+    expect(screen.getByTestId('vc2-transcripts').textContent).toContain('下午优先处理')
     expect(screen.getByTestId('vc2-assistant').textContent).toContain('下午的事项')
   })
 
@@ -318,17 +354,17 @@ describe('VoiceConsoleV2', () => {
 
   it('P2 轮完成命中动作：预览卡带凭据出现（待确认），确认执行恰好一次', async () => {
     previewIntentMock.mockResolvedValue({
-      handled: true, executable: true, reply: '将打开「运行监测」板块', action: 'navigate',
+      handled: true, executable: true, reply: '将存为任务：写周报', action: 'save_task',
       previewId: 'vap_1', intentHash: 'hash1', ttlMs: 120000,
     })
-    executeActionMock.mockResolvedValue({ executed: true, reply: '已打开「运行监测」板块', action: 'navigate' })
+    executeActionMock.mockResolvedValue({ executed: true, reply: '好，任务已保存。', action: 'save_task' })
     renderConsole()
     await act(async () => {
-      captured.onTurnComplete?.({ user: '打开运行监测', assistant: '好', responseId: 'r9', itemId: 'i9' })
+      captured.onTurnComplete?.({ user: '帮我记个任务写周报', assistant: '好', responseId: 'r9', itemId: 'i9' })
       await Promise.resolve()
     })
-    expect(previewIntentMock).toHaveBeenCalledWith('打开运行监测')
-    expect(screen.getByText('将打开「运行监测」板块')).toBeTruthy()
+    expect(previewIntentMock).toHaveBeenCalledWith('帮我记个任务写周报')
+    expect(screen.getByText('将存为任务：写周报')).toBeTruthy()
     expect(screen.getByText('识别到动作 · 待确认')).toBeTruthy()
     await act(async () => {
       screen.getByTestId('vc2-action-exec').click()
@@ -336,7 +372,36 @@ describe('VoiceConsoleV2', () => {
     })
     expect(executeActionMock).toHaveBeenCalledWith('vap_1', 'hash1')
     expect(screen.queryByText('识别到动作 · 待确认')).toBeNull()
-    expect(screen.getByText('已打开「运行监测」板块')).toBeTruthy()
+    expect(screen.getByText('好，任务已保存。')).toBeTruthy()
+  })
+
+  it('M5 刀一 T0 直执行：executed=true 出回执不出确认卡，并朗读回执', async () => {
+    previewIntentMock.mockResolvedValue({
+      handled: true, executed: true, reply: '好，已打开运行监测。', action: 'navigate', target: 'runtime',
+    })
+    renderConsole()
+    await act(async () => {
+      captured.onTurnComplete?.({ user: '打开运行监测', assistant: '好', responseId: 'r13', itemId: 'i13' })
+      await Promise.resolve()
+    })
+    expect(screen.queryByText('识别到动作 · 待确认')).toBeNull()
+    expect(screen.queryByTestId('vc2-action-exec')).toBeNull()
+    expect(screen.getByText('好，已打开运行监测。')).toBeTruthy()
+    expect(speakAckMock).toHaveBeenCalledWith('好，已打开运行监测。')
+  })
+
+  it('M5 刀一 T0 执行失败：executed=false 出失败回执，不朗读不确认', async () => {
+    previewIntentMock.mockResolvedValue({
+      handled: true, executed: false, reason: 'exec-failed', action: 'navigate', target: 'runtime',
+    })
+    renderConsole()
+    await act(async () => {
+      captured.onTurnComplete?.({ user: '打开不存在的板块', assistant: '好', responseId: 'r14', itemId: 'i14' })
+      await Promise.resolve()
+    })
+    expect(screen.queryByTestId('vc2-action-exec')).toBeNull()
+    expect(screen.getByText('动作未能执行，请再说一次')).toBeTruthy()
+    expect(speakAckMock).not.toHaveBeenCalled()
   })
 
   it('P2 白名单外动作：可预览不可执行（无执行钮）', async () => {

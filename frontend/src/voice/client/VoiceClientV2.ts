@@ -169,6 +169,21 @@ export class VoiceClientV2 {
     this.playback.flush()
   }
 
+  /**
+   * 运行时改监听阈值（session.update）。
+   * M5 刀一回执朗读的回声门：TTS 朗读扬声器出声期间拉高阈值（0.9≈禁听）
+   * 防残余回声触发假插话（11-01 教训：0.6 被回声触发），朗读结束回落监听值。
+   */
+  updateVADThreshold(threshold: number): void {
+    this.sendEvent({
+      type: 'session.update',
+      session: {
+        type: 'realtime',
+        audio: { input: { turn_detection: { type: 'server_vad', threshold } } },
+      },
+    })
+  }
+
   get snapshot(): VoiceSessionState {
     return this.state
   }

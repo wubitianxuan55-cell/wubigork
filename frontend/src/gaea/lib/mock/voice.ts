@@ -17,6 +17,8 @@ type VoiceMethods = Pick<
   // （语音运行时族 VoiceStart/Stop/PushAudio/PTT/CancelTTS 已随 V1 退役）。
   | "WhisperClearSession"
   | "TTSSpeakBase64" | "TTSSpeakBase64WithParams"
+  // M5 刀一执行回执 TTS 朗读（fire-and-forget；mock=no-op 静默成功）。
+  | "TTSSpeakStreaming"
   // 角色档案试听段（角色库编辑器/检查器试听钮消费；显式音色/描述覆盖合成）。
   | "TTSVoicePreviewBase64"
   // 角色台词语音文件（内容寻址缓存优先；角色库试听钮消费）。
@@ -74,6 +76,10 @@ export function buildVoice(): VoiceMethods {
     async TTSSpeakBase64WithParams(_text: string, _params: Record<string, unknown>) {
       // 同上：参数透传但无服务可合成 → 空 base64。
       return { base64: "", mimeType: "" };
+    },
+    async TTSSpeakStreaming(_text: string) {
+      // mock: no-op——浏览器开发无流式 TTS 服务（fire-and-forget 语义，静默成功；
+      // M5 刀一执行回执朗读消费方，认领 shared 后按漏 mock 锁须有桩）。
     },
     async TTSVoicePreviewBase64(_text: string, _voiceID: string, _voiceDescription: string) {
       // 无本地 TTS 服务：返回空合成结果（消费方对空 base64 兜底，不编造音频）。

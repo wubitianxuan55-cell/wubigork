@@ -56,6 +56,15 @@ var voiceV2ExecutableActions = map[string]bool{
 	string(intent.ActionSaveTask): true,
 }
 
+// voiceV2T0Actions M5 刀一（2026-11-05 拍板 §7-1 采纳）：只读/可逆导航免确认
+// 自动执行——预览时直跑并返回 executed，不再入台账等确认（减摩擦；T1
+// reminder/save_task 维持预览+确认卡）。T0 动作每轮至多一次（用户说话触发，
+// 无模型循环发起面，频控挂刀二模型工具通道）。
+var voiceV2T0Actions = map[string]bool{
+	string(intent.ActionNavigate): true,
+	string(intent.ActionStatus):   true,
+}
+
 func voiceV2PreviewHash(action, target, reply string) string {
 	sum := sha256.Sum256([]byte(action + "|" + target + "|" + reply))
 	return fmt.Sprintf("%x", sum[:8])
@@ -83,9 +92,11 @@ func pruneVoiceV2PreviewLocked() {
 	}
 }
 
-// VoiceV2PreviewIntent 最终转写 → 意图 dry-run → 命中且可执行则登记台账并
-// 返回 preview_id/intent_hash/TTL；命中但白名单外返回「可预览不可执行」；
-// 未命中 handled=false（前端按「未识别为动作」静默）。dryRun 恒不打 LLM。
+// VoiceV2PreviewIntent 最终转写 → 意图 dry-run → T0（navigate/status）免确认
+// 直接执行（M5 刀一，executed=true/false+reason；前端出回执不再出确认卡）；
+// T1 白名单内登记台账返回 preview_id/intent_hash/TTL（确认后执行）；白名单外
+// 「可预览不可执行」；未命中 handled=false（前端按「未识别为动作」静默）。
+// dryRun 恒不打 LLM。
 func (a *App) VoiceV2PreviewIntent(userText string) map[string]interface{} {
 	res := a.routeIntentMode(userText, true)
 	if !res.Handled {
@@ -99,6 +110,17 @@ func (a *App) VoiceV2PreviewIntent(userText string) map[string]interface{} {
 	}
 	if !voiceV2ExecutableActions[res.Action] {
 		base["executable"] = false
+		return base
+	}
+	if voiceV2T0Actions[res.Action] {
+		it := &intent.Intent{Action: intent.Action(res.Action), Target: res.Target, Text: userText}
+		reply, ok := execVoiceV2Action(a, res.Action, it)
+		base["executed"] = ok
+		if ok {
+			base["reply"] = reply
+		} else {
+			base["reason"] = "exec-failed"
+		}
 		return base
 	}
 	id := voiceV2PreviewID()
@@ -153,22 +175,28 @@ func (a *App) VoiceV2ExecuteAction(previewID, intentHash string) map[string]inte
 	voiceV2PreviewMu.Unlock()
 
 	it := &intent.Intent{Action: intent.Action(preview.action), Target: preview.target, Text: preview.text}
-	var reply string
-	var ok bool
-	switch intent.Action(preview.action) {
-	case intent.ActionNavigate:
-		reply, ok = a.execNavigate(it)
-	case intent.ActionStatus:
-		reply, ok = a.execStatus(it)
-	case intent.ActionReminder:
-		reply, ok = a.execReminder(it)
-	case intent.ActionSaveTask:
-		reply, ok = a.execSaveTask(it, "")
-	default:
-		return map[string]interface{}{"executed": false, "reason": "action-not-allowed"}
-	}
+	reply, ok := execVoiceV2Action(a, preview.action, it)
 	if !ok {
 		return map[string]interface{}{"executed": false, "reason": "exec-failed"}
 	}
 	return map[string]interface{}{"executed": true, "reply": reply, "action": preview.action}
+}
+
+// execVoiceV2Action 动作直派（PreviewIntent T0 直执行与 ExecuteAction 台账
+// 确认共用；白名单外=不执行）。执行层复用 intent_router 既有能力。
+// 包级可桩点：单测禁连真实执行面（GetModelMonitor/addWxReminder 等副作用，
+// App 测试语义管线地雷），编排逻辑（T0 直执行/T1 台账）与执行解耦。
+var execVoiceV2Action = func(a *App, action string, it *intent.Intent) (string, bool) {
+	switch intent.Action(action) {
+	case intent.ActionNavigate:
+		return a.execNavigate(it)
+	case intent.ActionStatus:
+		return a.execStatus(it)
+	case intent.ActionReminder:
+		return a.execReminder(it)
+	case intent.ActionSaveTask:
+		return a.execSaveTask(it, "")
+	default:
+		return "", false
+	}
 }
