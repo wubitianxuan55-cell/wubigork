@@ -230,22 +230,27 @@ func TestPreparePlainChatMessage_AdapterFaultFallbacks(t *testing.T) {
 	}
 }
 
-// TestPrepareWhisperChatMessage_States 人格路径（旧实现失败静默返回原文）：
-// 刀1 统一为按状态注入，失败/空结果对模型可见。
-func TestPrepareWhisperChatMessage_States(t *testing.T) {
+// TestPrepareWhisperChatInput_States 人格路径（旧实现失败静默返回原文）：
+// 刀1 统一为按状态注入，失败/空结果对模型可见；刀3 双通道——Raw 恒为原文，
+// 增广块只进 LLMAppendix。
+func TestPrepareWhisperChatInput_States(t *testing.T) {
 	a := &whisperState{}
 	stubChatWebSearch(t, func(string) (chatSearchOutcome, error) {
 		return chatSearchOutcome{State: builtin.SearchStateOK, Text: "1. 人格搜索结果"}, nil
 	})
-	if got := a.prepareWhisperChatMessage("今天有什么新闻", true); !strings.Contains(got, "1. 人格搜索结果") {
-		t.Errorf("人格路径 OK 态应注入结果: %q", got)
+	in := a.prepareWhisperChatInput("今天有什么新闻", true)
+	if in.Raw != "今天有什么新闻" {
+		t.Errorf("Raw 应恒为用户原文: %q", in.Raw)
+	}
+	if !strings.Contains(in.LLMAppendix, "1. 人格搜索结果") {
+		t.Errorf("人格路径 OK 态应注入结果: %q", in.LLMAppendix)
 	}
 	stubChatWebSearch(t, func(string) (chatSearchOutcome, error) {
 		return chatSearchOutcome{State: builtin.SearchStateAllFailed, Engines: "bing:connection refused(120ms)"}, nil
 	})
-	got := a.prepareWhisperChatMessage("今天有什么新闻", true)
-	if !strings.Contains(got, "联网搜索暂不可用") {
-		t.Errorf("人格路径失败不再静默，应注入如实占位: %q", got)
+	in = a.prepareWhisperChatInput("今天有什么新闻", true)
+	if in.Raw != "今天有什么新闻" || !strings.Contains(in.LLMAppendix, "联网搜索暂不可用") {
+		t.Errorf("人格路径失败不再静默，应注入如实占位且原文不动: %+v", in)
 	}
 }
 

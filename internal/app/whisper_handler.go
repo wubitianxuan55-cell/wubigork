@@ -189,22 +189,26 @@ func (a *whisperState) WhisperGetPersonalities() []whisper.PersonalityPreset {
 
 func (a *whisperState) WhisperChat(userMsg string, personalityID string, thinking bool) (result map[string]interface{}, err error) {
 	// 绑定签名不可变：委托内部实现，无助手名注入（assistantName 空=不碰该字段）
-	return a.whisperChat(userMsg, personalityID, "", thinking)
+	return a.whisperChat(userMsg, "", personalityID, "", thinking)
 }
 
 // whisperChat WhisperChat 的内部实现。assistantName 非空时在 LockTurn 持锁窗口内
 // 写 orch.AssistantName：同人格多助手共享同一 orchestrator（"whisper_"+personalityID
 // 全局缓存），微信回调按助手身份注入名字必须在回合锁内完成——锁外直写会互相覆盖，
 // 且与 PreLLMTurn 锁内读（BuildAckemCanonBlock 身份块）构成数据竞争。
-func (a *whisperState) whisperChat(userMsg, personalityID, assistantName string, thinking bool) (result map[string]interface{}, err error) {
-	return a.whisperChatCore(a.ctx, userMsg, personalityID, assistantName, thinking, false, nil, nil)
+// llmAppendix 为搜索增广块（众神殿刀3 双通道），只拼进本轮模型输入。
+func (a *whisperState) whisperChat(userMsg, llmAppendix, personalityID, assistantName string, thinking bool) (result map[string]interface{}, err error) {
+	return a.whisperChatCore(a.ctx, userMsg, llmAppendix, personalityID, assistantName, thinking, false, nil, nil)
 }
 
 // whisperChatCore 是阻塞/流式两条输入路径共用的角色回合实现。onDelta 与
 // onReasoning 非空时，模型分片一到达就交给调用方；否则只聚合最终文本。
+// 众神殿刀3 双通道：userMsg 恒为用户原文（进 TurnPlan/PreLLMTurn/WM/
+// FinalizeTurn/记忆摄入），llmAppendix 为搜索增广块、只拼进本轮模型输入
+// （llmUserMsg → messages + RecordPromptTurn，KV 前缀缓存契约不变）。
 func (a *whisperState) whisperChatCore(
 	ctx context.Context,
-	userMsg, personalityID, assistantName string,
+	userMsg, llmAppendix, personalityID, assistantName string,
 	thinking bool,
 	lowLatency bool,
 	onDelta, onReasoning func(string),
@@ -266,9 +270,9 @@ func (a *whisperState) whisperChatCore(
 	if turnPlan.Routing == whisper.RouteStructuredChat && turnPlan.FormatHint != "" {
 		dynamicCtx = strings.TrimSpace(dynamicCtx + "\n\n【本轮格式要求】\n" + turnPlan.FormatHint)
 	}
-	llmUserMsg := userMsg
+	llmUserMsg := userMsg + llmAppendix
 	if dynamicCtx != "" {
-		llmUserMsg = "【本轮上下文】\n" + dynamicCtx + "\n【本轮上下文结束】\n\n用户消息：" + userMsg
+		llmUserMsg = "【本轮上下文】\n" + dynamicCtx + "\n【本轮上下文结束】\n\n用户消息：" + userMsg + llmAppendix
 	}
 	if lowLatency {
 		dynamicCtx = truncateVoiceContext(dynamicCtx)
@@ -278,9 +282,9 @@ func (a *whisperState) whisperChatCore(
 				dynamicCtx = strings.TrimSpace(dynamicCtx + "\n\n" + formatBlock)
 			}
 		}
-		llmUserMsg = userMsg
+		llmUserMsg = userMsg + llmAppendix
 		if dynamicCtx != "" {
-			llmUserMsg = "【本轮上下文】\n" + dynamicCtx + "\n【本轮上下文结束】\n\n用户消息：" + userMsg
+			llmUserMsg = "【本轮上下文】\n" + dynamicCtx + "\n【本轮上下文结束】\n\n用户消息：" + userMsg + llmAppendix
 		}
 	}
 	historyExchanges := preResult.RecentExchanges
@@ -443,6 +447,7 @@ func (a *whisperState) whisperChatCore(
 		"personality", personalityID,
 		"rawUserMsgChars", len([]rune(userMsg)), "rawHash", fmt.Sprintf("%x", rawSum)[:8],
 		"llmUserMsgChars", len([]rune(llmUserMsg)), "llmHash", fmt.Sprintf("%x", llmSum)[:8],
+		"searchAppendixChars", len([]rune(llmAppendix)),
 		"replyChars", len([]rune(reply)), "emptyReply", strings.TrimSpace(reply) == "",
 		"cancelled", cancelled,
 		"promptHistoryLen", len(orch.PromptHistory),
@@ -815,6 +820,15 @@ func (a *whisperState) WhisperChatWithSearch(userMsg string, personalityID strin
 	return a.whisperChatWithSearch(userMsg, personalityID, "", thinking, forceSearch)
 }
 
+// whisperChatInput 用户原文与搜索增广的双通道载荷（众神殿刀3）：Raw 恒为
+// 用户原话（进状态机/工作记忆/FinalizeTurn/记忆摄入），LLMAppendix 只拼进
+// 本轮模型输入。此前增广串作为唯一 userMsg 全链下传，事件分类、FTS 召回与
+// 记忆抽取都把网页摘要当用户原话（搜索桶「答非所问」的结构性根源）。
+type whisperChatInput struct {
+	Raw         string
+	LLMAppendix string
+}
+
 // whisperChatStream 角色聊天流式入口：搜索增强、人格预编排与最终状态收尾
 // 与阻塞路径共用 whisperChatCore，只把模型正文/推理分片实时交给调用方。
 func (a *whisperState) whisperChatStream(
@@ -824,24 +838,26 @@ func (a *whisperState) whisperChatStream(
 	lowLatency bool,
 	onDelta, onReasoning func(string),
 ) (map[string]interface{}, error) {
-	msg := userMsg
+	in := whisperChatInput{Raw: userMsg}
 	if forceSearch || (searchEnabled && shouldSearchWeb(userMsg)) {
-		msg = a.prepareWhisperChatMessage(userMsg, true)
+		in = a.prepareWhisperChatInput(userMsg, true)
 	}
-	return a.whisperChatCore(ctx, msg, personalityID, "", thinking, lowLatency, onDelta, onReasoning)
+	return a.whisperChatCore(ctx, in.Raw, in.LLMAppendix, personalityID, "", thinking, lowLatency, onDelta, onReasoning)
 }
 
 // whisperChatWithSearch 搜索增强的内部实现：assistantName 非空时透传给 whisperChat
 // 在其 LockTurn 持锁窗口内注入 orch.AssistantName。
 func (a *whisperState) whisperChatWithSearch(userMsg, personalityID, assistantName string, thinking, forceSearch bool) (map[string]interface{}, error) {
-	return a.whisperChat(a.prepareWhisperChatMessage(userMsg, forceSearch), personalityID, assistantName, thinking)
+	in := a.prepareWhisperChatInput(userMsg, forceSearch)
+	return a.whisperChat(in.Raw, in.LLMAppendix, personalityID, assistantName, thinking)
 }
 
-// prepareWhisperChatMessage 在请求模型前完成可选联网搜索。搜索结果只进入
-// 本轮模型上下文，不污染落库的用户原文。众神殿刀1：经统一检索核 adapter，
-// 注入头按状态选文案——失败/空结果注入如实占位（旧实现静默返回原文，人格
-// 路径与普通路径行为不一致；现统一可见状态，与刀3「可见性统一」同向）。
-func (a *whisperState) prepareWhisperChatMessage(userMsg string, forceSearch bool) string {
+// prepareWhisperChatInput 在请求模型前完成可选联网搜索，返回双通道载荷。
+// Raw 恒为用户原文；LLMAppendix 为四态注入头的增广块（空 = 未触发搜索）。
+// 众神殿刀3：搜索结果只进入本轮模型上下文——状态机、工作记忆、PromptHistory
+// 之外的落库面与记忆摄入全部改吃原文（旧注释「不污染落库的用户原文」只对
+// chat.db 成立，对状态机与记忆不成立，本切片闭合该缺口）。
+func (a *whisperState) prepareWhisperChatInput(userMsg string, forceSearch bool) whisperChatInput {
 	// 检测搜索意图（身份类问题除外——「你是谁/你会什么」问的是助手自己，
 	// 联网搜索只会注入无关网页摘要，模型把英文片段混进回复反而出乱码）
 	if !isIdentityQuestion(userMsg) && (forceSearch || shouldSearchWeb(userMsg)) {
@@ -850,11 +866,11 @@ func (a *whisperState) prepareWhisperChatMessage(userMsg string, forceSearch boo
 		out, err := chatWebSearch(userMsg)
 		if err != nil {
 			slog.Warn("[whisper] 搜索适配器故障，注入如实占位", "error", err)
-			return userMsg + "\n\n[联网搜索暂不可用，请基于已有知识回答，并如实说明未获取到实时信息]"
+			return whisperChatInput{Raw: userMsg, LLMAppendix: "\n\n[联网搜索暂不可用，请基于已有知识回答，并如实说明未获取到实时信息]"}
 		}
-		return injectChatSearchResult(userMsg, out)
+		return whisperChatInput{Raw: userMsg, LLMAppendix: chatSearchAppendix(out)}
 	}
-	return userMsg
+	return whisperChatInput{Raw: userMsg}
 }
 
 // whisperChatAsAssistant 以指定助手身份发起对话（微信回调专用内部入口，不进 Wails 绑定面）：

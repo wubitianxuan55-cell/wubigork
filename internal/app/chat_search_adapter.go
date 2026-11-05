@@ -87,19 +87,27 @@ func runChatWebSearch(rawQuery string) (chatSearchOutcome, error) {
 // injectChatSearchResult 三层契约第二层：注入头按状态选文案。EMPTY 与
 // ALL_FAILED 分开表述，DEGRADED 的降级标注必须压过「优先依据搜索结果」
 // （会话裁决：免费引擎兜底结果不得冒充已核验事实）。
+// 众神殿刀3：增广文本与用户原文拆为双通道（chatSearchAppendix），本函数保留
+// 原口径供 plain 路径与既有测试使用。
 func injectChatSearchResult(message string, out chatSearchOutcome) string {
+	return message + chatSearchAppendix(out)
+}
+
+// chatSearchAppendix 只取搜索增广块（含四态注入头，不带用户原文）——双通道
+// 切片把它拼进本轮模型输入（llmUserMsg），原文走 raw 通道进状态机/记忆。
+func chatSearchAppendix(out chatSearchOutcome) string {
 	switch out.State {
 	case builtin.SearchStateOK:
-		return fmt.Sprintf("%s\n\n[以下是关于此问题的实时搜索结果，请参考这些信息回答]\n%s", message, out.Text)
+		return fmt.Sprintf("\n\n[以下是关于此问题的实时搜索结果，请参考这些信息回答]\n%s", out.Text)
 	case builtin.SearchStateDegraded:
-		return fmt.Sprintf("%s\n\n[联网搜索已降级（%s）：以下为兜底引擎结果，可信度有限；请谨慎引用，无法确认时如实说明未获取到可靠实时信息]\n%s",
-			message, degradedReasonLabel(out.DegradedReason), out.Text)
+		return fmt.Sprintf("\n\n[联网搜索已降级（%s）：以下为兜底引擎结果，可信度有限；请谨慎引用，无法确认时如实说明未获取到可靠实时信息]\n%s",
+			degradedReasonLabel(out.DegradedReason), out.Text)
 	case builtin.SearchStateEmpty:
-		return fmt.Sprintf("%s\n\n[联网搜索已完成：各引擎均未返回与「%s」相关的结果%s。请基于已有知识回答，并如实说明未获取到实时信息]",
-			message, out.Query, searchDiagSuffix(out.Engines))
+		return fmt.Sprintf("\n\n[联网搜索已完成：各引擎均未返回与「%s」相关的结果%s。请基于已有知识回答，并如实说明未获取到实时信息]",
+			out.Query, searchDiagSuffix(out.Engines))
 	default: // all_failed
-		return fmt.Sprintf("%s\n\n[联网搜索暂不可用%s。请基于已有知识回答，并如实说明未获取到实时信息]",
-			message, searchDiagSuffix(out.Engines))
+		return fmt.Sprintf("\n\n[联网搜索暂不可用%s。请基于已有知识回答，并如实说明未获取到实时信息]",
+			searchDiagSuffix(out.Engines))
 	}
 }
 
