@@ -439,7 +439,15 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 		newState.FirstMetDate = &now
 	}
 	if state.AckemBirthday == nil {
-		newState.AckemBirthday = &now
+		// 众神殿刀2：删除「nil→当前时间」隐式默认——首聊时刻被写成生日，首日
+		// 第 2 轮起经 temporal_date.go 确定性注入假事实「我的生日」（存量 6/6
+		// 会话 ackemBirthday==firstMetDate 实证）。gaea 显式接内置生日 06-11
+		//（死常量首次接线）；其余角色默认不注入，待显式配置。
+		if o.Preset.ID == "gaea" {
+			if bd, err := ParseAckemBirthdayMMDD(AckemBirthdayMMDD, now); err == nil {
+				newState.AckemBirthday = &bd
+			}
+		}
 	}
 	if state.OriginExposure == nil {
 		newState.OriginExposure = DefaultOriginExposure()

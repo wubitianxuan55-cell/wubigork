@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -160,6 +161,7 @@ func (a *whisperState) getOrCreateOrch(personalityID string) *whisper.Orchestrat
 	if err := restoreWhisperState(orch); err != nil {
 		slog.Error("[whisper] 会话状态恢复失败（继续用全新状态）", "sessionID", orch.SessionID, "error", err)
 	}
+	a.healImplicitBirthday(orch)
 	return orch
 }
 
@@ -1041,6 +1043,44 @@ func (a *whisperState) WhisperWeixinStatus() []map[string]interface{} {
 		result = append(result, item)
 	}
 	return result
+}
+
+// healImplicitBirthday 众神殿刀2 存量自愈：旧版初始化把 nil 生日写成首聊时刻
+//（orchestrator PreLLMTurn 旧逻辑），存量会话 6/6 ackemBirthday==firstMetDate，
+// 首聊日周年必注入假事实「我的生日」。等值判定天然幂等：非 gaea 清 nil（永不
+// 注入），gaea 改为内置生日 06-11。只动等值行，用户显式配置的生日不受影响；
+// 首次动刀前对 hermes.db 做一次性文件级备份（主库文件快照，WAL 尾部增量不在
+// 内——自愈本身等值门控幂等，备份只是兜底保险）。
+func (a *whisperState) healImplicitBirthday(orch *whisper.Orchestrator) {
+	st := orch.State
+	if st.AckemBirthday == nil || st.FirstMetDate == nil || !st.AckemBirthday.Equal(*st.FirstMetDate) {
+		return
+	}
+	dbPath := db.DatabasePath(orch.DataRoot)
+	bakPath := dbPath + ".bak-birthday-heal"
+	if _, err := os.Stat(bakPath); os.IsNotExist(err) {
+		if raw, rerr := os.ReadFile(dbPath); rerr == nil {
+			if werr := os.WriteFile(bakPath, raw, 0o600); werr == nil {
+				slog.Info("[whisper] 生日自愈前已备份 hermes.db", "backup", bakPath)
+			}
+		}
+	}
+	if orch.Preset.ID == "gaea" {
+		if bd, err := whisper.ParseAckemBirthdayMMDD(whisper.AckemBirthdayMMDD, *st.FirstMetDate); err == nil {
+			st.AckemBirthday = &bd
+		} else {
+			slog.Warn("[whisper] gaea 内置生日解析失败，清空隐式生日", "sessionID", orch.SessionID, "error", err)
+			st.AckemBirthday = nil
+		}
+	} else {
+		st.AckemBirthday = nil
+	}
+	orch.State = st
+	if err := a.persistStateSync(orch); err != nil {
+		slog.Warn("[whisper] 生日自愈落库失败（内存已修，下轮重试）", "sessionID", orch.SessionID, "error", err)
+		return
+	}
+	slog.Info("[whisper] 隐式生日自愈完成", "sessionID", orch.SessionID, "isGaea", orch.Preset.ID == "gaea")
 }
 
 func restoreWhisperState(orch *whisper.Orchestrator) error {
