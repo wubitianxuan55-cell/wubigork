@@ -1,7 +1,8 @@
 package app
 
-// chat_search_adapter_test.go — 聊天检索适配器测试（众神殿刀1 验收）：
-// 清洗边界（信息词不剥）、三层契约注入头三分叉、状态归集、四入口换绑。
+// chat_search_adapter_test.go — 聊天检索适配器测试（众神殿刀1 验收 + 刀2
+// DEGRADED）：清洗边界（信息词不剥）、三层契约注入头四态分叉、状态透传、
+// 四入口换绑。
 
 import (
 	"context"
@@ -21,7 +22,7 @@ func stubChatWebSearch(t *testing.T, fn func(string) (chatSearchOutcome, error))
 }
 
 // stubChatSearchRun 替换统一检索核 seam 并在测试结束恢复。
-func stubChatSearchRun(t *testing.T, fn func(ctx context.Context, query string, topK int) ([]builtin.SearchResult, []builtin.SearchAttempt, error)) {
+func stubChatSearchRun(t *testing.T, fn func(ctx context.Context, query string, topK int) (*builtin.SearchOutcome, error)) {
 	t.Helper()
 	orig := chatSearchRun
 	chatSearchRun = fn
@@ -58,15 +59,18 @@ func TestCleanChatSearchQuery(t *testing.T) {
 // TestRunChatWebSearch_QueryCleaned 统一核收到的是清洗后的关键词（验收句：
 // 「帮我搜索一下明天上海天气」→「明天上海天气」）。
 func TestRunChatWebSearch_QueryCleaned(t *testing.T) {
-	stubChatSearchRun(t, func(_ context.Context, query string, topK int) ([]builtin.SearchResult, []builtin.SearchAttempt, error) {
+	stubChatSearchRun(t, func(_ context.Context, query string, topK int) (*builtin.SearchOutcome, error) {
 		if query != "明天上海天气" {
 			t.Errorf("统一核应收清洗后查询, got %q", query)
 		}
 		if topK != chatSearchTopK {
 			t.Errorf("topK = %d, want %d", topK, chatSearchTopK)
 		}
-		return []builtin.SearchResult{{Title: "上海天气", URL: "https://wttr.in/shanghai", Snippet: "晴", Source: "bing"}},
-			[]builtin.SearchAttempt{{Name: "bing", Outcome: "ok", ElapsedMS: 320}}, nil
+		return &builtin.SearchOutcome{
+			State: builtin.SearchStateOK,
+			Results: []builtin.SearchResult{{Title: "上海天气", URL: "https://wttr.in/shanghai", Snippet: "晴", Source: "bing"}},
+			Attempts: []builtin.SearchAttempt{{Name: "bing", Outcome: "ok", ElapsedMS: 320}},
+		}, nil
 	})
 	out, err := runChatWebSearch("帮我搜索一下明天上海天气")
 	if err != nil {
@@ -80,21 +84,55 @@ func TestRunChatWebSearch_QueryCleaned(t *testing.T) {
 	}
 }
 
-// TestRunChatWebSearch_FilteredEmptySplit 刀1 关键拆分：策略过滤后空是
-// EMPTY（检索发生了），不是引擎失败，更不是 ALL_FAILED。
-func TestRunChatWebSearch_FilteredEmptySplit(t *testing.T) {
-	stubChatSearchRun(t, func(_ context.Context, _ string, _ int) ([]builtin.SearchResult, []builtin.SearchAttempt, error) {
-		return nil, []builtin.SearchAttempt{
-			{Name: "bing", Outcome: "filtered-empty", ElapsedMS: 210},
-			{Name: "ddg", Outcome: "error", Err: "timeout", ElapsedMS: 8000},
-		}, errors.New("all engines failed")
+// TestRunChatWebSearch_DegradedPassthrough 刀2：DEGRADED 状态与降级原因透传，
+// 注入文本带结果（降级不吞结果，只降标注）。
+func TestRunChatWebSearch_DegradedPassthrough(t *testing.T) {
+	stubChatSearchRun(t, func(_ context.Context, _ string, _ int) (*builtin.SearchOutcome, error) {
+		return &builtin.SearchOutcome{
+			State:          builtin.SearchStateDegraded,
+			DegradedReason: "primary-timeout",
+			Results:        []builtin.SearchResult{{Title: "兜底结果", URL: "https://x.example", Snippet: "s", Source: "bing"}},
+			Attempts:       []builtin.SearchAttempt{{Name: "tavily", Outcome: "error", Err: "retention window timeout"}, {Name: "bing", Outcome: "ok", ElapsedMS: 700}},
+		}, nil
 	})
 	out, err := runChatWebSearch("测试")
 	if err != nil {
-		t.Fatalf("滤空不该以 error 冒泡给聊天: %v", err)
+		t.Fatalf("degraded 不该以 error 冒泡: %v", err)
 	}
+	if out.State != builtin.SearchStateDegraded || out.DegradedReason != "primary-timeout" {
+		t.Errorf("State/Reason = %q/%q, want degraded/primary-timeout", out.State, out.DegradedReason)
+	}
+	if !strings.Contains(out.Text, "兜底结果") {
+		t.Errorf("DEGRADED 应保留兜底结果文本: %q", out.Text)
+	}
+	if !strings.Contains(out.Engines, "primary-timeout") {
+		t.Errorf("诊断应含降级原因: %q", out.Engines)
+	}
+	got := injectChatSearchResult("问句", out)
+	if strings.Contains(got, "实时搜索结果，请参考") {
+		t.Errorf("DEGRADED 不得套成功头: %q", got)
+	}
+	if !strings.Contains(got, "联网搜索已降级") || !strings.Contains(got, "主源保留窗超时") || !strings.Contains(got, "可信度有限") {
+		t.Errorf("DEGRADED 注入应带压过成功头的降级标注: %q", got)
+	}
+}
+
+// TestRunChatWebSearch_FilteredEmptySplit 刀1 拆分：策略过滤后空是 EMPTY
+// （检索发生了），不是引擎失败，更不是 ALL_FAILED。核契约：无可用结果以 err
+// 收口（诊断随行），适配器按 State 分叉不受影响。
+func TestRunChatWebSearch_FilteredEmptySplit(t *testing.T) {
+	stubChatSearchRun(t, func(_ context.Context, _ string, _ int) (*builtin.SearchOutcome, error) {
+		return &builtin.SearchOutcome{
+			State: builtin.SearchStateEmpty,
+			Attempts: []builtin.SearchAttempt{
+				{Name: "bing", Outcome: "filtered-empty", ElapsedMS: 210},
+				{Name: "ddg", Outcome: "error", Err: "timeout", ElapsedMS: 8000},
+			},
+		}, errors.New("统一核收口")
+	})
+	out, _ := runChatWebSearch("测试")
 	if out.State != builtin.SearchStateEmpty {
-		t.Errorf("State = %q, want empty（策略滤空≠ALL_FAILED）", out.State)
+		t.Errorf("State = %q, want empty", out.State)
 	}
 	if !strings.Contains(out.Engines, "策略过滤后无可用结果") {
 		t.Errorf("诊断应写明策略滤空: %q", out.Engines)
@@ -103,11 +141,12 @@ func TestRunChatWebSearch_FilteredEmptySplit(t *testing.T) {
 
 // TestRunChatWebSearch_AllFailed 全部传输/解析失败 → ALL_FAILED，诊断带原因。
 func TestRunChatWebSearch_AllFailed(t *testing.T) {
-	stubChatSearchRun(t, func(_ context.Context, _ string, _ int) ([]builtin.SearchResult, []builtin.SearchAttempt, error) {
-		return nil, []builtin.SearchAttempt{
-			{Name: "bing", Outcome: "error", Err: "connection refused", ElapsedMS: 120},
-			{Name: "ddg", Outcome: "error", Err: "tls handshake timeout", ElapsedMS: 8000},
-		}, errors.New("all 2 engines failed")
+	stubChatSearchRun(t, func(_ context.Context, _ string, _ int) (*builtin.SearchOutcome, error) {
+		return &builtin.SearchOutcome{
+			State:       builtin.SearchStateAllFailed,
+			Attempts:    []builtin.SearchAttempt{{Name: "bing", Outcome: "error", Err: "connection refused", ElapsedMS: 120}},
+			Diagnostics: "所有搜索引擎失败：",
+		}, errors.New("所有搜索引擎失败：")
 	})
 	out, _ := runChatWebSearch("测试")
 	if out.State != builtin.SearchStateAllFailed {
@@ -115,6 +154,21 @@ func TestRunChatWebSearch_AllFailed(t *testing.T) {
 	}
 	if !strings.Contains(out.Engines, "connection refused") {
 		t.Errorf("诊断应含引擎失败原因: %q", out.Engines)
+	}
+}
+
+// TestRunChatWebSearch_CoreFault 统一核无产出（seam 返回 nil outcome）→
+// 适配器故障路径，ALL_FAILED + 原因透传。
+func TestRunChatWebSearch_CoreFault(t *testing.T) {
+	stubChatSearchRun(t, func(_ context.Context, _ string, _ int) (*builtin.SearchOutcome, error) {
+		return nil, errors.New("统一核崩溃")
+	})
+	out, err := runChatWebSearch("测试")
+	if err != nil || out.State != builtin.SearchStateAllFailed {
+		t.Fatalf("核故障应折进状态: out=%+v err=%v", out, err)
+	}
+	if !strings.Contains(out.Engines, "统一核崩溃") {
+		t.Errorf("诊断应含核故障原因: %q", out.Engines)
 	}
 }
 
@@ -138,6 +192,14 @@ func TestInjectChatSearchResult(t *testing.T) {
 	}
 	if !strings.Contains(failed, "联网搜索暂不可用") || !strings.Contains(failed, "如实说明未获取到实时信息") {
 		t.Errorf("ALL_FAILED 态应如实说明: %q", failed)
+	}
+	// 刀2：DEGRADED 降级标注压过成功头（四态文案互异）
+	degraded := injectChatSearchResult("问句", chatSearchOutcome{State: builtin.SearchStateDegraded, DegradedReason: "primary-error", Text: "1. 兜底"})
+	if strings.Contains(degraded, "实时搜索结果，请参考") {
+		t.Errorf("DEGRADED 态不得套成功头: %q", degraded)
+	}
+	if !strings.Contains(degraded, "联网搜索已降级") || !strings.Contains(degraded, "主源不可用") || !strings.Contains(degraded, "1. 兜底") {
+		t.Errorf("DEGRADED 态应带降级标注+兜底结果: %q", degraded)
 	}
 }
 

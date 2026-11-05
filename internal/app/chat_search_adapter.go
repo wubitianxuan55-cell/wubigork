@@ -6,9 +6,9 @@ package app
 // （办公 builtin websearch），whisper 自研 Bing/DDG 解析已删除——
 // whisper.WebSearch 符号不存在，任何绕过 adapter 的旧直连都会编译红。
 //
-// 三层失败契约（会话终稿）：
-//  1. 返回值状态枚举（chatSearchOutcome.State，策略过滤后空≠ALL_FAILED 的拆分
-//     在统一核 builtin.ClassifySearchState / SearchAttempt）；
+// 三层失败契约（会话终稿；刀2 扩 DEGRADED）：
+//  1. 返回值状态枚举（chatSearchOutcome.State=ok/degraded/empty/all_failed，
+//     策略过滤后空≠ALL_FAILED 的拆分在统一核 SearchAttempt）；
 //  2. 注入头按状态选文案（injectChatSearchResult，不再无条件「实时搜索结果」）；
 //  3. plain 系统提示词删「不要说自己无法联网搜索」（chat_service.go，仅 plain，
 //     人格路径没有此句勿加）。
@@ -34,14 +34,16 @@ const chatSearchTopK = 5
 
 // chatSearchOutcome 三层契约第一层：状态 + 注入文本原料。
 type chatSearchOutcome struct {
-	State    builtin.SearchState
-	Query    string // 清洗后的查询词（实际发给引擎的）
-	RawQuery string // 用户原始问句
-	Text     string // OK：编号结果列表（title/url/snippet/source）；非 OK：空
-	Engines  string // 逐引擎诊断摘要（一行，EMPTY/ALL_FAILED 时进注入文案）
+	State          builtin.SearchState
+	DegradedReason string // DEGRADED 时的原因（primary-timeout/coverage-* 等）
+	Query          string // 清洗后的查询词（实际发给引擎的）
+	RawQuery       string // 用户原始问句
+	Text           string // OK/DEGRADED：编号结果列表（title/url/snippet/source）；其余：空
+	Engines        string // 逐引擎诊断摘要（一行，EMPTY/ALL_FAILED/DEGRADED 时进注入文案）
 }
 
-// chatSearchRun 统一检索核 seam：测试可替换避免真实网络请求。
+// chatSearchRun 统一检索核 seam：测试可替换避免真实网络请求（刀2 起返回
+// *builtin.SearchOutcome，State 由核内主源保留窗+覆盖门归出）。
 var chatSearchRun = builtin.RunSearch
 
 // chatWebSearch 聊天检索 seam（签名=状态契约）：生产走 runChatWebSearch，
@@ -53,36 +55,70 @@ func runChatWebSearch(rawQuery string) (chatSearchOutcome, error) {
 	query := cleanChatSearchQuery(rawQuery)
 	ctx, cancel := context.WithTimeout(context.Background(), chatSearchTimeout)
 	defer cancel()
-	results, attempts, err := chatSearchRun(ctx, query, chatSearchTopK)
-	state := builtin.ClassifySearchState(results, attempts)
+	outcome, err := chatSearchRun(ctx, query, chatSearchTopK)
+	if outcome == nil {
+		// 统一核自身故障（无产出）：不可用态，如实上报
+		reason := ""
+		if err != nil {
+			reason = err.Error()
+		}
+		return chatSearchOutcome{State: builtin.SearchStateAllFailed, Query: query, RawQuery: rawQuery, Engines: reason}, nil
+	}
+	engines := summarizeSearchAttempts(outcome.Attempts)
+	if outcome.DegradedReason != "" {
+		engines = outcome.DegradedReason + "; " + engines
+	}
+	if engines == "" && err != nil {
+		engines = err.Error()
+	}
 	out := chatSearchOutcome{
-		State:    state,
-		Query:    query,
-		RawQuery: rawQuery,
-		Engines:  summarizeSearchAttempts(attempts),
+		State:          outcome.State,
+		DegradedReason: outcome.DegradedReason,
+		Query:          query,
+		RawQuery:       rawQuery,
+		Engines:        engines,
 	}
-	if out.Engines == "" && err != nil {
-		out.Engines = err.Error()
-	}
-	if state == builtin.SearchStateOK {
-		out.Text = formatChatSearchResults(results)
+	if outcome.State == builtin.SearchStateOK || outcome.State == builtin.SearchStateDegraded {
+		out.Text = formatChatSearchResults(outcome.Results)
 	}
 	return out, nil
 }
 
 // injectChatSearchResult 三层契约第二层：注入头按状态选文案。EMPTY 与
-// ALL_FAILED 分开表述，占位行都要求模型如实说明——不再把伪失败包装成
-// 「实时搜索结果」。
+// ALL_FAILED 分开表述，DEGRADED 的降级标注必须压过「优先依据搜索结果」
+// （会话裁决：免费引擎兜底结果不得冒充已核验事实）。
 func injectChatSearchResult(message string, out chatSearchOutcome) string {
 	switch out.State {
 	case builtin.SearchStateOK:
 		return fmt.Sprintf("%s\n\n[以下是关于此问题的实时搜索结果，请参考这些信息回答]\n%s", message, out.Text)
+	case builtin.SearchStateDegraded:
+		return fmt.Sprintf("%s\n\n[联网搜索已降级（%s）：以下为兜底引擎结果，可信度有限；请谨慎引用，无法确认时如实说明未获取到可靠实时信息]\n%s",
+			message, degradedReasonLabel(out.DegradedReason), out.Text)
 	case builtin.SearchStateEmpty:
 		return fmt.Sprintf("%s\n\n[联网搜索已完成：各引擎均未返回与「%s」相关的结果%s。请基于已有知识回答，并如实说明未获取到实时信息]",
 			message, out.Query, searchDiagSuffix(out.Engines))
-	default: // all_failed（degraded 刀2 主源保留窗启用后单列）
+	default: // all_failed
 		return fmt.Sprintf("%s\n\n[联网搜索暂不可用%s。请基于已有知识回答，并如实说明未获取到实时信息]",
 			message, searchDiagSuffix(out.Engines))
+	}
+}
+
+// degradedReasonLabel 降级原因的用户/模型可读文案。
+func degradedReasonLabel(reason string) string {
+	switch reason {
+	case "primary-timeout":
+		return "主源保留窗超时"
+	case "primary-error":
+		return "主源不可用"
+	case "coverage-generic-query":
+		return "查询无可核验实体"
+	case "coverage-miss":
+		return "结果与查询相关性存疑"
+	default:
+		if reason == "" {
+			return "未知原因"
+		}
+		return reason
 	}
 }
 

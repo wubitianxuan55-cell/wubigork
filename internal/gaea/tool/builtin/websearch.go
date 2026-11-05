@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/url"
 	"strings"
 	"time"
@@ -113,62 +112,18 @@ func (ws webSearch) Execute(ctx context.Context, args json.RawMessage) (string, 
 		p.TopK = 10
 	}
 
-	// 编排委托统一检索核（众神殿刀1：聊天 adapter 与本工具共用一条链，
-	// 编排/诊断见 websearch_core.go）；输出契约零变化：成功=JSON 数组，
-	// 全败=逐引擎诊断+零配置指引文本。
-	results, attempts, err := ws.runSearch(ctx, p.Query, p.TopK)
+	// 编排委托统一检索核（众神殿刀1：聊天 adapter 与本工具共用一条链；刀2
+	// 短窗合并+主源保留窗+覆盖门见 websearch_core.go/websearch_coverage.go）；
+	// 输出契约零变化：成功=JSON 数组，全败=逐引擎诊断+零配置指引文本。
+	outcome, err := ws.runSearch(ctx, p.Query, p.TopK)
 	if err != nil {
-		return "", fmt.Errorf("%s", buildAllFailedDiag(attempts))
+		return "", err // err 消息即全败诊断（含零配置指引）
 	}
-	return formatResults(results), nil
+	return formatResults(outcome.Results), nil
 }
 
-// buildEngines 按 config 驱动的 kind 顺序经注册表构建引擎（可用性过滤）。
-// 顺序来源：[search] engine_order（SetSearchEngineOrder 注入），未配置时用
-// defaultSearchEngineOrder（与改造前硬编码优先级一致：local SearXNG → Tavily →
-// Brave → public SearXNG → Bing → DDG）。每个 kind 经 NewSearchEngine 构建后
-// 用 Available() 过滤（等价于旧逻辑里"有 key/有 URL 才加入"的分支）。
-func (webSearch) buildEngines() []SearchEngine {
-	var engines []SearchEngine
-	cfg := searchCfg // may be nil
-
-	for _, kind := range searchEngineOrder() {
-		var ecfg SearchEngineConfig
-		switch kind {
-		case SearchEngineKindLocalSearXNG:
-			if cfg != nil {
-				ecfg.BaseURL = cfg.LocalSearXNGURL
-			}
-		case SearchEngineKindTavily:
-			if cfg != nil {
-				ecfg.APIKey = cfg.TavilyKey()
-			}
-		case SearchEngineKindBrave:
-			if cfg != nil {
-				ecfg.APIKey = cfg.BraveKey()
-			}
-		}
-		eng, err := NewSearchEngine(kind, ecfg)
-		if err != nil {
-			// 未知 kind（config 写了未注册引擎）：跳过并在诊断中提示，不中断搜索。
-			slog.Warn("websearch: 跳过不可用搜索引擎", "kind", kind, "error", err)
-			continue
-		}
-		if !eng.Available() {
-			continue // 未配置凭据/URL 的引擎不参与扇出（等价旧分支）
-		}
-		engines = append(engines, eng)
-	}
-	return engines
-}
-
-// searchEngineOrder 返回生效的引擎顺序：config 注入序优先，否则默认序。
-func searchEngineOrder() []string {
-	if len(searchEngineOrderCfg) > 0 {
-		return searchEngineOrderCfg
-	}
-	return defaultSearchEngineOrder
-}
+// buildEngines/buildEngineRunners/searchEngineOrder 见 websearch_core.go
+// （刀2 起编排与主源识别按 kind，统一在核文件）。
 
 // --- formatting ---
 

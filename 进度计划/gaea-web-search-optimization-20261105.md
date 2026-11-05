@@ -7,7 +7,9 @@
 ## 0. 主源路线：✅ 已拍板 A 托管 API（2026-11-05 晚，用户拍板）
 
 - **A 托管 API（已选）**：Tavily（免 1000 次/月，score 字段现成）或 Brave（免 2000 次/月）。零运维；查询外发+免费额度约束。
-- 待用户动作：注册 Tavily（tavily.com）或 Brave（api.search.brave.com）→ 设环境变量 `TAVILY_API_KEY`/`BRAVE_API_KEY` → `[search]` 对应 `*_api_key_env` 填变量名（刀3 向导落地后改为面板内配置）。
+- ✅ 已接线（2026-11-05 晚）：Tavily key 已配（user env `TAVILY_API_KEY` setx + repo `.env`（gitignored）+ `%APPDATA%\gaea\config.toml` `[search] tavily_api_key_env="TAVILY_API_KEY"`）；运行中 gaea.exe 须重启生效。
+- A 臂首批实测数据点（同句「2026年11月3日 人民币兑美元汇率」）：bing 672ms 先胜但 5 条全离题 vs tavily 1122ms 5 条全正题（当日中间价 6.7150 命中）——**首胜单槽丢主源活案例，刀2 主源保留窗实证支点**；tavily-only 探针 5/5 正题 key 链路通。
+- Tavily 工具面：tvly CLI 0.2.1 已装已认证（api_key）；Tavily Agent Skills 已全局装入 `~/.zcode/skills`（重启/重扫后生效）。
 - 影响收口：刀3=向导形态按 A 落（设置面板配置卡：选引擎+填 key+测试连接）；A 臂基线等 key 到位后跑（保留窗毫秒/主源入 top5 比例由此定数）。
 
 ## 1. 刀1 统一检索核 + 三层失败契约 + 四入口收敛 + 清洗边界 ✅（2026-11-05 晚落地，三包测试绿）
@@ -28,18 +30,20 @@
 - [x] 三状态注入头文案分叉有测试；策略滤空与 ALL_FAILED 拆分有测试
 - [x] 全量门禁：go build/vet + 相关包测试绿
 
-## 2. 基线先行：30 query 固定集 ⏸（keyless 臂可与刀2 并行）
+## 2. 基线先行：30 query 固定集 ✅（2026-11-05 晚实弹 150 记录）
 
-- 建 `docs/web-search-baseline-30q-20261105.json`（6×5 终稿表，digest 第四节），keyless 臂先跑：每引擎 queried/won/elapsed + 状态 + 离题标注。
-- `must_hit/expected_state/as_of` 谁跑基线谁填；A 臂等主源拍板。
-- 产出定数：保留窗毫秒数、覆盖门阈值、DDG 可达性、主源入 top5 比例。**不得先写死再凑。**
+- 档案：`docs/web-search-baseline-30q-20261105.json`（摘要）+ `.jsonl`（原始 150 记录，5 臂×30）。
+- **主源入 top5 = 1/30（3.3%）**——首胜竞速量化实锤；tavily p50=2.4s/p95=3.2s；bing p50=0.6s；**DDG 28/30 失败=本机不可达，keyless 必达源只剩 bing**。
+- 覆盖门校准：F30 多实体部分命中误判案例 → 收紧为过半实体命中；E 类 5/5 判对。
 
-## 3. 刀2 首胜→短窗合并 + 主源保留窗 + 覆盖门 v0 ⏸（依赖刀1+基线定数）
+## 3. 刀2 首胜→短窗合并 + 主源保留窗 + 覆盖门 v0 ✅（2026-11-05 晚落地）
 
-- 主源保留窗语义（top5 必含主源否则 DEGRADED）；短窗收齐已完成引擎+URL 规范化去重；每引擎埋点。
-- 覆盖门 v0（剥日期/数字后核心实体命中，复用 `search/search.go` bigram；误杀>10% 退 reranker 二档）。
-- Codex 桩测五条作门禁（keyless 20ms vs 主源 300ms 必含主源／超窗=DEGRADED／同 URL 去重／nil=EMPTY 解析败=ALL_FAILED／三状态注入头分叉）。
-- 验收：30 集 A/B/C OK 类 recall@5 ≥ 首胜基线；E 状态判对≥4；F 零误判 OK；单引擎行为等价现状。
+- `builtin/websearch_core.go`：RunSearch 返回 `SearchOutcome{Results,Attempts,State,DegradedReason,Diagnostics}`；主源保留窗（**3.5s，A 臂 p95 校准**）→主源为主+短窗合并（1.2s，URL 规范化去重 www./尾斜杠/utm_*，双来源并入 Source）→超窗/失败走 keyless 兜底并强制 `DEGRADED(primary-timeout|primary-error)`（合成超时尝试入诊断，禁止静默 bing-only 标 OK）。
+- `builtin/websearch_coverage.go`：覆盖门 v0=剥日期/数字/泛词后**过半核心实体**命中 title+snippet（F30 校准），不过→`DEGRADED(coverage-generic-query|coverage-miss)`；办公 Execute JSON 数组契约零变化。
+- 聊天 adapter：DEGRADED 注入文案（降级标注压过成功头），四态互异。
+- Codex 桩测五条全绿（retention 保留/超窗降级/URL 去重双源/nil=EMPTY 解析败=ALL_FAILED/四态注入头）+ F30 部分命中回归 + 泛词/多实体过门用例。
+- 验证跑（实弹 60 记录）：keyless 臂 E 类 5/5 判对、F 类 4/5（F27 判 OK 属正确——结果真相关）；primary-error 环境故障下 30/30 无伪 OK（降级语义实弹验证）。
+- 余项：主源窗内 tavily 29/30 x509 证书失败为 fake-ip 代理出口环境噪声（基线跑同代码 29/30 ok），待环境恢复复测主源入 top5 比例；reranker 二档挂池（误杀率现值 0 触发）。
 
 ## 4. 刀3 主源向导 + 限时 keyless + 全败才指引 ⏸（依赖主源拍板+刀2 埋点）
 

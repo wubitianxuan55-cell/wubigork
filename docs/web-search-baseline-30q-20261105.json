@@ -1,0 +1,40 @@
+{
+  "title": "30 query 网络搜索基线（众神殿刀2 校准数据）",
+  "as_of": "2026-11-05 晚",
+  "session": "pan_1793872913023_9c20fd7e7ab9 三刀共识的 action-3（A 臂基线）",
+  "setup": {
+    "primary": "tavily（key 已接线）",
+    "arms": [
+      "tavily",
+      "bing",
+      "ddg",
+      "fanout-primary(tavily+bing+ddg)",
+      "fanout-keyless(bing+ddg)"
+    ],
+    "excluded": "public-searxng（六实例串行，共识不承诺必达源）",
+    "queries": "6 类 × 5（时效/技术/实体/口语/对抗离题/无结果长尾），must_hit/expected_state 由本轮执行者标注于摘要结论",
+    "raw": "docs/web-search-baseline-30q-20261105.jsonl（150 记录，每臂每条含逐引擎 attempts/结果）"
+  },
+  "findings": {
+    "首胜竞速量化": "fanout-primary 主源入 top5 仅 1/30（3.3%），bing 胜 29/30——配了 Tavily 但 96.7% 被单槽丢弃（刀2 主源保留窗的实证支点）",
+    "单引擎 elapsed": {
+      "tavily": "p50=2409ms p90=2942ms p95=3209ms（29/30 ok）",
+      "bing": "p50=575ms p90=738ms p95=1084ms（29/30 ok）",
+      "ddg": "28/30 all_failed——本机网络不可达，keyless 必达源实际只剩 bing"
+    },
+    "保留窗校准": "tavily p95=3.2s → searchPrimaryWindow=3500ms 覆盖 >95%；聊天最坏 3.5s 窗 + bing 首胜 ≈ 4.6s < adapter 8s 硬上限",
+    "主源质量对照": "同句『2026年11月3日 人民币兑美元汇率』：bing 5 条全离题（百科2026年/万年历） vs tavily 5 条全正题（当日中间价 6.7150）"
+  },
+  "coverage_gate_calibration": {
+    "误判案例": "F30『火星 房地产 均价 2026』3 实体仅命中『火星』→ 任一命中口径误判 OK",
+    "修正": "覆盖门收紧为过半实体命中（ceil(n/2)），F30 回归用例入库",
+    "判对复核": "E 类 5/5 判对（E21/E23/E25 miss，E22/E24 结果真相关判 OK）；F27 判 OK 属正确（site: 被 bing 当普通词，返回 Gaea 官网/文档真相关结果）"
+  },
+  "环境噪声": "验证跑 tavily 29/30 x509 证书失败（fake-ip 代理出口层，非管线病；基线跑同代码 29/30 ok）；该故障恰好实弹验证 primary-error 降级路径：30/30 无伪 OK",
+  "刀2后复测（同日第二/三轮 fanout 两臂实弹）": {
+    "keyless 臂": "E 类 5/5 状态判对（E21/E25 coverage-miss，E23 coverage-generic-query，E22/E24 结果真相关判 ok）；F 类仅 F27 判 ok（site: 被 bing 当普通词返回 Gaea 官网/文档真相关结果，判对）；F30『火星 房地产 均价』已被过半实体门正确拦为 coverage-miss",
+    "A/B/C keyless": "10/15 ok，5 条 coverage-miss（bing 离题被门拦住不冒充可核验——门的语义兑现）",
+    "primary 臂": "复测期 tavily 30/30 x509 证书失败（fake-ip 代理出口对 api.tavily.com 的拦截，晚高峰恶化；基线首轮同代码 29/30 ok）→ 30/30 degraded(primary-error) 无伪 OK，primary-error 降级路径实弹验证；主源入 top5 正值待环境恢复后补测",
+    "机制面证据": "首轮 A1 样本：tavily 1205ms（<3.5s 保留窗）就绪 → 主源 5 条占满 top5 → state=ok"
+  }
+}

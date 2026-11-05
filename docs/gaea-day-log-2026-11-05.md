@@ -152,3 +152,23 @@ status+save_task/读屏挂未来重评），M5 解冻待排刀。
   key 链路通；全引擎臂抓到首胜竞速活案例——bing 672ms 先胜但 5 条全离题 vs tavily 1122ms 5 条全正题
   （单槽丢弃 tavily）=刀2 主源保留窗实证支点，首批 A 臂校准数据点（bing≈0.7s / tavily≈1.1s）。
 - 余：30 query A 臂基线（30q/1000 月额度）→刀2 按分布落保留窗；刀3 向导按 A 落。
+
+## 网络搜索刀2（晚间续：基线→落刀→复测闭环）
+
+- 30 query 基线实弹 150 记录（5 臂×30，docs/web-search-baseline-30q-20261105.json/.jsonl）：
+  主源入 top5 仅 1/30（首胜竞速量化实锤）；tavily p50=2.4s/p95=3.2s、bing p50=0.6s；
+  DDG 28/30 失败=本机不可达（keyless 必达源只剩 bing）。保留窗按 p95 校准 2.5s→3.5s。
+- 刀2 落地：RunSearch 返回 SearchOutcome（State/DegradedReason/Diagnostics）；主源保留窗
+  （engine_order 首个主源类可用引擎，3.5s 窗）→主源为主+短窗合并（1.2s，URL 归一去重
+  www./尾斜杠/utm_*、双来源并入 Source）→超窗/失败强制 DEGRADED(primary-timeout|primary-error)
+  （合成超时尝试入诊断，禁止静默 bing-only 标 OK）+覆盖门 v0（剥日期/数字/泛词后过半核心
+  实体命中 title+snippet；F30『火星 房地产 均价』部分命中误判案例校准收紧）；办公 Execute
+  JSON 数组契约零变化；聊天 adapter 四态注入头（DEGRADED 降级标注压过成功头）。
+- 测试：Codex 桩测五条全绿+F30 部分命中回归+泛词/多实体过门用例；修 waitFirstResult
+  无落账出口（全空/全败干等 20s 截止，60s→1s）；全量门禁 builtin/whisper/app 绿。
+- 复测实弹（fanout 两臂×30×2 轮）：覆盖门收紧后 E 类 5/5 判对、F 类仅 F27 判 ok
+  （结果真相关属判对）、A/B/C keyless 10/15 ok+5 条被门拦住不冒充可核验；
+  tavily 复测期 30/30 x509（fake-ip 代理出口拦 api.tavily.com，环境噪声非管线病——
+  基线首轮同代码 29/30 ok）→恰好实弹验证 primary-error 降级：60/60 无伪 OK。
+  主源入 top5 正值待代理恢复补测；A1 样本（tavily 1.2s 就绪主源占满 top5 state=ok）
+  已证机制面。
