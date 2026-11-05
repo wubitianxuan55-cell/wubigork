@@ -145,4 +145,9 @@ export interface OfficeBindings {
   DagTemplateSave(runId: string, name: string): Promise<string>;
   DagTemplateNew(templateId: string): Promise<string>;
   DagTemplateDelete(templateId: string): Promise<string>;
+
+  // ── 搜索主源设置（众神殿刀3 主源向导）：key 落 ~/.env 与 CLI 同源，保存热生效 ──
+  WebSearchSettingsGet(): Promise<Record<string, unknown>>;
+  WebSearchSettingsSet(tavilyKey: string, braveKey: string, searxngURL: string): Promise<void>;
+  WebSearchTestConnection(): Promise<Record<string, unknown>>;
 }

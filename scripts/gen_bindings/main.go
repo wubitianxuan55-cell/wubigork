@@ -241,6 +241,12 @@ func mapGaea(n string) string {
 
 // explicitOverrides 无法用前缀表达的映射。
 var explicitOverrides = map[string]string{
+	// 众神殿刀3 主源向导（2026-11-05）：搜索设置三绑定挂 *App，点名归 office。
+	// 绑定面改动当时与他方在途同树，未整跑生成器（手写委托同构入 bindings_office.go），
+	// 覆盖表先在册——下轮整跑输出与本批手写收敛。
+	"WebSearchSettingsGet":   "office",
+	"WebSearchSettingsSet":   "office",
+	"WebSearchTestConnection": "office",
 	// v4.291：反推任务化两绑定挂 *App（taskMgr 在 App 级），点名归 novel。
 	"NovelOutlineReconstructStart":   "novel",
 	"NovelOutlineReconstructTaskGet": "novel",

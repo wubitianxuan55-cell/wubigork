@@ -13,6 +13,7 @@ import ChatPanel from '../components/settings/ChatPanel'
 import WorkspacePanel from '../components/settings/WorkspacePanel'
 import ImageGenPanel from '../components/settings/ImageGenPanel'
 import OfficePanel from '../components/settings/OfficePanel'
+import SearchPanel from '../components/settings/SearchPanel'
 import WorkbenchPrefsPanel from '../components/settings/WorkbenchPrefsPanel'
 import ContextPrefsPanel from '../components/settings/ContextPrefsPanel'
 import ModelPanel from '../components/settings/ModelPanel'
@@ -82,10 +83,10 @@ const CATEGORIES: Category[] = [
     labelKey: 'settings.cat.office',
     desc: '引擎 · 方案',
     descKey: 'settings.cat.officeDesc',
-    keywords: ['办公', '工作台', '偏好', '自动展开', '自动弹出', '自动切换', '任务视图', '上下文', '粒度', '排序', '趋势', '浏览器', '文件活动', '引擎', '方案', '模型', '权限', '沙箱', 'agent', '工具', '技能', '热加载', '招标', '撰写', '温度', 'auto-open', 'auto expand', 'context'],
+    keywords: ['办公', '工作台', '偏好', '自动展开', '自动弹出', '自动切换', '任务视图', '上下文', '粒度', '排序', '趋势', '浏览器', '文件活动', '引擎', '方案', '模型', '权限', '沙箱', 'agent', '工具', '技能', '热加载', '招标', '撰写', '温度', 'auto-open', 'auto expand', 'context', '网络搜索', '搜索', '联网', '主源', 'tavily', 'brave', 'searxng', 'web'],
     // v4.65 欠账收口：办公工作台「自动展开/自动切换」偏好卡置顶（入口可发现性），
     // 2.5d 补上下文页偏好卡（默认粒度/模式/排序），后接办公引擎设置（config.toml）。
-    panel: (<><WorkbenchPrefsPanel /><ContextPrefsPanel /><OfficePanel /></>),
+    panel: (<><WorkbenchPrefsPanel /><ContextPrefsPanel /><OfficePanel /><SearchPanel /></>),
   },
   {
     key: 'model',

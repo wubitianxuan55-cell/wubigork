@@ -60,3 +60,51 @@ export async function gaeaSettings(): Promise<Record<string, unknown>> {
   const v = await app.Settings()
   return (v as unknown as Record<string, unknown>) || {}
 }
+// ── 网络搜索主源（众神殿刀3 主源向导）──
+// key 本体落 ~/.env（与 CLI 同源，boot loadDotEnv 注入），配置面只持有 env
+// 变量名；保存即热生效（builtin SetSearchConfig 重载，无需重启）。
+
+export interface WebSearchSettingsView {
+  local_searxng_url: string
+  tavily_api_key_env: string
+  brave_api_key_env: string
+  tavily_ready: boolean
+  brave_ready: boolean
+  searxng_ready: boolean
+  has_primary: boolean
+  engine_order?: string[]
+}
+
+export interface WebSearchTestEngine {
+  name: string
+  outcome: string
+  elapsed_ms: number
+}
+
+/** 获取搜索主源设置（可用性按解析后的 key 归出；不含密钥本体） */
+export async function webSearchSettings(): Promise<WebSearchSettingsView> {
+  const v = await app.WebSearchSettingsGet()
+  return (v || {}) as unknown as WebSearchSettingsView
+}
+
+/** 保存搜索主源：空串=清除该源；保存后立即生效 */
+export async function saveWebSearchSettings(tavilyKey: string, braveKey: string, searxngURL: string): Promise<void> {
+  await app.WebSearchSettingsSet(tavilyKey, braveKey, searxngURL)
+}
+
+export interface WebSearchTestResult {
+  ok: boolean
+  state: string
+  degraded_reason?: string
+  elapsed_ms: number
+  engines: WebSearchTestEngine[]
+  sample: string[]
+  error?: string
+  hint?: string
+}
+
+/** 主源连通性实测：真实走统一检索核出网一次，按状态+逐引擎诊断回执 */
+export async function testWebSearchConnection(): Promise<WebSearchTestResult> {
+  const v = await app.WebSearchTestConnection()
+  return (v || {}) as unknown as WebSearchTestResult
+}

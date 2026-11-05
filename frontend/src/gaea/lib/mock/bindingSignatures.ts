@@ -695,6 +695,9 @@ export const bindingSignatures = {
   UpdateCustomEngine: { argc: 4, variadic: false, params: "engineID string, name string, baseURL string, apiKey string" },
   UpdateProjectMeta: { argc: 4, variadic: false, params: "title string, genre string, style string, mature string" },
   VisionRoute: { argc: 0, variadic: false, params: "" },
+  WebSearchSettingsGet: { argc: 0, variadic: false, params: "" },
+  WebSearchSettingsSet: { argc: 3, variadic: false, params: "tavilyKey string, braveKey string, searxngURL string" },
+  WebSearchTestConnection: { argc: 0, variadic: false, params: "" },
   VoiceApplySettings: { argc: 1, variadic: false, params: "settings map[string]interface{}" },
   VoiceGetSettings: { argc: 0, variadic: false, params: "" },
   VoiceHealth: { argc: 0, variadic: false, params: "" },
@@ -733,4 +736,4 @@ export const bindingSignatures = {
 // 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 717。
 // 2026-11-05 顺手修既有漂移：V1 语音退役批删 8 个签名（710→709…→709）未同步
 // 本 count（契约红 HEAD 态即红，v4.532.0 后遗留）。
-export const bindingSignatureCount = 709;
+export const bindingSignatureCount = 712;

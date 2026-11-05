@@ -172,3 +172,21 @@ status+save_task/读屏挂未来重评），M5 解冻待排刀。
   基线首轮同代码 29/30 ok）→恰好实弹验证 primary-error 降级：60/60 无伪 OK。
   主源入 top5 正值待代理恢复补测；A1 样本（tavily 1.2s 就绪主源占满 top5 state=ok）
   已证机制面。
+
+## 网络搜索刀3（晚间续：主源向导落地）
+
+- 设置面板搜索卡（办公分类新增「网络搜索」）：Tavily/Brave key + 自建 SearXNG URL
+  三源任配其一即主源；key 落 ~/.env（dotenv.go boot 合法密钥源，与 CLI 同源；不进
+  config.toml，[search] 只持 env 变量名）+ os.Setenv 立即生效 + builtin 三件热重载
+  （SetSearchConfig/SetSearchEngineOrder，无需重启）；空串=清除。
+- 后端三绑定 WebSearchSettingsGet/Set/TestConnection（internal/app/websearch_settings.go，
+  全测试缝）；TestConnection=真实走统一检索核出网一次，ok=拿到可用结果（ok/degraded
+  都算通，降级原因如实携带），全败附配置指引。
+- 绑定面：当时他方在途（Qwen35* 等新 App 方法）与生成器整跑冲突——手写三委托入
+  bindings_office.go（与生成器输出同构）+explicitOverrides 在册（office），下轮整跑自然
+  收敛；前端 office.ts 接口+spaceBindings 三键（shared）+bindingNames+bindingSignatures
+  （count 709→712 手工同步）+mock methods_websearch 全表接齐，wailsjs 待下次 build amend。
+- 测试：SearchPanel.test 6 例（徽标/保存透传/ok/degraded/全败指引/读取失败不静默）+
+  contract 5 + spaceBindings 10 全绿；tsc -b 0 错；go app 包全量绿。
+- 至此三刀全落地：刀1 统一核+四入口、刀2 保留窗+覆盖门、刀3 主源向导。余=真机
+  实弹走查设置卡+代理恢复后主源入 top5 补测+发版拍板。

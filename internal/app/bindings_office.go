@@ -220,3 +220,8 @@ func (b *OfficeB) GaeaXlsxRecalc(rel string) (XlsxEditResult, error) { return b.
 func (b *OfficeB) GaeaXlsxRowOps(rel string, sheet string, action string, ref string) (res XlsxEditResult, err error) { return b.a.GaeaXlsxRowOps(rel, sheet, action, ref) }
 func (b *OfficeB) GaeaXlsxSetCell(rel string, sheet string, ref string, value string) (XlsxEditResult, error) { return b.a.GaeaXlsxSetCell(rel, sheet, ref, value) }
 func (b *OfficeB) GaeaZipDeliverables(paths []string) (ZipDeliverableResult, error) { return b.a.GaeaZipDeliverables(paths) }
+
+// ── 搜索主源设置（众神殿刀3 主源向导）：手写委托与生成器输出同构，下轮整跑自然收敛 ──
+func (b *OfficeB) WebSearchSettingsGet() (map[string]interface{}, error) { return b.a.WebSearchSettingsGet() }
+func (b *OfficeB) WebSearchSettingsSet(tavilyKey string, braveKey string, searxngURL string) error { return b.a.WebSearchSettingsSet(tavilyKey, braveKey, searxngURL) }
+func (b *OfficeB) WebSearchTestConnection() (map[string]interface{}, error) { return b.a.WebSearchTestConnection() }

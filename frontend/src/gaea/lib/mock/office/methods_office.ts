@@ -22,6 +22,7 @@ import { mockFileBodies, mockXlsxState } from "./state";
 import { mockScheduleFiles } from "./schedule";
 import { dagMethods } from "./methods_dag";
 import { opsMethods } from "./methods_ops";
+import { webSearchMethods } from "./methods_websearch";
 import type { OfficeMethods } from "./types";
 
 export const officeMethods: Partial<Omit<OfficeMethods, "PinnedMaterials">> &
@@ -616,5 +617,6 @@ export const officeMethods: Partial<Omit<OfficeMethods, "PinnedMaterials">> &
     return "";
   },
   ...opsMethods,
+  ...webSearchMethods,
   ...dagMethods,
 };

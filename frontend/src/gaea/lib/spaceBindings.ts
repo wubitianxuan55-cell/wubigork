@@ -92,6 +92,10 @@ export const GAEA_METHOD_FACETS = {
   SetDefaultModel: "shared",
   // v4.171 批次一：办公引擎设置整体写回（OfficePanel「保存」，同 Settings 归 shared）。
   SaveSettings: "shared",
+  // 众神殿刀3：搜索主源设置（主源向导/连通性实测，设置卡两空间共用）。
+  WebSearchSettingsGet: "shared",
+  WebSearchSettingsSet: "shared",
+  WebSearchTestConnection: "shared",
   SaveProvider: "shared",
   DeleteProvider: "shared",
   LoginProvider: "shared",

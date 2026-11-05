@@ -45,9 +45,10 @@
 - 验证跑（实弹 60 记录）：keyless 臂 E 类 5/5 判对、F 类 4/5（F27 判 OK 属正确——结果真相关）；primary-error 环境故障下 30/30 无伪 OK（降级语义实弹验证）。
 - 余项：主源窗内 tavily 29/30 x509 证书失败为 fake-ip 代理出口环境噪声（基线跑同代码 29/30 ok），待环境恢复复测主源入 top5 比例；reranker 二档挂池（误杀率现值 0 触发）。
 
-## 4. 刀3 主源向导 + 限时 keyless + 全败才指引 ⏸（依赖主源拍板+刀2 埋点）
+## 4. 刀3 主源向导 + 限时 keyless + 全败才指引 ✅（2026-11-05 晚落地）
 
-- 设置面板搜索配置卡（A/B 选择+测试连接）——当前前端零搜索配置绑定（`tools.ts:320-323` 只数编号），四表同批。
+- ✅ 设置面板办公分类「网络搜索」卡（SearchPanel）：Tavily/Brave key+SearXNG URL 三源任配其一即主源；测试连接=真实走统一检索核出网，ok/degraded=连通（降级原因如实携带）、全败附配置指引；可用性徽标。
+- ✅ 后端三绑定 WebSearchSettingsGet/Set/TestConnection：key 落 ~/.env（dotenv boot 同源，不进 config.toml）+Setenv 立即生效+builtin 三件热重载；空串=清除。绑定面手写同构入 bindings_office.go+explicitOverrides（他方在途同树，未整跑生成器，下轮收敛）；wailsjs 待下次 build amend。
 - 全败指引保持现位；人格路径/普通路径统一可见状态。
 - 主源生效归因靠刀2 埋点（A 臂 OK 类 top5 主源出现率达标）。
 

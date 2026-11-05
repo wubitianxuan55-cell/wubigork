@@ -18,6 +18,8 @@ export type OfficeMethods = Pick<
   | "XlsxChart" | "ZipDeliverables" | "SubagentRuns" | "SubagentTranscript" | "PromoteSubagent" | "SubagentFollowUp" | "DeliverableRegistry" | "WriteFile"
   // 文档 lint / PPT 大纲（批 46 NOT_MOCKED 收尾刀；Gaea 前缀经 mappings 映射）。
   | "DocumentLint" | "PptxOutline"
+  // 众神殿刀3：搜索主源设置三绑定。
+  | "WebSearchSettingsGet" | "WebSearchSettingsSet" | "WebSearchTestConnection"
   | "ExportDeliverable" | "ConvertToPdf" | "CrossEmbed" | "RevealWorkspacePath"
   | "SavePastedImage" | "SaveAttachmentFile" | "AttachmentDataURL"
   | "CaptureScreen" | "RecognizeImage" | "OCRText"
