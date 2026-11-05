@@ -253,19 +253,8 @@ func (h *VADHandler) onUtterance(utterance [][]float32, decisionAt time.Time) []
 
 	// discard 路径
 	if activeMs < minActiveMs || durationMs > h.cfg.MaxSpeechMs {
-		// 临时诊断（真麦不可识别，2026-11-05）：段 RMS 定性信号强度——
-		// 静底≈0.003 / 正常说话≈0.05~0.3；验后即撤（在档先例）。
-		sum := 0.0
-		for _, v := range array {
-			sum += float64(v) * float64(v)
-		}
-		rms := 0.0
-		if len(array) > 0 {
-			rms = math.Sqrt(sum / float64(len(array)))
-		}
 		slog.Info("VAD: discarding segment=" + f0(durationMs) + "ms active=" + f0(activeMs) +
-			"ms rms=" + strconv.FormatFloat(rms, 'f', 4, 64) +
-			" (active_min=" + f0(minActiveMs) + "ms, segment_max=infms)")
+			"ms (active_min=" + f0(minActiveMs) + "ms, segment_max=infms)")
 		var out []VADEvent
 		curTurn, curRev := h.turns.CurrentTurn()
 		if h.speechStartedEmitted {
