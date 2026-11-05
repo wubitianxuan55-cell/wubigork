@@ -48,11 +48,17 @@
 
 | 刀 | 内容 | 状态 |
 |---|---|---|
-| 刀0 | 探针字段基建（TurnTrace L3 扩展+whisperChatCore 收尾结构化日志）+ `chat-persona-baseline` tag | 待执行 |
-| 刀1 | 空正文/取消守卫（whisperChatCore 有界重试+终态诚实；chat_service 落库移到 cancelled 判定后；AppendExchange 空正文防线） | 待执行 |
-| 刀2 | 生日显式化（删 orchestrator.go:439-441 默认；gaea 显式 06-11；存量 6 行等值自愈+文件备份） | 待执行 |
-| 刀3 | 搜索入口 raw/llm 双通道（raw 进状态机/WM/FinalizeTurn/记忆；llmUserMsg 只进 messages+PromptHistory，缓存契约不动） | 待执行 |
-| 刀4 | 重启预热+发布序（restore 完成再发布；chat_history 净行 ≤4 轮回灌 PromptHistory） | 待执行 |
+| 刀0 | 探针字段基建（TurnTrace L3 扩展+whisperChatCore 收尾结构化日志）+ `chat-persona-baseline` tag | ✅ 13b65f37 |
+| 刀1 | 空正文/取消守卫（whisperChatCore 有界重试+终态诚实；chat_service 落库移到 cancelled 判定后；AppendExchange 空正文防线） | ✅ cfff7a0f |
+| 刀2 | 生日显式化（删 orchestrator.go:439-441 默认；gaea 显式 06-11；存量 6 行等值自愈+文件备份） | ✅ f429cecd |
+| 刀3 | 搜索入口 raw/llm 双通道（raw 进状态机/WM/FinalizeTurn/记忆；llmUserMsg 只进 messages+PromptHistory，缓存契约不动） | ✅ a931d216 |
+| 刀4 | 重启预热+发布序（restore 完成再发布；chat_history 净行 ≤4 轮回灌 PromptHistory） | ✅ 16b52dda |
+
+执行补记（2026-11-06 凌晨，详见 docs/gaea-day-log-2026-11-06.md）：当场逮到三处真问题——
+建连期取消走 callErr 早退被误报故障（原逻辑该分支在 cancelled 判断之前，连带
+ChatStreamMessages 错误路径 cancel=nil 的 panic 缝）；sin 导出测试历史空行种数据
+改走 AppendMessage 单条口；heal 测试初版漏「先恢复后自愈」生产序。新增测试 12 例
+全绿，internal/app 全包 + internal/whisper 全包回归绿。
 
 范围外（挂池）：压制文案两臂实验、多轮续接、有界工具循环、来源字段契约、PromptHistory 同进程存储形态、plain 流/语音 V2/微信出口改动。
 
