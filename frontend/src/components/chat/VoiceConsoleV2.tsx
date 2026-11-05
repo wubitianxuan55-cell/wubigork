@@ -156,6 +156,30 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
     }, holdMs)
   }, [])
 
+  // M5 刀三：语音确认词通道（默认关，面板开关）——T1 确认卡在屏时说完整
+  // 短语「确认执行」替代点按。防线：每预览一次（执行即清卡）+非播放期（卡在
+  // 屏=无响应播放）+精确匹配（去标点后恒等，别的话不触发）。本轮对话照常
+  // 走 LLM+落库（模型自然应答；垃圾轮代价接受，管线面拦截挂后续刀）。
+  const [confirmWordEnabled, setConfirmWordEnabled] = useState(false)
+  useEffect(() => {
+    let alive = true
+    void Promise.resolve()
+      .then(() => app.VoiceGetSettings())
+      .then((s) => {
+        if (alive && s && typeof s.voiceConfirmWord === 'boolean') setConfirmWordEnabled(s.voiceConfirmWord)
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
+  const maybeExecuteByConfirmWord = useCallback((userText: string) => {
+    if (!confirmWordEnabled) return
+    const normalized = userText.replace(/[，。！？,.!?、\s]/g, '')
+    if (normalized !== '确认执行') return
+    // 复用执行钮通道（内部无凭据=幂等早退；执行即清卡=每预览仅一次）
+    executePreviewRef.current?.()
+  }, [confirmWordEnabled])
+  const executePreviewRef = useRef<() => void>(() => {})
+
   const executePreview = useCallback(() => {
     setActionPreview((cur) => {
       if (!cur?.previewId || !cur.intentHash) return cur
@@ -178,10 +202,14 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
       return null // 领走即清卡（执行中不重复点击）
     })
   }, [flashActionResult, speakActionAck])
+  executePreviewRef.current = executePreview
 
   const onTurnComplete = useCallback((turn: {
     user: string; assistant: string; responseId: string; itemId: string
   }) => {
+    // M5 刀三：确认词轮先于一切落库逻辑（本轮照常提交——模型自然应答；
+    // 拦截仅触发预览执行）
+    maybeExecuteByConfirmWord(turn.user)
     const topicID = sessionTopicRef.current
     if (!topicID) return
     // P0a-A5e（众神殿定稿 + 用户拍板「继续提交」）：已完成回合的提交不依赖
@@ -249,7 +277,7 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
         })
       })
       .catch(() => {})
-  }, [finalizeTopicAfterSend, flashActionResult, getActiveId, setMessages, speakActionAck])
+  }, [finalizeTopicAfterSend, flashActionResult, getActiveId, maybeExecuteByConfirmWord, setMessages, speakActionAck])
 
   const v2 = useVoiceChatV2({ instructions, voice: voiceId, onTurnComplete })
 

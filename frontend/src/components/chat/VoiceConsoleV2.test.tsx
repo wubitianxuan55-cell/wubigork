@@ -82,6 +82,7 @@ vi.mock('../../events', () => ({
     return () => eventHandlers.delete(event)
   },
 }))
+const getSettingsMock = vi.fn(async (): Promise<Record<string, unknown>> => ({}))
 vi.mock('../../gaea/lib/bridge', () => ({
   app: {
     VoiceV2PreviewIntent: (...args: unknown[]) => previewIntentMock(...(args as [string])),
@@ -90,6 +91,7 @@ vi.mock('../../gaea/lib/bridge', () => ({
       topic: string, user: string, assistant: string, responseId: string, itemId: string,
     ) => commitMock(topic, user, assistant, responseId, itemId),
     TTSSpeakStreaming: (...args: unknown[]) => speakAckMock(...(args as [string])),
+    VoiceGetSettings: (...args: unknown[]) => getSettingsMock(...(args as [])),
   },
 }))
 
@@ -414,6 +416,62 @@ describe('VoiceConsoleV2', () => {
     expect(screen.queryByTestId('vc2-action-exec')).toBeNull()
     expect(screen.getByText('动作未能执行，请再说一次')).toBeTruthy()
     expect(speakAckMock).not.toHaveBeenCalled()
+  })
+
+  it('M5 刀三 确认词轮：开关开+卡在屏时说「确认执行」触发执行', async () => {
+    getSettingsMock.mockResolvedValue({ voiceConfirmWord: true })
+    executeActionMock.mockResolvedValue({ executed: true, reply: '好，任务已保存。', action: 'save_task' })
+    renderConsole()
+    // 先出一块 T1 预览（经模型工具事件通道）
+    await act(async () => {
+      eventHandlers.get('gaea-voice-tool-preview')?.({
+        previewId: 'vap_cw1', intentHash: 'hashcw1',
+        action: 'save_task', reply: '我来帮你保存任务「写周报」，请在确认卡上点执行。',
+      })
+      await Promise.resolve()
+    })
+    expect(screen.getByText('识别到动作 · 待确认')).toBeTruthy()
+    await act(async () => {
+      captured.onTurnComplete?.({ user: '确认执行', assistant: '好的', responseId: 'r15', itemId: 'i15' })
+      await Promise.resolve()
+    })
+    expect(executeActionMock).toHaveBeenCalledWith('vap_cw1', 'hashcw1')
+    expect(screen.getByText('好，任务已保存。')).toBeTruthy()
+  })
+
+  it('M5 刀三 确认词默认关：同轮不触发执行', async () => {
+    getSettingsMock.mockResolvedValue({})
+    renderConsole()
+    await act(async () => {
+      eventHandlers.get('gaea-voice-tool-preview')?.({
+        previewId: 'vap_cw2', intentHash: 'hashcw2',
+        action: 'save_task', reply: '我来帮你保存任务「写周报」，请在确认卡上点执行。',
+      })
+      await Promise.resolve()
+    })
+    await act(async () => {
+      captured.onTurnComplete?.({ user: '确认执行', assistant: '好的', responseId: 'r16', itemId: 'i16' })
+      await Promise.resolve()
+    })
+    expect(executeActionMock).not.toHaveBeenCalled()
+    expect(screen.getByText('识别到动作 · 待确认')).toBeTruthy()
+  })
+
+  it('M5 刀三 确认词精确匹配：别的话不触发', async () => {
+    getSettingsMock.mockResolvedValue({ voiceConfirmWord: true })
+    renderConsole()
+    await act(async () => {
+      eventHandlers.get('gaea-voice-tool-preview')?.({
+        previewId: 'vap_cw3', intentHash: 'hashcw3',
+        action: 'save_task', reply: '我来帮你保存任务「写周报」，请在确认卡上点执行。',
+      })
+      await Promise.resolve()
+    })
+    await act(async () => {
+      captured.onTurnComplete?.({ user: '帮我确认一下执行计划', assistant: '好', responseId: 'r17', itemId: 'i17' })
+      await Promise.resolve()
+    })
+    expect(executeActionMock).not.toHaveBeenCalled()
   })
 
   it('M5 刀二 模型工具 T1 预览事件：凭据直出确认卡，执行走 P2 通道', async () => {

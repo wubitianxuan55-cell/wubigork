@@ -1,7 +1,7 @@
 // VoiceSettingsPanel.tsx — 聊天语音设置面板
 
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { Card, Select, Button, Typography, Tag, Input, Radio, message } from 'antd'
+import { Card, Select, Button, Typography, Tag, Input, Radio, Switch, message } from 'antd'
 import { AudioOutlined, ReloadOutlined, CheckCircleOutlined, CloseCircleOutlined, PlusOutlined, WarningOutlined } from '@ant-design/icons'
 import { app } from '../gaea/lib/bridge'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
@@ -31,6 +31,8 @@ interface VoiceSettingsInfo {
   realtimeHasKey?: boolean
   breezeVoiceDesc?: string
   voiceBackend?: string
+  /** M5 刀三：语音确认词通道开关（默认关） */
+  voiceConfirmWord?: boolean
 }
 
 /** GetVoicePipelineConfig 动态载荷中 TTS 路由读取面（聊天绑定→全局→扫描链） */
@@ -217,6 +219,8 @@ export default function VoiceSettingsPanel() {
   const [breezeVoicesStarted, setBreezeVoicesStarted] = useState(true)
   const [breezeVoicesLoading, setBreezeVoicesLoading] = useState(false)
   const [breezeDesc, setBreezeDesc] = useState('')
+  // M5 刀三：语音确认词通道开关（默认关）
+  const [confirmWord, setConfirmWord] = useState(false)
   // 克隆表单
   const [cloneName, setCloneName] = useState('')
   const [cloneDesc, setCloneDesc] = useState('')
@@ -322,6 +326,7 @@ export default function VoiceSettingsPanel() {
       const settings = (v || {}) as VoiceSettingsInfo
       if (settings.ttsVoice) setTtsVoice(settings.ttsVoice)
       if (settings.breezeVoiceDesc !== undefined) setBreezeDesc(String(settings.breezeVoiceDesc || ''))
+      if (typeof settings.voiceConfirmWord === 'boolean') setConfirmWord(settings.voiceConfirmWord)
 
       const p = (pipeline as VoicePipelineInfo | undefined)
       setRouteChat({ engine: p?.chatTts?.engine || '', model: p?.chatTts?.model || '' })
@@ -506,6 +511,23 @@ export default function VoiceSettingsPanel() {
                 功能绑定（模型中心可换绑），语音不再有独立模型档位。 */}
             <div style={{ flexBasis: '100%', fontSize: 10, color: 'var(--color-text-secondary)' }}>
               对话模型：跟随聊天板块功能绑定（模型中心 → 功能绑定换绑）
+            </div>
+            {/* M5 刀三：语音确认词增强通道（默认关；设计稿 §7-2 拍板立项）——
+                T1 确认卡在屏时说「确认执行」替代点按。风险面（STT 误识别/旁人
+                可确认）由完整短语+每预览一次+非播放期收敛。 */}
+            <div style={{ flexBasis: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>
+                语音确认词（说「确认执行」替代点按钮，默认关）
+              </span>
+              <Switch
+                size="small"
+                checked={confirmWord}
+                onChange={(on) => {
+                  setConfirmWord(on)
+                  applyVoiceSettings({ voiceConfirmWord: on })
+                }}
+                data-testid="voice-confirm-word"
+              />
             </div>
           </div>
         )}

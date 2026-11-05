@@ -153,6 +153,10 @@ const (
 	KeyRealtimeProvider = "realtime_provider"
 	KeyVoiceBackend     = "voice_backend"  // 语音对话后端（v1=whisper 链 | v2=实时 sidecar 实验档，M4 产品接入刀）
 	KeyVoiceChatLLM     = "voice_chat_llm" // V2 对话 LLM 位（空/local-fast=专属快模型 | chat=跟随聊天板块模型，P1 续刀）
+	// M5 刀三：语音确认词增强通道（默认关——设计稿 §7-2 拍板立项；仅 T1 动作，
+	// 说「确认执行」替代点按执行钮；STT 误识别/旁人可确认风险由「完整短语+
+	// 每预览一次+非播放期」收敛，见 M5 设计稿 §3）。
+	KeyVoiceConfirmWord = "voice_confirm_word"
 	KeyRealtimeModel    = "realtime_model"
 	KeyRealtimeAPIKey   = "realtime_api_key"
 	// 角色音色预设（人格→音色）：JSON 对象 {"<personalityId>":{"voiceId":"","desc":""}}。

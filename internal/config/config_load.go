@@ -457,6 +457,9 @@ func applyConfigFile(cfg *Config, home string) {
 			if cf.VoiceChatLLM != "" {
 				cfg.VoiceChatLLM = cf.VoiceChatLLM
 			}
+			if cf.VoiceConfirmWord != nil {
+				cfg.VoiceConfirmWord = cf.VoiceConfirmWord
+			}
 			// 2.x 聊天/轻语合并：旧配置只写 func_whisper_* 时迁移到 func_chat；
 			// chat 显式配置优先，不覆盖；func_whisper_enabled=false 同步为 chat 停用。
 			if cfg.FuncChatEngine == "" && cf.FuncWhisperEngine != "" {

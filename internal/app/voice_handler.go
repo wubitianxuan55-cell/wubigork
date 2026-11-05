@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/gaea/gaea/internal/characterlib"
@@ -150,6 +151,19 @@ func (a *mediaState) VoiceApplySettings(settings map[string]interface{}) error {
 			a.cfg.BreezeVoiceDesc = v
 		}
 	}
+	if v, ok := settings["voiceConfirmWord"]; ok {
+		// M5 刀三：语音确认词通道开关（默认关；bool 透传落盘）
+		b := false
+		if vb, ok := v.(bool); ok {
+			b = vb
+		}
+		if err := appconfig.Save(appconfig.KeyVoiceConfirmWord, strconv.FormatBool(b)); err != nil {
+			return fmt.Errorf("保存语音确认词开关失败: %w", err)
+		}
+		if a.cfg != nil {
+			a.cfg.VoiceConfirmWord = &b
+		}
+	}
 	if v, ok := settings["personaVoicePresets"]; ok {
 		// 角色音色预设（人格→音色）：整体规范化落盘（形状不符整批拒绝——
 		// 半套预设会让人格间音色跳变难以排查）
@@ -188,6 +202,9 @@ func (a *mediaState) VoiceGetSettings() map[string]interface{} {
 	if a.cfg != nil {
 		m["breezeVoiceDesc"] = a.cfg.BreezeVoiceDesc
 		m["personaVoicePresets"] = a.cfg.VoicePersonaPresets
+		if a.cfg.VoiceConfirmWord != nil {
+			m["voiceConfirmWord"] = *a.cfg.VoiceConfirmWord
+		}
 	}
 	return m
 }

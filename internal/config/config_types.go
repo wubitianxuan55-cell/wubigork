@@ -119,6 +119,8 @@ type configFile struct {
 	VoicePersonaPresets string `json:"voice_persona_presets,omitempty"`
 	// V2 对话 LLM 位（空/local-fast=专属快模型 | chat=跟随聊天板块模型，P1 续刀）
 	VoiceChatLLM string `json:"voice_chat_llm,omitempty"`
+	// M5 刀三：语音确认词通道开关（true=T1 预览可说「确认执行」替代点按）
+	VoiceConfirmWord *bool `json:"voice_confirm_word,omitempty"`
 	// tianxuan 独立引擎项目根目录（模型、二进制与启动档位由项目自身管理）。
 	TianxuanPath string `json:"tianxuan_path,omitempty"`
 	// strata 独立引擎项目根目录（.venv / serve / 档位 JSON 均在此目录）。
@@ -310,4 +312,7 @@ type Config struct {
 
 	// V2 对话 LLM 位（空/local-fast=专属快模型 | chat=跟随聊天板块模型）
 	VoiceChatLLM string
+
+	// M5 刀三：语音确认词通道开关（nil=默认关）
+	VoiceConfirmWord *bool
 }

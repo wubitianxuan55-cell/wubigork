@@ -167,6 +167,14 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 		cf.BreezeVoiceDesc = v
 		return nil
 	},
+	KeyVoiceConfirmWord: func(cf *configFile, v string) error {
+		b, err := parseBoolPtr(v)
+		if err != nil {
+			return err
+		}
+		cf.VoiceConfirmWord = b
+		return nil
+	},
 	KeyVoicePersonaPresets: func(cf *configFile, v string) error {
 		// JSON 对象形状校验（{"<pid>":{"voiceId":"","desc":""}}），坏 JSON 整批拒绝
 		if strings.TrimSpace(v) == "" {
