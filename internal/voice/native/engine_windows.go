@@ -283,6 +283,7 @@ type SileroVAD struct {
 	state  *ort.Tensor[float32]
 	out    *ort.Tensor[float32]
 	stateN *ort.Tensor[float32]
+	ctx64  []float32 // silero v5 ONNX 的显式上下文：上块末尾 64 样本（torch JIT 内部自维护，ONNX 导出后挪到输入侧）
 	mu     sync.Mutex
 }
 
@@ -291,7 +292,10 @@ func (e *Engine) NewSileroVAD(modelPath string) (*SileroVAD, error) {
 	if err := initORT(e.cfg.ORTRuntimePath); err != nil {
 		return nil, fmt.Errorf("onnxruntime 初始化失败: %w", err)
 	}
-	in, err := ort.NewTensor(ort.NewShape(1, 512), make([]float32, 512))
+	// 输入=(1,576)：上块末尾 64 样本 context + 本块 512（v5 ONNX 契约；2026-11-05
+	// 真麦根修：此前按 (1,512) 直喂=context 恒错位，强电平信噪比高不致命（全链
+	// 实弹全绿掩盖），弱电平（真麦 RMS≈0.01）判性崩（mean 0.10 vs torch 0.72）。
+	in, err := ort.NewTensor(ort.NewShape(1, sileroVADInputSize), make([]float32, sileroVADInputSize))
 	if err != nil {
 		return nil, fmt.Errorf("VAD 输入张量创建失败: %w", err)
 	}
@@ -334,23 +338,39 @@ func (e *Engine) NewSileroVAD(modelPath string) (*SileroVAD, error) {
 		stateN.Destroy()
 		return nil, fmt.Errorf("VAD 会话创建失败: %w", err)
 	}
-	return &SileroVAD{sess: sess, in: in, state: state, out: out, stateN: stateN}, nil
+	return &SileroVAD{
+		sess: sess, in: in, state: state, out: out, stateN: stateN,
+		ctx64: make([]float32, sileroVADContextSize),
+	}, nil
 }
 
-// Prob 一块 512 样本的语音概率（状态推进）。
+// silero v5 ONNX 输入契约：64 context + 512 chunk = 576。
+const (
+	sileroVADContextSize = 64
+	sileroVADChunkSize   = 512
+	sileroVADInputSize   = sileroVADContextSize + sileroVADChunkSize
+)
+
+// Prob 一块 512 样本的语音概率（状态+context 推进）。
 func (s *SileroVAD) Prob(x []float32) (float32, error) {
+	if len(x) != sileroVADChunkSize {
+		return 0, fmt.Errorf("VAD 输入须为 %d 样本块, got %d", sileroVADChunkSize, len(x))
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	copy(s.in.GetData(), x)
+	buf := s.in.GetData()
+	copy(buf, s.ctx64)
+	copy(buf[sileroVADContextSize:], x)
 	if err := s.sess.Run(); err != nil {
 		return 0, fmt.Errorf("VAD 推理失败: %w", err)
 	}
-	// LSTM 态推进：stateN → state（下一块的输入态）
+	// LSTM 态推进：stateN → state（下一块的输入态）；context = 本块末尾 64 样本
 	copy(s.state.GetData(), s.stateN.GetData())
+	copy(s.ctx64, x[sileroVADChunkSize-sileroVADContextSize:])
 	return s.out.GetData()[0], nil
 }
 
-// Reset LSTM 态清零。
+// Reset LSTM 态与 context 清零。
 func (s *SileroVAD) Reset() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -358,6 +378,7 @@ func (s *SileroVAD) Reset() {
 	for i := range d {
 		d[i] = 0
 	}
+	clear(s.ctx64)
 }
 
 // Destroy 释放。

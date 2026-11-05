@@ -432,8 +432,22 @@ func (p *probe) respIDs() []string {
 	return ids
 }
 
-func (p *probe) firstResp() string { return p.respIDs()[0] }
-func (p *probe) lastResp() string  { return p.respIDs()[len(p.respIDs())-1] }
+// firstResp/lastResp 回合零响应（弱语料被 VAD 全 discard 等）时返回空串，
+// 消费方据此跳过断言——探针健壮性：测的是管线，不能自己先炸（b4f2d8f7 同族）。
+func (p *probe) firstResp() string {
+	ids := p.respIDs()
+	if len(ids) == 0 {
+		return ""
+	}
+	return ids[0]
+}
+func (p *probe) lastResp() string {
+	ids := p.respIDs()
+	if len(ids) == 0 {
+		return ""
+	}
+	return ids[len(ids)-1]
+}
 
 // ---------- 发送侧 ----------
 
@@ -482,10 +496,12 @@ func (p *probe) sendSessionUpdate() error {
 			"audio": map[string]any{
 				"input": map[string]any{
 					"turn_detection": map[string]any{
-						// 2026-11-04 P1 记分卡：对齐产品客户端阈值（useVoiceChatV2
-						// vadThreshold 0.75，2026-11-01 实弹修 ③）——探针会话不
-						// 发 override 时落在 yaml 默认 0.6，噪声刺激会假触发。
-						"type": "server_vad", "threshold": 0.75, "interrupt_response": true,
+					// 对齐产品客户端阈值（useVoiceChatV2 vadThreshold）。2026-11-05
+					// 真麦根修：监听阈值=silero 默认 0.5（恒 0.75 把弱电平真麦全
+					// discard——segment 820ms active 64~192ms 四段全丢）；回声防线
+					// 已收敛进后端播放期回声门（ttsStage 首音频 0.75/finishResponse
+					// 回落），探针不再代持 0.75。
+					"type": "server_vad", "threshold": 0.5, "interrupt_response": true,
 					},
 				},
 			},

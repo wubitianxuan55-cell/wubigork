@@ -61,3 +61,59 @@ describe('voice AudioWorklet 采样率兼容', () => {
     expect(posted).toContainEqual({ flushed: true })
   })
 })
+
+describe('capture 自适应输入增益（2026-11-05 真麦根修）', () => {
+  function int16Frames(posted: unknown[]): Int16Array[] {
+    return posted.filter((d): d is ArrayBuffer => d instanceof ArrayBuffer).map((b) => new Int16Array(b))
+  }
+
+  it('弱电平（RMS≈0.01）逐秒升档到 4 倍，送达电平进入过门档', () => {
+    const { Processor, posted } = loadProcessor('captureProcessor.js', 16000)
+    const p = new Processor() as unknown as { gain: number; process: (i: Float32Array[][], o: Float32Array[][]) => boolean }
+    // 静默底噪直接喂说话段（幅值 0.03 正弦 ≈ RMS 0.021……取 0.014 正弦 RMS≈0.0099）
+    const N = 16000 * 3
+    for (let off = 0; off < N; off += 160) {
+      const chunk = new Float32Array(160)
+      for (let i = 0; i < 160; i++) chunk[i] = 0.014 * Math.sin((2 * Math.PI * 220 * (off + i)) / 16000)
+      p.process([[chunk]], [])
+    }
+    // 3 秒评估：1→2→4
+    expect(p.gain).toBe(4)
+    // 送达帧应被放大 4 倍：满幅帧 int16 ≈ 0.014*4≈0.056→1836 附近（非 459）
+    const frames = int16Frames(posted)
+    const last = frames[frames.length - 1]
+    const peak16 = Math.max(...Array.from(last, Math.abs))
+    expect(peak16).toBeGreaterThan(1000)
+  })
+
+  it('正常电平（RMS 0.04 合成语料档）增益恒 1', () => {
+    const { Processor } = loadProcessor('captureProcessor.js', 16000)
+    const p = new Processor() as unknown as { gain: number; process: (i: Float32Array[][], o: Float32Array[][]) => boolean }
+    const N = 16000 * 2
+    for (let off = 0; off < N; off += 160) {
+      const chunk = new Float32Array(160)
+      for (let i = 0; i < 160; i++) chunk[i] = 0.06 * Math.sin((2 * Math.PI * 220 * (off + i)) / 16000)
+      p.process([[chunk]], [])
+    }
+    expect(p.gain).toBe(1)
+  })
+
+  it('越峰保护：原始 peak>0.22（×4 逼近满幅）立即回 1', () => {
+    const { Processor } = loadProcessor('captureProcessor.js', 16000)
+    const p = new Processor() as unknown as { gain: number; process: (i: Float32Array[][], o: Float32Array[][]) => boolean }
+    // 先喂弱电平 2 秒升到 4 倍（0.008 正弦 RMS≈0.0057，两次评估 1→2→4）
+    for (let off = 0; off < 16000 * 2; off += 160) {
+      const chunk = new Float32Array(160)
+      for (let i = 0; i < 160; i++) chunk[i] = 0.008 * Math.sin((2 * Math.PI * 220 * (off + i)) / 16000)
+      p.process([[chunk]], [])
+    }
+    expect(p.gain).toBe(4)
+    // 再喂 peak 0.3 正弦（0.3×4=1.2 会削波）→ 回 1
+    for (let off = 0; off < 16000; off += 160) {
+      const chunk = new Float32Array(160)
+      for (let i = 0; i < 160; i++) chunk[i] = 0.3 * Math.sin((2 * Math.PI * 220 * (off + i)) / 16000)
+      p.process([[chunk]], [])
+    }
+    expect(p.gain).toBe(1)
+  })
+})

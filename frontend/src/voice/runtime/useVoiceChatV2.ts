@@ -228,7 +228,11 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
       transport,
       instructions: optsRef.current.instructions,
       voice: optsRef.current.voice,
-      vadThreshold: 0.75, // 2026-11-01 实弹：0.6 易被扬声器回声触发假插话（截断回复）
+      // 监听阈值=silero 官方默认 0.5（2026-11-05 实弹：恒 0.75 把弱电平真麦全
+      // discard——segment 820ms 里 active 仅 64~192ms，过不了 384ms 门）。回声
+      // 防线（2026-11-01：0.6 被扬声器回声假插话）收敛进播放期回声门=后端
+      // ttsStage 首音频 EchoGuardOn(0.75)/finishResponse EchoGuardOff。
+      vadThreshold: 0.5,
       interruptResponse: true,
       onState,
       onPlaybackDone: (id) => pushTail(`播放完成回执 ${id}`),

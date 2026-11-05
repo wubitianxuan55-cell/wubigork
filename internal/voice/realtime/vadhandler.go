@@ -21,7 +21,7 @@ type EOTAnalyzer interface {
 // VADHandlerConfig gaea 生效配置（gaea-spike.yaml + 2026-11-01 实弹提速值）。
 type VADHandlerConfig struct {
 	SampleRate                 int     // 16000
-	Threshold                  float64 // 0.6；session.update 可运行时改（前端 0.75）
+	Threshold                  float64 // 0.5（silero 官方默认）；session.update 可运行时改
 	MinSilenceMs               int     // 64
 	MinSpeechMs                float64 // 384
 	MinSpeechContinuationMs    float64 // 192
@@ -37,7 +37,7 @@ type VADHandlerConfig struct {
 func DefaultVADConfig() VADHandlerConfig {
 	return VADHandlerConfig{
 		SampleRate:                 16000,
-		Threshold:                  0.6,
+		Threshold:                  0.5,
 		MinSilenceMs:               64,
 		MinSpeechMs:                384,
 		MinSpeechContinuationMs:    192,
@@ -114,8 +114,14 @@ type VADHandler struct {
 	lastSmartStatus   string
 	lastSmartAnalysis time.Duration
 
-	receivedAt time.Time
+	receivedAt     time.Time
+	baseThreshold  float64 // session.update 设定的监听阈值（回声门回落基准）
+	echoGuard      bool    // 播放期回声门开关（ttsStage 首音频开/finishResponse 关）
 }
+
+// echoGuardThreshold 播放期回声门阈值（2026-11-01 实弹：0.6 被扬声器回声触发
+// 假插话；0.75 是实弹定值，收敛进播放期专用）。
+const echoGuardThreshold = 0.75
 
 // NewVADHandler 构造（scorer/eot 由调用方注入；turns 为管线共享实例）。
 func NewVADHandler(cfg VADHandlerConfig, scorer VadScorer, eot EOTAnalyzer, turns *SpeculativeTurns) *VADHandler {
@@ -127,13 +133,37 @@ func NewVADHandler(cfg VADHandlerConfig, scorer VadScorer, eot EOTAnalyzer, turn
 		turns:           turns,
 		eot:             eot,
 		lastSmartStatus: "disabled",
+		baseThreshold:   cfg.Threshold,
 	}
 }
 
-// SetThreshold session.update 运行时阈值。
+// SetThreshold session.update 运行时阈值（也是回声门关后的回落基准）。
 func (h *VADHandler) SetThreshold(v float64) {
+	h.baseThreshold = v
 	h.iter.threshold = v
 	slog.Info("VAD threshold updated to " + strconv.FormatFloat(v, 'g', -1, 64))
+}
+
+// EchoGuardOn 播放期回声门（2026-11-01 实弹口径：TTS 出声期间 threshold 抬到
+// 0.75 防扬声器漏回的残余回声触发假插话；2026-11-05 实弹：恒 0.75 把弱电平真麦
+// 全部 discard——segment 820ms 里 active 仅 64~192ms，过不了 384ms 门）。监听期
+// 用 silero 官方默认 0.5 救弱麦，播放期回 0.75 保回声防线。与 SetThreshold 同款
+// 跨 goroutine 直写（float64 单写竞态最坏一帧旧值）。
+func (h *VADHandler) EchoGuardOn() {
+	if h.echoGuard {
+		return
+	}
+	h.echoGuard = true
+	h.iter.threshold = echoGuardThreshold
+}
+
+// EchoGuardOff 播放结束（finishResponse 终态收口）回落监听阈值。
+func (h *VADHandler) EchoGuardOff() {
+	if !h.echoGuard {
+		return
+	}
+	h.echoGuard = false
+	h.iter.threshold = h.baseThreshold
 }
 
 // AudioMs 累计输入音频毫秒。
@@ -223,8 +253,19 @@ func (h *VADHandler) onUtterance(utterance [][]float32, decisionAt time.Time) []
 
 	// discard 路径
 	if activeMs < minActiveMs || durationMs > h.cfg.MaxSpeechMs {
+		// 临时诊断（真麦不可识别，2026-11-05）：段 RMS 定性信号强度——
+		// 静底≈0.003 / 正常说话≈0.05~0.3；验后即撤（在档先例）。
+		sum := 0.0
+		for _, v := range array {
+			sum += float64(v) * float64(v)
+		}
+		rms := 0.0
+		if len(array) > 0 {
+			rms = math.Sqrt(sum / float64(len(array)))
+		}
 		slog.Info("VAD: discarding segment=" + f0(durationMs) + "ms active=" + f0(activeMs) +
-			"ms (active_min=" + f0(minActiveMs) + "ms, segment_max=infms)")
+			"ms rms=" + strconv.FormatFloat(rms, 'f', 4, 64) +
+			" (active_min=" + f0(minActiveMs) + "ms, segment_max=infms)")
 		var out []VADEvent
 		curTurn, curRev := h.turns.CurrentTurn()
 		if h.speechStartedEmitted {

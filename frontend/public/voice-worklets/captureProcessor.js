@@ -22,6 +22,17 @@ class CaptureProcessor extends AudioWorkletProcessor {
     // 主线程据此驱动真实电平可视化与「无信号」检测。
     this.levelEvery = 12
     this.levelCountdown = this.levelEvery
+    // 自适应输入增益（2026-11-05 真麦根修第二刀）：弱电平麦克风（实弹 MIC-H
+    // 说话 RMS≈0.01，silero 概率崩——阈值降到 0.5 仍全 discard，active 仅
+    // 64~192ms；合成语料标定分界≈0.012，能过门的档≈0.04）自动抬增益，
+    // 正常电平设备恒 1 不动。包络按「增益前」原始电平统计（防增益自激励
+    // 振荡），每 1s@16k 评估一次：原始 RMS<0.012 升档 ×2 上限 4 倍，>0.06
+    // 立即回 1 防削波；量化前施加，量化已有 clamp 收尾。
+    this.gain = 1
+    this.envSum = 0
+    this.envCount = 0
+    this.envPeak = 0
+    this.evalCountdown = 16000
   }
 
   process(inputs) {
@@ -46,18 +57,39 @@ class CaptureProcessor extends AudioWorkletProcessor {
   }
 
   push(sample) {
+    // 包络统计用增益前原始电平；同步推进评估窗口（16k 域样本）。
+    this.envSum += sample * sample
+    this.envCount++
+    const abs = sample < 0 ? -sample : sample
+    if (abs > this.envPeak) this.envPeak = abs
+    if (--this.evalCountdown <= 0) {
+      this.evalCountdown = 16000
+      if (this.envCount > 0) {
+        const rms = Math.sqrt(this.envSum / this.envCount)
+        if (rms < 0.012 && this.gain < 4) {
+          this.gain = Math.min(4, this.gain * 2)
+        } else if (this.envPeak > 0.22 && this.gain > 1) {
+          // 越峰保护看原始 peak（削波=peak×gain>1；0.22×4=0.88 逼近满幅），
+          // 且原始 peak>0.22 说明信号足够强本就过得了门，回 1 无损。
+          this.gain = 1
+        }
+      }
+      this.envSum = 0
+      this.envCount = 0
+      this.envPeak = 0
+    }
     this.buf[this.n++] = sample
     if (this.n === this.target) {
       let sq = 0
       const int16 = new Int16Array(this.target)
       for (let j = 0; j < this.target; j++) {
-        const s = Math.max(-1, Math.min(1, this.buf[j]))
+        const s = Math.max(-1, Math.min(1, this.buf[j] * this.gain))
         sq += s * s
         int16[j] = s < 0 ? s * 0x8000 : s * 0x7fff
       }
       this.port.postMessage(int16.buffer, [int16.buffer])
       this.n = 0
-      // RMS 电平（0..1 线性刻度）：语音典型 0.02~0.35，静音 ≈0
+      // RMS 电平（0..1 线性刻度，增益后=实际送达强度）：语音典型 0.02~0.35，静音 ≈0
       if (--this.levelCountdown <= 0) {
         this.levelCountdown = this.levelEvery
         const rms = Math.sqrt(sq / this.target)

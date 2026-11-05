@@ -582,6 +582,8 @@ func (p *Pipeline) ttsStage(t *ttsRequest) {
 	err := p.legs.Speak(rs.ctx, t.sentence, func(pcm []byte) {
 		if firstAudio {
 			firstAudio = false
+			// 播放期回声门开（vadhandler EchoGuardOn 注释：监听 0.5/播放 0.75）
+			p.vad.EchoGuardOn()
 			p.muLatency.Lock()
 			p.lastTTFA = time.Since(ttfaStart).Seconds()
 			if !rs.speechAnchor.IsZero() {
@@ -969,6 +971,8 @@ func (p *Pipeline) finishResponse(s *Session, rs *responseState, status, reason 
 	if p.respState == nil && p.closedKeys[rs.key] {
 		return
 	}
+	// 播放期回声门关（含 barge-in cancelled 路径：本函数是全部终态唯一收口）。
+	p.vad.EchoGuardOff()
 	// 终态前冲刷本响应的停靠 delta（grace/候选窗口内入队的兜底语等）：
 	// 终态帧之后不允许再有本响应文本帧，且 parts 必须含全部已播报文本——
 	// 否则 done 转写空白、面板无声（F1 配套，ws_probe 实弹钉）。
