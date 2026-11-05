@@ -805,3 +805,15 @@ export function GaeaXlsxSetCell(arg1, arg2, arg3, arg4) {
 export function GaeaZipDeliverables(arg1) {
   return window['go']['app']['OfficeB']['GaeaZipDeliverables'](arg1);
 }
+
+export function WebSearchSettingsGet() {
+  return window['go']['app']['OfficeB']['WebSearchSettingsGet']();
+}
+
+export function WebSearchSettingsSet(arg1, arg2, arg3) {
+  return window['go']['app']['OfficeB']['WebSearchSettingsSet'](arg1, arg2, arg3);
+}
+
+export function WebSearchTestConnection() {
+  return window['go']['app']['OfficeB']['WebSearchTestConnection']();
+}

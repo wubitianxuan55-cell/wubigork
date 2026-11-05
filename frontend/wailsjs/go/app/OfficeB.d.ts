@@ -413,3 +413,9 @@ export function GaeaXlsxRowOps(arg1:string,arg2:string,arg3:string,arg4:string):
 export function GaeaXlsxSetCell(arg1:string,arg2:string,arg3:string,arg4:string):Promise<app.XlsxEditResult>;
 
 export function GaeaZipDeliverables(arg1:Array<string>):Promise<app.ZipDeliverableResult>;
+
+export function WebSearchSettingsGet():Promise<Record<string, any>>;
+
+export function WebSearchSettingsSet(arg1:string,arg2:string,arg3:string):Promise<void>;
+
+export function WebSearchTestConnection():Promise<Record<string, any>>;
