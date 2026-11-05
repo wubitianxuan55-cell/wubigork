@@ -16,14 +16,13 @@ import (
 	"github.com/gaea/gaea/internal/chat"
 	"github.com/gaea/gaea/internal/gaea/genui"
 	"github.com/gaea/gaea/internal/modelengine"
-	"github.com/gaea/gaea/internal/whisper"
 )
 
 // chatPlainSystemPrompt 普通对话（聊天板块 plain 模式）的系统提示词。
-var chatPlainSystemPrompt = "你是一个热心、博学的AI助手，用中文与用户进行日常对话。你具备联网搜索能力：用户询问需要实时/最新信息的问题时，系统会把搜索结果以「以下是关于此问题的实时搜索结果」注入到消息中，请优先依据这些搜索结果作答，并如实告诉用户信息来源；不要说自己无法联网搜索。\n\n" + genui.ChatRule
-
-// chatWebSearch 可注入的联网搜索函数：生产走 whisper.WebSearch，测试可替换避免真实网络请求。
-var chatWebSearch = whisper.WebSearch
+// 众神殿刀1 三层契约第三层：删「不要说自己无法联网搜索」的反向施压——搜索
+// 状态由注入头如实携带（ok/empty/失败三分叉，chat_search_adapter.go），提示词
+// 只要求未获取到实时信息时如实说明。仅 plain 有这段联网说明，人格路径没有、勿加。
+var chatPlainSystemPrompt = "你是一个热心、博学的AI助手，用中文与用户进行日常对话。用户询问需要实时/最新信息的问题时，系统会联网搜索并把结果以「以下是关于此问题的实时搜索结果」注入到消息中，请优先依据这些搜索结果作答，并如实告诉用户信息来源；若注入中说明搜索失败或无结果，请如实告知用户未获取到实时信息，基于已有知识回答并注明不确定，不要假装已搜索到。\n\n" + genui.ChatRule
 
 // ChatSend 统一聊天入口（聊天/轻语板块合并，后端）。
 // mode 为空或 "plain" → 普通对话；否则按人格 ID 走轻语 Orchestrator（记忆/情绪）。
@@ -39,29 +38,29 @@ func (a *App) ChatSend(topicID, message, mode string, searchEnabled, thinking, f
 	return a.chatSendPersona(topicID, message, mode, searchEnabled, thinking, forceSearch)
 }
 
-// preparePlainChatMessage 联网搜索增强：命中搜索意图/强制搜索时，把实时结果注入
-// 为待发送的提示词上下文（不污染原始用户消息）。搜索失败/空结果不再静默丢弃
-// （T7-2）：记 Warn 日志并注入占位提示，让模型如实说明未获取到实时信息。
+// preparePlainChatMessage 联网搜索增强：命中搜索意图/强制搜索时，经统一检索
+// 核 adapter（chat_search_adapter.go）注入——注入头按状态选文案（三层契约
+// 第二层）：OK=实时结果；EMPTY=已搜索无相关结果；ALL_FAILED=联网暂不可用。
+// 伪失败不再被包装成「实时搜索结果」（旧 whisper.WebSearch 返回「暂无结果」
+// 非空文本使本函数的失败分支恒死，刀1 已随旧栈删除）。adapter 自身故障才走
+// searchFallbackMessage 兜底。
 func (a *App) preparePlainChatMessage(message string, searchEnabled, forceSearch bool) string {
 	if forceSearch || (searchEnabled && shouldSearchWeb(message)) {
-		result, err := chatWebSearch(message)
+		out, err := chatWebSearch(message)
 		if err != nil {
-			slog.Warn("联网搜索失败，注入占位提示（不阻断对话）", "error", err)
+			slog.Warn("联网搜索适配器故障，注入占位提示（不阻断对话）", "error", err)
 			return searchFallbackMessage(message)
 		}
-		if result != "" {
-			return fmt.Sprintf("%s\n\n[以下是关于此问题的实时搜索结果，请参考这些信息回答]\n%s", message, result)
-		}
-		slog.Warn("联网搜索返回空结果，注入占位提示")
-		return searchFallbackMessage(message)
+		return injectChatSearchResult(message, out)
 	}
 	return message
 }
 
-// searchFallbackMessage 搜索失败/空结果时的占位提示：如实告知模型未获取到
-// 实时信息，避免模型假装已搜索或误导用户（T7-2 可见性，不静默吞错）。
+// searchFallbackMessage adapter 自身故障时的兜底占位（引擎级失败/空结果已由
+// injectChatSearchResult 按状态出文案）：如实告知模型未获取到实时信息，
+// 不用「实时搜索结果」头包装失败（T7-2 可见性，不静默吞错）。
 func searchFallbackMessage(message string) string {
-	return fmt.Sprintf("%s\n\n[以下是关于此问题的实时搜索结果]\n（联网搜索暂不可用，请基于已有知识回答；如不确定请明确说明未获取到实时信息）", message)
+	return fmt.Sprintf("%s\n\n[联网搜索暂不可用，请基于已有知识回答；如不确定请明确说明未获取到实时信息]", message)
 }
 
 func (a *App) chatSendPlain(topicID, message string, searchEnabled, thinking, forceSearch bool) (map[string]interface{}, error) {

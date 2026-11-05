@@ -113,7 +113,7 @@ func TestCallLLM_Error(t *testing.T) {
 
 func TestExecuteToolBatch_UnknownTool(t *testing.T) {
 	r := &AgentLoopRunner{}
-	results := r.executeToolBatch([]AgentAction{{Name: "some_tool"}})
+	results := r.executeToolBatch(context.Background(), []AgentAction{{Name: "some_tool"}})
 	if len(results) != 1 || results[0].Name != "some_tool" || !strings.Contains(results[0].Content, "未知工具") {
 		t.Errorf("未知工具应返回提示, got %v", results)
 	}
@@ -121,7 +121,7 @@ func TestExecuteToolBatch_UnknownTool(t *testing.T) {
 
 func TestExecuteToolBatch_AppendMemory(t *testing.T) {
 	r := &AgentLoopRunner{}
-	results := r.executeToolBatch([]AgentAction{{Name: "append_memory"}})
+	results := r.executeToolBatch(context.Background(), []AgentAction{{Name: "append_memory"}})
 	if len(results) != 1 || results[0].Content != "记忆已记录" {
 		t.Errorf("append_memory 应返回已记录, got %v", results)
 	}
@@ -132,7 +132,7 @@ func TestExecuteToolBatch_AppendMemory(t *testing.T) {
 // 动作没执行；旧断言把该静默失败当期望，已随缺口修复一并更新）。
 func TestExecuteToolBatch_UseComputerNilRouter(t *testing.T) {
 	r := &AgentLoopRunner{}
-	results := r.executeToolBatch([]AgentAction{{Name: "use_computer", Args: map[string]string{"action": "list_folder"}}})
+	results := r.executeToolBatch(context.Background(), []AgentAction{{Name: "use_computer", Args: map[string]string{"action": "list_folder"}}})
 	if len(results) != 1 {
 		t.Fatalf("Router 为 nil 时应产出 1 条诚实回执, got %v", results)
 	}

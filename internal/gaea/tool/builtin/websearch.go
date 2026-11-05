@@ -113,89 +113,14 @@ func (ws webSearch) Execute(ctx context.Context, args json.RawMessage) (string, 
 		p.TopK = 10
 	}
 
-	engines := ws.buildEngines()
-
-	// 域名策略受限时（[search] allow_domains/deny_domains），向引擎请求更多结果再按
-	// 策略过滤，避免“前几条被拒 → 结果为空”（unsloth web_access_policy over-fetch）。
-	requested := p.TopK
-	if searchPolicyRestricted() {
-		requested = p.TopK * searchPolicyOverfetch
+	// 编排委托统一检索核（众神殿刀1：聊天 adapter 与本工具共用一条链，
+	// 编排/诊断见 websearch_core.go）；输出契约零变化：成功=JSON 数组，
+	// 全败=逐引擎诊断+零配置指引文本。
+	results, attempts, err := ws.runSearch(ctx, p.Query, p.TopK)
+	if err != nil {
+		return "", fmt.Errorf("%s", buildAllFailedDiag(attempts))
 	}
-
-	// Parallel execution: every engine fires in its own goroutine.
-	// First success wins; failures are collected for diagnostics.
-	resultCh := make(chan []SearchResult, 1)
-	errCh := make(chan engineError, len(engines))
-
-	ctx, cancel := context.WithTimeout(ctx, webSearchTotalLimit)
-	defer cancel()
-
-	for _, eng := range engines {
-		eng := eng
-		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					slog.Error("websearch: engine goroutine panic recovered", "engine", eng.Name(), "panic", r)
-					errCh <- engineError{name: eng.Name(), err: fmt.Errorf("engine panic: %v", r), elapsed: 0}
-				}
-			}()
-			start := time.Now()
-			results, err := eng.Search(ctx, p.Query, requested)
-			elapsed := time.Since(start)
-			if err != nil {
-				errCh <- engineError{name: eng.Name(), err: err, elapsed: elapsed}
-				return
-			}
-			// 应用域名 allow/deny 策略并截断到 topK；过滤后为空视作该引擎无可用结果。
-			results = filterSearchResults(results, p.TopK)
-			if len(results) == 0 {
-				errCh <- engineError{name: eng.Name(), err: fmt.Errorf("no results"), elapsed: elapsed}
-				return
-			}
-			select {
-			case resultCh <- results:
-			default:
-				// another engine already won, discard
-			}
-		}()
-	}
-
-	// Collect: first result wins, or accumulate all failures.
-	var failures []engineError
-	for i := 0; i < len(engines); i++ {
-		select {
-		case results := <-resultCh:
-			return formatResults(results), nil
-		case fe := <-errCh:
-			failures = append(failures, fe)
-		case <-ctx.Done():
-			// Timeout — drain any remaining errors that arrive quickly.
-			failures = append(failures, engineError{name: "timeout", err: ctx.Err()})
-			for j := i + 1; j < len(engines); j++ {
-				select {
-				case fe := <-errCh:
-					failures = append(failures, fe)
-				case <-time.After(100 * time.Millisecond):
-				}
-			}
-			i = len(engines) // break outer loop
-		}
-	}
-
-	// All engines failed — build detailed diagnostic.
-	var diag strings.Builder
-	diag.WriteString("所有搜索引擎失败：")
-	for _, f := range failures {
-		fmt.Fprintf(&diag, "\n  • %s (%v): %v", f.name, f.elapsed.Round(time.Millisecond), f.err)
-	}
-	if searchCfg == nil || (searchCfg.TavilyAPIKeyEnv == "" && searchCfg.BraveAPIKeyEnv == "" && searchCfg.LocalSearXNGURL == "") {
-		diag.WriteString("\n\n💡 提示：配置搜索 API 可大幅提高成功率：")
-		diag.WriteString("\n  1. Tavily（免费 1000次/月）：注册 tavily.com → 设环境变量 TAVILY_API_KEY")
-		diag.WriteString("\n  2. Brave Search（免费 2000次/月）：注册 api.search.brave.com → 设环境变量 BRAVE_API_KEY")
-		diag.WriteString("\n  3. 自建 SearXNG：docker run -d -p 8080:8080 searxng/searxng")
-		diag.WriteString("\n  然后在 gaea.toml 中配置 [search] 节。")
-	}
-	return "", fmt.Errorf("%s", diag.String())
+	return formatResults(results), nil
 }
 
 // buildEngines 按 config 驱动的 kind 顺序经注册表构建引擎（可用性过滤）。

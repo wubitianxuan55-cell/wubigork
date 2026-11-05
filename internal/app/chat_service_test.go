@@ -18,6 +18,7 @@ import (
 	"github.com/gaea/gaea/internal/channels/weixin"
 	"github.com/gaea/gaea/internal/chat"
 	"github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/gaea/tool/builtin"
 	"github.com/gaea/gaea/internal/httpbridge"
 	"github.com/gaea/gaea/internal/modelengine"
 	wdb "github.com/gaea/gaea/internal/whisper/db"
@@ -310,7 +311,7 @@ func TestChatSend_Plain_SearchKeepsOriginalUserMessage(t *testing.T) {
 	}
 
 	orig := chatWebSearch
-	chatWebSearch = func(query string) (string, error) { return "【模拟搜索结果】", nil }
+	chatWebSearch = func(string) (chatSearchOutcome, error) { return chatSearchOutcome{State: builtin.SearchStateOK, Text: "【模拟搜索结果】"}, nil }
 	t.Cleanup(func() { chatWebSearch = orig })
 
 	if _, err := a.ChatSend(topic.ID, "今天有什么新闻", "plain", false, false, true); err != nil {
@@ -837,7 +838,7 @@ func TestSanitizeChatFilename(t *testing.T) {
 func TestPreparePlainChatMessage_SearchErrorInjectsPlaceholder(t *testing.T) {
 	a := &App{}
 	orig := chatWebSearch
-	chatWebSearch = func(string) (string, error) { return "", errors.New("搜索服务不可用") }
+	chatWebSearch = func(string) (chatSearchOutcome, error) { return chatSearchOutcome{}, errors.New("搜索服务不可用") }
 	t.Cleanup(func() { chatWebSearch = orig })
 
 	got := a.preparePlainChatMessage("今天天气如何", false, true)
@@ -857,12 +858,15 @@ func TestPreparePlainChatMessage_SearchErrorInjectsPlaceholder(t *testing.T) {
 func TestPreparePlainChatMessage_EmptyResultInjectsPlaceholder(t *testing.T) {
 	a := &App{}
 	orig := chatWebSearch
-	chatWebSearch = func(string) (string, error) { return "", nil }
+	chatWebSearch = func(string) (chatSearchOutcome, error) { return chatSearchOutcome{State: builtin.SearchStateEmpty}, nil }
 	t.Cleanup(func() { chatWebSearch = orig })
 
 	got := a.preparePlainChatMessage("今天天气如何", false, true)
-	if !strings.Contains(got, "联网搜索暂不可用") {
-		t.Errorf("空结果应注入占位提示: %q", got)
+	if !strings.Contains(got, "联网搜索已完成") || !strings.Contains(got, "未获取到实时信息") {
+		t.Errorf("空结果应注入如实占位（已完成但无相关结果）: %q", got)
+	}
+	if strings.Contains(got, "实时搜索结果，请参考") {
+		t.Errorf("空结果不应套「实时搜索结果」成功头: %q", got)
 	}
 }
 
@@ -871,7 +875,7 @@ func TestPreparePlainChatMessage_EmptyResultInjectsPlaceholder(t *testing.T) {
 func TestPreparePlainChatMessage_NoSearchKeepsMessage(t *testing.T) {
 	a := &App{}
 	orig := chatWebSearch
-	chatWebSearch = func(string) (string, error) { return "【模拟搜索结果】", nil }
+	chatWebSearch = func(string) (chatSearchOutcome, error) { return chatSearchOutcome{State: builtin.SearchStateOK, Text: "【模拟搜索结果】"}, nil }
 	t.Cleanup(func() { chatWebSearch = orig })
 
 	got := a.preparePlainChatMessage("普通闲聊", false, false)
@@ -889,7 +893,7 @@ func TestChatSend_Plain_SearchErrorStillSucceeds(t *testing.T) {
 		t.Fatalf("ChatTopicCreate: %v", err)
 	}
 	orig := chatWebSearch
-	chatWebSearch = func(string) (string, error) { return "", errors.New("网络不可达") }
+	chatWebSearch = func(string) (chatSearchOutcome, error) { return chatSearchOutcome{}, errors.New("网络不可达") }
 	t.Cleanup(func() { chatWebSearch = orig })
 
 	out, err := a.ChatSend(topic.ID, "有什么新闻", "plain", true, false, true)

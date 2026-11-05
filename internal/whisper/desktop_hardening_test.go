@@ -1,6 +1,7 @@
 package whisper
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -203,7 +204,7 @@ func TestExecuteDesktopAgentAction_InstallRequiresConfirm(t *testing.T) {
 // 「动作根本没执行」。本用例钉死诚实回执（反向证据：删掉 else 分支即变红）。
 func TestExecuteToolBatch_RouterNilHonestReceipt(t *testing.T) {
 	r := &AgentLoopRunner{MaxRounds: 1} // Router == nil
-	results := r.executeToolBatch([]AgentAction{{Name: "use_computer", Args: map[string]string{"action": "list_folder", "path": `C:\`}}})
+	results := r.executeToolBatch(context.Background(), []AgentAction{{Name: "use_computer", Args: map[string]string{"action": "list_folder", "path": `C:\`}}})
 	if len(results) != 1 {
 		t.Fatalf("Router==nil 必须产出 1 条诚实回执，got %d 条: %+v", len(results), results)
 	}
@@ -217,7 +218,7 @@ func TestExecuteToolBatch_RouterNilHonestReceipt(t *testing.T) {
 	}
 	// 接线后仍是原有结果（不得把正常路径也降级）
 	r2 := &AgentLoopRunner{MaxRounds: 1, Router: &RouterContext{DataRoot: t.TempDir(), AllowFileWrite: true}}
-	res2 := r2.executeToolBatch([]AgentAction{{Name: "use_computer", Args: map[string]string{"action": "list_folder", "path": t.TempDir()}}})
+	res2 := r2.executeToolBatch(context.Background(), []AgentAction{{Name: "use_computer", Args: map[string]string{"action": "list_folder", "path": t.TempDir()}}})
 	if len(res2) != 1 || strings.Contains(res2[0].Content, "未启用") {
 		t.Errorf("Router 非空时应执行真实动作，got %+v", res2)
 	}

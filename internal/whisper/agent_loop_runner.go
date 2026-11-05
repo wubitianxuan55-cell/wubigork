@@ -75,7 +75,7 @@ func (r *AgentLoopRunner) RunAgentLoop(ctx context.Context, userMsg string, plan
 		}
 
 		// 执行工具调用
-		toolResults := r.executeToolBatch(toolCalls)
+		toolResults := r.executeToolBatch(ctx, toolCalls)
 		result.TotalResults += len(toolResults)
 		result.ToolRounds = round
 
@@ -235,8 +235,8 @@ func parseSingleToolCall(raw string) *AgentAction {
 
 // ─── 工具执行 ────────────────────────────────────────────────────
 
-// executeToolBatch 批量执行工具调用
-func (r *AgentLoopRunner) executeToolBatch(actions []AgentAction) []ToolResultForFollowUp {
+// executeToolBatch 批量执行工具调用（ctx 贯穿 web_search 统一核委托，取消可传导）
+func (r *AgentLoopRunner) executeToolBatch(ctx context.Context, actions []AgentAction) []ToolResultForFollowUp {
 	var results []ToolResultForFollowUp
 
 	for _, act := range actions {
@@ -271,10 +271,9 @@ func (r *AgentLoopRunner) executeToolBatch(actions []AgentAction) []ToolResultFo
 			if act.Args != nil {
 				query = act.Args["query"]
 			}
-			result, err := WebSearch(query)
-			if err != nil {
-				result = fmt.Sprintf("搜索「%s」失败", query)
-			}
+			// 统一检索核委托缝（刀1 四入口收敛）：query 原样透传不清洗，
+			// 全败/未接线均如实回执（原失败分支因 WebSearch 几乎不返 error 而恒死）。
+			result := whisperRunWebSearch(ctx, query)
 			results = append(results, ToolResultForFollowUp{
 				Name:    "web_search",
 				Content: result,

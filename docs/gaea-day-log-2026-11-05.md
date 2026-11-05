@@ -124,3 +124,21 @@ status+save_task/读屏挂未来重评），M5 解冻待排刀。
 - 待办：真机实弹三刀（T0 说「打开运行监测」直接切+朗读；工具轮说「查一下
   现在用什么模型」走 get_status；「帮我记个任务 xx」出确认卡+「确认执行」
   语音确认）→发版。
+
+## 网络搜索刀1（众神殿共识落地，晚间）
+
+- 依据：众神殿 `pan_1793872913023`（议题「网络搜索能力弱」，3 轮四席全签三刀刀谱）；
+  论证台账 docs/gaea-web-search-pantheon-digest-20261105.md，实施计划
+  进度计划/gaea-web-search-optimization-20261105.md。
+- 刀1 落地：统一检索核 RunSearch/SearchAttempt/ClassifySearchState（builtin/websearch_core.go，
+  策略滤空≠ALL_FAILED 拆分；办公 Execute 输出契约零变化）+聊天 adapter
+  （app/chat_search_adapter.go：清洗下沉+移除「在哪里/多少钱」剥尾+8s 硬超时+注入头
+  按状态选文案）+plain 提示词删「不要说自己无法联网搜索」+四入口收敛（plain/人格/
+  WhisperWebSearch 绑定/agent loop 委托缝 whisper.WebSearchToolExec，boot 注入）；
+  whisper 自研 Bing/DDG 栈整删（web_search.go −253 行，符号删除=源级守卫）；人格路径
+  失败不再静默；WhisperWebSearch 死 error 字段修活。
+- 测试：桩引擎注册带清理（不污染 AllKinds 全量断言）；core 测试 count=5 无抖动
+  （修两处竞态：胜者先发 result 后发 attempt+收集循环按尝试计数）；builtin/whisper/app
+  三包全量绿，build/vet 0。
+- 余：主源 A/B 待用户拍板（刀3+A 臂基线前置）；30 query keyless 基线待跑（保留窗/
+  覆盖门阈值定数）；刀2 短窗合并+主源保留窗+覆盖门 v0 按基线数值落。

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -26,6 +27,7 @@ import (
 	"github.com/gaea/gaea/internal/characterlib"
 	"github.com/gaea/gaea/internal/chat"
 	"github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/gaea/tool"
 	gaeacfg "github.com/gaea/gaea/internal/gaea/config"
 	gaeadb "github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/filewatch"
@@ -401,6 +403,19 @@ func (a *App) Startup(ctx context.Context) {
 	// 卡死诊断端口（仅本机）：即使 Wails 调用队列死锁，这个独立 HTTP
 	// 服务仍可访问，用于抓取 Go 协程栈定位进程级死锁。
 	startDebugServer()
+
+	// 统一检索核委托缝（众神殿 2026-11-05 网络搜索刀1：四入口收敛）：
+	// whisper agent loop 的 web_search 工具改走办公 builtin 同一条链
+	// （SSRF 防护/域名策略/引擎扇出/逐引擎诊断一处生效）；whisper 不 import
+	// builtin，由 boot 注入。模型提交的结构化 query 原样透传（清洗归聊天 adapter）。
+	whisper.WebSearchToolExec = func(ctx context.Context, query string) (string, error) {
+		b, ok := tool.LookupBuiltin("web_search")
+		if !ok || b == nil {
+			return "", fmt.Errorf("web_search 工具未注册")
+		}
+		args, _ := json.Marshal(map[string]string{"query": query})
+		return b.Execute(ctx, args)
+	}
 
 	// 数据根迁移：旧版本把 whisper_data 放在 ResourceDir（exe 相对路径），
 	// 桌面副本会因找不到 prompts 而分裂数据目录。新版本统一到用户级

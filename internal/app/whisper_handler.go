@@ -15,6 +15,7 @@ import (
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/assistant"
 	"github.com/gaea/gaea/internal/channels/weixin"
+	"github.com/gaea/gaea/internal/gaea/tool/builtin"
 	"github.com/gaea/gaea/internal/modelengine"
 	"github.com/gaea/gaea/internal/whisper"
 	"github.com/gaea/gaea/internal/whisper/db"
@@ -709,21 +710,32 @@ func (a *whisperState) WhisperClearSession(personalityID string) error {
 
 // ─── 上网查询 ──────────────────────────────────────────────────
 
-// WhisperWebSearch 执行上网查询（只读）
+// WhisperWebSearch 执行上网查询（只读）。众神殿刀1 四入口收敛：委托统一检索
+// 核 adapter（与 plain/人格注入同一条链），按状态回执——旧实现直连
+// whisper.WebSearch 且 err 分支把 err.Error() 塞 map 却返回 nil error（结合旧栈
+// 「暂无结果」伪成功，error 字段恒死），现按状态如实回填。
 func (a *whisperState) WhisperWebSearch(query string) (map[string]interface{}, error) {
 	slog.Info("[whisper] web search", "query", query)
-	result, err := whisper.WebSearch(query)
+	out, err := chatWebSearch(query)
 	if err != nil {
 		return map[string]interface{}{
-			"query":  query,
+			"query": query,
+			"state": string(builtin.SearchStateAllFailed),
 			"result": "",
 			"error":  err.Error(),
 		}, nil
 	}
-	return map[string]interface{}{
-		"query":  query,
-		"result": result,
-	}, nil
+	m := map[string]interface{}{
+		"query": query,
+		"state": string(out.State),
+	}
+	if out.State == builtin.SearchStateOK {
+		m["result"] = out.Text
+	} else {
+		m["result"] = ""
+		m["error"] = "联网搜索未获得可用结果：" + out.Engines
+	}
+	return m, nil
 }
 
 // WhisperChatWithSearch 带搜索增强的对话：自动检测是否需要上网查询
@@ -755,18 +767,21 @@ func (a *whisperState) whisperChatWithSearch(userMsg, personalityID, assistantNa
 }
 
 // prepareWhisperChatMessage 在请求模型前完成可选联网搜索。搜索结果只进入
-// 本轮模型上下文，不污染落库的用户原文。
+// 本轮模型上下文，不污染落库的用户原文。众神殿刀1：经统一检索核 adapter，
+// 注入头按状态选文案——失败/空结果注入如实占位（旧实现静默返回原文，人格
+// 路径与普通路径行为不一致；现统一可见状态，与刀3「可见性统一」同向）。
 func (a *whisperState) prepareWhisperChatMessage(userMsg string, forceSearch bool) string {
 	// 检测搜索意图（身份类问题除外——「你是谁/你会什么」问的是助手自己，
 	// 联网搜索只会注入无关网页摘要，模型把英文片段混进回复反而出乱码）
 	if !isIdentityQuestion(userMsg) && (forceSearch || shouldSearchWeb(userMsg)) {
 		// 预览按 rune 截断——字节切片会把多字节中文切成 mojibake 进日志（AP6-07）
 		slog.Info("[whisper] auto-search triggered", "msg", truncateRunes(userMsg, 60))
-		searchResult, err := whisper.WebSearch(userMsg)
-		if err == nil && searchResult != "" {
-			// 将搜索结果注入为增强的 userMsg
-			return fmt.Sprintf("%s\n\n[以下是关于此问题的实时搜索结果，请参考这些信息回答]\n%s", userMsg, searchResult)
+		out, err := chatWebSearch(userMsg)
+		if err != nil {
+			slog.Warn("[whisper] 搜索适配器故障，注入如实占位", "error", err)
+			return userMsg + "\n\n[联网搜索暂不可用，请基于已有知识回答，并如实说明未获取到实时信息]"
 		}
+		return injectChatSearchResult(userMsg, out)
 	}
 	return userMsg
 }

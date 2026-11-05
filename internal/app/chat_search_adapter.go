@@ -1,0 +1,204 @@
+package app
+
+// chat_search_adapter.go — 聊天板块联网检索适配器（众神殿 2026-11-05 网络搜索
+// 刀1：统一检索核 + 三层失败契约 + 清洗边界）。聊天四入口（plain 注入 / 人格
+// 注入 / WhisperWebSearch 绑定 / whisper agent loop 委托缝）全部经统一检索核
+// （办公 builtin websearch），whisper 自研 Bing/DDG 解析已删除——
+// whisper.WebSearch 符号不存在，任何绕过 adapter 的旧直连都会编译红。
+//
+// 三层失败契约（会话终稿）：
+//  1. 返回值状态枚举（chatSearchOutcome.State，策略过滤后空≠ALL_FAILED 的拆分
+//     在统一核 builtin.ClassifySearchState / SearchAttempt）；
+//  2. 注入头按状态选文案（injectChatSearchResult，不再无条件「实时搜索结果」）；
+//  3. plain 系统提示词删「不要说自己无法联网搜索」（chat_service.go，仅 plain，
+//     人格路径没有此句勿加）。
+//
+// 清洗边界（会话终稿）：口语清洗只归本 adapter；办公/agent loop 的模型结构化
+// query（含 site: 操作符）原样不改写。
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/gaea/gaea/internal/gaea/tool/builtin"
+)
+
+// chatSearchTimeout 聊天路径硬超时（会话建议值 8s；办公路径沿用统一核总截止
+// 20s，两路 ctx 取更短者生效）。
+const chatSearchTimeout = 8 * time.Second
+
+// chatSearchTopK 聊天注入条数（与旧 whisper maxResults 一致）。
+const chatSearchTopK = 5
+
+// chatSearchOutcome 三层契约第一层：状态 + 注入文本原料。
+type chatSearchOutcome struct {
+	State    builtin.SearchState
+	Query    string // 清洗后的查询词（实际发给引擎的）
+	RawQuery string // 用户原始问句
+	Text     string // OK：编号结果列表（title/url/snippet/source）；非 OK：空
+	Engines  string // 逐引擎诊断摘要（一行，EMPTY/ALL_FAILED 时进注入文案）
+}
+
+// chatSearchRun 统一检索核 seam：测试可替换避免真实网络请求。
+var chatSearchRun = builtin.RunSearch
+
+// chatWebSearch 聊天检索 seam（签名=状态契约）：生产走 runChatWebSearch，
+// 测试可替换（旧签名 func(string)(string,error) 随三层契约一并退役）。
+var chatWebSearch = runChatWebSearch
+
+// runChatWebSearch 清洗口语查询 → 统一检索核（8s 硬超时）→ 状态归集。
+func runChatWebSearch(rawQuery string) (chatSearchOutcome, error) {
+	query := cleanChatSearchQuery(rawQuery)
+	ctx, cancel := context.WithTimeout(context.Background(), chatSearchTimeout)
+	defer cancel()
+	results, attempts, err := chatSearchRun(ctx, query, chatSearchTopK)
+	state := builtin.ClassifySearchState(results, attempts)
+	out := chatSearchOutcome{
+		State:    state,
+		Query:    query,
+		RawQuery: rawQuery,
+		Engines:  summarizeSearchAttempts(attempts),
+	}
+	if out.Engines == "" && err != nil {
+		out.Engines = err.Error()
+	}
+	if state == builtin.SearchStateOK {
+		out.Text = formatChatSearchResults(results)
+	}
+	return out, nil
+}
+
+// injectChatSearchResult 三层契约第二层：注入头按状态选文案。EMPTY 与
+// ALL_FAILED 分开表述，占位行都要求模型如实说明——不再把伪失败包装成
+// 「实时搜索结果」。
+func injectChatSearchResult(message string, out chatSearchOutcome) string {
+	switch out.State {
+	case builtin.SearchStateOK:
+		return fmt.Sprintf("%s\n\n[以下是关于此问题的实时搜索结果，请参考这些信息回答]\n%s", message, out.Text)
+	case builtin.SearchStateEmpty:
+		return fmt.Sprintf("%s\n\n[联网搜索已完成：各引擎均未返回与「%s」相关的结果%s。请基于已有知识回答，并如实说明未获取到实时信息]",
+			message, out.Query, searchDiagSuffix(out.Engines))
+	default: // all_failed（degraded 刀2 主源保留窗启用后单列）
+		return fmt.Sprintf("%s\n\n[联网搜索暂不可用%s。请基于已有知识回答，并如实说明未获取到实时信息]",
+			message, searchDiagSuffix(out.Engines))
+	}
+}
+
+// searchDiagSuffix 诊断摘要拼进占位文案的括号后缀（空诊断不加括号）。
+func searchDiagSuffix(engines string) string {
+	if engines == "" {
+		return ""
+	}
+	return "（" + engines + "）"
+}
+
+// summarizeSearchAttempts 逐引擎诊断压成一行（可见但控制 token 预算，
+// 单条原因截断 40 rune）。
+func summarizeSearchAttempts(attempts []builtin.SearchAttempt) string {
+	if len(attempts) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(attempts))
+	for _, a := range attempts {
+		reason := ""
+		switch a.Outcome {
+		case "ok":
+			parts = append(parts, fmt.Sprintf("%s:ok(%dms)", a.Name, a.ElapsedMS))
+			continue
+		case "empty":
+			reason = "无结果"
+		case "filtered-empty":
+			reason = "策略过滤后无可用结果"
+		default:
+			reason = truncateRunes(a.Err, 40)
+			if reason == "" {
+				reason = "失败"
+			}
+		}
+		parts = append(parts, fmt.Sprintf("%s:%s(%dms)", a.Name, reason, a.ElapsedMS))
+	}
+	return strings.Join(parts, "; ")
+}
+
+// formatChatSearchResults OK 态的编号结果列表。字段与办公契约一致
+// （title/url/snippet/source），source 并入标题行供模型引用来源。
+func formatChatSearchResults(results []builtin.SearchResult) string {
+	var b strings.Builder
+	for i, r := range results {
+		src := ""
+		if r.Source != "" {
+			src = "（来源：" + r.Source + "）"
+		}
+		b.WriteString(fmt.Sprintf("%d. %s%s\n   %s\n   %s\n", i+1, r.Title, src, r.URL, r.Snippet))
+	}
+	return strings.TrimSpace(b.String())
+}
+
+// cleanChatSearchQuery 从口语化提问中提取适合搜索引擎的关键词（自 whisper
+// cleanSearchQuery 下沉，众神殿刀1 清洗边界）：去掉触发前缀（帮我搜索/查一下…）、
+// 疑问词（什么是/如何/为什么…）、结尾语气词（怎样/吗/呢…）与礼貌用语（请/麻烦/
+// 帮我），再归一化空白与标点。清洗后为空时回退原文。
+//
+// 刀1 修正（会话终稿验收）：不再剥「在哪里/在哪儿/多少钱」——这些是信息词不是
+// 语气词，剥掉会把「成都到上海在哪里买票」削成「成都到上海买票」；口语后缀
+// （怎么样/吗/呢）照剥。
+func cleanChatSearchQuery(msg string) string {
+	s := strings.TrimSpace(msg)
+
+	// 去掉开头的“帮/请/查”类触发前缀
+	for _, p := range []string{
+		"帮我搜索一下", "帮我搜一下", "帮我查一下", "请帮我查一下", "搜索一下",
+		"帮我搜索", "帮我查", "帮我搜", "上网查一下", "上网查",
+		"搜一下", "查一下", "查一查", "查查", "搜索", "查询",
+	} {
+		if strings.HasPrefix(s, p) {
+			s = strings.TrimSpace(s[len(p):])
+			break
+		}
+	}
+
+	// 去掉开头的疑问词（什么是X → X）
+	for _, p := range []string{"什么是", "啥是", "怎么样", "怎样", "如何", "为什么", "怎么"} {
+		if strings.HasPrefix(s, p) {
+			s = strings.TrimSpace(s[len(p):])
+			break
+		}
+	}
+
+	// 去掉结尾的疑问/口语后缀（X怎么样 → X）；「在哪里/在哪儿/多少钱」是
+	// 信息词，保留不剥（刀1 验收）。
+	for {
+		if strings.HasSuffix(s, "在哪里") || strings.HasSuffix(s, "在哪儿") || strings.HasSuffix(s, "多少钱") {
+			break
+		}
+		stripped := false
+		for _, suf := range []string{
+			"怎么样了", "怎么样呢", "怎么样", "怎样", "怎么办", "怎么弄",
+			"是什么", "是啥", "什么时候", "有没有", "有哪些", "多少",
+			"吗", "呢", "啊", "呀", "吧",
+		} {
+			for strings.HasSuffix(s, suf) {
+				s = strings.TrimSpace(strings.TrimSuffix(s, suf))
+				stripped = true
+			}
+		}
+		if !stripped {
+			break
+		}
+	}
+
+	// 去掉常见礼貌词/冗余词（注意不能用单字“请”，会误删“申请/请假”等）
+	for _, w := range []string{"麻烦", "帮我", "我想知道", "告诉我", "介绍一下"} {
+		s = strings.ReplaceAll(s, w, "")
+	}
+
+	// 归一化空白并去掉首尾标点
+	s = strings.Join(strings.Fields(s), " ")
+	s = strings.Trim(s, " ，。？！、,.?!:：;；\"'“”‘’()（）")
+	if s == "" {
+		return msg
+	}
+	return s
+}
