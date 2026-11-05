@@ -190,3 +190,17 @@ status+save_task/读屏挂未来重评），M5 解冻待排刀。
   contract 5 + spaceBindings 10 全绿；tsc -b 0 错；go app 包全量绿。
 - 至此三刀全落地：刀1 统一核+四入口、刀2 保留窗+覆盖门、刀3 主源向导。余=真机
   实弹走查设置卡+代理恢复后主源入 top5 补测+发版拍板。
+
+## 整树打包+桌面构建（晚 20:50）
+
+- sweep 提交 d788e94b（64 文件 +6065/−2141，用户拍板整树打包）：boot sonic 启动音视
+  重设计（四候选 wav+试听资产/生成脚本）+聊天信号重设计（chat-signal css/ChatComposer/
+  ChatPage/useChatStream/滚动 containment 测试/VoiceConsoleV2）+语音 V2 运行时+后端
+  ai client 族/chat_engine_preflight（聊天引擎预检）/qwen35 进程腿+build.bat；杂项 $null
+  空文件清理不入库。归属注记：本批为另一执行体在途工作的收编快照。
+- 桌面构建：build.bat 全链（前端 npm build→wails CGO -trimpath→语音三 DLL 伴生→
+  冒烟 /api/health 200 过→桌面拷贝）。产物 build/bin/gaea.exe 60,093,952B
+  sha256 前缀 14d4f3dd6d7734ae（20:50:54），桌面同份。wailsjs 随 build 同步入库
+  （OfficeB 三绑定 TS 面）。
+- 网络搜索线本日累计五笔：451b5d1c（刀1）/ea2cfb7d（拍板 A）/a335b46e（接线记档）/
+  8aaf91ea（刀2）/ace24f1e（刀3）+d788e94b（sweep）——未 push，随下版列车。
