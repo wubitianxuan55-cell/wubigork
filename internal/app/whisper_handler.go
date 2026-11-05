@@ -146,22 +146,27 @@ func (a *whisperState) getOrCreateOrch(personalityID string) *whisper.Orchestrat
 		return ids
 	}
 
+	// 众神殿刀4：先恢复后发布——状态恢复、生日自愈与历史回灌全部完成后才进
+	// whisperSessions，并发首轮与旁路读（追踪页等）不再可能拿到半成品实例
+	//（PreLLMTurn 读到空 WM/空 FactStore 的窗口关闭）。双建代价从「浪费一次
+	// 构建」变为「浪费一次构建+恢复」，同键并发首轮罕见，可接受；构建段无
+	// 全局副作用，先建者让位的语义不变。
+	if err := restoreWhisperState(orch); err != nil {
+		slog.Error("[whisper] 会话状态恢复失败（继续用全新状态）", "sessionID", orch.SessionID, "error", err)
+	}
+	a.healImplicitBirthday(orch)
+	a.warmPromptHistory(orch)
+
 	whisperSessionsMu.Lock()
 	if existing, ok := whisperSessions[sessionID]; ok {
 		// 审计 P0#13（源 AP6-02）：查表（RLock）→ 建实例 → 回写三段跨锁，
 		// 并发同键会双建 orchestrator 且后写者覆盖先写者。入库走写锁二次查表：
-		// 先建者让位，已入库的胜出，本地重复品直接丢弃（构建段无全局副作用，
-		// 双建的代价只是浪费一次构建）。
+		// 先建者让位，已入库的胜出，本地重复品直接丢弃。
 		whisperSessionsMu.Unlock()
 		return existing
 	}
 	whisperSessions[sessionID] = orch
 	whisperSessionsMu.Unlock()
-
-	if err := restoreWhisperState(orch); err != nil {
-		slog.Error("[whisper] 会话状态恢复失败（继续用全新状态）", "sessionID", orch.SessionID, "error", err)
-	}
-	a.healImplicitBirthday(orch)
 	return orch
 }
 
@@ -1062,7 +1067,7 @@ func (a *whisperState) WhisperWeixinStatus() []map[string]interface{} {
 }
 
 // healImplicitBirthday 众神殿刀2 存量自愈：旧版初始化把 nil 生日写成首聊时刻
-//（orchestrator PreLLMTurn 旧逻辑），存量会话 6/6 ackemBirthday==firstMetDate，
+// （orchestrator PreLLMTurn 旧逻辑），存量会话 6/6 ackemBirthday==firstMetDate，
 // 首聊日周年必注入假事实「我的生日」。等值判定天然幂等：非 gaea 清 nil（永不
 // 注入），gaea 改为内置生日 06-11。只动等值行，用户显式配置的生日不受影响；
 // 首次动刀前对 hermes.db 做一次性文件级备份（主库文件快照，WAL 尾部增量不在
@@ -1097,6 +1102,69 @@ func (a *whisperState) healImplicitBirthday(orch *whisper.Orchestrator) {
 		return
 	}
 	slog.Info("[whisper] 隐式生日自愈完成", "sessionID", orch.SessionID, "isGaea", orch.Preset.ID == "gaea")
+}
+
+// transientHistoryMarkers 已知动态包裹标记（众神殿刀4）：命中任一的历史行
+// 视为「中间形态」脏行，重启回灌时跳过（不做模糊清洗，避免误删用户原文）。
+// 「【本轮上下文】」为防御性——该前缀只存在于 llmUserMsg，chat_history 本不会存。
+var transientHistoryMarkers = []string{
+	"【本轮上下文】",
+	"[以下是关于此问题的实时搜索结果",
+	"[联网搜索已降级",
+	"[联网搜索已完成",
+	"[联网搜索暂不可用",
+}
+
+func containsTransientMarker(s string) bool {
+	for _, m := range transientHistoryMarkers {
+		if strings.Contains(s, m) {
+			return true
+		}
+	}
+	return false
+}
+
+// warmPromptHistory 众神殿刀4 重启回灌：PromptHistory 只在内存，进程重启后
+// HistoryInMessages 模式下模型只看 system+当前轮（chat_history 只回填 WM，而
+// WM 近期块在该模式下不进 messages），重启即失忆。从 hermes chat_history 取
+// 最近 ≤HistoryKeepTurns 轮「无动态包裹标记」的干净行回灌 RecordPromptTurn
+// （非搜索轮 chat_history 的 userText 即原文，无需跨库映射）。接受一次 KV
+// 前缀缓存 miss（重启本来就要重新 prefill）；userText 存原文是相对
+// RecordPromptTurn「实发串」契约的显式偏离，方向=诚实历史。
+func (a *whisperState) warmPromptHistory(orch *whisper.Orchestrator) {
+	if orch.DataRoot == "" || len(orch.PromptHistory) > 0 {
+		return
+	}
+	rows, err := repos.LoadChatHistoryFromDB(orch.DataRoot, orch.SessionID)
+	if err != nil || len(rows) == 0 {
+		return
+	}
+	type histRow struct {
+		turnIndex               int
+		userText, assistantText string
+	}
+	var clean []histRow
+	for _, r := range rows {
+		ti, okTi := r["turnIndex"].(float64)
+		ut, _ := r["userText"].(string)
+		at, _ := r["assistantText"].(string)
+		if !okTi {
+			continue
+		}
+		if containsTransientMarker(ut) || containsTransientMarker(at) {
+			continue
+		}
+		clean = append(clean, histRow{turnIndex: int(ti), userText: ut, assistantText: at})
+	}
+	if len(clean) > whisper.HistoryKeepTurns {
+		clean = clean[len(clean)-whisper.HistoryKeepTurns:]
+	}
+	for _, h := range clean {
+		orch.RecordPromptTurn(h.turnIndex, h.userText, h.assistantText)
+	}
+	if len(clean) > 0 {
+		slog.Info("[whisper] 重启历史回灌完成", "sessionID", orch.SessionID, "turns", len(clean))
+	}
 }
 
 func restoreWhisperState(orch *whisper.Orchestrator) error {
