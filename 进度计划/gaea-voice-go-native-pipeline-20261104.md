@@ -74,6 +74,8 @@
 
 ## 2.7 管线架构重写为源码同构拓扑（2026-11-04 晚，用户指令"不要手搓，看复刻源码"后）
 
+
+
 - **推倒重来**：pipeline.go 按 s2s_pipeline.py 队列图+websocket_router._send_loop_for 重写——
   audioCh/sttCh/promptCh/ttsCh/audioOut/textCh 六队列 + VAD/STT/LLM/TTS 四阶段线程 + 信号驱动发送循环；
   协议翻译（resolve terminals/barge-in/response 装配）只在发送循环单线程（service.dispatch_pipeline_event 同位）
@@ -86,6 +88,14 @@
   （bash 后台 & 会双开竞态）；测试壳日志在 %TEMP%\gaea-voice-v2 与 gaea 日志双处
 - **教训固化**：①上游答疑优先读源码原文（cancel_scope.py 的 generation 设计一句话顶半天调试）
   ②每改一处→build+单测+ws_probe 单场景，一次一刀 ③批量字符串补丁是错漏之源，改用整文件重写
+
+## 2.8 真麦「无法识别」根修（2026-11-05 晨，v4.532.0 实弹翻车；待用户真麦复测后提交）
+
+- **现象**：真麦说话四段全 `discarding segment=660~820ms active=64~192ms`，STT 零触发
+- **真凶**：silero v5 ONNX 输入契约 **(1,576)=64 context+512 chunk**；Go 按 (1,512) 直喂=context 恒错位——强电平不致命（合成语料实弹全绿掩盖），弱电平（用户麦 RMS≈0.01）判性崩（mean 0.10 vs torch 0.72）。「昨天还行」=sidecar torch JIT 内部自维护 context
+- **修**：SileroVAD 自维护 ctx64（engine_windows.go）；vadcheck 探针定位（scripts/voice_v2/vadcheck）；修复后 weak mean=0.708=与 torch 同档，ws_probe 弱料全链逐字 PASS+cancel/bargein 零泄漏
+- **随刀**：播放期回声门（监听 0.5/TTS 期 0.75，EchoGuardOn/Off）+captureProcessor 自适应增益（弱麦 ×4 上限，peak>0.22 回 1）+前端/探针 0.5 同步+探针零响应 panic 修+discard 行临时 rms 字段（验后撤）
+- **教训**：等价性验证输入须在正确契约下取且含弱电平真实语料（fix_silero_sr 的 EQUIVALENT 在 (1,512) 错误形状下两边一起错）；假麦/合成语料绿≠真机可用，发版门须真麦烟测
 
 ## 3. 刀2~6 计划
 

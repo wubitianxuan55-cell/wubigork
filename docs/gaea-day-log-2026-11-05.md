@@ -65,7 +65,40 @@ R3 零输出判定野外生效：TTS 全灭回合诚实判 cancelled/empty_outpu
 - tsc 必须 -b 口径；vitest 必须 frontend/ cwd 净跑（仓库根扫 clones/.tmp 假红）；
   管道 rc 谎报（`cmd | head` 的 rc 是 head 的）。
 
+## 真麦「无法识别语音」根修（2026-11-05 晨，用户实测驱动，待真麦复测）
+
+**现象**：v4.532.0 装机后用户真麦说话全丢弃——`VAD: discarding segment=820ms
+active=160ms`，四段全过不了 384ms 语音门，STT 零触发。
+
+**诊断弯路（记档）**：①先怪阈值（0.75→0.5 播放期双门：监听 silero 默认 0.5，
+TTS 首音频 EchoGuardOn 0.75 防扬声器回声自打断=保住 11-01 实弹成果，finishResponse
+关门覆盖 barge-in cancelled）——降阈后 active 不变，阈值无罪；②再怪电平——合成弱
+语料（×0.25，RMS 0.0099）@0.5 也全 discard，电平假设也无法解释。
+
+**真凶（决定性实验，vadcheck 工具对照）**：同一段弱语料——torch.hub silero
+（sidecar 时代）mean=0.719；原版 silero_vad_v5.onnx（python ORT）mean=0.708；
+**Go 手术版按 (1,512) 喂=mean 0.100**。根因=**silero v5 ONNX 输入契约
+(1,576)=上块末尾 64 样本 context+本块 512；torch JIT 内部自维护 context，
+ONNX 导出后挪到输入侧，Go 按 512 直喂=context 恒错位**。强电平信噪比高错位
+不致命（假麦/合成语料全链实弹全绿的盲区），弱电平（用户麦 RMS≈0.01~0.02）
+判性崩——「昨天还行今天不行」=sidecar(torch)→Go(ONNX) 重写丢契约。
+fix_silero_sr 图手术无辜（onnx 库 load+save 往返字节级一致；手术「EQUIVALENT」
+验证用 randn(1,512) 在错误形状下做，两边一起错当然「等价」——教训：等价性
+验证的输入必须在正确契约下取，且须含弱电平真实语料）。
+
+**修**：SileroVAD 自维护 ctx64（Prob 拼 [ctx64,x]→(1,576)，推进 ctx=x 尾 64，
+Reset 清零；非 512 块 fail-loud）。修复后弱语料 mean=0.708 与 torch 同档、
+连 0.75 都过门；ws_probe 弱料全链逐字转录 PASS（e2e 4.6s）+cancel/bargein 零泄漏。
+
+**随刀**：①captureProcessor 自适应增益（1s 窗原始 RMS<0.012 升 ×2 上限 4，
+原始 peak>0.22 回 1 防削波；包络统计恒用增益前防自激励；正常设备恒 1）——
+弱麦保险+STT 受益，worklet 3 单测；②前端 vadThreshold 0.75→0.5+探针同步+探针
+零响应回合 panic 修（b4f2d8f7 同族）；③discard 行加临时 rms 字段（验真麦后撤）；
+④vadcheck 概率曲线探针（scripts/voice_v2/vadcheck，exe 目录须带 DLL——System32
+ORT 劫持旧坑）。**M5 §7 四项拍板固化**（T0 免确认采纳/确认词立项默认关/首批
+status+save_task/读屏挂未来重评），M5 解冻待排刀。
+
 ## 遗留
 
-- 真机一句话验收（用户侧）；M5 §7 四项拍板；误打断率语料门（venv 出局后
+- 真机一句话验收（用户侧）；M5 排刀；误打断率语料门（venv 出局后
   A/B 基线改 Go 自证口径待定）。
