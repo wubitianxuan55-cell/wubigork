@@ -411,18 +411,24 @@ func (a *App) runChatStreamPersona(ctx context.Context, runID, topicID, userMess
 	if b, marshalErr := json.Marshal(persistedExtra); marshalErr == nil {
 		extra = string(b)
 	}
-	if err := a.appendChatExchange(topicID, userMessage, reply, extra); err != nil {
-		slog.Error("chat stream persona 落库失败", "runID", runID, "topicID", topicID, "error", err)
-		a.emit("chat-stream:"+runID, map[string]interface{}{
-			"type":  "error",
-			"error": "回复生成完成但消息保存失败: " + err.Error(),
-		})
-		return
-	}
 
 	finalType := "done"
 	if cancelled, _ := out["cancelled"].(bool); cancelled {
 		finalType = "cancelled"
+	}
+	// 众神殿刀1：空 assistant 一律不落库（取消空轮/异常空流不再伪造成功交换）；
+	// 取消但保留了部分文本仍照常落库（产品语义：保留已生成内容）。
+	if reply != "" {
+		if err := a.appendChatExchange(topicID, userMessage, reply, extra); err != nil {
+			slog.Error("chat stream persona 落库失败", "runID", runID, "topicID", topicID, "error", err)
+			a.emit("chat-stream:"+runID, map[string]interface{}{
+				"type":  "error",
+				"error": "回复生成完成但消息保存失败: " + err.Error(),
+			})
+			return
+		}
+	} else {
+		slog.Warn("chat stream persona 空回复不落库", "runID", runID, "finalType", finalType)
 	}
 	a.emit("chat-stream:"+runID, map[string]interface{}{
 		"type":        finalType,
@@ -456,7 +462,15 @@ func (a *App) chatSendPersona(topicID, message, mode string, searchEnabled, thin
 		extra = string(b)
 	}
 	// T6-3.2：persona 路径同样把落库失败透传给调用方。
-	if err := a.appendChatExchange(topicID, message, fmt.Sprint(out["reply"]), extra); err != nil {
+	// 众神殿刀1：空 assistant 不落库、不上报成功（与流式路径同一守卫口径）。
+	reply := fmt.Sprint(out["reply"])
+	if reply == "<nil>" {
+		reply = ""
+	}
+	if reply == "" {
+		return nil, fmt.Errorf("模型返回空回复")
+	}
+	if err := a.appendChatExchange(topicID, message, reply, extra); err != nil {
 		return nil, err
 	}
 	out["mode"] = mode

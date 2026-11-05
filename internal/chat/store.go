@@ -242,6 +242,11 @@ func (s *Store) AppendExchange(topicID, userContent, assistantContent, assistant
 	if s == nil || s.db == nil {
 		return fmt.Errorf("chat store 未初始化")
 	}
+	// 众神殿刀1：空 assistant 防线——空回复轮不得落库成对消息（fail-loud，
+	// 上游守卫漏网时在此暴露而非把「我说了句话」的假交换写进历史）。
+	if assistantContent == "" {
+		return fmt.Errorf("空 assistant 消息拒绝落库")
+	}
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err

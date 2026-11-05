@@ -326,15 +326,11 @@ func (a *whisperState) whisperChatCore(
 		"sysHash", fmt.Sprintf("%x", sysSum)[:8], "histTurns", len(historyExchanges),
 		"dynCtxChars", len([]rune(dynamicCtx)), "lowLatency", lowLatency)
 	requestStart := time.Now()
-	chunks, cancel, callErr := a.clientRef().ChatStreamMessages(ctx, model, messages, opts, nil)
-	if callErr != nil {
-		slog.Error("[whisper] LLM call failed", "error", callErr)
-		return nil, callErr
-	}
-	defer cancel()
-
-	var replyBuilder strings.Builder
-	var reasoningBuilder strings.Builder
+	// 众神殿刀1（进度计划/gaea-chat-persona-optimization-20261105.md §1.1③）：
+	// 空正文/取消守卫。非取消空正文有界重试一次，仍空则显式报错——空流/仅
+	// reasoning/首 token 前静默夭折不得伪装成成功回合。流式出口仅在用户不可见
+	// 输出（无正文且 reasoning 未外发）时重试，避免 UI 重复拼接。
+	var reply, reasoning string
 	var usage *ai.ChatUsage
 	var firstTokenAt time.Time
 	streamPending := ""
@@ -367,40 +363,70 @@ func (a *whisperState) whisperChatCore(
 			streamPending = streamPending[cut:]
 		}
 	}
-	for chunk := range chunks {
-		if chunk.Error != "" {
-			callErr = errors.New(chunk.Error)
+	var finishedAt time.Time
+	var cancelled bool
+	for attempt := 1; ; attempt++ {
+		chunks, cancel, callErr := a.clientRef().ChatStreamMessages(ctx, model, messages, opts, nil)
+		if callErr != nil && ctx.Err() != nil {
+			// 首 token 前取消（建连即取消）：按取消终态收尾，不算故障——
+			// 空回复由下方守卫挡住落库与记账。建连失败时 cancel 为 nil
+			//（ChatStreamMessages 错误路径返回 nil, nil, err），无需清理。
+			finishedAt = time.Now()
+			cancelled = true
+			reply, reasoning = "", ""
 			break
 		}
-		if chunk.Done {
-			usage = chunk.Usage
-			break
+		if callErr != nil {
+			slog.Error("[whisper] LLM call failed", "error", callErr)
+			return nil, callErr
 		}
-		if (chunk.Content != "" || chunk.Reasoning != "") && firstTokenAt.IsZero() {
-			firstTokenAt = time.Now()
-		}
-		if chunk.Content != "" {
-			replyBuilder.WriteString(chunk.Content)
-			emitDelta(chunk.Content)
-		}
-		if chunk.Reasoning != "" {
-			reasoningBuilder.WriteString(chunk.Reasoning)
-			if onReasoning != nil {
-				onReasoning(chunk.Reasoning)
+		var replyBuilder, reasoningBuilder strings.Builder
+		usage = nil
+		firstTokenAt = time.Time{}
+		streamPending = ""
+		for chunk := range chunks {
+			if chunk.Error != "" {
+				callErr = errors.New(chunk.Error)
+				break
+			}
+			if chunk.Done {
+				usage = chunk.Usage
+				break
+			}
+			if (chunk.Content != "" || chunk.Reasoning != "") && firstTokenAt.IsZero() {
+				firstTokenAt = time.Now()
+			}
+			if chunk.Content != "" {
+				replyBuilder.WriteString(chunk.Content)
+				emitDelta(chunk.Content)
+			}
+			if chunk.Reasoning != "" {
+				reasoningBuilder.WriteString(chunk.Reasoning)
+				if onReasoning != nil {
+					onReasoning(chunk.Reasoning)
+				}
 			}
 		}
+		if onDelta != nil && streamPending != "" {
+			onDelta(streamPending)
+		}
+		cancel()
+		finishedAt = time.Now()
+		cancelled = ctx.Err() != nil
+		if callErr != nil && !cancelled {
+			slog.Error("[whisper] LLM call failed", "error", callErr)
+			return nil, callErr
+		}
+		reply = replyBuilder.String()
+		reasoning = reasoningBuilder.String()
+		if reply != "" || cancelled || attempt >= 2 || (reasoning != "" && onReasoning != nil) {
+			break
+		}
+		slog.Warn("[whisper] 空回复，有界重试", "attempt", attempt)
 	}
-	if onDelta != nil && streamPending != "" {
-		onDelta(streamPending)
+	if strings.TrimSpace(reply) == "" && !cancelled {
+		return nil, fmt.Errorf("模型返回空回复（重试后仍为空）")
 	}
-	finishedAt := time.Now()
-	cancelled := ctx.Err() != nil
-	if callErr != nil && !cancelled {
-		slog.Error("[whisper] LLM call failed", "error", callErr)
-		return nil, callErr
-	}
-	reply := replyBuilder.String()
-	reasoning := reasoningBuilder.String()
 	slog.Info("[whisper] LLM reply", "len", len(reply))
 	streamStats := []any{"lowLatency", lowLatency, "totalMs", finishedAt.Sub(requestStart).Milliseconds()}
 	if !firstTokenAt.IsZero() {
@@ -459,50 +485,61 @@ func (a *whisperState) whisperChatCore(
 		}
 	}
 
-	orch.WM.Push(orch.SessionID, whisper.Exchange{
-		TurnIndex: orch.State.Counters.TotalTurns, UserText: userMsg, AssistantText: reply,
-	})
-	// KV 前缀稳定化四刀：提示历史记**实际发送内容**（llmUserMsg 含动态前缀），
-	// 保证下一轮 messages 前缀与本轮尾部逐字节衔接（引擎前缀缓存命中前提）。
-	if orch.HistoryInMessages {
-		orch.RecordPromptTurn(orch.State.Counters.TotalTurns, llmUserMsg, reply)
+	// 众神殿刀1：空轮/取消轮不得伪装成完整回合记账——不推 WM/PromptHistory、
+	// 不 FinalizeTurn（SharedEventsCount++/轻量事实/companion_reply 全在其内）、
+	// 不入记忆队列。PreLLMTurn 侧状态演化随 persistStateAsync 照常落盘，保持
+	// 内存/磁盘一致；轮次追踪仍落库（探针诚实记录，L4.Wrote=false）。
+	skipBookkeeping := cancelled || strings.TrimSpace(reply) == ""
+	if !skipBookkeeping {
+		orch.WM.Push(orch.SessionID, whisper.Exchange{
+			TurnIndex: orch.State.Counters.TotalTurns, UserText: userMsg, AssistantText: reply,
+		})
+		// KV 前缀稳定化四刀：提示历史记**实际发送内容**（llmUserMsg 含动态前缀），
+		// 保证下一轮 messages 前缀与本轮尾部逐字节衔接（引擎前缀缓存命中前提）。
+		if orch.HistoryInMessages {
+			orch.RecordPromptTurn(orch.State.Counters.TotalTurns, llmUserMsg, reply)
+		}
 	}
 
 	l1Snap := orch.State.Relationship
 	l2Snap := orch.State.Emotion
 	turns := orch.State.Counters.TotalTurns
 
-	whisper.FinalizeTurn(orch, whisper.PostTurnContext{
-		SessionID: orch.SessionID, TurnIndex: turns,
-		UserMsg: userMsg, AssistantText: reply,
-		Event: preResult.Event, AdultMode: orch.AdultMode,
-	})
+	if !skipBookkeeping {
+		whisper.FinalizeTurn(orch, whisper.PostTurnContext{
+			SessionID: orch.SessionID, TurnIndex: turns,
+			UserMsg: userMsg, AssistantText: reply,
+			Event: preResult.Event, AdultMode: orch.AdultMode,
+		})
+	}
 	// 轮次追踪持久化（按会话归属，供角色库「追踪」页查看）
 	if err := repos.AppendTurnTraceToDB(orch.DataRoot, orch.SessionID, preResult.Trace); err != nil {
 		slog.Error("[whisper] 轮次追踪落库失败", "sessionID", orch.SessionID, "error", err)
 	}
 
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.Error("whisper: memory write goroutine panic recovered", "panic", r)
-				a.recordMemoryWriteError(orch.SessionID, "panic", fmt.Errorf("memory write panic: %v", r))
-			}
+	if !skipBookkeeping {
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("whisper: memory write goroutine panic recovered", "panic", r)
+					a.recordMemoryWriteError(orch.SessionID, "panic", fmt.Errorf("memory write panic: %v", r))
+				}
+			}()
+			// T6-5.3：错误回传（LLM 失败/JSON 解析失败/panic）计入 WriteErrors 计数
+			whisper.EnqueueMemoryWrite(a, whisper.MemoryWritePayload{
+				SessionID: orch.SessionID, TurnIndex: turns,
+				UserMsg: userMsg, AssistantText: reply,
+				L1: l1Snap, L2: l2Snap,
+				FactStore: orch.FactStore, TotalTurns: turns, KG: orch.KG,
+				EpisodicStore:   orch.EpisodicStore,
+				RecentExchanges: buildRecentExchanges(orch),
+				// 时间锚点写出口：摄入命中锚点策略 → 锁内落 State.TemporalAnchors，
+				// 随 companion_state 持久化（「重访雨夜」数据源接线）
+				TemporalAnchorSink: func(a whisper.TemporalAnchor) { orch.AddTemporalAnchor(a) },
+				AdultMode:          orch.AdultMode,
+			}, a.recordMemoryWriteError)
 		}()
-		// T6-5.3：错误回传（LLM 失败/JSON 解析失败/panic）计入 WriteErrors 计数
-		whisper.EnqueueMemoryWrite(a, whisper.MemoryWritePayload{
-			SessionID: orch.SessionID, TurnIndex: turns,
-			UserMsg: userMsg, AssistantText: reply,
-			L1: l1Snap, L2: l2Snap,
-			FactStore: orch.FactStore, TotalTurns: turns, KG: orch.KG,
-			EpisodicStore:   orch.EpisodicStore,
-			RecentExchanges: buildRecentExchanges(orch),
-			// 时间锚点写出口：摄入命中锚点策略 → 锁内落 State.TemporalAnchors，
-			// 随 companion_state 持久化（「重访雨夜」数据源接线）
-			TemporalAnchorSink: func(a whisper.TemporalAnchor) { orch.AddTemporalAnchor(a) },
-			AdultMode:          orch.AdultMode,
-		}, a.recordMemoryWriteError)
-	}()
+	}
 
 	go a.persistStateAsync(orch)
 

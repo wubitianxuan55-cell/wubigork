@@ -431,9 +431,14 @@ func TestSinExportEpubSkipsLegacyEmptyRows(t *testing.T) {
 	if err := a.chatStore.AppendExchange(topic.ID, "指令一", "第一回正文。", ""); err != nil {
 		t.Fatalf("AppendExchange: %v", err)
 	}
-	// 失败轮遗留：用户指令 + 零正文 assistant 行（v4.423 前的历史数据形态）
-	if err := a.chatStore.AppendExchange(topic.ID, "指令二", "", ""); err != nil {
-		t.Fatalf("AppendExchange(空行): %v", err)
+	// 失败轮遗留：用户指令 + 零正文 assistant 行（v4.423 前的历史数据形态）。
+	// AppendExchange 已拒绝空 assistant（众神殿刀1 防线），历史形态改用单条口
+	// AppendMessage 直接种入（user+assistant 两行，保持旧数据成对形态）。
+	if _, err := a.chatStore.AppendMessage(topic.ID, "user", "指令二", ""); err != nil {
+		t.Fatalf("AppendMessage(指令二): %v", err)
+	}
+	if _, err := a.chatStore.AppendMessage(topic.ID, "assistant", "", ""); err != nil {
+		t.Fatalf("AppendMessage(空行): %v", err)
 	}
 	if err := a.chatStore.AppendExchange(topic.ID, "指令三", "第二回正文。", ""); err != nil {
 		t.Fatalf("AppendExchange(2): %v", err)
