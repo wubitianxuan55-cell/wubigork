@@ -102,3 +102,25 @@ status+save_task/读屏挂未来重评），M5 解冻待排刀。
 
 - 真机一句话验收（用户侧）；M5 排刀；误打断率语料门（venv 出局后
   A/B 基线改 Go 自证口径待定）。
+
+## M5 三刀落地（2026-11-05 午后，§7 拍板后解冻；未实弹待用户真机验证）
+
+- **刀一（cb885709）T0 免确认+回执朗读**：PreviewIntent 对 navigate/status
+  直接执行返回 executed（不入台账）；前端出回执不出确认卡；回执 TTS 朗读
+  （TTSSpeakStreaming 后端播+前端拉阈值 0.9 防回声假插话+估时恢复 0.5）。
+  执行层抽 execVoiceV2Action 包级桩点（单测禁连真引擎——GetModelMonitor
+  挂死教训）。契约四表同批（bridge/spaceBindings/legacy 摘除/mock 桩）；
+  顺手修 bindingSignatureCount 717→709 既有漂移（HEAD 态即红）。
+- **刀二（967b1fc4）模型工具通道**：语音 LLM 腿注入首批工具 schema
+  （get_status/save_task）；流式截获 tool_calls→T0 直执行回执（ack 追加进
+  回复流——前缀半句已播不可撤回）；T1 登记 P2 台账+gaea-voice-tool-preview
+  事件下发凭据→前端直出确认卡（复用 P2 执行钮）。频控=同 action 60s≤3
+  （防模型循环发起）；工具面即白名单（T2/T3 不在清单）。
+- **刀三（3c21f0e5）语音确认词（默认关）**：voice_confirm_word 键四登记+
+  handler 透传+面板 Switch；onTurnComplete 去标点精确匹配「确认执行」→
+  复用执行钮通道（幂等早退/每预览一次/非播放期）。确认词轮照常走 LLM
+  （管线面拦截挂后续刀）。
+- 测试：后端 config+app 全量绿；前端 1056 全绿；tsc 0。装机。
+- 待办：真机实弹三刀（T0 说「打开运行监测」直接切+朗读；工具轮说「查一下
+  现在用什么模型」走 get_status；「帮我记个任务 xx」出确认卡+「确认执行」
+  语音确认）→发版。
