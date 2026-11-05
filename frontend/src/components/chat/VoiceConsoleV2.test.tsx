@@ -70,6 +70,18 @@ const commitMock = vi.fn(async (
 const previewIntentMock = vi.fn(async (_text: string): Promise<Record<string, unknown>> => ({ handled: false }))
 const executeActionMock = vi.fn(async (_previewID: string, _intentHash: string): Promise<Record<string, unknown>> => ({ executed: false }))
 const speakAckMock = vi.fn(async (_text: string): Promise<void> => {})
+// 后端事件订阅桩（M5 刀二：模型工具预览凭据下发→确认卡）
+const eventHandlers = new Map<string, (data: unknown) => void>()
+vi.mock('../../events', () => ({
+  BACKEND_EVENTS: {
+    INTENT_NAVIGATE: 'gaea-intent-navigate',
+    VOICE_TOOL_PREVIEW: 'gaea-voice-tool-preview',
+  },
+  subscribe: (event: string, handler: (data: unknown) => void) => {
+    eventHandlers.set(event, handler)
+    return () => eventHandlers.delete(event)
+  },
+}))
 vi.mock('../../gaea/lib/bridge', () => ({
   app: {
     VoiceV2PreviewIntent: (...args: unknown[]) => previewIntentMock(...(args as [string])),
@@ -402,6 +414,26 @@ describe('VoiceConsoleV2', () => {
     expect(screen.queryByTestId('vc2-action-exec')).toBeNull()
     expect(screen.getByText('动作未能执行，请再说一次')).toBeTruthy()
     expect(speakAckMock).not.toHaveBeenCalled()
+  })
+
+  it('M5 刀二 模型工具 T1 预览事件：凭据直出确认卡，执行走 P2 通道', async () => {
+    executeActionMock.mockResolvedValue({ executed: true, reply: '好，任务已保存。', action: 'save_task' })
+    renderConsole()
+    await act(async () => {
+      eventHandlers.get('gaea-voice-tool-preview')?.({
+        previewId: 'vap_tool1', intentHash: 'hasht1',
+        action: 'save_task', reply: '我来帮你保存任务「写周报」，请在确认卡上点执行。',
+      })
+      await Promise.resolve()
+    })
+    expect(screen.getByText('我来帮你保存任务「写周报」，请在确认卡上点执行。')).toBeTruthy()
+    expect(screen.getByText('识别到动作 · 待确认')).toBeTruthy()
+    await act(async () => {
+      screen.getByTestId('vc2-action-exec').click()
+      await Promise.resolve()
+    })
+    expect(executeActionMock).toHaveBeenCalledWith('vap_tool1', 'hasht1')
+    expect(screen.getByText('好，任务已保存。')).toBeTruthy()
   })
 
   it('P2 白名单外动作：可预览不可执行（无执行钮）', async () => {

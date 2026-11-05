@@ -6,6 +6,7 @@
  * （useChatVoice 同款纪律：会话绑开启时话题，迟到轮不串台）。
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { BACKEND_EVENTS, subscribe } from '../../events'
 import { Button, message, Tooltip } from 'antd'
 import {
   AudioOutlined,
@@ -276,6 +277,27 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
   useEffect(() => {
     vadCtlRef.current = (v: number) => v2.updateVADThreshold(v)
   }, [v2.updateVADThreshold])
+
+  // M5 刀二：模型工具 T1 预览凭据经后端事件下发（save_task 等不经规则解析，
+  // PreviewIntent 摸不到）——收凭据直接出确认卡，执行复用 P2 通道。
+  useEffect(() => {
+    const unsub = subscribe(BACKEND_EVENTS.VOICE_TOOL_PREVIEW, (data: unknown) => {
+      if (!mountedRef.current || !data || typeof data !== 'object') return
+      const p = data as Record<string, unknown>
+      const previewId = typeof p.previewId === 'string' ? p.previewId : ''
+      const intentHash = typeof p.intentHash === 'string' ? p.intentHash : ''
+      if (!previewId || !intentHash) return
+      setActionResult('')
+      setActionPreview({
+        reply: String(p.reply ?? ''),
+        action: String(p.action ?? ''),
+        previewId,
+        intentHash,
+        executable: true,
+      })
+    })
+    return unsub
+  }, [])
 
   // Dedicated room: move focus into the workspace on entry. Float keeps the
   // compact bar and collapses back into it. Escape follows the same hierarchy.

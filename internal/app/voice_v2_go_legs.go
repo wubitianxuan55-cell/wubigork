@@ -46,14 +46,17 @@ func (l voiceNativeLLMLeg) Reply(
 	}
 	// ② 消息装配（稳定段/动态段/长期记忆注入，applyVoiceV2PreparedPrompt 同位）
 	msgs := l.assembleMessages(prepared, userText, history)
-	// ③ 聊天板块功能绑定流式（voiceV2ChatLLMStream=网关 chat 腿的可桩点原样骑行）
-	chunks, err := voiceV2ChatLLMStream(ctx, l.a, msgs)
+	// ③ 聊天板块功能绑定流式（voiceV2ChatLLMStream=网关 chat 腿的可桩点原样骑行）。
+	// M5 刀二：注入首批工具 schema（status/save_task），模型按需发起 tool_calls——
+	// 截获而非剥除（e211ff9e 反面）；截获处理见 dispatchVoiceV2Tool。
+	chunks, err := voiceV2ChatLLMStream(ctx, l.a, msgs, voiceV2ToolSchemas)
 	if err != nil {
 		l.a.rollbackPrepared(prepared)
 		return "", 0, 0, err
 	}
 	var full strings.Builder
 	inT, outT := 0, 0
+	var toolCalls []ai.ChatToolCall
 	for chunk := range chunks {
 		if chunk.Error != "" {
 			l.a.rollbackPrepared(prepared)
@@ -61,6 +64,9 @@ func (l voiceNativeLLMLeg) Reply(
 		}
 		if chunk.Usage != nil {
 			inT, outT = int(chunk.Usage.PromptTokens), int(chunk.Usage.CompletionTokens)
+		}
+		if len(chunk.ToolCalls) > 0 {
+			toolCalls = append(toolCalls, chunk.ToolCalls...)
 		}
 		if chunk.Done {
 			break
@@ -71,6 +77,26 @@ func (l voiceNativeLLMLeg) Reply(
 		}
 		full.WriteString(chunk.Content)
 		onDelta(chunk.Content)
+	}
+	// M5 刀二：模型发起工具调用 → 分派（T0 直执行回执/T1 台账+事件出确认卡）。
+	// ack 经 onDelta 一次性下发——管线侧 transcript.delta+分句 TTS 同源骑行，
+	// 对话落库（CommitTurn）照常。工具轮不取消预推进（ack 就是本轮回复）。
+	if len(toolCalls) > 0 && ctx.Err() == nil {
+		var preview map[string]interface{}
+		ack := ""
+		for _, call := range toolCalls {
+			ack, preview = l.a.dispatchVoiceV2Tool(call)
+			if preview != nil {
+				l.a.app.emit(voiceV2ToolPreviewEvent, preview)
+			}
+			break // 首批单工具语义：一次调用一回复（多 call 余量忽略——频控+话术已兜）
+		}
+		if ack != "" {
+			// 追加而非替换：发起调用前的模型前缀已流经 onDelta（管线半句已播），
+			// transcript 必须与已播音频同序一致——前缀+ack 全量落库与朗读。
+			full.WriteString(ack)
+			onDelta(ack)
+		}
 	}
 	if ctx.Err() != nil {
 		// barge-in/取消：预推进无人消费，回滚防幽灵（网关客户端断开回滚同位）
@@ -164,7 +190,8 @@ func (a *mediaState) voiceV2LongTermContext(userMsg string) string {
 }
 
 // voiceV2ChatLLMStream 语音对话「跟随聊天板块」腿的可桩点（测试替身注入）。
-var voiceV2ChatLLMStream = func(ctx context.Context, a *mediaState, msgs []ai.ChatMessage) (<-chan ai.SSEChunk, error) {
+// tools=M5 刀二注入的工具 schema（nil=不带工具面）。
+var voiceV2ChatLLMStream = func(ctx context.Context, a *mediaState, msgs []ai.ChatMessage, tools []ai.ChatToolSchema) (<-chan ai.SSEChunk, error) {
 	if a.clientRef() == nil {
 		return nil, fmt.Errorf("AI 客户端未初始化")
 	}
@@ -174,7 +201,7 @@ var voiceV2ChatLLMStream = func(ctx context.Context, a *mediaState, msgs []ai.Ch
 	}
 	return a.clientRef().ChatStream(ctx, &ai.ChatRequest{
 		Model: model, EngineID: eng, Feature: "voice_v2",
-		Messages: msgs, Stream: true,
+		Messages: msgs, Stream: true, Tools: tools,
 	})
 }
 

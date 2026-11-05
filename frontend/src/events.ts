@@ -61,6 +61,8 @@ export const BACKEND_EVENTS = {
   WHISPER_PROACTIVE: 'gaea-whisper-proactive',
   /** 指令中枢导航（v4.5：语音等入口的意图命中 → navigateBoard 自动切空间） */
   INTENT_NAVIGATE: 'gaea-intent-navigate',
+  /** M5 刀二：模型工具 T1 预览凭据下发（语音台出确认卡；payload=previewId/intentHash/action/reply） */
+  VOICE_TOOL_PREVIEW: 'gaea-voice-tool-preview',
   /** 桥接就绪（bridge.ts onReady） */
   GAEA_READY: 'gaea-ready',
 } as const

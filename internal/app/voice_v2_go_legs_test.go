@@ -19,7 +19,7 @@ func TestVoiceNativeLLMLegPreparesAndStreams(t *testing.T) {
 	t.Cleanup(func() { voiceV2ChatLLMStream = oldStream })
 
 	var gotMsgs []ai.ChatMessage
-	voiceV2ChatLLMStream = func(_ context.Context, _ *mediaState, msgs []ai.ChatMessage) (<-chan ai.SSEChunk, error) {
+	voiceV2ChatLLMStream = func(_ context.Context, _ *mediaState, msgs []ai.ChatMessage, _ []ai.ChatToolSchema) (<-chan ai.SSEChunk, error) {
 		gotMsgs = msgs
 		ch := make(chan ai.SSEChunk, 4)
 		ch <- ai.SSEChunk{Reasoning: "思考过程"} // reasoning delta 不转发——语音不朗读思考
@@ -132,7 +132,7 @@ func TestVoiceNativeLLMLegPlainMemoryFallback(t *testing.T) {
 func TestVoiceNativeLLMLegStreamErrorRollsBack(t *testing.T) {
 	oldStream := voiceV2ChatLLMStream
 	t.Cleanup(func() { voiceV2ChatLLMStream = oldStream })
-	voiceV2ChatLLMStream = func(_ context.Context, _ *mediaState, _ []ai.ChatMessage) (<-chan ai.SSEChunk, error) {
+	voiceV2ChatLLMStream = func(_ context.Context, _ *mediaState, _ []ai.ChatMessage, _ []ai.ChatToolSchema) (<-chan ai.SSEChunk, error) {
 		return nil, fmt.Errorf("模型不可用")
 	}
 
@@ -173,7 +173,7 @@ func TestVoiceNativeLLMLegCancelRollsBack(t *testing.T) {
 	// barge-in/取消：ctx 断流=预推进无人消费，回滚防幽灵（网关客户端断开同位）。
 	oldStream := voiceV2ChatLLMStream
 	t.Cleanup(func() { voiceV2ChatLLMStream = oldStream })
-	voiceV2ChatLLMStream = func(ctx context.Context, _ *mediaState, _ []ai.ChatMessage) (<-chan ai.SSEChunk, error) {
+	voiceV2ChatLLMStream = func(ctx context.Context, _ *mediaState, _ []ai.ChatMessage, _ []ai.ChatToolSchema) (<-chan ai.SSEChunk, error) {
 		ch := make(chan ai.SSEChunk, 2)
 		ch <- ai.SSEChunk{Content: "半截"}
 		go func() {
