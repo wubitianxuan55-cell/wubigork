@@ -27,17 +27,18 @@ import { ChatComposer, QUICK_REPLIES } from '../components/chat/ChatComposer'
 const EMPTY_REPLIES: Array<{ label: string; text: string }> = []
 import { ChatInspector } from '../components/chat/ChatInspector'
 import VoiceConsoleV2 from '../components/chat/VoiceConsoleV2'
-import { STREAM_SILENCE_TIMEOUT_MS, EMO_COLORS } from './chat/constants'
+import { STREAM_SILENCE_TIMEOUT_MS, CHAT_ENGINE_START_TIMEOUT_MS, EMO_COLORS } from './chat/constants'
 import { navigateToCharacterLib, loadCompanionName, toUpdatedAt, loadPersonality } from './chat/utils'
 import type { ChatMsg, Personality } from './chat/types'
 import '../chat-board.css'
 import '../chat-workspace.css'
+import '../chat-signal-redesign.css'
 import { GenuiScopeProvider } from '../genui/scope'
 import { GenuiActionProvider } from '../genui/GenuiActionContext'
 
 // T6-3.1：流式对话无帧超时（30s 无任何帧即视为失败）。测试从 ChatPage 导入
 // （vitest fake timers 推进同一阈值），故在此再导出。
-export { STREAM_SILENCE_TIMEOUT_MS }
+export { STREAM_SILENCE_TIMEOUT_MS, CHAT_ENGINE_START_TIMEOUT_MS }
 
 function initialCollapsed(key: string): boolean {
   try {
@@ -125,6 +126,14 @@ const ChatPage: React.FC = () => {
     voiceInspectorRestoreRef.current = null
     setInspectorCollapsed(restore)
   }, [voiceConsoleOpen, inspectorCollapsed])
+
+  // The voice room owns the full content area while active. Keep app-level
+  // chrome available, but release the status rail space for the conversation.
+  useEffect(() => {
+    const root = document.documentElement
+    root.classList.toggle('gaea-voice-room-open', voiceConsoleOpen)
+    return () => root.classList.remove('gaea-voice-room-open')
+  }, [voiceConsoleOpen])
 
   useEffect(() => {
     const collapseForCompactWindow = () => {
@@ -374,7 +383,6 @@ const ChatPage: React.FC = () => {
       force: forceSearchRef.current,
     })
   }, [sending, send, activeIdRef, modeRef])
-  const handleSuggestion = useCallback((label: string) => { doSend(label) }, [doSend])
   const handleFillInput = useCallback((label: string) => { setInput(label); inputRef.current?.focus?.() }, [])
   const handleRetry = useCallback((msgKey: string) => {
     const idx = messages.findIndex(m => m.key === msgKey)
@@ -490,43 +498,61 @@ const ChatPage: React.FC = () => {
 
   return (
     <div
-      className={`chat-board chat-cockpit${voiceConsoleOpen ? ' chat-voice-mode' : ''}`}
+      className={`chat-board chat-cockpit chat-signal-redesign${voiceConsoleOpen ? ' chat-voice-mode' : ''}`}
       style={{ flex: 1, minHeight: 0, position: 'relative' }}
     >
-      <a className="chat-skip-link" href="#chat-workspace">跳到对话内容</a>
-      <ChatTopicSidebar
-        topics={topicList}
-        activeId={activeId}
-        onSelect={selectTopic}
-        onCreate={handleCreate}
-        onDelete={handleDelete}
-        onRename={renameTopic}
-        collapsed={sidebarCollapsed}
-        onToggle={toggleChatSidebar}
-      />
-
-      <div className="v3-split-v" aria-hidden="true" />
-
-      <main className="chat-main v3-zone">
-        <style>{mdStyles}</style>
-        {mode !== 'plain' && !voiceConsoleOpen && <ParticleFlow aro={aro} />}
-        <SoundWaveOverlay active={speakingId !== null} aff={aff} aro={aro} />
-
-        <header className="chat-workspace-head">
-          <div className="chat-workspace-identity">
-            <span className="chat-workspace-kicker">CONVERSATION</span>
-            <div className="chat-workspace-title-row">
-              <h1 id="chat-workspace" tabIndex={-1}>{workspaceTitle}</h1>
-              <span className="chat-workspace-status" aria-live="polite">{workspaceStatus}</span>
-            </div>
-          </div>
-          <div className="chat-workspace-mode" title="会话记录保存在本机">
-            <span className="chat-workspace-mode-dot" aria-hidden />
-            本机保存
-          </div>
-        </header>
-
+      <a className="chat-skip-link" href={voiceConsoleOpen ? '#voice-workspace' : '#chat-workspace'}>
+        {voiceConsoleOpen ? '跳到语音控制' : '跳到对话内容'}
+      </a>
+      {!voiceConsoleOpen && (
         <>
+          <ChatTopicSidebar
+            topics={topicList}
+            activeId={activeId}
+            onSelect={selectTopic}
+            onCreate={handleCreate}
+            onDelete={handleDelete}
+            onRename={renameTopic}
+            collapsed={sidebarCollapsed}
+            onToggle={toggleChatSidebar}
+          />
+          <div className="v3-split-v" aria-hidden="true" />
+        </>
+      )}
+
+      <main className={`chat-main v3-zone${voiceConsoleOpen ? ' chat-voice-room-main' : ''}`}>
+        <style>{mdStyles}</style>
+        {voiceConsoleOpen ? (
+          <VoiceConsoleV2
+            companionName={companionName}
+            instructions={v2Instructions}
+            voiceId={v2VoiceId}
+            variant="full"
+            topicTitle={topics.find(t => t.id === activeId)?.title}
+            onClose={handleCloseVoiceConsole}
+            onOpenSettings={handleOpenVoiceSettings}
+            setMessages={setMessages}
+            getActiveId={() => activeIdRef.current}
+            finalizeTopicAfterSend={finalizeTopicAfterSend}
+          />
+        ) : (
+          <>
+            {mode !== 'plain' && <ParticleFlow aro={aro} />}
+            <SoundWaveOverlay active={speakingId !== null} aff={aff} aro={aro} />
+            <header className="chat-workspace-head">
+              <div className="chat-workspace-identity">
+                <span className="chat-workspace-kicker">当前会话</span>
+                <div className="chat-workspace-title-row">
+                  <h1 id="chat-workspace" tabIndex={-1}>{workspaceTitle}</h1>
+                  <span className="chat-workspace-status" aria-live="polite">{workspaceStatus}</span>
+                </div>
+              </div>
+              <div className="chat-workspace-mode" title="会话记录保存在本机">
+                <span className="chat-workspace-mode-dot" aria-hidden />
+                本机保存
+              </div>
+            </header>
+
             {/* 人格状态条（临场感：头像常驻 + 名字；状态/记忆归角色库） */}
             {mode !== 'plain' && hasMessages && (
               <ChatPersonaBar
@@ -560,7 +586,6 @@ const ChatPage: React.FC = () => {
                   onSwitchPersonality={handleSwitchPersonality}
                   onNavigateLib={navigateToCharacterLib}
                   onFillInput={handleFillInput}
-                  onSuggestion={handleSuggestion}
                   onOpenVoiceConsole={handleOpenVoiceConsole}
                 />
               ) : (
@@ -593,23 +618,6 @@ const ChatPage: React.FC = () => {
               </button>
             )}
 
-            {/* P1.5 内嵌语音条：V2 默认入口在输入区（bar），展开=浮层整幅；
-                同一实例同一条会话线，工作区不再被开台接管 */}
-            {voiceConsoleOpen && (
-              <VoiceConsoleV2
-                companionName={companionName}
-                instructions={v2Instructions}
-                voiceId={v2VoiceId}
-                variant="bar"
-                topicTitle={topics.find(t => t.id === activeId)?.title}
-                onClose={handleCloseVoiceConsole}
-                onOpenSettings={handleOpenVoiceSettings}
-                setMessages={setMessages}
-                getActiveId={() => activeIdRef.current}
-                finalizeTopicAfterSend={finalizeTopicAfterSend}
-              />
-            )}
-
             {/* 输入岛 */}
             <ChatComposer
               mode={mode}
@@ -628,30 +636,34 @@ const ChatPage: React.FC = () => {
               onStop={stop}
               onFillInput={handleFillInput}
             />
-        </>
+          </>
+        )}
       </main>
 
-      <div className="v3-split-v" aria-hidden="true" />
-
-      <ChatInspector
-        mode={mode}
-        personalities={personalities}
-        activePersonality={activePersonality}
-        companionName={companionName}
-        emoColor={emoColor}
-        messages={messages}
-        speaking={speakingId !== null}
-        thinking={sending}
-        quickReplies={mode !== 'plain' ? QUICK_REPLIES : EMPTY_REPLIES}
-        collapsed={inspectorCollapsed}
-        onToggle={toggleChatInspector}
-        onFillInput={handleFillInput}
-        onSwitchPersonality={handleSwitchPersonality}
-        onExport={handleExport}
-        onClear={handleClearMessages}
-        onOpenVoiceSettings={handleOpenVoiceSettings}
-        onNavigateLib={navigateToCharacterLib}
-      />
+      {!voiceConsoleOpen && (
+        <>
+          <div className="v3-split-v" aria-hidden="true" />
+          <ChatInspector
+            mode={mode}
+            personalities={personalities}
+            activePersonality={activePersonality}
+            companionName={companionName}
+            emoColor={emoColor}
+            messages={messages}
+            speaking={speakingId !== null}
+            thinking={sending}
+            quickReplies={mode !== 'plain' ? QUICK_REPLIES : EMPTY_REPLIES}
+            collapsed={inspectorCollapsed}
+            onToggle={toggleChatInspector}
+            onFillInput={handleFillInput}
+            onSwitchPersonality={handleSwitchPersonality}
+            onExport={handleExport}
+            onClear={handleClearMessages}
+            onOpenVoiceSettings={handleOpenVoiceSettings}
+            onNavigateLib={navigateToCharacterLib}
+          />
+        </>
+      )}
 
       {/* 模型状态统一由顶栏轨道条展示（3.0 定制：移除左下角悬浮模型卡） */}
 
@@ -661,7 +673,7 @@ const ChatPage: React.FC = () => {
       </Modal>
 
       {/* 顶栏模式切换条（T6-10.2：portal 进 MainLayout 的 v3-strip 宿主） */}
-      {modeBarHost !== null && createPortal(modeBar, modeBarHost)}
+      {modeBarHost !== null && !voiceConsoleOpen && createPortal(modeBar, modeBarHost)}
 
     </div>
   )

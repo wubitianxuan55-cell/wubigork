@@ -44,6 +44,9 @@ REM System32 may hold a stale global onnxruntime.dll; the loader resolves
 REM imports from the EXE directory first, so the copy step below is mandatory.
 set CGO_ENABLED=1
 set CC=C:\msys64\ucrt64\bin\gcc.exe
+REM Wails binding generation resolves the C compiler from PATH in a child
+REM process, so CC alone is insufficient on a clean shell.
+set PATH=C:\msys64\ucrt64\bin;%PATH%
 call wails build -s -ldflags "-s -w" -trimpath
 if errorlevel 1 (
     echo [FAIL] wails build failed

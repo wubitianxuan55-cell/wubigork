@@ -17,6 +17,11 @@ export const MIGRATION_KEY = 'gaea_chat_migration_v1'
 // （vitest fake timers 推进同一阈值）；后端正常完成必 emit done、失败必 emit error。
 export const STREAM_SILENCE_TIMEOUT_MS = 30_000
 
+// 绑定本地引擎可能需要在首个 runID 返回前完成 35B 冷启动。该窗口与后端
+// qwen35Ensure（300s）同量级，给后端 20s 收尾余量；runID 一到即切回上面的
+// 30s 流式无帧超时，不延长已开始生成的容忍时间。
+export const CHAT_ENGINE_START_TIMEOUT_MS = 320_000
+
 // 情绪类别专用色：已收敛到 utils/emotionColors.ts 单源（2026-10-04 第三轮审计 §3.2，
 // 此前两处 9 色逐字全等、改色必漏一处）。保留 EMO_COLORS 域名：chat 域消费方
 // （emotions.ts / ChatPage.tsx）导入路径零改动。hex 豁免理由见单源文件头注释。

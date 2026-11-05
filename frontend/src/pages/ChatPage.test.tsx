@@ -121,7 +121,7 @@ vi.mock('../components/SoundWaveOverlay', () => ({ SoundWaveOverlay: () => null 
 vi.mock('../components/PersonaPicker', () => ({ default: () => null }))
 vi.mock('../components/VoiceSettingsPanel', () => ({ default: () => null }))
 
-import ChatPage, { STREAM_SILENCE_TIMEOUT_MS } from './ChatPage'
+import ChatPage, { CHAT_ENGINE_START_TIMEOUT_MS, STREAM_SILENCE_TIMEOUT_MS } from './ChatPage'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 // P3 版3 终局：wailsjsCompat shim 已退役——测试经 bindingsBridge 共享 vi.fn 直取。
 const {
@@ -252,6 +252,36 @@ describe('T6-3.1 流订阅竞态与超时', () => {
     expect(runtimeMock.unsubs.length).toBeGreaterThanOrEqual(1)
   })
 
+  it('绑定模型冷启动超过 30s 时不误判流超时；runID 到达后再启用 30s 流计时', async () => {
+    vi.useFakeTimers()
+    let resolveRunID: (id: string) => void = () => {}
+    vi.mocked(ChatStreamPlain).mockImplementation(() => new Promise<string>((r) => { resolveRunID = r }))
+    await renderChat()
+    await sendMessage('你好')
+
+    await act(async () => { vi.advanceTimersByTime(STREAM_SILENCE_TIMEOUT_MS + 1) })
+    expect(screen.queryByText(/请求超时：/)).toBeNull()
+
+    await act(async () => { resolveRunID('run-1') })
+    await flushAsync()
+    expect(runtimeMock.handlers['chat-stream:run-1']).toBeDefined()
+
+    await act(async () => { vi.advanceTimersByTime(STREAM_SILENCE_TIMEOUT_MS + 1) })
+    expect(screen.getByText(/请求超时：30 秒内未收到回复/)).toBeTruthy()
+  })
+
+  it('绑定模型启动超过独立启动窗：显示启动超时并复位 sending', async () => {
+    vi.useFakeTimers()
+    vi.mocked(ChatStreamPlain).mockImplementation(() => new Promise<string>(() => {}))
+    await renderChat()
+    await sendMessage('你好')
+
+    await act(async () => { vi.advanceTimersByTime(CHAT_ENGINE_START_TIMEOUT_MS + 1) })
+    expect(screen.getByText(/绑定模型启动超时/)).toBeTruthy()
+    const ta = screen.getByPlaceholderText(/输入消息/) as HTMLTextAreaElement
+    expect(ta.disabled).toBe(false)
+  })
+
   it('error 事件：显示失败并复位 sending', async () => {
     await renderChat()
     await sendMessage('你好')
@@ -284,6 +314,27 @@ describe('T6-3.1 流订阅竞态与超时', () => {
     unmount()
     // 卸载即清理监听
     expect(runtimeMock.handlers['chat-stream:run-1']).toBeUndefined()
+  })
+})
+
+describe('聊天三栏布局', () => {
+  it('左右栏折叠按钮切换为窄栏，并可再次展开', async () => {
+    const { container } = await renderChat()
+    const left = container.querySelector('.chat-topic-sidebar') as HTMLElement
+    const right = container.querySelector('.chat-inspector') as HTMLElement
+
+    fireEvent.click(screen.getByLabelText('折叠会话列表'))
+    expect(left.classList.contains('is-collapsed')).toBe(true)
+    expect(screen.getByLabelText('展开会话列表')).toBeTruthy()
+
+    fireEvent.click(screen.getByLabelText('折叠上下文面板'))
+    expect(right.classList.contains('is-collapsed')).toBe(true)
+    expect(screen.getByLabelText('展开上下文面板')).toBeTruthy()
+
+    fireEvent.click(screen.getByLabelText('展开会话列表'))
+    fireEvent.click(screen.getByLabelText('展开上下文面板'))
+    expect(left.classList.contains('is-collapsed')).toBe(false)
+    expect(right.classList.contains('is-collapsed')).toBe(false)
   })
 })
 

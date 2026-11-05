@@ -7,6 +7,7 @@ import {
   initialVoiceSession,
   orderingViolations,
   reduceVoiceSession,
+  voiceTranscriptMessages,
   type VoiceSessionState,
 } from './voiceSession'
 import {
@@ -141,6 +142,40 @@ describe('reduceVoiceSession（bargein）', () => {
 })
 
 describe('response 与用户转写精确配对', () => {
+  it('多轮定稿按用户、助手交替展开，而不是先列全部用户再列最后回答', () => {
+    let s = initialVoiceSession()
+    for (const turn of [
+      { itemId: 'u1', responseId: 'r1', user: '第一轮问题', assistant: '第一轮回答' },
+      { itemId: 'u2', responseId: 'r2', user: '第二轮问题', assistant: '第二轮回答' },
+    ]) {
+      s = reduceVoiceSession(s, {
+        type: 'conversation.item.input_audio_transcription.completed',
+        item_id: turn.itemId,
+        transcript: turn.user,
+      })
+      s = reduceVoiceSession(s, {
+        type: 'response.created',
+        response: { id: turn.responseId, status: 'in_progress' },
+      })
+      s = reduceVoiceSession(s, {
+        type: 'response.output_audio_transcript.done',
+        response_id: turn.responseId,
+        transcript: turn.assistant,
+      })
+      s = reduceVoiceSession(s, {
+        type: 'response.done',
+        response: { id: turn.responseId, status: 'completed' },
+      })
+    }
+
+    expect(voiceTranscriptMessages(s).map(({ role, text }) => [role, text])).toEqual([
+      ['user', '第一轮问题'],
+      ['assistant', '第一轮回答'],
+      ['user', '第二轮问题'],
+      ['assistant', '第二轮回答'],
+    ])
+  })
+
   it('旧 response.done 迟到时仍取旧轮用户文本，不串到下一句', () => {
     let s = initialVoiceSession()
     s = reduceVoiceSession(s, {

@@ -65,7 +65,12 @@ func llamaProbe() ([]string, bool) {
 			ids = append(ids, m.ID)
 		}
 	}
-	return ids, len(ids) > 0
+	if len(ids) == 0 {
+		return nil, false
+	}
+	// llama-server 的 /v1/models 返回 GGUF 绝对路径；模型目录与功能绑定使用
+	// 稳定档位 id，避免模型根迁移后把旧路径持久化进聊天配置。
+	return []string{llamaProfiles[0].ModelID}, true
 }
 
 func llamaProfileFromModels(served []string) string {

@@ -8,7 +8,11 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { VoiceClientV2, type VoiceTransport } from '../client/VoiceClientV2'
-import type { VoiceSessionState } from '../session/voiceSession'
+import {
+  voiceTranscriptMessages,
+  type VoiceSessionState,
+  type VoiceTranscriptMessage,
+} from '../session/voiceSession'
 import type { ServerEvent } from '../protocol/events'
 import { app } from '../../gaea/lib/bridge'
 import { subscribeWailsEvent } from '../../gaea/lib/wailsEvents'
@@ -69,6 +73,8 @@ function adaptWs(ws: WebSocket): WsTransport {
 export interface VoiceChatV2Api {
   phase: VoiceSessionState['phase']
   transcripts: string[]
+  /** 按轮次展开的用户/助手交替时间线（含当前轮实时文本） */
+  dialogue: VoiceTranscriptMessage[]
   partialTranscript: string
   assistantText: string
   pbText: string
@@ -106,6 +112,7 @@ export interface VoiceChatV2Api {
 export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api {
   const [phase, setPhase] = useState<VoiceSessionState['phase']>('idle')
   const [transcripts, setTranscripts] = useState<string[]>([])
+  const [dialogue, setDialogue] = useState<VoiceTranscriptMessage[]>([])
   const [partial, setPartial] = useState('')
   const [assistantText, setAssistantText] = useState('')
   const [pbText, setPbText] = useState('')
@@ -185,6 +192,7 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
     }
     setPhase(s.phase)
     setTranscripts(s.committedTranscripts)
+    setDialogue(voiceTranscriptMessages(s))
     setPartial(s.partialTranscript)
     setAssistantText(s.assistantText)
   }, [flushSink])
@@ -340,6 +348,7 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
       // 新会话清掉上一连接的可视账；聊天持久化不在这里删除。
       setPhase('idle')
       setTranscripts([])
+      setDialogue([])
       setPartial('')
       setAssistantText('')
       setPbText('')
@@ -715,7 +724,7 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
   }, [])
 
   return {
-    phase, transcripts, partialTranscript: partial, assistantText,
+    phase, transcripts, dialogue, partialTranscript: partial, assistantText,
     pbText, tail, connected, micOn, micLevel, micSilent, note, services, ensuring,
     connect, disconnect, startMic, stopMic, cancel, abortInFlight, updateVADThreshold,
     ensureServices, refreshServices, replayEvents,

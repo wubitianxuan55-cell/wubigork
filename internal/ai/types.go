@@ -84,6 +84,7 @@ type ChatRequest struct {
 
 	skipIncludeUsage bool `json:"-"` // 内部：重试时不再请求 include_usage
 	failoverDone     bool `json:"-"` // 内部：故障转移重试请求已转移过一次，不再二次转移（C 刀 v0）
+	DisableFailover  bool `json:"-"` // 显式功能绑定：失败就是失败，不静默换到其它引擎
 }
 
 // ChatStreamOptions OpenAI 兼容流式附加选项。
@@ -110,6 +111,7 @@ type ChatSimpleOptions struct {
 	DisableThinking bool
 	TopP            float64 // nucleus sampling（0 表示不发送）
 	TimeoutMinutes  int     // 超时分钟数（0 表示使用默认 5 分钟）
+	DisableFailover bool    // 显式功能绑定命中时锁定路由，禁止换引擎重试
 }
 
 // ChatChoice 单个候选

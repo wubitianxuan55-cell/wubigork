@@ -5,7 +5,7 @@
 import React from 'react'
 import { Input, Button, Tooltip } from 'antd'
 import {
-  GlobalOutlined, BulbOutlined, AudioOutlined, StopOutlined, PauseCircleOutlined, SendOutlined,
+  GlobalOutlined, BulbOutlined, AudioOutlined, PauseCircleOutlined, SendOutlined,
 } from '@ant-design/icons'
 
 // ── 快捷情绪回复（人格模式输入区 chips；导出供右侧 inspector 快捷建议复用） ──
@@ -76,7 +76,7 @@ const ChatComposerInner: React.FC<ChatComposerProps> = ({
         ))}
       </div>
     )}
-    {/* 工具行：搜索 / 深度思考 / 语音 + 键盘提示（与输入卡分离，激活态一目了然） */}
+    {/* 工具行：搜索 / 深度思考 + 键盘提示；语音是主输入方式，进入输入卡右侧。 */}
     <div className="chat-composer-tools">
       <ComposerTool
         active={forceSearch}
@@ -94,14 +94,6 @@ const ChatComposerInner: React.FC<ChatComposerProps> = ({
         title={thinking ? '深度思考已开启（本地模型先思考再回答）' : '深度思考（本地模型先思考再回答）'}
         ariaLabel={thinking ? '关闭深度思考' : '开启深度思考'}
       />
-      <ComposerTool
-        active={voiceOpen}
-        onClick={onToggleVoice}
-        label="语音"
-        icon={voiceOpen ? <StopOutlined /> : <AudioOutlined />}
-        title={voiceOpen ? '结束语音会话' : '语音对话（实时语音台）'}
-        ariaLabel={voiceOpen ? '结束语音' : '语音输入'}
-      />
       <span className="chat-composer-hint">
         {sending && <span className="chat-composer-running" aria-live="polite">正在生成</span>}
         Enter 发送 · Shift+Enter 换行
@@ -113,13 +105,25 @@ const ChatComposerInner: React.FC<ChatComposerProps> = ({
         value={input}
         onChange={e => onInputChange(e.target.value)}
         onKeyDown={onKeyDown}
-        placeholder='输入消息…'
+        placeholder='输入消息，或点右侧语音直接开口…'
         disabled={sending}
         autoSize={{ minRows: 1, maxRows: 6 }}
         className="chat-input-textarea"
         aria-label="聊天消息"
         enterKeyHint="send"
       />
+      <Tooltip title={voiceOpen ? '结束语音会话' : '开始实时语音对话'}>
+        <button
+          type="button"
+          onClick={onToggleVoice}
+          aria-label={voiceOpen ? '结束语音会话' : '开始实时语音对话'}
+          aria-pressed={voiceOpen}
+          className={`chat-composer-voice${voiceOpen ? ' is-active' : ''}`}
+        >
+          <AudioOutlined aria-hidden="true" />
+          <span>{voiceOpen ? '语音中' : '语音'}</span>
+        </button>
+      </Tooltip>
       {sending ? (
         <Tooltip title="停止生成（已生成部分保留）">
           <Button

@@ -91,7 +91,7 @@ func (c *Client) ChatStream(ctx context.Context, req *ChatRequest) (<-chan SSECh
 		// C 刀故障转移 v0：doStreamRequest 只在「尚未收到任何响应字节」时返回
 		// 错误（连接失败/非 200；200 返回即流已开始，不进本分支）。可转移时换
 		// 候选引擎重试一次；重试请求带 failoverDone 标记，不再二次转移。
-		if req != nil && !req.failoverDone && !nonRetryableSendError(err) {
+		if req != nil && !req.failoverDone && !req.DisableFailover && !nonRetryableSendError(err) {
 			if to, toModel, ok := c.failoverTarget(reqEngine, err); ok {
 				slog.Warn("流式请求失败，故障转移重试", "from_engine", reqEngine, "to_engine", to, "model", toModel, "error", err)
 				retryReq := *req

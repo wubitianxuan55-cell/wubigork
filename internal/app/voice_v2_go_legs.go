@@ -195,12 +195,18 @@ var voiceV2ChatLLMStream = func(ctx context.Context, a *mediaState, msgs []ai.Ch
 	if a.clientRef() == nil {
 		return nil, fmt.Errorf("AI 客户端未初始化")
 	}
-	eng, model, _ := a.routeModel("chat")
+	if a.app == nil {
+		return nil, fmt.Errorf("聊天模型路由未初始化")
+	}
+	eng, model, source, err := a.app.resolveChatModelRoute()
+	if err != nil {
+		return nil, err
+	}
 	if model == "" {
 		return nil, fmt.Errorf("聊天板块模型不可用")
 	}
 	return a.clientRef().ChatStream(ctx, &ai.ChatRequest{
-		Model: model, EngineID: eng, Feature: "voice_v2",
+		Model: model, EngineID: eng, Feature: "voice_v2", DisableFailover: source == "feature",
 		Messages: msgs, Stream: true, Tools: tools,
 	})
 }

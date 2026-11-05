@@ -6,7 +6,7 @@ import { render, screen, act, fireEvent } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import VoiceConsoleV2 from './VoiceConsoleV2'
 import type { VoiceChatV2Api } from '../../voice/runtime/useVoiceChatV2'
-import type { VoiceSessionState } from '../../voice/session/voiceSession'
+import type { VoiceSessionState, VoiceTranscriptMessage } from '../../voice/session/voiceSession'
 import type { ChatMsg } from '../../pages/chat/types'
 
 // 钩子整桩：测试只关心视图消费与写回纪律
@@ -17,6 +17,7 @@ const captured: {
 const runtimeState = {
   phase: 'idle' as VoiceSessionState['phase'],
   transcripts: [] as string[],
+  dialogue: [] as VoiceTranscriptMessage[],
   partialTranscript: '',
   assistantText: '',
   pbText: '',
@@ -36,6 +37,7 @@ vi.mock('../../voice/runtime/useVoiceChatV2', () => ({
     return {
       phase: runtimeState.phase,
       transcripts: runtimeState.transcripts,
+      dialogue: runtimeState.dialogue,
       partialTranscript: runtimeState.partialTranscript,
       assistantText: runtimeState.assistantText,
       pbText: runtimeState.pbText,
@@ -127,6 +129,7 @@ describe('VoiceConsoleV2', () => {
     captured.abortInFlightCalls = 0
     runtimeState.phase = 'idle'
     runtimeState.transcripts = []
+    runtimeState.dialogue = []
     runtimeState.partialTranscript = ''
     runtimeState.assistantText = ''
     runtimeState.pbText = ''
@@ -185,7 +188,29 @@ describe('VoiceConsoleV2', () => {
 
   it('用户回看历史时不被新转写拉回底部，可一键回到最新', () => {
     runtimeState.transcripts = ['第一轮问题', '第二轮问题']
-    runtimeState.assistantText = '这是正在增长的较长回答，用于撑开实时转写区域。'
+    runtimeState.dialogue = [
+      {
+        id: 'response:r1:user',
+        role: 'user',
+        text: '第一轮问题',
+        responseId: 'r1',
+        itemId: 'u1',
+      },
+      {
+        id: 'response:r1:assistant',
+        role: 'assistant',
+        text: '这是正在增长的较长回答，用于撑开实时转写区域。',
+        responseId: 'r1',
+        itemId: 'u1',
+      },
+      {
+        id: 'response:r2:user',
+        role: 'user',
+        text: '第二轮问题',
+        responseId: 'r2',
+        itemId: 'u2',
+      },
+    ]
     renderConsole()
     const thread = screen.getByTestId('vc2-transcripts')
     Object.defineProperties(thread, {
@@ -206,10 +231,72 @@ describe('VoiceConsoleV2', () => {
     runtimeState.transcripts = ['帮我安排今天的任务']
     runtimeState.partialTranscript = '下午优先处理'
     runtimeState.assistantText = '我先从下午的事项开始安排。'
+    runtimeState.dialogue = [
+      {
+        id: 'response:r1:user',
+        role: 'user',
+        text: '帮我安排今天的任务',
+        responseId: 'r1',
+        itemId: 'item-1',
+      },
+      {
+        id: 'response:r1:assistant',
+        role: 'assistant',
+        text: '我先从下午的事项开始安排。',
+        responseId: 'r1',
+        itemId: 'item-1',
+      },
+    ]
     renderConsole()
     expect(screen.getByText('帮我安排今天的任务')).toBeTruthy()
     expect(screen.getByTestId('vc2-transcripts').textContent).toContain('下午优先处理')
     expect(screen.getByTestId('vc2-assistant').textContent).toContain('下午的事项')
+  })
+
+  it('多轮完成后对话记录按用户、助手严格交替', () => {
+    runtimeState.transcripts = ['第一轮问题', '第二轮问题']
+    runtimeState.dialogue = [
+      {
+        id: 'response:r1:user',
+        role: 'user',
+        text: '第一轮问题',
+        responseId: 'r1',
+        itemId: 'u1',
+      },
+      {
+        id: 'response:r1:assistant',
+        role: 'assistant',
+        text: '第一轮回答',
+        responseId: 'r1',
+        itemId: 'u1',
+      },
+      {
+        id: 'response:r2:user',
+        role: 'user',
+        text: '第二轮问题',
+        responseId: 'r2',
+        itemId: 'u2',
+      },
+      {
+        id: 'response:r2:assistant',
+        role: 'assistant',
+        text: '第二轮回答',
+        responseId: 'r2',
+        itemId: 'u2',
+      },
+    ]
+    renderConsole()
+
+    const thread = screen.getByTestId('vc2-transcripts')
+    const messages = Array.from(thread.querySelectorAll('.vc2-message'))
+    expect(messages.map((node) => node.classList.contains('is-user') ? 'user' : 'assistant'))
+      .toEqual(['user', 'assistant', 'user', 'assistant'])
+    expect(messages.map((node) => node.textContent)).toEqual([
+      '你第一轮问题',
+      '小音第一轮回答',
+      '你第二轮问题',
+      '小音第二轮回答',
+    ])
   })
 
   it('轮完成：一声明写回聊天并由后端触发人格记忆收尾', async () => {

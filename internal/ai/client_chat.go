@@ -48,6 +48,9 @@ func (c *Client) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, err
 	if nonRetryableSendError(err) {
 		return nil, err
 	}
+	if req.DisableFailover {
+		return nil, err
+	}
 	from := req.EngineID
 	if from == "" {
 		from = c.ActiveEngineID()
@@ -379,6 +382,7 @@ func (c *Client) prepareStreamRequest(model string, messages []ChatMessage, opts
 		Model:           model,
 		EngineID:        opts.EngineID,
 		Feature:         opts.Feature,
+		DisableFailover: opts.DisableFailover,
 		Messages:        messages,
 		MaxTokens:       maxTokens,
 		Temperature:     temperature,

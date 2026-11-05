@@ -125,10 +125,12 @@ const VoiceV2Lab: React.FC = () => {
               aria-live="polite"
               aria-busy={v2.phase === 'thinking'}
             >
-              {v2.transcripts.map((transcript, index) => (
-                <article key={index} className="v2l-user">
-                  <span>你</span>
-                  <p>{transcript}</p>
+              {v2.dialogue.map((entry) => (
+                <article key={entry.id} className={`v2l-${entry.role}`}>
+                  <span>{entry.role === 'user' ? '你' : '助手'}</span>
+                  <p data-testid={entry.role === 'assistant' ? 'v2l-assistant' : undefined}>
+                    {entry.text}
+                  </p>
                 </article>
               ))}
               {v2.partialTranscript && (
@@ -137,13 +139,9 @@ const VoiceV2Lab: React.FC = () => {
                   <p>{v2.partialTranscript}<i className="vc2-caret" aria-hidden="true" /></p>
                 </article>
               )}
-              {v2.transcripts.length === 0 && !v2.partialTranscript && (
+              {v2.dialogue.length === 0 && !v2.partialTranscript && (
                 <p className="v2l-partial">{v2.micOn ? '说话后，转写会出现在这里。' : '尚未收到用户转写。'}</p>
               )}
-              <article className="v2l-assistant">
-                <span>助手</span>
-                <p data-testid="v2l-assistant">{v2.assistantText || '等待模型回应…'}</p>
-              </article>
             </div>
           </section>
         </div>

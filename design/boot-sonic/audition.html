@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GAEA 启动声音盲听</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif;
+      background: #071013;
+      color: #e8f1ed;
+    }
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100dvh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at 50% 20%, rgba(85, 217, 182, 0.12), transparent 34%),
+        linear-gradient(180deg, #0b171b, #071013);
+    }
+    main {
+      width: min(980px, calc(100% - 32px));
+      padding: 56px 0;
+    }
+    .eyebrow {
+      color: #55d9b6;
+      font: 600 11px/1.4 Consolas, monospace;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+    h1 {
+      max-width: 760px;
+      margin: 12px 0 12px;
+      font-size: clamp(34px, 6vw, 64px);
+      font-weight: 620;
+      line-height: 1.02;
+      letter-spacing: -0.045em;
+    }
+    .lede {
+      max-width: 680px;
+      margin: 0;
+      color: #91a39d;
+      font-size: 15px;
+      line-height: 1.75;
+    }
+    .rules {
+      max-width: 720px;
+      margin: 22px 0 28px;
+      padding: 14px 16px;
+      border: 1px solid rgba(165, 207, 196, 0.14);
+      border-radius: 12px;
+      color: #728780;
+      font-size: 12px;
+      line-height: 1.65;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .card {
+      min-width: 0;
+      padding: 18px;
+      border: 1px solid rgba(165, 207, 196, 0.16);
+      border-radius: 16px;
+      background: rgba(11, 27, 31, 0.82);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+    .card.is-selected {
+      border-color: rgba(85, 217, 182, 0.72);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 0 0 3px rgba(85, 217, 182, 0.08);
+    }
+    .topline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #5a7069;
+      font: 600 9px/1 Consolas, monospace;
+      letter-spacing: 0.12em;
+    }
+    .topline b { color: #55d9b6; font-weight: 600; }
+    h2 {
+      margin: 30px 0 18px;
+      font-size: 22px;
+      font-weight: 580;
+    }
+    audio { width: 100%; height: 34px; }
+    .choose {
+      width: 100%;
+      height: 38px;
+      margin-top: 18px;
+      border: 1px solid rgba(165, 207, 196, 0.2);
+      border-radius: 999px;
+      background: transparent;
+      color: #91a39d;
+      font: 500 12px/1 "Microsoft YaHei UI", sans-serif;
+      cursor: pointer;
+    }
+    .choose:hover {
+      border-color: rgba(85, 217, 182, 0.5);
+      color: #e8f1ed;
+    }
+    .result {
+      min-height: 24px;
+      margin-top: 22px;
+      color: #55d9b6;
+      font-size: 13px;
+    }
+    @media (max-width: 760px) {
+      main { padding: 28px 0; }
+      .grid { grid-template-columns: 1fr; }
+      h1 { font-size: 38px; }
+      .card { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="eyebrow">GAEA / Sonic Identity Study</div>
+    <h1>先听声音，不看解释</h1>
+    <p class="lede">三个候选已经做响度对齐。请只凭第一耳判断，哪一款更像 GAEA、更高级，并且你愿意每次启动都听到它。</p>
+    <p class="rules">建议顺序：手机扬声器听一次，耳机再听一次；三款各听两遍。不要根据文件大小、时长或播放器音量判断。</p>
+
+    <section class="grid" aria-label="启动声音候选">
+      <article class="card" data-card="01">
+        <div class="topline"><span>CANDIDATE</span><b>01</b></div>
+        <h2>候选 01</h2>
+        <audio controls preload="metadata" src="candidate-01.wav"></audio>
+        <button class="choose" type="button" data-choice="01">选择候选 01</button>
+      </article>
+      <article class="card" data-card="02">
+        <div class="topline"><span>CANDIDATE</span><b>02</b></div>
+        <h2>候选 02</h2>
+        <audio controls preload="metadata" src="candidate-02.wav"></audio>
+        <button class="choose" type="button" data-choice="02">选择候选 02</button>
+      </article>
+      <article class="card" data-card="03">
+        <div class="topline"><span>CANDIDATE</span><b>03</b></div>
+        <h2>候选 03</h2>
+        <audio controls preload="metadata" src="candidate-03.wav"></audio>
+        <button class="choose" type="button" data-choice="03">选择候选 03</button>
+      </article>
+    </section>
+
+    <div class="result" id="result" role="status"></div>
+  </main>
+  <script>
+    const audios = [...document.querySelectorAll('audio')]
+    document.querySelectorAll('.choose').forEach((button) => {
+      button.addEventListener('click', () => {
+        const choice = button.dataset.choice
+        document.querySelectorAll('.card').forEach((card) => {
+          card.classList.toggle('is-selected', card.dataset.card === choice)
+        })
+        document.querySelectorAll('.choose').forEach((item) => {
+          item.textContent = item.dataset.choice === choice
+            ? `已选候选 ${choice}`
+            : `选择候选 ${item.dataset.choice}`
+        })
+        document.getElementById('result').textContent = `已记录候选 ${choice}。可以直接回复这个编号。`
+        try { localStorage.setItem('gaea-boot-sound-choice', choice) } catch {}
+      })
+    })
+    audios.forEach((audio) => {
+      audio.addEventListener('play', () => {
+        audios.forEach((other) => {
+          if (other !== audio) other.pause()
+        })
+      })
+    })
+  </script>
+</body>
+</html>

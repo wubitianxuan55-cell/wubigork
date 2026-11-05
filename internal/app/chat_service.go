@@ -22,7 +22,7 @@ import (
 // 众神殿刀1 三层契约第三层：删「不要说自己无法联网搜索」的反向施压——搜索
 // 状态由注入头如实携带（ok/empty/失败三分叉，chat_search_adapter.go），提示词
 // 只要求未获取到实时信息时如实说明。仅 plain 有这段联网说明，人格路径没有、勿加。
-var chatPlainSystemPrompt = "你是一个热心、博学的AI助手，用中文与用户进行日常对话。用户询问需要实时/最新信息的问题时，系统会联网搜索并把结果以「以下是关于此问题的实时搜索结果」注入到消息中，请优先依据这些搜索结果作答，并如实告诉用户信息来源；若注入中说明搜索失败或无结果，请如实告知用户未获取到实时信息，基于已有知识回答并注明不确定，不要假装已搜索到。\n\n" + genui.ChatRule
+var chatPlainSystemPrompt = "你是 Gaea 桌面 AI 助手，用中文与用户进行日常对话。用户问你是谁时，明确回答你是 Gaea 的 AI 助手；不要把自己说成 xAI、Grok、OpenAI 或任何底层模型厂商的官方助手。用户询问需要实时/最新信息的问题时，系统会联网搜索并把结果以「以下是关于此问题的实时搜索结果」注入到消息中，请优先依据这些搜索结果作答，并如实告诉用户信息来源；若注入中说明搜索失败或无结果，请如实告知用户未获取到实时信息，基于已有知识回答并注明不确定，不要假装已搜索到。\n\n" + genui.ChatRule
 
 // ChatSend 统一聊天入口（聊天/轻语板块合并，后端）。
 // mode 为空或 "plain" → 普通对话；否则按人格 ID 走轻语 Orchestrator（记忆/情绪）。
@@ -69,9 +69,15 @@ func (a *App) chatSendPlain(topicID, message string, searchEnabled, thinking, fo
 	}
 	userMessage := message
 	promptMessage := a.preparePlainChatMessage(message, searchEnabled, forceSearch)
-	eng, model, source := a.routeModel("chat")
+	eng, model, source, err := a.resolveChatModelRoute()
+	if err != nil {
+		return nil, err
+	}
 	reply, reasoning, err := a.clientRef().ChatSimpleStreamDetailed(a.ctx, model,
-		chatPlainSystemPrompt, promptMessage, ai.ChatSimpleOptions{EngineID: eng, Feature: "chat", EnableThinking: thinking, DisableThinking: !thinking})
+		chatPlainSystemPrompt, promptMessage, ai.ChatSimpleOptions{
+			EngineID: eng, Feature: "chat", EnableThinking: thinking, DisableThinking: !thinking,
+			DisableFailover: source == "feature",
+		})
 	if err != nil {
 		return nil, err
 	}
@@ -152,8 +158,8 @@ func streamOutputMetrics(requestStart, firstTokenAt, finishedAt time.Time, usage
 	return metrics
 }
 
-// ChatStreamPlain 普通对话真实流式入口：立即返回 runID，前端订阅
-// "chat-stream:<runID>" 事件流（delta / reasoning / done / error），完成后落库。
+// ChatStreamPlain 普通对话真实流式入口：先完成聊天绑定引擎预检，再返回 runID，
+// 前端订阅 "chat-stream:<runID>" 事件流（delta / reasoning / done / error），完成后落库。
 // 联网搜索注入只进入模型上下文，落库仍保留用户原文。
 //
 // T6-3.1 时序保障：delta 帧在 goroutine 内就绪即发，首帧可能早于前端订阅建立；
@@ -167,7 +173,10 @@ func (a *App) ChatStreamPlain(topicID, message string, searchEnabled, thinking, 
 	if a.clientRef() == nil {
 		return "", fmt.Errorf("AI 客户端未初始化")
 	}
-	eng, model, source := a.routeModel("chat")
+	eng, model, source, err := a.resolveChatModelRoute()
+	if err != nil {
+		return "", err
+	}
 	runID := newChatStreamRunID()
 	// P1-5 对话条：请求级 ctx 登记进取消表（ChatStreamCancel 可中断——长回合
 	// 不再只能等 30s 静默超时）；协程退出独占清表（chapterGen 同款纪律）。
@@ -193,6 +202,11 @@ func (a *App) ChatStreamPersona(topicID, message, mode string, searchEnabled, th
 	}
 	if a.clientRef() == nil {
 		return "", fmt.Errorf("AI 客户端未初始化")
+	}
+	// 角色流同样先完成绑定引擎预检，再返回 runID。否则冷启动期间前端只握着
+	// 一个尚无事件的 runID，会先触发 30s 流超时。
+	if _, _, _, err := a.resolveChatModelRoute(); err != nil {
+		return "", err
 	}
 	runID := newChatStreamRunID()
 	parent := a.ctx
@@ -248,7 +262,10 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 	promptMessage := a.preparePlainChatMessage(userMessage, searchEnabled, forceSearch)
 	requestStart := time.Now()
 	chunks, cancel, err := a.clientRef().ChatStreamChunks(ctx, model, chatPlainSystemPrompt, promptMessage,
-		ai.ChatSimpleOptions{EngineID: eng, Feature: "chat", EnableThinking: thinking, DisableThinking: !thinking})
+		ai.ChatSimpleOptions{
+			EngineID: eng, Feature: "chat", EnableThinking: thinking, DisableThinking: !thinking,
+			DisableFailover: source == "feature",
+		})
 	if err != nil {
 		a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": err.Error()})
 		return

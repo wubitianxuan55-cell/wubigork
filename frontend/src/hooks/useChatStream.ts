@@ -1,11 +1,11 @@
 // ChatPage 拆分产物：plain/persona 统一真实流式发送状态机。
 // 原 ChatPage.doSend 的 plain 流订阅（T6-3.1：先订阅后收帧、30s 无帧超时、
-// done/error/启动失败终态、卸载收尾）继续保留；角色模式已改为同一事件协议，
-// 首个正文分片立即上屏，切话题/卸载直接取消后端 run。
+// done/error/启动失败终态、卸载收尾）继续保留；绑定模型冷启动使用独立
+// 320s 启动窗，runID 到达后才启用 30s 流超时。角色模式共用同一事件协议。
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 import { app } from '../gaea/lib/bridge'
-import { STREAM_SILENCE_TIMEOUT_MS } from '../pages/chat/constants'
+import { CHAT_ENGINE_START_TIMEOUT_MS, STREAM_SILENCE_TIMEOUT_MS } from '../pages/chat/constants'
 import { nextMsgKey, nowStr } from '../pages/chat/utils'
 import type { ChatMsg } from '../pages/chat/types'
 import type { AnsweredByInfo } from '../components/chat/AnsweredByLine'
@@ -139,29 +139,44 @@ export function useChatStream(opts: UseChatStreamOptions) {
         // sending 必复位、finally 必执行。
         const ok = await new Promise<boolean>((resolve) => {
           let settled = false
+          let timer: ReturnType<typeof setTimeout> | null = null
           const finish = (okVal: boolean) => {
             if (settled) return
             settled = true
-            clearTimeout(timer)
+            if (timer !== null) clearTimeout(timer)
             if (streamFinishRef.current === finish) streamFinishRef.current = null
             resolve(okVal)
           }
           streamFinishRef.current = finish
-          // finish 仅在 timer 初始化之后被调用（事件/超时回调），闭包引用无 TDZ 问题
-          const timer = setTimeout(() => {
+          // 后端返回 runID 前可能正在冷启动绑定模型（35B 最长 300s）；此阶段
+          // 不能套用 30s“流无帧”阈值，否则引擎尚在加载就被前端误判超时。
+          timer = setTimeout(() => {
             cancelPendingDelta()
             setStreamText(''); setStreamKey(null)
-            updateMessage(am.key, { content: `请求超时：${STREAM_SILENCE_TIMEOUT_MS / 1000} 秒内未收到回复，请重试`, streaming: false, error: true })
+            updateMessage(am.key, {
+              content: '绑定模型启动超时，请检查本机引擎状态后重试',
+              streaming: false,
+              error: true,
+            })
             finish(false)
-          }, STREAM_SILENCE_TIMEOUT_MS)
+          }, CHAT_ENGINE_START_TIMEOUT_MS)
+          const armStreamTimeout = () => {
+            if (timer !== null) clearTimeout(timer)
+            timer = setTimeout(() => {
+              cancelPendingDelta()
+              setStreamText(''); setStreamKey(null)
+              updateMessage(am.key, { content: `请求超时：${STREAM_SILENCE_TIMEOUT_MS / 1000} 秒内未收到回复，请重试`, streaming: false, error: true })
+              finish(false)
+            }, STREAM_SILENCE_TIMEOUT_MS)
+          }
           const opening = mode === 'plain'
             ? app.ChatStreamPlain(active, trimmed, search, thinking, force)
             : app.ChatStreamPersona(active, trimmed, mode, search, thinking, force)
           opening
             .then((runID: string) => {
               activeRunIDRef.current = runID
-              // 超时/卸载先于 binding resolve：runID 现在才到，直接撤销后端任务，
-              // 不再为已结束的前端回合挂监听。
+              // 启动超时/卸载先于 binding resolve：runID 现在才到，直接撤销后端
+              // 任务，不再为已结束的前端回合挂监听。
               if (settled) {
                 activeRunIDRef.current = null
                 void app.ChatStreamCancel(runID).catch(() => {})
@@ -215,6 +230,7 @@ export function useChatStream(opts: UseChatStreamOptions) {
                   finish(false)
                 }
               })
+              armStreamTimeout()
               // 用户在 runID 返回前已点停止：订阅建立后立即撤销后端任务，
               // cancelled 帧仍会走统一收尾。
               if (typingCancelRef.current) {

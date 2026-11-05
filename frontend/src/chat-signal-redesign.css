@@ -1,0 +1,2707 @@
+/*
+ * Chat + voice interaction redesign.
+ * Scope: product surfaces only. The streaming, topic, persistence and voice
+ * protocol code stays unchanged. The visual system is a restrained local-first
+ * desktop workspace: matte surfaces, one accent, clear state changes.
+ */
+
+.chat-signal-redesign {
+  --signal-bg: color-mix(in srgb, var(--bg) 92%, var(--md-sys-color-surface-container));
+  --signal-panel: color-mix(in srgb, var(--md-sys-color-surface-container) 80%, var(--bg));
+  --signal-panel-raised: color-mix(in srgb, var(--md-sys-color-surface-container-high) 86%, var(--bg));
+  --signal-line: color-mix(in srgb, var(--md-sys-color-outline-variant) 82%, transparent);
+  --signal-line-strong: color-mix(in srgb, var(--md-sys-color-outline) 56%, transparent);
+  --signal-ink: var(--md-sys-color-text, var(--fg));
+  --signal-muted: var(--md-sys-color-text-secondary, var(--fg-dim));
+  --signal-faint: var(--md-sys-color-text-tertiary, var(--fg-faint));
+  --signal-accent: var(--gaea-glow, var(--md-sys-color-primary));
+  --signal-accent-soft: color-mix(in srgb, var(--signal-accent) 10%, transparent);
+  --signal-accent-line: color-mix(in srgb, var(--signal-accent) 32%, var(--signal-line));
+  --signal-success: var(--md-sys-color-success);
+  --signal-warning: var(--md-sys-color-warning);
+  --signal-danger: var(--md-sys-color-destructive);
+  --signal-radius-sm: 9px;
+  --signal-radius-md: 14px;
+  --signal-radius-lg: 18px;
+  position: relative;
+  gap: 0;
+  padding: 0;
+  color: var(--signal-ink);
+  background:
+    radial-gradient(ellipse 42% 34% at 74% -10%, var(--signal-accent-soft), transparent 74%),
+    var(--signal-bg);
+}
+
+.chat-signal-redesign::before {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--signal-ink) 3%, transparent), transparent 160px),
+    radial-gradient(ellipse 40% 24% at 85% 8%, color-mix(in srgb, var(--signal-accent) 4%, transparent), transparent 76%);
+  content: "";
+  mask-image: none;
+  pointer-events: none;
+}
+
+.chat-signal-redesign > .v3-split-v {
+  display: none;
+}
+
+.chat-signal-redesign .chat-topic-sidebar.v3-panel,
+.chat-signal-redesign .chat-inspector.v3-panel {
+  border: 0;
+  border-radius: 0;
+  background: var(--signal-panel);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.chat-signal-redesign .chat-topic-sidebar.v3-panel {
+  width: 244px;
+  border-right: 1px solid var(--signal-line);
+}
+
+.chat-signal-redesign .chat-inspector.v3-panel {
+  width: 272px;
+  border-left: 1px solid var(--signal-line);
+}
+
+.chat-signal-redesign .chat-topic-sidebar.v3-panel.is-collapsed,
+.chat-signal-redesign .chat-inspector.v3-panel.is-collapsed {
+  background: color-mix(in srgb, var(--signal-panel) 92%, transparent);
+}
+
+/* 本层最后的展开态宽度选择器特异性高于旧布局层的折叠宽度；折叠态必须在
+   同一层显式回落，否则内容已换成窄按钮但面板仍占 244/272px。 */
+.chat-signal-redesign .chat-topic-sidebar.v3-panel.is-collapsed {
+  width: 52px;
+}
+
+.chat-signal-redesign .chat-inspector.v3-panel.is-collapsed {
+  width: 40px;
+}
+
+.chat-signal-redesign .chat-topic-head {
+  min-height: 56px;
+  padding: 10px 12px 8px 14px;
+  border-bottom: 1px solid var(--signal-line);
+}
+
+.chat-signal-redesign .chat-topic-head .ant-typography {
+  color: var(--signal-ink) !important;
+  font-size: 13px !important;
+  font-weight: 620 !important;
+  letter-spacing: -0.01em;
+}
+
+.chat-signal-redesign .chat-topic-head .anticon {
+  color: var(--signal-accent);
+}
+
+.chat-signal-redesign .chat-topic-head .ant-btn,
+.chat-signal-redesign .chat-inspector .v3-panel-head .ant-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--signal-radius-sm);
+  color: var(--signal-muted);
+}
+
+.chat-signal-redesign .chat-topic-head .ant-btn:hover,
+.chat-signal-redesign .chat-inspector .v3-panel-head .ant-btn:hover {
+  background: color-mix(in srgb, var(--signal-ink) 6%, transparent) !important;
+  color: var(--signal-ink) !important;
+}
+
+.chat-signal-redesign .chat-topic-sidebar input {
+  height: 34px;
+  border-color: transparent !important;
+  border-radius: var(--signal-radius-sm) !important;
+  background: color-mix(in srgb, var(--signal-ink) 5%, transparent) !important;
+  color: var(--signal-ink) !important;
+  box-shadow: none !important;
+}
+
+.chat-signal-redesign .chat-topic-sidebar input::placeholder {
+  color: var(--signal-faint);
+}
+
+.chat-signal-redesign .chat-topic-sidebar input:focus,
+.chat-signal-redesign .chat-topic-sidebar input:focus-within {
+  border-color: var(--signal-accent-line) !important;
+  box-shadow: 0 0 0 3px var(--signal-accent-soft) !important;
+}
+
+.chat-signal-redesign .chat-topic-item {
+  gap: 4px;
+  margin-bottom: 3px;
+  padding: 2px 4px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+}
+
+.chat-signal-redesign .chat-topic-item:hover {
+  border-color: var(--signal-line);
+  background: color-mix(in srgb, var(--signal-ink) 4%, transparent);
+}
+
+.chat-signal-redesign .chat-topic-select {
+  padding: 8px;
+  border-radius: 8px;
+}
+
+.chat-signal-redesign .chat-topic-item.active,
+.chat-signal-redesign .chat-topic-item.active:hover {
+  border-color: var(--signal-accent-line);
+  background: color-mix(in srgb, var(--signal-accent) 9%, var(--signal-panel-raised));
+  box-shadow: inset 2px 0 0 var(--signal-accent);
+}
+
+.chat-signal-redesign .chat-topic-item.active::before {
+  display: none;
+}
+
+.chat-signal-redesign .chat-topic-item.active .chat-topic-title,
+.chat-signal-redesign .chat-topic-item.active .chat-topic-preview,
+.chat-signal-redesign .chat-topic-item.active .chat-topic-time {
+  color: var(--signal-ink);
+}
+
+.chat-signal-redesign .chat-topic-item.active .chat-topic-preview,
+.chat-signal-redesign .chat-topic-item.active .chat-topic-time {
+  color: var(--signal-muted);
+}
+
+.chat-signal-redesign .chat-topic-badge {
+  padding: 1px 6px;
+  border-color: var(--signal-accent-line);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--signal-accent);
+  font-size: 9px;
+}
+
+.chat-signal-redesign .chat-topic-time {
+  color: var(--signal-faint);
+  font-size: 9px;
+}
+
+.chat-signal-redesign .chat-topic-empty-create {
+  height: 34px;
+  border-color: var(--signal-accent-line);
+  border-radius: var(--signal-radius-sm);
+  color: var(--signal-ink);
+}
+
+.chat-signal-redesign .chat-topic-empty-create:hover {
+  background: var(--signal-accent-soft);
+  color: var(--signal-accent);
+}
+
+.chat-signal-redesign .chat-main {
+  isolation: isolate;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--signal-ink) 2%, transparent), transparent 140px),
+    var(--signal-bg);
+}
+
+.chat-signal-redesign .chat-workspace-head {
+  min-height: 60px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--signal-line);
+  background: color-mix(in srgb, var(--signal-bg) 72%, var(--signal-panel));
+}
+
+.chat-signal-redesign .chat-workspace-head::before {
+  display: none;
+}
+
+.chat-signal-redesign .chat-workspace-kicker {
+  margin-bottom: 3px;
+  color: var(--signal-faint);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 9px;
+  font-weight: 560;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+}
+
+.chat-signal-redesign .chat-workspace-title-row {
+  margin-top: 0;
+  gap: 10px;
+}
+
+.chat-signal-redesign .chat-workspace-title-row h1 {
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.chat-signal-redesign .chat-workspace-status {
+  color: var(--signal-faint);
+  font-size: 10px;
+}
+
+.chat-signal-redesign .chat-workspace-mode {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--signal-line);
+  border-radius: 999px;
+  color: var(--signal-muted);
+  font-size: 10px;
+}
+
+.chat-signal-redesign .chat-workspace-mode-dot {
+  width: 5px;
+  height: 5px;
+  background: var(--signal-success);
+  box-shadow: none;
+}
+
+.chat-signal-redesign .chat-persona-bar {
+  min-height: 46px;
+  padding: 7px 20px;
+  border-bottom: 1px solid var(--signal-line);
+  background: color-mix(in srgb, var(--signal-bg) 88%, var(--signal-panel));
+}
+
+.chat-signal-redesign .chat-message-scroll {
+  scrollbar-gutter: stable;
+}
+
+.chat-signal-redesign .chat-flow {
+  max-width: 800px;
+  padding: 30px 28px 34px;
+  gap: 24px;
+}
+
+.chat-signal-redesign .chat-row {
+  animation-duration: 220ms;
+}
+
+.chat-signal-redesign .chat-user-capsule {
+  max-width: min(68%, 560px);
+  padding: 10px 14px;
+  border: 1px solid var(--signal-accent-line);
+  border-radius: 15px 15px 5px 15px;
+  background: color-mix(in srgb, var(--signal-accent) 9%, var(--signal-panel-raised));
+  color: var(--signal-ink);
+  font-size: 13.5px;
+  line-height: 1.72;
+}
+
+.chat-signal-redesign .chat-assistant-name {
+  margin-bottom: 7px;
+  color: var(--signal-muted);
+  font-size: 10px;
+  font-weight: 580;
+  letter-spacing: 0.04em;
+}
+
+.chat-signal-redesign .chat-assistant-name .ai-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--signal-accent);
+  box-shadow: none;
+}
+
+.chat-signal-redesign .chat-assistant-text {
+  max-width: 70ch;
+  padding-left: 14px;
+  border-left: 1px solid color-mix(in srgb, var(--signal-accent) 24%, var(--signal-line));
+  color: var(--signal-ink);
+  font-size: 14px;
+  line-height: 1.84;
+}
+
+.chat-signal-redesign .chat-assistant-text .md-content > :first-child {
+  margin-top: 0;
+}
+
+.chat-signal-redesign .chat-assistant-text .md-content > :last-child {
+  margin-bottom: 0;
+}
+
+.chat-signal-redesign .chat-reasoning {
+  width: calc(100% - 15px);
+  margin-left: 15px;
+  border-color: var(--signal-line);
+  background: color-mix(in srgb, var(--signal-ink) 3%, transparent);
+}
+
+.chat-signal-redesign .chat-msg-actions {
+  min-height: 26px;
+  margin-top: 2px;
+  margin-left: 13px;
+  opacity: 0.36;
+}
+
+.chat-signal-redesign .chat-row:hover .chat-msg-actions,
+.chat-signal-redesign .chat-msg-actions:focus-within,
+.chat-signal-redesign .chat-msg-actions.has-metrics {
+  opacity: 1;
+}
+
+.chat-signal-redesign .chat-msg-actions .ant-btn {
+  color: var(--signal-muted) !important;
+}
+
+.chat-signal-redesign .chat-msg-actions .ant-btn:hover {
+  background: var(--signal-accent-soft) !important;
+  color: var(--signal-accent) !important;
+}
+
+.chat-signal-redesign .chat-scroll-bottom {
+  bottom: 112px;
+  min-height: 34px;
+  padding: 0 13px;
+  border-color: var(--signal-line-strong);
+  border-radius: 999px;
+  background: var(--signal-panel-raised);
+  color: var(--signal-muted);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--signal-bg) 58%, transparent);
+}
+
+.chat-signal-redesign .chat-scroll-bottom:hover {
+  color: var(--signal-accent);
+  box-shadow: 0 9px 26px color-mix(in srgb, var(--signal-bg) 62%, transparent);
+}
+
+/* Welcome: an actionable start desk instead of a centered showcase. */
+
+.chat-signal-redesign .chat-welcome.chat-welcome--signal {
+  display: grid;
+  width: min(100%, 1040px);
+  min-height: 100%;
+  margin: 0 auto;
+  padding: clamp(26px, 4.2vw, 54px) clamp(20px, 4vw, 48px) 30px;
+  grid-template-columns: minmax(0, 1.04fr) minmax(300px, 0.96fr);
+  align-items: center;
+  justify-content: stretch;
+  gap: clamp(30px, 5vw, 68px);
+  overflow: auto;
+}
+
+.chat-signal-redesign .chat-welcome-frame {
+  display: none;
+}
+
+.chat-signal-redesign .chat-welcome-intro,
+.chat-signal-redesign .chat-welcome-prompts {
+  min-width: 0;
+}
+
+.chat-signal-redesign .chat-welcome-overline {
+  display: flex;
+  min-height: 28px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.chat-signal-redesign .chat-wel-kicker {
+  margin: 0;
+  color: var(--signal-accent);
+  font-family: var(--font-sans, system-ui);
+  font-size: 11px;
+  font-weight: 620;
+  letter-spacing: 0.04em;
+}
+
+.chat-signal-redesign .chat-welcome-local {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--signal-faint);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.chat-signal-redesign .chat-welcome-local-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--signal-success);
+}
+
+.chat-signal-redesign .chat-welcome-identity {
+  display: flex;
+  margin-top: clamp(22px, 4vh, 42px);
+  align-items: center;
+  gap: 18px;
+}
+
+.chat-signal-redesign .chat-welcome-avatar {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  flex: 0 0 88px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--signal-line-strong);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 30% 20%, var(--signal-accent-soft), transparent 60%),
+    var(--signal-panel-raised);
+}
+
+.chat-signal-redesign .chat-welcome-avatar::after {
+  position: absolute;
+  right: 9px;
+  bottom: 9px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid var(--signal-panel-raised);
+  border-radius: 50%;
+  background: var(--signal-success);
+  content: "";
+}
+
+.chat-signal-redesign .chat-welcome-copy {
+  min-width: 0;
+}
+
+.chat-signal-redesign .chat-welcome h2 {
+  margin: 0;
+  color: var(--signal-ink);
+  font-size: clamp(28px, 3.2vw, 40px);
+  font-weight: 660;
+  letter-spacing: -0.045em;
+  line-height: 1.08;
+  text-wrap: balance;
+}
+
+.chat-signal-redesign .chat-welcome p {
+  max-width: 46ch;
+  margin: 10px 0 0;
+  color: var(--signal-muted);
+  font-size: 13px;
+  line-height: 1.7;
+  text-align: left;
+  text-wrap: pretty;
+}
+
+.chat-signal-redesign .chat-welcome-voice-card {
+  display: grid;
+  width: 100%;
+  min-height: 82px;
+  margin-top: clamp(22px, 4vh, 38px);
+  padding: 13px 14px;
+  grid-template-columns: 44px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--signal-accent-line);
+  border-radius: var(--signal-radius-lg);
+  background:
+    linear-gradient(100deg, var(--signal-accent-soft), transparent 58%),
+    var(--signal-panel-raised);
+  color: var(--signal-ink);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 180ms ease,
+    background 180ms ease;
+}
+
+.chat-signal-redesign .chat-welcome-voice-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--signal-accent);
+  background:
+    linear-gradient(100deg, color-mix(in srgb, var(--signal-accent) 14%, transparent), transparent 62%),
+    var(--signal-panel-raised);
+}
+
+.chat-signal-redesign .chat-welcome-voice-card:active {
+  transform: translateY(0) scale(0.995);
+}
+
+.chat-signal-redesign .chat-welcome-voice-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: var(--signal-accent);
+  color: var(--md-sys-color-on-primary, var(--accent-fg));
+  font-size: 18px;
+}
+
+.chat-signal-redesign .chat-welcome-voice-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.chat-signal-redesign .chat-welcome-voice-copy strong {
+  color: var(--signal-ink);
+  font-size: 13.5px;
+  font-weight: 640;
+}
+
+.chat-signal-redesign .chat-welcome-voice-copy > span {
+  color: var(--signal-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.chat-signal-redesign .chat-welcome-voice-live {
+  display: inline-flex;
+  height: 24px;
+  align-items: center;
+  gap: 2px;
+}
+
+.chat-signal-redesign .chat-welcome-voice-live i {
+  width: 2px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--signal-accent);
+  transform-origin: center;
+  transition: transform 180ms ease;
+}
+
+.chat-signal-redesign .chat-welcome-voice-live i:nth-child(2) {
+  height: 15px;
+}
+
+.chat-signal-redesign .chat-welcome-voice-live i:nth-child(3) {
+  height: 11px;
+}
+
+.chat-signal-redesign .chat-welcome-voice-card:hover .chat-welcome-voice-live i {
+  transform: scaleY(1.18);
+}
+
+.chat-signal-redesign .chat-welcome-voice-arrow {
+  color: var(--signal-accent);
+  font-size: 18px;
+  transition: transform 180ms ease;
+}
+
+.chat-signal-redesign .chat-welcome-voice-card:hover .chat-welcome-voice-arrow {
+  transform: translateX(3px);
+}
+
+.chat-signal-redesign.chat-voice-mode .chat-welcome-voice-card {
+  display: none;
+}
+
+.chat-signal-redesign .chat-welcome-tools {
+  display: flex;
+  margin-top: 13px;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-signal-redesign.chat-voice-mode .chat-welcome-tools {
+  margin-top: 24px;
+}
+
+.chat-signal-redesign .chat-wel-persona-button {
+  height: 34px;
+  margin: 0;
+  padding: 0 12px;
+  border-color: var(--signal-line-strong);
+  border-radius: var(--signal-radius-sm);
+  background: transparent;
+  color: var(--signal-muted);
+  font-size: 11px;
+}
+
+.chat-signal-redesign .chat-wel-persona-button:hover {
+  border-color: var(--signal-accent-line) !important;
+  background: var(--signal-accent-soft) !important;
+  color: var(--signal-accent) !important;
+}
+
+.chat-signal-redesign .chat-welcome-library-link {
+  display: inline-flex;
+  min-height: 34px;
+  padding: 0 8px;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: var(--signal-radius-sm);
+  background: transparent;
+  color: var(--signal-faint);
+  font: inherit;
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+.chat-signal-redesign .chat-welcome-library-link:hover,
+.chat-signal-redesign .chat-welcome-library-link:focus-visible {
+  background: color-mix(in srgb, var(--signal-ink) 5%, transparent);
+  color: var(--signal-ink);
+}
+
+.chat-signal-redesign .chat-welcome-prompts {
+  padding: 3px 0;
+}
+
+.chat-signal-redesign .chat-welcome-section-head {
+  display: flex;
+  margin-bottom: 10px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--signal-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.chat-signal-redesign .chat-welcome-section-head > span:last-child {
+  color: var(--signal-faint);
+  font-size: 9.5px;
+  font-weight: 500;
+}
+
+.chat-signal-redesign .chat-suggestion-grid {
+  max-width: none;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.chat-signal-redesign .chat-suggestion-card {
+  display: grid;
+  min-height: 70px;
+  padding: 10px;
+  grid-template-columns: 32px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: center;
+  column-gap: 10px;
+  row-gap: 2px;
+  border: 1px solid var(--signal-line);
+  border-radius: var(--signal-radius-md);
+  background: color-mix(in srgb, var(--signal-panel-raised) 76%, transparent);
+  box-shadow: none;
+}
+
+.chat-signal-redesign .chat-suggestion-card:hover {
+  transform: translateY(-1px);
+  border-color: var(--signal-accent-line);
+  background: color-mix(in srgb, var(--signal-accent) 6%, var(--signal-panel-raised));
+  box-shadow: none;
+}
+
+.chat-signal-redesign .chat-suggestion-card:active {
+  transform: scale(0.992);
+}
+
+.chat-signal-redesign .chat-suggestion-icon {
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  grid-row: 1 / span 2;
+  align-self: center;
+  border: 0;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--signal-ink) 5%, transparent);
+  color: var(--signal-accent);
+  font-size: 14px;
+}
+
+.chat-signal-redesign .chat-suggestion-card:hover .chat-suggestion-icon {
+  transform: none;
+  box-shadow: none;
+}
+
+.chat-signal-redesign .chat-suggestion-label {
+  align-self: end;
+  margin: 0;
+  color: var(--signal-ink);
+  font-size: 11.5px;
+  font-weight: 610;
+}
+
+.chat-signal-redesign .chat-suggestion-desc {
+  align-self: start;
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--signal-muted);
+  font-size: 10px;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.chat-signal-redesign .chat-welcome--signal.is-persona .chat-suggestion-card:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+/* Composer: voice and text share one input surface without stealing hierarchy. */
+
+.chat-signal-redesign .chat-composer-wrap {
+  padding: 10px 24px 15px;
+  gap: 7px;
+  border-top: 1px solid var(--signal-line);
+  background: color-mix(in srgb, var(--signal-bg) 96%, var(--signal-panel));
+}
+
+.chat-signal-redesign .chat-composer-tools,
+.chat-signal-redesign .chat-composer,
+.chat-signal-redesign .chat-quick-replies {
+  max-width: 800px;
+}
+
+.chat-signal-redesign .chat-composer-tools {
+  min-height: 26px;
+  padding: 0 2px;
+  gap: 2px;
+}
+
+.chat-signal-redesign .chat-composer-tool {
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 7px;
+  color: var(--signal-muted);
+  font-size: 10.5px;
+}
+
+.chat-signal-redesign .chat-composer-tool:hover {
+  background: color-mix(in srgb, var(--signal-ink) 5%, transparent);
+  color: var(--signal-ink);
+}
+
+.chat-signal-redesign .chat-composer-tool.is-active {
+  border-color: var(--signal-accent-line);
+  background: var(--signal-accent-soft);
+  color: var(--signal-accent);
+}
+
+.chat-signal-redesign .chat-composer-hint {
+  color: var(--signal-faint);
+  font-size: 9px;
+}
+
+.chat-signal-redesign .chat-composer.gaea-glass-shell,
+.chat-signal-redesign .chat-composer {
+  min-height: 54px;
+  padding: 8px 8px 8px 12px;
+  gap: 7px;
+  border: 1px solid var(--signal-line-strong);
+  border-radius: var(--signal-radius-lg);
+  background: var(--signal-panel-raised);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--signal-ink) 6%, transparent),
+    0 8px 24px color-mix(in srgb, var(--signal-bg) 36%, transparent);
+}
+
+.chat-signal-redesign .chat-composer::before {
+  display: none;
+}
+
+.chat-signal-redesign .chat-composer:focus-within {
+  border-color: var(--signal-accent-line);
+  box-shadow:
+    0 0 0 3px var(--signal-accent-soft),
+    inset 0 1px 0 color-mix(in srgb, var(--signal-ink) 7%, transparent);
+}
+
+.chat-signal-redesign .chat-input-textarea.ant-input {
+  min-height: 36px;
+  padding: 7px 3px !important;
+  color: var(--signal-ink);
+  font-size: 14px;
+  line-height: 1.64;
+}
+
+.chat-signal-redesign .chat-input-textarea.ant-input::placeholder {
+  color: var(--signal-faint);
+}
+
+.chat-signal-redesign .chat-composer-voice {
+  display: inline-flex;
+  min-width: 48px;
+  height: 36px;
+  padding: 0 10px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid var(--signal-line);
+  border-radius: 11px;
+  background: transparent;
+  color: var(--signal-muted);
+  font: inherit;
+  font-size: 10.5px;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease,
+    transform 120ms ease;
+}
+
+.chat-signal-redesign .chat-composer-voice:hover {
+  border-color: var(--signal-accent-line);
+  background: var(--signal-accent-soft);
+  color: var(--signal-accent);
+}
+
+.chat-signal-redesign .chat-composer-voice:active {
+  transform: scale(0.97);
+}
+
+.chat-signal-redesign .chat-composer-voice.is-active {
+  border-color: var(--signal-accent);
+  background: var(--signal-accent);
+  color: var(--md-sys-color-on-primary, var(--accent-fg));
+}
+
+.chat-signal-redesign .chat-send-button,
+.chat-signal-redesign .chat-stop-button {
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px !important;
+  border-radius: 11px !important;
+}
+
+.chat-signal-redesign .chat-send-button {
+  background: color-mix(in srgb, var(--signal-muted) 22%, transparent) !important;
+  color: var(--signal-muted) !important;
+}
+
+.chat-signal-redesign .chat-send-button.is-ready {
+  background: var(--signal-accent) !important;
+  color: var(--md-sys-color-on-primary, var(--accent-fg)) !important;
+}
+
+.chat-signal-redesign .chat-stop-button {
+  background: color-mix(in srgb, var(--signal-warning) 12%, transparent) !important;
+  color: var(--signal-warning) !important;
+}
+
+.chat-signal-redesign .chat-quick-chip {
+  min-height: 27px;
+  padding: 0 9px;
+  border-color: var(--signal-line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--signal-muted);
+  font-size: 10px;
+}
+
+.chat-signal-redesign .chat-quick-chip:hover {
+  border-color: var(--signal-accent-line);
+  background: var(--signal-accent-soft);
+  color: var(--signal-accent);
+}
+
+/* Inspector: readable sections, not a stack of elevated cards. */
+
+.chat-signal-redesign .chat-inspector .v3-panel-head {
+  height: 56px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--signal-line);
+}
+
+.chat-signal-redesign .chat-inspector .v3-panel-title {
+  color: var(--signal-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.chat-signal-redesign .chat-inspector-body {
+  padding: 16px 14px 22px;
+  gap: 18px;
+}
+
+.chat-signal-redesign .chat-inspector-section {
+  gap: 7px;
+}
+
+.chat-signal-redesign .chat-inspector-section-title {
+  color: var(--signal-faint);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.chat-signal-redesign .chat-inspector .v3-card {
+  padding: 11px 0;
+  border: 0;
+  border-top: 1px solid var(--signal-line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.chat-signal-redesign .chat-inspector .v3-card:hover {
+  border-color: var(--signal-line);
+  box-shadow: none;
+}
+
+.chat-signal-redesign .chat-inspector-card-title {
+  color: var(--signal-ink);
+  font-size: 12px;
+}
+
+.chat-signal-redesign .chat-inspector-card-sub,
+.chat-signal-redesign .chat-inspector-empty-sub {
+  color: var(--signal-muted);
+  font-size: 10.5px;
+}
+
+.chat-signal-redesign .chat-inspector-chip {
+  min-height: 28px;
+  padding: 0 9px;
+  border-color: var(--signal-line);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--signal-muted);
+  font-size: 10px;
+}
+
+.chat-signal-redesign .chat-inspector-chip:hover:not(:disabled) {
+  border-color: var(--signal-accent-line);
+  background: var(--signal-accent-soft);
+  color: var(--signal-accent);
+  box-shadow: none;
+}
+
+/* Voice console: make status, speech and transcript read as one interaction. */
+
+.chat-signal-redesign .voice-console-v2 {
+  --vc2-accent: var(--signal-accent);
+  --vc2-text: var(--signal-ink);
+  --vc2-text-2: var(--signal-muted);
+  --vc2-text-3: var(--signal-faint);
+  --vc2-surface: var(--signal-bg);
+  --vc2-panel: var(--signal-panel);
+  --vc2-raised: var(--signal-panel-raised);
+  --vc2-line: var(--signal-line);
+  --vc2-line-strong: var(--signal-accent-line);
+  --vc2-soft: var(--signal-accent-soft);
+  --vc2-soft-strong: color-mix(in srgb, var(--signal-accent) 17%, transparent);
+  gap: 12px;
+  padding: 18px;
+  border-color: var(--signal-line);
+  border-radius: var(--signal-radius-lg);
+  background:
+    radial-gradient(ellipse 52% 38% at 28% 8%, var(--signal-accent-soft), transparent 72%),
+    var(--signal-bg);
+  box-shadow: none;
+}
+
+.chat-signal-redesign .voice-console-v2::before {
+  display: none;
+}
+
+.chat-signal-redesign .vc2-header {
+  min-height: 44px;
+  align-items: center;
+}
+
+.chat-signal-redesign .vc2-identity {
+  gap: 11px;
+}
+
+.chat-signal-redesign .vc2-brand-sigil {
+  width: 38px;
+  height: 38px;
+  flex-basis: 38px;
+  border-radius: 12px;
+  background: var(--signal-accent-soft);
+  box-shadow: none;
+}
+
+.chat-signal-redesign .vc2-brand-sigil::before {
+  width: 15px;
+  height: 15px;
+}
+
+.chat-signal-redesign .vc2-brand-sigil::after {
+  width: 4px;
+  height: 4px;
+  box-shadow: none;
+}
+
+.chat-signal-redesign .vc2-brand-sigil > span {
+  width: 26px;
+  height: 26px;
+  opacity: 0.6;
+}
+
+.chat-signal-redesign .vc2-eyebrow {
+  margin-bottom: 2px;
+  color: var(--signal-faint);
+  font-family: var(--font-sans, system-ui);
+  font-size: 9px;
+  font-weight: 560;
+  letter-spacing: 0.05em;
+}
+
+.chat-signal-redesign .vc2-title-row h2 {
+  font-size: 19px;
+  font-weight: 650;
+}
+
+.chat-signal-redesign .vc2-badge {
+  border-color: var(--signal-line);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--signal-muted);
+  font-size: 9px;
+  letter-spacing: 0;
+}
+
+.chat-signal-redesign .vc2-identity p {
+  margin-top: 3px;
+  font-size: 10.5px;
+}
+
+.chat-signal-redesign .vc2-connection-pill {
+  min-height: 28px;
+  border-radius: 7px;
+  background: transparent;
+  font-size: 10px;
+}
+
+.chat-signal-redesign .vc2-actions .ant-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+}
+
+.chat-signal-redesign .vc2-layout {
+  grid-template-columns: minmax(280px, 0.84fr) minmax(320px, 1.16fr);
+  border-color: var(--signal-line);
+  border-radius: var(--signal-radius-md);
+  background: var(--signal-panel);
+}
+
+.chat-signal-redesign .vc2-stage {
+  min-height: 360px;
+  padding: 18px;
+  border-right-color: var(--signal-line);
+  background:
+    radial-gradient(circle at 50% 48%, var(--signal-accent-soft), transparent 42%),
+    color-mix(in srgb, var(--signal-panel) 84%, var(--signal-bg));
+}
+
+.chat-signal-redesign .vc2-stage::after {
+  display: none;
+}
+
+.chat-signal-redesign .vc2-section-head h3 {
+  font-size: 14px;
+  font-weight: 620;
+  letter-spacing: -0.015em;
+}
+
+.chat-signal-redesign .vc2-live-marker {
+  color: var(--signal-faint);
+  font-family: var(--font-sans, system-ui);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+}
+
+.chat-signal-redesign .vc2-field {
+  min-height: 250px;
+  gap: 12px;
+  padding: 16px 0 8px;
+}
+
+.chat-signal-redesign .vc2-orb {
+  --vc2-orb-size: clamp(158px, 17vw, 190px);
+}
+
+.chat-signal-redesign .vc2-orb-orbit.is-outer {
+  border-color: var(--signal-accent-line);
+  box-shadow: inset 0 0 0 7px var(--signal-accent-soft);
+}
+
+.chat-signal-redesign .vc2-orb-orbit.is-outer::before {
+  inset: 7%;
+  border-color: var(--signal-line-strong);
+}
+
+.chat-signal-redesign .vc2-orb-orbit.is-outer::after {
+  display: none;
+}
+
+.chat-signal-redesign .vc2-orb-orbit.is-inner {
+  inset: 24%;
+  border-color: var(--signal-accent-line);
+}
+
+.chat-signal-redesign .vc2-orb-glow {
+  inset: 28%;
+  filter: blur(18px);
+  opacity: 0.2;
+  transform: scale(1.1);
+}
+
+.chat-signal-redesign .vc2-orb-core {
+  width: 35%;
+  height: 35%;
+  border-color: color-mix(in srgb, var(--signal-ink) 10%, transparent);
+  background: var(--signal-accent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--signal-ink) 24%, transparent),
+    0 8px 24px var(--signal-accent-soft);
+  font-size: 27px;
+}
+
+.chat-signal-redesign .vc2-orb-wave {
+  bottom: 11%;
+  height: 24px;
+}
+
+.chat-signal-redesign .vc2-orb-wave i {
+  width: 3px;
+  height: calc(5px + var(--vc2-bar) * 15px);
+  opacity: 0.34;
+}
+
+.chat-signal-redesign .vc2-orb.is-listening .vc2-orb-glow,
+.chat-signal-redesign .vc2-orb.is-speaking .vc2-orb-glow {
+  opacity: 0.42;
+}
+
+.chat-signal-redesign .vc2-stage-copy {
+  max-width: 330px;
+}
+
+.chat-signal-redesign .vc2-phase {
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 7px;
+  background: var(--signal-panel-raised);
+  font-size: 11px;
+}
+
+.chat-signal-redesign .vc2-stage-copy p {
+  margin-top: 6px;
+  font-size: 11.5px;
+}
+
+.chat-signal-redesign .vc2-wave-field {
+  width: min(250px, 72%);
+  height: 24px;
+  opacity: 0.22;
+}
+
+.chat-signal-redesign .vc2-wave-field i {
+  width: 3px;
+  height: calc(4px + var(--vc2-wave) * 17px);
+}
+
+.chat-signal-redesign .voice-console-v2--listening .vc2-wave-field,
+.chat-signal-redesign .voice-console-v2--speaking .vc2-wave-field {
+  opacity: 0.54;
+}
+
+.chat-signal-redesign .vc2-stage-facts {
+  gap: 8px 12px;
+  padding-top: 11px;
+  font-family: var(--font-sans, system-ui);
+  font-size: 9px;
+}
+
+.chat-signal-redesign .vc2-dialogue {
+  position: relative;
+  padding: 18px;
+  background: color-mix(in srgb, var(--signal-bg) 54%, var(--signal-panel));
+}
+
+.chat-signal-redesign .vc2-turn-count {
+  font-family: var(--font-sans, system-ui);
+  font-size: 9px;
+}
+
+.chat-signal-redesign .vc2-dialogue-tools {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-signal-redesign .vc2-thread {
+  gap: 14px;
+  margin-top: 15px;
+}
+
+.chat-signal-redesign .vc2-message {
+  max-width: 92%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.chat-signal-redesign .vc2-message.is-user {
+  align-self: flex-end;
+  max-width: 84%;
+  border: 0;
+  background: transparent;
+}
+
+.chat-signal-redesign .vc2-message.is-user p {
+  padding: 9px 12px;
+  border: 1px solid var(--signal-accent-line);
+  border-radius: 13px 13px 4px 13px;
+  background: color-mix(in srgb, var(--signal-accent) 8%, var(--signal-panel-raised));
+}
+
+.chat-signal-redesign .vc2-message.is-assistant {
+  align-self: flex-start;
+  border: 0;
+  background: transparent;
+}
+
+.chat-signal-redesign .vc2-message.is-assistant p {
+  padding-left: 12px;
+  border-left: 1px solid var(--signal-accent-line);
+}
+
+.chat-signal-redesign .vc2-message.is-partial {
+  border: 0;
+  opacity: 0.72;
+}
+
+.chat-signal-redesign .vc2-message.is-partial p {
+  border-style: dashed;
+}
+
+.chat-signal-redesign .vc2-message-label {
+  margin-bottom: 5px;
+  font-family: var(--font-sans, system-ui);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+}
+
+.chat-signal-redesign .vc2-message p {
+  font-size: 13px;
+  line-height: 1.68;
+}
+
+.chat-signal-redesign .vc2-dialogue-empty {
+  gap: 3px;
+}
+
+.chat-signal-redesign .vc2-thread-jump {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--signal-accent-line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--signal-panel-raised) 94%, transparent);
+  color: var(--signal-ink);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--signal-ink) 7%, transparent);
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+.chat-signal-redesign .vc2-thread-jump:hover {
+  border-color: color-mix(in srgb, var(--signal-accent) 50%, var(--signal-line));
+  background: var(--signal-accent-soft);
+}
+
+.chat-signal-redesign .vc2-thread-jump:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+.chat-signal-redesign .vc2-thread-jump:focus-visible {
+  outline: 2px solid var(--signal-accent);
+  outline-offset: 2px;
+}
+
+.chat-signal-redesign .vc2-empty-mark {
+  width: 44px;
+  height: 44px;
+  margin-bottom: 10px;
+  border-radius: 14px;
+  background: var(--signal-accent-soft);
+}
+
+.chat-signal-redesign .vc2-command-dock {
+  gap: 9px;
+  padding: 11px 12px 9px;
+  border-color: var(--signal-line);
+  border-radius: var(--signal-radius-md);
+  background: var(--signal-panel-raised);
+  box-shadow: none;
+}
+
+.chat-signal-redesign .vc2-command-row {
+  min-height: 46px;
+}
+
+.chat-signal-redesign .vc2-primary-button.ant-btn {
+  min-width: 156px;
+  height: 44px;
+  padding-inline: 18px;
+  border-radius: 999px;
+  font-size: 12px;
+  box-shadow: 0 7px 18px var(--signal-accent-soft);
+}
+
+.chat-signal-redesign .vc2-primary-button.ant-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 9px 22px color-mix(in srgb, var(--signal-accent) 20%, transparent);
+}
+
+.chat-signal-redesign .vc2-primary-button.is-interrupting.ant-btn {
+  border-color: color-mix(in srgb, var(--signal-danger) 38%, var(--signal-line));
+  background: color-mix(in srgb, var(--signal-danger) 10%, var(--signal-panel-raised));
+  color: color-mix(in srgb, var(--signal-danger) 58%, var(--signal-ink));
+  box-shadow: none;
+}
+
+.chat-signal-redesign .vc2-primary-button.is-interrupting.ant-btn:hover {
+  border-color: color-mix(in srgb, var(--signal-danger) 58%, var(--signal-line));
+  background: color-mix(in srgb, var(--signal-danger) 19%, var(--signal-panel-raised));
+  box-shadow: none;
+}
+
+.chat-signal-redesign .vc2-interrupt-button.ant-btn {
+  height: 44px;
+  border-radius: 999px;
+  font-size: 11px;
+}
+
+.chat-signal-redesign .vc2-command-hint {
+  color: var(--signal-faint);
+  font-size: 10px;
+}
+
+.chat-signal-redesign .vc2-diagnostics {
+  border-top-color: var(--signal-line);
+}
+
+.chat-signal-redesign .vc2-diagnostics summary {
+  min-height: 30px;
+  color: var(--signal-faint);
+  font-size: 9.5px;
+}
+
+.chat-signal-redesign .vc2-preflight {
+  border-color: var(--signal-line);
+  border-radius: var(--signal-radius-md);
+  background:
+    linear-gradient(110deg, var(--signal-accent-soft), transparent 46%),
+    var(--signal-panel-raised);
+}
+
+.chat-signal-redesign .vc2-service-item {
+  min-height: 72px;
+  border-color: var(--signal-line);
+  border-radius: var(--signal-radius-md);
+  background: color-mix(in srgb, var(--signal-bg) 60%, var(--signal-panel-raised));
+}
+
+.chat-signal-redesign .vc2-service-list {
+  align-self: center;
+}
+
+.chat-signal-redesign .vc2-feedback,
+.chat-signal-redesign .vc2-action-preview {
+  border-radius: var(--signal-radius-sm);
+}
+
+/* Compact voice bar: always leaves the active text and the next action visible. */
+
+.chat-signal-redesign .voice-console-v2--bar {
+  display: flex;
+  min-height: 50px;
+  margin: 0 0 7px;
+  padding: 7px 9px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--signal-line-strong);
+  border-radius: var(--signal-radius-md);
+  background: var(--signal-panel-raised);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--signal-bg) 30%, transparent);
+}
+
+.chat-signal-redesign .voice-console-v2--bar::before {
+  display: none;
+}
+
+.chat-signal-redesign .voice-console-v2--bar.voice-console-v2--listening,
+.chat-signal-redesign .voice-console-v2--bar.voice-console-v2--speaking,
+.chat-signal-redesign .voice-console-v2--bar.voice-console-v2--thinking {
+  border-color: var(--signal-accent-line);
+  background:
+    linear-gradient(100deg, var(--signal-accent-soft), transparent 48%),
+    var(--signal-panel-raised);
+  box-shadow:
+    inset 3px 0 0 var(--signal-accent),
+    0 6px 20px color-mix(in srgb, var(--signal-bg) 30%, transparent);
+}
+
+.chat-signal-redesign .voice-console-v2--bar .vc2-bar-meter {
+  width: 24px;
+  height: 22px;
+  justify-content: center;
+  gap: 2px;
+}
+
+.chat-signal-redesign .voice-console-v2--bar .vc2-bar-meter i {
+  width: 2px;
+  border-radius: 999px;
+}
+
+.chat-signal-redesign .voice-console-v2--bar .vc2-bar-phase {
+  min-width: 58px;
+  color: var(--signal-ink);
+  font-size: 11px;
+  font-weight: 620;
+}
+
+.chat-signal-redesign .voice-console-v2--bar .vc2-bar-preview {
+  flex: 1 1 150px;
+  color: var(--signal-muted);
+  font-size: 11px;
+}
+
+.chat-signal-redesign .voice-console-v2--bar .vc2-bar-binding {
+  max-width: 170px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--signal-faint);
+  font-size: 9.5px;
+}
+
+.chat-signal-redesign .voice-console-v2--bar .vc2-bar-health {
+  min-width: 16px;
+  justify-content: center;
+  gap: 3px;
+}
+
+.chat-signal-redesign .voice-console-v2--bar .vc2-bar-health i {
+  width: 5px;
+  height: 5px;
+}
+
+.chat-signal-redesign .voice-console-v2--bar .vc2-bar-btn.ant-btn-sm {
+  min-height: 32px;
+  padding-inline: 10px;
+  border-color: var(--signal-line);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--signal-muted);
+  font-size: 10.5px;
+  box-shadow: none;
+}
+
+.chat-signal-redesign .voice-console-v2--bar .vc2-bar-btn.ant-btn-sm:hover {
+  border-color: var(--signal-accent-line);
+  background: var(--signal-accent-soft);
+  color: var(--signal-accent);
+}
+
+.chat-signal-redesign .voice-console-v2--bar .vc2-bar-btn.is-primary.ant-btn-sm {
+  min-height: 34px;
+  border-color: transparent;
+  border-radius: 999px;
+  background: var(--signal-accent);
+  color: var(--md-sys-color-on-primary, var(--accent-fg));
+  font-weight: 620;
+}
+
+.chat-signal-redesign .voice-console-v2--bar .vc2-bar-btn.is-danger.ant-btn-sm {
+  color: var(--signal-danger);
+}
+
+.chat-signal-redesign .voice-console-v2--bar .vc2-bar-note,
+.chat-signal-redesign .voice-console-v2--bar .vc2-action-preview {
+  margin-top: 2px;
+}
+
+.chat-signal-redesign .voice-console-v2--float {
+  z-index: 900;
+  inset: 14px;
+  border-radius: 22px;
+  background:
+    radial-gradient(ellipse 50% 36% at 28% 4%, var(--signal-accent-soft), transparent 70%),
+    var(--signal-bg);
+  box-shadow: 0 24px 80px color-mix(in srgb, var(--signal-bg) 68%, transparent);
+}
+
+.chat-signal-redesign .voice-console-v2--float.is-preflight {
+  top: 50%;
+  right: auto;
+  bottom: auto;
+  left: 50%;
+  width: min(960px, calc(100% - 48px));
+  max-height: calc(100% - 48px);
+  height: auto;
+  flex: 0 0 auto;
+  transform: translate(-50%, -50%);
+}
+
+.chat-signal-redesign .voice-console-v2--float.is-preflight .vc2-preflight {
+  min-height: 0;
+  padding: clamp(24px, 4vw, 42px);
+}
+
+@container (max-width: 860px) {
+  .chat-signal-redesign .chat-welcome.chat-welcome--signal {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: center;
+    gap: 28px;
+    padding-top: 30px;
+  }
+
+  .chat-signal-redesign .chat-welcome-identity {
+    margin-top: 18px;
+  }
+
+  .chat-signal-redesign .chat-welcome-voice-card {
+    margin-top: 22px;
+  }
+
+  .chat-signal-redesign .chat-suggestion-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (max-width: 620px) {
+  .chat-signal-redesign .chat-welcome.chat-welcome--signal {
+    gap: 22px;
+    padding: 20px 16px 24px;
+  }
+
+  .chat-signal-redesign .chat-welcome-identity {
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .chat-signal-redesign .chat-welcome-avatar {
+    width: 72px;
+    height: 72px;
+    flex-basis: 72px;
+    border-radius: 22px;
+  }
+
+  .chat-signal-redesign .chat-welcome h2 {
+    font-size: clamp(24px, 6.2vw, 30px);
+    line-height: 1.12;
+  }
+
+  .chat-signal-redesign .chat-welcome p {
+    font-size: 12px;
+  }
+
+  .chat-signal-redesign .chat-welcome-voice-card {
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    padding: 11px;
+  }
+
+  .chat-signal-redesign .chat-welcome-voice-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+  }
+
+  .chat-signal-redesign .chat-welcome-voice-live {
+    display: none;
+  }
+
+  .chat-signal-redesign .chat-welcome-voice-copy > span {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .chat-signal-redesign .chat-suggestion-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .chat-signal-redesign .chat-welcome--signal.is-persona .chat-suggestion-card:last-child:nth-child(odd) {
+    grid-column: auto;
+  }
+
+  .chat-signal-redesign .chat-composer-wrap {
+    padding: 8px 12px 11px;
+  }
+
+  .chat-signal-redesign .chat-composer-voice {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    padding: 0;
+  }
+
+  .chat-signal-redesign .chat-composer-voice > span {
+    display: none;
+  }
+
+  .chat-signal-redesign .chat-composer-hint {
+    display: none;
+  }
+
+  .chat-signal-redesign .voice-console-v2--bar .vc2-bar-binding,
+  .chat-signal-redesign .voice-console-v2--bar .vc2-bar-health {
+    display: none;
+  }
+
+  .chat-signal-redesign .voice-console-v2--bar .vc2-bar-preview {
+    flex-basis: 100%;
+    order: 8;
+    padding-left: 32px;
+  }
+
+  .chat-signal-redesign .voice-console-v2--bar .vc2-bar-btn .vc2-bar-label {
+    display: none;
+  }
+
+  .chat-signal-redesign .voice-console-v2--bar .vc2-bar-btn.ant-btn-sm {
+    width: 44px;
+    min-width: 44px;
+    padding: 0;
+  }
+
+  .chat-signal-redesign .voice-console-v2--bar .vc2-bar-btn.is-primary.ant-btn-sm {
+    width: auto;
+    min-width: 44px;
+    padding-inline: 12px;
+  }
+}
+
+@media (max-width: 1180px) {
+  .chat-signal-redesign .chat-topic-sidebar.v3-panel {
+    width: 224px;
+  }
+
+  .chat-signal-redesign .chat-inspector.v3-panel {
+    width: 248px;
+  }
+}
+
+@media (max-width: 980px) {
+  .chat-signal-redesign .chat-topic-sidebar.v3-panel {
+    width: 210px;
+  }
+
+  .chat-signal-redesign .chat-inspector.v3-panel {
+    width: 228px;
+  }
+}
+
+@media (max-width: 900px) {
+  .chat-signal-redesign .chat-topic-sidebar.v3-panel:not(.is-collapsed),
+  .chat-signal-redesign .chat-inspector.v3-panel:not(.is-collapsed) {
+    z-index: 32;
+    box-shadow: 0 18px 50px color-mix(in srgb, var(--signal-bg) 58%, transparent);
+  }
+}
+
+@media (max-width: 940px) {
+  .chat-signal-redesign .vc2-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .chat-signal-redesign .vc2-stage {
+    min-height: 300px;
+    border-right: 0;
+    border-bottom: 1px solid var(--signal-line);
+  }
+
+  .chat-signal-redesign .vc2-field {
+    min-height: 210px;
+  }
+
+  .chat-signal-redesign .vc2-dialogue {
+    min-height: 240px;
+  }
+}
+
+@media (max-width: 700px) {
+  .chat-signal-redesign .chat-topic-sidebar.v3-panel.is-collapsed {
+    width: 40px;
+  }
+
+  .chat-signal-redesign .chat-inspector.v3-panel.is-collapsed {
+    width: 40px;
+  }
+
+  .chat-signal-redesign .chat-workspace-head {
+    min-height: 54px;
+    padding: 0 54px;
+  }
+
+  .chat-signal-redesign .chat-workspace-kicker,
+  .chat-signal-redesign .chat-workspace-mode {
+    display: none;
+  }
+
+  .chat-signal-redesign .chat-flow {
+    padding: 22px 14px 28px;
+    gap: 20px;
+  }
+
+  .chat-signal-redesign .chat-user-capsule {
+    max-width: 84%;
+  }
+
+  .chat-signal-redesign .chat-welcome.chat-welcome--signal {
+    align-content: start;
+  }
+
+  .chat-signal-redesign .voice-console-v2 {
+    padding: 12px;
+    border-radius: var(--signal-radius-md);
+  }
+
+  .chat-signal-redesign .vc2-header {
+    align-items: flex-start;
+  }
+
+  .chat-signal-redesign .vc2-layout {
+    border-radius: var(--signal-radius-md);
+  }
+
+  .chat-signal-redesign .vc2-stage,
+  .chat-signal-redesign .vc2-dialogue {
+    padding: 14px;
+  }
+
+  .chat-signal-redesign .vc2-command-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .chat-signal-redesign .vc2-command-hint {
+    text-align: left;
+  }
+
+  .chat-signal-redesign .vc2-primary-actions {
+    flex-wrap: wrap;
+  }
+
+  .chat-signal-redesign .vc2-primary-button.ant-btn {
+    flex: 1;
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .chat-signal-redesign .chat-composer-voice,
+  .chat-signal-redesign .chat-welcome-library-link,
+  .chat-signal-redesign .chat-topic-head .ant-btn,
+  .chat-signal-redesign .chat-inspector .v3-panel-head .ant-btn,
+  .chat-signal-redesign .vc2-actions .ant-btn {
+    min-height: 44px;
+  }
+
+  .chat-signal-redesign .chat-send-button,
+  .chat-signal-redesign .chat-stop-button {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+  }
+
+  .chat-signal-redesign .vc2-actions .ant-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .chat-signal-redesign .vc2-thread-jump {
+    min-height: 44px;
+    padding-inline: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-signal-redesign *,
+  .chat-signal-redesign *::before,
+  .chat-signal-redesign *::after {
+    scroll-behavior: auto !important;
+  }
+
+  .chat-signal-redesign .chat-welcome-voice-card,
+  .chat-signal-redesign .chat-welcome-voice-arrow,
+  .chat-signal-redesign .chat-welcome-voice-live i,
+  .chat-signal-redesign .chat-composer-voice,
+  .chat-signal-redesign .chat-suggestion-card,
+  .chat-signal-redesign .vc2-thread-jump {
+    transition: none !important;
+  }
+
+  .chat-signal-redesign .chat-row,
+  .chat-signal-redesign .chat-wel-ring,
+  .chat-signal-redesign .chat-wel-dot,
+  .chat-signal-redesign .vc2-orb *,
+  .chat-signal-redesign .vc2-wave-field i,
+  .chat-signal-redesign .voice-console-v2--bar .vc2-bar-meter i {
+    animation: none !important;
+  }
+}
+
+.ui-reduced-motion .chat-signal-redesign .chat-welcome-voice-card,
+.ui-reduced-motion .chat-signal-redesign .chat-composer-voice,
+.ui-reduced-motion .chat-signal-redesign .chat-suggestion-card,
+.ui-reduced-motion .chat-signal-redesign .vc2-orb *,
+.ui-reduced-motion .chat-signal-redesign .vc2-wave-field i,
+.ui-reduced-motion .chat-signal-redesign .voice-console-v2--bar .vc2-bar-meter i {
+  animation: none !important;
+  transition: none !important;
+}
+
+.ui-reduced-motion .chat-signal-redesign .chat-voice-room-main .vc2-orb.is-listening .vc2-orb-core,
+.ui-reduced-motion .chat-signal-redesign .chat-voice-room-main .vc2-orb.is-listening .vc2-orb-orbit.is-inner,
+.ui-reduced-motion .chat-signal-redesign .chat-voice-room-main .vc2-orb.is-listening .vc2-orb-orbit.is-outer {
+  transform: none !important;
+}
+
+/* ═══ Standalone voice room ═══════════════════════════════════════
+   The voice experience owns the content area instead of sharing it with
+   the chat composer. Layout follows the strongest parts of current voice
+   products: a live sound stage, a readable transcript rail, and a fixed
+   control dock with one obvious primary action. */
+
+html.gaea-voice-room-open .v3-telemetry {
+  display: none;
+}
+
+.chat-signal-redesign.chat-voice-mode {
+  min-height: 0;
+  background:
+    radial-gradient(ellipse 58% 44% at 28% -8%, var(--signal-accent-soft), transparent 74%),
+    color-mix(in srgb, var(--signal-bg) 96%, var(--signal-panel));
+}
+
+.chat-signal-redesign .chat-voice-room-main {
+  position: relative;
+  isolation: isolate;
+  background:
+    radial-gradient(ellipse 40% 46% at 25% 42%, color-mix(in srgb, var(--signal-accent) 7%, transparent), transparent 76%),
+    linear-gradient(180deg, color-mix(in srgb, var(--signal-ink) 2%, transparent), transparent 46%),
+    var(--signal-bg);
+}
+
+.chat-signal-redesign .chat-voice-room-main::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background-image:
+    radial-gradient(circle, color-mix(in srgb, var(--signal-accent) 14%, transparent) 0.6px, transparent 0.9px);
+  background-size: 22px 22px;
+  content: "";
+  mask-image: radial-gradient(ellipse 52% 54% at 30% 48%, black, transparent 76%);
+  opacity: 0.22;
+  pointer-events: none;
+}
+
+.chat-signal-redesign .chat-voice-room-main > .voice-console-v2 {
+  width: auto;
+  min-height: 0;
+  margin: 12px;
+  padding: 16px;
+  overflow: hidden;
+  border: 1px solid var(--signal-line);
+  border-radius: 22px;
+  background:
+    radial-gradient(ellipse 45% 42% at 18% 0%, var(--signal-accent-soft), transparent 68%),
+    color-mix(in srgb, var(--signal-panel) 92%, var(--signal-bg));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--signal-ink) 6%, transparent),
+    0 22px 64px color-mix(in srgb, var(--signal-bg) 44%, transparent);
+}
+
+.chat-signal-redesign .chat-voice-room-main > .voice-console-v2.is-preflight {
+  overflow: auto;
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-header {
+  min-height: 52px;
+  padding: 0 2px 13px;
+  border-bottom: 1px solid var(--signal-line);
+}
+
+.chat-signal-redesign .vc2-header-leading {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.chat-signal-redesign .vc2-back-button.ant-btn {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border: 1px solid var(--signal-line);
+  border-radius: 11px;
+  background: transparent;
+  color: var(--signal-muted);
+}
+
+.chat-signal-redesign .vc2-back-button.ant-btn:hover {
+  border-color: var(--signal-accent-line);
+  background: var(--signal-accent-soft);
+  color: var(--signal-accent);
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-brand-sigil {
+  width: 42px;
+  height: 42px;
+  flex-basis: 42px;
+  border-color: var(--signal-accent-line);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 32% 24%, color-mix(in srgb, var(--signal-ink) 14%, transparent), transparent 58%),
+    var(--signal-accent-soft);
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-title-row h2 {
+  font-size: 21px;
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-identity p {
+  max-width: 52ch;
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-layout {
+  position: relative;
+  display: block;
+  flex: 1;
+  min-height: 0;
+  border: 1px solid var(--signal-line);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--signal-panel) 88%, var(--signal-bg));
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-stage {
+  height: 100%;
+  min-height: 0;
+  padding: clamp(18px, 2vw, 28px);
+  border-right: 0;
+  background:
+    radial-gradient(circle at 50% 44%, color-mix(in srgb, var(--signal-accent) 9%, transparent), transparent 45%),
+    linear-gradient(160deg, color-mix(in srgb, var(--signal-ink) 2%, transparent), transparent 52%);
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-stage > .vc2-section-head,
+.chat-signal-redesign .chat-voice-room-main .vc2-stage-facts {
+  padding-right: calc(clamp(320px, 30%, 400px) + 20px);
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-field {
+  min-height: 270px;
+  gap: 14px;
+  padding: 22px 0 8px;
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-orb {
+  --vc2-orb-size: clamp(218px, 22vw, 286px);
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-orb-orbit.is-outer {
+  border-color: color-mix(in srgb, var(--signal-accent) 20%, var(--signal-line));
+  box-shadow:
+    inset 0 0 0 11px color-mix(in srgb, var(--signal-accent) 3%, transparent),
+    0 20px 64px color-mix(in srgb, var(--signal-accent) 6%, transparent);
+  transition:
+    transform 90ms linear,
+    box-shadow 180ms ease;
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-orb.is-listening .vc2-orb-orbit.is-outer {
+  transform: scale(calc(1 + var(--vc2-live, 0) * 0.04));
+  box-shadow:
+    inset 0 0 0 calc(10px + var(--vc2-live, 0) * 5px) color-mix(in srgb, var(--signal-accent) 4%, transparent),
+    0 0 calc(30px + var(--vc2-live, 0) * 48px) color-mix(in srgb, var(--signal-accent) 10%, transparent);
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-orb.is-speaking .vc2-orb-orbit.is-outer {
+  box-shadow:
+    inset 0 0 0 11px color-mix(in srgb, var(--signal-accent) 4%, transparent),
+    0 0 56px color-mix(in srgb, var(--signal-accent) 11%, transparent);
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-orb-orbit.is-outer::before {
+  inset: 9%;
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--signal-accent) 13%, var(--signal-line));
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-orb-orbit.is-inner {
+  inset: 26%;
+  border-color: color-mix(in srgb, var(--signal-accent) 28%, var(--signal-line));
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-orb-glow {
+  display: none;
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-orb-core {
+  width: 24%;
+  height: 24%;
+  border-color: color-mix(in srgb, var(--signal-ink) 18%, transparent);
+  background: color-mix(in srgb, var(--signal-panel-raised) 52%, transparent);
+  color: color-mix(in srgb, var(--signal-ink) 88%, var(--signal-accent));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--signal-ink) 22%, transparent),
+    0 10px 30px color-mix(in srgb, var(--signal-bg) 32%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  font-size: 27px;
+  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-orb-canvas {
+  filter: saturate(1.04);
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-orb.is-disconnected .vc2-orb-canvas {
+  opacity: 0.72;
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-orb.is-listening .vc2-orb-core {
+  transform: scale(calc(1 + var(--vc2-live, 0) * 0.08));
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-orb-orbit.is-inner {
+  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-orb.is-listening .vc2-orb-orbit.is-inner {
+  transform: scale(calc(1 + var(--vc2-live, 0) * 0.12));
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-stage-copy {
+  width: min(100%, 430px);
+  max-width: 430px;
+  min-height: 92px;
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-live-line {
+  display: -webkit-box;
+  min-height: 2.5em;
+  margin: 10px 0 0;
+  overflow: hidden;
+  color: var(--signal-ink);
+  font-size: clamp(15px, 1.35vw, 18px);
+  line-height: 1.5;
+  text-align: center;
+  text-wrap: pretty;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-stage-hint {
+  display: block;
+  margin-top: 5px;
+  color: var(--signal-faint);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-wave-field {
+  width: min(360px, 76%);
+  height: 36px;
+  opacity: 0.34;
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-wave-field i {
+  width: 3px;
+  height: calc(5px + var(--vc2-wave) * 26px);
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-stage-facts {
+  padding-top: 12px;
+  font-size: 10px;
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-dialogue {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: clamp(320px, 30%, 400px);
+  min-height: 0;
+  padding: 20px;
+  overflow: hidden;
+  border-left: 1px solid var(--signal-line);
+  border-radius: 0 17px 17px 0;
+  background: color-mix(in srgb, var(--signal-bg) 76%, var(--signal-panel));
+  box-shadow: inset 1px 0 0 color-mix(in srgb, var(--signal-ink) 4%, transparent);
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-thread {
+  margin-top: 17px;
+  gap: 18px;
+  padding-right: 8px;
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-message {
+  max-width: 92%;
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-message.is-user {
+  max-width: 82%;
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-message p {
+  font-size: 14px;
+  line-height: 1.72;
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-command-dock {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  padding: 10px 12px 7px;
+  border-color: var(--signal-line);
+  border-radius: 16px;
+  background: var(--signal-panel-raised);
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-command-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  min-height: 48px;
+  gap: 8px;
+  align-items: center;
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-primary-actions {
+  grid-column: 2;
+  justify-content: center;
+  gap: 9px;
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-primary-button.ant-btn {
+  min-width: 170px;
+  height: 48px;
+  border-radius: 999px;
+  font-size: 12.5px;
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-interrupt-button.ant-btn,
+.chat-signal-redesign .chat-voice-room-main .vc2-end-session.ant-btn {
+  height: 48px;
+  padding-inline: 16px;
+  border-radius: 999px;
+  border-color: var(--signal-line);
+  background: transparent;
+  color: var(--signal-muted);
+  font-size: 11.5px;
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-end-session.ant-btn {
+  grid-column: 3;
+  justify-self: end;
+  border-color: color-mix(in srgb, var(--signal-danger) 26%, var(--signal-line));
+  color: color-mix(in srgb, var(--signal-danger) 76%, var(--signal-ink));
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-end-session.ant-btn:hover {
+  border-color: color-mix(in srgb, var(--signal-danger) 54%, var(--signal-line)) !important;
+  background: color-mix(in srgb, var(--signal-danger) 7%, transparent) !important;
+  color: var(--signal-danger) !important;
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-command-hint {
+  max-width: 280px;
+  margin-left: 4px;
+  font-size: 10px;
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-diagnostics {
+  margin-top: 2px;
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-preflight {
+  width: min(100%, 980px);
+  min-height: 0;
+  margin: auto;
+  padding: clamp(28px, 4vw, 54px);
+  grid-template-columns: minmax(0, 1.08fr) minmax(150px, 0.52fr) minmax(280px, 0.94fr);
+  grid-template-areas:
+    "copy orb services"
+    "action orb services"
+    "feedback feedback feedback";
+  gap: 18px 30px;
+  border-color: var(--signal-line);
+  border-radius: 20px;
+  background:
+    radial-gradient(ellipse 56% 58% at 20% 18%, var(--signal-accent-soft), transparent 72%),
+    var(--signal-panel-raised);
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-preflight-copy h3 {
+  font-size: clamp(30px, 4vw, 48px);
+  font-weight: 640;
+  letter-spacing: -0.045em;
+}
+
+.chat-signal-redesign .vc2-preflight-orb {
+  grid-area: orb;
+  align-self: center;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--signal-faint);
+  font-size: 9.5px;
+}
+
+.chat-signal-redesign .vc2-preflight-orb .vc2-orb {
+  --vc2-orb-size: 156px;
+}
+
+.chat-signal-redesign .vc2-preflight-orb .vc2-orb-orbit.is-outer {
+  border-color: var(--signal-line-strong);
+  box-shadow: inset 0 0 0 7px var(--signal-accent-soft);
+}
+
+.chat-signal-redesign .vc2-preflight-orb .vc2-orb-core {
+  width: 25%;
+  height: 25%;
+  border-color: color-mix(in srgb, var(--signal-ink) 16%, transparent);
+  background: color-mix(in srgb, var(--signal-panel-raised) 62%, transparent);
+  color: var(--signal-muted);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--signal-ink) 18%, transparent);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+  font-size: 20px;
+}
+
+.chat-signal-redesign .vc2-preflight-orb .vc2-orb-canvas {
+  opacity: 0.72;
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-service-item {
+  min-height: 92px;
+  padding: 16px;
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-primary-button {
+  min-height: 46px;
+}
+
+@container (max-width: 940px) {
+  .chat-signal-redesign .chat-voice-room-main .vc2-layout {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(280px, 0.95fr) minmax(200px, 1.05fr);
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-stage {
+    height: auto;
+    min-height: 280px;
+    border-right: 0;
+    border-bottom: 1px solid var(--signal-line);
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-stage > .vc2-section-head,
+  .chat-signal-redesign .chat-voice-room-main .vc2-stage-facts {
+    padding-right: 0;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-field {
+    min-height: 180px;
+    gap: 8px;
+    padding: 10px 0 4px;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-orb {
+    --vc2-orb-size: 180px;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-stage-hint {
+    display: none;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-dialogue {
+    position: relative;
+    inset: auto;
+    width: auto;
+    min-height: 200px;
+    overflow: hidden;
+    border-top: 1px solid var(--signal-line);
+    border-left: 0;
+    border-radius: 0 0 17px 17px;
+    box-shadow: none;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-preflight {
+    grid-template-columns: minmax(0, 1fr) 176px;
+    grid-template-areas:
+      "copy orb"
+      "action orb"
+      "services services"
+      "feedback feedback";
+  }
+}
+
+@media (max-width: 760px) {
+  .chat-signal-redesign .chat-voice-room-main > .voice-console-v2 {
+    margin: 6px;
+    padding: 12px;
+    border-radius: 17px;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-header {
+    align-items: flex-start;
+  }
+
+  .chat-signal-redesign .vc2-header-leading {
+    align-items: flex-start;
+    gap: 9px;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-brand-sigil {
+    width: 36px;
+    height: 36px;
+    flex-basis: 36px;
+    border-radius: 11px;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-title-row h2 {
+    font-size: 18px;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-identity p {
+    max-width: 28ch;
+    font-size: 9.5px;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-layout {
+    border-radius: 14px;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-orb {
+    --vc2-orb-size: 180px;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-stage-copy {
+    min-height: 82px;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-live-line {
+    font-size: 14px;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-command-row {
+    display: flex;
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-primary-actions {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-primary-button.ant-btn {
+    min-width: 0;
+    width: 100%;
+    flex: 1;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-end-session.ant-btn {
+    width: auto;
+    flex: 0 0 auto;
+    margin-left: 0;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-command-hint {
+    max-width: none;
+    margin-left: 0;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-preflight {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "copy"
+      "orb"
+      "services"
+      "action"
+      "feedback";
+    margin: 0;
+    padding: 22px 16px;
+  }
+
+  .chat-signal-redesign .vc2-preflight-orb {
+    padding: 8px 0 4px;
+  }
+
+  .chat-signal-redesign .vc2-preflight-orb .vc2-orb {
+    --vc2-orb-size: 144px;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-preflight-copy h3 {
+    font-size: 30px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-signal-redesign .chat-voice-room-main .vc2-orb-core,
+  .chat-signal-redesign .chat-voice-room-main .vc2-orb-orbit.is-inner,
+  .chat-signal-redesign .chat-voice-room-main .vc2-orb-orbit.is-outer {
+    transition: none !important;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-orb.is-listening .vc2-orb-core,
+  .chat-signal-redesign .chat-voice-room-main .vc2-orb.is-listening .vc2-orb-orbit.is-inner,
+  .chat-signal-redesign .chat-voice-room-main .vc2-orb.is-listening .vc2-orb-orbit.is-outer {
+    transform: none !important;
+  }
+}
+
+/* ═══ Scroll ownership ═══════════════════════════════════════════
+   The workspace has one bounded height. Headers and controls stay fixed;
+   only the conversation surface scrolls. Explicit scrollbar styling also
+   overrides the global narrow-window rule that hides every scrollbar. */
+
+.chat-signal-redesign {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.chat-signal-redesign .chat-main {
+  height: auto;
+  max-height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  flex: 1 1 0%;
+}
+
+.chat-signal-redesign .chat-message-scroll {
+  height: auto;
+  max-height: 100%;
+  min-height: 0;
+  flex: 1 1 0%;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin !important;
+  scrollbar-color: color-mix(in srgb, var(--signal-muted) 46%, transparent) transparent;
+}
+
+.chat-signal-redesign .chat-message-scroll::-webkit-scrollbar,
+.chat-signal-redesign .chat-voice-room-main .vc2-thread::-webkit-scrollbar {
+  display: block !important;
+  width: 9px;
+  height: 9px;
+}
+
+.chat-signal-redesign .chat-message-scroll::-webkit-scrollbar-track,
+.chat-signal-redesign .chat-voice-room-main .vc2-thread::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-signal-redesign .chat-message-scroll::-webkit-scrollbar-thumb,
+.chat-signal-redesign .chat-voice-room-main .vc2-thread::-webkit-scrollbar-thumb {
+  min-height: 42px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--signal-muted) 38%, transparent);
+  background-clip: padding-box;
+}
+
+.chat-signal-redesign .chat-message-scroll::-webkit-scrollbar-thumb:hover,
+.chat-signal-redesign .chat-voice-room-main .vc2-thread::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--signal-accent) 54%, transparent);
+  background-clip: padding-box;
+}
+
+.chat-signal-redesign .chat-voice-room-main > .voice-console-v2:not(.is-preflight) {
+  height: auto;
+  max-height: calc(100% - 24px);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-layout {
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-stage {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-dialogue {
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.chat-signal-redesign .chat-voice-room-main .vc2-thread {
+  height: auto;
+  max-height: 100%;
+  min-height: 0;
+  flex: 1 1 0%;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin !important;
+  scrollbar-color: color-mix(in srgb, var(--signal-muted) 40%, transparent) transparent;
+}
+
+.chat-signal-redesign .chat-voice-room-main > .voice-console-v2.is-preflight {
+  scrollbar-width: thin !important;
+}
+
+@container (max-width: 940px) {
+  .chat-signal-redesign .chat-voice-room-main .vc2-layout {
+    grid-template-rows: minmax(280px, 0.95fr) minmax(200px, 1.05fr);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-stage {
+    min-height: 280px;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-dialogue {
+    min-height: 200px;
+    overflow: hidden;
+  }
+}
+
+@media (max-width: 899px) {
+  .chat-signal-redesign .chat-message-scroll,
+  .chat-signal-redesign .chat-voice-room-main .vc2-thread {
+    scrollbar-width: thin !important;
+  }
+
+  .chat-signal-redesign .chat-message-scroll::-webkit-scrollbar,
+  .chat-signal-redesign .chat-voice-room-main .vc2-thread::-webkit-scrollbar {
+    display: block !important;
+  }
+}
+
+@container (max-width: 520px) {
+  .chat-signal-redesign .chat-voice-room-main .vc2-stage {
+    padding: 12px 14px 10px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-identity p,
+  .chat-signal-redesign .chat-voice-room-main .vc2-stage-facts,
+  .chat-signal-redesign .chat-voice-room-main .vc2-wave-field {
+    display: none;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-layout {
+    grid-template-rows: minmax(300px, 0.95fr) minmax(180px, 1.05fr);
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-field {
+    min-height: 150px;
+    gap: 8px;
+    padding: 8px 0 2px;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-orb {
+    --vc2-orb-size: 150px;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-stage-copy {
+    min-height: 70px;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-live-line {
+    min-height: 2.9em;
+    margin-top: 6px;
+    font-size: 13.5px;
+    line-height: 1.45;
+    -webkit-line-clamp: 2;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-command-hint {
+    display: none;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-command-row {
+    position: relative;
+    display: flex;
+    justify-content: center;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-primary-actions {
+    flex: 0 0 auto;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-primary-button.ant-btn {
+    width: auto;
+    min-width: 170px;
+    flex: 0 0 auto;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-end-session.ant-btn {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    width: 44px;
+    min-width: 44px;
+    padding: 0;
+    transform: translateY(-50%);
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-end-session-label {
+    display: none;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-dialogue-tools .vc2-turn-count {
+    display: none;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-diagnostics summary {
+    min-height: 34px;
+  }
+}
+
+@media (max-height: 740px) and (min-width: 761px) {
+  .chat-signal-redesign .chat-voice-room-main .vc2-field {
+    min-height: 196px;
+    gap: 8px;
+    padding: 10px 0 4px;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-orb {
+    --vc2-orb-size: clamp(182px, 28vh, 230px);
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-stage-copy {
+    min-height: 78px;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-wave-field {
+    height: 24px;
+  }
+
+  .chat-signal-redesign .chat-voice-room-main .vc2-stage-facts {
+    padding-top: 8px;
+  }
+}

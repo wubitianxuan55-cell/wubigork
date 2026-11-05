@@ -178,6 +178,38 @@ func TestFailover_Disabled_RegressionLock(t *testing.T) {
 	}
 }
 
+func TestFailover_ExplicitBindingLocksEngine(t *testing.T) {
+	dead := deadURL(t)
+	f := newFailoverSetup(t, nil)
+	if err := f.mgr.UpdateCustomEngine(f.badID, "bad", dead, "sk-bad"); err != nil {
+		t.Fatalf("UpdateCustomEngine: %v", err)
+	}
+	c, events := f.newFailoverClient(t)
+	c.SetEngineFailoverFunc(func() bool { return true })
+
+	req := failoverChatReq(f.badID)
+	req.DisableFailover = true
+	_, err := c.Chat(context.Background(), req)
+	if err == nil {
+		t.Fatal("锁定绑定引擎后应返回原错误")
+	}
+	if n := f.goodChatHits.Load(); n != 0 {
+		t.Errorf("显式绑定不得转移，目标引擎被命中 %d 次", n)
+	}
+	if len(*events) != 0 {
+		t.Errorf("显式绑定不得产生转移事件: %v", *events)
+	}
+}
+
+func TestPrepareStreamRequestPropagatesDisableFailover(t *testing.T) {
+	f := newFailoverSetup(t, nil)
+	c, _ := f.newFailoverClient(t)
+	req := c.prepareStreamRequest("m", nil, ChatSimpleOptions{DisableFailover: true})
+	if !req.DisableFailover {
+		t.Fatal("ChatSimpleOptions.DisableFailover 应透传到 ChatRequest")
+	}
+}
+
 // TestFailover_NetworkError_TransfersOnce 开关开 + 网络类错误（连接拒绝）：
 // 换候选引擎用其 default_model 重试一次成功；转移事件触发；记账按实际
 // 引擎/模型逐笔（失败引擎 1 笔失败、目标引擎 1 笔成功）。

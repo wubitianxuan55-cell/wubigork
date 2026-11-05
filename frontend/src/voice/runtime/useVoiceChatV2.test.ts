@@ -87,6 +87,7 @@ describe('useVoiceChatV2', () => {
     await act(async () => { await result.current.replayEvents(FIXTURE_TURN, 0) })
     expect(result.current.phase).toBe('idle')
     expect(result.current.transcripts).toEqual(['你好请用两句话介绍一下你自己'])
+    expect(result.current.dialogue.map(({ role }) => role)).toEqual(['user', 'assistant'])
     expect(result.current.assistantText).toContain('语音助手')
     expect(turns).toEqual([{
       user: '你好请用两句话介绍一下你自己',

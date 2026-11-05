@@ -11,6 +11,10 @@ function renderSplash() {
   )
 }
 
+function startVoice(container: HTMLElement) {
+  fireEvent(container.querySelector('audio')!, new Event('playing'))
+}
+
 function setReducedMotion(matches: boolean) {
   vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
     matches,
@@ -37,7 +41,7 @@ describe('BootSplash', () => {
     vi.restoreAllMocks()
   })
 
-  it('接管静态启动屏并展示大地创生启动序列', () => {
+  it('接管静态启动屏并展示地核生成启动序列', () => {
     const staticSplash = document.createElement('div')
     staticSplash.id = 'boot-splash'
     document.body.appendChild(staticSplash)
@@ -46,7 +50,8 @@ describe('BootSplash', () => {
 
     expect(document.getElementById('boot-splash')).toBeNull()
     expect(screen.getByTestId('boot-splash')).not.toBeNull()
-    expect(screen.getAllByText('REQUESTING ACCESS').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('GAEA').length).toBeGreaterThan(0)
+    expect(screen.getByText('大地苏醒…')).not.toBeNull()
     expect(screen.getByRole('button', { name: /跳过启动.*ESC/i })).not.toBeNull()
   })
 
@@ -59,7 +64,7 @@ describe('BootSplash', () => {
 
     expect(screen.getByTestId('boot-splash').classList.contains('is-leaving')).toBe(true)
     act(() => {
-      vi.advanceTimersByTime(440)
+      vi.advanceTimersByTime(420)
     })
     expect(screen.queryByTestId('boot-splash')).toBeNull()
   })
@@ -71,48 +76,71 @@ describe('BootSplash', () => {
     expect(screen.getByTestId('boot-splash').classList.contains('is-leaving')).toBe(true)
 
     act(() => {
-      vi.advanceTimersByTime(440)
+      vi.advanceTimersByTime(420)
     })
     expect(screen.queryByTestId('boot-splash')).toBeNull()
   })
 
   it('正常启动在计时结束后自动卸载', () => {
-    renderSplash()
+    const { container } = renderSplash()
+    startVoice(container)
 
     act(() => {
-      vi.advanceTimersByTime(7400)
+      vi.advanceTimersByTime(4300)
     })
     expect(screen.getByTestId('boot-splash').classList.contains('is-leaving')).toBe(true)
 
     act(() => {
-      vi.advanceTimersByTime(920)
+      vi.advanceTimersByTime(520)
     })
     expect(screen.queryByTestId('boot-splash')).toBeNull()
   })
 
-  it('reduced-motion 下直接进入就绪态并快速退出', () => {
+  it('reduced-motion 只关闭动画，不跳过完整启动时序', () => {
     setReducedMotion(true)
-    renderSplash()
+    const { container } = renderSplash()
+    startVoice(container)
 
-    expect(screen.getAllByText('大地终端已就绪').length).toBeGreaterThan(0)
     act(() => {
       vi.advanceTimersByTime(760)
     })
+    expect(screen.getByTestId('boot-splash')).not.toBeNull()
+    expect(screen.getByTestId('boot-splash').classList.contains('is-leaving')).toBe(false)
+
+    act(() => {
+      vi.advanceTimersByTime(836)
+    })
+    expect(screen.getByText('盖亚，与你同行')).not.toBeNull()
+
+    act(() => {
+      fireEvent(container.querySelector('audio')!, new Event('ended'))
+    })
     expect(screen.getByTestId('boot-splash').classList.contains('is-leaving')).toBe(true)
+    act(() => {
+      vi.advanceTimersByTime(180)
+    })
+    expect(screen.queryByTestId('boot-splash')).toBeNull()
   })
 
-  it('按权限验证到大地终端的两幕节奏推进', () => {
-    renderSplash()
+  it('按两段语音推进状态文案', () => {
+    const { container } = renderSplash()
+    startVoice(container)
 
     act(() => {
-      vi.advanceTimersByTime(900)
+      vi.advanceTimersByTime(1596)
     })
-    expect(screen.getByText('PERMISSION AUTHORIZED')).not.toBeNull()
+    expect(screen.getByText('盖亚，与你同行')).not.toBeNull()
+    expect(screen.getAllByRole('heading', { name: 'GAEA' }).length).toBe(1)
+  })
+
+  it('语音自然结束即收束，不等待兜底计时器', () => {
+    const { container } = renderSplash()
+    const audio = container.querySelector('audio')
+    expect(audio?.getAttribute('src')).toBe('/boot-gaea-voice-selected.wav')
 
     act(() => {
-      vi.advanceTimersByTime(900)
+      fireEvent(audio!, new Event('ended'))
     })
-    expect(screen.getAllByRole('heading', { name: 'GAEA' }).length).toBeGreaterThan(0)
-    expect(screen.getByText('TERRA INTELLIGENCE')).not.toBeNull()
+    expect(screen.getByTestId('boot-splash').classList.contains('is-leaving')).toBe(true)
   })
 })

@@ -27,8 +27,9 @@ func (c *Client) FailoverEnabled() bool {
 // 关闭时成功与失败路径行为均与现状逐字节一致。
 
 // failoverTarget 判断是否应故障转移并返回（候选引擎ID, 候选default_model, true）。
-// 条件：开关开启 + engineMgr 可用 + 错误可转移 + 存在候选引擎（enabled 且
-// 最近 Status.Connected 且判型 llm，排除失败引擎，按 m.order 顺序取首个）。
+// 条件：调用方未锁定显式绑定 + 开关开启 + engineMgr 可用 + 错误可转移 +
+// 存在候选引擎（enabled 且最近 Status.Connected 且判型 llm，排除失败引擎，
+// 按 m.order 顺序取首个）。
 func (c *Client) failoverTarget(failedEngineID string, err error) (string, string, bool) {
 	if err == nil || !c.FailoverEnabled() || c.engineMgr == nil {
 		return "", "", false

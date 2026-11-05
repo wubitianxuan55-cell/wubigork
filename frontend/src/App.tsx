@@ -197,6 +197,9 @@ const App: React.FC = () => {
     // 原生控件明暗（v4.351）：滚动条轨道角/表单控件随主题（此前全仓无声明，
     // 暗主题下原生控件残留亮色渲染）
     root.style.colorScheme = darkMode ? 'dark' : 'light'
+    // 首帧脚本只读取一次显示模式；运行时切换主题时必须同步这个静态标记，
+    // 否则浅色启动后切暗，index.html 的浅色页面底仍会保留，露出白色底板。
+    root.toggleAttribute('data-bs-light', !darkMode)
   }, [effTokens, darkMode, baseTheme])
 
   // antd 主题对象同样 memo：ConfigProvider 收到新对象就会重跑主题算法

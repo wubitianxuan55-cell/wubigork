@@ -64,6 +64,14 @@ export interface PendingUserTranscript {
   itemId: string
 }
 
+export interface VoiceTranscriptMessage {
+  id: string
+  role: 'user' | 'assistant'
+  text: string
+  responseId: string
+  itemId: string
+}
+
 export function initialVoiceSession(): VoiceSessionState {
   return {
     phase: 'idle',
@@ -80,6 +88,53 @@ export function initialVoiceSession(): VoiceSessionState {
     unknownEventCount: 0,
     errors: [],
   }
+}
+
+/**
+ * 把协议账本展开成可直接渲染的对话时间线。
+ *
+ * responseOrder 是轮次顺序的权威来源；每轮固定先用户后助手，避免 UI 以前
+ * 「先列出全部用户转写、再单独显示最后一轮助手」造成的非交替记录。
+ * 尚未与 response 配对的用户定稿接在已发生轮次之后；增量转写由 UI 单独展示。
+ */
+export function voiceTranscriptMessages(state: VoiceSessionState): VoiceTranscriptMessage[] {
+  const messages: VoiceTranscriptMessage[] = []
+  for (const responseId of state.responseOrder) {
+    const response = state.responses[responseId]
+    if (!response) continue
+    const user = response.userTranscript.trim()
+    const assistant = response.assistantText.trim()
+    if (user) {
+      messages.push({
+        id: `response:${responseId}:user`,
+        role: 'user',
+        text: user,
+        responseId,
+        itemId: response.userItemId,
+      })
+    }
+    if (assistant) {
+      messages.push({
+        id: `response:${responseId}:assistant`,
+        role: 'assistant',
+        text: assistant,
+        responseId,
+        itemId: response.userItemId,
+      })
+    }
+  }
+  state.pendingUserTranscripts.forEach((pending, index) => {
+    const text = pending.text.trim()
+    if (!text) return
+    messages.push({
+      id: `pending:${pending.itemId || index}`,
+      role: 'user',
+      text,
+      responseId: '',
+      itemId: pending.itemId,
+    })
+  })
+  return messages
 }
 
 function ledger(state: VoiceSessionState, id: string): ResponseLedger {

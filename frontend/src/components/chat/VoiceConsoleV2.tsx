@@ -348,7 +348,7 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
     const el = threadRef.current
     if (!el || !threadFollowingRef.current) return
     el.scrollTop = el.scrollHeight
-  }, [v2.transcripts, v2.partialTranscript, v2.assistantText])
+  }, [v2.dialogue, v2.partialTranscript])
 
   const handleThreadScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget
@@ -369,7 +369,7 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
   const ready = v2.services.ready
   const phaseMeta = PHASE_META[v2.phase]
   const feedback = turnWarning || userFacingVoiceNote(v2.note)
-  const hasConversation = v2.transcripts.length > 0 || Boolean(v2.partialTranscript) || Boolean(v2.assistantText)
+  const hasConversation = v2.dialogue.length > 0 || Boolean(v2.partialTranscript)
   const liveLine = v2.partialTranscript
     || (v2.phase === 'speaking' ? v2.assistantText : '')
     || (v2.connected ? phaseMeta.hint : '连接后即可开始实时语音对话')
@@ -697,22 +697,20 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
               tabIndex={0}
               onScroll={handleThreadScroll}
             >
-              {v2.transcripts.map((transcript, index) => (
-                <article className="vc2-message is-user" key={`${transcript}-${index}`}>
-                  <span className="vc2-message-label">你</span>
-                  <p>{transcript}</p>
+              {v2.dialogue.map((entry) => (
+                <article className={`vc2-message is-${entry.role}`} key={entry.id}>
+                  <span className="vc2-message-label">
+                    {entry.role === 'user' ? '你' : companionName}
+                  </span>
+                  <p data-testid={entry.role === 'assistant' ? 'vc2-assistant' : undefined}>
+                    {entry.text}
+                  </p>
                 </article>
               ))}
               {v2.partialTranscript && (
                 <article className="vc2-message is-user is-partial">
                   <span className="vc2-message-label">正在听</span>
                   <p>{v2.partialTranscript}<span className="vc2-caret" aria-hidden="true" /></p>
-                </article>
-              )}
-              {v2.assistantText && (
-                <article className="vc2-message is-assistant">
-                  <span className="vc2-message-label">{companionName}</span>
-                  <p data-testid="vc2-assistant">{v2.assistantText}</p>
                 </article>
               )}
               {!hasConversation && (

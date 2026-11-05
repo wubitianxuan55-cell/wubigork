@@ -25,8 +25,16 @@ import (
 
 // Chat 实现 whisper.LlmClient 接口（接入 gaea 模型中心）
 func (a *whisperState) Chat(systemPrompt, userPrompt string) (string, error) {
-	eng, model, _ := a.routeModel("chat") // 2.x 聊天/轻语合并：统一走 chat 路由
-	return a.clientRef().ChatSimpleStreamWithOptions(a.ctx, model, systemPrompt, userPrompt, ai.ChatSimpleOptions{EngineID: eng, Feature: "chat"})
+	if a.app == nil {
+		return "", fmt.Errorf("聊天模型路由未初始化")
+	}
+	eng, model, source, err := a.app.resolveChatModelRoute() // 2.x 聊天/轻语合并：统一走 chat 路由
+	if err != nil {
+		return "", err
+	}
+	return a.clientRef().ChatSimpleStreamWithOptions(a.ctx, model, systemPrompt, userPrompt, ai.ChatSimpleOptions{
+		EngineID: eng, Feature: "chat", DisableFailover: source == "feature",
+	})
 }
 
 // GetEngineList 返回模型中心全部引擎 ID（轻语设置面板引擎选择器用）
@@ -291,7 +299,13 @@ func (a *whisperState) whisperChatCore(
 	// v4.16 离线裂缝收口：persona 主链路与 plain 聊天同源走 routeModel（功能绑定 →
 	// 全局 → 兜底，离线模式自动滤云端）；无可用时 model 为空，由客户端按既有
 	// 「模型不可用」路径处理（与 v4.15 plain 聊天一致）。
-	engine, model, source := a.routeModel("chat")
+	if a.app == nil {
+		return nil, fmt.Errorf("聊天模型路由未初始化")
+	}
+	engine, model, source, routeErr := a.app.resolveChatModelRoute()
+	if routeErr != nil {
+		return nil, routeErr
+	}
 	// per-call 引擎覆盖：不影响全局激活引擎，多会话并发安全
 	if a.clientRef() == nil {
 		slog.Error("[whisper] client is nil")
@@ -301,6 +315,7 @@ func (a *whisperState) whisperChatCore(
 	// 注入时追加人格锁定段（防系统层覆盖人格段）并锁温度上限；
 	// max_output_tokens 钳制输出。未配置 = 零值 = 请求与现状逐字节一致。
 	opts := ai.ChatSimpleOptions{EngineID: engine, Feature: "chat", EnableThinking: thinking, DisableThinking: !thinking}
+	opts.DisableFailover = source == "feature"
 	if lowLatency && opts.MaxTokens <= 0 {
 		opts.MaxTokens = voiceMaxOutputTokens
 	}
@@ -719,8 +734,8 @@ func (a *whisperState) WhisperWebSearch(query string) (map[string]interface{}, e
 	out, err := chatWebSearch(query)
 	if err != nil {
 		return map[string]interface{}{
-			"query": query,
-			"state": string(builtin.SearchStateAllFailed),
+			"query":  query,
+			"state":  string(builtin.SearchStateAllFailed),
 			"result": "",
 			"error":  err.Error(),
 		}, nil
