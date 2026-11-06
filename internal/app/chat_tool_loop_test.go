@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -130,5 +131,45 @@ func TestChatToolLoop_SearchOffNoTools(t *testing.T) {
 	}
 	if out["reply"] != "好的" {
 		t.Errorf("reply = %v", out["reply"])
+	}
+}
+
+// TestChatToolLoop_ForceSearchSystemAtTop 实机 500 回归（2026-11-06）：强制
+// 搜索的指令必须并入首条 system，不得新增中间 system 消息——qwen 模板拒绝
+// 「System message must be at the beginning」（引擎 HTTP 500）。
+func TestChatToolLoop_ForceSearchSystemAtTop(t *testing.T) {
+	var round atomic.Int64
+	var systemsAtNonZero atomic.Bool
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var req struct {
+			Messages []struct {
+				Role string `json:"role"`
+			} `json:"messages"`
+		}
+		if err := json.Unmarshal(body, &req); err == nil {
+			for i, m := range req.Messages {
+				if m.Role == "system" && i != 0 {
+					systemsAtNonZero.Store(true)
+				}
+			}
+		}
+		n := round.Add(1)
+		if n == 1 {
+			sseToolCallReply(w, "call_fs", "web_search", `"{\"query\":\"成都 天气\"}"`)
+			return
+		}
+		sseReply(w, "晴天")
+	})
+	a := newChatServiceTestAppWithHandler(t, handler)
+	topic, err := a.ChatTopicCreate("B7强搜", "plain")
+	if err != nil {
+		t.Fatalf("ChatTopicCreate: %v", err)
+	}
+	if _, err := a.ChatSend(topic.ID, "明天成都的天气怎么样", "plain", true, false, true); err != nil {
+		t.Fatalf("ChatSend: %v", err)
+	}
+	if systemsAtNonZero.Load() {
+		t.Fatal("强制搜索轮出现非首位 system 消息（qwen 模板 500 病根）")
 	}
 }

@@ -77,12 +77,13 @@ func (a *App) runBoundedSearchToolLoop(
 	}
 	tools := []ai.ChatToolSchema{toolDef}
 	if mustSearch && len(messages) > 0 {
-		// 强制搜索：在末条 user 前插一条 system 指令（仅本轮）。
-		// 代价：该轮前缀与常规轮不同（一次性冷 prefill），forceSearch 低频可接受。
-		msgs := make([]ai.ChatMessage, 0, len(messages)+1)
-		msgs = append(msgs, messages[:len(messages)-1]...)
-		msgs = append(msgs, ai.ChatMessage{Role: "system", Content: "本轮必须先调用 web_search 获取实时信息，再基于结果回答。"})
-		msgs = append(msgs, messages[len(messages)-1])
+		// 强制搜索：指令并入首条 system 内容（2026-11-06 实机 500 病例：
+		// 曾在末条 user 前插 system 消息，qwen 模板拒绝「System message
+		// must be at the beginning」——中间 system 直接炸引擎）。首条追加
+		// 不改数组结构，模板合法；该轮前缀一次性冷 prefill 可接受。
+		msgs := make([]ai.ChatMessage, len(messages))
+		copy(msgs, messages)
+		msgs[0].Content += "\n\n[本轮必须先调用 web_search 获取实时信息，再基于结果回答。]"
 		messages = msgs
 	}
 	searches := 0
