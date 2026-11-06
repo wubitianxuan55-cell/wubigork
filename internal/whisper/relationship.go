@@ -11,6 +11,15 @@ var negativeTypes = map[EventType]bool{
 	EvtCold: true, EvtHurtful: true,
 }
 
+// neutralStreakTypes 中性正向延续事件（众神殿臂B刀①，实弹证据见
+// docs/gaea-chat-probe-baseline-20261106.md）：普通闲聊与提问此前既不增也
+// 不减连续正向轮次，Stranger 57 轮不晋级 → whisper「话要少，不要开启新话题」
+// 46/46 轮恒注。中性轮计为正向延续——慢热手感保留（仍需 StageWarmupTurns
+// 连续正向才晋级，冷淡/伤人照旧清零），只是让晋级机制可达。
+var neutralStreakTypes = map[EventType]bool{
+	EvtCasualChat: true, EvtQuestion: true,
+}
+
 func trustDelta(event Event) float64 {
 	switch event.Type {
 	case EvtPraise:
@@ -144,7 +153,7 @@ func UpdateRelationship(event Event, prev L1State) L1State {
 	}
 
 	consecutivePositiveTurns := prev.ConsecutivePositiveTurns
-	if positiveTypes[event.Type] {
+	if positiveTypes[event.Type] || neutralStreakTypes[event.Type] {
 		consecutivePositiveTurns++
 	} else if negativeTypes[event.Type] {
 		consecutivePositiveTurns = 0
