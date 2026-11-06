@@ -433,10 +433,15 @@ func BuildCharacterStateBlock(
 	}
 
 	// 语气镜像
+	// 交付合同豁免（众神殿 A3 残刀，2026-11-06 用户实机 t13/t14 病例）：≤15字
+	// 钳制与合同「完整交付作品」正面相撞时，模型妥协出「口头禅壳+作品塞围栏」
+	//（QUIET_FOND maxLength30/2=15，t13 围栏诗即此产物）。钳制只约束闲聊措辞，
+	// 明确要求作品的轮次先完整交付再简短收尾——按裁决条件不用动词表，交给模
+	// 型判断「明确要求」；合同本体已定义作品判定。
 	mirrorBlock := ""
 	if userVerbosity == "terse" {
 		maxLen := getEmotionMaxLength(emotion.PrimaryLabel)
-		mirrorBlock = fmt.Sprintf("\n用户回复简短，你的回复上限%d字。", maxLen/2)
+		mirrorBlock = fmt.Sprintf("\n用户回复简短，日常聊天你的回复上限%d字；对方明确要求作品（写诗、写文章等）时不受此限——先完整交付作品，再以简短的话收尾。", maxLen/2)
 	}
 
 	parts := []string{

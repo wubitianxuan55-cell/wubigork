@@ -92,3 +92,34 @@ func TestDeliveryContract_RequiredClauses(t *testing.T) {
 		}
 	}
 }
+
+// A3 残刀回归（2026-11-06 用户实机 t13/t14 病例：QUIET_FOND+terse 输入→
+// mirrorBlock ≤15字钳制压过合同→作品塞围栏）。
+func TestDeliveryContract_TerseMirrorExemptDeliverables(t *testing.T) {
+	tmpl, ok := PersonalityTemplates["deredere"]
+	if !ok {
+		t.Fatal("deredere template not found")
+	}
+	emotion := EmotionStateFusion{PrimaryLabel: "QUIET_FOND", Aff: 25}
+	block := BuildCharacterStateBlock(tmpl, emotion, false, "terse")
+	if !strings.Contains(block, "对方明确要求作品") || !strings.Contains(block, "先完整交付作品") {
+		t.Errorf("terse 钳制缺交付豁免（A3 残刀丢失），block=%.300s", block)
+	}
+	if !strings.Contains(block, "上限15字") {
+		t.Errorf("terse 钳制本体丢失（QUIET_FOND 30/2=15 应保留），block=%.300s", block)
+	}
+	// 非 terse 轮不注入钳制与豁免（闲聊措辞面零扰动）
+	normal := BuildCharacterStateBlock(tmpl, emotion, false, "")
+	if strings.Contains(normal, "不受此限") {
+		t.Errorf("非 terse 轮不应注入钳制豁免")
+	}
+}
+
+func TestDeliveryContract_GenuiRuleBansWorkFences(t *testing.T) {
+	for name, orch := range deliveryContractPaths(t) {
+		r := orch.PreLLMTurn("你写一首古诗")
+		if !strings.Contains(r.SystemPrompt, "作品正文与诗一律直接写在回复正文中，绝不放进围栏") {
+			t.Errorf("%s: GenUI 规则缺作品禁围栏明示（A3 残刀丢失）", name)
+		}
+	}
+}

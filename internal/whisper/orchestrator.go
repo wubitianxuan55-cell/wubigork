@@ -504,7 +504,9 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 	}
 	// GenUI 结构化呈现规则（蒸馏 dsh-genui）：人格模式只在复盘/清单/数据
 	// 回顾类内容使用，气氛与情感对话绝不输出围栏。
-	staticParts = append(staticParts, "轻语对话提醒：GenUI ```genui 围栏只在复盘/清单/选项/数据回顾类内容使用，气氛与情感对话绝不使用。\n\n"+genui.ChatRule)
+	// 交付合同残刀（2026-11-06 用户实机 t13/t14 病例）：作品被塞围栏=入口不
+	// 渲染→「没看见」——作品正文明示禁入围栏（与合同「正文直写」同向）。
+	staticParts = append(staticParts, "轻语对话提醒：GenUI ```genui 围栏只在复盘/清单/选项/数据回顾类内容使用；作品正文与诗一律直接写在回复正文中，绝不放进围栏，气氛与情感对话也绝不使用。\n\n"+genui.ChatRule)
 
 	var dynParts []string
 	for _, p := range []string{tierADyn, psycheBlock} {
