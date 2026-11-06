@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gaea/gaea/internal/gaea/tool/builtin"
 )
@@ -137,4 +138,41 @@ func writeTsundereReport(t *testing.T, outDir string, steps []tsunStep, verdict 
 		sb.WriteString("## " + s.Label + "\n\n```\n" + s.Reply + "\n```\n\n")
 	}
 	_ = os.WriteFile(outDir+"/tsundere-delivery-summary.md", []byte(sb.String()), 0o644)
+}
+
+// TestWhisperProbeSearchQueryFormulation B6 拟查询实弹（8124 真模型）：规则触
+// 发不变，查询词由模型拟写——断言拟写被调用、查询词不再以连接词开头且含关键
+// 实体；对照 B5 病例「所以，明天的天气怎么样」。
+func TestWhisperProbeSearchQueryFormulation(t *testing.T) {
+	if os.Getenv("GAEA_PROBE") == "" {
+		t.Skip("实弹探针：GAEA_PROBE=1 才运行（CI/常规测试面跳过）")
+	}
+	baseURL := getenvDefault("GAEA_PROBE_BASE_URL", "http://127.0.0.1:8124/v1")
+	model := getenvDefault("GAEA_PROBE_MODEL", "qwen35")
+
+	a := newChatProbeApp(t, baseURL, model)
+	cleanupWhisperSession(t, "plain")
+	t.Cleanup(func() { cleanupWhisperSession(t, "plain") })
+	var captured string
+	origSearch := chatWebSearch
+	chatWebSearch = func(q string) (chatSearchOutcome, error) {
+		captured = q
+		return chatSearchOutcome{State: builtin.SearchStateOK, Query: q, Text: "探针罐头。[probe-search-canned]"}, nil
+	}
+	t.Cleanup(func() { chatWebSearch = origSearch })
+
+	if _, err := a.WhisperChatWithSearch("所以，明天的天气怎么样", "plain", false, false); err != nil {
+		t.Fatalf("WhisperChatWithSearch: %v", err)
+	}
+	time.Sleep(300 * time.Millisecond) // 异步落库排空（house band-aid）
+	t.Logf("拟写查询词: %q", captured)
+	if captured == "" {
+		t.Fatal("检索未被触发")
+	}
+	if strings.HasPrefix(captured, "所以") {
+		t.Errorf("查询词仍以连接词开头（拟写未生效）: %q", captured)
+	}
+	if !strings.Contains(captured, "天气") {
+		t.Errorf("查询词缺关键实体「天气」: %q", captured)
+	}
 }

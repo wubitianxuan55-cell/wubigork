@@ -262,20 +262,46 @@ func (a *whisperState) whisperChatCore(
 		orch.AssistantName = assistantName
 	}
 
+	// v4.16 离线裂缝收口：persona 主链路与 plain 聊天同源走 routeModel（功能绑定 →
+	// 全局 → 兜底，离线模式自动滤云端）；无可用时 model 为空，由客户端按既有
+	// 「模型不可用」路径处理（与 v4.15 plain 聊天一致）。
+	// B6 前移：路由解析提到搜索决策前——模型拟查询（formulateSearchQuery）
+	// 需要引擎/模型，一次解析两处消费。
+	if a.app == nil {
+		return nil, fmt.Errorf("聊天模型路由未初始化")
+	}
+	engine, model, source, routeErr := a.app.resolveChatModelRoute()
+	if routeErr != nil {
+		return nil, routeErr
+	}
+	// per-call 引擎覆盖：不影响全局激活引擎，多会话并发安全
+	if a.clientRef() == nil {
+		slog.Error("[whisper] client is nil")
+		return nil, fmt.Errorf("model client not initialized")
+	}
+
 	// 搜索决策（双通道 + 待补槽位续接）：状态机/记忆永远只吃原文，增广块
 	// 只进本轮模型输入。正常触发照旧；未触发但上一轮刚搜过（PendingSearch）
 	// 且本句是实体短答 → 一次合并检索；本轮回合结束即消费/清除，不做悬挂。
+	// B6 拟查询刀：触发仍走规则（关键词门控，便宜确定），查询词交给模型从
+	// 对话语境拟写（指代/省略/连接词规则修不完——「所以，明天的天气」实机
+	// 病例），失败有界降级回原句清洗。
 	llmAppendix := ""
 	searchTriggered := false
 	if !isIdentityQuestion(userMsg) && (forceSearch || (searchEnabled && shouldSearchWeb(userMsg))) {
-		in := a.prepareWhisperChatInput(userMsg, true)
+		q := a.formulateSearchQuery(engine, model, userMsg, "")
+		in := a.prepareWhisperChatInput(userMsg, q, true)
 		llmAppendix = in.LLMAppendix
 		searchTriggered = true
 	} else if searchEnabled || forceSearch {
 		if p := orch.State.PendingSearch; p != nil && whisper.IsSearchFollowupAnswer(userMsg) {
 			merged := strings.TrimSpace(p.Query) + " " + strings.TrimSpace(userMsg)
-			slog.Info("[whisper] 待补槽位合并检索", "prevQuery", truncateRunes(p.Query, 40), "followup", userMsg)
-			out, err := chatWebSearch(merged)
+			q := a.formulateSearchQuery(engine, model, userMsg, p.Query)
+			if q == "" {
+				q = merged
+			}
+			slog.Info("[whisper] 待补槽位合并检索", "prevQuery", truncateRunes(p.Query, 40), "followup", userMsg, "query", truncateRunes(q, 40))
+			out, err := chatWebSearch(q)
 			if err != nil {
 				slog.Warn("[whisper] 续接检索适配器故障，注入如实占位", "error", err)
 				llmAppendix = "\n\n[联网搜索暂不可用，请基于已有知识回答，并如实说明未获取到实时信息]"
@@ -335,21 +361,7 @@ func (a *whisperState) whisperChatCore(
 	}
 	messages = append(messages, ai.ChatMessage{Role: "user", Content: llmUserMsg})
 
-	// v4.16 离线裂缝收口：persona 主链路与 plain 聊天同源走 routeModel（功能绑定 →
-	// 全局 → 兜底，离线模式自动滤云端）；无可用时 model 为空，由客户端按既有
-	// 「模型不可用」路径处理（与 v4.15 plain 聊天一致）。
-	if a.app == nil {
-		return nil, fmt.Errorf("聊天模型路由未初始化")
-	}
-	engine, model, source, routeErr := a.app.resolveChatModelRoute()
-	if routeErr != nil {
-		return nil, routeErr
-	}
-	// per-call 引擎覆盖：不影响全局激活引擎，多会话并发安全
-	if a.clientRef() == nil {
-		slog.Error("[whisper] client is nil")
-		return nil, fmt.Errorf("model client not initialized")
-	}
+	// 路由解析已前移至搜索决策前（B6 拟查询刀，一次解析两处消费）。
 	// S1.5-B play 内容护栏：persona_lock 在人格一致性参数（dims/voiceGuide）
 	// 注入时追加人格锁定段（防系统层覆盖人格段）并锁温度上限；
 	// max_output_tokens 钳制输出。未配置 = 零值 = 请求与现状逐字节一致。
@@ -905,13 +917,53 @@ func (a *whisperState) whisperChatWithSearch(userMsg, personalityID, assistantNa
 // 众神殿刀3：搜索结果只进入本轮模型上下文——状态机、工作记忆、PromptHistory
 // 之外的落库面与记忆摄入全部改吃原文（旧注释「不污染落库的用户原文」只对
 // chat.db 成立，对状态机与记忆不成立，本切片闭合该缺口）。
-func (a *whisperState) prepareWhisperChatInput(userMsg string, forceSearch bool) whisperChatInput {
+// formulateSearchQuery B6 拟查询刀（2026-11-06）：触发仍走规则门控，查询词
+// 交给模型从对话语境拟写——指代/省略/连接词/相对日期规则修不完（「所以，
+// 明天的天气」实机病例：规则清洗后仍搜出罗大佑《所以》）。有界设计：单次
+// 调用 4s 超时、MaxTokens 48、DisableThinking；任何失败返回 ""（调用方降级
+// 回原句清洗路径，行为同 B5 前）。prevQuery 非空时作为上文槽位提示注入。
+func (a *whisperState) formulateSearchQuery(engine, model, userMsg, prevQuery string) string {
+	if a.clientRef() == nil || engine == "" || model == "" {
+		return ""
+	}
+	var sb strings.Builder
+	sb.WriteString("把用户最新的话改写成一条网页搜索关键词")
+	if prevQuery != "" {
+		fmt.Fprintf(&sb, "（结合此前的检索主题「%s」补全指代与省略）", truncateRunes(prevQuery, 60))
+	}
+	sb.WriteString("。只输出关键词本身：一行、不带解释、不带引号、不带标点结尾。")
+	today := time.Now().Format("2006-01-02")
+	sys := fmt.Sprintf("你是搜索查询拟写器。今天是 %s。把对话中的最新请求改写成适合搜索引擎的关键词组合；结合上文补全指代（如「所以/那/它」指代的内容），去掉口语连接词，保留关键实体（地点/对象/日期词）。%s", today, sb.String())
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+	opts := ai.ChatSimpleOptions{EngineID: engine, Feature: "chat-search", DisableThinking: true, MaxTokens: 48}
+	out, _, err := a.clientRef().ChatSimpleMessagesStreamDetailed(ctx, model, []ai.ChatMessage{
+		{Role: "system", Content: sys},
+		{Role: "user", Content: userMsg},
+	}, opts)
+	if err != nil {
+		slog.Warn("[whisper] 拟查询降级回原句", "error", err)
+		return ""
+	}
+	q := strings.TrimSpace(out)
+	q = strings.Trim(q, " \t\r\n\"「」『』'。．.，,")
+	if q == "" || len([]rune(q)) > 60 || strings.ContainsAny(q, "\n") {
+		return ""
+	}
+	slog.Info("[whisper] 拟查询", "query", truncateRunes(q, 40), "raw", truncateRunes(userMsg, 40))
+	return q
+}
+
+func (a *whisperState) prepareWhisperChatInput(userMsg, searchQuery string, forceSearch bool) whisperChatInput {
 	// 检测搜索意图（身份类问题除外——「你是谁/你会什么」问的是助手自己，
 	// 联网搜索只会注入无关网页摘要，模型把英文片段混进回复反而出乱码）
 	if !isIdentityQuestion(userMsg) && (forceSearch || shouldSearchWeb(userMsg)) {
 		// 预览按 rune 截断——字节切片会把多字节中文切成 mojibake 进日志（AP6-07）
-		slog.Info("[whisper] auto-search triggered", "msg", truncateRunes(userMsg, 60))
-		out, err := chatWebSearch(userMsg)
+		slog.Info("[whisper] auto-search triggered", "msg", truncateRunes(userMsg, 60), "query", truncateRunes(searchQuery, 40))
+		if strings.TrimSpace(searchQuery) == "" {
+			searchQuery = userMsg
+		}
+		out, err := chatWebSearch(searchQuery)
 		if err != nil {
 			slog.Warn("[whisper] 搜索适配器故障，注入如实占位", "error", err)
 			return whisperChatInput{Raw: userMsg, LLMAppendix: "\n\n[联网搜索暂不可用，请基于已有知识回答，并如实说明未获取到实时信息]"}

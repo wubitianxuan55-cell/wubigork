@@ -250,7 +250,7 @@ func TestPrepareWhisperChatInput_States(t *testing.T) {
 	stubChatWebSearch(t, func(string) (chatSearchOutcome, error) {
 		return chatSearchOutcome{State: builtin.SearchStateOK, Text: "1. 人格搜索结果"}, nil
 	})
-	in := a.prepareWhisperChatInput("今天有什么新闻", true)
+	in := a.prepareWhisperChatInput("今天有什么新闻", "今天有什么新闻", true)
 	if in.Raw != "今天有什么新闻" {
 		t.Errorf("Raw 应恒为用户原文: %q", in.Raw)
 	}
@@ -260,7 +260,7 @@ func TestPrepareWhisperChatInput_States(t *testing.T) {
 	stubChatWebSearch(t, func(string) (chatSearchOutcome, error) {
 		return chatSearchOutcome{State: builtin.SearchStateAllFailed, Engines: "bing:connection refused(120ms)"}, nil
 	})
-	in = a.prepareWhisperChatInput("今天有什么新闻", true)
+	in = a.prepareWhisperChatInput("今天有什么新闻", "今天有什么新闻", true)
 	if in.Raw != "今天有什么新闻" || !strings.Contains(in.LLMAppendix, "联网搜索暂不可用") {
 		t.Errorf("人格路径失败不再静默，应注入如实占位且原文不动: %+v", in)
 	}
