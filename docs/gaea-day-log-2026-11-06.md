@@ -89,11 +89,15 @@ PendingSearch 随 state_json 持久化（重启续接同口径）+实体短答�
 ea0c5e12 day-log → a859524c 来源契约 → e4f6a9a7 记档 → 1e60f5c8 多轮续接 →
 e4dc8da8 收尾记档）。工作树干净，baseline tag `chat-persona-baseline`=13b65f37 随推。
 
-## 桌面构建记档（2026-11-06 10:28）
+## 桌面构建记档（2026-11-06 10:34，v4.533.0）
 
-- versioninfo 4.533.0 四处对齐（FILEVERSION/PRODUCTVERSION/FileVersion/ProductVersion；
-  顺手修 v4.532.0 只改 FileVersion 一处的漂移），commit 后 wails build 1m58s
-- 产物 build/bin/gaea.exe 59,849,216B sha256 前缀 44d32d0a+三 DLL
+- **版本真源=wails.json info.productVersion**（build/windows/info.json 模板消费）；
+  仓根 versioninfo.rc 是不被 wails build 消费的历史遗留（已顺手四处对齐 4.533.0
+  无害留档；v4.532.0 当年只改它的 FileVersion 一处=改在了死文件上，真源当时对了吗？
+  已核：wails.json 4.532.0 是对的）。坑=GetVersionInfo 读 exe 版本恒空（历史各版皆然），
+  版本辨识走 build time+哈希+本记档
+- 产物 build/bin/gaea.exe 59,849,216B sha256 前缀 c117d477（44d32d0a 为 4.532.0 串首建
+  已被覆盖）+三 DLL；wails build ~2min
 - 装机 scripts/gaea_install.ps1：四件套哈希对齐 C:\AI\gaea-app，桌面 gaea.lnk 更新
-- 拉起验证：PID 37324 @ 10:29:03 > 构建 10:28:40，VersionInfo=4.533.0
+- 拉起验证：杀旧壳 37324 → 新壳 PID 33800 @ 10:35:18 > 构建 10:34:52
 - 本壳含聊天核心优化全线（探针字段/四守卫/生日/双通道/重启回灌/臂B/来源契约/续接）
