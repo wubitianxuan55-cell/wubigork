@@ -143,3 +143,30 @@ PASS / A1 修前基线丢「雨」意象 FAIL / A2+合同 PASS，四负样本零
 判分 sampleEcho 勘误（3 字行误计已修+离线重算）。报告
 docs/gaea-chat-probe-delivery-contract-20261106.md；主计划追记 §四。待用户：
 人格 1-5 人工单评+真机 bokke 实弹验证。
+
+## 再追加：bokke 复现探针+v4.534.0 装机（2026-11-06 午后二段）
+
+- **bokke 全链路复现探针**（5d04289d）：用户实弹同款角色+同款四轮脚本走完整
+  WhisperChatWithSearch 管线——四病灶全治愈（R1 诗直出正文无围栏/R2 对「没看见」
+  正确重发/R3 R4 均新作品《夏夜听雨》《冬晨》，人格语气全程可辨识）。挂池：
+  R4 模型输出裸 SPLIT（[SPLIT] 分段协议降级变体，StripSplitMarkers 只剥带括号
+  形态——既有代谢病非本刀引入）。
+- **发版**：wails.json 4.533.0→4.534.0（f57100ae）；origin/main=f57100ae 三提交
+  上推（0b211895 合同刀/5d04289d 复现探针/f57100ae 版本）。
+- **装机**：C:\AI\gaea-app 四件套哈希核对（gaea.exe sha256 073C2604FBF0…，
+  60,114,944B）+桌面 gaea.lnk+散件清理+新壳 PID 44688（14:29:23>构建 14:16:46，
+  PID AFTER BUILD OK）。冒烟：smoke.ps1 两次挂死在探活环（Invoke-WebRequest 在
+  本会话 PS 链路挂死、90s 死线未触发，脚本问题非产品问题）；改直启等价冒烟
+  PASS（桥接 18999 起、/api/health {"status":"ok"}）。
+- **build.bat 环境坑（新，待 bisect）**：本会话 build.bat 三连败于绑定生成子进
+  程——①0xc0000135（DLL_NOT_FOUND；PATH 前置 build/voice-dlls 可过）②三败点=
+  「open frontend/wailsjs/runtime/package.json: Access is denied」，定位到
+  wails v2.13 库 generateBindings 的 RemoveAll(runtime)+Extract 路径；而
+  `wails generate module` 与裸 `wails build -s`（同 CGO/CC/PATH，无 TMP 重定向
+  无 npm 步）均成功并完整重建 runtime 三文件（14:14 mtime 实证）。头号嫌疑=
+  build.bat 的 TMP/TEMP 重定向到 .tmp（或 npm 步残留句柄），未定论；本批以裸
+  build 出货（本批零前端改动，dist 无需重建），build.bat bisect 留下批。
+- ACL 观察（.acl-recovery 关联）：frontend/wailsjs 树 ACE 含非法 authority 怪
+  SID（S-1-4-538931142-703053989:W,D,DC）+他机 CodexSandboxUsers 残留；icacls
+  /verify 全过、当前 token 读/写/创建实测全通，非本次故障因，留 .acl-recovery
+  拍板面。
