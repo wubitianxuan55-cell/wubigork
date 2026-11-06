@@ -79,3 +79,12 @@ PendingSearch 随 state_json 持久化（重启续接同口径）+实体短答�
 五桶+15轮+重启差分实弹基线（刀0 字段已备，需本地引擎空闲+授权，先 baseline tag
 后修复 HEAD 各跑一遍）→ 压制两臂实验（A′ 文案 vs 意图/分类门控，六条文案五代码位）
 → 来源字段契约立项 → 多轮续接（HEAD 复现门槛）→ 有界工具循环（真实办事坏例门槛）。
+
+## 打包记录（2026-11-06）
+
+25 提交上 origin/main（d8aa6b3b..e4dc8da8，门禁 build/vet 0 复验后推）：
+网络搜索线 8 笔（451b5d1c 统一检索核…a335b46e Tavily 记档）+ 聊天核心优化线
+17 笔（13b65f37 探针基建/刀0 tag → cfff7a0f 刀1 → f429cecd 刀2 → a931d216 刀3 →
+16b52dda 刀4 → d99ee720 实弹基线 → 0a69f2c5..7fad82b4 臂B四刀 → fba8e27b 臂B报告 →
+ea0c5e12 day-log → a859524c 来源契约 → e4f6a9a7 记档 → 1e60f5c8 多轮续接 →
+e4dc8da8 收尾记档）。工作树干净，baseline tag `chat-persona-baseline`=13b65f37 随推。
