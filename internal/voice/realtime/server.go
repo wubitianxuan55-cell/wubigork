@@ -241,14 +241,18 @@ func (srv *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("voice realtime 会话断开", "session", sess.ID)
 	sess.Close()
+	// M12 蒸馏（router:290-385 关闭序同位：unit 在 SESSION_END 全链 drain 后才
+	// 释放）——槽位释放必须晚于 OnSessionEnd，否则快速重连可在此窗口抢槽写入
+	// 配置/音频，被随后的旧会话全量重置抹掉（空闲接管路径本就等 stale.exit，
+	// 不受影响）。
+	if srv.Handler != nil {
+		srv.Handler.OnSessionEnd(sess)
+	}
 	srv.mu.Lock()
 	if srv.cur == sess {
 		srv.cur = nil
 	}
 	srv.mu.Unlock()
-	if srv.Handler != nil {
-		srv.Handler.OnSessionEnd(sess)
-	}
 }
 
 func (srv *Server) readLoop(sess *Session) {

@@ -166,6 +166,15 @@ func (h *VADHandler) EchoGuardOff() {
 	h.iter.threshold = h.baseThreshold
 }
 
+// SetMinSilenceMs 运行时改静音断句窗（M14，vad_handler.py:237-239 同位；
+// session.update silence_duration_ms——此前协议层解析即丢恒 64ms）。负值钳 0。
+func (h *VADHandler) SetMinSilenceMs(ms int) {
+	if ms < 0 {
+		ms = 0
+	}
+	h.iter.minSilence = h.cfg.SampleRate * ms / 1000
+}
+
 // AudioMs 累计输入音频毫秒。
 func (h *VADHandler) AudioMs() int {
 	return int(float64(h.totalSamples) / float64(h.cfg.SampleRate) * 1000)
@@ -189,6 +198,20 @@ func (h *VADHandler) Process(x []float32) []VADEvent {
 	return nil
 }
 
+// ensureTurnForSpeechStart speech_started 统一入口（上游 _ensure_turn_for_speech_start
+// 同位，Go 刀3 移植漏抄的守卫）：开新轮（非重开、rev=0、本段 started 未发）即清
+// audioPrefix/rawPrefix——前缀只服务同轮 reopen 的音频拼接；跨轮不清则每轮 final
+// 音频=全会话历史语音，STT 逐轮重转全文（实弹 2026-11-06：转写字符数 2→6→…→54
+// 滚雪球，角色答非所问+输入复读循环）。
+func (h *VADHandler) ensureTurnForSpeechStart(audioMs int) (string, int, bool) {
+	turnID, rev, reopened := h.turns.SpeechStarted(audioMs)
+	if !reopened && rev == 0 && !h.speechStartedEmitted {
+		h.audioPrefix = nil
+		h.rawPrefix = nil
+	}
+	return turnID, rev, reopened
+}
+
 // confirmSpeechStart 延迟确认（384/192ms；候选先行）。
 func (h *VADHandler) confirmSpeechStart() *VADEvent {
 	segmentMs := float64(bufferSamples(h.iter.buffer)) / float64(h.cfg.SampleRate) * 1000
@@ -205,7 +228,7 @@ func (h *VADHandler) confirmSpeechStart() *VADEvent {
 	if activeMs < activeMin {
 		return nil
 	}
-	turnID, rev, reopened := h.turns.SpeechStarted(startMs)
+	turnID, rev, reopened := h.ensureTurnForSpeechStart(startMs)
 	h.speechStartedEmitted = true
 	slog.Info("Speech started (confirmed, active=" + f0(activeMs) + "ms, min=" + f0(activeMin) +
 		"ms, segment=" + f0(segmentMs) + "ms, turn=" + turnID + " rev=" + strconv.Itoa(rev) + ")")
@@ -274,7 +297,7 @@ func (h *VADHandler) onUtterance(utterance [][]float32, decisionAt time.Time) []
 	var out []VADEvent
 	if !h.speechStartedEmitted {
 		var reopened bool
-		turnID, rev, reopened = h.turns.SpeechStarted(startMs)
+		turnID, rev, reopened = h.ensureTurnForSpeechStart(startMs)
 		h.speechStartedEmitted = true
 		// 补发路径 interrupt_response=False（§2）
 		out = append(out, VADEvent{Kind: VADEventStarted, Started: &VADStarted{
@@ -371,11 +394,17 @@ func (h *VADHandler) smartTurnTiming(audio []float32) (reopenGraceMs int, proces
 func (h *VADHandler) OnSessionEnd() {
 	h.iter.resetStates()
 	h.iter.threshold = h.cfg.Threshold
+	h.iter.minSilence = h.cfg.SampleRate * h.cfg.MinSilenceMs / 1000 // M14：回落构造值
 	h.totalSamples = 0
 	h.speechStartedEmitted = false
 	h.audioPrefix = nil
 	h.rawPrefix = nil
 	h.lastSmartStatus = "disabled"
+	// M1 蒸馏（Go 新增态自欠清理；上游无此机制故无同位锚）：echoGuard/baseThreshold
+	// 不复位则「播放中断线」后下会话 EchoGuardOn 早退空转——首轮播放回声门静默
+	// 失效，扬声器回声触发假 barge-in（2026-11-01/05 根修症状复发窗口）。
+	h.echoGuard = false
+	h.baseThreshold = h.cfg.Threshold
 }
 
 // —— 辅助 ——

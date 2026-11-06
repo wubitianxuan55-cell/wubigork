@@ -29,6 +29,8 @@ type ServerVadConfig struct {
 	Threshold         *float64 `json:"threshold,omitempty"`
 	InterruptResponse *bool    `json:"interrupt_response,omitempty"`
 	CreateResponse    *bool    `json:"create_response,omitempty"`
+	// M14（vad_handler.py silence_duration_ms 运行时更新同位）：静音断句窗 ms。
+	SilenceDurationMs *int `json:"silence_duration_ms,omitempty"`
 }
 
 // SessionConfig 会话级配置（session.update 深合并目标）。
@@ -157,6 +159,22 @@ func evTranscriptionCompleted(itemID, transcript string) map[string]any {
 		"type":       "conversation.item.input_audio_transcription.completed",
 		"item_id":    itemID,
 		"transcript": transcript,
+	}
+}
+
+// evTranscriptionFailed 转写失败终态（M5，conversation.py on_transcription_failed
+// 同位帧形：error.type/code/message/param 逐字对齐）。前端 UnknownServerEvent
+// 原样放行，本期协议面先对齐、失败 UX 后续接。
+func evTranscriptionFailed(itemID, message string) map[string]any {
+	return map[string]any{
+		"type":    "conversation.item.input_audio_transcription.failed",
+		"item_id": itemID,
+		"error": map[string]any{
+			"type":    "transcription_error",
+			"code":    "transcription_failed",
+			"message": message,
+			"param":   nil,
+		},
 	}
 }
 

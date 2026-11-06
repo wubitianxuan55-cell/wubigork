@@ -159,9 +159,14 @@ type Pipeline struct {
 	chat               []ChatMessage
 	chatSize           int
 	voiceID            string
+	// M13 会话级开关（runtime_config.py interrupt_response/create_response 同位；
+	// nil=缺省：barge-in 开、create_response 用 cfg 构造值。OnSessionEnd 复位）。
+	interruptResponse *bool
+	createResponseOv  *bool
 	pendingText        []*textEvent // 停靠文本事件（pending_text_output_items）
 	parkedAudio        *audioOut    // pending_output_item（单停靠位）
 	audioBatch         []byte
+	audioBatchKey      string // audioBatch 属主响应 key（M2：终态清理/尾批 flush 归属判据）
 
 	scope cancelScope // 统一取消信号（代际）
 	// 聊天历史互斥（STT/LLM 线程写，发送循环读）
@@ -281,7 +286,34 @@ func (p *Pipeline) OnSessionConfig(_ *Session, cfg SessionConfig) {
 	if cfg.VAD.Threshold != nil {
 		p.vad.SetThreshold(*cfg.VAD.Threshold)
 	}
+	// M14 蒸馏（vad_handler.py _apply_runtime_turn_detection 同位）：静音断句窗
+	// 运行时可调——此前协议层解析即丢，session.update 调参全不生效（恒 64ms）。
+	if cfg.VAD.SilenceDurationMs != nil {
+		p.vad.SetMinSilenceMs(*cfg.VAD.SilenceDurationMs)
+	}
+	// M13 蒸馏：会话级 barge-in / create_response 开关——此前解析即丢（前端
+	// VoiceClientV2 已发 interrupt_response 却被静默无视，barge-in 照切）。
+	// 非法负值不设门（MinSilenceMs<0 同上游拒绝语义由 SetMinSilenceMs 钳制）。
+	if cfg.VAD.InterruptResponse != nil {
+		p.interruptResponse = cfg.VAD.InterruptResponse
+	}
+	if cfg.VAD.CreateResponse != nil {
+		p.createResponseOv = cfg.VAD.CreateResponse
+	}
 	p.voiceID = cfg.Voice
+}
+
+// interruptResponseOn 会话级 barge-in 开关（nil=开）。
+func (p *Pipeline) interruptResponseOn() bool {
+	return p.interruptResponse == nil || *p.interruptResponse
+}
+
+// createResponseOn 转写是否自动排队生成（nil=cfg 构造值）。
+func (p *Pipeline) createResponseOn() bool {
+	if p.createResponseOv != nil {
+		return *p.createResponseOv
+	}
+	return p.cfg.CreateResponse
 }
 
 func (p *Pipeline) Voice() string { return p.voiceID }
@@ -290,9 +322,25 @@ func (p *Pipeline) Voice() string { return p.voiceID }
 // 第二次进语音必须照常工作——stopped 通道只在应用退出时关闭）。
 func (p *Pipeline) OnSessionEnd(_ *Session) {
 	if p.respState != nil {
-		p.respState.cancel()
+		rs := p.respState
+		rs.dead = true
+		rs.cancel()
+		// M12 蒸馏（service.py:424-443 关闭序同位）：落墓碑而非清零——drain 后
+		// 晚到的旧响应帧保留丢弃依据；closedKeys 清零会让旧 goroutine 残帧以旧
+		// resp id 落入下一个会话（快速重连竞态）。容量由 closedOrder 封顶。
+		p.muTerm.Lock()
+		p.closedKeys[rs.key] = true
+		p.closedOrder = append(p.closedOrder, rs.key)
+		for len(p.closedOrder) > maxClosedKeys {
+			delete(p.closedKeys, p.closedOrder[0])
+			p.closedOrder = p.closedOrder[1:]
+		}
+		p.muTerm.Unlock()
 		p.respState = nil
 	}
+	// M13：会话级开关随会话复位（上游 runtime_config 每连接一份）。
+	p.interruptResponse = nil
+	p.createResponseOv = nil
 	p.inResponse = false
 	p.drainQueues()
 	p.pendingText = nil
@@ -310,8 +358,9 @@ func (p *Pipeline) OnSessionEnd(_ *Session) {
 	p.muHist.Lock()
 	p.chat = nil
 	p.muHist.Unlock()
-	p.closedKeys = map[string]bool{}
-	p.closedOrder = nil
+	// closedKeys/closedOrder 不清（M12）：晚到帧丢弃依据跨会话保留，容量封顶
+	// 在 finishResponse/上方墓碑段。S3 的「第二次进语音照常工作」不受影响——
+	// 墓碑只丢弃旧 key 的残帧，新响应 key 唯一。
 	p.turns.Reset()
 	p.vad.OnSessionEnd()
 }
@@ -435,22 +484,23 @@ func (p *Pipeline) sttStage(f *VADFinal) {
 	if p.completedFinalRevs[key] {
 		return
 	}
-	// 输入门：final 稳定等待（processing deadline 或 delay−age）
-	wait := time.Time{}
-	if d, ok := p.turns.ProcessingDeadline(f.TurnID, f.Rev); ok && d.After(time.Now()) {
-		wait = d
-	} else if f.ProcessingDelayS > 0 {
-		wait = time.Now().Add(time.Duration(f.ProcessingDelayS * float64(time.Second)))
-	}
+	// 输入门：final 稳定等待（processing deadline 或 delay−age）。
+	// M4 蒸馏（speculative_turns.py processing_deadline 同位）：死线已到期仍非
+	// None——有死线就等到死线（已到期=holdUntil 不再持门，立即放行），不得回退
+	// item delay 再等一整段（smart turn 慢于宽限时说完话莫名多压一段）。
+	d, hasDline := p.turns.ProcessingDeadline(f.TurnID, f.Rev)
+	wait := sttGateWait(d, hasDline, f.ProcessingDelayS)
 	if !p.turns.WaitForGate(f.TurnID, f.Rev, false, wait) {
 		return
 	}
 	text := ""
+	var sttErr error
 	sttStart := time.Now()
 	if p.stt != nil && len(f.Audio) > 0 {
 		if t, err := p.stt.Transcribe(f.Audio, p.cfg.VAD.SampleRate); err == nil {
 			text = t
 		} else {
+			sttErr = err
 			slog.Warn("STT 失败", "turn", f.TurnID, "rev", f.Rev, "error", err)
 		}
 	}
@@ -472,12 +522,20 @@ func (p *Pipeline) sttStage(f *VADFinal) {
 		term = &pendingInputTerminal{itemID: itemID, turnID: f.TurnID, rev: f.Rev}
 		p.pendingTerminals[itemID] = term
 	}
-	term.transcription = evTranscriptionCompleted(itemID, text)
-	slog.Info("Transcription completed (language=zh): chars=" + strconv.Itoa(len([]rune(text))) +
-		" turn=" + f.TurnID + " rev=" + strconv.Itoa(f.Rev))
+	// M5 蒸馏（conversation.py on_transcription_failed 同位）：STT 失败发 failed
+	// 终态——此前吞成空 completed（前端只见空泡），且 resolveInputTerminals 的
+	// failed 分支（unanswered||failed→gate 提交）沦为死代码。
+	if sttErr != nil {
+		term.transcription = evTranscriptionFailed(itemID, sttErr.Error())
+		slog.Info("Transcription failed: turn=" + f.TurnID + " rev=" + strconv.Itoa(f.Rev))
+	} else {
+		term.transcription = evTranscriptionCompleted(itemID, text)
+		slog.Info("Transcription completed (language=zh): chars=" + strconv.Itoa(len([]rune(text))) +
+			" turn=" + f.TurnID + " rev=" + strconv.Itoa(f.Rev))
+	}
 
 	// GenerateResponseRequest（text_prompt_queue）——转写 terminal 持发，随响应提交发布
-	if text != "" && p.legs != nil && p.cfg.CreateResponse {
+	if text != "" && p.legs != nil && p.createResponseOn() {
 		p.muHist.Lock()
 		// O4：同轮重开替换 user 文本（replace_user_message_text 同位），不新增条目
 		tk := f.TurnID
@@ -512,8 +570,14 @@ func (p *Pipeline) llmStage(req *promptRequest) {
 	}
 	llmStart := time.Now()
 	history := req.history
-	if len(history) > 0 {
-		history = history[:len(history)-1] // 末条 user 由本次请求携带
+	// 末条 user 由本次请求携带——以本轮 user 为界裁剪（蒸馏 M3，service.py
+	// replace_user_message_text + history close 回滚同位）：同轮 reopen 补发路径
+	// 旧响应未终态时，快照尾是旧响应的暂存 assistant 而非 user，原「盲切末条」
+	// 会把本轮提问留在历史里再由 userText 携带一遍=同一问题在上下文重复出现。
+	if cut := lastUserIndexOfTurn(history, rs.turnID); cut >= 0 {
+		history = history[:cut]
+	} else if len(history) > 0 {
+		history = history[:len(history)-1] // 兜底：无本轮 user 时退回原盲切语义
 	}
 	sentenceCh := make(chan string, 64)
 	done := make(chan error, 1)
@@ -560,6 +624,29 @@ func (p *Pipeline) llmStage(req *promptRequest) {
 	}
 	// 正常结束：给 TTS 线程发最后一句标记（done 哨兵跟在其合成后）
 	p.ttsCh <- &ttsRequest{resp: rs, sentence: "\x00mark", last: true}
+}
+
+// sttGateWait 输入门等待死线：有 processing deadline 就等到死线（已到期=立即
+// 放行，上游 processing_deadline 已到期仍非 None）；无死线回退 item delay；
+// 都没有=不等待（零值）。蒸馏 M4。
+func sttGateWait(deadline time.Time, hasDeadline bool, processingDelayS float64) time.Time {
+	if hasDeadline {
+		return deadline
+	}
+	if processingDelayS > 0 {
+		return time.Now().Add(time.Duration(processingDelayS * float64(time.Second)))
+	}
+	return time.Time{}
+}
+
+// lastUserIndexOfTurn 返回本轮 user 消息下标（无则 -1）。
+func lastUserIndexOfTurn(history []ChatMessage, turnID string) int {
+	for i := len(history) - 1; i >= 0; i-- {
+		if history[i].Role == "user" && history[i].turnKey == turnID {
+			return i
+		}
+	}
+	return -1
 }
 
 // ttsStage gate 提交（首音频提交轮）→ 合成 → 音频块 + done 哨兵。
@@ -724,7 +811,7 @@ func (p *Pipeline) dispatchText(ev *textEvent) {
 		// 规格顺序：先处置旧 terminal（started_turn_id 绑定）→ barge-in → started 帧
 		p.resolveInputTerminals(ev.started.TurnID)
 		rs := p.respState
-		if p.inResponse && rs != nil && ev.started.InterruptResponse {
+		if p.inResponse && rs != nil && ev.started.InterruptResponse && p.interruptResponseOn() {
 			p.cancelActiveResponse("turn_detected")
 			slog.Info("Pipeline 0: speech during response: cancelled, queue flushed")
 		}
@@ -743,6 +830,20 @@ func (p *Pipeline) dispatchText(ev *textEvent) {
 	case evKindAssistantDelta:
 		rs := ev.resp
 		if rs.dead || p.closedKeys[rs.key] {
+			return
+		}
+		// H1 蒸馏双守卫（response.py _ensure_response「Cannot attach output to a
+		// different active response」+ _accept_turn_output 逐事件 gate 同位）：
+		// ①跨 key——同轮 reopen 补发路径不取消旧响应，槽位被新响应接管后旧响应
+		//   剩余 delta 拒绝附加（不标 dead：其终态/O3 回滚仍须照常收口）；
+		// ②DROP——轮已关闭失相关性后旧 delta 断流。此前只拦 HOLD（outputIsHeld），
+		//   陈旧文本会绕过新轮继续下行并按 completed 装配（实弹=字幕与语音脱节、
+		//   回答插话混流）。
+		if cur := p.respState; cur != nil && cur != rs {
+			return
+		}
+		if g := p.turns.Gate(rs.turnID, rs.rev, true, time.Time{}, false); g.Action == GateDrop {
+			rs.dead = true
 			return
 		}
 		// 首增量：提交轮 → resolve（user terminal 先行）→ created → 输出帧（规格 §5.3）
@@ -774,6 +875,7 @@ func (p *Pipeline) dispatchAudio(a *audioOut) {
 	p.sendResponseCreated(a.resp)
 	p.beginAssistantOutput(a.resp)
 	p.audioBatch = append(p.audioBatch, a.pcm...)
+	p.audioBatchKey = a.resp.key
 	for len(p.audioBatch) >= 6400 {
 		chunk := make([]byte, 6400)
 		copy(chunk, p.audioBatch[:6400])
@@ -963,14 +1065,46 @@ func (p *Pipeline) streamAssistantText(rs *responseState, delta string) {
 // finishResponse 终态装配 + tracker close + 墓碑（发送循环）。
 // 终态守卫：cancelled 后 TTS 队列残余的 done 哨兵不得重复装配（规格：一响应一终态）。
 func (p *Pipeline) finishResponse(s *Session, rs *responseState, status, reason string) {
-	// response.py:991 同位：key 与当前响应不符（含已终结）→ 空操作。
-	// 双终态防护由代际丢弃（哨兵过不了闸）+ 此守卫共同承担，不用手搓标志。
-	if p.respState != nil && p.respState.key != rs.key {
+	// 双终态防护（response.py:991 同位）：已墓碑一律幂等空操作。
+	if p.closedKeys[rs.key] {
 		return
 	}
-	if p.respState == nil && p.closedKeys[rs.key] {
+	if cur := p.respState; cur != nil && cur != rs {
+		// H2 蒸馏（history.py close 同位）：被新响应顶替（同轮 reopen 补发路径不
+		// 取消旧响应）的响应不得变僵尸——撤销其未 finalize 的暂存（否则未播报的
+		// assistant 尸体永久滞留 chat，污染后续每轮 LLM 上下文=答非所问隐性源），
+		// 落墓碑关轮；不发线缆帧、不碰回声门与新响应的槽位态。
+		p.muHist.Lock()
+		out := p.chat[:0]
+		for _, m := range p.chat {
+			if m.Role == "assistant" && m.respKey == rs.key && m.provisional {
+				continue
+			}
+			out = append(out, m)
+		}
+		p.chat = out
+		p.muHist.Unlock()
+		remaining := p.pendingText[:0]
+		for _, ev := range p.pendingText {
+			if ev.resp.key != rs.key {
+				remaining = append(remaining, ev)
+			}
+		}
+		p.pendingText = remaining
+		p.muTerm.Lock()
+		p.turns.Close(rs.turnID, rs.rev)
+		p.closedKeys[rs.key] = true
+		p.closedOrder = append(p.closedOrder, rs.key)
+		for len(p.closedOrder) > maxClosedKeys {
+			delete(p.closedKeys, p.closedOrder[0])
+			p.closedOrder = p.closedOrder[1:]
+		}
+		p.muTerm.Unlock()
+		p.resolveInputTerminals("")
+		p.notify()
 		return
 	}
+	// （respState==nil 且未墓碑：会话收尾后残余哨兵，照走全量终态——关闭清理序另批）
 	// 播放期回声门关（含 barge-in cancelled 路径：本函数是全部终态唯一收口）。
 	p.vad.EchoGuardOff()
 	// 终态前冲刷本响应的停靠 delta（grace/候选窗口内入队的兜底语等）：
@@ -985,7 +1119,10 @@ func (p *Pipeline) finishResponse(s *Session, rs *responseState, status, reason 
 		remaining = append(remaining, ev)
 	}
 	p.pendingText = remaining
-	full := strings.Join(rs.parts, " ")
+	// parts 是 delta 粒度（dispatchText 逐流式增量 append），done 转写=增量原样
+	// 拼接（上游 response.py 文本模态 "".join 同位）。上游音频模态的句级 " " join
+	// 不适用：句间空格挂在 delta 粒度上即「风 把 白 日」逐字撕裂（实弹 2026-11-06）。
+	full := strings.Join(rs.parts, "")
 	if rs.textSent && s != nil {
 		s.Send(evTranscriptDone(rs.id, rs.itemID, full))
 		s.Send(evContentPartDone(rs.id, rs.itemID))
@@ -994,12 +1131,33 @@ func (p *Pipeline) finishResponse(s *Session, rs *responseState, status, reason 
 	// 尾批 flush：6400B 批的 remainder 必须在响应收口时下行（上游 audio 输出
 	// flush-remainder 语义；漏 flush=每轮尾部 ≤200ms 音频被静默吞掉）。仅
 	// completed 下发——cancelled 的尾部残余随播放冲刷语义一并丢弃。
-	if status == "completed" && s != nil && len(p.audioBatch) > 0 {
-		tail := p.audioBatch
-		p.audioBatch = nil
-		s.Send(evAudioDelta(rs.id, rs.itemID, tail))
+	// M2 蒸馏（response.py resampler per-response 同位）：audioBatch 是全局缓冲，
+	// 非 completed 终态必须按属主清零——否则被打断响应的 <6400B 残音混入下一响应
+	// 首批、挂在新 response_id 下（实弹=下一回答开头串上一条残音）。
+	if p.audioBatchKey == rs.key {
+		if status == "completed" && s != nil && len(p.audioBatch) > 0 {
+			tail := p.audioBatch
+			p.audioBatch = nil
+			s.Send(evAudioDelta(rs.id, rs.itemID, tail))
+		} else if status != "completed" {
+			p.audioBatch = nil
+		}
+		if len(p.audioBatch) == 0 {
+			p.audioBatchKey = ""
+		}
+	}
+	// M6 蒸馏（response.py finish_audio_output 同位）：response.output_audio.done
+	// 收口帧——构造器在而全管线零调用，依赖该帧判定音频流结束的客户端只能等
+	// response.done。发过音频的响应（audioEmitted>0）恰一次收口，尾部残余已按
+	// status 处置（completed flush/cancelled 丢弃）。
+	if s != nil && rs.audioEmitted > 0 {
+		s.Send(evAudioDone(rs.id, rs.itemID))
 	}
 	if s != nil {
+		// M7 蒸馏（response.py:1121-1130 response_was_missing 同位）：终态前
+		// created 未发则补发——零输出/早取消路径不得发孤 done（前端不变式：
+		// response X 的任何 delta/done 不得早于 response.created(X)）。
+		p.sendResponseCreated(rs)
 		done := evResponseDone(ResponseDonePayload{
 			ID:            rs.id,
 			Status:        status,
