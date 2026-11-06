@@ -358,11 +358,17 @@ func (a *whisperState) whisperChatCore(
 		opts.MaxTokens = voiceMaxOutputTokens
 	}
 	systemPrompt = applyWhisperGuardrails(&opts, systemPrompt, orch.Preset, playGuardrails())
-	// 前缀命中观测（KV 前缀稳定化验证）：system 跨轮哈希应恒定、历史轮数递增
+	// 前缀命中观测（KV 前缀稳定化验证）：system 跨轮哈希应恒定、历史轮数递增。
+	// 交付合同观测（众神殿 2026-11-06 裁决风险#3）：护栏改的是局部 systemPrompt
+	// 而实际发送的是 :326 构造的 messages——记录 messages[0] 的合同命中数与
+	// 独立哈希，合同若缺位即当场暴露（sysHash 不能证明模型收到什么）。
 	sysSum := sha1.Sum([]byte(systemPrompt))
+	msg0Sum := sha1.Sum([]byte(messages[0].Content))
+	contractHits := strings.Count(messages[0].Content, whisper.DeliveryContractClause)
 	slog.Info("[whisper] calling LLM", "engine", engine, "model", model,
 		"sysHash", fmt.Sprintf("%x", sysSum)[:8], "histTurns", len(historyExchanges),
-		"dynCtxChars", len([]rune(dynamicCtx)), "lowLatency", lowLatency)
+		"dynCtxChars", len([]rune(dynamicCtx)), "lowLatency", lowLatency,
+		"contractHits", contractHits, "msg0Hash", fmt.Sprintf("%x", msg0Sum)[:8])
 	requestStart := time.Now()
 	// 众神殿刀1（进度计划/gaea-chat-persona-optimization-20261105.md §1.1③）：
 	// 空正文/取消守卫。非取消空正文有界重试一次，仍空则显式报错——空流/仅

@@ -105,6 +105,20 @@ const (
 	negativeLockTurns        = 3
 )
 
+// DeliveryContractClause 任务交付合同（众神殿 2026-11-06 续议场
+// pan_1793937333999_cbcaf91b977f 裁决 P0，进度计划 4.3）：角色聊天「写诗/
+// 写文只会输出口头禅」坏例的常量修复。staticParts 最前 prepend，跨轮字节
+// 稳定（进
+// KV 前缀），一处刀同时覆盖模板命中/默认 gaea/自定义角色三条角色路径
+// （三者都经 BuildPresetVoiceGuide→staticParts）。要件按裁决
+// conditions：窄触发（只认对方明确要求的可验收文本作品，不用动词表
+// 自动分类）、完整交付本体、禁只承诺不写/原样重发、人格情绪示例口头
+// 篇幅只约束措辞、安全与关系边界不让路、无明确要求时本条不生效。
+// 前插只为覆盖，不宣称位置=语义优先级（该案已淘汰）。正文直写、不用
+// 围栏包裹是实弹新证（whisper_bokke 轮7 作品进 genui 围栏→入口不渲染
+// →「没看见」→轮9 原样重发→轮10 彻底不交付）。
+const DeliveryContractClause = "【交付职责】当对方明确要求一件可验收的文本作品时（例如写一首诗或词、写一段文字、写一篇文章/介绍/总结、写一条短信、改写一段文字），你必须当场完整交付作品本体：体裁与结构按对方的要求写全（如绝句写满四句），作品正文直接写在回复正文中，不用围栏、代码块或卡片包裹，也不用寒暄、推脱、口头禅或角色语气词代替正文；对方不满意时，下一次要拿出新作品或明确改动的版本，不能原样重发，也不能只说「我重新写」却不写。你的人格、情绪、说话风格、口头禅习惯和篇幅偏好只决定措辞与语气，不是推迟、缩短或拒绝交付的理由；交付作品之后，可以再用你自己的口吻补一句收尾。安全、法律与关系边界的要求不因此让路。对方没有明确要求作品时，本条不生效，照常自然聊天。"
+
 // LockTurn 串行化同一会话的回合处理（T7-1.1）。三个并发入口
 // （GUI 聊天 / 微信回调 / 语音）都汇聚到 app 层 WhisperChat，调用方
 // 在回合开始前 LockTurn、结束后 UnlockTurn。异步持久化协程不持此锁
@@ -475,12 +489,14 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 	tierAStatic, tierADyn := o.buildTierASnapshot(newL1, newEmotion)
 
 	// ═══ 组装 system prompt（KV 前缀稳定化双路，见 psycheBlock 组装处注释）═══
-	// 稳定路（system，跨轮字节不变→引擎前缀缓存命中）：voiceGuide+身份段+tierA
-	// 固定段（行为优先级/人格基底）+GenUI；
+	// 稳定路（system，跨轮字节不变→引擎前缀缓存命中）：交付合同+voiceGuide+
+	// 身份段+tierA 固定段（行为优先级/人格基底）+GenUI；
 	// 动态路（DynamicContext→本轮 user 消息前缀）：状态机/情绪/节奏/工作记忆/
-	// 运行时上下文——每轮必变，挪出 system 保住前缀。段落集合与旧实现完全一致。
+	// 运行时上下文——每轮必变，挪出 system 保住前缀（交付合同为常量段，
+	// 2026-11-06 交付合同刀追加，其余段落集合与旧实现完全一致）。
 	voiceGuide := BuildPresetVoiceGuide(o.Preset, o.AdultMode)
 	var staticParts []string
+	staticParts = append(staticParts, DeliveryContractClause)
 	for _, p := range []string{voiceGuide, strings.TrimPrefix(psycheStatic, "\n\n"), tierAStatic} {
 		if p != "" {
 			staticParts = append(staticParts, p)
@@ -560,7 +576,7 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 		L2:   TurnTraceL2{Aff: newEmotion.Aff, Sec: newEmotion.Sec, Aro: newEmotion.Aro, Dom: newEmotion.Dom, Label: newEmotion.PrimaryLabel},
 		L3: TurnTraceL3{Silent: silent, TierBChars: len(psycheBlock), FactsUsed: len(o.FactStore.ListActive()),
 			GateLevel: gateLevel, StrategyLevel: strategyLevel, ClampInjected: clampInjected, InjectedFactIDs: injectedFactIDs},
-		L4:   TurnTraceL4{Wrote: false},
+		L4: TurnTraceL4{Wrote: false},
 	}
 	trace.Timestamp = &now
 	LogTurn(trace)

@@ -130,3 +130,16 @@ e4dc8da8 收尾记档）。工作树干净，baseline tag `chat-persona-baseline
 - 附记：整理提交 7c73f79d 被 git add -A 卷入 frontend/wailsjs/go/models.ts——
   实为今日装机 wails build 自动同步的刀0 探针字段（TurnTraceL3 gateLevel 等
   四字段），内容正确无功能影响；语义上应随 v4.533.0 版本批，已推不改史。
+
+## 交付合同刀（2026-11-06 午后，第二批）
+
+依据当日两场众神殿收官（pan_1793934453220 两轮+续议场 pan_1793937333999 四轮，
+议题「角色聊天无法正常做事，写文字/诗词只出口头禅」）。一手证据生产库只读补采
+`whisper_bokke` 四轮（诗进 genui 围栏→「没看见」→只承诺不写→原样重发→彻底不
+交付）。P0=常量交付合同 `whisper.DeliveryContractClause` prepend staticParts 最前
+（跨轮字节稳定，三条角色路径×三入口一处刀全覆盖；死注入缝 :360 只记录不修，
+:407 前加 contractHits/msg0Hash 观测）。实弹 A 臂（8124 qwen35）：A0 中性六项
+PASS / A1 修前基线丢「雨」意象 FAIL / A2+合同 PASS，四负样本零误触，A3 不触发，
+判分 sampleEcho 勘误（3 字行误计已修+离线重算）。报告
+docs/gaea-chat-probe-delivery-contract-20261106.md；主计划追记 §四。待用户：
+人格 1-5 人工单评+真机 bokke 实弹验证。
