@@ -113,3 +113,16 @@ e4dc8da8 收尾记档）。工作树干净，baseline tag `chat-persona-baseline
   > build 10:34:52，INSTALL OK
 - 范围留档：C:\AI\gaea-voice-v2（语音 V2 遗留：models/sherpa-zh-14m+venv）属语音线
   资产判定范围，本批不动；装机根 C:\AI\gaea-app 与 build/bin 均干净（当前版四件套）
+
+## 工作空间整理（2026-11-06）
+
+- **归档 101 个 9 月收官批次文档（git mv 零损失）**：docs/gaea-*2026-09*+slim 系列
+  +8 月设计稿 49 个 → docs/archive/（惯例沿用，archive 达 102）；进度计划 202609xx
+  批次 53 个 → 进度计划/archive/（新建）。两目录活跃面：docs 76（day-log/活跃线/
+  规范/审计台账）、进度计划 20（voice/chat-persona/web-search 等 10 月后线）
+- **物理清未管理沙箱 5 个**（均 gitignore 不入库，关键数据已录 git 报告）：.tmp/
+  （探针报告已录 docs/gaea-chat-probe-*）、.tmp-cad-poc/（报告在 docs）、.tmp-pdf/、
+  .tmp_contract_review/（项目成控管理协议.docx 挪 temp/ 保留）、.dsh-vision-router/
+- **保留待拍板**（恢复点/备份，不可逆删除交用户）：backups/（8 月 costdb 重组前
+  备份+README）、.acl-recovery/（10-10 ACL 恢复点）、.audit/（10 月审计脚本配套）、
+  temp/（cmp_* 对擂证据+活跃沙箱）、.agent-teams/

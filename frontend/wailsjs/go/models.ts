@@ -11150,6 +11150,10 @@ export namespace whisper {
 	    embeddingHits?: number;
 	    topicSource?: string;
 	    emergenceType?: string;
+	    gateLevel?: string;
+	    strategyLevel?: string;
+	    clampInjected?: boolean;
+	    injectedFactIds?: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new TurnTraceL3(source);
@@ -11163,6 +11167,10 @@ export namespace whisper {
 	        this.embeddingHits = source["embeddingHits"];
 	        this.topicSource = source["topicSource"];
 	        this.emergenceType = source["emergenceType"];
+	        this.gateLevel = source["gateLevel"];
+	        this.strategyLevel = source["strategyLevel"];
+	        this.clampInjected = source["clampInjected"];
+	        this.injectedFactIds = source["injectedFactIds"];
 	    }
 	}
 	export class TurnTraceL2 {
