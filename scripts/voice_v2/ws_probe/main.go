@@ -62,8 +62,21 @@ func main() {
 		mkwavVoice  = flag.String("mkwav-voice", "char_gaea", "造料音色（breeze voice id）")
 		mkwavOut    = flag.String("mkwav-out", "", "造料输出 WAV 路径")
 		breezeURL   = flag.String("breeze", "http://127.0.0.1:8012/v1", "breeze OpenAI 兼容基址")
+
+		selfHost  = flag.Bool("self-host", false, "自架隔离管线服务端（真引擎+随机端口，覆盖 -server）——离线门专用，不碰生产 8791 单槽")
+		modelsDir = flag.String("models", `C:\AI\models\voice`, "原生引擎模型根（self-host 用）")
 	)
 	flag.Parse()
+
+	if *selfHost {
+		shutdown, url, err := selfHostServer(*modelsDir, *outDir)
+		if err != nil {
+			log.Fatalf("self-host: %v", err)
+		}
+		defer shutdown()
+		*server = url
+		log.Printf("self-host 覆盖 -server → %s", url)
+	}
 
 	if *mkwavText != "" {
 		if err := makeWAV(*breezeURL, *mkwavText, *mkwavVoice, *mkwavOut); err != nil {
@@ -700,7 +713,11 @@ func (p *probe) summarize() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "场景 %s｜事件 %d 条｜response %d 个", p.scenario, len(p.report.Events), len(p.respCreated))
 	for _, id := range p.respIDs() {
-		fmt.Fprintf(&b, "\n  resp %s: audio=%dB(%.1fs) done=%s", shortID(id), p.audio[id].Len(),
+		audioBytes := 0
+		if buf := p.audio[id]; buf != nil {
+			audioBytes = buf.Len()
+		}
+		fmt.Fprintf(&b, "\n  resp %s: audio=%dB(%.1fs) done=%s", shortID(id), audioBytes,
 			p.audioDur(id).Seconds(), p.respDone[id].text)
 	}
 	if len(p.transFinal) > 0 {
