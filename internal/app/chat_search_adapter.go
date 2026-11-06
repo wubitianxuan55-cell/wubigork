@@ -238,6 +238,16 @@ func cleanChatSearchQuery(msg string) string {
 		s = strings.ReplaceAll(s, w, "")
 	}
 
+	// 去掉开头的第一人称意愿前缀（多轮续接刀，DSH r4 指出的缺口）：
+	// 「我要天气」会原样去搜。只剥前缀不全文替换，避免误删句中「我要去…」
+	// 的查询内容。
+	for _, p := range []string{"我要问", "我想问", "我要查", "我想查", "我想知道", "我想要", "我要", "我想"} {
+		if strings.HasPrefix(s, p) {
+			s = strings.TrimSpace(s[len(p):])
+			break
+		}
+	}
+
 	// 归一化空白并去掉首尾标点
 	s = strings.Join(strings.Fields(s), " ")
 	s = strings.Trim(s, " ，。？！、,.?!:：;；\"'“”‘’()（）")

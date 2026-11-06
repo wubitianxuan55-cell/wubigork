@@ -42,6 +42,23 @@ func IsImperativeOrTask(msg string) bool {
 	return hasAny(strings.ToLower(msg), imperativeTaskZH)
 }
 
+// IsSearchFollowupAnswer 判断短消息是否像「待补槽位的实体短答」（多轮续接
+// 刀，众神殿 action-7）：2~10 字、非问句、非祈使任务、非冷淡敷衍——「明天
+// 天气」问完城市后回「四川成都」即命中；宁漏勿误，判不准就不续接。
+func IsSearchFollowupAnswer(msg string) bool {
+	n := len([]rune(msg))
+	if n < 2 || n > 10 {
+		return false
+	}
+	if isShortQuestion(msg) || IsImperativeOrTask(msg) {
+		return false
+	}
+	if hasAny(strings.ToLower(msg), coldWordsZH) {
+		return false
+	}
+	return true
+}
+
 var apologyWordsZH = []string{"对不起", "抱歉", "我错了", "原谅我", "不好意思"}
 
 var vulnerableWordsZH = []string{

@@ -323,6 +323,19 @@ type FullState struct {
 	Associations    []Association    `json:"associations,omitempty"`
 	Habits          []UserHabit      `json:"habits,omitempty"`
 	TemporalAnchors []TemporalAnchor `json:"temporalAnchors,omitempty"`
+	// PendingSearch 待补槽位续接状态（众神殿 action-7 最小续接刀）：上一轮
+	// 触发过搜索时记录其查询词与轮次，下一轮用户短答实体（如「明天天气」→
+	// 「四川成都」）时做一次合并检索。随 state_json 持久化（重启续接同样可
+	// 用，同进程/重启两口径）；未消费即清——宁漏勿误，不做多轮悬挂。
+	PendingSearch *PendingSearch `json:"pendingSearch,omitempty"`
+}
+
+// PendingSearch 待补槽位续接：最近一次搜索触发的查询词 + 触发轮次
+//（TotalTurns 口径）。指代消解纪律=只认最近一次搜索（旧 pending 被新搜索
+// 覆盖），不做任务栈。
+type PendingSearch struct {
+	Query     string `json:"query"`
+	TurnIndex int    `json:"turnIndex"`
 }
 
 // StateCounters 状态计数器

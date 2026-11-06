@@ -194,28 +194,32 @@ func (a *whisperState) WhisperGetPersonalities() []whisper.PersonalityPreset {
 
 func (a *whisperState) WhisperChat(userMsg string, personalityID string, thinking bool) (result map[string]interface{}, err error) {
 	// 绑定签名不可变：委托内部实现，无助手名注入（assistantName 空=不碰该字段）
-	return a.whisperChat(userMsg, "", personalityID, "", thinking)
+	return a.whisperChat(userMsg, personalityID, "", thinking, false, false)
 }
 
 // whisperChat WhisperChat 的内部实现。assistantName 非空时在 LockTurn 持锁窗口内
 // 写 orch.AssistantName：同人格多助手共享同一 orchestrator（"whisper_"+personalityID
 // 全局缓存），微信回调按助手身份注入名字必须在回合锁内完成——锁外直写会互相覆盖，
 // 且与 PreLLMTurn 锁内读（BuildAckemCanonBlock 身份块）构成数据竞争。
-// llmAppendix 为搜索增广块（众神殿刀3 双通道），只拼进本轮模型输入。
-func (a *whisperState) whisperChat(userMsg, llmAppendix, personalityID, assistantName string, thinking bool) (result map[string]interface{}, err error) {
-	return a.whisperChatCore(a.ctx, userMsg, llmAppendix, personalityID, assistantName, thinking, false, nil, nil)
+// searchEnabled/forceSearch 控制搜索决策（含待补槽位续接），增广块只进模型输入。
+func (a *whisperState) whisperChat(userMsg, personalityID, assistantName string, thinking, searchEnabled, forceSearch bool) (result map[string]interface{}, err error) {
+	return a.whisperChatCore(a.ctx, userMsg, personalityID, assistantName, thinking, false, searchEnabled, forceSearch, nil, nil)
 }
 
 // whisperChatCore 是阻塞/流式两条输入路径共用的角色回合实现。onDelta 与
 // onReasoning 非空时，模型分片一到达就交给调用方；否则只聚合最终文本。
 // 众神殿刀3 双通道：userMsg 恒为用户原文（进 TurnPlan/PreLLMTurn/WM/
-// FinalizeTurn/记忆摄入），llmAppendix 为搜索增广块、只拼进本轮模型输入
-// （llmUserMsg → messages + RecordPromptTurn，KV 前缀缓存契约不变）。
+// FinalizeTurn/记忆摄入），搜索增广块只拼进本轮模型输入（llmUserMsg →
+// messages + RecordPromptTurn，KV 前缀缓存契约不变）。
+// 多轮续接刀（action-7）：搜索决策收进 core（需 orch 读 PendingSearch）——
+// 正常触发照旧；未触发但上一轮刚搜过且本句是实体短答时，做一次「上一轮
+// 查询词+本句实体」的合并检索（明天天气→四川成都），未消费即清。
 func (a *whisperState) whisperChatCore(
 	ctx context.Context,
-	userMsg, llmAppendix, personalityID, assistantName string,
+	userMsg, personalityID, assistantName string,
 	thinking bool,
 	lowLatency bool,
+	searchEnabled, forceSearch bool,
 	onDelta, onReasoning func(string),
 ) (result map[string]interface{}, err error) {
 	defer func() {
@@ -255,6 +259,29 @@ func (a *whisperState) whisperChatCore(
 	// 助手名注入必须在持锁窗口内：PreLLMTurn 持同一回合锁读该字段组装身份块
 	if assistantName != "" {
 		orch.AssistantName = assistantName
+	}
+
+	// 搜索决策（双通道 + 待补槽位续接）：状态机/记忆永远只吃原文，增广块
+	// 只进本轮模型输入。正常触发照旧；未触发但上一轮刚搜过（PendingSearch）
+	// 且本句是实体短答 → 一次合并检索；本轮回合结束即消费/清除，不做悬挂。
+	llmAppendix := ""
+	searchTriggered := false
+	if !isIdentityQuestion(userMsg) && (forceSearch || (searchEnabled && shouldSearchWeb(userMsg))) {
+		in := a.prepareWhisperChatInput(userMsg, true)
+		llmAppendix = in.LLMAppendix
+		searchTriggered = true
+	} else if searchEnabled || forceSearch {
+		if p := orch.State.PendingSearch; p != nil && whisper.IsSearchFollowupAnswer(userMsg) {
+			merged := strings.TrimSpace(p.Query) + " " + strings.TrimSpace(userMsg)
+			slog.Info("[whisper] 待补槽位合并检索", "prevQuery", truncateRunes(p.Query, 40), "followup", userMsg)
+			out, err := chatWebSearch(merged)
+			if err != nil {
+				slog.Warn("[whisper] 续接检索适配器故障，注入如实占位", "error", err)
+				llmAppendix = "\n\n[联网搜索暂不可用，请基于已有知识回答，并如实说明未获取到实时信息]"
+			} else {
+				llmAppendix = chatSearchAppendix(out)
+			}
+		}
 	}
 
 	turnPlan := whisper.BuildTurnPlanFromRules(userMsg, whisper.BuildTurnPlanRulePriors(userMsg))
@@ -554,6 +581,16 @@ func (a *whisperState) whisperChatCore(
 		}()
 	}
 
+	// 槽位续接状态机：本轮触发搜索→记录（下一轮可合并检索）；否则消费/清除
+	//（宁漏勿误，不做多轮悬挂）。取消/空轮不触碰（保持重试语义）。
+	if !skipBookkeeping {
+		if searchTriggered {
+			orch.State.PendingSearch = &whisper.PendingSearch{Query: userMsg, TurnIndex: turns}
+		} else {
+			orch.State.PendingSearch = nil
+		}
+	}
+
 	go a.persistStateAsync(orch)
 
 	slog.Info("[whisper] WhisperChat done", "replyLen", len(reply), "emotion", orch.State.Emotion.PrimaryLabel)
@@ -844,18 +881,13 @@ func (a *whisperState) whisperChatStream(
 	lowLatency bool,
 	onDelta, onReasoning func(string),
 ) (map[string]interface{}, error) {
-	in := whisperChatInput{Raw: userMsg}
-	if forceSearch || (searchEnabled && shouldSearchWeb(userMsg)) {
-		in = a.prepareWhisperChatInput(userMsg, true)
-	}
-	return a.whisperChatCore(ctx, in.Raw, in.LLMAppendix, personalityID, "", thinking, lowLatency, onDelta, onReasoning)
+	return a.whisperChatCore(ctx, userMsg, personalityID, "", thinking, lowLatency, searchEnabled, forceSearch, onDelta, onReasoning)
 }
 
 // whisperChatWithSearch 搜索增强的内部实现：assistantName 非空时透传给 whisperChat
 // 在其 LockTurn 持锁窗口内注入 orch.AssistantName。
 func (a *whisperState) whisperChatWithSearch(userMsg, personalityID, assistantName string, thinking, forceSearch bool) (map[string]interface{}, error) {
-	in := a.prepareWhisperChatInput(userMsg, forceSearch)
-	return a.whisperChat(in.Raw, in.LLMAppendix, personalityID, assistantName, thinking)
+	return a.whisperChat(userMsg, personalityID, assistantName, thinking, true, forceSearch)
 }
 
 // prepareWhisperChatInput 在请求模型前完成可选联网搜索，返回双通道载荷。

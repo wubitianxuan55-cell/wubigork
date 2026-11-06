@@ -108,6 +108,10 @@ func CloneFullState(s FullState) FullState {
 		v := *s.AckemBirthday
 		clone.AckemBirthday = &v
 	}
+	if s.PendingSearch != nil {
+		v := *s.PendingSearch
+		clone.PendingSearch = &v
+	}
 	if s.Counters.LastConsolidationTurn != nil {
 		v := *s.Counters.LastConsolidationTurn
 		clone.Counters.LastConsolidationTurn = &v
