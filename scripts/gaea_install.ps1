@@ -8,7 +8,12 @@
 # install dir, and the desktop gets ONE shortcut.
 #
 # Usage (from repo root):
-#   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\gaea_install.ps1 [-Launch] [-CleanDesktop]
+#   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\gaea_install.ps1 [-Launch] [-KeepDesktopFiles]
+#
+# 2026-11-06 scheme update: desktop loose-copy cleanup is now DEFAULT (the
+# ruling layout is "desktop keeps exactly ONE shortcut"); loose gaea.exe on
+# the desktop is how users end up running stale builds (2026-10-31 incident).
+# Pass -KeepDesktopFiles only for forensic/inspection runs.
 #
 # ASCII-only discipline: PS 5.1 parses non-BOM UTF-8 comments as ANSI mojibake
 # and silently swallows following lines (see voice memory 2026-11-05).
@@ -16,7 +21,7 @@ param(
     [string]$SourceDir = 'C:\AI\wubigrok\build\bin',
     [string]$InstallDir = 'C:\AI\gaea-app',
     [switch]$Launch,
-    [switch]$CleanDesktop
+    [switch]$KeepDesktopFiles
 )
 $ErrorActionPreference = 'Stop'
 
@@ -57,8 +62,10 @@ $lnk.Description = 'gaea AI assistant'
 $lnk.Save()
 Write-Host ('shortcut: ' + $lnkPath)
 
-# 4. remove the old loose desktop copies (exe + 3 DLLs + obsolete launcher bat)
-if ($CleanDesktop) {
+# 4. remove loose desktop copies by default (exe + 3 DLLs + obsolete launcher
+#    bat) - exact-name match only, user data (e.g. .gaea/) is never touched.
+#    Opt out with -KeepDesktopFiles.
+if (-not $KeepDesktopFiles) {
     $stale = @('gaea.exe', 'onnxruntime.dll', 'sherpa-onnx-c-api.dll', 'sherpa-onnx-cxx-api.dll', 'gaea-go.bat')
     foreach ($f in $stale) {
         $p = Join-Path $desktop $f

@@ -101,3 +101,15 @@ e4dc8da8 收尾记档）。工作树干净，baseline tag `chat-persona-baseline
 - 装机 scripts/gaea_install.ps1：四件套哈希对齐 C:\AI\gaea-app，桌面 gaea.lnk 更新
 - 拉起验证：杀旧壳 37324 → 新壳 PID 33800 @ 10:35:18 > 构建 10:34:52
 - 本壳含聊天核心优化全线（探针字段/四守卫/生日/双通道/重启回灌/臂B/来源契约/续接）
+
+## 构建方案更新：桌面散件清理改默认（2026-11-06 10:43）
+
+- 病灶：gaea_install.ps1 的 -CleanDesktop 清理能力自拍板起一直默认关，历次装机
+  没带开关 → 桌面残留散件 gaea.exe（v4.532.0，Nov 5 20:50）+3 DLL——双击即跑旧版
+  （2026-10-31 旧壳翻车同款风险源）
+- 方案更新：桌面散件清理（gaea.exe/3 DLL/gaea-go.bat 精确名匹配）改为**默认执行**，
+  取证场景用 -KeepDesktopFiles 反向豁免；用户数据（桌面 .gaea/）永不触碰
+- 新方案实装：散件 4 件清零，桌面只剩 gaea.lnk+.gaea；新壳 PID 42580 @ 10:43:09
+  > build 10:34:52，INSTALL OK
+- 范围留档：C:\AI\gaea-voice-v2（语音 V2 遗留：models/sherpa-zh-14m+venv）属语音线
+  资产判定范围，本批不动；装机根 C:\AI\gaea-app 与 build/bin 均干净（当前版四件套）
