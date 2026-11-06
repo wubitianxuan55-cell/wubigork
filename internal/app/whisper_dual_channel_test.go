@@ -14,7 +14,7 @@ import (
 
 // 众神殿刀3（进度计划/gaea-chat-persona-optimization-20261105.md §1.1①）：搜索
 // 入口 raw/llm 双通道。唯一标记经 chatWebSearch 桩注入后：出现在本轮模型输入
-//（llmUserMsg 尾部）与 PromptHistory 实发串（本批明确不改的既定口径），
+// （llmUserMsg 尾部）与 PromptHistory 实发串（本批明确不改的既定口径），
 // 不得出现在 raw 通道面——WM.UserText、chat.db 落库原文。双通道≠隔离完成。
 func TestWhisperChatWithSearch_DualChannelMarker(t *testing.T) {
 	const marker = "ZZSEARCHMARKER7391ZZ"
@@ -34,7 +34,8 @@ func TestWhisperChatWithSearch_DualChannelMarker(t *testing.T) {
 		if err := json.Unmarshal(body, &req); err == nil {
 			for i := len(req.Messages) - 1; i >= 0; i-- {
 				if req.Messages[i].Role == "user" {
-					s := req.Messages[i].Content; lastUserMsg.Store(&s)
+					s := req.Messages[i].Content
+					lastUserMsg.Store(&s)
 					break
 				}
 			}
@@ -73,10 +74,18 @@ func TestWhisperChatWithSearch_DualChannelMarker(t *testing.T) {
 	if got := recent[len(recent)-1].UserText; got != "今天天气如何" {
 		t.Fatalf("WM.UserText 应为用户原文，got %q", got)
 	}
-	// raw 通道面②：PromptHistory 仍存实发串（含标记）——本批既定口径，
-	// 跨轮重放的治理挂池（同进程存储形态不动）
-	if len(orch.PromptHistory) == 0 || !strings.Contains(orch.PromptHistory[len(orch.PromptHistory)-1].UserText, marker) {
-		t.Fatal("PromptHistory 应存实发串（含搜索标记，既定口径）")
+	// raw 通道面②：PromptHistory 存原句（净行刀 B3，2026-11-06）——旧「实发
+	// 串」口径随净行刀退役：动态块与搜索增广不再以 user 角色跨轮重放（格式
+	// 模仿老师+token 浪费），同进程/重启回灌/语音出口三口径一致。增广块只
+	// 进本轮 llmUserMsg（上面 lastUserMsg 断言已锁）。
+	if len(orch.PromptHistory) == 0 {
+		t.Fatal("PromptHistory 应有本轮行")
+	}
+	if got := orch.PromptHistory[len(orch.PromptHistory)-1].UserText; got != "今天天气如何" {
+		t.Fatalf("PromptHistory 应存用户原句（净行契约），got %q", got)
+	}
+	if strings.Contains(orch.PromptHistory[len(orch.PromptHistory)-1].UserText, marker) {
+		t.Fatal("PromptHistory 不得含搜索增广标记（净行契约）")
 	}
 	time.Sleep(100 * time.Millisecond)
 }

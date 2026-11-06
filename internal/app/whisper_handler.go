@@ -210,7 +210,8 @@ func (a *whisperState) whisperChat(userMsg, personalityID, assistantName string,
 // onReasoning 非空时，模型分片一到达就交给调用方；否则只聚合最终文本。
 // 众神殿刀3 双通道：userMsg 恒为用户原文（进 TurnPlan/PreLLMTurn/WM/
 // FinalizeTurn/记忆摄入），搜索增广块只拼进本轮模型输入（llmUserMsg →
-// messages + RecordPromptTurn，KV 前缀缓存契约不变）。
+// messages）；B3 净行刀后 RecordPromptTurn 亦记原句——动态块与搜索结果
+// 不再经历史跨轮重放（同进程/重启/语音三口径一致）。
 // 多轮续接刀（action-7）：搜索决策收进 core（需 orch 读 PendingSearch）——
 // 正常触发照旧；未触发但上一轮刚搜过且本句是实体短答时，做一次「上一轮
 // 查询词+本句实体」的合并检索（明天天气→四川成都），未消费即清。
@@ -499,10 +500,9 @@ func (a *whisperState) whisperChatCore(
 	// 节奏标记归一（v4.9.1）：chatter 模式要求模型用 [SPLIT] 分条连发，但该
 	// 标记是内部格式协议——本函数是 GUI/微信/语音三个出口的共同上游，在这
 	// 里把标记归一为换行（分条可读性保留），任何出口都不应再见到裸标记
-	//（此前微信/语音直接发送原文，[SPLIT] 直接漏给用户）。
-	if strings.Contains(reply, whisper.SplitMarker) {
-		reply = strings.Join(whisper.SplitOnMarker(reply), "\n")
-	}
+	//（此前微信/语音直接发送原文，[SPLIT] 直接漏给用户）。裸 SPLIT 降级
+	// 变体同剥（2026-11-06 复现探针 R4 泄漏实证，NormalizeReplySplitLines）。
+	reply = whisper.NormalizeReplySplitLines(reply)
 
 	sentences := whisper.SplitIntoSentences(reply)
 	if len(sentences) == 0 {
@@ -540,10 +540,14 @@ func (a *whisperState) whisperChatCore(
 			TurnIndex: orch.State.Counters.TotalTurns, UserText: userMsg, AssistantText: reply,
 			Source: whisper.ExchangeSourceRaw,
 		})
-		// KV 前缀稳定化四刀：提示历史记**实际发送内容**（llmUserMsg 含动态前缀），
-		// 保证下一轮 messages 前缀与本轮尾部逐字节衔接（引擎前缀缓存命中前提）。
+		// 净行刀（2026-11-06 B3 批，病灶①收口）：提示历史改记**原句**（userMsg
+		// 无动态包裹与搜索增广）。旧「实发串」契约让【本轮上下文】动态块+搜索
+		// 结果以 user 角色跨轮重放 4~8 轮=格式模仿老师+token 浪费；重启回灌
+		//（warmPromptHistory）与语音出口（voice_v2:405）本就记原句，本轮刀后
+		// 同进程/重启/语音三口径一致。KV 前缀代价=每轮缓存复用止于上一行
+		//（原句行与实发行差一截），重 prefill 的只有一行短原句，可接受。
 		if orch.HistoryInMessages {
-			orch.RecordPromptTurn(orch.State.Counters.TotalTurns, llmUserMsg, reply)
+			orch.RecordPromptTurn(orch.State.Counters.TotalTurns, userMsg, reply)
 		}
 	}
 
@@ -1168,8 +1172,8 @@ func containsTransientMarker(s string) bool {
 // WM 近期块在该模式下不进 messages），重启即失忆。从 hermes chat_history 取
 // 最近 ≤HistoryKeepTurns 轮「无动态包裹标记」的干净行回灌 RecordPromptTurn
 // （非搜索轮 chat_history 的 userText 即原文，无需跨库映射）。接受一次 KV
-// 前缀缓存 miss（重启本来就要重新 prefill）；userText 存原文是相对
-// RecordPromptTurn「实发串」契约的显式偏离，方向=诚实历史。
+// 前缀缓存 miss（重启本来就要重新 prefill）。B3 净行刀后 RecordPromptTurn
+// 本身即记原句，此处与主链口径完全一致（旧「实发串」契约已退役）。
 func (a *whisperState) warmPromptHistory(orch *whisper.Orchestrator) {
 	if orch.DataRoot == "" || len(orch.PromptHistory) > 0 {
 		return

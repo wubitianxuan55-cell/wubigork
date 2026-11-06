@@ -22,6 +22,31 @@ func StripSplitMarkers(text string) string {
 	return strings.TrimSpace(strings.ReplaceAll(text, SplitMarker, ""))
 }
 
+// NormalizeReplySplitLines 回复面节奏标记归一：[SPLIT] 分条连发协议的标记及
+// 其降级变体都不得到达用户面。模型偶发把 [SPLIT] 写成裸 SPLIT（2026-11-06
+// 复现探针 R4 实证漏到回复正文；既有归一只认 [SPLIT]，裸变体穿通）——
+// 行级精确匹配剥裸标记行（整行仅 SPLIT/[SPLIT]），句中英文词 SPLIT 不受
+// 影响。GUI/微信出口统一走本函数（语音出口经 whisperChatCore 上游同享）。
+func NormalizeReplySplitLines(reply string) string {
+	if strings.Contains(reply, SplitMarker) {
+		return strings.Join(SplitOnMarker(reply), "\n")
+	}
+	var kept []string
+	changed := false
+	for _, raw := range strings.Split(reply, "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "SPLIT" || line == "[SPLIT]" {
+			changed = true
+			continue
+		}
+		kept = append(kept, raw)
+	}
+	if !changed {
+		return reply
+	}
+	return strings.TrimSpace(strings.Join(kept, "\n"))
+}
+
 // SplitOnMarker 按 [SPLIT] 把模型回复切成分条（去首尾空白、过滤空条）——
 // chatter 模式下模型被要求用 [SPLIT] 分条连发，所有出口都应经本函数或
 // StripSplitMarkers 归一，绝不能把内部标记原样发给用户。

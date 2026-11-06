@@ -529,9 +529,8 @@ func (w *whisperState) runWxAgentTurn(assistantID, personalityID, assistantName,
 	}
 
 	// 节奏标记归一（v4.9.1 同款）：[SPLIT] 是内部协议，微信出口必须归一为换行。
-	if strings.Contains(reply, whisper.SplitMarker) {
-		reply = strings.Join(whisper.SplitOnMarker(reply), "\n")
-	}
+	// 裸 SPLIT 降级变体同剥（NormalizeReplySplitLines，见 whisper_handler 同批）。
+	reply = whisper.NormalizeReplySplitLines(reply)
 
 	w.finalizeWxAgentTurn(orch, pre, userMsg, reply)
 	return reply, cards, nil
