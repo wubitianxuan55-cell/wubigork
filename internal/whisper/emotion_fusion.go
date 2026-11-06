@@ -384,7 +384,10 @@ func buildExampleSectionFusion(examples []string) string {
 	for _, e := range examples {
 		lines = append(lines, fmt.Sprintf("· %s", e))
 	}
-	return fmt.Sprintf(`── 参考示例（必须保持此种张力与句式） ──
+	// A3 残刀三（众神殿裁决点名的绝对化四处之一，2026-11-06 tsundere 实机
+	// 病例：傲娇示例全是短推脱句，「必须保持句式」即命令复读推脱模式，四轮
+	// 拖延不交付）。示例降级为闲聊语气参考，交付轮明示让路。
+	return fmt.Sprintf(`── 参考示例（闲聊语气参考；对方明确要求作品时先完整交付本体，语气放在交付后的收尾，不必套用示例句式） ──
 %s`, strings.Join(lines, "\n"))
 }
 

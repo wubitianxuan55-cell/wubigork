@@ -76,16 +76,20 @@ func TestDeliveryContract_CrossTurnByteStable(t *testing.T) {
 }
 
 func TestDeliveryContract_RequiredClauses(t *testing.T) {
-	// 裁决 conditions 要件逐条在文（防后续改文案丢要件）。
+	// 裁决 conditions 要件逐条在文（防后续改文案丢要件；B4 批补 tsundere
+	// 实机病例三要件）。
 	for _, clause := range []string{
-		"明确要求",        // 窄触发，不用动词表
-		"完整交付",        // 交付本体义务
-		"不用围栏",        // 实弹新证：作品不进围栏
-		"不能原样重发",      // 禁原样重发
-		"只说「我重新写」却不写", // 禁只承诺不交付
-		"只决定措辞与语气",    // 人格/情绪/口头禅/篇幅只约束措辞
-		"不因此让路",       // 安全与关系边界不让路
-		"本条不生效",       // 负样本护栏：无明确要求时不生效
+		"明确要求",         // 窄触发，不用动词表
+		"完整交付",         // 交付本体义务
+		"不用围栏",         // 实弹新证：作品不进围栏
+		"不能原样重发",       // 禁原样重发
+		"复用上一轮的诗句",     // B4：重写禁复用（t75 原样重发病例）
+		"人格姿态放在交付之后表达", // B4：反拖延（tsundere 四轮推脱病例）
+		"不得用推脱、安抚或姿态句", // B4：推脱句禁令
+		"只说「我重新写」却不写",  // 禁只承诺不交付
+		"只决定措辞与语气",     // 人格/情绪/口头禅/篇幅只约束措辞
+		"不因此让路",        // 安全与关系边界不让路
+		"本条不生效",        // 负样本护栏：无明确要求时不生效
 	} {
 		if !strings.Contains(DeliveryContractClause, clause) {
 			t.Errorf("合同缺要件 %q", clause)
@@ -121,5 +125,21 @@ func TestDeliveryContract_GenuiRuleBansWorkFences(t *testing.T) {
 		if !strings.Contains(r.SystemPrompt, "作品正文与诗一律直接写在回复正文中，绝不放进围栏") {
 			t.Errorf("%s: GenUI 规则缺作品禁围栏明示（A3 残刀丢失）", name)
 		}
+	}
+}
+
+// A3 残刀三回归：示例段标题去绝对化（tsundere 实机病例——傲娇示例全是短
+// 推脱句，「必须保持句式」即命令复读推脱模式）。
+func TestDeliveryContract_ExampleSectionNotAbsolutist(t *testing.T) {
+	tmpl, ok := PersonalityTemplates["deredere"]
+	if !ok {
+		t.Fatal("deredere template not found")
+	}
+	block := BuildCharacterStateBlock(tmpl, EmotionStateFusion{PrimaryLabel: "CALM_RATIONAL", Aff: 25}, false, "")
+	if strings.Contains(block, "必须保持此种张力与句式") {
+		t.Errorf("示例段绝对化标题未退役（A3 残刀三丢失）")
+	}
+	if !strings.Contains(block, "不必套用示例句式") {
+		t.Errorf("示例段缺交付让路明示（A3 残刀三丢失）")
 	}
 }
