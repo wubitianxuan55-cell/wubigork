@@ -41,6 +41,8 @@ export interface VoiceClientOptions {
   onState?: (state: VoiceSessionState) => void
   /** 回放完成回执（带 response id，替代全局布尔） */
   onPlaybackDone?: (responseId: string) => void
+  /** 下行音频实时电平（0..1，播放 PCM 块 RMS；0=静默。说话相位声纹驱动源） */
+  onPlayLevel?: (level: number) => void
   /** 连接生命周期 */
   onOpen?: () => void
   onClose?: () => void
@@ -120,11 +122,22 @@ export class VoiceClientV2 {
       case 'response.output_audio.delta': {
         const id = responseId
         const pcm = this.decodeAudioPcm(ev.delta)
-        if (id && pcm) this.playback.append(id, pcm)
+        if (id && pcm) {
+          this.playback.append(id, pcm)
+          // 说话相位声纹源：播放块 RMS（×3 刻度对齐采集侧 0..1 观感）
+          let sum = 0
+          for (let i = 0; i < pcm.length; i++) {
+            const s = pcm[i] / 32768
+            sum += s * s
+          }
+          const rms = Math.sqrt(sum / Math.max(pcm.length, 1)) * 3
+          this.opts.onPlayLevel?.(Math.min(rms, 1))
+        }
         break
       }
       case 'response.done': {
         const id = responseId
+        this.opts.onPlayLevel?.(0)
         if (id) {
           this.playback.markClosed(id)
           const { status } = responseStatusOf(ev)

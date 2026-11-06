@@ -83,6 +83,8 @@ export interface VoiceChatV2Api {
   micOn: boolean
   /** 采集电平（0..1，worklet RMS 每 ~240ms 上报；0=静音） */
   micLevel: number
+  /** 说话侧电平（0..1，下行播放 PCM 块 RMS；speaking 相位声纹/涟漪驱动源） */
+  playLevel: number
   /** 哑麦诚实检测：开麦且已连接但持续 3s 无信号（虚拟设备/选错设备/静音） */
   micSilent: boolean
   note: string
@@ -120,6 +122,8 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
   const [connected, setConnected] = useState(false)
   const [micOn, setMicOn] = useState(false)
   const [micLevel, setMicLevel] = useState(0)
+  // 说话相位声纹源：下行音频播放块 RMS（VoiceClientV2 onPlayLevel；done 归零）
+  const [playLevel, setPlayLevel] = useState(0)
   const [micSilent, setMicSilent] = useState(false)
   const [note, setNote] = useState('')
   const [services, setServices] = useState({
@@ -245,7 +249,11 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
       vadThreshold: 0.5,
       interruptResponse: true,
       onState,
-      onPlaybackDone: (id) => pushTail(`播放完成回执 ${id}`),
+      onPlaybackDone: (id) => {
+        setPlayLevel(0)
+        pushTail(`播放完成回执 ${id}`)
+      },
+      onPlayLevel: setPlayLevel,
       onOpen: () => {
         if (!mountedRef.current) return
         connectedRef.current = true
@@ -725,7 +733,7 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
 
   return {
     phase, transcripts, dialogue, partialTranscript: partial, assistantText,
-    pbText, tail, connected, micOn, micLevel, micSilent, note, services, ensuring,
+    pbText, tail, connected, micOn, micLevel, playLevel, micSilent, note, services, ensuring,
     connect, disconnect, startMic, stopMic, cancel, abortInFlight, updateVADThreshold,
     ensureServices, refreshServices, replayEvents,
   }

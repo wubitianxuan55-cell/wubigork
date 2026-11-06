@@ -4,9 +4,9 @@ import { BACKEND_EVENTS, FRONTEND_EVENTS, OPEN_STATS_FLAG, bookImportProgressCha
 // 3.0 01 报告 §4：22 后端事件（+v4.3c 轻语主动关心定时推送 + v4.244 原罪故事流
 // + v4.283 书源在线导入进度 + v4.294 原罪书源下载进度）+ 4 前端事件常量表 + subscribe 统一封装
 
-describe('BACKEND_EVENTS（§4.1，28 个）', () => {
-  it('共 27 个后端事件常量（v4.244 +SIN_STREAM，v4.283 +BOOK_IMPORT_PROGRESS，v4.294 +SIN_BOOKSOURCE_PROGRESS，v4.526 后 +KNOWLEDGE_IMPORT_PROGRESS）', () => {
-    expect(Object.keys(BACKEND_EVENTS)).toHaveLength(28)
+describe('BACKEND_EVENTS（§4.1，29 个）', () => {
+  it('共 27 个后端事件常量（v4.244 +SIN_STREAM，v4.283 +BOOK_IMPORT_PROGRESS，v4.294 +SIN_BOOKSOURCE_PROGRESS，v4.526 后 +KNOWLEDGE_IMPORT_PROGRESS，M5 刀二 +VOICE_TOOL_PREVIEW）', () => {
+    expect(Object.keys(BACKEND_EVENTS)).toHaveLength(29)
   })
 
   it('常量名与事件名字面量一一对应（防复制笔误）', () => {
@@ -28,6 +28,7 @@ describe('BACKEND_EVENTS（§4.1，28 个）', () => {
     expect(BACKEND_EVENTS.VOICE_TTS_AUDIO).toBe('voice:tts-audio')
     expect(BACKEND_EVENTS.VOICE_TTS_SPEAK_TEXT).toBe('voice:tts-speak-text')
     expect(BACKEND_EVENTS.VOICE_TTS_SPEAK_CANCEL).toBe('voice:tts-speak-cancel')
+    expect(BACKEND_EVENTS.VOICE_TOOL_PREVIEW).toBe('gaea-voice-tool-preview')
     expect(BACKEND_EVENTS.VOICE_LISTENING).toBe('voice:listening')
     expect(BACKEND_EVENTS.VOICE_THINKING).toBe('voice:thinking')
     expect(BACKEND_EVENTS.GAEA_EVENT).toBe('gaea-event')

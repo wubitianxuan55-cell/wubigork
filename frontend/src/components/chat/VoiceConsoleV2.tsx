@@ -5,7 +5,7 @@
  * UI 由协议相位直接驱动（V2 方案 §10.3）；轮完成写回当前聊天话题
  * （useChatVoice 同款纪律：会话绑开启时话题，迟到轮不串台）。
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BACKEND_EVENTS, subscribe } from '../../events'
 import { Button, message, Tooltip } from 'antd'
 import {
@@ -350,6 +350,42 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
     el.scrollTop = el.scrollHeight
   }, [v2.dialogue, v2.partialTranscript])
 
+  // ── 交互升级（ui-ux-pro-max 检索落地 2026-11-07）──
+  // 打断涟漪：相位进入 interrupted 即触发一次性扩散环（key 重挂重放；
+  // 无 animationend 依赖——瞬时可打断规则；reduced-motion 静态化在 CSS）
+  const [interruptSeq, setInterruptSeq] = useState(0)
+  const prevPhaseRef = useRef(v2.phase)
+  useEffect(() => {
+    if (v2.phase === 'interrupted' && prevPhaseRef.current !== 'interrupted') {
+      setInterruptSeq((s) => s + 1)
+    }
+    prevPhaseRef.current = v2.phase
+  }, [v2.phase])
+
+  // 真声纹：电平历史环形采样去相关——五杆各取历史错位样本+当前电平混合，
+  // 声纹呈波状展开（Siri/ChatGPT Voice 声纹条观感；说话侧=下行播放 RMS）
+  const liveLevel = v2.micOn
+    ? v2.micLevel
+    : v2.phase === 'speaking' ? v2.playLevel : 0
+  const levelHistoryRef = useRef<number[]>([])
+  useEffect(() => {
+    levelHistoryRef.current.push(liveLevel)
+    if (levelHistoryRef.current.length > 8) levelHistoryRef.current.shift()
+  }, [liveLevel])
+  const barMs = useMemo(() => {
+    // 波形包络：五杆固定形状权重（低-高-峰-落-谷），电平历史做时序去相关——
+    // 单样本/静音时仍呈自然波形，有声时随电平起伏
+    const barShape = [0.62, 0.95, 1.0, 0.78, 0.5]
+    const h = levelHistoryRef.current
+    const n = h.length || 1
+    return barShape.map((shape, i) => {
+      const sample = h[Math.max(n - 1 - ((i * 2 + 1) % n), 0)] ?? 0
+      const base = 0.18 + 0.82 * (sample * 0.55 + liveLevel * 0.45)
+      return Math.max(0.06, base * shape + 0.08 * (1 - shape))
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveLevel])
+
   const handleThreadScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget
     const following = el.scrollHeight - el.scrollTop - el.clientHeight <= 56
@@ -425,17 +461,25 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
         <span
           className={`vc2-bar-meter is-${v2.phase}`}
           aria-hidden="true"
-          style={{ '--vc2-live': v2.micOn ? v2.micLevel.toFixed(3) : '0' } as React.CSSProperties}
+          style={{ '--vc2-live': liveLevel.toFixed(3) } as React.CSSProperties}
         >
+          {interruptSeq > 0 && (
+            <span key={interruptSeq} className="vc2-ripple" data-testid="vc2-ripple" aria-hidden="true" />
+          )}
           {Array.from({ length: 5 }, (_, i) => (
-            <i key={i} style={{ '--vc2-m': `${0.3 + ((i * 13) % 7) / 10}` } as React.CSSProperties} />
+            <i key={i} style={{ '--vc2-m': barMs[i].toFixed(3) } as React.CSSProperties} />
           ))}
         </span>
         {/* 原子化状态播报（ui-ux-pro-max ux 规则）：只报相位一处，转写预览不做
             竞争性 live region（逐字流式会刷屏读屏） */}
         <span className="vc2-bar-phase" role="status" aria-atomic="true">{phaseMeta.label}</span>
         <span className="vc2-bar-preview" aria-hidden="true">
-          {preview ? preview.slice(-80) : (ready ? '按下开始说话' : '本地语音待启动')}
+          {preview ? (
+            <>
+              <span className="vc2-bar-preview-src">{v2.phase === 'speaking' ? companionName : '你'}</span>
+              {preview.slice(-72)}
+            </>
+          ) : (ready ? '按下开始说话' : '本地语音待启动')}
         </span>
         <span className="vc2-bar-binding" title="语音会话绑定（开台时捕获）">
           {companionName} · {topicTitle || '当前会话'}
@@ -629,8 +673,11 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
                 phase={v2.phase}
                 active={v2.micOn || v2.phase === 'speaking'}
                 connected={v2.connected}
-                level={v2.micOn ? v2.micLevel : 0}
+                level={liveLevel}
               />
+              {interruptSeq > 0 && (
+                <span key={interruptSeq} className="vc2-ripple vc2-ripple--stage" data-testid="vc2-ripple-stage" aria-hidden="true" />
+              )}
               <div className="vc2-stage-copy">
                 <span
                   className={`vc2-phase vc2-phase-${v2.phase}`}

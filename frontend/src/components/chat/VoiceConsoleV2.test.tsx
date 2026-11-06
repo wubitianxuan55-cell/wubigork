@@ -24,6 +24,8 @@ const runtimeState = {
   tail: [] as string[],
   connected: true,
   micOn: false,
+  micLevel: 0,
+  playLevel: 0,
   note: '',
   ready: true,
   ensuring: false,
@@ -44,7 +46,8 @@ vi.mock('../../voice/runtime/useVoiceChatV2', () => ({
       tail: runtimeState.tail,
       connected: runtimeState.connected,
       micOn: runtimeState.micOn,
-      micLevel: 0,
+      micLevel: runtimeState.micLevel,
+      playLevel: runtimeState.playLevel,
       micSilent: false,
       note: runtimeState.note,
       ensuring: runtimeState.ensuring,
@@ -421,6 +424,54 @@ describe('VoiceConsoleV2', () => {
     expect(document.querySelectorAll('.vc2-bar-health i.is-online')).toHaveLength(2)
     // 整幅专有区不存在=工作区仍归聊天流
     expect(screen.queryByTestId('vc2-transcripts')).toBeNull()
+  })
+
+  it('交互升级：打断相位触发涟漪环（mount 一次性，无 animationend 依赖）', () => {
+    runtimeState.phase = 'speaking'
+    const { rerender } = renderConsole({ variant: 'bar' })
+    expect(screen.queryByTestId('vc2-ripple')).toBeNull()
+    runtimeState.phase = 'interrupted'
+    rerender(
+      <VoiceConsoleV2
+        companionName="小音"
+        instructions="测试指令"
+        onClose={() => {}}
+        onOpenSettings={() => {}}
+        setMessages={vi.fn()}
+        getActiveId={() => 'topic_1'}
+        variant="bar"
+      />,
+    )
+    expect(screen.getByTestId('vc2-ripple')).toBeTruthy()
+    // 相位离开 interrupted 不拆环（终态=透明，无 animationend 依赖）
+    runtimeState.phase = 'listening'
+    rerender(
+      <VoiceConsoleV2
+        companionName="小音"
+        instructions="测试指令"
+        onClose={() => {}}
+        onOpenSettings={() => {}}
+        setMessages={vi.fn()}
+        getActiveId={() => 'topic_1'}
+        variant="bar"
+      />,
+    )
+    expect(screen.getByTestId('vc2-ripple')).toBeTruthy()
+  })
+
+  it('交互升级：speaking 相位声纹=下行播放电平（真实 TTS RMS 驱动）', () => {
+    runtimeState.phase = 'speaking'
+    runtimeState.playLevel = 0.72
+    runtimeState.assistantText = '在等你开口。'
+    renderConsole({ variant: 'bar' })
+    const meter = document.querySelector<HTMLElement>('.vc2-bar-meter')
+    expect(meter?.style.getPropertyValue('--vc2-live')).toBe('0.720')
+    // 五杆为历史去相关样本，非旧静态乘数（杆间互异）
+    const ms = Array.from(document.querySelectorAll<HTMLElement>('.vc2-bar-meter i'))
+      .map((el) => el.style.getPropertyValue('--vc2-m'))
+    expect(new Set(ms).size).toBeGreaterThan(1)
+    // 字幕带说话方前缀
+    expect(screen.getByText('小音')).toBeTruthy()
   })
 
   it('P1.5 bar→展开→收起：浮层整幅往返，同一实例会话线不断', () => {
