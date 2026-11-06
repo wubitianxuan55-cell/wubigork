@@ -15,6 +15,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"regexp"
 	"strconv"
 	"strings"
@@ -94,6 +95,16 @@ func (a *App) runBoundedSearchToolLoop(
 		roundTools := tools
 		if !useTools {
 			roundTools = nil // 末轮/配额尽：无工具强收敛正文
+			// 强收敛指令（实机病例：剥工具后模型不会「放弃搜索直接答」，反而
+			// 以文本形态继续吐 <tool_call>——145 字全标记剥完即空回复）。system
+			// 追加被本地 qwen3.5 无视（19:58 复跑实证），改 user 角色 nudge——
+			// 本地对用户轮指令服从性远高于 system（社区通识）。中间 system 会
+			// 炸 qwen 模板（500 病例），user 轮模板合法。此消息仅循环内部，
+			// 不进落库/提示历史。
+			msgs := make([]ai.ChatMessage, 0, len(messages)+1)
+			msgs = append(msgs, messages...)
+			msgs = append(msgs, ai.ChatMessage{Role: "user", Content: "（搜索到此为止。请立刻基于上方已获取的搜索结果与你的知识给出最终回答；不要再调用工具，也不要输出任何工具调用格式的文本。）"})
+			messages = msgs
 		}
 		var sbContent, sbReasoning strings.Builder
 		var firstToken time.Time
@@ -138,6 +149,7 @@ func (a *App) runBoundedSearchToolLoop(
 			}
 		}
 		cancelStream()
+		slog.Info("[whisper] 工具循环轮次", "round", round, "nativeCalls", len(toolCalls), "contentLen", len([]rune(sbContent.String())), "searches", searches)
 		content := sbContent.String()
 		if useTools {
 			// 修复解析：原生 toolCalls 之外，正文里的文本形态工具调用块提取
@@ -255,4 +267,63 @@ func errString(s string) error {
 		return nil
 	}
 	return strErr(s)
+}
+
+// markupDeltaFilter 流式外发过滤器（B7 残刀三，非工具轮防线）：模型凭 qwen
+// 工具训练先验会在「允许联网=关」时仍以文本形态吐 <tool_call> 标记（实机
+// 19:14 两病例），直发面需要边流边吞标记段。规则：检出 "<tool_call" 即吞到
+// "</tool_call>" 之后（未闭合则其后全吞——标记模式的尾部都是垃圾）；尾部
+// 疑似标记前缀悬挂不放行，等下一 delta 定夺；其余 '<' 照常放行。
+type markupDeltaFilter struct {
+	pending string
+}
+
+const markupOpenToken = "<tool_call"
+
+func (f *markupDeltaFilter) feed(delta string) string {
+	f.pending += delta
+	var out strings.Builder
+	for {
+		i := strings.Index(f.pending, markupOpenToken)
+		if i < 0 {
+			keep := 0
+			max := len(markupOpenToken) - 1
+			if max > len(f.pending) {
+				max = len(f.pending)
+			}
+			for k := max; k >= 1; k-- {
+				if strings.HasSuffix(f.pending, markupOpenToken[:k]) {
+					keep = k
+					break
+				}
+			}
+			out.WriteString(f.pending[:len(f.pending)-keep])
+			f.pending = f.pending[len(f.pending)-keep:]
+			return out.String()
+		}
+		out.WriteString(f.pending[:i])
+		j := strings.Index(f.pending[i:], "</tool_call>")
+		if j < 0 {
+			f.pending = ""
+			return out.String()
+		}
+		f.pending = f.pending[i+j+len("</tool_call>"):]
+	}
+}
+
+// flush 流结束时放行悬挂尾巴（残留未闭合标记按垃圾丢弃：以 "<tool" 类起始
+// 且未闭合的尾巴极小概率是正常散文，吞掉比漏给用户便宜）。
+func (f *markupDeltaFilter) flush() string {
+	rest := f.pending
+	if strings.HasPrefix(strings.TrimSpace(rest), "<tool_call") || strings.Contains(rest, markupOpenToken) {
+		return ""
+	}
+	f.pending = ""
+	return rest
+}
+
+// stripToolCallMarkup 非流式面的最终净化（落库/返回值/TTS 面）。
+func stripToolCallMarkup(s string) string {
+	var f markupDeltaFilter
+	return strings.TrimSpace(f.feed(s) + f.flush())
 }

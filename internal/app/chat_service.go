@@ -22,7 +22,7 @@ import (
 // 众神殿刀1 三层契约第三层：删「不要说自己无法联网搜索」的反向施压——搜索
 // 状态由注入头如实携带（ok/empty/失败三分叉，chat_search_adapter.go），提示词
 // 只要求未获取到实时信息时如实说明。仅 plain 有这段联网说明，人格路径没有、勿加。
-var chatPlainSystemPrompt = "你是 Gaea 桌面 AI 助手，用中文与用户进行日常对话。用户问你是谁时，明确回答你是 Gaea 的 AI 助手；不要把自己说成 xAI、Grok、OpenAI 或任何底层模型厂商的官方助手。用户询问需要实时/最新信息的问题时，系统会联网搜索并把结果以「以下是关于此问题的实时搜索结果」注入到消息中，请优先依据这些搜索结果作答，并如实告诉用户信息来源；若注入中说明搜索失败或无结果，请如实告知用户未获取到实时信息，基于已有知识回答并注明不确定，不要假装已搜索到。\n\n" + genui.ChatRule
+var chatPlainSystemPrompt = "你是 Gaea 桌面 AI 助手，用中文与用户进行日常对话。用户问你是谁时，明确回答你是 Gaea 的 AI 助手；不要把自己说成 xAI、Grok、OpenAI 或任何底层模型厂商的官方助手。当联网功能开启时，你可以调用 web_search 工具获取实时信息（天气/新闻/价格/影视等时效性问题建议先搜索），基于检索结果作答并注明信息来源；搜索失败或无结果时如实告知用户未获取到实时信息，基于已有知识回答并注明不确定，不要假装已搜索到。联网关闭时直接基于已有知识回答并注明可能过时。你不具备 web_search 以外的任何工具，任何时候都不要在回复正文里输出工具调用格式的文本。\n\n" + genui.ChatRule
 
 // ChatSend 统一聊天入口（聊天/轻语板块合并，后端）。
 // mode 为空或 "plain" → 普通对话；否则按人格 ID 走轻语 Orchestrator（记忆/情绪）。
@@ -71,6 +71,7 @@ func (a *App) chatSendPlain(topicID, message string, searchEnabled, thinking, fo
 		if err != nil {
 			return nil, err
 		}
+		reply = stripToolCallMarkup(reply)
 	}
 	extra := ""
 	if reasoning != "" {
@@ -294,6 +295,7 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 			return
 		}
 		defer cancel()
+		mf := &markupDeltaFilter{} // B7 残刀三：非工具轮标记流式吞除
 		for chunk := range chunks {
 			if chunk.Error != "" {
 				a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": chunk.Error})
@@ -307,13 +309,20 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 				firstTokenAt = time.Now()
 			}
 			if chunk.Content != "" {
-				reply.WriteString(chunk.Content)
-				a.emit("chat-stream:"+runID, map[string]interface{}{"type": "delta", "content": chunk.Content})
+				safe := mf.feed(chunk.Content)
+				if safe != "" {
+					reply.WriteString(safe)
+					a.emit("chat-stream:"+runID, map[string]interface{}{"type": "delta", "content": safe})
+				}
 			}
 			if chunk.Reasoning != "" {
 				reasoning.WriteString(chunk.Reasoning)
 				a.emit("chat-stream:"+runID, map[string]interface{}{"type": "reasoning", "content": chunk.Reasoning})
 			}
+		}
+		if rest := mf.flush(); rest != "" {
+			reply.WriteString(rest)
+			a.emit("chat-stream:"+runID, map[string]interface{}{"type": "delta", "content": rest})
 		}
 	}
 

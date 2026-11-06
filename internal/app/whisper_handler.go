@@ -450,6 +450,7 @@ func (a *whisperState) whisperChatCore(
 			break
 		}
 		chunks, cancel, callErr := a.clientRef().ChatStreamMessages(ctx, model, messages, opts, nil)
+		mf := &markupDeltaFilter{} // B7 残刀三：非工具轮（voice/低延迟/联网关）标记流式吞除
 		if callErr != nil && ctx.Err() != nil {
 			// 首 token 前取消（建连即取消）：按取消终态收尾，不算故障——
 			// 空回复由下方守卫挡住落库与记账。建连失败时 cancel 为 nil
@@ -480,8 +481,11 @@ func (a *whisperState) whisperChatCore(
 				firstTokenAt = time.Now()
 			}
 			if chunk.Content != "" {
-				replyBuilder.WriteString(chunk.Content)
-				emitDelta(chunk.Content)
+				safe := mf.feed(chunk.Content)
+				if safe != "" {
+					replyBuilder.WriteString(safe)
+					emitDelta(safe)
+				}
 			}
 			if chunk.Reasoning != "" {
 				reasoningBuilder.WriteString(chunk.Reasoning)
@@ -492,6 +496,10 @@ func (a *whisperState) whisperChatCore(
 		}
 		if onDelta != nil && streamPending != "" {
 			onDelta(streamPending)
+		}
+		if rest := mf.flush(); rest != "" {
+			replyBuilder.WriteString(rest)
+			emitDelta(rest)
 		}
 		cancel()
 		finishedAt = time.Now()
@@ -540,7 +548,9 @@ func (a *whisperState) whisperChatCore(
 	// 里把标记归一为换行（分条可读性保留），任何出口都不应再见到裸标记
 	//（此前微信/语音直接发送原文，[SPLIT] 直接漏给用户）。裸 SPLIT 降级
 	// 变体同剥（2026-11-06 复现探针 R4 泄漏实证，NormalizeReplySplitLines）。
+	// B7 残刀三：文本形态工具调用标记同点净化（voice/微信/返回值面）。
 	reply = whisper.NormalizeReplySplitLines(reply)
+	reply = stripToolCallMarkup(reply)
 
 	sentences := whisper.SplitIntoSentences(reply)
 	if len(sentences) == 0 {
