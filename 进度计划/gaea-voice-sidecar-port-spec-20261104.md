@@ -15,7 +15,7 @@ window_size=512（v5@16k），current_sample 累加。
 
 ## 2. vad_handler（gaea 配置）
 
-生效值：thresh=0.6（前端 session.update 可改 0.75）、min_silence=64ms、min_speech=384ms、min_speech_continuation=192ms、speech_pad=500ms、smart_turn_max_wait=1200ms、incomplete_delay=400ms、speculative_reopen=800ms、unanswered_reopen=max(800,7000,1200)=7000ms（音频时钟！）、merge_window=0（禁用）、_SHORT_SEGMENT_MIN_FRAGMENT_MS=100。
+生效值：thresh=0.5（gaea 实弹改值：2026-11-05 回声门方案——监听 0.5/播放期 EchoGuardOn 0.75；上游默认 0.6；前端 session.update 可改）、min_silence=64ms、min_speech=384ms、min_speech_continuation=192ms、speech_pad=500ms、smart_turn_max_wait=1200ms、incomplete_delay=400ms、speculative_reopen=800ms、unanswered_reopen=max(800,7000,1200)=7000ms（音频时钟！）、merge_window=0（禁用）、_SHORT_SEGMENT_MIN_FRAGMENT_MS=100。
 
 每 chunk 步序：runtime turn_detection 应用（threshold 变更 log "VAD threshold updated to X"）→ int16→float32(/32768) → _total_samples 累加 → iterator() → 延迟 SpeechStarted 确认 → 段结束处理。
 
@@ -100,3 +100,12 @@ pending slot（(turn,rev)）→ 首 response tracker 创建时 absorb。pop 后�
 8. cancel 双路（turn_detected/client_cancelled）+墓碑 128
 9. usage 路由+done metadata（§6）
 10. 延迟日志行逐字（eot_analyze 兼容）
+
+## 蒸馏追记（2026-11-07）
+
+上游 v1.1.0（clones/speech-to-speech HEAD=8ebde04）五路逐义务蒸馏审计收官，台账
+docs/gaea-voice-port-distill-20261107.md（高2+中15+低一批，逐项双侧锚点）。修刀
+三批 14 刀随 2236cba1 落地。教训入册：**移植漏抄的高发形态=「跨态清理守卫」**
+（新轮开清前缀/会话结束复位/属主清批），此类分支在上游多以 helper 或 __exit__
+语义存在、无独立日志行，移植时按日志行对齐极易漏——后续移植一律以义务清单
+先行（方法×字段×清理路径逐项核对），不以日志行对齐为完备判据。

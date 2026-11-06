@@ -108,3 +108,18 @@
 ## 4. 全局验收门（刀6 后）
 
 真机：冷启按钮→就绪 ≤5s、完整对话、打断、P2 预览确认链、控制台关闭 commit/abort 时序（roadmap:94 铁律）、人格记忆注入可见、功能绑定换绑语音跟随；离线工具：eot_analyze 91% 门、false_interrupt_bound ≤3%、stt_compare A/B；记分卡 35B 直代整轮 0.79s 对照门 ≤2.5s。
+
+## 5. 移植蒸馏收官（2026-11-07）
+
+语音实测翻车（角色答非所问+历次输入重复输出+循环）→ 生产库取证定性=B7 无罪，
+真凶=刀3 移植漏抄（上游 _ensure_turn_for_speech_start 新轮清前缀守卫）+句级
+join 错挂 delta 粒度。上游 HF speech-to-speech v1.1.0 克隆回（clones/，gitignored）
+五路逐义务蒸馏：高2+中15+低一批（台账 docs/gaea-voice-port-distill-20261107.md）。
+修刀三批 14 刀+18 契约测试全落地装机（2236cba1，11 文件 1062 行；装机壳 PID 37380
+构建 01:03；voice 全包×3 绿+前端 53/53）。批1=H1 陈旧 delta 断流/H2 被顶替响应
+O3 回滚/M1 回声门会话复位/M2 audioBatch 属主清理/M3 切史按本轮 user 为界；
+批2=M4 死线到期即放行/M5 transcription.failed/M6 audio.done/M7 created 补发；
+批3=M12 关闭清理序/M13 会话开关生效/M14 silence_duration_ms。M11 控制面、M15
+采样率协商记有意裁剪；**M8 挂拍板**（failed/incomplete 终态→前端 flush 截断
+F1 兜底语，默认维持现状）。挂账：真机复测（转写累积/字幕语音脱节/响应慢半拍
+三观察点）+whisper_gaea 污染行清理拍板+push。
