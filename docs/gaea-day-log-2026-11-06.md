@@ -170,3 +170,18 @@ docs/gaea-chat-probe-delivery-contract-20261106.md；主计划追记 §四。待
   SID（S-1-4-538931142-703053989:W,D,DC）+他机 CodexSandboxUsers 残留；icacls
   /verify 全过、当前 token 读/写/创建实测全通，非本次故障因，留 .acl-recovery
   拍板面。
+
+## 再追加：A3 残刀（2026-11-06 午后三段，5757b933 已推+已装机 PID 42496）
+
+用户实机复测（whisper_bokke t11-t17，turn_traces id232-238 全在新壳时段）：
+交付义务恢复（藏头诗/散文都交付、t15「你自己输出」即转正文）但残留两缺陷
+——诗仍进 genui 围栏（t13/t14）+「重新写」原样重发（t14/t16）。归因链：
+①污染历史臂（种子 t7-t10 四条坏例）合同扛住=历史假说排除；②臂B 种子真实
+companion_state（gate=silent+strategy=whisper 生效）×3 仍扛住；③turn_traces
+锁差异=实机 QUIET_FOND 标签（maxLength30）+terse 输入→mirrorBlock『回复
+上限15字』+『禁止主动展开』+opener 1-3字+五道反长度指令压过静态合同，
+模型妥协=口头禅壳+诗塞围栏（t13 clampInjected=True 实证）。A3 残刀两处：
+mirrorBlock 钳制加作品轮豁免（先完整交付再简短收尾）+GenUI 规则明示作品
+禁入围栏；回归两例+臂B×3 复验零围栏零复读，whisper/app 全包绿（170s）。
+v4.534.0 重装（gaea.exe 15:35:57，新壳 PID 42496，冒烟 18999 ok）。挂用户：
+同会话复测（t15-t17 已是干净正文历史，条件比上轮更好）。
