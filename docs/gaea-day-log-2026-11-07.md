@@ -48,3 +48,11 @@ audio+conversation+session（基线 HEAD=8ebde04=v1.1.0，response.py:991 锚验
   no-op）②parseSessionUpdate 收的是 session.update 的 session 字段③OnSessionEnd
   置 p.session=nil 断言线缆须先捕获④已提交轮恒 relevant（DROP 只打未提交响应，
   已提交轮陈旧流靠跨 key 守卫拦；Close 不改 current 须再开新轮才失相关）。
+
+## 追记：语音 UI 升级四刀+离线门（93e0b47b）
+
+- ws_probe `-self-host` 隔离服务端（c44f3178）：协议门 turn 8/8+bargein 10/10+cancel 8/8（真引擎，不碰生产 8791）；顺手修 summarize nil buffer deref。
+- 语音 UI 四刀（93e0b47b，ui-ux-pro-max 落地）：打断涟漪（OS/应用级减运动双守卫）/五杆真声纹（波形包络×电平历史去相关）/播放侧真电平 onPlayLevel（speaking 相位声纹由助手真实语音驱动）/现场感字幕；voice 契约 83/83 绿+events 计数锁漂移顺手修（M5 刀二 28→29 存量红）。
+- 真语料多轮实弹探针（d37cc151）：真 silero+真 paraformer 同语料两轮雪球签名断言两遍绿——批0 根修端到端复验。坑：探针喂入须 1x 实时节奏（爆发式喂入=STT 门时序竞速伪象）；cgo 引擎测试族 CGO_ENABLED=0 静默全跳（test -c 落 DLL 同目录配方）。
+- 污染记忆清理脚本入库（5105f534，默认 dry-run）：删 7 伪影事实（含「明确表达爱意」回声⚠）+1 情节+chat_history t123-128；留真实挫败信号；**等用户一句「清」**。
+- 存量移交小说线：NovelSettingPage「重新检查」断言=文件内隔离污染（单跑稳定绿，全文件连跑被前置测试异步残留打翻），非产品回归零交集。
