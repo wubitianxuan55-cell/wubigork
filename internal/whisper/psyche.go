@@ -175,7 +175,8 @@ func BuildPsycheBlock(e EmotionState, m Modulation, expr ExpressionParams, silen
 		parts = append(parts, "你现在心理上想保持一点距离。")
 	}
 	if silent || expr.Mode == "SILENT_CANDIDATE" {
-		parts = append(parts, "本轮你可以话很少，或用极短句回应。")
+		// 臂B刀④：同口径拆分——极短句倾向保留，「接住用户的话」为义务。
+		parts = append(parts, "本轮回复可以很短，但仍要接住用户的话。")
 	}
 	if barrierHint != "" {
 		parts = append(parts, barrierHint)

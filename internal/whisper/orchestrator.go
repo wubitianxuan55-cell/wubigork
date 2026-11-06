@@ -374,10 +374,12 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 		newL1.Trust, newL1.Rifts, newL1.Stage, timeOfDayKey(), o.AdultMode)
 	gateLevel := gate.Level
 	if o.Preset.ID != "gaea" {
+		// 臂B刀④（DSH 共识案）：长度节奏与话题禁令拆分——可以限长，不能禁止
+		// 接话或开新话题；压制行保留简短倾向但必须回应用户这句话。
 		if gate.Level == "silent" {
-			psycheBlock += "\n\n【本轮策略 · silent】本轮只做简短回应，不开启任何新话题。"
+			psycheBlock += "\n\n【本轮策略 · silent】本轮回复简短自然即可，但用户这句话要好好回应。"
 		} else if gate.Level == "whisper" {
-			psycheBlock += "\n\n【本轮策略 · whisper】话要少，不要开启新话题。"
+			psycheBlock += "\n\n【本轮策略 · whisper】你们还不太熟，语气克制些，但别敷衍用户的话。"
 		}
 	}
 
@@ -807,9 +809,10 @@ func (o *Orchestrator) injectStrategy(psycheBlock string, silent bool) (string, 
 	}
 	switch level {
 	case "silent":
-		psycheBlock += "\n\n【本轮策略 · silent】本轮只做简短回应，不开启任何新话题。"
+		// 臂B刀④：与 gate 段同口径拆分（限长不禁话题，回应用户句为义务）。
+		psycheBlock += "\n\n【本轮策略 · silent】本轮回复简短自然即可，但用户这句话要好好回应。"
 	case "whisper":
-		psycheBlock += "\n\n【本轮策略 · whisper】话要少，不要开启新话题。"
+		psycheBlock += "\n\n【本轮策略 · whisper】你们还不太熟，语气克制些，但别敷衍用户的话。"
 	case "proactive":
 		psycheBlock += "\n\n【本轮策略 · proactive】可以适当多聊几句。"
 	}
