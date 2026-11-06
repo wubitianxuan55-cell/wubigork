@@ -391,8 +391,10 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 	}
 
 	// 用户啰嗦度（v4.8.3：短但含疑问的消息豁免镜像——「你是谁/你会什么」
-	// 是提问不是寒暄，≤15 字钳制会把答案掐死）。
-	clampInjected := DetectUserVerbosity(userMsg) == "terse" && !isShortQuestion(userMsg)
+	// 是提问不是寒暄，≤15 字钳制会把答案掐死。臂B刀③：祈使/任务句同豁免
+	// ——「讲一个短故事」6 字也会吃钳制，15 字装不下故事，实弹 G3 桶 20/46
+	// 命中的主力面；限长保留给纯寒暄，办事句不设上限）。
+	clampInjected := DetectUserVerbosity(userMsg) == "terse" && !isShortQuestion(userMsg) && !IsImperativeOrTask(userMsg)
 	if clampInjected {
 		psycheBlock += "\n\n用户回复简短，你的回复也要简短，不超过15字。"
 	}
