@@ -126,3 +126,7 @@ e4dc8da8 收尾记档）。工作树干净，baseline tag `chat-persona-baseline
 - **保留待拍板**（恢复点/备份，不可逆删除交用户）：backups/（8 月 costdb 重组前
   备份+README）、.acl-recovery/（10-10 ACL 恢复点）、.audit/（10 月审计脚本配套）、
   temp/（cmp_* 对擂证据+活跃沙箱）、.agent-teams/
+
+- 附记：整理提交 7c73f79d 被 git add -A 卷入 frontend/wailsjs/go/models.ts——
+  实为今日装机 wails build 自动同步的刀0 探针字段（TurnTraceL3 gateLevel 等
+  四字段），内容正确无功能影响；语义上应随 v4.533.0 版本批，已推不改史。
