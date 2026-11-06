@@ -1,0 +1,43 @@
+[
+  {
+    "name": "single_complete",
+    "desc": "单段一气呵成：一次 soft-end 即提交，期望 1 轮",
+    "segments": [
+      { "text": "今天下午我想听一个关于冒险的短故事", "pause_ms_after": 0 }
+    ]
+  },
+  {
+    "name": "internal_pause_hold",
+    "desc": "段间停顿 900/1100ms（>重开宽限 800、<2000）：内部边界应判 incomplete 续听，整段一轮提交",
+    "segments": [
+      { "text": "帮我查一下明天成都的天气", "pause_ms_after": 900 },
+      { "text": "顺便看看适不适合出门跑步", "pause_ms_after": 1100 },
+      { "text": "如果下雨就给我推荐室内的替代运动", "pause_ms_after": 0 }
+    ]
+  },
+  {
+    "name": "two_turns_gap",
+    "desc": "段间长停顿 2400ms（≥2000）：允许成新轮，期望 2 轮",
+    "segments": [
+      { "text": "先给我讲一个很短的睡前故事", "pause_ms_after": 2400 },
+      { "text": "再把这个故事的核心道理总结成一句话", "pause_ms_after": 0 }
+    ]
+  },
+  {
+    "name": "trailing_incomplete",
+    "desc": "观察项：句尾悬停（说话人似有未尽语），Smart Turn 判决不判对错只留档",
+    "segments": [
+      { "text": "我觉得这个方案还可以再", "pause_ms_after": 1400 },
+      { "text": "再优化一下细节", "pause_ms_after": 0 }
+    ]
+  },
+  {
+    "name": "backchannel_um",
+    "desc": "观察项：短应答词（嗯）混在正常段之间，检验不误切轮",
+    "segments": [
+      { "text": "帮我把这段话翻译成英文", "pause_ms_after": 1000 },
+      { "text": "嗯", "pause_ms_after": 800 },
+      { "text": "翻译完直接读给我听", "pause_ms_after": 0 }
+    ]
+  }
+]
