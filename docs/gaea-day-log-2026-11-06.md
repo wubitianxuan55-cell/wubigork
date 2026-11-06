@@ -250,3 +250,18 @@ runBoundedSearchToolLoop（≤2 搜索 ≤3 轮+末轮强收敛+流式透传+关
 控实弹：8124 真吐 tool_calls；B7 实弹：模型自主发起 web_search 且查询词
 「明天天气怎么样 2026年11月7日」（相对日期自主解算，超 B6 拟查询）。全包
 回归绿（140s）。本日八批：合同→A3→B3→B4→B5→B6→B7。
+
+## 再追加：B7 收敛三刀（2026-11-06 晚四段，0883cc06 已推+已装机新壳 PID 46576）
+
+用户实机两病例（19:14/19:15 文本形态 <tool_call> 泄漏进正文）+社区调研
+（llama.cpp #20837 qwen3.5 泄漏已知病；canonical loop 对齐）。逐轮日志证据
+链：round0/1 原生调用各搜一次；配额尽剥工具后模型以文本形态继续重试（年份
+递减=结果不满足时理性重试，沙箱真网不可达放大）；末轮 system 收敛指令被本
+地 qwen3.5 无视。三刀：①末轮 user 角色收敛指令（服从性高于 system，user
+轮模板合法不进落库）；②markupDeltaFilter 流式过滤器挂非工具轮+stripTool
+CallMarkup 终面净化（联网关时模型凭训练先验吐标记的直发泄漏封死）；③
+chatPlainSystemPrompt 搜索叙事条件化（工具时代语义+禁输出调用格式文本）。
+罐头结果复现：round1 即交付正文零泄漏两路全净；实弹探针转正
+（TestWhisperProbeToolLoopLive）。全包回归绿（162s）。测试坑三条在档：假
+LLM tool_calls arguments 须 JSON 字符串；sseReply 多行须 json.Marshal；
+WhisperChatWithSearch 第 4 参是 forceSearch 非 lowLatency。
