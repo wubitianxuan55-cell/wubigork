@@ -399,6 +399,7 @@ func (a *whisperState) completeVoiceV2TurnLocked(
 	turns := orch.State.Counters.TotalTurns
 	orch.WM.Push(orch.SessionID, whisper.Exchange{
 		TurnIndex: turns, UserText: userText, AssistantText: assistantText,
+		Source: whisper.ExchangeSourceRaw, // V2 提交的是 sidecar 干净原文，来源标记同口径
 	})
 	if orch.HistoryInMessages {
 		orch.RecordPromptTurn(turns, userText, assistantText)

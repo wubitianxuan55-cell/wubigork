@@ -10,10 +10,18 @@ import (
 
 // ─── Exchange 对话交换 ────────────────────────────────────────
 
+// Exchange 来源标记（众神殿来源字段契约，进度计划/
+// gaea-chat-persona-optimization-20261105.md §三.3）：新写入恒为 SourceRaw
+//（双通道刀3 后进 WM 的 userText 已是用户原文）；存量旧行无此字段
+//（空=遗留形态，读取面按「无标记+含动态包裹标记=脏行」口径处理）。
+// 随 rows_json 落 hermes.db chat_history，零 schema 迁移、旧数据零改写。
+const ExchangeSourceRaw = "raw"
+
 type Exchange struct {
 	TurnIndex     int
 	UserText      string
 	AssistantText string
+	Source        string `json:"source,omitempty"`
 }
 
 // ─── WorkingMemory 工作记忆缓冲区 ─────────────────────────────

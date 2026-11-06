@@ -544,6 +544,7 @@ func (w *whisperState) finalizeWxAgentTurn(orch *whisper.Orchestrator, pre whisp
 	orch.LockTurn()
 	orch.WM.Push(orch.SessionID, whisper.Exchange{
 		TurnIndex: orch.State.Counters.TotalTurns, UserText: userMsg, AssistantText: reply,
+		Source: whisper.ExchangeSourceRaw,
 	})
 	l1Snap := orch.State.Relationship
 	l2Snap := orch.State.Emotion

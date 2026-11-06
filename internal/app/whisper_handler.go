@@ -505,6 +505,7 @@ func (a *whisperState) whisperChatCore(
 	if !skipBookkeeping {
 		orch.WM.Push(orch.SessionID, whisper.Exchange{
 			TurnIndex: orch.State.Counters.TotalTurns, UserText: userMsg, AssistantText: reply,
+			Source: whisper.ExchangeSourceRaw,
 		})
 		// KV 前缀稳定化四刀：提示历史记**实际发送内容**（llmUserMsg 含动态前缀），
 		// 保证下一轮 messages 前缀与本轮尾部逐字节衔接（引擎前缀缓存命中前提）。
@@ -1151,6 +1152,9 @@ func (a *whisperState) warmPromptHistory(orch *whisper.Orchestrator) {
 		if !okTi {
 			continue
 		}
+		if src, _ := r["source"].(string); src != "" && src != whisper.ExchangeSourceRaw {
+			continue // 来源契约：未知形态不回灌（raw 之外的标记留给未来契约扩展）
+		}
 		if containsTransientMarker(ut) || containsTransientMarker(at) {
 			continue
 		}
@@ -1191,12 +1195,13 @@ func restoreWhisperState(orch *whisper.Orchestrator) error {
 		ti, okTi := r["turnIndex"].(float64)
 		ut, _ := r["userText"].(string)
 		at, _ := r["assistantText"].(string)
+		src, _ := r["source"].(string)
 		if !okTi {
 			slog.Warn("[whisper] restore: turnIndex type assertion failed", "row", r)
 			continue
 		}
 		orch.WM.Push(orch.SessionID, whisper.Exchange{
-			TurnIndex: int(ti), UserText: ut, AssistantText: at,
+			TurnIndex: int(ti), UserText: ut, AssistantText: at, Source: src,
 		})
 	}
 	// 角色记忆隔离：事实/情节按会话加载，知识图谱按归属事实过滤——
@@ -1316,6 +1321,11 @@ func persistWhisperStateWithSnapshot(orch *whisper.Orchestrator, stateSnap whisp
 		for i, e := range exchanges {
 			rows[i] = map[string]interface{}{
 				"turnIndex": e.TurnIndex, "userText": e.UserText, "assistantText": e.AssistantText,
+			}
+			// 来源字段契约：只给有标记的行写 source（空标记旧行零改写，
+			// 重落库后仍无该键，遗留形态可审计）
+			if e.Source != "" {
+				rows[i]["source"] = e.Source
 			}
 		}
 		if err := repos.SaveChatHistoryToDB(orch.DataRoot, orch.SessionID, rows); err != nil {
