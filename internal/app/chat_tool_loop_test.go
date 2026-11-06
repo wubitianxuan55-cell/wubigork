@@ -173,3 +173,52 @@ func TestChatToolLoop_ForceSearchSystemAtTop(t *testing.T) {
 		t.Fatal("强制搜索轮出现非首位 system 消息（qwen 模板 500 病根）")
 	}
 }
+
+// TestChatToolLoop_MarkupToolCallParsedAndStripped 实机病例回归（2026-11-06
+// 用户粘贴的原样泄漏）：模型把工具调用以 qwen Hermes 文本形态写进正文——
+// 修复解析层须提取执行（含 topK 等扩展参数容忍）、标记剥离不漏给用户。
+func TestChatToolLoop_MarkupToolCallParsedAndStripped(t *testing.T) {
+	var round atomic.Int64
+	var capturedQuery atomic.Value
+	markup := "<tool_call>\n<function=web_search>\n<parameter=query>\n2026年10月11月 热门电影 票房 口碑\n</parameter>\n<parameter=topK>\n5\n</parameter>\n</function>\n</tool_call>"
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		n := round.Add(1)
+		if strings.Contains(string(body), `"role":"tool"`) {
+			sseReply(w, "10-11 月热门影片票房口碑如下……")
+			return
+		}
+		if n == 1 {
+			// 文本形态：标记在 content 里，finish 正常（非原生 tool_calls）
+			sseReply(w, "好的，我来搜一下。\n\n"+markup)
+			return
+		}
+		sseReply(w, "根据检索结果……")
+	})
+	a := newChatServiceTestAppWithHandler(t, handler)
+	orig := chatWebSearch
+	chatWebSearch = func(q string) (chatSearchOutcome, error) {
+		capturedQuery.Store(q)
+		return chatSearchOutcome{State: builtin.SearchStateOK, Query: q, Text: "1. 票房 [罐头]"}, nil
+	}
+	t.Cleanup(func() { chatWebSearch = orig })
+
+	topic, err := a.ChatTopicCreate("B7标记修复", "plain")
+	if err != nil {
+		t.Fatalf("ChatTopicCreate: %v", err)
+	}
+	out, err := a.ChatSend(topic.ID, "最近有什么热门电影", "plain", true, false, false)
+	if err != nil {
+		t.Fatalf("ChatSend: %v", err)
+	}
+	if got, _ := capturedQuery.Load().(string); got != "2026年10月11月 热门电影 票房 口碑" {
+		t.Fatalf("文本形态工具调用应被提取执行，got query %q", got)
+	}
+	reply, _ := out["reply"].(string)
+	if strings.Contains(reply, "<tool_call>") || strings.Contains(reply, "parameter=") {
+		t.Errorf("回复泄漏工具标记: %.120s", reply)
+	}
+	if !strings.Contains(reply, "热门影片票房口碑") {
+		t.Errorf("reply 应为工具结果后的交付正文: %.120s", reply)
+	}
+}

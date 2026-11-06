@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -18,8 +19,13 @@ import (
 // 拟写请求经同一 herdsman 测试服务（system 含「搜索查询拟写器」标记区分），
 // chatWebSearch seam 捕获最终查询词。
 func sseReply(w http.ResponseWriter, text string) {
+	// text 经 json.Marshal 编码：多行/引号/标记内容必须合法转义（裸换行会让
+	// 客户端整行 JSON 解析失败被静默跳过——2026-11-06 标记修复测试假红根因）。
+	payload, _ := json.Marshal(map[string]any{
+		"choices": []map[string]any{{"index": 0, "delta": map[string]any{"content": text}}},
+	})
 	w.Header().Set("Content-Type", "text/event-stream")
-	_, _ = w.Write([]byte("data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"" + text + "\"}}]}\n\n"))
+	_, _ = w.Write([]byte("data: " + string(payload) + "\n\n"))
 	_, _ = w.Write([]byte("data: [DONE]\n\n"))
 	if f, ok := w.(http.Flusher); ok {
 		f.Flush()

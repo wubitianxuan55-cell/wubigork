@@ -15,6 +15,8 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -95,6 +97,11 @@ func (a *App) runBoundedSearchToolLoop(
 		}
 		var sbContent, sbReasoning strings.Builder
 		var firstToken time.Time
+		// 带工具轮正文缓冲不直发（2026-11-06 实机病例：模型把工具调用以文本
+		// 形态 <tool_call> XML 写进正文——原生 tool_calls 修复解析层，对齐办公
+		// repairArguments 先例；流式直发会把标记漏给用户且搜索不执行）。
+		// 思考链无标记风险照常直发。末轮（无工具）正文照常流式。
+		bufferContent := useTools
 		chunks, cancelStream, err := a.clientRef().ChatStreamMessages(ctx, model, messages, opts, roundTools)
 		if err != nil {
 			return res, err
@@ -119,7 +126,7 @@ func (a *App) runBoundedSearchToolLoop(
 			}
 			if chunk.Content != "" {
 				sbContent.WriteString(chunk.Content)
-				if onDelta != nil {
+				if !bufferContent && onDelta != nil {
 					onDelta(chunk.Content)
 				}
 			}
@@ -131,13 +138,34 @@ func (a *App) runBoundedSearchToolLoop(
 			}
 		}
 		cancelStream()
-		res.Reply += sbContent.String()
+		content := sbContent.String()
+		if useTools {
+			// 修复解析：原生 toolCalls 之外，正文里的文本形态工具调用块提取
+			// 执行；标记从正文剥离，剩余散文补发外流。
+			markupCalls, cleaned := extractMarkupToolCalls(content)
+			if cleaned != content && onDelta != nil && cleaned != "" {
+				onDelta(cleaned)
+			}
+			content = cleaned
+			toolCalls = append(toolCalls, markupCalls...)
+			if len(toolCalls) == 0 {
+				res.Reply += content
+				res.Reasoning += sbReasoning.String()
+				return res, nil
+			}
+		} else {
+			// 末轮安全剥离：万一模型仍吐标记，正文面（落库/返回值）不留标记
+			if _, cleaned := extractMarkupToolCalls(content); cleaned != content {
+				content = cleaned
+			}
+		}
+		res.Reply += content
 		res.Reasoning += sbReasoning.String()
-		if len(toolCalls) == 0 || !useTools {
+		if !useTools {
 			return res, nil
 		}
 		// 执行工具并回填 assistant(tool_calls)+tool(result) 对
-		assistantMsg := ai.ChatMessage{Role: "assistant", Content: sbContent.String(), ToolCalls: toolCalls}
+		assistantMsg := ai.ChatMessage{Role: "assistant", Content: content, ToolCalls: toolCalls}
 		messages = append(messages, assistantMsg)
 		for _, tc := range toolCalls {
 			out := a.executeChatToolCall(&searches, tc)
@@ -147,6 +175,46 @@ func (a *App) runBoundedSearchToolLoop(
 		}
 	}
 	return res, nil
+}
+
+// toolCallMarkupRE 文本形态工具调用块（qwen Hermes 风格）：模型偶发把调用
+// 写成正文 XML 而非原生 tool_calls（实机病例：热门电影查询）。
+var toolCallMarkupRE = regexp.MustCompile(`(?s)<tool_call>\s*<function=([A-Za-z0-9_]+)>([\s\S]*?)</function>\s*</tool_call>`)
+
+var markupParamRE = regexp.MustCompile(`<parameter=([A-Za-z0-9_]+)>\s*([\s\S]*?)\s*</parameter>`)
+
+// extractMarkupToolCalls 从正文提取文本形态工具调用块并返回「剥离标记后的
+// 散文」。参数统一打包成 {name: value} JSON（arguments 字符串形态，与原生
+// 调用同构进 executeChatToolCall）；解析不了整块丢弃不外漏。
+func extractMarkupToolCalls(content string) ([]ai.ChatToolCall, string) {
+	if !strings.Contains(content, "<tool_call>") {
+		return nil, content
+	}
+	var calls []ai.ChatToolCall
+	seq := 0
+	cleaned := toolCallMarkupRE.ReplaceAllStringFunc(content, func(block string) string {
+		m := toolCallMarkupRE.FindStringSubmatch(block)
+		if m == nil {
+			return ""
+		}
+		name := m[1]
+		params := map[string]string{}
+		for _, pm := range markupParamRE.FindAllStringSubmatch(m[2], -1) {
+			params[pm[1]] = strings.TrimSpace(pm[2])
+		}
+		args, err := json.Marshal(params)
+		if err != nil {
+			return ""
+		}
+		seq++
+		calls = append(calls, ai.ChatToolCall{
+			ID:       "markup_" + strconv.Itoa(seq),
+			Type:     "function",
+			Function: ai.ChatToolFunction{Name: name, Arguments: string(args)},
+		})
+		return ""
+	})
+	return calls, strings.TrimSpace(cleaned)
 }
 
 // executeChatToolCall 执行单次工具调用（当前仅 web_search），返回回填 tool
