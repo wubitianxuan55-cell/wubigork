@@ -28,6 +28,20 @@ var hurtfulWordsZH = []string{
 
 var coldWordsZH = []string{"哦", "嗯", "随便", "都行", "无所谓", "不熟", "别问了"}
 
+// imperativeTaskZH 祈使/任务动词锚（众神殿臂B刀②③共用）：短句里出现即视为
+// 「用户要办事/要点活」——不判冷淡、不注 ≤15 字钳制。宁漏勿误：漏了走闲聊
+// 无害，误了把办事用户判成冷淡用户（Aff −5 / Trust −1.5 / 正向清零三重负反馈，
+// ZCode 实弹论证的 EvtCold 闭环）。
+var imperativeTaskZH = []string{
+	"讲", "写", "唱", "画", "念", "读", "翻译", "总结", "概括", "表演",
+	"继续", "逗", "陪", "帮", "查", "搜", "来个", "来点", "来一段", "说个", "猜", "背",
+}
+
+// IsImperativeOrTask 判断消息是否含祈使/任务动词锚（钳制豁免同用，刀③）。
+func IsImperativeOrTask(msg string) bool {
+	return hasAny(strings.ToLower(msg), imperativeTaskZH)
+}
+
 var apologyWordsZH = []string{"对不起", "抱歉", "我错了", "原谅我", "不好意思"}
 
 var vulnerableWordsZH = []string{
@@ -375,11 +389,13 @@ func InterpretInput(msg string, effectiveTrust float64) Event {
 		// 较长冷淡消息 → 二次兜底
 	}
 
-	// 9. 问句
+	// 9. 问句（臂B刀②：补「谁」——「你是谁」类身份问此前既不命中问句词表
+	// 又被 ≤5 冷淡兜底吞掉）
 	if strings.Contains(m, "?") || strings.Contains(m, "？") ||
 		strings.Contains(m, "吗") || strings.Contains(m, "呢") ||
 		strings.Contains(m, "什么") || strings.Contains(m, "怎么") ||
 		strings.Contains(m, "如何") || strings.Contains(m, "哪") ||
+		strings.Contains(m, "谁") ||
 		(en && (strings.Contains(m, "what") || strings.Contains(m, "how") ||
 			strings.Contains(m, "why") || strings.Contains(m, "when") ||
 			strings.Contains(m, "where") || strings.Contains(m, "who"))) {
@@ -391,8 +407,10 @@ func InterpretInput(msg string, effectiveTrust float64) Event {
 		return buildEvent(EvtCasualChat, msg)
 	}
 
-	// 11. 冷淡二次兜底
-	if len([]rune(msg)) <= 5 {
+	// 11. 冷淡二次兜底（臂B刀②：义务豁免——短祈使/任务句（「讲个故事」
+	// 「继续」是办事不是冷淡）与短问句（「你是谁」此前在此错判 cold，
+	// 问句链在其后根本看不到它）都不判冷）
+	if len([]rune(msg)) <= 5 && !IsImperativeOrTask(msg) && !isShortQuestion(msg) {
 		return buildEvent(EvtCold, msg)
 	}
 
