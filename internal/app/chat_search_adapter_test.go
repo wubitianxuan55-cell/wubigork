@@ -215,32 +215,8 @@ func TestInjectChatSearchResult(t *testing.T) {
 	}
 }
 
-// TestPreparePlainChatMessage_OKInjectsResults plain 路径 OK 态走新注入头。
-func TestPreparePlainChatMessage_OKInjectsResults(t *testing.T) {
-	a := &App{}
-	stubChatWebSearch(t, func(q string) (chatSearchOutcome, error) {
-		return chatSearchOutcome{State: builtin.SearchStateOK, Query: q, Text: "1. 模拟结果"}, nil
-	})
-	got := a.preparePlainChatMessage("今天天气如何", false, true)
-	if !strings.Contains(got, "今天天气如何") || !strings.Contains(got, "1. 模拟结果") {
-		t.Errorf("OK 态应保留原文并注入结果: %q", got)
-	}
-}
-
-// TestPreparePlainChatMessage_AdapterFaultFallbacks adapter 自身故障走兜底占位。
-func TestPreparePlainChatMessage_AdapterFaultFallbacks(t *testing.T) {
-	a := &App{}
-	stubChatWebSearch(t, func(string) (chatSearchOutcome, error) {
-		return chatSearchOutcome{}, errors.New("适配器故障")
-	})
-	got := a.preparePlainChatMessage("今天天气如何", false, true)
-	if !strings.Contains(got, "联网搜索暂不可用") || !strings.Contains(got, "今天天气如何") {
-		t.Errorf("adapter 故障应注入兜底占位并保留原文: %q", got)
-	}
-	if strings.Contains(got, "实时搜索结果，请参考") {
-		t.Errorf("故障不应伪造成功结果: %q", got)
-	}
-}
+// （TestPreparePlainChatMessage_* 两例随 B7 退役：plain 路径搜索改走工具
+// 循环，关键词门控函数已删——循环语义见 chat_tool_loop_test.go。）
 
 // TestPrepareWhisperChatInput_States 人格路径（旧实现失败静默返回原文）：
 // 刀1 统一为按状态注入，失败/空结果对模型可见；刀3 双通道——Raw 恒为原文，

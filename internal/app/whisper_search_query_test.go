@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -51,8 +52,8 @@ func TestWhisperChat_LLMFormulatedSearchQuery(t *testing.T) {
 	}
 	t.Cleanup(func() { chatWebSearch = orig })
 
-	if _, err := a.WhisperChatWithSearch("所以，明天的天气怎么样", personalityID, false, false); err != nil {
-		t.Fatalf("WhisperChatWithSearch: %v", err)
+	if _, err := a.whisperChatCore(context.Background(), "所以，明天的天气怎么样", personalityID, "", false, true /* B7 后拟查询归 lowLatency(voice) 面 */, true, false, nil, nil); err != nil {
+		t.Fatalf("whisperChatCore: %v", err)
 	}
 	if !formulationSeen.Load() {
 		t.Fatal("拟查询调用未发出（应先于检索）")
@@ -89,8 +90,8 @@ func TestWhisperChat_FormulateFallback(t *testing.T) {
 	}
 	t.Cleanup(func() { chatWebSearch = orig })
 
-	if _, err := a.WhisperChatWithSearch("所以，明天的天气怎么样", personalityID, false, false); err != nil {
-		t.Fatalf("WhisperChatWithSearch: %v", err)
+	if _, err := a.whisperChatCore(context.Background(), "所以，明天的天气怎么样", personalityID, "", false, true /* B7 后拟查询归 lowLatency(voice) 面 */, true, false, nil, nil); err != nil {
+		t.Fatalf("whisperChatCore: %v", err)
 	}
 	if got, _ := capturedQuery.Load().(string); got != "所以，明天的天气怎么样" {
 		t.Fatalf("拟写失败应回退原句，got %q", got)

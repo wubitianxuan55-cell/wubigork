@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -55,8 +56,8 @@ func TestWhisperChatWithSearch_DualChannelMarker(t *testing.T) {
 		return chatSearchOutcome{State: builtin.SearchStateOK, Query: "今天天气如何", Text: "标记段 " + marker + " 结束"}, nil
 	})
 
-	if _, err := a.WhisperChatWithSearch("今天天气如何", personalityID, false, false); err != nil {
-		t.Fatalf("WhisperChatWithSearch: %v", err)
+	if _, err := a.whisperChatCore(context.Background(), "今天天气如何", personalityID, "", false, true /* B7 后附录机制归 lowLatency(voice) 面 */, true, false, nil, nil); err != nil {
+		t.Fatalf("whisperChatCore: %v", err)
 	}
 	if !sawMarkerInModel.Load() {
 		t.Fatal("唯一标记应出现在本轮模型输入")

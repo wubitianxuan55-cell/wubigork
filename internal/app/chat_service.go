@@ -41,45 +41,36 @@ func (a *App) ChatSend(topicID, message, mode string, searchEnabled, thinking, f
 // preparePlainChatMessage 联网搜索增强：命中搜索意图/强制搜索时，经统一检索
 // 核 adapter（chat_search_adapter.go）注入——注入头按状态选文案（三层契约
 // 第二层）：OK=实时结果；EMPTY=已搜索无相关结果；ALL_FAILED=联网暂不可用。
-// 伪失败不再被包装成「实时搜索结果」（旧 whisper.WebSearch 返回「暂无结果」
-// 非空文本使本函数的失败分支恒死，刀1 已随旧栈删除）。adapter 自身故障才走
-// searchFallbackMessage 兜底。
-func (a *App) preparePlainChatMessage(message string, searchEnabled, forceSearch bool) string {
-	if forceSearch || (searchEnabled && shouldSearchWeb(message)) {
-		out, err := chatWebSearch(message)
-		if err != nil {
-			slog.Warn("联网搜索适配器故障，注入占位提示（不阻断对话）", "error", err)
-			return searchFallbackMessage(message)
-		}
-		return injectChatSearchResult(message, out)
-	}
-	return message
-}
-
-// searchFallbackMessage adapter 自身故障时的兜底占位（引擎级失败/空结果已由
-// injectChatSearchResult 按状态出文案）：如实告知模型未获取到实时信息，
-// 不用「实时搜索结果」头包装失败（T7-2 可见性，不静默吞错）。
-func searchFallbackMessage(message string) string {
-	return fmt.Sprintf("%s\n\n[联网搜索暂不可用，请基于已有知识回答；如不确定请明确说明未获取到实时信息]", message)
-}
-
 func (a *App) chatSendPlain(topicID, message string, searchEnabled, thinking, forceSearch bool) (map[string]interface{}, error) {
 	if a.clientRef() == nil {
 		return nil, fmt.Errorf("AI 客户端未初始化")
 	}
 	userMessage := message
-	promptMessage := a.preparePlainChatMessage(message, searchEnabled, forceSearch)
 	eng, model, source, err := a.resolveChatModelRoute()
 	if err != nil {
 		return nil, err
 	}
-	reply, reasoning, err := a.clientRef().ChatSimpleStreamDetailed(a.ctx, model,
-		chatPlainSystemPrompt, promptMessage, ai.ChatSimpleOptions{
-			EngineID: eng, Feature: "chat", EnableThinking: thinking, DisableThinking: !thinking,
-			DisableFailover: source == "feature",
-		})
-	if err != nil {
-		return nil, err
+	opts := ai.ChatSimpleOptions{
+		EngineID: eng, Feature: "chat", EnableThinking: thinking, DisableThinking: !thinking,
+		DisableFailover: source == "feature",
+	}
+	var reply, reasoning string
+	// B7 工具循环（按钮语义=允许联网总开关）：开着即带 web_search 真工具，
+	// 要不要搜/搜什么由模型判断（关键词门控退役）；关闭=不传工具零变化。
+	if searchEnabled || forceSearch {
+		res, loopErr := a.runBoundedSearchToolLoop(a.ctx, eng, model,
+			[]ai.ChatMessage{{Role: "system", Content: chatPlainSystemPrompt}, {Role: "user", Content: userMessage}},
+			opts, forceSearch, nil, nil)
+		if loopErr != nil {
+			return nil, loopErr
+		}
+		reply, reasoning = res.Reply, res.Reasoning
+	} else {
+		reply, reasoning, err = a.clientRef().ChatSimpleStreamDetailed(a.ctx, model,
+			chatPlainSystemPrompt, userMessage, opts)
+		if err != nil {
+			return nil, err
+		}
 	}
 	extra := ""
 	if reasoning != "" {
@@ -259,19 +250,10 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 		}
 	}()
 
-	promptMessage := a.preparePlainChatMessage(userMessage, searchEnabled, forceSearch)
+	// B7 工具循环（按钮语义=允许联网总开关）：开着即带 web_search 真工具，
+	// 要不要搜/搜什么由模型判断（关键词门控退役）；关闭=不传工具零变化。
+	toolMode := searchEnabled || forceSearch
 	requestStart := time.Now()
-	chunks, cancel, err := a.clientRef().ChatStreamChunks(ctx, model, chatPlainSystemPrompt, promptMessage,
-		ai.ChatSimpleOptions{
-			EngineID: eng, Feature: "chat", EnableThinking: thinking, DisableThinking: !thinking,
-			DisableFailover: source == "feature",
-		})
-	if err != nil {
-		a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": err.Error()})
-		return
-	}
-	defer cancel()
-
 	var reply strings.Builder
 	var reasoning strings.Builder
 	// usage 由流结束块携带（OpenAI 兼容 API 最后一块带 usage，SSEChunk.Usage）；
@@ -279,25 +261,59 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 	var usage *ai.ChatUsage
 	// 生成速度计时：从首个内容/思考 delta 起表（排队与首字延迟不计入 tok/s）。
 	var firstTokenAt time.Time
-	for chunk := range chunks {
-		if chunk.Error != "" {
-			a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": chunk.Error})
+	if toolMode {
+		res, loopErr := a.runBoundedSearchToolLoop(ctx, eng, model,
+			[]ai.ChatMessage{{Role: "system", Content: chatPlainSystemPrompt}, {Role: "user", Content: userMessage}},
+			ai.ChatSimpleOptions{
+				EngineID: eng, Feature: "chat", EnableThinking: thinking, DisableThinking: !thinking,
+				DisableFailover: source == "feature",
+			},
+			forceSearch,
+			func(delta string) {
+				reply.WriteString(delta)
+				a.emit("chat-stream:"+runID, map[string]interface{}{"type": "delta", "content": delta})
+			},
+			func(r string) {
+				reasoning.WriteString(r)
+				a.emit("chat-stream:"+runID, map[string]interface{}{"type": "reasoning", "content": r})
+			})
+		if loopErr != nil {
+			a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": loopErr.Error()})
 			return
 		}
-		if chunk.Done {
-			usage = chunk.Usage
-			break
+		usage = res.Usage
+		firstTokenAt = res.FirstToken
+	} else {
+		chunks, cancel, err := a.clientRef().ChatStreamChunks(ctx, model, chatPlainSystemPrompt, userMessage,
+			ai.ChatSimpleOptions{
+				EngineID: eng, Feature: "chat", EnableThinking: thinking, DisableThinking: !thinking,
+				DisableFailover: source == "feature",
+			})
+		if err != nil {
+			a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": err.Error()})
+			return
 		}
-		if (chunk.Content != "" || chunk.Reasoning != "") && firstTokenAt.IsZero() {
-			firstTokenAt = time.Now()
-		}
-		if chunk.Content != "" {
-			reply.WriteString(chunk.Content)
-			a.emit("chat-stream:"+runID, map[string]interface{}{"type": "delta", "content": chunk.Content})
-		}
-		if chunk.Reasoning != "" {
-			reasoning.WriteString(chunk.Reasoning)
-			a.emit("chat-stream:"+runID, map[string]interface{}{"type": "reasoning", "content": chunk.Reasoning})
+		defer cancel()
+		for chunk := range chunks {
+			if chunk.Error != "" {
+				a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": chunk.Error})
+				return
+			}
+			if chunk.Done {
+				usage = chunk.Usage
+				break
+			}
+			if (chunk.Content != "" || chunk.Reasoning != "") && firstTokenAt.IsZero() {
+				firstTokenAt = time.Now()
+			}
+			if chunk.Content != "" {
+				reply.WriteString(chunk.Content)
+				a.emit("chat-stream:"+runID, map[string]interface{}{"type": "delta", "content": chunk.Content})
+			}
+			if chunk.Reasoning != "" {
+				reasoning.WriteString(chunk.Reasoning)
+				a.emit("chat-stream:"+runID, map[string]interface{}{"type": "reasoning", "content": chunk.Reasoning})
+			}
 		}
 	}
 

@@ -280,20 +280,21 @@ func (a *whisperState) whisperChatCore(
 		return nil, fmt.Errorf("model client not initialized")
 	}
 
-	// 搜索决策（双通道 + 待补槽位续接）：状态机/记忆永远只吃原文，增广块
-	// 只进本轮模型输入。正常触发照旧；未触发但上一轮刚搜过（PendingSearch）
-	// 且本句是实体短答 → 一次合并检索；本轮回合结束即消费/清除，不做悬挂。
-	// B6 拟查询刀：触发仍走规则（关键词门控，便宜确定），查询词交给模型从
-	// 对话语境拟写（指代/省略/连接词规则修不完——「所以，明天的天气」实机
-	// 病例），失败有界降级回原句清洗。
+	// 搜索决策（B7 工具循环分岔，2026-11-06 用户拍板）：非低延迟（聊天板块）
+	// 且允许联网时注册 web_search 真工具——要不要搜、搜什么全由模型判断，关
+	// 键词门控退役（按钮语义=允许联网总开关）；身份类问题仍不联网（「你是谁」
+	// 搜索必错）。低延迟（voice）保留 B5/B6 规则触发+拟查询路径（延迟敏感，
+	// 不承担工具循环的多轮往返）；待补槽位状态机（PendingSearch）同属低延迟
+	// 面续用。
+	toolSearchMode := !lowLatency && !isIdentityQuestion(userMsg) && (forceSearch || searchEnabled)
 	llmAppendix := ""
 	searchTriggered := false
-	if !isIdentityQuestion(userMsg) && (forceSearch || (searchEnabled && shouldSearchWeb(userMsg))) {
+	if !toolSearchMode && !isIdentityQuestion(userMsg) && (forceSearch || (searchEnabled && shouldSearchWeb(userMsg))) {
 		q := a.formulateSearchQuery(engine, model, userMsg, "")
 		in := a.prepareWhisperChatInput(userMsg, q, true)
 		llmAppendix = in.LLMAppendix
 		searchTriggered = true
-	} else if searchEnabled || forceSearch {
+	} else if !toolSearchMode && (searchEnabled || forceSearch) {
 		if p := orch.State.PendingSearch; p != nil && whisper.IsSearchFollowupAnswer(userMsg) {
 			merged := strings.TrimSpace(p.Query) + " " + strings.TrimSpace(userMsg)
 			q := a.formulateSearchQuery(engine, model, userMsg, p.Query)
@@ -423,6 +424,31 @@ func (a *whisperState) whisperChatCore(
 	var finishedAt time.Time
 	var cancelled bool
 	for attempt := 1; ; attempt++ {
+		// B7 工具循环分岔（聊天板块）：模型自己决定要不要搜/搜什么；流式经
+		// emitDelta 照常外发。循环内有界（≤2 搜索 ≤3 轮），失败走 callErr。
+		if toolSearchMode {
+			res, loopErr := a.app.runBoundedSearchToolLoop(ctx, engine, model, messages, opts, forceSearch, emitDelta, onReasoning)
+			finishedAt = time.Now()
+			if loopErr != nil && ctx.Err() != nil {
+				cancelled = true
+				reply, reasoning = "", ""
+				break
+			}
+			if loopErr != nil {
+				slog.Error("[whisper] 工具循环失败", "error", loopErr)
+				return nil, loopErr
+			}
+			reply = whisper.NormalizeReplySplitLines(res.Reply)
+			reasoning = res.Reasoning
+			usage = res.Usage
+			firstTokenAt = res.FirstToken
+			cancelled = ctx.Err() != nil
+			if reply != "" || cancelled {
+				break
+			}
+			// 工具循环空正文：不重试（模型已有多轮机会），按空正文守卫收尾
+			break
+		}
 		chunks, cancel, callErr := a.clientRef().ChatStreamMessages(ctx, model, messages, opts, nil)
 		if callErr != nil && ctx.Err() != nil {
 			// 首 token 前取消（建连即取消）：按取消终态收尾，不算故障——

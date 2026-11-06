@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -82,10 +83,10 @@ func TestSearchContinuation_MergesFollowup(t *testing.T) {
 	t.Cleanup(func() { cleanupWhisperSession(t, personalityID) })
 	queries := recordingSearchStub(t)
 
-	if _, err := a.WhisperChatWithSearch("明天天气", personalityID, false, false); err != nil {
+	if _, err := a.whisperChatCore(context.Background(), "明天天气", personalityID, "", false, true /* B7 后续接机制归 lowLatency(voice) 面 */, true, false, nil, nil); err != nil {
 		t.Fatalf("turn1: %v", err)
 	}
-	if _, err := a.WhisperChatWithSearch("四川成都", personalityID, false, false); err != nil {
+	if _, err := a.whisperChatCore(context.Background(), "四川成都", personalityID, "", false, true /* B7 后续接机制归 lowLatency(voice) 面 */, true, false, nil, nil); err != nil {
 		t.Fatalf("turn2: %v", err)
 	}
 	time.Sleep(100 * time.Millisecond)
@@ -100,7 +101,7 @@ func TestSearchContinuation_MergesFollowup(t *testing.T) {
 		t.Fatalf("合并检索应携带上一轮查询语境，got %q", qs[1])
 	}
 	// 第三轮：pending 已消费清除，不再检索
-	if _, err := a.WhisperChatWithSearch("今天好开心呀", personalityID, false, false); err != nil {
+	if _, err := a.whisperChatCore(context.Background(), "今天好开心呀", personalityID, "", false, true /* B7 后续接机制归 lowLatency(voice) 面 */, true, false, nil, nil); err != nil {
 		t.Fatalf("turn3: %v", err)
 	}
 	time.Sleep(100 * time.Millisecond)
@@ -116,14 +117,14 @@ func TestSearchContinuation_NotConsumedCleared(t *testing.T) {
 	t.Cleanup(func() { cleanupWhisperSession(t, personalityID) })
 	queries := recordingSearchStub(t)
 
-	if _, err := a.WhisperChatWithSearch("明天天气", personalityID, false, false); err != nil {
+	if _, err := a.whisperChatCore(context.Background(), "明天天气", personalityID, "", false, true /* B7 后续接机制归 lowLatency(voice) 面 */, true, false, nil, nil); err != nil {
 		t.Fatalf("turn1: %v", err)
 	}
 	// 第二轮长句闲聊（不像实体短答）→ 不消费；回合结束 pending 清除
-	if _, err := a.WhisperChatWithSearch("今天心情不错想聊聊最近的生活", personalityID, false, false); err != nil {
+	if _, err := a.whisperChatCore(context.Background(), "今天心情不错想聊聊最近的生活", personalityID, "", false, true /* B7 后续接机制归 lowLatency(voice) 面 */, true, false, nil, nil); err != nil {
 		t.Fatalf("turn2: %v", err)
 	}
-	if _, err := a.WhisperChatWithSearch("成都", personalityID, false, false); err != nil {
+	if _, err := a.whisperChatCore(context.Background(), "成都", personalityID, "", false, true /* B7 后续接机制归 lowLatency(voice) 面 */, true, false, nil, nil); err != nil {
 		t.Fatalf("turn3: %v", err)
 	}
 	time.Sleep(100 * time.Millisecond)
@@ -143,7 +144,7 @@ func TestSearchContinuation_PersistsAcrossRestart(t *testing.T) {
 	queries := recordingSearchStub(t)
 
 	// 第一轮触发搜索，同步落库（PendingSearch 随 state_json 持久化）
-	if _, err := a.WhisperChatWithSearch("明天天气", personalityID, false, false); err != nil {
+	if _, err := a.whisperChatCore(context.Background(), "明天天气", personalityID, "", false, true /* B7 后续接机制归 lowLatency(voice) 面 */, true, false, nil, nil); err != nil {
 		t.Fatalf("turn1: %v", err)
 	}
 	orch := ws.getOrCreateOrch(personalityID)
@@ -160,7 +161,7 @@ func TestSearchContinuation_PersistsAcrossRestart(t *testing.T) {
 	whisperSessionsMu.Unlock()
 
 	// 重启后第一轮：短实体答仍应触发合并检索
-	if _, err := a.WhisperChatWithSearch("四川成都", personalityID, false, false); err != nil {
+	if _, err := a.whisperChatCore(context.Background(), "四川成都", personalityID, "", false, true /* B7 后续接机制归 lowLatency(voice) 面 */, true, false, nil, nil); err != nil {
 		t.Fatalf("turn2 after restart: %v", err)
 	}
 	time.Sleep(100 * time.Millisecond)

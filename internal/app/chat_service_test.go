@@ -311,7 +311,9 @@ func TestChatSend_Plain_SearchKeepsOriginalUserMessage(t *testing.T) {
 	}
 
 	orig := chatWebSearch
-	chatWebSearch = func(string) (chatSearchOutcome, error) { return chatSearchOutcome{State: builtin.SearchStateOK, Text: "【模拟搜索结果】"}, nil }
+	chatWebSearch = func(string) (chatSearchOutcome, error) {
+		return chatSearchOutcome{State: builtin.SearchStateOK, Text: "【模拟搜索结果】"}, nil
+	}
 	t.Cleanup(func() { chatWebSearch = orig })
 
 	if _, err := a.ChatSend(topic.ID, "今天有什么新闻", "plain", false, false, true); err != nil {
@@ -832,57 +834,6 @@ func TestSanitizeChatFilename(t *testing.T) {
 }
 
 // ── T7-2 可见性收口：联网搜索失败占位/Notice（不静默丢弃） ──
-
-// TestPreparePlainChatMessage_SearchErrorInjectsPlaceholder 搜索函数返回错误时，
-// 注入占位提示（含失败说明），原始消息保留——失败可见而非静默丢弃。
-func TestPreparePlainChatMessage_SearchErrorInjectsPlaceholder(t *testing.T) {
-	a := &App{}
-	orig := chatWebSearch
-	chatWebSearch = func(string) (chatSearchOutcome, error) { return chatSearchOutcome{}, errors.New("搜索服务不可用") }
-	t.Cleanup(func() { chatWebSearch = orig })
-
-	got := a.preparePlainChatMessage("今天天气如何", false, true)
-	if !strings.Contains(got, "今天天气如何") {
-		t.Errorf("占位消息应保留原始消息: %q", got)
-	}
-	if !strings.Contains(got, "联网搜索暂不可用") {
-		t.Errorf("搜索失败应注入占位提示: %q", got)
-	}
-	if strings.Contains(got, "实时搜索结果，请参考") {
-		t.Errorf("失败时不应注入伪造的成功结果: %q", got)
-	}
-}
-
-// TestPreparePlainChatMessage_EmptyResultInjectsPlaceholder 搜索返回空结果（无错误）
-// 同样注入占位提示，避免模型把空搜索当成实时信息。
-func TestPreparePlainChatMessage_EmptyResultInjectsPlaceholder(t *testing.T) {
-	a := &App{}
-	orig := chatWebSearch
-	chatWebSearch = func(string) (chatSearchOutcome, error) { return chatSearchOutcome{State: builtin.SearchStateEmpty}, nil }
-	t.Cleanup(func() { chatWebSearch = orig })
-
-	got := a.preparePlainChatMessage("今天天气如何", false, true)
-	if !strings.Contains(got, "联网搜索已完成") || !strings.Contains(got, "未获取到实时信息") {
-		t.Errorf("空结果应注入如实占位（已完成但无相关结果）: %q", got)
-	}
-	if strings.Contains(got, "实时搜索结果，请参考") {
-		t.Errorf("空结果不应套「实时搜索结果」成功头: %q", got)
-	}
-}
-
-// TestPreparePlainChatMessage_NoSearchKeepsMessage 未开启搜索且未强制时，
-// 消息原样返回，不注入任何搜索内容。
-func TestPreparePlainChatMessage_NoSearchKeepsMessage(t *testing.T) {
-	a := &App{}
-	orig := chatWebSearch
-	chatWebSearch = func(string) (chatSearchOutcome, error) { return chatSearchOutcome{State: builtin.SearchStateOK, Text: "【模拟搜索结果】"}, nil }
-	t.Cleanup(func() { chatWebSearch = orig })
-
-	got := a.preparePlainChatMessage("普通闲聊", false, false)
-	if got != "普通闲聊" {
-		t.Errorf("未开启搜索应原样返回: %q", got)
-	}
-}
 
 // TestChatSend_Plain_SearchErrorStillSucceeds 搜索失败不阻断对话：ChatSend 仍
 // 正常返回回复并落库（占位注入让模型如实说明，而不是整条对话报错）。
