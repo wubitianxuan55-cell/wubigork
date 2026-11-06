@@ -48,6 +48,14 @@ func TestCleanChatSearchQuery(t *testing.T) {
 		{"成都到上海在哪里买票", "成都到上海在哪里买票"},
 		{"苹果价格多少钱", "苹果价格多少钱"},
 		{"这个多少钱", "这个多少钱"},
+		// B5 刀（2026-11-06 实机病例）：开头关联词剥离+连带顿号——
+		// 「所以，明天的天气怎么样」曾被搜成「所以，明天的天气」，领头连接
+		// 词主导引擎命中罗大佑歌曲《所以》而非天气。
+		{"所以，明天的天气怎么样", "明天的天气"},
+		{"那么北京今天天气如何", "北京今天天气"},
+		{"对了，成都到上海的高铁", "成都到上海的高铁"},
+		{"还有，明天几号", "明天几号"},
+		{"所以牌洗发水怎么样", "牌洗发水"}, // 已知取舍：句首「所以」无条件剥（品牌名以「所以」开头极罕见，换搜索可查回）
 	}
 	for _, c := range cases {
 		if got := cleanChatSearchQuery(c.in); got != c.want {
@@ -67,8 +75,8 @@ func TestRunChatWebSearch_QueryCleaned(t *testing.T) {
 			t.Errorf("topK = %d, want %d", topK, chatSearchTopK)
 		}
 		return &builtin.SearchOutcome{
-			State: builtin.SearchStateOK,
-			Results: []builtin.SearchResult{{Title: "上海天气", URL: "https://wttr.in/shanghai", Snippet: "晴", Source: "bing"}},
+			State:    builtin.SearchStateOK,
+			Results:  []builtin.SearchResult{{Title: "上海天气", URL: "https://wttr.in/shanghai", Snippet: "晴", Source: "bing"}},
 			Attempts: []builtin.SearchAttempt{{Name: "bing", Outcome: "ok", ElapsedMS: 320}},
 		}, nil
 	})
@@ -178,6 +186,10 @@ func TestInjectChatSearchResult(t *testing.T) {
 	ok := injectChatSearchResult("问句", chatSearchOutcome{State: builtin.SearchStateOK, Query: "q", Text: "1. 结果"})
 	if !strings.Contains(ok, "以下是关于此问题的实时搜索结果，请参考这些信息回答") || !strings.Contains(ok, "1. 结果") {
 		t.Errorf("OK 态应注入结果头+结果: %q", ok)
+	}
+	// B5 刀二：检索时间锚必须随块注入（实机病例：过期缓存页日期被当「明天」）
+	if !strings.Contains(ok, "检索时间：") || !strings.Contains(ok, "不得据此回答「今天/明天/后天」") {
+		t.Errorf("OK 态缺检索时间锚: %q", ok)
 	}
 	empty := injectChatSearchResult("问句", chatSearchOutcome{State: builtin.SearchStateEmpty, Query: "测试汇率", Engines: "bing:无结果(200ms)"})
 	if strings.Contains(empty, "实时搜索结果，请参考") {

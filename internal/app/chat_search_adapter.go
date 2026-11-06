@@ -95,13 +95,23 @@ func injectChatSearchResult(message string, out chatSearchOutcome) string {
 
 // chatSearchAppendix 只取搜索增广块（含四态注入头，不带用户原文）——双通道
 // 切片把它拼进本轮模型输入（llmUserMsg），原文走 raw 通道进状态机/记忆。
+// searchDateAnchor 检索时间锚（B5 刀二，2026-11-06 实机病例）：plain 板块
+// 「明天成都的天气怎么样」的回答写成「明天（2025年9月17日）」——搜索带回
+// 的过期缓存页自带旧日期，模型无时间参照就把结果页日期当「今天/明天」。
+// 注入块头部固定给出检索当日日期与星期，并明令历史日期不作相对日依据。
+func searchDateAnchor(now time.Time) string {
+	week := []string{"日", "一", "二", "三", "四", "五", "六"}[int(now.Weekday())]
+	return fmt.Sprintf("检索时间：%d年%d月%d日 星期%s。结果中的页面日期早于检索时间的均为历史/缓存信息，不得据此回答「今天/明天/后天」；相对日期一律以检索时间为基准推算。", now.Year(), int(now.Month()), now.Day(), week)
+}
+
 func chatSearchAppendix(out chatSearchOutcome) string {
+	anchor := searchDateAnchor(time.Now())
 	switch out.State {
 	case builtin.SearchStateOK:
-		return fmt.Sprintf("\n\n[以下是关于此问题的实时搜索结果，请参考这些信息回答]\n%s", out.Text)
+		return fmt.Sprintf("\n\n[以下是关于此问题的实时搜索结果，请参考这些信息回答。%s]\n%s", anchor, out.Text)
 	case builtin.SearchStateDegraded:
-		return fmt.Sprintf("\n\n[联网搜索已降级（%s）：以下为兜底引擎结果，可信度有限；请谨慎引用，无法确认时如实说明未获取到可靠实时信息]\n%s",
-			degradedReasonLabel(out.DegradedReason), out.Text)
+		return fmt.Sprintf("\n\n[联网搜索已降级（%s）：以下为兜底引擎结果，可信度有限；请谨慎引用，无法确认时如实说明未获取到可靠实时信息。%s]\n%s",
+			degradedReasonLabel(out.DegradedReason), anchor, out.Text)
 	case builtin.SearchStateEmpty:
 		return fmt.Sprintf("\n\n[联网搜索已完成：各引擎均未返回与「%s」相关的结果%s。请基于已有知识回答，并如实说明未获取到实时信息]",
 			out.Query, searchDiagSuffix(out.Engines))
@@ -191,6 +201,17 @@ func formatChatSearchResults(results []builtin.SearchResult) string {
 func cleanChatSearchQuery(msg string) string {
 	s := strings.TrimSpace(msg)
 
+	// B5 刀（2026-11-06 实机病例）：开头关联词/口语连接词剥离——「所以，
+	// 明天的天气怎么样」此前被搜成「所以，明天的天气」，领头连接词主导引擎
+	// 命中（返回罗大佑歌曲《所以》词条而非天气）。剥词连带剥其后的逗号分顿；
+	// 只收多字连接词（单字「那」会误伤「那个/那达慕」类词头，不收）。
+	for _, p := range []string{"所以", "那么", "然后", "还有", "另外", "而且", "但是", "可是", "不过", "就是说", "对了", "话说"} {
+		if strings.HasPrefix(s, p) {
+			s = strings.TrimLeft(strings.TrimSpace(s[len(p):]), "，,、 ")
+			break
+		}
+	}
+
 	// 去掉开头的“帮/请/查”类触发前缀
 	for _, p := range []string{
 		"帮我搜索一下", "帮我搜一下", "帮我查一下", "请帮我查一下", "搜索一下",
@@ -219,7 +240,7 @@ func cleanChatSearchQuery(msg string) string {
 		}
 		stripped := false
 		for _, suf := range []string{
-			"怎么样了", "怎么样呢", "怎么样", "怎样", "怎么办", "怎么弄",
+			"怎么样了", "怎么样呢", "怎么样", "怎样", "怎么办", "怎么弄", "如何",
 			"是什么", "是啥", "什么时候", "有没有", "有哪些", "多少",
 			"吗", "呢", "啊", "呀", "吧",
 		} {
