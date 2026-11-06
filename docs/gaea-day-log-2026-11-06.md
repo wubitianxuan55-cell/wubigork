@@ -88,3 +88,12 @@ PendingSearch 随 state_json 持久化（重启续接同口径）+实体短答�
 16b52dda 刀4 → d99ee720 实弹基线 → 0a69f2c5..7fad82b4 臂B四刀 → fba8e27b 臂B报告 →
 ea0c5e12 day-log → a859524c 来源契约 → e4f6a9a7 记档 → 1e60f5c8 多轮续接 →
 e4dc8da8 收尾记档）。工作树干净，baseline tag `chat-persona-baseline`=13b65f37 随推。
+
+## 桌面构建记档（2026-11-06 10:28）
+
+- versioninfo 4.533.0 四处对齐（FILEVERSION/PRODUCTVERSION/FileVersion/ProductVersion；
+  顺手修 v4.532.0 只改 FileVersion 一处的漂移），commit 后 wails build 1m58s
+- 产物 build/bin/gaea.exe 59,849,216B sha256 前缀 44d32d0a+三 DLL
+- 装机 scripts/gaea_install.ps1：四件套哈希对齐 C:\AI\gaea-app，桌面 gaea.lnk 更新
+- 拉起验证：PID 37324 @ 10:29:03 > 构建 10:28:40，VersionInfo=4.533.0
+- 本壳含聊天核心优化全线（探针字段/四守卫/生日/双通道/重启回灌/臂B/来源契约/续接）
