@@ -1,6 +1,9 @@
 package app
 
 import (
+	"encoding/json"
+	"io"
+	"net/http"
 	"strings"
 	"sync"
 	"testing"
@@ -33,8 +36,47 @@ func recordingSearchStub(t *testing.T) *[]string {
 
 func stubQueries(q *[]string) []string { return *q }
 
+// mergerAwareChatApp B6 后续接合并语义由模型承担：假模型认识拟写请求
+// （system 含「搜索查询拟写器」）——回「检索主题 + 本句」，模拟模型合并；
+// 其余请求回固定「你好呀」。合并检索断言（含实体+携带上一轮语境）语义不变。
+func mergerAwareChatApp(t *testing.T) *App {
+	t.Helper()
+	return newChatServiceTestAppWithHandler(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		reply := "你好呀"
+		if strings.Contains(string(body), "搜索查询拟写器") {
+			var req struct {
+				Messages []struct {
+					Role    string `json:"role"`
+					Content string `json:"content"`
+				} `json:"messages"`
+			}
+			_ = json.Unmarshal(body, &req)
+			prev, user := "", ""
+			for _, m := range req.Messages {
+				if m.Role == "user" {
+					user = m.Content
+				}
+				if i := strings.Index(m.Content, "检索主题「"); i >= 0 {
+					rest := m.Content[i+len("检索主题「"):]
+					if j := strings.Index(rest, "」"); j >= 0 {
+						prev = rest[:j]
+					}
+				}
+			}
+			reply = strings.TrimSpace(prev + " " + user)
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"" + reply + "\"}}]}\n\n"))
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+	}))
+}
+
 func TestSearchContinuation_MergesFollowup(t *testing.T) {
-	a := newChatServiceTestApp(t)
+	a := mergerAwareChatApp(t)
 	personalityID := "cont_merge"
 	cleanupWhisperSession(t, personalityID)
 	t.Cleanup(func() { cleanupWhisperSession(t, personalityID) })
@@ -68,7 +110,7 @@ func TestSearchContinuation_MergesFollowup(t *testing.T) {
 }
 
 func TestSearchContinuation_NotConsumedCleared(t *testing.T) {
-	a := newChatServiceTestApp(t)
+	a := mergerAwareChatApp(t)
 	personalityID := "cont_clear"
 	cleanupWhisperSession(t, personalityID)
 	t.Cleanup(func() { cleanupWhisperSession(t, personalityID) })
@@ -92,7 +134,7 @@ func TestSearchContinuation_NotConsumedCleared(t *testing.T) {
 }
 
 func TestSearchContinuation_PersistsAcrossRestart(t *testing.T) {
-	a := newChatServiceTestApp(t)
+	a := mergerAwareChatApp(t)
 	ws := a.whisperState
 	personalityID := "cont_restart"
 	sessionID := "whisper_" + personalityID
