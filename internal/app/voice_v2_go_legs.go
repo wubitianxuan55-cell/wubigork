@@ -15,9 +15,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gaea/gaea/internal/ai"
@@ -328,29 +330,86 @@ func (l voiceTTSLeg) Speak(ctx context.Context, sentence string, onAudio func([]
 	return sc.Err()
 }
 
-// resampler24k16k 24k→16k 线性重采样器（2:3 降采样）。跨 SSE 块保留剩余
-// 样本**与分数相位**：全局第 i 个输出读全局位置 1.5×i——旧实现每块相位
-// 归零+carry 边界重复 1 样本（块频 10~20/s → 长散文逐秒叠加波形跳变）。
+// resampler24k16k 24k→16k 重采样器（2:3 降采样，带抗混叠低通）。跨 SSE 块
+// 保留剩余样本**与分数相位**：全局第 i 个输出读全局位置 1.5×i。
+//
+// 两级：①63 阶 Hamming-windowed-sinc FIR 低通（fc≈7.2kHz，24k 域）——抗混叠
+// 必需：朴素线性插值抽取会把 8~12kHz 内容（汉语齿音所在频段）折叠进 0~8k
+// =不和谐金属音调（社区共识与业界解法：polyphase/低通后抽取，2026-11-07
+// 用户听感「仿佛多了许多音调」与此逐字吻合）；②分数相位抽取（线性插值）。
 type resampler24k16k struct {
-	carry []float32 // 跨块剩余样本（24k 域）
+	carry []float32 // 跨块剩余样本（已低通，24k 域）
 	phase float64   // carry[0] 相对下一输出位置的分数偏移（0..1.5）
+	hist  []float32 // FIR 延迟线尾巴（taps-1 样本，跨块滤波连续性）
 }
 
-// push 输入一块 24k PCM16（字节序 LE），返回重采样后的 16k PCM16。
+// firTaps24k16k 63 阶低通系数（懒计算一次；fc=7.2kHz@24k，Hamming 窗）。
+var (
+	firTaps24k16k     []float32
+	firTaps24k16kOnce sync.Once
+)
+
+func firTaps() []float32 {
+	firTaps24k16kOnce.Do(func() {
+		const (
+			taps = 63
+			fc   = 0.3 // 归一化截止=7.2k/24k（新奈奎斯特 8k 留 10% 过渡带）
+		)
+		tapsF := make([]float32, taps)
+		mid := taps / 2
+		sum := 0.0
+		for i := 0; i < taps; i++ {
+			x := float64(i - mid)
+			var s float64
+			if x == 0 {
+				s = 2 * fc
+			} else {
+				s = math.Sin(2*math.Pi*fc*x) / (math.Pi * x)
+			}
+			w := 0.54 - 0.46*math.Cos(2*math.Pi*float64(i)/float64(taps-1))
+			tapsF[i] = float32(s * w)
+			sum += float64(tapsF[i])
+		}
+		for i := range tapsF {
+			tapsF[i] /= float32(sum) // 直流增益归一
+		}
+		firTaps24k16k = tapsF
+	})
+	return firTaps24k16k
+}
+
+// push 输入一块 24k PCM16（字节序 LE），返回低通+抽取后的 16k PCM16。
 func (r *resampler24k16k) push(pcm []byte) []byte {
 	n := len(pcm) / 2
-	cur := make([]float32, 0, len(r.carry)+n)
-	cur = append(cur, r.carry...)
+	// ① FIR 低通（延迟线跨块：输入 = hist + 新样本，输出 = 滤波后流）
+	buf := make([]float32, 0, len(r.hist)+n)
+	buf = append(buf, r.hist...)
 	for i := 0; i+1 < n*2; i += 2 {
 		s := int16(uint16(pcm[i]) | uint16(pcm[i+1])<<8)
-		cur = append(cur, float32(s)/32768.0)
+		buf = append(buf, float32(s)/32768.0)
 	}
+	taps := firTaps()
+	filtN := len(buf) - len(taps) + 1
+	if filtN <= 0 {
+		r.hist = buf
+		return nil
+	}
+	filt := make([]float32, filtN)
+	for i := 0; i < filtN; i++ {
+		acc := float32(0)
+		for j, h := range taps {
+			acc += buf[i+j] * h
+		}
+		filt[i] = acc
+	}
+	r.hist = append([]float32(nil), buf[len(buf)-len(taps)+1:]...)
+	// ② 分数相位抽取（线性插值，跨块保相位）
+	cur := append(r.carry, filt...)
 	total := len(cur)
 	if total < 2 {
 		r.carry = cur
 		return nil
 	}
-	// 可输出数：全局位置 phase+1.5×i 不得超过 total-1（保证 i0+1 可读）
 	outN := int((float64(total) - 1 - r.phase) / 1.5)
 	if outN <= 0 {
 		r.carry = cur
