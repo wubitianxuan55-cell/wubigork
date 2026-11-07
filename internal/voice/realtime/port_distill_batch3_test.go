@@ -17,8 +17,9 @@ import (
 func TestOnSessionEndTombstonesResponse(t *testing.T) {
 	p := newFakePipeline(t, &fakeLegs{reply: "答"})
 	p.turns.StartTurn()
-	rs := p.newResponseState("turn_1", 0, time.Time{}) // 持槽响应
-	wire := p.session.out                              // OnSessionEnd 会置 p.session=nil，先捕获线缆
+	rs := p.newResponseState("turn_1", 0, time.Time{})
+	p.installResponse(rs) // 两态（审计 A3）：安装动作移入发送循环，测试显式模拟
+	wire := p.session.out // OnSessionEnd 会置 p.session=nil，先捕获线缆
 
 	p.OnSessionEnd(nil)
 

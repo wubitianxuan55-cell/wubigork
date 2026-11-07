@@ -153,7 +153,8 @@ func TestHistoryRollbackOnCancel(t *testing.T) {
 	p.cancelCh <- "turn_detected"
 	time.Sleep(150 * time.Millisecond) // 等 TTS/哨兵链清完
 	if n := countRoles(p, "assistant"); n != 0 {
-		t.Fatalf("取消后 assistant 历史应被回滚，残留 %d 条", n)
+		t.Errorf("取消后 assistant 历史应被回滚，残留 %d 条", n)
+		time.Sleep(8 * time.Second) // DBG: 遍历超时转储抓持锁者
 	}
 	if n := countRoles(p, "user"); n != 1 {
 		t.Fatalf("user 历史应保留 1 条，实际 %d", n)

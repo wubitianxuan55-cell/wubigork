@@ -15,13 +15,15 @@ import (
 
 func TestStaleResponseDeltasDropped(t *testing.T) {
 	p := newFakePipeline(t, &fakeLegs{reply: "答案"})
-	// 同轮 reopen：rev0 → rev1（槽位被新响应接管，旧响应未被取消——补发路径）
+	// 两态排队（审计 A3 修复）：rev1 响应显式安装（模拟发送循环首个输出处
+	// _ensure_response 同位动作）；rev0 残余 delta 跨 key 停靠/断流
 	p.turns.StartTurn()
 	p.turns.SegmentFinalized(1000, 800, 0)
-	rsOld := p.newResponseState("turn_1", 0, time.Time{}) // 槽位易主
+	rsOld := p.newResponseState("turn_1", 0, time.Time{})
 	p.turns.SegmentFinalized(2000, 800, 0)
 	p.turns.SpeechStarted(2500) // 确认重开 → cur=(turn_1, rev1)
 	rsNew := p.newResponseState("turn_1", 1, time.Time{})
+	p.installResponse(rsNew)
 	if p.respState != rsNew {
 		t.Fatal("前置：新响应应持有槽位")
 	}
@@ -50,7 +52,8 @@ func TestStaleResponseDeltasDropped(t *testing.T) {
 	// ③ DROP：新轮已开+旧轮已 close（失相关性）后 delta 断流并标 dead
 	// （跨 key 守卫前置返回，DROP 需槽位仍在手——已提交轮恒 relevant，
 	// 其陈旧流由①守卫拦；Close 不改 current，须再开新轮才失相关）
-	p.turns.StartTurn() // cur=turn_2
+	p.finishResponse(p.session, rsNew, "completed", "") // 两态：rsNew 终态释放槽位
+	p.turns.StartTurn()                                 // cur=turn_2
 	rs2 := p.newResponseState("turn_2", 0, time.Time{})
 	p.dispatchText(&textEvent{kind: evKindAssistantDelta, resp: rs2, transcript: "a"}) // 提交 turn_2
 	drainTranscriptDeltas(p)                                                           // 收掉合法帧（线缆异步）
@@ -90,7 +93,9 @@ func TestSupersededResponseRollsBackProvisional(t *testing.T) {
 	p := newFakePipeline(t, &fakeLegs{reply: "答案"})
 	p.turns.StartTurn()
 	rsOld := p.newResponseState("turn_1", 0, time.Time{})
-	p.newResponseState("turn_1", 1, time.Time{}) // 槽位易主
+	p.installResponse(rsOld)
+	rsNew := p.newResponseState("turn_1", 1, time.Time{})
+	p.installResponse(rsNew) // 两态（审计 A3）：显式模拟发送循环的两次槽位安装
 	p.muHist.Lock()
 	p.chat = append(p.chat,
 		ChatMessage{Role: "user", Content: "问", turnKey: "turn_1"},

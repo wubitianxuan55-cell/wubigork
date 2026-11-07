@@ -163,8 +163,9 @@ type Pipeline struct {
 	// nil=缺省：barge-in 开、create_response 用 cfg 构造值。OnSessionEnd 复位）。
 	interruptResponse *bool
 	createResponseOv  *bool
-	pendingText       []*textEvent // 停靠文本事件（pending_text_output_items）
-	parkedAudio       *audioOut    // pending_output_item（单停靠位）
+	pendingText       []*textEvent     // 停靠文本事件（pending_text_output_items）
+	parkedAudio       *audioOut        // pending_output_item（单停靠位）
+	queuedResponses   []*responseState // 排队响应（response_pending：未安装槽位，转写已入队；取消扫描+终态摘除）
 	audioBatch        []byte
 	audioBatchKey     string // audioBatch 属主响应 key（M2：终态清理/尾批 flush 归属判据）
 
@@ -396,10 +397,9 @@ func (p *Pipeline) OnResponseCreate(_ *Session) {}
 // cancel scope（resp.ctx）+ flush prompt/tts 队列 + finish_response(cancelled)。
 func (p *Pipeline) cancelActiveResponse(reason string) {
 	rs := p.respState
-	inResp := p.inResponse
-	if !inResp && rs == nil {
-		return
-	}
+	// 两态排队（审计 A3）：无安装槽 ≠ 无排队响应——扫描与 flush 必须照跑
+	//（上游 close_pending_responses 对 pending 全量收口；旧早退守卫在两态下
+	// 跳过扫描=取消丢失，O1 迟写驻留历史）。
 	// flush text_prompt_queue：逐个取出标记 dead（上游 close_pending_responses 同位：
 	// 排队响应逐 key 收口）。单接收——旧双接收写法首载荷静默丢弃且单请求时会阻塞发送循环。
 	for {
@@ -412,6 +412,21 @@ func (p *Pipeline) cancelActiveResponse(reason string) {
 		default:
 		}
 		break
+	}
+	// 两态排队（审计 A3）：未安装槽位的排队响应一并取消——上游 barge-in/客户端
+	// 取消对 pending 响应走 close_pending_responses 全量收口。
+	p.muTerm.Lock()
+	queued := p.queuedResponses
+	p.queuedResponses = nil
+	p.muTerm.Unlock()
+	slog.Info("DBG sweep", "queued", len(queued))
+	for _, q := range queued {
+		if rs != nil && q == rs {
+			continue
+		}
+		q.dead = true
+		q.cancel()
+		slog.Info("DBG sweep cancel", "q", q.key, "turn", q.turnID)
 	}
 	if rs != nil {
 		rs.cancel()
@@ -520,11 +535,13 @@ func (p *Pipeline) sttStage(f *VADFinal) {
 		delete(p.completedFinalRevs, p.completedOrder[0])
 		p.completedOrder = p.completedOrder[1:]
 	}
+	p.muTerm.Lock()
 	term := p.pendingTerminals[itemID]
 	if term == nil {
 		term = &pendingInputTerminal{itemID: itemID, turnID: f.TurnID, rev: f.Rev}
 		p.pendingTerminals[itemID] = term
 	}
+	p.muTerm.Unlock()
 	// M5 蒸馏（conversation.py on_transcription_failed 同位）：STT 失败发 failed
 	// 终态——此前吞成空 completed（前端只见空泡），且 resolveInputTerminals 的
 	// failed 分支（unanswered||failed→gate 提交）沦为死代码。
@@ -558,6 +575,9 @@ func (p *Pipeline) sttStage(f *VADFinal) {
 		snap := p.chatSnapshot()
 		p.muHist.Unlock()
 		rs := p.newResponseState(f.TurnID, f.Rev, f.SpeechEndAt)
+		p.muTerm.Lock()
+		p.queuedResponses = append(p.queuedResponses, rs)
+		p.muTerm.Unlock()
 		p.promptCh <- &promptRequest{resp: rs, userText: text, history: snap, speechStoppedAt: f.SpeechEndAt}
 		p.notify()
 	}
@@ -594,6 +614,7 @@ func (p *Pipeline) llmStage(req *promptRequest) {
 		// 仅成功且未被取消时写入——上游失败响应 reject=全撤（S16），半截不进历史；
 		// 取消回滚/完成 finalize 由 finishResponse 终态处置负责（O2/O3）
 		if err == nil && rs.ctx.Err() == nil {
+			slog.Info("DBG O1 write", "rs", rs.key, "len", len(full), "ctxErr", rs.ctx.Err())
 			p.muHist.Lock()
 			p.writeAssistantAnchor(rs, full)
 			p.trimChatTurnsLocked()
@@ -746,13 +767,19 @@ func (p *Pipeline) drainOnce() bool {
 	// ② resolve terminals（每轮）
 	p.resolveInputTerminals("")
 	// ③ 停靠音频
-	if p.parkedAudio != nil && !p.audioHeld(p.parkedAudio) {
-		a := p.parkedAudio
-		p.parkedAudio = nil
-		p.dispatchAudio(a)
-		return true
+	if p.parkedAudio != nil {
+		// 上游 router:938-957 同位：held 块原地重试期间**不从队列取新块**——
+		// 队列本身即缓冲，零丢失零乱序。此前继续消费：后续块乱序派发、槽占时
+		// 静默丢弃（审计 A1）；done 哨兵绕过停靠先到→empty_output 内部取消（A2）。
+		if !p.audioHeld(p.parkedAudio) {
+			a := p.parkedAudio
+			p.parkedAudio = nil
+			p.dispatchAudio(a)
+			return true
+		}
+		return false
 	}
-	// ④ 音频队列
+	// ④ 音频队列（仅无停靠块时消费）
 	select {
 	case a := <-p.audioOut:
 		// router:1134 同位——代际丢弃（含 done 哨兵）先于一切处理
@@ -766,6 +793,7 @@ func (p *Pipeline) drainOnce() bool {
 			p.scope.clearDiscarding()
 			// R3（audit 复核池）：零输出响应不得谎报 completed——空回复/丢弃
 			// 残留按 cancelled 收口，O3 回滚撤销空暂存，前端不再误报完成。
+			// A2 修复后哨兵严格后置于全部音频，audioEmitted 只反映真实零输出。
 			if a.resp.audioEmitted == 0 {
 				p.finishResponse(p.session, a.resp, "cancelled", "empty_output")
 				return true
@@ -774,9 +802,7 @@ func (p *Pipeline) drainOnce() bool {
 			return true
 		}
 		if p.audioHeld(a) {
-			if p.parkedAudio == nil {
-				p.parkedAudio = a
-			}
+			p.parkedAudio = a
 			return false
 		}
 		p.dispatchAudio(a)
@@ -786,12 +812,17 @@ func (p *Pipeline) drainOnce() bool {
 	return false
 }
 
-// outputIsHeld 文本事件停靠判定（宽限+候选持有期间 assistant 输出被持）。
+// outputIsHeld 文本事件停靠判定（宽限+候选持有期间 assistant 输出被持；
+// 排队响应在槽位被占期间一律停靠——上游单输出队列序：下一响应文本排在当前
+// 响应全部输出之后）。
 func (p *Pipeline) outputIsHeld(ev *textEvent) bool {
 	if ev.kind == evKindAssistantDelta {
 		rs := ev.resp
 		if rs.dead || p.closedKeys[rs.key] {
 			return false
+		}
+		if cur := p.respState; cur != nil && cur != rs {
+			return true // 排队响应：槽位被占（response_pending 两态）
 		}
 		g := p.turns.Gate(rs.turnID, rs.rev, true, time.Time{}, false)
 		return g.Action == GateHold
@@ -802,6 +833,11 @@ func (p *Pipeline) outputIsHeld(ev *textEvent) bool {
 func (p *Pipeline) audioHeld(a *audioOut) bool {
 	if a.done {
 		return false
+	}
+	if cur := p.respState; cur != a.resp {
+		// 槽位被其他响应占据或本响应尚未安装（安装在其文本首 delta 处）——
+		// 音频停靠等文本先行（created 先于音频，规格 §5.3）
+		return true
 	}
 	g := p.turns.Gate(a.resp.turnID, a.resp.rev, true, time.Time{}, false)
 	return g.Action == GateHold
@@ -837,24 +873,33 @@ func (p *Pipeline) dispatchText(ev *textEvent) {
 		}
 		// H1 蒸馏双守卫（response.py _ensure_response「Cannot attach output to a
 		// different active response」+ _accept_turn_output 逐事件 gate 同位）：
-		// ①跨 key——同轮 reopen 补发路径不取消旧响应，槽位被新响应接管后旧响应
-		//   剩余 delta 拒绝附加（不标 dead：其终态/O3 回滚仍须照常收口）；
-		// ②DROP——轮已关闭失相关性后旧 delta 断流。此前只拦 HOLD（outputIsHeld），
-		//   陈旧文本会绕过新轮继续下行并按 completed 装配（实弹=字幕与语音脱节、
-		//   回答插话混流）。
-		if cur := p.respState; cur != nil && cur != rs {
+		// ①跨 key——两态排队后（审计 A3 修复），跨 key delta 是排队响应的常态：
+		//   槽位被占时停靠（outputIsHeld 已拦，此处兜底），不再无声丢弃；
+		// ②DROP——轮已关闭失相关性后旧 delta 断流。
+		cur := p.respState
+		if cur != nil && cur != rs {
+			p.pendingText = append(p.pendingText, ev)
 			return
 		}
 		if g := p.turns.Gate(rs.turnID, rs.rev, true, time.Time{}, false); g.Action == GateDrop {
 			rs.dead = true
 			return
 		}
+		if cur == nil && rs.committedSent {
+			// 惰性创建（_ensure_response 同位）：排队响应首个输出通过 gate 判定后
+			// 安装槽位——转写侧不再偷槽（sttStage 只排队）。committedSent 已置
+			// 说明本响应曾装过槽（跨停靠后槽位短暂为空的间隙），直接复位。
+			p.installResponse(rs)
+		}
 		// 首增量：提交轮 → resolve（user terminal 先行）→ created → 输出帧（规格 §5.3）
 		if !rs.committedSent {
 			g := p.turns.Gate(rs.turnID, rs.rev, false, time.Time{}, true)
 			if g.Action != GateAccept {
-				rs.dead = true
+				rs.dead = true // 原语义保留（提交门非 Accept=响应作废）；安装在其后
 				return
+			}
+			if cur == nil {
+				p.installResponse(rs)
 			}
 			rs.committedSent = true
 			p.muLatency.Lock()
@@ -892,6 +937,8 @@ func (p *Pipeline) dispatchAudio(a *audioOut) {
 // holdSpeechStopped speech_stopped 挂 terminal（不立即下行）。
 func (p *Pipeline) holdSpeechStopped(st *VADStopped) {
 	key := turnKey{id: st.TurnID, rev: st.Rev}
+	p.muTerm.Lock()
+	defer p.muTerm.Unlock()
 	itemID, ok := p.inputItemByTurnRev[key]
 	if !ok {
 		return
@@ -910,6 +957,12 @@ func (p *Pipeline) holdSpeechStopped(st *VADStopped) {
 // resolveInputTerminals 持发处置（规格 §5.1 规则表；发送循环单线程）。
 // startedTurnID：speech_started 触发的处置轮（其余调用传空）。
 func (p *Pipeline) resolveInputTerminals(startedTurnID string) {
+	// A5 加锁：pendingTerminals 被 STT goroutine（sttStage/holdSpeechStopped 同锁）
+	// 并发写，遍历+删除须互斥。**发布在锁外**：publishTerminal→Session.Send 可
+	// 阻塞于满缓冲（测试桩无人抽水/对端停读），锁内 Send 曾把停摆放大成全管线
+	// 死锁（inputItemForTurn/currentItemID 全员堵锁，2026-11-07 实测）。
+	p.muTerm.Lock()
+	var toPublish []*pendingInputTerminal
 	for itemID, term := range p.pendingTerminals {
 		var disposition string
 		if term.turnID == "" || !p.turns.IsLatest(term.turnID, term.rev) {
@@ -950,10 +1003,14 @@ func (p *Pipeline) resolveInputTerminals(startedTurnID string) {
 		}
 		switch disposition {
 		case "publish":
-			p.publishTerminal(term)
+			toPublish = append(toPublish, term)
 		case "discard":
 			delete(p.pendingTerminals, itemID)
 		}
+	}
+	p.muTerm.Unlock()
+	for _, term := range toPublish {
+		p.publishTerminal(term)
 	}
 }
 
@@ -1018,8 +1075,16 @@ type responseState struct {
 }
 
 func (p *Pipeline) newResponseState(turnID string, rev int, anchor time.Time) *responseState {
+	// 上游 response_pending 两态（service.py:843-859 mark_response_pending +
+	// response.py:80-99 _ensure_response 惰性创建 同位）：转写完成只排队生成
+	// 请求，响应对象**不占槽**——槽位由发送循环在该响应首个输出处安装
+	//（installResponse）。旧响应保持槽位完整交付，新响应排队等待（interrupt
+	// 关=排队续播，开=barge-in 取消）。此前转写即偷槽（STT goroutine 直写
+	// inResponse/respState）=旧响应被无声取代：delta 被 H1 拒附（字幕定格）、
+	// done 走 superseded 分支零帧零日志——「日志零线索取消」的真身（2026-11-07
+	// 全量对源审计 A3）。
 	ctx, cancel := context.WithCancel(context.Background())
-	rs := &responseState{
+	return &responseState{
 		id:           "resp_" + randHex(6),
 		key:          randHex(16),
 		turnID:       turnID,
@@ -1031,10 +1096,13 @@ func (p *Pipeline) newResponseState(turnID string, rev int, anchor time.Time) *r
 		startedAt:    time.Now(),
 		speechAnchor: anchor,
 	}
+}
+
+// installResponse 响应槽位安装（发送循环单线程；上游 _ensure_response 同位）。
+func (p *Pipeline) installResponse(rs *responseState) {
 	p.inResponse = true
 	p.respState = rs
-	p.responseTurnID = turnID
-	return rs
+	p.responseTurnID = rs.turnID
 }
 
 func (p *Pipeline) sendResponseCreated(rs *responseState) {
@@ -1073,6 +1141,7 @@ func (p *Pipeline) finishResponse(s *Session, rs *responseState, status, reason 
 		return
 	}
 	if cur := p.respState; cur != nil && cur != rs {
+		slog.Info("DBG finish H2", "rs", rs.key, "cur", cur.key, "rsTurn", rs.turnID, "curTurn", cur.turnID)
 		// H2 蒸馏（history.py close 同位）：被新响应顶替（同轮 reopen 补发路径不
 		// 取消旧响应）的响应不得变僵尸——撤销其未 finalize 的暂存（否则未播报的
 		// assistant 尸体永久滞留 chat，污染后续每轮 LLM 上下文=答非所问隐性源），
@@ -1208,6 +1277,13 @@ func (p *Pipeline) finishResponse(s *Session, rs *responseState, status, reason 
 	}
 	p.muHist.Unlock()
 	p.muTerm.Lock()
+	// 两态排队：终态响应摘出排队列表（取消扫描不再触达已收口响应）
+	for i, q := range p.queuedResponses {
+		if q == rs {
+			p.queuedResponses = append(p.queuedResponses[:i], p.queuedResponses[i+1:]...)
+			break
+		}
+	}
 	p.turns.Close(rs.turnID, rs.rev)
 	p.closedKeys[rs.key] = true
 	p.closedOrder = append(p.closedOrder, rs.key)
@@ -1248,6 +1324,10 @@ func (p *Pipeline) latencyMetadata(rs *responseState, status string) map[string]
 // ─────────── 服务态辅助 ───────────
 
 func (p *Pipeline) inputItemForTurn(turnID string, rev int, isReopen bool) (string, bool) {
+	// A5 加锁（审计）：STT goroutine（sttStage）与发送循环（dispatchText）并发
+	// 读写此 map，此前裸奔=数据竞争（最坏并发写 panic）
+	p.muTerm.Lock()
+	defer p.muTerm.Unlock()
 	if id, ok := p.inputItemByTurnRev[turnKey{id: turnID, rev: rev}]; ok {
 		return id, true
 	}
@@ -1265,6 +1345,8 @@ func (p *Pipeline) inputItemForTurn(turnID string, rev int, isReopen bool) (stri
 }
 
 func (p *Pipeline) currentItemID(turnID string, rev int) string {
+	p.muTerm.Lock()
+	defer p.muTerm.Unlock()
 	if id, ok := p.inputItemByTurnRev[turnKey{id: turnID, rev: rev}]; ok {
 		return id
 	}
