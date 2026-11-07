@@ -207,7 +207,7 @@ func TestWhisperProbeDeliveryContract(t *testing.T) {
 		Turns     []contractArmTurn `json:"turns"`
 	}
 	rep := armReport{
-		Label: getenvDefault("GAEA_PROBE_LABEL", "delivery-contract"),
+		Label:   getenvDefault("GAEA_PROBE_LABEL", "delivery-contract"),
 		BaseURL: baseURL, Model: contractProbeModel, Engine: engine, Source: source,
 		Persona: probePersona, Task: contractProbeTask,
 		StartedAt: time.Now().Format(time.RFC3339), Turns: turns,
