@@ -17,7 +17,7 @@
 | B2 | 跨场立场 brief | **本地再设计**（思想源自 memory.md recent-work brief） | 默认=G1 纸面契约，不烧新会话；同题续议对仅 2 组→案例级，估不了复燃率；收益可离线盲评（同题新场有/无 brief 两臂，数旧分歧复燃，公分母=每场节约轮次）；载体契约独立立，不搭 A1 便车 | 中/中 |
 | A3 | 决策透明行+stateHash 日志 | 源码直证 | 低影响低成本，不阻塞主实验时可试点 | 低/低 |
 | A4 | 神格卡可移植 | 源码直证 shared/package-format.ts | 高安全面，等共享需求 | 高/高 |
-| B4 | MCP 控制面三件套 | 源码直证 docs/mcp-server.md | 等明确场景（衔接 V5） | 高/高 |
+| B4 | MCP 控制面三件套 | 源码直证 `upstream docs/{mcp-server}.md` | 等明确场景（衔接 V5） | 高/高 |
 | B3/B5 | 定时圆桌/语音旁白 | 源码直证 | 需求拉动 | 中/中 |
 | — | 命令面/事件面分离 | 源码直证 | **销账**：DSH 撤回「最缺」定级，保留低影响余量，不阻塞 | 低/— |
 | A5 | **官方共享上下文**：续接席位增量投递 + codex resume 补齐 | **源码直证** host/room-sessions.ts（详见 §3.5） | 论证未覆盖（源起用户实弹观察）；**①②③ 全部落地**（2026-11-07 晚）：③ grok Seed 历史+seeded 提示词；① zcode/dsh/codex 讨论轮增量投递（delta 提示词）；② codex buildResume（摘 ephemeral+`-c sandbox_mode`+thread.started 采集，探针实锤续接） | 中/中 |
@@ -119,7 +119,7 @@
 ## 8. 源码索引
 
 - 房间编排：server/index.ts:10820-11020、server/room-{member-lock,queue,turn-end,turn-timeout,post-budget,holds,same-name-mentions}.ts、store.ts:209-271
-- 决策路由：server/decider/{room-routing,jev,types,index}.ts、docs/decision-model.md
+- 决策路由：server/decider/{room-routing,jev,types,index}.ts、`upstream docs/{decision-model}.md`
 - goal run：server/group-goal-run.ts、shared/group-goal-run.ts
 - 上下文/会话：server/host/{room-transcript,room-sessions,room-routing-input}.ts、server/room-context.ts
 - harness：server/harness/{registry,bus}.ts
