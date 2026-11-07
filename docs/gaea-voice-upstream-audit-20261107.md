@@ -43,3 +43,39 @@
 **P0（高，一次修完）**：A1+A2（发送循环 HOLD=停止消费原地等待，done 严格后置；删单槽丢弃）→ A3（重建 response_pending 两态：转写完成只排队，新响应由发送循环在旧终态后创建）→ A5（并发写加锁）→ B1（泵改水位控制：ring 低于低水位才泵，同构声卡拉取）→ B2（created 不清 ring）→ B3（speech_started 冲刷加 interruptResponseOn 条件）→ B4（done(cancelled) 清 ring）
 **P1**：A4（cancel_scope 激活或记偏离删除+ttsStage 查 dead+放开被压日志）→ B5（门关闭对齐真实播完：服务端 tail 与客户端 ring 余量协调，方案随 P0 落地评估）→ A6（session.update 深合并）→ B6（AGC 播放期冻结）
 **P2**：B7 起播门旋钮、B8 incomplete/failed 继续播、A4 观测面补全
+
+## E. 补充审计：VAD 段机 + 协议状态机（第二、三路，全文对读）
+
+### E1. VAD 段机新增分歧
+
+| # | 严重度 | 上游 | 我们 | 后果 |
+|---|---|---|---|---|
+| V1 | 中高 | block 模式门=`playback.is_active()`=**真实播放结束**才关 | EchoGuardOff 锚在**合成哨兵**（TTS done）+尾窗 600ms，而自记残响上界 0.5~2.4s | 播放末段仍出声时门已关，残回声 0.5+384ms 进段机；有下一响应在生成时→假 Started→**取消回复** |
+| V2 | 中 | 默认模式播放期段机活着、回声 phantom/discard 会清陈旧候选 | 半双工丢帧→无 phantom→**陈旧 reopen 候选跨播放存活**（HasSpeechCandidate 不查 deadline） | 播放后首个猝发以 192ms（非 384ms）过确认→假 Started |
+| V3 | 中 | block 模式同样冻结（帧不发送） | 半截段跨播放冻结拼接：TTFA 窗口内 onset 未确认→段机带半截 buffer 冻结播放+尾窗→播放后拼接定稿 | 播放前后的话缝成一条 STT 输入 |
+| V4 | 低 | on_session_end 全量复位 | OnSessionEnd 不清 tailUntilNanos | 播放中重连，新会话首 600ms 被吞 |
+| V5 | 低 | stitch（short-segment merge）机制存在，默认 merge=0 惰性 | 无对应物无开关 | 与上游默认配置等价；merge>0 部署不等价 |
+| — | 正向 | — | 段机迭代器/确认窗/soft-end 三分支/commit 时序/turns.go 与上游逐锚同构（审计确认）；音频钟冻结与上游 block 模式同构；reopen 拉伸经 commit/CLOSED 相位裁定**不可达** | |
+
+### E2. 协议状态机新增分歧
+
+| # | 严重度 | 上游 | 我们 | 后果 |
+|---|---|---|---|---|
+| P1 | **高** | interrupt 关：speech_started 照发但**刻意不取消**，响应继续流式（audio.py:361-367, router:923-925） | 前端 speech_started **无条件** flush 队列+ring（VoiceClientV2.ts:149-154）——两路审计独立命中同一分歧 | 勿打断模式下每次 VAD 触发掐断在播回复→服务端续推→断续；直击勿打断语义 |
+| P2 | **高** | 取消=close_pending_responses 全取消（含排队响应）；正常流单响应互斥 | pcmQueue flush() 全代际清空 vs FIFO 排队决策矛盾：任何一次 flush 丢掉排队中所有响应音频 | 掐断+半句续播+新回复接半句 |
+| P3 | 中 | incomplete：不发尾包但已发音频有效（response.py:1001 flush=False） | status≠completed 一律 flush | incomplete 二次截断 |
+| P4 | 中 | done(completed)=发送完成信号≠播完（router:903-908 注释） | completed→idle+回执即发；残播被下一个 speech_started flush 掐尾 | 回声门估时不足时尾段被掐 |
+| P5 | 低-中 | reopen：cancel 后不发第二个 speech_started、同 item 复用 | 'interrupted' 相位只能被 speech_started 清走→reopen 时卡相位整轮 | UI 错态（不影响音频） |
+| P6 | 中 | transcription.failed 事件存在 | 不在 known 集→partial 残句与下轮拼接 | 转写 UI |
+| — | 正向 | — | barge-in 事件序/item 恰一 stop/transcript.done 权威替换/done 幂等/completed 尾包序/**reopen item 复用两侧咬合**全部同构 | |
+
+### E3. 修订后 P0 修复清单（全部对齐上游）
+
+1. **服务端发送循环**：A1 停靠原地等待零丢失 + A2 done 严格后置（消灭 empty_output 内部取消）
+2. **A3 response_pending 两态**：转写完成只排队，新响应由发送循环在旧终态后创建（消灭无声取代）
+3. **A5 并发写加锁**（STT goroutine 槽位/inputItemByTurnRev map）
+4. **客户端 B1**：ring 水位控制替代丢最旧（泵按水位灌注，同构声卡按需拉取）
+5. **客户端 P1（协议）**：speech_started 冲刷加 `interruptResponseOn()` 条件；created 不清 ring
+6. **P2（协议）**：incomplete 不 flush（继续播已发部分）
+**P1（次批）**：V1 回声门尾窗 600ms→2000ms（对齐自记残响上界；真实播完锚点需客户端上报，随两态重构评估）+ V2 候选 deadline + V4 重连清尾窗 + A4 cancel_scope 处置 + A6 session.update 深合并 + B6 AGC 播放期冻结 + P5 interrupted 相位
+**P2**：V3 跨播放拼接观察、stitch、转写配对 item 作用域、text modality 事件
