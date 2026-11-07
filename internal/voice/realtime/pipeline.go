@@ -384,6 +384,9 @@ func (p *Pipeline) drainQueues() {
 // OnResponseCancel 客户端取消：cancelled/client_cancelled（规格 §5.5）。
 // 发送循环线程安全：经 textCh 序列化（避免与发送循环状态竞争）。
 func (p *Pipeline) OnResponseCancel(s *Session) {
+	// 取消源观测（2026-11-07 大段散文中途取消无日志可归因——turn_6 21s tts=cut
+	// 排查时全链路零线索；客户端 response.cancel 是唯一不落日志的取消路径）
+	slog.Info("voice realtime 响应取消请求", "source", "client", "session", s.ID)
 	p.cancelCh <- "client_cancelled"
 }
 
@@ -1180,6 +1183,10 @@ func (p *Pipeline) finishResponse(s *Session, rs *responseState, status, reason 
 		vadDecideS: p.lastVADDecision, holdS: p.lastHold, smart: p.lastSmart}
 	p.muLatency.Unlock()
 	slogLatencyLine(rs, lat, status)
+	// 终态原因观测（2026-11-07 大段散文中途取消排查：latency 行不带 reason，
+	// barge-in 之外的取消源全链路零线索——响应级取消必须可归因）
+	slog.Info("voice realtime 响应终态", "status", status, "reason", reason,
+		"turn", rs.turnID, "rev", rs.rev, "responseKey", rs.key, "audioEmitted", rs.audioEmitted)
 	// O2/O3 终态处置暂存代际（handlers/history.py close()/finalize 同位）：
 	// completed → finalize 转永久；cancelled/failed → 回滚撤销该响应写入的内容
 	p.muHist.Lock()

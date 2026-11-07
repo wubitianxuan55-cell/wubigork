@@ -33,17 +33,41 @@ describe('PlaybackQueue', () => {
     expect(q.stats.playbackDone).toBe(true)
   })
 
-  it('open 新代际：旧存量作废；旧代际迟到帧只丢弃记账', () => {
+  it('open 新代际：旧存量保留排队（上游 FIFO 同位，2026-11-07 拍板「应该排队」）；回执逐响应按序', () => {
     const q = new PlaybackQueue()
+    const done: string[] = []
+    q.onDone((id) => done.push(id))
     q.open('r1')
     q.append('r1', pcm(100))
-    q.open('r2') // 代际切换：r1 存量 100 作废
+    q.open('r2') // 代际切换：r1 存量保留（不再作废）
     q.append('r2', pcm(200))
-    q.append('r1', pcm(50)) // r1 迟到帧
+    q.markClosed('r1')
+    q.markClosed('r2')
+    expect(q.stats.pendingChunkCount).toBe(2)
+    // FIFO 到达序：r1 先播完出回执，r2 随后
+    q.pull()
+    expect(done).toEqual(['r1'])
+    q.pull()
+    expect(done).toEqual(['r1', 'r2'])
     const s = q.stats
-    expect(s.droppedBytes).toBe(150)
-    expect(s.enqueuedBytes).toBe(200)
-    expect(s.currentResponseId).toBe('r2')
+    expect(s.droppedBytes).toBe(0)
+    expect(s.enqueuedBytes).toBe(300)
+    expect(s.playbackDone).toBe(true) // 当前代际 r2 已回执
+  })
+
+  it('flush 冲刷跨响应存量；未闭合响应不回执（打断语义保留）', () => {
+    const q = new PlaybackQueue()
+    const done: string[] = []
+    q.onDone((id) => done.push(id))
+    q.open('r1')
+    q.append('r1', pcm(100))
+    q.markClosed('r1')
+    q.open('r2')
+    q.append('r2', pcm(200))
+    const dropped = q.flush()
+    expect(dropped).toBe(300)
+    expect(done).toEqual(['r1']) // 已闭合的 r1 收口回执；r2 未闭合不回执
+    expect(q.stats.pendingChunkCount).toBe(0)
   })
 
   it('barge-in 全序：flush（不回执）→ 旧代闭合（回执）→ 新代开启', () => {
