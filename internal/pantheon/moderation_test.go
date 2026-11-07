@@ -1,6 +1,7 @@
 package pantheon
 
 import (
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -132,5 +133,78 @@ func TestCancelledSessionKeepsDraftResult(t *testing.T) {
 	}
 	if !strings.Contains(string(data), "未收口草稿") {
 		t.Fatalf("draft header missing:\n%.200s", data)
+	}
+}
+
+// M5（2026-11-08，蒸馏自 aidebate 开场「预期最强反驳」）：开场第 4 问要求
+// 预先说出最强反驳与回应，台账能更早开条目。
+func TestOpeningPromptAsksForExpectedRebuttal(t *testing.T) {
+	prompt := openingPrompt(StartRequest{Topic: "开场"}, AgentStatus{ID: "alpha", Name: "ALPHA"}, nil, 1, 2, nil)
+	if !strings.Contains(prompt, "预期的最强反驳") {
+		t.Fatalf("opening prompt must ask for the expected strongest rebuttal:\n%s", prompt)
+	}
+}
+
+// M6 缺席纪律：有缺席时汇总提示词点名并给纪律；无缺席时该段不出现。
+func TestSynthesisCarriesAbsenteeDiscipline(t *testing.T) {
+	clean := synthesisPrompt(StartRequest{Topic: "无缺席"}, AgentStatus{Name: "Grok"}, nil, nil, nil)
+	if strings.Contains(clean, "缺席纪律") {
+		t.Fatal("absentee block must not appear without absentees")
+	}
+	prompt := synthesisPromptMode(StartRequest{Topic: "有缺席"}, AgentStatus{Name: "Grok"}, nil, nil, nil, historyGradient, []string{"DSH"})
+	for _, want := range []string{"【缺席纪律】", "DSH", "不得替缺席者虚构立场", "缺席未发言"} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("absentee discipline misses %q:\n%s", want, prompt)
+		}
+	}
+}
+
+// 「已提交者」口径：中途掉线但交过开场的席位不算缺席（aidebate 的裁决
+// 输入缺口正是把它算丢了）；汇总条目不算发言；从未发言的席位按名册补齐。
+func TestAbsentParticipantNamesUsesSubmittedNotSurvived(t *testing.T) {
+	participants := []Participant{
+		{AgentID: "alpha", Name: "ALPHA"},
+		{AgentID: "beta", Name: "BETA"},
+		{AgentID: "dsh", Name: "DSH"},
+	}
+	contributions := []Contribution{
+		{AgentID: "alpha", Phase: PhaseOpening, Round: 1, Content: "立场"},
+		{AgentID: "beta", Phase: PhaseOpening, Round: 1, Content: "立场（第 2 轮掉线）"},
+		{AgentID: "alpha", Phase: PhaseDiscussion, Round: 2, Content: "驳论"},
+		{AgentID: "dsh", Phase: PhaseSynthesis, Content: "汇总不算发言"},
+	}
+	got := absentParticipantNames(participants, contributions)
+	if len(got) != 1 || got[0] != "DSH" {
+		t.Fatalf("absent = %v, want [DSH]", got)
+	}
+}
+
+// 端到端：一席全程失败——生产路径把它作为缺席者注入汇总提示词。
+func TestSynthesisPromptNamesFailedSeatAsAbsent(t *testing.T) {
+	runner := defaultFakeRunner()
+	runner.outputs["beta"] = func(commandSpec) (string, error) {
+		return "", errors.New("beta 凭据缺失")
+	}
+	m := newTestManager(t, runner, fakeAdapter("alpha"), fakeAdapter("beta"))
+	defer m.Close()
+	session, err := m.Start(StartRequest{
+		Topic: "缺席注入", AgentIDs: []string{"alpha", "beta"}, ChairmanAgentID: "alpha", Rounds: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitForStatus(t, m, session.ID, StatusCompleted)
+	synthesisPrompts := 0
+	for _, call := range runner.calls {
+		if !strings.Contains(call.Stdin, "你的职责是协助整理") {
+			continue
+		}
+		synthesisPrompts++
+		if !strings.Contains(call.Stdin, "【缺席纪律】") || !strings.Contains(call.Stdin, "BETA") {
+			t.Fatalf("synthesis prompt must name the failed seat as absent:\n%s", call.Stdin)
+		}
+	}
+	if synthesisPrompts == 0 {
+		t.Fatal("synthesis prompt never issued")
 	}
 }

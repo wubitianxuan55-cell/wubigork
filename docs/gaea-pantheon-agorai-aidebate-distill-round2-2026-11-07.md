@@ -172,3 +172,21 @@
 1. **`budget_stop` 前端时间线可见性：无需改**。`budget_stop` 不在共享时间线事件白名单（`PantheonRecord.tsx:1937`），但收口时宿主同文本落 `warning` 孪生事件（`addWarning` 发 warning 事件），warning 在白名单内→时间线可见；若把 budget_stop 加进白名单，同文本双键反而造重复条目。**双写设计（事件=审计事实源，警示=用户可见面）在此处正好互补**。
 2. **单席 M2 无需守卫**：既有校验「非独立开场至少两席」（`manager.go:444/472`，`req.Protocol != ProtocolIndependent`）天然覆盖 blind_rebuttal。
 3. **修复：续议 seed 漏带预算**——seed 构造（`PantheonPage.tsx:978-1000`）继承了 protocol/preset/rounds 却漏 `timeBudgetMinutes`，Composer 的 `seed?.timeBudgetMinutes` 恒空。已补：`PantheonComposerSeed` 类型 + seed 构造两处（续议继承预算=与 protocol/rounds 同一继承哲学，Composer 可改）。回归 tsc 0 / vitest 67/67。
+
+### 6.8 更正「池空」误报 + M5/M6 落地（2026-11-08）
+
+**更正**：M2 落地后我两度报「余池空」——**错**。§3 候选表里判「做」却从未落地的还有 M3/M4/M5/M6/B3，前序档的 P0 两刀（A1 pass / A2 canary）及其两个拍板项（是否开、canary 主席失败策略）也一直悬着。误报源于只盯了「点名池」（M1/B4/M2）没回对 §3 全表。
+
+**本轮落地（无拍板依赖的两把提示词小刀）**：
+- **M5 开场预期最强反驳**：开场第 4 问扩为「指出最需补充或验证的内容；并用一句话给出你预期的最强反驳与你的回应」——保持五问形状不加编号，台账可更早开条目。
+- **M6 汇总缺席纪律**（即前序档 P0-b 附带条款的模型侧，经核对此前未落地）：`synthesisPromptMode` 加显式参 `absentees`（仓内既定模式：`synthesisPrompt` wrapper 传 nil 保兼容）；有缺席才注入【缺席纪律】——点名缺席席位、「只评实际发言者，不得替缺席者虚构立场，缺席≠弃权≠同意」、影响完整性写 risks 注明「缺席未发言」。生产侧 `absentParticipantNames` 按**贡献存档**派生（「已提交者」口径——中途掉线但交过开场的不算缺席，正是 aidebate AD-1 输入缺口的反面），名册在锁内快照（席位观测并发改 Participants）。
+- 测试 +4：开场问句在位、缺席段有无两态、「已提交者」口径（掉线交过开场不算/汇总不算发言/从未发言补齐）、**端到端**（一席全程失败→生产路径汇总提示词点名该席）。验证 pantheon 15.4s/全树/vet/gofmt/app 众神殿族绿（日志全量落盘）。
+
+**真正剩余的池**（全部需用户点名或拍板）：
+| 项 | 状态 |
+|---|---|
+| 前序 A1 pass（「无新增」动作）| P0，待拍板「是否开」 |
+| 前序 A2 canary（开场冒烟）| P0，待拍板「是否开」+「主席失败=拒绝开场 vs 自动换席」 |
+| 前序 A3 议事健康指标 | P1，只展示 |
+| M3 对手覆盖矩阵 / M4 缺陷分型 / B3 导出敏感扫描 | P1/P2，判「做」待点名 |
+| M7 席外主席 / B2 定向插话 / B6 amend / T1 自测门 | 拍板/观察 |

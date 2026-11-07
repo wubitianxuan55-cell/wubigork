@@ -117,7 +117,7 @@ func TestSynthesisPromptSeededOmitsRecord(t *testing.T) {
 	if !strings.Contains(plain, "立场卡节选") {
 		t.Fatal("非 seeded 汇总回归：应保留分层说明")
 	}
-	seeded := synthesisPromptMode(req, fac, history, nil, nil, historySeeded)
+	seeded := synthesisPromptMode(req, fac, history, nil, nil, historySeeded, nil)
 	if strings.Contains(seeded, "立场卡节选") || strings.Contains(seeded, "归档发言") || strings.Contains(seeded, "甲。") {
 		t.Fatalf("seeded 汇总不得重复讨论记录梯度：%q", seeded)
 	}
@@ -295,7 +295,7 @@ func TestSynthesisPromptFullWindowInlinesRecord(t *testing.T) {
 		{Round: 2, Phase: PhaseDiscussion, AgentID: "beta", AgentName: "Beta", Content: "beta 第二轮全文"},
 	}
 	fac := AgentStatus{ID: "grok", Name: "Grok"}
-	prompt := synthesisPromptMode(StartRequest{Topic: "汇总"}, fac, history, nil, nil, historyFullWindow)
+	prompt := synthesisPromptMode(StartRequest{Topic: "汇总"}, fac, history, nil, nil, historyFullWindow, nil)
 	if !strings.Contains(prompt, "beta 第二轮全文") || !strings.Contains(prompt, "甲。") {
 		t.Fatalf("全量窗口汇总应内联全部发言全文：%q", prompt[:400])
 	}

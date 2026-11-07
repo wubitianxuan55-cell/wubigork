@@ -355,7 +355,7 @@ func openingPrompt(
 1. 我的理解：用几句话准确概括议题和约束。
 2. 初步判断：给出你的观点，但不要把初步判断写成不可质疑的定论。
 3. 主要依据：区分来自材料的事实、推理和假设。
-4. 不确定之处：指出目前最需要补充或验证的内容。
+4. 不确定之处：指出目前最需要补充或验证的内容；并用一句话给出你预期的最强反驳与你的回应。
 5. 协作请求：给后续发言者一个具体问题，说明你希望大家帮助补强什么。
 
 如果前面已有发言，请明确吸收其中至少一个有效点；如果没有，请清楚说明你的独立判断。`
@@ -683,10 +683,29 @@ func moderationPrompt(req StartRequest, facilitator AgentStatus, roundContributi
 }
 
 func synthesisPrompt(req StartRequest, facilitator AgentStatus, contributions []Contribution, files *transcript, issues []Issue) string {
-	return synthesisPromptMode(req, facilitator, contributions, files, issues, historyGradient)
+	return synthesisPromptMode(req, facilitator, contributions, files, issues, historyGradient, nil)
 }
 
-func synthesisPromptMode(req StartRequest, facilitator AgentStatus, contributions []Contribution, files *transcript, issues []Issue, mode seatHistoryMode) string {
+// absentParticipantNames 列出未产出任何有效发言的参会席位名（M6 缺席纪律的
+// 输入）。按贡献存档判定——「已提交者」口径：中途掉线但交过开场的席位不算
+// 缺席（aidebate 的裁决输入缺口正是把它算丢了）；从未入轮的席位按名册补齐。
+func absentParticipantNames(participants []Participant, contributions []Contribution) []string {
+	spoke := map[string]bool{}
+	for _, c := range contributions {
+		if c.Phase != PhaseSynthesis && strings.TrimSpace(c.Content) != "" {
+			spoke[c.AgentID] = true
+		}
+	}
+	var absent []string
+	for _, participant := range participants {
+		if !spoke[participant.AgentID] {
+			absent = append(absent, participant.Name)
+		}
+	}
+	return absent
+}
+
+func synthesisPromptMode(req StartRequest, facilitator AgentStatus, contributions []Contribution, files *transcript, issues []Issue, mode seatHistoryMode, absentees []string) string {
 	var b strings.Builder
 	b.WriteString("你是众神殿讨论的汇总人「")
 	b.WriteString(facilitator.Name)
@@ -720,6 +739,15 @@ func synthesisPromptMode(req StartRequest, facilitator AgentStatus, contribution
 			}
 		}
 		b.WriteString("汇总时必须保留上述每条争议的证据与翻转条件；无法闭合的写清仍缺哪条证据、谁下一步核验，不得只改写措辞。\n")
+	}
+	// M6 缺席纪律（2026-11-08，蒸馏自 aidebate 裁决提示词「Judge only the
+	// debaters who did submit」）：缺席是运行状态，宿主侧早有口径（Gaps/
+	// consensusShortfallWarning），这里补模型侧同款纪律——不能悄悄算成弃权，
+	// 更不能替缺席者编立场。名单按贡献存档派生（「已提交者」而非「撑到最后者」）。
+	if len(absentees) > 0 {
+		fmt.Fprintf(&b, "\n\n【缺席纪律】\n本场以下席位未产出任何有效发言：%s。\n", strings.Join(absentees, "、"))
+		b.WriteString("- 只评判实际发言的席位；不得替缺席者虚构立场，缺席既不等于弃权，也不等于同意。\n")
+		b.WriteString("- 缺席影响结论完整性时，写进 risks 并注明「缺席未发言」，不计作赞成或反对。\n")
 	}
 	b.WriteString("\n\n【多轮讨论记录】\n")
 	if mode == historyFullWindow {

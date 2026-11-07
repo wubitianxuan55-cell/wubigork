@@ -1525,11 +1525,15 @@ func (m *Manager) run(
 	}
 	var verdict *Verdict
 	if ok {
+		// M6：名册在锁内快照（席位观测会并发改 Participants），缺席按贡献派生。
+		m.mu.Lock()
+		participants := append([]Participant(nil), session.Participants...)
+		m.mu.Unlock()
 		res, err := m.runAgentWithRetry(
 			ctx,
 			session,
 			summarizerStatus,
-			synthesisPromptMode(session.Request, summarizerStatus, history, m.transcriptFor(session), sessionIssuesSnapshot(session), m.seatSynthesisMode(summarizerStatus.ID)),
+			synthesisPromptMode(session.Request, summarizerStatus, history, m.transcriptFor(session), sessionIssuesSnapshot(session), m.seatSynthesisMode(summarizerStatus.ID), absentParticipantNames(participants, history)),
 			PhaseSynthesis,
 			0,
 		)
