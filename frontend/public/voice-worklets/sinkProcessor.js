@@ -5,7 +5,7 @@
  * worklet 内先把 sidecar 的 16k PCM 线性重采样到设备实际 sampleRate，再写
  * 环形缓冲；process() 从环读出填输出声道，欠载输出静音。
  * 缓冲超过 4s 时丢最旧数据并上报 overflow——真实链路下
- * PlaybackQueue 冲刷语义应让 overflow 恒为 0，出现即上游泄漏信号。
+ * 主线程按水位灌注（fill 报告驱动）应让 overflow 恒为 0，出现即上游泄漏信号。
  */
 class SinkProcessor extends AudioWorkletProcessor {
   constructor() {
@@ -17,6 +17,10 @@ class SinkProcessor extends AudioWorkletProcessor {
     this.ww = 0
     this.size = 0
     this.overflow = 0
+    // 水位报告节奏（约 4 次/秒）：主线程泵按水位灌注（2026-11-07 审计 B1——
+    // 此前泵 100ms 全量灌入，长散文 TTS 产出快于播放时 ring 4s 丢最旧=中段跳播）
+    this.fillReportEvery = Math.max(1, Math.round(outRate / 128 / 4))
+    this.fillCounter = 0
     this.resampleStep = 16000 / outRate
     this.resamplePos = 0
     this.prevSample = 0
@@ -30,7 +34,7 @@ class SinkProcessor extends AudioWorkletProcessor {
         this.size = 0
         this.resamplePos = 0
         this.havePrev = false
-        this.port.postMessage({ flushed: true })
+        this.port.postMessage({ flushed: true, buffered: 0, cap: this.cap })
         return
       }
       const raw = e.data && e.data.type === 'pcm' ? e.data.buffer : e.data
@@ -86,6 +90,10 @@ class SinkProcessor extends AudioWorkletProcessor {
     if (this.overflow > 0) {
       this.port.postMessage({ overflow: this.overflow })
       this.overflow = 0
+    }
+    if (++this.fillCounter >= this.fillReportEvery) {
+      this.fillCounter = 0
+      this.port.postMessage({ buffered: this.size, cap: this.cap })
     }
     return true
   }

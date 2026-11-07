@@ -58,7 +58,8 @@ describe('voice AudioWorklet 采样率兼容', () => {
 
     p.port.onmessage?.({ data: { type: 'flush' } })
     expect(Number(p.size)).toBe(0)
-    expect(posted).toContainEqual({ flushed: true })
+    const flushAck = posted.find((d) => d && typeof d === 'object' && (d as {flushed?: boolean}).flushed)
+    expect(flushAck).toMatchObject({ flushed: true, buffered: 0 })
   })
 })
 

@@ -149,6 +149,8 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
   const micSilentTimerRef = useRef<number | null>(null)
   const speechStartRef = useRef(0)
   const responseIdRef = useRef('')
+  // sink ring 水位（worklet ~4 次/秒上报；泵按水位灌注，审计 B1）
+  const sinkFillRef = useRef(0)
   const optsRef = useRef(opts)
   optsRef.current = opts
   const capCtxRef = useRef<AudioContext | null>(null)
@@ -195,12 +197,11 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
   const onState = useCallback((s: VoiceSessionState) => {
     if (s.speechStartCount > speechStartRef.current) {
       speechStartRef.current = s.speechStartCount
-      flushSink()
-    }
-    // 新 response 开启前清旧 ring，防旧代际音频跨轮泄漏。
-    if (s.activeResponseId && s.activeResponseId !== responseIdRef.current) {
-      responseIdRef.current = s.activeResponseId
-      flushSink()
+      // barge-in 清 ring 仅在打断开启时执行（审计 P1，audio.py:361-367 同位——
+      // interrupt 关时服务端刻意不取消响应，客户端掐播=断续；勿打断语义由
+      // 用户显式点「打断」键行使）。speechStartCount 在 replayEvents 场景也增，
+      // 与服务端事件一一对应。
+      if (interruptEnabledRef.current) flushSink()
     }
     setPhase(s.phase)
     setTranscripts(s.committedTranscripts)
@@ -229,16 +230,27 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
       if (e.data && typeof e.data.overflow === 'number' && e.data.overflow > 0) {
         pushTail(`sink overflow ×${e.data.overflow}（上游泄漏信号）`)
       }
+      // 水位报告（worklet ~4 次/秒）：泵灌注的权威 fill 校准
+      if (e.data && typeof e.data.buffered === 'number') {
+        sinkFillRef.current = e.data.buffered
+      }
     }
     sinkCtxRef.current = ctx
     sinkNodeRef.current = node
     if (ctx.sampleRate !== 16000) pushTail(`音频输出 ${ctx.sampleRate}Hz（16k source 自动重采样）`)
+    // 高水位=ring 容量 75%：灌到线即停，剩余块留队列下个 tick 续灌
+    // （审计 B1：此前 100ms 全量灌入，长散文 TTS 产出快于播放时 ring 4s
+    // 丢最旧=中段整段跳播；上游=无上限队列+声卡按需拉取，天然背压）
+    const highWater = Math.max(8192, Math.round(ctx.sampleRate * 4)) * 0.75
     pumpRef.current = window.setInterval(() => {
       const client = clientRef.current
       const sink = sinkNodeRef.current
       if (!client || !sink) return
+      let fill = sinkFillRef.current
       for (let chunk = client.playback.pull(); chunk; chunk = client.playback.pull()) {
         sink.port.postMessage({ type: 'pcm', buffer: chunk.buffer }, [chunk.buffer])
+        fill += chunk.length * (ctx.sampleRate / 16000)
+        if (fill >= highWater) break
       }
       const st = client.playback.stats
       setPbText(`${st.currentResponseId || '—'} 播${st.playedBytes}B 弃${st.droppedBytes}B 存${st.pendingChunkCount}块${st.playbackDone ? ' ✓回执' : ''}`)

@@ -141,15 +141,21 @@ export class VoiceClientV2 {
         if (id) {
           this.playback.markClosed(id)
           const { status } = responseStatusOf(ev)
-          // 非完成态（打断/取消/失败/截断）：未播块立即冲刷，不等下一代际
-          if (status !== 'completed') this.playback.flush()
+          // 仅取消态冲刷未播块（审计 P3：上游 done(cancelled) 才 clear，
+          // audio_client.py:536-539；incomplete/failed 的已发音频依然有效可播
+          // ——此前 status!==completed 一律 flush=截断响应被二次截断）
+          if (status === 'cancelled') this.playback.flush()
         }
         break
       }
       case 'input_audio_buffer.speech_started': {
         // barge-in 兜底：不能只看 phase——response.done 可能已先把相位置 idle，
         // 但播放器仍有未播 PCM。此时用户开口必须立即冲刷旧代际。
-        if (this.playback.stats.pendingChunkCount > 0) this.playback.flush()
+        // 勿打断模式（interrupt_response=false，审计 P1）：服务端刻意不取消响应
+        // （audio.py:361-367），客户端掐播=断续——冲刷只在打断开启时执行。
+        if (this.opts.interruptResponse !== false && this.playback.stats.pendingChunkCount > 0) {
+          this.playback.flush()
+        }
         break
       }
       default:
