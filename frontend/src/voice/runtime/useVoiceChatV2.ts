@@ -243,6 +243,8 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
     // 丢最旧=中段整段跳播；上游=无上限队列+声卡按需拉取，天然背压）
     const highWater = Math.max(8192, Math.round(ctx.sampleRate * 4)) * 0.75
     let lastPulledId = ''
+    let audioWasFlowing = false
+    let drainedSent = true
     pumpRef.current = window.setInterval(() => {
       const client = clientRef.current
       const sink = sinkNodeRef.current
@@ -261,6 +263,17 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
         if (fill >= highWater) break
       }
       const st = client.playback.stats
+      // 播放排空回执：queue+ring 双空且刚播过 → 通知服务端关回声门
+      // （真实播放结束锚点；服务端合成终态不再直接关门）
+      const quiet = st.pendingChunkCount === 0 && sinkFillRef.current === 0
+      if (!quiet) {
+        audioWasFlowing = true
+        drainedSent = false
+      } else if (audioWasFlowing && !drainedSent) {
+        audioWasFlowing = false
+        drainedSent = true
+        client.sendPlaybackDrained()
+      }
       setPbText(`${st.currentResponseId || '—'} 播${st.playedBytes}B 弃${st.droppedBytes}B 存${st.pendingChunkCount}块${st.playbackDone ? ' ✓回执' : ''}`)
     }, 100)
   }, [pushTail])

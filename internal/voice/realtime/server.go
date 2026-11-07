@@ -41,6 +41,8 @@ type Handler interface {
 	OnResponseCreate(s *Session)
 	// OnResponseCancel 打断当前响应。
 	OnResponseCancel(s *Session)
+	// OnPlaybackDrained 客户端播放排空（回声门真实关闭锚点）。
+	OnPlaybackDrained(s *Session)
 	// OnSessionEnd 会话断开。
 	OnSessionEnd(s *Session)
 }
@@ -336,6 +338,12 @@ func (srv *Server) dispatch(sess *Session, raw []byte) {
 	case "response.cancel":
 		if srv.Handler != nil {
 			srv.Handler.OnResponseCancel(sess)
+		}
+	case "playback.drained":
+		// 播放排空回执（回声门真实关闭锚点；上游 block 模式 playback.is_active
+		// 的跨机等价物——播放状态在本侧客户端，服务端无法自知）
+		if srv.Handler != nil {
+			srv.Handler.OnPlaybackDrained(sess)
 		}
 	default:
 		// 未知/扩展事件：宽容忽略（契约要求解码不丢不炸）

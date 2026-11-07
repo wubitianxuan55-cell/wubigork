@@ -112,3 +112,37 @@ func TestVADEchoGuardHalfDuplex(t *testing.T) {
 		t.Fatal("尾窗后监听期 384ms 应正常确认")
 	}
 }
+
+// 回声门真实锚点（2026-11-07 末轮实弹：合成毕 +0.4s 即确认出 4 个幽灵轮
+// =「几段语音叠加」真身）：合成终态不再关门，锚=客户端播放排空回执。
+func TestEchoGateDrainAnchored(t *testing.T) {
+	p := newFakePipeline(t, &fakeLegs{reply: "好的"})
+	p.turns.StartTurn()
+	p.turns.SegmentFinalized(1000, 800, 0)
+	p.sttCh <- &VADFinal{Audio: make([]float32, 4096), TurnID: "turn_1", Rev: 0}
+	deadline := time.Now().Add(3 * time.Second)
+	finalized := false
+	for time.Now().Before(deadline) {
+		p.muHist.Lock()
+		for _, m := range p.chat {
+			if m.Role == "assistant" && !m.provisional {
+				finalized = true
+			}
+		}
+		p.muHist.Unlock()
+		if finalized {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if !finalized {
+		t.Fatal("前置：响应未在 3s 内完成")
+	}
+	if !p.vad.echoGuard {
+		t.Fatal("合成终态后回声门应保持开启（等播放排空回执）——提前关门=尾段回声进 VAD")
+	}
+	p.OnPlaybackDrained(p.session)
+	if p.vad.echoGuard {
+		t.Fatal("播放排空回执应关闭回声门")
+	}
+}

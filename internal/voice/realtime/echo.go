@@ -20,6 +20,9 @@ func (ProtocolEcho) OnSessionEnd(*Session) {}
 // OnResponseCancel 回声响应器同步完成，无可取消在途（真管线刀5 实装）。
 func (ProtocolEcho) OnResponseCancel(*Session) {}
 
+// OnPlaybackDrained 回声响应器无播放面，no-op。
+func (ProtocolEcho) OnPlaybackDrained(*Session) {}
+
 // OnResponseCreate 发一条完整回声响应链。
 func (ProtocolEcho) OnResponseCreate(s *Session) {
 	respID := "resp_" + randHex(6)

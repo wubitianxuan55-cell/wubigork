@@ -189,6 +189,15 @@ export class VoiceClientV2 {
   }
 
   /**
+   * 播放排空回执（queue+ring 全部播空后由泵调用）：服务端回声门的真实关闭
+   * 锚点（上游 block 模式 playback.is_active() 的跨机等价物）——此前锚在
+   * 合成终态，客户端播放滞后数秒，尾段回声进 VAD=对回声自问自答。
+   */
+  sendPlaybackDrained(): void {
+    this.sendEvent({ type: 'playback.drained' })
+  }
+
+  /**
    * 运行时改监听阈值（session.update）。
    * M5 刀一回执朗读的回声门：TTS 朗读扬声器出声期间拉高阈值（0.9≈禁听）
    * 防残余回声触发假插话（11-01 教训：0.6 被回声触发），朗读结束回落监听值。

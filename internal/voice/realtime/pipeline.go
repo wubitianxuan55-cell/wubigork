@@ -165,6 +165,7 @@ type Pipeline struct {
 	createResponseOv  *bool
 	pendingText       []*textEvent     // 停靠文本事件（pending_text_output_items）
 	parkedAudio       *audioOut        // pending_output_item（单停靠位）
+	echoOffTimer      *time.Timer      // 回声门兜底关闭定时（播放排空回执未达时 10s 兜底）
 	queuedResponses   []*responseState // 排队响应（response_pending：未安装槽位，转写已入队；取消扫描+终态摘除）
 	audioBatch        []byte
 	audioBatchKey     string // audioBatch 属主响应 key（M2：终态清理/尾批 flush 归属判据）
@@ -322,6 +323,10 @@ func (p *Pipeline) Voice() string { return p.voiceID }
 // OnSessionEnd 会话断开：清队列+会话态，常驻阶段线程不清（管线=应用生命周期，
 // 第二次进语音必须照常工作——stopped 通道只在应用退出时关闭）。
 func (p *Pipeline) OnSessionEnd(_ *Session) {
+	if p.echoOffTimer != nil {
+		p.echoOffTimer.Stop()
+		p.echoOffTimer = nil
+	}
 	if p.respState != nil {
 		rs := p.respState
 		rs.dead = true
@@ -384,6 +389,17 @@ func (p *Pipeline) drainQueues() {
 
 // OnResponseCancel 客户端取消：cancelled/client_cancelled（规格 §5.5）。
 // 发送循环线程安全：经 textCh 序列化（避免与发送循环状态竞争）。
+// OnPlaybackDrained 客户端播放排空回执（queue+ring 全部播空）：回声门真实
+// 关闭锚点——上游 block 模式 `playback.is_active()` 的跨机等价物。尾窗 600ms
+// 在此刻重新武装，压播放结束瞬间的残余回响。
+func (p *Pipeline) OnPlaybackDrained(s *Session) {
+	if p.echoOffTimer != nil {
+		p.echoOffTimer.Stop()
+		p.echoOffTimer = nil
+	}
+	p.vad.EchoGuardOff()
+}
+
 func (p *Pipeline) OnResponseCancel(s *Session) {
 	// 取消源观测（2026-11-07 大段散文中途取消无日志可归因——turn_6 21s tts=cut
 	// 排查时全链路零线索；客户端 response.cancel 是唯一不落日志的取消路径）
@@ -419,14 +435,12 @@ func (p *Pipeline) cancelActiveResponse(reason string) {
 	queued := p.queuedResponses
 	p.queuedResponses = nil
 	p.muTerm.Unlock()
-	slog.Info("DBG sweep", "queued", len(queued))
 	for _, q := range queued {
 		if rs != nil && q == rs {
 			continue
 		}
 		q.dead = true
 		q.cancel()
-		slog.Info("DBG sweep cancel", "q", q.key, "turn", q.turnID)
 	}
 	if rs != nil {
 		rs.cancel()
@@ -614,7 +628,6 @@ func (p *Pipeline) llmStage(req *promptRequest) {
 		// 仅成功且未被取消时写入——上游失败响应 reject=全撤（S16），半截不进历史；
 		// 取消回滚/完成 finalize 由 finishResponse 终态处置负责（O2/O3）
 		if err == nil && rs.ctx.Err() == nil {
-			slog.Info("DBG O1 write", "rs", rs.key, "len", len(full), "ctxErr", rs.ctx.Err())
 			p.muHist.Lock()
 			p.writeAssistantAnchor(rs, full)
 			p.trimChatTurnsLocked()
@@ -1146,7 +1159,6 @@ func (p *Pipeline) finishResponse(s *Session, rs *responseState, status, reason 
 		return
 	}
 	if cur := p.respState; cur != nil && cur != rs {
-		slog.Info("DBG finish H2", "rs", rs.key, "cur", cur.key, "rsTurn", rs.turnID, "curTurn", cur.turnID)
 		// H2 蒸馏（history.py close 同位）：被新响应顶替（同轮 reopen 补发路径不
 		// 取消旧响应）的响应不得变僵尸——撤销其未 finalize 的暂存（否则未播报的
 		// assistant 尸体永久滞留 chat，污染后续每轮 LLM 上下文=答非所问隐性源），
@@ -1182,8 +1194,15 @@ func (p *Pipeline) finishResponse(s *Session, rs *responseState, status, reason 
 		return
 	}
 	// （respState==nil 且未墓碑：会话收尾后残余哨兵，照走全量终态——关闭清理序另批）
-	// 播放期回声门关（含 barge-in cancelled 路径：本函数是全部终态唯一收口）。
-	p.vad.EchoGuardOff()
+	// 播放期回声门：合成终态**不再直接关门**——客户端播放滞后于合成（队列+ring
+	// 可达数秒），此处关门会让尾段回声以监听阈值进 VAD=对回声自问自答
+	// （2026-11-07 末轮实弹：合成毕 +0.4s 即确认出 turn_3~6 四个幽灵轮=「几段
+	// 语音叠加」真身）。锚点=客户端「播放排空」回执（OnPlaybackDrained，上游
+	// block 模式 playback.is_active() 的跨机等价物）；10s 兜底防客户端失联。
+	if p.echoOffTimer != nil {
+		p.echoOffTimer.Stop()
+	}
+	p.echoOffTimer = time.AfterFunc(10*time.Second, func() { p.vad.EchoGuardOff() })
 	// 终态前冲刷本响应的停靠 delta（grace/候选窗口内入队的兜底语等）：
 	// 终态帧之后不允许再有本响应文本帧，且 parts 必须含全部已播报文本——
 	// 否则 done 转写空白、面板无声（F1 配套，ws_probe 实弹钉）。

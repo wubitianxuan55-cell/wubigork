@@ -56,6 +56,7 @@ export type ClientEvent =
   | { type: 'conversation.item.create'; item: Record<string, unknown> }
   | { type: 'response.create'; response?: Record<string, unknown>; instructions?: string }
   | { type: 'response.cancel' }
+  | { type: 'playback.drained' } // 播放排空回执（回声门真实关闭锚点，2026-11-07）
 
 // ─────────────────────────── Server → Client（已知事件） ───────────────────────────
 

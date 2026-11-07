@@ -100,6 +100,7 @@ func (r *recordingHandler) OnAudio(_ *Session, pcm []byte) {
 func (r *recordingHandler) OnSessionConfig(*Session, SessionConfig) { r.configs++ }
 func (r *recordingHandler) OnResponseCreate(*Session)               { r.creates++ }
 func (r *recordingHandler) OnResponseCancel(*Session)               { r.cancels++ }
+func (r *recordingHandler) OnPlaybackDrained(*Session)              {}
 func (r *recordingHandler) OnSessionEnd(*Session)                   { r.ends++ }
 
 func TestHandshakeAndSessionUpdate(t *testing.T) {

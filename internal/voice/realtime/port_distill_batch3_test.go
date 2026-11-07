@@ -54,6 +54,7 @@ func (h *blockingHandler) OnAudio(*Session, []byte)                {}
 func (h *blockingHandler) OnSessionConfig(*Session, SessionConfig) {}
 func (h *blockingHandler) OnResponseCreate(*Session)               {}
 func (h *blockingHandler) OnResponseCancel(*Session)               {}
+func (h *blockingHandler) OnPlaybackDrained(*Session)              {}
 func (h *blockingHandler) OnSessionEnd(s *Session) {
 	close(h.ended)
 	<-h.release
