@@ -101,6 +101,7 @@ func runPantheonGrokAgent(
 	prov provider.LLMProvider,
 	reg *tool.Registry,
 	workspace string,
+	seed []provider.Message,
 	prompt string,
 	readPaths []string,
 	emitText func(string),
@@ -151,7 +152,16 @@ func runPantheonGrokAgent(
 		}
 	})
 
-	session := gaeaAgent.NewSession(pantheonGrokSystemPrompt(reg.Names()))
+	// 会话装配（2026-11-07 A5③）：system 提示词恒为首条；seed 非空时整体
+	// Seed 进消息日志——往轮会议记录逐字在场，grok 席获得全保真跨轮记忆。
+	// seed 为空时行为与旧路径完全一致（单发提示词）。
+	msgs := make([]provider.Message, 0, len(seed)+1)
+	msgs = append(msgs, provider.Message{Role: provider.RoleSystem, Content: pantheonGrokSystemPrompt(reg.Names())})
+	msgs = append(msgs, seed...)
+	session := gaeaAgent.NewSession("")
+	if len(msgs) > 0 {
+		session.Seed(msgs)
+	}
 	runner := gaeaAgent.New(prov, reg, session, gaeaAgent.Options{
 		MaxSteps:      12,
 		Temperature:   0.2,

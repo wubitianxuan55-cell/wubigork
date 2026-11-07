@@ -1199,7 +1199,18 @@ func (m *Manager) run(
 				}
 				prompt = openingPrompt(session.Request, status, openingHistory, position+1, len(roundOrder), files)
 			} else {
-				prompt = discussionPrompt(session.Request, status, history, round, position+1, len(roundOrder), files, openIssues)
+				mode := historyGradient
+				switch {
+				case m.seatHistorySeeded(status.ID):
+					mode = historySeeded
+				case m.seatDeltaCapable(session, status.ID):
+					// A5① 增量投递：引擎侧会话活跃（本轮将以 resume 续接）时，
+					// 提示词只带「自你上次发言以来的新增」——往轮梯度不再重发。
+					mode = historyDelta
+				}
+				// A1 主席定向派工：上一轮小结信封里对本席的指令随提示词注入。
+				chairInstruction := chairInstructionFor(session, status.ID, round)
+				prompt = discussionPromptMode(session.Request, status, history, round, position+1, len(roundOrder), files, openIssues, mode, chairInstruction)
 			}
 			clipped := promptExceedsBudget(prompt)
 			result, err := m.runAgentWithRetry(ctx, session, status, prompt, phase, round)
@@ -1361,24 +1372,42 @@ func (m *Manager) run(
 				}
 			}
 			if status, ok := successful[moderator]; ok {
-				prompt := moderationPrompt(session.Request, status, roundContributions, round, session.Request.Rounds-round)
+				m.mu.Lock()
+				openIssues := openIssuesLocked(session)
+				m.mu.Unlock()
+				prompt := moderationPrompt(session.Request, status, roundContributions, round, session.Request.Rounds-round, openIssues)
 				res, err := m.runAgentWithRetry(ctx, session, status, prompt, PhaseModeration, round)
 				if err == nil && strings.TrimSpace(res.Text) != "" {
+					// A1 私有信封：解析定向派工，可见文本剥除信封原文后入档；
+					// 解析失败降级留痕，派工只认参会席位。
+					assignments, visible, malformed := parseChairEnvelope(res.Text)
+					assignments, dropped := filterChairAssignments(assignments, order)
+					if malformed {
+						m.addWarning(session, fmt.Sprintf("第 %d 轮主席信封解析失败，已降级为普通小结（原文见事件流）", round))
+					}
+					if dropped > 0 {
+						m.addWarning(session, fmt.Sprintf("第 %d 轮主席信封有 %d 条派工指向非参会席位，已丢弃", round, dropped))
+					}
 					// 小结必须同时进本地 history：下一轮 prompt 从这里构建议程。
 					moderation := Contribution{
-						CallRef:   res.CallRef,
-						ID:        fmt.Sprintf("%s-%s-mod-r%d-%d", session.ID, status.ID, round, time.Now().UnixNano()),
-						Phase:     PhaseModeration,
-						Round:     round,
-						AgentID:   status.ID,
-						AgentName: status.Name + "（主持）",
-						Content:   res.Text,
-						RunMode:   m.adapter(status.ID).runMode,
-						CreatedAt: time.Now().UnixMilli(),
-						Usage:     res.Usage,
+						CallRef:          res.CallRef,
+						ID:               fmt.Sprintf("%s-%s-mod-r%d-%d", session.ID, status.ID, round, time.Now().UnixNano()),
+						Phase:            PhaseModeration,
+						Round:            round,
+						AgentID:          status.ID,
+						AgentName:        status.Name + "（主持）",
+						Content:          visible,
+						ChairAssignments: assignments,
+						RunMode:          m.adapter(status.ID).runMode,
+						CreatedAt:        time.Now().UnixMilli(),
+						Usage:            res.Usage,
 					}
 					m.appendContribution(session, moderation)
 					history = append(history, moderation)
+					// A2c 重复派工守卫：同一派工 ≥3 次即告警（一次一条）。
+					if warning := duplicatedAssignmentWarning(session); warning != "" {
+						m.addWarning(session, warning)
+					}
 				} else if err != nil && ctx.Err() == nil {
 					m.addWarning(session, fmt.Sprintf("第 %d 轮主席小结失败（不阻塞议事）：%v", round, err))
 				}
@@ -1427,7 +1456,7 @@ func (m *Manager) run(
 			ctx,
 			session,
 			summarizerStatus,
-			synthesisPrompt(session.Request, summarizerStatus, history, m.transcriptFor(session), sessionIssuesSnapshot(session)),
+			synthesisPromptMode(session.Request, summarizerStatus, history, m.transcriptFor(session), sessionIssuesSnapshot(session), m.seatHistorySeeded(summarizerStatus.ID)),
 			PhaseSynthesis,
 			0,
 		)
@@ -1639,6 +1668,7 @@ func (m *Manager) runOne(ctx context.Context, session *Session, status AgentStat
 			adapter.invoke,
 			adapter.stream,
 			adapter.streamWithTools,
+			adapter.streamWithToolsSession,
 			prompt,
 			images,
 			phase,
@@ -1814,6 +1844,15 @@ func (m *Manager) runModelSeat(
 		func(string),
 		func(ToolTrace),
 	) (string, error),
+	streamWithToolsSession func(
+		context.Context,
+		[]SeatMessage,
+		string,
+		string,
+		[]string,
+		func(string),
+		func(ToolTrace),
+	) (string, error),
 	prompt string,
 	images []string,
 	phase string,
@@ -1836,14 +1875,25 @@ func (m *Manager) runModelSeat(
 		}
 		m.recordToolTrace(session, status, phase, round, call, trace)
 	}
-	if streamWithTools != nil {
+	if streamWithToolsSession != nil {
+		// A5③ 会话历史形态：往轮全文经 GrokHistoryBackend Seed 进引擎侧
+		// 会话，席位获得全保真跨轮记忆；提示词已切换为 seeded 形态（往轮
+		// 梯度省掉）。重建失败（历史为空）自动退回单发提示词路径。
+		history := buildSeatHistory(session, status.ID, buildBrief(session.Request, m.transcriptFor(session)), round)
+		readPaths := m.seatReadPaths(session, images)
+		text, err = streamWithToolsSession(
+			runCtx,
+			history,
+			clampPrompt(prompt),
+			session.Request.Workspace,
+			readPaths,
+			onDelta,
+			onTool,
+		)
+	} else if streamWithTools != nil {
 		// 归档发言全文路径注入 readPaths 白名单：提示词只带索引行与预览，
 		// grok 席需要引用往轮论证细节时按路径自读（2026-11-03 论证文件化）。
-		readPaths := make([]string, 0, len(images)+len(session.Contributions))
-		readPaths = append(readPaths, images...)
-		if t := m.transcriptFor(session); t != nil {
-			readPaths = append(readPaths, t.archiveContributions(session.Contributions)...)
-		}
+		readPaths := m.seatReadPaths(session, images)
 		text, err = streamWithTools(
 			runCtx,
 			clampPrompt(prompt),
@@ -1889,6 +1939,34 @@ func (m *Manager) adapter(id string) agentAdapter {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.adapters[id]
+}
+
+// seatReadPaths 归档发言全文路径白名单：grok 席需要引用往轮论证细节时按路径
+// 自读（2026-11-03 论证文件化）；会话历史形态下往轮已逐字在场，路径仅作补充。
+func (m *Manager) seatReadPaths(session *Session, images []string) []string {
+	readPaths := make([]string, 0, len(images)+len(session.Contributions))
+	readPaths = append(readPaths, images...)
+	if t := m.transcriptFor(session); t != nil {
+		readPaths = append(readPaths, t.archiveContributions(session.Contributions)...)
+	}
+	return readPaths
+}
+
+// seatHistorySeeded 报告该席位是否走 A5③ 会话历史形态：适配器接线了
+// GrokHistoryBackend 即成立（第 1 轮历史为空，提示词天然不受影响）。
+func (m *Manager) seatHistorySeeded(agentID string) bool {
+	return m.adapter(agentID).streamWithToolsSession != nil
+}
+
+// seatDeltaCapable 报告该席位本轮能否走 A5① 增量投递：引擎支持续接
+// （buildResume）且引擎侧会话活跃（EngineSessionID 非空——历史真的在引擎
+// 侧，梯度才可省）。会话丢失/首次调用时为 false，自动退回梯度形态。
+func (m *Manager) seatDeltaCapable(session *Session, agentID string) bool {
+	a := m.adapter(agentID)
+	if a.buildResume == nil || a.invoke != nil {
+		return false
+	}
+	return strings.TrimSpace(m.seatEngineSession(session, agentID)) != ""
 }
 
 // transcriptFor 返回本会话的归档句柄；构建失败（仅非法 ID，实际不可达）返回

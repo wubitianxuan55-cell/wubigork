@@ -110,6 +110,22 @@ func TestParseSeatRunStatsReadsZCodeResult(t *testing.T) {
 	}
 }
 
+func TestParseSeatRunStatsReadsCodexThreadStarted(t *testing.T) {
+	// codex exec --json 的会话 ID 载体（2026-11-07 A5② 探针实锤形状）。
+	raw := `{"type":"thread.started","thread_id":"01a1b609-a539-74a0-aee5-f3e152643663"}` + "\n" +
+		`{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"好的"}}` + "\n" +
+		`{"type":"turn.completed","usage":{"input_tokens":14087,"cached_input_tokens":12800,"output_tokens":2}}`
+	usage := parseSeatRunStats(raw)
+	if usage.EngineSessionID != "01a1b609-a539-74a0-aee5-f3e152643663" {
+		t.Fatalf("codex thread id 未被采集: %q", usage.EngineSessionID)
+	}
+	// codex token 账目暂无同形载体（input_tokens 蛇形命名未接），保持零值
+	// 而不是估算——「未上报」与「真的 0」是两回事。
+	if usage.InputTokens != 0 || usage.Steps != 0 {
+		t.Fatalf("codex token 账目应保持零值: %+v", usage)
+	}
+}
+
 func TestZCodeSeatResumesOnlyWithKnownSession(t *testing.T) {
 	resolve := func() (string, string, error) { return "node.exe", "zcode.cjs", nil }
 	plain, err := zcodeCommandSpec(resolve, "议题", `C:\work`, nil, "")
@@ -215,12 +231,14 @@ func newDSHFakeAdapter(runner *dshSeatFake) agentAdapter {
 		ID: "dsh", Name: "DeepSeek Harness", Kind: "fake", Available: true,
 		Capabilities: []string{"session-resume"},
 	}
-	build := func(_ string, cwd string, resumeID string) (commandSpec, error) {
+	build := func(prompt string, cwd string, resumeID string) (commandSpec, error) {
 		args := []string{"--profile", "headless", "--json"}
 		if resumeID != "" {
 			args = append(args, "--session-id", resumeID)
 		}
-		return commandSpec{Executable: "dsh", Args: args, Dir: cwd}, nil
+		// Stdin 必须携带提示词：增量形态断言要按 Stdin 区分讨论/汇总调用
+		// （真实 DSH adapter 同样走 Stdin）。
+		return commandSpec{Executable: "dsh", Args: args, Dir: cwd, Stdin: clampPrompt(prompt)}, nil
 	}
 	return agentAdapter{
 		id: "dsh", name: status.Name, kind: status.Kind,
@@ -313,6 +331,52 @@ func TestDSHSeatReusesEngineSession(t *testing.T) {
 		if participant.AgentID == "dsh" && participant.EngineSessionID == "" {
 			t.Fatal("Participant 没有记住引擎会话 ID")
 		}
+	}
+}
+
+func TestDSHDiscussionRoundUsesDeltaPrompt(t *testing.T) {
+	oldBudget, oldStall := seatToolBudget, seatStallLimit
+	seatToolBudget, seatStallLimit = 100, time.Minute
+	t.Cleanup(func() { seatToolBudget, seatStallLimit = oldBudget, oldStall })
+
+	runner := &dshSeatFake{}
+	m := newTestManager(t, runner, newDSHFakeAdapter(runner))
+	session, err := m.Start(StartRequest{
+		Topic: "增量形态验证", AgentIDs: []string{"dsh"},
+		Rounds: 2, Protocol: ProtocolIndependent,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := waitSessionSettled(t, m, session.ID)
+	if done.Status != StatusCompleted {
+		t.Fatalf("status = %s, error = %s", done.Status, done.Error)
+	}
+	runner.mu.Lock()
+	specs := append([]commandSpec(nil), runner.specs...)
+	runner.mu.Unlock()
+	var discussion, synthesis *commandSpec
+	for i := range specs {
+		switch {
+		case strings.Contains(specs[i].Stdin, "补充论证"):
+			discussion = &specs[i]
+		case strings.Contains(specs[i].Stdin, "协助整理"):
+			synthesis = &specs[i]
+		}
+	}
+	if discussion == nil || synthesis == nil {
+		t.Fatalf("缺讨论或汇总调用，specs = %d", len(specs))
+	}
+	// A5①：讨论轮走增量形态——引擎侧会话活跃，往轮梯度不再重发。
+	if strings.Contains(discussion.Stdin, "立场卡节选") || strings.Contains(discussion.Stdin, "归档发言") {
+		t.Fatalf("delta 讨论提示词不得带梯度：%q", discussion.Stdin)
+	}
+	if !strings.Contains(discussion.Stdin, "引擎侧历史") || !strings.Contains(discussion.Stdin, "自你上次发言以来没有新增发言或插话") {
+		t.Fatalf("delta 讨论提示词缺增量形态标记：%q", discussion.Stdin)
+	}
+	// 汇总保持梯度形态（CLI 席的引擎会话只见过梯度视图，汇总要全量记录在场）。
+	if !strings.Contains(synthesis.Stdin, "多轮讨论记录") || !strings.Contains(synthesis.Stdin, "立场卡节选") {
+		t.Fatalf("汇总提示词应保持梯度形态：%q", synthesis.Stdin)
 	}
 }
 

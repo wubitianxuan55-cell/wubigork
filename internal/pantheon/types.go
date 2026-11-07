@@ -365,6 +365,11 @@ type Contribution struct {
 	EvidenceHandle       string `json:"evidenceHandle,omitempty"`
 	// ResponseVerdict 仅在回应既有质疑时使用：accept / partial / reject。
 	ResponseVerdict string `json:"responseVerdict,omitempty"`
+	// ChairAssignments 是主席小结私有信封解析出的定向派工（2026-11-07 A1，
+	// 蒸馏自 OpenMausBot goal envelope）。Content 已剥除信封原文（人类可见
+	// 部分不带控制协议）；派工随贡献持久化——跳过/重试/恢复/重启后按存档
+	// 注入下一轮提示词，无运行态台账。
+	ChairAssignments []ChairAssignment `json:"chairAssignments,omitempty"`
 	// RunMode 记录本次调用实际施加的只读机制（裁决第三刀：能力不对称必须
 	// 进每次调用记录，不能把四个标志写成同一个笼统的「已只读」）。
 	RunMode    string `json:"runMode,omitempty"`

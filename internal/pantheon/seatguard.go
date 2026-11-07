@@ -227,7 +227,8 @@ func (g *seatGuard) watch() {
 //
 // 只认引擎自己写的账，不做估算。两种形状的 token 都按「本次调用合计」语义：
 // DSH 逐步累加，ZCode 取 final result（同一调的 turn.completed 也有 usage，
-// 不能重复计）。其他引擎（codex）目前没有同形账目，解析结果保持零值。
+// 不能重复计）。codex 只报 thread.started 的会话 ID（A5② 续接链靠它），
+// token 账目暂无同形载体，保持零值。
 func parseSeatRunStats(raw string) SeatUsage {
 	var usage SeatUsage
 	sawStepUsage := false
@@ -243,6 +244,13 @@ func parseSeatRunStats(raw string) SeatUsage {
 		switch strings.ToLower(traceString(obj["type"])) {
 		case "session":
 			if id := traceString(obj["sessionId"]); id != "" {
+				usage.EngineSessionID = id
+			}
+		case "thread.started":
+			// codex exec --json 的会话 ID 载体（2026-11-07 A5② 探针实锤：
+			// {"type":"thread.started","thread_id":"01a1b609-…"}）。续接链
+			// 靠它落回 Participant.EngineSessionID。
+			if id := traceString(obj["thread_id"]); id != "" {
 				usage.EngineSessionID = id
 			}
 		case "status":

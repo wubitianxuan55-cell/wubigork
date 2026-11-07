@@ -41,6 +41,18 @@ type agentAdapter struct {
 		emit func(string),
 		onTool func(ToolTrace),
 	) (string, error)
+	// streamWithToolsSession 非空 = 模型席位实现 GrokHistoryBackend，可携带
+	// 跨轮消息历史（A5③）。历史非空时宿主优先走这条路，并把提示词切换为
+	// seeded 形态（往轮梯度省掉，只发当轮与指令）。
+	streamWithToolsSession func(
+		ctx context.Context,
+		history []SeatMessage,
+		prompt string,
+		workspace string,
+		readPaths []string,
+		emit func(string),
+		onTool func(ToolTrace),
+	) (string, error)
 }
 
 // GrokBackend 是 Grok 模型席位的运行时后端。pantheon 不 import internal/app，
@@ -64,6 +76,31 @@ type GrokStreamingBackend interface {
 type GrokToolStreamingBackend interface {
 	StreamGrokWithTools(
 		ctx context.Context,
+		prompt string,
+		workspace string,
+		readPaths []string,
+		emit func(string),
+		onTool func(ToolTrace),
+	) (string, error)
+}
+
+// SeatMessage 是模型席位跨轮历史的最小消息形状（2026-11-07 A5③）。Role 只取
+// user|assistant；system 提示词由后端自有，宿主不传。内容是全保真原文——
+// 这条链的存在意义就是「往轮逐字保留」，任何截断都等于把失忆请回来。
+type SeatMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+// GrokHistoryBackend 由支持跨轮消息历史的模型席位实现。history 是宿主从贡献
+// 记录确定性重建的往轮会议记录（跳过/重试/恢复/重启后按同一函数重建，永远
+// 与存档一致，无可失效台账）；实现方必须把它 Seed 进引擎侧会话，使席位获得
+// 全保真跨轮记忆，而不是依赖提示词里的立场卡/索引梯度。无法支持时不要实现
+// 本接口：宿主自动退回单发提示词路径。
+type GrokHistoryBackend interface {
+	StreamGrokSession(
+		ctx context.Context,
+		history []SeatMessage,
 		prompt string,
 		workspace string,
 		readPaths []string,
@@ -157,6 +194,9 @@ func newGrokAdapter(backend GrokBackend) agentAdapter {
 			return streaming.StreamGrokWithTools(ctx, prompt, workspace, readPaths, emit, onTool)
 		}
 	}
+	if sessioned, ok := backend.(GrokHistoryBackend); ok {
+		adapter.streamWithToolsSession = sessioned.StreamGrokSession
+	}
 	return adapter
 }
 
@@ -196,28 +236,50 @@ func newCodexAdapter(override string) agentAdapter {
 			return status
 		},
 		build: func(prompt, cwd string, images []string) (commandSpec, error) {
-			path, err := find()
-			if err != nil {
-				return commandSpec{}, err
-			}
-			args := []string{
-				"exec", "--json", "--ephemeral", "--sandbox", "workspace-write",
-				"-c", `web_search="live"`,
-				"-c", `sandbox_workspace_write.network_access=true`,
-				"--skip-git-repo-check",
-			}
-			for _, image := range images {
-				args = append(args, "--image", image)
-			}
-			args = append(args, "-C", cwd, "-")
-			return commandSpec{
-				Executable: path,
-				Args:       args,
-				Dir:        cwd,
-				Stdin:      clampPrompt(prompt),
-			}, nil
+			return codexExecSpec(find, "", prompt, cwd, images)
+		},
+		// buildResume（2026-11-07 A5②）：codex exec 原生支持
+		// `exec resume <SESSION_ID>`（探针实锤续接：新会话能原样复述上一会话
+		// 的回复）。三条硬约束同样探针实锤：①resume 子命令拒收 `-s`，沙箱
+		// 须走 `-c sandbox_mode=…`；②--ephemeral 会话不落 rollout，resume 报
+		// 「no rollout found」——续接档必须摘掉它（代价：codex 议事会话落
+		// ~/.codex/sessions，与 zcode/dsh 持久化会话同款取舍）；③resumeID
+		// 为空必须等价 build（会话丢失后回落新建，不硬错）。
+		buildResume: func(prompt, cwd string, images []string, resumeID string) (commandSpec, error) {
+			return codexExecSpec(find, strings.TrimSpace(resumeID), prompt, cwd, images)
 		},
 	}
+}
+
+// codexExecSpec 构造 codex exec 调用；resumeID 非空走 `exec resume` 续接，
+// 为空走全新 `exec`（非 ephemeral——thread 必须落 rollout，下一轮才有的续）。
+func codexExecSpec(find func() (string, error), resumeID, prompt, cwd string, images []string) (commandSpec, error) {
+	path, err := find()
+	if err != nil {
+		return commandSpec{}, err
+	}
+	var args []string
+	if id := strings.TrimSpace(resumeID); id != "" {
+		args = append(args, "exec", "resume", id, "--json")
+	} else {
+		args = append(args, "exec", "--json")
+	}
+	args = append(args,
+		"-c", `sandbox_mode="workspace-write"`,
+		"-c", `sandbox_workspace_write.network_access=true`,
+		"-c", `web_search="live"`,
+		"--skip-git-repo-check",
+	)
+	for _, image := range images {
+		args = append(args, "--image", image)
+	}
+	args = append(args, "-C", cwd, "-")
+	return commandSpec{
+		Executable: path,
+		Args:       args,
+		Dir:        cwd,
+		Stdin:      clampPrompt(prompt),
+	}, nil
 }
 
 func newZCodeAdapter(override string) agentAdapter {

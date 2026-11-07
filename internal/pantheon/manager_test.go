@@ -1542,9 +1542,21 @@ func TestZCodePromptRequestsStreamJSON(t *testing.T) {
 	}
 }
 
+// codexOverride 用假可执行文件代替真实 codex：spec 构造只做路径解析与拼参，
+// 断言不应依赖本机是否装了 codex（测试环境 PATH 常缺 npm 目录，真实路径会
+// 让整段断言静默 SKIP）。
+func codexOverride(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "codex.cmd")
+	if err := os.WriteFile(path, []byte("@echo off\r\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
 func TestCodexExecEnablesLiveSearchAndImageInput(t *testing.T) {
 	image := `C:\AI\wubigrok\diagram.png`
-	spec, err := newCodexAdapter("codex").build("分析图片", `C:\AI\wubigrok`, []string{image})
+	spec, err := newCodexAdapter(codexOverride(t)).build("分析图片", `C:\AI\wubigrok`, []string{image})
 	if err != nil {
 		t.Skipf("codex executable unavailable: %v", err)
 	}
@@ -1553,7 +1565,9 @@ func TestCodexExecEnablesLiveSearchAndImageInput(t *testing.T) {
 	}
 	// 2026-11-03 用户拍板「都能上网查资料」：read-only 沙箱默认禁网（直连
 	// GitHub API 实测被拦），放宽 workspace-write+network——写限工作区。
-	if !containsAdjacent(spec.Args, "--sandbox", "workspace-write") {
+	// 2026-11-07 A5②：沙箱改走 -c sandbox_mode（resume 子命令拒收 -s，两种
+	// 调用形态统一用 config 覆盖）。
+	if !containsAdjacent(spec.Args, "-c", `sandbox_mode="workspace-write"`) {
 		t.Fatalf("codex args must use workspace-write sandbox for network: %v", spec.Args)
 	}
 	if !containsAdjacent(spec.Args, "-c", `sandbox_workspace_write.network_access=true`) {
@@ -1564,6 +1578,42 @@ func TestCodexExecEnablesLiveSearchAndImageInput(t *testing.T) {
 	}
 	if !containsAdjacent(spec.Args, "--image", image) {
 		t.Fatalf("codex args lost image attachment: %v", spec.Args)
+	}
+	// A5②：非 ephemeral——thread 必须落 rollout，下一轮才有的续。
+	if containsValue(spec.Args, "--ephemeral") {
+		t.Fatalf("codex exec must not be ephemeral (rollout required for resume): %v", spec.Args)
+	}
+}
+
+func TestCodexResumeSpecCarriesSessionID(t *testing.T) {
+	image := `C:\AI\wubigrok\diagram.png`
+	adapter := newCodexAdapter(codexOverride(t))
+	if adapter.buildResume == nil {
+		t.Fatal("codex adapter must declare buildResume (A5②)")
+	}
+	spec, err := adapter.buildResume("继续", `C:\AI\wubigrok`, []string{image}, "01a1b609-a539-74a0-aee5-f3e152643663")
+	if err != nil {
+		t.Skipf("codex executable unavailable: %v", err)
+	}
+	if !containsAdjacent(spec.Args, "resume", "01a1b609-a539-74a0-aee5-f3e152643663") {
+		t.Fatalf("resume spec must carry session id: %v", spec.Args)
+	}
+	if !containsAdjacent(spec.Args, "-c", `sandbox_mode="workspace-write"`) {
+		t.Fatalf("resume spec must set sandbox via -c (resume rejects -s): %v", spec.Args)
+	}
+	if containsValue(spec.Args, "--ephemeral") {
+		t.Fatalf("resume spec must not be ephemeral: %v", spec.Args)
+	}
+	if !containsAdjacent(spec.Args, "--image", image) {
+		t.Fatalf("resume spec lost image attachment: %v", spec.Args)
+	}
+	// resumeID 为空必须等价 build（接口契约：不硬错，回落新建）。
+	fresh, err := adapter.buildResume("开场", `C:\AI\wubigrok`, nil, "  ")
+	if err != nil {
+		t.Fatalf("empty resumeID must fall back to fresh exec: %v", err)
+	}
+	if containsValue(fresh.Args, "resume") {
+		t.Fatalf("empty resumeID must not emit resume subcommand: %v", fresh.Args)
 	}
 }
 
