@@ -219,6 +219,12 @@ export class VoiceClientV2 {
     })
   }
 
+  /** 探测器用：响应是否已终态闭合（ledger 优先，播放队列侧兜底） */
+  isResponseClosed(id: string): boolean {
+    if (this.state.responses[id]?.closed) return true
+    return this.playback.isClosed(id)
+  }
+
   get snapshot(): VoiceSessionState {
     return this.state
   }

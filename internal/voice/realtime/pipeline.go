@@ -919,6 +919,11 @@ func (p *Pipeline) dispatchAudio(a *audioOut) {
 	if p.closedKeys[a.resp.key] {
 		return
 	}
+	// 交错探测器（2026-11-07 用户报「几段语音叠加」：串行链路上真叠加只可能
+	// 来自服务端把两个响应的音频交错下发——触发此告警即坐实服务端交错）
+	if p.audioBatchKey != "" && p.audioBatchKey != a.resp.key && p.respState != nil && p.respState.key != a.resp.key {
+		slog.Warn("voice realtime 音频流交错（前响应未终态即换键）", "prev", p.audioBatchKey, "next", a.resp.key)
+	}
 	a.resp.audioEmitted++
 	p.sendResponseCreated(a.resp)
 	p.beginAssistantOutput(a.resp)

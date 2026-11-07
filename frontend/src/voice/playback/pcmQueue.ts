@@ -93,6 +93,11 @@ export class PlaybackQueue {
     this.doneCb = cb
   }
 
+  /** 探测器用：响应是否已终态闭合 */
+  isClosed(responseId: string): boolean {
+    return this.closedIds.has(responseId)
+  }
+
   /** sink 拉取一块（到达序=播放序）；无数据返回 null。某响应末块拉走且已闭合时触发其回执。 */
   pull(): Int16Array | null {
     return this.pullChunk()?.pcm ?? null

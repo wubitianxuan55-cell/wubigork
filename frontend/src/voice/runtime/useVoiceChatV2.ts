@@ -242,12 +242,20 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
     // （审计 B1：此前 100ms 全量灌入，长散文 TTS 产出快于播放时 ring 4s
     // 丢最旧=中段整段跳播；上游=无上限队列+声卡按需拉取，天然背压）
     const highWater = Math.max(8192, Math.round(ctx.sampleRate * 4)) * 0.75
+    let lastPulledId = ''
     pumpRef.current = window.setInterval(() => {
       const client = clientRef.current
       const sink = sinkNodeRef.current
       if (!client || !sink) return
       let fill = sinkFillRef.current
       for (let chunk = client.playback.pull(); chunk; chunk = client.playback.pull()) {
+        // 交错探测器（2026-11-07「几段语音叠加」）：同一响应未闭合就拉出另一
+        // 响应的块=双流并存，当即上屏点名（配合服务端交错告警归因）
+        const st = client.playback.stats
+        if (lastPulledId && st.currentResponseId !== lastPulledId && !client.isResponseClosed(lastPulledId)) {
+          pushTail(`⚠ 音频流交错：${lastPulledId} 未闭合即切 ${st.currentResponseId}`)
+        }
+        lastPulledId = st.currentResponseId
         sink.port.postMessage({ type: 'pcm', buffer: chunk.buffer }, [chunk.buffer])
         fill += chunk.length * (ctx.sampleRate / 16000)
         if (fill >= highWater) break
