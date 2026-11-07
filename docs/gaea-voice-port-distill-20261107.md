@@ -58,3 +58,26 @@ audio/conversation：partial 转写 delta 缺失（前端契约列有该事件�
 2. **批2（体验慢/错提示）✅ 已落（2026-11-07 00:50 装机）**：M4（sttGateWait：死线已到期=holdUntil 不再持门立即放行，不回退 item delay 再等一整段）→ M5（STT 失败发 transcription.failed 终态，failed 分支激活，空泡病封死）→ M6（audio.done 收口帧，audioEmitted>0 恰一次）→ M7（终态前 created 补发，孤 done 封死）。测试 port_distill_batch2_test.go 4 例；前端 voice 53/53 绿（failed 帧走 UnknownServerEvent 放行）。**M8（failed/incomplete 终态）挂起**——动前须核 voiceSession 对 done status failed/incomplete 的状态机反应，避免兜底语路径 UX 回归。
 3. **批3（协议面）✅ 已落（2026-11-07 01:04 装机）**：M12（槽位释放移至 OnSessionEnd 后+closedKeys 墓碑替代清零）→ M13（interrupt_response/create_response 会话级开关生效，*bool sticky+会话复位；前端哑旋钮激活）→ M14（silence_duration_ms 运行时可调+会话结束回落）。M15 记有意裁剪（gaea 前端恒 16k）。测试 port_distill_batch3_test.go 5 例。
 4. **M8 挂拍板**：前端核对完毕——failed→error 态+冲刷未播块、incomplete→idle+冲刷（voiceSession.ts:246-258 + VoiceClientV2.ts:130-133）。gaea 的 F1 兜底语/TTS 续播设计会被 failed/incomplete→flush 截断（LLM 失败说兜底语被打断、TTS 单句失败后余句被砍）。两选一：①接受截断换诚实 failed/incomplete 终态；②维持现状（记有意偏离，协议台账注记）。默认②不动。
+
+## 补遗：客户端捕获层复核（2026-11-07 真麦三轮翻车后）
+
+> 触发：用户三轮真麦「被自己的声音打断/回声当输入」。前五路审计把「客户端控制面/
+> 配置面」记为有意裁剪——上游的回声防线恰在该层（audio_client.py），审计口径修正。
+
+### 上游客户端侧机制逐项对账（audio_client.py / local_audio_arguments.py）
+
+| 上游机制 | 锚 | gaea 现状 |
+|---|---|---|
+| `local_audio_block_mic_during_playback`：播放期捕获回调整帧 return，不进 mic 队列 | audio_client.py:1046-1048 | ✅ v3 已同位移植（2d63a752，VADHandler.Process 顶层 echoSuppressed 丢弃+600ms 尾窗） |
+| `PlaybackQueue.is_active()` = 缓冲未尽 **或** 末块后 150ms 内 | audio_client.py:274-277,263 | ✅ 等价覆盖（事件驱动门+600ms 尾窗，强于 150ms floor） |
+| barge-in/interrupt 时 `PlaybackQueue.clear()` 防扬声器余音续播 | audio_client.py:251-256；openai-compatible-tts.md:78 stutter 注 | ✅ 前端 pcmQueue.flush 已有（barge-in/response.cancel 冲刷未播块） |
+| `startup_buffer_ms` 起播缓冲防抖 | audio_client.py:237-247 | ✅ 前端 pcmQueue 起播缓冲在位（voice 蒸馏批1 era） |
+| mic/speaker 队列满丢帧（Full → debug log） | audio_client.py:1054-1056 | ➖ 记可接受偏离（前端 ws 背压自有丢弃语义） |
+| 终端键盘控制/状态行（voice_controls.py） | — | ➖ N/A（GUI 有打断按钮/协议 interrupt） |
+
+### 纪律修正（入册）
+
+- **症状先对源再动刀**：实弹症状出现时，第一动作=查上游同症状机制锚，而非自造补偿
+  参数（0.75 阈值门/600ms 确认窗两版自造机制均被证伪，上游半双工锚一发命中）。
+- **审计范围必须含客户端捕获/配置层**：管线五段全同位≠移植完整；「有意裁剪」判定
+  必须逐项列出被裁机制并说明症状后果，禁止整层打包记裁剪。
