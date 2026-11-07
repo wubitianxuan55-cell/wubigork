@@ -264,8 +264,11 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
       }
       const st = client.playback.stats
       // 播放排空回执：queue+ring 双空且刚播过 → 通知服务端关回声门
-      // （真实播放结束锚点；服务端合成终态不再直接关门）
-      const quiet = st.pendingChunkCount === 0 && sinkFillRef.current === 0
+      // （真实播放结束锚点；服务端合成终态不再直接关门）。
+      // 「静默」还要求服务端无未闭合响应（2026-11-07 实弹：句间合成间隙
+      // queue/ring 瞬时空→误报 drained→回声门在响应中途开门 3s=回声入 VAD）
+      const anyOpenResponse = Object.values(client.snapshot.responses).some((r) => !r.closed)
+      const quiet = st.pendingChunkCount === 0 && sinkFillRef.current === 0 && !anyOpenResponse
       if (!quiet) {
         audioWasFlowing = true
         drainedSent = false
