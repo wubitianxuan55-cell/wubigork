@@ -288,7 +288,9 @@ func (l voiceTTSLeg) Speak(ctx context.Context, sentence string, onAudio func([]
 	}
 	sc := bufio.NewScanner(resp.Body)
 	sc.Buffer(make([]byte, 0, 256*1024), 8*1024*1024)
-	var carry []float32 // 24k→16k 线性重采样跨块状态
+	res := &resampler24k16k{} // 24k→16k 线性重采样（跨块保相位——旧实现每块相位
+	// 归零+边界重复 1 样本，Breeze 流式 10~20 块/秒=长散文逐秒叠加波形跳变，
+	// 「越到后面越混杂、仿佛多了许多音调」真身，2026-11-07 用户听感定位）
 	for sc.Scan() {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -319,40 +321,61 @@ func (l voiceTTSLeg) Speak(ctx context.Context, sentence string, onAudio func([]
 			onAudio(pcm)
 			continue
 		}
-		// 24k→16k 线性重采样（2:3；跨块 carry 保相位）
-		n := len(pcm) / 2
-		cur := make([]float32, 0, len(carry)+n)
-		cur = append(cur, carry...)
-		for i := 0; i+1 < n*2; i += 2 {
-			s := int16(uint16(pcm[i]) | uint16(pcm[i+1])<<8)
-			cur = append(cur, float32(s)/32768.0)
-		}
-		// cur 为样本序列（尾样本落 carry）；以 2/3 步进取样
-		total := len(cur)
-		outN := (total - 1) * 2 / 3
-		out := make([]byte, 0, outN*2)
-		for i := 0; i < outN; i++ {
-			pos := float64(i) * 3.0 / 2.0
-			i0 := int(pos)
-			if i0+1 >= total {
-				break
-			}
-			frac := float32(pos - float64(i0))
-			v := cur[i0]*(1-frac) + cur[i0+1]*frac
-			s := int16(v * 32768.0)
-			out = append(out, byte(s), byte(uint16(s)>>8))
-		}
-		keepFrom := int(float64(outN) * 3.0 / 2.0)
-		if keepFrom < total {
-			carry = append([]float32(nil), cur[keepFrom:]...)
-		} else {
-			carry = nil
-		}
-		if len(out) > 0 {
+		if out := res.push(pcm); len(out) > 0 {
 			onAudio(out)
 		}
 	}
 	return sc.Err()
+}
+
+// resampler24k16k 24k→16k 线性重采样器（2:3 降采样）。跨 SSE 块保留剩余
+// 样本**与分数相位**：全局第 i 个输出读全局位置 1.5×i——旧实现每块相位
+// 归零+carry 边界重复 1 样本（块频 10~20/s → 长散文逐秒叠加波形跳变）。
+type resampler24k16k struct {
+	carry []float32 // 跨块剩余样本（24k 域）
+	phase float64   // carry[0] 相对下一输出位置的分数偏移（0..1.5）
+}
+
+// push 输入一块 24k PCM16（字节序 LE），返回重采样后的 16k PCM16。
+func (r *resampler24k16k) push(pcm []byte) []byte {
+	n := len(pcm) / 2
+	cur := make([]float32, 0, len(r.carry)+n)
+	cur = append(cur, r.carry...)
+	for i := 0; i+1 < n*2; i += 2 {
+		s := int16(uint16(pcm[i]) | uint16(pcm[i+1])<<8)
+		cur = append(cur, float32(s)/32768.0)
+	}
+	total := len(cur)
+	if total < 2 {
+		r.carry = cur
+		return nil
+	}
+	// 可输出数：全局位置 phase+1.5×i 不得超过 total-1（保证 i0+1 可读）
+	outN := int((float64(total) - 1 - r.phase) / 1.5)
+	if outN <= 0 {
+		r.carry = cur
+		return nil
+	}
+	out := make([]byte, 0, outN*2)
+	for i := 0; i < outN; i++ {
+		pos := r.phase + float64(i)*1.5
+		i0 := int(pos)
+		if i0+1 >= total {
+			break
+		}
+		frac := float32(pos - float64(i0))
+		v := cur[i0]*(1-frac) + cur[i0+1]*frac
+		s := int16(v * 32768.0)
+		out = append(out, byte(s), byte(uint16(s)>>8))
+	}
+	consumed := r.phase + float64(outN)*1.5
+	keep := int(consumed)
+	if keep > total {
+		keep = total
+	}
+	r.carry = append([]float32(nil), cur[keep:]...)
+	r.phase = consumed - float64(keep)
+	return out
 }
 
 // voiceResponseLegs LLM+TTS 组合腿。
