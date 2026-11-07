@@ -109,15 +109,20 @@ export const PantheonComposer: React.FC<Props> = ({
       ? seed.preset
       : 'roundtable',
   )
-  const [protocol, setProtocol] = useState<'council' | 'independent'>(
+  const [protocol, setProtocol] = useState<'council' | 'independent' | 'blind_rebuttal'>(
     // 2026-10-31 用户拍板：默认独立开场——首轮各抒己见，第二轮起共享信息再议论。
+    // M2 互盲驳论（2026-11-08）：全部轮次并行且同轮互盲，作为第三种对照协议。
     (seed?.preset === 'targeted_challenge' || seed?.preset === 'red_team')
       ? 'independent'
-      : seed?.protocol === 'council' ? 'council' : 'independent',
+      : seed?.protocol === 'council'
+        ? 'council'
+        : seed?.protocol === 'blind_rebuttal' ? 'blind_rebuttal' : 'independent',
   )
   const [untilConsensus, setUntilConsensus] = useState(Boolean(seed?.untilConsensus))
   // 每轮确认（O-E）：勾上后每轮结束开门等人，而不是一口气跑到头。
   const [gateEachRound, setGateEachRound] = useState(false)
+  // 整场墙钟预算（B4，分钟）：≥80% 历史降档、≥90% 轮间收口进汇总；0 = 不限。
+  const [timeBudget, setTimeBudget] = useState<number>(seed?.timeBudgetMinutes || 0)
   const [showEvidence, setShowEvidence] = useState(Boolean(initialEvidence))
   const [showAdvanced, setShowAdvanced] = useState(Boolean(
     seed?.title || seed?.context || seed?.successCriteria,
@@ -269,7 +274,7 @@ export const PantheonComposer: React.FC<Props> = ({
   const topicError = topicTouched && !topic.trim()
     ? '请先写下这次讨论需要回答的问题。'
     : ''
-  const protocolLabel = protocol === 'council' ? '圆桌接力' : '独立开场'
+  const protocolLabel = protocol === 'council' ? '圆桌接力' : protocol === 'blind_rebuttal' ? '互盲驳论' : '独立开场'
   const seatCount = agents.length || 4
   const imageIncompatibleNames = attachments.length > 0
     ? selected
@@ -314,6 +319,7 @@ export const PantheonComposer: React.FC<Props> = ({
       maxRounds: untilConsensus ? roundLimit : undefined,
       // 至共识本身就有轮次上限，再叠每轮确认只会把一次讨论切成一串手动作业。
       gateEachRound: untilConsensus ? false : gateEachRound,
+      timeBudgetMinutes: timeBudget > 0 ? timeBudget : undefined,
       readOnly: true,
       protocol,
       preset,
@@ -555,6 +561,7 @@ export const PantheonComposer: React.FC<Props> = ({
                     options={[
                       { label: '独立开场', value: 'independent' },
                       { label: '圆桌接力', value: 'council' },
+                      { label: '互盲驳论', value: 'blind_rebuttal' },
                     ]}
                     onChange={(value) => setProtocol(value)}
                     disabled={busy || targetedChallenge}
@@ -634,6 +641,23 @@ export const PantheonComposer: React.FC<Props> = ({
                   >
                     每轮确认
                   </button>
+                </Tooltip>
+                <Tooltip title="整场议事墙钟预算：≥80% 往轮全文退回梯度；≥90% 本轮收口进汇总。0 = 不限">
+                  <span className="pantheon-round-budget">
+                    <InputNumber
+                      size="small"
+                      min={0}
+                      max={480}
+                      precision={0}
+                      value={timeBudget}
+                      onChange={(value) => setTimeBudget(Math.max(0, Math.min(480, Number(value) || 0)))}
+                      disabled={busy}
+                      aria-label="整场议事预算分钟"
+                      data-testid="pantheon-time-budget"
+                      className="pantheon-round-input"
+                    />
+                    <span className="pantheon-round-unit">分钟</span>
+                  </span>
                 </Tooltip>
                 <Button
                   size="small"

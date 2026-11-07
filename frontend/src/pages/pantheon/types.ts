@@ -28,6 +28,8 @@ export interface PantheonComposerSeed {
   protocol?: string
   preset?: string
   parentSessionId?: string
+  /** 整场墙钟预算（分钟，B4）：续议继承上一场的预算设定，Composer 可改 */
+  timeBudgetMinutes?: number
 }
 
 export interface PantheonApi {

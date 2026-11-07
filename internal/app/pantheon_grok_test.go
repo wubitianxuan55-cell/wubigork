@@ -70,7 +70,6 @@ func TestRunPantheonGrokAgentUsesOfficeToolLoop(t *testing.T) {
 		prov,
 		reg,
 		t.TempDir(),
-		nil,
 		"请先核验办公资料，再给出结论。",
 		nil,
 		func(text string) { streamed.WriteString(text) },
@@ -92,52 +91,6 @@ func TestRunPantheonGrokAgentUsesOfficeToolLoop(t *testing.T) {
 	req := prov.Requests()[0]
 	if len(req.Tools) != 1 || req.Tools[0].Name != "office_probe" {
 		t.Fatalf("office tool schema was not sent to Grok: %+v", req.Tools)
-	}
-}
-
-func TestRunPantheonGrokAgentSeedsSessionHistory(t *testing.T) {
-	prov := testutil.NewMock("grok-office", testutil.Turn{Text: "已结合往轮记录回应。"})
-	reg := tool.NewRegistry()
-	seed := []gaeaProvider.Message{
-		{Role: gaeaProvider.RoleUser, Content: "—— 会议记录 ——\nalpha 第一轮发言"},
-		{Role: gaeaProvider.RoleAssistant, Content: "grok 第一轮发言"},
-	}
-	final, err := runPantheonGrokAgent(
-		context.Background(),
-		prov,
-		reg,
-		t.TempDir(),
-		seed,
-		"第 2 轮：请基于往轮记录回应。",
-		nil,
-		nil,
-		nil,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(final, "往轮记录") {
-		t.Fatalf("final=%q", final)
-	}
-	req := prov.Requests()[0]
-	if len(req.Messages) != 4 {
-		t.Fatalf("messages = %d, want system+2 seed+本轮输入", len(req.Messages))
-	}
-	if req.Messages[0].Role != gaeaProvider.RoleSystem ||
-		!strings.Contains(req.Messages[0].Content, "Gaea 办公 AgentRunner") {
-		t.Fatalf("system 提示词缺失或错位：%+v", req.Messages[0])
-	}
-	if req.Messages[1].Role != gaeaProvider.RoleUser ||
-		!strings.Contains(req.Messages[1].Content, "alpha 第一轮发言") {
-		t.Fatalf("seed user 消息缺失：%+v", req.Messages[1])
-	}
-	if req.Messages[2].Role != gaeaProvider.RoleAssistant ||
-		!strings.Contains(req.Messages[2].Content, "grok 第一轮发言") {
-		t.Fatalf("seed assistant 消息缺失：%+v", req.Messages[2])
-	}
-	if req.Messages[3].Role != gaeaProvider.RoleUser ||
-		!strings.Contains(req.Messages[3].Content, "第 2 轮") {
-		t.Fatalf("本轮输入应追加在 seed 之后：%+v", req.Messages[3])
 	}
 }
 

@@ -25,7 +25,10 @@ type pantheonGrokSeat struct {
 }
 
 var _ pantheon.GrokToolStreamingBackend = (*pantheonGrokSeat)(nil)
-var _ pantheon.GrokHistoryBackend = (*pantheonGrokSeat)(nil)
+// GrokHistoryBackend 刻意不实现（2026-11-07 实弹证伪 pan_1794058438005：
+// Seed 历史后模型跑 12 步全工具循环零陈词×3）。grok 走宿主全量窗口内联
+// （historyFullWindow）——往轮全文在提示词里，行为与单发提示词同构、可预期。
+// seam 留给未来实测健康的引擎 opt-in。
 
 // ProbeGrok 返回 Grok 席位可用性（只读内存：引擎表 + 离线开关，无网络 IO）。
 // 可用条件：xai 引擎存在、启用、非离线模式、有 Key，且能解析出一个 grok
@@ -87,43 +90,6 @@ func (s *pantheonGrokSeat) StreamGrok(ctx context.Context, prompt string, emit f
 	return s.StreamGrokWithTools(ctx, prompt, gaeaCwd(), nil, emit, nil)
 }
 
-// StreamGrokSession A5③ 会话历史形态（2026-11-07）：把宿主从贡献记录确定性
-// 重建的往轮会议记录 Seed 进办公 AgentRunner 的会话消息日志，grok 席由此获得
-// 全保真跨轮记忆——自己说过什么、别人说过什么、用户插了什么话，逐字在场，
-// 不再依赖提示词里的立场卡/索引梯度。历史为空（第 1 轮）时与
-// StreamGrokWithTools 等价。
-func (s *pantheonGrokSeat) StreamGrokSession(
-	ctx context.Context,
-	history []pantheon.SeatMessage,
-	prompt string,
-	workspace string,
-	readPaths []string,
-	emit func(string),
-	onTool func(pantheon.ToolTrace),
-) (string, error) {
-	return s.streamGrokAgent(ctx, grokSeedMessages(history), prompt, workspace, readPaths, emit, onTool)
-}
-
-// grokSeedMessages 把 pantheon 侧的最小消息形状映射为 provider 消息。只认
-// user|assistant 两种角色（system 由本后端自有，宿主不传）；未知角色跳过
-// 而不是猜——错位的角色比缺一段历史更糟。
-func grokSeedMessages(history []pantheon.SeatMessage) []gaeaProvider.Message {
-	seed := make([]gaeaProvider.Message, 0, len(history))
-	for _, m := range history {
-		content := strings.TrimSpace(m.Content)
-		if content == "" {
-			continue
-		}
-		switch m.Role {
-		case "user":
-			seed = append(seed, gaeaProvider.Message{Role: gaeaProvider.RoleUser, Content: content})
-		case "assistant":
-			seed = append(seed, gaeaProvider.Message{Role: gaeaProvider.RoleAssistant, Content: content})
-		}
-	}
-	return seed
-}
-
 // StreamGrokWithTools runs Grok through a fresh Gaea office AgentRunner with a
 // workspace-bound, explicitly read-only tool registry. This keeps Pantheon
 // isolated from the interactive office session while giving Grok the same
@@ -136,12 +102,11 @@ func (s *pantheonGrokSeat) StreamGrokWithTools(
 	emit func(string),
 	onTool func(pantheon.ToolTrace),
 ) (string, error) {
-	return s.streamGrokAgent(ctx, nil, prompt, workspace, readPaths, emit, onTool)
+	return s.streamGrokAgent(ctx, prompt, workspace, readPaths, emit, onTool)
 }
 
 func (s *pantheonGrokSeat) streamGrokAgent(
 	ctx context.Context,
-	seed []gaeaProvider.Message,
 	prompt string,
 	workspace string,
 	readPaths []string,
@@ -181,7 +146,7 @@ func (s *pantheonGrokSeat) streamGrokAgent(
 	if reg.Len() == 0 {
 		return "", fmt.Errorf("Grok 办公工具注册表为空")
 	}
-	return runPantheonGrokAgent(ctx, prov, reg, workspace, seed, prompt, readPaths, emit, onTool)
+	return runPantheonGrokAgent(ctx, prov, reg, workspace, prompt, readPaths, emit, onTool)
 }
 
 // grokChatModel 解析 xai 引擎上的对话模型：默认模型优先（用户在模型中心选

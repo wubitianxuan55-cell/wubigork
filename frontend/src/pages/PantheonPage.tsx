@@ -997,6 +997,7 @@ const PantheonPage: React.FC = () => {
       protocol: session.request.protocol,
       preset: session.request.preset,
       parentSessionId: session.id,
+      timeBudgetMinutes: session.request.timeBudgetMinutes,
     })
     setActive(null)
     setShowEvaluation(false)

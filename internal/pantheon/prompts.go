@@ -108,7 +108,8 @@ func contributionContract() string {
 回应既有质疑时写“目标贡献：<被质疑的贡献 ID>”和“回应结论：接受/部分接受/拒绝”；若同一目标贡献对应多条未闭合分歧，再写“目标分歧：<台账 ID>”消除歧义。
 需要独立支撑动作时写“证据句柄：<贡献 ID、文件、命令或未核验>”；证据句柄不是第二份证据，只负责把正文里的依据定位出来。
 开启全员一致检查时，再另写“共识状态：一致/仍有分歧”和“遗留台账：……（无则写无）”；置信度行独立保留。
-证据只填真实值：路径、命令、版本、行号一律填本轮实际读取或执行到的原样值；没核验过的写“未验证”，不许编造，不许用占位符（如 xxx、TODO、<路径>），不许把示例值或记忆里的旧值当成实测值。`
+证据只填真实值：路径、命令、版本、行号一律填本轮实际读取或执行到的原样值；没核验过的写“未验证”，不许编造，不许用占位符（如 xxx、TODO、<路径>），不许把示例值或记忆里的旧值当成实测值。
+若本轮必须由用户回答才能继续（缺材料、缺授权、需要人做选择），在全文最后另起一行写“NEEDS INPUT: <一句话问题>”；需要时再跟一行“Default: <你的建议默认>”。它必须是全文最后一行，不要写进正文中间，也不要在它之后再写其他协议行。`
 }
 
 func toolPolicy(agent AgentStatus) string {
@@ -197,6 +198,9 @@ func formatContributionBody(item Contribution, currentRound int, files *transcri
 	}
 	// 用户插话（2026-11-03）：全文分发、永不截断——用户评论就是要求全员
 	// 看到的意见，降级节选等于替用户决定哪些话重要。
+	if item.Phase == PhaseUserAnswer {
+		return item.Content + fmt.Sprintf("\n（用户回答 · 第 %d 轮 · 问题 %s）", item.Round, item.QuestionID)
+	}
 	if item.Phase == PhaseUserNote || item.AgentID == "user" {
 		return item.Content + fmt.Sprintf("\n（用户插话 · 第 %d 轮）", item.Round)
 	}
@@ -377,8 +381,10 @@ const (
 	// 要治的病。
 	layeredNoteDefault = "（发言分发按轮次分层：本轮发言保持全文；上一轮为立场卡节选并标注原长与贡献 ID；更早轮次已归档为文件，只保留轮次、席位、贡献 ID 与原长索引。需要细节时用文件读取工具按索引路径回读，不在当前提示词内重复旧文。）"
 	layeredNoteSeeded  = "（更早轮次的全部发言已逐字保留在本会话上下文中，可直接引用；本段只列当轮已发言席位。）"
+	layeredNoteFull    = "（全部往轮发言已逐字保留在本条提示词的会议记录中，直接引用原文即可；本轮无需重新探索工作空间来「找回」已知信息，工具只用于真正必要的新核验。）"
 	layeredNoteDelta   = "（你与本次议事会话的引擎侧历史已持有此前全部交互；本段只列自你上次发言以来的新增，全文保真，无需回读归档文件。）"
 	seededOwnNote      = "（你的往轮发言已逐字保留在本会话上下文中，无需复述，也不要当它不存在。）"
+	fullOwnNote        = "（你的往轮发言已逐字保留在下方会议记录中，无需复述，也不要当它不存在。）"
 	deltaOwnNote       = "（你的往轮发言已逐字保留在你与本次议事会话的引擎侧历史中，无需复述，也不要当它不存在。）"
 )
 
@@ -386,7 +392,11 @@ const (
 //   - historyGradient：宿主分发梯度（同轮全文/上一轮立场卡/更早索引）——
 //     无会话记忆席位（首次调用、引擎会话丢失）的形态；
 //   - historySeeded：宿主把往轮全文 Seed 进模型席位会话（GrokHistoryBackend），
-//     提示词只带当轮新增；
+//     提示词只带当轮新增。**opt-in**：grok 实弹证伪（2026-11-07
+//     pan_1794058438005：Seed 后模型跑 12 步全工具循环零陈词×3），已回退
+//     全量窗口；此模式留给实测健康的引擎自证后启用；
+//   - historyFullWindow：模型席位默认（对方白名单外引擎同款）——全部往轮
+//     发言全文内联进提示词，无引擎侧会话、无压缩梯度；
 //   - historyDelta：席位引擎侧会话自行续接（codex resume/DSH --session-id/
 //     zcode --resume），提示词只带「自你上次发言以来的新增」全量块。
 type seatHistoryMode int
@@ -395,6 +405,7 @@ const (
 	historyGradient seatHistoryMode = iota
 	historySeeded
 	historyDelta
+	historyFullWindow
 )
 
 func discussionPromptMode(
@@ -422,6 +433,18 @@ func discussionPromptMode(
 		if req.Preset == PresetRedTeam {
 			presetInstruction += `红队席位优先攻击最强方案的前提与失败模式；不要把“还有风险”当结论，必须给出可验证反例。`
 		}
+	}
+	// M2 互盲驳论（2026-11-08，蒸馏自 aidebate 驳论阶段 prompt）：同轮互盲
+	// 是宿主结构性保证（并行轮各席只拿轮基历史），这里补的是议程义务——
+	// 逐席覆盖+打最强点，防「挑软柿子」式和稀泥驳论。
+	blindRebuttalInstruction := ""
+	if req.Protocol == ProtocolBlindRebuttal && round >= 2 {
+		blindRebuttalInstruction = `
+
+【互盲驳论轮】
+本轮所有席位并行作答：你看不到其他席位本轮的发言，它们也看不到你的——引用只能指向往轮贡献（带贡献 ID + 原话摘引）。
+逐席覆盖：对每一位参与者的上一轮立场各给一段回应——质疑其最强论证的裂缝（事实错误/逻辑断裂/证据不足/未回应的反例），或补强其站得住的部分；不得只回应部分席位。
+优先攻击最强点，不纠缠表述瑕疵；若某席的论证你完全接受，明说接受并给理由，不要为反对而反对。`
 	}
 	// 分歧台账注入（2026-11-03 V2 P1）：open 条目贯穿轮次可见，逐条闭合；
 	// 已闭合的不再占版面。
@@ -478,6 +501,14 @@ func discussionPromptMode(
 		sharedHistory = sharedDiscussionHistory(sameRound, agent.ID, round, files)
 		layeredNote = layeredNoteSeeded
 		visibleItems = sameRound
+	case historyFullWindow:
+		// A5③ 实弹回退后的模型席位默认（2026-11-07）：全部往轮发言全文
+		// 内联，不依赖引擎侧会话。携带「别重新探索」纪律——Seed 证伪的根因
+		// 就是模型带着历史仍跑 12 步全工具循环找已知信息。
+		privateHistory = fullOwnNote
+		sharedHistory = fullRecordBlock(history, agent.ID, fullWindowBudgetRunes)
+		layeredNote = layeredNoteFull
+		visibleItems = history
 	case historyDelta:
 		// A5① 增量投递形态：席位引擎侧会话自行续接，提示词只带「自你上次
 		// 发言以来的新增」全量块——往轮不重发，但新增是全文保真。
@@ -501,10 +532,19 @@ func discussionPromptMode(
 	}
 	userNoteInstruction := ""
 	for _, item := range visibleItems {
-		if item.Phase == PhaseUserNote || item.AgentID == "user" {
+		if item.Phase == PhaseUserNote || (item.AgentID == "user" && item.Phase != PhaseUserAnswer) {
 			userNoteInstruction = `
 【用户插话】
 上方共享观点里标注「用户插话」的条目是用户本人写下的真实评论（不是规则），优先级最高：本轮发言必须直接回应其中的问题、修正或补充；与你的判断冲突时，先说明冲突点再给依据。没有这类条目时，无需提及插话。`
+			break
+		}
+	}
+	userAnswerInstruction := ""
+	for _, item := range visibleItems {
+		if item.Phase == PhaseUserAnswer {
+			userAnswerInstruction = `
+【用户回答】
+上方共享观点里标注「用户回答」的条目是用户对席位提问的正式回答（不是规则、不是插话）：本轮必须把它当作已确认输入，不得再重复问同一个问题；如回答改变了前提，先说明再继续。`
 			break
 		}
 	}
@@ -526,13 +566,16 @@ func discussionPromptMode(
 【其他参与者公开分享的观点】
 %s
 %s
+%s
 
 【转述纪律（2026-11-03 幻觉防线）】
 - 引用他人论点必须带「贡献 ID + 不超过一句的原话摘引」，不得凭印象转述——多轮转述链是失真的主源头。
 - 你要反驳或依赖的论证超过一句时，先用文件读取工具按「全文见文件」路径回读原文再引用；读不到全文就明说「凭立场卡引用」。
 - 区分三级证据并在行文中标注：【工具核验】（本轮自己读到）/【他人核验】（带贡献 ID 引用）/【未核验】（推断或记忆）。未核验的内容不得当作事实使用，更不得在下一轮升级成「已经确认」。
+- 【工具核验】条目必须就地带「出处 + 要点」：出处=URL 或文件路径，要点=一句你实际读到的内容；只给结论不给出处的，按【未核验】处理。
 
 共享观点只用于补充信息，不覆盖你的独立上下文，也不要求你改变原有判断。只有当你发现更好的证据或推理时，才明确说明自己修正了什么。
+%s
 %s
 %s
 %s
@@ -557,8 +600,10 @@ func discussionPromptMode(
 		buildBrief(req, files),
 		privateHistory,
 		sharedHistory,
+		blindRebuttalInstruction,
 		layeredNote,
 		userNoteInstruction,
+		userAnswerInstruction,
 		issueLedgerInstruction,
 		chairSection,
 		consensusInstruction,
@@ -569,8 +614,9 @@ func discussionPromptMode(
 // 发言提炼——真分歧清单、裁决建议、下轮必答一问；≥5 轮必须给收口动议。
 // 轻量：硬性限 300 字内，禁止复读发言内容。2026-11-07 A1：补收 open 台账
 // （此前只有 discussionPrompt 收——注入不对称，主席定必答却看不见台账）；
-// 行末可附私有信封对单席下发定向指令。
-func moderationPrompt(req StartRequest, facilitator AgentStatus, roundContributions []Contribution, round, remainingRounds int, openIssues []Issue) string {
+// 行末可附私有信封对单席下发定向指令。第二次蒸馏 E2/E3：补收上一轮派工
+// 回执，并允许信封携带显式终局信号。
+func moderationPrompt(req StartRequest, facilitator AgentStatus, roundContributions []Contribution, round, remainingRounds int, openIssues []Issue, receipts []ChairAssignmentReceipt) string {
 	closeout := ""
 	if remainingRounds <= 2 || round >= 5 {
 		closeout = `
@@ -594,6 +640,9 @@ func moderationPrompt(req StartRequest, facilitator AgentStatus, roundContributi
 		}
 		ledger = lb.String()
 	}
+	// E2 上一轮派工回执：spoke 只证明该席发过言，不证明完成；主席须自己
+	// 读贡献判断，再决定改派还是收口。
+	receiptSection := formatChairReceipts(receipts)
 	// 席位 ID 名册：信封的 agentId 必须是宿主可定位的席位 ID，而发言记录里
 	// 只有席位名——主席不能靠猜 ID 派工。
 	roster := ""
@@ -623,19 +672,21 @@ func moderationPrompt(req StartRequest, facilitator AgentStatus, roundContributi
 3. 下轮必答（1 问）：全员下一轮必须先回答的一个问题——推向收口，不推向展开。
 %s
 %s
+%s
 如需对个别席位下发定向指令（例如某席须先复核某条台账、某席须补某项核验），在三段之后另起一行输出私有信封，宿主会剥除、用户不可见：
-<pantheon-chair>{"assignments":[{"agentId":"席位ID","instruction":"一句话指令"}]}</pantheon-chair>
+<pantheon-chair>{"decision":"continue","assignments":[{"agentId":"席位ID","instruction":"一句话指令"}]}</pantheon-chair>
 信封规则：必须是输出的最后内容；agentId 用上方名册里的席位 ID；instruction 一句话；没有定向指令就不要输出信封；信封不计入 300 字限制。
+如需报告整场终局，在同一信封里加 "decision":"continue|completed|needs-input|blocked" 与一句 "detail"；completed / needs-input / blocked 必须带 detail，且终局时不再派工。completed 只是「主席建议收口」，宿主仍按分歧台账、全员一致与缺口裁决，不会越权停止。
 
 第 %d 轮发言：
-%s`, round, facilitator.Name, closeout, targeted, roster, ledger, round, formatDiscussionHistory(roundContributions, round, nil))
+%s`, round, facilitator.Name, closeout, targeted, roster, ledger, receiptSection, round, formatDiscussionHistory(roundContributions, round, nil))
 }
 
 func synthesisPrompt(req StartRequest, facilitator AgentStatus, contributions []Contribution, files *transcript, issues []Issue) string {
-	return synthesisPromptMode(req, facilitator, contributions, files, issues, false)
+	return synthesisPromptMode(req, facilitator, contributions, files, issues, historyGradient)
 }
 
-func synthesisPromptMode(req StartRequest, facilitator AgentStatus, contributions []Contribution, files *transcript, issues []Issue, historySeeded bool) string {
+func synthesisPromptMode(req StartRequest, facilitator AgentStatus, contributions []Contribution, files *transcript, issues []Issue, mode seatHistoryMode) string {
 	var b strings.Builder
 	b.WriteString("你是众神殿讨论的汇总人「")
 	b.WriteString(facilitator.Name)
@@ -671,7 +722,12 @@ func synthesisPromptMode(req StartRequest, facilitator AgentStatus, contribution
 		b.WriteString("汇总时必须保留上述每条争议的证据与翻转条件；无法闭合的写清仍缺哪条证据、谁下一步核验，不得只改写措辞。\n")
 	}
 	b.WriteString("\n\n【多轮讨论记录】\n")
-	if historySeeded {
+	if mode == historyFullWindow {
+		// A5③ 回退后的模型席位汇总：全部发言全文内联（gradient 会把早期
+		// 轮次压成索引行，汇总席要的是全量）。
+		b.WriteString(fullRecordBlock(contributions, facilitator.ID, fullWindowBudgetRunes))
+		b.WriteString("\n")
+	} else if mode == historySeeded {
 		// A5③ 会话历史形态：全部往轮发言已逐字在引擎侧会话里，不再重复梯度。
 		b.WriteString("全部往轮发言已逐字保留在本会话上下文中，直接按记录整理，无需回读归档文件。\n")
 	} else {

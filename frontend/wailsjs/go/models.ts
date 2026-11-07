@@ -8137,6 +8137,34 @@ export namespace pantheon {
 	        this.createdAt = source["createdAt"];
 	    }
 	}
+	export class ChairAssignment {
+	    agentId: string;
+	    instruction: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ChairAssignment(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.agentId = source["agentId"];
+	        this.instruction = source["instruction"];
+	    }
+	}
+	export class ChairDecision {
+	    status: string;
+	    detail?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ChairDecision(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.status = source["status"];
+	        this.detail = source["detail"];
+	    }
+	}
 	export class SeatUsage {
 	    engineSessionId?: string;
 	    steps?: number;
@@ -8157,11 +8185,75 @@ export namespace pantheon {
 	        this.outputTokens = source["outputTokens"];
 	    }
 	}
+	export class ToolCount {
+	    name: string;
+	    count: number;
+	    ok?: number;
+	    nonEmpty?: number;
+	    digest?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ToolCount(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.count = source["count"];
+	        this.ok = source["ok"];
+	        this.nonEmpty = source["nonEmpty"];
+	        this.digest = source["digest"];
+	    }
+	}
+	export class ToolEvidence {
+	    calls?: number;
+	    ok?: number;
+	    failed?: number;
+	    nonEmpty?: number;
+	    repeatFailures?: number;
+	    repeatTool?: string;
+	    tools?: ToolCount[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ToolEvidence(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.calls = source["calls"];
+	        this.ok = source["ok"];
+	        this.failed = source["failed"];
+	        this.nonEmpty = source["nonEmpty"];
+	        this.repeatFailures = source["repeatFailures"];
+	        this.repeatTool = source["repeatTool"];
+	        this.tools = this.convertValues(source["tools"], ToolCount);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class Contribution {
 	    callId?: string;
 	    attemptId?: string;
 	    retryOfAttempt?: string;
 	    attempt?: number;
+	    promptSha256?: string;
+	    promptRunes?: number;
 	    id: string;
 	    phase: string;
 	    round?: number;
@@ -8182,6 +8274,10 @@ export namespace pantheon {
 	    challengedClaim?: string;
 	    evidenceHandle?: string;
 	    responseVerdict?: string;
+	    chairAssignments?: ChairAssignment[];
+	    chairDecision?: ChairDecision;
+	    toolEvidence?: ToolEvidence;
+	    questionId?: string;
 	    runMode?: string;
 	    createdAt: number;
 	    durationMs?: number;
@@ -8197,6 +8293,8 @@ export namespace pantheon {
 	        this.attemptId = source["attemptId"];
 	        this.retryOfAttempt = source["retryOfAttempt"];
 	        this.attempt = source["attempt"];
+	        this.promptSha256 = source["promptSha256"];
+	        this.promptRunes = source["promptRunes"];
 	        this.id = source["id"];
 	        this.phase = source["phase"];
 	        this.round = source["round"];
@@ -8217,6 +8315,10 @@ export namespace pantheon {
 	        this.challengedClaim = source["challengedClaim"];
 	        this.evidenceHandle = source["evidenceHandle"];
 	        this.responseVerdict = source["responseVerdict"];
+	        this.chairAssignments = this.convertValues(source["chairAssignments"], ChairAssignment);
+	        this.chairDecision = this.convertValues(source["chairDecision"], ChairDecision);
+	        this.toolEvidence = this.convertValues(source["toolEvidence"], ToolEvidence);
+	        this.questionId = source["questionId"];
 	        this.runMode = source["runMode"];
 	        this.createdAt = source["createdAt"];
 	        this.durationMs = source["durationMs"];
@@ -8441,6 +8543,8 @@ export namespace pantheon {
 	    questionId: string;
 	    options?: string[];
 	    askedBy?: string;
+	    default?: string;
+	    origin?: string;
 	    at: number;
 	
 	    static createFrom(source: any = {}) {
@@ -8452,6 +8556,8 @@ export namespace pantheon {
 	        this.questionId = source["questionId"];
 	        this.options = source["options"];
 	        this.askedBy = source["askedBy"];
+	        this.default = source["default"];
+	        this.origin = source["origin"];
 	        this.at = source["at"];
 	    }
 	}
@@ -8460,6 +8566,8 @@ export namespace pantheon {
 	    attemptId?: string;
 	    retryOfAttempt?: string;
 	    attempt?: number;
+	    promptSha256?: string;
+	    promptRunes?: number;
 	    seq: number;
 	    sessionId: string;
 	    phase: string;
@@ -8490,6 +8598,8 @@ export namespace pantheon {
 	        this.attemptId = source["attemptId"];
 	        this.retryOfAttempt = source["retryOfAttempt"];
 	        this.attempt = source["attempt"];
+	        this.promptSha256 = source["promptSha256"];
+	        this.promptRunes = source["promptRunes"];
 	        this.seq = source["seq"];
 	        this.sessionId = source["sessionId"];
 	        this.phase = source["phase"];
@@ -8675,6 +8785,8 @@ export namespace pantheon {
 	    attemptId?: string;
 	    retryOfAttempt?: string;
 	    attempt?: number;
+	    promptSha256?: string;
+	    promptRunes?: number;
 	    agentId: string;
 	    name: string;
 	    role: string;
@@ -8698,6 +8810,8 @@ export namespace pantheon {
 	        this.attemptId = source["attemptId"];
 	        this.retryOfAttempt = source["retryOfAttempt"];
 	        this.attempt = source["attempt"];
+	        this.promptSha256 = source["promptSha256"];
+	        this.promptRunes = source["promptRunes"];
 	        this.agentId = source["agentId"];
 	        this.name = source["name"];
 	        this.role = source["role"];
@@ -8883,6 +8997,7 @@ export namespace pantheon {
 	    protocol?: string;
 	    preset?: string;
 	    parentSessionId?: string;
+	    timeBudgetMinutes?: number;
 	    gateEachRound?: boolean;
 	
 	    static createFrom(source: any = {}) {
@@ -8907,6 +9022,7 @@ export namespace pantheon {
 	        this.protocol = source["protocol"];
 	        this.preset = source["preset"];
 	        this.parentSessionId = source["parentSessionId"];
+	        this.timeBudgetMinutes = source["timeBudgetMinutes"];
 	        this.gateEachRound = source["gateEachRound"];
 	    }
 	
@@ -9034,6 +9150,8 @@ export namespace pantheon {
 	        this.error = source["error"];
 	    }
 	}
+	
+	
 	
 	
 	

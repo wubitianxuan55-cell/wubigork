@@ -32,6 +32,10 @@ const (
 	// PhaseUserNote 用户中途评论（2026-11-03 拍板）：不打断当前发言，
 	// 以贡献身份入档并全文注入后续席位提示词。
 	PhaseUserNote = "user_note"
+	// PhaseUserAnswer 用户对提问的正式回答（第二次蒸馏 E3/E4）：绑定
+	// QuestionID 入档，下一轮提示词以【用户回答】呈现；它不是用户插话，
+	// 不开分歧台账，也不冒充新议程。
+	PhaseUserAnswer = "user_answer"
 	// PhaseModeration 主席轮间小结（2026-11-03 拍板）：每轮收尾后主席提炼
 	// 真分歧+裁决建议+下轮必答，注入后续全员提示词——治「轮次膨胀无收口」。
 	PhaseModeration   = "moderation"
@@ -55,6 +59,7 @@ const (
 	EventConsensus   = "consensus"
 	EventDIDUsed     = "did_used"
 	EventDIDStop     = "did_stop"
+	EventBudgetStop  = "budget_stop"
 	EventAttestation = "attestation"
 	EventSignOff     = "signoff"
 	EventComplete    = "completed"
@@ -69,6 +74,13 @@ type CallRef struct {
 	AttemptID      string `json:"attemptId,omitempty"`
 	RetryOfAttempt string `json:"retryOfAttempt,omitempty"`
 	Attempt        int    `json:"attempt,omitempty"`
+	// PromptSha256/PromptRunes 是输入侧对账锚（M1，蒸馏自 aidebate 每回合
+	// 任务书入档）：本次调用实际发出的提示词（clampPrompt 之后）的 sha256
+	// 前 16 hex 与字数。重试共用同一份任务书，故锚在 CallID 级而非
+	// AttemptID 级；只落哈希不落原文（任务书上限 6 万 rune，原文落盘挂池）。
+	// 与 ToolEvidence 的输出侧非空锚合成完整对账线。
+	PromptSha256 string `json:"promptSha256,omitempty"`
+	PromptRunes  int    `json:"promptRunes,omitempty"`
 }
 
 // 席位状态词表（§4.1）。这些值原先以裸字符串散落在 manager.go，落地前逐条
@@ -186,6 +198,11 @@ type StartRequest struct {
 	// ParentSessionID links a follow-up council to the session it continues
 	// (2026-10-31 裁决第三刀：续议保留父会话；承接内容以简报为准，不冒充继承全文).
 	ParentSessionID string `json:"parentSessionId,omitempty"`
+	// TimeBudgetMinutes 是整场议事的墙钟预算（B4，2026-11-07）：开议起累计，
+	// 恢复/重启不归零。≥80% 历史降档；≥90% 轮间收口进汇总。0 = 不限
+	// （默认，行为与预算落地前一致）。单位选分钟而非 token：token 账目只有
+	// DSH/ZCode 自报，codex/模型席零值，按 token 设阶梯会系统性少算半数席位。
+	TimeBudgetMinutes int `json:"timeBudgetMinutes,omitempty"`
 	// GateEachRound 要求每轮结束后停一次，等用户放行再进下一轮（M14 的决策门）。
 	// 门没被显式解开之前，整场保持 waiting_input：宁可显示"停着等人"，也不
 	// 制造一个 running 却没人干活的假象。
@@ -214,6 +231,42 @@ func (u SeatUsage) CacheHitPercent() float64 {
 		return -1
 	}
 	return float64(u.CacheReadTokens) * 100 / float64(total)
+}
+
+// ToolEvidence 是一次席位调用的工具证据摘要（第二次蒸馏 E1，蒸馏自
+// OpenMausBot turn-outcome.ts 的 turnEvidence）。全部字段由宿主从该 attempt
+// 的 tool_started/tool_result 事件计数得出，不含模型文本、不含命令/输出原文。
+//
+// 语义边界：
+//   - nil = 该通道不上报工具轨迹（例如无工具流的模型席），不是「0 次」；
+//   - 非 nil 零值 = 上报了、确实 0 次；
+//   - Calls 取 start/result 的 ToolID 并集；只有 started 没有结果的调用计入
+//     Calls 但不计入 OK/Failed，UI 以 Calls-OK-Failed 显示「未回报」；
+//   - RepeatFailures 只记同一（工具,归一化输入）连续 failed 的最大次数，
+//     只落工具名，不落参数与错误原文；
+//   - NonEmpty 是「成功且返回内容非空」的结果总数（跨全部工具，不受 Tools
+//     截断影响）。它是共享账对账线的锚：席位标注【工具核验】而 NonEmpty=0
+//     时，宿主导出会给出不可对证警示（evidenceMismatchNote）。
+type ToolEvidence struct {
+	Calls          int         `json:"calls,omitempty"`
+	OK             int         `json:"ok,omitempty"`
+	Failed         int         `json:"failed,omitempty"`
+	NonEmpty       int         `json:"nonEmpty,omitempty"`
+	RepeatFailures int         `json:"repeatFailures,omitempty"`
+	RepeatTool     string      `json:"repeatTool,omitempty"`
+	Tools          []ToolCount `json:"tools,omitempty"`
+}
+
+// ToolCount 是证据摘要里的工具名计数（最多 6 项）。OK/NonEmpty 是该工具名
+// 的成功与非空计数；Digest 是该工具首个非空成功输出（宿主看到的有界预览）
+// 的 sha256 前 16 hex——存档回放时锚定「宿主当时看到的是什么」，不落原文，
+// 不参与任何提示词。
+type ToolCount struct {
+	Name     string `json:"name"`
+	Count    int    `json:"count"`
+	OK       int    `json:"ok,omitempty"`
+	NonEmpty int    `json:"nonEmpty,omitempty"`
+	Digest   string `json:"digest,omitempty"`
 }
 
 type Participant struct {
@@ -255,8 +308,22 @@ type QuestionPayload struct {
 	QuestionID string   `json:"questionId"`
 	Options    []string `json:"options,omitempty"`
 	AskedBy    string   `json:"askedBy,omitempty"`
-	At         int64    `json:"at"`
+	// Default 是席位在 NEEDS INPUT 后附的 Default: 选项（E4）。它不是
+	// 自动回答，只是问题卡上的一键选项；用户不点就一直等人。
+	Default string `json:"default,omitempty"`
+	// Origin 区分提问来源：user=人工 AskSeat；seat=席位陈词末尾自述；
+	// chair=主席终局信号 needs-input（宿主提问，AskedBy 为空）。
+	Origin string `json:"origin,omitempty"`
+	At     int64  `json:"at"`
 }
+
+// 提问来源（QuestionPayload.Origin）。取值是封闭集合：加一种来源等于加
+// 一种停车证据，必须同时说清它由谁发起、回答后谁恢复。
+const (
+	QuestionOriginUser  = "user"
+	QuestionOriginSeat  = "seat"
+	QuestionOriginChair = "chair"
+)
 
 // AnswerPayload 是一次回答。同一条回答只允许被一个消费者取走并标记已投递
 // （M9），所以 QuestionID 必须精确；若该 attempt 已终止，回答保留为孤儿而
@@ -370,6 +437,14 @@ type Contribution struct {
 	// 部分不带控制协议）；派工随贡献持久化——跳过/重试/恢复/重启后按存档
 	// 注入下一轮提示词，无运行态台账。
 	ChairAssignments []ChairAssignment `json:"chairAssignments,omitempty"`
+	// ChairDecision 是主席终局信号（第二次蒸馏 E3）。它只持久化主席说了
+	// 什么；宿主怎么停车由 manager 决定，不把「主席自评」写成会话事实。
+	ChairDecision *ChairDecision `json:"chairDecision,omitempty"`
+	// ToolEvidence 是宿主对本次调用实际工具事件的摘要（第二次蒸馏 E1），
+	// 不是模型自述。nil=该通道不上报工具轨迹；非 nil 零值=上报了、0 次。
+	ToolEvidence *ToolEvidence `json:"toolEvidence,omitempty"`
+	// QuestionID 只在 PhaseUserAnswer 上使用：把用户回答绑到它回答的提问。
+	QuestionID string `json:"questionId,omitempty"`
 	// RunMode 记录本次调用实际施加的只读机制（裁决第三刀：能力不对称必须
 	// 进每次调用记录，不能把四个标志写成同一个笼统的「已只读」）。
 	RunMode    string `json:"runMode,omitempty"`

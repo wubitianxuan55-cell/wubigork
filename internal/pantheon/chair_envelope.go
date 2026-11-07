@@ -29,26 +29,31 @@ type ChairAssignment struct {
 	Instruction string `json:"instruction"`
 }
 
+// ChairDecision 是主席的终局信号（第二次蒸馏 E3，蒸馏自 group-goal-run.ts
+// 的 goal envelope status）。它只记录主席说了什么；能不能停由宿主按既有
+// 共识/分歧/缺口条件裁决——completed 不越权。
+type ChairDecision struct {
+	Status string `json:"status"`
+	Detail string `json:"detail,omitempty"`
+}
+
+const (
+	chairDecisionContinue   = "continue"
+	chairDecisionCompleted  = "completed"
+	chairDecisionNeedsInput = "needs-input"
+	chairDecisionBlocked    = "blocked"
+)
+
 type chairEnvelopePayload struct {
+	Decision    string            `json:"decision,omitempty"`
+	Detail      string            `json:"detail,omitempty"`
 	Assignments []ChairAssignment `json:"assignments"`
 }
 
 // parseChairEnvelope 解析主席输出：返回合法派工、剥除信封后的可见文本、
 // 以及「出现过信封但没解析出东西」的降级标记（调用方据此留痕）。
 func parseChairEnvelope(text string) (assignments []ChairAssignment, visible string, malformed bool) {
-	// 最后一个完整信封的载荷。
-	lastPayload := ""
-	{
-		idx := strings.LastIndex(text, chairEnvelopeOpen)
-		for idx >= 0 {
-			end := strings.Index(text[idx:], chairEnvelopeClose)
-			if end >= 0 {
-				lastPayload = text[idx+len(chairEnvelopeOpen) : idx+end]
-				break
-			}
-			idx = strings.LastIndex(text[:idx], chairEnvelopeOpen)
-		}
-	}
+	lastPayload, found := lastChairEnvelopePayload(text)
 	// 可见文本：剥除所有完整信封；未闭合的 open 尾巴整体丢弃（残片不得上屏）。
 	var b strings.Builder
 	rest := text
@@ -66,7 +71,7 @@ func parseChairEnvelope(text string) (assignments []ChairAssignment, visible str
 		rest = rest[open+closeIdx+len(chairEnvelopeClose):]
 	}
 	visible = strings.TrimSpace(b.String())
-	if lastPayload == "" {
+	if !found {
 		// 有信封开头但无完整收口 = 输出中断的残片：按降级留痕，不当无事发生。
 		return nil, visible, strings.Contains(text, chairEnvelopeOpen)
 	}
@@ -87,6 +92,52 @@ func parseChairEnvelope(text string) (assignments []ChairAssignment, visible str
 		}
 	}
 	return assignments, visible, false
+}
+
+// lastChairEnvelopePayload 返回最后一个完整信封的载荷。只认最后一个完整
+// 信封：模型复述示例后再发真信封时，后者胜出；只复述示例不发真信封属提示词
+// 纪律问题，与上游取舍一致。
+func lastChairEnvelopePayload(text string) (string, bool) {
+	idx := strings.LastIndex(text, chairEnvelopeOpen)
+	for idx >= 0 {
+		end := strings.Index(text[idx:], chairEnvelopeClose)
+		if end >= 0 {
+			return text[idx+len(chairEnvelopeOpen) : idx+end], true
+		}
+		idx = strings.LastIndex(text[:idx], chairEnvelopeOpen)
+	}
+	return "", false
+}
+
+// parseChairDecision 解析主席终局信号（E3）。与 parseChairEnvelope 共用
+// 「最后一个完整信封」纪律；decision 缺省=continue，旧信封逐字兼容。
+// 终局缺 detail、未知 decision、JSON 坏都返回 malformed，由调用方降级留痕。
+func parseChairDecision(text string) (ChairDecision, bool) {
+	payload, found := lastChairEnvelopePayload(text)
+	if !found {
+		return ChairDecision{Status: chairDecisionContinue}, false
+	}
+	if strings.TrimSpace(payload) == "" {
+		return ChairDecision{Status: chairDecisionContinue}, true
+	}
+	var decoded chairEnvelopePayload
+	if err := json.Unmarshal([]byte(strings.TrimSpace(payload)), &decoded); err != nil {
+		return ChairDecision{Status: chairDecisionContinue}, true
+	}
+	status := strings.ToLower(strings.TrimSpace(decoded.Decision))
+	status = strings.ReplaceAll(status, "_", "-")
+	switch status {
+	case "", chairDecisionContinue:
+		return ChairDecision{Status: chairDecisionContinue}, false
+	case chairDecisionCompleted, chairDecisionNeedsInput, chairDecisionBlocked:
+		detail := strings.TrimSpace(decoded.Detail)
+		if detail == "" {
+			return ChairDecision{Status: chairDecisionContinue}, true
+		}
+		return ChairDecision{Status: status, Detail: trimRunes(detail, 600)}, false
+	default:
+		return ChairDecision{Status: chairDecisionContinue}, true
+	}
 }
 
 // filterChairAssignments 只保留能定位到参会席位的派工；定向到缺席/未知席位

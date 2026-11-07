@@ -147,6 +147,9 @@ type Manager struct {
 	// authorityID 每次进程启动重生成：席位观测的序号只在同一 authority 内可比，
 	// 换进程后必须从头计数（§2.2）。
 	authorityID string
+	// budgetElapsed 是 B4 预算阶梯的时钟缝：nil = 开议起墙钟（生产）；测试
+	// 注入固定用时，阶梯判定不靠 sleep。
+	budgetElapsed func(*Session) time.Duration
 }
 
 type activeAgentCall struct {
@@ -543,6 +546,12 @@ const (
 	// 不注入同轮前序，避免首位发言框定范围；第 2 轮起共享前轮信息开始议论。
 	// 配合单轮即得「独立多答」基线。用户指定顺序与首位轮换保留。
 	ProtocolIndependent = "independent"
+	// ProtocolBlindRebuttal 互盲驳论（2026-11-08 M2，蒸馏自 aidebate 驳论阶段）：
+	// 全部轮次并行作答且同轮互盲——席位只看往轮全文，看不到同轮他席发言。
+	// 同轮从众的来源（先答者锚定后答者）因此消失，总耗时≈每轮最慢席之和；
+	// 代价是失去轮内接力吸收。第 2 轮起提示词带逐席覆盖义务（对每位参与者
+	// 的上一轮立场各给一段回应）。作为第三种对照协议存在，默认仍是独立开场。
+	ProtocolBlindRebuttal = "blind_rebuttal"
 )
 
 func NormalizeProtocol(raw string) (string, error) {
@@ -553,7 +562,7 @@ func NormalizeProtocol(raw string) (string, error) {
 		return ProtocolIndependent, nil
 	}
 	switch trimmed {
-	case ProtocolCouncil, ProtocolIndependent:
+	case ProtocolCouncil, ProtocolIndependent, ProtocolBlindRebuttal:
 		return trimmed, nil
 	}
 	return "", fmt.Errorf("未知议事路径 %q", trimmed)
@@ -562,6 +571,9 @@ func NormalizeProtocol(raw string) (string, error) {
 func ProtocolLabel(protocol string) string {
 	if protocol == ProtocolIndependent {
 		return "独立开场"
+	}
+	if protocol == ProtocolBlindRebuttal {
+		return "互盲驳论"
 	}
 	return "圆桌接力"
 }
@@ -1155,7 +1167,12 @@ func (m *Manager) run(
 		// 不依赖（openingHistory=nil），串行纯属等待不存在的依赖；并行=最慢一席
 		// 的时间，单场省 40%~70%。圆桌接力第 1 轮与所有协议的第 2 轮起保持串行
 		// ——后位要看前位发言，接力与吸收是轮内语义。
-		parallelOpening := round == 1 && session.Request.Protocol == ProtocolIndependent && len(roundOrder) > 1
+		// M2 互盲驳论（2026-11-08）：全部轮次并行；并行轮期间 history 由
+		// 父协程独占（WG.Wait 后才追加），各席在提示词里看到的都是轮基
+		// 历史（严格往轮）——同轮互盲由这一结构保证，不靠自觉。
+		parallelRound := len(roundOrder) > 1 &&
+			(session.Request.Protocol == ProtocolBlindRebuttal ||
+				(round == 1 && session.Request.Protocol == ProtocolIndependent))
 
 		// runSeat 执行一席并入库：返回 (贡献, prompt 是否超限, 是否成功)。
 		// 入库（appendContribution）自带锁，并行下安全；clipped 记账由调用方
@@ -1193,8 +1210,8 @@ func (m *Manager) run(
 			var prompt string
 			if round == 1 {
 				openingHistory := history
-				if session.Request.Protocol == ProtocolIndependent {
-					// 独立开场基线：第 1 轮不注入同轮前序，每位视同首位发言。
+				if session.Request.Protocol == ProtocolIndependent || session.Request.Protocol == ProtocolBlindRebuttal {
+					// 独立开场/互盲驳论基线：第 1 轮不注入同轮前序，每位视同首位发言。
 					openingHistory = nil
 				}
 				prompt = openingPrompt(session.Request, status, openingHistory, position+1, len(roundOrder), files)
@@ -1203,11 +1220,18 @@ func (m *Manager) run(
 				switch {
 				case m.seatHistorySeeded(status.ID):
 					mode = historySeeded
+				case m.adapter(status.ID).invoke != nil:
+					// 模型席位默认全量窗口（A5③ Seed 实弹证伪后的回退形态，
+					// 对方白名单外引擎同款）：往轮全文内联，无引擎侧会话。
+					mode = historyFullWindow
 				case m.seatDeltaCapable(session, status.ID):
 					// A5① 增量投递：引擎侧会话活跃（本轮将以 resume 续接）时，
 					// 提示词只带「自你上次发言以来的新增」——往轮梯度不再重发。
 					mode = historyDelta
 				}
+				// B4 预算阶梯第一档：高水位时往轮全文形态（seeded/全量窗口）
+				// 退回梯度——每席提示词从这一席起立即瘦身。
+				mode = budgetDowngradeMode(mode, m.sessionBudgetTier(session))
 				// A1 主席定向派工：上一轮小结信封里对本席的指令随提示词注入。
 				chairInstruction := chairInstructionFor(session, status.ID, round)
 				prompt = discussionPromptMode(session.Request, status, history, round, position+1, len(roundOrder), files, openIssues, mode, chairInstruction)
@@ -1267,16 +1291,22 @@ func (m *Manager) run(
 				CreatedAt:             time.Now().UnixMilli(),
 				DurationMs:            result.Duration.Milliseconds(),
 				Usage:                 result.Usage,
+				ToolEvidence:          m.buildToolEvidence(session, result.CallRef, hasCapability(status, "tool-trajectory")),
 			}
 			ledgerWarnings := m.recordIssueLedger(session, contribution, act.RawAction)
 			m.appendContribution(session, contribution)
+			// E4：陈词末尾的 NEEDS INPUT 登记为问题；本轮剩余席位继续发言，
+			// 轮末统一停车（见 run 的 pauseForSeatQuestions 检查点）。
+			if question, ok := seatNeedsInputQuestion(contribution.Content); ok {
+				m.recordSeatQuestion(session, status, contribution, question)
+			}
 			for _, warning := range ledgerWarnings {
 				m.addWarning(session, warning)
 			}
 			return contribution, clipped, true
 		}
 
-		if parallelOpening {
+		if parallelRound {
 			if ctx.Err() != nil {
 				m.finishCancelled(session)
 				return
@@ -1345,6 +1375,11 @@ func (m *Manager) run(
 				successful[agentID] = available[agentID]
 			}
 		}
+		// E4 停车点三：轮末。席位提问不打断正在跑的席位，也不跳过本轮
+		// 剩余席位；本轮收声后统一停车，答案在 Resume 后的下一轮进入。
+		if m.pauseForSeatQuestions(session) {
+			return
+		}
 		if session.Request.UntilConsensus &&
 			round >= 2 &&
 			roundReachedConsensus(roundContributions, len(order)) {
@@ -1356,6 +1391,12 @@ func (m *Manager) run(
 			round >= 2 &&
 			round < session.Request.Rounds &&
 			!m.didAllowsNextRound(session, round, didSeen) {
+			break
+		}
+		// B4 预算阶梯第二档（2026-11-07）：确认还有下一轮才评估——自然末轮
+		// 不产生收口警示。触发即跳过轮间小结直接汇总；与决策门不同，预算
+		// 收口不需要用户放行（用户设了预算就是预授权了这个停车动作）。
+		if m.budgetStopsAfterRound(session, round) {
 			break
 		}
 		// 主席轮间小结（2026-11-03 拍板）：非最后一轮时，主席先于下一轮提炼
@@ -1374,19 +1415,32 @@ func (m *Manager) run(
 			if status, ok := successful[moderator]; ok {
 				m.mu.Lock()
 				openIssues := openIssuesLocked(session)
+				receipts := chairAssignmentReceiptsForRound(session, round-1)
 				m.mu.Unlock()
-				prompt := moderationPrompt(session.Request, status, roundContributions, round, session.Request.Rounds-round, openIssues)
+				prompt := moderationPrompt(session.Request, status, roundContributions, round, session.Request.Rounds-round, openIssues, receipts)
 				res, err := m.runAgentWithRetry(ctx, session, status, prompt, PhaseModeration, round)
 				if err == nil && strings.TrimSpace(res.Text) != "" {
 					// A1 私有信封：解析定向派工，可见文本剥除信封原文后入档；
 					// 解析失败降级留痕，派工只认参会席位。
 					assignments, visible, malformed := parseChairEnvelope(res.Text)
 					assignments, dropped := filterChairAssignments(assignments, order)
+					decision, decisionMalformed := parseChairDecision(res.Text)
 					if malformed {
 						m.addWarning(session, fmt.Sprintf("第 %d 轮主席信封解析失败，已降级为普通小结（原文见事件流）", round))
+					} else if decisionMalformed {
+						m.addWarning(session, fmt.Sprintf("第 %d 轮主席终局信号无法识别，按「继续」处理", round))
 					}
 					if dropped > 0 {
 						m.addWarning(session, fmt.Sprintf("第 %d 轮主席信封有 %d 条派工指向非参会席位，已丢弃", round, dropped))
+					}
+					if decision.Status != chairDecisionContinue && len(assignments) > 0 {
+						m.addWarning(session, fmt.Sprintf("第 %d 轮主席终局为 %s，同时带了 %d 条派工，已忽略派工", round, decision.Status, len(assignments)))
+						assignments = nil
+					}
+					var decisionPtr *ChairDecision
+					if decision.Status != chairDecisionContinue {
+						decisionCopy := decision
+						decisionPtr = &decisionCopy
 					}
 					// 小结必须同时进本地 history：下一轮 prompt 从这里构建议程。
 					moderation := Contribution{
@@ -1398,6 +1452,8 @@ func (m *Manager) run(
 						AgentName:        status.Name + "（主持）",
 						Content:          visible,
 						ChairAssignments: assignments,
+						ChairDecision:    decisionPtr,
+						ToolEvidence:     m.buildToolEvidence(session, res.CallRef, hasCapability(status, "tool-trajectory")),
 						RunMode:          m.adapter(status.ID).runMode,
 						CreatedAt:        time.Now().UnixMilli(),
 						Usage:            res.Usage,
@@ -1407,6 +1463,23 @@ func (m *Manager) run(
 					// A2c 重复派工守卫：同一派工 ≥3 次即告警（一次一条）。
 					if warning := duplicatedAssignmentWarning(session); warning != "" {
 						m.addWarning(session, warning)
+					}
+					// E3 主席终局：blocked / needs-input 只停车；completed 不越权。
+					switch decision.Status {
+					case chairDecisionBlocked:
+						if m.openGateInSession(session, "主席判定阻塞："+decision.Detail) {
+							return
+						}
+						m.addWarning(session, fmt.Sprintf("第 %d 轮主席判定阻塞，但当前已有门/状态不允许再开，未停车", round))
+					case chairDecisionNeedsInput:
+						if m.askHost(session, "主席请求你回答："+decision.Detail) {
+							return
+						}
+						m.addWarning(session, fmt.Sprintf("第 %d 轮主席请求回答，但当前已有门/状态不允许登记，未停车", round))
+					case chairDecisionCompleted:
+						if session.Request.UntilConsensus && !roundReachedConsensus(roundContributions, len(order)) {
+							m.addWarning(session, fmt.Sprintf("第 %d 轮主席建议收口，但本轮未满足全员一致，未提前停止", round))
+						}
 					}
 				} else if err != nil && ctx.Err() == nil {
 					m.addWarning(session, fmt.Sprintf("第 %d 轮主席小结失败（不阻塞议事）：%v", round, err))
@@ -1456,7 +1529,7 @@ func (m *Manager) run(
 			ctx,
 			session,
 			summarizerStatus,
-			synthesisPromptMode(session.Request, summarizerStatus, history, m.transcriptFor(session), sessionIssuesSnapshot(session), m.seatHistorySeeded(summarizerStatus.ID)),
+			synthesisPromptMode(session.Request, summarizerStatus, history, m.transcriptFor(session), sessionIssuesSnapshot(session), m.seatSynthesisMode(summarizerStatus.ID)),
 			PhaseSynthesis,
 			0,
 		)
@@ -1660,6 +1733,9 @@ func (m *Manager) runOne(ctx context.Context, session *Session, status AgentStat
 	if adapter.invoke != nil {
 		callCtx, call := m.beginAgentCall(ctx, session, status, phase, round)
 		defer m.endAgentCall(session.ID, call)
+		// M1 输入侧对账锚：哈希与字数锚 clampPrompt 后真正发出的任务书，
+		// 随 CallRef 流入贡献与定稿（retries 共用同一份任务书）。
+		call.PromptSha256, call.PromptRunes = seatPromptSnapshot(prompt)
 		text, duration, err := m.runModelSeat(
 			callCtx,
 			session,
@@ -1687,6 +1763,9 @@ func (m *Manager) runOne(ctx context.Context, session *Session, status AgentStat
 	}
 	callCtx, call := m.beginAgentCall(ctx, session, status, phase, round)
 	defer m.endAgentCall(session.ID, call)
+	// M1 输入侧对账锚：CLI 席同款盖章（任务书经 Stdin/--prompt/文件三型
+	// 传输，宿主侧只留指纹）。与模型席分支同一口径。
+	call.PromptSha256, call.PromptRunes = seatPromptSnapshot(prompt)
 	// 引擎会话续接：只有声明了 buildResume 的席位（DSH）才带 --session-id。
 	// 首次调用 resumeID 为空 = 新建会话，引擎返回的 sessionId 落回 Participant，
 	// 下一轮同席续接——前缀缓存命中率由此从「只有固定 system 前缀」抬到
@@ -1956,6 +2035,20 @@ func (m *Manager) seatReadPaths(session *Session, images []string) []string {
 // GrokHistoryBackend 即成立（第 1 轮历史为空，提示词天然不受影响）。
 func (m *Manager) seatHistorySeeded(agentID string) bool {
 	return m.adapter(agentID).streamWithToolsSession != nil
+}
+
+// seatSynthesisMode 汇总调用的历史形态：Seed 引擎（会话里已有全量）省记录；
+// 模型席位（无引擎侧会话）全量窗口内联；CLI 席保持梯度（其引擎会话只见过
+// 梯度视图，全量记录必须在提示词在场）。
+func (m *Manager) seatSynthesisMode(agentID string) seatHistoryMode {
+	switch {
+	case m.seatHistorySeeded(agentID):
+		return historySeeded
+	case m.adapter(agentID).invoke != nil:
+		return historyFullWindow
+	default:
+		return historyGradient
+	}
 }
 
 // seatDeltaCapable 报告该席位本轮能否走 A5① 增量投递：引擎支持续接

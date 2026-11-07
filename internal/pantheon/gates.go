@@ -170,6 +170,7 @@ func (m *Manager) AskSeat(id, agentID, question string, options []string) (*Sess
 		QuestionID: fmt.Sprintf("%s-q%d", session.ID, len(session.Events)+1),
 		Options:    cleanStrings(options),
 		AskedBy:    agentID,
+		Origin:     QuestionOriginUser,
 		At:         now,
 	}
 	if err := m.observeSeatLocked(session, agentID, seatObservation{
@@ -257,6 +258,19 @@ func (m *Manager) AnswerSeat(id, questionID, body string) (*Session, error) {
 		},
 		At: now,
 	})
+	// 第二次蒸馏 E3/E4：回答不是事件终点，它必须成为下一轮提示词里的
+	// 【用户回答】。以贡献身份入档，绑 QuestionID；不走 AddUserNote，避免
+	// 把一条回答记成分歧条目。
+	session.Contributions = append(session.Contributions, Contribution{
+		ID:         fmt.Sprintf("%s-user-answer-%d", session.ID, time.Now().UnixNano()),
+		Phase:      PhaseUserAnswer,
+		Round:      session.CurrentRound,
+		AgentID:    "user",
+		AgentName:  "用户",
+		Content:    body,
+		QuestionID: questionID,
+		CreatedAt:  now,
+	})
 	if err := m.store.save(session); err != nil {
 		m.mu.Unlock()
 		return nil, err
@@ -265,6 +279,125 @@ func (m *Manager) AnswerSeat(id, questionID, body string) (*Session, error) {
 	m.mu.Unlock()
 	m.emitSafe(event)
 	return out, nil
+}
+
+// recordSeatQuestion 把席位陈词末尾的 NEEDS INPUT 登记成问题事件（E4）。
+//
+// 时序边界：席位的外部进程已经结束，不试图“边跑边问”；本轮剩余席位继续
+// 发言，轮末由 pauseForSeatQuestions 统一停车。席位状态是 needs_input，
+// 但不是一次普通观测（finished → needs_input 不在转移表里），所以走控制
+// 通道并声明出处 OriginEvent。
+func (m *Manager) recordSeatQuestion(session *Session, status AgentStatus, contribution Contribution, question seatQuestion) {
+	m.mu.Lock()
+	pending := pendingQuestionsLocked(session)
+	for _, item := range pending {
+		if item.AskedBy == status.ID && item.Origin == QuestionOriginSeat {
+			m.mu.Unlock()
+			return
+		}
+	}
+	if len(pending) >= 3 {
+		session.Warnings = append(session.Warnings, fmt.Sprintf(
+			"%s 在第 %d 轮末尾提问，但本场已有 %d 个未答提问，未再登记为阻塞问题（原文见该席陈词）",
+			status.Name, contribution.Round, len(pending)))
+		event := m.appendEventLocked(session, Event{
+			Phase: contribution.Phase, Round: contribution.Round, AgentID: status.ID,
+			Kind: EventPhase, Text: "席位提问超过未答上限，仅保留在陈词原文中", At: time.Now().UnixMilli(),
+		})
+		_ = m.store.save(session)
+		m.mu.Unlock()
+		m.emitSafe(event)
+		return
+	}
+	now := time.Now().UnixMilli()
+	text := trimRunes(question.Question, 2000)
+	payload := &QuestionPayload{
+		QuestionID: fmt.Sprintf("%s-q%d", session.ID, len(session.Events)+1),
+		AskedBy:    status.ID,
+		Default:    trimRunes(question.Default, 200),
+		Origin:     QuestionOriginSeat,
+		At:         now,
+	}
+	m.rebindSeatLockedWithOrigin(session, status.ID, SeatNeedsInput, "陈词末尾提问："+shortEvidence(text), OriginEvent)
+	event := m.appendEventLocked(session, Event{
+		Phase: contribution.Phase, Round: contribution.Round, AgentID: status.ID,
+		Kind: EventQuestion, Text: text, Question: payload, At: now,
+	})
+	_ = m.store.save(session)
+	m.mu.Unlock()
+	m.emitSafe(event)
+}
+
+// askHost 是主席终局信号 needs-input 的宿主提问（E3）：主席小结结束后该席
+// 已经 finished，不能把 finished 拖回 needs_input；所以只登记一条
+// AskedBy=""、Origin=chair 的问题，让整场 waiting_input，不改变任何席位状态。
+func (m *Manager) askHost(session *Session, question string) bool {
+	question = strings.TrimSpace(question)
+	if question == "" {
+		return false
+	}
+	m.mu.Lock()
+	if session.Status != StatusRunning || hasOpenGateLocked(session) {
+		m.mu.Unlock()
+		return false
+	}
+	now := time.Now().UnixMilli()
+	payload := &QuestionPayload{
+		QuestionID: fmt.Sprintf("%s-q%d", session.ID, len(session.Events)+1),
+		Origin:     QuestionOriginChair,
+		At:         now,
+	}
+	session.Status = StatusWaitingInput
+	session.UpdatedAt = now
+	event := m.appendEventLocked(session, Event{
+		Phase: session.Phase, Round: session.CurrentRound,
+		Kind: EventQuestion, Text: trimRunes(question, 2000), Question: payload, At: now,
+	})
+	if err := m.store.save(session); err != nil {
+		m.mu.Unlock()
+		return false
+	}
+	m.mu.Unlock()
+	m.emitSafe(event)
+	return true
+}
+
+// pendingSeatQuestionsLocked 只列席位自述提问（Origin=seat）；人工 AskSeat
+// 与主席宿主提问不参与 E4 的轮末停车。
+func pendingSeatQuestionsLocked(session *Session) []QuestionPayload {
+	pending := pendingQuestionsLocked(session)
+	out := make([]QuestionPayload, 0, len(pending))
+	for _, item := range pending {
+		if item.Origin == QuestionOriginSeat {
+			out = append(out, item)
+		}
+	}
+	return out
+}
+
+// pauseForSeatQuestions 在轮末把整场置 waiting_input；返回 true 表示已停车。
+// 它不再改席位状态（recordSeatQuestion 已经把该席标 needs_input），只留一条
+// 人能读的 phase 事件。
+func (m *Manager) pauseForSeatQuestions(session *Session) bool {
+	m.mu.Lock()
+	pending := pendingSeatQuestionsLocked(session)
+	if len(pending) == 0 {
+		m.mu.Unlock()
+		return false
+	}
+	if session.Status == StatusRunning {
+		session.Status = StatusWaitingInput
+	}
+	session.UpdatedAt = time.Now().UnixMilli()
+	event := m.appendEventLocked(session, Event{
+		Phase: session.Phase, Round: session.CurrentRound, Kind: EventPhase,
+		Text: fmt.Sprintf("本轮结束，%d 席提问等待回答", len(pending)),
+		At:   session.UpdatedAt,
+	})
+	_ = m.store.save(session)
+	m.mu.Unlock()
+	m.emitSafe(event)
+	return true
 }
 
 // AddUserNote 记录用户在讨论进行中的评论（2026-11-03 拍板）。不打断当前发言

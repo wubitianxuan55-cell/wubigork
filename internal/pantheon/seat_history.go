@@ -79,12 +79,59 @@ func buildSeatHistory(session *Session, agentID string, brief string, beforeRoun
 	return out
 }
 
+// fullWindowBudgetRunes 全量窗口预算（rune）：模型席位的往轮全文内联上限。
+// 超出时从最旧开始整体舍弃（带省略标注），最新的发言永远保真——clampPrompt
+// 的 60000 总预算还要装简报、指令与当轮，往轮记录只分到一部分。
+const fullWindowBudgetRunes = 36000
+
+// fullRecordBlock 全量窗口：全部贡献按存档序逐字内联（含本席自己的发言），
+// 预算超限时舍最旧。A5③ 实弹回退后的模型席位记忆通道（Seed 已证伪：
+// 模型带着 Seed 历史仍跑 12 步全工具循环，全量窗口的显式文本更可预期）。
+func fullRecordBlock(contributions []Contribution, agentID string, budgetRunes int) string {
+	items := make([]Contribution, 0, len(contributions))
+	for _, c := range contributions {
+		if strings.TrimSpace(c.Content) == "" || c.Phase == PhaseSynthesis {
+			continue
+		}
+		items = append(items, c)
+	}
+	render := func(c Contribution) string {
+		if agentID != "" && c.AgentID == agentID && c.Phase != PhaseModeration {
+			return "（你此前的发言 · 第 " + fmt.Sprint(c.Round) + " 轮）\n" + strings.TrimSpace(c.Content)
+		}
+		return seatRecordPart(c)
+	}
+	kept := make([]Contribution, 0, len(items))
+	used := 0
+	dropped := 0
+	for i := len(items) - 1; i >= 0; i-- {
+		size := len([]rune(render(items[i])))
+		if used+size > budgetRunes && len(kept) > 0 {
+			dropped = i + 1
+			break
+		}
+		used += size
+		kept = append([]Contribution{items[i]}, kept...)
+	}
+	var b strings.Builder
+	if dropped > 0 {
+		fmt.Fprintf(&b, "（更早的 %d 条发言因窗口预算省略，全文见归档文件）\n\n", dropped)
+	}
+	for _, c := range kept {
+		b.WriteString(render(c))
+		b.WriteString("\n\n")
+	}
+	return strings.TrimSpace(b.String())
+}
+
 // seatRecordPart 一条他人贡献在席位会议记录里的呈现（A5③ 历史重建与 A5①
 // 增量投递共用）：轮次+说话者标注+全文——两路消费方对「同一条发言长什么样」
 // 必须看到同一形状，否则跨形态记忆出现两套真相。
 func seatRecordPart(c Contribution) string {
 	label := "【" + c.AgentName + "】"
 	switch {
+	case c.Phase == PhaseUserAnswer:
+		label = "【用户回答】"
 	case c.Phase == PhaseUserNote || c.AgentID == "user":
 		label = "【用户插话】"
 	case c.Phase == PhaseModeration:

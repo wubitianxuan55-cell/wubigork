@@ -8832,6 +8832,61 @@
   margin-top: 6px;
 }
 
+/* 第二次蒸馏 E1/E2/E3：工具证据、主席派工/终局/回执 */
+.pantheon-chair-block {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant, #d8d2c4) 70%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--pantheon-surface-raised) 74%, transparent);
+  font-size: 12px;
+}
+
+.pantheon-chair-block strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  letter-spacing: .04em;
+}
+
+.pantheon-chair-block ul {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding-left: 16px;
+}
+
+.pantheon-chair-block li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.pantheon-chair-block code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  opacity: .8;
+}
+
+.pantheon-chair-block em {
+  font-style: normal;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 11px;
+}
+
+.pantheon-chair-decision {
+  margin: 10px 0 0;
+  padding: 6px 9px;
+  border-left: 2px solid color-mix(in srgb, var(--md-sys-color-warning, #c58a2a) 70%, transparent);
+  color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
+  font-size: 12px;
+  line-height: 1.55;
+}
+
 /* ══ 席位启动铭牌动画（2026-11-03 用户拍板「弹窗动画 2s + 众神殿风格」）══
    金线框铭牌：eyebrow 轮次铭文 + 衬线席名 + 各席专属动画条；右上浮层 2s 自消，
    非模态不阻塞任何交互。盖 antd notification 默认壳。 */

@@ -117,7 +117,7 @@ func TestSynthesisPromptSeededOmitsRecord(t *testing.T) {
 	if !strings.Contains(plain, "立场卡节选") {
 		t.Fatal("非 seeded 汇总回归：应保留分层说明")
 	}
-	seeded := synthesisPromptMode(req, fac, history, nil, nil, true)
+	seeded := synthesisPromptMode(req, fac, history, nil, nil, historySeeded)
 	if strings.Contains(seeded, "立场卡节选") || strings.Contains(seeded, "归档发言") || strings.Contains(seeded, "甲。") {
 		t.Fatalf("seeded 汇总不得重复讨论记录梯度：%q", seeded)
 	}
@@ -239,6 +239,68 @@ func TestDiscussionPromptDeltaCarriesNewcomersFullText(t *testing.T) {
 	empty := discussionPromptMode(req, agent, older, 2, 1, 2, nil, nil, historyDelta, "")
 	if !strings.Contains(empty, "自你上次发言以来没有新增发言或插话") {
 		t.Fatalf("无新增时应给空载荷文案：%q", empty)
+	}
+}
+
+func TestDiscussionPromptFullWindowCarriesAllRoundsInline(t *testing.T) {
+	history := []Contribution{
+		{Round: 1, Phase: PhaseOpening, AgentID: "grok", AgentName: "Grok", Content: "grok 第一轮全文"},
+		{Round: 1, Phase: PhaseOpening, AgentID: "alpha", AgentName: "Alpha", Content: "alpha 第一轮全文"},
+		{Round: 1, Phase: PhaseUserNote, AgentID: "user", Content: "用户插话全文"},
+		{Round: 2, Phase: PhaseDiscussion, AgentID: "beta", AgentName: "Beta", Content: "beta 第二轮全文"},
+	}
+	req := StartRequest{Topic: "全量窗口"}
+	agent := AgentStatus{ID: "grok", Name: "Grok"}
+	prompt := discussionPromptMode(req, agent, history, 2, 1, 2, nil, nil, historyFullWindow, "")
+	// 全部往轮全文在场（含本席自己与他人、插话），无立场卡/归档压缩。
+	for _, want := range []string{"grok 第一轮全文", "alpha 第一轮全文", "用户插话全文", "beta 第二轮全文", "（你此前的发言"} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("全量窗口缺载荷 %q", want)
+		}
+	}
+	if strings.Contains(prompt, "仅保留节选") || strings.Contains(prompt, "归档发言 · 原长") {
+		t.Fatalf("全量窗口不得带梯度压缩：%q", prompt)
+	}
+	if !strings.Contains(prompt, "无需重新探索工作空间") {
+		t.Fatal("全量窗口缺「别重新探索」纪律（Seed 证伪的根因防线）")
+	}
+}
+
+func TestFullRecordBlockBudgetDropsOldest(t *testing.T) {
+	items := make([]Contribution, 0, 6)
+	for i := 1; i <= 6; i++ {
+		items = append(items, Contribution{
+			Round: i, Phase: PhaseDiscussion, AgentID: "alpha", AgentName: "Alpha",
+			Content: strings.Repeat("长", 100),
+		})
+	}
+	block := fullRecordBlock(items, "grok", 300) // 预算只够 ~3 条
+	if strings.Contains(block, "（更早的") {
+		// 有省略标注：最旧的被舍弃
+		if strings.Contains(block, "第 1 轮") {
+			t.Fatal("预算内应舍弃最旧发言")
+		}
+		if !strings.Contains(block, "第 6 轮") {
+			t.Fatal("最新发言必须保真")
+		}
+	} else {
+		t.Fatal("超预算应出现省略标注")
+	}
+	_ = items
+}
+
+func TestSynthesisPromptFullWindowInlinesRecord(t *testing.T) {
+	history := []Contribution{
+		{Round: 1, Phase: PhaseDiscussion, AgentID: "alpha", AgentName: "Alpha", Content: strings.Repeat("甲。", 900)},
+		{Round: 2, Phase: PhaseDiscussion, AgentID: "beta", AgentName: "Beta", Content: "beta 第二轮全文"},
+	}
+	fac := AgentStatus{ID: "grok", Name: "Grok"}
+	prompt := synthesisPromptMode(StartRequest{Topic: "汇总"}, fac, history, nil, nil, historyFullWindow)
+	if !strings.Contains(prompt, "beta 第二轮全文") || !strings.Contains(prompt, "甲。") {
+		t.Fatalf("全量窗口汇总应内联全部发言全文：%q", prompt[:400])
+	}
+	if strings.Contains(prompt, "立场卡节选") {
+		t.Fatal("全量窗口汇总不得带梯度压缩")
 	}
 }
 

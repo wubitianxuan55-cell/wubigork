@@ -174,6 +174,8 @@ func newGrokAdapter(backend GrokBackend) agentAdapter {
 			status.Capabilities = ensureCapability(status.Capabilities, "shared-image-summary")
 			if hasToolStreaming {
 				status.Capabilities = ensureCapability(status.Capabilities, "image-path-tools")
+				// E1：工具事件在同一通道上报，证据摘要才有来源。
+				status.Capabilities = ensureCapability(status.Capabilities, "tool-trajectory")
 			}
 			return status
 		},
@@ -253,6 +255,9 @@ func newCodexAdapter(override string) agentAdapter {
 
 // codexExecSpec 构造 codex exec 调用；resumeID 非空走 `exec resume` 续接，
 // 为空走全新 `exec`（非 ephemeral——thread 必须落 rollout，下一轮才有的续）。
+// 工作目录经 commandSpec.Dir（子进程 cwd）表达：`-C` 是 exec 顶层参数，
+// resume 子命令拒收（2026-11-07 实弹 pan_1794058438005：主席小结 first
+// resume 即 exit 2，且错误路径丢引擎会话，连坐第二轮），两种形态都不带。
 func codexExecSpec(find func() (string, error), resumeID, prompt, cwd string, images []string) (commandSpec, error) {
 	path, err := find()
 	if err != nil {
@@ -273,7 +278,7 @@ func codexExecSpec(find func() (string, error), resumeID, prompt, cwd string, im
 	for _, image := range images {
 		args = append(args, "--image", image)
 	}
-	args = append(args, "-C", cwd, "-")
+	args = append(args, "-")
 	return commandSpec{
 		Executable: path,
 		Args:       args,

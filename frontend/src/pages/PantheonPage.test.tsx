@@ -376,7 +376,49 @@ describe('PantheonPage', () => {
     expect(request.protocol).toBe('independent')
     expect(request.agentIds).toEqual(['grok'])
     expect(request.rounds).toBe(1)
+    // B4：未填预算 = 不限，请求里不带字段（后端零值=行为不变）。
+    expect(request.timeBudgetMinutes).toBeUndefined()
     expect(await screen.findByTestId('pantheon-record')).toBeTruthy()
+  })
+
+  it('整场预算：填写分钟数写入开议请求（B4）', async () => {
+    render(<PantheonPage />)
+    await screen.findByRole('heading', { name: /在讨论中彼此补强/ })
+    fireEvent.click(screen.getByTestId('pantheon-welcome-start'))
+    fireEvent.click(await screen.findByTestId('pantheon-workspace-gaea-research'))
+    fireEvent.change(screen.getByTestId('pantheon-topic'), {
+      target: { value: '预算透传' },
+    })
+    fireEvent.change(screen.getByRole('spinbutton', { name: '整场议事预算分钟' }), {
+      target: { value: '45' },
+    })
+    const start = screen.getByTestId('pantheon-start')
+    await waitFor(() => expect((start as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(start)
+    await waitFor(() => expect(mocks.start).toHaveBeenCalledTimes(1))
+    expect(mocks.start.mock.calls[0][0].timeBudgetMinutes).toBe(45)
+  })
+
+  it('互盲驳论协议写入请求（M2 对照组）', async () => {
+    render(<PantheonPage />)
+    await screen.findByRole('heading', { name: /在讨论中彼此补强/ })
+    fireEvent.click(screen.getByTestId('pantheon-welcome-start'))
+    fireEvent.click(await screen.findByTestId('pantheon-workspace-gaea-research'))
+    fireEvent.mouseDown(
+      screen.getByTestId('pantheon-protocol').querySelector('.ant-select-selector')!,
+    )
+    const option = await screen.findByText('互盲驳论', {
+      selector: '.ant-select-item-option-content',
+    })
+    fireEvent.click(option.closest('.ant-select-item-option')!)
+    fireEvent.change(screen.getByTestId('pantheon-topic'), {
+      target: { value: '互盲对照' },
+    })
+    const start = screen.getByTestId('pantheon-start')
+    await waitFor(() => expect((start as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(start)
+    await waitFor(() => expect(mocks.start).toHaveBeenCalledTimes(1))
+    expect(mocks.start.mock.calls[0][0].protocol).toBe('blind_rebuttal')
   })
 
   it('定向质询 preset 强制独立开场并写入请求', async () => {

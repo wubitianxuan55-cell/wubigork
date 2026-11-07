@@ -1604,6 +1604,11 @@ func TestCodexResumeSpecCarriesSessionID(t *testing.T) {
 	if containsValue(spec.Args, "--ephemeral") {
 		t.Fatalf("resume spec must not be ephemeral: %v", spec.Args)
 	}
+	// A5② 实弹修正（pan_1794058438005）：resume 子命令拒收 -C（exec 顶层参数），
+	// 工作目录走 commandSpec.Dir；两形态都不得再出现。
+	if containsValue(spec.Args, "-C") {
+		t.Fatalf("resume spec must not carry -C (resume rejects it): %v", spec.Args)
+	}
 	if !containsAdjacent(spec.Args, "--image", image) {
 		t.Fatalf("resume spec lost image attachment: %v", spec.Args)
 	}
@@ -1614,6 +1619,9 @@ func TestCodexResumeSpecCarriesSessionID(t *testing.T) {
 	}
 	if containsValue(fresh.Args, "resume") {
 		t.Fatalf("empty resumeID must not emit resume subcommand: %v", fresh.Args)
+	}
+	if containsValue(fresh.Args, "-C") {
+		t.Fatalf("fresh exec spec must not carry -C (Dir field covers cwd): %v", fresh.Args)
 	}
 }
 

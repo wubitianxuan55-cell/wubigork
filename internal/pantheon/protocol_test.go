@@ -16,8 +16,93 @@ func TestNormalizeProtocol(t *testing.T) {
 	if got, err := NormalizeProtocol(" council "); err != nil || got != ProtocolCouncil {
 		t.Fatalf("council = (%q,%v), want council", got, err)
 	}
+	if got, err := NormalizeProtocol("blind_rebuttal"); err != nil || got != ProtocolBlindRebuttal {
+		t.Fatalf("blind_rebuttal = (%q,%v), want blind_rebuttal", got, err)
+	}
 	if got, err := NormalizeProtocol("chatroom"); err == nil {
 		t.Fatalf("unknown protocol %q accepted as %q", "chatroom", got)
+	}
+}
+
+// M2 互盲驳论（2026-11-08）：全部轮次并行且同轮互盲——第 2 轮各席只看往轮
+// （含他席第 1 轮全文），看不到同轮他席驳论；驳论指令只进第 2 轮起的提示词。
+func TestBlindRebuttalRoundsAreParallelAndBlind(t *testing.T) {
+	runner := defaultFakeRunner()
+	runner.outputs["alpha"] = func(spec commandSpec) (string, error) {
+		switch {
+		case strings.Contains(spec.Stdin, "补充论证"):
+			return "ALPHA-R2 驳论：逐席覆盖上一轮立场，先攻最强点。", nil
+		case strings.Contains(spec.Stdin, "开场陈述"):
+			return "ALPHA-R1 立场：先做只读验证。", nil
+		}
+		return fakeOutputFor("alpha", spec.Stdin), nil
+	}
+	runner.outputs["beta"] = func(spec commandSpec) (string, error) {
+		switch {
+		case strings.Contains(spec.Stdin, "补充论证"):
+			return "BETA-R2 驳论：逐席覆盖上一轮立场，先攻最强点。", nil
+		case strings.Contains(spec.Stdin, "开场陈述"):
+			return "BETA-R1 立场：可以做验证，但必须设置超时。", nil
+		}
+		return fakeOutputFor("beta", spec.Stdin), nil
+	}
+	m := newTestManager(t, runner, fakeAdapter("alpha"), fakeAdapter("beta"))
+	defer m.Close()
+	session, err := m.Start(StartRequest{
+		Topic: "互盲驳论对照", AgentIDs: []string{"alpha", "beta"}, ChairmanAgentID: "alpha",
+		Protocol: ProtocolBlindRebuttal, Rounds: 2,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := waitForStatus(t, m, session.ID, StatusCompleted)
+	if done.Request.Protocol != ProtocolBlindRebuttal {
+		t.Fatalf("session protocol = %q, want blind_rebuttal", done.Request.Protocol)
+	}
+	if variant := EvaluationVariantOf(done); variant != EvaluationVariantBlindRebuttal {
+		t.Fatalf("evaluation variant = %q, want blind_rebuttal", variant)
+	}
+	if label := EvaluationVariantLabel(EvaluationVariantBlindRebuttal); label != "互盲驳论" {
+		t.Fatalf("variant label = %q, want 互盲驳论", label)
+	}
+	alphaRound2, betaRound2 := 0, 0
+	for _, call := range runner.calls {
+		forAlpha := strings.Contains(call.Stdin, "参与者「ALPHA」")
+		forBeta := strings.Contains(call.Stdin, "参与者「BETA」")
+		switch {
+		case strings.Contains(call.Stdin, "开场陈述"):
+			if strings.Contains(call.Stdin, "互盲驳论轮") {
+				t.Fatalf("round 1 must not carry the rebuttal instruction:\n%s", call.Stdin)
+			}
+			if strings.Contains(call.Stdin, "先做只读验证") && forBeta {
+				t.Fatalf("blind round 1 leaked alpha's statement into beta's opening:\n%s", call.Stdin)
+			}
+		case strings.Contains(call.Stdin, "补充论证"):
+			if !strings.Contains(call.Stdin, "互盲驳论轮") || !strings.Contains(call.Stdin, "逐席覆盖") {
+				t.Fatalf("round 2 prompt missing the blind rebuttal contract:\n%s", call.Stdin)
+			}
+			if forAlpha {
+				alphaRound2++
+				if !strings.Contains(call.Stdin, "BETA-R1") {
+					t.Fatalf("alpha round 2 must see beta's round-1 statement:\n%s", call.Stdin)
+				}
+				if strings.Contains(call.Stdin, "BETA-R2") {
+					t.Fatalf("blind round 2 leaked beta's same-round rebuttal into alpha's prompt:\n%s", call.Stdin)
+				}
+			}
+			if forBeta {
+				betaRound2++
+				if !strings.Contains(call.Stdin, "ALPHA-R1") {
+					t.Fatalf("beta round 2 must see alpha's round-1 statement:\n%s", call.Stdin)
+				}
+				if strings.Contains(call.Stdin, "ALPHA-R2") {
+					t.Fatalf("blind round 2 leaked alpha's same-round rebuttal into beta's prompt:\n%s", call.Stdin)
+				}
+			}
+		}
+	}
+	if alphaRound2 != 1 || betaRound2 != 1 {
+		t.Fatalf("round-2 calls alpha=%d beta=%d, want 1/1", alphaRound2, betaRound2)
 	}
 }
 

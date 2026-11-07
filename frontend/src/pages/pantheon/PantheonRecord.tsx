@@ -26,7 +26,10 @@ import { Alert, Button, Dropdown, Empty, Input, Spin, Tag, Tooltip } from 'antd'
 import { MarkdownContent, mdStyles } from '../../components/MarkdownContent'
 import { AGENT_ACCENTS, agentCapabilityLabel, presetLabel, protocolLabel } from './visuals'
 import { PantheonAgentAvatar } from './PantheonAgentAvatar'
+import { chairAssignmentReceipts, receiptStatusLabel, type PantheonChairReceipt } from './chairReceipts'
 import type {
+  PantheonChairAssignment,
+  PantheonChairDecision,
   PantheonContribution,
   PantheonEvent,
   PantheonIssue,
@@ -35,6 +38,7 @@ import type {
   PantheonParticipant,
   PantheonSeatUsage,
   PantheonSession,
+  PantheonToolEvidence,
 } from './types'
 
 interface Props {
@@ -206,6 +210,10 @@ interface DiscussionOutput {
   challengedClaim?: string
   responseVerdict?: string
   usage?: PantheonSeatUsage
+  chairAssignments?: PantheonChairAssignment[]
+  chairDecision?: PantheonChairDecision
+  toolEvidence?: PantheonToolEvidence
+  receipts?: PantheonChairReceipt[]
 }
 
 interface ToolTraceView {
@@ -290,6 +298,46 @@ function seatUsageTitle(usage?: PantheonSeatUsage): string {
     lines.push(`缓存命中 ${usage.cacheReadTokens ?? 0} / 新增 ${usage.inputTokens ?? 0} prompt token`)
   }
   return lines.join('\n')
+}
+
+/** E1 工具证据摘要：宿主实际看见的调用，不是模型自述。 */
+function seatToolEvidenceLabel(evidence?: PantheonToolEvidence): string {
+  if (!evidence) return ''
+  const calls = evidence.calls ?? 0
+  const ok = evidence.ok ?? 0
+  const failed = evidence.failed ?? 0
+  const nonEmpty = evidence.nonEmpty ?? 0
+  const unresolved = Math.max(0, calls - ok - failed)
+  const detail = [
+    ok ? `${ok} 成功` : '',
+    failed ? `${failed} 失败` : '',
+    nonEmpty ? `${nonEmpty} 次有非空返回` : '',
+    unresolved ? `${unresolved} 未回报` : '',
+  ].filter(Boolean)
+  return detail.length > 0 ? `${calls} 次工具（${detail.join(' / ')}）` : `${calls} 次工具`
+}
+
+function seatToolEvidenceTitle(evidence?: PantheonToolEvidence): string {
+  if (!evidence) return ''
+  const lines: string[] = []
+  if (evidence.tools?.length) {
+    lines.push(`工具：${evidence.tools.map((tool) => `${tool.name}×${tool.count}`).join('、')}`)
+  }
+  if ((evidence.repeatFailures ?? 0) >= 2) {
+    lines.push(`同一工具连续失败 ${evidence.repeatFailures} 次：${evidence.repeatTool ?? '未知工具'}`)
+  }
+  lines.push('宿主观察，不是质量分')
+  return lines.join('\n')
+}
+
+function chairDecisionLabel(status?: string): string {
+  switch (status) {
+    case 'completed': return '建议收口'
+    case 'needs-input': return '需人回答'
+    case 'blocked': return '被阻塞'
+    case 'continue': return '继续'
+    default: return status || '继续'
+  }
 }
 
 /** 席位活性：观测超过 90 秒没有更新，"正在发言"就该让位给"活性未知"。
@@ -438,13 +486,16 @@ function WaitingPanel({
       </header>
       {questions.map(({ question, text }) => {
         const draft = drafts[question.questionId] || ''
+        const asker = question.origin === 'chair' ? '主席' : nameOf(question.askedBy)
+        const options = question.options ?? []
+        const showDefault = Boolean(question.default) && !options.includes(question.default!)
         return (
           <div className="pantheon-waiting-item" key={question.questionId}>
-            <span className="pantheon-waiting-asker">{nameOf(question.askedBy)} 问</span>
+            <span className="pantheon-waiting-asker">{asker} 问</span>
             <p>{text}</p>
-            {(question.options ?? []).length > 0 && (
+            {(options.length > 0 || showDefault) && (
               <div className="pantheon-waiting-options">
-                {(question.options ?? []).map((option) => (
+                {options.map((option) => (
                   <Button
                     key={option}
                     size="small"
@@ -454,6 +505,15 @@ function WaitingPanel({
                     {option}
                   </Button>
                 ))}
+                {showDefault && (
+                  <Button
+                    size="small"
+                    disabled={busy}
+                    onClick={() => onAnswer(question.questionId, question.default!)}
+                  >
+                    用默认：{question.default}
+                  </Button>
+                )}
               </div>
             )}
             <div className="pantheon-waiting-reply">
@@ -461,7 +521,7 @@ function WaitingPanel({
                 size="small"
                 value={draft}
                 placeholder="写一句回答，只投递给提问的那一席"
-                aria-label={`回答 ${nameOf(question.askedBy)} 的提问`}
+                aria-label={`回答 ${asker} 的提问`}
                 onChange={(event) =>
                   setDrafts((current) => ({ ...current, [question.questionId]: event.target.value }))
                 }
@@ -1292,12 +1352,13 @@ const AgentDetailPanel: React.FC<{
                               </>
                             )}
                           </span>
-                          <small title={seatUsageTitle(output.usage)}>
+                          <small title={[seatUsageTitle(output.usage), seatToolEvidenceTitle(output.toolEvidence)].filter(Boolean).join('\n')}>
                             {output.streaming
                               ? '正在输出'
                               : [
                                   output.durationMs ? `${(output.durationMs / 1000).toFixed(1)}s` : '独立观点',
                                   seatUsageLabel(output.usage),
+                                  seatToolEvidenceLabel(output.toolEvidence),
                                 ].filter(Boolean).join(' · ')}
                           </small>
                         </header>
@@ -1311,6 +1372,29 @@ const AgentDetailPanel: React.FC<{
                           challengedClaim={output.challengedClaim}
                           responseVerdict={output.responseVerdict}
                         />
+                        {output.chairDecision && output.chairDecision.status !== 'continue' && (
+                          <p className="pantheon-chair-decision">
+                            主席终局：{chairDecisionLabel(output.chairDecision.status)}
+                            {output.chairDecision.detail ? `——${output.chairDecision.detail}` : ''}
+                          </p>
+                        )}
+                        {output.chairAssignments && output.chairAssignments.length > 0 && (
+                          <div className="pantheon-chair-block">
+                            <strong>主席派工</strong>
+                            <ul>
+                              {output.chairAssignments.map((assignment, index) => {
+                                const receipt = output.receipts?.find((item) => item.agentId === assignment.agentId)
+                                return (
+                                  <li key={`${assignment.agentId}-${index}`}>
+                                    <code>{receipt?.agentName || assignment.agentId}</code>
+                                    <span>{assignment.instruction}</span>
+                                    {receipt && <em title={receipt.detail}>{receiptStatusLabel(receipt.status)}</em>}
+                                  </li>
+                                )
+                              })}
+                            </ul>
+                          </div>
+                        )}
                         {output.streaming && (
                           <span className="pantheon-agent-output-caret pantheon-stream-caret" aria-label="正在输出" />
                         )}
@@ -1517,6 +1601,16 @@ export const PantheonRecord: React.FC<Props> = ({
     }))
   }, [session.participants, session.request.agentIds])
 
+  const chairReceipts = useMemo<Record<string, PantheonChairReceipt[]>>(() => {
+    const map: Record<string, PantheonChairReceipt[]> = {}
+    for (const item of session.contributions ?? []) {
+      if (item.phase === 'moderation' && (item.chairAssignments?.length ?? 0) > 0) {
+        map[item.id] = chairAssignmentReceipts(session, item)
+      }
+    }
+    return map
+  }, [session])
+
   const discussionOutputs = useMemo<DiscussionOutput[]>(() => {
     if ((session.contributions ?? []).length > 0) {
       return session.contributions.map((item: PantheonContribution) => ({
@@ -1534,6 +1628,10 @@ export const PantheonRecord: React.FC<Props> = ({
         challengedClaim: item.challengedClaim,
         responseVerdict: item.responseVerdict,
         usage: item.usage,
+        chairAssignments: item.chairAssignments,
+        chairDecision: item.chairDecision,
+        toolEvidence: item.toolEvidence,
+        receipts: item.phase === 'moderation' ? chairReceipts[item.id] : undefined,
       }))
     }
     return (session.events ?? [])
@@ -1551,7 +1649,7 @@ export const PantheonRecord: React.FC<Props> = ({
         durationMs: event.durationMs,
         at: event.at,
       }))
-  }, [participants, session.contributions, session.events])
+  }, [participants, session.contributions, session.events, chairReceipts])
 
   const displayOutputs = useMemo(() => {
     const outputs = [...discussionOutputs]
@@ -1885,6 +1983,7 @@ export const PantheonRecord: React.FC<Props> = ({
           PHASE_LABEL[output.phase] || output.phase,
           output.durationMs ? `用时 ${(output.durationMs / 1000).toFixed(1)}s` : '',
           seatUsageLabel(output.usage),
+          seatToolEvidenceLabel(output.toolEvidence),
         ].filter(Boolean).join(' · '),
         at: output.streaming ? Number.MAX_SAFE_INTEGER : output.at || session.updatedAt,
         round: output.round,

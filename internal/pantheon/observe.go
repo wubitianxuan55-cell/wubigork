@@ -122,6 +122,15 @@ func (m *Manager) startSeatRoundLocked(session *Session, agentID, evidence strin
 }
 
 func (m *Manager) rebindSeatLocked(session *Session, agentID, status, evidence string) {
+	m.rebindSeatLockedWithOrigin(session, agentID, status, evidence, OriginUser)
+}
+
+// rebindSeatLockedWithOrigin 与 rebindSeatLocked 同构，但允许控制动作声明
+// 自己的出处：席位自述提问是事件证据（OriginEvent），不是用户动作。
+func (m *Manager) rebindSeatLockedWithOrigin(session *Session, agentID, status, evidence, origin string) {
+	if origin == "" {
+		origin = OriginUser
+	}
 	for i := range session.Participants {
 		p := &session.Participants[i]
 		if p.AgentID != agentID {
@@ -129,7 +138,7 @@ func (m *Manager) rebindSeatLocked(session *Session, agentID, status, evidence s
 		}
 		p.Status = status
 		p.Observed = Observed{
-			Origin:      OriginUser,
+			Origin:      origin,
 			AuthorityID: m.authorityID,
 			Incarnation: p.Observed.Incarnation + 1,
 			Revision:    1,

@@ -84,7 +84,7 @@ func TestSynthesisDemandsDistillation(t *testing.T) {
 
 func TestDiscussionPromptCarriesAntiDistortionRules(t *testing.T) {
 	prompt := discussionPrompt(StartRequest{Topic: "转述"}, AgentStatus{ID: "beta", Name: "BETA"}, nil, 2, 1, 2, nil, nil)
-	for _, want := range []string{"转述纪律", "贡献 ID", "【工具核验】", "【未核验】"} {
+	for _, want := range []string{"转述纪律", "贡献 ID", "【工具核验】", "【未核验】", "出处 + 要点"} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("anti-distortion rules miss %q", want)
 		}

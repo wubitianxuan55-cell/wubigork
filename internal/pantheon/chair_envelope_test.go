@@ -102,6 +102,85 @@ func TestDuplicatedAssignmentWarningTripAtThree(t *testing.T) {
 	}
 }
 
+func TestParseChairDecisionVectors(t *testing.T) {
+	cases := []struct {
+		name       string
+		text       string
+		wantStatus string
+		wantDetail string
+		malformed  bool
+	}{
+		{
+			name:       "no envelope is continue",
+			text:       "普通小结",
+			wantStatus: chairDecisionContinue,
+		},
+		{
+			name:       "empty object is continue",
+			text:       `<pantheon-chair>{}</pantheon-chair>`,
+			wantStatus: chairDecisionContinue,
+		},
+		{
+			name:       "explicit continue",
+			text:       `<pantheon-chair>{"decision":"continue","assignments":[{"agentId":"alpha","instruction":"复核"}]}</pantheon-chair>`,
+			wantStatus: chairDecisionContinue,
+		},
+		{
+			name:       "completed with detail",
+			text:       `<pantheon-chair>{"decision":"completed","detail":"可收口"}</pantheon-chair>`,
+			wantStatus: chairDecisionCompleted,
+			wantDetail: "可收口",
+		},
+		{
+			name:       "needs input underscore normalized",
+			text:       `<pantheon-chair>{"decision":"needs_input","detail":"需要你选 A/B"}</pantheon-chair>`,
+			wantStatus: chairDecisionNeedsInput,
+			wantDetail: "需要你选 A/B",
+		},
+		{
+			name:       "blocked without detail is malformed",
+			text:       `<pantheon-chair>{"decision":"blocked"}</pantheon-chair>`,
+			wantStatus: chairDecisionContinue,
+			malformed:  true,
+		},
+		{
+			name:       "unknown decision is malformed",
+			text:       `<pantheon-chair>{"decision":"later","detail":"x"}</pantheon-chair>`,
+			wantStatus: chairDecisionContinue,
+			malformed:  true,
+		},
+		{
+			name:       "last complete envelope wins",
+			text:       `<pantheon-chair>{"decision":"completed","detail":"旧"}</pantheon-chair>` + "\n" + `<pantheon-chair>{"decision":"blocked","detail":"新"}</pantheon-chair>`,
+			wantStatus: chairDecisionBlocked,
+			wantDetail: "新",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, malformed := parseChairDecision(tc.text)
+			if got.Status != tc.wantStatus || got.Detail != tc.wantDetail || malformed != tc.malformed {
+				t.Fatalf("got %+v malformed=%v, want status=%q detail=%q malformed=%v", got, malformed, tc.wantStatus, tc.wantDetail, tc.malformed)
+			}
+		})
+	}
+}
+
+func TestModerationPromptCarriesReceipts(t *testing.T) {
+	req := StartRequest{Topic: "回执", Rounds: 2, Preset: PresetRoundtable}
+	fac := AgentStatus{ID: "alpha", Name: "ALPHA"}
+	prompt := moderationPrompt(req, fac, []Contribution{
+		{Round: 1, Phase: PhaseDiscussion, AgentID: "beta", AgentName: "BETA", Content: "beta 发言"},
+	}, 1, 1, nil, []ChairAssignmentReceipt{
+		{Round: 1, AgentID: "beta", AgentName: "BETA", Status: ReceiptSpoke, ContributionID: "c-1"},
+	})
+	for _, want := range []string{"上一轮派工回执", "已发言（未证明完成）", "贡献 ID c-1", "不要把「已发言」写成「已完成」"} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("prompt missing %q:\n%s", want, prompt)
+		}
+	}
+}
+
 func TestModerationPromptCarriesLedgerRosterAndEnvelope(t *testing.T) {
 	req := StartRequest{Topic: "信封"}
 	fac := AgentStatus{ID: "grok", Name: "Grok"}
@@ -111,7 +190,7 @@ func TestModerationPromptCarriesLedgerRosterAndEnvelope(t *testing.T) {
 	}
 	prompt := moderationPrompt(req, fac, roundContribs, 1, 2, []Issue{
 		{ID: "pan_t-issue-1", Round: 1, AgentName: "CODEX", Summary: "缓存账目口径未对齐", Status: "open"},
-	})
+	}, nil)
 	if !strings.Contains(prompt, "pan_t-issue-1") || !strings.Contains(prompt, "当前分歧台账") {
 		t.Fatal("moderationPrompt 必须携带 open 台账（注入不对称点销项）")
 	}

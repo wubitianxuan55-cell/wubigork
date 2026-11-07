@@ -147,6 +147,7 @@ func ExportMarkdown(session *Session) string {
 	}
 
 	writeStopSignals(&b, session)
+	writeBudgetSignals(&b, session)
 	if len(session.Warnings) > 0 {
 		b.WriteString("## 警示\n\n")
 		for _, warning := range session.Warnings {
@@ -188,6 +189,30 @@ func writeEvaluationMetricsMarkdown(b *strings.Builder, session *Session) {
 		}
 	}
 	b.WriteString("- Token/费用：未采集，不能把耗时差当作成本结论\n\n")
+}
+
+// writeChairBlock 把 A1 派工与 E2 回执、E3 终局写进交付物。派工原本只存在
+// session.json 里，人看不见；这里补上，且回执措辞与 UI/提示词一致：
+// spoke = 已发言（未证明完成），不是已完成。
+func writeChairBlock(b *strings.Builder, session *Session, contribution Contribution) {
+	if len(contribution.ChairAssignments) == 0 && contribution.ChairDecision == nil {
+		return
+	}
+	b.WriteString("\n\n**主席派工与终局**\n\n")
+	if contribution.ChairDecision != nil {
+		fmt.Fprintf(b, "- 终局：%s（%s）\n", contribution.ChairDecision.Status, contribution.ChairDecision.Detail)
+	}
+	receipts := chairAssignmentReceiptsForRound(session, contribution.Round)
+	for _, assignment := range contribution.ChairAssignments {
+		status := receiptStatusLabel(ReceiptPending)
+		for _, receipt := range receipts {
+			if receipt.AgentID == assignment.AgentID {
+				status = receiptStatusLabel(receipt.Status)
+				break
+			}
+		}
+		fmt.Fprintf(b, "- %s → %s（%s）\n", assignment.AgentID, assignment.Instruction, status)
+	}
 }
 
 // RenderFinalDocument produces the compact deliverable owned by the council
@@ -270,12 +295,24 @@ func RenderFinalDocument(session *Session) string {
 		if contribution.RunMode != "" {
 			fmt.Fprintf(&b, "_运行方式：%s_\n\n", contribution.RunMode)
 		}
+		if contribution.PromptSha256 != "" {
+			fmt.Fprintf(&b, "_任务书快照：sha256:%s · %d 字_\n\n", contribution.PromptSha256, contribution.PromptRunes)
+		}
 		writeDiscussionActionMarkdown(&b, contribution)
 		b.WriteString(contribution.Content)
+		if contribution.ToolEvidence != nil {
+			fmt.Fprintf(&b, "\n\n> %s\n", toolEvidenceLine(contribution.ToolEvidence))
+			if note := evidenceMismatchNote(contribution.ToolEvidence, contribution.Content); note != "" {
+				fmt.Fprintf(&b, "> ⚠ %s\n", note)
+			}
+		}
 		if contribution.Consensus != "" {
 			// The protocol line was stripped from the body; write the signal
 			// back so the deliverable carries the stop evidence.
 			fmt.Fprintf(&b, "\n\n> 共识状态：%s（协议行提取）\n", consensusLabel(contribution.Consensus))
+		}
+		if contribution.Phase == PhaseModeration {
+			writeChairBlock(&b, session, contribution)
 		}
 		b.WriteString("\n\n")
 	}
@@ -331,6 +368,8 @@ func writeStopSignals(b *strings.Builder, session *Session) {
 		fmt.Fprintf(b, "- 结果：第 %d 轮达成全员一致，提前停止\n", consensusRound)
 	} else if didStopRound > 0 {
 		fmt.Fprintf(b, "- 结果：第 %d 轮后没有新的可执行核验动作（DID），停止追加轮次\n", didStopRound)
+	} else if budgetRound := budgetStopRound(session); budgetRound > 0 {
+		fmt.Fprintf(b, "- 结果：第 %d 轮后触发整场预算收口，未达成全员一致，停止追加轮次\n", budgetRound)
 	} else {
 		fmt.Fprintf(b, "- 结果：达到安全上限 %d 轮，未达成全员一致\n", session.Request.Rounds)
 	}

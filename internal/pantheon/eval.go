@@ -21,6 +21,7 @@ const (
 	EvaluationVariantTargetedChallenge = "targeted_challenge"
 	EvaluationVariantRedTeam           = "red_team"
 	EvaluationVariantCouncilRelay      = "council_relay"
+	EvaluationVariantBlindRebuttal     = "blind_rebuttal"
 )
 
 var evaluationCoreVariants = []string{
@@ -273,6 +274,9 @@ func EvaluationVariantOf(session *Session) string {
 	}
 	if session.Request.Protocol == ProtocolCouncil {
 		return EvaluationVariantCouncilRelay
+	}
+	if session.Request.Protocol == ProtocolBlindRebuttal {
+		return EvaluationVariantBlindRebuttal
 	}
 	if session.Request.Rounds <= 1 && !session.Request.UntilConsensus {
 		return EvaluationVariantIndependent
@@ -645,6 +649,8 @@ func EvaluationVariantLabel(variant string) string {
 		return "红队评审"
 	case EvaluationVariantCouncilRelay:
 		return "圆桌接力（历史）"
+	case EvaluationVariantBlindRebuttal:
+		return "互盲驳论"
 	default:
 		return firstNonEmpty(variant, "未分类")
 	}
@@ -670,8 +676,10 @@ func evaluationVariantOrder(variant string) int {
 		return len(evaluationCoreVariants)
 	case EvaluationVariantCouncilRelay:
 		return len(evaluationCoreVariants) + 1
-	default:
+	case EvaluationVariantBlindRebuttal:
 		return len(evaluationCoreVariants) + 2
+	default:
+		return len(evaluationCoreVariants) + 3
 	}
 }
 

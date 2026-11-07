@@ -42,12 +42,14 @@ export interface PantheonStartRequest {
   untilConsensus?: boolean
   maxRounds?: number
   readOnly: boolean
-  /** 议事路径：council=圆桌接力；independent=独立开场（默认，第 1 轮不注入同轮前序） */
+  /** 议事路径：council=圆桌接力；independent=独立开场（默认，第 1 轮不注入同轮前序）；blind_rebuttal=互盲驳论（M2：全轮并行且同轮互盲） */
   protocol?: string
   /** 议事形态：roundtable=圆桌会诊（默认）；targeted_challenge=定向质询 */
   preset?: 'roundtable' | 'targeted_challenge' | string
   /** 续议来源会话 ID（裁决第三刀：保留父会话谱系；承接以简报为准） */
   parentSessionId?: string
+  /** 整场议事墙钟预算（分钟，B4）：≥80% 历史降档、≥90% 轮间收口进汇总；缺省/0 = 不限 */
+  timeBudgetMinutes?: number
   /** 每轮之间停下，开一道决策门等人确认（O-E） */
   gateEachRound?: boolean
 }
@@ -57,6 +59,10 @@ export interface PantheonQuestion {
   questionId: string
   options?: string[]
   askedBy?: string
+  /** 席位在 NEEDS INPUT 后附的 Default: 选项（E4）；不是自动回答。 */
+  default?: string
+  /** user=人工 AskSeat；seat=席位陈词末尾自述；chair=主席终局 needs-input。 */
+  origin?: 'user' | 'seat' | 'chair' | string
   at?: number
 }
 
@@ -78,6 +84,9 @@ export interface PantheonCallRef {
   attemptId?: string
   retryOfAttempt?: string
   attempt?: number
+  /** 输入侧对账锚（M1）：实际发出的提示词（截断后）sha256 前 16 hex 与字数。 */
+  promptSha256?: string
+  promptRunes?: number
 }
 
 /** 席位观测：这条状态是谁在什么时候看见的（Orca agent-status 的圆桌版）。 */
@@ -139,6 +148,44 @@ export interface PantheonLiveStream extends PantheonCallRef {
   updatedAt?: number
 }
 
+export interface PantheonChairAssignment {
+  agentId: string
+  instruction: string
+}
+
+/** 主席终局信号（E3）。completed 只是建议，宿主仍按分歧/缺口裁决。 */
+export interface PantheonChairDecision {
+  status: 'continue' | 'completed' | 'needs-input' | 'blocked' | string
+  detail?: string
+}
+
+export interface PantheonToolCount {
+  name: string
+  count: number
+  /** 该工具名下成功结果数。 */
+  ok?: number
+  /** 该工具名下「成功且返回内容非空」的结果数。 */
+  nonEmpty?: number
+  /** 该工具首个非空成功输出（宿主看到的有界预览）的 sha256 前 16 hex；存档回放同一性锚点。 */
+  digest?: string
+}
+
+/**
+ * 宿主对一次席位调用实际工具事件的摘要（E1）。
+ * nil/缺省 = 该通道不上报工具轨迹；存在零值 = 上报了、0 次。
+ * nonEmpty 是共享账对账线锚点：陈词标注【工具核验】而 nonEmpty=0 → 导出给出不可对证警示。
+ */
+export interface PantheonToolEvidence {
+  calls?: number
+  ok?: number
+  failed?: number
+  /** 跨全部工具「成功且返回内容非空」的结果总数（不受 tools 截断影响）。 */
+  nonEmpty?: number
+  repeatFailures?: number
+  repeatTool?: string
+  tools?: PantheonToolCount[]
+}
+
 export interface PantheonContribution extends PantheonCallRef {
   id: string
   phase: string
@@ -164,6 +211,14 @@ export interface PantheonContribution extends PantheonCallRef {
   evidenceHandle?: string
   /** 回应既有质疑：accept / partial / reject */
   responseVerdict?: string
+  /** A1 主席派工；E2 在记录/导出里显示。 */
+  chairAssignments?: PantheonChairAssignment[]
+  /** E3 主席终局。 */
+  chairDecision?: PantheonChairDecision
+  /** E1 宿主观察的工具证据。 */
+  toolEvidence?: PantheonToolEvidence
+  /** 只在 user_answer 贡献上：回答绑定的提问 ID。 */
+  questionId?: string
   runMode?: string
   createdAt: number
   durationMs?: number
