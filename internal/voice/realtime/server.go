@@ -116,6 +116,7 @@ func (srv *Server) Start() error {
 	srv.Addr = ln.Addr().String() // :0 实测端口回填（测试用）
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/realtime", srv.handleWS)
+	mux.HandleFunc("/v1/diag/playback", srv.handleDiagPlayback)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
