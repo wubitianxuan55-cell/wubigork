@@ -103,3 +103,59 @@ breeze（确定性输出，流式/非流式逐字节同）+ 生产重采样器�
 **结论**：污染进入点在**客户端播放运行时**（泵/ring/worklet/设备）或声学
 环节——不在服务端管线。复开时的第一动作=客户端播放面落盘（worklet 回传
 实际播放样本 → Wails bridge 存文件），一次复现即可对齐。
+
+## 复开与收官（2026-11-07 晚，用户报「大段文字到后面语速加快+重叠+杂音」）
+
+### 播放面诊断刀（instrumentation）
+
+- `internal/voice/realtime/diag_tap.go`：`POST /v1/diag/playback`——前端 worklet
+  回传**实际外放样本**（设备率 Int16 LE，header 携 file/rate/truncate/seq），
+  落 `$APPDATA/gaea/diag/voice-playback-tap-<id>.pcm` + sidecar meta.json（rate），
+  保留最近 5 个。OPTIONS 预检 + CORS 头（跨源自定义头必预检）。
+- `frontend/public/voice-worklets/sinkProcessor.js`：process() 实际外放样本
+  （含欠载补零——声学真相原样）攒批 ≈1s 回传。
+- `frontend/src/voice/runtime/useVoiceChatV2.ts`：tap 队列 ref 流转零 setState，
+  500ms POST 泵（URL.origin 提取；fetch 失败首错上屏一次）。
+- `scripts/voice_v2/playback_tap_analyze.py`：分窗（0.5s）RMS/peak/ZCR/跳变，
+  判据=破碎（jump≥8/窗）/加速嫌疑（zcr≥前 20% 有声窗基线×1.5）/静音洞/
+  异常能量；异常窗±2 合并出复听区间 + WAV 导出。
+- 诊断链自身三层坑（真浏览器自测链抓出）：①POST URL 拼接 404（realtime
+  URL 带路径，须 origin 提取）②跨源 OPTIONS 预检未实现 ③WebView2 对 public
+  静态 worklet 启发式缓存（cache-bust `?v=` 破防）。自测配方：OfflineAudioContext
+  （无手势依赖，startRendering 全速跑 process）+ dist 真产物 + 独立 diagserver
+  （`scripts/voice_v2/diagserver`，:8799 不碰生产）。
+
+### 定罪：tap 分段 STT 对照原文（用户方法论「对照文本和语音」）
+
+54s tap → 能量切段 25 块 → 逐块 paraformer（gaea 同款 model.int8.onnx；
+**整段 54s 直解会崩只出首句，必须切段**）→ 与 chat.db 原文逐句对齐：
+
+- 开头正常（句1 3.5 字/s）；**中段 26.5~35.7s 压到 7~9 字/s 且字被顶替残缺**
+  （「褪去了白日的焦躁」9 字只剩 0.65s 的非原文音段；「我站在这里」消失）；
+  句8 恢复 5.3 字/s；无整段重复（自相关无重复峰）；本轮单响应单 rev（排除
+  多响应堆叠）。
+- **定罪**：泵读迟到的 fill 报告重复灌注 → ring 超 4s cap → **逐样本丢最旧**
+  → 中段时间轴压缩+字缺失+波形毛刺 =「语速加快+杂音」。句8 恢复=积压消化
+  后报告跟上。渲染风暴（每 delta setState）随会话变长越迟=「越到后面越严重」。
+- 方法论补刀：此前「决定性解析」是离线复现线缆——「线缆干净」对**实发流**
+  从未直接成立过；tap 落盘补上了这一环。
+
+### 修复四刀（全对齐上游无上限+声卡拉取背压语义）
+
+| 刀 | 内容 |
+|---|---|
+| A | 泵本地记账：fill 估计=报告值+postedSinceReport（报告到达清零）；已达水位整 tick 跳过=报告迟到零渗漏 |
+| B | worklet 整块拒绝：消息级预检（need=ceil(n×outRate/16000)+2）超 cap 整块拒+rejected 上报；write 层停写防御恒 0；**废逐样本顶替** |
+| C | ring 4s→30s + 高水位 3s→8s + fill 报告 4/s→10/s |
+| D | onPlayLevel 60ms 节流（每 delta setState 渲染风暴=报告迟到根因；lv=0 立即放行） |
+
+测试钉：worklets.test（30s cap/整块拒绝/拒绝解除）+ useVoiceChatV2.test
+（记账零渗漏/节流放行；stub 触发回调须走 node.port.onmessage）。装机
+2026-11-07 18:07 PID 13956（gaea_install.ps1 -Launch），用户实弹复测确认恢复。
+
+### 遗留
+
+- 诊断 tap 常开（诊断刀，稳定后可撤：worklet tapOn 控制消息已留）。
+- 复开线索①（多响应排队只播最终 rev）未动——本轮定罪证明单响应内即复发，
+  该语义拍板仍挂用户池。
+
