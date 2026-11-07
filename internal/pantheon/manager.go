@@ -138,6 +138,12 @@ type Manager struct {
 	wg         sync.WaitGroup
 	emit       func(Event)
 	deltaSeq   int64
+	// toolSaveAt 是工具事件落盘的节流时间戳（会话 ID → 上次落盘毫秒）。
+	// 一次 4 轮会议实测 209 次工具调用 = 418 次「整份 session.json 序列化 +
+	// fsync」，而且每次都在 m.mu 里做：锁被占住时取消按钮、插话、拉快照全部
+	// 排在后面，界面就像卡住了。终态事件（输出/失败/完成）仍然逐次落盘，
+	// 这里只牺牲工具心跳的最坏 1 秒持久性。
+	toolSaveAt map[string]int64
 	// authorityID 每次进程启动重生成：席位观测的序号只在同一 authority 内可比，
 	// 换进程后必须从头计数（§2.2）。
 	authorityID string
@@ -175,6 +181,7 @@ func NewManager(root string, runner commandRunner, emit func(Event)) (*Manager, 
 		agentCalls:  map[string]map[string]*activeAgentCall{},
 		runs:        map[string]*Session{},
 		emit:        emit,
+		toolSaveAt:  map[string]int64{},
 		authorityID: fmt.Sprintf("pantheon:%d:%d", os.Getpid(), time.Now().UnixNano()),
 	}, nil
 }
@@ -1195,10 +1202,11 @@ func (m *Manager) run(
 				prompt = discussionPrompt(session.Request, status, history, round, position+1, len(roundOrder), files, openIssues)
 			}
 			clipped := promptExceedsBudget(prompt)
-			out, duration, callRef, err := m.runAgentWithRetry(ctx, session, status, prompt, phase, round)
+			result, err := m.runAgentWithRetry(ctx, session, status, prompt, phase, round)
 			if err != nil {
 				return Contribution{}, clipped, false
 			}
+			out := result.Text
 			act := extractDiscussionActDetails(out)
 			out = act.Text
 			signal := extractConsensusSignalDetails(out)
@@ -1225,7 +1233,7 @@ func (m *Manager) run(
 				}
 			}
 			contribution := Contribution{
-				CallRef:               callRef,
+				CallRef:               result.CallRef,
 				ID:                    fmt.Sprintf("%s-%s-r%d-%d", session.ID, status.ID, round, time.Now().UnixNano()),
 				Phase:                 phase,
 				Round:                 round,
@@ -1246,7 +1254,8 @@ func (m *Manager) run(
 				ResponseVerdict:       act.ResponseVerdict,
 				RunMode:               m.adapter(status.ID).runMode,
 				CreatedAt:             time.Now().UnixMilli(),
-				DurationMs:            duration.Milliseconds(),
+				DurationMs:            result.Duration.Milliseconds(),
+				Usage:                 result.Usage,
 			}
 			ledgerWarnings := m.recordIssueLedger(session, contribution, act.RawAction)
 			m.appendContribution(session, contribution)
@@ -1353,19 +1362,20 @@ func (m *Manager) run(
 			}
 			if status, ok := successful[moderator]; ok {
 				prompt := moderationPrompt(session.Request, status, roundContributions, round, session.Request.Rounds-round)
-				out, _, callRef, err := m.runAgentWithRetry(ctx, session, status, prompt, PhaseModeration, round)
-				if err == nil && strings.TrimSpace(out) != "" {
+				res, err := m.runAgentWithRetry(ctx, session, status, prompt, PhaseModeration, round)
+				if err == nil && strings.TrimSpace(res.Text) != "" {
 					// 小结必须同时进本地 history：下一轮 prompt 从这里构建议程。
 					moderation := Contribution{
-						CallRef:   callRef,
+						CallRef:   res.CallRef,
 						ID:        fmt.Sprintf("%s-%s-mod-r%d-%d", session.ID, status.ID, round, time.Now().UnixNano()),
 						Phase:     PhaseModeration,
 						Round:     round,
 						AgentID:   status.ID,
 						AgentName: status.Name + "（主持）",
-						Content:   out,
+						Content:   res.Text,
 						RunMode:   m.adapter(status.ID).runMode,
 						CreatedAt: time.Now().UnixMilli(),
+						Usage:     res.Usage,
 					}
 					m.appendContribution(session, moderation)
 					history = append(history, moderation)
@@ -1413,7 +1423,7 @@ func (m *Manager) run(
 	}
 	var verdict *Verdict
 	if ok {
-		out, duration, callRef, err := m.runAgentWithRetry(
+		res, err := m.runAgentWithRetry(
 			ctx,
 			session,
 			summarizerStatus,
@@ -1421,24 +1431,25 @@ func (m *Manager) run(
 			PhaseSynthesis,
 			0,
 		)
-		if err == nil && strings.TrimSpace(out) != "" {
-			verdict = parseVerdict(out, summarizerStatus.Name, duration)
+		if err == nil && strings.TrimSpace(res.Text) != "" {
+			verdict = parseVerdict(res.Text, summarizerStatus.Name, res.Duration)
 			normalizedReviews, reviewWarnings := validateIssueReviews(verdict.IssueReviews, session.Issues)
 			verdict.IssueReviews = normalizedReviews
 			for _, warning := range reviewWarnings {
 				m.addWarning(session, warning)
 			}
 			m.appendContribution(session, Contribution{
-				CallRef:    callRef,
+				CallRef:    res.CallRef,
 				ID:         fmt.Sprintf("%s-%s-synthesis-%d", session.ID, summarizerStatus.ID, time.Now().UnixNano()),
 				Phase:      PhaseSynthesis,
 				AgentID:    summarizerStatus.ID,
 				AgentName:  summarizerStatus.Name,
 				AnonLabel:  "协作汇总",
-				Content:    out,
+				Content:    res.Text,
 				RunMode:    m.adapter(summarizerStatus.ID).runMode,
 				CreatedAt:  time.Now().UnixMilli(),
-				DurationMs: duration.Milliseconds(),
+				DurationMs: res.Duration.Milliseconds(),
+				Usage:      res.Usage,
 			})
 		} else if err != nil && ctx.Err() == nil {
 			m.addWarning(session, fmt.Sprintf("%s 协作汇总失败：%v", summarizerStatus.Name, err))
@@ -1547,6 +1558,15 @@ func (m *Manager) run(
 	}
 }
 
+// seatResult 是一次席位调用的完整结果。Usage 是引擎自报的账目（目前 DSH
+// headless 会上报步数/缓存命中/token）；nil = 该引擎不上报，不是零调用。
+type seatResult struct {
+	Text     string
+	Duration time.Duration
+	CallRef  CallRef
+	Usage    *SeatUsage
+}
+
 func (m *Manager) runAgentWithRetry(
 	ctx context.Context,
 	session *Session,
@@ -1554,23 +1574,24 @@ func (m *Manager) runAgentWithRetry(
 	prompt string,
 	phase string,
 	round int,
-) (string, time.Duration, CallRef, error) {
+) (seatResult, error) {
 	autoRetried := false
 	for {
-		text, duration, callRef, err := m.runOne(ctx, session, status, prompt, phase, round)
+		result, err := m.runOne(ctx, session, status, prompt, phase, round)
 		if errors.Is(err, errAgentRetry) && ctx.Err() == nil {
 			continue
 		}
 		// 空结果自动重试一次（2026-11-03 并行实弹）：并行开场 4 进程并发下
 		// zcode 中途夭折零正文=11-02 在册老病（完成门收紧后判空），偶发性强、
 		// 新鲜进程重跑成功率高。只对空结果类失败放行（凭据/路径错误重试无用），
-		// 每次调用至多一次，事件可见不静默。
+		// 每次调用至多一次，事件可见不静默。工具预算与看门狗失败不在此列：
+		// 同样的行为重跑只会再撞一次墙。
 		if err != nil && isEmptyResultErr(err) && !autoRetried && ctx.Err() == nil {
 			autoRetried = true
 			m.recordAutoRetry(session, status, phase, round, err)
 			continue
 		}
-		return text, duration, callRef, err
+		return result, err
 	}
 }
 
@@ -1601,10 +1622,10 @@ func (m *Manager) recordAutoRetry(session *Session, status AgentStatus, phase st
 	}
 }
 
-func (m *Manager) runOne(ctx context.Context, session *Session, status AgentStatus, prompt, phase string, round int) (string, time.Duration, CallRef, error) {
+func (m *Manager) runOne(ctx context.Context, session *Session, status AgentStatus, prompt, phase string, round int) (seatResult, error) {
 	adapter := m.adapter(status.ID)
 	if adapter.id == "" {
-		return "", 0, CallRef{}, fmt.Errorf("未找到 Agent Adapter %s", status.ID)
+		return seatResult{}, fmt.Errorf("未找到 Agent Adapter %s", status.ID)
 	}
 	images := attachmentPaths(session.Request.Attachments)
 	if adapter.invoke != nil {
@@ -1623,7 +1644,7 @@ func (m *Manager) runOne(ctx context.Context, session *Session, status AgentStat
 			phase,
 			round,
 		)
-		return text, duration, call.CallRef, err
+		return seatResult{Text: text, Duration: duration, CallRef: call.CallRef}, err
 	}
 	m.mu.Lock()
 	workDir := session.Request.Workspace
@@ -1636,24 +1657,40 @@ func (m *Manager) runOne(ctx context.Context, session *Session, status AgentStat
 	}
 	callCtx, call := m.beginAgentCall(ctx, session, status, phase, round)
 	defer m.endAgentCall(session.ID, call)
-	spec, err := adapter.build(prompt, workDir, images)
+	// 引擎会话续接：只有声明了 buildResume 的席位（DSH）才带 --session-id。
+	// 首次调用 resumeID 为空 = 新建会话，引擎返回的 sessionId 落回 Participant，
+	// 下一轮同席续接——前缀缓存命中率由此从「只有固定 system 前缀」抬到
+	// 「system+全部历史步」。
+	resumeID := ""
+	if adapter.buildResume != nil {
+		resumeID = m.seatEngineSession(session, status.ID)
+	}
+	spec, err := adapter.commandSpec(prompt, workDir, images, resumeID)
 	if err != nil {
 		m.recordAgentError(session, status, phase, round, call, err)
-		return "", 0, call.CallRef, err
+		return seatResult{CallRef: call.CallRef}, err
 	}
 	runCtx, cancel := context.WithTimeout(callCtx, defaultAgentLimit)
-	defer cancel()
+	guard := newSeatGuard(cancel, seatToolBudget, seatStallLimit, seatFirstTextLimit)
+	defer func() {
+		guard.Close()
+		cancel()
+	}()
+	// 事件行（thinking/status/usage）也喂看门狗：长推理不是卡死。
+	spec.Activity = guard.NoteActivity
 	start := time.Now()
 	onDelta := func(chunk string) {
 		if m.agentCallAborted(call) {
 			return
 		}
+		guard.NoteText()
 		m.recordAgentDelta(session, status, phase, round, call, chunk)
 	}
 	onTool := func(trace ToolTrace) {
 		if m.agentCallAborted(call) {
 			return
 		}
+		guard.NoteTool(trace.ID)
 		m.recordToolTrace(session, status, phase, round, call, trace)
 	}
 	var raw string
@@ -1665,31 +1702,98 @@ func (m *Manager) runOne(ctx context.Context, session *Session, status AgentStat
 		raw, err = m.runner.Run(runCtx, spec)
 	}
 	duration := time.Since(start)
+	// 护栏先于引擎失败判读：预算/活性失败也是通过 cancel 生效的，先看 ctx 会
+	// 把它们误报成「用户取消」。护栏杀掉的是本次调用，引擎会话本身没坏，
+	// 保留续接资格。
+	if guardErr := guard.Err(); guardErr != nil {
+		m.recordAgentError(session, status, phase, round, call, guardErr)
+		return seatResult{Duration: duration, CallRef: call.CallRef}, guardErr
+	}
 	if m.agentCallSkipped(call) {
-		return "", duration, call.CallRef, errAgentSkipped
+		return seatResult{Duration: duration, CallRef: call.CallRef}, errAgentSkipped
 	}
 	if m.agentCallRetry(call) {
-		return "", duration, call.CallRef, errAgentRetry
+		return seatResult{Duration: duration, CallRef: call.CallRef}, errAgentRetry
 	}
 	if err != nil {
+		err = annotateSeatError(status.ID, err)
+		// 引擎自己失败且一个字都没产出来：这个会话可能已经损坏/被占用，
+		// 下一轮继续拿它续接会一轮接一轮地撞同一面墙，丢掉换新的。
+		m.dropEngineSessionWithoutOutput(session, status.ID, resumeID, parseAgentOutput(raw))
 		m.recordAgentError(session, status, phase, round, call, err)
-		return "", duration, call.CallRef, err
+		return seatResult{Duration: duration, CallRef: call.CallRef}, err
+	}
+	usage := parseSeatRunStats(raw)
+	if usage.EngineSessionID != "" && adapter.buildResume != nil {
+		m.setSeatEngineSession(session, status.ID, usage.EngineSessionID)
 	}
 	text := strings.TrimSpace(parseAgentOutput(raw))
 	if m.agentCallSkipped(call) {
-		return "", duration, call.CallRef, errAgentSkipped
+		return seatResult{Duration: duration, CallRef: call.CallRef}, errAgentSkipped
 	}
 	if m.agentCallRetry(call) {
-		return "", duration, call.CallRef, errAgentRetry
+		return seatResult{Duration: duration, CallRef: call.CallRef}, errAgentRetry
 	}
 	if text == "" {
 		err = errors.New("Agent 返回空结果")
 		m.recordAgentError(session, status, phase, round, call, err)
-		return "", duration, call.CallRef, err
+		return seatResult{Duration: duration, CallRef: call.CallRef}, err
 	}
 	text = trimRunes(text, maxAgentOutput)
 	m.recordAgentOutput(session, status, phase, round, call, text, duration)
-	return text, duration, call.CallRef, nil
+	result := seatResult{Text: text, Duration: duration, CallRef: call.CallRef}
+	if usage.EngineSessionID != "" || usage.Steps > 0 {
+		result.Usage = &usage
+	}
+	return result, nil
+}
+
+// seatEngineSession 读该席当前 attempt 续接的引擎会话 ID（空 = 还没建过）。
+func (m *Manager) seatEngineSession(session *Session, agentID string) string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i := range session.Participants {
+		if session.Participants[i].AgentID == agentID {
+			return strings.TrimSpace(session.Participants[i].EngineSessionID)
+		}
+	}
+	return ""
+}
+
+func (m *Manager) setSeatEngineSession(session *Session, agentID, engineSessionID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i := range session.Participants {
+		if session.Participants[i].AgentID == agentID {
+			session.Participants[i].EngineSessionID = strings.TrimSpace(engineSessionID)
+			return
+		}
+	}
+}
+
+func (m *Manager) clearSeatEngineSession(session *Session, agentID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i := range session.Participants {
+		if session.Participants[i].AgentID == agentID {
+			session.Participants[i].EngineSessionID = ""
+			return
+		}
+	}
+}
+
+// dropEngineSessionWithoutOutput 处理「引擎报错且零正文」：会话可能已损坏或
+// 被别处占用，继续拿它续接会让每一轮都撞同一面墙。丢掉 ID，下一轮新建会话
+// （代价是一次冷启动），而不是让整场议事卡在同一个坏会话上。护栏杀掉的调用
+// 不走这里——那类会话本身仍然可用。
+func (m *Manager) dropEngineSessionWithoutOutput(session *Session, agentID, resumeID, text string) {
+	if strings.TrimSpace(resumeID) == "" {
+		return
+	}
+	if strings.TrimSpace(text) != "" {
+		return
+	}
+	m.clearSeatEngineSession(session, agentID)
 }
 
 // runModelSeat 模型席位执行：无 cwd、无 CLI 包装；提示词即全部输入，输出是
@@ -2367,9 +2471,26 @@ func (m *Manager) recordToolTrace(
 		At:         now,
 	}
 	event = m.appendEventLocked(session, event)
-	_ = m.store.save(session)
+	m.saveThrottledLocked(session)
 	m.mu.Unlock()
 	m.emitSafe(event)
+}
+
+// saveThrottledLocked 是工具事件专用落盘：同一会话每 toolSaveInterval 最多
+// 写一次。调用方必须已持有 m.mu（与既有 store.save 的持锁约定一致）。
+// 不能把整份 JSON 写穿磁盘——工具心跳只用于重启后回放，丢最后 1 秒可接受；
+// 席位输出/失败/完成仍走逐次 store.save。
+func (m *Manager) saveThrottledLocked(session *Session) {
+	const toolSaveInterval = int64(1000)
+	if m.toolSaveAt == nil {
+		m.toolSaveAt = map[string]int64{}
+	}
+	now := time.Now().UnixMilli()
+	if last, ok := m.toolSaveAt[session.ID]; ok && now-last < toolSaveInterval {
+		return
+	}
+	m.toolSaveAt[session.ID] = now
+	_ = m.store.save(session)
 }
 
 func (m *Manager) recordAgentOutput(

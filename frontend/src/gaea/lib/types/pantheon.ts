@@ -167,6 +167,21 @@ export interface PantheonContribution extends PantheonCallRef {
   runMode?: string
   createdAt: number
   durationMs?: number
+  /** 引擎自报的调用账目（目前 DSH headless 上报）；缺省＝该引擎不上报，不是零调用。 */
+  usage?: PantheonSeatUsage
+}
+
+/**
+ * 一次席位调用的引擎侧账目：步数、token 与前缀缓存命中。
+ * engineSessionId 是引擎自己的会话 ID——用户可据此去 DSH 会话库里核对
+ * 「这一席是不是真的调用了 DSH」，而不是只看界面上的品牌名。
+ */
+export interface PantheonSeatUsage {
+  engineSessionId?: string
+  steps?: number
+  inputTokens?: number
+  cacheReadTokens?: number
+  outputTokens?: number
 }
 
 export interface PantheonVerdict {

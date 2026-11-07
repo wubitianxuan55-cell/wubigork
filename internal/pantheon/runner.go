@@ -43,6 +43,10 @@ type commandSpec struct {
 	// Cleanup removes per-call transport files after the child process exits.
 	// ZCode uses this for long prompts that cannot fit Windows argv.
 	Cleanup func()
+	// Activity 在子进程每输出一段 stdout/stderr 时触发（不是每段正文，而是
+	// 每一行事件——thinking/status/usage 都算）。席位看门狗用它区分「模型正在
+	// 长推理」与「进程活着但什么都没发生」：只有后者该被杀。
+	Activity func()
 }
 
 // commandRunner is injectable so protocol tests never call a real model.
@@ -162,6 +166,12 @@ func (r osCommandRunner) runStream(
 		cmd.Stdout = stdout
 	}
 	cmd.Stderr = stderr
+	if spec.Activity != nil {
+		// 任何一路输出都算进展：事件行（thinking/status/usage）不产生正文，
+		// 但足以证明模型/工具还在推进。
+		cmd.Stdout = io.MultiWriter(cmd.Stdout, activityWriter{spec.Activity})
+		cmd.Stderr = io.MultiWriter(stderr, activityWriter{spec.Activity})
+	}
 	cmd.WaitDelay = 3 * time.Second
 	err := cmd.Run()
 	if stream != nil {
@@ -190,6 +200,16 @@ func (r osCommandRunner) runStream(
 		out += "\n\n[输出已截断]"
 	}
 	return out, nil
+}
+
+// activityWriter 把「子进程又吐了一段」转成一次活性信号，不改变输出内容。
+type activityWriter struct{ notify func() }
+
+func (w activityWriter) Write(p []byte) (int, error) {
+	if w.notify != nil && len(p) > 0 {
+		w.notify()
+	}
+	return len(p), nil
 }
 
 type streamTextWriter struct {

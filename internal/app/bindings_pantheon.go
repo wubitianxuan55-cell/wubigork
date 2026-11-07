@@ -10,25 +10,51 @@ import (
 // 方法体零改动——纯委托给 App 实例（b.a.<Method>）。
 type PantheonB struct{ a *App }
 
-func (b *PantheonB) PantheonAddUserNote(id string, content string) (*pantheon.Session, error) { return b.a.PantheonAddUserNote(id, content) }
+func (b *PantheonB) PantheonAddUserNote(id string, content string) (*pantheon.Session, error) {
+	return b.a.PantheonAddUserNote(id, content)
+}
 func (b *PantheonB) PantheonAgents() ([]pantheon.AgentStatus, error) { return b.a.PantheonAgents() }
-func (b *PantheonB) PantheonAnswerSeat(id string, questionID string, body string) (*pantheon.Session, error) { return b.a.PantheonAnswerSeat(id, questionID, body) }
-func (b *PantheonB) PantheonAskSeat(id string, agentID string, question string, options []string) (*pantheon.Session, error) { return b.a.PantheonAskSeat(id, agentID, question, options) }
+func (b *PantheonB) PantheonAnswerSeat(id string, questionID string, body string) (*pantheon.Session, error) {
+	return b.a.PantheonAnswerSeat(id, questionID, body)
+}
+func (b *PantheonB) PantheonAskSeat(id string, agentID string, question string, options []string) (*pantheon.Session, error) {
+	return b.a.PantheonAskSeat(id, agentID, question, options)
+}
 func (b *PantheonB) PantheonCancel(id string) error { return b.a.PantheonCancel(id) }
 func (b *PantheonB) PantheonDelete(id string) error { return b.a.PantheonDelete(id) }
-func (b *PantheonB) PantheonEvaluation(minCases int) (pantheon.EvaluationReport, error) { return b.a.PantheonEvaluation(minCases) }
-func (b *PantheonB) PantheonExport(id string) (string, error) { return b.a.PantheonExport(id) }
+func (b *PantheonB) PantheonEvaluation(minCases int) (pantheon.EvaluationReport, error) {
+	return b.a.PantheonEvaluation(minCases)
+}
+func (b *PantheonB) PantheonExport(id string) (string, error)         { return b.a.PantheonExport(id) }
 func (b *PantheonB) PantheonGet(id string) (*pantheon.Session, error) { return b.a.PantheonGet(id) }
 func (b *PantheonB) PantheonList() ([]pantheon.SessionSummary, error) { return b.a.PantheonList() }
-func (b *PantheonB) PantheonOpenGate(id string, reason string) (*pantheon.Session, error) { return b.a.PantheonOpenGate(id, reason) }
+func (b *PantheonB) PantheonOpenGate(id string, reason string) (*pantheon.Session, error) {
+	return b.a.PantheonOpenGate(id, reason)
+}
 func (b *PantheonB) PantheonOpenResult(id string) (string, error) { return b.a.PantheonOpenResult(id) }
-func (b *PantheonB) PantheonPickWorkspace() (string, error) { return b.a.PantheonPickWorkspace() }
-func (b *PantheonB) PantheonResolveGate(id string, action string, reason string) (*pantheon.Session, error) { return b.a.PantheonResolveGate(id, action, reason) }
-func (b *PantheonB) PantheonRestart(id string) (*pantheon.Session, error) { return b.a.PantheonRestart(id) }
-func (b *PantheonB) PantheonResume(id string) (*pantheon.Session, error) { return b.a.PantheonResume(id) }
-func (b *PantheonB) PantheonRetryAgent(id string, agentID string) error { return b.a.PantheonRetryAgent(id, agentID) }
-func (b *PantheonB) PantheonSetExecutable(id string, path string) ([]pantheon.AgentStatus, error) { return b.a.PantheonSetExecutable(id, path) }
-func (b *PantheonB) PantheonSignOff(id string, decision string, note string) (*pantheon.Session, error) { return b.a.PantheonSignOff(id, decision, note) }
-func (b *PantheonB) PantheonSkipAgent(id string, agentID string) error { return b.a.PantheonSkipAgent(id, agentID) }
-func (b *PantheonB) PantheonStart(req pantheon.StartRequest) (*pantheon.Session, error) { return b.a.PantheonStart(req) }
+func (b *PantheonB) PantheonPickWorkspace() (string, error)       { return b.a.PantheonPickWorkspace() }
+func (b *PantheonB) PantheonResolveGate(id string, action string, reason string) (*pantheon.Session, error) {
+	return b.a.PantheonResolveGate(id, action, reason)
+}
+func (b *PantheonB) PantheonRestart(id string) (*pantheon.Session, error) {
+	return b.a.PantheonRestart(id)
+}
+func (b *PantheonB) PantheonResume(id string) (*pantheon.Session, error) {
+	return b.a.PantheonResume(id)
+}
+func (b *PantheonB) PantheonRetryAgent(id string, agentID string) error {
+	return b.a.PantheonRetryAgent(id, agentID)
+}
+func (b *PantheonB) PantheonSetExecutable(id string, path string) ([]pantheon.AgentStatus, error) {
+	return b.a.PantheonSetExecutable(id, path)
+}
+func (b *PantheonB) PantheonSignOff(id string, decision string, note string) (*pantheon.Session, error) {
+	return b.a.PantheonSignOff(id, decision, note)
+}
+func (b *PantheonB) PantheonSkipAgent(id string, agentID string) error {
+	return b.a.PantheonSkipAgent(id, agentID)
+}
+func (b *PantheonB) PantheonStart(req pantheon.StartRequest) (*pantheon.Session, error) {
+	return b.a.PantheonStart(req)
+}
 func (b *PantheonB) PantheonWorkspaces() []pantheon.WorkspaceOption { return b.a.PantheonWorkspaces() }

@@ -33,6 +33,7 @@ import type {
   PantheonIssueReview,
   PantheonLiveStream,
   PantheonParticipant,
+  PantheonSeatUsage,
   PantheonSession,
 } from './types'
 
@@ -204,6 +205,7 @@ interface DiscussionOutput {
   targetIssueId?: string
   challengedClaim?: string
   responseVerdict?: string
+  usage?: PantheonSeatUsage
 }
 
 interface ToolTraceView {
@@ -263,6 +265,31 @@ function participantStatusLabel(status: string): string {
     case 'waiting': return '候场'
     default: return status
   }
+}
+
+/** 席位引擎账目（2026-11-06）：缓存命中率只在引擎真的上报 usage 时才有值。
+ *  未上报 ≠ 0%：前者显示空，后者才显示 0%。engineSessionId 进 title，供
+ *  用户去引擎侧核对这一席确实调用了 DSH，而不是只看品牌名。 */
+function seatUsageLabel(usage?: PantheonSeatUsage): string {
+  if (!usage) return ''
+  const parts: string[] = []
+  const cached = usage.cacheReadTokens ?? 0
+  const input = usage.inputTokens ?? 0
+  if (cached + input > 0) {
+    parts.push(`缓存命中 ${Math.round((cached * 100) / (cached + input))}%`)
+  }
+  if (usage.steps) parts.push(`${usage.steps} 步`)
+  return parts.join(' · ')
+}
+
+function seatUsageTitle(usage?: PantheonSeatUsage): string {
+  if (!usage) return ''
+  const lines: string[] = []
+  if (usage.engineSessionId) lines.push(`引擎会话：${usage.engineSessionId}`)
+  if (usage.cacheReadTokens || usage.inputTokens) {
+    lines.push(`缓存命中 ${usage.cacheReadTokens ?? 0} / 新增 ${usage.inputTokens ?? 0} prompt token`)
+  }
+  return lines.join('\n')
 }
 
 /** 席位活性：观测超过 90 秒没有更新，"正在发言"就该让位给"活性未知"。
@@ -1265,12 +1292,13 @@ const AgentDetailPanel: React.FC<{
                               </>
                             )}
                           </span>
-                          <small>
+                          <small title={seatUsageTitle(output.usage)}>
                             {output.streaming
                               ? '正在输出'
-                              : output.durationMs
-                                ? `${(output.durationMs / 1000).toFixed(1)}s`
-                                : '独立观点'}
+                              : [
+                                  output.durationMs ? `${(output.durationMs / 1000).toFixed(1)}s` : '独立观点',
+                                  seatUsageLabel(output.usage),
+                                ].filter(Boolean).join(' · ')}
                           </small>
                         </header>
                         <span className="pantheon-agent-output-chevron" aria-hidden />
@@ -1505,6 +1533,7 @@ export const PantheonRecord: React.FC<Props> = ({
         targetIssueId: item.targetIssueId,
         challengedClaim: item.challengedClaim,
         responseVerdict: item.responseVerdict,
+        usage: item.usage,
       }))
     }
     return (session.events ?? [])
@@ -1855,6 +1884,7 @@ export const PantheonRecord: React.FC<Props> = ({
           output.round ? `第 ${output.round} 轮` : '',
           PHASE_LABEL[output.phase] || output.phase,
           output.durationMs ? `用时 ${(output.durationMs / 1000).toFixed(1)}s` : '',
+          seatUsageLabel(output.usage),
         ].filter(Boolean).join(' · '),
         at: output.streaming ? Number.MAX_SAFE_INTEGER : output.at || session.updatedAt,
         round: output.round,

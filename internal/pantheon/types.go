@@ -192,6 +192,30 @@ type StartRequest struct {
 	GateEachRound bool `json:"gateEachRound,omitempty"`
 }
 
+// SeatUsage 是一次席位调用结束后，由外部 CLI 自带运行时上报的可核对账目。
+// 目前只有 DSH headless --json 会上报（session 事件给引擎会话 ID，step_end
+// 事件给每步 usage）；引擎不上报时保持零值，前端显示「未上报」，不用 0 冒充
+// 命中率。它回答两个此前只能靠猜的问题：这一席到底调没调那个引擎
+// （EngineSessionID 在引擎自己的会话库里真实存在），缓存到底命中多少
+// （CacheReadTokens/(InputTokens+CacheReadTokens)）。
+type SeatUsage struct {
+	EngineSessionID string `json:"engineSessionId,omitempty"`
+	Steps           int    `json:"steps,omitempty"`
+	InputTokens     int64  `json:"inputTokens,omitempty"`
+	CacheReadTokens int64  `json:"cacheReadTokens,omitempty"`
+	OutputTokens    int64  `json:"outputTokens,omitempty"`
+}
+
+// CacheHitPercent 返回 prompt 前缀缓存命中率（0~100）；没有上报账目时返回 -1，
+// 与「上报了但确实 0%」区分开——后者是真的没命中，前者是压根没数。
+func (u SeatUsage) CacheHitPercent() float64 {
+	total := u.InputTokens + u.CacheReadTokens
+	if total <= 0 {
+		return -1
+	}
+	return float64(u.CacheReadTokens) * 100 / float64(total)
+}
+
 type Participant struct {
 	CallRef
 	AgentID string `json:"agentId"`
@@ -210,6 +234,10 @@ type Participant struct {
 	// 转移合法性由 CanTransitionSeat 裁决。
 	Observed Observed `json:"observed,omitempty"`
 	Evidence string   `json:"evidence,omitempty"`
+	// EngineSessionID 是该席位在外部引擎里实际使用的会话 ID（目前 DSH 会报）。
+	// 它有两个用途：下一轮用 --session-id 续接同一引擎会话（前缀缓存命中、
+	// 不再重复探索），以及给用户一个可去引擎侧核对的「真调用」证据。
+	EngineSessionID string `json:"engineSessionId,omitempty"`
 }
 
 // 决策门动作（GatePayload.Action）。dismiss 必须写理由，所以 Reason 在
@@ -342,6 +370,9 @@ type Contribution struct {
 	RunMode    string `json:"runMode,omitempty"`
 	CreatedAt  int64  `json:"createdAt"`
 	DurationMs int64  `json:"durationMs,omitempty"`
+	// Usage 是本次调用的引擎侧账目（步数/缓存命中/token）。nil = 该引擎不上报，
+	// 不是「0 次调用」——前端按「未上报」显示。
+	Usage *SeatUsage `json:"usage,omitempty"`
 }
 
 // Issue 是分歧台账条目（2026-11-03 V2 P1）：按分歧点（非按席位）记账、贯穿

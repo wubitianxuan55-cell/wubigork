@@ -92,6 +92,7 @@
 | gaea-orca-pantheon-distill-2026-11.md | 🔄 **Orca 1.4.214 × 众神殿机制蒸馏（2026-11-02）**：判定 Orca 是 Agent 工作台而非议事系统；提炼 Attempt 身份、状态证据、完成权威、单写者租约、工作树边界与外置委派纪律；**P0 O-A/O-B/O-C 已落地**（AttemptRef 贯通、旧 Attempt 封口、禁隐性派生、原生/路径/共享摘要三路图片能力门），O-D 起按门控后置；明确不照搬完整自治与“worktree 即沙箱” |
 | gaea-orca-pantheon-distill-round2-2026-11.md | 🔄 **Orca 第二轮蒸馏：投递/观测空间/结案纪律（2026-11-02）**：修正第一轮三处口径（新鲜度分判定 60s 与展示 30min 两层、序号只在同一 authority 内可比、租约防进程复用而 dispatchId 防迟到）；新增 M9–M17（投递状态机、快照不续命、未知态五档、终态图+唯一例外、兄弟在跑不结案、门重阻塞、三句式陈词、释放与归档分离、重试重声明）；刀池重排 O-D/O-E/O-H/O-I，带 Go 形状与逐条验收 |
 | gaea-pantheon-deliberation-frameworks-research-2026-11-03.md | 🔄 **众神殿讨论/辩论框架专项调研（2026-11-03，证据附录）**：MALLM 四轴与评测、Captain Claw 动作/主持/确认、ARTEMIS 生成与评审分离、AgentTeams 人工干预与执行账本；逐项写明吸收/不吸收、源码快照与产品边界，优先级由 V2 整合报告 R1–R6 决定 |
+| gaea-pantheon-seat-hang-cache-2026-11.md | 🏛 **众神殿席位卡死根修与 DSH 前缀缓存（2026-11-06，证据档）**：实弹会话 209 次工具调用/单轮 87 次/单席 147–403s 的取证；根因=自主循环无上限+30s 工具超时+8 分钟上限与自动重试+工具事件持锁整份落盘；落地=DSH 引擎会话续接（缓存命中 25%→96.7% 实测）、工具预算/无进展/开局静默三闸、命令行显式只读+审批、`Contribution.Usage` 可核对账目与前端展示 |
 | zcode-office-distill-2026-10.md | ✅ ZCode office 域对源蒸馏分析（A1 锚点语法层/F2 doc_render 等交汇刀的对源证据层） |
 | zcode-office-distill-analysis-2026-10.md | ✅ ZCode office 蒸馏子分析报告（机检十二规则/Q1 对源） |
 | zcode-office-decision-memo-2026-10.md | ✅ ZCode office 蒸馏决策备忘（双执行体轮次署名权/取舍记录） |

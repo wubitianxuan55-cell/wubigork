@@ -23,6 +23,10 @@ type agentAdapter struct {
 
 	probe func(context.Context) AgentStatus
 	build func(prompt, cwd string, images []string) (commandSpec, error)
+	// buildResume 非空 = 该席位的引擎支持「同一会话续接」（DSH headless
+	// --session-id）。resumeID 为空时必须等价于 build：首次调用不凭空造会话
+	// ID——引擎对未知 ID 是硬错误，不是隐式新建。
+	buildResume func(prompt, cwd string, images []string, resumeID string) (commandSpec, error)
 	// invoke 非空 = Gaea 模型席位：不经本机 CLI。app 层用 xAI 模型驱动
 	// Gaea 办公 AgentRunner；build 为空，输出按纯文本处理。
 	invoke func(ctx context.Context, prompt string) (string, error)
@@ -92,6 +96,32 @@ func ensureCapability(capabilities []string, capability string) []string {
 		}
 	}
 	return append(capabilities, capability)
+}
+
+func (a agentAdapter) commandSpec(prompt, cwd string, images []string, resumeID string) (commandSpec, error) {
+	if a.buildResume != nil {
+		return a.buildResume(prompt, cwd, images, resumeID)
+	}
+	if a.build == nil {
+		return commandSpec{}, fmt.Errorf("Agent %s 不支持进程调用", a.id)
+	}
+	return a.build(prompt, cwd, images)
+}
+
+// annotateSeatError 把引擎的凭据错误翻成可执行的修复路径。
+//
+// 2026-11-06 实弹：DSH headless 的 DeepSeek 凭据只来自「启动目录的 .env」或
+// 环境变量（凭据库里没有 key）。众神殿允许把议事工作区切到任意项目目录——
+// 那个目录没有 .env、Gaea 又没配 deepseek 引擎时，每一轮都会立刻失败，而
+// 用户只看到一串 MISSING_CREDENTIAL。这里补一句去哪儿配，不改变错误本身。
+func annotateSeatError(agentID string, err error) error {
+	if err == nil || !strings.EqualFold(agentID, "dsh") {
+		return err
+	}
+	if !strings.Contains(err.Error(), "MISSING_CREDENTIAL") {
+		return err
+	}
+	return fmt.Errorf("%w（DSH 没拿到 DeepSeek 凭据：在 Gaea 模型中心配好 deepseek 引擎的 API Key，或让议事工作区根目录的 .env 带 DEEPSEEK_API_KEY）", err)
 }
 
 func newGrokAdapter(backend GrokBackend) agentAdapter {
@@ -213,13 +243,18 @@ func newZCodeAdapter(override string) agentAdapter {
 	}
 	return agentAdapter{
 		id: "zcode", name: "ZCode", kind: "ZCode CLI",
-		runMode: "plan 模式（提案不落盘；禁用 Agent/Workflow；长任务书经临时文件下发；provider 凭据经环境变量注入）",
+		// 2026-11-06 实弹：ZCode 每步模型往返 16–26s（远高于 DSH 的 4–7s），
+		// 而每轮工具调用默认新开会话——13–25 步就是 220–430s，用户看到的就是
+		// 「ZCode 总是卡死」。续接同一会话后实测 1 次模型请求、10.7s、
+		// cacheRead 33856/34133（99.2%）。所以 runMode 把续接也写进去。
+		runMode: "plan 模式（提案不落盘；禁用 Agent/Workflow；长任务书经临时文件下发；provider 凭据经环境变量注入；同桌续接同一引擎会话，前缀缓存可证）",
 		probe: func(ctx context.Context) AgentStatus {
 			status := AgentStatus{
 				ID: "zcode", Name: "ZCode", Kind: "ZCode CLI",
 				Capabilities: []string{
 					"multi-round-discussion", "plan-mode", "stream-json", "streaming",
 					"tool-trajectory", "image-input", "shared-image-summary",
+					"session-resume", "usage-reporting",
 				},
 			}
 			node, script, err := resolve()
@@ -240,39 +275,56 @@ func newZCodeAdapter(override string) agentAdapter {
 			return status
 		},
 		build: func(prompt, cwd string, images []string) (commandSpec, error) {
-			node, script, err := resolve()
-			if err != nil {
-				return commandSpec{}, err
-			}
-			promptArg, _, cleanup, err := prepareZCodePrompt(prompt)
-			if err != nil {
-				return commandSpec{}, err
-			}
-			args := zcodePromptArgs(promptArg, cwd, images)
-			if script != "" {
-				args = append([]string{script}, args...)
-			}
-			env := []string{"NO_COLOR=1"}
-			builtin := windowsPath("Programs", "ZCode", "resources", "config", "provider", "zcode-builtin.json")
-			personal := ""
-			if home, err := os.UserHomeDir(); err == nil {
-				personal = filepath.Join(home, ".zcode", "v2", "provider_config.json")
-			}
-			if executableExists(builtin) {
-				env = append(env, "ZCODE_BUILTIN_PROVIDER_CONFIG_FILE="+builtin)
-			}
-			if executableExists(personal) {
-				env = append(env, "ZCODE_PERSONAL_PROVIDER_CONFIG_FILE="+personal)
-			}
-			return commandSpec{
-				Executable: node,
-				Args:       args,
-				Dir:        cwd,
-				Env:        env,
-				Cleanup:    cleanup,
-			}, nil
+			return zcodeCommandSpec(resolve, prompt, cwd, images, "")
+		},
+		buildResume: func(prompt, cwd string, images []string, resumeID string) (commandSpec, error) {
+			return zcodeCommandSpec(resolve, prompt, cwd, images, resumeID)
 		},
 	}
+}
+
+func zcodeCommandSpec(
+	resolve func() (string, string, error),
+	prompt, cwd string,
+	images []string,
+	resumeID string,
+) (commandSpec, error) {
+	node, script, err := resolve()
+	if err != nil {
+		return commandSpec{}, err
+	}
+	promptArg, _, cleanup, err := prepareZCodePrompt(prompt)
+	if err != nil {
+		return commandSpec{}, err
+	}
+	args := zcodePromptArgs(promptArg, cwd, images)
+	if id := strings.TrimSpace(resumeID); id != "" {
+		// ZCode 的会话 ID 形如 sess_…，由 turn.completed/result 事件上报；
+		// 只认引擎给过的 ID，未知 ID 是硬错误（与 DSH 同一纪律）。
+		args = append(args, "--resume", id)
+	}
+	if script != "" {
+		args = append([]string{script}, args...)
+	}
+	env := []string{"NO_COLOR=1"}
+	builtin := windowsPath("Programs", "ZCode", "resources", "config", "provider", "zcode-builtin.json")
+	personal := ""
+	if home, err := os.UserHomeDir(); err == nil {
+		personal = filepath.Join(home, ".zcode", "v2", "provider_config.json")
+	}
+	if executableExists(builtin) {
+		env = append(env, "ZCODE_BUILTIN_PROVIDER_CONFIG_FILE="+builtin)
+	}
+	if executableExists(personal) {
+		env = append(env, "ZCODE_PERSONAL_PROVIDER_CONFIG_FILE="+personal)
+	}
+	return commandSpec{
+		Executable: node,
+		Args:       args,
+		Dir:        cwd,
+		Env:        env,
+		Cleanup:    cleanup,
+	}, nil
 }
 
 func zcodePromptArgs(prompt, cwd string, images []string) []string {
@@ -330,65 +382,81 @@ func prepareZCodePrompt(prompt string) (promptArg, promptPath string, cleanup fu
 	return promptArg, promptPath, cleanup, nil
 }
 
+// dshPaths 是 DSH CLI 的解析结果。mode=desktop 表示命中的是随附的 .cmd 包装
+// （经 cmd.exe /d /c call 启动），mode=path 表示 PATH 或用户指定的可执行文件。
+type dshPaths struct {
+	exe  string
+	cli  string
+	mode string
+}
+
+func resolveDSHPaths(override string) (dshPaths, error) {
+	if override != "" {
+		if !executableExists(override) {
+			return dshPaths{}, fmt.Errorf("自定义 DSH 路径不存在")
+		}
+		mode := "path"
+		switch strings.ToLower(filepath.Ext(override)) {
+		case ".cmd", ".bat":
+			mode = "desktop"
+		}
+		return dshPaths{exe: override, mode: mode}, nil
+	}
+	if path, err := exec.LookPath("dsh"); err == nil {
+		return dshPaths{exe: path, mode: "path"}, nil
+	}
+	cmd := windowsPath("Programs", "DeepSeek Harness", "resources", "runtime", "cli", "bin", "dsh.cmd")
+	if executableExists(cmd) {
+		return dshPaths{exe: cmd, mode: "desktop"}, nil
+	}
+	return dshPaths{}, fmt.Errorf("未找到 dsh CLI 或 DeepSeek Harness 随附 CLI")
+}
+
+func dshBuildSpec(paths dshPaths, args []string, deepseekKey string) commandSpec {
+	env := []string{"DSH_PERMISSION_MODE=read-only"}
+	if deepseekKey != "" {
+		env = append(env, "DEEPSEEK_API_KEY="+deepseekKey)
+	}
+	if paths.mode == "desktop" {
+		// .cmd is an official Windows wrapper. Keep the prompt on stdin so
+		// topic/material text never enters shell metacharacter parsing.
+		// `call` accepts a quoted batch path as one argument after /c.
+		return commandSpec{
+			Executable: "cmd.exe",
+			Args:       append([]string{"/d", "/c", "call", paths.exe}, args...),
+			Env:        env,
+		}
+	}
+	return commandSpec{Executable: paths.exe, Args: args, Env: env}
+}
+
 func newDSHAdapter(override, deepseekKey string) agentAdapter {
-	type dshPaths struct {
-		exe  string
-		cli  string
-		mode string
-	}
-	resolve := func() (dshPaths, error) {
-		if override != "" {
-			if !executableExists(override) {
-				return dshPaths{}, fmt.Errorf("自定义 DSH 路径不存在")
-			}
-			mode := "path"
-			switch strings.ToLower(filepath.Ext(override)) {
-			case ".cmd", ".bat":
-				mode = "desktop"
-			}
-			return dshPaths{exe: override, mode: mode}, nil
+	resolve := func() (dshPaths, error) { return resolveDSHPaths(override) }
+	spec := func(prompt, cwd string, resumeID string) (commandSpec, error) {
+		paths, err := resolve()
+		if err != nil {
+			return commandSpec{}, err
 		}
-		if path, err := exec.LookPath("dsh"); err == nil {
-			return dshPaths{exe: path, mode: "path"}, nil
-		}
-		cmd := windowsPath("Programs", "DeepSeek Harness", "resources", "runtime", "cli", "bin", "dsh.cmd")
-		if executableExists(cmd) {
-			return dshPaths{exe: cmd, mode: "desktop"}, nil
-		}
-		return dshPaths{}, fmt.Errorf("未找到 dsh CLI 或 DeepSeek Harness 随附 CLI")
-	}
-	baseArgs := func(paths dshPaths) []string {
-		if paths.cli != "" {
-			return []string{"--expose-internals", paths.cli}
-		}
-		return nil
-	}
-	build := func(paths dshPaths, args []string) commandSpec {
-		env := []string{"DSH_PERMISSION_MODE=read-only"}
-		if deepseekKey != "" {
-			env = append(env, "DEEPSEEK_API_KEY="+deepseekKey)
-		}
-		if paths.mode == "desktop" {
-			// .cmd is an official Windows wrapper. Keep the prompt on stdin so
-			// topic/material text never enters shell metacharacter parsing.
-			// `call` accepts a quoted batch path as one argument after /c.
-			return commandSpec{
-				Executable: "cmd.exe",
-				Args:       append([]string{"/d", "/c", "call", paths.exe}, args...),
-				Env:        env,
-			}
-		}
-		return commandSpec{Executable: paths.exe, Args: args, Env: env}
+		args := append(dshBaseArgs(paths), dshSeatArgs(resumeID)...)
+		out := dshBuildSpec(paths, args, deepseekKey)
+		out.Dir = cwd
+		out.Stdin = clampPrompt(prompt)
+		return out, nil
 	}
 	return agentAdapter{
 		id: "dsh", name: "DeepSeek Harness", kind: "DSH headless",
-		runMode: "DSH_PERMISSION_MODE=read-only 环境变量（依赖 DSH 自身执行）",
+		// 2026-11-06 实弹：只靠 DSH_PERMISSION_MODE 环境变量是「依赖 DSH 自身
+		// 执行」的软约束，且没有任何显式审批策略——命令通道被拦时模型会照
+		// 「重试并申请更高权限」的提示反复消耗步数。改为把两个官方旗标显式
+		// 写进命令行（实弹验证：写入被 sandbox 拒绝、审批不弹卡），runMode 也
+		// 按实际命令行改写，不再申报一个只有环境变量的说法。
+		runMode: "DSH headless --permission-mode read-only --approval-policy never（只读沙箱由 DSH 执行；同桌续接同一引擎会话，前缀缓存可证）",
 		probe: func(ctx context.Context) AgentStatus {
 			status := AgentStatus{
 				ID: "dsh", Name: "DeepSeek Harness", Kind: "DSH headless",
 				Capabilities: []string{
 					"multi-round-discussion", "read-only-permission", "json-events", "streaming",
-					"tool-trajectory", "shared-image-summary",
+					"tool-trajectory", "shared-image-summary", "session-resume", "usage-reporting",
 				},
 			}
 			paths, err := resolve()
@@ -398,23 +466,45 @@ func newDSHAdapter(override, deepseekKey string) agentAdapter {
 			}
 			status.Available = true
 			status.Executable = paths.exe
-			args := append(baseArgs(paths), "--version")
-			spec := build(paths, args)
-			status.Version = probeVersion(ctx, spec)
+			args := append(dshBaseArgs(paths), "--version")
+			status.Version = probeVersion(ctx, dshBuildSpec(paths, args, deepseekKey))
 			return status
 		},
 		build: func(prompt, cwd string, _ []string) (commandSpec, error) {
-			paths, err := resolve()
-			if err != nil {
-				return commandSpec{}, err
-			}
-			args := append(baseArgs(paths), "--profile", "headless", "--json", "-")
-			spec := build(paths, args)
-			spec.Dir = cwd
-			spec.Stdin = clampPrompt(prompt)
-			return spec, nil
+			return spec(prompt, cwd, "")
+		},
+		buildResume: func(prompt, cwd string, _ []string, resumeID string) (commandSpec, error) {
+			return spec(prompt, cwd, resumeID)
 		},
 	}
+}
+
+func dshBaseArgs(paths dshPaths) []string {
+	if paths.cli != "" {
+		return []string{"--expose-internals", paths.cli}
+	}
+	return nil
+}
+
+// dshSeatArgs 是圆桌席位固定使用的命令行参数。
+//
+// 1) 权限与审批显式化：无人值守的子进程没有审批面，ask 只会让模型反复撞同一
+// 道门（每一个撞门的回合都是白烧的分钟级等待）。实弹验证：read-only 下写入
+// 被 sandbox 拒绝，approval-policy never 不弹卡。
+// 2) resumeID 非空时用 --session-id 续接同一引擎会话：引擎前缀（system+工具
+// 表+历史步）逐字节不变，后续轮次只追加本轮议题与陈词——DeepSeek 前缀缓存
+// 因此命中。2026-11-06 实测同一会话第二轮 cacheRead 6528/6757（96.6%），而
+// 每轮新建会话时只有约 6k 固定前缀可命中，正文与工具输出全价重算。
+func dshSeatArgs(resumeID string) []string {
+	args := []string{
+		"--profile", "headless", "--json",
+		"--permission-mode", "read-only",
+		"--approval-policy", "never",
+	}
+	if id := strings.TrimSpace(resumeID); id != "" {
+		args = append(args, "--session-id", id)
+	}
+	return append(args, "-")
 }
 
 func probeVersion(parent context.Context, spec commandSpec) string {

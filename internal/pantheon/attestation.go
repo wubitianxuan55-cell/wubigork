@@ -192,7 +192,7 @@ func (m *Manager) runIndependentAttestations(
 		wg.Add(1)
 		go func(index int, seat AgentStatus) {
 			defer wg.Done()
-			out, _, _, err := m.runAgentWithRetry(
+			res, err := m.runAgentWithRetry(
 				ctx, session, seat, attestationPrompt(verdict, issues, gaps),
 				PhaseAttestation, 0,
 			)
@@ -200,7 +200,7 @@ func (m *Manager) runIndependentAttestations(
 				results[index].Error = err.Error()
 				return
 			}
-			results[index] = parseAttestation(out, seat.ID, seat.Name, hash)
+			results[index] = parseAttestation(res.Text, seat.ID, seat.Name, hash)
 		}(i, status)
 	}
 	wg.Wait()
@@ -252,17 +252,17 @@ func (m *Manager) reviseAfterAttestations(
 	}
 	original := *verdict
 	originalSHA := verdictFingerprint(verdict)
-	out, _, _, err := m.runAgentWithRetry(
+	res, err := m.runAgentWithRetry(
 		ctx, session, chairman,
 		revisionPrompt(verdict, attestations, issues, gaps),
 		PhaseAttestation, 0,
 	)
-	if err != nil || !strings.Contains(out, "{") {
+	if err != nil || !strings.Contains(res.Text, "{") {
 		reason := "独立复核存在反对，但主席修订失败：" + firstNonEmpty(errString(err), "未返回结构化 JSON")
 		m.addWarning(session, reason)
 		return verdict, nil
 	}
-	revised := parseVerdict(out, chairman.Name, 0)
+	revised := parseVerdict(res.Text, chairman.Name, 0)
 	if strings.TrimSpace(revised.Summary) == "" && strings.TrimSpace(revised.Recommendation) == "" {
 		m.addWarning(session, "独立复核后的主席修订为空，保留原小结")
 		return verdict, nil
