@@ -115,6 +115,15 @@ func TestStreamTokensPerSecond(t *testing.T) {
 // start()，逐帧读取直到终态帧（done/error/cancelled），返回全部事件。
 func captureStreamEvents(t *testing.T, a *App, channel string, start func()) []map[string]interface{} {
 	t.Helper()
+	return captureStreamEventsOn(t, a, channel, start, nil)
+}
+
+// captureStreamEventsOn 同 captureStreamEvents，但每个事件（含终态）先交给
+// onEvent 回调——取消族测试用它在确定性同步点（如首个 delta 事件）触发
+// ChatStreamCancel：事件已被消费即代表后端 reply builder 已含该段正文，
+// 服务端「写完即信号」在客户端消费前存在竞速（action-3 取消族实测踩坑）。
+func captureStreamEventsOn(t *testing.T, a *App, channel string, start func(), onEvent func(map[string]interface{})) []map[string]interface{} {
+	t.Helper()
 	srv := httptest.NewServer(httpbridge.New(a).Handler())
 	defer srv.Close()
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/stream?id="+channel, nil)
@@ -165,12 +174,13 @@ func captureStreamEvents(t *testing.T, a *App, channel string, start func()) []m
 			if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &ev); err != nil {
 				t.Fatalf("解析事件: %v", err)
 			}
+			events = append(events, ev)
+			if onEvent != nil {
+				onEvent(ev)
+			}
 			switch ev["type"] {
 			case "done", "error", "cancelled":
-				events = append(events, ev)
 				return events
-			default:
-				events = append(events, ev)
 			}
 		case <-deadline:
 			t.Fatal("未在 5s 内收到终态帧")

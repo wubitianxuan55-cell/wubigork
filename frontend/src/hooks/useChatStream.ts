@@ -211,6 +211,11 @@ export function useChatStream(opts: UseChatStreamOptions) {
             finish(false)
           }, CHAT_ENGINE_START_TIMEOUT_MS)
           const timeoutMessage = (why: string) => {
+            // action-3（pan_1794012727813 病灶③）：超时即撤销后端任务——不撤销
+            // 会让后端继续生成并把完整正文落库，与界面保留的 partial 形成两份
+            // 权威（刷新后正文 ≠ 用户所见），且白白烧引擎。
+            const rid = activeRunIDRef.current
+            if (rid) void app.ChatStreamCancel(rid).catch(() => {})
             if (deltaBuf) flushDelta()
             const partial = streamTextRef.current.trimEnd()
             setStreamText(''); setStreamKey(null); setStreamStatus('')
@@ -299,8 +304,12 @@ export function useChatStream(opts: UseChatStreamOptions) {
                 } else if (p.type === 'cancelled') {
                   // P1-5 用户停止：已生成部分落库（后端已 appendChatExchange），
                   // 前端如实展示部分回复 + 停止标注（不按失败处理）。
-                  cancelPendingDelta()
-                  const partial = typeof p.reply === 'string' ? p.reply : ''
+                  // action-3（pan_1794012727813 病灶②）：后端 canonical 优先；
+                  // 后端空（取消打断在缓冲段/空轮）时回退本地已外发 partial——
+                  // 可见正文不得被「未收到内容」吞掉。
+                  if (deltaBuf) flushDelta()
+                  const backend = typeof p.reply === 'string' ? p.reply : ''
+                  const partial = backend || streamTextRef.current
                   setStreamText(''); setStreamKey(null); setStreamStatus('')
                   const extra: Record<string, unknown> = {}
                   if (p.answered_by && typeof p.answered_by === 'object') extra.answered_by = p.answered_by

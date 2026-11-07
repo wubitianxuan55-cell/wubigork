@@ -408,10 +408,13 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 				reasoning.WriteString(r)
 				a.emit("chat-stream:"+runID, map[string]interface{}{"type": "reasoning", "content": r})
 			})
-		if loopErr != nil {
+		if loopErr != nil && ctx.Err() == nil {
 			a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": loopErr.Error()})
 			return
 		}
+		// 取消轮（loopErr 因 ctx 取消）同样以 res.Reply 为落库权威：工具循环已把
+		// 当前轮残段抢救并入（action-3），下方 cancelled 流程照常落库——不再对
+		// 用户裸奔 error「请求已取消」并丢弃已流出正文。
 		usage = res.Usage
 		firstTokenAt = res.FirstToken
 		searchRuns, searchRounds, searches = res.SearchRuns, res.SearchRounds, res.Searches
@@ -435,6 +438,12 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 		mf := &markupDeltaFilter{} // B7 残刀三：非工具轮标记流式吞除
 		for chunk := range chunks {
 			if chunk.Error != "" {
+				if ctx.Err() != nil {
+					// 取消打断流：已流出 partial 留在 reply builder，break 走下方
+					// 取消落库（对齐 whisper 非工具分支 P1-5 语义，action-3）——
+					// 不再对用户裸奔 error「请求已取消」。
+					break
+				}
 				a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": chunk.Error})
 				return
 			}
@@ -470,6 +479,22 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 	replyStr := reply.String()
 	reasoningStr := reasoning.String()
 	if strings.TrimSpace(replyStr) == "" {
+		if ctx.Err() != nil {
+			// 取消且无正文：对齐 persona 空轮语义——不落 assistant（不伪造
+			// 成功），发 cancelled 空终态让前端走「已停止生成」收尾；但用户
+			// 输入不随取消湮灭，单条落 user 行（AppendExchange 原子对被空
+			// assistant 拒绝，走 AppendMessage 单条口，action-3）。
+			slog.Warn("chat stream plain 取消空轮不落库 assistant", "runID", runID, "topicID", topicID)
+			if a.chatStore != nil {
+				if _, err := a.chatStore.AppendMessage(topicID, "user", userMessage, ""); err != nil {
+					slog.Error("chat stream plain 取消空轮用户行落库失败", "runID", runID, "topicID", topicID, "error", err)
+				}
+			}
+			a.emit("chat-stream:"+runID, map[string]interface{}{
+				"type": "cancelled", "reply": "", "reasoning": reasoningStr, "topicID": topicID,
+			})
+			return
+		}
 		a.emit("chat-stream:"+runID, map[string]interface{}{
 			"type":  "error",
 			"error": "本轮未生成可交付正文，请重试",

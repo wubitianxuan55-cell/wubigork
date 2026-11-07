@@ -430,8 +430,12 @@ func (a *whisperState) whisperChatCore(
 			res, loopErr := a.app.runBoundedSearchToolLoop(ctx, engine, model, messages, opts, forceSearch, nil, emitDelta, onReasoning)
 			finishedAt = time.Now()
 			if loopErr != nil && ctx.Err() != nil {
+				// action-3（pan_1794012727813）：取消终态不抹已生成内容——
+				// res.Reply 含此前轮已交付正文（当前轮残段由工具循环抢救并入），
+				// 清洗后照常走取消落库；此前 reply,reasoning 直接置空丢正文。
 				cancelled = true
-				reply, reasoning = "", ""
+				reply = whisper.NormalizeReplySplitLines(res.Reply)
+				reasoning = res.Reasoning
 				break
 			}
 			if loopErr != nil {

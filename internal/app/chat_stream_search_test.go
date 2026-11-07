@@ -1,11 +1,14 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/gaea/gaea/internal/chat"
 	"github.com/gaea/gaea/internal/gaea/tool/builtin"
@@ -277,4 +280,266 @@ func TestChatStreamSearch_FencedMarkupExecuted(t *testing.T) {
 	if res.searchCalls != 1 {
 		t.Errorf("search seam calls = %d, want 1", res.searchCalls)
 	}
+}
+
+// ---- action-3 取消族（pan_1794012727813：取消不得丢已生成内容）----
+
+// sseContentChunk 单条正文 delta（不收尾，供分片编排）。
+func sseContentChunk(w http.ResponseWriter, text string) {
+	payload, _ := json.Marshal(map[string]any{
+		"choices": []map[string]any{{"index": 0, "delta": map[string]any{"content": text}}},
+	})
+	w.Header().Set("Content-Type", "text/event-stream")
+	_, _ = w.Write([]byte("data: " + string(payload) + "\n\n"))
+	if f, ok := w.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+// ssePartialThenHang 流出一段正文后挂住等客户端断连（取消把 HTTP ctx 打断）。
+// 信号前留出本地回环消费窗：工具轮正文先完整缓冲、轮结束才外发，mid-round
+// 取消没有客户端可见同步点（delta 事件不存在），只能以「服务端已流出+消费窗」
+// 保证 chunk 已进客户端 sbContent 缓冲——否则取消先到、缓冲为空、抢救无物。
+func ssePartialThenHang(w http.ResponseWriter, r *http.Request, text string, signal chan struct{}) {
+	sseContentChunk(w, text)
+	if signal != nil {
+		time.Sleep(500 * time.Millisecond)
+		close(signal)
+	}
+	<-r.Context().Done()
+}
+
+// assertCancelTerminal 断言终态为 cancelled、无 error 帧、reply 非空且与
+// delta 拼接一致、DB assistant 行同文（取消轮照常落库，action-3）。
+func assertCancelTerminal(t *testing.T, res streamSearchResult, want string) {
+	t.Helper()
+	terminalStreamEvent(t, res.events, "cancelled")
+	for _, ev := range res.events {
+		if ev["type"] == "error" {
+			t.Fatalf("取消轮不得发 error 帧: %v", ev)
+		}
+	}
+	var delta strings.Builder
+	var reply string
+	for _, ev := range res.events {
+		switch ev["type"] {
+		case "delta":
+			if s, ok := ev["content"].(string); ok {
+				delta.WriteString(s)
+			}
+		case "cancelled":
+			if s, ok := ev["reply"].(string); ok {
+				reply = s
+			}
+		}
+	}
+	if reply != want {
+		t.Errorf("cancelled.reply = %q, want %q", reply, want)
+	}
+	if delta.String() != want {
+		t.Errorf("delta 拼接 = %q, want %q", delta.String(), want)
+	}
+	if len(res.msgs) != 2 {
+		t.Fatalf("消息数 = %d, want 2（取消轮保留正文照常落库）", len(res.msgs))
+	}
+	if got := res.msgs[1].Content; got != want {
+		t.Errorf("DB assistant = %q, want %q", got, want)
+	}
+}
+
+// 首轮取消（非工具路径）：正文已外发、流未结束时取消 → cancelled 帧保留
+// partial 且落库同文；不得裸奔 error「请求已取消」。
+func TestChatStreamCancel_PlainNoTool_KeepsPartial(t *testing.T) {
+	firstDelta := make(chan struct{})
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ssePartialThenHang(w, r, "故事的开头是这样", firstDelta)
+	})
+	a := newChatServiceTestAppWithHandler(t, handler)
+	topic, err := a.ChatTopicCreate("cancel-plain", "plain")
+	if err != nil {
+		t.Fatalf("ChatTopicCreate: %v", err)
+	}
+	fixed := "chat_cancel_plain_" + strings.ReplaceAll(t.Name(), "/", "_")
+	origRunID := newChatStreamRunID
+	newChatStreamRunID = func() string { return fixed }
+	t.Cleanup(func() { newChatStreamRunID = origRunID })
+
+	// 非工具路径 delta 边流边外发，可在首个 delta 事件确定性取消（reply
+	// builder 先写后 emit，事件被消费即后端已含该段正文）。
+	events := captureStreamEventsOn(t, a, "chat-stream:"+fixed, func() {
+		if _, err := a.ChatStreamPlain(topic.ID, "讲个故事", false, false, false); err != nil {
+			t.Errorf("ChatStreamPlain: %v", err)
+		}
+	}, func(ev map[string]interface{}) {
+		if ev["type"] == "delta" {
+			if !a.ChatStreamCancel(fixed) {
+				t.Error("ChatStreamCancel = false, run 未登记")
+			}
+		}
+	})
+	res := streamSearchResult{events: events}
+	if msgs, err := a.ChatMessagesList(topic.ID); err == nil {
+		res.msgs = msgs
+	}
+	assertCancelTerminal(t, res, "故事的开头是这样")
+}
+
+// 首轮取消（工具轮、零正文）：cancelled 空终态、不落库 assistant——对齐
+// persona 空轮语义，不伪造成功也不报「未生成可交付正文」。
+func TestChatStreamCancel_PlainToolLoop_EmptyRound(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done() // 一字未发即被取消
+	})
+	a := newChatServiceTestAppWithHandler(t, handler)
+	topic, err := a.ChatTopicCreate("cancel-empty", "plain")
+	if err != nil {
+		t.Fatalf("ChatTopicCreate: %v", err)
+	}
+	fixed := "chat_cancel_empty_" + strings.ReplaceAll(t.Name(), "/", "_")
+	origRunID := newChatStreamRunID
+	newChatStreamRunID = func() string { return fixed }
+	t.Cleanup(func() { newChatStreamRunID = origRunID })
+
+	events := captureStreamEvents(t, a, "chat-stream:"+fixed, func() {
+		if _, err := a.ChatStreamPlain(topic.ID, "讲个故事", true, false, false); err != nil {
+			t.Errorf("ChatStreamPlain: %v", err)
+		}
+		if !a.ChatStreamCancel(fixed) {
+			t.Error("ChatStreamCancel = false, run 未登记")
+		}
+	})
+	terminalStreamEvent(t, events, "cancelled")
+	for _, ev := range events {
+		if ev["type"] == "error" {
+			t.Fatalf("取消空轮不得发 error 帧: %v", ev)
+		}
+	}
+	msgs, err := a.ChatMessagesList(topic.ID)
+	if err != nil {
+		t.Fatalf("ChatMessagesList: %v", err)
+	}
+	// 空 assistant 不落库（不伪造成功），但用户输入单条落 user 行不随取消湮灭
+	if len(msgs) != 1 {
+		t.Fatalf("取消空轮应仅落 user 行，消息数 = %d: %+v", len(msgs), msgs)
+	}
+	if msgs[0].Role != "user" || msgs[0].Content != "讲个故事" {
+		t.Fatalf("user 行异常: %+v", msgs[0])
+	}
+}
+
+// 跨轮取消（工具轮）：第 1 轮交付散文并发起搜索、第 2 轮正文外发中取消 →
+// cancelled 帧必须同时保留第 1 轮散文与第 2 轮残段（此前轮 res.Reply +
+// 当前轮 sbContent 抢救，action-3 病灶②）。
+func TestChatStreamCancel_PlainToolLoop_CrossRoundKeepsProse(t *testing.T) {
+	var round atomic.Int64
+	firstDelta := make(chan struct{})
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch round.Add(1) {
+		case 1:
+			// 散文 + 工具调用同轮：正文先外发并累计，随后执行搜索
+			sseContentChunk(w, "让我先查一下。")
+			sseToolCallReply(w, "call_1", "web_search", `"{\"query\":\"跨轮取消\"}"`)
+		default:
+			ssePartialThenHang(w, r, "查到了：", firstDelta)
+		}
+	})
+	a := newChatServiceTestAppWithHandler(t, handler)
+	topic, err := a.ChatTopicCreate("cancel-cross", "plain")
+	if err != nil {
+		t.Fatalf("ChatTopicCreate: %v", err)
+	}
+	fixed := "chat_cancel_cross_" + strings.ReplaceAll(t.Name(), "/", "_")
+	origRunID := newChatStreamRunID
+	newChatStreamRunID = func() string { return fixed }
+	t.Cleanup(func() { newChatStreamRunID = origRunID })
+	origSearch := chatWebSearch
+	chatWebSearch = func(q string) (chatSearchOutcome, error) {
+		return chatSearchOutcome{State: builtin.SearchStateOK, Query: q, Text: "罐头结果"}, nil
+	}
+	t.Cleanup(func() { chatWebSearch = origSearch })
+
+	events := captureStreamEvents(t, a, "chat-stream:"+fixed, func() {
+		if _, err := a.ChatStreamPlain(topic.ID, "边说边查", true, false, false); err != nil {
+			t.Errorf("ChatStreamPlain: %v", err)
+		}
+		select {
+		case <-firstDelta:
+		case <-time.After(3 * time.Second):
+			t.Error("等待第 2 轮正文超时")
+			return
+		}
+		if !a.ChatStreamCancel(fixed) {
+			t.Error("ChatStreamCancel = false, run 未登记")
+		}
+	})
+	res := streamSearchResult{events: events}
+	if msgs, err := a.ChatMessagesList(topic.ID); err == nil {
+		res.msgs = msgs
+	}
+	assertCancelTerminal(t, res, "让我先查一下。查到了：")
+}
+
+// persona 路径取消（工具轮）：第 2 轮正文外发中取消 ctx → 返回正文须含
+// 残段，不因取消静默归零（whisper 工具分支同口径，action-3）。
+func TestWhisperChatCancel_ToolLoop_KeepsPartial(t *testing.T) {
+	firstDelta := make(chan struct{})
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		if strings.Contains(string(body), "搜索查询拟写器") {
+			sseReply(w, "测试 查询")
+			return
+		}
+		if strings.Contains(string(body), `"role":"tool"`) {
+			ssePartialThenHang(w, r, "查到了：", firstDelta)
+			return
+		}
+		sseToolCallReply(w, "call_1", "web_search", `"{\"query\":\"角色取消\"}"`)
+	})
+	a := newChatServiceTestAppWithHandler(t, handler)
+	personalityID := "persona_action3_cancel"
+	cleanupWhisperSession(t, personalityID)
+	t.Cleanup(func() { cleanupWhisperSession(t, personalityID) })
+	orig := chatWebSearch
+	chatWebSearch = func(q string) (chatSearchOutcome, error) {
+		return chatSearchOutcome{State: builtin.SearchStateOK, Query: q, Text: "罐头结果"}, nil
+	}
+	t.Cleanup(func() { chatWebSearch = orig })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	type coreResult struct {
+		reply string
+		err   error
+	}
+	done := make(chan coreResult, 1)
+	go func() {
+		out, err := a.whisperChatCore(ctx, "帮我查一下", personalityID, "", false, false, true, false,
+			func(string) {
+				select {
+				case <-firstDelta:
+				default:
+					close(firstDelta)
+				}
+			}, nil)
+		reply, _ := out["reply"].(string)
+		done <- coreResult{reply, err}
+	}()
+	select {
+	case <-firstDelta:
+	case <-time.After(3 * time.Second):
+		t.Fatal("等待角色流首段正文超时")
+	}
+	cancel()
+	select {
+	case got := <-done:
+		if got.err != nil {
+			t.Fatalf("whisperChatCore: %v", got.err)
+		}
+		if !strings.Contains(got.reply, "查到了：") {
+			t.Fatalf("角色取消轮丢正文: %q", got.reply)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("whisperChatCore 取消后未返回")
+	}
+	time.Sleep(300 * time.Millisecond) // 异步记忆落库与 TempDir 清理竞速（house band-aid）
 }

@@ -286,6 +286,53 @@ describe('T6-3.1 流订阅竞态与超时', () => {
     expect(runtimeMock.unsubs.length).toBeGreaterThanOrEqual(1)
   })
 
+  it('action-3：超时撤销后端任务（ChatStreamCancel 被调用）且已生成 partial 保留', async () => {
+    vi.useFakeTimers()
+    await renderChat()
+    await sendMessage('你好')
+    await flushAsync()
+    const handler = runtimeMock.handlers['chat-stream:run-1']
+    await act(async () => {
+      handler({ type: 'delta', content: '生成到一半的' })
+      vi.advanceTimersByTime(16) // delta 走 rAF 缓冲，fake timers 需推进一帧才上屏
+    })
+    await flushAsync()
+    expect(screen.getByText('生成到一半的')).toBeTruthy()
+
+    await act(async () => { vi.advanceTimersByTime(STREAM_SILENCE_TIMEOUT_MS + 1) })
+
+    // 超时即撤销后端 run：后端不得继续生成并把完整正文落库成第二份权威
+    expect(ChatStreamCancel).toHaveBeenCalledWith('run-1')
+    // 已外发 partial 保留 + 超时注记（不无提示清空）
+    expect(screen.getByText(/生成到一半的/)).toBeTruthy()
+    expect(screen.getByText(/请求超时：30 秒内未收到新进度/)).toBeTruthy()
+  })
+
+  it('action-3：cancelled 帧 reply 为空时回退本地 partial，可见正文不被「未收到内容」吞掉', async () => {
+    await renderChat()
+    await sendMessage('你好')
+    await flushAsync()
+    const handler = runtimeMock.handlers['chat-stream:run-1']
+    await act(async () => { handler({ type: 'delta', content: '已经写出的部分' }) })
+    expect(await screen.findByText('已经写出的部分')).toBeTruthy()
+
+    // 后端空 reply（取消打断在缓冲段/空轮）：本地已外发 partial 必须保留
+    await act(async () => { handler({ type: 'cancelled', reply: '' }) })
+    expect(await screen.findByText(/已经写出的部分/)).toBeTruthy()
+    expect(screen.getByText(/（已停止生成）/)).toBeTruthy()
+    expect(screen.queryByText('（已停止生成，未收到内容）')).toBeNull()
+  })
+
+  it('action-3：cancelled 帧带后端 canonical reply 以后端为准', async () => {
+    await renderChat()
+    await sendMessage('你好')
+    await flushAsync()
+    const handler = runtimeMock.handlers['chat-stream:run-1']
+    await act(async () => { handler({ type: 'delta', content: '本地残段' }) })
+    await act(async () => { handler({ type: 'cancelled', reply: '后端已落库的完整部分' }) })
+    expect(await screen.findByText(/后端已落库的完整部分/)).toBeTruthy()
+  })
+
   it('绑定模型冷启动超过 30s 时不误判流超时；runID 到达后再启用 30s 流计时', async () => {
     vi.useFakeTimers()
     let resolveRunID: (id: string) => void = () => {}

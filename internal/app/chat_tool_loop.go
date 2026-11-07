@@ -162,6 +162,20 @@ func (a *App) runBoundedSearchToolLoop(
 		for chunk := range chunks {
 			if chunk.Error != "" {
 				cancelStream()
+				if ctx.Err() != nil {
+					// action-3 取消抢救（众神殿 pan_1794012727813）：流被打断时
+					// 当前轮已缓冲正文清洗后并入 canonical（此前轮已在各轮交付时
+					// 累计进 res.Reply），返回 nil 错误让上层按 ctx.Err() 走取消
+					// 终态落库——取消不得丢已生成内容。
+					if partial := strings.TrimSpace(stripToolCallMarkup(sbContent.String())); partial != "" {
+						res.Reply += partial
+						res.Reasoning += sbReasoning.String()
+						if onDelta != nil {
+							onDelta(partial)
+						}
+					}
+					return res, nil
+				}
 				return res, errString(chunk.Error)
 			}
 			if chunk.Done {

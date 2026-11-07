@@ -1,3 +1,25 @@
+## 聊天取消/超时终稿闭合（众神殿 action-3）· 2026-11-07
+
+- **承接**：众神殿 `pan_1794012727813_7dd108312e0d`「如何解决聊天角色答非所问，
+  胡乱说话」（部分解决）。三病灶核实：①VAD 跨轮前缀累积已被 2236cba1 修复装机
+  （action-2 只剩真麦复测）；②取消丢正文四处全在；③前端超时不调 ChatStreamCancel。
+- **落地（action-3，七处）**：工具循环取消抢救当前轮 sbContent 并入 res.Reply；
+  whisper 取消分支不抹已累计正文；plain 工具/非工具两分支取消改走 cancelled
+  落库（不再裸奔 error「请求已取消」）；空轮取消发 cancelled 空终态+用户输入
+  单条落 user 行；前端超时先调 ChatStreamCancel 再保留 partial；cancelled 帧
+  空 reply 回退本地已外发 partial。
+- **测试**：+7 例（Go 取消族 4：非工具/空轮/跨轮/persona；前端 3：超时撤销、
+  空 reply 回退、canonical 优先）。坑新录：服务端「写完即信号」在客户端消费前
+  有竞速，工具轮 mid-round 无客户端可见信号，`ssePartialThenHang` 信号前留
+  500ms 消费窗；非工具路径可在首个 delta 事件确定性取消。
+- **验证**：`go test ./internal/app/` 全包 168.9s 通过；`tsc -b` 0 错；
+  ChatPage 20/20、SearchCard+MessageList 20/20。
+- **病例卡**：action-1 草稿（语音格 whisper_gaea + 文本格 bokke/tsundere）入
+  `进度计划/gaea-chat-relevance-action-20261107.md`，待用户确认实体/角色与
+  action-2 真麦复测。
+- **本工作树三条前置 commit**：2530ca23 众神殿席位护栏+DSH 缓存、7b726c51
+  聊天搜索可靠性 P0、342b096a gofmt chore。
+
 ## 聊天搜索状态与来源卡并入主树 · 2026-11-06
 
 - **用户反馈**：重新测试后，聊天窗口没有显示搜索状态和搜索卡。定位=修复已完成在
