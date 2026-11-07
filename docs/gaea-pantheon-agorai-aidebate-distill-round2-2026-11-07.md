@@ -142,6 +142,8 @@
 
 1. **B4 降档端到端补缺**：见 §6.4 划线更新——用 `fakeGrokBackend` 模型席走通「全量窗口→梯度」的真实切换路径，对照腿证明断言判别力（无预算时标注在场）。pantheon 全量 23.0s 绿。
 2. **装机构建冒烟过**：按构建指南（ucrt64 gcc 前置+CGO_ENABLED=1）`wails build` 3m05s 产物 `build/bin/gaea.exe`（sha256 前 16 `b8beb754974798eb`，01:42）；构建前孤儿进程查清（无）。**手同步的 models.ts 与生成器重写输出逐字一致零漂移**（ToolCount ok/nonEmpty/digest、CallRef promptSha256/promptRunes、StartRequest timeBudgetMinutes 全在且风格同款）——四批全部前端字段经真实生成器验证。未安装（不动用户在跑的实例），实弹由用户按需装机。
+3. **app 首跑 FAIL 复现尝试**：按原失败条件（app 全量 -v 与前端 tsc+vitest 并发重载）复刻一枪，**全量落盘不截断**——0 FAIL / 161s，vitest 同时 67/67。累计 1 败（用例名不可追溯）4 胜；pantheon 族 app 用例每跑都过、失败与本线改动无可追溯关联。结论维持「疑似 flaky 待观察」；再现时的采集法已标准化（全量落盘+grep `--- FAIL` 上下文）。
+4. **提交**：`d74d3bdf`（docs 7 文件）+ `05a1fcd6`（合账 38 文件，双执行体署名）；留树 MemoryHub 五件（第三线）+ `ws_probe.exe`；ahead 4 未 push。
 
 ### 6.5 M2 互盲驳论协议落地（2026-11-08，未提交）
 
