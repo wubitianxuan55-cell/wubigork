@@ -4,7 +4,10 @@
 // 回声门抬 0.75（2026-11-01 实弹：0.6 被扬声器回声触发假插话）。
 package realtime
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestVADEchoGuard(t *testing.T) {
 	h := NewVADHandler(DefaultVADConfig(), nil, nil, NewSpeculativeTurns())
@@ -78,34 +81,34 @@ func hasStarted(events []VADEvent) bool {
 	return false
 }
 
-// 回声门 v2（2026-11-07 真麦实弹）：播放期回声猝发 192~384ms 必须被确认窗拦下
-// ——threshold 0.75 拦不住 silero 对 TTS 回声的高分，600ms 确认窗才是确定性闸。
-func TestVADEchoGuardMinSpeech(t *testing.T) {
+// 回声门 v3（2026-11-07 真麦二轮实弹，上游 block_mic_during_playback 同位）：
+// 播放期捕获侧整帧丢弃——v2 的 600ms 确认窗输给连续回声（active=608ms 过门），
+// 长句 TTS 回声可过任意有限确认窗；半双工=VAD 零摄入，语音打断让位 UI/协议
+// interrupt 通道；门关后尾窗 600ms 继续丢弃压回声余响（上游无此层，Go 实弹加设）。
+func TestVADEchoGuardHalfDuplex(t *testing.T) {
 	h := NewVADHandler(DefaultVADConfig(), energyScorer{}, nil, NewSpeculativeTurns())
 
-	// 门开（播放期）：384ms 猝发不过门——无 started；静音收段后整段 discard 不给 STT
+	// 播放期：持续 640ms 回声整帧丢弃——零事件、时间轴冻结（无触发态/段缓冲可泄漏）
 	h.EchoGuardOn()
-	evs := feedMs(t, h, 384, true)
-	if hasStarted(evs) {
-		t.Fatalf("播放期 384ms 猝发不应确认 started: %+v", evs)
+	evs := feedMs(t, h, 640, true)
+	if len(evs) != 0 {
+		t.Fatalf("播放期应整帧丢弃（零事件）: %+v", evs)
 	}
-	evs = append(evs, feedMs(t, h, 200, false)...) // 静音收段（minSilence 64ms 触发 utterance）
-	if hasStarted(evs) {
-		t.Fatalf("384ms 回声段应被 discard，不得 started/soft-end 接受: %+v", evs)
-	}
-
-	// 同一门内持续 640ms 真打断：过 600ms 确认窗
-	h2 := NewVADHandler(DefaultVADConfig(), energyScorer{}, nil, NewSpeculativeTurns())
-	h2.EchoGuardOn()
-	evs = feedMs(t, h2, 640, true)
-	if !hasStarted(evs) {
-		t.Fatal("播放期持续 640ms 语音应过 600ms 确认窗")
+	if h.AudioMs() != 0 {
+		t.Fatalf("丢弃帧不计时间轴，AudioMs=%d", h.AudioMs())
 	}
 
-	// 门关（监听期）：384ms 回到 MinSpeechMs 门，行为不变（救弱麦）
-	h3 := NewVADHandler(DefaultVADConfig(), energyScorer{}, nil, NewSpeculativeTurns())
-	evs = feedMs(t, h3, 384, true)
+	// 门关：尾窗 600ms 内仍压制（回声余响+AGC 余振）
+	h.EchoGuardOff()
+	evs = feedMs(t, h, 300, true)
+	if hasStarted(evs) {
+		t.Fatalf("尾窗内新轮应被压制: %+v", evs)
+	}
+
+	// 尾窗过后：监听期 384ms 按 MinSpeechMs 门正常确认（救弱麦行为不变）
+	time.Sleep(700 * time.Millisecond) // 尾窗过期
+	evs = feedMs(t, h, 384, true)
 	if !hasStarted(evs) {
-		t.Fatal("监听期 384ms 应按原 MinSpeechMs 门确认（回声门只动播放期）")
+		t.Fatal("尾窗后监听期 384ms 应正常确认")
 	}
 }

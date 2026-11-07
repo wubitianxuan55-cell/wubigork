@@ -7,6 +7,7 @@
 package realtime
 
 import (
+	"sync/atomic"
 	"log/slog"
 	"math"
 	"strconv"
@@ -114,21 +115,39 @@ type VADHandler struct {
 	lastSmartStatus   string
 	lastSmartAnalysis time.Duration
 
-	receivedAt     time.Time
-	baseThreshold  float64 // session.update 设定的监听阈值（回声门回落基准）
-	echoGuard      bool    // 播放期回声门开关（ttsStage 首音频开/finishResponse 关）
+	receivedAt      time.Time
+	baseThreshold   float64 // session.update 设定的监听阈值（回声门回落基准）
+	echoGuard       bool    // 播放期回声门开关（ttsStage 首音频开/finishResponse 关；跨 goroutine 直写，单 bool 最坏一帧旧值，SetThreshold 同款）
+	tailUntilNanos  int64   // atomic：门关尾窗截止（unix nano；压回声余响+AGC 余振）
+	droppedSamples  int64   // atomic：门控窗口内丢弃样本数（关门前落日志）
 }
 
 // echoGuardThreshold 播放期回声门阈值（2026-11-01 实弹：0.6 被扬声器回声触发
 // 假插话；0.75 是实弹定值，收敛进播放期专用）。
 const echoGuardThreshold = 0.75
 
-// echoGuardMinSpeechMs 播放期回声门确认窗（2026-11-07 真麦实弹：silero 对 TTS
-// 回声照样给高分——0.75 阈值拦不住，扬声器漏回的回声猝发 active=192~384ms 全部
-// 过门确认成假插话，打断级联 tts=cut 把回复掐成碎片，回声再被转写成
-// 「你不能/其有我」类杂串当输入（重复输入/自己的话当输入/杂音当输入三症状同源）。
-// 播放期把基础确认窗抬到 600ms：回声猝发全灭，真打断=人持续说话可过）。
+// echoGuardMinSpeechMs 播放期确认窗（v2 遗产，保留作门翻转竞态窗口的纵深——
+// 正常路径播放期音频在 Process 顶层整帧丢弃根本到不了确认层）。
+// 二轮实弹证明纯时长闸不够：长句 TTS 回声=连续语音，active=608ms 过 600ms 门
+// ——任意有限确认窗都输给连续回声，主闸=echoSuppressed 捕获侧丢弃（v3）。
 const echoGuardMinSpeechMs = 600
+
+// echoGuardTailMs 门关后尾窗：继续整帧丢弃，压回声余响+AGC 余振（二轮实弹：
+// 门关后 0.5~2.4s 内仍有 384/192ms 碎片确认成杂串输入）。上游无此层
+// （audio_client.py 无尾窗）——Go 侧按 2026-11-07 实弹加设。
+const echoGuardTailMs = 600
+
+// echoSuppressed 捕获侧丢弃判定（上游 local_audio_block_mic_during_playback
+// 同位语义，audio_client.py:1046-1048「block_mic_during_playback and
+// playback.is_active() → return」：播放期整帧不进管线）。上游明示该模式
+// 「禁播放期语音打断、不做 AEC」；本侧语音打断同此让位给 UI/协议 interrupt
+// 通道，真语音打断恢复=未来 AEC/按住说话。
+func (h *VADHandler) echoSuppressed() bool {
+	if h.echoGuard {
+		return true
+	}
+	return time.Now().UnixNano() < atomic.LoadInt64(&h.tailUntilNanos)
+}
 
 // NewVADHandler 构造（scorer/eot 由调用方注入；turns 为管线共享实例）。
 func NewVADHandler(cfg VADHandlerConfig, scorer VadScorer, eot EOTAnalyzer, turns *SpeculativeTurns) *VADHandler {
@@ -161,21 +180,25 @@ func (h *VADHandler) EchoGuardOn() {
 		return
 	}
 	h.echoGuard = true
+	atomic.StoreInt64(&h.droppedSamples, 0)
 	h.iter.threshold = echoGuardThreshold
-	// 门状态落日志（2026-11-07 坑：回声门静默开关，实弹日志看不出门是否在位，
-	// 只能靠阈值行间接推断——下一轮真麦取证需要显式状态行）。
-	slog.Info("echo gate on (threshold=" + strconv.FormatFloat(echoGuardThreshold, 'g', -1, 64) +
-		", minSpeechMs=" + strconv.Itoa(echoGuardMinSpeechMs) + ")")
+	// 门状态落日志（2026-11-07 坑：回声门静默开关，实弹日志看不出门是否在位）。
+	slog.Info("echo gate on (capture-drop half-duplex, threshold=" +
+		strconv.FormatFloat(echoGuardThreshold, 'g', -1, 64) + ")")
 }
 
-// EchoGuardOff 播放结束（finishResponse 终态收口）回落监听阈值。
+// EchoGuardOff 播放结束（finishResponse 终态收口）回落监听阈值，并开尾窗继续
+// 丢弃回声余响（语音打断让位 UI/协议 interrupt 通道；恢复=未来 AEC/按住说话）。
 func (h *VADHandler) EchoGuardOff() {
 	if !h.echoGuard {
 		return
 	}
 	h.echoGuard = false
 	h.iter.threshold = h.baseThreshold
-	slog.Info("echo gate off (threshold=" + strconv.FormatFloat(h.baseThreshold, 'g', -1, 64) + ")")
+	atomic.StoreInt64(&h.tailUntilNanos, time.Now().Add(echoGuardTailMs).UnixNano())
+	slog.Info("echo gate off (threshold=" + strconv.FormatFloat(h.baseThreshold, 'g', -1, 64) +
+		", tailMs=" + strconv.Itoa(echoGuardTailMs) +
+		", droppedMs=" + strconv.Itoa(int(atomic.SwapInt64(&h.droppedSamples, 0))*1000/h.cfg.SampleRate) + ")")
 }
 
 // SetMinSilenceMs 运行时改静音断句窗（M14，vad_handler.py:237-239 同位；
@@ -193,7 +216,14 @@ func (h *VADHandler) AudioMs() int {
 }
 
 // Process 一块 512 样本（float32 /32768 已归一）。返回本块产生的有序事件。
+// 播放期/尾窗内整帧丢弃（上游 block_mic_during_playback 同位）：VAD 零摄入
+// ——无触发态/候选/段缓冲，时间轴（AudioMs）随丢弃冻结，与上游「mic 不进队」
+// 同构；门翻转竞态窗口漏进的残余帧由播放期阈值 0.75+确认窗 600ms 兜底。
 func (h *VADHandler) Process(x []float32) []VADEvent {
+	if h.echoSuppressed() {
+		atomic.AddInt64(&h.droppedSamples, int64(len(x)))
+		return nil
+	}
 	h.totalSamples += len(x)
 	h.receivedAt = time.Now()
 	utterance := h.iter.process(x)
