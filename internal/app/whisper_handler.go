@@ -427,7 +427,7 @@ func (a *whisperState) whisperChatCore(
 		// B7 工具循环分岔（聊天板块）：模型自己决定要不要搜/搜什么；流式经
 		// emitDelta 照常外发。循环内有界（≤2 搜索 ≤3 轮），失败走 callErr。
 		if toolSearchMode {
-			res, loopErr := a.app.runBoundedSearchToolLoop(ctx, engine, model, messages, opts, forceSearch, emitDelta, onReasoning)
+			res, loopErr := a.app.runBoundedSearchToolLoop(ctx, engine, model, messages, opts, forceSearch, nil, emitDelta, onReasoning)
 			finishedAt = time.Now()
 			if loopErr != nil && ctx.Err() != nil {
 				cancelled = true

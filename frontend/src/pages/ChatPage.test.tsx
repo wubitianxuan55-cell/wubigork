@@ -121,7 +121,9 @@ vi.mock('../components/SoundWaveOverlay', () => ({ SoundWaveOverlay: () => null 
 vi.mock('../components/PersonaPicker', () => ({ default: () => null }))
 vi.mock('../components/VoiceSettingsPanel', () => ({ default: () => null }))
 
-import ChatPage, { CHAT_ENGINE_START_TIMEOUT_MS, STREAM_SILENCE_TIMEOUT_MS } from './ChatPage'
+import ChatPage, {
+  CHAT_ENGINE_START_TIMEOUT_MS, STREAM_HARD_TIMEOUT_MS, STREAM_SILENCE_TIMEOUT_MS,
+} from './ChatPage'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 // P3 版3 终局：wailsjsCompat shim 已退役——测试经 bindingsBridge 共享 vi.fn 直取。
 const {
@@ -231,6 +233,38 @@ describe('T6-3.1 流订阅竞态与超时', () => {
     expect(runtimeMock.handlers['chat-stream:run-1']).toBeUndefined()
   })
 
+  it('done 携带搜索摘要时，在回答下渲染可展开搜索卡', async () => {
+    await renderChat()
+    await sendMessage('明天成都天气怎么样')
+    await flushAsync()
+    const handler = runtimeMock.handlers['chat-stream:run-1']
+    await act(async () => {
+      handler({
+        type: 'done',
+        reply: '成都明天多云。',
+        search_state: 'ok',
+        searches: 1,
+        search_rounds: 2,
+        search_summary: {
+          state: 'ok',
+          queries: ['成都 明天 天气'],
+          searches: 1,
+          rounds: 2,
+          sources: 1,
+          elapsed_ms: 820,
+          references: [{
+            title: '成都天气预报',
+            url: 'https://weather.example.com/chengdu',
+            source: 'tavily',
+          }],
+        },
+      })
+    })
+    expect(await screen.findByText('联网搜索')).toBeTruthy()
+    expect(screen.getByText('1 次检索 · 1 个来源 · 0.8 秒')).toBeTruthy()
+    expect(screen.getByText('已完成')).toBeTruthy()
+  })
+
   it('超时：30s 无任何帧 → sending=false、错误展示、finally 执行（fake timers）', async () => {
     vi.useFakeTimers()
     await renderChat()
@@ -244,7 +278,7 @@ describe('T6-3.1 流订阅竞态与超时', () => {
     await act(async () => { vi.advanceTimersByTime(STREAM_SILENCE_TIMEOUT_MS + 1) })
 
     // 超时按失败展示 + sending 复位（输入框恢复可用）
-    expect(screen.getByText(/请求超时：30 秒内未收到回复/)).toBeTruthy()
+    expect(screen.getByText(/请求超时：30 秒内未收到新进度/)).toBeTruthy()
     const ta = screen.getByPlaceholderText(/输入消息/) as HTMLTextAreaElement
     expect(ta.disabled).toBe(false)
     // finally 执行：订阅已清理（unsubscribe 被调用）
@@ -267,7 +301,44 @@ describe('T6-3.1 流订阅竞态与超时', () => {
     expect(runtimeMock.handlers['chat-stream:run-1']).toBeDefined()
 
     await act(async () => { vi.advanceTimersByTime(STREAM_SILENCE_TIMEOUT_MS + 1) })
-    expect(screen.getByText(/请求超时：30 秒内未收到回复/)).toBeTruthy()
+    expect(screen.getByText(/请求超时：30 秒内未收到新进度/)).toBeTruthy()
+  })
+
+  it('进度会重置静默超时，搜索状态可见；120s 绝对硬上限仍生效', async () => {
+    vi.useFakeTimers()
+    await renderChat()
+    await sendMessage('明天成都天气怎么样')
+    await flushAsync()
+    const handler = runtimeMock.handlers['chat-stream:run-1']
+    expect(handler).toBeDefined()
+
+    await act(async () => {
+      vi.advanceTimersByTime(20_000)
+      handler({ type: 'status', phase: 'searching', query: '成都 明天 天气', search: 1 })
+    })
+    expect(screen.getByText('正在联网检索：成都 明天 天气')).toBeTruthy()
+
+    await act(async () => {
+      vi.advanceTimersByTime(25_000)
+      handler({ type: 'status', phase: 'search_done', search_state: 'ok', sources: 4 })
+    })
+    expect(screen.getByText('已找到 4 个来源，正在整理')).toBeTruthy()
+
+    await act(async () => {
+      vi.advanceTimersByTime(25_000)
+      handler({ type: 'delta', content: '仍在生成' })
+    })
+    expect(screen.queryByText(/请求超时：/)).toBeNull()
+
+    await act(async () => {
+      vi.advanceTimersByTime(25_000)
+      handler({ type: 'status', phase: 'finalizing', searches: 1 })
+    })
+    expect(screen.queryByText(/请求超时：/)).toBeNull()
+
+    // runID 到达后的绝对上限不因进度重置。
+    await act(async () => { vi.advanceTimersByTime(STREAM_HARD_TIMEOUT_MS - 95_000 + 1) })
+    expect(screen.getByText(/请求超时：本轮超过 120 秒/)).toBeTruthy()
   })
 
   it('绑定模型启动超过独立启动窗：显示启动超时并复位 sending', async () => {

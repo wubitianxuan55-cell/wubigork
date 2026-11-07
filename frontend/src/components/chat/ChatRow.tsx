@@ -8,12 +8,14 @@ import { Button, Tooltip } from 'antd'
 import {
   CopyOutlined, CheckOutlined, SoundOutlined, BulbOutlined,
   ReloadOutlined, CloseCircleOutlined, BarChartOutlined, UpOutlined, DownOutlined,
+  GlobalOutlined,
 } from '@ant-design/icons'
 import { C } from '../../utils/theme'
 import ChatMarkdown from '../ChatMarkdown'
 import { MarkdownContent } from '../MarkdownContent'
 import AnsweredByLine from './AnsweredByLine'
 import type { AnsweredByInfo } from './AnsweredByLine'
+import { SearchCard } from './SearchCard'
 import type { ChatMsg } from '../../pages/chat/types'
 import { useGenuiScope } from '../../genui/scope'
 import { buildMarkdownGenuiOverrides } from './genuiAdapter'
@@ -24,6 +26,8 @@ export interface ChatRowProps {
   msg: ChatMsg
   /** 展示文本：流式行 = 最新 streamText，其余行 = msg.content */
   text: string
+  /** 当前流式回合的最小进度（理解 / 搜索 / 整理 / 降级）。 */
+  streamStatus?: string
   /** 本行是否为当前流式行（msg.streaming && msg.key === streamKey） */
   isStreaming: boolean
   /** 是否与上一条消息（含窗口外相邻行）角色不同 → 显示 AI 名牌 */
@@ -40,7 +44,7 @@ export interface ChatRowProps {
 }
 
 export const ChatRow: React.FC<ChatRowProps> = ({
-  msg, text, isStreaming, newGroup, mode, companionName,
+  msg, text, streamStatus, isStreaming, newGroup, mode, companionName,
   copied, speaking, onCopy, onSpeak, onRetry,
 }) => {
   const display = text
@@ -77,6 +81,12 @@ export const ChatRow: React.FC<ChatRowProps> = ({
           {mode === 'plain' ? 'gaea AI 助手' : `${companionName} · AI`}
         </div>
       )}
+      {isStreaming && streamStatus && (
+        <div className="chat-stream-status" role="status" aria-live="polite">
+          <GlobalOutlined aria-hidden />
+          <span>{streamStatus}</span>
+        </div>
+      )}
       {!msg.error && msg.reasoning && (
         <details className="chat-reasoning">
           <summary><BulbOutlined style={{ marginRight: 4 }} />思考过程</summary>
@@ -109,6 +119,7 @@ export const ChatRow: React.FC<ChatRowProps> = ({
           )}
         </div>
       )}
+      {!msg.error && !msg.streaming && <SearchCard value={msg.extra?.search} />}
       {msg.content && !msg.streaming && (
         <div className={`chat-msg-actions${msg.extra?.answered_by != null ? ' has-metrics' : ''}`}>
           <Tooltip title={copied ? '已复制' : '复制'}>

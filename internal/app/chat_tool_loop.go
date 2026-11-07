@@ -53,11 +53,50 @@ const (
 
 // toolLoopResult 一次有界循环的产出（对齐 whisperChatCore 消费面）。
 type toolLoopResult struct {
-	Reply      string
-	Reasoning  string
-	Usage      *ai.ChatUsage
-	FirstToken time.Time
-	Searches   int
+	Reply        string
+	Reasoning    string
+	Usage        *ai.ChatUsage
+	FirstToken   time.Time
+	Searches     int
+	SearchRounds int
+	SearchRuns   []chatSearchTrace
+}
+
+// chatToolLoopEvent is the small progress contract shared by the plain stream
+// and the existing search loop. It deliberately carries no page text.
+type chatToolLoopEvent struct {
+	Phase          string
+	Round          int
+	Search         int
+	Query          string
+	State          builtin.SearchState
+	DegradedReason string
+	Sources        int
+	ElapsedMS      int64
+}
+
+type chatSearchTrace struct {
+	Query          string
+	State          builtin.SearchState
+	DegradedReason string
+	Sources        int
+	ElapsedMS      int64
+	References     []chatSearchReference
+}
+
+// chatSearchReference is the compact, persisted provenance shown by the chat
+// search card. Snippets are capped in the adapter and never hold full pages.
+type chatSearchReference struct {
+	Title   string `json:"title"`
+	URL     string `json:"url"`
+	Source  string `json:"source,omitempty"`
+	Snippet string `json:"snippet,omitempty"`
+}
+
+func notifyToolLoop(onEvent func(chatToolLoopEvent), ev chatToolLoopEvent) {
+	if onEvent != nil {
+		onEvent(ev)
+	}
 }
 
 // runBoundedSearchToolLoop 有界工具循环主体。messages 会被就地追加（assistant
@@ -69,13 +108,14 @@ func (a *App) runBoundedSearchToolLoop(
 	messages []ai.ChatMessage,
 	opts ai.ChatSimpleOptions,
 	mustSearch bool,
+	onEvent func(chatToolLoopEvent),
 	onDelta, onReasoning func(string),
-) (toolLoopResult, error) {
-	res := toolLoopResult{}
+) (res toolLoopResult, retErr error) {
 	toolDef, ok := webSearchToolDef()
 	if !ok {
 		// 工具本体未注册（理论不可达）：降级为无工具直答，不失败
 		res.Reasoning = ""
+		notifyToolLoop(onEvent, chatToolLoopEvent{Phase: "fallback", Round: 1})
 		return res, nil
 	}
 	tools := []ai.ChatToolSchema{toolDef}
@@ -90,7 +130,10 @@ func (a *App) runBoundedSearchToolLoop(
 		messages = msgs
 	}
 	searches := 0
+	defer func() { res.Searches = searches }()
 	for round := 0; round < toolLoopMaxRounds; round++ {
+		res.SearchRounds = round + 1
+		notifyToolLoop(onEvent, chatToolLoopEvent{Phase: "thinking", Round: round + 1, Search: searches})
 		useTools := searches < toolSearchMax && round < toolLoopMaxRounds-1
 		roundTools := tools
 		if !useTools {
@@ -108,11 +151,9 @@ func (a *App) runBoundedSearchToolLoop(
 		}
 		var sbContent, sbReasoning strings.Builder
 		var firstToken time.Time
-		// 带工具轮正文缓冲不直发（2026-11-06 实机病例：模型把工具调用以文本
-		// 形态 <tool_call> XML 写进正文——原生 tool_calls 修复解析层，对齐办公
-		// repairArguments 先例；流式直发会把标记漏给用户且搜索不执行）。
-		// 思考链无标记风险照常直发。末轮（无工具）正文照常流式。
-		bufferContent := useTools
+		// 正文每轮先完整缓冲，解析 / 过滤后才允许外发。工具调用可能以原生
+		// tool_calls 或正文标记出现，只有流结束后才能确定本轮是否要执行工具；
+		// 提前直发会把 raw <tool_call> 同时写进 delta、done 和数据库。
 		chunks, cancelStream, err := a.clientRef().ChatStreamMessages(ctx, model, messages, opts, roundTools)
 		if err != nil {
 			return res, err
@@ -137,9 +178,6 @@ func (a *App) runBoundedSearchToolLoop(
 			}
 			if chunk.Content != "" {
 				sbContent.WriteString(chunk.Content)
-				if !bufferContent && onDelta != nil {
-					onDelta(chunk.Content)
-				}
 			}
 			if chunk.Reasoning != "" {
 				sbReasoning.WriteString(chunk.Reasoning)
@@ -155,21 +193,36 @@ func (a *App) runBoundedSearchToolLoop(
 			// 修复解析：原生 toolCalls 之外，正文里的文本形态工具调用块提取
 			// 执行；标记从正文剥离，剩余散文补发外流。
 			markupCalls, cleaned := extractMarkupToolCalls(content)
-			if cleaned != content && onDelta != nil && cleaned != "" {
-				onDelta(cleaned)
-			}
 			content = cleaned
 			toolCalls = append(toolCalls, markupCalls...)
 			if len(toolCalls) == 0 {
+				// 模型在仍带工具的轮次直接作答也是有效终态：必须交付缓冲正文，
+				// 不能只写 res.Reply 后返回（流式调用方只消费 onDelta）。
+				if strings.TrimSpace(content) == "" {
+					return res, errString("模型返回为空，未生成可交付正文")
+				}
+				notifyToolLoop(onEvent, chatToolLoopEvent{Phase: "finalizing", Round: round + 1})
+				if onDelta != nil {
+					onDelta(content)
+				}
 				res.Reply += content
 				res.Reasoning += sbReasoning.String()
 				return res, nil
 			}
 		} else {
-			// 末轮安全剥离：万一模型仍吐标记，正文面（落库/返回值）不留标记
-			if _, cleaned := extractMarkupToolCalls(content); cleaned != content {
-				content = cleaned
+			// 末轮已经没有工具，但模型仍可能吐文本工具调用。先完整过滤，再让
+			// 同一份 canonical 正文进入 delta、done 与落库。
+			content = stripToolCallMarkup(content)
+			if strings.TrimSpace(content) == "" {
+				return res, errString("模型只返回了工具调用标记，未生成可交付正文")
 			}
+			notifyToolLoop(onEvent, chatToolLoopEvent{Phase: "finalizing", Round: round + 1})
+			if onDelta != nil {
+				onDelta(content)
+			}
+		}
+		if useTools && content != "" && onDelta != nil {
+			onDelta(content)
 		}
 		res.Reply += content
 		res.Reasoning += sbReasoning.String()
@@ -180,7 +233,10 @@ func (a *App) runBoundedSearchToolLoop(
 		assistantMsg := ai.ChatMessage{Role: "assistant", Content: content, ToolCalls: toolCalls}
 		messages = append(messages, assistantMsg)
 		for _, tc := range toolCalls {
-			out := a.executeChatToolCall(&searches, tc)
+			out, run := a.executeChatToolCall(&searches, tc, onEvent)
+			if run != nil {
+				res.SearchRuns = append(res.SearchRuns, *run)
+			}
 			messages = append(messages, ai.ChatMessage{
 				Role: "tool", ToolCallID: tc.ID, Name: tc.Function.Name, Content: out,
 			})
@@ -195,11 +251,15 @@ var toolCallMarkupRE = regexp.MustCompile(`(?s)<tool_call>\s*<function=([A-Za-z0
 
 var markupParamRE = regexp.MustCompile(`<parameter=([A-Za-z0-9_]+)>\s*([\s\S]*?)\s*</parameter>`)
 
+var toolCallJSONBlockRE = regexp.MustCompile(`(?s)<tool_call>\s*([\s\S]*?)\s*</tool_call>`)
+
+var toolCallFenceRE = regexp.MustCompile("(?s)```tool_call[^\\n]*\\r?\\n([\\s\\S]*?)```")
+
 // extractMarkupToolCalls 从正文提取文本形态工具调用块并返回「剥离标记后的
 // 散文」。参数统一打包成 {name: value} JSON（arguments 字符串形态，与原生
 // 调用同构进 executeChatToolCall）；解析不了整块丢弃不外漏。
 func extractMarkupToolCalls(content string) ([]ai.ChatToolCall, string) {
-	if !strings.Contains(content, "<tool_call>") {
+	if !strings.Contains(content, "<tool_call>") && !strings.Contains(content, "```tool_call") {
 		return nil, content
 	}
 	var calls []ai.ChatToolCall
@@ -226,34 +286,140 @@ func extractMarkupToolCalls(content string) ([]ai.ChatToolCall, string) {
 		})
 		return ""
 	})
+	cleaned = toolCallJSONBlockRE.ReplaceAllStringFunc(cleaned, func(block string) string {
+		m := toolCallJSONBlockRE.FindStringSubmatch(block)
+		if m == nil {
+			return ""
+		}
+		calls = append(calls, decodeMarkupJSONCalls(m[1], &seq)...)
+		return ""
+	})
+	cleaned = toolCallFenceRE.ReplaceAllStringFunc(cleaned, func(block string) string {
+		m := toolCallFenceRE.FindStringSubmatch(block)
+		if m == nil {
+			return ""
+		}
+		calls = append(calls, decodeMarkupJSONCalls(m[1], &seq)...)
+		return ""
+	})
 	return calls, strings.TrimSpace(cleaned)
+}
+
+func decodeMarkupJSONCalls(raw string, seq *int) []ai.ChatToolCall {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	var decoded interface{}
+	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
+		return nil
+	}
+	items := []interface{}{decoded}
+	if arr, ok := decoded.([]interface{}); ok {
+		items = arr
+	}
+	var calls []ai.ChatToolCall
+	for _, item := range items {
+		obj, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		nameValue := obj["name"]
+		argsValue := obj["arguments"]
+		if argsValue == nil {
+			argsValue = obj["parameters"]
+		}
+		if fn, ok := obj["function"].(map[string]interface{}); ok {
+			nameValue = fn["name"]
+			argsValue = fn["arguments"]
+		}
+		name, _ := nameValue.(string)
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		args := "{}"
+		switch v := argsValue.(type) {
+		case string:
+			if strings.TrimSpace(v) != "" {
+				args = v
+			}
+		case nil:
+		default:
+			if b, err := json.Marshal(v); err == nil {
+				args = string(b)
+			}
+		}
+		*seq++
+		calls = append(calls, ai.ChatToolCall{
+			ID:       "markup_json_" + strconv.Itoa(*seq),
+			Type:     "function",
+			Function: ai.ChatToolFunction{Name: name, Arguments: args},
+		})
+	}
+	return calls
 }
 
 // executeChatToolCall 执行单次工具调用（当前仅 web_search），返回回填 tool
 // 消息的文本面。搜索配额在调用前检查，超限回占位文案（模型侧自然收敛）。
-func (a *App) executeChatToolCall(searches *int, tc ai.ChatToolCall) string {
+func (a *App) executeChatToolCall(
+	searches *int,
+	tc ai.ChatToolCall,
+	onEvent func(chatToolLoopEvent),
+) (string, *chatSearchTrace) {
 	if tc.Function.Name != "web_search" {
-		return "[不支持的工具，请直接基于已有知识回答]"
+		return "[不支持的工具，请直接基于已有知识回答]", nil
 	}
 	if *searches >= toolSearchMax {
-		return "[搜索次数已达上限，请基于已获取的信息直接回答]"
+		return "[搜索次数已达上限，请基于已获取的信息直接回答]", nil
 	}
 	var args struct {
 		Query string `json:"query"`
 	}
 	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil || strings.TrimSpace(args.Query) == "" {
-		return "[工具参数解析失败，请直接基于已有知识回答]"
+		return "[工具参数解析失败，请直接基于已有知识回答]", nil
 	}
 	*searches++
-	out, err := chatWebSearch(args.Query)
+	query := strings.TrimSpace(args.Query)
+	notifyToolLoop(onEvent, chatToolLoopEvent{Phase: "searching", Search: *searches, Query: query})
+	startedAt := time.Now()
+	out, err := chatWebSearch(query)
+	run := &chatSearchTrace{Query: query, ElapsedMS: time.Since(startedAt).Milliseconds()}
 	if err != nil {
-		return "[联网搜索暂不可用，请基于已有知识回答，并如实说明未获取到实时信息]"
+		run.State = builtin.SearchStateAllFailed
+		notifyToolLoop(onEvent, chatToolLoopEvent{
+			Phase: "search_done", Search: *searches, Query: query,
+			State: run.State, ElapsedMS: run.ElapsedMS,
+		})
+		return "[联网搜索暂不可用，请基于已有知识回答，并如实说明未获取到实时信息]", run
 	}
 	switch out.State {
 	case builtin.SearchStateOK, builtin.SearchStateDegraded:
-		return out.Text + "\n" + searchDateAnchor(time.Now())
+		run.State = out.State
+		run.DegradedReason = out.DegradedReason
+		run.Sources = out.Sources
+		run.References = out.References
+		notifyToolLoop(onEvent, chatToolLoopEvent{
+			Phase: "search_done", Search: *searches, Query: query,
+			State: run.State, DegradedReason: run.DegradedReason,
+			Sources: run.Sources, ElapsedMS: run.ElapsedMS,
+		})
+		return out.Text + "\n" + searchDateAnchor(time.Now()), run
 	default:
-		return "[各搜索引擎均未返回相关结果，请基于已有知识回答，并如实说明]"
+		if out.State == "" {
+			run.State = builtin.SearchStateAllFailed
+		} else {
+			run.State = out.State
+		}
+		run.DegradedReason = out.DegradedReason
+		run.Sources = out.Sources
+		run.References = out.References
+		notifyToolLoop(onEvent, chatToolLoopEvent{
+			Phase: "search_done", Search: *searches, Query: query,
+			State: run.State, DegradedReason: run.DegradedReason,
+			Sources: run.Sources, ElapsedMS: run.ElapsedMS,
+		})
+		return "[各搜索引擎均未返回相关结果，请基于已有知识回答，并如实说明]", run
 	}
 }
 
@@ -315,15 +481,20 @@ func (f *markupDeltaFilter) feed(delta string) string {
 // 且未闭合的尾巴极小概率是正常散文，吞掉比漏给用户便宜）。
 func (f *markupDeltaFilter) flush() string {
 	rest := f.pending
-	if strings.HasPrefix(strings.TrimSpace(rest), "<tool_call") || strings.Contains(rest, markupOpenToken) {
+	f.pending = ""
+	trimmed := strings.TrimSpace(rest)
+	if strings.HasPrefix(trimmed, markupOpenToken) ||
+		strings.Contains(trimmed, markupOpenToken) ||
+		(trimmed != "" && strings.HasPrefix(markupOpenToken, trimmed)) {
 		return ""
 	}
-	f.pending = ""
 	return rest
 }
 
 // stripToolCallMarkup 非流式面的最终净化（落库/返回值/TTS 面）。
 func stripToolCallMarkup(s string) string {
 	var f markupDeltaFilter
-	return strings.TrimSpace(f.feed(s) + f.flush())
+	cleaned := f.feed(s) + f.flush()
+	_, cleaned = extractMarkupToolCalls(cleaned)
+	return strings.TrimSpace(cleaned)
 }

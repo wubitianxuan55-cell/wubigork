@@ -27,7 +27,10 @@ import { ChatComposer, QUICK_REPLIES } from '../components/chat/ChatComposer'
 const EMPTY_REPLIES: Array<{ label: string; text: string }> = []
 import { ChatInspector } from '../components/chat/ChatInspector'
 import VoiceConsoleV2 from '../components/chat/VoiceConsoleV2'
-import { STREAM_SILENCE_TIMEOUT_MS, CHAT_ENGINE_START_TIMEOUT_MS, EMO_COLORS } from './chat/constants'
+import {
+  STREAM_SILENCE_TIMEOUT_MS, STREAM_INACTIVITY_TIMEOUT_MS, STREAM_HARD_TIMEOUT_MS,
+  CHAT_ENGINE_START_TIMEOUT_MS, EMO_COLORS,
+} from './chat/constants'
 import { navigateToCharacterLib, loadCompanionName, toUpdatedAt, loadPersonality } from './chat/utils'
 import type { ChatMsg, Personality } from './chat/types'
 import '../chat-board.css'
@@ -38,7 +41,10 @@ import { GenuiActionProvider } from '../genui/GenuiActionContext'
 
 // T6-3.1：流式对话无帧超时（30s 无任何帧即视为失败）。测试从 ChatPage 导入
 // （vitest fake timers 推进同一阈值），故在此再导出。
-export { STREAM_SILENCE_TIMEOUT_MS, CHAT_ENGINE_START_TIMEOUT_MS }
+export {
+  STREAM_SILENCE_TIMEOUT_MS, STREAM_INACTIVITY_TIMEOUT_MS, STREAM_HARD_TIMEOUT_MS,
+  CHAT_ENGINE_START_TIMEOUT_MS,
+}
 
 function initialCollapsed(key: string): boolean {
   try {
@@ -202,7 +208,7 @@ const ChatPage: React.FC = () => {
     setAro,
     finalizeTopicAfterSend,
   })
-  const { sending, streamKey, streamText, send, stop, cancelTyping } = streamApi
+  const { sending, streamKey, streamText, streamStatus, send, stop, cancelTyping } = streamApi
 
   // ── 语音台（V2 唯一；V1 whisper 链已退役 2026-11-05 用户拍板） ──
   useEffect(() => {
@@ -599,6 +605,7 @@ const ChatPage: React.FC = () => {
                       messages={messages}
                       streamKey={streamKey}
                       streamText={streamText}
+                      streamStatus={streamStatus}
                       mode={mode}
                       companionName={companionName}
                       copiedId={copiedId}

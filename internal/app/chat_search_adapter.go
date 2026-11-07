@@ -40,6 +40,8 @@ type chatSearchOutcome struct {
 	RawQuery       string // 用户原始问句
 	Text           string // OK/DEGRADED：编号结果列表（title/url/snippet/source）；其余：空
 	Engines        string // 逐引擎诊断摘要（一行，EMPTY/ALL_FAILED/DEGRADED 时进注入文案）
+	Sources        int    // OK/DEGRADED 时的结果条数（诊断/进度摘要，不保存网页正文）
+	References     []chatSearchReference
 }
 
 // chatSearchRun 统一检索核 seam：测试可替换避免真实网络请求（刀2 起返回
@@ -80,8 +82,27 @@ func runChatWebSearch(rawQuery string) (chatSearchOutcome, error) {
 	}
 	if outcome.State == builtin.SearchStateOK || outcome.State == builtin.SearchStateDegraded {
 		out.Text = formatChatSearchResults(outcome.Results)
+		out.Sources = len(outcome.Results)
+		out.References = chatSearchReferences(outcome.Results)
 	}
 	return out, nil
+}
+
+func chatSearchReferences(results []builtin.SearchResult) []chatSearchReference {
+	refs := make([]chatSearchReference, 0, len(results))
+	for _, r := range results {
+		u := strings.TrimSpace(r.URL)
+		if u == "" {
+			continue
+		}
+		refs = append(refs, chatSearchReference{
+			Title:   strings.TrimSpace(r.Title),
+			URL:     u,
+			Source:  strings.TrimSpace(r.Source),
+			Snippet: truncateRunes(strings.TrimSpace(r.Snippet), 220),
+		})
+	}
+	return refs
 }
 
 // injectChatSearchResult 三层契约第二层：注入头按状态选文案。EMPTY 与

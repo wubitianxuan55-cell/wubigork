@@ -5,7 +5,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 import { app } from '../gaea/lib/bridge'
-import { CHAT_ENGINE_START_TIMEOUT_MS, STREAM_SILENCE_TIMEOUT_MS } from '../pages/chat/constants'
+import {
+  CHAT_ENGINE_START_TIMEOUT_MS, STREAM_HARD_TIMEOUT_MS, STREAM_INACTIVITY_TIMEOUT_MS,
+} from '../pages/chat/constants'
 import { nextMsgKey, nowStr } from '../pages/chat/utils'
 import type { ChatMsg } from '../pages/chat/types'
 import type { AnsweredByInfo } from '../components/chat/AnsweredByLine'
@@ -23,6 +25,18 @@ interface ChatStreamPayload {
   emotion?: string
   aff?: number
   aro?: number
+  /** 搜索回合的最小进度/终态摘要 */
+  phase?: string
+  round?: number
+  search?: number
+  query?: string
+  search_state?: string
+  searches?: number
+  search_rounds?: number
+  degraded_reason?: string
+  sources?: number
+  elapsed_ms?: number
+  search_summary?: Record<string, unknown>
 }
 
 export interface UseChatStreamOptions {
@@ -45,11 +59,41 @@ export interface ChatSendParams {
   retryKey?: string
 }
 
+function describeStreamStatus(payload: ChatStreamPayload): string {
+  const query = (payload.query || '').trim()
+  const shortQuery = query.length > 60 ? `${query.slice(0, 60)}…` : query
+  switch (payload.phase) {
+    case 'thinking':
+      if (payload.search && payload.search > 0) return '正在基于检索结果整理'
+      return payload.round && payload.round > 1 ? `正在进行第 ${payload.round} 轮整理` : '正在理解问题'
+    case 'searching':
+      return shortQuery ? `正在联网检索：${shortQuery}` : '正在联网检索'
+    case 'search_done': {
+      const sources = typeof payload.sources === 'number' ? payload.sources : 0
+      if (payload.search_state === 'degraded') {
+        return sources > 0 ? `主搜索源降级，已找到 ${sources} 个备用来源，正在整理` : '搜索已降级，正在整理'
+      }
+      if (payload.search_state === 'empty') return '未找到相关结果，正在基于已有知识回答'
+      if (payload.search_state === 'all_failed') return '联网搜索不可用，正在基于已有知识回答'
+      return sources > 0 ? `已找到 ${sources} 个来源，正在整理` : '检索完成，正在整理'
+    }
+    case 'finalizing':
+      return payload.search && payload.search > 0 ? '检索完成，正在组织最终回答' : '正在组织回答'
+    case 'fallback':
+      return '搜索工具暂不可用，正在切换到直接回答'
+    default:
+      return '正在生成'
+  }
+}
+
 export function useChatStream(opts: UseChatStreamOptions) {
   const { updateMessage, setMessages, setInput, setEmotion, setAff, setAro, finalizeTopicAfterSend } = opts
   const [sending, setSending] = useState(false)
   const [streamKey, setStreamKey] = useState<string | null>(null)
   const [streamText, setStreamText] = useState('')
+  const [streamStatus, setStreamStatus] = useState('')
+  // 终态/超时需要保留已显示的正文；仅靠 streamText state 在异步回调里会读到旧值。
+  const streamTextRef = useRef('')
   // 旧接口保留的取消标志（外部切话题/卸载调用取消后端流，新一轮发送复位）。
   const typingCancelRef = useRef(false)
   // 真实流式订阅的清理函数：卸载时取消监听，避免泄漏。
@@ -106,7 +150,8 @@ export function useChatStream(opts: UseChatStreamOptions) {
       }
       return [...prev.filter(m => !drop.has(m.key)), um, am]
     })
-    setStreamKey(am.key); setStreamText('')
+    streamTextRef.current = ''
+    setStreamKey(am.key); setStreamText(''); setStreamStatus('')
 
     // 普通对话与角色对话统一走真实流：角色链路此前先等整段返回，再做前端模拟
     // 打字，长回复会额外增加数十秒可见延迟；现在首个模型分片即上屏。
@@ -127,6 +172,7 @@ export function useChatStream(opts: UseChatStreamOptions) {
         if (!deltaBuf) return
         const chunk = deltaBuf
         deltaBuf = ''
+        streamTextRef.current += chunk
         setStreamText(prev => prev + chunk)
       }
       const cleanup = () => { cancelPendingDelta(); if (unsub) { const f = unsub; unsub = null; f() } }
@@ -139,20 +185,24 @@ export function useChatStream(opts: UseChatStreamOptions) {
         // sending 必复位、finally 必执行。
         const ok = await new Promise<boolean>((resolve) => {
           let settled = false
-          let timer: ReturnType<typeof setTimeout> | null = null
+          let startTimer: ReturnType<typeof setTimeout> | null = null
+          let inactivityTimer: ReturnType<typeof setTimeout> | null = null
+          let hardTimer: ReturnType<typeof setTimeout> | null = null
           const finish = (okVal: boolean) => {
             if (settled) return
             settled = true
-            if (timer !== null) clearTimeout(timer)
+            if (startTimer !== null) clearTimeout(startTimer)
+            if (inactivityTimer !== null) clearTimeout(inactivityTimer)
+            if (hardTimer !== null) clearTimeout(hardTimer)
             if (streamFinishRef.current === finish) streamFinishRef.current = null
             resolve(okVal)
           }
           streamFinishRef.current = finish
           // 后端返回 runID 前可能正在冷启动绑定模型（35B 最长 300s）；此阶段
           // 不能套用 30s“流无帧”阈值，否则引擎尚在加载就被前端误判超时。
-          timer = setTimeout(() => {
+          startTimer = setTimeout(() => {
             cancelPendingDelta()
-            setStreamText(''); setStreamKey(null)
+            setStreamText(''); setStreamKey(null); setStreamStatus('')
             updateMessage(am.key, {
               content: '绑定模型启动超时，请检查本机引擎状态后重试',
               streaming: false,
@@ -160,14 +210,36 @@ export function useChatStream(opts: UseChatStreamOptions) {
             })
             finish(false)
           }, CHAT_ENGINE_START_TIMEOUT_MS)
-          const armStreamTimeout = () => {
-            if (timer !== null) clearTimeout(timer)
-            timer = setTimeout(() => {
-              cancelPendingDelta()
-              setStreamText(''); setStreamKey(null)
-              updateMessage(am.key, { content: `请求超时：${STREAM_SILENCE_TIMEOUT_MS / 1000} 秒内未收到回复，请重试`, streaming: false, error: true })
-              finish(false)
-            }, STREAM_SILENCE_TIMEOUT_MS)
+          const timeoutMessage = (why: string) => {
+            if (deltaBuf) flushDelta()
+            const partial = streamTextRef.current.trimEnd()
+            setStreamText(''); setStreamKey(null); setStreamStatus('')
+            updateMessage(am.key, {
+              content: partial
+                ? `${partial}\n\n（请求超时：${why}，已保留以上内容）`
+                : `请求超时：${why}，请重试`,
+              streaming: false,
+              error: true,
+            })
+            finish(false)
+          }
+          const armInactivityTimeout = () => {
+            if (inactivityTimer !== null) clearTimeout(inactivityTimer)
+            inactivityTimer = setTimeout(() => {
+              timeoutMessage(`${STREAM_INACTIVITY_TIMEOUT_MS / 1000} 秒内未收到新进度`)
+            }, STREAM_INACTIVITY_TIMEOUT_MS)
+          }
+          const armTimers = () => {
+            if (startTimer !== null) {
+              clearTimeout(startTimer)
+              startTimer = null
+            }
+            armInactivityTimeout()
+            if (hardTimer === null) {
+              hardTimer = setTimeout(() => {
+                timeoutMessage(`本轮超过 ${STREAM_HARD_TIMEOUT_MS / 1000} 秒`)
+              }, STREAM_HARD_TIMEOUT_MS)
+            }
           }
           const opening = mode === 'plain'
             ? app.ChatStreamPlain(active, trimmed, search, thinking, force)
@@ -186,11 +258,16 @@ export function useChatStream(opts: UseChatStreamOptions) {
               unsub = EventsOn(`chat-stream:${runID}`, (payload: ChatStreamPayload) => {
                 if (settled) return
                 const p = payload || {}
+                if (p.type === 'delta' || p.type === 'reasoning' || p.type === 'status') {
+                  armInactivityTimeout()
+                }
                 if (p.type === 'delta') {
                   deltaBuf += (p.content || '')
                   if (!deltaRaf) deltaRaf = requestAnimationFrame(flushDelta)
                 } else if (p.type === 'reasoning') {
                   reasoningAcc += p.content || ''
+                } else if (p.type === 'status') {
+                  setStreamStatus(describeStreamStatus(p))
                 } else if (p.type === 'done') {
                   const reply = typeof p.reply === 'string' ? p.reply : ''
                   const reasoning = typeof p.reasoning === 'string' ? p.reasoning : reasoningAcc
@@ -203,8 +280,17 @@ export function useChatStream(opts: UseChatStreamOptions) {
                   }
                   if (typeof p.emotion === 'string' && p.emotion) extra.emotion = p.emotion
                   if (typeof p.reasoning === 'string' && p.reasoning) extra.reasoning = p.reasoning
+                  if (p.search_summary && typeof p.search_summary === 'object') {
+                    extra.search = p.search_summary
+                  } else if (typeof p.search_state === 'string') {
+                    extra.search = {
+                      state: p.search_state,
+                      searches: p.searches,
+                      rounds: p.search_rounds,
+                    }
+                  }
                   cancelPendingDelta()
-                  setStreamText(''); setStreamKey(null)
+                  setStreamText(''); setStreamKey(null); setStreamStatus('')
                   updateMessage(am.key, { content: reply, streaming: false, reasoning, extra })
                   if (typeof p.emotion === 'string' && p.emotion) setEmotion(p.emotion)
                   if (typeof p.aff === 'number') setAff(Math.round(p.aff))
@@ -215,7 +301,7 @@ export function useChatStream(opts: UseChatStreamOptions) {
                   // 前端如实展示部分回复 + 停止标注（不按失败处理）。
                   cancelPendingDelta()
                   const partial = typeof p.reply === 'string' ? p.reply : ''
-                  setStreamText(''); setStreamKey(null)
+                  setStreamText(''); setStreamKey(null); setStreamStatus('')
                   const extra: Record<string, unknown> = {}
                   if (p.answered_by && typeof p.answered_by === 'object') extra.answered_by = p.answered_by
                   updateMessage(am.key, {
@@ -225,12 +311,12 @@ export function useChatStream(opts: UseChatStreamOptions) {
                   finish(false)
                 } else if (p.type === 'error') {
                   cancelPendingDelta()
-                  setStreamText(''); setStreamKey(null)
+                  setStreamText(''); setStreamKey(null); setStreamStatus('')
                   updateMessage(am.key, { content: `请求失败：${p.error || '未知错误'}`, streaming: false, error: true })
                   finish(false)
                 }
               })
-              armStreamTimeout()
+              armTimers()
               // 用户在 runID 返回前已点停止：订阅建立后立即撤销后端任务，
               // cancelled 帧仍会走统一收尾。
               if (typingCancelRef.current) {
@@ -240,14 +326,14 @@ export function useChatStream(opts: UseChatStreamOptions) {
             .catch((err: unknown) => {
               // 启动失败（binding 拒绝）：直接按失败收尾，与事件错误终态一致
               cancelPendingDelta()
-              setStreamText(''); setStreamKey(null)
+              setStreamText(''); setStreamKey(null); setStreamStatus('')
               updateMessage(am.key, { content: `请求失败：${err instanceof Error ? err.message : String(err)}`, streaming: false, error: true })
               finish(false)
             })
         })
         if (ok) await finalizeTopicAfterSend(active, trimmed)
       } catch (err: unknown) {
-        setStreamText(''); setStreamKey(null)
+        setStreamText(''); setStreamKey(null); setStreamStatus('')
         updateMessage(am.key, { content: `请求失败：${err instanceof Error ? err.message : String(err)}`, streaming: false, error: true })
       } finally {
         cleanup()
@@ -265,5 +351,5 @@ export function useChatStream(opts: UseChatStreamOptions) {
     cancelTyping()
   }, [sending, cancelTyping])
 
-  return { sending, streamKey, streamText, send, stop, cancelTyping, resetTyping }
+  return { sending, streamKey, streamText, streamStatus, send, stop, cancelTyping, resetTyping }
 }

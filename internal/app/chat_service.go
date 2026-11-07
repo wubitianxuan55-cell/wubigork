@@ -15,6 +15,7 @@ import (
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/chat"
 	"github.com/gaea/gaea/internal/gaea/genui"
+	"github.com/gaea/gaea/internal/gaea/tool/builtin"
 	"github.com/gaea/gaea/internal/modelengine"
 )
 
@@ -55,16 +56,19 @@ func (a *App) chatSendPlain(topicID, message string, searchEnabled, thinking, fo
 		DisableFailover: source == "feature",
 	}
 	var reply, reasoning string
+	var searchRuns []chatSearchTrace
+	var searchRounds, searches int
 	// B7 工具循环（按钮语义=允许联网总开关）：开着即带 web_search 真工具，
 	// 要不要搜/搜什么由模型判断（关键词门控退役）；关闭=不传工具零变化。
 	if searchEnabled || forceSearch {
 		res, loopErr := a.runBoundedSearchToolLoop(a.ctx, eng, model,
 			[]ai.ChatMessage{{Role: "system", Content: chatPlainSystemPrompt}, {Role: "user", Content: userMessage}},
-			opts, forceSearch, nil, nil)
+			opts, forceSearch, nil, nil, nil)
 		if loopErr != nil {
 			return nil, loopErr
 		}
 		reply, reasoning = res.Reply, res.Reasoning
+		searchRuns, searchRounds, searches = res.SearchRuns, res.SearchRounds, res.Searches
 	} else {
 		reply, reasoning, err = a.clientRef().ChatSimpleStreamDetailed(a.ctx, model,
 			chatPlainSystemPrompt, userMessage, opts)
@@ -73,9 +77,17 @@ func (a *App) chatSendPlain(topicID, message string, searchEnabled, thinking, fo
 		}
 		reply = stripToolCallMarkup(reply)
 	}
-	extra := ""
+	persistedExtra := map[string]interface{}{}
 	if reasoning != "" {
-		if b, err := json.Marshal(map[string]interface{}{"reasoning": reasoning}); err == nil {
+		persistedExtra["reasoning"] = reasoning
+	}
+	searchSummary := summarizeChatSearchRuns(searchRuns, searchRounds)
+	if searchEnabled || forceSearch {
+		persistedExtra["search"] = searchSummary
+	}
+	extra := ""
+	if len(persistedExtra) > 0 {
+		if b, err := json.Marshal(persistedExtra); err == nil {
 			extra = string(b)
 		}
 	}
@@ -87,7 +99,11 @@ func (a *App) chatSendPlain(topicID, message string, searchEnabled, thinking, fo
 	// 兜底已生效），source 即「为何」。ChatSimpleStreamDetailed 不返回本次 usage
 	// （用量内部已上报统计）→ usage 在此点不可达，cost_cny 诚实记 0，不虚报。
 	answeredBy := map[string]interface{}{"engine": eng, "model": model, "source": source, "cost_cny": 0.0}
-	return map[string]interface{}{"reply": reply, "reasoning": reasoning, "mode": "plain", "topicID": topicID, "answered_by": answeredBy}, nil
+	return map[string]interface{}{
+		"reply": reply, "reasoning": reasoning, "mode": "plain", "topicID": topicID, "answered_by": answeredBy,
+		"search_state": searchSummary["state"], "searches": searches, "search_rounds": searchRounds,
+		"search_summary": searchSummary,
+	}, nil
 }
 
 // newChatStreamRunID 生成流式 runID（测试可替换为固定值以订阅固定事件名）。
@@ -148,6 +164,94 @@ func streamOutputMetrics(requestStart, firstTokenAt, finishedAt time.Time, usage
 		}
 	}
 	return metrics
+}
+
+const maxChatSearchReferences = 8
+
+// summarizeChatSearchRuns folds per-search diagnostics into the minimal
+// user-facing state. A successful retry after a degraded/failed attempt is
+// still degraded: the UI must not hide that part of the turn was unreliable.
+func summarizeChatSearchRuns(runs []chatSearchTrace, rounds int) map[string]interface{} {
+	summary := map[string]interface{}{
+		"state":           "not_requested",
+		"queries":         []string{},
+		"degraded_reason": "",
+		"sources":         0,
+		"searches":        0,
+		"rounds":          rounds,
+		"elapsed_ms":      int64(0),
+		"references":      []chatSearchReference{},
+	}
+	if len(runs) == 0 {
+		return summary
+	}
+	queries := make([]string, 0, len(runs))
+	seenQueries := make(map[string]bool)
+	hasOK := false
+	hasDegraded := false
+	hasEmpty := false
+	hasFailed := false
+	maxSources := 0
+	degradedReason := ""
+	var elapsedMS int64
+	references := make([]chatSearchReference, 0, maxChatSearchReferences)
+	seenReferences := make(map[string]bool)
+	for _, run := range runs {
+		if run.Query != "" && !seenQueries[run.Query] {
+			seenQueries[run.Query] = true
+			queries = append(queries, run.Query)
+		}
+		if run.Sources > maxSources {
+			maxSources = run.Sources
+		}
+		elapsedMS += run.ElapsedMS
+		for _, ref := range run.References {
+			if len(references) >= maxChatSearchReferences {
+				break
+			}
+			key := strings.ToLower(strings.TrimRight(strings.TrimSpace(ref.URL), "/"))
+			if key == "" || seenReferences[key] {
+				continue
+			}
+			seenReferences[key] = true
+			references = append(references, ref)
+		}
+		if run.DegradedReason != "" && degradedReason == "" {
+			degradedReason = run.DegradedReason
+		}
+		switch run.State {
+		case builtin.SearchStateOK:
+			hasOK = true
+		case builtin.SearchStateDegraded:
+			hasDegraded = true
+		case builtin.SearchStateEmpty:
+			hasEmpty = true
+		default:
+			hasFailed = true
+		}
+	}
+	state := "degraded"
+	switch {
+	case hasDegraded || hasEmpty || hasFailed:
+		if !hasOK && !hasDegraded && hasEmpty && !hasFailed {
+			state = "empty"
+		} else if !hasOK && !hasDegraded && !hasEmpty && hasFailed {
+			state = "all_failed"
+		}
+	case hasOK:
+		state = "ok"
+	}
+	summary["state"] = state
+	summary["queries"] = queries
+	summary["degraded_reason"] = degradedReason
+	summary["searches"] = len(runs)
+	summary["elapsed_ms"] = elapsedMS
+	summary["references"] = references
+	if len(references) > maxSources {
+		maxSources = len(references)
+	}
+	summary["sources"] = maxSources
+	return summary
 }
 
 // ChatStreamPlain 普通对话真实流式入口：先完成聊天绑定引擎预检，再返回 runID，
@@ -262,6 +366,8 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 	var usage *ai.ChatUsage
 	// 生成速度计时：从首个内容/思考 delta 起表（排队与首字延迟不计入 tok/s）。
 	var firstTokenAt time.Time
+	var searchRuns []chatSearchTrace
+	var searchRounds, searches int
 	if toolMode {
 		res, loopErr := a.runBoundedSearchToolLoop(ctx, eng, model,
 			[]ai.ChatMessage{{Role: "system", Content: chatPlainSystemPrompt}, {Role: "user", Content: userMessage}},
@@ -270,6 +376,30 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 				DisableFailover: source == "feature",
 			},
 			forceSearch,
+			func(ev chatToolLoopEvent) {
+				payload := map[string]interface{}{
+					"type": "status", "phase": ev.Phase, "round": ev.Round,
+				}
+				if ev.Search > 0 {
+					payload["search"] = ev.Search
+				}
+				if ev.Query != "" {
+					payload["query"] = ev.Query
+				}
+				if ev.State != "" {
+					payload["search_state"] = string(ev.State)
+				}
+				if ev.DegradedReason != "" {
+					payload["degraded_reason"] = ev.DegradedReason
+				}
+				if ev.Sources > 0 {
+					payload["sources"] = ev.Sources
+				}
+				if ev.ElapsedMS > 0 {
+					payload["elapsed_ms"] = ev.ElapsedMS
+				}
+				a.emit("chat-stream:"+runID, payload)
+			},
 			func(delta string) {
 				reply.WriteString(delta)
 				a.emit("chat-stream:"+runID, map[string]interface{}{"type": "delta", "content": delta})
@@ -284,6 +414,13 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 		}
 		usage = res.Usage
 		firstTokenAt = res.FirstToken
+		searchRuns, searchRounds, searches = res.SearchRuns, res.SearchRounds, res.Searches
+		// The tool-loop canonical reply is the only persistence authority.
+		// onDelta is a transport surface and may never become the source of truth.
+		reply.Reset()
+		reply.WriteString(res.Reply)
+		reasoning.Reset()
+		reasoning.WriteString(res.Reasoning)
 	} else {
 		chunks, cancel, err := a.clientRef().ChatStreamChunks(ctx, model, chatPlainSystemPrompt, userMessage,
 			ai.ChatSimpleOptions{
@@ -332,6 +469,13 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 	finishedAt := time.Now()
 	replyStr := reply.String()
 	reasoningStr := reasoning.String()
+	if strings.TrimSpace(replyStr) == "" {
+		a.emit("chat-stream:"+runID, map[string]interface{}{
+			"type":  "error",
+			"error": "本轮未生成可交付正文，请重试",
+		})
+		return
+	}
 	// answered_by 回显：费用按本次实际 token（流结束块 usage）经 EstimateCostCNY
 	// 估算，汇率取配置（与 GaeaGetUsdCnyRate 同源；非法值由 EstimateCostCNY 内
 	// 回退默认 7.2）；usage 不可达时 cost_cny=0（诚实，不虚报）。
@@ -364,6 +508,10 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 	if reasoningStr != "" {
 		persistedExtra["reasoning"] = reasoningStr
 	}
+	searchSummary := summarizeChatSearchRuns(searchRuns, searchRounds)
+	if toolMode {
+		persistedExtra["search"] = searchSummary
+	}
 	extra := ""
 	if b, err := json.Marshal(persistedExtra); err == nil {
 		extra = string(b)
@@ -379,11 +527,15 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 		return
 	}
 	a.emit("chat-stream:"+runID, map[string]interface{}{
-		"type":        finalType,
-		"reply":       replyStr,
-		"reasoning":   reasoningStr,
-		"topicID":     topicID,
-		"answered_by": answeredBy,
+		"type":           finalType,
+		"reply":          replyStr,
+		"reasoning":      reasoningStr,
+		"topicID":        topicID,
+		"answered_by":    answeredBy,
+		"search_state":   searchSummary["state"],
+		"searches":       searches,
+		"search_rounds":  searchRounds,
+		"search_summary": searchSummary,
 	})
 }
 

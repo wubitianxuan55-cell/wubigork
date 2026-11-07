@@ -1,3 +1,28 @@
+## 聊天搜索状态与来源卡并入主树 · 2026-11-06
+
+- **用户反馈**：重新测试后，聊天窗口没有显示搜索状态和搜索卡。定位=修复已完成在
+  `codex/chat-search-reliability` 独立 worktree，主树仍是旧前端/旧后端，桌面运行的
+  4.531.0 exe 也早于搜索修复。
+- **集成**：将 canonical 搜索正文、`thinking/searching/search_done/finalizing` 状态、
+  `search_summary` 持久化、30s 静默/120s 硬超时和 `SearchCard` 来源卡并入
+  `C:\AI\wubigrok`；未混入主树其他 14+ 在途文件。
+- **验证**：Go 搜索定向测试与前端 ChatPage/SearchCard/MessageList 共 37 例通过；
+  `tsc -b`、定向 ESLint、`npm run build`、`wails build -s` 通过。
+- **产物**：`build/bin/gaea.exe` 与桌面 `gaea.exe` 同步，
+  SHA256=`B68AF7460610CC23C9CF81E81423FEA2C4172D94EA91D146C0956F92DF73926A`；
+  两个真实文件名均直接启动并返回 `/api/health` 200。固定 `.tmp\smoke-gaea.exe`
+  冒烟路径受本机执行策略/独立 WebView profile 影响，不能代表真实产物状态。
+
+## 众神殿席位卡死根修与 DSH 前缀缓存 · 2026-11-06
+
+- **用户口径**：「解决众神殿的 agent 经常卡死，和 dsh 的命中缓存低下的问题（是否是真的调用 dsh）」。本文档=`docs/gaea-pantheon-seat-hang-cache-2026-11.md`。
+- **真调用取证**：实弹会话 `pan_1793963799148_6aecf8f40f0a` 中 DSH 四轮陈词 368s/147s/316s/403s，`tool_started` 209 条（pwsh 104/read 69/grep 30/glob 5），逐轮工具数 87/31/53/38；DSH 会话 ID 在 `~/.dsh/sessions/--C-AI-wubigrok--/` 有实体记录。结论=确实调用 DSH headless，不是占位实现。
+- **卡死根因**：①席位被当完整 agent 用（提示词鼓励工具核验），单轮 87 次工具调用、每次一次 LLM 往返；②DSH 工具自身 30s 超时（实弹 `TOOL_TIMEOUT`），长命令每步白等；③8 分钟总上限 + 空结果自动重试把单席放大到 16 分钟，历史场次跑满 140 分钟被取消；④`recordToolTrace` 每条工具事件都在 `m.mu` 里整份序列化+fsync `session.json`（该场 2.4MB，418 次）。
+- **缓存根因**：DSH 前缀缓存本身正常（同会话第 2 步命中 93.7%），但每轮都新开会话，只能命中约 6k 的固定 system 前缀，命中率被压在 ~25%。
+- **落地（四刀）**：①DSH 会话续接——`Participant.EngineSessionID` + `buildResume` 传 `--session-id`，引擎 `sessionId` 从事件流解析回写并持久化；②运行护栏 `seatguard.go`——工具安全阀 120 次（ID 去重；16 次初版经 138 次实弹复核会误杀多数正常核验）、无进展看门狗 120s（任何输出喂活性）、开局静默闸 5 分钟（工具/thinking 不算正文），三类失败不触发自动重试；③命令行显式 `--permission-mode read-only --approval-policy never`，`runMode` 按实际命令行改写；④`parseSeatRunStats` 解析 `session`/`step_end` 落 `Contribution.Usage`，工具事件落盘节流 1s，提示词加工具预算纪律；前端席位卡/时间线显示「缓存命中 x% · N 步」。
+- **验证**：`go test ./internal/pantheon/` 全绿（新增 8 例）；live `TestLiveDSHSeatSessionReuse` 实测会话 `session-23c1b237-…` 第二轮缓存命中 **96.7%（6016/6224）**；`go build ./...`、`go vet`、`gofmt` 干净；`tsc -b` 0 错、Pantheon 前端 63/63。
+- **未做**：codex/zcode 无 usage 上报（前端诚实显示「未上报」）；DSH 12 轮长会上下文增长未实测；工作区无 `.env` 且 Gaea 未配 deepseek key 时 DSH 仍会失败（错误文案已带修复路径）。
+
 ## 运行监测 UX/UI 重构与调用统计细化 · 2026-11-03
 
 - **提交**：`fb1501ca`，待 push。

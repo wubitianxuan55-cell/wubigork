@@ -33,6 +33,7 @@ export interface MessageListProps {
   prepend?: { id: number; count: number } | null
   streamKey: string | null
   streamText: string
+  streamStatus?: string
   mode: string
   companionName: string
   copiedId: string | null
@@ -55,7 +56,7 @@ export const TOP_GROW_PX = 120
 const MemoChatRow = React.memo(ChatRow)
 
 export const MessageList: React.FC<MessageListProps> = ({
-  messages, streamKey, streamText, mode, companionName,
+  messages, streamKey, streamText, streamStatus, mode, companionName,
   copiedId, speakingId, onCopy, onSpeak, onRetry,
   hasOlder, loadingOlder, onLoadOlder, prepend,
 }) => {
@@ -136,6 +137,7 @@ export const MessageList: React.FC<MessageListProps> = ({
             key={msg.key}
             msg={msg}
             text={isStreaming ? streamText : msg.content}
+            streamStatus={isStreaming ? streamStatus : ''}
             isStreaming={isStreaming}
             newGroup={!prev || prev.role !== msg.role}
             mode={mode}

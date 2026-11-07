@@ -13,9 +13,13 @@ export const ACTIVE_TOPIC_KEY = 'gaea_chat_active_topic'
 // 迁移成功才写入；失败不写（下次启动可重试），本次会话内仅尝试一次（initRef 守卫）。
 export const MIGRATION_KEY = 'gaea_chat_migration_v1'
 
-// T6-3.1：流式对话无帧超时（30s 无任何帧即视为失败）。导出为常量便于测试
-// （vitest fake timers 推进同一阈值）；后端正常完成必 emit done、失败必 emit error。
-export const STREAM_SILENCE_TIMEOUT_MS = 30_000
+// 流式对话的真实静默超时：收到 delta / reasoning / 搜索进度才重置。旧实现
+// 从 runID 起只计一次总时长，会把仍在搜索或慢解码的成功回合误判为失败。
+export const STREAM_INACTIVITY_TIMEOUT_MS = 30_000
+// 兼容既有测试/导出名；语义已更正为“无真实进度超时”。
+export const STREAM_SILENCE_TIMEOUT_MS = STREAM_INACTIVITY_TIMEOUT_MS
+// 绝对硬上限：即使持续有进度，也不允许单回合无限挂起。
+export const STREAM_HARD_TIMEOUT_MS = 120_000
 
 // 绑定本地引擎可能需要在首个 runID 返回前完成 35B 冷启动。该窗口与后端
 // qwen35Ensure（300s）同量级，给后端 20s 收尾余量；runID 一到即切回上面的
