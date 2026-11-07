@@ -146,3 +146,36 @@ func TestEchoGateDrainAnchored(t *testing.T) {
 		t.Fatal("播放排空回执应关闭回声门")
 	}
 }
+
+// TestReopenSupersedeSilentCancel — 2026-11-07「说散文根本不输出」回归钉：
+// 用户连续短语 → rev 级联，中间 rev 的响应**从未安装槽位**（delta 停靠/被
+// DROP）→ 旧 barge-in 条件（inResponse&&rs!=nil）恒假 → 取消丢失 → 帧尾
+// 哨兵以 audioEmitted=0 判 empty_output+O2 回滚=散文链式蒸发。修复后：
+// 打断性 speech_started 无条件全量收口，排队 rev 落墓碑静默消失。
+func TestReopenSupersedeSilentCancel(t *testing.T) {
+	p := newFakePipeline(t, &fakeLegs{reply: "好的我来说", slow: true})
+	p.turns.StartTurn()
+	p.turns.SegmentFinalized(1000, 800, 0)
+	p.sttCh <- &VADFinal{Audio: make([]float32, 4096), TurnID: "turn_1", Rev: 0}
+	time.Sleep(30 * time.Millisecond) // llm 起流（delta 尚未必达发送循环）
+
+	// rev1 打断性 speech_started（同轮重开+interrupt）
+	p.dispatchText(&textEvent{kind: evKindSpeechStarted, started: &VADStarted{
+		TurnID: "turn_1", Rev: 1, Reopened: true, InterruptResponse: true}})
+	time.Sleep(80 * time.Millisecond)
+
+	p.muTerm.Lock()
+	tombstoned := len(p.closedKeys) > 0
+	queuedLeft := len(p.queuedResponses)
+	p.muTerm.Unlock()
+	if queuedLeft != 0 {
+		t.Fatalf("打断后排队响应应清空, 剩 %d", queuedLeft)
+	}
+	if !tombstoned {
+		t.Fatal("被打断的排队响应应落墓碑（哨兵静默跳过, 不得 empty_output）")
+	}
+	// 帧尾哨兵到达 → 墓碑拦截 → 无线缆终态帧（前端不见幽灵 response.done）
+	if n := countRoles(p, "assistant"); n != 0 {
+		t.Fatalf("被收口的排队响应不得写历史, 残留 %d 条", n)
+	}
+}

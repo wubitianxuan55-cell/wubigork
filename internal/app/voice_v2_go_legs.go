@@ -290,9 +290,8 @@ func (l voiceTTSLeg) Speak(ctx context.Context, sentence string, onAudio func([]
 	}
 	sc := bufio.NewScanner(resp.Body)
 	sc.Buffer(make([]byte, 0, 256*1024), 8*1024*1024)
-	res := &resampler24k16k{} // 24k→16k 线性重采样（跨块保相位——旧实现每块相位
-	// 归零+边界重复 1 样本，Breeze 流式 10~20 块/秒=长散文逐秒叠加波形跳变，
-	// 「越到后面越混杂、仿佛多了许多音调」真身，2026-11-07 用户听感定位）
+	res := &resampler24k16k{} // 24k→16k 重采样（63 阶抗混叠低通+跨块相位保真）
+	var prev []byte           // 上一 SSE 帧（延一块发布——帧缝修补需要两侧样本）
 	for sc.Scan() {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -319,15 +318,79 @@ func (l voiceTTSLeg) Speak(ctx context.Context, sentence string, onAudio func([]
 		if err != nil {
 			continue
 		}
-		if sr == 16000 {
-			onAudio(pcm)
+		// 帧缝修补：流式合成帧边界相位不连续=引擎固有（2026-11-07 音频解析
+		// 实锤：51s/188 处跳变，节奏=SSE 帧频，近静音区 Δ0.28=可闻咔哒），
+		// 检测到跳变即对缝两侧各 2ms 淡出/淡入（社区解法 fades on clicks）。
+		// 延一块发布：接缝修补需要前后两侧样本。
+		if prev != nil {
+			out, newPrev := seamRepair(prev, pcm, sr)
+			prev = newPrev
+			if sr == 16000 {
+				if len(out) > 0 {
+					onAudio(out)
+				}
+			} else if r := res.push(out); len(r) > 0 {
+				onAudio(r)
+			}
 			continue
 		}
-		if out := res.push(pcm); len(out) > 0 {
-			onAudio(out)
+		prev = pcm
+	}
+	if prev != nil { // 末帧照常发布
+		if sr == 16000 {
+			onAudio(prev)
+		} else if r := res.push(prev); len(r) > 0 {
+			onAudio(r)
 		}
 	}
 	return sc.Err()
+}
+
+// seamRepair 帧缝检测+微修补：接缝跳变 > max(0.05, 6×局部RMS) 时，对前帧
+// 尾部/后帧头部各 2ms 做淡出/淡入（把硬台阶变平滑斜坡；社区解法 fades on
+// clicks）。返回（修补后的前帧整帧, 新的前帧=后帧）。局部 RMS 取前帧尾部
+// 400 样本。16k/24k 通用（w 与阈值按 sr 换算）。自然过渡（含真实爆破音）
+// 不修——阈值双条件避免把语音该有的瞬态抹平。
+func seamRepair(prev, cur []byte, sr int) (out, newPrev []byte) {
+	w := sr / 500 // 2ms
+	if w < 8 {
+		w = 8
+	}
+	dec := func(b []byte, i int) float64 {
+		if 2*i+1 >= len(b) {
+			return 0
+		}
+		return float64(int16(uint16(b[2*i]) | uint16(b[2*i+1])<<8)) / 32768.0
+	}
+	if len(prev) < 2*w || len(cur) < 2*w {
+		return prev, cur
+	}
+	pn := len(prev) / 2
+	rmsSum := 0.0
+	rmsN := 400
+	if pn-rmsN < 0 {
+		rmsN = pn
+	}
+	for i := pn - rmsN; i < pn; i++ {
+		v := dec(prev, i)
+		rmsSum += v * v
+	}
+	rms := math.Sqrt(rmsSum / math.Max(1, float64(rmsN)))
+	jump := math.Abs(dec(cur, 0) - dec(prev, pn-1))
+	if jump <= math.Max(0.05, 6*rms) {
+		return prev, cur
+	}
+	for i := 0; i < w; i++ {
+		t := float64(i) / float64(w)
+		idx := pn - w + i
+		s := int16(dec(prev, idx) * (1 - t) * 32768.0)
+		prev[2*idx] = byte(s)
+		prev[2*idx+1] = byte(uint16(s) >> 8)
+		s2 := int16(dec(cur, i) * t * 32768.0)
+		cur[2*i] = byte(s2)
+		cur[2*i+1] = byte(uint16(s2) >> 8)
+	}
+	return prev, cur
 }
 
 // resampler24k16k 24k→16k 重采样器（2:3 降采样，带抗混叠低通）。跨 SSE 块
@@ -452,3 +515,17 @@ func (l voiceResponseLegs) Speak(ctx context.Context, sentence string, onAudio f
 }
 
 var _ realtime.ResponseLegs = voiceResponseLegs{}
+
+// ProbeResampler24k16k 诊断探针用导出包装（WAV 抓取/离线解析；生产路径不用）。
+type ProbeResampler24k16k struct{ r resampler24k16k }
+
+// NewProbeResampler24k16k 构造探针重采样器。
+func NewProbeResampler24k16k() *ProbeResampler24k16k { return &ProbeResampler24k16k{} }
+
+// Push 输入 24k PCM16 字节流，输出 16k PCM16。
+func (p *ProbeResampler24k16k) Push(pcm []byte) []byte { return p.r.push(pcm) }
+
+// ProbeSeamRepair 诊断探针用导出包装（WAV 抓取/离线解析；生产路径不用）。
+func ProbeSeamRepair(prev, cur []byte, sr int) (out, newPrev []byte) {
+	return seamRepair(prev, cur, sr)
+}

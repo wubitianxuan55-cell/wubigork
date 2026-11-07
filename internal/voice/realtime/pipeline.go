@@ -434,6 +434,16 @@ func (p *Pipeline) cancelActiveResponse(reason string) {
 	p.muTerm.Lock()
 	queued := p.queuedResponses
 	p.queuedResponses = nil
+	for _, q := range queued {
+		// 排队响应静默收口：落墓碑（帧尾哨兵到达时按墓碑跳过——否则
+		// audioEmitted=0 被判 empty_output+O2 回滚=中间 rev 连锁假取消）
+		p.closedKeys[q.key] = true
+		p.closedOrder = append(p.closedOrder, q.key)
+		if len(p.closedOrder) > maxClosedKeys {
+			delete(p.closedKeys, p.closedOrder[0])
+			p.closedOrder = p.closedOrder[1:]
+		}
+	}
 	p.muTerm.Unlock()
 	for _, q := range queued {
 		if rs != nil && q == rs {
@@ -862,8 +872,13 @@ func (p *Pipeline) dispatchText(ev *textEvent) {
 	case evKindSpeechStarted:
 		// 规格顺序：先处置旧 terminal（started_turn_id 绑定）→ barge-in → started 帧
 		p.resolveInputTerminals(ev.started.TurnID)
-		rs := p.respState
-		if p.inResponse && rs != nil && ev.started.InterruptResponse && p.interruptResponseOn() {
+		// barge-in 全量收口（上游 audio.py:361-367 interrupt → close_current +
+		// close_pending_responses 同位）：**不要求已安装槽位**——两态排队下中间
+		// rev 的响应从未安装（delta 停靠/被 DROP），旧条件 `inResponse && rs !=
+		// nil` 对它们恒假 → 取消丢失 → 帧尾哨兵以 audioEmitted=0 判
+		// empty_output+O2 回滚（16:36 实弹：散文请求 rev0/rev1 双双空输出=
+		// 「说散文根本不输出」）。打断时对 current+queued 无条件扫描。
+		if ev.started.InterruptResponse && p.interruptResponseOn() {
 			p.cancelActiveResponse("turn_detected")
 			slog.Info("Pipeline 0: speech during response: cancelled, queue flushed")
 		}
