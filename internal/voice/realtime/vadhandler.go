@@ -123,6 +123,13 @@ type VADHandler struct {
 // 假插话；0.75 是实弹定值，收敛进播放期专用）。
 const echoGuardThreshold = 0.75
 
+// echoGuardMinSpeechMs 播放期回声门确认窗（2026-11-07 真麦实弹：silero 对 TTS
+// 回声照样给高分——0.75 阈值拦不住，扬声器漏回的回声猝发 active=192~384ms 全部
+// 过门确认成假插话，打断级联 tts=cut 把回复掐成碎片，回声再被转写成
+// 「你不能/其有我」类杂串当输入（重复输入/自己的话当输入/杂音当输入三症状同源）。
+// 播放期把基础确认窗抬到 600ms：回声猝发全灭，真打断=人持续说话可过）。
+const echoGuardMinSpeechMs = 600
+
 // NewVADHandler 构造（scorer/eot 由调用方注入；turns 为管线共享实例）。
 func NewVADHandler(cfg VADHandlerConfig, scorer VadScorer, eot EOTAnalyzer, turns *SpeculativeTurns) *VADHandler {
 	unanswered := maxInt(cfg.SpeculativeReopenMs, maxInt(cfg.UnansweredReopenMs, cfg.SmartTurnMaxWaitMs))
@@ -155,6 +162,10 @@ func (h *VADHandler) EchoGuardOn() {
 	}
 	h.echoGuard = true
 	h.iter.threshold = echoGuardThreshold
+	// 门状态落日志（2026-11-07 坑：回声门静默开关，实弹日志看不出门是否在位，
+	// 只能靠阈值行间接推断——下一轮真麦取证需要显式状态行）。
+	slog.Info("echo gate on (threshold=" + strconv.FormatFloat(echoGuardThreshold, 'g', -1, 64) +
+		", minSpeechMs=" + strconv.Itoa(echoGuardMinSpeechMs) + ")")
 }
 
 // EchoGuardOff 播放结束（finishResponse 终态收口）回落监听阈值。
@@ -164,6 +175,7 @@ func (h *VADHandler) EchoGuardOff() {
 	}
 	h.echoGuard = false
 	h.iter.threshold = h.baseThreshold
+	slog.Info("echo gate off (threshold=" + strconv.FormatFloat(h.baseThreshold, 'g', -1, 64) + ")")
 }
 
 // SetMinSilenceMs 运行时改静音断句窗（M14，vad_handler.py:237-239 同位；
@@ -225,6 +237,11 @@ func (h *VADHandler) confirmSpeechStart() *VADEvent {
 	if h.turns.HasSpeechCandidate() || h.turns.CanReopen(startMs) {
 		activeMin = h.cfg.MinSpeechContinuationMs
 	}
+	// 回声门 v2：播放期确认窗抬 600ms（含 reopen 续接路径——2026-11-07 实弹
+	// 打断级联正是骑 192ms 续接门连爆 rev=1..4）；真打断=持续语音可过。
+	if h.echoGuard && activeMin < echoGuardMinSpeechMs {
+		activeMin = echoGuardMinSpeechMs
+	}
 	if activeMs < activeMin {
 		return nil
 	}
@@ -271,6 +288,11 @@ func (h *VADHandler) onUtterance(utterance [][]float32, decisionAt time.Time) []
 		minActiveMs = h.cfg.MinSpeechMs
 		if h.turns.HasSpeechCandidate() || h.turns.CanReopen(startMs) {
 			minActiveMs = h.cfg.MinSpeechContinuationMs
+		}
+		// 回声门 v2：soft-end 接受路径同一确认窗——播放期短猝发段直接 discard，
+		// 不给 STT（2026-11-07 实弹：384ms 回声段被转写成 3~8 字杂串进对话）。
+		if h.echoGuard && minActiveMs < echoGuardMinSpeechMs {
+			minActiveMs = echoGuardMinSpeechMs
 		}
 	}
 
