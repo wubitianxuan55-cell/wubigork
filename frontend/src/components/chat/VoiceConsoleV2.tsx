@@ -404,11 +404,15 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
 
   const ready = v2.services.ready
   const phaseMeta = PHASE_META[v2.phase]
+  // 语音打断关=「开口即停」不再成立，speaking 提示改为只指按钮（A 拍板）
+  const speakingHint = v2.interruptEnabled
+    ? PHASE_META.speaking.hint
+    : '回应中，按“打断本轮”可停止'
   const feedback = turnWarning || userFacingVoiceNote(v2.note)
   const hasConversation = v2.dialogue.length > 0 || Boolean(v2.partialTranscript)
   const liveLine = v2.partialTranscript
     || (v2.phase === 'speaking' ? v2.assistantText : '')
-    || (v2.connected ? phaseMeta.hint : '连接后即可开始实时语音对话')
+    || (v2.connected ? (v2.phase === 'speaking' ? speakingHint : phaseMeta.hint) : '连接后即可开始实时语音对话')
   const PrimaryIcon = !ready
     ? v2.ensuring ? LoadingOutlined : AudioOutlined
     : !v2.connected ? WifiOutlined : v2.micOn ? PauseOutlined : AudioOutlined
@@ -515,6 +519,20 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
             <span className="vc2-bar-label">打断</span>
           </Button>
         )}
+        <Tooltip title={v2.interruptEnabled ? '说话可打断回复；连续说话易断续可关闭' : '已关闭：回复完整播完，用「打断」键停止'}>
+          <Button
+            size="small"
+            className="vc2-bar-btn"
+            type={v2.interruptEnabled ? 'default' : 'dashed'}
+            icon={<ThunderboltOutlined />}
+            onClick={() => v2.setInterruptEnabled(!v2.interruptEnabled)}
+            aria-pressed={v2.interruptEnabled}
+            aria-label={v2.interruptEnabled ? '关闭语音打断' : '开启语音打断'}
+            data-testid="vc2-bar-interrupt-toggle"
+          >
+            <span className="vc2-bar-label">{v2.interruptEnabled ? '可打断' : '勿打断'}</span>
+          </Button>
+        </Tooltip>
         <Button size="small" className="vc2-bar-btn" icon={<ExpandOutlined />} onClick={() => setExpanded(true)} data-testid="vc2-bar-expand" aria-label="展开语音台">
           <span className="vc2-bar-label">展开</span>
         </Button>
@@ -821,6 +839,20 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
               >
                 {dockPrimaryLabel}
               </Button>
+              <Tooltip title={v2.interruptEnabled ? '说话可打断回复；连续说话易断续可关闭' : '已关闭：回复完整播完，用「打断」键停止'}>
+                <Button
+                  size="large"
+                  className="vc2-interrupt-toggle"
+                  type={v2.interruptEnabled ? 'default' : 'dashed'}
+                  icon={<ThunderboltOutlined />}
+                  onClick={() => v2.setInterruptEnabled(!v2.interruptEnabled)}
+                  aria-pressed={v2.interruptEnabled}
+                  aria-label={v2.interruptEnabled ? '关闭语音打断' : '开启语音打断'}
+                  data-testid="vc2-interrupt-toggle"
+                >
+                  {v2.interruptEnabled ? '可打断' : '勿打断'}
+                </Button>
+              </Tooltip>
             </div>
             <Button
               size="large"

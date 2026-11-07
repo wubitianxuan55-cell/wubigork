@@ -28,6 +28,7 @@ const runtimeState = {
   playLevel: 0,
   note: '',
   ready: true,
+  interruptEnabled: true,
   ensuring: false,
 }
 const cancelMock = vi.fn()
@@ -64,6 +65,9 @@ vi.mock('../../voice/runtime/useVoiceChatV2', () => ({
       ensureServices: vi.fn(async () => runtimeState.ready),
       refreshServices: vi.fn(async () => runtimeState.ready),
       replayEvents: vi.fn(async () => {}),
+      // 语音打断开关（A 拍板）：可变状态供 toggle 测试
+      interruptEnabled: runtimeState.interruptEnabled,
+      setInterruptEnabled: vi.fn((v: boolean) => { runtimeState.interruptEnabled = v }),
     } satisfies VoiceChatV2Api
   },
 }))
@@ -187,6 +191,26 @@ describe('VoiceConsoleV2', () => {
     expect(screen.queryByTestId('vc2-cancel')).toBeNull()
     fireEvent.click(primary)
     expect(cancelMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('A 拍板：语音打断切换钮在操作区，一键切换并同步相位提示', () => {
+    runtimeState.phase = 'speaking'
+    runtimeState.interruptEnabled = true
+    const { unmount } = renderConsole()
+    const toggle = screen.getByTestId('vc2-interrupt-toggle')
+    expect(toggle.getAttribute('aria-pressed')).toBe('true')
+    expect(toggle.textContent).toContain('可打断')
+    expect(document.querySelector('.vc2-live-line')?.textContent).toContain('开口')
+    // 点击=切到关（mock 钩子非响应式，重挂断言关闭态 UI）
+    fireEvent.click(toggle)
+    expect(runtimeState.interruptEnabled).toBe(false)
+    unmount()
+    runtimeState.phase = 'speaking'
+    renderConsole()
+    expect(screen.getByTestId('vc2-interrupt-toggle').textContent).toContain('勿打断')
+    expect(screen.getByTestId('vc2-interrupt-toggle').getAttribute('aria-pressed')).toBe('false')
+    expect(document.querySelector('.vc2-live-line')?.textContent).toContain('按“打断本轮”可停止')
+    expect(document.querySelector('.vc2-live-line')?.textContent).not.toContain('开口')
   })
 
   it('用户回看历史时不被新转写拉回底部，可一键回到最新', () => {

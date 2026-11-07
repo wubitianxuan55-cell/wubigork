@@ -109,6 +109,10 @@ export interface VoiceChatV2Api {
   refreshServices: () => Promise<boolean>
   /** mock 回放：不经线缆直接灌事件（实验页/测试） */
   replayEvents: (events: ServerEvent[], paceMs?: number) => Promise<void>
+  /** 语音打断开关当前值（A 拍板：界面切换钮；关=回复完整播完不被语音打断） */
+  interruptEnabled: boolean
+  /** 切换语音打断开关（session.update 即时下发；重连/新会话沿用） */
+  setInterruptEnabled: (v: boolean) => void
 }
 
 export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api {
@@ -132,6 +136,10 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
   const [ensuring, setEnsuring] = useState(false)
 
   const clientRef = useRef<VoiceClientV2 | null>(null)
+  // 语音打断开关（A 拍板，2026-11-07：连续说话场景的断续根除旋钮；上游 M13
+  // interrupt_response_enabled 语义——关=回复完整播完，真打断走 UI 打断键）
+  const [interruptEnabled, setInterruptEnabledState] = useState(true)
+  const interruptEnabledRef = useRef(true)
   const transportRef = useRef<VoiceTransport | null>(null)
   const connectedRef = useRef(false)
   const mountedRef = useRef(true)
@@ -247,7 +255,8 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
       // 防线（2026-11-01：0.6 被扬声器回声假插话）收敛进播放期回声门=后端
       // ttsStage 首音频 EchoGuardOn(0.75)/finishResponse EchoGuardOff。
       vadThreshold: 0.5,
-      interruptResponse: true,
+      // 语音打断开关（A 拍板：界面切换钮）：初值取当前状态，重连/新会话沿用
+      interruptResponse: interruptEnabledRef.current,
       onState,
       onPlaybackDone: (id) => {
         setPlayLevel(0)
@@ -731,10 +740,18 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
     clientRef.current?.updateVADThreshold(threshold)
   }, [])
 
+  /** 语音打断开关：界面切换钮下发 session.update（连接中即时生效；断线存值待重连沿用） */
+  const setInterruptEnabled = useCallback((v: boolean) => {
+    interruptEnabledRef.current = v
+    setInterruptEnabledState(v)
+    clientRef.current?.setInterruptResponse(v)
+  }, [])
+
   return {
     phase, transcripts, dialogue, partialTranscript: partial, assistantText,
     pbText, tail, connected, micOn, micLevel, playLevel, micSilent, note, services, ensuring,
     connect, disconnect, startMic, stopMic, cancel, abortInFlight, updateVADThreshold,
     ensureServices, refreshServices, replayEvents,
+    interruptEnabled, setInterruptEnabled,
   }
 }

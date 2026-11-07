@@ -53,6 +53,24 @@ describe('VoiceClientV2（回放桩）', () => {
     expect(ev.session.instructions).toBe('你是语音助手')
   })
 
+  it('setInterruptResponse 运行时下发开关值并同步 opts（重连沿用）', () => {
+    const { client, transport } = makeClient()
+    transport.onopen?.()
+    const before = transport.sent.length
+    client.setInterruptResponse(false)
+    const ev = JSON.parse(transport.sent[before])
+    expect(ev.type).toBe('session.update')
+    expect(ev.session.audio.input.turn_detection.interrupt_response).toBe(false)
+    expect(ev.session.audio.input.turn_detection.threshold).toBeUndefined() // 部分更新不回写阈值
+    // 重连：onopen session.update 沿用关闭后的值
+    transport.onopen?.()
+    const reopen = JSON.parse(transport.sent[transport.sent.length - 1])
+    expect(reopen.session.audio.input.turn_detection.interrupt_response).toBe(false)
+    client.setInterruptResponse(true)
+    const back = JSON.parse(transport.sent[transport.sent.length - 1])
+    expect(back.session.audio.input.turn_detection.interrupt_response).toBe(true)
+  })
+
   it('turn 实录：状态到 idle、播放队列闭合回执带 response id', () => {
     const { client, transport, playbackDone, done } = makeClient()
     for (const ev of FIXTURE_TURN) transport.emit(ev)

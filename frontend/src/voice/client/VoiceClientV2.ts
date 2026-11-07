@@ -197,6 +197,22 @@ export class VoiceClientV2 {
     })
   }
 
+  /**
+   * 运行时改语音打断开关（session.update；上游 M13 interrupt_response_enabled
+   * 会话级旋钮产品化——关=回复完整播完不被语音打断，真打断走 UI 打断键）。
+   * 值同步进 opts：重连/新会话 onopen 的 session.update 沿用当前值。
+   */
+  setInterruptResponse(enabled: boolean): void {
+    this.opts.interruptResponse = enabled
+    this.sendEvent({
+      type: 'session.update',
+      session: {
+        type: 'realtime',
+        audio: { input: { turn_detection: { type: 'server_vad', interrupt_response: enabled } } },
+      },
+    })
+  }
+
   get snapshot(): VoiceSessionState {
     return this.state
   }
