@@ -61,6 +61,73 @@ describe('voice AudioWorklet 采样率兼容', () => {
     const flushAck = posted.find((d) => d && typeof d === 'object' && (d as {flushed?: boolean}).flushed)
     expect(flushAck).toMatchObject({ flushed: true, buffered: 0 })
   })
+
+  it('sink 诊断 tap：process 实际外放样本按 ≈1s 攒批回传（2026-11-07 重叠线复开）', () => {
+    const { Processor, posted } = loadProcessor('sinkProcessor.js', 16000)
+    const p = new Processor() as unknown as {
+      port: { onmessage: ((event: { data: unknown }) => void) | null }
+      process: (i: Float32Array[][], o: Float32Array[][]) => boolean
+      tapOn: boolean
+      tapBatchSamples: number
+    }
+    // 默认开启；攒满一批（16000 样本）须回传一条 tap 消息，值与外放一致
+    expect(p.tapOn).toBe(true)
+    expect(p.tapBatchSamples).toBe(16000)
+    const tapCount = () =>
+      posted.filter((d) => d && typeof d === 'object' && (d as { type?: string }).type === 'tap').length
+    // 先灌 ring（16001 个 0.5 样本，首样本被插值基准吞掉→恰放出 16000），再放 125 帧
+    const pcm = new Int16Array(16001).fill(16384)
+    p.port.onmessage?.({ data: { type: 'pcm', buffer: pcm.buffer } })
+    // 128 样本/帧 × 125 帧 = 16000（fill 报告消息独立计数不干扰 tap 断言）
+    for (let f = 0; f < 125; f++) {
+      p.process([], [[new Float32Array(128)]])
+    }
+    expect(tapCount()).toBe(1)
+    const taps = posted.filter(
+      (d) => d && typeof d === 'object' && (d as { type?: string }).type === 'tap',
+    ) as { rate: number; buffer: ArrayBuffer }[]
+    expect(taps[0].rate).toBe(16000)
+    const samples = new Int16Array(taps[0].buffer)
+    expect(samples.length).toBe(16000)
+    expect(samples[0]).toBe(16383)
+    expect(samples[15999]).toBe(16383)
+    // tap 关闭后不再回传（fill 报告照常，不计入 tap 数）
+    p.port.onmessage?.({ data: { type: 'tap', on: false } })
+    expect(p.tapOn).toBe(false)
+    p.process([], [[new Float32Array(128).fill(0.5)]])
+    expect(tapCount()).toBe(1)
+  })
+
+  it('sink ring 容量 30s + 环满整块拒绝（2026-11-07 修复 B/C：逐样本顶替=时间轴压缩+毛刺=「加速+杂音」签名，废）', () => {
+    const { Processor, posted } = loadProcessor('sinkProcessor.js', 16000)
+    const p = new Processor() as unknown as {
+      port: { onmessage: ((event: { data: unknown }) => void) | null }
+      cap: number
+      size: number
+      process: (i: Float32Array[][], o: Float32Array[][]) => boolean
+    }
+    // 修复 C：容量 30s@16k = 480000（不再 4s=64000）
+    expect(p.cap).toBe(480000)
+    // 灌到拒绝边界：299 块（块1 吞 1 基准样本 → 478399），第 300 块预检
+    // （478399+1602 > 480000）整块拒——预检即修复 B 的第一道闸
+    for (let b = 0; b < 299; b++) {
+      p.port.onmessage?.({ data: { type: 'pcm', buffer: new Int16Array(1600).fill(100).buffer } })
+    }
+    expect(p.size).toBe(478399)
+    posted.length = 0
+    // 再灌一块：整块拒绝——size 不变、rejected 上报、无逐样本顶替（size 恒定）
+    const extra = new Int16Array(1600).fill(500)
+    p.port.onmessage?.({ data: { type: 'pcm', buffer: extra.buffer } })
+    expect(p.size).toBe(478399)
+    const rej = posted.find((d) => (d as { type?: string }).type === 'rejected') as { samples: number }
+    expect(rej).toBeDefined()
+    expect(rej.samples).toBe(1600)
+    // 消费一些空间后拒绝解除，后续块正常写入
+    p.process([], [[new Float32Array(3200)]]) // 消费 3200
+    expect(p.size).toBe(475199)
+    p.port.onmessage?.({ data: { type: 'pcm', buffer: new Int16Array(1600).fill(300).buffer } })
+    expect(p.size).toBe(476799)
+  })
 })
 
 describe('capture 自适应输入增益（2026-11-05 真麦根修）', () => {

@@ -36,13 +36,17 @@ vi.mock('../../gaea/lib/bridge', () => ({
 
 // jsdom 无 audioWorklet：AudioContext 构造前拦截（本测不开麦不播）
 class FakeAudioCtx {
+  sampleRate = 16000
   audioWorklet = { addModule: async () => undefined }
   destination = {}
   close = async () => undefined
+  resume = async () => undefined
+  state = 'running'
   createMediaStreamSource() { return { connect: () => undefined } }
 }
 vi.stubGlobal('AudioContext', FakeAudioCtx)
 const sinkMessages: unknown[] = []
+const sinkNodes: { port: { onmessage: ((e: { data: unknown }) => void) | null } }[] = []
 vi.stubGlobal('AudioWorkletNode', class {
   port = {
     onmessage: null,
@@ -51,12 +55,16 @@ vi.stubGlobal('AudioWorkletNode', class {
   }
   connect() {}
   disconnect() {}
+  constructor() {
+    sinkNodes.push(this)
+  }
 })
 
 describe('useVoiceChatV2', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     sinkMessages.length = 0
+    sinkNodes.length = 0
   })
 
   it('connect 走注入工厂并发 session.update', async () => {
@@ -294,5 +302,77 @@ describe('useVoiceChatV2', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  // ── 2026-11-07 重叠线修复钉（tap 落盘声纹解析定罪：泵双灌→ring 逐样本
+  // 顶替=中段 26.5~35.7s 字被顶替残缺=「语速加快+杂音」）──
+
+  /** 灌一段 response 音频进 PlaybackQueue（20 块 × 1600 样本@16k） */
+  function feedAudio(t: FakeTransport, responseId: string, blocks: number) {
+    const ev = (type: string, extra: Record<string, unknown> = {}) =>
+      t.onmessage?.(JSON.stringify({ type, response_id: responseId, ...extra }))
+    ev('response.created', { response: { id: responseId } })
+    for (let b = 0; b < blocks; b++) {
+      const pcm = new Int16Array(1600).fill(8000 + b)
+      let bin = ''
+      const bytes = new Uint8Array(pcm.buffer)
+      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i])
+      ev('response.output_audio.delta', { delta: btoa(bin) })
+    }
+    ev('response.done', { response: { id: responseId, status: 'completed' } })
+  }
+
+  const pcmPosted = () => sinkMessages.filter((m) => (m as { type?: string }).type === 'pcm')
+
+  it('泵记账：fill 报告迟到期间已达水位零渗漏，报告到达才续灌（修复 A）', async () => {
+    vi.useFakeTimers()
+    try {
+      const t = new FakeTransport()
+      const { result } = renderHook(() => useVoiceChatV2({
+        transportFactory: () => t,
+      }))
+      await act(async () => { await result.current.connect() })
+      act(() => { t.onopen?.() })
+      // 120 块 × 100ms = 12s 音频。高水位 8s=128000 样本@16k→首 tick 灌 80 块
+      // 达水位 break，queue 留 40 块
+      feedAudio(t, 'resp_ledger', 120)
+      await act(async () => { await vi.advanceTimersByTimeAsync(150) })
+      const first = pcmPosted().length
+      expect(first).toBe(80)
+      // 报告迟到期间连推 5 个 tick（500ms）：fill 估计=0+记账 8s≥高水位→零渗漏
+      await act(async () => { await vi.advanceTimersByTimeAsync(500) })
+      expect(pcmPosted().length).toBe(first)
+      // fill 报告到达（播放消费了 2s）：记账清零→下一 tick 续灌剩余 40 块
+      act(() => { sinkNodes[0]?.port.onmessage?.({ data: { buffered: 32000 } }) })
+      await act(async () => { await vi.advanceTimersByTimeAsync(150) })
+      expect(pcmPosted().length).toBe(120)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('onPlayLevel 节流：60ms 内连续 delta 只首次 setState，归零立即放行（修复 D）', async () => {
+    const t = new FakeTransport()
+    const { result } = renderHook(() => useVoiceChatV2({
+      transportFactory: () => t,
+    }))
+    await act(async () => { await result.current.connect() })
+    act(() => { t.onopen?.() })
+    const deltaOf = (amp: number) => {
+      const pcm = new Int16Array(1600).fill(amp)
+      let bin = ''
+      const bytes = new Uint8Array(pcm.buffer)
+      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i])
+      t.onmessage?.(JSON.stringify({ type: 'response.output_audio.delta', response_id: 'resp_lvl', delta: btoa(bin) }))
+    }
+    act(() => { t.onmessage?.(JSON.stringify({ type: 'response.created', response: { id: 'resp_lvl' } })) })
+    // 同 tick 两个 delta：幅值 16000（RMS→cap 1）与 8000（RMS≈0.73）——
+    // 节流下第二块被挡，终值=第一块的 1
+    act(() => { deltaOf(16000) })
+    act(() => { deltaOf(8000) })
+    expect(result.current.playLevel).toBe(1)
+    // done 归零立即放行（不受 60ms 窗约束）
+    act(() => { t.onmessage?.(JSON.stringify({ type: 'response.done', response: { id: 'resp_lvl', status: 'completed' } })) })
+    expect(result.current.playLevel).toBe(0)
   })
 })

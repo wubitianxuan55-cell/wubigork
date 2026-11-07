@@ -149,8 +149,32 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
   const micSilentTimerRef = useRef<number | null>(null)
   const speechStartRef = useRef(0)
   const responseIdRef = useRef('')
-  // sink ring 水位（worklet ~4 次/秒上报；泵按水位灌注，审计 B1）
+  // playLevel setState 节流（2026-11-07 修复 D）：VoiceClientV2 每个 delta 调
+  // 一次 onPlayLevel，长文本流式期每秒数十次全树渲染——泵 fill 报告被渲染
+  // 挤到迟到=双灌根因之一，且渲染成本随会话变长而涨=「越到后面越严重」。
+  // 60ms 粒度对声纹 UI 足够；归零（done/取消）立即放行不节流。
+  const playLevelLastTsRef = useRef(0)
+  const onPlayLevelThrottled = useCallback((lv: number) => {
+    const now = Date.now()
+    if (lv === 0 || now - playLevelLastTsRef.current >= 60) {
+      playLevelLastTsRef.current = now
+      setPlayLevel(lv)
+    }
+  }, [])
+  // sink ring 水位（worklet ~10 次/秒上报；泵按水位灌注，审计 B1）
   const sinkFillRef = useRef(0)
+  // 泵自上次 fill 报告以来已灌入的样本数（2026-11-07 修复 A：报告经主线程
+  // 消息队列有迟到——长文本期 React 渲染密集时迟到数个泵 tick，旧 fill 参考
+  // 会让泵重复灌注→ring 超限。本地记账=报告迟到期间泵自知已灌量）
+  const postedSinceReportRef = useRef(0)
+  // 播放面诊断 tap（重叠线复开 2026-11-07）：worklet 实际外放样本攒批落盘。
+  // 队列在 ref 里流转（零 setState），POST 泵 500ms 一趟。
+  const tapQueueRef = useRef<ArrayBuffer[]>([])
+  const tapFileRef = useRef('')
+  const tapSeqRef = useRef(0)
+  const tapTruncateRef = useRef(true)
+  const tapRateRef = useRef(16000)
+  const tapNoteOnceRef = useRef(false)
   const optsRef = useRef(opts)
   optsRef.current = opts
   const capCtxRef = useRef<AudioContext | null>(null)
@@ -159,6 +183,8 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
   const sinkCtxRef = useRef<AudioContext | null>(null)
   const sinkNodeRef = useRef<AudioWorkletNode | null>(null)
   const pumpRef = useRef<number | null>(null)
+  // 诊断 tap POST 泵（ensureSink 内启动，与 sink 同生命周期）
+  const tapPumpRef = useRef<number | null>(null)
   const tailRef = useRef<string[]>([])
   const urlRef = useRef(opts.url ?? DEFAULT_URL)
   const ensuringRef = useRef(false)
@@ -223,25 +249,40 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
       // 自动挂载不是用户手势，失败留给开麦点击再恢复，不能因此拒绝建立会话。
       void ctx.resume().catch(() => {})
     }
-    await ctx.audioWorklet.addModule('/voice-worklets/sinkProcessor.js')
+    // cache-bust：WebView2 对 public 静态 worklet 会启发式缓存，文件更新后仍加载
+    // 旧版（2026-11-07 tap 链路排查一并破防）；每次建会话重新取，几 KB 开销可忽略
+    await ctx.audioWorklet.addModule(`/voice-worklets/sinkProcessor.js?v=${Date.now()}`)
     const node = new AudioWorkletNode(ctx, 'gaea-voice-sink', { outputChannelCount: [2] })
     node.connect(ctx.destination)
     node.port.onmessage = (e) => {
       if (e.data && typeof e.data.overflow === 'number' && e.data.overflow > 0) {
         pushTail(`sink overflow ×${e.data.overflow}（上游泄漏信号）`)
       }
-      // 水位报告（worklet ~4 次/秒）：泵灌注的权威 fill 校准
+      // 整块拒绝上报（2026-11-07 修复 B）：泵记账下正常路径恒 0，出现=灌注
+      // 面仍有过量（观测信号；worklet 侧已保证不逐样本顶替）
+      if (e.data && e.data.type === 'rejected' && typeof e.data.samples === 'number') {
+        pushTail(`sink 整块拒绝 ${e.data.samples} 样本（灌注过量信号）`)
+      }
+      // 水位报告（worklet ~10 次/秒）：泵灌注的权威 fill 校准；报告含了记账期
+      // 已灌内容，本地记账随之清零（2026-11-07 修复 A）
       if (e.data && typeof e.data.buffered === 'number') {
         sinkFillRef.current = e.data.buffered
+        postedSinceReportRef.current = 0
+      }
+      // 诊断 tap 批（≈1s/条）：入队待 POST 泵落盘，不碰 React
+      if (e.data && e.data.type === 'tap' && e.data.buffer instanceof ArrayBuffer) {
+        tapRateRef.current = typeof e.data.rate === 'number' ? e.data.rate : 16000
+        tapQueueRef.current.push(e.data.buffer)
       }
     }
     sinkCtxRef.current = ctx
     sinkNodeRef.current = node
     if (ctx.sampleRate !== 16000) pushTail(`音频输出 ${ctx.sampleRate}Hz（16k source 自动重采样）`)
-    // 高水位=ring 容量 75%：灌到线即停，剩余块留队列下个 tick 续灌
-    // （审计 B1：此前 100ms 全量灌入，长散文 TTS 产出快于播放时 ring 4s
-    // 丢最旧=中段整段跳播；上游=无上限队列+声卡按需拉取，天然背压）
-    const highWater = Math.max(8192, Math.round(ctx.sampleRate * 4)) * 0.75
+    // 高水位 8s（2026-11-07 修复 C，原 3s）：worklet ring 已扩 30s，水位线给
+    // 报告迟到留足余量——报告迟到 1s 也不双灌（此前 3s 水位+报告迟到=重复灌
+    // 3s→ring 超 4s cap→逐样本顶替=「语速加快+杂音」）。上游语义=无上限
+    // 队列+声卡按需拉取，水位线只是搬运节流，延迟上界由它定。
+    const highWater = Math.round(ctx.sampleRate * 8)
     let lastPulledId = ''
     let audioWasFlowing = false
     let drainedSent = true
@@ -249,7 +290,10 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
       const client = clientRef.current
       const sink = sinkNodeRef.current
       if (!client || !sink) return
-      let fill = sinkFillRef.current
+      // fill 估计=最近报告 + 报告迟到期间已灌量（修复 A：报告迟到时旧参考
+      // 会让泵把同一水位「再灌一遍」——2026-11-07 tap 解析定罪的中段顶替源）
+      let fill = sinkFillRef.current + postedSinceReportRef.current
+      if (fill >= highWater) return // 已达水位：本 tick 整体跳过（报告迟到也不渗漏）
       for (let chunk = client.playback.pull(); chunk; chunk = client.playback.pull()) {
         // 交错探测器（2026-11-07「几段语音叠加」）：同一响应未闭合就拉出另一
         // 响应的块=双流并存，当即上屏点名（配合服务端交错告警归因）
@@ -259,7 +303,9 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
         }
         lastPulledId = st.currentResponseId
         sink.port.postMessage({ type: 'pcm', buffer: chunk.buffer }, [chunk.buffer])
-        fill += chunk.length * (ctx.sampleRate / 16000)
+        const posted = chunk.length * (ctx.sampleRate / 16000)
+        fill += posted
+        postedSinceReportRef.current += posted
         if (fill >= highWater) break
       }
       const st = client.playback.stats
@@ -279,6 +325,52 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
       }
       setPbText(`${st.currentResponseId || '—'} 播${st.playedBytes}B 弃${st.droppedBytes}B 存${st.pendingChunkCount}块${st.playbackDone ? ' ✓回执' : ''}`)
     }, 100)
+    // 诊断 tap POST 泵（500ms 一趟）：攒批实际外放样本落盘 8791 /v1/diag/playback。
+    // 失败静默（诊断面不干扰主链路），只首错上屏一次。
+    tapPumpRef.current = window.setInterval(() => {
+      const batch = tapQueueRef.current
+      if (batch.length === 0 || !tapFileRef.current) return
+      // origin 提取（2026-11-07 实弹 404 教训）：urlRef 是完整 realtime URL 带
+      // /v1/realtime 路径，replace(/^ws/,'http') 后直接拼路径=404 静默丢批
+      const httpOrigin = new URL(urlRef.current ?? DEFAULT_URL).origin.replace(/^ws/, 'http')
+      let data: ArrayBuffer
+      if (batch.length === 1) {
+        data = batch[0]
+      } else {
+        const total = batch.reduce((n, b) => n + b.byteLength, 0)
+        const merged = new Uint8Array(total)
+        let off = 0
+        for (const b of batch) {
+          merged.set(new Uint8Array(b), off)
+          off += b.byteLength
+        }
+        data = merged.buffer
+      }
+      tapQueueRef.current = []
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/octet-stream',
+        'X-Gaea-Diag-File': tapFileRef.current,
+        'X-Gaea-Diag-Rate': String(tapRateRef.current),
+        'X-Gaea-Diag-Seq': String(tapSeqRef.current++),
+      }
+      if (tapTruncateRef.current) {
+        headers['X-Gaea-Diag-Truncate'] = '1'
+        tapTruncateRef.current = false
+      }
+      fetch(`${httpOrigin}/v1/diag/playback`, { method: 'POST', headers, body: data })
+        .then((r) => {
+          if (!r.ok && !tapNoteOnceRef.current) {
+            tapNoteOnceRef.current = true
+            pushTail(`播放诊断落盘失败（HTTP ${r.status}）——后续静默`)
+          }
+        })
+        .catch(() => {
+          if (!tapNoteOnceRef.current) {
+            tapNoteOnceRef.current = true
+            pushTail('播放诊断落盘不可达——后续静默')
+          }
+        })
+    }, 500)
   }, [pushTail])
 
   const buildClient = useCallback((transport: VoiceTransport) => {
@@ -298,13 +390,19 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
         setPlayLevel(0)
         pushTail(`播放完成回执 ${id}`)
       },
-      onPlayLevel: setPlayLevel,
+      onPlayLevel: onPlayLevelThrottled,
       onOpen: () => {
         if (!mountedRef.current) return
         connectedRef.current = true
         setConnected(true)
         setNote('')
         pushTail('已连接')
+        // 诊断 tap：新会话开新文件（truncate 首块）；文件标识本会话共用
+        tapFileRef.current = Array.from(crypto.getRandomValues(new Uint8Array(8)))
+          .map((b) => b.toString(16).padStart(2, '0'))
+          .join('')
+        tapTruncateRef.current = true
+        tapSeqRef.current = 0
         // 重连成功：有意断开标记作废
         deliberateCloseRef.current = false
         if (reconnectTimerRef.current != null) {
@@ -362,7 +460,7 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
         })
       },
     })
-  }, [flushSink, onState, pushTail])
+  }, [flushSink, onPlayLevelThrottled, onState, pushTail])
 
   const connect = useCallback(async () => {
     if (clientRef.current || transportRef.current) return
@@ -502,7 +600,7 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
         ctx = new AudioContext() // 个别设备拒绝 16k 强制档；回落默认率（服务端重采样）
       }
       at('addModule')
-      await ctx.audioWorklet.addModule('/voice-worklets/captureProcessor.js')
+      await ctx.audioWorklet.addModule(`/voice-worklets/captureProcessor.js?v=${Date.now()}`)
       at('graph')
       const src = ctx.createMediaStreamSource(stream)
       const node = new AudioWorkletNode(ctx, 'gaea-voice-capture')
@@ -753,6 +851,7 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
     return () => {
       mountedRef.current = false
       if (pumpRef.current) window.clearInterval(pumpRef.current)
+      if (tapPumpRef.current) window.clearInterval(tapPumpRef.current)
       if (reconnectTimerRef.current != null) {
         window.clearTimeout(reconnectTimerRef.current)
         reconnectTimerRef.current = null
