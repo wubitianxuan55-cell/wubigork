@@ -163,10 +163,10 @@ type Pipeline struct {
 	// nil=缺省：barge-in 开、create_response 用 cfg 构造值。OnSessionEnd 复位）。
 	interruptResponse *bool
 	createResponseOv  *bool
-	pendingText        []*textEvent // 停靠文本事件（pending_text_output_items）
-	parkedAudio        *audioOut    // pending_output_item（单停靠位）
-	audioBatch         []byte
-	audioBatchKey      string // audioBatch 属主响应 key（M2：终态清理/尾批 flush 归属判据）
+	pendingText       []*textEvent // 停靠文本事件（pending_text_output_items）
+	parkedAudio       *audioOut    // pending_output_item（单停靠位）
+	audioBatch        []byte
+	audioBatchKey     string // audioBatch 属主响应 key（M2：终态清理/尾批 flush 归属判据）
 
 	scope cancelScope // 统一取消信号（代际）
 	// 聊天历史互斥（STT/LLM 线程写，发送循环读）

@@ -53,7 +53,7 @@ func TestStaleResponseDeltasDropped(t *testing.T) {
 	p.turns.StartTurn() // cur=turn_2
 	rs2 := p.newResponseState("turn_2", 0, time.Time{})
 	p.dispatchText(&textEvent{kind: evKindAssistantDelta, resp: rs2, transcript: "a"}) // 提交 turn_2
-	drainTranscriptDeltas(p)                                                          // 收掉合法帧（线缆异步）
+	drainTranscriptDeltas(p)                                                           // 收掉合法帧（线缆异步）
 	p.turns.Close("turn_2", 0)
 	p.turns.StartTurn() // cur=turn_3 → (turn_2,0) 失相关性
 	p.dispatchText(&textEvent{kind: evKindAssistantDelta, resp: rs2, transcript: "陈旧"})

@@ -7,10 +7,10 @@
 package realtime
 
 import (
-	"sync/atomic"
 	"log/slog"
 	"math"
 	"strconv"
+	"sync/atomic"
 	"time"
 )
 
@@ -115,11 +115,11 @@ type VADHandler struct {
 	lastSmartStatus   string
 	lastSmartAnalysis time.Duration
 
-	receivedAt      time.Time
-	baseThreshold   float64 // session.update 设定的监听阈值（回声门回落基准）
-	echoGuard       bool    // 播放期回声门开关（ttsStage 首音频开/finishResponse 关；跨 goroutine 直写，单 bool 最坏一帧旧值，SetThreshold 同款）
-	tailUntilNanos  int64   // atomic：门关尾窗截止（unix nano；压回声余响+AGC 余振）
-	droppedSamples  int64   // atomic：门控窗口内丢弃样本数（关门前落日志）
+	receivedAt     time.Time
+	baseThreshold  float64 // session.update 设定的监听阈值（回声门回落基准）
+	echoGuard      bool    // 播放期回声门开关（ttsStage 首音频开/finishResponse 关；跨 goroutine 直写，单 bool 最坏一帧旧值，SetThreshold 同款）
+	tailUntilNanos int64   // atomic：门关尾窗截止（unix nano；压回声余响+AGC 余振）
+	droppedSamples int64   // atomic：门控窗口内丢弃样本数（关门前落日志）
 }
 
 // echoGuardThreshold 播放期回声门阈值（2026-11-01 实弹：0.6 被扬声器回声触发
