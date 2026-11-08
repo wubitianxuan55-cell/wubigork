@@ -33,6 +33,7 @@ export function agentCapabilityLabel(agentId: string): string {
 export const PROTOCOL_LABELS: Record<string, string> = {
   council: '圆桌接力',
   independent: '独立开场',
+  blind_rebuttal: '互盲驳论',
 }
 
 export function protocolLabel(protocol?: string): string {

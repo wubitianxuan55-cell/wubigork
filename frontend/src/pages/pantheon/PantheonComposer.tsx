@@ -553,7 +553,7 @@ export const PantheonComposer: React.FC<Props> = ({
                     aria-label="议事形态"
                   />
                 </Tooltip>
-                <Tooltip title="独立开场：第 1 轮各自独立作答；圆桌接力：同轮发言按顺序互相可见。">
+                <Tooltip title="独立开场：第 1 轮各自独立作答；圆桌接力：同轮发言按顺序互相可见；互盲驳论：全部轮次并行且同轮互盲，只对往轮立场逐席回应。">
                   <Select
                     size="small"
                     data-testid="pantheon-protocol"

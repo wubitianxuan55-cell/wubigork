@@ -11907,3 +11907,10 @@
   color: color-mix(in srgb, var(--md-sys-color-warning, #d89614) 85%, var(--color-text, #b8b2a7));
   font-size: 10px;
 }
+
+/* 整场预算输入（B4 UI）：与轮次输入同排的分钟数小控件。 */
+.pantheon-round-budget {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}

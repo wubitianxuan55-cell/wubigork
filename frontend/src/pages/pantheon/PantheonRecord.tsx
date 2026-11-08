@@ -2560,10 +2560,23 @@ export const PantheonRecord: React.FC<Props> = ({
                   </div>
                   <div>
                     <dt>议事路径</dt>
-                    <dd title={protocol === 'independent' ? '第 1 轮不注入同轮前序，各自独立作答' : '同轮发言按顺序互相可见'}>
+                    <dd title={protocol === 'independent'
+                      ? '第 1 轮不注入同轮前序，各自独立作答；第 2 轮起共享讨论'
+                      : protocol === 'blind_rebuttal'
+                        ? '全部轮次并行作答且同轮互盲：只看往轮全文，看不到同轮他席发言'
+                        : '同轮发言按顺序互相可见'}
+                    >
                       {protocolLabel(session.request.protocol)}
                     </dd>
                   </div>
+                  {(session.request.timeBudgetMinutes ?? 0) > 0 && (
+                    <div>
+                      <dt>时间预算</dt>
+                      <dd title="整场墙钟预算：≥80% 往轮全文退回梯度；≥90% 本轮收口直接进汇总">
+                        {session.request.timeBudgetMinutes} 分钟
+                      </dd>
+                    </div>
+                  )}
                   <div>
                     <dt>议事形态</dt>
                     <dd title={session.request.preset === 'targeted_challenge'

@@ -970,3 +970,34 @@ describe('PantheonRecord reconciliation badge', () => {
     expect(card.textContent).toContain('1 次工具')
   })
 })
+
+// UI 细节同步（2026-11-08）：互盲驳论会话的记录页协议标签不再错显「圆桌接力」；
+// 设了时间预算的会话在讨论范围里露预算行。讨论范围住在台账视图的纪要披露里
+// （pantheon-meta-toggle 一键开），测试走真实交互路径。
+describe('PantheonRecord meta labels', () => {
+  it('互盲驳论会话记录页显示「互盲驳论」标签', () => {
+    renderRecord({
+      sessionOverrides: { request: { ...session.request, protocol: 'blind_rebuttal' } },
+    })
+    fireEvent.click(screen.getByTestId('pantheon-meta-toggle'))
+    const meta = screen.getByTestId('pantheon-meta')
+    expect(meta.textContent).toContain('互盲驳论')
+    expect(meta.textContent).not.toContain('圆桌接力')
+  })
+
+  it('设了时间预算 → 讨论范围露预算行', () => {
+    renderRecord({
+      sessionOverrides: { request: { ...session.request, timeBudgetMinutes: 45 } },
+    })
+    fireEvent.click(screen.getByTestId('pantheon-meta-toggle'))
+    const meta = screen.getByTestId('pantheon-meta')
+    expect(meta.textContent).toContain('时间预算')
+    expect(meta.textContent).toContain('45 分钟')
+  })
+
+  it('未设时间预算 → 不露预算行（旧会话零迁移）', () => {
+    renderRecord()
+    fireEvent.click(screen.getByTestId('pantheon-meta-toggle'))
+    expect(screen.getByTestId('pantheon-meta').textContent).not.toContain('时间预算')
+  })
+})
