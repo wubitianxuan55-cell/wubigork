@@ -221,3 +221,13 @@
 **⑥ 事工房 G0 契约（未开工，拍板挂起）**：入口只接受已签注会话的 proposedActions（无签注拒绝）；每动作先 `sandbox.Available()` 探针、不可用即拒（复用 fail_closed）；Gate 必须 DenyUnapproved=true 或接交互审批；产物落 seatwork 目录以回执贡献回流（不冒充原始证据，复用 E1 纪律）；全程 approval 账本。**挂起项**：产品入口形态、签注粒度（整场/单动作）、回执注入轮次——依赖④活体验证（WSL2）与⑤默认拍板。
 
 **验证**：permission 全绿（+5）、builtin bash fail-closed 3/3、config 传播测试绿、app T0 双锁绿、全树编译+vet；全量回归见下。**坑=①Python 的 /tmp 是 C:\tmp 非 Git Bash /tmp（跨工具临时文件用显式 C:\ 路径）②Go 单词接收器 `(bash)` 无参数名，正则 `\(\w+ \*?\w+\)` 吃不到③stubApprover 等测试替身先查既有定义防重声明**。
+
+### 6.12 断档治理：席位瞬时失败自动重试（2026-11-08，本地提交待记）
+
+**实弹普查**（12 场 197 席位调用 15 错，%APPDATA% 会话档逐条定性）：瞬时类（流断链/传输崩溃/槽位超时/看门狗杀）占 8 条且**下一轮已自然重入**——`roundOrder` 每轮含全部席位，跨轮重入机制本来就有；真缺口=**同轮快速失败不试**（exit 0xffffffff/transport closed 秒级崩，只能等下一轮）；永久类（凭据缺失/CLI 用法错/烧满预算）重试同条件同结果。grok「无可见终答 3 次」是内部已重试 3 次的汇总性失败（Seed 证伪形态），加码无用。历史错误 `codex resume -C usage` 已在 A5② 重构中根治。
+
+**落地**：`runAgentWithRetry` 重试分类从「仅空结果」扩为 `isTransientSeatFailure`——黑名单先行（超时/看门狗/取消/凭据/CLI 用法错/工具预算/跳过+重试信号），**时长窗 ≤90s**（烧满预算的慢失败交给下一轮重入），空结果保持白名单。每席每场封顶 `maxSeatAutoRetries=3`（`seatAutoRetries` 记账），防坏席每轮烧额度；额度尽后失败照常落账、下一轮仍重入。`recordAutoRetry` 文案泛化「瞬时失败，自动重试一次」，事件通道不变（前端 zero 改动）。
+
+**测试 +4**：快崩溃重试一次成功入库+事件可见 / 慢超时不试 / 凭据不试 / 封顶（3 轮 6 次调用额度恰尽+计数器拒绝）。**回归教训**：首版漏排除 `errAgentSkipped`——用户跳过席位被自动重试复活入库（TestParallelOpeningSkipTargetsSeat 逮住），补黑名单+errors.Is 双闸。
+
+**验证**：pantheon 15.5s 全绿（含既有空结果/看门狗不重试用例）、app 众神殿族绿、全树编译。

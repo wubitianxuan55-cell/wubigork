@@ -2192,3 +2192,159 @@ func TestCodexSeatWorkDirConfinesWrites(t *testing.T) {
 		t.Fatalf("non-seat-dir seats must keep the shared workspace, alpha cwd = %q", alphaDir)
 	}
 }
+
+// 2026-11-08 断档治理：快速失败（进程非零退出等秒级崩）同轮自动重试一次；
+// 慢失败（烧满时间预算）与永久失败（凭据/CLI 用法错）不试；每席每场封顶 3 次。
+func TestTransientCrashAutoRetriesOnce(t *testing.T) {
+	runner := defaultFakeRunner()
+	attempts := 0
+	var mu sync.Mutex
+	runner.outputs["alpha"] = func(spec commandSpec) (string, error) {
+		if strings.Contains(spec.Stdin, "汇总人") {
+			return "alpha 汇总完成。", nil
+		}
+		mu.Lock()
+		attempts++
+		n := attempts
+		mu.Unlock()
+		if n == 1 {
+			return "", errors.New("exit status 0xffffffff: transport channel closed")
+		}
+		return "alpha 崩溃重试后正常陈词。", nil
+	}
+	runner.outputs["beta"] = func(spec commandSpec) (string, error) {
+		return "beta 正常陈词。", nil
+	}
+	m := newTestManager(t, runner, fakeAdapter("alpha"), fakeAdapter("beta"))
+	defer m.Close()
+	session, err := m.Start(StartRequest{
+		Topic: "崩溃自愈", AgentIDs: []string{"alpha", "beta"}, ChairmanAgentID: "alpha", Rounds: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := waitForStatus(t, m, session.ID, StatusCompleted)
+	mu.Lock()
+	n := attempts
+	mu.Unlock()
+	if n != 2 {
+		t.Fatalf("alpha attempts = %d, want 2 (crash auto-retried once)", n)
+	}
+	retry := false
+	for _, event := range done.Events {
+		if event.Kind == EventAgentRetry && strings.Contains(event.Text, "瞬时失败") {
+			retry = true
+		}
+	}
+	if !retry {
+		t.Fatal("crash auto-retry must be visible as agent_retry event")
+	}
+	if findContribution(done, "alpha") == nil {
+		t.Fatal("alpha contribution missing after retry")
+	}
+}
+
+func TestSlowTimeoutFailureDoesNotAutoRetry(t *testing.T) {
+	runner := defaultFakeRunner()
+	attempts := 0
+	var mu sync.Mutex
+	runner.outputs["alpha"] = func(spec commandSpec) (string, error) {
+		if strings.Contains(spec.Stdin, "汇总人") {
+			return "alpha 汇总完成。", nil
+		}
+		mu.Lock()
+		attempts++
+		mu.Unlock()
+		// 已烧满时间预算的失败（8 分钟调用上限形态）：同条件重跑大概率再撞墙。
+		return "", errors.New("Agent 调用超时: context deadline exceeded")
+	}
+	runner.outputs["beta"] = func(spec commandSpec) (string, error) {
+		return "beta 正常陈词。", nil
+	}
+	m := newTestManager(t, runner, fakeAdapter("alpha"), fakeAdapter("beta"))
+	defer m.Close()
+	session, err := m.Start(StartRequest{
+		Topic: "超时不重试", AgentIDs: []string{"alpha", "beta"}, ChairmanAgentID: "alpha", Rounds: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitSessionSettled(t, m, session.ID)
+	mu.Lock()
+	n := attempts
+	mu.Unlock()
+	if n != 1 {
+		t.Fatalf("alpha attempts = %d, want 1 (timeout must not auto-retry)", n)
+	}
+}
+
+func TestPermanentFailureDoesNotAutoRetry(t *testing.T) {
+	runner := defaultFakeRunner()
+	attempts := 0
+	var mu sync.Mutex
+	runner.outputs["alpha"] = func(spec commandSpec) (string, error) {
+		if strings.Contains(spec.Stdin, "汇总人") {
+			return "alpha 汇总完成。", nil
+		}
+		mu.Lock()
+		attempts++
+		mu.Unlock()
+		return "", errors.New("exit status 1: MISSING_CREDENTIAL：没有可用的 API Key")
+	}
+	runner.outputs["beta"] = func(spec commandSpec) (string, error) {
+		return "beta 正常陈词。", nil
+	}
+	m := newTestManager(t, runner, fakeAdapter("alpha"), fakeAdapter("beta"))
+	defer m.Close()
+	session, err := m.Start(StartRequest{
+		Topic: "凭据不重试", AgentIDs: []string{"alpha", "beta"}, ChairmanAgentID: "alpha", Rounds: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitSessionSettled(t, m, session.ID)
+	mu.Lock()
+	n := attempts
+	mu.Unlock()
+	if n != 1 {
+		t.Fatalf("alpha attempts = %d, want 1 (credential failure must not auto-retry)", n)
+	}
+}
+
+func TestSeatAutoRetryCapThreePerSession(t *testing.T) {
+	runner := defaultFakeRunner()
+	attempts := 0
+	var mu sync.Mutex
+	runner.outputs["alpha"] = func(spec commandSpec) (string, error) {
+		if strings.Contains(spec.Stdin, "汇总人") {
+			return "alpha 汇总完成。", nil
+		}
+		mu.Lock()
+		attempts++
+		mu.Unlock()
+		return "", errors.New("exit status 1: transport channel closed")
+	}
+	runner.outputs["beta"] = func(spec commandSpec) (string, error) {
+		return "beta 正常陈词。", nil
+	}
+	m := newTestManager(t, runner, fakeAdapter("alpha"), fakeAdapter("beta"))
+	defer m.Close()
+	session, err := m.Start(StartRequest{
+		Topic: "重试封顶", AgentIDs: []string{"alpha", "beta"}, ChairmanAgentID: "alpha", Rounds: 3,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitSessionSettled(t, m, session.ID)
+	mu.Lock()
+	n := attempts
+	mu.Unlock()
+	// 3 轮 × 每轮（1 失败+1 同轮重试）= 6 次；每席每场额度 3 恰好用满。
+	if n != 6 {
+		t.Fatalf("alpha attempts = %d, want 6 (one retry per round, quota 3 exactly spent)", n)
+	}
+	// 额度独立的计数器口径：第 4 次申请必须被拒。
+	if m.allowSeatAutoRetry(session.ID, "alpha") {
+		t.Fatal("quota 3 must be exhausted after three auto-retries")
+	}
+}

@@ -150,6 +150,9 @@ type Manager struct {
 	// budgetElapsed 是 B4 预算阶梯的时钟缝：nil = 开议起墙钟（生产）；测试
 	// 注入固定用时，阶梯判定不靠 sleep。
 	budgetElapsed func(*Session) time.Duration
+	// seatAutoRetries 记每席每场的自动重试次数（key=sessionID\x00agentID），
+	// 上限 maxSeatAutoRetries——坏席每轮必崩时最多多烧三次，之后失败照常落账。
+	seatAutoRetries map[string]int
 }
 
 type activeAgentCall struct {
@@ -1687,12 +1690,17 @@ func (m *Manager) runAgentWithRetry(
 		if errors.Is(err, errAgentRetry) && ctx.Err() == nil {
 			continue
 		}
-		// 空结果自动重试一次（2026-11-03 并行实弹）：并行开场 4 进程并发下
-		// zcode 中途夭折零正文=11-02 在册老病（完成门收紧后判空），偶发性强、
-		// 新鲜进程重跑成功率高。只对空结果类失败放行（凭据/路径错误重试无用），
-		// 每次调用至多一次，事件可见不静默。工具预算与看门狗失败不在此列：
-		// 同样的行为重跑只会再撞一次墙。
-		if err != nil && isEmptyResultErr(err) && !autoRetried && ctx.Err() == nil {
+		// 瞬时失败同轮自动重试一次（2026-11-03 空结果起步；2026-11-08 断档治理
+		// 扩面，12 场 197 调用实弹普查驱动）：空结果之外，进程非零退出、传输/
+		// 流式断链这类「快速失败」大概率是端口/鉴权预热类瞬态，同轮立刻再试；
+		// 烧满时间预算的超时/看门狗、取消、凭据缺失、CLI 用法错不试——同条件
+		// 同结果（这类失败下一轮仍会照常重入，roundOrder 每轮含全部席位）。
+		// 每次调用至多一次、每席每场至多 maxSeatAutoRetries 次，防坏席烧额度；
+		// 事件可见不静默。
+		if err != nil && !autoRetried && ctx.Err() == nil &&
+			!errors.Is(err, errAgentSkipped) && !errors.Is(err, errAgentRetry) &&
+			isTransientSeatFailure(err, result.Duration) &&
+			m.allowSeatAutoRetry(session.ID, status.ID) {
 			autoRetried = true
 			m.recordAutoRetry(session, status, phase, round, err)
 			continue
@@ -1701,11 +1709,59 @@ func (m *Manager) runAgentWithRetry(
 	}
 }
 
+// maxSeatAutoRetries 是每席每场的自动重试上限：坏席（每轮必崩）最多多烧三次，
+// 之后失败照常落账、下一轮仍按 roundOrder 重入。
+const maxSeatAutoRetries = 3
+
+// transientRetryWindow 是「快速失败」的时长上限：超过它的失败多半已烧满看门狗
+// 或调用上限，同条件重跑大概率再撞同一面墙，交给下一轮重入。
+const transientRetryWindow = 90 * time.Second
+
 func isEmptyResultErr(err error) bool {
 	if err == nil {
 		return false
 	}
 	return strings.Contains(err.Error(), "返回空结果")
+}
+
+// isTransientSeatFailure 判定一次席位失败是否值得同轮立刻再试。黑名单先行——
+// 永久性失败（凭据/用法/运行方式声明）与已烧满预算的失败（超时/看门狗/工具
+// 预算）一律不试；余下的快速失败（进程崩溃、传输断链、空结果）才试。
+func isTransientSeatFailure(err error, duration time.Duration) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	for _, permanent := range []string{
+		"agent skipped", "agent retry requested",
+		"context canceled", "context deadline exceeded", "调用超时",
+		"MISSING_CREDENTIAL", "凭据",
+		"unexpected argument", "Usage:", "没有声明运行方式", "未找到",
+		"工具调用超出议事预算", "没有任何进展", "开局", "已终止本轮",
+	} {
+		if strings.Contains(msg, permanent) {
+			return false
+		}
+	}
+	if isEmptyResultErr(err) {
+		return true
+	}
+	return duration <= transientRetryWindow
+}
+
+// allowSeatAutoRetry 记账并判定该席本场是否还有自动重试额度。
+func (m *Manager) allowSeatAutoRetry(sessionID, agentID string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.seatAutoRetries == nil {
+		m.seatAutoRetries = map[string]int{}
+	}
+	key := sessionID + "\x00" + agentID
+	if m.seatAutoRetries[key] >= maxSeatAutoRetries {
+		return false
+	}
+	m.seatAutoRetries[key]++
+	return true
 }
 
 // recordAutoRetry 自动重试留痕：复用 EventAgentRetry（前端 closedStreams 台账
@@ -1717,7 +1773,7 @@ func (m *Manager) recordAutoRetry(session *Session, status AgentStatus, phase st
 		Round:   round,
 		AgentID: status.ID,
 		Kind:    EventAgentRetry,
-		Text:    fmt.Sprintf("%s 返回空结果，自动重试一次（%v）", status.Name, cause),
+		Text:    fmt.Sprintf("%s 瞬时失败，自动重试一次（%v）", status.Name, cause),
 		At:      time.Now().UnixMilli(),
 	})
 	saveErr := m.store.save(session)
