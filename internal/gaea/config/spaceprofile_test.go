@@ -240,3 +240,31 @@ mode = "ask"
 		t.Fatal("未知列表应报错")
 	}
 }
+
+// TestPermissionsForSpaceDenyUnapproved 锁定 2026-11-08 众神殿结论第五步的
+// 配置面：deny_unapproved 顶层生效、空间级显式 true 开启、未配置缺省 false
+// （gaea run 自治语义不破坏）。
+func TestPermissionsForSpaceDenyUnapproved(t *testing.T) {
+	top := decodeSpaceProfiles(t, `
+[permissions]
+deny_unapproved = true
+`)
+	if !top.PermissionsForSpace("").DenyUnapproved {
+		t.Fatal("顶层 deny_unapproved=true 应回退生效（mode=off 形态）")
+	}
+
+	section := decodeSpaceProfiles(t, `
+[space_profiles.work.permissions]
+deny_unapproved = true
+`)
+	if !section.PermissionsForSpace("work").DenyUnapproved {
+		t.Fatal("空间级 deny_unapproved=true 应开启")
+	}
+	if section.PermissionsForSpace("play").DenyUnapproved {
+		t.Fatal("未配置的空间不得继承其它空间的开启（只开不关，未开即关）")
+	}
+
+	if (&Config{}).PermissionsForSpace("work").DenyUnapproved {
+		t.Fatal("未配置缺省必须 false：gaea run 自治语义保持不变")
+	}
+}

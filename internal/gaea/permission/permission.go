@@ -255,6 +255,24 @@ type Gate struct {
 	// allowed outright are *not* reported: nothing was overridden there, so a
 	// ledger line would be noise, not history.
 	OnAutoAllow func(toolName, subject, source string)
+
+	// DenyUnapproved flips the nil-Approver semantics for Ask / AlwaysAsk from
+	// "autonomously allow" (recordAuto ledger) to "refuse" (recordDenial
+	// ledger). Default false preserves `gaea run` autonomy; execution chains
+	// that must not run side effects unattended set it true — 无人值守的执行链
+	// 不能靠「没人守门」获得写面（2026-11-08 众神殿结论第五步，pan_1794098356822）。
+	DenyUnapproved bool
+
+	// OnUnapprovedDeny, when set, is told about a call this Gate refused under
+	// DenyUnapproved. Ledger hook only — the decision is already made.
+	OnUnapprovedDeny func(toolName, subject, source string)
+}
+
+// recordDenial reports a deny-unapproved refusal to the ledger hook, if any.
+func (g *Gate) recordDenial(toolName, subject, source string) {
+	if g.OnUnapprovedDeny != nil {
+		g.OnUnapprovedDeny(toolName, subject, source)
+	}
 }
 
 // recordAuto reports an autonomy override to the ledger hook, if any.
@@ -273,6 +291,10 @@ func NewGate(p Policy, a Approver) *Gate { return &Gate{Policy: p, Approver: a} 
 func (g *Gate) Check(ctx context.Context, toolName string, args json.RawMessage, readOnly bool) (bool, string, error) {
 	if g.AlwaysAsk[toolName] {
 		if g.Approver == nil {
+			if g.DenyUnapproved {
+				g.recordDenial(toolName, Subject(args), event.ApprovalSourceHardAsk)
+				return false, "unattended run with no approver: this call always requires user confirmation and the deny-unapproved policy refuses it — do not retry; finish your turn and report why this step is blocked.", nil
+			}
 			g.recordAuto(toolName, Subject(args), event.ApprovalSourceHardAsk)
 			return true, "", nil // 非交互：保持自治
 		}
@@ -296,6 +318,10 @@ func (g *Gate) Check(ctx context.Context, toolName string, args json.RawMessage,
 		return false, "denied by permission policy — this tool/command is on the deny list. Do not retry it; choose another approach or stop and explain.", nil
 	case Ask:
 		if g.Approver == nil {
+			if g.DenyUnapproved {
+				g.recordDenial(toolName, Subject(args), event.ApprovalSourceGate)
+				return false, "unattended run with no approver: this call asks for confirmation and the deny-unapproved policy refuses it — do not retry; finish your turn and report why this step is blocked.", nil
+			}
 			g.recordAuto(toolName, Subject(args), event.ApprovalSourceGate)
 			return true, "", nil // non-interactive: preserve autonomy
 		}

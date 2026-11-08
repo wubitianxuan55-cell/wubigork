@@ -213,6 +213,11 @@ const (
 	// 如子代理、后台任务、headless）遇到「本该问人」的工具时按自治放行——
 	// 没人可问，但账上必须留下「这里本该问人」。
 	AutoDecidedHeadless = "headless"
+	// AutoDecidedUnapprovedDeny 是 deny_unapproved 策略下的拒绝（2026-11-08
+	// 众神殿结论第五步）：无人值守遇到「本该问人」的工具时不放行，按
+	// fail-closed 拒绝并留痕——同一 approval_auto 账本，Decided 记「机器决定
+	// 不放行」。
+	AutoDecidedUnapprovedDeny = "unapproved_deny"
 )
 
 // AutoApproval 是 ApprovalAuto 事件的载荷：一次没弹卡就被放行的工具调用。

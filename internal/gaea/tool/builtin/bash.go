@@ -130,6 +130,12 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 
 	// Wrap in the OS sandbox when configured; otherwise argv is just the shell.
 	argv, sbEnforced := sandbox.Command(b.sb, sh, cmdText)
+	// fail-closed（2026-11-08 众神殿结论第四步）：请求了 enforce 但平台给不了
+	// 隔离（Windows 无 WSL2/容器）时，默认裸跑+启动警告；开 FailClosed 的部署
+	// 在这里拒绝——无隔离执行比拒绝执行更危险。
+	if b.sb.FailClosed && b.sb.Mode == "enforce" && !sbEnforced {
+		return "", fmt.Errorf("sandbox isolation unavailable on this platform (WSL2/container missing); fail-closed policy refuses to run this command unconfined — install WSL2 or a container runtime, or set [sandbox] fail_closed=false")
+	}
 	if sbEnforced && useState {
 		useState = false
 		extraEnv, probe, fgDir = nil, "", b.workDir

@@ -212,3 +212,12 @@
 **刀3 toolPolicy 写面纪律**：默认段「不得尝试写文件」改为真实口径——「写限每场专属 seatwork 目录；共享工作区/系统配置/安装一律只读，越界写=被拦通道换路；**seatwork 产物不是证据**，取证结论必须来自只读工具实际读到的内容」。grok 段无需改（文字本未列 doc_render）。
 
 **测试**：+2（seatwork 端到端：codex cwd=seatwork 且真实创建/会话级隔离/共享区不再是 cwd/他席仍共享区；T0 漂移锁三处）+1 改（policy 文案断言）。验证=pantheon 16.4s 全绿/全树编译/vet（CGO_ENABLED=0）/gofmt 清（只 fmt 自己动过的文件——voice_v2 在途件格式差异不属本线）/app 众神殿族 8/8 全量落盘。
+
+### 6.11 结论六步·后四步落地（2026-11-08 第二批，本地提交待记）
+
+**⑤ 显式 Gate（deny-unapproved）**：`permission.Gate` 加 `DenyUnapproved`（默认 false=`gaea run` 自治语义逐字节不变）——nil Approver 的 Ask/hard_ask 从「自治放行」翻成「拒绝+留账」（`OnUnapprovedDeny` → `event.AutoDecidedUnapprovedDeny`，同一 approval_auto 账本）。config 三处贯通（顶层 `[permissions].deny_unapproved` / 空间段只开不关 / `PermissionsForSpace` 装配）+ boot headlessGate 接线。**测试 +5 子用例**（ask/hard_ask 拒绝并记账、默认关保持自治、policy-allowed 不受累、有批准者开关失效）。已核不破坏面：cost_save 的 AlwaysAsk 自治放行默认保留，翻默认=拍板项（影响办公自主记账流）。
+**④ fail-closed**：`sandbox.Spec.FailClosed` + `SandboxConfig.fail_closed`（默认 false=warned-unconfined 保持）+ bash 工具在「enforce 请求了、平台给不了」处拒绝（bash.go:132 后）。**测试 +3**，本机无 WSL2 正好直测拒绝路径；活体 happy-path 待 WSL2 安装。
+**② effect 审计**：机械 sweep 48 工具（结论口径 48 ✓）→ `docs/gaea-t0-effect-audit-2026-11-08.md`。**真发现：T0 在册成员 cad_ask 带删文件标记、read_file 带起子进程标记**——机械标记≠有罪（可能是自清理/格式抽取），但正是结论「一个反例否决普遍性」类，列人工复核优先级 1-2；T0 精确集漂移锁 `TestPantheonGrokT0ExactSets`（两名单逐字钉死，新增必须显式改测试+过审计）。
+**⑥ 事工房 G0 契约（未开工，拍板挂起）**：入口只接受已签注会话的 proposedActions（无签注拒绝）；每动作先 `sandbox.Available()` 探针、不可用即拒（复用 fail_closed）；Gate 必须 DenyUnapproved=true 或接交互审批；产物落 seatwork 目录以回执贡献回流（不冒充原始证据，复用 E1 纪律）；全程 approval 账本。**挂起项**：产品入口形态、签注粒度（整场/单动作）、回执注入轮次——依赖④活体验证（WSL2）与⑤默认拍板。
+
+**验证**：permission 全绿（+5）、builtin bash fail-closed 3/3、config 传播测试绿、app T0 双锁绿、全树编译+vet；全量回归见下。**坑=①Python 的 /tmp 是 C:\tmp 非 Git Bash /tmp（跨工具临时文件用显式 C:\ 路径）②Go 单词接收器 `(bash)` 无参数名，正则 `\(\w+ \*?\w+\)` 吃不到③stubApprover 等测试替身先查既有定义防重声明**。

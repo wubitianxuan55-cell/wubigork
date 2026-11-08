@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"sort"
 	"strings"
 	"testing"
 
@@ -145,4 +146,58 @@ func TestPantheonGrokProbeAdvertisesOfficeTools(t *testing.T) {
 	if status.Kind != "Gaea 办公席位 · xAI" {
 		t.Fatalf("Grok kind = %q", status.Kind)
 	}
+}
+
+// T0 精确集漂移锁（2026-11-08 众神殿结论第二步·最小切片）：议事 T0 两个名单
+// 与登记表逐字钉死——新增任何工具必须显式改本测试并过 effect 隔离审计，防止
+// 「顺手加一个」式的静默扩面。
+func TestPantheonGrokT0ExactSets(t *testing.T) {
+	wantWorkspace := map[string]bool{
+		"read_file": true, "grep": true, "ls": true,
+		"cad_ask": true, "vision": true,
+		"schedule_get": true, "schedule_analyze": true,
+	}
+	gotWorkspace := map[string]bool{}
+	for _, name := range pantheonGrokWorkspaceTools {
+		if gotWorkspace[name] {
+			t.Fatalf("T0 工作区名单有重复项 %q", name)
+		}
+		gotWorkspace[name] = true
+	}
+	if len(gotWorkspace) != len(wantWorkspace) {
+		t.Fatalf("T0 工作区名单漂移：got %v, want %v（新增须过 effect 审计并改本测试）", keysOf(gotWorkspace), keysOf(wantWorkspace))
+	}
+	for name := range wantWorkspace {
+		if !gotWorkspace[name] {
+			t.Fatalf("T0 工作区名单缺 %q", name)
+		}
+	}
+
+	wantOffice := map[string]bool{
+		"cost_search": true, "cost_indicators": true, "cost_compose": true,
+		"knowledge_search": true, "memory_search": true, "fact_list": true,
+		"web_search": true, "web_fetch": true, "read_skill": true,
+		"genui_validate": true, "ocr": true,
+	}
+	gotOffice := map[string]bool{}
+	for name := range pantheonGrokOfficeReadTools {
+		gotOffice[name] = true
+	}
+	if len(gotOffice) != len(wantOffice) {
+		t.Fatalf("T0 办公只读名单漂移：got %v, want %v", keysOf(gotOffice), keysOf(wantOffice))
+	}
+	for name := range wantOffice {
+		if !gotOffice[name] {
+			t.Fatalf("T0 办公只读名单缺 %q", name)
+		}
+	}
+}
+
+func keysOf(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }

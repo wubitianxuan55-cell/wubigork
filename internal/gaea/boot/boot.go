@@ -223,7 +223,7 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 
 	reg := tool.NewRegistry()
 	writeRoots := cfg.WriteRootsAt(cwd)
-	bashSpec := sandbox.Spec{Mode: cfg.BashMode(), WriteRoots: writeRoots, Network: cfg.Sandbox.Network}
+	bashSpec := sandbox.Spec{Mode: cfg.BashMode(), WriteRoots: writeRoots, Network: cfg.Sandbox.Network, FailClosed: cfg.Sandbox.FailClosed}
 	accessPolicy := tool.NewPathAccessPolicy(cwd, cfg.ReadRootsAt(cwd), writeRoots, opts.ReadPathAllowed)
 	if bashSpec.Mode == "enforce" && !sandbox.Available() {
 		sandboxWarnOnce.Do(func() {
@@ -271,6 +271,10 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	perm := cfg.PermissionsForSpace(space)
 	policy := permission.New(perm.Mode, perm.Allow, perm.Ask, perm.Deny)
 	headlessGate := permission.NewGate(policy, nil)
+	// ⑤ deny-unapproved（2026-11-08 众神殿结论第五步）：默认 false=自治放行
+	// （gaea run 既有语义不破坏）；配置 deny_unapproved=true 时，无人值守遇
+	// ask/hard_ask 即拒绝——执行链不能靠「没人守门」获得写面。拒绝同样落账。
+	headlessGate.DenyUnapproved = perm.DenyUnapproved
 	// 无人值守放行也要留痕：子代理、后台任务、headless 都没有 UI 可问，遇
 	// 「本该问人」的工具时按自治放行——账上写一条 approval_auto，Source 记清
 	// 是闸门的 ask 还是 hard_ask，Decided=headless。共用 sink 已串到会话事件
@@ -281,6 +285,14 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 			Subject: subject,
 			Source:  source,
 			Decided: event.AutoDecidedHeadless,
+		}})
+	}
+	headlessGate.OnUnapprovedDeny = func(toolName, subject, source string) {
+		sink.Emit(event.Event{Kind: event.ApprovalAuto, Auto: event.AutoApproval{
+			Tool:    toolName,
+			Subject: subject,
+			Source:  source,
+			Decided: event.AutoDecidedUnapprovedDeny,
 		}})
 	}
 

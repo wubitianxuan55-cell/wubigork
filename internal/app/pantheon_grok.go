@@ -25,6 +25,7 @@ type pantheonGrokSeat struct {
 }
 
 var _ pantheon.GrokToolStreamingBackend = (*pantheonGrokSeat)(nil)
+
 // GrokHistoryBackend 刻意不实现（2026-11-07 实弹证伪 pan_1794058438005：
 // Seed 历史后模型跑 12 步全工具循环零陈词×3）。grok 走宿主全量窗口内联
 // （historyFullWindow）——往轮全文在提示词里，行为与单发提示词同构、可预期。

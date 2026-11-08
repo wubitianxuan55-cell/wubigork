@@ -170,6 +170,9 @@ type SpacePermissionsConfig struct {
 	Allow               []string `toml:"allow"`
 	Ask                 []string `toml:"ask"`
 	Deny                []string `toml:"deny"`
+	// DenyUnapproved 同顶层 [permissions] 同名字段（空间级显式 true 开启；
+	// 不支持按空间关闭）。语义见 PermissionsConfig。
+	DenyUnapproved bool `toml:"deny_unapproved"`
 }
 
 // PlayGuardrails 是 [space_profiles.<space>.guardrails] 子段（S1.5-B）：
@@ -226,6 +229,10 @@ type SpacePermissions struct {
 	HardAsk []string
 	// ApprovalTimeoutSecs 是审批等待超时（0 = 未配置，boot 回退 agent.approval_timeout_secs）。
 	ApprovalTimeoutSecs int
+	// DenyUnapproved 是 deny_unapproved 策略生效值（2026-11-08 众神殿结论第五
+	// 步）：true 时无人值守 Ask/hard_ask 拒绝而非自治放行。空间级显式 true 可
+	// 开启，不支持按空间关闭（顶层默认 false）。
+	DenyUnapproved bool
 }
 
 // SpaceProfile 返回空间的装配 profile（S1.3-A）。space 为 "work"/"play"
@@ -262,10 +269,11 @@ func (c *Config) SpaceProfile(space string) (*SpaceProfile, error) {
 //     approval_timeout_secs > 0 覆盖。
 func (c *Config) PermissionsForSpace(space string) SpacePermissions {
 	flat := SpacePermissions{
-		Mode:  c.Permissions.Mode,
-		Allow: c.Permissions.Allow,
-		Ask:   c.Permissions.Ask,
-		Deny:  c.Permissions.Deny,
+		Mode:           c.Permissions.Mode,
+		Allow:          c.Permissions.Allow,
+		Ask:            c.Permissions.Ask,
+		Deny:           c.Permissions.Deny,
+		DenyUnapproved: c.Permissions.DenyUnapproved,
 	}
 	space = strings.ToLower(strings.TrimSpace(space))
 	if c == nil || space == "" || !spaces.Valid(space) {
@@ -292,6 +300,9 @@ func (c *Config) PermissionsForSpace(space string) SpacePermissions {
 		}
 		if perm.ApprovalTimeoutSecs > 0 {
 			out.ApprovalTimeoutSecs = perm.ApprovalTimeoutSecs
+		}
+		if perm.DenyUnapproved {
+			out.DenyUnapproved = true // 只能按空间开启，不能关闭顶层开关
 		}
 	}
 	return out
@@ -508,6 +519,12 @@ type SandboxConfig struct {
 	// Network allows network egress from inside the bash sandbox. Defaults true
 	// so module/package downloads keep working; the boundary is then writes.
 	Network bool `toml:"network"`
+	// FailClosed flips the enforce-but-unavailable fallback (2026-11-08 众神殿
+	// 结论第四步): without it, a platform that cannot confine (Windows without
+	// WSL2/container) runs bash commands unconfined after a startup warning.
+	// With it, those commands are refused instead — 执行链隔离失败必须拒绝而非
+	// 裸跑. Defaults false to preserve the warned-unconfined behaviour.
+	FailClosed bool `toml:"fail_closed"`
 }
 
 // WriteRoots returns the directories file-writer tools may modify: the
@@ -758,6 +775,10 @@ type PermissionsConfig struct {
 	Allow []string `toml:"allow"`
 	Ask   []string `toml:"ask"`
 	Deny  []string `toml:"deny"`
+	// DenyUnapproved flips nil-Approver Ask/hard_ask from autonomous allow to
+	// refuse (audited) — 无人值守的执行链不能靠「没人守门」获得写面（2026-11-08
+	// 众神殿结论第五步）。Defaults false to preserve `gaea run` autonomy.
+	DenyUnapproved bool `toml:"deny_unapproved"`
 }
 
 // PluginEntry declares an external MCP server. Type selects the transport:

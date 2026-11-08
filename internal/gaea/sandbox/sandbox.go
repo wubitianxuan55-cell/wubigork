@@ -24,6 +24,13 @@ type Spec struct {
 	// command cannot exfiltrate or fetch; many dev commands (module/package
 	// downloads) need it, so it defaults on at the config layer.
 	Network bool
+	// FailClosed flips the enforce-but-unavailable fallback: by default a
+	// platform that cannot confine (Windows without WSL2, for instance) runs
+	// the command unwrapped after a startup warning. FailClosed refuses the
+	// command instead — 2026-11-08 众神殿结论第四步（pan_1794098356822）：执行链
+	// 隔离失败必须拒绝而非裸跑。Consumers decide where to apply it; the field
+	// only carries the policy.
+	FailClosed bool
 }
 
 // enforce reports whether the spec asks for confinement.
