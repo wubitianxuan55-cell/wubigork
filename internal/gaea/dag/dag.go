@@ -65,6 +65,10 @@ type Node struct {
 	// 安全边界）：工作区相对路径，目录含其下全部。同波已声明路径两两重叠在
 	// 计划期拒绝；缺失或无法判断（glob/逃逸段）→ 该波执行期降宽串行。
 	WritePaths []string `json:"writePaths,omitempty"`
+	// ReadOnly 纯读取/取证节点（刀4）：以只读工具集执行（写工具硬拒），
+	// 空写集可判定——所在波不因它缺声明而降宽；与 WritePaths/RiskHigh 矛盾
+	// 在 Validate 拒绝。
+	ReadOnly bool `json:"readonly,omitempty"`
 }
 
 // Run 一条流水线。
@@ -122,6 +126,14 @@ func Validate(goal string, nodes []Node) error {
 		}
 		if n.Risk != "" && n.Risk != RiskNormal && n.Risk != RiskHigh {
 			return fmt.Errorf("节点 %s 的 risk 非法（只认 normal/high）", n.ID)
+		}
+		// 只读矛盾拒绝（刀4）：只读节点空写集是可判定的，声明 write_paths
+		// 或标高风险审批都自相矛盾（高风险闸为写面而设）——fail-closed。
+		if n.ReadOnly && len(n.WritePaths) > 0 {
+			return fmt.Errorf("节点 %s 声明为只读却带了 write_paths（只读节点空写集，二者矛盾；要写就去掉 readonly）", n.ID)
+		}
+		if n.ReadOnly && n.Risk == RiskHigh {
+			return fmt.Errorf("节点 %s 只读却标了 high 风险审批（只读无覆盖/删除面，矛盾）", n.ID)
 		}
 		ids[n.ID] = true
 	}
@@ -306,6 +318,7 @@ func ApplyEdit(r Run, goal string, nodes []Node) (Run, EditReport, error) {
 		prev, existed := old[n.ID]
 		sameShape := existed &&
 			prev.Title == n.Title && prev.Prompt == n.Prompt && prev.Risk == n.Risk &&
+			prev.ReadOnly == n.ReadOnly &&
 			sameDeps(prev.DependsOn, n.DependsOn) && sameDeps(prev.WritePaths, n.WritePaths)
 		if sameShape {
 			reconciled = append(reconciled, prev)
@@ -327,6 +340,7 @@ func ApplyEdit(r Run, goal string, nodes []Node) (Run, EditReport, error) {
 			DependsOn:  n.DependsOn,
 			Risk:       n.Risk,
 			WritePaths: n.WritePaths,
+			ReadOnly:   n.ReadOnly,
 			Status:     StatusPending,
 		})
 	}

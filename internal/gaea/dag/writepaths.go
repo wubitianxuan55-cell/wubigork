@@ -95,10 +95,14 @@ func WaveWriteConflicts(nodes []Node) ([]string, error) {
 	return conflicts, nil
 }
 
-// WaveFullyDeclared 报告波内每个节点都声明了至少一条可判定的字面写路径。
-// 否则该波执行期降宽 1（裁决：缺失或无法判断的写路径默认串行）。
+// WaveFullyDeclared 报告波内每个节点的写面都可判定：声明了至少一条字面写
+// 路径，或是只读节点（空写集本身可判定，刀4）。否则该波执行期降宽 1（裁决：
+// 缺失或无法判断的写路径默认串行）。
 func WaveFullyDeclared(wave []Node) bool {
 	for _, n := range wave {
+		if n.ReadOnly {
+			continue
+		}
 		ok := false
 		for _, p := range n.WritePaths {
 			if IsLiteralWritePath(p) {

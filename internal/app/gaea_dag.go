@@ -54,6 +54,7 @@ func (d dagPlanTool) Schema() json.RawMessage {
     "prompt":{"type":"string","description":"该节点的完整委托指令：输入文件（工作区相对路径）、加工动作、期望产物路径。子代理看不到对话，prompt 必须自包含"},
     "depends_on":{"type":"array","items":{"type":"string"},"description":"依赖的节点 id 列表（可空=无依赖）"},
     "write_paths":{"type":"array","items":{"type":"string"},"description":"可选。该节点会写的工作区相对路径（目录含其下全部，不填 glob）。同一波（无依赖关系）的节点声明重叠会被拒绝；完全不声明写路径的节点所在波只能串行执行——独立并行节点建议都声明"},
+    "readonly":{"type":"boolean","description":"可选。纯读取/取证节点：以只读工具集执行（写工具硬拒），不得再声明 write_paths 或标 high 风险；所在波不因它缺写路径声明而串行"},
     "risk":{"type":"string","enum":["normal","high"],"description":"风险分级：覆盖/删除工作区既有文件、批量移动、全局性改动的节点标 high（起跑前会暂停等用户审批）；常规新增/编辑用 normal（缺省）"}}},
     "required":["id","title","prompt"]}}
 },
@@ -71,6 +72,7 @@ func (d dagPlanTool) Execute(ctx context.Context, args json.RawMessage) (string,
 			Prompt     string   `json:"prompt"`
 			DependsOn  []string `json:"depends_on"`
 			WritePaths []string `json:"write_paths"`
+			ReadOnly   bool     `json:"readonly"`
 			Risk       string   `json:"risk"`
 		} `json:"nodes"`
 	}
@@ -85,6 +87,7 @@ func (d dagPlanTool) Execute(ctx context.Context, args json.RawMessage) (string,
 			Prompt:     strings.TrimSpace(n.Prompt),
 			DependsOn:  n.DependsOn,
 			WritePaths: n.WritePaths,
+			ReadOnly:   n.ReadOnly,
 			Risk:       n.Risk,
 			Status:     dag.StatusPending,
 		})
@@ -599,6 +602,35 @@ func (a *App) dagWaveWidth() int {
 	return width
 }
 
+// dagNodeScope 节点子代理作用域（2026-11-08 众神殿裁决刀4）：只读节点=只读
+// 收窄（写工具硬拒）；已声明字面写路径节点=containment 白名单+逐调用包含
+// 校验（绝对根按进程 cwd=工作区解析，与 PathAccessPolicy 对参数路径的解析
+// 同基准）；未声明且非只读节点=无盖（全量注册表+父策略，串行波今日行为）。
+func (a *App) dagNodeScope(ctx context.Context, node dag.Node) context.Context {
+	runCtx := gaeaAgent.WithSpace(ctx, gaeaSessionSpace())
+	switch {
+	case node.ReadOnly:
+		return gaeaAgent.WithSubagentScope(runCtx, gaeaAgent.SubagentScope{ReadOnly: true})
+	case len(node.WritePaths) > 0:
+		roots := make([]string, 0, len(node.WritePaths))
+		for _, p := range node.WritePaths {
+			if !dag.IsLiteralWritePath(p) {
+				continue
+			}
+			if !filepath.IsAbs(p) {
+				if wd, err := os.Getwd(); err == nil {
+					p = filepath.Join(wd, p)
+				}
+			}
+			roots = append(roots, p)
+		}
+		if len(roots) > 0 {
+			return gaeaAgent.WithSubagentScope(runCtx, gaeaAgent.SubagentScope{WritePaths: roots})
+		}
+	}
+	return runCtx
+}
+
 func (a *App) dagExecute(ctx context.Context, id string, waves [][]dag.Node) {
 
 	runner := gaDagRunner()
@@ -687,7 +719,7 @@ func (a *App) dagExecute(ctx context.Context, id string, waves [][]dag.Node) {
 					slog.Warn("流水线节点状态落盘失败", "run", id, "node", node.ID, "error", startErr)
 				}
 				prompt := a.dagNodePrompt(id, node.ID)
-				_, ref, err := runner(gaeaAgent.WithSpace(ctx, gaeaSessionSpace()), prompt, emit)
+				_, ref, err := runner(a.dagNodeScope(ctx, node), prompt, emit)
 				outputs := dagJournalTargetsAfter(seen)
 				if ref != "" {
 					// v4.221 按会话归因：子代理把写盘卡落在自己会话名下

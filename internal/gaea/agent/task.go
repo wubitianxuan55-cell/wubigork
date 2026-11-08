@@ -133,21 +133,42 @@ func newEphemeralSubagentID() string {
 	return fmt.Sprintf("sa_ephemeral_%d_%d", time.Now().UnixNano(), ephemeralSubagentSeq.Add(1))
 }
 
-// subagentReadOnlyKey ctx 缝（2026-11-08 众神殿办公板块子代理裁决刀3）：
-// readonly=true 的 task 调用经此把只读形态带到 runSubSession（ActiveSchemas
-// 与受限注册表同源）。走 ctx 而非 TaskTool 字段=并行调用互不串。
-type subagentReadOnlyKey struct{}
+// SubagentScope 子代理逐调用作用域（2026-11-08 众神殿裁决刀3/刀4 ctx 缝）：
+//   - ReadOnly=true：注册表收窄到自报只读交集（已知写工具硬名单优先于自报）；
+//   - WritePaths 非空：注册表收窄到 containment 兼容白名单（自报只读或实现
+//     WritePathResolver——bash 等无 resolver 的写工具出局），且执行面 AccessPolicy
+//     包裹 WriteScopePolicy 逐调用包含校验（路径为绝对根，宿主侧已解析）。
+//
+// 走 ctx 而非 TaskTool 字段=并行调用互不串；DAG 节点（RunNew）与 task 调用
+// （ExecuteWithContext）同缝消费。
+type SubagentScope struct {
+	ReadOnly   bool
+	WritePaths []string
+}
+
+type subagentScopeKey struct{}
+
+// WithSubagentScope 在 ctx 上盖作用域（宿主侧 dagExecute / task 工具调用）。
+func WithSubagentScope(ctx context.Context, s SubagentScope) context.Context {
+	return context.WithValue(ctx, subagentScopeKey{}, s)
+}
 
 func withSubagentReadOnly(ctx context.Context) context.Context {
-	return context.WithValue(ctx, subagentReadOnlyKey{}, true)
+	return WithSubagentScope(ctx, SubagentScope{ReadOnly: true})
+}
+
+// SubagentScopeFromContext 读回作用域（无盖=零值+false）。
+func SubagentScopeFromContext(ctx context.Context) (SubagentScope, bool) {
+	if ctx == nil {
+		return SubagentScope{}, false
+	}
+	s, ok := ctx.Value(subagentScopeKey{}).(SubagentScope)
+	return s, ok
 }
 
 func subagentReadOnlyFromContext(ctx context.Context) bool {
-	if ctx == nil {
-		return false
-	}
-	v, _ := ctx.Value(subagentReadOnlyKey{}).(bool)
-	return v
+	s, ok := SubagentScopeFromContext(ctx)
+	return ok && s.ReadOnly
 }
 
 // subagentWriteDenylist 已知写工具硬拒绝名单：ReadOnly() 是工具自报属性，
@@ -649,6 +670,42 @@ func restrictReadOnlyRegistry(reg *tool.Registry) *tool.Registry {
 	return out
 }
 
+// restrictContainableRegistry containment 白名单收窄（刀4，裁决条件「逐调用
+// 路径包含或等价精确沙箱」的工具面半边）：保留自报只读（无写面）或实现
+// WritePathResolver（写面可被逐调用包含校验）的工具——bash 等无 resolver 的
+// 写工具出局，并行波节点的实际写面由此与声明对齐（裁决分歧条：计划声明≠
+// 实际写面）。执行面另一半=runSubSession 的 WriteScopePolicy 包裹。
+func restrictContainableRegistry(reg *tool.Registry) *tool.Registry {
+	out := tool.NewRegistry()
+	for _, name := range reg.Names() {
+		tl, ok := reg.Get(name)
+		if !ok {
+			continue
+		}
+		if _, resolvable := tl.(tool.WritePathResolver); !resolvable && !tl.ReadOnly() {
+			continue
+		}
+		out.Add(tl)
+	}
+	return out
+}
+
+// subRegForScope 按作用域收窄注册表（RunNew 宿主路径消费点）。
+func (t *TaskTool) subRegForScope(ctx context.Context) *tool.Registry {
+	subReg := mustSubReg(t, nil)
+	sc, ok := SubagentScopeFromContext(ctx)
+	if !ok {
+		return subReg
+	}
+	if sc.ReadOnly {
+		return restrictReadOnlyRegistry(subReg)
+	}
+	if len(sc.WritePaths) > 0 {
+		return restrictContainableRegistry(subReg)
+	}
+	return subReg
+}
+
 // UnknownToolNames 返回清单里父注册表**完全不存在的**工具名（排除清单按设
 // 计不视为未知——那是「一层深」边界，不是错名）。names 为空返回 nil。
 func UnknownToolNames(parent *tool.Registry, names []string, exclude ...string) []string {
@@ -775,7 +832,7 @@ func (t *TaskTool) RunNew(ctx context.Context, prompt string, emit func(ref, tex
 		if maxSteps < 5 {
 			maxSteps = 5
 		}
-		result, _, err := t.runSubSession(ctx, nil, prompt, mustSubReg(t, nil), sink, nil, maxSteps, nil, nil)
+		result, _, err := t.runSubSession(ctx, nil, prompt, t.subRegForScope(ctx), sink, nil, maxSteps, nil, nil)
 		return result, "", err
 	}
 	defer run.Release()
@@ -786,7 +843,9 @@ func (t *TaskTool) RunNew(ctx context.Context, prompt string, emit func(ref, tex
 	// stop 必须先于终态写（TrackProgress 契约，见 runFollowUp 同注）。
 	stop()
 
-	subReg := mustSubReg(t, nil)
+	// 作用域感知注册表（刀4）：DAG 节点执行器经 ctx 带节点作用域（只读收窄
+	// /写路径 containment 白名单），无盖=全量过滤注册表（今日行为）。
+	subReg := t.subRegForScope(ctx)
 	run.ToolScope = sortedToolNames(subReg.Names())
 	maxSteps := t.maxSteps / 2
 	if maxSteps < 5 {
@@ -967,12 +1026,20 @@ func (t *TaskTool) runSubSession(ctx context.Context, provOverride provider.LLMP
 
 	var subUsage provider.Usage
 	// V10.36: ActiveSchemas 发父注册表全量给 API 对齐工具 JSON（DeepSeek 父→子
-	// 前缀缓存命中）；只读子代理（2026-11-08 众神殿裁决刀3）改为与受限注册表
-	// 同源——否则「看得见但调用即拒」的纠偏循环（裁决风险条明示）；放弃父前
-	// 缀缓存对齐=按调用 opt-in 的代价，A/B 评测量化。
+	// 前缀缓存命中）；作用域子代理（2026-11-08 众神殿裁决刀3/刀4：只读或写
+	// 路径声明）改为与受限注册表同源——否则「看得见但调用即拒」的纠偏循环
+	//（裁决风险条明示）；放弃父前缀缓存对齐=按调用 opt-in 的代价，A/B 评测
+	// 量化。
 	activeSchemas := t.parentReg.Schemas()
-	if subagentReadOnlyFromContext(ctx) {
+	if _, scoped := SubagentScopeFromContext(ctx); scoped {
 		activeSchemas = subReg.Schemas()
+	}
+	// 执行面包含校验（刀4）：scope 声明了写路径的子代理，AccessPolicy 包裹
+	// WriteScopePolicy——resolver 写工具逐调用验声明根包含（父工作区边界仍
+	// 先行生效）；无 scope=父策略原样（今日行为）。
+	access := t.access
+	if sc, ok := SubagentScopeFromContext(ctx); ok && len(sc.WritePaths) > 0 {
+		access = tool.NewWriteScopePolicy(access, sc.WritePaths)
 	}
 	subOpts := Options{
 		MaxSteps:      maxSteps,
@@ -980,7 +1047,7 @@ func (t *TaskTool) runSubSession(ctx context.Context, provOverride provider.LLMP
 		Pricing:       subPrice,
 		Gate:          t.gate,
 		Hooks:         t.hooksForChild(hookSessionID),
-		AccessPolicy:  t.access,
+		AccessPolicy:  access,
 		ContextWindow: subCtxWin,
 		Compaction:    CompactionConfig{ArchiveDir: t.archiveDir},
 		ActiveSchemas: activeSchemas,

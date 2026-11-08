@@ -244,6 +244,7 @@ export interface DagNodeView {
   prompt: string;
   dependsOn?: string[];
   writePaths?: string[];
+  readonly?: boolean;
   status: "pending" | "running" | "done" | "failed" | "skipped" | "accepted" | "hold";
   risk?: "normal" | "high";
   approved?: boolean;

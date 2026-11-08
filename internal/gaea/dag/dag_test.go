@@ -305,3 +305,56 @@ func TestApplyEditShrinkGuard(t *testing.T) {
 		t.Errorf("存量单节点改图 goal 未更新: %q", out.Goal)
 	}
 }
+
+// TestValidateReadOnlyContradictions 2026-11-08 众神殿裁决刀4：只读节点矛盾
+// 拒绝——readonly+write_paths、readonly+high 风险审批均 fail-closed；纯只读
+// 节点合法。
+func TestValidateReadOnlyContradictions(t *testing.T) {
+	base := func(mod func(*Node)) []Node {
+		n := Node{ID: "a", Title: "t", Prompt: "p"}
+		mod(&n)
+		return []Node{n}
+	}
+	if err := Validate("g", base(func(n *Node) { n.ReadOnly = true })); err != nil {
+		t.Errorf("纯只读节点应放行: %v", err)
+	}
+	if err := Validate("g", base(func(n *Node) { n.ReadOnly = true; n.WritePaths = []string{"a.docx"} })); err == nil {
+		t.Error("readonly+write_paths 应拒绝（空写集与声明矛盾）")
+	}
+	if err := Validate("g", base(func(n *Node) { n.ReadOnly = true; n.Risk = RiskHigh })); err == nil {
+		t.Error("readonly+high 风险应拒绝（只读无覆盖/删除面）")
+	}
+}
+
+// TestWaveFullyDeclaredReadOnlyNode 刀4 精化：只读节点空写集可判定——所在波
+// 不因它缺声明而降宽（声明节点+只读节点同波可并行）。
+func TestWaveFullyDeclaredReadOnlyNode(t *testing.T) {
+	wave := []Node{
+		{ID: "w", Title: "t", Prompt: "p", WritePaths: []string{"out.xlsx"}},
+		{ID: "r", Title: "t", Prompt: "p", ReadOnly: true},
+	}
+	if !WaveFullyDeclared(wave) {
+		t.Error("声明+只读混合波应判可判定（不降宽）")
+	}
+}
+
+// TestApplyEditReadOnlyShape 刀4：readonly 是节点形状——翻转回 pending 并随
+// 调和携带。
+func TestApplyEditReadOnlyShape(t *testing.T) {
+	r := Run{ID: "dag_ro", Goal: "g", Nodes: []Node{
+		{ID: "a", Title: "t", Prompt: "p", Status: StatusDone, RunCount: 1},
+	}}
+	// 形状未变（readonly 同 false）→ 保留。
+	out, rep, err := ApplyEdit(r, "g", []Node{{ID: "a", Title: "t", Prompt: "p"}})
+	if err != nil || rep.Kept != 1 {
+		t.Fatalf("同形应保留: kept=%d err=%v", rep.Kept, err)
+	}
+	// 翻 readonly → 形状变更回 pending；新形态携带。
+	out, rep, err = ApplyEdit(out, "g", []Node{{ID: "a", Title: "t", Prompt: "p", ReadOnly: true}})
+	if err != nil || rep.Kept != 0 || rep.Updated != 1 {
+		t.Fatalf("readonly 翻转应回 pending: kept=%d updated=%d err=%v", rep.Kept, rep.Updated, err)
+	}
+	if !out.Nodes[0].ReadOnly {
+		t.Error("调和后节点应携带 readonly")
+	}
+}

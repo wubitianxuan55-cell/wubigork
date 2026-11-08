@@ -83,6 +83,7 @@ var spaceTags = map[string]string{
 	"memory_search":      SpaceShared,
 	"memory_get":         SpaceShared,
 	"read_spill":         SpaceShared,
+	"recall_archived":    SpaceShared,
 	"remember":           SpaceShared,
 	"forget":             SpaceShared,
 	"schedule_analyze":   SpaceShared,

@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	gaeaAgent "github.com/gaea/gaea/internal/gaea/agent"
 	"github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/dag"
 	"github.com/gaea/gaea/internal/gaea/evidence"
@@ -957,4 +958,37 @@ func TestDagWaveDeclaredRunsParallel(t *testing.T) {
 		t.Fatalf("GaeaDagRun: %v", err)
 	}
 	waitDagDone(t, id)
+}
+
+// TestDagNodeScope 2026-11-08 众神殿裁决刀4：节点作用域 ctx 装配——只读节点
+// → ReadOnly scope；声明写路径节点 → 绝对根 scope（cwd=工作区基准）；未声明
+// 且非只读 → 无盖；空间恒随行。
+func TestDagNodeScope(t *testing.T) {
+	a := &App{}
+	// 只读节点。
+	ctx := a.dagNodeScope(context.Background(), dag.Node{ReadOnly: true})
+	sc, ok := gaeaAgent.SubagentScopeFromContext(ctx)
+	if !ok || !sc.ReadOnly || len(sc.WritePaths) != 0 {
+		t.Fatalf("只读节点应得 ReadOnly scope: ok=%v %+v", ok, sc)
+	}
+	// 声明节点：相对路径按 cwd 解析为绝对根。
+	ctx = a.dagNodeScope(context.Background(), dag.Node{WritePaths: []string{"docs/out.docx"}})
+	sc, ok = gaeaAgent.SubagentScopeFromContext(ctx)
+	if !ok || len(sc.WritePaths) != 1 {
+		t.Fatalf("声明节点应得写作用域: ok=%v %+v", ok, sc)
+	}
+	wd, _ := os.Getwd()
+	if want := filepath.Join(wd, "docs", "out.docx"); sc.WritePaths[0] != want {
+		t.Errorf("声明根应按 cwd 解析: got %q want %q", sc.WritePaths[0], want)
+	}
+	// glob 声明=无法判断 → 不盖作用域（该波由 WaveFullyDeclared 降宽串行）。
+	ctx = a.dagNodeScope(context.Background(), dag.Node{WritePaths: []string{"*.docx"}})
+	if _, ok = gaeaAgent.SubagentScopeFromContext(ctx); ok {
+		t.Error("glob 声明不应装配作用域")
+	}
+	// 未声明且非只读 → 无盖。
+	ctx = a.dagNodeScope(context.Background(), dag.Node{})
+	if _, ok = gaeaAgent.SubagentScopeFromContext(ctx); ok {
+		t.Error("未声明节点不应装配作用域")
+	}
 }
