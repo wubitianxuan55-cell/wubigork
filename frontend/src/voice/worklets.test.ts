@@ -35,8 +35,9 @@ describe('voice AudioWorklet 采样率兼容', () => {
     const { Processor, posted } = loadProcessor('captureProcessor.js', 48000)
     const p = new Processor()
     p.process([[new Float32Array(960).fill(0.25)]], [])
-    expect(posted).toHaveLength(1)
-    expect((posted[0] as ArrayBuffer).byteLength).toBe(320 * 2)
+    const audio = posted.filter((d): d is ArrayBuffer => d instanceof ArrayBuffer)
+    expect(audio).toHaveLength(1)
+    expect(audio[0].byteLength).toBe(320 * 2)
   })
 
   it('capture 在原生 16k 输入上仍逐样本成帧', () => {
@@ -44,8 +45,21 @@ describe('voice AudioWorklet 采样率兼容', () => {
     const p = new Processor()
     p.process([[new Float32Array(160).fill(0.1)]], [])
     p.process([[new Float32Array(160).fill(0.2)]], [])
-    expect(posted).toHaveLength(1)
-    expect((posted[0] as ArrayBuffer).byteLength).toBe(640)
+    const audio = posted.filter((d): d is ArrayBuffer => d instanceof ArrayBuffer)
+    expect(audio).toHaveLength(1)
+    expect(audio[0].byteLength).toBe(640)
+  })
+
+  it('capture 每帧回报 RMS 电平（20ms/50Hz），供星团逐帧驱动', () => {
+    const { Processor, posted } = loadProcessor('captureProcessor.js', 16000)
+    const p = new Processor()
+    p.process([[new Float32Array(160).fill(0.25)]], [])
+    p.process([[new Float32Array(160).fill(0.25)]], [])
+    const levels = posted.filter(
+      (d) => d && typeof d === 'object' && '__gaeaLevel' in (d as Record<string, unknown>),
+    ) as { __gaeaLevel: number }[]
+    expect(levels).toHaveLength(1)
+    expect(levels[0].__gaeaLevel).toBeGreaterThan(0.5)
   })
 
   it('sink 在 48k 设备上把 16k PCM 扩为约 3 倍样本，flush 清 ring', () => {
@@ -60,6 +74,29 @@ describe('voice AudioWorklet 采样率兼容', () => {
     expect(Number(p.size)).toBe(0)
     const flushAck = posted.find((d) => d && typeof d === 'object' && (d as {flushed?: boolean}).flushed)
     expect(flushAck).toMatchObject({ flushed: true, buffered: 0 })
+  })
+
+  it('sink 20Hz 回报声卡实际外放电平（含欠载静音）', () => {
+    const { Processor, posted } = loadProcessor('sinkProcessor.js', 16000)
+    const p = new Processor() as unknown as {
+      port: { onmessage: ((event: { data: unknown }) => void) | null }
+      process: (i: Float32Array[][], o: Float32Array[][]) => boolean
+    }
+    const pcm = new Int16Array(320).fill(16384)
+    p.port.onmessage?.({ data: { type: 'pcm', buffer: pcm.buffer } })
+    for (let f = 0; f < 6; f++) p.process([], [[new Float32Array(128)]])
+    const levels = posted.filter(
+      (d) => d && typeof d === 'object' && '__gaeaPlayLevel' in (d as Record<string, unknown>),
+    ) as { __gaeaPlayLevel: number }[]
+    expect(levels.length).toBeGreaterThan(0)
+    expect(levels[0].__gaeaPlayLevel).toBeGreaterThan(0.4)
+    // flush 后外放静音，电平必须归零（不能停在上一句的峰值）
+    p.port.onmessage?.({ data: { type: 'flush' } })
+    for (let f = 0; f < 12; f++) p.process([], [[new Float32Array(128)]])
+    const after = posted.filter(
+      (d) => d && typeof d === 'object' && '__gaeaPlayLevel' in (d as Record<string, unknown>),
+    ) as { __gaeaPlayLevel: number }[]
+    expect(after[after.length - 1].__gaeaPlayLevel).toBe(0)
   })
 
   it('sink 诊断 tap：process 实际外放样本按 ≈1s 攒批回传（2026-11-07 重叠线复开）', () => {

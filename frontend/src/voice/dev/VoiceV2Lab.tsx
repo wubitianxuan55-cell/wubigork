@@ -103,7 +103,14 @@ const VoiceV2Lab: React.FC = () => {
               </span>
             </header>
             <div className="v2l-orb-stage">
-              <VoiceV2Orb phase={v2.phase} active={v2.micOn || v2.phase === 'speaking'} connected={v2.connected} />
+              <VoiceV2Orb
+                phase={v2.phase}
+                active={v2.micOn || v2.phase === 'speaking'}
+                connected={v2.connected}
+                level={v2.micOn ? v2.micLevel : v2.playLevel}
+                micLevelRef={v2.micLevelRef}
+                playLevelRef={v2.playLevelRef}
+              />
               <p>{v2.micOn ? '麦克风正在采集 16k PCM' : '打开麦克风后可观察真实 VAD 与转写相位'}</p>
             </div>
             <div className="v2l-signal-row" aria-hidden="true">

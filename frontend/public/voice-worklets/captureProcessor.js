@@ -18,9 +18,10 @@ class CaptureProcessor extends AudioWorkletProcessor {
     this.phase = 0
     this.sum = 0
     this.count = 0
-    // 电平上报（哑麦诚实化）：每 12 帧（~240ms）回报一次帧内 RMS，
-    // 主线程据此驱动真实电平可视化与「无信号」检测。
-    this.levelEvery = 12
+    // 电平上报（哑麦诚实化 + 星团实时驱动）：每个 20ms 音频帧回报一次帧内
+    // RMS。原来 12 帧（~240ms）一次，星团只能 4Hz 跳变；现在 50Hz 给主线程
+    // ref，主线程按 60ms 节流进 React state，绘制面仍拿到近实时包络。
+    this.levelEvery = 1
     this.levelCountdown = this.levelEvery
     // 自适应输入增益（2026-11-05 真麦根修第二刀）：弱电平麦克风（实弹 MIC-H
     // 说话 RMS≈0.01，silero 概率崩——阈值降到 0.5 仍全 discard，active 仅

@@ -375,4 +375,19 @@ describe('useVoiceChatV2', () => {
     act(() => { t.onmessage?.(JSON.stringify({ type: 'response.done', response: { id: 'resp_lvl', status: 'completed' } })) })
     expect(result.current.playLevel).toBe(0)
   })
+
+  it('声卡外放电平进 playLevel/ref：星团跟耳朵听到的声音同步', async () => {
+    const t = new FakeTransport()
+    const { result } = renderHook(() => useVoiceChatV2({
+      transportFactory: () => t,
+    }))
+    await act(async () => { await result.current.connect() })
+    act(() => { t.onopen?.() })
+    act(() => { sinkNodes[0]?.port.onmessage?.({ data: { __gaeaPlayLevel: 0.72 } }) })
+    expect(result.current.playLevel).toBe(0.72)
+    expect(result.current.playLevelRef?.current).toBe(0.72)
+    act(() => { sinkNodes[0]?.port.onmessage?.({ data: { __gaeaPlayLevel: 0 } }) })
+    expect(result.current.playLevel).toBe(0)
+    expect(result.current.playLevelRef?.current).toBe(0)
+  })
 })

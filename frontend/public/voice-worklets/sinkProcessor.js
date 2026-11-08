@@ -28,6 +28,12 @@ class SinkProcessor extends AudioWorkletProcessor {
     // 水位报告节奏（约 10 次/秒，2026-11-07 提频：泵灌注参考更新鲜=双灌窗口减半）
     this.fillReportEvery = Math.max(1, Math.round(outRate / 128 / 10))
     this.fillCounter = 0
+    // 播放侧真实电平（星团驱动）：直接统计送进声卡的 ch 样本（含欠载补零），
+    // 20Hz 回报——与「收到的 delta」无关，声卡出什么声就报什么电平。
+    this.levelReportEvery = Math.max(1, Math.round(outRate / 128 / 20))
+    this.levelCounter = this.levelReportEvery
+    this.levelSq = 0
+    this.levelN = 0
     this.resampleStep = 16000 / outRate
     this.resamplePos = 0
     this.prevSample = 0
@@ -49,6 +55,9 @@ class SinkProcessor extends AudioWorkletProcessor {
         this.size = 0
         this.resamplePos = 0
         this.havePrev = false
+        this.levelSq = 0
+        this.levelN = 0
+        this.levelCounter = this.levelReportEvery
         this.port.postMessage({ flushed: true, buffered: 0, cap: this.cap })
         return
       }
@@ -114,6 +123,19 @@ class SinkProcessor extends AudioWorkletProcessor {
     // 其余声道复制第 0 声道（单声道源 → 立体声设备）
     for (let c = 1; c < out.length; c++) {
       out[c].set(ch)
+    }
+    // 真实外放电平：ch 含欠载补零，约 20Hz 回报一次。
+    for (let i = 0; i < ch.length; i++) {
+      const s = ch[i]
+      this.levelSq += s * s
+    }
+    this.levelN += ch.length
+    if (--this.levelCounter <= 0) {
+      this.levelCounter = this.levelReportEvery
+      const rms = Math.sqrt(this.levelSq / Math.max(1, this.levelN))
+      this.port.postMessage({ __gaeaPlayLevel: Math.min(1, rms * 3) })
+      this.levelSq = 0
+      this.levelN = 0
     }
     // 诊断 tap：实际外放样本（含欠载补零——声学真相原样）攒批回传主线程
     if (this.tapOn) {

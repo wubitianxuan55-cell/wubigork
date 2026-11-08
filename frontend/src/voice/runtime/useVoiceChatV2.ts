@@ -81,10 +81,14 @@ export interface VoiceChatV2Api {
   tail: string[]
   connected: boolean
   micOn: boolean
-  /** 采集电平（0..1，worklet RMS 每 ~240ms 上报；0=静音） */
+  /** 采集电平（0..1，worklet RMS 每 ~20ms 上报；0=静音） */
   micLevel: number
-  /** 说话侧电平（0..1，下行播放 PCM 块 RMS；speaking 相位声纹/涟漪驱动源） */
+  /** 说话侧电平（0..1，声卡实际外放 RMS；speaking 相位声纹/涟漪驱动源） */
   playLevel: number
+  /** 采集电平的逐帧 ref（50Hz）：星团画布直接读，避免 React 每帧重渲染 */
+  micLevelRef?: { current: number }
+  /** 播放电平的逐帧 ref（20Hz）：星团画布直接读，和声卡实际出声同步 */
+  playLevelRef?: { current: number }
   /** 哑麦诚实检测：开麦且已连接但持续 3s 无信号（虚拟设备/选错设备/静音） */
   micSilent: boolean
   note: string
@@ -126,8 +130,13 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
   const [connected, setConnected] = useState(false)
   const [micOn, setMicOn] = useState(false)
   const [micLevel, setMicLevel] = useState(0)
-  // 说话相位声纹源：下行音频播放块 RMS（VoiceClientV2 onPlayLevel；done 归零）
+  // 说话相位声纹源：声卡实际外放 RMS（sink worklet __gaeaPlayLevel；delta 回退）
   const [playLevel, setPlayLevel] = useState(0)
+  // 星团画布用的近实时电平：worklet 50Hz / 声卡 20Hz 写 ref，React 只按 60ms
+  // 节流取一次做 CSS 电平（否则整棵语音台 50Hz 重渲染，长会话更卡）。
+  const micLevelRef = useRef(0)
+  const playLevelRef = useRef(0)
+  const micStateTsRef = useRef(0)
   const [micSilent, setMicSilent] = useState(false)
   const [note, setNote] = useState('')
   const [services, setServices] = useState({
@@ -155,6 +164,10 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
   // 60ms 粒度对声纹 UI 足够；归零（done/取消）立即放行不节流。
   const playLevelLastTsRef = useRef(0)
   const onPlayLevelThrottled = useCallback((lv: number) => {
+    // 画布 ref 每一条电平消息都写（20Hz/50Hz），state 仍按 60ms 节流。
+    const prev = playLevelRef.current
+    playLevelRef.current = lv
+    if (lv === 0 && prev === 0) return
     const now = Date.now()
     if (lv === 0 || now - playLevelLastTsRef.current >= 60) {
       playLevelLastTsRef.current = now
@@ -218,6 +231,7 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
   const flushSink = useCallback(() => {
     // PlaybackQueue 只是调度面；worklet ring 里可能已有提前泵入的音频。
     sinkNodeRef.current?.port.postMessage({ type: 'flush' })
+    playLevelRef.current = 0
   }, [])
 
   const onState = useCallback((s: VoiceSessionState) => {
@@ -268,6 +282,12 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
       if (e.data && typeof e.data.buffered === 'number') {
         sinkFillRef.current = e.data.buffered
         postedSinceReportRef.current = 0
+      }
+      // 声卡实际外放电平（20Hz）：说话相位的星团/声纹以此为准，而不是
+      // 「收到 delta 的时刻」——流式 TTS 常先收完整块再播，旧口径会提前
+      // 起跳、播完又归零，看起来「不跟声音」。
+      if (e.data && typeof e.data.__gaeaPlayLevel === 'number') {
+        onPlayLevelThrottled(Math.max(0, Math.min(1, e.data.__gaeaPlayLevel)))
       }
       // 诊断 tap 批（≈1s/条）：入队待 POST 泵落盘，不碰 React
       if (e.data && e.data.type === 'tap' && e.data.buffer instanceof ArrayBuffer) {
@@ -371,7 +391,7 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
           }
         })
     }, 500)
-  }, [pushTail])
+  }, [onPlayLevelThrottled, pushTail])
 
   const buildClient = useCallback((transport: VoiceTransport) => {
     return new VoiceClientV2({
@@ -551,6 +571,7 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
       micSilentTimerRef.current = null
     }
     setMicLevel(0)
+    micLevelRef.current = 0
     setMicSilent(false)
     capNodeRef.current?.port.close()
     capNodeRef.current?.disconnect()
@@ -608,8 +629,17 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
         const data: unknown = e.data
         if (data && typeof data === 'object' && '__gaeaLevel' in (data as Record<string, unknown>)) {
           const lv = Number((data as Record<string, unknown>).__gaeaLevel) || 0
-          setMicLevel(lv)
+          const prev = micLevelRef.current
+          micLevelRef.current = lv
           if (lv > 0.02) lastSoundTsRef.current = Date.now()
+          // 画布用 ref 50Hz 拿包络；React state 60ms 节流，避免整棵语音台
+          // 每秒 50 次重渲染（长对话时渲染成本会随转写长度上升）。
+          if (lv === 0 && prev === 0) return
+          const now = Date.now()
+          if (lv === 0 || now - micStateTsRef.current >= 60) {
+            micStateTsRef.current = now
+            setMicLevel(lv)
+          }
           return
         }
         clientRef.current?.sendAudioChunk(new Int16Array(data as ArrayBuffer))
@@ -884,7 +914,8 @@ export function useVoiceChatV2(opts: UseVoiceChatV2Options = {}): VoiceChatV2Api
 
   return {
     phase, transcripts, dialogue, partialTranscript: partial, assistantText,
-    pbText, tail, connected, micOn, micLevel, playLevel, micSilent, note, services, ensuring,
+    pbText, tail, connected, micOn, micLevel, playLevel, micLevelRef, playLevelRef,
+    micSilent, note, services, ensuring,
     connect, disconnect, startMic, stopMic, cancel, abortInFlight, updateVADThreshold,
     ensureServices, refreshServices, replayEvents,
     interruptEnabled, setInterruptEnabled,

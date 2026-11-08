@@ -304,6 +304,8 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
   // 回声门阈值控制注入（speakActionAck 定义于 v2 之前，经 ref 解循环）
   useEffect(() => {
     vadCtlRef.current = (v: number) => v2.updateVADThreshold(v)
+    // 只跟随方法引用：v2 整体每次渲染都是新对象，挂 v2 会每帧重设 ref。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [v2.updateVADThreshold])
 
   // M5 刀二：模型工具 T1 预览凭据经后端事件下发（save_task 等不经规则解析，
@@ -363,10 +365,12 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
   }, [v2.phase])
 
   // 真声纹：电平历史环形采样去相关——五杆各取历史错位样本+当前电平混合，
-  // 声纹呈波状展开（Siri/ChatGPT Voice 声纹条观感；说话侧=下行播放 RMS）
-  const liveLevel = v2.micOn
-    ? v2.micLevel
-    : v2.phase === 'speaking' ? v2.playLevel : 0
+  // 声纹呈波状展开（Siri/ChatGPT Voice 声纹条观感；说话侧=声卡实际外放 RMS）。
+  // 优先级：speaking 时播放电平优先，但同时开着麦时取两者较大值——用户
+  // 插话（barge-in）星团也要立刻有反应，而不是只跟 AI 的声音。
+  const liveLevel = v2.phase === 'speaking'
+    ? Math.max(v2.playLevel, v2.micLevel)
+    : v2.micOn ? v2.micLevel : v2.playLevel
   const levelHistoryRef = useRef<number[]>([])
   useEffect(() => {
     levelHistoryRef.current.push(liveLevel)
@@ -383,7 +387,6 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
       const base = 0.18 + 0.82 * (sample * 0.55 + liveLevel * 0.45)
       return Math.max(0.06, base * shape + 0.08 * (1 - shape))
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveLevel])
 
   const handleThreadScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
@@ -404,15 +407,24 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
 
   const ready = v2.services.ready
   const phaseMeta = PHASE_META[v2.phase]
-  // 语音打断关=「开口即停」不再成立，speaking 提示改为只指按钮（A 拍板）
-  const speakingHint = v2.interruptEnabled
-    ? PHASE_META.speaking.hint
-    : '回应中，按“打断本轮”可停止'
   const feedback = turnWarning || userFacingVoiceNote(v2.note)
   const hasConversation = v2.dialogue.length > 0 || Boolean(v2.partialTranscript)
+  const memoryLiveLine = v2.phase === 'listening'
+    ? '记忆脑正在接收声音'
+    : v2.phase === 'thinking'
+      ? '记忆脑正在重组这一轮上下文'
+      : v2.phase === 'speaking'
+        ? v2.interruptEnabled
+          ? '记忆脑正在回应，开口可打断'
+          : '记忆脑正在回应，按“打断本轮”可停止'
+        : v2.phase === 'interrupted'
+          ? '记忆共振已停止，可以继续说话'
+          : v2.phase === 'error'
+            ? '记忆连接异常，请重试'
+            : '记忆脑待命'
   const liveLine = v2.partialTranscript
     || (v2.phase === 'speaking' ? v2.assistantText : '')
-    || (v2.connected ? (v2.phase === 'speaking' ? speakingHint : phaseMeta.hint) : '连接后即可开始实时语音对话')
+    || (v2.connected ? memoryLiveLine : '连接后即可开始实时语音对话')
   const PrimaryIcon = !ready
     ? v2.ensuring ? LoadingOutlined : AudioOutlined
     : !v2.connected ? WifiOutlined : v2.micOn ? PauseOutlined : AudioOutlined
@@ -692,6 +704,8 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
                 active={v2.micOn || v2.phase === 'speaking'}
                 connected={v2.connected}
                 level={liveLevel}
+                micLevelRef={v2.micLevelRef}
+                playLevelRef={v2.playLevelRef}
               />
               {interruptSeq > 0 && (
                 <span key={interruptSeq} className="vc2-ripple vc2-ripple--stage" data-testid="vc2-ripple-stage" aria-hidden="true" />
