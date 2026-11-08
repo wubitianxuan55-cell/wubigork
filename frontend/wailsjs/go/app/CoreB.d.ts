@@ -51,6 +51,10 @@ export function GetOpencodeGoKeyStatus():Promise<Record<string, any>>;
 
 export function GetPreloadPlan():Promise<boolean>;
 
+export function GetProgrammingWebPreflight():Promise<Record<string, any>>;
+
+export function GetProgrammingWebStatus():Promise<Record<string, any>>;
+
 export function GetProjectInfo():Promise<Record<string, any>>;
 
 export function GetSinImageConfig():Promise<Record<string, string>>;
@@ -66,6 +70,8 @@ export function Login():Promise<void>;
 export function Logout():Promise<void>;
 
 export function OpenProject(arg1:string):Promise<Record<string, any>>;
+
+export function ProgrammingWebLogTail(arg1:number):Promise<Record<string, any>>;
 
 export function QuantSuitability(arg1:string):Promise<string>;
 
@@ -106,6 +112,10 @@ export function SetOpencodeGoKey(arg1:string):Promise<void>;
 export function SetPreloadPlan(arg1:boolean):Promise<void>;
 
 export function SetSinImageConfig(arg1:string,arg2:string):Promise<void>;
+
+export function StartProgrammingWeb():Promise<void>;
+
+export function StopProgrammingWeb():Promise<void>;
 
 export function TestEngineConnection(arg1:string):Promise<modelengine.EngineStatus>;
 

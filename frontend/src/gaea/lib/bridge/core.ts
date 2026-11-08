@@ -28,6 +28,9 @@ import type {
   MCPServerInput,
   Meta,
   PreviewResult,
+  ProgrammingWebLogTail,
+  ProgrammingWebPreflight,
+  ProgrammingWebStatus,
   ProjectGroup,
   QuestionAnswer,
   RetrievalEvalReport,
@@ -309,6 +312,12 @@ export interface CoreBindings {
   RollbackRecord(id: string): Promise<void>;
   // v4.1c：中文规范体检（GB/T 9704 红头要素 lint，md/txt/docx）。
   DocumentLint(rel: string): Promise<LintReportView>;
+  // ── 编程板块：隔离 DSH Web 进程与内嵌入口 ─────────────────────
+  GetProgrammingWebStatus(): Promise<ProgrammingWebStatus>;
+  StartProgrammingWeb(): Promise<void>;
+  StopProgrammingWeb(): Promise<void>;
+  GetProgrammingWebPreflight(): Promise<ProgrammingWebPreflight>;
+  ProgrammingWebLogTail(n?: number): Promise<ProgrammingWebLogTail>;
   // LogFrontendError 记录前端错误/主线程卡死诊断到 gaea.log。
   LogFrontendError(message: string): Promise<void>;
   // ── 批次二 wailsjsCompat 双轨退役转正（Go CoreB 门面，同名前缀无需映射）──

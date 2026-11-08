@@ -94,6 +94,14 @@ export function GetPreloadPlan() {
   return window['go']['app']['CoreB']['GetPreloadPlan']();
 }
 
+export function GetProgrammingWebPreflight() {
+  return window['go']['app']['CoreB']['GetProgrammingWebPreflight']();
+}
+
+export function GetProgrammingWebStatus() {
+  return window['go']['app']['CoreB']['GetProgrammingWebStatus']();
+}
+
 export function GetProjectInfo() {
   return window['go']['app']['CoreB']['GetProjectInfo']();
 }
@@ -124,6 +132,10 @@ export function Logout() {
 
 export function OpenProject(arg1) {
   return window['go']['app']['CoreB']['OpenProject'](arg1);
+}
+
+export function ProgrammingWebLogTail(arg1) {
+  return window['go']['app']['CoreB']['ProgrammingWebLogTail'](arg1);
 }
 
 export function QuantSuitability(arg1) {
@@ -204,6 +216,14 @@ export function SetPreloadPlan(arg1) {
 
 export function SetSinImageConfig(arg1, arg2) {
   return window['go']['app']['CoreB']['SetSinImageConfig'](arg1, arg2);
+}
+
+export function StartProgrammingWeb() {
+  return window['go']['app']['CoreB']['StartProgrammingWeb']();
+}
+
+export function StopProgrammingWeb() {
+  return window['go']['app']['CoreB']['StopProgrammingWeb']();
 }
 
 export function TestEngineConnection(arg1) {

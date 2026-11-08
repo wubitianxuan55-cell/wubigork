@@ -2,8 +2,7 @@ package app
 
 // board_id_single_source_test.go — 审计 AP8-08：板块 ID 清单只能有一个来源
 // （manifest）。收敛前三份手写：intent_llm.go 的 LLM 兜底提示词、wx_agent.go 的
-// 工具 schema 参数说明、wx_agent.go 的「打开失败」回执——都含已删除的 code
-// （v4.439 删编程板块）、都缺 schedule/sin/knowledge。
+// 工具 schema 参数说明、wx_agent.go 的「打开失败」回执——曾经各自漂移。
 //
 // 本用例把「提示词/schema/回执里出现的 ID 集合」与 manifest ID 集合做双向相等
 // 断言：少一个（如漏 sin）红，多一个（如手写回 code）也红。
@@ -71,9 +70,8 @@ func TestIntentFallbackPromptBoardIDsMatchManifest(t *testing.T) {
 	got := extractBoardIDs(t, prompt, "只能是：", " 之一")
 	assertSameBoardIDs(t, "LLM 兜底提示词", got, boardIDSet(a))
 
-	// 已删板块不得回流（用户拍板 v4.439 删编程板块；2026-10-27 sin 退役=
-	// 导航级合并进小说板块第六页签，一级导航不再有独立原罪板块）
-	for _, dead := range []string{"code", "sin"} {
+	// sin 已于 2026-10-27 导航级合并进小说第六页签，一级导航不再有独立原罪板块。
+	for _, dead := range []string{"sin"} {
 		if got[dead] {
 			t.Errorf("提示词出现已删除的 %s 板块", dead)
 		}
@@ -110,9 +108,9 @@ func TestWxAgentToolSchemaBoardIDsMatchManifest(t *testing.T) {
 	assertSameBoardIDs(t, "微信工具失败回执",
 		extractBoardIDs(t, msg, "可用板块 id：", "。"), want)
 
-	// 说明文案里的中文板块名同样来自 manifest（此前写死「编程」）
-	if strings.Contains(navDesc, "编程") {
-		t.Error("工具说明仍列举已删除的编程板块")
+	// 说明文案里的中文板块名同样来自 manifest（编程恢复后应自动出现）。
+	if !strings.Contains(navDesc, "编程") {
+		t.Error("工具说明未同步恢复后的编程板块")
 	}
 	for _, m := range a.GetBoardManifests() {
 		if m.Label != "" && !strings.Contains(navDesc, m.Label) {

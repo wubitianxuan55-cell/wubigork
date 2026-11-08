@@ -42,13 +42,19 @@ func (b *CoreB) GetFeatureModel(feature string) map[string]string {
 func (b *CoreB) GetFeatureModelEnabled(feature string) bool {
 	return b.a.GetFeatureModelEnabled(feature)
 }
-func (b *CoreB) GetGlmKeyStatus() map[string]interface{}                { return b.a.GetGlmKeyStatus() }
-func (b *CoreB) GetKeepWarm() bool                                      { return b.a.GetKeepWarm() }
-func (b *CoreB) GetLoginStatus() bool                                   { return b.a.GetLoginStatus() }
-func (b *CoreB) GetModelCallStats() modelengine.ModelStatsSummary       { return b.a.GetModelCallStats() }
-func (b *CoreB) GetNovelsDir() string                                   { return b.a.GetNovelsDir() }
-func (b *CoreB) GetOpencodeGoKeyStatus() map[string]interface{}         { return b.a.GetOpencodeGoKeyStatus() }
-func (b *CoreB) GetPreloadPlan() bool                                   { return b.a.GetPreloadPlan() }
+func (b *CoreB) GetGlmKeyStatus() map[string]interface{}          { return b.a.GetGlmKeyStatus() }
+func (b *CoreB) GetKeepWarm() bool                                { return b.a.GetKeepWarm() }
+func (b *CoreB) GetLoginStatus() bool                             { return b.a.GetLoginStatus() }
+func (b *CoreB) GetModelCallStats() modelengine.ModelStatsSummary { return b.a.GetModelCallStats() }
+func (b *CoreB) GetNovelsDir() string                             { return b.a.GetNovelsDir() }
+func (b *CoreB) GetOpencodeGoKeyStatus() map[string]interface{}   { return b.a.GetOpencodeGoKeyStatus() }
+func (b *CoreB) GetPreloadPlan() bool                             { return b.a.GetPreloadPlan() }
+func (b *CoreB) GetProgrammingWebPreflight() map[string]interface{} {
+	return b.a.GetProgrammingWebPreflight()
+}
+func (b *CoreB) GetProgrammingWebStatus() map[string]interface{} {
+	return b.a.GetProgrammingWebStatus()
+}
 func (b *CoreB) GetProjectInfo() map[string]interface{}                 { return b.a.GetProjectInfo() }
 func (b *CoreB) GetSinImageConfig() map[string]string                   { return b.a.GetSinImageConfig() }
 func (b *CoreB) GetStats() map[string]interface{}                       { return b.a.GetStats() }
@@ -57,10 +63,13 @@ func (b *CoreB) ListSkills() []map[string]interface{}                   { return
 func (b *CoreB) Login() error                                           { return b.a.Login() }
 func (b *CoreB) Logout() error                                          { return b.a.Logout() }
 func (b *CoreB) OpenProject(dir string) (map[string]interface{}, error) { return b.a.OpenProject(dir) }
-func (b *CoreB) QuantSuitability(model string) (string, error)          { return b.a.QuantSuitability(model) }
-func (b *CoreB) Qwen35EngineStart() map[string]interface{}              { return b.a.Qwen35EngineStart() }
-func (b *CoreB) Qwen35EngineStatus() map[string]interface{}             { return b.a.Qwen35EngineStatus() }
-func (b *CoreB) Qwen35EngineStop() map[string]interface{}               { return b.a.Qwen35EngineStop() }
+func (b *CoreB) ProgrammingWebLogTail(n int) map[string]interface{} {
+	return b.a.ProgrammingWebLogTail(n)
+}
+func (b *CoreB) QuantSuitability(model string) (string, error) { return b.a.QuantSuitability(model) }
+func (b *CoreB) Qwen35EngineStart() map[string]interface{}     { return b.a.Qwen35EngineStart() }
+func (b *CoreB) Qwen35EngineStatus() map[string]interface{}    { return b.a.Qwen35EngineStatus() }
+func (b *CoreB) Qwen35EngineStop() map[string]interface{}      { return b.a.Qwen35EngineStop() }
 func (b *CoreB) RefreshEngineModels(engineID string) ([]modelengine.ModelInfo, error) {
 	return b.a.RefreshEngineModels(engineID)
 }
@@ -85,6 +94,8 @@ func (b *CoreB) SetPreloadPlan(enabled bool) error    { return b.a.SetPreloadPla
 func (b *CoreB) SetSinImageConfig(backend string, model string) error {
 	return b.a.SetSinImageConfig(backend, model)
 }
+func (b *CoreB) StartProgrammingWeb() error { return b.a.StartProgrammingWeb() }
+func (b *CoreB) StopProgrammingWeb() error  { return b.a.StopProgrammingWeb() }
 func (b *CoreB) TestEngineConnection(engineID string) (*modelengine.EngineStatus, error) {
 	return b.a.TestEngineConnection(engineID)
 }

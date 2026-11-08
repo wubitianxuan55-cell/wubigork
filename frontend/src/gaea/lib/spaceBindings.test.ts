@@ -89,7 +89,7 @@ describe("spaceBindings 分类表（S2.3 bridge 分面）", () => {
     expect(overlap).toEqual([]);
   });
 
-  it("work/play/shared 三数组两两无交集且之和 + independent = 总数", () => {
+  it("work/play/shared/independent 四数组两两无交集且之和 = 总数", () => {
     const work = new Set<string>(WORK_BINDING_NAMES);
     const play = new Set<string>(PLAY_BINDING_NAMES);
     const shared = new Set<string>(SHARED_BINDING_NAMES);
@@ -100,11 +100,17 @@ describe("spaceBindings 分类表（S2.3 bridge 分面）", () => {
     for (const n of play) {
       expect(shared.has(n)).toBe(false);
     }
-    // v4.439 起 independent 分面为空集（编程板块删除）；仍按字符串比较以防未来回归
+    // 编程板块恢复后，进程管理五绑定归 independent 分面。
     const independent = Object.keys(GAEA_METHOD_FACETS).filter(
       (k) => String(GAEA_METHOD_FACETS[k as keyof typeof GAEA_METHOD_FACETS]) === "independent",
     );
-    expect(independent).toHaveLength(0);
+    expect(independent.sort()).toEqual([
+      "GetProgrammingWebPreflight",
+      "GetProgrammingWebStatus",
+      "ProgrammingWebLogTail",
+      "StartProgrammingWeb",
+      "StopProgrammingWeb",
+    ]);
     expect(work.size + play.size + shared.size + independent.length).toBe(
       Object.keys(GAEA_METHOD_FACETS).length,
     );
@@ -117,10 +123,10 @@ describe("spaceBindings 分类表（S2.3 bridge 分面）", () => {
     expect(bindingSpaceOf("GaeaSpaceActivate")).toBe("shared");
     expect(bindingSpaceOf("GaeaSpaceList")).toBe("shared");
     expect(bindingSpaceOf("UnifiedSearch")).toBe("shared"); // scope 参数隔离（S1.2-C）
-    // v4.439 编程板块删除后 independent 分面归零：已移除方法不再出现在分面表
-    expect(GAEA_METHOD_FACETS).not.toHaveProperty("StartProgrammingWeb");
+    expect(bindingSpaceOf("StartProgrammingWeb")).toBe("independent");
+    expect(bindingSpaceOf("GetProgrammingWebStatus")).toBe("independent");
     const facets: string[] = Object.values(GAEA_METHOD_FACETS);
-    expect(facets).not.toContain("independent");
+    expect(facets).toContain("independent");
   });
 
   it("isBindingAllowedInSpace：shared 两空间可达，work/play 仅所属空间", () => {

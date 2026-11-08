@@ -19,7 +19,7 @@ import {
   ToolOutlined, DatabaseOutlined, ApiOutlined, TeamOutlined,
   SettingOutlined, WechatOutlined, BookOutlined, AccountBookOutlined,
   ScheduleOutlined,
-  FireOutlined, MonitorOutlined,
+  FireOutlined, MonitorOutlined, CodeOutlined,
   CrownOutlined,
 } from '@ant-design/icons'
 import type { ComponentType } from 'react'
@@ -32,7 +32,7 @@ const ICON_REGISTRY: Record<string, ComponentType> = {
   MessageOutlined, ReadOutlined, PictureOutlined,
   ToolOutlined, DatabaseOutlined, ApiOutlined, TeamOutlined,
   SettingOutlined, WechatOutlined, BookOutlined, AccountBookOutlined,
-  ScheduleOutlined, FireOutlined, MonitorOutlined,
+  ScheduleOutlined, FireOutlined, MonitorOutlined, CodeOutlined,
   CrownOutlined,
 }
 
@@ -72,7 +72,7 @@ const COST_NAV: BoardNavChild[] = [
 ]
 
 /**
- * 内置 canonical 板块清单（13 条业务板块，含 inMenu=false 的 settings/schedule）。
+ * 内置 canonical 板块清单（14 条业务板块，含 inMenu=false 的 settings/schedule）。
  * menuOrder 与现状 menuItems 顺序一致；settings inMenu=false（右上角按钮入口）。
  * weixin：v4.4 触点落地（WeixinPage 扫码绑定 + 离线代办），进 rail。
  * sin 板块已退役（2026-10-27 拍板导航级合并）：原罪收编为小说板块第六页签，
@@ -104,6 +104,13 @@ export const canonicalBoards: BoardManifest[] = [
     id: 'cost', label: '造价数据库', icon: 'AccountBookOutlined', page: 'CostLibraryPage',
     lazy: true, keepAlive: true, layout: 'padded',
     menuOrder: 5, inMenu: true, nav: { children: COST_NAV }, featureModel: 'cost', space: 'work',
+  },
+  {
+    // 2026-11-08 用户恢复：编程回流为独立一级板块。页面只承载官方 Web 安装、
+    // 隔离边界与插件适配入口，不恢复旧 DSH 进程管理绑定。
+    id: 'code', label: '编程', icon: 'CodeOutlined', page: 'ProgrammingPage',
+    lazy: true, keepAlive: true, layout: 'padded',
+    menuOrder: 6, inMenu: true, space: 'independent',
   },
   {
     id: 'pantheon', label: '众神殿', icon: 'CrownOutlined', page: 'PantheonPage',
@@ -197,7 +204,10 @@ export function deriveBoardLabel(list: BoardManifest[], id: string): string {
 }
 
 // ─── 静态派生视图（fallback 基线，附 B 像素回归测试锁定）─────────────────
-export const menuBoards: BoardManifest[] = deriveMenuBoards(canonicalBoards)
+// 主 rail 不含 independent；编程实例只走壳层 foot 独立入口。
+export const menuBoards: BoardManifest[] = deriveMenuBoards(
+  canonicalBoards.filter((b) => !isIndependentBoard(b)),
+)
 export const navigateWhitelist: BoardId[] = deriveNavigateWhitelist(canonicalBoards)
 export const shortcutMap: Record<string, BoardId> = deriveShortcutMap(canonicalBoards)
 export const projectAnchorId: string = deriveProjectAnchorId(canonicalBoards)
@@ -295,9 +305,11 @@ export function getActiveBoards(): BoardManifest[] {
 }
 
 // ── 活动派生视图（消费者：MainLayout 菜单/白名单/快捷键/布局/面包屑）────
-// 一级导航合一（2026-10-26）：菜单恒全量（getActiveMenuBoardsForSpace 随 rail 分域退役）
-export function getActiveMenuBoards(): BoardManifest[] { return deriveMenuBoards(activeBoards) }
-/** S2.1：独立窗口板块——两空间导航/首页均不出现，壳层单独入口（v4.439 起暂为空集） */
+// 一级导航合一（2026-10-26）：主 rail 收纳非独立板块；independent 走 foot 单列。
+export function getActiveMenuBoards(): BoardManifest[] {
+  return deriveMenuBoards(activeBoards.filter((b) => !isIndependentBoard(b)))
+}
+/** S2.1：独立窗口板块——两空间导航/首页均不出现，壳层单独入口。 */
 export function getActiveIndependentBoards(): BoardManifest[] {
   return deriveMenuBoards(activeBoards.filter(isIndependentBoard))
 }

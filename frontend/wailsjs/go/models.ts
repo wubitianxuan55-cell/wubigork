@@ -7509,6 +7509,8 @@ export namespace dag {
 	    acceptedAt?: string;
 	    risk?: string;
 	    approved?: boolean;
+	    writePaths?: string[];
+	    readonly?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Node(source);
@@ -7529,6 +7531,8 @@ export namespace dag {
 	        this.acceptedAt = source["acceptedAt"];
 	        this.risk = source["risk"];
 	        this.approved = source["approved"];
+	        this.writePaths = source["writePaths"];
+	        this.readonly = source["readonly"];
 	    }
 	}
 	export class RunView {

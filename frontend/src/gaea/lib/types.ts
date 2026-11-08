@@ -27,6 +27,7 @@ export * from "./types/weixin";
 export * from "./types/cost";
 export * from "./types/search";
 export * from "./types/tasks";
+export * from "./types/programming";
 
 // ── 7.3-1 任务收件箱：本地重述（herdsman 防环先例，不依赖 AppModels 再生；
 // 字段名/顺序与后端 internal/app.TaskInboxView 的 json 标签逐一同——camelCase

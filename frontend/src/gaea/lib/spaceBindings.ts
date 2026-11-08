@@ -9,7 +9,7 @@
 //   - shared：两空间共用基础设施（元信息/更新/遥测/空间控制/模型与设置/对话/
 //     统一检索——UnifiedSearch 的隔离由 scope 参数承担，搜索面板两空间都会用）；
 //   - independent：独立窗口板块（用户拍板：不并入工位、不共享工具面；壳层
-//     独立入口两空间均可达）。v4.439 编程板块删除后该分面暂为空集。
+//     独立入口两空间均可达）。编程板块的隔离 DSH Web 进程管理归入该分面。
 // 全部方法必须显式分类（satisfies Record<keyof AppBindings, BindingSpace>），
 // 新方法未分类 tsc 直接报错，防止静默落入错误空间。
 // FE4-04 机器可读约定：本表键被 scripts/gen_bindings -legacy-ts 逐行解析（行格式
@@ -25,6 +25,12 @@ export type BindingSpace = ShellSpace | "shared" | "independent";
 /** gaea 桥方法空间归属（键名 = AppBindings 短方法名，经 gaeaToGaea 映射到 Go）。 */
 export const GAEA_METHOD_FACETS = {
   AnalyzeChapter: "play",
+  // 编程板块：隔离 DSH Web 进程管理仅由 independent 入口消费。
+  GetProgrammingWebPreflight: "independent",
+  GetProgrammingWebStatus: "independent",
+  ProgrammingWebLogTail: "independent",
+  StartProgrammingWeb: "independent",
+  StopProgrammingWeb: "independent",
   // ── shared：两空间共用基础设施 ──────────────────────────────
   Meta: "shared",
   Version: "shared",

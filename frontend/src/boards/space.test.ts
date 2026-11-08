@@ -37,11 +37,11 @@ describe('boardSpace（manifest 归属解析）', () => {
 })
 
 describe('isIndependentBoard（独立窗口分面机制）', () => {
-  it('independent 判定 + canonical 现状无成员（v4.439 起空集，机制保留供复用）', () => {
+  it('independent 判定 + 编程板块恢复为当前唯一成员', () => {
     const indep = { ...canonicalBoards[0], id: 'indep-probe', space: 'independent' as const }
     expect(boardSpace(indep)).toBe('independent')
     expect(isIndependentBoard(indep)).toBe(true)
-    expect(canonicalBoards.filter(isIndependentBoard)).toHaveLength(0)
+    expect(canonicalBoards.filter(isIndependentBoard).map((b) => b.id)).toEqual(['code'])
   })
 })
 
@@ -51,7 +51,7 @@ describe('canonical 空间归属表（docs §3，数据面文档化：会话空�
       canonicalBoards.filter((b) => boardSpace(b) === s).map((b) => b.id)
     expect(by('work')).toEqual(expect.arrayContaining(['gaea', 'cost', 'memoryhub', 'weixin', 'schedule']))
     expect(by('play')).toEqual(expect.arrayContaining(['chat', 'novel', 'imagegen', 'characterlib']))
-    expect(by('shared')).toEqual(expect.arrayContaining(['modelcenter', 'settings', 'runtime']))
-    expect(canonicalBoards.filter(isIndependentBoard)).toHaveLength(0)
+    expect(by('shared')).toEqual(expect.arrayContaining(['pantheon', 'modelcenter', 'settings', 'runtime']))
+    expect(canonicalBoards.filter(isIndependentBoard).map((b) => b.id)).toEqual(['code'])
   })
 })

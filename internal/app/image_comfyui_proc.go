@@ -19,6 +19,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/gaea/gaea/internal/gaea/proc"
 	"github.com/gaea/gaea/internal/netclient"
 )
 
@@ -112,7 +113,7 @@ func (a *mediaState) StartComfyUI() error {
 	cmd := exec.CommandContext(ctx, pythonExe, args...)
 	cmd.Env = append(os.Environ(), "PYTHONIOENCODING=utf-8", "TQDM_DISABLE=1")
 	cmd.Dir = a.cfg.ComfyUIPath
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	proc.HideWindow(cmd)
 
 	// stdout/stderr 重定向到日志文件（~/.gaea/logs/comfyui.log）：
 	// 文件句柄在 gaea 进程退出后依然有效，避免孤儿 ComfyUI 实例的 stderr
@@ -330,7 +331,7 @@ func findProcessByPort(port string) int {
 		return 0
 	}
 	cmd := exec.Command("netstat", "-ano")
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	proc.HideWindow(cmd)
 	out, err := cmd.Output()
 	if err != nil {
 		return 0
@@ -548,7 +549,7 @@ func getGPUInfo() (name string, totalGB float64, usedGB float64) {
 
 	// NVIDIA：nvidia-smi 直接给出名称 + 总/已用显存
 	cmd := exec.Command("nvidia-smi", "--query-gpu=name,memory.total,memory.used", "--format=csv,noheader,nounits")
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	proc.HideWindow(cmd)
 	out, err := cmd.Output()
 	if err == nil {
 		line := strings.TrimSpace(string(out))
@@ -579,7 +580,7 @@ Get-ChildItem 'HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-
 if ($best) { $best + '|' + $vram }
 `
 	cmd2 := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", psScript)
-	cmd2.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	proc.HideWindow(cmd2)
 	out2, err := cmd2.Output()
 	if err == nil {
 		line := strings.TrimSpace(string(out2))
@@ -597,7 +598,7 @@ if ($best) { $best + '|' + $vram }
 	// 兜底：CIM 名称（跳过虚拟设备），无显存信息
 	cmd3 := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command",
 		"(Get-CimInstance Win32_VideoController | Where-Object { $_.Name -notmatch 'Todesk|Virtual|Remote|Basic Display|RDP|Mirror' } | Select-Object -First 1).Name")
-	cmd3.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	proc.HideWindow(cmd3)
 	if out3, err := cmd3.Output(); err == nil {
 		name = strings.TrimSpace(string(out3))
 	}

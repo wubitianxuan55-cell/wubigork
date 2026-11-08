@@ -1,3 +1,40 @@
+## 编程板块：DSH Web + REA + 桌面插件迁移与 cmd 黑窗根修 · 2026-11-08
+
+- **用户口径**：给 gaea 编程板块接入 REA；安装最新 DSH 后迁移桌面版全部插件；
+  必须与桌面 DSH 彻底隔离；连续黑窗必须查到根因。
+- **DSH/REA**：隔离 DSH `0.2.2-rc.1` 位于 `C:\AI\dsh`；Web iframe 使用
+  `dsh.wails.localhost:3091`，解决 DSH `SameSite=Strict` Cookie 的跨站拒绝。
+  REA `6.8.0` 使用独立 Node `24.22.1`，MCP 注册在
+  `C:\AI\dsh\home\cordis.patch.yml`，技能落在隔离 agents home；实测 229 个
+  `mcp__rea__*` 工具。Ghidra/IDA/JADX/Kuna 可选原生引擎未装。
+- **插件迁移**：桌面 9 个外部依赖迁入 Web profile，8 个 bundle 启用；
+  `dshmarket 1.73.15`、`dsh-genui 0.15.0`、`dsh-ops 0.5.1`、
+  `dsh-skills-manager 1.3.0`、`dsh-better-sidebar 0.30.1`、
+  `dsh-context 0.82.2`、`dsh-unlag 1.17.5`、`dsh-dream-skin 11.7.0`；
+  `dsh-client-ui-skill-explorer 0.4.16` 仅作依赖安装。`dsh-ops@0.4.4`
+  不兼容 DSH 0.2.2-rc.1，因此按上游兼容声明升至 0.5.1；`dsh-wubi` 保持
+  最后 bundle 以保留覆盖优先级。
+- **cmd 黑窗根因**：不是 REA/MCP。主因是 gaea GPU 遥测；
+  `gpu_perf_windows.go` 约每 15 秒启动 PowerShell `Get-Counter`，
+  `image_comfyui_proc.go` 的 VRAM/CIM/ComfyUI 探测也启动控制台子进程。
+  原裸 `SysProcAttr{HideWindow:true}` 会先显示再隐藏；两个文件共 6 处已统一
+  改用 `internal/gaea/proc.HideWindow`（`CREATE_NO_WINDOW`）。次因是
+  `dshmarket@1.73.15` 的 Windows detached restart helper 漏 `windowsHide`，
+  已通过 `patches\dshmarket@1.73.15.patch` 做 profile 内隔离修复。
+- **验收**：真实打开编程板块并监听进程创建，GPU PowerShell、插件 `reg.exe`
+  与对应 `conhost.exe` 均为 `visible=False`；GPU 遥测仍正常返回读数。
+  Go 定向测试、前端构建、Wails 构建和 `/api/health` 200 冒烟均通过。
+- **产物**：gaea `4.534.0`，`C:\AI\gaea-app\gaea.exe`，61,556,736 B，
+  SHA256=`9D0178BE67E6D501397B0A8CCC3E8BB0F10F56960855176F15E531B8898F7FDD`。
+- **文件记录**：`docs/gaea-programming-rea-plugin-integration-20261108.md`；
+  已同步 `docs/README.md`、`docs/gaea-build-guide.md` 与
+  `C:\AI\dsh\README-ISOLATED.md`。
+- **隔离核对**：桌面 DSH 目录无新增 `.dshwubi.bak`；个人
+  `~/.dsh/prompt-inject.md` 与 `~/.agents/skills/reverse-engineer-anything`
+  均不存在；Web/桌面 `dshmarket restart.js` 哈希不同。
+- **记忆状态**：本会话未暴露 `hindsight_*` MCP 工具，`~/.hindsight` 无可用
+  配置；按仓库既有长期机制写入本 progress、专项 docs 与 todos，作为权威恢复源。
+
 ## 语音回声门 v2（action-2 复测归因）· 2026-11-07
 
 - **复测结果**：滚雪球消失（转写 3/3/8/4 字，2236cba1 生效）；但三症状（重复输入/

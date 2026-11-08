@@ -260,7 +260,7 @@ const TelemetryRail: React.FC<{ stats: StatsData | null; info: ProjectInfo | nul
 // inMenu 板块一栏尽收（getActiveMenuBoards），切空间仍由板块导航隐式驱动
 // （navigateBoard 按目标板块归属自动切）；v4.475 保留的空间指示徽标随分域
 // 退役一并撤销。settings inMenu:false 不在 rail（foot 齿轮入口）；
-// independent 独立窗口板块仅经 foot 单列（v4.439 起暂为空集）。
+// independent 独立窗口板块仅经 foot 单列（当前为“编程”入口）。
 export const CommandRail: React.FC<{
   page: Page
   onNavigate: (p: Page) => void

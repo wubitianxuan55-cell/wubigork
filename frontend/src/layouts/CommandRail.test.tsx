@@ -49,12 +49,12 @@ describe('CommandRail 一级导航合一（2026-10-26）', () => {
     expect(document.querySelector('.v3-rail-space')).toBeNull()
   })
 
-  it('independent 分面为空（v4.439 编程板块删除后）：foot 段不渲染任何独立窗口入口', () => {
+  it('independent 分面恢复编程：foot 段单列，主 rail 不重复', () => {
     renderRail()
-    expect(screen.queryAllByLabelText(/编程/)).toHaveLength(0)
-    // foot 容器仍在（深浅色切换常驻），但独立窗口分隔线/入口整块不渲染
+    expect(screen.queryAllByLabelText(/编程/)).toHaveLength(1)
+    expect(navLabels()).not.toContain('编程')
     expect(document.querySelector('.v3-rail-foot')).not.toBeNull()
-    expect(document.querySelector('.v3-rail-divider')).toBeNull()
+    expect(document.querySelector('.v3-rail-divider')).not.toBeNull()
     expect(screen.getByLabelText('切换暗色')).toBeTruthy()
   })
 
@@ -64,6 +64,12 @@ describe('CommandRail 一级导航合一（2026-10-26）', () => {
     expect(onNavigate).toHaveBeenCalledWith('gaea')
     fireEvent.click(screen.getByLabelText('小说'))
     expect(onNavigate).toHaveBeenCalledWith('novel')
+  })
+
+  it('点击独立窗口“编程”直达 code 页面', () => {
+    const { onNavigate } = renderRail()
+    fireEvent.click(screen.getByLabelText('编程'))
+    expect(onNavigate).toHaveBeenCalledWith('code')
   })
 
   it('激活态跟随 page（aria-current=page + is-active 容器）', () => {

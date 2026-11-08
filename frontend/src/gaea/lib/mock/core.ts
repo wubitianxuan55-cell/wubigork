@@ -2,7 +2,13 @@
 // 说明：capServers 会被整体重绑（Remove/Retry/SetEnabled），必须经 s.capServers
 // 读写（经 setCapServers 重绑），不能解构快照，否则 Capabilities 读到旧数组。
 import type { AppBindings } from "../bridge";
-import type { MCPServerInput, SpaceProfileView } from "../types";
+import type {
+  MCPServerInput,
+  ProgrammingWebLogTail,
+  ProgrammingWebPreflight,
+  ProgrammingWebStatus,
+  SpaceProfileView,
+} from "../types";
 import { delay, emitUpdater } from "./shared";
 import { switchWorkspace } from "./state";
 import type { MakeMockState } from "./state";
@@ -26,6 +32,8 @@ type CoreMethods = Pick<
   | "SlashArgs"
   | "Version" | "CheckUpdate" | "ApplyUpdate" | "OpenDownloadPage" | "SaveWindowState"
   | "LogFrontendError"
+  | "GetProgrammingWebPreflight" | "GetProgrammingWebStatus"
+  | "StartProgrammingWeb" | "StopProgrammingWeb" | "ProgrammingWebLogTail"
   // v4.171 批次一 legacy 直调转正（CoreB 门面）：应用信息/板块清单/功能级模型读。
   | "GetAppInfo" | "GetBoardManifests" | "GetFeatureModel" | "GetFeatureModelEnabled"
   // 批次二 legacy 直调转正（CoreB 门面）：配置读写/统计/技能/全量导出。
@@ -444,6 +452,49 @@ export function buildCore(s: MakeMockState): CoreMethods {
     },
     async LogFrontendError(message: string) {
       console.error("[frontend]", message);
+    },
+    async GetProgrammingWebStatus(): Promise<ProgrammingWebStatus> {
+      return {
+        running: false,
+        owned: false,
+        starting: false,
+        pid: 0,
+        url: "http://dsh.wails.localhost:3091/",
+        root: String.raw`C:\AI\dsh`,
+        home: String.raw`C:\AI\dsh\home`,
+        version: "0.2.2-rc.1",
+        log: String.raw`C:\AI\dsh\home\dsh-web.log`,
+        uptime_s: 0,
+      };
+    },
+    async GetProgrammingWebPreflight(): Promise<ProgrammingWebPreflight> {
+      return {
+        node_found: true,
+        node_path: "node",
+        install_ready: true,
+        profile_ready: false,
+        plugin_ready: false,
+        rea_ready: false,
+        isolated: true,
+        version_ok: true,
+        port_free: true,
+        all_ready: false,
+        root: String.raw`C:\AI\dsh`,
+        home: String.raw`C:\AI\dsh\home`,
+        agents_home: String.raw`C:\AI\dsh\home\agents`,
+        base: String.raw`C:\AI\dsh\node_modules\@deepseek-ai`,
+        version: "0.2.2-rc.1",
+        expected: "0.2.2-rc.1",
+      };
+    },
+    async StartProgrammingWeb() {
+      throw new Error("浏览器开发 mock 不启动本机 DSH 进程");
+    },
+    async StopProgrammingWeb() {
+      // no-op
+    },
+    async ProgrammingWebLogTail(): Promise<ProgrammingWebLogTail> {
+      return { exists: false, path: "", lines: [], error: "浏览器开发 mock 无日志" };
     },
     // ── v4.171 批次一 legacy 直调转正（Go CoreB，同名前缀）────────────────
     async GetAppInfo() {

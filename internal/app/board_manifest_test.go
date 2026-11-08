@@ -144,15 +144,15 @@ func TestFillFromManifestsHappyPath(t *testing.T) {
 }
 
 // TestGetBoardManifestsCanonical GetBoardManifests 返回 canonical 清单：
-// 13 个 canonical 板块（含 cost 成本库 + pantheon 众神殿 + v4.110.0 schedule；
-// v4.439 删除 code 编程板块；2026-10-27 sin 退役=导航级合并进小说板块第六页签）
+// 14 个 canonical 板块（含 cost 成本库 + 恢复的 code 编程入口 + pantheon +
+// v4.110.0 schedule；2026-10-27 sin 退役=导航级合并进小说板块第六页签）
 // + knowledge 独立板块（D7），含 weixin 服务板块；
 // JSON 字段对齐 doc §5.2 TS schema；CoreB 委托与 App 方法一致。
 func TestGetBoardManifestsCanonical(t *testing.T) {
 	a := &App{}
 	manifests := a.GetBoardManifests()
-	if len(manifests) != 14 {
-		t.Fatalf("GetBoardManifests 应返回 14 个板块（13 canonical〔含 pantheon〕+ knowledge D7），got %d", len(manifests))
+	if len(manifests) != 15 {
+		t.Fatalf("GetBoardManifests 应返回 15 个板块（14 canonical〔含 pantheon〕+ knowledge D7），got %d", len(manifests))
 	}
 	byID := map[string]board.Manifest{}
 	for _, m := range manifests {
@@ -181,9 +181,15 @@ func TestGetBoardManifestsCanonical(t *testing.T) {
 	if kn.Page == "" || kn.InMenu == nil || !*kn.InMenu {
 		t.Errorf("knowledge 应挂载为可导航板块，got %+v", kn)
 	}
-	// 编程板块已于 v4.439 删除（用户拍板「删除编程板块」）：manifest 不再含 code
-	if _, ok := byID["code"]; ok {
-		t.Error("code 编程板块应已删除，manifest 不应再含该条目")
+	// 2026-11-08 用户恢复编程一级入口：独立窗口分面唯一成员，无旧进程管理绑定。
+	code, ok := byID["code"]
+	if !ok {
+		t.Fatal("code 编程板块应恢复为一级入口")
+	}
+	if code.Label != "编程" || code.Page != "ProgrammingPage" || code.Icon != "CodeOutlined" ||
+		code.Space != board.SpaceIndependent || code.InMenu == nil || !*code.InMenu ||
+		code.MenuOrder != 6 || len(code.Bindings) != 0 {
+		t.Errorf("编程板块 manifest 字段不齐: %+v", code)
 	}
 	// 成本库一级板块（2026-08-19 重设计：成本库独立成一级导航）
 	ct, ok := byID["cost"]

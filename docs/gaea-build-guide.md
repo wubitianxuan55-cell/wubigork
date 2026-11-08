@@ -32,12 +32,29 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/gaea_install.ps1
 |---|---|
 | PATH 无 ucrt64 gcc → cgo 静默降级 stub | 构建前 `export PATH="/c/msys64/ucrt64/bin:$PATH"`；gcc 在 `C:\msys64\ucrt64\bin` |
 | 旧壳占锁 build/bin | 构建前杀 gaea.exe；`gaea_install.ps1` 自带杀壳+杀残留校验（KILL FAIL 即退出） |
+| `build.bat` 在 **Generating bindings** 报 `frontend/wailsjs/runtime/package.json: Access is denied` | 已复现为 `.tmp` 的 `TMP/TEMP` 重定向触发 Wails 清理/解压 runtime 冲突。先完成 `frontend\npm.cmd run build`，再在**使用系统默认 TMP/TEMP 的新终端**按同一 `CGO_ENABLED=1`/`CC`/`PATH` 运行裸 `wails build -s -ldflags "-s -w" -trimpath`。不要再跳过 bindings。 |
 | System32 ORT 劫持 DLL | ucrt64 bin 必须前置在 PATH，防止劫持 DLL 随 exe |
 | 版本号真源 = `wails.json` 的 `productVersion` | `versioninfo.rc` 是死文件，改它无效 |
 | 测试/运行 exe 找不到 DLL | exe 与三 DLL 必须同目录 |
 | 桌面散件旧 exe（2026-10-31 事故） | 用户跑的一直是桌面旧壳；装机脚本默认清桌面散件 |
 | 拉起验证 | 壳起来后验 PID 启动时间 > 构建时刻（CIM `CreationDate`），防旧壳假象 |
 | 挂死 wails.exe/go.exe 孤儿连环锁（2026-11-07） | 构建 Cancel/失败会遗留 wails.exe+go.exe 孤儿持句柄，后续绑定生成子进程重抽 `frontend/wailsjs/runtime/` 报「package.json: Access is denied」连环假象（文件 ACL 实为全 Allow，`cat`/改名/重建全通）；处置=CIM 找 wails.exe/go.exe/gaea.exe 孤儿 taskkill /T /F 后按本指南 `wails build` 流程走即通 |
+
+## 编程板块与 Windows 子进程
+
+- 编程板块使用隔离 DSH：`C:\AI\dsh`、`DSH_HOME=C:\AI\dsh\home`、
+  `DSH_AGENTS_HOME=C:\AI\dsh\home\agents`。
+- 浏览器侧 authority 固定为 `dsh.wails.localhost:3091`，否则 DSH 的
+  `SameSite=Strict` Cookie 会被跨站 iframe 拒绝。
+- 启动任何可能带控制台的 Windows 子进程时必须使用
+  `internal/gaea/proc.HideWindow`。裸 `syscall.SysProcAttr{HideWindow:true}`
+  会先显示再隐藏，表现为周期性 cmd 黑窗。
+- 当前 GPU 遥测的 PowerShell、`nvidia-smi`、`netstat`、ComfyUI Python
+  启动点均已走该封装；新增路径照此执行。
+- Web profile 的 `dshmarket` 使用本地 pnpm patch 修复 detached helper
+  未设置 `windowsHide` 的问题。升级插件后检查 patch 是否仍在。
+- 完整环境、REA 与插件版本记录见
+  `docs/gaea-programming-rea-plugin-integration-20261108.md`。
 
 ## 构建后验收
 

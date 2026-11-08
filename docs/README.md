@@ -4,6 +4,12 @@
 >
 > **维护规则（防孤儿）**：新增/移动文档必须同步本索引；**未登记文档视同孤儿**，下一轮整理按「未登记 = 待归档或待登记」处理。引用任文档前先读其头部状态行。**守卫**：`node scripts/check-docs.mjs`（孤儿登记 / `docs/` 悬空引用 / `.gaea/AGENTS.md` 指令预算 / **含非 ASCII 的 .ps1 必须带 BOM** 四查），已接入 `scripts/ci.ps1` 全门禁。
 
+## 工程与构建
+
+| 文档 | 状态 |
+|---|---|
+| gaea-build-guide.md | ✅ **日常构建与装机权威**：frontend 预构建、裸 Wails strip 构建、DLL 布局、冒烟与装机命令；含 TMP/TEMP、孤儿构建进程、编程板块 DSH 环境以及 Windows 子进程必须 `CREATE_NO_WINDOW` 的防 cmd 黑窗规则 |
+
 ## 总纲（权威排序依据）
 
 | 文档 | 一句话 |
@@ -82,6 +88,7 @@
 | gaea-dsh-022-distill-2026-11.md | 🔄 dsh 0.2.1-rc.1→0.2.2-alpha.2 增量蒸馏（2026-11-02 调研档）：P2 池三项上游演化对账（模型路由上游已给参考设计/depth.ts 零变更）+新刀池 K1 切模型压缩门/K2 checkpoint 持久化门/K3 附件引用完整性/K4 取消错误码词汇，均带刀前核实项；坑=升级指南补写形态/rev-list range 噪声/master 停 rc.2 基线取最高 tag |
 | gaea-dsh-subagent-deep-distill-2026-11.md | 🔄 dsh 0.2.2-alpha.2 子代理板块机制级深挖（2026-11-02，src 6360 行全量+同日第二轮 G 系补遗收官）：A~F 六组+G 八条机制纪律+刀池 SA-A structured_output（执行批销号=task output_schema 已等价实现）/SA-B 委派审批语义（随 V5 在册）/SA-C 失败赢过取消（执行批销号=判据缺失）/SA-D+SA-E 已落地（2026-11-02 执行批）；**UA-1 口径修正=活跃耗时是回合区间累计投影非墙钟**；销号=结算四态/list_agents 已对齐/ActivationPool 拒绝语义（gaea 排队维持）/fork 种子平衡前缀已同构；坑=注释是纪律本体优先读/克隆检出≠调研基线 |
 | gaea-dsh-subagent-ui-distill-2026-11.md | 🔄 dsh 0.2.2-alpha.2 子代理 UI/UX 蒸馏（2026-11-02 补课档，此前从未系统蒸馏）：ui-subagent 谱系树/只读三态/指标行+ui-chat turn-trigger 源徽标/过程聚合/live 活动词提取；刀池 UA-1 SubagentThread 活跃耗时（meta 就绪）/UA-2 活动词优先级清单；谱系树=嵌套若开 UI 预案留档；坑=上游 UI 蒸馏入口=locales 词汇表先读字典反查组件 |
+| gaea-programming-rea-plugin-integration-20261108.md | ✅ **编程板块 DSH Web + REA + 桌面插件迁移（2026-11-08）**：隔离 DSH `0.2.2-rc.1` 内嵌 `dsh.wails.localhost:3091` 解决 Strict Cookie；REA `6.8.0` MCP 实测 229 工具；桌面 9 依赖迁入、8 bundle 启用且 `dsh-wubi` 保持最后；`dsh-ops` 升 `0.5.1` 适配；GPU PowerShell 与 dshmarket restart helper 双修，cmd 黑窗实测 `visible=False`；产物 v4.534.0 SHA256=`9D0178BE67E6...` |
 | gaea-dsh-univer-office-distill-plan-2026-09.md | ✅ 已蒸馏收官（U 系落地 v4.97~v4.109；Univer 零引入） |
 | gaea-dsh-genui-distill-plan-2026-09.md | ✅ 已收官（P0–P5 全部发布，止于 v4.97.0） |
 | gaea-dsh-better-sidebar-long-term-distill-plan-2026.md | 🔄 滚动权威：阶段一/二/二.5/三(3a/3b) 已全销账；3c 与阶段四/五维持「拍板后/若做」 |

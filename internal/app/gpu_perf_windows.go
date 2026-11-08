@@ -28,8 +28,9 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
+
+	"github.com/gaea/gaea/internal/gaea/proc"
 )
 
 // gpuPerfCache 读数进程级缓存（后台单飞刷新）。
@@ -69,7 +70,7 @@ func parseGPUPerfOutput(out string) (util float64, vram float64, utilOK, vramOK 
 // collectGPUPerfOnce 同步执行采集脚本（仅后台刷新路径调用）。
 func collectGPUPerfOnce() {
 	cmd := exec.Command("powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", gpuPerfScript)
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	proc.HideWindow(cmd)
 	out, err := cmd.Output()
 	if err != nil {
 		return
