@@ -8,7 +8,7 @@ import type {
   ProfileFactView,
   SkillSuggestion,
 } from "../types";
-import { emitMock as emit, pinnedMock } from "./shared";
+import { emitMock as emit } from "./shared";
 import type { MakeMockState } from "./state";
 
 // 轻语主动式频控配置槽（批 44 NOT_MOCKED 续刀；默认值同 Go defaultProactivePushCfg：
@@ -190,7 +190,7 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
     },
     // ── 记忆中枢 Mock ────────────────────────────────────────
     async MemoryHubOverview() {
-      return { knowledgeCount: 4, profileCount: 0, officeCount: 0, costCount: 2, whisperCount: 0, pinnedCount: pinnedMock.length, sessionCount: 0, uploadCount: 0, latestUpdated: "" };
+      return { knowledgeCount: 6, profileCount: 4, officeCount: 5, costCount: 3, whisperCount: 5, pinnedCount: 4, sessionCount: 0, uploadCount: 0, latestUpdated: "刚刚" };
     },
     // ── 数据库存档 mock（v4.479）：浏览器开发态无设备存档，空态/no-op。──
     async DatabaseOverview() {
@@ -281,7 +281,63 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
       if (raw.enabled !== undefined) whisperProactiveCfg.enabled = raw.enabled;
     },
     async MemoryGraph() {
-      return { nodes: [], links: [] };
+      // 浏览器开发态样例：让记忆中枢的星图/记忆流在无后端时可评审。
+      const nodes = [
+        { id: "k:1", type: "knowledge", name: "振动锤选型规范", desc: "按地质与桩径选型，先查历史台班价。", val: 1.4 },
+        { id: "k:2", type: "knowledge", name: "钢结构防腐做法", desc: "除锈等级与涂层配套对照表。", val: 1.1 },
+        { id: "k:3", type: "knowledge", name: "清单计价规则", desc: "综合单价组成与人材机拆分口径。", val: 1.2 },
+        { id: "k:4", type: "knowledge", name: "混凝土养护要点", desc: "不同气温下的养护时间与覆盖要求。", val: 0.9 },
+        { id: "k:5", type: "knowledge", name: "安全交底模板", desc: "班前交底六项固定动作。", val: 0.8 },
+        { id: "k:6", type: "knowledge", name: "图纸会审流程", desc: "会审前置条件与问题闭环。", val: 0.7 },
+        { id: "p:1", type: "profile", name: "偏好先看结论", desc: "长回答先给结论，再展开依据。", val: 1.3 },
+        { id: "p:2", type: "profile", name: "造价口径偏好", desc: "习惯用本地信息价与历史组价对照。", val: 1.1 },
+        { id: "p:3", type: "profile", name: "短句沟通", desc: "不喜欢过度铺陈，句子尽量短。", val: 0.9 },
+        { id: "p:4", type: "profile", name: "深夜工作", desc: "夜间更常处理造价与文档。", val: 0.7 },
+        { id: "o:1", type: "office", name: "广联达导入注意", desc: "导入前统一清单编码与单位。", val: 1.2 },
+        { id: "o:2", type: "office", name: "周报模板", desc: "本周完成 / 风险 / 下周计划三段式。", val: 0.9 },
+        { id: "o:3", type: "office", name: "项目 A 组价习惯", desc: "措施费单列，不并入综合单价。", val: 1 },
+        { id: "o:4", type: "office", name: "询价流程", desc: "至少三家比价，记录询价时间。", val: 0.8 },
+        { id: "o:5", type: "office", name: "交付前自检", desc: "格式 / 数字 / 引用三遍检查。", val: 0.7 },
+        { id: "w:1", type: "whisper", name: "深夜聊项目压力", desc: "那晚说进度压得喘不过气，后来一起拆成了三步。", val: 1.3 },
+        { id: "w:2", type: "whisper", name: "喜欢的说话方式", desc: "直接、不绕弯，但别冷冰冰。", val: 1.1 },
+        { id: "w:3", type: "whisper", name: "一次被安慰的记忆", desc: "方案被推翻后，先被接住情绪再谈修改。", val: 1 },
+        { id: "w:4", type: "whisper", name: "生日提醒", desc: "提前一周提醒，不要说教。", val: 0.8 },
+        { id: "w:5", type: "whisper", name: "周末计划", desc: "想去看展，顺路吃一家小面。", val: 0.7 },
+        { id: "m:1", type: "material", name: "施工组织设计.docx", desc: "项目 A 实施版，含总进度与资源计划。", val: 1.1 },
+        { id: "m:2", type: "material", name: "综合单价分析.xlsx", desc: "清单第 3 册，含人材机拆解。", val: 1 },
+        { id: "m:3", type: "material", name: "现场照片", desc: "桩基施工与围挡现状。", val: 0.7 },
+        { id: "m:4", type: "material", name: "合同条款", desc: "付款节点与变更签证约定。", val: 0.9 },
+        { id: "c:1", type: "cost", name: "振动锤台班价", desc: "本地市场 2026-Q3 询价中位值。", val: 1.2 },
+        { id: "c:2", type: "cost", name: "钢筋信息价", desc: "HRB400E 综合到货价。", val: 1 },
+        { id: "c:3", type: "cost", name: "模板周转", desc: "按 5 次周转摊销。", val: 0.8 },
+      ];
+      const links = [
+        { source: "k:1", target: "c:1", type: "reference" },
+        { source: "k:1", target: "o:4", type: "same-tag" },
+        { source: "k:2", target: "m:1", type: "reference" },
+        { source: "k:3", target: "m:2", type: "reference" },
+        { source: "k:3", target: "c:2", type: "reference" },
+        { source: "k:3", target: "c:3", type: "reference" },
+        { source: "k:4", target: "m:1", type: "same-category" },
+        { source: "k:5", target: "o:5", type: "same-tag" },
+        { source: "k:6", target: "m:1", type: "same-category" },
+        { source: "p:1", target: "o:2", type: "same-tag" },
+        { source: "p:1", target: "w:2", type: "same-tag" },
+        { source: "p:2", target: "o:3", type: "same-tag" },
+        { source: "p:2", target: "c:2", type: "reference" },
+        { source: "p:3", target: "w:2", type: "same-tag" },
+        { source: "p:4", target: "w:1", type: "same-tag" },
+        { source: "o:1", target: "m:2", type: "reference" },
+        { source: "o:3", target: "m:2", type: "reference" },
+        { source: "o:4", target: "c:1", type: "reference" },
+        { source: "o:5", target: "m:4", type: "same-category" },
+        { source: "w:1", target: "p:4", type: "same-tag" },
+        { source: "w:3", target: "p:1", type: "same-tag" },
+        { source: "w:4", target: "p:1", type: "same-tag" },
+        { source: "m:1", target: "c:3", type: "same-category" },
+        { source: "m:3", target: "m:1", type: "same-tag" },
+      ];
+      return { nodes, links };
     },
     async WhisperGraphSubgraph(_personalityID: string, _entity: string, _hops: number) {
       // 只读空态（批 46 NOT_MOCKED 收尾刀）：Go 口径「entity 不存在返回空子图

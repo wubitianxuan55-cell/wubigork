@@ -1,5 +1,34 @@
 # gaea 3.0 板块蓝图 · memoryhub 记忆中枢
 
+## 2026-11-08 · 真 3D 脑网格（three.js）
+
+> - 触发：用户指出「不像左右脑」「放大点击看不到记忆」，明确要求「换真正的 3D 脑网格」。
+> - 网格：NIH 3D `3DPX-021161`「Detailed Human Brain Model」（Johnson J，CC BY 4.0）的 X3D，离线解析 **18,511 顶点 / 26,265 三角面**；保留真实脑回、纵裂、颞叶/小脑，不再用 2D 掩膜或 SDF 椭球。
+> - 渲染：`MemoryAtlasStage` 改为 **three.js WebGL**——Fresnel 发光脑壳 + 唯一棱线框 + 18.5k 顶点粒子 + 820 条沿网格边随机游走的脑回纤维；左金右紫按真实 x 分半球；3D 平台、轨道环、双色光晕、星点、光柱同一场景。GPU 渲染，1600×1000 rAF ≈57fps；DPR ≤1.5、页面不可见停画。
+> - 视角/交互：拖拽 360° 旋转、滚轮缩放、自动慢转、重置回正视；three Raycaster 命中真实 `GraphNode` 精灵（真实 `GraphLink` 连线），拖动阈值区分旋转与点击；默认正视与放大后点击都能打开 `.hub-detail-title`，悬浮 tooltip 跟随。
+> - 懒加载：three + 网格数据经 `React.lazy` 独立 chunk（`MemoryAtlasStage`），首屏页面壳不背 3D；GraphView 的 `3d-force-graph` 仍是独立 chunk。显示设置内署名 NIH 3D / Johnson J / CC BY 4.0。
+> - 数据诚实：网格/纤维只是脑形氛围层，只有真实 `GraphNode` 成为可点击大光点，链路来自真实 `GraphLink`；图谱失败时保留氛围态，右栏显式报错。
+> - 主要文件：`frontend/src/gaea/components/memoryhub/MemoryAtlasStage.tsx`、`brainMeshData.ts`（离线采样网格 + CC BY 署名）、`atlasConfig.ts`、`atlas.css`、`frontend/src/pages/MemoryHubPage.tsx`。
+> - 验证：`tsc -b`、改动文件 ESLint、`vitest` MemoryHubPage 5 例 + memoryhub 164 例、`vite build`；CDP `?mock=1` 实拍正视/重置/放大，默认与放大后点击均打开详情。
+
+> 以下 2026-11-07 条目为当时 Canvas 2D 掩膜版记录；中央脑形已由本条的 three.js 真实 3D 网格取代。
+
+## 2026-11-07 · Living Constellation 星图观测台
+
+> - 触发：用户给出「双脑星云 + 全息平台」参考图，要求记忆中枢达到同款 UI 效果。
+> - 入口：总览改为全幅活体星图（左索引 / 中双脑 / 右记忆流 / 底控制），库页收进同一观测台的玻璃抽屉，左索引常驻可切换。
+> - 星图：`MemoryAtlasStage` 以 CC0 正视脑图（freesvg #152745）离线采样 200×200 的脑形/脑沟掩膜与距离场厚度，Canvas 2D 实时投影约 3 万粒子：左金右紫、脑沟亮线、体内粒子、真实节点亮星与真实关系弧、轨道环、全息平台与光柱。左右半球上方有 HEMISPHERE HUD（事实/知识/办公 vs 自我/画像/聊天），脑形来自真实正视脑图而非椭球近似。
+> - 点击修复：画布事件从 viewport 坐标换算成 canvas 局部坐标（`clientX - rect.left`）再做命中测试；此前漏减 rect，点击/悬浮整体偏移，放大后尤其点不中。现在默认视角和滚轮放大后点星都能打开右侧详情，22px 命中半径。
+> - 视角：脑形掩膜需要正视轮廓，自动旋转改为 -0.08~0.26 rad 的缓慢摆动（拖拽 ±0.38 rad），保留前后粒子视差与 3D 平台，又不把脑转成侧片。
+> - 数据诚实：粒子/脑沟只是脑形氛围层；只有真实 `GraphNode` 才成为可点击亮星，链路来自真实 `GraphLink`。图谱失败时星图停在氛围态，右栏显式报错并重试，不伪造条目。
+> - 索引：标题/统计/三脑检索/九库索引/构成条；窄高屏按断点收起构成与装饰段，保证九库全部可达。
+> - 记忆流：类型 tabs + 按关联度排序的记忆条目；点条目在星图上点亮对应星辰并展开 Inspector；检索命中沿用 `.hub-hit` 键盘语义与文件预览/@引用。
+> - 控制：暂停流览、旋转视角、重置视角、显示设置（轨道环/星尘/自动旋转）；`prefers-reduced-motion`/设置里的减少动态默认冻结星图，仍允许手动继续。
+> - 性能：30fps 绘制上限、DPR ≤1.5、页面不可见/容器折叠停画；1600×1000 实测 rAF ≈42fps（脑形粒子抽稀后）。场景几何一次构建，数据变化只重排节点。
+> - 响应式：≤1440 / ≤1240 / ≤1040 / ≤900 宽度与 ≤900 / ≤800 / ≤760 高度断点；1366×768、1280×800 实拍无截断。
+> - 验证：`tsc -b`、`vite build`、ESLint（改动文件）、`vitest MemoryHubPage` 5 例、GraphView/mock contract 18 例；浏览器实拍总览/检索/命中详情/库页/图谱/离线态/设置面板，默认与放大后的画布点星均打开详情。
+> - 主要文件：`frontend/src/pages/MemoryHubPage.tsx`、`frontend/src/gaea/components/memoryhub/MemoryAtlasStage.tsx`、`frontend/src/gaea/components/memoryhub/brainMask.ts`（CC0 脑图采样数据）、`frontend/src/gaea/components/memoryhub/atlas.css`。
+
 ## 2026-10-31 · Memory Atlas 重设计
 
 > - 触发：用户要求“使用技能重新设计记忆中枢 UI”，随后确认“书房/庭院是过时的东西了”。
