@@ -12,16 +12,21 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
 
 const (
-	qwen35Port         = 8124
-	qwen35StartWait    = 300 * time.Second
-	qwen35ModelFile    = "Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_P-MTP-r2.gguf"
-	qwen35CtxSize      = 32768 // 语音+聊天共用：语音短轮足够，聊天留增长余量
-	qwen35HealthScript = `{"model":"qwen35","stream":false,"max_tokens":1,"messages":[{"role":"user","content":"hi"}]}`
+	qwen35Port            = 8124
+	qwen35StartWait       = 300 * time.Second
+	qwen35ModelFile       = "Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_P-MTP-r2.gguf"
+	qwen35CtxSize         = 32768 // 语音+聊天共用：语音短轮足够，聊天留增长余量
+	qwen35HealthScript    = `{"model":"qwen35","stream":false,"max_tokens":1,"messages":[{"role":"user","content":"hi"}]}`
+	gemma4E4BModelDir     = "gemma-4-e4b-gguf"
+	gemma4E4BModelFile    = "gemma-4-E4B-BF16.gguf"
+	gemma4E4BCtxSize      = 32768
+	llamaDefaultProfileID = "qwen35"
 )
 
 // qwen35ModelPath 35B gguf：统一模型根 C:\AI\models 优先（单副本原则），缺失
@@ -40,10 +45,58 @@ func qwen35Running() bool {
 // ── managed 引擎目录层（模型中心，参照 strata/tianxuan 模板） ──
 
 var llamaProfiles = []engineProfileOption{
-	{ID: "qwen35", Label: "qwen3.6-35b-a3b-mtp（自管 llama）", ModelID: "qwen35"},
+	{
+		ID:        "qwen35",
+		Label:     "qwen3.6-35b-a3b-mtp（自管 llama）",
+		ModelID:   "qwen35",
+		ModelDir:  "qwen35-uncensored",
+		ModelFile: qwen35ModelFile,
+		CtxSize:   qwen35CtxSize,
+	},
+	{
+		ID:           "gemma4_e4b",
+		Label:        "gemma-4-E4B 预训练（BF16，自管 llama）",
+		ModelID:      "gemma4_e4b",
+		ModelDir:     gemma4E4BModelDir,
+		ModelFile:    gemma4E4BModelFile,
+		ChatTemplate: filepath.Join(voiceV2ModelsRoot, gemma4E4BModelDir, "chat_template.jinja"),
+		CtxSize:      gemma4E4BCtxSize,
+	},
 }
 
-// llamaProbe 探活 + /v1/models 实际 served id（llama-server 返回 gguf 文件名）。
+// llamaProfileModelPath 返回 llama 档位的 GGUF 路径。Qwen35 保留统一模型根
+// 优先、历史 base 根回退；新档位只使用统一模型根，避免再次形成多副本。
+func llamaProfileModelPath(p engineProfileOption) string {
+	if p.ID == "qwen35" {
+		return qwen35ModelPath()
+	}
+	if p.ModelDir == "" || p.ModelFile == "" {
+		return ""
+	}
+	return filepath.Join(voiceV2ModelsRoot, p.ModelDir, p.ModelFile)
+}
+
+// llamaProfileFromModels 把 llama-server 的 served id（稳定别名或 GGUF
+// 绝对路径）映射回档位 id。兼容旧实例未设置 --alias 时返回绝对路径。
+func llamaProfileFromModels(served []string) string {
+	for _, id := range served {
+		norm := strings.ToLower(filepath.ToSlash(strings.TrimSpace(id)))
+		if norm == "" {
+			continue
+		}
+		for _, p := range llamaProfiles {
+			for _, candidate := range []string{p.ID, p.ModelID, filepath.Base(p.ModelFile)} {
+				candidate = strings.ToLower(strings.TrimSpace(candidate))
+				if candidate != "" && strings.Contains(norm, candidate) {
+					return p.ID
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// llamaProbe 探活并返回稳定的模型 id（不是可能漂移的 GGUF 绝对路径）。
 func llamaProbe() ([]string, bool) {
 	client := &http.Client{Timeout: 1500 * time.Millisecond}
 	resp, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d/v1/models", qwen35Port))
@@ -68,54 +121,152 @@ func llamaProbe() ([]string, bool) {
 	if len(ids) == 0 {
 		return nil, false
 	}
-	// llama-server 的 /v1/models 返回 GGUF 绝对路径；模型目录与功能绑定使用
-	// 稳定档位 id，避免模型根迁移后把旧路径持久化进聊天配置。
-	return []string{llamaProfiles[0].ModelID}, true
-}
-
-func llamaProfileFromModels(served []string) string {
-	if len(served) == 0 {
-		return ""
-	}
-	for _, p := range llamaProfiles {
-		if strings.Contains(served[0], "35B") || strings.Contains(served[0], "Qwen3.6") {
-			return p.ID
+	profileID := llamaProfileFromModels(ids)
+	if profileID != "" {
+		if p, ok := engineProfileByID(llamaProfiles, profileID); ok {
+			return []string{p.ModelID}, true
 		}
 	}
-	return llamaProfiles[0].ID
+	return ids, true
 }
 
-// qwen35Ensure 幂等拉起自管 35B（语音 Ensure 链与聊天前置共用）。
+// llamaEnsure 幂等拉起指定 llama 档位。同一端口一次只驻留一个模型；若其它
+// 档位已在运行，如实返回 active profile，不静默换模型。
 // 返回 {running:bool, started:bool, error:string}。
-func (a *App) qwen35Ensure() map[string]interface{} {
+func (a *App) llamaEnsure(profileID string) map[string]interface{} {
+	if strings.TrimSpace(profileID) == "" {
+		profileID = llamaDefaultProfileID
+	}
+	p, ok := engineProfileByID(llamaProfiles, profileID)
+	if !ok {
+		return map[string]interface{}{
+			"running":  qwen35Running(),
+			"started":  false,
+			"reason":   "unknown-model",
+			"model":    profileID,
+			"profiles": engineProfileJSON(llamaProfiles),
+		}
+	}
+	if served, running := llamaProbe(); running {
+		active := llamaProfileFromModels(served)
+		res := map[string]interface{}{
+			"running":           true,
+			"started":           false,
+			"reason":            "already-running",
+			"profile":           active,
+			"requested_profile": p.ID,
+			"profiles":          engineProfileJSON(llamaProfiles),
+			"served_models":     served,
+		}
+		if active != "" {
+			if activeProfile, ok := engineProfileByID(llamaProfiles, active); ok {
+				res["model_path"] = llamaProfileModelPath(activeProfile)
+			}
+		}
+		if active != "" && active != p.ID {
+			res["error"] = fmt.Sprintf("llama 正在运行其它档位 %s", active)
+		}
+		return res
+	}
 	if qwen35Running() {
-		return map[string]interface{}{"running": true, "started": false}
+		return map[string]interface{}{
+			"running":           true,
+			"started":           false,
+			"reason":            "starting",
+			"profile":           "",
+			"requested_profile": p.ID,
+			"profiles":          engineProfileJSON(llamaProfiles),
+			"served_models":     []string{},
+		}
 	}
-	model := qwen35ModelPath()
+	model := llamaProfileModelPath(p)
 	if _, err := os.Stat(model); err != nil {
-		return map[string]interface{}{"running": false, "error": fmt.Sprintf("35B gguf 缺失（%s）", model)}
+		return map[string]interface{}{
+			"running":    false,
+			"started":    false,
+			"reason":     "model-not-found",
+			"profile":    p.ID,
+			"model_path": model,
+			"model":      p.ModelID,
+			"profiles":   engineProfileJSON(llamaProfiles),
+			"error":      fmt.Sprintf("llama 档位 %s 的 GGUF 缺失（%s）", p.ID, model),
+		}
 	}
-	cmd, err := detachedCmd(voiceV2LLMBinPath(), []string{
+	ctxSize := p.CtxSize
+	if ctxSize <= 0 {
+		ctxSize = qwen35CtxSize
+	}
+	args := []string{
 		"--host", "127.0.0.1", "--port", fmt.Sprintf("%d", qwen35Port),
 		"--jinja", "-m", model, "-ngl", "99",
-		"--ctx-size", fmt.Sprintf("%d", qwen35CtxSize),
+		"--ctx-size", strconv.Itoa(ctxSize),
 		"--reasoning", "off", "-np", "1", "--cache-reuse", "256",
-	}, "")
+		"--alias", p.ID,
+	}
+	if p.ChatTemplate != "" && voiceV2FileExists(p.ChatTemplate) {
+		args = append(args, "--chat-template-file", p.ChatTemplate)
+	}
+	cmd, err := detachedCmd(voiceV2LLMBinPath(), args, "")
 	if err != nil {
-		return map[string]interface{}{"running": false, "error": fmt.Sprintf("35B 拉起失败: %v", err)}
+		return map[string]interface{}{
+			"running":    false,
+			"started":    false,
+			"reason":     "spawn-failed",
+			"profile":    p.ID,
+			"model_path": model,
+			"profiles":   engineProfileJSON(llamaProfiles),
+			"error":      fmt.Sprintf("%s 拉起失败: %v", p.ID, err),
+		}
 	}
-	if err := voiceV2Spawn("qwen35", cmd); err != nil {
-		return map[string]interface{}{"running": false, "error": fmt.Sprintf("35B 拉起失败: %v", err)}
+	if err := voiceV2Spawn("llama-"+p.ID, cmd); err != nil {
+		return map[string]interface{}{
+			"running":    false,
+			"started":    false,
+			"reason":     "spawn-failed",
+			"profile":    p.ID,
+			"model_path": model,
+			"profiles":   engineProfileJSON(llamaProfiles),
+			"error":      fmt.Sprintf("%s 拉起失败: %v", p.ID, err),
+		}
 	}
-	if !voiceV2WaitPort(qwen35Port, qwen35StartWait) {
-		return map[string]interface{}{"running": false, "error": "35B 300s 未就绪"}
+	startedAt := time.Now()
+	served, ready := waitLlamaModelsReady(qwen35StartWait)
+	if !ready {
+		return map[string]interface{}{
+			"running":    qwen35Running(),
+			"started":    false,
+			"reason":     "timeout",
+			"profile":    p.ID,
+			"model_path": model,
+			"profiles":   engineProfileJSON(llamaProfiles),
+			"error":      fmt.Sprintf("%s 300s 未就绪（%s）", p.ID, voiceV2LogPath("llama-server.exe.log")),
+		}
 	}
-	return map[string]interface{}{"running": true, "started": true}
+	active := llamaProfileFromModels(served)
+	if active == "" {
+		active = p.ID
+	}
+	return map[string]interface{}{
+		"running":       true,
+		"started":       true,
+		"waited_ms":     time.Since(startedAt).Milliseconds(),
+		"profile":       active,
+		"model":         p.ModelID,
+		"model_path":    model,
+		"served_models": served,
+		"profiles":      engineProfileJSON(llamaProfiles),
+	}
 }
 
-// Qwen35EngineStart 模型中心/语音设置入口：幂等拉起自管 35B。
-func (a *App) Qwen35EngineStart() map[string]interface{} {
-	return a.qwen35Ensure()
+// qwen35Ensure 保留现有聊天/语音内部调用语义，默认拉起 Qwen35。
+func (a *App) qwen35Ensure() map[string]interface{} {
+	return a.llamaEnsure(llamaDefaultProfileID)
+}
+
+// Qwen35EngineStart 模型中心入口：按档位幂等拉起自管 llama。保留旧方法名
+// 以兼容现有 Wails 绑定；空 profile 回退 qwen35。
+func (a *App) Qwen35EngineStart(profile string) map[string]interface{} {
+	return a.llamaEnsure(profile)
 }
 
 // Qwen35EngineStop 按端口击杀（聊天/语音都不再依赖时手动停）。
@@ -124,20 +275,31 @@ func (a *App) Qwen35EngineStop() map[string]interface{} {
 	return map[string]interface{}{"stopped": killed}
 }
 
-// Qwen35EngineStatus 探活 + 关键路径诊断（gguf/bin 是否在位）。
+// Qwen35EngineStatus 探活 + 档位目录 + 关键路径诊断（gguf/bin 是否在位）。
 func (a *App) Qwen35EngineStatus() map[string]interface{} {
+	served, ready := llamaProbe()
 	running := qwen35Running()
-	model := qwen35ModelPath()
+	profile := llamaProfileFromModels(served)
+	if profile == "" && !running {
+		profile = llamaDefaultProfileID
+	}
+	p, _ := engineProfileByID(llamaProfiles, profile)
+	model := llamaProfileModelPath(p)
 	_, modelOK := os.Stat(model)
 	bin := voiceV2LLMBinPath()
 	_, binOK := os.Stat(bin)
 	return map[string]interface{}{
-		"running":     running,
-		"port":        qwen35Port,
-		"modelPath":   model,
-		"modelReady":  modelOK == nil,
-		"binPath":     bin,
-		"binReady":    binOK == nil,
-		"healthCheck": qwen35HealthScript,
+		"running":         running,
+		"ready":           ready,
+		"port":            qwen35Port,
+		"profile":         profile,
+		"default_profile": llamaDefaultProfileID,
+		"profiles":        engineProfileJSON(llamaProfiles),
+		"served_models":   served,
+		"modelPath":       model,
+		"modelReady":      modelOK == nil,
+		"binPath":         bin,
+		"binReady":        binOK == nil,
+		"healthCheck":     qwen35HealthScript,
 	}
 }

@@ -67,9 +67,11 @@ func (b *CoreB) ProgrammingWebLogTail(n int) map[string]interface{} {
 	return b.a.ProgrammingWebLogTail(n)
 }
 func (b *CoreB) QuantSuitability(model string) (string, error) { return b.a.QuantSuitability(model) }
-func (b *CoreB) Qwen35EngineStart() map[string]interface{}     { return b.a.Qwen35EngineStart() }
-func (b *CoreB) Qwen35EngineStatus() map[string]interface{}    { return b.a.Qwen35EngineStatus() }
-func (b *CoreB) Qwen35EngineStop() map[string]interface{}      { return b.a.Qwen35EngineStop() }
+func (b *CoreB) Qwen35EngineStart(profile string) map[string]interface{} {
+	return b.a.Qwen35EngineStart(profile)
+}
+func (b *CoreB) Qwen35EngineStatus() map[string]interface{} { return b.a.Qwen35EngineStatus() }
+func (b *CoreB) Qwen35EngineStop() map[string]interface{}   { return b.a.Qwen35EngineStop() }
 func (b *CoreB) RefreshEngineModels(engineID string) ([]modelengine.ModelInfo, error) {
 	return b.a.RefreshEngineModels(engineID)
 }

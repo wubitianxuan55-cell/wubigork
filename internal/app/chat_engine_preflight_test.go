@@ -67,6 +67,33 @@ func TestResolveChatModelRouteStartsBoundEngineAndNormalizesLlamaModel(t *testin
 	}
 }
 
+func TestResolveChatModelRouteNormalizesGemmaPath(t *testing.T) {
+	stale := `C:\AI\models\gemma-4-e4b-gguf\gemma-4-E4B-BF16.gguf`
+	a := newChatEnginePreflightTestApp(t, stale)
+	original := ensureChatBindingEngineFn
+	t.Cleanup(func() { ensureChatBindingEngineFn = original })
+
+	var ensuredModel string
+	ensureChatBindingEngineFn = func(_ *App, _, model string) error {
+		ensuredModel = model
+		return nil
+	}
+
+	engine, model, source, err := a.resolveChatModelRoute()
+	if err != nil {
+		t.Fatalf("resolveChatModelRoute: %v", err)
+	}
+	if engine != "llama" || model != "gemma4_e4b" || source != "feature" {
+		t.Fatalf("route = (%q,%q,%q), want (llama,gemma4_e4b,feature)", engine, model, source)
+	}
+	if ensuredModel != "gemma4_e4b" {
+		t.Fatalf("ensure model = %q, want gemma4_e4b", ensuredModel)
+	}
+	if _, got := a.cfg.GetFeatureModel("chat"); got != "gemma4_e4b" {
+		t.Fatalf("normalized binding = %q, want gemma4_e4b", got)
+	}
+}
+
 func TestResolveChatModelRouteFailsInsteadOfGlobalFallbackWhenBoundEngineCannotStart(t *testing.T) {
 	a := newChatEnginePreflightTestApp(t, "qwen35")
 	original := ensureChatBindingEngineFn

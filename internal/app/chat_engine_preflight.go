@@ -47,8 +47,8 @@ func (a *App) resolveChatModelRoute() (engine, model, source string, err error) 
 }
 
 // normalizeChatBoundModel 修复历史持久化中的 llama 裸 GGUF 路径。llama-server
-// 虽通常忽略 model 字段，但模型中心/回执会因此显示易漂移的绝对路径；自管
-// 引擎只有稳定档位 qwen35，聊天绑定统一落这个 ID。
+// 虽通常忽略 model 字段，但模型中心/回执会因此显示易漂移的绝对路径；聊天
+// 绑定统一落档位稳定 ID。
 func (a *App) normalizeChatBoundModel(engineID, model string) string {
 	if engineID != "llama" {
 		return model
@@ -56,9 +56,7 @@ func (a *App) normalizeChatBoundModel(engineID, model string) string {
 	if _, ok := managedProfileForModel(llamaProfiles, model); ok {
 		return model
 	}
-	lower := strings.ToLower(strings.TrimSpace(model))
-	if strings.HasSuffix(lower, ".gguf") || strings.Contains(lower, "qwen3.6-35b") {
-		const stable = "qwen35"
+	if stable := llamaProfileFromModels([]string{model}); stable != "" {
 		a.cfg.SetFeatureModel("chat", engineID, stable)
 		if err := config.Save(config.KeyFuncChatModel, stable); err != nil {
 			slog.Warn("修复聊天 llama 模型绑定失败，本次请求仍使用稳定档位",
@@ -80,7 +78,11 @@ var ensureChatBindingEngineFn = func(a *App, engineID, model string) error {
 func (a *App) ensureChatBindingEngine(engineID, model string) error {
 	switch engineID {
 	case "llama":
-		result := a.qwen35Ensure()
+		profile, ok := managedProfileForModel(llamaProfiles, model)
+		if !ok {
+			return fmt.Errorf("模型 %s 不在 llama 档位目录", model)
+		}
+		result := a.llamaEnsure(profile.ID)
 		if running, _ := result["running"].(bool); !running {
 			reason := strings.TrimSpace(fmt.Sprint(result["error"]))
 			if reason == "" {
@@ -88,12 +90,16 @@ func (a *App) ensureChatBindingEngine(engineID, model string) error {
 			}
 			return fmt.Errorf("%s", reason)
 		}
+		active := strings.TrimSpace(fmt.Sprint(result["profile"]))
+		if active != "" && active != profile.ID {
+			return fmt.Errorf("llama 正在运行其它档位 %s，无法启动聊天绑定的 %s", active, profile.ID)
+		}
 		served, ok := waitLlamaModelsReady(30 * time.Second)
 		if !ok {
 			return fmt.Errorf("llama-server 已启动但 /v1/models 未就绪")
 		}
-		profile := llamaProfileFromModels(served)
-		a.syncManagedCatalog("llama", llamaProfiles, served, profile)
+		activeProfile := llamaProfileFromModels(served)
+		a.syncManagedCatalog("llama", llamaProfiles, served, activeProfile)
 		if a.core != nil && a.engineMgr != nil {
 			a.engineMgr.SetStatus("llama", managedEngineStatus("llama", true, len(served), 0, ""))
 		}

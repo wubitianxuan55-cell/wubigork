@@ -410,7 +410,7 @@ export interface ManagedEngineStopResult {
 }
 
 
-// ── 自管 Llama 引擎（8124，Qwen3.6-35B MTP；语音+聊天共用，P2 续拍板） ──
+// ── 自管 Llama 引擎（8124，Qwen3.6-35B / Gemma 4 E4B 档位） ──
 export type LlamaEngineStatusResult = ManagedEngineStatusResult
 export type LlamaEngineStartResult = ManagedEngineStartResult
 export type LlamaEngineStopResult = ManagedEngineStopResult
@@ -420,8 +420,8 @@ export async function getLlamaEngineStatus(): Promise<LlamaEngineStatusResult> {
   return result as LlamaEngineStatusResult
 }
 
-export async function startLlamaEngine(_profile = 'qwen35'): Promise<LlamaEngineStartResult> {
-  const result = await App().Qwen35EngineStart()
+export async function startLlamaEngine(profile = 'qwen35'): Promise<LlamaEngineStartResult> {
+  const result = await App().Qwen35EngineStart(profile)
   return result as LlamaEngineStartResult
 }
 

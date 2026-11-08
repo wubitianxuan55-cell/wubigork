@@ -39,6 +39,7 @@ const API: Record<ManagedEngineID, LifecycleAPI> = {
     defaultProfile: 'qwen35',
     fallbackProfiles: [
       { id: 'qwen35', label: 'qwen3.6-35b-a3b-mtp（自管 llama）' },
+      { id: 'gemma4_e4b', label: 'gemma-4-E4B 预训练（BF16，自管 llama）' },
     ],
     status: getLlamaEngineStatus,
     start: startLlamaEngine,

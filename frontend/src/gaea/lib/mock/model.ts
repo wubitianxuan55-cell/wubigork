@@ -260,9 +260,9 @@ type LegacyOpencodeKeyMethods = {
   GetOpencodeGoKeyStatus(): Promise<{ configured: boolean; masked: string }>;
 };
 
-// Qwen35 自管 llama 引擎（P3 刀一 legacy 直调族）：mock 恒「未运行」诚实空态。
+// 自管 llama 引擎（P3 legacy 直调族）：mock 恒「未运行」诚实空态。
 type LegacyQwen35EngineMethods = {
-  Qwen35EngineStart(): Promise<{ running: boolean; started: boolean }>;
+  Qwen35EngineStart(profile: string): Promise<{ running: boolean; started: boolean }>;
   Qwen35EngineStatus(): Promise<{
     running: boolean; port: number; modelPath: string; modelReady: boolean;
     binPath: string; binReady: boolean; healthCheck: string;
@@ -558,7 +558,7 @@ export function buildModel(s: MakeMockState): ModelMethods {
     },
     // ── Qwen35 自管 llama 引擎（P3 刀一 legacy 直调族）：浏览器 mock 无进程
     // 可管，恒回「未运行」诚实空态（Start 不假装拉起、Stop 假装停了也无害）。
-    async Qwen35EngineStart() {
+    async Qwen35EngineStart(_profile: string) {
       return { running: false, started: false };
     },
     async Qwen35EngineStatus() {

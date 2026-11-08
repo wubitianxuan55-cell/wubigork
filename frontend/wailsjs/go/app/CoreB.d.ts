@@ -75,7 +75,7 @@ export function ProgrammingWebLogTail(arg1:number):Promise<Record<string, any>>;
 
 export function QuantSuitability(arg1:string):Promise<string>;
 
-export function Qwen35EngineStart():Promise<Record<string, any>>;
+export function Qwen35EngineStart(arg1:string):Promise<Record<string, any>>;
 
 export function Qwen35EngineStatus():Promise<Record<string, any>>;
 

@@ -1,6 +1,9 @@
 package app
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
 func TestManagedCatalogModels_MarksOnlyActiveProfileRunning(t *testing.T) {
 	// 2026-10-18 随批修正：35B 档退役后 llamaProfiles 只剩 2 档，原硬编码
@@ -47,5 +50,37 @@ func TestManagedProfileForModel_MatchesIdAndModelId(t *testing.T) {
 				t.Fatalf("model id %q not matched: %+v", p.ModelID, got)
 			}
 		}
+	}
+}
+
+func TestLlamaProfileFromModels_RecognizesAliasesAndGGUFPaths(t *testing.T) {
+	tests := []struct {
+		served string
+		want   string
+	}{
+		{served: "qwen35", want: "qwen35"},
+		{served: filepath.Join(`C:\AI\models`, "qwen35-uncensored", qwen35ModelFile), want: "qwen35"},
+		{served: "gemma4_e4b", want: "gemma4_e4b"},
+		{served: filepath.Join(`C:\AI\models`, gemma4E4BModelDir, gemma4E4BModelFile), want: "gemma4_e4b"},
+	}
+	for _, tt := range tests {
+		if got := llamaProfileFromModels([]string{tt.served}); got != tt.want {
+			t.Errorf("llamaProfileFromModels(%q) = %q, want %q", tt.served, got, tt.want)
+		}
+	}
+}
+
+func TestLlamaProfileModelPath_GemmaUsesUnifiedModelRoot(t *testing.T) {
+	p, ok := engineProfileByID(llamaProfiles, "gemma4_e4b")
+	if !ok {
+		t.Fatal("gemma4_e4b profile missing")
+	}
+	want := filepath.Join(`C:\AI\models`, gemma4E4BModelDir, gemma4E4BModelFile)
+	if got := llamaProfileModelPath(p); got != want {
+		t.Fatalf("Gemma model path = %q, want %q", got, want)
+	}
+	wantTemplate := filepath.Join(`C:\AI\models`, gemma4E4BModelDir, "chat_template.jinja")
+	if p.ChatTemplate != wantTemplate {
+		t.Fatalf("Gemma chat template = %q, want %q", p.ChatTemplate, wantTemplate)
 	}
 }

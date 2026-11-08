@@ -705,7 +705,7 @@ export const bindingSignatures = {
   VoiceV2Ensure: { argc: 0, variadic: false, params: "" },
   VoiceV2Status: { argc: 0, variadic: false, params: "" },
   VoiceV2Stop: { argc: 0, variadic: false, params: "" },
-  Qwen35EngineStart: { argc: 0, variadic: false, params: "" },
+  Qwen35EngineStart: { argc: 1, variadic: false, params: "profile string" },
   Qwen35EngineStatus: { argc: 0, variadic: false, params: "" },
   Qwen35EngineStop: { argc: 0, variadic: false, params: "" },
   VoiceV2AbortTurn: { argc: 1, variadic: false, params: "itemID string" },
