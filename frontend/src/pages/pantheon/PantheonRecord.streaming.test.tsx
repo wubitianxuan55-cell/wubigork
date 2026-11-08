@@ -75,6 +75,7 @@ function renderRecord(props: {
   onRetryAgent?: (agentId: string) => void
   onRestart?: () => void
   onAddUserNote?: (content: string) => void
+  onResume?: () => void
 } = {}) {
   return render(
     <PantheonRecord
@@ -91,7 +92,7 @@ function renderRecord(props: {
       onSkipAgent={props.onSkipAgent ?? (() => {})}
       onRetryAgent={props.onRetryAgent ?? (() => {})}
       onRestart={props.onRestart ?? (() => {})}
-      onResume={() => {}}
+      onResume={props.onResume ?? (() => {})}
       onDelete={() => {}}
       onRefresh={() => {}}
       onExport={() => {}}
@@ -838,5 +839,80 @@ describe('PantheonRecord streaming', () => {
     const button = screen.getByTestId('pantheon-skip-seat-grok')
     fireEvent.click(button)
     expect(onSkipAgent).toHaveBeenCalledWith('grok')
+  })
+})
+
+// 2026-11-08 实弹 pan_1794098356822 翻车回归：末轮席位提问答完后整场停在
+// waiting_input，等待面板消失、恢复钮只在失败告示里、续议按钮依赖尚未生成的
+// 汇总——三无死路。修复=待办清空时出「可继续」面板，续跑一键可达。
+describe('PantheonRecord waiting clear panel', () => {
+  const answeredQuestionEvents = [
+    {
+      seq: 1,
+      sessionId: 'pan_stream',
+      phase: 'discussion',
+      round: 2,
+      kind: 'question',
+      text: '接受 fail-closed，还是安排 WSL2/容器？',
+      at: now - 1000,
+      question: {
+        questionId: 'q-281',
+        askedBy: 'dsh',
+        origin: 'seat',
+        default: '先 fail-closed',
+        at: now - 1000,
+      },
+    },
+    {
+      seq: 2,
+      sessionId: 'pan_stream',
+      phase: 'discussion',
+      kind: 'answer',
+      text: '安排 WSL2/容器',
+      at: now,
+      answer: { questionId: 'q-281', body: '安排 WSL2/容器', by: 'user', at: now },
+    },
+  ] as PantheonSession['events']
+
+  it('末轮提问答完后，waiting_input 必须给出可继续面板与续跑按钮', () => {
+    const onResume = vi.fn()
+    renderRecord({
+      onResume,
+      sessionOverrides: {
+        status: 'waiting_input',
+        phase: 'discussion',
+        currentRound: 2,
+        events: answeredQuestionEvents,
+      },
+    })
+    expect(screen.getByTestId('pantheon-waiting-clear')).toBeTruthy()
+    const button = screen.getByTestId('pantheon-resume-clear')
+    fireEvent.click(button)
+    expect(onResume).toHaveBeenCalledTimes(1)
+  })
+
+  it('同状态但仍有未答提问时，保持原等待面板（不出清空面板）', () => {
+    const unanswered = answeredQuestionEvents!.slice(0, 1)
+    renderRecord({
+      sessionOverrides: {
+        status: 'waiting_input',
+        phase: 'discussion',
+        currentRound: 2,
+        events: unanswered,
+      },
+    })
+    expect(screen.getByTestId('pantheon-waiting')).toBeTruthy()
+    expect(screen.queryByTestId('pantheon-waiting-clear')).toBeNull()
+  })
+
+  it('非 waiting_input（如 running）且无待办时维持原状不渲染任何面板', () => {
+    renderRecord({
+      sessionOverrides: {
+        status: 'running',
+        events: answeredQuestionEvents,
+      },
+    })
+    expect(screen.queryByTestId('pantheon-waiting-clear')).toBeNull()
+    expect(screen.queryByTestId('pantheon-waiting')).toBeNull()
   })
 })

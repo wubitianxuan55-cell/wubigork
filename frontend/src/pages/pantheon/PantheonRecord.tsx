@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   CheckCircleFilled,
+  CheckCircleOutlined,
   ClockCircleOutlined,
   CloseCircleFilled,
   CloseOutlined,
@@ -455,18 +456,53 @@ function WaitingPanel({
   busy,
   onAnswer,
   onResolveGate,
+  onResume,
 }: {
   session: PantheonSession
   busy: boolean
   onAnswer: (questionId: string, body: string) => void
   onResolveGate: (action: 'resolve' | 'dismiss', reason: string) => void
+  onResume: () => void
 }): React.ReactElement | null {
   const events = session.events ?? []
   const questions = pendingQuestionItems(events)
   const gateOpen = hasOpenGate(events)
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [reason, setReason] = useState('')
-  if (!gateOpen && questions.length === 0) return null
+  if (!gateOpen && questions.length === 0) {
+    // 待办清空后的收尾面板（2026-11-08 实弹 pan_1794098356822）：席位提问
+    // 答完、门也放行之后，整场仍停在 waiting_input——此前的 UI 是三无死路
+    // （等待面板消失、恢复钮只在失败告示里、续议按钮依赖尚未生成的汇总），
+    // 用户没有任何出路。后端 Resume 本就接受 waiting_input：末轮答完后续跑
+    // 会跳过轮循环直接进汇总。
+    if (session.status !== 'waiting_input') return null
+    return (
+      <section
+        className="pantheon-waiting"
+        aria-label="待办已清，可以继续"
+        data-testid="pantheon-waiting-clear"
+      >
+        <header>
+          <CheckCircleOutlined aria-hidden />
+          <strong>待办已清，讨论可以继续</strong>
+          <small>
+            提问已全部回答、没有待处理的门。点「继续讨论」从下一轮续跑；若轮次已用完，续跑会直接进入协作汇总。
+          </small>
+        </header>
+        <div className="pantheon-waiting-item">
+          <Button
+            type="primary"
+            icon={<PlayCircleOutlined />}
+            onClick={onResume}
+            disabled={busy}
+            data-testid="pantheon-resume-clear"
+          >
+            继续讨论
+          </Button>
+        </div>
+      </section>
+    )
+  }
   const nameOf = (agentId?: string) =>
     session.participants.find((participant) => participant.agentId === agentId)?.name || '某一席'
   return (
@@ -2393,6 +2429,7 @@ export const PantheonRecord: React.FC<Props> = ({
           busy={busy}
           onAnswer={onAnswer}
           onResolveGate={onResolveGate}
+          onResume={onResume}
         />
 
         <ol

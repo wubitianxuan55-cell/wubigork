@@ -190,3 +190,13 @@
 | 前序 A3 议事健康指标 | P1，只展示 |
 | M3 对手覆盖矩阵 / M4 缺陷分型 / B3 导出敏感扫描 | P1/P2，判「做」待点名 |
 | M7 席外主席 / B2 定向插话 / B6 amend / T1 自测门 | 拍板/观察 |
+
+### 6.9 实弹翻车诊断+修复：waiting_input 答完后的 UI 死路（2026-11-08 上午）
+
+**实弹**：pan_1794098356822（独立开场 4 席 4 轮，议题=工具权限）。**现象**：未形成自动小结、无法继续讨论（无按钮）。**取证**（session.json 全量）：round 4（末轮）DSH 发言后提 NEEDS INPUT（seq 281）→ 轮末停车（seq 283「本轮结束，1 席提问等待回答」→ status=waiting_input）→ 用户 09:28 回答（seq 284）→ 之后零事件。
+
+**根因=纯前端三无死路**（E4 答后不自动续跑的设计 + UI 没给出口）：①WaitingPanel 在「问题全答+无开门」时 return null——等待面板整个消失；②「恢复讨论」按钮只住在失败告示板（failed/cancelled/interrupted 态）；③「基于小结续议」依赖不存在的 verdict。**后端 Resume 本就就绪**：waiting_input 可恢复、无 pending 守卫通过、resumeRound=5>4 跳过轮循环**直接进汇总**（用户的回答已在存档 user_answer 贡献里，汇总可见）。
+
+**修复**（纯前端）：WaitingPanel 待办清空且 status=waiting_input 时改出「待办已清，讨论可以继续」面板——【继续讨论】主按钮（onResume）+ 提示「轮次已用完时续跑直接进入协作汇总」；非 waiting_input 维持原 null。+3 vitest（答完出钮触发 onResume/仍有未答保持原面板/running 不渲染）。
+
+**验证**：vitest 70/70、tsc 0、重建壳 `798681431c53508e`。**用户解法**：装机新壳后打开该会话→点「继续讨论」→直接进汇总（回答已入档，汇总吃全量）。
