@@ -11896,3 +11896,14 @@
     transition: none;
   }
 }
+
+/* 共享账对账警示（2026-11-08 轻刀②UI 同步）：agent 卡体下的「工具核验不可
+   对证」小字，警示色与决策门告示同源。 */
+.pantheon-shared-mismatch {
+  display: block;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-left: 2px solid color-mix(in srgb, var(--md-sys-color-warning, #d89614) 60%, var(--pantheon-line));
+  color: color-mix(in srgb, var(--md-sys-color-warning, #d89614) 85%, var(--color-text, #b8b2a7));
+  font-size: 10px;
+}

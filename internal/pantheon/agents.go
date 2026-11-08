@@ -232,7 +232,7 @@ func newCodexAdapter(override string) agentAdapter {
 			status := AgentStatus{
 				ID: "codex", Name: "Codex", Kind: "OpenAI Codex CLI",
 				Capabilities: []string{
-					"multi-round-discussion", "read-only-sandbox", "jsonl", "streaming",
+					"multi-round-discussion", "sandboxed-writes", "jsonl", "streaming",
 					"tool-trajectory", "image-input", "shared-image-summary",
 				},
 			}

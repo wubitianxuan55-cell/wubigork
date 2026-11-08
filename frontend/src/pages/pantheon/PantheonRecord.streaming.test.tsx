@@ -916,3 +916,57 @@ describe('PantheonRecord waiting clear panel', () => {
     expect(screen.queryByTestId('pantheon-waiting')).toBeNull()
   })
 })
+
+// 2026-11-08 UI 同步：对账线进记录页——贡献卡在「标注【工具核验】但无非空
+// 工具返回」时亮不可对证徽标；正常证据不亮；M1 任务书快照进 tooltip。
+describe('PantheonRecord reconciliation badge', () => {
+  // completed 态走共享流视图（running=拓扑视图，席位卡默认折叠拿不到 meta）。
+  const baseContribution = {
+    id: 'contrib_m1',
+    phase: 'discussion',
+    round: 2,
+    agentId: 'grok',
+    agentName: 'Grok',
+    content: '【工具核验】已读 a.go：package a（出处：a.go 第 1 行）',
+    createdAt: now,
+    promptSha256: 'a1b2c3d4e5f60718',
+    promptRunes: 3188,
+    toolEvidence: {
+      calls: 1,
+      ok: 1,
+      nonEmpty: 0,
+    },
+  }
+
+  it('标注工具核验但零非空返回 → 共享卡亮对账徽标，拓扑卡与 tooltip 同步', () => {
+    renderRecord({
+      contributions: [{ ...baseContribution } as PantheonContribution],
+    })
+    // 共享卡：agent 卡体下挂对账警示小字（meta 对 agent 卡不渲染，走独立元素）。
+    const stream = screen.getByTestId('pantheon-stream')
+    expect(stream.textContent).toContain('工具核验不可对证')
+    // 席位拓扑卡：点开节点后工具证据/任务书快照/警示同面可见。
+    fireEvent.click(screen.getByTestId('pantheon-topology-node-grok'))
+    const card = screen.getByTestId('pantheon-agent-output-contrib_m1')
+    expect(card.textContent).toContain('工具核验不可对证')
+    expect(card.textContent).toContain('1 次工具')
+    const tooltip = card.querySelector('[title]')
+    expect(tooltip?.getAttribute('title') || '').toContain('任务书快照：3188 字 · sha256:a1b2c3d4e5f60718')
+  })
+
+  it('有非空返回 → 不亮徽标，工具证据在拓扑卡照常显示', () => {
+    renderRecord({
+      contributions: [{
+        ...baseContribution,
+        toolEvidence: { calls: 1, ok: 1, nonEmpty: 1 },
+      } as PantheonContribution],
+    })
+    const stream = screen.getByTestId('pantheon-stream')
+    expect(stream.textContent).not.toContain('工具核验不可对证')
+    // 工具证据标签属拓扑卡面（agent 卡共享体不渲染 meta 标签）。
+    fireEvent.click(screen.getByTestId('pantheon-topology-node-grok'))
+    const card = screen.getByTestId('pantheon-agent-output-contrib_m1')
+    expect(card.textContent).not.toContain('工具核验不可对证')
+    expect(card.textContent).toContain('1 次工具')
+  })
+})

@@ -215,6 +215,9 @@ interface DiscussionOutput {
   chairDecision?: PantheonChairDecision
   toolEvidence?: PantheonToolEvidence
   receipts?: PantheonChairReceipt[]
+  /** M1 输入侧对账锚：席位实际看到的任务书（截断后）指纹与字数。 */
+  promptSha256?: string
+  promptRunes?: number
 }
 
 interface ToolTraceView {
@@ -246,6 +249,8 @@ interface SharedEntry {
   targetIssueId?: string
   challengedClaim?: string
   responseVerdict?: string
+  /** 共享账对账警示（agent 卡体下挂；meta 对 agent 卡不渲染）。 */
+  mismatchNote?: string
 }
 
 interface SharedTimelineSection {
@@ -329,6 +334,21 @@ function seatToolEvidenceTitle(evidence?: PantheonToolEvidence): string {
   }
   lines.push('宿主观察，不是质量分')
   return lines.join('\n')
+}
+
+/** M1 任务书快照：席位实际看到的任务书（截断后）指纹与字数——tooltip 行。 */
+function seatPromptTitle(promptSha256?: string, promptRunes?: number): string {
+  if (!promptSha256) return ''
+  return `任务书快照：${promptRunes ?? '?'} 字 · sha256:${promptSha256}`
+}
+
+/** 共享账对账线（与导出 evidenceMismatchNote 同口径）：陈词标注【工具核验】
+ * 但本次调用没有任何非空工具返回 → 不可对证警示。 */
+function seatMismatchLabel(evidence?: PantheonToolEvidence, text?: string): string {
+  if (!evidence) return ''
+  if ((evidence.nonEmpty ?? 0) > 0) return ''
+  if (!text || !text.includes('【工具核验】')) return ''
+  return '⚠ 工具核验不可对证（本次调用无非空工具返回）'
 }
 
 function chairDecisionLabel(status?: string): string {
@@ -984,6 +1004,11 @@ const SharedTimelineEntry: React.FC<{
       ) : (
         <p>{entry.text}</p>
       )}
+      {entry.kind === 'agent' && entry.mismatchNote && (
+        <small className="pantheon-shared-mismatch" role="note" data-testid={`pantheon-mismatch-${entry.id}`}>
+          {entry.mismatchNote}
+        </small>
+      )}
       {entry.kind === 'agent' && (
         <DiscussionActDetail
           targetContributionId={entry.targetContributionId}
@@ -1388,13 +1413,14 @@ const AgentDetailPanel: React.FC<{
                               </>
                             )}
                           </span>
-                          <small title={[seatUsageTitle(output.usage), seatToolEvidenceTitle(output.toolEvidence)].filter(Boolean).join('\n')}>
+                          <small title={[seatUsageTitle(output.usage), seatToolEvidenceTitle(output.toolEvidence), seatPromptTitle(output.promptSha256, output.promptRunes)].filter(Boolean).join('\n')}>
                             {output.streaming
                               ? '正在输出'
                               : [
                                   output.durationMs ? `${(output.durationMs / 1000).toFixed(1)}s` : '独立观点',
                                   seatUsageLabel(output.usage),
                                   seatToolEvidenceLabel(output.toolEvidence),
+                                  seatMismatchLabel(output.toolEvidence, output.text),
                                 ].filter(Boolean).join(' · ')}
                           </small>
                         </header>
@@ -1668,6 +1694,8 @@ export const PantheonRecord: React.FC<Props> = ({
         chairDecision: item.chairDecision,
         toolEvidence: item.toolEvidence,
         receipts: item.phase === 'moderation' ? chairReceipts[item.id] : undefined,
+        promptSha256: item.promptSha256,
+        promptRunes: item.promptRunes,
       }))
     }
     return (session.events ?? [])
@@ -1684,6 +1712,8 @@ export const PantheonRecord: React.FC<Props> = ({
         text: event.text || '',
         durationMs: event.durationMs,
         at: event.at,
+        promptSha256: undefined,
+        promptRunes: undefined,
       }))
   }, [participants, session.contributions, session.events, chairReceipts])
 
@@ -2021,6 +2051,7 @@ export const PantheonRecord: React.FC<Props> = ({
           seatUsageLabel(output.usage),
           seatToolEvidenceLabel(output.toolEvidence),
         ].filter(Boolean).join(' · '),
+        mismatchNote: seatMismatchLabel(output.toolEvidence, output.text) || undefined,
         at: output.streaming ? Number.MAX_SAFE_INTEGER : output.at || session.updatedAt,
         round: output.round,
         phaseLabel: PHASE_LABEL[output.phase] || output.phase,
