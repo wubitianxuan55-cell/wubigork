@@ -360,6 +360,12 @@ func tryMarkItDown(ctx context.Context, path string) (string, bool) {
 }
 
 // markitdownCLIConverter 支持的文档扩展名列表。
+//
+// effect 声明（2026-11-08 T0 effect 审计，docs/gaea-t0-effect-audit-2026-11-08.md）：
+// 对 pdf/docx 等二进制文档起 markitdown 子进程做「转 markdown 文本」的只读
+// 转换。动作=子进程+stdout 捕获；位置=目标文件路径经 argv 直传（不经 shell，
+// 无注入面）；无写面、无网络。子进程只读输入文件——与 ReadOnly() 一致，
+// 机械 sweep 的「起子进程」标记经此声明豁免。
 type markitdownCLIConverter struct{}
 
 var markitdownExtensions = map[string]bool{

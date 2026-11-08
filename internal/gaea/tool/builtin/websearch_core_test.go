@@ -21,13 +21,22 @@ var coreStubSearch = map[string]func(ctx context.Context, query string, limit in
 
 // withCoreStubs 注册测试桩引擎并在测试结束清理（注册表与主源类别都是全局，
 // 桩必须随测试退出还原，否则污染 TestSearchEngineRegistry_AllKinds 等全量断言）。
+// 2026-11-08 补漏：coreStubSearch 桩函数表也是全局——各测试覆写
+// core-stub-1 等键后从不还原，测试行为随执行顺序漂移（偶发
+// TestRunSearch_CoverageGateJunk_Degraded 拿到上一个测试的报错桩）。现在
+// 入场快照、退场还原。
 func withCoreStubs(t *testing.T) {
 	t.Helper()
 	saved := make(map[string]SearchEngineFactory, len(searchEngineRegistry))
 	for k, f := range searchEngineRegistry {
 		saved[k] = f
 	}
-	for _, kind := range []string{"core-stub-1", "core-stub-2", "core-stub-3", "core-stub-primary"} {
+	stubKinds := []string{"core-stub-1", "core-stub-2", "core-stub-3", "core-stub-primary"}
+	savedStubs := make(map[string]func(ctx context.Context, query string, limit int) ([]SearchResult, error), len(stubKinds))
+	for _, kind := range stubKinds {
+		savedStubs[kind] = coreStubSearch[kind]
+	}
+	for _, kind := range stubKinds {
 		k := kind
 		RegisterSearchEngine(k, func(cfg SearchEngineConfig) (SearchEngine, error) {
 			return coreStubEngine{kind: k}, nil
@@ -37,6 +46,13 @@ func withCoreStubs(t *testing.T) {
 		for k := range searchEngineRegistry {
 			if _, keep := saved[k]; !keep {
 				delete(searchEngineRegistry, k)
+			}
+		}
+		for _, kind := range stubKinds {
+			if fn := savedStubs[kind]; fn == nil {
+				delete(coreStubSearch, kind)
+			} else {
+				coreStubSearch[kind] = fn
 			}
 		}
 	})
