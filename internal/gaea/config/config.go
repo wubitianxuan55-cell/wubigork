@@ -44,6 +44,9 @@ type Config struct {
 	// 接线进生产）：[tasks] 段。缺省（零值）= 应用层启用空间分账默认值
 	// （work/play 各 1 条并发跑道 + 价格抓取优先于文件索引）。
 	Tasks TasksConfig `toml:"tasks"`
+	// Dag 是办公多文件流水线配置（2026-11-08 众神殿办公板块子代理裁决）：
+	// [dag] 段。零值 = 波内串行缺省（冻结过渡态）+ 节点数缺省上限。
+	Dag DagConfig `toml:"dag"`
 	// 3.0 Step 3d Provider Seam：embed/rerank/vision/markdown_converter 后端选择。
 	// 零值 = 全默认（本地 herdsman 兼容端点 + 各自默认模型），切换后端只改配置。
 	Retrieval         RetrievalConfig         `toml:"retrieval"`
@@ -116,6 +119,20 @@ type TasksConfig struct {
 	// nil/缺省 = 应用层启用默认 {price_fetch=20, price_fetch_all=20,
 	// file_index=10}：用户触发的价格抓取优先于后台文件索引维护。
 	Priority map[string]int `toml:"priority"`
+}
+
+// DagConfig 是办公多文件流水线配置（2026-11-08 众神殿办公板块子代理裁决
+// pan_1794121254456 冻结刀）：[dag] 段。裁决条件逐字落约——0/缺失配置解释
+// 为 1，显式 N 为波宽；回滚使用显式大 N，不引入 -1 哨兵。
+type DagConfig struct {
+	// WaveConcurrency 波内并发额度：0/缺失 = 1（波内串行，冻结过渡态——
+	// 计划期同波写路径闸与逐调用路径包含校验齐备前不开放并行写）；显式
+	// N = 波内 N 路并行。[tasks].max_concurrent 显式 >0 时作为合取上界
+	// （两者取小，审计 P0#10 的闸口同源口径保留）。
+	WaveConcurrency int `toml:"wave_concurrency"`
+	// MaxNodes 单条流水线节点数上限：0/缺失 = 应用层缺省（dag.DefaultMaxNodes）；
+	// 显式 N 覆盖（新建与改图同闸，超出即拒绝规划）。
+	MaxNodes int `toml:"max_nodes"`
 }
 
 // SpaceModeIsOn 报告会话空间分区是否启用（缺省 on；仅显式 "off" 关闭）。

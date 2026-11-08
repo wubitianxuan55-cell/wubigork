@@ -133,6 +133,46 @@ func newEphemeralSubagentID() string {
 	return fmt.Sprintf("sa_ephemeral_%d_%d", time.Now().UnixNano(), ephemeralSubagentSeq.Add(1))
 }
 
+// subagentReadOnlyKey ctx 缝（2026-11-08 众神殿办公板块子代理裁决刀3）：
+// readonly=true 的 task 调用经此把只读形态带到 runSubSession（ActiveSchemas
+// 与受限注册表同源）。走 ctx 而非 TaskTool 字段=并行调用互不串。
+type subagentReadOnlyKey struct{}
+
+func withSubagentReadOnly(ctx context.Context) context.Context {
+	return context.WithValue(ctx, subagentReadOnlyKey{}, true)
+}
+
+func subagentReadOnlyFromContext(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	v, _ := ctx.Value(subagentReadOnlyKey{}).(bool)
+	return v
+}
+
+// subagentWriteDenylist 已知写工具硬拒绝名单：ReadOnly() 是工具自报属性，
+// 误标写工具仍可能越权（裁决 pan_1794117515203 风险条）——名单优先于自报，
+// 命中即拒，不看 ReadOnly()。跨 harness 常见写面别名一并收录（PersistWrite
+// 标记族已在 FilterRegistry 无条件剔除，与本名单正交）。
+var subagentWriteDenylist = map[string]bool{
+	"bash":          true,
+	"write":         true,
+	"write_file":    true,
+	"writefile":     true,
+	"edit":          true,
+	"edit_file":     true,
+	"apply_patch":   true,
+	"multi_edit":    true,
+	"str_replace":   true,
+	"notebook_edit": true,
+	"replace":       true,
+	"move":          true,
+	"delete":        true,
+	"remove":        true,
+	"mkdir":         true,
+	"rmdir":         true,
+}
+
 var subagentMetaTools = []string{
 	"task",
 	"run_skill",
@@ -296,6 +336,7 @@ func (t *TaskTool) Schema() json.RawMessage {
   "description":{"type":"string","description":"Short label for the sub-task (3-7 words). Surfaced in the dispatch line so the user sees what's running."},
   "write_paths":{"type":"array","items":{"type":"string"},"description":"Optional literal file/directory paths this writer may modify. Prefer file paths when known: a directory overlaps every path beneath it. Tasks with overlapping write_paths are rejected or serialized; disjoint scopes run in parallel. Globs and path escapes are rejected. Declaration is coordination metadata for parallel dispatch, not a security boundary."},
   "tools":{"type":"array","items":{"type":"string"},"description":"Optional tool whitelist. Subagent/skill meta-tools are still excluded so delegation stays one layer deep."},
+  "readonly":{"type":"boolean","description":"Run the sub-agent with a read-only tool scope: only tools that self-report read-only are inherited (known writers stay hard-denied even if mislabeled) and the model-facing tool list matches that scope. Use for exploration/verification tasks that must not mutate anything."},
   "max_steps":{"type":"integer","description":"Optional cap on tool-call rounds. Defaults to half the parent's cap (min 5).","minimum":1},
   "run_in_background":{"type":"boolean","description":"Run the sub-agent asynchronously: returns a job id immediately and keeps working across turns. Collect its final answer with wait, and you'll be notified when it finishes. Use for long, independent sub-tasks you don't need to block on right now."},
   "output_schema":{"type":"object","description":"Optional JSON Schema the sub-agent MUST return its result in. The schema is injected into the sub-agent's instructions, and if its final answer is not valid JSON the sub-agent is corrected in-session (bounded retries) before anything reaches you. Valid results are returned verbatim as JSON. Use when you need structured data from the sub-agent."},
@@ -322,7 +363,7 @@ func (t *TaskTool) ReadOnly() bool { return false }
 // (inheritsParentContext=true) 同款；SA-D 被拒操作反重试指引：SUBAGENT_
 // DELEGATION_CONTEXT 纪律「范围 start 时定死，勿重试被拒操作，声明限制」）。
 func (t *TaskTool) CompactDescription() string {
-	s := fmt.Sprintf("派发隔离子代理执行子任务(可设置output_schema获取结构化JSON)。同一消息里派发多个独立task即并行执行,并发上限%d路、超限自动排队等槽;要并行写文件的任务各自声明write_paths(字面路径,目录含其下全部,glob被拒)且互不重叠,重叠即拒绝;严格有序的步骤写进同一prompt或同一次调用;continue_from续跑的子代理已带原任务与transcript,prompt只补新增部分;工具或路径被拒属权限范围定死,勿重试同一操作,在答复里声明限制", SubagentMaxParallel())
+	s := fmt.Sprintf("派发隔离子代理执行子任务(可设置output_schema获取结构化JSON)。同一消息里派发多个独立task即并行执行,并发上限%d路、超限自动排队等槽;要并行写文件的任务各自声明write_paths(字面路径,目录含其下全部,glob被拒)且互不重叠,重叠即拒绝;readonly=true只读子代理仅继承自报只读的工具(已知写工具硬拒),用于探索/取证/核验类不得改动的子任务;严格有序的步骤写进同一prompt或同一次调用;continue_from续跑的子代理已带原任务与transcript,prompt只补新增部分;工具或路径被拒属权限范围定死,勿重试同一操作,在答复里声明限制", SubagentMaxParallel())
 	// 按调用路由的「发现」面（dsh model-selection 蒸馏 P2：授权路由动态
 	// 列给模型，零新增发现工具）。清单空=路由关闭，参数给了一律拒绝。
 	if routes := SubagentRoutes(); len(routes) > 0 {
@@ -331,7 +372,7 @@ func (t *TaskTool) CompactDescription() string {
 	return s
 }
 func (t *TaskTool) CompactSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"prompt":{"type":"string"},"description":{"type":"string"},"write_paths":{"type":"array","items":{"type":"string"}},"tools":{"type":"array","items":{"type":"string"}},"max_steps":{"type":"integer"},"run_in_background":{"type":"boolean"},"output_schema":{"type":"object"},"retry_until":{"type":"object","properties":{"check":{"type":"string"},"max_retries":{"type":"integer"}},"required":["check"]},"continue_from":{"type":"string"},"fork":{"type":"boolean"},"engine":{"type":"string"},"model":{"type":"string"}},"required":["prompt"]}`)
+	return json.RawMessage(`{"type":"object","properties":{"prompt":{"type":"string"},"description":{"type":"string"},"write_paths":{"type":"array","items":{"type":"string"}},"tools":{"type":"array","items":{"type":"string"}},"readonly":{"type":"boolean"},"max_steps":{"type":"integer"},"run_in_background":{"type":"boolean"},"output_schema":{"type":"object"},"retry_until":{"type":"object","properties":{"check":{"type":"string"},"max_retries":{"type":"integer"}},"required":["check"]},"continue_from":{"type":"string"},"fork":{"type":"boolean"},"engine":{"type":"string"},"model":{"type":"string"}},"required":["prompt"]}`)
 }
 
 // Execute 满足 tool.Tool 接口（无父上下文的直接调用方——技能/测试路径）。
@@ -354,6 +395,7 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 		ContinueFrom    string            `json:"continue_from,omitempty"`
 		Fork            bool              `json:"fork,omitempty"`
 		WritePaths      []string          `json:"write_paths,omitempty"`
+		Readonly        bool              `json:"readonly,omitempty"`
 		Engine          string            `json:"engine,omitempty"`
 		Model           string            `json:"model,omitempty"`
 	}
@@ -362,6 +404,12 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 	}
 	if p.Prompt == "" {
 		return "", fmt.Errorf("prompt is required")
+	}
+	// 只读形态（2026-11-08 众神殿裁决刀3）：经 ctx 带到 runSubSession——
+	// buildSubReg 收窄注册表 + ActiveSchemas 与受限集同源。默认 false =
+	// 既有行为零变化。
+	if p.Readonly {
+		ctx = withSubagentReadOnly(ctx)
 	}
 	// 模型路由（P2，dsh model-selection 蒸馏 2026-11）：engine/model 须同时
 	// 给（上游「supply provider and model together」）；授权清单逐字核验，
@@ -422,7 +470,7 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 		}
 	}
 
-	subReg, err := t.buildSubReg(p.Tools)
+	subReg, err := t.buildSubReg(p.Tools, p.Readonly)
 	if err != nil {
 		return "", err
 	}
@@ -559,14 +607,14 @@ func (t *TaskTool) runForeground(ctx context.Context, run *SubagentRun, fn func(
 // mustSubReg 是 buildSubReg 的 nil 白名单形态（names 空 ⇒ 恒无未知名，
 // 不可能失败）：RunNew/runFollowUp 等宿主路径用，省一处不可达的 err 分支。
 func mustSubReg(t *TaskTool, names []string) *tool.Registry {
-	reg, err := t.buildSubReg(names)
+	reg, err := t.buildSubReg(names, false)
 	if err != nil {
 		panic(fmt.Sprintf("task: nil whitelist must build cleanly: %v", err))
 	}
 	return reg
 }
 
-func (t *TaskTool) buildSubReg(names []string) (*tool.Registry, error) {
+func (t *TaskTool) buildSubReg(names []string, readOnly bool) (*tool.Registry, error) {
 	// dsh toolFilter 的 loud unknown-name 纪律（2026-10 蒸馏 P0-B）：模型给的
 	// 白名单错名此前被 FilterRegistry 静默跳过——子代理无声少工具、父模型
 	// 无从得知。改为显式报错列出，模型下一回合可自行纠正。
@@ -574,11 +622,31 @@ func (t *TaskTool) buildSubReg(names []string) (*tool.Registry, error) {
 		return nil, fmt.Errorf("unknown tools in sub-agent whitelist: %s (check the names; excluded meta-tools like task/run_skill are silently denied by design)", strings.Join(unknown, ", "))
 	}
 	reg := FilterRegistry(t.parentReg, names, SubagentMetaTools()...)
+	// 只读形态（2026-11-08 众神殿裁决刀3）：注册表交集收窄到自报只读的工具，
+	// 再过已知写工具硬名单（名单优先于自报）。运行时拒绝=写工具不在注册表
+	// （模型面同步收窄见 runSubSession 的 ActiveSchemas 分支）。
+	if readOnly {
+		reg = restrictReadOnlyRegistry(reg)
+	}
 	// A11：完成裁决工具常驻子代理注册表（不占白名单名额；白名单列它也不重复）。
 	if _, ok := reg.Get(completeSubtaskName); !ok {
 		reg.Add(completeSubtaskTool{})
 	}
 	return reg, nil
+}
+
+// restrictReadOnlyRegistry 只读收窄：保留 ReadOnly() 自报为真且不在硬名单的
+// 工具。complete_subtask（自报只读、不在名单）天然存活。
+func restrictReadOnlyRegistry(reg *tool.Registry) *tool.Registry {
+	out := tool.NewRegistry()
+	for _, name := range reg.Names() {
+		tl, ok := reg.Get(name)
+		if !ok || subagentWriteDenylist[name] || !tl.ReadOnly() {
+			continue
+		}
+		out.Add(tl)
+	}
+	return out
 }
 
 // UnknownToolNames 返回清单里父注册表**完全不存在的**工具名（排除清单按设
@@ -898,6 +966,14 @@ func (t *TaskTool) runSubSession(ctx context.Context, provOverride provider.LLMP
 	}
 
 	var subUsage provider.Usage
+	// V10.36: ActiveSchemas 发父注册表全量给 API 对齐工具 JSON（DeepSeek 父→子
+	// 前缀缓存命中）；只读子代理（2026-11-08 众神殿裁决刀3）改为与受限注册表
+	// 同源——否则「看得见但调用即拒」的纠偏循环（裁决风险条明示）；放弃父前
+	// 缀缓存对齐=按调用 opt-in 的代价，A/B 评测量化。
+	activeSchemas := t.parentReg.Schemas()
+	if subagentReadOnlyFromContext(ctx) {
+		activeSchemas = subReg.Schemas()
+	}
 	subOpts := Options{
 		MaxSteps:      maxSteps,
 		Temperature:   t.temperature,
@@ -907,7 +983,7 @@ func (t *TaskTool) runSubSession(ctx context.Context, provOverride provider.LLMP
 		AccessPolicy:  t.access,
 		ContextWindow: subCtxWin,
 		Compaction:    CompactionConfig{ArchiveDir: t.archiveDir},
-		ActiveSchemas: t.parentReg.Schemas(), // V10.36: align tools JSON with parent for cache
+		ActiveSchemas: activeSchemas,
 		JournalDir:    subJournal,
 		SessionID:     subagentRunRef(run),
 		Spill:         t.spill, // v4.379 泄洪随父配置：子代理大结果同样可取回

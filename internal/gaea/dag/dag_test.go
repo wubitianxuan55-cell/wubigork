@@ -1,6 +1,7 @@
 package dag
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -247,5 +248,60 @@ func TestDagNewIDFormatPin(t *testing.T) {
 		if !pin.MatchString(id) {
 			t.Fatalf("DAG run ID 格式漂移: %q（want dag_yyyymmdd_hhmmss_seq）", id)
 		}
+	}
+}
+
+// TestValidateCreateNodeCountGate 2026-11-08 众神殿裁决刀1：新建规划节点数闸
+// ——单节点拒绝（B 路线只承接 ≥2 可独立验收节点）、超上限拒绝、显式上限覆盖。
+func TestValidateCreateNodeCountGate(t *testing.T) {
+	one := []Node{{ID: "a", Title: "t", Prompt: "p"}}
+	two := chainNodes()
+	if err := ValidateCreate("出月报", one, 0); err == nil {
+		t.Error("新建单节点应拒绝（单文件任务归主代理直做）")
+	}
+	if err := ValidateCreate("出月报", two, 0); err != nil {
+		t.Errorf("双节点链应放行: %v", err)
+	}
+	if err := ValidateCreate("出月报", two, 1); err == nil {
+		t.Error("显式上限 1 < 节点数 2 应拒绝")
+	}
+	many := make([]Node, 0, 13)
+	for i := 0; i < 13; i++ {
+		many = append(many, Node{ID: fmt.Sprintf("n%02d", i), Title: "t", Prompt: "p"})
+	}
+	if err := ValidateCreate("出月报", many, 0); err == nil {
+		t.Error("缺省上限 12 下 13 节点应拒绝")
+	}
+	if err := ValidateCreate("出月报", many, 13); err != nil {
+		t.Errorf("显式上限 13 应放行: %v", err)
+	}
+}
+
+// TestApplyEditShrinkGuard 2026-11-08 众神殿裁决刀1 不对称保护：原多节点计划
+// 改图缩成单节点必须拒绝（防改图绕过新建 ≥2 闸）；存量单节点计划仍允许原地
+// 改图（存量兼容）。
+func TestApplyEditShrinkGuard(t *testing.T) {
+	multi := Run{
+		ID:   "dag_shrink",
+		Goal: "出月度报告",
+		Nodes: []Node{
+			{ID: "read", Title: "读报表", Prompt: "读取三份月度 xlsx", Status: StatusAccepted},
+			{ID: "report", Title: "出报告", Prompt: "嵌图表出报告 docx", DependsOn: []string{"read"}},
+		},
+	}
+	single := []Node{{ID: "read", Title: "读报表", Prompt: "读取三份月度 xlsx"}}
+	if _, _, err := ApplyEdit(multi, "出月度报告", single); err == nil {
+		t.Error("多节点缩成单节点应拒绝")
+	}
+	// 存量单节点计划：改图放行（结构合法即可）。
+	legacy := Run{ID: "dag_legacy", Goal: "出月度报告", Nodes: []Node{
+		{ID: "read", Title: "读报表", Prompt: "读取三份月度 xlsx"},
+	}}
+	out, _, err := ApplyEdit(legacy, "改口径出报告", single)
+	if err != nil {
+		t.Errorf("存量单节点改图应放行: %v", err)
+	}
+	if out.Goal != "改口径出报告" {
+		t.Errorf("存量单节点改图 goal 未更新: %q", out.Goal)
 	}
 }

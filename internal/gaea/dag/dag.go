@@ -61,6 +61,10 @@ type Node struct {
 	// Approved=人已批准本次执行（approve 置位，改图变更节点归零=新指令重新批）。
 	Risk     string `json:"risk,omitempty"`
 	Approved bool   `json:"approved,omitempty"`
+	// WritePaths 节点写作用域声明（2026-11-08 众神殿裁决刀2，协调元数据非
+	// 安全边界）：工作区相对路径，目录含其下全部。同波已声明路径两两重叠在
+	// 计划期拒绝；缺失或无法判断（glob/逃逸段）→ 该波执行期降宽串行。
+	WritePaths []string `json:"writePaths,omitempty"`
 }
 
 // Run 一条流水线。
@@ -92,6 +96,9 @@ func NewID() string {
 
 // Validate 规划校验（dag_plan 落盘前必过）：goal/节点非空、id 唯一、依赖在场、无环。
 // fail-closed：拒绝即报错，不截断不静默。
+// 注意：本函数不做节点数闸（B 路线的闸只在新建/改图分支——全局加闸会破坏
+// 存量单节点计划的改图兼容，2026-11-08 众神殿裁决风险条明示），见 ValidateCreate
+// 与 ApplyEdit 的缩单闸。
 func Validate(goal string, nodes []Node) error {
 	if strings.TrimSpace(goal) == "" {
 		return fmt.Errorf("goal 不能为空")
@@ -129,6 +136,27 @@ func Validate(goal string, nodes []Node) error {
 		return err
 	}
 	return nil
+}
+
+// DefaultMaxNodes 新建流水线的节点数缺省上限（2026-11-08 众神殿办公板块
+// 子代理裁决刀1：新建 DAG 节点数闸；[dag].max_nodes 显式 N 覆盖）。
+const DefaultMaxNodes = 12
+
+// ValidateCreate 新建规划校验（dag_plan 新建分支必过；基础 Validate 之上加
+// 节点数闸）：单节点拒绝（B 路线只承接可明确拆分、≥2 个可独立验收节点的多
+// 文件流水线，单文档任务走根代理直做=A 默认路线）、超上限拒绝。maxNodes
+// <=0 按缺省上限。
+func ValidateCreate(goal string, nodes []Node, maxNodes int) error {
+	if len(nodes) < 2 {
+		return fmt.Errorf("流水线至少规划 2 个可独立验收的节点（单文件任务请直接交给主代理完成，不必走流水线）")
+	}
+	if maxNodes <= 0 {
+		maxNodes = DefaultMaxNodes
+	}
+	if len(nodes) > maxNodes {
+		return fmt.Errorf("流水线节点数 %d 超过上限 %d（请拆分目标或合并同源节点）", len(nodes), maxNodes)
+	}
+	return Validate(goal, nodes)
 }
 
 // Order 把待跑节点按依赖分波（波内顺序执行=产物归因窗口单调不重叠的首刀口径）。
@@ -259,6 +287,12 @@ func ApplyEdit(r Run, goal string, nodes []Node) (Run, EditReport, error) {
 	if d := Derived(r); d == DerivedRunning {
 		return Run{}, EditReport{}, fmt.Errorf("流水线运行中，先终止再改图")
 	}
+	// 缩单闸（2026-11-08 众神殿裁决刀1，不对称保护）：原多节点计划改图缩成
+	// 单节点必须拒绝（防「改图绕过新建 ≥2 节点闸」的洞）；存量单节点计划
+	// 仍允许原地改图（存量兼容，风险条明示不许全局加闸破坏它）。
+	if len(r.Nodes) > 1 && len(nodes) < 2 {
+		return Run{}, EditReport{}, fmt.Errorf("原流水线有 %d 个节点，改图不得缩成单节点（单文件任务请直接交给主代理完成）", len(r.Nodes))
+	}
 	if err := Validate(goal, nodes); err != nil {
 		return Run{}, EditReport{}, err
 	}
@@ -271,7 +305,8 @@ func ApplyEdit(r Run, goal string, nodes []Node) (Run, EditReport, error) {
 	for _, n := range nodes {
 		prev, existed := old[n.ID]
 		sameShape := existed &&
-			prev.Title == n.Title && prev.Prompt == n.Prompt && prev.Risk == n.Risk && sameDeps(prev.DependsOn, n.DependsOn)
+			prev.Title == n.Title && prev.Prompt == n.Prompt && prev.Risk == n.Risk &&
+			sameDeps(prev.DependsOn, n.DependsOn) && sameDeps(prev.WritePaths, n.WritePaths)
 		if sameShape {
 			reconciled = append(reconciled, prev)
 			rep.Kept++
@@ -286,12 +321,13 @@ func ApplyEdit(r Run, goal string, nodes []Node) (Run, EditReport, error) {
 			rep.Updated++ // 新增同计入 Updated（回 pending 的都算「改」）
 		}
 		reconciled = append(reconciled, Node{
-			ID:        n.ID,
-			Title:     n.Title,
-			Prompt:    n.Prompt,
-			DependsOn: n.DependsOn,
-			Risk:      n.Risk,
-			Status:    StatusPending,
+			ID:         n.ID,
+			Title:      n.Title,
+			Prompt:     n.Prompt,
+			DependsOn:  n.DependsOn,
+			Risk:       n.Risk,
+			WritePaths: n.WritePaths,
+			Status:     StatusPending,
 		})
 	}
 	rep.Removed = len(r.Nodes) - (rep.Kept + rep.Updated)

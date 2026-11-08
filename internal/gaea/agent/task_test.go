@@ -111,7 +111,7 @@ func TestTaskToolFiltersTools(t *testing.T) {
 		t.Errorf("aligned request tools = %v, want the full parent registry", got)
 	}
 	exec := map[string]bool{}
-	subReg, err := task.buildSubReg([]string{"read_file", "task", "write_file", "run_skill", "research"})
+	subReg, err := task.buildSubReg([]string{"read_file", "task", "write_file", "run_skill", "research"}, false)
 	if err != nil {
 		t.Fatalf("buildSubReg: %v", err)
 	}
@@ -157,7 +157,7 @@ func TestTaskToolDefaultsToParentToolsWithoutMetaTools(t *testing.T) {
 		t.Errorf("aligned request tools = %v, want the full parent registry", got)
 	}
 	exec := map[string]bool{}
-	subReg, err := task.buildSubReg(nil)
+	subReg, err := task.buildSubReg(nil, false)
 	if err != nil {
 		t.Fatalf("buildSubReg: %v", err)
 	}

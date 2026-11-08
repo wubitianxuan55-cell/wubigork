@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -467,17 +468,25 @@ func TestDagTemplateFlow(t *testing.T) {
 	}
 }
 
-// TestDagParallelWaveAndSessionAttribution 波内并行（v4.221）：独立根节点同波
-// 并发起跑（互等信号证明重叠执行），产物按会话归因（SessionID=ref）互不串——
-// 并发窗口重叠下 a/b 的证据卡各归各节点。
+// TestDagParallelWaveAndSessionAttribution 波内并行（v4.221 语义；2026-11-08
+// 众神殿裁决冻结后须显式 [dag].wave_concurrency 放宽——隐式默认并行已不复
+// 存在，本测即「显式 N 恢复并行」的回归证据）：独立根节点同波并发起跑（互等
+// 信号证明重叠执行），产物按会话归因（SessionID=ref）互不串——并发窗口重叠下
+// a/b 的证据卡各归各节点。
 func TestDagParallelWaveAndSessionAttribution(t *testing.T) {
 	journalDir := injectDagEnv(t)
+	// 显式波宽 2：独立开场两节点并行（裁决冻结刀的显式 N 面）。
+	config.SetLoader(func() (*config.Config, error) {
+		return &config.Config{Dag: config.DagConfig{WaveConcurrency: 2}}, nil
+	})
+	defer config.SetLoader(nil)
 	tool := dagPlanTool{dir: filepath.Join(".", ".gaea", "work", "dag")}
 	args := map[string]any{
 		"goal": "并行读两份报表再汇总",
 		"nodes": []map[string]any{
-			{"id": "a", "title": "读报表A", "prompt": "解析报表A数据"},
-			{"id": "b", "title": "读报表B", "prompt": "解析报表B数据"},
+			// 写路径声明互不重叠（2026-11-08 裁决刀2：声明齐全+显式波宽才并行）。
+			{"id": "a", "title": "读报表A", "prompt": "解析报表A数据", "write_paths": []string{"docs/a.xlsx"}},
+			{"id": "b", "title": "读报表B", "prompt": "解析报表B数据", "write_paths": []string{"docs/b.xlsx"}},
 			{"id": "c", "title": "汇总", "prompt": "汇总两份结果", "depends_on": []string{"a", "b"}},
 		},
 	}
@@ -637,15 +646,71 @@ func TestDagNodePanicMarkedFailed(t *testing.T) {
 	}
 }
 
+// TestDagWaveSerialByDefault 2026-11-08 众神殿裁决冻结刀：[dag].wave_concurrency
+// 0/缺失恒解释为 1——同波独立根节点串行执行（第二节点须待第一节点收跑才起跑）。
+// v4.221 的「缺省不设限波内并行」已废除；并行须显式配置（显式 N 面由
+// TestDagParallelWaveAndSessionAttribution 锁定）。
+func TestDagWaveSerialByDefault(t *testing.T) {
+	injectDagEnv(t)
+	// 不 stub config = 真实零值路径（config.Load 读不到 gaea.toml 时返回零值
+	// 配置），恰好覆盖「缺失/0 → 1」的裁决条件面。
+	tool := dagPlanTool{dir: filepath.Join(".", ".gaea", "work", "dag")}
+	args := map[string]any{
+		"goal": "缺省波宽下两独立节点必须串行",
+		"nodes": []map[string]any{
+			{"id": "a", "title": "任务A", "prompt": "先跑的任务A"},
+			{"id": "b", "title": "任务B", "prompt": "后跑的任务B"},
+		},
+	}
+	b, _ := json.Marshal(args)
+	if _, err := tool.Execute(context.Background(), b); err != nil {
+		t.Fatalf("dag_plan: %v", err)
+	}
+	runs, _ := (&App{}).dagStore().List()
+	id := runs[0].ID
+
+	// CAS 定角色（goroutine 调度不保证 a/b 顺序）：第一跑持 300ms，第二跑
+	// 在第一跑收跑前起跑即违约。
+	var first atomic.Bool
+	firstFinished := make(chan struct{})
+	SetDagRunnerForTest(func(ctx context.Context, prompt string, emit func(ref, text string)) (string, string, error) {
+		if first.CompareAndSwap(false, true) {
+			time.Sleep(300 * time.Millisecond)
+			close(firstFinished)
+			return "ok", "sa_first", nil
+		}
+		select {
+		case <-firstFinished:
+		case <-time.After(500 * time.Millisecond):
+			return "", "sa_second", errors.New("缺省波宽下第二节点在第一节点结束前起跑（缺省串行未生效）")
+		}
+		return "ok", "sa_second", nil
+	})
+
+	a := &App{}
+	if _, err := a.GaeaDagRun(id); err != nil {
+		t.Fatalf("GaeaDagRun: %v", err)
+	}
+	r := waitDagDone(t, id)
+	for _, nid := range []string{"a", "b"} {
+		if n := dagNode(t, r, nid); n.Status != dag.StatusDone {
+			t.Fatalf("节点 %s 状态错误: status=%s error=%s", nid, n.Status, n.Error)
+		}
+	}
+}
+
 // TestDagWaveConcurrencyCap 审计 P0#10（源 AP4-04）：[tasks].max_concurrent
-// 显式 >0 时波内节点按同一上限排队——额度 1 时同波两节点不得重叠执行。
-// 缺省不设限的真并发语义由 TestDagParallelWaveAndSessionAttribution 锁定。
+// 显式 >0 时作为波内并发的合取上界（与 [dag].wave_concurrency 取小）——显式
+// 波宽 8 + 额度 1 时同波两节点不得重叠执行。
 func TestDagWaveConcurrencyCap(t *testing.T) {
 	injectDagEnv(t)
-	// dagWaveSemaphore 经 config.Load() 读 [tasks].max_concurrent（与任务
-	// 调度器同源）；按既有 SetLoader 先例注入显式额度 1。
+	// dagWaveWidth 经 config.Load() 读 [dag].wave_concurrency 与
+	// [tasks].max_concurrent 取小；显式波宽 8 + 额度 1 → 有效 1。
 	config.SetLoader(func() (*config.Config, error) {
-		return &config.Config{Tasks: config.TasksConfig{MaxConcurrent: 1}}, nil
+		return &config.Config{
+			Dag:   config.DagConfig{WaveConcurrency: 8},
+			Tasks: config.TasksConfig{MaxConcurrent: 1},
+		}, nil
 	})
 	defer config.SetLoader(nil)
 	tool := dagPlanTool{dir: filepath.Join(".", ".gaea", "work", "dag")}
@@ -692,4 +757,204 @@ func TestDagWaveConcurrencyCap(t *testing.T) {
 			t.Fatalf("节点 %s 状态错误: status=%s error=%s", nid, n.Status, n.Error)
 		}
 	}
+}
+
+// TestDagPlanNodeCountGate 2026-11-08 众神殿裁决刀1 无模型负向测试：直接调
+// dagPlanTool.Execute——新建单节点必须失败（schema minItems:2 只是模型面提示，
+// 本地不校验 schema，真闸在 Go 侧）、超上限失败、改图缩单节点失败、存量单
+// 节点计划改图放行。
+func TestDagPlanNodeCountGate(t *testing.T) {
+	injectDagEnv(t)
+	tool := dagPlanTool{dir: filepath.Join(".", ".gaea", "work", "dag")}
+	node := func(id string) map[string]any {
+		return map[string]any{"id": id, "title": "任务" + id, "prompt": "加工 " + id}
+	}
+	plan := func(t *testing.T, args map[string]any) (string, error) {
+		t.Helper()
+		b, _ := json.Marshal(args)
+		return tool.Execute(context.Background(), b)
+	}
+
+	// 新建单节点 → 拒绝。
+	if _, err := plan(t, map[string]any{"goal": "单节点", "nodes": []map[string]any{node("a")}}); err == nil {
+		t.Fatal("新建单节点 dag_plan 应拒绝")
+	}
+	// 超上限（缺省 12）→ 拒绝。
+	many := make([]map[string]any, 0, 13)
+	for i := 0; i < 13; i++ {
+		many = append(many, node(fmt.Sprintf("n%02d", i)))
+	}
+	if _, err := plan(t, map[string]any{"goal": "超上限", "nodes": many}); err == nil {
+		t.Fatal("13 节点超缺省上限应拒绝")
+	}
+	// 双节点 → 放行。
+	if _, err := plan(t, map[string]any{"goal": "双节点", "nodes": []map[string]any{node("a"), node("b")}}); err != nil {
+		t.Fatalf("双节点应放行: %v", err)
+	}
+	runs, _ := (&App{}).dagStore().List()
+	id := runs[0].ID
+
+	// 改图缩成单节点 → 拒绝（不对称保护）。
+	if _, err := plan(t, map[string]any{"goal": "双节点", "run_id": id, "nodes": []map[string]any{node("a")}}); err == nil {
+		t.Fatal("多节点缩成单节点改图应拒绝")
+	}
+	// 显式上限覆盖：stub max_nodes=1 后双节点新建也拒。
+	config.SetLoader(func() (*config.Config, error) {
+		return &config.Config{Dag: config.DagConfig{MaxNodes: 1}}, nil
+	})
+	if _, err := plan(t, map[string]any{"goal": "双节点x", "nodes": []map[string]any{node("a"), node("b")}}); err == nil {
+		t.Fatal("显式 max_nodes=1 下双节点应拒绝")
+	}
+	config.SetLoader(nil)
+	// 存量单节点计划改图 → 放行（直接落一条单节点 run 绕过新建闸）。
+	r := dag.Run{ID: dag.NewID(), Goal: "存量单节点", Nodes: []dag.Node{
+		{ID: "a", Title: "任务a", Prompt: "加工 a", Status: dag.StatusPending},
+	}}
+	if err := (&App{}).dagStore().SaveNew(&r); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := plan(t, map[string]any{"goal": "存量改图", "run_id": r.ID, "nodes": []map[string]any{node("a")}}); err != nil {
+		t.Fatalf("存量单节点改图应放行: %v", err)
+	}
+}
+
+// TestDagPlanWritePathGate 2026-11-08 众神殿裁决刀2 无模型负向测试：同波
+// （无依赖关系）节点声明写路径两两重叠 → 计划期拒绝（点名冲突对）；上下游
+// （依赖分波）同路径豁免；改图分支同闸。
+func TestDagPlanWritePathGate(t *testing.T) {
+	injectDagEnv(t)
+	tool := dagPlanTool{dir: filepath.Join(".", ".gaea", "work", "dag")}
+	plan := func(t *testing.T, args map[string]any) (string, error) {
+		t.Helper()
+		b, _ := json.Marshal(args)
+		return tool.Execute(context.Background(), b)
+	}
+	node := func(id, out string, deps ...string) map[string]any {
+		m := map[string]any{"id": id, "title": "任务" + id, "prompt": "加工 " + id, "write_paths": []string{out}}
+		if len(deps) > 0 {
+			m["depends_on"] = deps
+		}
+		return m
+	}
+
+	// 同波重叠 → 拒绝。
+	_, err := plan(t, map[string]any{"goal": "重叠", "nodes": []map[string]any{
+		node("a", "docs/out.docx"), node("b", "docs"),
+	}})
+	if err == nil || !strings.Contains(err.Error(), "同波写路径重叠") {
+		t.Fatalf("同波重叠应拒绝并点名: %v", err)
+	}
+	// 上下游同路径 → 豁免。
+	if _, err := plan(t, map[string]any{"goal": "上下游", "nodes": []map[string]any{
+		node("a", "docs/mid.xlsx"), node("b", "docs/mid.xlsx", "a"),
+	}}); err != nil {
+		t.Fatalf("上下游同路径应豁免: %v", err)
+	}
+	runs, _ := (&App{}).dagStore().List()
+	id := runs[0].ID
+	// 改图分支同闸：改成同波重叠 → 拒绝。
+	_, err = plan(t, map[string]any{"goal": "上下游", "run_id": id, "nodes": []map[string]any{
+		node("a", "docs/x.docx"), node("b", "docs"),
+	}})
+	if err == nil || !strings.Contains(err.Error(), "同波写路径重叠") {
+		t.Fatalf("改图同波重叠应拒绝: %v", err)
+	}
+}
+
+// TestDagWaveUndeclaredForcesSerial 2026-11-08 众神殿裁决刀2 执行面：显式波宽
+// 8 下，波内任一节点未声明写路径 → 该波降宽 1（缺失或无法判断默认串行）。
+func TestDagWaveUndeclaredForcesSerial(t *testing.T) {
+	injectDagEnv(t)
+	config.SetLoader(func() (*config.Config, error) {
+		return &config.Config{Dag: config.DagConfig{WaveConcurrency: 8}}, nil
+	})
+	defer config.SetLoader(nil)
+	tool := dagPlanTool{dir: filepath.Join(".", ".gaea", "work", "dag")}
+	b, _ := json.Marshal(map[string]any{
+		"goal": "未声明节点强制串行",
+		"nodes": []map[string]any{
+			{"id": "a", "title": "任务A", "prompt": "先跑的任务A", "write_paths": []string{"a.docx"}},
+			{"id": "b", "title": "任务B", "prompt": "后跑的任务B"}, // 未声明 → 降宽
+		},
+	})
+	if _, err := tool.Execute(context.Background(), b); err != nil {
+		t.Fatalf("dag_plan: %v", err)
+	}
+	runs, _ := (&App{}).dagStore().List()
+	id := runs[0].ID
+
+	var first atomic.Bool
+	firstFinished := make(chan struct{})
+	SetDagRunnerForTest(func(ctx context.Context, prompt string, emit func(ref, text string)) (string, string, error) {
+		if first.CompareAndSwap(false, true) {
+			time.Sleep(300 * time.Millisecond)
+			close(firstFinished)
+			return "ok", "sa_first", nil
+		}
+		select {
+		case <-firstFinished:
+		case <-time.After(500 * time.Millisecond):
+			return "", "sa_second", errors.New("显式波宽 8 下未声明节点未降宽串行")
+		}
+		return "ok", "sa_second", nil
+	})
+	a := &App{}
+	if _, err := a.GaeaDagRun(id); err != nil {
+		t.Fatalf("GaeaDagRun: %v", err)
+	}
+	r := waitDagDone(t, id)
+	for _, nid := range []string{"a", "b"} {
+		if n := dagNode(t, r, nid); n.Status != dag.StatusDone {
+			t.Fatalf("节点 %s 状态错误: status=%s error=%s", nid, n.Status, n.Error)
+		}
+	}
+}
+
+// TestDagWaveDeclaredRunsParallel 2026-11-08 众神殿裁决刀2 执行面：显式波宽
+// 8 且同波节点声明互不重叠的写路径 → 真并行（互等信号证明重叠执行）。
+func TestDagWaveDeclaredRunsParallel(t *testing.T) {
+	injectDagEnv(t)
+	config.SetLoader(func() (*config.Config, error) {
+		return &config.Config{Dag: config.DagConfig{WaveConcurrency: 8}}, nil
+	})
+	defer config.SetLoader(nil)
+	tool := dagPlanTool{dir: filepath.Join(".", ".gaea", "work", "dag")}
+	b, _ := json.Marshal(map[string]any{
+		"goal": "声明齐全即可并行",
+		"nodes": []map[string]any{
+			{"id": "a", "title": "任务A", "prompt": "跑A", "write_paths": []string{"out/a.docx"}},
+			{"id": "b", "title": "任务B", "prompt": "跑B", "write_paths": []string{"out/b.docx"}},
+		},
+	})
+	if _, err := tool.Execute(context.Background(), b); err != nil {
+		t.Fatalf("dag_plan: %v", err)
+	}
+	runs, _ := (&App{}).dagStore().List()
+	id := runs[0].ID
+
+	startedA := make(chan struct{}, 1)
+	startedB := make(chan struct{}, 1)
+	SetDagRunnerForTest(func(ctx context.Context, prompt string, emit func(ref, text string)) (string, string, error) {
+		var peer chan struct{}
+		if strings.Contains(prompt, "A") {
+			peer = startedA
+		} else {
+			peer = startedB
+		}
+		peer <- struct{}{}
+		// 等对端起跑=真并发。
+		done := make(chan struct{})
+		go func() { <-startedA; <-startedB; close(done) }()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			return "", "sa_x", errors.New("声明齐全的波未并行执行")
+		}
+		return "ok", "sa_x", nil
+	})
+	a := &App{}
+	if _, err := a.GaeaDagRun(id); err != nil {
+		t.Fatalf("GaeaDagRun: %v", err)
+	}
+	waitDagDone(t, id)
 }

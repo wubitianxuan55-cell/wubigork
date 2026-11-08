@@ -41,7 +41,7 @@ func TestBuildSubRegFailsLoudOnUnknownNames(t *testing.T) {
 	}
 	// 元工具在清单内不炸（按设计静默剔除）——直接测 buildSubReg（Execute
 	// 会继续走 LLM 循环，mock 无 chunks 的报错与白名单无关）。
-	if _, err := task.buildSubReg([]string{"read_file", "task"}); err != nil {
+	if _, err := task.buildSubReg([]string{"read_file", "task"}, false); err != nil {
 		t.Fatalf("元工具白名单不应报错: %v", err)
 	}
 }

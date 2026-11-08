@@ -2,7 +2,8 @@ package app
 
 // 办公多文件流水线（阶段六 6.3，设计 docs/gaea-office-dag-63-design-2026-09.md）：
 // 规划（dag_plan 工具）→ 存储（<cwd>/.gaea/work/dag/<id>.json）→ 执行（波次推进，
-// 每节点=一次 TaskTool.RunNew 全新子代理会话，v4.221 起波内并行）→ 控制（绑定面）→
+// 每节点=一次 TaskTool.RunNew 全新子代理会话；波内并发缺省 1=串行，2026-11-08
+// 众神殿裁决冻结过渡态，显式 [dag].wave_concurrency 放宽）→ 控制（绑定面）→
 // 验收回流记忆（hubOfficeStore.Save，人拍板即写入确认面）。
 // 关键口径见设计 §3：产物=按会话归因（SessionID=sa_ ref；ref 空回退窗口增量）、
 // 终止级联、fail-closed。
@@ -52,6 +53,7 @@ func (d dagPlanTool) Schema() json.RawMessage {
     "title":{"type":"string","description":"节点名（3-8 字，验收后将作为记忆条目名）"},
     "prompt":{"type":"string","description":"该节点的完整委托指令：输入文件（工作区相对路径）、加工动作、期望产物路径。子代理看不到对话，prompt 必须自包含"},
     "depends_on":{"type":"array","items":{"type":"string"},"description":"依赖的节点 id 列表（可空=无依赖）"},
+    "write_paths":{"type":"array","items":{"type":"string"},"description":"可选。该节点会写的工作区相对路径（目录含其下全部，不填 glob）。同一波（无依赖关系）的节点声明重叠会被拒绝；完全不声明写路径的节点所在波只能串行执行——独立并行节点建议都声明"},
     "risk":{"type":"string","enum":["normal","high"],"description":"风险分级：覆盖/删除工作区既有文件、批量移动、全局性改动的节点标 high（起跑前会暂停等用户审批）；常规新增/编辑用 normal（缺省）"}}},
     "required":["id","title","prompt"]}}
 },
@@ -64,11 +66,12 @@ func (d dagPlanTool) Execute(ctx context.Context, args json.RawMessage) (string,
 		Goal  string `json:"goal"`
 		RunID string `json:"run_id"`
 		Nodes []struct {
-			ID        string   `json:"id"`
-			Title     string   `json:"title"`
-			Prompt    string   `json:"prompt"`
-			DependsOn []string `json:"depends_on"`
-			Risk      string   `json:"risk"`
+			ID         string   `json:"id"`
+			Title      string   `json:"title"`
+			Prompt     string   `json:"prompt"`
+			DependsOn  []string `json:"depends_on"`
+			WritePaths []string `json:"write_paths"`
+			Risk       string   `json:"risk"`
 		} `json:"nodes"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
@@ -77,15 +80,24 @@ func (d dagPlanTool) Execute(ctx context.Context, args json.RawMessage) (string,
 	nodes := make([]dag.Node, 0, len(p.Nodes))
 	for _, n := range p.Nodes {
 		nodes = append(nodes, dag.Node{
-			ID:        strings.TrimSpace(n.ID),
-			Title:     strings.TrimSpace(n.Title),
-			Prompt:    strings.TrimSpace(n.Prompt),
-			DependsOn: n.DependsOn,
-			Risk:      n.Risk,
-			Status:    dag.StatusPending,
+			ID:         strings.TrimSpace(n.ID),
+			Title:      strings.TrimSpace(n.Title),
+			Prompt:     strings.TrimSpace(n.Prompt),
+			DependsOn:  n.DependsOn,
+			WritePaths: n.WritePaths,
+			Risk:       n.Risk,
+			Status:     dag.StatusPending,
 		})
 	}
 	goal := strings.TrimSpace(p.Goal)
+
+	// 同波写路径重叠闸（2026-11-08 众神殿裁决刀2，fail-closed 点名冲突对）：
+	// 新建与改图两分支同闸；依赖分波使上下游天然异波不受约束。
+	if conflicts, cerr := dag.WaveWriteConflicts(nodes); cerr != nil {
+		return "", cerr
+	} else if len(conflicts) > 0 {
+		return "", fmt.Errorf("同波写路径重叠，请调整声明或用 depends_on 强制串行：%s", strings.Join(conflicts, "；"))
+	}
 
 	// 增量改图模式（run_id 在场）：原地调和，不换 run id，不重排既有验收。
 	if runID := strings.TrimSpace(p.RunID); runID != "" {
@@ -93,6 +105,11 @@ func (d dagPlanTool) Execute(ctx context.Context, args json.RawMessage) (string,
 		r, err := store.Get(runID)
 		if err != nil {
 			return "", err
+		}
+		// 节点数上限闸对改图同闸（2026-11-08 众神殿裁决刀1）；缩单闸在
+		// ApplyEdit 内（不对称保护：原多节点缩单拒绝、存量单节点改图放行）。
+		if len(nodes) > dagMaxNodes() {
+			return "", fmt.Errorf("流水线节点数 %d 超过上限 %d（请拆分目标或合并同源节点）", len(nodes), dagMaxNodes())
 		}
 		r, rep, err := dag.ApplyEdit(r, goal, nodes)
 		if err != nil {
@@ -109,7 +126,9 @@ func (d dagPlanTool) Execute(ctx context.Context, args json.RawMessage) (string,
 		return msg, nil
 	}
 
-	if err := dag.Validate(goal, nodes); err != nil {
+	// 新建节点数闸（2026-11-08 众神殿裁决刀1）：单节点拒绝+超上限拒绝；
+	// schema 的 minItems:2 只是模型面提示，本地执行不校验 schema——真闸在此。
+	if err := dag.ValidateCreate(goal, nodes, dagMaxNodes()); err != nil {
 		return "", err
 	}
 	run := dag.Run{
@@ -129,6 +148,15 @@ func (d dagPlanTool) Execute(ctx context.Context, args json.RawMessage) (string,
 
 // dagRunner 取全新子代理执行器（boot OnNodeRunnerReady 注入；未构建返回 nil，
 // 执行器侧 fail-closed）。
+// dagMaxNodes 节点数上限（2026-11-08 众神殿裁决刀1）：[dag].max_nodes 显式
+// >0 覆盖，0/缺失/读失败按 dag.DefaultMaxNodes。
+func dagMaxNodes() int {
+	if cfg, err := gaeaConfig.Load(); err == nil && cfg != nil && cfg.Dag.MaxNodes > 0 {
+		return cfg.Dag.MaxNodes
+	}
+	return dag.DefaultMaxNodes
+}
+
 func gaDagRunner() gaeaAgent.SubagentRunRunner {
 	ga.followUpMu.Lock()
 	defer ga.followUpMu.Unlock()
@@ -552,16 +580,23 @@ func (a *App) dagStart(id string, waves [][]dag.Node) {
 	}()
 }
 
-// dagWaveSemaphore 波内并发额度：gaea.toml 的 [tasks].max_concurrent 显式 >0
-// 时按同一上限约束（与任务调度器/任务闸口同源口径，审计 P0#10——不再绕过
-// 任务闸口无上界并发拉子代理）；配置缺失/未设置返回 nil = 不设限（v4.221
-// 波内并行语义不变）。读失败与未配置同待遇：守卫不拦截流水线起跑。
-func (a *App) dagWaveSemaphore() chan struct{} {
-	cfg, err := gaeaConfig.Load()
-	if err != nil || cfg == nil || cfg.Tasks.MaxConcurrent <= 0 {
-		return nil
+// dagWaveWidth 波内有效并发额度（2026-11-08 众神殿办公板块子代理裁决
+// pan_1794121254456 冻结刀）：[dag].wave_concurrency 0/缺失恒解释为 1（波内
+// 串行冻结过渡态——计划期同波写路径闸与逐调用路径包含校验齐备前不开放并行
+// 写），显式 N = 波宽，回滚并行用显式大 N（无 -1 哨兵）；[tasks].max_concurrent
+// 显式 >0 时保留为合取上界（两者取小，审计 P0#10 任务闸口同源口径不动）。
+// 读失败同待遇：按缺省 1 起跑，守卫不拦截流水线。
+func (a *App) dagWaveWidth() int {
+	width := 1
+	if cfg, err := gaeaConfig.Load(); err == nil && cfg != nil {
+		if cfg.Dag.WaveConcurrency > 0 {
+			width = cfg.Dag.WaveConcurrency
+		}
+		if cfg.Tasks.MaxConcurrent > 0 && cfg.Tasks.MaxConcurrent < width {
+			width = cfg.Tasks.MaxConcurrent
+		}
 	}
-	return make(chan struct{}, cfg.Tasks.MaxConcurrent)
+	return width
 }
 
 func (a *App) dagExecute(ctx context.Context, id string, waves [][]dag.Node) {
@@ -572,14 +607,18 @@ func (a *App) dagExecute(ctx context.Context, id string, waves [][]dag.Node) {
 		return
 	}
 	emit := a.dagEmit()
-	// 审计 P0#10（源 AP4-04）：波内并发此前=波宽、无任何上界，绕过任务闸口——
-	// 本地 herdsman 模型一次只服务一个会话（local_concurrency=1），宽波全并行
-	// 只是把排队藏进模型层并制造「多个任务在跑」的假象。[tasks].max_concurrent
-	// 显式 >0 时波内节点按同一上限排队（节点保持 pending 直至拿到额度，取消
-	// 优先于排队）；缺省 0 = 不设限，保持 v4.221 波内并行产品语义（云端模型
-	// 受益于真并发，行为与既有测试锁定一致）。
-	sem := a.dagWaveSemaphore()
 	for wi, wave := range waves {
+		// 波内并发（2026-11-08 众神殿裁决冻结刀+刀2）：额度恒非空——缺省 1
+		//（波内串行），[dag].wave_concurrency 显式 N 放宽，[tasks].max_concurrent
+		// 显式 >0 时取小作合取上界（审计 P0#10：不绕过任务闸口无上界并发拉
+		// 子代理）；波内任一节点缺可判定写路径声明 → 降宽 1（裁决：缺失或无
+		// 法判断的写路径默认串行）。节点保持 pending 直至拿到额度，取消优先
+		// 于排队。
+		width := a.dagWaveWidth()
+		if !dag.WaveFullyDeclared(wave) {
+			width = 1
+		}
+		sem := make(chan struct{}, width)
 		failed := false
 		held := false
 		var failMu sync.Mutex
@@ -626,7 +665,7 @@ func (a *App) dagExecute(ctx context.Context, id string, waves [][]dag.Node) {
 					slog.Info("流水线高风险节点挂起待审批", "run", id, "node", node.ID)
 					return
 				}
-				if sem != nil {
+				if sem != nil { // 恒非空（缺省 1）；保留守卫形便于未来按波差异化额度
 					select {
 					case sem <- struct{}{}:
 						defer func() { <-sem }()

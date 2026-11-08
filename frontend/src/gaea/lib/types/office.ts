@@ -236,12 +236,14 @@ export interface LintReportView {
 // acceptedAt 验收时间。status：pending 待跑 / running / done / failed /
 // skipped 级联终止或依赖失败跳过 / accepted 已验收（产物回流记忆）/
 // hold 高风险待审批（v4.243 审批分级，approve 后回 pending）。risk=风险分级
-// （high=起跑前置审批闸）；approved=人已批准本次执行。
+// （high=起跑前置审批闸）；approved=人已批准本次执行。writePaths=节点写作用
+// 域声明（2026-11-08 众神殿裁决：同波重叠计划期拒绝；缺声明波降宽串行）。
 export interface DagNodeView {
   id: string;
   title: string;
   prompt: string;
   dependsOn?: string[];
+  writePaths?: string[];
   status: "pending" | "running" | "done" | "failed" | "skipped" | "accepted" | "hold";
   risk?: "normal" | "high";
   approved?: boolean;
