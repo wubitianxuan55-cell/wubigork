@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -138,11 +139,16 @@ func abEvalProvider(t *testing.T) provider.LLMProvider {
 	if entry == nil {
 		t.Fatalf("未找到可用的 [[providers]] 条目（selector=%q）", selector)
 	}
-	// wubigrok 桥需要 ai client（生产由 App 构造时注入；评测复刻同源装配——
-	// ai client 吃 legacy app 级配置 internal/config.Load，引擎条目吃内核
-	// internal/gaea/config.Load，两条都是生产路径）。
+	// wubigrok 桥需要 ai client + 办公功能级模型绑定（生产=GaeaInit 注入；
+	// 评测复刻同源装配——不注入 SetFeature 时桥按全局活跃引擎解析，办公板块
+	// 绑定 grok 而活跃引擎是别的模型时就会 404）。ai client 吃 legacy app 级
+	// 配置 internal/config.Load，引擎条目吃内核 internal/gaea/config.Load。
 	appCfg := appconfig.Load()
 	bridge.SetClient(ai.NewClient(appCfg))
+	if eng, model := appCfg.GetFeatureModel("gaea"); eng != "" {
+		bridge.SetFeature(eng, model)
+		t.Logf("办公模型绑定已注入: engine=%s model=%s", eng, model)
+	}
 	prov, err := boot.NewProvider(entry)
 	if err != nil {
 		t.Fatalf("boot.NewProvider(%s): %v", entry.Name, err)
@@ -338,7 +344,13 @@ func abRunArm(t *testing.T, prov provider.LLMProvider, s abSample, arm, discipli
 		Spill:        true,
 	}, sink)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+	timeout := 15 * time.Minute
+	if v := os.Getenv("GAEA_AB_EVAL_TIMEOUT_MINUTES"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			timeout = time.Duration(n) * time.Minute
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	start := time.Now()
 	turn, runErr := runner.Run(ctx, s.Prompt+discipline)
@@ -388,9 +400,10 @@ func abRunArm(t *testing.T, prov provider.LLMProvider, s abSample, arm, discipli
 		}
 	}
 	corpus.WriteString(rec.FinalText)
-	hay := strings.ToLower(corpus.String())
+	// 归一化：Windows rel 路径是反斜杠，清单/产物统一正斜杠再比对。
+	hay := strings.ToLower(strings.ReplaceAll(corpus.String(), "\\", "/"))
 	for _, item := range s.Checklist {
-		hit := strings.Contains(hay, strings.ToLower(item))
+		hit := strings.Contains(hay, strings.ToLower(strings.ReplaceAll(item, "\\", "/")))
 		rec.Checklist[item] = hit
 		if hit {
 			rec.ChecklistHit++
