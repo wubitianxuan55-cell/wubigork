@@ -21,6 +21,12 @@ type agentAdapter struct {
 	// 在文案中明示降级（2026-10-31 裁决第三刀）。
 	runMode string
 
+	// seatWorkDir = 该席位的子进程 cwd 用每场专属的 seatwork 目录（按席位
+	// 隔离）而不是共享工作区。workspace-write 型沙箱的可写范围跟着 cwd 走：
+	// 换 cwd 即把共享工作区移出写面（2026-11-08 众神殿结论第三步），读取
+	// 不受限，归档「全文见文件」路径照常可达。
+	seatWorkDir bool
+
 	probe func(context.Context) AgentStatus
 	build func(prompt, cwd string, images []string) (commandSpec, error)
 	// buildResume 非空 = 该席位的引擎支持「同一会话续接」（DSH headless
@@ -216,9 +222,12 @@ func newCodexAdapter(override string) agentAdapter {
 		id: "codex", name: "Codex", kind: "OpenAI Codex CLI",
 		// 2026-11-03 用户拍板「都能上网查资料」：read-only 沙箱默认禁网（直连
 		// GitHub API 实测被拦，内建 web_search 只是特权通道），放宽为
-		// workspace-write+network——写面限工作区且由陈词纪律约束不写盘，
-		// runMode 如实降级表述（裁决第三刀：能力不对称必须逐席入档）。
-		runMode: "codex sandbox workspace-write+network（直连网络开放，结果按不可信资料处理；文件写沙箱限工作区，陈词纪律约束不写盘）",
+		// workspace-write+network。2026-11-08 众神殿结论（pan_1794098356822
+		// 第三步）拆分写面：cwd 改为每场专属 seatwork 目录——共享工作区落出
+		// workspace-write 可写范围（写被沙箱拒绝），联网检索保留，共享工作区
+		// 本体对 codex 只读。runMode 如实降级表述（裁决第三刀）。
+		seatWorkDir: true,
+		runMode:     "codex sandbox workspace-write+network（直连网络开放，结果按不可信资料处理；写沙箱限每场专属 seatwork 目录，共享工作区只读）",
 		probe: func(ctx context.Context) AgentStatus {
 			status := AgentStatus{
 				ID: "codex", Name: "Codex", Kind: "OpenAI Codex CLI",

@@ -1765,6 +1765,17 @@ func (m *Manager) runOne(ctx context.Context, session *Session, status AgentStat
 	if workDir == "" {
 		workDir = m.root
 	}
+	// 2026-11-08 众神殿结论第三步（写面拆分）：workspace-write 型沙箱的可写
+	// 范围跟着子进程 cwd 走，声明 seatWorkDir 的席位（codex）cwd 换成每场
+	// 专属 seatwork 目录——共享工作区落出可写范围（越界写被沙箱拒绝），
+	// 读取不限，归档路径照常可达。目录创建失败如实失败，不静默回落共享区。
+	if adapter.seatWorkDir {
+		dir, err := m.seatWorkDirFor(session, status.ID)
+		if err != nil {
+			return seatResult{}, fmt.Errorf("创建 %s 专属工作目录失败：%v", status.ID, err)
+		}
+		workDir = dir
+	}
 	callCtx, call := m.beginAgentCall(ctx, session, status, phase, round)
 	defer m.endAgentCall(session.ID, call)
 	// M1 输入侧对账锚：CLI 席同款盖章（任务书经 Stdin/--prompt/文件三型
@@ -2022,6 +2033,16 @@ func (m *Manager) adapter(id string) agentAdapter {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.adapters[id]
+}
+
+// seatWorkDirFor 是 workspace-write 型席位（codex）的每场专属 cwd：写面被
+// 沙箱限定在这里（再叠 tmp），共享工作区只读。按席位分目录，跨席互不可写。
+func (m *Manager) seatWorkDirFor(session *Session, agentID string) (string, error) {
+	dir := filepath.Join(m.root, "sessions", session.ID, "seatwork", agentID)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	return dir, nil
 }
 
 // seatReadPaths 归档发言全文路径白名单：grok 席需要引用往轮论证细节时按路径

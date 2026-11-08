@@ -19,7 +19,10 @@ var pantheonGrokWorkspaceTools = []string{
 	"read_file",
 	"grep",
 	"ls",
-	"doc_render",
+	// doc_render 已移出议事 T0（2026-11-08 众神殿结论 pan_1794098356822 第一
+	// 步）：它带 ReadOnly 标签却会删除/重建工作区产物、写系统临时目录并启动
+	// LibreOffice 子进程——元数据声明不构成隔离。移出即漂移锁：回归测试
+	// TestPantheonGrokT0ExcludesDocRender 钉死，不得未经 effect 隔离审计复入。
 	"cad_ask",
 	"vision",
 	"schedule_get",

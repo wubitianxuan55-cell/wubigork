@@ -200,3 +200,15 @@
 **修复**（纯前端）：WaitingPanel 待办清空且 status=waiting_input 时改出「待办已清，讨论可以继续」面板——【继续讨论】主按钮（onResume）+ 提示「轮次已用完时续跑直接进入协作汇总」；非 waiting_input 维持原 null。+3 vitest（答完出钮触发 onResume/仍有未答保持原面板/running 不渲染）。
 
 **验证**：vitest 70/70、tsc 0、重建壳 `798681431c53508e`。**用户解法**：装机新壳后打开该会话→点「继续讨论」→直接进汇总（回答已入档，汇总吃全量）。
+
+### 6.10 按众神殿结论落地工具权限优化（2026-11-08，本地提交待记）
+
+**输入**：pan_1794098356822 小结（用户续跑后已生成）——「不全量开放；T0=命名白名单∩ReadOnly∩effect 动作/位置声明∩运行时路径约束；doc_render 立即移出 T0；Codex 联网与共享工作区写拆分」六步排序。本轮落前三步中可直接落的两步+提示词同步；**步骤 2（effect 全量审计+漂移测试，48 处 ReadOnly）/4（WSL2 容器隔离+fail-closed 实测）/5（议事执行链显式 Gate，Approver=nil 洞）/6（签注后事工房）工程量大或需用户环境，列后续池不冒进**。
+
+**刀1 doc_render 移出议事 T0**：`pantheonGrokWorkspaceTools` 除名（带 ReadOnly 标签却删/建工作区产物、写系统临时目录、起 LibreOffice 子进程——元数据声明≠隔离）；漂移锁测试 `TestPantheonGrokT0ExcludesDocRender`（两名单+装配后注册表三处钉死，未经 effect 审计不得复入）。
+
+**刀2 codex 写面拆分**：`agentAdapter.seatWorkDir` 字段（仅 codex true）；`runOne` 对声明席位把子进程 cwd 换成 `m.seatWorkDirFor`＝`<root>/sessions/<id>/seatwork/<agentID>`（MkdirAll，失败如实失败不回落共享区）。workspace-write 沙箱可写范围跟 cwd 走：共享工作区落出可写面（越界写被沙箱拒、按被拦通道纪律换路），联网检索保留，读取不限（归档「全文见文件」照常可达），产物按席位分目录跨席不可互写。runMode 文案同步真实状态。
+
+**刀3 toolPolicy 写面纪律**：默认段「不得尝试写文件」改为真实口径——「写限每场专属 seatwork 目录；共享工作区/系统配置/安装一律只读，越界写=被拦通道换路；**seatwork 产物不是证据**，取证结论必须来自只读工具实际读到的内容」。grok 段无需改（文字本未列 doc_render）。
+
+**测试**：+2（seatwork 端到端：codex cwd=seatwork 且真实创建/会话级隔离/共享区不再是 cwd/他席仍共享区；T0 漂移锁三处）+1 改（policy 文案断言）。验证=pantheon 16.4s 全绿/全树编译/vet（CGO_ENABLED=0）/gofmt 清（只 fmt 自己动过的文件——voice_v2 在途件格式差异不属本线）/app 众神殿族 8/8 全量落盘。

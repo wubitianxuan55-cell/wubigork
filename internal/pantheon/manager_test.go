@@ -1446,8 +1446,9 @@ func TestNormalizeRoundSettings(t *testing.T) {
 
 func TestToolPolicyMatchesSeatCapabilities(t *testing.T) {
 	local := toolPolicy(AgentStatus{ID: "codex", Name: "Codex"})
-	if !strings.Contains(local, "只读工具") || !strings.Contains(local, "不得尝试写文件") {
-		t.Fatalf("local tool policy missing read-only guard:\n%s", local)
+	if !strings.Contains(local, "只读工具") || !strings.Contains(local, "写面纪律") ||
+		!strings.Contains(local, "每场专属 seatwork 目录") || !strings.Contains(local, "产物不是证据") {
+		t.Fatalf("local tool policy missing the scoped write-face guard:\n%s", local)
 	}
 	grok := toolPolicy(AgentStatus{ID: "grok", Name: "Grok"})
 	if !strings.Contains(grok, "Gaea 办公工具") || !strings.Contains(grok, "不得写盘") {
@@ -2140,5 +2141,54 @@ func TestSetExecutableRejectsModelSeat(t *testing.T) {
 	m := newTestManager(t, defaultFakeRunner(), fakeAdapter("alpha"), newGrokAdapter(&fakeGrokBackend{}))
 	if _, err := m.SetExecutable("grok", `C:\nonexistent\grok.exe`); err == nil {
 		t.Fatal("grok seat must reject executable override")
+	}
+}
+
+// 2026-11-08 众神殿结论第三步（写面拆分）：codex 子进程 cwd 落每场专属
+// seatwork 目录（真实创建、按席位隔离），共享工作区不再是可写面；他席仍用
+// 共享工作区。
+func TestCodexSeatWorkDirConfinesWrites(t *testing.T) {
+	workspace := t.TempDir()
+	codexPath := codexOverride(t)
+	runner := defaultFakeRunner()
+	var codexDir, alphaDir string
+	runner.outputs[codexPath] = func(spec commandSpec) (string, error) {
+		codexDir = spec.Dir
+		return fakeOutputFor("codex", spec.Stdin), nil
+	}
+	runner.outputs["alpha"] = func(spec commandSpec) (string, error) {
+		alphaDir = spec.Dir
+		return fakeOutputFor("alpha", spec.Stdin), nil
+	}
+	m := newTestManager(t, runner, fakeAdapter("alpha"), newCodexAdapter(codexPath))
+	defer m.Close()
+	session, err := m.Start(StartRequest{
+		Topic: "写面拆分", AgentIDs: []string{"alpha", "codex"}, ChairmanAgentID: "alpha",
+		Workspace: workspace, Rounds: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := waitForStatus(t, m, session.ID, StatusCompleted)
+	if findContribution(done, "codex") == nil {
+		t.Fatal("codex contribution missing")
+	}
+	if codexDir == "" {
+		t.Fatal("codex spec never captured")
+	}
+	if !strings.HasSuffix(filepath.Clean(codexDir), filepath.Join("seatwork", "codex")) {
+		t.Fatalf("codex cwd = %q, want <root>/sessions/<id>/seatwork/codex", codexDir)
+	}
+	if !strings.Contains(filepath.Clean(codexDir), session.ID) {
+		t.Fatalf("codex cwd %q must be session-scoped (%s)", codexDir, session.ID)
+	}
+	if _, err := os.Stat(codexDir); err != nil {
+		t.Fatalf("seatwork dir must be created before dispatch: %v", err)
+	}
+	if filepath.Clean(codexDir) == filepath.Clean(workspace) {
+		t.Fatal("shared workspace must no longer be codex's writable cwd")
+	}
+	if alphaDir == "" || filepath.Clean(alphaDir) != filepath.Clean(workspace) {
+		t.Fatalf("non-seat-dir seats must keep the shared workspace, alpha cwd = %q", alphaDir)
 	}
 }

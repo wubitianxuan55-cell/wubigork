@@ -114,6 +114,26 @@ func TestPantheonGrokOfficeRegistryIsReadOnly(t *testing.T) {
 	}
 }
 
+// T0 漂移锁（2026-11-08 众神殿结论 pan_1794098356822 第一步）：doc_render 带
+// ReadOnly 标签却删/建工作区产物、写系统临时目录、起 LibreOffice 子进程——
+// 元数据声明不构成隔离，在 effect 隔离审计完成前不得回到任何议事 T0 名单。
+func TestPantheonGrokT0ExcludesDocRender(t *testing.T) {
+	for _, name := range pantheonGrokWorkspaceTools {
+		if name == "doc_render" {
+			t.Fatal("doc_render 不得留在议事 T0（ReadOnly 标签≠无副作用，待 effect 隔离审计）")
+		}
+	}
+	for name := range pantheonGrokOfficeReadTools {
+		if name == "doc_render" {
+			t.Fatal("doc_render 不得留在议事 T0 办公只读名单")
+		}
+	}
+	seat := &pantheonGrokSeat{}
+	if _, ok := seat.officeToolRegistry(t.TempDir()).Get("doc_render"); ok {
+		t.Fatal("装配后的注册表不得包含 doc_render")
+	}
+}
+
 func TestPantheonGrokProbeAdvertisesOfficeTools(t *testing.T) {
 	status := (&pantheonGrokSeat{}).ProbeGrok(context.Background())
 	joined := strings.Join(status.Capabilities, ",")
