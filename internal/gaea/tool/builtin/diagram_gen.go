@@ -170,9 +170,9 @@ params = json.loads(sys.stdin.buffer.read().decode('utf-8'))
 title = params.get('title', '')
 kind = params.get('kind', 'framework')
 layout = params.get('layout', 'vertical')
-nodes = params.get('nodes', [])
-edges = params.get('edges', [])
-levels = params.get('levels', {})   # flow 模式：Go 端拓扑分层结果 id -> level
+nodes = params.get('nodes') or []   # nil 切片=显式 null（同 chart_gen series 修复）
+edges = params.get('edges') or []
+levels = params.get('levels') or {}   # flow 模式：Go 端拓扑分层结果 id -> level；nil map=显式 null
 output = params.get('output', 'diagram.png')
 
 if not nodes:

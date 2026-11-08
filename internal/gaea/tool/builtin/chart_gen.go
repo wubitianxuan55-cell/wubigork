@@ -148,7 +148,7 @@ for font in ['Microsoft YaHei', 'SimHei', 'WenQuanYi Micro Hei', 'Noto Sans CJK 
 params = json.loads(sys.stdin.buffer.read().decode('utf-8'))
 labels = params.get('labels', [])
 values = params.get('values', [])
-series = params.get('series', [])
+series = params.get('series') or []   # Go json.Marshal 把 nil 切片发成显式 null，.get 的缺省值不生效（单系列图曾因此全炸）
 ctype = params.get('chart_type', 'bar')
 title = params.get('title', '')
 output = params.get('output', 'chart.png')

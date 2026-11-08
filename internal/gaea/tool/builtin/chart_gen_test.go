@@ -98,3 +98,24 @@ func TestChartGenMultiSeriesSmoke(t *testing.T) {
 		t.Fatalf("输出为空文件")
 	}
 }
+
+// TestChartGenSingleSeriesRegression 回归锁（2026-11-08 闭锁测试逮到的生产
+// bug）：Go json.Marshal 把 nil series 发成显式 null，脚本 .get('series', [])
+// 的缺省值不生效 → len(None) 炸——单系列图表（bar/line/pie 等）此前全部失败。
+// 修=脚本 `params.get('series') or []`；本测以生产形态（省略 series）钉住。
+func TestChartGenSingleSeriesRegression(t *testing.T) {
+	if _, err := lookPathFirst([]string{"python", "python3"}); err != nil {
+		t.Skip("python 不可用，跳过渲染回归")
+	}
+	out := filepath.Join(t.TempDir(), "single.png")
+	raw, _ := json.Marshal(map[string]interface{}{
+		"labels": []string{"一", "二", "三"}, "values": []float64{3, 5, 4},
+		"chart_type": "bar", "title": "单系列回归", "output": out,
+	})
+	if _, err := (chartGen{}).Execute(context.Background(), raw); err != nil {
+		if strings.Contains(err.Error(), "matplotlib not installed") {
+			t.Skip("matplotlib 不可用，跳过渲染回归（nil series 修复已由脚本行保证）")
+		}
+		t.Fatalf("单系列 chart_gen 应成功（nil series=null 回归）: %v", err)
+	}
+}

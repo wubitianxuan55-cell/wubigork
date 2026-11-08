@@ -307,3 +307,25 @@ func TestDiagramGenFlowBranchLayouts(t *testing.T) {
 		})
 	}
 }
+
+// TestDiagramGenNoEdgesRegression 回归锁（2026-11-08 闭锁测试同源发现）：省略
+// edges 时 Go 发显式 null，脚本 `.get('edges', [])` 缺省值不生效——无边树图
+// （framework 纯层级）此前会炸。修=`params.get('edges') or []`。
+func TestDiagramGenNoEdgesRegression(t *testing.T) {
+	requireDiagramPython(t)
+	out := filepath.Join(t.TempDir(), "tree.png")
+	raw, _ := json.Marshal(map[string]interface{}{
+		"kind": "framework", "title": "层级树",
+		"nodes": []map[string]interface{}{
+			{"id": "a", "label": "根", "level": 0},
+			{"id": "b", "label": "叶", "level": 1},
+		},
+		"output": out, // edges 缺省 nil → JSON 显式 null
+	})
+	if _, err := (diagramGen{}).Execute(context.Background(), raw); err != nil {
+		if strings.Contains(err.Error(), "matplotlib not installed") {
+			t.Skip("matplotlib 不可用，跳过渲染回归（nil edges 修复已由脚本行保证）")
+		}
+		t.Fatalf("无边 diagram_gen 应成功（nil edges=null 回归）: %v", err)
+	}
+}

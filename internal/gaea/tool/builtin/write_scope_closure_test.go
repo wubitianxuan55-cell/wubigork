@@ -15,9 +15,13 @@ import (
 	"encoding/json"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/xuri/excelize/v2"
 
 	"github.com/gaea/gaea/internal/gaea/agent"
 	"github.com/gaea/gaea/internal/gaea/event"
@@ -120,6 +124,8 @@ func TestWriterToolsClosureWithinDeclaredScope(t *testing.T) {
 		seed func(ws, declared string)
 		// seedOut 在声明外准备被拒调用的目标文件（快照前落位，不算工具增量）
 		seedOut func(ws, declared string)
+		// guard 可选环境门（如 python+matplotlib 依赖，缺即 skip）
+		guard func(t *testing.T)
 		// inScope/outScope 返回工具参数（路径取自 ws/declared 实值）
 		inScope  func(ws, declared string) string
 		outScope func(ws, declared string) string
@@ -227,10 +233,103 @@ func TestWriterToolsClosureWithinDeclaredScope(t *testing.T) {
 				}
 			},
 		},
+		{
+			// format_convert：xlsx→md 纯 Go 路径（excelize 造最小工作簿）；
+			// 读面走 ReadTarget（源在工作区内=父策略放行），写面=声明 output。
+			name: "format_convert",
+			mk:   func(roots []string) tool.Tool { return formatConvert{} },
+			seed: func(ws, declared string) {
+				writeFixtureXlsx(t, filepath.Join(ws, "data.xlsx"))
+			},
+			seedOut: func(ws, declared string) {},
+			inScope: func(ws, declared string) string {
+				return mustArgsJSON(t, map[string]string{"path": filepath.Join(ws, "data.xlsx"), "output": filepath.Join(declared, "out.md")})
+			},
+			outScope: func(ws, declared string) string {
+				return mustArgsJSON(t, map[string]string{"path": filepath.Join(ws, "data.xlsx"), "output": filepath.Join(ws, "escaped.md")})
+			},
+			verifyIn: func(t *testing.T, ws, declared string) {
+				b, err := os.ReadFile(filepath.Join(declared, "out.md"))
+				if err != nil || len(b) == 0 {
+					t.Errorf("声明内 format_convert 应落盘: %v", err)
+				}
+			},
+		},
+		{
+			// chart_gen：python+matplotlib 渲染（缺宿主依赖即 skip，同既有冒烟配方）。
+			name:  "chart_gen",
+			mk:    func(roots []string) tool.Tool { return chartGen{} },
+			guard: requireClosurePython,
+			inScope: func(ws, declared string) string {
+				return mustArgsJSON(t, map[string]any{"labels": []string{"一", "二"}, "values": []float64{3, 5}, "chart_type": "bar", "output": filepath.Join(declared, "chart.png")})
+			},
+			outScope: func(ws, declared string) string {
+				return mustArgsJSON(t, map[string]any{"labels": []string{"一", "二"}, "values": []float64{3, 5}, "chart_type": "bar", "output": filepath.Join(ws, "escaped.png")})
+			},
+			verifyIn: func(t *testing.T, ws, declared string) {
+				b, err := os.ReadFile(filepath.Join(declared, "chart.png"))
+				if err != nil || len(b) < 100 {
+					t.Errorf("声明内 chart_gen 应落盘 PNG: %v len=%d", err, len(b))
+				}
+			},
+		},
+		{
+			// diagram_gen：同 chart_gen 的宿主依赖门。
+			name:  "diagram_gen",
+			mk:    func(roots []string) tool.Tool { return diagramGen{} },
+			guard: requireClosurePython,
+			inScope: func(ws, declared string) string {
+				return mustArgsJSON(t, map[string]any{
+					"nodes":  []map[string]any{{"id": "a", "label": "读数"}, {"id": "b", "label": "出图"}},
+					"edges":  []map[string]any{{"from": "a", "to": "b"}},
+					"output": filepath.Join(declared, "diagram.png"),
+				})
+			},
+			outScope: func(ws, declared string) string {
+				return mustArgsJSON(t, map[string]any{
+					"nodes":  []map[string]any{{"id": "a", "label": "读数"}, {"id": "b", "label": "出图"}},
+					"edges":  []map[string]any{{"from": "a", "to": "b"}},
+					"output": filepath.Join(ws, "escaped.png"),
+				})
+			},
+			verifyIn: func(t *testing.T, ws, declared string) {
+				b, err := os.ReadFile(filepath.Join(declared, "diagram.png"))
+				if err != nil || len(b) < 100 {
+					t.Errorf("声明内 diagram_gen 应落盘 PNG: %v len=%d", err, len(b))
+				}
+			},
+		},
+		{
+			// schedule_apply：显式 path 即写目标（resolver 语义）；纯 Go。
+			name: "schedule_apply",
+			mk:   func(roots []string) tool.Tool { return scheduleApply{} },
+			inScope: func(ws, declared string) string {
+				return mustArgsJSON(t, map[string]any{
+					"project": map[string]any{"name": "t", "startDate": "2026-11-09", "tasks": []map[string]any{{"id": "1", "name": "a", "duration": 1, "level": 1}}},
+					"path":    filepath.Join(declared, "plan.json"),
+					"summary": "闭锁测试",
+				})
+			},
+			outScope: func(ws, declared string) string {
+				return mustArgsJSON(t, map[string]any{
+					"project": map[string]any{"name": "t", "startDate": "2026-11-09", "tasks": []map[string]any{{"id": "1", "name": "a", "duration": 1, "level": 1}}},
+					"path":    filepath.Join(ws, "plan.json"),
+					"summary": "闭锁测试",
+				})
+			},
+			verifyIn: func(t *testing.T, ws, declared string) {
+				if _, err := os.Stat(filepath.Join(declared, "plan.json")); err != nil {
+					t.Errorf("声明内 schedule_apply 应落盘: %v", err)
+				}
+			},
+		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			if tc.guard != nil {
+				tc.guard(t)
+			}
 			// ── 声明内腿：成功 + 快照增量全在声明根内 ──
 			ws := t.TempDir()
 			declared := filepath.Join(ws, "out")
@@ -247,6 +346,9 @@ func TestWriterToolsClosureWithinDeclaredScope(t *testing.T) {
 				t.Fatalf("声明内写不应被拒: %q", out)
 			}
 			tc.verifyIn(t, ws, declared)
+			if t.Failed() {
+				t.Logf("工具结果: %s", out)
+			}
 			after := snapshotTree(t, ws)
 			for rel := range after {
 				if before[rel] == after[rel] {
@@ -290,5 +392,40 @@ func TestWriterToolsClosureWithinDeclaredScope(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// requireClosurePython 与 diagram_gen_test 的 requireDiagramPython 同配方：
+// 宿主缺 python+matplotlib 即 skip（渲染型工具的声明外拒绝由策略层保证，
+// 与渲染依赖无关——跳过只省机器时间，不放过任何越权路径）。
+func requireClosurePython(t *testing.T) {
+	t.Helper()
+	for _, py := range []string{"python", "python3"} {
+		cmd := exec.Command(py, "-c", "import matplotlib")
+		if err := cmd.Run(); err == nil {
+			return
+		}
+	}
+	t.Skip("宿主缺 python+matplotlib（渲染依赖），跳过")
+}
+
+// writeFixtureXlsx 用 excelize 造最小工作簿（闭锁测试的转换源）。
+func writeFixtureXlsx(t *testing.T, path string) {
+	t.Helper()
+	f := excelize.NewFile()
+	defer f.Close()
+	cell := func(col string, row int, v any) {
+		if err := f.SetCellValue("Sheet1", col+strconv.Itoa(row), v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cell("A1", 1, "部门")
+	cell("B1", 1, "金额")
+	cell("A2", 2, "销售")
+	cell("B2", 2, 120)
+	cell("A3", 3, "研发")
+	cell("B3", 3, 80)
+	if err := f.SaveAs(path); err != nil {
+		t.Fatal(err)
 	}
 }
