@@ -77,3 +77,40 @@
 - PowerShell 误重定向产物：`rg … > $null` 在某些引号形态下会创建名为 `$null`
   的真实文件（内容=rg stderr）；入库前 `git status` 见 `$null` 即垃圾产物，
   直接删（本日已清）。
+
+## 深夜第二批：dsh-wubi 红队线全链贯通（编程板块）
+
+> 用户口径「红队模式识别直接配置好 → 真正用起来 → 端到端验证」。
+> dsh-wubi 已迁**工作空间顶层 `C:\AI\wubigrok\dsh-wubi`**（原 clones/ 埋没），
+> 装机 junction= `C:\AI\dsh\home\profiles\web\node_modules\dsh-wubi` 绝对指向；
+> 主仓 .gitignore 加 `/dsh-wubi/`。仓内快照提交 **78c66ca**（v2.0.0 基线+rc.1
+> 适配三刀）+ **71b8547**（清消息草稿），git 身份同主仓（wubi@wubigork.local）。
+
+- **工具箱**：Defender 白名单（UAC 提权 Add-MpPreference，toolkit+dl 两目录）后
+  GitHub 直连补齐 chisel/fscan/gogo/frps（此前被 Wacatac/HackTool 签名隔离），
+  **11/15 就位全冒烟活**；缺 nmap/masscan/ksubdomain(rar 无解压)/impacket(需 pip)。
+  nuclei 模板库装至 `C:\Users\wubi\nuclei-templates` 并写入 config.nucleiTemplatesDir。
+- **预设注册三断点 → registered（19 插件 broken=null）**：①toolFilter 被 rc.1
+  config 校验 throw → 删；②部署副本残留 v1 旧包名 `dsh-purge/redteam/tools` →
+  改 `dsh-wubi/redteam/tools` + 自愈函数补两代旧名迁移；③
+  `dsh-tool-subagent-control/list-agents` 子路径在 rc.1 exports 不存在（并入主
+  模块）→ 删行。**部署副本 `C:\AI\dsh\home\.agent-presets\redteam\agent.cordis.yml`
+  才是注册真源**（installPreset 已存在不覆盖用户内容），包内模板须两处同步。
+- **清洗全量跟进**：11 个 skipped 逐个对 rc.1 复验，5 个补方言落地（#14
+  displayReason 函数形态/#17 editIntent requirePresent 细委托〔红队写文件不再被
+  先读后改闸拦〕/#32 Advertised URL 句/#74 钩子挂 claim+selection 后/#77 clear
+  条件句），6 个定性版本正确（#40 0.1.5 专用、#53/#54/#60/#62 上游已删、#80 无
+  残留可还原）。**终账 65 applied / 11 na / 5 skipped**。
+- **{{cwd}} 插值闸崩溃根修（E2E 首轮即炸）**：rc.1 改注册供给制
+  （assembly.variables 只有 provider/model，cwd 被移除），dsh-wubi 身份中性化
+  注入的 persona-suffix/ALLOW_EXEC 文本带 `{{cwd}}` → 渲染层 throw。修=插件四处
+  文本去花括号 + `DSH_INTERPOLATE_ALLOWED` 白名单剔除 cwd（线上残留自动 escape）。
+- **端到端实测（浏览器驱动真实 UI）**：标准模式对话 2 秒完成无插值错；红队模式
+  在模式下拉可选；真调 `redteam_roles/redteam_session_info/redteam_preflight`
+  三工具席 API，自检卡 **5/5 角色 · 23/23 技能 · 断链 0 · 本机工具 11/15**，
+  缺口清单如实播报。测试会话留在 wubigrok 工作区会话列表（可删）。
+- **余池**：FOFA_KEY/VPS id_rsa（反弹 shell 落地）用户自填；冰蝎/哥斯拉/dirsearch
+  （WebShell 技能源）按需装；子会话 agentPreset 完整迁移挂后续；nuclei 首用前
+  `-update-templates` 已装。
+- 主仓本批提交=.gitignore + 本段 day-log + 引擎线快照（见下一笔提交，另一执行体
+  工作树快照收档，门禁全绿后如实署名）。
