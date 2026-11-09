@@ -194,3 +194,19 @@
   （空 files/缺 out_dir/超批/越界 out_dir）。tasks 包回归绿。
 - **六阶段收官**：P0/P1a/P1b/P2 两波/P3/P4 全落。余池=P2 九格真实脱敏件
   （需用户授权）+装机实弹+push（四批本地提交）。
+
+## 装机（2026-11-10 01:48，五批产物上正机）
+
+- gaea_install.ps1 -Launch：gaea.exe（61,735,424B，SHA256 前缀 F9BA8DBEDA41…，
+  与 build/bin 同哈希）+三语音 DLL 装 C:\AI\gaea-app；桌面快捷方式刷新；
+  新 PID 51408 启动 01:48:25 > 构建 01:47:06（INSTALL OK/PID AFTER BUILD OK）。
+- 健康核验口径澄清（如实记档）：/api/health 是 opt-in 调试桥接（main.go:43
+  设 GAEA_HTTP_PORT 才起，smoke.ps1 即用此法验的同字节 exe=200）；装机的
+  桌面壳不开 HTTP 桥——活体证据=诊断口 127.0.0.1:18123 LISTENING（新 PID）
+  + 壳未崩退。本机 8080 为 herdsman 常驻，与壳无涉。
+- 实弹清单（交用户，五面）：①办公 agent 让它 bash 写一个 .docx 交付 → 应被
+  发布边界拦截并回显 office_generate 指引；②让它 office_generate 生成声明
+  路径文档 → 交付面板看「首渲覆盖 N/M 页」行+证据卡；③对生成卡点复核 →
+  通道 A 应显示引用级结论（OOXML 容器头）；④多选几个文件让它 office_batch
+  批量转 PDF → 任务中心看进度/取消/重试；⑤docx_apply 改一处文字后复核 →
+  引用级「替换文本在+修订在册」。
