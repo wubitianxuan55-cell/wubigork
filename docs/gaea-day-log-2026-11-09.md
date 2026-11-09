@@ -145,6 +145,22 @@ format_convert/summarize/预览/成本导入反复重跑：
   CostImport/Vision/OCR 族全绿。
 - 至此 2026-11-02 识图诊断线全销：三候选全落地+缓存+本 bug。
 
+## 收口与打包
+
+- **DSH 引擎批收口（c5863cf9，归属 DSH 执行体「聊天绑定档位稳定 ID」续批，快照
+  f8950366）**：21 文件 263 行——绑定面档位显式化（startLlamaEngine/startStrataEngine
+  去 profile 默认值改必填）、qwen35_proc 扩面+新测试、catalog 元数据接线、
+  **model_idle_exit_minutes 默认 10→5 分钟**（口径改 llama/Strata/ComfyUI）、前端档位面
+  同批；DSH 自撤语音面（VoiceConsoleV2/css/chatScrollContainment）未卷入。门禁=go
+  build 全仓+internal/app 引擎族+config+modelengine+tsc 0+vitest 定向 18 例全绿。
+  day-log 2026-11-08 补段（dsh-wubi 工具定义瘦身注记）另笔 docs 提交。
+- **push**：识图七刀+众神殿合账等 38 笔随列车推 origin（eb8e30e4..fd9510e0）；收口两笔
+  随本批续推。
+- **ws_probe.exe 处置**：根目录 10.6MB 构建产物（源在 scripts/voice_v2/ws_probe 已入库，
+  可重建）此前留树——现 gitignore 收编，树面全清。
+- **遗留挂拍板池**：混排 PDF 逐页判定/ObjStm 页数=1 绕页上限/OCR 磁盘持久化；
+  dsh-wubi 池=Npcap 装否/子会话 REA 拆预设。
+
 ## 当日环境坑
 
 - **双启撞 port=死亡进程遗言假象**：第一次 bash `&` 后台启宿主其实活了（占 3091），

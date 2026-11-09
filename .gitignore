@@ -1,6 +1,7 @@
 # 编译产物
 gaea.exe
 *.test.exe
+/ws_probe.exe
 
 # 运行时/测试产物（不进版本库）
 .tmp*
