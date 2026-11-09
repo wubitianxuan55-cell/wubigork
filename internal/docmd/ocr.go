@@ -511,6 +511,21 @@ func OCRImageText(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// 进程内缓存（见 ocrcache.go）：同一图片反复 OCR（@引用重发/多消费方）只跑
+	// 一次引擎链；键含引擎序，GAEA_OCR_ENGINE 切换不串味。读不到文件时绕过
+	// 缓存直接走链——引擎不可用错误文案是契约（含引擎名与安装提示），不能被
+	// 文件缺失的 open 错误短路。
+	fp, ferr := ocrFileFingerprint(path)
+	if ferr != nil {
+		return ocrImageTextUncached(path, kinds)
+	}
+	return ocrCached("img:"+fp+":"+engineOrderKey(), func() (string, error) {
+		return ocrImageTextUncached(path, kinds)
+	})
+}
+
+// ocrImageTextUncached OCRImageText 的引擎链本体（缓存未命中时执行）。
+func ocrImageTextUncached(path string, kinds []string) (string, error) {
 	for _, kind := range kinds {
 		p, perr := NewOCRProvider(kind)
 		if perr != nil {

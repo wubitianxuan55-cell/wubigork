@@ -9,6 +9,7 @@ package docmd
 import (
 	"bytes"
 	"compress/zlib"
+	"crypto/sha256"
 	"encoding/hex"
 	"io"
 	"log/slog"
@@ -88,9 +89,15 @@ func pdfToMarkdownLimit(path, pages string, maxPages int, progress func(done, to
 		result = extractRawText(data)
 	}
 	if result == "" {
-		// 文本提取失败 → 回退 OCR（扫描件 PDF），只渲染 effSpec 覆盖的页
+		// 文本提取失败 → 回退 OCR（扫描件 PDF），只渲染 effSpec 覆盖的页。
+		// OCR 分钟级，走进程内缓存（键=内容哈希+页规格+引擎序，data 已在内存
+		// 直接哈希零重读；见 ocrcache.go）。
 		first, last := pageBounds(effSpec, totalPages)
-		md, ocrErr := ocrPDFRange(path, effSpec, first, last, totalPages, progress)
+		sum := sha256.Sum256(data)
+		key := "pdf:" + hex.EncodeToString(sum[:16]) + ":" + effSpec + ":" + engineOrderKey()
+		md, ocrErr := ocrCached(key, func() (string, error) {
+			return ocrPDFRange(path, effSpec, first, last, totalPages, progress)
+		})
 		if ocrErr != nil {
 			return "", totalPages, false, ocrErr
 		}
