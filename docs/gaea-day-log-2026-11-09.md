@@ -74,6 +74,19 @@
 - 遗留挂拍板池：sin 线（sin_file_refs.go）同构双注入；read_file 图片 OCR converter
   （刀A 落地后冗余，降级为错误信息引导已做）。
 
+## 刀四：sin 线同构双注入（同日拍板即落，d1bef807）
+
+刀三遗留拍板池项当场点掉——原罪 @图片附件补双腿并联（硬隔离两线最小同构，
+实现独立于 control）：
+
+- `sinImageBlock` 双腿：识图【画面理解】（rune 截断口径不变）+全文 OCR【全文 OCR】
+  （`sinOCRImageText` seam=docmd auto 链，8KB 上限用既有 `sinTrimPartialUTF8`
+  保边界）；`sinVisionOCRBudget` 15s 包级 var；噪声/失败静默降级、超时提示行；
+  识图失败占位块也带全文。标签【图片识别】→【画面理解】对齐办公线分岗。
+- 测试：既有例补 `stubSinOCR`（防真拉起 uocr2）+新增双注入/预算超时/门槛 gate
+  3 例；门禁 go build 全仓+app Sin 定向族全绿。
+- 至此办公+原罪两线 @图片注入语义对齐：画面理解与文字全文分岗双块。
+
 ## 当日环境坑
 
 - **双启撞 port=死亡进程遗言假象**：第一次 bash `&` 后台启宿主其实活了（占 3091），
