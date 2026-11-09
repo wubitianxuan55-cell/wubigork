@@ -1,0 +1,10 @@
+# commit: 588b5ad60a23a12c6e9a7490225a12f13f97a83e
+# preview package: gaea-voice-memoryhub-20261109-588b5ad6
+0e739ea589559072dd6e83fa8404d844afc420dc6bbe9381076c3bec3ee987e4  gaea-voice-memoryhub-20261109-588b5ad6/gaea.exe
+68d0d5f502be4509e2a16f932627a95137d748b2fae519027f80125c0b1f550b  gaea-voice-memoryhub-20261109-588b5ad6/onnxruntime.dll
+5dd36dbd3572846b72c4a40a4017c5a770160ee8e00da5053bebc8b2632501e8  gaea-voice-memoryhub-20261109-588b5ad6/sherpa-onnx-c-api.dll
+4c56327796cdb980dcbf90025c28093d89ca286088fb74c3b107f2f633e67ffe  gaea-voice-memoryhub-20261109-588b5ad6/sherpa-onnx-cxx-api.dll
+41557e3bb56e0a9a2f6e37a09a8f404a1187533940b21df2cea42eb1833cddb3  gaea-voice-memoryhub-20261109-588b5ad6/gaea-voice-memoryhub-ui-20261109.md
+26a8cb35e8929c38267f24446670d9644515bc010d3e33bae3a03c99c94e25b6  gaea-voice-memoryhub-20261109-588b5ad6/PACKAGE-INFO.md
+e017ea6e26abc12766422f72543ea6d452844ee598548d2bde1cc96a891711f5  gaea-voice-memoryhub-20261109-588b5ad6-preview.zip
+23f903f194a9c0f492da256fe591fc71a10e921e32134d91ec2e9b7fbc9a96e1  gaea-voice-memoryhub-20261109-588b5ad6-source.tar.gz

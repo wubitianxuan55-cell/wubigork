@@ -1,6 +1,6 @@
 # Gaea 语音交互窗口：记忆中枢化 UI · 2026-11-09
 
-**状态：✅ 已实现并完成前端与 Wails 构建验证**
+**状态：✅ 已实现，完成干净提交构建、冒烟验证与离线打包**
 
 ## 用户目标
 
@@ -49,12 +49,23 @@
 - `tsc -b` 通过。
 - 定向 ESLint 通过。
 - Vite 生产构建通过。
-- Wails 桌面构建通过。
+- 在 `588b5ad6` 的独立干净工作树中完成 Wails `2.13.0` 桌面构建，保留 bindings 生成。
+- 最终 exe 为 61,605,376 字节，SHA256=`0E739EA589559072DD6E83FA8404D844AFC420DC6BBE9381076C3BEC3EE987E4`。
+- exe 与三枚语音 DLL 同目录放入正式 `build\bin` 后，启动产物执行冒烟；`/api/health` 返回 200，响应 `{"status":"ok"}`。
 - 实机核对：
   - 大脑画布中心与内容区中心一致。
   - 胶囊控制组与大脑使用同一水平中心。
   - 浅色、深色主题均无横向或纵向页面溢出。
   - 右侧对话区实机计算为无背景、无边框、无阴影、无模糊。
+
+## 离线包
+
+- 桌面预览包：`releases/gaea-voice-memoryhub-20261109-588b5ad6-preview.zip`
+- 解包目录：`releases/gaea-voice-memoryhub-20261109-588b5ad6/`
+- 源码归档：`releases/gaea-voice-memoryhub-20261109-588b5ad6-source.tar.gz`
+- 校验清单：`releases/SHA256SUMS-voice-memoryhub-20261109-588b5ad6.txt`
+- 预览包内始终保留 `gaea.exe`、`onnxruntime.dll`、`sherpa-onnx-c-api.dll`、
+  `sherpa-onnx-cxx-api.dll` 四个同级文件；缺 DLL 时语音链路不可用。
 
 ## 发布边界
 
@@ -64,4 +75,6 @@
   - `wails.json = 4.535.0`
   - `versioninfo.rc = 4.533.0`
 - 本次不擅自修改版本号，也不混入工作区中其他在途模型引擎改动。
-- 构建包以本次功能提交的提交号命名并单独记录 SHA256，避免冒充正式版本发布。
+- 构建来自独立干净工作树中的完整提交
+  `588b5ad60a23a12c6e9a7490225a12f13f97a83e`，不包含主工作树未提交的模型引擎改动。
+- 构建包以本次功能提交的提交号命名并单独记录 SHA256，明确为功能提交预览，避免冒充正式版本发布。

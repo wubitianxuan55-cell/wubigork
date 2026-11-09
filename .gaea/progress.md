@@ -6,7 +6,9 @@
 - **双主题**：`html[data-hl="light"]` 使用冷白玻璃、深色文字与中央深色虚空晕影；`html[data-hl="dark"]` 使用深蓝黑观测台与浅色文字；两种主题均保留全窗大脑和完全透明右侧区域。
 - **文件记录**：专项档 `docs/gaea-voice-memoryhub-ui-20261109.md`，已同步 `docs/README.md` 与本 progress。
 - **验证**：定向测试 41 项、`tsc -b`、定向 ESLint、Vite 生产构建、Wails 构建均通过；实机核对 1264×761 下大脑画布与胶囊中心均为 `x=663`，浅色与深色均无页面溢出。
-- **发布边界**：现有版本源漂移 `app_info.go=4.531.0 / wails.json=4.535.0 / versioninfo.rc=4.533.0` 未擅自修改；本次只提交语音 UI 四个源码文件、专项文档与记忆记录，不混入模型引擎在途改动。
+- **干净构建与打包**：在独立工作树检出 `588b5ad6`，按 `docs/gaea-build-guide.md` 先做前端生产构建，再执行 Wails `2.13.0` 完整构建并保留 bindings；exe 61,605,376 B，SHA256=`0E739EA589559072DD6E83FA8404D844AFC420DC6BBE9381076C3BEC3EE987E4`，与三枚语音 DLL 同目录后 `/api/health` 冒烟 200。
+- **离线产物**：`releases/gaea-voice-memoryhub-20261109-588b5ad6-preview.zip`（32,195,357 B，SHA256=`E017EA6E26ABC12766422F72543EA6D452844EE598548D2BDE1CC96A891711F5`）；源码归档 `releases/gaea-voice-memoryhub-20261109-588b5ad6-source.tar.gz`（38,632,091 B，SHA256=`23F903F194A9C0F492DA256FE591FC71A10E921E32134D91EC2E9B7FBC9A96E1`）；统一校验见 `releases/SHA256SUMS-voice-memoryhub-20261109-588b5ad6.txt`。
+- **发布边界**：现有版本源漂移 `app_info.go=4.531.0 / wails.json=4.535.0 / versioninfo.rc=4.533.0` 未擅自修改；本次只提交语音 UI 四个源码文件、专项文档、独立预览包元数据与记忆记录，构建明确排除模型引擎在途改动。
 - **记忆状态**：本会话未暴露 `hindsight_*` MCP 工具；按仓库既有长期机制写入专项 docs、progress 与 todos，作为下一会话的权威恢复源；会话结束时由宿主自动保留当前对话。
 
 ## 编程板块：DSH Web + REA + 桌面插件迁移与 cmd 黑窗根修 · 2026-11-08
