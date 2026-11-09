@@ -48,6 +48,32 @@
 - 解压配方：DSH runtime node 24 的 `node:zlib zstdDecompressSync`（node:zstd 模块
   不存在，zstd 1.5.7 编译进 zlib）。
 
+## 刀三：办公识图根修（ZCode 执行体，d3577dc3）
+
+2026-11-02 诊断定罪的「办公读图片不自动用 uocr2」落地（候选拍板①并联注入+②描述分工组合）：
+
+- **刀A refs.go appendImageBlock 双腿并联**：识图（画面理解，1200 上限）与全文 OCR
+  （`docmd.OCRImageText`，auto=uocr2→ovis→tesseract）goroutine 并行互不阻塞；OCR 腿
+  15s 预算（包级 var `visionOCRBudget`，外层 select 强制——`docmd.OCRImageText` 无 ctx
+  参数），冷启动不拖死本轮，放弃的 goroutine 后台继续拉起服务、就绪后下轮秒回；
+  空/噪声（<12 字符）/失败静默降级，超时给「可调用 ocr 工具」提示行；识图失败回退
+  占位块也带 OCR 全文（腿倒了另一腿活着照样值钱）。
+- **顺手修真 bug**：`truncateVision` 字节硬切劈中文→改用现成 `truncateUTF8`（对齐
+  sin 线口径）；注入标签【图片识别】→【画面理解】/【全文 OCR】分岗（全仓无其他消费方）。
+- **刀B 描述分工三处+前端一行**：ocr 工具 Description 补触发时机（用户发图要文字/
+  表格/票据内容时主动用，识图块只含画面理解）；系统提示「本地能力优先」补 ocr 工具
+  点名（原只提 pdf 技能+vision）；read_file 读图片改给 ocr/vision 分工引导（原通用
+  binary/markitdown 提示）；附件按钮 title 过时 OvisOCR2→uocr2。
+- **坑**：single_prompt.go 是 raw string 字面量，prompt 文本里写反引号会把 Go 字符串
+  劈出 syntax error（当场踩中当场修，工具名不加反引号）；refs_test 既有 3 例识图
+  测试必须补 `ocrImageText` seam stub，否则单测真拉起 C:\AI\uocr2-llama（同 internal/app
+  测试语义管线地雷形态）。
+- 门禁：go build 全仓（ucrt64+CGO）+ control/builtin 全包 + agent prompt + app 定向族
+  全绿 + tsc 0；新增测试 7 例（双注入/OCR 失败零回归/预算超时/UTF8 截断/门槛 gate/
+  readfile 图片分支×2）。
+- 遗留挂拍板池：sin 线（sin_file_refs.go）同构双注入；read_file 图片 OCR converter
+  （刀A 落地后冗余，降级为错误信息引导已做）。
+
 ## 当日环境坑
 
 - **双启撞 port=死亡进程遗言假象**：第一次 bash `&` 后台启宿主其实活了（占 3091），
