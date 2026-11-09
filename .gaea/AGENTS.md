@@ -194,15 +194,37 @@ gaea 是 Windows 桌面端「通用办公」AI 助手（Wails v2：Go 1.26 后�
   mineru、embedding/reranker、paddleocr、sherpa-onnx 等）；gaea 的聊天/视觉/检索/OCR/解析/ASR/TTS/生图/翻译
   全部依赖它，herdsman 升级可能破坏契约——用 App.HerdsmanProbe 启动探测
 
+## 构建入口（强制默认，2026-11-09 用户拍板）
+
+任何构建、装机、功能预览包、源码归档或产物核验任务，开始前直接读取并执行
+`docs/gaea-build-guide.md`；**不得等待用户提醒，不得凭记忆另造一条构建链**。
+
+- 构建前先清理 `gaea.exe` / `wails.exe` / `go.exe` 孤儿，防止占用
+  `build/bin` 与 Wails runtime。
+- 先在前端执行 `npm.cmd run build`，再做 Wails 构建；bindings 必须生成，禁止
+  `-skipbindings` 绕过。
+- 使用系统默认 `TMP/TEMP`；设置 `CGO_ENABLED=1`、`CC=C:\msys64\ucrt64\bin\gcc.exe`，
+  并把 `C:\msys64\ucrt64\bin` 前置到 `PATH`。缺 ucrt64 会让 cgo 静默降级成语音空壳。
+- 仓根标准命令：`wails build -s -ldflags "-s -w" -trimpath`。若 `build.bat`
+  在 Generating bindings 报 `Access is denied`，按指南清理孤儿、恢复系统
+  `TMP/TEMP` 后走同一裸 `wails build`，不要跳过 bindings。
+- `gaea.exe` 必须与 `onnxruntime.dll`、`sherpa-onnx-c-api.dll`、
+  `sherpa-onnx-cxx-api.dll` 同目录；随后执行
+  `scripts\smoke.ps1 -ExePath build\bin\gaea.exe`，`/api/health` 必须以 200 通过。
+- 本机应用控制策略会拦截 `.tmp` 下的 exe；冒烟必须在 `build\bin` 或正式安装路径执行。
+- 做“某提交的交付包”时，从该提交的独立干净工作树构建，严禁混入主工作树其他未提交
+  业务改动；同时记录提交号、exe/DLL/ZIP/源码包 SHA256 与冒烟结果。
+- 装机按 `scripts\gaea_install.ps1`；exe + 三枚 DLL 同放 `C:\AI\gaea-app`，
+  桌面只保留 `gaea.lnk`。若本轮只做预览包，不擅自覆盖用户已安装版本。
+
 ## 发布流程（2026-08-14 修订：补版本资源步骤）
 
 1. 更新 CHANGELOG.md / README.md（版本表）/ wails.json（productVersion）/ releases/README.md（版本表）
 2. **同步版本资源**：`build/windows/info.json` 是 Wails 生成版本信息的模板（fixed 段必须含
    `product_version`，否则 exe 的 ProductVersion 为 0.0.0.0）；根目录 `versioninfo.rc` 是遗留物，一并更新以免误导
-3. 构建（本沙箱：`cd frontend; npm run build` → `wails build -s`；本机：`cmd /c build.bat`），
-   产物 build/bin/gaea.exe（同时复制到桌面）；本机 build.bat 已内置真实退出码检查 +
-   默认自动冒烟（.tmp 临时副本 → scripts/smoke.ps1，18999 /api/health 200，失败即停；
-   `build.bat skip-smoke` 可跳过，发布前不得跳过）
+3. 构建严格按上方「构建入口」与 `docs/gaea-build-guide.md` 执行；以指南当前流程为准，
+   不把 `build.bat` 当作唯一路径。产物为 `build/bin/gaea.exe`，发布前必须带三枚语音
+   DLL 做真实产物冒烟；不得跳过 bindings 或 `/api/health` 检查
 4. 复制 exe 到 `releases/gaea-v<版本>.exe`，生成 `releases/SHA256SUMS-v<版本>.txt`；
    **本地产物只保留最近 5 版**（2026-09-10 用户拍板）——发版后删掉第 6 新的那一版，
    更早版本的身份以 `SHA256SUMS-vX.Y.Z.txt` 为准（旧 exe 不入库）
