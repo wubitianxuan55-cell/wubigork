@@ -113,6 +113,24 @@
   成本导入 OCRImageText 直喂 PDF 字节（gaea_cost_import_vision.go:126）；
   docmd 无 OCR 结果缓存（wssearch textCache 形态可借）。
 
+## 刀六：docmd OCR 结果缓存（同日拍板即落，223ba665）
+
+刀五遗留池最后一项当场点掉——分钟级 OCR 此前零缓存，同一文件被 @引用重发/
+format_convert/summarize/预览/成本导入反复重跑：
+
+- `ocrcache.go`：键=内容 sha256 前缀+用途域+引擎序（mtime+size 因 Windows
+  同纳秒互覆失真前科弃用）；**只缓存成功结果**（保住冷启动预算→拉起→下轮
+  命中阶梯）；singleflight 合并并发同键（预算放弃者后台跑完，后来者等飞行）；
+  LRU 双上限 32 条/64MB。已知语义=uocr2 后端腿 auto 择优首次钉住；磁盘
+  持久化挂拍板池。
+- 接线 OCRImageText + pdfToMarkdownLimit OCR 分支（data 在内存零重读哈希）。
+- **坑**：读不到文件时指纹失败不能短路返回 open 错误——「引擎不可用」错误
+  文案（含引擎名+安装提示）是测试契约，两例既有测试当场逮住；修正为绕过
+  缓存直走链。
+- 测试 5 例（LRU 逐出×3 形态/命中不重跑/失败不缓存/singleflight/内容键集成
+  tesseract seam 计数）；门禁=go build 全仓+docmd/control/builtin 全包+app
+  PDF/OCR/Sin 族全绿。
+
 ## 当日环境坑
 
 - **双启撞 port=死亡进程遗言假象**：第一次 bash `&` 后台启宿主其实活了（占 3091），
