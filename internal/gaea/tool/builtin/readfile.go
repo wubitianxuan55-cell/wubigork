@@ -146,8 +146,18 @@ func (r readFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 					p.Path,
 				)
 			}
-			if markdown, ok := tryMarkItDown(ctx, p.Path); ok {
+			if markdown, ok := tryMarkItDownFn(ctx, p.Path); ok {
 				return markdown, nil
+			}
+			// 扫描件 PDF（无文本层）：markitdown 转不出文本。不在此真跑 OCR
+			// （分钟级与快速读工具形态不符）——指给 format_convert（内置扫描件
+			// OCR 兜底，可 pages 分段）或 summarize_file；未装 markitdown 的
+			// 文本 PDF 也顺带被引到正解入口。
+			if strings.EqualFold(filepath.Ext(p.Path), ".pdf") {
+				return "", fmt.Errorf(
+					"binary file %s; text extraction failed — likely a scanned PDF (no text layer). Use the format_convert tool (auto-OCR for scanned PDFs, optional pages param) or summarize_file",
+					p.Path,
+				)
 			}
 			return "", fmt.Errorf(
 				"binary file %s (NUL byte detected); install markitdown (pip install markitdown) to auto-convert PDF/Word/Excel/PPT to readable Markdown, or use `bash hexdump` for raw bytes",
@@ -320,6 +330,10 @@ func MarkdownConverterKinds() []string {
 	sort.Strings(out)
 	return out
 }
+
+// tryMarkItDownFn tryMarkItDown 的 seam（包级变量以便测试堵住 markitdown 路径：
+// 扫描件 PDF 指引分支的机器无关覆盖——真 markitdown 装没装因机而异）。
+var tryMarkItDownFn = tryMarkItDown
 
 // ── 运行时配置注入 ─────────────────────────────────────────────
 

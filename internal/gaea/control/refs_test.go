@@ -83,6 +83,61 @@ func TestReadFileRef_LargeTextMarker(t *testing.T) {
 	}
 }
 
+// stubOfficeConv 注入办公文档转换桩并在测试结束恢复（默认实现会真走 docmd
+// 转换/OCR 管线）。
+func stubOfficeConv(t *testing.T, fn func(string, string, int) (string, int, bool, error)) {
+	t.Helper()
+	orig := convertOfficeDoc
+	convertOfficeDoc = fn
+	t.Cleanup(func() { convertOfficeDoc = orig })
+}
+
+// TestReadFileRef_OfficeConvertFailureCarriesReason 转换失败文案带真因
+// （pdftoppm 缺失/引擎不可用一眼可见）并指向 format_convert。
+func TestReadFileRef_OfficeConvertFailureCarriesReason(t *testing.T) {
+	path := buildTextPDF(t, 1)
+	stubOfficeConv(t, func(string, string, int) (string, int, bool, error) {
+		return "", 1, false, errors.New("扫描件 PDF 需要 poppler 渲染（pdftoppm），但未找到")
+	})
+	content, _, err := readFileRef(path)
+	if err != nil {
+		t.Fatalf("readFileRef: %v", err)
+	}
+	if !strings.Contains(content, "pdftoppm") {
+		t.Errorf("失败文案应带真因: %q", content)
+	}
+	if !strings.Contains(content, "format_convert") || !strings.Contains(content, "summarize_file") {
+		t.Errorf("失败文案应指向深入读取工具: %q", content)
+	}
+	if strings.Contains(content, "scanned or compressed PDF") {
+		t.Errorf("误导性固定文案应已被真因替换: %q", content)
+	}
+}
+
+// TestReadFileRef_OfficeConvertBudgetTimeout 转换超预算注入指引行，
+// 消息发送路径不被分钟级 OCR 拖死。
+func TestReadFileRef_OfficeConvertBudgetTimeout(t *testing.T) {
+	path := buildTextPDF(t, 1)
+	stubOfficeConv(t, func(string, string, int) (string, int, bool, error) {
+		time.Sleep(200 * time.Millisecond) // 远超收缩后的预算
+		return "迟到的正文，不应注入", 1, false, nil
+	})
+	origBudget := officeConvBudget
+	officeConvBudget = 30 * time.Millisecond
+	t.Cleanup(func() { officeConvBudget = origBudget })
+
+	content, _, err := readFileRef(path)
+	if err != nil {
+		t.Fatalf("readFileRef: %v", err)
+	}
+	if !strings.Contains(content, "超预算") || !strings.Contains(content, "format_convert") {
+		t.Errorf("超预算指引缺失: %q", content)
+	}
+	if strings.Contains(content, "迟到的正文") {
+		t.Errorf("迟到正文不应注入: %q", content)
+	}
+}
+
 func TestParseRefTokens(t *testing.T) {
 	cases := []struct {
 		line string

@@ -33,6 +33,35 @@ func TestReadFile_ImageGuidesToOCRVision(t *testing.T) {
 	}
 }
 
+// TestReadFile_ScannedPDFGuidesToFormatConvert read_file 对转不出文本的 PDF
+// 应指给 format_convert（扫描件自动 OCR）/summarize_file，不再误导装 markitdown
+// （2026-11-09 扫描件 PDF fallback 刀③）。
+func TestReadFile_ScannedPDFGuidesToFormatConvert(t *testing.T) {
+	dir := t.TempDir()
+	pdfPath := filepath.Join(dir, "scan.pdf")
+	// %PDF 头 + NUL：判二进制；markitdown 路径用 seam 堵死（真 markitdown
+	// 装没装因机而异，不 hermetic）。
+	if err := os.WriteFile(pdfPath, []byte("%PDF-1.4\n\x00\x00trailer"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	origConv := tryMarkItDownFn
+	tryMarkItDownFn = func(context.Context, string) (string, bool) { return "", false }
+	t.Cleanup(func() { tryMarkItDownFn = origConv })
+
+	tool := readFile{workDir: dir}
+	_, err := tool.Execute(context.Background(), json.RawMessage(`{"path":"scan.pdf"}`))
+	if err == nil {
+		t.Fatal("read_file on unconvertible PDF should error with guidance")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "format_convert") || !strings.Contains(msg, "scanned PDF") {
+		t.Errorf("PDF error missing format_convert/scanned guidance: %q", msg)
+	}
+	if strings.Contains(msg, "install markitdown") {
+		t.Errorf("PDF error should not suggest installing markitdown: %q", msg)
+	}
+}
+
 // TestReadFile_BinaryKeepsMarkItDownHint 非图片二进制仍走原 markitdown 提示
 // （图片分支不得误伤通用二进制路径）。
 func TestReadFile_BinaryKeepsMarkItDownHint(t *testing.T) {

@@ -37,6 +37,15 @@ var visionRecognize = vision.RecognizeImage
 // 管线地雷形态：单测静默连真实引擎）。
 var ocrImageText = docmd.OCRImageText
 
+// convertOfficeDoc 办公文档转换 seam（可注入以便测试）。docmd 内置扫描件
+// OCR 兜底：文本层为空/只是页码戳噪声时自动 pdftoppm+本地 OCR 链。
+var convertOfficeDoc = docmd.ConvertLimit
+
+// officeConvBudget @引用办公文档转换预算：文本 PDF 毫秒级，扫描件 OCR 分钟级
+// （GPU 6s/页、CPU 20s/页起），消息发送路径不能干等——超预算放弃本轮注入
+// （附指引行），后台转换继续跑完不浪费引擎预热。包级变量以便测试收缩。
+var officeConvBudget = 30 * time.Second
+
 // maxVisionTextBytes 限制注入的识图文本长度，避免撑爆上下文。
 const maxVisionTextBytes = 1200
 
@@ -334,12 +343,20 @@ func readFileRef(path string) (content string, isDir bool, err error) {
 	}
 	if isOfficePath(path) {
 		// 办公文档：转 Markdown 注入头部（PDF 限前 refOfficeMaxPages 页），
-		// 而不是把 zip/PDF 二进制当 "not shown" 丢弃。
-		if md, total, truncated, convErr := docmd.ConvertLimit(path, "", refOfficeMaxPages); convErr == nil && strings.TrimSpace(md) != "" {
+		// 而不是把 zip/PDF 二进制当 "not shown" 丢弃。转换带预算（扫描件
+		// OCR 分钟级，超预算放弃本轮、后台继续）。
+		md, total, truncated, convErr, timedOut := convertOfficeDocBudgeted(path, refOfficeMaxPages)
+		if timedOut {
+			return fmt.Sprintf("[office document %s, %d bytes — 转换超预算（扫描件 OCR 仍在后台进行）；可调用 format_convert（支持 pages 分段，扫描件自动 OCR）或 summarize_file 提取]", path, info.Size()), false, nil
+		}
+		if convErr == nil && strings.TrimSpace(md) != "" {
 			return officeRefBlock(md, path, info.Size(), total, truncated), false, nil
 		}
-		return fmt.Sprintf("[office document %s, %d bytes - text extraction failed (scanned or compressed PDF); use format_convert or summarize_file]", path, info.Size()), false, nil
-		// 转换失败（缺依赖等）时退回通用二进制提示，保证引用不失效
+		reason := "text extraction failed"
+		if convErr != nil {
+			reason = convErr.Error() // 真因透传：pdftoppm 缺失/引擎不可用一眼可见
+		}
+		return fmt.Sprintf("[office document %s, %d bytes — text extraction failed (%s); use format_convert (scanned PDFs auto-OCR, pages param supported) or summarize_file]", path, info.Size(), reason), false, nil
 	}
 	if bytes.IndexByte(data, 0) >= 0 {
 		return fmt.Sprintf("[binary file %s, %d bytes — not shown]", path, info.Size()), false, nil
@@ -348,6 +365,31 @@ func readFileRef(path string) (content string, isDir bool, err error) {
 		return string(data[:maxFileRefBytes]) + fmt.Sprintf("\n…[truncated; file is %d bytes]…\n[文件较大：可调用 summarize_file 获取全文摘要，或用 read_file 按 offset 分页读取]", info.Size()), false, nil
 	}
 	return string(data), false, nil
+}
+
+// convertOfficeDocBudgeted 带预算的办公文档转换（同图片 OCR 腿的预算模式：
+// goroutine + timer select，超时放弃的 goroutine 后台继续跑完）。返回末参
+// timedOut=true 时前四个值无意义。
+func convertOfficeDocBudgeted(path string, maxPages int) (md string, total int, truncated bool, err error, timedOut bool) {
+	type convResult struct {
+		md        string
+		total     int
+		truncated bool
+		err       error
+	}
+	ch := make(chan convResult, 1)
+	go func() {
+		m, t, tr, e := convertOfficeDoc(path, "", maxPages)
+		ch <- convResult{m, t, tr, e}
+	}()
+	timer := time.NewTimer(officeConvBudget)
+	defer timer.Stop()
+	select {
+	case r := <-ch:
+		return r.md, r.total, r.truncated, r.err, false
+	case <-timer.C:
+		return "", 0, false, nil, true
+	}
 }
 
 // isOfficePath 判断是否为 docmd 可转换的办公文档。
