@@ -13,6 +13,7 @@ import (
 	"github.com/xuri/excelize/v2"
 
 	"github.com/gaea/gaea/internal/gaea/spaces"
+	"github.com/gaea/gaea/internal/gaea/wspath"
 )
 
 // deliverableNameRe 是交付物文件名非法字符正则（刀E v4.249 普查#20：包级）。
@@ -28,6 +29,11 @@ type ExportDeliverableInput struct {
 	TOC      bool   `json:"toc"`
 	Header   string `json:"header"`
 	Footer   string `json:"footer"`
+	// OutputPath 声明写路径（工作区相对路径；P1a 结构化声明入口，2026-11-09
+	// 众神殿裁决 action-3）：agent 侧 office_generate 必填，验收=声明路径与
+	// 实际落点逐字节一致。空=历史默认（ExportsDir+时间戳命名），UI 绑定契约
+	// 不变——默认分支让位方式：显式声明优先，缺省走旧路径。
+	OutputPath string `json:"output_path"`
 }
 
 // ExportDeliverableResult 是交付结果（工作区相对路径）。
@@ -73,14 +79,31 @@ func (a *App) GaeaExportDeliverable(in ExportDeliverableInput) (ExportDeliverabl
 		in.Footer = "第 {page} 页"
 	}
 
-	// S4 产物路径分区：work 恒 .gaea/exports（现状不动），play 落 .gaea/play/exports。
-	exportsDir := spaces.ExportsDir(gaeaCwd(), gaeaEffectiveSpace())
-	if err := os.MkdirAll(exportsDir, 0o755); err != nil {
-		return ExportDeliverableResult{}, err
+	// 输出路径双分支（P1a 声明入口）：OutputPath 非空=声明路径（工作区内校验 +
+	// 扩展名与 format 一致闸，声明路径=实际落点逐字节一致）；空=历史默认分支
+	// （S4 产物路径分区：work 恒 .gaea/exports 现状不动，play 落 .gaea/play/exports）。
+	var outPath string
+	if strings.TrimSpace(in.OutputPath) != "" {
+		p, perr := wspath.ResolveRelWithin(gaeaCwd(), in.OutputPath)
+		if perr != nil {
+			return ExportDeliverableResult{}, fmt.Errorf("非法 output_path（须为工作区相对路径）: %s", in.OutputPath)
+		}
+		if ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(p), ".")); ext != format {
+			return ExportDeliverableResult{}, fmt.Errorf("output_path 扩展名 %q 与 format %q 不一致", ext, format)
+		}
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			return ExportDeliverableResult{}, err
+		}
+		outPath = p
+	} else {
+		exportsDir := spaces.ExportsDir(gaeaCwd(), gaeaEffectiveSpace())
+		if err := os.MkdirAll(exportsDir, 0o755); err != nil {
+			return ExportDeliverableResult{}, err
+		}
+		stamp := time.Now().Format("20060102-150405")
+		base := safeDeliverableName(title)
+		outPath = filepath.Join(exportsDir, base+"-"+stamp+"."+format)
 	}
-	stamp := time.Now().Format("20060102-150405")
-	base := safeDeliverableName(title)
-	outPath := filepath.Join(exportsDir, base+"-"+stamp+"."+format)
 
 	switch format {
 	case "md":

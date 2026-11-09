@@ -16,6 +16,7 @@
 | ✅ | 迁移桌面版 9 个外部插件依赖，启用 8 个兼容 bundle；`dsh-ops` 升至适配版本 |
 | ✅ | 根修 GPU 遥测 PowerShell 与 dshmarket restart helper 的 cmd 黑窗，并完成构建装机 |
 | ✅ | 专项文档、构建指南、隔离说明、progress 与 todos 记忆更新 |
+| ✅ | 办公板块工具治理第一批（众神殿 P0 注册表地图+P1a 结构化写入口+P1b spike/接线，D3 四条件全过；P2–P4 待点名） |
 | ⏳ | 采集 20–30 个真实议题，补齐单席/独立多答/圆桌/定向质询（可选红队）并做人工质量评审 |
 | ⏳ | 安装并配置 Hindsight 后补录「众神殿四框架机制落地 2026-11-03」文档记忆 |
 | ⏳ | 按需安装 Ghidra/IDA/JADX/Kuna，补齐 REA 原生反编译 provider |

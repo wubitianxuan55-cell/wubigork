@@ -1408,6 +1408,7 @@ export namespace app {
 	    toc: boolean;
 	    header: string;
 	    footer: string;
+	    output_path: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ExportDeliverableInput(source);
@@ -1423,6 +1424,7 @@ export namespace app {
 	        this.toc = source["toc"];
 	        this.header = source["header"];
 	        this.footer = source["footer"];
+	        this.output_path = source["output_path"];
 	    }
 	}
 	export class ExportDeliverableResult {

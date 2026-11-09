@@ -165,17 +165,7 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 		// 注入需要应用服务的工具（生图/画图复用模型中心模型与图片后端）。
 		// 3.0 Step 3d #6：专业工具（ocr 等）经 gaeaSpecialistTools 集中注册，
 		// 展开进 ExtraTools，避免装配列表与定义漂移。
-		ExtraTools: append([]tool.Tool{
-			imageGenTool{a: a},
-			diagramTool{a: a},
-			routineLLMTool{a: a},
-			translateTextTool{a: a},
-			factAddTool{},
-			factListTool{},
-			factClearTool{},
-			// 6.3 文件流水线：主代理规划工具（work 空间，PersistWrite 防子代理嵌套）。
-			dagPlanTool{dir: filepath.Join(gaeaCwd(), ".gaea", "work", "dag")},
-		}, gaeaSpecialistTools(a)...),
+		ExtraTools: gaeaExtraTools(a),
 		// 晨报预载（v4.16 刀④）：work 空间会话装配时把高频工作记忆预装配进
 		// agent 上下文（零 LLM、预算受限、work 只读）。开关读 ~/.gaea_config.json
 		// 的 morning_preload 键（默认开，仅 config 文件可控，无 UI 绑定）；
@@ -883,4 +873,31 @@ func gaeaLevelName(l event.Level) string {
 	default:
 		return "info"
 	}
+}
+
+// gaeaExtraTools 办公 agent ExtraTools 装配单点（P0 注册表地图：唯一注册表
+// 四入口之一，boot.Build reg.Add 同账；新增应用层工具只改这一处）。P1a
+// office 工具族（office_generate + 四类写）同点装配，不新开装配源
+// （2026-11-09 众神殿 pan_1794234593182 裁决 action-3）。
+func gaeaExtraTools(a *App) []tool.Tool {
+	return append([]tool.Tool{
+		imageGenTool{a: a},
+		diagramTool{a: a},
+		routineLLMTool{a: a},
+		translateTextTool{a: a},
+		factAddTool{},
+		factListTool{},
+		factClearTool{},
+		// 6.3 文件流水线：主代理规划工具（work 空间，PersistWrite 防子代理嵌套）。
+		dagPlanTool{dir: filepath.Join(gaeaCwd(), ".gaea", "work", "dag")},
+		// P1a 结构化写入口：office_generate（从零生成声明入口）+ 四类写升
+		// agent 工具（docx_apply/docx_accept/pptx_apply/xlsx_apply）。全部走
+		// appendOfficeEvidence 单点 Journal；实现 WritePathResolver、不标
+		// PersistWrite（FilterRegistry 不摘，write_paths 声明面可用）。
+		officeGenerateTool{a: a},
+		officeDocxApplyTool{a: a},
+		officeDocxAcceptTool{a: a},
+		officePptxApplyTool{a: a},
+		officeXlsxApplyTool{a: a},
+	}, gaeaSpecialistTools(a)...)
 }

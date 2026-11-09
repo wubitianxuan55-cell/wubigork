@@ -23,14 +23,21 @@ import type { JournalChangeRecord, DeliverableEntry, WireEvent } from "./types";
 
 // ── §1 工具分类与路径提取 ────────────────────────────────────────────────
 
-// 写入类 = 写类 8 种（lib/changes.ts WRITE_TOOL_NAMES，与 Go isWriterTool 一致）
-// + 生成/导出类 3 种（Go isProducerTool）+ xlsx_apply（App 层 Plan→Apply 批准
-// 动作，证据卡 Tool="xlsx_apply"，internal/app/gaea_xlsx_edit.go）。
+// 写入类 = 写类 8 种（lib/changes.ts WRITE_TOOL_NAMES，与 Go isWriterTool 基础
+// 五写一致）+ 生成/导出类 3 种（Go isProducerTool）+ P1a office 工具族
+// （2026-11-09 众神殿裁决 action-3：office_generate=从零生成声明入口（Go
+// isProducerTool 已认账，output_path 键）+ 四类写 docx_apply/docx_accept/
+// pptx_apply/xlsx_apply（Go isWriterTool 已认账，Journal 落账单点
+// appendOfficeEvidence）——前端投影白名单不再互不认账，L9 台账销项）。
 export const OFFICE_WRITE_TOOLS: ReadonlySet<string> = new Set([
   ...WRITE_TOOL_NAMES,
   "format_convert",
   "chart_gen",
   "diagram_gen",
+  "office_generate",
+  "docx_apply",
+  "docx_accept",
+  "pptx_apply",
   "xlsx_apply",
 ]);
 
@@ -81,6 +88,11 @@ export function extractOfficeWritePaths(tool: string, args: string | undefined):
   const seen = new Set<string>();
   if (tool === "format_convert" || tool === "chart_gen" || tool === "diagram_gen") {
     pushPath(out, seen, parsed.output);
+    return out;
+  }
+  // P1a office_generate 的声明写路径键（对齐 Go ExtractDeliverablePaths）。
+  if (tool === "office_generate") {
+    pushPath(out, seen, parsed.output_path);
     return out;
   }
   for (const key of ["path", "file_path", "notebook_path", "destination"]) {

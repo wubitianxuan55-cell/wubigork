@@ -21,6 +21,7 @@ import {
   officeUpdatedPathsFromResult,
   previewAutoFrontReduce,
   projectOfficeTurn,
+  OFFICE_WRITE_TOOLS,
 } from "./officeTurnProjection";
 import { app } from "./bridge";
 import type { DeliverableEntry, JournalChangeRecord } from "./types";
@@ -562,5 +563,16 @@ describe("createPreviewRefreshScheduler 写后预览刷新调度器（防抖/触
     clock.advance(800);
     expect(fired).toEqual([]);
     expect(clock.size()).toBe(0);
+  });
+});
+
+describe("officeTurnProjection P1a office 工具族投影白名单（裁决 L9 名单对齐）", () => {
+  it("office_generate 与四类写在 OFFICE_WRITE_TOOLS", () => {
+    for (const name of ["office_generate", "docx_apply", "docx_accept", "pptx_apply", "xlsx_apply"]) {
+      expect(OFFICE_WRITE_TOOLS.has(name), name).toBe(true);
+    }
+  });
+  it("office_generate 的 output_path 计入写路径提取", () => {
+    expect(extractOfficeWritePaths("office_generate", JSON.stringify({ output_path: "报告/总结.docx" }))).toEqual(["报告/总结.docx"]);
   });
 });

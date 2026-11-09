@@ -1,3 +1,24 @@
+## 办公板块工具治理第一批 · 2026-11-10
+
+- **承接**：众神殿 pan_1794234593182（签注 accepted）六阶段计划；用户令开工。
+- **P0**：`internal/gaea/tool/registrymap.go` 82 行契约地图（来源/空间/副作用/
+  证据档/验收谓词）+ tool/boot/app 三处防漂移守卫 + `scripts/registry_map_doc.go`
+  单源导出 `docs/gaea-tool-registry-map-2026-11.md`。
+- **P1a**：GaeaExportDeliverable 补 output_path（默认分支让位=显式声明优先）；
+  office_generate+docx_apply/docx_accept(仅 accept=true)/pptx_apply/xlsx_apply
+  五工具升 agent 面（gaeaExtraTools 装配单点，WritePathResolver、不标
+  PersistWrite、Journal 单点落账）；通道 A 未比对不得回 pass（文案修复）；
+  三本账名单对齐（Go isWriterTool/isProducerTool/ExtractDeliverablePaths+前端
+  OFFICE_WRITE_TOOLS/extractOfficeWritePaths，L9 销项）。
+- **P1b spike**：PublishGuard（tool 包）五类写入（重定向/Python/改名/后台/脚本）
+  全部可拦可提交判定，快照 ~1.6ms/200 文件——结论有利，P4 不后置。
+- **P1b 接线**：bash 前台（终段 Scan fail-loud）+后台 job（完成回调 Scan，终态
+  失败）双路径；隔离到 .gaea/publish-quarantine；依赖目录剪枝记档。
+- **验证**：tool/builtin/agent/boot/evidence/app 全量绿（app 142.9s 零 FAIL）+
+  全树编译+tsc 0+officeTurnProjection 43/43+wails build+冒烟。
+- **D3 止损门四条件全过**；P2–P4 待用户点名。
+- **文件记录**：`docs/gaea-day-log-2026-11-10.md`、`docs/gaea-tool-registry-map-2026-11.md`。
+
 ## 语音交互窗口记忆中枢化 · 2026-11-09
 
 - **用户目标**：语音交互窗口模仿记忆中枢；虚空大脑全窗呈现，右侧面板必须完全透明，底部控制为居中胶囊，同时支持深浅主题，并让中央字幕在回合结束后继续显示最近问答。
@@ -10,6 +31,7 @@
 - **离线产物**：`releases/gaea-voice-memoryhub-20261109-588b5ad6-preview.zip`（32,195,357 B，SHA256=`E017EA6E26ABC12766422F72543EA6D452844EE598548D2BDE1CC96A891711F5`）；源码归档 `releases/gaea-voice-memoryhub-20261109-588b5ad6-source.tar.gz`（38,632,091 B，SHA256=`23F903F194A9C0F492DA256FE591FC71A10E921E32134D91EC2E9B7FBC9A96E1`）；统一校验见 `releases/SHA256SUMS-voice-memoryhub-20261109-588b5ad6.txt`。
 - **发布边界**：现有版本源漂移 `app_info.go=4.531.0 / wails.json=4.535.0 / versioninfo.rc=4.533.0` 未擅自修改；本次只提交语音 UI 四个源码文件、专项文档、独立预览包元数据与记忆记录，构建明确排除模型引擎在途改动。
 - **记忆状态**：本会话未暴露 `hindsight_*` MCP 工具；按仓库既有长期机制写入专项 docs、progress 与 todos，作为下一会话的权威恢复源；会话结束时由宿主自动保留当前对话。
+
 
 ## 编程板块：DSH Web + REA + 桌面插件迁移与 cmd 黑窗根修 · 2026-11-08
 

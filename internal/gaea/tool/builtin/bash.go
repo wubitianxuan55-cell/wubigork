@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -74,6 +75,33 @@ func (bash) Schema() json.RawMessage {
 // git commit, etc. are all reachable). Conservative even when a particular
 // command happens to be read-only — the agent batch decision can't tell.
 func (bash) ReadOnly() bool { return false }
+
+// newPublishGuard P1b 发布边界实例（2026-11-09 众神殿 pan_1794234593182 裁决
+// action-4）：每次调用独立（前台/后台 job 各自快照互不串账）。workDir 为空
+// （零值实例/非工作区装配）不守卫。
+func (b bash) newPublishGuard() *tool.PublishGuard {
+	if b.workDir == "" {
+		return nil
+	}
+	return tool.NewPublishGuard([]string{b.workDir}, filepath.Join(b.workDir, ".gaea", "publish-quarantine"), nil)
+}
+
+// publishCheck 执行后扫描 durable 越界写：命中即 Quarantine 移出正式工作区并
+// 返回 fail-loud 文案（备忘 :23：回显期望路径集）。快照缺席（Begin 失败）不
+// 冒充拦截，如实放行。
+func (b bash) publishCheck(g *tool.PublishGuard) error {
+	if g == nil {
+		return nil
+	}
+	vs, err := g.Scan()
+	if err != nil || len(vs) == 0 {
+		return nil
+	}
+	if _, qerr := g.Quarantine(vs); qerr != nil {
+		return fmt.Errorf("%s\n隔离失败（越界件可能仍在正式工作区）：%v", tool.ExpectedPathsNote(vs, nil), qerr)
+	}
+	return fmt.Errorf("%s", tool.ExpectedPathsNote(vs, nil))
+}
 
 func (bash) CompactDescription() string     { return compactDesc["bash"] }
 func (bash) CompactSchema() json.RawMessage { return compactSchema["bash"] }
@@ -158,6 +186,13 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 		// StartIn：在嵌套场景（后台 task 的子会话里再开后台命令）自动挂到父 job，
 		// 父任务被杀时级联取消（2b 终止级联）。
 		job := jm.StartIn(ctx, "bash", commandPreview(p.Command), func(jobCtx context.Context, out io.Writer) (string, error) {
+			// P1b 后台发布边界：job 启动即快照，完成（cmd.Wait 返回）再 Scan——
+			// spike 实证：前台 Scan 对未落盘的后台写恒 clean，job 完成回调才是
+			// 后台拦截点。
+			pub := b.newPublishGuard()
+			if pub != nil {
+				_ = pub.Begin()
+			}
 			cmd := exec.CommandContext(jobCtx, argv[0], argv[1:]...)
 			hideBashWindow(cmd) // Windows: 防止弹出 cmd 黑框
 			cmd.Dir = workDir
@@ -195,6 +230,14 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 				// Job Object failed (e.g. sandbox restriction); fall back to taskkill.
 				killProcessTree(cmd)
 			}
+			// P1b：job 完成=后台 Scan 拦截点。命中即隔离 + fail-loud（job 终态
+			// 置失败，bash_output 可读说明）。
+			if pub != nil {
+				if perr := b.publishCheck(pub); perr != nil {
+					fmt.Fprintln(out, perr.Error())
+					return "", perr
+				}
+			}
 			return "", err
 		})
 		return fmt.Sprintf("Started background job %q. It keeps running across turns; read new output with bash_output(job_id=%q), wait for it with wait, or stop it with kill_shell(job_id=%q).", job.ID, job.ID, job.ID), nil
@@ -203,6 +246,12 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 	start := time.Now()
 	ctx, cancel := context.WithTimeout(ctx, bashTimeout)
 	defer cancel()
+
+	// P1b 发布边界：启动前快照（前台窗口 Begin→执行→Scan，spike 实证）。
+	pub := b.newPublishGuard()
+	if pub != nil {
+		_ = pub.Begin()
+	}
 
 	cmd := exec.Command(argv[0], argv[1:]...)
 	hideBashWindow(cmd) // Windows: 防止弹出 cmd 黑框
@@ -302,6 +351,13 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 						"stderr":      stderrStr,
 						"command":     p.Command,
 					}
+					// P1b：早期返回的进程继续后台运行（其后写盘为记档残余窗），
+					// 已落盘的 durable 越界写在此拦（备注上屏，进程存活不置错）。
+					if pub != nil {
+						if perr := b.publishCheck(pub); perr != nil {
+							result["publish_blocked"] = perr.Error()
+						}
+					}
 					_ = enc.Encode(result)
 					return strings.TrimSpace(buf2.String()), nil
 				}
@@ -310,6 +366,11 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 				out := stdoutBuf.String()
 				const plainMaxBytes = 48 * 1024
 				out, _ = truncateStream(out, plainMaxBytes)
+				if pub != nil {
+					if perr := b.publishCheck(pub); perr != nil {
+						out += "\n" + perr.Error()
+					}
+				}
 				return out + "\n[进程仍在后台运行]", nil
 			}
 
@@ -372,6 +433,12 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 		if stderrTrunc {
 			result["stderr_truncated"] = true
 		}
+		// P1b 前台发布边界：执行结束扫描（命中即隔离 + fail-loud，裁决 :23）。
+		if pub != nil {
+			if perr := b.publishCheck(pub); perr != nil {
+				return "", perr
+			}
+		}
 		_ = enc.Encode(result)
 		return strings.TrimSpace(buf2.String()), nil
 	}
@@ -380,6 +447,13 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 	out := stdoutBuf.String()
 	const plainMaxBytes = 48 * 1024
 	out, _ = truncateStream(out, plainMaxBytes)
+
+	// P1b 前台发布边界（plain 终段：命中即隔离 + fail-loud）。
+	if pub != nil {
+		if perr := b.publishCheck(pub); perr != nil {
+			return "", perr
+		}
+	}
 
 	if ctx.Err() == context.DeadlineExceeded {
 		return out, fmt.Errorf("command timed out (> %s)", bashTimeout)

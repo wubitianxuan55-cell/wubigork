@@ -27,6 +27,14 @@ func TestToolNameMentionsSubsetOfRegistry(t *testing.T) {
 	// ModelBacked 工具按需动态注册（model_tool_recorder/agent_stream 消费面），
 	// 无静态清单可引用，在此显式登记。
 	known["summarize_file"] = true
+	// app 层 ExtraTools 装配面（gaeaExtraTools，boot.Build reg.Add 同账）：agent
+	// 包不能 import app，按守卫纪律显式登记真实注册名（P1a office 工具族，
+	// 2026-11-09 众神殿裁决 action-3；装配点 office_tools.go/gaea_handler.go）。
+	for _, n := range []string{
+		"office_generate", "docx_apply", "docx_accept", "pptx_apply", "xlsx_apply",
+	} {
+		known[n] = true
+	}
 	// 非工具名的合法 case（压缩原因/语言标签等枚举），逐个注明归属。
 	for _, n := range []string{
 		"zh", "cn", "en", "chinese", "english", // 语言标签（compact/翻译域）

@@ -379,7 +379,11 @@ func ReceiptFromToolCall(toolName string, args json.RawMessage, success bool, re
 
 func isWriterTool(name string) bool {
 	switch name {
-	case "write_file", "edit_file", "multi_edit", "edit_lines", "move_file":
+	case "write_file", "edit_file", "multi_edit", "edit_lines", "move_file",
+		// P1a 四类写升 agent 工具（2026-11-09 众神殿裁决 action-3）：Journal
+		// 落账单点在 App 层 appendOfficeEvidence，agent 回执账（Receipt.Write
+		// + extractPaths 的 path 参数）同步认账——三本账名单不再互不认账。
+		"docx_apply", "docx_accept", "pptx_apply", "xlsx_apply":
 		return true
 	default:
 		return false
@@ -396,12 +400,14 @@ func isReaderTool(name string) bool {
 }
 
 // isProducerTool 报告工具是否为「生成/导出类」产物工具：产物路径出现在
-// output 参数中（format_convert 导出 Markdown、chart_gen/diagram_gen 落盘
-// png/svg）。v4.23 前的前端启发式（WRITE_TOOL_NAMES + 正文扩展名白名单）
-// 不覆盖这三类，是产物漏登的主因之一，v4.24 权威产物登记表显式纳入。
+// output/output_path 参数中（format_convert 导出 Markdown、chart_gen/diagram_gen
+// 落盘 png/svg、office_generate 按 output_path 声明落点）。v4.23 前的前端启发式
+// （WRITE_TOOL_NAMES + 正文扩展名白名单）不覆盖生成类，是产物漏登的主因之一，
+// v4.24 权威产物登记表显式纳入；office_generate 为 P1a 声明入口（2026-11-09
+// 众神殿裁决 action-3）。
 func isProducerTool(name string) bool {
 	switch name {
-	case "format_convert", "chart_gen", "diagram_gen":
+	case "format_convert", "chart_gen", "diagram_gen", "office_generate":
 		return true
 	default:
 		return false
@@ -409,14 +415,16 @@ func isProducerTool(name string) bool {
 }
 
 // IsDeliverableTool 报告工具是否会向工作区落盘产物（v4.24 C1 权威产物
-// 登记表的登记口径）：写类 5 种（isWriterTool：write_file/edit_file/
-// multi_edit/edit_lines/move_file，与前端 lib/changes.ts WRITE_TOOL_NAMES
-// 一致，并已核对工具注册表全集——v4.519 摘除从未注册的幽灵名
-// notebook_edit/delete_range/delete_symbol）
-// + 生成/导出类 3 种（isProducerTool）。
+// 登记表的登记口径）：写类 9 种（isWriterTool：write_file/edit_file/
+// multi_edit/edit_lines/move_file 基础五写 + P1a 四类写 docx_apply/docx_accept/
+// pptx_apply/xlsx_apply，2026-11-09 众神殿裁决 action-3；基础五写与前端
+// lib/changes.ts WRITE_TOOL_NAMES 一致，并已核对工具注册表全集——v4.519 摘除
+// 从未注册的幽灵名 notebook_edit/delete_range/delete_symbol）
+// + 生成/导出类 4 种（isProducerTool：format_convert/chart_gen/diagram_gen/
+// office_generate）。
 // bash/screen_capture 不登记：产物路径不出现在结构化参数里（bash 由命令
 // 决定、screen_capture 落 .gaea/uploads/ 由系统生成路径），无法从参数权威
-// 提取，不做启发式猜测。
+// 提取，不做启发式猜测；bash 的 durable 写由 P1b PublishGuard 发布边界拦截。
 func IsDeliverableTool(name string) bool {
 	return isWriterTool(name) || isProducerTool(name)
 }
@@ -428,8 +436,9 @@ func IsDeliverableTool(name string) bool {
 //   - 写类（isWriterTool）：path / file_path / notebook_path / destination
 //     单值 + paths / file_paths 数组 + edits[].path / edits[].file_path
 //     （multi_edit/edit_file 编辑片段）；
-//   - 生成/导出类（isProducerTool）：output 落盘参数——path 在这三类工具里
-//     是输入源文件（如 format_convert 的 docx），不是交付物，不登记。
+//   - 生成/导出类（isProducerTool）：output / output_path 落盘参数——path 在
+//     生成类工具里是输入源文件（如 format_convert 的 docx），不是交付物，
+//     不登记（office_generate 的声明落点键为 output_path）。
 //
 // 去重保持出现顺序，空白路径跳过。
 func ExtractDeliverablePaths(name string, args json.RawMessage) []string {
@@ -452,6 +461,8 @@ func ExtractDeliverablePaths(name string, args json.RawMessage) []string {
 	}
 	if isProducerTool(name) {
 		push(stringField(fields, "output"))
+		// office_generate 的声明写路径键（P1a；验收=声明路径=实际落点）。
+		push(stringField(fields, "output_path"))
 		return out
 	}
 	for _, key := range []string{"path", "file_path", "notebook_path", "destination"} {
