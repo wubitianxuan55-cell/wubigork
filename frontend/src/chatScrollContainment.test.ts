@@ -58,40 +58,65 @@ describe('chat and voice scroll containment', () => {
     expect(css).toContain('scrollbar-width: thin !important')
   })
 
-  it('keeps the narrow voice command dock in one stable row', () => {
-    const start = css.indexOf('@media (max-width: 760px)')
-    const end = css.indexOf('@container (max-width: 520px)', start)
-    const mobile = css.slice(start, end)
-    const rule = firstRule(mobile, '.chat-signal-redesign .chat-voice-room-main .vc2-command-row')
-    expect(rule).toContain('flex-direction: row')
-    expect(rule).toContain('flex-wrap: nowrap')
+  it('keeps the narrow voice command dock stacked and usable', () => {
+    const rule = lastRule(css, '.chat-signal-redesign .chat-voice-room-main .vc2-command-row')
+    expect(rule).toContain('display: grid')
+    expect(rule).toContain('grid-template-columns: minmax(0, 1fr)')
   })
 
-  it('keeps the particle orb centered while the transcript floats on the right', () => {
-    const start = css.indexOf('/* ═══ Standalone voice room')
-    const end = css.indexOf('/* ═══ Scroll ownership', start)
-    const room = css.slice(start, end)
+  it('keeps the brain full-window and the transcript in a bounded overlay', () => {
+    const start = css.indexOf('/* ═══ Voice workspace alignment reset')
+    const room = css.slice(start)
     const layout = firstRule(room, '.chat-signal-redesign .chat-voice-room-main .vc2-layout')
     const dialogue = firstRule(room, '.chat-signal-redesign .chat-voice-room-main .vc2-dialogue')
-    expect(layout).toContain('display: block')
+    const field = firstRule(room, '.chat-signal-redesign .chat-voice-room-main .vc2-field')
+    const orb = firstRule(room, '.chat-signal-redesign .chat-voice-room-main .vc2-orb')
+    const centeredOrb = firstRule(
+      room,
+      '.chat-signal-redesign .chat-voice-room-main > .voice-console-v2:not(.is-preflight) .vc2-orb',
+    )
+    const stageCopy = firstRule(
+      room,
+      '.chat-signal-redesign .chat-voice-room-main > .voice-console-v2:not(.is-preflight) .vc2-stage-copy',
+    )
+    expect(layout).toContain('display: grid')
+    expect(layout).toContain('grid-template-columns: minmax(0, 1fr)')
+    expect(layout).toContain('grid-template-rows: minmax(0, 1fr)')
     expect(dialogue).toContain('position: absolute')
-    expect(dialogue).toContain('right: 0')
-    expect(dialogue).toContain('width: clamp(320px, 30%, 400px)')
+    expect(dialogue).toContain('width: var(--vc2-rail)')
+    expect(field).toContain('grid-template-areas:')
+    expect(orb).toContain('grid-area: orb')
+    expect(centeredOrb).toContain('top: 50%')
+    expect(centeredOrb).toContain('left: 50%')
+    expect(centeredOrb).toContain('width: min(76%, 860px)')
+    expect(centeredOrb).toContain('transform: translate(-50%, -50%)')
+    expect(stageCopy).toContain('left: 50%')
+    expect(stageCopy).toContain('transform: translateX(-50%)')
+    expect(stageCopy).toContain('text-align: center')
   })
 
-  it('aligns the primary voice control with the centered sound field', () => {
-    const start = css.indexOf('/* ═══ Standalone voice room')
-    const end = css.indexOf('/* ═══ Scroll ownership', start)
-    const room = css.slice(start, end)
-    const desktopRoom = room.slice(0, room.indexOf('@container (max-width: 940px)'))
+  it('renders the voice controls as separate floating capsule cards', () => {
+    const start = css.indexOf('/* ═══ Voice workspace alignment reset')
+    const room = css.slice(start)
+    const dock = firstRule(room, '.chat-signal-redesign .chat-voice-room-main .vc2-command-dock')
     const commandRow = firstRule(room, '.chat-signal-redesign .chat-voice-room-main .vc2-command-row')
-    const primary = firstRule(room, '.chat-signal-redesign .chat-voice-room-main .vc2-primary-actions')
-    const endSession = lastRule(desktopRoom, '.chat-signal-redesign .chat-voice-room-main .vc2-end-session.ant-btn')
-    expect(commandRow).toContain('grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr)')
-    expect(primary).toContain('grid-column: 2')
-    expect(primary).toContain('justify-content: center')
-    expect(endSession).toContain('grid-column: 3')
-    expect(endSession).toContain('justify-self: end')
+    const primary = firstRule(room, '.chat-signal-redesign .chat-voice-room-main .vc2-primary-button.ant-btn')
+    const diagnostics = firstRule(room, '.chat-signal-redesign .chat-voice-room-main .vc2-diagnostics')
+    expect(dock).toContain('background: transparent')
+    expect(dock).toContain('left: 50%')
+    expect(commandRow).toContain('display: flex')
+    expect(commandRow).toContain('justify-content: center')
+    expect(primary).toContain('border-radius: 999px')
+    expect(diagnostics).toContain('border-radius: 999px')
+  })
+
+  it('keeps the transcript translucent in both light and dark themes', () => {
+    const dialogueSelector =
+      'html[data-hl="light"] .chat-signal-redesign .chat-voice-room-main > .voice-console-v2:not(.is-preflight) .vc2-dialogue'
+    const lightDialogue = firstRule(css, dialogueSelector)
+    expect(lightDialogue).toContain('background: transparent')
+    expect(lightDialogue).toContain('backdrop-filter: none')
+    expect(css).toContain('html[data-hl="dark"] .chat-signal-redesign')
   })
 })
 

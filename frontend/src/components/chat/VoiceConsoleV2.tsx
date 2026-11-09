@@ -422,9 +422,36 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
           : v2.phase === 'error'
             ? '记忆连接异常，请重试'
             : '记忆脑待命'
+  const lastUserLine = [...v2.dialogue].reverse().find((entry) => entry.role === 'user')?.text ?? ''
+  const lastDialogueLine = v2.dialogue[v2.dialogue.length - 1]?.text ?? ''
   const liveLine = v2.partialTranscript
     || (v2.phase === 'speaking' ? v2.assistantText : '')
+    || (v2.phase === 'thinking' ? lastUserLine : '')
+    || ((v2.phase === 'idle' || v2.phase === 'interrupted') ? lastDialogueLine : '')
     || (v2.connected ? memoryLiveLine : '连接后即可开始实时语音对话')
+  const centerEntries = v2.partialTranscript
+    ? [{
+        id: 'live-user',
+        role: 'user',
+        label: '正在听',
+        text: v2.partialTranscript,
+        live: true,
+      }]
+    : v2.phase === 'speaking' && v2.assistantText
+      ? [{
+          id: 'live-assistant',
+          role: 'assistant',
+          label: companionName,
+          text: v2.assistantText,
+          live: true,
+        }]
+      : v2.dialogue.slice(-2).map((entry) => ({
+          id: entry.id,
+          role: entry.role,
+          label: entry.role === 'user' ? '你' : companionName,
+          text: entry.text,
+          live: false,
+        }))
   const PrimaryIcon = !ready
     ? v2.ensuring ? LoadingOutlined : AudioOutlined
     : !v2.connected ? WifiOutlined : v2.micOn ? PauseOutlined : AudioOutlined
@@ -690,7 +717,7 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
             <header className="vc2-section-head">
               <div>
                 <span className="vc2-eyebrow">声音状态</span>
-                <h3>现在正在发生什么</h3>
+                <h3>虚空大脑</h3>
               </div>
               <span className={`vc2-live-marker${v2.connected ? ' is-live' : ''}`}>
                 <span aria-hidden="true" />
@@ -720,7 +747,19 @@ const VoiceConsoleV2: React.FC<VoiceConsoleV2Props> = ({
                   {phaseMeta.icon}
                   {phaseMeta.label}
                 </span>
-                <p className="vc2-live-line" aria-hidden="true">{liveLine}</p>
+                <div className="vc2-live-line vc2-center-transcript" aria-hidden="true">
+                  {centerEntries.length > 0 ? centerEntries.map((entry) => (
+                    <span
+                      className={`vc2-center-entry is-${entry.role}${entry.live ? ' is-live' : ''}`}
+                      key={entry.id}
+                    >
+                      <strong>{entry.label}</strong>
+                      <span>{entry.text}</span>
+                    </span>
+                  )) : (
+                    <span className="vc2-center-entry is-status">{liveLine}</span>
+                  )}
+                </div>
                 <span className="vc2-stage-hint">{phaseMeta.hint}</span>
               </div>
               <div className="vc2-wave-field" aria-hidden="true">

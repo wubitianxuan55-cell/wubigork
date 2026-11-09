@@ -152,6 +152,7 @@ describe('VoiceConsoleV2', () => {
     renderConsole()
     expect(screen.getByTestId('voice-console-v2')).toBeTruthy()
     expect(screen.getAllByText('小音').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByRole('heading', { name: '虚空大脑' })).toBeTruthy()
     expect(screen.getByTestId('vc2-phase').textContent).toContain('待机')
     expect(screen.getByTestId('vc2-mic').textContent).toContain('开始聆听')
   })
@@ -278,6 +279,31 @@ describe('VoiceConsoleV2', () => {
     expect(screen.getByText('帮我安排今天的任务')).toBeTruthy()
     expect(screen.getByTestId('vc2-transcripts').textContent).toContain('下午优先处理')
     expect(screen.getByTestId('vc2-assistant').textContent).toContain('下午的事项')
+    expect(document.querySelector('.vc2-center-entry.is-live')?.textContent).toContain('下午优先处理')
+  })
+
+  it('空闲后中央字幕保留最近一轮回答', () => {
+    runtimeState.phase = 'idle'
+    runtimeState.dialogue = [
+      {
+        id: 'response:r1:user',
+        role: 'user',
+        text: '今天先做什么？',
+        responseId: 'r1',
+        itemId: 'item-1',
+      },
+      {
+        id: 'response:r1:assistant',
+        role: 'assistant',
+        text: '先从最重要的任务开始。',
+        responseId: 'r1',
+        itemId: 'item-1',
+      },
+    ]
+    renderConsole()
+    const centerTranscript = document.querySelector('.vc2-live-line')?.textContent ?? ''
+    expect(centerTranscript).toContain('今天先做什么？')
+    expect(centerTranscript).toContain('先从最重要的任务开始。')
   })
 
   it('多轮完成后对话记录按用户、助手严格交替', () => {
