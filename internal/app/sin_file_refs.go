@@ -27,7 +27,10 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
+	"unicode/utf8"
 
+	"github.com/gaea/gaea/internal/docmd"
 	"github.com/gaea/gaea/internal/gaea/vision"
 )
 
@@ -37,6 +40,9 @@ const (
 	sinFileRefMaxBytes = 64 * 1024
 	// sinFileRefMaxVisionBytes 识图文本注入上限。
 	sinFileRefMaxVisionBytes = 1200
+	// sinFileRefMaxOCRBytes 全文 OCR 文本注入上限；超限部分让 AI 用 ocr 工具补读
+	// （与办公 maxVisionOCRBytes 同档）。
+	sinFileRefMaxOCRBytes = 8 * 1024
 	// sinFileRefBinaryScan 二进制判定扫描窗口：头 8KiB 含 NUL 即按二进制处理。
 	sinFileRefBinaryScan = 8 * 1024
 )
@@ -48,6 +54,17 @@ var sinRefTokenRe = regexp.MustCompile(`@"([^"]+)"|@([^\s]+)`)
 
 // sinVisionRecognize 识图入口（可注入以便测试）。
 var sinVisionRecognize = vision.RecognizeImage
+
+// sinOCRImageText 全文 OCR 入口（可注入以便测试）。与识图腿并联：识图管
+// "看懂图"，OCR 腿走 docmd 本地链（auto = uocr2→ovis→tesseract）管图中文字
+// 全文（与办公线 ocrImageText 同语义，2026-11-09 同构双注入）。测试必须注入
+// 桩，否则会真拉起本地 uocr2 服务（测试语义管线地雷形态）。
+var sinOCRImageText = docmd.OCRImageText
+
+// sinVisionOCRBudget 全文 OCR 腿等待预算：引擎冷启动可达分钟级，超预算放弃
+// 本轮注入（附提示行），后台拉起不受影响（与办公线 visionOCRBudget 同档；
+// 硬隔离两线各自锚定，语义漂移靠两边测试）。包级变量以便测试收缩。
+var sinVisionOCRBudget = 15 * time.Second
 
 // sinVisionConcurrency 图片附件识图的并发上限：识图是分钟级慢操作（每张至多
 // 90s），串行时 5 张图 = 7.5 分钟首帧前干等；并发 2 既压缩等待又不至于把本地
@@ -231,21 +248,81 @@ func sinIsImagePath(path string) bool {
 	return false
 }
 
-// sinImageBlock 识图注入块；失败回退占位（图片引用始终可进上下文）。
+// sinImageBlock 识图 + 全文 OCR 双腿并联注入块（与办公 appendImageBlock 同
+// 语义）：识图失败/空结果回退占位（图片引用始终可进上下文），OCR 腿失败/
+// 超时/空结果静默降级；识图腿倒了但 OCR 腿活着时占位块照样带全文。
 func sinImageBlock(ctx context.Context, path, raw string) string {
+	ocrCh := make(chan sinOCRResult, 1)
+	go func() {
+		text, ocrErr := sinOCRImageText(path)
+		ocrCh <- sinOCRResult{text: text, err: ocrErr}
+	}()
+
 	desc, err := sinVisionRecognize(ctx, path, "")
+	ocr := <-sinWaitOCR(ocrCh)
+
+	var body string
 	switch {
 	case err != nil:
-		return sinRefBlockText("image", `path="`+path+`"`, "[图片附件识图失败："+err.Error()+"]")
+		body = "[图片附件识图失败：" + err.Error() + "]"
 	case strings.TrimSpace(desc) == "":
-		return sinRefBlockText("image", `path="`+path+`"`, "[图片附件 @"+raw+" 已就位；如需视觉理解请用识图工具]")
+		body = "[图片附件 @" + raw + " 已就位；如需视觉理解请用识图工具]"
+	default:
+		body = "【画面理解】\n" + sinTruncateVision(desc)
 	}
-	if len(desc) > sinFileRefMaxVisionBytes {
-		// 按 rune 截断（识别文本是中文为主的多字节内容，字节硬切劈字符）
-		r := []rune(desc)
-		desc = string(r[:sinFileRefMaxVisionBytes]) + "…[已截断]"
+	if ocrBody := sinOCRBlockText(ocr); ocrBody != "" {
+		body += "\n\n" + ocrBody
 	}
-	return sinRefBlockText("image", `path="`+path+`"`, "【图片识别】\n"+desc)
+	return sinRefBlockText("image", `path="`+path+`"`, body)
+}
+
+// sinTruncateVision 截断识图文本（按 rune，不劈多字节字符；识别文本是中文为
+// 主的多字节内容，字节硬切劈字符）。
+func sinTruncateVision(s string) string {
+	if len(s) <= sinFileRefMaxVisionBytes {
+		return s
+	}
+	r := []rune(s)
+	return string(r[:sinFileRefMaxVisionBytes]) + "…[已截断]"
+}
+
+// sinOCRResult 全文 OCR 腿的产出。
+type sinOCRResult struct {
+	text     string
+	err      error
+	timedOut bool
+}
+
+// sinWaitOCR 等待 OCR 腿产出，最多等 sinVisionOCRBudget，超时返回 timedOut
+// 结果（放弃的 goroutine 继续在后台拉起服务，就绪后下一轮秒回）。
+func sinWaitOCR(ch <-chan sinOCRResult) <-chan sinOCRResult {
+	out := make(chan sinOCRResult, 1)
+	timer := time.NewTimer(sinVisionOCRBudget)
+	defer timer.Stop()
+	select {
+	case r := <-ch:
+		out <- r
+	case <-timer.C:
+		out <- sinOCRResult{timedOut: true}
+	}
+	return out
+}
+
+// sinOCRBlockText 把 OCR 腿产出整理成注入块（与办公 ocrBlockText 同语义，
+// 硬隔离两线各自锚定）：空/噪声/失败不注入，超时给提示行，成功给全文
+// （截到 sinFileRefMaxOCRBytes）。返回空串表示该腿没有可注入内容。
+func sinOCRBlockText(r sinOCRResult) string {
+	if r.timedOut {
+		return "【全文 OCR】未就绪（引擎冷启动中），可调用 ocr 工具提取文字全文"
+	}
+	text := strings.TrimSpace(r.text)
+	if r.err != nil || utf8.RuneCountInString(text) < 12 {
+		return ""
+	}
+	if len(text) > sinFileRefMaxOCRBytes {
+		text = string(sinTrimPartialUTF8([]byte(text)[:sinFileRefMaxOCRBytes])) + "…[已截断；全文可调用 ocr 工具提取]"
+	}
+	return "【全文 OCR】\n" + text
 }
 
 // sinRefBlockText 单个引用块文本（<tag attr>\nbody\n</tag>，与办公 appendRefBlock 同形）。

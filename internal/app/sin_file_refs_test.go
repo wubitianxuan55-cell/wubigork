@@ -2,10 +2,13 @@ package app
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+	"unicode/utf8"
 )
 
 // ── 原罪附件 @引用解析（sin_file_refs.go）────────────────────────────────
@@ -73,6 +76,16 @@ func TestSinFileRefIgnoresNonPaths(t *testing.T) {
 	}
 }
 
+// stubSinOCR 注入全文 OCR 桩并在测试结束恢复。所有走 sinImageBlock 的测试
+// 必须先调它：默认实现 sinOCRImageText=docmd.OCRImageText 会真拉起本地
+// uocr2 服务（测试语义管线地雷形态）。
+func stubSinOCR(t *testing.T, fn func(string) (string, error)) {
+	t.Helper()
+	orig := sinOCRImageText
+	sinOCRImageText = fn
+	t.Cleanup(func() { sinOCRImageText = orig })
+}
+
 func TestSinFileRefImageVisionFallback(t *testing.T) {
 	dir := t.TempDir()
 	p := filepath.Join(dir, "ref.png")
@@ -81,12 +94,13 @@ func TestSinFileRefImageVisionFallback(t *testing.T) {
 	}
 	orig := sinVisionRecognize
 	t.Cleanup(func() { sinVisionRecognize = orig })
+	stubSinOCR(t, func(string) (string, error) { return "", errors.New("stub: ocr off") })
 
 	sinVisionRecognize = func(ctx context.Context, path, prompt string) (string, error) {
 		return "一位红衣女子立于桥头。", nil
 	}
 	block, errs := sinFileRefBlock(context.Background(), "@"+p)
-	if len(errs) != 0 || !strings.Contains(block, "【图片识别】") || !strings.Contains(block, "红衣女子") {
+	if len(errs) != 0 || !strings.Contains(block, "【画面理解】") || !strings.Contains(block, "红衣女子") {
 		t.Fatalf("识图结果应注入: block=%q errs=%v", block, errs)
 	}
 
@@ -96,6 +110,93 @@ func TestSinFileRefImageVisionFallback(t *testing.T) {
 	block, errs = sinFileRefBlock(context.Background(), "@"+p)
 	if len(errs) != 0 || !strings.Contains(block, "识图失败") {
 		t.Fatalf("识图失败应回退占位: block=%q errs=%v", block, errs)
+	}
+}
+
+// TestSinFileRefImageDualInjection 识图与全文 OCR 双腿都成功时同块双注入
+// （与办公线 appendImageBlock 同语义）。
+func TestSinFileRefImageDualInjection(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "dual.png")
+	if err := os.WriteFile(p, []byte("fake"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	orig := sinVisionRecognize
+	t.Cleanup(func() { sinVisionRecognize = orig })
+	sinVisionRecognize = func(ctx context.Context, path, prompt string) (string, error) {
+		return "一张手写信的照片。", nil
+	}
+	stubSinOCR(t, func(string) (string, error) {
+		return "亲爱的编辑：\n新章已附上，盼复。", nil
+	})
+
+	block, errs := sinFileRefBlock(context.Background(), "@"+p)
+	if len(errs) != 0 {
+		t.Fatalf("不应有失败: %v", errs)
+	}
+	if !strings.Contains(block, "【画面理解】") || !strings.Contains(block, "手写信") {
+		t.Fatalf("识图腿缺失: %q", block)
+	}
+	if !strings.Contains(block, "【全文 OCR】") || !strings.Contains(block, "亲爱的编辑") {
+		t.Fatalf("OCR 腿缺失: %q", block)
+	}
+}
+
+// TestSinFileRefImageOCRTimeout OCR 腿超预算时注入提示行且不拖死识图腿。
+func TestSinFileRefImageOCRTimeout(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "slow.png")
+	if err := os.WriteFile(p, []byte("fake"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	orig := sinVisionRecognize
+	t.Cleanup(func() { sinVisionRecognize = orig })
+	sinVisionRecognize = func(ctx context.Context, path, prompt string) (string, error) {
+		return "超时场景里的画面。", nil
+	}
+	stubSinOCR(t, func(string) (string, error) {
+		time.Sleep(300 * time.Millisecond) // 远超收缩后的预算
+		return "这段全文来得太晚，不应注入。", nil
+	})
+
+	origBudget := sinVisionOCRBudget
+	sinVisionOCRBudget = 30 * time.Millisecond
+	t.Cleanup(func() { sinVisionOCRBudget = origBudget })
+
+	block, errs := sinFileRefBlock(context.Background(), "@"+p)
+	if len(errs) != 0 {
+		t.Fatalf("不应有失败: %v", errs)
+	}
+	if !strings.Contains(block, "【画面理解】") {
+		t.Fatalf("识图腿缺失: %q", block)
+	}
+	if !strings.Contains(block, "【全文 OCR】未就绪") {
+		t.Fatalf("超时提示行缺失: %q", block)
+	}
+	if strings.Contains(block, "来得太晚") {
+		t.Fatalf("迟到全文不应注入: %q", block)
+	}
+}
+
+// TestSinOCRBlockText_Gates sinOCRBlockText 注入门槛：噪声/失败不注入、
+// 超限截断带补读指引。
+func TestSinOCRBlockText_Gates(t *testing.T) {
+	if got := sinOCRBlockText(sinOCRResult{text: "  短  "}); got != "" {
+		t.Errorf("噪声文本应跳过，得到 %q", got)
+	}
+	if got := sinOCRBlockText(sinOCRResult{err: errors.New("x"), text: "足够长的文本内容示例"}); got != "" {
+		t.Errorf("失败结果应跳过，得到 %q", got)
+	}
+	got := sinOCRBlockText(sinOCRResult{text: strings.Repeat("墨", 5000)}) // 15000 字节 > 8KB
+	if !strings.Contains(got, "…[已截断；全文可调用 ocr 工具提取]") {
+		t.Errorf("超限文本缺截断+补读标记: %q", got[:120])
+	}
+	head := strings.TrimSuffix(strings.TrimPrefix(got, "【全文 OCR】\n"), "…[已截断；全文可调用 ocr 工具提取]")
+	if len(head) > sinFileRefMaxOCRBytes {
+		t.Errorf("头部 %d 字节超上限 %d", len(head), sinFileRefMaxOCRBytes)
+	}
+	if !utf8.ValidString(head) {
+		t.Errorf("截断后出现非法 UTF-8")
 	}
 }
 
