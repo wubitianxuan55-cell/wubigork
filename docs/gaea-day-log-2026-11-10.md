@@ -238,3 +238,27 @@
 - 实弹记录（record.json 逐臂轨迹+用量）留 .tmp/abeval-office-20261110 供
   复核；评测基础设施经此轮实弹验证（hermetic 造件/臂注册表/负例标注/报告
   链全走通）。
+
+## 沙箱机制实弹（同日七刀：走查壳 GaeaCallTool 绑定面驱动，3.5/5 面全绿）
+
+- **口径**：GAEA_WALKTHROUGH=1 沙箱壳（workspace 强制 %TEMP%gaea-walkthrough，
+  与用户实盘壳并行）+ GAEA_WEBVIEW_DEBUG=1 → WebView2 CDP；9333 双栈坑
+  （kidsabc 占 IPv4/本壳落 [::1]:9333——cdp-walk 需 IPv6 变体 .tmp/cdp-walk6.mjs）；
+  agent LLM 腿被「bridge: 登录已过期」全阻（走查实例无法刷新 token——LLM 纪律
+  面只能用户验），机制面改走 wails 绑定（window.go.app.OfficeB，与按钮同路径）。
+- **面2 ✓**：GaeaExportDeliverable+output_path 声明路径 → 合同/验收合同.docx
+  （37,587B，python 技能链在走查态也解析到全局技能库）；xlsx 台账/验收同验。
+- **面3 ✓（最深形态）**：xlsx_apply 通道 A「公式重算零错误；引用级复核 1 项
+  声明与实况一致」；docx_apply 通道 A「替换文本在文档中且 2 处待处理修订在册
+  （引用级）」——裁决谓词逐字命中；**通道 B 真视觉 diff 活体**（soffice+poppler
+  真渲染，抓到 1→2 页版式变化→诚实 fail 整卡）+覆盖率字段 live 回填
+  （reviewed=2/total=2）。
+- **面5 ✓**：docx_apply 修订制写入（预览 56KB）+Journal 卡 pending_verify。
+- **面4 半程 ✓**：GaeaTaskList('work')=37 任务台账（调度器活体）；office_batch
+  提交腿需 agent 登录（用户验）。
+- **面1 ✗（如实）**：PublishGuard 拦截实例是会话注册表-scoped（零值全局 bash
+  无守卫）——agent 会话腿被登录阻，真壳验证只能用户做；机制本身已由
+  publishguard 测试族+接线测试钉死。
+- **坑**：GaeaJournalList 收 int limit；wails 命名空间 window.go.app（非
+  go.main.App）；CDP Runtime.evaluate 同上下文声明残留——eval 一律 IIFE。
+- 清场：走查壳 9340 已杀、%TEMP%gaea-walkthrough 已删；用户壳 51408 未动。
