@@ -112,5 +112,15 @@
 - **余池**：FOFA_KEY/VPS id_rsa（反弹 shell 落地）用户自填；冰蝎/哥斯拉/dirsearch
   （WebShell 技能源）按需装；子会话 agentPreset 完整迁移挂后续；nuclei 首用前
   `-update-templates` 已装。
+- **工具定义瘦身（用户实测上下文诊断怒批「工具84K」后跟进）**：321 项工具定义
+  ≈83.9k 占上下文 84%——REA MCP 的 229 个 `mcp__rea__*` schema 经 home 级
+  cordis.patch.yml 挂进每一个会话。修=移入红队预设（部署副本+包内模板同步，
+  `rea-mcp` 行；红队技能对 mcp__rea__ 零引用已核实），标准/PTC/极简模式工具
+  定义降到 ~90 项；3092 隔离实例实测**标准会话总用量 92.1K→21.6K（-76%）**。
+  红队模式保留 REA 全量。注意三点：①rea-mcp 行 command/args 为隔离安装绝对
+  路径；②cordis.patch.yml 留「serverName: rea」marker 注释喂 gaea preflight
+  的 programmingWebREAReady 字符串检查——**gaea 下次发版应改查红队预设文件后删
+  marker**；③cordis.patch.yml 必须保持顶层 YAML 数组形态（纯注释文件会 fatal
+  uncaught exception，空数组 `[]` 合法）。dsh-wubi 仓追加提交 0f5837e+5d647eb。
 - 主仓本批提交=.gitignore + 本段 day-log + 引擎线快照（见下一笔提交，另一执行体
   工作树快照收档，门禁全绿后如实署名）。
