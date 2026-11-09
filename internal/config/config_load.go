@@ -53,8 +53,8 @@ func loadDefaults(home string) *Config {
 		// 意图 LLM 兜底（v4.8）：默认关（宁漏勿误姿态 + 语音回路延迟）；硬超时 2s。
 		IntentsLLMFallback:  false,
 		IntentsLLMTimeoutMS: 2000,
-		// 外部引擎空闲自动退出（天璇/Strata）：默认 10 分钟无真实使用即停。
-		ModelIdleExitMinutes: 10,
+		// 外部引擎空闲自动退出（llama/Strata/ComfyUI）：默认 5 分钟无真实使用即停。
+		ModelIdleExitMinutes: 5,
 		// 全局离线模式（v4.8）：默认关（云端引擎可用）。
 		OfflineMode: false,
 		// 引擎故障转移（C 刀 v0）：默认关（关闭=现状逐字节）。

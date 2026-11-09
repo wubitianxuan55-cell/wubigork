@@ -313,15 +313,15 @@ func TestSaveLoad_VisionBinding(t *testing.T) {
 }
 
 // TestSaveLoad_ModelIdleExitMinutes 外部引擎空闲自动退出分钟数（指针三态）：
-// 未配置=默认 10；显式 0=关闭（0 必须能落盘读回，不得被「未配置」吞掉）；
+// 未配置=默认 5；显式 0=关闭（0 必须能落盘读回，不得被「未配置」吞掉）；
 // 越界拒绝。
 func TestSaveLoad_ModelIdleExitMinutes(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 
-	if got := Load().ModelIdleExitMinutes; got != 10 {
-		t.Errorf("未配置时 ModelIdleExitMinutes = %d, want 10（默认开启）", got)
+	if got := Load().ModelIdleExitMinutes; got != 5 {
+		t.Errorf("未配置时 ModelIdleExitMinutes = %d, want 5（默认开启）", got)
 	}
 	if err := Save(KeyModelIdleExitMinutes, "15"); err != nil {
 		t.Fatalf("Save 15: %s", err)

@@ -36,6 +36,7 @@ vi.mock('../../../gaea/lib/bridge', async (importOriginal) => ({
 import {
   getEngines, getActiveEngine, getDeepseekKeyStatus,
   getOpencodeGoKeyStatus, refreshEngineModels,
+  setActiveEngine, setEngineDefaultModel,
   addCustomEngine, updateCustomEngine, removeCustomEngine,
   type EngineConfig,
 } from '../../../api/engines'
@@ -189,5 +190,30 @@ describe('useEngineState · 模型元数据透传（B 刀）', () => {
     expect(result.current.makeModels(glmEngine([
       { id: 'glm-4-air', owned_by: 'glm', status: 'running', kind: 'llm' },
     ]))[0].meta).toBeUndefined()
+  })
+})
+
+describe('useEngineState · 受管模型绑定（按需启动）', () => {
+  it('Strata 模型卡只写绑定，不在这里启动模型', async () => {
+    const card = {
+      modelId: 'qwen3.8-flash-next-uncensored',
+      modelName: 'qwen3.8-flash-next-uncensored',
+      engineId: 'strata',
+      engineName: 'Strata',
+      engineType: 'strata',
+      engineEnabled: true,
+      status: 'stopped',
+      kind: 'llm',
+    }
+    vi.mocked(setActiveEngine).mockResolvedValue(undefined)
+    vi.mocked(setEngineDefaultModel).mockResolvedValue(undefined)
+
+    const { result } = renderHook(() => useEngineState('models'))
+    await act(async () => {})
+    await act(async () => { await result.current.handleStartModel(card) })
+
+    expect(setActiveEngine).toHaveBeenCalledWith('strata')
+    expect(setEngineDefaultModel).toHaveBeenCalledWith('strata', card.modelId)
+    // 模块 mock 不提供 startStrataModel：若这里重新接入手动启动，调用会直接失败。
   })
 })

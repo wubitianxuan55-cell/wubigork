@@ -65,6 +65,19 @@ func TestStrataEngineStatus_Shape(t *testing.T) {
 	}
 }
 
+// TestStrataEngineStartRequiresExplicitProfile 锁死「引擎启动不捆绑默认模型」：
+// 空档位直接返回 model-required，不允许隐式拉起 qwen38fn_flash。
+func TestStrataEngineStartRequiresExplicitProfile(t *testing.T) {
+	a := &App{}
+	got := a.StrataEngineStart("")
+	if started, _ := got["started"].(bool); started {
+		t.Fatalf("空 profile 不应启动模型: %#v", got)
+	}
+	if got["reason"] != "model-required" {
+		t.Fatalf("reason = %#v, want model-required", got["reason"])
+	}
+}
+
 func TestStrataProjectPath_DefaultAndConfigured(t *testing.T) {
 	if got := (&App{}).strataProjectPath(); got != config.DefaultStrataPath {
 		t.Fatalf("nil config project = %q, want %q", got, config.DefaultStrataPath)

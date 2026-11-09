@@ -33,14 +33,17 @@ func engineProfileJSON(profiles []engineProfileOption) []map[string]string {
 // engineProfileOption 外部本地引擎的档位目录条目（原 tianxuan_proc.go，
 // 2026-11-05 天璇退役后迁此——strata/llama 目录层仍消费）。
 type engineProfileOption struct {
-	ID           string `json:"id"`
-	Label        string `json:"label"`
-	Config       string `json:"-"` // Strata 档位 JSON（llama/天璇为空）
-	ModelID      string `json:"-"` // 该档位实际服务的模型 id（目录/请求路由用）
-	ModelDir     string `json:"-"` // llama 档位模型目录（相对统一模型根）
-	ModelFile    string `json:"-"` // llama 档位 GGUF 文件名
-	ChatTemplate string `json:"-"` // llama 档位可选 chat template 文件
-	CtxSize      int    `json:"-"` // llama 档位上下文窗口
+	ID            string `json:"id"`
+	Label         string `json:"label"`
+	Config        string `json:"-"` // Strata 档位 JSON（llama/天璇为空）
+	ModelID       string `json:"-"` // 该档位实际服务的模型 id（目录/请求路由用）
+	ModelDir      string `json:"-"` // llama 档位模型目录（相对统一模型根）
+	ModelFile     string `json:"-"` // llama 档位 GGUF 文件名
+	ChatTemplate  string `json:"-"` // llama 档位可选 chat template 文件
+	DraftModel    string `json:"-"` // llama 档位可选推测解码 draft/MTP GGUF
+	SpecType      string `json:"-"` // llama 档位推测解码类型（如 draft-mtp）
+	SpecDraftNMax int    `json:"-"` // llama 档位单步最大 draft 数
+	CtxSize       int    `json:"-"` // llama 档位上下文窗口
 }
 
 func managedCatalogModels(profiles []engineProfileOption, served []string, activeProfile string) []modelengine.ModelInfo {

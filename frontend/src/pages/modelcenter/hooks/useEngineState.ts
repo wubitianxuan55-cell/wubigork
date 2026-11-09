@@ -19,7 +19,6 @@ import {
   setActiveEngine, getActiveEngine, setDeepseekKey, getDeepseekKeyStatus,
   setGlmKey, getGlmKeyStatus, setGlmEndpoint,
   setOpencodeGoKey, getOpencodeGoKeyStatus,
-  startStrataModel, startTianxuanModel,
   addCustomEngine, updateCustomEngine, removeCustomEngine,
   type EngineConfig, type EngineStatus,
 } from '../../../api/engines'
@@ -166,41 +165,15 @@ export function useEngineState(category: Category): EngineState {
     }
     if (kind !== 'llm') return
     try {
-      // 天璇/Strata：模型目录逐档位启停（Herdsman 式）。启动一个档位会先停掉
-      // 当前档位，再拉起目标档位；成功后只在这里（用户显式点模型「启动」）
-      // 才设置默认模型/活跃引擎，不在引擎进程启动时偷偷改绑定。
-      if (card.engineId === 'tianxuan' || card.engineId === 'strata') {
-        setSavingEngine(card.engineId)
-        try {
-          const r = card.engineId === 'tianxuan'
-            ? await startTianxuanModel(card.modelId)
-            : await startStrataModel(card.modelId)
-          if (!r.started && r.reason !== 'already-running') {
-            const tail = r.error ? `：${r.error.slice(-240)}` : ''
-            message.warning(`启动失败：${r.reason ?? '未知原因'}${tail}`)
-            return
-          }
-          // 以引擎实际 /v1/models 的 id 为准（fast 档是 GGUF 全路径，可能与
-          // 目录里的展示 id 不同）；先启动，再用实际 id 设默认模型。
-          const startedModelID = r.served_models?.[0] || card.modelId
-          if (activeEngine !== card.engineId) {
-            await setActiveEngine(card.engineId)
-            setActiveEngineState(card.engineId)
-          }
-          await setEngineDefaultModel(card.engineId, startedModelID)
-          await loadAll()
-          setActiveModel(startedModelID)
-          message.success(`已启动${card.modelName}`)
-        } finally {
-          setSavingEngine(null)
-        }
-        return
-      }
       if (activeEngine !== card.engineId) { await setActiveEngine(card.engineId); setActiveEngineState(card.engineId) }
       await setEngineDefaultModel(card.engineId, card.modelId)
       setEngines(prev => prev.map(e => e.id === card.engineId ? { ...e, default_model: card.modelId } : e))
       setActiveModel(card.modelId)
-      message.success(`已启动${card.modelName}`)
+      message.success(
+        card.engineId === 'llama' || card.engineId === 'strata'
+          ? `已绑定${card.modelName}，首次使用将按需启动`
+          : `已启动${card.modelName}`,
+      )
     } catch (err: unknown) { message.error(`启动失败：${err instanceof Error ? err.message : String(err)}`) }
   }
 

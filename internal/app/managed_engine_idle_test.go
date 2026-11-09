@@ -98,8 +98,8 @@ func TestReapIdle_Gates(t *testing.T) {
 	})
 }
 
-// TestManagedIdleTargets_CoversAllManagedEngines 生产目标表三引擎齐（天璇/
-// Strata/ComfyUI——ComfyUI 于 v4.518 接入）；谓词为方法值/闭包，构造期不求值
+// TestManagedIdleTargets_CoversAllManagedEngines 生产目标表三引擎齐（llama/
+// Strata/ComfyUI）；谓词为方法值/闭包，构造期不求值
 // （nil 安全），零值 App 也能取表。
 func TestManagedIdleTargets_CoversAllManagedEngines(t *testing.T) {
 	a := newIdleReaperTestApp(t, 10)
@@ -111,7 +111,7 @@ func TestManagedIdleTargets_CoversAllManagedEngines(t *testing.T) {
 			t.Errorf("target %s 缺谓词（registered/probe/stop 必须齐）", tg.id)
 		}
 	}
-	for _, want := range []string{"strata", "comfyui"} {
+	for _, want := range []string{"llama", "strata", "comfyui"} {
 		if !got[want] {
 			t.Errorf("目标表缺 %s: %v", want, got)
 		}

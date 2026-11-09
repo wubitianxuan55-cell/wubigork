@@ -60,8 +60,8 @@ func TestLlamaProfileFromModels_RecognizesAliasesAndGGUFPaths(t *testing.T) {
 	}{
 		{served: "qwen35", want: "qwen35"},
 		{served: filepath.Join(`C:\AI\models`, "qwen35-uncensored", qwen35ModelFile), want: "qwen35"},
-		{served: "gemma4_e4b", want: "gemma4_e4b"},
-		{served: filepath.Join(`C:\AI\models`, gemma4E4BModelDir, gemma4E4BModelFile), want: "gemma4_e4b"},
+		{served: "gemma4_26b_a4b", want: "gemma4_26b_a4b"},
+		{served: filepath.Join(`C:\AI\models`, gemma4_26BModelDir, gemma4_26BModelFile), want: "gemma4_26b_a4b"},
 	}
 	for _, tt := range tests {
 		if got := llamaProfileFromModels([]string{tt.served}); got != tt.want {
@@ -70,17 +70,33 @@ func TestLlamaProfileFromModels_RecognizesAliasesAndGGUFPaths(t *testing.T) {
 	}
 }
 
-func TestLlamaProfileModelPath_GemmaUsesUnifiedModelRoot(t *testing.T) {
-	p, ok := engineProfileByID(llamaProfiles, "gemma4_e4b")
+func TestLlamaProfile_Gemma26UsesQATAndMTP(t *testing.T) {
+	p, ok := engineProfileByID(llamaProfiles, "gemma4_26b_a4b")
 	if !ok {
-		t.Fatal("gemma4_e4b profile missing")
+		t.Fatal("gemma4_26b_a4b profile missing")
 	}
-	want := filepath.Join(`C:\AI\models`, gemma4E4BModelDir, gemma4E4BModelFile)
-	if got := llamaProfileModelPath(p); got != want {
-		t.Fatalf("Gemma model path = %q, want %q", got, want)
+	wantModel := filepath.Join(`C:\AI\models`, gemma4_26BModelDir, gemma4_26BModelFile)
+	if got := llamaProfileModelPath(p); got != wantModel {
+		t.Fatalf("Gemma 26B model path = %q, want %q", got, wantModel)
 	}
-	wantTemplate := filepath.Join(`C:\AI\models`, gemma4E4BModelDir, "chat_template.jinja")
-	if p.ChatTemplate != wantTemplate {
-		t.Fatalf("Gemma chat template = %q, want %q", p.ChatTemplate, wantTemplate)
+	wantMTP := filepath.Join(`C:\AI\models`, gemma4_26BModelDir, gemma4_26BMTPFile)
+	if got := llamaProfileDraftModelPath(p); got != wantMTP {
+		t.Fatalf("Gemma 26B MTP path = %q, want %q", got, wantMTP)
+	}
+	if p.SpecType != "draft-mtp" || p.SpecDraftNMax != 2 {
+		t.Fatalf("Gemma 26B speculative config = (%q,%d), want (draft-mtp,2)", p.SpecType, p.SpecDraftNMax)
+	}
+}
+
+func TestLlamaProfile_Qwen35UsesEmbeddedMTP(t *testing.T) {
+	p, ok := engineProfileByID(llamaProfiles, "qwen35")
+	if !ok {
+		t.Fatal("qwen35 profile missing")
+	}
+	if p.SpecType != "draft-mtp" || p.SpecDraftNMax != 3 {
+		t.Fatalf("Qwen MTP config = (%q,%d), want (draft-mtp,3)", p.SpecType, p.SpecDraftNMax)
+	}
+	if got := llamaProfileDraftModelPath(p); got != "" {
+		t.Fatalf("Qwen embedded MTP should not use external draft file, got %q", got)
 	}
 }

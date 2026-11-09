@@ -116,11 +116,17 @@ func (a *App) StrataEngineStatus() map[string]interface{} {
 	}
 }
 
-// StrataEngineStart 启动 Strata 指定档位（空=唯一在册的 uncensored 档）。已运行→already-running；
-// 端口占用→port-occupied；启动后轮询 /v1/models 至就绪（上限 300s）。
+// StrataEngineStart 启动 Strata 指定档位。空 profile 不隐式选择默认模型，
+// 返回 model-required；真实启动必须来自模型显式操作或功能绑定。
+// 已运行→already-running；端口占用→port-occupied；就绪轮询上限 300s。
 func (a *App) StrataEngineStart(profile string) map[string]interface{} {
 	if strings.TrimSpace(profile) == "" {
-		profile = "qwen38fn_flash"
+		return map[string]interface{}{
+			"started":  false,
+			"reason":   "model-required",
+			"profiles": engineProfileJSON(strataProfiles),
+			"error":    "Strata 必须由功能绑定指定具体模型档位，不能只启动空引擎",
+		}
 	}
 	project := a.strataProjectPath()
 	if served, ok := strataProbe(); ok {

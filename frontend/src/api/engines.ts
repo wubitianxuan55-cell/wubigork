@@ -420,7 +420,7 @@ export async function getLlamaEngineStatus(): Promise<LlamaEngineStatusResult> {
   return result as LlamaEngineStatusResult
 }
 
-export async function startLlamaEngine(profile = 'qwen35'): Promise<LlamaEngineStartResult> {
+export async function startLlamaEngine(profile: string): Promise<LlamaEngineStartResult> {
   const result = await App().Qwen35EngineStart(profile)
   return result as LlamaEngineStartResult
 }
@@ -443,7 +443,7 @@ export async function getStrataEngineStatus(): Promise<ManagedEngineStatusResult
 }
 
 /** 启动 Strata 指定档位（现阶段仅 qwen38fn_flash 一档；幂等） */
-export async function startStrataEngine(profile = 'qwen38fn_flash'): Promise<ManagedEngineStartResult> {
+export async function startStrataEngine(profile: string): Promise<ManagedEngineStartResult> {
   const result = await App().StrataEngineStart(profile)
   return result as ManagedEngineStartResult
 }

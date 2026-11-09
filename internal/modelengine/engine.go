@@ -318,7 +318,7 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 		Enabled:      true,
 		DefaultModel: "qwen35",
 		// 自管 llama-server（uocr2-llama 构建，Qwen35EngineStart 拉起）：
-		// 当前服务 Qwen3.6-35B MTP gguf（P2 续拍板，语音+聊天共用）。
+		// 档位目录含 Qwen3.6-35B MTP 与 Gemma 4 26B-A4B QAT+MTP。
 		// 模型清单由 syncManagedEngineCatalog 按运行态回写。
 	}
 

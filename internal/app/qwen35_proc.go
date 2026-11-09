@@ -23,9 +23,10 @@ const (
 	qwen35ModelFile       = "Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_P-MTP-r2.gguf"
 	qwen35CtxSize         = 32768 // 语音+聊天共用：语音短轮足够，聊天留增长余量
 	qwen35HealthScript    = `{"model":"qwen35","stream":false,"max_tokens":1,"messages":[{"role":"user","content":"hi"}]}`
-	gemma4E4BModelDir     = "gemma-4-e4b-gguf"
-	gemma4E4BModelFile    = "gemma-4-E4B-BF16.gguf"
-	gemma4E4BCtxSize      = 32768
+	gemma4_26BModelDir    = "gemma-4-26b-a4b-it-qat"
+	gemma4_26BModelFile   = "gemma-4-26B-A4B-it-qat-UD-Q4_K_XL.gguf"
+	gemma4_26BMTPFile     = "mtp-gemma-4-26B-A4B-it.gguf"
+	gemma4_26BCtxSize     = 32768
 	llamaDefaultProfileID = "qwen35"
 )
 
@@ -46,21 +47,25 @@ func qwen35Running() bool {
 
 var llamaProfiles = []engineProfileOption{
 	{
-		ID:        "qwen35",
-		Label:     "qwen3.6-35b-a3b-mtp（自管 llama）",
-		ModelID:   "qwen35",
-		ModelDir:  "qwen35-uncensored",
-		ModelFile: qwen35ModelFile,
-		CtxSize:   qwen35CtxSize,
+		ID:            "qwen35",
+		Label:         "qwen3.6-35b-a3b-mtp（自管 llama）",
+		ModelID:       "qwen35",
+		ModelDir:      "qwen35-uncensored",
+		ModelFile:     qwen35ModelFile,
+		SpecType:      "draft-mtp",
+		SpecDraftNMax: 3,
+		CtxSize:       qwen35CtxSize,
 	},
 	{
-		ID:           "gemma4_e4b",
-		Label:        "gemma-4-E4B 预训练（BF16，自管 llama）",
-		ModelID:      "gemma4_e4b",
-		ModelDir:     gemma4E4BModelDir,
-		ModelFile:    gemma4E4BModelFile,
-		ChatTemplate: filepath.Join(voiceV2ModelsRoot, gemma4E4BModelDir, "chat_template.jinja"),
-		CtxSize:      gemma4E4BCtxSize,
+		ID:            "gemma4_26b_a4b",
+		Label:         "gemma-4-26B-A4B-it QAT Q4_K_XL + MTP（自管 llama）",
+		ModelID:       "gemma4_26b_a4b",
+		ModelDir:      gemma4_26BModelDir,
+		ModelFile:     gemma4_26BModelFile,
+		DraftModel:    gemma4_26BMTPFile,
+		SpecType:      "draft-mtp",
+		SpecDraftNMax: 2,
+		CtxSize:       gemma4_26BCtxSize,
 	},
 }
 
@@ -74,6 +79,14 @@ func llamaProfileModelPath(p engineProfileOption) string {
 		return ""
 	}
 	return filepath.Join(voiceV2ModelsRoot, p.ModelDir, p.ModelFile)
+}
+
+// llamaProfileDraftModelPath 返回推测解码 draft/MTP 文件路径。
+func llamaProfileDraftModelPath(p engineProfileOption) string {
+	if p.ModelDir == "" || p.DraftModel == "" {
+		return ""
+	}
+	return filepath.Join(voiceV2ModelsRoot, p.ModelDir, p.DraftModel)
 }
 
 // llamaProfileFromModels 把 llama-server 的 served id（稳定别名或 GGUF
@@ -134,8 +147,17 @@ func llamaProbe() ([]string, bool) {
 // 档位已在运行，如实返回 active profile，不静默换模型。
 // 返回 {running:bool, started:bool, error:string}。
 func (a *App) llamaEnsure(profileID string) map[string]interface{} {
+	a.llamaEnsureMu.Lock()
+	defer a.llamaEnsureMu.Unlock()
+
 	if strings.TrimSpace(profileID) == "" {
-		profileID = llamaDefaultProfileID
+		return map[string]interface{}{
+			"running":  qwen35Running(),
+			"started":  false,
+			"reason":   "model-required",
+			"profiles": engineProfileJSON(llamaProfiles),
+			"error":    "llama 必须由功能绑定指定具体模型档位，不能只启动空引擎",
+		}
 	}
 	p, ok := engineProfileByID(llamaProfiles, profileID)
 	if !ok {
@@ -148,6 +170,9 @@ func (a *App) llamaEnsure(profileID string) map[string]interface{} {
 		}
 	}
 	if served, running := llamaProbe(); running {
+		if a.engineMgr != nil {
+			a.engineMgr.TouchEngine("llama")
+		}
 		active := llamaProfileFromModels(served)
 		res := map[string]interface{}{
 			"running":           true,
@@ -192,6 +217,22 @@ func (a *App) llamaEnsure(profileID string) map[string]interface{} {
 			"error":      fmt.Sprintf("llama 档位 %s 的 GGUF 缺失（%s）", p.ID, model),
 		}
 	}
+	draftModel := llamaProfileDraftModelPath(p)
+	if draftModel != "" {
+		if _, err := os.Stat(draftModel); err != nil {
+			return map[string]interface{}{
+				"running":    false,
+				"started":    false,
+				"reason":     "draft-model-not-found",
+				"profile":    p.ID,
+				"model_path": model,
+				"draft_path": draftModel,
+				"model":      p.ModelID,
+				"profiles":   engineProfileJSON(llamaProfiles),
+				"error":      fmt.Sprintf("llama 档位 %s 的 MTP 文件缺失（%s）", p.ID, draftModel),
+			}
+		}
+	}
 	ctxSize := p.CtxSize
 	if ctxSize <= 0 {
 		ctxSize = qwen35CtxSize
@@ -205,6 +246,15 @@ func (a *App) llamaEnsure(profileID string) map[string]interface{} {
 	}
 	if p.ChatTemplate != "" && voiceV2FileExists(p.ChatTemplate) {
 		args = append(args, "--chat-template-file", p.ChatTemplate)
+	}
+	if p.SpecType != "" {
+		args = append(args, "--spec-type", p.SpecType)
+		if draftModel != "" {
+			args = append(args, "-md", draftModel, "--spec-draft-ngl", "99")
+		}
+		if p.SpecDraftNMax > 0 {
+			args = append(args, "--spec-draft-n-max", strconv.Itoa(p.SpecDraftNMax))
+		}
 	}
 	cmd, err := detachedCmd(voiceV2LLMBinPath(), args, "")
 	if err != nil {
@@ -229,9 +279,17 @@ func (a *App) llamaEnsure(profileID string) map[string]interface{} {
 			"error":      fmt.Sprintf("%s 拉起失败: %v", p.ID, err),
 		}
 	}
+	if cmd.Process != nil {
+		a.llamaProc.setWithJob(cmd, nil)
+		go func() {
+			_ = cmd.Wait()
+			a.llamaProc.clearIfCurrent(cmd)
+		}()
+	}
 	startedAt := time.Now()
 	served, ready := waitLlamaModelsReady(qwen35StartWait)
 	if !ready {
+		a.Qwen35EngineStop()
 		return map[string]interface{}{
 			"running":    qwen35Running(),
 			"started":    false,
@@ -241,6 +299,9 @@ func (a *App) llamaEnsure(profileID string) map[string]interface{} {
 			"profiles":   engineProfileJSON(llamaProfiles),
 			"error":      fmt.Sprintf("%s 300s 未就绪（%s）", p.ID, voiceV2LogPath("llama-server.exe.log")),
 		}
+	}
+	if a.engineMgr != nil {
+		a.engineMgr.TouchEngine("llama")
 	}
 	active := llamaProfileFromModels(served)
 	if active == "" {
@@ -263,16 +324,18 @@ func (a *App) qwen35Ensure() map[string]interface{} {
 	return a.llamaEnsure(llamaDefaultProfileID)
 }
 
-// Qwen35EngineStart 模型中心入口：按档位幂等拉起自管 llama。保留旧方法名
-// 以兼容现有 Wails 绑定；空 profile 回退 qwen35。
+// Qwen35EngineStart 保留旧 Wails 绑定名，但不再提供默认模型：必须由调用方
+// 显式给出功能绑定对应的档位；空 profile 返回 model-required，不拉起进程。
 func (a *App) Qwen35EngineStart(profile string) map[string]interface{} {
 	return a.llamaEnsure(profile)
 }
 
 // Qwen35EngineStop 按端口击杀（聊天/语音都不再依赖时手动停）。
 func (a *App) Qwen35EngineStop() map[string]interface{} {
+	hadProcess := a.llamaProc.stop()
 	killed := voiceV2KillPort(qwen35Port)
-	return map[string]interface{}{"stopped": killed}
+	a.markManagedCatalogStopped("llama", llamaProfiles)
+	return map[string]interface{}{"stopped": hadProcess || killed}
 }
 
 // Qwen35EngineStatus 探活 + 档位目录 + 关键路径诊断（gguf/bin 是否在位）。

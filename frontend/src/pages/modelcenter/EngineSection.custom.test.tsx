@@ -19,7 +19,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { ModelCenterActionsContext, ModelCenterContext, ModelCenterStateContext, type ModelCenterContextValue } from './context'
 import { EngineSection } from './EngineSection'
 import {
-  getStrataEngineStatus, saveEngine,
+  getLlamaEngineStatus, getStrataEngineStatus, saveEngine,
+  startLlamaEngine,
   startStrataEngine,
   type EngineConfig, type EngineStatus,
 } from '../../api/engines'
@@ -39,6 +40,8 @@ vi.mock('../../api/engines', () => ({
 const mSaveEngine = vi.mocked(saveEngine)
 const mStartStrata = vi.mocked(startStrataEngine)
 const mStatusStrata = vi.mocked(getStrataEngineStatus)
+const mStartLlama = vi.mocked(startLlamaEngine)
+const mStatusLlama = vi.mocked(getLlamaEngineStatus)
 
 const ENGINES: EngineConfig[] = [
   {
@@ -60,12 +63,18 @@ const ENGINES: EngineConfig[] = [
   },
 ]
 
-function renderSection(opts: { engineStatuses?: Record<string, EngineStatus> } = {}) {
+function renderSection(opts: {
+  engineStatuses?: Record<string, EngineStatus>
+  llamaStatus?: Awaited<ReturnType<typeof getLlamaEngineStatus>>
+} = {}) {
   mSaveEngine.mockClear()
   mSaveEngine.mockResolvedValue(undefined)
   mStartStrata.mockClear()
   mStatusStrata.mockClear()
   mStatusStrata.mockResolvedValue({ running: false })
+  mStartLlama.mockClear()
+  mStatusLlama.mockClear()
+  mStatusLlama.mockResolvedValue(opts.llamaStatus ?? { running: false })
   const handleAddCustomEngine = vi.fn().mockResolvedValue(true)
   const handleUpdateCustomEngine = vi.fn().mockResolvedValue(true)
   const handleRemoveCustomEngine = vi.fn().mockResolvedValue(undefined)
@@ -240,7 +249,7 @@ describe('EngineSection · 自定义引擎', () => {
 
 
 
-  it('⑦c Strata 生命周期：默认 uncensored 档，启动成功后显示档位', async () => {
+  it('⑦c Strata 生命周期：不再手动捆绑档位启动，只提示由功能绑定按需拉起', async () => {
     mStatusStrata.mockResolvedValue({
       running: false,
       default_profile: 'qwen38fn_flash',
@@ -250,15 +259,29 @@ describe('EngineSection · 自定义引擎', () => {
     })
     renderSection()
     const strataCard = screen.getByText('Strata').closest('.mc-engine-card') as HTMLElement
-    mStartStrata.mockResolvedValueOnce({
-      started: true,
-      waited_ms: 23000,
-      profile: 'qwen38fn_flash',
-      served_models: ['qwen3.8-flash-next-uncensored'],
+    // 按钮已不存在：先确认按需提示，再用 queryByRole 锁死零手动启动入口。
+    await waitFor(() => expect(within(strataCard).getByText(/按需启动 · 由功能绑定首次请求触发/)).toBeTruthy())
+    expect(within(strataCard).queryByRole('button', { name: /启\s*动\s*档\s*位/ })).toBeNull()
+    expect(within(strataCard).queryByLabelText('Strata档位')).toBeNull()
+    expect(mStartStrata).not.toHaveBeenCalled()
+  })
+
+  it('⑦e Llama 生命周期：不再手动捆绑档位启动，只提示由功能绑定按需拉起', async () => {
+    renderSection({
+      llamaStatus: {
+        running: false,
+        default_profile: 'gemma4_26b_a4b',
+        profiles: [
+          { id: 'qwen35', label: 'qwen3.6-35b-a3b-mtp（自管 llama）' },
+          { id: 'gemma4_26b_a4b', label: 'gemma-4-26B-A4B-it QAT Q4_K_XL + MTP（自管 llama）' },
+        ],
+      },
     })
-    fireEvent.click(within(strataCard).getByRole('button', { name: /启\s*动\s*档\s*位/ }))
-    await waitFor(() => expect(mStartStrata).toHaveBeenCalledWith('qwen38fn_flash'))
-    await waitFor(() => expect(within(strataCard).getByText(/运行中 · qwen3.8-flash-next-uncensored/)).toBeTruthy())
+    const llamaCard = screen.getByText('Llama').closest('.mc-engine-card') as HTMLElement
+    await waitFor(() => expect(within(llamaCard).getByText(/按需启动 · 由功能绑定首次请求触发/)).toBeTruthy())
+    expect(within(llamaCard).queryByRole('button', { name: /启\s*动\s*档\s*位/ })).toBeNull()
+    expect(within(llamaCard).queryByLabelText('Llama档位')).toBeNull()
+    expect(mStartLlama).not.toHaveBeenCalled()
   })
 
   it('⑦d 受管引擎停止态不回显旧连接错误，显示未启动提示', async () => {

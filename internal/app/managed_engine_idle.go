@@ -2,7 +2,7 @@ package app
 
 // managed_engine_idle.go — 外部引擎空闲自动退出（model_idle_exit_minutes）。
 //
-// 天璇/Strata/ComfyUI 是 gaea 代启的本地模型进程（吃 UMA/VRAM 的大户）：连续
+// llama/Strata/ComfyUI 是 gaea 代启的本地模型进程（吃 UMA/VRAM 的大户）：连续
 // N 分钟无真实使用即自动停止，不占机器。判定依据是 modelengine 的活跃记账
 //（TouchEngine：LLM 请求端点解析 / 引擎启动 / 识图绑定解析 / ComfyUI 任务
 // 提交）；探活刻意不记账。只收 gaea 本会话拉起的实例（registered）——外部
@@ -69,6 +69,15 @@ func (a *App) reapIdleManagedEngines() {
 // managedIdleTargets 生产目标表（Strata 8091 / Llama 8124 / ComfyUI 8188；天璇已退役）。
 func (a *App) managedIdleTargets() []managedIdleTarget {
 	return []managedIdleTarget{
+		{
+			id:         "llama",
+			registered: a.llamaProc.registered,
+			probe: func() bool {
+				_, ok := llamaProbe()
+				return ok
+			},
+			stop: func() { a.Qwen35EngineStop() },
+		},
 		{
 			id:         "strata",
 			registered: a.strataProc.registered,

@@ -86,7 +86,7 @@ type configFile struct {
 	IntentsLLMFallback *bool `json:"intents_llm_fallback,omitempty"`
 	// 意图 LLM 兜底硬超时毫秒（0=未配置回退默认 2000）
 	IntentsLLMTimeoutMS int `json:"intents_llm_timeout_ms,omitempty"`
-	// 外部引擎空闲自动退出分钟数（指针三态：nil=默认 10；0=关闭；N=分钟）
+	// 外部引擎空闲自动退出分钟数（指针三态：nil=默认 5；0=关闭；N=分钟）
 	ModelIdleExitMinutes *int `json:"model_idle_exit_minutes,omitempty"`
 	// 全局离线模式开关（nil=默认关闭，路由只允许本地引擎）
 	OfflineMode *bool `json:"offline_mode,omitempty"`
@@ -258,7 +258,7 @@ type Config struct {
 	// 意图 LLM 兜底（v4.8）：开关默认关；超时默认 2000ms
 	IntentsLLMFallback  bool
 	IntentsLLMTimeoutMS int
-	// 外部引擎空闲自动退出分钟数（天璇/Strata；默认 10，0=关闭）
+	// 外部引擎空闲自动退出分钟数（llama/Strata/ComfyUI；默认 5，0=关闭）
 	ModelIdleExitMinutes int
 	// 全局离线模式（v4.8）：默认关；开启后路由只允许本地引擎
 	OfflineMode bool

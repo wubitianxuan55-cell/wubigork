@@ -148,7 +148,6 @@ export function EngineCard({ engine, editingCustom, savedPrice, onToggleEdit, on
             <LocalEngineLifecycle
               engineId={engine.id}
               name={engine.id === 'llama' ? 'Llama' : 'Strata'}
-              onReady={() => handleRefreshModels(engine.id)}
               onRunningChange={(running) => {
                 setManagedRunning(prev => prev === running ? prev : running)
               }}

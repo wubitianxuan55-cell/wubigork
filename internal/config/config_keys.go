@@ -109,7 +109,7 @@ const (
 	KeyAutoPreload      = "auto_preload"      // 启动自动预载：按功能绑定预载 herdsman 模型
 	// 外部引擎空闲自动退出（分钟）：天璇/Strata 等 gaea 代启的本地模型进程，
 	// 连续 N 分钟无真实使用（LLM 请求/启动/识图）即自动停止，不占 GPU/内存。
-	// 默认 10；0=关闭。gaea 退出（含崩溃）另有 Job Object 兜底杀整树。
+	// 默认 5；0=关闭。gaea 退出（含崩溃）另有 Job Object 兜底杀整树。
 	KeyModelIdleExitMinutes = "model_idle_exit_minutes"
 	// 晨报预载（v4.16 刀④）：work 空间会话装配时把高频工作记忆确定性聚合为
 	// 「晨报预载」块预装配进 agent 上下文（零 LLM、预算受限、work 只读）。

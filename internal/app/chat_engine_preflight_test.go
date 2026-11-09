@@ -68,7 +68,7 @@ func TestResolveChatModelRouteStartsBoundEngineAndNormalizesLlamaModel(t *testin
 }
 
 func TestResolveChatModelRouteNormalizesGemmaPath(t *testing.T) {
-	stale := `C:\AI\models\gemma-4-e4b-gguf\gemma-4-E4B-BF16.gguf`
+	stale := `C:\AI\models\gemma-4-26b-a4b-it-qat\gemma-4-26B-A4B-it-qat-UD-Q4_K_XL.gguf`
 	a := newChatEnginePreflightTestApp(t, stale)
 	original := ensureChatBindingEngineFn
 	t.Cleanup(func() { ensureChatBindingEngineFn = original })
@@ -83,14 +83,14 @@ func TestResolveChatModelRouteNormalizesGemmaPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveChatModelRoute: %v", err)
 	}
-	if engine != "llama" || model != "gemma4_e4b" || source != "feature" {
-		t.Fatalf("route = (%q,%q,%q), want (llama,gemma4_e4b,feature)", engine, model, source)
+	if engine != "llama" || model != "gemma4_26b_a4b" || source != "feature" {
+		t.Fatalf("route = (%q,%q,%q), want (llama,gemma4_26b_a4b,feature)", engine, model, source)
 	}
-	if ensuredModel != "gemma4_e4b" {
-		t.Fatalf("ensure model = %q, want gemma4_e4b", ensuredModel)
+	if ensuredModel != "gemma4_26b_a4b" {
+		t.Fatalf("ensure model = %q, want gemma4_26b_a4b", ensuredModel)
 	}
-	if _, got := a.cfg.GetFeatureModel("chat"); got != "gemma4_e4b" {
-		t.Fatalf("normalized binding = %q, want gemma4_e4b", got)
+	if _, got := a.cfg.GetFeatureModel("chat"); got != "gemma4_26b_a4b" {
+		t.Fatalf("normalized binding = %q, want gemma4_26b_a4b", got)
 	}
 }
 

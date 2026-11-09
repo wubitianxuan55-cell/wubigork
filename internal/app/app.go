@@ -316,7 +316,9 @@ type App struct {
 
 	// 外部本地引擎进程引用——gaea 代启时登记，停止/状态走 *_proc.go。
 	// 外部启动器起的实例不登记（netstat 停止）。
-	strataProc localEngineProc
+	strataProc    localEngineProc
+	llamaProc     localEngineProc
+	llamaEnsureMu sync.Mutex
 
 	// intentClassifierFn 意图 LLM 兜底分类 seam（v4.8，测试注入点；nil=内置 LLM 分类器）。
 	intentClassifierFn func(text string) *intent.Intent
@@ -495,7 +497,7 @@ func (a *App) Startup(ctx context.Context) {
 		a.emit("engine-health-changed", map[string]interface{}{"id": id, "connected": connected})
 	})
 	a.engineMgr.StartHealthProbe(a.ctx)
-	// 外部引擎空闲自动退出巡检（天璇/Strata；model_idle_exit_minutes，默认 10
+	// 外部引擎空闲自动退出巡检（llama/Strata/ComfyUI；model_idle_exit_minutes，默认 5
 	// 分钟无真实使用即停——不占机器；gaea 退出另有 Job Object 兜底杀整树）。
 	a.startManagedEngineIdleReaper(a.ctx)
 	// 确保 xAI 引擎始终提供内置语音模型 grok-tts（TTS API 不返回在 /v1/models 列表）
