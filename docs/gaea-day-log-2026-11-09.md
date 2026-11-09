@@ -131,6 +131,20 @@ format_convert/summarize/预览/成本导入反复重跑：
   tesseract seam 计数）；门禁=go build 全仓+docmd/control/builtin 全包+app
   PDF/OCR/Sin 族全绿。
 
+## 刀七：成本导入扫描件兜底腿换正道（e71ed915）
+
+刀五调研发现的本域最后一个真 bug 销项——`visionExtractPDFText` 文本不可用时
+把 PDF 路径直接喂 `visionOCRImage`（OCRImageText 按 PNG 处理 PDF 字节，必然
+失败，兜底形同虚设）：
+
+- docmd 新增导出 `OCRPDFText`（强制扫描件 OCR 管线忽略文本层），走进程内
+  缓存且键与 pdfToMarkdownLimit OCR 分支同形（同文件同页规格命中互认）。
+- app 加 `visionOCRPDF` seam 替换兜底腿。
+- 测试：app 兜底回归锚（钉死图片 OCR seam 不得被 PDF 路径触达）+docmd 强制
+  入口 2 例（文本 PDF 亦进渲染路径=兜底语义）；门禁 build+docmd 全包+app
+  CostImport/Vision/OCR 族全绿。
+- 至此 2026-11-02 识图诊断线全销：三候选全落地+缓存+本 bug。
+
 ## 当日环境坑
 
 - **双启撞 port=死亡进程遗言假象**：第一次 bash `&` 后台启宿主其实活了（占 3091），
