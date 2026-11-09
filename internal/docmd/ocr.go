@@ -523,18 +523,22 @@ func OCRImageText(path string) (string, error) {
 	return "", ocrUnavailableError(kinds)
 }
 
-// ocrPDF 处理扫描件 PDF：本地 OvisOCR2（常驻 llama-server）优先，
-// 未安装/不可用时退回 tesseract（pdftoppm → tesseract 流水线）。
+// pdftoppmLookup 渲染前置查找 seam（包级变量以便测试堵住渲染路径；生产仍走
+// findPdftoppm 三级查找：GAEA_PDFTOPM → PATH .exe → codex-runtimes poppler）。
+var pdftoppmLookup = findPdftoppm
+
+// ocrPDFRange 处理扫描件 PDF：引擎链由 GAEA_OCR_ENGINE 配置驱动（auto =
+// uocr2→ovis→tesseract，2026-10-29 拍板质量第一，见 ocrEngineOrder 注释），
+// pdftoppm 300dpi 全范围一次渲染 → 逐页/分窗批识别（链首 uocr2 实现
+// PageBatchOCRProvider）。构造提供者实例后预探测一次：至少一个引擎可用才
+// 继续（ovis 探测并缓存常驻服务地址，失败整轮跳过、不逐页重试拉起；
+// tesseract 检查可执行文件），与历史提前失败行为一致。
 func ocrPDFRange(path, pages string, first, last, total int, progress func(done, totalN int)) (string, error) {
-	pdftoppmPath := findPdftoppm()
+	pdftoppmPath := pdftoppmLookup()
 	if pdftoppmPath == "" {
 		return "", fmt.Errorf("扫描件 PDF 需要 poppler 渲染（pdftoppm），但未找到。" +
 			"请安装 poppler：https://poppler.freedesktop.org\n\n或者使用文本 PDF（非扫描件）")
 	}
-	// 引擎链由 GAEA_OCR_ENGINE 配置驱动（"auto" = uocr2→ovis→tesseract；
-	// 显式指定 = 仅该引擎）。构造提供者实例后预探测一次：至少一个引擎可用才继续
-	// （ovis 探测并缓存常驻服务地址，失败整轮跳过、不逐页重试拉起；tesseract
-	// 检查可执行文件），与历史提前失败行为一致。
 	kinds, err := ocrEngineOrder()
 	if err != nil {
 		return "", err

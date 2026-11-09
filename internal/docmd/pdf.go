@@ -76,6 +76,14 @@ func pdfToMarkdownLimit(path, pages string, maxPages int, progress func(done, to
 	}
 
 	result := strings.TrimSpace(strings.Join(texts, "\n"))
+	// 页码戳噪声闸：扫描件常带一点文本层（扫描仪页码戳、纯数字/符号戳记），
+	// 第一步结果非空但只是戳记噪声时不算有文本层，落 extractRawText / OCR 兜底，
+	// 否则这类扫描件永远不会触发 OCR。判定刻意从严（全行 ≤3 字符且无字母词且
+	// 无 CJK 才算噪声）：meaningfulText 整档闸会误伤单行/稀疏合法正文
+	// （2026-11-09 实测 6 例既有测试翻车后收窄）；CJK/词形戳记仍会漏检，挂后续。
+	if stampNoiseText(result) {
+		result = ""
+	}
 	if result == "" {
 		result = extractRawText(data)
 	}
@@ -89,6 +97,33 @@ func pdfToMarkdownLimit(path, pages string, maxPages int, progress func(done, to
 		return md, totalPages, truncated, nil
 	}
 	return result, totalPages, truncated, nil
+}
+
+// stampNoiseText 判定 BT/ET 提取结果是否只是页码戳/序号类噪声：每行去空白后
+// ≤3 字符、无字母词、无 CJK（纯数字/符号戳记）。任何一行像正文（较长/含词/
+// 含汉字）即判非噪声——宁可漏检不可误伤，误伤=合法稀疏文本被推进分钟级 OCR。
+func stampNoiseText(s string) bool {
+	if strings.TrimSpace(s) == "" {
+		return false
+	}
+	for _, line := range strings.Split(s, "\n") {
+		l := strings.TrimSpace(line)
+		if l == "" {
+			continue
+		}
+		if len([]rune(l)) > 3 {
+			return false
+		}
+		if alphaWordCount(l) > 0 {
+			return false
+		}
+		for _, r := range l {
+			if r >= 0x4E00 && r <= 0x9FFF {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // pdfTotalPages PDF 对外总页数的**唯一判定点**（IN3-11）：
