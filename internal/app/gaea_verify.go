@@ -67,6 +67,48 @@ const (
 	visualDiffWarnThreshold = 0.20
 )
 
+// firstReviewMaxPages 条件视觉首渲抽样上限（P2，备忘 :42 形状继承：触及∪当前
+// ∪可疑页审查、>8 页抽样——首渲场景无编辑定位信息，v1=前 N 页封顶抽样，
+// 跳过原因透明落账）。
+const firstReviewMaxPages = 8
+
+// firstReviewRenderable 目标是否可走条件视觉首渲（docmd.ConvertToPdfFile 支持
+// 的 Office 交付格式）。
+func firstReviewRenderable(target string) bool {
+	switch strings.ToLower(filepath.Ext(target)) {
+	case ".docx", ".pptx", ".xlsx", ".pdf":
+		return true
+	}
+	return false
+}
+
+// runFirstRenderReview 无基线交付物的条件视觉首渲（P2，备忘 :42-44 形状继承）：
+// 复用通道 B 渲染 seam（soffice→PDF→pdftoppm 逐页 PNG），审前
+// firstReviewMaxPages 页封顶；无基线=视觉比对不适用，本函数只产出「可目检
+// 的逐页产物 + 覆盖账目」，不冒充通过/失败判定。渲染链路任一环不可用 →
+// reviewed=0 + 跳过原因（调用方如实落账，不冒充审过）。
+func runFirstRenderReview(target, verifyDir string) (msg string, reviewed, total int, skipped string) {
+	pdf := filepath.Join(verifyDir, "first.pdf")
+	if err := verifyConvertToPdf(target, pdf); err != nil {
+		return "", 0, 0, "渲染降级（soffice 不可用或转换失败）"
+	}
+	pages, err := verifyRenderPages(pdf, filepath.Join(verifyDir, "first"), 0)
+	if err != nil {
+		return "", 0, 0, "渲染降级（poppler pdftoppm 不可用）"
+	}
+	total = len(pages)
+	if total == 0 {
+		return "", 0, 0, "渲染零页（空文档或渲染异常）"
+	}
+	reviewed = total
+	if total > firstReviewMaxPages {
+		reviewed = firstReviewMaxPages
+		skipped = fmt.Sprintf("超 %d 页抽样（前 %d 页已渲，余 %d 页跳过）", firstReviewMaxPages, firstReviewMaxPages, total-firstReviewMaxPages)
+	}
+	msg = fmt.Sprintf("first-review: 首渲覆盖 %d/%d 页（无基线，视觉比对不适用；逐页 PNG 落产物目录供目检）", reviewed, total)
+	return msg, reviewed, total, skipped
+}
+
 // runVisualDiff 对基线/目标做真视觉 diff（v4.6 补课：页数对比 → 像素对比 +
 // 页数联合判定）。verifyDir 是审计产物目录（before/after PDF + 逐页 PNG 落盘，
 // 供事后人工复核差异页）。返回通道 B 文案、建议状态、像素差异率（0-1，渲染
@@ -220,8 +262,28 @@ func (a *App) GaeaVerifyRecord(id string) (evidence.Verdict, error) {
 			v.ChannelBRatio = ratio
 			v.ChannelBPages = pages
 			v.ChannelBArtifacts = filepath.ToSlash(verifyDir)
+			// 覆盖口径统一（P2）：diff 路径=全页 reviewed 无跳过
+			v.VisualPagesReviewed = pages
+			v.VisualPagesTotal = pages
 			// 审计产物路径随 verdict 落库（事后人工复核差异页）
 			verifyArtifacts = fmt.Sprintf("视觉产物：%s", filepath.ToSlash(verifyDir))
+		}
+	} else if v.ChannelA != "fail" && firstReviewRenderable(target) {
+		// P2 条件视觉首渲：无基线（首次生成等）不再是无视觉复核——单侧渲染
+		// 抽样，覆盖页数/跳过原因透明落账（备忘 :42-48 形状继承）。
+		verifyDir := filepath.Join(gaeaCwd(), ".gaea", "work", "journal", "verify", id)
+		_ = os.MkdirAll(verifyDir, 0o755)
+		msg, reviewed, total, skipped := runFirstRenderReview(target, verifyDir)
+		if reviewed > 0 {
+			v.ChannelB = msg
+			v.VisualPagesReviewed = reviewed
+			v.VisualPagesTotal = total
+			v.VisualSkippedReason = skipped
+			v.ChannelBArtifacts = filepath.ToSlash(verifyDir)
+			verifyArtifacts = fmt.Sprintf("首渲产物：%s", filepath.ToSlash(verifyDir))
+		} else {
+			// 渲染降级：reviewed=0 不冒充审过，跳过原因透明落账（ChannelB 保持 n/a）
+			v.VisualSkippedReason = skipped
 		}
 	}
 
@@ -236,6 +298,11 @@ func (a *App) GaeaVerifyRecord(id string) (evidence.Verdict, error) {
 	case strings.HasPrefix(v.ChannelB, "warn"):
 		v.Status = evidence.VerdictWarned
 		v.Note = "结构通过，视觉/版式存在变化（或渲染降级）"
+	case strings.HasPrefix(v.ChannelB, "first-review"):
+		// P2 条件视觉首渲：无基线场景的首渲覆盖（逐页产物供人工目检，不冒充
+		// 视觉比对判定）。
+		v.Status = evidence.VerdictVerified
+		v.Note = "通道 A 通过；条件视觉首渲已执行（无基线，视觉比对不适用——逐页产物供人工目检）"
 	default:
 		v.Status = evidence.VerdictVerified
 		v.Note = "双通道复核通过"

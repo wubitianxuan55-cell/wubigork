@@ -213,6 +213,12 @@ export interface VerdictView {
   channelBRatio?: number;
   channelBPages?: number;
   channelBArtifacts?: string;
+  // P2 条件视觉首渲（2026-11-10）：首渲覆盖页数/总数/跳过原因（透明口径，
+  // 备忘 :42-48 继承）。有基线 diff 路径=全页 reviewed 无 skippedReason；
+  // 渲染降级时 reviewed=0 仅 skippedReason。
+  visualPagesReviewed?: number;
+  visualPagesTotal?: number;
+  visualSkippedReason?: string;
 }
 
 // LintReportView 是中文规范体检结果（v4.1c，GaeaDocumentLint）。

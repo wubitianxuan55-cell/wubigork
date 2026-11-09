@@ -154,6 +154,13 @@ type Verdict struct {
 	ChannelBRatio     float64 `json:"channelBRatio,omitempty"`     // 像素差异率（0-1；before/after 逐页平均）
 	ChannelBPages     int     `json:"channelBPages,omitempty"`     // 渲染页数（before/after 较大者）
 	ChannelBArtifacts string  `json:"channelBArtifacts,omitempty"` // 产物目录绝对路径（.gaea/work/journal/verify/<id>/）
+	// P2 条件视觉首渲（2026-11-10 众神殿 pan_1794234593182 裁决 action-5 后半；
+	// 备忘 :42-48 形状条款继承）：无基线交付物不再是无视觉复核——渲染链路
+	// 可用时做首渲，覆盖页数/总数/跳过原因随 verdict 透明落账（备忘 :48
+	// 「视觉覆盖 3/12」口径）；有基线 diff 路径=全页 reviewed 无跳过。
+	VisualPagesReviewed int    `json:"visualPagesReviewed,omitempty"`
+	VisualPagesTotal    int    `json:"visualPagesTotal,omitempty"`
+	VisualSkippedReason string `json:"visualSkippedReason,omitempty"`
 }
 
 // Verdict 状态常量。

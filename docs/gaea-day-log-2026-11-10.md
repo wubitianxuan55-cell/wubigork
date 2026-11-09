@@ -131,3 +131,25 @@
 - **P2 第二波（未动，待点名）**：doc_render 覆盖率字段/交付卡
   （visual_pages_reviewed/skipped_reason）、条件视觉闸门、九格语料真实脱敏件
   采集（需用户授权）。
+
+## P2 质量矩阵第二波（同日三刀：条件视觉首渲+覆盖率透明）
+
+- **Verdict 覆盖率字段**（evidence/journal.go）：visualPagesReviewed /
+  visualPagesTotal / visualSkippedReason（omitempty，旧 verdict 读取兼容）——
+  备忘 :48「视觉覆盖 3/12」透明口径的代码面落账。
+- **条件视觉首渲**（gaea_verify.go）：无基线（首次生成）交付物不再是无视觉
+  复核——runFirstRenderReview 复用通道 B 渲染 seam（soffice→PDF→pdftoppm
+  逐页 PNG），firstReviewMaxPages=8 封顶抽样（备忘 :42 形状继承；首渲场景
+  无编辑定位信息，v1=前 N 页，跳过原因透明）；渲染降级=reviewed 0+原因落账
+  （ChannelB 保持 n/a，不冒充审过）；有基线 diff 路径=全页 reviewed 口径统一；
+  汇总新增 first-review 态（verified+「逐页产物供人工目检」注记，不冒充
+  视觉比对判定）。md 等不可渲染格式=零覆盖字段诚实缺省。
+- **前端交付卡**（EvidenceSection）：「首渲覆盖：N/M 页 · 跳过原因」行（与
+  diff「视觉复核」行互斥形态）+ 查看产物入口；渲染降级单独行透明上屏；
+  VerdictView 类型+三语 i18n（visualCoverage）；mock ev_1002=first-review
+  样本（diff 样本 ev_1003/旧形态 ev_1001 不动）。
+- **测试**：Go 5 例（抽样 8/12、整页 5/5、soffice 降级、pdftoppm 失败、md
+  不可渲染——seam 注入无 soffice/poppler 依赖）+前端 2 例（覆盖率行/双行
+  互斥）；deliverables 族 51/51、tsc 0。
+- **P2 第二波余项（未动，待点名）**：九格真实脱敏件采集（需用户授权/提供）、
+  回修≤1 轮的缺陷闭环记账、触及∪当前∪可疑页定位（需编辑定位元数据，v2）。

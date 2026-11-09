@@ -323,6 +323,35 @@ function EvidenceCard({ r, v, ops, claimable, hasOps, expanded, canRollback, dif
               )}
             </div>
           )}
+          {(v.visualPagesReviewed ?? 0) > 0 && (
+            /* P2 条件视觉首渲覆盖行（备忘 :48「视觉覆盖 3/12」透明口径）：
+               有基线 diff=全页 reviewed；无基线 first-review=抽样+跳过原因 */
+            <div className="flex flex-wrap items-center gap-1.5 pl-1">
+              <span className="text-[9px] font-mono" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                {t("deliverPanel.visualCoverage", { reviewed: v.visualPagesReviewed ?? 0, total: v.visualPagesTotal ?? 0 })}
+                {v.visualSkippedReason ? ` · ${v.visualSkippedReason}` : ""}
+              </span>
+              {v.channelBArtifacts && (
+                <button
+                  type="button"
+                  className={iconBtn}
+                  onClick={() => void app.OpenWorkspacePath(v.channelBArtifacts as string).catch(() => {})}
+                  title={t("deliverPanel.artifactsTitle")}
+                  aria-label={t("deliverPanel.artifacts")}
+                >
+                  <FolderTree size={11} />
+                </button>
+              )}
+            </div>
+          )}
+          {(v.visualPagesReviewed ?? 0) === 0 && v.visualSkippedReason && (
+            /* 渲染降级：reviewed=0 不冒充审过，跳过原因透明上屏 */
+            <div className="flex flex-wrap items-center gap-1.5 pl-1">
+              <span className="text-[9px] font-mono" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                {v.visualSkippedReason}
+              </span>
+            </div>
+          )}
         </div>
       )}
     </div>

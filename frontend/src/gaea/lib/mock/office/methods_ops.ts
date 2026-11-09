@@ -177,6 +177,23 @@ export const opsMethods: Pick<
         at: Date.now(),
       };
     }
+    if (id === "ev_1002") {
+      // P2 条件视觉首渲样本：无基线 office_generate 交付——首渲覆盖 8/12 页
+      // （>8 抽样，跳过原因透明），走「首渲覆盖」行（与 ev_1003 的
+      // 「视觉复核」diff 行互斥形态）。
+      return {
+        id,
+        status: "verified" as const,
+        channelA: "pass: 文档可解析，替换文本在文档中且 1 处待处理修订在册（引用级）",
+        channelB: "first-review: 首渲覆盖 8/12 页（无基线，视觉比对不适用；逐页 PNG 落产物目录供目检）",
+        note: "（mock）通道 A 通过；条件视觉首渲已执行",
+        visualPagesReviewed: 8,
+        visualPagesTotal: 12,
+        visualSkippedReason: "超 8 页抽样（前 8 页已渲，余 4 页跳过）",
+        channelBArtifacts: ".gaea/work/journal/verify/ev_1002",
+        at: Date.now(),
+      };
+    }
     return {
       id,
       status: (id === "ev_1001" ? "warned" : "verified") as "verified" | "warned" | "failed",

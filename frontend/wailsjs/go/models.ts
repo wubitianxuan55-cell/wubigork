@@ -7687,6 +7687,9 @@ export namespace evidence {
 	    channelBRatio?: number;
 	    channelBPages?: number;
 	    channelBArtifacts?: string;
+	    visualPagesReviewed?: number;
+	    visualPagesTotal?: number;
+	    visualSkippedReason?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Verdict(source);
@@ -7703,6 +7706,9 @@ export namespace evidence {
 	        this.channelBRatio = source["channelBRatio"];
 	        this.channelBPages = source["channelBPages"];
 	        this.channelBArtifacts = source["channelBArtifacts"];
+	        this.visualPagesReviewed = source["visualPagesReviewed"];
+	        this.visualPagesTotal = source["visualPagesTotal"];
+	        this.visualSkippedReason = source["visualSkippedReason"];
 	    }
 	}
 
