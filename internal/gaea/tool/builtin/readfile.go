@@ -138,6 +138,14 @@ func (r readFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 	} else {
 		// V5.9: 二进制文件 → 尝试用 markitdown 转为 Markdown
 		if bytes.IndexByte(peek, 0) >= 0 {
+			// 图片不在 markitdown 白名单里，直接给分工引导：
+			// 提文字用 ocr（本地 uocr2 链），看懂图用 vision。
+			if isImageExt(p.Path) {
+				return "", fmt.Errorf(
+					"image file %s; call the \"ocr\" tool to extract its text (tables, receipts, scanned pages), or the \"vision\" tool to understand the picture",
+					p.Path,
+				)
+			}
 			if markdown, ok := tryMarkItDown(ctx, p.Path); ok {
 				return markdown, nil
 			}
@@ -372,6 +380,16 @@ var markitdownExtensions = map[string]bool{
 	".pdf": true, ".docx": true, ".xlsx": true, ".xls": true,
 	".pptx": true, ".epub": true, ".html": true, ".htm": true,
 	".csv": true, ".ipynb": true,
+}
+
+// isImageExt 按扩展名判断是否为图片文件（read_file 对图片不走 markitdown，
+// 直接给 ocr/vision 分工引导）。
+func isImageExt(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tiff", ".tif":
+		return true
+	}
+	return false
 }
 
 // Convert 优先用 markitdown CLI，未安装则回退到 `python -m markitdown`。

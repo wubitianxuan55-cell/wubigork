@@ -93,7 +93,7 @@ export function ComposerAttachmentBar({
               <button
                 type="button"
                 className="flex items-center justify-center w-5 h-5 bg-transparent border-0 rounded text-fg-dim cursor-pointer hover:text-accent hover:bg-bg-soft transition-colors"
-                title={running ? "助手回复中，稍后再试" : "提取文字：本地 OvisOCR2 识别图中文字"}
+                title={running ? "助手回复中，稍后再试" : "提取文字：本地 uocr2 OCR 识别图中文字"}
                 disabled={running || !!ocrPath}
                 onClick={() => onOCRText(a)}
               >

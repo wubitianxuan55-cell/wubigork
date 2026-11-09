@@ -2,15 +2,28 @@ package control
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
+	"unicode/utf8"
 
 	"github.com/gaea/gaea/internal/gaea/vision"
 )
+
+// stubOCR 注入全文 OCR 桩并在测试结束恢复。所有走 appendImageBlock 的测试
+// 必须先调它：默认实现 ocrImageText=docmd.OCRImageText 会真拉起本地 uocr2
+// 服务（同 internal/app 测试语义管线地雷形态）。
+func stubOCR(t *testing.T, fn func(string) (string, error)) {
+	t.Helper()
+	orig := ocrImageText
+	ocrImageText = fn
+	t.Cleanup(func() { ocrImageText = orig })
+}
 
 // buildTextPDF 生成带唯一文本的合成 PDF（文本流，无外部依赖）。
 func buildTextPDF(t *testing.T, pages int) string {
@@ -141,14 +154,18 @@ func TestResolveRefs_ImageRecognition(t *testing.T) {
 		return "这是一张办公截图，包含标题和两段文字。", nil
 	}
 	defer func() { visionRecognize = orig }()
+	stubOCR(t, func(string) (string, error) { return "", errors.New("stub: ocr off") })
 
 	c := &Controller{}
 	block, errs := c.ResolveRefs(context.Background(), "帮我看看 @"+rel)
 	if len(errs) != 0 {
 		t.Fatalf("errs = %v", errs)
 	}
-	if !strings.Contains(block, "【图片识别】") || !strings.Contains(block, "这是一张办公截图") {
+	if !strings.Contains(block, "【画面理解】") || !strings.Contains(block, "这是一张办公截图") {
 		t.Errorf("block = %q, want 识别内容", block)
+	}
+	if strings.Contains(block, "【全文 OCR】") {
+		t.Errorf("OCR 腿失败时不应注入全文块: %q", block)
 	}
 }
 
@@ -171,13 +188,14 @@ func TestResolveRefs_UploadsImage(t *testing.T) {
 		return "截图包含表格与标题。", nil
 	}
 	defer func() { visionRecognize = orig }()
+	stubOCR(t, func(string) (string, error) { return "", errors.New("stub: ocr off") })
 
 	c := &Controller{}
 	block, errs := c.ResolveRefs(context.Background(), "识别 @"+rel)
 	if len(errs) != 0 {
 		t.Fatalf("errs = %v", errs)
 	}
-	if !strings.Contains(block, "【图片识别】") || !strings.Contains(block, "截图包含表格与标题") {
+	if !strings.Contains(block, "【画面理解】") || !strings.Contains(block, "截图包含表格与标题") {
 		t.Errorf("block = %q, want 识别内容", block)
 	}
 }
@@ -198,6 +216,7 @@ func TestResolveRefs_ImageRecognitionFallback(t *testing.T) {
 		return "", context.DeadlineExceeded
 	}
 	defer func() { visionRecognize = orig }()
+	stubOCR(t, func(string) (string, error) { return "", errors.New("stub: ocr off") })
 
 	c := &Controller{}
 	block, _ := c.ResolveRefs(context.Background(), "看看 @"+rel)
@@ -209,6 +228,149 @@ func TestResolveRefs_ImageRecognitionFallback(t *testing.T) {
 		t.Fatal("visionRecognize 不应为 nil")
 	}
 	_ = vision.RecognizeImage
+}
+
+// TestResolveRefs_ImageDualInjection 识图与全文 OCR 两腿都成功时同块双注入。
+func TestResolveRefs_ImageDualInjection(t *testing.T) {
+	t.Chdir(t.TempDir())
+	if err := os.MkdirAll(filepath.Join(".gaea", "attachments"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	rel := filepath.ToSlash(filepath.Join(".gaea", "attachments", "dual.png"))
+	if err := os.WriteFile(rel, []byte("image"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := visionRecognize
+	visionRecognize = func(_ context.Context, _, _ string) (string, error) {
+		return "一张报销单照片，背景为办公桌面。", nil
+	}
+	defer func() { visionRecognize = orig }()
+	stubOCR(t, func(string) (string, error) {
+		return "报销单\n日期：2026-11-09\n金额：￥128.00", nil
+	})
+
+	c := &Controller{}
+	block, errs := c.ResolveRefs(context.Background(), "看看 @"+rel)
+	if len(errs) != 0 {
+		t.Fatalf("errs = %v", errs)
+	}
+	if !strings.Contains(block, "【画面理解】") || !strings.Contains(block, "报销单照片") {
+		t.Errorf("block missing vision leg: %q", block)
+	}
+	if !strings.Contains(block, "【全文 OCR】") || !strings.Contains(block, "金额：￥128.00") {
+		t.Errorf("block missing OCR leg: %q", block)
+	}
+}
+
+// TestResolveRefs_ImageOCRFailureKeepsVision OCR 腿失败只降级自己，识图块原样。
+func TestResolveRefs_ImageOCRFailureKeepsVision(t *testing.T) {
+	t.Chdir(t.TempDir())
+	if err := os.MkdirAll(".gaea/uploads", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	rel := ".gaea/uploads/leg.png"
+	if err := os.WriteFile(rel, []byte("image"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := visionRecognize
+	visionRecognize = func(_ context.Context, _, _ string) (string, error) {
+		return "纯画面描述，没有 OCR 也能看懂。", nil
+	}
+	defer func() { visionRecognize = orig }()
+	stubOCR(t, func(string) (string, error) { return "", errors.New("uocr2 unavailable") })
+
+	c := &Controller{}
+	block, errs := c.ResolveRefs(context.Background(), "看 @"+rel)
+	if len(errs) != 0 {
+		t.Fatalf("errs = %v", errs)
+	}
+	if !strings.Contains(block, "【画面理解】") || !strings.Contains(block, "纯画面描述") {
+		t.Errorf("vision leg broken: %q", block)
+	}
+	if strings.Contains(block, "【全文 OCR】") || strings.Contains(block, "uocr2 unavailable") {
+		t.Errorf("OCR 腿失败应静默降级: %q", block)
+	}
+}
+
+// TestResolveRefs_ImageOCRBudgetTimeout OCR 腿超预算时放弃注入并给提示行，
+// 不拖死本轮消息（识图腿照常注入）。
+func TestResolveRefs_ImageOCRBudgetTimeout(t *testing.T) {
+	t.Chdir(t.TempDir())
+	if err := os.MkdirAll(".gaea/uploads", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	rel := ".gaea/uploads/slow.png"
+	if err := os.WriteFile(rel, []byte("image"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	origVision := visionRecognize
+	visionRecognize = func(_ context.Context, _, _ string) (string, error) {
+		return "超时场景里的画面描述。", nil
+	}
+	defer func() { visionRecognize = origVision }()
+	stubOCR(t, func(string) (string, error) {
+		time.Sleep(300 * time.Millisecond) // 远超收缩后的预算，模拟引擎冷启动
+		return "这段全文来得太晚，不应注入。", nil
+	})
+
+	origBudget := visionOCRBudget
+	visionOCRBudget = 30 * time.Millisecond
+	defer func() { visionOCRBudget = origBudget }()
+
+	c := &Controller{}
+	block, errs := c.ResolveRefs(context.Background(), "看 @"+rel)
+	if len(errs) != 0 {
+		t.Fatalf("errs = %v", errs)
+	}
+	if !strings.Contains(block, "【画面理解】") {
+		t.Errorf("vision leg missing: %q", block)
+	}
+	if !strings.Contains(block, "【全文 OCR】未就绪") || !strings.Contains(block, "ocr 工具") {
+		t.Errorf("budget timeout hint missing: %q", block)
+	}
+	if strings.Contains(block, "来得太晚") {
+		t.Errorf("迟到全文不应注入: %q", block)
+	}
+}
+
+// TestTruncateVision_UTF8Safe truncateVision 按边界截断，不劈多字节字符。
+func TestTruncateVision_UTF8Safe(t *testing.T) {
+	s := "a" + strings.Repeat("汉", 600) // 1 + 1800 字节，切点 1200 落在"汉"中间
+	got := truncateVision(s)
+	if !utf8.ValidString(strings.TrimSuffix(got, "…[已截断]")) {
+		t.Errorf("truncateVision produced invalid UTF-8")
+	}
+	head := strings.TrimSuffix(got, "…[已截断]")
+	if utf8.RuneCountInString(head) != 400 { // "a" + 399 个"汉" = 1+1197 字节
+		t.Errorf("head runes = %d, want 400", utf8.RuneCountInString(head))
+	}
+	if !strings.HasSuffix(got, "…[已截断]") {
+		t.Errorf("missing truncation marker: %q", got)
+	}
+}
+
+// TestOcrBlockText_Gates ocrBlockText 的注入门槛：噪声不注入、超限截断带补读指引。
+func TestOcrBlockText_Gates(t *testing.T) {
+	// 噪声（<12 字符）不注入。
+	if got := ocrBlockText(ocrResult{text: "  hi  "}); got != "" {
+		t.Errorf("noise text should be skipped, got %q", got)
+	}
+	// 失败不注入。
+	if got := ocrBlockText(ocrResult{err: errors.New("x"), text: "足够长的文本内容示例"}); got != "" {
+		t.Errorf("error result should be skipped, got %q", got)
+	}
+	// 超限截断：5000 个"汉"=15000 字节 > maxVisionOCRBytes。
+	got := ocrBlockText(ocrResult{text: strings.Repeat("汉", 5000)})
+	if !strings.Contains(got, "…[已截断；全文可调用 ocr 工具提取]") {
+		t.Errorf("oversize text missing truncate+hint marker")
+	}
+	head := strings.TrimSuffix(strings.TrimPrefix(got, "【全文 OCR】\n"), "…[已截断；全文可调用 ocr 工具提取]")
+	if len(head) > maxVisionOCRBytes {
+		t.Errorf("head %d bytes > cap %d", len(head), maxVisionOCRBytes)
+	}
 }
 
 func TestReadFileRef(t *testing.T) {

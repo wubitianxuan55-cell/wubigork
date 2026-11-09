@@ -23,7 +23,7 @@ func gaeaSpecialistTools(a *App) []tool.Tool {
 	}
 }
 
-// ocrTool 专业 OCR 工具：图片/扫描件文字提取走本地 OvisOCR2 常驻服务。
+// ocrTool 专业 OCR 工具：图片/扫描件文字提取走本地 uocr2 链（docmd auto 引擎序）。
 // 与 vision（整图理解）分工：要"看懂图"用 vision，要"提取图中文字"用 ocr。
 type ocrTool struct {
 	a *App
@@ -33,7 +33,9 @@ func (t ocrTool) Name() string { return "ocr" }
 
 func (t ocrTool) Description() string {
 	return "提取图片/扫描件中的文字（OCR）：读取本地图片文件，调用本地 OCR 模型返回识别出的文本。" +
-		"适合截图、扫描 PDF 页面、票据、表格照片中的文字提取。通常 2-5 秒/页，冷启动可能更久；不消耗主模型 token。"
+		"触发时机：用户发来图片/截图/扫描件附件且需要其中的文字、表格、票据内容时，主动使用本工具提取全文" +
+		"（消息里自动注入的识图块只含画面理解与部分文字，全文提取以此工具为准）。" +
+		"通常 2-5 秒/页，冷启动可能更久；不消耗主模型 token。"
 }
 
 func (t ocrTool) Schema() json.RawMessage {

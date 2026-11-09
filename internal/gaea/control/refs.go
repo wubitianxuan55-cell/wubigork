@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/gaea/gaea/internal/docmd"
@@ -30,8 +31,22 @@ const refOfficeMaxPages = 20
 // 原有占位提示，保证 @图片 引用始终能进入上下文。
 var visionRecognize = vision.RecognizeImage
 
+// ocrImageText 全文 OCR 入口（可注入以便测试）。与识图腿并联：识图管"看懂图"，
+// OCR 腿走 docmd 本地链（auto = uocr2→ovis→tesseract）管图中文字全文。
+// 测试必须注入桩，否则会真拉起本地 uocr2 服务（同 internal/app 测试语义
+// 管线地雷形态：单测静默连真实引擎）。
+var ocrImageText = docmd.OCRImageText
+
 // maxVisionTextBytes 限制注入的识图文本长度，避免撑爆上下文。
 const maxVisionTextBytes = 1200
+
+// maxVisionOCRBytes 限制注入的全文 OCR 文本长度；超限部分让 AI 用 ocr 工具补读。
+const maxVisionOCRBytes = 8 * 1024
+
+// visionOCRBudget 全文 OCR 腿的等待预算：OCR 引擎按需拉起（冷启动可达分钟级），
+// 超预算即放弃本轮注入（附提示行），后台拉起不受影响，服务就绪后下一轮秒回。
+// 包级变量以便测试收缩。
+var visionOCRBudget = 15 * time.Second
 
 // refKind distinguishes the two things an @reference can resolve to.
 type refKind int
@@ -155,18 +170,76 @@ func (c *Controller) ResolveRefs(ctx context.Context, line string) (block string
 	return b.String(), errs
 }
 
-// appendImageBlock 识别图片并把结果注入引用块；识别失败时回退占位提示。
+// appendImageBlock 识别图片并把结果注入引用块。识图（看懂图）与全文 OCR
+// （提取图中文字，本地 uocr2 链）两腿并联执行互不阻塞；OCR 腿只在预算内
+// 等待，失败/超时/空结果静默降级，识图腿行为与历史一致。识图失败时仍回退
+// 占位提示，保证 @图片 引用始终能进入上下文。
 func (c *Controller) appendImageBlock(ctx context.Context, b *strings.Builder, r ref) {
+	ocrCh := make(chan ocrResult, 1)
+	go func() {
+		text, ocrErr := ocrImageText(r.path)
+		ocrCh <- ocrResult{text: text, err: ocrErr}
+	}()
+
 	desc, err := visionRecognize(ctx, r.path, "")
+	// OCR 腿只等预算时长：引擎冷启动时不拖死本轮消息（放弃的 goroutine 会
+	// 继续在后台拉起服务，就绪后下一轮秒回）。
+	ocr := <-waitOCR(ocrCh)
+
 	if err != nil || strings.TrimSpace(desc) == "" {
 		msg := "[image attachment available at @" + r.path + "; use an image/OCR/vision MCP tool if visual understanding is needed]"
 		if err != nil {
 			msg = "[图片附件 @" + r.path + " 识图失败：" + err.Error() + "]"
 		}
+		// 识图腿倒了但 OCR 腿活着时，全文照样值钱——有就带上。
+		if ocrBody := ocrBlockText(ocr); ocrBody != "" {
+			msg += "\n\n" + ocrBody
+		}
 		appendRefBlock(b, "image", `path="`+r.path+`"`, msg)
 		return
 	}
-	appendRefBlock(b, "image", `path="`+r.path+`"`, "【图片识别】\n"+truncateVision(desc))
+	body := "【画面理解】\n" + truncateVision(desc)
+	if ocrBody := ocrBlockText(ocr); ocrBody != "" {
+		body += "\n\n" + ocrBody
+	}
+	appendRefBlock(b, "image", `path="`+r.path+`"`, body)
+}
+
+// ocrResult 全文 OCR 腿的产出。
+type ocrResult struct {
+	text     string
+	err      error
+	timedOut bool
+}
+
+// waitOCR 等待 OCR 腿产出，最多等 visionOCRBudget，超时返回 timedOut 结果。
+func waitOCR(ch <-chan ocrResult) <-chan ocrResult {
+	out := make(chan ocrResult, 1)
+	timer := time.NewTimer(visionOCRBudget)
+	defer timer.Stop()
+	select {
+	case r := <-ch:
+		out <- r
+	case <-timer.C:
+		out <- ocrResult{timedOut: true}
+	}
+	return out
+}
+
+// ocrBlockText 把 OCR 腿产出整理成注入块：空/噪声/失败不注入，超时给提示行，
+// 成功给全文（截到 maxVisionOCRBytes）。返回空串表示该腿没有可注入内容。
+func ocrBlockText(r ocrResult) string {
+	if r.timedOut {
+		return "【全文 OCR】未就绪（引擎冷启动中），可调用 ocr 工具提取文字全文"
+	}
+	text := strings.TrimSpace(r.text)
+	if r.err != nil || utf8.RuneCountInString(text) < 12 {
+		return ""
+	}
+	if len(text) > maxVisionOCRBytes {
+		text = truncateUTF8(text, maxVisionOCRBytes) + "…[已截断；全文可调用 ocr 工具提取]"
+	}
+	return "【全文 OCR】\n" + text
 }
 
 // isImagePath 按扩展名判断是否为图片文件（refFile 命中图片时也走识图）。
@@ -178,12 +251,12 @@ func isImagePath(path string) bool {
 	return false
 }
 
-// truncateVision 截断识图文本到最大长度。
+// truncateVision 截断识图文本到最大长度（按 UTF-8 边界，不劈多字节字符）。
 func truncateVision(s string) string {
 	if len(s) <= maxVisionTextBytes {
 		return s
 	}
-	return s[:maxVisionTextBytes] + "…[已截断]"
+	return truncateUTF8(s, maxVisionTextBytes) + "…[已截断]"
 }
 
 func appendRefBlock(b *strings.Builder, tag, attr, body string) {
