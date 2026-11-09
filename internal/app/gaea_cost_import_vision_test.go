@@ -49,12 +49,21 @@ func injectVisionExtract(t *testing.T, fn func(string) (string, error)) {
 	t.Cleanup(func() { visionExtractPDF = orig })
 }
 
-// injectVisionOCR 注入本地 OCR 函数并在测试结束后还原。
+// injectVisionOCR 注入本地图片 OCR 函数并在测试结束后还原。
 func injectVisionOCR(t *testing.T, fn func(string) (string, error)) {
 	t.Helper()
 	orig := visionOCRImage
 	visionOCRImage = fn
 	t.Cleanup(func() { visionOCRImage = orig })
+}
+
+// injectVisionOCRPDF 注入扫描件 PDF 强制 OCR 函数（visionOCRPDF seam）并在
+// 测试结束后还原。
+func injectVisionOCRPDF(t *testing.T, fn func(string, int) (string, error)) {
+	t.Helper()
+	orig := visionOCRPDF
+	visionOCRPDF = fn
+	t.Cleanup(func() { visionOCRPDF = orig })
 }
 
 // visionQuoteTable 报价单表格文本（TSV，供 OCR/PDF 提取 mock 复用）。
@@ -264,7 +273,9 @@ func TestGaeaCostImportVisionPreviewPDFScanOCRMarker(t *testing.T) {
 	}
 }
 
-// 扫描件 PDF：文本极少（提取不可用）→ 本地 OCR 兜底 → source=pdf_scan。
+// 扫描件 PDF：文本极少（提取不可用）→ 强制扫描件 OCR 兜底 → source=pdf_scan。
+// 回归锚（2026-11-09）：兜底腿此前误把 PDF 路径喂 OCRImageText（按 PNG 处理
+// PDF 字节必然失败，形同虚设）——本测试钉死图片 OCR seam 不得被 PDF 路径触达。
 func TestGaeaCostImportVisionPreviewPDFScanFallbackOCR(t *testing.T) {
 	newVisionTestApp(t)
 	pdf := filepath.Join(t.TempDir(), "scan2.pdf")
@@ -272,7 +283,11 @@ func TestGaeaCostImportVisionPreviewPDFScanFallbackOCR(t *testing.T) {
 		t.Fatal(err)
 	}
 	injectVisionExtract(t, func(string) (string, error) { return "乱码??", nil })
-	injectVisionOCR(t, func(string) (string, error) { return visionQuoteTable, nil })
+	injectVisionOCRPDF(t, func(string, int) (string, error) { return visionQuoteTable, nil })
+	injectVisionOCR(t, func(string) (string, error) {
+		t.Error("PDF 兜底不应调用图片 OCR（OCRImageText 按 PNG 处理 PDF 字节）")
+		return "", nil
+	})
 
 	pv, err := (&App{}).GaeaCostImportVisionPreview(pdf)
 	if err != nil {

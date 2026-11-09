@@ -25,6 +25,27 @@ func buildScanStampPDF(t testing.TB, pages int) string {
 	return path
 }
 
+// TestOCRPDFText_ForceIgnoresTextLayer 强制 OCR 入口对文本 PDF 也走 OCR 管线
+// （兜底语义=忽略文本层）：堵住 pdftoppm 应报缺失，证明进了渲染路径。
+func TestOCRPDFText_ForceIgnoresTextLayer(t *testing.T) {
+	path := buildPagePDF(t, 2) // 纯文本 PDF：pdfToMarkdownLimit 会直接返文本
+
+	orig := pdftoppmLookup
+	pdftoppmLookup = func() string { return "" }
+	t.Cleanup(func() { pdftoppmLookup = orig })
+
+	if _, err := OCRPDFText(path, 5); err == nil || !strings.Contains(err.Error(), "pdftoppm") {
+		t.Fatalf("强制 OCR 应无视文本层进渲染路径（报 pdftoppm 缺失），得到 err=%v", err)
+	}
+}
+
+// TestOCRPDFText_MissingFile 读不到文件如实报错。
+func TestOCRPDFText_MissingFile(t *testing.T) {
+	if _, err := OCRPDFText(filepath.Join(t.TempDir(), "nope.pdf"), 0); err == nil {
+		t.Fatal("缺失文件应报错")
+	}
+}
+
 // TestStampNoiseText 页码戳噪声谓词单元测试：从严判定——数字/符号戳算噪声，
 // 任何像正文的行（较长/含字母词/含汉字）都不算。
 func TestStampNoiseText(t *testing.T) {

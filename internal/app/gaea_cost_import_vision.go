@@ -35,10 +35,12 @@ const (
 	visionSourceImage   = "image"    // 图片（OCR 识别）
 )
 
-// visionExtractPDF / visionOCRImage 是可注入的文本提取/OCR 函数（测试替换用）。
-// 默认走 docmd 本地链路：ConvertLimit 对文本 PDF 直接提取、对扫描件自动
-// OvisOCR2→tesseract 分页 OCR；OCRImageText 用常驻 OvisOCR2 本地服务识别图片
-// （与 GaeaOCRText 的本地兜底同链路）。
+// visionExtractPDF / visionOCRImage / visionOCRPDF 是可注入的文本提取/图片
+// OCR/扫描件 PDF 强制 OCR 函数（测试替换用）。默认走 docmd 本地链路：
+// ConvertLimit 对文本 PDF 直接提取、对扫描件自动 OCR（uocr2→ovis→tesseract）；
+// OCRImageText 用本地引擎链识别图片；OCRPDFText 强制走扫描件 OCR 管线
+// （忽略文本层，2026-11-09 起替代此前误把 PDF 路径喂 OCRImageText 的兜底腿
+// ——按 PNG 处理 PDF 字节必然失败，形同虚设）。
 var (
 	visionExtractPDF = func(path string) (string, error) {
 		md, _, _, err := docmd.ConvertLimit(path, "", docmd.DefaultMaxPDFPages)
@@ -48,6 +50,7 @@ var (
 		return md, nil
 	}
 	visionOCRImage = docmd.OCRImageText
+	visionOCRPDF   = docmd.OCRPDFText
 )
 
 // GaeaCostImportVisionPreview 识别 PDF/图片报价单并产出可确认的候选成本条目。
@@ -122,8 +125,8 @@ func (a *App) visionExtractPDFText(abs string) (string, string, error) {
 		source = visionSourcePDFScan
 	}
 	if !pdfTextUsable(text) {
-		// 文本极少 → 扫描件判定：本地 OCR 兜底（OvisOCR2）。
-		if ocr, oerr := visionOCRImage(abs); oerr == nil && pdfTextUsable(ocr) {
+		// 文本极少/噪声 → 强制扫描件 OCR 管线（OCRPDFText，忽略文本层）。
+		if ocr, oerr := visionOCRPDF(abs, docmd.DefaultMaxPDFPages); oerr == nil && pdfTextUsable(ocr) {
 			text, source = ocr, visionSourcePDFScan
 		}
 	}

@@ -7,7 +7,9 @@ package docmd
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -536,6 +538,34 @@ func ocrImageTextUncached(path string, kinds []string) (string, error) {
 		}
 	}
 	return "", ocrUnavailableError(kinds)
+}
+
+// OCRPDFText 强制走扫描件 OCR 管线（忽略文本层）：供「文本层提取成功但内容
+// 不可用」的兜底消费方调用（成本导入扫描件兜底等）——这种场景
+// pdfToMarkdownLimit 的自动 OCR 已跑过或被稀疏文本层顶掉，直接渲染+OCR 拿
+// 全文。maxPages<=0 取 DefaultMaxPDFPages。走进程内缓存，键与
+// pdfToMarkdownLimit 的 OCR 分支同形（同文件同页规格命中互认，effSpec 由同一
+// capPageSpec 收敛得出）。
+func OCRPDFText(path string, maxPages int) (string, error) {
+	if maxPages <= 0 {
+		maxPages = DefaultMaxPDFPages
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	raw := string(data)
+	totalPages := pdfTotalPages(raw, raw) // 两视图同串=计数必等，不触发口径告警
+	effSpec, _, err := capPageSpec("", maxPages, totalPages)
+	if err != nil {
+		return "", err
+	}
+	first, last := pageBounds(effSpec, totalPages)
+	sum := sha256.Sum256(data)
+	key := "pdf:" + hex.EncodeToString(sum[:16]) + ":" + effSpec + ":" + engineOrderKey()
+	return ocrCached(key, func() (string, error) {
+		return ocrPDFRange(path, effSpec, first, last, totalPages, nil)
+	})
 }
 
 // pdftoppmLookup 渲染前置查找 seam（包级变量以便测试堵住渲染路径；生产仍走
