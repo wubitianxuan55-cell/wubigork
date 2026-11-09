@@ -59,6 +59,51 @@ func RejectChanges(path, author string) error {
 	return flattenChanges(path, author, false)
 }
 
+// PendingChangeCount 报告 document.xml 中 w:del/w:ins 修订跨度数量（author
+// 非空时只计该作者）。P2 通道 A 引用级比对原料：docx_apply 成功后应有本作者
+// 修订在册；docx_accept 后本作者修订应为零（其他作者的修订不归本引擎管，
+// 不计入接受未生效）。
+func PendingChangeCount(path, author string) (int, error) {
+	doc, err := readDocx(path)
+	if err != nil {
+		return 0, err
+	}
+	spans, err := parseChangeSpans(doc.documentXML)
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, s := range spans {
+		if author == "" || s.author == author {
+			n++
+		}
+	}
+	return n, nil
+}
+
+// DocumentContainsText 报告文档文本流是否包含 needle——段落拼接文本口径
+// （跨 run 拼接，与 patchDocumentXML 的定位同源；替换文本落在 w:ins 内计入，
+// 已删文本在 w:delText 内不计入）。P2 通道 A 引用级比对原语。
+func DocumentContainsText(path, needle string) (bool, error) {
+	if strings.TrimSpace(needle) == "" {
+		return false, fmt.Errorf("比对文本为空")
+	}
+	doc, err := readDocx(path)
+	if err != nil {
+		return false, err
+	}
+	paras, err := parseParagraphs(doc.documentXML)
+	if err != nil {
+		return false, err
+	}
+	for _, p := range paras {
+		if strings.Contains(p.text, needle) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // flattenChanges 按作者扁平化 document.xml 中的修订（w:del / w:ins）。
 func flattenChanges(path, author string, accept bool) error {
 	if author == "" {

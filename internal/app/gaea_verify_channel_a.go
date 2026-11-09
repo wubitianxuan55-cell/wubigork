@@ -14,11 +14,17 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/evidence"
+	"github.com/gaea/gaea/internal/office/docxedit"
+	"github.com/gaea/gaea/internal/office/pptxedit"
 	"github.com/gaea/gaea/internal/office/xlsxedit"
 	"github.com/xuri/excelize/v2"
 )
@@ -133,4 +139,157 @@ func compactFormula(s string) string {
 	s = strings.TrimSpace(s)
 	s = strings.TrimPrefix(s, "=")
 	return strings.ReplaceAll(s, " ", "")
+}
+
+// ── P2 通道 A 引用级深化（2026-11-10，众神殿 pan_1794234593182 裁决 action-5
+// 前半：docx/pptx 从「目标可读」升级为引用级比对；声明载荷走 opsJSON，
+// 旧卡无载荷=诚实跳过声明比对，不冒充核对）。 ─────────────────────────
+
+// docxApplyClaims docx_apply 证据卡的声明载荷（opsJSON）。
+type docxApplyClaims struct {
+	SelectedText string `json:"selected_text"`
+	Replacement  string `json:"replacement"`
+}
+
+// docxApplyClaimsOf 取 docx_apply 声明：opsJSON 优先；旧卡回退解析摘要
+// 「→ X（修订制写入）」（只有替换文本可取，选区未知）。
+func docxApplyClaimsOf(rec evidence.ChangeRecord) (docxApplyClaims, bool) {
+	var c docxApplyClaims
+	if strings.TrimSpace(rec.OpsJSON) != "" {
+		if err := json.Unmarshal([]byte(rec.OpsJSON), &c); err == nil && strings.TrimSpace(c.Replacement) != "" {
+			return c, true
+		}
+	}
+	s := rec.AfterSummary
+	i := strings.Index(s, "→")
+	j := strings.LastIndex(s, "（修订制写入）")
+	if i >= 0 && j > i {
+		c.Replacement = strings.TrimSpace(s[i+3 : j])
+		return c, true
+	}
+	return c, false
+}
+
+// pptxApplyClaims pptx_apply 证据卡的声明载荷（opsJSON）。
+type pptxApplyClaims struct {
+	Slide       int    `json:"slide"`
+	Target      string `json:"target"`
+	Replacement string `json:"replacement"`
+}
+
+// pptxApplyClaimsOf 取 pptx_apply 声明：opsJSON 优先；旧卡回退解析摘要
+// 「p1 "target"」/「p1 → "repl"（…）」。
+func pptxApplyClaimsOf(rec evidence.ChangeRecord) (pptxApplyClaims, bool) {
+	var c pptxApplyClaims
+	if strings.TrimSpace(rec.OpsJSON) != "" {
+		if err := json.Unmarshal([]byte(rec.OpsJSON), &c); err == nil && strings.TrimSpace(c.Replacement) != "" {
+			return c, true
+		}
+	}
+	re := regexp.MustCompile(`p(\d+)\s+"([^"]*)"`)
+	if m := re.FindStringSubmatch(rec.BeforeSummary); m != nil {
+		c.Slide, _ = strconv.Atoi(m[1])
+		c.Target = m[2]
+	}
+	m2 := regexp.MustCompile(`p(\d+)\s+→\s+"([^"]*)"`)
+	if mm := m2.FindStringSubmatch(rec.AfterSummary); mm != nil {
+		c.Slide, _ = strconv.Atoi(mm[1])
+		c.Replacement = mm[2]
+		return c, true
+	}
+	return c, false
+}
+
+// verifyDocxApplyChannelADeep docx_apply 引用级：文档可解析 + 替换后文本在
+// 文档文本流中 + 本作者待处理修订在册（修订制写入的物证）。
+func verifyDocxApplyChannelADeep(target string, rec evidence.ChangeRecord) string {
+	const author = "gaea AI"
+	n, err := docxedit.PendingChangeCount(target, author)
+	if err != nil {
+		return "fail: 文档不可解析 " + err.Error()
+	}
+	claims, ok := docxApplyClaimsOf(rec)
+	if !ok {
+		return fmt.Sprintf("pass: 文档可解析，%d 处待处理修订在册（旧卡无声明载荷，引用级比对跳过）", n)
+	}
+	has, err := docxedit.DocumentContainsText(target, claims.Replacement)
+	if err != nil {
+		return "fail: 文档不可解析 " + err.Error()
+	}
+	if !has {
+		return "fail: 替换后文本未出现在文档中（声明与实况不一致）"
+	}
+	if n == 0 {
+		return "fail: 替换文本在文档中，但无本作者待处理修订（修订制写入未生效或已被接受/拒绝）"
+	}
+	return fmt.Sprintf("pass: 文档可解析，替换文本在文档中且 %d 处待处理修订在册（引用级）", n)
+}
+
+// verifyDocxAcceptChannelADeep docx_accept 引用级：文档可解析且无本引擎作者
+// 的待处理修订（清除修订标记的实况；其他作者的修订不归本引擎管，不计）。
+func verifyDocxAcceptChannelADeep(target string) string {
+	const author = "gaea AI"
+	n, err := docxedit.PendingChangeCount(target, author)
+	if err != nil {
+		return "fail: 文档不可解析 " + err.Error()
+	}
+	if n > 0 {
+		return fmt.Sprintf("fail: 仍有本引擎待处理修订 %d 处（接受未生效）", n)
+	}
+	return "pass: 文档可解析，无本引擎待处理修订（引用级）"
+}
+
+// verifyPptxApplyChannelADeep pptx_apply 引用级：LocateText 读回目标页，
+// 替换文本在、目标文本不在（多处出现仅替换首处=残留如实注记不判失败）。
+func verifyPptxApplyChannelADeep(target string, rec evidence.ChangeRecord) string {
+	slides, err := pptxedit.LocateText(target)
+	if err != nil {
+		return "fail: 文档不可解析 " + err.Error()
+	}
+	claims, ok := pptxApplyClaimsOf(rec)
+	if !ok {
+		return fmt.Sprintf("pass: 文档可解析，共 %d 页（旧卡无声明载荷，引用级比对跳过）", len(slides))
+	}
+	if claims.Slide < 1 || claims.Slide > len(slides) {
+		return fmt.Sprintf("fail: 第 %d 页不存在（文档共 %d 页）", claims.Slide, len(slides))
+	}
+	joined := strings.Join(slides[claims.Slide-1].Paragraphs, "\n")
+	if !strings.Contains(joined, claims.Replacement) {
+		return fmt.Sprintf("fail: 替换后文本未出现在第 %d 页（声明与实况不一致）", claims.Slide)
+	}
+	if strings.Contains(joined, claims.Target) {
+		return fmt.Sprintf("pass: 第 %d 页替换文本在（引用级；目标文本仍有残留——多处出现仅替换首处）", claims.Slide)
+	}
+	return fmt.Sprintf("pass: 第 %d 页替换文本在、目标文本已不在（引用级）", claims.Slide)
+}
+
+// verifyOfficeGenerateChannelA office_generate 引用级：交付文件存在且容器头
+// 有效（docx/pptx/xlsx=OOXML zip 容器 PK 头；md/pdf=可读非空）。排版级复核
+// 不在本通道（doc_render 预览 + 条件视觉属 P2 后续）。
+func verifyOfficeGenerateChannelA(target string) string {
+	st, err := os.Stat(target)
+	if err != nil {
+		return "fail: 交付文件不存在"
+	}
+	if st.Size() == 0 {
+		return "fail: 交付文件为空"
+	}
+	switch strings.ToLower(filepath.Ext(target)) {
+	case ".docx", ".pptx", ".xlsx":
+		head := make([]byte, 2)
+		f, err := os.Open(target)
+		if err != nil {
+			return "fail: 交付文件不可读"
+		}
+		defer func() { _ = f.Close() }()
+		if _, err := io.ReadFull(f, head); err != nil {
+			return "fail: 交付文件过短（非 OOXML 容器）"
+		}
+		if head[0] != 'P' || head[1] != 'K' {
+			return "fail: 交付文件不是有效 OOXML 容器（缺 zip 头）"
+		}
+		return "pass: 交付文件存在且 OOXML 容器头有效（引用级；排版级复核走 doc_render 预览）"
+	default:
+		return "pass: 交付文件存在且非空（引用级）"
+	}
 }

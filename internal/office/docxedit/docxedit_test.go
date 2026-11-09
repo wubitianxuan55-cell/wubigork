@@ -363,3 +363,28 @@ func TestFlattenChanges_OnlyOwnAuthor(t *testing.T) {
 		t.Error("接受后 gaea 新文未生效")
 	}
 }
+
+// TestPendingChangeCountAndContainsText P2 通道 A 引用级比对原语回归：
+// 修订计数按作者过滤；文本包含走段落拼接口径（w:ins 计入、w:delText 不计）。
+func TestPendingChangeCountAndContainsText(t *testing.T) {
+	path := buildDocx(t, `
+    <w:p><w:r><w:t>合同期限为 </w:t></w:r><w:del w:id="1" w:author="gaea AI" w:date="2026-11-10T00:00:00Z"><w:r><w:delText>30 天</w:delText></w:r></w:del><w:ins w:id="2" w:author="gaea AI" w:date="2026-11-10T00:00:00Z"><w:r><w:t>60 天</w:t></w:r></w:ins><w:r><w:t>。</w:t></w:r></w:p>`)
+	n, err := PendingChangeCount(path, "gaea AI")
+	if err != nil || n != 2 {
+		t.Fatalf("PendingChangeCount(gaea AI) = %d, %v; want 2（del+ins 各一跨度）", n, err)
+	}
+	if n, err := PendingChangeCount(path, "其他人"); err != nil || n != 0 {
+		t.Fatalf("他作者应零: %d, %v", n, err)
+	}
+	has, err := DocumentContainsText(path, "60 天")
+	if err != nil || !has {
+		t.Fatalf("w:ins 文本应计入: %v, %v", has, err)
+	}
+	has, err = DocumentContainsText(path, "30 天")
+	if err != nil || has {
+		t.Fatalf("w:delText 不应计入文本流: %v, %v", has, err)
+	}
+	if _, err := DocumentContainsText(path, ""); err == nil {
+		t.Fatal("空比对文本应报错")
+	}
+}

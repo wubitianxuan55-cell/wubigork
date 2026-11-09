@@ -6,12 +6,14 @@ package app
 // → 落盘前快照 + Journal 证据卡 → 返回新预览。
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/gaea/gaea/internal/gaea/evidence"
 	"github.com/gaea/gaea/internal/gaea/wspath"
 	"github.com/gaea/gaea/internal/office/pptxedit"
 )
@@ -78,9 +80,17 @@ func (a *App) GaeaPptxSlideText(rel string) ([]pptxedit.SlideText, error) {
 }
 
 // appendPptxEvidence 把一次 pptx 编辑写入 work 空间 Journal（JSONL）。
+// P2 通道 A 引用级：opsJSON 携带声明载荷（页码+目标+替换全文，超限不落宁漏
+// 勿误——pptxApplyClaimsOf 消费）。
 func appendPptxEvidence(rel string, slideIdx int, target, replacement, summary, baseline string) {
+	opsJSON := ""
+	if b, err := json.Marshal(map[string]any{
+		"slide": slideIdx, "target": target, "replacement": replacement,
+	}); err == nil && len(b) <= evidence.SummaryLimit {
+		opsJSON = string(b)
+	}
 	appendOfficeEvidence("pptx_apply", rel,
 		fmt.Sprintf("p%d %q", slideIdx, target),
 		fmt.Sprintf("p%d → %q（%s）", slideIdx, replacement, summary),
-		baseline, "")
+		baseline, opsJSON)
 }

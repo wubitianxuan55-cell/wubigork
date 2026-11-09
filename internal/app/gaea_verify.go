@@ -170,7 +170,16 @@ func (a *App) GaeaVerifyRecord(id string) (evidence.Verdict, error) {
 		} else {
 			v.ChannelA = "pass: 目标存在且源已迁移"
 		}
-	default: // edit_file / write_file / multi_edit / edit_lines / rollback / docx_apply / pptx_apply / office_generate
+	case "docx_apply":
+		// P2 通道 A 引用级（2026-11-10）：文档可解析+替换文本在+本作者修订在册。
+		v.ChannelA = verifyDocxApplyChannelADeep(target, rec)
+	case "docx_accept":
+		v.ChannelA = verifyDocxAcceptChannelADeep(target)
+	case "pptx_apply":
+		v.ChannelA = verifyPptxApplyChannelADeep(target, rec)
+	case "office_generate":
+		v.ChannelA = verifyOfficeGenerateChannelA(target)
+	default: // edit_file / write_file / multi_edit / edit_lines / rollback
 		cur, err := os.ReadFile(target)
 		if err != nil {
 			v.ChannelA = "fail: 目标不可读"
@@ -186,9 +195,7 @@ func (a *App) GaeaVerifyRecord(id string) (evidence.Verdict, error) {
 			v.ChannelA = "pass: 目标存在，变更摘要与文件实况一致"
 		} else {
 			// P1a 通道 A 文案修复（2026-11-09 众神殿裁决风险条：未比对不得回
-			// pass「变更摘要与文件实况一致」）——docx_apply/pptx_apply 等非
-			// editLike 工具此前未比对摘要却回一致性 pass；先修文案（引用级
-			// 比对属 P2），诚实缺省。
+			// pass「变更摘要与文件实况一致」）——其余非 editLike 工具诚实缺省。
 			v.ChannelA = "pass: 目标存在且可读（本工具暂未做引用级比对，摘要未核对）"
 		}
 	}

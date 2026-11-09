@@ -32,8 +32,8 @@
 | `diagram` | extra-app | work | produce | none | 无边 nil 切片显式 null 契约（回归钉） |
 | `diagram_gen` | builtin-workspace | shared | produce | agent-produce | 图片落点存在（无边树图回归钉） |
 | `doc_render` | builtin-workspace | shared | read | none | 只读渲染 PNG；覆盖率字段 P2 |
-| `docx_accept` | extra-app | work | write | office-journal | 仅 accept=true；基线快照+证据卡（P1a） |
-| `docx_apply` | extra-app | work | write | office-journal | 修订制写入；基线快照+证据卡；未比对不得回 pass（P1a） |
+| `docx_accept` | extra-app | work | write | office-journal | 仅 accept=true；基线快照+证据卡；通道 A=无本作者待处理修订引用级（P2） |
+| `docx_apply` | extra-app | work | write | office-journal | 修订制写入；基线快照+证据卡；通道 A=文本流含替换+修订在册引用级（P2） |
 | `edit_file` | builtin-workspace | shared | write | agent-write | 通道 A 摘要比对（新在旧亡） |
 | `edit_lines` | builtin-workspace | shared | write | agent-write | 通道 A 摘要比对（新在旧亡） |
 | `exit_plan_mode` | build-internal | shared | interactive | none | 计划呈现与批准流转 |
@@ -57,8 +57,8 @@
 | `move_file` | builtin-workspace | shared | write | agent-write | 目标存在且源已迁移 |
 | `multi_edit` | builtin-workspace | shared | write | agent-write | 通道 A 摘要比对（新在旧亡） |
 | `ocr` | extra-app | work | read | none | 全文提取与图片内容一致（seam 测试防真拉起） |
-| `office_generate` | extra-app | work | produce | office-journal | 声明路径与实际落点逐字节一致；证据卡落账；无基线记 n/a（P1a） |
-| `pptx_apply` | extra-app | work | write | office-journal | 页级替换；基线快照+证据卡（P1a） |
+| `office_generate` | extra-app | work | produce | office-journal | 声明路径与实际落点逐字节一致；证据卡落账；通道 A=OOXML 容器头引用级（P1a+P2） |
+| `pptx_apply` | extra-app | work | write | office-journal | 页级替换；基线快照+证据卡；通道 A=页文本替换在目标不在引用级（P2） |
 | `promote_session_facts` | build-internal | shared | write | none | PersistWrite：事实晋升可查 |
 | `read_file` | builtin-workspace | shared | read | none | 内容与目标文件一致 |
 | `read_skill` | builtin-domain | shared | read | none | 返回技能正文 |

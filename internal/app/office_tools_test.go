@@ -170,9 +170,10 @@ func TestOfficeApplyExecuteTargetsMissingFileFailsLoud(t *testing.T) {
 	}
 }
 
-// TestVerifyChannelAOfficeToolsNoFakePass 通道 A 文案修复钉死：docx_apply 走
-// default 分支时未比对摘要，不得回「变更摘要与文件实况一致」（旧文案=虚假一致
-// 声明，裁决风险条）；edit_like 三工具语义不变。
+// TestVerifyChannelAOfficeToolsNoFakePass 通道 A 不得回虚假一致性 pass（裁决
+// 风险条）。P2 起 docx_apply 走引用级深化：非 docx 目标=文档不可解析 fail
+// （真深化语义）；docx_apply 引用级正/负路径由
+// TestVerifyChannelADocxApplyDeep 覆盖；edit_like 三工具语义不变。
 func TestVerifyChannelAOfficeToolsNoFakePass(t *testing.T) {
 	ws := isolateOfficeWorkspace(t)
 	writeVerifyRecordTool(t, ws, "ev_docx_1", "合同.docx", "docx_apply", "这段文字不应出现在文件里")
@@ -183,8 +184,8 @@ func TestVerifyChannelAOfficeToolsNoFakePass(t *testing.T) {
 	if strings.Contains(v.ChannelA, "变更摘要与文件实况一致") {
 		t.Fatalf("未比对不得回一致性 pass: %q", v.ChannelA)
 	}
-	if !strings.Contains(v.ChannelA, "未做引用级比对") {
-		t.Fatalf("应诚实声明未比对: %q", v.ChannelA)
+	if !strings.Contains(v.ChannelA, "fail") {
+		t.Fatalf("非 docx 目标经引用级深化应如实 fail（不可解析）: %q", v.ChannelA)
 	}
 	// edit_like 仍走摘要比对（旧语义回归锚）
 	writeVerifyRecordTool(t, ws, "ev_edit_1", "note.md", "edit_file", "after content")

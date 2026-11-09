@@ -104,3 +104,30 @@
 - 在线 MCP 名单（凭证边界不读）、A1 会话锚点、读侧缓存统一——原台账继承。
 - 早期返回（长运行进程）存续期内的写盘=记档残余窗（其每次前台窗口被下轮
   Begin/Scan 覆盖一部分；彻底闭合归 P2/P4）。
+
+## P2 质量矩阵第一波（同日续刀，「继续」=按裁决顺序推进）
+
+- **通道 A 引用级深化（action-5 前半）**：docxedit 新公共原语
+  `PendingChangeCount(path, author)`（修订跨度计数，按作者过滤）+
+  `DocumentContainsText(path, needle)`（段落拼接口径：w:ins 计入、w:delText
+  不计）；gaea_verify.go 新四 case——docx_apply（替换文本在文档+本作者修订
+  在册）、docx_accept（无本引擎待处理修订）、pptx_apply（LocateText 读回
+  目标页：替换在、目标不在，多处出现残留如实注记不判失败）、office_generate
+  （OOXML 容器头引用级+非空）；声明载荷走 opsJSON（docx_apply
+  selected/replacement 全文、pptx_apply slide/target/replacement 全文，超限
+  不落宁漏勿误同 xlsx 口径），旧卡回退摘要解析、双缺=诚实跳过不冒充核对。
+- **abeval 评测面扩（zcode-r3 五缺口销项）**：abEvalRegistry 进
+  office_generate/docx_apply/docx_accept/pptx_apply/xlsx_apply（gaeaExtraTools
+  装配面，WritePathResolver+AccessPolicy(ws) 同界）+doc_render；
+  abFixture.Kind 扩 docx/docx_revs/pptx（纯 Go zip hermetic 造件
+  abBuildDocx/abBuildDocxRevs/abBuildPptx，CI 可复算不依赖 python/soffice）；
+  abSample.Negative=已知缺陷件标注（漏项为预期，汇总表 ⚠ 单独标记不计正例
+  分母）；质量矩阵种子 3 格先行（docx×局部修改/docx_accept/pptx×局部修改）
+  +负例 1（clauses-negative-missing-liability）；abRunArm 臂工作区写进 App
+  单例（office 工具 gaeaCwd 与 AccessPolicy 同根）；abWriterTools/abArgTarget
+  认 office 写面+output_path 键（返工信号口径对齐）。
+- **P0 地图谓词续勘**：docx_apply/docx_accept/pptx_apply/office_generate 四行
+  验收谓词升级为引用级口径，文档重新导出（守卫绿）。
+- **P2 第二波（未动，待点名）**：doc_render 覆盖率字段/交付卡
+  （visual_pages_reviewed/skipped_reason）、条件视觉闸门、九格语料真实脱敏件
+  采集（需用户授权）。

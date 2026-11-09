@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -70,10 +71,12 @@ func (a *App) GaeaDocxApplyEdit(rel, selectedText, replacement string) (PreviewR
 		return PreviewResult{}, err
 	}
 	// v4.157 小刀：应用成功后落证据卡（摘要 120 截断口径，防 JSONL 膨胀）。
+	// P2 通道 A 引用级：声明载荷走 opsJSON（全文、不截断宁漏勿误——截断会
+	// 切坏 JSON，同 xlsx_apply 口径），Agent/用户界面可对卡引用级复核。
 	appendDocxEvidence(rel, "docx_apply",
 		truncateStr(selectedText, 120),
 		"→ "+truncateStr(replacement, 120)+"（修订制写入）",
-		baseline)
+		baseline, docxApplyOpsJSON(selectedText, replacement))
 	return a.GaeaPreview(rel), nil
 }
 
@@ -105,7 +108,7 @@ func (a *App) GaeaDocxAcceptChanges(rel string, accept bool) (PreviewResult, err
 		appendDocxEvidence(rel, "docx_accept",
 			"接受 gaea 修订（清除修订标记）",
 			"修订已接受",
-			baseline)
+			baseline, "")
 	} else {
 		if err := docxedit.RejectChanges(path, "gaea AI"); err != nil {
 			return PreviewResult{}, err
@@ -137,8 +140,9 @@ func docxBaselineSnapshot(path string) string {
 // 单源）：空间守卫与 ChangeRecord.Space 同取 gaeaEffectiveSpace() 一处——
 // 旧实现「守卫读空间、落库写死 work」两源并存，守卫语义一旦变化记录仍标
 // work 且从数据侧无从发现。红线不变：非 work 空间（play）不落证据链；
-// journal 目录不可用/写失败静默。opsJSON 仅 xlsx 通道携带（v4.9.1 通道 A
-// 引用级比对原料；截断会切坏 JSON，超限不落宁漏勿误），docx/pptx 传空。
+// journal 目录不可用/写失败静默。opsJSON 为通道 A 引用级比对声明载荷
+// （xlsx_apply 操作集 / P2 起 docx_apply 选区替换、pptx_apply 页级替换也
+// 携带；截断会切坏 JSON，超限不落宁漏勿误）。
 func appendOfficeEvidence(tool, target, beforeSummary, afterSummary, baseline, opsJSON string) {
 	space := gaeaEffectiveSpace()
 	if space != "work" {
@@ -172,6 +176,20 @@ func appendOfficeEvidence(tool, target, beforeSummary, afterSummary, baseline, o
 // 写入 work 空间 Journal（JSONL）。
 // v4.157 小刀：对齐 pptx_apply/xlsx_apply 证据链口径，回滚走
 // GaeaRollbackRecord（VersionTimeline kind "docx" 已支持）。
-func appendDocxEvidence(rel, tool, beforeSummary, afterSummary, baseline string) {
-	appendOfficeEvidence(tool, rel, beforeSummary, afterSummary, baseline, "")
+// P2 通道 A 引用级：opsJSON 携带声明载荷（docxApplyClaimsOf 消费）。
+func appendDocxEvidence(rel, tool, beforeSummary, afterSummary, baseline, opsJSON string) {
+	appendOfficeEvidence(tool, rel, beforeSummary, afterSummary, baseline, opsJSON)
+}
+
+// docxApplyOpsJSON 构造 docx_apply 的声明载荷（选区/替换全文）；超限不落
+// 宁漏勿误（截断会切坏 JSON，同 xlsx_apply 口径）。
+func docxApplyOpsJSON(selectedText, replacement string) string {
+	b, err := json.Marshal(map[string]string{
+		"selected_text": selectedText,
+		"replacement":   replacement,
+	})
+	if err != nil || len(b) > evidence.SummaryLimit {
+		return ""
+	}
+	return string(b)
 }
