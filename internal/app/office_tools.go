@@ -128,6 +128,69 @@ func (t officeGenerateTool) Execute(_ context.Context, args json.RawMessage) (st
 	return fmt.Sprintf("已生成 %s：%s（%d bytes）。声明路径与实际落点一致；可用 doc_render 预览，交付面板可复核。", res.Format, res.Path, res.Size), nil
 }
 
+// ── office_batch：批量转 PDF 提交进持久任务中心（P4）────────────────────
+
+// officeBatchTool 提交型工具：把批量文档转换作为持久任务交给任务调度器
+// （断窗续跑/可取消/可重试/进度逐文件上报），提交即返回任务 id——不依赖单
+// 回合存活，长批处理不占对话回合。声明纪律与 P1a 同口径：out_dir 必填
+// （WritePathResolver 声明写路径=实际产物目录，DAG write_paths 可包含校验）。
+type officeBatchTool struct{ a *App }
+
+func (t officeBatchTool) Name() string        { return "office_batch" }
+func (t officeBatchTool) ReadOnly() bool      { return false }
+func (t officeBatchTool) Description() string { return officeBatchDescription }
+
+const officeBatchDescription = "批量把工作区文档（docx/xlsx/pptx 等）转换为 PDF，作为持久后台任务提交：" +
+	"提交即返回任务 id（任务中心可查进度/取消/重试，应用重启后续跑），不占用对话回合。" +
+	"out_dir 为必填产物目录（工作区相对路径）；单批最多 200 个文件。逐文件失败不中断批次，" +
+	"任务结果含逐文件 ok/fail 报告。"
+
+func (t officeBatchTool) Schema() json.RawMessage {
+	return json.RawMessage(`{
+  "type":"object",
+  "required":["files","out_dir"],
+  "properties":{
+    "files":{"type":"array","items":{"type":"string"},"description":"待转换文件（工作区相对路径）"},
+    "out_dir":{"type":"string","description":"产物目录（工作区相对路径，声明写路径）；产物名=原名.pdf"}
+  }
+}`)
+}
+
+func (t officeBatchTool) WritePaths(args json.RawMessage) ([]string, error) {
+	var in struct {
+		OutDir string `json:"out_dir"`
+	}
+	if len(args) > 0 {
+		if err := json.Unmarshal(args, &in); err != nil {
+			return nil, fmt.Errorf("参数无效: %w", err)
+		}
+	}
+	if strings.TrimSpace(in.OutDir) == "" {
+		return nil, fmt.Errorf("缺少 out_dir（声明写路径）：批量产物必须声明落点目录")
+	}
+	p, err := officeResolveWritePath(in.OutDir)
+	if err != nil {
+		return nil, err
+	}
+	return []string{p}, nil
+}
+
+func (t officeBatchTool) Execute(_ context.Context, args json.RawMessage) (string, error) {
+	var in struct {
+		Files  []string `json:"files"`
+		OutDir string   `json:"out_dir"`
+	}
+	if err := json.Unmarshal(args, &in); err != nil {
+		return "", fmt.Errorf("参数无效: %w", err)
+	}
+	task, err := t.a.submitOfficeBatch(in.Files, in.OutDir)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("已提交批量转 PDF 任务 %s（%d 个文件 → %s）。进度/取消/重试见任务中心；应用重启后未完成任务自动续跑；结果含逐文件 ok/fail 报告。",
+		task.ID, len(in.Files), in.OutDir), nil
+}
+
 // ── 四类写：薄包装 App 绑定方法 ──────────────────────────────────────────
 
 // officeDocxApplyTool docx_apply：修订制替换（w:del+w:ins）写入既有 docx。
@@ -306,4 +369,6 @@ var _ tool.WritePathResolver = officeGenerateTool{}
 var _ tool.WritePathResolver = officeDocxApplyTool{}
 var _ tool.WritePathResolver = officeDocxAcceptTool{}
 var _ tool.WritePathResolver = officePptxApplyTool{}
+var _ tool.Tool = officeBatchTool{}
+var _ tool.WritePathResolver = officeBatchTool{}
 var _ tool.WritePathResolver = officeXlsxApplyTool{}

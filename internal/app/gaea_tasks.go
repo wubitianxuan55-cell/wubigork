@@ -51,6 +51,8 @@ func (a *App) startTaskScheduler() {
 		m.Register(tasks.KindPriceFetchAll, a.priceFetchAllTaskHandler)
 		m.Register(tasks.KindFileIndex, a.fileIndexTaskHandler)
 		m.Register(tasks.KindOutlineReconstruct, a.outlineReconstructTaskHandler)
+		// P4 持久任务中心（2026-11-10 众神殿裁决 action-7）：办公批处理进调度器。
+		m.Register(tasks.KindOfficeBatch, a.officeBatchTaskHandler)
 		a.officeState.tasks = m
 		if n, err := m.Start(); err != nil {
 			slog.Warn("tasks: 调度器启动失败", "error", err)
@@ -85,7 +87,9 @@ func taskSchedulerOptions(cfg *config.Config, err error) tasks.Options {
 		opts.Priority = map[string]int{
 			string(tasks.KindPriceFetch):    20,
 			string(tasks.KindPriceFetchAll): 20,
-			string(tasks.KindFileIndex):     10,
+			// office_batch（P4 办公批处理）：用户显式提交，优先于后台索引维护。
+			string(tasks.KindOfficeBatch): 15,
+			string(tasks.KindFileIndex):   10,
 		}
 	}
 	return opts

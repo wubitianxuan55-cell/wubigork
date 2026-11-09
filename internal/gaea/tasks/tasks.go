@@ -30,6 +30,10 @@ const (
 	KindPriceFetchAll      Kind = "price_fetch_all"
 	KindFileIndex          Kind = "file_index"
 	KindOutlineReconstruct Kind = "outline_reconstruct"
+	// P4 持久任务中心（2026-11-10 众神殿 pan_1794234593182 裁决 action-7）：
+	// 办公批处理（批量文档转 PDF）接进任务调度器——断窗续跑/可取消/可重试/
+	// 进度上报全部继承本包持久机械。
+	KindOfficeBatch Kind = "office_batch"
 )
 
 // Status 任务生命周期状态。

@@ -174,3 +174,23 @@
   （ASCII slug+中文描述/正文）；检索命中形态=名称+描述（不含 Body）。
 - 至此六阶段：P0/P1a/P1b/P2 两波/**P3 全清**；余=P2 九格真实脱敏件（需
   用户授权）+P4 持久任务（缓冲，待点名）。
+
+## P4 持久任务中心·办公批处理（同日五刀，action-7 全清——六阶段收官）
+
+- **普查改判**：持久任务调度器（internal/gaea/tasks，Hephaestus.db+断窗续跑
+  Startup 重排+两段式取消+Retry=re-enqueue+空间分账+事件推送）与前端任务中心
+  （GaeaTaskList/Cancel/Retry）早已全备——P4 真缺口=办公批处理没接进来。
+- **KindOfficeBatch**（批量文档转 PDF）：handler 逐文件转换+进度逐文件上报
+  （p.Report）+ctx 可取消+单文件失败不中断批次（Result 逐文件 ok/fail 报告，
+  全败才整任务 failed 诚实口径）；声明纪律与 P1a 同口径：out_dir 必填
+  （WritePathResolver 声明写路径=产物目录）；office_batch agent 工具提交即
+  返回任务 id（不占回合、不依赖单回合存活）；单批上限 200 防误提交全工作区；
+  优先级 15（用户显式提交＞后台索引 10，＜价格抓取 20）。
+- **坑**：任务结果须走 `p.Result()`（Progress API 落库）——直接赋 `t.Result`
+  不持久化（首个成功用例 Result 空实锤后改）；转换 seam 带 ctx（取消观测），
+  生产包装忽略 ctx（取消由 handler 逐文件间隙判定）。
+- **测试**：成功（3 文件逐文件报告+落点全在声明目录内）/全败诚实 failed
+  （含重试同轨：换 seam→Retry→succeeded）/取消两段式 cancelled/提交端四拒绝
+  （空 files/缺 out_dir/超批/越界 out_dir）。tasks 包回归绿。
+- **六阶段收官**：P0/P1a/P1b/P2 两波/P3/P4 全落。余池=P2 九格真实脱敏件
+  （需用户授权）+装机实弹+push（四批本地提交）。

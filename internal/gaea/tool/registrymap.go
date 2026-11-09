@@ -116,6 +116,7 @@ var RegistryMap = map[string]RegistryEntry{
 	"docx_accept":     {"extra-app", "work", "write", "office-journal", "仅 accept=true；基线快照+证据卡；通道 A=无本作者待处理修订引用级（P2）"},
 	"pptx_apply":      {"extra-app", "work", "write", "office-journal", "页级替换；基线快照+证据卡；通道 A=页文本替换在目标不在引用级（P2）"},
 	"xlsx_apply":      {"extra-app", "work", "write", "office-journal", "公式重算零错误+引用级声明比对（P1a 升 agent 工具）"},
+	"office_batch":    {"extra-app", "work", "meta", "task-center", "批量转 PDF 进持久调度器：断窗续跑/可取消/可重试/进度逐文件；out_dir 声明=产物目录；Result 逐文件报告（P4）"},
 	"ocr":             {"extra-app", "work", "read", "none", "全文提取与图片内容一致（seam 测试防真拉起）"},
 	"semantic_search": {"extra-app", "work", "read", "none", "召回与向量库一致"},
 	"author_memory":   {"extra-app", "work", "read", "none", "作者记忆读取一致"},
