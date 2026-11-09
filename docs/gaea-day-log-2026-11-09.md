@@ -87,6 +87,32 @@
   3 例；门禁 go build 全仓+app Sin 定向族全绿。
 - 至此办公+原罪两线 @图片注入语义对齐：画面理解与文字全文分岗双块。
 
+## 刀五：扫描件 PDF fallback（候选③收官，d82f78c7+435cb236）
+
+2026-11-02 候选③落地。**调研修正前提**：@引用其实已隐式带 OCR 腿
+（ConvertLimit→pdfToMarkdownLimit→ocrPDFRange 文本层空自动 OCR），真缺口是
+漏检闸、零预算、误导文案三处：
+
+- **刀① docmd 漏检闸根修（d82f78c7）**：扫描仪页码戳类文本层（纯数字/符号，
+  全行≤3 字符且无字母词且无 CJK）此前被当正文返回、永不触发 OCR；新
+  `stampNoiseText` 严格谓词闸落 OCR 兜底。**教训**：首版用 meaningfulText
+  整档闸，6 例既有测试当场翻车（甲/乙/丙/丁、单行 9 词等稀疏合法正文被推进
+  真 pdftoppm OCR）——从严不误伤，收窄为严格谓词；CJK/词形戳记仍漏检，挂后续。
+  附 pdftoppmLookup seam+过时注释重写。
+- **刀② @引用预算+诚实文案（435cb236）**：办公分支 30s 预算（officeConvBudget
+  包级 var，超时放弃后台继续）——此前 20 页扫描件 OCR（GPU 2-2.5min）同步
+  阻塞消息发送零进度；失败文案 convErr 真因透传替换固定误导句。
+- **刀③ read_file 扫描件指引（同笔）**：PDF 转不出文本改指 format_convert
+  （扫描件自动 OCR）/summarize_file，不再误导 install markitdown；
+  tryMarkItDownFn seam（本机装没装 markitdown 不 hermetic 的教训）。
+- 门禁：go build 全仓+docmd/control/builtin 三包全绿+app PDF/OCR 族绿；
+  新增测试 12 例。
+- 坑：假 PDF 字节 `%PDF`+双 NUL 撞 BOM-less UTF-16 探测/本机 markitdown 真装
+  ——合成件须配合 seam 才 hermetic。
+- 遗留挂拍板池：混排 PDF 逐页判定（大手术）；ObjStm 页数=1 绕过页上限；
+  成本导入 OCRImageText 直喂 PDF 字节（gaea_cost_import_vision.go:126）；
+  docmd 无 OCR 结果缓存（wssearch textCache 形态可借）。
+
 ## 当日环境坑
 
 - **双启撞 port=死亡进程遗言假象**：第一次 bash `&` 后台启宿主其实活了（占 3091），
