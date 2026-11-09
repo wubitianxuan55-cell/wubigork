@@ -150,6 +150,7 @@
 |---|---|
 | gaea-day-log-2026-11-10.md | ✅ 2026-11-10 当日总账（**办公板块工具治理：众神殿六阶段一天收官**）：P0 注册表地图 82 行三守卫+P1a 结构化写入口（office_generate/四类写升 agent 面）+P1b 发布边界（五类写入拦截实证）+P2 两波（通道 A 引用级深化+abeval 扩+条件视觉首渲覆盖率）+P3 四类谓词 harness+P4 办公批处理进任务中心；六提交（a63339dd…b0166d00）+装机 F9BA8DBEDA41 PID 51408+实弹五面清单 |
 | gaea-day-log-2026-11-09.md | ✅ 2026-11-09 当日总账（识图诊断线收官五刀+成本导入兜底腿换正道）：docmd OCR 缓存/stampNoiseText 严格谓词/@引用 30s 预算/失败文案真因/OPCRPDFText 强制扫描件 OCR；38 笔列车与收口见 11-08 线 |
+| gaea-dsh-ops-distill-2026-11-10.md | ✅ **dsh-ops 插件蒸馏（2026-11-10，纯调研未动刀）**：有界文件/文档工具插件全貌+八机制蒸馏（revision CAS/动态工具目录/结果预算 ref:// /失败即值/凭据围栏/TOCTOU 双校验/batch plan-resume/基准门禁文化）+同构等价表（六项不立项）+候选池 A1 结果预算/A2 动态工具目录/A3 revision CAS/B1 凭据围栏/B2 失败即值（动刀须点名）+上游诚实文化摘录 |
 | gaea-tool-registry-map-2026-11.md | ✅ **P0 工具面注册表地图（2026-11-10）**：唯一注册表全部 reg.Add 行 82+ 契约（来源/空间/副作用/证据档/验收谓词）+P3 四类验收谓词表；由 scripts/registry_map_doc.go 从 tool.RegistryMap 单源生成（勿手改），守卫 tool/boot/app 三处 |
 | gaea-voice-memoryhub-ui-20261109.md | ✅ 2026-11-09 语音交互窗口记忆中枢化：全窗居中虚空大脑、完全透明右侧转写、居中胶囊控制、深浅双主题、中央实时与最近轮次字幕；含构建与实机边界记录 |
 | gaea-day-log-2026-11-08.md | ✅ 2026-11-08 当日总账（编程板块回流+记忆图谱真 3D 脑网格+语音星团随声互动，v4.535.0）：3+1 提交索引+cmd 黑窗根修口径（proc.HideWindow=HideWindow+CREATE_NO_WINDOW，活探针漏网形态）+验证矩阵+余池（SHA256 前缀 20D0B620，PID 28968） |
