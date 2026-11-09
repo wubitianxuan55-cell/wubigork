@@ -89,4 +89,15 @@
 | `write_file` | builtin-workspace | shared | write | agent-write | 落盘后文件含 AfterSummary；快照可回滚 |
 | `xlsx_apply` | extra-app | work | write | office-journal | 公式重算零错误+引用级声明比对（P1a 升 agent 工具） |
 
+## P3 四类验收谓词（非文档工具）
+
+每类至少 1 金标例 + 1 已知缺陷例，harness 见 `builtin/p3_predicates_test.go`（缺类=守卫红）。
+
+| 类 | 统一验收口径 | 代表工具 |
+|---|---|---|---|
+| deliver-write（交付写） | 声明路径=实际落点；落账可查（Journal/库）；越界与非法输入正确失败 | office_generate / docx_apply / pptx_apply / xlsx_apply / schedule_apply / write_file |
+| domain-compute（领域计算） | 计算结果可复算（重算/对照公式/库快照一致）；约束违反 fail-closed | schedule_analyze / cost_indicators / cost_compose |
+| read-retrieval（读取检索） | 命中内容与库/文件实况一致；参数闸 fail-closed（检索为模糊匹配语义，诚实缺省=不冒充精确率） | grep / read_file / knowledge_search / memory_search / cost_search |
+| task-orchestrate（任务编排） | 编排结构与约束闸一致（节点数/写路径/只读作用域六闸刀）；进度落盘可恢复 | dag_plan / task / todo_write |
+
 适用条件：办公路径继续走 `boot.Build` 唯一注册表（四外部入口：builtin / ExtraTools / 插件 / Build 内部）；若出现第五装配面（如按 `boot.go` 注释绕过 Build 的自定义装配器）则本清单失效，需重新盘点。

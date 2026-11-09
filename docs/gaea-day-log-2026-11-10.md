@@ -153,3 +153,24 @@
   互斥）；deliverables 族 51/51、tsc 0。
 - **P2 第二波余项（未动，待点名）**：九格真实脱敏件采集（需用户授权/提供）、
   回修≤1 轮的缺陷闭环记账、触及∪当前∪可疑页定位（需编辑定位元数据，v2）。
+
+## P3 非文档四类验收谓词（同日四刀，action-6 全清）
+
+- **谓词类表**（registrymap.go 单源）：PredicateClasses 四类——读取检索
+  （grep/read_file/knowledge_search/memory_search/cost_search）/领域计算
+  （schedule_analyze/cost_indicators/cost_compose）/交付写（office 五工具+
+  schedule_apply/write_file）/任务编排（dag_plan/task/todo_write）；生成器出
+  文档新节，tool 守卫扩断言（类 id+类名进文档）。
+- **harness**（builtin/p3_predicates_test.go）：每类金标例+缺陷例——
+  读取检索=知识/记忆/造价三库沉淀→检索命中（库实况一致）+参数闸 fail-closed；
+  领域计算=进度计划 analyze 关键路径复算（duration 10+critical 链）+环依赖
+  fail-closed；交付写=write_file 声明落点逐字节一致+越界拒绝零落盘（办公
+  四类写引用级在 app 族已覆盖）；任务编排=todo 编排计数+.gaea/todos.md 落盘
+  可恢复+非法状态正确失败。守卫双钉：类缺 harness 红、代表工具缺 RegistryMap
+  行红（P0/P3 对齐）。
+- **语义勘误**（实弹修正，如实记档）：知识/记忆/造价检索为模糊匹配语义，
+  小语料下「无关查询零命中」不成立——诚实缺省改钉参数闸 fail-closed，不冒充
+  精确率（README 口径同步）。坑：记忆 Save 的 Name 校验不接受纯 CJK 名
+  （ASCII slug+中文描述/正文）；检索命中形态=名称+描述（不含 Body）。
+- 至此六阶段：P0/P1a/P1b/P2 两波/**P3 全清**；余=P2 九格真实脱敏件（需
+  用户授权）+P4 持久任务（缓冲，待点名）。

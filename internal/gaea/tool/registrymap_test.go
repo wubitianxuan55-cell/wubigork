@@ -69,4 +69,10 @@ func TestRegistryMapDocCoversMap(t *testing.T) {
 	if !strings.Contains(doc, RegistryMapNotePromptBypass) {
 		t.Fatal("文档缺 /mcp__ prompt 旁路备注行")
 	}
+	// P3 四类验收谓词段覆盖（类 id+类名）
+	for id, cls := range PredicateClasses {
+		if !strings.Contains(doc, id) || !strings.Contains(doc, cls.Name) {
+			t.Fatalf("文档缺谓词类 %s（%s）——重新导出", id, cls.Name)
+		}
+	}
 }

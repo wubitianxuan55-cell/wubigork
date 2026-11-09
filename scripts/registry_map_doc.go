@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
@@ -36,6 +37,22 @@ func main() {
 	for _, n := range names {
 		r := tool.RegistryMap[n]
 		fmt.Printf("| `%s` | %s | %s | %s | %s | %s |\n", n, r.Source, r.Spaces, r.Effect, r.Evidence, r.Predicate)
+	}
+	fmt.Println()
+	fmt.Println("## P3 四类验收谓词（非文档工具）")
+	fmt.Println()
+	fmt.Println("每类至少 1 金标例 + 1 已知缺陷例，harness 见 `builtin/p3_predicates_test.go`（缺类=守卫红）。")
+	fmt.Println()
+	fmt.Println("| 类 | 统一验收口径 | 代表工具 |")
+	fmt.Println("|---|---|---|---|")
+	ids := make([]string, 0, len(tool.PredicateClasses))
+	for id := range tool.PredicateClasses {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		c := tool.PredicateClasses[id]
+		fmt.Printf("| %s（%s） | %s | %s |\n", id, c.Name, c.Definition, strings.Join(c.Tools, " / "))
 	}
 	fmt.Println()
 	fmt.Println("适用条件：办公路径继续走 `boot.Build` 唯一注册表（四外部入口：builtin / ExtraTools / 插件 / Build 内部）；" +

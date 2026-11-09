@@ -126,3 +126,35 @@ var RegistryMap = map[string]RegistryEntry{
 
 // RegistryMapNotePromptBypass `/mcp__` prompt 旁路备注（不进注册表，非工具面）。
 const RegistryMapNotePromptBypass = "/mcp__ 前缀是 prompt 旁路（controller_submit.go → input.MCPPrompt 取回 prompt 文本走 runTurnWithRaw），不进工具注册表、不构成第五工具面。"
+
+// PredicateClass P3 四类验收谓词（2026-11-10 众神殿 pan_1794234593182 裁决
+// action-6）：非文档工具按类定义统一验收口径，每类至少 1 金标例+1 已知缺陷例
+// （builtin/p3_predicates_test.go harness 钉住通过/正确失败；缺类=守卫红）。
+type PredicateClass struct {
+	Name       string   // 类名
+	Definition string   // 统一验收口径
+	Tools      []string // 代表工具（须为 RegistryMap 在册名）
+}
+
+var PredicateClasses = map[string]PredicateClass{
+	"read-retrieval": {
+		Name:       "读取检索",
+		Definition: "命中内容与库/文件实况一致；参数闸 fail-closed（检索为模糊匹配语义，诚实缺省=不冒充精确率）",
+		Tools:      []string{"grep", "read_file", "knowledge_search", "memory_search", "cost_search"},
+	},
+	"domain-compute": {
+		Name:       "领域计算",
+		Definition: "计算结果可复算（重算/对照公式/库快照一致）；约束违反 fail-closed",
+		Tools:      []string{"schedule_analyze", "cost_indicators", "cost_compose"},
+	},
+	"deliver-write": {
+		Name:       "交付写",
+		Definition: "声明路径=实际落点；落账可查（Journal/库）；越界与非法输入正确失败",
+		Tools:      []string{"office_generate", "docx_apply", "pptx_apply", "xlsx_apply", "schedule_apply", "write_file"},
+	},
+	"task-orchestrate": {
+		Name:       "任务编排",
+		Definition: "编排结构与约束闸一致（节点数/写路径/只读作用域六闸刀）；进度落盘可恢复",
+		Tools:      []string{"dag_plan", "task", "todo_write"},
+	},
+}
