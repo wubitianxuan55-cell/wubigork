@@ -34,7 +34,9 @@ func TestProgrammingWebPreflightIsolatedInstall(t *testing.T) {
 	writeTestFile(t, filepath.Join(base, "dsh", "lib", "bin.js"), "// cli")
 	writeTestFile(t, filepath.Join(home, "profiles", "web", "package.json"), `{"name":"dsh-profile-web"}`)
 	writeTestFile(t, filepath.Join(home, "profiles", "web", "node_modules", "dsh-wubi", "package.json"), `{"name":"dsh-wubi","version":"2.0.0"}`)
-	writeTestFile(t, filepath.Join(home, "cordis.patch.yml"), "serverName: rea")
+	// REA 就绪判定挂红队预设的 rea-mcp 行（2026-11-10 前查 cordis.patch.yml 标记行）。
+	writeTestFile(t, filepath.Join(home, ".agent-presets", "redteam", "agent.cordis.yml"),
+		"- id: rea-mcp\n  command: node\n  serverName: rea\n")
 	writeTestFile(t, filepath.Join(root, "rea", "node_modules", "rea-agents", "scripts", "rea.mjs"), "// rea")
 	writeTestFile(t, filepath.Join(agentsHome, "skills", "reverse-engineer-anything", "SKILL.md"), "# REA")
 

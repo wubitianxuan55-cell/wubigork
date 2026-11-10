@@ -154,9 +154,16 @@ func programmingWebDshVersion(root string) string {
 	return strings.TrimSpace(pkg.Version)
 }
 
+// programmingWebREAReady 判定隔离 REA 就绪。2026-11-08 起 REA MCP（229 个
+// mcp__rea__* 工具 ≈60K+ tokens）只挂红队预设（.agent-presets/redteam/
+// agent.cordis.yml 的 rea-mcp 行），不再进 home 级 cordis.patch.yml——标准/
+// PTC/极简会话工具定义因此从 ≈84k 降到 ≈20k。就绪判定=预设文件挂载 rea-mcp +
+// 引擎脚本与技能文件在位（2026-11-10 漂移刀前查 cordis.patch.yml 的
+// 「serverName: rea」标记行，该标记已随本改动删除）。
 func programmingWebREAReady(root, home, agentsHome string) bool {
-	config, err := os.ReadFile(filepath.Join(home, "cordis.patch.yml"))
-	if err != nil || !strings.Contains(string(config), "serverName: rea") {
+	preset := filepath.Join(home, ".agent-presets", "redteam", "agent.cordis.yml")
+	config, err := os.ReadFile(preset)
+	if err != nil || !strings.Contains(string(config), "id: rea-mcp") {
 		return false
 	}
 	server := filepath.Join(root, "rea", "node_modules", "rea-agents", "scripts", "rea.mjs")
