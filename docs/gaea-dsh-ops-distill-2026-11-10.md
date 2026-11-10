@@ -70,6 +70,15 @@ write_file/edit_file/copy/move/remove/replace 跨文件批量替换/read_table/r
   .ssh 等），连 danger 面也拒。小而硬的安全块，影响中/代价低。
 - **B2 失败即值**：工具错误结构化 `{code,retryable,effectState,nextAction}`（至少 bash/
   写类工具），effectState=unknown 语义进 agent 纪律提示。影响中/代价低-中。
+  **✅ 2026-11-10 落地销项（四刀）**：`tool.Failure` 结构化错误+信封扩
+  retryable/effect_state/next_action（纯加法）+新码 conflict；bash 超时/取消/
+  非零退出（effect 恒 unknown+退出码结构化）、revision CAS 三冲突=conflict+
+  none、凭据围栏=denied 分类接线；executeOne 收口按字段渲染+写族默认
+  unknown（复用 IsDeliverableTool 账本）+**内层失败信封塌缩**（bash json
+  非零退出/browser validation「成功包着失败」根修）；**顺带根修三处盲计**
+  （steer/complete_step/回合摘要按裸 "error:" 前缀数失败，但普通工具失败自
+  V8.9 起就是信封 JSON——真实失败从未被数到）；纪律提示两句（系统提示原则
+  节+compact 描述）。未引入 phase 字段（gaea 无相位概念，如实记档）。
 - **B3 基准门禁文化**（观察池）：字节预算门禁+证据不可覆盖——呼应 P0 门禁线程，暂不立项。
 - **C 不抄**：Rust 原生内核重写（Go 内建够用，重写=L 成本）；Niubash/MSYS PE 补丁
   供应链；PTC run_code SDK（DSH 宿主机制）；全文索引/grep 走索引（上游自己都没开）；

@@ -315,3 +315,37 @@
 - 本壳含今日全部源码：办公治理六阶段（P0–P4）+dsh-ops 候选池第一波（revision
   CAS/凭据围栏/grep 游标）+空终答退避根修。用户可在原工作区重试此前失败的
   任务验证退避生效。
+
+## B2 失败即值落地（同日，dsh-ops 候选池第二波，用户点名）
+
+- **刀型**：工具错误从「Go error→统一 exec_error 首行文本」升级为结构化值
+  `{code,retryable,effect_state,next_action}`，核心=副作用工具的诚实失败语义
+  （effect_state=unknown 时 next_action 明示先核实再重试）。四刀分提交：
+- **刀1（tool 包）**：`tool.Failure` 实现 error（文案原样透传，REVISION_CONFLICT/
+  CREDENTIAL_DENIED 前缀=兼容层）；信封纯加法扩三字段+新码 conflict+
+  MarshalEnvelope 导出；bash 超时/取消/非零退出（effect 恒 unknown+退出码结构化，
+  取消不可重试）、CAS 三冲突=conflict+none（原子拒绝=写未发生）、围栏=denied
+  分类接线；DefaultRetryable/DefaultNextAction 按码默认表。
+- **刀2（executeOne 收口）**：AsFailure 命中按字段渲染（conflict/timeout 不再
+  退化 exec_error）；未结构化错误按副作用账本默认分类（IsDeliverableTool+bash
+  →unknown+先核实，只读→none）；**内层失败信封塌缩**——工具回整串失败信封
+  （bash json 非零退出/browser validation/图表族）不再包 ok:true 外壳，仅整串
+  解析+code 非空双条件命中（任意 JSON 可 Unmarshal 成零值信封的坑在测出后
+  以 code 守卫钉死）。原计划 recoverable 接线经核实取消：error 通道恒 true
+  是「模型下轮可修复」的既有正确语义，与 retryable 不同维，强接会把
+  validation 类可修复错误误标不可恢复。
+- **刀3（盲计根修，盘查意外收获）**：普通工具失败自 V8.9 起就是 WrapError
+  信封 JSON，但四处消费方仍按裸 "error:" 前缀数失败——shouldMidTurnSteer
+  全批失败纠偏从未因真实工具失败触发（steer_test 用旧格式假绿）、
+  complete_step 失败照推 canonical todo、turnToolErrors 回合摘要漏失败、
+  hasToolErrorPrefix（模型工具终态）同病。修=toolOutputClass 双轨判定
+  （裸前缀兼容+整串失败信封；code=blocked 归被拦不归失败）+
+  compactToolError 压一行入账。
+- **刀4（纪律提示）**：系统提示原则节一行（effect_state=unknown 先核实现状
+  再决定重试）+compact 描述 bash/四写各一短句；distill 报告 B2 销项。
+- **测试**：envelope roundtrip+纯加法/Failure 透传与包装链/bash 真工具级退出
+  码与取消/收口形状（写族 unknown·只读 none·Failure 不退化·塌缩不误伤）/
+  steer 信封形态（旧前缀用例全保留防回退）；tool+agent+config 包全绿。
+- **不抄**：phase 字段（gaea 无相位概念）；blocked/suppressed/panic 裸前缀
+  路径 envelope 化（前缀消费方在册，留待点名）；office 族逐错误分类（默认
+  分类已给诚实 effect_state）。
