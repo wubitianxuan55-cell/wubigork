@@ -1,3 +1,23 @@
+## 代码面自主批：空间契约漂移刀+REA preflight+版本三源 · 2026-11-10（晚）
+
+- **承接**：办公治理六阶段与 dsh-ops 候选池双收官后，用户令「继续优化完善
+  gaea」；拍板池盘点（余项全卡用户输入），按推荐顺序自主推进三刀。
+- **刀1 空间契约漂移（f3c78e94）**：`RegistryMap.Spaces` 与运行时生效标签
+  （`builtin.SpaceTagOf`：SpaceTaggedTool 自声明优先→静态表→缺省 shared）
+  34 处对齐（workspace 17+shell/web_search 4+browser×11+sidebar_open 误记
+  shared 实为 work；image_gen/author_memory 实为 play；bash 非规范
+  work+shared 归正）；office 六工具显式入静态表 work 堵 fail-open 混 play
+  的洞；守卫 `TestSpaceTagsAgreeWithRegistryMap`+`TestRegistryMapSpacesMatchExtraTools`
+  双钉；registry-map 文档单源重导；行为变化=play 空间不再装配 office 六工具。
+- **刀2 REA preflight（e2fa809c）**：`programmingWebREAReady` 改查红队预设
+  `id: rea-mcp` 行+引擎/技能三件在位，弃 cordis.patch.yml「serverName: rea」
+  假标记（11-08 裁决落地，marker 随装机删除）。
+- **刀3 版本三源对齐（4665c267）**：`sync-version.ps1` 从 wails.json 基线
+  同步 app_info.go/versioninfo.rc → 4.535.0。
+- **验证**：tool/builtin/boot 全量+agent space/session+app 定向全绿；
+  app 测试须 ucrt64 gcc+三 DLL 进 PATH（0xc0000135 坑）。
+- **文件记录**：`docs/gaea-day-log-2026-11-10.md` 补段。
+
 ## 办公板块工具治理第一批 · 2026-11-10
 
 - **承接**：众神殿 pan_1794234593182（签注 accepted）六阶段计划；用户令开工。

@@ -494,3 +494,32 @@
   MCP 重载面自动开启发现）+取消执行双闸（按停止后不再派发已收到的调用）。
   实弹观察面：MCP 场景 discover_tools 首次发现链路；取消回执的
   NOT_EXECUTED 信封与 cancel gate Notice。
+
+## 代码面自主批：空间契约漂移刀+REA preflight+版本三源（同日晚，「继续优化完善 gaea」）
+
+- **承接**：办公治理六阶段+dsh-ops 候选池双收官后开新批；拍板池盘点（沙箱实弹
+  五面/九格脱敏件/A-B 实弹/语音 tap 拍板/CAD·网络搜索真机走查/V5 立项全卡用户
+  输入），用户未点选即按推荐顺序自主推进三刀。
+- **刀1 空间契约漂移（f3c78e94）**：`RegistryMap.Spaces` 与运行时生效标签
+  （`builtin.SpaceTagOf`：SpaceTaggedTool 自声明优先→静态表→缺省 shared）34 处
+  对齐——workspace 17（read/write/edit 系/grep/ls/render 系等误记 shared 实为
+  work，bash 非规范 `work+shared` 一并归正）、shell 三件+web_search 4、
+  browser×11+sidebar_open 影子行误记 shared 实为 work（自声明）；image_gen/
+  author_memory 实为 play。运行时侧：office 六工具（office_generate/docx_apply/
+  docx_accept/pptx_apply/xlsx_apply/office_batch）此前自声明与静态表两处皆缺，
+  靠 fail-open 缺省 shared 混进 play 空间——显式入静态表 work 堵洞；browser/
+  sidebar 静态表行改为与自声明一致的背书。守卫双钉：
+  `TestSpaceTagsAgreeWithRegistryMap`（builtin：生效标签=契约行+影子行检测）+
+  `TestRegistryMapSpacesMatchExtraTools`（app：extra-app 同款，未归类即红）。
+  registry-map 文档单源重导。行为变化=play 空间不再装配 office 六工具（与
+  P0 契约行一致）。
+- **刀2 REA preflight（e2fa809c）**：`programmingWebREAReady` 改查红队预设
+  `.agent-presets/redteam/agent.cordis.yml` 的 `id: rea-mcp` 行+rea.mjs+技能
+  三件在位；不再读 cordis.patch.yml 的「serverName: rea」假标记（11-08 裁决
+  「下版改查预设后删 marker」落地；marker 删除随本次装机执行）。
+- **刀3 版本三源对齐（4665c267）**：`scripts/sync-version.ps1` 从 wails.json
+  基线同步 app_info.go 4.531.0/versioninfo.rc 4.533.0 → 4.535.0（11-08/09 两批
+  会话挂账的发布边界漂移清账；日常装机不抬版本）。
+- **验证**：tool+builtin 全量、boot 全量、agent space/session、app 定向
+  （Space|Board|ExtraTools|ProgrammingWeb）全绿。app 测试坑再现：cgo 需 ucrt64
+  gcc 前置+sherpa/onnx 三 DLL（build/bin）进 PATH，否则 0xc0000135。
