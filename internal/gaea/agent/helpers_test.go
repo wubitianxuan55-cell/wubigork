@@ -46,14 +46,23 @@ type mockProvider struct {
 	name    string
 	chunks  []provider.Chunk
 	lastReq provider.Request
+	// streamFn 非 nil 时每次 Stream 调用它取当次 chunks（第 call 次调用，
+	// 从 1 起）——瞬态序列（如空响应后退避恢复）用，与固定 chunks 互斥。
+	streamFn func(call int) []provider.Chunk
+	calls    int
 }
 
 func (m *mockProvider) Name() string { return m.name }
 
 func (m *mockProvider) Stream(ctx context.Context, req provider.Request) (<-chan provider.Chunk, error) {
 	m.lastReq = req
-	ch := make(chan provider.Chunk, len(m.chunks))
-	for _, c := range m.chunks {
+	chunks := m.chunks
+	if m.streamFn != nil {
+		m.calls++
+		chunks = m.streamFn(m.calls)
+	}
+	ch := make(chan provider.Chunk, len(chunks))
+	for _, c := range chunks {
 		ch <- c
 	}
 	close(ch)

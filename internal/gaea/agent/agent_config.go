@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"time"
+
 	"github.com/gaea/gaea/internal/gaea/context"
 	"github.com/gaea/gaea/internal/gaea/jobs"
 	"github.com/gaea/gaea/internal/gaea/provider"
@@ -98,6 +100,11 @@ type Options struct {
 	// 分页取回。缺省 false = 零行为变化（既有截断管线原样）；装配点（boot）
 	// 按配置 [agent] tool_spill（默认开）传入。
 	Spill bool
+
+	// EmptyFinalRetryBackoff 空终答重试退避基数（2026-11-10 实弹根修：无退避
+	// 的三连发 2 秒内打光，上游瞬时空响应窗口未过即弃）。第 N 次重试前等
+	// N×基数；<=0 取缺省 2s。测试注入小值。
+	EmptyFinalRetryBackoff time.Duration
 }
 
 // StormBreaker tracks repeated failures to detect death spirals (V3.0 Phase 4).

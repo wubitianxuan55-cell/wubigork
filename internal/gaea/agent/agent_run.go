@@ -117,6 +117,12 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 	const maxStreamRecoveries = 3
 	emptyFinalBlocks := 0
 	const maxEmptyFinalBlocks = 3
+	// 空终答重试退避基数（2026-11-10 实弹：无退避的三连发 2 秒内打光，上游
+	// 瞬时空响应窗口未过即弃；第 N 次重试前等 N×基数）。Options 可注入小值。
+	emptyFinalRetryBackoff := a.emptyFinalRetryBackoff
+	if emptyFinalRetryBackoff <= 0 {
+		emptyFinalRetryBackoff = emptyFinalRetryBackoffDefault
+	}
 	finalReadinessBlocks := 0
 	const maxFinalReadinessBlocks = 3
 	// B5（Reasonix 2.x readiness_continuation 蒸馏）：停滞签名=reason 全文
@@ -334,6 +340,14 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 				}
 				a.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelWarn,
 					Text: fmt.Sprintf("empty final answer blocked: retrying (%d/%d)", emptyFinalBlocks, maxEmptyFinalBlocks)})
+				// 空终答退避（2026-11-10 实弹根修：上游瞬时空响应窗口内三次
+				// 2 秒内打光即弃，同请求 12 秒后自愈——无退避的重试是对同一
+				// 坏时刻的连发。ctx 感知；测试可缩 emptyFinalRetryBackoff）。
+				select {
+				case <-ctx.Done():
+					return buildTurnResult(turnFilesCreated, turnFilesModified, turnToolErrors, turnLastSummary), ctx.Err()
+				case <-time.After(time.Duration(emptyFinalBlocks) * emptyFinalRetryBackoff):
+				}
 				a.maybeCompact(ctx, usage)
 				continue
 			}
@@ -609,3 +623,6 @@ func uniqFiles(files []string) []string {
 	}
 	return uniq
 }
+
+// emptyFinalRetryBackoffDefault 空终答重试退避基数（Run 内变量可测试覆盖）。
+const emptyFinalRetryBackoffDefault = 2 * time.Second

@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/provider"
@@ -97,5 +98,36 @@ func TestCompactStuckHoldsWhenSessionUnchanged(t *testing.T) {
 
 	if !a.compactStuck {
 		t.Fatal("unchanged session must keep the stuck breaker closed")
+	}
+}
+
+// TestEmptyFinalRetryBackoffAllowsRecovery 空终答退避（2026-11-10 实弹根修）：
+// 上游瞬时空响应——前两次真零内容、第三次正常回答；退避后应恢复成功而非
+// 三连发打光。退避经 Options 注入小值（50ms）计时验证。
+func TestEmptyFinalRetryBackoffAllowsRecovery(t *testing.T) {
+	prov := &mockProvider{name: "p", streamFn: func(call int) []provider.Chunk {
+		if call <= 2 {
+			return []provider.Chunk{{Type: provider.ChunkDone}} // 真零内容
+		}
+		return []provider.Chunk{{Type: provider.ChunkText, Text: "recovered answer"}, {Type: provider.ChunkDone}}
+	}}
+	s := NewSession("")
+	a := New(prov, tool.NewRegistry(), s, Options{
+		DisableVerify:          true,
+		EmptyFinalRetryBackoff: 50 * time.Millisecond,
+	}, event.Discard)
+
+	start := time.Now()
+	res, err := a.Run(context.Background(), "hello")
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("瞬态空响应后退避应恢复: %v", err)
+	}
+	if res.Summary != "recovered answer" {
+		t.Fatalf("恢复后应取到最终回答: %q", res.Summary)
+	}
+	// 两次退避（1×50ms + 2×50ms）应真实发生
+	if elapsed < 150*time.Millisecond {
+		t.Fatalf("退避未生效（elapsed=%v < 150ms）", elapsed)
 	}
 }

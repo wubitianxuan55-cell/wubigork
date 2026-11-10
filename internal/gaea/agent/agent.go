@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/gaea/gaea/internal/gaea/agent/cache"
 	"github.com/gaea/gaea/internal/gaea/archive"
@@ -371,6 +372,10 @@ type AgentRunner struct {
 	goalGateReentry int  // Gate 2: goal-judge reentries
 	verifyGateFired bool // Gate 3: orchestrate verify fired
 	disableVerify   bool // V10.22: suppress verify nudge (for sub-agents)
+
+	// emptyFinalRetryBackoff 空终答重试退避基数（2026-11-10 实弹根修）：
+	// <=0 时 Run 内取缺省 2s；测试注入小值。
+	emptyFinalRetryBackoff time.Duration
 
 	// spill 是泄洪库（v4.379，dsh spill-policy 蒸馏，见 spill.go 策略与
 	// internal/gaea/spill 存储）。nil = 关闭（零行为变化）；boot 按
@@ -830,6 +835,9 @@ func New(prov provider.LLMProvider, tools *tool.Registry, session *Session, opts
 		auditFunc:     opts.AuditFunc,
 		tc:            cache.New(-1), // V5.8: session 缓存，mtime 校验器
 		disableVerify: opts.DisableVerify,
+		// 空终答重试退避基数（2026-11-10 实弹根修）：Options 可注入（测试缩值），
+		// <=0 在 Run 内取缺省 2s。
+		emptyFinalRetryBackoff: opts.EmptyFinalRetryBackoff,
 	}
 	// v4.379 spill 泄洪库（dsh spill-policy 蒸馏）：opts.Spill 开启时装配，
 	// 缺省 nil = 零行为变化（既有测试/子代理不受影响）。
