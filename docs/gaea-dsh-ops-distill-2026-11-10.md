@@ -288,23 +288,51 @@ adopt 旧代逻辑、每调用三重 verify（文档自认只防意外漂移）�
 - **D1 输出预算三件套**（推荐首位）：转义成本预算+信封最坏预留+行内截断
   hex 恢复。纯函数~150 行，read/grep/多文件读全受益，消灭「截断了还超限」与
   「截断点不可恢复」两病。影响高/代价低。
+  **✅ 2026-11-10 落地销项（刀3）**：EscapeJSONLen（与 encoding/json 性质
+  测试逐例相等钉死）+TruncateToEscapedBudget 迭代收敛+executeOne payload
+  序列化前预算截断（信封恒完整合法 JSON——旧口径序列化后截断必劈坏 JSON
+  根修）+信封 B2 三字段挪 Data 前+分页读压缩保头保尾标记。**如实缩小：
+  不做 hex 视图**（gaea 无此视图，截断标记指 offset/cursor/read_spill）。
 - **D2 自校验续读游标**：A1' 补强——binding（参数+root 身份+权限）+快照哈希
   +不完全遍历不发 continuation+截断原因枚举各配恢复文案。防翻页漂移与
   「续读变提权」。影响中高/代价低-中。
+  **✅ 2026-11-10 落地销项（刀2，含前置刀0 两生产 bug 根修）**：grep
+  `g1.<bind>.<snap>.<next>.<mac>` token（`.` 分隔防 :digits: 误判）；双快照
+  （prefix 边界校验/walk 全程发射）；树变=conflict 重跑自愈、参数变=validation
+  拒、缺口/取消不发。刀0 根修=compressGrep 洗掉控制行（游标在生产路径从未
+  被模型看到，测试直调工具假绿）+grep 扫进 .gaea/sessions
+  （wspath.IsGaeaHostNoiseRel 新谓词，exports/play 保留）+toolcache 键补
+  limit。**如实缩小：不加 SessionID 绑定**（进程级 HMAC，重启失效如实过期）。
 - **D3 错误码子层+applied+after-input-change**：B2 补强——9 粗码下挂子码，
   effect_state 补 applied，EXECUTOR 子阶段回答「重试有没有用」。影响中/代价低。
+  **✅ 2026-11-10 落地销项（刀4）**：信封顶层 subcode+EffectApplied；applied
+  真实落点仅 2 处（move_file 删源失败 / xlsx_apply 预览失败降级备注——盘查
+  实证不虚构）；原子写族默认 effect=none 精确化；bash 守卫 validation+none、
+  SANDBOX_UNAVAILABLE/START_FAILED/TIMEOUT/CANCELLED/EXIT_NONZERO 子码；
+  bash json 模式失败改走错误通道（B2 塌缩注释不实修正）。**如实缩小：不加
+  retry_policy 字段**（after-input-change 语义由 NextAction 文案承载）。
 - **D4 跨文件 replace+写锁 sidecar**：gaea 无 replace 无文件级写锁；全计划
   预检零变更+逐文件原子非事务+bind-before-publish 锁协议+树哈希 postcondition。
-  影响中/代价中。
+  影响中/代价中。**待点名**。
 - **D5 三态跳过+完备性三元组+FILE_CHANGED**：搜索/读取诚实性——excluded vs
   gap 分开、complete/scanComplete/pageComplete、读前后 stat 比对。影响中/代价低。
+  **✅ 2026-11-10 落地销项（刀1）**：excluded（噪声/围栏/include/二进制）vs
+  gap（不可读/超长行 scanner 截断——静默丢同文件余下命中是真 bug）分开记账；
+  取消不再伪装完整 no matches（假完备根修）；缺口不发续读指引。**如实缩小：
+  完备性二元（scan=complete|partial）不抄三元组**（gaea 单遍全扫无页概念）；
+  **read 侧不做 FILE_CHANGED**（单次 ReadFile 即快照，revision 尾标已是漂移
+  检测）。
 - **D6 清理债务账本**：gaea publish-quarantine 盘查未见清理面（只进不出，
   待装机实测确认增长）；「先记账后放句柄/失败推迟不遗忘/名单外整 root 跳过/
   绝不按名字扫」。gaea spill 为内存库（budget+FIFO+重启清）无此病——如实改判
   不含 spill 腿。影响中/代价低。
+  **✅ 2026-11-10 落地销项（刀5）**：Quarantine 先落 ledger.jsonl pending 再
+  动文件+终态补录（账本失败不阻断隔离但 stamp 无主永不自动删）；fail-loud
+  回显隔离目的地；boot.Build 异步清扫（账本背书+30 天+账本外名字整目录跳过+
+  自底向上+失败留账重试）；存量无账本 stamp 不动；wssearch 噪声补齐。
 - **D7 作用域权威三件**（双执行体同树第二刀）：所有权仲裁（最近者赢/撤销恢复）
   +超代对账（先取消旧轮/迟到结果不落地）+变更归属传播（O(affected)）。动会话/
-  注册面，代价中-高；与 DSH 同树合流场景直接对位。
+  注册面，代价中-高；与 DSH 同树合流场景直接对位。**待点名**。
 
 **观察池（不急）**：ZIP preflight+DOCX SAX 分页（gaea docmd/format_convert
 现状待核后再判）；权限动态复核层 L4-L6（gaea 规则授予模型不同，逐命令

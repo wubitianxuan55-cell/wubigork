@@ -362,3 +362,38 @@
   （双执行体同树第二刀）。观察池 8 项+同构不立项 8 项。
 - gaea 侧对位断言核实：spill=内存库（budget+FIFO+重启清）无磁盘长草——
   spill 台账腿如实改判剔除；publish-quarantine 未见清理面命中（挂 D6 待实测）。
+
+## dsh-ops 候选池第二波落地（同日晚，「开始」拍板，D1+D2+D3+D5+D6 六刀）
+
+- **刀0 前置根修（两个生产 bug，盘查实证）**：①A1' 游标不可见——executeOne
+  恒过 compressGrep，parseGrepLines 只认 path:line: 形状，控制行全被洗掉、
+  零命中 grep 生产路径变空串（测试直调工具假绿）；②grep 扫进 .gaea/sessions
+  （工作区根搜索第一页常被会话 JSONL 占满）。修=控制行摘出前置回放+
+  wspath.IsGaeaHostNoiseRel 相对路径谓词+头行真前置（旧写在匹配行后与注释
+  相悖）+toolcache 键补 limit（同 path+offset 撞不同 limit 页）。
+- **刀1（D5）**：excluded（选择不看）vs gap（没看到：不可读/超长行 scanner
+  截断——静默丢同文件余下命中是真 bug）分开记账；scanner.Err 检查；取消不再
+  伪装完整 no matches；缺口不发续读指引。如实缩小：完备性二元不抄三元组、
+  read 侧不做 FILE_CHANGED（单次 ReadFile 即快照）。
+- **刀2（D2）**：grep 自校验续读游标 g1.<bind>.<snap>.<next>.<mac>（. 分隔防
+  :digits: 误判）；双快照（prefix 边界校验/walk 全程发射）；树变=conflict
+  重跑自愈、参数变=拒、缺口不发。如实缩小：进程级 HMAC 不加 SessionID。
+- **刀3（D1）**：EscapeJSONLen（与 encoding/json 逐例相等钉死）+
+  TruncateToEscapedBudget 迭代收敛+executeOne payload 序列化前预算截断——
+  信封恒完整合法 JSON（旧口径序列化后截断必劈坏 JSON 根修）；B2 三字段挪
+  Data 前；分页读压缩保头保尾标记。textutils 首建测试（此前零测试）。
+- **刀4（D3）**：信封 subcode+EffectApplied（applied 真实落点仅 2 处：move_file
+  删源失败/xlsx_apply 预览失败降级——不虚构）；原子写族默认 effect=none
+  精确化；bash 守卫 validation+none+SANDBOX_UNAVAILABLE/START_FAILED 等子码；
+  bash json 模式失败改走错误通道（B2 塌缩注释不实修正）。
+- **刀5（D6）**：publish-quarantine 先记账后放句柄（ledger.jsonl pending→
+  终态，账本失败不阻断隔离但 stamp 无主永不删）；fail-loud 带隔离目的地；
+  boot.Build 异步清扫（账本背书+30 天+账本外名字整目录跳过+自底向上+失败
+  留账重试）；存量无账本 stamp 不动；wssearch 噪声补齐。
+- **坑（测试当场逮住三例）**：①retention<=0 兜底默认把负保留期（即刻过期
+  测试语义）吞了——改仅零值兜底；②同文案 payload 被 Normalize 重复行折叠
+  压小（预算测试要内容多变）；③grep 头行回显误用遍历中递减的 skip 游标
+  （应回显本页起始 pageOffset）。
+- **验证**：gaea 树 71 包全绿（CGO_ENABLED=1+ucrt64+DLL 进 PATH）+app 全量
+  +gofmt 净+六刀分提交。**余池=D4 跨文件 replace+写锁、D7 作用域权威三件
+  待点名**；观察池不动。B2/本波均未装机（要上桌需构建装机，说一声即办）。
