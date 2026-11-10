@@ -293,7 +293,29 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 		if !json.Valid([]byte(call.Arguments)) {
 			detail = strings.TrimRight(detail, "\n") + "\nThe arguments were not valid JSON. Re-emit them exactly per this schema:\n" + string(t.Schema())
 		}
-		env := tool.WrapError(tool.CodeExecError, firstLine(err.Error()), map[string]any{"tool": call.Name, "detail": detail})
+		// B2 失败即值（dsh-ops 蒸馏 2026-11-10）：结构化 Failure 按字段渲染
+		// 信封；未结构化错误按副作用账本（IsDeliverableTool+bash）默认分类
+		// ——写族/命令族的任意失败 effect=unknown（诚实失败：副作用可能已
+		// 部分发生，NextAction 明示先核实再重试），只读族=none。
+		var env string
+		if f, isF := tool.AsFailure(err); isF {
+			data := map[string]any{"tool": call.Name, "detail": detail}
+			if f.HasExitCode {
+				data["exit_code"] = f.ExitCode
+			}
+			env = tool.WrapFailure(f, firstLine(err.Error()), data)
+		} else {
+			effect := tool.EffectNone
+			if evidence.IsDeliverableTool(call.Name) || call.Name == "bash" {
+				effect = tool.EffectUnknown
+			}
+			env = tool.WrapFailure(&tool.Failure{
+				Code:        tool.CodeExecError,
+				Err:         err,
+				Retryable:   true,
+				EffectState: effect,
+			}, firstLine(err.Error()), map[string]any{"tool": call.Name, "detail": detail})
+		}
 		body, truncMsg := truncateToolOutput(env)
 		return toolOutcome{output: body, errMsg: firstLine(err.Error()), recoverable: recoverable, truncated: truncMsg != "", truncMsg: truncMsg}
 	}
@@ -346,6 +368,25 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 	// A foreground `task` sub-agent just finished — its result is the final answer.
 	if a.hooks != nil && call.Name == "task" && !isBackgroundTaskCall(call.Arguments) {
 		a.hooks.SubagentStop(ctx, result)
+	}
+	// B2 失败即值：内层失败信封塌缩（dsh-ops 蒸馏 2026-11-10）。工具在成功
+	// 通道返回整串失败信封（bash json 模式非零退出、browser 族 validation、
+	// 图表族缺数据）时，旧口径再包 ok:true 外壳=「成功包着失败」的不诚实
+	// 呈现。仅整串解析命中才塌缩（code 非空且非 ok），不做子串猜测；塌缩
+	// 结果跳过 SmartCompress（bash json 自带 24KB/流截断，信封已有界）。
+	// 既有记账（审计/证据/bg 追踪/观察）在塌缩前已完成，零行为变化。
+	if inner, isEnv := tool.ParseEnvelope(result); isEnv && !inner.OK && inner.Code != "" && inner.Code != tool.CodeOK {
+		if m, isMap := inner.Data.(map[string]any); isMap {
+			m["tool"] = call.Name
+		} else if inner.Data == nil {
+			inner.Data = map[string]any{"tool": call.Name}
+		}
+		msg := inner.Error
+		if msg == "" {
+			msg = inner.Code
+		}
+		body, truncMsg := truncateToolOutput(tool.MarshalEnvelope(inner))
+		return toolOutcome{output: body, errMsg: firstLine(msg), truncated: truncMsg != "", truncMsg: truncMsg}
 	}
 	// 刀1（v4.379，dsh spill-policy 蒸馏）：泄洪捕获必须在 SmartCompress 之前
 	// ——按工具压缩与全局截断都会销毁中段，泄洪保的是原文；预览仍交给既有
