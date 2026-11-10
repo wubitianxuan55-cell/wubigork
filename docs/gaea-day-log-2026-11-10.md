@@ -305,3 +305,13 @@
 - **取证配方入册**：用户 workspace（config.toml workspace 键）下
   `.gaea/sessions/work/*.gaea-log.jsonl`——request_header 的 prefixBytes/window
   排除规模、时间戳间距定性瞬态。
+
+## 桌面端构建装机（2026-11-10 09:37，含空终答退避修复上机）
+
+- npm 生产构建 23.9s+wails build 过；exe 61,749,760B，SHA256 前缀
+  `4D280DE90C09D124`（build/bin 与 C:\AI\gaea-app 同哈希）。
+- 冒烟 /api/health 200；gaea_install.ps1 -Launch：三 DLL 同装、桌面快捷方式
+  刷新、新 PID 30776 启动 09:37:36 > 构建完成 09:37:23（PID AFTER BUILD OK）。
+- 本壳含今日全部源码：办公治理六阶段（P0–P4）+dsh-ops 候选池第一波（revision
+  CAS/凭据围栏/grep 游标）+空终答退避根修。用户可在原工作区重试此前失败的
+  任务验证退避生效。
