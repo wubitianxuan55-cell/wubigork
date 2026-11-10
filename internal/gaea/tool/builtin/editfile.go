@@ -84,24 +84,44 @@ func (e editFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 	if err := confine(e.roots, p.Path); err != nil {
 		return "", err
 	}
-	content, enc, err := readFileEncoded(p.Path)
-	if err != nil {
-		return "", fmt.Errorf("read %s: %w", p.Path, err)
-	}
-	// A3 revision CAS（dsh-ops 蒸馏）：内容在手即刻比对（""=零行为变化）。
-	if p.ExpectedRevision != "" {
-		if err := checkExpectedRevision(p.Path, []byte(content), true, p.ExpectedRevision); err != nil {
-			return "", err
+	// D4 写锁（dsh-ops bind-before-publish 蒸馏）：锁包住「读→CAS→写」整段——
+	// CAS 防陈旧读（opt-in），锁防跨进程「CAS 通过→rename 前」TOCTOU；publish
+	// 前 bind 重核 inode 身份。
+	var (
+		n        int
+		baseline string
+	)
+	if err := WithFileLock(p.Path, func() error {
+		bind, berr := bindFileLockTarget(p.Path)
+		if berr != nil {
+			return fmt.Errorf("stat %s: %w", p.Path, berr)
 		}
-	}
-	// v4.1b：写盘前整文件基线快照（Verifier 视觉 diff / 回滚原料；未配置则 ""）。
-	baseline := evidence.StageBaseline(ctx, p.Path, []byte(content))
-	newContent, n, err := replaceInContent(content, p.OldString, p.NewString, p.ReplaceAll)
-	if err != nil {
-		return "", fmt.Errorf("edit %s: %w", p.Path, err)
-	}
-	if err := atomicWriteEncoded(p.Path, newContent, enc); err != nil {
-		return "", fmt.Errorf("write %s: %w", p.Path, err)
+		content, enc, rerr := readFileEncoded(p.Path)
+		if rerr != nil {
+			return fmt.Errorf("read %s: %w", p.Path, rerr)
+		}
+		// A3 revision CAS（dsh-ops 蒸馏）：内容在手即刻比对（""=零行为变化）。
+		if p.ExpectedRevision != "" {
+			if err := checkExpectedRevision(p.Path, []byte(content), true, p.ExpectedRevision); err != nil {
+				return err
+			}
+		}
+		if verr := bind.verify(p.Path); verr != nil {
+			return verr
+		}
+		// v4.1b：写盘前整文件基线快照（Verifier 视觉 diff / 回滚原料；未配置则 ""）。
+		baseline = evidence.StageBaseline(ctx, p.Path, []byte(content))
+		newContent, cnt, nerr := replaceInContent(content, p.OldString, p.NewString, p.ReplaceAll)
+		if nerr != nil {
+			return fmt.Errorf("edit %s: %w", p.Path, nerr)
+		}
+		n = cnt
+		if werr := atomicWriteEncoded(p.Path, newContent, enc); werr != nil {
+			return fmt.Errorf("write %s: %w", p.Path, werr)
+		}
+		return nil
+	}); err != nil {
+		return "", err
 	}
 	// v4.1 证据链：记录本次替换的原文/新文摘要（old_string/new_string 即变更
 	// 区域的原文摘要，非展示截断文本）。ctx 无台账时静默跳过。

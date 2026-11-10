@@ -87,49 +87,68 @@ func (e editLines) Execute(ctx context.Context, args json.RawMessage) (string, e
 	if err := confine(e.roots, p.Path); err != nil {
 		return "", err
 	}
-	content, enc, err := readFileEncoded(p.Path)
-	if err != nil {
-		return "", fmt.Errorf("read %s: %w", p.Path, err)
-	}
-	// A3 revision CAS（dsh-ops 蒸馏）：内容在手即刻比对（""=零行为变化）。
-	if p.ExpectedRevision != "" {
-		if err := checkExpectedRevision(p.Path, []byte(content), true, p.ExpectedRevision); err != nil {
-			return "", err
+	// D4 写锁（dsh-ops bind-before-publish 蒸馏）：锁包「读→CAS→写」整段。
+	var (
+		baseline      string
+		newLines      []string
+		result        string
+		beforeSummary string
+	)
+	if err := WithFileLock(p.Path, func() error {
+		bind, berr := bindFileLockTarget(p.Path)
+		if berr != nil {
+			return fmt.Errorf("stat %s: %w", p.Path, berr)
 		}
-	}
-	baseline := evidence.StageBaseline(ctx, p.Path, []byte(content))
-
-	lines, hadTrailing := splitFileLines(content)
-	if p.StartLine > len(lines) {
-		return "", fmt.Errorf("start_line %d is past EOF — file has %d line(s)", p.StartLine, len(lines))
-	}
-	if p.EndLine > len(lines) {
-		return "", fmt.Errorf("end_line %d is past EOF — file has %d line(s)", p.EndLine, len(lines))
-	}
-	newLines := newLinesFromContent(*p.NewContent)
-
-	merged := make([]string, 0, len(lines)-(p.EndLine-p.StartLine+1)+len(newLines))
-	merged = append(merged, lines[:p.StartLine-1]...)
-	merged = append(merged, newLines...)
-	merged = append(merged, lines[p.EndLine:]...)
-
-	result := ""
-	if len(merged) > 0 {
-		result = strings.Join(merged, "\n")
-		if hadTrailing {
-			// Preserve the original trailing newline.
-			result += "\n"
+		content, enc, rerr := readFileEncoded(p.Path)
+		if rerr != nil {
+			return fmt.Errorf("read %s: %w", p.Path, rerr)
 		}
-	}
-	if err := atomicWriteEncoded(p.Path, result, enc); err != nil {
-		return "", fmt.Errorf("write %s: %w", p.Path, err)
+		// A3 revision CAS（dsh-ops 蒸馏）：内容在手即刻比对（""=零行为变化）。
+		if p.ExpectedRevision != "" {
+			if err := checkExpectedRevision(p.Path, []byte(content), true, p.ExpectedRevision); err != nil {
+				return err
+			}
+		}
+		if verr := bind.verify(p.Path); verr != nil {
+			return verr
+		}
+		baseline = evidence.StageBaseline(ctx, p.Path, []byte(content))
+
+		lines, hadTrailing := splitFileLines(content)
+		if p.StartLine > len(lines) {
+			return fmt.Errorf("start_line %d is past EOF — file has %d line(s)", p.StartLine, len(lines))
+		}
+		if p.EndLine > len(lines) {
+			return fmt.Errorf("end_line %d is past EOF — file has %d line(s)", p.EndLine, len(lines))
+		}
+		newLines = newLinesFromContent(*p.NewContent)
+		beforeSummary = strings.Join(lines[p.StartLine-1:p.EndLine], "\n")
+
+		merged := make([]string, 0, len(lines)-(p.EndLine-p.StartLine+1)+len(newLines))
+		merged = append(merged, lines[:p.StartLine-1]...)
+		merged = append(merged, newLines...)
+		merged = append(merged, lines[p.EndLine:]...)
+
+		result = ""
+		if len(merged) > 0 {
+			result = strings.Join(merged, "\n")
+			if hadTrailing {
+				// Preserve the original trailing newline.
+				result += "\n"
+			}
+		}
+		if werr := atomicWriteEncoded(p.Path, result, enc); werr != nil {
+			return fmt.Errorf("write %s: %w", p.Path, werr)
+		}
+		return nil
+	}); err != nil {
+		return "", err
 	}
 	// v4.1 证据链：被替换行区（原文摘要）→ 新内容。
-	beforeLines := lines[p.StartLine-1 : p.EndLine]
 	evidence.RecordChange(ctx, evidence.ChangeRecord{
 		Tool:          "edit_lines",
 		Target:        p.Path,
-		BeforeSummary: strings.Join(beforeLines, "\n"),
+		BeforeSummary: beforeSummary,
 		AfterSummary:  *p.NewContent,
 		BaselinePath:  baseline,
 	})

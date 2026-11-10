@@ -54,7 +54,13 @@ func lockSidecarPath(target string) string {
 }
 
 // acquireFileLock 拿哨兵（O_EXCL+token）。锁龄超阈且 token 畸形→回收重试。
+// 目标父目录先建（write_file 新目录场景：哨兵创建先于 AtomicWrite 的 MkdirAll）。
 func acquireFileLock(target string) error {
+	if dir := filepath.Dir(target); dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("mkdir %s: %w", dir, err)
+		}
+	}
 	sidecar := lockSidecarPath(target)
 	for attempt, delay := range fileLockDelays {
 		f, err := os.OpenFile(sidecar, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)

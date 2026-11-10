@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/tool"
@@ -69,41 +68,50 @@ func (w writeFile) Execute(ctx context.Context, args json.RawMessage) (string, e
 	if err := confine(w.roots, p.Path); err != nil {
 		return "", err
 	}
-	// A3 revision CAS（dsh-ops 蒸馏）：expected_revision 传入时前置校验
-	// （""=零行为变化；"absent"=create-only；64hex=内容哈希比对）。
-	if p.ExpectedRevision != "" {
-		var cur []byte
-		exists := false
-		if raw, rerr := os.ReadFile(p.Path); rerr == nil {
-			cur, exists = raw, true
-		} else if !os.IsNotExist(rerr) {
-			return "", fmt.Errorf("stat %s: %w", p.Path, rerr)
+	// D4 写锁（dsh-ops bind-before-publish 蒸馏）+A3 CAS：锁包「CAS→编码保真→写」
+	// 整段；**半写债收口**——原 writeFileEncoded 是原地 os.WriteFile（失败可半写，
+	// executeOne 旧注释记载），改走 atomicWriteEncoded（temp+rename 收尾，失败=
+	// 目标未动）。父目录创建由 AtomicWrite 内建。
+	var (
+		before   string // v4.1 证据链：旧文件原文（写前捕获，仅旧文件存在时）
+		baseline string // v4.1b：整文件基线快照
+	)
+	if err := WithFileLock(p.Path, func() error {
+		bind, berr := bindFileLockTarget(p.Path)
+		if berr != nil {
+			return fmt.Errorf("stat %s: %w", p.Path, berr)
 		}
-		if err := checkExpectedRevision(p.Path, cur, exists, p.ExpectedRevision); err != nil {
-			return "", err
+		// A3 revision CAS（dsh-ops 蒸馏）：expected_revision 传入时前置校验
+		// （""=零行为变化；"absent"=create-only；64hex=内容哈希比对）。
+		if p.ExpectedRevision != "" {
+			var cur []byte
+			exists := false
+			if raw, rerr := os.ReadFile(p.Path); rerr == nil {
+				cur, exists = raw, true
+			} else if !os.IsNotExist(rerr) {
+				return fmt.Errorf("stat %s: %w", p.Path, rerr)
+			}
+			if err := checkExpectedRevision(p.Path, cur, exists, p.ExpectedRevision); err != nil {
+				return err
+			}
 		}
-	}
-	if dir := filepath.Dir(p.Path); dir != "" && dir != "." {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return "", fmt.Errorf("mkdir %s: %w", dir, err)
+		enc := fileenc.UTF8 // new files default to UTF-8；覆写旧文件时保真原编码
+		if _, err := os.Stat(p.Path); err == nil {
+			if oldContent, existingEnc, rerr := readFileEncoded(p.Path); rerr == nil {
+				enc = existingEnc
+				before = oldContent
+				baseline = evidence.StageBaseline(ctx, p.Path, []byte(oldContent))
+			}
 		}
-	}
-	// Preserve original file permissions.
-	mode := os.FileMode(0o644)
-	enc := fileenc.UTF8 // new files default to UTF-8
-	before := ""        // v4.1 证据链：旧文件原文（写前捕获，仅旧文件存在时）
-	baseline := ""      // v4.1b：整文件基线快照
-	if fi, err := os.Stat(p.Path); err == nil {
-		mode = fi.Mode().Perm()
-		// Preserve the original encoding when overwriting an existing file.
-		if oldContent, existingEnc, err := readFileEncoded(p.Path); err == nil {
-			enc = existingEnc
-			before = oldContent
-			baseline = evidence.StageBaseline(ctx, p.Path, []byte(oldContent))
+		if verr := bind.verify(p.Path); verr != nil {
+			return verr
 		}
-	}
-	if err := writeFileEncoded(p.Path, p.Content, enc, mode); err != nil {
-		return "", fmt.Errorf("write %s: %w", p.Path, err)
+		if werr := atomicWriteEncoded(p.Path, p.Content, enc); werr != nil {
+			return fmt.Errorf("write %s: %w", p.Path, werr)
+		}
+		return nil
+	}); err != nil {
+		return "", err
 	}
 	// v4.1 证据链：整文件覆盖的 Before/After 原文摘要（Before 仅旧文件存在时）。
 	evidence.RecordChange(ctx, evidence.ChangeRecord{

@@ -419,21 +419,21 @@ func isBackgroundTaskCall(args string) bool {
 }
 
 // defaultEffectForTool 未结构化错误的默认副作用分类（D3 精确化，dsh-ops
-// 蒸馏 2026-11-10）。原子性依据（盘查实证）：
+// 蒸馏 2026-11-10；D4 更新）。原子性依据（盘查实证）：
 //   - edit_file/multi_edit/edit_lines 走 fileutil.AtomicWrite / ooxml 同款
 //     ——rename 收尾，失败即目标未动 → none；
+//   - write_file 自 D4 起同走 atomicWriteEncoded（半写债收口）→ none；
 //   - docx_apply/docx_accept/pptx_apply/xlsx_apply 走 ooxml.WriteAtomic
 //     （rename 收尾）→ none（xlsx_apply 的预览失败已降级不报错）；
-//   - write_file 是原地 os.WriteFile，失败可半写 → unknown；
 //   - move_file copy+remove 有中途态（删源失败有专门 applied 站点）→ unknown；
 //   - bash/生成导出族（format_convert/chart_gen/diagram_gen/office_generate）
 //     效果不可静态推断 → unknown；只读族 → none。
 func defaultEffectForTool(name string) string {
 	switch name {
-	case "edit_file", "multi_edit", "edit_lines",
+	case "edit_file", "multi_edit", "edit_lines", "write_file",
 		"docx_apply", "docx_accept", "pptx_apply", "xlsx_apply":
 		return tool.EffectNone
-	case "bash", "move_file", "write_file":
+	case "bash", "move_file":
 		return tool.EffectUnknown
 	default:
 		if evidence.IsDeliverableTool(name) {

@@ -85,33 +85,47 @@ func (m multiEdit) Execute(ctx context.Context, args json.RawMessage) (string, e
 	if err := confine(m.roots, p.Path); err != nil {
 		return "", err
 	}
-	content, enc, err := readFileEncoded(p.Path)
-	if err != nil {
-		return "", fmt.Errorf("read %s: %w", p.Path, err)
-	}
-	// A3 revision CAS（dsh-ops 蒸馏）：内容在手即刻比对（""=零行为变化）。
-	if p.ExpectedRevision != "" {
-		if err := checkExpectedRevision(p.Path, []byte(content), true, p.ExpectedRevision); err != nil {
-			return "", err
+	// D4 写锁（dsh-ops bind-before-publish 蒸馏）：锁包「读→CAS→写」整段。
+	var baseline string
+	if err := WithFileLock(p.Path, func() error {
+		bind, berr := bindFileLockTarget(p.Path)
+		if berr != nil {
+			return fmt.Errorf("stat %s: %w", p.Path, berr)
 		}
-	}
-	baseline := evidence.StageBaseline(ctx, p.Path, []byte(content))
-	cur := content
-	for i, e := range p.Edits {
-		if e.OldString == "" {
-			return "", fmt.Errorf("multi_edit[%d]: old_string is required and must be non-empty "+
-				"(pass new_string:\"\" to delete text, or use write_file to create a file)", i)
+		content, enc, rerr := readFileEncoded(p.Path)
+		if rerr != nil {
+			return fmt.Errorf("read %s: %w", p.Path, rerr)
 		}
-		next, _, err := replaceInContent(cur, e.OldString, e.NewString, e.ReplaceAll)
-		if err != nil {
-			// Nothing has been written — the on-disk file still has the
-			// original content, so the whole batch is safely retryable.
-			return "", fmt.Errorf("multi_edit[%d] failed, no changes written: %w", i, err)
+		// A3 revision CAS（dsh-ops 蒸馏）：内容在手即刻比对（""=零行为变化）。
+		if p.ExpectedRevision != "" {
+			if err := checkExpectedRevision(p.Path, []byte(content), true, p.ExpectedRevision); err != nil {
+				return err
+			}
 		}
-		cur = next
-	}
-	if err := atomicWriteEncoded(p.Path, cur, enc); err != nil {
-		return "", fmt.Errorf("write %s: %w", p.Path, err)
+		if verr := bind.verify(p.Path); verr != nil {
+			return verr
+		}
+		baseline = evidence.StageBaseline(ctx, p.Path, []byte(content))
+		cur := content
+		for i, e := range p.Edits {
+			if e.OldString == "" {
+				return fmt.Errorf("multi_edit[%d]: old_string is required and must be non-empty "+
+					"(pass new_string:\"\" to delete text, or use write_file to create a file)", i)
+			}
+			next, _, err := replaceInContent(cur, e.OldString, e.NewString, e.ReplaceAll)
+			if err != nil {
+				// Nothing has been written — the on-disk file still has the
+				// original content, so the whole batch is safely retryable.
+				return fmt.Errorf("multi_edit[%d] failed, no changes written: %w", i, err)
+			}
+			cur = next
+		}
+		if werr := atomicWriteEncoded(p.Path, cur, enc); werr != nil {
+			return fmt.Errorf("write %s: %w", p.Path, werr)
+		}
+		return nil
+	}); err != nil {
+		return "", err
 	}
 	// v4.1 证据链：逐条编辑上报（Before/After = 各编辑的原文/新文摘要）。
 	for _, e := range p.Edits {

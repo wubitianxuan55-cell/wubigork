@@ -43,6 +43,7 @@ func TestExecuteOneErrorEnvelopeFailureAsValue(t *testing.T) {
 	reg := tool.NewRegistry()
 	reg.Add(envelopeStub{name: "write_file", readOnly: false, err: fmt.Errorf("write blew up")})
 	reg.Add(envelopeStub{name: "edit_file", readOnly: false, err: fmt.Errorf("old_string not found")})
+	reg.Add(envelopeStub{name: "format_convert", readOnly: false, err: fmt.Errorf("convert blew up")})
 	reg.Add(envelopeStub{name: "grep", readOnly: true, err: fmt.Errorf("bad pattern")})
 	reg.Add(envelopeStub{name: "stub_cas", readOnly: false, err: &tool.Failure{
 		Code:        tool.CodeConflict,
@@ -53,21 +54,26 @@ func TestExecuteOneErrorEnvelopeFailureAsValue(t *testing.T) {
 	}})
 	a := newEnvelopeRunner(reg)
 
-	// 原地写（write_file）任意失败 → unknown+先核实；原子写（edit_file）→ none
-	// （D3 精确化：AtomicWrite rename 收尾，失败即目标未动）。
+	// 原子写族（write_file 自 D4 起同走 atomicWriteEncoded/edit_file）失败=
+	// 目标未动 → none；生成导出族（format_convert）不可静态推断 → unknown+
+	// 先核实（D3/D4 精确化）。
 	env, ok := tool.ParseEnvelope(a.executeOne(context.Background(), provider.ToolCall{Name: "write_file"}).output)
 	if !ok {
 		t.Fatal("write_file 失败应产出信封")
 	}
 	if env.OK || env.Code != tool.CodeExecError || !env.Retryable {
-		t.Fatalf("原地写默认分类错: %+v", env)
+		t.Fatalf("写工具默认分类错: %+v", env)
 	}
-	if env.EffectState != tool.EffectUnknown || !strings.Contains(env.NextAction, "核实") {
-		t.Fatalf("原地写 effect 应 unknown+先核实: effect=%q next=%q", env.EffectState, env.NextAction)
+	if env.EffectState != tool.EffectNone {
+		t.Fatalf("原子写 effect 应 none: %q", env.EffectState)
 	}
 	envA, _ := tool.ParseEnvelope(a.executeOne(context.Background(), provider.ToolCall{Name: "edit_file"}).output)
 	if envA.EffectState != tool.EffectNone {
 		t.Fatalf("原子写 effect 应 none: %q", envA.EffectState)
+	}
+	envP, _ := tool.ParseEnvelope(a.executeOne(context.Background(), provider.ToolCall{Name: "format_convert"}).output)
+	if envP.EffectState != tool.EffectUnknown || !strings.Contains(envP.NextAction, "核实") {
+		t.Fatalf("生成族 effect 应 unknown+先核实: effect=%q next=%q", envP.EffectState, envP.NextAction)
 	}
 
 	// 只读族 → effect=none。

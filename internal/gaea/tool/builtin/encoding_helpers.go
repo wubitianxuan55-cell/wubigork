@@ -17,8 +17,3 @@ func readFileEncoded(path string) (content string, enc fileenc.Kind, err error) 
 	enc, _ = fileenc.Detect(b)
 	return string(fileenc.Decode(b, enc)), enc, nil
 }
-
-// writeFileEncoded encodes content back to the given encoding and writes it.
-func writeFileEncoded(path string, content string, enc fileenc.Kind, perm os.FileMode) error {
-	return os.WriteFile(path, fileenc.Encode(content, enc), perm)
-}
