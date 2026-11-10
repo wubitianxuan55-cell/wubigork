@@ -530,3 +530,23 @@
   20:02:49）。装机后删除 `C:\AI\dsh\home\cordis.patch.yml` 的
   「serverName: rea」标记行（保留顶层数组 `[]`）——marker 依赖面已随
   e2fa809c 消失，红队预设 `id: rea-mcp` 行在位（2026-11-09 10:28 版）。
+
+## 项目代码图谱建图（同日晚，「建立项目代码图谱」）
+
+- **交付物**：`docs/gaea-code-atlas-2026-11.md`（460 行）+ 单源生成器
+  `scripts/code_atlas_doc.go`（markdown 全量导出 + `-json` 图数据面）。
+- **十层口径**：入口/壳层 internal·app（75k 行 2 包）/内核·装配执行（boot/
+  control/tool/agent/evidence/权限/空间/沙箱/插件 22 包 45k）/内核·共享库
+  （52 包 43k）/办公域/小说域（21 包 34k）/引擎域/众神殿/领域库兜底/scripts
+  工具带；层集合在生成器顶部（kernelRT/novelTops/engineTops），可调后重导。
+- **底数**：162 Go 包 · 源码 260,333 行 · 测试 208,323 行（比 0.80）；内部依赖
+  467 边；层间矩阵+全包清单+依赖明细+巨石文件 Top30（pantheon/manager.go
+  3,416 行居首）+前端 src 地图（gaea/ 398 文件 94k 行为最大区，pages/ 55k，
+  boards/ 只是 manifest 注册层 502 行）。
+- **分层不变量（再生成时复算，三项全绿）**：内核不 import 壳层（0 违例）；
+  scripts 零被引（0 违例）；壳层入边只来自入口 main（壳内互引不计）。
+- **交互视图**：会话内 force 依赖图（162 节点按层着色/大小=LOC/层过滤/搜索/
+  点选看一跳邻居/缩放拖拽，态存 widgetState），数据来自 `-json` 单源。
+- **坑**：Go 字符串续行 `+` 必须在行尾（行首=隐式分号炸编译）；god 文件路径
+  须 path.Join（filepath.Join 在 Windows 出反斜杠）；Git Bash /tmp 与原生
+  node 路径互认须 cygpath。
