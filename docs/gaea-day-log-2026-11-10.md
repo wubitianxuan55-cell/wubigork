@@ -410,3 +410,24 @@
   根修/D5 三态跳过/D2 自校验游标/D1 输出预算/D3 subcode+applied/D6 隔离
   账本+启动清扫）。可实弹面：grep 翻页（cursor token）/大输出截断（信封
   恒完整 JSON）/bash 失败信封 subcode/publish-quarantine 账本与 30 天清扫。
+
+## dsh-ops D4 落地（同日晚，点名，replace+写锁三刀）
+
+- **刀1 写锁原语**：O_EXCL 哨兵+进程 token+bind 重核（absent→出现/存在→删除/
+  替换三态 conflict）+release token 防误删+stale 年龄回收（>10s 畸形 token）；
+  LOCK_CONTENTION 可重试零效应。gaea 零 OS 锁先例下选 O_EXCL；
+  gaea_task_inbox.go:95「文件锁属另一刀」销案。
+- **刀2 锁接线**：edit 族+write_file「读→CAS→写」整段包 WithFileLock（CAS 防
+  陈旧读+锁防跨进程 TOCTOU 互补）；write_file 原地写半写债收口
+  （atomicWriteEncoded 化+effect 挪 none 组）；坑=锁创建先于 MkdirAll（新目录
+  炸，acquireFileLock 先建父目录修，P3 谓词/E11 回归测试当场逮住）。
+- **刀3 replace 工具**：两阶段（全计划 32MiB 预检零变更/逐文件原子非事务=
+  已发布不回滚+PARTIAL_PUBLISH+effect unknown）；changed 计替换次数+预算帽
+  文件内部分替换+pending；发布前锁内计划哈希重核（publishItem 抽方法直测
+  竞态窗口）；凭据围栏写向跳过；四表全做（RegistryMap Spaces 填 work=实际
+  口径，兄弟行 shared 漂移另开刀）+evidence/executeOne×4/batch 冲突键/
+  coherence/contextview/前端 WRITE_TOOL_NAMES+WRITE_ONLY 名单全量+钉名测试。
+- **如实缩小记档**：字面量 pattern/单串 include/年龄阈值回收/move_file 不挂锁/
+  不带 caller revision。
+- 验证：tool+builtin+agent+evidence+boot+前端 changes.test 全绿；全树+app
+  全量见段末（后台跑完补记）。

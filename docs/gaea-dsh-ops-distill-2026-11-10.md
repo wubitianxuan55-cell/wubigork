@@ -313,7 +313,20 @@ adopt 旧代逻辑、每调用三重 verify（文档自认只防意外漂移）�
   retry_policy 字段**（after-input-change 语义由 NextAction 文案承载）。
 - **D4 跨文件 replace+写锁 sidecar**：gaea 无 replace 无文件级写锁；全计划
   预检零变更+逐文件原子非事务+bind-before-publish 锁协议+树哈希 postcondition。
-  影响中/代价中。**待点名**。
+  影响中/代价中。
+  **✅ 2026-11-10 落地销项（三刀）**：①filelock.go 写锁原语（O_EXCL 哨兵
+  +进程 token+bind 重核 os.SameFile+release token 防误删+stale 年龄回收；
+  sidecar ~\$<base>.gaea.lock 天然被 PublishGuard 剪枝）——gaea 零 OS 锁先例
+  下选 O_EXCL（attachment/store.go:231 先例），gaea_task_inbox.go:95 记载的
+  「文件锁属另一刀」正式销案；②锁接 edit 族「读→CAS→写」整段+write_file
+  原地写半写债收口（atomicWriteEncoded 化，effect 挪 none 组）；③replace
+  工具（两阶段：全计划 32MiB 预检零变更/逐文件原子非事务 PARTIAL_PUBLISH
+  +effect unknown/changed 计替换次数/发布前锁内计划哈希重核/凭据围栏写向
+  跳过）+四表全做+evidence·executeOne·batch·coherence·contextview·前端
+  WRITE_TOOL_NAMES 名单全量。**如实缩小：字面量 pattern 非正则/单串 include/
+  锁回收年龄阈值（上游 PID liveness）/move_file 不挂锁（双路径形态不同挂
+  后续）/不带 caller revision。**坑=锁创建先于 AtomicWrite 的 MkdirAll
+  （新目录炸，acquireFileLock 先建父目录修）。
 - **D5 三态跳过+完备性三元组+FILE_CHANGED**：搜索/读取诚实性——excluded vs
   gap 分开、complete/scanComplete/pageComplete、读前后 stat 比对。影响中/代价低。
   **✅ 2026-11-10 落地销项（刀1）**：excluded（噪声/围栏/include/二进制）vs
