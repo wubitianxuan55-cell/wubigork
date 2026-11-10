@@ -211,7 +211,7 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 					a.tc.Set(ra.Path, ra.Offset, ra.Limit, result)
 				}
 			}
-		case "edit_file", "write_file", "multi_edit", "edit_lines":
+		case "edit_file", "write_file", "multi_edit", "edit_lines", "replace":
 			var wa struct {
 				Path string `json:"path"`
 			}
@@ -433,7 +433,7 @@ func defaultEffectForTool(name string) string {
 	case "edit_file", "multi_edit", "edit_lines", "write_file",
 		"docx_apply", "docx_accept", "pptx_apply", "xlsx_apply":
 		return tool.EffectNone
-	case "bash", "move_file":
+	case "bash", "move_file", "replace":
 		return tool.EffectUnknown
 	default:
 		if evidence.IsDeliverableTool(name) {
@@ -527,7 +527,7 @@ func repeatSuccessSignature(call provider.ToolCall, t tool.Tool) (string, bool) 
 		return "", false
 	}
 	switch call.Name {
-	case "write_file", "edit_file", "multi_edit", "edit_lines", "move_file":
+	case "write_file", "edit_file", "multi_edit", "edit_lines", "move_file", "replace":
 		return call.Name + "\x00" + canonicalToolArgs(call.Arguments), true
 	case "bash":
 		var p struct {
@@ -633,7 +633,7 @@ func hasShellWriteRedirect(command string) bool {
 // isFileWriter reports whether the tool name targets a specific file for writing.
 func isFileWriter(name string) bool {
 	switch name {
-	case "edit_file", "write_file", "multi_edit", "edit_lines", "move_file":
+	case "edit_file", "write_file", "multi_edit", "edit_lines", "move_file", "replace":
 		return true
 	}
 	return false

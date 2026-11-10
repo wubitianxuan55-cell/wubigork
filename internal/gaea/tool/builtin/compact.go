@@ -11,6 +11,7 @@ var compactDesc = map[string]string{
 	"multi_edit":         "单文件批量替换(edits数组,内存串行,全部成功才原子写盘;expected_revision=CAS;失败信封effect_state=unknown时先核实再重试)",
 	"edit_lines":         "按行号区间替换(1-based含端点,new_content空串=删行;expected_revision=CAS;失败信封effect_state=unknown时先核实再重试)",
 	"move_file":          "移动/重命名文件(跨卷回退复制,overwrite覆盖目标)",
+	"replace":            "跨文件字面量批量替换(逐文件原子非事务,changed计替换次数;全计划预检零变更;发布前锁内重读哈希重核;dry_run预览)",
 	"grep":               "正则搜索文件内容(path:line: content,跳过二进制/噪声目录/凭据围栏;头行scan=完备性,cursor=自校验续读游标,树变即冲突)",
 	"ls":                 "列出目录条目(子目录带/)",
 	"bash":               "执行shell命令(5分超时,output_format=json得结构化输出;失败信封带exit_code,effect_state=unknown时先核实再重试)",
@@ -66,6 +67,8 @@ var compactSchema = map[string]json.RawMessage{
 		`{"type":"object","properties":{"path":{"type":"string"},"start_line":{"type":"integer"},"end_line":{"type":"integer"},"new_content":{"type":"string"},"expected_revision":{"type":"string","description":"可选 CAS：read_file 尾标 sha256"}},"required":["path","start_line","end_line","new_content"]}`),
 	"move_file": json.RawMessage(
 		`{"type":"object","properties":{"source":{"type":"string"},"destination":{"type":"string"},"overwrite":{"type":"boolean"}},"required":["source","destination"]}`),
+	"replace": json.RawMessage(
+		`{"type":"object","properties":{"pattern":{"type":"string"},"replacement":{"type":"string"},"path":{"type":"string"},"include":{"type":"string"},"max_replacements":{"type":"integer"},"dry_run":{"type":"boolean"}},"required":["pattern","replacement"]}`),
 	"grep": json.RawMessage(
 		`{"type":"object","properties":{"pattern":{"type":"string"},"path":{"type":"string"},"include":{"type":"string"},"max_results":{"type":"integer"},"offset":{"type":"integer","description":"跳过前 N 条命中（续页游标）"}},"required":["pattern"]}`),
 	"ls": json.RawMessage(

@@ -67,6 +67,7 @@
 | `read_subagent_result` | build-internal | shared | read | none | 子代理结果读取一致 |
 | `recall_archived` | builtin-domain | shared | read | none | 归档召回与存档一致（显式 SpaceShared） |
 | `remember` | build-internal | shared | write | none | PersistWrite：记忆写入可查 |
+| `replace` | builtin-workspace | work | write | agent-write | 全计划预检零变更（任一文件超 32MiB 整次拒）；逐文件原子发布非事务（回执列已发布/失败/pending）；changed=替换次数；发布前锁内哈希重核 |
 | `request_permission` | build-internal | shared | interactive | none | 审批请求与裁决回传 |
 | `routine_llm` | extra-app | work | read | none | 子调用回执与 feature 绑定一致 |
 | `run_skill` | build-internal | shared | produce | none | 技能子会话产物按其工具各自登记 |

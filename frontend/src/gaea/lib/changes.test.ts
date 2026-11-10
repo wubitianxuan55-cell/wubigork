@@ -26,7 +26,7 @@ describe("extractChangedPaths", () => {
   });
 
   it("覆盖常见写类工具", () => {
-    for (const name of ["write_file", "edit_file", "edit_lines", "multi_edit", "move_file"]) {
+    for (const name of ["write_file", "edit_file", "edit_lines", "multi_edit", "move_file", "replace"]) {
       expect(WRITE_TOOL_NAMES.has(name)).toBe(true);
     }
     // v4.519：幽灵名摘出名单后不再是写类（工具从未注册，变更面板不应计入）

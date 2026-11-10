@@ -522,6 +522,7 @@ var fileActionByTool = map[string]string{
 	"diagram_gen":    "write",
 	"screen_capture": "write",
 	"move_file":      "move",
+	"replace":        "write",
 	"ls":             "dir",
 }
 

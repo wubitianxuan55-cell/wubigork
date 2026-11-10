@@ -15,7 +15,7 @@ export interface SessionChange {
 // 与 Go 侧 evidence.isWriterTool 同批——名单只含工具注册表真实存在的名字）。
 export const WRITE_TOOL_NAMES = new Set([
   "write_file", "edit_file", "edit_lines", "multi_edit",
-  "move_file",
+  "move_file", "replace",
   "schedule_apply",
 ]);
 
@@ -129,8 +129,9 @@ export const EDIT_TOOL_NAMES = new Set([
 ]);
 
 /** 「写入」= 新建/整写/移动/生成：写入内容预览降级态（write_file 等）。
- *  schedule_apply（v4.146 刀A）= 整计划替换，无行级 old/new，归写入层。 */
-export const WRITE_ONLY_TOOL_NAMES = new Set(["write_file", "move_file", "schedule_apply"]);
+ *  schedule_apply（v4.146 刀A）= 整计划替换，无行级 old/new，归写入层；
+ *  replace（D4）= 跨文件字面量批量替换，无行级锚点，同归写入层。 */
+export const WRITE_ONLY_TOOL_NAMES = new Set(["write_file", "move_file", "schedule_apply", "replace"]);
 
 /** 「读取」= 模型读过的输入文件（与后端 fileActionByTool read 白名单对齐）。 */
 export const READ_TOOL_NAMES = new Set(["read_file", "grep", "vision", "format_convert"]);

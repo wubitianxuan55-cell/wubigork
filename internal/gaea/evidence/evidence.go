@@ -379,7 +379,7 @@ func ReceiptFromToolCall(toolName string, args json.RawMessage, success bool, re
 
 func isWriterTool(name string) bool {
 	switch name {
-	case "write_file", "edit_file", "multi_edit", "edit_lines", "move_file",
+	case "write_file", "edit_file", "multi_edit", "edit_lines", "move_file", "replace",
 		// P1a 四类写升 agent 工具（2026-11-09 众神殿裁决 action-3）：Journal
 		// 落账单点在 App 层 appendOfficeEvidence，agent 回执账（Receipt.Write
 		// + extractPaths 的 path 参数）同步认账——三本账名单不再互不认账。

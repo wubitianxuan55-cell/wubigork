@@ -90,7 +90,7 @@ func isReadTool(name string) bool {
 // isWriteTool reports whether a tool name is a file-modifying tool.
 func isWriteTool(name string) bool {
 	switch name {
-	case "edit_file", "write_file", "multi_edit", "edit_lines", "move_file":
+	case "edit_file", "write_file", "multi_edit", "edit_lines", "move_file", "replace":
 		return true
 	}
 	return false

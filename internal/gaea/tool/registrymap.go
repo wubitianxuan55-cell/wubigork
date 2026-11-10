@@ -31,13 +31,14 @@ type RegistryEntry struct {
 
 // RegistryMap 全量契约表。新增工具必须在此登记，缺行=守卫红。
 var RegistryMap = map[string]RegistryEntry{
-	// ── builtin-workspace：workspace.go 基础面 20 项 ──
+	// ── builtin-workspace：workspace.go 基础面 21 项 ──
 	"read_file":        {"builtin-workspace", "shared", "read", "none", "内容与目标文件一致；尾标 revision（CAS 源）+凭据围栏 deny"},
 	"write_file":       {"builtin-workspace", "shared", "write", "agent-write", "落盘后文件含 AfterSummary；快照可回滚；expected_revision CAS 可选（dsh-ops 蒸馏）"},
 	"edit_file":        {"builtin-workspace", "shared", "write", "agent-write", "通道 A 摘要比对（新在旧亡）；expected_revision CAS 可选"},
 	"multi_edit":       {"builtin-workspace", "shared", "write", "agent-write", "通道 A 摘要比对（新在旧亡）；expected_revision CAS 可选"},
 	"edit_lines":       {"builtin-workspace", "shared", "write", "agent-write", "通道 A 摘要比对（新在旧亡）；expected_revision CAS 可选"},
 	"move_file":        {"builtin-workspace", "shared", "write", "agent-write", "目标存在且源已迁移"},
+	"replace":          {"builtin-workspace", "work", "write", "agent-write", "全计划预检零变更（任一文件超 32MiB 整次拒）；逐文件原子发布非事务（回执列已发布/失败/pending）；changed=替换次数；发布前锁内哈希重核"},
 	"grep":             {"builtin-workspace", "shared", "read", "none", "命中行与实况一致；offset 续页游标+凭据围栏跳过记账"},
 	"bash":             {"builtin-workspace", "work+shared", "write", "publish-guard", "durable 写被发布边界拦截/隔离（P1b）；前台+后台双路径"},
 	"ls":               {"builtin-workspace", "shared", "read", "none", "清单与实况一致"},

@@ -33,6 +33,7 @@ func ConfineWriters(roots []string) []tool.Tool {
 		multiEdit{roots: rs},
 		editLines{roots: rs},
 		moveFile{roots: rs},
+		replaceTool{roots: rs},
 	}
 }
 

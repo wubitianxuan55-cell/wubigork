@@ -47,6 +47,7 @@ func (w Workspace) Tools(enabled ...string) []tool.Tool {
 		multiEdit{workDir: w.Dir, roots: roots},
 		editLines{workDir: w.Dir, roots: roots},
 		moveFile{workDir: w.Dir, roots: roots},
+		replaceTool{workDir: w.Dir, roots: roots},
 		grepTool{workDir: w.Dir},
 		bash{workDir: w.Dir, sb: w.Bash, st: st},
 		listDir{workDir: w.Dir},

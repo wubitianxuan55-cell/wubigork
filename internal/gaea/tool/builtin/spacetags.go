@@ -36,6 +36,7 @@ var spaceTags = map[string]string{
 	"edit_lines":       spaces.SpaceWork,
 	"multi_edit":       spaces.SpaceWork,
 	"move_file":        spaces.SpaceWork,
+	"replace":          spaces.SpaceWork,
 	"ls":               spaces.SpaceWork,
 	"grep":             spaces.SpaceWork,
 	"web_fetch":        spaces.SpaceWork,
