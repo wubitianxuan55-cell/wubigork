@@ -274,13 +274,18 @@ func TestGrepOffsetCursorAndFence(t *testing.T) {
 	if strings.Count(out2, "needle") < 5 {
 		t.Fatalf("游标页应含后 5 条: %q", out2)
 	}
-	// 游标跨界（文件中间耗尽 skip）：offset=3 时 f2 的第 2 条 needle 应在第 3 页内
+	// 游标跨界（文件中间耗尽 skip）：offset=3 时 f2 的第 2 条 needle 应在第 3 页内。
+	// D2（2026-11-10）：满页零缺口的续读指引升级为自校验 cursor token（next=5）。
 	out3, err := g.Execute(context.Background(), casArgs(t, map[string]any{"pattern": "needle", "offset": 3, "max_results": 2}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out3, "shown=2") || !strings.Contains(out3, "offset=5") {
-		t.Fatalf("预算截断页头行应带下一游标: %q", out3)
+	if !strings.Contains(out3, "shown=2") {
+		t.Fatalf("预算截断页头行缺失: %q", out3)
+	}
+	tok := cursorFromHeader(t, out3)
+	if _, _, next, perr := parseCursor(tok); perr != nil || next != 5 {
+		t.Fatalf("cursor token 应合法且 next=5: tok=%q err=%v next=%d", tok, perr, next)
 	}
 	// 围栏跳过：.env 内也有 needle → 不入结果，头行记账
 	if err := os.WriteFile(filepath.Join(ws, ".env"), []byte("needle=secret\n"), 0o644); err != nil {

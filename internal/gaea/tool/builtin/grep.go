@@ -36,7 +36,7 @@ const (
 func (grepTool) Name() string { return "grep" }
 
 func (grepTool) Description() string {
-	return "Search file contents with a regular expression. Returns matches as `path:line: content` lines. Skips binary files, noise directories (node_modules, .git, dist, build, ...), .gaea host-runtime subtrees and credential-shaped files (credential fence). The head line reports scan completeness (scan=complete|partial — partial with unreadable-file gaps means coverage is a lower bound) and the next offset when more matches may remain. Use `include` (e.g. \"*.go\") to filter by file name glob."
+	return "Search file contents with a regular expression. Returns matches as `path:line: content` lines. Skips binary files, noise directories (node_modules, .git, dist, build, ...), .gaea host-runtime subtrees and credential-shaped files (credential fence). The head line reports scan completeness (scan=complete|partial — partial with unreadable-file gaps means coverage is a lower bound) and, on a clean full page, a self-validating `cursor` token for continuation (fails with a conflict if the tree changed since the previous page; plain `offset` also pages but unvalidated). Use `include` (e.g. \"*.go\") to filter by file name glob."
 }
 
 func (grepTool) Schema() json.RawMessage {
@@ -47,7 +47,8 @@ func (grepTool) Schema() json.RawMessage {
   "path":{"type":"string","description":"File or directory to search (default \".\" — the working directory)"},
   "include":{"type":"string","description":"Glob to filter files by name, e.g. \"*.go\""},
   "max_results":{"type":"integer","description":"Maximum number of matching lines to return (default 200, cap 1000)","minimum":1},
-  "offset":{"type":"integer","description":"Skip the first N matches (continuation cursor for paging through large result sets)","minimum":0}
+  "offset":{"type":"integer","description":"Skip the first N matches (unvalidated continuation; prefer the cursor token)","minimum":0},
+  "cursor":{"type":"string","description":"Self-validating continuation token from the head line (re-run with cursor=...). Fails with a conflict if the tree changed since the previous page — then re-run from the start without cursor"}
 },
 "required":["pattern"]
 }`)
@@ -82,6 +83,7 @@ func (g grepTool) Execute(ctx context.Context, args json.RawMessage) (string, er
 		Include    string `json:"include"`
 		MaxResults int    `json:"max_results"`
 		Offset     int    `json:"offset"`
+		Cursor     string `json:"cursor"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", fmt.Errorf("invalid args: %w", err)
@@ -107,18 +109,53 @@ func (g grepTool) Execute(ctx context.Context, args json.RawMessage) (string, er
 		root = "." // path omitted entirely → cwd
 	}
 
+	// D2 自校验续读游标（dsh-ops 蒸馏 2026-11-10 第二波）：cursor 校验通过后
+	// 覆盖 offset；「续读不授予任何权限」——bind 用本次参数重算比对，token
+	// 只验证不供值。发射条件=页满+零缺口+未取消（接 D5）。
+	bindRoot := root
+	if realRoot, rerr := wspath.RealPath(root); rerr == nil {
+		bindRoot = realRoot
+	}
+	curBind := cursorBind(p.Pattern, bindRoot, p.Include)
+	skip := p.Offset
+	if skip < 0 {
+		skip = 0
+	}
+	usingCursor := false
+	var wantSnap string
+	if p.Cursor != "" {
+		cbind, csnap, cnext, cerr := parseCursor(p.Cursor)
+		if cerr != nil {
+			return "", &tool.Failure{Code: tool.CodeValidationError, Err: cerr,
+				EffectState: tool.EffectNone, NextAction: "去掉 cursor 用当前参数重跑"}
+		}
+		if cbind != curBind {
+			return "", &tool.Failure{
+				Code:        tool.CodeValidationError,
+				Err:         fmt.Errorf("grep cursor 属于另一个查询（pattern/path/include 或围栏/跳过集已变）"),
+				EffectState: tool.EffectNone,
+				NextAction:  "去掉 cursor 用当前参数重跑",
+			}
+		}
+		usingCursor = true
+		wantSnap = csnap
+		skip = cnext
+	}
+
 	// 刀0（dsh-ops 第二波 2026-11-10）：命中行攒进 body，头行组装后前置——
 	// 旧实现头行写在匹配行之后（与「头部行截断生存性」注释相悖），且
 	// compressGrep 只保留可解析行，头/尾控制行必须靠后置回放前置才活得下来。
 	var body strings.Builder
-	total := 0       // 本页已发射命中数
-	skip := p.Offset // A1' 续页游标（dsh-ops 蒸馏）：跳过前 N 条命中
-	if skip < 0 {
-		skip = 0
-	}
+	total := 0         // 本页已发射命中数
 	pageOffset := skip // 本页起始 offset（回显与续页指引用；skip 游标在遍历中递减）
-	fenced := 0        // B1 凭据围栏跳过数（excluded：选择不看）
-	gaps := 0          // D5 跳过缺口（没看到：不可读文件/目录、超长行截断）——
+	// D2 双快照：prefixSnap=校验用（边界文件含，边后停喂）；walkSnap=发射用
+	// （本次 walk 全部候选——下一页的前缀=本页全部走过+停点文件）。
+	prefixSnap := newCursorSnap()
+	walkSnap := newCursorSnap()
+	hashPrefix := true
+	var cursorConflict error
+	fenced := 0 // B1 凭据围栏跳过数（excluded：选择不看）
+	gaps := 0   // D5 跳过缺口（没看到：不可读文件/目录、超长行截断）——
 	// 「没看到」与「选择不看」（噪声/围栏/include/二进制）分开记账：缺口在
 	// 则本页覆盖是下界，续读指引不发（dsh-ops 蒸馏 D5，2026-11-10）。
 	err = filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
@@ -153,11 +190,36 @@ func (g grepTool) Execute(ctx context.Context, args json.RawMessage) (string, er
 			return nil
 		}
 		// A1'：skip 在文件中间耗尽时同文件剩余命中接着发射（单遍 skip+emit，
-		// 页边界不错切）。
+		// 页边界不错切）。D2：候选文件喂双快照（边界前 prefix+walk，边后仅
+		// walk）——越界身份（Info 失败）跳过不中断。
+		if rel, rerr := filepath.Rel(root, path); rerr == nil {
+			if info, ierr := d.Info(); ierr == nil {
+				relSlash := filepath.ToSlash(rel)
+				walkSnap.feedCandidate(relSlash, info)
+				if hashPrefix {
+					prefixSnap.feedCandidate(relSlash, info)
+				}
+			}
+		}
+		preSkip := skip
 		n, err := grepFile(ctx, re, path, &skip, maxResults-total, &body)
 		if err != nil {
 			gaps++ // 不可读/超长行截断——记缺口继续搜
 			return nil
+		}
+		// D2 边界：skip 在本文件内耗尽——校验前缀快照，不匹配即树已变。
+		if hashPrefix && preSkip > 0 && skip == 0 {
+			if usingCursor && prefixSnap.sum() != wantSnap {
+				cursorConflict = &tool.Failure{
+					Code:        tool.CodeConflict,
+					Err:         fmt.Errorf("grep cursor stale: 树自上页后已变化（前缀快照不匹配）"),
+					Retryable:   true,
+					EffectState: tool.EffectNone,
+					NextAction:  "去掉 cursor 从头重跑",
+				}
+				return fs.SkipAll
+			}
+			hashPrefix = false
 		}
 		total += n
 		if total >= maxResults {
@@ -166,6 +228,9 @@ func (g grepTool) Execute(ctx context.Context, args json.RawMessage) (string, er
 		return nil
 	})
 	cancelled := ctx.Err() != nil
+	if cursorConflict != nil {
+		return "", cursorConflict
+	}
 	if err != nil && err != fs.SkipAll && !cancelled {
 		return "", fmt.Errorf("grep %s: %v", root, err)
 	}
@@ -187,9 +252,11 @@ func (g grepTool) Execute(ctx context.Context, args json.RawMessage) (string, er
 		}
 		fmt.Fprintf(&out, "[grep page] offset=%d shown=%d scan=%s", pageOffset, total, scan)
 		// 续读指引只在「预算止步且零缺口且未被取消」时发——缺口/取消意味着
-		// 覆盖是下界，续页会静默跳过没看到的文件。
+		// 覆盖是下界，续页会静默跳过没看到的文件。D2：零缺口满页优先发自校验
+		// cursor（绑定查询身份+前缀树快照；裸 offset 仍可用但不校验）。
 		if pageFull && gaps == 0 && !cancelled {
-			fmt.Fprintf(&out, " — more matches may remain; re-run with offset=%d", pageOffset+total)
+			fmt.Fprintf(&out, " — more matches may remain; re-run with cursor=%s",
+				emitCursor(curBind, walkSnap.sum(), pageOffset+total))
 		}
 		if gaps > 0 {
 			fmt.Fprintf(&out, " — %d path(s) unreadable (coverage is a lower bound; narrow the path or fix permissions)", gaps)
@@ -211,9 +278,10 @@ func (g grepTool) Execute(ctx context.Context, args json.RawMessage) (string, er
 		}
 	}
 	if total >= maxResults {
-		// 续读建议与头行同口径：缺口/取消时覆盖是下界，只给收窄指引。
+		// 续读建议与头行同口径：零缺口满页的头行已带自校验 cursor，尾行只留
+		// 收窄指引；缺口/取消时覆盖是下界，同样只给收窄指引。
 		if gaps == 0 && !cancelled {
-			fmt.Fprintf(&out, "\n[truncated at %d results — refine the pattern, narrow the path, raise max_results, or re-run with offset=%d]", maxResults, pageOffset+total)
+			fmt.Fprintf(&out, "\n[truncated at %d results — refine the pattern, narrow the path, or raise max_results (or re-run with the cursor above)]", maxResults)
 		} else {
 			fmt.Fprintf(&out, "\n[truncated at %d results — refine the pattern, narrow the path, or raise max_results]", maxResults)
 		}

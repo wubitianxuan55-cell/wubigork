@@ -11,7 +11,7 @@ var compactDesc = map[string]string{
 	"multi_edit":         "单文件批量替换(edits数组,内存串行,全部成功才原子写盘;expected_revision=CAS;失败信封effect_state=unknown时先核实再重试)",
 	"edit_lines":         "按行号区间替换(1-based含端点,new_content空串=删行;expected_revision=CAS;失败信封effect_state=unknown时先核实再重试)",
 	"move_file":          "移动/重命名文件(跨卷回退复制,overwrite覆盖目标)",
-	"grep":               "正则搜索文件内容(path:line: content,跳过二进制/噪声目录/凭据围栏;头行scan=完备性,offset=续页游标)",
+	"grep":               "正则搜索文件内容(path:line: content,跳过二进制/噪声目录/凭据围栏;头行scan=完备性,cursor=自校验续读游标,树变即冲突)",
 	"ls":                 "列出目录条目(子目录带/)",
 	"bash":               "执行shell命令(5分超时,output_format=json得结构化输出;失败信封带exit_code,effect_state=unknown时先核实再重试)",
 	"read_spill":         "取回泄洪全文(工具结果过大时按locator分页读回,offset字节偏移)",
