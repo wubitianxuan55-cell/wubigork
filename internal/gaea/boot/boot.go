@@ -590,6 +590,11 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		executor.SetArchive(ar, sid)
 	}
 
+	// D6 清理债务账本（dsh-ops 蒸馏 2026-11-10）：异步清扫过期 publish-quarantine
+	// stamp（先记账后放句柄；只删账本背书的 30 天前 stamp，账本外名字整目录跳过，
+	// 失败留账下次重试）。每进程每工作区一次；启动关键路径不做整树遍历。
+	sweepQuarantineOnce(cwd)
+
 	// Custom slash commands (.gaea/commands + user dir). Best-effort: a malformed
 	// file is skipped, and a load error never blocks the session.
 	// 基于工作区根（opts.Cwd）发现命令，与技能/记忆保持一致：桌面端切换

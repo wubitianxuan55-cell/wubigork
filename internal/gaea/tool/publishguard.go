@@ -43,10 +43,28 @@ type PublishViolation struct {
 // Quarantine。非并发安全：同一线程内顺序调用；后台路径可在 job 完成回调线程
 // 复用同一实例（Begin 在启动时做过快照即可）。
 type PublishGuard struct {
-	roots      []string
-	quarantine string
-	durable    map[string]bool
-	base       map[string]publishFileState
+	roots          []string
+	quarantine     string
+	durable        map[string]bool
+	base           map[string]publishFileState
+	source         string // D6 账本来源标注（foreground/background）
+	commandPreview string
+	lastLedger     *quarantineLedger
+}
+
+// WithSource 标注账本来源与命令预览（D6：归属证据——谁在何时因何命令隔离）。
+func (g *PublishGuard) WithSource(source, command string) *PublishGuard {
+	g.source = source
+	g.commandPreview = command
+	return g
+}
+
+// LastQuarantineDest 最近一次隔离的目的地 stamp 目录（fail-loud 回显用）。
+func (g *PublishGuard) LastQuarantineDest() string {
+	if g.lastLedger == nil {
+		return ""
+	}
+	return filepath.Join(g.quarantine, g.lastLedger.rec.Stamp)
 }
 
 type publishFileState struct {
@@ -113,10 +131,15 @@ func (g *PublishGuard) Scan() ([]PublishViolation, error) {
 // Quarantine 把越界件移出正式工作区（隔离目录下按时间戳子目录保留相对结构），
 // 返回已移动的原始绝对路径（调用方 fail-loud 回显）。移动失败（文件被占用等）
 // 时 error 非空且未移动件仍留在正式工作区——调用方必须把 error 当硬失败上报。
+// D6（dsh-ops 蒸馏 2026-11-10）：先记账后放句柄——任何 MkdirAll/Rename 之前
+// 先落 pending 账本记录，移动后补终态；账本失败不阻断隔离（硬边界优先），
+// 该 stamp 视为无主永不自动删。
 func (g *PublishGuard) Quarantine(vs []PublishViolation) ([]string, error) {
 	var moved []string
 	var errs []string
-	stamp := time.Now().Format("20060102-150405.000000000")
+	led := beginQuarantineRecord(g.quarantine, g.source, g.commandPreview, vs)
+	g.lastLedger = led
+	stamp := led.rec.Stamp
 	for _, v := range vs {
 		dst := filepath.Join(g.quarantine, stamp, filepath.FromSlash(v.RelPath))
 		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
@@ -136,6 +159,7 @@ func (g *PublishGuard) Quarantine(vs []PublishViolation) ([]string, error) {
 		}
 		moved = append(moved, v.Path)
 	}
+	led.finish(moved, errs)
 	if len(errs) > 0 {
 		return moved, fmt.Errorf("quarantine 部分失败：%s", strings.Join(errs, "; "))
 	}
@@ -143,12 +167,16 @@ func (g *PublishGuard) Quarantine(vs []PublishViolation) ([]string, error) {
 }
 
 // ExpectedPathsNote fail-loud 提示文案（备忘 :23：回显期望路径集）。expected 为
-// 声明写路径（bash 场景为空=无声明）；输出直接进工具回执。
-func ExpectedPathsNote(violations []PublishViolation, expected []string) string {
+// 声明写路径（bash 场景为空=无声明）；dest（可选）为隔离目的地 stamp 目录
+// （D6：会话 JSONL 成为第二份归属证据，用户找得到文件）；输出直接进工具回执。
+func ExpectedPathsNote(violations []PublishViolation, expected []string, dest ...string) string {
 	var b strings.Builder
 	b.WriteString("发布边界拦截：以下 Office 交付文件（durable 档）不得经本工具写入正式工作区，已隔离：")
 	for _, v := range violations {
 		b.WriteString("\n  - " + v.RelPath + "（" + v.Kind + "）")
+	}
+	if len(dest) > 0 && dest[0] != "" {
+		b.WriteString("\n隔离位置：" + dest[0])
 	}
 	if len(expected) == 0 {
 		b.WriteString("\ndurable 交付物只能经结构化入口：office_generate（从零生成）或 docx_apply/docx_accept/pptx_apply/xlsx_apply（编辑）。")

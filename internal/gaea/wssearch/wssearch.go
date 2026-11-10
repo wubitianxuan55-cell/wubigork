@@ -51,6 +51,9 @@ var officeExts = map[string]bool{
 // （imagehub 台账、章节配图、原罪/画室产物）仍会被工位关键词检索索引——
 // 那是乐园数据面漏进工位检索的缺口。现在 `.gaea/play` 整棵子树不进检索面；
 // work 交付产物（.gaea/exports）与其余 .gaea 内容照旧可被索引。
+// D6（dsh-ops 蒸馏 2026-11-10）：补宿主运行时产物——publish-quarantine
+// 隔离件/renders 渲染残留/work 台账与回滚（与 wspath.IsGaeaHostNoiseRel
+// 同判，隔离件不进工位检索）。
 func isNoiseRel(rel string) bool {
 	first, rest, _ := strings.Cut(rel, "/")
 	if first != ".gaea" {
@@ -59,8 +62,15 @@ func isNoiseRel(rel string) bool {
 	if rest == "play" || strings.HasPrefix(rest, "play/") {
 		return true
 	}
-	seg, _, _ := strings.Cut(rest, "/")
-	return seg == "sessions" || seg == "archive" || seg == "cache"
+	seg, sub, _ := strings.Cut(rest, "/")
+	switch seg {
+	case "sessions", "archive", "cache", "publish-quarantine", "renders":
+		return true
+	case "work":
+		return sub == "journal" || sub == "rollback" ||
+			strings.HasPrefix(sub, "journal/") || strings.HasPrefix(sub, "rollback/")
+	}
+	return false
 }
 
 const (

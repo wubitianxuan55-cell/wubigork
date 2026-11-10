@@ -87,8 +87,8 @@ func (b bash) newPublishGuard() *tool.PublishGuard {
 }
 
 // publishCheck 执行后扫描 durable 越界写：命中即 Quarantine 移出正式工作区并
-// 返回 fail-loud 文案（备忘 :23：回显期望路径集）。快照缺席（Begin 失败）不
-// 冒充拦截，如实放行。
+// 返回 fail-loud 文案（备忘 :23：回显期望路径集+D6 隔离目的地）。快照缺席
+// （Begin 失败）不冒充拦截，如实放行。
 func (b bash) publishCheck(g *tool.PublishGuard) error {
 	if g == nil {
 		return nil
@@ -98,9 +98,10 @@ func (b bash) publishCheck(g *tool.PublishGuard) error {
 		return nil
 	}
 	if _, qerr := g.Quarantine(vs); qerr != nil {
-		return fmt.Errorf("%s\n隔离失败（越界件可能仍在正式工作区）：%v", tool.ExpectedPathsNote(vs, nil), qerr)
+		return fmt.Errorf("%s\n隔离失败（越界件可能仍在正式工作区）：%v",
+			tool.ExpectedPathsNote(vs, nil, g.LastQuarantineDest()), qerr)
 	}
-	return fmt.Errorf("%s", tool.ExpectedPathsNote(vs, nil))
+	return fmt.Errorf("%s", tool.ExpectedPathsNote(vs, nil, g.LastQuarantineDest()))
 }
 
 func (bash) CompactDescription() string     { return compactDesc["bash"] }
@@ -204,7 +205,7 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 			// P1b 后台发布边界：job 启动即快照，完成（cmd.Wait 返回）再 Scan——
 			// spike 实证：前台 Scan 对未落盘的后台写恒 clean，job 完成回调才是
 			// 后台拦截点。
-			pub := b.newPublishGuard()
+			pub := b.newPublishGuard().WithSource("background", p.Command)
 			if pub != nil {
 				_ = pub.Begin()
 			}
@@ -263,7 +264,7 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 	defer cancel()
 
 	// P1b 发布边界：启动前快照（前台窗口 Begin→执行→Scan，spike 实证）。
-	pub := b.newPublishGuard()
+	pub := b.newPublishGuard().WithSource("foreground", p.Command)
 	if pub != nil {
 		_ = pub.Begin()
 	}
