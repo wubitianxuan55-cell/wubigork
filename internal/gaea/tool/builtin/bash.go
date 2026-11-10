@@ -118,17 +118,21 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 		OutputFormat    string `json:"output_format"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
-		return "", fmt.Errorf("invalid args: %w", err)
+		return "", &tool.Failure{Code: tool.CodeValidationError,
+			Err: fmt.Errorf("invalid args: %w", err), EffectState: tool.EffectNone}
 	}
 	if p.Command == "" {
-		return "", fmt.Errorf("command is required")
+		return "", &tool.Failure{Code: tool.CodeValidationError,
+			Err: fmt.Errorf("command is required"), EffectState: tool.EffectNone}
 	}
 
 	sh := b.resolved()
 	if !sh.SupportsChaining() && (hasUnquotedSeq(p.Command, "&&") || hasUnquotedSeq(p.Command, "||")) {
-		return "", fmt.Errorf("this shell is Windows PowerShell, which does not parse '&&' or '||'. " +
-			"Sequence with ';' (both run regardless of the first's result), use 'if ($?) { ... }' for " +
-			"conditional chaining, or issue the commands as separate calls")
+		return "", &tool.Failure{Code: tool.CodeValidationError,
+			Err: fmt.Errorf("this shell is Windows PowerShell, which does not parse '&&' or '||'. " +
+				"Sequence with ';' (both run regardless of the first's result), use 'if ($?) { ... }' for " +
+				"conditional chaining, or issue the commands as separate calls"),
+			EffectState: tool.EffectNone}
 	}
 
 	// v4.524 刀 A6（Reasonix 2.x 递归删除 guard 蒸馏）：灾难面递归删除——文件
@@ -140,7 +144,8 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 		guardDir = b.st.workDir(b.workDir)
 	}
 	if v := guardRecursiveDelete(p.Command, guardDir, sh.Kind == sandbox.ShellPowerShell); v.reject {
-		return "", fmt.Errorf("%s", v.reason)
+		return "", &tool.Failure{Code: tool.CodeValidationError,
+			Err: fmt.Errorf("%s", v.reason), EffectState: tool.EffectNone}
 	}
 
 	// v4.378 会话状态锚定：仅 bash 壳启用（PowerShell 语法不通）。前台调用包
@@ -161,8 +166,16 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 	// fail-closed（2026-11-08 众神殿结论第四步）：请求了 enforce 但平台给不了
 	// 隔离（Windows 无 WSL2/容器）时，默认裸跑+启动警告；开 FailClosed 的部署
 	// 在这里拒绝——无隔离执行比拒绝执行更危险。
+	// D3（dsh-ops 蒸馏 2026-11-10）：EXECUTOR_UNAVAILABLE 对位——执行器缺席
+	// 是零效应失败（命令从未跑），不可通过重试解决（重试有没有用的子码语义）。
 	if b.sb.FailClosed && b.sb.Mode == "enforce" && !sbEnforced {
-		return "", fmt.Errorf("sandbox isolation unavailable on this platform (WSL2/container missing); fail-closed policy refuses to run this command unconfined — install WSL2 or a container runtime, or set [sandbox] fail_closed=false")
+		return "", &tool.Failure{
+			Code:        tool.CodeExecError,
+			Subcode:     "SANDBOX_UNAVAILABLE",
+			Err:         fmt.Errorf("sandbox isolation unavailable on this platform (WSL2/container missing); fail-closed policy refuses to run this command unconfined — install WSL2 or a container runtime, or set [sandbox] fail_closed=false"),
+			EffectState: tool.EffectNone,
+			NextAction:  "重试无效：装 WSL2/容器运行时或调整 fail_closed 策略",
+		}
 	}
 	if sbEnforced && useState {
 		useState = false
@@ -175,7 +188,9 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 	if p.RunInBackground {
 		jm, ok := jobs.FromContext(ctx)
 		if !ok {
-			return "", fmt.Errorf("background execution is not available in this context")
+			return "", &tool.Failure{Code: tool.CodeValidationError,
+				Err:         fmt.Errorf("background execution is not available in this context"),
+				EffectState: tool.EffectNone}
 		}
 		workDir := b.workDir
 		if useState {
@@ -274,6 +289,7 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 	}
 
 	err := cmd.Start()
+	started := err == nil // D3：Start 失败=进程从未跑，零效应（分类用）
 	if err == nil {
 		// earlyReturnCh 信号量：当检测到长期运行进程且决定提前返回时关闭，
 		// 阻止 ctx 取消时 killProcessTree 误杀用户想保持运行的服务器进程。
@@ -440,7 +456,34 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 			}
 		}
 		_ = enc.Encode(result)
-		return strings.TrimSpace(buf2.String()), nil
+		jsonBody := strings.TrimSpace(buf2.String())
+		// D3 失败即值（dsh-ops 蒸馏 2026-11-10）：json 模式失败改走错误通道——
+		// 旧口径 (json, nil) 会被外层再包 ok:true 成功信封（「成功包着失败」，
+		// B2 塌缩注释曾误称此处会被塌缩：内层无 code 字段实际不成立）。结构化
+		// 流保真进 data.detail，退出码进 data.exit_code。
+		if !ok {
+			sub := "EXIT_NONZERO"
+			code := tool.CodeExecError
+			effect := tool.EffectUnknown // 命令跑过：效果不可知
+			retry := true
+			switch {
+			case !started:
+				sub, effect, retry = "START_FAILED", tool.EffectNone, false
+			case ctx.Err() == context.DeadlineExceeded:
+				code, sub = tool.CodeTimeout, "TIMEOUT"
+			case ctx.Err() == context.Canceled:
+				sub, retry = "CANCELLED", false
+			}
+			return jsonBody, &tool.Failure{
+				Code: code, Subcode: sub,
+				Err:         fmt.Errorf("command failed (exit_code=%d)", exitCode),
+				Retryable:   retry,
+				EffectState: effect,
+				ExitCode:    exitCode,
+				HasExitCode: exitCode >= 0,
+			}
+		}
+		return jsonBody, nil
 	}
 
 	// Plain mode: merged output — apply same truncation as JSON mode for safety.
@@ -461,16 +504,28 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 	if ctx.Err() == context.DeadlineExceeded {
 		return out, &tool.Failure{
 			Code:        tool.CodeTimeout,
+			Subcode:     "TIMEOUT",
 			Err:         fmt.Errorf("command timed out (> %s)", bashTimeout),
 			Retryable:   true,
 			EffectState: tool.EffectUnknown,
 		}
 	}
 	if err != nil {
+		// D3：Start 失败=进程从未启动（解释器缺失/路径错），零效应不可重试。
+		if !started {
+			return out, &tool.Failure{
+				Code:        tool.CodeExecError,
+				Subcode:     "START_FAILED",
+				Err:         fmt.Errorf("command failed to start: %w", err),
+				EffectState: tool.EffectNone,
+				NextAction:  "命令未启动：核对命令与解释器路径",
+			}
+		}
 		// 取消：回合正在终止，重试无意义；进程可能已被杀到一半。
 		if ctx.Err() == context.Canceled {
 			return out, &tool.Failure{
 				Code:        tool.CodeExecError,
+				Subcode:     "CANCELLED",
 				Err:         fmt.Errorf("command exited: %w", err),
 				EffectState: tool.EffectUnknown,
 				NextAction:  "命令因回合取消而中断，副作用状态未知",
@@ -485,6 +540,7 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 		}
 		return out, &tool.Failure{
 			Code:        tool.CodeExecError,
+			Subcode:     "EXIT_NONZERO",
 			Err:         fmt.Errorf("command exited: %w", err),
 			Retryable:   true,
 			EffectState: tool.EffectUnknown,

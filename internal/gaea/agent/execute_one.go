@@ -296,9 +296,8 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 			detail = strings.TrimRight(detail, "\n") + "\nThe arguments were not valid JSON. Re-emit them exactly per this schema:\n" + string(t.Schema())
 		}
 		// B2 失败即值（dsh-ops 蒸馏 2026-11-10）：结构化 Failure 按字段渲染
-		// 信封；未结构化错误按副作用账本（IsDeliverableTool+bash）默认分类
-		// ——写族/命令族的任意失败 effect=unknown（诚实失败：副作用可能已
-		// 部分发生，NextAction 明示先核实再重试），只读族=none。
+		// 信封；未结构化错误按副作用账本默认分类（D3 精确化：原子 rename
+		// 收尾的写族失败=目标未动→none；原地写/命令族=unknown）。
 		var env string
 		if f, isF := tool.AsFailure(err); isF {
 			bdetail, _ := budgetPayloadForEnvelope(detail)
@@ -308,16 +307,12 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 			}
 			env = tool.WrapFailure(f, firstLine(err.Error()), data)
 		} else {
-			effect := tool.EffectNone
-			if evidence.IsDeliverableTool(call.Name) || call.Name == "bash" {
-				effect = tool.EffectUnknown
-			}
 			bdetail, _ := budgetPayloadForEnvelope(detail)
 			env = tool.WrapFailure(&tool.Failure{
 				Code:        tool.CodeExecError,
 				Err:         err,
 				Retryable:   true,
-				EffectState: effect,
+				EffectState: defaultEffectForTool(call.Name),
 			}, firstLine(err.Error()), map[string]any{"tool": call.Name, "detail": bdetail})
 		}
 		body, truncMsg := truncateToolOutput(env)
@@ -374,11 +369,10 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 		a.hooks.SubagentStop(ctx, result)
 	}
 	// B2 失败即值：内层失败信封塌缩（dsh-ops 蒸馏 2026-11-10）。工具在成功
-	// 通道返回整串失败信封（bash json 模式非零退出、browser 族 validation、
-	// 图表族缺数据）时，旧口径再包 ok:true 外壳=「成功包着失败」的不诚实
-	// 呈现。仅整串解析命中才塌缩（code 非空且非 ok），不做子串猜测；塌缩
-	// 结果跳过 SmartCompress（bash json 自带 24KB/流截断，信封已有界）。
-	// 既有记账（审计/证据/bg 追踪/观察）在塌缩前已完成，零行为变化。
+	// 通道返回整串失败信封（browser 族 validation、图表族缺数据）时，旧口径
+	// 再包 ok:true 外壳=「成功包着失败」的不诚实呈现。（bash json 模式非零
+	// 退出自 D3 起改走错误通道，不再依赖塌缩。）仅整串解析命中才塌缩（code
+	// 非空且非 ok），不做子串猜测；既有记账在塌缩前完成，零行为变化。
 	if inner, isEnv := tool.ParseEnvelope(result); isEnv && !inner.OK && inner.Code != "" && inner.Code != tool.CodeOK {
 		if m, isMap := inner.Data.(map[string]any); isMap {
 			m["tool"] = call.Name
@@ -422,6 +416,31 @@ func isBackgroundTaskCall(args string) bool {
 	}
 	_ = json.Unmarshal([]byte(args), &p)
 	return p.RunInBackground
+}
+
+// defaultEffectForTool 未结构化错误的默认副作用分类（D3 精确化，dsh-ops
+// 蒸馏 2026-11-10）。原子性依据（盘查实证）：
+//   - edit_file/multi_edit/edit_lines 走 fileutil.AtomicWrite / ooxml 同款
+//     ——rename 收尾，失败即目标未动 → none；
+//   - docx_apply/docx_accept/pptx_apply/xlsx_apply 走 ooxml.WriteAtomic
+//     （rename 收尾）→ none（xlsx_apply 的预览失败已降级不报错）；
+//   - write_file 是原地 os.WriteFile，失败可半写 → unknown；
+//   - move_file copy+remove 有中途态（删源失败有专门 applied 站点）→ unknown；
+//   - bash/生成导出族（format_convert/chart_gen/diagram_gen/office_generate）
+//     效果不可静态推断 → unknown；只读族 → none。
+func defaultEffectForTool(name string) string {
+	switch name {
+	case "edit_file", "multi_edit", "edit_lines",
+		"docx_apply", "docx_accept", "pptx_apply", "xlsx_apply":
+		return tool.EffectNone
+	case "bash", "move_file", "write_file":
+		return tool.EffectUnknown
+	default:
+		if evidence.IsDeliverableTool(name) {
+			return tool.EffectUnknown
+		}
+		return tool.EffectNone
+	}
 }
 
 // toolReadOnly reports a tool's ReadOnly classification by name.

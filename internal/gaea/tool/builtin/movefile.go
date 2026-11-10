@@ -123,7 +123,15 @@ func (m moveFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 			return "", fmt.Errorf("move %s → %s: rename: %v; copy fallback: %w", src, dst, err, copyErr)
 		}
 		if rmErr := os.Remove(src); rmErr != nil {
-			return "", fmt.Errorf("move %s → %s: copied but could not remove source: %w", src, dst, rmErr)
+			// D3 失败即值（dsh-ops 蒸馏 2026-11-10）：目标已完整写出、源未删——
+			// 副作用已发生（applied），盲目重试 move 会 No such file/重复复制。
+			return "", &tool.Failure{
+				Code:        tool.CodeExecError,
+				Subcode:     "SOURCE_REMOVE_FAILED",
+				Err:         fmt.Errorf("move %s → %s: copied but could not remove source: %w", src, dst, rmErr),
+				EffectState: tool.EffectApplied,
+				NextAction:  "目标已完整写出、源未删：先核实目标内容，再决定手动删源或视为完成",
+			}
 		}
 	}
 	// v4.1 证据链：记录移动映射（Target=目标路径；Before/After 标注来源→去向）。

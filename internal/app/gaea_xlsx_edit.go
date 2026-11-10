@@ -153,9 +153,12 @@ func (a *App) GaeaXlsxApplyEdit(rel, opsJSON string) (XlsxEditResult, error) {
 	} else if strings.Contains(rerr.Error(), "未找到 recalc.py") {
 		recalcNote = "；公式重算跳过（未找到 recalc.py）"
 	}
-	preview, err := xlsxpreview.Render(path)
-	if err != nil {
-		return XlsxEditResult{}, err
+	// D3 失败即值（dsh-ops 蒸馏 2026-11-10）：预览失败不得让已落盘的编辑报错
+	// ——ApplyOps 已成功、证据卡已记，此处报错=「副作用已发生却报失败」的
+	// 自伤路径（agent 工具本就不消费 Preview）。降级为摘要备注如实透传。
+	preview, perr := xlsxpreview.Render(path)
+	if perr != nil {
+		recalcNote += fmt.Sprintf("；预览生成失败（%v）——编辑已落盘，用 read_file/format_convert 核实", perr)
 	}
 	return XlsxEditResult{
 		Preview: preview,

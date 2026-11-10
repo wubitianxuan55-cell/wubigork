@@ -533,8 +533,15 @@ func (a *AgentRunner) persistInterruptedCalls(calls []provider.ToolCall, reason 
 		out, ok := pre[c.ID]
 		if !ok {
 			// 与正常路径同约定：会话里的 tool 结果一律是信封 JSON。
-			env := tool.WrapError(tool.CodeExecError,
-				"stream interrupted: this call was received but not executed ("+reason+"); re-issue it if still needed",
+			// D3：未执行=零效应可重发，结构化（subcode+effect none）。
+			env := tool.WrapFailure(&tool.Failure{
+				Code:        tool.CodeExecError,
+				Subcode:     "NOT_EXECUTED",
+				Err:         fmt.Errorf("stream interrupted: this call was received but not executed (%s); re-issue it if still needed", reason),
+				Retryable:   true,
+				EffectState: tool.EffectNone,
+				NextAction:  "未执行零副作用：按需重发原调用",
+			}, "stream interrupted: this call was received but not executed ("+reason+"); re-issue it if still needed",
 				map[string]any{"tool": c.Name})
 			out = toolOutcome{output: env, errMsg: "not executed: " + reason}
 		}

@@ -41,7 +41,8 @@ func newEnvelopeRunner(reg *tool.Registry) *AgentRunner {
 
 func TestExecuteOneErrorEnvelopeFailureAsValue(t *testing.T) {
 	reg := tool.NewRegistry()
-	reg.Add(envelopeStub{name: "edit_file", readOnly: false, err: fmt.Errorf("write blew up")})
+	reg.Add(envelopeStub{name: "write_file", readOnly: false, err: fmt.Errorf("write blew up")})
+	reg.Add(envelopeStub{name: "edit_file", readOnly: false, err: fmt.Errorf("old_string not found")})
 	reg.Add(envelopeStub{name: "grep", readOnly: true, err: fmt.Errorf("bad pattern")})
 	reg.Add(envelopeStub{name: "stub_cas", readOnly: false, err: &tool.Failure{
 		Code:        tool.CodeConflict,
@@ -52,16 +53,21 @@ func TestExecuteOneErrorEnvelopeFailureAsValue(t *testing.T) {
 	}})
 	a := newEnvelopeRunner(reg)
 
-	// 写族（IsDeliverableTool 账本名）任意失败 → effect=unknown + 先核实指引。
-	env, ok := tool.ParseEnvelope(a.executeOne(context.Background(), provider.ToolCall{Name: "edit_file"}).output)
+	// 原地写（write_file）任意失败 → unknown+先核实；原子写（edit_file）→ none
+	// （D3 精确化：AtomicWrite rename 收尾，失败即目标未动）。
+	env, ok := tool.ParseEnvelope(a.executeOne(context.Background(), provider.ToolCall{Name: "write_file"}).output)
 	if !ok {
-		t.Fatal("edit_file 失败应产出信封")
+		t.Fatal("write_file 失败应产出信封")
 	}
 	if env.OK || env.Code != tool.CodeExecError || !env.Retryable {
-		t.Fatalf("写族默认分类错: %+v", env)
+		t.Fatalf("原地写默认分类错: %+v", env)
 	}
 	if env.EffectState != tool.EffectUnknown || !strings.Contains(env.NextAction, "核实") {
-		t.Fatalf("写族 effect 应 unknown+先核实: effect=%q next=%q", env.EffectState, env.NextAction)
+		t.Fatalf("原地写 effect 应 unknown+先核实: effect=%q next=%q", env.EffectState, env.NextAction)
+	}
+	envA, _ := tool.ParseEnvelope(a.executeOne(context.Background(), provider.ToolCall{Name: "edit_file"}).output)
+	if envA.EffectState != tool.EffectNone {
+		t.Fatalf("原子写 effect 应 none: %q", envA.EffectState)
 	}
 
 	// 只读族 → effect=none。

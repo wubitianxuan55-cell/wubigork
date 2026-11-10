@@ -75,3 +75,25 @@ func TestDefaultRetryableTable(t *testing.T) {
 		}
 	}
 }
+
+// D3（dsh-ops 蒸馏 2026-11-10）：subcode 渲染+applied 默认动作。
+func TestWrapFailureSubcodeAndApplied(t *testing.T) {
+	raw := WrapFailure(&Failure{
+		Code: CodeExecError, Subcode: "SOURCE_REMOVE_FAILED",
+		Err:         errTest("copied but could not remove source"),
+		EffectState: EffectApplied,
+	}, "copied but could not remove source", nil)
+	env, ok := ParseEnvelope(raw)
+	if !ok {
+		t.Fatalf("应可解析: %q", raw)
+	}
+	if env.Subcode != "SOURCE_REMOVE_FAILED" {
+		t.Fatalf("subcode 缺失: %+v", env)
+	}
+	if env.EffectState != EffectApplied {
+		t.Fatalf("effect 应 applied: %+v", env)
+	}
+	if !strings.Contains(env.NextAction, "验证") {
+		t.Fatalf("applied 默认动作应含验证: %q", env.NextAction)
+	}
+}

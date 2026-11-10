@@ -19,23 +19,29 @@ import (
 	"strings"
 )
 
-// 副作用状态两值。刻意不加第三态：partial（部分生效）与 unknown 对模型的
-// 下一步动作（先核实）完全等价，多一态只多 token。
+// 副作用状态。none/unknown 两态为主（partial 与 unknown 对模型的下一步动作
+// 完全等价，不加）；applied（D3）=副作用已发生但流程报错——「已生效，验证
+// 而非重试」（如 move 复制成功删源失败、上游发布后 fsync 失败）。
 const (
 	// EffectNone 失败先于任何副作用（或工具明示无副作用）。
 	EffectNone = "none"
 	// EffectUnknown 副作用可能已部分发生，重试前必须先核实现状。
 	EffectUnknown = "unknown"
+	// EffectApplied 副作用已发生（文件已落盘/命令已产出），失败在其后——
+	// 重试会二次生效，必须先验证现状再决定清理或继续。
+	EffectApplied = "applied"
 )
 
-// Failure 是工具错误的结构化形态。Code 为空时按 exec_error 渲染；ExitCode/
+// Failure 是工具错误的结构化形态。Code 为空时按 exec_error 渲染；Subcode
+// 为同 code 下的具体阶段/成因（直接回答「重试有没有用」）；ExitCode/
 // HasExitCode 供 bash 族把退出码带进信封 data（exit code 只活在文案里是
 // 蒸馏报告实证的缺口）。
 type Failure struct {
 	Code        string
+	Subcode     string
 	Err         error
 	Retryable   bool
-	EffectState string // EffectNone / EffectUnknown
+	EffectState string // EffectNone / EffectUnknown / EffectApplied
 	NextAction  string
 	ExitCode    int
 	HasExitCode bool
@@ -77,7 +83,10 @@ func DefaultRetryable(code string) bool {
 // DefaultNextAction 按码+副作用状态给出下一步短句（token 纪律：一句以内）。
 // exec_error 的动作分叉取决于 effect_state，调用方须传入正确状态。
 func DefaultNextAction(code, effectState string) string {
-	if effectState == EffectUnknown {
+	switch effectState {
+	case EffectApplied:
+		return "副作用已生效：先验证现状再决定清理或继续，勿盲目重试"
+	case EffectUnknown:
 		switch code {
 		case CodeTimeout:
 			return "超时被杀，副作用状态未知：先检查后置条件再决定重试"
@@ -119,6 +128,7 @@ func WrapFailure(f *Failure, errMsg string, data any) string {
 		OK:          false,
 		Success:     false,
 		Code:        code,
+		Subcode:     f.Subcode,
 		Error:       strings.TrimSpace(errMsg),
 		Data:        data,
 		Retryable:   f.Retryable,
