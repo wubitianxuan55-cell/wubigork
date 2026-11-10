@@ -345,7 +345,47 @@ adopt 旧代逻辑、每调用三重 verify（文档自认只防意外漂移）�
   自底向上+失败留账重试）；存量无账本 stamp 不动；wssearch 噪声补齐。
 - **D7 作用域权威三件**（双执行体同树第二刀）：所有权仲裁（最近者赢/撤销恢复）
   +超代对账（先取消旧轮/迟到结果不落地）+变更归属传播（O(affected)）。动会话/
-  注册面，代价中-高；与 DSH 同树合流场景直接对位。**待点名**。
+  注册面，代价中-高；与 DSH 同树合流场景直接对位。
+  **✅ 2026-11-10 晚对位审计销案（一刀落地+两项不立项）**：
+  - **A 作用域所有权仲裁=同构不立项**：gaea 注册面静态单源扁平名键——每
+    controller 一次 boot.Build 单 writer 确定性顺序写入；跨源同名结构性不可
+    达（MCP 强制 mcp__server__tool 前缀+同 server 重复挂载被拒，builtin 重名
+    RegisterBuiltin 即 panic）；Registry.Add「insert or replace」就是上游的
+    「最后挂载者赢」且从不并发争用；卸载=RemovePrefix 整族删无「恢复前权威」
+    状态；子代理 restrict 是复制不是叠加。
+  - **C 变更归属传播=同构不立项**：配置/工作区/空间变更一律全量重建
+    （gaeaRebuildLocked）；唯一增量面 MCP 热插已是天然 O(affected)（主 agent
+    每轮活读注册表、子代理 spawn 时快照冻结），无归属账本/欠账域。
+  - **B 超代对账=真实窄缺口，落地**：主语义（新轮取消旧轮）在 gaea 回合
+    串行模型（新消息进有界队列 FIFO，取消仅显式入口）下不存在；但审计实锤
+    ——bridge 流中继在 ctx 取消时干净关流（无 ChunkError），agent_stream
+    当正常收尾 err=nil → executeBatch 派发 → 写族不查 ctx → **用户按停止
+    后已流式收到的调用仍被执行（含写盘）**。修=取消执行双闸：出口带
+    （agent_stream：干净收尾+ctx 取消⇒判中断）+入口带（executeBatch：未
+    执行调用给 NOT_EXECUTED 零效应可重发信封，已完成预执行只读结果照常
+    消费）。
+  - 跨进程视角确认：注册表/会话纯进程内，双开同树的文件冲突由 A3 CAS+D4
+    写锁覆盖，A/C 是进程内机制对双开无帮助。
+  - 次要缺口如实记档不修（挂观察）：Cancel 后 pendingSends 仍自动发出；
+    Controller.Close 不取消在跑回合 ctx（切工作区僵尸回合）；move_file
+    不在写锁族（D4 已记）。
+
+**✅ 2026-11-10 晚落地销项（A2 两刀）**：动态目录机制+装配三态——
+  Options.ResidentTools/SetResidentTools+activated 会话集+currentSchemas
+  过滤+未激活软拒（TOOL_NOT_ACTIVATED 引导 discover）；discover_tools 元
+  工具（词法匹配名字+3/描述+1/汉字二元组，每次≤5，下一模型步生效，
+  可见性≠授权）；in-history 播种（历史调用过的工具每轮幂等激活——重启/
+  续会话不因 schema 面收缩让历史调用变未激活，上游 in-history 模式）。
+  装配 `[agent] dynamic_tools` 三态：**auto（缺省——仅 MCP schema 超 32KB
+  时把 mcp__* 转可发现、其余全常驻：标准会话零变化〔工具面 10-15K 且前缀
+  缓存稳定命中，激活一次=整段前缀缓存失效，默认全开长会话可能净亏〕，
+  REA 式 60K MCP 重载面才是无争议收益）/on（激进两级，A/B 评测用）/off**；
+  discover_tools 仅开启时注册（关闭零 schema 增量前缀缓存不受扰）；
+  子代理同面（父 CurrentSchemas 快照，discover 剔除）；CaptureShape 指纹
+  改取 currentSchemas（旧口径探测盲区）。如实缩小：目录文本走回执而非
+  常驻 prompt 段/不做只读作用域激活限制（执行期权限闸拦）/激活集进程
+  内存驻留。坑=sed 批量替换把三处 resident==nil 反向检查翻反（测试当场
+  逮住——布尔条件替换禁用 sed）。
 
 **观察池（不急）**：ZIP preflight+DOCX SAX 分页（gaea docmd/format_convert
 现状待核后再判）；权限动态复核层 L4-L6（gaea 规则授予模型不同，逐命令

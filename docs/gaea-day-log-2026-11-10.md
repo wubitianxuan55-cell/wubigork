@@ -443,3 +443,30 @@
   双开 gaea 同树写同一文件（LOCK_CONTENTION/REVISION_CONFLICT 竞争互斥）。
 - 今日累计五批装机中第三次：晨间（空终答退避）→13:08（B2+D 系六刀）→
   本次（D4）。
+
+## dsh-ops A2+D7 全清收官（同日晚，A2 两刀+D7 审计一刀两项不立项）
+
+- **A2 动态工具目录两刀**：①机制（Options.ResidentTools/activated 会话集
+  〔照 fileObs 挂法跨轮存活〕+currentSchemas 过滤+未激活软拒 TOOL_NOT_
+  ACTIVATED 引导 discover+discover_tools 元工具〔词法匹配名字+3/描述+1/
+  汉字二元组容措辞，每次≤5，下一模型步生效，可见性≠授权〕+in-history 播种
+  〔历史调用过的工具幂等激活，重启/续会话不破〕）；②装配 `[agent]
+  dynamic_tools` 三态——**auto 缺省（仅 MCP schema 超 32KB 时 mcp__* 转可
+  发现：标准会话零变化——前缀缓存经济账：工具面 10-15K 稳定命中 vs 激活
+  一次=整段前缀失效，默认全开长会话可能净亏；REA 式 60K 重载面才是无争议
+  收益）**/on（激进两级 A/B 用）/off；discover 仅开启时注册（关闭零 schema
+  增量）；子代理同面（父 CurrentSchemas 快照）；CaptureShape 指纹改取
+  currentSchemas（旧口径探测盲区）。坑=sed 批量替换翻反三处布尔检查
+  （测试当场逮住，教训：布尔条件替换禁用 sed）。
+- **D7 对位审计（宁不立项不虚构）**：A 作用域仲裁=同构不立项（注册面静态
+  单源、跨源同名结构性不可达、Add 即最后写者赢且从不并发）；C 变更归属
+  传播=同构不立项（配置面全量重建、MCP 热插已天然 O(affected)）；B 超代
+  对账主语义（新轮取消旧轮）在回合串行模型下不存在，但实锤真实窄缺口=
+  **bridge 取消时干净关流被当正常收尾→已收到的工具调用仍被派发执行（含
+  写盘，auto/yolo 完全放行）**——修=取消执行双闸（agent_stream 出口带
+  判中断+executeBatch 入口带 NOT_EXECUTED 零效应信封，已完成预执行照常
+  消费）。次要缺口记观察池（pendingSends 取消后仍发/Close 不取消在跑回合/
+  move_file 不在锁族）。
+- 验证：agent 全包+boot+tool+config 绿；全树+app 全量后台跑（见下段补记）。
+  **dsh-ops 候选池至此全清收官**（A1'/A2/A3/B1/B2/D1-D7 全处置：
+  落地或审计不立项，零悬置）。
