@@ -430,12 +430,6 @@ export async function stopLlamaEngine(): Promise<LlamaEngineStopResult> {
   return result as LlamaEngineStopResult
 }
 
-/** 启动/切换到天璇模型目录中的某个档位模型（会先停掉当前档位） */
-export async function startTianxuanModel(model: string): Promise<ManagedEngineStartResult> {
-  const result = await App().TianxuanModelStart(model)
-  return result as ManagedEngineStartResult
-}
-
 /** Strata 引擎运行状态（8091 /v1/models 探活） */
 export async function getStrataEngineStatus(): Promise<ManagedEngineStatusResult> {
   const result = await App().StrataEngineStatus()
@@ -452,12 +446,6 @@ export async function startStrataEngine(profile: string): Promise<ManagedEngineS
 export async function stopStrataEngine(): Promise<ManagedEngineStopResult> {
   const result = await App().StrataEngineStop()
   return result as ManagedEngineStopResult
-}
-
-/** 启动/切换到 Strata 模型目录中的某个档位模型（会先停掉当前档位） */
-export async function startStrataModel(model: string): Promise<ManagedEngineStartResult> {
-  const result = await App().StrataModelStart(model)
-  return result as ManagedEngineStartResult
 }
 
 /** 获取所有引擎配置 */

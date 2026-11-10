@@ -244,8 +244,8 @@ var explicitOverrides = map[string]string{
 	// 众神殿刀3 主源向导（2026-11-05）：搜索设置三绑定挂 *App，点名归 office。
 	// 绑定面改动当时与他方在途同树，未整跑生成器（手写委托同构入 bindings_office.go），
 	// 覆盖表先在册——下轮整跑输出与本批手写收敛。
-	"WebSearchSettingsGet":   "office",
-	"WebSearchSettingsSet":   "office",
+	"WebSearchSettingsGet":    "office",
+	"WebSearchSettingsSet":    "office",
 	"WebSearchTestConnection": "office",
 	// v4.291：反推任务化两绑定挂 *App（taskMgr 在 App 级），点名归 novel。
 	"NovelOutlineReconstructStart":   "novel",
@@ -282,17 +282,12 @@ var explicitOverrides = map[string]string{
 	"GetActiveModel":         "model",
 	"GetEngineStatus":        "model",
 	"GetModelCatalog":        "model",
-	// 外部本地引擎进程生命周期（tianxuan_proc.go / strata_proc.go，外部项目引用族）。
+	// 外部本地引擎进程生命周期（strata_proc.go，外部项目引用族；天璇已退役）。
 	"StrataEngineStart":         "model",
 	"StrataEngineStatus":        "model",
 	"StrataEngineStop":          "model",
 	"StrataModelStart":          "model",
 	"StrataModelStop":           "model",
-	"TianxuanEngineStatus":      "model",
-	"TianxuanEngineStart":       "model",
-	"TianxuanEngineStop":        "model",
-	"TianxuanModelStart":        "model",
-	"TianxuanModelStop":         "model",
 	"Startup":                   "core",
 	"Shutdown":                  "core",
 	"SetDistFS":                 "core",

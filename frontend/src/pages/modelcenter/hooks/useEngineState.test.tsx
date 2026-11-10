@@ -214,6 +214,7 @@ describe('useEngineState · 受管模型绑定（按需启动）', () => {
 
     expect(setActiveEngine).toHaveBeenCalledWith('strata')
     expect(setEngineDefaultModel).toHaveBeenCalledWith('strata', card.modelId)
-    // 模块 mock 不提供 startStrataModel：若这里重新接入手动启动，调用会直接失败。
+    // 刻意不接手动逐模型启动（原 startStrataModel 包装已删）：模型卡只写绑定，
+    // 实际启停走引擎页的 StrataEngineStart/Stop 档位路径。
   })
 })
