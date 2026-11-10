@@ -550,3 +550,31 @@
 - **坑**：Go 字符串续行 `+` 必须在行尾（行首=隐式分号炸编译）；god 文件路径
   须 path.Join（filepath.Join 在 Windows 出反斜杠）；Git Bash /tmp 与原生
   node 路径互认须 cygpath。
+
+## 设置面板「代码图谱」标签页（同日晚，「软件代码图谱可视化在设置面板增加一个新标签页」）
+
+- **入口**：设置中心左栏新增第十分类「代码图谱」（ClusterOutlined，置于
+  「数据」与「关于」之间），keywords 覆盖中英搜索（结构/架构/依赖/包/分层/
+  atlas/graph/code）。
+- **面板**：`frontend/src/components/settings/CodeAtlasPanel.tsx`——快照口径
+  行（162 包/467 边/快照日期+再生成命令如实上屏）+十层 CheckableTag 过滤+
+  包名搜索（淡显/高亮）+重置；SVG 力导向图=组件内自研确定性 mini force
+  （层锚点成环+全对斥力+依赖弹簧，挂载算 300 步出静态坐标，**零新依赖**）；
+  节点大小=√源码行数、层色=md-sys token 组合（明暗自适应）、悬停原生
+  `<title>`、点选高亮一跳邻居（非邻居 0.07 淡显）+详情行 aria-live。
+- **数据**：`frontend/src/data/codeAtlas.json` 仓内快照资产，由
+  `go run scripts/code_atlas_doc.go -json > frontend/src/data/codeAtlas.json`
+  单源再生成（生成器 -json 补 meta{generated,packages,edges,srcLoc,testLoc}，
+  edge 结构补 json 标签）；不进运行时 go list——桌面端零工具链依赖。
+- **i18n**：`settings.cat.codeatlas(+Desc)` 与 `settings.codeatlas.*` 15 键
+  三语（en/zh/zh-TW，zh-TW 用「程式碼圖譜」）。
+- **测试**：5/5（快照口径/层过滤隐藏/点选邻居+点空白清除/搜索淡显高亮/
+  重置）。**坑两枚**：①jsdom `navigator.language=en-US` → detectLocale 落 en，
+  en 字典 chunk 异步落地前后文案从 zh 回退态漂成英文——前序测试通过纯属
+  首帧回退 zh 的假象，后续测试 label 查询即丢；修=`beforeEach` 钉
+  `localStorage['gaea-lang']='zh'`（BootSplash.test 先例）。②容器里第一个
+  svg 是 SettingsSection 的 antd 图标——点空白清除须锚 `svg[data-atlas-svg]`。
+  另：SecurityPanel 一例负载期假红（隔离 3/3 绿，与本刀零交集）。
+- **验证**：tsc 0+eslint 0+设置族 43/44（唯一挂例=上述假红）+前端构建
+  21.3s+wails build（ucrt64）+冒烟 200+装机 `658CBFCC1271…` PID 38824
+  （21:26:25>构建 21:24:03）；真机目检=设置→代码图谱（挂用户实弹）。

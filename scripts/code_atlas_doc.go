@@ -588,8 +588,12 @@ func printSeams() {
 //
 //	go run scripts/code_atlas_doc.go -json > atlas.json
 //
-// 节点=包（id/层/源码与测试 LOC/入出边数），边=内部依赖（层内边含 layer 标记，
-// 便于视图折叠）。
+// 设置面板「代码图谱」标签页的仓内快照资产同源再生成：
+//
+//	go run scripts/code_atlas_doc.go -json > frontend/src/data/codeAtlas.json
+//
+// 节点=包（id/层/源码与测试 LOC），边=内部依赖（from 层标记，便于视图折叠），
+// meta=生成日期与底数（前端页脚如实展示快照口径）。
 func runJSON() {
 	out, err := exec.Command("go", "list", "-json", "./...").Output()
 	if err != nil {
@@ -631,7 +635,9 @@ func runJSON() {
 		TestLOC int    `json:"testLoc"`
 	}
 	type edge struct {
-		From, To, Layer string
+		From  string `json:"from"`
+		To    string `json:"to"`
+		Layer string `json:"layer"`
 	}
 	var nodes []node
 	var edges []edge
@@ -646,5 +652,20 @@ func runJSON() {
 	}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", " ")
-	_ = enc.Encode(map[string]any{"nodes": nodes, "edges": edges})
+	totalSrc, totalTest := 0, 0
+	for _, p := range pkgs {
+		totalSrc += p.srcLOC
+		totalTest += p.testLOC
+	}
+	_ = enc.Encode(map[string]any{
+		"meta": map[string]any{
+			"generated": "2026-11-10",
+			"packages":  len(nodes),
+			"edges":     len(edges),
+			"srcLoc":    totalSrc,
+			"testLoc":   totalTest,
+		},
+		"nodes": nodes,
+		"edges": edges,
+	})
 }

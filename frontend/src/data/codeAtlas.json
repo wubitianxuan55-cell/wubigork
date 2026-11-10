@@ -1,0 +1,3320 @@
+{
+ "edges": [
+  {
+   "from": "(main)",
+   "to": "internal/app",
+   "layer": "entry"
+  },
+  {
+   "from": "(main)",
+   "to": "internal/httpbridge",
+   "layer": "entry"
+  },
+  {
+   "from": "internal/ai",
+   "to": "internal/auth",
+   "layer": "engine"
+  },
+  {
+   "from": "internal/ai",
+   "to": "internal/config",
+   "layer": "engine"
+  },
+  {
+   "from": "internal/ai",
+   "to": "internal/gaea/config",
+   "layer": "engine"
+  },
+  {
+   "from": "internal/ai",
+   "to": "internal/modelengine",
+   "layer": "engine"
+  },
+  {
+   "from": "internal/ai",
+   "to": "internal/netclient",
+   "layer": "engine"
+  },
+  {
+   "from": "internal/ai",
+   "to": "internal/util",
+   "layer": "engine"
+  },
+  {
+   "from": "internal/analysis",
+   "to": "internal/ai",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/analysis",
+   "to": "internal/characterstate",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/analysis",
+   "to": "internal/config",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/analysis",
+   "to": "internal/gaea/strutil",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/analysis",
+   "to": "internal/project",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/analysis",
+   "to": "internal/prompt",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/analysis",
+   "to": "internal/types",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/analysis",
+   "to": "internal/util",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/ai",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/analysis",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/app/board",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/assistant",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/auth",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/authorprefs",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/bookimport",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/booksource",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/channels/weixin",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/chapter",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/character",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/characterlib",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/chat",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/config",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/context",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/core",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/docmd",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/export",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/agent",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/agent/session",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/attachment",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/backup",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/boot",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/browser",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/cad",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/config",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/contextview",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/control",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/cost",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/costimport",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/costinquiry",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/costproject",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/costref",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/coststage",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/dag",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/db",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/event",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/evidence",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/factbase",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/fileindex",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/fileutil",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/filewatch",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/genui",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/i18n",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/knowledge",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/knowledgeimport",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/largefile",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/memory",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/pins",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/pricefeed",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/proc",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/provider",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/provider/bridge",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/retrieval",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/secure",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/semantic",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/skill",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/spaces",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/strutil",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/tasks",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/textsim",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/tool",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/tool/builtin",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/trajectory",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/vision",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/workcost",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/wspath",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/wssearch",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/graph",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/herdsman",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/httpbridge",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/intent",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/maturecraft",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/memory",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/modelengine",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/narrative",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/netclient",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/novelcontext",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/novelgate",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/novelreview",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/novelstyle",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/ocr",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/office/crosslink",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/office/docxedit",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/office/pptxedit",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/office/qa",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/office/standard",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/office/xlsxedit",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/office/xlsxpreview",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/outline",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/pantheon",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/project",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/prompt",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/promptstore",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/rewrite",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/routesuggest",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/scene",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/schedule",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/screen",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/search",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/skill",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/skilldistill",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/skillstats",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/stats",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/style",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/taskinbox",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/tts",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/types",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/util",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/visual",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/voice",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/voice/native",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/voice/realtime",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/whisper",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/whisper/db",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/whisper/db/repos",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/worldview",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/assistant",
+   "to": "internal/gaea/secure",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/assistant",
+   "to": "internal/whisper",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/auth",
+   "to": "internal/config",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/auth",
+   "to": "internal/gaea/secure",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/auth",
+   "to": "internal/netclient",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/authorprefs",
+   "to": "internal/gaea/fileutil",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/bookimport",
+   "to": "internal/gaea/strutil",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/bookimport",
+   "to": "internal/util",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/booksource",
+   "to": "internal/bookimport",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/booksource",
+   "to": "internal/netclient",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/channels/weixin",
+   "to": "internal/gaea/strutil",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/channels/weixin",
+   "to": "internal/netclient",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/chapter",
+   "to": "internal/ai",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/chapter",
+   "to": "internal/config",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/chapter",
+   "to": "internal/project",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/chapter",
+   "to": "internal/prompt",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/chapter",
+   "to": "internal/types",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/chapter",
+   "to": "internal/util",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/character",
+   "to": "internal/ai",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/character",
+   "to": "internal/characterstate",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/character",
+   "to": "internal/config",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/character",
+   "to": "internal/maturecraft",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/character",
+   "to": "internal/project",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/character",
+   "to": "internal/prompt",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/character",
+   "to": "internal/types",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/character",
+   "to": "internal/util",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/characterlib",
+   "to": "internal/assistant",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/characterlib",
+   "to": "internal/gaea/fileutil",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/characterlib",
+   "to": "internal/types",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/characterlib",
+   "to": "internal/whisper",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/characterstate",
+   "to": "internal/gaea/strutil",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/characterstate",
+   "to": "internal/types",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/config",
+   "to": "internal/gaea/config",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/config",
+   "to": "internal/gaea/fileutil",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/context",
+   "to": "internal/project",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/context",
+   "to": "internal/types",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/context",
+   "to": "internal/util",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/core",
+   "to": "internal/gaea/fileutil",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/core",
+   "to": "internal/gaea/proc",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/core",
+   "to": "internal/netclient",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/docmd",
+   "to": "internal/gaea/proc",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/export",
+   "to": "internal/gaea/fileutil",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/export",
+   "to": "internal/project",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/export",
+   "to": "internal/types",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/gaea/agent",
+   "to": "internal/gaea/agent/budget",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/agent",
+   "to": "internal/gaea/agent/cache",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/agent",
+   "to": "internal/gaea/agent/render",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/agent",
+   "to": "internal/gaea/agent/session",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/agent",
+   "to": "internal/gaea/agent/textutils",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/agent",
+   "to": "internal/gaea/agent/toolguard",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/agent",
+   "to": "internal/gaea/archive",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/agent",
+   "to": "internal/gaea/context",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/agent",
+   "to": "internal/gaea/event",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/agent",
+   "to": "internal/gaea/evidence",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/agent",
+   "to": "internal/gaea/genui",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/agent",
+   "to": "internal/gaea/jobs",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/agent",
+   "to": "internal/gaea/memory",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/agent",
+   "to": "internal/gaea/nilutil",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/agent",
+   "to": "internal/gaea/provider",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/agent",
+   "to": "internal/gaea/spaces",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/agent",
+   "to": "internal/gaea/spill",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/agent",
+   "to": "internal/gaea/strutil",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/agent",
+   "to": "internal/gaea/tool",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/agent",
+   "to": "internal/gaea/wspath",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/agent/budget",
+   "to": "internal/gaea/provider",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/agent/cache",
+   "to": "internal/gaea/provider",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/agent/render",
+   "to": "internal/gaea/agent/textutils",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/agent/render",
+   "to": "internal/gaea/event",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/agent/render",
+   "to": "internal/gaea/provider",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/agent/session",
+   "to": "internal/gaea/event",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/agent/session",
+   "to": "internal/gaea/fileutil",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/agent/session",
+   "to": "internal/gaea/provider",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/agent/session",
+   "to": "internal/gaea/spaces",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/agent/testutil",
+   "to": "internal/gaea/provider",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/attachment",
+   "to": "internal/gaea/wspath",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/backup",
+   "to": "internal/gaea/fileutil",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/billing",
+   "to": "internal/netclient",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/boot",
+   "to": "internal/gaea/agent",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/boot",
+   "to": "internal/gaea/agent/session",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/boot",
+   "to": "internal/gaea/archive",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/boot",
+   "to": "internal/gaea/cache",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/boot",
+   "to": "internal/gaea/command",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/boot",
+   "to": "internal/gaea/config",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/boot",
+   "to": "internal/gaea/context",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/boot",
+   "to": "internal/gaea/control",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/boot",
+   "to": "internal/gaea/db",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/boot",
+   "to": "internal/gaea/event",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/boot",
+   "to": "internal/gaea/genui",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/boot",
+   "to": "internal/gaea/hook",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/boot",
+   "to": "internal/gaea/jobs",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/boot",
+   "to": "internal/gaea/largefile",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/boot",
+   "to": "internal/gaea/memory",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/boot",
+   "to": "internal/gaea/outputstyle",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/boot",
+   "to": "internal/gaea/permission",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/boot",
+   "to": "internal/gaea/pins",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/boot",
+   "to": "internal/gaea/plugin",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/boot",
+   "to": "internal/gaea/provider",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/boot",
+   "to": "internal/gaea/sandbox",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/boot",
+   "to": "internal/gaea/sessionquery",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/boot",
+   "to": "internal/gaea/skill",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/boot",
+   "to": "internal/gaea/tool",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/boot",
+   "to": "internal/gaea/tool/builtin",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/boot",
+   "to": "internal/gaea/vision",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/boot",
+   "to": "internal/netclient",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/browser",
+   "to": "internal/gaea/proc",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/cache",
+   "to": "internal/gaea/provider",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/cache",
+   "to": "internal/gaea/strutil",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/cache",
+   "to": "internal/gaea/tool",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/cad",
+   "to": "internal/docmd",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/cad",
+   "to": "internal/gaea/fileutil",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/command",
+   "to": "internal/gaea/frontmatter",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/command",
+   "to": "internal/gaea/tool",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/config",
+   "to": "internal/gaea/fileutil",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/config",
+   "to": "internal/gaea/permission",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/config",
+   "to": "internal/gaea/provider",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/config",
+   "to": "internal/gaea/spaces",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/config",
+   "to": "internal/netclient",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/context",
+   "to": "internal/gaea/cache",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/context",
+   "to": "internal/gaea/provider",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/contextview",
+   "to": "internal/gaea/agent/session",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/contextview",
+   "to": "internal/util",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/control",
+   "to": "internal/docmd",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/control",
+   "to": "internal/gaea/agent",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/control",
+   "to": "internal/gaea/agent/session",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/control",
+   "to": "internal/gaea/billing",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/control",
+   "to": "internal/gaea/command",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/control",
+   "to": "internal/gaea/config",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/control",
+   "to": "internal/gaea/context",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/control",
+   "to": "internal/gaea/event",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/control",
+   "to": "internal/gaea/hook",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/control",
+   "to": "internal/gaea/i18n",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/control",
+   "to": "internal/gaea/jobs",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/control",
+   "to": "internal/gaea/memory",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/control",
+   "to": "internal/gaea/nilutil",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/control",
+   "to": "internal/gaea/permission",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/control",
+   "to": "internal/gaea/plugin",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/control",
+   "to": "internal/gaea/provider",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/control",
+   "to": "internal/gaea/skill",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/control",
+   "to": "internal/gaea/spaces",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/control",
+   "to": "internal/gaea/strutil",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/control",
+   "to": "internal/gaea/tool",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/control",
+   "to": "internal/gaea/tool/builtin",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/control",
+   "to": "internal/gaea/vision",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/control",
+   "to": "internal/schedule",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/cost",
+   "to": "internal/gaea/bm25",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/cost",
+   "to": "internal/gaea/strutil",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/costimport",
+   "to": "internal/gaea/cost",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/costimport",
+   "to": "internal/gaea/fileutil/encoding",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/costimport",
+   "to": "internal/gaea/strutil",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/costinquiry",
+   "to": "internal/gaea/cost",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/costproject",
+   "to": "internal/gaea/cost",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/costref",
+   "to": "internal/gaea/cost",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/costref",
+   "to": "internal/gaea/costinquiry",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/costref",
+   "to": "internal/gaea/costproject",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/dag",
+   "to": "internal/gaea/fileutil",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/event",
+   "to": "internal/gaea/nilutil",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/event",
+   "to": "internal/gaea/provider",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/factbase",
+   "to": "internal/gaea/fileutil",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/fileindex",
+   "to": "internal/docmd",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/fileindex",
+   "to": "internal/gaea/semantic",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/fileindex",
+   "to": "internal/gaea/wspath",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/filewatch",
+   "to": "internal/gaea/wspath",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/hook",
+   "to": "internal/gaea/proc",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/hook",
+   "to": "internal/gaea/sandbox",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/hook",
+   "to": "internal/gaea/strutil",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/jobs",
+   "to": "internal/gaea/event",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/jobs",
+   "to": "internal/gaea/nilutil",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/knowledge",
+   "to": "internal/gaea/config",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/knowledge",
+   "to": "internal/gaea/db",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/knowledge",
+   "to": "internal/gaea/search",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/knowledge",
+   "to": "internal/gaea/strutil",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/knowledgeimport",
+   "to": "internal/docmd",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/knowledgeimport",
+   "to": "internal/gaea/knowledge",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/knowledgeimport",
+   "to": "internal/gaea/strutil",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/knowledgeimport",
+   "to": "internal/gaea/textsim",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/knowledgeimport",
+   "to": "internal/office/cjk",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/largefile",
+   "to": "internal/docmd",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/largefile",
+   "to": "internal/gaea/provider",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/largefile",
+   "to": "internal/gaea/tool",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/memory",
+   "to": "internal/gaea/bm25",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/memory",
+   "to": "internal/gaea/frontmatter",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/memory",
+   "to": "internal/gaea/spaces",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/memory",
+   "to": "internal/gaea/strutil",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/memory",
+   "to": "internal/gaea/tool",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/outputstyle",
+   "to": "internal/gaea/frontmatter",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/permission",
+   "to": "internal/gaea/event",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/pins",
+   "to": "internal/gaea/fileutil",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/pins",
+   "to": "internal/gaea/strutil",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/plugin",
+   "to": "internal/gaea/provider",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/plugin",
+   "to": "internal/gaea/tool",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/plugin",
+   "to": "internal/netclient",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/pricefeed",
+   "to": "internal/gaea/cost",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/pricefeed",
+   "to": "internal/gaea/fileutil/encoding",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/provider",
+   "to": "internal/gaea/nilutil",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/provider/bridge",
+   "to": "internal/ai",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/provider/bridge",
+   "to": "internal/gaea/provider",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/retrieval",
+   "to": "internal/gaea/cost",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/sandbox",
+   "to": "internal/gaea/proc",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/semantic",
+   "to": "internal/gaea/retrieval",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/sessionquery",
+   "to": "internal/gaea/agent/session",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/sessionquery",
+   "to": "internal/gaea/tool",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/skill",
+   "to": "internal/gaea/config",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/skill",
+   "to": "internal/gaea/frontmatter",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/skill",
+   "to": "internal/gaea/genui",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/skill",
+   "to": "internal/gaea/strutil",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/skill",
+   "to": "internal/gaea/tool",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/tool",
+   "to": "internal/gaea/provider",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/tool",
+   "to": "internal/gaea/wspath",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/tool/builtin",
+   "to": "internal/docmd",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/tool/builtin",
+   "to": "internal/gaea/browser",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/tool/builtin",
+   "to": "internal/gaea/cad",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/tool/builtin",
+   "to": "internal/gaea/config",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/tool/builtin",
+   "to": "internal/gaea/cost",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/tool/builtin",
+   "to": "internal/gaea/costproject",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/tool/builtin",
+   "to": "internal/gaea/costref",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/tool/builtin",
+   "to": "internal/gaea/db",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/tool/builtin",
+   "to": "internal/gaea/evidence",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/tool/builtin",
+   "to": "internal/gaea/fileutil",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/tool/builtin",
+   "to": "internal/gaea/fileutil/encoding",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/tool/builtin",
+   "to": "internal/gaea/genui",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/tool/builtin",
+   "to": "internal/gaea/jobs",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/tool/builtin",
+   "to": "internal/gaea/knowledge",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/tool/builtin",
+   "to": "internal/gaea/memory",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/tool/builtin",
+   "to": "internal/gaea/retrieval",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/tool/builtin",
+   "to": "internal/gaea/sandbox",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/tool/builtin",
+   "to": "internal/gaea/semantic",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/tool/builtin",
+   "to": "internal/gaea/spaces",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/tool/builtin",
+   "to": "internal/gaea/spill",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/tool/builtin",
+   "to": "internal/gaea/strutil",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/tool/builtin",
+   "to": "internal/gaea/tool",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/tool/builtin",
+   "to": "internal/gaea/vision",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/tool/builtin",
+   "to": "internal/gaea/wspath",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/tool/builtin",
+   "to": "internal/netclient",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/tool/builtin",
+   "to": "internal/office/anchor",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/tool/builtin",
+   "to": "internal/schedule",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/tool/builtin",
+   "to": "internal/screen",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/trajectory",
+   "to": "internal/gaea/agent/session",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/trajectory",
+   "to": "internal/gaea/evidence",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/trajectory",
+   "to": "internal/util",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/workcost",
+   "to": "internal/gaea/strutil",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/wssearch",
+   "to": "internal/docmd",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/wssearch",
+   "to": "internal/gaea/search",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/wssearch",
+   "to": "internal/gaea/strutil",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/wssearch",
+   "to": "internal/gaea/wspath",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/graph",
+   "to": "internal/project",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/graph",
+   "to": "internal/types",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/herdsman",
+   "to": "internal/netclient",
+   "layer": "engine"
+  },
+  {
+   "from": "internal/memory",
+   "to": "internal/gaea/bm25",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/memory",
+   "to": "internal/project",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/memory",
+   "to": "internal/util",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/modelengine",
+   "to": "internal/gaea/fileutil",
+   "layer": "engine"
+  },
+  {
+   "from": "internal/modelengine",
+   "to": "internal/gaea/strutil",
+   "layer": "engine"
+  },
+  {
+   "from": "internal/modelengine",
+   "to": "internal/netclient",
+   "layer": "engine"
+  },
+  {
+   "from": "internal/narrative",
+   "to": "internal/gaea/fileutil",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/narrative",
+   "to": "internal/util",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/netclient",
+   "to": "internal/netclient/sysproxy",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/novelcontext",
+   "to": "internal/gaea/strutil",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/novelcontext",
+   "to": "internal/graph",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/novelcontext",
+   "to": "internal/project",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/novelcontext",
+   "to": "internal/style",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/novelcontext",
+   "to": "internal/types",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/novelcontext",
+   "to": "internal/util",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/novelgate",
+   "to": "internal/noveltext",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/novelgate",
+   "to": "internal/types",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/novelreview",
+   "to": "internal/noveltext",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/novelstyle",
+   "to": "internal/util",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/ocr",
+   "to": "internal/netclient",
+   "layer": "engine"
+  },
+  {
+   "from": "internal/office",
+   "to": "internal/core",
+   "layer": "office"
+  },
+  {
+   "from": "internal/office/docxedit",
+   "to": "internal/office/ooxml",
+   "layer": "office"
+  },
+  {
+   "from": "internal/office/ooxml",
+   "to": "internal/gaea/fileutil",
+   "layer": "office"
+  },
+  {
+   "from": "internal/office/pptxedit",
+   "to": "internal/office/ooxml",
+   "layer": "office"
+  },
+  {
+   "from": "internal/office/qa",
+   "to": "internal/office/ooxml",
+   "layer": "office"
+  },
+  {
+   "from": "internal/office/qa",
+   "to": "internal/office/standard",
+   "layer": "office"
+  },
+  {
+   "from": "internal/office/xlsxedit",
+   "to": "internal/gaea/proc",
+   "layer": "office"
+  },
+  {
+   "from": "internal/outline",
+   "to": "internal/ai",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/outline",
+   "to": "internal/config",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/outline",
+   "to": "internal/maturecraft",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/outline",
+   "to": "internal/project",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/outline",
+   "to": "internal/prompt",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/outline",
+   "to": "internal/types",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/outline",
+   "to": "internal/util",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/pantheon",
+   "to": "internal/gaea/fileutil",
+   "layer": "pantheon"
+  },
+  {
+   "from": "internal/pantheon",
+   "to": "internal/gaea/proc",
+   "layer": "pantheon"
+  },
+  {
+   "from": "internal/project",
+   "to": "internal/gaea/fileutil",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/project",
+   "to": "internal/scene",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/project",
+   "to": "internal/snapshot",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/project",
+   "to": "internal/types",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/promptstore",
+   "to": "internal/prompt",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/rewrite",
+   "to": "internal/gaea/textsim",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/rewrite",
+   "to": "internal/types",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/scene",
+   "to": "internal/gaea/fileutil",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/scene",
+   "to": "internal/types",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/schedule",
+   "to": "internal/gaea/fileutil",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/search",
+   "to": "internal/project",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/search",
+   "to": "internal/types",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/snapshot",
+   "to": "internal/types",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/stats",
+   "to": "internal/project",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/stats",
+   "to": "internal/types",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/style",
+   "to": "internal/ai",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/style",
+   "to": "internal/project",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/style",
+   "to": "internal/util",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/tts",
+   "to": "internal/netclient",
+   "layer": "engine"
+  },
+  {
+   "from": "internal/util",
+   "to": "internal/gaea/strutil",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/visual",
+   "to": "internal/project",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/visual",
+   "to": "internal/types",
+   "layer": "domain"
+  },
+  {
+   "from": "internal/voice",
+   "to": "internal/tts",
+   "layer": "engine"
+  },
+  {
+   "from": "internal/whisper",
+   "to": "internal/gaea/fileutil",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/whisper",
+   "to": "internal/gaea/genui",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/whisper",
+   "to": "internal/gaea/proc",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/whisper",
+   "to": "internal/gaea/strutil",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/whisper",
+   "to": "internal/util",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/whisper/db/repos",
+   "to": "internal/whisper",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/whisper/db/repos",
+   "to": "internal/whisper/db",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/worldview",
+   "to": "internal/ai",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/worldview",
+   "to": "internal/config",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/worldview",
+   "to": "internal/project",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/worldview",
+   "to": "internal/prompt",
+   "layer": "novel"
+  },
+  {
+   "from": "internal/worldview",
+   "to": "internal/types",
+   "layer": "novel"
+  },
+  {
+   "from": "scripts/attention_report",
+   "to": "internal/gaea/agent/session",
+   "layer": "devtools"
+  },
+  {
+   "from": "scripts/migrate_workcost",
+   "to": "internal/gaea/config",
+   "layer": "devtools"
+  },
+  {
+   "from": "scripts/migrate_workcost",
+   "to": "internal/gaea/db",
+   "layer": "devtools"
+  },
+  {
+   "from": "scripts/migrate_workcost",
+   "to": "internal/gaea/workcost",
+   "layer": "devtools"
+  },
+  {
+   "from": "scripts/pantheon_eval",
+   "to": "internal/config",
+   "layer": "devtools"
+  },
+  {
+   "from": "scripts/pantheon_eval",
+   "to": "internal/pantheon",
+   "layer": "devtools"
+  },
+  {
+   "from": "scripts/voice_backfill",
+   "to": "internal/characterlib",
+   "layer": "devtools"
+  },
+  {
+   "from": "scripts/voice_backfill",
+   "to": "internal/config",
+   "layer": "devtools"
+  },
+  {
+   "from": "scripts/voice_backfill",
+   "to": "internal/tts",
+   "layer": "devtools"
+  },
+  {
+   "from": "scripts/voice_design",
+   "to": "internal/characterlib",
+   "layer": "devtools"
+  },
+  {
+   "from": "scripts/voice_design",
+   "to": "internal/config",
+   "layer": "devtools"
+  },
+  {
+   "from": "scripts/voice_design",
+   "to": "internal/tts",
+   "layer": "devtools"
+  },
+  {
+   "from": "scripts/voice_v2/diagserver",
+   "to": "internal/voice/realtime",
+   "layer": "devtools"
+  },
+  {
+   "from": "scripts/voice_v2/vadcheck",
+   "to": "internal/voice/native",
+   "layer": "devtools"
+  },
+  {
+   "from": "scripts/voice_v2/ws_probe",
+   "to": "internal/voice/native",
+   "layer": "devtools"
+  },
+  {
+   "from": "scripts/voice_v2/ws_probe",
+   "to": "internal/voice/realtime",
+   "layer": "devtools"
+  }
+ ],
+ "meta": {
+  "edges": 467,
+  "generated": "2026-11-10",
+  "packages": 162,
+  "srcLoc": 260333,
+  "testLoc": 208323
+ },
+ "nodes": [
+  {
+   "id": "(main)",
+   "layer": "entry",
+   "srcLoc": 124,
+   "testLoc": 44
+  },
+  {
+   "id": "internal/ai",
+   "layer": "engine",
+   "srcLoc": 4753,
+   "testLoc": 5306
+  },
+  {
+   "id": "internal/analysis",
+   "layer": "domain",
+   "srcLoc": 1685,
+   "testLoc": 1232
+  },
+  {
+   "id": "internal/app",
+   "layer": "shell",
+   "srcLoc": 74686,
+   "testLoc": 67882
+  },
+  {
+   "id": "internal/app/board",
+   "layer": "shell",
+   "srcLoc": 421,
+   "testLoc": 171
+  },
+  {
+   "id": "internal/assistant",
+   "layer": "domain",
+   "srcLoc": 282,
+   "testLoc": 240
+  },
+  {
+   "id": "internal/auth",
+   "layer": "domain",
+   "srcLoc": 660,
+   "testLoc": 842
+  },
+  {
+   "id": "internal/authorprefs",
+   "layer": "domain",
+   "srcLoc": 516,
+   "testLoc": 164
+  },
+  {
+   "id": "internal/bookimport",
+   "layer": "novel",
+   "srcLoc": 1013,
+   "testLoc": 688
+  },
+  {
+   "id": "internal/booksource",
+   "layer": "novel",
+   "srcLoc": 2432,
+   "testLoc": 1716
+  },
+  {
+   "id": "internal/channels/weixin",
+   "layer": "domain",
+   "srcLoc": 2296,
+   "testLoc": 2810
+  },
+  {
+   "id": "internal/chapter",
+   "layer": "novel",
+   "srcLoc": 222,
+   "testLoc": 0
+  },
+  {
+   "id": "internal/character",
+   "layer": "novel",
+   "srcLoc": 836,
+   "testLoc": 309
+  },
+  {
+   "id": "internal/characterlib",
+   "layer": "novel",
+   "srcLoc": 1610,
+   "testLoc": 1093
+  },
+  {
+   "id": "internal/characterstate",
+   "layer": "novel",
+   "srcLoc": 387,
+   "testLoc": 222
+  },
+  {
+   "id": "internal/chat",
+   "layer": "domain",
+   "srcLoc": 504,
+   "testLoc": 301
+  },
+  {
+   "id": "internal/config",
+   "layer": "domain",
+   "srcLoc": 1954,
+   "testLoc": 1158
+  },
+  {
+   "id": "internal/context",
+   "layer": "domain",
+   "srcLoc": 232,
+   "testLoc": 90
+  },
+  {
+   "id": "internal/core",
+   "layer": "domain",
+   "srcLoc": 482,
+   "testLoc": 137
+  },
+  {
+   "id": "internal/docmd",
+   "layer": "domain",
+   "srcLoc": 3617,
+   "testLoc": 3171
+  },
+  {
+   "id": "internal/export",
+   "layer": "domain",
+   "srcLoc": 762,
+   "testLoc": 694
+  },
+  {
+   "id": "internal/gaea/agent",
+   "layer": "kernel-rt",
+   "srcLoc": 13223,
+   "testLoc": 12452
+  },
+  {
+   "id": "internal/gaea/agent/budget",
+   "layer": "kernel-rt",
+   "srcLoc": 138,
+   "testLoc": 80
+  },
+  {
+   "id": "internal/gaea/agent/cache",
+   "layer": "kernel-rt",
+   "srcLoc": 196,
+   "testLoc": 194
+  },
+  {
+   "id": "internal/gaea/agent/render",
+   "layer": "kernel-rt",
+   "srcLoc": 400,
+   "testLoc": 121
+  },
+  {
+   "id": "internal/gaea/agent/session",
+   "layer": "kernel-rt",
+   "srcLoc": 2682,
+   "testLoc": 3290
+  },
+  {
+   "id": "internal/gaea/agent/testutil",
+   "layer": "kernel-rt",
+   "srcLoc": 199,
+   "testLoc": 56
+  },
+  {
+   "id": "internal/gaea/agent/textutils",
+   "layer": "kernel-rt",
+   "srcLoc": 379,
+   "testLoc": 113
+  },
+  {
+   "id": "internal/gaea/agent/toolguard",
+   "layer": "kernel-rt",
+   "srcLoc": 260,
+   "testLoc": 0
+  },
+  {
+   "id": "internal/gaea/archive",
+   "layer": "kernel-lib",
+   "srcLoc": 242,
+   "testLoc": 221
+  },
+  {
+   "id": "internal/gaea/attachment",
+   "layer": "kernel-lib",
+   "srcLoc": 366,
+   "testLoc": 140
+  },
+  {
+   "id": "internal/gaea/backup",
+   "layer": "kernel-lib",
+   "srcLoc": 747,
+   "testLoc": 601
+  },
+  {
+   "id": "internal/gaea/billing",
+   "layer": "kernel-lib",
+   "srcLoc": 200,
+   "testLoc": 382
+  },
+  {
+   "id": "internal/gaea/bm25",
+   "layer": "kernel-lib",
+   "srcLoc": 291,
+   "testLoc": 380
+  },
+  {
+   "id": "internal/gaea/boot",
+   "layer": "kernel-rt",
+   "srcLoc": 1432,
+   "testLoc": 1620
+  },
+  {
+   "id": "internal/gaea/browser",
+   "layer": "kernel-lib",
+   "srcLoc": 2060,
+   "testLoc": 1437
+  },
+  {
+   "id": "internal/gaea/cache",
+   "layer": "kernel-lib",
+   "srcLoc": 1186,
+   "testLoc": 642
+  },
+  {
+   "id": "internal/gaea/cad",
+   "layer": "kernel-lib",
+   "srcLoc": 892,
+   "testLoc": 366
+  },
+  {
+   "id": "internal/gaea/command",
+   "layer": "kernel-rt",
+   "srcLoc": 296,
+   "testLoc": 455
+  },
+  {
+   "id": "internal/gaea/config",
+   "layer": "kernel-lib",
+   "srcLoc": 2924,
+   "testLoc": 2622
+  },
+  {
+   "id": "internal/gaea/context",
+   "layer": "kernel-rt",
+   "srcLoc": 824,
+   "testLoc": 957
+  },
+  {
+   "id": "internal/gaea/contextview",
+   "layer": "kernel-rt",
+   "srcLoc": 1760,
+   "testLoc": 1169
+  },
+  {
+   "id": "internal/gaea/control",
+   "layer": "kernel-rt",
+   "srcLoc": 4656,
+   "testLoc": 4149
+  },
+  {
+   "id": "internal/gaea/cost",
+   "layer": "kernel-lib",
+   "srcLoc": 2203,
+   "testLoc": 2103
+  },
+  {
+   "id": "internal/gaea/costimport",
+   "layer": "kernel-lib",
+   "srcLoc": 1233,
+   "testLoc": 536
+  },
+  {
+   "id": "internal/gaea/costinquiry",
+   "layer": "kernel-lib",
+   "srcLoc": 721,
+   "testLoc": 499
+  },
+  {
+   "id": "internal/gaea/costproject",
+   "layer": "kernel-lib",
+   "srcLoc": 354,
+   "testLoc": 249
+  },
+  {
+   "id": "internal/gaea/costref",
+   "layer": "kernel-lib",
+   "srcLoc": 1341,
+   "testLoc": 558
+  },
+  {
+   "id": "internal/gaea/coststage",
+   "layer": "kernel-lib",
+   "srcLoc": 333,
+   "testLoc": 511
+  },
+  {
+   "id": "internal/gaea/dag",
+   "layer": "kernel-lib",
+   "srcLoc": 807,
+   "testLoc": 697
+  },
+  {
+   "id": "internal/gaea/db",
+   "layer": "kernel-lib",
+   "srcLoc": 989,
+   "testLoc": 763
+  },
+  {
+   "id": "internal/gaea/event",
+   "layer": "kernel-rt",
+   "srcLoc": 445,
+   "testLoc": 253
+  },
+  {
+   "id": "internal/gaea/evidence",
+   "layer": "kernel-rt",
+   "srcLoc": 1099,
+   "testLoc": 1036
+  },
+  {
+   "id": "internal/gaea/factbase",
+   "layer": "kernel-lib",
+   "srcLoc": 195,
+   "testLoc": 100
+  },
+  {
+   "id": "internal/gaea/fileindex",
+   "layer": "kernel-lib",
+   "srcLoc": 188,
+   "testLoc": 64
+  },
+  {
+   "id": "internal/gaea/fileutil",
+   "layer": "kernel-lib",
+   "srcLoc": 136,
+   "testLoc": 278
+  },
+  {
+   "id": "internal/gaea/fileutil/encoding",
+   "layer": "kernel-lib",
+   "srcLoc": 245,
+   "testLoc": 0
+  },
+  {
+   "id": "internal/gaea/filewatch",
+   "layer": "kernel-lib",
+   "srcLoc": 279,
+   "testLoc": 215
+  },
+  {
+   "id": "internal/gaea/frontmatter",
+   "layer": "kernel-lib",
+   "srcLoc": 65,
+   "testLoc": 157
+  },
+  {
+   "id": "internal/gaea/genui",
+   "layer": "kernel-lib",
+   "srcLoc": 547,
+   "testLoc": 492
+  },
+  {
+   "id": "internal/gaea/hook",
+   "layer": "kernel-rt",
+   "srcLoc": 935,
+   "testLoc": 825
+  },
+  {
+   "id": "internal/gaea/i18n",
+   "layer": "kernel-lib",
+   "srcLoc": 581,
+   "testLoc": 114
+  },
+  {
+   "id": "internal/gaea/jobs",
+   "layer": "kernel-lib",
+   "srcLoc": 539,
+   "testLoc": 673
+  },
+  {
+   "id": "internal/gaea/knowledge",
+   "layer": "kernel-lib",
+   "srcLoc": 1196,
+   "testLoc": 1005
+  },
+  {
+   "id": "internal/gaea/knowledgeimport",
+   "layer": "kernel-lib",
+   "srcLoc": 532,
+   "testLoc": 214
+  },
+  {
+   "id": "internal/gaea/largefile",
+   "layer": "kernel-lib",
+   "srcLoc": 402,
+   "testLoc": 206
+  },
+  {
+   "id": "internal/gaea/memory",
+   "layer": "kernel-lib",
+   "srcLoc": 5355,
+   "testLoc": 5024
+  },
+  {
+   "id": "internal/gaea/nilutil",
+   "layer": "kernel-lib",
+   "srcLoc": 18,
+   "testLoc": 32
+  },
+  {
+   "id": "internal/gaea/outputstyle",
+   "layer": "kernel-lib",
+   "srcLoc": 180,
+   "testLoc": 94
+  },
+  {
+   "id": "internal/gaea/permission",
+   "layer": "kernel-rt",
+   "srcLoc": 556,
+   "testLoc": 835
+  },
+  {
+   "id": "internal/gaea/pins",
+   "layer": "kernel-lib",
+   "srcLoc": 213,
+   "testLoc": 117
+  },
+  {
+   "id": "internal/gaea/plugin",
+   "layer": "kernel-rt",
+   "srcLoc": 1562,
+   "testLoc": 748
+  },
+  {
+   "id": "internal/gaea/pricefeed",
+   "layer": "kernel-lib",
+   "srcLoc": 649,
+   "testLoc": 333
+  },
+  {
+   "id": "internal/gaea/proc",
+   "layer": "kernel-lib",
+   "srcLoc": 171,
+   "testLoc": 166
+  },
+  {
+   "id": "internal/gaea/provider",
+   "layer": "kernel-lib",
+   "srcLoc": 867,
+   "testLoc": 1248
+  },
+  {
+   "id": "internal/gaea/provider/bridge",
+   "layer": "kernel-lib",
+   "srcLoc": 254,
+   "testLoc": 637
+  },
+  {
+   "id": "internal/gaea/retrieval",
+   "layer": "kernel-lib",
+   "srcLoc": 470,
+   "testLoc": 280
+  },
+  {
+   "id": "internal/gaea/sandbox",
+   "layer": "kernel-rt",
+   "srcLoc": 279,
+   "testLoc": 211
+  },
+  {
+   "id": "internal/gaea/search",
+   "layer": "kernel-lib",
+   "srcLoc": 177,
+   "testLoc": 107
+  },
+  {
+   "id": "internal/gaea/secure",
+   "layer": "kernel-lib",
+   "srcLoc": 114,
+   "testLoc": 53
+  },
+  {
+   "id": "internal/gaea/semantic",
+   "layer": "kernel-lib",
+   "srcLoc": 659,
+   "testLoc": 364
+  },
+  {
+   "id": "internal/gaea/sessionquery",
+   "layer": "kernel-lib",
+   "srcLoc": 354,
+   "testLoc": 215
+  },
+  {
+   "id": "internal/gaea/skill",
+   "layer": "kernel-lib",
+   "srcLoc": 1707,
+   "testLoc": 1587
+  },
+  {
+   "id": "internal/gaea/spaces",
+   "layer": "kernel-rt",
+   "srcLoc": 99,
+   "testLoc": 109
+  },
+  {
+   "id": "internal/gaea/spill",
+   "layer": "kernel-lib",
+   "srcLoc": 128,
+   "testLoc": 99
+  },
+  {
+   "id": "internal/gaea/strutil",
+   "layer": "kernel-lib",
+   "srcLoc": 187,
+   "testLoc": 704
+  },
+  {
+   "id": "internal/gaea/tasks",
+   "layer": "kernel-lib",
+   "srcLoc": 1258,
+   "testLoc": 1938
+  },
+  {
+   "id": "internal/gaea/textsim",
+   "layer": "kernel-lib",
+   "srcLoc": 80,
+   "testLoc": 0
+  },
+  {
+   "id": "internal/gaea/tool",
+   "layer": "kernel-rt",
+   "srcLoc": 1627,
+   "testLoc": 1493
+  },
+  {
+   "id": "internal/gaea/tool/builtin",
+   "layer": "kernel-rt",
+   "srcLoc": 11955,
+   "testLoc": 8146
+  },
+  {
+   "id": "internal/gaea/trajectory",
+   "layer": "kernel-lib",
+   "srcLoc": 1231,
+   "testLoc": 1049
+  },
+  {
+   "id": "internal/gaea/vision",
+   "layer": "kernel-lib",
+   "srcLoc": 280,
+   "testLoc": 352
+  },
+  {
+   "id": "internal/gaea/workcost",
+   "layer": "kernel-lib",
+   "srcLoc": 5714,
+   "testLoc": 3426
+  },
+  {
+   "id": "internal/gaea/wspath",
+   "layer": "kernel-lib",
+   "srcLoc": 341,
+   "testLoc": 386
+  },
+  {
+   "id": "internal/gaea/wssearch",
+   "layer": "kernel-lib",
+   "srcLoc": 411,
+   "testLoc": 236
+  },
+  {
+   "id": "internal/graph",
+   "layer": "domain",
+   "srcLoc": 800,
+   "testLoc": 456
+  },
+  {
+   "id": "internal/herdsman",
+   "layer": "engine",
+   "srcLoc": 750,
+   "testLoc": 915
+  },
+  {
+   "id": "internal/httpbridge",
+   "layer": "domain",
+   "srcLoc": 444,
+   "testLoc": 290
+  },
+  {
+   "id": "internal/intent",
+   "layer": "domain",
+   "srcLoc": 374,
+   "testLoc": 308
+  },
+  {
+   "id": "internal/maturecraft",
+   "layer": "novel",
+   "srcLoc": 147,
+   "testLoc": 100
+  },
+  {
+   "id": "internal/memory",
+   "layer": "domain",
+   "srcLoc": 300,
+   "testLoc": 294
+  },
+  {
+   "id": "internal/modelengine",
+   "layer": "engine",
+   "srcLoc": 3774,
+   "testLoc": 4650
+  },
+  {
+   "id": "internal/narrative",
+   "layer": "novel",
+   "srcLoc": 359,
+   "testLoc": 290
+  },
+  {
+   "id": "internal/netclient",
+   "layer": "domain",
+   "srcLoc": 402,
+   "testLoc": 687
+  },
+  {
+   "id": "internal/netclient/sysproxy",
+   "layer": "domain",
+   "srcLoc": 208,
+   "testLoc": 50
+  },
+  {
+   "id": "internal/novelcontext",
+   "layer": "novel",
+   "srcLoc": 1038,
+   "testLoc": 620
+  },
+  {
+   "id": "internal/novelgate",
+   "layer": "novel",
+   "srcLoc": 530,
+   "testLoc": 609
+  },
+  {
+   "id": "internal/novelreview",
+   "layer": "novel",
+   "srcLoc": 1238,
+   "testLoc": 423
+  },
+  {
+   "id": "internal/novelstyle",
+   "layer": "novel",
+   "srcLoc": 1943,
+   "testLoc": 993
+  },
+  {
+   "id": "internal/noveltext",
+   "layer": "novel",
+   "srcLoc": 108,
+   "testLoc": 114
+  },
+  {
+   "id": "internal/ocr",
+   "layer": "engine",
+   "srcLoc": 265,
+   "testLoc": 146
+  },
+  {
+   "id": "internal/office",
+   "layer": "office",
+   "srcLoc": 15,
+   "testLoc": 0
+  },
+  {
+   "id": "internal/office/anchor",
+   "layer": "office",
+   "srcLoc": 282,
+   "testLoc": 119
+  },
+  {
+   "id": "internal/office/cjk",
+   "layer": "office",
+   "srcLoc": 150,
+   "testLoc": 39
+  },
+  {
+   "id": "internal/office/crosslink",
+   "layer": "office",
+   "srcLoc": 285,
+   "testLoc": 103
+  },
+  {
+   "id": "internal/office/docxedit",
+   "layer": "office",
+   "srcLoc": 625,
+   "testLoc": 417
+  },
+  {
+   "id": "internal/office/ooxml",
+   "layer": "office",
+   "srcLoc": 348,
+   "testLoc": 184
+  },
+  {
+   "id": "internal/office/pptxedit",
+   "layer": "office",
+   "srcLoc": 462,
+   "testLoc": 189
+  },
+  {
+   "id": "internal/office/qa",
+   "layer": "office",
+   "srcLoc": 350,
+   "testLoc": 176
+  },
+  {
+   "id": "internal/office/standard",
+   "layer": "office",
+   "srcLoc": 329,
+   "testLoc": 104
+  },
+  {
+   "id": "internal/office/typography",
+   "layer": "office",
+   "srcLoc": 146,
+   "testLoc": 100
+  },
+  {
+   "id": "internal/office/xlsxedit",
+   "layer": "office",
+   "srcLoc": 821,
+   "testLoc": 503
+  },
+  {
+   "id": "internal/office/xlsxpreview",
+   "layer": "office",
+   "srcLoc": 594,
+   "testLoc": 303
+  },
+  {
+   "id": "internal/outline",
+   "layer": "novel",
+   "srcLoc": 677,
+   "testLoc": 600
+  },
+  {
+   "id": "internal/pantheon",
+   "layer": "pantheon",
+   "srcLoc": 11510,
+   "testLoc": 8831
+  },
+  {
+   "id": "internal/project",
+   "layer": "domain",
+   "srcLoc": 1703,
+   "testLoc": 1013
+  },
+  {
+   "id": "internal/prompt",
+   "layer": "domain",
+   "srcLoc": 342,
+   "testLoc": 493
+  },
+  {
+   "id": "internal/promptstore",
+   "layer": "domain",
+   "srcLoc": 616,
+   "testLoc": 789
+  },
+  {
+   "id": "internal/rewrite",
+   "layer": "novel",
+   "srcLoc": 412,
+   "testLoc": 380
+  },
+  {
+   "id": "internal/routesuggest",
+   "layer": "domain",
+   "srcLoc": 184,
+   "testLoc": 171
+  },
+  {
+   "id": "internal/scene",
+   "layer": "novel",
+   "srcLoc": 279,
+   "testLoc": 141
+  },
+  {
+   "id": "internal/schedule",
+   "layer": "domain",
+   "srcLoc": 4461,
+   "testLoc": 4977
+  },
+  {
+   "id": "internal/screen",
+   "layer": "domain",
+   "srcLoc": 242,
+   "testLoc": 122
+  },
+  {
+   "id": "internal/search",
+   "layer": "domain",
+   "srcLoc": 152,
+   "testLoc": 0
+  },
+  {
+   "id": "internal/skill",
+   "layer": "domain",
+   "srcLoc": 191,
+   "testLoc": 170
+  },
+  {
+   "id": "internal/skilldistill",
+   "layer": "domain",
+   "srcLoc": 275,
+   "testLoc": 323
+  },
+  {
+   "id": "internal/skillstats",
+   "layer": "domain",
+   "srcLoc": 83,
+   "testLoc": 103
+  },
+  {
+   "id": "internal/snapshot",
+   "layer": "domain",
+   "srcLoc": 295,
+   "testLoc": 127
+  },
+  {
+   "id": "internal/stats",
+   "layer": "domain",
+   "srcLoc": 364,
+   "testLoc": 172
+  },
+  {
+   "id": "internal/style",
+   "layer": "novel",
+   "srcLoc": 218,
+   "testLoc": 159
+  },
+  {
+   "id": "internal/taskinbox",
+   "layer": "domain",
+   "srcLoc": 181,
+   "testLoc": 324
+  },
+  {
+   "id": "internal/tts",
+   "layer": "engine",
+   "srcLoc": 1460,
+   "testLoc": 1525
+  },
+  {
+   "id": "internal/types",
+   "layer": "domain",
+   "srcLoc": 2109,
+   "testLoc": 1228
+  },
+  {
+   "id": "internal/util",
+   "layer": "domain",
+   "srcLoc": 334,
+   "testLoc": 522
+  },
+  {
+   "id": "internal/visual",
+   "layer": "domain",
+   "srcLoc": 389,
+   "testLoc": 32
+  },
+  {
+   "id": "internal/voice",
+   "layer": "engine",
+   "srcLoc": 308,
+   "testLoc": 289
+  },
+  {
+   "id": "internal/voice/native",
+   "layer": "engine",
+   "srcLoc": 595,
+   "testLoc": 368
+  },
+  {
+   "id": "internal/voice/realtime",
+   "layer": "engine",
+   "srcLoc": 3682,
+   "testLoc": 2318
+  },
+  {
+   "id": "internal/whisper",
+   "layer": "novel",
+   "srcLoc": 18039,
+   "testLoc": 7628
+  },
+  {
+   "id": "internal/whisper/db",
+   "layer": "novel",
+   "srcLoc": 683,
+   "testLoc": 167
+  },
+  {
+   "id": "internal/whisper/db/repos",
+   "layer": "novel",
+   "srcLoc": 1958,
+   "testLoc": 557
+  },
+  {
+   "id": "internal/worldview",
+   "layer": "novel",
+   "srcLoc": 252,
+   "testLoc": 41
+  },
+  {
+   "id": "scripts/attention_report",
+   "layer": "devtools",
+   "srcLoc": 518,
+   "testLoc": 187
+  },
+  {
+   "id": "scripts/gen_bindings",
+   "layer": "devtools",
+   "srcLoc": 1191,
+   "testLoc": 130
+  },
+  {
+   "id": "scripts/gen_bindings/shadow-diag",
+   "layer": "devtools",
+   "srcLoc": 90,
+   "testLoc": 0
+  },
+  {
+   "id": "scripts/migrate_workcost",
+   "layer": "devtools",
+   "srcLoc": 125,
+   "testLoc": 0
+  },
+  {
+   "id": "scripts/pantheon_eval",
+   "layer": "devtools",
+   "srcLoc": 88,
+   "testLoc": 0
+  },
+  {
+   "id": "scripts/voice_backfill",
+   "layer": "devtools",
+   "srcLoc": 210,
+   "testLoc": 0
+  },
+  {
+   "id": "scripts/voice_design",
+   "layer": "devtools",
+   "srcLoc": 412,
+   "testLoc": 0
+  },
+  {
+   "id": "scripts/voice_v2/diagserver",
+   "layer": "devtools",
+   "srcLoc": 24,
+   "testLoc": 0
+  },
+  {
+   "id": "scripts/voice_v2/vadcheck",
+   "layer": "devtools",
+   "srcLoc": 104,
+   "testLoc": 0
+  },
+  {
+   "id": "scripts/voice_v2/ws_probe",
+   "layer": "devtools",
+   "srcLoc": 1402,
+   "testLoc": 0
+  }
+ ]
+}

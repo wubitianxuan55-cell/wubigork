@@ -4,6 +4,7 @@ import {
   AppstoreOutlined, MessageOutlined, ReadOutlined, PictureOutlined,
   SettingOutlined, ApiOutlined, InfoCircleOutlined, SearchOutlined,
   SafetyCertificateOutlined, DatabaseOutlined, QuestionCircleOutlined, CloseOutlined,
+  ClusterOutlined,
 } from '@ant-design/icons'
 import './settings-page.css'
 import { useT } from '../gaea/lib/i18n'
@@ -19,6 +20,7 @@ import ContextPrefsPanel from '../components/settings/ContextPrefsPanel'
 import ModelPanel from '../components/settings/ModelPanel'
 import SecurityPanel from '../components/settings/SecurityPanel'
 import DataPanel from '../components/settings/DataPanel'
+import CodeAtlasPanel from '../components/settings/CodeAtlasPanel'
 import AboutPanel from '../components/settings/AboutPanel'
 
 interface Category {
@@ -117,6 +119,16 @@ const CATEGORIES: Category[] = [
     descKey: 'settings.cat.dataDesc',
     keywords: ['数据', '备份', '恢复', '迁移', '导出', '导入', 'zip', '换机', '重装', '防丢', '存档', '快照'],
     panel: <DataPanel />,
+  },
+  {
+    key: 'codeatlas',
+    icon: <ClusterOutlined />,
+    label: '代码图谱',
+    labelKey: 'settings.cat.codeatlas',
+    desc: '分层 · 依赖',
+    descKey: 'settings.cat.codeatlasDesc',
+    keywords: ['代码图谱', '结构', '架构', '依赖', '包', '分层', '内核', '壳层', 'atlas', 'graph', 'code'],
+    panel: <CodeAtlasPanel />,
   },
   {
     key: 'about',
