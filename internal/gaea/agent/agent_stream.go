@@ -188,6 +188,14 @@ func (a *AgentRunner) stream(ctx context.Context, turn int) (string, string, str
 			return text.String(), reasoning.String(), signature, calls, usage, false, chunk.Err
 		}
 	}
+	// D7-B 取消执行闸·出口带（dsh-ops 超代对账审计落点，2026-11-10）：bridge
+	// 流中继在 ctx 取消时干净关闭 out 通道（无 ChunkError），本循环把它当正常
+	// 收尾返回 err=nil → runDirect 视为成功采样轮派发 executeBatch——用户按
+	// 停止后**已流式收到的工具调用仍被派发执行（含写盘）**。闸：干净收尾但
+	// ctx 已取消 ⇒ 视为中断返回（runDirect 走既有的取消/中断交接路径）。
+	if ctx.Err() != nil {
+		return text.String(), reasoning.String(), signature, calls, usage, true, ctx.Err()
+	}
 	batcher.FlushAll()
 	// With a PostLLMCall hook, the live stream was suppressed above; transform the
 	// full reasoning now and emit it once so the sink never sees the untranslated

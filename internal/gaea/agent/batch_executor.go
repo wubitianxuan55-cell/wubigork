@@ -15,6 +15,40 @@ import (
 )
 
 func (a *AgentRunner) executeBatch(ctx context.Context, calls []provider.ToolCall) []string {
+	// D7-B 取消执行闸·入口带（dsh-ops 超代对账审计落点，2026-11-10）：ctx 已
+	// 取消时**未执行的调用不再派发**（写族不查 ctx，盲派发=用户按停止后写仍
+	// 落盘）；已流式预执行完成的只读结果照常消费（preOutcomes 消费在前）。
+	// 未执行项给 NOT_EXECUTED 零效应信封（与 persistInterruptedCalls 同词汇，
+	// 可重发）。与 agent_stream 出口带互为双闸（那边拦源头，这边兜残余路径）。
+	if ctx.Err() != nil && len(calls) > 0 {
+		results := make([]string, 0, len(calls))
+		cancelled := 0
+		for _, c := range calls {
+			a.preMu.Lock()
+			pre, done := a.preOutcomes[c.ID]
+			a.preMu.Unlock()
+			if done {
+				results = append(results, pre.output)
+				continue
+			}
+			const msg = "stream interrupted: this call was received but not executed (context cancelled); re-issue it if still needed"
+			env := tool.WrapFailure(&tool.Failure{
+				Code:        tool.CodeExecError,
+				Subcode:     "NOT_EXECUTED",
+				Err:         fmt.Errorf("%s", msg),
+				Retryable:   true,
+				EffectState: tool.EffectNone,
+				NextAction:  "未执行零副作用：按需重发原调用",
+			}, msg, map[string]any{"tool": c.Name})
+			results = append(results, env)
+			cancelled++
+		}
+		if cancelled > 0 {
+			a.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelInfo,
+				Text: fmt.Sprintf("cancel gate: %d tool call(s) not dispatched (context cancelled, zero side effects)", cancelled)})
+		}
+		return results
+	}
 	// V7.7.1: repair always runs first — executeOne no longer repeats it.
 	for i := range calls {
 		t, ok := a.tools.Get(calls[i].Name)
