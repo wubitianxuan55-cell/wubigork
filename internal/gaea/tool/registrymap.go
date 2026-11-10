@@ -17,13 +17,21 @@ package tool
 //   - app 包：RegistryMapCoversAppExtraTools（gaeaExtraTools ⊆ 本表）；
 //   - 文档：docs/gaea-tool-registry-map-2026-11.md 覆盖本表全部工具名。
 //
+// 2026-11-10 空间契约漂移刀：Spaces 列与运行时生效标签（builtin.SpaceTagOf：
+// SpaceTaggedTool 自声明优先，否则查 builtin 静态表，缺省 shared）全面对齐——
+// 修复 34 处漂移（workspace 17/bash 非规范 work+shared、shell+web_search 4、
+// browser 11+sidebar_open 误记 shared 实为 work、image_gen 与 author_memory
+// 实为 play）；office 六工具同步显式入 builtin 静态表（堵 fail-open 缺省 shared
+// 混进 play 的洞）。双面守卫 TestSpaceTagsAgreeWithRegistryMap（builtin）与
+// app ExtraTools 空间一致性断言钉死，再漂移即红。
+//
 // ACP 自定义装配器（boot.go 注释中的扩展点）当前未接线；若有人按 boot.go:811
 // 注释绕过 Build 装配，则本地图失效须重新盘点（裁决适用条件）。
 
 // RegistryEntry 一行工具契约。
 type RegistryEntry struct {
 	Source    string // 装配入口：builtin-workspace / builtin-domain / build-internal / extra-app / plugin-mcp
-	Spaces    string // 可注册空间（spacetags 口径）：work / shared / work+shared / play 同 shared 过滤
+	Spaces    string // 可注册空间（与 builtin 空间标签同源）：work / shared / play（shared=两空间通用）
 	Effect    string // 副作用：read / write / produce / meta / interactive
 	Evidence  string // 证据档：agent-write / agent-produce / office-journal / none / publish-guard
 	Predicate string // 验收谓词（简述）
@@ -32,43 +40,43 @@ type RegistryEntry struct {
 // RegistryMap 全量契约表。新增工具必须在此登记，缺行=守卫红。
 var RegistryMap = map[string]RegistryEntry{
 	// ── builtin-workspace：workspace.go 基础面 21 项 ──
-	"read_file":        {"builtin-workspace", "shared", "read", "none", "内容与目标文件一致；尾标 revision（CAS 源）+凭据围栏 deny"},
-	"write_file":       {"builtin-workspace", "shared", "write", "agent-write", "落盘后文件含 AfterSummary；快照可回滚；expected_revision CAS 可选（dsh-ops 蒸馏）"},
-	"edit_file":        {"builtin-workspace", "shared", "write", "agent-write", "通道 A 摘要比对（新在旧亡）；expected_revision CAS 可选"},
-	"multi_edit":       {"builtin-workspace", "shared", "write", "agent-write", "通道 A 摘要比对（新在旧亡）；expected_revision CAS 可选"},
-	"edit_lines":       {"builtin-workspace", "shared", "write", "agent-write", "通道 A 摘要比对（新在旧亡）；expected_revision CAS 可选"},
-	"move_file":        {"builtin-workspace", "shared", "write", "agent-write", "目标存在且源已迁移"},
+	"read_file":        {"builtin-workspace", "work", "read", "none", "内容与目标文件一致；尾标 revision（CAS 源）+凭据围栏 deny"},
+	"write_file":       {"builtin-workspace", "work", "write", "agent-write", "落盘后文件含 AfterSummary；快照可回滚；expected_revision CAS 可选（dsh-ops 蒸馏）"},
+	"edit_file":        {"builtin-workspace", "work", "write", "agent-write", "通道 A 摘要比对（新在旧亡）；expected_revision CAS 可选"},
+	"multi_edit":       {"builtin-workspace", "work", "write", "agent-write", "通道 A 摘要比对（新在旧亡）；expected_revision CAS 可选"},
+	"edit_lines":       {"builtin-workspace", "work", "write", "agent-write", "通道 A 摘要比对（新在旧亡）；expected_revision CAS 可选"},
+	"move_file":        {"builtin-workspace", "work", "write", "agent-write", "目标存在且源已迁移"},
 	"replace":          {"builtin-workspace", "work", "write", "agent-write", "全计划预检零变更（任一文件超 32MiB 整次拒）；逐文件原子发布非事务（回执列已发布/失败/pending）；changed=替换次数；发布前锁内哈希重核"},
-	"grep":             {"builtin-workspace", "shared", "read", "none", "命中行与实况一致；offset 续页游标+凭据围栏跳过记账"},
-	"bash":             {"builtin-workspace", "work+shared", "write", "publish-guard", "durable 写被发布边界拦截/隔离（P1b）；前台+后台双路径"},
-	"ls":               {"builtin-workspace", "shared", "read", "none", "清单与实况一致"},
-	"format_convert":   {"builtin-workspace", "shared", "produce", "agent-produce", "output 落点存在且格式正确"},
-	"chart_gen":        {"builtin-workspace", "shared", "produce", "agent-produce", "图片落点存在（单系列图回归钉）"},
-	"diagram_gen":      {"builtin-workspace", "shared", "produce", "agent-produce", "图片落点存在（无边树图回归钉）"},
-	"vision":           {"builtin-workspace", "shared", "read", "none", "描述对应图片内容"},
-	"doc_render":       {"builtin-workspace", "shared", "read", "none", "只读渲染 PNG；覆盖率字段 P2"},
-	"screen_capture":   {"builtin-workspace", "shared", "read", "none", "截图落 .gaea/uploads 系统路径"},
-	"web_fetch":        {"builtin-workspace", "shared", "read", "none", "抓取内容与源一致（注明 URL+时间）"},
-	"sidebar_open":     {"builtin-workspace", "shared", "interactive", "none", "侧栏打开对应文件"},
+	"grep":             {"builtin-workspace", "work", "read", "none", "命中行与实况一致；offset 续页游标+凭据围栏跳过记账"},
+	"bash":             {"builtin-workspace", "work", "write", "publish-guard", "durable 写被发布边界拦截/隔离（P1b）；前台+后台双路径"},
+	"ls":               {"builtin-workspace", "work", "read", "none", "清单与实况一致"},
+	"format_convert":   {"builtin-workspace", "work", "produce", "agent-produce", "output 落点存在且格式正确"},
+	"chart_gen":        {"builtin-workspace", "work", "produce", "agent-produce", "图片落点存在（单系列图回归钉）"},
+	"diagram_gen":      {"builtin-workspace", "work", "produce", "agent-produce", "图片落点存在（无边树图回归钉）"},
+	"vision":           {"builtin-workspace", "work", "read", "none", "描述对应图片内容"},
+	"doc_render":       {"builtin-workspace", "work", "read", "none", "只读渲染 PNG；覆盖率字段 P2"},
+	"screen_capture":   {"builtin-workspace", "work", "read", "none", "截图落 .gaea/uploads 系统路径"},
+	"web_fetch":        {"builtin-workspace", "work", "read", "none", "抓取内容与源一致（注明 URL+时间）"},
+	"sidebar_open":     {"builtin-workspace", "work", "interactive", "none", "侧栏打开对应文件（自声明 work）"},
 	"schedule_get":     {"builtin-workspace", "shared", "read", "none", "日程读取与库一致"},
 	"schedule_apply":   {"builtin-workspace", "shared", "write", "agent-write", "声明路径包含校验 + 日程库变更可查"},
 	"schedule_analyze": {"builtin-workspace", "shared", "read", "none", "分析结论可复算"},
 
 	// ── builtin-domain：RegisterBuiltin 领域工具 ──
-	"bash_output":        {"builtin-domain", "shared", "read", "none", "输出增量与 job 缓冲一致"},
-	"kill_shell":         {"builtin-domain", "shared", "write", "none", "目标 job 终止（级联子树）"},
-	"wait":               {"builtin-domain", "shared", "read", "none", "等待结果与 job 终态一致"},
-	"browser_click":      {"builtin-domain", "shared", "interactive", "none", "点击后页面快照反映变化"},
-	"browser_close":      {"builtin-domain", "shared", "interactive", "none", "目标页/浏览器关闭"},
-	"browser_navigate":   {"builtin-domain", "shared", "interactive", "none", "到达目标 URL 快照"},
-	"browser_new_tab":    {"builtin-domain", "shared", "interactive", "none", "新 tab 快照"},
-	"browser_press":      {"builtin-domain", "shared", "interactive", "none", "按键后快照反映变化"},
-	"browser_read":       {"builtin-domain", "shared", "read", "none", "读取内容与页面一致"},
-	"browser_scroll":     {"builtin-domain", "shared", "interactive", "none", "滚动后快照反映变化"},
-	"browser_snapshot":   {"builtin-domain", "shared", "read", "none", "快照与 DOM 一致"},
-	"browser_switch_tab": {"builtin-domain", "shared", "interactive", "none", "激活 tab 切换"},
-	"browser_tabs":       {"builtin-domain", "shared", "read", "none", "tab 清单与实况一致"},
-	"browser_type":       {"builtin-domain", "shared", "interactive", "none", "输入后快照反映文本"},
+	"bash_output":        {"builtin-domain", "work", "read", "none", "输出增量与 job 缓冲一致"},
+	"kill_shell":         {"builtin-domain", "work", "write", "none", "目标 job 终止（级联子树）"},
+	"wait":               {"builtin-domain", "work", "read", "none", "等待结果与 job 终态一致"},
+	"browser_click":      {"builtin-domain", "work", "interactive", "none", "点击后页面快照反映变化（自声明 work）"},
+	"browser_close":      {"builtin-domain", "work", "interactive", "none", "目标页/浏览器关闭（自声明 work）"},
+	"browser_navigate":   {"builtin-domain", "work", "interactive", "none", "到达目标 URL 快照（自声明 work）"},
+	"browser_new_tab":    {"builtin-domain", "work", "interactive", "none", "新 tab 快照（自声明 work）"},
+	"browser_press":      {"builtin-domain", "work", "interactive", "none", "按键后快照反映变化（自声明 work）"},
+	"browser_read":       {"builtin-domain", "work", "read", "none", "读取内容与页面一致（自声明 work）"},
+	"browser_scroll":     {"builtin-domain", "work", "interactive", "none", "滚动后快照反映变化（自声明 work）"},
+	"browser_snapshot":   {"builtin-domain", "work", "read", "none", "快照与 DOM 一致（自声明 work）"},
+	"browser_switch_tab": {"builtin-domain", "work", "interactive", "none", "激活 tab 切换（自声明 work）"},
+	"browser_tabs":       {"builtin-domain", "work", "read", "none", "tab 清单与实况一致（自声明 work）"},
+	"browser_type":       {"builtin-domain", "work", "interactive", "none", "输入后快照反映文本（自声明 work）"},
 	"cad_ask":            {"builtin-domain", "work", "read", "none", "图框质量闸+vision 读图结论；T0 effect 已复核豁免"},
 	"complete_step":      {"builtin-domain", "shared", "meta", "none", "步骤裁决与计划一致"},
 	"cost_compose":       {"builtin-domain", "work", "produce", "none", "组价结果与定额飞轮口径一致"},
@@ -83,7 +91,7 @@ var RegistryMap = map[string]RegistryEntry{
 	"read_spill":         {"builtin-domain", "shared", "read", "none", "溢出读与落盘内容一致"},
 	"recall_archived":    {"builtin-domain", "shared", "read", "none", "归档召回与存档一致（显式 SpaceShared）"},
 	"todo_write":         {"builtin-domain", "shared", "meta", "none", "待办清单与库一致"},
-	"web_search":         {"builtin-domain", "shared", "read", "none", "结果注明来源 URL+检索时间"},
+	"web_search":         {"builtin-domain", "work", "read", "none", "结果注明来源 URL+检索时间"},
 
 	// ── build-internal：boot.Build 直接 reg.Add（skill/memory/task/slash 等） ──
 	"ask":                   {"build-internal", "shared", "interactive", "none", "用户答案回传当前席"},
@@ -105,7 +113,7 @@ var RegistryMap = map[string]RegistryEntry{
 	"discover_tools":        {"build-internal", "shared", "meta", "none", "A2 动态目录：词法匹配激活≤5、下一模型步生效；可见性≠授权（仅目录开启时注册）"},
 
 	// ── extra-app：gaeaExtraTools 装配单点 ──
-	"image_gen":       {"extra-app", "work", "produce", "none", "图片落 .gaea/uploads 系统路径可查"},
+	"image_gen":       {"extra-app", "play", "produce", "none", "图片落 .gaea/uploads 系统路径可查"},
 	"diagram":         {"extra-app", "work", "produce", "none", "无边 nil 切片显式 null 契约（回归钉）"},
 	"routine_llm":     {"extra-app", "work", "read", "none", "子调用回执与 feature 绑定一致"},
 	"translate_text":  {"extra-app", "work", "read", "none", "译文可回读"},
@@ -121,7 +129,7 @@ var RegistryMap = map[string]RegistryEntry{
 	"office_batch":    {"extra-app", "work", "meta", "task-center", "批量转 PDF 进持久调度器：断窗续跑/可取消/可重试/进度逐文件；out_dir 声明=产物目录；Result 逐文件报告（P4）"},
 	"ocr":             {"extra-app", "work", "read", "none", "全文提取与图片内容一致（seam 测试防真拉起）"},
 	"semantic_search": {"extra-app", "work", "read", "none", "召回与向量库一致"},
-	"author_memory":   {"extra-app", "work", "read", "none", "作者记忆读取一致"},
+	"author_memory":   {"extra-app", "play", "read", "none", "作者记忆读取一致（自声明 play：小说/角色域）"},
 
 	// ── plugin-mcp：动态行（备注）──
 	"mcp__<server>__<tool>": {"plugin-mcp", "随插件", "随工具", "随工具", "动态热插（plugins.go/controller_mcp.go reg.Add 同账）；名单凭证边界不枚举，P0 按非凭证方式标注"},

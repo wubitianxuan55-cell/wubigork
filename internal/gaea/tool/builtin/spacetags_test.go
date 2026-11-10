@@ -133,3 +133,24 @@ func TestSpaceTagsCoversAllBuiltins(t *testing.T) {
 }
 
 var _ tool.Tool = stubTool{}
+
+// TestSpaceTagsAgreeWithRegistryMap 空间契约一致性守卫（2026-11-10 漂移刀）：
+// 每个 builtin 的生效空间标签（SpaceTagOf：SpaceTaggedTool 自声明优先，否则
+// 查静态表）必须与 RegistryMap 契约行 Spaces 逐一致；静态表行与自声明相悖=
+// 影子行说谎，一并逮。本用例红 = 两表再漂移（extra-app 工具的同款断言在
+// app/registrymap_extra_test.go）。
+func TestSpaceTagsAgreeWithRegistryMap(t *testing.T) {
+	for _, tl := range tool.Builtins() {
+		row, ok := tool.RegistryMap[tl.Name()]
+		if !ok {
+			continue // 漏契约行由 tool 包 TestRegistryMapCoversAllBuiltins 钉
+		}
+		effective := SpaceTagOf(tl)
+		if row.Spaces != effective {
+			t.Errorf("%s: RegistryMap.Spaces=%q 与生效空间标签 %q 漂移", tl.Name(), row.Spaces, effective)
+		}
+		if tag, inTable := spaceTags[tl.Name()]; inTable && tag != effective {
+			t.Errorf("%s: 静态表=%q 与生效标签 %q（自声明优先）不一致=影子行说谎", tl.Name(), tag, effective)
+		}
+	}
+}
