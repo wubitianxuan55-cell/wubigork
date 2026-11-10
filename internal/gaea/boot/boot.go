@@ -646,6 +646,13 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	}
 	executor.SetModelToolRecorder(modelBackedNames, subagentStore)
 
+	// A2 动态工具目录（dsh-ops 蒸馏 2026-11-10）：注册面定稿后按
+	// [agent] dynamic_tools 模式装配（缺省 auto=仅 MCP 重载面开启，标准会话
+	// 零变化；见 dynamic_tools.go）。
+	if wireDynamicTools(cfg.Agent.DynamicTools, reg, executor) {
+		fmt.Fprintf(os.Stderr, "dynamic tools: 目录已开启（mode=%q，常驻外工具经 discover_tools 激活）\n", cfg.Agent.DynamicTools)
+	}
+
 	// V10.32: use provider name as label so users can distinguish models from
 	// different providers (e.g. "flash" vs "pro") even when they share the same
 	// underlying model name (e.g. both "deepseek-chat").

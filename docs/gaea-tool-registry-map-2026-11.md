@@ -31,6 +31,7 @@
 | `dag_plan` | extra-app | work | meta | none | write_paths/readonly schema 闸（六闸刀口径） |
 | `diagram` | extra-app | work | produce | none | 无边 nil 切片显式 null 契约（回归钉） |
 | `diagram_gen` | builtin-workspace | shared | produce | agent-produce | 图片落点存在（无边树图回归钉） |
+| `discover_tools` | build-internal | shared | meta | none | A2 动态目录：词法匹配激活≤5、下一模型步生效；可见性≠授权（仅目录开启时注册） |
 | `doc_render` | builtin-workspace | shared | read | none | 只读渲染 PNG；覆盖率字段 P2 |
 | `docx_accept` | extra-app | work | write | office-journal | 仅 accept=true；基线快照+证据卡；通道 A=无本作者待处理修订引用级（P2） |
 | `docx_apply` | extra-app | work | write | office-journal | 修订制写入；基线快照+证据卡；通道 A=文本流含替换+修订在册引用级（P2） |

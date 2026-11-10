@@ -584,6 +584,36 @@ func (a *AgentRunner) SetActiveSchemas(schemas []provider.ToolSchema) {
 	a.activeSchemasMu.Unlock()
 }
 
+// SetResidentTools 装配 A2 动态工具目录（dsh-ops 蒸馏 2026-11-10）：boot 在
+// 注册面定稿后调用（见 boot/dynamic_tools.go residentToolsFor）。空=关闭。
+// 仅装配期调用（回合开始前）；运行中热插 MCP 经注册表面自然成为可发现项。
+func (a *AgentRunner) SetResidentTools(names []string) {
+	a.turnMu.Lock()
+	defer a.turnMu.Unlock()
+	if len(names) == 0 {
+		a.resident = nil
+		a.activated = nil
+		return
+	}
+	a.resident = make(map[string]bool, len(names))
+	for _, n := range names {
+		a.resident[n] = true
+	}
+	a.activated = make(map[string]bool)
+}
+
+// CurrentSchemas 导出当前会话工具面（子代理父对齐用：task 以父的实际工具块
+// 为子代理 ActiveSchemas，目录开启时父子同面——既保前缀缓存对齐，也不把父
+// 未激活的工具（如 MCP 重载面）整包发给子代理）。
+func (a *AgentRunner) CurrentSchemas() []provider.ToolSchema { return a.currentSchemas() }
+
+// DynamicToolsOn 报告动态工具目录是否开启。
+func (a *AgentRunner) DynamicToolsOn() bool {
+	a.turnMu.Lock()
+	defer a.turnMu.Unlock()
+	return a.resident != nil
+}
+
 // SetGate installs the per-call permission gate. Thread-safe (audit P1 race
 // fix): the gate is stored atomically, so it may be swapped mid-turn
 // (Controller.SetPermLevel) while executeOne goroutines read it — each reader

@@ -102,6 +102,7 @@ var RegistryMap = map[string]RegistryEntry{
 	"subagent_list":         {"build-internal", "shared", "read", "none", "子代理清单与存档一致"},
 	"summarize_file":        {"build-internal", "shared", "read", "none", "摘要覆盖大文件截断语义"},
 	"task":                  {"build-internal", "shared", "meta", "none", "子代理白名单/作用域闸（六闸刀口径）"},
+	"discover_tools":        {"build-internal", "shared", "meta", "none", "A2 动态目录：词法匹配激活≤5、下一模型步生效；可见性≠授权（仅目录开启时注册）"},
 
 	// ── extra-app：gaeaExtraTools 装配单点 ──
 	"image_gen":       {"extra-app", "work", "produce", "none", "图片落 .gaea/uploads 系统路径可查"},

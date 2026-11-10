@@ -634,6 +634,14 @@ type AgentConfig struct {
 	// 结果全文存会话泄洪库、内联文本附 locator，模型经 read_spill 分页取回，
 	// 大结果不再被截断管线销毁中段。缺省开（nil = true），false 关闭=旧行为。
 	ToolSpill *bool `toml:"tool_spill"`
+	// DynamicTools 是 A2 动态工具目录模式（dsh-ops 蒸馏 2026-11-10）：
+	//   "auto"（缺省/空）：仅当 MCP 工具 schema 超阈值（≈8K tokens）时把
+	//     mcp__* 转为可发现、其余全常驻——标准会话零变化（工具面 10-15K 且
+	//     前缀缓存稳定命中，激活一次=整段前缀缓存失效，默认全开可能净亏），
+	//     MCP 重载面（REA 式 60K schema）才是无争议收益；
+	//   "on"：激进两级（核心常驻，其余经 discover_tools 激活）——A/B 评测用；
+	//   "off"：关闭。
+	DynamicTools string `toml:"dynamic_tools"`
 	// SubagentMaxParallel 是子代理有限并行上限（2026-10，对标 ZCode 编排的
 	// max_concurrency）：同一回合 task/run_skill 前台派生共享的并发槽位数，
 	// 超出的调用排队等槽（transcript 侧车标 queued，前端可见）。≤0 = 默认 3；

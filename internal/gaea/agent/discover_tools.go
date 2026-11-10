@@ -39,21 +39,25 @@ const (
 	discoverCatalogCap  = 20  // 目录清单条数上限（token 纪律）
 )
 
-// toolActive 报告工具是否在当前会话工具面（目录关闭恒 true）。resident 构造
-// 后只读，免锁；activated 由 turnMu 保护。
+// toolActive 报告工具是否在当前会话工具面（目录关闭恒 true）。turnMu 保护
+// （resident 可经 SetResidentTools 于装配期改写，activated 并发写）。
 func (a *AgentRunner) toolActive(name string) bool {
-	if a.resident == nil || a.resident[name] {
-		return true
-	}
 	a.turnMu.Lock()
 	defer a.turnMu.Unlock()
-	return a.activated[name]
+	return a.resident == nil || a.resident[name] || a.activated[name]
+}
+
+// toolResident 报告工具是否在常驻名单（目录关闭恒 false）。
+func (a *AgentRunner) toolResident(name string) bool {
+	a.turnMu.Lock()
+	defer a.turnMu.Unlock()
+	return a.resident != nil && a.resident[name]
 }
 
 // activateTools 把工具加入会话激活集，返回本次**新**激活的名字（已常驻/已
 // 激活的不重复报）。目录关闭时 no-op。
 func (a *AgentRunner) activateTools(names []string) []string {
-	if a.resident == nil {
+	if !a.DynamicToolsOn() {
 		return nil
 	}
 	var newly []string
@@ -72,7 +76,7 @@ func (a *AgentRunner) activateTools(names []string) []string {
 // seedActivatedFromHistory in-history 播种：会话历史里 assistant 发起过的
 // 工具调用视为已激活（每轮开头调用，幂等；激活集只增不减）。
 func (a *AgentRunner) seedActivatedFromHistory() {
-	if a.resident == nil || a.session == nil || a.tools == nil {
+	if !a.DynamicToolsOn() || a.session == nil || a.tools == nil {
 		return
 	}
 	var names []string
@@ -93,9 +97,15 @@ func (a *AgentRunner) seedActivatedFromHistory() {
 // 按名字序（Schemas 已排序）。
 func (a *AgentRunner) discoverCandidates() []provider.ToolSchema {
 	all := a.tools.Schemas()
+	a.turnMu.Lock()
+	resident := a.resident
+	a.turnMu.Unlock()
+	if resident == nil {
+		return nil
+	}
 	out := make([]provider.ToolSchema, 0, len(all))
 	for _, s := range all {
-		if a.resident[s.Name] {
+		if resident[s.Name] {
 			continue
 		}
 		out = append(out, s)
@@ -201,7 +211,7 @@ func (discoverToolsTool) Execute(ctx context.Context, args json.RawMessage) (str
 		return "", &tool.Failure{Code: tool.CodeValidationError,
 			Err: fmt.Errorf("discover_tools 只能在 agent 回合内调用"), EffectState: tool.EffectNone}
 	}
-	if a.resident == nil {
+	if !a.DynamicToolsOn() {
 		return "当前会话工具全量常驻，无需发现（动态工具目录未开启）。", nil
 	}
 	if len(p.Query) > discoverMaxQuery {
@@ -238,8 +248,8 @@ func (discoverToolsTool) Execute(ctx context.Context, args json.RawMessage) (str
 		}
 		if _, ok := byName[n]; ok {
 			pick(n)
-		} else if a.resident[n] {
-			seen[n] = true // 已常驻：回执里如实说明，不占激活额度
+		} else if a.toolResident(n) {
+			seen[n] = true // 已常驻：无需激活，不占激活额度
 		} else {
 			unknown = append(unknown, n)
 		}

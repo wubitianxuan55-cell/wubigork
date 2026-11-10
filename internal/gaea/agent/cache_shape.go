@@ -50,7 +50,10 @@ func shortHash(v interface{}) string {
 // CaptureShape takes a snapshot of the current prefix state.
 func (a *AgentRunner) CaptureShape() PrefixShape {
 	sysPrompt := a.systemPrompt()
-	tools := a.tools.Schemas()
+	// A2（2026-11-10）：指纹取**实际发出的工具面**（currentSchemas：含
+	// activeSchemas 覆盖与动态目录过滤）——旧口径取全量注册表，子代理父对齐
+	// 态与目录激活都不在指纹里（探测盲区）。
+	tools := a.currentSchemas()
 	return captureShape(sysPrompt, tools, a.session.RewriteVersion())
 }
 

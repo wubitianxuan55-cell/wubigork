@@ -1031,6 +1031,19 @@ func (t *TaskTool) runSubSession(ctx context.Context, provOverride provider.LLMP
 	//（裁决风险条明示）；放弃父前缀缓存对齐=按调用 opt-in 的代价，A/B 评测
 	// 量化。
 	activeSchemas := t.parentReg.Schemas()
+	// A2 动态工具目录（2026-11-10）：父代理目录开启时子代理与父的**实际工具块**
+	// 同面——缓存对齐的本意是「父发什么子发什么」，且不把父未激活的重载面
+	// （MCP 等）整包发给子代理。discover_tools 剔除（子代理 runner 无目录，
+	// 该工具对它是 no-op）。
+	if parent, ok := RunnerFromContext(ctx); ok && parent.DynamicToolsOn() {
+		face := parent.CurrentSchemas()
+		activeSchemas = make([]provider.ToolSchema, 0, len(face))
+		for _, s := range face {
+			if s.Name != DiscoverToolName {
+				activeSchemas = append(activeSchemas, s)
+			}
+		}
+	}
 	if _, scoped := SubagentScopeFromContext(ctx); scoped {
 		activeSchemas = subReg.Schemas()
 	}
