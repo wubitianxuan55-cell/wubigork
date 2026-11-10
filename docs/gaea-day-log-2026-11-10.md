@@ -604,3 +604,20 @@
   wails build+冒烟 200+装机 `7DFE7DC4239BBA44…` PID 35868（22:23:50>构建
   22:22:57）。预览壳（preview-atlas.html+src/preview-atlas-main.tsx）留在
   工作树未提交供用户继续目检，vite dev server 5231 仍在跑。
+
+## 代码图谱预览包打包（同日深夜，「git打包，做好文件记录和记忆更新」）
+
+- **包标识**：`releases/gaea-codeatlas-20261110-b27066b9/`，提交 `b27066b9`
+  独立干净工作树（`.tmp/pkg-atlas`，前端依赖 junction 复用主树 node_modules，
+  构建后已回收）。
+- **流程**：前端 23.1s → wails build（ucrt64/bindings 不跳）→ exe 拷回正式
+  `build\bin` 冒烟 `/api/health` 200 → exe+三 DLL+preview.zip+`git archive`
+  源码包六件落包 → SHA256SUMS+PACKAGE-INFO 入库（zip/tar/exe/DLL 留盘不入库，
+  承 P2-3 口径）。
+- **装机=包版**：gaea_install.ps1 -Launch → PID 18360（22:44:53>构建
+  22:43:18），`C:\AI\gaea-app\gaea.exe` 哈希 `0E5D29D80F0CA55C…` 与包内一致。
+- **产物 SHA256**：exe `0E5D29D8…`（61,966,336B）/ zip `0F0E4109…`
+  （31,650,776B）/ source.tar.gz `3664A9ED…`（38,843,790B）；三 DLL 与装机版
+  同哈希（68D0D5F5/5DD36DBD/4C563277）。
+- 顺手发现：`.tmp/gaea-voice-588b5ad6` 为 11-09 语音批遗留工作树（未动，
+  留待该线清理）。
