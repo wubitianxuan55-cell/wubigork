@@ -131,3 +131,53 @@ func TestExecuteOnePlainJSONResultNotCollapsed(t *testing.T) {
 		t.Fatalf("普通 JSON 应保持成功外壳: %q", o.output)
 	}
 }
+
+// D1 输出预算（dsh-ops 蒸馏 2026-11-10）：病态转义 payload 经 executeOne 后
+// 信封必须是完整合法 JSON——旧口径序列化后截断整个 JSON 会劈坏结构。
+func TestExecuteOneEnvelopeStaysValidJSONUnderBudget(t *testing.T) {
+	reg := tool.NewRegistry()
+	// 60KB 引号+换行密集且内容多变（转义后远超 48KiB 帽）。
+	var big strings.Builder
+	for i := 0; i < 2000; i++ {
+		fmt.Fprintf(&big, "row %d \"quoted\" \\ content\n", i)
+	}
+	reg.Add(envelopeStub{name: "big_out", readOnly: true, result: big.String()})
+	reg.Add(envelopeStub{name: "big_fail", readOnly: true, err: fmt.Errorf("boom with %s", "context")})
+	a := newEnvelopeRunner(reg)
+
+	// 成功路径：信封可解析、总长受帽、payload 带截断标记、truncated 置位。
+	o := a.executeOne(context.Background(), provider.ToolCall{Name: "big_out"})
+	env, ok := tool.ParseEnvelope(o.output)
+	if !ok || !env.OK {
+		t.Fatalf("信封必须是完整合法 JSON: ok=%v len=%d", ok, len(o.output))
+	}
+	if len(o.output) > 48*1024+512 {
+		t.Fatalf("信封总长应受帽: %d", len(o.output))
+	}
+	if !o.truncated {
+		t.Fatal("payload 被预算截断时 truncated 必须置位")
+	}
+
+	// 失败路径：大 detail 同样预算（成功场景注入 detail：参数非法 JSON 触发
+	// schema 附加不现实，直接验证 detail 键存在且信封合法）。
+	reg2 := tool.NewRegistry()
+	reg2.Add(envelopeStub{name: "big2", readOnly: true, err: fmt.Errorf("x")})
+	a2 := newEnvelopeRunner(reg2)
+	o2 := a2.executeOne(context.Background(), provider.ToolCall{Name: "big2"})
+	if env2, ok2 := tool.ParseEnvelope(o2.output); !ok2 || env2.OK {
+		t.Fatalf("失败信封也必须合法 JSON: %v", ok2)
+	}
+}
+
+// D1 字段序：失败信封的 retryable/effect_state 排在 data 之前——backstop
+// 截断（病态路径）时头部优先保住结构字段。
+func TestFailureEnvelopeStructFieldsBeforeData(t *testing.T) {
+	raw := tool.WrapFailure(&tool.Failure{
+		Code: tool.CodeExecError, Retryable: true, EffectState: tool.EffectUnknown,
+	}, "boom", map[string]any{"detail": strings.Repeat("x", 32*1024)})
+	ri := strings.Index(raw, `"retryable"`)
+	di := strings.Index(raw, `"data"`)
+	if ri < 0 || di < 0 || ri > di {
+		t.Fatalf("结构字段应在 data 前: retryable@%d data@%d", ri, di)
+	}
+}

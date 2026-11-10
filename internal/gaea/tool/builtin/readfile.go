@@ -255,13 +255,9 @@ func (r readFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 	}
 
 	if hasMore {
-		if showLineNumbers {
-			fmt.Fprintf(&b, "\n[more lines available; pass offset=%d to continue]\n",
-				p.Offset+len(collected))
-		} else {
-			fmt.Fprintf(&b, "\n[more lines available; pass offset=%d to continue]\n",
-				p.Offset+len(collected))
-		}
+		// 两个分支文案历来相同（死 if/else，D1 顺手收敛为单写）。
+		fmt.Fprintf(&b, "\n[more lines available; pass offset=%d to continue]\n",
+			p.Offset+len(collected))
 	}
 	// A3 revision 尾标（dsh-ops 蒸馏）：模型经此取 expected_revision 做 CAS 写。
 	// marker 恒最后追加（hasMore 提示行之前的内容在两种截断形态下都可存活）；

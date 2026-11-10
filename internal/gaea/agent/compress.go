@@ -349,9 +349,16 @@ func SmartCompress(toolName, raw string) string {
 }
 
 // compressByLimit 按行数+字节数上限压缩文本。保留信号行（error/fatal等）。
+// D1（dsh-ops 蒸馏 2026-11-10）：带续读标记（[more lines available）的分页读
+// 走「保头+保尾标记」方向——head+tail 旧口径会把模型引向尾行 offset 续页，
+// 静默跳过被砍的中段。
 func compressByLimit(raw string, maxLines, maxBytes int) string {
 	if maxLines <= 0 || maxBytes <= 0 {
 		return raw
+	}
+	if strings.Contains(raw, "[more lines available") {
+		result, _ := truncateToolOutputPaged(raw, maxLines, maxBytes)
+		return result
 	}
 	// 复用 truncateToolOutputWith 的逻辑
 	result, _ := truncateToolOutputWith(raw, maxLines, maxBytes)

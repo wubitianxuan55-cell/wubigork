@@ -22,14 +22,15 @@ import (
 type ToolEnvelope struct {
 	OK      bool   `json:"ok"`
 	Success bool   `json:"success"`
-	Code    string `json:"code,omitempty"`    // machine-readable: "ok", "timeout", "denied", "not_found", "exec_error", "validation_error"
-	Error   string `json:"error,omitempty"`   // human-readable short error (for the model)
-	Message string `json:"message,omitempty"` // friendly summary (for the model)
-	Data    any    `json:"data,omitempty"`    // structured payload when applicable
-	// 失败即值三字段（仅失败信封携带）：
+	Code    string `json:"code,omitempty"`  // machine-readable: "ok", "timeout", "denied", "not_found", "exec_error", "validation_error"
+	Error   string `json:"error,omitempty"` // human-readable short error (for the model)
+	// 失败即值三字段（仅失败信封携带；刻意排在 Data 前——大 detail 触发
+	// backstop 截断时头部优先保住结构字段，D1 2026-11-10）：
 	Retryable   bool   `json:"retryable,omitempty"`    // 原样重试是否可能成功
 	EffectState string `json:"effect_state,omitempty"` // none / unknown（unknown=先核实再重试）
 	NextAction  string `json:"next_action,omitempty"`  // 下一步短句（一句以内，token 纪律）
+	Message     string `json:"message,omitempty"`      // friendly summary (for the model)
+	Data        any    `json:"data,omitempty"`         // structured payload when applicable
 }
 
 // Pre-defined outcome codes.

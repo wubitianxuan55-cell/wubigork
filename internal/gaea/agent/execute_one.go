@@ -301,7 +301,8 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 		// 部分发生，NextAction 明示先核实再重试），只读族=none。
 		var env string
 		if f, isF := tool.AsFailure(err); isF {
-			data := map[string]any{"tool": call.Name, "detail": detail}
+			bdetail, _ := budgetPayloadForEnvelope(detail)
+			data := map[string]any{"tool": call.Name, "detail": bdetail}
 			if f.HasExitCode {
 				data["exit_code"] = f.ExitCode
 			}
@@ -311,12 +312,13 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 			if evidence.IsDeliverableTool(call.Name) || call.Name == "bash" {
 				effect = tool.EffectUnknown
 			}
+			bdetail, _ := budgetPayloadForEnvelope(detail)
 			env = tool.WrapFailure(&tool.Failure{
 				Code:        tool.CodeExecError,
 				Err:         err,
 				Retryable:   true,
 				EffectState: effect,
-			}, firstLine(err.Error()), map[string]any{"tool": call.Name, "detail": detail})
+			}, firstLine(err.Error()), map[string]any{"tool": call.Name, "detail": bdetail})
 		}
 		body, truncMsg := truncateToolOutput(env)
 		return toolOutcome{output: body, errMsg: firstLine(err.Error()), recoverable: recoverable, truncated: truncMsg != "", truncMsg: truncMsg}
@@ -405,9 +407,12 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 		// 两种形态下头部都必保（见 spillNotice 注释的生存性结论）。
 		result = spillNotice(spillID, rawBytes) + "\n" + result
 	}
+	// D1：payload 层转义感知预算（序列化前）——信封恒完整合法 JSON，
+	// 下方 truncateToolOutput 退化为 backstop；截断事实由预算层传回。
+	result, budgetNotice := budgetPayloadForEnvelope(result)
 	env := tool.WrapResult(tool.CodeOK, map[string]any{"tool": call.Name, "result": result})
 	body, truncMsg := truncateToolOutput(env)
-	return toolOutcome{output: body, truncated: truncMsg != "", truncMsg: truncMsg}
+	return toolOutcome{output: body, truncated: budgetNotice != "" || truncMsg != "", truncMsg: firstNonEmpty(budgetNotice, truncMsg)}
 }
 
 // isBackgroundTaskCall reports whether a `task` call set run_in_background.

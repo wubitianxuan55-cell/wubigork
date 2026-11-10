@@ -46,6 +46,7 @@ func TruncateToolOutput(s string) (string, string) {
 }
 
 // TruncateToolOutputWith keeps the most important lines up to the limits.
+// 字节回路抽到 emitSelected（budget.go，D1 与分页方向共用）。
 func TruncateToolOutputWith(s string, maxLines, maxBytes int) (string, string) {
 	s = Normalize(s)
 
@@ -62,38 +63,7 @@ func TruncateToolOutputWith(s string, maxLines, maxBytes int) (string, string) {
 		direction = "tail"
 	}
 	selected := selectHygieneLines(lines, maxLines, direction)
-
-	var out strings.Builder
-	used := 0
-	kept := 0
-	for _, line := range selected {
-		lineBytes := len(line) + 1
-		if used+lineBytes > maxBytes {
-			if kept > 0 {
-				break
-			}
-			if maxBytes < len(line) {
-				line = snapToRuneBoundary(line, 0, maxBytes)
-			}
-		}
-		if kept > 0 {
-			out.WriteString("\n")
-			used++
-		}
-		out.WriteString(line)
-		used += len(line)
-		kept++
-	}
-
-	omitted := originalBytes - used
-	omittedLines := originalLines - kept
-	notice := fmt.Sprintf("tool output truncated: %d of %d bytes, %d of %d lines elided",
-		omitted, originalBytes, omittedLines, originalLines)
-
-	out.WriteString(fmt.Sprintf(
-		"\n\n[%d byte(s), %d line(s) elided above — use read_file with offset+limit, grep with narrower pattern, or bash with head/tail for details]",
-		omitted, omittedLines))
-	return out.String(), notice
+	return emitSelected(selected, maxBytes, originalBytes, originalLines)
 }
 
 // Normalize strips ANSI escape sequences, normalises line endings, compresses
