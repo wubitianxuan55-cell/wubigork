@@ -37,7 +37,8 @@ func (multiEdit) Schema() json.RawMessage {
     "old_string":{"type":"string","description":"Exact text to replace (must be non-empty)"},
     "new_string":{"type":"string","description":"Replacement text (empty string deletes)"},
     "replace_all":{"type":"boolean","description":"Replace every occurrence of this old_string (default false)"}
-  },"required":["old_string","new_string"]}}
+  },"required":["old_string","new_string"]}},
+  "expected_revision":{"type":"string","description":"Optional CAS guard: sha256 from the read_file trailer. Mismatch = REVISION_CONFLICT."}
 },
 "required":["path","edits"]
 }`)
@@ -69,6 +70,7 @@ func (m multiEdit) Execute(ctx context.Context, args json.RawMessage) (string, e
 			NewString  string `json:"new_string"`
 			ReplaceAll bool   `json:"replace_all"`
 		} `json:"edits"`
+		ExpectedRevision string `json:"expected_revision,omitempty"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", fmt.Errorf("invalid args: %w", err)
@@ -86,6 +88,12 @@ func (m multiEdit) Execute(ctx context.Context, args json.RawMessage) (string, e
 	content, enc, err := readFileEncoded(p.Path)
 	if err != nil {
 		return "", fmt.Errorf("read %s: %w", p.Path, err)
+	}
+	// A3 revision CAS（dsh-ops 蒸馏）：内容在手即刻比对（""=零行为变化）。
+	if p.ExpectedRevision != "" {
+		if err := checkExpectedRevision(p.Path, []byte(content), true, p.ExpectedRevision); err != nil {
+			return "", err
+		}
 	}
 	baseline := evidence.StageBaseline(ctx, p.Path, []byte(content))
 	cur := content

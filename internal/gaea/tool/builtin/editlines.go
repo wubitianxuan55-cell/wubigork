@@ -35,7 +35,8 @@ func (editLines) Schema() json.RawMessage {
   "path":{"type":"string","description":"File path"},
   "start_line":{"type":"integer","description":"First line to replace (1-based)","minimum":1},
   "end_line":{"type":"integer","description":"Last line to replace (inclusive)"},
-  "new_content":{"type":"string","description":"Replacement lines separated by \\n (empty string deletes the range)"}
+  "new_content":{"type":"string","description":"Replacement lines separated by \\n (empty string deletes the range)"},
+  "expected_revision":{"type":"string","description":"Optional CAS guard: sha256 from the read_file trailer. Mismatch = REVISION_CONFLICT."}
 },
 "required":["path","start_line","end_line","new_content"]
 }`)
@@ -61,10 +62,11 @@ func (editLines) CompactSchema() json.RawMessage { return compactSchema["edit_li
 
 func (e editLines) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p struct {
-		Path       string  `json:"path"`
-		StartLine  int     `json:"start_line"`
-		EndLine    int     `json:"end_line"`
-		NewContent *string `json:"new_content"`
+		Path             string  `json:"path"`
+		StartLine        int     `json:"start_line"`
+		EndLine          int     `json:"end_line"`
+		NewContent       *string `json:"new_content"`
+		ExpectedRevision string  `json:"expected_revision,omitempty"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", fmt.Errorf("invalid args: %w", err)
@@ -88,6 +90,12 @@ func (e editLines) Execute(ctx context.Context, args json.RawMessage) (string, e
 	content, enc, err := readFileEncoded(p.Path)
 	if err != nil {
 		return "", fmt.Errorf("read %s: %w", p.Path, err)
+	}
+	// A3 revision CAS（dsh-ops 蒸馏）：内容在手即刻比对（""=零行为变化）。
+	if p.ExpectedRevision != "" {
+		if err := checkExpectedRevision(p.Path, []byte(content), true, p.ExpectedRevision); err != nil {
+			return "", err
+		}
 	}
 	baseline := evidence.StageBaseline(ctx, p.Path, []byte(content))
 

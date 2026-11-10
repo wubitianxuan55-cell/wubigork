@@ -38,7 +38,8 @@ func (editFile) Schema() json.RawMessage {
   "path":{"type":"string","description":"File path"},
   "old_string":{"type":"string","description":"Exact text to replace (must be non-empty and unique unless replace_all)"},
   "new_string":{"type":"string","description":"Replacement text (empty string deletes old_string)"},
-  "replace_all":{"type":"boolean","description":"Replace every occurrence (default false)"}
+  "replace_all":{"type":"boolean","description":"Replace every occurrence (default false)"},
+  "expected_revision":{"type":"string","description":"Optional CAS guard: sha256 from the read_file trailer. Mismatch = REVISION_CONFLICT (file changed since you read it)."}
 },
 "required":["path","old_string","new_string"]
 }`)
@@ -64,10 +65,11 @@ func (editFile) CompactSchema() json.RawMessage { return compactSchema["edit_fil
 
 func (e editFile) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p struct {
-		Path       string `json:"path"`
-		OldString  string `json:"old_string"`
-		NewString  string `json:"new_string"`
-		ReplaceAll bool   `json:"replace_all"`
+		Path             string `json:"path"`
+		OldString        string `json:"old_string"`
+		NewString        string `json:"new_string"`
+		ReplaceAll       bool   `json:"replace_all"`
+		ExpectedRevision string `json:"expected_revision,omitempty"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", fmt.Errorf("invalid args: %w", err)
@@ -85,6 +87,12 @@ func (e editFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 	content, enc, err := readFileEncoded(p.Path)
 	if err != nil {
 		return "", fmt.Errorf("read %s: %w", p.Path, err)
+	}
+	// A3 revision CAS（dsh-ops 蒸馏）：内容在手即刻比对（""=零行为变化）。
+	if p.ExpectedRevision != "" {
+		if err := checkExpectedRevision(p.Path, []byte(content), true, p.ExpectedRevision); err != nil {
+			return "", err
+		}
 	}
 	// v4.1b：写盘前整文件基线快照（Verifier 视觉 diff / 回滚原料；未配置则 ""）。
 	baseline := evidence.StageBaseline(ctx, p.Path, []byte(content))

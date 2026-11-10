@@ -106,6 +106,11 @@ func (r readFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 		return "", fmt.Errorf("%s is a directory, not a file — use the ls tool to list it, or read a specific file inside it", p.Path)
 	}
 
+	// B1 凭据围栏（dsh-ops 蒸馏）：凭据形态路径结构化拒绝（错误即值+自愈指引）。
+	if rule, hit := credentialFenceRule(p.Path); hit {
+		return "", credentialDenied("read_file", p.Path, rule)
+	}
+
 	f, err := os.Open(p.Path)
 	if err != nil {
 		return "", fmt.Errorf("read %s: %w", p.Path, err)
@@ -257,6 +262,12 @@ func (r readFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 			fmt.Fprintf(&b, "\n[more lines available; pass offset=%d to continue]\n",
 				p.Offset+len(collected))
 		}
+	}
+	// A3 revision 尾标（dsh-ops 蒸馏）：模型经此取 expected_revision 做 CAS 写。
+	// marker 恒最后追加（hasMore 提示行之前的内容在两种截断形态下都可存活）；
+	// 取不到哈希（竞态删除）静默省略——模型不传 expected_revision 即旧行为。
+	if rev, rerr := RevisionSHA256(p.Path); rerr == nil {
+		fmt.Fprintf(&b, "\n[revision sha256:%s]\n", rev)
 	}
 	return b.String(), nil
 }

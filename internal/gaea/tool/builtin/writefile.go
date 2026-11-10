@@ -32,7 +32,7 @@ func (writeFile) Description() string {
 }
 
 func (writeFile) Schema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","description":"File path"},"content":{"type":"string","description":"Full content to write"}},"required":["path","content"]}`)
+	return json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","description":"File path"},"content":{"type":"string","description":"Full content to write"},"expected_revision":{"type":"string","description":"Optional CAS guard: sha256 from read_file trailer, or \"absent\" to require the file does not exist (create-only). Mismatch = REVISION_CONFLICT."}},"required":["path","content"]}`)
 }
 
 func (writeFile) ReadOnly() bool { return false }
@@ -55,8 +55,9 @@ func (writeFile) CompactSchema() json.RawMessage { return compactSchema["write_f
 
 func (w writeFile) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p struct {
-		Path    string `json:"path"`
-		Content string `json:"content"`
+		Path             string `json:"path"`
+		Content          string `json:"content"`
+		ExpectedRevision string `json:"expected_revision,omitempty"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", fmt.Errorf("invalid args: %w", err)
@@ -67,6 +68,20 @@ func (w writeFile) Execute(ctx context.Context, args json.RawMessage) (string, e
 	p.Path = resolveIn(w.workDir, p.Path)
 	if err := confine(w.roots, p.Path); err != nil {
 		return "", err
+	}
+	// A3 revision CAS（dsh-ops 蒸馏）：expected_revision 传入时前置校验
+	// （""=零行为变化；"absent"=create-only；64hex=内容哈希比对）。
+	if p.ExpectedRevision != "" {
+		var cur []byte
+		exists := false
+		if raw, rerr := os.ReadFile(p.Path); rerr == nil {
+			cur, exists = raw, true
+		} else if !os.IsNotExist(rerr) {
+			return "", fmt.Errorf("stat %s: %w", p.Path, rerr)
+		}
+		if err := checkExpectedRevision(p.Path, cur, exists, p.ExpectedRevision); err != nil {
+			return "", err
+		}
 	}
 	if dir := filepath.Dir(p.Path); dir != "" && dir != "." {
 		if err := os.MkdirAll(dir, 0o755); err != nil {

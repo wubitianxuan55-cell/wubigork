@@ -262,3 +262,31 @@
 - **坑**：GaeaJournalList 收 int limit；wails 命名空间 window.go.app（非
   go.main.App）；CDP Runtime.evaluate 同上下文声明残留——eval 一律 IIFE。
 - 清场：走查壳 9340 已杀、%TEMP%gaea-walkthrough 已删；用户壳 51408 未动。
+
+## dsh-ops 蒸馏候选池第一波（同日八刀：A3 revision CAS+B1 凭据围栏+A1' grep 续页游标）
+
+- **普查改判（诚实记档）**：A1 结果预算的大头**已在库**——v4.379 spill 泄洪库
+  本就是从 dsh spill-policy 蒸馏的（≥24KB→库+read_spill 分页+会话级+内存 FIFO
+  预算+豁免纪律），磁盘 ref:// 版的唯一收益（重启幸存）被当时自评否决（无主
+  痕迹文件卫生面）——本轮不重复立项。A1 波内真增量=grep 续页游标（命中截断
+  后模型无法续读）。
+- **A3 revision CAS**：read_file 文本读尾缀 `[revision sha256:<hex>]`（CAS 值
+  来源）；写族四件（write_file/edit_file/multi_edit/edit_lines）增可选
+  `expected_revision`——""=零行为变化、"absent"=create-only、64hex=内容哈希
+  比对；不匹配→`REVISION_CONFLICT`（带当前修订值，重读即自愈）。Full+Compact
+  双 schema 同步（compact 才是模型看的）。防多执行体同树 stale-Edit；与
+  BaselinePath 互补（回滚原料 vs 前置冲突闸）；TOCTOU 窗口如实记档。
+- **B1 凭据围栏**：credential_fence.go 目录段+名字双轨（.ssh/.aws/.kube/
+  .gnupg/.docker/.config/gcloud/.azure 段；.env 家族/.netrc/.git-credentials/
+  id_rsa 族/​.pem/.key/.pfx/.p12/.ppk/.keystore 后缀），大小写不敏感+反斜杠
+  归一；read_file 命中→`CREDENTIAL_DENIED`（错误即值+自愈指引）；grep 遍历
+  跳过+头部记账「credential-fence skipped N」；ls 不围（文件名非内容）、bash
+  不围（审批/PublishGuard 域，如实记档）；普通办公文件永不命中（保守清单）。
+- **A1' grep 续页游标**：`offset` 参数跳过前 N 条命中（**单遍 skip+emit——
+  skip 在文件中间耗尽时同文件剩余命中接着发射，页边界不错切**，首版两段式
+  丢文件尾命中当场抓住改掉）；头部行 `[grep page] offset=N shown=M — more
+  matches may remain; re-run with offset=…`（头部行截断生存性同 spillNotice
+  结论；total 在预算帽提前止步时是「至少」语义，不给伪造总数）。
+- **测试**：revision_cas_test.go 6 例（CAS 全腿+尾标闭环+围栏规则表+read 拒
+  绝+游标/围栏混合）全绿；tool 包全绿（一次负载期偶发 websearch 假红，三连
+  复跑绿挂账观察）。
