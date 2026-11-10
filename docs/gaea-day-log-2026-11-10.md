@@ -290,3 +290,18 @@
 - **测试**：revision_cas_test.go 6 例（CAS 全腿+尾标闭环+围栏规则表+read 拒
   绝+游标/围栏混合）全绿；tool 包全绿（一次负载期偶发 websearch 假红，三连
   复跑绿挂账观察）。
+
+## 空终答 ×3 翻车根修（同日插刀，用户实弹报障 3acea975 已推）
+
+- **取证**：用户 workspace 会话 gaea-log——三次 `empty final answer blocked` 各距
+  1s、三连 2 秒内打光；同请求 12 秒后自愈成功；prefixBytes=65KB 远离 256K 窗口
+  （排除规模问题）。**定性=上游瞬时空响应窗口内的无退避连发**——重试是对同一
+  坏时刻的浪费。
+- **根修**：第 N 次重试前等 N×emptyFinalRetryBackoff（缺省 2s；ctx 感知取消即退；
+  Options.EmptyFinalRetryBackoff 测试注入）；mockProvider 增 streamFn per-call
+  序列支持（瞬态恢复测试）。真零内容冻结重放语义/reasoning-only 豁免/上限 3 不变。
+- **测试**：TestEmptyFinalRetryBackoffAllowsRecovery（两次零→第三次恢复，计退避
+  发生）+既有两测全绿；agent 17.9s+app 全量 133.2s 零 FAIL。
+- **取证配方入册**：用户 workspace（config.toml workspace 键）下
+  `.gaea/sessions/work/*.gaea-log.jsonl`——request_header 的 prefixBytes/window
+  排除规模、时间戳间距定性瞬态。
