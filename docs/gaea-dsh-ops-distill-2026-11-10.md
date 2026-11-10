@@ -168,3 +168,150 @@ adopt 旧代逻辑、每调用三重 verify（文档自认只防意外漂移）�
 ⑦NtCreateFile 创建即 DACL 模式（若做私有缓存）；⑧USN cursor 17 字节定长+无副作用
 纪律。另注：**「哈希相同不代表安全元数据相同」**——静态哈希比对不查令牌/完整性
 标签/杀软决定，这个认知对 gaea 装机校验同样适用。
+
+## 8. 第二轮深审（2026-11-10 晚，用户令重审；三路并行，纯调研）
+
+三路：lib/ 未挖子系统逐个读（第一轮只覆盖 §6 锚定的 6 个文件）、native/crates
+算法级深读（第一轮只盘结构）、docs/ 118 md 全目录扫描（第一轮只蒸 10 篇）。
+与 §2/§7 已覆盖清单核对无重复。**全局发现：lib 根下 scoped-ownership 等 6 个
+文件全是 2 行转发 shim，真身在 publication/ 与 execution/——机制密度最高处。**
+
+**文档过时段警示（5 条，蒸馏以较新篇为准）**：常见问题.md 的锁 sidecar
+「从不删除」（#319 已改为持有者释放时删）、macOS /tmp 整体拒绝（父链规范化后
+后代可用）、shellPolicy deny-host-shell（遗留键）、使用指南 §0.5.0 cwd 回退
+（0.5 面向宿主 0.2.2 不回退）、native-ptc「24 小时过期」（新引用会话期）。
+
+### 8.1 输出与读取契约（Rust 线，密度最高）
+
+- **序列化字节预算三件套**：预算按**转义后 JSON 字节**计（`"`/`\n` 2B、
+  <0x20 6B——32MiB 文件曾炸 200MB stdout 的 NUL 6 倍乘数，file_output.rs:5-11）；
+  **信封最坏预留先行**（先构造含最长标志的完整信封再逐 item 扣 room，「不存在
+  事后才发现信封超大」，:41-112）；**行内截断+hex 恢复**（装不下的行给
+  bytesTotal/bytesOmitted/truncatedInLine+nextAction=按 16 字节行分页续读，
+  nextOffset 回退到被切行——截断点对模型可见可恢复不丢后缀，:78-110）。
+  gaea 对位：truncateToolOutput 按原文字节截断，未计 JSON 转义成本，截断点
+  不可恢复——**缺位**。
+- **自校验续读游标**：token=`s1:{binding}:{snapshot}:{next}:{digest}`，binding
+  覆盖查询参数+root dev/ino+权限集，快照哈希 feed 每个访问路径的
+  (path,dev,ino,len,mtime,is_dir)（scan.rs:119-135、paging.rs:28-114）；
+  **续读不授予任何权限**、**不完全遍历不发 continuation**（paging.rs:210-226）；
+  walk(s1)/索引(s2) 快照域隔离互不认。gaea 对位：A1' grep offset 游标无绑定
+  无自校验——**缺位（A1' 直接补强）**。
+- **三态跳过+完备性三元组**：excluded（选择不看）/gap（没看到，计 failed 与否
+  分档）两义分开（scan.rs:108-115）；complete/scanComplete/pageComplete 三值
+  分离+读前后 (size,mtime) 比对→FILE_CHANGED（pdf.rs:21-98）——「结果是下界
+  还是全集、哪部分没看」模型可判。**缺位**。
+- **read_files 聚合帽+双层续读**：1-32 文件共用 96KiB−最坏信封总帽逐文件扣
+  room，nextIndex（文件序）+每文件 nextOffset 双层恢复（file_many.rs:19-49）；
+  错误文件也是条目不整批失败（:88-102）。
+- **防伪行号**：只有物理 LF 是行界（CRLF 一行、裸 CR 不计）；正文 JSON 式可逆
+  转义——源文本无法伪造行号/文件头。gaea readfile 42→ 前缀+0-based，无防伪。
+- **glob/grep 增量**：glob pattern 数组+`!` 排除+modified 稳定排序；grep
+  definitions 模式（词法声明行分类）、exactTotal=false 早退只给 matchedObserved
+  下界（row-limit 截断明示「总数请重查」）、上下文行零行表字节切片定位。
+
+### 8.2 权威与生命周期（JS 线）
+
+- **作用域所有权仲裁**（publication/ownership.js:4-52）：scope 链**最近者赢**、
+  同层最后挂载者赢、卸载自动恢复前一行权威、重入计数防自触发——gaea 双执行体
+  同树权威问题的直接对位（stale-Edit CAS 之外的编排层）。**缺位**。
+- **超代对账**（publication/reconciliation.js:2-52）：新一轮先 cancel 旧
+  AbortController；wait 双续延观察迟到 rejection（既不发布也不 unhandled）；
+  drain 循环到静止防「drain 期间又来一轮」。**缺位**。
+- **工具变更归属传播**（publication/changes.js:49-63+replacements.js:185-215）：
+  每条 tools/change 归因到作用域，受影响者重算、欠账不清、突发合并——O(live)
+  压成 O(affected)。**缺位**。
+- **多等待点权限再校验**（execution/jobs.js:52-180）：admission() 在**每个
+  await 后**重查（≥5 处）；沙箱准备后 sameAuthority 重比对；spawned 标志分界
+  RESULT_UNKNOWN（效应不明）vs EXECUTOR_UNAVAILABLE（零效应）。
+- **跨风味 workdir 锚定**（session-shells.js:56-106）：会话工作区拼写决定
+  Windows/POSIX 规则；无盘 POSIX 绝对/跨盘 C:child/空占位各有专门拒绝——
+  拒绝一切借宿主进程当前盘解析的输入（诱饵目录陷阱）。
+- **权限模型全景 L0-L8**（docs 综合重建）：宿主三档为唯一授权源；固定文件操作
+  是可信围栏非代码隔离；read-only 连 dryRun 也拒；逐命令 allowed-once+批准后/
+  沙箱准备后双重复核；降权中止在途 worker；grant 撤销即否决已捕获 toolSet；
+  可见性≠授权（restrict 管不到自有注册）。gaea 缺 L4-L6 动态复核层。
+- **清理纪律三件**：清理债务账本（首个存储句柄发出**之前**先落持久记录，清理
+  失败推迟不遗忘，kernel/result-cleanup-registry.js:1-90）；白名单自底向上 GC
+  （名单外一个未知名字跳过整个 root、rmdir 自底向上让并发写者赢，
+  result-cache-gc.js:1-50）；按归属证据回收（绝不按名字/mtime/死 PID）。
+
+### 8.3 写与批量（Rust 线）
+
+- **bind-before-publish sidecar 锁**（file_update_lock.rs:46-154）：锁住
+  sidecar 后**重开名字**比对 (dev,ino)，Bound 才发布、Moved 丢弃重试≤8 次；
+  释放时持锁验证身份再 unlink（防删别人重建的锁）；锁名带点前缀天然被
+  glob/grep 跳过。
+- **结构化树哈希**（paths.rs:207-287）：类型标签+文件字节+**排序后**子项
+  (len,name)——同树稳定，batch 执行前 revalidate 用。
+- **batch 写前 unknown WAL+resume 只验不重放**（ops-batch lib.rs:204-286）：
+  每项碰文件系统前先 durable 落 unknown，崩溃恢复不可能误当 pending 重放；
+  resume 只跑 postcondition（dest 树哈希==计划 revision）。
+- **move=hardlink 原子 no-clobber+双侧 CAS**，跨设备报 CROSS_DEVICE 不降级
+  copy-delete；**发布后 fsync 失败=SYNC_FAILED+effect_state=applied**「文件
+  已发布，别重复，去验证」（file.rs:604-623）——绝不把已生效写报成 none。
+- **replace 全计划溢出预检**：每文件 32MiB 上限 dryRun 也算，任一超限整次
+  OUTPUT_LIMIT **零变更**；多文件=一串文件级原子发布非事务（A 成 B 败保留 A
+  回执+pending）；changed 计替换次数非文件数。
+
+### 8.4 有界解析（Rust 线，与「整文件解析再截断」的差异）
+
+- **ZIP preflight 先于解压库**（archive.rs:42-147）：尾部 65557 窗口反找 EOCD
+  且注释长度精确闭合，拒多 EOCD/ZIP64/多盘/加密/重复名/重叠 entry——「ZIP
+  metadata 先于库从攻击者可控计数分配内存而 bounded」。
+- **DOCX SAX 窗口物化**（docx.rs:154-192）：End("p") 即 push、窗口外只计数
+  不进 items（解析即分页，内存只有当前页）；单段 1MiB 帽、10 万段帽。
+- **PDF 严格子集全定长**：仅 classic xref 单 trailer，拒 Prev/XRefStm/Encrypt/
+  ObjStm；直接 Length 拒 indirect；引用链≤64 防环；16MiB/32 页全定长；Flate
+  单滤镜+zlib 终结符+total_in==raw.len() 拒尾部数据。
+- **CSV 流式状态机**：逐字符严格解码+流式 sha256 revision；恰 MAX_ROWS 行也
+  能证明 EOF（「One bounded lookahead proves EOF」）。
+- **XML 走界**：深 128/属性 64/命名空间 512/30s 逐事件；DTD 与自定义实体拒。
+
+### 8.5 错误码全表与配置面（docs 线）
+
+- **错误码按层全表**（gaea 现 9 粗码对比）：OUTPUT_LIMIT/PATH_CHANGED（枚举中
+  目录身份变化不给部分结果）/LOCK_UNSUPPORTED（曾被误报 REVISION_CONFLICT 的
+  教训）/ERR_INVALID_ENCODING/EXIT_CODE（重试策略 after-input-change）/
+  RESULT_PARTIAL/RESULT_UNKNOWN/AUTHORITY_CHANGED/SEARCH_STALE；EXECUTOR_
+  UNAVAILABLE 带子阶段（staging 失败重试一次 vs IPC 不匹配重试无效）——**子码
+  直接回答「重试有没有用」**。effect_state 除 none/unknown 外还有 **applied**
+  （发布已生效，验证而非重试）。
+- **参数纪律**：未知键拒绝并列出可接受键（不静默忽略）；可选字段空占位值
+  （""/null/[]）worker 运行前剥离，必填/replacement:""/false/0 原样。
+- **配置面**：迁移内存优先生效+只写 patch 层（永不整树写回——会把其他插件行
+  烘进根文件）+失败降级内存迁移下个激活重试；设置保存带 revision CAS 冲突保
+  草稿；退役行守卫防双实例。
+
+### 8.6 候选池第二波（D 系，动刀须点名；gaea 侧对位断言已核）
+
+- **D1 输出预算三件套**（推荐首位）：转义成本预算+信封最坏预留+行内截断
+  hex 恢复。纯函数~150 行，read/grep/多文件读全受益，消灭「截断了还超限」与
+  「截断点不可恢复」两病。影响高/代价低。
+- **D2 自校验续读游标**：A1' 补强——binding（参数+root 身份+权限）+快照哈希
+  +不完全遍历不发 continuation+截断原因枚举各配恢复文案。防翻页漂移与
+  「续读变提权」。影响中高/代价低-中。
+- **D3 错误码子层+applied+after-input-change**：B2 补强——9 粗码下挂子码，
+  effect_state 补 applied，EXECUTOR 子阶段回答「重试有没有用」。影响中/代价低。
+- **D4 跨文件 replace+写锁 sidecar**：gaea 无 replace 无文件级写锁；全计划
+  预检零变更+逐文件原子非事务+bind-before-publish 锁协议+树哈希 postcondition。
+  影响中/代价中。
+- **D5 三态跳过+完备性三元组+FILE_CHANGED**：搜索/读取诚实性——excluded vs
+  gap 分开、complete/scanComplete/pageComplete、读前后 stat 比对。影响中/代价低。
+- **D6 清理债务账本**：gaea publish-quarantine 盘查未见清理面（只进不出，
+  待装机实测确认增长）；「先记账后放句柄/失败推迟不遗忘/名单外整 root 跳过/
+  绝不按名字扫」。gaea spill 为内存库（budget+FIFO+重启清）无此病——如实改判
+  不含 spill 腿。影响中/代价低。
+- **D7 作用域权威三件**（双执行体同树第二刀）：所有权仲裁（最近者赢/撤销恢复）
+  +超代对账（先取消旧轮/迟到结果不落地）+变更归属传播（O(affected)）。动会话/
+  注册面，代价中-高；与 DSH 同树合流场景直接对位。
+
+**观察池（不急）**：ZIP preflight+DOCX SAX 分页（gaea docmd/format_convert
+现状待核后再判）；权限动态复核层 L4-L6（gaea 规则授予模型不同，逐命令
+allowed-once 要动审批面，须专项）；证据式跨请求读取去重（证据条件苛刻风险大，
+排最后）；workdir 锚定；glob 工具；发布重入队列；配置 patch 层纪律。
+
+**同构/不立项补充**：disk 家族登记表（gaea 无此盘面）、download-guard（gaea
+无下载引流需求）、review/merge 探测（无对位）、tui 表现层、PTC 侧渐进准入
+（A2 已覆盖其镜像）、Windows workspace 准备（DSH 沙箱专属）、definitions
+分类器（价值低）、teardown disposer 隔离（通用卫生）。

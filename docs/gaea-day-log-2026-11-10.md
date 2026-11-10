@@ -349,3 +349,16 @@
 - **不抄**：phase 字段（gaea 无相位概念）；blocked/suppressed/panic 裸前缀
   路径 envelope 化（前缀消费方在册，留待点名）；office 族逐错误分类（默认
   分类已给诚实 effect_state）。
+
+## dsh-ops 第二轮深审（同日晚，用户令重审，纯调研）
+
+- 三路并行：lib/ 未挖子系统逐个读（发现 scoped-ownership 等 6 文件=2 行转发
+  shim，真身在 publication//execution/）+native/crates 算法级深读+docs/118 md
+  全目录扫描（新读 36 篇+快扫 12 篇，5 条过时段警示入册）。
+- 产出候选池第二波 D1-D7（docs/gaea-dsh-ops-distill-2026-11-10.md §8）：
+  D1 输出预算三件套（推荐首位）/D2 自校验续读游标（A1' 补强）/D3 错误码子层
+  +applied（B2 补强）/D4 跨文件 replace+写锁/D5 三态跳过+完备性三元组/D6
+  清理债务账本（publish-quarantine 只进不出待实测）/D7 作用域权威三件
+  （双执行体同树第二刀）。观察池 8 项+同构不立项 8 项。
+- gaea 侧对位断言核实：spill=内存库（budget+FIFO+重启清）无磁盘长草——
+  spill 台账腿如实改判剔除；publish-quarantine 未见清理面命中（挂 D6 待实测）。
