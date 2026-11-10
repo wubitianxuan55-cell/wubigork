@@ -17,6 +17,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+
+	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
 // RevisionAbsent expected_revision 的 create-only 哨兵值。
@@ -39,25 +41,50 @@ func RevisionOfBytes(b []byte) string {
 
 // checkExpectedRevision CAS 校验。path 仅用于错误文案；current 为当前内容
 // （不存在时 nil）；exists 报告目标当前是否存在。expected 语义见文件头注释。
+//
+// B2 失败即值：冲突返回 tool.Failure{conflict}（CAS 原子拒绝=写未发生，
+// effect none 是诚实的；重读即自愈故 retryable）。文案前缀保留。
 func checkExpectedRevision(path string, current []byte, exists bool, expected string) error {
 	if expected == "" {
 		return nil
 	}
 	if expected == RevisionAbsent {
 		if exists {
-			return fmt.Errorf("REVISION_CONFLICT: %s 已存在（expected_revision=%q 要求 create-only）；先读现有内容再决定覆盖或换路径", path, expected)
+			return &tool.Failure{
+				Code:        tool.CodeConflict,
+				Err:         fmt.Errorf("REVISION_CONFLICT: %s 已存在（expected_revision=%q 要求 create-only）；先读现有内容再决定覆盖或换路径", path, expected),
+				Retryable:   true,
+				EffectState: tool.EffectNone,
+				NextAction:  "重读现有内容后再决定覆盖或换路径",
+			}
 		}
 		return nil
 	}
 	if len(expected) != 64 {
-		return fmt.Errorf("expected_revision 非法（%q）：须为 64 位 sha256 hex（read_file 尾标 revision 取值）或 %q", expected, RevisionAbsent)
+		return &tool.Failure{
+			Code:        tool.CodeValidationError,
+			Err:         fmt.Errorf("expected_revision 非法（%q）：须为 64 位 sha256 hex（read_file 尾标 revision 取值）或 %q", expected, RevisionAbsent),
+			EffectState: tool.EffectNone,
+		}
 	}
 	if !exists {
-		return fmt.Errorf("REVISION_CONFLICT: %s 不存在（当前 revision=absent，传入 %s…）；如要新建请不传 expected_revision 或传 %q", path, expected[:12], RevisionAbsent)
+		return &tool.Failure{
+			Code:        tool.CodeConflict,
+			Err:         fmt.Errorf("REVISION_CONFLICT: %s 不存在（当前 revision=absent，传入 %s…）；如要新建请不传 expected_revision 或传 %q", path, expected[:12], RevisionAbsent),
+			Retryable:   true,
+			EffectState: tool.EffectNone,
+			NextAction:  "目标不存在：不传 expected_revision 新建，或确认路径",
+		}
 	}
 	actual := RevisionOfBytes(current)
 	if actual != expected {
-		return fmt.Errorf("REVISION_CONFLICT: %s 自读取后已被修改（期望 %s…，当前 %s…）；重读文件后再改", path, expected[:12], actual[:12])
+		return &tool.Failure{
+			Code:        tool.CodeConflict,
+			Err:         fmt.Errorf("REVISION_CONFLICT: %s 自读取后已被修改（期望 %s…，当前 %s…）；重读文件后再改", path, expected[:12], actual[:12]),
+			Retryable:   true,
+			EffectState: tool.EffectNone,
+			NextAction:  "文件已被外部修改：重读拿最新 revision 后再改",
+		}
 	}
 	return nil
 }

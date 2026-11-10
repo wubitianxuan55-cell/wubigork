@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
 func casWorkspace(t *testing.T) (string, writeFile, editFile) {
@@ -70,6 +72,46 @@ func TestRevisionCASWriteFile(t *testing.T) {
 		t.Fatalf("非法长度应报错: %v", err)
 	}
 	_ = ws
+}
+
+// TestFailureAsValueB2 钉「失败即值」结构：冲突=conflict 码+effect none+
+// 可重试（重读自愈）；围栏=denied 码+不可原样重试。文案前缀兼容层不破。
+func TestFailureAsValueB2(t *testing.T) {
+	ws, w, _ := casWorkspace(t)
+	if _, err := w.Execute(context.Background(), casArgs(t, map[string]any{
+		"path": "cas.txt", "content": "v1",
+	})); err != nil {
+		t.Fatal(err)
+	}
+	_, err := w.Execute(context.Background(), casArgs(t, map[string]any{
+		"path": "cas.txt", "content": "v2", "expected_revision": strings.Repeat("0", 64),
+	}))
+	f, ok := tool.AsFailure(err)
+	if !ok {
+		t.Fatalf("CAS 冲突应为结构化 Failure: %v", err)
+	}
+	if f.Code != tool.CodeConflict || !f.Retryable || f.EffectState != tool.EffectNone {
+		t.Fatalf("冲突失败语义错: code=%q retryable=%v effect=%q", f.Code, f.Retryable, f.EffectState)
+	}
+	if f.NextAction == "" || !strings.Contains(err.Error(), "REVISION_CONFLICT") {
+		t.Fatalf("自愈指引/前缀兼容缺失: next=%q err=%v", f.NextAction, err)
+	}
+
+	r := readFile{workDir: ws}
+	if err := os.WriteFile(filepath.Join(ws, ".env"), []byte("S=1"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, ferr := r.Execute(context.Background(), casArgs(t, map[string]any{"path": ".env"}))
+	cf, ok := tool.AsFailure(ferr)
+	if !ok {
+		t.Fatalf("围栏拒绝应为结构化 Failure: %v", ferr)
+	}
+	if cf.Code != tool.CodeDenied || cf.Retryable || cf.EffectState != tool.EffectNone {
+		t.Fatalf("围栏失败语义错: code=%q retryable=%v effect=%q", cf.Code, cf.Retryable, cf.EffectState)
+	}
+	if !strings.Contains(ferr.Error(), "CREDENTIAL_DENIED") {
+		t.Fatalf("围栏前缀兼容缺失: %v", ferr)
+	}
 }
 
 func TestRevisionCASEditFamily(t *testing.T) {

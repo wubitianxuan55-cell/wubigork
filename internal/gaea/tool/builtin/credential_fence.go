@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+
+	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
 // credentialDirSegments 目录段围栏（路径任一段命中即拦）。
@@ -59,7 +61,14 @@ func credentialFenceRule(p string) (string, bool) {
 }
 
 // credentialDenied 结构化拒绝（错误即值：模型收到可自愈指引）。
-func credentialDenied(tool, p, rule string) error {
-	return fmt.Errorf("CREDENTIAL_DENIED: 凭据围栏拒绝 %s 读取 %s（命中规则 %s）。"+
-		"该文件疑似凭据/密钥，读取会把它带进对话上下文；如确需访问请用户自行操作或明确授权后调整围栏。", tool, p, rule)
+// B2：升 tool.Failure{denied}——围栏先于读取生效，effect none；原样重试
+// 恒被拒故不可重试。文案前缀保留为兼容层。
+func credentialDenied(toolName, p, rule string) error {
+	return &tool.Failure{
+		Code: tool.CodeDenied,
+		Err: fmt.Errorf("CREDENTIAL_DENIED: 凭据围栏拒绝 %s 读取 %s（命中规则 %s）。"+
+			"该文件疑似凭据/密钥，读取会把它带进对话上下文；如确需访问请用户自行操作或明确授权后调整围栏。", toolName, p, rule),
+		EffectState: tool.EffectNone,
+		NextAction:  "凭据文件不进上下文：确需访问请用户操作或明确授权",
+	}
 }

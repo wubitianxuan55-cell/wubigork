@@ -15,6 +15,10 @@ import (
 
 // ToolEnvelope is the JSON envelope every tool result is wrapped in.
 // The model sees this as the tool_result message Content.
+//
+// B2 失败即值（dsh-ops 蒸馏 2026-11-10）：失败信封追加 Retryable/
+// EffectState/NextAction 三字段（omitempty，纯加法——旧消费方零感知），
+// 由 tool.Failure 结构化错误经 WrapFailure 渲染。
 type ToolEnvelope struct {
 	OK      bool   `json:"ok"`
 	Success bool   `json:"success"`
@@ -22,6 +26,10 @@ type ToolEnvelope struct {
 	Error   string `json:"error,omitempty"`   // human-readable short error (for the model)
 	Message string `json:"message,omitempty"` // friendly summary (for the model)
 	Data    any    `json:"data,omitempty"`    // structured payload when applicable
+	// 失败即值三字段（仅失败信封携带）：
+	Retryable   bool   `json:"retryable,omitempty"`    // 原样重试是否可能成功
+	EffectState string `json:"effect_state,omitempty"` // none / unknown（unknown=先核实再重试）
+	NextAction  string `json:"next_action,omitempty"`  // 下一步短句（一句以内，token 纪律）
 }
 
 // Pre-defined outcome codes.
@@ -34,6 +42,9 @@ const (
 	CodeValidationError = "validation_error"
 	CodeUnknownTool     = "unknown_tool"
 	CodeBlocked         = "blocked"
+	// CodeConflict revision CAS 冲突（B2：原为 REVISION_CONFLICT 文本前缀，
+	// 结构化后进信封码；前缀文本保留为兼容层）。
+	CodeConflict = "conflict"
 )
 
 // WrapResult envelopes a successful tool result.
@@ -82,6 +93,12 @@ func ParseEnvelope(raw string) (ToolEnvelope, bool) {
 		return ToolEnvelope{}, false
 	}
 	return env, true
+}
+
+// MarshalEnvelope 序列化信封（agent 收口点复用 mustMarshal 的确定性口径：
+// SetEscapeHTML(false) + TrimSpace）。
+func MarshalEnvelope(env ToolEnvelope) string {
+	return mustMarshal(env)
 }
 
 // mustMarshal serialises without HTML escaping (SetEscapeHTML(false)) so that

@@ -455,12 +455,42 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 		}
 	}
 
+	// B2 失败即值（dsh-ops 蒸馏 2026-11-10）：前台失败按副作用诚实语义分类——
+	// 超时/取消=进程被杀，副作用状态恒 unknown（可能已部分落盘）；非零退出=
+	// 命令跑完但失败，效果同样不可知。退出码随 Failure 结构化进信封 data。
 	if ctx.Err() == context.DeadlineExceeded {
-		return out, fmt.Errorf("command timed out (> %s)", bashTimeout)
+		return out, &tool.Failure{
+			Code:        tool.CodeTimeout,
+			Err:         fmt.Errorf("command timed out (> %s)", bashTimeout),
+			Retryable:   true,
+			EffectState: tool.EffectUnknown,
+		}
 	}
 	if err != nil {
+		// 取消：回合正在终止，重试无意义；进程可能已被杀到一半。
+		if ctx.Err() == context.Canceled {
+			return out, &tool.Failure{
+				Code:        tool.CodeExecError,
+				Err:         fmt.Errorf("command exited: %w", err),
+				EffectState: tool.EffectUnknown,
+				NextAction:  "命令因回合取消而中断，副作用状态未知",
+			}
+		}
 		// Non-zero exit: feed output and error back so the model can self-correct.
-		return out, fmt.Errorf("command exited: %w", err)
+		exitCode := -1
+		hasExit := false
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+			hasExit = true
+		}
+		return out, &tool.Failure{
+			Code:        tool.CodeExecError,
+			Err:         fmt.Errorf("command exited: %w", err),
+			Retryable:   true,
+			EffectState: tool.EffectUnknown,
+			ExitCode:    exitCode,
+			HasExitCode: hasExit,
+		}
 	}
 	return out, nil
 }
