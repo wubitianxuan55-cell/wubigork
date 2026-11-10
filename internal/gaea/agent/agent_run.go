@@ -419,12 +419,11 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 			// suppressions). Blocks arrive as plain "blocked:" / "precheck blocked:"
 			// prefixed results, suppressions as "suppressed:", execution errors as
 			// legacy "error:" / "tool panic:" prefixes.
-			if len(turnToolErrors) < 5 && (strings.HasPrefix(results[i], "error:") ||
-				strings.HasPrefix(results[i], "blocked:") ||
-				strings.HasPrefix(results[i], "precheck blocked:") ||
-				strings.HasPrefix(results[i], "suppressed:") ||
-				strings.HasPrefix(results[i], "tool panic:")) {
-				turnToolErrors = append(turnToolErrors, results[i])
+			// B2 失败即值（2026-11-10）：失败信封 JSON 同样入账（旧口径数不到，
+			// 回合摘要漏失败）；入账形态压成一行（compactToolError）防大
+			// detail 撑爆摘要。
+			if len(turnToolErrors) < 5 && hasToolErrorPrefix(results[i]) {
+				turnToolErrors = append(turnToolErrors, compactToolError(results[i]))
 			}
 			// Skip suppressed calls (already have placeholder result).
 			if strings.HasPrefix(results[i], "suppressed:") {
@@ -461,8 +460,9 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 		}
 
 		// advance canonical todo state for successful complete_step calls
+		// B2：失败信封同样不得推进（旧前缀口径数不到信封失败，失败调用曾照推）。
 		for i, call := range calls {
-			if call.Name == "complete_step" && !strings.HasPrefix(results[i], "error:") && !strings.HasPrefix(results[i], "blocked:") {
+			if call.Name == "complete_step" && !hasToolErrorPrefix(results[i]) {
 				step := extractStepFromArgs(call.Arguments)
 				if step != "" {
 					a.advanceCanonicalTodo(step)

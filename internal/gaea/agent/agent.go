@@ -895,10 +895,11 @@ func (a *AgentRunner) shouldMidTurnSteer(calls []provider.ToolCall, results []st
 	failed := 0
 	blockedCount := 0
 	for _, r := range results {
-		if strings.HasPrefix(r, "blocked:") {
+		// B2 失败即值：双轨判定（裸前缀+整串失败信封）——旧口径只认前缀，
+		// 信封化的普通工具失败从未被数到（盲计根修，2026-11-10）。
+		if f, blocked := toolOutputClass(r); blocked {
 			blockedCount++ // V8.0.5: plan-mode blocks are normal, not failures
-		} else if strings.HasPrefix(r, "error:") || strings.HasPrefix(r, "tool panic:") ||
-			strings.HasPrefix(r, "suppressed:") {
+		} else if f {
 			failed++
 		}
 	}

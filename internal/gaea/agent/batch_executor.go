@@ -155,13 +155,53 @@ func (a *AgentRunner) executeBatch(ctx context.Context, calls []provider.ToolCal
 // hasToolErrorPrefix mirrors runDirect's tool-error detection used for turn
 // results so model-tool records fail (not complete) on recoverable/non-
 // recoverable errors alike.
+//
+// B2 失败即值（2026-11-10）：失败输出已是信封 JSON（executeOne 收口自 V8.9
+// 起 WrapError），旧口径只认裸前缀=普通工具失败从未被数到（盲计）。现双轨：
+// 裸前缀（blocked/suppressed/panic 等旁路）+ 整串失败信封。
 func hasToolErrorPrefix(s string) bool {
-	for _, p := range []string{"error:", "blocked:", "precheck blocked:", "suppressed:", "tool panic:"} {
-		if strings.HasPrefix(strings.TrimSpace(s), p) {
-			return true
+	failed, blocked := toolOutputClass(s)
+	return failed || blocked
+}
+
+// toolOutputClass 判定一次工具输出是否失败/被拦。被拦（计划模式/权限/预检）
+// 是正常控制流不算失败；两者都使记录不得记成功。信封分支把 CodeBlocked
+// 归被拦、其余 ok:false 归失败，与裸前缀口径对齐。
+func toolOutputClass(s string) (failed, blocked bool) {
+	trimmed := strings.TrimSpace(s)
+	for _, p := range []string{"blocked:", "precheck blocked:"} {
+		if strings.HasPrefix(trimmed, p) {
+			return false, true
 		}
 	}
-	return false
+	for _, p := range []string{"error:", "suppressed:", "tool panic:"} {
+		if strings.HasPrefix(trimmed, p) {
+			return true, false
+		}
+	}
+	// 信封判定须 code 非空：任意 JSON 都能 Unmarshal 成零值信封（ok=false），
+	// 只认显式声明 code 的失败信封（与 executeOne 塌缩守卫同口径）。
+	if env, ok := tool.ParseEnvelope(trimmed); ok && !env.OK && env.Code != "" {
+		if env.Code == tool.CodeBlocked {
+			return false, true
+		}
+		return true, false
+	}
+	return false, false
+}
+
+// compactToolError 把失败输出压成一行（turnToolErrors 入账用）：信封取
+// error 字段（缺则 code），裸前缀原样——防大 detail 信封撑爆回合摘要。
+func compactToolError(s string) string {
+	trimmed := strings.TrimSpace(s)
+	if env, ok := tool.ParseEnvelope(trimmed); ok && !env.OK && env.Code != "" {
+		msg := env.Error
+		if msg == "" {
+			msg = env.Code
+		}
+		return "error: " + msg
+	}
+	return s
 }
 
 type toolCallBatch struct {
