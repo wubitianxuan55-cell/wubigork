@@ -136,8 +136,13 @@ func TestGrepSkipsUnreadableGracefully(t *testing.T) {
 	dir := t.TempDir()
 	writeTemp(t, dir, "ok.txt", "needle\n")
 	// A directory named like a file can't happen, but a missing subdir must not abort.
+	// D5（dsh-ops 蒸馏 2026-11-10）：缺根=没看到任何文件，不再伪装完整
+	// 「no matches」——如实记缺口（scan=partial）+零命中文案区分扫描域。
 	out := execTool(t, grepTool{workDir: dir}, map[string]any{"pattern": "needle", "path": "missing-dir"})
-	if !strings.HasPrefix(out, "(no matches") {
+	if !strings.Contains(out, "no matches") {
 		t.Errorf("missing search root should degrade to zero-hit text, got %q (err path)", out)
+	}
+	if !strings.Contains(out, "unreadable") || !strings.Contains(out, "scan=partial") {
+		t.Errorf("missing search root should report the gap honestly, got %q", out)
 	}
 }

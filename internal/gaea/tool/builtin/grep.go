@@ -36,7 +36,7 @@ const (
 func (grepTool) Name() string { return "grep" }
 
 func (grepTool) Description() string {
-	return "Search file contents with a regular expression. Returns matches as `path:line: content` lines. Skips binary files, noise directories (node_modules, .git, dist, build, ...) and credential-shaped files (credential fence). Use `include` (e.g. \"*.go\") to filter by file name glob. Use `offset` to page through large match sets (the head line reports the next offset)."
+	return "Search file contents with a regular expression. Returns matches as `path:line: content` lines. Skips binary files, noise directories (node_modules, .git, dist, build, ...), .gaea host-runtime subtrees and credential-shaped files (credential fence). The head line reports scan completeness (scan=complete|partial — partial with unreadable-file gaps means coverage is a lower bound) and the next offset when more matches may remain. Use `include` (e.g. \"*.go\") to filter by file name glob."
 }
 
 func (grepTool) Schema() json.RawMessage {
@@ -117,13 +117,17 @@ func (g grepTool) Execute(ctx context.Context, args json.RawMessage) (string, er
 		skip = 0
 	}
 	pageOffset := skip // 本页起始 offset（回显与续页指引用；skip 游标在遍历中递减）
-	fenced := 0        // B1 凭据围栏跳过数
+	fenced := 0        // B1 凭据围栏跳过数（excluded：选择不看）
+	gaps := 0          // D5 跳过缺口（没看到：不可读文件/目录、超长行截断）——
+	// 「没看到」与「选择不看」（噪声/围栏/include/二进制）分开记账：缺口在
+	// 则本页覆盖是下界，续读指引不发（dsh-ops 蒸馏 D5，2026-11-10）。
 	err = filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
+			gaps++ // unreadable dir/file — 如实记缺口，不再静默
 			if d != nil && d.IsDir() {
-				return fs.SkipDir // unreadable dir — skip silently, keep walking
+				return fs.SkipDir
 			}
-			return nil // unreadable file — skip
+			return nil
 		}
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -152,7 +156,8 @@ func (g grepTool) Execute(ctx context.Context, args json.RawMessage) (string, er
 		// 页边界不错切）。
 		n, err := grepFile(ctx, re, path, &skip, maxResults-total, &body)
 		if err != nil {
-			return nil // skip unreadable/undecodable file, keep searching
+			gaps++ // 不可读/超长行截断——记缺口继续搜
+			return nil
 		}
 		total += n
 		if total >= maxResults {
@@ -160,20 +165,37 @@ func (g grepTool) Execute(ctx context.Context, args json.RawMessage) (string, er
 		}
 		return nil
 	})
-	if err != nil && err != fs.SkipAll && ctx.Err() == nil {
+	cancelled := ctx.Err() != nil
+	if err != nil && err != fs.SkipAll && !cancelled {
 		return "", fmt.Errorf("grep %s: %v", root, err)
 	}
-	if total == 0 && fenced == 0 {
+	// D5 取消诚实：被取消的部分扫描不得伪装成完整「无命中」——旧实现预取消
+	// ctx 走到 ``(no matches ...)`` 是假完备。
+	if total == 0 && fenced == 0 && gaps == 0 && !cancelled {
 		return fmt.Sprintf("(no matches for %q under %s)", p.Pattern, filepath.ToSlash(root)), nil
 	}
-	// 头部行：游标续页指引与围栏记账共用一行，前置。offset 回显钳位后的 skip
-	// （负 offset 旧实现会回显负游标）。matchedTotal 语义如实：扫描在预算帽
-	// 提前止步时 total 是「至少」，不给伪造总数。
+	// 头部行：游标续页指引与围栏/缺口记账共用一行，前置。matchedTotal 语义
+	// 如实：扫描在预算帽提前止步时 total 是「至少」，不给伪造总数。
+	// scan 二元完备性（D5，不照抄上游三元组——gaea 单遍全扫无页概念）：
+	// complete=全树扫完且零缺口；partial=预算止步/有缺口/被取消，附原因。
 	var out strings.Builder
-	if total >= maxResults || p.Offset > 0 || fenced > 0 {
-		fmt.Fprintf(&out, "[grep page] offset=%d shown=%d", pageOffset, total)
-		if total >= maxResults {
+	pageFull := total >= maxResults
+	if pageFull || p.Offset > 0 || fenced > 0 || gaps > 0 || cancelled {
+		scan := "complete"
+		if pageFull || gaps > 0 || cancelled {
+			scan = "partial"
+		}
+		fmt.Fprintf(&out, "[grep page] offset=%d shown=%d scan=%s", pageOffset, total, scan)
+		// 续读指引只在「预算止步且零缺口且未被取消」时发——缺口/取消意味着
+		// 覆盖是下界，续页会静默跳过没看到的文件。
+		if pageFull && gaps == 0 && !cancelled {
 			fmt.Fprintf(&out, " — more matches may remain; re-run with offset=%d", pageOffset+total)
+		}
+		if gaps > 0 {
+			fmt.Fprintf(&out, " — %d path(s) unreadable (coverage is a lower bound; narrow the path or fix permissions)", gaps)
+		}
+		if cancelled {
+			out.WriteString(" — scan interrupted")
 		}
 		if fenced > 0 {
 			fmt.Fprintf(&out, " — credential-fence skipped %d file(s)", fenced)
@@ -182,10 +204,19 @@ func (g grepTool) Execute(ctx context.Context, args json.RawMessage) (string, er
 	}
 	out.WriteString(strings.TrimRight(body.String(), "\n"))
 	if total == 0 {
-		fmt.Fprintf(&out, "\n(no matches for %q under %s)", p.Pattern, filepath.ToSlash(root))
+		if gaps > 0 || cancelled {
+			fmt.Fprintf(&out, "\n(no matches in scanned files for %q under %s)", p.Pattern, filepath.ToSlash(root))
+		} else {
+			fmt.Fprintf(&out, "\n(no matches for %q under %s)", p.Pattern, filepath.ToSlash(root))
+		}
 	}
 	if total >= maxResults {
-		fmt.Fprintf(&out, "\n[truncated at %d results — refine the pattern, narrow the path, raise max_results, or re-run with offset=%d]", maxResults, pageOffset+total)
+		// 续读建议与头行同口径：缺口/取消时覆盖是下界，只给收窄指引。
+		if gaps == 0 && !cancelled {
+			fmt.Fprintf(&out, "\n[truncated at %d results — refine the pattern, narrow the path, raise max_results, or re-run with offset=%d]", maxResults, pageOffset+total)
+		} else {
+			fmt.Fprintf(&out, "\n[truncated at %d results — refine the pattern, narrow the path, or raise max_results]", maxResults)
+		}
 	}
 	return strings.TrimRight(out.String(), "\n"), nil
 }
@@ -235,6 +266,11 @@ func grepFile(ctx context.Context, re *regexp.Regexp, path string, skip *int, bu
 		if ctx.Err() != nil {
 			break
 		}
+	}
+	// D5：超长行（>1MB 缓冲）会让 scanner 截断——该文件余下命中静默丢失是
+	// 旧实现的真缺口，如实报错让调用方记账（gap），不再吞掉。
+	if serr := scanner.Err(); serr != nil {
+		return n, fmt.Errorf("scan %s: %w", path, serr)
 	}
 	return n, nil
 }
