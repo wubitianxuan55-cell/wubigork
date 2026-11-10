@@ -397,3 +397,16 @@
 - **验证**：gaea 树 71 包全绿（CGO_ENABLED=1+ucrt64+DLL 进 PATH）+app 全量
   +gofmt 净+六刀分提交。**余池=D4 跨文件 replace+写锁、D7 作用域权威三件
   待点名**；观察池不动。B2/本波均未装机（要上桌需构建装机，说一声即办）。
+
+## 桌面端构建装机（2026-11-10 13:08，含 B2 失败即值+第二波 D 系六刀上桌）
+
+- 前端生产构建 21.3s + `wails build -s -ldflags "-s -w" -trimpath` 过
+  （ucrt64 gcc 前置，系统默认 TMP/TEMP，无孤儿进程）；exe 61,808,640B，
+  SHA256 前缀 `E87E08D6D99B0C57`（build/bin 与 C:\AI\gaea-app 同哈希）。
+- 冒烟 `/api/health` 200（HTTP 桥接 18999，进程已回收）；gaea_install.ps1
+  -Launch：四文件同装、桌面快捷方式刷新、新 PID 37472 启动 13:08:18 >
+  构建完成 13:07:52（PID AFTER BUILD OK）。
+- 本壳含今日全部源码：B2 失败即值四刀 + 第二波 D 系六刀（刀0 两生产 bug
+  根修/D5 三态跳过/D2 自校验游标/D1 输出预算/D3 subcode+applied/D6 隔离
+  账本+启动清扫）。可实弹面：grep 翻页（cursor token）/大输出截断（信封
+  恒完整 JSON）/bash 失败信封 subcode/publish-quarantine 账本与 30 天清扫。
