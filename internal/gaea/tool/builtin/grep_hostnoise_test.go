@@ -108,3 +108,8 @@ func TestGrepNegativeOffsetClampedInEcho(t *testing.T) {
 		t.Fatalf("应回显钳位后 offset=0: %q", out)
 	}
 }
+
+// writeFileForTest 造工作区文件（D 系测试共用小助手）。
+func writeFileForTest(ws, name, content string) error {
+	return os.WriteFile(filepath.Join(ws, name), []byte(content), 0o644)
+}
