@@ -523,3 +523,10 @@
 - **验证**：tool+builtin 全量、boot 全量、agent space/session、app 定向
   （Space|Board|ExtraTools|ProgrammingWeb）全绿。app 测试坑再现：cgo 需 ucrt64
   gcc 前置+sherpa/onnx 三 DLL（build/bin）进 PATH，否则 0xc0000135。
+- **装机收尾（本批三刀）**：frontend 20.75s+`wails build -s -ldflags "-s -w"
+  -trimpath`（ucrt64 前置）1m4s → build/bin/gaea.exe 61,902,336B，
+  sha256 `224DDCC90358…`；冒烟 `/api/health` 200（PID 已回收）；
+  gaea_install.ps1 -Launch → INSTALL OK，新 PID 23020（20:03:26 > 构建
+  20:02:49）。装机后删除 `C:\AI\dsh\home\cordis.patch.yml` 的
+  「serverName: rea」标记行（保留顶层数组 `[]`）——marker 依赖面已随
+  e2fa809c 消失，红队预设 `id: rea-mcp` 行在位（2026-11-09 10:28 版）。
