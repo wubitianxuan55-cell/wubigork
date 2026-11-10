@@ -1,3 +1,23 @@
+## 代码面卫生小批：knip 尾款清零+天璇退役漏网收口 · 2026-11-11
+
+- **承接**：11-10 晚自主批收官后用户令「继续优化完善 gaea」；拍板池余项
+  全卡用户输入，推进可自主验证欠账：v4.179 挂账的 knip Unused exports
+  169 项三态甄别。
+- **盘点**：169 项已被后续批次自然排干，全类目复扫自研仅剩 3 项；假阳性
+  甄别=voice-worklets（AudioWorklet URL 运行时挂载）与 preview-atlas 预览壳
+  保留。
+- **刀（c7da4558，-23 行）**：engines.ts 删 `startTianxuanModel`（天璇
+  退役漏网——Go 绑定已删而 wrapper 靠 AppFacade Record 索引签名静默带病
+  编译，真调用必炸）与 `startStrataModel`（零调用方；Go 绑定+集成测试
+  保留为预留面）；ChatPage 删 INACTIVITY 无消费方再导出；gen_bindings
+  参数表除名五条天璇陈旧条目+顺手修 WebSearch 三行既有 gofmt 欠账。
+- **门禁**：定向 vitest 83/83（api/engines 全部消费面两批 12 文件）、
+  tsc 0、eslint 0、**knip 自研未用导出清零**、gofmt 合式；无运行时行为
+  变化，不装机不发版。
+- **清障**：`.tmp/gaea-voice-588b5ad6` 遗留工作树移除（29 条改动全为
+  wails 再生绑定物，核后强删+prune）。
+- **文件记录**：`docs/gaea-day-log-2026-11-11.md`。
+
 ## 代码面自主批：空间契约漂移刀+REA preflight+版本三源 · 2026-11-10（晚）
 
 - **承接**：办公治理六阶段与 dsh-ops 候选池双收官后，用户令「继续优化完善
