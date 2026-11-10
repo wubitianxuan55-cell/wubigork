@@ -26,6 +26,20 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 			errMsg: fmt.Sprintf("unknown tool %q", call.Name),
 		}
 	}
+	// A2 动态工具目录（dsh-ops 蒸馏 2026-11-10）：目录开启时，未进 schema 面
+	// 的工具软拒——模型没拿到过它的 schema（参数形状无据），凭名字猜调用
+	// 应被引导到 discover_tools 而非盲执行。可见性≠授权的反面闸。
+	if !a.toolActive(call.Name) {
+		msg := fmt.Sprintf("tool %q 未激活（不在当前会话工具面）", call.Name)
+		env := tool.WrapFailure(&tool.Failure{
+			Code:        tool.CodeValidationError,
+			Subcode:     "TOOL_NOT_ACTIVATED",
+			Err:         fmt.Errorf("%s", msg),
+			EffectState: tool.EffectNone,
+			NextAction:  "用 discover_tools 按关键词查找并激活（下一模型步生效）；权限/审批闸照常",
+		}, msg, map[string]any{"tool": call.Name})
+		return toolOutcome{output: env, errMsg: msg}
+	}
 
 	// V10.13 → v4.376: 成功循环检测降级 advisory — 硬阻断已退役（上游
 	// reasonix 裁决：实测硬阻断误伤多于收益），计数照记、提醒走批后的

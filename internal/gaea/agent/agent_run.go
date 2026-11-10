@@ -95,6 +95,9 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 	a.repeatSuccessCounts = nil // 每轮重置成功循环计数
 	a.repeatSuccessNudged = nil // 每轮重置 advisory 去重
 	a.turnMu.Unlock()
+	// A2 in-history 播种：历史里调用过的工具视为已激活（幂等，只增不减；
+	// 目录关闭时 no-op）。activated 是会话级，不在上面的 per-turn 重置块里。
+	a.seedActivatedFromHistory()
 	// per-turn TurnResult tracking — accumulated here and returned by Run().
 	var turnFilesCreated []string
 	var turnFilesModified []string

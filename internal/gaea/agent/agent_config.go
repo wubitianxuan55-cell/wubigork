@@ -66,6 +66,11 @@ type Options struct {
 	// When set, RunSubAgent uses these as the tools JSON field so the
 	// prefix cache includes the same tools the parent sends.
 	ActiveSchemas []provider.ToolSchema
+	// ResidentTools 开启 A2 动态工具目录（dsh-ops 蒸馏 2026-11-10）：常驻
+	// schema 只含名单 ∪ 会话已激活集，其余经 discover_tools 词法发现后下一
+	// 模型步激活（可见性≠授权，权限/审批闸照常）。nil = 关闭（全量常驻，
+	// 零行为变化——测试/子代理缺省路径）。
+	ResidentTools []string
 	RuntimePrompt string
 	// Goal is the session-level stopping condition (V6.0 P7). When non-empty,
 	// the stop gate checks whether the model's final answer satisfies the goal.

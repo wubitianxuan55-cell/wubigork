@@ -498,6 +498,13 @@ type AgentRunner struct {
 	baseSchemas     []provider.ToolSchema
 	activeSchemasMu sync.RWMutex
 
+	// A2 动态工具目录（dsh-ops 蒸馏 2026-11-10）：resident 非空=目录开启，
+	// schema 面=resident ∪ activated（currentSchemas 过滤）；activated 是
+	// 会话级激活集（挂法照 fileObs：跨轮存活，不进 per-turn 重置；重启即失，
+	// 对齐 controller.granted 语义）。turnMu 保护（discover 与 executeOne 并发）。
+	resident  map[string]bool
+	activated map[string]bool
+
 	// storm tracks repeated failures to detect death spirals (V3.0).
 	storm StormBreaker
 
@@ -873,6 +880,14 @@ func New(prov provider.LLMProvider, tools *tool.Registry, session *Session, opts
 	if opts.ActiveSchemas != nil {
 		r.activeSchemas = opts.ActiveSchemas
 		r.baseSchemas = opts.ActiveSchemas
+	}
+	// A2 动态工具目录：名单非空即开启（resident+activated 双集）。
+	if len(opts.ResidentTools) > 0 {
+		r.resident = make(map[string]bool, len(opts.ResidentTools))
+		for _, n := range opts.ResidentTools {
+			r.resident[n] = true
+		}
+		r.activated = make(map[string]bool)
 	}
 	return r
 }

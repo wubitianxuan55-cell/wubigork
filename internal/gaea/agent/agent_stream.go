@@ -13,17 +13,33 @@ import (
 // currentSchemas resolves the tool schemas exactly as stream() sends them —
 // the summarizer request must mirror the real request's tools block for the
 // provider prefix cache to hit.
+// A2（dsh-ops 蒸馏 2026-11-10）：目录开启（resident 非空）时 schema 面=
+// resident ∪ activated；activeSchemas 覆盖（子代理父对齐）优先级更高。
 func (a *AgentRunner) currentSchemas() []provider.ToolSchema {
 	if a.tools == nil {
 		return nil
 	}
-	tools := a.tools.Schemas()
 	a.activeSchemasMu.RLock()
-	if a.activeSchemas != nil {
-		tools = a.activeSchemas
-	}
+	override := a.activeSchemas
 	a.activeSchemasMu.RUnlock()
-	return tools
+	if override != nil {
+		return override
+	}
+	if a.resident != nil {
+		names := make([]string, 0, len(a.resident)+len(a.activated)+4)
+		a.turnMu.Lock()
+		for n := range a.resident {
+			names = append(names, n)
+		}
+		for n := range a.activated {
+			if !a.resident[n] {
+				names = append(names, n)
+			}
+		}
+		a.turnMu.Unlock()
+		return a.tools.FilteredSchemas(names)
+	}
+	return a.tools.Schemas()
 }
 
 func (a *AgentRunner) stream(ctx context.Context, turn int) (string, string, string, []provider.ToolCall, *provider.Usage, bool, error) {
