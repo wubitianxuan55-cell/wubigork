@@ -431,3 +431,15 @@
   不带 caller revision。
 - 验证：tool+builtin+agent+evidence+boot+前端 changes.test 全绿；全树+app
   全量见段末（后台跑完补记）。
+
+## 桌面端构建装机（2026-11-10 14:33，D4 三刀上桌）
+
+- 前端 21.7s + wails build 过（ucrt64，无孤儿；用户旧壳 37472 由装机脚本
+  杀壳流程处理）；exe 61,847,040B，SHA256 前缀 `DE44AB5A400158A2`
+  （build/bin 与 C:\AI\gaea-app 同哈希）；冒烟 /api/health 200；
+  新 PID 37680 启动 14:33:39 > 构建 14:32:54（PID AFTER BUILD OK）。
+- 本壳增量=D4 三刀：replace 跨文件批量替换工具+写锁 sidecar+write_file
+  半写债收口。可实弹面：replace 批量替换（dry_run 预览/PARTIAL_PUBLISH 回执）、
+  双开 gaea 同树写同一文件（LOCK_CONTENTION/REVISION_CONFLICT 竞争互斥）。
+- 今日累计五批装机中第三次：晨间（空终答退避）→13:08（B2+D 系六刀）→
+  本次（D4）。
