@@ -470,3 +470,27 @@
 - 验证：agent 全包+boot+tool+config 绿；全树+app 全量后台跑（见下段补记）。
   **dsh-ops 候选池至此全清收官**（A1'/A2/A3/B1/B2/D1-D7 全处置：
   落地或审计不立项，零悬置）。
+
+## A2+D7 打包装机（2026-11-10 18:46，独立干净工作树构建，dsh-ops 全天收官）
+
+- **打包提交**：`317568d4`（dsh-ops 候选池全清收官 HEAD）。独立干净工作树
+  `.tmp/pkg-a2d7` 检出（前端依赖 junction 复用主树 node_modules——同提交
+  同 lock，主树零未提交改动；构建后工作树已回收）。前端 23.9s +
+  `wails build -s -ldflags "-s -w" -trimpath`（ucrt64 前置，系统默认
+  TMP/TEMP，无孤儿进程）。
+- **产物 SHA256**（`releases/gaea-a2d7-20261110-317568d4/`，清单
+  SHA256SUMS-317568d4.txt）：
+  - gaea.exe 61,903,360B `A23083061DA4B394…`
+  - onnxruntime.dll `68D0D5F502BE…` / sherpa-onnx-c-api.dll `5DD36DBD3572…`
+    / sherpa-onnx-cxx-api.dll `4C56327796CD…`（三 DLL 与装机版同哈希）
+  - gaea-317568d4-preview.zip 31,636,929B `11165E366B6B4BFE…`
+  - gaea-317568d4-source.tar.gz `E31208ECA6FFBCEB…`（git archive 同提交）
+- **冒烟**：exe 拷回主树 `build\bin`（正式路径，AGENTS.md 不从 .tmp 运行）+
+  三 DLL 同目录 → `/api/health` 200（进程已回收）。
+- **装机**：gaea_install.ps1 -Launch → INSTALL OK，新 PID 36260（启动
+  18:46:28 > 构建 18:44:44，PID AFTER BUILD OK）；C:\AI\gaea-app\gaea.exe
+  哈希 = `A23083061DA4B394`（与构建产物一致）。
+- 本壳含 A2+D7 增量：dynamic_tools 三态装配（auto 缺省——标准会话零变化，
+  MCP 重载面自动开启发现）+取消执行双闸（按停止后不再派发已收到的调用）。
+  实弹观察面：MCP 场景 discover_tools 首次发现链路；取消回执的
+  NOT_EXECUTED 信封与 cancel gate Notice。
