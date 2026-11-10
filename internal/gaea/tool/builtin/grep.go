@@ -107,13 +107,17 @@ func (g grepTool) Execute(ctx context.Context, args json.RawMessage) (string, er
 		root = "." // path omitted entirely → cwd
 	}
 
-	var out strings.Builder
+	// 刀0（dsh-ops 第二波 2026-11-10）：命中行攒进 body，头行组装后前置——
+	// 旧实现头行写在匹配行之后（与「头部行截断生存性」注释相悖），且
+	// compressGrep 只保留可解析行，头/尾控制行必须靠后置回放前置才活得下来。
+	var body strings.Builder
 	total := 0       // 本页已发射命中数
 	skip := p.Offset // A1' 续页游标（dsh-ops 蒸馏）：跳过前 N 条命中
 	if skip < 0 {
 		skip = 0
 	}
-	fenced := 0 // B1 凭据围栏跳过数
+	pageOffset := skip // 本页起始 offset（回显与续页指引用；skip 游标在遍历中递减）
+	fenced := 0        // B1 凭据围栏跳过数
 	err = filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			if d != nil && d.IsDir() {
@@ -130,6 +134,12 @@ func (g grepTool) Execute(ctx context.Context, args json.RawMessage) (string, er
 			}
 			return nil
 		}
+		// 刀0：.gaea 宿主自管子树（sessions/journal/quarantine 等运行时产物）
+		// 不是工作区正文——按相对路径跳（名称型跳过表达不了「.gaea 下部分
+		// 子树」，exports/play 保留）。
+		if rel, rerr := filepath.Rel(root, path); rerr == nil && wspath.IsGaeaHostNoiseRel(filepath.ToSlash(rel)) {
+			return nil
+		}
 		// B1 凭据围栏（dsh-ops 蒸馏）：凭据形态文件跳过不读，头部如实记账。
 		if _, hit := credentialFenceRule(path); hit {
 			fenced++
@@ -140,7 +150,7 @@ func (g grepTool) Execute(ctx context.Context, args json.RawMessage) (string, er
 		}
 		// A1'：skip 在文件中间耗尽时同文件剩余命中接着发射（单遍 skip+emit，
 		// 页边界不错切）。
-		n, err := grepFile(ctx, re, path, &skip, maxResults-total, &out)
+		n, err := grepFile(ctx, re, path, &skip, maxResults-total, &body)
 		if err != nil {
 			return nil // skip unreadable/undecodable file, keep searching
 		}
@@ -156,37 +166,28 @@ func (g grepTool) Execute(ctx context.Context, args json.RawMessage) (string, er
 	if total == 0 && fenced == 0 {
 		return fmt.Sprintf("(no matches for %q under %s)", p.Pattern, filepath.ToSlash(root)), nil
 	}
-	// 头部行（截断生存性结论同 spillNotice：头部行在两种截断形态下必活）——
-	// 游标续页指引与围栏记账共用一行。matchedTotal 语义如实：扫描在预算帽
+	// 头部行：游标续页指引与围栏记账共用一行，前置。offset 回显钳位后的 skip
+	// （负 offset 旧实现会回显负游标）。matchedTotal 语义如实：扫描在预算帽
 	// 提前止步时 total 是「至少」，不给伪造总数。
+	var out strings.Builder
 	if total >= maxResults || p.Offset > 0 || fenced > 0 {
-		var head strings.Builder
-		fmt.Fprintf(&head, "[grep page] offset=%d shown=%d", p.Offset, total)
+		fmt.Fprintf(&out, "[grep page] offset=%d shown=%d", pageOffset, total)
 		if total >= maxResults {
-			fmt.Fprintf(&head, " — more matches may remain; re-run with offset=%d", p.Offset+total)
+			fmt.Fprintf(&out, " — more matches may remain; re-run with offset=%d", pageOffset+total)
 		}
 		if fenced > 0 {
-			fmt.Fprintf(&head, " — credential-fence skipped %d file(s)", fenced)
+			fmt.Fprintf(&out, " — credential-fence skipped %d file(s)", fenced)
 		}
-		head.WriteString("\n")
-		out.WriteString(head.String())
+		out.WriteByte('\n')
 	}
+	out.WriteString(strings.TrimRight(body.String(), "\n"))
 	if total == 0 {
-		return fmt.Sprintf("[grep page] offset=%d shown=0%s\n(no matches for %q under %s)",
-			p.Offset, fenceNote(fenced), p.Pattern, filepath.ToSlash(root)), nil
+		fmt.Fprintf(&out, "\n(no matches for %q under %s)", p.Pattern, filepath.ToSlash(root))
 	}
 	if total >= maxResults {
-		fmt.Fprintf(&out, "[truncated at %d results — refine the pattern, narrow the path, raise max_results, or re-run with offset=%d]", maxResults, p.Offset+total)
+		fmt.Fprintf(&out, "\n[truncated at %d results — refine the pattern, narrow the path, raise max_results, or re-run with offset=%d]", maxResults, pageOffset+total)
 	}
 	return strings.TrimRight(out.String(), "\n"), nil
-}
-
-// fenceNote 围栏记账尾注（零跳过静默）。
-func fenceNote(n int) string {
-	if n == 0 {
-		return ""
-	}
-	return fmt.Sprintf(" — credential-fence skipped %d file(s)", n)
 }
 
 // grepFile scans one file and appends its matches as `path:line: content`.

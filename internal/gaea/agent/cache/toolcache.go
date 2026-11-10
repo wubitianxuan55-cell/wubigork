@@ -42,18 +42,24 @@ func New(ttl time.Duration) *Cache {
 	}
 }
 
-// readKey builds a cache key from path and offset.
-func readKey(path string, offset int) string {
-	if offset == 0 {
-		return path
+// readKey builds a cache key from path, offset and limit. limit 进键（刀0，
+// dsh-ops 第二波 2026-11-10）：同 path+offset 不同 limit 是不同的页——旧键
+// 撞页会把 cached 的 2000 行页错发给 limit=100 的调用。limit<=0 视为缺省页。
+func readKey(path string, offset, limit int) string {
+	key := path
+	if offset != 0 {
+		key = fmt.Sprintf("%s@%d", key, offset)
 	}
-	return fmt.Sprintf("%s@%d", path, offset)
+	if limit > 0 {
+		key = fmt.Sprintf("%s@L%d", key, limit)
+	}
+	return key
 }
 
-// get returns the cached content for a read_file(path, offset). Returns
+// Get returns the cached content for a read_file(path, offset, limit). Returns
 // ("", false) on miss or stale entry.
-func (c *Cache) Get(path string, offset int) (string, bool) {
-	key := readKey(path, offset)
+func (c *Cache) Get(path string, offset, limit int) (string, bool) {
+	key := readKey(path, offset, limit)
 	c.mu.RLock()
 	ci, ok := c.items[key]
 	c.mu.RUnlock()
@@ -87,9 +93,9 @@ func (c *Cache) Get(path string, offset int) (string, bool) {
 	return "", false
 }
 
-// set caches content for a read_file(path, offset).
-func (c *Cache) Set(path string, offset int, content string) {
-	key := readKey(path, offset)
+// Set caches content for a read_file(path, offset, limit).
+func (c *Cache) Set(path string, offset, limit int, content string) {
+	key := readKey(path, offset, limit)
 	// Read mtime immediately for accurate invalidation
 	var mtime time.Time
 	if fi, err := os.Stat(path); err == nil {

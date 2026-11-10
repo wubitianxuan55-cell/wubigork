@@ -24,6 +24,8 @@
 // 另立 leaf 包。本包仍是叶子包：不得反向 import internal/app 等大包（防依赖倒挂）。
 package wspath
 
+import "strings"
+
 // SkipDirs 是全部已知噪声目录（六份历史清单的并集，23 项，去重）。
 //
 // 这是本语义的单一真相源：新增产物目录（如 .tmp-pdf/.dsh-*）只加这里，
@@ -98,6 +100,34 @@ func IsSkippedIn(name string, extra []string) bool {
 		if d == name {
 			return true
 		}
+	}
+	return false
+}
+
+// IsGaeaHostNoiseRel 报告（相对搜索根的斜杠）相对路径是否属于 .gaea 宿主自管
+// 运行时子树：会话日志（sessions）、归档（archive）、缓存（cache）、证据台账
+// （work/journal、work/rollback）、发布隔离（publish-quarantine）、渲染残留
+// （renders）。这些是「只进不出的运行时产物」——agent 文件工具（grep 等）把
+// 它们当工作区正文会污染首页（会话 JSONL 尤甚，第一页常被历史工具结果占满，
+// 2026-11-10 dsh-ops 第二波刀0 生产 bug 根修）。
+//
+// 刻意**不跳** .gaea/exports（交付产物可搜红线，与 wssearch.isNoiseRel 同判）
+// 与 .gaea/play（乐园数据面，非运行时噪声——是否可搜属子空间策略，不在本
+// 谓词越权裁决）。名称型跳过（IsSkippedIn）表达不了「.gaea 下部分子树」，
+// 故本谓词按相对路径判；wssearch.isNoiseRel 是工位检索专用口径（多跳 play），
+// 语义不同不合并。
+func IsGaeaHostNoiseRel(rel string) bool {
+	first, rest, _ := strings.Cut(rel, "/")
+	if first != ".gaea" {
+		return false
+	}
+	seg, sub, _ := strings.Cut(rest, "/")
+	switch seg {
+	case "sessions", "archive", "cache", "publish-quarantine", "renders":
+		return true
+	case "work":
+		return sub == "journal" || sub == "rollback" ||
+			strings.HasPrefix(sub, "journal/") || strings.HasPrefix(sub, "rollback/")
 	}
 	return false
 }

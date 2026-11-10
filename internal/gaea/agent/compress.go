@@ -29,6 +29,37 @@ var errorKeywords = []string{
 	"Fail", "Error", "PANIC", "Exception",
 }
 
+// grepControlPrefixes 是 grep 输出里的控制行前缀族：页头（游标/记账）、截断
+// 尾行、零命中行。这些行不是 `path:line:` 形状，parseGrepLines 会整体洗掉——
+// 刀0（dsh-ops 第二波 2026-11-10）生产 bug 根修：A1' 游标在生产路径从未被
+// 模型看到（executeOne 恒过 compressGrep），零命中 grep 压缩后变空串。控制行
+// 摘出后在两条路径（passthrough/压缩）前置回放，与 spillNotice 同口径。
+var grepControlPrefixes = []string{"[grep page]", "[truncated at", "(no matches"}
+
+// splitGrepControlLines 把控制行从命中行里摘出来（保持各自原序）。
+func splitGrepControlLines(lines []string) (ctrl, body []string) {
+	for _, l := range lines {
+		if l == "" {
+			continue
+		}
+		if isGrepControlLine(l) {
+			ctrl = append(ctrl, l)
+			continue
+		}
+		body = append(body, l)
+	}
+	return ctrl, body
+}
+
+func isGrepControlLine(l string) bool {
+	for _, p := range grepControlPrefixes {
+		if strings.HasPrefix(l, p) {
+			return true
+		}
+	}
+	return false
+}
+
 // compressGrep 压缩 grep 工具的输出结果。
 func compressGrep(raw string) string {
 	raw = strings.TrimSpace(raw)
@@ -37,12 +68,13 @@ func compressGrep(raw string) string {
 	}
 
 	lines := strings.Split(raw, "\n")
+	ctrl, bodyLines := splitGrepControlLines(lines)
 
 	// 解析每一行（同时过滤空行）
-	matches := parseGrepLines(lines)
+	matches := parseGrepLines(bodyLines)
 	if len(matches) <= grepNoCap {
 		// 少量结果：重新组装（过滤空行，保持格式一致）
-		return formatGrepPassthrough(matches)
+		return prependGrepControls(ctrl, formatGrepPassthrough(matches))
 	}
 
 	// 按文件分组
@@ -55,7 +87,20 @@ func compressGrep(raw string) string {
 	selected := selectGrepMatches(fileGroups)
 
 	// 格式化输出
-	return formatGrepOutput(selected, fileGroups)
+	return prependGrepControls(ctrl, formatGrepOutput(selected, fileGroups))
+}
+
+// prependGrepControls 把控制行前置回放（原序）。空匹配+有控制行时只回放
+// 控制行——零命中 grep 不再变空串。
+func prependGrepControls(ctrl []string, body string) string {
+	if len(ctrl) == 0 {
+		return body
+	}
+	head := strings.Join(ctrl, "\n")
+	if body == "" {
+		return head
+	}
+	return head + "\n" + body
 }
 
 // parseGrepLines 解析 path:line:text 格式的行。

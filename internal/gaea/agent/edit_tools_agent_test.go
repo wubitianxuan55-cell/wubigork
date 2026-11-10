@@ -153,8 +153,8 @@ func TestMoveFileInvalidatesBothCachePaths(t *testing.T) {
 		tools: editToolsRegistry(t, "move_file"),
 		tc:    cache.New(0),
 	}
-	a.tc.Set(src, 0, "cached-src")
-	a.tc.Set(dst, 0, "cached-dst")
+	a.tc.Set(src, 0, 0, "cached-src")
+	a.tc.Set(dst, 0, 0, "cached-dst")
 
 	out := a.executeOne(context.Background(), provider.ToolCall{
 		ID: "c1", Name: "move_file",
@@ -171,10 +171,10 @@ func TestMoveFileInvalidatesBothCachePaths(t *testing.T) {
 	}
 	// The S0.6 risk-2 assertion: BOTH endpoints' cache entries are gone —
 	// move_file args carry no "path" key, so the generic branch would miss them.
-	if _, hit := a.tc.Get(src, 0); hit {
+	if _, hit := a.tc.Get(src, 0, 0); hit {
 		t.Error("cache entry for source must be invalidated after move_file")
 	}
-	if _, hit := a.tc.Get(dst, 0); hit {
+	if _, hit := a.tc.Get(dst, 0, 0); hit {
 		t.Error("cache entry for destination must be invalidated after move_file")
 	}
 }
@@ -190,7 +190,7 @@ func TestEditLinesCacheInvalidation(t *testing.T) {
 		tools: editToolsRegistry(t, "edit_lines"),
 		tc:    cache.New(0),
 	}
-	a.tc.Set(path, 0, "cached")
+	a.tc.Set(path, 0, 0, "cached")
 
 	out := a.executeOne(context.Background(), provider.ToolCall{
 		ID: "c1", Name: "edit_lines",
@@ -199,7 +199,7 @@ func TestEditLinesCacheInvalidation(t *testing.T) {
 	if out.blocked || out.errMsg != "" {
 		t.Fatalf("edit_lines should execute cleanly, got blocked=%v err=%q out=%q", out.blocked, out.errMsg, out.output)
 	}
-	if _, hit := a.tc.Get(path, 0); hit {
+	if _, hit := a.tc.Get(path, 0, 0); hit {
 		t.Error("cache entry must be invalidated after edit_lines")
 	}
 	if content, _ := os.ReadFile(path); string(content) != "ONE\ntwo\n" {
