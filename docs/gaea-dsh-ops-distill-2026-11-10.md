@@ -91,3 +91,71 @@ write_file/edit_file/copy/move/remove/replace 跨文件批量替换/read_table/r
 - 文档：`docs/{内部架构,原生内核,结果预算,搜索覆盖范围,文件批量操作,索引AB基准,
   基准门禁,设计决策-20261102,磁盘与缓存,动态工具目录}.md`
 - 上游钉版：0.5.1（本机 Web profile 装机版）；基准基线 pinned `4b51b63`（0.3.1）
+
+## 7. Windows 适配专项（2026-11-10 补刀，第三路蒸馏）
+
+### 7.1 受限 Bash 供应链（Windows 特有，必要恶级别）
+
+- **选壳 fail-closed**：受限模式只认 Niubash（niu.exe）或 pinned MSYS；系统 Git Bash/
+  自定义 bashPath 直接 `EXECUTOR_UNAVAILABLE`——「审批永远修不好一个不兼容的受限
+  运行时」（shells/resolve.js:168-193、bash-ipc.js:51-58）。
+- **MSYS PE 导入表重定向**（bash-pe.js:2-48）：手写 PE 解析把 import name 表的
+  `kernel32.dll`/`ntdll.dll` 字符串**原位等长改写**为 `opsipc.dll`/`opsnt.dll`（不改
+  IAT 不改指令→sha256 供应链校验仍成立）；代理 DLL 只拦 `CreateNamedPipeA`/
+  `NtCreateNamedPipeFile`/`NtCreateSection`——MSYS 的 named-pipe IPC 在受限 Low 令牌
+  沙箱里起不来的唯一解法（#389）。**Niubash 与 MSYS 是两个东西**：Niu=独立原生受限
+  bash（默认），winuxcmd 153 个命令名=一个 exe 的硬链接 argv0 faces（零数据拷贝）。
+- **代际缓存**（Windows 运行中 exe 不可覆盖→rename-only 发布）：stage→校验→manifest
+  →rename 发布；坏代改名隔离 `.bad-*` 绝不覆盖；`renameWithRetry` [100..1000]ms
+  预算背后是杀软持句柄实测 1.6s 窗口（#352）；lease 锁 mkdir 原子**从不偷锁**，
+  「rename 成功或 PID 死亡不证明 shell 后代已退出」是第一公理。
+- **执行树**：同卷 hardlink 克隆（786MiB 零拷贝）→seal（一遍 `icacls /T /deny`，
+  313 文件一次进程创建 vs 每文件数千 ms）→每次 spawn 前 re-seal+stat-only verify
+  （旧版每调用 1.85GiB SHA-256 已去掉）。
+
+### 7.2 文件系统适配矩阵
+
+| Windows 差异 | 处理 |
+|---|---|
+| NTFS 名字 WTF-8 非法代理项 | 可逆编码+折叠键（NFC∘lower∘NFD）只作匹配、**原始字节作身份**（大小写不敏感用折叠表达） |
+| 长路径 | 不主动加 `\?\`；主干遍历用 cap-std 句柄相对打开绕开 MAX_PATH |
+| junction/symlink | **一线拒绝**（REPARSE_POINT 0x400 判 link，明说含 junction）；junction 删除只摘条目不递归 |
+| READONLY/ADS | 属性白名单 capture（EFS/压缩/sparse→fail-closed）；命名流 `METADATA_UNSUPPORTED`、只收 `::$DATA`；readonly 删除先验 nlink==1 再清位（绝不 chmod 共享硬链接） |
+| 共享冲突/锁 | per-name sidecar 锁；**原始错误码分类**：raw 1/50/120→`LOCK_UNSUPPORTED` vs 32/33→`REVISION_CONFLICT`（一行代码避免把「FS 不支持锁」误报成「别人在写」） |
+| 0700 落地 | Windows 无 `open(O_CREAT|0700)` 等价物→**NtCreateFile 创建即带 protected DACL**（字节落地前私有，创建后 SDDL 逐字验证失败即删） |
+| 8.3 名/大小写绕过 | 凭证围栏 canonical+lowercase 后缀匹配，8.3 拼写缺失叶子也命中（防路径等价拼写绕过 deny 列表） |
+| 原子发布 | replace=rename+DACL capture/restore（AR→AI 控制位转换）；失败标 `effect_state=applied`「文件已发布，别盲目重试」 |
+
+### 7.3 Windows 索引栈 W1-W4（默认关的克制）
+
+W1=MFT 冷枚举（FSCTL_ENUM_USN_DATA，需 Administrator；ReFS 128-bit id 放不进
+64-bit FileKey→整源 Unsupported）→W2=USN journal 有界重放（2²⁰ 条/8 轮）+
+CursorStore 判 replay/rescan（**绝不主动创建 journal**——副作用纪律）→W3=raw FSCTL
+fallback（默认不用，usn-journal-rs 表达力缺口时才降级）→W4=硬链接对账（**不需要
+Administrator**；「不完整枚举绝不当作空集应用」会误删仍有链接的文件）。默认关的
+原因：MFT crate 会把 COM 拖进 worker 导入表（NullSource 不链接）+无 watcher 则
+state 永不 Ready——四层切片全部前置服务未来 watcher，纪律可敬但今天零用户价值。
+
+### 7.4 WSL 委托（opt-in 只读）
+
+`\wsl.localhost` 工作区 + `DSH_OPS_WSL_READS=1` → glob/grep/read_files 走
+`wsl.exe --exec <linux worker>`（减少 9p 重复元数据访问）；每次调用重解析盘符挂载
+（「mount mappings 是活权威不是缓存」）+sha256 核对 Linux worker 字节；存储引用
+绝不内联（Linux worker 永不获得结果存储授权）；游标 `w1:` 绑定 distro+摘要，跨
+后端续页明确 SEARCH_STALE 不混快照域。
+
+### 7.5 得失评与 gaea 可借鉴清单
+
+**必要恶**：patchMsys（不改指令字节才让 sha256 校验成立）、rename-only 代际发布、
+icacls 树级 deny+READONLY（Windows 无 immutable 位）、NtCreateFile 创建即 DACL、
+reparse 全线拒绝、凭证路径 8.3/大小写兼容。
+**超额工程**：W3 fallback（交付时未接线）、整个索引栈前置（今天零用户价值）、
+adopt 旧代逻辑、每调用三重 verify（文档自认只防意外漂移）。
+**gaea 可直接借鉴**（Go 平移）：①WTF-8+「折叠键匹配/原始字节身份」二分；②索引
+失败三态 `Unsupported/Unavailable/Incomplete(kind)` +「不完整枚举绝不当作空集」；
+③Windows 原始错误码分类表（1/50/120 vs 32/33）；④renameWithRetry 有界预算+实测
+数据引用格式（#352）+「cleanup 失败永不覆盖业务失败分类」；⑤失败分类学元模式
+（每 stage 带 {retryable, remedy}）；⑥argv0 faces+hardlink 克隆（os.Link 等价）；
+⑦NtCreateFile 创建即 DACL 模式（若做私有缓存）；⑧USN cursor 17 字节定长+无副作用
+纪律。另注：**「哈希相同不代表安全元数据相同」**——静态哈希比对不查令牌/完整性
+标签/杀软决定，这个认知对 gaea 装机校验同样适用。
