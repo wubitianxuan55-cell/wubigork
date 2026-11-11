@@ -223,3 +223,19 @@
 - 速度总榜（coding chat 512tok 同口径）：WHIRL 88~92（引擎直打，bench
   102 闲置口径）＞ llama b12110 80.1 ＞ strata 42.7 ＞ llama 旧版 53.75
   —— llama 升级后仍居第二，但与 WHIRL 差距从 1.9x 收窄到 1.1~1.15x。
+
+---
+
+# 续批 4（深夜）：35B 单副本收口——原件删除、llama 切 whirlfix2（v4.539.0）
+
+> 用户令「老版 35B 删除，llama 接入 whirl 版本模型」。
+
+- **先验后删**：b12110+whirlfix2 组合载入+补全烟测（reply 6）通过后动刀。
+- **qwen35_proc.go**：qwen35ModelFile 常量切 whirlfix2 文件名（单点改动，
+  llama 8124/语音线/目录探活全链跟随；hermetic 测试自常量引用零改动）。
+- **原件删除**（Q4_K_P-MTP-r2.gguf，26.76GB）→ **C 盘空闲 92→100GB**；
+  whirlfix2 成为唯一副本。
+- **herdsman mapping 对账**：18 条 mapping 路径全是 whirlfix2 **硬链接**
+  （NTFS 同 inode 11258999070602661 与 models 目录互证）——物理副本全盘
+  唯一，零重复；旧 35B store 符号链接已死链（无害元数据）。
+- **装机**：v4.539.0 PID 10424；llama 下次聊天首请求即用 b12110+whirlfix2。

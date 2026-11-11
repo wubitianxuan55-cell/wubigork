@@ -1,3 +1,10 @@
+## 35B 单副本收口：原件删除+llama 切 whirlfix2（v4.539.0）· 2026-11-11（深夜）
+
+- 先验后删：b12110+whirlfix2 载入烟测通过 → qwen35ModelFile 常量切
+  whirlfix2（llama/语音/目录探活单点跟随）→ 原件删除 26.76GB（C 盘空闲
+  100GB）。herdsman 18 条 mapping=同 inode 硬链接（物理副本全盘唯一）。
+- 装机 v4.539.0 PID 10424。文件记录：day-log 续批 4 节。
+
 ## 引擎实升最新版+速度对擂+strata 版本口径修（v4.538.0 装机）· 2026-11-11（夜）
 
 - **llama → b12110（0.9.0-dev）**：v0.9.0 只发源码，Windows 走 nightly；

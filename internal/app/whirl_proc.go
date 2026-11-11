@@ -7,8 +7,9 @@ package app
 // MTP 解码 102.57 tok/s，为 llama Vulkan+MTP 53.75 的 1.91x。API 形态与
 // llama-server 同构（OpenAI /v1 免鉴权），消费链零改动复用。
 //
-// 模型根与 llama 同源（C:\AI\models 单副本原则）：本档位服务同一份 35B 的
-// whirlfix2 文件，llama 8124 可继续服务原文件，两引擎并存按需拉起。
+// 模型根与 llama 同源（C:\AI\models 单副本原则）：llama 8124 与本引擎服务
+// 同一份 35B whirlfix2 文件（2026-11-11 原件已删，whirlfix2 为唯一副本），
+// 两引擎并存按需拉起。
 // thinking 由请求级 enable_thinking=false 关闭（见 internal/ai client_chat
 // whirl 分支；llama 侧为服务级 --reasoning off）。
 

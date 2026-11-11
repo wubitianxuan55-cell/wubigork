@@ -20,7 +20,10 @@ import (
 const (
 	qwen35Port            = 8124
 	qwen35StartWait       = 300 * time.Second
-	qwen35ModelFile       = "Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_P-MTP-r2.gguf"
+	// whirlfix2：张量手术版（仅 blk.40 两个 BF16 router→F32，权重位级无损，
+	// llama/WHIRL 双引擎兼容）。2026-11-11 起成为唯一 35B 文件（原件已删，
+	// 单副本原则——llama 8124 与 WHIRL 8126 服务同一份文件）。
+	qwen35ModelFile       = "Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_P-MTP-r2-whirlfix2.gguf"
 	qwen35CtxSize         = 32768 // 语音+聊天共用：语音短轮足够，聊天留增长余量
 	qwen35HealthScript    = `{"model":"qwen35","stream":false,"max_tokens":1,"messages":[{"role":"user","content":"hi"}]}`
 	gemma4_26BModelDir    = "gemma-4-26b-a4b-it-qat"
