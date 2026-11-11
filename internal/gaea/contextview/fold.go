@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/gaea/gaea/internal/gaea/agent/session"
 )
@@ -15,6 +16,7 @@ const (
 	catTools     = "tools"
 	catUser      = "user"
 	catInject    = "inject"
+	catSkill     = "skill"
 	catAssistant = "assistant"
 	catTool      = "tool"
 )
@@ -27,6 +29,18 @@ const (
 	maxNodePreview   = 300
 )
 
+// 浏览器视图上限（对齐 dsh-context DEFAULT_BOUNDS 的诚实子集）。上限只收
+// 「浏览器视图」：token 合计与差分走增量计数器（见 snapshotSurface），视图
+// 截断不改变构成口径；NodesDropped/NodesFloor 向前端标注边界。
+const (
+	maxNodes    = 2000 // 活跃 surface 节点（dsh maxNodes 同值）
+	maxArchive  = 400  // 压缩归档（dsh maxArchiveNodes 同值）
+	maxEvents   = 400  // 上下文事件（dsh maxEvents 同值）
+	maxFiles    = 400  // 文件活动（dsh maxFileOps 同值）
+	maxCommands = 400  // 命令执行（dsh maxCommands 同值）
+	maxCmdPrevw = 240  // 命令行预览截断（全文在日志 tool_dispatch）
+)
+
 // FoldTimeline 把会话日志条目序列折叠为逐请求上下文快照。纯函数：同输入
 // 必同输出，retention<=0 时使用 DefaultRetention。
 func FoldTimeline(entries []session.LogEntry, window int64, retention int) ContextTimeline {
@@ -37,15 +51,23 @@ func FoldTimeline(entries []session.LogEntry, window int64, retention int) Conte
 	for _, e := range entries {
 		f.apply(e)
 	}
+	f.killOpenCmds(0) // 收尾：未闭合命令（回合被硬杀无 turn_done）按 killed 落地
+	f.trimBrowserWindow()
 	tl := ContextTimeline{
-		Ok:      true,
-		Window:  f.window,
-		Current: f.current(),
-		Stats:   f.stats,
-		Events:  f.events,
-		Nodes:   f.nodes,
-		Archive: f.archive,
-		Files:   f.files,
+		Ok:           true,
+		Window:       f.window,
+		Current:      f.current(),
+		Stats:        f.stats,
+		Events:       f.events,
+		Nodes:        f.nodes,
+		Archive:      f.archive,
+		Files:        f.files,
+		NodesDropped: f.nodesDropped,
+		NodesFloor:   f.nodesFloor,
+	}
+	if len(f.commands) > 0 {
+		tl.Commands = f.commands
+		tl.CommandStats = f.commandStats()
 	}
 	if n := len(f.requests); n > retention {
 		tl.Requests = append([]RequestRecord(nil), f.requests[n-retention:]...)
@@ -83,6 +105,9 @@ func FoldTimeline(entries []session.LogEntry, window int64, retention int) Conte
 	if tl.Files == nil {
 		tl.Files = []FileActivity{}
 	}
+	if tl.Commands == nil {
+		tl.Commands = []CommandRecord{}
+	}
 	return tl
 }
 
@@ -99,8 +124,14 @@ type folding struct {
 
 	userTok      int64 // 活着的 user 节点 token 合计
 	injectTok    int64 // 活着的 inject 节点 token 合计
-	assistantTok int64 // 活着的 assistant 节点 token 合计
+	skillTok     int64 // 活着的 skill 节点 token 合计（run_skill 结果）
+	assistantTok int64 // 活着的 assistant 节点 token 合计（含运行期工具调用参数重放账）
 	toolTok      int64 // 活着的 tool 节点 token 合计
+
+	// catItems 是各活分类的节点条数（user/inject/skill/assistant/tool）。
+	// 与上面 token 计数器同为增量维护：浏览器视图截断（trimBrowserWindow）
+	// 只动节点列表，不动这里——差分快照的口径不受视图上限影响。
+	catItems map[string]int64
 
 	nodes   []SurfaceNode
 	archive []SurfaceNode
@@ -138,6 +169,18 @@ type folding struct {
 	rateIn         float64 // 最近一次 usage 上报的单价（每 1M tokens）
 	rateOut        float64
 	rateCacheHit   float64
+	provider       string // 最新 request_header 的供应商实例名（切换事件判定）
+
+	// ─── 命令执行折叠（bash 工具推导）状态 ───
+	openCmds map[string]*CommandRecord // dispatch id → 待收结果的命令记录
+	commands []CommandRecord
+
+	// pendingSkill 是 run_skill 派发 id → 技能名（结果节点 Name 用）。
+	pendingSkill map[string]string
+
+	// 浏览器视图边界（trimBrowserWindow 落值，FoldTimeline 导出）。
+	nodesDropped int
+	nodesFloor   int64
 
 	// ─── 耗时折叠（timing）状态：与上面各字段同趟累加，不引入第二遍扫描 ───
 	timing    ContextTiming
@@ -190,6 +233,7 @@ func (f *folding) apply(e session.LogEntry) {
 		f.timingUsage(e)
 	case "turn_done":
 		f.closePending(e)
+		f.killOpenCmds(e.Ts)
 		f.timingTurnDone(e)
 	case "compaction_done":
 		f.applyCompaction(e)
@@ -238,6 +282,22 @@ func (f *folding) applyHeader(e session.LogEntry) {
 	if h.Window > 0 {
 		f.window = int64(h.Window)
 	}
+	// 供应商实例戳（v4.542 刀1）：请求头带 provider 实例名，折叠出模型切换
+	// 事件（dsh switch 事件同款）。旧日志无戳（零值），不造事件。
+	if h.Provider != "" {
+		if f.provider != "" && f.provider != h.Provider {
+			f.events = append(f.events, ContextEvent{
+				Kind:  "switch",
+				Seq:   e.Seq,
+				From:  f.provider,
+				To:    h.Provider,
+				Turn:  f.turn,
+				Step:  f.step,
+				Ts:    e.Ts,
+			})
+		}
+		f.provider = h.Provider
+	}
 	f.systemTok = estimateTokens(h.System)
 	var toolsTotal int64
 	var toolNames []string
@@ -252,12 +312,12 @@ func (f *folding) applyHeader(e session.LogEntry) {
 	// （每步重复入列会刷屏；节点文本是预览，全文在日志 request_header 里）。
 	if h.System != "" && f.lastSysNode != h.System {
 		f.lastSysNode = h.System
-		f.nodes = append(f.nodes, SurfaceNode{Seq: e.Seq, Cat: catSystem, Tokens: f.systemTok, Text: briefOf(h.System, maxNodePreview)})
+		f.addNode(SurfaceNode{Seq: e.Seq, Cat: catSystem, Tokens: f.systemTok, Text: briefOf(h.System, maxNodePreview)})
 	}
 	toolsKey := strings.Join(toolNames, "|")
 	if toolsTotal > 0 && f.lastToolsKey != toolsKey {
 		f.lastToolsKey = toolsKey
-		f.nodes = append(f.nodes, SurfaceNode{Seq: e.Seq, Cat: catTools, Tokens: toolsTotal, Text: briefOf(strings.Join(toolNames, " · "), maxNodePreview)})
+		f.addNode(SurfaceNode{Seq: e.Seq, Cat: catTools, Tokens: toolsTotal, Text: briefOf(strings.Join(toolNames, " · "), maxNodePreview)})
 	}
 
 	rec := RequestRecord{
@@ -311,7 +371,7 @@ func (f *folding) applyUser(e session.LogEntry) {
 		f.userTok += tok
 		f.lastUser = briefOf(user, maxBrief)
 		f.lastUserSeq = e.Seq
-		f.nodes = append(f.nodes, SurfaceNode{Seq: e.Seq, Cat: catUser, Tokens: tok, Text: briefOf(user, maxNodePreview)})
+		f.addNode(SurfaceNode{Seq: e.Seq, Cat: catUser, Tokens: tok, Text: briefOf(user, maxNodePreview)})
 	}
 	if inject != "" {
 		tok := estimateTokens(inject)
@@ -319,33 +379,58 @@ func (f *folding) applyUser(e session.LogEntry) {
 		f.stats.Injects++
 		src := briefOf(strings.TrimSpace(strings.TrimPrefix(inject, refContextPrefix)), 80)
 		f.lastIn = append(f.lastIn, src)
-		f.nodes = append(f.nodes, SurfaceNode{Seq: e.Seq, Cat: catInject, Tokens: tok, Text: briefOf(inject, maxNodePreview)})
+		f.addNode(SurfaceNode{Seq: e.Seq, Cat: catInject, Tokens: tok, Text: briefOf(inject, maxNodePreview)})
 	}
 }
 
-// applyAssistant 处理 assistant 文本（message / assistant_message）。
+// applyAssistant 处理 assistant 文本（message / assistant_message），三拆
+// 思考/正文/工具调用参数（对齐 dsh-context assistantReasoning/Answer/Call）。
+// 口径：token 账只认 message/assistant_message（流式增量事件不重复计）；
+// 工具调用参数两条来源互斥不重计——运行期日志 message 不内嵌 tool_calls
+// （EventLogSink 只落 text/reasoning），参数在 tool_dispatch 事件里另账累计
+// （见 applyToolDispatch）；迁移日志（ToLogEntries）反之，tool_calls 内嵌于
+// assistant_message、无派发事件。
 func (f *folding) applyAssistant(e session.LogEntry) {
 	var p assistantPayload
 	if err := json.Unmarshal(e.Payload, &p); err != nil {
 		return
 	}
-	if p.Text == "" {
+	ans := estimateTokens(p.Text)
+	reas := estimateTokens(p.Reasoning)
+	var call int64
+	for _, tc := range p.ToolCalls {
+		if tc.Name != "" {
+			call += estimateTokens(tc.Name + " " + tc.Args)
+		}
+	}
+	total := ans + reas + call
+	if total == 0 {
 		return
 	}
-	tok := estimateTokens(p.Text)
-	f.assistantTok += tok
-	f.lastAssistant = briefOf(p.Text, maxBrief)
-	f.lastAssistantSeq = e.Seq
+	f.assistantTok += total
+	f.stats.AssistantReasoning += reas
+	f.stats.AssistantAnswerTokens += ans
+	f.stats.AssistantCallTokens += call
+	if p.Text != "" {
+		f.lastAssistant = briefOf(p.Text, maxBrief)
+		f.lastAssistantSeq = e.Seq
+	}
 	for _, tc := range p.ToolCalls {
 		if tc.Name != "" {
 			f.lastToolCall = briefOf(tc.Name+" "+tc.Args, maxBrief)
 			f.lastToolCallSeq = e.Seq
 		}
 	}
-	f.nodes = append(f.nodes, SurfaceNode{Seq: e.Seq, Cat: catAssistant, Tokens: tok, Text: briefOf(p.Text, maxNodePreview)})
+	f.addNode(SurfaceNode{
+		Seq: e.Seq, Cat: catAssistant, Tokens: total,
+		Text: briefOf(p.Text, maxNodePreview),
+		Reasoning: reas, AnswerTokens: ans, CallTokens: call,
+	})
 }
 
-// applyToolDispatch 记录工具调用的简短回复（供步骤 brief 的 Response 行）。
+// applyToolDispatch 记录工具调用的简短回复（供步骤 brief 的 Response 行），
+// 并给运行期工具调用参数记重放账（assistant 分类子计数；见 applyAssistant
+// 口径注）、给 bash 命令与 run_skill 技能开挂起记录。
 func (f *folding) applyToolDispatch(e session.LogEntry) {
 	var p toolDispatchPayload
 	if err := json.Unmarshal(e.Payload, &p); err != nil {
@@ -354,13 +439,146 @@ func (f *folding) applyToolDispatch(e session.LogEntry) {
 	if p.Partial || p.Name == "" {
 		return
 	}
+	// 运行期参数重放账：工具名+参数会随助手消息进入后续请求的上下文
+	// （迁移日志无派发事件、由 applyAssistant 的内嵌 tool_calls 记账）。
+	// 挂到最后一条 assistant 节点上（参数紧跟该消息入上下文）：节点携带
+	// 子计数，压缩时随节点一起回收，不留虚账。
+	callTok := estimateTokens(p.Name + " " + p.Args)
+	f.attachCallTokens(callTok)
 	f.lastToolCall = briefOf(p.Name+" "+p.Args, maxBrief)
 	// 参数带图片路径（识图 image_path 等）同样计入图片引用数。
 	f.stats.Images += countImageRefs(p.Args)
+	f.openCommand(e, p.ID, p.Name, p.Args)
+	f.pendingSkillName(e.Seq, p.ID, p.Name, p.Args)
 	f.recordFile(e.Seq, e.Ts, p.Name, p.Args, "", false, p.ID)
 }
 
-// applyToolResult 处理工具结果节点；截断记一次 prune 事件。
+// openCommand 把 bash 派发折进命令执行时间线（挂起态，结果到达时关闭）。
+// 非 bash 工具不构成命令记录（dsh 命令卡口径=shell 执行）。
+func (f *folding) openCommand(e session.LogEntry, dispatchID, tool, args string) {
+	if tool != "bash" {
+		return
+	}
+	var a struct {
+		Command    string `json:"command"`
+		Background bool   `json:"run_in_background"`
+	}
+	if err := json.Unmarshal([]byte(args), &a); err != nil || a.Command == "" {
+		return // 非 JSON/无命令：诚实不造记录
+	}
+	if f.openCmds == nil {
+		f.openCmds = map[string]*CommandRecord{}
+	}
+	rec := &CommandRecord{
+		Seq:        e.Seq,
+		Time:       e.Ts,
+		Tool:       tool,
+		Cmd:        briefOf(a.Command, maxCmdPrevw),
+		Turn:       f.turn,
+		Step:       f.step,
+		Start:      e.Ts,
+		Background: a.Background,
+		Derived:    true,
+	}
+	f.openCmds[dispatchID] = rec
+}
+
+// pendingSkillName 记 run_skill 派发的技能名（结果节点 Name 展示用）。
+func (f *folding) pendingSkillName(seq int64, dispatchID, tool, args string) {
+	if tool != "run_skill" {
+		return
+	}
+	var a struct {
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal([]byte(args), &a); err != nil || a.Name == "" {
+		return
+	}
+	if f.pendingSkill == nil {
+		f.pendingSkill = map[string]string{}
+	}
+	f.pendingSkill[dispatchID] = a.Name
+}
+
+// attachCallTokens 把工具调用参数重放账挂到最后一条 assistant 节点（Tokens
+// 与 CallTokens 同加，压缩随节点回收；stats 子计数同步累计）。找不到宿主
+// 节点（极端：回合第一个动作就是工具调用）只进计数器——该笔在压缩时无法
+// 回收，诚实近似（幅度=单次调用参数，残留到会话末）。
+func (f *folding) attachCallTokens(tok int64) {
+	if tok == 0 {
+		return
+	}
+	f.assistantTok += tok
+	f.stats.AssistantCallTokens += tok
+	for i := len(f.nodes) - 1; i >= 0; i-- {
+		if f.nodes[i].Cat == catAssistant {
+			f.nodes[i].Tokens += tok
+			f.nodes[i].CallTokens += tok
+			return
+		}
+	}
+}
+
+// killOpenCmds 把仍未收到结果的命令落为 killed（回合中断/日志截断）。
+// ts>0 用事件时间戳收尾；ts=0 是折叠收尾兜底（End 留零=未知）。
+func (f *folding) killOpenCmds(ts int64) {
+	for id, rec := range f.openCmds {
+		rec.Status = CommandKilled
+		rec.End = ts
+		f.commands = append(f.commands, *rec)
+		delete(f.openCmds, id)
+	}
+}
+
+// closeCommand 用工具结果关闭挂起的命令记录（成功/失败 + 诚实可提取的
+// 退出码与输出量）。exit 只认 bash JSON 信封（output_format=json）里的
+// exit_code 字段；plain 输出无退出码，留零不猜。
+func (f *folding) closeCommand(dispatchID string, e session.LogEntry, p toolResultPayload) {
+	rec, ok := f.openCmds[dispatchID]
+	if !ok {
+		return
+	}
+	delete(f.openCmds, dispatchID)
+	rec.ResultSeq = e.Seq
+	rec.End = e.Ts
+	if p.Err != "" {
+		rec.Status = CommandFailed
+		rec.Err = true
+	} else {
+		rec.Status = CommandCompleted
+	}
+	rec.OutChars = int64(utf8.RuneCountInString(p.Output))
+	rec.Truncated = p.Truncated
+	var env struct {
+		ExitCode *float64 `json:"exit_code"`
+	}
+	if err := json.Unmarshal([]byte(p.Output), &env); err == nil && env.ExitCode != nil {
+		rec.Exit = int64(*env.ExitCode)
+	}
+	f.commands = append(f.commands, *rec)
+}
+
+// commandStats 从命令时间线汇总会话摘要（runs/failed/ms/bg）。ms 是秒级
+// 时间戳差值×1000 的诚实近似（与 Timing 同口径）。
+func (f *folding) commandStats() *CommandStats {
+	s := &CommandStats{Runs: len(f.commands)}
+	for _, c := range f.commands {
+		if c.Err {
+			s.Failed++
+		}
+		if c.Background {
+			s.Bg++
+		}
+		if c.End > c.Start {
+			s.Ms += (c.End - c.Start) * 1000
+		}
+	}
+	return s
+}
+
+// applyToolResult 处理工具结果节点；截断记一次 prune 事件。run_skill 的
+// 结果单列 skill 分类（技能内容不藏在 tool 里，对齐 dsh 第七分类）；bash
+// 结果关闭挂起的命令记录。
 func (f *folding) applyToolResult(e session.LogEntry) {
 	var p toolResultPayload
 	if err := json.Unmarshal(e.Payload, &p); err != nil {
@@ -371,9 +589,16 @@ func (f *folding) applyToolResult(e session.LogEntry) {
 		text = "[error] " + p.Err
 	}
 	tok := estimateTokens(text)
-	f.toolTok += tok
-	f.stats.ToolCalls++
-	f.nodes = append(f.nodes, SurfaceNode{Seq: e.Seq, Cat: catTool, Tokens: tok, Text: briefOf(text, maxNodePreview), Tool: p.Name, Err: p.Err != ""})
+	f.closeCommand(p.ID, e, p)
+	if p.Name == "run_skill" {
+		f.skillTok += tok
+		f.stats.Skills++
+		f.addNode(SurfaceNode{Seq: e.Seq, Cat: catSkill, Tokens: tok, Text: briefOf(text, maxNodePreview), Tool: p.Name, Name: f.takeSkillName(p.ID), Err: p.Err != ""})
+	} else {
+		f.toolTok += tok
+		f.stats.ToolCalls++
+		f.addNode(SurfaceNode{Seq: e.Seq, Cat: catTool, Tokens: tok, Text: briefOf(text, maxNodePreview), Tool: p.Name, Err: p.Err != ""})
+	}
 	// 结果到达：最近一次工具交换的 brief 锚点改到结果节点（来源 chip+全文，
 	// 跳转价值高于派发事件——派发事件本身没有浏览器节点）。
 	f.lastToolCallSeq = e.Seq
@@ -393,8 +618,14 @@ func (f *folding) applyToolResult(e session.LogEntry) {
 	f.recordFile(e.Seq, e.Ts, p.Name, "", p.Output, true, p.ID)
 }
 
-// maxFiles 是文件活动时间线保留条数（浏览视图上限，超出丢最旧）。
-const maxFiles = 200
+// takeSkillName 取回并清除挂起的技能名（结果节点一次性消费）。
+func (f *folding) takeSkillName(dispatchID string) string {
+	name, ok := f.pendingSkill[dispatchID]
+	if ok {
+		delete(f.pendingSkill, dispatchID)
+	}
+	return name
+}
 
 // recordFile 把一次工具调用折叠进文件活动时间线：优先从工具参数提取路径
 // （read/write/move/dir 白名单工具），参数无路径时允许从结果输出提取
@@ -685,11 +916,14 @@ func (f *folding) applyCompaction(e session.LogEntry) {
 			f.userTok -= n.Tokens
 		case catInject:
 			f.injectTok -= n.Tokens
+		case catSkill:
+			f.skillTok -= n.Tokens
 		case catAssistant:
 			f.assistantTok -= n.Tokens
 		case catTool:
 			f.toolTok -= n.Tokens
 		}
+		f.catItems[n.Cat]--
 		reclaimed += n.Tokens
 	}
 	f.nodes = kept
@@ -706,21 +940,71 @@ func (f *folding) applyCompaction(e session.LogEntry) {
 	f.compactMark = e.Seq
 }
 
-// current 返回当前六分类构成（系统/工具来自最新 header 估算）。
+// current 返回当前七分类构成（系统/工具来自最新 header 估算）。
 func (f *folding) current() Category {
 	return Category{
 		System:    f.systemTok,
 		Tools:     f.toolsTok,
 		User:      f.userTok,
 		Inject:    f.injectTok,
+		Skill:     f.skillTok,
 		Assistant: f.assistantTok,
 		Tool:      f.toolTok,
 	}
 }
 
+// addNode 追加浏览器节点并维护活分类条数计数（快照差分的口径源，与节点
+// 列表解耦——视图截断不动计数，见 snapshotSurface）。
+func (f *folding) addNode(n SurfaceNode) {
+	f.nodes = append(f.nodes, n)
+	switch n.Cat {
+	case catSystem, catTools:
+		// header 节点只在变化时入列，是「快照」不是逐项元素：快照侧按
+		// systemTok/toolsTok 整值聚合（恒 1 项），不计条数。
+	default:
+		if f.catItems == nil {
+			f.catItems = map[string]int64{}
+		}
+		f.catItems[n.Cat]++
+	}
+}
+
+// trimBrowserWindow 收口浏览器视图上限：节点/归档/事件/文件/命令超出上限
+// 时丢最旧（token 合计与差分走增量计数器，不受影响）。NodesDropped/
+// NodesFloor 向前端标注节点保真边界。
+func (f *folding) trimBrowserWindow() {
+	if len(f.nodes) > maxNodes {
+		dropped := f.nodes[:len(f.nodes)-maxNodes]
+		for _, n := range dropped {
+			switch n.Cat {
+			case catSystem, catTools:
+			default:
+				f.catItems[n.Cat]--
+			}
+		}
+		f.nodes = append([]SurfaceNode(nil), f.nodes[len(f.nodes)-maxNodes:]...)
+		f.nodesDropped = len(dropped)
+	}
+	if len(f.archive) > maxArchive {
+		f.archive = append([]SurfaceNode(nil), f.archive[len(f.archive)-maxArchive:]...)
+	}
+	if len(f.events) > maxEvents {
+		f.events = append([]ContextEvent(nil), f.events[len(f.events)-maxEvents:]...)
+	}
+	if len(f.files) > maxFiles {
+		f.files = append([]FileActivity(nil), f.files[len(f.files)-maxFiles:]...)
+	}
+	if len(f.commands) > maxCommands {
+		f.commands = append([]CommandRecord(nil), f.commands[len(f.commands)-maxCommands:]...)
+	}
+	if len(f.nodes) > 0 {
+		f.nodesFloor = f.nodes[0].Seq
+	}
+}
+
 // ─── 对比上一步（per-request surface 快照与差分） ───────────────────
 
-// surfaceSnapshot 是一次请求快照点的活节点聚合（项数/token 按六分类）。
+// surfaceSnapshot 是一次请求快照点的活上下文聚合（项数/token 按七分类）。
 type surfaceSnapshot struct {
 	items       map[string]int64
 	tokens      map[string]int64
@@ -728,12 +1012,12 @@ type surfaceSnapshot struct {
 }
 
 // catDeltaOrder 是差分遍历的分类顺序（稳定，不依赖 map 迭代序）。
-var catDeltaOrder = [...]string{catSystem, catTools, catUser, catInject, catAssistant, catTool}
+var catDeltaOrder = [...]string{catSystem, catTools, catUser, catInject, catSkill, catAssistant, catTool}
 
-// snapshotSurface 聚合当前模型可见 surface。system/tools 走最新 header 的
-// 整体估算——节点只在变化时入列且旧头不回收，逐条聚合会重计历史头；
-// user/inject/assistant/tool 活节点逐条聚合（离开 surface 的节点已被移入
-// 归档，不在此列）。
+// snapshotSurface 聚合当前模型可见上下文。全分类走增量计数器（token 见
+// userTok 等字段、条数见 catItems）——与浏览器节点列表解耦，视图截断不
+// 改变差分口径。system/tools 是「整值快照」分类：最新 header 的整体估算
+// 记 1 项（节点只在变化时入列且旧头不回收，逐条聚合会重计历史头）。
 func (f *folding) snapshotSurface() *surfaceSnapshot {
 	s := &surfaceSnapshot{
 		items:       map[string]int64{},
@@ -748,12 +1032,21 @@ func (f *folding) snapshotSurface() *surfaceSnapshot {
 		s.items[catTools] = 1
 		s.tokens[catTools] = f.toolsTok
 	}
-	for _, n := range f.nodes {
-		if n.Cat == catSystem || n.Cat == catTools {
-			continue
+	for _, cat := range []string{catUser, catInject, catSkill, catAssistant, catTool} {
+		if n := f.catItems[cat]; n > 0 {
+			s.items[cat] = n
 		}
-		s.items[n.Cat]++
-		s.tokens[n.Cat] += n.Tokens
+	}
+	for cat, tok := range map[string]int64{
+		catUser:      f.userTok,
+		catInject:    f.injectTok,
+		catSkill:     f.skillTok,
+		catAssistant: f.assistantTok,
+		catTool:      f.toolTok,
+	} {
+		if tok > 0 {
+			s.tokens[cat] = tok
+		}
 	}
 	return s
 }
@@ -865,6 +1158,9 @@ type requestHeaderPayload struct {
 		Schema string `json:"schema,omitempty"`
 	} `json:"tools,omitempty"`
 	Window int `json:"window,omitempty"`
+	// Provider 是供应商实例名（v4.542 刀1 追加列，旧日志零值=无戳不折叠
+	// 切换事件）。
+	Provider string `json:"provider,omitempty"`
 	// v4.212（5.2）前缀稳定判定（追加列，旧日志零值=未计算不折叠）。
 	CompileHash     string `json:"compileHash,omitempty"`
 	PrevCompileHash string `json:"prevCompileHash,omitempty"`

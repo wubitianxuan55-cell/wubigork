@@ -27,6 +27,7 @@ func scaleCategory(c Category, actual, est int64) Category {
 		Tools:     int64(float64(c.Tools) * f),
 		User:      int64(float64(c.User) * f),
 		Inject:    int64(float64(c.Inject) * f),
+		Skill:     int64(float64(c.Skill) * f),
 		Assistant: int64(float64(c.Assistant) * f),
 		Tool:      int64(float64(c.Tool) * f),
 	}

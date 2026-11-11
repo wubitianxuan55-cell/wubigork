@@ -364,6 +364,9 @@ type RequestHeaderInfo struct {
 	System string           `json:"system,omitempty"`
 	Tools  []ToolSchemaInfo `json:"tools,omitempty"`
 	Window int              `json:"window,omitempty"`
+	// Provider 是供应商实例名（Provider.Name()，如 "deepseek"）。落日志供
+	// 上下文折叠出模型切换事件与跨会话洞察按供应商分面；空=旧路径未盖戳。
+	Provider string `json:"provider,omitempty"`
 	// ── v4.212 上下文编译 dump/diff（5.2）────────────────────────────
 	// CompileHash 是本请求消息序列（canonical role+content 串接）的 SHA256
 	// 前 16 hex；PrevCompileHash 是上一请求的整体摘要（空=会话首请求）。

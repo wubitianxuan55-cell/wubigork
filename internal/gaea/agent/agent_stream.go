@@ -72,6 +72,7 @@ func (a *AgentRunner) stream(ctx context.Context, turn int) (string, string, str
 		Tools:       headerToolsFromSchemas(tools),
 		Window:      a.ContextWindow(),
 		CompileHash: compileDiff.Hash,
+		Provider:    a.prov.Name(),
 	}
 	if hadPrev {
 		stable := compileDiff.Stable

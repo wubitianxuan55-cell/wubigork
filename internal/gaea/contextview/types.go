@@ -1,17 +1,20 @@
 // Package contextview 从会话事件日志折叠出「逐请求上下文构成」快照——
-// dsh-context 的 Go 移植（Phase A）：当前六分类组成、逐请求趋势、上下文
-// 事件、模型可见 surface 节点。折叠是纯函数（无 I/O），可黄金测试。
+// dsh-context 的 Go 移植：当前七分类组成、逐请求趋势、上下文事件、命令执行、
+// 模型可见 surface 节点。折叠是纯函数（无 I/O），可黄金测试。
 package contextview
 
-// DefaultRetention 是快照中保留的最近请求数（与 dsh-context retention 同义）。
-const DefaultRetention = 200
+// DefaultRetention 是快照中保留的最近请求数（对齐 dsh-context
+// maxRequestSteps=1500；记录是细粒度数字+brief，1500 条约 1MB 桥载荷）。
+const DefaultRetention = 1500
 
-// Category 是一次模型请求的六分类 token 构成。
+// Category 是一次模型请求的七分类 token 构成（对齐 dsh-context 七分类：
+// skill 单列——run_skill 装载的技能内容不藏在 tool 里，隐蔽占用可见）。
 type Category struct {
 	System    int64 `json:"system"`
 	Tools     int64 `json:"tools"`
 	User      int64 `json:"user"`
 	Inject    int64 `json:"inject"`
+	Skill     int64 `json:"skill"`
 	Assistant int64 `json:"assistant"`
 	Tool      int64 `json:"tool"`
 }
@@ -30,8 +33,14 @@ type Stats struct {
 	Prunes          int     `json:"prunes"`
 	ToolCalls       int     `json:"toolCalls"`
 	Images          int     `json:"images"`
+	Skills          int     `json:"skills,omitempty"`
 	CacheHitPercent float64 `json:"cacheHitPercent,omitempty"`
 	CostEstimate    float64 `json:"costEstimate,omitempty"`
+	// Assistant 三拆（对齐 dsh-context assistantReasoning/AnswerTokens/
+	// CallTokens）：思考/正文/工具调用参数三子计数，会话级合计。
+	AssistantReasoning    int64 `json:"assistantReasoning,omitempty"`
+	AssistantAnswerTokens int64 `json:"assistantAnswerTokens,omitempty"`
+	AssistantCallTokens   int64 `json:"assistantCallTokens,omitempty"`
 }
 
 // RequestRecord 是日志中的一次模型请求（一根趋势柱）。
@@ -108,20 +117,33 @@ type ContextEvent struct {
 	Turn   int    `json:"turn"`
 	Step   int    `json:"step"`
 	Ts     int64  `json:"ts"`
+	// From/To 是模型切换事件的供应商实例名（kind=switch 专有；对齐 dsh
+	// ContextEventRecord.from/to）。
+	From string `json:"from,omitempty"`
+	To   string `json:"to,omitempty"`
 }
 
 // SurfaceNode 是一条模型可见的上下文元素（浏览器/归档重建的基础）。
 type SurfaceNode struct {
 	Seq    int64  `json:"seq"`
-	Cat    string `json:"cat"` // system|tools|user|inject|assistant|tool
+	Cat    string `json:"cat"` // system|tools|user|inject|skill|assistant|tool
 	Tokens int64  `json:"tokens"`
 	Text   string `json:"text,omitempty"` // 截断预览
 	Gone   *int64 `json:"gone,omitempty"` // 被压缩/剪枝取代的事件 seq
 
-	// Tool 是产生该结果的工具名（cat=tool 专有；浏览器「来源」chip）。
+	// Tool 是产生该结果的工具名（cat=tool/skill 专有；浏览器「来源」chip）。
 	Tool string `json:"tool,omitempty"`
 	// Err 标记该工具结果为错误返回（浏览器行 error 语义点，诚实传达）。
 	Err bool `json:"err,omitempty"`
+	// Name 是 skill 节点的技能名（cat=skill 专有，来自 run_skill 参数）。
+	Name string `json:"name,omitempty"`
+
+	// assistant 三拆子计数（cat=assistant 专有；Tokens=三者合计）。对齐
+	// dsh-context SurfaceNode.reasoning/answerTokens/callTokens——思考内容
+	// 与工具调用参数都是模型产出、都进上下文，此前只算正文是漏账。
+	Reasoning    int64 `json:"reasoning,omitempty"`
+	AnswerTokens int64 `json:"answerTokens,omitempty"`
+	CallTokens   int64 `json:"callTokens,omitempty"`
 }
 
 // NodeDetail 是浏览器节点「完整调用」详情（v4.80 懒加载：前端按 seq 经
@@ -231,6 +253,51 @@ type ToolTiming struct {
 	Ms    int64  `json:"ms"`
 }
 
+// CommandStatus 是一次命令执行的终态（running=已派发未收结果，仅内存态
+// 不落快照；killed=回合中断未收结果）。
+type CommandStatus string
+
+const (
+	CommandCompleted CommandStatus = "completed"
+	CommandFailed    CommandStatus = "failed"
+	CommandKilled    CommandStatus = "killed"
+)
+
+// CommandRecord 是一次 shell 命令执行的生命周期（对齐 dsh-context
+// CommandRecord 的诚实子集：日志支撑不了的字段不造数）。
+type CommandRecord struct {
+	Seq       int64         `json:"seq"`
+	ResultSeq int64         `json:"resultSeq,omitempty"`
+	Time      int64         `json:"time"`
+	Tool      string        `json:"tool"`
+	Cmd       string        `json:"cmd,omitempty"` // 截断预览（全文在日志 tool_dispatch）
+	Turn      int           `json:"turn"`
+	Step      int           `json:"step"`
+	Start     int64         `json:"start"`
+	End       int64         `json:"end,omitempty"`
+	Status    CommandStatus `json:"status"`
+	// Err 标记失败返回（failed 的证据面；与 Status 冗余是为前端着色免判断）。
+	Err bool `json:"err,omitempty"`
+	// Exit 是命令退出码：仅当结果输出为 bash JSON 信封（output_format=json，
+	// 携带 exit_code 字段）时可提取；plain 输出无退出码，留零不猜。
+	Exit      int64  `json:"exit,omitempty"`
+	Signal    string `json:"signal,omitempty"`
+	OutChars  int64  `json:"outChars,omitempty"`
+	Truncated bool   `json:"truncated,omitempty"`
+	// Background 标记 run_in_background 派发（返回 job id 即结束，输出异步）。
+	Background bool `json:"background,omitempty"`
+	// Derived 恒 true：命令折叠是从 bash 工具调用推导的视图（dsh 同名语义）。
+	Derived bool `json:"derived,omitempty"`
+}
+
+// CommandStats 是会话级命令执行摘要（runs/failed/ms/bg）。
+type CommandStats struct {
+	Runs   int   `json:"runs"`
+	Failed int   `json:"failed"`
+	Ms     int64 `json:"ms,omitempty"`
+	Bg     int   `json:"bg,omitempty"`
+}
+
 // CompactTiers 是三层压缩水位（窗口占比 0~1）——内核 [agent]
 // compaction_soft_ratio/compaction_ratio/compaction_force_ratio 解析后的生效值
 // （0/非法整组回落内置缺省 0.5/0.8/0.9）：Soft=一次性增长提醒水位、Ratio=
@@ -253,6 +320,15 @@ type ContextTimeline struct {
 	Nodes    []SurfaceNode   `json:"nodes"`
 	Archive  []SurfaceNode   `json:"archive"`
 	Files    []FileActivity  `json:"files"`
+	// Commands 是 shell 命令执行时间线（bash 工具推导；上限 400 条）。
+	Commands []CommandRecord `json:"commands"`
+	// CommandStats 是命令执行摘要（无命令时 nil 整体省略）。
+	CommandStats *CommandStats `json:"commandStats,omitempty"`
+	// NodesDropped/NodesFloor 是浏览器节点保真边界（上限截断的诚实标注）：
+	// NodesDropped=因上限丢弃的最早节点数，NodesFloor=幸存节点的最小 seq
+	// （更早的 seq 已不在列表，浏览器按 seq 跳转时据此判界）。
+	NodesDropped int   `json:"nodesDropped,omitempty"`
+	NodesFloor   int64 `json:"nodesFloor,omitempty"`
 	// Timing 是耗时统计卡（会话无任何可测时长时为 nil，整体省略——例如
 	// 迁移日志全部条目同一秒，差值处处为零，诚实留空）。
 	Timing *ContextTiming `json:"timing,omitempty"`
@@ -282,5 +358,6 @@ func EmptyTimeline() ContextTimeline {
 		Nodes:    []SurfaceNode{},
 		Archive:  []SurfaceNode{},
 		Files:    []FileActivity{},
+		Commands: []CommandRecord{},
 	}
 }

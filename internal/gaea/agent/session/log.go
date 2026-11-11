@@ -119,9 +119,10 @@ type userLogPayload struct {
 // requestHeaderLogPayload 是 request_header 事件的 payload：一次模型请求
 // 组装后的 system prompt 与工具 schema（context-view 折叠的数据源）。
 type requestHeaderLogPayload struct {
-	System string                  `json:"system,omitempty"`
-	Tools  []requestToolLogPayload `json:"tools,omitempty"`
-	Window int                     `json:"window,omitempty"`
+	System   string                  `json:"system,omitempty"`
+	Tools    []requestToolLogPayload `json:"tools,omitempty"`
+	Window   int                     `json:"window,omitempty"`
+	Provider string                  `json:"provider,omitempty"`
 	// v4.212（5.2）上下文编译 dump/diff：消息级摘要链与相邻请求前缀稳定
 	// 判定（追加列，旧日志读端零值缺省=未计算）。
 	CompileHash     string `json:"compileHash,omitempty"`
@@ -588,9 +589,10 @@ func EntryFromEvent(e event.Event, ts int64) (LogEntry, error) {
 			tools = append(tools, requestToolLogPayload{Name: t.Name, Schema: t.Schema})
 		}
 		payload = requestHeaderLogPayload{
-			System: e.Header.System,
-			Tools:  tools,
-			Window: e.Header.Window,
+			System:   e.Header.System,
+			Tools:    tools,
+			Window:   e.Header.Window,
+			Provider: e.Header.Provider,
 
 			CompileHash:     e.Header.CompileHash,
 			PrevCompileHash: e.Header.PrevCompileHash,
