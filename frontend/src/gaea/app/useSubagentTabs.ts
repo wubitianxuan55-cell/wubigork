@@ -112,7 +112,12 @@ export function useSubagentTabs({ currentSessionKey, currentSessionPath, setChat
     });
   }, [subagentRuns]);
   const handleChatTabSelect = useCallback((id: string) => {
-    if (id === "chat" || id === "trajectory" || id === "context" || id === "memory") {
+    // v4.542 刀3/5：视图 tab 扩到六枚（洞察/编队入列）——白名单漏新 id 会把
+    // 它们当子代理会话 tab 吃掉（真机走查定罪：tab 选中但内容回落 chat）。
+    if (
+      id === "chat" || id === "trajectory" || id === "context" || id === "memory"
+      || id === "insights" || id === "fleet"
+    ) {
       setSubagentTabId(null);
       setChatTab(id);
     } else {
