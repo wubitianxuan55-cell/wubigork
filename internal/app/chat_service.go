@@ -358,6 +358,9 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 	// B7 工具循环（按钮语义=允许联网总开关）：开着即带 web_search 真工具，
 	// 要不要搜/搜什么由模型判断（关键词门控退役）；关闭=不传工具零变化。
 	toolMode := searchEnabled || forceSearch
+	// 可观测性（2026-11-11 联网开关脱节排查）：决策因子入日志，按钮态与
+	// 实际请求是否一致一条 grep 可验。
+	slog.Info("chat stream plain", "engine", eng, "searchEnabled", searchEnabled, "forceSearch", forceSearch, "toolMode", toolMode)
 	requestStart := time.Now()
 	var reply strings.Builder
 	var reasoning strings.Builder

@@ -77,7 +77,12 @@ const ChatPage: React.FC = () => {
 
   const [input, setInput] = useState('')
   const [activePersonality, setActivePersonality] = useState<string>(() => loadPersonality())
-  const [searchEnabled, setSearchEnabled] = useState(true)
+  // 联网开关：默认关 + localStorage 持久化（2026-11-11 根治「重挂载静默回开」：
+  // 旧 useState(true) 无持久化，切话题/重挂载后按钮状态与实际请求脱节，
+  // 工具 schema 无感注入每轮请求——聊天页/轻语两链均受累）。
+  const [searchEnabled, setSearchEnabled] = useState(() => {
+    try { return localStorage.getItem('gaea.chatSearchEnabled') === '1' } catch { return false }
+  })
   const [thinking, setThinking] = useState(false)
   const [forceSearch, setForceSearch] = useState(false)
 
@@ -152,7 +157,11 @@ const ChatPage: React.FC = () => {
     return () => window.removeEventListener('resize', collapseForCompactWindow)
   }, [])
   // v4.365 性能轮：传给 memo 子组件的回调全部 useCallback 稳定（内联箭头使 memo 恒失效）
-  const handleToggleSearch = useCallback(() => setSearchEnabled(v => !v), [])
+  const handleToggleSearch = useCallback(() => setSearchEnabled(v => {
+    const next = !v
+    try { localStorage.setItem('gaea.chatSearchEnabled', next ? '1' : '0') } catch { /* ignore */ }
+    return next
+  }), [])
   const handleToggleForceSearch = useCallback(() => setForceSearch(v => !v), [])
   const handleToggleThinking = useCallback(() => setThinking(v => !v), [])
   const handleOpenVoiceSettings = useCallback(() => setShowVoiceSettings(true), [])
