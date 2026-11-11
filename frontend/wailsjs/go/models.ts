@@ -6679,6 +6679,7 @@ export namespace contextview {
 	    tools: number;
 	    user: number;
 	    inject: number;
+	    skill: number;
 	    assistant: number;
 	    tool: number;
 	
@@ -6692,8 +6693,71 @@ export namespace contextview {
 	        this.tools = source["tools"];
 	        this.user = source["user"];
 	        this.inject = source["inject"];
+	        this.skill = source["skill"];
 	        this.assistant = source["assistant"];
 	        this.tool = source["tool"];
+	    }
+	}
+	export class CommandRecord {
+	    seq: number;
+	    resultSeq?: number;
+	    time: number;
+	    tool: string;
+	    cmd?: string;
+	    turn: number;
+	    step: number;
+	    start: number;
+	    end?: number;
+	    status: string;
+	    err?: boolean;
+	    exit?: number;
+	    signal?: string;
+	    outChars?: number;
+	    truncated?: boolean;
+	    background?: boolean;
+	    derived?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new CommandRecord(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.seq = source["seq"];
+	        this.resultSeq = source["resultSeq"];
+	        this.time = source["time"];
+	        this.tool = source["tool"];
+	        this.cmd = source["cmd"];
+	        this.turn = source["turn"];
+	        this.step = source["step"];
+	        this.start = source["start"];
+	        this.end = source["end"];
+	        this.status = source["status"];
+	        this.err = source["err"];
+	        this.exit = source["exit"];
+	        this.signal = source["signal"];
+	        this.outChars = source["outChars"];
+	        this.truncated = source["truncated"];
+	        this.background = source["background"];
+	        this.derived = source["derived"];
+	    }
+	}
+	export class CommandStats {
+	    runs: number;
+	    failed: number;
+	    ms?: number;
+	    bg?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new CommandStats(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.runs = source["runs"];
+	        this.failed = source["failed"];
+	        this.ms = source["ms"];
+	        this.bg = source["bg"];
 	    }
 	}
 	export class CompactTiers {
@@ -6720,6 +6784,8 @@ export namespace contextview {
 	    turn: number;
 	    step: number;
 	    ts: number;
+	    from?: string;
+	    to?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ContextEvent(source);
@@ -6734,7 +6800,187 @@ export namespace contextview {
 	        this.turn = source["turn"];
 	        this.step = source["step"];
 	        this.ts = source["ts"];
+	        this.from = source["from"];
+	        this.to = source["to"];
 	    }
+	}
+	export class InsightsSession {
+	    path: string;
+	    title?: string;
+	    preview?: string;
+	    spaceId?: string;
+	    archived?: boolean;
+	    modTime: number;
+	    lastActive: number;
+	    tokens: number;
+	    requests: number;
+	    turns: number;
+	    cost?: number;
+	    cacheHitPercent?: number;
+	    composition: Category;
+	    estimated?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new InsightsSession(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.title = source["title"];
+	        this.preview = source["preview"];
+	        this.spaceId = source["spaceId"];
+	        this.archived = source["archived"];
+	        this.modTime = source["modTime"];
+	        this.lastActive = source["lastActive"];
+	        this.tokens = source["tokens"];
+	        this.requests = source["requests"];
+	        this.turns = source["turns"];
+	        this.cost = source["cost"];
+	        this.cacheHitPercent = source["cacheHitPercent"];
+	        this.composition = this.convertValues(source["composition"], Category);
+	        this.estimated = source["estimated"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class InsightsTally {
+	    name: string;
+	    count: number;
+	    last?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new InsightsTally(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.count = source["count"];
+	        this.last = source["last"];
+	    }
+	}
+	export class InsightsDay {
+	    date: string;
+	    tokens: number;
+	    requests: number;
+	    turns?: number;
+	    toolCalls?: number;
+	    skills?: number;
+	    cost?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new InsightsDay(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.date = source["date"];
+	        this.tokens = source["tokens"];
+	        this.requests = source["requests"];
+	        this.turns = source["turns"];
+	        this.toolCalls = source["toolCalls"];
+	        this.skills = source["skills"];
+	        this.cost = source["cost"];
+	    }
+	}
+	export class InsightsKpi {
+	    sessions: number;
+	    tokens: number;
+	    requests: number;
+	    turns: number;
+	    toolCalls: number;
+	    skills: number;
+	    cost?: number;
+	    cacheHitPercent?: number;
+	    toolsMs?: number;
+	    wallMs?: number;
+	    estimatedTokens?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new InsightsKpi(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.sessions = source["sessions"];
+	        this.tokens = source["tokens"];
+	        this.requests = source["requests"];
+	        this.turns = source["turns"];
+	        this.toolCalls = source["toolCalls"];
+	        this.skills = source["skills"];
+	        this.cost = source["cost"];
+	        this.cacheHitPercent = source["cacheHitPercent"];
+	        this.toolsMs = source["toolsMs"];
+	        this.wallMs = source["wallMs"];
+	        this.estimatedTokens = source["estimatedTokens"];
+	    }
+	}
+	export class ContextInsights {
+	    ok: boolean;
+	    range: string;
+	    generatedAt: number;
+	    kpi: InsightsKpi;
+	    days: InsightsDay[];
+	    skills: InsightsTally[];
+	    tools: InsightsTally[];
+	    programs: InsightsTally[];
+	    sessions: InsightsSession[];
+	    scanned: number;
+	    truncated?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ContextInsights(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ok = source["ok"];
+	        this.range = source["range"];
+	        this.generatedAt = source["generatedAt"];
+	        this.kpi = this.convertValues(source["kpi"], InsightsKpi);
+	        this.days = this.convertValues(source["days"], InsightsDay);
+	        this.skills = this.convertValues(source["skills"], InsightsTally);
+	        this.tools = this.convertValues(source["tools"], InsightsTally);
+	        this.programs = this.convertValues(source["programs"], InsightsTally);
+	        this.sessions = this.convertValues(source["sessions"], InsightsSession);
+	        this.scanned = source["scanned"];
+	        this.truncated = source["truncated"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class CostRate {
 	    inputPer1M?: number;
@@ -6844,12 +7090,17 @@ export namespace contextview {
 	}
 	export class SurfaceNode {
 	    seq: number;
+	    ts?: number;
 	    cat: string;
 	    tokens: number;
 	    text?: string;
 	    gone?: number;
 	    tool?: string;
 	    err?: boolean;
+	    name?: string;
+	    reasoning?: number;
+	    answerTokens?: number;
+	    callTokens?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new SurfaceNode(source);
@@ -6858,12 +7109,17 @@ export namespace contextview {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.seq = source["seq"];
+	        this.ts = source["ts"];
 	        this.cat = source["cat"];
 	        this.tokens = source["tokens"];
 	        this.text = source["text"];
 	        this.gone = source["gone"];
 	        this.tool = source["tool"];
 	        this.err = source["err"];
+	        this.name = source["name"];
+	        this.reasoning = source["reasoning"];
+	        this.answerTokens = source["answerTokens"];
+	        this.callTokens = source["callTokens"];
 	    }
 	}
 	export class PrefixVerdict {
@@ -6935,6 +7191,7 @@ export namespace contextview {
 	    briefUser?: string;
 	    briefIn?: string[];
 	    briefResp?: string;
+	    cost?: number;
 	    briefUserSeq?: number;
 	    briefRespSeq?: number;
 	    promptTokens?: number;
@@ -6959,6 +7216,7 @@ export namespace contextview {
 	        this.briefUser = source["briefUser"];
 	        this.briefIn = source["briefIn"];
 	        this.briefResp = source["briefResp"];
+	        this.cost = source["cost"];
 	        this.briefUserSeq = source["briefUserSeq"];
 	        this.briefRespSeq = source["briefRespSeq"];
 	        this.promptTokens = source["promptTokens"];
@@ -6996,8 +7254,12 @@ export namespace contextview {
 	    prunes: number;
 	    toolCalls: number;
 	    images: number;
+	    skills?: number;
 	    cacheHitPercent?: number;
 	    costEstimate?: number;
+	    assistantReasoning?: number;
+	    assistantAnswerTokens?: number;
+	    assistantCallTokens?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Stats(source);
@@ -7012,8 +7274,12 @@ export namespace contextview {
 	        this.prunes = source["prunes"];
 	        this.toolCalls = source["toolCalls"];
 	        this.images = source["images"];
+	        this.skills = source["skills"];
 	        this.cacheHitPercent = source["cacheHitPercent"];
 	        this.costEstimate = source["costEstimate"];
+	        this.assistantReasoning = source["assistantReasoning"];
+	        this.assistantAnswerTokens = source["assistantAnswerTokens"];
+	        this.assistantCallTokens = source["assistantCallTokens"];
 	    }
 	}
 	export class ContextTimeline {
@@ -7026,6 +7292,10 @@ export namespace contextview {
 	    nodes: SurfaceNode[];
 	    archive: SurfaceNode[];
 	    files: FileActivity[];
+	    commands: CommandRecord[];
+	    commandStats?: CommandStats;
+	    nodesDropped?: number;
+	    nodesFloor?: number;
 	    timing?: ContextTiming;
 	    rate?: CostRate;
 	    compact?: CompactTiers;
@@ -7045,6 +7315,10 @@ export namespace contextview {
 	        this.nodes = this.convertValues(source["nodes"], SurfaceNode);
 	        this.archive = this.convertValues(source["archive"], SurfaceNode);
 	        this.files = this.convertValues(source["files"], FileActivity);
+	        this.commands = this.convertValues(source["commands"], CommandRecord);
+	        this.commandStats = this.convertValues(source["commandStats"], CommandStats);
+	        this.nodesDropped = source["nodesDropped"];
+	        this.nodesFloor = source["nodesFloor"];
 	        this.timing = this.convertValues(source["timing"], ContextTiming);
 	        this.rate = this.convertValues(source["rate"], CostRate);
 	        this.compact = this.convertValues(source["compact"], CompactTiers);
@@ -7068,6 +7342,10 @@ export namespace contextview {
 		    return a;
 		}
 	}
+	
+	
+	
+	
 	
 	
 	

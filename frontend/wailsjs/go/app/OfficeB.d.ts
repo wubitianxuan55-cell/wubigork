@@ -64,6 +64,8 @@ export function GaeaCommands():Promise<Array<app.CommandInfo>>;
 
 export function GaeaContext():Promise<app.ContextInfo>;
 
+export function GaeaContextInsights(arg1:string,arg2:boolean):Promise<contextview.ContextInsights>;
+
 export function GaeaContextNodeDetail(arg1:number,arg2:string):Promise<contextview.NodeDetail>;
 
 export function GaeaContextView(arg1:string):Promise<contextview.ContextTimeline>;
