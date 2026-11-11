@@ -250,6 +250,7 @@ export function buildCore(s: MakeMockState): CoreMethods {
         turns: 2 + (i % 3),
         toolCalls: i % 7 === 5 ? 0 : 8 + ((i * 5) % 13),
         cost: i % 7 === 5 ? 0 : 0.4 + ((i * 11) % 17) / 40,
+        sessions: i % 7 === 5 ? 0 : 1 + (i % 2),
       }));
       const comp = { system: 2100, tools: 10400, user: 5200, skill: 3200, inject: 21900, assistant: 93400, tool: 114000 };
       return {
@@ -260,6 +261,9 @@ export function buildCore(s: MakeMockState): CoreMethods {
           sessions: 2, tokens: 248600, requests: 128, turns: 34,
           toolCalls: 279, skills: 5, cost: 3.83, cacheHitPercent: 99.57,
           toolsMs: 812000, wallMs: 1600000,
+          archived: 0, billed: 2, calls: 247, steps: 128,
+          assistantReasoning: 66800, assistantAnswers: 15800, assistantCallArgs: 56000,
+          outputTokens: 27400, ttftMs: 9540000, genMs: 2460000,
         },
         days,
         skills: [
@@ -281,8 +285,9 @@ export function buildCore(s: MakeMockState): CoreMethods {
             title: "上下文界面升级换代", preview: "根据调研结果，拟定计划并开始",
             spaceId: "work", modTime: Math.floor(Date.now() / 1000) - 600,
             lastActive: Math.floor(Date.now() / 1000) - 600,
-            tokens: 248600, requests: 96, turns: 21, cost: 3.1, cacheHitPercent: 99.6,
+            tokens: 248600, requests: 96, turns: 21, steps: 96, cost: 3.1, cacheHitPercent: 99.6,
             composition: comp,
+            lastMessage: "把这份报表按季度拆三份，并出一版摘要",
             skills: ["gbt-9704-docx"], tools: ["read_file", "bash", "grep"], programs: ["go", "npm.cmd"],
           },
           {

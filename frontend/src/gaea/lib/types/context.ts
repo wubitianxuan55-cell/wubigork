@@ -255,6 +255,17 @@ export interface InsightsKpi {
   toolsMs?: number;
   wallMs?: number;
   estimatedTokens?: number;
+  // 1:1 补齐（上游 KPI 卡副行 + Token/耗时统计卡数据面）。
+  archived?: number;
+  billed?: number;
+  calls?: number;
+  steps?: number;
+  assistantReasoning?: number;
+  assistantAnswers?: number;
+  assistantCallArgs?: number;
+  outputTokens?: number;
+  ttftMs?: number;
+  genMs?: number;
 }
 
 export interface InsightsDay {
@@ -265,6 +276,7 @@ export interface InsightsDay {
   toolCalls?: number;
   skills?: number;
   cost?: number;
+  sessions?: number; // 当日活跃会话数（活跃度 toggle 会话档）
 }
 
 export interface InsightsTally {
@@ -287,6 +299,9 @@ export interface InsightsSession {
   cost?: number;
   cacheHitPercent?: number;
   composition: ContextCategory;
+  // 会话卡「N 轮 M 步」的 M 与「最后消息」行（1:1 对齐上游会话卡）。
+  steps?: number;
+  lastMessage?: string;
   // 名称清单（刀8；统计行点击过滤会话的依据；空=范围内无对应事件）。
   skills?: string[];
   tools?: string[];
