@@ -43,6 +43,7 @@ export const gaeaToGaea = {
   ContextUsage: "GaeaContext",
   ContextView: "GaeaContextView",
   ContextInsights: "GaeaContextInsights",
+  FamilyEvents: "GaeaFamilyEvents",
   Trajectory: "GaeaTrajectory",
   AgentNetwork: "GaeaAgentNetwork",
   Balance: "GaeaBalance",

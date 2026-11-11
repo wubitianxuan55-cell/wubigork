@@ -1835,4 +1835,11 @@ export const zh: Record<DictKey, string> = {
   "fleet.evDispatch": "派发",
   "fleet.evReport": "回报",
   "fleet.empty": "本会话尚未派发子代理。",
+  "fleet.kpiMessages": "家族消息",
+  "fleet.evMessage": "消息",
+  "fleet.agentMain": "主代理",
+  "fleet.agentAll": "全部成员",
+  "fleet.roleUser": "用户",
+  "fleet.roleAssistant": "助手",
+  "fleet.truncated": "另有 {{count}} 份 transcript 未扫描",
 };

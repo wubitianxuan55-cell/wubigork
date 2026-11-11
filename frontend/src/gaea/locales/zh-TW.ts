@@ -1839,4 +1839,11 @@ export const zhTW: Record<DictKey, string> = {
   "fleet.evDispatch": "派發",
   "fleet.evReport": "回報",
   "fleet.empty": "本會話尚未派發子代理。",
+  "fleet.kpiMessages": "家族訊息",
+  "fleet.evMessage": "訊息",
+  "fleet.agentMain": "主代理",
+  "fleet.agentAll": "全部成員",
+  "fleet.roleUser": "使用者",
+  "fleet.roleAssistant": "助理",
+  "fleet.truncated": "另有 {{count}} 份 transcript 未掃描",
 };

@@ -294,6 +294,27 @@ export interface InsightsSession {
   estimated?: boolean; // 范围内全部请求均为估算关闭
 }
 
+// 家族事件流（刀10，对标 dsh-context Fleet 事件检查完全体）。
+export type FamilyAgentKind = "message" | "dispatch" | "report";
+
+export interface FamilyEventView {
+  seq: number;
+  ts: number;
+  agent: string; // "main" 或 sa_ 引用
+  kind: FamilyAgentKind;
+  role?: "user" | "assistant"; // message 专有
+  text?: string; // 截断预览
+  ref?: string; // report 专有
+}
+
+export interface FamilyEventStreamView {
+  ok: boolean;
+  events: FamilyEventView[]; // Ts 升序，上限 400
+  scanned: number;
+  truncated?: number;
+  refs: string[]; // agent 筛选 chips 单源（main 在前）
+}
+
 export interface ContextInsightsView {
   ok: boolean;
   range: InsightsRangeKey;

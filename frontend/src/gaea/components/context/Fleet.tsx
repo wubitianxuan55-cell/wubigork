@@ -4,11 +4,13 @@
 // 数据源：GaeaAgentNetwork（谱系树）+ SubagentRuns（实时运行快照，共享单轮
 // 询 store）。诚实子集：消息级跨 transcript 合并流、blocked-by 依赖链需新
 // 后端面，本版不造（见拍板池）；家族消息计数无日志级聚合，摘要条不展示。
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useT } from "../../lib/i18n";
 import { subscribeSubagentRuns, type SubagentRunsMeta } from "../../lib/subagentRunsStore";
+import { app } from "../../lib/bridge";
 import { subscribeAgentNetwork } from "../../lib/agentNetworkStore";
 import type { AgentNetwork } from "../../lib/types";
+import type { FamilyAgentKind, FamilyEventStreamView } from "../../lib/types/context";
 import type { SubagentRunView } from "../../lib/types/subagent";
 import { AgentRadial } from "./AgentRadial";
 
@@ -37,6 +39,8 @@ export function Fleet({ running, sessionPath, onViewContext }: {
   const [net, setNet] = useState<AgentNetwork | null>(null);
   const [runs, setRuns] = useState<SubagentRunView[]>([]);
   const [meta, setMeta] = useState<SubagentRunsMeta>({ status: "loading", total: 0, running: 0 });
+  // 家族事件流（刀10：main+子代理 transcript 合并流；运行中 4s 轻轮询）。
+  const [family, setFamily] = useState<FamilyEventStreamView | null>(null);
 
   useEffect(
     () => subscribeAgentNetwork((n) => setNet(n), { path: sessionPath }),
@@ -47,8 +51,16 @@ export function Fleet({ running, sessionPath, onViewContext }: {
     [sessionPath],
   );
 
+  const loadFamily = useCallback(() => {
+    app.FamilyEvents(sessionPath ?? "")
+      .then(setFamily)
+      .catch(() => setFamily(null));
+  }, [sessionPath]);
+  useEffect(() => {
+    loadFamily();
+  }, [loadFamily]);
+
   const subagentRuns = useMemo(() => runs.filter((r) => (r.kind ?? "subagent") === "subagent"), [runs]);
-  const toolCallsTotal = useMemo(() => runs.reduce((s, r) => s + (r.toolCalls ?? 0), 0), [runs]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4" data-testid="ctx-fleet">
@@ -57,7 +69,7 @@ export function Fleet({ running, sessionPath, onViewContext }: {
         <Summary label={t("fleet.kpiAgents")} value={String(1 + subagentRuns.length)} />
         <Summary label={t("fleet.kpiRunning")} value={String(meta.running)} accent={meta.running > 0} />
         <Summary label={t("fleet.kpiTasks")} value={String(subagentRuns.length)} />
-        <Summary label={t("fleet.kpiToolCalls")} value={String(toolCallsTotal)} />
+        <Summary label={t("fleet.kpiMessages")} value={String(family?.events.length ?? 0)} />
       </div>
 
       {/* Agent 网络（谱系径向图，复用实时拓扑组件） */}
@@ -75,7 +87,7 @@ export function Fleet({ running, sessionPath, onViewContext }: {
       {subagentRuns.length > 0 && (
         <div className="grid grid-cols-1 gap-3 min-[1100px]:grid-cols-2">
           <TaskPanel runs={subagentRuns} />
-          <EventInspector runs={subagentRuns} />
+          <EventInspector family={family} runs={subagentRuns} onViewContext={onViewContext} />
         </div>
       )}
 
@@ -249,69 +261,104 @@ function TaskPanel({ runs }: { runs: SubagentRunView[] }) {
 }
 
 // ─── 事件检查 ────────────────────────────────────────────────
-// 派发/回报合并流（诚实子集：来自 runs 元数据的两类事件；transcript 级消息
-// 合并流挂拍板池）。
-function EventInspector({ runs }: { runs: SubagentRunView[] }) {
+// 家族事件流（刀10）：main+子代理 transcript 合并的消息/委派/回报。
+// agent chips（refs 单源，子代理 chip 标签优先用其任务摘要）+ kind 筛选 +
+// 文本搜索；回报行点击下钻该子代理上下文。
+function EventInspector({ family, runs, onViewContext }: {
+  family: FamilyEventStreamView | null;
+  runs: SubagentRunView[];
+  onViewContext?: (ref: string) => void;
+}) {
   const t = useT();
-  const [kind, setKind] = useState<"all" | "dispatch" | "report">("all");
+  const [kind, setKind] = useState<"all" | FamilyAgentKind>("all");
+  const [agent, setAgent] = useState<string>("all");
   const [q, setQ] = useState("");
-  type Ev = { ts: number; kind: "dispatch" | "report"; run: SubagentRunView };
-  const events = useMemo<Ev[]>(() => {
-    const out: Ev[] = [];
-    for (const r of runs) {
-      const c = Date.parse(r.createdAt);
-      if (Number.isFinite(c)) out.push({ ts: c, kind: "dispatch", run: r });
-      const u = Date.parse(r.updatedAt || r.createdAt);
-      if (Number.isFinite(u) && r.status !== "running" && r.status !== "queued") out.push({ ts: u, kind: "report", run: r });
-    }
-    out.sort((a, b) => b.ts - a.ts);
-    return out;
+  const taskByRef = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of runs) m.set(r.ref, r.task);
+    return m;
   }, [runs]);
+  const events = family?.events ?? [];
   const filtered = events.filter((e) => {
     if (kind !== "all" && e.kind !== kind) return false;
+    if (agent !== "all" && e.agent !== agent) return false;
     const query = q.trim().toLowerCase();
-    if (query && !(`${e.run.task} ${e.run.answer ?? ""}`.toLowerCase().includes(query))) return false;
+    if (query && !(e.text ?? "").toLowerCase().includes(query)) return false;
     return true;
   });
+  const agentLabel = (a: string): string =>
+    a === "main" ? t("fleet.agentMain") : shortTask(taskByRef.get(a) ?? a, 14);
+  const kindColor: Record<FamilyAgentKind, string> = {
+    dispatch: "var(--md-sys-color-primary, var(--color-primary))",
+    report: "var(--md-sys-color-success, #22c55e)",
+    message: "var(--md-sys-color-outline, #9e9e9e)",
+  };
   return (
     <section className="ctx-card p-3" data-testid="fleet-events">
       <div className="mb-1.5 flex flex-wrap items-center gap-1">
         <SectionTitle>{t("fleet.eventsTitle")}</SectionTitle>
-        <span className="ml-auto flex items-center gap-1">
-          {(["all", "dispatch", "report"] as const).map((k) => (
+        {!!family?.truncated && (
+          <span className="text-[10px] text-fg-dim">{t("fleet.truncated", { count: family.truncated })}</span>
+        )}
+        <span className="ml-auto flex flex-wrap items-center gap-1">
+          {(["all", ...(family?.refs ?? ["main"])] as const).map((a) => (
             <button
-              key={k}
+              key={a}
               type="button"
-              aria-pressed={kind === k}
-              className={`cursor-pointer rounded border-0 px-1.5 py-0.5 text-[10px] ${kind === k ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"}`}
-              onClick={() => setKind(k)}
+              aria-pressed={agent === a}
+              className={`cursor-pointer rounded border-0 px-1.5 py-0.5 text-[10px] ${agent === a ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"}`}
+              onClick={() => setAgent(a)}
             >
-              {k === "all" ? t("fleet.filterAll") : k === "dispatch" ? t("fleet.evDispatch") : t("fleet.evReport")}
+              {a === "all" ? t("fleet.agentAll") : agentLabel(a)}
             </button>
           ))}
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder={t("fleet.taskSearch")}
-            className="w-28 rounded border border-border-soft bg-transparent px-1.5 py-0.5 text-[10px] text-fg placeholder:text-fg-faint focus:outline-none focus:ring-1 focus:ring-accent/40"
-          />
         </span>
+      </div>
+      <div className="mb-1.5 flex flex-wrap items-center gap-1">
+        {(["all", "message", "dispatch", "report"] as const).map((k) => (
+          <button
+            key={k}
+            type="button"
+            aria-pressed={kind === k}
+            className={`cursor-pointer rounded border-0 px-1.5 py-0.5 text-[10px] ${kind === k ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"}`}
+            onClick={() => setKind(k)}
+          >
+            {k === "all" ? t("fleet.filterAll") : k === "message" ? t("fleet.evMessage") : k === "dispatch" ? t("fleet.evDispatch") : t("fleet.evReport")}
+          </button>
+        ))}
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder={t("fleet.taskSearch")}
+          className="ml-auto w-28 rounded border border-border-soft bg-transparent px-1.5 py-0.5 text-[10px] text-fg placeholder:text-fg-faint focus:outline-none focus:ring-1 focus:ring-accent/40"
+        />
       </div>
       <ul className="m-0 flex max-h-64 list-none flex-col overflow-y-auto p-0">
         {filtered.map((e, i) => (
-          <li key={`${e.run.ref}-${e.kind}-${i}`} className="ctx-row flex items-start gap-1.5 px-1.5 py-1 text-[10.5px]">
+          <li key={`${e.agent}-${e.kind}-${e.seq}-${i}`} className="ctx-row flex items-start gap-1.5 px-1.5 py-1 text-[10.5px]">
             <span
               className="mt-1 h-2 w-2 shrink-0 rounded-sm"
-              style={{ background: e.kind === "dispatch" ? "var(--md-sys-color-primary, var(--color-primary))" : STATUS_COLOR[e.run.status] }}
+              style={{ background: kindColor[e.kind] }}
+              title={e.kind}
             />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                <span className="font-medium text-fg-dim">{e.kind === "dispatch" ? t("fleet.evDispatch") : t("fleet.evReport")}</span>
-                <span className="min-w-0 truncate text-fg">{shortTask(e.run.task, 32)}</span>
-                <span className="ml-auto shrink-0 font-mono text-[9.5px] text-fg-dim">{fmtClock(new Date(e.ts).toISOString())}</span>
+                <span className="shrink-0 rounded bg-bg-soft px-1 font-mono text-[9px] text-fg-dim">{agentLabel(e.agent)}</span>
+                {e.kind === "message" && e.role && (
+                  <span className="shrink-0 text-[9px] text-fg-faint">{e.role === "user" ? t("fleet.roleUser") : t("fleet.roleAssistant")}</span>
+                )}
+                {e.kind === "dispatch" && <span className="shrink-0 text-[9px] font-medium text-fg-dim">{t("fleet.evDispatch")}</span>}
+                {e.kind === "report" && <span className="shrink-0 text-[9px] font-medium" style={{ color: kindColor.report }}>{t("fleet.evReport")}</span>}
+                <span className="ml-auto shrink-0 font-mono text-[9.5px] text-fg-dim">{fmtClock(new Date(e.ts * 1000).toISOString())}</span>
               </div>
-              {e.kind === "report" && e.run.answer && (
-                <div className="mt-0.5 line-clamp-2 text-[10px] text-fg-dim">{e.run.answer}</div>
+              {e.text && (
+                <div
+                  className={`mt-0.5 text-[10px] text-fg-dim ${e.kind === "report" && onViewContext ? "cursor-pointer hover:text-fg hover:underline" : ""}`}
+                  title={e.text}
+                  onClick={e.kind === "report" && onViewContext ? () => onViewContext(e.ref || e.agent) : undefined}
+                >
+                  {e.text}
+                </div>
               )}
             </div>
           </li>

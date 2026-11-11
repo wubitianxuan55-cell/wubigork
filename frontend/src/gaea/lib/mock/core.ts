@@ -26,7 +26,7 @@ type CoreMethods = Pick<
   AppBindings,
   | "ListWorkspaces" | "PickWorkspace" | "SwitchWorkspace"
   | "GaeaSpaceList" | "GaeaSpaceActive" | "GaeaSpaceActivate" | "GaeaSpaceProfiles" | "GaeaSpaceProfileSet"
-  | "ContextUsage" | "ContextView" | "ContextNodeDetail" | "Trajectory" | "AgentNetwork" | "Jobs" | "ContextInsights"
+  | "ContextUsage" | "ContextView" | "ContextNodeDetail" | "Trajectory" | "AgentNetwork" | "Jobs" | "ContextInsights" | "FamilyEvents"
   | "GaeaBrowserObserve" | "GaeaSubagentContextView"
   | "Meta" | "Commands" | "Capabilities"
   | "AddMCPServer" | "RemoveMCPServer" | "RetryMCPServer" | "SetMCPServerEnabled"
@@ -212,6 +212,27 @@ export function buildCore(s: MakeMockState): CoreMethods {
       // 浏览器观察窗单帧（v4.28 A2；批 45 NOT_MOCKED 续刀三）：浏览器未运行是
       // 观察窗的正常态（Go 不返回 error，前端按空态渲染）——mock 恒空态。
       return { available: false, url: "", title: "", image: "", width: 0, height: 0, updatedAt: 0 };
+    },
+    async FamilyEvents(_sessionPath: string) {
+      // 浏览器开发 mock：main+两个子代理的合并事件流样例（形状与
+      // trajectory.FoldFamilyEvents 输出一致；编队事件检查走查用）。
+      const now = Math.floor(Date.now() / 1000);
+      return {
+        ok: true,
+        scanned: 3,
+        refs: ["main", "sa_1", "sa_2"],
+        events: [
+          { seq: 1, ts: now - 3600, agent: "main", kind: "message", role: "user", text: "把这份报表按季度拆三份，并出一版摘要" },
+          { seq: 2, ts: now - 3500, agent: "main", kind: "dispatch", text: "task {\"prompt\":\"拆报表并出摘要\"}" },
+          { seq: 3, ts: now - 3400, agent: "sa_1", kind: "dispatch", text: "拆报表并出摘要" },
+          { seq: 4, ts: now - 3200, agent: "sa_1", kind: "message", role: "assistant", text: "按 Q1~Q3 拆分中，先读总表结构…" },
+          { seq: 5, ts: now - 3000, agent: "sa_1", kind: "report", ref: "sa_1", text: "拆完：Q1/Q2/Q3 三份已写入 docs/，摘要见 summary.md" },
+          { seq: 6, ts: now - 2400, agent: "main", kind: "dispatch", text: "task {\"prompt\":\"校验三份数值合计\"}" },
+          { seq: 7, ts: now - 1800, agent: "sa_2", kind: "dispatch", text: "校验三份数值合计" },
+          { seq: 8, ts: now - 900, agent: "sa_2", kind: "report", ref: "sa_2", text: "校验通过：三份合计与总表一致（误差 0）" },
+          { seq: 9, ts: now - 600, agent: "main", kind: "message", role: "assistant", text: "拆分与校验均完成，产出见 docs/。" },
+        ],
+      };
     },
     async ContextInsights(rangeKey: string, _includeArchived: boolean) {
       // 浏览器开发 mock：固定两份会话样卡 + 近 7 天柱图/8 周热力样点

@@ -1837,5 +1837,12 @@ export const en = {
   "fleet.evDispatch": "Dispatch",
   "fleet.evReport": "Report",
   "fleet.empty": "No sub-agent has been dispatched in this session yet.",
+  "fleet.kpiMessages": "Family messages",
+  "fleet.evMessage": "Message",
+  "fleet.agentMain": "Main agent",
+  "fleet.agentAll": "All members",
+  "fleet.roleUser": "user",
+  "fleet.roleAssistant": "assistant",
+  "fleet.truncated": "{{count}} transcripts not scanned",
 };
 export type DictKey = keyof typeof en;
