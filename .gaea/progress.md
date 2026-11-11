@@ -1,3 +1,22 @@
+## 实弹反馈三连修+引擎官方版本检查（v4.537.0 装机）· 2026-11-11（夜）
+
+- **①联网开关根治（08c2e3f9）**：用户「理解问题」排查=聊天页 searchEnabled
+  useState(true) 无持久化→切话题重挂载静默回开、web_search schema 无感
+  注入（引擎日志 0→1 tools 翻真实锤；微信助手腿硬编码联网为独立面）。
+  修=默认关+localStorage 持久化+toolMode 决策日志；复装机实弹 0 tools。
+- **②思考流实时上屏（af8c3abe）**：思考卡等正文才出现=useChatStream
+  reasoning 帧只进缓冲从不渲染（引擎侧 5.3KB 流式正常）。修=streamReasoning
+  rAF 节流通道，流式行展开态「思考中…」卡，done 回落折叠卡。
+- **③引擎官方版本检查（本批）**：三引擎（WHIRL 0.2.5.1↔tsaipifong/
+  whirl-llm；llama 0.8.0-dev↔ggml-org/llama.cpp v0.9.0；Strata 0.1.56↔
+  Niko1221/Strata v0.2.13）releases/latest 检查——`engine_update_check.go`
+  （--version 探针+GitHub API+30min 缓存+点分比较；逐行抓取防 MSVC 尾注
+  误抓；只告知不自动升级）+三卡「检查更新」钮+结果行。hermetic 测试+
+  全 app 套件绿+722 方法+drift OK+modelcenter 119/119。
+- **装机**：v4.537.0（三源 sync）PID 8996；版本检查真机三卡目检挂用户
+  （llama/Strata 预期显示有新版本）。
+- **文件记录**：`docs/gaea-day-log-2026-11-11.md`（续批 2 节）。
+
 ## WHIRL 推理引擎接入（第三受管本地引擎，v4.536.0 装机）· 2026-11-11（晚）
 
 - **承接**：用户线「搜索更适合本机的推理引擎」——调研对擂（WHIRL 同文件

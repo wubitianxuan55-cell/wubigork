@@ -291,6 +291,8 @@ var explicitOverrides = map[string]string{
 	"WhirlEngineStart":          "model",
 	"WhirlEngineStatus":         "model",
 	"WhirlEngineStop":           "model",
+	"EngineUpdateCheck":         "model",
+	"EngineUpdateStatus":        "model",
 	"Startup":                   "core",
 	"Shutdown":                  "core",
 	"SetDistFS":                 "core",

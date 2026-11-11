@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button, message, Popconfirm } from 'antd'
+import { CloudDownloadOutlined } from '@ant-design/icons'
 import { StatusChip } from './ui'
 import {
+  checkEngineUpdate,
   getStrataEngineStatus,
   stopStrataEngine,
   type EngineProfileOption,
+  type EngineUpdateCheckResult,
   type ManagedEngineStatusResult,
   type ManagedEngineStopResult,
   getLlamaEngineStatus,
@@ -67,6 +70,9 @@ export function LocalEngineLifecycle({ engineId, name, onRunningChange, external
   const [currentProfile, setCurrentProfile] = useState('')
   const [profiles, setProfiles] = useState<EngineProfileOption[]>(api.fallbackProfiles)
   const [busy, setBusy] = useState(false)
+  // 官方版本检查（2026-11-11 刀）：按钮触发，后端 30 分钟缓存；只告知不自动升级。
+  const [updateInfo, setUpdateInfo] = useState<EngineUpdateCheckResult | null>(null)
+  const [updateBusy, setUpdateBusy] = useState(false)
   const onRunningChangeRef = useRef(onRunningChange)
   useEffect(() => { onRunningChangeRef.current = onRunningChange }, [onRunningChange])
 
@@ -116,6 +122,40 @@ export function LocalEngineLifecycle({ engineId, name, onRunningChange, external
     }
   }
 
+  const handleCheckUpdate = async () => {
+    setUpdateBusy(true)
+    try {
+      const r = await checkEngineUpdate(engineId)
+      setUpdateInfo(r)
+    } catch {
+      message.error(`${name}版本检查异常`)
+    } finally {
+      setUpdateBusy(false)
+    }
+  }
+
+  const renderUpdateLine = () => {
+    if (!updateInfo) return null
+    if (updateInfo.error && !updateInfo.local_version) {
+      return <span className="mc-engine-sub" style={{ color: 'var(--md-sys-color-error)' }}>版本检查失败：{updateInfo.error}</span>
+    }
+    if (updateInfo.error) {
+      // 本地版本已知、官方侧失败：展示本地版本 + 失败原因
+      return <span className="mc-engine-sub">本地 {updateInfo.local_version} · 官方查询失败（{updateInfo.error}）</span>
+    }
+    if (updateInfo.has_update) {
+      return (
+        <span className="mc-engine-sub" style={{ color: 'var(--md-sys-color-warning)' }}>
+          本地 {updateInfo.local_version} · 官方最新 {updateInfo.latest_version} 有新版本
+          {updateInfo.release_url && (
+            <> · <a href={updateInfo.release_url} target="_blank" rel="noreferrer">发布页</a></>
+          )}
+        </span>
+      )
+    }
+    return <span className="mc-engine-sub" style={{ color: 'var(--md-sys-color-success)' }}>本地 {updateInfo.local_version} · 已是最新（官方 {updateInfo.latest_version}）</span>
+  }
+
   return (
     <>
       <StatusChip tone={running ? 'ok' : 'neutral'} dot={!!running}>
@@ -132,6 +172,16 @@ export function LocalEngineLifecycle({ engineId, name, onRunningChange, external
           <Button size="small" danger loading={busy}>停止引擎</Button>
         </Popconfirm>
       )}
+      <Button
+        size="small"
+        icon={<CloudDownloadOutlined />}
+        loading={updateBusy}
+        onClick={handleCheckUpdate}
+        title="查询官方 GitHub 最新版本（本地版本对比，不做自动升级）"
+      >
+        检查更新
+      </Button>
+      {renderUpdateLine()}
     </>
   )
 }

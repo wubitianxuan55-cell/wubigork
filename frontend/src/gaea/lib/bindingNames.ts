@@ -67,6 +67,8 @@ export const bindingNames = [
   "DeleteProject",
   "DeleteRelationship",
   "DeSlopChapterAiTaste",
+  "EngineUpdateCheck",
+  "EngineUpdateStatus",
   "ExportAll",
   "FinalizeChapterApply",
   "FinalizeChapterDraft",

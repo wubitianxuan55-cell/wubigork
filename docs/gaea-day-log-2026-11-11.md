@@ -144,3 +144,36 @@
 - flash-next 68GB 档是否可载 WHIRL（IQ4_XS K-quant 理论可载）未测——
   strata flash 档现役无迁移压力。
 - 引擎对擂/盲测/手术全记录在本会话记忆档（WHIRL 线）。
+
+---
+
+# 续批 2（夜）：联网开关根治+思考流实时上屏+引擎官方版本检查（v4.537.0）
+
+> 用户实弹三反馈全链闭环：①「理解问题」排查=聊天页联网开关 useState(true)
+> 无持久化，切话题重挂载静默回开、工具 schema 无感注入（引擎日志 0→1
+> tools 翻真实锤；微信助手腿硬编码联网为独立面）→ **默认关+localStorage
+> 持久化+toolMode 决策日志**（08c2e3f9，复装机实弹验证 0 tools）。
+> ②「思考卡等正文才出现」=useChatStream reasoning 帧只进缓冲从不渲染的
+> 前端盲区（引擎侧 5.3KB 流式正常）→ **streamReasoning 实时通道**（镜像
+> delta 的 rAF 节流；流式行展开态「思考中…」卡，done 回落折叠卡，
+> af8c3abe）。③本批=引擎管理加官方最新版本检查。
+
+## 刀：引擎官方版本检查（EngineUpdateCheck/EngineUpdateStatus，8126/8124/8091 三卡通用）
+
+- **通道侦察**（先探后写）：WHIRL 本地 0.2.5.1↔tsaipifong/whirl-llm
+  releases（已最新）；llama 本地 0.8.0-dev（uocr2 构建）↔ggml-org/llama.cpp
+  v0.9.0；Strata 本地 0.1.56↔Niko1221/Strata v0.2.13。三通道 releases/
+  latest 免鉴权全通。
+- **`engine_update_check.go`**：spec 表（binPath 函数+repo）→ --version
+  探针（exec+HideWindow 5s）+GitHub releases/latest（net/http 8s）→
+  首个点分版本号抓取（逐行：点分优先，version: 行允许裸 b-number——防
+  MSVC 19.44 尾注误抓）+点分逐段比较（补零）→ **30 分钟内存缓存**（GitHub
+  免鉴权限流）。返回 local/latest/has_update/release_url/error；官方侧
+  失败仍回本地版本。**只告知不自动升级**（引擎在跑+DLL 同驻约束，自动
+  升级风险大于收益）。
+- 前端：LocalEngineLifecycle 三卡加「检查更新」钮+结果行（绿=已是最新/
+  橙=有新版本+发布页链接/红=失败）；engines.ts wrapper；mock 报错态。
+- 门禁：whirl_proc 同款 hermetic 测试（注入探针，bin 缺失不触发 exec/
+  缓存命中不打接口/官方失败保留本地）；parse/compare 纯函数表；全 app
+  套件 130s 绿；722 方法四连+drift OK；tsc 0+modelcenter 119/119；
+  三源 4.537.0；装机 PID 8996。

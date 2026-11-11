@@ -473,6 +473,24 @@ export async function stopWhirlEngine(): Promise<WhirlEngineStopResult> {
   return result as WhirlEngineStopResult
 }
 
+// ── 受管引擎官方版本检查（Strata / llama / WHIRL；GitHub releases/latest） ──
+export interface EngineUpdateCheckResult {
+  engine: string
+  local_version: string
+  latest_version: string
+  latest_name?: string
+  release_url?: string
+  has_update: boolean
+  checked_at: string
+  error?: string
+}
+
+/** 检查单个引擎的官方最新版本（后端 30 分钟缓存；只告知不自动升级） */
+export async function checkEngineUpdate(engineID: string): Promise<EngineUpdateCheckResult> {
+  const result = await App().EngineUpdateCheck(engineID)
+  return result as EngineUpdateCheckResult
+}
+
 /** 获取所有引擎配置 */
 export async function getEngines(): Promise<EngineConfig[]> {
   const result = await App().GetEngines()

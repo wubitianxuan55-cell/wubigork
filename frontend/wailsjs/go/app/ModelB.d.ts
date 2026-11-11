@@ -4,6 +4,10 @@ import {app} from '../models';
 import {modelengine} from '../models';
 import {herdsman} from '../models';
 
+export function EngineUpdateCheck(arg1:string):Promise<Record<string, any>>;
+
+export function EngineUpdateStatus():Promise<Record<string, any>>;
+
 export function GaeaBenchmarkDetail(arg1:string):Promise<app.BenchmarkRunDetail>;
 
 export function GaeaBenchmarkExport(arg1:string,arg2:string):Promise<string>;
@@ -95,3 +99,9 @@ export function StrataModelStart(arg1:string):Promise<Record<string, any>>;
 export function StrataModelStop(arg1:string):Promise<Record<string, any>>;
 
 export function VisionRoute():Promise<string>;
+
+export function WhirlEngineStart(arg1:string):Promise<Record<string, any>>;
+
+export function WhirlEngineStatus():Promise<Record<string, any>>;
+
+export function WhirlEngineStop():Promise<Record<string, any>>;

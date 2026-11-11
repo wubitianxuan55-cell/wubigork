@@ -11,6 +11,8 @@ import (
 // 方法体零改动——纯委托给 App 实例（b.a.<Method>）。
 type ModelB struct{ a *App }
 
+func (b *ModelB) EngineUpdateCheck(engineID string) map[string]interface{} { return b.a.EngineUpdateCheck(engineID) }
+func (b *ModelB) EngineUpdateStatus() map[string]interface{} { return b.a.EngineUpdateStatus() }
 func (b *ModelB) GaeaBenchmarkDetail(id string) (BenchmarkRunDetail, error) { return b.a.GaeaBenchmarkDetail(id) }
 func (b *ModelB) GaeaBenchmarkExport(id string, dir string) (string, error) { return b.a.GaeaBenchmarkExport(id, dir) }
 func (b *ModelB) GaeaBenchmarkList() ([]BenchmarkRunSummary, error) { return b.a.GaeaBenchmarkList() }

@@ -39,6 +39,9 @@ vi.mock('../../api/engines', () => ({
   getWhirlEngineStatus: vi.fn(async () => ({ running: false })),
   startWhirlEngine: vi.fn(async () => ({ started: false, reason: 'already-running' })),
   stopWhirlEngine: vi.fn(async () => ({ stopped: true })),
+  checkEngineUpdate: vi.fn(async (engineID: string) => ({
+    engine: engineID, local_version: '', latest_version: '', has_update: false, checked_at: '',
+  })),
 }))
 const mSaveEngine = vi.mocked(saveEngine)
 const mStartStrata = vi.mocked(startStrataEngine)

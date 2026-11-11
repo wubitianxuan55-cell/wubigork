@@ -150,7 +150,8 @@ type ModelMethods = Pick<
   // 路由学习四名（阶段七 7.1-2，ModelB 门面）：账本/建议/采纳/忽略。
   | "GaeaRouteLedger" | "GaeaRouteSuggestions" | "GaeaRouteSuggestionApply" | "GaeaRouteSuggestionIgnore"
 > & LegacyModelMethods & LegacyHerdsmanMethods & LegacyBenchmarkMethods &
-  LegacyOpencodeKeyMethods & LegacyQwen35EngineMethods & LegacyWhirlEngineMethods;
+  LegacyOpencodeKeyMethods & LegacyQwen35EngineMethods & LegacyWhirlEngineMethods &
+  LegacyEngineUpdateMethods;
 
 // HerdsmanCatalogModel 本地视图（对齐 internal/app/herdsman_catalog.go 的 json
 // 字段；mock 层不 import Go 侧，字段漂移由 mock-contract-herdsman 兜底）。
@@ -278,6 +279,12 @@ type LegacyWhirlEngineMethods = {
     binPath: string; binReady: boolean;
   }>;
   WhirlEngineStop(): Promise<{ stopped: boolean }>;
+};
+
+// 引擎官方版本检查（legacy 直调族）：浏览器 mock 无网络，恒报错态。
+type LegacyEngineUpdateMethods = {
+  EngineUpdateCheck(engineID: string): Promise<Record<string, unknown>>;
+  EngineUpdateStatus(): Promise<Record<string, unknown>>;
 };
 
 // 脱敏口径对齐 internal/app/model_engine_handler.go maskKeyStatus：
@@ -601,6 +608,16 @@ export function buildModel(s: MakeMockState): ModelMethods {
     },
     async WhirlEngineStop() {
       return { stopped: false };
+    },
+    // ── 引擎官方版本检查：浏览器 mock 无网络，恒报错态（诚实）。
+    async EngineUpdateCheck(engineID: string) {
+      return { engine: engineID, local_version: "", latest_version: "", has_update: false, checked_at: "", error: "浏览器 mock 无版本检查" };
+    },
+    async EngineUpdateStatus() {
+      const one = (engineID: string) => ({
+        engine: engineID, local_version: "", latest_version: "", has_update: false, checked_at: "", error: "浏览器 mock 无版本检查",
+      });
+      return { whirl: one("whirl"), llama: one("llama"), strata: one("strata") };
     },
   };
 }
