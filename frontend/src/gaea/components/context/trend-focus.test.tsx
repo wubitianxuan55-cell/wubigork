@@ -3,7 +3,7 @@
 // 卡侧锚点：focus {tick} → rAF scrollIntoView({block:"nearest"}) 定位 + accent
 // 外圈强调 3s 自动解除——与 v4.82 brief→浏览器（ContextBrowserTree focus）同款
 // 机制与令牌；只定位不触发 onPick（趋势卡默认最新请求的选中语义不变）。
-import { act, render } from "@testing-library/react";
+import { act, fireEvent, render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactElement } from "react";
 import { LocaleProvider } from "../../lib/i18n";
@@ -120,5 +120,21 @@ describe("ContextTrendChart focus 锚点（Token 卡→趋势 定位+强调）",
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+
+// ─── v4.542 刀4：总览带（overview band）──────────────────────────
+describe("ContextTrendChart 总览带（刀4）", () => {
+  it("开关关闭不渲染；打开渲染分段带并响应点击定位", () => {
+    const { getByTestId, queryByTestId } = renderT(el(null));
+    expect(queryByTestId("trend-overview-band")).toBeNull();
+    act(() => {
+      fireEvent.click(getByTestId("trend-overview"));
+    });
+    const band = getByTestId("trend-overview-band");
+    expect(band).toBeTruthy();
+    // 两根请求 → 两个 <g> 分段（等宽 100/2）
+    expect(band.querySelectorAll("g").length).toBe(2);
   });
 });

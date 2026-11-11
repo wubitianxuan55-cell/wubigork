@@ -1782,5 +1782,28 @@ export const en = {
   "contextinsights.dayFilter": "Showing sessions active on {{date}} — click to clear",
   "contextinsights.truncated": "{{count}} older sessions not scanned",
   "contextinsights.loadFailed": "Failed to load insights",
+
+  // ── v4.542 刀4：命令执行卡 / 总览模式 / DNA 平铺 / 助手 kind 筛选 ──
+  "contextview.cmdTitle": "Command executions",
+  "contextview.cmdRuns": "{{n}} runs",
+  "contextview.cmdFailed": "{{n}} failed",
+  "contextview.cmdBg": "{{n}} bg",
+  "contextview.cmdMsNote": "Wall-clock total of closed commands (second-granularity log timestamps — honest approximation)",
+  "contextview.cmdAll": "All",
+  "contextview.cmdSearch": "Filter by command…",
+  "contextview.cmdPrograms": "Programs",
+  "contextview.cmdNone": "No command matches the current filter.",
+  "contextview.cmdTurnStep": "T{{turn}}·S{{step}}",
+  "contextview.cmdExitNote": "Exit code from the bash JSON envelope (output_format=json); plain output has none — not guessed",
+  "contextview.overview": "Overview",
+  "contextview.overviewTip": "Compress the whole session into one stacked band — click to locate the main chart",
+  "contextview.viewTree": "Tree",
+  "contextview.viewDna": "DNA",
+  "contextview.dnaPosTip": "Position in the model's read order (oldest → newest)",
+  "contextview.dnaTailSystem": "System prompt (latest header)",
+  "contextview.dnaTailTools": "Tool definitions (latest header)",
+  "contextview.kindThinking": "Thinking",
+  "contextview.kindTools": "Tools",
+  "contextview.kindAnswer": "Answer",
 };
 export type DictKey = keyof typeof en;

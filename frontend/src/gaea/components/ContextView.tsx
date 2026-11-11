@@ -17,6 +17,7 @@ import { CONTEXT_CATS, CONTEXT_CAT_BROWSE, CAT_COLORS } from "./context/cats";
 // 本文件经上方导入消费；inspector/cards 也直接从 cats.ts 取。
 import { StatsCard, TokenCard, TimingCard, SessionInfoCard, SummaryBar } from "./context/cards";
 import { ContextBrowserTree, FileActivityTree } from "./context/inspector";
+import { CommandsCard } from "./context/CommandsCard";
 import { AgentRadial } from "./context/AgentRadial";
 import "./context/context-view.css";
 import { BarChart3, LineChart, List } from "../icons";
@@ -298,6 +299,27 @@ export function ContextTrendChart({ requests, events, onPick, detail, focus }: {
     onPick(r);
   };
 
+  // v4.542 刀4 总览模式（dsh overview 同款）：整会话压到面板宽成连续堆叠带，
+  // 压缩事件标竖线；悬停读数、点击定位主图该步。视图局部态（不写偏好——
+  // dsh 同口径：切换项仅对当前视图生效）。
+  const [overview, setOverview] = useState(false);
+  const compactMarks = useMemo(() => {
+    // 每个压缩事件 → 其后第一根柱的下标（竖线画在该柱左缘）。
+    const marks: number[] = [];
+    const sorted = [...compactSeqs].sort((a, b) => a - b);
+    for (const eseq of sorted) {
+      const idx = bars.findIndex((b) => b.seq > eseq);
+      if (idx > 0) marks.push(idx);
+    }
+    return marks;
+  }, [compactSeqs, bars]);
+  const overviewMax = useMemo(() => Math.max(1, ...bars.map((b) => catTotal(b.category))), [bars]);
+  const overviewPick = (clientX: number, el: SVGSVGElement) => {
+    const rect = el.getBoundingClientRect();
+    const f = Math.min(0.9999, Math.max(0, (clientX - rect.left) / rect.width));
+    pick(Math.floor(f * bars.length));
+  };
+
   return (
     <div
       ref={cardRef}
@@ -329,12 +351,65 @@ export function ContextTrendChart({ requests, events, onPick, detail, focus }: {
               onClick={() => pickMode(m)}
             >{m === "total" ? t("contextview.modeTotal") : t("contextview.modeDelta")}</button>
           ))}
+          <span className="mx-0.5 h-3 w-px bg-border-soft" />
+          <button
+            title={t("contextview.overviewTip")}
+            data-testid="trend-overview"
+            className={`px-1.5 py-0.5 rounded border-0 cursor-pointer ${overview ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"}`}
+            onClick={() => setOverview((v) => !v)}
+          >{t("contextview.overview")}</button>
         </div>
       </div>
       <div className="mt-1 text-[10px] text-fg-faint">
         {t("contextview.trendLegend")}
         {mode === "delta" && <span className="ml-2"><span className="text-(color:--color-success)">■</span> {t("contextview.netIncrease")} <span className="ml-1 text-(color:--color-destructive)">■</span> {t("contextview.netDecrease")}</span>}
       </div>
+      {overview && (
+        <svg
+          data-testid="trend-overview-band"
+          viewBox="0 0 100 34"
+          preserveAspectRatio="none"
+          className="mt-1.5 h-9 w-full cursor-crosshair rounded-md bg-bg-soft"
+          onClick={(e) => overviewPick(e.clientX, e.currentTarget)}
+        >
+          {/* 每请求等宽分段 × 七分类堆叠（连续带，无需横向滚动） */}
+          {bars.map((b, i) => {
+            const x = (i / bars.length) * 100;
+            const w = 100 / bars.length;
+            const total = catTotal(b.category);
+            if (total <= 0) return null;
+            let acc = 0;
+            return (
+              <g key={b.seq}>
+                {CATS.map((c) => {
+                  const v = b.category[c.key];
+                  if (v <= 0) return null;
+                  const h = (v / overviewMax) * 30;
+                  const y = 32 - acc - h;
+                  acc += h;
+                  return (
+                    <rect key={c.key} x={x} y={y} width={Math.max(w, 0.12)} height={Math.max(h, 0.12)} fill={CAT_COLORS[c.key]} opacity={0.85}>
+                      <title>{`${t("contextview.turnStep", { turn: b.turn, step: b.step })} · ${fmtTokens(total)}`}</title>
+                    </rect>
+                  );
+                })}
+              </g>
+            );
+          })}
+          {/* 压缩事件竖线（位置=其后第一根柱左缘） */}
+          {compactMarks.map((mi) => (
+            <line
+              key={`cm-${mi}`}
+              x1={(mi / bars.length) * 100}
+              y1={0}
+              x2={(mi / bars.length) * 100}
+              y2={34}
+              stroke="var(--md-sys-color-warning, #f59e0b)"
+              strokeWidth={0.4}
+            />
+          ))}
+        </svg>
+      )}
       {hovered !== null && bars[hovered] && (
         <div
           data-testid="trend-hover-detail"
@@ -698,6 +773,7 @@ export function ContextView({
           nodes: tl.nodes ?? [],
           archive: tl.archive ?? [],
           files: tl.files ?? [],
+          commands: tl.commands ?? [],
         });
         setError(null);
       })
@@ -798,6 +874,10 @@ export function ContextView({
               />
             )}
           </div>
+          {/* 行5.5 命令执行卡（v4.542 刀4：bash 推导生命周期；无命令不渲染） */}
+          {timeline.commands.length > 0 && (
+            <CommandsCard commands={timeline.commands} stats={timeline.commandStats} />
+          )}
           {/* 行6：8 个统计小卡（v4.412 下移——纯计数/审计口径，非第一眼信息） */}
           <StatsCard stats={timeline.stats} />
           {/* 底部会话汇总条 + 估算口径 */}

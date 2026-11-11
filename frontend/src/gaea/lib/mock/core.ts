@@ -108,13 +108,18 @@ export function buildCore(s: MakeMockState): CoreMethods {
         archive: [],
         // 2.5e 成本 hover 走查样例：最近一次用量上报的单价（每 1M tokens）
         rate: { inputPer1M: 2, outputPer1M: 8, cacheHitPer1M: 0.5, currency: "CNY" },
+        commands: [
+          { seq: 9, resultSeq: 10, time: 1750000009, tool: "bash", cmd: "go build ./...", turn: 1, step: 2, start: 1750000009, end: 1750000013, status: "completed", exit: 0, outChars: 1240, derived: true },
+          { seq: 14, resultSeq: 15, time: 1750000014, tool: "bash", cmd: "npm run dev", turn: 1, step: 3, start: 1750000014, end: 1750000015, status: "completed", background: true, outChars: 88, derived: true },
+          { seq: 18, resultSeq: 19, time: 1750000018, tool: "bash", cmd: "go vet ./internal/gaea/contextview/", turn: 2, step: 4, start: 1750000018, end: 1750000021, status: "failed", err: true, exit: 1, outChars: 640, derived: true },
+        ],
+        commandStats: { runs: 3, failed: 1, ms: 8000, bg: 1 },
         files: [
           { seq: 5, ts: 1750000005, turn: 1, step: 1, tool: "read_file", action: "read", path: "internal/gaea/config/config.go" },
           { seq: 9, ts: 1750000009, turn: 1, step: 2, tool: "grep", action: "read", path: "internal/gaea/config", hits: 4 },
           { seq: 12, ts: 1750000012, turn: 1, step: 3, tool: "write_file", action: "write", path: "docs/调研结论.md", added: 42 },
           { seq: 20, ts: 1750000020, turn: 1, step: 4, tool: "write_file", action: "write", path: "reports/季度报告.html" },
         ],
-        commands: [],
       };
     },
     async ContextNodeDetail(seq: number, _sessionPath?: string) {
