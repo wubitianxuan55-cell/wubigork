@@ -19,6 +19,7 @@ import (
 
 	"github.com/gaea/gaea/internal/gaea/agent/session"
 	"github.com/gaea/gaea/internal/gaea/contextview"
+	"github.com/gaea/gaea/internal/gaea/trajectory"
 )
 
 func main() {
@@ -41,6 +42,20 @@ func main() {
 			continue
 		}
 		tl := contextview.FoldTimeline(entries, 0, 0)
+		// 家族事件流（刀10）：subagents 目录枚举+折叠
+		subs := map[string][]session.LogEntry{}
+		if matches, _ := filepath.Glob(filepath.Join(filepath.Dir(s.Path), "subagents", "*.jsonl")); len(matches) > 0 {
+			for _, m := range matches {
+				if fe, err := session.ReadLogRepaired(m); err == nil {
+					subs[strings.TrimSuffix(filepath.Base(m), ".jsonl")] = fe
+				}
+			}
+		}
+		fam := trajectory.FoldFamilyEvents(entries, subs)
+		famKinds := map[string]int{}
+		for _, fe := range fam {
+			famKinds[fe.Kind]++
+		}
 		folds = append(folds, contextview.InsightsSessionFold{
 			Path: s.Path, Preview: s.Preview, SpaceID: s.Space,
 			ModTime: s.ModTime.Unix(), Timeline: tl,
@@ -51,8 +66,8 @@ func main() {
 			cats[n.Cat]++
 		}
 		catsJSON, _ := json.Marshal(cats)
-		fmt.Printf("== %s（%d 条日志）\n   stats=%s\n   节点=%s 命令=%d 请求=%d 事件=%d\n",
-			filepath.Base(s.Path)+" · "+s.Preview, len(entries), b, catsJSON, len(tl.Commands), len(tl.Requests), len(tl.Events))
+		fmt.Printf("== %s（%d 条日志）\n   stats=%s\n   节点=%s 命令=%d 请求=%d 事件=%d\n   家族流=%v transcripts=%d\n",
+			filepath.Base(s.Path)+" · "+s.Preview, len(entries), b, catsJSON, len(tl.Commands), len(tl.Requests), len(tl.Events), famKinds, len(subs))
 		if len(tl.Requests) > 0 {
 			q := tl.Requests[len(tl.Requests)-1]
 			cj, _ := json.Marshal(q.Category)
