@@ -70,6 +70,12 @@ func (p *Provider) Stream(ctx context.Context, req provider.Request) (<-chan pro
 		// （天璇真机实测同通道），故只发 ctk。
 		creq.ChatTemplateKwargs = map[string]any{"enable_thinking": true}
 		creq.MaxTokens = ai.ClampThinkingMaxTokens(creq.MaxTokens)
+	case "llama":
+		// llama-server（服务级 --reasoning off）：DSH 工具循环与 herdsman 同款
+		// 要思考。通道实测（2026-11-11 b12110）只有 chat_template_kwargs 可
+		// 覆盖服务级缺省（顶层 enable_thinking 无效）——只发 ctk + 守护。
+		creq.ChatTemplateKwargs = map[string]any{"enable_thinking": true}
+		creq.MaxTokens = ai.ClampThinkingMaxTokens(creq.MaxTokens)
 	case "whirl":
 		// WHIRL：办公智能体多轮工具循环与 herdsman/strata 同款要思考；通道
 		// 与 strata 相反——顶层 enable_thinking 有效（官方 server.md §4），

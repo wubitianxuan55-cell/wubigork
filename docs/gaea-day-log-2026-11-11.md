@@ -239,3 +239,24 @@
   （NTFS 同 inode 11258999070602661 与 models 目录互证）——物理副本全盘
   唯一，零重复；旧 35B store 符号链接已死链（无害元数据）。
 - **装机**：v4.539.0 PID 10424；llama 下次聊天首请求即用 b12110+whirlfix2。
+
+---
+
+# 续批 5（深夜）：llama 思考通道补全（v4.540.0）
+
+> 用户实弹报告「llama 下没有思考」（绑定已真切到 llama/qwen35，决策日志
+> 21:14/21:20 engine=llama 实锤）。根因：prepareStreamRequest 思考分支只
+> 覆盖 herdsman/strata/whirl，llama 显式开思考什么都不发，而 llama-server
+> 被 `--reasoning off` 服务级关死。
+
+- **四通道实测（b12110，服务级 off）**：无字段/顶层 true/顶层 false 全无
+  思考，**chat_template_kwargs.enable_thinking=true 是唯一可覆盖通道**
+  （890B reasoning 产出）；且 300 tok 预算被推理烧光正文为空（strata 同病
+  → 守护必同批）。
+- **修**：prepareStreamRequest 增 llama 分支（显式开→ctk true+预算守护；
+  DisableThinking 优先；关思考零字段=缺省路径零变化）；bridge DSH 增
+  llama case（同款 ctk+守护）；types.go 三态语义注释补 llama。
+- **测试**：client_llama_thinking_test.go 三用例（显式开 ctk-only+守护/
+  关优先/缺省关预算原样）；ai+bridge 包全绿。
+- **装机**：v4.540.0 PID 684。用户复测路径：聊天开思考开关→llama 应出
+  思考流（思考卡实时上屏那刀同样适用于 llama）。

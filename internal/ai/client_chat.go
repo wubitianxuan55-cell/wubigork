@@ -465,6 +465,15 @@ func (c *Client) prepareStreamRequest(model string, messages []ChatMessage, opts
 			// 守护：思考与正文共享 max_tokens，显式小预算抬到 minThinkingBudget
 			//（IN2-14 收口）。
 			clampThinkingBudget(req, true)
+		} else if engType == modelengine.EngineLlama && !opts.DisableThinking {
+			// llama-server（自管，服务级 --reasoning off）：2026-11-11 b12110
+			// 实测四通道——无字段/顶层 true/顶层 false 均无思考，唯一可覆盖
+			// 服务级缺省的通道是 chat_template_kwargs.enable_thinking=true
+			//（890B reasoning 产出）。显式开只发 ctk；关思考不发任何字段
+			//（服务级缺省已关，缺省路径零变化）。共享预算守护必须同批：
+			// 实测 300 tok 预算全被推理烧光、正文为空（strata 同病）。
+			req.ChatTemplateKwargs = map[string]any{"enable_thinking": true}
+			clampThinkingBudget(req, true)
 		}
 	}
 

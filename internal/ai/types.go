@@ -107,7 +107,9 @@ type ChatSimpleOptions struct {
 	//   - herdsman：缺省关，EnableThinking 显式开；
 	//   - strata：缺省开（思考原生引擎），DisableThinking 显式关；
 	//   - whirl：缺省关（服务端默认开，由漏斗层顶层 enable_thinking=false
-	//     显式关），EnableThinking 显式开。
+	//     显式关），EnableThinking 显式开；
+	//   - llama：缺省关（服务级 --reasoning off），EnableThinking 显式开走
+	//     chat_template_kwargs（顶层字段对 llama-server 无效，2026-11-11 实测）。
 	// 缺了「关」侧，strata 这种服务端默认开思考的引擎就无法被用户关掉——
 	// 界面上思考开关会变成空钮，推理照跑、预算照烧。
 	DisableThinking bool

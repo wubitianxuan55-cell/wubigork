@@ -48,7 +48,7 @@ func newStrataTestClient(t *testing.T) (*Client, func() map[string]any) {
 	t.Cleanup(srv.Close)
 
 	mgr := modelengine.NewManager("", "")
-	for _, id := range []string{"strata", "herdsman"} {
+	for _, id := range []string{"strata", "herdsman", "llama"} {
 		if err := mgr.SaveEngine(modelengine.EngineConfig{ID: id, BaseURL: srv.URL + "/v1", Enabled: true}); err != nil {
 			t.Fatalf("SaveEngine(%s): %v", id, err)
 		}
