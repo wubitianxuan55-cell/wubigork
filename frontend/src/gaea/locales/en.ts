@@ -1805,5 +1805,27 @@ export const en = {
   "contextview.kindThinking": "Thinking",
   "contextview.kindTools": "Tools",
   "contextview.kindAnswer": "Answer",
+
+  // ── v4.542 刀5：编队页（对标 dsh-context Fleet）──
+  "fleet.kpiAgents": "Agents",
+  "fleet.kpiRunning": "Running",
+  "fleet.kpiTasks": "Delegated tasks",
+  "fleet.kpiToolCalls": "Tool calls",
+  "fleet.networkTitle": "Agent network",
+  "fleet.lanesTitle": "Cross-agent timeline",
+  "fleet.laneParent": "Parent agent (dispatches)",
+  "fleet.laneSpanTip": "{{from}} → {{to}}",
+  "fleet.tasksTitle": "Delegated tasks",
+  "fleet.filterAll": "All",
+  "fleet.stRunning": "Running",
+  "fleet.stQueued": "Queued",
+  "fleet.stCompleted": "Completed",
+  "fleet.stFailed": "Failed",
+  "fleet.taskSearch": "Search…",
+  "fleet.none": "Nothing matches the current filter.",
+  "fleet.eventsTitle": "Event inspector",
+  "fleet.evDispatch": "Dispatch",
+  "fleet.evReport": "Report",
+  "fleet.empty": "No sub-agent has been dispatched in this session yet.",
 };
 export type DictKey = keyof typeof en;

@@ -40,6 +40,7 @@ import { WorkspacePane } from "./components/WorkspacePane";
 import { ChatTabs, type ChatTabId } from "./components/ChatTabs";
 import { ContextView } from "./components/ContextView";
 import { Insights } from "./components/context/Insights";
+import { Fleet } from "./components/context/Fleet";
 import { ContextModal, ContextPill } from "./components/ContextModal";
 import { TrajectoryView } from "./components/TrajectoryView";
 import { SubagentThread } from "./components/SubagentThread";
@@ -101,7 +102,7 @@ export default function App() {
   const [chatTab, setChatTab] = useState<ChatTabId>(() => {
     try {
       const saved = readWorkbenchValue("gaea.chatTab");
-      return saved === "trajectory" || saved === "context" || saved === "memory" || saved === "insights" ? saved : "chat";
+      return saved === "trajectory" || saved === "context" || saved === "memory" || saved === "insights" || saved === "fleet" ? saved : "chat";
     } catch { return "chat"; }
   });
   useEffect(() => {
@@ -915,6 +916,16 @@ export default function App() {
                         running={state.running}
                         onOpenSession={(p) => {
                           void handleResumeSession(p);
+                        }}
+                      />
+                    )}
+                    {chatTab === "fleet" && (
+                      <Fleet
+                        running={state.running}
+                        sessionPath={currentSessionPath ?? undefined}
+                        onViewContext={(ref) => {
+                          setCtxModalRef(ref);
+                          setCtxModalOpen(true);
                         }}
                       />
                     )}
