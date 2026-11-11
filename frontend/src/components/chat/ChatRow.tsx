@@ -28,6 +28,8 @@ export interface ChatRowProps {
   text: string
   /** 当前流式回合的最小进度（理解 / 搜索 / 整理 / 降级）。 */
   streamStatus?: string
+  /** 思考流实时文本（reasoning 帧节流 flush；流式思考期间展开渲染，done 后由 msg.reasoning 接管） */
+  streamReasoning?: string
   /** 本行是否为当前流式行（msg.streaming && msg.key === streamKey） */
   isStreaming: boolean
   /** 是否与上一条消息（含窗口外相邻行）角色不同 → 显示 AI 名牌 */
@@ -44,7 +46,7 @@ export interface ChatRowProps {
 }
 
 export const ChatRow: React.FC<ChatRowProps> = ({
-  msg, text, streamStatus, isStreaming, newGroup, mode, companionName,
+  msg, text, streamStatus, streamReasoning, isStreaming, newGroup, mode, companionName,
   copied, speaking, onCopy, onSpeak, onRetry,
 }) => {
   const display = text
@@ -86,6 +88,12 @@ export const ChatRow: React.FC<ChatRowProps> = ({
           <GlobalOutlined aria-hidden />
           <span>{streamStatus}</span>
         </div>
+      )}
+      {isStreaming && streamReasoning && (
+        <details className="chat-reasoning" open>
+          <summary><BulbOutlined style={{ marginRight: 4 }} />思考中…</summary>
+          <div className="chat-reasoning-body">{streamReasoning}</div>
+        </details>
       )}
       {!msg.error && msg.reasoning && (
         <details className="chat-reasoning">

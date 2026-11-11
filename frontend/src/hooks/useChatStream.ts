@@ -91,6 +91,9 @@ export function useChatStream(opts: UseChatStreamOptions) {
   const [sending, setSending] = useState(false)
   const [streamKey, setStreamKey] = useState<string | null>(null)
   const [streamText, setStreamText] = useState('')
+  // 思考流实时面（2026-11-11）：reasoning 帧此前只进 reasoningAcc 缓冲、done 才整块
+  // 落卡——思考期间界面零反馈。镜像 delta 的 rAF 节流模式实时上屏。
+  const [streamReasoning, setStreamReasoning] = useState('')
   const [streamStatus, setStreamStatus] = useState('')
   // 终态/超时需要保留已显示的正文；仅靠 streamText state 在异步回调里会读到旧值。
   const streamTextRef = useRef('')
@@ -151,7 +154,7 @@ export function useChatStream(opts: UseChatStreamOptions) {
       return [...prev.filter(m => !drop.has(m.key)), um, am]
     })
     streamTextRef.current = ''
-    setStreamKey(am.key); setStreamText(''); setStreamStatus('')
+    setStreamKey(am.key); setStreamText(''); setStreamStatus(''); setStreamReasoning('')
 
     // 普通对话与角色对话统一走真实流：角色链路此前先等整段返回，再做前端模拟
     // 打字，长回复会额外增加数十秒可见延迟；现在首个模型分片即上屏。
@@ -175,7 +178,21 @@ export function useChatStream(opts: UseChatStreamOptions) {
         streamTextRef.current += chunk
         setStreamText(prev => prev + chunk)
       }
-      const cleanup = () => { cancelPendingDelta(); if (unsub) { const f = unsub; unsub = null; f() } }
+      let reasoningBuf = ''
+      let reasoningRaf = 0
+      const cancelPendingReasoning = () => {
+        if (reasoningRaf) { cancelAnimationFrame(reasoningRaf); reasoningRaf = 0 }
+        reasoningBuf = ''
+      }
+      const flushReasoning = () => {
+        reasoningRaf = 0
+        if (!reasoningBuf) return
+        const chunk = reasoningBuf
+        reasoningBuf = ''
+        setStreamReasoning(prev => prev + chunk)
+      }
+      const resetStreamReasoning = () => { cancelPendingReasoning(); setStreamReasoning('') }
+      const cleanup = () => { cancelPendingDelta(); cancelPendingReasoning(); if (unsub) { const f = unsub; unsub = null; f() } }
       streamCleanupRef.current = cleanup
       try {
         // T6-3.1：流 Promise 自带「无帧超时 + 终态兜底」。runID 一到立即在
@@ -202,7 +219,7 @@ export function useChatStream(opts: UseChatStreamOptions) {
           // 不能套用 30s“流无帧”阈值，否则引擎尚在加载就被前端误判超时。
           startTimer = setTimeout(() => {
             cancelPendingDelta()
-            setStreamText(''); setStreamKey(null); setStreamStatus('')
+            setStreamText(''); setStreamKey(null); setStreamStatus(''); resetStreamReasoning()
             updateMessage(am.key, {
               content: '绑定模型启动超时，请检查本机引擎状态后重试',
               streaming: false,
@@ -218,7 +235,7 @@ export function useChatStream(opts: UseChatStreamOptions) {
             if (rid) void app.ChatStreamCancel(rid).catch(() => {})
             if (deltaBuf) flushDelta()
             const partial = streamTextRef.current.trimEnd()
-            setStreamText(''); setStreamKey(null); setStreamStatus('')
+            setStreamText(''); setStreamKey(null); setStreamStatus(''); resetStreamReasoning()
             updateMessage(am.key, {
               content: partial
                 ? `${partial}\n\n（请求超时：${why}，已保留以上内容）`
@@ -271,6 +288,8 @@ export function useChatStream(opts: UseChatStreamOptions) {
                   if (!deltaRaf) deltaRaf = requestAnimationFrame(flushDelta)
                 } else if (p.type === 'reasoning') {
                   reasoningAcc += p.content || ''
+                  reasoningBuf += p.content || ''
+                  if (!reasoningRaf) reasoningRaf = requestAnimationFrame(flushReasoning)
                 } else if (p.type === 'status') {
                   setStreamStatus(describeStreamStatus(p))
                 } else if (p.type === 'done') {
@@ -295,7 +314,7 @@ export function useChatStream(opts: UseChatStreamOptions) {
                     }
                   }
                   cancelPendingDelta()
-                  setStreamText(''); setStreamKey(null); setStreamStatus('')
+                  setStreamText(''); setStreamKey(null); setStreamStatus(''); resetStreamReasoning()
                   updateMessage(am.key, { content: reply, streaming: false, reasoning, extra })
                   if (typeof p.emotion === 'string' && p.emotion) setEmotion(p.emotion)
                   if (typeof p.aff === 'number') setAff(Math.round(p.aff))
@@ -310,7 +329,7 @@ export function useChatStream(opts: UseChatStreamOptions) {
                   if (deltaBuf) flushDelta()
                   const backend = typeof p.reply === 'string' ? p.reply : ''
                   const partial = backend || streamTextRef.current
-                  setStreamText(''); setStreamKey(null); setStreamStatus('')
+                  setStreamText(''); setStreamKey(null); setStreamStatus(''); resetStreamReasoning()
                   const extra: Record<string, unknown> = {}
                   if (p.answered_by && typeof p.answered_by === 'object') extra.answered_by = p.answered_by
                   updateMessage(am.key, {
@@ -320,7 +339,7 @@ export function useChatStream(opts: UseChatStreamOptions) {
                   finish(false)
                 } else if (p.type === 'error') {
                   cancelPendingDelta()
-                  setStreamText(''); setStreamKey(null); setStreamStatus('')
+                  setStreamText(''); setStreamKey(null); setStreamStatus(''); resetStreamReasoning()
                   updateMessage(am.key, { content: `请求失败：${p.error || '未知错误'}`, streaming: false, error: true })
                   finish(false)
                 }
@@ -335,14 +354,14 @@ export function useChatStream(opts: UseChatStreamOptions) {
             .catch((err: unknown) => {
               // 启动失败（binding 拒绝）：直接按失败收尾，与事件错误终态一致
               cancelPendingDelta()
-              setStreamText(''); setStreamKey(null); setStreamStatus('')
+              setStreamText(''); setStreamKey(null); setStreamStatus(''); resetStreamReasoning()
               updateMessage(am.key, { content: `请求失败：${err instanceof Error ? err.message : String(err)}`, streaming: false, error: true })
               finish(false)
             })
         })
         if (ok) await finalizeTopicAfterSend(active, trimmed)
       } catch (err: unknown) {
-        setStreamText(''); setStreamKey(null); setStreamStatus('')
+        setStreamText(''); setStreamKey(null); setStreamStatus(''); resetStreamReasoning()
         updateMessage(am.key, { content: `请求失败：${err instanceof Error ? err.message : String(err)}`, streaming: false, error: true })
       } finally {
         cleanup()
@@ -360,5 +379,5 @@ export function useChatStream(opts: UseChatStreamOptions) {
     cancelTyping()
   }, [sending, cancelTyping])
 
-  return { sending, streamKey, streamText, streamStatus, send, stop, cancelTyping, resetTyping }
+  return { sending, streamKey, streamText, streamReasoning, streamStatus, send, stop, cancelTyping, resetTyping }
 }

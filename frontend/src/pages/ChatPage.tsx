@@ -217,7 +217,7 @@ const ChatPage: React.FC = () => {
     setAro,
     finalizeTopicAfterSend,
   })
-  const { sending, streamKey, streamText, streamStatus, send, stop, cancelTyping } = streamApi
+  const { sending, streamKey, streamText, streamReasoning, streamStatus, send, stop, cancelTyping } = streamApi
 
   // ── 语音台（V2 唯一；V1 whisper 链已退役 2026-11-05 用户拍板） ──
   useEffect(() => {
@@ -614,6 +614,7 @@ const ChatPage: React.FC = () => {
                       messages={messages}
                       streamKey={streamKey}
                       streamText={streamText}
+                      streamReasoning={streamReasoning}
                       streamStatus={streamStatus}
                       mode={mode}
                       companionName={companionName}

@@ -33,6 +33,8 @@ export interface MessageListProps {
   prepend?: { id: number; count: number } | null
   streamKey: string | null
   streamText: string
+  /** 思考流实时文本（reasoning 帧节流flush；流式行专属） */
+  streamReasoning?: string
   streamStatus?: string
   mode: string
   companionName: string
@@ -56,7 +58,7 @@ export const TOP_GROW_PX = 120
 const MemoChatRow = React.memo(ChatRow)
 
 export const MessageList: React.FC<MessageListProps> = ({
-  messages, streamKey, streamText, streamStatus, mode, companionName,
+  messages, streamKey, streamText, streamReasoning, streamStatus, mode, companionName,
   copiedId, speakingId, onCopy, onSpeak, onRetry,
   hasOlder, loadingOlder, onLoadOlder, prepend,
 }) => {
@@ -138,6 +140,7 @@ export const MessageList: React.FC<MessageListProps> = ({
             msg={msg}
             text={isStreaming ? streamText : msg.content}
             streamStatus={isStreaming ? streamStatus : ''}
+            streamReasoning={isStreaming ? streamReasoning : undefined}
             isStreaming={isStreaming}
             newGroup={!prev || prev.role !== msg.role}
             mode={mode}
