@@ -63,6 +63,9 @@ type InsightsKpi struct {
 	Billed   int `json:"billed,omitempty"`
 	Calls    int `json:"calls,omitempty"`
 	Steps    int `json:"steps,omitempty"`
+	// 耗时统计卡行数据（1:1 上游 Timing Stats：模型等待/模型生成）。
+	TTFTMs int64 `json:"ttftMs,omitempty"`
+	GenMs  int64 `json:"genMs,omitempty"`
 	// Token 统计卡三拆合计（模型思考/回复/调用参数——1:1 对齐上游 Token
 	// Stats 的 Reasoning/Answers 行；Tool Calls 行=tool+callArgs 由前端并）。
 	AssistantReasoning int64 `json:"assistantReasoning,omitempty"`
@@ -288,6 +291,8 @@ func BuildInsights(rangeKey string, now time.Time, folds []InsightsSessionFold) 
 		}
 		if tl.Timing != nil {
 			out.Kpi.Calls += tl.Timing.Calls
+			out.Kpi.TTFTMs += tl.Timing.TTFTMs
+			out.Kpi.GenMs += tl.Timing.GenMs
 		}
 		out.Kpi.Steps += sess.Requests
 		if tl.Stats.CacheHitPercent > 0 {
