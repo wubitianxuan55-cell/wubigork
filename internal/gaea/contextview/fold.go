@@ -209,6 +209,10 @@ func (f *folding) apply(e session.LogEntry) {
 	case "turn_started":
 		f.turn++
 		f.step = 0
+		// stats.Turns 同步计数（真实数据探针定罪：旧日志无 usage 事件时
+		// stats.Turns/Steps 恒 0，但请求与轮次明明存在——只在 usage 路径
+		// 更新是漏账；这里改为事件驱动，usage 路径的赋值保持幂等）。
+		f.stats.Turns = f.turn
 		f.timingTurnStart(e)
 	case "request_header":
 		f.applyHeader(e)
@@ -269,6 +273,10 @@ func (f *folding) closePending(e session.LogEntry) {
 		rec.BriefResp = f.lastAssistant
 	}
 	f.requests = append(f.requests, *rec)
+	// stats.Steps 同步（同上：estimated 关闭的请求也计步，旧日志不再恒 0）。
+	if rec.Step > f.stats.Steps {
+		f.stats.Steps = rec.Step
+	}
 	f.pending = nil
 }
 

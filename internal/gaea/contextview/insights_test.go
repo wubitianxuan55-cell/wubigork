@@ -23,13 +23,19 @@ func insightsFold(path string, modTime int64, entries []session.LogEntry) Insigh
 
 // insightRequest 造一笔真实 usage（input/output=1000/1M，cacheHitPrice=0）：
 // 请求成本 = (miss+completion)×1000/1e6，可预测。
+// 刀2 遗留夹具 bug 修正（完善批定罪）：entry helper 硬编码 Ts=1700000000+seq，
+// ts 参数从未进日志——逐日归因全落 2023 年同一天，RangeFilter 恒红且当时被
+// tail 截断漏验。此处显式覆写 Ts 让夹具语义与参数一致（与分支同内容，两侧
+// 合并自洽）。
 func insightRequest(seq int64, ts int64, turn int, prompt int64) session.LogEntry {
-	return entry(seq, "usage", map[string]any{
+	e := entry(seq, "usage", map[string]any{
 		"promptTokens": prompt, "completionTokens": 10,
 		"cacheHitTokens": 5, "cacheMissTokens": prompt - 5,
 		"input": 1000.0, "output": 1000.0,
 		"turn": turn,
 	})
+	e.Ts = ts
+	return e
 }
 
 func TestBuildInsightsRangeFilter(t *testing.T) {
