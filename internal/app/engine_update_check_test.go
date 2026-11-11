@@ -77,15 +77,21 @@ func TestEngineUpdateCheck_InjectedProbes(t *testing.T) {
 		t.Fatalf("bin 缺失不应触发探针")
 	}
 
-	// 正常路径：本地落后于官方
+	// 正常路径：本地落后于官方。strata 走组件版本口径（资产名抓 engine 版本，
+	// 不用 release tag 0.2.13——控制端与 engine 是两条版本序列）。
 	engineVersionProbe = func(string) (string, error) {
 		return "strata 0.1.56\n", nil
 	}
-	engineUpdateFetchLatest = func(repo string) (string, string, string, error) {
+	engineUpdateFetchLatest = func(repo string) (string, string, string, []string, error) {
 		if repo != "Niko1221/Strata" {
-			return "", "", "", fmt.Errorf("unexpected repo %q", repo)
+			return "", "", "", nil, fmt.Errorf("unexpected repo %q", repo)
 		}
-		return "v0.2.13", "Strata 0.2.13", "https://github.com/Niko1221/Strata/releases/tag/v0.2.13", nil
+		assets := []string{
+			"Strata-0.2.13-windows-x64-setup.exe",
+			"strata-engine-0.1.59-windows-x86_64-hip-rdna3.tar.gz",
+			"strata-control-0.1.59-windows-x86_64.zip",
+		}
+		return "v0.2.13", "Strata 0.2.13", "https://github.com/Niko1221/Strata/releases/tag/v0.2.13", assets, nil
 	}
 	if err := os.MkdirAll(filepath.Join(a.cfg.StrataPath, "engine"), 0o755); err != nil {
 		t.Fatal(err)
@@ -98,8 +104,8 @@ func TestEngineUpdateCheck_InjectedProbes(t *testing.T) {
 	if got := res["local_version"]; got != "0.1.56" {
 		t.Fatalf("local_version = %v", got)
 	}
-	if got := res["latest_version"]; got != "0.2.13" {
-		t.Fatalf("latest_version = %v", got)
+	if got := res["latest_version"]; got != "0.1.59" {
+		t.Fatalf("latest_version = %v, want 0.1.59（engine 组件口径，非 tag 0.2.13）", got)
 	}
 	if res["has_update"] != true {
 		t.Fatalf("has_update = %v, want true", res["has_update"])
@@ -107,9 +113,9 @@ func TestEngineUpdateCheck_InjectedProbes(t *testing.T) {
 
 	// 缓存命中：fetch 计数不再增长
 	fetchCalls := 0
-	engineUpdateFetchLatest = func(string) (string, string, string, error) {
+	engineUpdateFetchLatest = func(string) (string, string, string, []string, error) {
 		fetchCalls++
-		return "v0.2.13", "", "", nil
+		return "v0.2.13", "", "", nil, nil
 	}
 	_ = a.EngineUpdateCheck("strata")
 	_ = a.EngineUpdateCheck("strata")
@@ -119,8 +125,8 @@ func TestEngineUpdateCheck_InjectedProbes(t *testing.T) {
 
 	// 官方侧失败：本地版本照样返回，error 非空
 	ResetEngineUpdateCacheForTests()
-	engineUpdateFetchLatest = func(string) (string, string, string, error) {
-		return "", "", "", fmt.Errorf("HTTP 403")
+	engineUpdateFetchLatest = func(string) (string, string, string, []string, error) {
+		return "", "", "", nil, fmt.Errorf("HTTP 403")
 	}
 	res = a.EngineUpdateCheck("strata")
 	if res["local_version"] != "0.1.56" || res["error"] == "" {

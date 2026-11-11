@@ -36,16 +36,22 @@ type engineUpdateSpec struct {
 	repo string
 	// binPath 本地可执行（--version 探针目标），函数形态便于取各引擎安装根。
 	binPath func(a *App) string
+	// assetVersionRe 非 nil 时：官方版本不取 release tag，而从 release 资产名
+	// 抓组件版本（strata 的 release tag 0.2.x 是控制端版本，本地 strata.exe
+	// 报的是 engine 组件 0.1.x——两序列不同，直接比 tag 会永远显示有新版本）。
+	assetVersionRe *regexp.Regexp
 }
 
 func strataBinPath(a *App) string {
 	return filepath.Join(a.strataProjectPath(), "engine", "strata.exe")
 }
 
+var strataEngineAssetRe = regexp.MustCompile(`strata-engine-([0-9]+\.[0-9]+\.[0-9]+)-windows`)
+
 var engineUpdateSpecs = map[string]engineUpdateSpec{
 	"whirl": {repo: "tsaipifong/whirl-llm", binPath: func(a *App) string { return whirlBinPath(a) }},
 	"llama": {repo: "ggml-org/llama.cpp", binPath: func(*App) string { return voiceV2LLMBinPath() }},
-	"strata": {repo: "Niko1221/Strata", binPath: strataBinPath},
+	"strata": {repo: "Niko1221/Strata", binPath: strataBinPath, assetVersionRe: strataEngineAssetRe},
 }
 
 var (
@@ -65,39 +71,45 @@ var (
 		}
 		return string(out), nil
 	}
-	engineUpdateFetchLatest = func(repo string) (tag, name, url string, err error) {
+	engineUpdateFetchLatest = func(repo string) (tag, name, url string, assets []string, err error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 		defer cancel()
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet,
 			fmt.Sprintf("https://api.github.com/repos/%s/releases/latest", repo), nil)
 		if err != nil {
-			return "", "", "", err
+			return "", "", "", nil, err
 		}
 		req.Header.Set("Accept", "application/vnd.github+json")
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
-			return "", "", "", err
+			return "", "", "", nil, err
 		}
 		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusOK {
-			return "", "", "", fmt.Errorf("GitHub API HTTP %d", resp.StatusCode)
+			return "", "", "", nil, fmt.Errorf("GitHub API HTTP %d", resp.StatusCode)
 		}
-		body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+		body, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 		if err != nil {
-			return "", "", "", err
+			return "", "", "", nil, err
 		}
 		var payload struct {
 			TagName string `json:"tag_name"`
 			Name    string `json:"name"`
 			HTMLURL string `json:"html_url"`
+			Assets  []struct {
+				Name string `json:"name"`
+			} `json:"assets"`
 		}
 		if err := json.Unmarshal(body, &payload); err != nil {
-			return "", "", "", fmt.Errorf("GitHub 响应解析失败: %w", err)
+			return "", "", "", nil, fmt.Errorf("GitHub 响应解析失败: %w", err)
 		}
 		if payload.TagName == "" {
-			return "", "", "", fmt.Errorf("GitHub 响应缺 tag_name")
+			return "", "", "", nil, fmt.Errorf("GitHub 响应缺 tag_name")
 		}
-		return payload.TagName, payload.Name, payload.HTMLURL, nil
+		for _, a := range payload.Assets {
+			assets = append(assets, a.Name)
+		}
+		return payload.TagName, payload.Name, payload.HTMLURL, assets, nil
 	}
 )
 
@@ -212,7 +224,7 @@ func (a *App) EngineUpdateCheck(engineID string) map[string]interface{} {
 		return mapToIface(res)
 	}
 
-	tag, name, url, err := engineUpdateFetchLatest(spec.repo)
+	tag, name, url, assets, err := engineUpdateFetchLatest(spec.repo)
 	if err != nil {
 		res.Error = fmt.Sprintf("官方版本查询失败: %v", err)
 		// 本地版本已知、官方侧失败：照样返回（不算全失败）
@@ -220,6 +232,16 @@ func (a *App) EngineUpdateCheck(engineID string) map[string]interface{} {
 		return mapToIface(res)
 	}
 	res.LatestVersion = parseFirstVersion(tag)
+	// 组件版本口径（strata）：release tag 是控制端版本序列，本地 --version 报
+	// engine 组件序列——从资产名抓 engine 版本作比较基准。
+	if spec.assetVersionRe != nil {
+		for _, an := range assets {
+			if m := spec.assetVersionRe.FindStringSubmatch(an); m != nil {
+				res.LatestVersion = m[1]
+				break
+			}
+		}
+	}
 	res.LatestName = name
 	res.ReleaseURL = url
 	res.HasUpdate = res.LatestVersion != "" && compareVersions(res.LocalVersion, res.LatestVersion) < 0

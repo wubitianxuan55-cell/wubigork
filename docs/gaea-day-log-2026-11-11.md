@@ -177,3 +177,49 @@
   缓存命中不打接口/官方失败保留本地）；parse/compare 纯函数表；全 app
   套件 130s 绿；722 方法四连+drift OK；tsc 0+modelcenter 119/119；
   三源 4.537.0；装机 PID 8996。
+
+---
+
+# 续批 3（夜）：引擎实升最新版+速度对擂+strata 版本口径修（v4.538.0）
+
+> 用户令「更新到最新版并测试速度」。侦察：llama.cpp v0.9.0 只发源码
+> （Windows 二进制在 nightly b12110）；Strata v0.2.13 发 engine 0.1.59
+> 按 GPU 分包（本机=hip-rdna3）。
+
+## llama 0.8.0-dev → b12110（0.9.0-dev，Vulkan x64）
+
+- 下载+SHA256 全等（9732A5E4…）；生产同款参数全兼容（--spec-type
+  draft-mtp/--reasoning off/--cache-reuse 零改动载入 35B 原件）。
+- **速度对擂（coding chat 512tok 同口径）：53.75 → 66.7 冷/80.1 暖
+  =+49%**。
+- 换装 `C:\AI\uocr2-llama\bin`（旧版整体留 `bin-0.8.0-dev.bak`，一条
+  mv 回滚）；bundle 位（gaea-voice-v2\bin）本就缺失走 uocr2 回退，未动。
+
+## Strata v0.2.9+1 → v0.2.13（engine 0.1.45→0.1.56→0.1.59 hip-rdna3）
+
+- repo 干净 checkout v0.2.13（fetch tags；wrapper JSON tracked 无恙）；
+  engine 包 SHA256 全等（418EA947…）平铺解入 engine\（rocm/bin 布局
+  兼容 wrapper lib_dirs），旧 engine 留 `engine-0.1.56.bak`。
+- gaea 同款 serve 命令一次点亮（专家缓存 24576/55.43GB，8091 ready，
+  OpenAI+Anthropic+vision 全开）。
+- **速度对擂：42.77/42.63 tok/s——历史带（31~52）内无回退**（prompt
+  339 tok=模板开销较大；配方 --pack/--native/--ple-gguf/--spec 4/--mtp
+  rt/--kv int8 原样消化）。
+
+## strata 版本口径修（EngineUpdateCheck 精确化）
+
+- 发现：strata.exe --version 报 **engine 组件序列 0.1.x**，官方 release
+  tag 是**控制端序列 0.2.x**——直接比 tag 会永远显示「有新版本」。
+- 修：spec 增 `assetVersionRe`（strata-engine-([0-9.]+)-windows），官方
+  版本改从 release 资产名抓 engine 组件版本；fetch 返回值扩 assets。
+  hermetic 测试同步（0.1.56 vs 资产 0.1.59=有新版本；tag 0.2.13 不参与）。
+- 更新后实测三卡预期：WHIRL 已最新 / llama 0.9.0=tag v0.9.0 已最新 /
+  strata 0.1.59 vs 资产 0.1.59 已最新（全部转绿）。
+
+## 门禁与现场
+
+- 定向测试绿+装机冒烟 200（**v4.538.0，PID 35608**）；下载残料清零
+  （回滚资产=bin-0.8.0-dev.bak/engine-0.1.56.bak 留盘）。
+- 速度总榜（coding chat 512tok 同口径）：WHIRL 88~92（引擎直打，bench
+  102 闲置口径）＞ llama b12110 80.1 ＞ strata 42.7 ＞ llama 旧版 53.75
+  —— llama 升级后仍居第二，但与 WHIRL 差距从 1.9x 收窄到 1.1~1.15x。

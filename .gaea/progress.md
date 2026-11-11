@@ -1,3 +1,20 @@
+## 引擎实升最新版+速度对擂+strata 版本口径修（v4.538.0 装机）· 2026-11-11（夜）
+
+- **llama → b12110（0.9.0-dev）**：v0.9.0 只发源码，Windows 走 nightly；
+  生产参数全兼容；**53.75→80.1 暖跑=+49%**；换装 uocr2-llama\bin（旧版
+  留 bin-0.8.0-dev.bak 一条 mv 回滚）。
+- **Strata → v0.2.13 + engine 0.1.59 hip-rdna3**：repo checkout+engine 包
+  SHA256 全等平铺换装（旧留 engine-0.1.56.bak）；serve 一次点亮；**42.7
+  tok/s 历史带内无回退**。
+- **strata 版本口径修**：本地 --version 报 engine 组件 0.1.x、官方 tag 是
+  控制端 0.2.x——EngineUpdateCheck 增 assetVersionRe 从 release 资产名抓
+  engine 版本比对；升级后三卡全转绿（WHIRL/llama 已最新、strata 0.1.59
+  对资产 0.1.59 已最新）。
+- **速度总榜**：WHIRL 88~92 ＞ llama b12110 80.1 ＞ strata 42.7；llama 与
+  WHIRL 差距收窄到 1.1~1.15x。
+- **装机**：v4.538.0 PID 35608；回滚资产留盘。
+- **文件记录**：`docs/gaea-day-log-2026-11-11.md`（续批 3 节）。
+
 ## 实弹反馈三连修+引擎官方版本检查（v4.537.0 装机）· 2026-11-11（夜）
 
 - **①联网开关根治（08c2e3f9）**：用户「理解问题」排查=聊天页 searchEnabled
