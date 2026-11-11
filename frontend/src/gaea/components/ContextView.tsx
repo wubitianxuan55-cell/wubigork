@@ -853,7 +853,7 @@ export function ContextView({
           />
           {/* 行3：三大仪表卡（Token 卡带「查看趋势」入口 → 行2 趋势卡锚点） */}
           <div className="grid grid-cols-1 gap-3 min-[1100px]:grid-cols-3">
-            <TokenCard requests={timeline.requests} stats={timeline.stats} onViewTrend={jumpToTrend} />
+            <TokenCard requests={timeline.requests} current={timeline.current} stats={timeline.stats} onViewTrend={jumpToTrend} />
             <TimingCard timing={timeline.timing} />
             <SessionInfoCard
               sessionName={sessionName}
@@ -891,7 +891,14 @@ export function ContextView({
             <CommandsCard commands={timeline.commands} stats={timeline.commandStats} />
           )}
           {/* 行6：8 个统计小卡（v4.412 下移——纯计数/审计口径，非第一眼信息） */}
-          <StatsCard stats={timeline.stats} />
+          <StatsCard
+              stats={timeline.stats}
+              nodes={timeline.nodes}
+              files={timeline.files}
+              commands={timeline.commands}
+              net={net ? { rootTokens: net.root?.tokens ?? 0, subTokens: 0 } : null}
+              timings={timeline.timing}
+            />
           {/* 底部会话汇总条 + 估算口径 */}
           <SummaryBar
             sessionName={sessionName}

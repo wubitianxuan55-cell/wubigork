@@ -1815,6 +1815,13 @@ export const zh: Record<DictKey, string> = {
   "contextinsights.cardTokens": "Token 总用量",
   "contextinsights.cardCost": "总预估费用",
   "contextinsights.cardLastMsg": "最后消息",
+  "contextview.statModelCalls": "模型回复",
+  "contextview.ioRow": "输入 / 输出",
+  "contextview.cmdRow": "命令执行",
+  "contextview.fleetRow": "编队",
+  "contextview.fleetCurrent": "当前代理",
+  "contextview.fleetSubs": "子代理",
+  "contextview.moreChips": "更多",
   "contextinsights.turnUnit": " 轮",
   "contextinsights.stepUnit": " 步",
 

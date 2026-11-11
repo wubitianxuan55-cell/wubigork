@@ -388,6 +388,17 @@ func (f *folding) applyUser(e session.LogEntry) {
 		src := briefOf(strings.TrimSpace(strings.TrimPrefix(inject, refContextPrefix)), 80)
 		f.lastIn = append(f.lastIn, src)
 		f.addNode(SurfaceNode{Seq: e.Seq, Ts: e.Ts, Cat: catInject, Tokens: tok, Text: briefOf(inject, maxNodePreview)})
+		// inject 事件（1:1 上游 Context Events Inject 行：来源·摘要 + delta）；
+		// 此前只统计不落事件，事件流看不到注入何时发生。
+		f.events = append(f.events, ContextEvent{
+			Kind:   "inject",
+			Seq:    e.Seq,
+			Delta:  tok,
+			Source: src,
+			Turn:   f.turn,
+			Step:   f.step,
+			Ts:     e.Ts,
+		})
 	}
 }
 

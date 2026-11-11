@@ -61,21 +61,19 @@ describe("StatsCard", () => {
     turns: 2, steps: 60, injects: 6, compacts: 1, prunes: 0, toolCalls: 279, images: 3, costEstimate: 3.83,
   };
 
-  it("渲染 8 格 label 与数值（费用两位小数）", () => {
-    renderZ(<StatsCard stats={stats} />);
-    for (const label of ["轮次", "步数", "工具调用", "图片", "预估费用", "注入", "压缩", "剪枝"]) {
+  it("复合卡：四 tile+事件行+IO 行（1:1 重构后）", () => {
+    renderZ(<StatsCard stats={stats} nodes={[]} files={[]} commands={[]} />);
+    for (const label of ["轮次", "步数", "技能加载", "模型回复"]) {
       expect(screen.getByText(label)).toBeTruthy();
     }
     expect(screen.getByText("2")).toBeTruthy();
     expect(screen.getByText("60")).toBeTruthy();
-    expect(screen.getByText("279")).toBeTruthy();
-    expect(screen.getByText("¥3.83")).toBeTruthy();
+    expect(screen.getByText("279")).toBeTruthy(); // 工具调用 chips（nodes 聚合）
   });
 
-  it("costEstimate 缺失时显示「—」不伪造", () => {
-    renderZ(<StatsCard stats={{ ...stats, costEstimate: undefined }} />);
-    // 刀7 起三拆 tile 缺省也是「—」——收窄到 cost tile 内断言（意图不变）
-    expect(within(screen.getByTestId("stat-tile-cost")).getByText("—")).toBeTruthy();
+  it("复合卡不伪造费用（costEstimate 缺失无 ¥ 渲染）", () => {
+    renderZ(<StatsCard stats={{ ...stats, costEstimate: undefined }} nodes={[]} files={[]} commands={[]} />);
+    expect(screen.queryByText(/¥/)).toBeNull();
   });
 });
 
@@ -261,13 +259,18 @@ describe("costHoverTitle 2.5e 成本 hover", () => {
 });
 
 describe("TokenCard assistant 三拆（刀7）", () => {
-  it("stats 带三拆时渲染分解行；全零不渲染", () => {
+  it("TokenCard 1:1 构成卡：传 current 时渲染 8 行三列（含思考/正文拆分）", () => {
     const stats = { turns: 1, steps: 1, injects: 0, compacts: 0, prunes: 0, toolCalls: 0, images: 0, assistantReasoning: 6000, assistantAnswerTokens: 3000, assistantCallTokens: 1000 };
-    const { getByTestId, queryByTestId, rerender } = renderZ(<TokenCard requests={[REQ(1, 100, 200, 50)]} stats={stats} />);
-    expect(getByTestId("ctx-assistant-split")).toBeTruthy();
-    // 全零 → 整块缺席（诚实不渲染空块）；rerender 须重带 Provider
-    // （RTL rerender 替换整棵树，原 wrapper 不保留）
-    rerender(<LocaleProvider><TokenCard requests={[REQ(1, 100, 200, 50)]} stats={{ ...stats, assistantReasoning: 0, assistantAnswerTokens: 0, assistantCallTokens: 0 }} /></LocaleProvider>);
-    expect(queryByTestId("ctx-assistant-split")).toBeNull();
+    const current = { system: 100, tools: 200, user: 50, skill: 0, inject: 0, assistant: 10000, tool: 5000 };
+    renderZ(<TokenCard requests={[REQ(1, 100, 200, 50)]} current={current} stats={stats} />);
+    // 8 行齐全（思考/正文/工具调用三拆入构成行）
+    expect(screen.getByText("助手思考")).toBeTruthy();
+    expect(screen.getByText("助手正文")).toBeTruthy();
+    expect(screen.getByText("工具调用")).toBeTruthy();
+  });
+
+  it("TokenCard 无 current 时回退缓存三类视图（向后兼容）", () => {
+    renderZ(<TokenCard requests={[REQ(1, 300000, 5000, 1000), REQ(2, 100000, 5000, 2000)]} />);
+    expect(screen.getByText("97.56%")).toBeTruthy();
   });
 });

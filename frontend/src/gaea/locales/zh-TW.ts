@@ -1819,6 +1819,13 @@ export const zhTW: Record<DictKey, string> = {
   "contextinsights.cardTokens": "Token 總用量",
   "contextinsights.cardCost": "總預估費用",
   "contextinsights.cardLastMsg": "最後訊息",
+  "contextview.statModelCalls": "模型回覆",
+  "contextview.ioRow": "輸入 / 輸出",
+  "contextview.cmdRow": "命令執行",
+  "contextview.fleetRow": "編隊",
+  "contextview.fleetCurrent": "當前代理",
+  "contextview.fleetSubs": "子代理",
+  "contextview.moreChips": "更多",
   "contextinsights.turnUnit": " 輪",
   "contextinsights.stepUnit": " 步",
 

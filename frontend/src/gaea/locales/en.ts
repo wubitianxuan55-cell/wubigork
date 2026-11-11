@@ -1817,6 +1817,13 @@ export const en = {
   "contextinsights.cardTokens": "Token total",
   "contextinsights.cardCost": "Est. cost",
   "contextinsights.cardLastMsg": "Last message",
+  "contextview.statModelCalls": "Model replies",
+  "contextview.ioRow": "Input / Output",
+  "contextview.cmdRow": "Command executions",
+  "contextview.fleetRow": "Fleet",
+  "contextview.fleetCurrent": "Current agent",
+  "contextview.fleetSubs": "Subagents",
+  "contextview.moreChips": "more",
   "contextinsights.turnUnit": " turns",
   "contextinsights.stepUnit": " steps",
 
