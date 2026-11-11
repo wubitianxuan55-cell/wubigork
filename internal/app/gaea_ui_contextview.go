@@ -429,3 +429,77 @@ func (a *App) GaeaContextInsights(rangeKey string, includeArchived bool) (contex
 	out.Truncated = truncated
 	return out, nil
 }
+
+// ── 家族事件流（v4.542，对标 dsh-context Fleet 事件检查完全体）──────
+// 主会话 + 全部子代理 transcript 折叠为合并事件流。transcript 读取独立
+// 缓存（size+mtime 失效，同 insights 纪律）；上限 20 份 transcript 诚实
+// 截断（Truncated 返回）。
+
+type cachedFamilyEntries struct {
+	key     string
+	entries []session.LogEntry
+}
+
+var (
+	familyCacheMu sync.Mutex
+	familyCache   = map[string]cachedFamilyEntries{}
+)
+
+const maxFamilyTranscripts = 20
+
+// GaeaFamilyEvents 返回会话的家族事件流（main + 子代理 transcript 合并，
+// Ts 升序，上限 400 条）。sessionPath 可选，语义同 GaeaContextView。
+func (a *App) GaeaFamilyEvents(sessionPath ...string) (trajectory.FamilyEventStream, error) {
+	path := resolveGaeaSessionPath(sessionPath)
+	if path == "" {
+		return trajectory.FamilyEventStream{}, nil
+	}
+	parentEntries, err := readEntriesForCached(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return trajectory.FamilyEventStream{}, nil
+		}
+		return trajectory.FamilyEventStream{}, err
+	}
+	// 子代理 transcript 枚举：<会话目录>/subagents/*.jsonl
+	dir := sessionDirForPath(path)
+	subs := map[string][]session.LogEntry{}
+	truncated := 0
+	if dir != "" {
+		matches, _ := filepath.Glob(filepath.Join(dir, "subagents", "*.jsonl"))
+		sort.Slice(matches, func(i, j int) bool { return matches[i] > matches[j] }) // 名字含时间戳，新→旧
+		if len(matches) > maxFamilyTranscripts {
+			truncated = len(matches) - maxFamilyTranscripts
+			matches = matches[:maxFamilyTranscripts]
+		}
+		for _, transcript := range matches {
+			ref := strings.TrimSuffix(filepath.Base(transcript), ".jsonl")
+			key := insightsCacheKey(transcript)
+			familyCacheMu.Lock()
+			c, ok := familyCache[transcript]
+			familyCacheMu.Unlock()
+			if !ok || c.key != key {
+				entries, err := session.ReadLogRepaired(transcript)
+				if err != nil {
+					continue // 单份读取失败诚实跳过
+				}
+				c = cachedFamilyEntries{key: key, entries: entries}
+				familyCacheMu.Lock()
+				if len(familyCache) > maxFamilyTranscripts*2 {
+					familyCache = map[string]cachedFamilyEntries{}
+				}
+				familyCache[transcript] = c
+				familyCacheMu.Unlock()
+			}
+			subs[ref] = c.entries
+		}
+	}
+	events := trajectory.FoldFamilyEvents(parentEntries, subs)
+	return trajectory.FamilyEventStream{
+		Ok:        true,
+		Events:    events,
+		Scanned:   len(subs) + 1,
+		Truncated: truncated,
+		Refs:      trajectory.FamilyEventRefs(events),
+	}, nil
+}
