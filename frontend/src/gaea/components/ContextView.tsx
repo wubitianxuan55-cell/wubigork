@@ -354,6 +354,7 @@ export function ContextTrendChart({ requests, events, onPick, detail, focus }: {
           <span className="mx-0.5 h-3 w-px bg-border-soft" />
           <button
             title={t("contextview.overviewTip")}
+            aria-pressed={overview}
             data-testid="trend-overview"
             className={`px-1.5 py-0.5 rounded border-0 cursor-pointer ${overview ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"}`}
             onClick={() => setOverview((v) => !v)}
