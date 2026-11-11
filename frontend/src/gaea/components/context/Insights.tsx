@@ -17,6 +17,7 @@ import type {
   InsightsSession,
   InsightsTally,
 } from "../../lib/types/context";
+import { loadContextPrefs, saveContextPref } from "../../lib/contextPrefs";
 import { CAT_COLORS, CONTEXT_CATS } from "./cats";
 import { Donut } from "./cards";
 
@@ -45,7 +46,8 @@ export function Insights({ running, onOpenSession }: {
   onOpenSession?: (path: string) => void;
 }) {
   const t = useT();
-  const [range, setRange] = useState<InsightsRangeKey>("30d");
+  // 默认范围读偏好（刀6；点击范围预设写回——dsh 同款语义）。
+  const [range, setRange] = useState<InsightsRangeKey>(() => loadContextPrefs().insightsRange);
   const [includeArchived, setIncludeArchived] = useState(false);
   const [data, setData] = useState<ContextInsightsView | null>(null);
   const [failed, setFailed] = useState(false);
@@ -116,7 +118,10 @@ export function Insights({ running, onOpenSession }: {
             <button
               key={r.key}
               type="button"
-              onClick={() => setRange(r.key)}
+              onClick={() => {
+                setRange(r.key);
+                saveContextPref("insightsRange", r.key);
+              }}
               aria-pressed={range === r.key}
               data-testid={`insights-range-${r.key}`}
               className={`rounded border-0 px-1.5 py-0.5 text-[11.5px] cursor-pointer ${

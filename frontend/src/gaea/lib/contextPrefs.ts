@@ -12,12 +12,16 @@ export type CtxTrendGranularity = "step" | "turn";
 export type CtxTrendMode = "total" | "delta";
 export type CtxBrowserSort = "time" | "size";
 export type CtxFileSort = "count" | "recent" | "path";
+export type CtxInsightsRange = "today" | "7d" | "30d" | "all";
 
 export interface ContextPrefs {
   trendGranularity: CtxTrendGranularity;
   trendMode: CtxTrendMode;
   browserSort: CtxBrowserSort;
   fileSort: CtxFileSort;
+  // 洞察页默认时间范围（v4.542 刀6；页上点击范围预设写回——dsh 同款语义：
+  // 预设按钮即默认值，其余视图切换不落盘）。
+  insightsRange: CtxInsightsRange;
 }
 
 const STORAGE_KEY = "gaea.context.prefs";
@@ -27,6 +31,7 @@ export const CONTEXT_PREFS_DEFAULTS: ContextPrefs = {
   trendMode: "total",
   browserSort: "time",
   fileSort: "count",
+  insightsRange: "30d",
 };
 
 const VALID: { [K in keyof ContextPrefs]: readonly ContextPrefs[K][] } = {
@@ -34,6 +39,7 @@ const VALID: { [K in keyof ContextPrefs]: readonly ContextPrefs[K][] } = {
   trendMode: ["total", "delta"],
   browserSort: ["time", "size"],
   fileSort: ["count", "recent", "path"],
+  insightsRange: ["today", "7d", "30d", "all"],
 };
 
 /** 读取上下文页偏好；未设置/无 window 时返回全默认，损坏值逐字段回落。 */
