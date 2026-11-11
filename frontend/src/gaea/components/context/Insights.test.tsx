@@ -44,6 +44,7 @@ const VIEW: ContextInsightsView = {
       modTime: NOW - 86400 - 7200, lastActive: NOW - 86400 - 7200, // 11-11 上午
       tokens: 248_600, requests: 96, turns: 21, cost: 3.1, cacheHitPercent: 99.6,
       composition: { system: 2100, tools: 10400, user: 5200, skill: 3200, inject: 21900, assistant: 93400, tool: 114000 },
+      skills: ["gbt-9704-docx"], tools: ["read_file", "bash"], programs: ["go"],
     },
     {
       path: "C:\\demo\\b.jsonl", title: "会话乙（今天活跃）", spaceId: "work",
@@ -89,6 +90,19 @@ describe("Insights 洞察页", () => {
     const card = await waitFor(() => screen.getByText("会话甲"));
     fireEvent.click(card.closest("button")!);
     expect(onOpen).toHaveBeenCalledWith("C:\\demo\\a.jsonl");
+  });
+
+  it("统计行 chip 点击 → 只看用过该名称的会话；再点清除（刀8）", async () => {
+    renderT(<Insights />);
+    await waitFor(() => expect(screen.getByText("会话甲")).toBeTruthy());
+    // fixture：会话乙没有名称清单 → read_file chip 过滤后只剩会话甲
+    fireEvent.click(screen.getByTestId("insights-tally-tools-read_file"));
+    await waitFor(() => expect(screen.getByTestId("insights-tallyfilter")).toBeTruthy());
+    expect(screen.getByText("会话甲")).toBeTruthy();
+    expect(screen.queryByText("会话乙（今天活跃）")).toBeNull();
+    // 清除
+    fireEvent.click(screen.getByTestId("insights-tallyfilter"));
+    await waitFor(() => expect(screen.getByText("会话乙（今天活跃）")).toBeTruthy());
   });
 
   it("热力图点击有活动日 → 会话列表过滤该日；再点清除", async () => {

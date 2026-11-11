@@ -1784,6 +1784,7 @@ export const zhTW: Record<DictKey, string> = {
   "contextinsights.dayFilter": "只看 {{date}} 活躍的會話——點擊清除",
   "contextinsights.truncated": "另有 {{count}} 個更早會話未掃描",
   "contextinsights.loadFailed": "洞察資料載入失敗",
+  "contextinsights.tallyFilter": "用過 {{name}} 的會話——點擊清除",
 
   // ── v4.542 刀4：命令執行卡 / 總覽模式 / DNA 平鋪 / 助手 kind 篩選 ──
   "contextview.cmdTitle": "命令執行",
@@ -1807,6 +1808,15 @@ export const zhTW: Record<DictKey, string> = {
   "contextview.kindThinking": "思考",
   "contextview.kindTools": "工具",
   "contextview.kindAnswer": "正文",
+  "contextview.statSkills": "技能載入",
+  "contextview.statThinking": "助手思考",
+  "contextview.statAnswers": "助手正文",
+  "contextview.statCallArgs": "呼叫參數",
+  "contextview.splitTitle": "助手產出三拆",
+  "contextview.splitThinking": "思考",
+  "contextview.splitAnswers": "正文",
+  "contextview.splitCallArgs": "呼叫參數",
+  "contextview.trendActual": "實際 {{prompt}} 入 · {{out}} 出 · {{cache}} 快取",
 
   // ── v4.542 刀5：編隊頁（對標 dsh-context Fleet）──
   "fleet.kpiAgents": "Agent 數",

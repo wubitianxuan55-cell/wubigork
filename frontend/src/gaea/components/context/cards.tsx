@@ -166,11 +166,18 @@ export function StatsCard({ stats }: { stats: ContextStats }) {
     { key: "injects", label: t("contextview.statInjects"), value: String(stats.injects) },
     { key: "compacts", label: t("contextview.statCompacts"), value: String(stats.compacts) },
     { key: "prunes", label: t("contextview.statPrunes"), value: String(stats.prunes) },
+    // v4.542 刀7：技能加载 + assistant 三拆（后端刀1 字段的前端消费收口）。
+    // 诚实语义：字段缺省（旧日志 Go omitempty）显「—」=无账可查；显式 0
+    // （新会话确实没有思考/调用）显「0」=测得为零。
+    { key: "skills", label: t("contextview.statSkills"), value: String(stats.skills ?? 0) },
+    { key: "assistantReasoning", label: t("contextview.statThinking"), value: stats.assistantReasoning != null ? fmtTokens(stats.assistantReasoning) : "—" },
+    { key: "assistantAnswer", label: t("contextview.statAnswers"), value: stats.assistantAnswerTokens != null ? fmtTokens(stats.assistantAnswerTokens) : "—" },
+    { key: "assistantCall", label: t("contextview.statCallArgs"), value: stats.assistantCallTokens != null ? fmtTokens(stats.assistantCallTokens) : "—" },
   ];
   return (
     <div
       data-testid="stats-kpi-grid"
-      className="grid grid-cols-2 gap-2.5 min-[1100px]:grid-cols-4 min-[1500px]:grid-cols-8"
+      className="grid grid-cols-2 gap-2.5 min-[1100px]:grid-cols-4 min-[1500px]:grid-cols-12"
     >
       {cells.map((c) => (
         <div key={c.key} className="ctx-tile" data-testid={`stat-tile-${c.key}`}>
@@ -190,9 +197,13 @@ export function StatsCard({ stats }: { stats: ContextStats }) {
 // 卡选中态（保持默认最新请求语义）。纯展示不持 ref——滚动由 ContextView 完成。
 export function TokenCard({
   requests,
+  stats,
   onViewTrend,
 }: {
   requests: ContextRequestRecord[];
+  // stats 可选（v4.542 刀7）：带 assistant 三拆分解行（dsh Token Stats 同款
+  // ——思考/正文/工具调用参数三行，全零时整体不渲染，旧日志诚实缺席）。
+  stats?: ContextStats;
   onViewTrend?: () => void;
 }) {
   const t = useT();
@@ -205,6 +216,12 @@ export function TokenCard({
     { label: t("contextview.tokensUncached"), value: miss, color: COLORS.cacheMiss },
     { label: t("contextview.tokensOutput"), value: out, color: COLORS.output },
   ];
+  const split = [
+    { label: t("contextview.splitThinking"), value: stats?.assistantReasoning ?? 0, color: "#6366f1" }, // hex-exempt assistant 三拆语义色（思考）
+    { label: t("contextview.splitAnswers"), value: stats?.assistantAnswerTokens ?? 0, color: COLORS.output },
+    { label: t("contextview.splitCallArgs"), value: stats?.assistantCallTokens ?? 0, color: COLORS.toolExec },
+  ];
+  const splitTotal = split.reduce((s, x) => s + x.value, 0);
   return (
     <div className="ctx-card p-3">
       <CardHead
@@ -244,6 +261,20 @@ export function TokenCard({
           ))}
         </div>
       </div>
+      {/* assistant 三拆分解行（刀7；全零不渲染） */}
+      {splitTotal > 0 && (
+        <div className="mt-2 border-t border-border-soft/60 pt-1.5" data-testid="ctx-assistant-split">
+          <div className="text-[9.5px] text-fg-faint">{t("contextview.splitTitle")}</div>
+          {split.map((r) => (
+            <div key={r.label} className="flex items-center gap-1.5 text-[11px]">
+              <Dot color={r.color} />
+              <span className="shrink-0 text-fg-dim">{r.label}</span>
+              <span className="ml-auto text-right font-mono tabular-nums text-fg">{fmtTokens(r.value)}</span>
+              <span className="w-8 shrink-0 text-right font-mono tabular-nums text-fg-faint">{fmtPct(r.value, splitTotal)}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

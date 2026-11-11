@@ -1782,6 +1782,7 @@ export const en = {
   "contextinsights.dayFilter": "Showing sessions active on {{date}} — click to clear",
   "contextinsights.truncated": "{{count}} older sessions not scanned",
   "contextinsights.loadFailed": "Failed to load insights",
+  "contextinsights.tallyFilter": "Sessions using {{name}} — click to clear",
 
   // ── v4.542 刀4：命令执行卡 / 总览模式 / DNA 平铺 / 助手 kind 筛选 ──
   "contextview.cmdTitle": "Command executions",
@@ -1805,6 +1806,15 @@ export const en = {
   "contextview.kindThinking": "Thinking",
   "contextview.kindTools": "Tools",
   "contextview.kindAnswer": "Answer",
+  "contextview.statSkills": "Skill loads",
+  "contextview.statThinking": "Assistant thinking",
+  "contextview.statAnswers": "Assistant answers",
+  "contextview.statCallArgs": "Tool-call args",
+  "contextview.splitTitle": "Assistant output split",
+  "contextview.splitThinking": "Thinking",
+  "contextview.splitAnswers": "Answers",
+  "contextview.splitCallArgs": "Tool-call args",
+  "contextview.trendActual": "Actual {{prompt}} in · {{out}} out · {{cache}} cached",
 
   // ── v4.542 刀5：编队页（对标 dsh-context Fleet）──
   "fleet.kpiAgents": "Agents",

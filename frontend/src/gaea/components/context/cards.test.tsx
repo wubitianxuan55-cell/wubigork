@@ -74,7 +74,8 @@ describe("StatsCard", () => {
 
   it("costEstimate 缺失时显示「—」不伪造", () => {
     renderZ(<StatsCard stats={{ ...stats, costEstimate: undefined }} />);
-    expect(screen.getByText("—")).toBeTruthy();
+    // 刀7 起三拆 tile 缺省也是「—」——收窄到 cost tile 内断言（意图不变）
+    expect(within(screen.getByTestId("stat-tile-cost")).getByText("—")).toBeTruthy();
   });
 });
 
@@ -256,5 +257,17 @@ describe("costHoverTitle 2.5e 成本 hover", () => {
   it("无费率：诚实说明费用未估算", () => {
     expect(costHoverTitle(undefined, undefined, t)).toBe("费用未估算");
     expect(costHoverTitle({}, undefined, t)).toBe("费用未估算");
+  });
+});
+
+describe("TokenCard assistant 三拆（刀7）", () => {
+  it("stats 带三拆时渲染分解行；全零不渲染", () => {
+    const stats = { turns: 1, steps: 1, injects: 0, compacts: 0, prunes: 0, toolCalls: 0, images: 0, assistantReasoning: 6000, assistantAnswerTokens: 3000, assistantCallTokens: 1000 };
+    const { getByTestId, queryByTestId, rerender } = renderZ(<TokenCard requests={[REQ(1, 100, 200, 50)]} stats={stats} />);
+    expect(getByTestId("ctx-assistant-split")).toBeTruthy();
+    // 全零 → 整块缺席（诚实不渲染空块）；rerender 须重带 Provider
+    // （RTL rerender 替换整棵树，原 wrapper 不保留）
+    rerender(<LocaleProvider><TokenCard requests={[REQ(1, 100, 200, 50)]} stats={{ ...stats, assistantReasoning: 0, assistantAnswerTokens: 0, assistantCallTokens: 0 }} /></LocaleProvider>);
+    expect(queryByTestId("ctx-assistant-split")).toBeNull();
   });
 });

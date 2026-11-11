@@ -54,6 +54,9 @@ export function Insights({ running, onOpenSession }: {
   // dayFilter：热力图点击某日 → 会话列表只看该日活跃（KPI 不动，dsh 同语义
   // 的轻量版；再次点击清除）。
   const [dayFilter, setDayFilter] = useState<string | null>(null);
+  // tallyFilter（刀8）：统计行 chip 点击 → 会话列表只看用过该技能/工具/程序
+  // 的会话（依据后端 InsightsSession.skills/tools/programs 名称清单）。
+  const [tallyFilter, setTallyFilter] = useState<{ kind: "skills" | "tools" | "programs"; name: string } | null>(null);
 
   const load = useCallback(() => {
     app.ContextInsights(range, includeArchived)
@@ -68,9 +71,10 @@ export function Insights({ running, onOpenSession }: {
     load();
   }, [load]);
 
-  // 范围/归档切换重置日过滤（过滤语义跟着范围走）。
+  // 范围/归档切换重置两项过滤（过滤语义跟着范围走）。
   useEffect(() => {
     setDayFilter(null);
+    setTallyFilter(null);
   }, [range, includeArchived]);
 
   // 运行中轮询刷新（洞察页是跨会话视图，事件流节流无意义——定时轻轮询，
@@ -83,9 +87,13 @@ export function Insights({ running, onOpenSession }: {
 
   const sessions = useMemo(() => {
     if (!data) return [];
-    if (!dayFilter) return data.sessions;
-    return data.sessions.filter((s) => dayKeyOf(s.lastActive) === dayFilter);
-  }, [data, dayFilter]);
+    let list = data.sessions;
+    if (dayFilter) list = list.filter((s) => dayKeyOf(s.lastActive) === dayFilter);
+    if (tallyFilter) {
+      list = list.filter((s) => (s[tallyFilter.kind] ?? []).includes(tallyFilter.name));
+    }
+    return list;
+  }, [data, dayFilter, tallyFilter]);
 
   const composition = useMemo(() => {
     const acc: ContextCategory = { system: 0, tools: 0, user: 0, skill: 0, inject: 0, assistant: 0, tool: 0 };
@@ -176,9 +184,9 @@ export function Insights({ running, onOpenSession }: {
           {/* 三统计行 + 构成环形 */}
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             <section className="ctx-card p-3">
-              <TallyRow title={t("contextinsights.tallySkills")} items={data.skills} color="var(--md-sys-color-tertiary, var(--color-accent))" />
-              <TallyRow title={t("contextinsights.tallyTools")} items={data.tools} color="var(--md-sys-color-primary, var(--color-primary))" />
-              <TallyRow title={t("contextinsights.tallyPrograms")} items={data.programs} color="var(--md-sys-color-secondary, var(--color-secondary))" />
+              <TallyRow kind="skills" title={t("contextinsights.tallySkills")} items={data.skills} color="var(--md-sys-color-tertiary, var(--color-accent))" onPick={setTallyFilter} picked={tallyFilter} />
+              <TallyRow kind="tools" title={t("contextinsights.tallyTools")} items={data.tools} color="var(--md-sys-color-primary, var(--color-primary))" onPick={setTallyFilter} picked={tallyFilter} />
+              <TallyRow kind="programs" title={t("contextinsights.tallyPrograms")} items={data.programs} color="var(--md-sys-color-secondary, var(--color-secondary))" onPick={setTallyFilter} picked={tallyFilter} />
             </section>
             <section className="ctx-card flex items-center gap-4 p-3" data-testid="insights-composition">
               <Donut
@@ -212,6 +220,16 @@ export function Insights({ running, onOpenSession }: {
                   className="rounded border-0 bg-accent/15 px-1.5 py-0.5 text-[11px] text-accent cursor-pointer"
                 >
                   {t("contextinsights.dayFilter", { date: dayFilter })}
+                </button>
+              )}
+              {tallyFilter && (
+                <button
+                  type="button"
+                  onClick={() => setTallyFilter(null)}
+                  data-testid="insights-tallyfilter"
+                  className="rounded border-0 bg-accent/15 px-1.5 py-0.5 text-[11px] text-accent cursor-pointer"
+                >
+                  {t("contextinsights.tallyFilter", { name: tallyFilter.name })}
                 </button>
               )}
               {!!data.truncated && (
@@ -378,7 +396,16 @@ function Heatmap({ days, generatedAt, onPick, picked }: {
 }
 
 // TallyRow 一条统计行（标题 + chip 流：名称 ×次数，悬停给最近时间）。
-function TallyRow({ title, items, color }: { title: string; items: InsightsTally[]; color: string }) {
+// 刀8：chip 可点击 → 过滤会话卡（依据 InsightsSession 名称清单；再点清除，
+// 活动项高亮）。
+function TallyRow({ kind, title, items, color, onPick, picked }: {
+  kind: "skills" | "tools" | "programs";
+  title: string;
+  items: InsightsTally[];
+  color: string;
+  onPick?: (f: { kind: "skills" | "tools" | "programs"; name: string } | null) => void;
+  picked?: { kind: "skills" | "tools" | "programs"; name: string } | null;
+}) {
   const t = useT();
   return (
     <div className="mb-2 last:mb-0" data-testid="insights-tally">
@@ -390,17 +417,44 @@ function TallyRow({ title, items, color }: { title: string; items: InsightsTally
         <p className="m-0 text-[11px] text-fg-dim">{t("contextinsights.tallyEmpty")}</p>
       ) : (
         <div className="flex flex-wrap gap-1">
-          {items.map((x) => (
-            <span
-              key={x.name}
-              title={x.last ? t("contextinsights.heatmapTip", { date: x.name, tokens: fmtCount(x.count), requests: relativeTime(x.last * 1000) }) : x.name}
-              className="inline-flex max-w-full items-center gap-1 truncate rounded-full px-1.5 py-0.5 text-[10.5px]"
-              style={{ background: `color-mix(in srgb, ${color} 12%, transparent)`, color: "var(--md-sys-color-on-surface, var(--color-fg))" }}
-            >
-              <span className="max-w-[160px] truncate font-mono">{x.name}</span>
-              <span className="font-mono text-fg-dim">×{x.count}</span>
-            </span>
-          ))}
+          {items.map((x) => {
+            const active = picked?.kind === kind && picked.name === x.name;
+            const tip = x.last
+              ? t("contextinsights.heatmapTip", { date: x.name, tokens: fmtCount(x.count), requests: relativeTime(x.last * 1000) })
+              : x.name;
+            if (!onPick) {
+              return (
+                <span
+                  key={x.name}
+                  title={tip}
+                  className="inline-flex max-w-full items-center gap-1 truncate rounded-full px-1.5 py-0.5 text-[10.5px]"
+                  style={{ background: `color-mix(in srgb, ${color} 12%, transparent)`, color: "var(--md-sys-color-on-surface, var(--color-fg))" }}
+                >
+                  <span className="max-w-[160px] truncate font-mono">{x.name}</span>
+                  <span className="font-mono text-fg-dim">×{x.count}</span>
+                </span>
+              );
+            }
+            return (
+              <button
+                key={x.name}
+                type="button"
+                data-picked={active || undefined}
+                title={tip}
+                data-testid={`insights-tally-${kind}-${x.name}`}
+                className={`inline-flex max-w-full cursor-pointer items-center gap-1 truncate rounded-full border-0 px-1.5 py-0.5 text-[10.5px] ${active ? "outline outline-1" : ""}`}
+                style={{
+                  background: `color-mix(in srgb, ${color} ${active ? 26 : 12}%, transparent)`,
+                  color: "var(--md-sys-color-on-surface, var(--color-fg))",
+                  outlineColor: color,
+                }}
+                onClick={() => onPick(active ? null : { kind, name: x.name })}
+              >
+                <span className="max-w-[160px] truncate font-mono">{x.name}</span>
+                <span className="font-mono text-fg-dim">×{x.count}</span>
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

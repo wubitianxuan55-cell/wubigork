@@ -287,6 +287,10 @@ export interface InsightsSession {
   cost?: number;
   cacheHitPercent?: number;
   composition: ContextCategory;
+  // 名称清单（刀8；统计行点击过滤会话的依据；空=范围内无对应事件）。
+  skills?: string[];
+  tools?: string[];
+  programs?: string[];
   estimated?: boolean; // 范围内全部请求均为估算关闭
 }
 

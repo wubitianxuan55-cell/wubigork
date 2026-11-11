@@ -262,6 +262,7 @@ export function buildCore(s: MakeMockState): CoreMethods {
             lastActive: Math.floor(Date.now() / 1000) - 600,
             tokens: 248600, requests: 96, turns: 21, cost: 3.1, cacheHitPercent: 99.6,
             composition: comp,
+            skills: ["gbt-9704-docx"], tools: ["read_file", "bash", "grep"], programs: ["go", "npm.cmd"],
           },
           {
             path: "C:\demo\.gaea\sessions\play\demo-b.jsonl",

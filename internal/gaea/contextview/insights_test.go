@@ -23,13 +23,18 @@ func insightsFold(path string, modTime int64, entries []session.LogEntry) Insigh
 
 // insightRequest 造一笔真实 usage（input/output=1000/1M，cacheHitPrice=0）：
 // 请求成本 = (miss+completion)×1000/1e6，可预测。
+// 刀2 遗留夹具 bug 修正（完善批定罪）：entry helper 硬编码 Ts=1700000000+seq，
+// ts 参数从未进日志——逐日归因全落 2023 年同一天，RangeFilter 恒红且当时被
+// tail 截断漏验。此处显式覆写 Ts 让夹具语义与参数一致。
 func insightRequest(seq int64, ts int64, turn int, prompt int64) session.LogEntry {
-	return entry(seq, "usage", map[string]any{
+	e := entry(seq, "usage", map[string]any{
 		"promptTokens": prompt, "completionTokens": 10,
 		"cacheHitTokens": 5, "cacheMissTokens": prompt - 5,
 		"input": 1000.0, "output": 1000.0,
 		"turn": turn,
 	})
+	e.Ts = ts
+	return e
 }
 
 func TestBuildInsightsRangeFilter(t *testing.T) {
@@ -170,5 +175,35 @@ func TestInsightsJSONShape(t *testing.T) {
 		if !strings.Contains(s, field) {
 			t.Fatalf("%s should marshal as [], got %s", field, s)
 		}
+	}
+}
+
+// TestBuildInsightsSessionNameLists 校验刀8 会话名称清单（统计行点击过滤
+// 的依据）：skills/tools/programs 去重入卡；无对应事件缺省。
+func TestBuildInsightsSessionNameLists(t *testing.T) {
+	now := time.Date(2026, 11, 12, 12, 0, 0, 0, time.Local)
+	ts := now.Add(-time.Hour).Unix()
+	entries := []session.LogEntry{
+		entry(1, "turn_started", map[string]any{}),
+		entry(2, "request_header", headerPayload("sys")),
+		entry(3, "tool_dispatch", map[string]any{"id": "s1", "name": "run_skill", "args": `{"name":"pdf-toolkit"}`}),
+		entry(4, "tool_result", map[string]any{"id": "s1", "name": "run_skill", "output": "body"}),
+		entry(5, "tool_dispatch", map[string]any{"id": "t1", "name": "read_file", "args": `{"path":"a"}`}),
+		entry(6, "tool_result", map[string]any{"id": "t1", "name": "read_file", "output": "x"}),
+		entry(7, "tool_dispatch", map[string]any{"id": "b1", "name": "bash", "args": `{"command":"FOO=1 /usr/bin/go test ./..."}`}),
+		entry(8, "tool_result", map[string]any{"id": "b1", "name": "bash", "output": "ok"}),
+		entry(9, "usage", map[string]any{"promptTokens": 100, "completionTokens": 10}),
+		entry(10, "turn_done", map[string]any{}),
+	}
+	out := BuildInsights(InsightsAll, now, []InsightsSessionFold{insightsFold("x.jsonl", ts, entries)})
+	sess := out.Sessions[0]
+	if len(sess.Skills) != 1 || sess.Skills[0] != "pdf-toolkit" {
+		t.Fatalf("Skills list: %v", sess.Skills)
+	}
+	if len(sess.Tools) != 2 || sess.Tools[0] != "bash" || sess.Tools[1] != "read_file" {
+		t.Fatalf("Tools list (字典序): %v", sess.Tools)
+	}
+	if len(sess.Programs) != 1 || sess.Programs[0] != "go" {
+		t.Fatalf("Programs list: %v", sess.Programs)
 	}
 }

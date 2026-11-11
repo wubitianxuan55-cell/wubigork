@@ -426,6 +426,17 @@ export function ContextTrendChart({ requests, events, onPick, detail, focus }: {
             ) : null,
           )}
           <span className="ml-auto font-mono text-fg-dim">{t("contextview.total", { tokens: fmtTokens(catTotal(bars[hovered].category)) })}</span>
+          {/* 刀9：有真实 usage 时并列服务商报告的 Actual（估算 vs 实际诚实并列，
+              dsh 悬停同款）；Estimated 关闭的请求无 usage，不造数。 */}
+          {(bars[hovered].promptTokens ?? 0) > 0 && (
+            <span className="ml-auto font-mono text-fg-dim" data-testid="trend-hover-actual">
+              {t("contextview.trendActual", {
+                prompt: fmtTokens(bars[hovered].promptTokens ?? 0),
+                out: fmtTokens(bars[hovered].outputTokens ?? 0),
+                cache: fmtTokens(bars[hovered].cacheHitTokens ?? 0),
+              })}
+            </span>
+          )}
         </div>
       )}
       <div className="overflow-x-auto">
@@ -841,7 +852,7 @@ export function ContextView({
           />
           {/* 行3：三大仪表卡（Token 卡带「查看趋势」入口 → 行2 趋势卡锚点） */}
           <div className="grid grid-cols-1 gap-3 min-[1100px]:grid-cols-3">
-            <TokenCard requests={timeline.requests} onViewTrend={jumpToTrend} />
+            <TokenCard requests={timeline.requests} stats={timeline.stats} onViewTrend={jumpToTrend} />
             <TimingCard timing={timeline.timing} />
             <SessionInfoCard
               sessionName={sessionName}
