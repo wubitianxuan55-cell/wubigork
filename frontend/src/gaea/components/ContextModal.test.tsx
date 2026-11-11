@@ -7,7 +7,7 @@ import { ContextModal, ContextPill } from "./ContextModal";
 const ctxViewMock = vi.fn(async () => ({
   ok: true,
   window: 1_000_000,
-  current: { system: 2100, tools: 10400, user: 20, inject: 21900, assistant: 93400, tool: 114000 },
+  current: { system: 2100, tools: 10400, user: 20, skill: 0, inject: 21900, assistant: 93400, tool: 114000 },
   stats: { turns: 1, steps: 1, injects: 0, compacts: 0, prunes: 0, toolCalls: 0, images: 0 },
   requests: [],
   events: [],

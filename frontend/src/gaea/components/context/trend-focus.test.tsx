@@ -30,7 +30,7 @@ const REQ = (seq: number): ContextRequestRecord => ({
   ts: 1750000000 + seq,
   turn: 1,
   step: seq,
-  category: { system: seq * 100, tools: 0, user: 0, inject: 0, assistant: 0, tool: 0 },
+  category: { system: seq * 100, tools: 0, user: 0, skill: 0, inject: 0, assistant: 0, tool: 0 },
 });
 const EVENTS: ContextEvent[] = [];
 

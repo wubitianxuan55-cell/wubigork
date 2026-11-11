@@ -12,6 +12,7 @@ import type {
 import { delay, emitUpdater } from "./shared";
 import { switchWorkspace } from "./state";
 import type { MakeMockState } from "./state";
+import type { ContextInsightsView } from "../types/context";
 
 // mock 空间 profile（浏览器演示态）：模块级状态支撑 GaeaSpaceProfileSet 编辑
 // 闭环；真机的 ResolveModel 校验在 Go 侧，演示态非空即收。
@@ -25,7 +26,7 @@ type CoreMethods = Pick<
   AppBindings,
   | "ListWorkspaces" | "PickWorkspace" | "SwitchWorkspace"
   | "GaeaSpaceList" | "GaeaSpaceActive" | "GaeaSpaceActivate" | "GaeaSpaceProfiles" | "GaeaSpaceProfileSet"
-  | "ContextUsage" | "ContextView" | "ContextNodeDetail" | "Trajectory" | "AgentNetwork" | "Jobs"
+  | "ContextUsage" | "ContextView" | "ContextNodeDetail" | "Trajectory" | "AgentNetwork" | "Jobs" | "ContextInsights"
   | "GaeaBrowserObserve" | "GaeaSubagentContextView"
   | "Meta" | "Commands" | "Capabilities"
   | "AddMCPServer" | "RemoveMCPServer" | "RetryMCPServer" | "SetMCPServerEnabled"
@@ -67,12 +68,12 @@ export function buildCore(s: MakeMockState): CoreMethods {
       return {
         ok: true,
         window: 1_000_000,
-        current: { system: 2100, tools: 10400, user: 20, inject: 21900, assistant: 93400, tool: 114000 },
+        current: { system: 2100, tools: 10400, user: 20, skill: 0, inject: 21900, assistant: 93400, tool: 114000 },
         stats: { turns: 2, steps: 60, injects: 6, compacts: 0, prunes: 0, toolCalls: 279, images: 0, cacheHitPercent: 99.57, costEstimate: 3.83 },
         requests: [
           {
             seq: 8, ts: 1750000000, turn: 1, step: 1,
-            category: { system: 2100, tools: 10400, user: 20, inject: 21000, assistant: 1200, tool: 8000 },
+            category: { system: 2100, tools: 10400, user: 20, skill: 0, inject: 21000, assistant: 1200, tool: 8000 },
             briefUser: "grep C:\\AI\\wubigrok\\internal\\gaea\\config",
             briefResp: "read C:\\AI\\wubigrok\\internal\\gaea\\config\\config.go",
             // 2.5d 跳转锚点走查样例：指向下方新增的 user(seq 5)/assistant(seq 6) 节点
@@ -113,6 +114,7 @@ export function buildCore(s: MakeMockState): CoreMethods {
           { seq: 12, ts: 1750000012, turn: 1, step: 3, tool: "write_file", action: "write", path: "docs/调研结论.md", added: 42 },
           { seq: 20, ts: 1750000020, turn: 1, step: 4, tool: "write_file", action: "write", path: "reports/季度报告.html" },
         ],
+        commands: [],
       };
     },
     async ContextNodeDetail(seq: number, _sessionPath?: string) {
@@ -206,6 +208,69 @@ export function buildCore(s: MakeMockState): CoreMethods {
       // 观察窗的正常态（Go 不返回 error，前端按空态渲染）——mock 恒空态。
       return { available: false, url: "", title: "", image: "", width: 0, height: 0, updatedAt: 0 };
     },
+    async ContextInsights(rangeKey: string, _includeArchived: boolean) {
+      // 浏览器开发 mock：固定两份会话样卡 + 近 7 天柱图/8 周热力样点
+      // （形状与 Go BuildInsights 输出一致；洞察页走查用）。
+      const today = new Date();
+      const d = (offset: number): string => {
+        const x = new Date(today);
+        x.setDate(x.getDate() - offset);
+        return `${x.getFullYear()}-${`${x.getMonth() + 1}`.padStart(2, "0")}-${`${x.getDate()}`.padStart(2, "0")}`;
+      };
+      const days = Array.from({ length: 56 }, (_, i) => ({
+        date: d(55 - i),
+        tokens: i % 7 === 5 ? 0 : Math.round(20000 + 4000 * ((i * 37) % 11)),
+        requests: i % 7 === 5 ? 0 : 6 + ((i * 3) % 9),
+        turns: 2 + (i % 3),
+        toolCalls: i % 7 === 5 ? 0 : 8 + ((i * 5) % 13),
+        cost: i % 7 === 5 ? 0 : 0.4 + ((i * 11) % 17) / 40,
+      }));
+      const comp = { system: 2100, tools: 10400, user: 5200, skill: 3200, inject: 21900, assistant: 93400, tool: 114000 };
+      return {
+        ok: true,
+        range: rangeKey as ContextInsightsView["range"],
+        generatedAt: Math.floor(Date.now() / 1000),
+        kpi: {
+          sessions: 2, tokens: 248600, requests: 128, turns: 34,
+          toolCalls: 279, skills: 5, cost: 3.83, cacheHitPercent: 99.57,
+          toolsMs: 812000, wallMs: 1600000,
+        },
+        days,
+        skills: [
+          { name: "gbt-9704-docx", count: 3, last: Math.floor(Date.now() / 1000) - 3600 },
+          { name: "cad-takeoff", count: 2, last: Math.floor(Date.now() / 1000) - 86400 },
+        ],
+        tools: [
+          { name: "read_file", count: 96, last: Math.floor(Date.now() / 1000) - 600 },
+          { name: "bash", count: 41, last: Math.floor(Date.now() / 1000) - 1200 },
+          { name: "grep", count: 58, last: Math.floor(Date.now() / 1000) - 900 },
+        ],
+        programs: [
+          { name: "go", count: 22, last: Math.floor(Date.now() / 1000) - 1200 },
+          { name: "npm.cmd", count: 9, last: Math.floor(Date.now() / 1000) - 5400 },
+        ],
+        sessions: [
+          {
+            path: "C:\demo\.gaea\sessions\work\demo-a.jsonl",
+            title: "上下文界面升级换代", preview: "根据调研结果，拟定计划并开始",
+            spaceId: "work", modTime: Math.floor(Date.now() / 1000) - 600,
+            lastActive: Math.floor(Date.now() / 1000) - 600,
+            tokens: 248600, requests: 96, turns: 21, cost: 3.1, cacheHitPercent: 99.6,
+            composition: comp,
+          },
+          {
+            path: "C:\demo\.gaea\sessions\play\demo-b.jsonl",
+            title: "旧日志估算样例（无 usage）", preview: "迁移会话",
+            spaceId: "play", modTime: Math.floor(Date.now() / 1000) - 86400 * 3,
+            lastActive: Math.floor(Date.now() / 1000) - 86400 * 3,
+            tokens: 9000, requests: 8, turns: 4,
+            composition: { system: 900, tools: 0, user: 800, skill: 0, inject: 300, assistant: 7000, tool: 0 },
+            estimated: true,
+          },
+        ],
+        scanned: 2,
+      };
+    },
     async GaeaSubagentContextView(_sessionPath: string, _ref: string) {
       // 子代理上下文时间线（批 45 NOT_MOCKED 续刀三）：mock 无子代理持久档，
       // 恒空时间线（ok=true 空集 + 零值类目，面板空态渲染路径走查用；行形状
@@ -213,13 +278,14 @@ export function buildCore(s: MakeMockState): CoreMethods {
       return {
         ok: true,
         window: 1_000_000,
-        current: { system: 0, tools: 0, user: 0, inject: 0, assistant: 0, tool: 0 },
+        current: { system: 0, tools: 0, user: 0, skill: 0, inject: 0, assistant: 0, tool: 0 },
         stats: { turns: 0, steps: 0, injects: 0, compacts: 0, prunes: 0, toolCalls: 0, images: 0, cacheHitPercent: 0, costEstimate: 0 },
         requests: [],
         events: [],
         nodes: [],
         archive: [],
         files: [],
+        commands: [],
       };
     },
     async Trajectory(_sessionPath?: string) {
@@ -493,7 +559,7 @@ export function buildCore(s: MakeMockState): CoreMethods {
     async StopProgrammingWeb() {
       // no-op
     },
-    async ProgrammingWebLogTail(): Promise<ProgrammingWebLogTail> {
+    async ProgrammingWebLogTail(_n: number): Promise<ProgrammingWebLogTail> {
       return { exists: false, path: "", lines: [], error: "浏览器开发 mock 无日志" };
     },
     // ── v4.171 批次一 legacy 直调转正（Go CoreB，同名前缀）────────────────

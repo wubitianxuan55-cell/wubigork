@@ -1,12 +1,14 @@
 import type React from "react";
-import { BarChart3, Brain, ListTree, MessageSquare } from "../icons";
+import { BarChart3, Brain, ListTree, MessageSquare, PieChart } from "../icons";
 
 // 对话窗口上方的视图标签（dsh-context 移植，v4.17-v4.20 已完整接通）：
 // [对话] 现有 Transcript；[轨迹] 事件账本（概览/搜索/折叠/增量渲染）；
 // [上下文] 上下文构成看板（趋势/事件/文件活动/浏览器/Agent 网络）。
 // v4.72：删除「概览」tab（统计信息已由上下文页 Token/费用/会话信息卡承载）。
 // v4.73：左侧「记忆」入口迁入主区 tab（对话/轨迹/上下文/记忆）。
-export type ChatTabId = "chat" | "trajectory" | "context" | "memory";
+// v4.542 刀3：第五 tab「洞察」（跨会话 Context Insights，对标 dsh-context
+// 洞察页；会话级四 tab 之后的第一个跨会话视图）。
+export type ChatTabId = "chat" | "trajectory" | "context" | "memory" | "insights";
 
 /** 动态会话 tab（子代理独立会话，better-sidebar openSubagent 语义）。 */
 export interface ChatSessionTab {
@@ -23,6 +25,7 @@ const TABS: { id: ChatTabId; label: string; icon: typeof MessageSquare }[] = [
   { id: "trajectory", label: "轨迹", icon: ListTree },
   { id: "context", label: "上下文", icon: BarChart3 },
   { id: "memory", label: "记忆", icon: Brain },
+  { id: "insights", label: "洞察", icon: PieChart },
 ];
 
 export function ChatTabs({ active, onChange, tabs, labelOverrides, className, extraTabs, onCloseExtra }: {

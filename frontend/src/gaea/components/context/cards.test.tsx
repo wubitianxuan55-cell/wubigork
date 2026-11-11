@@ -19,7 +19,7 @@ const REQ = (seq: number, hit: number, miss: number, out: number): ContextReques
   ts: 1750000000 + seq,
   turn: 1,
   step: seq,
-  category: { system: 0, tools: 0, user: 0, inject: 0, assistant: 0, tool: 0 },
+  category: { system: 0, tools: 0, user: 0, skill: 0, inject: 0, assistant: 0, tool: 0 },
   cacheHitTokens: hit,
   cacheMissTokens: miss,
   outputTokens: out,

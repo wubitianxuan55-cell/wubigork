@@ -97,7 +97,8 @@ function Dot({ color }: { color: string }) {
 }
 
 // ─── Donut 环形（纯 SVG：circle stroke-dasharray，track 同 dsh #8080802e） ──
-function Donut({
+// v4.542 刀3 导出：洞察页构成环形复用（同源色板与轨道样式）。
+export function Donut({
   segments,
   center,
   centerSub,

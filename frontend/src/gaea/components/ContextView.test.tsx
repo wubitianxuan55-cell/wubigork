@@ -43,12 +43,12 @@ vi.mock("../lib/agentNetworkStore", () => ({
 const TIMELINE: ContextTimeline = {
   ok: true,
   window: 1_000_000,
-  current: { system: 2100, tools: 10400, user: 20, inject: 21900, assistant: 93400, tool: 114000 },
+  current: { system: 2100, tools: 10400, user: 20, skill: 0, inject: 21900, assistant: 93400, tool: 114000 },
   stats: { turns: 2, steps: 60, injects: 6, compacts: 1, prunes: 0, toolCalls: 279, images: 0, cacheHitPercent: 99.57, costEstimate: 3.83 },
   requests: [
     {
       seq: 8, ts: 1750000000, turn: 1, step: 1,
-      category: { system: 2100, tools: 10400, user: 20, inject: 21000, assistant: 1200, tool: 8000 },
+      category: { system: 2100, tools: 10400, user: 20, skill: 0, inject: 21000, assistant: 1200, tool: 8000 },
       briefUser: "grep internal/gaea/config",
       briefResp: "read internal/gaea/config/config.go",
       promptTokens: 350600, outputTokens: 93, cacheHitTokens: 350200, cacheMissTokens: 400,
@@ -69,6 +69,7 @@ const TIMELINE: ContextTimeline = {
     { seq: 5, ts: 1750000005, turn: 1, step: 1, tool: "read_file", action: "read", path: "internal/gaea/config/config.go" },
     { seq: 9, ts: 1750000009, turn: 1, step: 2, tool: "write_file", action: "write", path: "docs/结论.md" },
   ],
+  commands: [],
   // 压缩水位块（内核三阈值；缺省 0.5/0.8/0.9）——水位线/状态梯用例的数据面。
   compact: { soft: 0.5, ratio: 0.8, force: 0.9 },
 };
@@ -120,7 +121,7 @@ describe("ContextView 上下文页卡片墙（v4.71 卡片化）", () => {
     contextViewMock.mockResolvedValue({
       ...TIMELINE,
       window: 100_000,
-      current: { system: 20000, tools: 20000, user: 5000, inject: 20000, assistant: 20000, tool: 10000 },
+      current: { system: 20000, tools: 20000, user: 5000, skill: 0, inject: 20000, assistant: 20000, tool: 10000 },
     });
     const { ContextView } = await import("./ContextView");
     renderT(<ContextView running={false} />);
@@ -132,7 +133,7 @@ describe("ContextView 上下文页卡片墙（v4.71 卡片化）", () => {
       ...TIMELINE,
       window: 100_000,
       compact: undefined,
-      current: { system: 20000, tools: 20000, user: 5000, inject: 20000, assistant: 20000, tool: 10000 },
+      current: { system: 20000, tools: 20000, user: 5000, skill: 0, inject: 20000, assistant: 20000, tool: 10000 },
     });
     renderT(<ContextView running={false} />);
     expect(await screen.findByText(/上下文接近上限，建议压缩或新建会话/)).toBeTruthy();
@@ -157,7 +158,7 @@ describe("ContextView 上下文页卡片墙（v4.71 卡片化）", () => {
     contextViewMock.mockResolvedValue({
       ...TIMELINE,
       window: 100_000,
-      current: { system: 20000, tools: 20000, user: 5000, inject: 5000, assistant: 5000, tool: 5000 },
+      current: { system: 20000, tools: 20000, user: 5000, skill: 0, inject: 5000, assistant: 5000, tool: 5000 },
     });
     renderT(<ContextView running={false} />);
     expect(await screen.findByText(/上下文增长中 · 距压缩水位 ≈20k tokens/)).toBeTruthy();
@@ -166,7 +167,7 @@ describe("ContextView 上下文页卡片墙（v4.71 卡片化）", () => {
     contextViewMock.mockResolvedValue({
       ...TIMELINE,
       window: 100_000,
-      current: { system: 20000, tools: 20000, user: 5000, inject: 20000, assistant: 15000, tool: 5000 },
+      current: { system: 20000, tools: 20000, user: 5000, skill: 0, inject: 20000, assistant: 15000, tool: 5000 },
     });
     renderT(<ContextView running={false} />);
     expect(await screen.findByText(/已达压缩水位（80%）——本轮结束将触发摘要压缩/)).toBeTruthy();
@@ -176,9 +177,9 @@ describe("ContextView 上下文页卡片墙（v4.71 卡片化）", () => {
     contextViewMock.mockResolvedValue({
       ok: true,
       window: 0,
-      current: { system: 0, tools: 0, user: 0, inject: 0, assistant: 0, tool: 0 },
+      current: { system: 0, tools: 0, user: 0, skill: 0, inject: 0, assistant: 0, tool: 0 },
       stats: { turns: 0, steps: 0, injects: 0, compacts: 0, prunes: 0, toolCalls: 0, images: 0 },
-      requests: [], events: [], nodes: [], archive: [], files: [],
+      requests: [], events: [], nodes: [], archive: [], files: [], commands: [],
     });
     const { ContextView } = await import("./ContextView");
     renderT(<ContextView running={false} />);
@@ -422,6 +423,7 @@ describe("ContextView 上下文页卡片墙（v4.71 卡片化）", () => {
         { seq: 22, ts: 1750000022, turn: 1, step: 2, tool: "edit_file", action: "write", path: "docs/结论.md", added: 3, removed: 5 },
         { seq: 23, ts: 1750000023, turn: 1, step: 3, tool: "grep", action: "read", path: "internal", hits: 7 },
       ],
+      commands: [],
     };
     contextViewMock.mockResolvedValue(withFileDelta);
     // 详情 mock 按 seq 回带（校验跳转落到对应操作）

@@ -37,9 +37,9 @@ function catTotal(c: ContextCategory): number {
 
 const EMPTY: ContextTimeline = {
   ok: true, window: 0,
-  current: { system: 0, tools: 0, user: 0, inject: 0, assistant: 0, tool: 0 },
+  current: { system: 0, tools: 0, user: 0, skill: 0, inject: 0, assistant: 0, tool: 0 },
   stats: { turns: 0, steps: 0, injects: 0, compacts: 0, prunes: 0, toolCalls: 0, images: 0 },
-  requests: [], events: [], nodes: [], archive: [], files: [],
+  requests: [], events: [], nodes: [], archive: [], files: [], commands: [],
 };
 
 // ─── 当前上下文宽卡（对齐 dsh CurrentComposition：大数字+分段条含空闲+图例） ──
