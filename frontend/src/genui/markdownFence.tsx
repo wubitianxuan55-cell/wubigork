@@ -40,7 +40,17 @@ export function GenuiMarkdownFence({
   panelRender?: "block" | "chip";
 }) {
   const spec = parseGenuiFenceBody(code);
-  if (spec === null) return null;
+  if (spec === null) {
+    // guard 契约「结构不可用降级代码块」的落地：解析失败不再静默蒸发
+    // （2026-11-11 前聊天板块模型输出不合规格时围栏原地消失，用户侧表现
+    // 为「GenUI 完全不能用」）。折叠给出原文，内容可见且不打断阅读。
+    return (
+      <details className="gui-fence-fallback">
+        <summary>UI 组件未通过校验，点击查看原文</summary>
+        <pre>{code}</pre>
+      </details>
+    );
+  }
   if (spec.panel === true && panelRender === "chip") {
     return <div className="gui-panel-chip">已更新 UI 面板</div>;
   }

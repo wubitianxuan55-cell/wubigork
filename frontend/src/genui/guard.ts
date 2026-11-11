@@ -26,6 +26,7 @@ import {
   type GenuiJson,
   type GenuiKeyValue,
   type GenuiList,
+  type GenuiListRecord,
   type GenuiNode,
   type GenuiProgress,
   type GenuiQuiz,
@@ -141,6 +142,40 @@ const INPUT_TYPES = new Set(["text", "email", "password"]);
 const CHART_KINDS = new Set(["bars", "line", "donut"]);
 const TEXT_SIZES = new Set(["h1", "h2", "h3", "body", "muted", "caption"]);
 
+/**
+ * 字段名方言归一（对齐上游 dsh-genui SKILL「高频字段名混淆」口径）：
+ * title 语义字段是 label/name，desc 语义字段是 description/content/text/
+ * body/detail；canonical 字段恒优先，方言只在缺失处认领。聊天线本地模型
+ * 高频漂移（2026-11-11 实证：{"type":"timeline","items":[{label,content}]}
+ * 整块被丢 →「GenUI 完全不能用」），按上游「归一而非拒绝」的原则收敛。
+ */
+const TITLE_FIELD_ALIASES: readonly string[] = ["title", "label", "name"];
+const DESC_FIELD_ALIASES: readonly string[] = ["desc", "description", "content", "text", "body", "detail"];
+
+function firstStringField(
+  o: Record<string, unknown>,
+  fields: readonly string[],
+  cap: number,
+): string | undefined {
+  for (const f of fields) {
+    const s = optStr(o[f], cap);
+    if (s !== undefined) return s;
+  }
+  return undefined;
+}
+
+/** list 记录条目归一（上游 SKILL 口径）；无任何 title/desc 语义字段返回 null。 */
+function repairListRecord(o: Record<string, unknown>): GenuiListRecord | null {
+  const title = firstStringField(o, TITLE_FIELD_ALIASES, 500);
+  if (title !== undefined) {
+    const desc = firstStringField(o, DESC_FIELD_ALIASES, MAX.maxString);
+    return desc !== undefined ? { title, desc } : { title };
+  }
+  // 只有正文：正文用作 title（上游口径），无 desc。
+  const body = firstStringField(o, DESC_FIELD_ALIASES, 500);
+  return body !== undefined ? { title: body } : null;
+}
+
 function chartPoint(v: unknown): { label: string; value: number; color?: string } | undefined {
   const o = obj(v);
   if (!o) return undefined;
@@ -197,15 +232,19 @@ function repairNode(v: unknown, ctx: RepairCtx, depth: number): GenuiNode | null
       return n;
     }
     case "grid": {
-      const cols = int(o.cols, 1, MAX.maxGridCols);
+      // grid.columns 认领为 cols 别名（上游 SKILL「高频字段名混淆」口径）。
+      const cols = int(o.cols ?? o.columns, 1, MAX.maxGridCols);
       if (cols === undefined) return null;
       return { type: "grid", cols, items: repairChildren(o.items, ctx, depth) } as GenuiGrid;
     }
     case "card": {
+      // card.body / card.content 归一为 items（上游 SKILL 口径：归一并提示，
+      // 而非拒绝）；items 缺失时按 body → content 顺序认领数组形态。
+      const rawItems = Array.isArray(o.items) ? o.items : Array.isArray(o.body) ? o.body : o.content;
       const n: GenuiCard = {
         type: "card",
         ...(optStr(o.title) !== undefined ? { title: o.title as string } : {}),
-        items: repairChildren(o.items, ctx, depth),
+        items: repairChildren(rawItems, ctx, depth),
       };
       return n;
     }
@@ -270,8 +309,19 @@ function repairNode(v: unknown, ctx: RepairCtx, depth: number): GenuiNode | null
           const t = str(item);
           if (t !== undefined) items.push(t);
         } else {
-          const node = repairNode(item, ctx, depth + 1);
-          if (node !== null) items.push(node);
+          // 无 type 的对象按记录条目归一（上游 SKILL 口径：label/name→
+          // title、description/content/text/body/detail→desc、只有正文时
+          // 正文用作 title）；带 type 的条目不抢，仍走白名单修复。
+          const dialect = obj(item);
+          const record =
+            dialect !== null && dialect.type === undefined ? repairListRecord(dialect) : null;
+          if (record !== null) {
+            if (!take(ctx)) break;
+            items.push(record);
+          } else {
+            const node = repairNode(item, ctx, depth + 1);
+            if (node !== null) items.push(node);
+          }
         }
         if (items.length >= MAX.maxListItems || ctx.used >= MAX.maxNodes) break;
       }
@@ -309,17 +359,15 @@ function repairNode(v: unknown, ctx: RepairCtx, depth: number): GenuiNode | null
       for (const raw of o.items) {
         const p = obj(raw);
         if (!p) continue;
-        const title = str(p.title, 500);
+        // 字段方言收敛（同上游归一口径）：title/label/name、
+        // desc/description/content/text/body/detail、time/date。
+        const title = firstStringField(p, TITLE_FIELD_ALIASES, 500);
         if (title === undefined) continue;
         const item: GenuiTimeline["items"][number] = { title };
-        if (p.desc !== undefined) {
-          const d = optStr(p.desc, MAX.maxString);
-          if (d !== undefined) item.desc = d;
-        }
-        if (p.time !== undefined) {
-          const t = optStr(p.time, 200);
-          if (t !== undefined) item.time = t;
-        }
+        const d = firstStringField(p, DESC_FIELD_ALIASES, MAX.maxString);
+        if (d !== undefined) item.desc = d;
+        const t = optStr(p.time ?? p.date, 200);
+        if (t !== undefined) item.time = t;
         items.push(item);
         if (items.length >= MAX.maxTimelineItems) break;
       }
@@ -337,16 +385,20 @@ function repairNode(v: unknown, ctx: RepairCtx, depth: number): GenuiNode | null
       return n;
     }
     case "steps": {
-      if (!Array.isArray(o.steps)) return null;
+      // steps 的条目数组方言：模型常把 steps 写成 items（与单组件根同源的
+      // 漂移），steps 缺失时认领 items。
+      const rawSteps = Array.isArray(o.steps) ? o.steps : o.items;
+      if (!Array.isArray(rawSteps)) return null;
       const steps: GenuiSteps["steps"] = [];
-      for (const raw of o.steps) {
+      for (const raw of rawSteps) {
         const p = obj(raw);
         if (!p) continue;
-        const title = str(p.title, 500);
+        // 字段方言收敛（与 timeline 同族归一口径）。
+        const title = firstStringField(p, TITLE_FIELD_ALIASES, 500);
         if (title === undefined) continue;
         const step: GenuiSteps["steps"][number] = { title };
-        const desc = p.desc === undefined ? undefined : optStr(p.desc, MAX.maxString);
-        if (desc !== undefined) step.desc = desc;
+        const d = firstStringField(p, DESC_FIELD_ALIASES, MAX.maxString);
+        if (d !== undefined) step.desc = d;
         steps.push(step);
         if (steps.length >= MAX.maxSteps) break;
       }
@@ -667,9 +719,22 @@ export function repairSingleComponent(v: unknown): GenuiNode | null {
 export function repairGenuiSpec(value: unknown): GenuiSpec | null {
   const o = obj(value);
   if (!o) return null;
-  const ctx: RepairCtx = { used: 0 };
+
+  // 根带白名单 type → 整体按单组件根解释。上游口径里信封根不带 type；
+  // 根出现 type 只能是模型把组件直接当根（2026-11-11 聊天线实证：
+  // {"type":"timeline","items":[{label,content}…]} 整块被丢 →「GenUI 完全
+  // 不能用」）。单组件修复失败时再落回信封解释兜底。
+  if (typeof o.type === "string" && GENUI_NODE_TYPES.has(o.type)) {
+    const single = repairSingleComponent(o);
+    if (single !== null) {
+      // 单组件根的 title 透传为规格 banner；card 自渲染标题，双挂会重复。
+      const title = o.type !== "card" ? optStr(o.title, 500) : undefined;
+      return { items: [single], ...(title !== undefined ? { title } : {}) };
+    }
+  }
 
   if (Array.isArray(o.items)) {
+    const ctx: RepairCtx = { used: 0 };
     const items = repairChildren(o.items, ctx, 0);
     if (items.length === 0) return null;
     const spec: GenuiSpec = { items };
@@ -682,8 +747,6 @@ export function repairGenuiSpec(value: unknown): GenuiSpec | null {
     return spec;
   }
 
-  const single = repairSingleComponent(o);
-  if (single !== null) return { items: [single] };
   return null;
 }
 

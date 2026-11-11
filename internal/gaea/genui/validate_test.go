@@ -142,6 +142,8 @@ func TestValidateSpec_TabsAndAccordionRows(t *testing.T) {
 }
 
 // 反向用例：真正的节点数组里塞了缺 type 的元素，必须仍然报错（证明校验没被关掉）。
+// list.items 例外——无 type 但带 title/desc 语义字段的对象是数据行（上游
+// SKILL 口径），由 TestValidateSpec_ListRecordsAreDataRows 专测。
 func TestValidateSpec_NodeArrayStillRequiresType(t *testing.T) {
 	cases := []struct {
 		name string
@@ -151,7 +153,6 @@ func TestValidateSpec_NodeArrayStillRequiresType(t *testing.T) {
 		{"card.items", `{"items":[{"type":"card","items":[{"content":"x"}]}]}`},
 		{"tabs 行 items", `{"type":"tabs","tabs":[{"label":"A","items":[{"content":"x"}]}]}`},
 		{"accordion 行 items", `{"type":"accordion","items":[{"title":"T","items":[{"content":"x"}]}]}`},
-		{"list 对象元素", `{"type":"list","items":[{"content":"x"}]}`},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -163,6 +164,43 @@ func TestValidateSpec_NodeArrayStillRequiresType(t *testing.T) {
 				t.Fatalf("want 缺少 type 字段, got %v", r.Errors)
 			}
 		})
+	}
+}
+
+// list 记录数据行：{title,desc} 正主形态、label/content 方言、仅正文、
+// 与字符串/节点混排，全部按上游 SKILL 口径放行（guard.ts 归一消费）。
+func TestValidateSpec_ListRecordsAreDataRows(t *testing.T) {
+	cases := []string{
+		`{"type":"list","items":[{"title":"T","desc":"D"}]}`,
+		`{"type":"list","items":[{"label":"L","content":"C"}]}`,
+		`{"type":"list","items":[{"name":"N","body":"B"}]}`,
+		`{"type":"list","items":[{"content":"只有正文"}]}`,
+		`{"type":"list","items":["字符串",{"label":"L"},"又一串"]}`,
+		`{"type":"list","items":[{"title":"T"},{"type":"badge","label":"b"}]}`,
+	}
+	for _, raw := range cases {
+		r := ValidateSpec(raw)
+		if !r.OK {
+			t.Fatalf("want OK for list record %s, got %v", raw, r.Errors)
+		}
+	}
+}
+
+// 反向：无任何语义字段的对象与纯数字元素仍然报错（记录行校验没被关掉）。
+func TestValidateSpec_ListRecordStillValidated(t *testing.T) {
+	r := ValidateSpec(`{"type":"list","items":[{"foo":"x"}]}`)
+	if r.OK {
+		t.Fatal("want error for record without semantic field")
+	}
+	if !strings.Contains(strings.Join(r.Errors, "\n"), "list 数据行需要") {
+		t.Fatalf("want list 数据行 error, got %v", r.Errors)
+	}
+	r = ValidateSpec(`{"type":"list","items":[42]}`)
+	if r.OK {
+		t.Fatal("want error for non-string non-object item")
+	}
+	if !strings.Contains(strings.Join(r.Errors, "\n"), "应为 JSON 对象") {
+		t.Fatalf("want 应为 JSON 对象, got %v", r.Errors)
 	}
 }
 

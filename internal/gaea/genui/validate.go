@@ -102,10 +102,32 @@ func (v *validator) walk(path string, value any, depth int) {
 func (v *validator) walkChildren(path, typ string, obj map[string]any, depth int) {
 	switch typ {
 	case "row", "col", "grid", "card":
-		v.walkNodes(path+".items", obj["items"], depth, false)
+		v.walkNodes(path+".items", obj["items"], depth)
 	case "list":
-		// list.items 元素可为字符串或节点（spec.ts GenuiList）。
-		v.walkNodes(path+".items", obj["items"], depth, true)
+		// list.items 元素可为字符串、{title,desc} 数据行（上游 SKILL 口径，
+		// guard.ts 归一产出）或节点（spec.ts GenuiList）。
+		for i, raw := range v.arrayAt(path+".items", obj["items"]) {
+			p := fmt.Sprintf("%s.items[%d]", path, i)
+			if v.full() {
+				return
+			}
+			if _, isStr := raw.(string); isStr {
+				continue
+			}
+			row, ok := raw.(map[string]any)
+			if !ok {
+				v.add(p, "应为 JSON 对象")
+				continue
+			}
+			if _, hasType := row["type"]; hasType {
+				v.walk(p, row, depth+1)
+				continue
+			}
+			// 无 type 的对象按数据行校验：至少一个 title/desc 语义字符串字段。
+			if !genuiListRecordHasSemanticField(row) {
+				v.add(p, "list 数据行需要 title/label/name 或 desc/description/content 等语义字段")
+			}
+		}
 	case "tabs":
 		// tabs 行是数据行 {label,items}：行本身不是节点，行内 items 才是。
 		for i, raw := range v.arrayAt(path+".tabs", obj["tabs"]) {
@@ -116,7 +138,7 @@ func (v *validator) walkChildren(path, typ string, obj map[string]any, depth int
 				continue
 			}
 			v.checkStringField(p, typ, "行", "label", row)
-			v.walkNodes(p+".items", row["items"], depth, false)
+			v.walkNodes(p+".items", row["items"], depth)
 		}
 	case "accordion":
 		// accordion.items 行是数据行 {title,items}：行本身不是节点，行内 items 才是。
@@ -128,13 +150,27 @@ func (v *validator) walkChildren(path, typ string, obj map[string]any, depth int
 				continue
 			}
 			v.checkStringField(p, typ, "行", "title", row)
-			v.walkNodes(p+".items", row["items"], depth, false)
+			v.walkNodes(p+".items", row["items"], depth)
 		}
 	}
 }
 
-// walkNodes 递归一列子节点；allowString=true 时字符串元素合法（list.items）。
-func (v *validator) walkNodes(path string, value any, depth int, allowString bool) {
+// genuiListRecordHasSemanticField 判断 list 无 type 数据行是否有 title/desc
+// 语义字段（与 guard.ts TITLE_FIELD_ALIASES/DESC_FIELD_ALIASES 同源，改动
+// 两边同步）。
+func genuiListRecordHasSemanticField(row map[string]any) bool {
+	for _, f := range []string{"title", "label", "name", "desc", "description", "content", "text", "body", "detail"} {
+		if s, ok := row[f].(string); ok && s != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// walkNodes 递归一列子节点容器（row/col/grid/card/tabs 行/accordion 行）；
+// list.items 的字符串与 {title,desc} 数据行走 walkChildren 的 list 专案，
+// 不再经过这里。
+func (v *validator) walkNodes(path string, value any, depth int) {
 	arr, ok := value.([]any)
 	if !ok {
 		return // 字段缺失/类型错由 checkRequired 与 checkData 报告，此处不重复
@@ -142,11 +178,6 @@ func (v *validator) walkNodes(path string, value any, depth int, allowString boo
 	for i, child := range arr {
 		if v.full() {
 			return
-		}
-		if allowString {
-			if _, isStr := child.(string); isStr {
-				continue
-			}
 		}
 		v.walk(fmt.Sprintf("%s[%d]", path, i), child, depth+1)
 	}

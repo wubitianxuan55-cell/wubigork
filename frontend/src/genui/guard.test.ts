@@ -103,3 +103,105 @@ describe("guard.repairSingleComponent", () => {
   });
 });
 
+describe("guard.单组件根兜底与字段方言（2026-11-11 聊天板块 GenUI 不可用根修）", () => {
+  // 形状取自真实聊天史（plain 模式本地模型输出，字段名做了脱敏替换）：
+  // 模型把单个组件对象直接当围栏根，且 items 条目用 {label,content} 方言。
+
+  it("list 根 + {label,content} 方言条目 → title 进 banner、条目归一为 {title,desc} 记录", () => {
+    const spec = repairGenuiSpec({
+      type: "list",
+      title: "四个理解维度",
+      items: [
+        { label: "无常", content: "梦醒即逝。" },
+        { label: "惜时" },
+        { content: "只有正文的条目" },
+        "普通字符串条目",
+      ],
+    });
+    expect(spec).not.toBeNull();
+    expect(spec?.title).toBe("四个理解维度");
+    expect(spec?.items).toHaveLength(1);
+    const list = spec?.items[0];
+    if (list?.type !== "list") throw new Error("list expected");
+    expect(list.items).toHaveLength(4);
+    // 上游 SKILL 归一口径：label/name→title，description/content/text/body/
+    // detail→desc；只有正文时正文用作 title。
+    expect(list.items[0]).toEqual({ title: "无常", desc: "梦醒即逝。" });
+    expect(list.items[1]).toEqual({ title: "惜时" });
+    expect(list.items[2]).toEqual({ title: "只有正文的条目" });
+    expect(list.items[3]).toBe("普通字符串条目");
+  });
+
+  it("timeline 根 + {time,label,content} 方言条目 → label/content/date 认领", () => {
+    const spec = repairGenuiSpec({
+      type: "timeline",
+      title: "工作日日程",
+      items: [
+        { time: "07:00", label: "晨间唤醒", content: "起床、洗漱。" },
+        { date: "12月", label: "上映", content: "第三部。" },
+        { time: "08:00", title: "正主优先", desc: "正主描述", label: "方言标签", content: "方言描述" },
+      ],
+    });
+    expect(spec).not.toBeNull();
+    expect(spec?.title).toBe("工作日日程");
+    const timeline = spec?.items[0];
+    if (timeline?.type !== "timeline") throw new Error("timeline expected");
+    expect(timeline.items[0]).toEqual({ title: "晨间唤醒", desc: "起床、洗漱。", time: "07:00" });
+    expect(timeline.items[1]).toEqual({ title: "上映", desc: "第三部。", time: "12月" });
+    // 正主字段存在时方言不覆盖。
+    expect(timeline.items[2]).toEqual({ title: "正主优先", desc: "正主描述", time: "08:00" });
+  });
+
+  it("steps 根 + {label,content} 方言条目 → title/desc 认领", () => {
+    const spec = repairGenuiSpec({
+      type: "steps",
+      items: [
+        { label: "第一步", content: "准备。" },
+        { title: "第二步", desc: "执行。" },
+      ],
+    });
+    const steps = spec?.items[0];
+    if (steps?.type !== "steps") throw new Error("steps expected");
+    expect(steps.steps[0]).toEqual({ title: "第一步", desc: "准备。" });
+    expect(steps.steps[1]).toEqual({ title: "第二步", desc: "执行。" });
+  });
+
+  it("上游文档化别名：card.body/card.content→items、grid.columns→cols", () => {
+    const card = repairGenuiSpec({
+      type: "card",
+      title: "卡",
+      body: [{ type: "text", content: "正文" }],
+    });
+    const cardNode = card?.items[0];
+    if (cardNode?.type !== "card") throw new Error("card expected");
+    expect(cardNode.items).toHaveLength(1);
+
+    const grid = repairGenuiSpec({
+      type: "grid",
+      columns: 2,
+      items: [{ type: "divider" }],
+    });
+    const gridNode = grid?.items[0];
+    if (gridNode?.type !== "grid") throw new Error("grid expected");
+    expect(gridNode.cols).toBe(2);
+  });
+
+  it("card 根不双挂 banner（card 自渲染标题）", () => {
+    // items 条目用方言（无 type）逼迫走单组件根路径：spec.title 不重复挂，
+    // 标题留在 card 节点自身（卡体方言条目不在本刀范围，照白名单口径丢弃）。
+    const spec = repairGenuiSpec({
+      type: "card",
+      title: "卡片标题",
+      items: [{ label: "方言条目", content: "正文" }],
+    });
+    expect(spec?.title).toBeUndefined();
+    expect(spec?.items).toHaveLength(1);
+    expect(spec?.items[0]).toMatchObject({ type: "card", title: "卡片标题" });
+  });
+
+  it("items 全空且根无白名单 type → 仍 null（走降级面）", () => {
+    expect(repairGenuiSpec({ title: "无名", items: [{ label: "x", content: "y" }] })).toBeNull();
+    expect(repairGenuiSpec({ items: [] })).toBeNull();
+  });
+});
+

@@ -33,6 +33,36 @@ describe("聊天 markdown 缝渲染 GenUI", () => {
     expect(screen.getByText("小看板")).toBeTruthy();
     expect(screen.getByText("¥128k")).toBeTruthy();
   });
+
+  it("不合规格的围栏不再静默蒸发：降级为可展开原文（2026-11-11 根修）", () => {
+    // guard.ts 契约「结构不可用降级代码块」的落地断言：解析失败渲染折叠
+    // details，内容可见，而非什么都没有。
+    const broken = '```genui\n{"title":"废规格","items":[{"label":"无名无型"}]}\n```';
+    render(
+      <GenuiScopeProvider scope={{ scope: "chat", sessionKey: "t4" }}>
+        <ChatMarkdown text={`前后文\n${broken}\n后文`} genuiKey="m4" />
+      </GenuiScopeProvider>,
+    );
+    const details = document.querySelector("details.gui-fence-fallback");
+    expect(details).toBeTruthy();
+    expect(details?.textContent).toContain("废规格");
+    expect(screen.getByText("前后文")).toBeTruthy();
+  });
+
+  it("真实方言形状（单组件根 + label/content 条目）在聊天缝渲染为组件", () => {
+    // 聊天史实测高频输出形状（2026-11-11 前整块蒸发，修复后按上游归一口径出卡）。
+    const dialect =
+      '```genui\n{"type":"list","title":"四个维度","items":[{"label":"无常","content":"梦醒即逝。"}]}\n```';
+    render(
+      <GenuiScopeProvider scope={{ scope: "chat", sessionKey: "t5" }}>
+        <ChatMarkdown text={`拆解如下\n${dialect}`} genuiKey="m5" />
+      </GenuiScopeProvider>,
+    );
+    expect(screen.getByText("四个维度")).toBeTruthy();
+    expect(screen.getByText("无常")).toBeTruthy();
+    expect(screen.getByText("梦醒即逝。")).toBeTruthy();
+    expect(document.querySelector(".gui-list-record")).toBeTruthy();
+  });
 });
 
 describe("聊天线代码块语法高亮（懒加载缝）", () => {

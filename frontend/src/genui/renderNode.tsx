@@ -180,7 +180,17 @@ function ListNode({ node, depth }: { node: GenuiList; depth: number }) {
     <ul className="gui-list">
       {node.items.map((item, i) => (
         <li key={i} className="gui-list-item">
-          {typeof item === "string" ? item : renderNode(item, depth + 1)}
+          {typeof item === "string" ? (
+            item
+          ) : "type" in item ? (
+            renderNode(item, depth + 1)
+          ) : (
+            // {title,desc} 记录条目（上游 dsh-genui SKILL 口径，guard 归一产出）。
+            <div className="gui-list-record">
+              <div className="gui-list-record-title">{item.title}</div>
+              {item.desc !== undefined && <div className="gui-list-record-desc">{item.desc}</div>}
+            </div>
+          )}
         </li>
       ))}
     </ul>

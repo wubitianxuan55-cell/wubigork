@@ -91,9 +91,18 @@ export interface GenuiKeyValue {
   type: "keyvalue";
   pairs: { key: string; value: string }[];
 }
+/**
+ * list 记录条目（上游 dsh-genui SKILL 口径）：字符串与带 type 节点之外，
+ * list.items 还收 {title,desc} 记录；guard 负责把 label/name 等
+ * title 语义字段与 description/content 等 desc 语义字段归一成本形态。
+ */
+export interface GenuiListRecord {
+  title: string;
+  desc?: string;
+}
 export interface GenuiList {
   type: "list";
-  items: (string | GenuiNode)[];
+  items: (string | GenuiListRecord | GenuiNode)[];
 }
 export interface GenuiTable {
   type: "table";
