@@ -1,3 +1,26 @@
+## WHIRL 推理引擎接入（第三受管本地引擎，v4.536.0 装机）· 2026-11-11（晚）
+
+- **承接**：用户线「搜索更适合本机的推理引擎」——调研对擂（WHIRL 同文件
+  1.82x 碾压 llama Vulkan）→模型盲测（生产 uncensored 6:4 Ornith，边缘面
+  定局换模型被否）→张量手术（whirlfix2=仅 2 BF16 router→F32 位级无损，
+  你的模型 @ WHIRL **102.57 tok/s=生产 1.91x**，双引擎全验）→本批 gaea
+  代码面接入。
+- **刀1 Go**：`whirl_proc.go`（8126，单档 qwen35_whirl=whirlfix2+mmproj，
+  exe-spawn 照 qwen35/strata 模板）；engine.go 四处注册；散落名单六处
+  （catalog/idle/preflight/handler/schedule/vision）；**thinking 通道=
+  漏斗层缺省关**（applyWhirlThinkingDefault 顶层 enable_thinking=false，
+  防 strata 同款「正文被默认推理烧空」）；`whirl_path` config 五链。
+- **刀2 绑定+前端**：gen_bindings 四连（720 方法）；`MANAGED_ENGINE_IDS`
+  收敛常量（判定面六处统一）；**tianxuan 前端残留 8 处清理**（含
+  RuntimePage 夹具 tianxuan→strata 迁移）；mock 三方法诚实空态；语言包×3。
+- **门禁**：Go 定向包全绿+whirl_proc_test 七用例（含 llama 档位反误认）；
+  引擎数断言 8→9 四处；全量 vitest 4262+ 全绿；tsc 0；drift 检查 720
+  一致；三源版本 4.536.0；build+smoke+装机 PID 34236。
+- **现场**：WHIRL 安装位 `C:\AI\whirl`；Ornith 19.8GB 按用户令删除；
+  whirlfix2 与原件并存（llama 8124 不动）；**真机四关挂用户目检**
+  （WHIRL 卡/chat 绑定拉起 ~100 tok/s/@图 vision/idle 收割）。
+- **文件记录**：`docs/gaea-day-log-2026-11-11.md`（续批节）。
+
 ## 代码面卫生小批：knip 尾款清零+天璇退役漏网收口 · 2026-11-11
 
 - **承接**：11-10 晚自主批收官后用户令「继续优化完善 gaea」；拍板池余项

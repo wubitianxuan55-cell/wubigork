@@ -145,6 +145,8 @@ const (
 	KeyTianxuanPath = "tianxuan_path"
 	// strata 独立引擎工作区：gaea 只引用该路径下的 serve/server.py 与档位配置。
 	KeyStrataPath = "strata_path"
+	// whirl 引擎安装目录：gaea 只引用该路径下的 whirl-server.exe（DLL 同驻）。
+	KeyWhirlPath = "whirl_path"
 	// 实时语音 Realtime 档（S1，internal/realtime seam）：provider/model/key
 	// 三项落盘。provider 空字符串 = 未配置（实时语音档关闭，走现拼接管线）；
 	// 非空只允许 "openai"。realtime_api_key 存储口径 = secure.EncryptString
@@ -180,3 +182,6 @@ const DefaultTianxuanPath = `C:\AI\tianxuan`
 
 // strata 引擎独立工作区默认值（repo 根，内含 .venv / serve / 档位 JSON）。
 const DefaultStrataPath = `C:\AI\strata\repo`
+
+// whirl 引擎安装目录默认值（whirl-server.exe 与 ROCm 运行库 DLL 同驻）。
+const DefaultWhirlPath = `C:\AI\whirl`

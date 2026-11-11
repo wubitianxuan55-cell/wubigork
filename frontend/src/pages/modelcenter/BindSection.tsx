@@ -8,7 +8,7 @@ import { app } from '../../gaea/lib/bridge'
 import { SectionHead, StatusChip, type StatusTone } from './ui'
 import {
   engineLabel, FEATURES, featureState, featureStateMeta,
-  modelOptionsForEngine, routeSourceLabel, visionSourceLabel,
+  isManagedEngineId, modelOptionsForEngine, routeSourceLabel, visionSourceLabel,
 } from './utils'
 import { useModelCenterActions, useModelCenterState } from './context'
 
@@ -82,9 +82,9 @@ export function BindSection() {
   // 时自动拉取一次，否则模型下拉是空的。
   const autoRefreshModels = (engineId: string) => {
     const eng = engines.find(e => e.id === engineId)
-    // 天璇/Strata 是单模型进程：切档后 /v1/models 会变，选中时必须重拉；
-    // 其它引擎仍只在空清单时自动拉一次，避免每次切换都打接口。
-    const managed = engineId === 'strata' || engineId === 'tianxuan'
+    // 受管本地引擎（strata/llama/whirl）是单模型进程：切档后 /v1/models 会变，
+    // 选中时必须重拉；其它引擎仍只在空清单时自动拉一次，避免每次切换都打接口。
+    const managed = isManagedEngineId(engineId)
     if (eng?.enabled && (managed || !(eng.models?.length))) void handleRefreshModels?.(engineId)
   }
 
@@ -101,7 +101,7 @@ export function BindSection() {
           const cur = featureCfg[f.key]
           const draft = featureDraft[f.key] || { engine: '', model: '' }
           const engineModelOptions = modelOptionsForEngine(draft.engine || '', llmModels, draft.model)
-          const managedSingleModel = draft.engine === 'strata' || draft.engine === 'tianxuan'
+          const managedSingleModel = isManagedEngineId(draft.engine)
           const managedStopped = managedSingleModel && engineStatuses?.[draft.engine]?.connected === false
           const bound = !!cur?.engine && !!cur?.model
           const enabled = featureEnabled[f.key] !== false

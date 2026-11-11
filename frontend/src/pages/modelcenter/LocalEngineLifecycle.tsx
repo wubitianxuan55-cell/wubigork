@@ -9,9 +9,11 @@ import {
   type ManagedEngineStopResult,
   getLlamaEngineStatus,
   stopLlamaEngine,
+  getWhirlEngineStatus,
+  stopWhirlEngine,
 } from '../../api/engines'
 
-type ManagedEngineID = 'strata' | 'llama'
+type ManagedEngineID = 'strata' | 'llama' | 'whirl'
 
 interface LifecycleAPI {
   fallbackProfiles: EngineProfileOption[]
@@ -35,6 +37,13 @@ const API: Record<ManagedEngineID, LifecycleAPI> = {
     ],
     status: getLlamaEngineStatus,
     stop: stopLlamaEngine,
+  },
+  whirl: {
+    fallbackProfiles: [
+      { id: 'qwen35_whirl', label: 'qwen3.6-35b-a3b-mtp（WHIRL）' },
+    ],
+    status: getWhirlEngineStatus,
+    stop: stopWhirlEngine,
   },
 }
 

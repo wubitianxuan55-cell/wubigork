@@ -151,6 +151,7 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 	KeyComfyUIPythonPath: func(cf *configFile, v string) error { cf.ComfyUIPythonPath = v; return nil },
 	KeyTianxuanPath:      func(cf *configFile, v string) error { cf.TianxuanPath = v; return nil },
 	KeyStrataPath:        func(cf *configFile, v string) error { cf.StrataPath = v; return nil },
+	KeyWhirlPath:         func(cf *configFile, v string) error { cf.WhirlPath = v; return nil },
 	KeyTTSPort: func(cf *configFile, v string) error {
 		n, err := strconv.Atoi(v)
 		if err != nil {

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Button, Input } from 'antd'
 import { CaretRightOutlined, CheckCircleOutlined, LoadingOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { EmptyState, ModelCard, SectionHead, StatusChip } from './ui'
-import { capLabels, engineColor, engineLabel, filterModelsBySearch, formatCtx, formatPrice, glmAliasNote, modelAvailability, sortModelsPinnedFirst } from './utils'
+import { capLabels, engineColor, engineLabel, filterModelsBySearch, formatCtx, formatPrice, glmAliasNote, isManagedEngineId, modelAvailability, sortModelsPinnedFirst } from './utils'
 import { useModelCenterActions, useModelCenterState } from './context'
 import { usePinnedModels } from './modelPrefs'
 
@@ -64,7 +64,7 @@ export function LLMSection() {
           if (engineModels.length === 0) return null
           const color = engineColor(engine)
           const status = engineStatuses[engine.id]
-          const managedEngine = engine.id === 'strata' || engine.id === 'tianxuan'
+          const managedEngine = isManagedEngineId(engine.id)
           return (
             <div key={engine.id} className="mc-engine-group">
               <div className="mc-engine-group-head">
@@ -107,8 +107,9 @@ export function LLMSection() {
               <div className="mc-grid">
                 {engineModels.map(card => {
                   const active = isModelActive(card)
-                  // 天璇/Strata 的模型目录在引擎未运行时依然可启动（启动模型会
-                  // 拉起/切换引擎），不能像云端引擎那样按 disconnected 全禁用。
+                  // 受管本地引擎（strata/llama/whirl）的模型目录在引擎未运行时
+                  // 依然可启动（启动模型会拉起/切换引擎），不能像云端引擎那样
+                  // 按 disconnected 全禁用。
                   const avail = managedEngine
                     ? (engine.enabled ? (card.status === 'running' ? 'ready' : 'stopped') : 'disabled')
                     : modelAvailability(card, engine.enabled, status?.connected)

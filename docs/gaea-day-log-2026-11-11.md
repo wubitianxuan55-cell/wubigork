@@ -1,9 +1,11 @@
-# 当日总账（2026-11-11）：knip 尾款清零+天璇退役漏网收口（代码面卫生小批）
+# 当日总账（2026-11-11）：knip 尾款清零+天璇退役漏网收口（代码面卫生小批）＋ WHIRL 推理引擎接入（v4.536.0）
 
 > 承接 2026-11-10 晚自主批（空间契约漂移刀+装机+代码图谱全清）后，用户令
 > 「继续优化完善 gaea」。拍板池盘点余项全卡用户输入（沙箱实弹五面/A-B 评测/
 > 语音 tap 撤除/V5 拍板等），按可自主验证面推进：九月 v4.179 批挂账的
 > **knip Unused exports 169 项三态甄别**欠账 + 顺带收口天璇退役漏网。
+> 晚间续批：**WHIRL 引擎对擂→模型能力盲测→张量手术→gaea 接入全链收官**
+>（用户令「搜索 radiance/更适合本机的推理引擎」起线，详见下篇）。
 
 ## 盘点结论：169 项已被后续批次自然排干
 
@@ -61,3 +63,84 @@
 - CI race linux 6 例平台化刀仍挂（gh 未装+API 不可达，远端无法核对，
   不盲动）。
 - 代码图谱预览壳与 5231 dev server 仍留树待用户真机目检。
+
+---
+
+# 续批（晚间）：WHIRL 推理引擎接入 gaea（v4.536.0）
+
+> 用户线「搜索更适合本机的推理引擎」三段收官：①调研对擂（WHIRL 0.2.5.1
+> 同文件 1.82x 碾压 llama Vulkan：Ornith 104.07 vs 57.32 tok/s，纯内核
+> plain 85=1.48x）②模型能力盲测（生产 uncensored 6:4 Ornith，**边缘面
+> uncensored 独赢**——Ornith 拒答暴力+软化成人，换模型路线被否）③张量
+> 手术（753 张量仅 2 个 BF16 router 不兼容，BF16→F32 位级无损+顺序重排
+> 终版 whirlfix2，双引擎全验，**你的模型 @ WHIRL 102.57 tok/s=生产
+> llama 53.75 的 1.91x**）。本批=④gaea 代码面接入。
+
+## 刀1 Go 侧（第三受管本地引擎，端口 8126）
+
+- **新建 `internal/app/whirl_proc.go`**（照 qwen35_proc.go exe-spawn+
+  strata_proc.go 结构）：单档位 `qwen35_whirl`（whirlfix2.gguf+mmproj，
+> `--alias` 稳定 ID，`--balance -np 1`，mmproj 缺失降级跳过）；
+  whirlEnsure 幂等拉起（端口预占→bin/GGUF stat→detachedCmd+voiceV2Spawn
+  →setWithJob→300s 就绪轮询）；WhirlEngineStart/Stop/Status 三绑定面。
+- **engine.go 四处注册**：EngineWhirl 常量（端口注释表+8126）/IsLocal/
+  BuiltinEngineTypeOf/NewManager order+种子（BaseURL 8126/v1、免鉴权）。
+- **散落名单六处**：managedEngineSpec/catalog、idle 收割目标表
+  （registered 四道闸）、chat preflight case "whirl"（绑定按需拉起）、
+  model_engine_handler managed 分支（顺清 tianxuan 残留两名）、
+  gaea_schedule 换模预估、gaea_vision chat-follow（mmproj 在载）。
+- **thinking 通道**（WHIRL 服务端对 qwen35moe 模板缺省开思考，对齐 llama
+  生产语义缺省关）：漏斗层 `applyWhirlThinkingDefault`（ChatStream/chatOnce
+  两漏斗，未表态→顶层 enable_thinking=false，保护手装短预算请求不被默认
+  推理烧空——strata「偶尔正文几个字」教训的对称防线）；prepareStreamRequest
+  whirl 分支（显式开才开+预算守护）；bridge case "whirl"（DSH 工具循环开
+  思考+守护）。通道口径=官方 server.md §4（顶层 enable_thinking 有效，与
+  strata 的 ctk-only 相反）。
+- **novel_sampler**：whirl 与 strata 同入 DRY/XTC 排除名单（非标键不发）。
+- **config 链五处**：`whirl_path` 键（默认 `C:\AI\whirl`，whirl-server.exe
+  与 ROCm 运行库 DLL 同驻）照 strata_path 全链（keys/load/types/save/shelf）。
+
+## 刀2 绑定与前端
+
+- gen_bindings：explicitOverrides 三名→model 板块；四连再生（720 方法，
+  +3）；bindingNames.ts 手工对账补三条（-names 只打印不写文件）。
+- 前端：engines.ts type 联合+三 wrapper；**新收敛常量
+  `MANAGED_ENGINE_IDS=['strata','llama','whirl']`**（utils.tsx），判定面
+  六处统一引用（EngineCard/LocalEngineLifecycle/LLMSection/BindSection/
+  useEngineState×2）——防第四处 `=== 'xxx' ||` 链再造退役漏网。
+- **tianxuan 前端残留清理**（上批漏网 8 处）：LLMSection/BindSection 判定、
+  RuntimePage×5（snapshot 键/遥测候选/本地卡/文案）、mock RuntimeMonitor。
+  遥测夹具载体 tianxuan→strata 迁移（Go 侧 runtime_monitor 早已只发 strata）。
+- mock：Whirl 三方法恒「未运行」诚实空态（照 Qwen35 形态）+
+  LegacyWhirlEngineMethods 类型面；语言包 offlineDesc 名单×3 加 WHIRL。
+
+## 门禁
+
+- Go：`go build ./...` 绿；定向包全绿（app 126s/modelengine/ai/bridge/
+  config），新增 whirl_proc_test.go 七用例（形状/空档位拒绝/未知档位/
+  路径解析/启动命令契约/profile 归一化含 llama 档位反误认/目录接线对账）；
+  引擎数断言 8→9 四处；离线停用名单两测试加 whirl；whirlProfileFromModels
+  剥 .gguf 后缀（WHIRL served id 无后缀，llama 有）。
+- 前端：tsc -b 0；**全量 vitest 4262+ 全绿**（exit 0）；RuntimePage 夹具
+  迁移+useEngineState 定时器 4→5；check-bindings-drift OK（720 一致）。
+- 版本三源 sync-version.ps1 → **4.536.0**；npm build+wails build（ucrt64
+  铁律；坑=unset TMP 致 wails 0xc0000135，须设系统默认值非清空）+smoke
+  /api/health 200+装机 `C:\AI\gaea-app`（PID 34236）。
+
+## 装机与现场
+
+- WHIRL 引擎本机安装位 `C:\AI\whirl`（whirl-bakeoff 验证目录迁移，版本
+  0.2.5.1，Adrenalin 驱动直驱免 ROCm）；Ornith 19.8GB 已按用户令删除
+  （C 盘回血）；模型 `whirlfix2.gguf` 与原件并存于统一模型根（llama 8124
+  不动，两引擎并存按需拉起）。
+- **真机四关挂用户目检**：①模型中心 WHIRL 卡探活/停止 ②chat 绑定
+  qwen35_whirl→首请求拉起→实测 ~100 tok/s ③@图片 vision ④idle 5 分钟
+  收割+gaea 退出进程不残留（Job Object 兜底）。
+
+## 遗留
+
+- WHIRL /health 遥测（VRAM 快照形态≠/metrics）未接 RuntimePage——与 llama
+  同等未接，后续另议。
+- flash-next 68GB 档是否可载 WHIRL（IQ4_XS K-quant 理论可载）未测——
+  strata flash 档现役无迁移压力。
+- 引擎对擂/盲测/手术全记录在本会话记忆档（WHIRL 线）。

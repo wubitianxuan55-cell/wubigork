@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 717 名（原生变参 7 名已收窄标注）。
+// 共 720 名（原生变参 7 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -479,6 +479,8 @@ export const bindingSignatures = {
   GetOutlines: { argc: 0, variadic: false, params: "" },
   GetPortraitConfig: { argc: 0, variadic: false, params: "" },
   GetPreloadPlan: { argc: 0, variadic: false, params: "" },
+  GetProgrammingWebPreflight: { argc: 0, variadic: false, params: "" },
+  GetProgrammingWebStatus: { argc: 0, variadic: false, params: "" },
   GetProjectInfo: { argc: 0, variadic: false, params: "" },
   GetSensitiveLocal: { argc: 0, variadic: false, params: "" },
   GetSinImageConfig: { argc: 0, variadic: false, params: "" },
@@ -595,6 +597,7 @@ export const bindingSignatures = {
   PantheonSkipAgent: { argc: 2, variadic: false, params: "id string, agentID string" },
   PantheonStart: { argc: 1, variadic: false, params: "req pantheon.StartRequest" },
   PantheonWorkspaces: { argc: 0, variadic: false, params: "" },
+  ProgrammingWebLogTail: { argc: 1, variadic: false, params: "n int" },
   PromptBundleExport: { argc: 0, variadic: false, params: "" },
   PromptBundleImport: { argc: 1, variadic: false, params: "bundleJSON string" },
   PromptTemplateGet: { argc: 1, variadic: false, params: "key string" },
@@ -604,6 +607,9 @@ export const bindingSignatures = {
   PromptTemplateSave: { argc: 2, variadic: false, params: "key string, reqJSON string" },
   QuantSuitability: { argc: 1, variadic: false, params: "model string" },
   QuickBrainstormBranches: { argc: 4, variadic: false, params: "setting string, prevSummary string, charactersJSON string, chapterNum int" },
+  Qwen35EngineStart: { argc: 1, variadic: false, params: "profile string" },
+  Qwen35EngineStatus: { argc: 0, variadic: false, params: "" },
+  Qwen35EngineStop: { argc: 0, variadic: false, params: "" },
   RefreshEngineModels: { argc: 1, variadic: false, params: "engineID string" },
   RemoveCharacterCareer: { argc: 2, variadic: false, params: "charID string, reqJSON string" },
   RemoveCustomEngine: { argc: 1, variadic: false, params: "engineID string" },
@@ -679,7 +685,9 @@ export const bindingSignatures = {
   SinTrajectory: { argc: 1, variadic: false, params: "topicID string" },
   StartComfyUI: { argc: 0, variadic: false, params: "" },
   StartLocalTTSService: { argc: 1, variadic: false, params: "engineID string" },
+  StartProgrammingWeb: { argc: 0, variadic: false, params: "" },
   StopComfyUI: { argc: 0, variadic: false, params: "" },
+  StopProgrammingWeb: { argc: 0, variadic: false, params: "" },
   StrataEngineStart: { argc: 1, variadic: false, params: "profile string" },
   StrataEngineStatus: { argc: 0, variadic: false, params: "" },
   StrataEngineStop: { argc: 0, variadic: false, params: "" },
@@ -695,28 +703,28 @@ export const bindingSignatures = {
   UpdateCustomEngine: { argc: 4, variadic: false, params: "engineID string, name string, baseURL string, apiKey string" },
   UpdateProjectMeta: { argc: 4, variadic: false, params: "title string, genre string, style string, mature string" },
   VisionRoute: { argc: 0, variadic: false, params: "" },
-  WebSearchSettingsGet: { argc: 0, variadic: false, params: "" },
-  WebSearchSettingsSet: { argc: 3, variadic: false, params: "tavilyKey string, braveKey string, searxngURL string" },
-  WebSearchTestConnection: { argc: 0, variadic: false, params: "" },
   VoiceApplySettings: { argc: 1, variadic: false, params: "settings map[string]interface{}" },
   VoiceGetSettings: { argc: 0, variadic: false, params: "" },
   VoiceHealth: { argc: 0, variadic: false, params: "" },
+  VoiceV2AbortTurn: { argc: 1, variadic: false, params: "itemID string" },
   VoiceV2CommitTurn: { argc: 5, variadic: false, params: "topicID string, userText string, assistantText string, responseID string, itemID string" },
   VoiceV2Ensure: { argc: 0, variadic: false, params: "" },
+  VoiceV2ExecuteAction: { argc: 2, variadic: false, params: "previewID string, intentHash string" },
+  VoiceV2PreviewIntent: { argc: 1, variadic: false, params: "userText string" },
   VoiceV2Status: { argc: 0, variadic: false, params: "" },
   VoiceV2Stop: { argc: 0, variadic: false, params: "" },
-  Qwen35EngineStart: { argc: 1, variadic: false, params: "profile string" },
-  Qwen35EngineStatus: { argc: 0, variadic: false, params: "" },
-  Qwen35EngineStop: { argc: 0, variadic: false, params: "" },
-  VoiceV2AbortTurn: { argc: 1, variadic: false, params: "itemID string" },
-  VoiceV2PreviewIntent: { argc: 1, variadic: false, params: "userText string" },
-  VoiceV2ExecuteAction: { argc: 2, variadic: false, params: "previewID string, intentHash string" },
   WarmComfyUI: { argc: 0, variadic: false, params: "" },
+  WebSearchSettingsGet: { argc: 0, variadic: false, params: "" },
+  WebSearchSettingsSet: { argc: 3, variadic: false, params: "tavilyKey string, braveKey string, searxngURL string" },
+  WebSearchTestConnection: { argc: 0, variadic: false, params: "" },
   WeixinReminderAdd: { argc: 2, variadic: false, params: "text string, fireAtRFC3339 string" },
   WeixinReminderConfig: { argc: 0, variadic: false, params: "" },
   WeixinReminderDelete: { argc: 1, variadic: false, params: "id string" },
   WeixinReminderList: { argc: 0, variadic: false, params: "" },
   WeixinReminderSetConfig: { argc: 1, variadic: false, params: "cfgJSON string" },
+  WhirlEngineStart: { argc: 1, variadic: false, params: "profile string" },
+  WhirlEngineStatus: { argc: 0, variadic: false, params: "" },
+  WhirlEngineStop: { argc: 0, variadic: false, params: "" },
   WhisperAssistantDelete: { argc: 1, variadic: false, params: "id string" },
   WhisperAssistantList: { argc: 0, variadic: false, params: "" },
   WhisperAssistantSave: { argc: 1, variadic: false, params: "ast assistant.Assistant" },
@@ -733,7 +741,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 717。
-// 2026-11-05 顺手修既有漂移：V1 语音退役批删 8 个签名（710→709…→709）未同步
-// 本 count（契约红 HEAD 态即红，v4.532.0 后遗留）。
-export const bindingSignatureCount = 712;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 720。
+export const bindingSignatureCount = 720;

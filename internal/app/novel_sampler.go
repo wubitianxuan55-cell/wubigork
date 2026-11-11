@@ -95,7 +95,7 @@ func samplerAppliesToEngine(engineMgr *modelengine.Manager, engineID string) boo
 		return false
 	}
 	switch eng.Type {
-	case modelengine.EngineStrata:
+	case modelengine.EngineStrata, modelengine.EngineWhirl:
 		return false
 	}
 	return eng.Type.IsLocal()

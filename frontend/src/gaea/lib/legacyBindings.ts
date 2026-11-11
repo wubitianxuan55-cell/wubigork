@@ -11,7 +11,7 @@
 // 消费方：frontend/src/gaea/lib/bridge/drift.ts——LegacySurfaceNames 类型派生 +
 // 「不过期/不重叠」两把编译期锁（手改、漏再生、与 AppBindings 认领重叠都会红）。
 //
-// 共 85 名 = Go 导出 724 − 认领且 Go 存在 639（facets 键 640，其中 mock-only 名无 Go 绑定不计）。
+// 共 80 名 = Go 导出 720 − 认领且 Go 存在 640（facets 键 641，其中 mock-only 名无 Go 绑定不计）。
 
 export const legacyBindings = [
   "AddCustomEngine",
@@ -87,10 +87,11 @@ export const legacyBindings = [
   "StrataEngineStop",
   "StrataModelStart",
   "StrataModelStop",
-  // "TTSSpeakStreaming" 已认领 shared（M5 刀一执行回执朗读，bridge/voice.ts），
-  // 按重叠锁 FE4-04 摘出 legacy 清单。
   "TestEngineConnection",
   "UpdateCustomEngine",
   "UpdateProjectMeta", // v4.439 项目元信息更新（小说创作间本书定位；wailsApp 直调 legacy 面）
   "VisionRoute",
+  "WhirlEngineStart",
+  "WhirlEngineStatus",
+  "WhirlEngineStop",
 ] as const;

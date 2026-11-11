@@ -70,6 +70,13 @@ func (p *Provider) Stream(ctx context.Context, req provider.Request) (<-chan pro
 		// （天璇真机实测同通道），故只发 ctk。
 		creq.ChatTemplateKwargs = map[string]any{"enable_thinking": true}
 		creq.MaxTokens = ai.ClampThinkingMaxTokens(creq.MaxTokens)
+	case "whirl":
+		// WHIRL：办公智能体多轮工具循环与 herdsman/strata 同款要思考；通道
+		// 与 strata 相反——顶层 enable_thinking 有效（官方 server.md §4），
+		// 无需 ctk。共享预算未知，按同款守护抬高（宁保守）。
+		t := true
+		creq.EnableThinking = &t
+		creq.MaxTokens = ai.ClampThinkingMaxTokens(creq.MaxTokens)
 	}
 	raw, err := p.client.ChatStream(ctx, creq)
 	if err != nil {

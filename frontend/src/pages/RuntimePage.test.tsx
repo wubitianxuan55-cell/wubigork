@@ -45,24 +45,15 @@ const SNAPSHOT = {
       ],
     },
     {
-      id: 'tianxuan',
-      name: '天璇 Tianxuan',
-      type: 'tianxuan',
+      id: 'strata',
+      name: 'Strata',
+      type: 'strata',
       local: true,
       enabled: true,
       connected: true,
       latency_ms: 8,
       default_model: 'qwen3.8-flash-next-uncensored',
       models: [{ id: 'qwen3.8-flash-next-uncensored', kind: 'llm', status: 'running' }],
-    },
-    {
-      id: 'strata',
-      name: 'Strata',
-      type: 'strata',
-      local: true,
-      enabled: false,
-      connected: false,
-      models: [],
     },
     {
       id: 'xai',
@@ -75,7 +66,7 @@ const SNAPSHOT = {
       models: [],
     },
   ],
-  tianxuan: {
+  strata: {
     live: {
       state: 'generating',
       queued: 0,
@@ -125,10 +116,9 @@ const SNAPSHOT = {
       prompt_tokens: 16384,
     },
   },
-  strata: null,
   recent_calls: [
     {
-      engine_id: 'tianxuan',
+      engine_id: 'strata',
       model: 'qwen3.8-flash-next-uncensored',
       feature: 'gaea',
       input_tokens: 1520,
@@ -218,7 +208,7 @@ const CALL_STATS = {
 
 const PER_MODEL_STATS = [
   {
-    engine_id: 'tianxuan',
+    engine_id: 'strata',
     model: 'qwen3.8-flash-next-uncensored',
     call_count: 80,
     success_count: 80,
@@ -423,7 +413,6 @@ describe('RuntimePage 运行监测', () => {
       system: {},
       engines: [],
       strata: null,
-      tianxuan: null,
       recent_calls: [],
       totals: {},
     })

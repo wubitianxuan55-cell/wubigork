@@ -884,7 +884,7 @@ export const zh: Record<DictKey, string> = {
   "settings.security.officeDesc": "办公板块的功能级 AI 调用（Word/Excel 编辑、资料摘要、知识导入、记忆整理）默认路由本地 Herdsman：数据不出本机、不烧 token；关闭后按常规路由可回云端。",
   "settings.security.officeScope": "聊天主 agent（统筹规划）不受此开关影响，仍按模型中心绑定走。Herdsman 引擎停用或不可用时自动回退常规路由。",
   "settings.security.offlineTitle": "全局离线模式",
-  "settings.security.offlineDesc": "数据不出本机的总闸：开启后所有 AI 路由只允许本地引擎（Herdsman/Strata/Llama），云端引擎（Grok/DeepSeek/OpenCode Go）一律跳过；无本地可用时按「模型不可用」如实降级。",
+  "settings.security.offlineDesc": "数据不出本机的总闸：开启后所有 AI 路由只允许本地引擎（Herdsman/Strata/Llama/WHIRL），云端引擎（Grok/DeepSeek/OpenCode Go）一律跳过；无本地可用时按「模型不可用」如实降级。",
   "settings.security.offlineOn": "仅本地（离线）",
   "settings.security.offlineOff": "关闭（默认）",
   "settings.security.offlineNote": "与「敏感域/办公本地优先」叠加生效：那两个开关只约束各自功能域，本开关约束全部 AI 调用（含意图 LLM 兜底）。",

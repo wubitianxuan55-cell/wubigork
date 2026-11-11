@@ -88,6 +88,15 @@ func (a *App) managedIdleTargets() []managedIdleTarget {
 			stop: func() { _ = a.StrataEngineStop() },
 		},
 		{
+			id:         "whirl",
+			registered: a.whirlProc.registered,
+			probe: func() bool {
+				_, ok := whirlProbe()
+				return ok
+			},
+			stop: func() { _ = a.WhirlEngineStop() },
+		},
+		{
 			id:         "comfyui",
 			registered: a.comfyProcRefRegistered,
 			probe:      a.isComfyUIRunning,

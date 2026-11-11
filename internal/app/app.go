@@ -319,6 +319,8 @@ type App struct {
 	strataProc    localEngineProc
 	llamaProc     localEngineProc
 	llamaEnsureMu sync.Mutex
+	whirlProc     localEngineProc
+	whirlEnsureMu sync.Mutex
 
 	// intentClassifierFn 意图 LLM 兜底分类 seam（v4.8，测试注入点；nil=内置 LLM 分类器）。
 	intentClassifierFn func(text string) *intent.Intent

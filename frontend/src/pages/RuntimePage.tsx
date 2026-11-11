@@ -116,7 +116,6 @@ interface MonitorSnapshot {
   comfy_running?: boolean
   engines?: EngineRow[]
   strata?: EngineMetrics | null
-  tianxuan?: EngineMetrics | null
   recent_calls?: RecentCall[]
   totals?: {
     total_calls?: number
@@ -203,8 +202,7 @@ function pct(value: number): string {
 }
 
 function pickEngineMetrics(snap: MonitorSnapshot): EngineMetrics | null {
-  const candidate = [snap.tianxuan, snap.strata].find((item): item is EngineMetrics => !!item && !!item.live)
-  return candidate ?? null
+  return snap.strata?.live ? snap.strata : null
 }
 
 function overallState(snap: MonitorSnapshot): {
@@ -212,7 +210,7 @@ function overallState(snap: MonitorSnapshot): {
   tone: 'ok' | 'busy' | 'off'
   tokS: number | null
 } {
-  for (const metrics of [snap.tianxuan, snap.strata]) {
+  for (const metrics of [snap.strata]) {
     if (metrics?.live?.state === 'generating' || metrics?.live?.state === 'reading') {
       return {
         label: LIVE_STATE_LABEL[metrics.live.state] ?? metrics.live.state,
@@ -1090,10 +1088,10 @@ export default function RuntimePage() {
   ], [])
 
   const localEngineCards = useMemo(
-    () => ['herdsman', 'tianxuan', 'strata', 'breeze'].map((id) => ({
+    () => ['herdsman', 'strata', 'breeze'].map((id) => ({
       id,
       row: engines.find((engine) => engine.id === id),
-      metrics: id === 'tianxuan' ? snap?.tianxuan : id === 'strata' ? snap?.strata : null,
+      metrics: id === 'strata' ? snap?.strata : null,
     })),
     [engines, snap],
   )
@@ -1567,7 +1565,7 @@ export default function RuntimePage() {
             <h2 id="rt-engine-request-title">引擎侧请求</h2>
             <p>
               {em
-                ? `${em === snap?.tianxuan ? '天璇' : 'Strata'} 引擎 /metrics 的最近完成请求，用于核对 Prompt、PreFill、Decode 与缓存。`
+                ? 'Strata 引擎 /metrics 的最近完成请求，用于核对 Prompt、PreFill、Decode 与缓存。'
                 : '当前没有可用的引擎侧请求遥测。'}
             </p>
           </div>

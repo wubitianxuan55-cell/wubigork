@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { CloudOutlined, DesktopOutlined, GlobalOutlined, KeyOutlined, RocketOutlined } from '@ant-design/icons'
+import { CloudOutlined, DesktopOutlined, GlobalOutlined, KeyOutlined, RocketOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import type { EngineConfig, ModelInfo } from '../../api/engines'
 
 /** 左 rail 分类（2026-10-27 瘦身重组：13 tab 温和合并为 9——
@@ -149,13 +149,13 @@ export const hasPointsCoef = (meta?: ModelMeta): boolean =>
   !!meta && (meta.points_in != null || meta.points_cached != null || meta.points_out != null)
 
 export const engineIcons: Record<string, ReactNode> = {
-  xai: <CloudOutlined />, herdsman: <RocketOutlined />, deepseek: <KeyOutlined />, glm: <KeyOutlined />, 'opencode-go': <GlobalOutlined />, strata: <DesktopOutlined />, llama: <DesktopOutlined />, custom: <GlobalOutlined />,
+  xai: <CloudOutlined />, herdsman: <RocketOutlined />, deepseek: <KeyOutlined />, glm: <KeyOutlined />, 'opencode-go': <GlobalOutlined />, strata: <DesktopOutlined />, llama: <DesktopOutlined />, whirl: <ThunderboltOutlined />, custom: <GlobalOutlined />,
 }
 export const engineColors: Record<string, string> = {
-  xai: '#60a5fa', herdsman: '#84cc16', deepseek: '#8b5cf6', glm: '#38bdf8', 'opencode-go': '#22d3ee', strata: '#34d399', llama: '#22d3ee', custom: '#94a3b8', // hex-exempt 引擎品牌识别色（模型中心身份色板）
+  xai: '#60a5fa', herdsman: '#84cc16', deepseek: '#8b5cf6', glm: '#38bdf8', 'opencode-go': '#22d3ee', strata: '#34d399', llama: '#22d3ee', whirl: '#f59e0b', custom: '#94a3b8', // hex-exempt 引擎品牌识别色（模型中心身份色板）
 }
 export const engineLabels: Record<string, string> = {
-  xai: 'xAI 云端', herdsman: 'Herdsman 本地', deepseek: 'DeepSeek 云端', glm: 'GLM 云端', 'opencode-go': 'OpenCode Go 云端', breeze: 'Breeze-TTS 本地', strata: 'Strata 本地', llama: 'Llama 本地', custom: '自定义 OpenAI 兼容',
+  xai: 'xAI 云端', herdsman: 'Herdsman 本地', deepseek: 'DeepSeek 云端', glm: 'GLM 云端', 'opencode-go': 'OpenCode Go 云端', breeze: 'Breeze-TTS 本地', strata: 'Strata 本地', llama: 'Llama 本地', whirl: 'WHIRL 本地', custom: '自定义 OpenAI 兼容',
 }
 
 // ── 自定义引擎（A 刀：OpenAI 兼容自定义服务商，type=custom / id=custom-*） ──
@@ -391,7 +391,13 @@ export const fmtCompact = (v: number): string => {
   if (v >= 1e3) return `${(v / 1e3).toFixed(1)}k`
   return `${Math.round(v)}`
 }
-export const isLocalEngine = (id: string) => id === 'herdsman' || id === 'breeze' || id === 'strata' || id === 'llama'
+export const isLocalEngine = (id: string) => id === 'herdsman' || id === 'breeze' || id === 'strata' || id === 'llama' || id === 'whirl'
+
+// 受管本地引擎（gaea 代启代停、按需拉起一族）。散落判定统一引此常量，
+// 防止「=== 'xxx' ||」链再造天璇退役漏网（2026-11-11 knip 批教训）。
+export const MANAGED_ENGINE_IDS = ['strata', 'llama', 'whirl'] as const
+export const isManagedEngineId = (id: string): boolean =>
+  (MANAGED_ENGINE_IDS as readonly string[]).includes(id)
 export const costToCNY = (cost: number, currency?: string, rate: number = USD_TO_CNY) => (currency === 'USD' ? cost * rate : cost)
 
 // 本地 TTS 引擎的服务端音色兜底：CosyVoice2 4 个内置音色（中文女/男、英文女/男）

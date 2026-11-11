@@ -105,7 +105,9 @@ type ChatSimpleOptions struct {
 	// 只有带用户可见思考开关的调用方需要置位（聊天页/轻语人格的 thinking 开关）。
 	// 两个字段都为零值 = 调用方未表态，由引擎缺省决定：
 	//   - herdsman：缺省关，EnableThinking 显式开；
-	//   - strata：缺省开（思考原生引擎），DisableThinking 显式关。
+	//   - strata：缺省开（思考原生引擎），DisableThinking 显式关；
+	//   - whirl：缺省关（服务端默认开，由漏斗层顶层 enable_thinking=false
+	//     显式关），EnableThinking 显式开。
 	// 缺了「关」侧，strata 这种服务端默认开思考的引擎就无法被用户关掉——
 	// 界面上思考开关会变成空钮，推理照跑、预算照烧。
 	DisableThinking bool

@@ -134,8 +134,8 @@ func TestAddCustomEngine_RejectsInvalidInput(t *testing.T) {
 			t.Errorf("[%s] 应被拒绝（name=%q baseURL=%q）", tc.nm, tc.name, tc.baseURL)
 		}
 	}
-	if es := m.GetEngines(); len(es) != 8 {
-		t.Errorf("全部拒绝后引擎数量 = %d, want 8（未产生半成品引擎）", len(es))
+	if es := m.GetEngines(); len(es) != 9 {
+		t.Errorf("全部拒绝后引擎数量 = %d, want 9（未产生半成品引擎）", len(es))
 	}
 }
 

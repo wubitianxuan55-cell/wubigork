@@ -282,12 +282,15 @@ var explicitOverrides = map[string]string{
 	"GetActiveModel":         "model",
 	"GetEngineStatus":        "model",
 	"GetModelCatalog":        "model",
-	// 外部本地引擎进程生命周期（strata_proc.go，外部项目引用族；天璇已退役）。
+	// 外部本地引擎进程生命周期（strata_proc.go / whirl_proc.go）。
 	"StrataEngineStart":         "model",
 	"StrataEngineStatus":        "model",
 	"StrataEngineStop":          "model",
 	"StrataModelStart":          "model",
 	"StrataModelStop":           "model",
+	"WhirlEngineStart":          "model",
+	"WhirlEngineStatus":         "model",
+	"WhirlEngineStop":           "model",
 	"Startup":                   "core",
 	"Shutdown":                  "core",
 	"SetDistFS":                 "core",

@@ -92,6 +92,8 @@ func loadDefaults(home string) *Config {
 		TianxuanPath: DefaultTianxuanPath,
 		// strata 保持上游 repo 目录；gaea 只引用其 serve 入口与档位 JSON。
 		StrataPath: DefaultStrataPath,
+		// whirl 安装目录（whirl-server.exe + DLL）。
+		WhirlPath: DefaultWhirlPath,
 	}
 }
 
@@ -258,6 +260,9 @@ func applyConfigFile(cfg *Config, home string) {
 			}
 			if cf.StrataPath != "" {
 				cfg.StrataPath = cf.StrataPath
+			}
+			if cf.WhirlPath != "" {
+				cfg.WhirlPath = cf.WhirlPath
 			}
 			if cf.TTSPort != 0 {
 				cfg.TTSPort = cf.TTSPort

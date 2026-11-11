@@ -104,7 +104,7 @@ func (c *core) visionChatFollowRoute() (engine, model, source string, ok bool) {
 		return "", "", "", false
 	}
 	switch chatEng {
-	case "llama", "strata":
+	case "llama", "strata", "whirl":
 		e, okE := c.engineMgr.GetEngine(chatEng)
 		if !okE || !e.Enabled {
 			return "", "", "", false

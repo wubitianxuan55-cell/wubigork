@@ -130,6 +130,32 @@ func (a *App) ensureChatBindingEngine(engineID, model string) error {
 			detail = "未知启动错误"
 		}
 		return fmt.Errorf("%s", detail)
+
+	case "whirl":
+		profile, ok := managedProfileForModel(whirlProfiles, model)
+		if !ok {
+			return fmt.Errorf("模型 %s 不在 WHIRL 档位目录", model)
+		}
+		result := a.WhirlEngineStart(profile.ID)
+		if started, _ := result["started"].(bool); started {
+			return nil
+		}
+		reason := strings.TrimSpace(fmt.Sprint(result["reason"]))
+		if reason == "already-running" {
+			active := strings.TrimSpace(fmt.Sprint(result["profile"]))
+			if active == "" || active == profile.ID {
+				return nil
+			}
+			return fmt.Errorf("WHIRL 正在运行其它档位 %s", active)
+		}
+		detail := strings.TrimSpace(fmt.Sprint(result["error"]))
+		if detail == "" {
+			detail = reason
+		}
+		if detail == "" {
+			detail = "未知启动错误"
+		}
+		return fmt.Errorf("%s", detail)
 	}
 
 	// 云端与按需加载引擎（herdsman）沿用各自既有连接/加载链。

@@ -90,8 +90,8 @@ func TestGetEngine_StripsAPIKey(t *testing.T) {
 func TestGetEngines_CountAndKeys(t *testing.T) {
 	m := NewManager("", "")
 	es := m.GetEngines()
-	if len(es) != 8 {
-		t.Fatalf("GetEngines 数量 = %d, want 8", len(es))
+	if len(es) != 9 {
+		t.Fatalf("GetEngines 数量 = %d, want 9", len(es))
 	}
 	for _, e := range es {
 		if e.APIKey != "" {

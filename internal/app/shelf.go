@@ -256,6 +256,7 @@ var cfgMemSetters = map[string]func(*config.Config, string) error{
 	config.KeyComfyUIPythonPath:    setStr(func(cfg *config.Config, v string) { cfg.ComfyUIPythonPath = v }),
 	config.KeyTianxuanPath:         setStr(func(cfg *config.Config, v string) { cfg.TianxuanPath = v }),
 	config.KeyStrataPath:           setStr(func(cfg *config.Config, v string) { cfg.StrataPath = v }),
+	config.KeyWhirlPath:            setStr(func(cfg *config.Config, v string) { cfg.WhirlPath = v }),
 	config.KeyActiveEngineID:       setStr(func(cfg *config.Config, v string) { cfg.ActiveEngineID = v }),
 	config.KeyDeepseekAPIKey:       setStr(func(cfg *config.Config, v string) { cfg.DeepseekAPIKey = v }),
 	config.KeyOpencodeGoAPIKey:     setStr(func(cfg *config.Config, v string) { cfg.OpenCodeGoAPIKey = v }),

@@ -35,15 +35,16 @@ func engineProfileJSON(profiles []engineProfileOption) []map[string]string {
 type engineProfileOption struct {
 	ID            string `json:"id"`
 	Label         string `json:"label"`
-	Config        string `json:"-"` // Strata 档位 JSON（llama/天璇为空）
+	Config        string `json:"-"` // Strata 档位 JSON（llama/whirl 为空）
 	ModelID       string `json:"-"` // 该档位实际服务的模型 id（目录/请求路由用）
-	ModelDir      string `json:"-"` // llama 档位模型目录（相对统一模型根）
-	ModelFile     string `json:"-"` // llama 档位 GGUF 文件名
+	ModelDir      string `json:"-"` // llama/whirl 档位模型目录（相对统一模型根）
+	ModelFile     string `json:"-"` // llama/whirl 档位 GGUF 文件名
 	ChatTemplate  string `json:"-"` // llama 档位可选 chat template 文件
 	DraftModel    string `json:"-"` // llama 档位可选推测解码 draft/MTP GGUF
 	SpecType      string `json:"-"` // llama 档位推测解码类型（如 draft-mtp）
 	SpecDraftNMax int    `json:"-"` // llama 档位单步最大 draft 数
 	CtxSize       int    `json:"-"` // llama 档位上下文窗口
+	MMProj        string `json:"-"` // whirl 档位可选 vision 编码器 GGUF（文件缺失时降级跳过）
 }
 
 func managedCatalogModels(profiles []engineProfileOption, served []string, activeProfile string) []modelengine.ModelInfo {
@@ -97,6 +98,9 @@ func managedEngineSpec(engineID string) ([]engineProfileOption, []string, bool) 
 	case "llama":
 		served, ok := llamaProbe()
 		return llamaProfiles, served, ok
+	case "whirl":
+		served, ok := whirlProbe()
+		return whirlProfiles, served, ok
 	}
 	return nil, nil, false
 }
@@ -107,6 +111,8 @@ func managedEngineProfileFromModels(engineID string, served []string) string {
 		return strataProfileFromModels(served)
 	case "llama":
 		return llamaProfileFromModels(served)
+	case "whirl":
+		return whirlProfileFromModels(served)
 	}
 	return ""
 }

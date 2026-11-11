@@ -125,6 +125,8 @@ type configFile struct {
 	TianxuanPath string `json:"tianxuan_path,omitempty"`
 	// strata 独立引擎项目根目录（.venv / serve / 档位 JSON 均在此目录）。
 	StrataPath   string `json:"strata_path,omitempty"`
+	// whirl 引擎安装目录（whirl-server.exe 与运行库 DLL 同驻）。
+	WhirlPath    string `json:"whirl_path,omitempty"`
 	VoiceBackend string `json:"voice_backend,omitempty"`
 }
 type Config struct {
@@ -185,6 +187,8 @@ type Config struct {
 	TianxuanPath string
 	// strata 独立引擎项目根目录（C:\AI\strata\repo）。
 	StrataPath string
+	// whirl 引擎安装目录（C:\AI\whirl）。
+	WhirlPath string
 
 	// 活跃模型引擎 ID（"xai" | "herdsman" | "deepseek" 等）
 	ActiveEngineID string

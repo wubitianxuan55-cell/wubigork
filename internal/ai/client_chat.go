@@ -98,6 +98,7 @@ func (c *Client) chatOnce(ctx context.Context, req *ChatRequest) (*ChatResponse,
 	// 非流式同漏斗兜底：Chat 与 ChatStream 各自是手装 ChatRequest 的两个入口，
 	// 两条都要过预算守护（同 applyThinkingBudgetGuard 注释）。
 	c.applyThinkingBudgetGuard(req, reqEngine)
+	c.applyWhirlThinkingDefault(req, reqEngine)
 
 	body, err := json.Marshal(req)
 	if err != nil {
@@ -340,6 +341,30 @@ func (c *Client) applyThinkingBudgetGuard(req *ChatRequest, engineID string) {
 	req.MaxTokens = ClampThinkingMaxTokens(req.MaxTokens)
 }
 
+// applyWhirlThinkingDefault WHIRL 引擎的思考缺省兜底，落在 ChatStream/chatOnce
+// 漏斗上（与 applyThinkingBudgetGuard 同点位）：WHIRL 服务端对 qwen35moe 模板
+// 缺省开思考（官方 server.md §4），gaea 对齐 llama 生产语义（--reasoning off）
+// ——请求未显式表态时顶层 enable_thinking=false（官方有效通道），保护所有
+// 手装 ChatRequest 的调用路径不被默认推理吃掉正文预算。显式表态
+// （EnableThinking / chat_template_kwargs）的请求原样放行。
+func (c *Client) applyWhirlThinkingDefault(req *ChatRequest, engineID string) {
+	if req == nil || c.engineMgr == nil {
+		return
+	}
+	eng, ok := c.engineMgr.GetEngine(engineID)
+	if !ok || eng.Type != modelengine.EngineWhirl {
+		return
+	}
+	if req.EnableThinking != nil {
+		return
+	}
+	if _, ok := req.ChatTemplateKwargs["enable_thinking"]; ok {
+		return
+	}
+	f := false
+	req.EnableThinking = &f
+}
+
 // prepareStreamRequest 装配一轮流式请求：模型名兜底、default 采样、
 // Qwen3 系思考预算守护。ChatStreamChunks 与 ChatStreamMessages 共用同一份实现。
 //
@@ -417,6 +442,20 @@ func (c *Client) prepareStreamRequest(model string, messages []ChatMessage, opts
 		wantThinking := !opts.DisableThinking
 		req.ChatTemplateKwargs = map[string]any{"enable_thinking": wantThinking}
 		clampThinkingBudget(req, wantThinking)
+
+	case engType == modelengine.EngineWhirl:
+		// WHIRL：服务端对 qwen35moe 模板缺省开思考，gaea 对齐 llama 生产
+		// 语义——缺省关；显式开走顶层 enable_thinking（官方 server.md §4
+		// 有效通道，与 strata 的 ctk-only 相反）并加共享预算守护。手装
+		// ChatSimple 之外的路径由漏斗层 applyWhirlThinkingDefault 兜底。
+		if wantThinking := opts.EnableThinking && !opts.DisableThinking; wantThinking {
+			t := true
+			req.EnableThinking = &t
+			clampThinkingBudget(req, true)
+		} else {
+			f := false
+			req.EnableThinking = &f
+		}
 
 	case opts.EnableThinking:
 		if reqEngine == "herdsman" {

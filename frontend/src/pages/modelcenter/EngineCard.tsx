@@ -5,13 +5,13 @@
 import { useState, type CSSProperties } from 'react'
 import { Button, Input, Popconfirm, Segmented, Space, Switch } from 'antd'
 import { StatusChip } from './ui'
-import { engineColor, engineIcon, engineLabel, glmEndpointFamily, isCustomEngine, kindOf } from './utils'
+import { engineColor, engineIcon, engineLabel, glmEndpointFamily, isCustomEngine, isManagedEngineId, kindOf } from './utils'
 import type { EngineConfig } from '../../api/engines'
 import { useModelCenterActions, useModelCenterState } from './context'
 import { LocalEngineLifecycle } from './LocalEngineLifecycle'
 import { EditCustomEngineForm, type EnginePrices } from './CustomEngineForm'
 
-const isManagedEngine = (id: string) => id === 'strata' || id === 'llama'
+const isManagedEngine = isManagedEngineId
 
 export function EngineCard({ engine, editingCustom, savedPrice, onToggleEdit, onPriceSaved }: {
   engine: EngineConfig
@@ -144,10 +144,10 @@ export function EngineCard({ engine, editingCustom, savedPrice, onToggleEdit, on
           >
             测试连接
           </Button>
-          {(engine.id === 'strata' || engine.id === 'llama') && (
+          {isManagedEngine(engine.id) && (
             <LocalEngineLifecycle
-              engineId={engine.id}
-              name={engine.id === 'llama' ? 'Llama' : 'Strata'}
+              engineId={engine.id as 'strata' | 'llama' | 'whirl'}
+              name={engine.id === 'llama' ? 'Llama' : engine.id === 'whirl' ? 'WHIRL' : 'Strata'}
               onRunningChange={(running) => {
                 setManagedRunning(prev => prev === running ? prev : running)
               }}

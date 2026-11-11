@@ -57,6 +57,12 @@ const (
 	// 全链（3.32s/4.61s）。语音（voice_chat_llm=qwen35 网关直代）与聊天板块
 	// （功能绑定/自定义路由）共用。与 herdsman 实例可共存（双 35B 驻留实测）。
 	EngineLlama EngineType = "llama"
+	// EngineWhirl 本地 WHIRL 推理引擎（2026-11-11 对擂接入）：Windows 原生
+	// C++/HIP（Apache-2.0，装机 C:\AI\whirl），OpenAI 兼容 /v1 免鉴权，形态
+	// 与 llama-server 同构。同机 8060S 实测跑同一 35B（whirlfix2 张量手术版）
+	// MTP 解码 102.57 tok/s = llama Vulkan+MTP 53.75 的 1.91x。默认端口 8126
+	// （8080 herdsman / 8091 strata / 8124 llama / 8188 comfyui）。
+	EngineWhirl EngineType = "whirl"
 )
 
 // GLM 官方双端点（docs.bigmodel.cn coding-plan/quick-start）：标准=按量付费，
@@ -72,7 +78,7 @@ const (
 // 云端（xai/deepseek/opencode-go）一律跳过。
 func (t EngineType) IsLocal() bool {
 	switch t {
-	case EngineHerdsman, EngineBreeze, EngineStrata, EngineLlama:
+	case EngineHerdsman, EngineBreeze, EngineStrata, EngineLlama, EngineWhirl:
 		return true
 	}
 	return false
@@ -106,6 +112,8 @@ func BuiltinEngineTypeOf(id string) EngineType {
 		return EngineStrata
 	case "llama":
 		return EngineLlama
+	case "whirl":
+		return EngineWhirl
 	}
 	return ""
 }
@@ -209,7 +217,7 @@ type Manager struct {
 func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 	m := &Manager{
 		engines:     make(map[string]*EngineConfig),
-		order:       []string{"xai", "herdsman", "deepseek", "glm", "breeze", "strata", "llama", "opencode-go"},
+		order:       []string{"xai", "herdsman", "deepseek", "glm", "breeze", "strata", "llama", "whirl", "opencode-go"},
 		xaiKey:      xaiAPIKey,
 		deepseekKey: deepseekKey,
 		customKeys:  make(map[string]string),
@@ -320,6 +328,20 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 		// 自管 llama-server（uocr2-llama 构建，Qwen35EngineStart 拉起）：
 		// 档位目录含 Qwen3.6-35B MTP 与 Gemma 4 26B-A4B QAT+MTP。
 		// 模型清单由 syncManagedEngineCatalog 按运行态回写。
+	}
+	m.engines["whirl"] = &EngineConfig{
+		ID:      "whirl",
+		Name:    "WHIRL",
+		Type:    EngineWhirl,
+		Label:   "WHIRL 本地",
+		Color:   "#f59e0b",
+		Icon:    "desktop",
+		IsLocal: true,
+		BaseURL: "http://127.0.0.1:8126/v1",
+		Enabled: true,
+		// 自管 whirl-server（Windows HIP 推理，C:\AI\whirl，WhirlEngineStart
+		// 拉起）：档位目录 qwen35_whirl 服务 35B whirlfix2（与 llama 同一模型
+		// 的双引擎兼容版）。模型清单由 syncManagedEngineCatalog 按运行态回写。
 	}
 
 	return m

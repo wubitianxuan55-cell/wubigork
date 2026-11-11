@@ -150,7 +150,7 @@ type ModelMethods = Pick<
   // 路由学习四名（阶段七 7.1-2，ModelB 门面）：账本/建议/采纳/忽略。
   | "GaeaRouteLedger" | "GaeaRouteSuggestions" | "GaeaRouteSuggestionApply" | "GaeaRouteSuggestionIgnore"
 > & LegacyModelMethods & LegacyHerdsmanMethods & LegacyBenchmarkMethods &
-  LegacyOpencodeKeyMethods & LegacyQwen35EngineMethods;
+  LegacyOpencodeKeyMethods & LegacyQwen35EngineMethods & LegacyWhirlEngineMethods;
 
 // HerdsmanCatalogModel 本地视图（对齐 internal/app/herdsman_catalog.go 的 json
 // 字段；mock 层不 import Go 侧，字段漂移由 mock-contract-herdsman 兜底）。
@@ -268,6 +268,16 @@ type LegacyQwen35EngineMethods = {
     binPath: string; binReady: boolean; healthCheck: string;
   }>;
   Qwen35EngineStop(): Promise<{ stopped: boolean }>;
+};
+
+// 自管 WHIRL 引擎（legacy 直调族，同 Qwen35 形态）：恒「未运行」诚实空态。
+type LegacyWhirlEngineMethods = {
+  WhirlEngineStart(profile: string): Promise<{ running: boolean; started: boolean }>;
+  WhirlEngineStatus(): Promise<{
+    running: boolean; port: number; modelPath: string; modelReady: boolean;
+    binPath: string; binReady: boolean;
+  }>;
+  WhirlEngineStop(): Promise<{ stopped: boolean }>;
 };
 
 // 脱敏口径对齐 internal/app/model_engine_handler.go maskKeyStatus：
@@ -543,7 +553,6 @@ export function buildModel(s: MakeMockState): ModelMethods {
         comfy_running: false,
         engines: [],
         strata: null,
-        tianxuan: null,
         recent_calls: [],
         totals: {},
       };
@@ -573,6 +582,24 @@ export function buildModel(s: MakeMockState): ModelMethods {
       };
     },
     async Qwen35EngineStop() {
+      return { stopped: false };
+    },
+    // ── WHIRL 自管引擎（legacy 直调族）：浏览器 mock 无进程可管，恒回
+    // 「未运行」诚实空态（与 Qwen35 三方法同款）。
+    async WhirlEngineStart(_profile: string) {
+      return { running: false, started: false };
+    },
+    async WhirlEngineStatus() {
+      return {
+        running: false,
+        port: 8126,
+        modelPath: "",
+        modelReady: false,
+        binPath: "",
+        binReady: false,
+      };
+    },
+    async WhirlEngineStop() {
       return { stopped: false };
     },
   };

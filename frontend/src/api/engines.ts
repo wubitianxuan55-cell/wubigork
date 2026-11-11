@@ -36,7 +36,9 @@ export interface EngineConfig {
   // custom = 用户自建 OpenAI 兼容服务商（A 刀），id 以 custom- 开头
   // strata = 本地 Strata 推理引擎（默认 127.0.0.1:8091/v1，
   // 免鉴权；离线模式按本地引擎放行；档位目录现仅 uncensored 一档）
-  type: 'xai' | 'herdsman' | 'deepseek' | 'glm' | 'breeze' | 'opencode-go' | 'custom' | 'strata' | 'llama'
+  // whirl = 本地 WHIRL 推理引擎（Windows HIP，127.0.0.1:8126/v1，免鉴权；
+  // 档位 qwen35_whirl 服务 35B whirlfix2，与 llama 同模型的 1.91x 快路径）
+  type: 'xai' | 'herdsman' | 'deepseek' | 'glm' | 'breeze' | 'opencode-go' | 'custom' | 'strata' | 'llama' | 'whirl'
   label?: string
   color?: string
   icon?: string
@@ -446,6 +448,29 @@ export async function startStrataEngine(profile: string): Promise<ManagedEngineS
 export async function stopStrataEngine(): Promise<ManagedEngineStopResult> {
   const result = await App().StrataEngineStop()
   return result as ManagedEngineStopResult
+}
+
+// ── 自管 WHIRL 引擎（8126，Windows HIP 推理；档位 qwen35_whirl） ──
+export type WhirlEngineStatusResult = ManagedEngineStatusResult
+export type WhirlEngineStartResult = ManagedEngineStartResult
+export type WhirlEngineStopResult = ManagedEngineStopResult
+
+/** WHIRL 引擎运行状态（8126 /v1/models 探活 + gguf/bin 在位诊断） */
+export async function getWhirlEngineStatus(): Promise<WhirlEngineStatusResult> {
+  const result = await App().WhirlEngineStatus()
+  return result as WhirlEngineStatusResult
+}
+
+/** 启动 WHIRL 指定档位（现阶段仅 qwen35_whirl 一档；幂等） */
+export async function startWhirlEngine(profile: string): Promise<WhirlEngineStartResult> {
+  const result = await App().WhirlEngineStart(profile)
+  return result as WhirlEngineStartResult
+}
+
+/** 停止 WHIRL 引擎（不管谁启动的都能停） */
+export async function stopWhirlEngine(): Promise<WhirlEngineStopResult> {
+  const result = await App().WhirlEngineStop()
+  return result as WhirlEngineStopResult
 }
 
 /** 获取所有引擎配置 */

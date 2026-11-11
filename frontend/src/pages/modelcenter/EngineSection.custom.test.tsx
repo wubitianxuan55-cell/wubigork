@@ -36,6 +36,9 @@ vi.mock('../../api/engines', () => ({
   getStrataEngineStatus: vi.fn(async () => ({ running: false })),
   startStrataEngine: vi.fn(async () => ({ started: false, reason: 'already-running' })),
   stopStrataEngine: vi.fn(async () => ({ stopped: true })),
+  getWhirlEngineStatus: vi.fn(async () => ({ running: false })),
+  startWhirlEngine: vi.fn(async () => ({ started: false, reason: 'already-running' })),
+  stopWhirlEngine: vi.fn(async () => ({ stopped: true })),
 }))
 const mSaveEngine = vi.mocked(saveEngine)
 const mStartStrata = vi.mocked(startStrataEngine)
@@ -60,6 +63,10 @@ const ENGINES: EngineConfig[] = [
   {
     id: 'strata', name: 'Strata', type: 'strata',
     base_url: 'http://127.0.0.1:8091/v1', enabled: true, default_model: '', models: [],
+  },
+  {
+    id: 'whirl', name: 'WHIRL', type: 'whirl',
+    base_url: 'http://127.0.0.1:8126/v1', enabled: true, default_model: '', models: [],
   },
 ]
 

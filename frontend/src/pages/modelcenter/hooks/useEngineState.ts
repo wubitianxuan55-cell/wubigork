@@ -22,7 +22,7 @@ import {
   addCustomEngine, updateCustomEngine, removeCustomEngine,
   type EngineConfig, type EngineStatus,
 } from '../../../api/engines'
-import { kindOf, engineLabel, modelMeta, type Category, type ModelCardData } from '../utils'
+import { isManagedEngineId, kindOf, engineLabel, modelMeta, type Category, type ModelCardData } from '../utils'
 
 export interface EngineState {
   loading: boolean
@@ -134,7 +134,7 @@ export function useEngineState(category: Category): EngineState {
   // 返回时序号不匹配即丢弃（不触发 loadAll，避免旧结果覆盖新分类视图）。
   const refreshLocalModels = useCallback(async () => {
     const seq = ++refreshSeq.current
-    await Promise.allSettled(['herdsman', 'breeze', 'strata', 'llama'].map(id => refreshEngineModels(id)))
+    await Promise.allSettled(['herdsman', 'breeze', 'strata', 'llama', 'whirl'].map(id => refreshEngineModels(id)))
     if (seq !== refreshSeq.current) return // 过期刷新结果：切分类后已作废，丢弃
     await loadAll()
   }, [loadAll])
@@ -170,7 +170,7 @@ export function useEngineState(category: Category): EngineState {
       setEngines(prev => prev.map(e => e.id === card.engineId ? { ...e, default_model: card.modelId } : e))
       setActiveModel(card.modelId)
       message.success(
-        card.engineId === 'llama' || card.engineId === 'strata'
+        isManagedEngineId(card.engineId)
           ? `已绑定${card.modelName}，首次使用将按需启动`
           : `已启动${card.modelName}`,
       )

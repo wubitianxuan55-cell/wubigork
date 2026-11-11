@@ -324,7 +324,7 @@ func estimateUnknown(out ModelSwitchEstimate, note string) ModelSwitchEstimate {
 func (a *App) GaeaModelSwitchEstimate(engineID, model string) ModelSwitchEstimate {
 	out := ModelSwitchEstimate{Engine: engineID, Model: model}
 	switch engineID {
-	case "herdsman", "strata", "llama":
+	case "herdsman", "strata", "llama", "whirl":
 		// 本地引擎：往下按目标模型查加载态
 	default:
 		out.Status = "hot"
@@ -349,7 +349,7 @@ func (a *App) GaeaModelSwitchEstimate(engineID, model string) ModelSwitchEstimat
 	switch engineID {
 	case "herdsman":
 		return a.estimateHerdsmanModelSwitch(model, out)
-	case "strata", "llama":
+	case "strata", "llama", "whirl":
 		return a.estimateStrataModelSwitch(model, out)
 	default:
 		return estimateUnknown(out, "该引擎暂不支持切换预估")
