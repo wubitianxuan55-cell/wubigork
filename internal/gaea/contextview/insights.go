@@ -18,6 +18,9 @@ const (
 	Insights7d    = "7d"
 	Insights30d   = "30d"
 	InsightsAll   = "all"
+	// InsightsCustomPrefix 是自定义日期范围前缀（custom:起:止，含止日全天；
+	// 1:1 对齐上游日期范围选择器）。
+	InsightsCustomPrefix = "custom:"
 )
 
 // maxInsightTallies 是三统计行的展示上限（按次数取 Top）。
@@ -54,6 +57,18 @@ type InsightsKpi struct {
 	CacheHitPercent float64 `json:"cacheHitPercent,omitempty"`
 	ToolsMs         int64   `json:"toolsMs,omitempty"`
 	WallMs          int64   `json:"wallMs,omitempty"`
+	// 1:1 补齐（对标上游 KPI 卡副行）：Archived=归档会话数、Billed=已计价
+	// 会话数（有 usage 的）、Calls=模型调用次数、ToolMsNote 同 ToolsMs。
+	Archived int `json:"archived,omitempty"`
+	Billed   int `json:"billed,omitempty"`
+	Calls    int `json:"calls,omitempty"`
+	Steps    int `json:"steps,omitempty"`
+	// Token 统计卡三拆合计（模型思考/回复/调用参数——1:1 对齐上游 Token
+	// Stats 的 Reasoning/Answers 行；Tool Calls 行=tool+callArgs 由前端并）。
+	AssistantReasoning int64 `json:"assistantReasoning,omitempty"`
+	AssistantAnswers   int64 `json:"assistantAnswers,omitempty"`
+	AssistantCallArgs  int64 `json:"assistantCallArgs,omitempty"`
+	OutputTokens       int64 `json:"outputTokens,omitempty"`
 	// EstimatedTokens 是无 usage 提供方的估算构成合计（诚实分列，不混入
 	// 计费 Tokens——两口径混排会让「计费」失真）。
 	EstimatedTokens int64 `json:"estimatedTokens,omitempty"`
@@ -68,6 +83,8 @@ type InsightsDay struct {
 	ToolCalls int     `json:"toolCalls,omitempty"`
 	Skills    int     `json:"skills,omitempty"`
 	Cost      float64 `json:"cost,omitempty"`
+	// Sessions 是当日活跃会话数（活跃度卡「会话|Token 消耗」toggle 的会话档）。
+	Sessions int `json:"sessions,omitempty"`
 }
 
 // InsightsTally 是一条统计行（名称+次数+最近一次时间，点击可过滤会话）。
@@ -89,6 +106,10 @@ type InsightsSession struct {
 	Tokens          int64    `json:"tokens"`
 	Requests        int      `json:"requests"`
 	Turns           int      `json:"turns"`
+	// LastMessage 是最后一条用户消息 brief（会话卡「最后消息」行；对齐上游）。
+	LastMessage string `json:"lastMessage,omitempty"`
+	// Steps 是范围内步数（会话卡「N 轮 M 步」的 M）。
+	Steps int `json:"steps,omitempty"`
 	Cost            float64  `json:"cost,omitempty"`
 	CacheHitPercent float64  `json:"cacheHitPercent,omitempty"`
 	Composition     Category `json:"composition"`
@@ -116,18 +137,33 @@ type InsightsSessionFold struct {
 }
 
 // insightCutoff 返回 rangeKey 的起点时间戳（秒）。today=本地今日零点；
-// 7d/30d=整日粒度回溯（含今日共 N 天）；all=0。未知 key 按 30d 兜底。
-func insightCutoff(rangeKey string, now time.Time) int64 {
+// 7d/30d=整日粒度回溯（含今日共 N 天）；all=0；custom:YYYY-MM-DD:YYYY-MM-DD
+// =自定义起止（1:1 对齐上游日期范围选择器，终点日含当日全天）。未知 key 按 30d 兜底。
+func insightCutoff(rangeKey string, now time.Time) (int64, int64) {
 	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	if strings.HasPrefix(rangeKey, InsightsCustomPrefix) {
+		parts := strings.SplitN(strings.TrimPrefix(rangeKey, InsightsCustomPrefix), ":", 2)
+		from, err1 := time.ParseInLocation("2006-01-02", parts[0], now.Location())
+		to := now
+		if len(parts) == 2 {
+			if t2, err2 := time.ParseInLocation("2006-01-02", parts[1], now.Location()); err2 == nil {
+				to = t2.AddDate(0, 0, 1) // 终点日含全天
+			}
+		}
+		if err1 == nil {
+			return from.Unix(), to.Unix()
+		}
+		return midnight.AddDate(0, 0, -29).Unix(), 1 << 62
+	}
 	switch rangeKey {
 	case InsightsToday:
-		return midnight.Unix()
+		return midnight.Unix(), 1 << 62
 	case Insights7d:
-		return midnight.AddDate(0, 0, -6).Unix()
+		return midnight.AddDate(0, 0, -6).Unix(), 1 << 62
 	case InsightsAll:
-		return -1 << 62 // 语义起点=-∞（首条请求也入选）
+		return -1 << 62, 1 << 62 // 语义起点=-∞（首条请求也入选）
 	default: // Insights30d 与未知兜底
-		return midnight.AddDate(0, 0, -29).Unix()
+		return midnight.AddDate(0, 0, -29).Unix(), 1 << 62
 	}
 }
 
@@ -139,7 +175,7 @@ func dayKey(ts int64) string {
 // BuildInsights 聚合跨会话洞察。now 由调用方注入（可测试）；cutoff 之前的
 // 请求不参与任何数字。会话按范围内 token 降序（并列按最近活动新→旧）。
 func BuildInsights(rangeKey string, now time.Time, folds []InsightsSessionFold) ContextInsights {
-	cutoff := insightCutoff(rangeKey, now)
+	cutoff, until := insightCutoff(rangeKey, now)
 	out := ContextInsights{
 		Ok:          true,
 		Range:       rangeKey,
@@ -151,8 +187,9 @@ func BuildInsights(rangeKey string, now time.Time, folds []InsightsSessionFold) 
 		Sessions:    []InsightsSession{},
 	}
 	type dayAcc struct {
-		day   InsightsDay
-		turns map[int]bool
+		day    InsightsDay
+		turns  map[int]bool
+		sesses map[string]bool
 	}
 	days := map[string]*dayAcc{}
 	skillTally := map[string]*InsightsTally{}
@@ -164,7 +201,7 @@ func BuildInsights(rangeKey string, now time.Time, folds []InsightsSessionFold) 
 		k := dayKey(ts)
 		d := days[k]
 		if d == nil {
-			d = &dayAcc{day: InsightsDay{Date: k}, turns: map[int]bool{}}
+			d = &dayAcc{day: InsightsDay{Date: k}, turns: map[int]bool{}, sesses: map[string]bool{}}
 			days[k] = d
 		}
 		return d
@@ -200,7 +237,7 @@ func BuildInsights(rangeKey string, now time.Time, folds []InsightsSessionFold) 
 		estOnly := true
 		for i := range tl.Requests {
 			r := tl.Requests[i]
-			if r.Ts < cutoff {
+			if r.Ts < cutoff || r.Ts >= until {
 				continue
 			}
 			inRange = true
@@ -219,6 +256,9 @@ func BuildInsights(rangeKey string, now time.Time, folds []InsightsSessionFold) 
 			if r.Ts > sess.LastActive {
 				sess.LastActive = r.Ts
 			}
+			if r.BriefUser != "" {
+				sess.LastMessage = r.BriefUser
+			}
 			d := addDay(r.Ts)
 			if r.PromptTokens > 0 {
 				d.day.Tokens += r.PromptTokens + r.OutputTokens
@@ -228,6 +268,8 @@ func BuildInsights(rangeKey string, now time.Time, folds []InsightsSessionFold) 
 			d.day.Requests++
 			d.day.Cost += r.Cost
 			d.turns[r.Turn] = true
+			d.sesses[f.Path] = true
+			out.Kpi.OutputTokens += r.OutputTokens
 			out.Kpi.Requests++
 			if r.PromptTokens > 0 {
 				out.Kpi.Tokens += r.PromptTokens + r.OutputTokens
@@ -242,7 +284,18 @@ func BuildInsights(rangeKey string, now time.Time, folds []InsightsSessionFold) 
 			continue
 		}
 		sess.Turns = len(sessTurns)
+		sess.Steps = sess.Requests
 		sess.Estimated = estOnly
+		if f.Archived {
+			out.Kpi.Archived++
+		}
+		if !estOnly {
+			out.Kpi.Billed++
+		}
+		if tl.Timing != nil {
+			out.Kpi.Calls += tl.Timing.Calls
+		}
+		out.Kpi.Steps += sess.Requests
 		if tl.Stats.CacheHitPercent > 0 {
 			sess.CacheHitPercent = tl.Stats.CacheHitPercent
 		}
@@ -258,7 +311,7 @@ func BuildInsights(rangeKey string, now time.Time, folds []InsightsSessionFold) 
 		sessProgSet := map[string]bool{}
 		for i := range tl.Nodes {
 			n := tl.Nodes[i]
-			inRange := n.Ts >= cutoff
+			inRange := n.Ts >= cutoff && n.Ts < until
 			switch n.Cat {
 			case catTool:
 				if inRange && n.Ts > 0 {
@@ -279,7 +332,7 @@ func BuildInsights(rangeKey string, now time.Time, folds []InsightsSessionFold) 
 			}
 		}
 		for _, c := range tl.Commands {
-			if c.Time < cutoff {
+			if c.Time < cutoff || c.Time >= until {
 				continue
 			}
 			prog := commandProgram(c.Cmd)
@@ -295,12 +348,16 @@ func BuildInsights(rangeKey string, now time.Time, folds []InsightsSessionFold) 
 		}
 		out.Kpi.Turns += sess.Turns
 		out.Kpi.Sessions++
+		out.Kpi.AssistantReasoning += tl.Stats.AssistantReasoning
+		out.Kpi.AssistantAnswers += tl.Stats.AssistantAnswerTokens
+		out.Kpi.AssistantCallArgs += tl.Stats.AssistantCallTokens
 		out.Sessions = append(out.Sessions, sess)
 	}
 
-	// 逐日轮次去重计数（聚合完成后统一回填）。
+	// 逐日轮次/会话去重计数（聚合完成后统一回填）。
 	for _, acc := range days {
 		acc.day.Turns = len(acc.turns)
+		acc.day.Sessions = len(acc.sesses)
 		out.Days = append(out.Days, acc.day)
 	}
 	sort.Slice(out.Days, func(i, j int) bool { return out.Days[i].Date < out.Days[j].Date })
