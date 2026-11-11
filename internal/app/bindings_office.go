@@ -48,6 +48,7 @@ func (b *OfficeB) GaeaContext() ContextInfo { return b.a.GaeaContext() }
 func (b *OfficeB) GaeaContextNodeDetail(seq int64, sessionPath string) (contextview.NodeDetail, error) { return b.a.GaeaContextNodeDetail(seq, sessionPath) }
 func (b *OfficeB) GaeaContextView(sessionPath string) (contextview.ContextTimeline, error) { return b.a.GaeaContextView(sessionPath) }
 func (b *OfficeB) GaeaContextInsights(rangeKey string, includeArchived bool) (contextview.ContextInsights, error) { return b.a.GaeaContextInsights(rangeKey, includeArchived) }
+func (b *OfficeB) GaeaFamilyEvents(sessionPath string) (trajectory.FamilyEventStream, error) { return b.a.GaeaFamilyEvents(sessionPath) }
 func (b *OfficeB) GaeaConvertToPdf(rel string) (ConvertPdfResult, error) { return b.a.GaeaConvertToPdf(rel) }
 func (b *OfficeB) GaeaCrossEmbed(in CrossEmbedInput) (CrossEmbedResult, error) { return b.a.GaeaCrossEmbed(in) }
 func (b *OfficeB) GaeaDagAcceptAll(id string) (string, error) { return b.a.GaeaDagAcceptAll(id) }
