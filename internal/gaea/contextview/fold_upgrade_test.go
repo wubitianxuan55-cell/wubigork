@@ -281,3 +281,56 @@ func TestFoldEmptyCommandsMarshalAsArrays(t *testing.T) {
 		t.Fatalf("commands should marshal as [], got %s", b)
 	}
 }
+// TestFoldLegacyCommandsFromEmbeddedToolCalls（真实数据探针定罪的补账）：
+// 迁移日志零 tool_dispatch——命令时间线此前恒空而 bash 结果在。legacy 内嵌
+// tool_calls 即派发事实，按 id 开挂起命令、tool_result 既有配对照常收尾。
+func TestFoldLegacyCommandsFromEmbeddedToolCalls(t *testing.T) {
+	entries := []session.LogEntry{
+		entry(1, "turn_started", map[string]any{}),
+		entry(2, "request_header", headerPayload("sys")),
+		entry(3, "message", msgPayload("跑一下构建", "",
+			map[string]string{"id": "tc1", "name": "bash", "args": `{"command":"go build ./..."}`},
+			map[string]string{"id": "tc2", "name": "bash", "args": `{"command":"npm run dev","run_in_background":true}`},
+		)),
+		entry(4, "tool_result", map[string]any{"id": "tc1", "name": "bash", "output": `{"ok":true,"exit_code":0,"stdout":"ok"}`}),
+		entry(5, "tool_result", map[string]any{"id": "tc2", "name": "bash", "output": "job bg_1 started"}),
+		entry(6, "turn_done", map[string]any{}),
+	}
+	tl := FoldTimeline(entries, 1_000_000, 0)
+	if len(tl.Commands) != 2 {
+		t.Fatalf("Commands = %d, want 2（legacy 内嵌 tool_calls 推导）", len(tl.Commands))
+	}
+	c0, c1 := tl.Commands[0], tl.Commands[1]
+	if c0.Status != CommandCompleted || c0.Exit != 0 || c0.ResultSeq != 4 {
+		t.Fatalf("legacy command 0: %+v", c0)
+	}
+	if c1.Status != CommandCompleted || !c1.Background {
+		t.Fatalf("legacy command 1 (bg): %+v", c1)
+	}
+	if c0.Derived != true || c0.Tool != "bash" {
+		t.Fatalf("legacy command 应为 bash+derived: %+v", c0)
+	}
+	// 三拆账不受影响：内嵌参数仍走 applyAssistant 的 call 计数
+	if tl.Stats.AssistantCallTokens == 0 {
+		t.Fatal("AssistantCallTokens 应含内嵌参数账")
+	}
+}
+
+// TestFoldRuntimeNoDoubleCommand（互斥性回归）：运行期 message 不内嵌
+// tool_calls（EventLogSink 只落 text/reasoning），命令只由 tool_dispatch 开——
+// 同一命令不得双记。
+func TestFoldRuntimeNoDoubleCommand(t *testing.T) {
+	entries := []session.LogEntry{
+		entry(1, "turn_started", map[string]any{}),
+		entry(2, "request_header", headerPayload("sys")),
+		// 运行期形态：message 只有 text（无 tool_calls）
+		entry(3, "message", msgPayload("running", "")),
+		entry(4, "tool_dispatch", map[string]any{"id": "c1", "name": "bash", "args": `{"command":"ls"}`}),
+		entry(5, "tool_result", map[string]any{"id": "c1", "name": "bash", "output": "files"}),
+		entry(6, "turn_done", map[string]any{}),
+	}
+	tl := FoldTimeline(entries, 1_000_000, 0)
+	if len(tl.Commands) != 1 {
+		t.Fatalf("Commands = %d, want 1（运行期单记）", len(tl.Commands))
+	}
+}

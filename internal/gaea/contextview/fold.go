@@ -410,6 +410,14 @@ func (f *folding) applyAssistant(e session.LogEntry) {
 		if tc.Name != "" {
 			call += estimateTokens(tc.Name + " " + tc.Args)
 		}
+		// legacy 命令推导（v4.542 真实数据探针定罪：迁移日志零 tool_dispatch，
+		// 命令时间线恒空而 bash 结果在——内嵌 tool_calls 即派发事实，按其 id
+		// 开挂起命令，后续 tool_result 既有配对照常收尾）。Start=消息 ts
+		// （秒级粒度下与真实 exec 起点同拍）；运行期日志 message 不内嵌
+		// tool_calls，两路径互斥不重计。
+		if tc.Name == "bash" && tc.ID != "" {
+			f.openCommand(e, tc.ID, tc.Name, tc.Args)
+		}
 	}
 	total := ans + reas + call
 	if total == 0 {
@@ -1129,6 +1137,7 @@ type assistantPayload struct {
 	Text      string `json:"text,omitempty"`
 	Reasoning string `json:"reasoning,omitempty"`
 	ToolCalls []struct {
+		ID   string `json:"id,omitempty"`
 		Name string `json:"name"`
 		Args string `json:"args"`
 	} `json:"tool_calls,omitempty"`
