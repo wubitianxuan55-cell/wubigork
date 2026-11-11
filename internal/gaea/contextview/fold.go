@@ -312,12 +312,12 @@ func (f *folding) applyHeader(e session.LogEntry) {
 	// （每步重复入列会刷屏；节点文本是预览，全文在日志 request_header 里）。
 	if h.System != "" && f.lastSysNode != h.System {
 		f.lastSysNode = h.System
-		f.addNode(SurfaceNode{Seq: e.Seq, Cat: catSystem, Tokens: f.systemTok, Text: briefOf(h.System, maxNodePreview)})
+		f.addNode(SurfaceNode{Seq: e.Seq, Ts: e.Ts, Cat: catSystem, Tokens: f.systemTok, Text: briefOf(h.System, maxNodePreview)})
 	}
 	toolsKey := strings.Join(toolNames, "|")
 	if toolsTotal > 0 && f.lastToolsKey != toolsKey {
 		f.lastToolsKey = toolsKey
-		f.addNode(SurfaceNode{Seq: e.Seq, Cat: catTools, Tokens: toolsTotal, Text: briefOf(strings.Join(toolNames, " · "), maxNodePreview)})
+		f.addNode(SurfaceNode{Seq: e.Seq, Ts: e.Ts, Cat: catTools, Tokens: toolsTotal, Text: briefOf(strings.Join(toolNames, " · "), maxNodePreview)})
 	}
 
 	rec := RequestRecord{
@@ -371,7 +371,7 @@ func (f *folding) applyUser(e session.LogEntry) {
 		f.userTok += tok
 		f.lastUser = briefOf(user, maxBrief)
 		f.lastUserSeq = e.Seq
-		f.addNode(SurfaceNode{Seq: e.Seq, Cat: catUser, Tokens: tok, Text: briefOf(user, maxNodePreview)})
+		f.addNode(SurfaceNode{Seq: e.Seq, Ts: e.Ts, Cat: catUser, Tokens: tok, Text: briefOf(user, maxNodePreview)})
 	}
 	if inject != "" {
 		tok := estimateTokens(inject)
@@ -379,7 +379,7 @@ func (f *folding) applyUser(e session.LogEntry) {
 		f.stats.Injects++
 		src := briefOf(strings.TrimSpace(strings.TrimPrefix(inject, refContextPrefix)), 80)
 		f.lastIn = append(f.lastIn, src)
-		f.addNode(SurfaceNode{Seq: e.Seq, Cat: catInject, Tokens: tok, Text: briefOf(inject, maxNodePreview)})
+		f.addNode(SurfaceNode{Seq: e.Seq, Ts: e.Ts, Cat: catInject, Tokens: tok, Text: briefOf(inject, maxNodePreview)})
 	}
 }
 
@@ -422,7 +422,7 @@ func (f *folding) applyAssistant(e session.LogEntry) {
 		}
 	}
 	f.addNode(SurfaceNode{
-		Seq: e.Seq, Cat: catAssistant, Tokens: total,
+		Seq: e.Seq, Ts: e.Ts, Cat: catAssistant, Tokens: total,
 		Text: briefOf(p.Text, maxNodePreview),
 		Reasoning: reas, AnswerTokens: ans, CallTokens: call,
 	})
@@ -593,11 +593,11 @@ func (f *folding) applyToolResult(e session.LogEntry) {
 	if p.Name == "run_skill" {
 		f.skillTok += tok
 		f.stats.Skills++
-		f.addNode(SurfaceNode{Seq: e.Seq, Cat: catSkill, Tokens: tok, Text: briefOf(text, maxNodePreview), Tool: p.Name, Name: f.takeSkillName(p.ID), Err: p.Err != ""})
+		f.addNode(SurfaceNode{Seq: e.Seq, Ts: e.Ts, Cat: catSkill, Tokens: tok, Text: briefOf(text, maxNodePreview), Tool: p.Name, Name: f.takeSkillName(p.ID), Err: p.Err != ""})
 	} else {
 		f.toolTok += tok
 		f.stats.ToolCalls++
-		f.addNode(SurfaceNode{Seq: e.Seq, Cat: catTool, Tokens: tok, Text: briefOf(text, maxNodePreview), Tool: p.Name, Err: p.Err != ""})
+		f.addNode(SurfaceNode{Seq: e.Seq, Ts: e.Ts, Cat: catTool, Tokens: tok, Text: briefOf(text, maxNodePreview), Tool: p.Name, Err: p.Err != ""})
 	}
 	// 结果到达：最近一次工具交换的 brief 锚点改到结果节点（来源 chip+全文，
 	// 跳转价值高于派发事件——派发事件本身没有浏览器节点）。
@@ -861,6 +861,13 @@ func (f *folding) applyUsage(e session.LogEntry) {
 	rec.CacheHitTokens = p.CacheHitTokens
 	rec.CacheMissTokens = p.CacheMissTokens
 	rec.Category = scaleCategory(rec.Category, p.PromptTokens, rec.Category.Total())
+	// 逐请求成本（usage 带价格时按该事件单价计得；洞察页逐日归因数据源）。
+	reqCost := (float64(p.CacheHitTokens)*p.CacheHitPrice +
+		float64(p.CacheMissTokens)*p.Input +
+		float64(p.CompletionTokens)*p.Output) / 1e6
+	if p.CacheHitPrice > 0 || p.Input > 0 || p.Output > 0 {
+		rec.Cost = reqCost
+	}
 	f.requests = append(f.requests, *rec)
 	f.pending = nil
 
@@ -879,9 +886,7 @@ func (f *folding) applyUsage(e session.LogEntry) {
 		f.currency = p.Currency
 	}
 	if p.CacheHitPrice > 0 || p.Input > 0 || p.Output > 0 {
-		f.cost += (float64(p.CacheHitTokens)*p.CacheHitPrice +
-			float64(p.CacheMissTokens)*p.Input +
-			float64(p.CompletionTokens)*p.Output) / 1e6
+		f.cost += reqCost
 	}
 	// 2.5e 成本 hover：记录最近一次非零单价（供应商口径，每 1M tokens）。
 	if p.Input > 0 {

@@ -9,11 +9,14 @@ import (
 	_ "image/png"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	gaeaAgent "github.com/gaea/gaea/internal/gaea/agent"
 	"github.com/gaea/gaea/internal/gaea/agent/session"
+	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/contextview"
 	"github.com/gaea/gaea/internal/gaea/trajectory"
 
@@ -335,4 +338,94 @@ func (a *App) GaeaSubagentContextView(sessionPath, ref string) (contextview.Cont
 	}
 	tl := contextview.FoldTimeline(entries, 0, 0)
 	return tl, nil
+}
+
+// ── 跨会话洞察（刀2 v4.542，对标 dsh-context Context Insights）──────
+// 扫描工作区全部会话日志折叠汇总。缓存按「文件 size+mtime」失效——
+// 会话日志 append-only，未变文件复用上次折叠结果（dsh 缓存轻量化同思路：
+// 摘要常驻、变更重算）。子代理 transcript（<dir>/subagents/）不入扫描面：
+// 其 token 已属对应主会话派生行为，洞察口径=主会话（家族视图在编队页）。
+
+type cachedInsightsFold struct {
+	key  string
+	fold contextview.InsightsSessionFold
+}
+
+var (
+	insightsCacheMu sync.Mutex
+	insightsCache   = map[string]cachedInsightsFold{}
+)
+
+// maxInsightsSessions 是单次洞察扫描的会话上限（最近修改优先；超出诚实
+// 计入 Truncated，不静默吞掉）。
+const maxInsightsSessions = 300
+
+// insightsCacheKey 是失效键：size+mtime（append-only 日志的充分条件）。
+func insightsCacheKey(path string) string {
+	st, err := os.Stat(path)
+	if err != nil {
+		return "-"
+	}
+	return fmt.Sprintf("%d:%d", st.Size(), st.ModTime().UnixNano())
+}
+
+// GaeaContextInsights 返回跨会话洞察快照。rangeKey: today|7d|30d|all
+// （未知按 30d 兜底）；includeArchived 时纳入 archive/ 会话。
+// 文件读取失败的单会话跳过（不拖垮整页；错误面在日志，诚实少一卡）。
+func (a *App) GaeaContextInsights(rangeKey string, includeArchived bool) (contextview.ContextInsights, error) {
+	base := gaeaConfig.WorkspaceSessionDir(gaeaCwd(), "")
+	infos, err := gaeaAgent.ListSessions(base)
+	if err != nil {
+		infos = nil
+	}
+	if includeArchived {
+		if arc, err := gaeaAgent.ListArchivedSessions(base); err == nil {
+			infos = append(infos, arc...)
+		}
+	}
+	// 最近修改优先截断（List 已按 ModTime 新→旧；archived 追加段重新排序）。
+	sort.SliceStable(infos, func(i, j int) bool { return infos[i].ModTime.After(infos[j].ModTime) })
+	truncated := 0
+	if len(infos) > maxInsightsSessions {
+		truncated = len(infos) - maxInsightsSessions
+		infos = infos[:maxInsightsSessions]
+	}
+	titles := loadSessionTitlesAll(base)
+	folds := make([]contextview.InsightsSessionFold, 0, len(infos))
+	for _, s := range infos {
+		key := insightsCacheKey(s.Path)
+		insightsCacheMu.Lock()
+		c, ok := insightsCache[s.Path]
+		insightsCacheMu.Unlock()
+		if !ok || c.key != key {
+			entries, err := readEntriesForCached(s.Path)
+			if err != nil {
+				continue // 单会话读取失败：诚实跳过
+			}
+			c = cachedInsightsFold{
+				key: key,
+				fold: contextview.InsightsSessionFold{
+					Path:     s.Path,
+					Preview:  s.Preview,
+					SpaceID:  s.Space,
+					Archived: strings.Contains(filepath.ToSlash(s.Path), "/archive/") || strings.Contains(filepath.ToSlash(s.Path), "\archive\\"),
+					ModTime:  s.ModTime.Unix(),
+					Timeline: contextview.FoldTimeline(entries, 0, 1),
+				},
+			}
+			if t := titles[filepath.Base(s.Path)]; t != "" {
+				c.fold.Title = t
+			}
+			insightsCacheMu.Lock()
+			if len(insightsCache) > maxInsightsSessions {
+				insightsCache = map[string]cachedInsightsFold{}
+			}
+			insightsCache[s.Path] = c
+			insightsCacheMu.Unlock()
+		}
+		folds = append(folds, c.fold)
+	}
+	out := contextview.BuildInsights(rangeKey, time.Now(), folds)
+	out.Truncated = truncated
+	return out, nil
 }

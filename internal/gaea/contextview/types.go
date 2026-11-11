@@ -53,6 +53,9 @@ type RequestRecord struct {
 	BriefUser string   `json:"briefUser,omitempty"`
 	BriefIn   []string `json:"briefIn,omitempty"`
 	BriefResp string   `json:"briefResp,omitempty"`
+	// Cost 是该请求的估算成本（usage 事件带价格时按该事件单价计得；估算
+	// 关闭的请求无成本——洞察页逐日成本归因的数据源）。
+	Cost float64 `json:"cost,omitempty"`
 	// BriefUserSeq / BriefRespSeq 是 brief 行在浏览器里的跳转锚点（对应
 	// SurfaceNode.Seq；2.5d 趋势→浏览器联动）。0=无锚点（brief 来自无节点
 	// 的事件或尚无同类消息），前端不渲染跳转。
@@ -126,7 +129,8 @@ type ContextEvent struct {
 // SurfaceNode 是一条模型可见的上下文元素（浏览器/归档重建的基础）。
 type SurfaceNode struct {
 	Seq    int64  `json:"seq"`
-	Cat    string `json:"cat"` // system|tools|user|inject|skill|assistant|tool
+	Ts     int64  `json:"ts,omitempty"` // 事件时间戳（洞察页逐日归因/DNA 模式；旧日志零值）
+	Cat    string `json:"cat"`          // system|tools|user|inject|skill|assistant|tool
 	Tokens int64  `json:"tokens"`
 	Text   string `json:"text,omitempty"` // 截断预览
 	Gone   *int64 `json:"gone,omitempty"` // 被压缩/剪枝取代的事件 seq
