@@ -346,6 +346,73 @@ func (a *App) ChatStreamCancel(runID string) bool {
 	return true
 }
 
+// plain 聊天历史窗口（2026-11-11「下一轮不知道上一轮」根修）：plain 此前每轮
+// 只发 [system, 当前 user] 单轮，话题内多轮上下文为零。窗口=最近
+// plainChatHistoryMaxMessages 条、总字符 plainChatHistoryMaxChars（超限从最旧
+// 侧整条丢弃；单条超预算即停——本轮带巨物时优先保正文预算）。
+const (
+	plainChatHistoryMaxMessages = 24
+	plainChatHistoryMaxChars    = 8000
+)
+
+// plainChatHistoryMessages 装载话题内多轮上下文（不含当前这条 userMessage——
+// 由调用方显式追加）。重试去重：库尾出现「同文 user(+assistant)」对=该轮在
+// 重发（后端 AppendExchange 每次生成都追加，重试会堆叠同文对），成对裁掉且
+// 可连续裁；取消轮只落单 user 行的形态同样裁。装载失败降级单轮（不阻塞聊天）。
+func (a *App) plainChatHistoryMessages(topicID, userMessage string) []ai.ChatMessage {
+	if a == nil || a.core == nil || a.core.chatStore == nil || strings.TrimSpace(topicID) == "" {
+		return nil
+	}
+	msgs, _, err := a.core.chatStore.ListMessagesPage(topicID, plainChatHistoryMaxMessages+2, 0)
+	if err != nil {
+		slog.Warn("chat plain 历史装载失败（降级单轮）", "topicID", topicID, "error", err)
+		return nil
+	}
+	for {
+		n := len(msgs)
+		if n == 0 {
+			break
+		}
+		if msgs[n-1].Role == "assistant" && n >= 2 &&
+			msgs[n-2].Role == "user" && msgs[n-2].Content == userMessage {
+			msgs = msgs[:n-2] // 重试对：同文 user + 旧回答
+			continue
+		}
+		if msgs[n-1].Role == "user" && msgs[n-1].Content == userMessage {
+			msgs = msgs[:n-1] // 取消轮：只落了 user 单行
+			continue
+		}
+		break
+	}
+	out := make([]ai.ChatMessage, 0, len(msgs))
+	budget := plainChatHistoryMaxChars
+	for i := len(msgs) - 1; i >= 0; i-- {
+		m := msgs[i]
+		if (m.Role != "user" && m.Role != "assistant") || strings.TrimSpace(m.Content) == "" {
+			continue
+		}
+		n := len([]rune(m.Content))
+		if n > budget {
+			break
+		}
+		budget -= n
+		out = append([]ai.ChatMessage{{Role: m.Role, Content: m.Content}}, out...)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// plainChatRequestMessages plain 聊天完整请求消息：system + 话题历史 + 当前 user。
+func (a *App) plainChatRequestMessages(topicID, userMessage string) []ai.ChatMessage {
+	msgs := make([]ai.ChatMessage, 0, plainChatHistoryMaxMessages+2)
+	msgs = append(msgs, ai.ChatMessage{Role: "system", Content: chatPlainSystemPrompt})
+	msgs = append(msgs, a.plainChatHistoryMessages(topicID, userMessage)...)
+	msgs = append(msgs, ai.ChatMessage{Role: "user", Content: userMessage})
+	return msgs
+}
+
 func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessage, eng, model, source string, searchEnabled, thinking, forceSearch bool) {
 	defer a.chatStreamUnregister(runID)
 	defer func() {
@@ -371,9 +438,12 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 	var firstTokenAt time.Time
 	var searchRuns []chatSearchTrace
 	var searchRounds, searches int
+	// 多轮上下文（2026-11-11 根修）：system + 话题历史 + 当前 user——plain
+	// 此前每轮单发，下一轮不知道上一轮说了什么。
+	chatMessages := a.plainChatRequestMessages(topicID, userMessage)
 	if toolMode {
 		res, loopErr := a.runBoundedSearchToolLoop(ctx, eng, model,
-			[]ai.ChatMessage{{Role: "system", Content: chatPlainSystemPrompt}, {Role: "user", Content: userMessage}},
+			chatMessages,
 			ai.ChatSimpleOptions{
 				EngineID: eng, Feature: "chat", EnableThinking: thinking, DisableThinking: !thinking,
 				DisableFailover: source == "feature",
@@ -428,11 +498,11 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 		reasoning.Reset()
 		reasoning.WriteString(res.Reasoning)
 	} else {
-		chunks, cancel, err := a.clientRef().ChatStreamChunks(ctx, model, chatPlainSystemPrompt, userMessage,
+		chunks, cancel, err := a.clientRef().ChatStreamMessages(ctx, model, chatMessages,
 			ai.ChatSimpleOptions{
 				EngineID: eng, Feature: "chat", EnableThinking: thinking, DisableThinking: !thinking,
 				DisableFailover: source == "feature",
-			})
+			}, nil)
 		if err != nil {
 			a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": err.Error()})
 			return

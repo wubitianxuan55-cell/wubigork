@@ -260,3 +260,29 @@
   关优先/缺省关预算原样）；ai+bridge 包全绿。
 - **装机**：v4.540.0 PID 684。用户复测路径：聊天开思考开关→llama 应出
   思考流（思考卡实时上屏那刀同样适用于 llama）。
+
+---
+
+# 续批 6（深夜）：plain 聊天多轮上下文根修（v4.541.0）
+
+> 用户实弹验证报告「聊天里面下一轮不知道上一轮说了什么」。
+
+- **根因（结构性）**：plain 模式两条路径（工具循环/非工具）此前每轮只发
+  `[system, 当前 user]` 单轮——话题内多轮上下文为零；非工具路径走
+  ChatStreamChunks（system+user 两段式），连带历史都表达不了。
+- **修**：`plainChatHistoryMessages` 从 chat 库装载话题历史（ListMessagesPage
+  升序）+ `plainChatRequestMessages` 组装 [system+history+user]；两路径全接
+  （非工具换 ChatStreamMessages 完整数组口，与工具循环同一装配源）。
+  窗口=最近 24 条/8000 字符（超限最旧侧整条丢；单条超预算即停保正文）。
+  **重试去重**：库尾「同文 user(+assistant)」对=重发轮成对裁（可连续裁，
+  取消落单 user 行形态同样裁）——防重试轮同一句在上下文出现两次。
+  装载失败/无 store 降级单轮（零阻塞）。阻塞口 ChatSend 无消费方未动。
+- **顺修（原件删除的下游）**：qwen35ModelFile 切 whirlfix2 后，老持久化的
+  GGUF 绝对路径绑定不再被 normalizeChatBoundModel 归一（候选表只有新文件
+  名）——补 llamaLegacyModelAliases 退役文件名特征表，老绑定照常归一
+  qwen35（preflight 归一测试从失效转绿）。
+- **测试**：chat_plain_history_test.go 四用例（顺序配对/重试对裁/预算窗口/
+  空话题与无 store 降级；hermetic sqlite+Close 防 Windows 句柄锁 TempDir）；
+  全 app 套件 163s 绿。
+- **装机**：v4.541.0 PID 42936。用户复测：同话题连续问两轮相关话题，第二
+  轮应知悉第一轮内容（工具开/关两路径都带历史）。

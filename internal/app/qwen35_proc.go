@@ -101,15 +101,36 @@ func llamaProfileFromModels(served []string) string {
 			continue
 		}
 		for _, p := range llamaProfiles {
+			matched := false
 			for _, candidate := range []string{p.ID, p.ModelID, filepath.Base(p.ModelFile)} {
 				candidate = strings.ToLower(strings.TrimSpace(candidate))
 				if candidate != "" && strings.Contains(norm, candidate) {
-					return p.ID
+					matched = true
+					break
 				}
+			}
+			if !matched {
+				// 退役文件名（2026-11-11 原件删除、档位切 whirlfix2）：老绑定里
+				// 持久化的 GGUF 绝对路径照常归一到稳定档位。
+				for _, alias := range llamaLegacyModelAliases {
+					if strings.Contains(norm, alias) {
+						matched = true
+						break
+					}
+				}
+			}
+			if matched {
+				return p.ID
 			}
 		}
 	}
 	return ""
+}
+
+// llamaLegacyModelAliases 已退役 35B 文件名特征（原件已删、档位现指
+// whirlfix2）——normalizeChatBoundModel 归一老持久化绑定用。
+var llamaLegacyModelAliases = []string{
+	"qwen3.6-35b-a3b-uncensored-hauhaucs-aggressive-q4_k_p-mtp-r2.gguf",
 }
 
 // llamaProbe 探活并返回稳定的模型 id（不是可能漂移的 GGUF 绝对路径）。
