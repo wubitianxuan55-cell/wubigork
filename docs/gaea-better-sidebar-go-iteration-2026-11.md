@@ -8,8 +8,8 @@
 >
 > 上游基线：`dsh-better-sidebar v0.32.0`，解析后 commit `53e08cec61f1a3cfe32b86e6429876fff1ef0504`（2026-11-12）。
 >
-> 当前批次：**G2（只读提交图）在分支 `feat/g2-commit-graph` 完成验证，待并入**；G1.6/G1.7/G1.8 已全部并入 main（`d048f3c4`），G1 全验收矩阵（非 Git 仓库/空仓/无提交 HEAD/重命名/二进制/冲突）真仓测试+真机走查双实证。F1+F2+F3+G1.1–G1.5 已提交为 `f49ea150` 并完成打包与冒烟。
-> 当前仍**未 push、未覆盖正式安装版**；W1/X1 维持产品门。
+> 当前批次：**路线图 F/F2/F3/G1/G2 全清并入 main + 真机双实证 + 全仓验证扫全绿（golangci/eslint 0、go 全仓零新增红、vitest 4361 绿）+ 日常装机**（main = `a51d55bd`，ahead origin 27 未 push；装机体 C:\AI\gaea-app = 同批构建 exe 8cd4660a）。
+> W1 三选项（A/B/C）待拍板（决策备忘 `docs/gaea-w1-bottom-workbench-decision-2026-11.md`）；X1 维持产品门；发版门欠账（v4.530~543 十四版折段）考古表见 day-log 2026-11-13 §13。
 
 本文替代旧的 2026-09 滚动规划，作为后续新会话的恢复入口。旧文档
 `docs/gaea-dsh-better-sidebar-long-term-distill-plan-2026.md` 只保留历史调研和早期阶段台账，
@@ -677,7 +677,9 @@ go vet ./internal/gaea/workbench ./internal/app
 先读 .gaea/AGENTS.md、.gaea/progress.md、.gaea/todos.md 和
 docs/gaea-better-sidebar-go-iteration-2026-11.md。
 这是现有 gaea 的增量复刻，不重写；侧聊服务不做。
-先检查当前工作树；功能基线提交为 f49ea150，勿把平行测试优化混入本专项。
+先检查当前工作树；路线图 F/F2/F3/G1/G2 已全清并入 main，
+候选=W1 决策备忘三选项（docs/gaea-w1-bottom-workbench-decision-2026-11.md，
+Q1 待用户拍板）或用户点名的新批次；不自行重开已拒绝项。
 本次只做 <批次号/功能>，按文档的验收标准和构建纪律执行；
 完成后同步本文台账、progress、todos 和 docs 索引。
 ```
