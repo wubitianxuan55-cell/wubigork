@@ -197,3 +197,9 @@
 - **不代写史（纪律）**：14 版 release notes 正文+CHANGELOG 折段=发版门「人手收尾」工程
   （release.ps1 只追骨架），单方面写史有错配风险（如 OpenMausBot/Living Constellation 是
   11-07 安装=随 v4.534.0，不在 4.535 三线批内）。考古表已入本节，发版时按表折段即可。
+
+## 14. F0 打包工作树回收（03:5x）
+
+- `.worktrees/pkg-f49ea150`（F0 预览包构建树，批已收官包已留盘）按惯例回收：摘
+  node_modules junction（主树目标完好）→ 树内 M 文件验明纯 CRLF 幻影（全树 diff 内容行
+  =0）→ `git worktree remove --force`。worktree 列表余 main+两外线，.worktrees 空置。
