@@ -106,25 +106,29 @@ export function CommitGraphView({ revision }: { revision: number }) {
   const [detail, setDetail] = useState<GitCommitDetailView | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const detailCache = useRef<Map<string, GitCommitDetailView>>(new Map());
+  // 单飞代际号：effect 刷新/loadMore 各自持代际，落结果前比对——换分支或刷新
+  // 后旧 in-flight 的 setPage 一律丢弃（评审帽自查逮到的竞态）。
+  const genRef = useRef(0);
 
   useEffect(() => {
+    const gen = ++genRef.current;
     let live = true;
     setLoading(true);
     Promise.resolve(app.GaeaGitGraph?.(0, PAGE_SIZE, branch))
       .then((r) => {
-        if (!live) return;
+        if (!live || gen !== genRef.current) return;
         setPage(r && Array.isArray(r.commits) ? r : { commits: [], branches: [] });
         setReachedEnd(!r || !Array.isArray(r.commits) || r.commits.length < PAGE_SIZE);
         setError("");
       })
       .catch((e: unknown) => {
-        if (!live) return;
+        if (!live || gen !== genRef.current) return;
         setPage({ commits: [], branches: [] });
         setReachedEnd(true);
         setError(e instanceof Error ? e.message : String(e));
       })
       .finally(() => {
-        if (live) setLoading(false);
+        if (live && gen === genRef.current) setLoading(false);
       });
     return () => {
       live = false;
@@ -133,18 +137,20 @@ export function CommitGraphView({ revision }: { revision: number }) {
 
   const loadMore = async () => {
     if (!page || loading || reachedEnd) return;
+    const gen = genRef.current;
     setLoading(true);
     try {
       const r = await Promise.resolve(app.GaeaGitGraph?.(page.commits.length, PAGE_SIZE, branch));
+      if (gen !== genRef.current) return; // 期间发生了换分支/刷新：本页作废
       const incoming = r && Array.isArray(r.commits) ? r.commits : [];
       const seen = new Set(page.commits.map((c) => c.hash));
       const merged = [...page.commits, ...incoming.filter((c) => !seen.has(c.hash))];
       setPage({ commits: merged, branches: r?.branches ?? page.branches });
       if (incoming.length < PAGE_SIZE) setReachedEnd(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (gen === genRef.current) setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setLoading(false);
+      if (gen === genRef.current) setLoading(false);
     }
   };
 
@@ -164,7 +170,13 @@ export function CommitGraphView({ revision }: { revision: number }) {
     try {
       const d = await Promise.resolve(app.GaeaGitCommitDetail?.(hash));
       if (d && typeof d === "object") {
+        // 缓存上限（评审帽自查）：diff 可达 4MB/条，FIFO 驱逐最旧 20 条防长会话无界增长。
         detailCache.current.set(hash, d);
+        while (detailCache.current.size > 20) {
+          const oldest = detailCache.current.keys().next().value;
+          if (oldest === undefined) break;
+          detailCache.current.delete(oldest);
+        }
         setDetail(d);
       } else {
         setDetail(null);
