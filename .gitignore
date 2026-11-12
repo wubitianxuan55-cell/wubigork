@@ -88,6 +88,8 @@ releases/*-preview.zip
 releases/archive/*.exe
 nul
 .tmp/
+# 分支工作树仓内安家（用户红线：代码不落工作空间外；.tmp 会被 DSH 清扫吞树，故用 .worktrees）
+.worktrees/
 comfy_startup.log
 comfyui_new.log
 wails_build.log
