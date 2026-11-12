@@ -3931,6 +3931,9 @@ export namespace app {
 	    body: string;
 	    dataUrl: string;
 	    error: string;
+	    mtimeMs?: number;
+	    encoding?: string;
+	    eol?: string;
 	    truncated?: boolean;
 	    totalPages?: number;
 	    pages?: PreviewPage[];
@@ -3950,6 +3953,9 @@ export namespace app {
 	        this.body = source["body"];
 	        this.dataUrl = source["dataUrl"];
 	        this.error = source["error"];
+	        this.mtimeMs = source["mtimeMs"];
+	        this.encoding = source["encoding"];
+	        this.eol = source["eol"];
 	        this.truncated = source["truncated"];
 	        this.totalPages = source["totalPages"];
 	        this.pages = this.convertValues(source["pages"], PreviewPage);
@@ -11891,6 +11897,179 @@ export namespace whisper {
 	
 	
 	
+
+}
+
+export namespace workbench {
+	
+	export class Entry {
+	    name: string;
+	    isDir: boolean;
+	    size: number;
+	    modTime: number;
+	    isSymlink?: boolean;
+	    broken?: boolean;
+	    linkTarget?: string;
+	    compact?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Entry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.isDir = source["isDir"];
+	        this.size = source["size"];
+	        this.modTime = source["modTime"];
+	        this.isSymlink = source["isSymlink"];
+	        this.broken = source["broken"];
+	        this.linkTarget = source["linkTarget"];
+	        this.compact = source["compact"];
+	    }
+	}
+	export class Level {
+	    path: string;
+	    entries: Entry[];
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Level(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.entries = this.convertValues(source["entries"], Entry);
+	        this.error = source["error"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class MutationResult {
+	    path: string;
+	    name: string;
+	    isDir: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new MutationResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.name = source["name"];
+	        this.isDir = source["isDir"];
+	    }
+	}
+	export class TextFile {
+	    path: string;
+	    text: string;
+	    size: number;
+	    mtimeMs: number;
+	    encoding: string;
+	    eol: string;
+	    tooLarge?: boolean;
+	    binary?: boolean;
+	    truncated?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new TextFile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.text = source["text"];
+	        this.size = source["size"];
+	        this.mtimeMs = source["mtimeMs"];
+	        this.encoding = source["encoding"];
+	        this.eol = source["eol"];
+	        this.tooLarge = source["tooLarge"];
+	        this.binary = source["binary"];
+	        this.truncated = source["truncated"];
+	    }
+	}
+	export class TextPage {
+	    path: string;
+	    text: string;
+	    offset: number;
+	    nextOffset: number;
+	    size: number;
+	    encoding: string;
+	    eol: string;
+	    binary?: boolean;
+	    eof: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new TextPage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.text = source["text"];
+	        this.offset = source["offset"];
+	        this.nextOffset = source["nextOffset"];
+	        this.size = source["size"];
+	        this.encoding = source["encoding"];
+	        this.eol = source["eol"];
+	        this.binary = source["binary"];
+	        this.eof = source["eof"];
+	    }
+	}
+	export class UploadResult {
+	    path: string;
+	    name: string;
+	    size: number;
+	    isDir: boolean;
+	    exists?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new UploadResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.name = source["name"];
+	        this.size = source["size"];
+	        this.isDir = source["isDir"];
+	        this.exists = source["exists"];
+	    }
+	}
+	export class WriteResult {
+	    path: string;
+	    size: number;
+	    mtimeMs: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new WriteResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.size = source["size"];
+	        this.mtimeMs = source["mtimeMs"];
+	    }
+	}
 
 }
 

@@ -61,6 +61,12 @@ import type {
   VerdictView,
   WorkspaceSearchHit,
   WorkspaceView,
+  WorkbenchLevel,
+  WorkspaceMutationResult,
+  WorkspaceTextFile,
+  WorkspaceTextPage,
+  WorkspaceUploadResult,
+  WorkspaceWriteResult,
 } from "../types";
 // BrowserObserveView 定义在 BrowserPanel.tsx（v4.28 A2，导出供 bridge/测试重用）。
 import type { BrowserObserveView } from "../../components/BrowserPanel";
@@ -181,8 +187,32 @@ export interface CoreBindings {
   SetMCPServerEnabled(name: string, enabled: boolean): Promise<void>;
   SlashArgs(input: string): Promise<SlashArgsResult>;
   ListDir(rel: string): Promise<DirEntry[]>;
+  /** 文件工作台：一次拉取全部展开目录层（失败按层返回）。 */
+  GaeaListDirBatch(paths: string[], exclude: string[]): Promise<WorkbenchLevel[]>;
+  /** 用展开目录集合替换实时监听集；空数组停止监听。 */
+  GaeaFileTreeWatch(paths: string[], exclude: string[]): Promise<void>;
+  GaeaRenameWorkspacePath(rel: string, name: string): Promise<WorkspaceMutationResult>;
+  GaeaCreateWorkspaceFolder(parent: string, name: string): Promise<WorkspaceMutationResult>;
+  GaeaCreateWorkspaceFile(parent: string, name: string): Promise<WorkspaceMutationResult>;
+  GaeaDeleteWorkspacePaths(paths: string[]): Promise<void>;
+  /** 分块上传：目标相对路径可含子目录，用于目录拖放。 */
+  GaeaWorkspaceUploadBegin(dir: string, relativePath: string): Promise<string>;
+  GaeaWorkspaceUploadAppend(token: string, base64Chunk: string): Promise<void>;
+  GaeaWorkspaceUploadFinish(token: string): Promise<WorkspaceUploadResult>;
+  GaeaWorkspaceUploadAbort(token: string): Promise<void>;
+  /** 原生文件/文件夹对话框上传，字节不经过 JS 桥。 */
+  GaeaPickWorkspaceUploadFiles(dir: string): Promise<WorkspaceUploadResult[]>;
+  GaeaPickWorkspaceUploadFolder(dir: string): Promise<WorkspaceUploadResult[]>;
+  /** 以原编码/行尾保存，并拒绝 mtime 已变化的旧草稿。 */
+  GaeaReadTextFile(rel: string): Promise<WorkspaceTextFile>;
+  GaeaReadFilePage(rel: string, offset: number): Promise<WorkspaceTextPage>;
+  GaeaWriteWorkspaceFile(rel: string, content: string, expectedMtimeMs: number): Promise<WorkspaceWriteResult>;
+  /** 文件→副本，目录→ZIP；返回实际保存路径，取消为空串。 */
+  GaeaSaveWorkspacePathAs(rel: string): Promise<string>;
+  /** 多选导出：一个 ZIP，保留各选中项的名称。 */
+  GaeaSaveWorkspacePathsAs(paths: string[]): Promise<string>;
   // FileSearch 工作区文件名搜索（@ 引用增强：跨目录定位资料）。
-  FileSearch(query: string, limit?: number): Promise<FileSearchHit[]>;
+  FileSearch(query: string, limit: number, exclude: string[]): Promise<FileSearchHit[]>;
   // Materials 工作区资料概览：office/文本文件按修改时间倒序。
   Materials(limit?: number): Promise<FileSearchHit[]>;
   // WorkspaceSearch 工作区全文搜索（轻量 RAG）：正文关键词 + 命中片段。

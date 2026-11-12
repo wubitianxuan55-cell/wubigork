@@ -100,7 +100,7 @@ export function Composer({
     setText(next);
     requestAnimationFrame(() => { const ta = taRef.current; if (ta) { ta.focus(); ta.selectionStart = ta.selectionEnd = next.length; } });
   };
-  const menus = useComposerMenus({ text, debouncedText, setTextCaretEnd });
+  const menus = useComposerMenus({ text, debouncedText, setTextCaretEnd, cwd });
   const {
     slashMatches, argRes, atItems, menuMode, menuCount,
     active, setActive, setDismissed, pickCommand, pickArg, pickEntry, pickActive,

@@ -3,6 +3,69 @@ import type { app as AppModels } from "../../../../wailsjs/go/models";
 
 export type DirEntry = WireShape<AppModels.DirEntry>;
 
+/** Go 文件工作台：目录行（符号链接按目标分类，broken 如实标记）。 */
+export interface WorkbenchEntry {
+  name: string;
+  isDir: boolean;
+  size: number;
+  modTime?: number;
+  isSymlink?: boolean;
+  broken?: boolean;
+  linkTarget?: string;
+  compact?: boolean;
+}
+
+/** 一次批量列目录的分层结果；单层失败不拖垮整棵树。 */
+export interface WorkbenchLevel {
+  path: string;
+  entries: WorkbenchEntry[];
+  error?: string;
+}
+
+export interface WorkspaceMutationResult {
+  path: string;
+  name: string;
+  isDir: boolean;
+}
+
+export interface WorkspaceUploadResult {
+  path: string;
+  name: string;
+  size: number;
+  isDir: boolean;
+}
+
+/** 完整可编辑文档；tooLarge=true 时 text 为空，应切分页只读视图。 */
+export interface WorkspaceTextFile {
+  path: string;
+  text: string;
+  size: number;
+  mtimeMs: number;
+  encoding: string;
+  eol: "lf" | "crlf" | "cr";
+  tooLarge?: boolean;
+  binary?: boolean;
+  truncated?: boolean;
+}
+
+export interface WorkspaceTextPage {
+  path: string;
+  text: string;
+  offset: number;
+  nextOffset: number;
+  size: number;
+  encoding: string;
+  eol: "lf" | "crlf" | "cr";
+  binary?: boolean;
+  eof: boolean;
+}
+
+export interface WorkspaceWriteResult {
+  path: string;
+  size: number;
+  mtimeMs: number;
+}
+
 export interface FileSearchHit {
   path: string; // 工作区相对路径（/ 分隔）
   name: string;
@@ -55,6 +118,11 @@ export interface PreviewResult {
   body: string;
   dataUrl: string;
   error: string;
+  /** 文本编辑的并发基线（Unix 毫秒）。 */
+  mtimeMs?: number;
+  /** 磁盘文本编码/行尾（可编辑预览展示与保存保持）。 */
+  encoding?: string;
+  eol?: "lf" | "crlf" | "cr";
   truncated?: boolean;
   totalPages?: number;
   /** .pptx 预览的逐页缩略（page 1-based，dataUrl 为该页 PNG）。 */

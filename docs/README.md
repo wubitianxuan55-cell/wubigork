@@ -91,7 +91,8 @@
 | gaea-programming-rea-plugin-integration-20261108.md | ✅ **编程板块 DSH Web + REA + 桌面插件迁移（2026-11-08）**：隔离 DSH `0.2.2-rc.1` 内嵌 `dsh.wails.localhost:3091` 解决 Strict Cookie；REA `6.8.0` MCP 实测 229 工具；桌面 9 依赖迁入、8 bundle 启用且 `dsh-wubi` 保持最后；`dsh-ops` 升 `0.5.1` 适配；GPU PowerShell 与 dshmarket restart helper 双修，cmd 黑窗实测 `visible=False`；产物 v4.534.0 SHA256=`9D0178BE67E6...` |
 | gaea-dsh-univer-office-distill-plan-2026-09.md | ✅ 已蒸馏收官（U 系落地 v4.97~v4.109；Univer 零引入） |
 | gaea-dsh-genui-distill-plan-2026-09.md | ✅ 已收官（P0–P5 全部发布，止于 v4.97.0） |
-| gaea-dsh-better-sidebar-long-term-distill-plan-2026.md | 🔄 滚动权威：阶段一/二/二.5/三(3a/3b) 已全销账；3c 与阶段四/五维持「拍板后/若做」 |
+| gaea-better-sidebar-go-iteration-2026-11.md | 🔄 **现行唯一迭代与交接入口（2026-11-12）**：固定上游 v0.32.0；F1/F2/F3 与 G1.1–G1.5（共享 Git 状态、仓库根语义、统一变更树、来源筛选/快操作/行内 diff）为代码候选，记录 Go/bridge/前端落点、安全不变量、已知红项、后续路线、验收矩阵与新会话协议。用户已拍板不重写 gaea、不做侧聊 |
+| gaea-dsh-better-sidebar-long-term-distill-plan-2026.md | 📚 历史调研与早期阶段台账（v0.18.0 基线）；当前状态已移交 `gaea-better-sidebar-go-iteration-2026-11.md`，勿据此把已完成能力重列欠账 |
 | gaea-unsloth-modelhub-distill-plan-2026-09.md | ⚠️ 已退役（2026-10-18 modelhub 引擎整体删除：引擎/Key/MH4 预热随 Unsloth 退役下线；CU1/CU2 等 ComfyUI 侧蒸馏成果保留）。本文保留作历史蒸馏记录 |
 | gaea-reasonix-2x-distill-2026-10.md | ✅ **Reasonix 2.x 蒸馏重开（2026-10-24）**：A 档八刀+B 档五刀全清随 v4.524.0 发版（readiness 死闸根修/read_subagent_result/出发快照/steer 收据收口） |
 | gaea-zcode-distill-2026-10.md | ✅ **ZCode 蒸馏规划档（Z0~Z18 刀池+十二节跨源合流分析）**：v1 收官随 v4.525.0（运行时 8+产出 5+交汇 2，dfd8e169→faebe184） |

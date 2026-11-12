@@ -14,6 +14,7 @@ import { setPaneFileOpenHandler } from "../lib/paneFileOpen";
 import { usePaneTabsStore } from "../lib/paneTabs";
 import { SIDEBAR_REGISTRY } from "../lib/sidebarRegistry";
 import { usePreviewStore } from "../lib/store";
+import { confirmDiscardEditor } from "../lib/editorDrafts";
 import { readWorkbenchValue, writeWorkbenchValue } from "../lib/workbenchStorage";
 import type { WorkspaceTabId } from "../lib/workspaceTabs";
 
@@ -40,9 +41,22 @@ export function usePreviewPanel({ effectiveSidebarWidth, setRightTab, handleWork
   const previewFile = usePreviewStore((s) => s.previewFile);
   const previewIndex = usePreviewStore((s) => s.previewIndex);
   const previewList = usePreviewStore((s) => s.previewList);
-  const closeFilePreview = usePreviewStore((s) => s.closeFilePreview);
-  const navTo = usePreviewStore((s) => s.navTo);
-  const closePreviewAt = usePreviewStore((s) => s.closePreviewAt);
+  const closeFilePreviewRaw = usePreviewStore((s) => s.closeFilePreview);
+  const navToRaw = usePreviewStore((s) => s.navTo);
+  const closePreviewAtRaw = usePreviewStore((s) => s.closePreviewAt);
+  const withPreviewDiscard = useCallback((action: () => void) => {
+    confirmDiscardEditor(previewFile, action);
+  }, [previewFile]);
+  const closeFilePreview = useCallback(() => {
+    withPreviewDiscard(closeFilePreviewRaw);
+  }, [closeFilePreviewRaw, withPreviewDiscard]);
+  const navTo = useCallback((index: number) => {
+    confirmDiscardEditor(previewFile, () => navToRaw(index));
+  }, [navToRaw, previewFile]);
+  const closePreviewAt = useCallback((index: number) => {
+    const target = previewList[index];
+    confirmDiscardEditor(target === previewFile ? previewFile : undefined, () => closePreviewAtRaw(index));
+  }, [closePreviewAtRaw, previewFile, previewList]);
   // U4 写后预览实时跟随：主区大预览与 pane 文件 tab 共用 reloadTicks 刷新总线
   const previewReloadTicks = usePaneTabsStore((s) => s.reloadTicks);
 
@@ -54,15 +68,19 @@ export function usePreviewPanel({ effectiveSidebarWidth, setRightTab, handleWork
     handleWorkspacePreviewModeChange(active);
     if (active) {
       setWorkspacePanel(false);
-      closeFilePreview();
+      closeFilePreviewRaw();
     }
-  }, [handleWorkspacePreviewModeChange, closeFilePreview]);
+  }, [handleWorkspacePreviewModeChange, closeFilePreviewRaw]);
   const toggleFocus = useCallback(() => {
     const next = !focusMode;
-    setFocusMode(next);
-    writeWorkbenchValue("gaea.focusMode", next ? "1" : "0");
-    applyFocus(next);
-  }, [focusMode, applyFocus]);
+    const apply = () => {
+      setFocusMode(next);
+      writeWorkbenchValue("gaea.focusMode", next ? "1" : "0");
+      applyFocus(next);
+    };
+    if (next) withPreviewDiscard(apply);
+    else apply();
+  }, [applyFocus, focusMode, withPreviewDiscard]);
   useEffect(() => {
     if (focusMode) {
       handleWorkspacePreviewModeChange(true);
@@ -76,11 +94,15 @@ export function usePreviewPanel({ effectiveSidebarWidth, setRightTab, handleWork
   // usePreviewStore.openFilePreview 单点（本函数即其唯一调用口），此处不再重复写。
   // P1-1：经全局 store 入队，支持 ←/→ 多文件切换
   const openFilePreview = useCallback((rel: string) => {
-    setRightTab("files");
-    setWorkspacePanel(false);
-    usePreviewStore.getState().openFilePreview(rel);
+    const open = () => {
+      setRightTab("files");
+      setWorkspacePanel(false);
+      usePreviewStore.getState().openFilePreview(rel);
+    };
+    if (previewFile && previewFile !== rel) confirmDiscardEditor(previewFile, open);
+    else open();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- setRightTab 为 React dispatch（稳定引用），原 deps [] 语义保留
-  }, []);
+  }, [previewFile]);
 
   // 对话内「交付文件」卡片与正文文件链接走 usePreviewStore（弹窗通道）。
   // 本页有嵌入式预览容器，把这类请求重定向为嵌入预览（弹窗仅保留给
@@ -98,18 +120,22 @@ export function usePreviewPanel({ effectiveSidebarWidth, setRightTab, handleWork
 
   // ── pane 视图/文件打开辅助（对标 better-sidebar：卡片/事件只开 tab）──
   const openPaneView = useCallback((viewId: WorkspaceTabId) => {
-    closeFilePreview();
-    setWorkspacePanel(true);
-    const reg = SIDEBAR_REGISTRY.find((r) => r.id === viewId);
-    usePaneTabsStore.getState().openView(viewId, reg?.label ?? viewId);
-  }, [closeFilePreview]);
+    withPreviewDiscard(() => {
+      closeFilePreviewRaw();
+      setWorkspacePanel(true);
+      const reg = SIDEBAR_REGISTRY.find((r) => r.id === viewId);
+      usePaneTabsStore.getState().openView(viewId, reg?.label ?? viewId);
+    });
+  }, [closeFilePreviewRaw, withPreviewDiscard]);
   const openPaneFile = useCallback((rel: string) => {
     if (!rel) return;
-    closeFilePreview();
-    setWorkspacePanel(true);
-    const name = rel.split(/[\\/]/).pop() || rel;
-    usePaneTabsStore.getState().openFile(rel, name);
-  }, [closeFilePreview]);
+    withPreviewDiscard(() => {
+      closeFilePreviewRaw();
+      setWorkspacePanel(true);
+      const name = rel.split(/[\\/]/).pop() || rel;
+      usePaneTabsStore.getState().openFile(rel, name);
+    });
+  }, [closeFilePreviewRaw, withPreviewDiscard]);
 
   // 正文交付卡 / 行内附件 / 工具输出文件引用 → 统一开 pane 文件 tab
   // （组件深处无法下钻回调，经模块级注入；未注册页面回落大预览）。
@@ -120,19 +146,20 @@ export function usePreviewPanel({ effectiveSidebarWidth, setRightTab, handleWork
 
   // 预览头部“文件”按钮 → 回到资源管理器视图 tab
   const backToFiles = useCallback(() => {
-    closeFilePreview();
     openPaneView("files");
-  }, [closeFilePreview, openPaneView]);
+  }, [openPaneView]);
 
   // 面板开关：预览打开时先收起预览再展开树
   const toggleWorkspacePanel = useCallback(() => {
     if (previewFile !== null) {
-      closeFilePreview();
-      setWorkspacePanel(true);
+      withPreviewDiscard(() => {
+        closeFilePreviewRaw();
+        setWorkspacePanel(true);
+      });
       return;
     }
     setWorkspacePanel((o) => !o);
-  }, [previewFile, closeFilePreview]);
+  }, [previewFile, closeFilePreviewRaw, withPreviewDiscard]);
 
   // 预览最大化可用宽度：与拖拽上限同源（视口 − 侧栏 − 聊天最小 360）。
   const previewMaxWidth = useMemo(

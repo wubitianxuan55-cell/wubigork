@@ -1,3 +1,26 @@
+## DSH-better-sidebar Go 增量复刻：文件工作台 F1 + 长期交接档 · 2026-11-12
+
+- **用户决策**：在现有 gaea 上增量接线，不从头重写；保留会话/任务/Office/记忆/导航与整体 UI；侧聊服务不做；先做文件工作台。
+- **上游基线**：`dsh-better-sidebar v0.32.0`，注解 tag `a53a988`，解析 commit `53e08cec`（2026-11-12）。README 只作概览，能力事实回看 `src/`、CHANGELOG、`docs/plans/`。
+- **F1 Go 权威**：新增 `internal/gaea/workbench`（fs/text/upload/watch）与 `internal/app/gaea_workbench.go`；覆盖批量列目录、展开目录 fsnotify、创建/重命名/永久删除、文件/目录/多选 ZIP、分片与原生上传、编码/EOL 保持、mtime CAS、原子写、5MB 编辑与 256KB 分页。
+- **F1 前端**：`FileTree` 接批量加载、watch、Ctrl/Shift 多选、CRUD、拖放/原生上传与导出；`ExplorerView`/`paneTabs` 做改名重定向和删除关 tab；`FilePreview` 做完整读取后编辑、冲突检查与分页阅读；bridge、mock、types、spaceBindings 同步。
+- **绑定面**：新增 17 方法，728→745；`OfficeB`、`models.ts`、`bindingNames`/legacy/mock 签名已再生成或同步。
+- **验证快照**：frontend build 通过；前端 483 文件/4301 用例全绿；定向 ESLint、workbench+app vet、排除语音环境的 Go 全量均通过；Wails build 成功；`build/bin/gaea.exe` 62,432,768 B / SHA256 `DA932248B764A4EA098E1A6A1F50A1818A7158EE5835479D6D06BCCECD0C3E95`，正式路径冒烟 `/api/health` 200。
+- **当前状态**：F1 未提交、未 push、未装机。`models.ts` 生成差异仍需最终 Wails 构建重写；后续若改源码必须重建并更新哈希。
+- **既有红项**：`go test ./...` 仅 voice/native 与 voice/realtime 因 ORT 1.17.1/Sherpa API 25/28 不匹配；binding drift 名称对齐但退出 1 因存量 `EngineUpdateStatus`、`StrataModelStart`；Wails 生成提示 `Not found: time.Time` 但 build/smoke 成功；docs checker 有多份既有未登记/悬空项，本批只保证新档登记。
+- **长期交接**：新增 `docs/gaea-better-sidebar-go-iteration-2026-11.md`，记录 F1 完成项/API/安全不变量、F2 文件树完整度、F3 预览编辑、G1 统一文件/Git、G2 提交图、W1 底部工作台/终端、X1 插件服务门控，以及新会话必读顺序和验收矩阵；旧 `gaea-dsh-better-sidebar-long-term-distill-plan-2026.md` 降为历史调研档。
+- **F2.1 Git 状态着色（同日续刀，代码候选）**：新增 `frontend/src/gaea/lib/gitStatusInk.ts` 纯映射层——Git porcelain X/Y 分类、冲突优先级、Windows/rename 路径归一、未跟踪目录折叠、文件与目录/根聚合；`FileTree` 接入现有 `GaeaGitStatus`，文件行显示语义色 X/Y 徽标，目录与根显示后代变更点，挂载/30s/窗口聚焦/目录事件/本树创建改名删除上传后刷新。验证=`gitStatusInk.test.ts`+`FileTree.test.tsx` 23/23、相关 4 文件定向 ESLint 通过、`git diff --check` 干净；按用户要求未跑全量测试/Wails build，真机观感仍挂载。
+- **F2.2–F2.5 文件树完整度（同日续刀，代码候选）**：①新增 `internal/gaea/filefilter` 单一 Go 排除权威（默认噪音 + 最多 64 条用户 glob，名称/相对路径/`*`/`?`/`**`，Windows 大小写不敏感）；`GaeaListDirBatch`/`GaeaFileTreeWatch`/`GaeaFileSearch` 同源过滤，@ 菜单也走同一规则；前端按工作区持久化排除规则与紧凑偏好，根菜单/标题齿轮可编辑。②Go 增量探测单可见子目录并输出 `compact`，前端折叠为 `a/b/c` 单行（深度 8），整链展开、菜单尾目录、tab 真实路径调解。③文件图标扩为 Word/表格/PPT/PDF/图片/代码/配置/压缩/数据库并区分文件夹开合。④打开方式改为系统默认程序/资源管理器子菜单，失败可见。
+- **F2 验证**：`filefilter`+`workbench` Go 测试绿，`internal/app` 搜索/资料/工作台定向测试绿，三包 vet 绿；前端 FileTree/Composer/偏好/紧凑/图标/Git/mock 契约 **8 文件 53 用例全绿**，`tsc -b --force` 与定向 ESLint 绿；`gen_bindings -signatures-ts` 与 `wails generate module` 成功、绑定仍 745。按用户要求**未跑 Vite/Wails 应用构建、未装机**，桌面真机走查仍挂。
+- **F3 预览编辑对齐（同日续刀，代码候选）**：①CodeMirror 6 覆盖现有文本/Markdown 编辑并保留 Suspense/ErrorBoundary textarea 双层回落。②新增 JSONL/NDJSON 记录卡（逐行解析、坏行原样、500 条/4000 字预算、记录卡/原文切换）。③Markdown 浮动目录（代码围栏外标题提取、吸顶、滚动高亮、点击定位）。④相对/file/Windows drive 图片按 Markdown 所在目录解析，经 `AttachmentDataURL` 的可读根+32MB 围栏加载；`data:image`/远程图直渲染。⑤脏稿 registry 支持多 owner、pane tab 关闭/切换与主预览关闭/导航确认、`beforeunload`。⑥ diff 超长单行默认 2K、显式展开 20K，超 20K 配对不做字符 LCS。
+- **F3 验证**：前端 12 文件 **99 用例全绿**、`tsc -b --force` 绿、23 文件定向 ESLint 绿。按用户要求**未跑 Vite/Wails 应用构建、未装机**，桌面真机走查仍挂。
+- **G1.1 统一文件/Git 前端第一刀（同日续刀，代码候选）**：新增 `gitStatusStore`——唯一 Git 状态轮询者，30s/focus 刷新、多订阅共享 in-flight、非仓库快照与 revision；FileTree Git ink 和 GitPanel 改为共用 store，不再各自发 `GaeaGitStatus`。GitPanel 增加「Git / 本轮文件」双镜头，本轮文件复用 ChangesPanel 三态与证据链。未动 Go Git 最小绑定、未做 push/pull/fetch。验证=gitStatusStore+GitPanel+FileTree **3 文件 29 用例**、tsc、6 文件定向 ESLint 全绿；未跑构建/真机。
+- **G1.2 Git 仓库根语义（同日续刀，代码候选）**：`GaeaGitStatus` 先 `git rev-parse --show-toplevel` 发现父级仓库根，再从根执行 porcelain `-z -b`；嵌套工作区路径统一转为工作区相对路径，仓库外变更过滤，避免文件树/Git 面板打开不可达路径。NUL 解析同时修正 rename/copy 目的路径，并补无提交分支名。验证=`TestGaeaGit*`+`TestCleanFilter*` 定向全绿、`go vet ./internal/app` 绿；未抬绑定、未跑构建/真机。
+- **G1.3 统一只读变更树（同日续刀，代码候选）**：新增 `unifiedChangesTree` 纯函数——Git 与 SessionChange 按规范化路径合并，目录 rollup 文件/Git/AI 计数；GitPanel 新增「统一」镜头，叶节点同时显示暂存字母、工作区字母和 AI 次数，目录可折叠、文件可打开。工作区外绝对 Agent 路径过滤；非 Git 仓库仍显示 Agent 变更并诚实提示 Git 不可用。验证=纯函数/树组件/GitPanel **3 文件 12 用例**、tsc、定向 ESLint 全绿；未跑构建/真机。统一镜头内 stage/unstage/discard 尚未迁入。
+- **G1.4 统一树快操作与来源筛选（同日续刀，代码候选）**：统一镜头增加全部/Git/AI筛选；文件行按 porcelain 状态提供 stage（工作区/未跟踪）、unstage（暂存侧）和两击 discard（已跟踪工作区改动），复用既有 `GaeaGit*` 并在动作后刷新共享 status。操作按钮与文件打开分离，避免误触；AI-only/非仓库树仍可用。验证=统一树/组件/GitPanel **3 文件 14 用例**、tsc、定向 ESLint 全绿；未跑构建/真机。
+- **G1.5 统一树行内 diff（同日续刀，代码候选）**：已跟踪文件行增加 diff 展开；同一文件同时存在暂存/工作区改动时可切换「暂存区 diff / 工作区 diff」，继续复用 `GaeaGitDiff` 与 ChangesDiff。未跟踪/AI-only 行不显示伪 diff；展开状态与文件打开分离。验证=统一树/组件/GitPanel **3 文件 16 用例**、tsc、定向 ESLint 全绿；未跑构建/真机。
+- **桌面端构建（2026-11-12 23:01）**：按构建指南先 `npm.cmd run build`（21.89s），再使用 ucrt64 + CGO + 系统 TMP 执行完整 `wails build -s -ldflags "-s -w" -trimpath`（56.11s，bindings 未跳过）。产物 `build/bin/gaea.exe` 62,485,504 B，SHA256=`F0452ADCFF604E3CB020EA78BA83A0E3979FB9ECB74CA14AE3FE1FBB09113A96`；三枚语音 DLL 同目录；正式路径冒烟 `/api/health` 200（`{"status":"ok"}`），冒烟 PID 22520 已回收。当前未提交、未装机；Wails 仍提示已知 `Not found: time.Time`，生成 `models.ts` 仍带尾随空白。
+
 ## 35B 单副本收口：原件删除+llama 切 whirlfix2（v4.539.0）· 2026-11-11（深夜）
 
 - 先验后删：b12110+whirlfix2 载入烟测通过 → qwen35ModelFile 常量切

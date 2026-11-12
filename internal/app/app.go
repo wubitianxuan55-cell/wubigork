@@ -34,6 +34,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/tasks"
 	"github.com/gaea/gaea/internal/gaea/tool"
 	"github.com/gaea/gaea/internal/gaea/vision"
+	"github.com/gaea/gaea/internal/gaea/workbench"
 	"github.com/gaea/gaea/internal/httpbridge"
 	"github.com/gaea/gaea/internal/intent"
 	"github.com/gaea/gaea/internal/modelengine"
@@ -280,6 +281,10 @@ type officeState struct {
 
 	// 阶段 5 T5-2：工作区实时文件监听（fsnotify 增量索引，失败回退轮询）。
 	fileWatch *filewatch.Watcher
+	// 文件工作台：展开目录实时监听与分块上传（按需启动，Shutdown 收口）。
+	fileTreeWatchMu  sync.Mutex
+	fileTreeWatch    *workbench.DirWatch
+	workspaceUploads *workbench.UploadManager
 	// 回退轮询的停止钩子（2026-09-19 审计：原实现 _ = 丢弃，轮询 goroutine
 	// 启动后无人能停）。
 	fileWatchPollStop func()
@@ -796,6 +801,7 @@ func (a *App) Shutdown(ctx context.Context) {
 			close(a.officeState.keepWarmStop)
 		}
 	})
+	a.closeWorkspaceWorkbench()
 	// 停止任务调度器（running 任务留待下次启动续跑）与文件监听。
 	if a.officeState.tasks != nil {
 		a.officeState.tasks.Close()

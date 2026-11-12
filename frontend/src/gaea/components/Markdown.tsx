@@ -45,6 +45,7 @@ import { parseGenuiFenceBody, splitGenuiFences } from "../../genui/parse";
 import { useGenuiScope } from "../../genui/scope";
 import { useGenuiPanelStore } from "../lib/genuiPanel";
 import { ensureKatexCss, hasMathContent, normalizeMath } from "../lib/mathText";
+import { resolveMarkdownImagePath } from "../lib/markdownImage";
 
 // ── Mermaid 图表渲染（agent 生成的流程图/架构图/思维导图等）─────────────
 
@@ -415,6 +416,7 @@ function buildComponents(
   autoExportMermaid: boolean,
   fenceKeyFor: ((body: string) => string | undefined) | undefined,
   codeLabels: CodeCollapseLabels,
+  imageBasePath?: string,
 ): Components {
   return {
     pre: ({ children }) => {
@@ -493,6 +495,14 @@ function buildComponents(
         </a>
       );
     },
+    img: ({ src, alt, title }) => (
+      <MarkdownImage
+        src={typeof src === "string" ? src : ""}
+        alt={alt}
+        title={title}
+        basePath={imageBasePath}
+      />
+    ),
     table: ({ children }) => (
       <div className="my-3 overflow-x-auto rounded-lg border border-border-soft">
         <table>{children}</table>
@@ -511,6 +521,61 @@ function buildComponents(
   };
 }
 
+function MarkdownImage({
+  src,
+  alt,
+  title,
+  basePath,
+}: {
+  src: string;
+  alt?: string;
+  title?: string;
+  basePath?: string;
+}) {
+  const direct = /^(data:image\/|https?:\/\/|blob:)/i.test(src);
+  const [resolved, setResolved] = useState(direct ? src : "");
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (direct) {
+      setResolved(src);
+      setFailed(false);
+      return;
+    }
+    const path = resolveMarkdownImagePath(src, basePath);
+    if (!path) {
+      setResolved("");
+      setFailed(true);
+      return;
+    }
+    let live = true;
+    setFailed(false);
+    setResolved("");
+    void app.AttachmentDataURL(path)
+      .then((url) => {
+        if (live) setResolved(url);
+      })
+      .catch(() => {
+        if (!live) return;
+        setResolved("");
+        setFailed(true);
+      });
+    return () => {
+      live = false;
+    };
+  }, [basePath, direct, src]);
+
+  if (src === "") return <img src="" alt={alt ?? ""} title={title} data-markdown-image="blocked" />;
+  if (failed || !resolved) {
+    return (
+      <span className="inline-flex max-w-full rounded border border-dashed border-border-soft px-2 py-1 text-[11px] text-fg-faint">
+        {alt || "图片"}不可用
+      </span>
+    );
+  }
+  return <img src={resolved} alt={alt ?? ""} title={title} loading="lazy" data-markdown-image="true" />;
+}
+
 // 渲染层 URL 收口（对渲染树所有 a/img 生效，含 raw HTML 版本）：
 // 本地文件路径 / mem: 引用 / data:image/* 显式放行；其余（javascript:、
 // data:text/html 等）交 defaultUrlTransform 剥成空串。
@@ -523,11 +588,14 @@ export const Markdown = memo(function Markdown({
   text,
   autoExportMermaid = true,
   genuiKey,
+  imageBasePath,
 }: {
   text: string;
   autoExportMermaid?: boolean;
   /** 消息级源 key：用于 GenUI 状态持久化与面板发布去重（预览等场景缺省）。 */
   genuiKey?: string;
+  /** Markdown 文件自身路径；本地相对图片据此解析到工作区。 */
+  imageBasePath?: string;
 }) {
   if (hasMathContent(text)) ensureKatexCss();
   const openFilePreview = openPaneFileOrPreview;
@@ -558,7 +626,7 @@ export const Markdown = memo(function Markdown({
         components={buildComponents(openFilePreview, autoExportMermaid, fenceKeyFor, {
           expand: (n: number) => t("msg.codeExpand", { n }),
           collapse: t("msg.codeCollapse"),
-        })}
+        }, imageBasePath)}
         urlTransform={mdUrlTransform}
       >
         {normalizeMath(text)}

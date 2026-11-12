@@ -50,6 +50,19 @@ describe("ChangesDiff 变更行 diff 渲染", () => {
     render(<ChangesDiff diff={{ kind: "diff", hunks: [{ rows }] }} />);
     expect(screen.getByText(/已截断：共 700 行/)).toBeTruthy();
   });
+
+  it("超长单行默认只渲染 2K，可展开到 20K，避免巨量文本节点", () => {
+    const long = "x".repeat(30_000);
+    const { container } = render(
+      <ChangesDiff diff={{ kind: "diff", hunks: [{ rows: [{ type: "add", text: long }] }] }} />,
+    );
+    const body = container.querySelector("[data-testid='changes-diff-hunk'] .flex-1") as HTMLElement;
+    expect(body.textContent!.length).toBeLessThan(2300);
+    fireEvent.click(screen.getByRole("button", { name: /长行已截断/ }));
+    expect(body.textContent!.length).toBeGreaterThan(19_000);
+    expect(body.textContent!.length).toBeLessThan(20_100);
+    expect(screen.getByRole("button", { name: "收起长行" })).toBeTruthy();
+  });
 });
 
 describe("ChangesDiff 2c 渲染升级：改蓝配对 + 上下文折叠", () => {

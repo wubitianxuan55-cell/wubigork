@@ -18,6 +18,7 @@ import (
 	"github.com/gaea/gaea/internal/config"
 	gaeaAttachment "github.com/gaea/gaea/internal/gaea/attachment"
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
+	"github.com/gaea/gaea/internal/gaea/filefilter"
 	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/gaea/wspath"
 	"github.com/gaea/gaea/internal/modelengine"
@@ -471,28 +472,15 @@ type FileSearchHit struct {
 	ModTime int64  `json:"modTime"` // unix 毫秒（资料概览排序用）
 }
 
-// searchSkipDirs 工作区搜索跳过的噪音目录（依赖/构建/运行时缓存等）。
-//
-// 审计 GA5-17：清单下沉 internal/gaea/wspath 单源（新增产物目录只改那里）。
-// 本处增量 SearchExtra 与 wssearch 逐项相同 ⇒ 合并结果与收敛前那份 8 项清单
-// **逐项一致**，扫描范围零变化。`:484` / `:539` 两处 map 查询与 `.tmp` 前缀
-// 判断保持原样。
-var searchSkipDirs = func() map[string]bool {
-	m := make(map[string]bool)
-	for _, d := range wspath.Merge(wspath.CoreSkipDirs, wspath.SearchExtra) {
-		m[d] = true
-	}
-	return m
-}()
-
 // GaeaFileSearch 工作区文件名搜索（跨目录定位资料）：按名称子串匹配、
-// 不区分大小写，限制深度与数量，跳过噪音目录。供 @ 菜单的「搜一下」使用。
-func (a *App) GaeaFileSearch(query string, limit int) []FileSearchHit {
+// 不区分大小写，限制深度与数量，与文件树共用默认/用户排除规则。
+func (a *App) GaeaFileSearch(query string, limit int, exclude []string) []FileSearchHit {
 	if limit <= 0 || limit > 100 {
 		limit = 30
 	}
 	q := strings.ToLower(strings.TrimSpace(query))
 	root := gaeaCwd()
+	matcher := filefilter.Compile(exclude)
 	out := []FileSearchHit{}
 	matched := 0
 
@@ -514,10 +502,10 @@ func (a *App) GaeaFileSearch(query string, limit int) []FileSearchHit {
 			if rel != "" {
 				relPath = rel + "/" + name
 			}
+			if matcher.Match(relPath, name) {
+				continue
+			}
 			if e.IsDir() {
-				if searchSkipDirs[name] || strings.HasPrefix(name, ".tmp") {
-					continue
-				}
 				if q == "" || strings.Contains(strings.ToLower(name), q) {
 					out = append(out, FileSearchHit{Path: relPath, Name: name, IsDir: true})
 					matched++
@@ -554,6 +542,7 @@ func (a *App) GaeaMaterials(limit int) []FileSearchHit {
 		limit = 100
 	}
 	root := gaeaCwd()
+	matcher := filefilter.Compile(nil)
 	out := []FileSearchHit{}
 	var walk func(dir, rel string, depth int)
 	walk = func(dir, rel string, depth int) {
@@ -569,10 +558,14 @@ func (a *App) GaeaMaterials(limit int) []FileSearchHit {
 				return
 			}
 			name := e.Name()
+			relPath := name
+			if rel != "" {
+				relPath = rel + "/" + name
+			}
+			if matcher.Match(relPath, name) {
+				continue
+			}
 			if e.IsDir() {
-				if searchSkipDirs[name] || strings.HasPrefix(name, ".tmp") {
-					continue
-				}
 				dirRel := name
 				if rel != "" {
 					dirRel = rel + "/" + name
@@ -586,10 +579,6 @@ func (a *App) GaeaMaterials(limit int) []FileSearchHit {
 			info, err := e.Info()
 			if err != nil {
 				continue
-			}
-			relPath := name
-			if rel != "" {
-				relPath = rel + "/" + name
 			}
 			out = append(out, FileSearchHit{
 				Path:    relPath,
@@ -1119,6 +1108,8 @@ func (a *App) switchWorkspace(abs string) string {
 	if err := ensureTaskTemplateCommands(abs); err != nil {
 		slog.Warn("新工作区任务模板安装失败", "error", err)
 	}
+	// 文件工作台监听与上传会话绑定旧根目录，切换成功后立即释放。
+	a.closeWorkspaceWorkbench()
 	// 重建办公引擎使会话目录跟随新工作空间。失败仅记日志（工作空间已持久化，
 	// 下次启动生效），绝不让引擎重建问题阻塞工作空间切换。
 	func() {

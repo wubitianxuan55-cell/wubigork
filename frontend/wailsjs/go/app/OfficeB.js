@@ -138,6 +138,14 @@ export function GaeaConvertToPdf(arg1) {
   return window['go']['app']['OfficeB']['GaeaConvertToPdf'](arg1);
 }
 
+export function GaeaCreateWorkspaceFile(arg1, arg2) {
+  return window['go']['app']['OfficeB']['GaeaCreateWorkspaceFile'](arg1, arg2);
+}
+
+export function GaeaCreateWorkspaceFolder(arg1, arg2) {
+  return window['go']['app']['OfficeB']['GaeaCreateWorkspaceFolder'](arg1, arg2);
+}
+
 export function GaeaCrossEmbed(arg1) {
   return window['go']['app']['OfficeB']['GaeaCrossEmbed'](arg1);
 }
@@ -234,6 +242,10 @@ export function GaeaDeleteUpload(arg1) {
   return window['go']['app']['OfficeB']['GaeaDeleteUpload'](arg1);
 }
 
+export function GaeaDeleteWorkspacePaths(arg1) {
+  return window['go']['app']['OfficeB']['GaeaDeleteWorkspacePaths'](arg1);
+}
+
 export function GaeaDeliverableRegistry(arg1) {
   return window['go']['app']['OfficeB']['GaeaDeliverableRegistry'](arg1);
 }
@@ -286,12 +298,16 @@ export function GaeaFileIndexRebuild() {
   return window['go']['app']['OfficeB']['GaeaFileIndexRebuild']();
 }
 
-export function GaeaFileSearch(arg1, arg2) {
-  return window['go']['app']['OfficeB']['GaeaFileSearch'](arg1, arg2);
+export function GaeaFileSearch(arg1, arg2, arg3) {
+  return window['go']['app']['OfficeB']['GaeaFileSearch'](arg1, arg2, arg3);
 }
 
 export function GaeaFileSemanticSearch(arg1, arg2) {
   return window['go']['app']['OfficeB']['GaeaFileSemanticSearch'](arg1, arg2);
+}
+
+export function GaeaFileTreeWatch(arg1, arg2) {
+  return window['go']['app']['OfficeB']['GaeaFileTreeWatch'](arg1, arg2);
 }
 
 export function GaeaForget(arg1) {
@@ -344,6 +360,10 @@ export function GaeaJournalList(arg1) {
 
 export function GaeaListDir(arg1) {
   return window['go']['app']['OfficeB']['GaeaListDir'](arg1);
+}
+
+export function GaeaListDirBatch(arg1, arg2) {
+  return window['go']['app']['OfficeB']['GaeaListDirBatch'](arg1, arg2);
 }
 
 export function GaeaListProjectSessions() {
@@ -418,6 +438,14 @@ export function GaeaPickWorkspace() {
   return window['go']['app']['OfficeB']['GaeaPickWorkspace']();
 }
 
+export function GaeaPickWorkspaceUploadFiles(arg1) {
+  return window['go']['app']['OfficeB']['GaeaPickWorkspaceUploadFiles'](arg1);
+}
+
+export function GaeaPickWorkspaceUploadFolder(arg1) {
+  return window['go']['app']['OfficeB']['GaeaPickWorkspaceUploadFolder'](arg1);
+}
+
 export function GaeaPinMaterial(arg1) {
   return window['go']['app']['OfficeB']['GaeaPinMaterial'](arg1);
 }
@@ -458,6 +486,14 @@ export function GaeaReadFileB64(arg1) {
   return window['go']['app']['OfficeB']['GaeaReadFileB64'](arg1);
 }
 
+export function GaeaReadFilePage(arg1, arg2) {
+  return window['go']['app']['OfficeB']['GaeaReadFilePage'](arg1, arg2);
+}
+
+export function GaeaReadTextFile(arg1) {
+  return window['go']['app']['OfficeB']['GaeaReadTextFile'](arg1);
+}
+
 export function GaeaRecognizeImage(arg1, arg2) {
   return window['go']['app']['OfficeB']['GaeaRecognizeImage'](arg1, arg2);
 }
@@ -480,6 +516,10 @@ export function GaeaRemovePermissionRule(arg1, arg2) {
 
 export function GaeaRenameSession(arg1, arg2) {
   return window['go']['app']['OfficeB']['GaeaRenameSession'](arg1, arg2);
+}
+
+export function GaeaRenameWorkspacePath(arg1, arg2) {
+  return window['go']['app']['OfficeB']['GaeaRenameWorkspacePath'](arg1, arg2);
 }
 
 export function GaeaResumeSession(arg1) {
@@ -544,6 +584,14 @@ export function GaeaSaveSettings(arg1) {
 
 export function GaeaSaveWindowState(arg1) {
   return window['go']['app']['OfficeB']['GaeaSaveWindowState'](arg1);
+}
+
+export function GaeaSaveWorkspacePathAs(arg1) {
+  return window['go']['app']['OfficeB']['GaeaSaveWorkspacePathAs'](arg1);
+}
+
+export function GaeaSaveWorkspacePathsAs(arg1) {
+  return window['go']['app']['OfficeB']['GaeaSaveWorkspacePathsAs'](arg1);
 }
 
 export function GaeaScheduleExportXlsx(arg1) {
@@ -794,8 +842,28 @@ export function GaeaWorkspaceSearch(arg1, arg2) {
   return window['go']['app']['OfficeB']['GaeaWorkspaceSearch'](arg1, arg2);
 }
 
+export function GaeaWorkspaceUploadAbort(arg1) {
+  return window['go']['app']['OfficeB']['GaeaWorkspaceUploadAbort'](arg1);
+}
+
+export function GaeaWorkspaceUploadAppend(arg1, arg2) {
+  return window['go']['app']['OfficeB']['GaeaWorkspaceUploadAppend'](arg1, arg2);
+}
+
+export function GaeaWorkspaceUploadBegin(arg1, arg2) {
+  return window['go']['app']['OfficeB']['GaeaWorkspaceUploadBegin'](arg1, arg2);
+}
+
+export function GaeaWorkspaceUploadFinish(arg1) {
+  return window['go']['app']['OfficeB']['GaeaWorkspaceUploadFinish'](arg1);
+}
+
 export function GaeaWriteFile(arg1, arg2) {
   return window['go']['app']['OfficeB']['GaeaWriteFile'](arg1, arg2);
+}
+
+export function GaeaWriteWorkspaceFile(arg1, arg2, arg3) {
+  return window['go']['app']['OfficeB']['GaeaWriteWorkspaceFile'](arg1, arg2, arg3);
 }
 
 export function GaeaXlsxApplyEdit(arg1, arg2) {

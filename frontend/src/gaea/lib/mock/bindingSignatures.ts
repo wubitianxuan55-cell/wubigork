@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 728 名（原生变参 8 名已收窄标注）。
+// 共 745 名（原生变参 8 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -162,6 +162,8 @@ export const bindingSignatures = {
   GaeaCostSave: { argc: 1, variadic: false, params: "e CostEntry" },
   GaeaCostSearch: { argc: 3, variadic: false, params: "query string, category string, status string" },
   GaeaCostSearchPage: { argc: 7, variadic: false, params: "query string, category string, status string, sortKey string, sortDir int, limit int, offset int" },
+  GaeaCreateWorkspaceFile: { argc: 2, variadic: false, params: "parent string, name string" },
+  GaeaCreateWorkspaceFolder: { argc: 2, variadic: false, params: "parent string, name string" },
   GaeaCrossEmbed: { argc: 1, variadic: false, params: "in CrossEmbedInput" },
   GaeaDagAcceptAll: { argc: 1, variadic: false, params: "id string" },
   GaeaDagCancel: { argc: 1, variadic: false, params: "id string" },
@@ -186,6 +188,7 @@ export const bindingSignatures = {
   GaeaDeleteProvider: { argc: 1, variadic: false, params: "name string" },
   GaeaDeleteSession: { argc: 1, variadic: false, params: "path string" },
   GaeaDeleteUpload: { argc: 1, variadic: false, params: "path string" },
+  GaeaDeleteWorkspacePaths: { argc: 1, variadic: false, params: "paths []string" },
   GaeaDeliverableRegistry: { argc: 1, variadic: false, params: "sessionPath string" },
   GaeaDismissMemorySuggestion: { argc: 1, variadic: false, params: "id string" },
   GaeaDocumentLint: { argc: 1, variadic: false, params: "rel string" },
@@ -199,8 +202,9 @@ export const bindingSignatures = {
   GaeaFactBasePromote: { argc: 0, variadic: false, params: "" },
   GaeaFamilyEvents: { argc: 1, variadic: true, params: "sessionPath string" }, // 原生变参已收窄：门面单值透传（原始 ...T）
   GaeaFileIndexRebuild: { argc: 0, variadic: false, params: "" },
-  GaeaFileSearch: { argc: 2, variadic: false, params: "query string, limit int" },
+  GaeaFileSearch: { argc: 3, variadic: false, params: "query string, limit int, exclude []string" },
   GaeaFileSemanticSearch: { argc: 2, variadic: false, params: "query string, topN int" },
+  GaeaFileTreeWatch: { argc: 2, variadic: false, params: "paths []string, exclude []string" },
   GaeaForget: { argc: 1, variadic: false, params: "name string" },
   GaeaFork: { argc: 1, variadic: false, params: "turn int" },
   GaeaGenerateBookCover: { argc: 2, variadic: false, params: "projectID string, promptHint string" },
@@ -230,6 +234,7 @@ export const bindingSignatures = {
   GaeaKnowledgeSave: { argc: 1, variadic: false, params: "e KnowledgeEntry" },
   GaeaKnowledgeSearch: { argc: 4, variadic: false, params: "query string, category string, phase string, status string" },
   GaeaListDir: { argc: 1, variadic: false, params: "rel string" },
+  GaeaListDirBatch: { argc: 2, variadic: false, params: "paths []string, exclude []string" },
   GaeaListProjectSessions: { argc: 0, variadic: false, params: "" },
   GaeaListSessions: { argc: 0, variadic: false, params: "" },
   GaeaListWorkspaces: { argc: 0, variadic: false, params: "" },
@@ -268,6 +273,8 @@ export const bindingSignatures = {
   GaeaPickDirectory: { argc: 0, variadic: false, params: "" },
   GaeaPickFiles: { argc: 1, variadic: false, params: "filters string" },
   GaeaPickWorkspace: { argc: 0, variadic: false, params: "" },
+  GaeaPickWorkspaceUploadFiles: { argc: 1, variadic: false, params: "dir string" },
+  GaeaPickWorkspaceUploadFolder: { argc: 1, variadic: false, params: "dir string" },
   GaeaPinMaterial: { argc: 1, variadic: false, params: "rel string" },
   GaeaPinSession: { argc: 2, variadic: false, params: "path string, pinned bool" },
   GaeaPinnedMaterials: { argc: 0, variadic: false, params: "" },
@@ -292,12 +299,15 @@ export const bindingSignatures = {
   GaeaPromoteSubagent: { argc: 2, variadic: false, params: "sessionPath string, ref string" },
   GaeaReadFile: { argc: 1, variadic: false, params: "rel string" },
   GaeaReadFileB64: { argc: 1, variadic: false, params: "path string" },
+  GaeaReadFilePage: { argc: 2, variadic: false, params: "rel string, offset int64" },
+  GaeaReadTextFile: { argc: 1, variadic: false, params: "rel string" },
   GaeaRecognizeImage: { argc: 2, variadic: false, params: "imagePath string, prompt string" },
   GaeaReload: { argc: 0, variadic: false, params: "" },
   GaeaRemember: { argc: 2, variadic: false, params: "scope string, note string" },
   GaeaRemoveMCPServer: { argc: 1, variadic: false, params: "name string" },
   GaeaRemovePermissionRule: { argc: 2, variadic: false, params: "list string, rule string" },
   GaeaRenameSession: { argc: 2, variadic: false, params: "path string, title string" },
+  GaeaRenameWorkspacePath: { argc: 2, variadic: false, params: "rel string, name string" },
   GaeaResumeSession: { argc: 1, variadic: false, params: "path string" },
   GaeaResyncEvents: { argc: 1, variadic: false, params: "afterSeq int" },
   GaeaRetrievalEvalRun: { argc: 0, variadic: false, params: "" },
@@ -318,6 +328,8 @@ export const bindingSignatures = {
   GaeaSaveProvider: { argc: 1, variadic: false, params: "p ProviderView" },
   GaeaSaveSettings: { argc: 1, variadic: false, params: "view SettingsView" },
   GaeaSaveWindowState: { argc: 1, variadic: false, params: "state map[string]interface{}" },
+  GaeaSaveWorkspacePathAs: { argc: 1, variadic: false, params: "rel string" },
+  GaeaSaveWorkspacePathsAs: { argc: 1, variadic: false, params: "paths []string" },
   GaeaScheduleExportXlsx: { argc: 1, variadic: false, params: "projectJSON string" },
   GaeaScheduleImportMpp: { argc: 1, variadic: false, params: "mppBase64 string" },
   GaeaScheduleImportXlsx: { argc: 1, variadic: false, params: "xlsxBase64 string" },
@@ -433,7 +445,12 @@ export const bindingSignatures = {
   GaeaWorkcostSeedApply: { argc: 1, variadic: false, params: "includeComposite bool" },
   GaeaWorkcostSeedPreview: { argc: 1, variadic: false, params: "includeComposite bool" },
   GaeaWorkspaceSearch: { argc: 2, variadic: false, params: "query string, limit int" },
+  GaeaWorkspaceUploadAbort: { argc: 1, variadic: false, params: "token string" },
+  GaeaWorkspaceUploadAppend: { argc: 2, variadic: false, params: "token string, base64Chunk string" },
+  GaeaWorkspaceUploadBegin: { argc: 2, variadic: false, params: "dir string, relativePath string" },
+  GaeaWorkspaceUploadFinish: { argc: 1, variadic: false, params: "token string" },
   GaeaWriteFile: { argc: 2, variadic: false, params: "rel string, content string" },
+  GaeaWriteWorkspaceFile: { argc: 3, variadic: false, params: "rel string, content string, expectedMtimeMs int64" },
   GaeaXlsxApplyEdit: { argc: 2, variadic: false, params: "rel string, opsJSON string" },
   GaeaXlsxChart: { argc: 1, variadic: false, params: "in XlsxChartInput" },
   GaeaXlsxColOps: { argc: 4, variadic: false, params: "rel string, sheet string, action string, ref string" },
@@ -749,5 +766,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 728。
-export const bindingSignatureCount = 728;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 745。
+export const bindingSignatureCount = 745;

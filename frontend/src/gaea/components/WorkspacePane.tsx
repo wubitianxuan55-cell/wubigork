@@ -7,6 +7,7 @@ import { normalizePreviewPath } from "../lib/officeTurnProjection";
 import { WORKSPACE_TABS, type WorkspaceTabId } from "../lib/workspaceTabs";
 import { getWorkspaceRegistration, type WorkspacePanelContext } from "../lib/sidebarRegistry";
 import { FileTypeIcon } from "../lib/fileIcon";
+import { confirmDiscardEditor } from "../lib/editorDrafts";
 import { FilePreview } from "./FilePreview";
 import { BrowserPane } from "./BrowserPane";
 
@@ -53,8 +54,14 @@ export function WorkspacePane({
 
   const api = usePaneTabsStore.getState;
   const openView = (viewId: WorkspaceTabId, title: string) => api().openView(viewId, title);
-  const closeTab = (id: string) => api().close(id);
-  const activateTab = (id: string) => api().activate(id);
+  const closeTab = (id: string) => {
+    const tab = tabs.find((item) => item.id === id);
+    confirmDiscardEditor(tab?.kind === "file" ? tab.path : undefined, () => api().close(id));
+  };
+  const activateTab = (id: string) => {
+    if (id === active) return;
+    confirmDiscardEditor(activeTab?.kind === "file" ? activeTab.path : undefined, () => api().activate(id));
+  };
 
   // 激活变化 → 通知外层（产物/任务角标已读、命令面板重排）
   useEffect(() => {

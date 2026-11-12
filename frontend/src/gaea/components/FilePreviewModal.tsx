@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, ExternalLink, FilePdf, FileText, FolderTree, Loader2, X } from "../icons";
 import { app } from "../lib/bridge";
 import {
@@ -17,6 +17,9 @@ import { PptxOutline } from "./PptxOutline";
 import { usePreviewProgress } from "../hooks/usePreviewProgress";
 import { useToast } from "./Toast";
 import { XlsxPreview } from "./XlsxPreview";
+import { MarkdownToc } from "./MarkdownToc";
+import { extractMarkdownOutline } from "../lib/markdownOutline";
+import { JsonlPreview } from "./JsonlPreview";
 
 // 可转 PDF 的扩展名（与后端 GaeaConvertToPdf 的支持范围一致）。
 const PDF_CONVERT_RE = /\.(docx|xlsx|pptx|odt|html?|txt|csv|md|markdown)$/i;
@@ -127,6 +130,10 @@ export function FilePreviewModal() {
   const pdfPages = preview?.kind === "pdf" ? preview.pages : undefined;
   const pdfPageCount = pdfPages?.length ?? 0;
   const { lazyPdf, lazyPdfPages, pdfPageAnchorRef, handlePdfPageLoad, scrollToPptxPage } = useLazyPdfPages(pptxPagesRef, preview, pdfPageCount);
+  const markdownHeadings = useMemo(
+    () => preview?.kind === "markdown" ? extractMarkdownOutline(preview.body) : [],
+    [preview?.body, preview?.kind],
+  );
 
 
   const exportPdf = useCallback(async () => {
@@ -328,17 +335,20 @@ export function FilePreviewModal() {
                   <MindMapView text={preview.body} title={name} />
                 </div>
               ) : (
-                <div className="px-8 py-6 max-w-[860px] mx-auto">
-                  <Markdown text={preview.body} autoExportMermaid={false} />
+                <div className="relative px-8 py-6 max-w-[860px] mx-auto">
+                  <MarkdownToc headings={markdownHeadings} scrollRef={scrollRef} contentKey={preview.body} />
+                  <Markdown text={preview.body} autoExportMermaid={false} imageBasePath={previewFile ?? undefined} />
                 </div>
               )}
             </>
           )}
 
           {!loading && preview?.kind === "text" && (
-            <pre className="p-5 text-[13px] text-fg-dim font-mono leading-relaxed whitespace-pre-wrap overflow-x-auto">
-              {preview.body}
-            </pre>
+            /\.(jsonl|ndjson)$/i.test(previewFile ?? "")
+              ? <JsonlPreview text={preview.body} />
+              : <pre className="p-5 text-[13px] text-fg-dim font-mono leading-relaxed whitespace-pre-wrap overflow-x-auto">
+                  {preview.body}
+                </pre>
           )}
 
           {!loading && preview?.kind === "html" && (

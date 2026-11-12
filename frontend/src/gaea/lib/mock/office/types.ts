@@ -7,6 +7,14 @@ import type { AppBindings } from "../../bridge";
 export type OfficeMethods = Pick<
   AppBindings,
   | "ListDir" | "FileSearch" | "Materials" | "WorkspaceSearch"
+  | "GaeaListDirBatch" | "GaeaFileTreeWatch"
+  | "GaeaRenameWorkspacePath" | "GaeaCreateWorkspaceFolder" | "GaeaCreateWorkspaceFile"
+  | "GaeaDeleteWorkspacePaths"
+  | "GaeaWorkspaceUploadBegin" | "GaeaWorkspaceUploadAppend"
+  | "GaeaWorkspaceUploadFinish" | "GaeaWorkspaceUploadAbort"
+  | "GaeaPickWorkspaceUploadFiles" | "GaeaPickWorkspaceUploadFolder"
+  | "GaeaReadTextFile" | "GaeaReadFilePage" | "GaeaWriteWorkspaceFile"
+  | "GaeaSaveWorkspacePathAs" | "GaeaSaveWorkspacePathsAs"
   | "PinnedMaterials" | "PinMaterial" | "UnpinMaterial" | "SummarizeFile"
   | "TaskTemplates"
   | "ReadFile" | "Preview" | "OpenWorkspacePath"

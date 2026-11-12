@@ -1,14 +1,52 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { createElement } from "react";
 import { FilePreview } from "./FilePreview";
 import { ToastProvider } from "./Toast";
 import { LocaleProvider } from "../lib/i18n";
 import { useComposerInsertStore } from "../lib/store";
 import type { PreviewResult, PptxOutlineView } from "../lib/types";
 
+vi.mock("./CodeEditor.tsx", () => ({
+  CodeEditor: ({
+    value,
+    onChange,
+  }: {
+    value: string;
+    onChange: (next: string) => void;
+  }) => createElement("textarea", {
+    "aria-label": "文本编辑",
+    value,
+    onChange: (event: { target: { value: string } }) => onChange(event.target.value),
+  }),
+}));
+
 const mocks = vi.hoisted(() => ({
   preview: null as PreviewResult | null,
   writeFile: vi.fn(async (_rel: string, _content: string) => {}),
+  writeWorkspaceFile: vi.fn(async (rel: string, content: string, _mtimeMs: number) => ({
+    path: rel,
+    size: content.length,
+    mtimeMs: Date.now(),
+  })),
+  readText: vi.fn(async (rel: string) => ({
+    path: rel,
+    text: "完整内容",
+    size: 12,
+    mtimeMs: 0,
+    encoding: "utf-8",
+    eol: "lf" as const,
+  })),
+  readPage: vi.fn(async (rel: string, offset: number) => ({
+    path: rel,
+    text: "第一页\n",
+    offset,
+    nextOffset: 128,
+    size: 256,
+    encoding: "utf-8",
+    eol: "lf" as const,
+    eof: false,
+  })),
   previewCall: vi.fn(async (_rel: string): Promise<PreviewResult> => mocks.preview ?? emptyPreview()),
   pptxOutline: vi.fn(async (_rel: string): Promise<PptxOutlineView> => ({ available: true, slides: [] })),
 }));
@@ -21,6 +59,9 @@ vi.mock("../lib/bridge", () => ({
   app: {
     Preview: (rel: string) => mocks.previewCall(rel),
     WriteFile: (rel: string, content: string) => mocks.writeFile(rel, content),
+    GaeaReadTextFile: (rel: string) => mocks.readText(rel),
+    GaeaWriteWorkspaceFile: (rel: string, content: string, mtimeMs: number) => mocks.writeWorkspaceFile(rel, content, mtimeMs),
+    GaeaReadFilePage: (rel: string, offset: number) => mocks.readPage(rel, offset),
     PptxOutline: (rel: string) => mocks.pptxOutline(rel),
     RevealWorkspacePath: async () => {},
     OpenWorkspacePath: async () => {},
@@ -47,6 +88,9 @@ function markdownPreview(over: Partial<PreviewResult> = {}): PreviewResult {
 beforeEach(() => {
   mocks.preview = markdownPreview();
   mocks.writeFile.mockClear();
+  mocks.writeWorkspaceFile.mockClear();
+  mocks.readText.mockClear();
+  mocks.readPage.mockClear();
   mocks.previewCall.mockClear();
   mocks.previewCall.mockImplementation(async (_rel: string) => mocks.preview ?? emptyPreview());
   mocks.pptxOutline.mockReset();
@@ -65,11 +109,14 @@ describe("FilePreview 工作区内联编辑（C5）", () => {
     await waitFor(() => expect(screen.queryByText("编辑")).toBeNull());
   });
 
-  it("截断的预览不显示「编辑」（内容不完整，写回会丢数据）", async () => {
+  it("截断的预览通过完整读取进入编辑，不拿截断正文写回", async () => {
     mocks.preview = { ...markdownPreview(), truncated: true, size: 5 * 1024 * 1024 };
     render(wrap(<FilePreview relPath="big.md" onClose={() => {}} />));
     await screen.findByText("旧内容");
-    expect(screen.queryByText("编辑")).toBeNull();
+    fireEvent.click(screen.getByText("编辑"));
+    expect(await screen.findByLabelText("文本编辑")).toBeTruthy();
+    await waitFor(() => expect(mocks.readText).toHaveBeenCalledWith("big.md"));
+    expect((screen.getByLabelText("文本编辑") as HTMLTextAreaElement).value).toBe("完整内容");
   });
 
   it("进入编辑 → 修改显示脏标记 → 保存调用 WriteFile 并刷新预览", async () => {
@@ -88,6 +135,28 @@ describe("FilePreview 工作区内联编辑（C5）", () => {
     // 保存后脏标记消失（仍停留在编辑器），预览已重读
     await waitFor(() => expect(document.querySelector(".bg-amber-400")).toBeNull());
     expect(screen.getByLabelText("文本编辑")).toBeTruthy();
+  });
+
+  it("有 mtime 基线时保存走 GaeaWriteWorkspaceFile（外部改动会被后端拦下）", async () => {
+    mocks.preview = markdownPreview({ mtimeMs: 123 });
+    mocks.readText.mockResolvedValueOnce({
+      path: "notes/a.md",
+      text: "旧内容",
+      size: 12,
+      mtimeMs: 123,
+      encoding: "utf-8",
+      eol: "lf",
+    });
+    render(wrap(<FilePreview relPath="notes/a.md" onClose={() => {}} />));
+    await screen.findByText("旧内容");
+    fireEvent.click(screen.getByText("编辑"));
+    const textarea = await screen.findByLabelText("文本编辑");
+    fireEvent.change(textarea, { target: { value: "并发安全内容" } });
+    fireEvent.click(screen.getByText("保存"));
+    await waitFor(() =>
+      expect(mocks.writeWorkspaceFile).toHaveBeenCalledWith("notes/a.md", "并发安全内容", 123),
+    );
+    expect(mocks.writeFile).not.toHaveBeenCalled();
   });
 
   it("脏状态下取消编辑弹内联确认，确认后退出编辑", async () => {
@@ -453,6 +522,32 @@ describe("FilePreview markdown 导图视图（M1）", () => {
     render(wrap(<FilePreview relPath="notes/a.txt" onClose={() => {}} />));
     await screen.findByText("旧内容");
     expect(screen.queryByTestId("md-view-mindmap")).toBeNull();
+  });
+});
+
+describe("FilePreview F3 文档阅读增强", () => {
+  it("JSONL 文件渲染记录卡，而不是整段原始 JSON 文本", async () => {
+    mocks.preview = {
+      ...markdownPreview(),
+      path: "logs/events.jsonl",
+      name: "events.jsonl",
+      ext: ".jsonl",
+      kind: "text",
+      body: '{"type":"event","status":"ok"}\n{bad}\n',
+    };
+    render(wrap(<FilePreview relPath="logs/events.jsonl" onClose={() => {}} />));
+    expect(await screen.findByTestId("jsonl-preview")).toBeTruthy();
+    expect(screen.getByText(/type: event/)).toBeTruthy();
+    expect(screen.getByText("无效 JSON")).toBeTruthy();
+  });
+
+  it("Markdown 文档视图生成可跳转目录", async () => {
+    mocks.preview = markdownPreview({
+      body: "# 总览\n\n正文\n\n## 安装\n\n步骤\n\n### 验证\n\n结果",
+    });
+    render(wrap(<FilePreview relPath="notes/a.md" onClose={() => {}} />));
+    expect(await screen.findByTestId("markdown-toc")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /目录 · 3/ })).toBeTruthy();
   });
 });
 

@@ -5,6 +5,7 @@ import { RecentFilesBar } from "./RecentFilesBar";
 import { app } from "../lib/bridge";
 import { useComposerInsertStore } from "../lib/store";
 import { recordRecentFile } from "../lib/recentFiles";
+import { usePaneTabsStore } from "../lib/paneTabs";
 import { useToast } from "./Toast";
 
 export type { RevealRequest };
@@ -38,12 +39,16 @@ export function ExplorerView({
   );
 
   const openExternal = useCallback((rel: string) => {
-    void app.OpenWorkspacePath(rel).catch(() => {});
-  }, []);
+    void app.OpenWorkspacePath(rel).catch((error) => {
+      toast.show(`打开失败：${error instanceof Error ? error.message : String(error)}`, "warn");
+    });
+  }, [toast]);
 
   const reveal = useCallback((rel: string) => {
-    void app.RevealWorkspacePath(rel).catch(() => {});
-  }, []);
+    void app.RevealWorkspacePath(rel).catch((error) => {
+      toast.show(`定位失败：${error instanceof Error ? error.message : String(error)}`, "warn");
+    });
+  }, [toast]);
 
   return (
     <div className="flex flex-col h-full min-h-0 text-(color:--md-sys-color-text-secondary) text-xs">
@@ -72,6 +77,10 @@ export function ExplorerView({
           onOpenExternal={openExternal}
           onReveal={reveal}
           revealRequest={revealRequest}
+          onPathRenamed={(oldRel, newRel) => usePaneTabsStore.getState().renamePath(oldRel, newRel)}
+          onPathDeleted={(paths) => {
+            for (const path of paths) usePaneTabsStore.getState().removePath(path);
+          }}
         />
       </div>
     </div>

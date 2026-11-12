@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { LocaleProvider } from "../lib/i18n";
 import { GitPanel } from "./GitPanel";
 import type { GitCommitInfoView, GitStatusView } from "../lib/types";
+import { resetGitStatusStoreForTest } from "../lib/gitStatusStore";
 
 // GitPanel 走中文文案（工作台面板语言），断言不依赖 LocaleProvider 仍包一层防 useT。
 // bridge 全量 mock：Git 面板唯一数据面是 GaeaGit*。
@@ -44,6 +45,7 @@ const repoStatus: GitStatusView = {
 
 describe("GitPanel 2b 最小集", () => {
   beforeEach(() => {
+    resetGitStatusStoreForTest();
     vi.clearAllMocks();
     mocks.status.mockResolvedValue(repoStatus);
   });
@@ -112,5 +114,45 @@ describe("GitPanel 2b 最小集", () => {
     fireEvent.click(screen.getByTestId("git-history-toggle"));
     await screen.findByText("某次提交");
     expect(mocks.log).toHaveBeenCalledWith(30);
+  });
+
+  it("本轮文件镜头复用 ChangesPanel，与 Git 状态共存于同一工作台", async () => {
+    wrap(<GitPanel changes={[{ path: "docs/本轮改动.md", count: 2 }]} />);
+    await screen.findByText("已暂存");
+    fireEvent.click(screen.getByRole("button", { name: "本轮文件" }));
+    expect(await screen.findByText("docs/本轮改动.md")).toBeTruthy();
+  });
+
+  it("统一镜头按目录合并 Git 与 Agent 来源", async () => {
+    wrap(<GitPanel changes={[{ path: "docs/报告.md", count: 2 }, { path: "src/agent.ts", count: 1 }]} />);
+    await screen.findByText("已暂存");
+    fireEvent.click(screen.getByRole("button", { name: "统一" }));
+    expect(await screen.findByTestId("unified-changes-tree")).toBeTruthy();
+    expect(document.querySelector('[data-unified-file="docs/报告.md"]')?.textContent).toContain("AI 2");
+    expect(document.querySelector('[data-unified-file="src/agent.ts"]')).toBeTruthy();
+  });
+
+  it("统一镜头来源筛选与快操作直连既有 Git 绑定", async () => {
+    wrap(<GitPanel changes={[{ path: "docs/agent.md", count: 1 }]} />);
+    await screen.findByText("已暂存");
+    fireEvent.click(screen.getByRole("button", { name: "统一" }));
+    await screen.findByTestId("unified-changes-tree");
+    fireEvent.click(screen.getByRole("button", { name: /^AI / }));
+    expect(document.querySelector('[data-unified-file="src/main.go"]')).toBeNull();
+    expect(document.querySelector('[data-unified-file="docs/agent.md"]')).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /^全部 / }));
+    fireEvent.click(await screen.findByLabelText("暂存 src/main.go"));
+    await waitFor(() => expect(mocks.stage).toHaveBeenCalledWith(["src/main.go"]));
+  });
+
+  it("统一树文件行内展开工作区 diff", async () => {
+    mocks.diff.mockResolvedValue("@@ -1 +1 @@\n-old-inline\n+new-inline\n");
+    wrap(<GitPanel />);
+    await screen.findByText("已暂存");
+    fireEvent.click(screen.getByRole("button", { name: "统一" }));
+    fireEvent.click(await screen.findByLabelText("查看 src/main.go 的 diff"));
+    await waitFor(() => expect(mocks.diff).toHaveBeenCalledWith("src/main.go", false));
+    const hunk = await screen.findByTestId("changes-diff-hunk");
+    expect(hunk.textContent).toContain("+new-inline");
   });
 });

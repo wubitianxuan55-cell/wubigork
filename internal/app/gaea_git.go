@@ -3,10 +3,11 @@ package app
 import (
 	"os"
 	"os/exec"
-
-	"github.com/gaea/gaea/internal/gaea/proc"
+	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/gaea/gaea/internal/gaea/proc"
 )
 
 // Git 面板最小集（蒸馏规划 2b，决策门 D3 采纳推荐默认）：单仓库
@@ -55,6 +56,10 @@ func gitRun(args ...string) (string, error) {
 			return "", err
 		}
 	}
+	return gitRunAt(cwd, args...)
+}
+
+func gitRunAt(cwd string, args ...string) (string, error) {
 	// v4.374（Reasonix gitcmd 蒸馏）：中和仓库本地 .git/config 里的
 	// filter.<driver>——diff 是唯一会在工作树内容上跑 clean filter 的子命令，
 	// 而 .gitattributes 是不可信输入（克隆来的仓库可借查看 diff 执行任意
@@ -84,6 +89,46 @@ func gitRun(args ...string) (string, error) {
 		return "", errGit(msg)
 	}
 	return string(out), nil
+}
+
+func gitRepoRoot(start string) (string, error) {
+	out, err := gitRunAt(start, "rev-parse", "--show-toplevel")
+	if err != nil {
+		return "", err
+	}
+	root := strings.TrimSpace(strings.Split(out, "\n")[0])
+	if root == "" {
+		return "", errGit("当前工作区不是 Git 仓库")
+	}
+	abs, err := filepath.Abs(root)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Clean(abs), nil
+}
+
+// workspaceStatusPath maps a repo-root-relative status path into the current
+// workspace. Files outside a nested workspace are intentionally hidden: the
+// file tree cannot safely open or mutate them.
+func workspaceStatusPath(repoRoot, workspace, statusPath string) (string, bool) {
+	workspaceAbs, err := filepath.Abs(workspace)
+	if err != nil {
+		return "", false
+	}
+	rel, err := filepath.Rel(repoRoot, workspaceAbs)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+	rel = filepath.ToSlash(rel)
+	statusPath = filepath.ToSlash(statusPath)
+	if rel == "." {
+		return strings.TrimPrefix(statusPath, "./"), true
+	}
+	prefix := strings.TrimSuffix(rel, "/") + "/"
+	if !strings.HasPrefix(statusPath, prefix) {
+		return "", false
+	}
+	return strings.TrimPrefix(statusPath, prefix), true
 }
 
 // gitHardeningArgs 返回每次 git 调用前注入的 -c 硬化对（须位于子命令前）：
@@ -153,36 +198,27 @@ func (e *gitError) Error() string {
 
 // GaeaGitStatus 返回仓库状态：分支 + ahead/behind + 文件列表（porcelain v1）。
 func (a *App) GaeaGitStatus() GitStatus {
-	out, err := gitRun("status", "--porcelain=v1", "-b")
+	workspace := gaeaCwd()
+	if workspace == "" {
+		workspace, _ = os.Getwd()
+	}
+	repoRoot, err := gitRepoRoot(workspace)
+	if err != nil {
+		return GitStatus{Files: []GitFileStatus{}, Error: err.Error()}
+	}
+	out, err := gitRunAt(repoRoot, "status", "--porcelain=v1", "-z", "-b")
 	if err != nil {
 		return GitStatus{Files: []GitFileStatus{}, Error: err.Error()}
 	}
 	st := GitStatus{Files: []GitFileStatus{}}
-	for _, line := range strings.Split(out, "\n") {
-		line = strings.TrimRight(line, "\r")
+	records := strings.Split(out, "\x00")
+	for i := 0; i < len(records); i++ {
+		line := strings.TrimRight(records[i], "\r\n")
 		if line == "" {
 			continue
 		}
 		if strings.HasPrefix(line, "## ") {
-			// ## branch...upstream [ahead N, behind M]（无 upstream 时无 ...）
-			head := strings.TrimPrefix(line, "## ")
-			if i := strings.Index(head, "..."); i >= 0 {
-				head = head[:i]
-			}
-			if i := strings.IndexAny(head, " \t"); i >= 0 {
-				head = head[:i]
-			}
-			st.Branch = head
-			if i := strings.Index(line, "ahead "); i >= 0 {
-				if f := strings.Fields(line[i+6:]); len(f) > 0 {
-					st.Ahead, _ = strconv.Atoi(f[0])
-				}
-			}
-			if i := strings.Index(line, "behind "); i >= 0 {
-				if f := strings.Fields(line[i+7:]); len(f) > 0 {
-					st.Behind, _ = strconv.Atoi(f[0])
-				}
-			}
+			st.Branch, st.Ahead, st.Behind = parseGitStatusBranch(line)
 			continue
 		}
 		if len(line) < 4 {
@@ -190,6 +226,17 @@ func (a *App) GaeaGitStatus() GitStatus {
 		}
 		x, y := string(line[0]), string(line[1])
 		path := line[3:]
+		if x == "R" || x == "C" || y == "R" || y == "C" {
+			// porcelain -z stores the destination first, followed by the source
+			// path as its own NUL-delimited field.
+			if i+1 < len(records) {
+				i++
+			}
+		}
+		path, ok := workspaceStatusPath(repoRoot, workspace, path)
+		if !ok {
+			continue
+		}
 		f := GitFileStatus{Path: path, X: x, Y: y}
 		f.Untracked = x == "?" && y == "?"
 		f.Staged = !f.Untracked && x != " "
@@ -200,6 +247,33 @@ func (a *App) GaeaGitStatus() GitStatus {
 	}
 	st.IsRepo = true
 	return st
+}
+
+func parseGitStatusBranch(line string) (branch string, ahead, behind int) {
+	head := strings.TrimSpace(strings.TrimPrefix(line, "## "))
+	if strings.HasPrefix(head, "No commits yet on ") {
+		return strings.TrimPrefix(head, "No commits yet on "), 0, 0
+	}
+	if strings.HasPrefix(head, "HEAD (no branch)") {
+		head = "HEAD"
+	}
+	if i := strings.Index(head, "..."); i >= 0 {
+		head = head[:i]
+	}
+	if i := strings.IndexAny(head, " \t"); i >= 0 {
+		head = head[:i]
+	}
+	if i := strings.Index(line, "ahead "); i >= 0 {
+		if f := strings.Fields(line[i+6:]); len(f) > 0 {
+			ahead, _ = strconv.Atoi(strings.TrimSuffix(f[0], ","))
+		}
+	}
+	if i := strings.Index(line, "behind "); i >= 0 {
+		if f := strings.Fields(line[i+7:]); len(f) > 0 {
+			behind, _ = strconv.Atoi(strings.TrimSuffix(f[0], "]"))
+		}
+	}
+	return head, ahead, behind
 }
 
 // GaeaGitDiff 返回单个已跟踪文件的 unified diff 文本（staged=true 取暂存区

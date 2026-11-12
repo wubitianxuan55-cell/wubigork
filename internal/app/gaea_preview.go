@@ -3,12 +3,14 @@ package app
 import (
 	"encoding/base64"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/gaea/gaea/internal/docmd"
+	"github.com/gaea/gaea/internal/gaea/workbench"
 	"github.com/gaea/gaea/internal/gaea/wspath"
 	"github.com/gaea/gaea/internal/office/xlsxedit"
 	"github.com/gaea/gaea/internal/office/xlsxpreview"
@@ -32,6 +34,11 @@ type PreviewResult struct {
 	Body    string `json:"body"`
 	DataURL string `json:"dataUrl"`
 	Error   string `json:"error"`
+	// MTimeMs is the optimistic-concurrency baseline for text edits.
+	MTimeMs int64 `json:"mtimeMs,omitempty"`
+	// Encoding/EOL describe the on-disk text format for editable previews.
+	Encoding string `json:"encoding,omitempty"`
+	EOL      string `json:"eol,omitempty"`
 	// Truncated/TotalPages 标记 PDF 预览页数截断（前端展示明确提示）。
 	Truncated  bool `json:"truncated,omitempty"`
 	TotalPages int  `json:"totalPages,omitempty"`
@@ -141,7 +148,10 @@ func (a *App) GaeaPreview(rel string) PreviewResult {
 
 	ext := strings.ToLower(filepath.Ext(rel))
 	name := filepath.Base(rel)
-	base := PreviewResult{Path: displayRel, Name: name, Ext: ext, Size: info.Size()}
+	base := PreviewResult{
+		Path: displayRel, Name: name, Ext: ext, Size: info.Size(),
+		MTimeMs: info.ModTime().UnixMilli(),
+	}
 
 	if imageExts[ext] {
 		// 32MB 封顶（2026-09-19 审计：整文件读入 base64 无上限=可被驱动读
@@ -167,7 +177,7 @@ func (a *App) GaeaPreview(rel string) PreviewResult {
 		// 1c HTML 沙箱预览：原文（截断口径与 markdown 同款）交前端沙箱
 		// iframe 渲染（sandbox 无 allow-same-origin + CSP 白名单），绝不
 		// 注入宿主 DOM；此前 .html 落 textExts 当纯文本展示。
-		body, truncated, err := readPreviewCapped(path)
+		body, truncated, encoding, eol, err := readPreviewCapped(path)
 		if err != nil {
 			base.Kind = "error"
 			base.Error = err.Error()
@@ -176,9 +186,11 @@ func (a *App) GaeaPreview(rel string) PreviewResult {
 		base.Kind = "html"
 		base.Body = body
 		base.Truncated = truncated
+		base.Encoding = encoding
+		base.EOL = eol
 		return base
 	case ".md", ".markdown":
-		body, truncated, err := readPreviewCapped(path)
+		body, truncated, encoding, eol, err := readPreviewCapped(path)
 		if err != nil {
 			base.Kind = "error"
 			base.Error = err.Error()
@@ -187,11 +199,13 @@ func (a *App) GaeaPreview(rel string) PreviewResult {
 		base.Kind = "markdown"
 		base.Body = previewTruncateNote(body, truncated)
 		base.Truncated = truncated
+		base.Encoding = encoding
+		base.EOL = eol
 		return base
 	case ".mmd", ".mermaid":
 		// Mermaid 图表源码：按 markdown 渲染，聊天/预览中的 ```mermaid
 		// 代码块会直接渲染成图。
-		body, truncated, err := readPreviewCapped(path)
+		body, truncated, encoding, eol, err := readPreviewCapped(path)
 		if err != nil {
 			base.Kind = "error"
 			base.Error = err.Error()
@@ -200,6 +214,8 @@ func (a *App) GaeaPreview(rel string) PreviewResult {
 		base.Kind = "markdown"
 		base.Body = "```mermaid\n" + body + "\n```" + previewTruncateNote("", truncated)
 		base.Truncated = truncated
+		base.Encoding = encoding
+		base.EOL = eol
 		return base
 	case ".docx":
 		// 原始 docx 交给前端 docx-preview 保真渲染（版式/表格/页眉页脚/修订）；
@@ -279,7 +295,7 @@ func (a *App) GaeaPreview(rel string) PreviewResult {
 	}
 
 	if textExts[ext] {
-		body, truncated, err := readPreviewCapped(path)
+		body, truncated, encoding, eol, err := readPreviewCapped(path)
 		if err != nil {
 			base.Kind = "error"
 			base.Error = err.Error()
@@ -288,6 +304,8 @@ func (a *App) GaeaPreview(rel string) PreviewResult {
 		base.Kind = "text"
 		base.Body = previewTruncateNote(body, truncated)
 		base.Truncated = truncated
+		base.Encoding = encoding
+		base.EOL = eol
 		return base
 	}
 
@@ -315,21 +333,22 @@ func previewThumbText(md string) string {
 
 // readPreviewCapped 读取预览正文：超过 maxPreviewBytes 时截断（不切断 UTF-8
 // 字符），返回截断后的正文与 truncated 标记（标记文案由 previewTruncateNote 追加）。
-func readPreviewCapped(path string) (body string, truncated bool, err error) {
-	b, err := os.ReadFile(path)
+func readPreviewCapped(path string) (body string, truncated bool, encoding, eol string, err error) {
+	f, err := os.Open(path)
 	if err != nil {
-		return "", false, err
+		return "", false, "", "", err
 	}
-	if len(b) <= maxPreviewBytes {
-		return string(b), false, nil
+	defer func() { _ = f.Close() }()
+	info, err := f.Stat()
+	if err != nil {
+		return "", false, "", "", err
 	}
-	head := b[:maxPreviewBytes]
-	// 回退到 UTF-8 字符边界，避免截断处出现乱码。
-	i := len(head)
-	for i > 0 && head[i-1]&0xC0 == 0x80 {
-		i--
+	b, err := io.ReadAll(io.LimitReader(f, maxPreviewBytes+4))
+	if err != nil {
+		return "", false, "", "", err
 	}
-	return string(head[:i]), true, nil
+	body, truncated, encoding, eol = workbench.DecodePreview(b, maxPreviewBytes)
+	return body, truncated || info.Size() > maxPreviewBytes, encoding, eol, nil
 }
 
 // previewTruncateNote 在截断时追加可见标记（md/text 在正文后；mermaid 传空正文，

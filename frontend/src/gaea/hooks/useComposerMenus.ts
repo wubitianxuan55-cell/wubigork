@@ -4,14 +4,16 @@ import { app } from '../lib/bridge'
 import { slashQueryOf, atMentionOf } from '../lib/composer'
 import type { CommandInfo, DirEntry, FileSearchHit, SlashArgsResult, SlashArgItem, AtEntry } from '../lib/types'
 import { loadRecentFiles, recordRecentFile } from '../lib/recentFiles'
+import { loadFileTreePrefs } from '../lib/fileTreePrefs'
 
 export interface UseComposerMenusOptions {
   text: string
   debouncedText: string
   setTextCaretEnd: (next: string) => void
+  cwd?: string
 }
 
-export function useComposerMenus({ text, debouncedText, setTextCaretEnd }: UseComposerMenusOptions) {
+export function useComposerMenus({ text, debouncedText, setTextCaretEnd, cwd }: UseComposerMenusOptions) {
   const [active, setActive] = useState(0)
   const [dismissed, setDismissed] = useState(false)
 
@@ -40,24 +42,30 @@ export function useComposerMenus({ text, debouncedText, setTextCaretEnd }: UseCo
   const atDir = atMention?.dir ?? ""
   const atFrag = atMention?.frag ?? ""
   const atActive = atRaw !== null
+  const excludes = useMemo(() => loadFileTreePrefs(cwd).excludes, [cwd])
   const [entries, setEntries] = useState<DirEntry[]>([])
   const dirCache = useRef<Record<string, DirEntry[]>>({})
   useEffect(() => {
     if (!atActive) return
-    const cached = dirCache.current[atDir]
+    const cacheKey = `${atDir}\0${excludes.join("\0")}`
+    const cached = dirCache.current[cacheKey]
     if (cached) { setEntries(cached); return }
     let live = true
-    app.ListDir(atDir).then((es) => { const list = es ?? []; dirCache.current[atDir] = list; if (live) setEntries(list); }).catch(() => {})
+    const batch = app.GaeaListDirBatch
+    const request = typeof batch === "function"
+      ? batch([atDir], excludes).then((levels) => (levels.find((level) => level.path === atDir)?.entries ?? []) as DirEntry[])
+      : app.ListDir(atDir).then((es) => es ?? [])
+    request.then((list) => { dirCache.current[cacheKey] = list; if (live) setEntries(list) }).catch(() => {})
     return () => { live = false; }
-  }, [atActive, atDir])
+  }, [atActive, atDir, excludes])
   // 工作区跨目录搜索（@ 引用增强：搜一下定位资料）
   const [atHits, setAtHits] = useState<FileSearchHit[]>([])
   useEffect(() => {
     if (atRaw === null) { setAtHits([]); return; }
     let live = true
-    app.FileSearch(atFrag, 30).then((h) => { if (live) setAtHits(h ?? []); }).catch(() => {})
+    app.FileSearch(atFrag, 30, excludes).then((h) => { if (live) setAtHits(h ?? []); }).catch(() => {})
     return () => { live = false; }
-  }, [atRaw, atFrag])
+  }, [atRaw, atFrag, excludes])
   // 最近使用文件（@ 选择过的文件，本地持久化 —— 与「最近文件」快捷区共用单源）
   const [recent, setRecent] = useState<AtEntry[]>(() => loadRecentFiles())
   // 统一 @ 条目：目录内浏览（路径前缀）或 最近使用 + 工作区搜索 + 当前目录

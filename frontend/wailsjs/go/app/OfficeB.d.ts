@@ -5,6 +5,7 @@ import {trajectory} from '../models';
 import {event} from '../models';
 import {browser} from '../models';
 import {contextview} from '../models';
+import {workbench} from '../models';
 import {dag} from '../models';
 import {standard} from '../models';
 import {tasks} from '../models';
@@ -80,6 +81,10 @@ export function GaeaContextView(arg1:string):Promise<contextview.ContextTimeline
 
 export function GaeaConvertToPdf(arg1:string):Promise<app.ConvertPdfResult>;
 
+export function GaeaCreateWorkspaceFile(arg1:string,arg2:string):Promise<workbench.MutationResult>;
+
+export function GaeaCreateWorkspaceFolder(arg1:string,arg2:string):Promise<workbench.MutationResult>;
+
 export function GaeaCrossEmbed(arg1:app.CrossEmbedInput):Promise<app.CrossEmbedResult>;
 
 export function GaeaDagAcceptAll(arg1:string):Promise<string>;
@@ -128,6 +133,8 @@ export function GaeaDeleteSession(arg1:string):Promise<void>;
 
 export function GaeaDeleteUpload(arg1:string):Promise<void>;
 
+export function GaeaDeleteWorkspacePaths(arg1:Array<string>):Promise<void>;
+
 export function GaeaDeliverableRegistry(arg1:string):Promise<app.DeliverableRegistryView>;
 
 export function GaeaDismissMemorySuggestion(arg1:string):Promise<void>;
@@ -154,9 +161,11 @@ export function GaeaFamilyEvents(arg1:string):Promise<trajectory.FamilyEventStre
 
 export function GaeaFileIndexRebuild():Promise<tasks.Task>;
 
-export function GaeaFileSearch(arg1:string,arg2:number):Promise<Array<app.FileSearchHit>>;
+export function GaeaFileSearch(arg1:string,arg2:number,arg3:Array<string>):Promise<Array<app.FileSearchHit>>;
 
 export function GaeaFileSemanticSearch(arg1:string,arg2:number):Promise<Array<app.FileSemanticHit>>;
+
+export function GaeaFileTreeWatch(arg1:Array<string>,arg2:Array<string>):Promise<void>;
 
 export function GaeaForget(arg1:string):Promise<void>;
 
@@ -183,6 +192,8 @@ export function GaeaJobs():Promise<Array<app.JobView>>;
 export function GaeaJournalList(arg1:number):Promise<Array<evidence.ChangeRecord>>;
 
 export function GaeaListDir(arg1:string):Promise<Array<app.DirEntry>>;
+
+export function GaeaListDirBatch(arg1:Array<string>,arg2:Array<string>):Promise<Array<workbench.Level>>;
 
 export function GaeaListProjectSessions():Promise<Array<app.ProjectGroup>>;
 
@@ -220,6 +231,10 @@ export function GaeaPickFiles(arg1:string):Promise<Array<app.FilePickResult>>;
 
 export function GaeaPickWorkspace():Promise<string>;
 
+export function GaeaPickWorkspaceUploadFiles(arg1:string):Promise<Array<workbench.UploadResult>>;
+
+export function GaeaPickWorkspaceUploadFolder(arg1:string):Promise<Array<workbench.UploadResult>>;
+
 export function GaeaPinMaterial(arg1:string):Promise<Array<app.FileSearchHit>>;
 
 export function GaeaPinSession(arg1:string,arg2:boolean):Promise<void>;
@@ -240,6 +255,10 @@ export function GaeaReadFile(arg1:string):Promise<app.FilePreview>;
 
 export function GaeaReadFileB64(arg1:string):Promise<string>;
 
+export function GaeaReadFilePage(arg1:string,arg2:number):Promise<workbench.TextPage>;
+
+export function GaeaReadTextFile(arg1:string):Promise<workbench.TextFile>;
+
 export function GaeaRecognizeImage(arg1:string,arg2:string):Promise<string>;
 
 export function GaeaReload():Promise<app.GaeaReloadResult>;
@@ -251,6 +270,8 @@ export function GaeaRemoveMCPServer(arg1:string):Promise<void>;
 export function GaeaRemovePermissionRule(arg1:string,arg2:string):Promise<void>;
 
 export function GaeaRenameSession(arg1:string,arg2:string):Promise<void>;
+
+export function GaeaRenameWorkspacePath(arg1:string,arg2:string):Promise<workbench.MutationResult>;
 
 export function GaeaResumeSession(arg1:string):Promise<Array<app.HistoryMessage>>;
 
@@ -283,6 +304,10 @@ export function GaeaSaveProvider(arg1:app.ProviderView):Promise<void>;
 export function GaeaSaveSettings(arg1:app.SettingsView):Promise<void>;
 
 export function GaeaSaveWindowState(arg1:Record<string, any>):Promise<void>;
+
+export function GaeaSaveWorkspacePathAs(arg1:string):Promise<string>;
+
+export function GaeaSaveWorkspacePathsAs(arg1:Array<string>):Promise<string>;
 
 export function GaeaScheduleExportXlsx(arg1:string):Promise<string>;
 
@@ -408,7 +433,17 @@ export function GaeaVersion():Promise<string>;
 
 export function GaeaWorkspaceSearch(arg1:string,arg2:number):Promise<Array<app.WorkspaceSearchHit>>;
 
+export function GaeaWorkspaceUploadAbort(arg1:string):Promise<void>;
+
+export function GaeaWorkspaceUploadAppend(arg1:string,arg2:string):Promise<void>;
+
+export function GaeaWorkspaceUploadBegin(arg1:string,arg2:string):Promise<string>;
+
+export function GaeaWorkspaceUploadFinish(arg1:string):Promise<workbench.UploadResult>;
+
 export function GaeaWriteFile(arg1:string,arg2:string):Promise<void>;
+
+export function GaeaWriteWorkspaceFile(arg1:string,arg2:string,arg3:number):Promise<workbench.WriteResult>;
 
 export function GaeaXlsxApplyEdit(arg1:string,arg2:string):Promise<app.XlsxEditResult>;
 

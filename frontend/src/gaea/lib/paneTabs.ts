@@ -64,6 +64,10 @@ export interface PaneTabsState {
   setSessionKey: (key: string | null) => void;
   /** 更新某 tab 的视图附加状态（浏览器 URL 等；不存在 no-op）。 */
   updateTabUrl: (id: string, url: string) => void;
+  /** 文件/目录改名后同步已打开文件 tab（目录按子树改道）。 */
+  renamePath: (oldRel: string, newRel: string) => void;
+  /** 文件/目录删除后关闭对应已打开文件 tab（目录按子树关闭）。 */
+  removePath: (rel: string) => void;
 }
 
 function touch(prev: string[], id: string): string[] {
@@ -173,6 +177,82 @@ export const usePaneTabsStore = create<PaneTabsState>()((set, get) => ({
     if (next.some((t, i) => t !== tabs[i])) {
       set({ tabs: next });
     }
+  },
+
+  renamePath: (oldRel, newRel) => {
+    const oldPrefix = oldRel.replace(/\\/g, "/").replace(/\/+$/, "");
+    const nextPrefix = newRel.replace(/\\/g, "/").replace(/\/+$/, "");
+    if (!oldPrefix || !nextPrefix || oldPrefix === nextPrefix) return;
+    const matches = (path: string | undefined): string | null => {
+      if (!path) return null;
+      const normalized = path.replace(/\\/g, "/");
+      if (normalized === oldPrefix) return nextPrefix;
+      if (normalized.startsWith(oldPrefix + "/")) return nextPrefix + normalized.slice(oldPrefix.length);
+      return null;
+    };
+    set((s) => {
+      let changed = false;
+      const remap = new Map<string, string>();
+      const tabs = s.tabs.map((tab) => {
+        if (tab.kind !== "file") return tab;
+        const nextPath = matches(tab.path);
+        if (!nextPath) return tab;
+        changed = true;
+        const nextId = `file:${nextPath}`;
+        remap.set(tab.id, nextId);
+        return {
+          ...tab,
+          id: nextId,
+          path: nextPath,
+          title: nextPath.split("/").pop() || nextPath,
+        };
+      });
+      if (!changed) return {};
+      const order = s.order.map((id) => remap.get(id) ?? id);
+      const active = s.active ? remap.get(s.active) ?? s.active : s.active;
+      const reloadTicks: Record<string, number> = {};
+      for (const [key, value] of Object.entries(s.reloadTicks)) {
+        const nextPath = matches(key);
+        reloadTicks[normalizePreviewPath(nextPath ?? key)] = value;
+      }
+      return { tabs, order, active, reloadTicks };
+    });
+  },
+
+  removePath: (rel) => {
+    const prefix = rel.replace(/\\/g, "/").replace(/\/+$/, "");
+    if (!prefix) return;
+    set((s) => {
+      const removed = new Set(
+        s.tabs
+          .filter((tab) => {
+            if (tab.kind !== "file" || !tab.path) return false;
+            const path = tab.path.replace(/\\/g, "/");
+            return path === prefix || path.startsWith(prefix + "/");
+          })
+          .map((tab) => tab.id),
+      );
+      if (removed.size === 0) return {};
+      const tabs = s.tabs.filter((tab) => !removed.has(tab.id));
+      let active = s.active;
+      if (active && removed.has(active)) {
+        const oldIndex = s.tabs.findIndex((tab) => tab.id === active);
+        const next = tabs[Math.min(Math.max(oldIndex, 0), tabs.length - 1)];
+        active = next?.id ?? null;
+      }
+      const reloadTicks: Record<string, number> = {};
+      for (const [key, value] of Object.entries(s.reloadTicks)) {
+        const normalized = key.replace(/\\/g, "/");
+        if (normalized === prefix || normalized.startsWith(prefix + "/")) continue;
+        reloadTicks[key] = value;
+      }
+      return {
+        tabs,
+        order: s.order.filter((id) => !removed.has(id)),
+        active,
+        reloadTicks,
+      };
+    });
   },
 }));
 

@@ -30,7 +30,7 @@ func TestGaeaFileSearch(t *testing.T) {
 	}
 
 	a := &App{}
-	hits := a.GaeaFileSearch("doc", 30)
+	hits := a.GaeaFileSearch("doc", 30, nil)
 	found := map[string]bool{}
 	for _, h := range hits {
 		if strings.Contains(h.Path, ".git") || strings.Contains(h.Path, "node_modules") {
@@ -46,7 +46,7 @@ func TestGaeaFileSearch(t *testing.T) {
 	}
 
 	// 中文查询
-	hits = a.GaeaFileSearch("成本", 30)
+	hits = a.GaeaFileSearch("成本", 30, []string{"docs/方案.docx"})
 	found = map[string]bool{}
 	for _, h := range hits {
 		found[h.Path] = true
@@ -54,9 +54,12 @@ func TestGaeaFileSearch(t *testing.T) {
 	if !found["docs/成本测算.xlsx"] {
 		t.Fatalf("中文查询未命中: %+v", hits)
 	}
+	if found["docs/方案.docx"] {
+		t.Fatal("用户排除规则未生效: docs/方案.docx")
+	}
 
 	// 限制数量
-	if len(a.GaeaFileSearch("", 2)) > 2 {
+	if len(a.GaeaFileSearch("", 2, nil)) > 2 {
 		t.Fatal("limit 未生效")
 	}
 	// 深度上限：深层文件不无限递归（不会 panic 即可）
@@ -65,7 +68,7 @@ func TestGaeaFileSearch(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = os.WriteFile(filepath.Join(deep, "deep.txt"), []byte("x"), 0o644)
-	_ = a.GaeaFileSearch("deep", 30)
+	_ = a.GaeaFileSearch("deep", 30, nil)
 }
 
 func TestGaeaMaterials(t *testing.T) {

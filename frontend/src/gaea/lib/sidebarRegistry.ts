@@ -124,7 +124,11 @@ const RENDERERS: Record<WorkspaceTabId, (ctx: WorkspacePanelContext) => ReactNod
   // browser_* 工具记录），不依赖 ctx —— 被动观察面与工作区/会话路径解耦。
   browser: () => createElement(BrowserPanel),
   // 2b Git 面板：数据自取（GaeaGit*，仓库=工作区 cwd）；onOpenFile 复用 pane 文件 tab。
-  git: (_ctx) => createElement(GitPanel, { onOpenFile: openPaneFileTab }),
+  git: (ctx) => createElement(GitPanel, {
+    onOpenFile: openPaneFileTab,
+    changes: ctx.sessionChanges,
+    cwd: ctx.cwd,
+  }),
   // GenUI 会话面板：数据自取（genuiPanel store，按会话隔离）。
   ui: (ctx) => createElement(GenuiPanel, { sessionPath: ctx.currentSessionPath }),
 };

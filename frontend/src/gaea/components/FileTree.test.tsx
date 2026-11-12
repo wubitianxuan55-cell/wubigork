@@ -133,7 +133,7 @@ describe("文件工作台蒸馏（dsh-better-sidebar）", () => {
 
     // 300ms 防抖后进入搜索模式：命中列表取代树（README.md 不再渲染），
     // 文件命中可点击预览、目录命中不可预览、范围提示出现。
-    await waitFor(() => expect(fileSearch).toHaveBeenCalledWith("plan", 50));
+    await waitFor(() => expect(fileSearch).toHaveBeenCalledWith("plan", 50, []));
     expect(await screen.findByText("docs/plan.md")).toBeTruthy();
     expect(screen.queryByText("README.md")).toBeNull();
     fireEvent.click(screen.getByText("docs/plan.md"));
@@ -177,6 +177,153 @@ describe("文件工作台蒸馏（dsh-better-sidebar）", () => {
 
     fireEvent.click(screen.getByLabelText("清空搜索"));
     expect(await screen.findByText("README.md")).toBeTruthy();
+  });
+
+  it("批量列目录：根层优先走 GaeaListDirBatch 一次请求", async () => {
+    const batch = vi.fn().mockResolvedValue([{ path: "", entries: ROOT_ENTRIES }]);
+    const listDir = vi.fn().mockResolvedValue(ROOT_ENTRIES);
+    mockCoreB({ GaeaListDirBatch: batch, GaeaListDir: listDir });
+    render(<FileTree cwd="C:/proj" onSelect={() => {}} />);
+    expect(await screen.findByText("README.md")).toBeTruthy();
+    expect(batch).toHaveBeenCalledWith([""], []);
+    expect(listDir).not.toHaveBeenCalled();
+  });
+
+  it("文件树设置：用户排除规则持久化并作为第二参数传给 Go", async () => {
+    const batch = vi.fn(async (_paths: string[], _exclude: string[]) => [
+      { path: "", entries: ROOT_ENTRIES },
+    ]);
+    mockCoreB({ GaeaListDirBatch: batch });
+    render(<FileTree cwd="C:/proj" onSelect={() => {}} />);
+    await screen.findByText("README.md");
+
+    fireEvent.click(screen.getByLabelText("文件树设置"));
+    fireEvent.change(await screen.findByLabelText("文件树排除规则"), {
+      target: { value: "generated\n*.bak\ngenerated" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /应\s*用/ }));
+
+    await waitFor(() => expect(batch).toHaveBeenLastCalledWith([""], ["generated", "*.bak"]));
+    const raw = localStorage.getItem(`gaea.fileTree.prefs.${encodeURIComponent("C:/proj")}`);
+    expect(JSON.parse(raw as string)).toMatchObject({
+      excludes: ["generated", "*.bak"],
+      compactFolders: true,
+    });
+  });
+
+  it("单子目录链折叠：显示 src/core/app 一行，展开后加载尾目录", async () => {
+    const levels: Record<string, unknown[]> = {
+      "": [{ name: "src", isDir: true, size: 0, compact: true }],
+      src: [{ name: "core", isDir: true, size: 0, compact: true }],
+      "src/core": [{ name: "app", isDir: true, size: 0 }],
+      "src/core/app": [{ name: "main.ts", isDir: false, size: 5 }],
+    };
+    mockCoreB({ GaeaListDir: vi.fn(async (dir: string) => levels[dir] ?? []) });
+    render(<FileTree cwd="C:/proj" onSelect={() => {}} />);
+
+    const row = (await screen.findByText("src/core/app")).closest("[data-path]") as HTMLElement;
+    expect(row.dataset.chainPaths).toBe("src|src/core|src/core/app");
+    fireEvent.click(screen.getByText("src/core/app"));
+    expect(await screen.findByText("main.ts")).toBeTruthy();
+  });
+
+  it("打开方式子菜单同时提供系统默认程序与资源管理器", async () => {
+    mockListDir(() => Promise.resolve(ROOT_ENTRIES));
+    const onOpenExternal = vi.fn();
+    const onReveal = vi.fn();
+    render(
+      <FileTree
+        cwd="C:/proj"
+        onSelect={() => {}}
+        onOpenExternal={onOpenExternal}
+        onReveal={onReveal}
+      />,
+    );
+    await screen.findByText("README.md");
+
+    fireEvent.contextMenu(screen.getByText("README.md"));
+    const openWith = await screen.findByText("打开方式");
+    fireEvent.mouseEnter(openWith);
+    fireEvent.click(await screen.findByText("系统默认程序"));
+    expect(onOpenExternal).toHaveBeenCalledWith("README.md");
+
+    fireEvent.contextMenu(screen.getByText("README.md"));
+    fireEvent.mouseEnter(await screen.findByText("打开方式"));
+    fireEvent.click(await screen.findByText("在资源管理器中显示"));
+    expect(onReveal).toHaveBeenCalledWith("README.md");
+  });
+
+  it("展开目录同步 Go 实时监听集，卸载时停止监听", async () => {
+    const listDir = vi.fn((dir: string) =>
+      Promise.resolve(dir === "docs" ? [{ name: "plan.md", isDir: false }] : ROOT_ENTRIES),
+    );
+    const watch = vi.fn().mockResolvedValue(undefined);
+    mockCoreB({ GaeaListDir: listDir, GaeaFileTreeWatch: watch });
+    const { unmount } = render(<FileTree cwd="C:/proj" onSelect={() => {}} />);
+    await screen.findByText("docs");
+    await waitFor(() => expect(watch).toHaveBeenCalledWith([""], []));
+
+    fireEvent.click(screen.getByText("docs"));
+    expect(await screen.findByText("plan.md")).toBeTruthy();
+    await waitFor(() => expect(watch).toHaveBeenCalledWith(["", "docs"], []));
+
+    unmount();
+    await waitFor(() => expect(watch).toHaveBeenLastCalledWith([], []));
+  });
+
+  it("右键重命名：名称对话框提交 Go 重命名绑定并刷新父层", async () => {
+    const listDir = vi.fn().mockResolvedValue(ROOT_ENTRIES);
+    const rename = vi.fn().mockResolvedValue({
+      path: "GUIDE.md",
+      name: "GUIDE.md",
+      isDir: false,
+    });
+    mockCoreB({ GaeaListDir: listDir, GaeaRenameWorkspacePath: rename });
+    render(<FileTree cwd="C:/proj" onSelect={() => {}} />);
+    await screen.findByText("README.md");
+
+    fireEvent.contextMenu(screen.getByText("README.md"));
+    fireEvent.click(await screen.findByText("重命名"));
+    const input = await screen.findByLabelText("文件或文件夹名称");
+    fireEvent.change(input, { target: { value: "GUIDE.md" } });
+    fireEvent.click(screen.getByRole("button", { name: "重命名" }));
+
+    await waitFor(() => expect(rename).toHaveBeenCalledWith("README.md", "GUIDE.md"));
+    await waitFor(() => expect(listDir.mock.calls.filter(([dir]) => dir === "").length).toBeGreaterThan(1));
+  });
+
+  it("Git 状态着色：文件显示 X/Y 徽标，目录和根显示变更汇总点", async () => {
+    const listDir = vi.fn((dir: string) =>
+      Promise.resolve(dir === "docs"
+        ? [{ name: "plan.md", isDir: false }]
+        : ROOT_ENTRIES),
+    );
+    const gitStatus = vi.fn().mockResolvedValue({
+      isRepo: true,
+      branch: "main",
+      files: [
+        { path: "README.md", x: " ", y: "M", modified: true },
+        { path: "docs/plan.md", x: "?", y: "?", untracked: true },
+        { path: "docs/old.md", x: " ", y: "D", deleted: true },
+      ],
+    });
+    mockCoreB({ GaeaListDir: listDir, GaeaGitStatus: gitStatus });
+    render(<FileTree cwd="C:/proj" onSelect={() => {}} />);
+
+    const readme = (await screen.findByText("README.md")).closest("[data-path]") as HTMLElement;
+    expect(readme.dataset.gitTone).toBe("modified");
+    expect(readme.dataset.gitLetter).toBe("M");
+    expect(within(readme).getByLabelText(/Git 工作区修改/)).toBeTruthy();
+
+    const docs = screen.getByText("docs").closest("[data-path]") as HTMLElement;
+    expect(docs.dataset.gitTone).toBe("deleted");
+    expect(within(docs).getByLabelText("目录内有 2 个 Git 变更")).toBeTruthy();
+
+    fireEvent.click(screen.getByText("docs"));
+    const plan = (await screen.findByText("plan.md")).closest("[data-path]") as HTMLElement;
+    expect(plan.dataset.gitTone).toBe("untracked");
+    expect(plan.dataset.gitLetter).toBe("?");
+    await waitFor(() => expect(gitStatus).toHaveBeenCalled());
   });
 });
 

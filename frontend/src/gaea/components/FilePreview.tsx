@@ -1,4 +1,4 @@
-import { Component, lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AlertCircle, Check, ExternalLink, File, FileText, FolderTree, Loader2, Maximize2, Minimize2, Pencil, RefreshCw, X } from "../icons";
 import { app } from "../lib/bridge";
 import { t } from "../lib/i18n";
@@ -15,6 +15,10 @@ import { MdViewToggle, MindMapView } from "./MindMapView";
 import { readMdViewPref, writeMdViewPref, type MdViewMode } from "../lib/mdViewPref";
 import { PptxOutline } from "./PptxOutline";
 import { PptxEditPanel } from "./PptxEditPanel";
+import { JsonlPreview } from "./JsonlPreview";
+import { MarkdownToc } from "./MarkdownToc";
+import { extractMarkdownOutline } from "../lib/markdownOutline";
+import { registerEditorDraft, unregisterEditorDraft } from "../lib/editorDrafts";
 import { FileVersionStrip } from "./FileVersionStrip";
 import { XlsxPreview } from "./XlsxPreview";
 import { ScheduleFileCard } from "./ScheduleFileCard";
@@ -87,8 +91,15 @@ export function FilePreview({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [dirty, setDirty] = useState(false);
+  const [editMtimeMs, setEditMtimeMs] = useState(0);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const editorDraftOwner = useRef(Symbol("file-preview"));
+  // 大文件只读分页：按行对齐追加，已读内容不抽走。
+  const [pagedText, setPagedText] = useState<string | null>(null);
+  const [pageOffset, setPageOffset] = useState(0);
+  const [pageEOF, setPageEOF] = useState(false);
+  const [pageBusy, setPageBusy] = useState(false);
   // M1 markdown 双视图（文档/导图）：偏好持久化，默认文档视图（既有行为不变）
   const [mdView, setMdView] = useState<MdViewMode>(readMdViewPref);
   // v4.28 B2 pptx 逐页预览：页图容器（大纲卡点页条目按 data-pptx-page 锚点滚动）
@@ -118,7 +129,12 @@ export function FilePreview({
     setEditing(false);
     setDraft("");
     setDirty(false);
+    setEditMtimeMs(0);
     setSaveState("idle");
+    setPagedText(null);
+    setPageOffset(0);
+    setPageEOF(false);
+    setPageBusy(false);
     setPptxEditSlide(null); // 换文件时收起 pptx 编辑面板（面板归属旧文件）
     // 换文件强制滚动回顶（主区/嵌入 tab/上一份下一份导航同一语义）：显式归零
     // 替代此前「loading 收窄内容靠浏览器 clamp 隐式归零」的脆弱行为。原地内容
@@ -173,15 +189,49 @@ export function FilePreview({
   }, [autoRefreshedAt]);
 
   // 可编辑 = 纯文本/markdown 预览且未截断（截断内容不完整，写回会丢数据）
-  const editable = preview !== null && !loading && !editing && (preview.kind === "markdown" || preview.kind === "text") && !preview.truncated;
+  const editable = preview !== null && !loading && !editing &&
+    (preview.kind === "markdown" || preview.kind === "text");
+  const markdownHeadings = useMemo(
+    () => preview?.kind === "markdown" ? extractMarkdownOutline(preview.body) : [],
+    [preview?.body, preview?.kind],
+  );
 
-  const startEdit = useCallback(() => {
+  const startEdit = useCallback(async () => {
     if (!preview) return;
-    setDraft(preview.body);
+    if (!preview.truncated) {
+      setDraft(preview.body);
+      setEditMtimeMs(preview.mtimeMs ?? 0);
+      setDirty(false);
+      setSaveState("idle");
+      setEditing(true);
+      return;
+    }
+    let text = preview.body;
+    let mtimeMs = preview.mtimeMs ?? 0;
+    try {
+      const read = app.GaeaReadTextFile;
+      if (typeof read === "function" && relPath) {
+        const full = await read(relPath);
+        if (full.tooLarge || full.binary) {
+          toast.show(full.tooLarge ? "文件超过 5MB，请使用分页只读预览" : "二进制文件不能内联编辑", "warn");
+          return;
+        }
+        text = full.text;
+        mtimeMs = full.mtimeMs;
+      } else {
+        toast.show("当前后端不支持完整编辑读取，截断内容不能安全写回", "warn");
+        return;
+      }
+    } catch (error) {
+      toast.show(`读取编辑内容失败：${error instanceof Error ? error.message : String(error)}`, "warn");
+      return;
+    }
+    setDraft(text);
+    setEditMtimeMs(mtimeMs);
     setDirty(false);
     setSaveState("idle");
     setEditing(true);
-  }, [preview]);
+  }, [preview, relPath, toast]);
 
   // M2 导图画布编辑：override 传入画布序列化的规范大纲（导图保存条 / Ctrl+S），
   // 其余走内联文本编辑的 draft。
@@ -189,7 +239,14 @@ export function FilePreview({
     if (!relPath) return;
     setSaveState("saving");
     try {
-      await app.WriteFile(relPath, override ?? draft);
+      const content = override ?? draft;
+      const writer = app.GaeaWriteWorkspaceFile;
+      if (typeof writer === "function" && editMtimeMs > 0) {
+        const written = await writer(relPath, content, editMtimeMs);
+        setEditMtimeMs(written.mtimeMs);
+      } else {
+        await app.WriteFile(relPath, content);
+      }
       setDirty(false);
       setSaveState("saved");
       toast.show("已保存到工作区", "info");
@@ -201,7 +258,7 @@ export function FilePreview({
       setSaveState("failed");
       toast.show(`保存失败：${String(e)}`, "error");
     }
-  }, [relPath, draft, toast]);
+  }, [draft, editMtimeMs, relPath, toast]);
 
   const cancelEdit = useCallback(() => {
     if (!dirty) {
@@ -224,6 +281,38 @@ export function FilePreview({
     setMdView(v);
     writeMdViewPref(v);
   }, []);
+
+  useEffect(() => {
+    if (!relPath || !editing || !dirty) return;
+    const owner = editorDraftOwner.current;
+    registerEditorDraft(relPath, owner);
+    return () => unregisterEditorDraft(relPath, owner);
+  }, [dirty, editing, relPath]);
+
+  const loadNextPage = useCallback(async () => {
+    if (!relPath || pageBusy || pageEOF) return;
+    const readPage = app.GaeaReadFilePage;
+    if (typeof readPage !== "function") {
+      toast.show("当前后端不支持大文件分页读取", "warn");
+      return;
+    }
+    setPageBusy(true);
+    try {
+      const page = await readPage(relPath, pageOffset);
+      if (page.binary) {
+        toast.show("文件是二进制格式，不能按文本分页预览", "warn");
+        setPageEOF(true);
+        return;
+      }
+      setPagedText((prev) => (prev ?? "") + page.text);
+      setPageOffset(page.nextOffset);
+      setPageEOF(page.eof || page.nextOffset <= pageOffset);
+    } catch (error) {
+      toast.show(`分页读取失败：${error instanceof Error ? error.message : String(error)}`, "warn");
+    } finally {
+      setPageBusy(false);
+    }
+  }, [pageBusy, pageEOF, pageOffset, relPath, toast]);
 
 
 
@@ -373,7 +462,7 @@ export function FilePreview({
       )}
 
       {/* 预览内容 / 编辑区 */}
-      <div ref={scrollRef} className="flex-1 overflow-auto">
+      <div ref={scrollRef} className="relative flex-1 overflow-auto">
         {editing ? (
           <>
             {confirmDiscard && (
@@ -535,18 +624,53 @@ export function FilePreview({
         {!loading && preview?.kind === "markdown" && (
           <>
             {preview.truncated && (
-              <div className="mb-2 px-3 py-2 rounded-md border border-amber-500/30 bg-amber-500/5 text-amber-500 text-[11px] leading-relaxed">
-                预览已截断（{preview.totalPages ? `PDF 共 ${preview.totalPages} 页` : "文件过大"}），仅展示前部内容；可让 AI 调用 summarize_file 获取全文摘要。
+              <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-md border border-amber-500/30 bg-amber-500/5 text-amber-500 text-[11px] leading-relaxed">
+                <span className="flex-1">
+                  预览已截断（{preview.totalPages ? `PDF 共 ${preview.totalPages} 页` : "文件过大"}），仅展示前部内容。
+                </span>
+                {pagedText === null ? (
+                  <button
+                    type="button"
+                    className="shrink-0 rounded border border-amber-500/35 bg-transparent px-2 py-0.5 cursor-pointer hover:bg-amber-500/10"
+                    onClick={() => void loadNextPage()}
+                    disabled={pageBusy}
+                  >
+                    {pageBusy ? "读取中…" : "分页阅读"}
+                  </button>
+                ) : !pageEOF ? (
+                  <button
+                    type="button"
+                    className="shrink-0 rounded border border-amber-500/35 bg-transparent px-2 py-0.5 cursor-pointer hover:bg-amber-500/10"
+                    onClick={() => void loadNextPage()}
+                    disabled={pageBusy}
+                  >
+                    {pageBusy ? "读取中…" : "加载下一页"}
+                  </button>
+                ) : null}
               </div>
             )}
-            {mdView === "mindmap" ? (
+            {pagedText !== null ? (
+              <pre
+                data-testid="large-file-pages"
+                className="p-3 text-[12px] text-fg-dim font-mono leading-relaxed whitespace-pre-wrap overflow-x-auto"
+              >
+                {pagedText}
+              </pre>
+            ) : mdView === "mindmap" ? (
               // M1 导图视图：内层自管平移/缩放，外层容器不再给 max-w 排版
               <div className="h-full min-h-[420px]">
                 <MindMapView text={preview.body} title={fileName} onSave={(t) => void save(t)} />
               </div>
             ) : (
-              <div className="px-4 py-3 max-w-[860px] mx-auto">
-                <Markdown text={preview.body} />
+              <div className="relative px-4 py-3 max-w-[860px] mx-auto">
+                {mdView === "doc" && (
+                  <MarkdownToc
+                    headings={markdownHeadings}
+                    scrollRef={scrollRef}
+                    contentKey={preview.body}
+                  />
+                )}
+                <Markdown text={preview.body} imageBasePath={relPath} />
               </div>
             )}
           </>
@@ -559,10 +683,48 @@ export function FilePreview({
           const detail = isScheduleFilePath(relPath)
             ? parseSchedSummaryDetail(preview.body)
             : { summary: null, reason: null };
-          return detail.summary ? (
+          const isJsonl = /\.(jsonl|ndjson)$/i.test(relPath ?? "");
+          return pagedText !== null ? (
+            <pre
+              data-testid="large-file-pages"
+              className="p-3 text-[12px] text-fg-dim font-mono leading-relaxed whitespace-pre-wrap overflow-x-auto"
+            >
+              {pagedText}
+            </pre>
+          ) : isJsonl ? (
+            <>
+              {preview.truncated && (
+                <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-md border border-amber-500/30 bg-amber-500/5 text-amber-500 text-[11px] leading-relaxed">
+                  <span className="flex-1">文件超过 2MB，当前 JSONL 预览只包含前 2MB。</span>
+                  <button
+                    type="button"
+                    className="shrink-0 rounded border border-amber-500/35 bg-transparent px-2 py-0.5 cursor-pointer hover:bg-amber-500/10"
+                    onClick={() => void loadNextPage()}
+                    disabled={pageBusy || pageEOF}
+                  >
+                    {pageBusy ? "读取中…" : pageEOF ? "已到末尾" : "分页阅读"}
+                  </button>
+                </div>
+              )}
+              <JsonlPreview text={preview.body} />
+            </>
+          ) : detail.summary ? (
             <ScheduleFileCard relPath={relPath} summary={detail.summary} raw={preview.body} />
           ) : (
             <>
+              {preview.truncated && (
+                <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-md border border-amber-500/30 bg-amber-500/5 text-amber-500 text-[11px] leading-relaxed">
+                  <span className="flex-1">文件超过 2MB，当前只读预览已截断。</span>
+                  <button
+                    type="button"
+                    className="shrink-0 rounded border border-amber-500/35 bg-transparent px-2 py-0.5 cursor-pointer hover:bg-amber-500/10"
+                    onClick={() => void loadNextPage()}
+                    disabled={pageBusy || pageEOF}
+                  >
+                    {pageBusy ? "读取中…" : pageEOF ? "已到末尾" : "分页阅读"}
+                  </button>
+                </div>
+              )}
               {detail.reason && (
                 <div className="mb-2 px-3 py-2 rounded-md border border-amber-500/30 bg-amber-500/5 text-amber-500 text-[11px] leading-relaxed">
                   {detail.reason}，已回落原始文本视图。

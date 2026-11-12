@@ -28,6 +28,8 @@ import "../hljs-theme.css";
 const MAX_ROWS = 300;
 // content 预览最大字符数（超出截断并标注）。
 const MAX_CONTENT_CHARS = 4000;
+const MAX_DIFF_LINE_COLLAPSED = 2000;
+const MAX_DIFF_LINE_EXPANDED = 20000;
 
 // 配对行内片段着色：changed 片段加删除/新增强调，未变片段正常。
 function Segments({ segs, side }: { segs: { text: string; changed: boolean }[]; side: "old" | "new" }) {
@@ -57,6 +59,7 @@ function Segments({ segs, side }: { segs: { text: string; changed: boolean }[]; 
 function PresentRows({ present, path }: { present: DiffPresentRow[]; path?: string }) {
   // 折叠块展开集合（展开后原行就地显示，不再收起；行键=序列下标）。
   const [unfolded, setUnfolded] = useState<Set<number>>(() => new Set());
+  const [expandedLong, setExpandedLong] = useState<Set<number>>(() => new Set());
 
   const shownAll = present.slice(0, MAX_ROWS);
   return (
@@ -96,6 +99,13 @@ function PresentRows({ present, path }: { present: DiffPresentRow[]; path?: stri
         }
         const r = p.row;
         const paired = p.pairOld !== undefined && p.pairNew !== undefined;
+        const longLine = r.text.length > MAX_DIFF_LINE_COLLAPSED;
+        const lineLimit = expandedLong.has(i) ? MAX_DIFF_LINE_EXPANDED : MAX_DIFF_LINE_COLLAPSED;
+        const shownText = longLine ? r.text.slice(0, lineLimit) : r.text;
+        const pairCanHighlight = paired &&
+          (p.pairOld?.length ?? 0) <= MAX_DIFF_LINE_EXPANDED &&
+          (p.pairNew?.length ?? 0) <= MAX_DIFF_LINE_EXPANDED;
+        const pairSegments = pairCanHighlight ? charSegments(p.pairOld!, p.pairNew!) : null;
         // 配对成功（old/new 两行都在）→ 改蓝；未配对的独立增删保持红/绿。
         const bg = paired
           ? "color-mix(in srgb, var(--gaea-glow) 10%, transparent)"
@@ -133,17 +143,35 @@ function PresentRows({ present, path }: { present: DiffPresentRow[]; path?: stri
               </span>
             )}
             <span className="flex-1 min-w-0 pr-2" style={{ color: fg }}>
-              {paired && r.type === "del"
-                ? <Segments segs={charSegments(p.pairOld!, p.pairNew!).oldSegs} side="old" />
-                : paired && r.type === "add"
-                  ? <Segments segs={charSegments(p.pairOld!, p.pairNew!).newSegs} side="new" />
+              {pairSegments && r.type === "del"
+                ? <Segments segs={pairSegments.oldSegs} side="old" />
+                : pairSegments && r.type === "add"
+                  ? <Segments segs={pairSegments.newSegs} side="new" />
                   : path
-                    ? highlightLine(r.text, path).map((seg, k) =>
+                    ? highlightLine(shownText, path).map((seg, k) =>
                         seg.cls
                           ? <span key={k} className={seg.cls}>{seg.text || " "}</span>
                           : <span key={k}>{seg.text === "" ? " " : seg.text}</span>,
                       )
-                    : r.text === "" ? " " : r.text}
+                    : shownText === "" ? " " : shownText}
+              {longLine && (
+                <button
+                  type="button"
+                  className="ml-1 inline cursor-pointer border-0 bg-transparent p-0 text-[9.5px] text-accent hover:underline"
+                  onClick={() => {
+                    setExpandedLong((cur) => {
+                      const next = new Set(cur);
+                      if (next.has(i)) next.delete(i);
+                      else next.add(i);
+                      return next;
+                    });
+                  }}
+                >
+                  {expandedLong.has(i)
+                    ? "收起长行"
+                    : `长行已截断 ${r.text.length} 字符，展开至 ${MAX_DIFF_LINE_EXPANDED}`}
+                </button>
+              )}
             </span>
           </div>
         );

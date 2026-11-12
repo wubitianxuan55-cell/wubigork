@@ -25,6 +25,8 @@ import { opsMethods } from "./methods_ops";
 import { webSearchMethods } from "./methods_websearch";
 import type { OfficeMethods } from "./types";
 
+const mockWorkspaceUploads = new Map<string, string>();
+
 export const officeMethods: Partial<Omit<OfficeMethods, "PinnedMaterials">> &
   Pick<OfficeMethods, "PinnedMaterials"> = {
   async ListDir(rel: string) {
@@ -63,7 +65,94 @@ export const officeMethods: Partial<Omit<OfficeMethods, "PinnedMaterials">> &
     }
     return [{ name: "file.go", isDir: false, size: 4 }];
   },
-  async FileSearch(query: string, limit = 30) {
+  async GaeaListDirBatch(paths: string[], _exclude: string[]) {
+    const levels = [];
+    for (const path of paths) {
+      try {
+        levels.push({ path, entries: (await this.ListDir?.(path)) ?? [] });
+      } catch (error) {
+        levels.push({ path, entries: [], error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    return levels;
+  },
+  async GaeaFileTreeWatch(_paths: string[], _exclude: string[]) {
+    // Browser mock has no host watcher; UI mutations refresh explicitly.
+  },
+  async GaeaRenameWorkspacePath(rel: string, name: string) {
+    return { path: `${rel.split("/").slice(0, -1).concat(name).join("/")}`, name, isDir: false };
+  },
+  async GaeaCreateWorkspaceFolder(parent: string, name: string) {
+    return { path: [parent, name].filter(Boolean).join("/"), name, isDir: true };
+  },
+  async GaeaCreateWorkspaceFile(parent: string, name: string) {
+    const path = [parent, name].filter(Boolean).join("/");
+    mockFileBodies[path] = "";
+    return { path, name, isDir: false };
+  },
+  async GaeaDeleteWorkspacePaths(paths: string[]) {
+    for (const path of paths) delete mockFileBodies[path];
+  },
+  async GaeaWorkspaceUploadBegin(_dir: string, relativePath: string) {
+    const token = `workspace-upload-${Date.now()}-${mockWorkspaceUploads.size}`;
+    mockWorkspaceUploads.set(token, relativePath);
+    return token;
+  },
+  async GaeaWorkspaceUploadAppend(_token: string, _base64Chunk: string) {
+    // no-op in browser mock
+  },
+  async GaeaWorkspaceUploadFinish(token: string) {
+    const relativePath = mockWorkspaceUploads.get(token) ?? "upload.bin";
+    mockWorkspaceUploads.delete(token);
+    return { path: relativePath, name: relativePath.split("/").pop() ?? relativePath, size: 0, isDir: false };
+  },
+  async GaeaWorkspaceUploadAbort(token: string) {
+    mockWorkspaceUploads.delete(token);
+  },
+  async GaeaPickWorkspaceUploadFiles(_dir: string) {
+    return [];
+  },
+  async GaeaPickWorkspaceUploadFolder(_dir: string) {
+    return [];
+  },
+  async GaeaReadTextFile(rel: string) {
+    const preview = await this.Preview?.(rel);
+    if (!preview) throw new Error(`mock preview unavailable: ${rel}`);
+    return {
+      path: rel,
+      text: preview.body,
+      size: preview.size,
+      mtimeMs: preview.mtimeMs ?? 0,
+      encoding: preview.encoding ?? "utf-8",
+      eol: preview.eol ?? "lf",
+    };
+  },
+  async GaeaReadFilePage(rel: string, offset: number) {
+    const text = mockFileBodies[rel] ?? `// ${rel}\n\nMock file body from browser dev.`;
+    return {
+      path: rel,
+      text,
+      offset,
+      nextOffset: text.length,
+      size: text.length,
+      encoding: "utf-8",
+      eol: "lf",
+      eof: true,
+    };
+  },
+  async GaeaWriteWorkspaceFile(rel: string, content: string, _expectedMtimeMs: number) {
+    mockFileBodies[rel] = content;
+    const body = await this.Preview?.(rel);
+    if (!body) throw new Error(`mock preview unavailable: ${rel}`);
+    return { path: rel, size: content.length, mtimeMs: body.mtimeMs ?? Date.now() };
+  },
+  async GaeaSaveWorkspacePathAs(rel: string) {
+    return rel;
+  },
+  async GaeaSaveWorkspacePathsAs(paths: string[]) {
+    return paths.length === 1 ? paths[0] : "gaea-selection-mock.zip";
+  },
+  async FileSearch(query: string, limit: number, _exclude: string[]) {
     const tree = [
       { path: "README.md", name: "README.md", isDir: false, size: 18, modTime: 0 },
       { path: "desktop/file.go", name: "file.go", isDir: false, size: 42, modTime: 0 },

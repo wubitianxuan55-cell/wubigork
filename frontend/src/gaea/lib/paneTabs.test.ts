@@ -141,3 +141,35 @@ describe("paneTabs reloadTicks 写后预览刷新总线（U4）", () => {
     expect(usePaneTabsStore.getState().reloadTicks).toEqual({});
   });
 });
+
+describe("paneTabs 文件树改名/删除调解（Go 工作台）", () => {
+  it("文件改名同步 tab id/path/title 与刷新键", () => {
+    const api = usePaneTabsStore.getState();
+    api.openFile("docs/a.md", "a.md");
+    api.requestReload("docs/a.md");
+    api.renamePath("docs/a.md", "docs/b.md");
+    const s = usePaneTabsStore.getState();
+    expect(s.tabs).toMatchObject([{ id: "file:docs/b.md", path: "docs/b.md", title: "b.md" }]);
+    expect(s.active).toBe("file:docs/b.md");
+    expect(s.reloadTicks["docs/b.md"]).toBe(1);
+    expect(s.reloadTicks["docs/a.md"]).toBeUndefined();
+  });
+
+  it("目录改名按子树改道，删除目录关闭整棵已打开文件页", () => {
+    const api = usePaneTabsStore.getState();
+    api.openFile("docs/a.md", "a.md");
+    api.openFile("docs/sub/b.md", "b.md");
+    api.openFile("keep.md", "keep.md");
+    api.renamePath("docs", "notes");
+    expect(usePaneTabsStore.getState().tabs.map((tab) => tab.path)).toEqual([
+      "notes/a.md",
+      "notes/sub/b.md",
+      "keep.md",
+    ]);
+
+    usePaneTabsStore.getState().removePath("notes");
+    const s = usePaneTabsStore.getState();
+    expect(s.tabs.map((tab) => tab.path)).toEqual(["keep.md"]);
+    expect(s.active).toBe("file:keep.md");
+  });
+});

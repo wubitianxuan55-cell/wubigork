@@ -99,6 +99,61 @@ func TestGaeaGitStatusAndDiff(t *testing.T) {
 	}
 }
 
+func TestGaeaGitStatusNestedWorkspaceAndRename(t *testing.T) {
+	repo := initTempRepo(t)
+	ws := filepath.Join(repo, "workspace")
+	if err := os.MkdirAll(ws, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeRepoFile(t, repo, "workspace/inside.txt", "base\n")
+	writeRepoFile(t, repo, "outside.txt", "base\n")
+	run := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", repo}, args...)...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	run("add", "workspace/inside.txt", "outside.txt")
+	run("commit", "-q", "-m", "nested baseline")
+
+	writeRepoFile(t, repo, "workspace/inside.txt", "changed\n")
+	writeRepoFile(t, repo, "workspace/new.txt", "new\n")
+	writeRepoFile(t, repo, "outside.txt", "changed outside\n")
+	writeRepoFile(t, repo, "outside-new.txt", "outside\n")
+	t.Chdir(ws)
+
+	st := (&App{}).GaeaGitStatus()
+	got := map[string]GitFileStatus{}
+	for _, f := range st.Files {
+		got[f.Path] = f
+	}
+	if _, ok := got["inside.txt"]; !ok {
+		t.Fatalf("workspace change missing after root-relative normalization: %+v", st.Files)
+	}
+	if _, ok := got["new.txt"]; !ok {
+		t.Fatalf("workspace untracked file missing: %+v", st.Files)
+	}
+	if _, ok := got["outside.txt"]; ok {
+		t.Fatalf("outside tracked file leaked into nested workspace: %+v", st.Files)
+	}
+	if _, ok := got["outside-new.txt"]; ok {
+		t.Fatalf("outside untracked file leaked into nested workspace: %+v", st.Files)
+	}
+
+	run("mv", "workspace/inside.txt", "workspace/renamed.txt")
+	st = (&App{}).GaeaGitStatus()
+	foundRename := false
+	for _, f := range st.Files {
+		if f.Path == "renamed.txt" && f.Renamed {
+			foundRename = true
+		}
+	}
+	if !foundRename {
+		t.Fatalf("rename destination not parsed from porcelain -z: %+v", st.Files)
+	}
+}
+
 func TestGaeaGitCommitLogDiscard(t *testing.T) {
 	dir := initTempRepo(t)
 	t.Chdir(dir)
