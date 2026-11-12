@@ -277,6 +277,11 @@
   },
   {
    "from": "internal/app",
+   "to": "internal/gaea/filefilter",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
    "to": "internal/gaea/fileindex",
    "layer": "shell"
   },
@@ -403,6 +408,11 @@
   {
    "from": "internal/app",
    "to": "internal/gaea/vision",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/gaea/workbench",
    "layer": "shell"
   },
   {
@@ -1456,6 +1466,11 @@
    "layer": "kernel-lib"
   },
   {
+   "from": "internal/gaea/filefilter",
+   "to": "internal/gaea/wspath",
+   "layer": "kernel-lib"
+  },
+  {
    "from": "internal/gaea/fileindex",
    "to": "internal/docmd",
    "layer": "kernel-lib"
@@ -1858,6 +1873,26 @@
   {
    "from": "internal/gaea/trajectory",
    "to": "internal/util",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/workbench",
+   "to": "internal/gaea/filefilter",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/workbench",
+   "to": "internal/gaea/fileutil",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/workbench",
+   "to": "internal/gaea/fileutil/encoding",
+   "layer": "kernel-lib"
+  },
+  {
+   "from": "internal/gaea/workbench",
+   "to": "internal/gaea/wspath",
    "layer": "kernel-lib"
   },
   {
@@ -2337,11 +2372,11 @@
   }
  ],
  "meta": {
-  "edges": 467,
+  "edges": 474,
   "generated": "2026-11-10",
-  "packages": 162,
-  "srcLoc": 260333,
-  "testLoc": 208323
+  "packages": 164,
+  "srcLoc": 264830,
+  "testLoc": 210821
  },
  "nodes": [
   {
@@ -2353,8 +2388,8 @@
   {
    "id": "internal/ai",
    "layer": "engine",
-   "srcLoc": 4753,
-   "testLoc": 5306
+   "srcLoc": 4806,
+   "testLoc": 5361
   },
   {
    "id": "internal/analysis",
@@ -2365,8 +2400,8 @@
   {
    "id": "internal/app",
    "layer": "shell",
-   "srcLoc": 74686,
-   "testLoc": 67882
+   "srcLoc": 75660,
+   "testLoc": 68882
   },
   {
    "id": "internal/app/board",
@@ -2443,7 +2478,7 @@
   {
    "id": "internal/config",
    "layer": "domain",
-   "srcLoc": 1954,
+   "srcLoc": 1969,
    "testLoc": 1158
   },
   {
@@ -2473,7 +2508,7 @@
   {
    "id": "internal/gaea/agent",
    "layer": "kernel-rt",
-   "srcLoc": 13223,
+   "srcLoc": 13224,
    "testLoc": 12452
   },
   {
@@ -2497,7 +2532,7 @@
   {
    "id": "internal/gaea/agent/session",
    "layer": "kernel-rt",
-   "srcLoc": 2682,
+   "srcLoc": 2684,
    "testLoc": 3290
   },
   {
@@ -2527,8 +2562,8 @@
   {
    "id": "internal/gaea/attachment",
    "layer": "kernel-lib",
-   "srcLoc": 366,
-   "testLoc": 140
+   "srcLoc": 567,
+   "testLoc": 353
   },
   {
    "id": "internal/gaea/backup",
@@ -2551,7 +2586,7 @@
   {
    "id": "internal/gaea/boot",
    "layer": "kernel-rt",
-   "srcLoc": 1432,
+   "srcLoc": 1443,
    "testLoc": 1620
   },
   {
@@ -2581,7 +2616,7 @@
   {
    "id": "internal/gaea/config",
    "layer": "kernel-lib",
-   "srcLoc": 2924,
+   "srcLoc": 2931,
    "testLoc": 2622
   },
   {
@@ -2593,8 +2628,8 @@
   {
    "id": "internal/gaea/contextview",
    "layer": "kernel-rt",
-   "srcLoc": 1760,
-   "testLoc": 1169
+   "srcLoc": 2782,
+   "testLoc": 1795
   },
   {
    "id": "internal/gaea/control",
@@ -2653,7 +2688,7 @@
   {
    "id": "internal/gaea/event",
    "layer": "kernel-rt",
-   "srcLoc": 445,
+   "srcLoc": 448,
    "testLoc": 253
   },
   {
@@ -2667,6 +2702,12 @@
    "layer": "kernel-lib",
    "srcLoc": 195,
    "testLoc": 100
+  },
+  {
+   "id": "internal/gaea/filefilter",
+   "layer": "kernel-lib",
+   "srcLoc": 173,
+   "testLoc": 70
   },
   {
    "id": "internal/gaea/fileindex",
@@ -2701,8 +2742,8 @@
   {
    "id": "internal/gaea/genui",
    "layer": "kernel-lib",
-   "srcLoc": 547,
-   "testLoc": 492
+   "srcLoc": 578,
+   "testLoc": 530
   },
   {
    "id": "internal/gaea/hook",
@@ -2797,7 +2838,7 @@
   {
    "id": "internal/gaea/provider/bridge",
    "layer": "kernel-lib",
-   "srcLoc": 254,
+   "srcLoc": 267,
    "testLoc": 637
   },
   {
@@ -2887,14 +2928,20 @@
   {
    "id": "internal/gaea/trajectory",
    "layer": "kernel-lib",
-   "srcLoc": 1231,
-   "testLoc": 1049
+   "srcLoc": 1545,
+   "testLoc": 1218
   },
   {
    "id": "internal/gaea/vision",
    "layer": "kernel-lib",
    "srcLoc": 280,
    "testLoc": 352
+  },
+  {
+   "id": "internal/gaea/workbench",
+   "layer": "kernel-lib",
+   "srcLoc": 1655,
+   "testLoc": 327
   },
   {
    "id": "internal/gaea/workcost",
@@ -2953,7 +3000,7 @@
   {
    "id": "internal/modelengine",
    "layer": "engine",
-   "srcLoc": 3774,
+   "srcLoc": 3796,
    "testLoc": 4650
   },
   {
