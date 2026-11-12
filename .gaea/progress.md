@@ -1,3 +1,13 @@
+## DSH-better-sidebar Go 增量复刻：功能提交与桌面预览包 · 2026-11-12（打包收口）
+
+- **提交**：功能提交 `f49ea1500026526b822c80be39cfb08d06026869`（短 `f49ea150`，标题 `feat-office-dsh-better-sidebar-workbench`），父提交 `daaa0065`；80 files / 7,786 insertions / 374 deletions。收口文档与包元数据另提独立提交，不与源码功能混写。
+- **包构建**：从仓内独立干净工作树 `.worktrees/pkg-f49ea150` 精确检出 `f49ea150`，构建前 `git status --porcelain` 为空；前端 `npm.cmd run build` 通过（Vite 20.38s），随后按系统 TMP/TEMP、ucrt64 GCC 16.1.0、`CGO_ENABLED=1` 执行完整 `wails build -s -ldflags "-s -w" -trimpath`（50.158s，bindings 未跳过）。
+- **四件套**：`gaea.exe` 62,486,528 B / SHA256 `986C89666AB1588D10E0881AAEBA8129B35EC62577034FA88C1A2155F419EE96`；三只 DLL 从 `build/voice-dlls` 派发到同目录，完整哈希见 `releases/gaea-bettersidebar-20261112-f49ea150/SHA256SUMS-f49ea150.txt`。
+- **冒烟**：本机 `.worktrees` 内的 exe 启动被策略拦截，因此把同一四件套放到 `releases/gaea-bettersidebar-20261112-f49ea150/payload/` 正式路径，执行 `scripts\smoke.ps1 -ExePath <absolute>\payload\gaea.exe`；`/api/health` 200，`{"status":"ok"}`，PID 30100 已回收。该路径规则已补入构建指南坑表。
+- **交付包**：`gaea-f49ea150-preview.zip` 32,502,355 B / SHA256 `7038DDBE20F3B5A6821BE9D7140BF69257E9037940F3E6EAEB6C7D1E0E2A172A`，根目录仅 exe+三 DLL；`gaea-f49ea150-source.tar.gz` 39,080,619 B / SHA256 `776686C69D939C4DB8720531705C0CFEFCB6D62E6F5845B7222AE7F411C236FC`，由 `git archive` 从 `f49ea150` 精确生成。ZIP/TAR 留盘不入库，`PACKAGE-INFO.md` 与 `SHA256SUMS` 入库。
+- **边界**：主工作树平行测试优化与测试加速件未进入功能提交、干净构建树或发布包；既有 releases 压缩包未清理。Wails 已知 `Not found: time.Time` 与生成物尾随空白噪声不变，build/smoke 均成功。
+- **状态**：未 push、未装机、未覆盖 `C:\AI\gaea-app`。后续只需按用户拍板决定发布动作；G1 深化仍为 worktree 切换与 Go Git 服务。
+
 ## DSH-better-sidebar Go 增量复刻：文件工作台 F1 + 长期交接档 · 2026-11-12
 
 - **用户决策**：在现有 gaea 上增量接线，不从头重写；保留会话/任务/Office/记忆/导航与整体 UI；侧聊服务不做；先做文件工作台。

@@ -8,7 +8,8 @@
 >
 > 上游基线：`dsh-better-sidebar v0.32.0`，解析后 commit `53e08cec61f1a3cfe32b86e6429876fff1ef0504`（2026-11-12）。
 >
-> 当前批次：**F1 + F2 + F3 已完成；G1 已完成共享状态、仓库根语义、统一变更树、快操作与行内 diff 五刀。尚未提交、未推送、未覆盖正式安装版**。
+> 当前批次：**F1 + F2 + F3 与 G1.1–G1.5 已提交为 `f49ea150`，并完成独立干净工作树构建、正式路径冒烟、预览包与源码包**。
+> 当前仍**未 push、未覆盖正式安装版**；G1 剩余的 worktree 切换与 Go Git 服务深化继续按本文推进。
 
 本文替代旧的 2026-09 滚动规划，作为后续新会话的恢复入口。旧文档
 `docs/gaea-dsh-better-sidebar-long-term-distill-plan-2026.md` 只保留历史调研和早期阶段台账，
@@ -37,11 +38,11 @@ git log -5 --oneline --decorate
 
 然后确认：
 
-1. 当前是否仍在 F1 未提交工作树；是则先保护现有改动，不 reset、不 checkout、不 stash。
+1. 当前功能基线已提交为 `f49ea150`；先确认 HEAD、分支和未提交改动，不 reset、不 checkout、不 stash。
 2. 用户是否已指定下一批；未指定时按本文 §6 的顺序推进，不自行重开已拒绝项。
 3. 是否只做文档、代码、构建或装机。构建与装机必须另走 `docs/gaea-build-guide.md`。
-4. 修改前后检查 F1 的未跟踪文件 `internal/gaea/workbench/` 和
-   `internal/app/gaea_workbench*.go` 是否仍在。
+4. 主工作树若仍有平行测试优化改动（`.gitignore`、`frontend/package.json`、
+   `frontend/src/test/setup.ts`、`frontend/vite.config.ts` 等），不得混入本专项提交或发布包。
 
 ### 0.3 事实优先级
 
@@ -90,13 +91,20 @@ git log -5 --oneline --decorate
 
 ### 2.1 Git 状态
 
-截至 2026-11-12 建立本文时：
+截至 2026-11-12 打包收口时：
 
 - 当前分支：`main`，跟踪 `origin/main`。
-- F1 代码位于未提交工作树。
-- 未创建本专项提交，未 push。
+- 功能提交：`f49ea1500026526b822c80be39cfb08d06026869`
+  （`feat-office-dsh-better-sidebar-workbench`），父提交
+  `daaa00654d1db7b1e0676bace326c878a1f83cae`。
+- 功能提交共 80 个文件，`7,786 insertions / 374 deletions`。
+- 本收口文档与包记录作为功能提交之后的独立文档提交，不与源码功能混写。
+- 尚未 push；构建时 `main` 相对 `origin/main` ahead 1，包元数据提交后 ahead 2。
 - 未覆盖 `C:\AI\gaea-app` 的正式安装版。
-- 工作树中的既有 `releases/**` 未跟踪压缩包属于用户既有产物，不得清理。
+- 主工作树仍有不属于本专项的平行测试优化改动和未跟踪测试加速件；它们未进入
+  `f49ea150`、独立构建树或发布包。既有 `releases/**` 未跟踪压缩包属于用户产物，不得清理。
+- 本包记录位于 `releases/gaea-bettersidebar-20261112-f49ea150/`；ZIP/TAR 仅留磁盘，
+  `PACKAGE-INFO.md` 与 `SHA256SUMS-f49ea150.txt` 入库。
 
 ### 2.2 上游基线
 
@@ -121,9 +129,9 @@ git log -5 --oneline --decorate
 
 上述只是本轮回源得到的能力地图，不代表 gaea 已完成。
 
-### 2.3 当前质量快照
+### 2.3 当前质量与交付快照
 
-F1 代码候选已经过以下验证：
+功能提交前的 F1 验证记录：
 
 - `frontend npm run build`：通过。
 - 前端全量：**483 个测试文件 / 4301 个用例通过**。
@@ -135,17 +143,33 @@ F1 代码候选已经过以下验证：
 - `gofmt -l internal/gaea/workbench internal/app/gaea_workbench.go internal/app/gaea_workbench_test.go`：无输出。
 - `git diff --check`：无空白错误，仅有 Windows 行尾转换 warning。
 
-当前最新桌面端构建（2026-11-12 23:01）：
+正式可交付构建来自仓内独立干净工作树
+`.worktrees/pkg-f49ea150`，检出提交精确为 `f49ea1500026526b822c80be39cfb08d06026869`，
+构建前 `git status --porcelain` 为空：
 
-- 前端生产构建：21.89s，通过。
-- Wails 完整构建：56.11s，通过；bindings 未跳过。
-- 文件：`build/bin/gaea.exe`
-- 大小：`62,485,504` bytes
-- SHA256：`F0452ADCFF604E3CB020EA78BA83A0E3979FB9ECB74CA14AE3FE1FBB09113A96`
-- 同目录 DLL：`onnxruntime.dll` / `sherpa-onnx-c-api.dll` / `sherpa-onnx-cxx-api.dll` 全部在位。
-- 正式路径冒烟：`/api/health` 200，`{"status":"ok"}`，冒烟进程已回收。
+- 前端生产构建：`npm.cmd run build` 通过，Vite `20.38s`。
+- Wails：`v2.13.0`，Go `1.26.10 windows/amd64`，ucrt64 GCC `16.1.0`，
+  `CGO_ENABLED=1`、系统默认 TMP/TEMP；完整构建 `50.158s`，bindings 未跳过。
+- exe：`gaea.exe`，`62,486,528` bytes，SHA256
+  `986C89666AB1588D10E0881AAEBA8129B35EC62577034FA88C1A2155F419EE96`。
+- 三只 DLL 由 `build/voice-dlls` 派发到 exe 同目录；哈希见包内
+  `SHA256SUMS-f49ea150.txt`。
+- 冒烟：同一四件套放入
+  `releases/gaea-bettersidebar-20261112-f49ea150/payload/` 后，以绝对正式路径执行
+  `scripts\smoke.ps1`；`/api/health` 200，`{"status":"ok"}`，PID 30100 已回收。
 
-该产物来自当前未提交工作树，只用于本地桌面端验收；提交或装机前仍应重新确认工作树身份。
+本次包产物：
+
+| 文件 | 大小（bytes） | SHA256 |
+|---|---:|---|
+| `gaea-f49ea150-preview.zip` | 32,502,355 | `7038DDBE20F3B5A6821BE9D7140BF69257E9037940F3E6EAEB6C7D1E0E2A172A` |
+| `gaea-f49ea150-source.tar.gz` | 39,080,619 | `776686C69D939C4DB8720531705C0CFEFCB6D62E6F5845B7222AE7F411C236FC` |
+
+预览 ZIP 根目录只有 `gaea.exe` 与三只 DLL；源码包由
+`git archive --format=tar.gz --prefix=gaea-f49ea150/ ... f49ea150` 生成，内容严格来自提交。
+Wails 生成器仍打印既有 `Not found: time.Time`，并在构建后重写生成绑定；这属于已知生成物噪声，
+本次 build 与 smoke 均成功。本机直接从 `.worktrees` 路径启动 exe 会被系统策略拦截，
+因此包构建必须把同一 payload 放到 releases 正式路径后再冒烟。
 
 F2.1 增量验证（2026-11-12，未再跑全量构建）：
 
@@ -376,7 +400,8 @@ F1 新增 17 个 Wails 方法，绑定面由 728 变为 **745**。
 
 优先级：最高。
 
-当前状态：Wails 完整生成、前端生产构建、正式路径冒烟和产物哈希已完成；仍待用户决定是否提交以及是否覆盖正式安装版。
+当前状态：**✅ 2026-11-12 收口完成**。功能提交、独立干净工作树构建、正式路径冒烟、
+预览包、源码包、哈希记录和长期记忆均已落地；仍待用户决定是否 push 以及是否覆盖正式安装版。
 
 目标：
 
@@ -384,7 +409,7 @@ F1 新增 17 个 Wails 方法，绑定面由 728 变为 **745**。
 - 最终重新执行前端构建与 Wails 构建，让 `models.ts` 由生成器重写，消除手工清理造成的大 diff。
 - 以正式路径跑冒烟并记录最终 exe 哈希。
 - 更新本文、`docs/README.md`、`.gaea/AGENTS.md`、`.gaea/progress.md`、`.gaea/todos.md`。
-- 由用户决定是否提交、装机或保留为工作树候选。
+- 功能提交已由用户确认执行；push 与装机仍由用户另行决定。
 
 退出标准：
 
@@ -576,12 +601,12 @@ go vet ./internal/gaea/workbench ./internal/app
 
 ## 9. 已知问题、红项与风险
 
-### 9.1 F1 当前状态风险
+### 9.1 当前状态风险
 
-1. **未提交、未推送、未装机**。新会话不得把本文当作已发布说明。
-2. `frontend/wailsjs/go/models.ts` 已由最新 Wails 构建重新生成；生成器仍会写入空行尾随空白，属于已知生成物噪声，禁止手工清理后再声称是生成结果。
-3. F1 的 exe 哈希只对应当时的构建快照；后续任何代码改动都要重建后再记录。
-4. F1 功能已有自动测试，但仍需要桌面真机走查上传、拖放、ZIP 和 watcher。
+1. **已提交并打包，但未 push、未装机**。新会话不得把本文当作已发布说明。
+2. `frontend/wailsjs/go/models.ts` 会由 Wails 构建重新生成；生成器仍会写入空行尾随空白，属于已知生成物噪声，禁止手工清理后再声称是生成结果。
+3. 本文记录的 exe 哈希只对应 `f49ea150` 的本次干净构建；后续任何代码或构建环境改动都要重建后再记录。
+4. F1/F2/F3/G1 已有自动测试与正式路径冒烟，但仍需要桌面真机走查上传、拖放、ZIP、watcher、Git 快操作和行内 diff。
 
 ### 9.2 与 F1 无关的既有红项
 
@@ -635,6 +660,7 @@ go vet ./internal/gaea/workbench ./internal/app
 | G1.3 | 2026-11-12 | 🟡 工作树候选 | 统一变更树：Git+Agent 路径合并、目录 rollup、来源徽标、文件打开 | 定向 3 文件/12 用例；`tsc -b`；定向 ESLint；未跑构建与真机走查 |
 | G1.4 | 2026-11-12 | 🟡 工作树候选 | 统一树来源筛选（全部/Git/AI）+ stage/unstage/两击 discard 快操作 | 定向 3 文件/14 用例；`tsc -b`；定向 ESLint；未跑构建与真机走查 |
 | G1.5 | 2026-11-12 | 🟡 工作树候选 | 统一树文件行内暂存/工作区 diff，双侧面可切换 | 定向 3 文件/16 用例；`tsc -b`；定向 ESLint；未跑构建与真机走查 |
+| F0 | 2026-11-12 | ✅ 已提交并打包 | 功能提交 `f49ea150`；独立干净工作树构建；预览 ZIP + 提交源码 TAR + 包记录 + 长期记忆更新 | 前端 build/Vite 20.38s；Wails 50.158s；smoke 200；ZIP/TAR/四件套 SHA256 已核验；未 push/未装机 |
 
 ## 12. 下一会话建议提示词
 
@@ -644,15 +670,9 @@ go vet ./internal/gaea/workbench ./internal/app
 先读 .gaea/AGENTS.md、.gaea/progress.md、.gaea/todos.md 和
 docs/gaea-better-sidebar-go-iteration-2026-11.md。
 这是现有 gaea 的增量复刻，不重写；侧聊服务不做。
-先检查当前工作树，保护 F1 未提交改动。
+先检查当前工作树；功能基线提交为 f49ea150，勿把平行测试优化混入本专项。
 本次只做 <批次号/功能>，按文档的验收标准和构建纪律执行；
 完成后同步本文台账、progress、todos 和 docs 索引。
-```
-
-需要先收口 F1 时，把 `<批次号/功能>` 换成：
-
-```text
-F0：重新生成 Wails 产物、完整验证、正式冒烟并报告是否可提交/装机
 ```
 
 ## 13. 维护纪律
