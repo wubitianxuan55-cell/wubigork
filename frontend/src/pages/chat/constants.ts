@@ -16,8 +16,6 @@ export const MIGRATION_KEY = 'gaea_chat_migration_v1'
 // 流式对话的真实静默超时：收到 delta / reasoning / 搜索进度才重置。旧实现
 // 从 runID 起只计一次总时长，会把仍在搜索或慢解码的成功回合误判为失败。
 export const STREAM_INACTIVITY_TIMEOUT_MS = 30_000
-// 兼容既有测试/导出名；语义已更正为“无真实进度超时”。
-export const STREAM_SILENCE_TIMEOUT_MS = STREAM_INACTIVITY_TIMEOUT_MS
 // 绝对硬上限：即使持续有进度，也不允许单回合无限挂起。
 export const STREAM_HARD_TIMEOUT_MS = 120_000
 

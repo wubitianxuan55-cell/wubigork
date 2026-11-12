@@ -122,7 +122,7 @@ vi.mock('../components/PersonaPicker', () => ({ default: () => null }))
 vi.mock('../components/VoiceSettingsPanel', () => ({ default: () => null }))
 
 import ChatPage, {
-  CHAT_ENGINE_START_TIMEOUT_MS, STREAM_HARD_TIMEOUT_MS, STREAM_SILENCE_TIMEOUT_MS,
+  CHAT_ENGINE_START_TIMEOUT_MS, STREAM_HARD_TIMEOUT_MS, STREAM_INACTIVITY_TIMEOUT_MS,
 } from './ChatPage'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 // P3 版3 终局：wailsjsCompat shim 已退役——测试经 bindingsBridge 共享 vi.fn 直取。
@@ -275,7 +275,7 @@ describe('T6-3.1 流订阅竞态与超时', () => {
     // 尚未超时：无超时错误文案
     expect(screen.queryByText(/请求超时：/)).toBeNull()
 
-    await act(async () => { vi.advanceTimersByTime(STREAM_SILENCE_TIMEOUT_MS + 1) })
+    await act(async () => { vi.advanceTimersByTime(STREAM_INACTIVITY_TIMEOUT_MS + 1) })
 
     // 超时按失败展示 + sending 复位（输入框恢复可用）
     expect(screen.getByText(/请求超时：30 秒内未收到新进度/)).toBeTruthy()
@@ -299,7 +299,7 @@ describe('T6-3.1 流订阅竞态与超时', () => {
     await flushAsync()
     expect(screen.getByText('生成到一半的')).toBeTruthy()
 
-    await act(async () => { vi.advanceTimersByTime(STREAM_SILENCE_TIMEOUT_MS + 1) })
+    await act(async () => { vi.advanceTimersByTime(STREAM_INACTIVITY_TIMEOUT_MS + 1) })
 
     // 超时即撤销后端 run：后端不得继续生成并把完整正文落库成第二份权威
     expect(ChatStreamCancel).toHaveBeenCalledWith('run-1')
@@ -340,14 +340,14 @@ describe('T6-3.1 流订阅竞态与超时', () => {
     await renderChat()
     await sendMessage('你好')
 
-    await act(async () => { vi.advanceTimersByTime(STREAM_SILENCE_TIMEOUT_MS + 1) })
+    await act(async () => { vi.advanceTimersByTime(STREAM_INACTIVITY_TIMEOUT_MS + 1) })
     expect(screen.queryByText(/请求超时：/)).toBeNull()
 
     await act(async () => { resolveRunID('run-1') })
     await flushAsync()
     expect(runtimeMock.handlers['chat-stream:run-1']).toBeDefined()
 
-    await act(async () => { vi.advanceTimersByTime(STREAM_SILENCE_TIMEOUT_MS + 1) })
+    await act(async () => { vi.advanceTimersByTime(STREAM_INACTIVITY_TIMEOUT_MS + 1) })
     expect(screen.getByText(/请求超时：30 秒内未收到新进度/)).toBeTruthy()
   })
 

@@ -451,20 +451,15 @@ export async function stopStrataEngine(): Promise<ManagedEngineStopResult> {
 }
 
 // ── 自管 WHIRL 引擎（8126，Windows HIP 推理；档位 qwen35_whirl） ──
+// 启动走受管目录通用路径（EngineCard/managed catalog），前端无专属包装——
+// 曾有 startWhirlEngine 死包装随 knip 清账退役（Go WhirlEngineStart 绑定保留）。
 export type WhirlEngineStatusResult = ManagedEngineStatusResult
-export type WhirlEngineStartResult = ManagedEngineStartResult
 export type WhirlEngineStopResult = ManagedEngineStopResult
 
 /** WHIRL 引擎运行状态（8126 /v1/models 探活 + gguf/bin 在位诊断） */
 export async function getWhirlEngineStatus(): Promise<WhirlEngineStatusResult> {
   const result = await App().WhirlEngineStatus()
   return result as WhirlEngineStatusResult
-}
-
-/** 启动 WHIRL 指定档位（现阶段仅 qwen35_whirl 一档；幂等） */
-export async function startWhirlEngine(profile: string): Promise<WhirlEngineStartResult> {
-  const result = await App().WhirlEngineStart(profile)
-  return result as WhirlEngineStartResult
 }
 
 /** 停止 WHIRL 引擎（不管谁启动的都能停） */

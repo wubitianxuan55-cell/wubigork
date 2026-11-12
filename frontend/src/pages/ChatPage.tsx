@@ -28,7 +28,7 @@ const EMPTY_REPLIES: Array<{ label: string; text: string }> = []
 import { ChatInspector } from '../components/chat/ChatInspector'
 import VoiceConsoleV2 from '../components/chat/VoiceConsoleV2'
 import {
-  STREAM_SILENCE_TIMEOUT_MS, STREAM_HARD_TIMEOUT_MS,
+  STREAM_INACTIVITY_TIMEOUT_MS, STREAM_HARD_TIMEOUT_MS,
   CHAT_ENGINE_START_TIMEOUT_MS, EMO_COLORS,
 } from './chat/constants'
 import { navigateToCharacterLib, loadCompanionName, toUpdatedAt, loadPersonality } from './chat/utils'
@@ -42,7 +42,7 @@ import { GenuiActionProvider } from '../genui/GenuiActionContext'
 // T6-3.1：流式对话无帧超时（30s 无任何帧即视为失败）。测试从 ChatPage 导入
 // （vitest fake timers 推进同一阈值），故在此再导出。
 export {
-  STREAM_SILENCE_TIMEOUT_MS, STREAM_HARD_TIMEOUT_MS,
+  STREAM_INACTIVITY_TIMEOUT_MS, STREAM_HARD_TIMEOUT_MS,
   CHAT_ENGINE_START_TIMEOUT_MS,
 }
 
