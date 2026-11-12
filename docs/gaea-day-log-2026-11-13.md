@@ -153,3 +153,20 @@
   `lib/restart.js` 已含 `windowsHide: true`（detached spawn 行 516+注释 394/511 实锤）——
   本地 `dshmarket@1.73.15.patch` 转为**可退役**；升级动作属 C:\AI\dsh 用户资产，留用户
   升级 dshmarket ≥1.73.19 时摘 patch（集成文档 §176 约定兑现）。
+
+## 11. 全仓验证扫（push 拍板前置，03:0x~03:3x）
+
+- **go test ./...**：仅 voice/native+voice/realtime 4 例既有环境红（ORT API 25 vs DLL 1.17.1，
+  在册定性），**全仓零新增红**——自 11-02 后首次整轮全绿（除既有）。
+- **golangci 58→0**（a4d727ec）：未推区间累积（CI 只看 origin/main，push 即红的实际阻塞）
+  ——gofmt 16 文件+errcheck 35（engine_windows Destroy 全量 `_ =` 化+六处 Close/Fprintln）
+  +misspell 2（strat→strategy 日志标签）+staticcheck 2（SA4004 无条件 break 环改 len 守卫
+  单调用/SA1024 cutset 重复空格）+unused 3（qwen35Ensure/subagentReadOnlyFromContext/
+  engineError 死码退役）；受影响 12 包测试绿。
+- **eslint 12 error→0**（6ce83f09）：**mock/core.ts 真 bug**——会话路径单反斜杠被字符串转义
+  吃掉（`C:\demo\.gaea\...` 实际成 `C:demo.gaeasessionswork`）改双反斜杠；cards 字符类转义；
+  Insights 裸 hex 改 token。
+- **version drift OK（4.543.0 三源一致）+全量 vitest 498 文件/4361 用例全绿**（4348→4361，
+  含 G1/G2 新测试）。
+- 本地快闸口径至此全绿：go build/vet/lint+docs 四查+绑定 drift 748+version drift+全量
+  前端测试——**push 拍板的前置验证全部就绪**。
