@@ -197,6 +197,7 @@ export const bindingNames = [
   "GaeaGitStage",
   "GaeaGitStatus",
   "GaeaGitUnstage",
+  "GaeaGitWorktrees",
   "GaeaHistory",
   "GaeaImageDirector",
   "GaeaJobs",

@@ -8,12 +8,12 @@ import (
 	"github.com/gaea/gaea/internal/gaea/dag"
 	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/evidence"
+	"github.com/gaea/gaea/internal/office/pptxedit"
+	"github.com/gaea/gaea/internal/skillstats"
+	"github.com/gaea/gaea/internal/office/standard"
 	"github.com/gaea/gaea/internal/gaea/tasks"
 	"github.com/gaea/gaea/internal/gaea/trajectory"
 	"github.com/gaea/gaea/internal/gaea/workbench"
-	"github.com/gaea/gaea/internal/office/pptxedit"
-	"github.com/gaea/gaea/internal/office/standard"
-	"github.com/gaea/gaea/internal/skillstats"
 )
 
 // OfficeB 办公引擎与工作区绑定门面（S2-3「App 绑定面拆分」）：仅暴露办公引擎与工作区的方法，
@@ -27,9 +27,9 @@ func (b *OfficeB) GaeaAddMCPServer(input MCPServerInput) (int, error) { return b
 func (b *OfficeB) GaeaAddPermissionRule(list string, rule string) error { return b.a.GaeaAddPermissionRule(list, rule) }
 func (b *OfficeB) GaeaAgentNetwork(sessionPath string) (trajectory.AgentNetwork, error) { return b.a.GaeaAgentNetwork(sessionPath) }
 func (b *OfficeB) GaeaAnswer(id string, answers []event.AskAnswer) { b.a.GaeaAnswer(id, answers) }
-func (b *OfficeB) GaeaApplyUpdate() error                          { return b.a.GaeaApplyUpdate() }
-func (b *OfficeB) GaeaApprove(id string, decision string)          { b.a.GaeaApprove(id, decision) }
-func (b *OfficeB) GaeaArchiveSession(path string) error            { return b.a.GaeaArchiveSession(path) }
+func (b *OfficeB) GaeaApplyUpdate() error { return b.a.GaeaApplyUpdate() }
+func (b *OfficeB) GaeaApprove(id string, decision string) { b.a.GaeaApprove(id, decision) }
+func (b *OfficeB) GaeaArchiveSession(path string) error { return b.a.GaeaArchiveSession(path) }
 func (b *OfficeB) GaeaAttachmentChunkAbort(token string) error { return b.a.GaeaAttachmentChunkAbort(token) }
 func (b *OfficeB) GaeaAttachmentChunkAppend(token string, base64Chunk string) error { return b.a.GaeaAttachmentChunkAppend(token, base64Chunk) }
 func (b *OfficeB) GaeaAttachmentChunkBegin(fileName string) (string, error) { return b.a.GaeaAttachmentChunkBegin(fileName) }
@@ -37,19 +37,19 @@ func (b *OfficeB) GaeaAttachmentChunkFinish(token string) (string, error) { retu
 func (b *OfficeB) GaeaAttachmentDataURL(path string) (string, error) { return b.a.GaeaAttachmentDataURL(path) }
 func (b *OfficeB) GaeaBalance() BalanceInfo { return b.a.GaeaBalance() }
 func (b *OfficeB) GaeaBenchmarkStreamProbe(model string) (StreamProbeResult, error) { return b.a.GaeaBenchmarkStreamProbe(model) }
-func (b *OfficeB) GaeaBrowserObserve() browser.ObserveView  { return b.a.GaeaBrowserObserve() }
+func (b *OfficeB) GaeaBrowserObserve() browser.ObserveView { return b.a.GaeaBrowserObserve() }
 func (b *OfficeB) GaeaCadCount(path string) (string, error) { return b.a.GaeaCadCount(path) }
-func (b *OfficeB) GaeaCadOpen(path string) (string, error)  { return b.a.GaeaCadOpen(path) }
+func (b *OfficeB) GaeaCadOpen(path string) (string, error) { return b.a.GaeaCadOpen(path) }
 func (b *OfficeB) GaeaCadRaster(path string, sheet int, width int) (string, error) { return b.a.GaeaCadRaster(path, sheet, width) }
 func (b *OfficeB) GaeaCadTexts(path string) (string, error) { return b.a.GaeaCadTexts(path) }
-func (b *OfficeB) GaeaCancel()                              { b.a.GaeaCancel() }
-func (b *OfficeB) GaeaCapabilities() CapabilitiesView       { return b.a.GaeaCapabilities() }
-func (b *OfficeB) GaeaCaptureScreen() (string, error)       { return b.a.GaeaCaptureScreen() }
+func (b *OfficeB) GaeaCancel() { b.a.GaeaCancel() }
+func (b *OfficeB) GaeaCapabilities() CapabilitiesView { return b.a.GaeaCapabilities() }
+func (b *OfficeB) GaeaCaptureScreen() (string, error) { return b.a.GaeaCaptureScreen() }
 func (b *OfficeB) GaeaCaptureSkill(in SkillCaptureInput) (SkillCaptureResult, error) { return b.a.GaeaCaptureSkill(in) }
 func (b *OfficeB) GaeaChangeFactType(name string, typ string) (string, error) { return b.a.GaeaChangeFactType(name, typ) }
 func (b *OfficeB) GaeaCheckUpdate() (*UpdateInfo, error) { return b.a.GaeaCheckUpdate() }
-func (b *OfficeB) GaeaCommands() []CommandInfo           { return b.a.GaeaCommands() }
-func (b *OfficeB) GaeaContext() ContextInfo              { return b.a.GaeaContext() }
+func (b *OfficeB) GaeaCommands() []CommandInfo { return b.a.GaeaCommands() }
+func (b *OfficeB) GaeaContext() ContextInfo { return b.a.GaeaContext() }
 func (b *OfficeB) GaeaContextInsights(rangeKey string, includeArchived bool) (contextview.ContextInsights, error) { return b.a.GaeaContextInsights(rangeKey, includeArchived) }
 func (b *OfficeB) GaeaContextNodeDetail(seq int64, sessionPath string) (contextview.NodeDetail, error) { return b.a.GaeaContextNodeDetail(seq, sessionPath) }
 func (b *OfficeB) GaeaContextView(sessionPath string) (contextview.ContextTimeline, error) { return b.a.GaeaContextView(sessionPath) }
@@ -58,9 +58,9 @@ func (b *OfficeB) GaeaCreateWorkspaceFile(parent string, name string) (workbench
 func (b *OfficeB) GaeaCreateWorkspaceFolder(parent string, name string) (workbench.MutationResult, error) { return b.a.GaeaCreateWorkspaceFolder(parent, name) }
 func (b *OfficeB) GaeaCrossEmbed(in CrossEmbedInput) (CrossEmbedResult, error) { return b.a.GaeaCrossEmbed(in) }
 func (b *OfficeB) GaeaDagAcceptAll(id string) (string, error) { return b.a.GaeaDagAcceptAll(id) }
-func (b *OfficeB) GaeaDagCancel(id string) (string, error)    { return b.a.GaeaDagCancel(id) }
+func (b *OfficeB) GaeaDagCancel(id string) (string, error) { return b.a.GaeaDagCancel(id) }
 func (b *OfficeB) GaeaDagGet(id string) (*dag.RunView, error) { return b.a.GaeaDagGet(id) }
-func (b *OfficeB) GaeaDagList() ([]dag.RunView, error)        { return b.a.GaeaDagList() }
+func (b *OfficeB) GaeaDagList() ([]dag.RunView, error) { return b.a.GaeaDagList() }
 func (b *OfficeB) GaeaDagNodeAccept(id string, nodeID string) (string, error) { return b.a.GaeaDagNodeAccept(id, nodeID) }
 func (b *OfficeB) GaeaDagNodeApprove(id string, nodeID string) (string, error) { return b.a.GaeaDagNodeApprove(id, nodeID) }
 func (b *OfficeB) GaeaDagNodeRun(id string, nodeID string) (string, error) { return b.a.GaeaDagNodeRun(id, nodeID) }
@@ -75,11 +75,11 @@ func (b *OfficeB) GaeaDataBackupCreate(destDir string) (map[string]interface{}, 
 func (b *OfficeB) GaeaDataBackupInfo() map[string]interface{} { return b.a.GaeaDataBackupInfo() }
 func (b *OfficeB) GaeaDataBackupRestore(zipPath string) (map[string]interface{}, error) { return b.a.GaeaDataBackupRestore(zipPath) }
 func (b *OfficeB) GaeaDataBackupRestoreResult() map[string]interface{} { return b.a.GaeaDataBackupRestoreResult() }
-func (b *OfficeB) GaeaDataBackupRollback() (bool, error)  { return b.a.GaeaDataBackupRollback() }
+func (b *OfficeB) GaeaDataBackupRollback() (bool, error) { return b.a.GaeaDataBackupRollback() }
 func (b *OfficeB) GaeaDatabaseOverview() DatabaseOverview { return b.a.GaeaDatabaseOverview() }
-func (b *OfficeB) GaeaDeleteProvider(name string) error   { return b.a.GaeaDeleteProvider(name) }
-func (b *OfficeB) GaeaDeleteSession(path string) error    { return b.a.GaeaDeleteSession(path) }
-func (b *OfficeB) GaeaDeleteUpload(path string) error     { return b.a.GaeaDeleteUpload(path) }
+func (b *OfficeB) GaeaDeleteProvider(name string) error { return b.a.GaeaDeleteProvider(name) }
+func (b *OfficeB) GaeaDeleteSession(path string) error { return b.a.GaeaDeleteSession(path) }
+func (b *OfficeB) GaeaDeleteUpload(path string) error { return b.a.GaeaDeleteUpload(path) }
 func (b *OfficeB) GaeaDeleteWorkspacePaths(paths []string) error { return b.a.GaeaDeleteWorkspacePaths(paths) }
 func (b *OfficeB) GaeaDeliverableRegistry(sessionPath string) DeliverableRegistryView { return b.a.GaeaDeliverableRegistry(sessionPath) }
 func (b *OfficeB) GaeaDismissMemorySuggestion(id string) error { return b.a.GaeaDismissMemorySuggestion(id) }
@@ -87,48 +87,49 @@ func (b *OfficeB) GaeaDocumentLint(rel string) (standard.LintReport, error) { re
 func (b *OfficeB) GaeaDocxAcceptChanges(rel string, accept bool) (PreviewResult, error) { return b.a.GaeaDocxAcceptChanges(rel, accept) }
 func (b *OfficeB) GaeaDocxApplyEdit(rel string, selectedText string, replacement string) (PreviewResult, error) { return b.a.GaeaDocxApplyEdit(rel, selectedText, replacement) }
 func (b *OfficeB) GaeaDreamPurge(names []string) (int, error) { return b.a.GaeaDreamPurge(names) }
-func (b *OfficeB) GaeaDreamPurgePreview() ([]string, error)   { return b.a.GaeaDreamPurgePreview() }
+func (b *OfficeB) GaeaDreamPurgePreview() ([]string, error) { return b.a.GaeaDreamPurgePreview() }
 func (b *OfficeB) GaeaExportDeliverable(in ExportDeliverableInput) (ExportDeliverableResult, error) { return b.a.GaeaExportDeliverable(in) }
-func (b *OfficeB) GaeaFactBase() FactBaseView        { return b.a.GaeaFactBase() }
-func (b *OfficeB) GaeaFactBaseClear() error          { return b.a.GaeaFactBaseClear() }
+func (b *OfficeB) GaeaFactBase() FactBaseView { return b.a.GaeaFactBase() }
+func (b *OfficeB) GaeaFactBaseClear() error { return b.a.GaeaFactBaseClear() }
 func (b *OfficeB) GaeaFactBasePromote() (int, error) { return b.a.GaeaFactBasePromote() }
 func (b *OfficeB) GaeaFamilyEvents(sessionPath string) (trajectory.FamilyEventStream, error) { return b.a.GaeaFamilyEvents(sessionPath) }
 func (b *OfficeB) GaeaFileIndexRebuild() (*tasks.Task, error) { return b.a.GaeaFileIndexRebuild() }
 func (b *OfficeB) GaeaFileSearch(query string, limit int, exclude []string) []FileSearchHit { return b.a.GaeaFileSearch(query, limit, exclude) }
 func (b *OfficeB) GaeaFileSemanticSearch(query string, topN int) ([]FileSemanticHit, error) { return b.a.GaeaFileSemanticSearch(query, topN) }
 func (b *OfficeB) GaeaFileTreeWatch(paths []string, exclude []string) error { return b.a.GaeaFileTreeWatch(paths, exclude) }
-func (b *OfficeB) GaeaForget(name string) error                 { return b.a.GaeaForget(name) }
-func (b *OfficeB) GaeaFork(turn int) error                      { return b.a.GaeaFork(turn) }
+func (b *OfficeB) GaeaForget(name string) error { return b.a.GaeaForget(name) }
+func (b *OfficeB) GaeaFork(turn int) error { return b.a.GaeaFork(turn) }
 func (b *OfficeB) GaeaGitCommit(message string) (string, error) { return b.a.GaeaGitCommit(message) }
 func (b *OfficeB) GaeaGitDiff(path string, staged bool) (string, error) { return b.a.GaeaGitDiff(path, staged) }
-func (b *OfficeB) GaeaGitDiscard(path string) error              { return b.a.GaeaGitDiscard(path) }
+func (b *OfficeB) GaeaGitDiscard(path string) error { return b.a.GaeaGitDiscard(path) }
 func (b *OfficeB) GaeaGitLog(limit int) ([]GitCommitInfo, error) { return b.a.GaeaGitLog(limit) }
-func (b *OfficeB) GaeaGitStage(paths []string) error             { return b.a.GaeaGitStage(paths) }
-func (b *OfficeB) GaeaGitStatus() GitStatus                      { return b.a.GaeaGitStatus() }
-func (b *OfficeB) GaeaGitUnstage(paths []string) error           { return b.a.GaeaGitUnstage(paths) }
-func (b *OfficeB) GaeaHistory() []HistoryMessage                 { return b.a.GaeaHistory() }
-func (b *OfficeB) GaeaJobs() []JobView                           { return b.a.GaeaJobs() }
+func (b *OfficeB) GaeaGitStage(paths []string) error { return b.a.GaeaGitStage(paths) }
+func (b *OfficeB) GaeaGitStatus() GitStatus { return b.a.GaeaGitStatus() }
+func (b *OfficeB) GaeaGitUnstage(paths []string) error { return b.a.GaeaGitUnstage(paths) }
+func (b *OfficeB) GaeaGitWorktrees() ([]GitWorktree, error) { return b.a.GaeaGitWorktrees() }
+func (b *OfficeB) GaeaHistory() []HistoryMessage { return b.a.GaeaHistory() }
+func (b *OfficeB) GaeaJobs() []JobView { return b.a.GaeaJobs() }
 func (b *OfficeB) GaeaJournalList(limit int) []evidence.ChangeRecord { return b.a.GaeaJournalList(limit) }
 func (b *OfficeB) GaeaListDir(rel string) ([]DirEntry, error) { return b.a.GaeaListDir(rel) }
 func (b *OfficeB) GaeaListDirBatch(paths []string, exclude []string) []workbench.Level { return b.a.GaeaListDirBatch(paths, exclude) }
-func (b *OfficeB) GaeaListProjectSessions() []ProjectGroup      { return b.a.GaeaListProjectSessions() }
-func (b *OfficeB) GaeaListSessions() []SessionMeta              { return b.a.GaeaListSessions() }
-func (b *OfficeB) GaeaListWorkspaces() []WorkspaceView          { return b.a.GaeaListWorkspaces() }
-func (b *OfficeB) GaeaLogFrontendError(message string)          { b.a.GaeaLogFrontendError(message) }
-func (b *OfficeB) GaeaLoginProvider(name string) error          { return b.a.GaeaLoginProvider(name) }
-func (b *OfficeB) GaeaLogoutProvider(name string) error         { return b.a.GaeaLogoutProvider(name) }
-func (b *OfficeB) GaeaMaterials(limit int) []FileSearchHit      { return b.a.GaeaMaterials(limit) }
-func (b *OfficeB) GaeaMeta() Meta                               { return b.a.GaeaMeta() }
-func (b *OfficeB) GaeaMorningPreload() bool                     { return b.a.GaeaMorningPreload() }
-func (b *OfficeB) GaeaNewSession() error                        { return b.a.GaeaNewSession() }
+func (b *OfficeB) GaeaListProjectSessions() []ProjectGroup { return b.a.GaeaListProjectSessions() }
+func (b *OfficeB) GaeaListSessions() []SessionMeta { return b.a.GaeaListSessions() }
+func (b *OfficeB) GaeaListWorkspaces() []WorkspaceView { return b.a.GaeaListWorkspaces() }
+func (b *OfficeB) GaeaLogFrontendError(message string) { b.a.GaeaLogFrontendError(message) }
+func (b *OfficeB) GaeaLoginProvider(name string) error { return b.a.GaeaLoginProvider(name) }
+func (b *OfficeB) GaeaLogoutProvider(name string) error { return b.a.GaeaLogoutProvider(name) }
+func (b *OfficeB) GaeaMaterials(limit int) []FileSearchHit { return b.a.GaeaMaterials(limit) }
+func (b *OfficeB) GaeaMeta() Meta { return b.a.GaeaMeta() }
+func (b *OfficeB) GaeaMorningPreload() bool { return b.a.GaeaMorningPreload() }
+func (b *OfficeB) GaeaNewSession() error { return b.a.GaeaNewSession() }
 func (b *OfficeB) GaeaOCRText(imagePath string) (string, error) { return b.a.GaeaOCRText(imagePath) }
 func (b *OfficeB) GaeaOfficeEditText(selectedText string, instruction string) (map[string]interface{}, error) { return b.a.GaeaOfficeEditText(selectedText, instruction) }
-func (b *OfficeB) GaeaOpenDownloadPage() error                   { return b.a.GaeaOpenDownloadPage() }
-func (b *OfficeB) GaeaOpenLogsDir() error                        { return b.a.GaeaOpenLogsDir() }
-func (b *OfficeB) GaeaOpenWorkspacePath(rel string) error        { return b.a.GaeaOpenWorkspacePath(rel) }
-func (b *OfficeB) GaeaPickDirectory() string                     { return b.a.GaeaPickDirectory() }
+func (b *OfficeB) GaeaOpenDownloadPage() error { return b.a.GaeaOpenDownloadPage() }
+func (b *OfficeB) GaeaOpenLogsDir() error { return b.a.GaeaOpenLogsDir() }
+func (b *OfficeB) GaeaOpenWorkspacePath(rel string) error { return b.a.GaeaOpenWorkspacePath(rel) }
+func (b *OfficeB) GaeaPickDirectory() string { return b.a.GaeaPickDirectory() }
 func (b *OfficeB) GaeaPickFiles(filters string) []FilePickResult { return b.a.GaeaPickFiles(filters) }
-func (b *OfficeB) GaeaPickWorkspace() string                     { return b.a.GaeaPickWorkspace() }
+func (b *OfficeB) GaeaPickWorkspace() string { return b.a.GaeaPickWorkspace() }
 func (b *OfficeB) GaeaPickWorkspaceUploadFiles(dir string) ([]workbench.UploadResult, error) { return b.a.GaeaPickWorkspaceUploadFiles(dir) }
 func (b *OfficeB) GaeaPickWorkspaceUploadFolder(dir string) ([]workbench.UploadResult, error) { return b.a.GaeaPickWorkspaceUploadFolder(dir) }
 func (b *OfficeB) GaeaPinMaterial(rel string) []FileSearchHit { return b.a.GaeaPinMaterial(rel) }
@@ -139,7 +140,7 @@ func (b *OfficeB) GaeaPptxOutline(rel string) PptxOutlineView { return b.a.GaeaP
 func (b *OfficeB) GaeaPptxSlideText(rel string) ([]pptxedit.SlideText, error) { return b.a.GaeaPptxSlideText(rel) }
 func (b *OfficeB) GaeaPreview(rel string) PreviewResult { return b.a.GaeaPreview(rel) }
 func (b *OfficeB) GaeaPromoteSubagent(sessionPath string, ref string) (string, error) { return b.a.GaeaPromoteSubagent(sessionPath, ref) }
-func (b *OfficeB) GaeaReadFile(rel string) FilePreview         { return b.a.GaeaReadFile(rel) }
+func (b *OfficeB) GaeaReadFile(rel string) FilePreview { return b.a.GaeaReadFile(rel) }
 func (b *OfficeB) GaeaReadFileB64(path string) (string, error) { return b.a.GaeaReadFileB64(path) }
 func (b *OfficeB) GaeaReadFilePage(rel string, offset int64) (workbench.TextPage, error) { return b.a.GaeaReadFilePage(rel, offset) }
 func (b *OfficeB) GaeaReadTextFile(rel string) (workbench.TextFile, error) { return b.a.GaeaReadTextFile(rel) }
@@ -153,17 +154,17 @@ func (b *OfficeB) GaeaRenameWorkspacePath(rel string, name string) (workbench.Mu
 func (b *OfficeB) GaeaResumeSession(path string) ([]HistoryMessage, error) { return b.a.GaeaResumeSession(path) }
 func (b *OfficeB) GaeaResyncEvents(afterSeq int) GaeaResyncResult { return b.a.GaeaResyncEvents(afterSeq) }
 func (b *OfficeB) GaeaRetrievalEvalRun() (RetrievalEvalReport, error) { return b.a.GaeaRetrievalEvalRun() }
-func (b *OfficeB) GaeaRetryMCPServer(name string) error     { return b.a.GaeaRetryMCPServer(name) }
+func (b *OfficeB) GaeaRetryMCPServer(name string) error { return b.a.GaeaRetryMCPServer(name) }
 func (b *OfficeB) GaeaRevealWorkspacePath(rel string) error { return b.a.GaeaRevealWorkspacePath(rel) }
-func (b *OfficeB) GaeaRewind(turn int, scope string) error  { return b.a.GaeaRewind(turn, scope) }
-func (b *OfficeB) GaeaRollbackRecord(id string) error       { return b.a.GaeaRollbackRecord(id) }
+func (b *OfficeB) GaeaRewind(turn int, scope string) error { return b.a.GaeaRewind(turn, scope) }
+func (b *OfficeB) GaeaRollbackRecord(id string) error { return b.a.GaeaRollbackRecord(id) }
 func (b *OfficeB) GaeaRouteIntent(text string, dryRun bool) IntentResult { return b.a.GaeaRouteIntent(text, dryRun) }
 func (b *OfficeB) GaeaRunning() bool { return b.a.GaeaRunning() }
 func (b *OfficeB) GaeaSaveAttachmentFile(fileName string, base64Data string) (string, error) { return b.a.GaeaSaveAttachmentFile(fileName, base64Data) }
 func (b *OfficeB) GaeaSaveDoc(path string, body string) (string, error) { return b.a.GaeaSaveDoc(path, body) }
 func (b *OfficeB) GaeaSaveFileAs(defaultName string, base64Data string) (string, error) { return b.a.GaeaSaveFileAs(defaultName, base64Data) }
 func (b *OfficeB) GaeaSavePastedImage(dataURL string) (string, error) { return b.a.GaeaSavePastedImage(dataURL) }
-func (b *OfficeB) GaeaSaveProvider(p ProviderView) error    { return b.a.GaeaSaveProvider(p) }
+func (b *OfficeB) GaeaSaveProvider(p ProviderView) error { return b.a.GaeaSaveProvider(p) }
 func (b *OfficeB) GaeaSaveSettings(view SettingsView) error { return b.a.GaeaSaveSettings(view) }
 func (b *OfficeB) GaeaSaveWindowState(state map[string]interface{}) error { return b.a.GaeaSaveWindowState(state) }
 func (b *OfficeB) GaeaSaveWorkspacePathAs(rel string) (string, error) { return b.a.GaeaSaveWorkspacePathAs(rel) }
@@ -179,16 +180,16 @@ func (b *OfficeB) GaeaScheduleProjectDelete(rel string) (ScheduleProjectsResult,
 func (b *OfficeB) GaeaScheduleProjectOpen(rel string) (ScheduleOpenResult, error) { return b.a.GaeaScheduleProjectOpen(rel) }
 func (b *OfficeB) GaeaScheduleProjects() (ScheduleProjectsResult, error) { return b.a.GaeaScheduleProjects() }
 func (b *OfficeB) GaeaScheduleSave(projectJSON string, rel string) (ScheduleSaveResult, error) { return b.a.GaeaScheduleSave(projectJSON, rel) }
-func (b *OfficeB) GaeaSend(input string)                         { b.a.GaeaSend(input) }
+func (b *OfficeB) GaeaSend(input string) { b.a.GaeaSend(input) }
 func (b *OfficeB) GaeaSessionStats(path string) SessionStatsView { return b.a.GaeaSessionStats(path) }
 func (b *OfficeB) GaeaSetAgentParams(temperature float64, maxSteps int, systemPrompt string) error { return b.a.GaeaSetAgentParams(temperature, maxSteps, systemPrompt) }
 func (b *OfficeB) GaeaSetDefaultModel(ref string) error { return b.a.GaeaSetDefaultModel(ref) }
-func (b *OfficeB) GaeaSetDreamMode(mode string) error   { return b.a.GaeaSetDreamMode(mode) }
+func (b *OfficeB) GaeaSetDreamMode(mode string) error { return b.a.GaeaSetDreamMode(mode) }
 func (b *OfficeB) GaeaSetMCPServerEnabled(name string, enabled bool) error { return b.a.GaeaSetMCPServerEnabled(name, enabled) }
-func (b *OfficeB) GaeaSetMemoryBrief(enabled bool) error   { return b.a.GaeaSetMemoryBrief(enabled) }
+func (b *OfficeB) GaeaSetMemoryBrief(enabled bool) error { return b.a.GaeaSetMemoryBrief(enabled) }
 func (b *OfficeB) GaeaSetMemoryEnabled(enabled bool) error { return b.a.GaeaSetMemoryEnabled(enabled) }
 func (b *OfficeB) GaeaSetMorningPreload(enabled bool) error { return b.a.GaeaSetMorningPreload(enabled) }
-func (b *OfficeB) GaeaSetPermLevel(level string) error     { return b.a.GaeaSetPermLevel(level) }
+func (b *OfficeB) GaeaSetPermLevel(level string) error { return b.a.GaeaSetPermLevel(level) }
 func (b *OfficeB) GaeaSetPermissionMode(mode string) error { return b.a.GaeaSetPermissionMode(mode) }
 func (b *OfficeB) GaeaSetProviderKey(apiKeyEnv string, value string) error { return b.a.GaeaSetProviderKey(apiKeyEnv, value) }
 func (b *OfficeB) GaeaSetSandbox(bash string, network bool, workspaceRoot string, allowWrite []string) error { return b.a.GaeaSetSandbox(bash, network, workspaceRoot, allowWrite) }
@@ -200,27 +201,27 @@ func (b *OfficeB) GaeaSkillDistillDecide(patternID string, decision string, skil
 func (b *OfficeB) GaeaSkillDistillDraft(patternID string) (SkillRecordResult, error) { return b.a.GaeaSkillDistillDraft(patternID) }
 func (b *OfficeB) GaeaSkillDraftFromSession() (SkillRecordResult, error) { return b.a.GaeaSkillDraftFromSession() }
 func (b *OfficeB) GaeaSkillDraftSave(d SkillDraft) (SkillCaptureResult, error) { return b.a.GaeaSkillDraftSave(d) }
-func (b *OfficeB) GaeaSkillStats() []skillstats.StatView      { return b.a.GaeaSkillStats() }
+func (b *OfficeB) GaeaSkillStats() []skillstats.StatView { return b.a.GaeaSkillStats() }
 func (b *OfficeB) GaeaSlashArgs(input string) SlashArgsResult { return b.a.GaeaSlashArgs(input) }
-func (b *OfficeB) GaeaSteer(input string)                     { b.a.GaeaSteer(input) }
+func (b *OfficeB) GaeaSteer(input string) { b.a.GaeaSteer(input) }
 func (b *OfficeB) GaeaSubagentContextView(sessionPath string, ref string) (contextview.ContextTimeline, error) { return b.a.GaeaSubagentContextView(sessionPath, ref) }
 func (b *OfficeB) GaeaSubagentFollowUp(sessionPath string, ref string, prompt string) (string, error) { return b.a.GaeaSubagentFollowUp(sessionPath, ref, prompt) }
 func (b *OfficeB) GaeaSubagentRuns(sessionPath string) SubagentRunsView { return b.a.GaeaSubagentRuns(sessionPath) }
 func (b *OfficeB) GaeaSubagentTranscript(sessionPath string, ref string) (SubagentTranscriptView, error) { return b.a.GaeaSubagentTranscript(sessionPath, ref) }
 func (b *OfficeB) GaeaSummarizeFile(rel string, focus string) (GaeaSummaryResult, error) { return b.a.GaeaSummarizeFile(rel, focus) }
-func (b *OfficeB) GaeaSummarizeFrom(turn int) error       { return b.a.GaeaSummarizeFrom(turn) }
-func (b *OfficeB) GaeaSummarizeUpTo(turn int) error       { return b.a.GaeaSummarizeUpTo(turn) }
+func (b *OfficeB) GaeaSummarizeFrom(turn int) error { return b.a.GaeaSummarizeFrom(turn) }
+func (b *OfficeB) GaeaSummarizeUpTo(turn int) error { return b.a.GaeaSummarizeUpTo(turn) }
 func (b *OfficeB) GaeaSwitchWorkspace(path string) string { return b.a.GaeaSwitchWorkspace(path) }
-func (b *OfficeB) GaeaTaskCancel(id string) error         { return b.a.GaeaTaskCancel(id) }
-func (b *OfficeB) GaeaTaskInboxDelete(id string) error    { return b.a.GaeaTaskInboxDelete(id) }
+func (b *OfficeB) GaeaTaskCancel(id string) error { return b.a.GaeaTaskCancel(id) }
+func (b *OfficeB) GaeaTaskInboxDelete(id string) error { return b.a.GaeaTaskInboxDelete(id) }
 func (b *OfficeB) GaeaTaskInboxList(space string) []TaskInboxView { return b.a.GaeaTaskInboxList(space) }
 func (b *OfficeB) GaeaTaskInboxSave(reqJSON string) (TaskInboxView, error) { return b.a.GaeaTaskInboxSave(reqJSON) }
 func (b *OfficeB) GaeaTaskInboxSetStatus(id string, status string) (TaskInboxView, error) { return b.a.GaeaTaskInboxSetStatus(id, status) }
-func (b *OfficeB) GaeaTaskKill(id string) error                     { return b.a.GaeaTaskKill(id) }
-func (b *OfficeB) GaeaTaskList(space string) []tasks.Task           { return b.a.GaeaTaskList(space) }
+func (b *OfficeB) GaeaTaskKill(id string) error { return b.a.GaeaTaskKill(id) }
+func (b *OfficeB) GaeaTaskList(space string) []tasks.Task { return b.a.GaeaTaskList(space) }
 func (b *OfficeB) GaeaTaskOutput(id string) (TaskOutputView, error) { return b.a.GaeaTaskOutput(id) }
-func (b *OfficeB) GaeaTaskRetry(id string) error                    { return b.a.GaeaTaskRetry(id) }
-func (b *OfficeB) GaeaTaskTemplates() []TaskTemplate                { return b.a.GaeaTaskTemplates() }
+func (b *OfficeB) GaeaTaskRetry(id string) error { return b.a.GaeaTaskRetry(id) }
+func (b *OfficeB) GaeaTaskTemplates() []TaskTemplate { return b.a.GaeaTaskTemplates() }
 func (b *OfficeB) GaeaTrajectory(sessionPath string) (trajectory.Trajectory, error) { return b.a.GaeaTrajectory(sessionPath) }
 func (b *OfficeB) GaeaUnarchiveSession(path string) (string, error) { return b.a.GaeaUnarchiveSession(path) }
 func (b *OfficeB) GaeaUnifiedSearch(query string, topN int, scope string) (UnifiedSearchView, error) { return b.a.GaeaUnifiedSearch(query, topN, scope) }

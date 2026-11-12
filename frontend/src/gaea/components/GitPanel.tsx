@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, ChevronDown, FileText, GitBranch, Loader2, Plus, RefreshCw, Rollback } from "../icons";
 import { app } from "../lib/bridge";
-import type { GitCommitInfoView, GitFileStatus } from "../lib/types";
+import type { GitCommitInfoView, GitFileStatus, GitWorktreeView } from "../lib/types";
 import { buildGitDiff } from "../lib/planDiff";
 import { ChangesDiff } from "./ChangesDiff";
 import { ChangesPanel } from "./ChangesPanel";
@@ -89,8 +89,12 @@ export function GitPanel({
   const [committing, setCommitting] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState<GitCommitInfoView[] | null>(null);
-  const [lens, setLens] = useState<"unified" | "git" | "session">("git");
+  const [lens, setLens] = useState<"unified" | "git" | "session" | "worktrees">("git");
   const [unifiedFilter, setUnifiedFilter] = useState<"all" | "git" | "agent">("all");
+  // G1 深化：worktree 只读展示（切换=工作区切换器，另立产品门）。
+  const [worktrees, setWorktrees] = useState<GitWorktreeView[] | null>(null);
+  const [worktreesError, setWorktreesError] = useState("");
+  const [worktreesRevision, setWorktreesRevision] = useState(0);
 
   const staged = status?.files.filter((f) => f.staged) ?? [];
   const unstaged = status?.files.filter((f) => !f.staged && !f.untracked) ?? [];
@@ -115,6 +119,7 @@ export function GitPanel({
 
   const refresh = useCallback(() => {
     void refreshShared();
+    setWorktreesRevision((r) => r + 1);
   }, [refreshShared]);
 
   useEffect(() => {
@@ -131,6 +136,27 @@ export function GitPanel({
       live = false;
     };
   }, [historyOpen, history]);
+
+  // G1 深化：worktree 列表数据面独立于 status（GaeaGitWorktrees）；镜头打开
+  // 或刷新钮时拉取，错误诚实落地为空态文案（与 status 同一容错口径）。
+  useEffect(() => {
+    if (lens !== "worktrees") return;
+    let live = true;
+    Promise.resolve(app.GaeaGitWorktrees?.())
+      .then((r) => {
+        if (!live) return;
+        setWorktrees(Array.isArray(r) ? r : []);
+        setWorktreesError("");
+      })
+      .catch((e: unknown) => {
+        if (!live) return;
+        setWorktrees([]);
+        setWorktreesError(e instanceof Error ? e.message : String(e));
+      });
+    return () => {
+      live = false;
+    };
+  }, [lens, worktreesRevision]);
 
   const loadDiff = (path: string, staged: boolean) => {
     setDiffText(null);
@@ -362,6 +388,45 @@ export function GitPanel({
     </div>
   );
 
+  const worktreeRow = (w: GitWorktreeView) => {
+    const name = w.path.split(/[/\\]/).pop() || w.path;
+    return (
+      <div key={w.path} className="px-2 py-1.5">
+        <div className="flex items-center gap-1.5">
+          <GitBranch size={11} aria-hidden style={{ color: "var(--md-sys-color-text-secondary)" }} />
+          <span className="min-w-0 flex-1 truncate text-[11px] text-fg" title={w.path}>{name}</span>
+          {w.isMain && (
+            <span className="shrink-0 rounded-full border border-border-soft px-1.5 py-0.5 text-[9px] text-fg-faint">
+              主检出
+            </span>
+          )}
+          {w.isCurrent && (
+            <span className="shrink-0 rounded-full border border-accent/35 bg-accent/10 px-1.5 py-0.5 text-[9px] text-accent">
+              当前
+            </span>
+          )}
+          {w.isLocked && (
+            <span className="shrink-0 text-[9px] text-fg-faint" title={w.lockedNote || "已锁定"}>
+              锁
+            </span>
+          )}
+        </div>
+        <div className="mt-0.5 flex items-center gap-1.5 pl-[18px]">
+          <span className="min-w-0 flex-1 truncate font-mono text-[9.5px] text-fg-faint" title={w.path}>{w.path}</span>
+          {w.isBare ? (
+            <span className="shrink-0 text-[9.5px] text-fg-faint">bare</span>
+          ) : w.isDetached ? (
+            <span className="shrink-0 font-mono text-[9.5px] text-fg-faint" title={w.head || undefined}>detached</span>
+          ) : (
+            <span className="shrink-0 font-mono text-[9.5px]" style={{ color: "var(--gaea-glow)" }}>
+              {w.branch || "?"}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="flex min-h-0 flex-col py-1">
       <div className="v3-panel-head">
@@ -392,12 +457,28 @@ export function GitPanel({
           >
             本轮文件
           </button>
+          <button
+            type="button"
+            aria-pressed={lens === "worktrees"}
+            className={`cursor-pointer rounded px-1.5 py-0.5 text-[9.5px] border-0 ${lens === "worktrees" ? "bg-accent text-accent-fg" : "bg-transparent text-fg-faint hover:text-fg"}`}
+            onClick={() => setLens("worktrees")}
+          >
+            工作树
+          </button>
         </span>
         <span className="v3-panel-spacer" />
         {lens !== "session" && status?.branch && (
           <span className="font-mono text-[10px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
             {status.branch}
             {(status.ahead || status.behind) ? ` ↑${status.ahead || 0} ↓${status.behind || 0}` : ""}
+          </span>
+        )}
+        {lens !== "session" && status?.isLinkedWorktree && (
+          <span
+            className="rounded-full border border-border-soft px-1.5 py-0.5 text-[9px] text-fg-faint"
+            title={`linked worktree，主检出：${status.mainWorktreePath || "未知"}`}
+          >
+            工作树
           </span>
         )}
         {lens !== "session" && <button
@@ -449,6 +530,28 @@ export function GitPanel({
             onToggleDiff={toggleUnifiedDiff}
             renderDiff={renderUnifiedDiff}
           />
+        </div>
+      ) : lens === "worktrees" ? (
+        <div className="min-h-0 flex-1 overflow-auto">
+          {gitUnavailable || worktreesError ? (
+            <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
+              <GitBranch size={18} aria-hidden style={{ color: "var(--md-sys-color-text-secondary)" }} />
+              <div className="mt-3 text-[12.5px] font-medium" style={{ color: "var(--md-sys-color-text)" }}>
+                工作树不可用
+              </div>
+              <div className="mt-1 max-w-[260px] text-[11px] leading-snug" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                {worktreesError || status?.error || statusError || "当前工作区不是 Git 仓库"}
+              </div>
+            </div>
+          ) : !worktrees ? (
+            <div className="px-2.5 py-2 text-[10px] text-fg-faint">读取中…</div>
+          ) : worktrees.length === 0 ? (
+            <div className="px-2.5 py-2 text-[10px] text-fg-faint">暂无 worktree</div>
+          ) : (
+            <div className="flex flex-col px-1 pb-1">
+              {worktrees.map((w) => worktreeRow(w))}
+            </div>
+          )}
         </div>
       ) : gitUnavailable ? (
         <div className="flex flex-col items-center justify-center py-12 px-6 text-center">

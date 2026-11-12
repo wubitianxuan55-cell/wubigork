@@ -17,6 +17,7 @@ export const opsMethods: Pick<
   | "GaeaGitDiscard"
   | "GaeaGitCommit"
   | "GaeaGitLog"
+  | "GaeaGitWorktrees"
   | "TaskList"
   | "TaskCancel"
   | "TaskKill"
@@ -34,10 +35,11 @@ export const opsMethods: Pick<
   | "DataBackupRestoreResult"
 > = {
   async GaeaGitStatus() {
-    // 2b 走查样例：三分组状态（暂存/未暂存/未跟踪）+ 分支 ahead。
+    // 2b 走查样例：三分组状态（暂存/未暂存/未跟踪）+ 分支 ahead + linked
+    // worktree 标注（G1 深化，与 GaeaGitWorktrees 样例同源）。
     return {
       isRepo: true,
-      branch: "main",
+      branch: "feature/x",
       ahead: 1,
       behind: 0,
       files: [
@@ -46,7 +48,22 @@ export const opsMethods: Pick<
         { path: "web/app.ts", x: " ", y: "M", modified: true },
         { path: "reports/季度报告.html", x: "?", y: "?", untracked: true },
       ],
+      isLinkedWorktree: true,
+      mainWorktreePath: "C:\\demo\\gaea-workspace",
     };
+  },
+  async GaeaGitWorktrees() {
+    // G1 深化走查样例：主检出 + 当前 linked worktree + 一条 detached。
+    return [
+      { path: "C:\\demo\\gaea-workspace", head: "1a2b3c4", branch: "main", isMain: true, isCurrent: false },
+      {
+        path: "C:\\demo\\gaea-workspace\\.worktrees\\feature-x",
+        head: "5d6e7f8",
+        branch: "feature/x",
+        isCurrent: true,
+      },
+      { path: "C:\\demo\\gaea-workspace\\.worktrees\\experiment", head: "9f8e7d6", isDetached: true },
+    ];
   },
   async GaeaGitDiff(path: string, staged: boolean) {
     void staged;

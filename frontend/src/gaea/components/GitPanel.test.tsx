@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   discard: vi.fn(async (_p: string) => {}),
   commit: vi.fn(async (_m: string) => "abc1234"),
   log: vi.fn(async (_n: number): Promise<GitCommitInfoView[]> => []),
+  worktrees: vi.fn(),
 }));
 
 vi.mock("../lib/bridge", () => ({
@@ -26,6 +27,7 @@ vi.mock("../lib/bridge", () => ({
     GaeaGitDiscard: mocks.discard,
     GaeaGitCommit: mocks.commit,
     GaeaGitLog: mocks.log,
+    GaeaGitWorktrees: mocks.worktrees,
   },
   onEvent: () => () => {},
 }));
@@ -154,5 +156,33 @@ describe("GitPanel 2b 最小集", () => {
     await waitFor(() => expect(mocks.diff).toHaveBeenCalledWith("src/main.go", false));
     const hunk = await screen.findByTestId("changes-diff-hunk");
     expect(hunk.textContent).toContain("+new-inline");
+  });
+
+  // G1 深化：工作树镜头——只读展示，主检出/当前/detached 三态徽标与分支名。
+  const sampleWorktrees = [
+    { path: "C:\\demo\\repo", head: "1a2b3c4", branch: "main", isMain: true, isCurrent: false },
+    { path: "C:\\demo\\repo\\.worktrees\\feature-x", head: "5d6e7f8", branch: "feature/x", isCurrent: true },
+    { path: "C:\\demo\\repo\\.worktrees\\experiment", head: "9f8e7d6", isDetached: true },
+  ];
+
+  it("工作树镜头展示主检出/当前/detached 徽标与分支", async () => {
+    mocks.worktrees.mockResolvedValue(sampleWorktrees);
+    wrap(<GitPanel />);
+    await screen.findByText("已暂存");
+    fireEvent.click(screen.getByRole("button", { name: "工作树" }));
+    expect(await screen.findByText("主检出")).toBeTruthy();
+    expect(screen.getByText("当前")).toBeTruthy();
+    expect(screen.getByText("feature/x")).toBeTruthy();
+    expect(screen.getByText("detached")).toBeTruthy();
+    expect(mocks.worktrees).toHaveBeenCalled();
+  });
+
+  it("工作树镜头拉取失败诚实报错", async () => {
+    mocks.worktrees.mockRejectedValue(new Error("git 超时（20s）"));
+    wrap(<GitPanel />);
+    await screen.findByText("已暂存");
+    fireEvent.click(screen.getByRole("button", { name: "工作树" }));
+    expect(await screen.findByText("工作树不可用")).toBeTruthy();
+    expect(screen.getByText(/git 超时/)).toBeTruthy();
   });
 });

@@ -268,6 +268,7 @@ export const gaeaToGaea = {
   GaeaGitDiscard: "GaeaGitDiscard",
   GaeaGitCommit: "GaeaGitCommit",
   GaeaGitLog: "GaeaGitLog",
+  GaeaGitWorktrees: "GaeaGitWorktrees",
   GaeaSubagentContextView: "GaeaSubagentContextView",
   VerifyRecord: "GaeaVerifyRecord",
   RollbackRecord: "GaeaRollbackRecord",

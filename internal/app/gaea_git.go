@@ -1,11 +1,16 @@
 package app
 
 import (
+	"bytes"
+	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gaea/gaea/internal/gaea/proc"
 )
@@ -30,12 +35,14 @@ type GitFileStatus struct {
 
 // GitStatus 是仓库状态快照。
 type GitStatus struct {
-	IsRepo bool            `json:"isRepo"`
-	Branch string          `json:"branch,omitempty"`
-	Ahead  int             `json:"ahead,omitempty"`
-	Behind int             `json:"behind,omitempty"`
-	Files  []GitFileStatus `json:"files"`
-	Error  string          `json:"error,omitempty"` // 非 repo/git 缺失等诚实错误
+	IsRepo           bool            `json:"isRepo"`
+	Branch           string          `json:"branch,omitempty"`
+	Ahead            int             `json:"ahead,omitempty"`
+	Behind           int             `json:"behind,omitempty"`
+	Files            []GitFileStatus `json:"files"`
+	Error            string          `json:"error,omitempty"` // 非 repo/git 缺失等诚实错误
+	IsLinkedWorktree bool            `json:"isLinkedWorktree,omitempty"`
+	MainWorktreePath string          `json:"mainWorktreePath,omitempty"`
 }
 
 // GitCommitInfo 是一条历史提交。
@@ -46,20 +53,54 @@ type GitCommitInfo struct {
 	Ts      int64  `json:"ts,omitempty"` // Unix 秒
 }
 
-// gitRun 在工作区 cwd 执行 git 子命令，返回 stdout。stderr 拼进 error。
-func gitRun(args ...string) (string, error) {
+// gitWorkspace 返回 git 面的工作区锚：gaeaCwd 优先，回退进程启动目录。
+func gitWorkspace() string {
 	cwd := gaeaCwd()
 	if cwd == "" {
-		var err error
-		cwd, err = os.Getwd()
-		if err != nil {
-			return "", err
-		}
+		cwd, _ = os.Getwd()
 	}
-	return gitRunAt(cwd, args...)
+	return cwd
 }
 
-func gitRunAt(cwd string, args ...string) (string, error) {
+// Git 子进程预算（G1 深化，验收欠账收口：超时+输出预算）：读面 20s、写面
+// 60s（commit 可能跑 pre-commit 钩子）；stdout 预算读面 8MB、diff 4MB、写面
+// 1MB。var 而非 const：测试可收窄预算实测溢出路径。
+var (
+	gitReadTimeout  = 20 * time.Second
+	gitWriteTimeout = 60 * time.Second
+	gitReadBudget   = 8 << 20
+	gitDiffBudget   = 4 << 20
+	gitWriteBudget  = 1 << 20
+)
+
+// errGitOutputBudget 由 boundedWriter 溢出时返回；调用方决定诚实报错
+// （status/log/worktree list）还是降级为截断展示（diff）。
+var errGitOutputBudget = errors.New("git 输出超出预算")
+
+// boundedWriter 收满 limit 后拒绝继续写入：os/exec 的拷贝 goroutine 收到
+// 错误即停读并关闭管道读端，git 写端 EPIPE 终止；进程滞留由 ctx 超时强杀兜底。
+type boundedWriter struct {
+	buf   bytes.Buffer
+	limit int
+}
+
+func (w *boundedWriter) Write(p []byte) (int, error) {
+	room := w.limit - w.buf.Len()
+	if room > 0 {
+		if len(p) > room {
+			p = p[:room]
+		}
+		w.buf.Write(p)
+	}
+	if w.buf.Len() >= w.limit {
+		return len(p), errGitOutputBudget
+	}
+	return len(p), nil
+}
+
+// gitRunBudgeted 是全部 git 子命令的唯一出口：exec 列表传参（无 shell 注入
+// 面）+ 超时 + stdout 预算 + stderr 拼进 error。
+func gitRunBudgeted(cwd string, timeout time.Duration, budget int, args ...string) (string, error) {
 	// v4.374（Reasonix gitcmd 蒸馏）：中和仓库本地 .git/config 里的
 	// filter.<driver>——diff 是唯一会在工作树内容上跑 clean filter 的子命令，
 	// 而 .gitattributes 是不可信输入（克隆来的仓库可借查看 diff 执行任意
@@ -71,7 +112,9 @@ func gitRunAt(cwd string, args ...string) (string, error) {
 	argv = append(argv, gitHardeningArgs()...)
 	argv = append(argv, cleanFilterOverrides(cwd)...)
 	argv = append(argv, args...)
-	cmd := exec.Command("git", argv...)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", argv...)
 	proc.HideWindow(cmd) // Windows: 防止弹出 cmd 黑框（git 面板每次调用）
 	cmd.Env = append(os.Environ(),
 		"GIT_TERMINAL_PROMPT=0", // 永不交互式要凭据（面板场景无 TTY 可答）
@@ -79,16 +122,50 @@ func gitRunAt(cwd string, args ...string) (string, error) {
 		"GIT_CONFIG_NOSYSTEM=1", // 系统级 gitconfig 不参与（不可信面收敛）
 	)
 	var stderr strings.Builder
+	stdout := &boundedWriter{limit: budget}
+	cmd.Stdout = stdout
 	cmd.Stderr = &stderr
-	out, err := cmd.Output()
+	err := cmd.Run()
 	if err != nil {
+		if errors.Is(err, errGitOutputBudget) {
+			return stdout.buf.String(), err
+		}
+		if ctx.Err() == context.DeadlineExceeded {
+			return "", errGit("git 超时（" + timeout.String() + "）：仓库过大或盘区响应缓慢，可稍后重试")
+		}
 		msg := strings.TrimSpace(stderr.String())
 		if msg == "" {
 			msg = err.Error()
 		}
 		return "", errGit(msg)
 	}
-	return string(out), nil
+	return stdout.buf.String(), nil
+}
+
+// gitRunAt 读面子命令（status/diff/log/worktree list）：20s 超时 + 8MB 预算。
+func gitRunAt(cwd string, args ...string) (string, error) {
+	return gitRunBudgeted(cwd, gitReadTimeout, gitReadBudget, args...)
+}
+
+// gitRunWrite 写面子命令（add/reset/checkout/commit）：60s 超时（pre-commit
+// 钩子可合法地跑 lint/测试）+ 1MB 预算。
+func gitRunWrite(cwd string, args ...string) (string, error) {
+	return gitRunBudgeted(cwd, gitWriteTimeout, gitWriteBudget, args...)
+}
+
+// gitRun 在工作区 cwd 执行 git 子命令（读面默认档）。
+func gitRun(args ...string) (string, error) {
+	return gitRunAt(gitWorkspace(), args...)
+}
+
+// sameDirPath 目录路径等值：先 Clean 归一分隔符，Windows 大小写不敏感，
+// 其余平台逐字节（同一仓库两条仅大小写不同的 worktree 路径属病理场景）。
+func sameDirPath(a, b string) bool {
+	a, b = filepath.Clean(a), filepath.Clean(b)
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(a, b)
+	}
+	return a == b
 }
 
 func gitRepoRoot(start string) (string, error) {
@@ -196,12 +273,10 @@ func (e *gitError) Error() string {
 	return d
 }
 
-// GaeaGitStatus 返回仓库状态：分支 + ahead/behind + 文件列表（porcelain v1）。
+// GaeaGitStatus 返回仓库状态：分支 + ahead/behind + 文件列表（porcelain v1），
+// 并标注工作区是否位于 linked worktree（G1 深化）。
 func (a *App) GaeaGitStatus() GitStatus {
-	workspace := gaeaCwd()
-	if workspace == "" {
-		workspace, _ = os.Getwd()
-	}
+	workspace := gitWorkspace()
 	repoRoot, err := gitRepoRoot(workspace)
 	if err != nil {
 		return GitStatus{Files: []GitFileStatus{}, Error: err.Error()}
@@ -246,6 +321,19 @@ func (a *App) GaeaGitStatus() GitStatus {
 		st.Files = append(st.Files, f)
 	}
 	st.IsRepo = true
+	// linked worktree 判定（G1 深化）：--absolute-git-dir 与
+	// --git-common-dir 不同 → 工作区在 linked worktree（非主检出）。
+	// --path-format=absolute 需 git ≥2.31，取不到时尽力而为不标注，不阻塞状态面。
+	if gitDir, err := gitRunAt(workspace, "rev-parse", "--absolute-git-dir"); err == nil {
+		if commonDir, err2 := gitRunAt(workspace, "rev-parse", "--path-format=absolute", "--git-common-dir"); err2 == nil {
+			gitDir = strings.TrimSpace(strings.Split(gitDir, "\n")[0])
+			commonDir = strings.TrimSpace(strings.Split(commonDir, "\n")[0])
+			if gitDir != "" && commonDir != "" && !sameDirPath(gitDir, commonDir) {
+				st.IsLinkedWorktree = true
+				st.MainWorktreePath = filepath.Dir(filepath.FromSlash(commonDir))
+			}
+		}
+	}
 	return st
 }
 
@@ -290,7 +378,12 @@ func (a *App) GaeaGitDiff(path string, staged bool) (string, error) {
 		args = append(args, "--cached")
 	}
 	args = append(args, "--", path)
-	return gitRun(args...)
+	out, err := gitRunBudgeted(gitWorkspace(), gitReadTimeout, gitDiffBudget, args...)
+	if errors.Is(err, errGitOutputBudget) {
+		// 展示层诚实截断：保留已收内容 + 截断标记，不当错误炸面板。
+		return out + "\n\n[diff 输出超过 4MB，已截断]", nil
+	}
+	return out, err
 }
 
 // GaeaGitStage 把文件加入暂存区（新增文件同样适用）。
@@ -299,7 +392,7 @@ func (a *App) GaeaGitStage(paths []string) error {
 	if len(clean) == 0 {
 		return errGit("未选择文件")
 	}
-	_, err := gitRun(append([]string{"add", "--"}, clean...)...)
+	_, err := gitRunWrite(gitWorkspace(), append([]string{"add", "--"}, clean...)...)
 	return err
 }
 
@@ -310,7 +403,7 @@ func (a *App) GaeaGitUnstage(paths []string) error {
 	if len(clean) == 0 {
 		return errGit("未选择文件")
 	}
-	_, err := gitRun(append([]string{"reset", "-q", "HEAD", "--"}, clean...)...)
+	_, err := gitRunWrite(gitWorkspace(), append([]string{"reset", "-q", "HEAD", "--"}, clean...)...)
 	return err
 }
 
@@ -320,7 +413,7 @@ func (a *App) GaeaGitDiscard(path string) error {
 	if strings.TrimSpace(path) == "" {
 		return errGit("path 为空")
 	}
-	_, err := gitRun("checkout", "-q", "--", path)
+	_, err := gitRunWrite(gitWorkspace(), "checkout", "-q", "--", path)
 	return err
 }
 
@@ -331,10 +424,10 @@ func (a *App) GaeaGitCommit(message string) (string, error) {
 	if msg == "" {
 		return "", errGit("提交说明为空")
 	}
-	if _, err := gitRun("commit", "-m", msg); err != nil {
+	if _, err := gitRunWrite(gitWorkspace(), "commit", "-m", msg); err != nil {
 		return "", err
 	}
-	out, err := gitRun("rev-parse", "--short", "HEAD")
+	out, err := gitRunAt(gitWorkspace(), "rev-parse", "--short", "HEAD")
 	if err != nil {
 		return "", nil // 提交已成功，短 hash 拿不到不回滚提交（诚实降级）
 	}
@@ -377,6 +470,87 @@ func (a *App) GaeaGitLog(limit int) ([]GitCommitInfo, error) {
 		commits = append(commits, c)
 	}
 	return commits, nil
+}
+
+// GitWorktree 是一条 worktree（git worktree list --porcelain 展开）。
+type GitWorktree struct {
+	Path       string `json:"path"`             // worktree 本地路径（原生分隔符，Clean 过）
+	Head       string `json:"head,omitempty"`   // HEAD 短 hash（bare 无）
+	Branch     string `json:"branch,omitempty"` // 已去掉 refs/heads/ 前缀（detached 无）
+	IsMain     bool   `json:"isMain"`           // 主检出（列表第一条）
+	IsBare     bool   `json:"isBare,omitempty"`
+	IsDetached bool   `json:"isDetached,omitempty"`
+	IsLocked   bool   `json:"isLocked,omitempty"` // git worktree lock
+	LockedNote string `json:"lockedNote,omitempty"`
+	IsCurrent  bool   `json:"isCurrent"` // 工作区 cwd 所在的 worktree
+}
+
+// GaeaGitWorktrees 列出仓库全部 worktree（只读展示）。gaea 全应用单一
+// workspace 锚（ga.cfg.Workspace），FileTree/Git/Agent 共用它——worktree
+// 「切换」= 工作区切换器（G2/W1 级产品门），不在本刀；也不做 add/remove/prune。
+func (a *App) GaeaGitWorktrees() ([]GitWorktree, error) {
+	workspace := gitWorkspace()
+	repoRoot, err := gitRepoRoot(workspace)
+	if err != nil {
+		return nil, err
+	}
+	out, err := gitRunAt(repoRoot, "worktree", "list", "--porcelain")
+	if err != nil {
+		return nil, err
+	}
+	return parseGitWorktrees(out, repoRoot), nil
+}
+
+// parseGitWorktrees 解析 `git worktree list --porcelain`：记录以空行分隔，
+// 字段行前缀 worktree/HEAD/branch/bare/detached/locked（locked 可带原因）。
+// 路径含空格安全；含换行的路径是病理场景不做承诺。isCurrent 与 repoRoot
+// （工作区自身 toplevel）等值判定，主检出=第一条记录。
+func parseGitWorktrees(out, current string) []GitWorktree {
+	list := []GitWorktree{}
+	var cur *GitWorktree
+	flush := func() {
+		if cur != nil {
+			list = append(list, *cur)
+			cur = nil
+		}
+	}
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimRight(line, "\r")
+		switch {
+		case line == "":
+			flush()
+		case strings.HasPrefix(line, "worktree "):
+			flush()
+			cur = &GitWorktree{
+				Path: filepath.Clean(filepath.FromSlash(strings.TrimSpace(strings.TrimPrefix(line, "worktree ")))),
+			}
+		case cur == nil:
+			continue
+		case strings.HasPrefix(line, "HEAD "):
+			cur.Head = strings.TrimSpace(strings.TrimPrefix(line, "HEAD "))
+		case strings.HasPrefix(line, "branch "):
+			cur.Branch = strings.TrimPrefix(strings.TrimSpace(strings.TrimPrefix(line, "branch ")), "refs/heads/")
+		case line == "bare":
+			cur.IsBare = true
+		case line == "detached":
+			cur.IsDetached = true
+		case strings.HasPrefix(line, "locked"):
+			cur.IsLocked = true
+			if note := strings.TrimSpace(strings.TrimPrefix(line, "locked")); note != "" {
+				cur.LockedNote = note
+			}
+		}
+	}
+	flush()
+	for i := range list {
+		if i == 0 {
+			list[i].IsMain = true
+		}
+		if sameDirPath(list[i].Path, current) {
+			list[i].IsCurrent = true
+		}
+	}
+	return list
 }
 
 func nonEmptyPaths(paths []string) []string {
