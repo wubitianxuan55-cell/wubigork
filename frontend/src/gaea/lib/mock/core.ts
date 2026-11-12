@@ -221,6 +221,7 @@ export function buildCore(s: MakeMockState): CoreMethods {
         ok: true,
         scanned: 3,
         refs: ["main", "sa_1", "sa_2"],
+        totals: { rootTokens: 1_400_000, rootCost: 0.24, subTokens: 95_100, subCost: 0.068, subCount: 1, outputTokens: 3_000 },
         events: [
           { seq: 1, ts: now - 3600, agent: "main", kind: "message", role: "user", text: "把这份报表按季度拆三份，并出一版摘要" },
           { seq: 2, ts: now - 3500, agent: "main", kind: "dispatch", text: "task {\"prompt\":\"拆报表并出摘要\"}" },

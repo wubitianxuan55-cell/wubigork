@@ -2,6 +2,7 @@
 // 常量在 context/cats.ts 单源（CAT_COLORS 收编后不再有非组件导出）。
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { app } from "../lib/bridge";
+import type { FamilyTotalsView } from "../lib/types/context";
 import { useT } from "../lib/i18n";
 import type {
   ContextCategory, ContextCompactTiers, ContextEvent, ContextNodeDetailView, ContextRequestRecord, ContextTimeline,
@@ -754,6 +755,8 @@ export function ContextView({
   }, []);
 
   const [net, setNet] = useState<AgentNetwork | null>(null);
+  // 家族用量聚合（1:1 上游 Context Stats 编队费用行；会话切换加载一次）
+  const [familyTotals, setFamilyTotals] = useState<FamilyTotalsView | null>(null);
   // Agent 网络：订阅共享 store（按 UI 会话读取，v4.181）；running 时
   // useLiveReload 驱动的 load() 顺带 reload。会话切换由依赖重建触发 declarePath。
   // showAgentNetwork=false（原罪复用）不订阅不拉取——网络属办公内核会话，避免串台。
@@ -761,6 +764,14 @@ export function ContextView({
     () => (showAgentNetwork ? subscribeAgentNetwork((n) => setNet(n), { path: sessionPath }) : undefined),
     [sessionPath, showAgentNetwork],
   );
+  useEffect(() => {
+    if (!showAgentNetwork) return;
+    let alive = true;
+    app.FamilyEvents(sessionPath ?? "")
+      .then((f) => { if (alive && f.totals) setFamilyTotals(f.totals); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [sessionPath, showAgentNetwork]);
   const sessionName = useMemo(() => {
     if (sessionNameProp) return sessionNameProp;
     if (!sessionPath) return "—";
@@ -896,7 +907,7 @@ export function ContextView({
               nodes={timeline.nodes}
               files={timeline.files}
               commands={timeline.commands}
-              net={net ? { rootTokens: net.root?.tokens ?? 0, subTokens: 0 } : null}
+              family={familyTotals}
               timings={timeline.timing}
             />
           {/* 底部会话汇总条 + 估算口径 */}

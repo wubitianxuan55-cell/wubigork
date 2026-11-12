@@ -170,4 +170,48 @@ type FamilyEventStream struct {
 	Truncated int `json:"truncated,omitempty"`
 	// Refs 是事件流中出现的 agent 身份清单（main 在前）——前端筛选 chips 单源。
 	Refs []string `json:"refs"`
+	// Totals 是家族用量/费用聚合（1:1 上游 Context Stats 编队行：编队合计/
+	// 当前 Agent/子 Agent ×N 三行；费用按各自 usage 事件自报单价计得，
+	// 无价事件诚实零贡献）。
+	Totals FamilyTotals `json:"totals"`
+}
+
+// FamilyTotals 是家族用量聚合。
+type FamilyTotals struct {
+	RootTokens   int64   `json:"rootTokens"`
+	RootCost     float64 `json:"rootCost,omitempty"`
+	SubTokens    int64   `json:"subTokens"`
+	SubCost      float64 `json:"subCost,omitempty"`
+	SubCount     int     `json:"subCount"`
+	OutputTokens int64   `json:"outputTokens,omitempty"`
+}
+
+// usageOf 折叠一份日志的计费输入/输出 tokens 与费用（usage 事件自报口径，
+// 与 contextview fold 同式）。
+func UsageOf(entries []session.LogEntry) (tokens int64, cost float64, out int64) {
+	for _, e := range entries {
+		if e.Kind != "usage" {
+			continue
+		}
+		var p struct {
+			PromptTokens     int64   `json:"promptTokens"`
+			CompletionTokens int64   `json:"completionTokens"`
+			CacheHitTokens   int64   `json:"cacheHitTokens"`
+			CacheMissTokens  int64   `json:"cacheMissTokens"`
+			Input            float64 `json:"input"`
+			Output           float64 `json:"output"`
+			CacheHitPrice    float64 `json:"cacheHitPrice"`
+		}
+		if err := json.Unmarshal(e.Payload, &p); err != nil {
+			continue
+		}
+		tokens += p.PromptTokens + p.CompletionTokens
+		out += p.CompletionTokens
+		if p.CacheHitPrice > 0 || p.Input > 0 || p.Output > 0 {
+			cost += (float64(p.CacheHitTokens)*p.CacheHitPrice +
+				float64(p.CacheMissTokens)*p.Input +
+				float64(p.CompletionTokens)*p.Output) / 1e6
+		}
+	}
+	return tokens, cost, out
 }

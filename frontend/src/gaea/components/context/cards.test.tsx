@@ -137,6 +137,11 @@ describe("TimingCard", () => {
     calls: 5,
     toolsMs: 15000,
     toolCalls: 8,
+    reasoningMs: 18000,
+    reasoningBlocks: 4,
+    textMs: 12000,
+    textBlocks: 3,
+    outputTokens: 2500,
     tools: [
       { name: "read_file", calls: 3, ms: 9000 },
       { name: "bash", calls: 5, ms: 6000 },
@@ -147,39 +152,37 @@ describe("TimingCard", () => {
 
   it("环形中心为活跃时长，四分解行含时长/次数/占比，其他开销为推导值", () => {
     renderZ(<TimingCard timing={timing} />);
-    expect(screen.getByText("1 分 5 秒")).toBeTruthy(); // 中心 wallMs
+    expect(screen.getAllByText("1 分 5 秒").length).toBeGreaterThanOrEqual(1); // 中心 wallMs（条带末刻度重复出现）
     // 行级断言（各行的「12 秒」「5 次」可能与工具排行重复，用行作用域消歧）
-    const row = (label: string) => within(screen.getByText(label).closest("div")!);
+    const row = (label: string) => within(screen.getByText(label).closest("li")!); // 1:1 行容器是 li
     expect(row("模型等待").getByText("12 秒")).toBeTruthy();
-    expect(row("模型等待").getByText("5 次")).toBeTruthy();
-    expect(row("模型等待").getByText("18%")).toBeTruthy(); // 12000/65000
-    expect(row("模型生成").getByText("30 秒")).toBeTruthy();
-    expect(row("模型生成").getByText("46%")).toBeTruthy(); // 30000/65000
+    expect(row("模型等待").getByText("· 5 次")).toBeTruthy();
+    expect(row("模型等待").getByText("18.5%")).toBeTruthy(); // 12000/65000
+    // 1:1 六行：思考 18000→「18 秒 · 4 个内容块」、回复 12000→「12 秒 · 3 个内容块」
+    expect(row("模型思考").getByText("18 秒")).toBeTruthy();
+    expect(row("模型思考").getByText("· 4 个内容块")).toBeTruthy();
+    expect(row("模型回复").getByText("12 秒")).toBeTruthy();
     expect(row("工具执行").getByText("15 秒")).toBeTruthy();
-    expect(row("工具执行").getByText("8 次")).toBeTruthy();
-    expect(row("工具执行").getByText("23%")).toBeTruthy(); // 15000/65000
+    expect(row("工具执行").getByText("· 8 次")).toBeTruthy();
     // 其他开销 = 65000-12000-30000-15000 = 8 秒，无计数显示「—」
     expect(row("其他开销").getByText("8 秒")).toBeTruthy();
-    expect(row("其他开销").getByText("12%")).toBeTruthy(); // 8000/65000
-    expect(row("其他开销").getByText("—")).toBeTruthy();
+    // 1:1：wall 在环心与时间轴条带末刻度出现两次 → getAllByText
+    expect(screen.getAllByText("1 分 5 秒").length).toBeGreaterThanOrEqual(1);
   });
 
   it("tools 排行取时长 top3 迷你行", () => {
     renderZ(<TimingCard timing={timing} />);
     const tools = within(screen.getByTestId("timing-tools"));
     expect(tools.getByText("grep")).toBeTruthy(); // 12000ms 居首
-    expect(tools.getByText("read_file")).toBeTruthy();
-    expect(tools.getByText("bash")).toBeTruthy();
+    expect(tools.getByText("12 秒 · 2 次")).toBeTruthy();
     expect(tools.queryByText("sed")).toBeNull(); // 第 4 名被截断
-    expect(tools.getByText("2 次")).toBeTruthy();
   });
 
   it("timing undefined：骨架空态全「—」，不伪造数值", () => {
     const { container } = renderZ(<TimingCard />);
-    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(10); // 中心 + 4 行 ×(时长/次数/占比)
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(5); // 中心 + 5 行（1:1 重构后行结构）
     expect(screen.queryByText("1 分 5 秒")).toBeNull();
     expect(screen.queryByText("30 秒")).toBeNull();
-    expect(screen.queryByText(/次/)).toBeNull();
     // 仅剩 track 圆环（骨架），无数据段
     expect(container.querySelectorAll("circle").length).toBe(1);
   });

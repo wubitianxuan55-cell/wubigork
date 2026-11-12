@@ -151,15 +151,15 @@ export function Donut({
 }
 
 // ─── 1. StatsCard 上下文统计（v4.71：8 个独立小卡，不再合成 1 张大卡） ──
-export function StatsCard({ stats, nodes, files, commands, net, timings }: {
+export function StatsCard({ stats, nodes, files, commands, family, timings }: {
   stats: ContextStats;
   // 1:1 上游 Context Stats 复合卡数据面：nodes（工具 chips/user 数聚合）、
-  // files（Input/Output 聚合）、commands（程序 chips）、net（Fleet 费用行）、
-  // timings（模型调用次数）。
+  // files（Input/Output 聚合）、commands（程序 chips）、family（编队费用行
+  // =编队合计/当前 Agent/子 Agent ×N，1:1 上游三行）、timings（模型调用次数）。
   nodes: ContextSurfaceNode[];
   files: FileActivityLite[];
   commands: ContextCommandRecord[];
-  net?: { rootTokens: number; subTokens: number } | null;
+  family?: { rootTokens: number; rootCost?: number; subTokens: number; subCost?: number; subCount: number } | null;
   timings?: ContextTiming;
 }) {
   const t = useT();
@@ -242,15 +242,23 @@ export function StatsCard({ stats, nodes, files, commands, net, timings }: {
         {progChips.slice(0, 5).map(([name, n]) => chip(name, n))}
         {progMore > 0 && <span className="text-[10px] text-fg-faint">+{progMore} {t("contextview.moreChips")}</span>}
       </StatChipRow>
-      {net && (
-        <div className="mt-1.5 flex flex-wrap items-center gap-2 border-t border-border-soft/60 pt-2 text-[10.5px]">
+      {family && (family.rootTokens > 0 || family.subTokens > 0) && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border-soft/60 pt-2 text-[10.5px]">
           <span className="shrink-0 text-fg-dim">{t("contextview.fleetRow")}</span>
-          <span className="font-mono tabular-nums text-fg-dim">
-            {t("contextview.fleetCurrent")} {fmtTokens(net.rootTokens)}
+          <span className="font-mono tabular-nums text-fg">
+            {t("contextview.fleetTotal")} {fmtTokens(family.rootTokens + family.subTokens)}
+            {(family.rootCost != null && family.subCost != null) && ` / ¥${(family.rootCost + family.subCost).toFixed(2)}`}
           </span>
           <span className="font-mono tabular-nums text-fg-dim">
-            {t("contextview.fleetSubs")} {fmtTokens(net.subTokens)}
+            {t("contextview.fleetCurrent")} {fmtTokens(family.rootTokens)}
+            {family.rootCost != null && ` / ¥${family.rootCost.toFixed(2)}`}
           </span>
+          {family.subCount > 0 && (
+            <span className="font-mono tabular-nums text-fg-dim">
+              {t("contextview.fleetSubsN", { n: family.subCount })} {fmtTokens(family.subTokens)}
+              {family.subCost != null && ` / ¥${family.subCost.toFixed(2)}`}
+            </span>
+          )}
         </div>
       )}
     </div>
@@ -412,20 +420,6 @@ interface TimingRow {
   color: string;
 }
 
-function timingRows(timing: ContextTiming, t: (k: "contextview.timingWait" | "contextview.timingGen" | "contextview.timingTools" | "contextview.timingOther") => string): TimingRow[] {
-  const { wallMs: wall, ttftMs: ttft, genMs: gen, toolsMs: tools } = timing;
-  // 其他开销 = wall − 等待 − 生成 − 工具；仅在四项齐备时推导，缺项显「—」不伪造
-  const other = wall != null && ttft != null && gen != null && tools != null
-    ? Math.max(0, wall - ttft - gen - tools)
-    : null;
-  return [
-    { label: t("contextview.timingWait"), ms: ttft ?? null, count: timing.calls ?? null, color: COLORS.modelWait },
-    { label: t("contextview.timingGen"), ms: gen ?? null, count: timing.calls ?? null, color: COLORS.modelGen },
-    { label: t("contextview.timingTools"), ms: tools ?? null, count: timing.toolCalls ?? null, color: COLORS.toolExec },
-    { label: t("contextview.timingOther"), ms: other, count: null, color: COLORS.other },
-  ];
-}
-
 // timing 未就绪时的空态骨架行（全「—」，不伪造数值）
 const TIMING_EMPTY_LABEL_KEYS = [
   "contextview.timingWait",
@@ -433,6 +427,15 @@ const TIMING_EMPTY_LABEL_KEYS = [
   "contextview.timingTools",
   "contextview.timingOther",
 ] as const;
+const TIMING_COLORS = {
+  wait: "#3b82f6", // hex-exempt 耗时统计语义色（模型等待）
+  gen: "#22c55e", // hex-exempt 耗时统计语义色（模型生成）
+  reasoning: "#8b5cf6", // hex-exempt 耗时统计语义色（模型思考）
+  text: "#06b6d4", // hex-exempt 耗时统计语义色（模型回复）
+  tools: "#f59e0b", // hex-exempt 耗时统计语义色（工具执行）
+  other: "#9ca3af", // hex-exempt 耗时统计语义色（其他）
+};
+
 const TIMING_EMPTY_ROWS: TimingRow[] = TIMING_EMPTY_LABEL_KEYS.map((k) => ({
   label: k,
   ms: null,
@@ -446,56 +449,105 @@ const TIMING_EMPTY_ROWS: TimingRow[] = TIMING_EMPTY_LABEL_KEYS.map((k) => ({
 
 export function TimingCard({ timing }: { timing?: ContextTiming }) {
   const t = useT();
-  const rows = (timing ? timingRows(timing, t) : TIMING_EMPTY_ROWS).map((r) => ({ ...r, label: t(r.label as Parameters<typeof t>[0]) }));
-  const wall = timing?.wallMs ?? null;
-  // 注意：map 参数命名避开 t（翻译器）——工具排行与分解行都要在同表达式里用两者。
-  const topTools = (timing?.tools ?? [])
-    .map((tool) => ({ name: tool.name, calls: tool.calls, ms: tool.ms }))
-    .sort((a, b) => b.ms - a.ms || b.calls - a.calls) // 后端已按 ms 降序，此处防御性保序
-    .slice(0, 3);
+  // 1:1 上游六行：模型等待/模型思考/模型回复/工具参数（gaea 日志无流式参数
+  // 增量，诚实缺席）/工具执行/其他开销；右上输出速度（TPS）。
+  const wall = timing?.wallMs ?? 0;
+  const ttft = timing?.ttftMs ?? 0;
+  const gen = timing?.genMs ?? 0;
+  const tools = timing?.toolsMs ?? 0;
+  const reasoning = timing?.reasoningMs ?? 0;
+  const text = timing?.textMs ?? 0;
+  // 其他 = wall − 等待 − 生成 − 工具（生成已含思考/回复段，不重复扣）
+  const other = wall > 0 ? Math.max(0, wall - ttft - gen - tools) : 0;
+  const rows: { labelKey: "contextview.timingWait" | "contextview.timingReasoning" | "contextview.timingText" | "contextview.timingTools" | "contextview.timingOther"; ms: number; count: number | null; blocks?: number; color: string }[] = [
+    { labelKey: "contextview.timingWait", ms: ttft, count: timing?.calls ?? null, color: TIMING_COLORS.wait },
+    { labelKey: "contextview.timingReasoning", ms: reasoning, count: timing?.calls ?? null, blocks: timing?.reasoningBlocks, color: TIMING_COLORS.reasoning },
+    { labelKey: "contextview.timingText", ms: text, count: timing?.calls ?? null, blocks: timing?.textBlocks, color: TIMING_COLORS.text },
+    { labelKey: "contextview.timingTools", ms: tools, count: timing?.toolCalls ?? null, color: TIMING_COLORS.tools },
+    { labelKey: "contextview.timingOther", ms: other, count: null, color: TIMING_COLORS.other },
+  ];
+  const denom = wall > 0 ? wall : rows.reduce((s2, r) => s2 + r.ms, 0);
+  const tps = timing?.outputTokens != null && gen > 0 ? Math.round(timing.outputTokens / (gen / 1000)) : 0;
+  // 时间轴条带（1:1 上游「耗时时间轴」：各段按占比横排，刻度 0/四分位/全程）
+  const segments = rows.filter((r) => r.ms > 0 && denom > 0);
   return (
     <div className="ctx-card p-3">
-      <CardHead title={t("contextview.timingTitle")} sub={t("contextview.timingHint")} icon={Clock} />
-      <div className="mt-2 flex items-center gap-4">
-        <Donut
-          segments={rows.map((r) => ({ value: r.ms ?? 0, color: r.color }))}
-          center={wall != null ? fmtDuration(wall, t) : "—"}
-          centerSub={t("contextview.timingActive")}
-        />
-        <div className="min-w-0 flex-1 space-y-1.5">
-          {rows.map((r) => (
-            <div key={r.label} className="flex items-center gap-1.5 text-[11.5px]">
-              <Dot color={r.color} />
-              <span className="shrink-0 text-fg-dim">{r.label}</span>
-              <span className="ml-auto min-w-0 truncate text-right font-mono tabular-nums text-fg">
-                {r.ms != null ? fmtDuration(r.ms, t) : "—"}
-              </span>
-              <span className="w-10 shrink-0 text-right font-mono tabular-nums text-fg-faint">
-                {r.count != null ? t("contextview.countTimes", { n: r.count }) : "—"}
-              </span>
-              <span className="w-8 shrink-0 text-right font-mono tabular-nums text-fg-faint">
-                {r.ms != null && wall ? fmtPct(r.ms, wall) : "—"}
-              </span>
+      <CardHead
+        title={t("contextview.timingTitle")}
+        sub={t("contextview.timingHint")}
+        icon={Clock}
+        extra={tps > 0 ? <span className="font-mono text-[10.5px] text-fg-dim">{t("contextview.timingTps", { n: tps })}</span> : undefined}
+      />
+      {timing ? (
+        <>
+          <div className="mt-2 flex items-center gap-4">
+            <Donut
+              segments={rows.map((r) => ({ value: r.ms, color: r.color }))}
+              center={denom > 0 ? fmtDuration(denom, t) : "—"}
+              centerSub={t("contextview.timingActive")}
+            />
+            <ul className="m-0 min-w-0 flex-1 list-none space-y-1 p-0 text-[10.5px]">
+              {rows.map((r) => (
+                <li key={r.labelKey} className="flex items-center gap-1.5">
+                  <Dot color={r.color} />
+                  <span className="shrink-0 text-fg-dim">{t(r.labelKey)}</span>
+                  <span className="ml-auto shrink-0 font-mono tabular-nums text-fg-faint">
+                    {denom > 0 ? `${((r.ms / denom) * 100).toFixed(1)}%` : "—"}
+                  </span>
+                  <span className="w-28 shrink-0 text-right font-mono tabular-nums text-fg">
+                    {r.ms > 0 ? fmtDuration(r.ms, t) : "—"}
+                    {r.count != null && r.count > 0 && <span className="ml-1 text-fg-faint">{`· ${r.count}${t("contextview.timesUnit")}`}</span>}
+                    {r.blocks != null && r.blocks > 0 && <span className="ml-1 text-fg-faint">{`· ${r.blocks}${t("contextview.blocksUnit")}`}</span>}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          {segments.length > 0 && (
+            <div className="mt-2" data-testid="timing-strip">
+              <div className="flex h-2 w-full overflow-hidden rounded-full">
+                {segments.map((r) => (
+                  <span key={r.labelKey} title={`${t(r.labelKey)} ${fmtDuration(r.ms, t)}`} style={{ width: `${(r.ms / denom) * 100}%`, background: r.color }} />
+                ))}
+              </div>
+              <div className="mt-0.5 flex justify-between font-mono text-[8.5px] text-fg-faint">
+                <span>0</span>
+                <span>{fmtDuration(Math.round(denom / 4), t)}</span>
+                <span>{fmtDuration(Math.round(denom / 2), t)}</span>
+                <span>{fmtDuration(Math.round((denom * 3) / 4), t)}</span>
+                <span>{fmtDuration(denom, t)}</span>
+              </div>
             </div>
-          ))}
-        </div>
-      </div>
-      {topTools.length > 0 && (
-        <div className="mt-2 border-t border-border-soft pt-1.5" data-testid="timing-tools">
-          {topTools.map((tool) => (
-            <div key={tool.name} className="flex items-center gap-1.5 text-[10.5px]">
-              <span className="min-w-0 truncate text-fg-faint">{tool.name}</span>
-              <span className="ml-auto shrink-0 font-mono tabular-nums text-fg-dim">{t("contextview.countTimes", { n: tool.calls })}</span>
-              <span className="w-14 shrink-0 text-right font-mono tabular-nums text-fg-faint">{fmtDuration(tool.ms, t)}</span>
+          )}
+          {(timing?.tools?.length ?? 0) > 0 && (
+            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 border-t border-border-soft/60 pt-1.5 text-[10px] text-fg-faint" data-testid="timing-tools">
+              {(timing?.tools ?? []).slice(0, 3).map((tool) => (
+                <span key={tool.name} className="inline-flex items-center gap-1">
+                  <span className="font-mono text-fg-dim">{tool.name}</span>
+                  <span>{`${fmtDuration(tool.ms, t)} · ${tool.calls}${t("contextview.timesUnit")}`}</span>
+                </span>
+              ))}
             </div>
-          ))}
+          )}
+        </>
+      ) : (
+        <div className="mt-2 flex items-center gap-4">
+          <Donut segments={TIMING_EMPTY_ROWS.map((r) => ({ value: 0, color: r.color }))} center="—" centerSub={t("contextview.timingActive")} />
+          <ul className="m-0 min-w-0 flex-1 list-none space-y-1 p-0 text-[10.5px]">
+            {TIMING_EMPTY_ROWS.map((r) => (
+              <li key={r.label} className="flex items-center gap-1.5">
+                <Dot color={r.color} />
+                <span className="shrink-0 text-fg-dim">{r.label}</span>
+                <span className="ml-auto font-mono tabular-nums text-fg-faint">—</span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>
   );
 }
 
-// ─── 4. SessionInfoCard 会话信息（行式键值直显） ──────────────────
 export function SessionInfoCard({
   sessionName,
   space,

@@ -42,10 +42,51 @@ func (f *folding) timingToken(e session.LogEntry) {
 	}
 }
 
+// timingSpan 记思考/回复分段（1:1 上游 Timing Stats：模型思考/模型回复行）。
+// 秒级粒度：段时长=该步内同类增量首末差；message 关闭时入账并清段。
+func (f *folding) timingSpan(e session.LogEntry, reasoning bool) {
+	if reasoning {
+		if f.reasoningStart == 0 {
+			f.reasoningStart = e.Ts
+		}
+		if e.Ts > f.reasoningLast {
+			f.reasoningLast = e.Ts
+		}
+		return
+	}
+	if f.textStart == 0 {
+		f.textStart = e.Ts
+	}
+	if e.Ts > f.textLast {
+		f.textLast = e.Ts
+	}
+}
+
+// timingSpanFlush 在 message 关闭时把段入账（块数=有该类增量的步数）。
+func (f *folding) timingSpanFlush() {
+	if f.reasoningStart != 0 && f.reasoningLast > f.reasoningStart {
+		f.timing.ReasoningMs += (f.reasoningLast - f.reasoningStart) * 1000
+	}
+	if f.reasoningStart != 0 {
+		f.timing.ReasoningBlocks++
+	}
+	if f.textStart != 0 && f.textLast > f.textStart {
+		f.timing.TextMs += (f.textLast - f.textStart) * 1000
+	}
+	if f.textStart != 0 {
+		f.timing.TextBlocks++
+	}
+	f.reasoningStart = 0
+	f.reasoningLast = 0
+	f.textStart = 0
+	f.textLast = 0
+}
+
 // timingAssistant 关闭一步生成：calls 计数（message/assistant_message 条数
 // = 主回合模型调用次数）；gen = 消息收尾 − 首 token。该步无任何已落盘增量
 // 时（纯工具调用步），消息本身即首个产物——等待整体记入 TTFT，gen 留 0。
 func (f *folding) timingAssistant(e session.LogEntry) {
+	f.timingSpanFlush()
 	f.timing.Calls++
 	if f.genStart != 0 {
 		if e.Ts > f.genStart {
@@ -110,6 +151,11 @@ func (f *folding) timingToolResult(e session.LogEntry) {
 func (f *folding) timingUsage(session.LogEntry) {
 	f.stepStart = 0
 	f.genStart = 0
+}
+
+// timingOutput 累计解码输出量（TPS 行分母数据源）。
+func (f *folding) timingOutput(p usagePayload) {
+	f.timing.OutputTokens += p.CompletionTokens
 }
 
 // timingTurnDone 累加本轮活跃时长并复位步骤状态。已派发未收结果的工具

@@ -248,6 +248,15 @@ type ContextTiming struct {
 	ToolsMs   int64        `json:"toolsMs,omitempty"`
 	ToolCalls int          `json:"toolCalls,omitempty"`
 	Tools     []ToolTiming `json:"tools,omitempty"`
+	// 1:1 上游 Timing Stats 六行拆分（v4.542）：模型思考/模型回复分段时长
+	// 与内容块数（reasoning/text 增量首末差，秒级粒度诚实近似）；OutputTokens
+	// 供输出速度（TPS）行。工具参数段：gaea 日志只落完整 dispatch（无流式
+	// 参数增量），无法推导——诚实缺席不伪造。
+	ReasoningMs     int64 `json:"reasoningMs,omitempty"`
+	ReasoningBlocks int   `json:"reasoningBlocks,omitempty"`
+	TextMs          int64 `json:"textMs,omitempty"`
+	TextBlocks      int   `json:"textBlocks,omitempty"`
+	OutputTokens    int64 `json:"outputTokens,omitempty"`
 }
 
 // ToolTiming 是单个工具名的调用次数与执行时长合计（Tools 排行条目）。

@@ -188,6 +188,11 @@ type folding struct {
 	stepStart int64 // 当前步起点（request_header ts；0=未知，退化用 lastTs）
 	genStart  int64 // 当前步首 token（首条 reasoning/text 增量）ts（0=未到）
 	lastTs    int64 // 上一条日志的 ts（步骤起点退化基准）
+	// 思考/回复分段计时（1:1 上游 Timing Stats 拆分；秒级首末差）。
+	reasoningStart int64
+	reasoningLast  int64
+	textStart      int64
+	textLast       int64
 	openTools map[string]toolOpen
 	toolAgg   map[string]*toolAgg
 }
@@ -223,6 +228,7 @@ func (f *folding) apply(e session.LogEntry) {
 		// 主回合的推理/文本增量落盘（v4.62 起子代理增量 wire-only 不落盘），
 		// 首条增量即该步「首 token」——真实 TTFT 的秒粒度近似。
 		f.timingToken(e)
+		f.timingSpan(e, e.Kind == "reasoning")
 	case "message", "assistant_message":
 		f.applyAssistant(e)
 		f.timingAssistant(e)
@@ -235,6 +241,7 @@ func (f *folding) apply(e session.LogEntry) {
 	case "usage":
 		f.applyUsage(e)
 		f.timingUsage(e)
+		f.timingOutput(usagePayloadOf(e.Payload))
 	case "turn_done":
 		f.closePending(e)
 		f.killOpenCmds(e.Ts)
@@ -830,6 +837,14 @@ func extractPathFromOutput(tool, output string) string {
 
 // maxFilePreview 是文件活动路径的展示上限（浏览视图截断，全文在日志里）。
 const maxFilePreview = 240
+
+// usagePayloadOf 解析 usage 事件的输出量（timingOutput 用；独立小函数避免
+// applyUsage 与计时路径耦合解析）。
+func usagePayloadOf(raw json.RawMessage) usagePayload {
+	var p usagePayload
+	_ = json.Unmarshal(raw, &p)
+	return p
+}
 
 // applyUsage 用真实用量关闭待完成请求（或为旧日志创建请求记录），并把分类
 // 按实际 promptTokens 等比缩放锚定。

@@ -234,6 +234,12 @@ export interface ContextTiming {
   toolsMs?: number;
   toolCalls?: number;
   tools?: ContextToolTiming[];
+  // 1:1 上游六行拆分（思考/回复分段+内容块数+输出量=TPS 数据源）。
+  reasoningMs?: number;
+  reasoningBlocks?: number;
+  textMs?: number;
+  textBlocks?: number;
+  outputTokens?: number;
 }
 
 // ─── 跨会话洞察（v4.542 刀2/刀3，对标 dsh-context Context Insights）──
@@ -322,12 +328,22 @@ export interface FamilyEventView {
   ref?: string; // report 专有
 }
 
+export interface FamilyTotalsView {
+  rootTokens: number;
+  rootCost?: number;
+  subTokens: number;
+  subCost?: number;
+  subCount: number;
+  outputTokens?: number;
+}
+
 export interface FamilyEventStreamView {
   ok: boolean;
   events: FamilyEventView[]; // Ts 升序，上限 400
   scanned: number;
   truncated?: number;
   refs: string[]; // agent 筛选 chips 单源（main 在前）
+  totals: FamilyTotalsView; // 编队费用行数据源（1:1 上游）
 }
 
 export interface ContextInsightsView {
