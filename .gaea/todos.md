@@ -52,4 +52,4 @@
 | ⏳ | 采集 20–30 个真实议题，补齐单席/独立多答/圆桌/定向质询（可选红队）并做人工质量评审 |
 | ⏳ | 安装并配置 Hindsight 后补录「众神殿四框架机制落地 2026-11-03」文档记忆 |
 | ⏳ | 按需安装 Ghidra/IDA/JADX/Kuna，补齐 REA 原生反编译 provider |
-| ⏳ | 跟踪 dshmarket 上游是否合入 Windows restart helper 的 `windowsHide` 修复 |
+| ✅ | dshmarket 上游跟踪销号（2026-11-13）：**1.73.19（2026-11-12 发布）lib/restart.js 已含 `windowsHide: true`**（detached spawn 行+注释实锤，npm pack 核验）——本地 `dshmarket@1.73.15.patch` 转为可退役；升级 dshmarket ≥1.73.19 时摘 patch（C:\AI\dsh 用户资产不动，留用户升级时执行） |

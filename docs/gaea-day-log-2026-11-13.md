@@ -142,3 +142,14 @@
   重载同 shell）；gaea 无宿主服务，**PTY 栈须自建**（Go ConPTY+帧式流+恢复）=成本大头。
   Q2/Q3/Q4 已答（终端=用户交互面与 Agent exec 分立、折叠沿用 pane 模式、任务中心单向 vs
   终端双向）；三选项 A 不做/B 轻量无终端/C 全量含 PTY；**只剩 Q1 待用户拍板**。
+
+## 10. 代码图谱追平 + dshmarket 上游跟踪销号（02:5x）
+
+- **代码图谱再生成**（ff3931f0）：162→164 包（+internal/gaea/workbench、filefilter，F1 增）、
+  源码 260k→264.8k 行、测试 208k→210.8k、内部边 467→474；分层不变量三项复算全 ✅；
+  设置面板快照资产 `frontend/src/data/codeAtlas.json` 同步（CodeAtlasPanel 7/7 绿）——
+  图谱从 5354c161（11-10）追平至 G1/G2+卫生批后。
+- **dshmarket 上游跟踪销号**：npm 实测 `dshmarket@1.73.19`（2026-11-12 发布）
+  `lib/restart.js` 已含 `windowsHide: true`（detached spawn 行 516+注释 394/511 实锤）——
+  本地 `dshmarket@1.73.15.patch` 转为**可退役**；升级动作属 C:\AI\dsh 用户资产，留用户
+  升级 dshmarket ≥1.73.19 时摘 patch（集成文档 §176 约定兑现）。
