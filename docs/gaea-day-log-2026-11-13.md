@@ -128,3 +128,17 @@
   wailsjs 生成件+voice-worklets 既定假阳性基线（183+26 项，非自研欠账）。
 - **race linux 6 例不修（诚实边界）**：无 gh（无法取 CI 日志）+无 WSL（无法本地跑 linux
   测试）——静态猜测修复违「宁不立项不虚构」。开修前提=用户提供 CI 日志或装 WSL。
+
+## 9. AGENTS.md 分流+W1 决策备忘（02:3x）
+
+- **AGENTS.md 顶部速览分流**：速览违「只留最近 3 版」纪律积压至 11-06 时代（最新发布条停在
+  v4.529.1，真实最新已 v4.543.0）——v4.455~v4.529 时代条+2026-10-30~11-06 未发布/提交状态
+  条**逐字节整段迁** `docs/archive/agents-version-history-2026-09.md`（阈值校准条随迁）；速览
+  重写=新 3 版（v4.543/542/539）+当前活跃线（better-sidebar 全清 ahead 16）。**水位
+  60449→25904B**，近水位 WARN 解除，check-docs 仍四查全绿。
+- **W1 底部工作台/终端决策备忘**（docs/gaea-w1-bottom-workbench-decision-2026-11.md，交接档
+  §6 W1 挂链）：回源 v0.32.0 实锤——**上游不拥有 PTY**（v0.21.1 让渡宿主），终端驱动宿主
+  会话级终端服务（帧式流+acknowledge 背压+snapshot 重放+进程跨卸载存活+contentId 持久收养
+  重载同 shell）；gaea 无宿主服务，**PTY 栈须自建**（Go ConPTY+帧式流+恢复）=成本大头。
+  Q2/Q3/Q4 已答（终端=用户交互面与 Agent exec 分立、折叠沿用 pane 模式、任务中心单向 vs
+  终端双向）；三选项 A 不做/B 轻量无终端/C 全量含 PTY；**只剩 Q1 待用户拍板**。
