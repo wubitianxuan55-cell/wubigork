@@ -101,3 +101,15 @@
      处理；
   3. `wails generate module` 可独立再生 wailsjs（无需完整 build）；每跑一次全 M 是 autocrlf
      相位，非真实变更。
+
+## 7. G2 真机走查收官（01:4x）
+
+- 夹具重建：合并拓扑干净落提交（feature 臂改 f.txt/加 g.txt、main 臂加 h.txt）+tag v0.1.0
+  +staged rename+双 worktree；wails build 9.98s（G2 版 exe a51323f4）+正式路径冒烟 200。
+- 实壳断言全绿零缺陷（GAEA_WALKTHROUGH+GAEA_WEBVIEW_DEBUG→CDP 9333）：提交图镜头 6 行
+  拓扑序（b6/b5/b4/b3/b1/b2）、分支选项四项、🏷 v0.1.0 装饰、「只读视图（不 checkout）」
+  标注、合并提交展开「默认无 diff」诚实提示、二进制提交「二进制」标记+占位、feature
+  筛选重拉精确 3 行（b3/b2/b1）。截图 .tmp/walk-4-graph.png。
+- 观察项（非缺陷）：镜头页签增至 5 个后「提交图」在窄栏换行显示——观感可接受，后续若
+  拥挤可改图标化。
+- 壳回收+沙箱清场+9333 无监听残留。G1+G2 全部镜头真机双实证齐备。
