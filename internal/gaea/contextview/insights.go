@@ -99,20 +99,20 @@ type InsightsTally struct {
 
 // InsightsSession 是会话卡片（范围内数字；无范围内活动不入选）。
 type InsightsSession struct {
-	Path            string   `json:"path"`
-	Title           string   `json:"title,omitempty"`
-	Preview         string   `json:"preview,omitempty"`
-	SpaceID         string   `json:"spaceId,omitempty"`
-	Archived        bool     `json:"archived,omitempty"`
-	ModTime         int64    `json:"modTime"`
-	LastActive      int64    `json:"lastActive"`
-	Tokens          int64    `json:"tokens"`
-	Requests        int      `json:"requests"`
-	Turns           int      `json:"turns"`
+	Path       string `json:"path"`
+	Title      string `json:"title,omitempty"`
+	Preview    string `json:"preview,omitempty"`
+	SpaceID    string `json:"spaceId,omitempty"`
+	Archived   bool   `json:"archived,omitempty"`
+	ModTime    int64  `json:"modTime"`
+	LastActive int64  `json:"lastActive"`
+	Tokens     int64  `json:"tokens"`
+	Requests   int    `json:"requests"`
+	Turns      int    `json:"turns"`
 	// LastMessage 是最后一条用户消息 brief（会话卡「最后消息」行；对齐上游）。
 	LastMessage string `json:"lastMessage,omitempty"`
 	// Steps 是范围内步数（会话卡「N 轮 M 步」的 M）。
-	Steps int `json:"steps,omitempty"`
+	Steps           int      `json:"steps,omitempty"`
 	Cost            float64  `json:"cost,omitempty"`
 	CacheHitPercent float64  `json:"cacheHitPercent,omitempty"`
 	Composition     Category `json:"composition"`

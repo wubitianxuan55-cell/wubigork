@@ -86,12 +86,13 @@ func (l voiceNativeLLMLeg) Reply(
 	if len(toolCalls) > 0 && ctx.Err() == nil {
 		var preview map[string]interface{}
 		ack := ""
-		for _, call := range toolCalls {
+		// 首批单工具语义：一次调用一回复（多 call 余量忽略——频控+话术已兜）。
+		{
+			call := toolCalls[0]
 			ack, preview = l.a.dispatchVoiceV2Tool(call)
 			if preview != nil {
 				l.a.app.emit(voiceV2ToolPreviewEvent, preview)
 			}
-			break // 首批单工具语义：一次调用一回复（多 call 余量忽略——频控+话术已兜）
 		}
 		if ack != "" {
 			// 追加而非替换：发起调用前的模型前缀已流经 onDelta（管线半句已播），
@@ -360,7 +361,7 @@ func seamRepair(prev, cur []byte, sr int) (out, newPrev []byte) {
 		if 2*i+1 >= len(b) {
 			return 0
 		}
-		return float64(int16(uint16(b[2*i]) | uint16(b[2*i+1])<<8)) / 32768.0
+		return float64(int16(uint16(b[2*i])|uint16(b[2*i+1])<<8)) / 32768.0
 	}
 	if len(prev) < 2*w || len(cur) < 2*w {
 		return prev, cur

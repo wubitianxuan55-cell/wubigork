@@ -11,11 +11,11 @@ import (
 // 波与整段一次重采样逐样本一致（容差=线性插值浮点误差）。
 func TestResampler24k16k_PhaseCarried(t *testing.T) {
 	const (
-		inRate      = 24000.0
-		freq        = 440.0
-		amp         = 0.5
-		total       = 24000 // 1 秒
-		chunkFaith  = 37    // 故意用非整除块大小（帧边界随机感）
+		inRate     = 24000.0
+		freq       = 440.0
+		amp        = 0.5
+		total      = 24000 // 1 秒
+		chunkFaith = 37    // 故意用非整除块大小（帧边界随机感）
 	)
 	gen := func(from, n int) []byte {
 		out := make([]byte, 0, n*2)
@@ -57,7 +57,6 @@ func TestResampler24k16k_PhaseCarried(t *testing.T) {
 	}
 }
 
-
 // TestResampler24k16k_AntiAlias — 抗混叠验证（社区共识：线性插值抽取无低通
 // 会把 8~12kHz 齿音折叠进 0~8k=不和谐金属音调）。10kHz 音频在输出奈奎斯特
 // 之上，经 63 阶 FIR 低通后应衰减 ≥20dB。
@@ -77,7 +76,7 @@ func TestResampler24k16k_AntiAlias(t *testing.T) {
 			}
 			out := r.push(pcm)
 			for i := 0; i+1 < len(out); i += 2 {
-				v := float64(int16(uint16(out[i]) | uint16(out[i+1])<<8)) / 32768.0
+				v := float64(int16(uint16(out[i])|uint16(out[i+1])<<8)) / 32768.0
 				sumSq += v * v
 				n++
 			}
@@ -87,12 +86,12 @@ func TestResampler24k16k_AntiAlias(t *testing.T) {
 		}
 		return math.Sqrt(sumSq / float64(n)), n
 	}
-	rmsRef, _ := pushTone(1000)  // 带内参考
+	rmsRef, _ := pushTone(1000)    // 带内参考
 	rmsAlias, _ := pushTone(10000) // 输出奈奎斯特(8k)之上=混叠源
 	if rmsRef <= 0 {
 		t.Fatal("参考音无输出")
 	}
-	attenuationDB := 20 * math.Log10(rmsAlias / rmsRef)
+	attenuationDB := 20 * math.Log10(rmsAlias/rmsRef)
 	if attenuationDB > -14 {
 		t.Fatalf("10kHz 混叠源衰减不足: %.1f dB（>-14dB=齿音折叠成金属音调）", attenuationDB)
 	}

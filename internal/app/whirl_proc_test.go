@@ -111,7 +111,7 @@ func TestWhirlProfileFromModels(t *testing.T) {
 }
 
 // TestManagedEngineSpec_IncludesWhirl 目录接线对账：whirl 引擎返回档位目录
-//（探活结果随环境，false 合法——引擎未运行不缺目录）。
+// （探活结果随环境，false 合法——引擎未运行不缺目录）。
 func TestManagedEngineSpec_IncludesWhirl(t *testing.T) {
 	profiles, _, _ := managedEngineSpec("whirl")
 	if len(profiles) != len(whirlProfiles) {

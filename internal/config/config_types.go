@@ -124,7 +124,7 @@ type configFile struct {
 	// tianxuan 独立引擎项目根目录（模型、二进制与启动档位由项目自身管理）。
 	TianxuanPath string `json:"tianxuan_path,omitempty"`
 	// strata 独立引擎项目根目录（.venv / serve / 档位 JSON 均在此目录）。
-	StrataPath   string `json:"strata_path,omitempty"`
+	StrataPath string `json:"strata_path,omitempty"`
 	// whirl 引擎安装目录（whirl-server.exe 与运行库 DLL 同驻）。
 	WhirlPath    string `json:"whirl_path,omitempty"`
 	VoiceBackend string `json:"voice_backend,omitempty"`

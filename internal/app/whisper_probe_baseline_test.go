@@ -208,7 +208,7 @@ func TestWhisperProbeBaseline(t *testing.T) {
 		for _, msg := range g.msgs {
 			pt := runProbeTurn(a, g.name, msg)
 			rep.Turns = append(rep.Turns, pt)
-			t.Logf("[%s/%s] %s -> %s %d字 gate=%s strat=%s clamp=%v", g.name, pt.FinalType, msg, abbrev(pt.Reply, 40), pt.ReplyChars, pt.GateLevel, pt.StrategyLevel, pt.ClampInjected)
+			t.Logf("[%s/%s] %s -> %s %d字 gate=%s strategy=%s clamp=%v", g.name, pt.FinalType, msg, abbrev(pt.Reply, 40), pt.ReplyChars, pt.GateLevel, pt.StrategyLevel, pt.ClampInjected)
 		}
 	}
 
@@ -221,7 +221,7 @@ func TestWhisperProbeBaseline(t *testing.T) {
 	for i, msg := range continuous {
 		pt := runProbeTurn(a, fmt.Sprintf("C15_r%d", i+1), msg)
 		rep.Continuous = append(rep.Continuous, pt)
-		t.Logf("[C15 r%d] aff=%.1f stage=%s strat=%s gate=%s -> %d字", i+1, pt.Aff, pt.Stage, pt.StrategyLevel, pt.GateLevel, pt.ReplyChars)
+		t.Logf("[C15 r%d] aff=%.1f stage=%s strategy=%s gate=%s -> %d字", i+1, pt.Aff, pt.Stage, pt.StrategyLevel, pt.GateLevel, pt.ReplyChars)
 	}
 
 	// 压制命中后下一轮中性长问（两臂实验协议要求）

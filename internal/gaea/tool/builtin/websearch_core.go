@@ -253,7 +253,7 @@ func (ws webSearch) runSearch(ctx context.Context, query string, topK int) (*Sea
 		}
 	}
 
-	var extras []taggedResults   // keyless 产出（按到达序，合并时按引擎序加权）
+	var extras []taggedResults // keyless 产出（按到达序，合并时按引擎序加权）
 	var primaryResults []SearchResult
 	primaryDegraded := "" // ""=主源正常参与；否则 primary-timeout / primary-error
 

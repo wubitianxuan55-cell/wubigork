@@ -331,7 +331,7 @@ type FullState struct {
 }
 
 // PendingSearch 待补槽位续接：最近一次搜索触发的查询词 + 触发轮次
-//（TotalTurns 口径）。指代消解纪律=只认最近一次搜索（旧 pending 被新搜索
+// （TotalTurns 口径）。指代消解纪律=只认最近一次搜索（旧 pending 被新搜索
 // 覆盖），不做任务栈。
 type PendingSearch struct {
 	Query     string `json:"query"`

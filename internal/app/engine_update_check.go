@@ -49,8 +49,8 @@ func strataBinPath(a *App) string {
 var strataEngineAssetRe = regexp.MustCompile(`strata-engine-([0-9]+\.[0-9]+\.[0-9]+)-windows`)
 
 var engineUpdateSpecs = map[string]engineUpdateSpec{
-	"whirl": {repo: "tsaipifong/whirl-llm", binPath: func(a *App) string { return whirlBinPath(a) }},
-	"llama": {repo: "ggml-org/llama.cpp", binPath: func(*App) string { return voiceV2LLMBinPath() }},
+	"whirl":  {repo: "tsaipifong/whirl-llm", binPath: func(a *App) string { return whirlBinPath(a) }},
+	"llama":  {repo: "ggml-org/llama.cpp", binPath: func(*App) string { return voiceV2LLMBinPath() }},
 	"strata": {repo: "Niko1221/Strata", binPath: strataBinPath, assetVersionRe: strataEngineAssetRe},
 }
 

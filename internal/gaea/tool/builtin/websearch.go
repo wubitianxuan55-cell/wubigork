@@ -77,13 +77,6 @@ func (webSearch) ReadOnly() bool { return true }
 func (webSearch) CompactDescription() string     { return compactDesc["web_search"] }
 func (webSearch) CompactSchema() json.RawMessage { return compactSchema["web_search"] }
 
-// engineError records a failed engine attempt for diagnostics.
-type engineError struct {
-	name    string
-	err     error
-	elapsed time.Duration
-}
-
 func (ws webSearch) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p struct {
 		Query string `json:"query"`

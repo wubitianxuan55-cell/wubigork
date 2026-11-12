@@ -281,6 +281,7 @@ func TestFoldEmptyCommandsMarshalAsArrays(t *testing.T) {
 		t.Fatalf("commands should marshal as [], got %s", b)
 	}
 }
+
 // TestFoldLegacyCommandsFromEmbeddedToolCalls（真实数据探针定罪的补账）：
 // 迁移日志零 tool_dispatch——命令时间线此前恒空而 bash 结果在。legacy 内嵌
 // tool_calls 即派发事实，按 id 开挂起命令、tool_result 既有配对照常收尾。

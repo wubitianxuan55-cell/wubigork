@@ -63,15 +63,15 @@ func (e *Engine) Close() {
 		return
 	}
 	if e.eot != nil {
-		e.eot.Destroy()
+		_ = e.eot.Destroy()
 		e.eot = nil
 	}
 	if e.eotIn != nil {
-		e.eotIn.Destroy()
+		_ = e.eotIn.Destroy()
 		e.eotIn = nil
 	}
 	if e.eotOut != nil {
-		e.eotOut.Destroy()
+		_ = e.eotOut.Destroy()
 		e.eotOut = nil
 	}
 	if e.rec != nil {
@@ -125,22 +125,22 @@ func (e *Engine) initEOT() error {
 	}
 	out, err := ort.NewTensor(ort.NewShape(1, 1), make([]float32, 1))
 	if err != nil {
-		in.Destroy()
+		_ = in.Destroy()
 		return fmt.Errorf("EOT 输出张量创建失败: %w", err)
 	}
 	opts, err := ort.NewSessionOptions()
 	if err != nil {
-		in.Destroy()
-		out.Destroy()
+		_ = in.Destroy()
+		_ = out.Destroy()
 		return fmt.Errorf("EOT 会话选项创建失败: %w", err)
 	}
-	defer opts.Destroy()
+	defer func() { _ = opts.Destroy() }()
 	sess, err := ort.NewAdvancedSession(e.cfg.SmartTurnModelPath,
 		[]string{"input_features"}, []string{"logits"},
 		[]ort.Value{in}, []ort.Value{out}, opts)
 	if err != nil {
-		in.Destroy()
-		out.Destroy()
+		_ = in.Destroy()
+		_ = out.Destroy()
 		return fmt.Errorf("EOT 会话创建失败: %w", err)
 	}
 	e.eot, e.eotIn, e.eotOut = sess, in, out
@@ -301,41 +301,41 @@ func (e *Engine) NewSileroVAD(modelPath string) (*SileroVAD, error) {
 	}
 	state, err := ort.NewTensor(ort.NewShape(2, 1, 128), make([]float32, 256))
 	if err != nil {
-		in.Destroy()
+		_ = in.Destroy()
 		return nil, fmt.Errorf("VAD 状态张量创建失败: %w", err)
 	}
 	out, err := ort.NewTensor(ort.NewShape(1, 1), make([]float32, 1))
 	if err != nil {
-		in.Destroy()
-		state.Destroy()
+		_ = in.Destroy()
+		_ = state.Destroy()
 		return nil, fmt.Errorf("VAD 输出张量创建失败: %w", err)
 	}
 	stateN, err := ort.NewTensor(ort.NewShape(2, 1, 128), make([]float32, 256))
 	if err != nil {
-		in.Destroy()
-		state.Destroy()
-		out.Destroy()
+		_ = in.Destroy()
+		_ = state.Destroy()
+		_ = out.Destroy()
 		return nil, fmt.Errorf("VAD 状态输出张量创建失败: %w", err)
 	}
 	opts, err := ort.NewSessionOptions()
 	if err != nil {
-		in.Destroy()
-		state.Destroy()
-		out.Destroy()
-		stateN.Destroy()
+		_ = in.Destroy()
+		_ = state.Destroy()
+		_ = out.Destroy()
+		_ = stateN.Destroy()
 		return nil, fmt.Errorf("VAD 会话选项创建失败: %w", err)
 	}
-	defer opts.Destroy()
+	defer func() { _ = opts.Destroy() }()
 	// 模型须为 sr 常量化版（silero_vad_v5_16k.onnx——yalue 不支持 0 维标量输入，
 	// sr=16000 已烘进图，.tmp/voice-native-gen/fix_silero_sr.py 生成并等价验证）。
 	sess, err := ort.NewAdvancedSession(modelPath,
 		[]string{"input", "state"}, []string{"output", "stateN"},
 		[]ort.Value{in, state}, []ort.Value{out, stateN}, opts)
 	if err != nil {
-		in.Destroy()
-		state.Destroy()
-		out.Destroy()
-		stateN.Destroy()
+		_ = in.Destroy()
+		_ = state.Destroy()
+		_ = out.Destroy()
+		_ = stateN.Destroy()
 		return nil, fmt.Errorf("VAD 会话创建失败: %w", err)
 	}
 	return &SileroVAD{
@@ -389,11 +389,11 @@ func (s *SileroVAD) Destroy() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.sess != nil {
-		s.sess.Destroy()
+		_ = s.sess.Destroy()
 		s.sess = nil
 	}
-	s.in.Destroy()
-	s.state.Destroy()
-	s.out.Destroy()
-	s.stateN.Destroy()
+	_ = s.in.Destroy()
+	_ = s.state.Destroy()
+	_ = s.out.Destroy()
+	_ = s.stateN.Destroy()
 }

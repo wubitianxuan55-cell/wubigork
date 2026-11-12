@@ -166,11 +166,6 @@ func SubagentScopeFromContext(ctx context.Context) (SubagentScope, bool) {
 	return s, ok
 }
 
-func subagentReadOnlyFromContext(ctx context.Context) bool {
-	s, ok := SubagentScopeFromContext(ctx)
-	return ok && s.ReadOnly
-}
-
 // subagentWriteDenylist 已知写工具硬拒绝名单：ReadOnly() 是工具自报属性，
 // 误标写工具仍可能越权（裁决 pan_1794117515203 风险条）——名单优先于自报，
 // 命中即拒，不看 ReadOnly()。跨 harness 常见写面别名一并收录（PersistWrite

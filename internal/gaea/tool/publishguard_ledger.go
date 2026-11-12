@@ -62,7 +62,7 @@ func appendQuarantineRecord(quarantineRoot string, rec quarantineRecord) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	_ = f.Close()
 	b, err := json.Marshal(rec)
 	if err != nil {
 		return err

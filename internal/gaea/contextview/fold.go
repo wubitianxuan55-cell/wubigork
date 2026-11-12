@@ -195,8 +195,8 @@ type folding struct {
 	reasoningLast  int64
 	textStart      int64
 	textLast       int64
-	openTools map[string]toolOpen
-	toolAgg   map[string]*toolAgg
+	openTools      map[string]toolOpen
+	toolAgg        map[string]*toolAgg
 }
 
 // toolOpen 是一次已派发未收结果的工具调用（按调用 id 配对）。
@@ -304,13 +304,13 @@ func (f *folding) applyHeader(e session.LogEntry) {
 	if h.Provider != "" {
 		if f.provider != "" && f.provider != h.Provider {
 			f.events = append(f.events, ContextEvent{
-				Kind:  "switch",
-				Seq:   e.Seq,
-				From:  f.provider,
-				To:    h.Provider,
-				Turn:  f.turn,
-				Step:  f.step,
-				Ts:    e.Ts,
+				Kind: "switch",
+				Seq:  e.Seq,
+				From: f.provider,
+				To:   h.Provider,
+				Turn: f.turn,
+				Step: f.step,
+				Ts:   e.Ts,
 			})
 		}
 		f.provider = h.Provider
@@ -531,7 +531,7 @@ func (f *folding) applyAssistant(e session.LogEntry) {
 	}
 	f.addNode(SurfaceNode{
 		Seq: e.Seq, Ts: e.Ts, Cat: catAssistant, Tokens: total,
-		Text: briefOf(p.Text, maxNodePreview),
+		Text:      briefOf(p.Text, maxNodePreview),
 		Reasoning: reas, AnswerTokens: ans, CallTokens: call,
 	})
 }

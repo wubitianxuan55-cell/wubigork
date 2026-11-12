@@ -99,7 +99,7 @@ func selfHostServer(modelsRoot, outDir string) (func(), string, error) {
 	srv := &realtime.Server{Addr: "127.0.0.1:0", Handler: pipe}
 	if err := srv.Start(); err != nil {
 		slog.SetDefault(prev)
-		lf.Close()
+		_ = lf.Close()
 		silero.Destroy()
 		eng.Close()
 		return nil, "", err
@@ -110,7 +110,7 @@ func selfHostServer(modelsRoot, outDir string) (func(), string, error) {
 		srv.Stop()
 		_ = http.DefaultClient.CloseIdleConnections
 		slog.SetDefault(prev)
-		lf.Close()
+		_ = lf.Close()
 		silero.Destroy()
 		eng.Close()
 	}

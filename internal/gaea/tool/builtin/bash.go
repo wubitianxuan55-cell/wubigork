@@ -250,7 +250,7 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 			// 置失败，bash_output 可读说明）。
 			if pub != nil {
 				if perr := b.publishCheck(pub); perr != nil {
-					fmt.Fprintln(out, perr.Error())
+					_, _ = fmt.Fprintln(out, perr.Error())
 					return "", perr
 				}
 			}

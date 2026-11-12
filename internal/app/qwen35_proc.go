@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	qwen35Port            = 8124
-	qwen35StartWait       = 300 * time.Second
+	qwen35Port      = 8124
+	qwen35StartWait = 300 * time.Second
 	// whirlfix2：张量手术版（仅 blk.40 两个 BF16 router→F32，权重位级无损，
 	// llama/WHIRL 双引擎兼容）。2026-11-11 起成为唯一 35B 文件（原件已删，
 	// 单副本原则——llama 8124 与 WHIRL 8126 服务同一份文件）。
@@ -341,11 +341,6 @@ func (a *App) llamaEnsure(profileID string) map[string]interface{} {
 		"served_models": served,
 		"profiles":      engineProfileJSON(llamaProfiles),
 	}
-}
-
-// qwen35Ensure 保留现有聊天/语音内部调用语义，默认拉起 Qwen35。
-func (a *App) qwen35Ensure() map[string]interface{} {
-	return a.llamaEnsure(llamaDefaultProfileID)
 }
 
 // Qwen35EngineStart 保留旧 Wails 绑定名，但不再提供默认模型：必须由调用方

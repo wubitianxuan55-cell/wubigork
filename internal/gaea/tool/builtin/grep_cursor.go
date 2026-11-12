@@ -91,7 +91,7 @@ func newCursorSnap() *cursorSnap { return &cursorSnap{h: sha256.New()} }
 func (s *cursorSnap) feed(rel string, size int64, mtimeNano int64) {
 	s.h.Write([]byte(rel))
 	s.h.Write([]byte{0})
-	fmt.Fprintf(s.h, "%d\x00%d\x00", size, mtimeNano)
+	_, _ = fmt.Fprintf(s.h, "%d\x00%d\x00", size, mtimeNano)
 }
 
 func (s *cursorSnap) sum() string { return hex.EncodeToString(s.h.Sum(nil))[:16] }

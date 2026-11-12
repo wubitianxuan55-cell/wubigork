@@ -24,9 +24,9 @@ import (
 const (
 	FamilyAgentMain = "main"
 
-	FamilyKindMessage   = "message"
-	FamilyKindDispatch  = "dispatch"
-	FamilyKindReport    = "report"
+	FamilyKindMessage  = "message"
+	FamilyKindDispatch = "dispatch"
+	FamilyKindReport   = "report"
 
 	maxFamilyEvents  = 400
 	maxFamilyPreview = 160
@@ -34,8 +34,8 @@ const (
 
 // FamilyEvent 是家族事件流的一条。
 type FamilyEvent struct {
-	Seq  int64  `json:"seq"`
-	Ts   int64  `json:"ts"`
+	Seq   int64  `json:"seq"`
+	Ts    int64  `json:"ts"`
 	Agent string `json:"agent"` // "main" 或 sa_ 引用
 	Kind  string `json:"kind"`  // message | dispatch | report
 	// Role 是 message 专有的发言方（user|assistant）。

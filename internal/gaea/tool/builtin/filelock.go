@@ -66,7 +66,7 @@ func acquireFileLock(target string) error {
 		f, err := os.OpenFile(sidecar, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
 		if err == nil {
 			if _, werr := f.WriteString(fileLockToken); werr != nil {
-				f.Close()
+				_ = f.Close()
 				_ = os.Remove(sidecar)
 				return fmt.Errorf("lock %s: %w", sidecar, werr)
 			}

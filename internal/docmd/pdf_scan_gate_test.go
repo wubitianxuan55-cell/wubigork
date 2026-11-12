@@ -59,8 +59,8 @@ func TestStampNoiseText(t *testing.T) {
 		{"空/纯空白", "  \n\t", false},
 		{"稀疏汉字正文", "甲\n乙\n丙\n丁", false},        // 含 CJK，非噪声
 		{"单行英文正文", "Hello Flate World", false}, // 有字母词且行长
-		{"短英文词", "hi\nok", false},               // hi 含字母词？hi=2 字母 → 词，非噪声
-		{"CJK 页码戳仍不算噪声", "第1页", false},       // 已知漏检面，从严不误伤
+		{"短英文词", "hi\nok", false},              // hi 含字母词？hi=2 字母 → 词，非噪声
+		{"CJK 页码戳仍不算噪声", "第1页", false},         // 已知漏检面，从严不误伤
 	}
 	for _, c := range cases {
 		if got := stampNoiseText(c.in); got != c.want {

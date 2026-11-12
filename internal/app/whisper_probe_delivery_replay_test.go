@@ -29,7 +29,7 @@ import (
 const replayPersona = "bokke"
 
 func replayPoemLines(reply string) []string {
-	punct := "，。！？、；：「」『』…—·.!,;: ()（） \t"
+	punct := "，。！？、；：「」『』…—·.!,;: ()（）\t"
 	var lines []string
 	for _, raw := range strings.Split(reply, "\n") {
 		line := strings.TrimSpace(raw)
