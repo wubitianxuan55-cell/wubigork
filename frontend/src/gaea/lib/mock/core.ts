@@ -282,7 +282,7 @@ export function buildCore(s: MakeMockState): CoreMethods {
         ],
         sessions: [
           {
-            path: "C:\demo\.gaea\sessions\work\demo-a.jsonl",
+            path: "C:\\demo\\.gaea\\sessions\\work\\demo-a.jsonl",
             title: "上下文界面升级换代", preview: "根据调研结果，拟定计划并开始",
             spaceId: "work", modTime: Math.floor(Date.now() / 1000) - 600,
             lastActive: Math.floor(Date.now() / 1000) - 600,
@@ -292,7 +292,7 @@ export function buildCore(s: MakeMockState): CoreMethods {
             skills: ["gbt-9704-docx"], tools: ["read_file", "bash", "grep"], programs: ["go", "npm.cmd"],
           },
           {
-            path: "C:\demo\.gaea\sessions\play\demo-b.jsonl",
+            path: "C:\\demo\\.gaea\\sessions\\play\\demo-b.jsonl",
             title: "旧日志估算样例（无 usage）", preview: "迁移会话",
             spaceId: "play", modTime: Math.floor(Date.now() / 1000) - 86400 * 3,
             lastActive: Math.floor(Date.now() / 1000) - 86400 * 3,

@@ -315,7 +315,7 @@ export function Insights({ running, onOpenSession }: {
               </div>
             </section>
             <section className="ctx-card p-3">
-              <TallyList kind="skills" title={t("contextinsights.tallySkills")} items={data.skills} color="#6366f1" onPick={setTallyFilter} picked={tallyFilter} unit={t("contextinsights.unitLoads")} />
+              <TallyList kind="skills" title={t("contextinsights.tallySkills")} items={data.skills} color="var(--md-sys-color-secondary, var(--color-accent))" onPick={setTallyFilter} picked={tallyFilter} unit={t("contextinsights.unitLoads")} />
             </section>
             <section className="ctx-card p-3">
               <TallyList kind="tools" title={t("contextinsights.tallyTools")} items={data.tools} color="var(--md-sys-color-primary, var(--color-primary))" onPick={setTallyFilter} picked={tallyFilter} unit={t("contextinsights.unitCalls")} />

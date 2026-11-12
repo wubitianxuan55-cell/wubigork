@@ -290,7 +290,7 @@ function commandProgramOf(cmd: string): string {
   for (const tok of cmd.split(/\s+/).filter(Boolean)) {
     if (tok.includes("=") && !tok.startsWith("/") && !tok.startsWith("-")) continue;
     if (tok === "sudo" || tok === "nice" || tok === "nohup" || tok === "command") continue;
-    const base = tok.replace(/^["']|["']$/g, "").split(/[\/]/).pop();
+    const base = tok.replace(/^["']|["']$/g, "").split(/[/]/).pop();
     return base || tok;
   }
   return "other";
