@@ -9,6 +9,8 @@
 | ✅ | F0：`f49ea150` 功能提交 + 独立干净工作树构建（Vite 20.38s / Wails 50.158s）+ 正式路径冒烟 200 + 预览 ZIP/源码 TAR/哈希/包记录/记忆更新 |
 | ⏳ | 用户决定是否 push，以及是否用本预览包装机覆盖 `C:\AI\gaea-app` |
 | ✅ | G1.6 worktree 只读展示+Git 子进程预算收口：`GaeaGitWorktrees` 绑定+GitStatus linked 标注+GitPanel 第四镜头；git 调用统一超时（读 20s/写 60s）+输出预算（8MB/1MB/diff 4MB 截断）；设计判定=切换归工作区切换器产品门、服务扩展不重做；分支 `feat/g1-git-deepening`（自 `de283ace`）Go/tsc/vitest/drift 全绿待并入 |
+| ✅ | G1.6 已快进并入 main（205c5947，本地未 push） |
+| ✅ | G1.7 冲突/重命名/二进制展示策略收口：GitFileStatus.conflict 六形态+origPath 溯源+冲突 staged=false；GitPanel 冲突独立分组（不代解）+rename `← 原名`；buildGitDiff 二进制诚实占位；gitStatusInk 六形态补齐；分支 `feat/g1-git-display-strategy`（自 `205c5947`）全绿待并入 |
 | ✅ | 前端测试成本线收口提交 `de283ace`：vitest 双项目 logic=node/ui=jsdom，全量复验 497 文件/4348 用例绿 393.6s（基线 569s）；余项 --changed 回路+小文件合并仍挂拍板 |
 | ✅ | F2.1：文件树 Git 状态着色——X/Y 文件徽标、语义色、目录/根汇总点、30s/聚焦/事件刷新；定向 23 用例与 ESLint 绿（随 `f49ea150` 提交，真机待走查） |
 | ✅ | F2 文件树完整度：默认/用户排除规则与树/@搜索/watcher 同源、单目录链折叠、完整文件类型图标、打开方式子菜单；定向 53 用例/tsc/vet/ESLint 绿（随 `f49ea150` 提交，真机待走查） |
@@ -18,7 +20,7 @@
 | ✅ | G1.3 统一只读变更树：Git+Agent 路径合并、目录 rollup、暂存/工作区/AI 来源徽标与文件打开；定向 12 用例/tsc/ESLint 绿（随 `f49ea150` 提交） |
 | ✅ | G1.4 统一树快操作：全部/Git/AI来源筛选 + stage/unstage/两击 discard 直连既有 Git 绑定；定向 14 用例/tsc/ESLint 绿（随 `f49ea150` 提交） |
 | ✅ | G1.5 统一行内 diff：已跟踪文件行展开暂存/工作区 diff，双侧面可切换；定向 16 用例/tsc/ESLint 绿（随 `f49ea150` 提交） |
-| ⏳ | G1 深化余项：无 git 的更多能力级降级、危险操作边界补强、大 diff/二进制/重命名展示策略细化（G1.6 已收口 worktree 展示+超时/预算，见上） |
+| ⏳ | G1 深化余项：无 git 的更多能力级降级、危险操作边界再补强（G1.6 worktree 展示+超时/预算、G1.7 冲突/重命名/二进制展示策略均已收口，见上） |
 | ⏳ | G2/W1/X1：只读提交图、底部工作台/终端、插件服务与开始页接管，均按用户拍板门控 |
 | ⛔ | 侧聊服务 / 侧边对话——用户已明确不做，除非未来重新拍板 |
 | ✅ | 引擎实升最新版：llama b12110（+49%，80.1 tok/s）+Strata v0.2.13/e0.1.59（42.7 带内无回退）+strata 版本口径修（资产名抓组件版本），v4.538.0 装机 PID 35608（2026-11-11 夜） |

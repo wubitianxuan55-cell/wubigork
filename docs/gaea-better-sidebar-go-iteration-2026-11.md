@@ -8,7 +8,7 @@
 >
 > 上游基线：`dsh-better-sidebar v0.32.0`，解析后 commit `53e08cec61f1a3cfe32b86e6429876fff1ef0504`（2026-11-12）。
 >
-> 当前批次：**G1.6（worktree 只读展示 + Git 子进程超时/预算收口）已在 `feat/g1-git-deepening` 分支完成验证，待并入**。此前 F1 + F2 + F3 与 G1.1–G1.5 已提交为 `f49ea150`，并完成独立干净工作树构建、正式路径冒烟、预览包与源码包。
+> 当前批次：**G1.7（冲突/重命名/二进制展示策略收口）在分支 `feat/g1-git-display-strategy` 验证中**；G1.6（worktree 只读展示+子进程预算）已快进并入 main（`205c5947`）。F1 + F2 + F3 与 G1.1–G1.5 已提交为 `f49ea150` 并完成独立干净工作树构建、正式路径冒烟、预览包与源码包。
 > 当前仍**未 push、未覆盖正式安装版**；G1 剩余的 worktree 切换（=工作区切换器，产品门）按 §6 判定推进。
 
 本文替代旧的 2026-09 滚动规划，作为后续新会话的恢复入口。旧文档
@@ -477,7 +477,8 @@ F1 新增 17 个 Wails 方法，绑定面由 728 变为 **745**。
 后续仍必须先设计：
 
 - 仓库根识别/嵌套工作区过滤已完成：状态始终从仓库根读取，再归一为当前工作区相对路径；工作区外变更不上树。
-- **G1.6 已完成（2026-11-12，分支 `feat/g1-git-deepening`）**：①worktree 只读展示——`GaeaGitWorktrees` 绑定（`git worktree list --porcelain` 解析：主检出/linked/detached/bare/locked，isCurrent 与工作区 toplevel 等值判定），`GitStatus` 增 `isLinkedWorktree`/`mainWorktreePath`（`--absolute-git-dir` ≠ `--git-common-dir`），GitPanel 第四镜头「工作树」+ 头部 linked 标注 chip；②Git 子进程验收欠账收口——全部 git 调用走 `gitRunBudgeted`（读面 20s/8MB、写面 60s/1MB、diff 4MB 展示层截断标记），管道反压早停 + ctx 强杀兜底；③mock/签名/绑定名/legacy 四表同步，绑定 745→746。
+- **G1.6 已完成（2026-11-12，`7a544d37`+`205c5947`，已快进并入 main）**：①worktree 只读展示——`GaeaGitWorktrees` 绑定（`git worktree list --porcelain` 解析：主检出/linked/detached/bare/locked，isCurrent 与工作区 toplevel 等值判定），`GitStatus` 增 `isLinkedWorktree`/`mainWorktreePath`（`--absolute-git-dir` ≠ `--git-common-dir`），GitPanel 第四镜头「工作树」+ 头部 linked 标注 chip；②Git 子进程验收欠账收口——全部 git 调用走 `gitRunBudgeted`（读面 20s/8MB、写面 60s/1MB、diff 4MB 展示层截断标记），管道反压早停 + ctx 强杀兜底；③mock/签名/绑定名/legacy 四表同步，绑定 745→746。
+- **G1.7 已完成（2026-11-13，分支 `feat/g1-git-display-strategy`）**：冲突/重命名/二进制展示策略收口——①Go `GitFileStatus` 增 `conflict`（六形态 U/AA/DD/AU/UA/DU/UD，与 gitStatusInk 同规则）与 `origPath`（porcelain -z rename 来源路径，走同一工作区过滤口径）；冲突文件 `staged=false`（不可提交，不进提交计数）；②GitPanel 冲突独立分组（首组+诚实提示「本面板不代解」，展开行给解决指引而非拉 combined diff）、重命名行显示 `← 原名`；③`buildGitDiff` 按前缀识别二进制输出为诚实占位「二进制文件：不提供文本 diff」（原先落「未能解析出 diff 内容」误导文案）；④gitStatusInk 冲突判定补齐六形态+吃 Go 侧 conflict 标记。
 - **两个设计判定（本批固化）**：①gaea 全应用单一 workspace 锚（`ga.cfg.Workspace`），FileTree/Git/Agent 共用——上游「跟随会话进 linked worktree」会造成多面板基准分裂，**worktree「切换」= 工作区切换器，归 G2/W1 级产品门另立**，不做 add/remove/prune；②**Go Git 服务扩展不重做**——现有 `gaea_git.go` 391 行、硬化与测试齐全，缺的只是超时/预算（已收口）与 worktree 列表（已加），不搬家不重构。
 - 后续：无 `git` 的更多能力级降级。
 - 工作区变更、暂存区变更、Agent 本轮写入/编辑/读取三视角的数据来源和去重规则。
@@ -662,7 +663,8 @@ go vet ./internal/gaea/workbench ./internal/app
 | G1.3 | 2026-11-12 | 🟡 工作树候选 | 统一变更树：Git+Agent 路径合并、目录 rollup、来源徽标、文件打开 | 定向 3 文件/12 用例；`tsc -b`；定向 ESLint；未跑构建与真机走查 |
 | G1.4 | 2026-11-12 | 🟡 工作树候选 | 统一树来源筛选（全部/Git/AI）+ stage/unstage/两击 discard 快操作 | 定向 3 文件/14 用例；`tsc -b`；定向 ESLint；未跑构建与真机走查 |
 | G1.5 | 2026-11-12 | 🟡 工作树候选 | 统一树文件行内暂存/工作区 diff，双侧面可切换 | 定向 3 文件/16 用例；`tsc -b`；定向 ESLint；未跑构建与真机走查 |
-| G1.6 | 2026-11-12 | 🟡 分支候选（`feat/g1-git-deepening`，自 `de283ace`） | worktree 只读展示（`GaeaGitWorktrees` 绑定+GitStatus linked 标注+GitPanel 第四镜头「工作树」+头部 chip）+ Git 子进程超时/输出预算收口（读 20s/8MB、写 60s/1MB、diff 4MB 截断标记）+ 设计判定固化（切换=工作区切换器另立产品门；服务扩展不重做） | Go 定向 10 例+全包 `go test ./internal/app ./internal/gaea/workbench` 绿、vet 绿；`tsc -b`+Vite build 23.42s 绿；GitPanel 12 用例（含 2 新）+mock 契约 19/19 绿；绑定 745→746 四表同步+drift OK；9 文件 ESLint 绿；未跑 Wails build 与真机走查 |
+| G1.6 | 2026-11-12 | ✅ 已并入 main（快进） | worktree 只读展示（`GaeaGitWorktrees` 绑定+GitStatus linked 标注+GitPanel 第四镜头「工作树」+头部 chip）+ Git 子进程超时/输出预算收口（读 20s/8MB、写 60s/1MB、diff 4MB 截断标记）+ 设计判定固化（切换=工作区切换器另立产品门；服务扩展不重做） | Go 定向 10 例+全包绿、vet 绿；`tsc -b`+Vite build 23.42s 绿；GitPanel 12 用例+mock 契约 19/19 绿；绑定 745→746 四表同步+drift OK；9 文件 ESLint 绿；未跑 Wails build 与真机走查 |
+| G1.7 | 2026-11-13 | 🟡 分支候选（`feat/g1-git-display-strategy`，自 `205c5947`） | 冲突/重命名/二进制展示策略收口：Go `GitFileStatus.conflict`（六形态）+`origPath`（-z rename 来源）+冲突 staged=false；GitPanel 冲突独立分组+不代解提示+展开行解决指引、rename `← 原名`；buildGitDiff 二进制诚实占位；gitStatusInk 六形态补齐 | Go 新 3 例（真仓 UU/rename 溯源/二进制 diff）+定向绿；tsc+Vite 24.85s 绿；GitPanel 15 例（3 新）+ink+planDiff+契约 28+15 绿；7 文件 ESLint 绿；无新绑定（746 不变）；未跑 Wails build 与真机走查 |
 | F0 | 2026-11-12 | ✅ 已提交并打包 | 功能提交 `f49ea150`；独立干净工作树构建；预览 ZIP + 提交源码 TAR + 包记录 + 长期记忆更新 | 前端 build/Vite 20.38s；Wails 50.158s；smoke 200；ZIP/TAR/四件套 SHA256 已核验；未 push/未装机 |
 
 ## 12. 下一会话建议提示词

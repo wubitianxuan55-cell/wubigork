@@ -1,3 +1,10 @@
+## G1.7 冲突/重命名/二进制展示策略收口 · 2026-11-13（凌晨，分支候选）
+
+- **并入**：G1.6 分支（7a544d37+205c5947）已快进并入 main（本地，未 push，main ahead origin 5）。
+- **Go**（`gaea_git.go`）：`GitFileStatus` 增 `Conflict`（六形态 U/AA/DD/AU/UA/DU/UD，`isConflictXY` 与前端 ink 同规则）与 `OrigPath`（porcelain -z rename 来源，原 i++ 丢弃；走同一 workspaceStatusPath 过滤口径）；**冲突 staged=false**（不可提交，不进提交计数，修正 UU 误入「已暂存」组）。测试 3 新：真仓 UU（双分支 merge）/rename 溯源/二进制 diff 原样过管道。
+- **前端**：GitPanel 冲突独立分组（首组+「本面板不代解」提示；展开行给 `<<<<<<<`+git add 指引而非拉 combined diff；冲突行无 stage/unstage/discard——git add 冲突文件=冲突标记入暂存属危险动作）+ rename 行 `← 原名`；`buildGitDiff` 二进制前缀 →「二进制文件：不提供文本 diff」诚实占位（原「未能解析出 diff 内容」误导）；`gitStatusInk` 冲突补齐六形态+吃 Go 标记；mock 样例补冲突+rename。
+- **验证**：Go 定向+全包复跑绿（首跑 FAIL=与前端构建并发的负载期假红，零交集+复跑绿定性）；tsc+Vite 24.85s；GitPanel 15（3 新）+ink+planDiff 15+契约 28/28 绿；7 文件 ESLint 零；绑定 746 不变。未跑 Wails build/未装机。
+
 ## G1.6 worktree 只读展示 + Git 子进程预算收口 · 2026-11-12（深夜，分支候选）
 
 - **分支**：`feat/g1-git-deepening`（自 `de283ace` = main tip，含前端测试成本线提交）。设计判定固化在交接档 §6：gaea 全应用单一 workspace 锚，上游「跟随会话进 linked worktree」会造成多面板基准分裂——worktree「切换」=工作区切换器，归 G2/W1 级产品门另立；Go Git 服务扩展不重做。
