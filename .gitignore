@@ -23,6 +23,7 @@ frontend/package.json.md5
 # vitest 门禁产物（CI 分类器读写，复跑清单同目录）
 frontend/vitest-report.json
 frontend/vitest-retry-files.txt
+frontend/.vitest/
 # go test 门禁产物（同上：ci.yml backend job 的 -json 报告 / stderr / 复跑包清单）
 go-test.json
 go-test.err
@@ -112,3 +113,4 @@ releases/*-source.tar.gz
 temp/
 .zcode/
 /dsh-wubi/
+frontend/.vitest-reports/

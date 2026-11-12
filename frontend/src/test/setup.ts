@@ -71,6 +71,10 @@ if (typeof window !== 'undefined' && typeof Element !== 'undefined' && typeof (E
 }
 
 afterEach(async () => {
+  // node 环境项目（logicEnvFiles 清单）无 DOM 无 React，直接跳过：
+  // cleanup/act 在无 document 的环境会炸。setup 内容按 jsdom 专用写，
+  // 环境归属由 vite.config.ts 的 projects 决定，这里只做内容级兜底。
+  if (typeof document === 'undefined') return
   // 冲刷并发调度器里未落地的 commit：重组件测试的延迟 setState 若在本文件
   // jsdom 环境拆除后才 flush，react-dom 会在无 window 的环境里 commit
   // （unhandled error → 全量 vitest 进程退 1 且报告不落盘）。远端 CI 实锤
@@ -90,5 +94,6 @@ afterEach(async () => {
 // 族），afterEach 冲不到——若留到 jsdom 环境拆除后才 flush，react-dom 会在
 // 无 window 的环境里 commit（unhandled error → 全量进程退 1，远端实锤）。
 afterAll(async () => {
+  if (typeof document === 'undefined') return
   await act(async () => {})
 })
