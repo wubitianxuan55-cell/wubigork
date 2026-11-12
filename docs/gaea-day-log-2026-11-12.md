@@ -1,7 +1,7 @@
 # gaea Day Log · 2026-11-12 · 办公板块上下文界面升级换代（dsh-context 0.83.x 全量复刻）
 
 > 调研→拍板→动刀全链一天收官。调研报告 docs/gaea-contextview-upgrade-research-2026-11.md。
-> 版本 v4.542.0，装机四次全冒烟。代码主体在 feat/context-upgrade 分支（合并挂账，见 §6）。
+> 版本 v4.542.0，装机四次全冒烟。代码主体在 feat/context-upgrade 分支，**收官批刀11-15(ea21dac9..d2494ab8)后已随 d20dec1d 常规合并入 main(ff-only 因双侧 cherry-pick 并存不可行；8 处同源冲突解毕，详见 §9 收官批)**。
 
 ## 1. 批次结构（三波 + 收尾）
 
@@ -64,3 +64,42 @@
   RequestHeader 带 model id 前置）；家族消息流的 legacy 命令推导已销项
 - 装机终态：分支头构建，冒烟 200，PID 验证；包=releases/gaea-contextup-20261112-690034ff +
   gaea-contextup2-20261112-332976d1（zip/tar 磁盘不入库）
+
+## 9. 收官批刀11-15 + 合并收口（2026-11-12 下午）
+
+用户令「完整复刻」清池 + 「管它是谁的全部修复好」清测试债。提交链 ea21dac9(刀11-15)→
+723f6fe0(测试债根修六例)→ 134e89d0(wailsjs 再生)→ d2494ab8(包记录)→ 665d70c6
+(.worktrees ignore，用户红线代码不落工作空间外)→ d20dec1d(合并入 main)。
+
+- **刀11 Fleet 成员卡**：trajectory.FamilyAgentRows(父+子 transcript 源日志直算，
+  不吃事件流 400 截断；main 在前/子按首条消息时间)+ FamilyEventStream.Agents +
+  前端成员卡(主控/子 Agent 徽标+状态点 join runs+Token/费用/委派/消息/回报)+
+  点击联动事件检查筛选。
+- **刀12** 步详情 detail.step/turn 1:1(共 N 步)；粒度态上提父层。
+- **刀13 inject 源细分**：引用块自带 file/dir/image/referenced-session/resource
+  标签，fold 解析→ContextEvent.Form 五形态+mixed+定位名串；**免改内核**(拍板池
+  预判「内核 payload 带 kind」便宜一档)；顺带根修 splitInjected 首空行切分把
+  第 2/N 引用块误记 user 正文的既有缺陷。
+- **刀14 promptPrefix/Suffix**：config [agent] prompt_prefix/prompt_suffix +
+  buildSystemPrompt 首尾缝合(子代理 L1 同 compiler Fork，一处全覆盖)+
+  SettingsView 顶层显式写回(空串=停用)+ 设置中心系统提示词组。
+- **刀15** 趋势耗时开关持久化(contextPrefs.trendDuration)。
+- **测试债根修**(基线 fda7f7b3 定罪六例既有红)：ContextView/ContextModal mock
+  漏 FamilyEvents(Wave3 债)、ChatTabs 4→6 断言(刀3/5)、ComposerAttachmentBar
+  uocr2 改名、NovelSettingPage 整文件负载吞点击(waitFor 重试式)、Transcript
+  scrollTop defineProperty 无 writable(全量 exit=1 unhandled error 元凶)。
+  终态全量 vitest 4291/4291 绿 exit 0、Go 五包绿、tsc 0、gen_bindings 724=724。
+- **包** releases/gaea-contextup3-20261112-134e89d0(exe E5C7051CC540…，三 DLL
+  同上包，双冒烟 200，装机 PID 35480>构建 14:40:33)。
+- **上游事实源**：本机 DSH 包+上游 0.83.1 lib/client.js 内嵌字典 734 键全提取
+  (docs/dsh-context-locale-zh-upstream.txt)；收官记录
+  docs/gaea-contextview-complete-parity-2026-11.md；拍板池清空(余项=入口可见性/
+  deltaBase 产品结构差异非缺口)。
+- **合并收口 d20dec1d**：办公对话输出线休眠在制(最后改动 11-11 22:18)保全至
+  office-conversation-redesign-wip 分支，主树清场；8 处同源冲突解毕(ctx_realcheck
+  取 main 家族流面超集，余取分支超集)；合并闸 go build+gen_bindings 724=724+
+  Go 四包+tsc+定向 vitest 111/111 全绿。
+- **坑册新增**：全量 vitest 管道接 tail 吞失败清单(完整输出必须落盘)；
+  worktree add 必须显式 commit(裸 HEAD 在主仓=main)；双树共享 .vite 缓存整文件
+  与单测结果可分叉(隔离复跑+真基线双对照再定罪)；defineProperty 无 writable=
+  只读；冒烟二次拉起与装机壳互扰(装机壳消失假象，重拉即愈)。
