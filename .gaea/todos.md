@@ -12,7 +12,7 @@
 | ✅ | G1.6 已快进并入 main（205c5947，本地未 push） |
 | ✅ | G1.7 冲突/重命名/二进制展示策略收口：GitFileStatus.conflict 六形态+origPath 溯源+冲突 staged=false；GitPanel 冲突独立分组（不代解）+rename `← 原名`；buildGitDiff 二进制诚实占位；gitStatusInk 六形态补齐；已快进并入 main（277dc240+7b7f314d） |
 | ✅ | G1.8 降级矩阵+真机走查收官：空仓（无提交 HEAD）测试（reset/diff --cached 按空树语义实锤）；沙箱夹具真仓+GAEA_WALKTHROUGH+GAEA_WEBVIEW_DEBUG CDP 实壳走查——冲突分组/rename 溯源/暂存计数排除冲突/工作树镜头全断言绿零缺陷；G1 验收矩阵全部真仓测试+真机走查双实证；wails build 19s+冒烟 200 |
-| ✅ | G2 只读提交图：GaeaGitGraph 分页（parents/装饰/分支清单+注入校验）+GaeaGitCommitDetail（numstat/diff 预算/合并诚实空）+commitGraph lane 纯函数+CommitGraphView 第五镜头（SVG lane/装饰/筛选不 checkout/加载更多/详情展开）；绑定 746→748；分支 `feat/g2-commit-graph` 全绿待并入，真机走查待下轮打包 |
+| ✅ | G2 只读提交图：GaeaGitGraph 分页（parents/装饰/分支清单+注入校验）+GaeaGitCommitDetail（numstat/diff 预算/合并诚实空）+commitGraph lane 纯函数+CommitGraphView 第五镜头（SVG lane/装饰/筛选不 checkout/加载更多/详情展开）；绑定 746→748；已并入 main，**真机走查已过**（合并拓扑夹具实壳断言全绿） |
 | ✅ | 前端测试成本线收口提交 `de283ace`：vitest 双项目 logic=node/ui=jsdom，全量复验 497 文件/4348 用例绿 393.6s（基线 569s）；余项 --changed 回路+小文件合并仍挂拍板 |
 | ✅ | F2.1：文件树 Git 状态着色——X/Y 文件徽标、语义色、目录/根汇总点、30s/聚焦/事件刷新；定向 23 用例与 ESLint 绿（随 `f49ea150` 提交，真机待走查） |
 | ✅ | F2 文件树完整度：默认/用户排除规则与树/@搜索/watcher 同源、单目录链折叠、完整文件类型图标、打开方式子菜单；定向 53 用例/tsc/vet/ESLint 绿（随 `f49ea150` 提交，真机待走查） |

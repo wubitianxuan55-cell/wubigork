@@ -2,7 +2,7 @@
 
 - **绑定 746→748**：`GaeaGitGraph(skip,limit,branch)`（分页提交+parents/%D 装饰+本地分支清单；branch 严格校验防 rev/选项注入，中文分支放行）+ `GaeaGitCommitDetail(hash)`（消息体/引用/parents+numstat 二进制 -1+4MB diff 预算截断+合并诚实空 diff；hash 十六进制校验）。只读边界：不 checkout/fetch/push。
 - **前端**：`commitGraph.ts` lane 纯函数（首版真 bug=清位在布父后抹掉同槽首父整图塌单 lane；改先清位再布父，6 拓扑单测钉死）+ `CommitGraphView` 第五镜头（SVG lane/装饰 chip/分支筛选/加载更多 --skip 去重/详情展开复用 ChangesDiff）。
-- **验证**：Go 新 2 例+全包 exit 0；tsc+Vite 24.01s；vitest 30/30；ESLint 11 文件零；drift 748 OK。真机走查待下轮打包。
+- **验证**：Go 新 2 例+全包 exit 0；tsc+Vite 24.01s；vitest 30/30；ESLint 11 文件零；drift 748 OK。**真机走查已过**（夹具仓 no-ff 合并+tag：6 行拓扑序/装饰 chip/合并诚实空 diff/二进制占位/feature 筛选重拉 3 行精确，全断言绿零缺陷；wails build 9.98s+冒烟 200 exe a51323f4）。
 - 坑：lane 清位次序；wailsjs 补账与 autocrlf 噪音区分（`git diff | grep -c "^[+-][^+-]"`=0 即纯相位）；`wails generate module` 可独立再生 wailsjs。
 
 ## G1.8 降级矩阵 + G1.6/G1.7 真机走查收官 · 2026-11-13（凌晨）
