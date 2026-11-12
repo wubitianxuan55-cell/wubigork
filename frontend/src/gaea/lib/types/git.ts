@@ -49,3 +49,41 @@ export interface GitCommitInfoView {
   ts?: number;
 }
 
+// G2 只读提交图：节点（lane 拓扑由前端按 parents 纯函数计算）。
+export interface GitGraphNodeView {
+  hash: string;
+  short: string;
+  subject: string;
+  author?: string;
+  ts?: number;
+  parents?: string[];
+  // 装饰原样 token（HEAD -> main / tag: v1 / origin/main）。
+  refs?: string[];
+}
+
+// GitGraphPageView 是提交图一页：分页提交 + 本地分支清单（筛选用，不 checkout）。
+export interface GitGraphPageView {
+  commits: GitGraphNodeView[];
+  branches: string[];
+}
+
+// GitCommitFileView 是提交详情中一个变更文件（numstat；二进制 add/del=-1）。
+export interface GitCommitFileView {
+  path: string;
+  add?: number;
+  del?: number;
+}
+
+// GitCommitDetailView 是单个提交详情（diff 为全量 unified 文本；合并提交默认空串）。
+export interface GitCommitDetailView {
+  hash: string;
+  subject: string;
+  body?: string;
+  author?: string;
+  ts?: number;
+  parents?: string[];
+  refs?: string[];
+  files: GitCommitFileView[];
+  diff: string;
+}
+

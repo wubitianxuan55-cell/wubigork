@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
   commit: vi.fn(async (_m: string) => "abc1234"),
   log: vi.fn(async (_n: number): Promise<GitCommitInfoView[]> => []),
   worktrees: vi.fn(),
+  graph: vi.fn(),
+  commitDetail: vi.fn(),
 }));
 
 vi.mock("../lib/bridge", () => ({
@@ -28,6 +30,8 @@ vi.mock("../lib/bridge", () => ({
     GaeaGitCommit: mocks.commit,
     GaeaGitLog: mocks.log,
     GaeaGitWorktrees: mocks.worktrees,
+    GaeaGitGraph: mocks.graph,
+    GaeaGitCommitDetail: mocks.commitDetail,
   },
   onEvent: () => () => {},
 }));
@@ -229,5 +233,59 @@ describe("GitPanel 2b 最小集", () => {
     wrap(<GitPanel />);
     fireEvent.click(await screen.findByTitle("查看 src/blob.bin 的工作区 diff"));
     expect(await screen.findByText("二进制文件：不提供文本 diff")).toBeTruthy();
+  });
+
+  // G2 只读提交图：镜头渲染提交行（lane SVG+装饰），展开详情拉 numstat+diff。
+  const sampleGraph = {
+    commits: [
+      { hash: "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0", short: "a1b2c3d", subject: "发布 v0.32.0", author: "walk", ts: 1794502086, parents: ["b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1"], refs: ["HEAD -> main"] },
+      { hash: "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1", short: "b2c3d4e", subject: "merge feature", author: "walk", ts: 1794502000, parents: ["c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2", "d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3"] },
+      { hash: "c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2", short: "c3d4e5f", subject: "init", author: "walk", ts: 1794501800, parents: [], refs: ["tag: v0.1.0"] },
+      { hash: "d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3", short: "d4e5f6a", subject: "feat: worktree", author: "walk", ts: 1794501910, parents: ["c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2"], refs: ["origin/feature"] },
+    ],
+    branches: ["main", "feature"],
+  };
+
+  it("提交图镜头渲染提交行与装饰，详情展开拉 numstat+diff", async () => {
+    mocks.graph.mockResolvedValue(sampleGraph);
+    mocks.commitDetail.mockResolvedValue({
+      hash: sampleGraph.commits[0].hash,
+      subject: "发布 v0.32.0",
+      body: "",
+      author: "walk",
+      ts: 1794502086,
+      parents: sampleGraph.commits[0].parents,
+      refs: ["HEAD -> main"],
+      files: [
+        { path: "internal/gaea/workbench/fs.go", add: 12, del: 3 },
+        { path: "assets/logo.png", add: -1, del: -1 },
+      ],
+      diff: "diff --git a/f b/f\n--- a/f\n+++ b/f\n@@ -1 +1,2 @@\n 上下文\n+新增",
+    });
+    wrap(<GitPanel />);
+    await screen.findByText("已暂存");
+    fireEvent.click(screen.getByRole("button", { name: "提交图" }));
+    expect(await screen.findByText("发布 v0.32.0")).toBeTruthy();
+    expect(screen.getByText("merge feature")).toBeTruthy();
+    // HEAD -> main 装饰 chip 与分支下拉选项都含 "main"（≥2 处）
+    expect(screen.getAllByText("main").length).toBeGreaterThan(1);
+    expect(screen.getByText("🏷 v0.1.0")).toBeTruthy(); // tag 装饰
+    // 展开首行详情 → numstat 文件（含二进制）+ diff 红绿行
+    fireEvent.click(screen.getByTitle(/发布 v0.32.0（a1b2c3d）/));
+    expect(await screen.findByText("internal/gaea/workbench/fs.go")).toBeTruthy();
+    expect(screen.getByText("二进制")).toBeTruthy();
+    expect(await screen.findByTestId("changes-diff-hunk")).toBeTruthy();
+    expect(mocks.commitDetail).toHaveBeenCalledWith(sampleGraph.commits[0].hash);
+    // 分支筛选下拉切换 → 以分支重拉
+    fireEvent.change(screen.getByLabelText("按分支筛选提交图"), { target: { value: "feature" } });
+    await waitFor(() => expect(mocks.graph).toHaveBeenCalledWith(0, 50, "feature"));
+  });
+
+  it("提交图镜头拉取失败诚实报错", async () => {
+    mocks.graph.mockRejectedValue(new Error("非仓库"));
+    wrap(<GitPanel />);
+    await screen.findByText("已暂存");
+    fireEvent.click(screen.getByRole("button", { name: "提交图" }));
+    expect(await screen.findByText("提交图不可用")).toBeTruthy();
   });
 });

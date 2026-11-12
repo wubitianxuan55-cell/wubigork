@@ -40,7 +40,7 @@ export type OfficeMethods = Pick<
   | "PickFiles" | "PickDirectory" | "ReadFileB64" | "SaveFileAs" | "OpenLogsDir"
   | "TaskList" | "TaskCancel" | "TaskKill" | "TaskRetry" | "TaskOutput"
   | "GaeaJournalList" | "VerifyRecord" | "RollbackRecord"
-  | "GaeaGitStatus" | "GaeaGitDiff" | "GaeaGitStage" | "GaeaGitUnstage" | "GaeaGitDiscard" | "GaeaGitCommit" | "GaeaGitLog" | "GaeaGitWorktrees"
+  | "GaeaGitStatus" | "GaeaGitDiff" | "GaeaGitStage" | "GaeaGitUnstage" | "GaeaGitDiscard" | "GaeaGitCommit" | "GaeaGitLog" | "GaeaGitWorktrees" | "GaeaGitGraph" | "GaeaGitCommitDetail"
   // 批次三a legacy 直调转正（Go OfficeB.GaeaDataBackup*，Gaea 前缀经 mappings 映射）。
   | "DataBackupInfo" | "DataBackupCreate" | "DataBackupRestore"
   | "DataBackupCancel" | "DataBackupRollback" | "DataBackupRestoreResult"

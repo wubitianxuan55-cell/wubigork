@@ -705,6 +705,9 @@ export const GAEA_METHOD_FACETS = {
   GaeaGitLog: "work",
   // G1 深化：worktree 只读展示（工位工作台文件域）。
   GaeaGitWorktrees: "work",
+  // G2 只读提交图（工位工作台文件域；筛选不 checkout）。
+  GaeaGitGraph: "work",
+  GaeaGitCommitDetail: "work",
   GaeaSubagentContextView: "work",
   VerifyRecord: "work",
   RollbackRecord: "work",

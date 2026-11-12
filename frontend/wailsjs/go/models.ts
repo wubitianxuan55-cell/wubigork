@@ -1917,6 +1917,69 @@ export namespace app {
 	        this.summary = source["summary"];
 	    }
 	}
+	export class GitCommitFile {
+	    path: string;
+	    add?: number;
+	    del?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new GitCommitFile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.add = source["add"];
+	        this.del = source["del"];
+	    }
+	}
+	export class GitCommitDetail {
+	    hash: string;
+	    subject: string;
+	    body?: string;
+	    author?: string;
+	    ts?: number;
+	    parents?: string[];
+	    refs?: string[];
+	    files: GitCommitFile[];
+	    diff: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GitCommitDetail(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.hash = source["hash"];
+	        this.subject = source["subject"];
+	        this.body = source["body"];
+	        this.author = source["author"];
+	        this.ts = source["ts"];
+	        this.parents = source["parents"];
+	        this.refs = source["refs"];
+	        this.files = this.convertValues(source["files"], GitCommitFile);
+	        this.diff = source["diff"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class GitCommitInfo {
 	    hash: string;
 	    subject: string;
@@ -1964,6 +2027,62 @@ export namespace app {
 	        this.conflict = source["conflict"];
 	        this.origPath = source["origPath"];
 	    }
+	}
+	export class GitGraphNode {
+	    hash: string;
+	    short: string;
+	    subject: string;
+	    author?: string;
+	    ts?: number;
+	    parents?: string[];
+	    refs?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new GitGraphNode(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.hash = source["hash"];
+	        this.short = source["short"];
+	        this.subject = source["subject"];
+	        this.author = source["author"];
+	        this.ts = source["ts"];
+	        this.parents = source["parents"];
+	        this.refs = source["refs"];
+	    }
+	}
+	export class GitGraphPage {
+	    commits: GitGraphNode[];
+	    branches: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new GitGraphPage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.commits = this.convertValues(source["commits"], GitGraphNode);
+	        this.branches = source["branches"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class GitStatus {
 	    isRepo: boolean;

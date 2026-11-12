@@ -409,6 +409,149 @@ func TestGaeaGitUnbornHead(t *testing.T) {
 	}
 }
 
+// G2：提交图——真仓分支+合并拓扑（parents/装饰解析）、分页、分支筛选、
+// 分支清单；分支注入拒绝；提交详情（numstat 含二进制 -1、diff、合并诚实空 diff）。
+func TestGaeaGitGraphAndDetail(t *testing.T) {
+	dir := initTempRepo(t)
+	run := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	// 拓扑：init(b1) → feat 分支(b2,b3) → main(b4) → merge feat(b5, 两父)。
+	// feature 臂追加 f.txt/新增 g.txt，main 臂新增 h.txt——双臂无交集保干净合并。
+	writeRepoFile(t, dir, "f.txt", "b1\n")
+	run("add", "f.txt")
+	run("commit", "-q", "-m", "b1")
+	run("checkout", "-q", "-b", "feature")
+	writeRepoFile(t, dir, "f.txt", "b1\nb2\n")
+	run("commit", "-q", "-am", "b2")
+	writeRepoFile(t, dir, "g.txt", "b3\n")
+	run("add", "g.txt")
+	run("commit", "-q", "-m", "b3")
+	run("checkout", "-q", "-")
+	writeRepoFile(t, dir, "h.txt", "b4\n")
+	run("add", "h.txt")
+	run("commit", "-q", "-m", "b4")
+	run("merge", "-q", "--no-ff", "-m", "b5 merge feature", "feature")
+	writeRepoFile(t, dir, "blob.bin", "\x00\x01")
+	run("add", "blob.bin")
+	run("commit", "-q", "-m", "b6 binary")
+	t.Chdir(dir)
+	a := &App{}
+
+	page, err := a.GaeaGitGraph(0, 10, "")
+	if err != nil {
+		t.Fatalf("graph: %v", err)
+	}
+	if len(page.Commits) != 7 { // initTempRepo 的 init + b1..b6
+		t.Fatalf("commits = %d, want 7: %+v", len(page.Commits), page.Commits)
+	}
+	// 分支清单含两条本地分支（master/main 由 git 版本决定 + feature）。
+	foundFeature := false
+	for _, b := range page.Branches {
+		if b == "feature" {
+			foundFeature = true
+		}
+	}
+	if !foundFeature {
+		t.Fatalf("branches 应含 feature: %+v", page.Branches)
+	}
+	// 合并提交（b5）两父。
+	var mergeNode *GitGraphNode
+	for i := range page.Commits {
+		if page.Commits[i].Subject == "b5 merge feature" {
+			mergeNode = &page.Commits[i]
+		}
+	}
+	if mergeNode == nil || len(mergeNode.Parents) != 2 {
+		t.Fatalf("合并提交应两父: %+v", mergeNode)
+	}
+	// HEAD 装饰：b6 应带 HEAD -> 当前分支 装饰。
+	head := page.Commits[0]
+	if len(head.Refs) == 0 || !strings.Contains(strings.Join(head.Refs, ","), "HEAD") {
+		t.Fatalf("HEAD 提交应有装饰: %+v", head.Refs)
+	}
+
+	// 分页：skip=1 limit=2 → 跳过 HEAD 的 b6，取 b5/b4。
+	page2, err := a.GaeaGitGraph(1, 2, "")
+	if err != nil {
+		t.Fatalf("graph skip: %v", err)
+	}
+	if len(page2.Commits) != 2 || page2.Commits[0].Subject != "b5 merge feature" || page2.Commits[1].Subject != "b4" {
+		t.Fatalf("分页不符: %+v", page2.Commits)
+	}
+
+	// 分支筛选：按 feature 取历史，b1 是祖先链尾（无 merge 提交）。
+	pageF, err := a.GaeaGitGraph(0, 10, "feature")
+	if err != nil {
+		t.Fatalf("graph branch: %v", err)
+	}
+	for _, c := range pageF.Commits {
+		if c.Subject == "b5 merge feature" || c.Subject == "b4" {
+			t.Fatalf("feature 历史不应含 main 侧提交: %+v", pageF.Commits)
+		}
+	}
+
+	// 分支注入：'-' 开头与含 '..' 均拒绝。
+	if _, err := a.GaeaGitGraph(0, 10, "--all"); err == nil {
+		t.Fatal("--all 选项注入应拒绝")
+	}
+	if _, err := a.GaeaGitGraph(0, 10, "a..b"); err == nil {
+		t.Fatal("范围注入应拒绝")
+	}
+
+	// 详情：b6 二进制文件 numstat=-1，diff 走预算管道。
+	bin := page.Commits[0]
+	d, err := a.GaeaGitCommitDetail(bin.Hash)
+	if err != nil {
+		t.Fatalf("detail: %v", err)
+	}
+	if len(d.Files) != 1 || d.Files[0].Add != -1 || d.Files[0].Del != -1 {
+		t.Fatalf("二进制 numstat 应 -1: %+v", d.Files)
+	}
+	if !strings.Contains(d.Diff, "Binary files") {
+		t.Fatalf("二进制 diff 应为 Binary files 行: %q", d.Diff)
+	}
+
+	// 详情：合并提交（b5）——diff-tree 默认无输出 → Diff 空串诚实提示。
+	d5, err := a.GaeaGitCommitDetail(mergeNode.Hash)
+	if err != nil {
+		t.Fatalf("detail merge: %v", err)
+	}
+	if d5.Diff != "" {
+		t.Fatalf("合并提交默认应无 diff: %q", d5.Diff)
+	}
+	if len(d5.Parents) != 2 {
+		t.Fatalf("详情应含两父: %+v", d5.Parents)
+	}
+
+	// hash 注入：非十六进制拒绝。
+	if _, err := a.GaeaGitCommitDetail("../../etc/passwd"); err == nil {
+		t.Fatal("非 hash 应拒绝")
+	}
+	if _, err := a.GaeaGitCommitDetail("HEAD"); err == nil {
+		t.Fatal("符号 ref 应拒绝（只收十六进制）")
+	}
+}
+
+// G2：gitRefSafe/gitHashSafe 纯函数边界。
+func TestGitRefSafe(t *testing.T) {
+	if !gitRefSafe("feature/x") || !gitRefSafe("release-1.2") || !gitRefSafe("中文分支") {
+		t.Fatal("常规/中文分支名应放行")
+	}
+	for _, bad := range []string{"-all", "a..b", "x@{0}", "y.lock", "z.", "a b", ""} {
+		if gitRefSafe(bad) {
+			t.Fatalf("%q 应拒绝", bad)
+		}
+	}
+	if !gitHashSafe("0123456789abcdef") || gitHashSafe("HEAD") || gitHashSafe("abc") || gitHashSafe("0123456789abcdef0123456789abcdef0123456789abcdef") {
+		t.Fatal("hash 校验边界不符")
+	}
+}
+
 // G1 深化：porcelain 解析纯函数——bare/detached/locked（带原因）/branch 前缀
 // 剥离/主检出/当前工作区标记。
 func TestParseGitWorktrees(t *testing.T) {

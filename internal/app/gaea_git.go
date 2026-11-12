@@ -497,6 +497,250 @@ func (a *App) GaeaGitLog(limit int) ([]GitCommitInfo, error) {
 	return commits, nil
 }
 
+// GitGraphNode 是提交图节点（G2 只读提交图；lane 拓扑由前端按 Parents 纯函数计算）。
+type GitGraphNode struct {
+	Hash    string   `json:"hash"`  // 完整 hash
+	Short   string   `json:"short"` // 短 hash
+	Subject string   `json:"subject"`
+	Author  string   `json:"author,omitempty"`
+	Ts      int64    `json:"ts,omitempty"`      // Unix 秒
+	Parents []string `json:"parents,omitempty"` // 完整 hash（拓扑用）
+	Refs    []string `json:"refs,omitempty"`    // 装饰原样 token（HEAD -> main / tag: v1 / origin/main）
+}
+
+// GitGraphPage 是提交图一页：分页提交 + 本地分支清单（筛选用；只读面不 checkout）。
+type GitGraphPage struct {
+	Commits  []GitGraphNode `json:"commits"`
+	Branches []string       `json:"branches"`
+}
+
+// GitCommitFile 是提交详情中一个变更文件（numstat；二进制文件 Add/Del=-1）。
+type GitCommitFile struct {
+	Path string `json:"path"`
+	Add  int    `json:"add,omitempty"`
+	Del  int    `json:"del,omitempty"`
+}
+
+// GitCommitDetail 是单个提交详情：消息/引用/文件统计/全量 unified diff。
+type GitCommitDetail struct {
+	Hash    string          `json:"hash"`
+	Subject string          `json:"subject"`
+	Body    string          `json:"body,omitempty"`
+	Author  string          `json:"author,omitempty"`
+	Ts      int64           `json:"ts,omitempty"`
+	Parents []string        `json:"parents,omitempty"`
+	Refs    []string        `json:"refs,omitempty"`
+	Files   []GitCommitFile `json:"files"`
+	Diff    string          `json:"diff"` // 合并提交默认无 diff（空串，前端诚实提示）
+}
+
+// gitRefSafe 引用名单校验（G2 分支筛选防 rev/选项注入）：拒空白/控制字符、
+// '-' 开头（选项注入）、'..'（范围）、'@{'（reflog）、'.lock' 后缀与尾部 '.'。
+// 中文等 UTF-8 分支名放行（core.quotepath=false 下与本仓分支清单一同源）。
+func gitRefSafe(ref string) bool {
+	if ref == "" || strings.HasPrefix(ref, "-") || strings.ContainsAny(ref, " \t\n\r\x00") ||
+		strings.Contains(ref, "..") || strings.Contains(ref, "@{") ||
+		strings.HasSuffix(ref, ".lock") || strings.HasSuffix(ref, ".") {
+		return false
+	}
+	for _, r := range ref {
+		if r < 0x20 || r == 0x7f {
+			return false
+		}
+	}
+	return true
+}
+
+// gitHashSafe 提交 hash 校验：仅十六进制 7~40 位（G2 详情防任意 rev 注入）。
+func gitHashSafe(hash string) bool {
+	if len(hash) < 7 || len(hash) > 40 {
+		return false
+	}
+	for _, r := range hash {
+		if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f')) {
+			return false
+		}
+	}
+	return true
+}
+
+// gitLocalBranches 返回本地分支名（refname:short）。
+func gitLocalBranches(repoRoot string) ([]string, error) {
+	out, err := gitRunAt(repoRoot, "-c", "core.quotepath=false", "branch", "--format=%(refname:short)")
+	if err != nil {
+		return nil, err
+	}
+	branches := []string{}
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			branches = append(branches, line)
+		}
+	}
+	return branches, nil
+}
+
+// parseGitRefs 拆 %D 装饰串："HEAD -> main, tag: v1, origin/main" → 三 token。
+func parseGitRefs(deco string) []string {
+	deco = strings.TrimSpace(deco)
+	if deco == "" {
+		return nil
+	}
+	refs := []string{}
+	for _, tok := range strings.Split(deco, ", ") {
+		tok = strings.TrimSpace(tok)
+		if tok != "" {
+			refs = append(refs, tok)
+		}
+	}
+	return refs
+}
+
+// GaeaGitGraph 返回提交图一页：分页提交（含 parents/装饰，lane 拓扑由前端
+// 纯函数计算）+ 本地分支清单。branch 非空时按该分支取历史（严格校验，exec
+// 列表无 shell 面，此处防的是 rev/选项注入）。只读：不 checkout/fetch/push。
+func (a *App) GaeaGitGraph(skip, limit int, branch string) (GitGraphPage, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	if skip < 0 {
+		skip = 0
+	}
+	branch = strings.TrimSpace(branch)
+	if branch != "" && !gitRefSafe(branch) {
+		return GitGraphPage{}, errGit("分支名不合法")
+	}
+	repoRoot, err := gitRepoRoot(gitWorkspace())
+	if err != nil {
+		return GitGraphPage{}, err
+	}
+	argv := []string{"-c", "core.quotepath=false", "log",
+		"-n", strconv.Itoa(limit), "--skip", strconv.Itoa(skip),
+		"--pretty=format:%H%x1f%h%x1f%s%x1f%an%x1f%at%x1f%P%x1f%D%x1e"}
+	if branch != "" {
+		argv = append(argv, branch, "--")
+	}
+	out, err := gitRunAt(repoRoot, argv...)
+	if err != nil {
+		return GitGraphPage{}, err
+	}
+	page := GitGraphPage{Commits: []GitGraphNode{}}
+	for _, rec := range strings.Split(out, "\x1e") {
+		rec = strings.TrimLeft(rec, "\n")
+		if strings.TrimSpace(rec) == "" {
+			continue
+		}
+		parts := strings.Split(rec, "\x1f")
+		c := GitGraphNode{}
+		if len(parts) > 0 {
+			c.Hash = parts[0]
+		}
+		if len(parts) > 1 {
+			c.Short = parts[1]
+		}
+		if len(parts) > 2 {
+			c.Subject = parts[2]
+		}
+		if len(parts) > 3 {
+			c.Author = parts[3]
+		}
+		if len(parts) > 4 {
+			c.Ts, _ = strconv.ParseInt(parts[4], 10, 64)
+		}
+		if len(parts) > 5 && strings.TrimSpace(parts[5]) != "" {
+			c.Parents = strings.Fields(parts[5])
+		}
+		if len(parts) > 6 {
+			c.Refs = parseGitRefs(parts[6])
+		}
+		page.Commits = append(page.Commits, c)
+	}
+	branches, err := gitLocalBranches(repoRoot)
+	if err != nil {
+		return GitGraphPage{}, err
+	}
+	page.Branches = branches
+	return page, nil
+}
+
+// GaeaGitCommitDetail 返回单个提交详情：消息/引用/numstat 文件统计/全量
+// unified diff（diff 走读预算与截断标记）。合并提交 diff-tree 默认无输出
+// → Diff 为空串（前端诚实提示）。hash 只接受十六进制 rev（防注入）。
+func (a *App) GaeaGitCommitDetail(hash string) (GitCommitDetail, error) {
+	hash = strings.TrimSpace(strings.ToLower(hash))
+	if !gitHashSafe(hash) {
+		return GitCommitDetail{}, errGit("hash 不合法")
+	}
+	repoRoot, err := gitRepoRoot(gitWorkspace())
+	if err != nil {
+		return GitCommitDetail{}, err
+	}
+	detail := GitCommitDetail{Hash: hash, Files: []GitCommitFile{}}
+
+	// 消息/引用/parents：单次 log 定长解析（%b=消息体，可跨行）
+	out, err := gitRunAt(repoRoot, "-c", "core.quotepath=false", "log", "-n", "1",
+		"--pretty=format:%H%x1f%s%x1f%an%x1f%at%x1f%P%x1f%D%x1f%b", hash, "--")
+	if err != nil {
+		return GitCommitDetail{}, err
+	}
+	parts := strings.Split(out, "\x1f")
+	if len(parts) > 0 {
+		detail.Hash = parts[0]
+	}
+	if len(parts) > 1 {
+		detail.Subject = parts[1]
+	}
+	if len(parts) > 2 {
+		detail.Author = parts[2]
+	}
+	if len(parts) > 3 {
+		detail.Ts, _ = strconv.ParseInt(parts[3], 10, 64)
+	}
+	if len(parts) > 4 && strings.TrimSpace(parts[4]) != "" {
+		detail.Parents = strings.Fields(parts[4])
+	}
+	if len(parts) > 5 {
+		detail.Refs = parseGitRefs(parts[5])
+	}
+	if len(parts) > 6 {
+		detail.Body = strings.TrimSpace(parts[6])
+	}
+
+	// numstat：--root 使首提交也出统计；二进制行为 "-\t-" → -1（前端显「二进制」）
+	stats, err := gitRunAt(repoRoot, "-c", "core.quotepath=false", "diff-tree", "-r", "--root", "--no-commit-id", "--numstat", hash)
+	if err != nil {
+		return GitCommitDetail{}, err
+	}
+	for _, line := range strings.Split(stats, "\n") {
+		fields := strings.SplitN(strings.TrimRight(line, "\r"), "\t", 3)
+		if len(fields) != 3 || strings.TrimSpace(fields[0]) == "" {
+			continue
+		}
+		f := GitCommitFile{Path: fields[2]}
+		if fields[0] == "-" || fields[1] == "-" {
+			f.Add, f.Del = -1, -1
+		} else {
+			f.Add, _ = strconv.Atoi(fields[0])
+			f.Del, _ = strconv.Atoi(fields[1])
+		}
+		detail.Files = append(detail.Files, f)
+	}
+
+	// diff：展示层预算（超预算=截断标记，不当错误炸面板）
+	diffOut, derr := gitRunBudgeted(repoRoot, gitReadTimeout, gitDiffBudget,
+		"-c", "core.quotepath=false", "diff-tree", "-p", "--root", "--no-commit-id", hash)
+	if errors.Is(derr, errGitOutputBudget) {
+		diffOut += "\n\n[diff 输出超过 4MB，已截断]"
+	} else if derr != nil {
+		return GitCommitDetail{}, derr
+	}
+	detail.Diff = diffOut
+	return detail, nil
+}
+
 // GitWorktree 是一条 worktree（git worktree list --porcelain 展开）。
 type GitWorktree struct {
 	Path       string `json:"path"`             // worktree 本地路径（原生分隔符，Clean 过）

@@ -100,8 +100,10 @@ func (b *OfficeB) GaeaFileTreeWatch(paths []string, exclude []string) error { re
 func (b *OfficeB) GaeaForget(name string) error { return b.a.GaeaForget(name) }
 func (b *OfficeB) GaeaFork(turn int) error { return b.a.GaeaFork(turn) }
 func (b *OfficeB) GaeaGitCommit(message string) (string, error) { return b.a.GaeaGitCommit(message) }
+func (b *OfficeB) GaeaGitCommitDetail(hash string) (GitCommitDetail, error) { return b.a.GaeaGitCommitDetail(hash) }
 func (b *OfficeB) GaeaGitDiff(path string, staged bool) (string, error) { return b.a.GaeaGitDiff(path, staged) }
 func (b *OfficeB) GaeaGitDiscard(path string) error { return b.a.GaeaGitDiscard(path) }
+func (b *OfficeB) GaeaGitGraph(skip int, limit int, branch string) (GitGraphPage, error) { return b.a.GaeaGitGraph(skip, limit, branch) }
 func (b *OfficeB) GaeaGitLog(limit int) ([]GitCommitInfo, error) { return b.a.GaeaGitLog(limit) }
 func (b *OfficeB) GaeaGitStage(paths []string) error { return b.a.GaeaGitStage(paths) }
 func (b *OfficeB) GaeaGitStatus() GitStatus { return b.a.GaeaGitStatus() }

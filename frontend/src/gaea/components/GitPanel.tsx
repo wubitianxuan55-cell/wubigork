@@ -13,6 +13,7 @@ import type { GitCommitInfoView, GitFileStatus, GitWorktreeView } from "../lib/t
 import { buildGitDiff } from "../lib/planDiff";
 import { ChangesDiff } from "./ChangesDiff";
 import { ChangesPanel } from "./ChangesPanel";
+import { CommitGraphView } from "./CommitGraphView";
 import type { SessionChange } from "../lib/changes";
 import { useToast } from "./Toast";
 import { acquireGitStatus, useGitStatusStore } from "../lib/gitStatusStore";
@@ -89,12 +90,13 @@ export function GitPanel({
   const [committing, setCommitting] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState<GitCommitInfoView[] | null>(null);
-  const [lens, setLens] = useState<"unified" | "git" | "session" | "worktrees">("git");
+  const [lens, setLens] = useState<"unified" | "git" | "session" | "worktrees" | "graph">("git");
   const [unifiedFilter, setUnifiedFilter] = useState<"all" | "git" | "agent">("all");
   // G1 深化：worktree 只读展示（切换=工作区切换器，另立产品门）。
+  // panelRevision 是 worktree/提交图镜头共用的刷新序号（刷新钮自增驱动各自重拉）。
   const [worktrees, setWorktrees] = useState<GitWorktreeView[] | null>(null);
   const [worktreesError, setWorktreesError] = useState("");
-  const [worktreesRevision, setWorktreesRevision] = useState(0);
+  const [panelRevision, setPanelRevision] = useState(0);
 
   // G1.7：冲突文件独立分组（Go 侧 conflict 标记；staged 语义已排除冲突，
   // 这里再过滤一层兜住旧后端/mock 未带标记的 UU 形态）。
@@ -122,7 +124,7 @@ export function GitPanel({
 
   const refresh = useCallback(() => {
     void refreshShared();
-    setWorktreesRevision((r) => r + 1);
+    setPanelRevision((r) => r + 1);
   }, [refreshShared]);
 
   useEffect(() => {
@@ -159,7 +161,7 @@ export function GitPanel({
     return () => {
       live = false;
     };
-  }, [lens, worktreesRevision]);
+  }, [lens, panelRevision]);
 
   const loadDiff = (path: string, staged: boolean) => {
     setDiffText(null);
@@ -483,6 +485,14 @@ export function GitPanel({
           >
             工作树
           </button>
+          <button
+            type="button"
+            aria-pressed={lens === "graph"}
+            className={`cursor-pointer rounded px-1.5 py-0.5 text-[9.5px] border-0 ${lens === "graph" ? "bg-accent text-accent-fg" : "bg-transparent text-fg-faint hover:text-fg"}`}
+            onClick={() => setLens("graph")}
+          >
+            提交图
+          </button>
         </span>
         <span className="v3-panel-spacer" />
         {lens !== "session" && status?.branch && (
@@ -571,6 +581,9 @@ export function GitPanel({
             </div>
           )}
         </div>
+      ) : lens === "graph" ? (
+        // G2 只读提交图：数据自取（GaeaGitGraph/Detail），刷新钮经 panelRevision 驱动。
+        <CommitGraphView revision={panelRevision} />
       ) : gitUnavailable ? (
         <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
           <GitBranch size={18} aria-hidden style={{ color: "var(--md-sys-color-text-secondary)" }} />

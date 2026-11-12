@@ -173,9 +173,13 @@ export function GaeaFork(arg1:number):Promise<void>;
 
 export function GaeaGitCommit(arg1:string):Promise<string>;
 
+export function GaeaGitCommitDetail(arg1:string):Promise<app.GitCommitDetail>;
+
 export function GaeaGitDiff(arg1:string,arg2:boolean):Promise<string>;
 
 export function GaeaGitDiscard(arg1:string):Promise<void>;
+
+export function GaeaGitGraph(arg1:number,arg2:number,arg3:string):Promise<app.GitGraphPage>;
 
 export function GaeaGitLog(arg1:number):Promise<Array<app.GitCommitInfo>>;
 

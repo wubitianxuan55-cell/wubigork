@@ -322,12 +322,20 @@ export function GaeaGitCommit(arg1) {
   return window['go']['app']['OfficeB']['GaeaGitCommit'](arg1);
 }
 
+export function GaeaGitCommitDetail(arg1) {
+  return window['go']['app']['OfficeB']['GaeaGitCommitDetail'](arg1);
+}
+
 export function GaeaGitDiff(arg1, arg2) {
   return window['go']['app']['OfficeB']['GaeaGitDiff'](arg1, arg2);
 }
 
 export function GaeaGitDiscard(arg1) {
   return window['go']['app']['OfficeB']['GaeaGitDiscard'](arg1);
+}
+
+export function GaeaGitGraph(arg1, arg2, arg3) {
+  return window['go']['app']['OfficeB']['GaeaGitGraph'](arg1, arg2, arg3);
 }
 
 export function GaeaGitLog(arg1) {

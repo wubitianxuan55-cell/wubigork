@@ -21,6 +21,8 @@ import type {
   GaeaResyncResult,
   GaeaSummaryResult,
   GitCommitInfoView,
+  GitCommitDetailView,
+  GitGraphPageView,
   GitStatusView,
   GitWorktreeView,
   HistoryMessage,
@@ -353,6 +355,10 @@ export interface CoreBindings {
   GaeaGitLog(limit: number): Promise<GitCommitInfoView[]>;
   // G1 深化：worktree 只读展示（切换=工作区切换器，另立产品门）。
   GaeaGitWorktrees(): Promise<GitWorktreeView[]>;
+  // G2 只读提交图：分页提交（lane 拓扑前端算）+ 本地分支清单；分支筛选不 checkout。
+  GaeaGitGraph(skip: number, limit: number, branch: string): Promise<GitGraphPageView>;
+  // G2 提交详情：消息/引用/numstat/全量 unified diff（合并提交默认无 diff）。
+  GaeaGitCommitDetail(hash: string): Promise<GitCommitDetailView>;
   // 2.5e 后半：指定子代理会话的上下文构成快照（Agent 网络节点跳转）。
   GaeaSubagentContextView(sessionPath: string, ref: string): Promise<ContextTimeline>;
   // v4.1b：双通道复核一张证据卡（A 结构/引用完整性 + B 视觉健全性）。

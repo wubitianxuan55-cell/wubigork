@@ -18,6 +18,8 @@ export const opsMethods: Pick<
   | "GaeaGitCommit"
   | "GaeaGitLog"
   | "GaeaGitWorktrees"
+  | "GaeaGitGraph"
+  | "GaeaGitCommitDetail"
   | "TaskList"
   | "TaskCancel"
   | "TaskKill"
@@ -67,6 +69,56 @@ export const opsMethods: Pick<
       },
       { path: "C:\\demo\\gaea-workspace\\.worktrees\\experiment", head: "9f8e7d6", isDetached: true },
     ];
+  },
+  async GaeaGitGraph(skip: number, limit: number, branch: string) {
+    // G2 走查样例：主干 + 分支合并拓扑（lane 拓扑由前端纯函数算）。
+    void skip;
+    void limit;
+    void branch;
+    const H = {
+      m: "f91a25fc7896a79520eaa8d66e82f65e27e5e322",
+      mg: "cc2a8ef80af9287d2c6e9c38c0b067d7a4dfac4f",
+      main: "e7be2aeaeb785f10562313deac2a282f7056e30e",
+      feat: "19b8c10a98b9e93b19e7ef14f3f3ea29667d9965",
+      root: "501680bcb5db8196c18c2a75c9be699e53d6f02a",
+      base: "1f2ea3a382177df60b9e9f636ce40884291c70dc",
+    };
+    return {
+      commits: [
+        { hash: H.m, short: "f91a25f", subject: "发布 v0.32.0", author: "walk", ts: 1794502086, parents: [H.mg], refs: ["HEAD -> main"] },
+        { hash: H.mg, short: "cc2a8ef", subject: "merge feature/workbench", author: "walk", ts: 1794502000, parents: [H.main, H.feat] },
+        { hash: H.main, short: "e7be2ae", subject: "workbench: 上传分块续传", author: "walk", ts: 1794501900, parents: [H.root] },
+        { hash: H.feat, short: "19b8c10", subject: "feat: worktree 只读展示", author: "walk", ts: 1794501910, parents: [H.base], refs: ["origin/feature"] },
+        { hash: H.root, short: "501680b", subject: "init", author: "walk", ts: 1794501800, parents: [], refs: ["tag: v0.1.0"] },
+        { hash: H.base, short: "1f2ea3a", subject: "chore: 基线", author: "walk", ts: 1794501850, parents: [H.root] },
+      ],
+      branches: ["main", "feature", "wt/feature-x"],
+    };
+  },
+  async GaeaGitCommitDetail(hash: string) {
+    // G2 走查样例：与 GaeaGitGraph 样例同源；含普通文件与二进制文件。
+    void hash;
+    return {
+      hash,
+      subject: "merge feature/workbench",
+      body: "合并 workbench 分块上传与 worktree 展示两线。",
+      author: "walk",
+      ts: 1794502000,
+      parents: ["e7be2aeaeb785f10562313deac2a282f7056e30e", "19b8c10a98b9e93b19e7ef14f3f3ea29667d9965"],
+      refs: [],
+      files: [
+        { path: "internal/gaea/workbench/fs.go", add: 120, del: 4 },
+        { path: "assets/logo.png", add: -1, del: -1 },
+      ],
+      diff: [
+        "diff --git a/internal/gaea/workbench/fs.go b/internal/gaea/workbench/fs.go",
+        "--- a/internal/gaea/workbench/fs.go",
+        "+++ b/internal/gaea/workbench/fs.go",
+        "@@ -1,2 +1,3 @@",
+        " 上下文行",
+        "+新增行",
+      ].join("\n"),
+    };
   },
   async GaeaGitDiff(path: string, staged: boolean) {
     void staged;
