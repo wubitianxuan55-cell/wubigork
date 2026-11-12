@@ -346,6 +346,10 @@ export function GaeaGitUnstage(arg1) {
   return window['go']['app']['OfficeB']['GaeaGitUnstage'](arg1);
 }
 
+export function GaeaGitWorktrees() {
+  return window['go']['app']['OfficeB']['GaeaGitWorktrees']();
+}
+
 export function GaeaHistory() {
   return window['go']['app']['OfficeB']['GaeaHistory']();
 }

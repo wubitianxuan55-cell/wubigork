@@ -185,6 +185,8 @@ export function GaeaGitStatus():Promise<app.GitStatus>;
 
 export function GaeaGitUnstage(arg1:Array<string>):Promise<void>;
 
+export function GaeaGitWorktrees():Promise<Array<app.GitWorktree>>;
+
 export function GaeaHistory():Promise<Array<app.HistoryMessage>>;
 
 export function GaeaJobs():Promise<Array<app.JobView>>;

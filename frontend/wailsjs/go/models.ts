@@ -1944,6 +1944,8 @@ export namespace app {
 	    deleted: boolean;
 	    modified: boolean;
 	    renamed: boolean;
+	    conflict?: boolean;
+	    origPath?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new GitFileStatus(source);
@@ -1959,6 +1961,8 @@ export namespace app {
 	        this.deleted = source["deleted"];
 	        this.modified = source["modified"];
 	        this.renamed = source["renamed"];
+	        this.conflict = source["conflict"];
+	        this.origPath = source["origPath"];
 	    }
 	}
 	export class GitStatus {
@@ -1968,6 +1972,8 @@ export namespace app {
 	    behind?: number;
 	    files: GitFileStatus[];
 	    error?: string;
+	    isLinkedWorktree?: boolean;
+	    mainWorktreePath?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new GitStatus(source);
@@ -1981,6 +1987,8 @@ export namespace app {
 	        this.behind = source["behind"];
 	        this.files = this.convertValues(source["files"], GitFileStatus);
 	        this.error = source["error"];
+	        this.isLinkedWorktree = source["isLinkedWorktree"];
+	        this.mainWorktreePath = source["mainWorktreePath"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2000,6 +2008,34 @@ export namespace app {
 		    }
 		    return a;
 		}
+	}
+	export class GitWorktree {
+	    path: string;
+	    head?: string;
+	    branch?: string;
+	    isMain: boolean;
+	    isBare?: boolean;
+	    isDetached?: boolean;
+	    isLocked?: boolean;
+	    lockedNote?: string;
+	    isCurrent: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new GitWorktree(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.head = source["head"];
+	        this.branch = source["branch"];
+	        this.isMain = source["isMain"];
+	        this.isBare = source["isBare"];
+	        this.isDetached = source["isDetached"];
+	        this.isLocked = source["isLocked"];
+	        this.lockedNote = source["lockedNote"];
+	        this.isCurrent = source["isCurrent"];
+	    }
 	}
 	export class GraphLink {
 	    source: string;
