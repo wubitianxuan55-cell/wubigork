@@ -113,3 +113,18 @@
 - 观察项（非缺陷）：镜头页签增至 5 个后「提交图」在窄栏换行显示——观感可接受，后续若
   拥挤可改图标化。
 - 壳回收+沙箱清场+9333 无监听残留。G1+G2 全部镜头真机双实证齐备。
+
+## 8. 仓面卫生批（02:0x）
+
+- check-docs 四查全绿（首杀两笔既有 FAIL）：悬空引用 35 处清零（34 处改指 docs/archive/
+  ——2026-09 规划族归档后引用未随迁；AMD_HIP.md 系 DSH 侧笔记从未入库，两处引用改
+  「未入库」注记）+ docs/README 补登 17 份（day-log 11-04~13 七份+语音蒸馏审计三份+
+  websearch digest+contextview 两份+chat-probe 三份+t0-effect-audit）+ releases 校验和
+  计数 530→538（口径补记：F0 起每预览包自带 SHA256SUMS-<commit>.txt，递归实测
+  根 36+archive 494+包目录 8）。
+- knip 尾款两刀：startWhirlEngine 死包装退役（前端无调用方，WHIRL 启动走受管目录通用
+  路径，Go WhirlEngineStart 绑定保留+测试 mock 行随迁）+STREAM_SILENCE/INACTIVITY 重复
+  导出合并（统一语义名，ChatPage/测试随迁）。tsc+Vite 25.15s+定向 30/30 绿。余量=
+  wailsjs 生成件+voice-worklets 既定假阳性基线（183+26 项，非自研欠账）。
+- **race linux 6 例不修（诚实边界）**：无 gh（无法取 CI 日志）+无 WSL（无法本地跑 linux
+  测试）——静态猜测修复违「宁不立项不虚构」。开修前提=用户提供 CI 日志或装 WSL。
