@@ -104,12 +104,12 @@ export function WorkHeader({ doneSuppressed = false }: { doneSuppressed?: boolea
     <div
       data-testid="work-header"
       data-state={running ? "running" : "done"}
-      className={`my-0.5 flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11.5px] leading-none transition-colors duration-[var(--dur-base)] ${
+      className={`office-work-header my-0.5 flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11.5px] leading-none transition-colors duration-[var(--dur-base)] ${
         running ? "bg-accent/[0.03]" : "hover:bg-(color:--md-sys-color-surface-container-high)/40"
       }`}
       title={running && phaseText ? phaseText : undefined}
     >
-      <span className={`shrink-0 w-0.5 self-stretch rounded-full transition-colors ${running ? "bg-accent animate-pulse" : "bg-transparent"}`} />
+      <span className={`office-work-header__rail shrink-0 w-0.5 self-stretch rounded-full transition-colors ${running ? "bg-accent animate-pulse" : "bg-transparent"}`} />
       {running ? (
         <Loader2 size={12} className="shrink-0 animate-spin text-accent" />
       ) : (

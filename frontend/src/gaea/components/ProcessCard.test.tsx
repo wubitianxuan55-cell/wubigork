@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 import { ProcessCard, buildSegments } from "./Transcript";
 import { deriveProcessStatus } from "../lib/processStatus";
 import { LocaleProvider } from "../lib/i18n";
@@ -51,6 +51,22 @@ describe("ProcessCard 小过程卡 / 展开态初始状态", () => {
     );
     const header = view.container.querySelectorAll("button[aria-expanded]")[0];
     expect(header?.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("思考卡运行中仍默认折叠，点击后才展开", () => {
+    const items: Item[] = [
+      { kind: "assistant", id: "a-live", text: "", reasoning: "正在核对数据", streaming: true },
+      { kind: "tool", id: "t-live", name: "read_file", args: "", readOnly: true, status: "running" } as Item,
+    ];
+    const view = render(
+      wrap(
+<ProcessCard items={items} toolCount={1} thoughtCount={1} running small={false} subcallsByParent={noSubcalls} />),
+    );
+    const headers = view.container.querySelectorAll("button[aria-expanded]");
+    expect(headers[0]?.getAttribute("aria-expanded")).toBe("true");
+    expect(headers[1]?.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(headers[1]!);
+    expect(headers[1]?.getAttribute("aria-expanded")).toBe("true");
   });
 
   it("纯思考段走 bare 模式：无过程卡容器，只渲染裸思考行", () => {

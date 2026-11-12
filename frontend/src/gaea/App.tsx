@@ -976,6 +976,17 @@ export default function App() {
 
           <footer className={`office-composer-footer shrink-0 border-t border-border-soft bg-bg px-8 ${compactMode ? "pt-2 pb-0.5" : "pt-3 pb-1"}`}>
             <CompactContext.Provider value={compactMode}>
+            {/* 审批是回合中的决策步骤，不是盖住正文的模态窗：放在输入岛上沿，
+                既不遮挡正在阅读的上下文，也不让用户误以为背景不可操作。 */}
+            {state.approval && (
+              <ApprovalModal
+                approval={state.approval}
+                scheduleApplyArgs={scheduleApplyArgsOf(state.items)}
+                onAnswer={(decision) => {
+                  approve(state.approval!.id, decision);
+                }}
+              />
+            )}
             {showTodos && (
               <TodoCard
                 todos={todos}
@@ -1121,16 +1132,6 @@ export default function App() {
         )}
       </div>
       </Layout>
-
-      {state.approval && (
-          <ApprovalModal
-            approval={state.approval}
-            scheduleApplyArgs={scheduleApplyArgsOf(state.items)}
-            onAnswer={(decision) => {
-              approve(state.approval!.id, decision);
-            }}
-          />
-        )}
 
       {state.ask && (
         <AskCard

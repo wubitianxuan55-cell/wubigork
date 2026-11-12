@@ -200,6 +200,7 @@ export const zh: Record<DictKey, string> = {
   // 审批弹窗
   "approval.toolTitle": "允许这次工具调用吗？",
   "approval.toolNote": "先确认模型申请的工具调用，再决定是否放行。",
+  "approval.decisionLabel": "需要你批准",
   "approval.toolLabel": "工具",
   "approval.deny": "拒绝",
   "approval.denyHint": "不执行这次工具调用",
@@ -218,6 +219,9 @@ export const zh: Record<DictKey, string> = {
   "approval.reasonMissing": "（模型未提供理由）",
 
   // 提问卡片
+  "ask.title": "需要你确认",
+  "ask.answered": "已回答 {n}/{total}",
+  "ask.enterHint": "在自定义回答中按 Enter 提交",
   "ask.customPlaceholder": "输入你自己的答案…",
   "ask.justChat": "只是聊聊",
   "ask.dragHint": "拖拽移动",
@@ -357,7 +361,6 @@ export const zh: Record<DictKey, string> = {
   "process.thoughtOne": "{n} 段思考",
   "process.thoughtOther": "{n} 段思考",
   "process.working": "处理中…",
-  "process.title": "过程",
   "toolGroup.called": "{name} × {n}",
   "toolGroup.calledTitle": "已调用 {name} · {n} 次",
   "work.thinking": "思考中…",

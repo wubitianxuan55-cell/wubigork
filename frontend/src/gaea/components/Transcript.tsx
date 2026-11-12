@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components -- buildSegments 纯函数导出供测试与消息渲染复用 */
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, ArrowDown, Ban, Brain, CheckCircle, ChevronRight, FileText, Loader } from "../icons";
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { AlertCircle, ArrowDown, Ban, Brain, CheckCircle, ChevronRight, FileText, ListTree, Loader } from "../icons";
 import type { Item } from "../lib/store";
 import { useItems, useTurnStartAt } from "../lib/store";
 import { t, useT } from "../lib/i18n";
@@ -385,9 +385,8 @@ export const TurnBlock = memo(function TurnBlock({
       {turnTail && turnNo != null && !tailHasText && (
         <DeliverableCards text="" turnNo={turnNo} mergeRegistry omitPaths={tailOmitMentions} />
       )}
-      {/* v4.26 工作态头部：紧跟用户消息（items 为空也渲染，消灭 turn_started
-          到首条 text/tool 之间的死寂窗口）；轮完成转 Codex 式耗时行。
-          本轮有过程卡时完成态行让位（turnDoneSuppressed），运行中仍常驻。 */}
+      {/* 工作态头部只负责过程卡出现前的死寂窗口。过程卡一旦出现，其头部
+          已承载运行状态、耗时、工具数和思考数，这里不再重复“思考中…”。 */}
       {workHeader && <WorkHeader doneSuppressed={turnDoneSuppressed} />}
     </>
   );
@@ -398,16 +397,20 @@ export const TurnBlock = memo(function TurnBlock({
 // （i18n 由 InlineReasoning 的 useT 格式化），替代原「已工作 · N 段思考」
 // 卡头信息，避免同组信息占两行。
 function InlineReasoning({ item, metaLines }: { item: AssistantItem; metaLines?: number }) {
-  // 思考卡默认折叠：只看到标题，点开才看推理内容。
+  // 思考卡始终默认折叠；运行中只在折叠头展示最新一行摘要。
   const [open, setOpen] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const bodyId = useId();
   const t = useT();
-  useGSAPCollapse(bodyRef, open);
   const running = item.streaming && !item.text;
+  useGSAPCollapse(bodyRef, open);
   const reasoning = displayReasoningText(item.reasoning ?? "", {
     streaming: item.streaming ?? false,
     truncateStreaming: true,
   });
+  const preview = running && !open
+    ? reasoning.split("\n").map((line) => line.trim()).filter(Boolean).at(-1) ?? ""
+    : "";
   if (!reasoning) return null;
   return (
     <div className="reasoning">
@@ -417,14 +420,15 @@ function InlineReasoning({ item, metaLines }: { item: AssistantItem; metaLines?:
         data-running={running ? "" : undefined}
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
+        aria-controls={bodyId}
       >
         <Brain size={12} className="reasoning__icon" />
-        {running && <span aria-hidden className="w-1 h-1 rounded-full bg-accent animate-pulse shadow-[0_0_6px_var(--accent)] shrink-0" />}
         <span className="reasoning__label">{running ? t("msg.thinkingRunning") : t("reasoning.label")}</span>
+        <span className="reasoning__preview" title={preview || undefined}>{preview}</span>
         {metaLines != null && <span className="reasoning__meta">{t(metaLines === 1 ? "reasoning.metaLineOne" : "reasoning.metaLines", { n: metaLines })}</span>}
         <ChevronRight size={12} className={`reasoning__chevron${open ? " reasoning__chevron--open" : ""}`} />
       </button>
-      <div ref={bodyRef} style={{ overflow: "hidden" }}>
+      <div id={bodyId} ref={bodyRef} style={{ overflow: "hidden" }}>
         <div className="reasoning__body">{reasoning}</div>
       </div>
     </div>
@@ -485,6 +489,7 @@ export const ProcessCard = memo(function ProcessCard({
   const userOverridden = useRef(false);
   const prevRunningRef = useRef(running);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const bodyId = useId();
   const turnStartAt = useTurnStartAt();
   // v4.350：仅运行中订阅全局时钟——已完成过程卡（历史会话可达数百张）不再
   // 每秒重渲染；完成定格走 finalElapsedRef（下），不依赖 now 持续更新。
@@ -525,9 +530,9 @@ export const ProcessCard = memo(function ProcessCard({
   if (elapsedStr) labelParts.push(t("process.worked", { t: elapsedStr }));
   if (toolCount > 0) labelParts.push(t(toolCount === 1 ? "process.toolOne" : "process.toolOther", { n: toolCount }));
   if (thoughtCount > 0) labelParts.push(t(thoughtCount === 1 ? "process.thoughtOne" : "process.thoughtOther", { n: thoughtCount }));
-  const label = labelParts.length > 0
+  const detail = labelParts.length > 0
     ? labelParts.join(" · ")
-    : (running ? t("process.working") : t("process.title"));
+    : (running ? t("process.working") : "");
 
   // 状态四态：色 + 图标 + 文字（头部徽标传达）
   const status = deriveProcessStatus(items, running);
@@ -547,36 +552,60 @@ export const ProcessCard = memo(function ProcessCard({
     const grouped = scanGroups(items, { skipRunning: true });
     for (const gi of grouped) {
       if (gi.kind === "group") {
-        out.push(<ToolGroup key={gi.id} tools={gi.tools} />);
+        out.push(
+          <div key={gi.id} className="office-process-step" data-kind="tool-group">
+            <ToolGroup tools={gi.tools} />
+          </div>,
+        );
         continue;
       }
       const it = gi.item;
       switch (it.kind) {
         case "assistant":
-          if (it.reasoning) out.push(<InlineReasoning key={it.id} item={it as AssistantItem} metaLines={bare ? it.reasoning.split("\n").filter((l) => l.trim()).length : undefined} />);
+          if (it.reasoning) out.push(
+            <div key={it.id} className="office-process-step" data-kind="reasoning">
+              <InlineReasoning item={it as AssistantItem} metaLines={bare ? it.reasoning.split("\n").filter((l) => l.trim()).length : undefined} />
+            </div>,
+          );
           if (it.text) {
             out.push(
-              <div key={`${it.id}-text`} className="px-2.5 py-1.5 rounded-lg bg-bg/60 border border-border-soft/50 text-fg-dim text-[12.5px] leading-relaxed whitespace-pre-wrap">
-                {it.text}
+              <div key={`${it.id}-text`} className="office-process-step" data-kind="text">
+                <div className="px-2.5 py-1.5 rounded-lg bg-bg/60 border border-border-soft/50 text-fg-dim text-[12.5px] leading-relaxed whitespace-pre-wrap">
+                  {it.text}
+                </div>
               </div>,
             );
           }
           break;
         case "tool":
           if (it.parentId) break;
-          out.push(<ToolCard key={it.id} item={it as ToolItem} subcalls={subcallsByParent.get(it.id)} />);
+          out.push(
+            <div key={it.id} className="office-process-step" data-kind="tool">
+              <ToolCard item={it as ToolItem} subcalls={subcallsByParent.get(it.id)} />
+            </div>,
+          );
           break;
         case "phase":
           if (it.id === lastPhaseId) break;
           out.push(
-            <div key={it.id} className="phase"><Brain size={12} /><span>{it.text}</span></div>,
+            <div key={it.id} className="office-process-step" data-kind="phase">
+              <div className="phase"><Brain size={12} /><span>{it.text}</span></div>
+            </div>,
           );
           break;
         case "notice":
-          out.push(<div key={it.id} className="notice">{it.text}</div>);
+          out.push(
+            <div key={it.id} className="office-process-step" data-kind="notice">
+              <div className="notice">{it.text}</div>
+            </div>,
+          );
           break;
         case "compaction":
-          out.push(<CompactionCard key={it.id} item={it as CompactionItem} />);
+          out.push(
+            <div key={it.id} className="office-process-step" data-kind="compaction">
+              <CompactionCard item={it} />
+            </div>,
+          );
           break;
       }
     }
@@ -592,35 +621,45 @@ export const ProcessCard = memo(function ProcessCard({
     );
   }
 
-  // Codex 式过程条：无边框、低噪声；运行中只有左侧细线强调，状态靠徽标传达。
+  // 过程卡是轮级执行摘要：完成态保持一行，运行态自动展开；进入正文后
+  // 不抢阅读焦点。细节仍由内部思考与工具卡承担。
   return (
-    <div className={`my-0.5 rounded-lg overflow-hidden transition-colors duration-[var(--dur-base)] ${
-      running ? "bg-accent/[0.03]" : "hover:bg-(color:--md-sys-color-surface-container-high)/40"
-    }`}>
+    <div
+      className="office-process-card"
+      data-running={running ? "true" : "false"}
+      data-status={status}
+      data-compact={small ? "true" : "false"}
+    >
       <button
         type="button"
-        className="flex items-center gap-2 w-full px-2.5 py-1 text-left cursor-pointer rounded-lg transition-colors"
+        className="office-process-card__head"
         data-running={running ? "" : undefined}
         onClick={() => { userOverridden.current = true; setOpen((v) => !v); }}
         aria-expanded={open}
+        aria-controls={bodyId}
       >
-        <span className={`shrink-0 w-0.5 self-stretch rounded-full transition-colors ${running ? "bg-accent animate-pulse" : "bg-transparent"}`} />
-        <ChevronRight size={12} className={`shrink-0 text-fg-faint transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
-        <Brain size={12} className={`shrink-0 ${running ? "text-accent animate-pulse" : "text-fg-faint"}`} />
-        <span className="text-[11px] font-medium text-fg-dim">{label}</span>
+        <span className="office-process-card__rail" aria-hidden />
+        <span className="office-process-card__icon" aria-hidden>
+          <ListTree size={14} />
+        </span>
+        <span className="office-process-card__copy">
+          {detail && <span className="office-process-card__meta">{detail}</span>}
+        </span>
         {statusMeta && (
-          <span className={`inline-flex items-center gap-1 shrink-0 rounded-full border px-1.5 py-px text-[10px] font-medium ${statusMeta.cls}`}>
-            {StatusIcon && <StatusIcon size={10} className="shrink-0" />}
+          <span className={`office-process-card__status ${statusMeta.cls}`} data-status={status}>
+            {StatusIcon && <StatusIcon size={11} className="shrink-0" />}
             <span>{t(statusMeta.labelKey)}</span>
           </span>
         )}
-        {/* 耗时只在「已工作」缺席时角标补位（如纯阶段/通知段），不再与卡头重复 */}
-        {!elapsedStr && (
-          <span className="ml-auto text-fg-faint/50 text-[10px] font-mono tabular-nums shrink-0">{running ? t("process.working") : ""}</span>
-        )}
+        <ChevronRight
+          size={13}
+          className="office-process-card__chevron"
+          data-open={open ? "true" : "false"}
+          aria-hidden
+        />
       </button>
-      <div ref={bodyRef} style={{ overflow: "hidden" }}>
-        <div className="px-2.5 pb-2 pt-0.5 space-y-0.5">{body}</div>
+      <div id={bodyId} ref={bodyRef} style={{ overflow: "hidden" }}>
+        <div className="office-process-card__body">{body}</div>
       </div>
     </div>
   );
@@ -846,8 +885,8 @@ export function Transcript({
     return last;
   }, [segments]);
 
-  // 最后一轮是否存在过程卡（任意段的 processItems 非空）。存在时该轮完成态
-  // 的「已完成·用时」行由轮内过程卡头部「已工作 Xs · …」承担，不再双行。
+  // 最后一轮是否存在过程卡（任意段的 processItems 非空）。存在时运行态与
+  // 完成态都由过程卡头部承载，外部 WorkHeader 整条不再重复展示。
   const lastTurnHasProcess = useMemo(() => {
     if (lastUserSegIdx < 0) return false;
     return segments.some((seg, i) => i > lastUserSegIdx && seg.processItems.length > 0);
@@ -995,7 +1034,7 @@ export function Transcript({
                   onRegenerateTurn={handleRegenerateTurn}
                   onFeedback={onFeedback}
                   turnElsRef={turnEls}
-                  workHeader={segIdx === lastUserSegIdx}
+                  workHeader={segIdx === lastUserSegIdx && !lastTurnHasProcess}
                   turnDoneSuppressed={segIdx === lastUserSegIdx && lastTurnHasProcess}
                   tailOmitMentions={tailOmitBySeg.get(segIdx)}
                 />

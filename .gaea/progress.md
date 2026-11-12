@@ -1,3 +1,23 @@
+## 办公对话输出 UI 系统重设计 · 2026-11-11（未发布）
+
+- 调研收敛：Codex/Claude Code 的执行行、Claude/ChatGPT 安静阅读面、M365
+  Copilot 的审批前预览、Cursor 3 的任务状态、Raycast 的问题卡与 Linear 的
+  高密度对齐；完整矩阵与源链接见
+  `docs/gaea-office-conversation-output-redesign-2026-11.md`。
+- 四类输出统一：同一段正文前的思考、阶段和工具合并为一张过程卡，
+  折叠头删除“执行过程”固定标题并压成单行摘要 + 状态，过程卡出现后不再显示外部“思考中…”状态带；思考卡始终默认折叠、运行中保留最新一行摘要；工具行改原生 button + 状态文字
+  + 目标/结果/输出分层；Ask 改为保留上下文的焦点浮卡；审批从全局固定层迁到
+  输入区上沿，主决策两列、次级授权与危险停止分层，硬确认语义不变。
+- 门禁：`tsc -b` 0 错；定向 Vitest 59/59；定向 ESLint 0；frontend
+  `npm run build` 通过；暗/亮主题浏览器走查过程卡、思考卡、Ask、审批无溢出。
+- 桌面构建（工作树，v4.541.0）：先修复提交 `f60cd0af` 中断裂的
+  `wails.json` `info.comments` 字符串；frontend 生产构建通过后，以 ucrt64
+  gcc、`CGO_ENABLED=1`、默认 `TMP/TEMP` 执行
+  `wails build -s -ldflags "-s -w" -trimpath`。产物 `build/bin/gaea.exe`
+  62,058,496B，构建时刻 2026-11-11 22:18:05，SHA256
+  `E6964FD8168B2E1B35D03A589520B165F421C7C27D426702D598FE3919791198`，
+  三 DLL 同目录；正式路径冒烟 `/api/health` 200。未装机、未打发布包。
+
 ## 35B 单副本收口：原件删除+llama 切 whirlfix2（v4.539.0）· 2026-11-11（深夜）
 
 - 先验后删：b12110+whirlfix2 载入烟测通过 → qwen35ModelFile 常量切
