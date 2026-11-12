@@ -8,8 +8,8 @@
 >
 > 上游基线：`dsh-better-sidebar v0.32.0`，解析后 commit `53e08cec61f1a3cfe32b86e6429876fff1ef0504`（2026-11-12）。
 >
-> 当前批次：**G1.7（冲突/重命名/二进制展示策略收口）在分支 `feat/g1-git-display-strategy` 验证中**；G1.6（worktree 只读展示+子进程预算）已快进并入 main（`205c5947`）。F1 + F2 + F3 与 G1.1–G1.5 已提交为 `f49ea150` 并完成独立干净工作树构建、正式路径冒烟、预览包与源码包。
-> 当前仍**未 push、未覆盖正式安装版**；G1 剩余的 worktree 切换（=工作区切换器，产品门）按 §6 判定推进。
+> 当前批次：**G2（只读提交图）在分支 `feat/g2-commit-graph` 完成验证，待并入**；G1.6/G1.7/G1.8 已全部并入 main（`d048f3c4`），G1 全验收矩阵（非 Git 仓库/空仓/无提交 HEAD/重命名/二进制/冲突）真仓测试+真机走查双实证。F1+F2+F3+G1.1–G1.5 已提交为 `f49ea150` 并完成打包与冒烟。
+> 当前仍**未 push、未覆盖正式安装版**；W1/X1 维持产品门。
 
 本文替代旧的 2026-09 滚动规划，作为后续新会话的恢复入口。旧文档
 `docs/gaea-dsh-better-sidebar-long-term-distill-plan-2026.md` 只保留历史调研和早期阶段台账，
@@ -499,16 +499,16 @@ F1 新增 17 个 Wails 方法，绑定面由 728 变为 **745**。
 
 ### G2：只读提交图
 
-优先级：中；等 G1 稳定后再定。
+优先级：中；**✅ 已实现（2026-11-13，分支 `feat/g2-commit-graph`）**——G1 稳定（真仓测试+真机走查双实证）后按 §6 顺序推进。
 
-候选能力：
+已落地：
 
-- 分页提交图、lane、分支/tag 装饰；
-- 分支筛选但不 checkout/fetch；
-- 提交详情与 diff；
-- 行窗口化和严格历史上限。
+- `GaeaGitGraph(skip, limit, branch)`：分页提交（%P parents/%D 装饰）+ 本地分支清单；lane 拓扑由前端 `commitGraph.ts` 纯函数计算（先清位再布父：首父继承/次父外扩/折线并入/多根复用/截断父 through 到图底，MAX_LANES=8 钳制）。
+- 分支筛选：下拉选本地分支按分支取历史，**只读不 checkout/fetch/push**；branch 名严格校验（拒选项注入/范围/reflog/.lock，中文放行）。
+- `GaeaGitCommitDetail(hash)`：消息体/引用/parents + `diff-tree --root --numstat`（二进制 -1）+ 全量 unified diff（4MB 预算截断标记）；hash 只收十六进制；合并提交默认无 diff 诚实提示。
+- CommitGraphView 第五镜头：SVG lane 行（dot/穿行/汇入，令牌配色零裸 hex）+装饰 chip+加载更多（--skip 续读去重）+详情展开复用 ChangesDiff。
 
-若 gaea 用户主要是单机工作区、Git 图使用频率低，可以把本批降为观察项。
+不做（本批边界）：checkout、reflog/stash 视图、逐文件过滤 diff、lane 曲线美化（直线段诚实可读）。
 
 ### W1：底部工作台、分栏与终端
 
@@ -666,6 +666,7 @@ go vet ./internal/gaea/workbench ./internal/app
 | G1.6 | 2026-11-12 | ✅ 已并入 main（快进） | worktree 只读展示（`GaeaGitWorktrees` 绑定+GitStatus linked 标注+GitPanel 第四镜头「工作树」+头部 chip）+ Git 子进程超时/输出预算收口（读 20s/8MB、写 60s/1MB、diff 4MB 截断标记）+ 设计判定固化（切换=工作区切换器另立产品门；服务扩展不重做） | Go 定向 10 例+全包绿、vet 绿；`tsc -b`+Vite build 23.42s 绿；GitPanel 12 用例+mock 契约 19/19 绿；绑定 745→746 四表同步+drift OK；9 文件 ESLint 绿；未跑 Wails build 与真机走查 |
 | G1.7 | 2026-11-13 | ✅ 已并入 main（快进 `277dc240`+`7b7f314d`） | 冲突/重命名/二进制展示策略收口：Go `GitFileStatus.conflict`（六形态）+`origPath`（-z rename 来源）+冲突 staged=false；GitPanel 冲突独立分组+不代解提示+展开行解决指引、rename `← 原名`；buildGitDiff 二进制诚实占位；gitStatusInk 六形态补齐 | Go 新 3 例（真仓 UU/rename 溯源/二进制 diff）+全包复跑绿；tsc+Vite 24.85s 绿；GitPanel 15 例（3 新）+ink+planDiff+契约 28+15 绿；7 文件 ESLint 绿；无新绑定（746 不变）；**真机走查已过（见 G1.8 行）** |
 | G1.8 | 2026-11-13 | ✅ 已并入 main | ①空仓（无提交 HEAD）降级矩阵测试：status 报未诞生分支、log 诚实报错、unstage/diff --cached 按空树语义成功（git ≥2.26 实锤——首提交场景 reset/unstage/diff 天然正确）；②G1.6/G1.7 真机走查收官：沙箱夹具真仓（UU 冲突+rename+二进制+双 worktree）+`GAEA_WALKTHROUGH=1`+`GAEA_WEBVIEW_DEBUG=1` CDP 驱动实壳——冲突组置顶+计数+不代解提示、rename `← 原名`、暂存计数排除冲突、工作树镜头三行徽标/分支、linked chip 主检出态正确不亮，全断言绿零缺陷 | 空仓新 1 例绿；wails build 19.03s（c7f4 @ `7b7f314d`+G1.8 测试）；正式路径冒烟 200（payload releases/gaea-g17-g18-walkthrough-20261113/，exe 2fd2741b）；走查截图 .tmp/walk-2/3；走查壳已回收、沙箱已清场 |
+| G2 | 2026-11-13 | 🟡 分支候选（`feat/g2-commit-graph`，自 `d048f3c4`，另含 05dc2a91 wailsjs 补账） | 只读提交图：`GaeaGitGraph` 分页（parents/装饰/分支清单，branch 严格校验防注入）+`GaeaGitCommitDetail`（numstat 二进制 -1+4MB diff 预算+合并诚实空 diff+hash 十六进制校验）；前端 `commitGraph.ts` lane 纯函数（先清位再布父/MAX_LANES 钳制）+CommitGraphView 第五镜头（SVG lane/装饰 chip/分支筛选不 checkout/加载更多/详情展开复用 ChangesDiff）；绑定 746→748 | Go 新 2 例（真仓 no-ff 合并拓扑 7 提交/分页/筛选/双注入拒绝/二进制 numstat/合并空 diff+refSafe/hashSafe 边界）+app/workbench 全包 exit 0；tsc+Vite 24.01s；vitest 定向 30/30；11 文件 ESLint 零；drift 748 OK；真机走查待下一轮打包 |
 | F0 | 2026-11-12 | ✅ 已提交并打包 | 功能提交 `f49ea150`；独立干净工作树构建；预览 ZIP + 提交源码 TAR + 包记录 + 长期记忆更新 | 前端 build/Vite 20.38s；Wails 50.158s；smoke 200；ZIP/TAR/四件套 SHA256 已核验；未 push/未装机 |
 
 ## 12. 下一会话建议提示词

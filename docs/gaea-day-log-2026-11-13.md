@@ -75,3 +75,29 @@
      前缀重叠；
   4. GitPanel 生产消费方在 `sidebarRegistry.ts` 的 `git` pane（非直接 JSX）——右栏
      「展开文件面板」→ Git 页签进入。
+
+## 6. G2 只读提交图（01:0x，分支候选）
+
+> §6 顺序推进：G1 稳定（G1.8 双实证）后开 G2。硬边界=只读：不 checkout/fetch/push。
+
+- **Go**：`GaeaGitGraph(skip,limit,branch)`（分页+parents/装饰+本地分支清单；branch 校验拒
+  选项注入/范围/reflog/.lock/空白，中文分支放行）+ `GaeaGitCommitDetail(hash)`（消息体/
+  引用/parents + `diff-tree --root --numstat` 二进制 -1 + 全量 diff 4MB 预算截断；hash 只收
+  十六进制 7~40 位；合并提交默认空 diff 诚实提示）。
+- **前端**：`commitGraph.ts` lane 纯函数——首版算法有真 bug（`lanes[lane]=null` 在布父之后
+  执行，把刚放入同槽的首父抹掉，整图塌成单 lane），改「先清位再布父」后 6 拓扑单测钉死
+  （线性/外扩/合并/多根复用/截断父 through 到图底/病理钳 MAX_LANES=8）；`CommitGraphView`
+  第五镜头：SVG lane 行（dot/穿行竖线/汇入折线，令牌轮换色零裸 hex）+装饰 chip（HEAD->
+  main 高亮/🏷tag/远端）+分支筛选下拉+加载更多（--skip 续读 hash 去重）+详情展开（消息体/
+  引用/numstat「二进制」标记/ChangesDiff 复用）。
+- **验证**：Go 新 2 例（真仓 no-ff 合并 7 提交拓扑/分页/筛选/双注入拒绝/二进制 numstat/
+  合并空 diff + refSafe/hashSafe 边界）+app/workbench 全包 exit 0；tsc+Vite 24.01s；vitest
+  30/30；11 文件 ESLint 零；drift 748 OK；绑定 746→748 四表+wailsjs 同步。
+- **真机走查**：待下一轮打包一并（沙箱夹具真仓拓扑可复用）。
+- **坑册**：
+  1. lane 算法经典次序坑：清位必须在布父**之前**（首父继承同槽时后清会抹掉刚布的父）；
+  2. wailsjs 补账与 CRLF 噪音同批出现——`git diff <file> | grep -c "^[+-][^+-]"` 区分真实
+     变更（0 行=纯换行相位），`git checkout -- app/` 整目录还原会误伤真实新增行，逐文件
+     处理；
+  3. `wails generate module` 可独立再生 wailsjs（无需完整 build）；每跑一次全 M 是 autocrlf
+     相位，非真实变更。
