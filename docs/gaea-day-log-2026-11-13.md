@@ -1,7 +1,7 @@
-# gaea Day Log · 2026-11-13 · G1.6 并入 main + G1.7 冲突/重命名/二进制展示策略收口
+# gaea Day Log · 2026-11-13 · G1.6 并入 main + G1.7 展示策略收口 + G1.8 降级矩阵/真机走查
 
 > 承 11-12 深夜 G1.6（分支 `feat/g1-git-deepening`），凌晨快进并入 main（`205c5947`），
-> 随后按交接档 §6 顺序开 G1.7。push/装机始终挂用户拍板。
+> 随后按交接档 §6 顺序开 G1.7、G1.8。push/装机始终挂用户拍板。
 
 ## 1. G1.6 并入 main（本地合并）
 
@@ -44,3 +44,34 @@
 4. 前端测试断言文案要与分组级提示错开（冲突组提示与展开行提示同含「git add」，
    findByText 正则会双命中）；
 5. `cat >> 新文件` 会静默创建 0 字节文件——写 day-log 前先 `ls` 核存在性。
+
+## 4. G1.7 快进并入 main（00:2x，本地）
+
+- `feat/g1-git-display-strategy`（277dc240 feat + 7b7f314d docs）快进并入 main；
+  main 领先 origin 7 笔，**未 push**。
+
+## 5. G1.8 降级矩阵 + G1.6/G1.7 真机走查收官（00:3x）
+
+- **空仓降级矩阵**（`TestGaeaGitUnbornHead`）：status 报未诞生分支无文件、log 诚实报错
+  （前端「暂无提交」空态）；**意外实锤——git ≥2.26 把未诞生 HEAD 当空树**：unstage
+  （reset）与 staged diff 都成功且语义正确（unstage 清暂存、diff 全显新增），首提交场景
+  天然可用，断言按成功语义落。worktree list 空仓正常返回主检出。
+- **真机走查**（GAEA_WALKTHROUGH=1 沙箱 + GAEA_WEBVIEW_DEBUG=1 → CDP 9333，实壳实绑定）：
+  - 沙箱夹具真仓：UU 冲突（双分支 merge）+ `git mv` rename + 二进制 + `git worktree add`
+    linked/detached；
+  - 走查断言全绿零缺陷：Git 镜头=冲突组置顶+计数+红字「本面板不代解」+冲突行无快操作、
+    rename 行「说明书.md ← 说明.md」、**暂存 1 个文件（冲突正确排除出提交计数）**、
+    二进制/未跟踪各行就位；工作树镜头=主检出/当前/detached 徽标+分支色+路径，linked
+    chip 在主检出态正确不亮；
+  - 构建链：wails build 19.03s（c7f4 @ 7b7f314d+G1.8 测试），正式路径冒烟 200
+    （payload releases/gaea-g17-g18-walkthrough-20261113/，exe 2fd2741b，留盘不入库）；
+  - 走查壳回收、9333 无监听残留、沙箱 gaea-walkthrough 整体删除。
+- **坑册**：
+  1. WebView2 CDP 正牌开关=`GAEA_WEBVIEW_DEBUG=1`（固定 9333）——
+     `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` 传 `--remote-debugging-port` 在 Wails 壳
+     不生效（Wails 自管 args）；
+  2. 杀壳后 WebView2 子进程可能残留占 9333——树杀后再核属主（PID 已死即清场）；
+  3. `git worktree add -b wt/x` 会撞已有 `wt` 分支（ref 目录冲突）——夹具分支名避开
+     前缀重叠；
+  4. GitPanel 生产消费方在 `sidebarRegistry.ts` 的 `git` pane（非直接 JSX）——右栏
+     「展开文件面板」→ Git 页签进入。

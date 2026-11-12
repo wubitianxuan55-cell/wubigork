@@ -1,3 +1,10 @@
+## G1.8 降级矩阵 + G1.6/G1.7 真机走查收官 · 2026-11-13（凌晨）
+
+- **空仓矩阵**（`TestGaeaGitUnbornHead`）：status 报未诞生分支、log 诚实报错；git ≥2.26 未诞生 HEAD=空树——unstage/staged diff 成功且语义正确（首提交场景天然可用）；worktree list 正常。
+- **真机走查**（沙箱夹具真仓 UU/rename/二进制/double worktree + GAEA_WALKTHROUGH + GAEA_WEBVIEW_DEBUG→CDP 9333 实壳实绑定）：冲突组置顶+不代解提示+冲突行无快操作、rename `← 原名`、**暂存计数排除冲突**、工作树镜头三行徽标、linked chip 主检出态正确不亮——全断言绿零缺陷。wails build 19.03s + 冒烟 200（payload releases/gaea-g17-g18-walkthrough-20261113/ exe 2fd2741b 留盘不入库）；壳回收+沙箱清场。
+- **G1.7 已快进并入 main**（277dc240+7b7f314d，main ahead origin 7 未 push）。G1 验收矩阵（非 Git 仓库/空仓库/无提交 HEAD/重命名/二进制/冲突）至此全部有真仓测试+真机走查双实证。
+- 坑：CDP 开关=GAEA_WEBVIEW_DEBUG=1（WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS 传调试端口在 Wails 壳不生效）；杀壳后 WebView2 子进程可残留占 9333 须核属主；worktree -b 撞已有分支前缀；GitPanel 生产消费方=sidebarRegistry 的 git pane。
+
 ## G1.7 冲突/重命名/二进制展示策略收口 · 2026-11-13（凌晨，分支候选）
 
 - **并入**：G1.6 分支（7a544d37+205c5947）已快进并入 main（本地，未 push，main ahead origin 5）。

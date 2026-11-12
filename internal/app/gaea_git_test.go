@@ -349,6 +349,66 @@ func TestCleanFilterOverridesNonRepo(t *testing.T) {
 	}
 }
 
+// G1.8：空仓库（无提交 HEAD）降级矩阵——status 诚实报未诞生分支、log/unstage/
+// staged-diff 诚实报错（前端走空态/toast）、worktree list 正常（仅主检出）。
+func TestGaeaGitUnbornHead(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("环境无 git CLI")
+	}
+	dir := t.TempDir()
+	run := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	run("init", "-q")
+	run("config", "user.name", "t")
+	run("config", "user.email", "t@example.com")
+
+	a := &App{}
+	t.Chdir(dir)
+
+	// status：IsRepo=true，分支名从「No commits yet on」解析，无文件无 ahead/behind。
+	st := a.GaeaGitStatus()
+	if !st.IsRepo || st.Branch == "" || st.Ahead != 0 || st.Behind != 0 || len(st.Files) != 0 {
+		t.Fatalf("空仓 status = %+v, want isRepo+branch 无文件", st)
+	}
+
+	// log：无提交 → 诚实报错（前端 history .catch → 「暂无提交」空态）。
+	if _, err := a.GaeaGitLog(5); err == nil {
+		t.Fatal("空仓 log 应报错")
+	}
+
+	// unstage：无 HEAD——git ≥2.26 把未诞生 HEAD 当空树回退（exit 0，撤销暂存），
+	// 是合法语义而非错误；断言成功并确实清空了暂存条目。
+	if err := a.GaeaGitUnstage([]string{"x.txt"}); err != nil {
+		t.Fatalf("空仓 unstage（未诞生 HEAD=空树回退）不应报错: %v", err)
+	}
+	st2 := a.GaeaGitStatus()
+	for _, f := range st2.Files {
+		if f.Path == "x.txt" && f.Staged {
+			t.Fatalf("unstage 后 x.txt 不应留在暂存区: %+v", st2.Files)
+		}
+	}
+
+	// worktree list：空仓正常返回主检出一条（无 HEAD 字段，isCurrent=工作区所在）。
+	wts, err := a.GaeaGitWorktrees()
+	if err != nil || len(wts) != 1 || !wts[0].IsMain || !wts[0].IsCurrent {
+		t.Fatalf("空仓 worktrees = %+v, %v", wts, err)
+	}
+
+	// staged diff（未诞生 HEAD）：git ≥2.26 按空树比较——首提前的暂存 diff
+	// 全部呈现为新增行（对「首提交」场景正是用户想要的语义），不报错不崩溃。
+	writeRepoFile(t, dir, "x.txt", "new\n")
+	run("add", "x.txt")
+	out, err := a.GaeaGitDiff("x.txt", true)
+	if err != nil || !strings.Contains(out, "+new") {
+		t.Fatalf("空仓 staged diff 应按空树显示新增: %q, %v", out, err)
+	}
+}
+
 // G1 深化：porcelain 解析纯函数——bare/detached/locked（带原因）/branch 前缀
 // 剥离/主检出/当前工作区标记。
 func TestParseGitWorktrees(t *testing.T) {
