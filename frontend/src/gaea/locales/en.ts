@@ -1491,6 +1491,8 @@ export const en = {
   "contextview.timingReasoning": "Reasoning",
   "contextview.timingText": "Answers",
   "contextview.timingTps": "TPS {{n}} tok/s",
+  "contextview.duration": "Duration",
+  "contextview.durationTip": "Per-request active-time curve (right axis) — usage close minus header send",
   "contextview.timesUnit": " calls",
   "contextview.blocksUnit": " blocks",
   "contextview.countTimes": "{n}×",

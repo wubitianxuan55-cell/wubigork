@@ -151,7 +151,7 @@ export function Donut({
 }
 
 // ─── 1. StatsCard 上下文统计（v4.71：8 个独立小卡，不再合成 1 张大卡） ──
-export function StatsCard({ stats, nodes, files, commands, family, timings }: {
+export function StatsCard({ stats, nodes, files, commands, family, timings, onToolPick, onIOClick }: {
   stats: ContextStats;
   // 1:1 上游 Context Stats 复合卡数据面：nodes（工具 chips/user 数聚合）、
   // files（Input/Output 聚合）、commands（程序 chips）、family（编队费用行
@@ -161,6 +161,10 @@ export function StatsCard({ stats, nodes, files, commands, family, timings }: {
   commands: ContextCommandRecord[];
   family?: { rootTokens: number; rootCost?: number; subTokens: number; subCost?: number; subCount: number } | null;
   timings?: ContextTiming;
+  // 1:1 上游 chips 点击联动：工具 chip→浏览器该工具过滤；IO chip→文件活动
+  // 对应动作过滤（上游同款交互：点 chip 即过滤到该面）。
+  onToolPick?: (tool: string) => void;
+  onIOClick?: (action: "read" | "write" | "search") => void;
 }) {
   const t = useT();
   // 4 tiles（1:1：Turns/Steps/Skill Loads/模型回复次数）
@@ -185,10 +189,10 @@ export function StatsCard({ stats, nodes, files, commands, family, timings }: {
   let userCount = 0;
   for (const n of nodes) if (n.cat === "user") userCount++;
   const ioChips = [
-    { label: "User", n: userCount },
-    { label: "Read", n: reads },
-    { label: "Write", n: writes },
-    { label: "Image", n: stats.images },
+    { label: "User", n: userCount, onClick: undefined },
+    { label: "Read", n: reads, onClick: onIOClick ? () => onIOClick("read") : undefined },
+    { label: "Write", n: writes, onClick: onIOClick ? () => onIOClick("write") : undefined },
+    { label: "Image", n: stats.images, onClick: undefined },
   ];
   // 工具调用 chips（结果节点聚合 top5）
   const toolTally = new Map<string, number>();
@@ -205,12 +209,18 @@ export function StatsCard({ stats, nodes, files, commands, family, timings }: {
   }
   const progChips = [...progTally.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   const progMore = Math.max(0, progChips.length - 5);
-  const chip = (label: string, n: number) => (
-    <span key={label} className="inline-flex items-center gap-1 rounded bg-bg-soft px-1.5 py-px text-[10px] text-fg-dim">
-      <span aria-hidden className="h-1.5 w-1.5 rounded-sm" style={{ background: "var(--md-sys-color-outline, #9e9e9e)" }} />
-      {label} <b className="font-mono text-fg">{n}</b>
-    </span>
-  );
+  const chip = (label: string, n: number, onClick?: () => void) =>
+    onClick ? (
+      <button key={label} type="button" onClick={onClick} title={label} className="inline-flex cursor-pointer items-center gap-1 rounded border-0 bg-bg-soft px-1.5 py-px text-[10px] text-fg-dim hover:text-fg">
+        <span aria-hidden className="h-1.5 w-1.5 rounded-sm" style={{ background: "var(--md-sys-color-outline, #9e9e9e)" }} />
+        {label} <b className="font-mono text-fg">{n}</b>
+      </button>
+    ) : (
+      <span key={label} className="inline-flex items-center gap-1 rounded bg-bg-soft px-1.5 py-px text-[10px] text-fg-dim">
+        <span aria-hidden className="h-1.5 w-1.5 rounded-sm" style={{ background: "var(--md-sys-color-outline, #9e9e9e)" }} />
+        {label} <b className="font-mono text-fg">{n}</b>
+      </span>
+    );
   return (
     <div data-testid="stats-kpi-grid" className="ctx-card p-3">
       <div className="grid grid-cols-2 gap-2 min-[1100px]:grid-cols-4">
@@ -232,10 +242,10 @@ export function StatsCard({ stats, nodes, files, commands, family, timings }: {
         ))}
       </div>
       <StatChipRow label={t("contextview.ioRow")} total={userCount + reads + writes}>
-        {ioChips.map((c) => chip(c.label, c.n))}
+        {ioChips.map((c) => chip(c.label, c.n, c.onClick))}
       </StatChipRow>
       <StatChipRow label={t("contextview.statToolCallsRow")} total={stats.toolCalls}>
-        {toolChips.slice(0, 5).map(([name, n]) => chip(name, n))}
+        {toolChips.slice(0, 5).map(([name, n]) => chip(name, n, onToolPick ? () => onToolPick(name) : undefined))}
         {toolMore > 0 && <span className="text-[10px] text-fg-faint">+{toolMore} {t("contextview.moreChips")}</span>}
       </StatChipRow>
       <StatChipRow label={t("contextview.cmdRow")} total={commands.length}>

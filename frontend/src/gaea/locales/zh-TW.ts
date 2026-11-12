@@ -1495,6 +1495,8 @@ export const zhTW: Record<DictKey, string> = {
   "contextview.timingReasoning": "模型思考",
   "contextview.timingText": "模型回覆",
   "contextview.timingTps": "輸出速度 {{n}} tok/s",
+  "contextview.duration": "耗時",
+  "contextview.durationTip": "每請求活躍耗時曲線（右軸）＝用量關閉 − 請求發出",
   "contextview.timesUnit": " 次",
   "contextview.blocksUnit": " 個內容塊",
   "contextview.countTimes": "{n} 次",

@@ -9,6 +9,7 @@ import type {
 } from "../lib/types";
 import type { DictKey } from "../locales/en";
 import { fmtTokens } from "../lib/stats";
+import { fmtDuration } from "./context/cards";
 import { loadContextPrefs, saveContextPref, type CtxTrendGranularity, type CtxTrendMode } from "../lib/contextPrefs";
 import { useLiveReload } from "../hooks/useLiveReload";
 import { subscribeAgentNetwork, reloadAgentNetwork } from "../lib/agentNetworkStore";
@@ -284,13 +285,35 @@ export function ContextTrendChart({ requests, events, onPick, detail, focus }: {
 
   const W = Math.max(bars.length * 26, 320);
   const H = 150;
-  const padL = 46, padR = 8, padT = 14, padB = 18;
+  const padL = 46, padR = 40, padT = 14, padB = 18;
   const plotH = H - padT - padB;
   const bw = 20;
 
   const yTicks = [0, 0.5, 1].map((f) => ({
     y: padT + plotH - f * plotH,
     label: fmtTokens(Math.round(maxY * f)),
+  }));
+
+  // 1:1 上游 Duration 耗时曲线（右上切换）：每请求 activeMs 折线+右轴时间
+  // 刻度。旧日志/纯工具步无 activeMs 的点断开（诚实缺段）。
+  const [durationOn, setDurationOn] = useState(false);
+  const durPoints = useMemo(() => {
+    if (!durationOn) return [];
+    const pts: { x: number; y: number; ms: number }[] = [];
+    let maxMs = 0;
+    bars.forEach((b, i) => {
+      if ((b.activeMs ?? 0) > 0) {
+        maxMs = Math.max(maxMs, b.activeMs!);
+        pts.push({ x: padL + i * (bw + 6) + bw / 2, y: 0, ms: b.activeMs! });
+      }
+    });
+    const yOf = (ms: number) => padT + plotH - (ms / Math.max(maxMs, 1)) * plotH;
+    return pts.map((p) => ({ ...p, y: yOf(p.ms), maxMs }));
+  }, [durationOn, bars]);
+  const durMax = durPoints[0]?.maxMs ?? 0;
+  const durTicks = [0, 0.5, 1].map((f) => ({
+    y: padT + plotH - f * plotH,
+    label: fmtDuration(Math.round(durMax * f), t),
   }));
 
   const pick = (i: number) => {
@@ -352,6 +375,13 @@ export function ContextTrendChart({ requests, events, onPick, detail, focus }: {
               onClick={() => pickMode(m)}
             >{m === "total" ? t("contextview.modeTotal") : t("contextview.modeDelta")}</button>
           ))}
+          <button
+            title={t("contextview.durationTip")}
+            aria-pressed={durationOn}
+            data-testid="trend-duration"
+            className={`px-1.5 py-0.5 rounded border-0 cursor-pointer ${durationOn ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"}`}
+            onClick={() => setDurationOn((v) => !v)}
+          >{t("contextview.duration")}</button>
           <span className="mx-0.5 h-3 w-px bg-border-soft" />
           <button
             title={t("contextview.overviewTip")}
@@ -449,6 +479,18 @@ export function ContextTrendChart({ requests, events, onPick, detail, focus }: {
               <text x={padL - 4} y={t.y + 3} fontSize={9} fill="var(--fg-faint)" textAnchor="end">{t.label}</text>
             </g>
           ))}
+          {durationOn && durMax > 0 && durTicks.map((tk, i) => (
+            <text key={`dt${i}`} x={W - padR + 4} y={tk.y + 3} fontSize={8.5} fill="var(--fg-faint)">{tk.label}</text>
+          ))}
+          {durationOn && durPoints.length > 1 && (
+            <polyline
+              points={durPoints.map((p) => `${p.x},${p.y}`).join(" ")}
+              fill="none"
+              stroke="var(--fg-dim, var(--md-sys-color-outline, #9e9e9e))"
+              strokeWidth={1.2}
+              data-testid="trend-duration-curve"
+            />
+          )}
           {bars.map((b, i) => {
             const x = padL + i * (bw + 6);
             const total = catTotal(b.category);
@@ -757,6 +799,8 @@ export function ContextView({
   const [net, setNet] = useState<AgentNetwork | null>(null);
   // 家族用量聚合（1:1 上游 Context Stats 编队费用行；会话切换加载一次）
   const [familyTotals, setFamilyTotals] = useState<FamilyTotalsView | null>(null);
+  // 1:1 上游 chips 联动：工具 chip 点击 → 浏览器按该工具过滤（再点同 chip 清除）
+  const [browserToolFilter, setBrowserToolFilter] = useState<string | null>(null);
   // Agent 网络：订阅共享 store（按 UI 会话读取，v4.181）；running 时
   // useLiveReload 驱动的 load() 顺带 reload。会话切换由依赖重建触发 declarePath。
   // showAgentNetwork=false（原罪复用）不订阅不拉取——网络属办公内核会话，避免串台。
@@ -882,6 +926,7 @@ export function ContextView({
               focus={focusNode}
               sessionPath={sessionPath}
               fetchNodeDetail={fetchNodeDetail}
+              toolFilter={browserToolFilter}
             />
             <EventsList events={timeline.events} />
           </div>
@@ -909,6 +954,17 @@ export function ContextView({
               commands={timeline.commands}
               family={familyTotals}
               timings={timeline.timing}
+              onToolPick={(tool) => {
+                setBrowserToolFilter((cur) => (cur === tool ? null : tool));
+                requestAnimationFrame(() => {
+                  document.querySelector('[data-testid="ctx-browser"]')?.scrollIntoView({ block: "center" });
+                });
+              }}
+              onIOClick={() => {
+                requestAnimationFrame(() => {
+                  document.querySelector('[data-testid="ctx-files"]')?.scrollIntoView({ block: "center" });
+                });
+              }}
             />
           {/* 底部会话汇总条 + 估算口径 */}
           <SummaryBar

@@ -294,6 +294,7 @@ export function ContextBrowserTree({
   focus,
   sessionPath,
   fetchNodeDetail,
+  toolFilter,
 }: {
   nodes: ContextSurfaceNode[];
   archive: ContextSurfaceNode[];
@@ -301,6 +302,8 @@ export function ContextBrowserTree({
   sessionPath?: string;
   /** 节点详情自定义源（v4.412 原罪复用）；缺省 GaeaContextNodeDetail 按会话日志。 */
   fetchNodeDetail?: (seq: number) => Promise<ContextNodeDetailView>;
+  /** 1:1 上游 chips 联动：工具名过滤（来自 Context Stats 工具 chip 点击）。 */
+  toolFilter?: string | null;
 }) {
   const t = useT();
   const [query, setQuery] = useState("");
@@ -380,7 +383,8 @@ export function ContextBrowserTree({
     () =>
       GROUPS.map((g) => {
         const all = nodes.filter((n) => n.cat === g.key);
-        const hit = q === "" ? all : all.filter((n) => (n.text ?? "").toLowerCase().includes(q));
+        let hit = q === "" ? all : all.filter((n) => (n.text ?? "").toLowerCase().includes(q));
+        if (toolFilter) hit = hit.filter((n) => n.tool === toolFilter);
         const filtered = [...hit].sort(sorter); // v4.80 分类内排序（时间序/大小序）
         const tokens = all.reduce((s, n) => s + n.tokens, 0);
         return { ...g, all: all.length, count: filtered.length, tokens, nodes: filtered };
@@ -421,7 +425,7 @@ export function ContextBrowserTree({
   const isEmpty = nodes.length === 0 && archive.length === 0;
 
   return (
-    <div className="ctx-card p-3">
+    <div className="ctx-card p-3" data-testid="ctx-browser">
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
           <span className="ctx-head-ic" aria-hidden>
@@ -770,7 +774,7 @@ export function FileActivityTree({ files, onOpenFile, sessionPath, fetchNodeDeta
   ];
 
   return (
-    <div className="ctx-card p-3">
+    <div className="ctx-card p-3" data-testid="ctx-files">
       <div className="flex items-center gap-1.5">
         <span className="ctx-head-ic" aria-hidden>
           <FolderTree size={12} />

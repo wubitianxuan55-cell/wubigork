@@ -69,6 +69,8 @@ export interface ContextRequestRecord {
   cacheMissTokens?: number;
   // 请求估算成本（usage 带价格时计得；洞察逐日成本归因数据源）。
   cost?: number;
+  // 请求活跃耗时（usage 关闭 − header 发出；趋势 Duration 曲线数据源）。
+  activeMs?: number;
   estimated?: boolean; // 回合末未见 usage，按估算分类关闭（旧日志/无用量提供方）
   delta?: ContextRequestDelta; // 较上一步净变化（首个请求 first=true）
 }

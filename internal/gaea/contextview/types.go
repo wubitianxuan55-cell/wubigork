@@ -56,6 +56,10 @@ type RequestRecord struct {
 	// Cost 是该请求的估算成本（usage 事件带价格时按该事件单价计得；估算
 	// 关闭的请求无成本——洞察页逐日成本归因的数据源）。
 	Cost float64 `json:"cost,omitempty"`
+	// ActiveMs 是该请求的活跃耗时（usage 关闭 − header 发出，秒级粒度诚实
+	// 近似；1:1 上游趋势 Duration 耗时曲线的数据源。旧日志无 header 退化为
+	// usage 即创建，跨度 0 缺省）。
+	ActiveMs int64 `json:"activeMs,omitempty"`
 	// BriefUserSeq / BriefRespSeq 是 brief 行在浏览器里的跳转锚点（对应
 	// SurfaceNode.Seq；2.5d 趋势→浏览器联动）。0=无锚点（brief 来自无节点
 	// 的事件或尚无同类消息），前端不渲染跳转。

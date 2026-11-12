@@ -883,6 +883,12 @@ func (f *folding) applyUsage(e session.LogEntry) {
 		f.attachRequestDelta(rec)
 	} else {
 		rec.Step = f.step
+		// 活跃耗时（1:1 上游趋势 Duration 模式数据源）：请求跨度 = usage 关闭
+		// 时刻 − header 发出时刻（秒级粒度 ×1000 诚实近似；旧日志无 header
+		// 退化为 usage 即创建，跨度 0 缺省）。
+		if rec.Ts > 0 && e.Ts > rec.Ts {
+			rec.ActiveMs = (e.Ts - rec.Ts) * 1000
+		}
 		rec.Ts = e.Ts
 		// header 在用户消息/工具调用之前发出：关闭时刷新 brief，让
 		// 「输入→回复」反映该请求实际看到的最近内容。锚点同拍刷新。
