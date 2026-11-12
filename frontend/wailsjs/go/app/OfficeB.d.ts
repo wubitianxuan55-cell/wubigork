@@ -64,6 +64,8 @@ export function GaeaCommands():Promise<Array<app.CommandInfo>>;
 
 export function GaeaContext():Promise<app.ContextInfo>;
 
+export function GaeaContextInsights(arg1:string,arg2:boolean):Promise<contextview.ContextInsights>;
+
 export function GaeaContextNodeDetail(arg1:number,arg2:string):Promise<contextview.NodeDetail>;
 
 export function GaeaContextView(arg1:string):Promise<contextview.ContextTimeline>;
@@ -139,6 +141,8 @@ export function GaeaFactBase():Promise<app.FactBaseView>;
 export function GaeaFactBaseClear():Promise<void>;
 
 export function GaeaFactBasePromote():Promise<number>;
+
+export function GaeaFamilyEvents(arg1:string):Promise<trajectory.FamilyEventStream>;
 
 export function GaeaFileIndexRebuild():Promise<tasks.Task>;
 

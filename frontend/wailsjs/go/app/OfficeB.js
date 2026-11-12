@@ -106,6 +106,10 @@ export function GaeaContext() {
   return window['go']['app']['OfficeB']['GaeaContext']();
 }
 
+export function GaeaContextInsights(arg1, arg2) {
+  return window['go']['app']['OfficeB']['GaeaContextInsights'](arg1, arg2);
+}
+
 export function GaeaContextNodeDetail(arg1, arg2) {
   return window['go']['app']['OfficeB']['GaeaContextNodeDetail'](arg1, arg2);
 }
@@ -256,6 +260,10 @@ export function GaeaFactBaseClear() {
 
 export function GaeaFactBasePromote() {
   return window['go']['app']['OfficeB']['GaeaFactBasePromote']();
+}
+
+export function GaeaFamilyEvents(arg1) {
+  return window['go']['app']['OfficeB']['GaeaFamilyEvents'](arg1);
 }
 
 export function GaeaFileIndexRebuild() {
