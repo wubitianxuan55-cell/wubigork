@@ -8,6 +8,10 @@ export interface GitFileStatus {
   deleted?: boolean;
   modified?: boolean;
   renamed?: boolean;
+  // G1.7：未合并冲突（任一 U，或 AA/DD/AU/UA/DU/UD）——不可提交，独立分组。
+  conflict?: boolean;
+  // G1.7：重命名/复制来源路径（R/C 的 porcelain -z 第二字段，工作区内才带）。
+  origPath?: string;
 }
 
 // GitStatusView 是仓库状态快照（非 Git 仓库时 isRepo=false + error）。

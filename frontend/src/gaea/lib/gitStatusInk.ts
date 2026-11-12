@@ -61,11 +61,14 @@ function statusIsDir(path: string): boolean {
   return /\/$/.test(renamed >= 0 ? p.slice(renamed + 4) : p);
 }
 
+// 未合并冲突六形态（与 Go 侧 isConflictXY 同一规则，G1.7 起补齐 AU/UA/DU/UD）。
+const CONFLICT_XY = new Set(["AA", "DD", "AU", "UA", "DU", "UD"]);
+
 function classify(x: string, y: string, f: GitFileStatus): GitInkTone {
   const xs = (x || " ").trim();
   const ys = (y || " ").trim();
   if (f.untracked || (xs === "?" && ys === "?")) return "untracked";
-  if (xs === "U" || ys === "U" || `${xs}${ys}` === "AA" || `${xs}${ys}` === "DD") return "conflict";
+  if (f.conflict || xs === "U" || ys === "U" || CONFLICT_XY.has(`${xs}${ys}`)) return "conflict";
   if (f.deleted || xs === "D" || ys === "D") return "deleted";
   if (f.renamed || xs === "R" || ys === "R") return "renamed";
   if (xs === "A" || ys === "A") return "added";

@@ -149,10 +149,86 @@ func TestGaeaGitStatusNestedWorkspaceAndRename(t *testing.T) {
 	for _, f := range st.Files {
 		if f.Path == "renamed.txt" && f.Renamed {
 			foundRename = true
+			// G1.7：porcelain -z 第二字段（来源路径）须保留并归一为工作区相对。
+			if f.OrigPath != "inside.txt" {
+				t.Fatalf("rename source path = %q, want inside.txt", f.OrigPath)
+			}
 		}
 	}
 	if !foundRename {
 		t.Fatalf("rename destination not parsed from porcelain -z: %+v", st.Files)
+	}
+}
+
+// G1.7：未合并冲突——真仓制造 UU（两分支改同一文件后 merge），状态须标
+// conflict 且不误判为「已暂存」（冲突不可提交）。
+func TestGaeaGitStatusConflict(t *testing.T) {
+	dir := initTempRepo(t)
+	run := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	// 容忍冲突退出码的 runner（merge 冲突时 git 以非零退出）。
+	runTolerant := func(args ...string) {
+		t.Helper()
+		_ = exec.Command("git", append([]string{"-C", dir}, args...)...).Run()
+	}
+	run("checkout", "-q", "-b", "feature")
+	writeRepoFile(t, dir, "tracked.txt", "feature side\n")
+	run("commit", "-q", "-am", "feature edit")
+	runTolerant("checkout", "-q", "-")
+	writeRepoFile(t, dir, "tracked.txt", "main side\n")
+	run("commit", "-q", "-am", "main edit")
+	runTolerant("merge", "feature")
+
+	t.Chdir(dir)
+	st := (&App{}).GaeaGitStatus()
+	var conflict *GitFileStatus
+	for i := range st.Files {
+		if st.Files[i].Path == "tracked.txt" {
+			conflict = &st.Files[i]
+		}
+	}
+	if conflict == nil {
+		t.Fatalf("冲突文件应上树: %+v", st.Files)
+	}
+	if !conflict.Conflict {
+		t.Fatalf("tracked.txt 应标记 conflict: %+v", conflict)
+	}
+	if conflict.Staged {
+		t.Fatalf("冲突文件不应计入已暂存（不可提交）: %+v", conflict)
+	}
+}
+
+// G1.7：二进制文件 diff——clean filter 中和与预算层不得改变 git 的二进制
+// 诚实输出（"Binary files ... differ"），前端按前缀显示占位而非假红绿行。
+func TestGaeaGitDiffBinary(t *testing.T) {
+	dir := initTempRepo(t)
+	t.Chdir(dir)
+	if err := os.WriteFile(filepath.Join(dir, "blob.bin"), []byte{0x00, 0x01, 0x02, 0x00}, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	run("add", "blob.bin")
+	run("commit", "-q", "-m", "binary base")
+	if err := os.WriteFile(filepath.Join(dir, "blob.bin"), []byte{0x00, 0x09, 0x09, 0x00, 0xFF}, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := (&App{}).GaeaGitDiff("blob.bin", false)
+	if err != nil {
+		t.Fatalf("binary diff: %v", err)
+	}
+	if !strings.Contains(out, "Binary files") {
+		t.Fatalf("二进制 diff 应为 Binary files 行: %q", out)
 	}
 }
 

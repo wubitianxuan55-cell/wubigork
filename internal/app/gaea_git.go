@@ -23,14 +23,16 @@ import (
 
 // GitFileStatus 是一条文件状态（porcelain v1 的 X/Y 两列展开）。
 type GitFileStatus struct {
-	Path      string `json:"path"`      // 相对仓库根（原样，含 / 分隔）
-	X         string `json:"x"`         // 暂存区状态（' '、A、M、D、R…）
-	Y         string `json:"y"`         // 工作区状态
-	Staged    bool   `json:"staged"`    // 已暂存在改动（X 非 ' ' 且非 ?）
-	Untracked bool   `json:"untracked"` // 未跟踪（??）
-	Deleted   bool   `json:"deleted"`   // 工作区删除（Y=D）
-	Modified  bool   `json:"modified"`  // 工作区修改（Y=M）
-	Renamed   bool   `json:"renamed"`   // 重命名（R）
+	Path      string `json:"path"`               // 相对仓库根（原样，含 / 分隔）
+	X         string `json:"x"`                  // 暂存区状态（' '、A、M、D、R…）
+	Y         string `json:"y"`                  // 工作区状态
+	Staged    bool   `json:"staged"`             // 已暂存在改动（X 非 ' ' 且非 ? 且非冲突——冲突不可提交）
+	Untracked bool   `json:"untracked"`          // 未跟踪（??）
+	Deleted   bool   `json:"deleted"`            // 工作区删除（Y=D）
+	Modified  bool   `json:"modified"`           // 工作区修改（Y=M）
+	Renamed   bool   `json:"renamed"`            // 重命名（R）
+	Conflict  bool   `json:"conflict,omitempty"` // 未合并冲突（任一 U，或 AA/DD/AU/UA/DU/UD）
+	OrigPath  string `json:"origPath,omitempty"` // 重命名/复制来源路径（R/C 的 porcelain -z 第二字段，工作区内才带）
 }
 
 // GitStatus 是仓库状态快照。
@@ -301,11 +303,13 @@ func (a *App) GaeaGitStatus() GitStatus {
 		}
 		x, y := string(line[0]), string(line[1])
 		path := line[3:]
+		var origPath string
 		if x == "R" || x == "C" || y == "R" || y == "C" {
 			// porcelain -z stores the destination first, followed by the source
-			// path as its own NUL-delimited field.
+			// path as its own NUL-delimited field（G1.7 起保留来源供前端溯源）。
 			if i+1 < len(records) {
 				i++
+				origPath = strings.TrimRight(records[i], "\r\n")
 			}
 		}
 		path, ok := workspaceStatusPath(repoRoot, workspace, path)
@@ -314,10 +318,17 @@ func (a *App) GaeaGitStatus() GitStatus {
 		}
 		f := GitFileStatus{Path: path, X: x, Y: y}
 		f.Untracked = x == "?" && y == "?"
-		f.Staged = !f.Untracked && x != " "
+		f.Conflict = isConflictXY(x, y)
+		f.Staged = !f.Untracked && !f.Conflict && x != " "
 		f.Deleted = y == "D"
 		f.Modified = y == "M"
 		f.Renamed = x == "R" || y == "R"
+		// 来源路径走同一工作区归一/过滤口径：工作区外来源不上树（不溯源）。
+		if origPath != "" {
+			if o, ok2 := workspaceStatusPath(repoRoot, workspace, origPath); ok2 {
+				f.OrigPath = o
+			}
+		}
 		st.Files = append(st.Files, f)
 	}
 	st.IsRepo = true
@@ -335,6 +346,20 @@ func (a *App) GaeaGitStatus() GitStatus {
 		}
 	}
 	return st
+}
+
+// isConflictXY 未合并冲突形态（porcelain v1 X/Y）：任一 U，或双方改写的
+// AA/DD 与「我方已暂存/对方工作区」组合 AU/UA/DU/UD。与前端 gitStatusInk
+// 同一规则（六形态）。
+func isConflictXY(x, y string) bool {
+	if x == "U" || y == "U" {
+		return true
+	}
+	switch x + y {
+	case "AA", "DD", "AU", "UA", "DU", "UD":
+		return true
+	}
+	return false
 }
 
 func parseGitStatusBranch(line string) (branch string, ahead, behind int) {

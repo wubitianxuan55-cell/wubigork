@@ -142,6 +142,11 @@ export function buildChangeCalls(
 export function buildGitDiff(diffText: string): ChangeDiff {
   const text = (diffText || "").replace(/\r\n/g, "\n");
   if (!text.trim()) return { kind: "none", hunks: [], note: "无差异" };
+  // G1.7 二进制文件：git 输出 "Binary files a/x and b/x differ"（或含
+  // GIT_BINARY_PATCH 的行）——不进 hunk 解析，诚实占位而非「未能解析」误导文案。
+  if (/^Binary files |^GIT_BINARY_PATCH/m.test(text)) {
+    return { kind: "none", hunks: [], note: "二进制文件：不提供文本 diff" };
+  }
   const lines = text.split("\n");
   const hunks: DiffHunk[] = [];
   let cur: DiffHunk | null = null;

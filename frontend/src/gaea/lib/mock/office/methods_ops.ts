@@ -47,6 +47,9 @@ export const opsMethods: Pick<
         { path: "internal/gaea/config/config.go", x: " ", y: "M", modified: true },
         { path: "web/app.ts", x: " ", y: "M", modified: true },
         { path: "reports/季度报告.html", x: "?", y: "?", untracked: true },
+        // G1.7 走查样例：冲突独立分组 + rename 溯源。
+        { path: "src/合并冲突.txt", x: "U", y: "U", conflict: true },
+        { path: "docs/改名后.md", x: "R", y: " ", staged: true, renamed: true, origPath: "docs/改名前.md" },
       ],
       isLinkedWorktree: true,
       mainWorktreePath: "C:\\demo\\gaea-workspace",

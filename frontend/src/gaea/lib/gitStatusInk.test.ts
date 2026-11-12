@@ -32,6 +32,13 @@ describe("gitStatusInk", () => {
       tone: "conflict",
       letter: "!",
     });
+    // G1.7：六形态补齐（与 Go isConflictXY 同规则）——AU/UA/DU/UD 也是冲突。
+    expect(fileGitInk({ path: "added-by-us.txt", x: "A", y: "U" })).toMatchObject({ tone: "conflict" });
+    expect(fileGitInk({ path: "deleted-by-them.txt", x: "D", y: "U" })).toMatchObject({ tone: "conflict" });
+    expect(fileGitInk({ path: "both-added.txt", x: "A", y: "A" })).toMatchObject({ tone: "conflict" });
+    expect(fileGitInk({ path: "both-deleted.txt", x: "D", y: "D" })).toMatchObject({ tone: "conflict" });
+    // 显式 conflict 标记（Go 侧带）单凭标记即判冲突。
+    expect(fileGitInk({ path: "flagged.txt", conflict: true, x: "A", y: "M" })).toMatchObject({ tone: "conflict" });
     expect(fileGitInk({ path: "both-different.txt", x: "A", y: "M" })).toMatchObject({
       tone: "added",
       letter: "AM",

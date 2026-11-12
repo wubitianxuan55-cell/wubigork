@@ -96,9 +96,12 @@ export function GitPanel({
   const [worktreesError, setWorktreesError] = useState("");
   const [worktreesRevision, setWorktreesRevision] = useState(0);
 
-  const staged = status?.files.filter((f) => f.staged) ?? [];
-  const unstaged = status?.files.filter((f) => !f.staged && !f.untracked) ?? [];
-  const untracked = status?.files.filter((f) => f.untracked) ?? [];
+  // G1.7：冲突文件独立分组（Go 侧 conflict 标记；staged 语义已排除冲突，
+  // 这里再过滤一层兜住旧后端/mock 未带标记的 UU 形态）。
+  const conflicts = status?.files.filter((f) => f.conflict || f.x.trim() === "U" || f.y.trim() === "U") ?? [];
+  const staged = status?.files.filter((f) => f.staged && !f.conflict) ?? [];
+  const unstaged = status?.files.filter((f) => !f.staged && !f.untracked && !f.conflict) ?? [];
+  const untracked = status?.files.filter((f) => f.untracked && !f.conflict) ?? [];
   const stagedCount = staged.length + unstaged.filter((f) => f.staged).length;
   const gitUnavailable = (status && !status.isRepo) || (!status && statusError !== "" && !loading);
   const unifiedAllNodes = useMemo(
@@ -177,7 +180,9 @@ export function GitPanel({
     setDiffSide(side);
     setDiffText(null);
     setDiffLoading(false);
-    if (f.untracked) return; // 未跟踪无 diff 语义，UI 诚实提示
+    // 未跟踪无 diff 语义；冲突文件是合并态（combined diff 非经典 unified），
+    // 都走诚实提示而不是拉 diff（G1.7）。
+    if (f.untracked || f.conflict) return;
     loadDiff(f.path, side === "staged");
   };
 
@@ -278,7 +283,7 @@ export function GitPanel({
     }
   };
 
-  const fileRow = (f: GitFileStatus, side: "staged" | "work" | "untracked") => {
+  const fileRow = (f: GitFileStatus, side: "staged" | "work" | "untracked" | "conflict") => {
     const isOpen = expandedPath === f.path;
     return (
       <div key={`${side}-${f.path}`}>
@@ -293,7 +298,7 @@ export function GitPanel({
               className="w-4 shrink-0 rounded text-center font-mono text-[9.5px] font-semibold"
               style={{
                 background: "var(--md-sys-color-surface-container-high)",
-                color: f.deleted ? "var(--md-sys-color-destructive)" : "var(--md-sys-color-text-secondary)",
+                color: f.deleted || f.conflict ? "var(--md-sys-color-destructive)" : "var(--md-sys-color-text-secondary)",
               }}
               title={statusLabel(f, side === "staged")}
             >
@@ -302,6 +307,14 @@ export function GitPanel({
             <span className="truncate text-fg-dim" title={f.path}>
               {f.path.split("/").pop() || f.path}
             </span>
+            {f.origPath && (
+              <span
+                className="truncate font-mono text-[9.5px] text-fg-faint"
+                title={`重命名自 ${f.origPath}`}
+              >
+                ← {f.origPath.split("/").pop() || f.origPath}
+              </span>
+            )}
             <span
               className="truncate font-mono text-[9.5px] opacity-0 transition-opacity duration-150 group-hover:opacity-100"
               style={{ color: "var(--md-sys-color-text-secondary)" }}
@@ -310,7 +323,7 @@ export function GitPanel({
             </span>
           </button>
           <span className="flex shrink-0 items-center gap-1">
-            {side !== "staged" && (
+            {(side === "work" || side === "untracked") && (
               <button
                 type="button"
                 aria-label={`暂存 ${f.path}`}
@@ -346,6 +359,11 @@ export function GitPanel({
             {f.untracked ? (
               <div className="text-[10.5px] text-fg-faint">
                 未跟踪文件没有 diff 语义。点击「暂存」纳入版本管理后即可查看变更。
+              </div>
+            ) : f.conflict ? (
+              <div className="text-[10.5px] text-fg-faint">
+                未合并冲突：在编辑器中解决 <code className="font-mono">&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code> 标记后{" "}
+                <code className="font-mono">git add</code> 标记已解决，再提交。本面板不代解冲突。
               </div>
             ) : diffLoading ? (
               <div className="flex items-center gap-1 text-[10px] text-fg-faint">
@@ -566,6 +584,15 @@ export function GitPanel({
       ) : (
         <>
       <div className="flex flex-col px-1.5 pb-1">
+        {conflicts.length > 0 && (
+          <>
+            {groupHead("冲突", conflicts.length)}
+            <div className="mx-2.5 mb-1 rounded-md border border-border-soft bg-bg-soft/40 px-2 py-1 text-[9.5px] text-fg-faint">
+              未合并冲突不可直接提交；在编辑器解决标记后 git add，或回退合并。本面板不代解。
+            </div>
+            {conflicts.map((f) => fileRow(f, "conflict"))}
+          </>
+        )}
         {groupHead("已暂存", staged.length)}
         {staged.length === 0 && <div className="px-2.5 pb-1 text-[10px] text-fg-faint">暂存区为空</div>}
         {staged.map((f) => fileRow(f, "staged"))}

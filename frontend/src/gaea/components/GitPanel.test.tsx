@@ -185,4 +185,49 @@ describe("GitPanel 2b 最小集", () => {
     expect(await screen.findByText("工作树不可用")).toBeTruthy();
     expect(screen.getByText(/git 超时/)).toBeTruthy();
   });
+
+  // G1.7：冲突独立分组——不进已暂存组（不可提交），提示诚实，不代解。
+  it("冲突文件独立分组且不误入已暂存组", async () => {
+    mocks.status.mockResolvedValue({
+      ...repoStatus,
+      files: [
+        { path: "src/main.go", x: "M", y: " ", staged: true, modified: true },
+        { path: "conflicted.txt", x: "U", y: "U", conflict: true },
+      ],
+    });
+    wrap(<GitPanel />);
+    await screen.findByTestId("git-group-冲突");
+    expect(screen.getByTestId("git-group-冲突")).toBeTruthy();
+    // 冲突文件不在已暂存组（仅 staged 的 main.go 在），且提示可见。
+    expect(screen.queryByLabelText("暂存 conflicted.txt")).toBeNull();
+    expect(screen.queryByLabelText("取消暂存 conflicted.txt")).toBeNull();
+    expect(screen.getByText(/本面板不代解/)).toBeTruthy();
+    // 展开冲突行 → 诚实解决指引而非拉 diff（「标记已解决」为行内提示独有文案）。
+    fireEvent.click(screen.getByTitle("查看 conflicted.txt 的工作区 diff"));
+    expect(await screen.findByText(/标记已解决/)).toBeTruthy();
+    expect(mocks.diff).not.toHaveBeenCalled();
+  });
+
+  // G1.7：重命名溯源——porcelain -z 来源路径以 ← 原名显示。
+  it("重命名行显示来源路径", async () => {
+    mocks.status.mockResolvedValue({
+      ...repoStatus,
+      files: [{ path: "docs/改名后.md", x: "R", y: " ", staged: true, renamed: true, origPath: "docs/改名前.md" }],
+    });
+    wrap(<GitPanel />);
+    expect(await screen.findByText("← 改名前.md")).toBeTruthy();
+    expect(screen.getByTitle("重命名自 docs/改名前.md")).toBeTruthy();
+  });
+
+  // G1.7：二进制 diff——buildGitDiff 按前缀给诚实占位，不渲染假红绿行。
+  it("二进制 diff 显示诚实占位", async () => {
+    mocks.diff.mockResolvedValue("Binary files a/src/blob.bin and b/src/blob.bin differ");
+    mocks.status.mockResolvedValue({
+      ...repoStatus,
+      files: [{ path: "src/blob.bin", x: " ", y: "M", modified: true }],
+    });
+    wrap(<GitPanel />);
+    fireEvent.click(await screen.findByTitle("查看 src/blob.bin 的工作区 diff"));
+    expect(await screen.findByText("二进制文件：不提供文本 diff")).toBeTruthy();
+  });
 });
