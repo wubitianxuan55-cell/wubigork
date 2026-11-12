@@ -525,6 +525,20 @@ export const officeMethods: Partial<Omit<OfficeMethods, "PinnedMaterials">> &
   async SaveAttachmentFile(_fileName: string, _base64Data: string) {
     return ".gaea/attachments/mock-file.bin";
   },
+  // 分块上传三段（浏览器 mock 无真实落盘）：Begin 发 token、Append 吞片、
+  // Finish 返回假路径——与真机契约同形（token → 片 → 路径），够 UI 开发。
+  async AttachmentChunkBegin(_fileName: string) {
+    return `chunk-mock-${Date.now()}`;
+  },
+  async AttachmentChunkAppend(_token: string, _base64Chunk: string) {
+    // no-op
+  },
+  async AttachmentChunkFinish(_token: string) {
+    return ".gaea/attachments/mock-file.bin";
+  },
+  async AttachmentChunkAbort(_token: string) {
+    // no-op
+  },
   async AttachmentDataURL(_path: string) {
     // 浏览器 mock：返回一张可渲染的 4×3 色块 SVG dataURL（占位缩略图）。
     return (

@@ -103,3 +103,39 @@
   worktree add 必须显式 commit(裸 HEAD 在主仓=main)；双树共享 .vite 缓存整文件
   与单测结果可分叉(隔离复跑+真基线双对照再定罪)；defineProperty 无 writable=
   只读；冒烟二次拉起与装机壳互扰(装机壳消失假象，重拉即愈)。
+
+## 10. 超大附件改造：>25MB 不再失败（2026-11-12 晚，v4.543.0）
+
+> 用户口径「办公板块输入框上传文件附件超过 25M 就失败，改成超过的可以识别路径使用」。单会话收官：
+> 构建+冒烟 200+装机 PID 验证全绿，未打包（日常装机）。
+
+- **诊断**：25MB 硬闸三层=前端 splitOversizeAttachments/拖拽 metadata 拒收 + 后端
+  attachment.MaxFileBytes（单次 base64 整包过桥护栏）；发送侧本无限制——附件提交只注入
+  @路径 文本，办公线 ResolveRefs 仅注入头部 64KB，AI 用 read_file 补读全文 → **路径引用天然
+  支持任意大小**，闸只在「拖拽/粘贴必须搬字节」与「对话框本来有路径却白拦」两处错位。
+- **两路改法**：
+  - 选择对话框（handlePickFiles）：文件已在盘有路径 → 非图片附件取消大小闸，任何体积直接挂
+    chip 按路径引用；图片仍守 10MB（识图链限制面）。
+  - 拖拽/粘贴（attachDroppedFiles）：WebView2 拿不到源路径必须搬字节 → 新增**分块上传**四绑定
+    （GaeaAttachmentChunkBegin/Append/Finish/Abort，落 OfficeB），前端 8MiB 3 字节对齐切片
+    （每片独立可 base64 解码）流式上送，Go 侧 os.Root 内逐片落盘（.gaea/uploads，命名与单次
+    路径同规 file-<token><ext>），任一时刻桥上只有单片；总量上限 MaxChunkedFileBytes=1GiB
+    （预算检查在 DecodeString 之前，超限大串不进内存）；idle TTL 30min 清扫兜底泄漏会话；
+    Finish 空文件拒收与单次同契约；失败 Abort 清理后 toast。
+- **验证**：attachment 包 7 测（round-trip/空拒收/超预算/abort 清理/未知 token/TTL 清扫）+
+  handler 回归（TestGaeaAttachmentRoundTrip 加分块腿）全绿；前端 hook 15 例绿（25MB+1 走分块、
+  分块中段失败 Abort+toast、1GiB 元数据拒收、PickFiles 超大文件挂 chip、超大图片仍拒）；
+  tsc -b 0；绑定面三处再生（bindingNames 728/legacy 86→82/签名 728）+漂移锁过（本批 4 名净，
+  余 2 死绑定 EngineUpdateStatus/StrataModelStart=既有欠账非本批）。
+- **坑册新增**：
+  1. gen_bindings -names 只打印不写盘，bindingNames.ts 要拿输出物化（文件头注释「勿手改」
+     是指内容口径，不是不用工具输出重写）；
+  2. **legacyBindings.ts 必须在 AppBindings 认领之后再再生**——先再生后认领，4 个新名同时
+     挂 legacy 面（Go 全集−认领集）与 AppBindings，锁四（legacy∩认领=∅）炸 tsc -b 且报错点
+     在方向二（Exclude 语义被 ExcludeNames 掩护的误导性报错位置）；
+  3. `npx tsc --noEmit` 与 `npm run build`（tsc -b）口径不同——前者放过 drift 断言错误，
+     发版门必须走 `tsc -b`；
+  4. Git Bash 调 powershell 传 `build\bin\gaea.exe` 反斜杠被吞成 `buildbingaea.exe`，冒烟
+     传参一律正斜杠；
+  5. 临时起意 git stash push 想对照基线差点卷走在制改动（stash list 有 10 月旧条目易误认），
+     改用 `git show HEAD:<file>` 对照，stash 动作禁用。

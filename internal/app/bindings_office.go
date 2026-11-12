@@ -29,6 +29,10 @@ func (b *OfficeB) GaeaAnswer(id string, answers []event.AskAnswer) { b.a.GaeaAns
 func (b *OfficeB) GaeaApplyUpdate() error { return b.a.GaeaApplyUpdate() }
 func (b *OfficeB) GaeaApprove(id string, decision string) { b.a.GaeaApprove(id, decision) }
 func (b *OfficeB) GaeaArchiveSession(path string) error { return b.a.GaeaArchiveSession(path) }
+func (b *OfficeB) GaeaAttachmentChunkAbort(token string) error { return b.a.GaeaAttachmentChunkAbort(token) }
+func (b *OfficeB) GaeaAttachmentChunkAppend(token string, base64Chunk string) error { return b.a.GaeaAttachmentChunkAppend(token, base64Chunk) }
+func (b *OfficeB) GaeaAttachmentChunkBegin(fileName string) (string, error) { return b.a.GaeaAttachmentChunkBegin(fileName) }
+func (b *OfficeB) GaeaAttachmentChunkFinish(token string) (string, error) { return b.a.GaeaAttachmentChunkFinish(token) }
 func (b *OfficeB) GaeaAttachmentDataURL(path string) (string, error) { return b.a.GaeaAttachmentDataURL(path) }
 func (b *OfficeB) GaeaBalance() BalanceInfo { return b.a.GaeaBalance() }
 func (b *OfficeB) GaeaBenchmarkStreamProbe(model string) (StreamProbeResult, error) { return b.a.GaeaBenchmarkStreamProbe(model) }

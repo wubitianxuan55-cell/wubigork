@@ -220,6 +220,13 @@ export interface CoreBindings {
   RevealWorkspacePath(rel: string): Promise<void>;
   SavePastedImage(dataUrl: string): Promise<string>;
   SaveAttachmentFile(fileName: string, base64Data: string): Promise<string>;
+  // 分块上传（超大附件）：单次过桥 25MiB 上限只约束整包；超过的走 Begin/
+  // Append/Finish 三段流式（前端 3 字节对齐切片，每片独立可 base64 解码）。
+  // 失败语义与总量上限（1GiB）见 Go attachment 包 chunked.go。
+  AttachmentChunkBegin(fileName: string): Promise<string>;
+  AttachmentChunkAppend(token: string, base64Chunk: string): Promise<void>;
+  AttachmentChunkFinish(token: string): Promise<string>;
+  AttachmentChunkAbort(token: string): Promise<void>;
   AttachmentDataURL(path: string): Promise<string>;
   // Auto-updater (desktop/updater_app.go): the injected build version, a manifest
   // check, applying an update (win/linux self-update; macOS opens the download

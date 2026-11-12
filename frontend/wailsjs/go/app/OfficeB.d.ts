@@ -32,6 +32,14 @@ export function GaeaApprove(arg1:string,arg2:string):Promise<void>;
 
 export function GaeaArchiveSession(arg1:string):Promise<void>;
 
+export function GaeaAttachmentChunkAbort(arg1:string):Promise<void>;
+
+export function GaeaAttachmentChunkAppend(arg1:string,arg2:string):Promise<void>;
+
+export function GaeaAttachmentChunkBegin(arg1:string):Promise<string>;
+
+export function GaeaAttachmentChunkFinish(arg1:string):Promise<string>;
+
 export function GaeaAttachmentDataURL(arg1:string):Promise<string>;
 
 export function GaeaBalance():Promise<app.BalanceInfo>;

@@ -11,6 +11,10 @@ import { ToastProvider } from '../components/Toast'
 const bridgeMocks = vi.hoisted(() => ({
   SavePastedImage: vi.fn(),
   SaveAttachmentFile: vi.fn(),
+  AttachmentChunkBegin: vi.fn(),
+  AttachmentChunkAppend: vi.fn(),
+  AttachmentChunkFinish: vi.fn(),
+  AttachmentChunkAbort: vi.fn(),
   PickFiles: vi.fn(),
   RecognizeImage: vi.fn(),
   OCRText: vi.fn(),
@@ -20,6 +24,10 @@ vi.mock('../lib/bridge', () => ({
   app: {
     SavePastedImage: bridgeMocks.SavePastedImage,
     SaveAttachmentFile: bridgeMocks.SaveAttachmentFile,
+    AttachmentChunkBegin: bridgeMocks.AttachmentChunkBegin,
+    AttachmentChunkAppend: bridgeMocks.AttachmentChunkAppend,
+    AttachmentChunkFinish: bridgeMocks.AttachmentChunkFinish,
+    AttachmentChunkAbort: bridgeMocks.AttachmentChunkAbort,
     PickFiles: bridgeMocks.PickFiles,
     RecognizeImage: bridgeMocks.RecognizeImage,
     OCRText: bridgeMocks.OCRText,
@@ -87,16 +95,49 @@ describe('useComposerAttachments 附件失败可见化（FE4-12）', () => {
     expect(screen.queryByText(/附件失败/)).toBeNull()
   })
 
-  it('普通文件超过 25MB：FileReader 不启动、后端不调用、提示可见', async () => {
-    const read = vi.spyOn(FileReader.prototype, 'readAsArrayBuffer')
+  it('普通文件超过 25MB：改走分块上传（不再拒收），SaveAttachmentFile 不调用', async () => {
     const { result } = renderAttachments()
-    const tooLarge = sizedFile(binFile('oversize.bin'), 25 * 1024 * 1024 + 1)
+    const tooLarge = sizedFile(binFile('big-report.pdf'), 25 * 1024 * 1024 + 1)
+    bridgeMocks.AttachmentChunkBegin.mockResolvedValue('chunk-token-1')
+    bridgeMocks.AttachmentChunkFinish.mockResolvedValue('.gaea/uploads/file-chunk.pdf')
 
     await act(async () => { await result.current.attachDroppedFiles([tooLarge]) })
 
-    expect(read).not.toHaveBeenCalled()
+    expect(bridgeMocks.AttachmentChunkBegin).toHaveBeenCalledWith('big-report.pdf')
+    expect(bridgeMocks.AttachmentChunkAppend).toHaveBeenCalled()
+    expect(bridgeMocks.AttachmentChunkFinish).toHaveBeenCalledWith('chunk-token-1')
     expect(bridgeMocks.SaveAttachmentFile).not.toHaveBeenCalled()
-    expect(screen.getByText(/超过 25MB 上限/)).toBeTruthy()
+    expect(result.current.attachments).toHaveLength(1)
+    expect(result.current.attachments[0]).toMatchObject({ path: '.gaea/uploads/file-chunk.pdf', type: 'file', size: 25 * 1024 * 1024 + 1 })
+    expect(screen.queryByText(/附件失败/)).toBeNull()
+  })
+
+  it('分块上传中段失败：Abort 清理后端会话 + toast 可见', async () => {
+    const { result } = renderAttachments()
+    const tooLarge = sizedFile(binFile('中断.zip'), 25 * 1024 * 1024 + 1)
+    bridgeMocks.AttachmentChunkBegin.mockResolvedValue('chunk-token-2')
+    bridgeMocks.AttachmentChunkAppend.mockRejectedValue(new Error('bridge timeout'))
+
+    await act(async () => { await result.current.attachDroppedFiles([tooLarge]) })
+
+    expect(bridgeMocks.AttachmentChunkAbort).toHaveBeenCalledWith('chunk-token-2')
+    expect(bridgeMocks.AttachmentChunkFinish).not.toHaveBeenCalled()
+    await waitFor(() => expect(screen.getByText(/文件附件失败/)).toBeTruthy())
+    expect(screen.getByText(/文件附件失败/).textContent).toContain('bridge timeout')
+    expect(result.current.attachments).toHaveLength(0)
+    expect(result.current.pendingPaste).toBe(0)
+  })
+
+  it('文件超过分块总量上限（1GiB）：元数据即拒收、不读不传、提示可见', async () => {
+    const read = vi.spyOn(FileReader.prototype, 'readAsArrayBuffer')
+    const { result } = renderAttachments()
+    const tooHuge = sizedFile(binFile('monster.bin'), 1024 * 1024 * 1024 + 1)
+
+    await act(async () => { await result.current.attachDroppedFiles([tooHuge]) })
+
+    expect(read).not.toHaveBeenCalled()
+    expect(bridgeMocks.AttachmentChunkBegin).not.toHaveBeenCalled()
+    expect(screen.getByText(/超过 1024MB 上限/)).toBeTruthy()
     expect(result.current.pendingPaste).toBe(0)
     read.mockRestore()
   })
@@ -155,14 +196,29 @@ describe('useComposerAttachments v4.508 文件交互修复', () => {
     expect(atts[1]).toMatchObject({ path: 'C:/docs/报告.docx', type: 'file' })
   })
 
-  it('PickFiles 元数据超限：不加入附件且提示可见', async () => {
+  it('PickFiles 选超大文件（>25MB）：不再拒收，按路径引用挂 chip（2026-11-12 改约）', async () => {
     bridgeMocks.PickFiles.mockResolvedValue([
       { path: 'C:/docs/huge.pdf', name: 'huge.pdf', size: 25 * 1024 * 1024 + 1 },
+      { path: 'D:/data/巨大模型.bin', name: '巨大模型.bin', size: 3 * 1024 * 1024 * 1024 },
+    ])
+    const { result } = renderAttachments()
+    await act(async () => { await result.current.handlePickFiles() })
+    // 文件附件纯路径引用：任何体积都直接挂 chip，无字节过桥。
+    expect(result.current.attachments).toHaveLength(2)
+    expect(result.current.attachments[0]).toMatchObject({ path: 'C:/docs/huge.pdf', type: 'file', size: 25 * 1024 * 1024 + 1 })
+    expect(result.current.attachments[1]).toMatchObject({ path: 'D:/data/巨大模型.bin', type: 'file' })
+    expect(screen.queryByText(/附件失败/)).toBeNull()
+  })
+
+  it('PickFiles 选超大图片：仍守 10MB 识图闸，不加入附件且提示可见', async () => {
+    bridgeMocks.PickFiles.mockResolvedValue([
+      { path: 'C:/imgs/巨图.png', name: '巨图.png', size: 10 * 1024 * 1024 + 1 },
     ])
     const { result } = renderAttachments()
     await act(async () => { await result.current.handlePickFiles() })
     expect(result.current.attachments).toHaveLength(0)
-    expect(screen.getByText(/超过 25MB 上限/)).toBeTruthy()
+    expect(screen.getByText(/图片附件失败/)).toBeTruthy()
+    expect(screen.getByText(/超过 10MB 上限/)).toBeTruthy()
   })
 
   it('识图发送后输入框草稿保留（此前 setText("") 清用户半句话）', async () => {

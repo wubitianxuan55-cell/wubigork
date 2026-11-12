@@ -125,4 +125,35 @@ func TestGaeaAttachmentRoundTrip(t *testing.T) {
 	if err != nil || string(dec) != txt {
 		t.Fatalf("附件内容不一致: %q err=%v", dec, err)
 	}
+
+	// 分块上传（超大附件三段式）：两片 3 字节对齐切片落盘后内容一致，
+	// Abort 幂等， Finish 后 .tmp 不残留。
+	data := []byte("abcdefghijklmnopqrstuvwxyz0123456789") // 36 字节 = 3 的倍数
+	token, err := a.GaeaAttachmentChunkBegin("chunked.txt")
+	if err != nil {
+		t.Fatalf("开分块会话失败: %v", err)
+	}
+	if err := a.GaeaAttachmentChunkAppend(token, base64.StdEncoding.EncodeToString(data[:21])); err != nil {
+		t.Fatalf("追加分片失败: %v", err)
+	}
+	if err := a.GaeaAttachmentChunkAppend(token, base64.StdEncoding.EncodeToString(data[21:])); err != nil {
+		t.Fatalf("追加尾片失败: %v", err)
+	}
+	cpath, err := a.GaeaAttachmentChunkFinish(token)
+	if err != nil {
+		t.Fatalf("收尾分块会话失败: %v", err)
+	}
+	if !strings.HasSuffix(cpath, ".txt") || !strings.Contains(filepath.Base(cpath), "file-") {
+		t.Fatalf("分块落盘路径异常: %s", cpath)
+	}
+	cgot, err := os.ReadFile(cpath)
+	if err != nil || string(cgot) != string(data) {
+		t.Fatalf("分块附件内容不一致: %q err=%v", cgot, err)
+	}
+	if err := a.GaeaAttachmentChunkAppend(token, "aGk="); err == nil {
+		t.Fatal("Finish 后追加应失败（会话已注销）")
+	}
+	if err := a.GaeaAttachmentChunkAbort("no-such-token"); err != nil {
+		t.Fatalf("Abort 未知 token 应幂等: %v", err)
+	}
 }

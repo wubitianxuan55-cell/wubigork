@@ -916,6 +916,31 @@ func (a *App) GaeaSaveAttachmentFile(fileName, base64Data string) (string, error
 	return store.SaveFileBase64(fileName, base64Data)
 }
 
+// ── 分块上传（超大附件）：单次过桥上限 25MiB 只够中小文件；拖拽/粘贴的
+// 超大文件改走 Begin/Append/Finish 三段，前端按 3 字节对齐切片流式上送，
+// Go 侧逐片落盘，任一时刻桥上只有单片。落盘命名与单次路径同规，发送侧
+// 照旧只认 @路径。总量上限与失败语义见 attachment 包 chunked.go。──
+
+// GaeaAttachmentChunkBegin 开一个分块上传会话，返回会话 token。
+func (a *App) GaeaAttachmentChunkBegin(fileName string) (string, error) {
+	return gaeaAttachment.BeginChunk(filepath.Join(gaeaCwd(), ".gaea", "uploads"), fileName)
+}
+
+// GaeaAttachmentChunkAppend 追加一片（独立可解码 base64；3 字节对齐切片）。
+func (a *App) GaeaAttachmentChunkAppend(token, base64Chunk string) error {
+	return gaeaAttachment.AppendChunk(token, base64Chunk)
+}
+
+// GaeaAttachmentChunkFinish 收尾并发布为正式附件，返回落盘绝对路径。
+func (a *App) GaeaAttachmentChunkFinish(token string) (string, error) {
+	return gaeaAttachment.FinishChunk(token)
+}
+
+// GaeaAttachmentChunkAbort 放弃会话并清理临时文件（幂等）。
+func (a *App) GaeaAttachmentChunkAbort(token string) error {
+	return gaeaAttachment.AbortChunk(token)
+}
+
 // GaeaReadFileB64 读取本地文件为 base64（v4.162 进度计划导入链路专用）。
 // 背景：WebView2 壳内 <input type=file>.click() 不弹文件对话框，导入必须走
 // GaeaPickFiles 系统对话框拿路径，再经本绑定取内容喂给 Go 解析器。

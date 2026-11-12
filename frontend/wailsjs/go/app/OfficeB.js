@@ -42,6 +42,22 @@ export function GaeaArchiveSession(arg1) {
   return window['go']['app']['OfficeB']['GaeaArchiveSession'](arg1);
 }
 
+export function GaeaAttachmentChunkAbort(arg1) {
+  return window['go']['app']['OfficeB']['GaeaAttachmentChunkAbort'](arg1);
+}
+
+export function GaeaAttachmentChunkAppend(arg1, arg2) {
+  return window['go']['app']['OfficeB']['GaeaAttachmentChunkAppend'](arg1, arg2);
+}
+
+export function GaeaAttachmentChunkBegin(arg1) {
+  return window['go']['app']['OfficeB']['GaeaAttachmentChunkBegin'](arg1);
+}
+
+export function GaeaAttachmentChunkFinish(arg1) {
+  return window['go']['app']['OfficeB']['GaeaAttachmentChunkFinish'](arg1);
+}
+
 export function GaeaAttachmentDataURL(arg1) {
   return window['go']['app']['OfficeB']['GaeaAttachmentDataURL'](arg1);
 }

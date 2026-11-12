@@ -22,6 +22,8 @@ export type OfficeMethods = Pick<
   | "WebSearchSettingsGet" | "WebSearchSettingsSet" | "WebSearchTestConnection"
   | "ExportDeliverable" | "ConvertToPdf" | "CrossEmbed" | "RevealWorkspacePath"
   | "SavePastedImage" | "SaveAttachmentFile" | "AttachmentDataURL"
+  // 分块上传三段（超大附件过桥形态；Begin 发 token → Append 吞片 → Finish 落名）。
+  | "AttachmentChunkBegin" | "AttachmentChunkAppend" | "AttachmentChunkFinish" | "AttachmentChunkAbort"
   | "CaptureScreen" | "RecognizeImage" | "OCRText"
   // v4.524 CAD 图纸卡（Go OfficeB.GaeaCad*，Gaea 前缀经 mappings 映射）。
   | "CadOpen" | "CadRaster" | "CadTexts"

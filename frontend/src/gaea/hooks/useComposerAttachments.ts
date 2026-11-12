@@ -13,7 +13,10 @@ export interface Attachment {
 }
 
 export const ATTACHMENT_LIMITS = {
+  /** 单次桥接整包上限（SaveAttachmentFile 单调用；超过走分块上传）。 */
   file: 25 * 1024 * 1024,
+  /** 分块上传总量上限（与后端 attachment.MaxChunkedFileBytes 同档）。 */
+  chunkedFile: 1024 * 1024 * 1024,
   image: 10 * 1024 * 1024,
 } as const
 
@@ -23,7 +26,15 @@ export interface OversizeAttachment {
   kind: "image" | "file"
 }
 
-/** Classify by metadata before any FileReader reads bytes. */
+/**
+ * Classify by metadata before any FileReader reads bytes.
+ *
+ * 2026-11-12 超大附件改不拒收：图片仍守 10MB（识图引擎限制面），文件只把
+ * 超分块总量上限（1GiB）的挡在门外；25MB～1GiB 的文件照常 accepted，由
+ * attachDroppedFiles 按体积路由到分块上传（拖拽无源路径，字节必须过桥，
+ * 但改为逐片流式不再整包）。选择对话框的文件本就按路径引用（发送侧只注
+ * 入 @路径 头部 64KB），不在此分类——那里任何大小都直接挂 chip。
+ */
 export function splitOversizeAttachments(files: File[]): {
   accepted: File[]
   rejected: OversizeAttachment[]
@@ -32,7 +43,7 @@ export function splitOversizeAttachments(files: File[]): {
   const rejected: OversizeAttachment[] = []
   for (const file of files) {
     const kind = file.type.startsWith("image/") || isImagePath(file.name) ? "image" : "file"
-    const limit = ATTACHMENT_LIMITS[kind]
+    const limit = kind === "image" ? ATTACHMENT_LIMITS.image : ATTACHMENT_LIMITS.chunkedFile
     if (file.size > limit) rejected.push({ file, limit, kind })
     else accepted.push(file)
   }
@@ -78,6 +89,36 @@ function bytesToBase64(bytes: Uint8Array): string {
     bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
   }
   return btoa(bin)
+}
+
+// ── 超大附件分块上传（2026-11-12）──
+// 单次 SaveAttachmentFile 整包过桥 25MB 封顶；更大文件走 Begin/Append/Finish
+// 三段绑定流式落盘。切片必须 3 字节对齐：base64 每 3 字节独立成组，对齐切
+// 才能保证每片都是合法可解码的 standalone base64（8388606 = 8MiB 向下取整
+// 到 3 的倍数）。失败即 Abort 清理后端临时会话，再把原始错误抛给 toast。
+const CHUNK_UPLOAD_BYTES = 8 * 1024 * 1024 - (8 * 1024 * 1024) % 3
+
+function readSlice(file: File, start: number, end: number): Promise<ArrayBuffer> {
+  return new Promise((res, rej) => {
+    const r = new FileReader()
+    r.onload = () => res(r.result as ArrayBuffer)
+    r.onerror = () => rej(r.error)
+    r.readAsArrayBuffer(file.slice(start, end))
+  })
+}
+
+async function uploadChunkedAttachment(file: File): Promise<string> {
+  const token = await app.AttachmentChunkBegin(file.name)
+  try {
+    for (let off = 0; off < file.size; off += CHUNK_UPLOAD_BYTES) {
+      const buf = await readSlice(file, off, Math.min(off + CHUNK_UPLOAD_BYTES, file.size))
+      await app.AttachmentChunkAppend(token, bytesToBase64(new Uint8Array(buf)))
+    }
+    return await app.AttachmentChunkFinish(token)
+  } catch (e: unknown) {
+    try { await app.AttachmentChunkAbort(token) } catch { /* 尽力清理，不掩盖原始错误 */ }
+    throw e
+  }
 }
 
 // appendUnique 附件去重（v4.508）：同路径重复拖入/选择不再堆叠 chip——
@@ -134,11 +175,16 @@ export function useComposerAttachments({ running, onSend }: UseComposerAttachmen
     for (const file of others) {
       setPendingPaste((n) => n + 1)
       try {
-        const buf = await new Promise<ArrayBuffer>((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result as ArrayBuffer); r.onerror = () => rej(r.error); r.readAsArrayBuffer(file) })
-        const path = await app.SaveAttachmentFile(file.name, bytesToBase64(new Uint8Array(buf)))
+        // 超过单次整包上限的走分块上传（流式过桥，后端逐片落盘），其余照旧。
+        const path = file.size > ATTACHMENT_LIMITS.file
+          ? await uploadChunkedAttachment(file)
+          : await (async () => {
+              const buf = await new Promise<ArrayBuffer>((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result as ArrayBuffer); r.onerror = () => rej(r.error); r.readAsArrayBuffer(file) })
+              return app.SaveAttachmentFile(file.name, bytesToBase64(new Uint8Array(buf)))
+            })()
         setAttachments((prev) => appendUnique(prev, { path, previewUrl: "", type: "file", size: file.size }))
       } catch (e: unknown) {
-        // FE4-12：不静默——失败必须可见（文件读取 / SaveAttachmentFile 落盘失败一律上报）
+        // FE4-12：不静默——失败必须可见（文件读取 / 落盘失败一律上报）
         toast.show(attachFailText("文件附件失败", file, e), "warn")
       } finally { setPendingPaste((n) => Math.max(0, n - 1)) }
     }
@@ -160,10 +206,13 @@ export function useComposerAttachments({ running, onSend }: UseComposerAttachmen
         // OCR）。改按扩展名（isImagePath 单源，与 pickImageAsDataUrl 白名单
         // 同源）；previewUrl 空由附件条图标兜底。
         const image = isImagePath(f.path)
-        const limit = image ? ATTACHMENT_LIMITS.image : ATTACHMENT_LIMITS.file
-        if ((f.size ?? 0) > limit) {
+        // 2026-11-12：对话框选的文件不再设大小闸——文件附件只按路径引用
+        // （提交注入 @路径，发送侧仅注入头部 64KB，AI 用 read_file 补读），
+        // 大小只受磁盘约束，任何体积都能挂 chip。图片仍守 10MB（识图链
+        // 限制面，与拖拽同口径）。
+        if (image && (f.size ?? 0) > ATTACHMENT_LIMITS.image) {
           toast.show(
-            `${image ? "图片" : "文件"}附件失败「${f.name}」：超过 ${Math.round(limit / (1024 * 1024))}MB 上限`,
+            `图片附件失败「${f.name}」：超过 ${Math.round(ATTACHMENT_LIMITS.image / (1024 * 1024))}MB 上限`,
             "warn",
           )
           continue
