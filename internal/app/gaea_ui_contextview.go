@@ -510,5 +510,6 @@ func (a *App) GaeaFamilyEvents(sessionPath ...string) (trajectory.FamilyEventStr
 		Truncated: truncated,
 		Refs:      trajectory.FamilyEventRefs(events),
 		Totals:    totals,
+		Agents:    trajectory.FamilyAgentRows(parentEntries, subs),
 	}, nil
 }

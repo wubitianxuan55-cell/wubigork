@@ -221,16 +221,22 @@ function CurrentContextCard({
 // focus 锚点（Token 卡「查看趋势」下钻最后一跳）——tick 去重，滚动定位到卡
 // （scrollIntoView block:nearest，与 v4.82 brief→浏览器锚点同款机制）+ 3s
 // accent 外圈强调；只定位不改选中态（默认最新请求语义保持）。
-export function ContextTrendChart({ requests, events, onPick, detail, focus }: {
+export function ContextTrendChart({ requests, events, onPick, detail, focus, granularity: granularityProp, onGranularity }: {
   requests: ContextRequestRecord[];
   events: ContextEvent[];
   onPick: (r: ContextRequestRecord) => void;
   detail?: ReactNode;
   focus?: { tick: number } | null;
+  // 刀12：粒度态上提（父层持有以驱动 StepDetail 的 turn 模式标题——上游
+  // detail.turn「第 {t} 轮 · 共 {n} 步」同款）；直连渲染（测试）时可省略，
+  // 回落卡内自持态。
+  granularity?: CtxTrendGranularity;
+  onGranularity?: (g: CtxTrendGranularity) => void;
 }) {
   const t = useT();
   // 2.5d：粒度/模式初值读设置中心偏好（卡内 toggle 交互不变，变更写回）。
-  const [granularity, setGranularity] = useState<CtxTrendGranularity>(() => loadContextPrefs().trendGranularity);
+  const [granState, setGranState] = useState<CtxTrendGranularity>(() => loadContextPrefs().trendGranularity);
+  const granularity = granularityProp ?? granState;
   const [mode, setMode] = useState<CtxTrendMode>(() => loadContextPrefs().trendMode);
   const [selected, setSelected] = useState<number | null>(null);
   // v4.27 悬停构成详情：hover 柱时在图上展示该步六分类分解（原生 SVG title
@@ -254,7 +260,8 @@ export function ContextTrendChart({ requests, events, onPick, detail, focus }: {
   }, [focus]);
 
   const pickGranularity = (g: CtxTrendGranularity) => {
-    setGranularity(g);
+    setGranState(g);
+    onGranularity?.(g);
     saveContextPref("trendGranularity", g);
   };
   const pickMode = (m: CtxTrendMode) => {
@@ -296,7 +303,15 @@ export function ContextTrendChart({ requests, events, onPick, detail, focus }: {
 
   // 1:1 上游 Duration 耗时曲线（右上切换）：每请求 activeMs 折线+右轴时间
   // 刻度。旧日志/纯工具步无 activeMs 的点断开（诚实缺段）。
-  const [durationOn, setDurationOn] = useState(false);
+  // 刀15：开关持久化（上游 settings.durationCurve 同款）——初值读偏好，
+  // 切换写回，重开页面保持上次选择。
+  const [durationOn, setDurationOn] = useState<boolean>(() => loadContextPrefs().trendDuration);
+  const toggleDuration = () =>
+    setDurationOn((v) => {
+      const nv = !v;
+      saveContextPref("trendDuration", nv);
+      return nv;
+    });
   const durPoints = useMemo(() => {
     if (!durationOn) return [];
     const pts: { x: number; y: number; ms: number }[] = [];
@@ -380,7 +395,7 @@ export function ContextTrendChart({ requests, events, onPick, detail, focus }: {
             aria-pressed={durationOn}
             data-testid="trend-duration"
             className={`px-1.5 py-0.5 rounded border-0 cursor-pointer ${durationOn ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"}`}
-            onClick={() => setDurationOn((v) => !v)}
+            onClick={toggleDuration}
           >{t("contextview.duration")}</button>
           <span className="mx-0.5 h-3 w-px bg-border-soft" />
           <button
@@ -558,10 +573,16 @@ function StepDetail({
   record,
   window,
   onJump,
+  stepsInTurn,
+  turnMode,
 }: {
   record: ContextRequestRecord | null;
   window: number;
   onJump?: (seq: number) => void;
+  // 刀12（1:1 上游 detail.step/turn）：本轮步数合计 + 轮粒度标题形态——
+  // 步模式「第{turn}轮·第{step}步 (共{total}步)」，轮模式「第{turn}轮 · 共{total}步」。
+  stepsInTurn?: number;
+  turnMode?: boolean;
 }) {
   const t = useT();
   // 容器已默认选中最新请求，null 只存在于快照过渡瞬间 → 不渲染，避免空态闪烁。
@@ -571,10 +592,13 @@ function StepDetail({
   const cacheHit = record.cacheHitTokens ?? 0;
   const cacheMiss = record.cacheMissTokens ?? 0;
   const cachePct = cacheHit + cacheMiss > 0 ? (cacheHit * 100) / (cacheHit + cacheMiss) : null;
+  const title = turnMode
+    ? t("contextview.turnTitle", { turn: record.turn, total: stepsInTurn ?? 0 })
+    : t("contextview.turnStepTotal", { turn: record.turn, step: record.step, total: stepsInTurn ?? 0 });
   return (
     <div className="mt-2 border-t border-border-soft/70 pt-2">
       <div className="flex items-center justify-between">
-        <div className="text-[12.5px] font-semibold text-fg">{t("contextview.turnStep", { turn: record.turn, step: record.step })}</div>
+        <div className="text-[12.5px] font-semibold text-fg">{title}</div>
         <div className="text-[10px] text-fg-faint tabular-nums font-mono">{new Date(record.ts * 1000).toLocaleTimeString()}</div>
       </div>
       <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11.5px] text-fg-dim tabular-nums font-mono">
@@ -721,6 +745,12 @@ function EventsList({ events }: { events: ContextEvent[] }) {
             <span className={`shrink-0 px-1 rounded text-[10px] ${e.kind === "compact" ? "bg-warning/15 text-warning" : e.kind === "prune" ? "bg-err/15 text-err" : "bg-accent/10 text-accent"}`}>
               {e.delta != null && e.delta < 0 ? "" : "+"}{t(EVENT_LABEL[e.kind])}
             </span>
+            {/* 刀13：注入源形态分类 chip（1:1 上游 form 细分；无标签旧格式不渲染） */}
+            {e.kind === "inject" && e.form && (
+              <span className="shrink-0 rounded bg-bg-soft px-1 text-[10px] text-fg-dim" title={t("contextview.injectSrcTip")}>
+                {t(`contextview.injectForm.${e.form}` as DictKey)}
+              </span>
+            )}
             <span className="truncate text-fg-dim">{e.source || "—"}</span>
             <span className="ml-auto shrink-0 text-fg-faint tabular-nums font-mono">
               {t("contextview.turnStep", { turn: e.turn, step: e.step })}
@@ -777,6 +807,9 @@ export function ContextView({
   const t = useT();
   const [timeline, setTimeline] = useState<ContextTimeline>(EMPTY);
   const [picked, setPicked] = useState<ContextRequestRecord | null>(null);
+  // 刀12：趋势粒度态上提（驱动 StepDetail turn 模式标题；toggle 交互仍在卡内，
+  // 偏好写回仍在卡内 pickGranularity 单点）。
+  const [granularity, setGranularity] = useState<CtxTrendGranularity>(() => loadContextPrefs().trendGranularity);
   const [error, setError] = useState<string | null>(null);
   // 2.5d 趋势→浏览器联动：StepDetail brief 行点击的目标节点。tick 让同一
   // 节点重复点击也能重新触发滚动/高亮。
@@ -903,7 +936,17 @@ export function ContextView({
             requests={timeline.requests}
             events={timeline.events}
             onPick={setPicked}
-            detail={picked ? <StepDetail record={picked} window={timeline.window} onJump={jumpToNode} /> : null}
+            granularity={granularity}
+            onGranularity={setGranularity}
+            detail={picked ? (
+              <StepDetail
+                record={picked}
+                window={timeline.window}
+                onJump={jumpToNode}
+                stepsInTurn={timeline.requests.filter((r) => r.turn === picked.turn).length}
+                turnMode={granularity === "turn"}
+              />
+            ) : null}
             focus={trendFocus}
           />
           {/* 行3：三大仪表卡（Token 卡带「查看趋势」入口 → 行2 趋势卡锚点） */}

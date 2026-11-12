@@ -80,6 +80,9 @@ export interface ContextEvent {
   seq: number;
   delta?: number;
   source?: string;
+  // 刀13（1:1 上游 inject 事件 form 细分）：注入源机器键——file|dir|image|
+  // session|resource|mixed（由引用块标签解析；无标签旧格式留空）。
+  form?: string;
   turn: number;
   step: number;
   ts: number;
@@ -339,6 +342,18 @@ export interface FamilyTotalsView {
   outputTokens?: number;
 }
 
+// FamilyAgentRowView 是成员卡行（刀11，1:1 上游 Fleet 成员卡树）：每 Agent
+// 用量/费用/任务与消息计数（Go FamilyAgentRow 镜像）。
+export interface FamilyAgentRowView {
+  ref: string; // "main" 或 sa_ 引用
+  tokens: number;
+  cost?: number;
+  output?: number;
+  dispatches: number;
+  messages: number;
+  reports?: number;
+}
+
 export interface FamilyEventStreamView {
   ok: boolean;
   events: FamilyEventView[]; // Ts 升序，上限 400
@@ -346,6 +361,7 @@ export interface FamilyEventStreamView {
   truncated?: number;
   refs: string[]; // agent 筛选 chips 单源（main 在前）
   totals: FamilyTotalsView; // 编队费用行数据源（1:1 上游）
+  agents?: FamilyAgentRowView[]; // 成员卡行（main 在前，子按首条消息时间）
 }
 
 export interface ContextInsightsView {

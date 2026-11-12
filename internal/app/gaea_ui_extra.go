@@ -80,6 +80,11 @@ type SettingsView struct {
 	ConfigPath     string            `json:"configPath"`
 	ProviderKinds  []string          `json:"providerKinds"`
 	Bypass         bool              `json:"bypass"`
+	// PromptPrefix/Suffix 是部署级系统提示词首尾拼接（刀14，dsh-context
+	// promptPrefix/promptSuffix 蒸馏；顶层字段——写回显式含空串=停用，
+	// 不吃 Agent 段的「空跳过」守卫）。
+	PromptPrefix string `json:"promptPrefix"`
+	PromptSuffix string `json:"promptSuffix"`
 }
 
 // GaeaSettings 返回设置面板数据（引擎来自模型中心，agent 参数来自 gaea 配置）。
@@ -126,6 +131,8 @@ func (a *App) GaeaSettings() SettingsView {
 	}
 	view.SubagentModel = cfg.Agent.SubagentModel
 	view.SubagentModels = cfg.Agent.SubagentModels
+	view.PromptPrefix = cfg.Agent.PromptPrefix
+	view.PromptSuffix = cfg.Agent.PromptSuffix
 	view.ConfigPath = gaeaConfig.UserConfigPath()
 	if c := gaeaCtrl(); c != nil {
 		view.Bypass = c.PermLevel() != "ask"
@@ -211,6 +218,10 @@ func (a *App) GaeaSaveSettings(view SettingsView) error {
 		if view.Sandbox.WorkspaceRoot != "" {
 			cfg.Sandbox.WorkspaceRoot = view.Sandbox.WorkspaceRoot
 		}
+		// 刀14 promptPrefix/Suffix：显式写回（空串=停用是合法值，不吃
+		// 「空跳过」守卫；上游语义留空则不启用）。
+		cfg.Agent.PromptPrefix = view.PromptPrefix
+		cfg.Agent.PromptSuffix = view.PromptSuffix
 	})
 }
 

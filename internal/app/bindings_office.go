@@ -45,10 +45,9 @@ func (b *OfficeB) GaeaChangeFactType(name string, typ string) (string, error) { 
 func (b *OfficeB) GaeaCheckUpdate() (*UpdateInfo, error) { return b.a.GaeaCheckUpdate() }
 func (b *OfficeB) GaeaCommands() []CommandInfo { return b.a.GaeaCommands() }
 func (b *OfficeB) GaeaContext() ContextInfo { return b.a.GaeaContext() }
+func (b *OfficeB) GaeaContextInsights(rangeKey string, includeArchived bool) (contextview.ContextInsights, error) { return b.a.GaeaContextInsights(rangeKey, includeArchived) }
 func (b *OfficeB) GaeaContextNodeDetail(seq int64, sessionPath string) (contextview.NodeDetail, error) { return b.a.GaeaContextNodeDetail(seq, sessionPath) }
 func (b *OfficeB) GaeaContextView(sessionPath string) (contextview.ContextTimeline, error) { return b.a.GaeaContextView(sessionPath) }
-func (b *OfficeB) GaeaContextInsights(rangeKey string, includeArchived bool) (contextview.ContextInsights, error) { return b.a.GaeaContextInsights(rangeKey, includeArchived) }
-func (b *OfficeB) GaeaFamilyEvents(sessionPath string) (trajectory.FamilyEventStream, error) { return b.a.GaeaFamilyEvents(sessionPath) }
 func (b *OfficeB) GaeaConvertToPdf(rel string) (ConvertPdfResult, error) { return b.a.GaeaConvertToPdf(rel) }
 func (b *OfficeB) GaeaCrossEmbed(in CrossEmbedInput) (CrossEmbedResult, error) { return b.a.GaeaCrossEmbed(in) }
 func (b *OfficeB) GaeaDagAcceptAll(id string) (string, error) { return b.a.GaeaDagAcceptAll(id) }
@@ -85,6 +84,7 @@ func (b *OfficeB) GaeaExportDeliverable(in ExportDeliverableInput) (ExportDelive
 func (b *OfficeB) GaeaFactBase() FactBaseView { return b.a.GaeaFactBase() }
 func (b *OfficeB) GaeaFactBaseClear() error { return b.a.GaeaFactBaseClear() }
 func (b *OfficeB) GaeaFactBasePromote() (int, error) { return b.a.GaeaFactBasePromote() }
+func (b *OfficeB) GaeaFamilyEvents(sessionPath string) (trajectory.FamilyEventStream, error) { return b.a.GaeaFamilyEvents(sessionPath) }
 func (b *OfficeB) GaeaFileIndexRebuild() (*tasks.Task, error) { return b.a.GaeaFileIndexRebuild() }
 func (b *OfficeB) GaeaFileSearch(query string, limit int) []FileSearchHit { return b.a.GaeaFileSearch(query, limit) }
 func (b *OfficeB) GaeaFileSemanticSearch(query string, topN int) ([]FileSemanticHit, error) { return b.a.GaeaFileSemanticSearch(query, topN) }

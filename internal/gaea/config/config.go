@@ -626,6 +626,13 @@ type AgentConfig struct {
 	// startup (a built-in like "explanatory"/"learning"/"concise", or a custom
 	// .gaea/output-styles/<name>.md). Empty = the unmodified prompt.
 	OutputStyle string `toml:"output_style"`
+	// PromptPrefix/PromptSuffix 是部署级系统提示词首尾拼接（v4.542 刀14，
+	// dsh-context promptPrefix/promptSuffix 蒸馏）：非空时拼接在**所有会话**
+	// 系统提示词的最前/最后（含 task/run_skill 子代理——子代理 L1 从同一
+	// compiler Fork 派生，一处缝合全覆盖）。走 gaeaApplyCfg 通道改值后重建
+	// controller 即时生效（下游对话开始应用）。空串=不启用（默认）。
+	PromptPrefix string `toml:"prompt_prefix"`
+	PromptSuffix string `toml:"prompt_suffix"`
 	// ApprovalTimeoutSecs 是工具审批等待超时（C4 TimedOut，蒸馏 codex
 	// ReviewDecision::TimedOut）：无人值守场景下审批请求等待超过该秒数按拒绝
 	// 处理并发 Notice（回合继续，不静默放行）。0 = 不超时（默认，交互等待）。

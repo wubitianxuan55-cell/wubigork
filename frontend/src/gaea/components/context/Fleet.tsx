@@ -1,16 +1,18 @@
 // 编队页（v4.542 刀5，对标 dsh-context Fleet tab）：Agent 家族视图——摘要条、
+// 成员卡树（刀11：每 Agent 卡+费用+任务/消息计数，点击联动事件检查）、
 // 协作泳道（派发→回报时间线）、协作任务（状态筛选+搜索）、事件检查（派发/
 // 回报合并流）、Agent 网络径向图（复用 AgentRadial）。
 // 数据源：GaeaAgentNetwork（谱系树）+ SubagentRuns（实时运行快照，共享单轮
-// 询 store）。诚实子集：消息级跨 transcript 合并流、blocked-by 依赖链需新
-// 后端面，本版不造（见拍板池）；家族消息计数无日志级聚合，摘要条不展示。
-import { useCallback, useEffect, useMemo, useState } from "react";
+// 询 store）+ GaeaFamilyEvents（合并流+成员行）。诚实子集：消息级跨
+// transcript 合并流、blocked-by 依赖链需新后端面，本版不造（见拍板池）。
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "../../lib/i18n";
+import { fmtTokens } from "../../lib/stats";
 import { subscribeSubagentRuns, type SubagentRunsMeta } from "../../lib/subagentRunsStore";
 import { app } from "../../lib/bridge";
 import { subscribeAgentNetwork } from "../../lib/agentNetworkStore";
 import type { AgentNetwork } from "../../lib/types";
-import type { FamilyAgentKind, FamilyEventStreamView } from "../../lib/types/context";
+import type { FamilyAgentKind, FamilyAgentRowView, FamilyEventStreamView } from "../../lib/types/context";
 import type { SubagentRunView } from "../../lib/types/subagent";
 import { AgentRadial } from "./AgentRadial";
 
@@ -62,6 +64,14 @@ export function Fleet({ running, sessionPath, onViewContext }: {
 
   const subagentRuns = useMemo(() => runs.filter((r) => (r.kind ?? "subagent") === "subagent"), [runs]);
 
+  // 刀11：成员卡点击联动事件检查（agent 筛选上提到页级 + 滚动定位）。
+  const [eventAgent, setEventAgent] = useState<string>("all");
+  const eventsRef = useRef<HTMLDivElement | null>(null);
+  const pickMember = useCallback((ref: string) => {
+    setEventAgent(ref);
+    eventsRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, []);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4" data-testid="ctx-fleet">
       {/* 摘要条 */}
@@ -71,6 +81,11 @@ export function Fleet({ running, sessionPath, onViewContext }: {
         <Summary label={t("fleet.kpiTasks")} value={String(subagentRuns.length)} />
         <Summary label={t("fleet.kpiMessages")} value={String(family?.events.length ?? 0)} />
       </div>
+
+      {/* 成员卡树（刀11，1:1 上游 Fleet 成员卡）：每 Agent 费用+任务/消息计数 */}
+      {(family?.agents?.length ?? 0) > 0 && (
+        <MemberCards agents={family!.agents!} runs={subagentRuns} onPick={pickMember} picked={eventAgent} />
+      )}
 
       {/* Agent 网络（谱系径向图，复用实时拓扑组件） */}
       {net && (
@@ -87,7 +102,9 @@ export function Fleet({ running, sessionPath, onViewContext }: {
       {subagentRuns.length > 0 && (
         <div className="grid grid-cols-1 gap-3 min-[1100px]:grid-cols-2">
           <TaskPanel runs={subagentRuns} />
-          <EventInspector family={family} runs={subagentRuns} onViewContext={onViewContext} />
+          <div ref={eventsRef}>
+            <EventInspector family={family} runs={subagentRuns} onViewContext={onViewContext} agent={eventAgent} onAgent={setEventAgent} />
+          </div>
         </div>
       )}
 
@@ -198,6 +215,75 @@ function fmtClock(iso: string): string {
   return Number.isFinite(d.getTime()) ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—";
 }
 
+// ─── 成员卡树（刀11，1:1 上游 Fleet 成员卡）──────────────────
+// 每 Agent 一卡：角色徽标（主控/子 Agent）+状态点（join 实时 runs）+
+// Token/费用/委派/消息/回报计数（Go FamilyAgentRows 源日志直算口径）。
+// 点击卡片=事件检查筛选到该 Agent 并滚动定位（Wave4 chips 联动同款）。
+function fmtCost(n: number | undefined): string {
+  if (!n || n <= 0) return "0";
+  if (n < 0.01) return `<0.01`;
+  return n.toFixed(2);
+}
+
+function MemberCards({ agents, runs, onPick, picked }: {
+  agents: FamilyAgentRowView[];
+  runs: SubagentRunView[];
+  onPick: (ref: string) => void;
+  picked: string;
+}) {
+  const t = useT();
+  const statusByRef = useMemo(() => {
+    const m = new Map<string, RunStatus>();
+    for (const r of runs) m.set(r.ref, r.status);
+    return m;
+  }, [runs]);
+  return (
+    <section className="ctx-card p-3" data-testid="fleet-members">
+      <SectionTitle>{t("fleet.membersTitle")}</SectionTitle>
+      <div className="grid grid-cols-1 gap-1.5 min-[900px]:grid-cols-2 min-[1400px]:grid-cols-3">
+        {agents.map((a) => {
+          const isMain = a.ref === "main";
+          const status = statusByRef.get(a.ref);
+          const dim = picked !== "all" && picked !== a.ref;
+          return (
+            <button
+              key={a.ref}
+              type="button"
+              data-testid={`fleet-member-${a.ref}`}
+              aria-pressed={picked === a.ref}
+              onClick={() => onPick(picked === a.ref ? "all" : a.ref)}
+              className={`cursor-pointer rounded-md border border-border-soft bg-panel-2 p-2 text-left transition-opacity ${dim ? "opacity-45" : "opacity-100"} hover:border-accent/40`}
+            >
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="shrink-0 rounded px-1 py-px text-[9px] font-medium"
+                  style={{
+                    background: isMain ? "var(--md-sys-color-primary, var(--color-primary))" : "var(--md-sys-color-outline, #9e9e9e)",
+                    color: "var(--md-sys-color-surface, #fff)",
+                  }}
+                >
+                  {isMain ? t("fleet.roleLead") : t("fleet.roleSub")}
+                </span>
+                {status && <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: STATUS_COLOR[status] }} title={status} />}
+                <span className="ml-auto truncate text-[10px] text-fg-dim" title={a.ref}>
+                  {isMain ? t("fleet.agentMain") : shortTask(a.ref, 18)}
+                </span>
+              </div>
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 font-mono text-[10px] tabular-nums text-fg-dim">
+                <span className="text-fg">{fmtTokens(a.tokens)}</span>
+                <span>{t("fleet.cardCost")} {fmtCost(a.cost)}</span>
+                <span>{t("fleet.cardDispatches")} {a.dispatches}</span>
+                <span>{t("fleet.cardMessages")} {a.messages}</span>
+                {!!a.reports && <span>{t("fleet.cardReports")} {a.reports}</span>}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 // ─── 协作任务 ────────────────────────────────────────────────
 function TaskPanel({ runs }: { runs: SubagentRunView[] }) {
   const t = useT();
@@ -264,14 +350,16 @@ function TaskPanel({ runs }: { runs: SubagentRunView[] }) {
 // 家族事件流（刀10）：main+子代理 transcript 合并的消息/委派/回报。
 // agent chips（refs 单源，子代理 chip 标签优先用其任务摘要）+ kind 筛选 +
 // 文本搜索；回报行点击下钻该子代理上下文。
-function EventInspector({ family, runs, onViewContext }: {
+// 刀11：agent 筛选态上提到页级（成员卡点击联动滚动定位）。
+function EventInspector({ family, runs, onViewContext, agent, onAgent }: {
   family: FamilyEventStreamView | null;
   runs: SubagentRunView[];
   onViewContext?: (ref: string) => void;
+  agent: string;
+  onAgent: (a: string) => void;
 }) {
   const t = useT();
   const [kind, setKind] = useState<"all" | FamilyAgentKind>("all");
-  const [agent, setAgent] = useState<string>("all");
   const [q, setQ] = useState("");
   const taskByRef = useMemo(() => {
     const m = new Map<string, string>();
@@ -307,7 +395,7 @@ function EventInspector({ family, runs, onViewContext }: {
               type="button"
               aria-pressed={agent === a}
               className={`cursor-pointer rounded border-0 px-1.5 py-0.5 text-[10px] ${agent === a ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"}`}
-              onClick={() => setAgent(a)}
+              onClick={() => onAgent(a === agent ? "all" : a)}
             >
               {a === "all" ? t("fleet.agentAll") : agentLabel(a)}
             </button>

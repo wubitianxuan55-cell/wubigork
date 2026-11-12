@@ -1,7 +1,10 @@
-import React, { useState } from 'react'
-import { Radio, Typography } from 'antd'
+import React, { useCallback, useEffect, useState } from 'react'
+import { Button, Input, Radio, Typography, message } from 'antd'
 import SettingsSection from './SettingsSection'
 import { useT } from '../../gaea/lib/i18n'
+import { app as gaeaApp } from '../../gaea/lib/bridge'
+import { gaeaSettings } from '../../api/settings'
+import type { SettingsView } from '../../gaea/lib/types'
 import {
   loadContextPrefs, saveContextPref,
   type CtxTrendGranularity, type CtxTrendMode, type CtxBrowserSort, type CtxFileSort,
@@ -104,7 +107,86 @@ const ContextPrefsPanel: React.FC = () => {
       <Typography.Text style={{ display: 'block', marginTop: 12, fontSize: 11, color: 'var(--md-sys-color-text-secondary)' }}>
         {t('settings.context.footnote')}
       </Typography.Text>
+      <ContextPromptGroup />
     </SettingsSection>
+  )
+}
+
+/**
+ * ContextPromptGroup —「系统提示词」组（刀14，dsh-context settings.group.prompt
+ * 1:1）：部署级 promptPrefix/promptSuffix，拼接在所有会话系统提示词的最前/
+ * 最后（含子代理——子代理 L1 从同一 compiler Fork 派生）。显式保存（引擎级
+ * 写回+controller 重建即时生效，非瞬时偏好），保存载荷整体回传已加载视图，
+ * 防他处设置保存互相清零。
+ */
+const ContextPromptGroup: React.FC = () => {
+  const t = useT()
+  const [prefix, setPrefix] = useState('')
+  const [suffix, setSuffix] = useState('')
+  const [loaded, setLoaded] = useState<SettingsView | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    gaeaSettings().then((v) => {
+      if (!alive || !v) return
+      setLoaded(v as unknown as SettingsView)
+      setPrefix((v.promptPrefix as string | undefined) ?? '')
+      setSuffix((v.promptSuffix as string | undefined) ?? '')
+    }).catch(() => { /* 读取失败：输入框留空，保存时以报错呈现 */ })
+    return () => { alive = false }
+  }, [])
+
+  const handleSave = useCallback(async () => {
+    if (!loaded) {
+      message.warning(t('settings.context.promptLoadFail'))
+      return
+    }
+    setSaving(true)
+    try {
+      // 整体回传已加载视图 + 仅改两字段（OfficePanel 保存同样原样回传，
+      // 两处互不清零）。
+      await gaeaApp.SaveSettings({ ...loaded, promptPrefix: prefix, promptSuffix: suffix } as SettingsView)
+      setLoaded({ ...loaded, promptPrefix: prefix, promptSuffix: suffix })
+      message.success(t('settings.context.promptSaved'))
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : t('settings.saveFailed'))
+    } finally {
+      setSaving(false)
+    }
+  }, [loaded, prefix, suffix, t])
+
+  const areaStyle = { fontSize: 12 } as const
+  return (
+    <div data-testid="ctx-prompt-group" style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--md-sys-color-outline-variant, rgba(0,0,0,0.08))' }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--md-sys-color-text)', marginBottom: 6 }}>
+        {t('settings.context.promptGroup')}
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--md-sys-color-text-secondary)', lineHeight: 1.6, marginBottom: 10 }}>
+        {t('settings.context.promptHint')}
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--md-sys-color-text)', marginBottom: 4 }}>{t('settings.context.promptPrefixLabel')}</div>
+      <Input.TextArea
+        aria-label={t('settings.context.promptPrefixLabel')}
+        value={prefix}
+        onChange={(e) => setPrefix(e.target.value)}
+        placeholder={t('settings.context.promptPlaceholder')}
+        rows={3}
+        style={areaStyle}
+      />
+      <div style={{ fontSize: 12, color: 'var(--md-sys-color-text)', margin: '10px 0 4px' }}>{t('settings.context.promptSuffixLabel')}</div>
+      <Input.TextArea
+        aria-label={t('settings.context.promptSuffixLabel')}
+        value={suffix}
+        onChange={(e) => setSuffix(e.target.value)}
+        placeholder={t('settings.context.promptPlaceholder')}
+        rows={3}
+        style={areaStyle}
+      />
+      <Button size="small" type="primary" loading={saving} onClick={handleSave} style={{ marginTop: 10 }} data-testid="ctx-prompt-save">
+        {t('settings.context.promptSave')}
+      </Button>
+    </div>
   )
 }
 

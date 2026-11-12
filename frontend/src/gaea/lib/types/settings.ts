@@ -47,4 +47,8 @@ export interface SettingsView {
   providerKinds: string[]; // provider implementations the kernel registered (for the kind picker)
   bypass: boolean; // DEPRECATED — use permLevel instead
   permLevel?: string; // live permission level this session (\"ask\"|\"auto\"|\"yolo\")
+  // 刀14：部署级系统提示词首尾拼接（空串=停用；SaveSettings 显式写回，
+  // 消费方整体写回时必须原样带上，防他处保存清零）。
+  promptPrefix?: string;
+  promptSuffix?: string;
 }

@@ -121,9 +121,13 @@ type ContextEvent struct {
 	Seq    int64  `json:"seq"`
 	Delta  int64  `json:"delta"`
 	Source string `json:"source,omitempty"`
-	Turn   int    `json:"turn"`
-	Step   int    `json:"step"`
-	Ts     int64  `json:"ts"`
+	// Form 是 inject 专有的源形态机器键（刀13，对齐上游 inject 事件 form
+	// 细分）：file|dir|image|session|resource|mixed——由引用块标签解析得出，
+	// 无标签的旧格式注入留空（前端不渲染分类 chip）。Source 相应为定位名串。
+	Form string `json:"form,omitempty"`
+	Turn int    `json:"turn"`
+	Step int    `json:"step"`
+	Ts   int64  `json:"ts"`
 	// From/To 是模型切换事件的供应商实例名（kind=switch 专有；对齐 dsh
 	// ContextEventRecord.from/to）。
 	From string `json:"from,omitempty"`
