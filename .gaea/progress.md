@@ -1,3 +1,12 @@
+## G1.6 worktree 只读展示 + Git 子进程预算收口 · 2026-11-12（深夜，分支候选）
+
+- **分支**：`feat/g1-git-deepening`（自 `de283ace` = main tip，含前端测试成本线提交）。设计判定固化在交接档 §6：gaea 全应用单一 workspace 锚，上游「跟随会话进 linked worktree」会造成多面板基准分裂——worktree「切换」=工作区切换器，归 G2/W1 级产品门另立；Go Git 服务扩展不重做。
+- **Go**（`internal/app/gaea_git.go`）：①新增 `GaeaGitWorktrees`（`git worktree list --porcelain` 解析：主检出/linked/detached/bare/locked 带原因，isCurrent 与工作区 toplevel 等值判定，Windows 大小写不敏感）+ OfficeB 门面行；②`GitStatus` 增 `isLinkedWorktree`/`mainWorktreePath`（`--absolute-git-dir` ≠ `--git-common-dir`，git ≥2.31，取不到尽力而为）；③验收欠账收口——git 子进程统一 `gitRunBudgeted`：读面 20s/8MB、写面 60s/1MB（pre-commit 钩子余量）、diff 4MB 展示层截断标记（不当错误炸面板），boundedWriter 管道反压早停 + ctx 强杀兜底；预算 var 化供测试收窄。
+- **前端**：GitPanel 第四镜头「工作树」（主检出/当前/detached/bare/锁徽标+分支+路径）+ 头部 linked chip；四表同步（types/git.ts、bridge/core.ts+mappings、mock office types+methods_ops 演示样例、bindingSignatures、spaceBindings）；绑定 745→746（bindingNames/legacyBindings/bindings_office.go 均由生成器再生）。
+- **验证**：Go 定向 10 例（含 worktree 真仓三态/预算溢出/超时/截断四新例）+ 全包 `go test ./internal/app ./internal/gaea/workbench` 绿、vet 绿；`tsc -b`+Vite build 23.42s 绿；GitPanel 12 用例（含 2 新）+mock 契约等定向 19/19 绿；drift 检查 746 OK；9 文件 ESLint 绿。未跑 Wails build、未装机。
+- **坑新增**：①`internal/app` 测试二进制 import 表直依 `sherpa-onnx-c-api.dll`——worktree 无 build/bin 时跑 app 测试须把主树 `build/bin` 加入 PATH（否则 0xc0000135 DLL not found）；②干净仓 `git status --porcelain` 无 `-b` 时零输出，预算溢出测试必须带 `-b`；③`bindings_office.go` 是 gen_bindings 生成件（DO NOT EDIT）——手改会被再生产出覆盖，gofmt 对生成件的对齐改写（493 行 churn）必须撤销；④worktree 列表按路径排序，测试断言不能按位置取 linked/detached。
+- **前置收口**：主树前端测试成本线已提交 `de283ace`（vitest 双项目 logic=node/ui=jsdom，全量复验 497 文件/4348 用例绿 393.6s vs 基线 569s）。
+
 ## DSH-better-sidebar Go 增量复刻：功能提交与桌面预览包 · 2026-11-12（打包收口）
 
 - **提交**：功能提交 `f49ea1500026526b822c80be39cfb08d06026869`（短 `f49ea150`，标题 `feat-office-dsh-better-sidebar-workbench`），父提交 `daaa0065`；80 files / 7,786 insertions / 374 deletions。收口文档与包元数据另提独立提交，不与源码功能混写。
