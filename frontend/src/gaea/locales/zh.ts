@@ -1541,6 +1541,8 @@ export const zh: Record<DictKey, string> = {
   "trajectory.betweenSub": "轮次之间",
   "trajectory.kindAsk": "提问",
   "trajectory.kindApproval": "审批",
+  "trajectory.kindApprovalAuto": "自动放行",
+  "trajectory.autoAllowedTrail": "（无人值守放行 · {src} · {by}）",
   "trajectory.kindUser": "用户",
   "trajectory.kindSubagent": "子代理",
   "trajectory.dur": "耗时 {d}",

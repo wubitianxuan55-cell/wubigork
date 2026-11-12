@@ -90,6 +90,7 @@ function KindBadge({ kind }: { kind: TrajectoryRecord["kind"] }) {
     tool: { literal: "TOOL", cls: "bg-orange-500/15 text-orange-400" },
     ask: { key: "trajectory.kindAsk", cls: "bg-blue-800/25 text-blue-300" },
     approval: { key: "trajectory.kindApproval", cls: "bg-amber-500/15 text-amber-400" },
+    approval_auto: { key: "trajectory.kindApprovalAuto", cls: "bg-sky-800/25 text-sky-300" },
     header: { literal: "REQUEST HEADER", cls: "bg-cyan-500/15 text-cyan-400" },
     compact: { literal: "COMPACTION", cls: "bg-yellow-500/15 text-yellow-400" },
     user: { key: "trajectory.kindUser", cls: "bg-emerald-500/15 text-emerald-400" },
@@ -106,6 +107,7 @@ function KindIcon({ kind }: { kind: TrajectoryRecord["kind"] }) {
     case "tool": return <Wrench size={12} className="text-orange-400" />;
     case "ask": return <MessageSquare size={12} className="text-blue-300" />;
     case "approval": return <Shield size={12} className="text-amber-400" />;
+    case "approval_auto": return <Shield size={12} className="text-sky-300" />;
     case "header": return <Cpu size={12} className="text-cyan-400" />;
     case "compact": return <Cpu size={12} className="text-yellow-400" />;
     case "subagent": return <Bot size={12} className="text-accent" />;
@@ -129,6 +131,12 @@ function RecordInspector({ record }: { record: TrajectoryRecord }) {
       {record.kind === "ask" && <div className="text-fg">{record.ask?.question || "—"}</div>}
       {record.kind === "approval" && (
         <div className="text-fg-dim">{record.approval?.tool}{record.approval?.subject ? ` · ${record.approval.subject}` : ""}</div>
+      )}
+      {record.kind === "approval_auto" && (
+        <div className="text-fg-dim">
+          {record.approval?.tool}{record.approval?.subject ? ` · ${record.approval.subject}` : ""}
+          {t("trajectory.autoAllowedTrail", { src: record.approval?.source || "—", by: record.approval?.decided || "—" })}
+        </div>
       )}
       {record.kind === "compact" && <div className="text-warning/90">{record.compact?.summary || record.compact?.trigger || t("trajectory.compactFallback")}</div>}
       {record.kind === "subagent" && record.subagent && <SubagentDetail s={record.subagent} />}
@@ -214,6 +222,7 @@ function RecordRow({ record }: { record: TrajectoryRecord }) {
       case "compact": return `${record.compact?.trigger || "manual"}${record.compact?.summary ? ` — ${record.compact.summary.slice(0, 60)}` : ""}`;
       case "ask": return record.ask?.question || "";
       case "approval": return `${record.approval?.tool || ""}${record.approval?.subject ? ` · ${record.approval.subject}` : ""}`;
+      case "approval_auto": return `${record.approval?.tool || ""}${record.approval?.subject ? ` · ${record.approval.subject}` : ""} · ${record.approval?.source || "—"}/${record.approval?.decided || "—"}`;
       // 子代理回投：折叠态弱存在感一行 = 答复文本（CSS truncate）+ ref（有则显示）
       case "subagent": return `${record.subagent?.text || t("trajectory.noReply")}${record.subagent?.ref ? ` · ${record.subagent.ref}` : ""}`;
       default: return "";

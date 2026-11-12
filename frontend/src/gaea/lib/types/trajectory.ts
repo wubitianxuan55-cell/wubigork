@@ -25,7 +25,7 @@ export interface TrajectoryTurnEnd {
 }
 
 export type TrajectoryRecordKind =
-  | "user" | "header" | "assistant" | "tool" | "compact" | "ask" | "approval" | "subagent";
+  | "user" | "header" | "assistant" | "tool" | "compact" | "ask" | "approval" | "approval_auto" | "subagent";
 
 export interface TrajectoryRecord {
   seq: number;
@@ -84,6 +84,9 @@ export interface TrajectoryAskRec {
 export interface TrajectoryApprovalRec {
   tool?: string;
   subject?: string;
+  // approval_auto 专有（2026-11-12）：无人值守放行留痕的来源与决定值。
+  source?: string;
+  decided?: string;
 }
 
 // 子代理完成回投记录（v4.26，对齐后端 trajectory.SubagentRec）：task 子代理

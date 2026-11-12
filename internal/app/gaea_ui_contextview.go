@@ -452,14 +452,14 @@ const maxFamilyTranscripts = 20
 func (a *App) GaeaFamilyEvents(sessionPath ...string) (trajectory.FamilyEventStream, error) {
 	path := resolveGaeaSessionPath(sessionPath)
 	if path == "" {
-		return trajectory.FamilyEventStream{}, nil
+		return trajectory.EmptyFamilyEventStream(), nil
 	}
 	parentEntries, err := readEntriesForCached(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return trajectory.FamilyEventStream{}, nil
+			return trajectory.EmptyFamilyEventStream(), nil
 		}
-		return trajectory.FamilyEventStream{}, err
+		return trajectory.EmptyFamilyEventStream(), err
 	}
 	// 子代理 transcript 枚举：<会话目录>/subagents/*.jsonl
 	dir := sessionDirForPath(path)

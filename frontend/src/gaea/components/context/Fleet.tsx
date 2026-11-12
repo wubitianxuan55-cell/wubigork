@@ -79,7 +79,7 @@ export function Fleet({ running, sessionPath, onViewContext }: {
         <Summary label={t("fleet.kpiAgents")} value={String(1 + subagentRuns.length)} />
         <Summary label={t("fleet.kpiRunning")} value={String(meta.running)} accent={meta.running > 0} />
         <Summary label={t("fleet.kpiTasks")} value={String(subagentRuns.length)} />
-        <Summary label={t("fleet.kpiMessages")} value={String(family?.events.length ?? 0)} />
+        <Summary label={t("fleet.kpiMessages")} value={String((family?.events ?? []).length)} />
       </div>
 
       {/* 成员卡树（刀11，1:1 上游 Fleet 成员卡）：每 Agent 费用+任务/消息计数 */}

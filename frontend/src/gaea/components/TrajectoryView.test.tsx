@@ -44,6 +44,7 @@ const TRAJECTORY: Trajectory = {
           tool: { id: "t2", name: "bash", args: "rm -rf /", output: "", err: "denied by policy", status: "error" },
         },
         { seq: 15, kind: "ask", ts: 1750000010, step: 1, ask: { question: "如何协调并行改动？" } },
+        { seq: 18, kind: "approval_auto", ts: 1750000011, step: 1, approval: { tool: "write_file", subject: "docs/结论.md", source: "gate", decided: "headless" } },
       ],
     },
   ],
@@ -83,6 +84,17 @@ describe("TrajectoryView 轨迹事件账本", () => {
     expect((await screen.findAllByText(/"command":"git status"/, undefined, LOAD)).length).toBeGreaterThan(0);
     expect((await screen.findAllByText("M App.tsx", undefined, LOAD)).length).toBeGreaterThan(0);
     expect(await screen.findByText(/denied by policy/, undefined, LOAD)).toBeTruthy();
+  });
+
+  it("approval_auto 自动放行留痕：徽标+详情不崩（真实会话 crash 回归钉）", async () => {
+    const { TrajectoryView } = await import("./TrajectoryView");
+    renderT(<TrajectoryView running={false} />);
+    expect(await screen.findByText("自动放行", undefined, LOAD)).toBeTruthy();
+    // 详情展开后显示无人值守留痕（tool · subject · src/by）
+    const btn = screen.getByRole("button", { name: /write_file/ });
+    fireEvent.click(btn);
+    expect((await screen.findAllByText(/docs\/结论\.md/, undefined, LOAD)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/无人值守放行 · gate · headless/, undefined, LOAD)).length).toBeGreaterThan(0);
   });
 
   it("渲染 ask 与 Between-turns 压缩记录", async () => {

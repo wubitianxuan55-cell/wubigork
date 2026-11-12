@@ -1541,6 +1541,8 @@ export const en = {
   "trajectory.betweenSub": "between turns",
   "trajectory.kindAsk": "Ask",
   "trajectory.kindApproval": "Approval",
+  "trajectory.kindApprovalAuto": "Auto-allow",
+  "trajectory.autoAllowedTrail": " (unattended auto-allow · {src} · {by})",
   "trajectory.kindUser": "User",
   "trajectory.kindSubagent": "Subagent",
   "trajectory.dur": "took {d}",

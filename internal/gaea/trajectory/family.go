@@ -146,6 +146,13 @@ func FoldFamilyEvents(parent []session.LogEntry, subs map[string][]session.LogEn
 	return events
 }
 
+// EmptyFamilyEventStream 是空会话路径的归一化返回：nil 切片会序列化成
+// JSON null，Fleet 摘要格 family?.events.length 的可选链只守 family 不守
+// events，null.length 整页崩（2026-11-12 走查实锤）——事件流恒给 []。
+func EmptyFamilyEventStream() FamilyEventStream {
+	return FamilyEventStream{Ok: true, Events: []FamilyEvent{}, Refs: []string{FamilyAgentMain}}
+}
+
 // FamilyEventRefs 列出事件流中出现的全部 agent 身份（main 在前，子代理按
 // 首次出现序）——前端 agent 筛选 chips 的数据源。
 func FamilyEventRefs(events []FamilyEvent) []string {

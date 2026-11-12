@@ -2,6 +2,7 @@ package trajectory
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/gaea/gaea/internal/gaea/agent/session"
@@ -146,3 +147,22 @@ func TestFamilyAgentRowsEmpty(t *testing.T) {
 		t.Fatalf("rows = %+v, want single zero main row", rows)
 	}
 }
+
+// 空会话路径（2026-11-12 Fleet null.length 事故）：EmptyFamilyEventStream 的
+// Events/Refs 必须是非 nil 切片——nil 序列化成 JSON null，前端
+// family?.events.length 的可选链只守 family 不守 events，null.length 整页崩。
+func TestEmptyFamilyEventStreamMarshal(t *testing.T) {
+	b, err := json.Marshal(EmptyFamilyEventStream())
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	s := string(b)
+	if contains(s, `"events":null`) || contains(s, `"refs":null`) {
+		t.Fatalf("empty stream marshals null slices: %s", s)
+	}
+	if !contains(s, `"events":[]`) || !contains(s, `"refs":["main"]`) {
+		t.Fatalf("empty stream should carry []/main refs: %s", s)
+	}
+}
+
+func contains(s, sub string) bool { return strings.Contains(s, sub) }
