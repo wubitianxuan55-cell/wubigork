@@ -2,13 +2,13 @@
 
 > 状态：**长期路线（v1.1 草案）**。基线：gaea v4.97.0（2026-09-05）。
 > 进度（2026-09-08 核对）：**T0 契约已落地（随 v4.98.0 发版**，见 `releases/archive/v4.98.0.md` 与
-> `docs/gaea-image-domain-t0-contract-design-2026-09.md` v0.3 实现后回写）；T1 及后续阶段
+> `docs/archive/gaea-image-domain-t0-contract-design-2026-09.md` v0.3 实现后回写）；T1 及后续阶段
 > 尚未启动，逐阶段口径见文内 T0–T3 各节与 `releases/`。
 > v1.1 修订（2026-09-05）：补「模型中心」职责边界——模型中心是引擎与模型目录的
 > 资源管理层，图像域消费其目录、不另立模型目录（见 §2.1）。
 > 本文件是「绘梦 → gaea 图像能力域」的**长期权威路线**：定义最终态、目标体系、
 > 版本主题线、轮子纪律、模型档位策略与滚动复盘机制。落地细节与最新调研见：
-> `docs/gaea-dream-studio-nextgen-2026-09.md`（下一代草案 + 2026-09 调研）；
+> `docs/archive/gaea-dream-studio-nextgen-2026-09.md`（下一代草案 + 2026-09 调研）；
 > 权威总路线见 `docs/gaea-nextgen-roadmap-2026.md`（§6 绘梦 / §10 双空间）。
 > 用户本轮补充（2026-09-05）：绘梦应是 gaea 的「图」核心——可识图、生图、改图；
 > 图既服务小说（场景、封面），也服务办公（流程图、思维导图）；其它功能模块不自己
@@ -305,12 +305,12 @@ LoRA 向导可完整走通一次（12GB+ 卡）。
 
 - `docs/gaea-nextgen-roadmap-2026.md`：总路线。本文件是其 §6 绘梦方向的长期执行化；
   待 T0 契约定型后回填 §6 优先级与 §10.3 板块处置口径。
-- `docs/gaea-dream-studio-nextgen-2026-09.md`：2026-09 调研 + 下一代草案 + 三个待确认
+- `docs/archive/gaea-dream-studio-nextgen-2026-09.md`：2026-09 调研 + 下一代草案 + 三个待确认
   建议（域先落 app 门面 / 识图收编入口不收编实现 / 思维导图保持办公原生）。
 - 模型中心现状：`frontend/src/pages/ModelCenterPage.tsx`（引擎/绑定/特型目录）、
   `internal/app/feature_model_handler.go`（功能域模型绑定）、`internal/app/model_router.go`
   （路由/空间敏感本地路由）；设计稿参考 `design-system/gaea/pages/modelcenter.md`。
-- `docs/gaea-office-mindmap-base-design-2026-09.md`：办公思维导图设计（保持办公原生，
+- `docs/archive/gaea-office-mindmap-base-design-2026-09.md`：办公思维导图设计（保持办公原生，
   只把导出图资产交域登记）。
 - `docs/gaea-novel-revolution-2026.md`：小说板块路线（章节/场景/角色库联动）。
 - `docs/archive/gaea-v43-play-deepen-design.md`：乐园红线与图文联动基线。

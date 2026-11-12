@@ -1,6 +1,6 @@
 # Reasonix 2.x（studio 分支 2.0.0→2.50.0）真身蒸馏 —— 侦察与刀池（2026-10-24）
 
-- 源：`clones/reasonix`（GitHub **esengine/DeepSeek-Reasonix** studio 分支，HEAD a26dacd PR #14337；Go 单二进制 agent，MIT）。前档 `docs/gaea-reasonix-v138-distill-2026-09.md`（v1.15→v1.38，四弹 16 刀落地 v4.374~4.378，留池 9 项全销号收官）——**本档覆盖其后的 2.x 增量：studio 2.0.0→2.50.0 共 59 版，PR 编号 #10613→#14337（≈3700 号增量）；main-v2 止于 1.39.0 维护线**。同期 gaea v4.379→v4.523（阶段八~十一+上游蒸馏 B0~B5），压缩/子代理/访问边界三条线都有自产增量，刀池已剔除已被 gaea 反超或对齐的面。
+- 源：`clones/reasonix`（GitHub **esengine/DeepSeek-Reasonix** studio 分支，HEAD a26dacd PR #14337；Go 单二进制 agent，MIT）。前档 `docs/archive/gaea-reasonix-v138-distill-2026-09.md`（v1.15→v1.38，四弹 16 刀落地 v4.374~4.378，留池 9 项全销号收官）——**本档覆盖其后的 2.x 增量：studio 2.0.0→2.50.0 共 59 版，PR 编号 #10613→#14337（≈3700 号增量）；main-v2 止于 1.39.0 维护线**。同期 gaea v4.379→v4.523（阶段八~十一+上游蒸馏 B0~B5），压缩/子代理/访问边界三条线都有自产增量，刀池已剔除已被 gaea 反超或对齐的面。
 - 侦察方法：2.0.0 重写总纲 + SPEC/ROADMAP 全文 + 四路并行深潜（会话与上下文引擎 / 权限安全 / 子代理编排补漏 / 架构地图），落点全部到文件:行号。
 - 纪律沿用前档：蒸馏=取道不取器；GoalCard 系红线不评估；MCP/平台化/跨设备在册排除（本轮新增排除：扩展 Runtime v2/插件包/主题市场/远程网关/ACP/计费钱包）。
 - 2.x 架构一句话：平铺→分层（contract/runtime/safety/ext/assembly/state），权威转录不可变 + **压缩只写投影 sidecar**（ CoveredPrefixHash 五元 CAS 提交），委派五概念（profile/task/capability/capsule/scheduler）+ 完成裁决（citation 对 receipt 只降不升）。

@@ -2,7 +2,7 @@
 
 > **源（真身已核实）**：GitHub **deepseek-ai/deepseek-harness**（dsh，TS monorepo，Cordis 插件架构）。
 > 本仓克隆：`clones/deepseek-harness` @ tag **dsh-v0.2.1-alpha.2**（= main HEAD，14988 文件，只读零搬运）。
-> 前情：`docs/gaea-dsh-016-distill-2026-09.md` 基于 v0.1.6-alpha.2（源原在 `/c/AI/deepseek-harness`，现只剩 `.dsh`
+> 前情：`docs/archive/gaea-dsh-016-distill-2026-09.md` 基于 v0.1.6-alpha.2（源原在 `/c/AI/deepseek-harness`，现只剩 `.dsh`
 > 运行态且被在跑 DSH 自主流水线进程锁定——**勿动该目录**，本轮起以 clones/ 为准）。
 > 背景与时机：016 蒸馏留池④「子代理控制面（send_message/interrupt/cold-resume/委派深度记账）」当时判定
 > 「上游 09-16/17 活跃大改，等其稳定」。v0.1.6→0.1.7→0.2.0→0.2.1 三跳后已收敛，且 0.2.x 做了**委派形态

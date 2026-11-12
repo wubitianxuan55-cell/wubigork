@@ -8,9 +8,9 @@
 **完整索引与状态行见 `docs/README.md`**（2026-09-10 重建，45 份顶层文档全覆盖）。本节只列最高频的四类：
 
 - `docs/gaea-nextgen-roadmap-2026.md` —— 全域路线图（唯一权威）。
-- `docs/gaea-slim-masterplan-2026-09.md` + `docs/gaea-convergence-plan-2026-09.md` —— 当前活跃的两层规划（瘦身/收敛）。
+- `docs/archive/gaea-slim-masterplan-2026-09.md` + `docs/archive/gaea-convergence-plan-2026-09.md` —— 当前活跃的两层规划（瘦身/收敛）。
 - `.gaea/AGENTS.md`（长期记忆：纪律 + 工装 + 版本速览）与 `.gaea/progress.md`（最近发布速览 + 开放任务）。
-- 政策与评测：`docs/ADULT_MODE.md` / `DREAM_WRITE_POLICY.md` / `MEMORY_ARCHITECTURE.md` / `evaluation-set.md` / `retrieval-eval-set.md`；环境与架构基准：`docs/2026-08-14-sandbox-environment-notes.md` / `docs/2026-08-15-gaea3-architecture-design.md`。
+- 政策与评测：`docs/ADULT_MODE.md` / `DREAM_WRITE_POLICY.md` / `MEMORY_ARCHITECTURE.md` / `evaluation-set.md` / `retrieval-eval-set.md`；环境与架构基准：`docs/archive/2026-08-14-sandbox-environment-notes.md` / `docs/archive/2026-08-15-gaea3-architecture-design.md`。
 
 ## 子目录
 
@@ -43,7 +43,7 @@
 | `better-sidebar-port-2026-09-03-worktree.md` / `dsh-better-sidebar-go-port-plan-2026-09.md` | 侧边栏整包 Go 化方案与 worktree 记录——**路线未采纳**，被滚动蒸馏规划取代 |
 | `2026-08-27-dsh-context-go-port.md` | dsh-context 移植记录（结论已消化） |
 | `2026-08-office-cloud-local-architecture-review.md` / `2026-08-office-knowledge-stack-optimization-summary.md` / `2026-08-16-office-file-interaction-research.md` | 2026-08 办公架构/知识栈/文件交互调研，结论已随版本落地 |
-| `2026-08-19-cost-db-reorganize-report.md` / `2026-08-19-cost-library-redesign-zaojia.md` | 造价库重组与改版报告（现行为见 `docs/gaea-cost-domain-survey-2026-09.md`） |
+| `2026-08-19-cost-db-reorganize-report.md` / `2026-08-19-cost-library-redesign-zaojia.md` | 造价库重组与改版报告（现行为见 `docs/archive/gaea-cost-domain-survey-2026-09.md`） |
 | `gaea-schedule-multi-project-design-2026-09.md` / `gaea-schedule-resource-cost-design-2026-09.md` / `gaea-schedule-aoa-manual-layout-design-2026-09.md` | 进度计划三份已实施设计（v4.112~v4.143 交付）；代码注释仍可能引用为设计出处 |
 
 ### 3.0 时代与更早

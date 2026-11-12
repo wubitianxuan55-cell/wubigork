@@ -498,7 +498,7 @@ Gaea 已有三类可用资产：
 ### 本机与 Gaea 核验
 
 - 板块清单与空间：`frontend/src/boards/manifests.ts`
-- 现有执行式 DAG：`docs/gaea-office-dag-63-design-2026-09.md`
+- 现有执行式 DAG：`docs/archive/gaea-office-dag-63-design-2026-09.md`
 - 子代理审批风险：`.gaea/v5-research/v4-structural-audit.md`
 - ZCode 无头入口：ZCode 克隆 `clones/zcode/apps/zcode-cli` 的 CLI 参考 `02-cli-reference.md`（usage）
 - ZCode stdio 协议：ZCode 克隆 `clones/zcode/apps/zcode-cli` 的 `zcode-protocol-agent-server.md`（design/v2）

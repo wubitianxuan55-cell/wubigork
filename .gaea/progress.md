@@ -478,7 +478,7 @@
 
 ## Reasonix 2.x 蒸馏重开线：调研立档+安全两刀（A6/A7）· 2026-10-24
 
-- 用户指令「蒸馏reasinox，我们已经落后太多」——前档 docs/gaea-reasonix-v138-distill-2026-09.md（v1.38 四弹 16 刀后留池全销号收官）已过时：**studio 分支 2.0.0→2.50.0 共 59 版，PR 号 #10613→#14337（≈3700 号增量）**。四路并行深潜（会话与上下文引擎/权限安全/子代理补漏/架构地图）+ gaea 盘底（防提已有）→ **docs/gaea-reasonix-2x-distill-2026-10.md** 立档：A 档七刀（usage anchor 压力校准/压缩内容级保留〔用户原话预算〕/压缩验收经济学〔≤50% 上限+closedPrefixEnd〕/中断交接块/write_paths 预检不相交/complete_subtask 完成裁决/递归删除 guard+诚实拒绝）+ B/C 档 + 否定结论（MCP/扩展 Runtime/远程网关/计费/compositions/OS 沙箱/Coordinator）+ 辨伪（cache_shape/file observations/pinned 注入 gaea 已有）。
+- 用户指令「蒸馏reasinox，我们已经落后太多」——前档 docs/archive/gaea-reasonix-v138-distill-2026-09.md（v1.38 四弹 16 刀后留池全销号收官）已过时：**studio 分支 2.0.0→2.50.0 共 59 版，PR 号 #10613→#14337（≈3700 号增量）**。四路并行深潜（会话与上下文引擎/权限安全/子代理补漏/架构地图）+ gaea 盘底（防提已有）→ **docs/gaea-reasonix-2x-distill-2026-10.md** 立档：A 档七刀（usage anchor 压力校准/压缩内容级保留〔用户原话预算〕/压缩验收经济学〔≤50% 上限+closedPrefixEnd〕/中断交接块/write_paths 预检不相交/complete_subtask 完成裁决/递归删除 guard+诚实拒绝）+ B/C 档 + 否定结论（MCP/扩展 Runtime/远程网关/计费/compositions/OS 沙箱/Coordinator）+ 辨伪（cache_shape/file observations/pinned 注入 gaea 已有）。
 - **首批实弹两刀（拍板序第 1 批=安全）**：
   - **A6 递归删除硬拒绝**（internal/gaea/tool/builtin/bash_delete.go+测试）：灾难面（文件系统/卷根、home 及祖先、工作目录及祖先）任何形态硬拒绝；PowerShell 词法（Remove-Item/ri/rm/del -Recurse 缩写旗标）；find -delete 与 find|xargs rm 管道形态；变量/glob 字面性不足 fail-closed。**刻意偏差留档**：上游连「工作区外」也拒（有审批阶梯可路由给人），gaea bash 无审批 UX、temp 清理是合法实弹流，只拦灾难面。**坑三连**：①Windows filepath.Clean("C:") 补点成 "C:."——卷根判定必须打在原始词上；②Windows Clean 把 / 规范化成 \，POSIX 形态分类必须先于一切 Clean（MSYS 盘符挂载 /c/foo→C:\foo 单独翻译；/home/... 落 Git 安装根下=非用户数据灾难面放行）；③sameOrAncestor 的 Rel 方向——Rel(dir,p) 把「p 在保护区子树外」误判成祖先，正确方向=Rel(p,dir) 无 ".." 前缀（且 xargs 段 rm 无路径参数，递归旗标即判）。
   - **A7 诚实拒绝升级**（tool/access.go）：读/写拒绝消息列出**具体允许根清单**（≤8 个配置序+超出计数省略；空集合明说 none configured）——模型看到根才能自我纠正；解析失败（提存在性）与越界（不提）两种错误语义分立；只读根不混进可写根清单。
@@ -1313,7 +1313,7 @@
 - **测试**：Go 新增 6 测试文件（novelgate 6 / app 15+10+1 / project 9 / outline 7）；`internal/app` 全包 121.8s 绿、`go test ./internal/... .` 全绿；`gofmt`/`vet`/`build` 0。前端小说域 31 文件 233 例绿、tsc 0、eslint 0。
 - **门禁**：漂移闸 OK@4.422.0（`bindingNames.ts` 726 一致、`spaceBindings` 锁 549）；`ci.ps1 -Quick` 绿。
 - **产物**：exe 51,513,344 B SHA256=059f16a87c2ef1593a7020d86057efb12987a399fbd69c63569eb693f515aca4（releases/gaea-v4.422.0.exe + SHA256SUMS-v4.422.0.txt；桌面副本同哈希；冒烟 /api/health 200 过）；实存 5 版（422/421/420/419/418）正好在保留策略内。
-- **文档**：规格 `docs/gaea-longform-novel-system-2026-09.md` + 机制调研 `docs/gaea-longform-craft-mechanics-2026-09.md`（均登记 docs/README）+ releases/archive/v4.422.0.md + CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
+- **文档**：规格 `docs/archive/gaea-longform-novel-system-2026-09.md` + 机制调研 `docs/archive/gaea-longform-craft-mechanics-2026-09.md`（均登记 docs/README）+ releases/archive/v4.422.0.md + CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
 - **坑/教训**：①`gen_bindings` 重生成会把全部门面文件压平重排（噪音）——按历史处置还原 10 个文件、只留最小增量（bindings_novel.go +24/−0）；②并行在制会话会让全项目 `tsc` 短暂变红（本次 `sin/storyText.test.ts` 的 `parseCancelled` 未 import 是它的中间态，几分钟后自愈）——**不要代它修**，也不要为了发版去 stash 别人的在制；③发版脚本要求工作树干净，与并行在制天然冲突——本次改走手工发版（sync-version + build.bat + 产物搬运 + 台账），`release.ps1` 幂等可后续补齐；④**`dist/.gitkeep` 从未入库**（P0-1 只在 .gitignore 写了 `!dist/.gitkeep` 例外、漏 `add -f`；且 vite build 默认清空 dist 会删掉占位）→ fresh checkout / CI 的 `go build ./...` 仍炸 `pattern all:dist: no matching files`；本刀用 **`git worktree add <tmp> v4.422.0` 检出 tag 快照**做独立验证时暴露，已 `add -f` 入库（commit 5440b086），**构建后需重建该占位**（后续可让 build 脚本自动补）；**方法论**=并行会话持续改写时，共享工作树上的门禁不可复现（本次快闸连撞 sin 线两轮中间态：`sin_booksource_handler.go` undefined fileutil → `sin_insight.go` 未使用变量），改用 worktree 对**已发布快照**取证：Go 全量除 `internal/netclient` 已知负载 flaky 外全绿（隔离复跑 ok）。
 - **观察池**：跨章去重第二来源（已写但无计划条目的旧章其 `ChapterSummary.KeyEvents` 未参与去重，根因无章号字段，修法=带章号的批量摘要读接口，随刀2）/ 刀2 场景卡与逐场景生成 / 刀3 故事层骨架 / 刀4 质量收敛闭环 / 刀5 风格学习回灌 / 刀6 上下文编译器 / 刀7 评测基线（`baseline.json` + `promptSetHash` + 夹具）。
 
@@ -1822,7 +1822,7 @@
 - **门禁**：go build/vet 0+gofmt（触碰文件）+全量 ci.ps1 绿 EXIT=0（E 系列守卫 OK+仓库卫生守卫 OK）+版本漂移闸 OK@4.378.0。
 - **坑**：①bash printf 的 %s 是 Go Sprintf 动词——wrapper 模板写 %%s 否则 vet 拒编②MSYS 路径形态——探针必须 cygpath -w 转 host 形否则下次 cmd.Dir chdir 失败③事件日志列与 Event 结构一一对应——subject_key 真相归 facts 表（与 body 同待遇），不为审计单独开列④NormalizeSubjectKey 空白折叠与下划线不是一回事——键等价只走 trim+ASCII 小写+空白折叠'-'一条路。
 - **产物**：exe 51089920 B SHA256=3f65aafb6c69ae807f394c3f34a0272fcbf39f7326a2d6789423376f60e48622（releases/gaea-v4.378.0.exe+SHA256SUMS-v4.378.0.txt，exe 仅本地不入库；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略留 v4.374~v4.378 删 v4.373.0.exe（SUMS 身份档案全保留）。
-- **文档**：docs/gaea-reasonix-v138-distill-2026-09.md 第四弹三刀+留池⑤⑦收官回填（池清空）+docs/gaea-dsh-016-distill-2026-09.md 销号 3 项（12→9）+releases/archive/v4.378.0.md+CHANGELOG/README+releases/README（保留策略行+发布说明计数 399→400+34 席索引插 v4.378 裁 v4.344）+AGENTS 迁 1 插 1（九十三迁：v4.375 入 archive；补记九十二迁漏登）+progress/todos（reasonix 行翻✅收官）。
+- **文档**：docs/archive/gaea-reasonix-v138-distill-2026-09.md 第四弹三刀+留池⑤⑦收官回填（池清空）+docs/archive/gaea-dsh-016-distill-2026-09.md 销号 3 项（12→9）+releases/archive/v4.378.0.md+CHANGELOG/README+releases/README（保留策略行+发布说明计数 399→400+34 席索引插 v4.378 裁 v4.344）+AGENTS 迁 1 插 1（九十三迁：v4.375 入 archive；补记九十二迁漏登）+progress/todos（reasonix 行翻✅收官）。
 
 ## 最新发布：v4.377.0（2026-09-21）「办公记忆/成本库写入纠偏：自动做梦建议制 + 存量清污 + 成本劝写改口」
 
@@ -1861,7 +1861,7 @@
 - **门禁**：go build/vet 0+全量 ci 绿 EXIT=0+版本三处 4.374.0。
 - **坑**：①蒸馏判据带上「上游机制的前提本地是否成立」（awk -f 例外依赖上游已记忆规则模型，gaea 自动放行无此前提）②安全刀落地先 grep 假站/httptest 用例 client 来源。
 - **产物**：exe 51004928 B SHA256=85149421d0098b19dc28fbf66e4a0c7a5e52281fdf86b1e97b8ef35d9aed0a90（releases+SUMS 仅本地；桌面副本同哈希；冒烟 200 过）；保留策略删 v4.369.exe。
-- **文档**：docs/gaea-reasonix-v138-distill-2026-09.md 新增+gaea-dsh-016 勘误更名+releases/archive/v4.374.0.md+CHANGELOG/README+releases/README（计数 395→396+34 席插 v4.374 裁 v4.340）+AGENTS 迁 1 插 1（八十九迁：v4.371 入 archive）+progress/todos。
+- **文档**：docs/archive/gaea-reasonix-v138-distill-2026-09.md 新增+gaea-dsh-016 勘误更名+releases/archive/v4.374.0.md+CHANGELOG/README+releases/README（计数 395→396+34 席插 v4.374 裁 v4.340）+AGENTS 迁 1 插 1（八十九迁：v4.371 入 archive）+progress/todos。
 
 ## 最新发布：v4.373.0（2026-09-21）「Reasonix (dsh) 0.1.6 内核蒸馏：溢出自愈 + 缓存对齐摘要等五刀」
 
@@ -1871,7 +1871,7 @@
 - **门禁**：go build/vet 0+agent/provider 全包绿+全量 ci.ps1 绿 EXIT=0+drift OK@707+版本三处 4.373.0。
 - **坑**：①折叠区含旧 digest（kept）时重放到第一个 kept 消息即与上一请求分歧——system+tools 最贵前缀仍全命中，部分对齐可接受②无进展判定必须看 session.RewriteVersion 而非 compact 返回值（compact 对无可折叠区返回 nil，按返回值判会把空转当成功）。
 - **产物**：exe 50995712 B SHA256=363b40e7450e95a6a9089bfe7d3900c9edbb791fb50a2fc163b0098c0f29ac30（releases+SUMS 仅本地；桌面副本同哈希；冒烟 200 过）；保留策略删 v4.368.exe。
-- **文档**：docs/gaea-dsh-016-distill-2026-09.md（侦察+五刀+留池 12 项）+releases/archive/v4.373.0.md+CHANGELOG/README+releases/README（计数 394→395+34 席插 v4.373 裁 v4.339）+AGENTS 迁 1 插 1（八十八迁：v4.370 入 archive）+progress/todos。
+- **文档**：docs/archive/gaea-dsh-016-distill-2026-09.md（侦察+五刀+留池 12 项）+releases/archive/v4.373.0.md+CHANGELOG/README+releases/README（计数 394→395+34 席插 v4.373 裁 v4.339）+AGENTS 迁 1 插 1（八十八迁：v4.370 入 archive）+progress/todos。
 
 ## 最新发布：v4.372.0（2026-09-21）「Gantt 缩放性能：Ctrl+滚轮 rAF 合并」
 
@@ -2222,7 +2222,7 @@
 - **未做（下刀）**：真机走查清池班；技能核数 ≈09-30；t7 观察池余项候拍板。
 ## 最新发布：v4.338.0（2026-09-19）「无参绑定会话语义审计收官 + 死链清理（绑定面 707→705）」
 
-- **来源**：todos 挂账（v4.181.0 起池）收官；审计档 docs/gaea-session-binding-audit-2026-09.md。
+- **来源**：todos 挂账（v4.181.0 起池）收官；审计档 docs/archive/gaea-session-binding-audit-2026-09.md。
 - **审计结论**：需修 0 项——会话模型「看历史必经 ResumeSession 切内核」，主流水线无参读内核构造性自洽；v4.181 旁路看板族无同构残余；复审口径入档。
 - **顺手清账**：删 GaeaCheckpoints 死链（UI 回退实走 GaeaRewind）+GaeaTCCAReport 孤儿链（state.tcca 零消费）；绑定面 707→705。
 - **拍板池**：GaeaSkillDraftFromSession 参数化（从历史会话蒸馏技能）候拍板。
@@ -2473,7 +2473,7 @@
 
 ## 最新发布：v4.312.0（2026-09-15）「阶段七首刀：记忆质量受控评测（三脑四域零依赖基线+经验习得题集，7.1-1）」
 
-- **来源**：阶段七规划（docs/gaea-stage7-plan-2026-09.md，2026-09-15 拍板启动）首刀；闭合在册开放增量「记忆质量可评测」（对齐物升级为 BEAM/LongMemEval-V2）。三脑记忆域检索质量此前零量化——记忆不可信则 7.2 技能结晶复用成功率不可测。
+- **来源**：阶段七规划（docs/archive/gaea-stage7-plan-2026-09.md，2026-09-15 拍板启动）首刀；闭合在册开放增量「记忆质量可评测」（对齐物升级为 BEAM/LongMemEval-V2）。三脑记忆域检索质量此前零量化——记忆不可信则 7.2 技能结晶复用成功率不可测。
 - **落地**：①新包 internal/memoryeval（纯函数+种子语料零外部依赖）：Evaluate（recall@10 门槛 0.8 沿 T5-6 口径+precision 均值）+ParseSet/ResolveSetPath；②三域 runner 全走生产路径：story=纯 Go BM25/work=gaea bm25 Ranker/persona=whisper SQLite FTS 含中文 2-gram LIKE 降级；③经验习得题集 22 题（≥20 达标，LongMemEval-V2「习得经验」方向，查询=未来任务口吻）——7.2 评测基建预置；④种子语料 needle-in-haystack（12+40/12+28/10+20/22），题集与种子 ID 漂移由测试硬断言兜住。
 - **测试**：memoryeval 4 例（解析/数学/结构硬断言/基线软告警——低于门槛只 WARN 不阻断）；既有零改动。
 - **基线**：四域 recall@10 全 1.000（precision 均值 0.433/0.478/0.661/0.727）落档 docs/memory-eval-set.md；评测产出真实发现=persona 泛主语查询淹没（「用户」二字组 LIKE 命中全部事实）——生产弱点记录在档不动引擎。
@@ -2624,7 +2624,7 @@
 
 ## 最新发布：v4.282.0（2026-09-13）「oh-story 蒸馏首刀接线：平台质量评审（rubric 引擎 + 创作间面板）+ 生成门确定性两路直显」
 
-- **来源**：用户「把 oh-story-claudecode（MIT 网文写作插件）蒸馏给小说板块」——把已在库的三份资产（T1 评审 rubric / T2 去 AI 味门禁资产 / T3 生成门资产）**接成用户可用的一条链**（规格 `docs/gaea-novel-ohstory-distill-2026-09.md`）。
+- **来源**：用户「把 oh-story-claudecode（MIT 网文写作插件）蒸馏给小说板块」——把已在库的三份资产（T1 评审 rubric / T2 去 AI 味门禁资产 / T3 生成门资产）**接成用户可用的一条链**（规格 `docs/archive/gaea-novel-ohstory-distill-2026-09.md`）。
 - **① 平台质量评审引擎**（新 `internal/novelreview`，零 LLM/零网络/纯函数）：15 个可机械判定维度（字数区间 / 开篇钩子 / 章尾钩子 / 预告式收尾 / 情绪节点密度 / 爽点密度 / 段落节奏 / 对话占比 / 标点节奏 / 破折号 / 格式合规 / 人称视角 / 主角存在感 / 金手指提及 / 字数表述核对），每维 `PASS|WARN|FAIL|SKIP` + S1~S4 + **原文证据（rune 区间 + 段落号）** + 改法；结论 `APPROVE|CONCERNS|REJECT` 与 rubric 同门槛；**语义维度不下结论**，缺外部数据显式 SKIP 并说明原因，**不静默给 PASS**。阈值/词表/档位是数据资产 `internal/novelreview/rubric.json`（四档：通用/番茄/起点/知乎盐言；可被 `<工作区>/.gaea/skills/novel-review/rubric.json` 整体替换；fail-closed 校验）。
 - **② 接线**：NovelB +2（`NovelChapterReview`/`NovelReviewPlatforms`，648→650，drift OK）；创作间 rail「平台评审」→ 面板（档位选择 + 结论 + 逐维按 S1→S4 排序 + 证据摘录 + 黄金三问）。主角名取自角色库 `role_type=protagonist`。
 - **③ T3 两路直显**：`NovelInspector`「章节体检」区新增「写前契约：N 项待补 / 齐备」与「写后硬信号：N 项 / 未命中」+ 严重度排序条目（与 AI 四路并列；缺省诚实降级）。
@@ -2635,7 +2635,7 @@
 
 ## 非版本刀（2026-09-13）：小说·生成门补确定性两路——写前大纲契约 + 写后质量体检（oh-story 蒸馏 T3）
 
-- **来源**：oh-story-claudecode（MIT）蒸馏第三刀（规格 docs/gaea-novel-ohstory-distill-2026-09.md §2 真增量第 1 条：gaea 缺「写前结构契约闸 + 写后确定性质量闸」）。
+- **来源**：oh-story-claudecode（MIT）蒸馏第三刀（规格 docs/archive/gaea-novel-ohstory-distill-2026-09.md §2 真增量第 1 条：gaea 缺「写前结构契约闸 + 写后确定性质量闸」）。
 - **落地**：①新包 `internal/novelgate`（零 LLM 纯函数）——`OutlineContractIssues`（标题/计划/要点/情感四项目齐备性，S2~S4）+ `ChapterQualityIssues`（空正文 S1 / 超长段落 S3 带行号 / 电报体 S2〔短句占比 >40% 且均句长 <10 字〕/ 平均句长偏短 S3 / 标点堆砌 S3 / 省略号滥用 S3 / 通篇句号化 S3）；Issue 与评审 rubric S1-S4 同轴、必带证据；阈值常量集中、rune 口径。②接线 `RunChapterGate` 新增确定性两路 `outlineContract` + `deterministic`，与 AI 四路并列（必出、零成本、不阻断）。
 - **测试**：Go +7（契约齐备与分级/空正文 S1/正常文本零误报/电报体/超长段落/标点与省略号/句号化/证据随行）。
 - **门禁**：本刀自身证据（go build/vet exit 0 + novelgate 7 例 + 生成门定向用例绿）；全量 ci.ps1 未取全绿——并行线在制品 internal/app/novel_review_handler_test.go:117 当前为红（与本刀无关）；drift OK@648；**未抬版本**（下次发版随 exe 出）。
@@ -2699,7 +2699,7 @@
 
 ## 最新发布：v4.275.0（2026-09-13）「价格带数据源调研结案：信息价『除税价』列适配」
 
-- **调研**（docs/gaea-priceband-datasource-research-2026-09.md）：价格带数据面基础设施已完整在产（四要素字段+统计+导入链+询价飞轮），外部自动接入四路评估后建议候选4 结案（抓取脆弱+合规灰、商业 API 同「询比价不做」口径、LLM 查价不作基线）。
+- **调研**（docs/archive/gaea-priceband-datasource-research-2026-09.md）：价格带数据面基础设施已完整在产（四要素字段+统计+导入链+询价飞轮），外部自动接入四路评估后建议候选4 结案（抓取脆弱+合规灰、商业 API 同「询比价不做」口径、LLM 查价不作基线）。
 - **真机验证抓到实锤当场修**：信息价样本 CSV 走 ImportPreview（零落库）——「除税价（元）」不在 fieldPrice 字典→12 行全 skip；当场修字典增「除税价/含税价」+Go 回归测试，复测 12/12 全识别。
 - **门禁**：ci.ps1 全绿 / drift OK@642 / 版本三处 4.275.0；产物见 SHA256SUMS-v4.275.0.txt。**候选4 结案待用户确认标记**。
 
@@ -2841,7 +2841,7 @@
 - **测试**：Go +3（红→绿：改前 3 子例全红；纯函数矩阵 4 面 + 端到端 3 子例）。
 - **门禁**：ci.ps1 全绿 / 版本三处 4.261.1 / 零新绑定；exe 49,164,288B SHA256=CCE99E91…D5CAB（桌面副本同哈希，冒烟 200）。
 - **真机走查**：v4.261.1 exe 打开原罪故事 → 两个插图位 20s 内自动出图（产物落 `%APPDATA%\gaea\sin\art\`、回写 extra.illustrations），日志零失败/零异常；该故事没选角色=与用户同一分支。
-- **文档**：docs/gaea-sin-board-design-2026-09.md §12.5、releases/archive/v4.261.1.md。
+- **文档**：docs/archive/gaea-sin-board-design-2026-09.md §12.5、releases/archive/v4.261.1.md。
 
 ## 最新发布：v4.259.0（2026-09-12）「原罪插图：角色一致性锚定（文本锚点 + 图像参考槽）」
 
@@ -2850,7 +2850,7 @@
 - **诚实**：能力门控（不支持就跳过并给原因，不硬塞）+ 参考槽失败自动退回纯文本重试（标 ref_fallback）+ caption 徽标可见。
 - **未做**：ipadapter/pulid（后端未实现）。
 - **门禁**：Go 全绿 / drift OK@640 / tsc 0 / eslint 0 error / vite build / vitest 全绿 / E 系列+仓库卫生守卫绿 / 版本三处 4.259.0；走查徽标实测（零异常）。
-- **文档**：docs/gaea-sin-board-design-2026-09.md §12、releases/archive/v4.259.0.md。
+- **文档**：docs/archive/gaea-sin-board-design-2026-09.md §12、releases/archive/v4.259.0.md。
 
 ## 最新发布：v4.258.0（2026-09-12）「原罪插图：生成进度动画 + 串行队列 + 真停止」
 
@@ -2859,7 +2859,7 @@
 - **真停止**：新绑定 SinCancel（绑定 639→640）中止底层流并保留已生成部分落库（extra.cancelled）；插图「取消」接 CancelImageGeneration。
 - **顺带修真缺陷**：sending 因 deadRef+StrictMode 卡死（输入框锁死）、Composer「停止」是空实现。
 - **门禁**：Go 全绿 / drift OK@640 / tsc 0 / eslint 0 error / vite build / vitest 全绿 / E 系列+仓库卫生守卫绿 / 版本三处 4.258.0；走查：两处进度条 + 取消一张另一张继续 + 完成后停止按钮消失（零错误零异常）。
-- **文档**：docs/gaea-sin-board-design-2026-09.md §11、releases/archive/v4.258.0.md。
+- **文档**：docs/archive/gaea-sin-board-design-2026-09.md §11、releases/archive/v4.258.0.md。
 
 ## 最新发布：v4.257.1（2026-09-12）「修复：真机插图报 AttachmentDataURL is not a function」
 
@@ -2874,7 +2874,7 @@
 - **③角色库接入**：右栏角色卡 + 多选弹层 → SinCastGet/SinCastSet（悬空过滤/去重保序/封顶 8）→ SinStream 注入角色块（外观/性格/背景/动机/口吻/说话样例 + 不得改设定）；只引用不改库。
 - **未做**：角色参考图当图像参考槽（人物一致性锚定）留拍板。
 - **门禁**：Go 全绿 / drift OK@639 / tsc 0 / eslint 0 error / vite build 成功 / vitest 全绿 / E 系列+仓库卫生守卫绿 / 版本三处 4.257.0；走查零错误零异常。
-- **文档**：docs/gaea-sin-board-design-2026-09.md §8/§9、releases/archive/v4.257.0.md。
+- **文档**：docs/archive/gaea-sin-board-design-2026-09.md §8/§9、releases/archive/v4.257.0.md。
 
 ## 最新发布：v4.256.0（2026-09-12）「闲庭新板块『原罪』：对话式图文混杂故事创作（复用办公组件）」
 
@@ -2883,7 +2883,7 @@
 - **协议**：模型另起一行输出 `@@插图|画面描述@@`，前端按出现次序（0 起）就地生成并嵌进正文流；正文原样落库，重开按 `extra.illustrations` 渲染不重生成。
 - **边界**：成人内容口径沿用 docs/ADULT_MODE.md（零新立），四条硬边界写进提示词并有测试锁定。
 - **门禁**：Go 全绿 / drift OK@637 / tsc 0 / eslint 0 error / vite build 成功 / vitest 334 文件全绿 / E 系列+仓库卫生守卫绿 / 版本三处 4.256.0。
-- **文档**：docs/gaea-sin-board-design-2026-09.md（设计基线+复用清单+已知边界）、releases/archive/v4.256.0.md。
+- **文档**：docs/archive/gaea-sin-board-design-2026-09.md（设计基线+复用清单+已知边界）、releases/archive/v4.256.0.md。
 
 ## 最新发布：v4.218.0（2026-09-11）「阶段六 6.6 首刀：跨域 EVM——进度×造价挣值」
 
@@ -2943,7 +2943,7 @@
 
 ## 最新发布：v4.210.0（2026-09-11）「记忆语义图谱：事件日志投影出图」
 
-- **定位**：阶段五「记忆OS+上下文编译」首刀（规划大纲 §2 主轴旗，底座#1）。设计基线=docs/gaea-memory-graph-51-design-2026-09.md。
+- **定位**：阶段五「记忆OS+上下文编译」首刀（规划大纲 §2 主轴旗，底座#1）。设计基线=docs/archive/gaea-memory-graph-51-design-2026-09.md。
 - **落地**：memory_events 事件日志（SchemaV18 追加式，五条写路径挂钩，Touch 逐条留痕）→ ProjectEvents 纯函数投影（实体/事件/来源三向边，[MEM:name] 图寻址，悬空拒写留 Dangling）→ mem_graph_* 物化（embedding 占位列；读前水位对账懒重建=删库可重建）。
 - **接线**：绑定 608→609（GaeaMemorySemanticGraph）；MemoryHub 图谱页「关联图/事件图谱」切换；回合收尾引用解析落 cite 事件（命中+悬空）。
 - **门禁**：Go +9 用例 / vitest +1 / tsc 0 / drift@609 / 版本三处 4.210.0。
@@ -2951,7 +2951,7 @@
 
 ## 最新发布：v4.209.0（2026-09-10）「组价含量对照：拆解含量 vs 同类条目分位带」
 
-- **造价刀路池 §6 收官，survey 六项缺口全清**——docs/gaea-cost-domain-survey-2026-09.md 已逐项回写收口状态（§3→v4.194 / §4→v4.195 / §5→v4.196 / §6→本刀），该文档不再充当欠账池。
+- **造价刀路池 §6 收官，survey 六项缺口全清**——docs/archive/gaea-cost-domain-survey-2026-09.md 已逐项回写收口状态（§3→v4.194 / §4→v4.195 / §5→v4.196 / §6→本刀），该文档不再充当欠账池。
 - **缺口**：AI 拆解人材机含量只有金额自洽校验（v4.158），含量本身离谱（如水泥 420kg 对同类 300kg）无人提示。
 - **落地**：`cost.CheckContentBaseline` 纯函数——拆解组件 vs 相似条目池同键含量 P25/P75 分位带（R-7 同口径），带外 warn 带内静默；匹配键=标题归一（全角→半角/去空白/小写）+单位归一精确相等（含双方都空），**一方缺失一律不比（宁缺勿误）**；同值退化带 ±5% 容差；同键样本 <3 不比对。接进 `GaeaCostCompose` `composeChecks`（金额自洽+含量对照两层；对照池=相似条目组件明细，与价格带同池；池空该层静默），Checks 随视图展示+Apply 留痕自动承载，**零新结构零新绑定前端零改动**。边界：外部「行业含量区间」数据源明确不引入——基线源=用户自己的库（私人记忆哲学）。
 - **门禁**：Go 全量 exit 0（116 包 0 FAIL，+5 用例：contentband 四例+composeChecks 接线一例）/ drift PASS@608（零绑定）/ 纯 Go 刀 vitest 以 v4.208 全绿基线为准 / 版本三处 sync 4.209.0。
@@ -3048,7 +3048,7 @@
 
 ## 最新发布：v4.178.0（2026-09-09）「造价·条目匹配键刀：定额编码贯通存储→导入→匹配→工具面→UI」
 
-- **造价域缺口 §1 首刀**（docs/gaea-cost-domain-survey-2026-09.md）：条目匹配全靠标题字符串 → 编码体系贯通。
+- **造价域缺口 §1 首刀**（docs/archive/gaea-cost-domain-survey-2026-09.md）：条目匹配全靠标题字符串 → 编码体系贯通。
 - **数据层**：SchemaV17 `cost_entries`/`cost_estimate_items` 增 `code`（归一化存储）+ `idx_cost_code`；迁移测试「新库全链 V1→V17 + V16 升级」双覆盖；`cost.NormalizeCode`（全角→半角/去空白/大写，空串=未录入）。
 - **导入链**：表头 `fieldCode` 映射（定额编号/清单编码/项目编码/编码等 8 关键词最长胜出，「编号」仍噪声）；**编码优先匹配**——带码命中→覆盖提示、带码未命中→直接新增（同标题不同编码不标题兜底，杜绝跨子目误覆盖）、无码原语义；AI 解析 prompt 增 code 提取；vision 有意不动。
 - **匹配消费方**：costref `entryIndexes` 三索引 + `matchEntry` 编码精确优先（matchedBy=code|entry_name|title）；带码未命中宁漏勿误配（测试钉死）。沉淀携带 item.Code + 引用条目继承编码。

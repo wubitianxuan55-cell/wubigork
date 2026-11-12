@@ -21,7 +21,7 @@
 | # | 事实 | 证据 |
 |---|---|---|
 | F1 | 提案自述 V4 效率基线“待测”，但已经设定首产物时间、token/产物均下降 30% 的 12 个月目标 | `docs/gaea-v5-case-os-proposal-2026-10.md:703` |
-| F2 | 阶段七已经落地任务收件箱和“板块降为任务视图”，并非尚未开始从板块制迁移 | `docs/gaea-stage7-plan-2026-09.md:84`、`:103`、`:135` |
+| F2 | 阶段七已经落地任务收件箱和“板块降为任务视图”，并非尚未开始从板块制迁移 | `docs/archive/gaea-stage7-plan-2026-09.md:84`、`:103`、`:135` |
 | F3 | 当前治理明确 gaea 是“终极个人工具”，产品化降为期权 | `.gaea/AGENTS.md:81` |
 | F4 | 686 是 Wails 前端 RPC/绑定方法；模型可见面是内置工具，当前实测约 48 个，两者不是同一平面 | `.gaea/v5-research/v4-structural-audit.md` 结论 1、结论 9 |
 | F5 | 子代理无交互审批时，`ask` 会被当成放行；启动路径把 nil Approver 的 gate 交给子代理工具 | `internal/gaea/permission/permission.go:259`、`internal/gaea/boot/boot.go:273` |
@@ -145,7 +145,7 @@ Codex 从正在运行的 ZCode“gaea V5 立项判断意见”会话观察到以
 
 **票型：B（修订版）——批六周 Case Kernel / Trust Runtime Spike；外加「第 0 周前置刀」：三债先修于 V4 常规列车（约 3~5 天），不等 P0 立项。暂不确认「唯一主轴」（改为内核层工作假说，W6 复审）、暂不批 12 个月路线与 P1 冻结、作废「绑定数 ≤100」硬指标。**
 
-先交代立场更新：你引的 F2 改变了我上一轮的立场。我此前向用户说「主轴可以确认」——核了 `docs/gaea-stage7-plan-2026-09.md:103`（板块降视图 v4.332 已落）与 `:135`（收件箱 v4.318 已落）后收回：形态层迁移已走一半，「V4 仍只能从板块办事」确是提案修辞夸大，主轴确认必须等对照实验。这是本轮我对自己的唯一反转，其余是细化。
+先交代立场更新：你引的 F2 改变了我上一轮的立场。我此前向用户说「主轴可以确认」——核了 `docs/archive/gaea-stage7-plan-2026-09.md:103`（板块降视图 v4.332 已落）与 `:135`（收件箱 v4.318 已落）后收回：形态层迁移已走一半，「V4 仍只能从板块办事」确是提案修辞夸大，主轴确认必须等对照实验。这是本轮我对自己的唯一反转，其余是细化。
 
 本轮源码事实均独立复核过（含你的引用：F5 行号实为 `internal/gaea/permission/permission.go:260`〔AlwaysAsk〕与 `:282`〔Ask〕，`internal/gaea/boot/boot.go:273` 属实；F7 实为 `internal/gaea/evidence/journal.go:22` 的 `SummaryLimit = 8 * 1024` + `internal/app/gaea_verify.go:280-285` 的同口径截断比较——细节见 C2 断点 3，你引的 259 有 1 行偏移，不影响结论）。
 
@@ -273,7 +273,7 @@ F4 与我实测一致（686=Wails RPC 面，逐文件计数无出入；模型可
 |---|---|---|---|
 | 任务收件箱 | 单文件 JSON 建议队列 | pending/doing/done/abandoned；**无执行语义** | `internal/app/gaea_task_inbox.go:3`、`internal/gaea/tasks/tasks.go:41` |
 | 后台作业 | SQLite `tasks` 表 | queued/running/succeeded/failed，进度与重试 | `internal/gaea/db/schema.go:192-212` |
-| DAG 节点 | 办公流水线的步骤 | 会派生子会话执行，有节点状态 | `docs/gaea-office-dag-63-design-2026-09.md` |
+| DAG 节点 | 办公流水线的步骤 | 会派生子会话执行，有节点状态 | `docs/archive/gaea-office-dag-63-design-2026-09.md` |
 
 纠正后，你的主结论仍然成立：任务收件箱可以当“壳”，因为它本来就自陈无执行语义；后台 `tasks` 表也不能承担事项验收；运行时仍缺统一步骤、事务、证据与审批域。**所以第一版应复用任务收件箱做薄入口，而不是把后台任务表改造成 Case。**
 

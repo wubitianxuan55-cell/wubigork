@@ -104,16 +104,16 @@
 
 ## 长期规划（权威，2026 定稿）
 
-- **下一阶段规划 = `docs/gaea-next-stage-plan-2026-09.md`（2026-09-10 活跃指导）**：接棒长期规划（阶段一~四已收官）——阶段五 记忆 OS+上下文编译（主轴）/阶段六 书斋纵深——办公主角（可审计默认化·记忆驱动项目本体·多文件 DAG），进度（DCMA 体检·蒙特卡洛工期带）与跨域 EVM 为两翼/板块并行池/拍板池（信息价接入·MCP 翻案·壳外 computer use）/维持轨。提方向前先对其 §0 在册边界（GoalCard v3.6.0 撤下、MCP/平台化不进规划、不做算量、DSH 独立窗口等）。
+- **下一阶段规划 = `docs/archive/gaea-next-stage-plan-2026-09.md`（2026-09-10 活跃指导）**：接棒长期规划（阶段一~四已收官）——阶段五 记忆 OS+上下文编译（主轴）/阶段六 书斋纵深——办公主角（可审计默认化·记忆驱动项目本体·多文件 DAG），进度（DCMA 体检·蒙特卡洛工期带）与跨域 EVM 为两翼/板块并行池/拍板池（信息价接入·MCP 翻案·壳外 computer use）/维持轨。提方向前先对其 §0 在册边界（GoalCard v3.6.0 撤下、MCP/平台化不进规划、不做算量、DSH 独立窗口等）。
 - **用户拍板（2026-09-08，收敛计划 §0）：性质路线=A「终极个人工具」**——产品化
   降为期权不作承诺，不为想象中的用户写代码；**LICENSE=私有 All Rights Reserved**
   （根目录 LICENSE），未来开源须另行发布开源许可证覆盖对应模块并与私有部分区隔。
-- **瘦身长期总规划（2026-09-08 立项）= `docs/gaea-slim-masterplan-2026-09.md`**：七面
+- **瘦身长期总规划（2026-09-08 立项）= `docs/archive/gaea-slim-masterplan-2026-09.md`**：七面
   （认知/资产/结构/轮子/运行/产物/数据知识）×六阶段（P0 基线→P5 维持）；治理规则仍在
   收敛计划。防复发规约自 P1 起生效（新下载走 saveExportBlob/新选取走 pickFile/新 diff
   复用 lib/diff/新 slug 用 strutil.TitleSlug/新解码用 b64ToBytes/NAVIGATE 用 manifest id/
   新域先问「能否是文档」）。
-- **审计衍生优化方向（2026-09-26）= `docs/gaea-optimization-direction-2026-09.md`（候选池；**P0-1 门禁落地 + P0-2 comfyUI 竞态已于 2026-09-27 落地**，见该档 §3 状态注记）**：
+- **审计衍生优化方向（2026-09-26）= `docs/archive/gaea-optimization-direction-2026-09.md`（候选池；**P0-1 门禁落地 + P0-2 comfyUI 竞态已于 2026-09-27 落地**，见该档 §3 状态注记）**：
   本次全仓审计（三路并行模块审计 + 本机实测复现）——综合 7.0/10 + 分维与 14 模块评分 + P0~P2
   优化项（门禁落地 / internal-app 竞态 / 台账自动化 / 上帝包拆分 / 281 遮蔽绑定 / 平行实现收敛 /
   效果验证闭环 / 甘特库评估 / 仓库体积）+ 本次整理清单 + 未验证项观察池。**排刀前先读它的 §3 与 §5**；
@@ -238,7 +238,7 @@ gaea 是 Windows 桌面端「通用办公」AI 助手（Wails v2：Go 1.26 后�
 6. 冒烟：`scripts/smoke.ps1 -ExePath releases\gaea-v<版本>.exe`（/api/health 200 即通过）
 7. 更新 `.gaea/progress.md` 进度记忆与本文件（版本状态）
 
-## 沙箱环境备忘（2026-08-14 整理，详细版见 docs/2026-08-14-sandbox-environment-notes.md）
+## 沙箱环境备忘（2026-08-14 整理，详细版见 docs/archive/2026-08-14-sandbox-environment-notes.md）
 
 **防止重蹈覆辙的四条铁律**：
 1. `go telemetry off` 已持久生效；构建缓存写入问题随 danger-full-access 策略解除，无需再覆盖 GOCACHE

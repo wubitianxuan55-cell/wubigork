@@ -10,7 +10,7 @@
 | 提交 | 线 | 一句话 |
 |---|---|---|
 | 49876774 | 模型中心 | CosyVoice/Ollama/OpenCode Zen 三引擎退役：类型/种子/order 11→8、cosyvoice TTS 服务腿+Ollama 切换预估+Zen key 链全删、catalog 收窄 deepseek/xai、绑定三清单对齐 wailsjs 717（tianxuan/llama/P2 三批欠账一次清）、knownDead 清册；36 测试文件同步 |
-| a481e357 | Strata | 三段拍板：①8091×8124 同驻守卫删除（分板块并行）②flash-next 档接入（AMD_HIP.md 官方配方 wrapper+真机四档实测 PASS）③35B 档删除收窄单档（gguf 留盘归 llama） |
+| a481e357 | Strata | 三段拍板：①8091×8124 同驻守卫删除（分板块并行）②flash-next 档接入（AMD_HIP 官方配方〔DSH 侧笔记，未入库〕 wrapper+真机四档实测 PASS）③35B 档删除收窄单档（gguf 留盘归 llama） |
 
 ## 三引擎退役要点
 
@@ -26,7 +26,7 @@
 ## Strata flash 线要点
 
 - wrapper=repo/strata-qwen38fn-flash.json（配方照抄 strata 官方
-  docs/AMD_HIP.md：--pack pack-ud-iq4xs + --native shard1 + --ple-gguf
+  AMD_HIP 配方（未入库）：--pack pack-ud-iq4xs + --native shard1 + --ple-gguf
   shard2 + --expert-cache auto + --spec 4 --mtp mtp-rt + --kv int8）。
 - 真机：~85s 就绪（expert cache 24576 专家 55.43GiB）；四档实测
   短答 32.8 / 长答 31.4 / 思考开 38.6 / 长提示词(2261tok) TTFT 6.9s

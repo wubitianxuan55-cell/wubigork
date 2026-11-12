@@ -51,6 +51,11 @@
 
 | 文档 | 状态 |
 |---|---|
+| gaea-contextview-upgrade-research-2026-11.md | ✅ **办公板块上下文界面升级换代调研（2026-11-11，dsh-context 0.83.1 对账）**：能力对账+1:1 复刻刀路（Wave1-4 六刀），动刀依据档 |
+| gaea-contextview-complete-parity-2026-11.md | ✅ **上下文界面 1:1 完整复刻收官批（刀 11–15，2026-11-12）**：收官批验收与合并收口 d20dec1d 依据 |
+| gaea-chat-probe-baseline-20261106.md | ✅ **聊天人格实弹基线对照报告（众神殿 action-1 执行，2026-11-06）**：13b65f37 tag 基线取证 |
+| gaea-chat-probe-armb-20261106.md | ✅ **臂B（意图/义务门控+Stage 晋级）实弹对照报告（2026-11-06）**：与基线臂对照定案 |
+| gaea-chat-probe-delivery-contract-20261106.md | ✅ **交付合同实弹报告（2026-11-06 午后）**：任务交付合同刀实弹 |
 | gaea-cad-tool-master-plan-2026-10.md | 🔄 **CAD 图纸识别工具总体规划（2026-10，当前刀路准绳）**：桌面本地图纸信息提取与问答；PoC 合成样本 PASS，一期查看/提取/问图纸代码落地，待真机走查与发版 |
 | gaea-cad-poc-report-2026-10.md | ✅ **CAD PoC 门禁报告（2026-10-23）**：go-cad 解析/分幅渲染/中文字形/图框识别与识图问答验证；真实 DWG 样本验证挂池但不阻塞一期 |
 | gaea-cad-recognition-market-survey-2026-10.md | 🔄 **CAD 图纸识别市场与开源技术调研（2026-10）**：DWG/DXF/PDF 解析、查看器、识图问答与许可边界；含二轮 GitHub/社区盘点附录 |
@@ -81,6 +86,10 @@
 
 | 文档 | 状态 |
 |---|---|
+| gaea-voice-port-distill-20261107.md | ✅ **语音 Go 移植蒸馏审计（上游 speech-to-speech v1.1.0 ↔ Go realtime 包）**：逐文件对源+移植漏抄形态清单（跨态清理守卫高发）+探针须 1x 实时节奏+cgo 测试族 CGO_ENABLED=0 静默全跳坑 |
+| gaea-voice-upstream-audit-20261107.md | ✅ **语音实时管线全量对源审计（2026-11-07）**：REA 纪律义务清单锚上游 file:line 原文，协议门 turn/bargein/cancel 与真引擎多轮探针取证 |
+| gaea-voice-upstream-audit-20261104.md | ✅ **语音管线复刻审计台账（2026-11-04）**：义务须锚上游原文纪律的首份台账，移植面义务分册 |
+| gaea-web-search-pantheon-digest-20261105.md | ✅ **众神殿「网络搜索能力弱」论证资料整理（2026-11-05）**：论证取证 digest，网络搜索优化线（三刀收官见基线 150 记录 docs/）输入 |
 | gaea-reasonix-v138-distill-2026-09.md | 🔄 Reasonix 真身蒸馏（esengine/DeepSeek-Reasonix v1.15→v1.38）：七刀已落地（v4.374.0：Host 守卫/只读表修正/clean-filter 中和/SSRF 补洞/收尾判定/输出内存上限/stuck 解锁）；留池 9 项（执行序批次/live file observations/采样恢复状态机/压缩救援阶梯/PTY 等） |
 | gaea-dsh-016-distill-2026-09.md | 🔄 dsh（deepseek-harness TS monorepo）蒸馏（原误题 Reasonix，已勘误更名）：五刀已落地（v4.373.0：溢出自愈/缓存对齐摘要/shrink 校验/force 多轮/repeat 分级）；留池 12 项按 dsh 口径有效 |
 | gaea-dsh-021-core-distill-2026-10.md | 🔄 dsh v0.2.1 核心域蒸馏（deepseek-harness@dsh-v0.2.1-alpha.2）：压缩域等价销号/todo/plan/ask 同构；落地 session-title 自动命名（TurnDone 槽+办公本地路由数据不出本机）；未深扫域诚实声明十三域 |
@@ -130,6 +139,7 @@
 
 | 文档 | 状态 |
 |---|---|
+| gaea-t0-effect-audit-2026-11-08.md | ✅ **议事 T0 effect 机械审计·第一遍（2026-11-08）**：众神殿 T0 effect 面逐点机械审计证据物 |
 | gaea-slim-baseline-2026-09.md | ✅ P0 基线证据层：七面四表实测（dist/entry/MemoryHub/exe/依赖/>50KB 源文件）+ 功能等价快照 + IA 走查 |
 | gaea-slim-knife2-audit-2026-09.md | ✅ 审计证据：**G-2 已关**（v4.169「基线 N」chip）；G-3 真机走查挂池 |
 | gaea-slim-p2-dualspace-2026-09.md | ✅ 审计证据（P2 双空间并列）；权威=masterplan §轨道一·2/3 |
@@ -149,6 +159,13 @@
 
 | 文档 | 状态 |
 |---|---|
+| gaea-day-log-2026-11-13.md | ✅ 2026-11-13 当日总账（**better-sidebar G1.6/G1.7/G1.8/G2 全清+真机走查双实证**）：worktree 只读展示+Git 子进程超时/预算、冲突六形态/rename 溯源/二进制占位、空仓降级矩阵（git ≥2.26 空树语义实锤）、只读提交图（lane 拓扑/分支筛选/提交详情）实壳断言全绿；main ahead origin 未 push |
+| gaea-day-log-2026-11-12.md | ✅ 2026-11-12 当日总账（**办公板块上下文界面升级换代 dsh-context 0.83.x 全量复刻**，v4.542.0）：调研→拍板→动刀全链一天收官+收官批刀 11-15+合并收口 d20dec1d+真机两连崩根修+超大附件改造 v4.543.0；better-sidebar F1 提交 f49ea150+预览包 |
+| gaea-day-log-2026-11-11.md | ✅ 2026-11-11 当日总账（knip 尾款清零+天璇退役漏网收口＋**WHIRL 推理引擎接入** v4.536.0）：对擂 1.91x→盲测→whirlfix2→实弹三连修→引擎实升（llama +49%）→35B 单副本收口 |
+| gaea-day-log-2026-11-07.md | ✅ 2026-11-07 当日总账（**语音管线翻车双根修+五路蒸馏审计+三批修刀收官**）：真麦翻车定性（silero v5 帧格式）+回声门 v3+重叠线定罪四刀+协议门 turn/bargein/cancel+UI 四刀 |
+| gaea-day-log-2026-11-06.md | ✅ 2026-11-06 当日总账（**聊天板块核心优化第一批+实弹基线+臂B定案**）：四卫生切片+基线对照（13b65f37 tag）+臂B（意图/义务门控+Stage 晋级）+交付合同刀 |
+| gaea-day-log-2026-11-05.md | ✅ 2026-11-05 当日总账（**语音 V2 唯一路径化大日**）：卡死根修+网关/V1 双退役+协议四修+交互重设计+bundle v2；桌面入口收敛装机同哈希 |
+| gaea-day-log-2026-11-04.md | ✅ 2026-11-04 当日总账（**三引擎退役+Strata flash 档线**）：CosyVoice/Ollama/OpenCode Zen 代码面全删（118 文件）+Strata flash 接入（AMD_HIP 配方实测）+35B 档删除收窄单档 |
 | gaea-day-log-2026-11-10.md | ✅ 2026-11-10 当日总账（**办公板块工具治理：众神殿六阶段一天收官**）：P0 注册表地图 82 行三守卫+P1a 结构化写入口（office_generate/四类写升 agent 面）+P1b 发布边界（五类写入拦截实证）+P2 两波（通道 A 引用级深化+abeval 扩+条件视觉首渲覆盖率）+P3 四类谓词 harness+P4 办公批处理进任务中心；六提交（a63339dd…b0166d00）+装机 F9BA8DBEDA41 PID 51408+实弹五面清单；晚批=自主三刀（空间契约漂移/REA preflight/版本三源）+代码图谱建图 |
 | gaea-code-atlas-2026-11.md | ✅ **项目代码图谱（2026-11-10 建图）**：十层分层（入口/壳层/内核装配执行/内核共享库/办公/小说/引擎/众神殿/领域库/scripts）+层间依赖矩阵 467 边+分层不变量三项全绿+162 包清单+依赖明细+巨石文件 Top30+前端 src 地图+关键接缝导读；由 scripts/code_atlas_doc.go 单源生成（机械段勿手改） |
 | gaea-day-log-2026-11-09.md | ✅ 2026-11-09 当日总账（识图诊断线收官五刀+成本导入兜底腿换正道）：docmd OCR 缓存/stampNoiseText 严格谓词/@引用 30s 预算/失败文案真因/OPCRPDFText 强制扫描件 OCR；38 笔列车与收口见 11-08 线 |
@@ -174,7 +191,7 @@ gaea-space-shell-design.md（S2.1，v3.9.0）· gaea-space-dimension-design.md�
 
 ## 政策 / 约定 / 数据集
 
-ADULT_MODE.md · DREAM_WRITE_POLICY.md · MEMORY_ARCHITECTURE.md · evaluation-set.md · retrieval-eval-set.md（12 条查询集，代码运行时直接解析）· memory-eval-set.md（三脑+经验习得题集，阶段七 7.1-1；**⚠️ 2026-09-26 状态校正：其配套包 `internal/memoryeval` 已于提交 68c56bc1 作为死代码删除，文中「`go test ./internal/memoryeval` 一键跑出四域基线」不再是有效入口，四域基线转历史数据；恢复门禁或改口径见 docs/gaea-optimization-direction-2026-09.md §3 P1-4**）· ilink-non-text-protocol.md · 2026-08-15-gaea3-architecture-design.md（历史基准：内核架构事件日志/Manifest/Seam，仍有效）
+ADULT_MODE.md · DREAM_WRITE_POLICY.md · MEMORY_ARCHITECTURE.md · evaluation-set.md · retrieval-eval-set.md（12 条查询集，代码运行时直接解析）· memory-eval-set.md（三脑+经验习得题集，阶段七 7.1-1；**⚠️ 2026-09-26 状态校正：其配套包 `internal/memoryeval` 已于提交 68c56bc1 作为死代码删除，文中「`go test ./internal/memoryeval` 一键跑出四域基线」不再是有效入口，四域基线转历史数据；恢复门禁或改口径见 docs/archive/gaea-optimization-direction-2026-09.md §3 P1-4**）· ilink-non-text-protocol.md · 2026-08-15-gaea3-architecture-design.md（历史基准：内核架构事件日志/Manifest/Seam，仍有效）
 
 ## 归档区（不在此处展开）
 
