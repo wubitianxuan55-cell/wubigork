@@ -29,9 +29,22 @@ const subscribeAgentNetworkMock = vi.fn((cb: (n: unknown) => void) => {
   return () => {};
 });
 const reloadAgentNetworkMock = vi.fn();
+const familyEventsMock = vi.fn(async () => ({
+  ok: true,
+  events: [],
+  scanned: 1,
+  refs: ["main"],
+  totals: { rootTokens: 100, subTokens: 0, subCount: 0 },
+}));
 
 vi.mock("../lib/bridge", () => ({
-  app: { ContextView: contextViewMock, ContextNodeDetail: contextNodeDetailMock },
+  app: {
+    ContextView: contextViewMock,
+    ContextNodeDetail: contextNodeDetailMock,
+    // Wave3 家族费用行接进 Context tab 时的欠账（mock 漏补 → 全文件红灯，
+    // 与「红灯被 tail 截断掩盖」坑同族；本刀13 顺手根修）。
+    FamilyEvents: familyEventsMock,
+  },
   openExternal: vi.fn(),
   onEvent: vi.fn(() => () => {}),
 }));
@@ -70,6 +83,13 @@ const TIMELINE: ContextTimeline = {
     { seq: 9, ts: 1750000009, turn: 1, step: 2, tool: "write_file", action: "write", path: "docs/结论.md" },
   ],
   commands: [],
+  // 耗时面（Wave3 六行拆分渲染数据源；缺省时 TimingCard 只出卡头，
+  // 「模型等待」等行断言需要它）。
+  timing: {
+    wallMs: 12_000, ttftMs: 1_800, genMs: 9_000, calls: 2,
+    toolsMs: 1_200, toolCalls: 3, reasoningMs: 4_000, reasoningBlocks: 8,
+    textMs: 5_000, textBlocks: 3, outputTokens: 1_500,
+  },
   // 压缩水位块（内核三阈值；缺省 0.5/0.8/0.9）——水位线/状态梯用例的数据面。
   compact: { soft: 0.5, ratio: 0.8, force: 0.9 },
 };
@@ -95,14 +115,16 @@ describe("ContextView 上下文页卡片墙（v4.71 卡片化）", () => {
   it("8 个统计项各自成小卡；Token 环形 / 耗时卡 / 会话信息为三张大卡", async () => {
     const { ContextView } = await import("./ContextView");
     const { container } = renderT(<ContextView running={false} />);
-    expect(await screen.findByText("工具调用")).toBeTruthy();
-    // v4.71：统计不再合成 1 张大卡——每个统计项是独立 tile（8 个）
-    expect(container.querySelectorAll('[data-testid^="stat-tile-"]')).toHaveLength(8);
+    expect((await screen.findAllByText("工具调用")).length).toBeGreaterThan(0);
+    // v4.71：统计不再合成 1 张大卡——独立 tile；Wave2 StatsCard 复合重构后
+    // 为 4 tile（Turns/Steps/Skills/模型回复）+事件/IO/工具 chips 行。
+    expect(container.querySelectorAll('[data-testid^="stat-tile-"]')).toHaveLength(4);
     expect(container.querySelector('[data-testid="stat-tile-turns"]')?.classList.contains("ctx-tile")).toBe(true);
     expect(screen.getByText("279")).toBeTruthy();
-    expect(screen.getByText("99.89%")).toBeTruthy(); // TokenCard 环心缓存命中（requests 汇总 350200/350600，v4.69 两位小数）
-    expect(screen.getByText("缓存输入")).toBeTruthy();
-    expect(screen.getByText("未缓存输入")).toBeTruthy();
+    // Wave2 TokenCard 改造后缓存命中率移卡头，口径=stats.cacheHitPercent（夹具 99.57）
+    expect(screen.getByText(/99\.57%/)).toBeTruthy();
+    expect(screen.getAllByText(/缓存输入/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/未缓存输入/).length).toBeGreaterThan(0);
     expect(screen.getByText("耗时统计")).toBeTruthy();
     expect(screen.getByText("模型等待")).toBeTruthy();
     expect(screen.getByText("会话信息")).toBeTruthy();
@@ -271,7 +293,7 @@ describe("ContextView 上下文页卡片墙（v4.71 卡片化）", () => {
   it("事件筛选：dsh 多选语义（全亮 → 单类 → 再点恢复全选）", async () => {
     const { ContextView } = await import("./ContextView");
     renderT(<ContextView running={false} />);
-    await screen.findByText("上下文事件");
+    await screen.findAllByText("上下文事件");
     // 初始五类全亮：注入与压缩事件都可见（chips 带全量计数：注入 1 / 压缩 1）
     expect(await screen.findByText(/指令注入 · \.gaea/)).toBeTruthy();
     expect(screen.getByText(/-535\.5k/)).toBeTruthy();
@@ -380,8 +402,8 @@ describe("ContextView 上下文页卡片墙（v4.71 卡片化）", () => {
     expect(await screen.findByText("上下文浏览器")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /工具结果/ }));
     // 来源 chip（工具名）与 error 语义点
-    expect(await screen.findByText("read_file")).toBeTruthy();
-    expect(screen.getByText("bash")).toBeTruthy();
+    expect((await screen.findAllByText("read_file")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("bash").length).toBeGreaterThan(0);
     expect(screen.getByText("✗ error")).toBeTruthy();
     // 完整调用懒加载：点开 seq=4 行 → 详情面板（mock 返回样例）
     const detailBtns = screen.getAllByTestId("ctx-node-detail-btn");
@@ -662,7 +684,7 @@ describe("ContextView 2.5b 后半：工具结果图片缩略卡 + token 估算",
   it("按 sessionPath 拉取时间线（v4.181 欠账：切会话不跟内核单例）", async () => {
     const { ContextView } = await import("./ContextView");
     renderT(<ContextView running={false} sessionPath="/sessions/hist.jsonl" />);
-    expect(await screen.findByText("工具调用")).toBeTruthy();
+    expect((await screen.findAllByText("工具调用")).length).toBeGreaterThan(0);
     expect(contextViewMock).toHaveBeenCalledWith("/sessions/hist.jsonl");
   });
 });

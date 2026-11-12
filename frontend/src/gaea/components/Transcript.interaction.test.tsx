@@ -45,7 +45,10 @@ describe("回到底部按钮（v4.510 兄弟挂载根修）", () => {
     const el = scroller as HTMLElement;
     Object.defineProperty(el, "scrollHeight", { value: 2000, configurable: true });
     Object.defineProperty(el, "clientHeight", { value: 600, configurable: true });
-    Object.defineProperty(el, "scrollTop", { value: 800, configurable: true });
+    // scrollTop 必须带 setter：value-only defineProperty 会把它变成只读——
+    // 本用例结束后的残留贴底 rAF（Transcript 粘底滚动）再赋值即抛
+    // "read only property" unhandled error（全量跑 exit=1 的元凶）。
+    Object.defineProperty(el, "scrollTop", { value: 800, writable: true, configurable: true });
     fireEvent.scroll(el);
 
     const fab = view.getByRole("button", { name: "回到底部" });

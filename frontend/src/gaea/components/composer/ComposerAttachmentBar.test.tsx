@@ -69,7 +69,7 @@ describe("ComposerAttachmentBar 附件预览条", () => {
     expect(screen.getByRole("button", { name: /预览 现场\.png/ }).textContent).toContain("现场.png");
     // 识图/OCR 入口保留（PickFiles 图片 bug 的用户面：此前整条丢失）
     expect(screen.getByTitle(/识图：本地视觉模型/)).toBeTruthy();
-    expect(screen.getByTitle(/提取文字：本地 OvisOCR2/)).toBeTruthy();
+    expect(screen.getByTitle(/提取文字：本地 uocr2/)).toBeTruthy(); // OCR 链改名 OvisOCR2→uocr2 后文案跟改
   });
 
   it("v4.508 有缩略图的图片附件点击缩略图打开预览", () => {
