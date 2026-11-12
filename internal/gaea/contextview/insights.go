@@ -116,6 +116,12 @@ type InsightsSession struct {
 	Cost            float64  `json:"cost,omitempty"`
 	CacheHitPercent float64  `json:"cacheHitPercent,omitempty"`
 	Composition     Category `json:"composition"`
+	// 名称清单（v4.542 刀8，去重保序；洞察页统计行点击过滤会话的依据）：
+	// Skills=run_skill 技能名、Tools=产生过工具结果的工具名、Programs=命令
+	// 程序名。空=该会话在范围内无对应事件。
+	Skills   []string `json:"skills,omitempty"`
+	Tools    []string `json:"tools,omitempty"`
+	Programs []string `json:"programs,omitempty"`
 	// Estimated 是该会话在范围内全部请求均为估算关闭（无 usage 提供方/旧
 	// 日志）——前端标「估算」角标。
 	Estimated bool `json:"estimated,omitempty"`
@@ -305,6 +311,9 @@ func BuildInsights(rangeKey string, now time.Time, folds []InsightsSessionFold) 
 		out.Kpi.ToolCalls += tl.Stats.ToolCalls
 		out.Kpi.Skills += tl.Stats.Skills
 		inAll := rangeKey == InsightsAll
+		sessSkillSet := map[string]bool{}
+		sessToolSet := map[string]bool{}
+		sessProgSet := map[string]bool{}
 		for i := range tl.Nodes {
 			n := tl.Nodes[i]
 			inRange := n.Ts >= cutoff && n.Ts < until
@@ -315,6 +324,7 @@ func BuildInsights(rangeKey string, now time.Time, folds []InsightsSessionFold) 
 				}
 				if inRange || inAll {
 					addTally(toolTally, n.Tool, n.Ts)
+					sessToolSet[n.Tool] = true
 				}
 			case catSkill:
 				if inRange && n.Ts > 0 {
@@ -322,6 +332,7 @@ func BuildInsights(rangeKey string, now time.Time, folds []InsightsSessionFold) 
 				}
 				if inRange || inAll {
 					addTally(skillTally, n.Name, n.Ts)
+					sessSkillSet[n.Name] = true
 				}
 			}
 		}
@@ -329,8 +340,13 @@ func BuildInsights(rangeKey string, now time.Time, folds []InsightsSessionFold) 
 			if c.Time < cutoff || c.Time >= until {
 				continue
 			}
-			addTally(progTally, commandProgram(c.Cmd), c.Time)
+			prog := commandProgram(c.Cmd)
+			addTally(progTally, prog, c.Time)
+			sessProgSet[prog] = true
 		}
+		sess.Skills = sortedNameSet(sessSkillSet)
+		sess.Tools = sortedNameSet(sessToolSet)
+		sess.Programs = sortedNameSet(sessProgSet)
 		if tl.Timing != nil {
 			out.Kpi.ToolsMs += tl.Timing.ToolsMs
 			out.Kpi.WallMs += tl.Timing.WallMs
@@ -362,6 +378,21 @@ func BuildInsights(rangeKey string, now time.Time, folds []InsightsSessionFold) 
 		}
 		return out.Sessions[i].LastActive > out.Sessions[j].LastActive
 	})
+	return out
+}
+
+// sortedNameSet 去重集 → 字典序名称清单（会话卡过滤依据，稳定输出）。
+func sortedNameSet(m map[string]bool) []string {
+	if len(m) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(m))
+	for k := range m {
+		if k != "" {
+			out = append(out, k)
+		}
+	}
+	sort.Strings(out)
 	return out
 }
 

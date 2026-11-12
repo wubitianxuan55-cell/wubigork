@@ -3,6 +3,8 @@ package contextview
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -188,6 +190,11 @@ type folding struct {
 	stepStart int64 // 当前步起点（request_header ts；0=未知，退化用 lastTs）
 	genStart  int64 // 当前步首 token（首条 reasoning/text 增量）ts（0=未到）
 	lastTs    int64 // 上一条日志的 ts（步骤起点退化基准）
+	// 思考/回复分段计时（1:1 上游 Timing Stats 拆分；秒级首末差）。
+	reasoningStart int64
+	reasoningLast  int64
+	textStart      int64
+	textLast       int64
 	openTools map[string]toolOpen
 	toolAgg   map[string]*toolAgg
 }
@@ -223,6 +230,7 @@ func (f *folding) apply(e session.LogEntry) {
 		// 主回合的推理/文本增量落盘（v4.62 起子代理增量 wire-only 不落盘），
 		// 首条增量即该步「首 token」——真实 TTFT 的秒粒度近似。
 		f.timingToken(e)
+		f.timingSpan(e, e.Kind == "reasoning")
 	case "message", "assistant_message":
 		f.applyAssistant(e)
 		f.timingAssistant(e)
@@ -235,6 +243,7 @@ func (f *folding) apply(e session.LogEntry) {
 	case "usage":
 		f.applyUsage(e)
 		f.timingUsage(e)
+		f.timingOutput(usagePayloadOf(e.Payload))
 	case "turn_done":
 		f.closePending(e)
 		f.killOpenCmds(e.Ts)
@@ -385,10 +394,93 @@ func (f *folding) applyUser(e session.LogEntry) {
 		tok := estimateTokens(inject)
 		f.injectTok += tok
 		f.stats.Injects++
-		src := briefOf(strings.TrimSpace(strings.TrimPrefix(inject, refContextPrefix)), 80)
+		// 刀13（1:1 上游 inject 事件 form 细分）：引用块自带结构标签
+		// （<file path=…>/<dir>/<image>/<referenced-session>/<resource>，
+		// 与 control.refs.go appendRefBlock 落盘格式对拍），解析出源形态与
+		// 定位名；解析不到标签（旧格式/其他来源）回退正文预览。
+		form, src := classifyInjectSources(inject)
+		if src == "" {
+			src = briefOf(strings.TrimSpace(strings.TrimPrefix(inject, refContextPrefix)), 80)
+		}
 		f.lastIn = append(f.lastIn, src)
 		f.addNode(SurfaceNode{Seq: e.Seq, Ts: e.Ts, Cat: catInject, Tokens: tok, Text: briefOf(inject, maxNodePreview)})
+		// inject 事件（1:1 上游 Context Events Inject 行：来源·摘要 + delta）；
+		// 此前只统计不落事件，事件流看不到注入何时发生。
+		f.events = append(f.events, ContextEvent{
+			Kind:   "inject",
+			Seq:    e.Seq,
+			Delta:  tok,
+			Source: src,
+			Form:   form,
+			Turn:   f.turn,
+			Step:   f.step,
+			Ts:     e.Ts,
+		})
 	}
+}
+
+// inject 形态机器键（ContextEvent.Form；前端 i18n 渲染分类 chip）。
+const (
+	injectFormFile     = "file"
+	injectFormDir      = "dir"
+	injectFormImage    = "image"
+	injectFormSession  = "session"
+	injectFormResource = "resource"
+	injectFormMixed    = "mixed"
+)
+
+// injectSourceTagRe 匹配引用块开标签及其定位属性（appendRefBlock 形如
+// `<file path="a/b.txt">` / `<resource ref="@srv:uri">`；首引号串即定位）。
+var injectSourceTagRe = regexp.MustCompile(
+	`<(file|dir|image|referenced-session|resource)\b[^>]*?"([^"]+)"`)
+
+// classifyInjectSources 从引用块文本解析源标签，返回（form, 定位名串）。
+// form=单一形态键；≥2 种形态=mixed。名串取前 3 个定位（路径取 basename，
+// 引用截 24 列），更多以 +N 计。无标签返回空串（调用方回退正文预览）。
+func classifyInjectSources(block string) (string, string) {
+	matches := injectSourceTagRe.FindAllStringSubmatch(block, -1)
+	if len(matches) == 0 {
+		return "", ""
+	}
+	kindOf := func(tag string) string {
+		switch tag {
+		case "file":
+			return injectFormFile
+		case "dir":
+			return injectFormDir
+		case "image":
+			return injectFormImage
+		case "referenced-session":
+			return injectFormSession
+		default:
+			return injectFormResource
+		}
+	}
+	kinds := map[string]bool{}
+	locators := make([]string, 0, len(matches))
+	for _, m := range matches {
+		kinds[kindOf(m[1])] = true
+		loc := m[2]
+		if m[1] == "file" || m[1] == "dir" || m[1] == "image" {
+			loc = filepath.Base(loc)
+		}
+		if len(loc) > 24 {
+			loc = loc[:24]
+		}
+		locators = append(locators, loc)
+	}
+	const maxShown = 3
+	source := strings.Join(locators[:min(len(locators), maxShown)], " · ")
+	if len(locators) > maxShown {
+		source += fmt.Sprintf(" +%d", len(locators)-maxShown)
+	}
+	form := injectFormMixed
+	if len(kinds) == 1 {
+		for k := range kinds {
+			form = k
+		}
+	}
+	return form, source
 }
 
 // applyAssistant 处理 assistant 文本（message / assistant_message），三拆
@@ -820,6 +912,14 @@ func extractPathFromOutput(tool, output string) string {
 // maxFilePreview 是文件活动路径的展示上限（浏览视图截断，全文在日志里）。
 const maxFilePreview = 240
 
+// usagePayloadOf 解析 usage 事件的输出量（timingOutput 用；独立小函数避免
+// applyUsage 与计时路径耦合解析）。
+func usagePayloadOf(raw json.RawMessage) usagePayload {
+	var p usagePayload
+	_ = json.Unmarshal(raw, &p)
+	return p
+}
+
 // applyUsage 用真实用量关闭待完成请求（或为旧日志创建请求记录），并把分类
 // 按实际 promptTokens 等比缩放锚定。
 func (f *folding) applyUsage(e session.LogEntry) {
@@ -857,6 +957,12 @@ func (f *folding) applyUsage(e session.LogEntry) {
 		f.attachRequestDelta(rec)
 	} else {
 		rec.Step = f.step
+		// 活跃耗时（1:1 上游趋势 Duration 模式数据源）：请求跨度 = usage 关闭
+		// 时刻 − header 发出时刻（秒级粒度 ×1000 诚实近似；旧日志无 header
+		// 退化为 usage 即创建，跨度 0 缺省）。
+		if rec.Ts > 0 && e.Ts > rec.Ts {
+			rec.ActiveMs = (e.Ts - rec.Ts) * 1000
+		}
 		rec.Ts = e.Ts
 		// header 在用户消息/工具调用之前发出：关闭时刷新 brief，让
 		// 「输入→回复」反映该请求实际看到的最近内容。锚点同拍刷新。
@@ -1114,11 +1220,21 @@ func (f *folding) attachRequestDelta(rec *RequestRecord) {
 }
 
 // splitInjected 把带 "Referenced context:" 前缀的 user 消息拆为 inject 与 user。
+// 刀13 根修：引用块是 appendRefBlock 的连续标签序列（<tag …>\n正文\n</tag>，
+// 块间空行，多引用一次注入很常见），此前按首个空行切——第二个起的标签整块被
+// 误记成 user 正文（token 账错分类）。现取最后一个闭合标签之后为用户正文；
+// 旧格式（无标签）回退首个空行切分（行为不变）。
 func splitInjected(s string) (inject, user string) {
 	if !strings.HasPrefix(s, refContextPrefix) {
 		return "", s
 	}
 	rest := s[len(refContextPrefix):]
+	if i := strings.LastIndex(rest, "</"); i >= 0 {
+		if end := strings.Index(rest[i:], ">"); end >= 0 {
+			cut := i + end + 1
+			return refContextPrefix + rest[:cut], rest[cut:]
+		}
+	}
 	if i := strings.Index(rest, "\n\n"); i >= 0 {
 		return refContextPrefix + rest[:i], rest[i+2:]
 	}

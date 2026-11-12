@@ -78,14 +78,14 @@ const TRAJECTORY: Trajectory = {
 };
 const TIMELINE: ContextTimeline = {
   ok: true, window: 0,
-  current: { system: 100, tools: 0, user: 200, inject: 50, assistant: 300, tool: 0 },
+  current: { system: 100, tools: 0, user: 200, skill: 0, inject: 50, assistant: 300, tool: 0 },
   stats: { turns: 1, steps: 1, injects: 0, compacts: 0, prunes: 0, toolCalls: 0, images: 0 },
   requests: [{
     seq: 1, ts: 1750000001, turn: 1, step: 1,
-    category: { system: 100, tools: 0, user: 200, inject: 50, assistant: 300, tool: 0 },
+    category: { system: 100, tools: 0, user: 200, skill: 0, inject: 50, assistant: 300, tool: 0 },
     estimated: true, delta: { items: 3, tokens: 650, first: true },
   }],
-  events: [], nodes: [], archive: [], files: [],
+  events: [], nodes: [], archive: [], files: [], commands: [],
 };
 
 describe("OriginalSinPage v4.412 主区页签（复用办公轨迹/上下文看板）", () => {

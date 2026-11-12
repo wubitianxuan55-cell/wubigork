@@ -449,6 +449,8 @@ export const GAEA_METHOD_FACETS = {
   SwitchWorkspace: "work",
   ContextUsage: "work",
   ContextView: "work",
+  ContextInsights: "work",
+  FamilyEvents: "work",
   Trajectory: "work",
   AgentNetwork: "work",
   Balance: "work",

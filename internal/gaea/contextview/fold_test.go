@@ -666,3 +666,82 @@ func TestFoldPrefixVerdict(t *testing.T) {
 		t.Fatalf("改写请求折叠不符: %+v", p2)
 	}
 }
+
+// 刀13：inject 源名细分——引用块结构标签解析出 Form+定位名串；无标签旧格式
+// 回退正文预览（Form 空）。
+func TestFoldInjectSourceClassification(t *testing.T) {
+	sys := strings.Repeat("系统提示词内容", 20)
+	entries := []session.LogEntry{
+		entry(1, "turn_started", map[string]any{}),
+		entry(2, "request_header", headerPayload(sys)),
+		// 多形态：file+image+session → mixed，定位名 basename 化
+		entry(3, "user_message", map[string]any{"content": "Referenced context:\n\n" +
+			"<file path=\"docs/report/q4.xlsx\">\n表格正文\n</file>\n\n" +
+			"<image path=\"C:/shot/ping.png\">\n【画面理解】截图\n</image>\n\n" +
+			"<referenced-session ref=\"@sess_abc123\">\n会话快照\n</referenced-session>\n\n" +
+			"结合这些给我结论"}),
+		entry(4, "assistant_message", map[string]any{"text": "结论如下。"}),
+		entry(5, "usage", map[string]any{"promptTokens": 100, "completionTokens": 5, "turn": 1}),
+		// 单形态 resource；dir 第二份
+		entry(6, "user_message", map[string]any{"content": "Referenced context:\n\n" +
+			"<resource ref=\"@docs:file:///cfg.md\">\nMCP 正文\n</resource>\n\n" +
+			"看下配置"}),
+		entry(7, "assistant_message", map[string]any{"text": "配置没问题。"}),
+		entry(8, "usage", map[string]any{"promptTokens": 80, "completionTokens": 4, "turn": 2}),
+	}
+	tl := FoldTimeline(entries, 0, 0)
+	var injects []ContextEvent
+	for _, e := range tl.Events {
+		if e.Kind == "inject" {
+			injects = append(injects, e)
+		}
+	}
+	if len(injects) != 2 {
+		t.Fatalf("inject events = %d, want 2: %+v", len(injects), tl.Events)
+	}
+	mixed := injects[0]
+	if mixed.Form != "mixed" {
+		t.Fatalf("form = %q, want mixed", mixed.Form)
+	}
+	if !strings.Contains(mixed.Source, "q4.xlsx") || !strings.Contains(mixed.Source, "ping.png") {
+		t.Fatalf("source = %q, want basenames q4.xlsx/ping.png", mixed.Source)
+	}
+	if strings.Contains(mixed.Source, "C:") {
+		t.Fatalf("source should basename paths, got %q", mixed.Source)
+	}
+	res := injects[1]
+	if res.Form != "resource" {
+		t.Fatalf("form = %q, want resource", res.Form)
+	}
+	if !strings.Contains(res.Source, "@docs:file:///cfg.md") {
+		t.Fatalf("source = %q, want raw resource ref", res.Source)
+	}
+}
+
+// 旧格式（无标签）注入：Form 留空、Source 回退正文预览（行为不变）。
+func TestFoldInjectLegacyFormatFallback(t *testing.T) {
+	sys := strings.Repeat("系统提示词内容", 20)
+	entries := []session.LogEntry{
+		entry(1, "turn_started", map[string]any{}),
+		entry(2, "request_header", headerPayload(sys)),
+		entry(3, "user_message", map[string]any{"content": "Referenced context:\n\n# file.md\n旧格式资料\n\n总结"}),
+		entry(4, "assistant_message", map[string]any{"text": "好的"}),
+		entry(5, "usage", map[string]any{"promptTokens": 50, "completionTokens": 3, "turn": 1}),
+	}
+	tl := FoldTimeline(entries, 0, 0)
+	var injects []ContextEvent
+	for _, e := range tl.Events {
+		if e.Kind == "inject" {
+			injects = append(injects, e)
+		}
+	}
+	if len(injects) != 1 {
+		t.Fatalf("inject events = %d, want 1", len(injects))
+	}
+	if injects[0].Form != "" {
+		t.Fatalf("legacy form = %q, want empty", injects[0].Form)
+	}
+	if !strings.Contains(injects[0].Source, "# file.md") {
+		t.Fatalf("legacy source = %q, want content preview fallback", injects[0].Source)
+	}
+}

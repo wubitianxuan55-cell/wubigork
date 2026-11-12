@@ -495,11 +495,21 @@ func (a *App) GaeaFamilyEvents(sessionPath ...string) (trajectory.FamilyEventStr
 		}
 	}
 	events := trajectory.FoldFamilyEvents(parentEntries, subs)
+	totals := trajectory.FamilyTotals{SubCount: len(subs)}
+	totals.RootTokens, totals.RootCost, totals.OutputTokens = trajectory.UsageOf(parentEntries)
+	for _, se := range subs {
+		t, c, o := trajectory.UsageOf(se)
+		totals.SubTokens += t
+		totals.SubCost += c
+		totals.OutputTokens += o
+	}
 	return trajectory.FamilyEventStream{
 		Ok:        true,
 		Events:    events,
 		Scanned:   len(subs) + 1,
 		Truncated: truncated,
 		Refs:      trajectory.FamilyEventRefs(events),
+		Totals:    totals,
+		Agents:    trajectory.FamilyAgentRows(parentEntries, subs),
 	}, nil
 }

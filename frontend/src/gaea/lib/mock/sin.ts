@@ -273,7 +273,7 @@ export function buildSin(): SinMethods {
         cumAsst += est(m.content);
         nodes.push({ seq: mockSeq(m.id, 9), cat: "assistant", tokens: est(m.content), text: m.content.slice(0, 120) });
         if (turn === 0) continue;
-        const category = { system: est(mockSystem), tools: 0, user: cumUser, inject: 0, assistant: cumAsst, tool: cumTool };
+        const category = { system: est(mockSystem), tools: 0, user: cumUser, skill: 0, inject: 0, assistant: cumAsst, tool: cumTool };
         const prev = requests[requests.length - 1]?.category;
         requests.push({
           seq: requests.length + 1, ts: Math.floor(new Date(m.created_at + "Z").getTime() / 1000) || 0,
@@ -299,9 +299,9 @@ export function buildSin(): SinMethods {
       } : undefined;
       return {
         ok: true, window: 0,
-        current: requests[requests.length - 1]?.category ?? { system: 0, tools: 0, user: 0, inject: 0, assistant: 0, tool: 0 },
+        current: requests[requests.length - 1]?.category ?? { system: 0, tools: 0, user: 0, skill: 0, inject: 0, assistant: 0, tool: 0 },
         stats: { turns: turn, steps: requests.length, injects: 0, compacts: 0, prunes: 0, toolCalls, images },
-        requests, events: [], nodes, archive: [], files: [], timing,
+        requests, events: [], nodes, archive: [], files: [], commands: [], timing,
       };
     },
     async SinContextNodeDetail(topicID: string, seq: number) {

@@ -132,6 +132,10 @@ const OfficePanel: React.FC = () => {
           workspaceRoot: draft.workspaceRoot,
           allowWrite: ((view.sandbox as { allowWrite?: string[] } | undefined)?.allowWrite) || [],
         },
+        // 刀14 promptPrefix/Suffix 原样回传（编辑入口在设置中心「上下文页偏好」
+        // 系统提示词组；此处不吃草稿，防整体写回把那里保存的值清零）。
+        promptPrefix: (view.promptPrefix as string | undefined) ?? '',
+        promptSuffix: (view.promptSuffix as string | undefined) ?? '',
       } as SettingsView)
       message.success(t('settings.office.saved'))
     } catch (err: unknown) {

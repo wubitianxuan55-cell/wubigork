@@ -45,6 +45,11 @@ func buildSystemPrompt(cfg *config.Config, cwd, space string, morningPreload boo
 	if err != nil {
 		return nil, err
 	}
+	// 部署级提示词首拼接（刀14，dsh-context promptPrefix 蒸馏）：非空时置于
+	// 所有会话系统提示词最前（outputstyle/语言策略/记忆/技能索引之前）。
+	if prefix := strings.TrimSpace(cfg.Agent.PromptPrefix); prefix != "" {
+		sysPrompt = prefix + "\n\n" + sysPrompt
+	}
 	if cwd == "" {
 		cwd, _ = os.Getwd()
 	}
@@ -145,6 +150,12 @@ func buildSystemPrompt(cfg *config.Config, cwd, space string, morningPreload boo
 		}
 		return sk.Body, nil
 	})
+
+	// 部署级提示词尾拼接（刀14）：非空时置于全部装配块（记忆/晨报/项目/
+	// 固化/固定资料/技能索引）之后，保证「最后」语义；空串零注入。
+	if suffix := strings.TrimSpace(cfg.Agent.PromptSuffix); suffix != "" {
+		sysPrompt = strings.TrimRight(sysPrompt, "\n") + "\n\n" + suffix
+	}
 
 	projectProfile := &cache.Profile{}
 	projectProfile.Scan(cwd)

@@ -39,3 +39,13 @@ describe("contextPrefs 上下文页偏好", () => {
     expect(loadContextPrefs()).toEqual(CONTEXT_PREFS_DEFAULTS);
   });
 });
+
+it("trendDuration 布尔偏好读写（刀15 耗时曲线持久化）", () => {
+  localStorage.removeItem("gaea.context.prefs");
+  expect(loadContextPrefs().trendDuration).toBe(false);
+  saveContextPref("trendDuration", true);
+  expect(loadContextPrefs().trendDuration).toBe(true);
+  // 非布尔损坏值回落默认 false
+  localStorage.setItem("gaea.context.prefs", JSON.stringify({ trendDuration: "yes" }));
+  expect(loadContextPrefs().trendDuration).toBe(false);
+});

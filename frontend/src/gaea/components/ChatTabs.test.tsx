@@ -3,10 +3,10 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { ChatTabs } from "./ChatTabs";
 
 describe("ChatTabs 对话标签栏（v4.73 记忆 tab 迁入主区）", () => {
-  it("渲染 4 个 tab：对话/轨迹/上下文/记忆，顺序一致", () => {
+  it("渲染 6 个 tab：对话/轨迹/上下文/记忆/洞察/编队，顺序一致（刀3/刀5 后两 tab）", () => {
     render(<ChatTabs active="chat" onChange={() => {}} />);
     const labels = Array.from(document.querySelectorAll("button")).map((b) => b.textContent);
-    expect(labels).toEqual(["对话", "轨迹", "上下文", "记忆"]);
+    expect(labels).toEqual(["对话", "轨迹", "上下文", "记忆", "洞察", "编队"]);
   });
 
   it("点击「记忆」触发 onChange 并携带 memory", () => {
@@ -40,7 +40,7 @@ describe("ChatTabs 对话标签栏（v4.73 记忆 tab 迁入主区）", () => {
     unmount();
     render(<ChatTabs active="chat" onChange={() => {}} />);
     expect(Array.from(document.querySelectorAll("button")).map((b) => b.textContent)).toEqual(
-      ["对话", "轨迹", "上下文", "记忆"],
+      ["对话", "轨迹", "上下文", "记忆", "洞察", "编队"],
     );
   });
 
@@ -97,7 +97,7 @@ describe("ChatTabs tab 语义（v4.427 a11y 收口）", () => {
     render(<ChatTabs active="chat" onChange={() => {}} />);
     const list = screen.getByRole("tablist");
     const tabs = within(list).getAllByRole("tab");
-    expect(tabs).toHaveLength(4);
+    expect(tabs).toHaveLength(6);
     expect(tabs[0].getAttribute("aria-selected")).toBe("true");
     expect(tabs.slice(1).every((t) => t.getAttribute("aria-selected") === "false")).toBe(true);
     expect(tabs[0].tabIndex).toBe(0);
@@ -116,7 +116,7 @@ describe("ChatTabs tab 语义（v4.427 a11y 收口）", () => {
     const onChange = vi.fn();
     render(<ChatTabs active="chat" onChange={onChange} />);
     fireEvent.keyDown(screen.getByRole("tablist"), { key: "End" });
-    expect(onChange).toHaveBeenCalledWith("memory");
+    expect(onChange).toHaveBeenCalledWith("fleet"); // 刀5 后末位=编队
     fireEvent.keyDown(screen.getByRole("tablist"), { key: "Home" });
     expect(onChange).toHaveBeenCalledWith("chat");
   });

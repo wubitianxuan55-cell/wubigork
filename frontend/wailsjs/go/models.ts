@@ -4777,6 +4777,8 @@ export namespace app {
 	    configPath: string;
 	    providerKinds: string[];
 	    bypass: boolean;
+	    promptPrefix: string;
+	    promptSuffix: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SettingsView(source);
@@ -4795,6 +4797,8 @@ export namespace app {
 	        this.configPath = source["configPath"];
 	        this.providerKinds = source["providerKinds"];
 	        this.bypass = source["bypass"];
+	        this.promptPrefix = source["promptPrefix"];
+	        this.promptSuffix = source["promptSuffix"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -6781,6 +6785,7 @@ export namespace contextview {
 	    seq: number;
 	    delta: number;
 	    source?: string;
+	    form?: string;
 	    turn: number;
 	    step: number;
 	    ts: number;
@@ -6797,6 +6802,7 @@ export namespace contextview {
 	        this.seq = source["seq"];
 	        this.delta = source["delta"];
 	        this.source = source["source"];
+	        this.form = source["form"];
 	        this.turn = source["turn"];
 	        this.step = source["step"];
 	        this.ts = source["ts"];
@@ -6815,9 +6821,14 @@ export namespace contextview {
 	    tokens: number;
 	    requests: number;
 	    turns: number;
+	    lastMessage?: string;
+	    steps?: number;
 	    cost?: number;
 	    cacheHitPercent?: number;
 	    composition: Category;
+	    skills?: string[];
+	    tools?: string[];
+	    programs?: string[];
 	    estimated?: boolean;
 	
 	    static createFrom(source: any = {}) {
@@ -6836,9 +6847,14 @@ export namespace contextview {
 	        this.tokens = source["tokens"];
 	        this.requests = source["requests"];
 	        this.turns = source["turns"];
+	        this.lastMessage = source["lastMessage"];
+	        this.steps = source["steps"];
 	        this.cost = source["cost"];
 	        this.cacheHitPercent = source["cacheHitPercent"];
 	        this.composition = this.convertValues(source["composition"], Category);
+	        this.skills = source["skills"];
+	        this.tools = source["tools"];
+	        this.programs = source["programs"];
 	        this.estimated = source["estimated"];
 	    }
 	
@@ -6884,6 +6900,7 @@ export namespace contextview {
 	    toolCalls?: number;
 	    skills?: number;
 	    cost?: number;
+	    sessions?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new InsightsDay(source);
@@ -6898,6 +6915,7 @@ export namespace contextview {
 	        this.toolCalls = source["toolCalls"];
 	        this.skills = source["skills"];
 	        this.cost = source["cost"];
+	        this.sessions = source["sessions"];
 	    }
 	}
 	export class InsightsKpi {
@@ -6911,6 +6929,16 @@ export namespace contextview {
 	    cacheHitPercent?: number;
 	    toolsMs?: number;
 	    wallMs?: number;
+	    archived?: number;
+	    billed?: number;
+	    calls?: number;
+	    steps?: number;
+	    ttftMs?: number;
+	    genMs?: number;
+	    assistantReasoning?: number;
+	    assistantAnswers?: number;
+	    assistantCallArgs?: number;
+	    outputTokens?: number;
 	    estimatedTokens?: number;
 	
 	    static createFrom(source: any = {}) {
@@ -6929,6 +6957,16 @@ export namespace contextview {
 	        this.cacheHitPercent = source["cacheHitPercent"];
 	        this.toolsMs = source["toolsMs"];
 	        this.wallMs = source["wallMs"];
+	        this.archived = source["archived"];
+	        this.billed = source["billed"];
+	        this.calls = source["calls"];
+	        this.steps = source["steps"];
+	        this.ttftMs = source["ttftMs"];
+	        this.genMs = source["genMs"];
+	        this.assistantReasoning = source["assistantReasoning"];
+	        this.assistantAnswers = source["assistantAnswers"];
+	        this.assistantCallArgs = source["assistantCallArgs"];
+	        this.outputTokens = source["outputTokens"];
 	        this.estimatedTokens = source["estimatedTokens"];
 	    }
 	}
@@ -7024,6 +7062,11 @@ export namespace contextview {
 	    toolsMs?: number;
 	    toolCalls?: number;
 	    tools?: ToolTiming[];
+	    reasoningMs?: number;
+	    reasoningBlocks?: number;
+	    textMs?: number;
+	    textBlocks?: number;
+	    outputTokens?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new ContextTiming(source);
@@ -7038,6 +7081,11 @@ export namespace contextview {
 	        this.toolsMs = source["toolsMs"];
 	        this.toolCalls = source["toolCalls"];
 	        this.tools = this.convertValues(source["tools"], ToolTiming);
+	        this.reasoningMs = source["reasoningMs"];
+	        this.reasoningBlocks = source["reasoningBlocks"];
+	        this.textMs = source["textMs"];
+	        this.textBlocks = source["textBlocks"];
+	        this.outputTokens = source["outputTokens"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -7192,6 +7240,7 @@ export namespace contextview {
 	    briefIn?: string[];
 	    briefResp?: string;
 	    cost?: number;
+	    activeMs?: number;
 	    briefUserSeq?: number;
 	    briefRespSeq?: number;
 	    promptTokens?: number;
@@ -7217,6 +7266,7 @@ export namespace contextview {
 	        this.briefIn = source["briefIn"];
 	        this.briefResp = source["briefResp"];
 	        this.cost = source["cost"];
+	        this.activeMs = source["activeMs"];
 	        this.briefUserSeq = source["briefUserSeq"];
 	        this.briefRespSeq = source["briefRespSeq"];
 	        this.promptTokens = source["promptTokens"];
@@ -10335,6 +10385,119 @@ export namespace trajectory {
 	        this.touches = source["touches"];
 	    }
 	}
+	export class FamilyAgentRow {
+	    ref: string;
+	    tokens: number;
+	    cost?: number;
+	    output?: number;
+	    dispatches: number;
+	    messages: number;
+	    reports?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new FamilyAgentRow(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ref = source["ref"];
+	        this.tokens = source["tokens"];
+	        this.cost = source["cost"];
+	        this.output = source["output"];
+	        this.dispatches = source["dispatches"];
+	        this.messages = source["messages"];
+	        this.reports = source["reports"];
+	    }
+	}
+	export class FamilyEvent {
+	    seq: number;
+	    ts: number;
+	    agent: string;
+	    kind: string;
+	    role?: string;
+	    text?: string;
+	    ref?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new FamilyEvent(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.seq = source["seq"];
+	        this.ts = source["ts"];
+	        this.agent = source["agent"];
+	        this.kind = source["kind"];
+	        this.role = source["role"];
+	        this.text = source["text"];
+	        this.ref = source["ref"];
+	    }
+	}
+	export class FamilyTotals {
+	    rootTokens: number;
+	    rootCost?: number;
+	    subTokens: number;
+	    subCost?: number;
+	    subCount: number;
+	    outputTokens?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new FamilyTotals(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.rootTokens = source["rootTokens"];
+	        this.rootCost = source["rootCost"];
+	        this.subTokens = source["subTokens"];
+	        this.subCost = source["subCost"];
+	        this.subCount = source["subCount"];
+	        this.outputTokens = source["outputTokens"];
+	    }
+	}
+	export class FamilyEventStream {
+	    ok: boolean;
+	    events: FamilyEvent[];
+	    scanned: number;
+	    truncated?: number;
+	    refs: string[];
+	    totals: FamilyTotals;
+	    agents?: FamilyAgentRow[];
+	
+	    static createFrom(source: any = {}) {
+	        return new FamilyEventStream(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ok = source["ok"];
+	        this.events = this.convertValues(source["events"], FamilyEvent);
+	        this.scanned = source["scanned"];
+	        this.truncated = source["truncated"];
+	        this.refs = source["refs"];
+	        this.totals = this.convertValues(source["totals"], FamilyTotals);
+	        this.agents = this.convertValues(source["agents"], FamilyAgentRow);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class HeaderRec {
 	    system?: string;
 	    toolCount: number;

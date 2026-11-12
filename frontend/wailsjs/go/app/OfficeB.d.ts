@@ -142,6 +142,8 @@ export function GaeaFactBaseClear():Promise<void>;
 
 export function GaeaFactBasePromote():Promise<number>;
 
+export function GaeaFamilyEvents(arg1:string):Promise<trajectory.FamilyEventStream>;
+
 export function GaeaFileIndexRebuild():Promise<tasks.Task>;
 
 export function GaeaFileSearch(arg1:string,arg2:number):Promise<Array<app.FileSearchHit>>;

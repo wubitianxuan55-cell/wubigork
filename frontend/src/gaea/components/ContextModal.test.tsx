@@ -7,7 +7,7 @@ import { ContextModal, ContextPill } from "./ContextModal";
 const ctxViewMock = vi.fn(async () => ({
   ok: true,
   window: 1_000_000,
-  current: { system: 2100, tools: 10400, user: 20, inject: 21900, assistant: 93400, tool: 114000 },
+  current: { system: 2100, tools: 10400, user: 20, skill: 0, inject: 21900, assistant: 93400, tool: 114000 },
   stats: { turns: 1, steps: 1, injects: 0, compacts: 0, prunes: 0, toolCalls: 0, images: 0 },
   requests: [],
   events: [],
@@ -22,7 +22,14 @@ vi.mock("../lib/agentNetworkStore", () => ({
 }));
 
 vi.mock("../lib/bridge", () => ({
-  app: { ContextView: (...a: unknown[]) => ctxViewMock(...(a as [])), openExternal: vi.fn(), onEvent: () => () => {} },
+  app: {
+    ContextView: (...a: unknown[]) => ctxViewMock(...(a as [])),
+    // Wave3 家族费用行接入 Context tab 的同族欠账（ContextView.test 一起修过）：
+    // mock 漏 FamilyEvents → 挂载即红。
+    FamilyEvents: vi.fn(async () => ({ ok: true, events: [], scanned: 1, refs: ["main"], totals: { rootTokens: 0, subTokens: 0, subCount: 0 } })),
+    openExternal: vi.fn(),
+    onEvent: () => () => {},
+  },
   onEvent: () => () => {},
 }));
 

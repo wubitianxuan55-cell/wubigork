@@ -262,6 +262,10 @@ export function GaeaFactBasePromote() {
   return window['go']['app']['OfficeB']['GaeaFactBasePromote']();
 }
 
+export function GaeaFamilyEvents(arg1) {
+  return window['go']['app']['OfficeB']['GaeaFamilyEvents'](arg1);
+}
+
 export function GaeaFileIndexRebuild() {
   return window['go']['app']['OfficeB']['GaeaFileIndexRebuild']();
 }

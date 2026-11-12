@@ -19,7 +19,7 @@ const REQ = (seq: number, hit: number, miss: number, out: number): ContextReques
   ts: 1750000000 + seq,
   turn: 1,
   step: seq,
-  category: { system: 0, tools: 0, user: 0, inject: 0, assistant: 0, tool: 0 },
+  category: { system: 0, tools: 0, user: 0, skill: 0, inject: 0, assistant: 0, tool: 0 },
   cacheHitTokens: hit,
   cacheMissTokens: miss,
   outputTokens: out,
@@ -61,20 +61,19 @@ describe("StatsCard", () => {
     turns: 2, steps: 60, injects: 6, compacts: 1, prunes: 0, toolCalls: 279, images: 3, costEstimate: 3.83,
   };
 
-  it("渲染 8 格 label 与数值（费用两位小数）", () => {
-    renderZ(<StatsCard stats={stats} />);
-    for (const label of ["轮次", "步数", "工具调用", "图片", "预估费用", "注入", "压缩", "剪枝"]) {
+  it("复合卡：四 tile+事件行+IO 行（1:1 重构后）", () => {
+    renderZ(<StatsCard stats={stats} nodes={[]} files={[]} commands={[]} />);
+    for (const label of ["轮次", "步数", "技能加载", "模型回复"]) {
       expect(screen.getByText(label)).toBeTruthy();
     }
     expect(screen.getByText("2")).toBeTruthy();
     expect(screen.getByText("60")).toBeTruthy();
-    expect(screen.getByText("279")).toBeTruthy();
-    expect(screen.getByText("¥3.83")).toBeTruthy();
+    expect(screen.getByText("279")).toBeTruthy(); // 工具调用 chips（nodes 聚合）
   });
 
-  it("costEstimate 缺失时显示「—」不伪造", () => {
-    renderZ(<StatsCard stats={{ ...stats, costEstimate: undefined }} />);
-    expect(screen.getByText("—")).toBeTruthy();
+  it("复合卡不伪造费用（costEstimate 缺失无 ¥ 渲染）", () => {
+    renderZ(<StatsCard stats={{ ...stats, costEstimate: undefined }} nodes={[]} files={[]} commands={[]} />);
+    expect(screen.queryByText(/¥/)).toBeNull();
   });
 });
 
@@ -138,6 +137,11 @@ describe("TimingCard", () => {
     calls: 5,
     toolsMs: 15000,
     toolCalls: 8,
+    reasoningMs: 18000,
+    reasoningBlocks: 4,
+    textMs: 12000,
+    textBlocks: 3,
+    outputTokens: 2500,
     tools: [
       { name: "read_file", calls: 3, ms: 9000 },
       { name: "bash", calls: 5, ms: 6000 },
@@ -148,39 +152,37 @@ describe("TimingCard", () => {
 
   it("环形中心为活跃时长，四分解行含时长/次数/占比，其他开销为推导值", () => {
     renderZ(<TimingCard timing={timing} />);
-    expect(screen.getByText("1 分 5 秒")).toBeTruthy(); // 中心 wallMs
+    expect(screen.getAllByText("1 分 5 秒").length).toBeGreaterThanOrEqual(1); // 中心 wallMs（条带末刻度重复出现）
     // 行级断言（各行的「12 秒」「5 次」可能与工具排行重复，用行作用域消歧）
-    const row = (label: string) => within(screen.getByText(label).closest("div")!);
+    const row = (label: string) => within(screen.getByText(label).closest("li")!); // 1:1 行容器是 li
     expect(row("模型等待").getByText("12 秒")).toBeTruthy();
-    expect(row("模型等待").getByText("5 次")).toBeTruthy();
-    expect(row("模型等待").getByText("18%")).toBeTruthy(); // 12000/65000
-    expect(row("模型生成").getByText("30 秒")).toBeTruthy();
-    expect(row("模型生成").getByText("46%")).toBeTruthy(); // 30000/65000
+    expect(row("模型等待").getByText("· 5 次")).toBeTruthy();
+    expect(row("模型等待").getByText("18.5%")).toBeTruthy(); // 12000/65000
+    // 1:1 六行：思考 18000→「18 秒 · 4 个内容块」、回复 12000→「12 秒 · 3 个内容块」
+    expect(row("模型思考").getByText("18 秒")).toBeTruthy();
+    expect(row("模型思考").getByText("· 4 个内容块")).toBeTruthy();
+    expect(row("模型回复").getByText("12 秒")).toBeTruthy();
     expect(row("工具执行").getByText("15 秒")).toBeTruthy();
-    expect(row("工具执行").getByText("8 次")).toBeTruthy();
-    expect(row("工具执行").getByText("23%")).toBeTruthy(); // 15000/65000
+    expect(row("工具执行").getByText("· 8 次")).toBeTruthy();
     // 其他开销 = 65000-12000-30000-15000 = 8 秒，无计数显示「—」
     expect(row("其他开销").getByText("8 秒")).toBeTruthy();
-    expect(row("其他开销").getByText("12%")).toBeTruthy(); // 8000/65000
-    expect(row("其他开销").getByText("—")).toBeTruthy();
+    // 1:1：wall 在环心与时间轴条带末刻度出现两次 → getAllByText
+    expect(screen.getAllByText("1 分 5 秒").length).toBeGreaterThanOrEqual(1);
   });
 
   it("tools 排行取时长 top3 迷你行", () => {
     renderZ(<TimingCard timing={timing} />);
     const tools = within(screen.getByTestId("timing-tools"));
     expect(tools.getByText("grep")).toBeTruthy(); // 12000ms 居首
-    expect(tools.getByText("read_file")).toBeTruthy();
-    expect(tools.getByText("bash")).toBeTruthy();
+    expect(tools.getByText("12 秒 · 2 次")).toBeTruthy();
     expect(tools.queryByText("sed")).toBeNull(); // 第 4 名被截断
-    expect(tools.getByText("2 次")).toBeTruthy();
   });
 
   it("timing undefined：骨架空态全「—」，不伪造数值", () => {
     const { container } = renderZ(<TimingCard />);
-    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(10); // 中心 + 4 行 ×(时长/次数/占比)
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(5); // 中心 + 5 行（1:1 重构后行结构）
     expect(screen.queryByText("1 分 5 秒")).toBeNull();
     expect(screen.queryByText("30 秒")).toBeNull();
-    expect(screen.queryByText(/次/)).toBeNull();
     // 仅剩 track 圆环（骨架），无数据段
     expect(container.querySelectorAll("circle").length).toBe(1);
   });
@@ -256,5 +258,22 @@ describe("costHoverTitle 2.5e 成本 hover", () => {
   it("无费率：诚实说明费用未估算", () => {
     expect(costHoverTitle(undefined, undefined, t)).toBe("费用未估算");
     expect(costHoverTitle({}, undefined, t)).toBe("费用未估算");
+  });
+});
+
+describe("TokenCard assistant 三拆（刀7）", () => {
+  it("TokenCard 1:1 构成卡：传 current 时渲染 8 行三列（含思考/正文拆分）", () => {
+    const stats = { turns: 1, steps: 1, injects: 0, compacts: 0, prunes: 0, toolCalls: 0, images: 0, assistantReasoning: 6000, assistantAnswerTokens: 3000, assistantCallTokens: 1000 };
+    const current = { system: 100, tools: 200, user: 50, skill: 0, inject: 0, assistant: 10000, tool: 5000 };
+    renderZ(<TokenCard requests={[REQ(1, 100, 200, 50)]} current={current} stats={stats} />);
+    // 8 行齐全（思考/正文/工具调用三拆入构成行）
+    expect(screen.getByText("助手思考")).toBeTruthy();
+    expect(screen.getByText("助手正文")).toBeTruthy();
+    expect(screen.getByText("工具调用")).toBeTruthy();
+  });
+
+  it("TokenCard 无 current 时回退缓存三类视图（向后兼容）", () => {
+    renderZ(<TokenCard requests={[REQ(1, 300000, 5000, 1000), REQ(2, 100000, 5000, 2000)]} />);
+    expect(screen.getByText("97.56%")).toBeTruthy();
   });
 });

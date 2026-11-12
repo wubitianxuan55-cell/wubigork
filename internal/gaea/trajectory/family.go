@@ -170,4 +170,137 @@ type FamilyEventStream struct {
 	Truncated int `json:"truncated,omitempty"`
 	// Refs 是事件流中出现的 agent 身份清单（main 在前）——前端筛选 chips 单源。
 	Refs []string `json:"refs"`
+	// Totals 是家族用量/费用聚合（1:1 上游 Context Stats 编队行：编队合计/
+	// 当前 Agent/子 Agent ×N 三行；费用按各自 usage 事件自报单价计得，
+	// 无价事件诚实零贡献）。
+	Totals FamilyTotals `json:"totals"`
+	// Agents 是成员卡行（刀11，1:1 上游 Fleet 成员卡树：每 Agent 费用+
+	// 任务/消息计数；main 在前，子代理按首条消息时间升序）。
+	Agents []FamilyAgentRow `json:"agents,omitempty"`
+}
+
+// FamilyTotals 是家族用量聚合。
+type FamilyTotals struct {
+	RootTokens   int64   `json:"rootTokens"`
+	RootCost     float64 `json:"rootCost,omitempty"`
+	SubTokens    int64   `json:"subTokens"`
+	SubCost      float64 `json:"subCost,omitempty"`
+	SubCount     int     `json:"subCount"`
+	OutputTokens int64   `json:"outputTokens,omitempty"`
+}
+
+// FamilyAgentRow 是成员卡（刀11，1:1 上游 Fleet 成员卡树）的一行：每 Agent
+// 的用量/费用/任务与消息计数。从各自 transcript 源日志直算（不吃事件流
+// 400 条截断，大家族计数不缩水）。
+type FamilyAgentRow struct {
+	Ref    string  `json:"ref"` // "main" 或 sa_ 引用
+	Tokens int64   `json:"tokens"`
+	Cost   float64 `json:"cost,omitempty"`
+	Output int64   `json:"output,omitempty"`
+	// Dispatches：main=已派发委派数（task/run_skill 的 tool_dispatch）；
+	// 子代理=1（transcript 首条 user 即委派任务）。
+	Dispatches int `json:"dispatches"`
+	// Messages 是该 Agent transcript 内消息数（main 含用户+助手；子代理
+	// 除首条委派外同口径）。
+	Messages int `json:"messages"`
+	// Reports 是主会话收到的该子代理完成回投数（main=0）。
+	Reports int `json:"reports,omitempty"`
+}
+
+// FamilyAgentRows 折叠父会话与子代理 transcript 为成员卡行（main 在前，
+// 子代理按首条消息时间升序）。纯函数，与 FoldFamilyEvents 同输入。
+func FamilyAgentRows(parent []session.LogEntry, subs map[string][]session.LogEntry) []FamilyAgentRow {
+	main := FamilyAgentRow{Ref: FamilyAgentMain}
+	subTs := map[string]int64{}
+	for _, e := range parent {
+		switch e.Kind {
+		case "user_message", "message", "assistant_message":
+			main.Messages++
+		case "tool_dispatch":
+			var p struct {
+				Name string `json:"name"`
+			}
+			if err := json.Unmarshal(e.Payload, &p); err == nil && (p.Name == "task" || p.Name == "run_skill") {
+				main.Dispatches++
+			}
+		}
+	}
+	main.Tokens, main.Cost, main.Output = UsageOf(parent)
+
+	rows := make([]FamilyAgentRow, 0, len(subs)+1)
+	for ref, entries := range subs {
+		row := FamilyAgentRow{Ref: ref, Dispatches: 1}
+		firstUser := true // 首条 user=委派本体（与 FoldFamilyEvents 同口径）
+		for _, e := range entries {
+			switch e.Kind {
+			case "user_message":
+				if firstUser {
+					firstUser = false
+					continue
+				}
+				row.Messages++
+			case "message", "assistant_message":
+				row.Messages++
+			}
+			if subTs[ref] == 0 && e.Ts > 0 {
+				subTs[ref] = e.Ts
+			}
+		}
+		row.Tokens, row.Cost, row.Output = UsageOf(entries)
+		rows = append(rows, row)
+	}
+	// 回报归属：父会话 subagent_message 的 ref 即子代理引用。
+	reports := map[string]int{}
+	for _, e := range parent {
+		if e.Kind != "subagent_message" {
+			continue
+		}
+		var p struct {
+			Ref string `json:"ref"`
+		}
+		if err := json.Unmarshal(e.Payload, &p); err == nil && p.Ref != "" {
+			reports[p.Ref]++
+		}
+	}
+	for i := range rows {
+		rows[i].Reports = reports[rows[i].Ref]
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		ti, tj := subTs[rows[i].Ref], subTs[rows[j].Ref]
+		if ti != tj {
+			return ti < tj
+		}
+		return rows[i].Ref < rows[j].Ref
+	})
+	return append([]FamilyAgentRow{main}, rows...)
+}
+
+// usageOf 折叠一份日志的计费输入/输出 tokens 与费用（usage 事件自报口径，
+// 与 contextview fold 同式）。
+func UsageOf(entries []session.LogEntry) (tokens int64, cost float64, out int64) {
+	for _, e := range entries {
+		if e.Kind != "usage" {
+			continue
+		}
+		var p struct {
+			PromptTokens     int64   `json:"promptTokens"`
+			CompletionTokens int64   `json:"completionTokens"`
+			CacheHitTokens   int64   `json:"cacheHitTokens"`
+			CacheMissTokens  int64   `json:"cacheMissTokens"`
+			Input            float64 `json:"input"`
+			Output           float64 `json:"output"`
+			CacheHitPrice    float64 `json:"cacheHitPrice"`
+		}
+		if err := json.Unmarshal(e.Payload, &p); err != nil {
+			continue
+		}
+		tokens += p.PromptTokens + p.CompletionTokens
+		out += p.CompletionTokens
+		if p.CacheHitPrice > 0 || p.Input > 0 || p.Output > 0 {
+			cost += (float64(p.CacheHitTokens)*p.CacheHitPrice +
+				float64(p.CacheMissTokens)*p.Input +
+				float64(p.CompletionTokens)*p.Output) / 1e6
+		}
+	}
+	return tokens, cost, out
 }

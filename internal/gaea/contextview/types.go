@@ -56,6 +56,10 @@ type RequestRecord struct {
 	// Cost 是该请求的估算成本（usage 事件带价格时按该事件单价计得；估算
 	// 关闭的请求无成本——洞察页逐日成本归因的数据源）。
 	Cost float64 `json:"cost,omitempty"`
+	// ActiveMs 是该请求的活跃耗时（usage 关闭 − header 发出，秒级粒度诚实
+	// 近似；1:1 上游趋势 Duration 耗时曲线的数据源。旧日志无 header 退化为
+	// usage 即创建，跨度 0 缺省）。
+	ActiveMs int64 `json:"activeMs,omitempty"`
 	// BriefUserSeq / BriefRespSeq 是 brief 行在浏览器里的跳转锚点（对应
 	// SurfaceNode.Seq；2.5d 趋势→浏览器联动）。0=无锚点（brief 来自无节点
 	// 的事件或尚无同类消息），前端不渲染跳转。
@@ -117,9 +121,13 @@ type ContextEvent struct {
 	Seq    int64  `json:"seq"`
 	Delta  int64  `json:"delta"`
 	Source string `json:"source,omitempty"`
-	Turn   int    `json:"turn"`
-	Step   int    `json:"step"`
-	Ts     int64  `json:"ts"`
+	// Form 是 inject 专有的源形态机器键（刀13，对齐上游 inject 事件 form
+	// 细分）：file|dir|image|session|resource|mixed——由引用块标签解析得出，
+	// 无标签的旧格式注入留空（前端不渲染分类 chip）。Source 相应为定位名串。
+	Form string `json:"form,omitempty"`
+	Turn int    `json:"turn"`
+	Step int    `json:"step"`
+	Ts   int64  `json:"ts"`
 	// From/To 是模型切换事件的供应商实例名（kind=switch 专有；对齐 dsh
 	// ContextEventRecord.from/to）。
 	From string `json:"from,omitempty"`
@@ -248,6 +256,15 @@ type ContextTiming struct {
 	ToolsMs   int64        `json:"toolsMs,omitempty"`
 	ToolCalls int          `json:"toolCalls,omitempty"`
 	Tools     []ToolTiming `json:"tools,omitempty"`
+	// 1:1 上游 Timing Stats 六行拆分（v4.542）：模型思考/模型回复分段时长
+	// 与内容块数（reasoning/text 增量首末差，秒级粒度诚实近似）；OutputTokens
+	// 供输出速度（TPS）行。工具参数段：gaea 日志只落完整 dispatch（无流式
+	// 参数增量），无法推导——诚实缺席不伪造。
+	ReasoningMs     int64 `json:"reasoningMs,omitempty"`
+	ReasoningBlocks int   `json:"reasoningBlocks,omitempty"`
+	TextMs          int64 `json:"textMs,omitempty"`
+	TextBlocks      int   `json:"textBlocks,omitempty"`
+	OutputTokens    int64 `json:"outputTokens,omitempty"`
 }
 
 // ToolTiming 是单个工具名的调用次数与执行时长合计（Tools 排行条目）。

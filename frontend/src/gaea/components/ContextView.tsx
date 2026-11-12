@@ -2,12 +2,14 @@
 // 常量在 context/cats.ts 单源（CAT_COLORS 收编后不再有非组件导出）。
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { app } from "../lib/bridge";
+import type { FamilyTotalsView } from "../lib/types/context";
 import { useT } from "../lib/i18n";
 import type {
   ContextCategory, ContextCompactTiers, ContextEvent, ContextNodeDetailView, ContextRequestRecord, ContextTimeline,
 } from "../lib/types";
 import type { DictKey } from "../locales/en";
 import { fmtTokens } from "../lib/stats";
+import { fmtDuration } from "./context/cards";
 import { loadContextPrefs, saveContextPref, type CtxTrendGranularity, type CtxTrendMode } from "../lib/contextPrefs";
 import { useLiveReload } from "../hooks/useLiveReload";
 import { subscribeAgentNetwork, reloadAgentNetwork } from "../lib/agentNetworkStore";
@@ -17,6 +19,7 @@ import { CONTEXT_CATS, CONTEXT_CAT_BROWSE, CAT_COLORS } from "./context/cats";
 // 本文件经上方导入消费；inspector/cards 也直接从 cats.ts 取。
 import { StatsCard, TokenCard, TimingCard, SessionInfoCard, SummaryBar } from "./context/cards";
 import { ContextBrowserTree, FileActivityTree } from "./context/inspector";
+import { CommandsCard } from "./context/CommandsCard";
 import { AgentRadial } from "./context/AgentRadial";
 import "./context/context-view.css";
 import { BarChart3, LineChart, List } from "../icons";
@@ -37,9 +40,9 @@ function catTotal(c: ContextCategory): number {
 
 const EMPTY: ContextTimeline = {
   ok: true, window: 0,
-  current: { system: 0, tools: 0, user: 0, inject: 0, assistant: 0, tool: 0 },
+  current: { system: 0, tools: 0, user: 0, skill: 0, inject: 0, assistant: 0, tool: 0 },
   stats: { turns: 0, steps: 0, injects: 0, compacts: 0, prunes: 0, toolCalls: 0, images: 0 },
-  requests: [], events: [], nodes: [], archive: [], files: [],
+  requests: [], events: [], nodes: [], archive: [], files: [], commands: [],
 };
 
 // ─── 当前上下文宽卡（对齐 dsh CurrentComposition：大数字+分段条含空闲+图例） ──
@@ -218,16 +221,22 @@ function CurrentContextCard({
 // focus 锚点（Token 卡「查看趋势」下钻最后一跳）——tick 去重，滚动定位到卡
 // （scrollIntoView block:nearest，与 v4.82 brief→浏览器锚点同款机制）+ 3s
 // accent 外圈强调；只定位不改选中态（默认最新请求语义保持）。
-export function ContextTrendChart({ requests, events, onPick, detail, focus }: {
+export function ContextTrendChart({ requests, events, onPick, detail, focus, granularity: granularityProp, onGranularity }: {
   requests: ContextRequestRecord[];
   events: ContextEvent[];
   onPick: (r: ContextRequestRecord) => void;
   detail?: ReactNode;
   focus?: { tick: number } | null;
+  // 刀12：粒度态上提（父层持有以驱动 StepDetail 的 turn 模式标题——上游
+  // detail.turn「第 {t} 轮 · 共 {n} 步」同款）；直连渲染（测试）时可省略，
+  // 回落卡内自持态。
+  granularity?: CtxTrendGranularity;
+  onGranularity?: (g: CtxTrendGranularity) => void;
 }) {
   const t = useT();
   // 2.5d：粒度/模式初值读设置中心偏好（卡内 toggle 交互不变，变更写回）。
-  const [granularity, setGranularity] = useState<CtxTrendGranularity>(() => loadContextPrefs().trendGranularity);
+  const [granState, setGranState] = useState<CtxTrendGranularity>(() => loadContextPrefs().trendGranularity);
+  const granularity = granularityProp ?? granState;
   const [mode, setMode] = useState<CtxTrendMode>(() => loadContextPrefs().trendMode);
   const [selected, setSelected] = useState<number | null>(null);
   // v4.27 悬停构成详情：hover 柱时在图上展示该步六分类分解（原生 SVG title
@@ -251,7 +260,8 @@ export function ContextTrendChart({ requests, events, onPick, detail, focus }: {
   }, [focus]);
 
   const pickGranularity = (g: CtxTrendGranularity) => {
-    setGranularity(g);
+    setGranState(g);
+    onGranularity?.(g);
     saveContextPref("trendGranularity", g);
   };
   const pickMode = (m: CtxTrendMode) => {
@@ -282,7 +292,7 @@ export function ContextTrendChart({ requests, events, onPick, detail, focus }: {
 
   const W = Math.max(bars.length * 26, 320);
   const H = 150;
-  const padL = 46, padR = 8, padT = 14, padB = 18;
+  const padL = 46, padR = 40, padT = 14, padB = 18;
   const plotH = H - padT - padB;
   const bw = 20;
 
@@ -291,11 +301,62 @@ export function ContextTrendChart({ requests, events, onPick, detail, focus }: {
     label: fmtTokens(Math.round(maxY * f)),
   }));
 
+  // 1:1 上游 Duration 耗时曲线（右上切换）：每请求 activeMs 折线+右轴时间
+  // 刻度。旧日志/纯工具步无 activeMs 的点断开（诚实缺段）。
+  // 刀15：开关持久化（上游 settings.durationCurve 同款）——初值读偏好，
+  // 切换写回，重开页面保持上次选择。
+  const [durationOn, setDurationOn] = useState<boolean>(() => loadContextPrefs().trendDuration);
+  const toggleDuration = () =>
+    setDurationOn((v) => {
+      const nv = !v;
+      saveContextPref("trendDuration", nv);
+      return nv;
+    });
+  const durPoints = useMemo(() => {
+    if (!durationOn) return [];
+    const pts: { x: number; y: number; ms: number }[] = [];
+    let maxMs = 0;
+    bars.forEach((b, i) => {
+      if ((b.activeMs ?? 0) > 0) {
+        maxMs = Math.max(maxMs, b.activeMs!);
+        pts.push({ x: padL + i * (bw + 6) + bw / 2, y: 0, ms: b.activeMs! });
+      }
+    });
+    const yOf = (ms: number) => padT + plotH - (ms / Math.max(maxMs, 1)) * plotH;
+    return pts.map((p) => ({ ...p, y: yOf(p.ms), maxMs }));
+  }, [durationOn, bars]);
+  const durMax = durPoints[0]?.maxMs ?? 0;
+  const durTicks = [0, 0.5, 1].map((f) => ({
+    y: padT + plotH - f * plotH,
+    label: fmtDuration(Math.round(durMax * f), t),
+  }));
+
   const pick = (i: number) => {
     const r = bars[i];
     if (!r) return;
     setSelected(i);
     onPick(r);
+  };
+
+  // v4.542 刀4 总览模式（dsh overview 同款）：整会话压到面板宽成连续堆叠带，
+  // 压缩事件标竖线；悬停读数、点击定位主图该步。视图局部态（不写偏好——
+  // dsh 同口径：切换项仅对当前视图生效）。
+  const [overview, setOverview] = useState(false);
+  const compactMarks = useMemo(() => {
+    // 每个压缩事件 → 其后第一根柱的下标（竖线画在该柱左缘）。
+    const marks: number[] = [];
+    const sorted = [...compactSeqs].sort((a, b) => a - b);
+    for (const eseq of sorted) {
+      const idx = bars.findIndex((b) => b.seq > eseq);
+      if (idx > 0) marks.push(idx);
+    }
+    return marks;
+  }, [compactSeqs, bars]);
+  const overviewMax = useMemo(() => Math.max(1, ...bars.map((b) => catTotal(b.category))), [bars]);
+  const overviewPick = (clientX: number, el: SVGSVGElement) => {
+    const rect = el.getBoundingClientRect();
+    const f = Math.min(0.9999, Math.max(0, (clientX - rect.left) / rect.width));
+    pick(Math.floor(f * bars.length));
   };
 
   return (
@@ -329,12 +390,73 @@ export function ContextTrendChart({ requests, events, onPick, detail, focus }: {
               onClick={() => pickMode(m)}
             >{m === "total" ? t("contextview.modeTotal") : t("contextview.modeDelta")}</button>
           ))}
+          <button
+            title={t("contextview.durationTip")}
+            aria-pressed={durationOn}
+            data-testid="trend-duration"
+            className={`px-1.5 py-0.5 rounded border-0 cursor-pointer ${durationOn ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"}`}
+            onClick={toggleDuration}
+          >{t("contextview.duration")}</button>
+          <span className="mx-0.5 h-3 w-px bg-border-soft" />
+          <button
+            title={t("contextview.overviewTip")}
+            aria-pressed={overview}
+            data-testid="trend-overview"
+            className={`px-1.5 py-0.5 rounded border-0 cursor-pointer ${overview ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"}`}
+            onClick={() => setOverview((v) => !v)}
+          >{t("contextview.overview")}</button>
         </div>
       </div>
       <div className="mt-1 text-[10px] text-fg-faint">
         {t("contextview.trendLegend")}
         {mode === "delta" && <span className="ml-2"><span className="text-(color:--color-success)">■</span> {t("contextview.netIncrease")} <span className="ml-1 text-(color:--color-destructive)">■</span> {t("contextview.netDecrease")}</span>}
       </div>
+      {overview && (
+        <svg
+          data-testid="trend-overview-band"
+          viewBox="0 0 100 34"
+          preserveAspectRatio="none"
+          className="mt-1.5 h-9 w-full cursor-crosshair rounded-md bg-bg-soft"
+          onClick={(e) => overviewPick(e.clientX, e.currentTarget)}
+        >
+          {/* 每请求等宽分段 × 七分类堆叠（连续带，无需横向滚动） */}
+          {bars.map((b, i) => {
+            const x = (i / bars.length) * 100;
+            const w = 100 / bars.length;
+            const total = catTotal(b.category);
+            if (total <= 0) return null;
+            let acc = 0;
+            return (
+              <g key={b.seq}>
+                {CATS.map((c) => {
+                  const v = b.category[c.key];
+                  if (v <= 0) return null;
+                  const h = (v / overviewMax) * 30;
+                  const y = 32 - acc - h;
+                  acc += h;
+                  return (
+                    <rect key={c.key} x={x} y={y} width={Math.max(w, 0.12)} height={Math.max(h, 0.12)} fill={CAT_COLORS[c.key]} opacity={0.85}>
+                      <title>{`${t("contextview.turnStep", { turn: b.turn, step: b.step })} · ${fmtTokens(total)}`}</title>
+                    </rect>
+                  );
+                })}
+              </g>
+            );
+          })}
+          {/* 压缩事件竖线（位置=其后第一根柱左缘） */}
+          {compactMarks.map((mi) => (
+            <line
+              key={`cm-${mi}`}
+              x1={(mi / bars.length) * 100}
+              y1={0}
+              x2={(mi / bars.length) * 100}
+              y2={34}
+              stroke="var(--md-sys-color-warning, #f59e0b)"
+              strokeWidth={0.4}
+            />
+          ))}
+        </svg>
+      )}
       {hovered !== null && bars[hovered] && (
         <div
           data-testid="trend-hover-detail"
@@ -351,6 +473,17 @@ export function ContextTrendChart({ requests, events, onPick, detail, focus }: {
             ) : null,
           )}
           <span className="ml-auto font-mono text-fg-dim">{t("contextview.total", { tokens: fmtTokens(catTotal(bars[hovered].category)) })}</span>
+          {/* 刀9：有真实 usage 时并列服务商报告的 Actual（估算 vs 实际诚实并列，
+              dsh 悬停同款）；Estimated 关闭的请求无 usage，不造数。 */}
+          {(bars[hovered].promptTokens ?? 0) > 0 && (
+            <span className="ml-auto font-mono text-fg-dim" data-testid="trend-hover-actual">
+              {t("contextview.trendActual", {
+                prompt: fmtTokens(bars[hovered].promptTokens ?? 0),
+                out: fmtTokens(bars[hovered].outputTokens ?? 0),
+                cache: fmtTokens(bars[hovered].cacheHitTokens ?? 0),
+              })}
+            </span>
+          )}
         </div>
       )}
       <div className="overflow-x-auto">
@@ -361,6 +494,18 @@ export function ContextTrendChart({ requests, events, onPick, detail, focus }: {
               <text x={padL - 4} y={t.y + 3} fontSize={9} fill="var(--fg-faint)" textAnchor="end">{t.label}</text>
             </g>
           ))}
+          {durationOn && durMax > 0 && durTicks.map((tk, i) => (
+            <text key={`dt${i}`} x={W - padR + 4} y={tk.y + 3} fontSize={8.5} fill="var(--fg-faint)">{tk.label}</text>
+          ))}
+          {durationOn && durPoints.length > 1 && (
+            <polyline
+              points={durPoints.map((p) => `${p.x},${p.y}`).join(" ")}
+              fill="none"
+              stroke="var(--fg-dim, var(--md-sys-color-outline, #9e9e9e))"
+              strokeWidth={1.2}
+              data-testid="trend-duration-curve"
+            />
+          )}
           {bars.map((b, i) => {
             const x = padL + i * (bw + 6);
             const total = catTotal(b.category);
@@ -428,10 +573,16 @@ function StepDetail({
   record,
   window,
   onJump,
+  stepsInTurn,
+  turnMode,
 }: {
   record: ContextRequestRecord | null;
   window: number;
   onJump?: (seq: number) => void;
+  // 刀12（1:1 上游 detail.step/turn）：本轮步数合计 + 轮粒度标题形态——
+  // 步模式「第{turn}轮·第{step}步 (共{total}步)」，轮模式「第{turn}轮 · 共{total}步」。
+  stepsInTurn?: number;
+  turnMode?: boolean;
 }) {
   const t = useT();
   // 容器已默认选中最新请求，null 只存在于快照过渡瞬间 → 不渲染，避免空态闪烁。
@@ -441,10 +592,13 @@ function StepDetail({
   const cacheHit = record.cacheHitTokens ?? 0;
   const cacheMiss = record.cacheMissTokens ?? 0;
   const cachePct = cacheHit + cacheMiss > 0 ? (cacheHit * 100) / (cacheHit + cacheMiss) : null;
+  const title = turnMode
+    ? t("contextview.turnTitle", { turn: record.turn, total: stepsInTurn ?? 0 })
+    : t("contextview.turnStepTotal", { turn: record.turn, step: record.step, total: stepsInTurn ?? 0 });
   return (
     <div className="mt-2 border-t border-border-soft/70 pt-2">
       <div className="flex items-center justify-between">
-        <div className="text-[12.5px] font-semibold text-fg">{t("contextview.turnStep", { turn: record.turn, step: record.step })}</div>
+        <div className="text-[12.5px] font-semibold text-fg">{title}</div>
         <div className="text-[10px] text-fg-faint tabular-nums font-mono">{new Date(record.ts * 1000).toLocaleTimeString()}</div>
       </div>
       <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11.5px] text-fg-dim tabular-nums font-mono">
@@ -591,6 +745,12 @@ function EventsList({ events }: { events: ContextEvent[] }) {
             <span className={`shrink-0 px-1 rounded text-[10px] ${e.kind === "compact" ? "bg-warning/15 text-warning" : e.kind === "prune" ? "bg-err/15 text-err" : "bg-accent/10 text-accent"}`}>
               {e.delta != null && e.delta < 0 ? "" : "+"}{t(EVENT_LABEL[e.kind])}
             </span>
+            {/* 刀13：注入源形态分类 chip（1:1 上游 form 细分；无标签旧格式不渲染） */}
+            {e.kind === "inject" && e.form && (
+              <span className="shrink-0 rounded bg-bg-soft px-1 text-[10px] text-fg-dim" title={t("contextview.injectSrcTip")}>
+                {t(`contextview.injectForm.${e.form}` as DictKey)}
+              </span>
+            )}
             <span className="truncate text-fg-dim">{e.source || "—"}</span>
             <span className="ml-auto shrink-0 text-fg-faint tabular-nums font-mono">
               {t("contextview.turnStep", { turn: e.turn, step: e.step })}
@@ -647,6 +807,9 @@ export function ContextView({
   const t = useT();
   const [timeline, setTimeline] = useState<ContextTimeline>(EMPTY);
   const [picked, setPicked] = useState<ContextRequestRecord | null>(null);
+  // 刀12：趋势粒度态上提（驱动 StepDetail turn 模式标题；toggle 交互仍在卡内，
+  // 偏好写回仍在卡内 pickGranularity 单点）。
+  const [granularity, setGranularity] = useState<CtxTrendGranularity>(() => loadContextPrefs().trendGranularity);
   const [error, setError] = useState<string | null>(null);
   // 2.5d 趋势→浏览器联动：StepDetail brief 行点击的目标节点。tick 让同一
   // 节点重复点击也能重新触发滚动/高亮。
@@ -667,6 +830,10 @@ export function ContextView({
   }, []);
 
   const [net, setNet] = useState<AgentNetwork | null>(null);
+  // 家族用量聚合（1:1 上游 Context Stats 编队费用行；会话切换加载一次）
+  const [familyTotals, setFamilyTotals] = useState<FamilyTotalsView | null>(null);
+  // 1:1 上游 chips 联动：工具 chip 点击 → 浏览器按该工具过滤（再点同 chip 清除）
+  const [browserToolFilter, setBrowserToolFilter] = useState<string | null>(null);
   // Agent 网络：订阅共享 store（按 UI 会话读取，v4.181）；running 时
   // useLiveReload 驱动的 load() 顺带 reload。会话切换由依赖重建触发 declarePath。
   // showAgentNetwork=false（原罪复用）不订阅不拉取——网络属办公内核会话，避免串台。
@@ -674,6 +841,14 @@ export function ContextView({
     () => (showAgentNetwork ? subscribeAgentNetwork((n) => setNet(n), { path: sessionPath }) : undefined),
     [sessionPath, showAgentNetwork],
   );
+  useEffect(() => {
+    if (!showAgentNetwork) return;
+    let alive = true;
+    app.FamilyEvents(sessionPath ?? "")
+      .then((f) => { if (alive && f.totals) setFamilyTotals(f.totals); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [sessionPath, showAgentNetwork]);
   const sessionName = useMemo(() => {
     if (sessionNameProp) return sessionNameProp;
     if (!sessionPath) return "—";
@@ -698,6 +873,7 @@ export function ContextView({
           nodes: tl.nodes ?? [],
           archive: tl.archive ?? [],
           files: tl.files ?? [],
+          commands: tl.commands ?? [],
         });
         setError(null);
       })
@@ -760,12 +936,22 @@ export function ContextView({
             requests={timeline.requests}
             events={timeline.events}
             onPick={setPicked}
-            detail={picked ? <StepDetail record={picked} window={timeline.window} onJump={jumpToNode} /> : null}
+            granularity={granularity}
+            onGranularity={setGranularity}
+            detail={picked ? (
+              <StepDetail
+                record={picked}
+                window={timeline.window}
+                onJump={jumpToNode}
+                stepsInTurn={timeline.requests.filter((r) => r.turn === picked.turn).length}
+                turnMode={granularity === "turn"}
+              />
+            ) : null}
             focus={trendFocus}
           />
           {/* 行3：三大仪表卡（Token 卡带「查看趋势」入口 → 行2 趋势卡锚点） */}
           <div className="grid grid-cols-1 gap-3 min-[1100px]:grid-cols-3">
-            <TokenCard requests={timeline.requests} onViewTrend={jumpToTrend} />
+            <TokenCard requests={timeline.requests} current={timeline.current} stats={timeline.stats} onViewTrend={jumpToTrend} />
             <TimingCard timing={timeline.timing} />
             <SessionInfoCard
               sessionName={sessionName}
@@ -783,6 +969,7 @@ export function ContextView({
               focus={focusNode}
               sessionPath={sessionPath}
               fetchNodeDetail={fetchNodeDetail}
+              toolFilter={browserToolFilter}
             />
             <EventsList events={timeline.events} />
           </div>
@@ -798,8 +985,30 @@ export function ContextView({
               />
             )}
           </div>
+          {/* 行5.5 命令执行卡（v4.542 刀4：bash 推导生命周期；无命令不渲染） */}
+          {timeline.commands.length > 0 && (
+            <CommandsCard commands={timeline.commands} stats={timeline.commandStats} />
+          )}
           {/* 行6：8 个统计小卡（v4.412 下移——纯计数/审计口径，非第一眼信息） */}
-          <StatsCard stats={timeline.stats} />
+          <StatsCard
+              stats={timeline.stats}
+              nodes={timeline.nodes}
+              files={timeline.files}
+              commands={timeline.commands}
+              family={familyTotals}
+              timings={timeline.timing}
+              onToolPick={(tool) => {
+                setBrowserToolFilter((cur) => (cur === tool ? null : tool));
+                requestAnimationFrame(() => {
+                  document.querySelector('[data-testid="ctx-browser"]')?.scrollIntoView({ block: "center" });
+                });
+              }}
+              onIOClick={() => {
+                requestAnimationFrame(() => {
+                  document.querySelector('[data-testid="ctx-files"]')?.scrollIntoView({ block: "center" });
+                });
+              }}
+            />
           {/* 底部会话汇总条 + 估算口径 */}
           <SummaryBar
             sessionName={sessionName}

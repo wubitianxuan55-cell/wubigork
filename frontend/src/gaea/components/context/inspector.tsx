@@ -70,7 +70,7 @@ function useNodeDetails(sessionPath?: string, fetchDetail?: (seq: number) => Pro
 // v4.80 深读：tool 行加「来源」chip（工具名）与 error 语义点；tool/user/assistant
 // 行可懒加载「完整调用」详情（GaeaContextNodeDetail 按 seq 回读当前会话日志），
 // 详情面板带 OK/error 状态、行数、截断提示与 原文/渲染 切换（默认原文）。
-const DETAILABLE = new Set<ContextSurfaceNode["cat"]>(["tool", "user", "assistant"]);
+const DETAILABLE = new Set<ContextSurfaceNode["cat"]>(["tool", "skill", "user", "assistant"]);
 
 // v4.81 节点/文件操作共用的完整调用详情面板（原文/渲染切换在面板内部自持；
 // 默认原文防任意工具输出噪声；渲染走 MemoMarkdown）。
@@ -233,7 +233,7 @@ function NodeRow({
           <span className="font-medium" style={{ color: CAT_COLORS[node.cat] }}>{t(ROW_LABELS[node.cat])}</span>
           <span className="tabular-nums font-mono">≈{fmtTokens(node.tokens)}</span>
           {/* v4.80 来源 chip（工具名）+ error 语义点（dsh 工具行 OK/error 同款语义） */}
-          {node.cat === "tool" && node.tool && (
+          {(node.cat === "tool" || node.cat === "skill") && node.tool && (
             <span
               className="max-w-[9rem] truncate rounded px-1 font-mono"
               style={{ background: "var(--md-sys-color-surface-container-high)", color: "var(--md-sys-color-text-secondary)" }}
@@ -242,7 +242,16 @@ function NodeRow({
               {node.tool}
             </span>
           )}
-          {node.cat === "tool" && node.err && (
+          {node.cat === "skill" && node.name && (
+            <span
+              className="max-w-[9rem] truncate rounded px-1 font-mono"
+              style={{ background: "color-mix(in srgb, " + CAT_COLORS.skill + " 18%, transparent)", color: CAT_COLORS.skill }}
+              title={node.name}
+            >
+              {node.name}
+            </span>
+          )}
+          {(node.cat === "tool" || node.cat === "skill") && node.err && (
             <span className="font-medium" style={{ color: "var(--md-sys-color-destructive)" }}>✗ error</span>
           )}
           {node.gone != null && <span className="text-warning">{t("contextview.compacted")}</span>}
@@ -285,6 +294,7 @@ export function ContextBrowserTree({
   focus,
   sessionPath,
   fetchNodeDetail,
+  toolFilter,
 }: {
   nodes: ContextSurfaceNode[];
   archive: ContextSurfaceNode[];
@@ -292,6 +302,8 @@ export function ContextBrowserTree({
   sessionPath?: string;
   /** 节点详情自定义源（v4.412 原罪复用）；缺省 GaeaContextNodeDetail 按会话日志。 */
   fetchNodeDetail?: (seq: number) => Promise<ContextNodeDetailView>;
+  /** 1:1 上游 chips 联动：工具名过滤（来自 Context Stats 工具 chip 点击）。 */
+  toolFilter?: string | null;
 }) {
   const t = useT();
   const [query, setQuery] = useState("");
@@ -311,6 +323,34 @@ export function ContextBrowserTree({
     setSort(k);
     saveContextPref("browserSort", k);
   };
+  // v4.542 刀4：树/平铺（DNA）双视图。DNA=当前活跃 surface 按模型读取顺序
+  // （seq 序）平铺编号，系统提示词/工具定义作两行分组收尾（dsh 同款语义）；
+  // 「引入步骤」日志无逐节点记录，诚实不造列。助手 kind 筛选（思考/工具/
+  // 正文）用刀1 三拆子计数推导，一次回复可命中多种。
+  const [view, setView] = useState<"tree" | "dna">("tree");
+  const [assistantKind, setAssistantKind] = useState<"thinking" | "tools" | "answer" | null>(null);
+  const dnaNodes = useMemo(
+    () => nodes.filter((n) => n.cat !== "system" && n.cat !== "tools").sort((a, b) => a.seq - b.seq),
+    [nodes],
+  );
+  const lastSystem = useMemo(() => nodes.filter((n) => n.cat === "system").at(-1), [nodes]);
+  const lastTools = useMemo(() => nodes.filter((n) => n.cat === "tools").at(-1), [nodes]);
+  const kindMatch = (n: ContextSurfaceNode): boolean => {
+    if (assistantKind === null) return true;
+    if (assistantKind === "thinking") return (n.reasoning ?? 0) > 0;
+    if (assistantKind === "tools") return (n.callTokens ?? 0) > 0;
+    return (n.answerTokens ?? 0) > 0;
+  };
+  const kindCounts = useMemo(() => {
+    const c = { thinking: 0, tools: 0, answer: 0 };
+    for (const n of nodes) {
+      if (n.cat !== "assistant") continue;
+      if ((n.reasoning ?? 0) > 0) c.thinking++;
+      if ((n.callTokens ?? 0) > 0) c.tools++;
+      if ((n.answerTokens ?? 0) > 0) c.answer++;
+    }
+    return c;
+  }, [nodes]);
 
   useEffect(() => {
     if (!focus || focus.tick === handledFocus.current) return;
@@ -343,7 +383,8 @@ export function ContextBrowserTree({
     () =>
       GROUPS.map((g) => {
         const all = nodes.filter((n) => n.cat === g.key);
-        const hit = q === "" ? all : all.filter((n) => (n.text ?? "").toLowerCase().includes(q));
+        let hit = q === "" ? all : all.filter((n) => (n.text ?? "").toLowerCase().includes(q));
+        if (toolFilter) hit = hit.filter((n) => n.tool === toolFilter);
         const filtered = [...hit].sort(sorter); // v4.80 分类内排序（时间序/大小序）
         const tokens = all.reduce((s, n) => s + n.tokens, 0);
         return { ...g, all: all.length, count: filtered.length, tokens, nodes: filtered };
@@ -384,7 +425,7 @@ export function ContextBrowserTree({
   const isEmpty = nodes.length === 0 && archive.length === 0;
 
   return (
-    <div className="ctx-card p-3">
+    <div className="ctx-card p-3" data-testid="ctx-browser">
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
           <span className="ctx-head-ic" aria-hidden>
@@ -414,9 +455,51 @@ export function ContextBrowserTree({
             onClick={() => pickSort(k)}
           >{t(key)}</button>
         ))}
+              <span className="ml-auto" />
+        {(["tree", "dna"] as const).map((v) => (
+          <button
+            key={v}
+            aria-pressed={view === v}
+            data-testid={`ctx-browser-view-${v}`}
+            className={`cursor-pointer rounded border-0 px-1.5 py-0.5 ${view === v ? "bg-accent/15 text-accent" : "bg-transparent text-fg-faint hover:text-fg"}`}
+            onClick={() => setView(v)}
+          >{v === "tree" ? t("contextview.viewTree") : t("contextview.viewDna")}</button>
+        ))}
       </div>
       {isEmpty ? (
         <div className="py-2 text-[10px] text-fg-faint">{t("contextview.noNodes")}</div>
+      ) : view === "dna" ? (
+        /* v4.542 刀4 DNA 平铺（dsh 同名能力诚实子集）：当前活跃 surface 按
+           模型读取顺序编号平铺；系统提示词/工具定义作分组行收尾；行交互
+           （展开预览/懒加载详情）与树视图共用 NodeRow。 */
+        <div ref={listRef} className="mt-1.5 flex max-h-72 flex-col gap-1 overflow-y-auto pr-0.5" data-testid="ctx-browser-dna">
+          {dnaNodes.map((n, i) => (
+            <div key={n.seq} className="flex items-start gap-1">
+              <span className="w-9 shrink-0 pt-1.5 text-right font-mono text-[9px] text-fg-faint" title={t("contextview.dnaPosTip")}>#{i + 1}</span>
+              <div className="min-w-0 flex-1">
+                <NodeRow
+                  node={n}
+                  open={openText.has(n.seq)}
+                  onToggle={() => toggleText(n.seq)}
+                  detailState={details.get(n.seq)}
+                  detailOpen={openDetails.has(n.seq)}
+                  onToggleDetail={() => toggleDetail(n.seq)}
+                  focused={focusedSeq === n.seq}
+                />
+              </div>
+            </div>
+          ))}
+          {[lastSystem, lastTools].map((n, i) =>
+            n ? (
+              <div key={`tail-${n.seq}`} className="ctx-row flex items-center gap-1.5 border-t border-border-soft/60 px-2 py-1.5 text-[10px]">
+                <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: CAT_COLORS[n.cat] }} aria-hidden />
+                <span className="font-medium text-fg-dim">{t(i === 0 ? "contextview.dnaTailSystem" : "contextview.dnaTailTools")}</span>
+                <span className="font-mono tabular-nums text-fg-faint">≈{fmtTokens(n.tokens)}</span>
+                <span className="ml-auto max-w-[50%] truncate font-mono text-fg-faint" title={n.text}>{n.text}</span>
+              </div>
+            ) : null,
+          )}
+        </div>
       ) : (
         <div ref={listRef} className="mt-1.5 flex max-h-72 flex-col gap-1 overflow-y-auto pr-0.5">
           {groups.map((g) => {
@@ -446,8 +529,26 @@ export function ContextBrowserTree({
                 </button>
                 {isOpen && (
                   <div className="ml-3.5 mt-0.5 flex flex-col gap-1 border-l border-border-soft/60 pl-2">
+                    {g.key === "assistant" && (
+                      /* v4.542 刀4：助手 kind 筛选 chips（dsh Thinking/Tools/Answer
+                         同款；次数=该类行数；一次回复可含多种，再点清除） */
+                      <div className="flex flex-wrap items-center gap-1 py-1" data-testid="ctx-assistant-kinds">
+                        {([["thinking", kindCounts.thinking], ["tools", kindCounts.tools], ["answer", kindCounts.answer]] as const).map(([k, n]) => (
+                          <button
+                            key={k}
+                            type="button"
+                            aria-pressed={assistantKind === k}
+                            disabled={n === 0}
+                            className={`rounded-full border-0 px-1.5 py-px text-[9.5px] ${assistantKind === k ? "bg-accent/20 text-accent" : "bg-bg-soft text-fg-dim hover:text-fg"} ${n === 0 ? "cursor-default opacity-40" : "cursor-pointer"}`}
+                            onClick={() => setAssistantKind((cur) => (cur === k ? null : k))}
+                          >
+                            {t(k === "thinking" ? "contextview.kindThinking" : k === "tools" ? "contextview.kindTools" : "contextview.kindAnswer")} {n}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     {g.count === 0 && <div className="py-1 text-[10px] text-fg-faint">{t("contextview.noCatNodes")}</div>}
-                    {listed.map((n) => (
+                    {(g.key === "assistant" ? listed.filter(kindMatch) : listed).map((n) => (
                       <NodeRow
                         key={n.seq}
                         node={n}
@@ -673,7 +774,7 @@ export function FileActivityTree({ files, onOpenFile, sessionPath, fetchNodeDeta
   ];
 
   return (
-    <div className="ctx-card p-3">
+    <div className="ctx-card p-3" data-testid="ctx-files">
       <div className="flex items-center gap-1.5">
         <span className="ctx-head-ic" aria-hidden>
           <FolderTree size={12} />

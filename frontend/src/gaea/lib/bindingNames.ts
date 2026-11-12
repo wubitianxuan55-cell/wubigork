@@ -105,6 +105,8 @@ export const bindingNames = [
   "GaeaContext",
   "GaeaContextNodeDetail",
   "GaeaContextView",
+  "GaeaContextInsights",
+  "GaeaFamilyEvents",
   "GaeaConvertToPdf",
   "GaeaCostAuditScan",
   "GaeaCostBulkPriceApply",

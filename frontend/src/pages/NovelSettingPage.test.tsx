@@ -347,8 +347,13 @@ describe('NovelSettingPage 一致性检查面板（v4.3f）', () => {
     expect(screen.getAllByText(/时间线/).length).toBeGreaterThan(0)
     expect(screen.getByText(/发现 2 个问题/)).toBeTruthy()
 
-    fireEvent.click(screen.getByRole('button', { name: /重新检查/ }))
-    await waitFor(() => expect(vi.mocked(app.CheckConsistency)).toHaveBeenCalledTimes(2))
+    // 整文件负载下 findByText 返回时初始 load 的 loading 收尾 commit 可能尚未
+    // flush 完，立即点击会被 antd Button 吞掉（calls 不增）——用 waitFor 重试式
+    // 点击：每次轮询重发 click，直到第二次调用落账（隔离单跑首击即中，语义不变）。
+    await waitFor(() => {
+      fireEvent.click(screen.getByRole('button', { name: /重新检查/ }))
+      return expect(vi.mocked(app.CheckConsistency)).toHaveBeenCalledTimes(2)
+    })
   })
 
   it('全部通过时显示成功空态', async () => {

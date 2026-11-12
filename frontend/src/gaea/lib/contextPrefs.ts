@@ -12,12 +12,19 @@ export type CtxTrendGranularity = "step" | "turn";
 export type CtxTrendMode = "total" | "delta";
 export type CtxBrowserSort = "time" | "size";
 export type CtxFileSort = "count" | "recent" | "path";
+export type CtxInsightsRange = "today" | "7d" | "30d" | "all";
 
 export interface ContextPrefs {
   trendGranularity: CtxTrendGranularity;
   trendMode: CtxTrendMode;
   browserSort: CtxBrowserSort;
   fileSort: CtxFileSort;
+  // 洞察页默认时间范围（v4.542 刀6；页上点击范围预设写回——dsh 同款语义：
+  // 预设按钮即默认值，其余视图切换不落盘）。
+  insightsRange: CtxInsightsRange;
+  // 趋势卡耗时曲线开关（v4.542 刀15；上游 settings.durationCurve 同款——
+  // Wave4 落开关时是视图局部态，本刀补持久化）。
+  trendDuration: boolean;
 }
 
 const STORAGE_KEY = "gaea.context.prefs";
@@ -27,6 +34,8 @@ export const CONTEXT_PREFS_DEFAULTS: ContextPrefs = {
   trendMode: "total",
   browserSort: "time",
   fileSort: "count",
+  insightsRange: "30d",
+  trendDuration: false,
 };
 
 const VALID: { [K in keyof ContextPrefs]: readonly ContextPrefs[K][] } = {
@@ -34,6 +43,8 @@ const VALID: { [K in keyof ContextPrefs]: readonly ContextPrefs[K][] } = {
   trendMode: ["total", "delta"],
   browserSort: ["time", "size"],
   fileSort: ["count", "recent", "path"],
+  insightsRange: ["today", "7d", "30d", "all"],
+  trendDuration: [true, false],
 };
 
 /** 读取上下文页偏好；未设置/无 window 时返回全默认，损坏值逐字段回落。 */
@@ -48,7 +59,10 @@ export function loadContextPrefs(): ContextPrefs {
     const out = { ...CONTEXT_PREFS_DEFAULTS };
     for (const k of Object.keys(CONTEXT_PREFS_DEFAULTS) as (keyof ContextPrefs)[]) {
       const v = obj[k];
-      if (typeof v === "string" && (VALID[k] as readonly string[]).includes(v)) {
+      const ok = typeof v === "string"
+        ? (VALID[k] as readonly string[]).includes(v)
+        : typeof v === "boolean" && (VALID[k] as readonly boolean[]).includes(v);
+      if (ok) {
         // 单字段合法才覆盖；其余字段保持默认（逐字段校验，不整包拒绝）。
         (out as Record<string, unknown>)[k] = v;
       }

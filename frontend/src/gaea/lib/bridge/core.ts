@@ -8,6 +8,8 @@ import type {
   ContextInfo,
   ContextNodeDetailView,
   ContextTimeline,
+  ContextInsightsView,
+  FamilyEventStreamView,
   DeliverableRegistryView,
   DirEntry,
   FactBaseView,
@@ -121,6 +123,13 @@ export interface CoreBindings {
   // 单元素数组可选（Go 变参 → JS 数组，与 Trajectory 同形态）：[path]=按该
   // 会话读取（UI 会话切换语义）；缺省/[]=内核当前会话。
   ContextView(sessionPath: string): Promise<ContextTimeline>;
+  // ContextInsights 返回跨会话洞察快照（v4.542 刀2，对标 dsh-context
+  // Context Insights）：KPI/逐日用量/三统计/会话卡。rangeKey:
+  // today|7d|30d|all（未知按 30d 兜底）。
+  ContextInsights(rangeKey: string, includeArchived: boolean): Promise<ContextInsightsView>;
+  // FamilyEvents 返回家族事件流（v4.542 刀10）：main+子代理 transcript
+  // 合并的消息/委派/回报流。sessionPath 单元素数组可选（Go 变参 → JS 数组）。
+  FamilyEvents(sessionPath: string): Promise<FamilyEventStreamView>;
   // Trajectory 返回会话的轨迹时间线（轮次→步骤→工具调用）。sessionPath
   // 单元素数组可选（Go 变参 → JS 数组，与 TaskList 同形态）：[path]=按该
   // 会话读取（UI 会话切换语义）；缺省/[]=内核当前会话。
