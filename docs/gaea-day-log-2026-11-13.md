@@ -355,3 +355,20 @@
 - 工作树回收：junction 摘除+worktree remove force，.worktrees 空置。
 - 坑新增：**包树 exe 直跑冒烟=WebView2 数据目录冲突 800700aa（活壳锁同目录），
   干净树打包流程冒烟一律走装机位**（先例本就如此，本次实撞补记）。
+
+## 20. 办公对话输出重设计批（五卡）回归 main（13:1x）
+
+- **背景**：用户问「办公板块输出卡片的优化跑到哪里去了」——实况=11-12 上下文升级
+  合并时清场移出的另一执行体休眠在制，保全在 `office-conversation-redesign-wip`
+  分支唯一提交 d3342e77（五卡组件族+1266 行样式+222 行设计账+六张截图，标注
+  「未验证未装机；续作请基于本分支」）。用户拍板「所有未提交的合并进来」。
+- **合并**：562d4eb0——仅 progress.md 一处冲突（文档记忆两侧都保留：dsh-office
+  四波段+输出重设计保全段）；代码文件全部 auto-merge（App.tsx/三语 locale）； 
+  OfficeB.d.ts/.js 为 CRLF 幻影 checkout 净；models.ts 先补 OfficeComView 再生件
+  提交（波3 收口漏账）再合并。
+- **验证**：五卡定向 35 例+Transcript 两文件+Message+officeTurnProjection+
+  officeLiveStore 共 121 例绿；tsc 干净；全量构建 43.65s+冒烟 200+**INSTALL OK**
+  （exe `365a65d49d4d7667…`）；Go 零触碰（分支 27 文件全 frontend/docs）。
+- **分支处置**：office-conversation-redesign-wip 已合并删除（d3342e77 可达自
+  main）；卡片视觉走查挂用户实弹（在制「未验证」状态本批补装但不代写验收——
+  五卡是视觉件，用户目检最直接）。
