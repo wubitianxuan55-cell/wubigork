@@ -476,3 +476,11 @@
 - exe `11e0476c…` 冒烟 200 **INSTALL OK**（装机=包版哈希一致）。
 - 教训：用户对「位置」类反馈要一次问清锚点（段末 vs 窗口底 vs 面板），布局级
   改动先给一句话方案再动刀——本轮抽卡方向白做一轮。
+
+## 29. 交付登记补 doc 键（16:3x）
+
+- 盲区修复（19304744，exe `92897b88…` 冒烟 200 装机）：ExtractDeliverablePaths
+  写类提取键加 **doc**（office_save 显式 doc 保存的文档进交付登记表/Dock/右侧
+  面板）；golden 用例钉 office_open/office_edit 不登记、office_save doc 登记。
+  doc 缺省（纯 {} 沿用最近文档）仍无可提取参数——已知盲区记录（回执带 Saved
+  路径，模型侧可见）。
