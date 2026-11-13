@@ -241,11 +241,6 @@ func mapGaea(n string) string {
 
 // explicitOverrides 无法用前缀表达的映射。
 var explicitOverrides = map[string]string{
-	// P1-4 WPS 面板停靠三绑定（2026-11-13）：Wps 前缀无既有规则会落默认 core，
-	// 点名归 office（语义=办公域面板化，前端 OfficeBindings 分域接口）。
-	"WpsDockList":    "office",
-	"WpsDockApply":   "office",
-	"WpsDockRestore": "office",
 	// 众神殿刀3 主源向导（2026-11-05）：搜索设置三绑定挂 *App，点名归 office。
 	// 绑定面改动当时与他方在途同树，未整跑生成器（手写委托同构入 bindings_office.go），
 	// 覆盖表先在册——下轮整跑输出与本批手写收敛。

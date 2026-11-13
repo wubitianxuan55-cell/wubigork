@@ -26,7 +26,6 @@ import { isScheduleFilePath, parseSchedSummaryDetail } from "../../schedule/gsch
 import { usePreviewProgress } from "../hooks/usePreviewProgress";
 import { useOfficeLive } from "../hooks/useOfficeLive";
 import { OfficeLiveBadge } from "./OfficeLiveBadge";
-import { WpsDockControl } from "./WpsDockControl";
 import { useToast } from "./Toast";
 // 3a：CodeMirror 编辑器懒加载 chunk；chunk 加载失败（Suspense 之外的
 // ErrorBoundary）或运行时挂载失败均回落纯 textarea，编辑能力永不丢失。
@@ -386,10 +385,8 @@ export function FilePreview({
           </span>
         )}
         {/* 波3 COM 实时编辑胶囊：本文件=「此文件正在被 AI 实时编辑」；他文件=
-            正在编辑文档名+进度，点击打开那份的预览（U2 置前同入口）。 */}
+            正被编辑文档名+进度，点击打开那份的预览（U2 置前同入口）。 */}
         <OfficeLiveBadge relPath={relPath} />
-        {/* P1-4 WPS 面板停靠：把 WPS 文档窗口摆到本面板矩形上（缩放跟随/卸载还原）。 */}
-        <WpsDockControl />
         <button
           className={HEAD_BTN}
           onClick={() => app.RevealWorkspacePath(relPath).catch(() => {})}

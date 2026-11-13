@@ -921,15 +921,3 @@ export function WebSearchSettingsSet(arg1, arg2, arg3) {
 export function WebSearchTestConnection() {
   return window['go']['app']['OfficeB']['WebSearchTestConnection']();
 }
-
-export function WpsDockApply(arg1, arg2, arg3, arg4, arg5, arg6) {
-  return window['go']['app']['OfficeB']['WpsDockApply'](arg1, arg2, arg3, arg4, arg5, arg6);
-}
-
-export function WpsDockList() {
-  return window['go']['app']['OfficeB']['WpsDockList']();
-}
-
-export function WpsDockRestore(arg1) {
-  return window['go']['app']['OfficeB']['WpsDockRestore'](arg1);
-}

@@ -6092,28 +6092,6 @@ export namespace app {
 	        this.current = source["current"];
 	    }
 	}
-	export class WpsWindowInfo {
-	    hwnd: number;
-	    proc: string;
-	    class: string;
-	    title: string;
-	    visible: boolean;
-	    isDocWin: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new WpsWindowInfo(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.hwnd = source["hwnd"];
-	        this.proc = source["proc"];
-	        this.class = source["class"];
-	        this.title = source["title"];
-	        this.visible = source["visible"];
-	        this.isDocWin = source["isDocWin"];
-	    }
-	}
 	export class XlsxChartInput {
 	    rel: string;
 	    sheet: string;

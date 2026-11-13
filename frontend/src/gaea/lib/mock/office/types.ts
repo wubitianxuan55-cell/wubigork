@@ -28,8 +28,6 @@ export type OfficeMethods = Pick<
   | "DocumentLint" | "PptxOutline"
   // 众神殿刀3：搜索主源设置三绑定。
   | "WebSearchSettingsGet" | "WebSearchSettingsSet" | "WebSearchTestConnection"
-  // P1-4 WPS 面板停靠三绑定（dock 档；WpsDockControl 消费）。
-  | "WpsDockList" | "WpsDockApply" | "WpsDockRestore"
   | "ExportDeliverable" | "ConvertToPdf" | "CrossEmbed" | "RevealWorkspacePath"
   | "SavePastedImage" | "SaveAttachmentFile" | "AttachmentDataURL"
   // 分块上传三段（超大附件过桥形态；Begin 发 token → Append 吞片 → Finish 落名）。
