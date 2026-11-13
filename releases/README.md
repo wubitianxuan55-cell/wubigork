@@ -16,8 +16,9 @@
 
 **只保留最近 5 个版本的 exe**（当前实存二进制 = v4.529.1 / v4.529.0 / v4.528.1 / v4.528.0 / v4.527.0），
 更早版本的二进制已删除——**身份以 `SHA256SUMS-vX.Y.Z.txt` 为准**（哈希可核对，二进制不再留存；
-`releases/` 现有 **538 份校验和**（截至 2026-11-13 实测递归：根目录 36 + `archive/` 494
-+ 版本包目录 8〔F0 起每预览包自带 `SHA256SUMS-<commit>.txt`〕；
+`releases/` 现有 **540 份校验和**（截至 2026-11-13 实测递归：根目录 36 + `archive/` 494
++ 版本包目录 10〔F0 起每预览包自带 `SHA256SUMS-<commit>.txt`；11-13 新增 officecom
+f5576986/officecom2 e0461f53 两包〕；
 `node scripts/check-docs.mjs` 对账），覆盖到 v4.99.0 及更早的散落批次）。
 下次构建发版后，把新产物放入本目录并删掉第 6 新的那一版即可（旧 exe 不入库，纯本地磁盘操作）。
 
@@ -25,8 +26,11 @@
 
 里程碑版本随发版打源码包**归档**（P2-3 后不入库，只留在磁盘）：`git archive --format=tar.gz v<X.Y.Z> -- . ':(exclude)releases/wubigork-*'`
 → `wubigork-vX.Y.Z-source.tar.gz`，在当版 `SHA256SUMS-vX.Y.Z.txt` 双行登记
-（exe 行 + source 行含大小/文件数）。已有 38 个（截至 2026-11-09 实测，
-`node scripts/check-docs.mjs` 对账；源码包不入库，只在与包同机的环境对账）：
+（exe 行 + source 行含大小/文件数）。已有 45 个（截至 2026-11-13 实测，
+`node scripts/check-docs.mjs` 对账；源码包不入库，只在与包同机的环境对账；
+11-10~11-13 新增七个预览包〔a2d7 317568d4/codeatlas b27066b9/chatgenui
+4d66818b/bettersidebar f49ea150/contextup4 ecef54cd/officecom f5576986/
+officecom2 e0461f53〕）：
 v4.219 / v4.292 / v4.304 / v4.323 /
 v4.333 / v4.345 / v4.355 / v4.372 / v4.399 / v4.411（2026-09-23 补打：画室编辑力八连发
 v4.392~v4.399 里程碑）+ v5.18.0（早期品牌期随手归档）+ v4.454.0-23-ge7d1768d

@@ -1,3 +1,34 @@
+## 灵犀蒸馏 P0 批接续收官 · 2026-11-13（装机，接另一执行体停点）
+
+DSH 灵犀逆向批（lingxi-desktop 1.3.36/app-server 5.24.0 asar 逆向）中途停止，
+工作树留有调研三档+P0 全量代码；本会话接续收尾验证与落账。事实源
+`docs/gaea-lingxi-re-distill-2026-11.md` + 19 条优势档 + 落地计划档；
+`re-lingxi/` 脚本与报告入库（122MB 解包体量 .gitignore 排除）；
+`tools/wpsdock` P1-4 前置探针入库（go build 实证）。
+
+- P0-1 交付契约硬化：`fileLinks.parseFilePathHref` 伪协议还原（file:///、
+  local-file:///、sandbox:///；UNC/盘符/POSIX 形态，解码失败不抛）+
+  Markdown.tsx FileChip 先还原再判 + `boot/delivery_prompt.go` 交付与收尾
+  纪律段无条件追加（链接禁反引号/代码块+只承诺工具成功过的事+收尾三段+
+  自检四问），SingleModelPrompt 逐字节不动。
+- P0-2 受控宏逃生舱 A 档：`office_macro` 宏白名单（word_replace_all/
+  sheet_replace_all）确定性展开成既有 office_edit ops，同一条 COM 路径；
+  不给任意脚本、零新增执行面（弃 VBA 注入 B 档）。
+- P0-3 选区上下文：OfficeHelper.cs `Selection()` 三应用（异常恒
+  selected=false 不抛）+ `office_selection` 只读工具 + 划词即改提示词段
+  （replace_text find/expect 防错位）；前端捕获胶囊不做（按需读取替代）。
+- P0-4 提示词补齐：skill 硬截断补全路径注记 + compact 交接单三要素
+  （纯文本+进行中+前序摘要继承）+ office_open 工作区边界显式约束。
+- P0-5 steer 确认=已有实锤（steerQueue+MidTurnSteerPrefix+收尾闸）不立项。
+- 三处纪律：RegistryMap/spacetags/registry-map 文档补 office_macro+
+  office_selection；bindings 再生补 models.ts overflow 字段（六轮批漏再生
+  对账）。
+- 验证：go vet 零红+boot/skill/agent/tool 全绿+internal/app 定向绿+
+  fileLinks 20 例+tsc -b 绿+vite 24.8s+wails 1m07.6s+冒烟 200+装机
+  INSTALL OK PID 47776（19:04:35>19:04:18）。
+- 余：P1-1~P1-4 挂拍板（阻塞=Python 运行时决策）；#12 参数错误三要素全量
+  改文案挂池；IM deliver_result 留 P2 文档预留。
+
 ## dsh-office COM 实时协同档波1 落地 · 2026-11-13（装机）
 
 copylee711/dsh-office v1.2.0（MIT，2069af2d）蒸馏：`internal/office/comhelper/`（OfficeHelper.cs

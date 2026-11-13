@@ -16,7 +16,7 @@
 |---|---|
 | 形态 | DSH（DeepSeek Harness）Cordis 插件 `@copylee/dsh-office`，npm 发布 |
 | 许可 | MIT（移植需保留版权头） |
-| 规模 | src 1.6k 行 TS + helper/OfficeHelper.cs 9893 行 C# 5 + docs/verification.md 1075 行 |
+| 规模 | src 1.6k 行 TS + helper/OfficeHelper.cs 9893 行 C# 5 + 上游 docs 下 verification.md 1075 行（上游仓库文件，非本仓） |
 | 成熟度 | 88 commits、v1.2.0、24 stars；verification.md 是 0.1.0→1.2.0 逐版本真机验收账（每版「改动/实测/没验证的」三段），工程纪律与本项目同构 |
 | 平台 | 仅 Windows；微软 Office 或 WPS Office；.NET Framework 4.8（Win10/11 自带） |
 

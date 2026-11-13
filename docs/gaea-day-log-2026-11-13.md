@@ -529,3 +529,48 @@
   （上款真回归已修）+SchedulingSection/SecurityPanel/DatabaseLibrary 两轮
   互异且单跑全绿=负载期假红家族（先例在册）。
 - 余：真机目检挂用户；未动 wailsjs 生成件与 releases 留树改动。
+
+## 33. 灵犀蒸馏 P0 批接续收官（18:3x~19:1x，接另一执行体停点）
+
+- DSH 在灵犀逆向批中途停止，工作树留有未提交的调研三档+P0 全量代码与测试；
+  本会话接续完成收尾：验证（Go+前端+构建+冒烟+装机）→落账→提交。调研事实源
+  `docs/gaea-lingxi-re-distill-2026-11.md`（asar 逆向，目标 lingxi-desktop
+  1.3.36/app-server 5.24.0）+19 条优势档+落地计划档；`re-lingxi/` 脚本与四份
+  报告入库（asar 解包 122MB 体量走 .gitignore 排除）；`tools/wpsdock` 探针
+  （P1-4 前置，go build 实证）入库。
+- **P0-1 交付契约硬化**：`fileLinks.parseFilePathHref` 伪协议还原（file:///
+  local-file:///、sandbox:/// 三类，UNC/POSIX/盘符形态+解码失败不抛），
+  Markdown.tsx FileChip 先还原再判（修「链接带协议打不开预览」）；
+  `boot/delivery_prompt.go` 交付与收尾纪律段无条件追加（链接禁反引号/代码块+
+  只承诺工具成功过的事+收尾三段+结束前自检四问），不动 SingleModelPrompt。
+- **P0-2 受控宏逃生舱（A 档）**：`office_macro` 工具——宏白名单
+  （word_replace_all/sheet_replace_all）确定性展开成既有 office_edit ops，
+  复用同一条 COM 执行路径；不给任意脚本、零新增执行面（弃 B 档 VBA 注入）。
+- **P0-3 选区上下文**：OfficeHelper.cs `Selection()`（Word 选区文字+段落号+
+  前后文/Excel 区域+工作表+首格/PPT 页+形状名+文字；任何异常 selected=false
+  绝不抛）+ `office_selection` 只读工具 + office_live_prompt「划词即改」段
+  （最小改动+replace_text find/expect 防错位）。
+- **P0-4 提示词级补齐**：skill/index.go 硬截断时补「清单不完整+补全路径」
+  注记；agent/compact.go 交接单三要素（纯文本禁工具调用+进行中+下一具体动作
+  +前序摘要继承校验）；office_open path 补「必须位于工作区内」显式约束。
+- **P0-5 steer 确认=已有实锤不立项**：steerQueue+MidTurnSteerPrefix+
+  intake 收尾闸全在（agent.go），灵犀 steer 无可增量面。
+- 三处纪律全走：RegistryMap/spacetags/registry-map 文档各补 office_macro+
+  office_selection 两行；gaea_handler 装配点两行；bindings 再生（models.ts
+  补 overflow 字段=六轮实弹批漏再生的对账）。
+- 验证：go vet 零红；boot/skill/agent/tool 四包全绿；internal/app 定向
+  （Office/Selection/Macro/SpaceTags/RegistryMap）13.6s 绿；fileLinks 20 例
+  绿；tsc -b 绿；前端 vite build 24.8s；wails build 1m07.6s（ucrt64+CGO）；
+  冒烟 /api/health 200（PID 38200 已回收）；装机 INSTALL OK 四件 sha256 一致，
+  PID 47776 启动 19:04:35>构建 19:04:18。
+- 余/偏差：P0-3 的「前端已捕获选区胶囊」不做——实现改为 agent 按需调
+  office_selection，无面板捕获态，三态语义由工具回执承担；IM deliver_result
+  语义留 P2 文档预留（本批只在计划档注记）；#12 参数错误三要素全量逐工具
+  改文案挂拍板池（新工具已按该风格写错误）；P1-1~P1-4 按 plan 挂拍板，
+  阻塞点=Python 运行时决策。
+- 捎带卫生三件（check-docs 538/540 与 38/45 两计数漂移+悬空引用各为前批欠账）：
+  releases/README 两计数刷新（540 份校验和/45 个源码包，注记 11-10~11-13 七预览
+  包与两新包）；dsh-office 调研档 `docs/verification.md` 悬空引用改「上游 docs 下」
+  （该文件属上游仓库非本仓）；五卡设计账 `gaea-office-conversation-output-redesign
+  -2026-11.md` 补 docs/README 索引行（d3342e77 并入时漏登记）。check-docs 复跑
+  OK（孤儿 0/悬空 0）。
