@@ -201,6 +201,17 @@ export default function App() {
     workspaceResizing, effectiveWorkspaceWidth,
     handleAutoWidenWorkspace, startWorkspaceResize,
   } = useWorkspaceLayout({ initialPanelState, rightTab, currentSessionKey, effectiveSidebarWidth });
+  // 2026-11-14 CAD/进度计划视图窄栏适配：甘特（样例 ~950px）与图纸画布在
+  // 340px 默认宽下只能横向滚动硬看——激活沿自动加宽到舒适宽度（复用 v4.27
+  // handleAutoWidenWorkspace，560 封顶 + 视口收敛）。**每会话一次性**：此后
+  // 用户拖窄不回弹（ref 不重置），不抢「最后一次拖拽胜出」的宽度偏好。
+  const autoWidenDoneRef = useRef(false);
+  useEffect(() => {
+    if (autoWidenDoneRef.current) return;
+    if (rightTab !== "cad" && rightTab !== "schedule") return;
+    autoWidenDoneRef.current = true;
+    handleAutoWidenWorkspace();
+  }, [rightTab, handleAutoWidenWorkspace]);
   // 紧凑模式只读持久值（2026-11-13 顶栏合并：切换钮已撤，余量仅撑 footer 密度与 CompactContext）
   const [compactMode] = useState(() => readWorkbenchValue("gaea.compactMode") === "1");
   const [scrollToTurn, setScrollToTurn] = useState<((turn: number) => void) | null>(null);

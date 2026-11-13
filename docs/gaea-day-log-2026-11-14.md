@@ -146,3 +146,20 @@
 - 装机：提交 801cac31 干净工作树重建（pnpm 17.2s/Vite 40.60s/wails 51.8s），
   装机位 exe sha256 755BD2D6…（build 11/14 01:50:08）=工作树产物，smoke
   /api/health 200（PID 47784 已回收），工作树已回收。
+
+## 8. 续刀四：CAD/进度计划视图激活自动加宽（窄栏适配）
+
+- 窄栏度量（340px 默认宽）：甘特视图横向溢出 ~950px、工具条/图框条全靠横向
+  滚动硬看——内容本质宽，滚动感差。
+- 方案：激活沿（rightTab→cad/schedule）复用 v4.27 handleAutoWidenWorkspace
+  自动加宽到 560（视口收敛封顶）。**每会话一次性**（autoWidenDoneRef 不重置）：
+  此后用户拖窄不回弹，不抢「最后一次拖拽胜出」的宽度偏好语义。
+- 实证：mock 重置宽度 340 → 激活进度计划 → grid 列 264/660/560、pane 560
+  稳定（DOM 级）；状态层会话记录 width:560、CSS var 560 双证。
+- 坑 8：dev 期编辑源文件触发 HMR 换 i18n 模块实例，懒 chunk 拿到新 context
+  对象 → 整页「useI18n must be used within a LocaleProvider」假崩（重启 dev
+  server 后不复现，60s 长窗零错误）——产物单 bundle 无此问题；走查遇整页
+  i18n 崩先查 HMR 时序再怀疑代码。
+- 坑 9：mock 环境会话/视口/面板开合被周期性重置（running 会话事件+更新横幅），
+  截图式走查不稳，DOM 度量（单格内激活+采样）才是可靠姿势。
+- 门禁：tsc/ESLint 0；App.palette/cadOpen/workspaceTabs 43 例绿。
