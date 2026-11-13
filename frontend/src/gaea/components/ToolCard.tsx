@@ -10,7 +10,8 @@ import {
 } from "../icons";
 
 
-import { ICONS, mcpOr } from "./tool_icons";
+import { mcpOr } from "./tool_icons";
+import { lxToolIcon } from "./lingxiIcons";
 import { useT } from "../lib/i18n";
 import { useCompact } from "../hooks/useCompact";
 import { useGSAPCollapse } from "../lib/useGSAPCollapse";
@@ -153,7 +154,7 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
   }, [memoryPeek, rawSubject]);
   // Codex 式 diffstat 芯片：编辑类工具行内显示 +N−M（不再重复进斜体摘要）
   const stat = useMemo(() => diffStatFor(item.name, item.args), [item.name, item.args]);
-  const Icon = ICONS[item.name] ?? mcpOr(item.name);
+  const Icon = lxToolIcon(item.name) ?? mcpOr(item.name);
   const nested = subcalls ?? [];
   const hasNested = nested.length > 0;
 
@@ -262,7 +263,8 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
         </span>
         <Icon
           className="office-tool-card__icon shrink-0"
-          size={chevronSize + 2}
+          width={chevronSize + 2}
+          height={chevronSize + 2}
           aria-hidden
         />
         <span className="office-tool-card__identity">

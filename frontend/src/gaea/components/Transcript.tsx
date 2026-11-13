@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components -- buildSegments 纯函数导出供测试与消息渲染复用 */
 import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { AlertCircle, ArrowDown, Ban, Brain, CheckCircle, ChevronRight, FileText, ListTree, Loader } from "../icons";
+import { AlertCircle, ArrowDown, Ban, CheckCircle, ChevronRight, FileText, ListTree, Loader } from "../icons";
+import { LxThought } from "./lingxiIcons";
 import type { Item } from "../lib/store";
 import { useItems, useTurnStartAt } from "../lib/store";
 import { t, useT } from "../lib/i18n";
@@ -441,7 +442,7 @@ function InlineReasoning({ item, metaLines }: { item: AssistantItem; metaLines?:
         aria-expanded={open}
         aria-controls={bodyId}
       >
-        <Brain size={12} className="reasoning__icon" />
+        <LxThought width={12} height={12} className="reasoning__icon" />
         <span className="reasoning__label">{running ? t("msg.thinkingRunning") : t("reasoning.label")}</span>
         <span className="reasoning__preview" title={preview || undefined}>{preview}</span>
         {metaLines != null && <span className="reasoning__meta">{t(metaLines === 1 ? "reasoning.metaLineOne" : "reasoning.metaLines", { n: metaLines })}</span>}
@@ -624,7 +625,7 @@ export const ProcessCard = memo(function ProcessCard({
           if (it.id === lastPhaseId) break;
           out.push(
             <div key={it.id} className="office-process-step" data-kind="phase">
-              <div className="phase"><Brain size={12} /><span>{it.text}</span></div>
+              <div className="phase"><LxThought width={12} height={12} /><span>{it.text}</span></div>
             </div>,
           );
           break;
@@ -706,7 +707,7 @@ export const ProcessCard = memo(function ProcessCard({
               </div>
             ) : (
               <div key={it.id} className="office-process-card__recent-row" data-kind="phase">
-                <div className="phase"><Brain size={12} /><span>{(it as { text?: string }).text}</span></div>
+                <div className="phase"><LxThought width={12} height={12} /><span>{(it as { text?: string }).text}</span></div>
               </div>
             ),
           )}

@@ -55,13 +55,10 @@
 .office-process-card__head:hover { background: var(--lx-fill); }
 .office-process-card__rail { display: none; }
 .office-process-card__icon {
-  width: 18px; height: 18px;
-  border: 0; border-radius: 4px;
-  background: transparent;
-  color: var(--lx-icon3);
+  display: none; /* 灵犀折叠条无图标：箭头+文本即全部（showcase 基准） */
 }
 .office-process-card[data-running="true"] .office-process-card__icon {
-  border: 0; background: transparent; color: var(--accent);
+  display: none;
 }
 .office-process-card__meta {
   font-size: 13px;
