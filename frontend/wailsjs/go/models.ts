@@ -3990,6 +3990,26 @@ export namespace app {
 	        this.chapter_count = source["chapter_count"];
 	    }
 	}
+	export class OfficeComView {
+	    suite: string;
+	    silent: boolean;
+	    follow: boolean;
+	    typing: boolean;
+	    render_width: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new OfficeComView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.suite = source["suite"];
+	        this.silent = source["silent"];
+	        this.follow = source["follow"];
+	        this.typing = source["typing"];
+	        this.render_width = source["render_width"];
+	    }
+	}
 	
 	
 	export class PermissionsView {
@@ -4940,6 +4960,7 @@ export namespace app {
 	    bypass: boolean;
 	    promptPrefix: string;
 	    promptSuffix: string;
+	    office_com?: OfficeComView;
 	
 	    static createFrom(source: any = {}) {
 	        return new SettingsView(source);
@@ -4960,6 +4981,7 @@ export namespace app {
 	        this.bypass = source["bypass"];
 	        this.promptPrefix = source["promptPrefix"];
 	        this.promptSuffix = source["promptSuffix"];
+	        this.office_com = this.convertValues(source["office_com"], OfficeComView);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
