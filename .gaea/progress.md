@@ -1,3 +1,28 @@
+## CAD/进度计划回归右栏一级 Tab · 2026-11-14
+
+按用户拍板把办公板块的 CAD 识图与进度计划从 ToolSheet 临时面板改到右侧面板
+成为独立标签，办公板块可直接打开 CAD：
+- `lib/workspaceTabs.ts` 清单新增 `cad`（可选使用红线 defaultEnabled:false，
+  「CAD 图纸」）与 `schedule`（默认启用，「进度计划」）两个一级 Tab；命令面板
+  /欢迎网格/＋下拉三入口由注册表与启用集自动派生（显式点击=启用并打开）。
+- `lib/sidebarRegistry.ts` RENDERERS 以 React.lazy 接线 CadPanel(pane 变体)/
+  ScheduleTool，WorkspacePanelContext 恢复 `onAsk`（App 接 send）——问图纸/
+  问这个计划从右栏直发对话。
+- App 退役 activeTool/ToolSheet/§7.3 检查器 rail 宿主三件套：工具下拉、命令
+  面板、OPEN_TOOL 单通道、首页 tile 冷启补开统一走 `openToolTab`（停用先启用
+  再 openPaneView）；显式 cmd-schedule/cmd-tool-cad 退役（注册表循环已派生）。
+- 新增 `lib/cadOpen.ts`：dwg/dxf 文件打开链统一路由——usePreviewPanel.openPaneFile
+  与 sidebarRegistry.openPaneFileTab 双口拦截，启用可选卡+开视图 tab+请求总线；
+  CadPanel 订阅总线按一次性消费装载（busy 暂存不丢，消费即清不重放）。
+- ToolSheet.tsx/.test.tsx 删除；App.palette 契约锁改新语义；workspaceTabs/
+  sidebarRegistry 契约测试随 7 Tab 清单同步（cad 免全禁兜底例外）。
+- 验证：`tsc -b` 绿；定向 15 文件 92 例 + 契约 4 文件 50 例绿；ESLint 改动面 0；
+  knip 无新增欠账；全量 vitest 4414 例复核=本刀零交集（余红=DSH 同树在途
+  context/fleet 族 + DatabaseLibrary 负载假红复跑绿）。装机=干净树 fd9caa06
+  构建（exe sha256 3C0CDF4D…，build 11/14 00:57:28），smoke /api/health 200
+  （PID 已回收）；坑=gaea_install.ps1 SourceDir 默认主树，工作树装机须显式
+  -SourceDir。详见 docs/gaea-day-log-2026-11-14.md。
+
 ## DSH Context / Fleet UX 对齐 · 2026-11-13（代码候选）
 
 按用户要求不再从截图猜测，回源 `bowenliang123/dsh-context v0.84.1`

@@ -163,3 +163,7 @@
 - 坑 9：mock 环境会话/视口/面板开合被周期性重置（running 会话事件+更新横幅），
   截图式走查不稳，DOM 度量（单格内激活+采样）才是可靠姿势。
 - 门禁：tsc/ESLint 0；App.palette/cadOpen/workspaceTabs 43 例绿。
+- 装机：dc1eb17f 干净工作树重建，装机位 exe sha256 E65681B6…（build
+  11/14 02:08:17）=工作树产物，smoke /api/health 200（PID 40776 已回收），
+  工作树已回收；progress.md 本刀段落以**行级补丁**单独提交（0bf1c7e7 首版
+  hunk 过滤吞了相邻 DSH 段头两行→回退重做，行级配方更稳）。
