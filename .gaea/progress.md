@@ -1,3 +1,21 @@
+## dsh-office COM 实时协同档波1 落地 · 2026-11-13（装机）
+
+copylee711/dsh-office v1.2.0（MIT，2069af2d）蒸馏：`internal/office/comhelper/`（OfficeHelper.cs
+逐字节照搬 + go:embed + csc.exe 编译缓存 `/codepage:65001` 偏离 + Go stdio JSON 行协议
+client）+ `internal/app/office_com_tools.go` 八工具（open/status/read/edit/render/save/
+close/help）gaeaExtraTools 条件装配（无 Office/WPS 整族不注册）；三处纪律（RegistryMap/
+spacetags/registry-map 文档）+evidence isWriterTool 认账 office_save+前端 OFFICE_WRITE_TOOLS
+认账。工作区边界由 officeComResolvePath 单点收口（波1=工作区内文档）。捎带修两生产 bug：
+publishguard_ledger 账本 Write 前 Close（JSONL 恒 0 字节静默失写）+ workbench WriteText
+ms 粒度 CAS 失明（mtime 顶基线+1 保单调）+ test-related 排除 scripts/（ignore-tag setup
+failed）。验证：协议真进程 4 例+工具层 9 例+守卫族绿+真机冒烟全链（csc 编译 helper
+→open→edit 中文无 mojibake→save→render→read→close）+lint 10 清零（guides.go 文件级豁免
+misspell=Excel 函数名）+tsc/vitest 303 绿；exe dfd1db30 冒烟 200 装机 PID 44252（不抬版）。
+波2/3 余项挂拍板池：WPS 公式 math 腿/Excel data work/PPT 版式引擎（~4100 行）/体验件
+（卡片/跟随/静默/settle）/preferLive 引导回/unseen 总览闭环/克隆底稿去留。
+调研唯一事实源=docs/gaea-dsh-office-distill-research-2026-11.md；当日账=day-log §15。
+
+
 ## G2 只读提交图 · 2026-11-13（凌晨，分支候选）
 
 - **绑定 746→748**：`GaeaGitGraph(skip,limit,branch)`（分页提交+parents/%D 装饰+本地分支清单；branch 严格校验防 rev/选项注入，中文分支放行）+ `GaeaGitCommitDetail(hash)`（消息体/引用/parents+numstat 二进制 -1+4MB diff 预算截断+合并诚实空 diff；hash 十六进制校验）。只读边界：不 checkout/fetch/push。

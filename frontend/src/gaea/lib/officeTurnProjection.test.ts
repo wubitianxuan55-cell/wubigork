@@ -575,4 +575,10 @@ describe("officeTurnProjection P1a office 工具族投影白名单（裁决 L9 �
   it("office_generate 的 output_path 计入写路径提取", () => {
     expect(extractOfficeWritePaths("office_generate", JSON.stringify({ output_path: "报告/总结.docx" }))).toEqual(["报告/总结.docx"]);
   });
+  it("dsh-office COM 档：office_save 在白名单且 path 计入写路径提取", () => {
+    expect(OFFICE_WRITE_TOOLS.has("office_save")).toBe(true);
+    expect(extractOfficeWritePaths("office_save", JSON.stringify({ path: "报告/总结.docx" }))).toEqual(["报告/总结.docx"]);
+    // office_edit 不落盘，不在白名单。
+    expect(OFFICE_WRITE_TOOLS.has("office_edit")).toBe(false);
+  });
 });

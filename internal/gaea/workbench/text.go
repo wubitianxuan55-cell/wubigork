@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/gaea/gaea/internal/gaea/fileutil"
@@ -214,6 +215,18 @@ func WriteText(root, rel, content string, expectedMtimeMs int64) (WriteResult, e
 	written, err := os.Stat(abs)
 	if err != nil {
 		return WriteResult{}, nil
+	}
+	// Windows ms 粒度 CAS 失明防线（2026-11-13 实锤，先例=config 全零事件
+	// 「同纳秒互覆备份须 CAS 递增时间戳」）：原子写（temp+rename）落在打开
+	// 基线的同一毫秒内时，下一次保存的 stale 判定（UnixMilli 相等）会放过
+	// 外部改动——把落盘 mtime 顶到基线之后，保基线链严格单调，编辑器拿到的
+	// 新基线即递增后的值。
+	if mod := written.ModTime(); expectedMtimeMs != 0 && mod.UnixMilli() <= expectedMtimeMs {
+		next := time.UnixMilli(expectedMtimeMs + 1)
+		_ = os.Chtimes(abs, next, next)
+		if bumped, serr := os.Stat(abs); serr == nil {
+			written = bumped
+		}
 	}
 	return WriteResult{
 		Path:    slashRel(cleanRel),

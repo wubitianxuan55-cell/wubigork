@@ -32,6 +32,12 @@ linters:
         linters:
           - staticcheck
         text: '^(QF1|S1|ST1)'
+      # dsh-office COM 档操作清单（internal/app/guides.go）= 上游 GUIDES 逐字
+      # 机械提取（升级=重新提取 diff 上游），模型操作教学里的 AVERAGEIFS 等
+      # 是 Excel 公式函数名，非拼写错误——按文件豁免 misspell。
+      - path: internal/app/guides\.go$
+        linters:
+          - misspell
 
 formatters:
   enable:

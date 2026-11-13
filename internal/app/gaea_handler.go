@@ -880,7 +880,7 @@ func gaeaLevelName(l event.Level) string {
 // office 工具族（office_generate + 四类写）同点装配，不新开装配源
 // （2026-11-09 众神殿 pan_1794234593182 裁决 action-3）。
 func gaeaExtraTools(a *App) []tool.Tool {
-	return append([]tool.Tool{
+	tools := []tool.Tool{
 		imageGenTool{a: a},
 		diagramTool{a: a},
 		routineLLMTool{a: a},
@@ -901,5 +901,20 @@ func gaeaExtraTools(a *App) []tool.Tool {
 		officeXlsxApplyTool{a: a},
 		// P4 持久任务中心：批量转 PDF 提交型工具（断窗续跑/可取消/可重试）。
 		officeBatchTool{a: a},
-	}, gaeaSpecialistTools(a)...)
+	}
+	// dsh-office COM 实时协同档（波1）：本机装了 Office/WPS 才注册，无则
+	// 整族不出现、无头管线照旧（docs/gaea-dsh-office-distill-research-2026-11.md）。
+	if officeComAvailable() {
+		tools = append(tools,
+			officeComOpenTool{},
+			officeComStatusTool{},
+			officeComReadTool{},
+			officeComEditTool{},
+			officeComRenderTool{},
+			officeComSaveTool{},
+			officeComCloseTool{},
+			officeComHelpTool{},
+		)
+	}
+	return append(tools, gaeaSpecialistTools(a)...)
 }

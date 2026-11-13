@@ -41,7 +41,15 @@ if ($goFiles.Count -gt 0) {
         $dir = $_ -replace '/[^/]+$', ''
         if ($dir -eq $_ -or $dir -eq '') { '.' } else { "./$dir" }
     } | Sort-Object -Unique)
-    Write-Host ("[test-related] Go 相关包 {0} 个：{1}" -f $pkgs.Count, ($pkgs -join ' '))
+    # scripts/ 全目录 //go:build ignore 惯例（go run 直跑，无包语义）——卷进
+    # go test 必 [setup failed]（2026-11-13 office 冒烟脚本实撞；code_atlas_doc
+    # 同先例）。排除之。
+    $pkgs = @($pkgs | Where-Object { $_ -ne './scripts' })
+    if ($pkgs.Count -eq 0) {
+        Write-Host '[test-related] Go 改动仅在 scripts/（ignore-tag），无包可测。'
+    } else {
+        Write-Host ("[test-related] Go 相关包 {0} 个：{1}" -f $pkgs.Count, ($pkgs -join ' '))
+    }
     Write-Host '[test-related] go test（吃结果缓存，无 -count=1）'
     & go test @pkgs
     if ($LASTEXITCODE -ne 0) { $failed = 1 }

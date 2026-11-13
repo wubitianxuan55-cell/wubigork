@@ -203,3 +203,41 @@
 - `.worktrees/pkg-f49ea150`（F0 预览包构建树，批已收官包已留盘）按惯例回收：摘
   node_modules junction（主树目标完好）→ 树内 M 文件验明纯 CRLF 幻影（全树 diff 内容行
   =0）→ `git worktree remove --force`。worktree 列表余 main+两外线，.worktrees 空置。
+
+## 15. dsh-office COM 实时协同档波1 落地（07:0x~09:2x）
+
+- **调研批（凌晨）**：copylee711/dsh-office v1.2.0（2069af2d，MIT）蒸馏论证落档
+  `docs/gaea-dsh-office-distill-research-2026-11.md`（唯一事实源）：上游=8 工具+9893 行
+  C# COM helper（坑册不可复得）；我方办公板块零 COM 零 OMML 正好互补；本机 WPS 在/
+  MS Office 无/csc.exe 在（实 fortunate）。拍板池 6 项推荐 A（整体移植）。
+- **波1 动刀（用户「开始」拍板路线 A）**：
+  - `internal/office/comhelper/`：OfficeHelper.cs **逐字节照搬**（cmp 一致，UPSTREAM.md
+    provenance；MIT 许可同目录）+ go:embed + csc.exe 运行时编译（`%LOCALAPPDATA%\gaea\office-helper\` 按源码 sha256 前 12 位缓存）+ **/codepage:65001 偏离**（源码无 BOM
+    含中文字面量，非中文 locale 会 mojibake——三处有据偏离之一）+ Go client（stdio JSON
+    行协议/ready 握手/超时杀重启/ctx 取消不杀进程/进程 Wait 回收）。
+  - `internal/app/office_com_tools.go` 八件工具（open/status/read/edit/render/save/close/
+    help）接 gaeaExtraTools **条件装配**（无 Office/WPS 整族不注册）；officeComResolvePath
+    单点收口工作区边界（波1 口径=工作区内文档）；save 走 appendOfficeEvidence 单点
+    Journal（COM 编辑无基线快照=诚实缺省）；guides.go=上游 GUIDES 机械提取（word 11k/
+    excel 5.4k/ppt 19.8k 字符，按需发放省上下文）；波1 不带 WPS 公式 math 腿（MS Word
+    公式走自带 LaTeX 解析完整可用）+体验开关硬编码（卡片挂拍板池）。
+  - 三处纪律：RegistryMap 契约 8 行+spacetags 静态表 8 行+docs/gaea-tool-registry-map 重导；
+    evidence isWriterTool 认账 office_save；前端 OFFICE_WRITE_TOOLS 认账（投影测试+1 例）。
+- **捎带两生产 bug 修复（本批全量扫出）**：
+  - publishguard_ledger.go `appendQuarantineRecord` 在 Write 前就 Close——账本 JSONL 自
+    D6 落地以来恒 0 字节（pending/终态/清扫三账静默失写），实锤修复+注释；
+  - workbench/text.go WriteText ms 粒度 CAS 失明（原子写落基线同毫秒→stale 判定放过外部
+    改动，先例=config 全零事件时间戳刀）——落盘 mtime 顶到基线+1ms 保单调；
+  - test-related.ps1 排除 ./scripts（ignore-tag 包卷进 go test 必 setup failed）。
+- **验证**：协议真进程测试 4 例（假 helper 进程：往返/大载荷/BUSY/超时重启/取消不杀）+
+  工具层 9 例 + 守卫族全绿；负载 flaky 三例（Voice/SemanticSearch/BashGuard）单跑绿定性
+  （同 MemoryPanel/websearch 先例）；**真机冒烟全链过**（csc 实编译 helper-8e570b885e48 →
+  status 双 suite → open→edit 中文无 mojibake→save→render 800×1135→read→close，
+  临时 scratch 文档即建即清）；tsc -b 绿+vitest related 303 绿；lint 10 项清零（guides.go
+  按文件豁免 misspell=AVERAGEIFS 是 Excel 函数名）。
+- **构建装机**：frontend Vite 28.28s + wails 66.4s；exe SHA256 `dfd1db30bf997201…`；
+  正式路径冒烟 200 ✓；**INSTALL OK**（PID 44252，build time 09:22:59）；不抬版本
+  （日常装机口径 4.543.0）。
+- **余（波2/3 挂拍板池）**：WPS 公式预转 math 腿、Excel data work 扩面、PPT 成品版式
+  引擎（~4100 行最大单体）、迷你卡片/跟随/静默/settle 体验件、preferLive 技能引导回、
+  unseen 保存前总览核对闭环、.tmp 克隆底稿去留。

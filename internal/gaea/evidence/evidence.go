@@ -383,7 +383,11 @@ func isWriterTool(name string) bool {
 		// P1a 四类写升 agent 工具（2026-11-09 众神殿裁决 action-3）：Journal
 		// 落账单点在 App 层 appendOfficeEvidence，agent 回执账（Receipt.Write
 		// + extractPaths 的 path 参数）同步认账——三本账名单不再互不认账。
-		"docx_apply", "docx_accept", "pptx_apply", "xlsx_apply":
+		"docx_apply", "docx_accept", "pptx_apply", "xlsx_apply",
+		// dsh-office COM 实时协同档落盘口（2026-11-13 波1）：Journal 单点同在
+		// appendOfficeEvidence（office_save 工具层直落）；office_edit 不落盘
+		// 不认账，office_open 的模板复制/新建随 save 收口。
+		"office_save":
 		return true
 	default:
 		return false

@@ -62,7 +62,9 @@ func appendQuarantineRecord(quarantineRoot string, rec quarantineRecord) error {
 	if err != nil {
 		return err
 	}
-	_ = f.Close()
+	defer func() { _ = f.Close() }() // 2026-11-13 实锤修复：原实现在 Write 前就 Close——句柄已关，
+	// Write 恒报 file already closed，账本 JSONL 自落地以来恒 0 字节（D6 刀
+	// 既有红，本批 office COM 工具全量扫出；pending/终态/清扫三账全部静默失写）。
 	b, err := json.Marshal(rec)
 	if err != nil {
 		return err

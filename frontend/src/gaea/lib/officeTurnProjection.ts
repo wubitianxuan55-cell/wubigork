@@ -39,6 +39,10 @@ export const OFFICE_WRITE_TOOLS: ReadonlySet<string> = new Set([
   "docx_accept",
   "pptx_apply",
   "xlsx_apply",
+  // dsh-office COM 实时协同档落盘口（2026-11-13 波1）：编辑不落盘不认账，
+  // office_save 才写盘（path 键走下方通用提取；doc 缺省的当前文档保存由
+  // 工具回执文本携带路径，产物卡正文启发式兜底）。
+  "office_save",
 ]);
 
 // Office 文档扩展名（草稿/就绪徽标与预览置前的适用范围；对齐
