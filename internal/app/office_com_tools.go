@@ -684,6 +684,17 @@ func (t officeComReadTool) execute(ctx context.Context, session string, args jso
 			return "", fmt.Errorf("office helper read 回执解析失败: %w", err)
 		}
 		text = comhelper.FormatExcel(read)
+		// 波3.5 实弹：Excel 大表显式 range 输出可达数百 KB（361KB 实锤），
+		// 工具层主动截断+结构化指引（profile 概况/缩小 range/分块），不吃
+		// agent 的 48KiB 硬截断（那个只有英文 elided、无操作指引）。
+		const excelReadByteCap = 38 * 1024
+		if len(text) > excelReadByteCap {
+			cut := strings.LastIndex(text[:excelReadByteCap], "\n")
+			if cut <= 0 {
+				cut = excelReadByteCap
+			}
+			text = text[:cut] + "\n\n[输出超限已截断：不要整表读——用 profile:true 看每列概况后再定清洗策略，或缩小 range 分块读取（如 A1:F200 逐块）。]"
+		}
 	default:
 		var read comhelper.PptRead
 		if err := json.Unmarshal(raw, &read); err != nil {
