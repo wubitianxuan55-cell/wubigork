@@ -668,3 +668,33 @@
   CLI 不进主进程。
 - docs/README 登记 distill-report（编程板块产，此前孤儿）与 batch2-plan 两档。
 - 余：B1~B5 排刀等拍板；dispatcher 形态定 P2-1 契约。
+
+## 37. batch2 五项收官（20:4x~21:0x，用户「开始吧」全批放行）
+
+- **B1 文案档**：交付两条时序禁则进 delivery_prompt（前置=链接前不铺有序/
+  无序列表〔列表环境渲染不成卡片〕；后置=链接给出后不复述同一交付路径
+  〔复述/代码块/再贴=二次交付〕——补齐灵犀「之前/之中/之后」三段的前后段，
+  「之中」P0-1 已落）+install_skill 刷新契约（更新=同名重装覆盖，无卸载面
+  禁卸载重装式刷新，灵犀 §14）+B1-③ xlsx 三条提升决策=维持现状记档。
+  boot+skill 测试绿。
+- **B5 技能门禁补缺**：docx 技能（612 行专有档）补 gaea 交付纪律块（入口
+  互斥/视觉验收交付门/失败即停/目录纪律/字体回退）；pptx-template 视觉验收
+  升级为显式第 6 步（office_render overview 逐页目检，不过修 spec 重跑）。
+- **B2 失败语义族**：officeComWrapErr 单点收口 COM 族八工具失败面（BUSY=
+  稍候重试同命令；NOT_FOUND=先查清单不猜名；BAD_ARGS=修参一次连错就停；
+  应用侧拒绝=不原样重试先 read；通道不可用=弃用 office_ 改技能路线+禁编造
+  「已改好」；解析/超时=重试一次再败就停）——**包装器保 Unwrap 链**，
+  IsBusy/Code 判定不断（BUSY 透传测试当场逮住首版断裂）。office_batch 提交
+  回执补取数纪律（fail 清单重提/ok 不重转防覆盖/整批败先修根因）；vision/
+  ocr 失败=禁编造图片内容与文字+如实告知+查配置指引；xlsx_recalc 不可用=
+  禁声称已计算+脚本估算须标注。app 全包 148.9s+builtin 绿。
+- **B3 装配顺序对照表**（prompt-order-map 档）：gaea 14 段实码序×灵犀四规律
+  ——记忆后置/动态位天然满足；技能目录前置/场景开关前置两项不调序（性质
+  不同构+无 A/B 证据）；SingleModelPrompt 逐字节红线不动；附 A/B 实验设计。
+- **B4 记忆三层对照评估**（memory-eval 档）：core/wiki/raw×ProfileBlock/
+  固化/晨报/citations 同构约七成；机制面 gaea 更强（硬确认门 vs 提示词软
+  约束）；可迁移三条纯文案刀（写入门禁清单/core 预算显式化/召回声明头行）
+  待拍板池②；不搬 wiki 页面树。
+- 验证：check-docs OK；wails build+冒烟 200+装机 INSTALL OK PID 25684
+  （21:02:05>构建时刻）。git 历史 dc8274ba/9335caa9 提交信息中的错误归属
+  （codex→编程板块）不重写，ead42804 为更正记录。
