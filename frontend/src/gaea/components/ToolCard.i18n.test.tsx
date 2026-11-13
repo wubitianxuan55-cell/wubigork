@@ -94,8 +94,11 @@ describe("ToolCard i18n 冒烟", () => {
       <ToolCard item={{ kind: "tool", id: "tw", name: "write_file", args, readOnly: false, status: "done" }} />,
     );
     fireEvent.click(screen.getByText("write_file"));
-    expect(screen.getByText("+ # 标题")).toBeTruthy();
-    expect(screen.getByText("+ 第一段")).toBeTruthy();
+    // 灵犀皮肤批（batch3 UI）：± 标记独立成 label span，行文本按 data-diff 行断言
+    const addRow = screen.getByText("# 标题").closest("[data-diff]");
+    expect(addRow?.textContent).toBe("+ # 标题");
+    expect(addRow?.getAttribute("data-diff")).toBe("add");
+    expect(screen.getByText("第一段").closest("[data-diff]")?.getAttribute("data-diff")).toBe("add");
   });
 
   it("edit_file 展开态 −/+ 两侧同行可见（zh）", () => {
@@ -104,8 +107,12 @@ describe("ToolCard i18n 冒烟", () => {
       <ToolCard item={{ kind: "tool", id: "te", name: "edit_file", args, readOnly: false, status: "done" }} />,
     );
     fireEvent.click(screen.getByText("edit_file"));
-    expect(screen.getByText("- 旧句")).toBeTruthy();
-    expect(screen.getByText("+ 新句")).toBeTruthy();
+    const delRow = screen.getByText("旧句").closest("[data-diff]");
+    const addRow = screen.getByText("新句").closest("[data-diff]");
+    expect(delRow?.getAttribute("data-diff")).toBe("del");
+    expect(addRow?.getAttribute("data-diff")).toBe("add");
+    expect(delRow?.textContent).toBe("- 旧句");
+    expect(addRow?.textContent).toBe("+ 新句");
   });
 
   // v4.504 只读工具 JSON 盒降噪：read_file 展开态不再渲染 {"path":…} 盒，

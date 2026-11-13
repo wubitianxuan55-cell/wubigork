@@ -63,9 +63,10 @@ function DiffRowsView({ rows, folded }: { rows: DiffRow[]; folded: number }) {
         {rows.map((r, i) => (
           <span
             key={i}
+            data-diff={r.type}
             className={`block ${r.type === "add" ? "text-ok bg-ok/5" : r.type === "del" ? "text-err bg-err/5" : "text-fg-dim"}`}
           >
-            {r.type === "add" ? "+ " : r.type === "del" ? "- " : "  "}
+            <span className="office-diff__label">{r.type === "add" ? "+ " : r.type === "del" ? "- " : ""}</span>
             {r.text}
           </span>
         ))}

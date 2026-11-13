@@ -5,6 +5,7 @@ import '../gaea/tailwind.css'
 import '../gaea/redesign.css'
 import '../gaea/office-ui.css'
 import '../gaea/office-conversation.css'
+import '../gaea/office-lingxi-skin.css'
 import '../gaea/office-sidebar.css'
 
 // 办公板块：完整使用 gaeaW 原生版面（对话区 + 左侧 Sidebar + 右侧面板）。
