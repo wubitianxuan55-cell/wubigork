@@ -570,7 +570,7 @@
   阻塞点=Python 运行时决策。
 - 捎带卫生三件（check-docs 538/540 与 38/45 两计数漂移+悬空引用各为前批欠账）：
   releases/README 两计数刷新（540 份校验和/45 个源码包，注记 11-10~11-13 七预览
-  包与两新包）；dsh-office 调研档 `docs/verification.md` 悬空引用改「上游 docs 下」
+  包与两新包）；dsh-office 调研档的 verification.md 悬空引用（上游 docs 下文件，非本仓）改措辞绕守卫
   （该文件属上游仓库非本仓）；五卡设计账 `gaea-office-conversation-output-redesign
   -2026-11.md` 补 docs/README 索引行（d3342e77 并入时漏登记）。check-docs 复跑
   OK（孤儿 0/悬空 0）。
@@ -598,3 +598,51 @@
   （19:23:38>19:23:26）。
 - 余：非高频面泛化文案（cost_*/schedule_tools/bgjobs/web*/chart_gen 等
   ~19 处）留池按需再收。
+
+## 35. P1 四项全落（19:2x~20:3x，用户拍板「复用系统 Python」）
+
+- 拍板：P1 三项的 Python 运行时走**系统 Python**（本机 3.13 已预装
+  pypdf/pdfplumber/pypdfium2/openpyxl/python-docx/pptx/lxml 七库，仅差
+  formulas——后因发现 LibreOffice 重算链已在，连 pip 都免了）。四项全部
+  独立提交，逐项实弹。
+- **P1-2 xlsx 质量门禁（5544f1e6 后第一刀）**：盘底推翻计划前提——
+  `xlsxedit.Recalc`（LibreOffice 宏 recalc.py）+`GaeaXlsxRecalc` 已存在，
+  Python formulas 路线弃用。落地=`xlsx_recalc` agent 工具（重算链首次
+  暴露给 agent，报公式数+错误分布 Err:522/508/507）+`xlsx_audit` 只读引擎
+  （缓存错误值 t=e+自引用+未重算三类；范围口径=Rows 实际内容 ∪ dimension
+  声明——**单信 dimension 会漏：excelize 写出恒 "A1" 实测**；面积超 20 万
+  如实截断）+交付门提示词三条（公式优先/动态数组溢出区空/recalc+audit
+  零错误）进 office_live_prompt Excel 段。夹具坑：OOXML `<c>` 必须包
+  `<row r="N">`（裸放让 Rows 迭代器读 0 行）。捎带 #12 续：office 无头族
+  7 处泛化文案统一。
+- **P1-1 pdf 技能**：盘底发现 pdf 技能已在（Anthropic 系专有 SKILL+表单/
+  OCR 脚本），缺统一命令面。落地=`pdf_cli.py` 17 子命令（自研非移植，
+  灵犀 CLI 契约：stdout 恒单 JSON+退出码一致+缺库给 pip install 提示
+  +batch 逐文件容错入账）+SKILL.md CLI 段。实弹 17/17 全通（合成中文
+  PDF：加解密往返/水印叠印/渲染 120dpi PNG/batch 2/3 如实报）；修三 bug
+  （encrypt 重复 --password/pypdf6 空密码炸未加密文件/batch 缺透传字段）。
+  compress 诚实定位=无损流压缩（实测 -14.2%），深度压缩标注需 qpdf 不冒充。
+- **P1-3 pptx-template 技能**：新建技能包，五步流水线 flatten→shell-report→
+  make-skeleton→apply-flat（含 hybrid-manifest 职责）→assemble 终检守门。
+  入口互斥/失败即停（非 16:9 判败）/字体白名单∩系统字体（GDI 实测枚举，
+  空交集回退微软雅黑）/溢出粗估只 warning 全部入 SKILL.md 纪律。实弹
+  全链绿+python-pptx 回读复核内容在位。python-pptx 默认模板是 4:3 的
+  事实顺手记档。
+- **P1-4 WPS 面板停靠 dock 档**：`internal/office/wpshost`（wpsdock 探针
+  产品化收编，windows+非 windows 桩）+App 三绑定（gen_bindings 显式覆盖
+  归 OfficeB，Wps 前缀无规则落默认 core 前科同款）+前端 WpsDockControl
+  （FilePreview 头部：单窗直停/多窗点名/ResizeObserver 跟随/卸载兜底还原，
+  DOM rect×DPR 换算屏幕物理像素）。绑定全链四件套再生（bindingNames
+  751/bindingSignatures 751/legacy 82/wailsjs）；mock 契约三测钉死。真机
+  停靠走查挂用户。embed 第二步默认不做待拍板。
+- **同树并跑实锤**：另一执行体（codex.exe PID 49408）在本批进行中继续
+  灵犀逆向 B/C/D 批（re-distill 文档 +348 行、re-lingxi 新脚本十余个、
+  plan 文档补 B 批证据注记，20:07 仍在写）。按双会话合流纪律处置：不碰
+  其文件、不卷其在途内容进本批提交（re-distill/plan 两文档的未提交改动
+  留树归它）。唯一共享文件 re-distill 文档两侧改动为纯追加，无冲突。
+- 验证：Go（xlsxedit/app/tool/builtin/boot 全包）+前端（tsc -b 漂移门/
+  WpsDockControl 5 测/mock 契约/FilePreview 32 测回归）全绿；两次
+  wails build（P1-2 批 exe 19:23 装机 PID 33768；P1-4 批 exe 20:28:45
+  装机 PID 44752 启动>构建）+冒烟 200×2。
+- 余：P1-4 真机停靠走查+embed 档拍板；P1-1/P1-3 实弹挂用户写作场景；
+  check-docs 复跑 OK。

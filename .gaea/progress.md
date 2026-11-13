@@ -1,3 +1,16 @@
+## 灵犀 P1 四项全落 · 2026-11-13（装机，拍板=复用系统 Python）
+
+P1-2 xlsx 交付门（xlsx_recalc 暴露 LibreOffice 重算链+xlsx_audit 只读审计
+[错误值/自引用/未重算]，范围口径=Rows∪dimension——excelize 写出 dimension
+恒 "A1" 单信会漏；公式优先/动态数组/零错误三条进提示词）；P1-1 pdf_cli.py
+17 子命令进既有 pdf 技能（灵犀 CLI 契约，实弹 17/17）；P1-3 pptx-template
+新技能五步流水线（flatten→shell-report→make-skeleton→apply-flat→assemble，
+16:9 硬约束+字体白名单∩系统，实弹全链绿）；P1-4 WPS 面板停靠 dock 档
+（wpshost 收编 wpsdock 探针+App 三绑定归 OfficeB+WpsDockControl 缩放跟随/
+卸载还原，绑定四件套再生，embed 待拍板）。装机两次（exe 19:23 PID 33768 →
+20:28 PID 44752）。同树并跑：另一执行体（codex）续灵犀逆向 B/C/D 批，其
+文档在途改动留树未卷。余=真机停靠走查+embed 拍板。
+
 ## 灵犀 P0-4 余项补完（#12+#14）· 2026-11-13（装机）
 
 P0 收官批挂起的两条计划内余项补完：#12 参数错误三要素高频面（办公 COM 族
