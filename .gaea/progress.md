@@ -11,6 +11,10 @@
   「编队」。
 - 验证：相关 13 文件 161 例绿；`tsc -b`、定向 ESLint 绿；`npm.cmd run build`
   成功（Vite 24.68s）；mock 亮/暗主题走查通过。未做 Wails 构建/装机。
+- 打包：全部未提交源码/文档/截图已提交 `18fb5dcb`；未提交工作树快照
+  `gaea-uncommitted-20261113.zip` 526,813,847 B / `E262BDAA...96A2F`，
+  源码包 `gaea-18fb5dcb-source.tar.gz` 42,625,937 B / `FED4F578...777E`。
+  14 个既有发布 ZIP/TAR 继续留在快照包内，不入 Git。
 
 ## 灵犀输出 UI batch3 · 2026-11-13（代码候选）
 

@@ -26,7 +26,7 @@ f5576986/officecom2 e0461f53 两包〕；
 
 里程碑版本随发版打源码包**归档**（P2-3 后不入库，只留在磁盘）：`git archive --format=tar.gz v<X.Y.Z> -- . ':(exclude)releases/wubigork-*'`
 → `wubigork-vX.Y.Z-source.tar.gz`，在当版 `SHA256SUMS-vX.Y.Z.txt` 双行登记
-（exe 行 + source 行含大小/文件数）。已有 45 个（截至 2026-11-13 实测，
+（exe 行 + source 行含大小/文件数）。已有 46 个（截至 2026-11-14 实测，
 `node scripts/check-docs.mjs` 对账；源码包不入库，只在与包同机的环境对账；
 11-10~11-13 新增七个预览包〔a2d7 317568d4/codeatlas b27066b9/chatgenui
 4d66818b/bettersidebar f49ea150/contextup4 ecef54cd/officecom f5576986/
