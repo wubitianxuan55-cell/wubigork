@@ -96,7 +96,7 @@ func (r replaceTool) Execute(ctx context.Context, args json.RawMessage) (string,
 		DryRun          bool   `json:"dry_run"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
-		return "", &tool.Failure{Code: tool.CodeValidationError, Err: fmt.Errorf("invalid args: %w", err), EffectState: tool.EffectNone}
+		return "", &tool.Failure{Code: tool.CodeValidationError, Err: fmt.Errorf("replace 参数解析失败: %w", err), EffectState: tool.EffectNone}
 	}
 	if p.Pattern == "" {
 		return "", &tool.Failure{Code: tool.CodeValidationError, Err: fmt.Errorf("pattern is required and must be non-empty"), EffectState: tool.EffectNone}

@@ -232,7 +232,7 @@ var officeComAbsRe = regexp.MustCompile(`^[a-zA-Z]:[\\/]`)
 func officeComResolvePath(raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return "", fmt.Errorf("缺少文件路径")
+		return "", fmt.Errorf("缺少参数 path（文档路径，工作区相对或绝对）")
 	}
 	var p string
 	if filepath.IsAbs(raw) || officeComAbsRe.MatchString(raw) {
@@ -478,7 +478,7 @@ func (t officeComOpenTool) execute(ctx context.Context, session string, args jso
 		Title    string `json:"title"`
 	}
 	if err := json.Unmarshal(args, &in); err != nil {
-		return "", fmt.Errorf("参数无效: %w", err)
+		return "", fmt.Errorf("office_open 参数解析失败: %w", err)
 	}
 	// 波3.5 二轮实弹：path 归一（默认目录/纯文件名收编/带目录尊重）——
 	// 修「交互卡一堆不同路径的相同文件」。
@@ -626,7 +626,7 @@ func (officeComReadTool) Schema() json.RawMessage {
 	return json.RawMessage(`{
   "type":"object",
   "properties":{
-    "doc":{"type":"string","description":"文档路径或窗口名（如 report.docx）。缺省=最近 open/read/edit 过的文档"},
+    "doc":{"type":"string","description":"文档路径或窗口名（如 report.docx）。路径须在工作区内（越界会被拒绝）；缺省=最近 open/read/edit 过的文档"},
     "app":{"type":"string","enum":["word","excel","ppt"],"description":"仅在要读另一应用的活动文档、或 doc 无扩展名时需要"},
     "from":{"type":"integer","description":"Word：起始段落号（缺省 1）"},
     "count":{"type":"integer","description":"Word：读取段落数（缺省 120，最大 400）"},
@@ -651,7 +651,7 @@ func (t officeComReadTool) Execute(ctx context.Context, args json.RawMessage) (s
 func (t officeComReadTool) execute(ctx context.Context, session string, args json.RawMessage) (string, error) {
 	var in map[string]any
 	if err := json.Unmarshal(args, &in); err != nil {
-		return "", fmt.Errorf("参数无效: %w", err)
+		return "", fmt.Errorf("office_read 参数解析失败: %w", err)
 	}
 	doc, _ := in["doc"].(string)
 	appNameArg, _ := in["app"].(string)
@@ -724,7 +724,7 @@ func (officeComEditTool) Schema() json.RawMessage {
   "type":"object",
   "required":["ops"],
   "properties":{
-    "doc":{"type":"string","description":"文档路径或窗口名。缺省=最近 open/read/edit 过的文档"},
+    "doc":{"type":"string","description":"文档路径或窗口名。路径须在工作区内（越界会被拒绝）；缺省=最近 open/read/edit 过的文档"},
     "app":{"type":"string","enum":["word","excel","ppt"],"description":"仅在要编辑另一应用的活动文档、或 doc 无扩展名时需要"},
     "ops":{"type":"array","items":{"type":"object"},"description":"按序执行的操作，如 [{\"op\":\"set_text\",\"para\":3,\"expect\":\"原开头\",\"text\":\"新文本\"}]；单次最多 200 条"}
   }
@@ -745,7 +745,7 @@ func (t officeComEditTool) execute(ctx context.Context, session string, args jso
 		Ops []json.RawMessage
 	}
 	if err := json.Unmarshal(args, &in); err != nil {
-		return "", fmt.Errorf("参数无效: %w", err)
+		return "", fmt.Errorf("office_edit 参数解析失败: %w", err)
 	}
 	if len(in.Ops) == 0 {
 		return "", fmt.Errorf("ops 必须是非空数组")
@@ -831,7 +831,7 @@ func (officeComRenderTool) Schema() json.RawMessage {
 	return json.RawMessage(`{
   "type":"object",
   "properties":{
-    "doc":{"type":"string","description":"文档路径或窗口名。缺省=最近 open/read/edit 过的文档"},
+    "doc":{"type":"string","description":"文档路径或窗口名。路径须在工作区内（越界会被拒绝）；缺省=最近 open/read/edit 过的文档"},
     "app":{"type":"string","enum":["word","excel","ppt"],"description":"仅在 doc 无扩展名时需要"},
     "page":{"type":"integer","description":"Word：页码（缺省 1）"},
     "slide":{"type":"integer","description":"PowerPoint：页码（overview 时可省）"},
@@ -906,7 +906,7 @@ func (t officeComRenderTool) Execute(ctx context.Context, args json.RawMessage) 
 		Width    int    `json:"width"`
 	}
 	if err := json.Unmarshal(args, &in); err != nil {
-		return "", fmt.Errorf("参数无效: %w", err)
+		return "", fmt.Errorf("office_render 参数解析失败: %w", err)
 	}
 	kind, targetDoc, err := officeCom.target(in.App, in.Doc)
 	if err != nil {
@@ -1063,7 +1063,7 @@ func (officeComSaveTool) Schema() json.RawMessage {
 	return json.RawMessage(`{
   "type":"object",
   "properties":{
-    "doc":{"type":"string","description":"文档路径或窗口名。缺省=最近 open/read/edit 过的文档"},
+    "doc":{"type":"string","description":"文档路径或窗口名。路径须在工作区内（越界会被拒绝）；缺省=最近 open/read/edit 过的文档"},
     "app":{"type":"string","enum":["word","excel","ppt"],"description":"仅在 doc 无扩展名时需要"},
     "path":{"type":"string","description":"另存为路径（工作区相对或绝对）；省略=原地保存"}
   }
@@ -1116,7 +1116,7 @@ func (t officeComSaveTool) Execute(ctx context.Context, args json.RawMessage) (s
 		Path string `json:"path"`
 	}
 	if err := json.Unmarshal(args, &in); err != nil {
-		return "", fmt.Errorf("参数无效: %w", err)
+		return "", fmt.Errorf("office_save 参数解析失败: %w", err)
 	}
 	var absSavePath string
 	if strings.TrimSpace(in.Path) != "" {
@@ -1268,7 +1268,7 @@ func (officeComCloseTool) Schema() json.RawMessage {
 	return json.RawMessage(`{
   "type":"object",
   "properties":{
-    "doc":{"type":"string","description":"文档路径或窗口名。缺省=最近 open/read/edit 过的文档"},
+    "doc":{"type":"string","description":"文档路径或窗口名。路径须在工作区内（越界会被拒绝）；缺省=最近 open/read/edit 过的文档"},
     "app":{"type":"string","enum":["word","excel","ppt"],"description":"仅在 doc 无扩展名时需要"},
     "save":{"type":"boolean","description":"true=保存并关闭；false=放弃未保存修改关闭；有未保存修改时必填"}
   }
@@ -1312,7 +1312,7 @@ func (t officeComCloseTool) Execute(ctx context.Context, args json.RawMessage) (
 		Save *bool  `json:"save"`
 	}
 	if err := json.Unmarshal(args, &in); err != nil {
-		return "", fmt.Errorf("参数无效: %w", err)
+		return "", fmt.Errorf("office_close 参数解析失败: %w", err)
 	}
 	kind, targetDoc, err := officeCom.target(in.App, in.Doc)
 	if err != nil {

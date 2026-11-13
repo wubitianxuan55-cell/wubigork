@@ -574,3 +574,27 @@
   （该文件属上游仓库非本仓）；五卡设计账 `gaea-office-conversation-output-redesign
   -2026-11.md` 补 docs/README 索引行（d3342e77 并入时漏登记）。check-docs 复跑
   OK（孤儿 0/悬空 0）。
+
+## 34. P0-4 余项补完：参数错误三要素+工作区约束文案（19:1x~19:2x）
+
+- §33 收官时挂池的两条 P0-4 计划内余项补完（无需拍板，本就在 P0 表里）。
+- **#12 参数错误三要素**：泛化 `参数无效/invalid args: %w` 全仓 35 处分布 30
+  文件，按计划口径只动高频面（不 sweep）：①办公 COM 族 8 工具——open/read/
+  edit/render/save/close 六处泛化改「<工具名> 参数解析失败: <底层 json 错误>」
+  （工具名指明重读哪份 schema，字段路径+期望类型由 json 错误携带，合法值在
+  schema），selection 同批统一，officeComResolvePath 缺参文案补字段名
+  （缺少参数 path）；②通用文件族 10 工具（read_file/write_file/edit_file/
+  multi_edit/edit_lines/replace/grep/ls/bash/read_skill）同款统一，replace
+  与 bash 保 Failure 信封只改文案。
+- 守卫双测试：builtin `parse_error_style_test.go` 表驱动 10 例 + app
+  `TestOfficeParseErrorsCarryToolName` 8 例——坏参断言错误串含工具名+固定短语
+  （全 hermetic，坏参在任何 IO/COM/会话态之前返回）。p3_predicates 钉死的
+  costSearch「参数无效」不在动面内，不受影响。
+- **#14 工作区约束显式文案**：office_read/edit/render/save/close 五工具 doc
+  参数补「路径须在工作区内（越界会被拒绝）」（office_open 上批已有；约束
+  本就由 officeComResolvePath 单点强制，此为文案显式化）。
+- 验证：go vet 零红；tool/builtin 14.8s+app 全包 153.9s+agent 全绿；
+  wails build（exe 19:23:26）+冒烟 200+装机 INSTALL OK PID 33768
+  （19:23:38>19:23:26）。
+- 余：非高频面泛化文案（cost_*/schedule_tools/bgjobs/web*/chart_gen 等
+  ~19 处）留池按需再收。

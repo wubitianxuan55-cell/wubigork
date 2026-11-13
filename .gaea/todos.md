@@ -67,3 +67,4 @@
 | ✅ | dshmarket 上游跟踪销号（2026-11-13）：**1.73.19（2026-11-12 发布）lib/restart.js 已含 `windowsHide: true`**（detached spawn 行+注释实锤，npm pack 核验）——本地 `dshmarket@1.73.15.patch` 转为可退役；升级 dshmarket ≥1.73.19 时摘 patch（C:\AI\dsh 用户资产不动，留用户升级时执行） |
 | ✅ | 办公对话窗顶栏合并（2026-11-13）：ChatTabs 并入单行顶栏+删模型切换/紧凑钮+右侧面板钮移最右换 PanelRight 图标+捎带修 ApprovalModal aria-modal 回归（d3342e77 引入，守卫复绿） |
 | ✅ | **灵犀蒸馏 P0 批接续收官**（2026-11-13，接另一执行体停点）：调研三档入库（re-distill 事实源+advantages 19 条+optimize plan）+re-lingxi 脚本报告+wpsdock 探针；P0-1 交付契约硬化（parseFilePathHref 伪协议+delivery_prompt 交付收尾段）/P0-2 office_macro 受控宏 A 档/P0-3 office_selection 选区上下文/P0-4 四条提示词补齐/P0-5 steer 已有不立项；Go 五包+fileLinks 20 例+tsc -b 绿+wails build+冒烟 200+装机 PID 47776；余=P1 挂拍板（阻塞=Python 运行时决策）+#12 全量参数错误文案挂池 |
+| ✅ | **P0-4 余项补完**（2026-11-13）：#12 参数错误三要素高频面（办公 COM 族 8 工具+文件族 10 工具统一「工具名+参数解析失败+json 字段路径」+双守卫测试）+#14 五工具 doc 参数工作区约束显式文案；exe 19:23:26 冒烟 200 装机 PID 33768；余=非高频 ~19 处留池 |

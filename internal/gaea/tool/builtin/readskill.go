@@ -38,7 +38,7 @@ func (r readSkill) Execute(_ context.Context, args json.RawMessage) (string, err
 		Name string `json:"name"`
 	}
 	if err := json.Unmarshal(args, &in); err != nil {
-		return "", fmt.Errorf("invalid args: %w", err)
+		return "", fmt.Errorf("read_skill 参数解析失败: %w", err)
 	}
 	if in.Name == "" {
 		return "", fmt.Errorf("read_skill requires a 'name' parameter")

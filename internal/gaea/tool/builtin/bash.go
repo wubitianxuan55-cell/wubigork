@@ -120,7 +120,7 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", &tool.Failure{Code: tool.CodeValidationError,
-			Err: fmt.Errorf("invalid args: %w", err), EffectState: tool.EffectNone}
+			Err: fmt.Errorf("bash 参数解析失败: %w", err), EffectState: tool.EffectNone}
 	}
 	if p.Command == "" {
 		return "", &tool.Failure{Code: tool.CodeValidationError,

@@ -72,7 +72,7 @@ func (e editFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 		ExpectedRevision string `json:"expected_revision,omitempty"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
-		return "", fmt.Errorf("invalid args: %w", err)
+		return "", fmt.Errorf("edit_file 参数解析失败: %w", err)
 	}
 	if p.Path == "" {
 		return "", fmt.Errorf("path is required")

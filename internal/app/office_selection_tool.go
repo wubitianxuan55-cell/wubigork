@@ -74,7 +74,7 @@ func (t officeComSelectionTool) execute(ctx context.Context, args json.RawMessag
 	var in map[string]any
 	if strings.TrimSpace(string(args)) != "" {
 		if err := json.Unmarshal(args, &in); err != nil {
-			return "", fmt.Errorf("参数无效: %w", err)
+			return "", fmt.Errorf("office_selection 参数解析失败: %w", err)
 		}
 	}
 	if in == nil {

@@ -494,3 +494,32 @@ func TestOfficeComEditCarriesMathMap(t *testing.T) {
 		t.Fatal("无公式不应携带 math 键")
 	}
 }
+
+// 参数错误三要素（灵犀 advantages #12）：COM 族解析失败必须以
+// 「<工具名> 参数解析失败: <底层错误>」呈现——工具名指明该重读哪份 schema，
+// 字段路径与期望类型由底层 json 错误携带。坏参在触碰 COM/会话态之前返回。
+func TestOfficeParseErrorsCarryToolName(t *testing.T) {
+	ctx := context.Background()
+	cases := []struct {
+		tool string
+		run  func() error
+	}{
+		{"office_open", func() error { _, err := (officeComOpenTool{}).Execute(ctx, json.RawMessage(`{bad`)); return err }},
+		{"office_read", func() error { _, err := (officeComReadTool{}).Execute(ctx, json.RawMessage(`{bad`)); return err }},
+		{"office_edit", func() error { _, err := (officeComEditTool{}).Execute(ctx, json.RawMessage(`{bad`)); return err }},
+		{"office_render", func() error { _, err := (officeComRenderTool{}).Execute(ctx, json.RawMessage(`{bad`)); return err }},
+		{"office_save", func() error { _, err := (officeComSaveTool{}).Execute(ctx, json.RawMessage(`{bad`)); return err }},
+		{"office_close", func() error { _, err := (officeComCloseTool{}).Execute(ctx, json.RawMessage(`{bad`)); return err }},
+		{"office_selection", func() error { _, err := (officeComSelectionTool{}).Execute(ctx, json.RawMessage(`{bad`)); return err }},
+		{"office_macro", func() error { _, err := (officeMacroTool{}).Execute(ctx, json.RawMessage(`{bad`)); return err }},
+	}
+	for _, tc := range cases {
+		err := tc.run()
+		if err == nil {
+			t.Fatalf("%s：坏参数应报错", tc.tool)
+		}
+		if !strings.Contains(err.Error(), tc.tool) || !strings.Contains(err.Error(), "参数解析失败") {
+			t.Fatalf("%s 解析错误缺工具名或固定短语（错误三要素守卫），实际：%v", tc.tool, err)
+		}
+	}
+}

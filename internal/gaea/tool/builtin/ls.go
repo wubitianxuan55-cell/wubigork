@@ -52,7 +52,7 @@ func (l listDir) Execute(ctx context.Context, args json.RawMessage) (string, err
 	}{Path: "."}
 	if len(args) > 0 {
 		if err := json.Unmarshal(args, &p); err != nil {
-			return "", fmt.Errorf("invalid args: %w", err)
+			return "", fmt.Errorf("ls 参数解析失败: %w", err)
 		}
 	}
 	if p.Path == "" {
