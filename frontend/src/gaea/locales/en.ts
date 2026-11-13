@@ -197,6 +197,7 @@ export const en = {
   // approval modal
   "approval.toolTitle": "Allow this tool call?",
   "approval.toolNote": "Review the requested tool before letting it run.",
+  "approval.decisionLabel": "Your approval is needed",
   "approval.toolLabel": "Tool",
   "approval.deny": "Deny",
   "approval.denyHint": "Do not run this tool call",
@@ -215,6 +216,9 @@ export const en = {
   "approval.reasonMissing": "(no reason provided by the model)",
 
   // ask card
+  "ask.title": "Your input is needed",
+  "ask.answered": "{n}/{total} answered",
+  "ask.enterHint": "Press Enter in a custom answer to submit",
   "ask.customPlaceholder": "Type your own answer…",
   "ask.justChat": "Just chat",
   "ask.dragHint": "Drag to move",
@@ -354,7 +358,6 @@ export const en = {
   "process.thoughtOne": "{n} thinking block",
   "process.thoughtOther": "{n} thinking blocks",
   "process.working": "Working…",
-  "process.title": "Process",
   "toolGroup.called": "{name} × {n}",
   "toolGroup.calledTitle": "Called {name} · {n} times",
   "work.thinking": "Thinking…",

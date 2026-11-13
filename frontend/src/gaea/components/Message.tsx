@@ -1,4 +1,4 @@
-import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, useEffect } from "react";
+import { memo, useCallback, useId, useLayoutEffect, useMemo, useRef, useState, useEffect } from "react";
 import { Bot, Check, ChevronDown, ChevronRight, Brain, Copy, FileText, RefreshCw, Rollback, ThumbsDown, ThumbsDownFilled, ThumbsUp, ThumbsUpFilled, Wand2 } from "../icons";
 import { app } from "../lib/bridge";
 import { copyToClipboard } from "../lib/clipboard";
@@ -136,7 +136,7 @@ export const UserMessage = memo(function UserMessage({
       <div className={`flex items-start gap-2 max-w-[85%] ${compact ? "min-w-[120px]" : "min-w-[160px]"}`}>
         <div className="flex-1 min-w-0">
           <div
-            className={`${compact ? "text-[13px]" : "text-[14px]"} text-fg leading-relaxed rounded-2xl rounded-br-md border border-border-soft bg-(color:--md-sys-color-surface-container-high)/60 px-3.5 py-2 w-fit max-w-full`}
+            className={`office-user-message ${compact ? "text-[13px]" : "text-[14px]"} text-fg leading-relaxed rounded-2xl rounded-br-md border border-border-soft bg-(color:--md-sys-color-surface-container-high)/60 px-3.5 py-2 w-fit max-w-full`}
           >
             {textParts.map((part, i) => {
               if (part.type === "text") {
@@ -262,19 +262,18 @@ export const AssistantMessage = memo(function AssistantMessage({
   const now = useNow(streaming);
   const turnStartAt = useTurnStartAt();
   const reasoningBodyRef = useRef<HTMLDivElement>(null);
+  const reasoningBodyId = useId();
 
   const reasoningRunning = !!(streaming && !item.text && item.reasoning);
-  const [userToggled, setUserToggled] = useState(false);
-  const [reasoningOpenState, setReasoningOpenState] = useState(false);
-  const reasoningOpen = userToggled ? reasoningOpenState : !!item.streaming;
+  const [reasoningOpen, setReasoningOpen] = useState(false);
   // 复制正文反馈（Codex 式消息操作；复制成功后短暂显示「已复制」）
   const [copied, setCopied] = useState(false);
-  useEffect(() => { setCopied(false); }, [item.id]);
+  useEffect(() => {
+    setCopied(false);
+    setReasoningOpen(false);
+  }, [item.id]);
   useGSAPCollapse(reasoningBodyRef, reasoningOpen);
-  const toggleReasoning = useCallback(() => {
-    setUserToggled(true);
-    setReasoningOpenState((v) => !v);
-  }, []);
+  const toggleReasoning = useCallback(() => setReasoningOpen((v) => !v), []);
   const handleRegenerate = useCallback(() => {
     if (turnNo != null) onRegenerateTurn?.(turnNo);
   }, [onRegenerateTurn, turnNo]);
@@ -297,6 +296,9 @@ export const AssistantMessage = memo(function AssistantMessage({
     streaming: item.streaming ?? false,
     truncateStreaming: true,
   });
+  const reasoningPreview = reasoningRunning && !reasoningOpen
+    ? reasoningDisplay.split("\n").map((line) => line.trim()).filter(Boolean).at(-1) ?? ""
+    : "";
   const reasoningLines = item.reasoning ? item.reasoning.split("\n").filter(l => l.trim()).length : 0;
 
   // 流式耗时定格（v4.350）：完成边沿用 Date.now() 拍终值，此后不再随墙钟增长
@@ -320,7 +322,7 @@ export const AssistantMessage = memo(function AssistantMessage({
   // turns"）；ref 全文放 title。字段缺省不渲染，行为与现状一致。
   const subagentRef = item.subagentRef;
   return (
-    <div className="group/msg flex justify-start my-2" data-entrance={item.id}>
+    <div className="office-assistant-message group/msg flex justify-start my-2" data-entrance={item.id}>
       <div className="flex-1 min-w-0">
           {/* 子代理来源徽标 */}
           {subagentRef && (
@@ -343,24 +345,25 @@ export const AssistantMessage = memo(function AssistantMessage({
                 className={`flex items-center gap-1.5 w-full px-2.5 py-1 rounded-lg transition-colors ${
                   reasoningOpen ? "bg-accent/[0.04]" : "hover:bg-(color:--md-sys-color-surface-container-high)"
                 } text-fg-faint text-[11px] cursor-pointer`}
+                data-running={reasoningRunning ? "" : undefined}
                 onClick={toggleReasoning}
                 aria-expanded={reasoningOpen}
+                aria-controls={reasoningBodyId}
               >
-                <span className={`shrink-0 w-0.5 self-stretch rounded-full transition-colors ${reasoningRunning ? "bg-accent animate-pulse" : "bg-transparent"}`} />
                 <Brain size={12} className="flex-shrink-0" />
-                {reasoningRunning && <span aria-hidden className="w-1 h-1 rounded-full bg-accent animate-pulse shadow-[0_0_6px_var(--accent)] shrink-0" />}
                 <span className="font-medium">{reasoningRunning ? t("msg.thinkingRunning") : t("msg.thinking")}</span>
-                <span className="text-fg-faint/50 text-[10px] ml-auto tabular-nums">
+                <span className="reasoning__preview" title={reasoningPreview || undefined}>{reasoningPreview}</span>
+                <span className="reasoning__meta tabular-nums">
                   {reasoningRunning
                     ? elapsedStr
-                    : `${reasoningLines} 行 · ${elapsedStr}`}
+                    : `${t(reasoningLines === 1 ? "reasoning.metaLineOne" : "reasoning.metaLines", { n: reasoningLines })} · ${elapsedStr}`}
                 </span>
                 <ChevronRight
                   className={`transition-transform duration-200 ${reasoningOpen ? "rotate-90" : ""}`}
                   size={11}
                 />
               </button>
-              <div ref={reasoningBodyRef} style={{ overflow: "hidden" }}>
+              <div id={reasoningBodyId} ref={reasoningBodyRef} style={{ overflow: "hidden" }}>
                 <div className={`mt-1 px-2.5 py-1.5 border-l-2 border-accent/25 ml-1 text-fg-dim/80 text-[11px] leading-relaxed whitespace-pre-wrap ${
                   compact ? "max-h-[160px] overflow-y-auto" : ""
                 }`}>

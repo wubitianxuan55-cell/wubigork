@@ -35,6 +35,18 @@ describe("ToolCard i18n 冒烟", () => {
     expect(screen.getByText(/输出 · \d+L/)).toBeTruthy();
   });
 
+  it("工具行使用可展开按钮语义，并关联正文区域", () => {
+    renderT(<ToolCard item={toolItem} />);
+    const button = screen.getByText("edit_file").closest("button");
+    expect(button).toBeTruthy();
+    expect(button?.getAttribute("aria-expanded")).toBe("false");
+    const controls = button?.getAttribute("aria-controls");
+    expect(controls).toBeTruthy();
+    expect(document.getElementById(controls!)).toBeTruthy();
+    fireEvent.click(button!);
+    expect(button?.getAttribute("aria-expanded")).toBe("true");
+  });
+
   it("有界输出折叠开关：展开全部 N 行 / 收起输出（zh）", () => {
     renderT(<ToolCard item={toolItem} />);
     fireEvent.click(screen.getByText("edit_file"));

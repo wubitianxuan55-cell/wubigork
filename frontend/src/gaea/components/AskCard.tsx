@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Check } from "../icons";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { Check, MessageSquare } from "../icons";
 import { useT } from "../lib/i18n";
 import type { QuestionAnswer, WireAsk, WireAskQuestion } from "../lib/types";
 import { Markdown } from "./Markdown";
@@ -17,6 +17,8 @@ export function AskCard({
   onDismiss: () => void;
 }) {
   const t = useT();
+  const idPrefix = useId();
+  const titleId = `${idPrefix}-title`;
   const [sel, setSel] = useState<Record<string, string[]>>({});
   const [custom, setCustom] = useState<Record<string, string>>({});
 
@@ -99,18 +101,6 @@ export function AskCard({
     [clamp],
   );
 
-  // ── 键盘：Enter 提交 ──────────────────────────────────────────
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Enter" && !e.shiftKey && allAnswered) {
-        e.preventDefault();
-        submit();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  });
-
   // ── 问题交互 ────────────────────────────────────────────────
   const toggle = (q: WireAskQuestion, label: string) => {
     setCustom((c) => ({ ...c, [q.id]: "" }));
@@ -143,97 +133,117 @@ export function AskCard({
     );
   };
 
+  // 浮卡首次定位后接管焦点，避免键盘用户仍停在被遮住的输入框里。
+  const focusedRef = useRef(false);
+  useEffect(() => {
+    focusedRef.current = false;
+  }, [ask.id]);
+  useEffect(() => {
+    if (!pos || focusedRef.current) return;
+    focusedRef.current = true;
+    cardRef.current
+      ?.querySelector<HTMLElement>(".office-ask-option, .office-ask-custom, button")
+      ?.focus();
+  }, [ask.id, pos]);
+
   // 卡片标题：优先用 ask.title，否则用第一个问题的 header
   const cardTitle = ask.questions[0]?.header || "";
+  const dialogTitle = ask.questions.length === 1 ? (cardTitle || t("ask.title")) : t("ask.title");
 
   return (
-    <div className="fixed inset-0 bg-bg/60 z-50 p-6 animate-[fadeIn_.15s_ease-out] pointer-events-none">
+    <div className="office-ask-layer animate-[fadeIn_.15s_ease-out]">
       <div
         ref={cardRef}
-        className="relative flex flex-col gap-4 w-full max-w-lg max-h-[85vh] overflow-y-auto bg-bg-elev border border-border-soft rounded-xl p-5 pt-8 animate-[scaleIn_.2s_ease-out] pointer-events-auto"
+        className="office-ask-card animate-[scaleIn_.2s_ease-out]"
+        role="dialog"
+        aria-modal="false"
+        aria-labelledby={titleId}
+        tabIndex={-1}
         style={{
-          boxShadow: "var(--ds-shadow-panel), inset 0 1px 0 color-mix(in srgb, var(--fg) 6%, transparent)",
           ...(pos
             ? { position: "absolute", left: pos.x, top: pos.y }
             : { visibility: "hidden" })
         }}
       >
-        {/* 拖拽手柄 */}
+        {/* 拖拽只负责摆放，不是完成问题的必经操作。 */}
         <div
-          className="absolute top-0 left-0 right-0 h-7 cursor-grab flex items-start justify-center pt-2 select-none group"
+          className="office-ask-handle"
           onPointerDown={startDrag}
           title={t("ask.dragHint")}
+          aria-hidden
         >
-          <span className="w-8 h-1 rounded-full bg-fg-faint/25 group-hover:bg-fg-faint/50 group-hover:w-10 transition-all duration-200" />
+          <span />
         </div>
 
-        {/* 回答进度条：细线 + v3 高光 */}
-        <div
-          className="h-[2px] rounded-full bg-bg-soft overflow-hidden shrink-0"
-          role="progressbar"
-          aria-label="回答进度"
-          aria-valuemin={0}
-          aria-valuemax={ask.questions.length}
-          aria-valuenow={answeredCount}
-        >
-          <div
-            className="h-full rounded-full bg-accent/80 shadow-[0_0_6px_color-mix(in_srgb,var(--accent)_45%,transparent)] transition-all duration-300"
-            style={{ width: `${(answeredCount / Math.max(ask.questions.length, 1)) * 100}%` }}
-          />
-        </div>
-
-        {/* 卡片标题 */}
-        {cardTitle && ask.questions.length === 1 && (
-          <div className="flex items-center gap-2 -mt-1">
-            <span className="w-1 h-4 rounded-full bg-accent shrink-0 shadow-[0_0_8px_color-mix(in_srgb,var(--accent)_35%,transparent)]" />
-            <span className="text-fg text-[15px] font-semibold leading-tight">{cardTitle}</span>
+        <header className="office-ask-header">
+          <div className="office-decision-head">
+            <span className="office-decision-head__icon" aria-hidden>
+              <MessageSquare size={14} />
+            </span>
+            <span className="office-decision-head__copy">
+              <span className="office-decision-head__kicker">{t("ask.title")}</span>
+              <h2 id={titleId} className="office-decision-head__title">
+                {dialogTitle}
+              </h2>
+            </span>
           </div>
-        )}
+        </header>
 
-        {ask.questions.map((q) => (
-          <div className="flex flex-col gap-3" key={q.id}>
-            {/* 多问题时显示各自 header */}
+        <div className="office-ask-progress">
+          <div
+            className="office-ask-progress__track"
+            role="progressbar"
+            aria-label={t("ask.answered", { n: answeredCount, total: ask.questions.length })}
+            aria-valuemin={0}
+            aria-valuemax={ask.questions.length}
+            aria-valuenow={answeredCount}
+          >
+            <div
+              className="office-ask-progress__fill"
+              style={{ width: `${(answeredCount / Math.max(ask.questions.length, 1)) * 100}%` }}
+            />
+          </div>
+          <span className="office-ask-progress__label">
+            {t("ask.answered", { n: answeredCount, total: ask.questions.length })}
+          </span>
+        </div>
+
+        <div className="office-ask-body">
+        {ask.questions.map((q, questionIndex) => {
+          const questionTitleId = `${idPrefix}-question-${questionIndex}`;
+          return (
+          <section className="office-ask-question" key={q.id} role="group" aria-labelledby={questionTitleId}>
             {q.header && ask.questions.length > 1 && (
-              <div className="flex items-center gap-2">
-                <span className="w-1 h-4 rounded-full bg-accent shrink-0 shadow-[0_0_8px_color-mix(in_srgb,var(--accent)_35%,transparent)]" />
-                <span className="text-fg text-[14px] font-semibold leading-tight">{q.header}</span>
-              </div>
+              <h3 id={questionTitleId} className="office-ask-question__title">{q.header}</h3>
             )}
-            <div className="text-fg-dim text-[13px] leading-relaxed">
+            {(!q.header || ask.questions.length === 1) && (
+              <span id={questionTitleId} className="sr-only">{q.header || dialogTitle}</span>
+            )}
+            <div className="office-ask-question__prompt">
               <Markdown text={q.prompt} autoExportMermaid={false} />
             </div>
-            <div className="flex flex-col gap-1.5">
+            <div className="office-ask-options">
               {q.options.map((o) => {
                 const on = (sel[q.id] ?? []).includes(o.label);
                 return (
                   <button
+                    type="button"
                     key={o.label}
-                    className={`flex items-start gap-2.5 w-full px-3 py-2.5 rounded-lg border text-left transition-all duration-150 ${
-                      on
-                        ? "border-accent bg-accent-soft shadow-[0_0_0_1px_var(--accent),0_0_12px_color-mix(in_srgb,var(--accent)_12%,transparent)]"
-                        : "border-border-soft bg-transparent hover:border-border hover:bg-bg-soft active:scale-[0.99]"
-                    }`}
+                    className="office-ask-option"
+                    aria-pressed={on}
                     onClick={() => toggle(q, o.label)}
                   >
-                    <span
-                      className={`shrink-0 mt-px flex items-center justify-center transition-colors duration-150 ${
-                        q.multi
-                          ? `w-[18px] h-[18px] rounded border-2 ${on ? "border-accent bg-accent" : "border-fg-faint"}`
-                          : `w-[18px] h-[18px] rounded-full border-2 ${on ? "border-accent bg-accent" : "border-fg-faint"}`
-                      }`}
-                    >
+                    <span className="office-ask-option__mark" data-multi={q.multi ? "true" : "false"}>
                       {on && (
                         q.multi
                           ? <Check size={10} className="text-accent-fg" />
                           : <span className="w-1.5 h-1.5 rounded-full bg-accent-fg" />
                       )}
                     </span>
-                    <span className="flex flex-col gap-0.5 min-w-0">
-                      <span className={`text-[13px] leading-snug ${on ? "text-fg font-medium" : "text-fg-dim"}`}>
-                        {o.label}
-                      </span>
+                    <span className="office-ask-option__copy">
+                      <span className="office-ask-option__title">{o.label}</span>
                       {o.description && (
-                        <span className="text-fg-faint text-[11px] leading-snug">{o.description}</span>
+                        <span className="office-ask-option__hint">{o.description}</span>
                       )}
                     </span>
                   </button>
@@ -241,34 +251,41 @@ export function AskCard({
               })}
             </div>
             <input
-              className="w-full border border-border-soft rounded-lg bg-bg text-fg text-[12.5px] px-3 py-2 outline-none placeholder:text-fg-faint/40 transition-colors duration-150 focus:border-accent focus:shadow-[0_0_0_2px_var(--accent-soft),0_0_14px_color-mix(in_srgb,var(--accent)_10%,transparent)]"
+              className="office-ask-custom"
               placeholder={t("ask.customPlaceholder")}
+              aria-label={t("ask.customPlaceholder")}
               value={custom[q.id] ?? ""}
               onChange={(e) => setTyped(q, e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && allAnswered) {
+                if (e.key === "Enter" && !e.shiftKey && allAnswered) {
                   e.preventDefault();
                   submit();
                 }
               }}
             />
-          </div>
-        ))}
-        <div className="flex justify-end gap-2 pt-1 border-t border-border-soft">
+          </section>
+          );
+        })}
+        </div>
+
+        <footer className="office-ask-footer">
+          <span className="office-ask-footer__hint">{t("ask.enterHint")}</span>
           <button
-            className="px-4 py-2 border border-border-soft rounded-lg bg-transparent text-fg-dim text-[12.5px] cursor-pointer transition-all duration-[var(--dur-fast)] hover:text-fg hover:border-border hover:bg-bg-soft hover:-translate-y-px active:scale-[0.98]"
+            type="button"
+            className="office-ask-footer__dismiss px-4 py-2"
             onClick={onDismiss}
           >
             {t("ask.justChat")}
           </button>
           <button
-            className="px-4 py-2 border-0 rounded-lg bg-accent text-accent-fg text-[12.5px] font-semibold cursor-pointer transition-all duration-[var(--dur-fast)] enabled:shadow-[0_0_12px_color-mix(in_srgb,var(--accent)_22%,transparent)] enabled:hover:brightness-110 enabled:hover:-translate-y-px enabled:active:scale-[0.98] disabled:opacity-40 disabled:cursor-default disabled:shadow-none"
+            type="button"
+            className="office-ask-footer__submit px-4 py-2"
             onClick={submit}
             disabled={!allAnswered}
           >
             {t("common.submit")}
           </button>
-        </div>
+        </footer>
       </div>
     </div>
   );

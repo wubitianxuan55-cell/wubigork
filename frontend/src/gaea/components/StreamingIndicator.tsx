@@ -55,7 +55,11 @@ export function StreamingIndicator({
   const cfg = stageConfig[hidden ? "idle" : stage];
 
   return (
-    <div className={`sticky top-0 z-10 flex items-center gap-2.5 px-3 py-2 border-b border-border-soft/60 bg-bg-soft/60 backdrop-blur-md ${hidden ? "invisible" : ""}`}>
+    <div
+      className={`sticky top-0 z-10 flex items-center gap-2.5 px-3 py-2 border-b border-border-soft/60 bg-bg-soft/60 backdrop-blur-md ${hidden ? "invisible" : ""}`}
+      role="status"
+      aria-live="polite"
+    >
       {/* 滚动色条 — 高 3px，顶对齐 */}
       <div className="absolute top-0 left-0 right-0 h-[3px] bg-border-soft/60 overflow-hidden">
         <div className={`h-full rounded-r-sm animate-pulse ${cfg.barClass}`} />

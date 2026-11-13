@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef, useState } from "react";
+import { memo, useId, useMemo, useRef, useState } from "react";
 import {
   Ban,
   Check,
@@ -56,7 +56,7 @@ function StatusGlyph({ status, recoverable }: { status: ToolItem["status"]; reco
 // 芯片口径：add=text-ok、del=text-err、ctx=text-fg-dim。
 function DiffRowsView({ rows, folded }: { rows: DiffRow[]; folded: number }) {
   return (
-    <pre className="px-3 py-2 font-mono text-[12px] leading-[1.5] overflow-auto max-h-72 whitespace-pre bg-bg-soft border border-border-soft rounded-md">
+    <pre className="office-tool-card__diff px-3 py-2 overflow-auto max-h-72 whitespace-pre">
       <code>
         {rows.map((r, i) => (
           <span
@@ -196,26 +196,32 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
     && getTaskCardAmbiguity(resolvedRef, item.args)
     && hasTaskCardAmbiguityHandler();
   const clickable = isSubagentCard && (!!openTarget || ambiguous);
+  const bodyId = useId();
+  const statusLabel = item.status === "running"
+    ? t("process.statusRunning")
+    : item.status === "error"
+      ? t("process.statusError")
+      : item.status === "stopped"
+        ? t("process.statusStopped")
+        : t("process.statusDone");
 
-  const rowPy = compact ? "py-0" : "py-0.5";
-  const rowPx = compact ? "px-1" : "px-2";
   const chevronSize = compact ? 11 : 12;
-  const summarySize = compact ? "text-[11px]" : "text-[12px]";
   const innerPx = compact ? "px-1" : "px-2";
   const innerPb = compact ? "pb-1" : "pb-1.5";
 
-  // Codex 式工具行：无边框无背景块，hover 才高亮；只读工具安静降噪。
+  // 工具行先回答“运行了什么、结果是什么”，再允许下钻输出。整行使用真实
+  // button 语义，键盘与屏幕阅读器都能展开；子代理卡仍可直接打开会话。
   return (
     <div
-      className={`rounded-md transition-colors duration-150 ${
-        expandable ? "hover:bg-(color:--md-sys-color-surface-container-high)" : ""
-      } ${item.status === "stopped" ? "opacity-60" : ""}`}
+      className={`office-tool-card ${item.status === "stopped" ? "opacity-70" : ""}`}
       data-tone={item.status === "error" && !item.recoverable ? "danger" : item.status === "running" ? "info" : item.status === "done" ? "success" : item.status === "stopped" ? "warning" : undefined}
+      data-open={open && expandable ? "true" : "false"}
+      data-quiet={quiet ? "true" : "false"}
+      data-compact={compact ? "true" : "false"}
     >
-      <div
-        className={`flex items-center gap-1.5 ${rowPx} ${rowPy} select-none ${
-          expandable ? "cursor-pointer hover:bg-bg-soft" : ""
-        } ${quiet ? "text-fg-faint/60" : "text-fg-dim"}`}
+      <button
+        type="button"
+        className={`office-tool-card__head select-none ${clickable ? "cursor-pointer" : ""}`}
         onClick={
           clickable
             ? ambiguous
@@ -227,49 +233,50 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
         }
         title={ambiguous ? t("taskpick.cardAria") : clickable ? t("tool.openSessionHint") : undefined}
         aria-label={ambiguous ? t("taskpick.cardAria") : undefined}
+        aria-expanded={!clickable && expandable ? open : undefined}
+        aria-controls={!clickable && expandable ? bodyId : undefined}
+        disabled={!clickable && !expandable}
       >
-        {expandable ? (
-          <ChevronRight
-            className={`shrink-0 transition-transform duration-200 ${open ? "rotate-90" : ""}`}
-            size={chevronSize}
-          />
-        ) : (
-          <ChevronRight className="shrink-0 invisible" size={chevronSize} />
-        )}
-        <Icon
-          className={`shrink-0 ${item.status === "error" && !item.recoverable ? "text-err" : item.status === "error" && item.recoverable ? "text-fg-faint/60" : item.status === "running" ? "text-accent" : "text-fg-faint"}`}
-          size={chevronSize + 2}
-        />
-        <span className={`font-mono font-medium truncate ${item.status === "error" && !item.recoverable ? "text-err" : item.status === "error" && item.recoverable ? "text-fg-dim/60 line-through" : quiet ? "text-fg-faint/70" : "text-fg"} ${compact ? "text-[11px]" : "text-[12px]"}`}>
-          {item.name}
-        </span>
-        {/* bash 的行内主体=命令本身：mono 短字号与工具名同族；展开态下
-            $ 命令块已完整呈现同一命令，行内不再重复（v4.503 去重——此前
-            折叠行一条长命令、展开后又整块复述一遍）。 */}
-        {subject && !(open && command) && (
-          <span
-            className={`truncate ${command ? "font-mono text-[11px]" : `text-fg-faint ${summarySize}`}`}
-          >
-            {command ? `$ ${subject}` : subject}
-          </span>
-        )}
-        {stat && (stat.add > 0 || stat.del > 0) ? (
-          <span
-            className="shrink-0 ml-1 inline-flex items-center gap-1 rounded px-1 py-px font-mono text-[10.5px] leading-none bg-bg-soft border border-border-soft text-fg-dim tabular-nums"
-            title={t("tool.diffStatTitle")}
-          >
-            <span className="text-ok">+{stat.add}</span>
-            <span className="text-err">−{stat.del}</span>
-          </span>
-        ) : (
-          summary && (
-          <span className={`text-fg-faint italic ml-0.5 ${summarySize}`}>{summary}</span>
-          )
-        )}
-        <span className="ml-auto shrink-0">
+        <span className="office-tool-card__status" data-status={item.status} title={statusLabel}>
           <StatusGlyph status={item.status} recoverable={item.recoverable} />
+          <span className="sr-only">{statusLabel}</span>
         </span>
-      </div>
+        <Icon
+          className="office-tool-card__icon shrink-0"
+          size={chevronSize + 2}
+          aria-hidden
+        />
+        <span className="office-tool-card__identity">
+          <span className={`office-tool-card__name ${item.status === "error" && item.recoverable ? "line-through opacity-70" : ""}`}>
+            {item.name}
+          </span>
+          {/* bash 的行内主体=命令本身；展开后由下方命令块独占。 */}
+          {subject && !(open && command) && (
+            <span className="office-tool-card__subject" data-command={command ? "true" : "false"}>
+              {command ? `$ ${subject}` : subject}
+            </span>
+          )}
+        </span>
+        <span className="office-tool-card__trail">
+          {stat && (stat.add > 0 || stat.del > 0) ? (
+            <span
+              className="office-tool-card__diffstat inline-flex items-center gap-1 border border-border-soft bg-bg-soft px-1 py-px font-mono text-fg-dim tabular-nums"
+              title={t("tool.diffStatTitle")}
+            >
+              <span className="text-ok">+{stat.add}</span>
+              <span className="text-err">−{stat.del}</span>
+            </span>
+          ) : (
+            summary && <span className="office-tool-card__summary">{summary}</span>
+          )}
+        </span>
+        <ChevronRight
+          size={chevronSize}
+          className={`office-tool-card__chevron shrink-0 ${!clickable && !expandable ? "invisible" : ""}`}
+          data-open={open ? "true" : "false"}
+          aria-hidden
+        />
+      </button>
 
       {/* v4.26 子代理 task 卡 live 化：运行中在头部行下方渲染实时活动行
           （活动预览 / 已用时 / 查看分工），不进折叠区、常驻可见。 */}
@@ -295,14 +302,14 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
         </div>
       )}
 
-      <div ref={bodyRef} style={{ overflow: "hidden" }}>
-        <div>
+      <div id={bodyId} ref={bodyRef} style={{ overflow: "hidden" }}>
+        <div className="office-tool-card__body">
           {diffs.map((d, i) => {
             const { rows, folded } = unifiedRows(d.original, d.modified);
             if (rows.length === 0 && folded === 0) return null;
             return (
               <div className={`${innerPx} ${innerPb}`} key={i}>
-                {d.label && <div className="text-[10px] text-fg-faint uppercase tracking-wider mb-0.5">{d.label}</div>}
+                {d.label && <div className="office-tool-card__section-label">{d.label}</div>}
                 <DiffRowsView rows={rows} folded={folded} />
               </div>
             );
@@ -319,19 +326,19 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
           {/* Codex 式 bash 命令块：$ 前缀终端风格，多行命令原样换行、超长行折行 */}
           {command && (
             <div className={`${innerPx} ${innerPb}`}>
-              <pre className="px-3 py-2 font-mono text-[12px] leading-[1.5] whitespace-pre-wrap break-words bg-bg-soft border border-border-soft rounded-md text-fg-dim"><code>{`$ ${command}`}</code></pre>
+              <pre className="office-tool-card__command px-3 py-2 whitespace-pre-wrap break-words text-fg-dim"><code>{`$ ${command}`}</code></pre>
             </div>
           )}
 
           {showArgsJson && (
             <div className={`${innerPx} ${innerPb}`}>
-              {item.args && <pre className="px-3 py-2 font-mono text-[12px] leading-[1.5] overflow-auto whitespace-pre bg-bg-soft border border-border-soft rounded-md text-fg-dim"><code>{prettyArgs}</code></pre>}
+              {item.args && <pre className="office-tool-card__args px-3 py-2 overflow-auto whitespace-pre text-fg-dim"><code>{prettyArgs}</code></pre>}
             </div>
           )}
           {hasOutput && (
             <div className={`${innerPx} ${innerPb}`}>
-              <div className="text-[10px] text-fg-faint/60 uppercase tracking-wider mb-0.5 select-none">{t("tool.outputHeader", { n: outputLines })}</div>
-              <pre className="px-3 py-2 font-mono text-[12px] leading-[1.5] overflow-auto max-h-72 whitespace-pre-wrap break-words bg-bg-soft border border-border-soft rounded-md text-fg-dim"><code><FileLinkText text={showFullOutput ? bounded.full : bounded.preview} compact /></code></pre>
+              <div className="office-tool-card__section-label select-none">{t("tool.outputHeader", { n: outputLines })}</div>
+              <pre className="office-tool-card__output px-3 py-2 overflow-auto max-h-72 whitespace-pre-wrap break-words text-fg-dim"><code><FileLinkText text={showFullOutput ? bounded.full : bounded.preview} compact /></code></pre>
               {bounded.preview !== bounded.full && (
                 <button
                   type="button"
@@ -354,12 +361,12 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
           )}
 
           {item.error && !item.recoverable && (
-            <div className={`${innerPx} py-1 text-err text-[12px] leading-snug border-t border-err/20`}>
+            <div className="office-tool-card__error" data-recoverable="false" role="alert">
               {item.error}
             </div>
           )}
           {item.error && item.recoverable && (
-            <div className={`${innerPx} py-1 text-fg-faint/60 text-[12px] leading-snug border-t border-fg-faint/15`}>
+            <div className="office-tool-card__error" data-recoverable="true">
               {item.error}
             </div>
           )}

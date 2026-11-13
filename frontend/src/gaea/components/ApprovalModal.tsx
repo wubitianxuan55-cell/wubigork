@@ -1,31 +1,31 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
+import { Shield } from "../icons";
 import { useT } from "../lib/i18n";
 import type { WireApproval } from "../lib/types";
 import { ScheduleDiffCard } from "../../schedule/ScheduleDiffCard";
 import { scheduleApplyIsProjectChannel } from "../../schedule/applyDiff";
 
-const btnBase = "grid grid-cols-[28px_1fr] items-center gap-2.5 w-full min-h-[46px] rounded-lg text-fg p-1.5 px-2 text-left cursor-pointer transition-all duration-[var(--dur-fast)]";
-
-function PlanBtn({ num, active, title, hint, onClick }: {
-  num: number; active?: boolean; title: string; hint: string; onClick: () => void;
+function PlanBtn({ num, tone = "default", title, hint, onClick, decision }: {
+  num: number;
+  tone?: "default" | "primary" | "danger";
+  title: string;
+  hint: string;
+  onClick: () => void;
+  decision: ApprovalDecision;
 }) {
   return (
     <button
-      className={`${btnBase} border ${
-        active
-          ? "border-[color-mix(in_srgb,var(--accent)_55%,var(--border))] bg-accent-soft hover:border-accent hover:scale-[1.01]"
-          : "border-border-soft bg-bg-soft hover:border-fg-faint hover:bg-bg-elev-2 hover:scale-[1.01]"
-      }`}
+      type="button"
+      className="office-decision-option"
+      data-tone={tone}
+      data-decision={decision}
       onClick={onClick}
+      aria-keyshortcuts={String(num)}
     >
-      <span className={`inline-flex items-center justify-center w-[26px] h-[26px] border rounded-lg font-mono text-xs font-bold ${
-        active ? "border-accent bg-accent text-accent-fg" : "border-border text-fg-dim bg-bg"
-      }`}>
-        {num}
-      </span>
-      <span className="flex min-w-0 flex-col gap-px">
-        <span className="text-fg text-[13px] font-semibold leading-[1.25]">{title}</span>
-        <span className="text-fg-faint text-[11.5px] leading-[1.3]">{hint}</span>
+      <span className="office-decision-key" aria-hidden>{num}</span>
+      <span className="office-decision-option__copy">
+        <span className="office-decision-option__title">{title}</span>
+        <span className="office-decision-option__hint">{hint}</span>
       </span>
     </button>
   );
@@ -58,6 +58,9 @@ export function ApprovalModal({
   scheduleApplyArgs?: string | null;
 }) {
   const t = useT();
+  const idPrefix = useId();
+  const titleId = `${idPrefix}-title`;
+  const noteId = `${idPrefix}-note`;
   const cardRef = useRef<HTMLDivElement | null>(null);
   // 持久化写入（成本库/记忆/知识库）必须逐条确认：
   // 不提供「本会话内允许」「始终允许」，批准仅本次生效。
@@ -92,41 +95,52 @@ export function ApprovalModal({
   }, [onAnswer, hardConfirm]);
 
   return (
-    <div className="plan-approval-dock" aria-live="polite">
-      <div
+    <div className="office-approval-dock" aria-live="polite">
+      <section
         ref={cardRef}
-        className="border border-border rounded-xl bg-bg-elev p-4 outline-none focus-visible:border-accent transition-shadow duration-200"
-        style={{boxShadow: "var(--ds-shadow-card)"}}
-        onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.boxShadow = "var(--ds-shadow-card-hover)"}
-        onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.boxShadow = "var(--ds-shadow-card)"}
-        role="dialog" aria-modal="true" tabIndex={-1}
-        aria-labelledby="tool-approval-title"
+        className="office-approval-card"
+        role="dialog"
+        aria-modal="false"
+        tabIndex={-1}
+        aria-labelledby={titleId}
+        aria-describedby={noteId}
+        data-permission-request={approval.request ? "true" : "false"}
+        data-hard-confirm={hardConfirm ? "true" : "false"}
       >
-        <div className="mb-3">
-          <div id="tool-approval-title" className="text-fg font-semibold leading-[1.35] text-[14px]">
-            {approval.request ? t("approval.requestTitle") : t("approval.toolTitle")}
+        <header className="office-approval-head">
+          <div className="office-decision-head">
+            <span className="office-decision-head__icon" aria-hidden>
+              <Shield size={14} />
+            </span>
+            <span className="office-decision-head__copy">
+              <span className="office-decision-head__kicker">{t("approval.decisionLabel")}</span>
+              <h2 id={titleId} className="office-decision-head__title">
+                {approval.request ? t("approval.requestTitle") : t("approval.toolTitle")}
+              </h2>
+              <p id={noteId} className="office-decision-head__note">
+                {approval.request ? t("approval.requestNote") : t("approval.toolNote")}
+              </p>
+            </span>
           </div>
-          <div className="text-fg-dim text-[12.5px] leading-[1.45] mt-0.5">
-            {approval.request ? t("approval.requestNote") : t("approval.toolNote")}
-          </div>
-        </div>
+        </header>
 
-        <div className="flex items-center gap-2 min-h-[34px] mb-3 border border-border-soft rounded-lg bg-bg-soft py-[5px] px-2">
-          <span className="shrink-0 text-fg-faint font-mono text-[11px] uppercase tracking-[0.04em]">
+        <div className="office-approval-body">
+        <div className="office-decision-context">
+          <span className="office-decision-context__label">
             {approval.request ? t("approval.ruleLabel") : t("approval.toolLabel")}
           </span>
-          <span className="font-mono text-xs font-medium text-fg break-all">
+          <span className="office-decision-context__value">
             {approval.request && approval.subject ? `${approval.tool}(${approval.subject})` : approval.tool}
           </span>
         </div>
 
         {approval.request && (
-          <div className="mb-3 border border-border-soft rounded-lg bg-bg-soft py-[7px] px-2">
-            <div className="text-fg-faint font-mono text-[11px] uppercase tracking-[0.04em] mb-0.5">
+          <div className="office-approval-request">
+            <div className="office-approval-request__label">
               {t("approval.reasonLabel")}
             </div>
             {/* 模型给出的申请理由原文：必须可见后才谈得上采信，缺省时明确标注 */}
-            <div className="text-fg-dim text-[12.5px] leading-[1.5] whitespace-pre-wrap break-words max-h-[140px] overflow-auto">
+            <div className="office-approval-request__text">
               {approval.reason?.trim() ? approval.reason : t("approval.reasonMissing")}
             </div>
           </div>
@@ -138,34 +152,39 @@ export function ApprovalModal({
           <ScheduleDiffCard args={scheduleApplyArgs ?? null} />
         ) : (
           !approval.request && approval.subject && (
-            <pre className="m-0 mb-3 px-[11px] py-[9px] bg-bg-soft border border-border-soft rounded-lg font-mono text-[12.5px] whitespace-pre-wrap break-words max-h-[140px] overflow-auto">
+            <pre className="office-approval-pre">
               {approval.subject}
             </pre>
           )
         )}
-
-        <div className="flex flex-col gap-1.5">
-          <PlanBtn num={1} title={t("approval.deny")} hint={t("approval.denyHint")} onClick={() => onAnswer("deny")} />
-          <PlanBtn num={2} active title={t("approval.allowOnce")} hint={t("approval.allowOnceHint")} onClick={() => onAnswer("allow_once")} />
-          {!hardConfirm && (
-            <PlanBtn num={3} title={t("approval.allowSession")} hint={t("approval.allowSessionHint")} onClick={() => onAnswer("allow_session")} />
-          )}
-          {!hardConfirm && (
-            <PlanBtn num={4} title={t("approval.persistAlways")} hint={t("approval.persistAlwaysHint")} onClick={() => onAnswer("persist_allow")} />
-          )}
-          <PlanBtn num={hardConfirm ? 3 : 5} title={t("approval.abort")} hint={t("approval.abortHint")} onClick={() => onAnswer("abort")} />
         </div>
-        {isProjectHard && (
-          <div className="mt-2 text-[11px] text-fg-faint leading-snug">
-            整计划替换需逐条确认：批准仅本次生效，不会自动放行后续写入；拒绝后可让模型按你的意见修改后重新提交。
+
+        <footer className="office-approval-actions">
+          <div className="office-approval-actions__primary">
+            <PlanBtn num={1} decision="deny" title={t("approval.deny")} hint={t("approval.denyHint")} onClick={() => onAnswer("deny")} />
+            <PlanBtn num={2} decision="allow_once" tone="primary" title={t("approval.allowOnce")} hint={t("approval.allowOnceHint")} onClick={() => onAnswer("allow_once")} />
           </div>
-        )}
-        {isHardAsk && (
-          <div className="mt-2 text-[11px] text-fg-faint leading-snug">
-            持久化写入需逐条确认：批准仅本次生效，不会自动放行后续写入。
+          <div className="office-approval-actions__secondary">
+            {!hardConfirm && (
+              <PlanBtn num={3} decision="allow_session" title={t("approval.allowSession")} hint={t("approval.allowSessionHint")} onClick={() => onAnswer("allow_session")} />
+            )}
+            {!hardConfirm && (
+              <PlanBtn num={4} decision="persist_allow" title={t("approval.persistAlways")} hint={t("approval.persistAlwaysHint")} onClick={() => onAnswer("persist_allow")} />
+            )}
+            <PlanBtn num={hardConfirm ? 3 : 5} decision="abort" tone="danger" title={t("approval.abort")} hint={t("approval.abortHint")} onClick={() => onAnswer("abort")} />
           </div>
-        )}
-      </div>
+          {isProjectHard && (
+            <p className="office-approval-note">
+              整计划替换需逐条确认：批准仅本次生效，不会自动放行后续写入；拒绝后可让模型按你的意见修改后重新提交。
+            </p>
+          )}
+          {isHardAsk && (
+            <p className="office-approval-note">
+              持久化写入需逐条确认：批准仅本次生效，不会自动放行后续写入。
+            </p>
+          )}
+        </footer>
+      </section>
     </div>
   );
 }

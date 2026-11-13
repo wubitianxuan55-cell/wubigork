@@ -200,6 +200,7 @@ export const zhTW: Record<DictKey, string> = {
   // approval modal
   "approval.toolTitle": "允許此工具呼叫？",
   "approval.toolNote": "在允許執行前檢閱請求的工具。",
+  "approval.decisionLabel": "需要你核准",
   "approval.toolLabel": "工具",
   "approval.deny": "拒絕",
   "approval.denyHint": "不執行此工具呼叫",
@@ -218,6 +219,9 @@ export const zhTW: Record<DictKey, string> = {
   "approval.reasonMissing": "（模型未提供理由）",
 
   // ask card
+  "ask.title": "需要你確認",
+  "ask.answered": "已回答 {n}/{total}",
+  "ask.enterHint": "在自訂回答中按 Enter 提交",
   "ask.customPlaceholder": "輸入你自己的答案…",
   "ask.justChat": "直接對話",
   "ask.dragHint": "拖曳移動",
@@ -359,7 +363,6 @@ export const zhTW: Record<DictKey, string> = {
   "process.thoughtOne": "{n} 段思考",
   "process.thoughtOther": "{n} 段思考",
   "process.working": "處理中…",
-  "process.title": "過程",
   "toolGroup.called": "{name} × {n}",
   "toolGroup.calledTitle": "已調用 {name} · {n} 次",
   "work.thinking": "思考中…",
