@@ -484,3 +484,11 @@
   面板）；golden 用例钉 office_open/office_edit 不登记、office_save doc 登记。
   doc 缺省（纯 {} 沿用最近文档）仍无可提取参数——已知盲区记录（回执带 Saved
   路径，模型侧可见）。
+
+## 30. Excel 大表 office_read 输出保护（16:4x）
+
+- 实弹反馈（e0461f53，exe `c1a692f3…` 冒烟 200 装机）：交互文件 Excel 表
+  显式 range 输出 361KB 被 agent 48KiB 预算硬截断（英文 elided 无操作指引）
+  ——工具层主动截断至 38KiB（行边界对齐）+尾部结构化指引（不要整表读/
+  profile:true 看概况/缩小 range 分块）。§29 的 doc 键修复同批装机（92897b88
+  →本笔 c1a692f3）。
