@@ -1,0 +1,1638 @@
+{
+ "skills/browser": {
+  "local_modules": [
+   "__init__",
+   "api",
+   "browser",
+   "cdp_http",
+   "cli",
+   "core",
+   "extensions",
+   "scripts",
+   "snapshot",
+   "test_browser_delivery",
+   "test_browser_recovery",
+   "test_browser_scenarios",
+   "util"
+  ],
+  "files": {
+   "scripts/api.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 14
+   },
+   "scripts/browser.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 18
+   },
+   "scripts/cdp_http.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 9
+   },
+   "scripts/cli.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [
+     "click",
+     "execute_script",
+     "fill",
+     "get_interactive_elements",
+     "navigate",
+     "screenshot",
+     "select_option",
+     "tabs_activate",
+     "tabs_close",
+     "tabs_list",
+     "tabs_mark",
+     "upload_files"
+    ],
+    "kb": 7
+   },
+   "scripts/core.py": {
+    "third_party": [
+     "cdp_use",
+     "httpx"
+    ],
+    "missing_pkgs": [
+     "cdp_use",
+     "httpx"
+    ],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 35
+   },
+   "scripts/test_browser_delivery.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 7
+   },
+   "scripts/test_browser_recovery.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 7
+   },
+   "scripts/test_browser_scenarios.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 76
+   },
+   "scripts/util.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 22
+   },
+   "scripts/__init__.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 0
+   },
+   "scripts/extensions/snapshot.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 3
+   },
+   "scripts/extensions/__init__.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 0
+   }
+  }
+ },
+ "skills/deep-research": {
+  "local_modules": [
+   "__init__",
+   "scripts"
+  ],
+  "files": {
+   "scripts/__init__.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 0
+   }
+  }
+ },
+ "skills/docx": {
+  "local_modules": [
+   "__init__",
+   "_shared",
+   "docx_cli",
+   "docx_lint",
+   "docx_transcoder_client",
+   "edit_docx",
+   "inspect_docx",
+   "office",
+   "pack",
+   "scripts",
+   "source_patch",
+   "unpack",
+   "validate"
+  ],
+  "files": {
+   "scripts/docx_cli.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [
+     "docx_transcoder_client"
+    ],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [
+     "create",
+     "edit",
+     "inspect",
+     "lint",
+     "pack",
+     "restore",
+     "source-patch",
+     "source-status",
+     "source-undo",
+     "unpack"
+    ],
+    "kb": 9
+   },
+   "scripts/docx_lint.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [
+     "docx_transcoder_client"
+    ],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 11
+   },
+   "scripts/docx_transcoder_client.py": {
+    "third_party": [
+     "requests"
+    ],
+    "missing_pkgs": [
+     "requests"
+    ],
+    "cloud_modules": [],
+    "cloud_hosts": [
+     "lingxi.wps.cn"
+    ],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 42
+   },
+   "scripts/edit_docx.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 6
+   },
+   "scripts/inspect_docx.py": {
+    "third_party": [
+     "lxml"
+    ],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 6
+   },
+   "scripts/source_patch.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 14
+   },
+   "scripts/__init__.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 0
+   },
+   "scripts/office/pack.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 3
+   },
+   "scripts/office/unpack.py": {
+    "third_party": [
+     "lxml"
+    ],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 3
+   },
+   "scripts/office/validate.py": {
+    "third_party": [
+     "docx",
+     "lxml"
+    ],
+    "missing_pkgs": [
+     "docx"
+    ],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 2
+   },
+   "scripts/office/_shared.py": {
+    "third_party": [
+     "lxml"
+    ],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 4
+   },
+   "scripts/office/__init__.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 0
+   }
+  }
+ },
+ "skills/image-canvas": {
+  "local_modules": [
+   "cli",
+   "image_edit_client",
+   "image_prepare"
+  ],
+  "files": {
+   "scripts/cli.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [
+     "lingxi.wps.cn"
+    ],
+    "cloud_env": false,
+    "subcommands": [
+     "query",
+     "submit"
+    ],
+    "kb": 40
+   },
+   "scripts/image_edit_client.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": true,
+    "subcommands": [],
+    "kb": 13
+   },
+   "scripts/image_prepare.py": {
+    "third_party": [
+     "PIL"
+    ],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 13
+   }
+  }
+ },
+ "skills/paper-writer": {
+  "local_modules": [
+   "academic_search",
+   "scientific_visualization"
+  ],
+  "files": {
+   "scripts/academic_search.py": {
+    "third_party": [
+     "aiohttp"
+    ],
+    "missing_pkgs": [
+     "aiohttp"
+    ],
+    "cloud_modules": [],
+    "cloud_hosts": [
+     "lingxi.wps.cn"
+    ],
+    "cloud_env": true,
+    "subcommands": [],
+    "kb": 53
+   },
+   "scripts/scientific_visualization.py": {
+    "third_party": [
+     "matplotlib",
+     "numpy",
+     "rdkit"
+    ],
+    "missing_pkgs": [
+     "rdkit"
+    ],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 14
+   }
+  }
+ },
+ "skills/pdf": {
+  "local_modules": [
+   "pdf_cli",
+   "pdf_to_md"
+  ],
+  "files": {
+   "scripts/pdf_cli.py": {
+    "third_party": [
+     "PIL",
+     "pdfplumber",
+     "pypdf",
+     "pypdfium2"
+    ],
+    "missing_pkgs": [
+     "pdfplumber",
+     "pypdf"
+    ],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [
+     "batch",
+     "compress",
+     "crop",
+     "decrypt",
+     "delete-pages",
+     "encrypt",
+     "extract-images",
+     "extract-table",
+     "extract-text",
+     "info",
+     "merge",
+     "page-count",
+     "render",
+     "rotate",
+     "split",
+     "to-md",
+     "watermark"
+    ],
+    "kb": 17
+   },
+   "scripts/pdf_to_md.py": {
+    "third_party": [
+     "requests"
+    ],
+    "missing_pkgs": [
+     "requests"
+    ],
+    "cloud_modules": [],
+    "cloud_hosts": [
+     "365.kdocs.cn",
+     "api.wps.cn"
+    ],
+    "cloud_env": true,
+    "subcommands": [],
+    "kb": 6
+   }
+  }
+ },
+ "skills/pptx": {
+  "local_modules": [
+   "__init__",
+   "analyze_pptx",
+   "apply_flat",
+   "chart",
+   "edit_operations",
+   "export_screenshots",
+   "extract_style",
+   "font_intersection",
+   "font_scanner",
+   "group_svg",
+   "hybrid_assemble",
+   "hybrid_manifest",
+   "icon",
+   "image_grid",
+   "img_fetch",
+   "make_skeleton",
+   "merge",
+   "ooxml_flatten",
+   "opc",
+   "pack_pptx",
+   "picture_bake",
+   "pptx_cli",
+   "pptx_colors",
+   "pptx_layout_check",
+   "pptx_merge",
+   "pptx_query",
+   "pptx_text",
+   "scripts",
+   "shell_report",
+   "test_img_fetch_loader",
+   "theme_api_client",
+   "theme_models",
+   "theme_registry",
+   "theme_request_builder",
+   "transcoder_api",
+   "validate",
+   "web_style_extractor"
+  ],
+  "files": {
+   "scripts/analyze_pptx.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 1
+   },
+   "scripts/apply_flat.py": {
+    "third_party": [
+     "PIL",
+     "lxml"
+    ],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 40
+   },
+   "scripts/chart.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 5
+   },
+   "scripts/edit_operations.py": {
+    "third_party": [
+     "lxml",
+     "pptx"
+    ],
+    "missing_pkgs": [
+     "pptx"
+    ],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 83
+   },
+   "scripts/export_screenshots.py": {
+    "third_party": [
+     "kdocs",
+     "kdocs_bridge"
+    ],
+    "missing_pkgs": [
+     "kdocs",
+     "kdocs_bridge"
+    ],
+    "cloud_modules": [
+     "kdocs",
+     "kdocs_bridge"
+    ],
+    "cloud_hosts": [],
+    "cloud_env": true,
+    "subcommands": [],
+    "kb": 6
+   },
+   "scripts/extract_style.py": {
+    "third_party": [
+     "pptx"
+    ],
+    "missing_pkgs": [
+     "pptx"
+    ],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 32
+   },
+   "scripts/font_intersection.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 5
+   },
+   "scripts/font_scanner.py": {
+    "third_party": [
+     "fontTools",
+     "matplotlib"
+    ],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 10
+   },
+   "scripts/group_svg.py": {
+    "third_party": [
+     "PIL"
+    ],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 26
+   },
+   "scripts/hybrid_assemble.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [
+     "transcoder_api"
+    ],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 10
+   },
+   "scripts/hybrid_manifest.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 14
+   },
+   "scripts/icon.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 10
+   },
+   "scripts/image_grid.py": {
+    "third_party": [
+     "PIL"
+    ],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 4
+   },
+   "scripts/img_fetch.py": {
+    "third_party": [
+     "PIL",
+     "api",
+     "browser",
+     "requests"
+    ],
+    "missing_pkgs": [
+     "api",
+     "browser",
+     "requests"
+    ],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 52
+   },
+   "scripts/make_skeleton.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 7
+   },
+   "scripts/ooxml_flatten.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 50
+   },
+   "scripts/pack_pptx.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 9
+   },
+   "scripts/picture_bake.py": {
+    "third_party": [
+     "PIL"
+    ],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 9
+   },
+   "scripts/pptx_cli.py": {
+    "third_party": [
+     "pptx"
+    ],
+    "missing_pkgs": [
+     "pptx"
+    ],
+    "cloud_modules": [
+     "transcoder_api"
+    ],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [
+     "apply-flat",
+     "assemble",
+     "cancel-task",
+     "check-layout",
+     "check-visual",
+     "copy-shape",
+     "delete-shape",
+     "edit-text",
+     "export-image",
+     "export-screenshots",
+     "extract-style",
+     "flatten",
+     "get-allowed-fonts",
+     "get-fonts",
+     "html-to-pptx",
+     "hybrid-manifest",
+     "image-grid",
+     "list-templates",
+     "make-skeleton",
+     "move-shape",
+     "pack",
+     "query",
+     "query-shape",
+     "replace-image",
+     "resize-shape",
+     "screenshot",
+     "shell-report",
+     "slide-organize"
+    ],
+    "kb": 36
+   },
+   "scripts/pptx_colors.py": {
+    "third_party": [
+     "lxml",
+     "pptx"
+    ],
+    "missing_pkgs": [
+     "pptx"
+    ],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 22
+   },
+   "scripts/pptx_layout_check.py": {
+    "third_party": [
+     "pptx"
+    ],
+    "missing_pkgs": [
+     "pptx"
+    ],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 18
+   },
+   "scripts/pptx_query.py": {
+    "third_party": [
+     "pptx"
+    ],
+    "missing_pkgs": [
+     "pptx"
+    ],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 24
+   },
+   "scripts/pptx_text.py": {
+    "third_party": [
+     "PIL",
+     "Xlib",
+     "fontTools"
+    ],
+    "missing_pkgs": [
+     "Xlib"
+    ],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 10
+   },
+   "scripts/shell_report.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 8
+   },
+   "scripts/test_img_fetch_loader.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 6
+   },
+   "scripts/theme_api_client.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 6
+   },
+   "scripts/theme_models.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 8
+   },
+   "scripts/theme_registry.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 1
+   },
+   "scripts/theme_request_builder.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 1
+   },
+   "scripts/transcoder_api.py": {
+    "third_party": [
+     "requests"
+    ],
+    "missing_pkgs": [
+     "requests"
+    ],
+    "cloud_modules": [],
+    "cloud_hosts": [
+     "lingxi.wps.cn"
+    ],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 39
+   },
+   "scripts/web_style_extractor.py": {
+    "third_party": [
+     "bs4",
+     "requests"
+    ],
+    "missing_pkgs": [
+     "bs4",
+     "requests"
+    ],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 23
+   },
+   "scripts/__init__.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 0
+   },
+   "scripts/pptx_merge/merge.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 25
+   },
+   "scripts/pptx_merge/opc.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 11
+   },
+   "scripts/pptx_merge/validate.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 6
+   },
+   "scripts/pptx_merge/__init__.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 0
+   }
+  }
+ },
+ "skills/stock-analysis": {
+  "local_modules": [],
+  "files": {}
+ },
+ "skills/wps-collab": {
+  "local_modules": [
+   "wps_collab"
+  ],
+  "files": {
+   "scripts/wps_collab.py": {
+    "third_party": [
+     "bs4",
+     "requests"
+    ],
+    "missing_pkgs": [
+     "bs4",
+     "requests"
+    ],
+    "cloud_modules": [],
+    "cloud_hosts": [
+     "365.kdocs.cn",
+     "api.wps.cn"
+    ],
+    "cloud_env": true,
+    "subcommands": [],
+    "kb": 117
+   }
+  }
+ },
+ "skills/wps-docs": {
+  "local_modules": [
+   "__init__",
+   "_utils",
+   "ap",
+   "builtin",
+   "dbsheet",
+   "et",
+   "formatting",
+   "hyperlink",
+   "kdocs",
+   "kdocs_bridge",
+   "mindmap",
+   "pivot_table",
+   "range",
+   "scripts",
+   "sheet",
+   "skills_registry",
+   "summary",
+   "workbook",
+   "wps_docs_cli",
+   "wps_http"
+  ],
+  "files": {
+   "ap/scripts/ap.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [
+     "kdocs",
+     "wps_http"
+    ],
+    "cloud_hosts": [
+     "365.kdocs.cn"
+    ],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 45
+   },
+   "dbsheet/scripts/dbsheet.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [
+     "kdocs",
+     "wps_http"
+    ],
+    "cloud_hosts": [
+     "365.kdocs.cn",
+     "www.kdocs.cn"
+    ],
+    "cloud_env": true,
+    "subcommands": [],
+    "kb": 46
+   },
+   "et/scripts/builtin.py": {
+    "third_party": [
+     "requests"
+    ],
+    "missing_pkgs": [
+     "requests"
+    ],
+    "cloud_modules": [
+     "wps_http"
+    ],
+    "cloud_hosts": [
+     "www.kdocs.cn"
+    ],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 8
+   },
+   "et/scripts/et.py": {
+    "third_party": [
+     "requests"
+    ],
+    "missing_pkgs": [
+     "requests"
+    ],
+    "cloud_modules": [
+     "kdocs",
+     "wps_http"
+    ],
+    "cloud_hosts": [
+     "www.kdocs.cn"
+    ],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 13
+   },
+   "et/scripts/agent_mode/formatting.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 15
+   },
+   "et/scripts/agent_mode/hyperlink.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [
+     "www.kdocs.cn"
+    ],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 9
+   },
+   "et/scripts/agent_mode/pivot_table.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 30
+   },
+   "et/scripts/agent_mode/range.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 69
+   },
+   "et/scripts/agent_mode/sheet.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 47
+   },
+   "et/scripts/agent_mode/skills_registry.py": {
+    "third_party": [
+     "jinja2"
+    ],
+    "missing_pkgs": [
+     "jinja2"
+    ],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 19
+   },
+   "et/scripts/agent_mode/summary.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 33
+   },
+   "et/scripts/agent_mode/workbook.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 7
+   },
+   "et/scripts/agent_mode/_utils.py": {
+    "third_party": [
+     "requests"
+    ],
+    "missing_pkgs": [
+     "requests"
+    ],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 33
+   },
+   "scripts/kdocs.py": {
+    "third_party": [
+     "requests"
+    ],
+    "missing_pkgs": [
+     "requests"
+    ],
+    "cloud_modules": [
+     "wps_http"
+    ],
+    "cloud_hosts": [
+     "365.kdocs.cn",
+     "api.wps.cn",
+     "lingxi.wps.cn",
+     "www.kdocs.cn"
+    ],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 49
+   },
+   "scripts/kdocs_bridge.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [
+     "kdocs",
+     "wps_http"
+    ],
+    "cloud_hosts": [
+     "api.wps.cn"
+    ],
+    "cloud_env": true,
+    "subcommands": [],
+    "kb": 13
+   },
+   "scripts/mindmap.py": {
+    "third_party": [
+     "requests"
+    ],
+    "missing_pkgs": [
+     "requests"
+    ],
+    "cloud_modules": [
+     "kdocs",
+     "wps_http"
+    ],
+    "cloud_hosts": [
+     "www.kdocs.cn"
+    ],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 21
+   },
+   "scripts/wps_docs_cli.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [
+     "kdocs",
+     "kdocs_bridge",
+     "wps_http"
+    ],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [
+     "ap",
+     "block-delete",
+     "block-insert",
+     "block-query",
+     "block-update",
+     "copy-file",
+     "create-doc",
+     "create-fields",
+     "create-file",
+     "create-folder",
+     "create-records",
+     "create-sheet",
+     "create-view",
+     "dbsheet",
+     "delete-empty-records",
+     "delete-fields",
+     "delete-file",
+     "delete-records",
+     "delete-sheet",
+     "delete-view",
+     "download-file",
+     "download-otl",
+     "drive",
+     "find-folder-by-path",
+     "get-file-info",
+     "get-form-meta",
+     "get-record",
+     "get-schema",
+     "get-view",
+     "list-deleted-files",
+     "list-folder-files",
+     "list-latest-items",
+     "list-my-files",
+     "list-records",
+     "move-file",
+     "rename-file",
+     "restore-deleted-file",
+     "save-as-file",
+     "search-files",
+     "search-records",
+     "update-fields",
+     "update-form-meta",
+     "update-records",
+     "update-sheet",
+     "update-view",
+     "upload-file",
+     "upload-image",
+     "upload-mindmap"
+    ],
+    "kb": 59
+   },
+   "scripts/wps_http.py": {
+    "third_party": [
+     "requests"
+    ],
+    "missing_pkgs": [
+     "requests"
+    ],
+    "cloud_modules": [],
+    "cloud_hosts": [
+     "365.kdocs.cn",
+     "api.wps.cn"
+    ],
+    "cloud_env": true,
+    "subcommands": [],
+    "kb": 19
+   },
+   "scripts/__init__.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 0
+   }
+  }
+ },
+ "skills/xlsx": {
+  "local_modules": [
+   "__init__",
+   "audit",
+   "chart_labels",
+   "dynamic_array",
+   "lbo_cli",
+   "pivot_ooxml",
+   "recalc",
+   "scripts",
+   "test_lbo_cli",
+   "xlsx_cli"
+  ],
+  "files": {
+   "scripts/audit.py": {
+    "third_party": [
+     "openpyxl"
+    ],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 26
+   },
+   "scripts/chart_labels.py": {
+    "third_party": [
+     "openpyxl"
+    ],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 14
+   },
+   "scripts/dynamic_array.py": {
+    "third_party": [
+     "openpyxl"
+    ],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 110
+   },
+   "scripts/lbo_cli.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [
+     "ksyuncs.com"
+    ],
+    "cloud_env": false,
+    "subcommands": [
+     "capabilities",
+     "path",
+     "render"
+    ],
+    "kb": 14
+   },
+   "scripts/pivot_ooxml.py": {
+    "third_party": [
+     "formulas",
+     "lxml",
+     "numpy",
+     "openpyxl"
+    ],
+    "missing_pkgs": [
+     "formulas"
+    ],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 128
+   },
+   "scripts/recalc.py": {
+    "third_party": [
+     "formulas",
+     "numpy",
+     "openpyxl"
+    ],
+    "missing_pkgs": [
+     "formulas"
+    ],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 35
+   },
+   "scripts/test_lbo_cli.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [
+     "lbo_cli"
+    ],
+    "cloud_hosts": [
+     "ksyuncs.com"
+    ],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 3
+   },
+   "scripts/xlsx_cli.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [
+     "audit",
+     "build",
+     "recalc"
+    ],
+    "kb": 3
+   },
+   "scripts/__init__.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 0
+   }
+  }
+ },
+ "builtin/skill-creator": {
+  "local_modules": [
+   "init_skill",
+   "package_skill",
+   "quick_validate",
+   "skill_creator_cli"
+  ],
+  "files": {
+   "scripts/init_skill.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 13
+   },
+   "scripts/package_skill.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 4
+   },
+   "scripts/quick_validate.py": {
+    "third_party": [
+     "yaml"
+    ],
+    "missing_pkgs": [
+     "yaml"
+    ],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 5
+   },
+   "scripts/skill_creator_cli.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [
+     "init",
+     "package",
+     "validate"
+    ],
+    "kb": 3
+   }
+  }
+ },
+ "builtin/speech-to-text": {
+  "local_modules": [
+   "asr_client",
+   "cli",
+   "test_asr_client"
+  ],
+  "files": {
+   "scripts/asr_client.py": {
+    "third_party": [
+     "mutagen",
+     "requests"
+    ],
+    "missing_pkgs": [
+     "mutagen",
+     "requests"
+    ],
+    "cloud_modules": [],
+    "cloud_hosts": [
+     "lingxi.wps.cn",
+     "wpscdn.cn"
+    ],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 58
+   },
+   "scripts/cli.py": {
+    "third_party": [
+     "requests"
+    ],
+    "missing_pkgs": [
+     "requests"
+    ],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [
+     "query",
+     "transcribe"
+    ],
+    "kb": 32
+   },
+   "scripts/test_asr_client.py": {
+    "third_party": [
+     "requests"
+    ],
+    "missing_pkgs": [
+     "requests"
+    ],
+    "cloud_modules": [],
+    "cloud_hosts": [
+     "lingxi.wps.cn"
+    ],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 135
+   }
+  }
+ },
+ "builtin/visualizer-design": {
+  "local_modules": [],
+  "files": {}
+ },
+ "builtin/web-builder": {
+  "local_modules": [
+   "web_builder_cli",
+   "web_builder_cli_test"
+  ],
+  "files": {
+   "scripts/web_builder_cli.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [
+     "ksyuncs.com",
+     "lingxi.wps.cn"
+    ],
+    "cloud_env": false,
+    "subcommands": [
+     "build",
+     "cleanup",
+     "create-app",
+     "create-version",
+     "git-path",
+     "install",
+     "package",
+     "preview",
+     "preview-server",
+     "serve",
+     "start",
+     "staticize",
+     "stop"
+    ],
+    "kb": 53
+   },
+   "scripts/web_builder_cli_test.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [
+     "lingxi.wps.cn"
+    ],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 34
+   }
+  }
+ },
+ "builtin/wps-cowrite": {
+  "local_modules": [
+   "canvas_edit_hook",
+   "doc_save_hook",
+   "kdocs_cli",
+   "skill_directive",
+   "wps_docx"
+  ],
+  "files": {
+   "scripts/canvas_edit_hook.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 0
+   },
+   "scripts/doc_save_hook.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [
+     "api.wps.cn"
+    ],
+    "cloud_env": true,
+    "subcommands": [],
+    "kb": 4
+   },
+   "scripts/kdocs_cli.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [
+     "ksyuncs.com"
+    ],
+    "cloud_env": true,
+    "subcommands": [],
+    "kb": 3
+   },
+   "scripts/skill_directive.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": false,
+    "subcommands": [],
+    "kb": 0
+   },
+   "scripts/wps_docx.py": {
+    "third_party": [],
+    "missing_pkgs": [],
+    "cloud_modules": [],
+    "cloud_hosts": [],
+    "cloud_env": true,
+    "subcommands": [],
+    "kb": 51
+   }
+  }
+ }
+}

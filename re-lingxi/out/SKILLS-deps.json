@@ -1,0 +1,798 @@
+{
+ "preinstalled": {
+  ".-cairocffi": "1.7.1",
+  ".-cairosvg": "2.9.0",
+  ".-cffi": "2.1.0",
+  ".-choreographer": "1.3.0",
+  ".-contourpy": "1.3.3",
+  ".-cssselect2": "0.9.0",
+  ".-cycler": "0.12.1",
+  ".-defusedxml": "0.7.1",
+  ".-et-xmlfile": "2.0.0",
+  ".-fonttools": "4.63.0",
+  ".-kaleido": "1.3.0",
+  ".-kiwisolver": "1.5.0",
+  ".-logistro": "2.0.1",
+  ".-lxml": "6.1.1",
+  ".-matplotlib": "3.11.1",
+  ".-numpy": "2.5.1",
+  ".-openpyxl": "3.1.5",
+  ".-orjson": "3.11.9",
+  ".-packaging": "26.2",
+  ".-pandas": "3.0.3",
+  ".-pillow": "11.2.1",
+  ".-pip": "26.1.2",
+  ".-platformdirs": "4.10.1",
+  ".-pycparser": "3.0",
+  ".-pyparsing": "3.3.2",
+  ".-pypdfium2": "5.12.1",
+  ".-python-dateutil": "2.9.0.post0",
+  ".-simplejson": "4.1.1",
+  ".-six": "1.17.0",
+  ".-tinycss2": "1.5.1",
+  ".-tzdata": "2026.3",
+  ".-webencodings": "0.5.1",
+  ".-wheel": "0.47.0",
+  "cairocffi": "1.7.1",
+  "cairosvg": "2.9.0",
+  "cffi": "2.1.0",
+  "choreographer": "1.3.0",
+  "contourpy": "1.3.3",
+  "cssselect2": "0.9.0",
+  "cycler": "0.12.1",
+  "defusedxml": "0.7.1",
+  "et-xmlfile": "2.0.0",
+  "fonttools": "4.63.0",
+  "kaleido": "1.3.0",
+  "kiwisolver": "1.5.0",
+  "logistro": "2.0.1",
+  "lxml": "6.1.1",
+  "matplotlib": "3.11.1",
+  "numpy": "2.5.1",
+  "openpyxl": "3.1.5",
+  "orjson": "3.11.9",
+  "packaging": "26.2",
+  "pandas": "3.0.3",
+  "pillow": "11.2.1",
+  "pip": "26.1.2",
+  "platformdirs": "4.10.1",
+  "pycparser": "3.0",
+  "pyparsing": "3.3.2",
+  "pypdfium2": "5.12.1",
+  "python-dateutil": "2.9.0.post0",
+  "simplejson": "4.1.1",
+  "six": "1.17.0",
+  "tinycss2": "1.5.1",
+  "tzdata": "2026.3",
+  "webencodings": "0.5.1",
+  "wheel": "0.47.0"
+ },
+ "skills": {
+  "skills/browser": {
+   "kind": "skills",
+   "py": [
+    "scripts/api.py",
+    "scripts/browser.py",
+    "scripts/cdp_http.py",
+    "scripts/cli.py",
+    "scripts/core.py",
+    "scripts/test_browser_delivery.py",
+    "scripts/test_browser_recovery.py",
+    "scripts/test_browser_scenarios.py",
+    "scripts/util.py",
+    "scripts/__init__.py",
+    "scripts/extensions/snapshot.py",
+    "scripts/extensions/__init__.py"
+   ],
+   "md": [
+    "SKILL.md"
+   ],
+   "third_party": {
+    "api": "MISSING",
+    "browser": "MISSING",
+    "cdp_http": "MISSING",
+    "cdp_use": "MISSING",
+    "cli": "MISSING",
+    "core": "MISSING",
+    "extensions": "MISSING",
+    "httpx": "MISSING",
+    "util": "MISSING"
+   },
+   "hosts": [
+    "127.0.0.1",
+    "a",
+    "a.example",
+    "example.com",
+    "github.com",
+    "localhost",
+    "tieba.baidu.com",
+    "www.baidu.com"
+   ],
+   "exes": [],
+   "env": [
+    "BROWSER_BRIEF",
+    "BROWSER_EXECUTABLE_PATH",
+    "BROWSER_IN_APP_PORT",
+    "BROWSER_PLUGIN_MODE",
+    "BROWSER_RUN_ID",
+    "GROUP_ID",
+    "NATIVE_HOST_PORT",
+    "SESSION_ID",
+    "WORKSPACE_DIR"
+   ],
+   "frontmatter": {
+    "name": "browser",
+    "description": "通过 cdp-use 驱动浏览器，适用于打开和展示网页、非金山文档链接访问、Web 应用交互，以及内置搜索无法满足的信息检索和网页抓取需求。"
+   },
+   "bytes": 255121
+  },
+  "skills/deep-research": {
+   "kind": "skills",
+   "py": [
+    "scripts/__init__.py"
+   ],
+   "md": [
+    "SKILL.md",
+    "assets/evidence-bank-template.md",
+    "assets/kg-template.md",
+    "assets/og-template.md",
+    "references/deliverable-routing.md",
+    "references/final-gate.md",
+    "references/gap-detection.md",
+    "references/html-report.md",
+    "references/source-priority.md"
+   ],
+   "third_party": {},
+   "hosts": [],
+   "exes": [],
+   "env": [],
+   "frontmatter": {
+    "name": "deep-research",
+    "description": "\"基于双图架构（OG + KG）的迭代式深度研究，用于复杂主题的多来源调研、证据交叉核验与研究写作。维护两张并行的数据结构——提纲图（OG）记录章节骨架与覆盖度，知识图（KG）存储实体关系三元组；通过缺口检测器自动识别待补充的知识空白，驱动精准搜索与迭代探索，直到覆盖度达标或轮次上限；最终按 OG 拓扑顺序逐章写作，每章只注入该章的证据，避免无关干扰。适用于技术或产品选型、行业与竞品分析、政策研究、公司尽调、专题报告等需要结构化知识积累、多轮迭代收敛、以及大量交叉证据的复杂研究课题；当用户需要拆解研究问题、使用最新资料、比较不同来源或观点、解释证据强弱与冲突，并最终沉淀为研究结论、HTML、Word、PPT、PDF、表格时使用。\""
+   },
+   "bytes": 43949
+  },
+  "skills/docx": {
+   "kind": "skills",
+   "py": [
+    "scripts/docx_cli.py",
+    "scripts/docx_lint.py",
+    "scripts/docx_transcoder_client.py",
+    "scripts/edit_docx.py",
+    "scripts/inspect_docx.py",
+    "scripts/source_patch.py",
+    "scripts/__init__.py",
+    "scripts/office/pack.py",
+    "scripts/office/unpack.py",
+    "scripts/office/validate.py",
+    "scripts/office/_shared.py",
+    "scripts/office/__init__.py"
+   ],
+   "md": [
+    "create-docx.md",
+    "edit-docx.md",
+    "render-docx.md",
+    "SKILL.md",
+    "references/design.md",
+    "references/edit-docx-api.md",
+    "references/helpers-api.md"
+   ],
+   "third_party": {
+    "docx": "MISSING",
+    "docx_lint": "MISSING",
+    "docx_transcoder_client": "MISSING",
+    "edit_docx": "MISSING",
+    "inspect_docx": "MISSING",
+    "lxml": "preinstalled",
+    "office": "MISSING",
+    "requests": "MISSING",
+    "source_patch": "MISSING"
+   },
+   "hosts": [
+    "lingxi.wps.cn",
+    "schemas.microsoft.com",
+    "schemas.openxmlformats.org",
+    "www.w3.org"
+   ],
+   "exes": [],
+   "env": [
+    "DOCX_LOCAL_NODE_CHECK_TIMEOUT",
+    "DOCX_NODE_EXE",
+    "DOCX_TRANSCODER_MAX_REF_BYTES",
+    "DOCX_TRANSCODER_TIMEOUT",
+    "SERVER_BRANCH",
+    "TMP_LX_UUID",
+    "WORKSPACE_DIR"
+   ],
+   "frontmatter": {
+    "name": "docx",
+    "description": "创建、导出、下载、编辑和视觉检查 Word (.docx) 文档；用于新建文档、文本替换、OOXML 解包或重新打包，以及将本地 DOCX 页面渲染或导出为 PNG，可用于图片交付、页面预览、视觉验收、自动化处理等场景。用户仅要求交付文档且未指定格式时，默认使用 DOCX。不支持批注、修订、复杂样式重构、复杂目录或域代码处理。"
+   },
+   "bytes": 150750
+  },
+  "skills/image-canvas": {
+   "kind": "skills",
+   "py": [
+    "scripts/cli.py",
+    "scripts/image_edit_client.py",
+    "scripts/image_prepare.py"
+   ],
+   "md": [
+    "SKILL.md"
+   ],
+   "third_party": {
+    "PIL": "MISSING",
+    "image_edit_client": "MISSING",
+    "image_prepare": "MISSING"
+   },
+   "hosts": [
+    "host",
+    "lingxi.wps.cn"
+   ],
+   "exes": [],
+   "env": [
+    "CC_REGION",
+    "LINGXI_GROUP_ID",
+    "LINGXI_SESSION_ID"
+   ],
+   "frontmatter": {
+    "name": "image-canvas",
+    "description": "\"编辑用户已经提供的图片。当本轮 Canvas 上下文包含编辑操作，或用户明确要求修改已有图片时使用。包含以下六类能力：\\n- 抠图：分离图中的指定主体，交付透明背景 PNG。\\n- 变清晰：提升清晰度、边缘细节与材质纹理，保持主体、构图和颜色不变。\\n- 调整比例：改变画布宽高比，完整保留原图内容并只向外扩展。\\n- 智能擦除：删除画笔圈定的区域或描述指向的内容，并用周围背景自然补全。\\n- 局部编辑：按区域修改或替换图中对象，可在一次调用中处理多个区域。\\n- 跨图合成：将一张图中的主体按用户描述放入另一张图。\""
+   },
+   "bytes": 78645
+  },
+  "skills/paper-writer": {
+   "kind": "skills",
+   "py": [
+    "scripts/academic_search.py",
+    "scripts/scientific_visualization.py"
+   ],
+   "md": [
+    "SKILL.md",
+    "references/chinese-paper-reference.md",
+    "references/docx-api.md",
+    "references/international-paper-reference.md"
+   ],
+   "third_party": {
+    "aiohttp": "MISSING",
+    "matplotlib": "preinstalled",
+    "numpy": "preinstalled",
+    "rdkit": "MISSING"
+   },
+   "hosts": [
+    "api.core.ac.uk",
+    "api.crossref.org",
+    "api.openalex.org",
+    "api.semanticscholar.org",
+    "api.unpaywall.org",
+    "doaj.org",
+    "doi.org",
+    "eutils.ncbi.nlm.nih.gov",
+    "export.arxiv.org",
+    "github.com",
+    "lingxi.wps.cn",
+    "scholar.google.com",
+    "www.ebi.ac.uk",
+    "www.w3.org"
+   ],
+   "exes": [
+    "apt-get",
+    "fc-cache"
+   ],
+   "env": [
+    "TMP_LX_UUID",
+    "WPS_SID"
+   ],
+   "frontmatter": {
+    "name": "paper-writer",
+    "description": "\"撰写中英文学术论文的技能，支持docx文档导出。支持毕业论文、课程论文、开题报告、文献综述、文献精读、选题报告、thesis、journal article、conference paper、research proposal 等学术文体。覆盖完整流程：学术文献检索 → 分章节写作 → 科研图表 → DOCX 排版与导出。\""
+   },
+   "bytes": 120933
+  },
+  "skills/pdf": {
+   "kind": "skills",
+   "py": [
+    "scripts/pdf_cli.py",
+    "scripts/pdf_to_md.py"
+   ],
+   "md": [
+    "SKILL.md"
+   ],
+   "third_party": {
+    "PIL": "MISSING",
+    "pdf_to_md": "MISSING",
+    "pdfplumber": "MISSING",
+    "pypdf": "MISSING",
+    "pypdfium2": "preinstalled",
+    "requests": "MISSING"
+   },
+   "hosts": [
+    "365.kdocs.cn",
+    "api.wps.cn"
+   ],
+   "exes": [],
+   "env": [
+    "TMP_LX_UUID",
+    "WPS_API_BASE",
+    "WPS_SID"
+   ],
+   "frontmatter": {
+    "name": "pdf",
+    "description": "当用户需要对 PDF 文件进行任何操作时，使用本技能。包括：读取或提取 PDF 中的文字/表格、合并多个 PDF、拆分 PDF、旋转页面、删除页面、压缩 PDF、加密/解密 PDF，以及对扫描版 PDF 进行 OCR 识别使其可搜索。只要用户提到 .pdf 文件或希望生成 PDF，即使用本技能。"
+   },
+   "bytes": 38090
+  },
+  "skills/pptx": {
+   "kind": "skills",
+   "py": [
+    "scripts/analyze_pptx.py",
+    "scripts/apply_flat.py",
+    "scripts/chart.py",
+    "scripts/edit_operations.py",
+    "scripts/export_screenshots.py",
+    "scripts/extract_style.py",
+    "scripts/font_intersection.py",
+    "scripts/font_scanner.py",
+    "scripts/group_svg.py",
+    "scripts/hybrid_assemble.py",
+    "scripts/hybrid_manifest.py",
+    "scripts/icon.py",
+    "scripts/image_grid.py",
+    "scripts/img_fetch.py",
+    "scripts/make_skeleton.py",
+    "scripts/ooxml_flatten.py",
+    "scripts/pack_pptx.py",
+    "scripts/picture_bake.py",
+    "scripts/pptx_cli.py",
+    "scripts/pptx_colors.py",
+    "scripts/pptx_layout_check.py",
+    "scripts/pptx_query.py",
+    "scripts/pptx_text.py",
+    "scripts/shell_report.py",
+    "scripts/test_img_fetch_loader.py",
+    "scripts/theme_api_client.py",
+    "scripts/theme_models.py",
+    "scripts/theme_registry.py",
+    "scripts/theme_request_builder.py",
+    "scripts/transcoder_api.py",
+    "scripts/web_style_extractor.py",
+    "scripts/__init__.py",
+    "scripts/pptx_merge/merge.py",
+    "scripts/pptx_merge/opc.py",
+    "scripts/pptx_merge/validate.py",
+    "scripts/pptx_merge/__init__.py"
+   ],
+   "md": [
+    "edit_ppt.md",
+    "gen_html_ppt.md",
+    "gen_ppt.md",
+    "html_slide_technical_design.md",
+    "ppt_speech_writer.md",
+    "read_ppt.md",
+    "render-pptx.md",
+    "SKILL.md",
+    "template_html_design.md",
+    "template_ppt.md",
+    "template_ppt_edit.md",
+    "template_ppt_gen.md",
+    "reference/anti_ai_design_constraints.md",
+    "reference/chart.md",
+    "reference/echarts_guide.md",
+    "reference/flat-format.md",
+    "reference/formula_guide.md",
+    "reference/get_icons.md",
+    "reference/image_guide.md"
+   ],
+   "third_party": {
+    "PIL": "MISSING",
+    "Xlib": "MISSING",
+    "analyze_pptx": "MISSING",
+    "api": "MISSING",
+    "apply_flat": "MISSING",
+    "browser": "MISSING",
+    "bs4": "MISSING",
+    "edit_operations": "MISSING",
+    "export_screenshots": "MISSING",
+    "extract_style": "MISSING",
+    "fontTools": "preinstalled",
+    "font_intersection": "MISSING",
+    "font_scanner": "MISSING",
+    "group_svg": "MISSING",
+    "hybrid_assemble": "MISSING",
+    "hybrid_manifest": "MISSING",
+    "image_grid": "MISSING",
+    "img_fetch": "MISSING",
+    "kdocs": "MISSING",
+    "kdocs_bridge": "MISSING",
+    "lxml": "preinstalled",
+    "make_skeleton": "MISSING",
+    "matplotlib": "preinstalled",
+    "ooxml_flatten": "MISSING",
+    "pack_pptx": "MISSING",
+    "picture_bake": "MISSING",
+    "pptx": "MISSING",
+    "pptx_colors": "MISSING",
+    "pptx_layout_check": "MISSING",
+    "pptx_merge": "MISSING",
+    "pptx_query": "MISSING",
+    "pptx_text": "MISSING",
+    "requests": "MISSING",
+    "shell_report": "MISSING",
+    "theme_models": "MISSING",
+    "theme_registry": "MISSING",
+    "theme_request_builder": "MISSING",
+    "transcoder_api": "MISSING"
+   },
+   "hosts": [
+    "api.iconify.design",
+    "bad.example.com",
+    "example.com",
+    "lingxi.wps.cn",
+    "schemas.microsoft.com",
+    "schemas.openxmlformats.org",
+    "www.example.com",
+    "www.w3.org",
+    "www.wps.cn"
+   ],
+   "exes": [
+    "system_profiler"
+   ],
+   "env": [
+    "LOCALAPPDATA",
+    "SERVER_BRANCH",
+    "SKILL_PATH",
+    "TMP_LX_UUID",
+    "WINDIR",
+    "WPS_SID"
+   ],
+   "frontmatter": {
+    "name": "pptx",
+    "description": "\"当需要执行操作 PPT/幻灯片 的行为时使用本技能，包括：创建或生成幻灯片、演示文稿，读取/解析/提取现有 .pptx 文件中的内容，编辑PPT版式与内容、套用模板与布局等操作对象或产物为PPT的行为，以及将本地 PPTX 幻灯片渲染或导出为 PNG，可用于图片交付、页面预览、视觉验收、自动化处理等场景。\""
+   },
+   "bytes": 59543176
+  },
+  "skills/stock-analysis": {
+   "kind": "skills",
+   "py": [],
+   "md": [
+    "SKILL.md"
+   ],
+   "third_party": {},
+   "hosts": [],
+   "exes": [],
+   "env": [],
+   "frontmatter": {
+    "name": "stock-analysis",
+    "description": "\"使用金融市场数据分析股票和公司。获取公司概况、技术分析洞察、价格走势图、内部人员持股情况以及SEC文件，进行全面的股票研究。适用于 A股、港股（如 02513.HK）、美股等所有市场，只要涉及股票代码、股价、涨跌、基金净值、证券研究等内容，均应使用本技能。\""
+   },
+   "bytes": 6980
+  },
+  "skills/wps-collab": {
+   "kind": "skills",
+   "py": [
+    "scripts/wps_collab.py"
+   ],
+   "md": [
+    "SKILL.md"
+   ],
+   "third_party": {
+    "bs4": "MISSING",
+    "requests": "MISSING"
+   },
+   "hosts": [
+    "365.kdocs.cn",
+    "api.wps.cn"
+   ],
+   "exes": [],
+   "env": [
+    "TMP_LX_UUID",
+    "WORKSPACE_DIR",
+    "WPS_API_BASE",
+    "WPS_SID"
+   ],
+   "frontmatter": {
+    "name": "wps-collab",
+    "description": "\"提供金山协作（IM应用，也叫woa）、金山邮箱的操作能力。涵盖聊天、日程、会议（包括纪要等）、邮件、身份、知识库等功能。金山云文档操作请使用'wps-docs'（金山云文档）技能\""
+   },
+   "bytes": 141679
+  },
+  "skills/wps-docs": {
+   "kind": "skills",
+   "py": [
+    "ap/scripts/ap.py",
+    "dbsheet/scripts/dbsheet.py",
+    "et/scripts/builtin.py",
+    "et/scripts/et.py",
+    "et/scripts/agent_mode/formatting.py",
+    "et/scripts/agent_mode/hyperlink.py",
+    "et/scripts/agent_mode/pivot_table.py",
+    "et/scripts/agent_mode/range.py",
+    "et/scripts/agent_mode/sheet.py",
+    "et/scripts/agent_mode/skills_registry.py",
+    "et/scripts/agent_mode/summary.py",
+    "et/scripts/agent_mode/workbook.py",
+    "et/scripts/agent_mode/_utils.py",
+    "scripts/kdocs.py",
+    "scripts/kdocs_bridge.py",
+    "scripts/mindmap.py",
+    "scripts/wps_docs_cli.py",
+    "scripts/wps_http.py",
+    "scripts/__init__.py"
+   ],
+   "md": [
+    "SKILL.md",
+    "ap/ap_guide.md",
+    "dbsheet/dbsheet_guide.md",
+    "et/et_guide.md"
+   ],
+   "third_party": {
+    "ap": "MISSING",
+    "builtin": "MISSING",
+    "dbsheet": "MISSING",
+    "jinja2": "MISSING",
+    "kdocs": "MISSING",
+    "kdocs_bridge": "MISSING",
+    "mindmap": "MISSING",
+    "requests": "MISSING",
+    "wps_http": "MISSING"
+   },
+   "hosts": [
+    "...",
+    "365.kdocs.cn",
+    "api.wps.cn",
+    "lingxi.wps.cn",
+    "wps.processon.com",
+    "www.kdocs.cn",
+    "www.wps.cn"
+   ],
+   "exes": [],
+   "env": [
+    "KDOCS_CLI_PATH",
+    "SESSION_ID",
+    "SKILL_PATH",
+    "TMP_LX_UUID",
+    "WORKSPACE_DIR",
+    "WPS_API_BASE",
+    "WPS_V5_API_BASE"
+   ],
+   "frontmatter": {
+    "name": "wps-docs",
+    "description": ">-"
+   },
+   "bytes": 661907
+  },
+  "skills/xlsx": {
+   "kind": "skills",
+   "py": [
+    "scripts/audit.py",
+    "scripts/chart_labels.py",
+    "scripts/dynamic_array.py",
+    "scripts/lbo_cli.py",
+    "scripts/pivot_ooxml.py",
+    "scripts/recalc.py",
+    "scripts/test_lbo_cli.py",
+    "scripts/xlsx_cli.py",
+    "scripts/__init__.py"
+   ],
+   "md": [
+    "build-workflow.md",
+    "render-xlsx.md",
+    "SKILL.md"
+   ],
+   "third_party": {
+    "audit": "MISSING",
+    "dynamic_array": "MISSING",
+    "formulas": "MISSING",
+    "lbo_cli": "MISSING",
+    "lxml": "preinstalled",
+    "numpy": "preinstalled",
+    "openpyxl": "preinstalled",
+    "recalc": "MISSING"
+   },
+   "hosts": [
+    "example.test",
+    "schemas.microsoft.com",
+    "schemas.openxmlformats.org",
+    "solution.ks3-cn-beijing.ksyuncs.com"
+   ],
+   "exes": [
+    "codesign",
+    "powershell",
+    "taskkill"
+   ],
+   "env": [
+    "LOCALAPPDATA",
+    "XDG_CACHE_HOME"
+   ],
+   "frontmatter": {
+    "name": "xlsx",
+    "description": "读取、创建、编辑或分析 .xlsx / .xlsm / .xls / .csv / .tsv 文件。当用户要求读取、生成、处理、下载 Excel 表格，或提及表格文件名/路径并希望对其操作时，使用本技能，读取表格必须先使用本技能并遵循正文工作流。包括：打开、读取、编辑、修复已有文件（增列、计算、格式化、图表、数据清洗），从零或其他数据源创建新表格，以及表格格式间的转换。对于结构混乱的表格数据（错行、表头错位、垃圾数据）清洗为规范表格也适用。交付物须为表格文件；当用户未指定格式时默认生成 .xlsx 而非 .csv 等其他格式。若主要产出为 Word 文档、HTML 报告、独立 Python 脚本或数据库管道，则不应触发本技能。本技能也用于将本地 XLSX 指定工作表区域渲染或导出为 PNG，可用于图片交付、区域预览、视觉验收、自动化处理等场景。"
+   },
+   "bytes": 414236
+  },
+  "builtin/skill-creator": {
+   "kind": "builtin",
+   "py": [
+    "scripts/init_skill.py",
+    "scripts/package_skill.py",
+    "scripts/quick_validate.py",
+    "scripts/skill_creator_cli.py"
+   ],
+   "md": [
+    "SKILL.md"
+   ],
+   "third_party": {
+    "quick_validate": "MISSING",
+    "yaml": "MISSING"
+   },
+   "hosts": [],
+   "exes": [],
+   "env": [
+    "WORKSPACE_DIR"
+   ],
+   "frontmatter": {
+    "name": "skill-creator",
+    "description": "创建、编辑、改进或审查 AgentSkills。适用于从零创建新 skill，或改进、审查、审计、整理现有 skill 或 SKILL.md 文件；也适用于调整 skill 目录结构（例如把文件移动到 references/ 或 scripts/、删除过时内容、按 AgentSkills 规范校验）。当用户表达“创建一个 skill”“编写 skill”“整理 skill”“改进这个 skill”“审查 skill”“清理 skill”“审计 skill”等意图时触发。"
+   },
+   "bytes": 46037
+  },
+  "builtin/speech-to-text": {
+   "kind": "builtin",
+   "py": [
+    "scripts/asr_client.py",
+    "scripts/cli.py",
+    "scripts/test_asr_client.py"
+   ],
+   "md": [
+    "SKILL.md"
+   ],
+   "third_party": {
+    "asr_client": "MISSING",
+    "cli": "MISSING",
+    "mutagen": "MISSING",
+    "requests": "MISSING"
+   },
+   "hosts": [
+    "a",
+    "cdn.example.com",
+    "example.com",
+    "lingxi.wps.cn",
+    "mirror.example.com",
+    "my",
+    "qn.cache.wpscdn.cn",
+    "x",
+    "x.com"
+   ],
+   "exes": [],
+   "env": [
+    "ASR_API_BASE",
+    "CC_REGION",
+    "CLIENT_TYPE",
+    "LINGXI_EXEC_ENV",
+    "LINGXI_GROUP_ID",
+    "LOCALAPPDATA",
+    "SESSION_ID",
+    "TMP_LX_UUID",
+    "WORKSPACE_DIR",
+    "XDG_CACHE_HOME"
+   ],
+   "frontmatter": {
+    "name": "speech-to-text",
+    "description": "录音文件/视频音轨转文本（语音识别、ASR、转写）。当用户提供音频或视频文件（本地路径或公网 URL）并要求转写、听写、提取说话内容、生成会议纪要/待办事项/字幕/文字稿，或提到 mp3/wav/m4a/aac/amr/ogg/spx 等音频格式识别时使用本技能；视频文件（mp4/mov/mkv 等）会自动抽取音轨后转写。"
+   },
+   "bytes": 244623
+  },
+  "builtin/visualizer-design": {
+   "kind": "builtin",
+   "py": [],
+   "md": [
+    "SKILL.md",
+    "examples/image-overlay-gold-process.md",
+    "examples/image-overlay-gold-reply.md",
+    "examples/node-diagram-svg-gold.md",
+    "examples/routing-cases.md",
+    "references/composition.md",
+    "references/echarts-option-spec.md",
+    "references/echarts-source.md",
+    "references/image-overlay-authoring-spec.md",
+    "references/image-overlay-process-spec.md",
+    "references/mode-echarts.md",
+    "references/mode-html-svg.md",
+    "references/mode-image-overlay.md",
+    "references/renderer-interaction-geometry.md",
+    "references/renderer-output-mobile.md",
+    "references/renderer-stability-math.md",
+    "references/renderer-trigger-design.md",
+    "references/routing.md",
+    "references/shared-quality.md",
+    "references/theme-variables.md",
+    "references/tool-contracts.md"
+   ],
+   "third_party": {},
+   "hosts": [],
+   "exes": [],
+   "env": [],
+   "frontmatter": {
+    "name": "visualizer-design",
+    "description": "当回答涉及趋势、占比、比较、流程、机制、因果、架构、关系、时间线、状态机、算法步骤、参数变化、原图证据，或用户要求图表、图解、信息图、标注、动态/交互演示时使用。优先用 ECharts、确定性 HTML 或原图叠加；不承接海报、头像、壁纸、写实图片和艺术插画创作。"
+   },
+   "bytes": 172900
+  },
+  "builtin/web-builder": {
+   "kind": "builtin",
+   "py": [
+    "scripts/web_builder_cli.py",
+    "scripts/web_builder_cli_test.py"
+   ],
+   "md": [
+    "frontend-design.md",
+    "plan-template.md",
+    "SKILL.md",
+    "references/local-service.md",
+    "references/static-delivery.md"
+   ],
+   "third_party": {},
+   "hosts": [
+    "example.invalid",
+    "lingxi.wps.cn",
+    "localhost",
+    "solution.ks3-cn-beijing.ksyuncs.com"
+   ],
+   "exes": [
+    "taskkill",
+    "xcode-select"
+   ],
+   "env": [
+    "CC_REGION",
+    "SESSION_ID",
+    "TMP_LX_UUID",
+    "WEB_BUILDER_GIT_PATH"
+   ],
+   "frontmatter": {
+    "name": "web-builder",
+    "description": "\"创建或修改独立网页项目，并完成设计、构建、浏览器验证与交付。适用于原生 HTML、React/Vite 静态站点，以及依赖开发服务器、后端或 WebSocket 的本地 Web 应用。\""
+   },
+   "bytes": 169149
+  },
+  "builtin/wps-cowrite": {
+   "kind": "builtin",
+   "py": [
+    "scripts/canvas_edit_hook.py",
+    "scripts/doc_save_hook.py",
+    "scripts/kdocs_cli.py",
+    "scripts/skill_directive.py",
+    "scripts/wps_docx.py"
+   ],
+   "md": [
+    "docx_guide.md",
+    "SKILL.md"
+   ],
+   "third_party": {
+    "canvas_edit_hook": "MISSING",
+    "doc_save_hook": "MISSING",
+    "skill_directive": "MISSING"
+   },
+   "hosts": [
+    "api.wps.cn",
+    "solution.ks3-cn-beijing.ksyuncs.com"
+   ],
+   "exes": [
+    "security"
+   ],
+   "env": [
+    "APPDATA",
+    "KDOCS_CLI_APP_ID",
+    "KDOCS_CLI_PATH",
+    "SSL_CERT_DIR",
+    "SSL_CERT_FILE",
+    "TMP_LX_UUID",
+    "WPS_SID"
+   ],
+   "frontmatter": {
+    "name": "wps-cowrite",
+    "description": "\"用户在浏览WPS文档且需读取、分析或修改内容时使用，即仅在当前轮次已提供活动文档上下文（<wps_docs_context> 或 <wps_docs_selection>）时生效。\""
+   },
+   "bytes": 90466
+  }
+ }
+}

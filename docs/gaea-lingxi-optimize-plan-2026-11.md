@@ -93,6 +93,11 @@
 
 ### P1-1 pdf 技能移植
 
+> **B 批证据更新（2026-11-13，见 re-distill §11/§12）**：灵犀 `python-env` 实际只预装 33 个包（349.9 MB），
+> `pypdf`/`pdfplumber`/`python-docx`/`python-pptx`/`formulas`/`requests` **都不在预装里**，由客户端按 `service\requirements.txt` 首启 pip 联网装。
+> 故本项决策要点从「装不装 Python」改为「预置白名单 + 断网降级」：`pdf_cli` 17 子命令只依赖 `pypdf`+`pdfplumber`+预装的 `pypdfium2`，
+> 体积远小于整套 python-env；`pdf_to_md` 依赖金山云（365.kdocs.cn/api.wps.cn），移植时剔除。
+
 - 范围：`skills/pdf`（17 子命令：info/page-count/extract-text/extract-table/to-md/merge/split/delete-pages/rotate/crop/watermark/compress/encrypt/decrypt/render/extract-images/batch）。
 - 决策点：**Python 运行时**——① 内置精简 Python（pypdf+pdfplumber+pypdfium2，约 40 MB）② 复用系统 Python ③ Go 原生重写（pdfcpu/unipdf）。
 - 建议：①，因为它同时解锁 P1-2/P1-3；若不做 Python，则 P1-2 用 Go 的 excelize 部分替代、P1-3 降级。
