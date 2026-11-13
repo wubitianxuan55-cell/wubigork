@@ -551,20 +551,19 @@ export const ProcessCard = memo(function ProcessCard({
     ? labelParts.join(" · ")
     : (running ? t("process.working") : "");
 
-  // 波3.5 二轮实弹：**运行中**过程卡折叠态显示最近三条内容（工具名/思考首行/
-  // 阶段）=完整运行视图（running 不再自动展开）；已完成卡折叠=一行状态摘要
-  // 无尾巴，全部内容展开查看。
-  const recentPreview = useMemo(() => {
-    const acts: { id: string; kind: string; label: string }[] = [];
+  // 波3.5 三轮实弹：**运行中**过程卡折叠态显示**最近三个卡片**（工具卡形态，
+  // 可展开看内容——非文本行）；已完成卡折叠=一行状态摘要无尾巴，全部内容
+  // 展开查看。running 不自动展开=折叠+三卡尾巴即完整运行视图。
+  const recentItems = useMemo(() => {
+    const acts: Item[] = [];
     for (const it of items) {
       if (it.kind === "tool") {
         if (it.parentId) continue;
-        acts.push({ id: it.id, kind: "tool", label: it.name });
+        acts.push(it);
       } else if (it.kind === "assistant" && it.reasoning) {
-        const first = it.reasoning.split("\n").find((l: string) => l.trim()) ?? "";
-        acts.push({ id: it.id, kind: "reasoning", label: first.trim().slice(0, 60) });
+        acts.push(it);
       } else if (it.kind === "phase") {
-        acts.push({ id: it.id, kind: "phase", label: it.text });
+        acts.push(it);
       }
     }
     return acts.slice(-3);
@@ -694,14 +693,23 @@ export const ProcessCard = memo(function ProcessCard({
           aria-hidden
         />
       </button>
-      {running && !open && recentPreview.length > 0 && (
+      {running && !open && recentItems.length > 0 && (
         <div className="office-process-card__recent" data-testid="process-recent-preview">
-          {recentPreview.map((r) => (
-            <div key={r.id} className="office-process-card__recent-row" data-kind={r.kind}>
-              <span className="office-process-card__recent-dot" aria-hidden />
-              <span className="truncate">{r.label}</span>
-            </div>
-          ))}
+          {recentItems.map((it) =>
+            it.kind === "tool" ? (
+              <div key={it.id} className="office-process-card__recent-row" data-kind="tool">
+                <ToolCard item={it as ToolItem} subcalls={subcallsByParent.get(it.id)} />
+              </div>
+            ) : it.kind === "assistant" ? (
+              <div key={it.id} className="office-process-card__recent-row" data-kind="reasoning">
+                <InlineReasoning item={it as AssistantItem} />
+              </div>
+            ) : (
+              <div key={it.id} className="office-process-card__recent-row" data-kind="phase">
+                <div className="phase"><Brain size={12} /><span>{(it as { text?: string }).text}</span></div>
+              </div>
+            ),
+          )}
         </div>
       )}
       <div id={bodyId} ref={bodyRef} style={{ overflow: "hidden" }}>
