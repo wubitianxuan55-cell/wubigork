@@ -33,6 +33,12 @@ python $S/apply-flat.py $T/skeleton.pptx $T/spec.json -o $T/final.pptx
 
 # 5. 终检守门：16:9/字体合规/无占位符残留/页数对账
 python $S/assemble.py $T/final.pptx --min-pages 5
+
+# 6. 视觉验收（交付门，必过）：assemble 通过 ≠ 排版没跑——
+#    有 office_ 工具族：office_render {doc:$T/final.pptx, overview:true} 渲染
+#    总览 PNG 逐页目检（溢出/错版/占位错位）；
+#    无 COM：soffice --headless --convert-to pdf + pdftoppm 出图抽查。
+#    目检不过 → 修 spec（精简要点/拆页）重跑第 4~6 步；不许带病交付。
 ```
 
 ## spec.json 怎么写

@@ -610,3 +610,11 @@ After running `comment.py` (see Step 2), add markers to document.xml. For replie
 - **docx**: `npm install -g docx`（可选，高级精确排版）
 - **LibreOffice**: PDF 转换与公式重算（`scripts/office/soffice.py` 自动探测 Windows 安装路径，无需加入 PATH）
 - **Poppler**: `pdftoppm` for images
+
+## gaea 交付纪律（本机适配，质量门禁七条对账）
+
+- **入口互斥**（先判路线，选错就退化）：本机装了 Office/WPS（有 office_ 工具族）时，**新建与改现开文档优先 office_open + office_edit 实时档**——用户看得到过程、文件被占用也能改；技能路线（本文件）用于：无 COM 机器、旧格式（.doc）、无人值守批量、需要 pandoc/XML 精细操作。模板复刻不适用 docx（那是 pptx-template 技能的事）。
+- **视觉验收（交付门）**：技能产出的 docx 交付前必须目检——有 COM 用 office_render {overview:true} 渲染 PNG 看排版；无 COM 用 `python scripts/office/soffice.py --headless --convert-to pdf` + `pdftoppm -jpeg -r 150` 出图抽查（至少首页+表格页）。跑版/乱码不许交付。
+- **失败即停**：任何脚本 success:false 或退出码非 0 立即终止后续写操作，把原始报错如实报给用户；权限错误（文件只读/被占用）不换路径变通。
+- **目录纪律**：产物落在任务目录根部；中间产物（unpacked/、转换用 pdf/png）放 `<task>/build`，不散落工作区根。
+- 字体：无显式要求时正文用默认主题字体，不硬编码 rare 字体（用户机器没有就回退宋体）。
