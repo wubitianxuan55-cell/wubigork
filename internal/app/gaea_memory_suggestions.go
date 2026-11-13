@@ -48,7 +48,10 @@ type MemorySuggestionsView struct {
 	// Merges 是蒸馏合并候选（做梦 2.0 第一刀）：确定性重复记忆，用户批准后
 	// 归档较旧条。可选项——旧前端/旧 mock 不读此字段不受影响。
 	Merges      []MergeSuggestionView `json:"merges,omitempty"`
-	GeneratedAt string                `json:"generatedAt"`
+	// Overflow 是队列满时被挤出的历史建议（溢出归档，只读+可接受走旧路径；
+	// 2026-11-13 实弹反馈：此前被挤出即丢，「无法弹窗查看」）。
+	Overflow    []MemorySuggestionView `json:"overflow,omitempty"`
+	GeneratedAt string                 `json:"generatedAt"`
 	Available   bool                  `json:"available"`
 	Source      string                `json:"source"`
 }
@@ -72,6 +75,7 @@ func (a *App) GaeaMemorySuggestions() MemorySuggestionsView {
 	}
 	view.Available = true
 	view.Memories = dreamPendingViews(set.UserDir, gaeaEffectiveSpace())
+	view.Overflow = dreamPendingOverflowViews(set.UserDir, gaeaEffectiveSpace())
 	ms := set.Store.List()
 	view.Skills = suggestSkillsFromMemories(ms)
 	view.Merges = distillMergeViews(ms)
@@ -108,6 +112,44 @@ func dreamPendingViews(userDir, space string) []MemorySuggestionView {
 			Type:        it.Type,
 			Body:        it.Body,
 			Reason:      "自动做梦提炼的事实，接受后写入长期记忆（未接受不入库）",
+		})
+	}
+	return out
+}
+
+// dreamPendingOverflowViews 把溢出归档转面板建议视图（同 dreamPendingViews
+// 形态；Reason 标注溢出来源。空归档返回空切片）。
+func dreamPendingOverflowViews(userDir, space string) []MemorySuggestionView {
+	items := dreamPendingOverflowRead(userDir)
+	var scoped []dreamPendingItem
+	for _, it := range items {
+		if it.Space == space {
+			scoped = append(scoped, it)
+		}
+	}
+	views := dreamPendingViews(userDir, space) // 占位避免未用——实际逐条构造
+	_ = views
+	out := make([]MemorySuggestionView, 0, len(scoped))
+	for _, it := range scoped {
+		if it.Kind == "note" {
+			out = append(out, MemorySuggestionView{
+				ID:          it.ID,
+				Name:        "note-" + it.ID,
+				Description: "项目笔记建议（" + strings.TrimSpace(it.NoteScope) + " 作用域）",
+				Type:        "note",
+				Body:        it.Note,
+				Reason:      "队列满溢出归档的历史建议，接受后追加到记忆文档",
+			})
+			continue
+		}
+		out = append(out, MemorySuggestionView{
+			ID:          it.ID,
+			Name:        it.Name,
+			Title:       it.Title,
+			Description: it.Description,
+			Type:        it.Type,
+			Body:        it.Body,
+			Reason:      "队列满溢出归档的历史建议，接受后写入长期记忆",
 		})
 	}
 	return out

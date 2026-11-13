@@ -83,15 +83,16 @@ func TestDreamSuggestNoticeLevel(t *testing.T) {
 	if level != event.LevelInfo {
 		t.Fatalf("level = %v, want info", level)
 	}
-	if !strings.Contains(text, "3 条记忆建议") || strings.Contains(text, "移出") {
+	if !strings.Contains(text, "3 条记忆建议") || strings.Contains(text, "溢出归档") {
 		t.Fatalf("text = %q, want 入队说明且无溢出字样", text)
 	}
 	text, level = dreamSuggestNotice(2, 1)
 	if level != event.LevelWarn {
-		t.Fatalf("level = %v, want warn（溢出=数据丢失）", level)
+		t.Fatalf("level = %v, want warn（溢出=历史建议被挤出队列）", level)
 	}
-	if !strings.Contains(text, "2 条记忆建议") || !strings.Contains(text, "1 条未确认建议已被移出") {
-		t.Fatalf("text = %q, want 溢出如实说明", text)
+	// 2026-11-13 溢出归档语义：不再「移出即丢」——文案指引面板可查看/仍可接受。
+	if !strings.Contains(text, "2 条记忆建议") || !strings.Contains(text, "溢出归档") || !strings.Contains(text, "仍可接受") {
+		t.Fatalf("text = %q, want 溢出归档说明", text)
 	}
 }
 

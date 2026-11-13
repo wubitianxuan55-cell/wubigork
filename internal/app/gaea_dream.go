@@ -315,7 +315,7 @@ func dreamEnqueueSuggestions(userDir, space string, res dreamResult) (int, int, 
 func dreamSuggestNotice(queued, dropped int) (string, event.Level) {
 	text := fmt.Sprintf("本轮提炼出 %d 条记忆建议：已放入记忆面板「建议」待确认（未写入记忆）", queued)
 	if dropped > 0 {
-		text += fmt.Sprintf("；待确认队列已满（上限 %d 条），最旧的 %d 条未确认建议已被移出",
+		text += fmt.Sprintf("；待确认队列已满（上限 %d 条），最旧的 %d 条未确认建议已移入溢出归档——记忆面板「建议」区可查看、仍可接受",
 			dreamPendingMax, dropped)
 		return text, event.LevelWarn
 	}

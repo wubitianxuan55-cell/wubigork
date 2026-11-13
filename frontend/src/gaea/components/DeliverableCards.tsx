@@ -67,7 +67,11 @@ export const DeliverableCards = memo(function DeliverableCards({ text, turnNo, m
   const cards = useMemo(
     () =>
       mergeDeliverableCards(textPaths, entries, turnNo).filter(
-        ({ path }) => !omitPaths?.has(deliverablePathKey(path)),
+        ({ path }) =>
+          !omitPaths?.has(deliverablePathKey(path)) &&
+          // 波3.5 实弹反馈：.py 脚本不算交付物（过程/中间件，落盘规范归
+          // .gaea/work/）——正文卡与登记卡统一过滤。
+          extOf(path) !== ".py",
       ),
     [textPaths, entries, turnNo, omitPaths],
   );

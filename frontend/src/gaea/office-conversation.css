@@ -1264,3 +1264,39 @@
     opacity: 1;
   }
 }
+
+/* 波3.5 实弹反馈：过程卡折叠态的「最近三条」活尾巴——卡头下方紧凑行，
+   展开即隐藏（全部内容在展开态）。颜色随 kind 弱区分（工具/思考/阶段）。 */
+.office-process-card__recent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 14px 6px 30px;
+}
+.office-process-card__recent-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--md-sys-color-text-secondary);
+  min-width: 0;
+}
+.office-process-card__recent-row .truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.office-process-card__recent-dot {
+  flex-shrink: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--md-sys-color-outline-variant);
+}
+.office-process-card__recent-row[data-kind="tool"] .office-process-card__recent-dot {
+  background: var(--md-sys-color-primary);
+}
+.office-process-card__recent-row[data-kind="reasoning"] .office-process-card__recent-dot {
+  background: var(--md-sys-color-secondary);
+}

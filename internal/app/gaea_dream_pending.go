@@ -24,6 +24,11 @@ import (
 // dreamPendingMax 是待确认队列上限（FIFO：超限丢最旧）。
 const dreamPendingMax = 30
 
+// dreamPendingOverflowMax 是溢出归档上限（2026-11-13 实弹反馈：队列满挤出的
+// 最旧建议此前直接丢弃=「无法弹窗查看」的数据丢失；改写入溢出归档文件，
+// 记忆面板建议区可查看、仍可接受（旧路径写入））。FIFO 同队列。
+const dreamPendingOverflowMax = 200
+
 // dreamPendingMu 保护队列文件读写（单进程内串行化；文件本身原子写）。
 var dreamPendingMu sync.Mutex
 
@@ -51,6 +56,43 @@ type dreamPendingItem struct {
 // dreamPendingPath 返回待确认队列文件路径（与 dream-audit.jsonl 同目录）。
 func dreamPendingPath(userDir string) string {
 	return filepath.Join(userDir, "dream-pending.json")
+}
+
+// dreamPendingOverflowPath 返回溢出归档文件路径（同目录）。
+func dreamPendingOverflowPath(userDir string) string {
+	return filepath.Join(userDir, "dream-pending-overflow.json")
+}
+
+// dreamPendingOverflowRead 读溢出归档（不存在/损坏返回空）。
+func dreamPendingOverflowRead(userDir string) []dreamPendingItem {
+	if userDir == "" {
+		return nil
+	}
+	data, err := os.ReadFile(dreamPendingOverflowPath(userDir))
+	if err != nil {
+		return nil
+	}
+	var items []dreamPendingItem
+	if json.Unmarshal(data, &items) != nil {
+		return nil
+	}
+	return items
+}
+
+// dreamPendingOverflowAppend 追加溢出归档（FIFO 上限 200，同队列语义）。
+func dreamPendingOverflowAppend(userDir string, add []dreamPendingItem) error {
+	if userDir == "" || len(add) == 0 {
+		return nil
+	}
+	items := append(dreamPendingOverflowRead(userDir), add...)
+	if over := len(items) - dreamPendingOverflowMax; over > 0 {
+		items = items[over:]
+	}
+	data, err := json.Marshal(items)
+	if err != nil {
+		return err
+	}
+	return fileutil.AtomicWriteSync(dreamPendingOverflowPath(userDir), data, 0o644)
 }
 
 // dreamPendingRead 读取队列（文件不存在/损坏返回空队列——损坏整体作废）。
@@ -110,6 +152,14 @@ func dreamPendingAppend(userDir string, add []dreamPendingItem) (int, int, error
 	items = append(items, add...)
 	dropped := 0
 	if over := len(items) - dreamPendingMax; over > 0 {
+		// 溢出条目不丢弃——写入溢出归档（面板可查看/仍可接受），修复
+		// 「最旧的 N 条被移出、无法弹窗查看」的数据丢失（2026-11-13）。
+		overflow := make([]dreamPendingItem, over)
+		copy(overflow, items[:over])
+		if err := dreamPendingOverflowAppend(userDir, overflow); err != nil {
+			// 归档失败不拦入队主链（队列语义优先；归档丢失=回到旧行为）。
+			dropped = over
+		}
 		items = items[over:]
 		dropped = over
 	}

@@ -75,14 +75,7 @@ type AssistantItem = Extract<Item, { kind: "assistant" }>;
 // 展开的大卡，文本与过程卡分开：正文始终以独立消息显示，过程（思考/工具）
 // 单独成小卡、默认折叠。所有轮次统一走 alternatingSegments（与流式一致）。
 
-type Segment = {
-  processItems: Item[];
-  outsideItems: Item[];
-  /** 答后过程段（2026-11-13 实弹反馈）：尾随工具段并入前段后，过程卡渲染在
-   *  该段正文**下方**（答后动作语义）；缺省段（思考→回答的答前过程）过程卡
-   *  仍在正文上方（Codex 语义不变）。 */
-  tailProcess?: boolean;
-};
+type Segment = { processItems: Item[]; outsideItems: Item[] };
 
 // 流式进行中的轮 / 已完成轮：与 tianxuan 一致，正文与过程卡交替出现。
 // （用户决策 2026-08-26 起不再区分：删除大过程卡后，全部轮次统一交替。）
@@ -162,9 +155,6 @@ export function buildSegments(items: Item[], _running = false): Segment[] {
       const prevHasText = prev.outsideItems.some((it) => it.kind === "assistant" && it.text);
       if (!lastHasText && last.processItems.length > 0 && prevHasText) {
         prev.processItems = [...prev.processItems, ...last.processItems];
-        // 波3.5 实弹反馈：答后动作段的过程卡渲染在正文**下方**（原 Codex 语义
-        // =正文之前，用户实测「正文之后的过程卡应该在正文的下方」）。
-        prev.tailProcess = true;
         segs.pop();
       }
     }
@@ -299,6 +289,11 @@ function renderOutsideItems(
         // 不再在消息流里渲染独立行（此分支仅防御历史/异常路径）。
         return null;
       case "notice":
+        // 波3.5 实弹反馈：提炼记忆提示由 notice 文本行升级为结构化卡片
+        //（点击弹窗查看建议内容+接受/忽略操作）。
+        if (isDreamSuggestNotice(it.text)) {
+          return <MemorySuggestCard key={it.id} text={it.text} />;
+        }
         if (it.level === "warn") {
           if (ctx.dismissedErrors.has(it.id)) return null;
           return <ErrorCard key={it.id} item={it as Extract<Item, { kind: "notice" }>} onDismiss={ctx.onDismissError} />;
@@ -393,23 +388,19 @@ export const TurnBlock = memo(function TurnBlock({
   // 会导致本轮登记的产物卡整体丢失——补挂在本段末尾（跨段去重见
   // tailOmitMentions）。
   const tailHasText = seg.outsideItems.some((it) => it.kind === "assistant" && it.text);
-  const processCard = hasProcess && (
-    <ProcessCard
-      items={visibleProcess}
-      toolCount={toolCount}
-      thoughtCount={thoughtCount}
-      running={running && isLast}
-      small={running && !isLast}
-      subcallsByParent={subcalls}
-    />
-  );
-  // 答后过程段（tailProcess）：正文在上、过程卡（答后动作）在下；其余段维持
-  // Codex 语义=过程卡（思考/答前动作）在正文上方。
   return (
     <>
-      {!seg.tailProcess && processCard}
+      {hasProcess && (
+        <ProcessCard
+          items={visibleProcess}
+          toolCount={toolCount}
+          thoughtCount={thoughtCount}
+          running={running && isLast}
+          small={running && !isLast}
+          subcallsByParent={subcalls}
+        />
+      )}
       {seg.outsideItems.length > 0 && outside}
-      {seg.tailProcess && processCard}
       {turnTail && turnNo != null && !tailHasText && (
         <DeliverableCards text="" turnNo={turnNo} mergeRegistry omitPaths={tailOmitMentions} />
       )}
@@ -472,6 +463,8 @@ import { deriveProcessStatus, PROCESS_STATUS_META } from "../lib/processStatus";
 import { turnTailSegs } from "../lib/deliverablesTurn";
 import { deliverableMentions } from "../lib/fileLinks";
 import { deliverablePathKey } from "../lib/deliverablesTurn";
+import { isDreamSuggestNotice } from "../lib/memorySuggest";
+import { MemorySuggestCard } from "./MemorySuggestCard";
 import { DeliverableCards } from "./DeliverableCards";
 
 // v4.350：提及扫描按文本内容缓存。流式期间 items 每 chunk 换引用，tailOmitBySeg
@@ -561,6 +554,24 @@ export const ProcessCard = memo(function ProcessCard({
   const detail = labelParts.length > 0
     ? labelParts.join(" · ")
     : (running ? t("process.working") : "");
+
+  // 波3.5 实弹反馈：折叠态动态显示**最近三条**内容（工具名/思考首行/阶段），
+  // 全部内容仍需展开查看——「过程卡默认折叠」语义收紧为「折叠但有活着尾巴」。
+  const recentPreview = useMemo(() => {
+    const acts: { id: string; kind: string; label: string }[] = [];
+    for (const it of items) {
+      if (it.kind === "tool") {
+        if (it.parentId) continue;
+        acts.push({ id: it.id, kind: "tool", label: it.name });
+      } else if (it.kind === "assistant" && it.reasoning) {
+        const first = it.reasoning.split("\n").find((l: string) => l.trim()) ?? "";
+        acts.push({ id: it.id, kind: "reasoning", label: first.trim().slice(0, 60) });
+      } else if (it.kind === "phase") {
+        acts.push({ id: it.id, kind: "phase", label: it.text });
+      }
+    }
+    return acts.slice(-3);
+  }, [items]);
 
   // 状态四态：色 + 图标 + 文字（头部徽标传达）
   const status = deriveProcessStatus(items, running);
@@ -686,6 +697,16 @@ export const ProcessCard = memo(function ProcessCard({
           aria-hidden
         />
       </button>
+      {!open && recentPreview.length > 0 && (
+        <div className="office-process-card__recent" data-testid="process-recent-preview">
+          {recentPreview.map((r) => (
+            <div key={r.id} className="office-process-card__recent-row" data-kind={r.kind}>
+              <span className="office-process-card__recent-dot" aria-hidden />
+              <span className="truncate">{r.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
       <div id={bodyId} ref={bodyRef} style={{ overflow: "hidden" }}>
         <div className="office-process-card__body">{body}</div>
       </div>
