@@ -372,3 +372,19 @@
 - **分支处置**：office-conversation-redesign-wip 已合并删除（d3342e77 可达自
   main）；卡片视觉走查挂用户实弹（在制「未验证」状态本批补装但不代写验收——
   五卡是视觉件，用户目检最直接）。
+
+## 21. 五卡实弹反馈三刀（14:2x~14:4x）
+
+- 五卡批回归后用户首轮实弹反馈三处，当轮修复（cacb011c，exe `35994246…` 冒烟
+  200 装机）：
+  1. **过程卡位置**：答后动作段的过程卡渲染在该段正文**下方**（Segment.tailProcess
+     标志；答前思考段维持正文上方——Codex 语义不变）。
+  2. **交付文件卡重复**：同轮多段正文提及同一文件时每段各出一卡——turn 级首现段
+     ownership（textOmitBySeg：路径→首现段，后续段正文卡 omit；tailOmit 登记合并
+     语义不变）。
+  3. **提炼记忆弹窗**：remember/fact_add 工具行点击直接弹 MemoryPeekModal（类型
+     标签/标题/钩子/body 全文/复制），行内主体显示记忆正文首行；parseMemoryPeek
+     纯函数独立 lib（react-refresh only-export-components 拆分）。
+- 验证：42 例绿（Transcript tailProcess 断言+memoryPeek 4 形态+五卡回归）+tsc+
+  eslint 干净+构建装机。
+- 卡片视觉与交互的下一轮反馈继续挂用户实弹。
