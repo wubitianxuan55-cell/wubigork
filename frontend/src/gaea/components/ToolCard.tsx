@@ -30,6 +30,8 @@ import type { DiffRow } from "../lib/diff";
 import { fireTaskCardAmbiguity, getTaskCardActivity, getTaskCardAmbiguity, getTaskCardOpenTarget, hasTaskCardActivityProvider, hasTaskCardAmbiguityHandler, openTaskCardSession, resolveTaskRef, taskResultSummary } from "../lib/taskActivity";
 import { formatElapsed } from "../lib/time";
 import { useNow } from "../lib/useNow";
+import { MemoryPeekModal } from "./MemoryPeekModal";
+import { parseMemoryPeek } from "../lib/memoryPeek";
 import type { Item } from "../lib/store";
 import { FileLinkText } from "./FileLinkText";
 import { ScheduleApplyRollback } from "./ScheduleApplyRollback";
@@ -133,7 +135,21 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
   const t = useT();
   const compact = useCompact();
   const diffs = useMemo(() => diffsFor(item.name, item.args), [item.name, item.args]);
-  const subject = useMemo(() => subjectOf(item.name, item.args), [item.name, item.args]);
+  // 波3.5 实弹反馈：提炼记忆（remember/fact_add）行点击直接弹窗查看完整内容，
+  // 行内主体显示记忆正文首行（不再要求展开翻 JSON args）。
+  const memoryPeek = useMemo(
+    () => (item.name === "remember" || item.name === "fact_add" ? parseMemoryPeek(item.name, item.args) : null),
+    [item.name, item.args],
+  );
+  const [peekOpen, setPeekOpen] = useState(false);
+  const rawSubject = useMemo(() => subjectOf(item.name, item.args), [item.name, item.args]);
+  const subject = useMemo(() => {
+    if (memoryPeek) {
+      const first = memoryPeek.body.split("\n").find((l: string) => l.trim()) ?? "";
+      return first.length > 60 ? first.slice(0, 60) + "…" : first || memoryPeek.title;
+    }
+    return rawSubject;
+  }, [memoryPeek, rawSubject]);
   // Codex 式 diffstat 芯片：编辑类工具行内显示 +N−M（不再重复进斜体摘要）
   const stat = useMemo(() => diffStatFor(item.name, item.args), [item.name, item.args]);
   const Icon = ICONS[item.name] ?? mcpOr(item.name);
@@ -223,17 +239,19 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
         type="button"
         className={`office-tool-card__head select-none ${clickable ? "cursor-pointer" : ""}`}
         onClick={
-          clickable
-            ? ambiguous
-              ? () => { fireTaskCardAmbiguity(item.args); }
-              : () => { openTaskCardSession(openTarget); }
-            : expandable
-              ? () => setOpen((v) => !v)
-              : undefined
+          memoryPeek
+            ? () => setPeekOpen(true)
+            : clickable
+              ? ambiguous
+                ? () => { fireTaskCardAmbiguity(item.args); }
+                : () => { openTaskCardSession(openTarget); }
+              : expandable
+                ? () => setOpen((v) => !v)
+                : undefined
         }
         title={ambiguous ? t("taskpick.cardAria") : clickable ? t("tool.openSessionHint") : undefined}
         aria-label={ambiguous ? t("taskpick.cardAria") : undefined}
-        aria-expanded={!clickable && expandable ? open : undefined}
+        aria-expanded={!memoryPeek && !clickable && expandable ? open : undefined}
         aria-controls={!clickable && expandable ? bodyId : undefined}
         disabled={!clickable && !expandable}
       >
@@ -372,6 +390,9 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
           )}
         </div>
       </div>
+      {peekOpen && memoryPeek && (
+        <MemoryPeekModal payload={{ tool: item.name, args: item.args }} onClose={() => setPeekOpen(false)} />
+      )}
     </div>
   );
 });

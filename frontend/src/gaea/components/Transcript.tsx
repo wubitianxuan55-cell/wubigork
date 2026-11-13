@@ -75,7 +75,14 @@ type AssistantItem = Extract<Item, { kind: "assistant" }>;
 // 展开的大卡，文本与过程卡分开：正文始终以独立消息显示，过程（思考/工具）
 // 单独成小卡、默认折叠。所有轮次统一走 alternatingSegments（与流式一致）。
 
-type Segment = { processItems: Item[]; outsideItems: Item[] };
+type Segment = {
+  processItems: Item[];
+  outsideItems: Item[];
+  /** 答后过程段（2026-11-13 实弹反馈）：尾随工具段并入前段后，过程卡渲染在
+   *  该段正文**下方**（答后动作语义）；缺省段（思考→回答的答前过程）过程卡
+   *  仍在正文上方（Codex 语义不变）。 */
+  tailProcess?: boolean;
+};
 
 // 流式进行中的轮 / 已完成轮：与 tianxuan 一致，正文与过程卡交替出现。
 // （用户决策 2026-08-26 起不再区分：删除大过程卡后，全部轮次统一交替。）
@@ -155,6 +162,9 @@ export function buildSegments(items: Item[], _running = false): Segment[] {
       const prevHasText = prev.outsideItems.some((it) => it.kind === "assistant" && it.text);
       if (!lastHasText && last.processItems.length > 0 && prevHasText) {
         prev.processItems = [...prev.processItems, ...last.processItems];
+        // 波3.5 实弹反馈：答后动作段的过程卡渲染在正文**下方**（原 Codex 语义
+        // =正文之前，用户实测「正文之后的过程卡应该在正文的下方」）。
+        prev.tailProcess = true;
         segs.pop();
       }
     }
@@ -213,6 +223,10 @@ function renderOutsideItems(
     onFeedback?: boolean;
     /** 轮尾登记合并卡须排除的路径键集（同轮其它段正文已提及的文件）。 */
     deliverOmitPaths?: ReadonlySet<string>;
+    /** 波3.5 实弹反馈：本段正文卡的跨段去重 omit 集（同轮内该路径的首现段
+     *  才渲染正文卡，后续段提及同文件不再重复出卡——修复「交付文件卡重复
+     *  出现相同的好几个」）。 */
+    textOmitPaths?: ReadonlySet<string>;
     subcalls: Map<string, ToolItem[]>;
     setTurnEl: (tn: number) => (el: HTMLElement | null) => void;
   },
@@ -256,7 +270,14 @@ function renderOutsideItems(
               item={it}
               turnNo={ctx.turnNo}
               deliverTail={ctx.turnTail}
-              deliverOmitPaths={ctx.turnTail ? ctx.deliverOmitPaths : undefined}
+              deliverOmitPaths={(() => {
+                // 正文卡跨段去重（textOmit）恒生效；轮尾段再并上登记合并卡的
+                // tailOmit（登记-only 卡排除同轮其它段正文提及——既有语义不变）。
+                const merged = new Set<string>();
+                if (ctx.textOmitPaths) for (const k of ctx.textOmitPaths) merged.add(k);
+                if (ctx.turnTail && ctx.deliverOmitPaths) for (const k of ctx.deliverOmitPaths) merged.add(k);
+                return merged.size > 0 ? merged : undefined;
+              })()}
               onCollapse={ctx.onCollapse}
               onCapture={ctx.captureForId(it.id)}
               canRegenerate={ctx.canRegenerateId === it.id}
@@ -306,7 +327,7 @@ function renderOutsideItems(
 // 由 Transcript 用 useCallback 稳定化后传入，memo 才能生效。
 export const TurnBlock = memo(function TurnBlock({
   seg, running, isLast, turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse,
-  dismissedErrors, onDismissError, captureForId, turnElsRef, workHeader, turnDoneSuppressed, tailOmitMentions, canRegenerateId, onRegenerateTurn, onFeedback,
+  dismissedErrors, onDismissError, captureForId, turnElsRef, workHeader, turnDoneSuppressed, tailOmitMentions, textOmitMentions, canRegenerateId, onRegenerateTurn, onFeedback,
 }: {
   seg: Segment;
   running: boolean;
@@ -335,6 +356,9 @@ export const TurnBlock = memo(function TurnBlock({
   /** 本段为轮尾且轮尾无正文时，登记-only 交付卡改挂在本段（登记合并口径
    *  不变）；值为同轮其它段正文已提及的路径键集，防同文件双卡。 */
   tailOmitMentions?: ReadonlySet<string>;
+  /** 波3.5 实弹反馈：本段正文卡的跨段去重 omit 集（同轮首现段渲染、后续段
+   *  提及同文件不再重复出卡）。 */
+  textOmitMentions?: ReadonlySet<string>;
 }) {
   // v4.505：todo_write 不进过程卡——待办有专属面板（useTodoExtractor →
   // TasksWorkbench 待办区），外部项渲染线同款过滤（renderOutsideItems）；
@@ -360,28 +384,32 @@ export const TurnBlock = memo(function TurnBlock({
       renderOutsideItems(seg.outsideItems, {
         turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse,
         dismissedErrors, onDismissError, captureForId, canRegenerateId, onRegenerateTurn, onFeedback,
-        deliverOmitPaths: tailOmitMentions, subcalls, setTurnEl,
+        deliverOmitPaths: tailOmitMentions, textOmitPaths: textOmitMentions, subcalls, setTurnEl,
       }),
-    [seg.outsideItems, turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse, dismissedErrors, onDismissError, captureForId, canRegenerateId, onRegenerateTurn, onFeedback, tailOmitMentions, subcalls, setTurnEl],
+    [seg.outsideItems, turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse, dismissedErrors, onDismissError, captureForId, canRegenerateId, onRegenerateTurn, onFeedback, tailOmitMentions, textOmitMentions, subcalls, setTurnEl],
   );
   // 轮尾无正文段（reasoning-first 回合里工具段在正文之后成为轮尾）：
   // 登记-only 交付卡原来只挂在轮尾段的 AssistantMessage 上，这里整段缺席
   // 会导致本轮登记的产物卡整体丢失——补挂在本段末尾（跨段去重见
   // tailOmitMentions）。
   const tailHasText = seg.outsideItems.some((it) => it.kind === "assistant" && it.text);
+  const processCard = hasProcess && (
+    <ProcessCard
+      items={visibleProcess}
+      toolCount={toolCount}
+      thoughtCount={thoughtCount}
+      running={running && isLast}
+      small={running && !isLast}
+      subcallsByParent={subcalls}
+    />
+  );
+  // 答后过程段（tailProcess）：正文在上、过程卡（答后动作）在下；其余段维持
+  // Codex 语义=过程卡（思考/答前动作）在正文上方。
   return (
     <>
-      {hasProcess && (
-        <ProcessCard
-          items={visibleProcess}
-          toolCount={toolCount}
-          thoughtCount={thoughtCount}
-          running={running && isLast}
-          small={running && !isLast}
-          subcallsByParent={subcalls}
-        />
-      )}
+      {!seg.tailProcess && processCard}
       {seg.outsideItems.length > 0 && outside}
+      {seg.tailProcess && processCard}
       {turnTail && turnNo != null && !tailHasText && (
         <DeliverableCards text="" turnNo={turnNo} mergeRegistry omitPaths={tailOmitMentions} />
       )}
@@ -898,7 +926,7 @@ export function Transcript({
 
   // 轮尾段的跨段提及排除集：正文提及卡在非轮尾段也渲染，轮尾的登记合并
   // 须排除同轮其它段已提及的路径（键 = deliverablePathKey），防同文件双卡。
-  const tailOmitBySeg = useMemo(() => {
+  const { tail: tailOmitBySeg, text: textOmitBySeg } = useMemo(() => {
     const mentionsBySeg = new Map<number, Set<string>>();
     const allByTurn = new Map<number, Set<string>>();
     segments.forEach((seg, i) => {
@@ -926,7 +954,33 @@ export function Transcript({
       for (const k of all) if (!own?.has(k)) others.add(k);
       if (others.size > 0) out.set(idx, others);
     }
-    return out;
+    // 波3.5 实弹反馈：正文卡跨段去重——同轮内同路径只在**首现段**渲染正文卡
+    //（修复「最下方的交付文件卡重复出现相同的好几个」：同轮多段正文提及同一
+    // 文件时每段各出一卡）。首现判定按段序（segments 顺序=对话时序）。
+    const textOut = new Map<number, Set<string>>();
+    const firstByTurn = new Map<number, Map<string, number>>();
+    segments.forEach((_seg, i) => {
+      const tn = turnNos.get(i);
+      if (tn == null) return;
+      const own = mentionsBySeg.get(i);
+      if (!own || own.size === 0) return;
+      let first = firstByTurn.get(tn);
+      if (!first) {
+        first = new Map<string, number>();
+        firstByTurn.set(tn, first);
+      }
+      for (const k of own) {
+        const prevSeg = first.get(k);
+        if (prevSeg === undefined) first.set(k, i);
+        else {
+          const set = textOut.get(i) ?? new Set<string>();
+          set.add(k);
+          textOut.set(i, set);
+        }
+      }
+    });
+    void textOut;
+    return { tail: out, text: textOut };
   }, [segments, turnNos, turnTails]);
 
   // T7-4：onToggle/onRewind/onDismiss 全部 useCallback 稳定化，UserMessage/
@@ -1037,6 +1091,7 @@ export function Transcript({
                   workHeader={segIdx === lastUserSegIdx && !lastTurnHasProcess}
                   turnDoneSuppressed={segIdx === lastUserSegIdx && lastTurnHasProcess}
                   tailOmitMentions={tailOmitBySeg.get(segIdx)}
+                  textOmitMentions={textOmitBySeg.get(segIdx)}
                 />
               );
             })}

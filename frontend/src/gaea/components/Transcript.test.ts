@@ -108,6 +108,8 @@ describe("v4.308 尾随工具段合并", () => {
     expect(segs).toHaveLength(2);
     expect(segs[1].processItems.map((x) => x.id)).toEqual(["a1", "t1", "t2"]);
     expect(segs[1].outsideItems.map((x) => x.id)).toEqual(["a1"]);
+    // 2026-11-13 实弹反馈：答后动作段的过程卡渲染在正文**下方**（tailProcess）。
+    expect(segs[1].tailProcess).toBe(true);
   });
 
   it("工具段前无正文（用户后直接工具）不合并，保持独立段", () => {
