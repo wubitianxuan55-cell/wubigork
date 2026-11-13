@@ -40,7 +40,7 @@ describe("ProcessCard 小过程卡 / 展开态初始状态", () => {
     expect(bigHeader?.getAttribute("aria-expanded")).toBe("false");
   });
 
-  it("运行中过程卡自动展开（实时活动可见）", () => {
+  it("运行中过程卡默认折叠+最近三行尾巴（2026-11-13 二轮实弹拍板：不再自动展开）", () => {
     const items: Item[] = [
       { kind: "assistant", id: "a1", text: "", reasoning: "先分析需求", streaming: false },
       { kind: "tool", id: "t-run", name: "write_file", args: "", readOnly: false, status: "running" } as Item,
@@ -49,8 +49,10 @@ describe("ProcessCard 小过程卡 / 展开态初始状态", () => {
       wrap(
 <ProcessCard items={items} toolCount={1} thoughtCount={1} small running subcallsByParent={noSubcalls} />),
     );
+    // 折叠态：头部 aria-expanded=false；尾巴显示最近三条（≤3 条全显）。
     const header = view.container.querySelectorAll("button[aria-expanded]")[0];
-    expect(header?.getAttribute("aria-expanded")).toBe("true");
+    expect(header?.getAttribute("aria-expanded")).toBe("false");
+    expect(view.container.querySelectorAll("[data-testid=\"process-recent-preview\"] .office-process-card__recent-row")).toHaveLength(2);
   });
 
   it("思考卡运行中仍默认折叠，点击后才展开", () => {
@@ -63,7 +65,9 @@ describe("ProcessCard 小过程卡 / 展开态初始状态", () => {
 <ProcessCard items={items} toolCount={1} thoughtCount={1} running small={false} subcallsByParent={noSubcalls} />),
     );
     const headers = view.container.querySelectorAll("button[aria-expanded]");
-    expect(headers[0]?.getAttribute("aria-expanded")).toBe("true");
+    // 2026-11-13 二轮实弹：running 卡头不再自动展开（折叠+最近三行尾巴）；
+    // 卡内思考块仍默认折叠、点击展开。
+    expect(headers[0]?.getAttribute("aria-expanded")).toBe("false");
     expect(headers[1]?.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(headers[1]!);
     expect(headers[1]?.getAttribute("aria-expanded")).toBe("true");

@@ -521,18 +521,14 @@ export const ProcessCard = memo(function ProcessCard({
   useEffect(() => {
     const wasRunning = prevRunningRef.current;
     prevRunningRef.current = running;
-    if (running) {
-      if (!wasRunning) userOverridden.current = false;
-      if (!userOverridden.current) setOpen(true);
-    } else if (wasRunning && !userOverridden.current) {
-      // 本段刚完成：收起为一行；用户手动展开过则保留。
+    // 2026-11-13 二轮实弹（用户）：running 卡不再自动展开——折叠态+「最近三行」
+    // 活尾巴即完整运行视图；完成/历史卡折叠为一行状态摘要（用户手动展开过则
+    // 保留展开，userOverridden 语义不变）。
+    if (wasRunning && !running && !userOverridden.current) {
       setOpen(false);
       finalElapsedRef.current = turnStartAt > 0 ? Math.max(0, now - Math.floor(turnStartAt / 1000)) : 0;
-    } else if (!userOverridden.current && small) {
-      // 运行中已完成的历史分段小过程卡：保持折叠（手动展开过则保留）。
-      setOpen(false);
     }
-  }, [running, turnStartAt, now, small]);
+  }, [running, turnStartAt, now]);
 
   const elapsed = running
     ? (turnStartAt > 0 ? Math.max(0, now - Math.floor(turnStartAt / 1000)) : 0)
@@ -555,8 +551,9 @@ export const ProcessCard = memo(function ProcessCard({
     ? labelParts.join(" · ")
     : (running ? t("process.working") : "");
 
-  // 波3.5 实弹反馈：折叠态动态显示**最近三条**内容（工具名/思考首行/阶段），
-  // 全部内容仍需展开查看——「过程卡默认折叠」语义收紧为「折叠但有活着尾巴」。
+  // 波3.5 二轮实弹：**运行中**过程卡折叠态显示最近三条内容（工具名/思考首行/
+  // 阶段）=完整运行视图（running 不再自动展开）；已完成卡折叠=一行状态摘要
+  // 无尾巴，全部内容展开查看。
   const recentPreview = useMemo(() => {
     const acts: { id: string; kind: string; label: string }[] = [];
     for (const it of items) {
@@ -697,7 +694,7 @@ export const ProcessCard = memo(function ProcessCard({
           aria-hidden
         />
       </button>
-      {!open && recentPreview.length > 0 && (
+      {running && !open && recentPreview.length > 0 && (
         <div className="office-process-card__recent" data-testid="process-recent-preview">
           {recentPreview.map((r) => (
             <div key={r.id} className="office-process-card__recent-row" data-kind={r.kind}>
