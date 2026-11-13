@@ -57,6 +57,19 @@ func TestFoldDeliverablesGolden(t *testing.T) {
 		total   int
 	}{
 		{
+			name: "office_save 的 doc 键登记（dsh-office COM 档波3.5 盲区修复）",
+			entries: []session.LogEntry{
+				dEntry(1, 100, "turn_started", map[string]any{}),
+				dDispatch(2, 110, "office_open", `{"path":"交互文件/季度总结.docx"}`), // open 非 writer 不登记
+				dDispatch(3, 120, "office_save", `{"doc":"交互文件/季度总结.docx","app":"word"}`),
+				dDispatch(4, 130, "office_edit", `{"doc":"交互文件/季度总结.docx","ops":[]}`), // edit 不落盘不登记
+			},
+			want: []DeliverableEntry{
+				{Path: "交互文件/季度总结.docx", Tool: "office_save", Turn: 1, UpdatedAt: 120, Touches: 1},
+			},
+			total: 1,
+		},
+		{
 			name: "write+edit 去重保留最近，touches 累计",
 			entries: []session.LogEntry{
 				dEntry(1, 100, "turn_started", map[string]any{}),

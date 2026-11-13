@@ -469,7 +469,11 @@ func ExtractDeliverablePaths(name string, args json.RawMessage) []string {
 		push(stringField(fields, "output_path"))
 		return out
 	}
-	for _, key := range []string{"path", "file_path", "notebook_path", "destination"} {
+	for _, key := range []string{"path", "file_path", "notebook_path", "destination",
+		// dsh-office COM 档（波3.5 实弹）：office_save 的目标文档键是 doc
+		// （显式传 doc 保存当前文档的形态）；doc 缺省（纯 {} 沿用最近文档）
+		// 仍无可提取参数——该形态回执文本带 Saved 路径，登记盲区已知。
+		"doc"} {
 		push(stringField(fields, key))
 	}
 	for _, key := range []string{"paths", "file_paths"} {
