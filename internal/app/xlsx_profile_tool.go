@@ -82,7 +82,7 @@ func (t xlsxProfileTool) Execute(_ context.Context, args json.RawMessage) (strin
 		Range string `json:"range"`
 	}
 	if err := json.Unmarshal(args, &in); err != nil {
-		return "", fmt.Errorf("参数无效: %w", err)
+		return "", fmt.Errorf("xlsx_profile 参数解析失败: %w", err)
 	}
 	path, err := xlsxProfileResolvePath(in.Path)
 	if err != nil {

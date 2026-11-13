@@ -127,6 +127,8 @@ var RegistryMap = map[string]RegistryEntry{
 	"pptx_apply":       {"extra-app", "work", "write", "office-journal", "页级替换；基线快照+证据卡；通道 A=页文本替换在目标不在引用级（P2）"},
 	"xlsx_apply":       {"extra-app", "work", "write", "office-journal", "公式重算零错误+引用级声明比对（P1a 升 agent 工具）"},
 	"xlsx_profile":     {"extra-app", "work", "read", "none", "列概况与库一致；只读不改文件（波2 扩面）"},
+	"xlsx_recalc":      {"extra-app", "work", "write", "none", "LibreOffice 重算写回缓存值（公式不动，派生数据刷新不落证据卡）；WritePaths=path（灵犀 P1-2）"},
+	"xlsx_audit":       {"extra-app", "work", "read", "none", "错误值/自引用/未重算扫描与库一致；只读（灵犀 P1-2 交付门）"},
 	"office_batch":     {"extra-app", "work", "meta", "task-center", "批量转 PDF 进持久调度器：断窗续跑/可取消/可重试/进度逐文件；out_dir 声明=产物目录；Result 逐文件报告（P4）"},
 	"office_close":     {"extra-app", "work", "write", "none", "dsh-office COM 档：仅关 AI 自己打开的文档（用户文档拒绝）；save:true 时 WritePaths 声明落盘路径（波1 条件装配）"},
 	"office_edit":      {"extra-app", "work", "write", "none", "dsh-office COM 档：窗口内批量 ops 实时编辑（不落盘，保存走 office_save）；ops 上限 200；操作清单按需发放（波1 条件装配）"},

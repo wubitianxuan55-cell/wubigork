@@ -85,6 +85,10 @@ var spaceTags = map[string]string{
 	"office_help":      spaces.SpaceWork,
 	"office_macro":     spaces.SpaceWork,
 	"office_selection": spaces.SpaceWork,
+	// 灵犀 P1-2 质量门禁两件（app 层 gaeaExtraTools 装配，2026-11-13）：
+	// recalc 写（缓存值回写）audit 只读，均办公域=work。
+	"xlsx_recalc": spaces.SpaceWork,
+	"xlsx_audit":  spaces.SpaceWork,
 	// browser_*×11 与 sidebar_open：类型自带 SpaceTag() 自声明 work（browser_tools.go /
 	// sidebar_open.go），本表行是与自声明一致的背书（2026-11-10 漂移刀前误记
 	// shared=影子行说谎，守卫 TestSpaceTagsAgreeWithRegistryMap 钉死两处一致）。

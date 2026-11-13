@@ -52,7 +52,7 @@ func officeWritePathsFromArgs(args json.RawMessage, keys ...string) ([]string, e
 	}
 	if len(args) > 0 {
 		if err := json.Unmarshal(args, &fields); err != nil {
-			return nil, fmt.Errorf("参数无效: %w", err)
+		return nil, fmt.Errorf("参数解析失败: %w", err)
 		}
 	}
 	for _, k := range keys {
@@ -109,7 +109,7 @@ func (t officeGenerateTool) WritePaths(args json.RawMessage) ([]string, error) {
 func (t officeGenerateTool) Execute(_ context.Context, args json.RawMessage) (string, error) {
 	var in ExportDeliverableInput
 	if err := json.Unmarshal(args, &in); err != nil {
-		return "", fmt.Errorf("参数无效: %w", err)
+		return "", fmt.Errorf("office_generate 参数解析失败: %w", err)
 	}
 	if strings.TrimSpace(in.OutputPath) == "" {
 		return "", fmt.Errorf("缺少 output_path（声明写路径）：durable 交付物必须声明落点，不接受隐式 ExportsDir 命名")
@@ -162,7 +162,7 @@ func (t officeBatchTool) WritePaths(args json.RawMessage) ([]string, error) {
 	}
 	if len(args) > 0 {
 		if err := json.Unmarshal(args, &in); err != nil {
-			return nil, fmt.Errorf("参数无效: %w", err)
+		return nil, fmt.Errorf("参数解析失败: %w", err)
 		}
 	}
 	if strings.TrimSpace(in.OutDir) == "" {
@@ -181,7 +181,7 @@ func (t officeBatchTool) Execute(_ context.Context, args json.RawMessage) (strin
 		OutDir string   `json:"out_dir"`
 	}
 	if err := json.Unmarshal(args, &in); err != nil {
-		return "", fmt.Errorf("参数无效: %w", err)
+		return "", fmt.Errorf("office_batch 参数解析失败: %w", err)
 	}
 	task, err := t.a.submitOfficeBatch(in.Files, in.OutDir)
 	if err != nil {
@@ -226,7 +226,7 @@ func (t officeDocxApplyTool) Execute(_ context.Context, args json.RawMessage) (s
 		Replacement string `json:"replacement"`
 	}
 	if err := json.Unmarshal(args, &in); err != nil {
-		return "", fmt.Errorf("参数无效: %w", err)
+		return "", fmt.Errorf("docx_apply 参数解析失败: %w", err)
 	}
 	if strings.TrimSpace(in.Selected) == "" {
 		return "", fmt.Errorf("selected_text 为空")
@@ -267,7 +267,7 @@ func (t officeDocxAcceptTool) Execute(_ context.Context, args json.RawMessage) (
 		Path string `json:"path"`
 	}
 	if err := json.Unmarshal(args, &in); err != nil {
-		return "", fmt.Errorf("参数无效: %w", err)
+		return "", fmt.Errorf("docx_accept 参数解析失败: %w", err)
 	}
 	if _, err := t.a.GaeaDocxAcceptChanges(in.Path, true); err != nil {
 		return "", err
@@ -310,7 +310,7 @@ func (t officePptxApplyTool) Execute(_ context.Context, args json.RawMessage) (s
 		Replacement string `json:"replacement"`
 	}
 	if err := json.Unmarshal(args, &in); err != nil {
-		return "", fmt.Errorf("参数无效: %w", err)
+		return "", fmt.Errorf("pptx_apply 参数解析失败: %w", err)
 	}
 	if _, err := t.a.GaeaPptxApplyEdit(in.Path, in.Slide, in.Target, in.Replacement); err != nil {
 		return "", err
@@ -358,7 +358,7 @@ func (t officeXlsxApplyTool) Execute(_ context.Context, args json.RawMessage) (s
 		OpsJSON string `json:"ops_json"`
 	}
 	if err := json.Unmarshal(args, &in); err != nil {
-		return "", fmt.Errorf("参数无效: %w", err)
+		return "", fmt.Errorf("xlsx_apply 参数解析失败: %w", err)
 	}
 	res, err := t.a.GaeaXlsxApplyEdit(in.Path, in.OpsJSON)
 	if err != nil {

@@ -102,6 +102,8 @@
 | `write_file` | builtin-workspace | work | write | agent-write | 落盘后文件含 AfterSummary；快照可回滚；expected_revision CAS 可选（dsh-ops 蒸馏） |
 | `xlsx_apply` | extra-app | work | write | office-journal | 公式重算零错误+引用级声明比对（P1a 升 agent 工具） |
 | `xlsx_profile` | extra-app | work | read | none | 列概况与库一致；只读不改文件（波2 扩面） |
+| `xlsx_recalc` | extra-app | work | write | none | LibreOffice 重算写回缓存值（公式不动，派生数据刷新不落证据卡）；WritePaths=path（灵犀 P1-2） |
+| `xlsx_audit` | extra-app | work | read | none | 错误值/自引用/未重算扫描与库一致；只读（灵犀 P1-2 交付门） |
 
 ## P3 四类验收谓词（非文档工具）
 

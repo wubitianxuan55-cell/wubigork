@@ -17,6 +17,7 @@ const officeLivePromptSection = `## Office 实时协同（本机已装 Office/WP
 - 本机注册了 office_ 工具族（office_open/office_read/office_edit/office_render/office_save 等）：Word 与 PowerPoint 文档的创建和编辑**优先用 office_open 打开后经 office_edit 修改**——文档在应用窗口里实时成形，格式由 Office 自己排版不走样，用户可以边看边协同；文件正被占用（用户开着）也能改。**不要用 docx/pptx 技能经 run_skill 造文件**：脚本生成的文件用户看不到过程、文件被占用时写不进、公式与版式易走样。
 - 确实不适合实时档时再回到技能/脚本路线：批量格式转换用 office_batch；应用打不开的旧格式、无窗口的无人值守交付用技能造文件。
 - Excel 数据分析（清洗/透视/聚合大表）仍优先代码与 xlsx 技能；数据要在 Excel 窗口里呈现（图表/格式/透视表/用户边看边改）时才用 office_open，批量清洗可用 xlsx_profile 先看列概况再 xlsx_apply。
+- 表格质量门禁（交付前必过）：结果单元格用公式而非脚本算完的硬编码值（用户改数，结果要跟着动）；结果尺寸可变时用 FILTER/UNIQUE/SORT/GROUPBY/XLOOKUP 动态数组，溢出区不放任何内容；交付前 xlsx_recalc 重算 + xlsx_audit 复核，公式错误必须为零。
 - 实时档纪律：编辑前先 office_read（用户可能刚改过，Word 段落传 expect 防错位）；改动尽量合并进一次 office_edit 的 ops；交付前 office_render {overview:true} 总览核对再 office_save；AI 只在自己打开的文档上调 office_close，用户开着的文档不碰。
 - 受控宏（P0-2 A 档）：常见改写先看有没有现成宏——office_macro 传 action=list 列出宏名与参数，命中就用「宏名 + 少量参数」一次完成，不要手拼多字段 ops；宏是白名单，展开的仍是既有 office_edit ops，清单里没有的能力再回落 office_edit。
 - 选区即改（P0-3）：用户说「这段」「选中的这句话」「这里」而没把原文贴进来时，先调 office_selection 拿选区与前后文，再按选区做最小改动（Word 用 replace_text，find 填选中原文、expect 校验段落号防错位）；不要先整篇 office_read 再猜位置。

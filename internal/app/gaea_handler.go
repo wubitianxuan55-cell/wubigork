@@ -904,6 +904,10 @@ func gaeaExtraTools(a *App) []tool.Tool {
 		officeXlsxApplyTool{a: a},
 		// 波2 扩面：xlsx_profile 只读列概况（规划输入；改文件仍走 xlsx_apply）。
 		xlsxProfileTool{a: a},
+		// P1-2 质量门禁（灵犀蒸馏）：xlsx_recalc 暴露 LibreOffice 重算链 +
+		// xlsx_audit 只读复核（错误值/自引用/未重算）——交付门=零公式错误。
+		xlsxRecalcTool{a: a},
+		xlsxAuditTool{a: a},
 		// P4 持久任务中心：批量转 PDF 提交型工具（断窗续跑/可取消/可重试）。
 		officeBatchTool{a: a},
 	}
