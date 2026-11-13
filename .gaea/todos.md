@@ -26,6 +26,7 @@
 | ⏳ | G1 深化余项：无 git 的更多能力级降级、危险操作边界再补强（G1.6 worktree 展示+超时/预算、G1.7 冲突/重命名/二进制展示策略均已收口，见上） |
 | ⏳ | G2/W1/X1：只读提交图、底部工作台/终端、插件服务与开始页接管，均按用户拍板门控 |
 | ⛔ | 侧聊服务 / 侧边对话——用户已明确不做，除非未来重新拍板 |
+| ✅ | **dsh-office 波3.5 收官=全项目收官**（2026-11-13）：preferLive 引导回（探测下沉 comhelper+boot 提示词分工段，SingleModelPrompt 逐字节红线不动）+unseen 交付前总览闭环（edit 置位/render 清除/save 自动总览+Final check）；exe 377175df 冒烟 200 装机；提交 f5576986；余=真机实弹挂用户 |
 | ✅ | **dsh-office 波3 收官**（2026-11-13）：office_com 设置段五键（OfficePanel「实时编辑」节）+settle 钩子（TurnDone 槽+活动性守卫+静默文档 Journal+office_file_saved）+壳内实时编辑状态条（OfficeLiveBadge 挂 FilePreview 头=迷你卡替代不启 WinForms）；exe 728e79e6 冒烟 200 装机 PID 36072；提交 48cfa091；余=preferLive 引导回+unseen 总览挂拍板池，真机实弹挂用户 |
 | ✅ | **dsh-office 波2 收官**（2026-11-13）：WPS math 腿（internal/office/omml 子集直转+office_edit math 接线；接管崩溃子代理修 stopAmp 死循环+emit 缺口两 bug；suite=wps 实弹 2 equation(s) 全建成）+Excel 扩面（xlsxedit 扩清洗 ops 九类+xlsx_profile 只读工具+三处纪律）+PPT 版式引擎拍板取消（helper 保真不裁+教学面只发基础 ops）；exe bb8befa6 冒烟 200 装机 PID 47776；提交 7b793944；当日账=day-log §16 |
 | ✅ | **dsh-office COM 实时协同档波1 落地+装机**（2026-11-13）：上游 v1.2.0（MIT）蒸馏——comhelper 包（OfficeHelper.cs 逐字节照搬+csc 编译缓存+/codepage:65001 偏离+Go 行协议 client）+八工具条件装配（三处纪律全走）+save 落 Journal+工作区边界单点收口；捎带修 publishguard 账本 0 字节静默失写+workbench ms 粒度 CAS 失明两生产 bug；真机冒烟全链过（WPS 附着/中文无 mojibake）；exe dfd1db30 冒烟 200 装机 PID 44252；余=波2/3 挂拍板池（WPS 公式腿/PPT 版式引擎/体验件/引导回）；调研档=docs/gaea-dsh-office-distill-research-2026-11.md，当日账=day-log §15 |
