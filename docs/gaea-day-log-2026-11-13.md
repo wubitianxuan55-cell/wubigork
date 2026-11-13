@@ -428,3 +428,17 @@
   .office-process-card background: transparent + box-shadow 移除；running 的
   accent 渐变垫色一并去除，状态色仅留边框——error/stopped 变体本就只改边框）。
 - exe `3c0948d3…` 冒烟 200 **INSTALL OK**（PID 49388，装机=包版哈希一致）。
+
+## 25. 交互文件固定落点（15:4x）
+
+- 实弹反馈：模型 office_open 随意给路径/文件名，交互卡出现一堆不同路径的相同
+  文件。修复（e382b9f1）：office_open path 归一（Execute 与 WritePaths 声明面
+  同判据）——
+  - path 省略 → 工作区「交互文件」目录 + Office-<kind>-<时间戳>.<ext>（同秒
+    重复 open 同 kind=同路径=接着用）；
+  - 纯文件名 → 收编进「交互文件」目录（缺扩展名按 kind 补）；
+  - 带目录/工作区内绝对路径 → 尊重原意；
+  - 归一改写时回执告知模型落点；description/schema 同步约定（沿用首次路径，
+    不换名另开副本）；附着打开不声明写路径（open 不写盘语义不变）。
+- 验证：归一三形态+WritePaths 同判据三例+既有 officeCom 族全绿；装机 exe
+  `7dc655b6…` 冒烟 200 **INSTALL OK**（PID 39188，装机=包版）。
