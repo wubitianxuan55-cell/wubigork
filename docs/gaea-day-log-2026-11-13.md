@@ -421,3 +421,10 @@
   - 两个锚定旧「运行中自动展开」语义的测试按新拍板更新（running 折叠断言+
     尾巴行数断言）。
 - 25 例绿+tsc 干净；day-log 本段与 §22 合并构成五卡二轮实弹全账。
+
+## 24. 过程卡底色透明（15:4x）
+
+- 实弹反馈：过程卡底色改透明=与对话窗口背景一致（office-conversation.css
+  .office-process-card background: transparent + box-shadow 移除；running 的
+  accent 渐变垫色一并去除，状态色仅留边框——error/stopped 变体本就只改边框）。
+- exe `3c0948d3…` 冒烟 200 **INSTALL OK**（PID 49388，装机=包版哈希一致）。
