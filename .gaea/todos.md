@@ -28,6 +28,7 @@
 | ⛔ | 侧聊服务 / 侧边对话——用户已明确不做，除非未来重新拍板 |
 | ✅ | **五卡实弹反馈三刀**（2026-11-13）：过程卡下置（答后段 tailProcess 标志）+交付卡跨段去重（同轮首现段 ownership）+提炼记忆弹窗（remember/fact_add 行点击 MemoryPeekModal）；exe 35994246 冒烟 200 装机；提交 cacb011c |
 | ✅ | **办公对话输出重设计批（五卡）回归 main**（2026-11-13）：office-conversation-redesign-wip 分支 d3342e77 合并 562d4eb0（11-12 清场保全的另一执行体休眠在制；仅 progress.md 一处冲突两侧保留）；五卡 35 例+Transcript+投影共 121 例绿+tsc+构建装机 exe 365a65d4；分支已删；卡片视觉走查挂用户 |
+| ✅ | **五卡二轮实弹四件**（2026-11-13）：下置撤销（用户改主意恢复 Codex 语义）+折叠态最近三条活尾巴+交付卡滤 .py+提炼记忆卡（notice→结构化卡+弹窗查看/接受/忽略）+溢出归档（dream-pending-overflow.json FIFO 200，修复队列满数据丢失）；exe adc4bc4e 冒烟 200 装机；提交 c5ee0dbd |
 | ✅ | **dsh-office 四波收官打包**（2026-11-13）：干净树 .worktrees/pkg-f5576986（junction+定提交构建）→ 装机=包版 exe 21BD0668 冒烟 200；交付物 releases/gaea-officecom-20261113-f5576986/（PACKAGE-INFO+SHA256SUMS 入库，zip/tar 留盘）；工作树已回收；包记录 34de50d8 |
 | ✅ | **dsh-office 波3.5 收官=全项目收官**（2026-11-13）：preferLive 引导回（探测下沉 comhelper+boot 提示词分工段，SingleModelPrompt 逐字节红线不动）+unseen 交付前总览闭环（edit 置位/render 清除/save 自动总览+Final check）；exe 377175df 冒烟 200 装机；提交 f5576986；余=真机实弹挂用户 |
 | ✅ | **dsh-office 波3 收官**（2026-11-13）：office_com 设置段五键（OfficePanel「实时编辑」节）+settle 钩子（TurnDone 槽+活动性守卫+静默文档 Journal+office_file_saved）+壳内实时编辑状态条（OfficeLiveBadge 挂 FilePreview 头=迷你卡替代不启 WinForms）；exe 728e79e6 冒烟 200 装机 PID 36072；提交 48cfa091；余=preferLive 引导回+unseen 总览挂拍板池，真机实弹挂用户 |
