@@ -91,7 +91,8 @@ func (t ocrTool) Execute(ctx context.Context, args json.RawMessage) (string, err
 	}
 	text, err := t.a.GaeaOCRText(p.ImagePath)
 	if err != nil {
-		return "", fmt.Errorf("ocr: %w", err)
+		// 失败语义族（batch2-plan B2）：OCR 失败后禁止编造文字内容。
+		return "", fmt.Errorf("ocr: %v——OCR 失败：如实告知用户文字提取不可用及上述原因；不要凭图片内容猜测或编造文字；引擎不可用时提示用户检查 OCR 模型配置，配置好后可重试", err)
 	}
 	return tool.WrapText(text), nil
 }

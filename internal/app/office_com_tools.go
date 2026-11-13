@@ -151,10 +151,11 @@ func (s *officeComState) client() (officeComCaller, error) {
 
 // officeComCall 注入 suite 后发命令（与上游 host 包装同位）。写面命令
 // （open/edit/save/close）成功返回时 stamp 活动时刻——settle 守卫的记账点。
+// 失败经 officeComWrapErr 追加后续行为指令（失败语义族，batch2 B2）。
 func (s *officeComState) call(ctx context.Context, cmd string, args map[string]any, timeout time.Duration) (json.RawMessage, error) {
 	client, err := s.client()
 	if err != nil {
-		return nil, err
+		return nil, officeComWrapErr(err)
 	}
 	if args == nil {
 		args = map[string]any{}
@@ -168,8 +169,49 @@ func (s *officeComState) call(ctx context.Context, cmd string, args map[string]a
 			s.lastActive = time.Now()
 			s.mu.Unlock()
 		}
+		return raw, nil
 	}
-	return raw, err
+	return raw, officeComWrapErr(err)
+}
+
+// officeComErrSem 语义包装：追加行为指令但保 Unwrap 链——IsBusy/Code 等
+// errors.As 判定必须继续工作（TestOfficeComBusyPassesThrough 钉死该契约）。
+type officeComErrSem struct {
+	err  error
+	note string
+}
+
+func (e *officeComErrSem) Error() string { return e.err.Error() + "——" + e.note }
+func (e *officeComErrSem) Unwrap() error { return e.err }
+
+// officeComWrapErr 失败语义族（batch2-plan B2，灵犀 §24.4 蒸馏）：按错误类
+// 追加「后续怎么走」指令——失败后模型的行为取决于这句话，不追加它会瞎试。
+// helper 自身的中文报错保留在前（含原始原因），指令追加在后面。
+func officeComWrapErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	sem := func(note string) error { return &officeComErrSem{err: err, note: note} }
+	switch {
+	case comhelper.IsBusy(err):
+		return sem("用户正在 WPS/Office 里操作（输入中/开着对话框）。稍等 10~30 秒重试同一条命令；不要改参数乱试，也不要绕过 office_ 工具直接写文件")
+	}
+	switch comhelper.Code(err) {
+	case "NOT_FOUND":
+		return sem("目标不存在：先用 office_status 看打开清单/确认文件名再重试，不要凭记忆猜文档名")
+	case "BAD_ARGS":
+		return sem("参数不合法：对照该工具 schema 修正参数后重试一次；连续两次同类错误就停下向用户说明")
+	case "ANCHOR_MISMATCH", "STYLE_MISSING", "OFFICE_ERROR":
+		return sem("应用侧拒绝了该操作：不要原样重试；先 office_read 看当前实际内容再决定怎么改，拿不准就问用户")
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "初始化失败") || strings.Contains(msg, "未找到") || strings.Contains(msg, "不可用") {
+		return sem("实时编辑通道不可用：本轮不要再调任何 office_ 工具，改走技能/脚本路线（docx/pptx/xlsx 技能或 format_convert）完成交付，并如实告知用户实时档暂不可用；不要编造「已在 WPS 里改好」")
+	}
+	if strings.Contains(msg, "回执解析失败") || strings.Contains(msg, "超时") {
+		return sem("helper 通道异常（非文档问题）：可重试一次；再失败就停下改走技能/脚本路线并告知用户，不要连续重试")
+	}
+	return err
 }
 
 // officeComKey 文档去重键（app:文件名小写——路径与窗口名共用文件名收口）。

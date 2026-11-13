@@ -72,9 +72,11 @@ func (t xlsxRecalcTool) Execute(_ context.Context, args json.RawMessage) (string
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "recalc.py") ||
 			strings.Contains(err.Error(), "重算失败") {
-			return "", fmt.Errorf("公式重算不可用：%v（需要本机 LibreOffice 与 .gaea/skills/xlsx/scripts/recalc.py）", err)
+			return "", fmt.Errorf("公式重算不可用：%v（需要本机 LibreOffice 与 .gaea/skills/xlsx/scripts/recalc.py）。"+
+				"重算没做成，文件里的公式缓存值就没刷新——不要声称「公式已计算/结果已校验」，如实告知用户本机缺 LibreOffice；"+`
+				确实需要结果数值时，用 excelize CalcCellValue 类思路在脚本里逐格算并明确标注「脚本估算值，非重算缓存」`, err)
 		}
-		return "", fmt.Errorf("公式重算失败：%w", err)
+		return "", fmt.Errorf("公式重算失败：%w——不要声称重算完成；用 xlsx_audit 看具体单元格后修复再试", err)
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "重算完成：%d 个公式，%d 个错误", rep.TotalFormulas, rep.TotalErrors)

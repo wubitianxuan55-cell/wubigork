@@ -187,7 +187,8 @@ func (t officeBatchTool) Execute(_ context.Context, args json.RawMessage) (strin
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("已提交批量转 PDF 任务 %s（%d 个文件 → %s）。进度/取消/重试见任务中心；应用重启后未完成任务自动续跑；结果含逐文件 ok/fail 报告。",
+	return fmt.Sprintf("已提交批量转 PDF 任务 %s（%d 个文件 → %s）。进度/取消/重试见任务中心；应用重启后未完成任务自动续跑；结果含逐文件 ok/fail 报告。"+
+		"拿到结果后：部分失败只把 fail 清单里的文件重新提交，已 ok 的不要重转（会覆盖同名 PDF）；整批失败先看第一条错误的根因（多为格式/应用问题），修好再重跑，不要逐个重试碰运气。",
 		task.ID, len(in.Files), in.OutDir), nil
 }
 

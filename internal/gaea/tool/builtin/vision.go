@@ -65,7 +65,25 @@ func (v visionTool) Execute(ctx context.Context, args json.RawMessage) (string, 
 	p.ImagePath = resolveIn(v.workDir, p.ImagePath)
 	text, err := vision.RecognizeImage(ctx, p.ImagePath, p.Prompt)
 	if err != nil {
-		return "", err
+		return "", visionWrapErr(err)
 	}
 	return text, nil
+}
+
+// visionWrapErr 失败语义族（batch2-plan B2）：识图失败后的行为指令——
+// 模型看到原始错误容易「凭记忆描述图片」编造内容，必须显式禁止。
+func visionWrapErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "不可用") || strings.Contains(msg, "provider") || strings.Contains(msg, "冷启动"):
+		return fmt.Errorf("%v——本地视觉模型不可用（未配置或未启动）：如实告知用户识图暂不可用；不要凭图片文件名或想象描述图片内容；用户坚持要识图时提示在模型中心配置视觉模型后重试", err)
+	case strings.Contains(msg, "读取图片失败"):
+		return fmt.Errorf("%v——图片路径读不到：确认文件存在且为图片格式（可先 ls 看目录）；不要对不存在的图片编造描述", err)
+	case strings.Contains(msg, "超时") || strings.Contains(msg, "timeout") || strings.Contains(msg, "context"):
+		return fmt.Errorf("%v——识图超时（冷启动约 20 秒+）：可重试一次；仍超时就如实告知，不要编造图片内容", err)
+	}
+	return fmt.Errorf("%v——识图失败：如实转述该错误；不要编造图片内容", err)
 }

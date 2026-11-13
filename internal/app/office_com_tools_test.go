@@ -523,3 +523,29 @@ func TestOfficeParseErrorsCarryToolName(t *testing.T) {
 		}
 	}
 }
+
+// 失败语义族（batch2-plan B2）：包装后的错误必须①带后续行为指令②保
+// ComError 类型链（IsBusy/Code 的 errors.As 判定不断）。
+func TestOfficeComWrapErrSemantics(t *testing.T) {
+	busy := &comhelper.ComError{Code: "BUSY", Message: "The Office app is busy."}
+	wrapped := officeComWrapErr(busy)
+	if !comhelper.IsBusy(wrapped) {
+		t.Fatalf("包装后 IsBusy 判定必须仍成立: %v", wrapped)
+	}
+	if !strings.Contains(wrapped.Error(), "稍等 10~30 秒重试") {
+		t.Fatalf("BUSY 错误缺稍候重试指令: %v", wrapped)
+	}
+
+	nf := officeComWrapErr(&comhelper.ComError{Code: "NOT_FOUND", Message: "doc not found"})
+	if comhelper.Code(nf) != "NOT_FOUND" {
+		t.Fatalf("包装后 Code 判定必须仍成立: %v", nf)
+	}
+	if !strings.Contains(nf.Error(), "office_status") {
+		t.Fatalf("NOT_FOUND 错误缺查清单指令: %v", nf)
+	}
+
+	un := officeComWrapErr(fmt.Errorf("office helper 初始化失败"))
+	if !strings.Contains(un.Error(), "技能/脚本路线") || !strings.Contains(un.Error(), "不要编造") {
+		t.Fatalf("通道不可用错误缺降级路线+禁编造指令: %v", un)
+	}
+}
