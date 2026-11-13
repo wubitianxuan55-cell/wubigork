@@ -3511,6 +3511,7 @@ export namespace app {
 	    memories: MemorySuggestionView[];
 	    skills: SkillSuggestionView[];
 	    merges?: MergeSuggestionView[];
+	    overflow?: MemorySuggestionView[];
 	    generatedAt: string;
 	    available: boolean;
 	    source: string;
@@ -3524,6 +3525,7 @@ export namespace app {
 	        this.memories = this.convertValues(source["memories"], MemorySuggestionView);
 	        this.skills = this.convertValues(source["skills"], SkillSuggestionView);
 	        this.merges = this.convertValues(source["merges"], MergeSuggestionView);
+	        this.overflow = this.convertValues(source["overflow"], MemorySuggestionView);
 	        this.generatedAt = source["generatedAt"];
 	        this.available = source["available"];
 	        this.source = source["source"];

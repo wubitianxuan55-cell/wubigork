@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deliverableMentions, findFileMentions, isLocalFilePath } from "./fileLinks";
+import { deliverableMentions, findFileMentions, isLocalFilePath, parseFilePathHref } from "./fileLinks";
 
 describe("isLocalFilePath", () => {
   it("识别本地文件 href，排除 URL", () => {
@@ -9,6 +9,39 @@ describe("isLocalFilePath", () => {
     expect(isLocalFilePath("https://example.com/a.docx")).toBe(false);
     expect(isLocalFilePath("mailto:a@b.com")).toBe(false);
     expect(isLocalFilePath("#anchor")).toBe(false);
+  });
+});
+
+describe("parseFilePathHref（伪协议还原）", () => {
+  it("file:/// 与 Windows 盘符", () => {
+    expect(parseFilePathHref("file:///C:/AI/%E6%96%B9%E6%A1%88.docx")).toBe("C:/AI/方案.docx");
+    expect(parseFilePathHref("file://C:/AI/a.xlsx")).toBe("C:/AI/a.xlsx");
+    expect(parseFilePathHref("file:///C:\\AI\\a.docx")).toBe("C:\\AI\\a.docx");
+  });
+
+  it("local-file:/// 与 sandbox:///", () => {
+    expect(parseFilePathHref("local-file:///C:/AI/a.docx")).toBe("C:/AI/a.docx");
+    expect(parseFilePathHref("sandbox:///w/a.xlsx")).toBe("/w/a.xlsx");
+    expect(parseFilePathHref("sandbox:///")).toBeNull();
+  });
+
+  it("UNC 与普通路径不误判", () => {
+    expect(parseFilePathHref("file:////server/share/a.docx")).toBe("//server/share/a.docx");
+    expect(parseFilePathHref("C:/AI/a.docx")).toBeNull();
+    expect(parseFilePathHref("https://example.com/a.docx")).toBeNull();
+    expect(parseFilePathHref("")).toBeNull();
+  });
+});
+
+describe("isLocalFilePath 认伪协议", () => {
+  it("三类伪协议都算本地文件", () => {
+    expect(isLocalFilePath("file:///C:/AI/a.docx")).toBe(true);
+    expect(isLocalFilePath("local-file:///C:/AI/a.docx")).toBe(true);
+    expect(isLocalFilePath("sandbox:///w/%E6%96%B9%E6%A1%88.docx")).toBe(true);
+  });
+
+  it("伪协议但非文件扩展名不算", () => {
+    expect(isLocalFilePath("sandbox:///w/dir")).toBe(false);
   });
 });
 

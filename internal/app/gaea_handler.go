@@ -919,6 +919,11 @@ func gaeaExtraTools(a *App) []tool.Tool {
 			officeComSaveTool{},
 			officeComCloseTool{},
 			officeComHelpTool{},
+			// P0-3 选区上下文：读用户此刻选中的内容 + 前后文（划词即改）。
+			officeComSelectionTool{},
+			// P0-2 受控宏逃生舱（A 档）：宏白名单展开成既有 ops，复用同一条
+			// COM 执行路径；不给任意脚本（docs/gaea-lingxi-optimize-plan-2026-11.md）。
+			officeMacroTool{},
 		)
 	}
 	return append(tools, gaeaSpecialistTools(a)...)

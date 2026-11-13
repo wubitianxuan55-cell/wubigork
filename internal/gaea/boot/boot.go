@@ -542,6 +542,10 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// S4 双空间：执行纪律文本按会话空间渲染 exports/work 路径根段（设计 §5）。
 	// work 缺省（含 space.mode=off 的 "" 生效值）输出与历史 const 逐字一致。
 	execPrompt := compiler.SystemPrompt() + "\n\n" + agent.SingleModelPromptFor(cfg.EffectiveSessionSpace())
+	// 交付与收尾纪律（灵犀 delivery_format/response_style/completion_criteria
+	// 蒸馏，docs/gaea-lingxi-advantages-2026-11.md #16/#19）：无条件追加，通用
+	// 规则在前、专项分工在后。同样不动 SingleModelPrompt 常量。
+	execPrompt += "\n\n" + deliveryPromptSection
 	// 波3.5 preferLive 引导回（dsh-office 蒸馏，docs/gaea-dsh-office-distill-
 	// research-2026-11.md §6.3）：本机装了 Office/WPS（COM 档工具族已注册）
 	// 时追加实时协同分工段——Word/PPT 文档工作优先 office_ 工具而非 docx/

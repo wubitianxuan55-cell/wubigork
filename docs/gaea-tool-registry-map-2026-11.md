@@ -63,6 +63,8 @@
 | `office_edit` | extra-app | work | write | none | dsh-office COM 档：窗口内批量 ops 实时编辑（不落盘，保存走 office_save）；ops 上限 200；操作清单按需发放（波1 条件装配） |
 | `office_generate` | extra-app | work | produce | office-journal | 声明路径与实际落点逐字节一致；证据卡落账；通道 A=OOXML 容器头引用级（P1a+P2） |
 | `office_help` | extra-app | work | meta | none | dsh-office COM 档：office_edit 操作清单按需再取（波1 条件装配） |
+| `office_macro` | extra-app | work | write | none | 受控宏逃生舱（P0-2 A 档）：宏白名单展开成既有 office_edit ops，不给任意脚本；list 列宏、run 执行 |
+| `office_selection` | extra-app | work | read | none | 选区上下文（P0-3）：读用户此刻选中的文字/区域与前后文，供划词即改 |
 | `office_open` | extra-app | work | write | none | dsh-office COM 档：打开/新建实时文档；WritePaths=模板复制或新建落点；路径解析单点收口工作区边界（波1 条件装配） |
 | `office_read` | extra-app | work | read | none | dsh-office COM 档：打开中文档现状读取（含用户未保存修改；Word 脚注/Excel 列概况）（波1 条件装配） |
 | `office_render` | extra-app | work | read | none | dsh-office COM 档：排版 PNG 路径交付给 vision（doc_render 同款管线）；overview 拼图（波1 条件装配） |

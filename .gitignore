@@ -13,6 +13,13 @@ xlsx.out
 .gaea/sessions/
 .gaea/cad/
 
+# 灵犀逆向产物：解包体量大，只保留脚本与结论文档
+re-lingxi/out/drd/
+re-lingxi/out/x/
+re-lingxi/out/x_root/
+re-lingxi/out/asar-header.json
+re-lingxi/out/*.tsv
+
 # 前端
 frontend/dist/
 frontend/node_modules/

@@ -30,7 +30,7 @@ import { app, openExternal } from "../lib/bridge";
 import { copyToClipboard } from "../lib/clipboard";
 import { classifyExternalLink } from "../lib/browserPolicy";
 import { HlCode } from "./HlCode";
-import { isLocalFilePath } from "../lib/fileLinks";
+import { isLocalFilePath, parseFilePathHref } from "../lib/fileLinks";
 import { remarkFileLinks } from "../lib/remarkFileLinks";
 import { remarkMemCitations } from "../lib/remarkMemCitations";
 import { mdHtmlSchemaSanitize } from "../lib/sanitize";
@@ -468,7 +468,10 @@ function buildComponents(
         return <MemCitationChip name={name} />;
       }
       if (href && isLocalFilePath(href)) {
-        const rel = decodeURIComponent(href.replace(/^\.{0,2}\//, ""));
+        // 伪协议（file:///、local-file:///、sandbox:///）先还原成真实路径，
+        // 否则 FileChip 拿到带协议的 href，预览一定打不开。
+        const rel =
+          parseFilePathHref(href) ?? decodeURIComponent(href.replace(/^\.{0,2}\//, ""));
         return (
           <FileChip
             path={rel}

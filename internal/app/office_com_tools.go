@@ -381,7 +381,7 @@ func (officeComOpenTool) Schema() json.RawMessage {
 	return json.RawMessage(`{
   "type":"object",
   "properties":{
-    "path":{"type":"string","description":"文档路径（工作区相对或绝对）。路径不存在则新建该文件；省略则自动落到工作区「交互文件」目录并用 title 作文件名；只给文件名也会收编进该目录。同一文档继续编辑请沿用首次路径，不要换名另开副本"},
+    "path":{"type":"string","description":"文档路径（工作区相对或绝对，**必须位于当前工作区内**，越界会被拒绝）。路径不存在则新建该文件；省略则自动落到工作区「交互文件」目录并用 title 作文件名；只给文件名也会收编进该目录。同一文档继续编辑请沿用首次路径，不要换名另开副本"},
     "title":{"type":"string","description":"任务主题语义名（如 季度总结/设计方案）——path 省略时作为默认文件名（交互文件/季度总结.docx），方便用户按主题查找文件"},
     "app":{"type":"string","enum":["word","excel","ppt"],"description":"仅在无 path 时必填，或 doc 无扩展名时用于挑选应用"},
     "template":{"type":"string","description":"模板/样例文档路径：复制到 path（path 必须不存在）后打开副本，原模板不动。用户给了模板要沿用其样式时用"},

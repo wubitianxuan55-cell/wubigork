@@ -899,6 +899,9 @@ static class Program
             Card.Report((cmd == "save" ? "AI 已保存 " : cmd == "render" ? "AI 正在检查 " : "AI 正在读取 ") + name, Linger);
         }
         if (cmd == "read") return kind == "word" ? WordRead(doc, a) : kind == "excel" ? ExcelRead(doc, a) : PptRead(doc, a);
+        // 选区上下文（P0-3，灵犀 <wps_docs_selection> 蒸馏）：读用户此刻选中的
+        // 内容 + 前后文，供「划词即改」；读不到就返回 selected=false，绝不抛错。
+        if (cmd == "selection") return Selection(kind, doc, a);
         if (cmd == "edit") return Edit(kind, app, doc, a);
         if (cmd == "render") return Render(kind, app, doc, a);
         if (cmd == "save") return Save(kind, app, doc, a);
@@ -2326,6 +2329,88 @@ static class Program
             return result;
         }
         finally { if (reading) { try { doc.Windows[1].View.ReadingLayout = true; } catch (COMException) { } } }
+    }
+
+    // 选区上下文（P0-3）：返回用户当前选中的文字/区域 + 前后文，供「划词即改」。
+    // 契约：任何异常都返回 selected=false（用户没选中、窗口未激活、无文档都算），
+    // 不抛 Fail——选区是辅助信息，不该把整个回合打挂。
+    static object Selection(string kind, dynamic doc, Bag a)
+    {
+        Dictionary<string, object> result = new Dictionary<string, object>();
+        result["app"] = kind;
+        result["selected"] = false;
+        int ctx = Math.Max(0, Math.Min(2000, a.Int("context", 200)));
+        try
+        {
+            if (kind == "word")
+            {
+                dynamic sel = doc.Application.Selection;
+                dynamic rng = sel.Range;
+                int start = (int)rng.Start, end = (int)rng.End;
+                result["app"] = "word";
+                result["start"] = start;
+                result["end"] = end;
+                result["text"] = Clean((string)rng.Text);
+                result["para"] = (int)doc.Range(0, start).Paragraphs.Count;
+                if (ctx > 0)
+                {
+                    if (start > 0)
+                    {
+                        try { result["before"] = Clean((string)doc.Range(Math.Max(0, start - ctx), start).Text); } catch (Exception) { }
+                    }
+                    try
+                    {
+                        int docEnd = (int)doc.Content.End;
+                        if (end < docEnd) result["after"] = Clean((string)doc.Range(end, Math.Min(docEnd, end + ctx)).Text);
+                    }
+                    catch (Exception) { }
+                }
+                result["selected"] = start != end;
+                return result;
+            }
+            if (kind == "excel")
+            {
+                dynamic sel = doc.Application.Selection;
+                result["app"] = "excel";
+                result["address"] = Convert.ToString(sel.Address(false, false));
+                try { result["sheet"] = (string)sel.Worksheet.Name; } catch (Exception) { }
+                try { result["rows"] = (int)sel.Rows.Count; result["cols"] = (int)sel.Columns.Count; } catch (Exception) { }
+                string first = null;
+                try { first = Convert.ToString(sel.Cells[1, 1].Text); } catch (Exception) { }
+                result["text"] = first ?? "";
+                result["selected"] = !string.IsNullOrEmpty(Convert.ToString(result["address"]));
+                return result;
+            }
+            // ppt
+            dynamic window = doc.Application.ActiveWindow;
+            dynamic psel = window.Selection;
+            result["app"] = "ppt";
+            try { result["slide"] = (int)window.View.Slide.SlideIndex; } catch (Exception) { }
+            int shapeCount = 0;
+            try { shapeCount = (int)psel.ShapeRange.Count; } catch (Exception) { }
+            if (shapeCount > 0)
+            {
+                dynamic shape = psel.ShapeRange[1];
+                result["shape"] = (string)shape.Name;
+                string text = "";
+                try { text = (string)shape.TextFrame.TextRange.Text; } catch (Exception) { }
+                result["text"] = Clean(text);
+                result["shapes"] = shapeCount;
+                result["selected"] = true;
+            }
+            else
+            {
+                result["text"] = "";
+            }
+            return result;
+        }
+        catch (Exception ex)
+        {
+            // 选区读不到是常态（未激活、无文档、Excel 只选了图表等）：如实记录。
+            result["selected"] = false;
+            result["error"] = ex.Message;
+            return result;
+        }
     }
 
     static object WordRead(dynamic doc, Bag a)

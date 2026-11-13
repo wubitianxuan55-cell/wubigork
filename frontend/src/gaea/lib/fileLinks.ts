@@ -16,11 +16,50 @@ export const FILE_EXT_RE = /\.(md|markdown|mmd|mermaid|txt|json|jsonl|csv|tsv|xm
 // 避免把"提到了某个 .go 文件"也渲染成交付卡片。
 export const DELIVERABLE_EXT_RE = /\.(docx?|xlsx?|pptx?|pdf|md|markdown|txt|csv|json|html?|odt|ods|odp|rtf|wps|et|dps|ofd|png|jpe?g|gif|webp|svg|bmp|ico)$/i;
 
+// 伪协议前缀：file:///、local-file:///、sandbox:///。
+// 来源：灵犀 delivery_format 契约（桌面 `file:///`、会话沙箱 `sandbox:///`，
+// 前端再统一改写为 Electron 的 local-file://）。模型照抄这类写法时应被
+// 还原成真实路径，否则 FileChip 拿到的是一串带协议的 href，预览必然打开失败。
+const PSEUDO_FILE_PREFIX_RE = /^(?:file|local-file|sandbox):\/\//i;
+
+/**
+ * parseFilePathHref — 把带伪协议的 href 归一化成真实文件路径。
+ * 非伪协议返回 null（由调用方走原有判定）。解码失败时返回未解码原串，
+ * 保证「能打开就打开，不能打开也别抛异常」。
+ *
+ * 形态覆盖：
+ *   file:///C:/a.docx      → C:/a.docx     （三斜杠 + 盘符）
+ *   file://C:/a.docx       → C:/a.docx
+ *   file:///tmp/a.docx     → /tmp/a.docx   （POSIX 绝对路径）
+ *   file:////srv/share/a   → //srv/share/a （UNC，保留双斜杠）
+ *   local-file:///C:/a     → C:/a
+ *   sandbox:///w/a.docx    → /w/a.docx
+ */
+export function parseFilePathHref(href: string): string | null {
+  const raw = (href ?? "").trim();
+  if (!raw) return null;
+  const m = PSEUDO_FILE_PREFIX_RE.exec(raw);
+  if (!m) return null;
+  let rest = raw.slice(m[0].length);
+  // 三斜杠写法在 Windows 上只是分隔符，不属于路径；但 POSIX / UNC 的斜杠是路径的一部分。
+  if (/^\/[A-Za-z]:[\\/]/.test(rest)) rest = rest.slice(1);
+  if (!rest || /^\/+$/.test(rest)) return null;
+  try {
+    return decodeURIComponent(rest);
+  } catch {
+    return rest;
+  }
+}
+
 // markdown 链接 href 是否为本地文件（排除 URL / 锚点 / 协议）。
 export function isLocalFilePath(href: string): boolean {
   const trimmed = href.trim();
-  if (!trimmed || /^(https?:|mailto:|tel:|data:|javascript:|#|\/\/)/i.test(trimmed)) return false;
-  const clean = trimmed.replace(/^\.{0,2}\//, "");
+  if (!trimmed) return false;
+  // 伪协议先还原再判定：`file:///C:/a.docx`、`sandbox:///w/a.xlsx` 都算本地文件。
+  const pseudo = parseFilePathHref(trimmed);
+  const candidate = pseudo ?? trimmed;
+  if (!pseudo && /^(https?:|mailto:|tel:|data:|javascript:|#|\/\/)/i.test(candidate)) return false;
+  const clean = candidate.replace(/^\.{0,2}\//, "");
   return FILE_EXT_RE.test(clean);
 }
 

@@ -1,0 +1,12 @@
+const fs=require('fs');
+const p=process.argv[2];
+const fd=fs.openSync(p,'r');
+const b=Buffer.alloc(16);fs.readSync(fd,b,0,16,0);
+const headerSize=b.readUInt32LE(4);
+const jsonLen=b.readUInt32LE(12);
+const buf=Buffer.alloc(jsonLen);
+fs.readSync(fd,buf,0,jsonLen,16);
+const json=JSON.parse(buf.toString('utf8'));
+fs.writeFileSync('out/asar-header.json',JSON.stringify(json));
+console.log('headerSize',headerSize,'jsonLen',jsonLen);
+console.log('top-level:',Object.keys(json.files).join(', '));

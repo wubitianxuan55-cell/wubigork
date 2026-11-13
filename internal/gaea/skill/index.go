@@ -79,6 +79,9 @@ func ApplyIndex(basePrompt string, skills []Skill) string {
 	// 极端兜底：纯名行也放不下（超长技能名/技能数极多）——旧行为硬截断。
 	if r := []rune(joined); len(r) > IndexMaxChars {
 		joined = string(r[:IndexMaxChars]) + fmt.Sprintf("\n… (truncated %d chars)", len(r)-IndexMaxChars)
+		// 硬截断时补一条补全路径（灵犀 skills_catalog_notice 蒸馏）：模型看不见
+		// 尾部技能时最容易断言「没有这个技能」，显式告知可重新列举 + 用全名读取。
+		joined += truncatedIndexNote
 	}
 	return basePrompt + "\n\n" + indexHeader + "\n\n```\n" + joined + "\n```"
 }
@@ -86,6 +89,11 @@ func ApplyIndex(basePrompt string, skills []Skill) string {
 // compressedIndexNote 是压缩态目录的尾注，让模型知道描述被缩写、可经
 // run_skill 取全文。计入 IndexMaxChars 预算。
 const compressedIndexNote = "\n(descriptions compressed to fit the index budget; run_skill loads full details)"
+
+// truncatedIndexNote 只在极端硬截断时追加：清单不完整时给出补全路径，避免
+// 模型把「清单里没有」当成「能力不存在」（灵犀 skills_catalog_notice 同义）。
+// 刻意不含 "(truncated" 前缀，保持既有测试对压缩态/截断态的区分判据。
+const truncatedIndexNote = "\n(the skill list above is incomplete: skills after this point are hidden. If the one you need is missing, call the skill-listing tool to enumerate the current set, then read it by exact name with run_skill)"
 
 // maxDescWidth 是目录条目描述的单行宽度上限（rune）。
 const maxDescWidth = 130

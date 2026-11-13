@@ -1,0 +1,1 @@
+C:\Users\wubi\AppData\Local\Programs\Python\Python313\python.exe: can't open file 'C:\\AI\\wubigrok\\re-lingxi\\zh.py': [Errno 2] No such file or directory

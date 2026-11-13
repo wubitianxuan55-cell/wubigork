@@ -95,7 +95,9 @@ Problems hit and how they were resolved (or not), so the same dead ends are not 
 ## Pending & next step
 What is still in progress or unstarted, and the single most concrete next action to take.
 
-Rules: be terse — bullet points and fragments, not prose. Preserve identifiers, paths, and numbers exactly. UI fences (genui / dsh-ui) in assistant turns are frontend interactive components, not content: never reproduce their JSON in the summary; at most note that interactive components were used. Do NOT invent anything not present in the messages; if something is unknown, leave it out rather than guessing.`
+Rules: be terse — bullet points and fragments, not prose. Preserve identifiers, paths, and numbers exactly. UI fences (genui / dsh-ui) in assistant turns are frontend interactive components, not content: never reproduce their JSON in the summary; at most note that interactive components were used. Do NOT invent anything not present in the messages; if something is unknown, leave it out rather than guessing.
+
+Return plain text only — never call a tool. A tool call here is rejected and wastes the single chance to produce this briefing. If the replayed conversation already opens with an earlier compaction summary, that summary stands for still earlier history: check that every still-relevant fact, decision and pending step from it is carried into the new briefing, and never drop one silently. Resume must be possible without the reader seeing the original messages — write the single most concrete next action, not a restatement of the goal.`
 
 // maybeCompact checks if the prompt has grown too large and applies compaction.
 // Strategy (inspired by Reasonix's three-tier approach):

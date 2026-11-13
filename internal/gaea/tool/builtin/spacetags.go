@@ -75,14 +75,16 @@ var spaceTags = map[string]string{
 	"office_batch":    spaces.SpaceWork,
 	// dsh-office COM 实时协同档八件（app 层 gaeaExtraTools 条件装配，
 	// 2026-11-13 蒸馏波1）：办公域=work；无 Office/WPS 的机器整族不注册。
-	"office_open":   spaces.SpaceWork,
-	"office_status": spaces.SpaceWork,
-	"office_read":   spaces.SpaceWork,
-	"office_edit":   spaces.SpaceWork,
-	"office_render": spaces.SpaceWork,
-	"office_save":   spaces.SpaceWork,
-	"office_close":  spaces.SpaceWork,
-	"office_help":   spaces.SpaceWork,
+	"office_open":      spaces.SpaceWork,
+	"office_status":    spaces.SpaceWork,
+	"office_read":      spaces.SpaceWork,
+	"office_edit":      spaces.SpaceWork,
+	"office_render":    spaces.SpaceWork,
+	"office_save":      spaces.SpaceWork,
+	"office_close":     spaces.SpaceWork,
+	"office_help":      spaces.SpaceWork,
+	"office_macro":     spaces.SpaceWork,
+	"office_selection": spaces.SpaceWork,
 	// browser_*×11 与 sidebar_open：类型自带 SpaceTag() 自声明 work（browser_tools.go /
 	// sidebar_open.go），本表行是与自声明一致的背书（2026-11-10 漂移刀前误记
 	// shared=影子行说谎，守卫 TestSpaceTagsAgreeWithRegistryMap 钉死两处一致）。
