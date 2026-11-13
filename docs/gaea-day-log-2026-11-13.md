@@ -635,11 +635,13 @@
   DOM rect×DPR 换算屏幕物理像素）。绑定全链四件套再生（bindingNames
   751/bindingSignatures 751/legacy 82/wailsjs）；mock 契约三测钉死。真机
   停靠走查挂用户。embed 第二步默认不做待拍板。
-- **同树并跑实锤**：另一执行体（codex.exe PID 49408）在本批进行中继续
-  灵犀逆向 B/C/D 批（re-distill 文档 +348 行、re-lingxi 新脚本十余个、
-  plan 文档补 B 批证据注记，20:07 仍在写）。按双会话合流纪律处置：不碰
-  其文件、不卷其在途内容进本批提交（re-distill/plan 两文档的未提交改动
-  留树归它）。唯一共享文件 re-distill 文档两侧改动为纯追加，无冲突。
+- **同树并跑实锤**：gaea 编程板块（隔离 DSH）在本批进行中继续灵犀逆向
+  B/C/D 批（re-distill 文档 +348 行、re-lingxi 新脚本十余个、plan 文档补
+  B 批证据注记，20:07 仍在写）。〔2026-11-13 晚更正归属：此前误记「另一
+  执行体 codex」——进程面见到的 codex.exe 系 DSH 运行时的沙箱辅助进程，
+  执行主体=编程板块自身。〕按合流纪律处置：不碰其文件、不卷其在途内容进
+  本批提交（re-distill/plan 两文档的未提交改动留树归它）。唯一共享文件
+  re-distill 文档两侧改动为纯追加，无冲突。
 - 验证：Go（xlsxedit/app/tool/builtin/boot 全包）+前端（tsc -b 漂移门/
   WpsDockControl 5 测/mock 契约/FilePreview 32 测回归）全绿；两次
   wails build（P1-2 批 exe 19:23 装机 PID 33768；P1-4 批 exe 20:28:45
@@ -649,7 +651,8 @@
 
 ## 36. 灵犀逆向收官归档+第二批蒸馏计划（20:3x~21:0x）
 
-- 用户确认另一执行体（codex）逆向已结束。代为归档其在树产物（独立提交保
+- 用户确认编程板块逆向已结束〔更正：执行主体=gaea 编程板块（隔离 DSH），
+  非 codex〕。代为归档其在树产物（独立提交保
   作者归属）：re-distill 文档 §10~§27 增量+蒸馏评估报告（值得 6/有条件 4/
   不要 6）+plan 文档 B 批注记+re-lingxi B~I 批脚本与报告证据（prompts/
   sections 131 段 744K 入库；raw-region/region-utf8/part-* 原始 dump 不入库
@@ -663,5 +666,5 @@
   确认红线优先）+B5 技能门禁补缺；拍板池五项（MCP dispatcher 倾向单
   dispatcher=灵犀 §16 实测 mcp__ 前缀 0 命中）。架构约束采纳：云能力独立
   CLI 不进主进程。
-- docs/README 登记 distill-report（codex 产，此前孤儿）与 batch2-plan 两档。
+- docs/README 登记 distill-report（编程板块产，此前孤儿）与 batch2-plan 两档。
 - 余：B1~B5 排刀等拍板；dispatcher 形态定 P2-1 契约。

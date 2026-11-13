@@ -8,7 +8,7 @@ P1-2 xlsx 交付门（xlsx_recalc 暴露 LibreOffice 重算链+xlsx_audit 只读
 16:9 硬约束+字体白名单∩系统，实弹全链绿）；P1-4 WPS 面板停靠 dock 档
 （wpshost 收编 wpsdock 探针+App 三绑定归 OfficeB+WpsDockControl 缩放跟随/
 卸载还原，绑定四件套再生，embed 待拍板）。装机两次（exe 19:23 PID 33768 →
-20:28 PID 44752）。同树并跑：另一执行体（codex）续灵犀逆向 B/C/D 批，其
+20:28 PID 44752）。同树并跑：编程板块（隔离 DSH〔更正：非 codex，codex.exe 系其沙箱辅助进程〕）续灵犀逆向 B/C/D 批，其
 文档在途改动留树未卷。余=真机停靠走查+embed 拍板。
 
 ## 灵犀 P0-4 余项补完（#12+#14）· 2026-11-13（装机）
