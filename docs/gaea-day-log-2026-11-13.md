@@ -314,3 +314,28 @@
   不抬版本（4.543.0）。
 - **余（挂拍板池）**：preferLive 技能引导回、unseen 保存前总览闭环；真机实弹（用户
   侧：设置面板改静默开→让 AI 开工作区文档→回合结束看自动保存关闭+预览刷新+证据卡）。
+
+## 18. 波3.5 收官：preferLive 引导回 + unseen 交付前总览闭环（12:3x~12:5x）
+
+- **preferLive 引导回**：探测下沉（app 层 probe → `internal/office/comhelper`
+  ProbeSuiteAvailable——boot 提示词段需内核可达，internal/gaea/boot 不能反向
+  import 壳层；app 层保 officeComAvailable 接口薄转调）+ boot 拼接段
+  （office_live_prompt.go）：本机装 Office/WPS 时执行纪律后追加「Office 实时协同」
+  分工段（Word/PPT 优先 office_open 系、不要用 docx/pptx 技能造文件〔脚本生成
+  看不到过程/被占用写不进/版式走样〕、批量转换 office_batch、xlsx 数据分析仍走
+  代码/技能、实时档纪律五条、$公式$）。**SingleModelPrompt 常量逐字节红线不动**
+  （work 缺省输出被既有测试锚定——追加段在 boot 侧）。上游 promptText 常驻段
+  同形态（上游还叠了 post-execute 首载替换；我方常驻段引导确定性更高，不做
+  read_skill 内核替换——避免内核壳层依赖+同名覆写隐晦）。
+- **unseen 交付前总览闭环**：officeComState 加 unseen（edit 成功置位/render
+  成功清除/save 时仍置位→保存后自动附整档总览+Final check 指令（vision 读取
+  路径清单）并清除/close 清除）；overview 管线从 render 工具抽出
+  officeComRenderOverview 共用（6 页/张最多 18 页=上游同参）；导出 PDF 不检查
+  （导出非交付核对）；总览失败=诚实缺省回执不带检查段不拦交付。
+- **验证**：unseen 生命周期+引导段钉死测试绿（close 段补 open 收编——own 守卫
+  语义测试同守卫）；app/boot/config/agent（SingleModelPrompt 稳定守卫）四包
+  绿；lint 0 issues；冒烟回归过（WPS math 2 equations 不回归）；装机 exe
+  `377175df6cd13749…` 冒烟 200 **INSTALL OK**（不抬版 4.543.0）。
+- **dsh-office 蒸馏全项目至此收官**（波1 abf241ce→波2 7b793944→波3 48cfa091
+  →波3.5 本笔）：八工具 COM 档+omml math 腿+xlsx_profile 扩面+设置段+settle+
+  壳内状态条+引导回+unseen 闭环；余仅真机实弹挂用户。

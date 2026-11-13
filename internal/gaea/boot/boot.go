@@ -42,6 +42,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/tool"
 	"github.com/gaea/gaea/internal/gaea/tool/builtin"
 	"github.com/gaea/gaea/internal/netclient"
+	"github.com/gaea/gaea/internal/office/comhelper"
 )
 
 // Options carries the per-run knobs a frontend chooses; everything else is read
@@ -540,7 +541,16 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 
 	// S4 双空间：执行纪律文本按会话空间渲染 exports/work 路径根段（设计 §5）。
 	// work 缺省（含 space.mode=off 的 "" 生效值）输出与历史 const 逐字一致。
-	execSess := agent.NewSession(compiler.SystemPrompt() + "\n\n" + agent.SingleModelPromptFor(cfg.EffectiveSessionSpace()))
+	execPrompt := compiler.SystemPrompt() + "\n\n" + agent.SingleModelPromptFor(cfg.EffectiveSessionSpace())
+	// 波3.5 preferLive 引导回（dsh-office 蒸馏，docs/gaea-dsh-office-distill-
+	// research-2026-11.md §6.3）：本机装了 Office/WPS（COM 档工具族已注册）
+	// 时追加实时协同分工段——Word/PPT 文档工作优先 office_ 工具而非 docx/
+	// pptx 技能造文件（上游 promptText 常驻段同形态；探测下沉 comhelper 供
+	// 内核可达）。SingleModelPrompt 常量逐字节红线不动。
+	if comhelper.ProbeSuiteAvailable() {
+		execPrompt += "\n\n" + officeLivePromptSection
+	}
+	execSess := agent.NewSession(execPrompt)
 	executor := agent.New(execProv, reg, execSess, agent.Options{
 		MaxSteps:      maxSteps,
 		Temperature:   cfg.Agent.Temperature,

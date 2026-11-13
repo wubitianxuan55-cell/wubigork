@@ -109,7 +109,12 @@ type officeComState struct {
 	own map[string]bool
 	// told 每会话已发放过操作清单的应用（按需帮助：不进 schema 省上下文）。
 	toldMu sync.Mutex
-	told   map[string]map[string]bool
+	// unseen 编辑后未看渲染图（波3.5 unseen 交付前检查闭环，上游 unseen Set
+	// 同语义）：office_edit 成功置位、office_render 成功清除、office_save 时
+	// 仍置位则保存后自动附整档总览+Final check 指令、close 清除。key=officeComKey。
+	unseenMu sync.Mutex
+	unseen   map[string]bool
+	told     map[string]map[string]bool
 	// ── 波3 settle 收尾记账（office_com_settle.go 消费）─────────────────
 	// lastActive 是 open/edit/save/close 最近一次成功调用的时刻（读/渲染/
 	// 状态不 stamp——它们不产生需要收尾的写面）；lastSettle 是上次 settle
@@ -649,6 +654,16 @@ func (t officeComEditTool) execute(ctx context.Context, session string, args jso
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return "", fmt.Errorf("office helper edit 回执解析失败: %w", err)
 	}
+	// 波3.5 unseen：有成功修改 → 标记「改过没看过」，office_save 时触发交付前
+	// 总览检查（office_render 成功会清除）。
+	if len(result.Done) > 0 {
+		officeCom.unseenMu.Lock()
+		if officeCom.unseen == nil {
+			officeCom.unseen = map[string]bool{}
+		}
+		officeCom.unseen[officeComKey(kind, targetDoc)] = true
+		officeCom.unseenMu.Unlock()
+	}
 	return comhelper.FormatEdit(result) + officeCom.officeGuide(session, kind), nil
 }
 
@@ -695,6 +710,53 @@ func (officeComRenderTool) Schema() json.RawMessage {
     "width":{"type":"integer","description":"出图宽度像素（600-2000，缺省 1100；越大越清晰越费 vision token）"}
   }
 }`)
+}
+
+// officeComRenderOverview 整档总览拼图（上游 overview() 直译）：Word/PPT 全部
+// 页按 6 页一张拼图（带页码，最多 18 页=3 张），PNG 落 dir。render 工具的
+// overview:true 与 office_save 的 unseen 交付前检查共用（波3.5）。
+func officeComRenderOverview(ctx context.Context, kind, targetDoc, dir string) ([]string, []string, error) {
+	baseArgs := map[string]any{"app": kind}
+	if targetDoc != "" && officeComAbsRe.MatchString(targetDoc) {
+		baseArgs["doc"] = targetDoc
+	}
+	renderOnce := func(extra map[string]any, out string, w int, timeout time.Duration) (comhelper.RenderResult, error) {
+		callArgs := make(map[string]any, len(baseArgs)+len(extra)+2)
+		for k, v := range baseArgs {
+			callArgs[k] = v
+		}
+		for k, v := range extra {
+			callArgs[k] = v
+		}
+		callArgs["out"] = out
+		callArgs["width"] = w
+		raw, err := officeCom.call(ctx, "render", callArgs, timeout)
+		if err != nil {
+			return comhelper.RenderResult{}, err
+		}
+		var res comhelper.RenderResult
+		if err := json.Unmarshal(raw, &res); err != nil {
+			return comhelper.RenderResult{}, fmt.Errorf("office helper render 回执解析失败: %w", err)
+		}
+		return res, nil
+	}
+	var lines []string
+	var pages []string
+	total := 1
+	for from := 1; from <= min(total, 18); from += 6 {
+		out := filepath.Join(dir, fmt.Sprintf("sheet-%d.png", from))
+		res, err := renderOnce(map[string]any{"sheet": true, "from": from, "to": from + 5}, out, 640, officeComTimeoutTile)
+		if err != nil {
+			return nil, nil, err
+		}
+		total = res.Total
+		pages = append(pages, out)
+		lines = append(lines, fmt.Sprintf("%s, tiled in one picture.", res.What))
+	}
+	if total > 18 {
+		lines = append(lines, fmt.Sprintf("Only the first 18 of %d are shown.", total))
+	}
+	return lines, pages, nil
 }
 
 func (t officeComRenderTool) Execute(ctx context.Context, args json.RawMessage) (string, error) {
@@ -764,19 +826,9 @@ func (t officeComRenderTool) Execute(ctx context.Context, args json.RawMessage) 
 	var lines []string
 	var pages []string
 	if in.Overview && kind != "excel" {
-		total := 1
-		for from := 1; from <= min(total, 18); from += 6 {
-			out := filepath.Join(dir, fmt.Sprintf("sheet-%d.png", from))
-			res, err := renderOnce(map[string]any{"sheet": true, "from": from, "to": from + 5}, out, 640, officeComTimeoutTile)
-			if err != nil {
-				return "", err
-			}
-			total = res.Total
-			pages = append(pages, out)
-			lines = append(lines, fmt.Sprintf("%s, tiled in one picture.", res.What))
-		}
-		if total > 18 {
-			lines = append(lines, fmt.Sprintf("Only the first 18 of %d are shown.", total))
+		lines, pages, err = officeComRenderOverview(ctx, kind, targetDoc, dir)
+		if err != nil {
+			return "", err
 		}
 	} else {
 		switch kind {
@@ -851,6 +903,13 @@ func (t officeComRenderTool) Execute(ctx context.Context, args json.RawMessage) 
 		"count":  len(pages),
 		"vision": "用 vision 工具读取以上 PNG（image_path 逐张）",
 	})
+	// 波3.5 unseen：看过渲染图（调 render 即算——上游同口径，以工具调用行为
+	// 代理视觉检查）→ 清除标记，office_save 不再强制总览。
+	if len(pages) > 0 {
+		officeCom.unseenMu.Lock()
+		delete(officeCom.unseen, officeComKey(kind, targetDoc))
+		officeCom.unseenMu.Unlock()
+	}
 	return string(payload), nil
 }
 
@@ -1001,6 +1060,45 @@ func (t officeComSaveTool) Execute(ctx context.Context, args json.RawMessage) (s
 	if moved {
 		text += " The open document is now this file."
 	}
+	// 波3.5 unseen 交付前检查（上游 finalCheck 同语义）：编辑后没看过渲染图
+	// 就保存 → 自动附整档总览+Final check 指令，逼模型逐页核对再宣告完成。
+	// 导出 PDF 不检查（那是导出不是交付核对）；excel 走区域渲染单图。
+	officeCom.unseenMu.Lock()
+	wasUnseen := officeCom.unseen[officeComKey(kind, targetDoc)]
+	delete(officeCom.unseen, officeComKey(kind, targetDoc))
+	officeCom.unseenMu.Unlock()
+	if !wasUnseen || strings.EqualFold(filepath.Ext(absSavePath), ".pdf") {
+		return text + tidy, nil
+	}
+	checkDir := filepath.Join(gaeaCwd(), ".gaea", "renders", "office",
+		fmt.Sprintf("final-%d", time.Now().UnixMilli()))
+	if err := os.MkdirAll(checkDir, 0o755); err != nil {
+		return text + tidy, nil // 检查图失败不拦交付回执（保存已成功）
+	}
+	var shownLines, shownPages []string
+	if kind == "excel" {
+		out := filepath.Join(checkDir, "final.png")
+		finalArgs := map[string]any{"app": kind, "out": out, "width": min(officeComSettings().renderWidth, 1000)}
+		if targetDoc != "" && officeComAbsRe.MatchString(targetDoc) {
+			finalArgs["doc"] = targetDoc
+		}
+		fraw, ferr := officeCom.call(ctx, "render", finalArgs, officeComTimeoutRender)
+		if ferr == nil {
+			var res comhelper.RenderResult
+			if json.Unmarshal(fraw, &res) == nil {
+				shownPages = append(shownPages, out)
+				shownLines = append(shownLines, fmt.Sprintf("%s, %g×%g.", res.What, res.Width, res.Height))
+			}
+		}
+	} else {
+		shownLines, shownPages, _ = officeComRenderOverview(ctx, kind, saved.Path, checkDir)
+	}
+	if len(shownPages) == 0 {
+		return text + tidy, nil // 总览失败=诚实缺省，回执不带检查段
+	}
+	text += "\nFinal check: you edited after you last looked at the document, so here is the whole of it as it is now. " +
+		strings.Join(shownLines, " ") + "\n用 vision 工具读取以下 PNG 逐页核对（内容出框/字体行距不一/公式成纯文本/表格过宽/题注脱位/模板残留/半空页——有问题用 office_render 细看、office_edit 修、再 office_save；都没问题就向用户宣告完成）:" +
+		"\n" + strings.Join(shownPages, "\n")
 	return text + tidy, nil
 }
 
@@ -1127,6 +1225,9 @@ func (t officeComCloseTool) Execute(ctx context.Context, args json.RawMessage) (
 	}
 	officeCom.mu.Lock()
 	delete(officeCom.own, key)
+	officeCom.unseenMu.Lock()
+	delete(officeCom.unseen, key)
+	officeCom.unseenMu.Unlock()
 	delete(officeCom.silentOpen, key) // 静默文档被显式关闭：清收尾记账
 	if officeCom.currentApp == kind && officeCom.currentDoc == targetDoc {
 		officeCom.currentApp, officeCom.currentDoc = "", ""
