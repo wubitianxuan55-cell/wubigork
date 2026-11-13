@@ -339,3 +339,19 @@
 - **dsh-office 蒸馏全项目至此收官**（波1 abf241ce→波2 7b793944→波3 48cfa091
   →波3.5 本笔）：八工具 COM 档+omml math 腿+xlsx_profile 扩面+设置段+settle+
   壳内状态条+引导回+unseen 闭环；余仅真机实弹挂用户。
+
+## 19. dsh-office 四波收官打包装机（13:0x）
+
+- **干净树打包**（构建指南铁律）：`.worktrees/pkg-f5576986`（git worktree add 定
+  提交+node_modules junction）→ npm build 20.20s + wails 50.3s（ucrt64）→ 三 DLL
+  主树同步入包 → **冒烟对象=装机位**（包树 exe 直跑遇 WebView2 用户数据目录被
+  活壳锁 800700aa——先例同款；本机策略+目录约束下照 contextup4 先例走装机位
+  冒烟）→ `gaea_install.ps1 -SourceDir` 装机=包版 exe `21BD0668E1C109E8…`
+  （12:52:29）冒烟 200 **INSTALL OK**。
+- **交付物**：`releases/gaea-officecom-20261113-f5576986/`——gaea.exe+三 DLL+
+  preview.zip（A6A3AF26…）+source.tar.gz（DE142D8A…，git archive 定提交）+
+  PACKAGE-INFO.md+SHA256SUMS-f5576986.txt（入库；zip/tar 磁盘保留不入库 P2-3），
+  包记录提交 34de50d8。
+- 工作树回收：junction 摘除+worktree remove force，.worktrees 空置。
+- 坑新增：**包树 exe 直跑冒烟=WebView2 数据目录冲突 800700aa（活壳锁同目录），
+  干净树打包流程冒烟一律走装机位**（先例本就如此，本次实撞补记）。
