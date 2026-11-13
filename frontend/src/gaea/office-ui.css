@@ -131,14 +131,6 @@
   padding-inline: 7px;
 }
 
-.office-topbar > .flex-1 + .flex > button[data-testid="office-tools-menu"] {
-  min-width: auto;
-  padding-inline: 10px;
-  color: var(--accent) !important;
-  background: var(--office-accent-wash) !important;
-  border-color: var(--office-accent-line) !important;
-}
-
 /* ── View tabs（2026-11-13 顶栏合并：标签并入 office-topbar，不再独占一行） ── */
 
 .gaea-app-layout .office-view-tabs {

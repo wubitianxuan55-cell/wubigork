@@ -134,3 +134,15 @@
 - 装机：提交 e02e1d4f 干净工作树重建（pnpm 18.5s/Vite 40.31s/wails 54.8s），
   装机位 exe sha256 4256587E…（build 11/14 01:42:15）=工作树产物，smoke
   /api/health 200（PID 12608 已回收），工作树已回收。
+
+## 7. 续刀三：顶栏「工具」下拉退役
+
+- 用户拍板「删除顶栏上的工具按钮，cad与进度计划放到右侧面板了」：App 顶栏
+  工具 Dropdown（office-tools-menu）整块删除——CAD 图纸/进度计划已是右栏一级
+  Tab，入口由欢迎网格/＋下拉/命令面板/文件打开链四处派生；失效图标导入
+  （Wrench/Layers/LineChart）与 antd Dropdown 导入、office-ui.css 高亮规则
+  一并清退。输入框旁工具钮（ComposerToolbar onOpenTool）保留为快捷入口，
+  注释改写；App.palette/Composer 族 42 例绿，tsc/ESLint 干净。
+- 装机：提交 801cac31 干净工作树重建（pnpm 17.2s/Vite 40.60s/wails 51.8s），
+  装机位 exe sha256 755BD2D6…（build 11/14 01:50:08）=工作树产物，smoke
+  /api/health 200（PID 47784 已回收），工作树已回收。

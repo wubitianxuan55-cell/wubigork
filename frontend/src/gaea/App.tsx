@@ -1,9 +1,9 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { Dropdown, Layout, Modal } from "antd";
+import { Layout, Modal } from "antd";
 import {
-  BookOpen, Check, SquarePen, Brain, ChevronDown, FolderGit2, FileText, LineChart,
-  PanelRight, MessageSquare, Trash2, X, Aim, Inbox, Layers, Wrench,
+  BookOpen, Check, SquarePen, Brain, ChevronDown, FolderGit2, FileText,
+  PanelRight, MessageSquare, Trash2, X, Aim, Inbox,
   ClipboardList, Sparkles, Table,
 } from "./icons";
 import { Sidebar } from "./components/Sidebar";
@@ -754,30 +754,9 @@ export default function App() {
             />
             <div className="flex-1" />
             <div className="flex items-center gap-2">
-              <Dropdown
-                trigger={["click"]}
-                placement="bottomRight"
-                menu={{
-                  items: [
-                    { key: "cad", label: "CAD 图纸", icon: <Layers size={13} /> },
-                    { key: "schedule", label: "进度计划", icon: <LineChart size={13} /> },
-                  ],
-                  onClick: ({ key }) => {
-                    if (key === "cad" || key === "schedule") openToolTab(key);
-                  },
-                }}
-              >
-                <button
-                  type="button"
-                  className="toolbar-btn no-drag"
-                  title="工具（CAD 图纸 / 进度计划）"
-                  aria-label="工具"
-                  data-testid="office-tools-menu"
-                >
-                  <Wrench size={13} />
-                  <span>工具</span>
-                </button>
-              </Dropdown>
+              {/* 2026-11-14 用户拍板：顶栏「工具」下拉退役——CAD 图纸/进度计划已是
+                  右栏一级 Tab（欢迎网格/＋下拉/命令面板/文件打开链四入口派生），
+                  输入框旁的工具钮（ComposerToolbar onOpenTool）保留为快捷入口。 */}
               <ToolbarButton onClick={toggleFocus} title={focusMode ? t("topbar.exitFocusMode") : t("topbar.focusMode")}>
                 <Aim size={13} className={focusMode ? "text-accent" : ""} />
               </ToolbarButton>

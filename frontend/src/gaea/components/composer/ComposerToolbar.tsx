@@ -107,8 +107,9 @@ export function ComposerToolbar({
         {captureBusy ? <Loader size={14} className="animate-spin" /> : <Camera size={14} />}
       </button>
 
-      {/* 工具（CAD 图纸/进度计划）：右栏一级 Tab（与顶栏「工具」下拉同走
-          onOpenTool 单源，App 层 openToolTab 启用可选卡并开视图 tab） */}
+      {/* 工具（CAD 图纸/进度计划）：右栏一级 Tab 的输入框旁快捷入口（顶栏
+          「工具」下拉已随 2026-11-14 Tab 化退役，本钮经 onOpenTool 单源，
+          App 层 openToolTab 启用可选卡并开视图 tab） */}
       <Dropdown
         trigger={["click"]}
         placement="topLeft"

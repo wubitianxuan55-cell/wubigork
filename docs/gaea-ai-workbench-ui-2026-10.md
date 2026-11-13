@@ -4,7 +4,7 @@
 > 范围：办公 / AI 工作板块的壳层与工作对象界面。
 > 边界（用户 2026-10-25 拍板）：**CAD 看图与进度计划不单独做工作台**。它们只是办公板块里的工具，由 AI 或用户在对话里调用，打开为**临时工具面板**；不占导航、不占页签、不另造一套工作流。
 >
-> **2026-11-14 用户拍板修订**：CAD 图纸与进度计划回归**右栏一级 Tab**（`WORKSPACE_TABS` id `cad`/`schedule`），本篇 §7 的 ToolSheet 临时面板承载退役（组件与显式命令项已删）。保留的部分：右栏宽度/启用集/pane 语义（v4.23 装配）、cadToolCache 解析缓存、OPEN_TOOL 单通道（改开右栏 Tab）、`onAsk` 回话通道（改走 WorkspacePanelContext）。cad 沿用「可选使用」红线 defaultEnabled:false；新增文件打开链：文件树/交付卡/Git 行点 dwg/dxf 经 `lib/cadOpen.ts` 直达右栏 CAD 面板。本文以下 §7 的「临时工具面板/ToolSheet」叙述均为 2026-10-25~2026-11-13 期间的史档。
+> **2026-11-14 用户拍板修订**：CAD 图纸与进度计划回归**右栏一级 Tab**（`WORKSPACE_TABS` id `cad`/`schedule`），本篇 §7 的 ToolSheet 临时面板承载退役（组件与显式命令项已删）。保留的部分：右栏宽度/启用集/pane 语义（v4.23 装配）、cadToolCache 解析缓存、OPEN_TOOL 单通道（改开右栏 Tab）、`onAsk` 回话通道（改走 WorkspacePanelContext）。cad 沿用「可选使用」红线 defaultEnabled:false；新增文件打开链：文件树/交付卡/Git 行点 dwg/dxf 经 `lib/cadOpen.ts` 直达右栏 CAD 面板。顶栏「工具」下拉与 ToolSheet 一并退役（输入框旁工具钮保留为快捷入口）。本文以下 §7 的「临时工具面板/ToolSheet」叙述均为 2026-10-25~2026-11-13 期间的史档。
 
 ---
 
