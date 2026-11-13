@@ -23,6 +23,7 @@ import { Transcript } from "./components/Transcript";
 import { JumpBar } from "./components/JumpBar";
 import { useToast } from "./components/Toast";
 import { Composer } from "./components/Composer";
+import { DeliverablesDock } from "./components/DeliverablesDock";
 import { TodoCard } from "./components/TodoCard";
 import { ApprovalModal } from "./components/ApprovalModal";
 import { AskCard } from "./components/AskCard";
@@ -995,6 +996,9 @@ export default function App() {
           </main>
 
           <footer className={`office-composer-footer shrink-0 border-t border-border-soft bg-bg px-8 ${compactMode ? "pt-2 pb-0.5" : "pt-3 pb-1"}`}>
+            {/* 波3.5 实弹反馈：交付文件固定停靠条（输入框上方=窗口最下方，查找
+                方便）——会话级登记表驱动，消息流正文卡保留（不抽卡）。 */}
+            <DeliverablesDock />
             <CompactContext.Provider value={compactMode}>
             {/* 审批是回合中的决策步骤，不是盖住正文的模态窗：放在输入岛上沿，
                 既不遮挡正在阅读的上下文，也不让用户误以为背景不可操作。 */}
