@@ -71,6 +71,7 @@ var spaceTags = map[string]string{
 	"docx_accept":     spaces.SpaceWork,
 	"pptx_apply":      spaces.SpaceWork,
 	"xlsx_apply":      spaces.SpaceWork,
+	"xlsx_profile":    spaces.SpaceWork,
 	"office_batch":    spaces.SpaceWork,
 	// dsh-office COM 实时协同档八件（app 层 gaeaExtraTools 条件装配，
 	// 2026-11-13 蒸馏波1）：办公域=work；无 Office/WPS 的机器整族不注册。

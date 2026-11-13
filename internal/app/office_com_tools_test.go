@@ -439,3 +439,53 @@ func TestOfficeComTargetFallbackAndAppOf(t *testing.T) {
 		t.Fatalf("current 复用 kind=%s target=%s err=%v", kind, target, err)
 	}
 }
+
+// TestOfficeComEditCarriesMathMap 波2 WPS 公式预转 math 腿：ops 里含 $…$ 公式的
+// edit 调用，args 必须带 math map（键 i:/d: + source，值为 OMML）；无公式不带键。
+// fail-soft 语义的另一半（helper 查不到保留原文）在 comhelper 协议层覆盖。
+func TestOfficeComEditCarriesMathMap(t *testing.T) {
+	isolateOfficeWorkspace(t)
+	var sawMathKey bool
+	var gotMath map[string]string
+	stub := &stubCaller{reply: func(cmd string, args map[string]any) (json.RawMessage, error) {
+		if cmd != "edit" {
+			return nil, fmt.Errorf("unexpected cmd %s", cmd)
+		}
+		if _, present := args["math"]; present {
+			sawMathKey = true
+			if raw, mErr := json.Marshal(args["math"]); mErr == nil {
+				_ = json.Unmarshal(raw, &gotMath)
+			}
+		}
+		return stubJSON(comhelper.EditResult{Done: []string{"set_text OK"}, Total: 1}), nil
+	}}
+	resetOfficeComForTest(stub)
+	ctx := context.Background()
+
+	// 含行内公式：math 键名带 i: 前缀 source，值为 oMath 包裹的 OMML。
+	if _, err := (officeComEditTool{}).ExecuteWithContext(ctx, tool.ToolContext{SessionID: "s-math"},
+		json.RawMessage(`{"doc":"报告.docx","ops":[{"op":"set_text","para":1,"expect":"原","text":"行内 $E=mc^2$ 混排"}]}`)); err != nil {
+		t.Fatalf("edit: %v", err)
+	}
+	if !sawMathKey {
+		t.Fatal("含公式的 edit 调用 args 应带 math 键")
+	}
+	om, ok := gotMath["i:E=mc^2"]
+	if !ok {
+		t.Fatalf("math 键名应为 i: 前缀 source：%v", gotMath)
+	}
+	if !strings.HasPrefix(om, "<m:oMath>") || !strings.Contains(om, "mc") {
+		t.Fatalf("math 值应为 OMML：%.200s", om)
+	}
+
+	// 无公式：不得携带 math 键（不递空表）。
+	sawMathKey = false
+	gotMath = nil
+	if _, err := (officeComEditTool{}).ExecuteWithContext(ctx, tool.ToolContext{SessionID: "s-math"},
+		json.RawMessage(`{"doc":"报告.docx","ops":[{"op":"set_text","para":1,"expect":"原","text":"无公式文本"}]}`)); err != nil {
+		t.Fatalf("edit 无公式: %v", err)
+	}
+	if sawMathKey {
+		t.Fatal("无公式不应携带 math 键")
+	}
+}

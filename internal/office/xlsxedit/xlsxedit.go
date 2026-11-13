@@ -25,6 +25,7 @@ type Op struct {
 	Target  string      `json:"target,omitempty"` // "B4"
 	Range   string      `json:"range,omitempty"`  // "A1:B10"
 	Value   interface{} `json:"value,omitempty"`
+	With    interface{} `json:"with,omitempty"` // fill_blanks 填充值（值或 above/mean/median/mode）
 	Formula string      `json:"formula,omitempty"`
 	Find    string      `json:"find,omitempty"`
 	Replace string      `json:"replace,omitempty"`
@@ -37,6 +38,36 @@ type Op struct {
 	Lower   bool        `json:"lower,omitempty"`
 	Style   *Style      `json:"style,omitempty"` // set_style 样式载荷
 	Width   float64     `json:"width,omitempty"` // set_col_width 列宽
+
+	// ── 波2 扩面（dsh-office「Excel: data work」差异化能力移植；全部
+	// omitempty 向后兼容，旧 ops JSON 不受影响）──
+	Remove       []string          `json:"remove,omitempty"`       // clean：删除指定字样
+	NoSpaces     bool              `json:"noSpaces,omitempty"`     // clean：去全部空格
+	Map          map[string]string `json:"map,omitempty"`          // clean：取值改名（旧值→新值）
+	To           string            `json:"to,omitempty"`           // clean："number"|"date"|"text"；copy_range：目标 "清洗后!A1"
+	Columns      []string          `json:"columns,omitempty"`      // remove_duplicates：判重列（缺省整行）
+	Where        *Where            `json:"where,omitempty"`        // delete_rows：条件删行（与 blank/row 互斥）
+	Blank        bool              `json:"blank,omitempty"`        // delete_rows：整行全空才删
+	Row          int               `json:"row,omitempty"`          // insert_rows/delete_rows：起始行号
+	Count        int               `json:"count,omitempty"`        // 行/列数量（缺省 1）
+	By           []SortKey         `json:"by,omitempty"`           // sort：多键
+	Header       string            `json:"header,omitempty"`       // add_column：新列列名
+	After        string            `json:"after,omitempty"`        // add_column：插在该列后（缺省数据区右侧）
+	NumberFormat string            `json:"numberFormat,omitempty"` // add_column：新列数字格式
+	Values       bool              `json:"values,omitempty"`       // copy_range：按显示值复制；add_column：true 即报错（见 applyAddColumn）
+}
+
+// Where 是 delete_rows 的删行条件：col 列满足 is 条件即删该行。
+type Where struct {
+	Col   string      `json:"col"`          // "B"
+	Is    string      `json:"is,omitempty"` // blank|=|<>|>|<|>=|<=|contains|text（缺省 blank；text=写成文本的数字或日期）
+	Value interface{} `json:"value,omitempty"`
+}
+
+// SortKey 是 sort 的单键：按 column 排序，order 为 asc（缺省）或 desc。
+type SortKey struct {
+	Column string `json:"column"`
+	Order  string `json:"order,omitempty"`
 }
 
 // Style 是 set_style 的样式载荷：指针/空串字段表示「不改」，叠加到单元格
@@ -303,6 +334,108 @@ func opCells(f *excelize.File, sheet string, op Op) []string {
 			for c := coords[1]; c <= coords[3]; c++ {
 				axis, _ := excelize.CoordinatesToCellName(c, r)
 				cells = append(cells, axis)
+			}
+		}
+		return cells
+	case "fill_blanks":
+		// 单列区域（col 或 range）的数据行
+		colNum := 0
+		r1, r2 := 0, 0
+		if op.Col != "" {
+			n, err := excelize.ColumnNameToNumber(op.Col)
+			if err != nil {
+				return nil
+			}
+			rows, err := f.GetRows(sheet)
+			if err != nil {
+				return nil
+			}
+			colNum, r1, r2 = n, 2, len(rows)
+		} else if op.Range != "" {
+			coords, err := parseRange(op.Range)
+			if err != nil {
+				return nil
+			}
+			colNum, r1, r2 = coords[1], coords[0], coords[2]
+		} else {
+			return nil
+		}
+		var cells []string
+		for r := r1; r <= r2; r++ {
+			axis, _ := excelize.CoordinatesToCellName(colNum, r)
+			cells = append(cells, axis)
+		}
+		return cells
+	case "remove_duplicates", "delete_rows", "insert_rows", "sort",
+		"insert_columns", "delete_columns":
+		// 行列位移类：整块 used range 纳入 diff 检查（内存与读取预算双封顶：
+		// 追加到 maxPlanDiffRead 即停，超出部分由 diffOps 计数截断）
+		coords, err := usedRangeCoords(f, sheet)
+		if err != nil {
+			return nil
+		}
+		var cells []string
+		for r := coords[0]; r <= coords[2]; r++ {
+			for c := coords[1]; c <= coords[3]; c++ {
+				axis, _ := excelize.CoordinatesToCellName(c, r)
+				cells = append(cells, axis)
+				if len(cells) >= maxPlanDiffRead {
+					return cells
+				}
+			}
+		}
+		return cells
+	case "add_column":
+		// 新列整体（表头+数据行）
+		rows, err := f.GetRows(sheet)
+		if err != nil {
+			return nil
+		}
+		newColNum := maxRowsWidth(rows) + 1
+		if op.After != "" {
+			if an, err := excelize.ColumnNameToNumber(op.After); err == nil {
+				newColNum = an + 1
+			}
+		}
+		last := len(rows)
+		if last < 1 {
+			last = 1
+		}
+		var cells []string
+		for r := 1; r <= last; r++ {
+			axis, _ := excelize.CoordinatesToCellName(newColNum, r)
+			cells = append(cells, axis)
+		}
+		return cells
+	case "copy_range":
+		// 目标区域（仅同表目标可纳入 diff——diffOps 以 op 表为准逐格读，
+		// 跨表目标的变更清单暂缺，由 summary/预览呈现实况）
+		if op.To == "" || op.Range == "" {
+			return nil
+		}
+		dst := strings.TrimSpace(op.To)
+		if i := strings.LastIndex(dst, "!"); i >= 0 {
+			if strings.Trim(strings.TrimSpace(dst[:i]), "'") != sheet {
+				return nil
+			}
+			dst = strings.TrimSpace(dst[i+1:])
+		}
+		coords, err := parseRange(op.Range)
+		if err != nil {
+			return nil
+		}
+		c1, r1, err := excelize.CellNameToCoordinates(dst)
+		if err != nil {
+			return nil
+		}
+		var cells []string
+		for r := 0; r <= coords[2]-coords[0]; r++ {
+			for c := 0; c <= coords[3]-coords[1]; c++ {
+				axis, _ := excelize.CoordinatesToCellName(c1+c, r1+r)
+				cells = append(cells, axis)
+				if len(cells) >= maxPlanDiffRead {
+					return cells
+				}
 			}
 		}
 		return cells

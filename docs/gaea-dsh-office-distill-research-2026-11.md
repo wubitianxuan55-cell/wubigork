@@ -114,12 +114,20 @@ omml.ts（218 行）+ helper equations 段的 WPS 预转逻辑，接进 docxedit
 
 ## 6. 拍板池
 
+> **2026-11-13 用户拍板（波2 开工时）**：1=路线 A ✅（波1 已落地）；2=并存面 ✅（按推荐落地）；3=波3 体验件**继续挂池**；4=PPT 版式引擎 **❌ 取消不做**（拍板=不投入开发与教学面；helper 的 designed slides 实现随 OfficeHelper.cs 逐字节保真保留——「取消」不裁上游字节，教学面只发基础 ops 清单见 guides_ppt_basic.go，真机 add_slide/set_text 等基础 ops 照常可用，不引导≠禁用）；5=引导回**继续挂池**；6=克隆底稿**保留**（波2 移植底稿继续用）。
+
 1. **立项路线**：A 整体移植 / B 只借鉴设计 / C 只 OMML——推荐 A。
 2. **工具命名与并存面**：`office_*` 前缀与现有 `docx_apply` 等并存（COM 档 vs 无头档），还是收编成统一 `office_edit` 门面？推荐前者（改动面小、降级自然）。
 3. **波3 体验件**（迷你卡片/跟随/逐字/静默/技能引导回）v1 带不带？推荐静默+跟随带、迷你卡片挂二波。
-4. **PPT 版式引擎**（上游 ~4100 行最大单体）波2 移植还是砍？推荐移植——它同时利好我方 create_pptx.py 的替代面。
+4. **PPT 版式引擎**（上游 ~4100 行最大单体）波2 移植还是砍？~~推荐移植~~ **已拍板取消（2026-11-13）**。
 5. **引导回策略**：是否复制 preferLive（我方 .gaea/skills/docx、pptx 技能首次加载时引导到 COM 工具）？推荐照抄语义但以 gaea 技能装载机制实现。
 6. **清场**：`.tmp/dsh-office-upstream-src` 克隆在拍板后保留（移植底稿）还是删除？推荐保留至波1 收官。
+
+## 6.1 波2 范围（2026-11-13 拍板：WPS math 腿 + Excel 扩面，PPT 引擎取消）
+
+- **WPS 公式预转 math 腿**：新包 internal/office/omml——LaTeX→OMML 子集转换器（递归下降直转，不经 MathML；覆盖 GUIDES 教学常用形态：上下标/分数/根号/自适应括号/矩阵与 cases/装饰/nary 带限/lim/函数名/希腊字母/常用符号/否定/转义；超子集 fail-soft 返回 false）+ FormulasOf（ops 遍历提公式，键规则对齐上游 `d:`/`i:`）+ office_edit 接线（math map 非空才传）。降级语义天然安全：helper 对 map 外公式保留 `$...$` 原文（OfficeHelper.cs:1680 fail-soft），Word 档走 Word 自带 LaTeX 解析器不受任何影响。
+- **Excel data work 扩面**（无头管线，不依赖 COM）：xlsxedit 扩 ops——clean 扩字段（remove/noSpaces/map 改名/货币百分比日期解析）、fill_blanks（value/above/mean/median/mode）、remove_duplicates、delete_rows（blank/where 条件/row）、insert_rows/insert_columns/delete_columns、sort 多键、add_column、copy_range（跨表值复制）；新只读工具 **xlsx_profile**（列概况：种类计数/min·median·max/低基数 distinct/可疑项〔空格·文本数字·文本日期·混杂·IQR 离群·空行·重复行〕，模型规划清洗前的输入）；三处纪律+守卫族同批。上游 filter 隐藏行语义不做（excelize AutoFilter 只加箭头不实际隐藏——诚实缺省）；add_column values:true 不做（无头公式重算链已覆盖公式形态）。
+- **PPT 版式引擎**：取消（见 §6 拍板注记）。
 
 ## 7. 附：本机实证记录（2026-11-13）
 

@@ -18,6 +18,7 @@ import (
 
 	"github.com/gaea/gaea/internal/gaea/evidence"
 	"github.com/gaea/gaea/internal/gaea/tool"
+	"github.com/xuri/excelize/v2"
 )
 
 // isolateOfficeWorkspace 同 verify 测试基建：工作区指向临时目录（gaeaCwd 跟随）
@@ -222,5 +223,128 @@ func writeVerifyRecordTool(t *testing.T, ws, id, targetRel, toolName, afterSumma
 		Status:        evidence.StatusPendingVerify,
 	}); err != nil {
 		t.Fatalf("Append: %v", err)
+	}
+}
+
+// ── 波2 扩面：xlsx_profile 只读工具 + clean 扩字段全链 ────────────────────
+
+// TestXlsxProfileToolShape 工具面形状钉：只读、ReadTargeter 解析工作区相对
+// 路径、schema JSON 合法、Execute 出概况文本。
+func TestXlsxProfileToolShape(t *testing.T) {
+	ws := isolateOfficeWorkspace(t)
+	tl := xlsxProfileTool{a: &App{}}
+	if !tl.ReadOnly() {
+		t.Fatal("xlsx_profile 应自报只读")
+	}
+	if tl.Name() != "xlsx_profile" {
+		t.Fatalf("Name = %q", tl.Name())
+	}
+	var schema map[string]interface{}
+	if err := json.Unmarshal(tl.Schema(), &schema); err != nil {
+		t.Fatalf("schema JSON 非法: %v", err)
+	}
+	// ReadTargeter：相对路径解析为工作区内绝对路径；越界相对路径不报解析目标
+	rt, ok := tl.ReadTarget(json.RawMessage(`{"path":"表/订单.xlsx"}`))
+	if !ok || rt != filepath.Join(ws, "表", "订单.xlsx") {
+		t.Fatalf("ReadTarget = %q, %v", rt, ok)
+	}
+	if _, ok := tl.ReadTarget(json.RawMessage(`{}`)); ok {
+		t.Fatal("缺 path 不应有读目标")
+	}
+	// Execute：真实 xlsx 出概况文本
+	rel := filepath.Join("表", "订单.xlsx")
+	if err := os.MkdirAll(filepath.Dir(filepath.Join(ws, rel)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	f := excelize.NewFile()
+	if err := f.SetCellValue("Sheet1", "A1", "金额"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.SetCellValue("Sheet1", "A2", 100); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.SetCellValue("Sheet1", "A3", 200); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.SaveAs(filepath.Join(ws, rel)); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	args, _ := json.Marshal(map[string]string{"path": filepath.ToSlash(rel)})
+	out, err := tl.Execute(t.Context(), args)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if !strings.Contains(out, "数值 2") || !strings.Contains(out, "min 100") {
+		t.Fatalf("概况文本缺关键行: %s", out)
+	}
+	// 目标缺失 fail-loud
+	_, err = tl.Execute(t.Context(), json.RawMessage(`{"path":"不存在.xlsx"}`))
+	if err == nil {
+		t.Fatal("目标缺失应报错")
+	}
+}
+
+// TestXlsxApplyCleanToNumberFullChain 新 clean 字段经 GaeaXlsxApplyEdit 全链
+// （基线快照→ApplyOps→Recalc→证据卡；测试环境无 recalc.py，回执如实带
+// 「公式重算跳过」备注——既有测试同款 seam）。
+func TestXlsxApplyCleanToNumberFullChain(t *testing.T) {
+	ws := isolateOfficeWorkspace(t)
+	rel := filepath.Join("表", "清洗.xlsx")
+	abs := filepath.Join(ws, rel)
+	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	f := excelize.NewFile()
+	if err := f.SetCellValue("Sheet1", "A1", "金额"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.SetCellValue("Sheet1", "A2", "¥1,299"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.SetCellValue("Sheet1", "A3", "89元"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.SetCellValue("Sheet1", "A4", "abc"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.SaveAs(abs); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	a := &App{core: &core{}}
+	opsJSON := `[{"type":"clean","sheet":"Sheet1","range":"A2:A4","to":"number"}]`
+	r, err := a.GaeaXlsxApplyEdit(filepath.ToSlash(rel), opsJSON)
+	if err != nil {
+		t.Fatalf("应用失败：%v", err)
+	}
+	if !strings.Contains(r.Summary, "2 格，转 number") || !strings.Contains(r.Summary, "1 格解析失败") {
+		t.Fatalf("summary 缺转换回执: %s", r.Summary)
+	}
+	// 落盘值：文本数字 → 数值
+	f2, err := excelize.OpenFile(abs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = f2.Close() }()
+	for axis, want := range map[string]string{"A2": "1299", "A3": "89", "A4": "abc"} {
+		if got, _ := f2.GetCellValue("Sheet1", axis); got != want {
+			t.Errorf("%s = %q, want %q", axis, got, want)
+		}
+	}
+	// Journal 证据卡已落账
+	recs := readOfficeJournal(t, ws)
+	found := false
+	for i := range recs {
+		if recs[i].Tool == "xlsx_apply" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("xlsx_apply 证据卡未落账")
 	}
 }

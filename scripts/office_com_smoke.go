@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/office/comhelper"
+	"github.com/gaea/gaea/internal/office/omml"
 )
 
 func must(err error, what string) {
@@ -62,6 +63,23 @@ func main() {
 	must(err, "edit 批量写入")
 	fmt.Printf("   edit 回执: %.200s\n", string(raw))
 
+	// 波2 math 腿实弹：omml 预转公式（模拟工具层 FormulasOf→math map），
+	// 第二段 edit 写入带 $...$ 公式的文本。suite=wps 强制走 WPS Writer
+	//（helper 的 WpsMath 消费 math map；MS Word 档走 Word 自带解析不用 map）。
+	opsAny := []any{map[string]any{"op": "insert_paragraphs", "items": []any{
+		map[string]any{"text": "质能方程 $E=mc^2$ 与矩阵 $$\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}$$ 由 omml 预转。"},
+	}}}
+	math := omml.FormulasOf(opsAny, nil)
+	if len(math) == 0 {
+		fmt.Println("❌ omml.FormulasOf 未产出 math map")
+		os.Exit(1)
+	}
+	fmt.Printf("   math map %d 项: %v\n", len(math), keysOf(math))
+	raw, err = c.Call(ctx, "edit", merge(map[string]any{"suite": "wps", "app": "word", "doc": scratch, "follow": true, "typing": true, "card": false, "silent": false},
+		map[string]any{"ops": opsAny, "math": math}), 270*time.Second)
+	must(err, "edit 公式段（WPS math 腿）")
+	fmt.Printf("   edit 回执: %.200s\n", string(raw))
+
 	raw, err = c.Call(ctx, "save", merge(base, map[string]any{"doc": scratch}), 110*time.Second)
 	must(err, "save 落盘")
 	fmt.Printf("   save 回执: %s\n", string(raw))
@@ -90,4 +108,12 @@ func merge(a, b map[string]any) map[string]any {
 		out[k] = v
 	}
 	return out
+}
+
+func keysOf(m map[string]string) []string {
+	ks := make([]string, 0, len(m))
+	for k := range m {
+		ks = append(ks, k)
+	}
+	return ks
 }

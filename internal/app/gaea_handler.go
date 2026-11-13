@@ -899,6 +899,8 @@ func gaeaExtraTools(a *App) []tool.Tool {
 		officeDocxAcceptTool{a: a},
 		officePptxApplyTool{a: a},
 		officeXlsxApplyTool{a: a},
+		// 波2 扩面：xlsx_profile 只读列概况（规划输入；改文件仍走 xlsx_apply）。
+		xlsxProfileTool{a: a},
 		// P4 持久任务中心：批量转 PDF 提交型工具（断窗续跑/可取消/可重试）。
 		officeBatchTool{a: a},
 	}

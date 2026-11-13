@@ -241,3 +241,42 @@
 - **余（波2/3 挂拍板池）**：WPS 公式预转 math 腿、Excel data work 扩面、PPT 成品版式
   引擎（~4100 行最大单体）、迷你卡片/跟随/静默/settle 体验件、preferLive 技能引导回、
   unseen 保存前总览核对闭环、.tmp 克隆底稿去留。
+
+## 16. 波2 收官：WPS math 腿 + Excel data work 扩面 + PPT 版式引擎拍板取消（09:3x~11:3x）
+
+- **拍板落档**：调研档 §6 注记（4=PPT 版式引擎 **❌ 取消不做**：helper designed slides
+  随 OfficeHelper.cs 逐字节保真保留〔取消≠删功能，升级 diff 能力不破坏〕，教学面只发
+  基础 ops 清单=guides_ppt_basic.go〔上游过渡段机械提取+过渡句摘除〕，真机基础 ops
+  照常可用——不引导≠禁用；6=克隆底稿保留）+ §6.1 波2 范围档新立。
+- **线1 WPS math 腿**（子代理产出+主代理接管收口）：新包 `internal/office/omml`——
+  LaTeX→OMML **子集直转**（递归下降不经 MathML；希腊字母全表/上下标/分数/根号/自适应
+  定界/pmatrix·bmatrix·vmatrix·cases/装饰 acc·bar/nary 带限/lim/函数名直立/转义字面量/
+  否定；超子集 fail-soft 返回 false）+ FormulasOf（ops 遍历，键 `d:`/`i:` 对齐上游，tag
+  剥离）；office_edit 接线（math map 非空才传）。
+  - **接管后修两 bug**（子代理被运行时崩溃打断留下的半成品）：①parseMatrixEnv 的
+    stopAmp 停止符无人消费——pmatrix 即原地死循环（首次全量测试 139.8s+GC 爆栈，
+    **正是打爆 ZCode 运行时内存的元凶**）②parseTerm 结构命令路径漏 emit——atomVal.xml
+    被静默丢弃（`\frac{a}{b}` 全体红；无脚本时直接丢弃+带脚本时基底丢失）。两处一行级
+    修复+注释后 omml 0.5s 全绿。
+- **线2 Excel 扩面**（子代理产出，全绿直接收口）：xlsxedit 扩 ops——clean 扩字段
+  （remove/noSpaces/map 改名/货币·百分比·多格式日期解析）、fill_blanks（value/above/
+  mean/median/mode）、remove_duplicates、delete_rows（blank/where 条件/row）、
+  insert_rows/insert_columns/delete_columns、sort 多键、add_column、copy_range（跨表
+  值复制）+ parse.go 日期/数字柔性解析纯函数；新只读工具 **xlsx_profile**（列概况：
+  种类计数/min·median·max/低基数 distinct/可疑项〔空格·文本数字·文本日期·混杂·IQR
+  离群·空行·重复行〕）+ 三处纪律（registrymap/spacetags/registry-map 文档）+
+  xlsx_apply 描述/schema 同步。诚实缺省：filter 隐藏行不做（AutoFilter 只加箭头）、
+  add_column values:true 不做（重算链已覆盖公式形态）。
+- **真机实弹（WPS math 腿）**：office_com_smoke 加公式段——`math map 2 项`（i:E=mc² +
+  d:pmatrix）产出正确；suite=auto（MS Word 在装）档=Word 自带解析建成 1 equation、
+  pmatrix 留文字（Word 档正常行为，math map 专供 WPS 不干扰）；**suite=wps 强制档=
+  `2 equation(s)` 全建成原生公式**（read 回执 𝐸=𝑚𝑐² 数学斜体=公式对象真实落位），
+  2/2 全成。
+- **验证门**：test-related 全绿（app 160.1s 真跑+tool/builtin/omml/xlsxedit）；两包
+  lint 0 issues；gofmt/vet 干净；装机 exe `bb8befa696297b7a…` 冒烟 200，
+  **INSTALL OK**（PID 47776，11:30:08）；不抬版本（4.543.0）。
+- **余（挂拍板池）**：迷你卡片/跟随/静默/settle 体验件（波3）、preferLive 引导回、
+  unseen 保存前总览闭环。
+- **运行时崩溃事件注记**：本轮 ZCode 运行时进程因内存不足退出一次，两后台子代理
+  中断无报告；接管盘点发现两线半成品均已落盘大半（线1 死循环 bug 未及自测、线2
+  已自测全绿）——「先查残留再决定重派」避免了整线重跑。

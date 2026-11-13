@@ -18,7 +18,8 @@ package app
 //     附图挂波3；模型可用 office_render {overview:true} 手动核对）。
 //   - office_render 的成品图以 PNG 路径交付，模型经 vision 工具读取
 //     （doc_render 同款管线——gaea agent 上下文是纯文本，无图片附件通道）。
-//   - 波1 不带 WPS 公式预转 math 腿（MS Word 公式完整可用）。
+//   - 波2 WPS 公式预转 math 腿已带（internal/office/omml 子集直转，fail-soft：
+//     子集外公式不进 math map，helper 保留原文；Word 档走 Word 自带解析不受影响）。
 //   - office_save 落 Journal 证据卡（appendOfficeEvidence 单点，与四类写
 //     同账；基线快照不适用=诚实缺省）；未做 unseen 追踪（挂波3）。
 //
@@ -40,6 +41,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/tool"
 	"github.com/gaea/gaea/internal/gaea/wspath"
 	comhelper "github.com/gaea/gaea/internal/office/comhelper"
+	"github.com/gaea/gaea/internal/office/omml"
 )
 
 // ── 波1 硬编码体验开关（接 gaea 设置挂波3）────────────────────────────────
@@ -145,13 +147,19 @@ func (s *officeComState) markTold(session, kind string) bool {
 	return true
 }
 
-// officeGuide 首次使用发放操作清单（上游 guide() 同文）。
+// officeGuide 首次使用发放操作清单（上游 guide() 同文；ppt 发基础版——
+// 2026-11-13 波2 拍板 PPT 成品版式引擎取消，教学面只发基础 ops，见
+// guides_ppt_basic.go；word/excel 仍全量上游对齐）。
 func (s *officeComState) officeGuide(session, kind string) string {
 	if !s.markTold(session, kind) {
 		return ""
 	}
+	guide, ok := officeGuides[kind]
+	if !ok {
+		guide = officeGuidesPptBasic // ppt：基础 ops 清单（成品版式教学摘除）
+	}
 	return fmt.Sprintf("\n\n%s operations for office_edit (this list is given once; office_help {app: \"%s\"} gives it again):\n%s",
-		comhelper.AppDisplayName(kind, ""), kind, officeGuides[kind])
+		comhelper.AppDisplayName(kind, ""), kind, guide)
 }
 
 // ── 目标解析（上游 appOf/target 直译）────────────────────────────────────
@@ -552,6 +560,16 @@ func (t officeComEditTool) execute(ctx context.Context, session string, args jso
 	}
 	if targetDoc != "" && officeComAbsRe.MatchString(targetDoc) {
 		editArgs["doc"] = targetDoc
+	}
+	// 波2 WPS 公式预转 math 腿：把 ops 里的 $…$ / $$…$$ 预转成 OMML 随 edit
+	// 下发（helper 仅 WPS 档按 d:/i: 键查表 InsertXML；Word 档用自带 LaTeX
+	// 解析器，不受影响）。fail-soft：转不动的公式不进 math map，helper 保留
+	// 原文不报错；本步任何失败（含 ops JSON 还原异常）都不阻断 edit 本身。
+	var opsAny any
+	if err := json.Unmarshal([]byte(argsOfOps(in.Ops)), &opsAny); err == nil {
+		if math := omml.FormulasOf(opsAny, nil); len(math) > 0 {
+			editArgs["math"] = math
+		}
 	}
 	raw, err := officeCom.call(ctx, "edit", editArgs, officeComTimeoutEdit)
 	if err != nil {
@@ -1047,7 +1065,7 @@ func (officeComHelpTool) Name() string   { return "office_help" }
 func (officeComHelpTool) ReadOnly() bool { return true }
 
 func (officeComHelpTool) Description() string {
-	return "列出某个应用（word/excel/ppt）的 office_edit 全部操作与字段：Word（文字/公式/表格/图片/引用/样式/页面设置）、Excel（单元格/格式/工作表/图表/数据清洗）、PowerPoint（成品版式/SmartArt/形状/画布）。不确定操作名或字段时先调本工具。"
+	return "列出某个应用（word/excel/ppt）的 office_edit 全部操作与字段：Word（文字/公式/表格/图片/引用/样式/页面设置）、Excel（单元格/格式/工作表/图表/数据清洗）、PowerPoint（页面/文字/图片/SmartArt/形状/表格）。不确定操作名或字段时先调本工具。"
 }
 
 func (officeComHelpTool) Schema() json.RawMessage {
@@ -1072,8 +1090,12 @@ func (t officeComHelpTool) ExecuteWithContext(ctx context.Context, tc tool.ToolC
 		return "", err
 	}
 	officeCom.markTold(tc.SessionID, kind)
+	guide, ok := officeGuides[kind]
+	if !ok {
+		guide = officeGuidesPptBasic // ppt：基础 ops 清单（同 officeGuide 口径）
+	}
 	return fmt.Sprintf("%s operations for office_edit:\n%s\n\nColours are \"#RRGGBB\"; align is left | center | right | justify; file paths are absolute.",
-		comhelper.AppDisplayName(kind, ""), officeGuides[kind]), nil
+		comhelper.AppDisplayName(kind, ""), guide), nil
 }
 func (t officeComHelpTool) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	return t.ExecuteWithContext(ctx, tool.ToolContext{}, args)
