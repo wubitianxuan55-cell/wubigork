@@ -99,9 +99,7 @@ export function ApprovalModal({
       <section
         ref={cardRef}
         className="office-approval-card"
-        role="dialog"
-        aria-modal="false"
-        tabIndex={-1}
+        role="dialog" aria-modal="true" tabIndex={-1}
         aria-labelledby={titleId}
         aria-describedby={noteId}
         data-permission-request={approval.request ? "true" : "false"}

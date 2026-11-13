@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 import { Dropdown, Layout, Modal } from "antd";
 import {
   BookOpen, Check, SquarePen, Brain, ChevronDown, FolderGit2, FileText, LineChart,
-  PanelRightOpen, PanelRightClose, MessageSquare, Trash2, X, Aim, List, Square, Inbox, Layers, Wrench,
+  PanelRight, MessageSquare, Trash2, X, Aim, Inbox, Layers, Wrench,
   ClipboardList, Sparkles, Table,
 } from "./icons";
 import { Sidebar } from "./components/Sidebar";
@@ -29,7 +29,6 @@ import { ApprovalModal } from "./components/ApprovalModal";
 import { AskCard } from "./components/AskCard";
 import { ToolbarButton } from "./components/ToolbarButton";
 import { ExportMenu, type ExportFormat } from "./components/ExportMenu";
-import { ModelSwitcher } from "./components/ModelSwitcher";
 import { ToolSheet } from "./components/ToolSheet";
 const CadPanel = lazy(() => import("./components/cad/CadPanel").then(m => ({ default: m.CadPanel })));
 const ScheduleTool = lazy(() => import("./components/schedule/ScheduleTool").then(m => ({ default: m.ScheduleTool })));
@@ -242,7 +241,8 @@ export default function App() {
   const runningTasks = useRunningBadge();
   const runningDomainActive = rightTab === "tasks";
   const runningBadge = runningDomainActive ? undefined : { tasks: runningTasks };
-  const [compactMode, setCompactMode] = useState(() => readWorkbenchValue("gaea.compactMode") === "1");
+  // 紧凑模式只读持久值（2026-11-13 顶栏合并：切换钮已撤，余量仅撑 footer 密度与 CompactContext）
+  const [compactMode] = useState(() => readWorkbenchValue("gaea.compactMode") === "1");
   const [scrollToTurn, setScrollToTurn] = useState<((turn: number) => void) | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   // 7.3-1 任务收件箱：命令面板动态「存为任务」项需要拿到面板输入 query——
@@ -751,12 +751,43 @@ export default function App() {
           <header className="office-topbar flex flex-shrink-0 items-center gap-3 px-12 border-b border-border-soft select-none drag-region transition-all duration-200" style={{background: "var(--gaea-glass-bg, var(--md-sys-color-surface-container))"}}>
             <div className="office-topbar__primary">
               <div className="flex items-center gap-2 min-w-0">
-                <ModelSwitcher label={state.meta?.label ?? t("status.connecting")} onPick={switchModel} />
-              </div>
-              <div className="flex items-center gap-2 px-3">
                 {cwd && (<button className="office-workspace-switch toolbar-btn no-drag" onClick={() => void switchFolder()} disabled={state.running}><FolderGit2 size={13} /><span>{cwdName}</span><ChevronDown size={11} /></button>)}
               </div>
             </div>
+            <ChatTabs
+              className="office-view-tabs min-w-0 no-drag"
+              active={subagentTabId ?? chatTab}
+              onChange={(id) => {
+                setActiveTool(null);
+                handleChatTabSelect(id);
+              }}
+              extraTabs={subagentTabs.map((x) => {
+                const statusText =
+                  x.status === "running"
+                    ? t("subagent.statusRunning")
+                    : x.status === "queued"
+                      ? t("subagent.statusQueued")
+                      : x.status === "failed"
+                        ? t("subagent.statusFailed")
+                        : t("subagent.statusDone");
+                return {
+                  id: x.id,
+                  label:
+                    x.task && x.task.length > 14
+                      ? `${x.task.slice(0, 14)}…`
+                      : (x.task || x.ref),
+                  status: x.status,
+                  detail: `${x.task || x.ref} ｜ ${statusText}${
+                    x.kind === "model_tool" && !x.model
+                      ? ` · ${t("subagent.modelToolLabel")}`
+                      : x.model
+                        ? ` · ${x.model}`
+                        : ""
+                  }`,
+                };
+              })}
+              onCloseExtra={closeSubagentTab}
+            />
             <div className="flex-1" />
             <div className="flex items-center gap-2">
               <Dropdown
@@ -783,10 +814,6 @@ export default function App() {
                   <span>工具</span>
                 </button>
               </Dropdown>
-              <ToolbarButton onClick={() => void toggleWorkspacePanel()} title={previewFile ? t("topbar.backToFiles") : workspacePanelOpen ? t("topbar.collapseFilePanel") : t("topbar.expandFilePanel")}>
-                {workspacePanelOpen || previewFile ? <PanelRightClose size={13} /> : <PanelRightOpen size={13} />}
-              </ToolbarButton>
-              <ToolbarButton onClick={() => { const v = !compactMode; setCompactMode(v); writeWorkbenchValue("gaea.compactMode", v ? "1" : "0"); }} title={compactMode ? t("topbar.expandMode") : t("topbar.compactMode")}>{compactMode ? <List size={13} /> : <Square size={13} />}</ToolbarButton>
               <ToolbarButton onClick={toggleFocus} title={focusMode ? t("topbar.exitFocusMode") : t("topbar.focusMode")}>
                 <Aim size={13} className={focusMode ? "text-accent" : ""} />
               </ToolbarButton>
@@ -821,6 +848,9 @@ export default function App() {
                   <Trash2 size={13} />
                 </ToolbarButton>
               )}
+              <ToolbarButton onClick={() => void toggleWorkspacePanel()} title={previewFile ? t("topbar.backToFiles") : workspacePanelOpen ? t("topbar.collapseFilePanel") : t("topbar.expandFilePanel")}>
+                <PanelRight size={13} />
+              </ToolbarButton>
             </div>
           </header>
 
@@ -830,40 +860,6 @@ export default function App() {
 
           <UpdateBanner />
           <NewSessionToast done={newSessionDone} />
-          <ChatTabs
-            className="office-view-tabs"
-            active={subagentTabId ?? chatTab}
-            onChange={(id) => {
-              setActiveTool(null);
-              handleChatTabSelect(id);
-            }}
-            extraTabs={subagentTabs.map((x) => {
-              const statusText =
-                x.status === "running"
-                  ? t("subagent.statusRunning")
-                  : x.status === "queued"
-                    ? t("subagent.statusQueued")
-                    : x.status === "failed"
-                      ? t("subagent.statusFailed")
-                      : t("subagent.statusDone");
-              return {
-                id: x.id,
-                label:
-                  x.task && x.task.length > 14
-                    ? `${x.task.slice(0, 14)}…`
-                    : (x.task || x.ref),
-                status: x.status,
-                detail: `${x.task || x.ref} ｜ ${statusText}${
-                  x.kind === "model_tool" && !x.model
-                    ? ` · ${t("subagent.modelToolLabel")}`
-                    : x.model
-                      ? ` · ${x.model}`
-                      : ""
-                }`,
-              };
-            })}
-            onCloseExtra={closeSubagentTab}
-          />
           <main className="main">
             <CompactContext.Provider value={compactMode}>
             {(state.meta?.ready === false && !state.meta?.startupErr) || switchingModel ? (

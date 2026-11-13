@@ -69,8 +69,6 @@ export const zh: Record<DictKey, string> = {
   "topbar.backToFiles": "返回文件列表",
   "topbar.collapseFilePanel": "收起文件面板",
   "topbar.expandFilePanel": "展开文件面板",
-  "topbar.expandMode": "展开模式",
-  "topbar.compactMode": "紧凑模式",
   "topbar.exitFocusMode": "退出专注模式 (Ctrl+Shift+F)",
   "topbar.focusMode": "专注模式 (Ctrl+Shift+F)",
   "topbar.exportMarkdown": "导出 Markdown",
@@ -190,9 +188,6 @@ export const zh: Record<DictKey, string> = {
   "composer.importFile": "导入文件",
 
   // 状态栏
-  "status.connecting": "连接中…",
-  "status.switchModel": "切换模型",
-  "status.noModels": "未配置任何模型",
   "status.modelsLoadFailedRetry": "模型列表读取失败，点击重试",
   "status.switchFolder": "{cwd}\n点击切换项目目录",
   "status.jobsTitle": "后台作业",
@@ -1588,14 +1583,6 @@ export const zh: Record<DictKey, string> = {
   "trajectory.loadFail": "轨迹视图加载失败：{msg}",
   "trajectory.empty": "暂无轨迹记录 —— 开始一轮办公任务后，这里会按时间顺序展示完整事件账本。",
   "trajectory.footerHint": "点击记录展开详情（工具参数/结果、请求头、用量与耗时）· 长会话按视口虚拟渲染",
-
-  // ── v4.57 i18n 收尾：ModelSwitcher ──
-  "model.waitSeconds": "预计等待 {n} 秒",
-  "model.takeTime": "需要一些时间",
-  "model.switchNotice": "已切换 {name}（{note}），{wait}。",
-  "model.needColdStart": "需冷启动",
-  "model.localTag": "本地",
-  "model.running": "运行中",
 
   // ── v4.62 交付验收闭环 A2：Word 修改队列 ──
   "docxQueue.toggle": "队列",

@@ -70,8 +70,6 @@ export const zhTW: Record<DictKey, string> = {
   "topbar.backToFiles": "返回檔案清單",
   "topbar.collapseFilePanel": "收起檔案面板",
   "topbar.expandFilePanel": "展開檔案面板",
-  "topbar.expandMode": "展開模式",
-  "topbar.compactMode": "緊湊模式",
   "topbar.exitFocusMode": "退出專注模式 (Ctrl+Shift+F)",
   "topbar.focusMode": "專注模式 (Ctrl+Shift+F)",
   "topbar.exportMarkdown": "匯出 Markdown",
@@ -190,9 +188,6 @@ export const zhTW: Record<DictKey, string> = {
   "composer.importFile": "匯入檔案",
 
   // status bar
-  "status.connecting": "連線中…",
-  "status.switchModel": "切換模型",
-  "status.noModels": "未設定模型",
   "status.modelsLoadFailedRetry": "模型列表讀取失敗，點擊重試",
   "status.switchFolder": "{cwd}\n點擊以切換專案資料夾",
   "status.jobsTitle": "背景工作",
@@ -1592,14 +1587,6 @@ export const zhTW: Record<DictKey, string> = {
   "trajectory.loadFail": "軌跡視圖載入失敗：{msg}",
   "trajectory.empty": "暫無軌跡記錄 —— 開始一輪辦公任務後，這裡會按時間順序展示完整事件帳本。",
   "trajectory.footerHint": "點擊記錄展開詳情（工具參數/結果、請求標頭、用量與耗時）· 長工作階段按視口虛擬渲染",
-
-  // ── v4.57 i18n 收尾：ModelSwitcher ──
-  "model.waitSeconds": "預計等待 {n} 秒",
-  "model.takeTime": "需要一些時間",
-  "model.switchNotice": "已切換 {name}（{note}），{wait}。",
-  "model.needColdStart": "需冷啟動",
-  "model.localTag": "本地",
-  "model.running": "執行中",
 
   // ── v4.62 交付驗收閉環 A2：Word 修改佇列 ──
   "docxQueue.toggle": "佇列",

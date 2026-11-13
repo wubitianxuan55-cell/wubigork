@@ -93,13 +93,6 @@
   min-width: 0;
 }
 
-.office-topbar__primary > div + div {
-  height: 20px;
-  padding: 0 !important;
-  margin-left: 10px;
-  border-left: 1px solid var(--office-line);
-}
-
 .office-topbar button,
 .office-topbar .toolbar-btn,
 .office-topbar .office-workspace-switch {
@@ -116,6 +109,11 @@
     transform var(--dur-fast) ease !important;
 }
 
+/* 工作区路径名可能很长，按旧分隔布局同宽上限截断 */
+.office-topbar .office-workspace-switch {
+  max-width: 240px;
+}
+
 .office-topbar button:hover,
 .office-topbar .toolbar-btn:hover,
 .office-topbar .office-workspace-switch:hover {
@@ -126,12 +124,6 @@
 
 .office-topbar button:active {
   transform: translateY(1px);
-}
-
-.office-topbar__primary > div + div .office-workspace-switch {
-  margin-left: 10px;
-  max-width: 240px;
-  color: var(--fg-dim) !important;
 }
 
 .office-topbar > .flex-1 + .flex > button {
@@ -147,14 +139,22 @@
   border-color: var(--office-accent-line) !important;
 }
 
-/* ── View tabs ────────────────────────────────────────────────────────── */
+/* ── View tabs（2026-11-13 顶栏合并：标签并入 office-topbar，不再独占一行） ── */
 
 .gaea-app-layout .office-view-tabs {
-  height: 46px;
-  padding: 7px 18px !important;
+  height: auto;
+  padding: 0 !important;
   gap: 3px !important;
-  background: var(--office-panel) !important;
-  border-bottom: 1px solid var(--office-line) !important;
+  background: transparent !important;
+  border-bottom: none !important;
+  overflow: hidden;
+}
+
+/* 顶栏是 drag-region，标签与动态会话 tab 整组豁免拖拽 */
+.office-view-tabs,
+.office-view-tabs [role="tab"] {
+  --wails-draggable: no-drag;
+  -webkit-app-region: no-drag;
 }
 
 .office-view-tabs [role="tab"] {
@@ -179,6 +179,14 @@
 
 .office-view-tabs [role="tab"] > span.absolute {
   display: none;
+}
+
+/* extraTab 内嵌关闭小钮不被顶栏通用按钮规则撑大 */
+.office-view-tabs [role="tab"] button {
+  min-height: auto;
+  padding-inline: 0;
+  border-radius: 4px !important;
+  color: inherit !important;
 }
 
 /* ── Command input ────────────────────────────────────────────────────── */
@@ -664,7 +672,8 @@
     padding-inline: 12px !important;
   }
 
-  .office-topbar__primary > div + div {
+  /* 顶栏合并后窄屏仍收起工作区切换钮（与合并前行为一致） */
+  .office-topbar .office-workspace-switch {
     display: none;
   }
 

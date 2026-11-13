@@ -68,8 +68,6 @@ export const en = {
   "topbar.backToFiles": "Back to file list",
   "topbar.collapseFilePanel": "Collapse file panel",
   "topbar.expandFilePanel": "Expand file panel",
-  "topbar.expandMode": "Expanded mode",
-  "topbar.compactMode": "Compact mode",
   "topbar.exitFocusMode": "Exit focus mode (Ctrl+Shift+F)",
   "topbar.focusMode": "Focus mode (Ctrl+Shift+F)",
   "topbar.exportMarkdown": "Export Markdown",
@@ -187,9 +185,6 @@ export const en = {
   "composer.importFile": "Import file",
 
   // status bar
-  "status.connecting": "connecting…",
-  "status.switchModel": "Switch model",
-  "status.noModels": "no models configured",
   "status.modelsLoadFailedRetry": "failed to load models — click to retry",
   "status.switchFolder": "{cwd}\nClick to switch project folder",
   "status.jobsTitle": "Background jobs",
@@ -1588,14 +1583,6 @@ export const en = {
   "trajectory.loadFail": "Failed to load the trajectory view: {msg}",
   "trajectory.empty": "No trajectory records yet — run an office task and the full event ledger appears here in chronological order.",
   "trajectory.footerHint": "Click a record for details (tool args/output, request header, usage & timing) · long sessions render virtually per viewport",
-
-  // ── v4.57 i18n 收尾：ModelSwitcher ──
-  "model.waitSeconds": "Estimated wait {n} s",
-  "model.takeTime": "this will take a moment",
-  "model.switchNotice": "Switched to {name} ({note}); {wait}.",
-  "model.needColdStart": "cold start required",
-  "model.localTag": "local",
-  "model.running": "running",
 
   // ── v4.62 交付验收闭环 A2：Word 修改队列 ──
   "docxQueue.toggle": "Queue",

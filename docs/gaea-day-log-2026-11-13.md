@@ -507,3 +507,25 @@
   细化+底色透明+「思考中…」删除+交付登记 doc 键（19304744）+Excel 大表
   输出保护（e0461f53）+交付文件停靠条 DeliverablesDock。
 - 工作树回收：junction 摘除+worktree remove force。
+
+## 32. 办公顶栏合并批（17:5x）
+
+- 用户指令四件全落：①对话窗上方两条顶栏合并——ChatTabs（对话/轨迹/上下文/
+  记忆/洞察/编队+子代理动态 tab）并入 `office-topbar` 单行，不再独占 46px 一行；
+  标签区 `no-drag` 整组豁免（顶栏是 drag-region），中间保留可拖拽 flex 空档；
+  ②删过时 ModelSwitcher 钮（模型切换仍走命令面板 switchModel）——组件+i18n
+  测试+六个 `model.*` 键+`status.connecting/switchModel/noModels` 死键随批清葬；
+  ③删展开/紧凑切换钮（compactMode 降为只读持久值，仍撑 footer 密度与
+  CompactContext）；④右侧面板钮移到最右（删除确认之后）并换图标
+  PanelRightOpen/Close（Holder 圆点）→新 `PanelRight`（BorderRightOutlined）。
+- CSS（office-ui.css）：view-tabs 块改顶栏内布局（去独立底/边框/高度）+
+  extraTab 关闭小钮不被顶栏通用按钮规则撑大；工作区钮 max-width 240 保留；
+  窄屏 ≤820px 保留收起工作区钮（选择器从死掉的 `> div + div` 改直指）。
+- 捎带修生产红：perf-guards 源级 a11y 守卫连红——d3342e77（五卡批合并）把
+  ApprovalModal 降级 `aria-modal="false"` 且拆行躲过字面量断言；回归守卫契约
+  单行 `role="dialog" aria-modal="true"`（ApprovalModal/ResizableDrawer 测试绿）。
+- 验证：tsc -b 绿+eslint 改面零告警+knip src/gaea 零命中（余=生成 wailsjs
+  既有噪音）+vite build 绿+全量 vitest 4409/4412——三红辨伪=perf-guards
+  （上款真回归已修）+SchedulingSection/SecurityPanel/DatabaseLibrary 两轮
+  互异且单跑全绿=负载期假红家族（先例在册）。
+- 余：真机目检挂用户；未动 wailsjs 生成件与 releases 留树改动。
