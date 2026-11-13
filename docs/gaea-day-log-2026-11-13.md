@@ -492,3 +492,18 @@
   ——工具层主动截断至 38KiB（行边界对齐）+尾部结构化指引（不要整表读/
   profile:true 看概况/缩小 range 分块）。§29 的 doc 键修复同批装机（92897b88
   →本笔 c1a692f3）。
+
+## 31. COM 档二轮打包 officecom2（17:1x）
+
+- **干净树打包**：`.worktrees/pkg-e0461f53`（worktree add 定提交+junction）→
+  npm build 22.96s + wails 53.8s → 三 DLL 主树同步 → **装机位冒烟 200**
+  （包树 exe 直跑的 800700aa 教训沿用装机位口径）→ `gaea_install -SourceDir`
+  **装机=包版 exe `4139E78C4D57ABA6…`**（PID 46324，装机=包版哈希一致）。
+- **交付物**：`releases/gaea-officecom2-20261113-e0461f53/`——exe+三 DLL+
+  preview.zip+source.tar.gz（git archive 定提交）+PACKAGE-INFO+SHA256SUMS
+  （入库；zip/tar 留盘 P2-3）；包记录提交见 git log。
+- **包相对 officecom（f5576986）增量**：五卡批回归（562d4eb0）+二轮实弹四件
+  （cacb011c）+交互文件固定落点+语义命名（e382b9f1+二修）+过程卡折叠语义
+  细化+底色透明+「思考中…」删除+交付登记 doc 键（19304744）+Excel 大表
+  输出保护（e0461f53）+交付文件停靠条 DeliverablesDock。
+- 工作树回收：junction 摘除+worktree remove force。
