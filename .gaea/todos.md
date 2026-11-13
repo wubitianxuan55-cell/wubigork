@@ -31,6 +31,7 @@
 | ✅ | **工作态头部删「思考中…」回退文案**（2026-11-13）：无 phase 运行态只留图标+用时+步数；有 phase 仍显示；exe 8ec56ed2 装机；提交 ded8e63e |
 | ✅ | **交互文件固定落点**（2026-11-13）：office_open path 归一（省略→「交互文件」目录+时间戳命名；纯文件名收编；带目录尊重；Execute/WritePaths 同判据+回执告知）；exe 7dc655b6 冒烟 200 装机；提交 e382b9f1 |
 | ✅ | **五卡二轮实弹四件**（2026-11-13）：下置撤销（用户改主意恢复 Codex 语义）+折叠态最近三条活尾巴+交付卡滤 .py+提炼记忆卡（notice→结构化卡+弹窗查看/接受/忽略）+溢出归档（dream-pending-overflow.json FIFO 200，修复队列满数据丢失）；exe adc4bc4e 冒烟 200 装机；提交 c5ee0dbd |
+| ✅ | **COM 档二轮打包 officecom2**（2026-11-13）：干净树 .worktrees/pkg-e0461f53 定提交构建，装机=包版 exe 4139E78C 冒烟 200；交付物 releases/gaea-officecom2-20261113-e0461f53/（PACKAGE-INFO+SHA256SUMS 入库，zip/tar 留盘）；包相对 officecom 增量=五卡回归+二轮实弹四件+交互文件固定落点/语义命名+折叠细化+底色透明+思考中删除+doc 键+Excel 保护；工作树已回收 |
 | ✅ | **dsh-office 四波收官打包**（2026-11-13）：干净树 .worktrees/pkg-f5576986（junction+定提交构建）→ 装机=包版 exe 21BD0668 冒烟 200；交付物 releases/gaea-officecom-20261113-f5576986/（PACKAGE-INFO+SHA256SUMS 入库，zip/tar 留盘）；工作树已回收；包记录 34de50d8 |
 | ✅ | **dsh-office 波3.5 收官=全项目收官**（2026-11-13）：preferLive 引导回（探测下沉 comhelper+boot 提示词分工段，SingleModelPrompt 逐字节红线不动）+unseen 交付前总览闭环（edit 置位/render 清除/save 自动总览+Final check）；exe 377175df 冒烟 200 装机；提交 f5576986；余=真机实弹挂用户 |
 | ✅ | **dsh-office 波3 收官**（2026-11-13）：office_com 设置段五键（OfficePanel「实时编辑」节）+settle 钩子（TurnDone 槽+活动性守卫+静默文档 Journal+office_file_saved）+壳内实时编辑状态条（OfficeLiveBadge 挂 FilePreview 头=迷你卡替代不启 WinForms）；exe 728e79e6 冒烟 200 装机 PID 36072；提交 48cfa091；余=preferLive 引导回+unseen 总览挂拍板池，真机实弹挂用户 |
