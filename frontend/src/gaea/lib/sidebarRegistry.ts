@@ -130,7 +130,7 @@ const RENDERERS: Record<WorkspaceTabId, (ctx: WorkspacePanelContext) => ReactNod
     createElement(
       Suspense,
       { fallback: createElement("div", { className: "p-4 text-[12px] text-fg-dim" }, "正在加载图纸工具…") },
-      createElement(LazyCadPanel, { variant: "pane", onAsk: ctx.onAsk }),
+      createElement(LazyCadPanel, { onAsk: ctx.onAsk }),
     ),
   // 进度计划工具面：视图/检查器复用 schedule/ 既有件，与 SchedulePage 共享
   // useScheduleStore（agent schedule_* 写入即时可见）。

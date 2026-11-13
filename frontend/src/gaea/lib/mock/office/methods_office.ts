@@ -700,8 +700,15 @@ export const officeMethods: Partial<Omit<OfficeMethods, "PinnedMaterials">> &
   async HerdsmanOperations() {
     return { total: 0, items: [], source: "herdsman-operations" };
   },
-  async PickFiles(_filters?: string): Promise<FilePickResult[]> {
+  async PickFiles(filters?: string): Promise<FilePickResult[]> {
     // In dev mode there is no native dialog -- return empty.
+    // 例外（2026-11-14）：纯 CAD 过滤（dwg/dxf/pdf，CAD 图纸面板的导入）回一张
+    // mock 图纸 fixture，浏览器 mock 可全链演示（导入→CadOpen fixture→分幅/
+    // 文本/统计）；空过滤/混合过滤（附件等）保持空返回，不污染其它选件流。
+    const toks = (filters ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+    if (toks.length > 0 && toks.every((t) => t === "dwg" || t === "dxf" || t === "pdf")) {
+      return [{ path: "C:\\mock\\cad\\plan.dxf", name: "plan.dxf", type: "file", size: 26756 }];
+    }
     return [];
   },
   async ReadFileB64(_path: string): Promise<string> {

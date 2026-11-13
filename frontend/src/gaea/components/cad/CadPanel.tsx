@@ -5,7 +5,6 @@
 // 「问图纸」复用 RecognizeImage 零新绑定；图纸与提取结果不入库。
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { createPortal } from "react-dom";
 import { Alert, Button, Input, Spin, Tag } from "antd";
 import { useT } from "../../lib/i18n";
 import { useCadOpenBus } from "../../lib/cadOpen";
@@ -47,7 +46,7 @@ function reportCadError(where: string, e: unknown): void {
   }
 }
 
-export function CadPanel({ onAsk, variant = "pane", inspectorHost = null }: { onAsk?: (text: string) => void; variant?: "pane" | "sheet"; /** §7.3 检查器随工具：右栏宿主在挂时，文本/统计两段 portal 进右栏（画布区 3 栏变 2 栏）；宿主不在（右栏收起/pane 变体）回落内联——状态与回调全在本组件，零上移 */ inspectorHost?: HTMLElement | null }) {
+export function CadPanel({ onAsk }: { onAsk?: (text: string) => void }) {
   const t = useT();
   const [file, setFile] = useState<{ path: string; name: string } | null>(null);
   const [openRes, setOpenRes] = useState<CadOpenResult | null>(null);
@@ -510,9 +509,9 @@ export function CadPanel({ onAsk, variant = "pane", inspectorHost = null }: { on
     return texts.texts.filter((x) => x.sheet === sheet || x.sheet === 0);
   }, [texts, sheet]);
 
-  // §7.3 检查器随工具（docs/gaea-ai-workbench-ui-2026-10.md）：文本清单+符号统计是
-  // 图纸的「依据」面——右栏宿主在挂时 portal 进右栏（sheet 画布区 3 栏变 2 栏），
-  // 宿主不在（右栏收起/pane 变体）回落内联。状态与回调零上移，portal 保 React 树。
+  // §7.3 检查器（docs/gaea-ai-workbench-ui-2026-10.md）：文本清单+符号统计是
+  // 图纸的「依据」面，在右栏面板内联排布（原 ToolSheet 时代的外置宿主/portal
+  // 机制已随 2026-11-14 回归右栏退役）。
   const inspectorNode: ReactNode = openRes ? (
       <div className="cad-inspector" data-testid="cad-inspector">
             <div className="cad-section flex flex-col gap-1 min-h-0">
@@ -621,25 +620,21 @@ export function CadPanel({ onAsk, variant = "pane", inspectorHost = null }: { on
   return (
     <div
       data-testid="cad-panel"
-      data-variant={variant}
-      data-inspector={inspectorHost ? "external" : "inline"}
-      className={`cad-panel ${variant === "sheet" ? "cad-panel--sheet" : "cad-panel--pane"} h-full min-h-0 gap-2 p-2 text-[12px]`}
+      className="cad-panel h-full min-h-0 gap-2 p-2 text-[12px]"
     >
       <div className="cad-head">
         <div className="cad-import-row flex items-center gap-2">
-          {(variant === "pane" || file) && (
-            <Button
-              size="small"
-              data-testid="cad-import"
-              disabled={busy || askBusy}
-              onClick={() => void import_()}
-            >
-              {t("cad.import")}
-            </Button>
-          )}
+          <Button
+            size="small"
+            data-testid="cad-import"
+            disabled={busy || askBusy}
+            onClick={() => void import_()}
+          >
+            {t("cad.import")}
+          </Button>
           {file && <span className="truncate text-fg-dim" title={file.path}>{file.name}</span>}
         </div>
-        {(variant === "pane" || file) && <div className="cad-hint text-[11px] text-fg-dim">{t("cad.importHint")}</div>}
+        <div className="cad-hint text-[11px] text-fg-dim">{t("cad.importHint")}</div>
         {recent.length > 0 && (
           <div className="flex flex-wrap items-center gap-1" data-testid="cad-recent">
             <span className="text-[11px] text-fg-dim">{t("cad.recent")}</span>
@@ -782,7 +777,7 @@ export function CadPanel({ onAsk, variant = "pane", inspectorHost = null }: { on
             </div>
           </div>
 
-          {inspectorHost ? (inspectorNode && createPortal(inspectorNode, inspectorHost)) : inspectorNode}
+          {inspectorNode}
         </>
       )}
     </div>

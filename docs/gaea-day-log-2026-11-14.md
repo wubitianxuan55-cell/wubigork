@@ -79,3 +79,37 @@
 - 干净树 exe 直跑冒烟遇策略拦截（在册），一律走装机位：`scripts\smoke.ps1
   -ExePath C:\AI\gaea-app\gaea.exe` → `/api/health` 200（PID 50232 已回收）。
 - 二进制标记：装机 exe `grep -ac GaeaCadOpen` ×3 命中（绑定面在位）。
+
+## 5. 续刀（完善批）：sheet 遗留清退 + 文案归一 + mock 图纸 fixture + mock 实机走查
+
+- **刀A CadPanel 单形态收口**：variant="sheet"/inspectorHost/createPortal
+  （§7.3 外置检查器宿主）三机制清退——右栏一级 Tab 后面板唯一形态=右栏纵向
+  栈；portal.test 删除；cad-panel.css 重写（三态 --pane/--sheet/--inspector-rail
+  并为单一纵向布局，空态卡/分区线/raster 适配收编；原 pane 形态竟是裸排无样式）。
+- **刀B 文案归一**：三 locale 的 home.toolCad/welcome.toolCad 「CAD 看图→CAD
+  图纸」（en 补真翻译 CAD Drawings），home.toolsSub「临时面板→右栏一级标签」，
+  welcome.toolCadDesc 语义改写（右栏直达）；paneTabs 视图 id 注释枚举补
+  cad/schedule。
+- **刀C mock 完善**：mock PickFiles 对纯 CAD 过滤（dwg/dxf/pdf）回 fixture
+  （空过滤/混合过滤仍空返，不污染附件流）——浏览器 mock 可全链演示 CAD 面板。
+- **刀C2 mock 实机走查（vite 5199 + ?mock=1，browser-use）**：欢迎网格 6 卡
+  （CAD 关）→ 管理 Popover 7 行（CAD 开关默认关）→ 开关启用 → 网格出 CAD 卡
+  → 点卡开 Tab → 导入 → mock fixture 装载（JS-01-一层平面图/清晰度 1.00/
+  分幅 raster/文本清单（26）/符号统计按钮）→ 问图纸 → mock 识图答案 → 发到
+  对话 → 对话流收到【图纸问答：plan.dxf｜JS-01——一层平面图】消息；＋下拉
+  菜单 7 项无未启用标注（cad 已启用）；进度计划 Tab 同开，横道图/质量体检/
+  完整工作台渲染正常，与既有文件/交付 tab 并存。截图存档。
+- **坑 6：浏览器 dev 不带 ?mock=1 时 bridge 走 HTTP RPC**（/api/rpc 404 假象
+  ——「打开图纸失败：RPC 请求失败: 404」），mock 走查必须 ?mock=1。
+- **坑 7：IAB locator 在高频重渲页面上 actionability 检查反复失败**（count()=1
+  但 click 超时，force 也不达），改 playwright.evaluate 直驱点击+断言后走查
+  顺利完成；会话 pane 快照回灌（关 tab 后自动还原）使 welcome 态需经快照
+  清 tab 才能到达。
+- **并发纪律新实践：locale 三文件混有 DSH 在途改动**，提交用 git diff 按
+  hunk 过滤（marker=toolCad/toolsSub/右栏/right-panel tab）+ `git apply
+  --cached --recount` 只暂存本刀 2 hunks/文件（MM 态），DSH hunks 原样留树。
+- 门禁：tsc 绿；定向 9 文件 92 例绿（cadOpen/workspaceTabs/sidebarRegistry/
+  paneTabs/App.palette/cad 全套/mock contract）；ESLint 0。
+- 装机：提交 2f5aa8e3（10 文件 +86/−242）干净工作树重建（pnpm 20.6s/Vite
+  38.24s/wails 1m），装机位 exe sha256 96C46474…（build 11/14 01:24:34）=
+  工作树产物，smoke /api/health 200（PID 14820 已回收），工作树已回收。
