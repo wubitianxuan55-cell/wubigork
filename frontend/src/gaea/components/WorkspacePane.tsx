@@ -34,7 +34,7 @@ export function WorkspacePane({
   onActiveViewChange,
 }: {
   context: WorkspacePanelContext;
-  /** 视图级计数角标（tasks=运行中、deliverables=新产物）；0/缺省不显示。 */
+  /** 视图级计数角标（deliverables=新产物）；0/缺省不显示。 */
   badges?: Partial<Record<WorkspaceTabId, number>>;
   /** 激活视图变化通知（App 用于角标已读/命令面板重排等）。 */
   onActiveViewChange?: (viewId: WorkspaceTabId | null) => void;

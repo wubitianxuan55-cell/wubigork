@@ -77,10 +77,21 @@ import { Fleet } from "./Fleet";
 describe("Fleet 编队页", () => {
   it("摘要条：Agent 数=1+子代理、运行中、任务数、家族消息数", async () => {
     renderT(<Fleet />);
+    expect(screen.getByTestId("fleet-hero")).toBeTruthy();
     const summary = screen.getByTestId("fleet-summary");
     expect(summary.textContent).toContain("4"); // 1 root + 3 subagents
     // 家族事件流异步到达（.then 微任务）
     await waitFor(() => expect(summary.textContent).toContain("5"));
+  });
+
+  it("布局对齐 dsh-context MissionPulse：左网络、右协作/任务、底部事件检查", async () => {
+    renderT(<Fleet />);
+    const main = screen.getByTestId("fleet-main");
+    expect(main.children).toHaveLength(2);
+    expect(main.children[0].querySelector('[data-testid="agent-topology"]')).toBeTruthy();
+    expect(main.children[1].querySelector('[data-testid="fleet-lanes"]')).toBeTruthy();
+    expect(main.children[1].querySelector('[data-testid="fleet-tasks"]')).toBeTruthy();
+    expect(screen.getByTestId("fleet-events")).toBeTruthy();
   });
 
   it("泳道：父代理道 + 每子代理一道", () => {
@@ -105,6 +116,14 @@ describe("Fleet 编队页", () => {
     await waitFor(() => expect(ev.querySelectorAll("li").length).toBe(5));
   });
 
+  it("点击事件后右侧检查面板展示完整记录", async () => {
+    renderT(<Fleet />);
+    const ev = await screen.findByTestId("fleet-events");
+    const row = ev.querySelector('[data-event-key="main-dispatch-2"]') as HTMLElement;
+    fireEvent.click(row);
+    expect(ev.querySelector(".fleet-event-detail-text")?.textContent).toContain("task");
+  });
+
 });
 
 // 刀11：成员卡树——每 Agent 卡（角色徽标/费用/任务/消息计数）+点击联动
@@ -116,7 +135,7 @@ describe("Fleet 成员卡（刀11，1:1 上游 Fleet 成员卡）", () => {
     expect(members).toBeTruthy();
     // 主控卡：main 在前，角色徽标+费用
     expect(screen.getByTestId("fleet-member-main")).toBeTruthy();
-    expect(screen.getByText("主控")).toBeTruthy();
+    expect(screen.getAllByText("主控").length).toBeGreaterThan(0);
     expect(screen.getByText(/0\.42/)).toBeTruthy();
     // 子 Agent 卡回报计数
     expect(screen.getByTestId("fleet-member-sa_1")).toBeTruthy();

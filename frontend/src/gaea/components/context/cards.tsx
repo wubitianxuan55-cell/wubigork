@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components -- 纯展示卡与格式化助手同文件（对齐 ContextView 收敛模式） */
 import { useT, type Translator } from "../../lib/i18n";
 import "./context-view.css";
-import { Clock, Coins, MessageSquare, type Icon } from "../../icons";
+import { BarChart3, Clock, Coins, MessageSquare, type Icon } from "../../icons";
 import type { ReactNode } from "react";
 // cards.tsx — dsh-context 头部仪表卡移植（对齐 dsh-context 插件 StatsCard/TokenCard/
 // TimingCard/SessionInfoCard/SummaryBar 信息架构，套用 gaea 星枢皮肤）。
@@ -189,10 +189,10 @@ export function StatsCard({ stats, nodes, files, commands, family, timings, onTo
   let userCount = 0;
   for (const n of nodes) if (n.cat === "user") userCount++;
   const ioChips = [
-    { label: "User", n: userCount, onClick: undefined },
-    { label: "Read", n: reads, onClick: onIOClick ? () => onIOClick("read") : undefined },
-    { label: "Write", n: writes, onClick: onIOClick ? () => onIOClick("write") : undefined },
-    { label: "Image", n: stats.images, onClick: undefined },
+    { label: "User", n: userCount, color: "var(--accent)", onClick: undefined },
+    { label: "Read", n: reads, color: "var(--info)", onClick: onIOClick ? () => onIOClick("read") : undefined },
+    { label: "Write", n: writes, color: "var(--ok)", onClick: onIOClick ? () => onIOClick("write") : undefined },
+    { label: "Image", n: stats.images, color: "var(--warn)", onClick: undefined },
   ];
   // 工具调用 chips（结果节点聚合 top5）
   const toolTally = new Map<string, number>();
@@ -209,76 +209,84 @@ export function StatsCard({ stats, nodes, files, commands, family, timings, onTo
   }
   const progChips = [...progTally.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   const progMore = Math.max(0, progChips.length - 5);
-  const chip = (label: string, n: number, onClick?: () => void) =>
+  const chipColors = ["var(--info)", "var(--ok)", "var(--warn)", "var(--accent)", "var(--md-sys-color-tertiary)"];
+  const chip = (label: string, n: number, onClick?: () => void, color = "var(--md-sys-color-outline)") =>
     onClick ? (
       <button key={label} type="button" onClick={onClick} title={label} className="inline-flex cursor-pointer items-center gap-1 rounded border-0 bg-bg-soft px-1.5 py-px text-[10px] text-fg-dim hover:text-fg">
-        <span aria-hidden className="h-1.5 w-1.5 rounded-sm" style={{ background: "var(--md-sys-color-outline, #9e9e9e)" }} />
+        <span aria-hidden className="h-1.5 w-1.5 rounded-sm" style={{ background: color }} />
         {label} <b className="font-mono text-fg">{n}</b>
       </button>
     ) : (
       <span key={label} className="inline-flex items-center gap-1 rounded bg-bg-soft px-1.5 py-px text-[10px] text-fg-dim">
-        <span aria-hidden className="h-1.5 w-1.5 rounded-sm" style={{ background: "var(--md-sys-color-outline, #9e9e9e)" }} />
+        <span aria-hidden className="h-1.5 w-1.5 rounded-sm" style={{ background: color }} />
         {label} <b className="font-mono text-fg">{n}</b>
       </span>
     );
   return (
     <div data-testid="stats-kpi-grid" className="ctx-card p-3">
-      <div className="grid grid-cols-2 gap-2 min-[1100px]:grid-cols-4">
-        {tiles.map((c) => (
-          <div key={c.key} className="ctx-tile" data-testid={`stat-tile-${c.key}`}>
-            <span className="truncate text-[10px] font-medium leading-none text-fg-faint">{c.label}</span>
-            <span className="mt-0.5 truncate font-mono text-[15px] font-semibold leading-tight tabular-nums text-fg">
-              {c.value}
+      <CardHead title={t("contextview.statsTitle")} icon={BarChart3} />
+      <div className="ctx-stats-ledger mt-2">
+        <div className="ctx-core-grid">
+          {tiles.map((c) => (
+            <div key={c.key} className="ctx-tile" data-testid={`stat-tile-${c.key}`}>
+              <span className="truncate text-[10px] font-medium leading-none text-fg-faint">{c.label}</span>
+              <span className="mt-0.5 truncate font-mono text-[15px] font-semibold leading-tight tabular-nums text-fg">
+                {c.value}
+              </span>
+            </div>
+          ))}
+          <div className="ctx-core-events" data-testid="stat-events">
+            <span className="text-[10px] font-medium text-fg-faint">{t("contextview.eventsTitle")}</span>
+            <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 font-mono text-[10.5px] tabular-nums">
+              {evLine.map((e) => (
+                <span key={e.label} className={e.n > 0 ? e.cls : "text-fg-faint"}>
+                  {e.label} <b>{e.n}</b>
+                </span>
+              ))}
             </span>
           </div>
-        ))}
-      </div>
-      <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border-soft/60 pt-2 text-[10.5px]">
-        <span className="shrink-0 text-fg-dim">{t("contextview.eventsTitle")}</span>
-        {evLine.map((e) => (
-          <span key={e.label} className="font-mono tabular-nums">
-            <span className={e.n > 0 ? e.cls : "text-fg-faint"}>{e.label} {e.n}</span>
-          </span>
-        ))}
-      </div>
-      <StatChipRow label={t("contextview.ioRow")} total={userCount + reads + writes}>
-        {ioChips.map((c) => chip(c.label, c.n, c.onClick))}
-      </StatChipRow>
-      <StatChipRow label={t("contextview.statToolCallsRow")} total={stats.toolCalls}>
-        {toolChips.slice(0, 5).map(([name, n]) => chip(name, n, onToolPick ? () => onToolPick(name) : undefined))}
-        {toolMore > 0 && <span className="text-[10px] text-fg-faint">+{toolMore} {t("contextview.moreChips")}</span>}
-      </StatChipRow>
-      <StatChipRow label={t("contextview.cmdRow")} total={commands.length}>
-        {progChips.slice(0, 5).map(([name, n]) => chip(name, n))}
-        {progMore > 0 && <span className="text-[10px] text-fg-faint">+{progMore} {t("contextview.moreChips")}</span>}
-      </StatChipRow>
-      {family && (family.rootTokens > 0 || family.subTokens > 0) && (
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border-soft/60 pt-2 text-[10.5px]">
-          <span className="shrink-0 text-fg-dim">{t("contextview.fleetRow")}</span>
-          <span className="font-mono tabular-nums text-fg">
-            {t("contextview.fleetTotal")} {fmtTokens(family.rootTokens + family.subTokens)}
-            {(family.rootCost != null && family.subCost != null) && ` / ¥${(family.rootCost + family.subCost).toFixed(2)}`}
-          </span>
-          <span className="font-mono tabular-nums text-fg-dim">
-            {t("contextview.fleetCurrent")} {fmtTokens(family.rootTokens)}
-            {family.rootCost != null && ` / ¥${family.rootCost.toFixed(2)}`}
-          </span>
-          {family.subCount > 0 && (
-            <span className="font-mono tabular-nums text-fg-dim">
-              {t("contextview.fleetSubsN", { n: family.subCount })} {fmtTokens(family.subTokens)}
-              {family.subCost != null && ` / ¥${family.subCost.toFixed(2)}`}
-            </span>
-          )}
         </div>
-      )}
+        <StatChipRow className="ctx-stat-row-io" label={t("contextview.ioRow")} total={userCount + reads + writes}>
+          {ioChips.map((c) => chip(c.label, c.n, c.onClick, c.color))}
+        </StatChipRow>
+        <StatChipRow className="ctx-stat-row-tools" label={t("contextview.statToolCallsRow")} total={stats.toolCalls}>
+          {toolChips.slice(0, 5).map(([name, n], i) =>
+            chip(name, n, onToolPick ? () => onToolPick(name) : undefined, chipColors[i % chipColors.length]),
+          )}
+          {toolMore > 0 && <span className="text-[10px] text-fg-faint">+{toolMore} {t("contextview.moreChips")}</span>}
+        </StatChipRow>
+        <StatChipRow className="ctx-stat-row-commands" label={t("contextview.cmdRow")} total={commands.length}>
+          {progChips.slice(0, 5).map(([name, n], i) => chip(name, n, undefined, chipColors[i % chipColors.length]))}
+          {progMore > 0 && <span className="text-[10px] text-fg-faint">+{progMore} {t("contextview.moreChips")}</span>}
+        </StatChipRow>
+        {family && (family.rootTokens > 0 || family.subTokens > 0) && (
+          <div className="ctx-fleet-summary">
+            <span className="shrink-0 text-[11px] font-semibold text-fg">{t("contextview.fleetRow")}</span>
+            <span className="font-mono tabular-nums text-fg">
+              {t("contextview.fleetTotal")} {fmtTokens(family.rootTokens + family.subTokens)}
+              {(family.rootCost != null && family.subCost != null) && ` / ¥${(family.rootCost + family.subCost).toFixed(2)}`}
+            </span>
+            <span className="font-mono tabular-nums text-fg-dim">
+              {t("contextview.fleetCurrent")} {fmtTokens(family.rootTokens)}
+              {family.rootCost != null && ` / ¥${family.rootCost.toFixed(2)}`}
+            </span>
+            {family.subCount > 0 && (
+              <span className="font-mono tabular-nums text-fg-dim">
+                {t("contextview.fleetSubsN", { n: family.subCount })} {fmtTokens(family.subTokens)}
+                {family.subCost != null && ` / ¥${family.subCost.toFixed(2)}`}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-function StatChipRow({ label, total, children }: { label: string; total: number; children: React.ReactNode }) {
+function StatChipRow({ label, total, children, className = "" }: { label: string; total: number; children: React.ReactNode; className?: string }) {
   return (
-    <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[10.5px]">
-      <span className="w-28 shrink-0 text-fg-dim">{label}</span>
+    <div className={`ctx-stat-row flex flex-wrap items-center gap-2 text-[10.5px] ${className}`}>
+      <span className="w-24 shrink-0 font-semibold text-fg">{label}</span>
       <b className="shrink-0 font-mono tabular-nums text-fg">{total}</b>
       <span className="flex min-w-0 flex-wrap items-center gap-1">{children}</span>
     </div>
@@ -547,7 +555,7 @@ export function TimingCard({ timing }: { timing?: ContextTiming }) {
             {TIMING_EMPTY_ROWS.map((r) => (
               <li key={r.label} className="flex items-center gap-1.5">
                 <Dot color={r.color} />
-                <span className="shrink-0 text-fg-dim">{r.label}</span>
+                <span className="shrink-0 text-fg-dim">{t(r.label as DictKey)}</span>
                 <span className="ml-auto font-mono tabular-nums text-fg-faint">—</span>
               </li>
             ))}

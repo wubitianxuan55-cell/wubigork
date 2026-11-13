@@ -714,7 +714,7 @@ function EventsList({ events }: { events: ContextEvent[] }) {
     });
   };
   return (
-    <div className="ctx-card p-3">
+    <div className="ctx-card p-3 ctx-events-card">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           <span className="ctx-head-ic" aria-hidden>
@@ -722,28 +722,28 @@ function EventsList({ events }: { events: ContextEvent[] }) {
           </span>
           <span className="text-[12.5px] font-semibold text-fg">{t("contextview.eventsTitle")}</span>
         </div>
-        <div className="flex items-center gap-1 text-[11px]">
+        <div className="ctx-kind-filters flex items-center gap-1 text-[11px]">
           {EVENT_KINDS.map((k) => {
             const on = kinds.includes(k);
             return (
               <button
                 key={k}
                 aria-pressed={on}
-                className={`rounded-md border-0 px-2 py-1 cursor-pointer transition-colors duration-150 ${
-                  on ? "bg-accent/15 text-accent" : "text-fg-faint hover:text-fg"
-                }`}
+                data-kind={k}
+                className="ctx-kind-filter"
                 onClick={() => toggle(k)}
               >{t(EVENT_LABEL[k])}<span className="ml-1 tabular-nums">{countOf(k)}</span></button>
             );
           })}
         </div>
       </div>
-      <div className="mt-1.5 flex max-h-44 flex-col gap-1 overflow-y-auto pr-0.5">
+      <div className="ctx-events-list mt-1.5 flex max-h-44 flex-col gap-1 overflow-y-auto pr-0.5">
         {shown.length === 0 && <div className="text-[11px] text-fg-faint py-2">{t("contextview.noEvents")}</div>}
         {listed.map((e) => (
-          <div key={`${e.kind}-${e.seq}`} className="ctx-row flex items-center gap-1.5 text-[11.5px]">
-            <span className={`shrink-0 px-1 rounded text-[10px] ${e.kind === "compact" ? "bg-warning/15 text-warning" : e.kind === "prune" ? "bg-err/15 text-err" : "bg-accent/10 text-accent"}`}>
-              {e.delta != null && e.delta < 0 ? "" : "+"}{t(EVENT_LABEL[e.kind])}
+          <div key={`${e.kind}-${e.seq}`} className="ctx-event-row" data-kind={e.kind}>
+            <span className="ctx-event-sign" aria-hidden>{e.delta != null && e.delta < 0 ? "−" : "+"}</span>
+            <span className="ctx-event-kind">
+              {t(EVENT_LABEL[e.kind])}
             </span>
             {/* 刀13：注入源形态分类 chip（1:1 上游 form 细分；无标签旧格式不渲染） */}
             {e.kind === "inject" && e.form && (
@@ -751,13 +751,14 @@ function EventsList({ events }: { events: ContextEvent[] }) {
                 {t(`contextview.injectForm.${e.form}` as DictKey)}
               </span>
             )}
-            <span className="truncate text-fg-dim">{e.source || "—"}</span>
-            <span className="ml-auto shrink-0 text-fg-faint tabular-nums font-mono">
-              {t("contextview.turnStep", { turn: e.turn, step: e.step })}
+            <span className="ctx-event-label">{e.source || "—"}</span>
+            <span className="ctx-event-meta">T{e.turn} S{e.step}</span>
+            <span className="ctx-event-delta" data-sign={(e.delta ?? 0) >= 0 ? "up" : "down"}>
               {e.delta != null && e.delta !== 0
-                ? ` ${e.delta > 0 ? "+" : "-"}${fmtTokens(Math.abs(e.delta))}`
+                ? `${e.delta > 0 ? "+" : "-"}${fmtTokens(Math.abs(e.delta))}`
                 : ""}
             </span>
+            <span className="ctx-event-time">{new Date(e.ts * 1000).toLocaleTimeString()}</span>
           </div>
         ))}
         {hidden > 0 && (
@@ -784,7 +785,7 @@ export function ContextView({
   fetchTimeline,
   fetchNodeDetail,
   spaceOverride,
-  showAgentNetwork = true,
+  showAgentNetwork = false,
   onViewSubagentContext,
 }: {
   running: boolean;
@@ -832,6 +833,10 @@ export function ContextView({
   const [net, setNet] = useState<AgentNetwork | null>(null);
   // 家族用量聚合（1:1 上游 Context Stats 编队费用行；会话切换加载一次）
   const [familyTotals, setFamilyTotals] = useState<FamilyTotalsView | null>(null);
+  // dsh-context 的 main row 用左侧「当前上下文 + 趋势」高度钳制右侧浏览器：
+  // 两列等高，浏览器滚动区不把左侧卡片拉长。ResizeObserver 只量左列卡片。
+  const mainLeftRef = useRef<HTMLDivElement | null>(null);
+  const [browserCap, setBrowserCap] = useState<number | null>(null);
   // 1:1 上游 chips 联动：工具 chip 点击 → 浏览器按该工具过滤（再点同 chip 清除）
   const [browserToolFilter, setBrowserToolFilter] = useState<string | null>(null);
   // Agent 网络：订阅共享 store（按 UI 会话读取，v4.181）；running 时
@@ -849,6 +854,25 @@ export function ContextView({
       .catch(() => {});
     return () => { alive = false; };
   }, [sessionPath, showAgentNetwork]);
+  useEffect(() => {
+    const column = mainLeftRef.current;
+    if (!column) return;
+    const measure = () => {
+      const cards = Array.from(column.children)
+        .map((el) => el.getBoundingClientRect())
+        .filter((rect) => rect.height > 0);
+      const first = cards[0];
+      const last = cards[cards.length - 1];
+      const span = first && last ? last.bottom - first.top : 0;
+      setBrowserCap(span > 0 ? Math.ceil(span) : null);
+    };
+    measure();
+    if (typeof ResizeObserver !== "function") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(column);
+    for (const child of Array.from(column.children)) observer.observe(child);
+    return () => observer.disconnect();
+  }, [timeline]);
   const sessionName = useMemo(() => {
     if (sessionNameProp) return sessionNameProp;
     if (!sessionPath) return "—";
@@ -906,16 +930,18 @@ export function ContextView({
     timeline.events.length === 0 &&
     timeline.nodes.length === 0 &&
     timeline.files.length === 0;
-
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto p-3">
+    <div
+      data-testid="context-cockpit"
+      className="ctx-cockpit flex h-full min-h-0 flex-col gap-2 overflow-y-auto px-2.5 py-2"
+    >
       {error && (
         <div className="shrink-0 rounded-lg border border-err/30 bg-del-bg px-3 py-2 text-[11px] text-err">
           {t("contextview.loadFail", { msg: error })}
         </div>
       )}
       {!error && isEmpty && (
-        <>
+        <div className="grid grid-cols-1 gap-2 min-[900px]:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
           <CurrentContextCard used={catTotal(timeline.current)} window={timeline.window} current={timeline.current} compact={timeline.compact} />
           <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border-soft bg-bg px-6 py-10 text-center">
             <span className="text-[12px] font-medium text-fg">{t("contextview.empty")}</span>
@@ -923,101 +949,124 @@ export function ContextView({
               {t("contextview.emptyHint")}
             </span>
           </div>
-        </>
+        </div>
       )}
       {!error && !isEmpty && (
         <>
-          {/* 行1：当前上下文 hero（v4.412 提位——「用了多少」是第一问，进页即答；
-              与空态头部一致，窗口未知时百分比诚实「—」） */}
-          <CurrentContextCard used={catTotal(timeline.current)} window={timeline.window} current={timeline.current} compact={timeline.compact} />
-          {/* 行2：趋势卡（master-detail 单元——请求详情内联卡内，点柱/悬停联动；
-              focus=Token 卡锚点，仅定位+强调） */}
-          <ContextTrendChart
-            requests={timeline.requests}
-            events={timeline.events}
-            onPick={setPicked}
-            granularity={granularity}
-            onGranularity={setGranularity}
-            detail={picked ? (
-              <StepDetail
-                record={picked}
-                window={timeline.window}
-                onJump={jumpToNode}
-                stepsInTurn={timeline.requests.filter((r) => r.turn === picked.turn).length}
-                turnMode={granularity === "turn"}
+          {/* dsh-context contextView：lc-cols.lc-head = StatsContext + 右侧信息列。 */}
+          <div className="ctx-cols ctx-head-row" data-context-row="summary">
+            <div className="ctx-col ctx-col-stats">
+              <StatsCard
+                stats={timeline.stats}
+                nodes={timeline.nodes}
+                files={timeline.files}
+                commands={timeline.commands}
+                family={familyTotals}
+                timings={timeline.timing}
+                onToolPick={(tool) => {
+                  setBrowserToolFilter((cur) => (cur === tool ? null : tool));
+                  requestAnimationFrame(() => {
+                    document.querySelector('[data-testid="ctx-browser"]')?.scrollIntoView({ block: "center" });
+                  });
+                }}
+                onIOClick={() => {
+                  requestAnimationFrame(() => {
+                    document.querySelector('[data-testid="ctx-files"]')?.scrollIntoView({ block: "center" });
+                  });
+                }}
               />
-            ) : null}
-            focus={trendFocus}
-          />
-          {/* 行3：三大仪表卡（Token 卡带「查看趋势」入口 → 行2 趋势卡锚点） */}
-          <div className="grid grid-cols-1 gap-3 min-[1100px]:grid-cols-3">
+            </div>
+            <div className="ctx-col ctx-col-session">
+              <SessionInfoCard
+                sessionName={sessionName}
+                space={space}
+                model={model || t("contextview.estimateModel")}
+                window={timeline.window}
+                requests={timeline.requests.length}
+              />
+              <SummaryBar
+                sessionName={sessionName}
+                used={catTotal(timeline.current)}
+                window={timeline.window}
+                requests={timeline.requests}
+                costEstimate={timeline.stats.costEstimate}
+                rate={timeline.rate}
+              />
+            </div>
+          </div>
+
+          {/* dsh-context contextView：Token / 耗时各占 lc-head 的一半。 */}
+          <div className="ctx-cols ctx-instruments-row" data-context-row="instruments">
             <TokenCard requests={timeline.requests} current={timeline.current} stats={timeline.stats} onViewTrend={jumpToTrend} />
             <TimingCard timing={timeline.timing} />
-            <SessionInfoCard
-              sessionName={sessionName}
-              space={space}
-              model={model || t("contextview.estimateModel")}
-              window={timeline.window}
-              requests={timeline.requests.length}
-            />
           </div>
-          {/* 行4：上下文浏览器 + 事件流（探索/审计相邻） */}
-          <div className="grid grid-cols-1 gap-3 min-[1100px]:grid-cols-[2fr_3fr]">
-            <ContextBrowserTree
-              nodes={timeline.nodes}
-              archive={timeline.archive}
-              focus={focusNode}
-              sessionPath={sessionPath}
-              fetchNodeDetail={fetchNodeDetail}
-              toolFilter={browserToolFilter}
-            />
+
+          {/* dsh-context contextView：左列 CurrentComposition + Trend，
+              右列 ContextBrowser；浏览器最大高度跟随左列卡片总高度。 */}
+          <div className="ctx-cols ctx-main-row" data-context-row="main">
+            <div ref={mainLeftRef} className="ctx-col">
+              <CurrentContextCard
+                used={catTotal(timeline.current)}
+                window={timeline.window}
+                current={timeline.current}
+                compact={timeline.compact}
+              />
+              <ContextTrendChart
+                requests={timeline.requests}
+                events={timeline.events}
+                onPick={setPicked}
+                granularity={granularity}
+                onGranularity={setGranularity}
+                detail={picked ? (
+                  <StepDetail
+                    record={picked}
+                    window={timeline.window}
+                    onJump={jumpToNode}
+                    stepsInTurn={timeline.requests.filter((r) => r.turn === picked.turn).length}
+                    turnMode={granularity === "turn"}
+                  />
+                ) : null}
+                focus={trendFocus}
+              />
+            </div>
+            <div
+              className="ctx-col ctx-col-browser"
+              style={browserCap !== null ? { maxHeight: browserCap } : undefined}
+            >
+              <ContextBrowserTree
+                nodes={timeline.nodes}
+                archive={timeline.archive}
+                focus={focusNode}
+                sessionPath={sessionPath}
+                fetchNodeDetail={fetchNodeDetail}
+                toolFilter={browserToolFilter}
+              />
+            </div>
+          </div>
+
+          {/* dsh-context contextView：事件 / 文件活动并排。 */}
+          <div className="ctx-cols ctx-audit-row" data-context-row="audit">
             <EventsList events={timeline.events} />
-          </div>
-          {/* 行5：文件活动 + Agent 网络径向图（后者条件渲染；两者皆在时并排） */}
-          <div className={`grid grid-cols-1 gap-3 ${net ? "min-[1100px]:grid-cols-2" : ""}`}>
             <FileActivityTree files={timeline.files} sessionPath={sessionPath} fetchNodeDetail={fetchNodeDetail} />
-            {net && (
+          </div>
+
+          {/* 命令面板独立整行；Agent 图保留 gaea 能力，置于主栅格之后。 */}
+          {timeline.commands.length > 0 && (
+            <div className="ctx-cols" data-context-row="commands">
+              <CommandsCard commands={timeline.commands} stats={timeline.commandStats} />
+            </div>
+          )}
+          {net && (
+            <div className="ctx-cols" data-context-row="agent-network">
               <AgentRadial
                 network={net}
                 running={running}
                 sessionPath={sessionPath}
                 onViewContext={onViewSubagentContext}
               />
-            )}
-          </div>
-          {/* 行5.5 命令执行卡（v4.542 刀4：bash 推导生命周期；无命令不渲染） */}
-          {timeline.commands.length > 0 && (
-            <CommandsCard commands={timeline.commands} stats={timeline.commandStats} />
+            </div>
           )}
-          {/* 行6：8 个统计小卡（v4.412 下移——纯计数/审计口径，非第一眼信息） */}
-          <StatsCard
-              stats={timeline.stats}
-              nodes={timeline.nodes}
-              files={timeline.files}
-              commands={timeline.commands}
-              family={familyTotals}
-              timings={timeline.timing}
-              onToolPick={(tool) => {
-                setBrowserToolFilter((cur) => (cur === tool ? null : tool));
-                requestAnimationFrame(() => {
-                  document.querySelector('[data-testid="ctx-browser"]')?.scrollIntoView({ block: "center" });
-                });
-              }}
-              onIOClick={() => {
-                requestAnimationFrame(() => {
-                  document.querySelector('[data-testid="ctx-files"]')?.scrollIntoView({ block: "center" });
-                });
-              }}
-            />
-          {/* 底部会话汇总条 + 估算口径 */}
-          <SummaryBar
-            sessionName={sessionName}
-            used={catTotal(timeline.current)}
-            window={timeline.window}
-            requests={timeline.requests}
-            costEstimate={timeline.stats.costEstimate}
-            rate={timeline.rate}
-          />
+          {/* 底部只看估算口径；会话汇总并入顶部右列，对应源码 PluginInfo/RecomCard 两卡列。 */}
           <div className="text-[9.5px] leading-relaxed text-fg-faint">{t("contextview.estimateNote")}</div>
         </>
       )}

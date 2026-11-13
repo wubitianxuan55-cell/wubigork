@@ -2,7 +2,7 @@
 // 文本/排队/键盘/高度状态 + 跨 hook 装配；菜单/附件/工作区逻辑见 gaea/hooks/，
 // 纯展示组件见 components/composer/。
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, ClipboardEvent, DragEvent, KeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
+import type { CSSProperties, ClipboardEvent, DragEvent, KeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { useT } from "../lib/i18n";
 import { clearLayoutSize, loadOptionalLayoutSize, saveLayoutSize } from "../lib/layoutPreferences";
 import { applyTableConversion, detectTableBlock } from "../lib/tableData";
@@ -52,7 +52,7 @@ function loadComposerHeight(): number | null {
 }
 
 export function Composer({
-  running, cwd, onSend, onSteer, onCancel, permLevel, onSetPermLevel, thinkLevel, onSetThinkLevel, onPickFolder, disabled, planActive, onTogglePlan, onQueueDrop, onOpenTool,
+  running, cwd, onSend, onSteer, onCancel, permLevel, onSetPermLevel, thinkLevel, onSetThinkLevel, onPickFolder, disabled, planActive, onTogglePlan, onQueueDrop, onOpenTool, contextStatus,
 }: {
   running: boolean; cwd?: string;
   onSend: (displayText: string, submitText?: string) => void;
@@ -61,6 +61,8 @@ export function Composer({
   thinkLevel?: string; onSetThinkLevel?: (level: "fast" | "normal" | "deep") => void;
   /** 计划模式（v4.420）：状态由 App 层从计划回执推导，点击走动词链 */
   planActive?: boolean; onTogglePlan?: () => void;
+  /** 会话上下文使用状态；由宿主注入，统一落在输入卡底部工具栏内。 */
+  contextStatus?: ReactNode;
   onPickFolder: (path?: string) => Promise<string>; disabled?: boolean;
   /** 打开办公工具面板（CAD 看图/进度计划）；不是右栏 Tab，是临时 ToolSheet。 */
   onOpenTool?: (tool: "cad" | "schedule") => void;
@@ -542,6 +544,7 @@ export function Composer({
           onSetThinkLevel={onSetThinkLevel}
           planActive={planActive}
           onTogglePlan={onTogglePlan}
+          contextStatus={contextStatus}
         />
       </div>
 

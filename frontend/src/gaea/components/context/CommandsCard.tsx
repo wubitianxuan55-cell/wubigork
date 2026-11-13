@@ -9,8 +9,10 @@ import type { ContextCommandRecord, ContextCommandStats } from "../../lib/types/
 import type { Translator } from "../../lib/i18n";
 
 type CmdStatus = ContextCommandRecord["status"];
+type CmdFilter = "all" | "failed" | "slow" | "background";
+type CmdSort = "latest" | "slowest";
 
-const STATUS_ORDER: CmdStatus[] = ["completed", "failed", "killed"];
+const SLOW_MS = 10_000;
 
 // STATUS_LABEL：不用 i18n（状态词与 dsh/终端语义对齐，mono 展示）。
 const STATUS_COLOR: Record<CmdStatus, string> = {
@@ -30,13 +32,18 @@ function commandProgram(cmd: string): string {
   return "other";
 }
 
+function durationOf(record: ContextCommandRecord): number {
+  return record.end != null && record.end > record.start ? (record.end - record.start) * 1000 : 0;
+}
+
 export function CommandsCard({ commands, stats }: {
   commands: ContextCommandRecord[];
   stats?: ContextCommandStats;
 }) {
   const t = useT();
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<CmdStatus | null>(null);
+  const [filter, setFilter] = useState<CmdFilter>("all");
+  const [sort, setSort] = useState<CmdSort>("latest");
   const [pickedProgram, setPickedProgram] = useState<string | null>(null);
 
   const programs = useMemo(() => {
@@ -48,112 +55,216 @@ export function CommandsCard({ commands, stats }: {
     return [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 8);
   }, [commands]);
 
-  const filtered = useMemo(() => {
+  const searched = useMemo(() => {
     const q = query.trim().toLowerCase();
     return commands.filter((c) => {
-      if (statusFilter && c.status !== statusFilter) return false;
       if (pickedProgram && commandProgram(c.cmd ?? "") !== pickedProgram) return false;
       if (q && !(c.cmd ?? "").toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [commands, query, statusFilter, pickedProgram]);
+  }, [commands, query, pickedProgram]);
+  const counts = useMemo(() => ({
+    all: searched.length,
+    failed: searched.filter((c) => c.status === "failed").length,
+    slow: searched.filter((c) => durationOf(c) >= SLOW_MS).length,
+    background: searched.filter((c) => c.background === true).length,
+  }), [searched]);
+  const filtered = useMemo(() => {
+    const selected = searched.filter((c) => {
+      if (filter === "failed") return c.status === "failed";
+      if (filter === "slow") return durationOf(c) >= SLOW_MS;
+      if (filter === "background") return c.background === true;
+      return true;
+    });
+    return selected.slice().sort((a, b) => (
+      sort === "slowest"
+        ? durationOf(b) - durationOf(a) || b.time - a.time
+        : b.time - a.time
+    ));
+  }, [filter, searched, sort]);
+  const tally = useMemo(() => ({
+    runs: stats?.runs ?? commands.length,
+    failed: stats?.failed ?? commands.filter((c) => c.status === "failed").length,
+    ms: stats?.ms ?? commands.reduce((sum, c) => sum + durationOf(c), 0),
+    bg: stats?.bg ?? commands.filter((c) => c.background === true).length,
+  }), [commands, stats]);
+  const slowest = useMemo(
+    () => commands.reduce<ContextCommandRecord | null>(
+      (best, c) => (best === null || durationOf(c) > durationOf(best) ? c : best),
+      null,
+    ),
+    [commands],
+  );
+  const repeated = useMemo(() => {
+    const byCommand = new Map<string, number>();
+    for (const command of commands) {
+      const text = (command.cmd ?? "").trim();
+      if (text) byCommand.set(text, (byCommand.get(text) ?? 0) + 1);
+    }
+    return [...byCommand.entries()].sort((a, b) => b[1] - a[1])[0] ?? null;
+  }, [commands]);
 
   if (commands.length === 0) return null;
 
   return (
-    <section className="ctx-card p-3" data-testid="ctx-commands">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[12.5px] font-semibold text-fg">{t("contextview.cmdTitle")}</span>
-        {stats && (
-          <span className="flex items-center gap-1.5 font-mono text-[10.5px] text-fg-dim">
-            <span data-testid="ctx-cmd-runs">{t("contextview.cmdRuns", { n: stats.runs })}</span>
-            {stats.failed > 0 && <span style={{ color: STATUS_COLOR.failed }}>{t("contextview.cmdFailed", { n: stats.failed })}</span>}
-            {(stats.bg ?? 0) > 0 && <span>{t("contextview.cmdBg", { n: stats.bg ?? 0 })}</span>}
-            {!!stats.ms && stats.ms > 0 && <span title={t("contextview.cmdMsNote")}>{fmtDuration(stats.ms, t)}</span>}
-          </span>
-        )}
-        <span className="ml-auto flex items-center gap-1">
-          {(["all", ...STATUS_ORDER] as const).map((s) => (
+    <section className="ctx-card p-3 ctx-cmd-card" data-testid="ctx-commands">
+      <div className="ctx-cmd-head">
+        <span className="ctx-card-title-text">{t("contextview.cmdTitle")}</span>
+        <div className="ctx-cmd-filters" role="group" aria-label={t("contextview.cmdTitle")}>
+          {(["all", "failed", "slow", "background"] as const).map((key) => (
             <button
-              key={s}
+              key={key}
               type="button"
-              onClick={() => setStatusFilter(s === "all" ? null : s)}
-              data-testid={`ctx-cmd-status-${s}`}
-              className={`rounded border-0 px-1.5 py-0.5 text-[10.5px] cursor-pointer ${
-                (s === "all" ? statusFilter === null : statusFilter === s) ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"
-              }`}
+              aria-pressed={filter === key}
+              data-testid={`ctx-cmd-status-${key}`}
+              data-tone={key}
+              className="ctx-cmd-filter"
+              onClick={() => setFilter((cur) => (cur === key ? "all" : key))}
             >
-              {s === "all" ? t("contextview.cmdAll") : s}
+              {key === "all" ? t("contextview.cmdAll") : t(`contextview.cmdFilter${key[0].toUpperCase()}${key.slice(1)}` as Parameters<Translator>[0])}
+              <b>{counts[key]}</b>
             </button>
           ))}
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t("contextview.cmdSearch")}
-            data-testid="ctx-cmd-search"
-            className="w-36 rounded border border-border-soft bg-transparent px-1.5 py-0.5 text-[10.5px] text-fg placeholder:text-fg-faint focus:outline-none focus:ring-1 focus:ring-accent/40"
-          />
-        </span>
+        </div>
       </div>
-      {/* 程序分布（全局口径，不随筛选收窄——dsh 同款；点击回填搜索+高亮） */}
-      <div className="mt-1.5 flex flex-wrap items-center gap-1">
-        <span className="text-[10px] text-fg-faint">{t("contextview.cmdPrograms")}</span>
-        {programs.map(([name, n]) => (
-          <button
-            key={name}
-            type="button"
-            onClick={() => setPickedProgram((cur) => (cur === name ? null : name))}
-            data-picked={pickedProgram === name || undefined}
-            className={`cursor-pointer rounded-full border-0 px-1.5 py-px font-mono text-[10px] ${
-              pickedProgram === name ? "bg-accent/20 text-accent" : "bg-bg-soft text-fg-dim hover:text-fg"
-            }`}
-            title={`${name} ×${n}`}
-          >
-            {name} <span className="opacity-70">×{n}</span>
-          </button>
-        ))}
+      <div className="ctx-cmd-body">
+        <aside className="ctx-cmd-rail">
+          <section className="ctx-cmd-rail-section">
+            <h3 className="ctx-cmd-rail-title">{t("contextview.cmdSummary")}</h3>
+            <div className="ctx-cmd-kpis">
+              <button type="button" className="ctx-cmd-kpi" onClick={() => setFilter("all")}>
+                <b>{tally.runs}</b><span>{t("contextview.cmdRunCount")}</span>
+              </button>
+              <button type="button" className="ctx-cmd-kpi" onClick={() => setFilter("all")} title={t("contextview.cmdMsNote")}>
+                <b>{fmtDuration(tally.ms, t)}</b><span>{t("contextview.cmdTotalTime")}</span>
+              </button>
+              <button type="button" className="ctx-cmd-kpi" data-tone="failed" onClick={() => setFilter("failed")}>
+                <b>{tally.failed}</b><span>{t("contextview.cmdFilterFailed")}</span>
+              </button>
+              <button type="button" className="ctx-cmd-kpi" data-tone="background" onClick={() => setFilter("background")}>
+                <b>{tally.bg}</b><span>{t("contextview.cmdFilterBackground")}</span>
+              </button>
+            </div>
+          </section>
+          {(slowest || (repeated && repeated[1] > 1)) && (
+            <section className="ctx-cmd-rail-section">
+              <h3 className="ctx-cmd-rail-title">{t("contextview.cmdAttention")}</h3>
+              <div className="ctx-cmd-attention">
+                {slowest && durationOf(slowest) > 0 && (
+                  <button type="button" onClick={() => { setFilter("slow"); setSort("slowest"); }} title={slowest.cmd}>
+                    <i data-tone="slow" />
+                    <span>{t("contextview.cmdSlowest")}</span>
+                    <em>{slowest.cmd || "—"}</em>
+                    <b>{fmtDuration(durationOf(slowest), t)}</b>
+                  </button>
+                )}
+                {repeated && repeated[1] > 1 && (
+                  <button type="button" onClick={() => setQuery(repeated[0])} title={repeated[0]}>
+                    <i data-tone="repeat" />
+                    <span>{t("contextview.cmdRepeats")}</span>
+                    <em>{repeated[0]}</em>
+                    <b>×{repeated[1]}</b>
+                  </button>
+                )}
+              </div>
+            </section>
+          )}
+          <section className="ctx-cmd-rail-section ctx-cmd-programs">
+            <h3 className="ctx-cmd-rail-title">
+              <span>{t("contextview.cmdProgramsN", { n: programs.length })}</span>
+            </h3>
+            <div className="ctx-cmd-programs-list">
+              {programs.map(([name, n], index) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => {
+                    const next = pickedProgram === name ? null : name;
+                    setPickedProgram(next);
+                    setQuery(next ?? "");
+                  }}
+                  data-picked={pickedProgram === name || undefined}
+                  className="ctx-cmd-program"
+                  title={`${name} ×${n}`}
+                >
+                  <i data-rank={Math.min(index, 4)} />
+                  <span>{name}</span>
+                  <b>×{n}</b>
+                </button>
+              ))}
+            </div>
+          </section>
+        </aside>
+        <div className="ctx-cmd-main">
+          <div className="ctx-cmd-controls">
+            <input
+              value={query}
+              onChange={(event) => {
+                setPickedProgram(null);
+                setQuery(event.target.value);
+              }}
+              placeholder={t("contextview.cmdSearch")}
+              aria-label={t("contextview.cmdSearch")}
+              data-testid="ctx-cmd-search"
+              className="ctx-cmd-search"
+            />
+            <div className="ctx-cmd-sort" role="group">
+              {(["latest", "slowest"] as const).map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={sort === key}
+                  onClick={() => setSort(key)}
+                >
+                  {key === "latest" ? t("contextview.cmdSortLatest") : t("contextview.cmdSortSlowest")}
+                </button>
+              ))}
+            </div>
+          </div>
+          <ul className="ctx-cmd-list" data-testid="ctx-commands-list">
+            {filtered.map((c, index) => (
+              <CommandRow key={c.seq} c={c} t={t} striped={index % 2 === 1} />
+            ))}
+            {filtered.length === 0 && (
+              <li className="ctx-cmd-empty">{t("contextview.cmdNone")}</li>
+            )}
+          </ul>
+        </div>
       </div>
-      <ul className="m-0 mt-1.5 max-h-64 list-none overflow-y-auto p-0" data-testid="ctx-commands-list">
-        {filtered.map((c) => (
-          <CommandRow key={c.seq} c={c} t={t} />
-        ))}
-        {filtered.length === 0 && (
-          <li className="py-3 text-center text-[11px] text-fg-dim">{t("contextview.cmdNone")}</li>
-        )}
-      </ul>
     </section>
   );
 }
 
-function CommandRow({ c, t }: { c: ContextCommandRecord; t: Translator }) {
-  const dur = c.end != null && c.end > c.start ? (c.end - c.start) * 1000 : 0;
+function CommandRow({ c, t, striped }: { c: ContextCommandRecord; t: Translator; striped: boolean }) {
+  const dur = durationOf(c);
   return (
-    <li className="ctx-row flex items-start gap-1.5 px-2 py-1.5 text-[10px]">
+    <li className={`ctx-cmd-row${striped ? " ctx-cmd-row-alt" : ""}`}>
+      <span className="ctx-cmd-row-state" data-status={c.status} aria-hidden>{c.status === "completed" ? "✓" : c.status === "failed" ? "✕" : "!"}</span>
       <span
-        className="mt-1 h-2 w-2 shrink-0 rounded-full"
+        className="ctx-cmd-dot"
         style={{ background: STATUS_COLOR[c.status] }}
         title={c.status}
         data-testid={`ctx-cmd-dot-${c.status}`}
       />
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="font-mono text-fg">{t("contextview.cmdTurnStep", { turn: c.turn, step: c.step })}</span>
+        <div className="ctx-cmd-row-main">
+          <span className="ctx-cmd-stamp">{t("contextview.cmdTurnStep", { turn: c.turn, step: c.step })}</span>
           {c.background && (
-            <span className="rounded bg-bg-soft px-1 font-mono text-[9.5px] text-fg-dim" title="run_in_background">bg</span>
+            <span className="ctx-cmd-badge" title="run_in_background">bg</span>
           )}
           {c.exit != null && c.exit !== 0 && (
-            <span className="font-mono" style={{ color: STATUS_COLOR.failed }} title={t("contextview.cmdExitNote")}>exit {c.exit}</span>
+            <span className="ctx-cmd-exit" title={t("contextview.cmdExitNote")}>exit {c.exit}</span>
           )}
           {c.truncated && <span className="text-warning">{t("contextview.detailClamped")}</span>}
-          <span className="ml-auto font-mono tabular-nums text-fg-dim">
+          <span className="ctx-cmd-duration">
             {dur > 0 ? fmtDuration(dur, t) : (c.status === "killed" ? "—" : "")}
           </span>
         </div>
-        <div className="mt-0.5 break-all font-mono text-fg-dim" title={c.cmd}>
+        <div className="ctx-cmd-command" title={c.cmd}>
           {c.cmd || "—"}
         </div>
         {c.err && (
-          <div className="mt-0.5 font-mono" style={{ color: STATUS_COLOR.failed }}>✗ error</div>
+          <div className="ctx-cmd-error">✗ error</div>
         )}
       </div>
     </li>

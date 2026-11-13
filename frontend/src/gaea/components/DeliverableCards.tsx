@@ -19,9 +19,9 @@ import {
 import type { JournalChangeRecord } from "../lib/types";
 import { useUpdatedFilesStore } from "../lib/store";
 import { openPaneFileOrPreview } from "../lib/paneFileOpen";
+import { fileBadge, fileCardKind } from "../lib/fileCard";
 import { useT } from "../lib/i18n";
 import { useToast } from "./Toast";
-import { FileThumb } from "./FileThumb";
 
 function extOf(path: string): string {
   const m = /\.[^.\\/]+$/.exec(path);
@@ -108,31 +108,13 @@ export const DeliverableCards = memo(function DeliverableCards({ text, turnNo, m
   };
 
   return (
-    <div className="mt-2 flex flex-col gap-1" aria-label={t("deliver.title")}>
-      <div className="flex items-center gap-1.5 select-none">
-        <span className="text-[10px] uppercase tracking-wider font-medium" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-          {t("deliver.title")}
-        </span>
-        <span
-          className="rounded-full px-1.5 py-px text-[9px] font-mono leading-none"
-          style={{
-            color: "var(--md-sys-color-text-secondary)",
-            border: "1px solid var(--md-sys-color-outline-variant)",
-          }}
-        >
-          {cards.length}
-        </span>
-      </div>
-      {/* 统一卡片容器：细边框 + 行分隔线（Codex 文件卡语言），整卡一个圆角 */}
-      <div
-        className="flex flex-col overflow-hidden rounded-lg"
-        style={{
-          border: "1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 60%, transparent)",
-          background: "color-mix(in srgb, var(--md-sys-color-surface-container) 40%, transparent)",
-        }}
-      >
-        {cards.map(({ path, from }, idx) => {
-          const ext = extOf(path);
+    <section className="office-deliverables" aria-label={`${t("deliver.title")} · ${cards.length}`}>
+      {/* 灵犀成果卡不显示标题栏；保留读屏摘要，避免文件列表失去语义。 */}
+      <span className="sr-only">{t("deliver.title")}</span>
+      <span className="sr-only">{cards.length}</span>
+      <div className="office-deliverables__grid">
+        {cards.map(({ path, from }) => {
+          const kind = fileCardKind(path);
           const updated = updatedAt[path] != null;
           // 缺失态：登记-only 且已确认文件不存在（登记 = 派发即登记，写失败
           // 不回剔）→ 整行灰色淡化 +「未生成」徽标；正文卡不做缺失判定。
@@ -146,96 +128,65 @@ export const DeliverableCards = memo(function DeliverableCards({ text, turnNo, m
           return (
             <div
               key={path}
-              className="group flex items-center gap-2.5 px-2.5 py-2 transition-colors duration-150 hover:bg-(color:--md-sys-color-surface-container-high)"
+              className="office-file-card group"
+              data-kind={kind}
+              data-missing={isMissing ? "true" : undefined}
+              data-testid="deliverable-card"
               style={{
                 opacity: isMissing ? 0.55 : undefined,
-                borderTop: idx > 0 ? "1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 45%, transparent)" : undefined,
               }}
             >
-              <span
-                className="shrink-0 w-8 h-8 rounded-md flex items-center justify-center overflow-hidden"
-                style={{
-                  background: "color-mix(in srgb, var(--gaea-glow) 10%, transparent)",
-                  color: "var(--gaea-glow)",
-                  border: "1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 60%, transparent)",
-                  filter: isMissing ? "grayscale(1)" : undefined,
-                }}
-              >
-                <FileThumb path={path} ext={ext} imgClassName="w-8 h-8 object-cover rounded-md" />
-              </span>
               <button
                 type="button"
                 onClick={() => openPaneFileOrPreview(path)}
-                title={t("msg.clickPreview", { path })}
-                className="min-w-0 flex-1 text-left cursor-pointer rounded-md px-1 py-0.5 -mx-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(color:--gaea-glow)/40"
+                title={`${t("msg.clickPreview", { path })}\n${path}`}
+                aria-label={`${baseName(path)} — ${path}`}
+                className="office-file-card__open"
               >
-                <span className="flex items-center gap-1.5 min-w-0">
-                  <span className="truncate text-[13px] font-medium leading-tight" style={{ color: "var(--md-sys-color-text)" }}>
-                    {baseName(path)}
-                  </span>
-                  {updated && (
-                    <span
-                      className="shrink-0 rounded-full px-1.5 py-px text-[9px] leading-none"
-                      style={{
-                        color: "var(--md-sys-color-success)",
-                        background: "color-mix(in srgb, var(--md-sys-color-success) 12%, transparent)",
-                        border: "1px solid color-mix(in srgb, var(--md-sys-color-success) 32%, transparent)",
-                      }}
-                    >
-                      {t("deliver.updated")}
-                    </span>
-                  )}
-                  {/* U2 草稿/就绪徽标：与 VersionTimeline 头部同一判定函数、同一
-                      胶囊语言（草稿=警示色/就绪=成功色）；title 说明判定口径。 */}
-                  {phase === "draft" && (
-                    <span
-                      data-testid="office-turn-phase-draft"
-                      className="shrink-0 rounded-full px-1.5 py-px text-[9px] leading-none"
-                      title={t("officeTurn.phaseDraftTitle")}
-                      style={{
-                        color: "var(--md-sys-color-warning)",
-                        background: "color-mix(in srgb, var(--md-sys-color-warning) 12%, transparent)",
-                        border: "1px solid color-mix(in srgb, var(--md-sys-color-warning) 32%, transparent)",
-                      }}
-                    >
-                      {t("officeTurn.phaseDraft")}
-                    </span>
-                  )}
-                  {phase === "ready" && (
-                    <span
-                      data-testid="office-turn-phase-ready"
-                      className="shrink-0 rounded-full px-1.5 py-px text-[9px] leading-none"
-                      title={t("officeTurn.phaseReadyTitle")}
-                      style={{
-                        color: "var(--md-sys-color-success)",
-                        background: "color-mix(in srgb, var(--md-sys-color-success) 12%, transparent)",
-                        border: "1px solid color-mix(in srgb, var(--md-sys-color-success) 32%, transparent)",
-                      }}
-                    >
-                      {t("officeTurn.phaseReady")}
-                    </span>
-                  )}
-                  {isMissing && (
-                    <span
-                      className="shrink-0 rounded-full px-1.5 py-px text-[9px] leading-none"
-                      style={{
-                        color: "var(--md-sys-color-text-secondary)",
-                        background: "color-mix(in srgb, var(--md-sys-color-outline-variant) 40%, transparent)",
-                        border: "1px solid var(--md-sys-color-outline-variant)",
-                      }}
-                    >
-                      {t("deliver.missing")}
-                    </span>
-                  )}
+                <span className="office-file-card__badge" aria-hidden>
+                  {fileBadge(path, kind)}
                 </span>
-                <span
-                  className="block truncate text-[10.5px] font-mono leading-tight mt-px"
-                  style={{ color: "var(--md-sys-color-text-secondary)" }}
-                >
-                  {path}
+                <span className="office-file-card__copy">
+                  <span className="office-file-card__name">{baseName(path)}</span>
+                  {(updated || phase || isMissing) && (
+                    <span className="office-file-card__meta">
+                      {updated && (
+                        <span className="office-file-card__chip" data-tone="success">
+                          {t("deliver.updated")}
+                        </span>
+                      )}
+                      {/* U2 草稿/就绪徽标：与 VersionTimeline 头部同一判定函数、同一
+                          语义色；title 说明判定口径。 */}
+                      {phase === "draft" && (
+                        <span
+                          data-testid="office-turn-phase-draft"
+                          className="office-file-card__chip"
+                          data-tone="warning"
+                          title={t("officeTurn.phaseDraftTitle")}
+                        >
+                          {t("officeTurn.phaseDraft")}
+                        </span>
+                      )}
+                      {phase === "ready" && (
+                        <span
+                          data-testid="office-turn-phase-ready"
+                          className="office-file-card__chip"
+                          data-tone="success"
+                          title={t("officeTurn.phaseReadyTitle")}
+                        >
+                          {t("officeTurn.phaseReady")}
+                        </span>
+                      )}
+                      {isMissing && (
+                        <span className="office-file-card__chip" data-tone="muted">
+                          {t("deliver.missing")}
+                        </span>
+                      )}
+                    </span>
+                  )}
                 </span>
               </button>
-              <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+              <div className="office-file-card__actions">
                 <button
                   type="button"
                   className={iconBtn}
@@ -268,6 +219,6 @@ export const DeliverableCards = memo(function DeliverableCards({ text, turnNo, m
           );
         })}
       </div>
-    </div>
+    </section>
   );
 });

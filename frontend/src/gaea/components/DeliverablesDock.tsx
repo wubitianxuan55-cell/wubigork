@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, Copy, ExternalLink, FolderTree } from "../icons";
 import { app } from "../lib/bridge";
 import { deliverablePathKey, ensureTurnRegistry, invalidateTurnCaches } from "../lib/deliverablesTurn";
+import { fileBadge, fileCardKind } from "../lib/fileCard";
 import { useUpdatedFilesStore } from "../lib/store";
 import { openPaneFileOrPreview } from "../lib/paneFileOpen";
 import { useToast } from "./Toast";
@@ -15,8 +16,8 @@ import { useT } from "../lib/i18n";
 // 路径去重）；.py 过滤与 DeliverableCards 同口径（脚本属过程件）。
 // 刷新信号：写后 updatedFilesStore.updatedAt + 30s TTL 重拉（registryCache
 // 失效后 ensureTurnRegistry 自然重取）。
-// 默认展开最近 6 条，「更多」展开全部；无条目不占位。整行点击开预览，
-// 悬停外开/定位/复制路径。
+// 默认收起为单行摘要；展开显示最近 6 张紧凑成果卡，「更多」展开全部。
+// 无条目不占位。卡片点击开预览，悬停外开/定位/复制路径。
 
 function extOf(path: string): string {
   const m = /\.[^.\\/]+$/.exec(path);
@@ -36,7 +37,7 @@ export function DeliverablesDock() {
   const t = useT();
   const [entries, setEntries] = useState<{ path: string; tool: string; updatedAt: number }[] | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const [collapsedUI, setCollapsedUI] = useState(false);
+  const [collapsedUI, setCollapsedUI] = useState(true);
 
   const refresh = useCallback(async () => {
     try {
@@ -89,77 +90,64 @@ export function DeliverablesDock() {
   return (
     <div
       data-testid="deliverables-dock"
-      className="mx-2 mb-1 rounded-lg overflow-hidden"
-      style={{
-        border: "1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 55%, transparent)",
-        background: "color-mix(in srgb, var(--md-sys-color-surface-container) 35%, transparent)",
-      }}
+      className="office-delivery-dock"
     >
       <button
         type="button"
-        className="flex items-center gap-1.5 w-full select-none px-3 py-1.5 cursor-pointer hover:bg-(color:--md-sys-color-surface-container-high)/50"
+        className="office-delivery-dock__head"
         onClick={() => setCollapsedUI((v) => !v)}
         aria-expanded={!collapsedUI}
       >
-        <span className="text-[10px] uppercase tracking-wider font-medium" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-          {t("deliver.title")}
-        </span>
-        <span
-          className="rounded-full px-1.5 py-px text-[9px] font-mono leading-none"
-          style={{ color: "var(--md-sys-color-text-secondary)", border: "1px solid var(--md-sys-color-outline-variant)" }}
-        >
-          {entries.length}
-        </span>
         <ChevronRight
           size={12}
-          className={`ml-auto transition-transform ${collapsedUI ? "" : "rotate-90"}`}
-          style={{ color: "var(--md-sys-color-text-secondary)" }}
+          className="office-delivery-dock__chevron"
+          data-open={collapsedUI ? "false" : "true"}
+          aria-hidden
         />
+        <span className="office-delivery-dock__title">
+          {t("deliver.title")}
+        </span>
+        <span className="office-delivery-dock__count">
+          {entries.length}
+        </span>
+        <span className="office-delivery-dock__hint">
+          {collapsedUI ? "点击展开" : "点击收起"}
+        </span>
       </button>
       {!collapsedUI && (
-        <div className="flex flex-col">
-          {visible.map(({ path, updatedAt: at }, idx) => {
+        <div className="office-delivery-dock__body">
+          <div className="office-delivery-dock__grid">
+          {visible.map(({ path }) => {
             const updated = updatedAt[path] != null;
+            const kind = fileCardKind(path);
             return (
               <div
                 key={deliverablePathKey(path)}
-                className="group flex items-center gap-2.5 px-3 py-1.5 transition-colors duration-150 hover:bg-(color:--md-sys-color-surface-container-high)"
-                style={{ borderTop: idx > 0 ? "1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 40%, transparent)" : undefined }}
+                className="office-file-card office-file-card--compact group"
+                data-kind={kind}
               >
                 <button
                   type="button"
                   onClick={() => openPaneFileOrPreview(path)}
-                  title={t("msg.clickPreview", { path })}
-                  className="min-w-0 flex-1 text-left cursor-pointer rounded-md px-1 py-0.5 -mx-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(color:--gaea-glow)/40"
+                  title={`${t("msg.clickPreview", { path })}\n${path}`}
+                  aria-label={`${baseName(path)} — ${path}`}
+                  className="office-file-card__open"
                 >
-                  <span className="flex items-center gap-1.5 min-w-0">
-                    <span className="truncate text-[12.5px] font-medium leading-tight" style={{ color: "var(--md-sys-color-text)" }}>
-                      {baseName(path)}
-                    </span>
+                  <span className="office-file-card__badge" aria-hidden>
+                    {fileBadge(path, kind)}
+                  </span>
+                  <span className="office-file-card__copy">
+                    <span className="office-file-card__name">{baseName(path)}</span>
                     {updated && (
-                      <span
-                        className="shrink-0 rounded-full px-1.5 py-px text-[9px] leading-none"
-                        style={{
-                          color: "var(--md-sys-color-success)",
-                          background: "color-mix(in srgb, var(--md-sys-color-success) 12%, transparent)",
-                          border: "1px solid var(--md-sys-color-success)",
-                        }}
-                      >
-                        {t("deliver.updated")}
+                      <span className="office-file-card__meta">
+                        <span className="office-file-card__chip" data-tone="success">
+                          {t("deliver.updated")}
+                        </span>
                       </span>
                     )}
                   </span>
-                  <span
-                    className="block truncate text-[10px] font-mono leading-tight mt-px"
-                    style={{ color: "var(--md-sys-color-text-secondary)" }}
-                  >
-                    {path}
-                  </span>
                 </button>
-                <span className="shrink-0 text-[10px] text-fg-faint/70 tabular-nums">
-                  {at > 0 ? new Date(at * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}
-                </span>
-                <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+                <div className="office-file-card__actions">
                   <button type="button" className={iconBtn} onClick={() => void copyPath(path)} title={t("deliver.copyPath")} aria-label={t("deliver.copyPath")}>
                     <Copy size={12} />
                   </button>
@@ -173,14 +161,14 @@ export function DeliverablesDock() {
               </div>
             );
           })}
+          </div>
           {hiddenCount > 0 && (
             <button
               type="button"
-              className="px-3 py-1.5 text-[11px] text-left cursor-pointer hover:bg-(color:--md-sys-color-surface-container-high)/50"
-              style={{ color: "var(--md-sys-color-text-secondary)", borderTop: "1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 40%, transparent)" }}
+              className="office-delivery-dock__more"
               onClick={() => setExpanded(true)}
             >
-              … 还有 {hiddenCount} 个（点击展开全部）
+              还有 {hiddenCount} 个成果
             </button>
           )}
         </div>

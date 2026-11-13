@@ -105,7 +105,7 @@ export function RunStatus({ running, turnStartAt, turnTokens, used, window: win 
     pct >= 90 ? "即将强制压缩" : pct >= 75 ? "接近自动压缩" : "";
   const ctxColor = pct >= 90 ? "text-err" : pct >= 75 ? "text-warning" : "text-fg-faint";
   return (
-    <div className="flex items-center justify-between px-4 py-1.5 text-[11px] select-none border-b border-border-soft/50 bg-bg-soft/30">
+    <div className="office-run-status flex items-center justify-between px-4 py-1.5 text-[11px] select-none border-b border-border-soft/50 bg-bg-soft/30">
       <div className="flex items-center gap-2 text-fg-dim tabular-nums font-mono">
         <span className="font-medium">{elapsedStr}</span>
         {tokStr && <span className="text-fg-faint">{tokStr}</span>}

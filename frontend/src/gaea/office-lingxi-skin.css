@@ -16,6 +16,14 @@
 /* 作用域=办公板块对话窗（office-chat-active/empty 两态），不溅射其它板块 */
 .chat-pane.office-chat-active,
 .chat-pane.office-chat-empty {
+  --lx-line: color-mix(in srgb, var(--fg) 7%, transparent);
+  --lx-line-strong: color-mix(in srgb, var(--fg) 12%, transparent);
+  --lx-fill: color-mix(in srgb, var(--fg) 6%, transparent);
+  --lx-fill-strong: color-mix(in srgb, var(--fg) 10%, transparent);
+  --lx-text2: color-mix(in srgb, var(--fg) 72%, transparent);
+  --lx-text3: color-mix(in srgb, var(--fg) 46%, transparent);
+  --lx-icon3: color-mix(in srgb, var(--fg) 46%, transparent);
+  --lx-group: color-mix(in srgb, var(--bg) 60%, var(--container, var(--bg)));
 }
 .chat-pane.office-chat-active .office-process-card, .chat-pane.office-chat-empty .office-process-card,
 .chat-pane.office-chat-active .office-tool-card, .chat-pane.office-chat-empty .office-tool-card {
@@ -66,12 +74,18 @@
   color: var(--lx-text2);
 }
 .office-process-card__status {
-  min-height: 20px;
-  padding: 1px 7px !important;
-  border-radius: 6px !important;
-  font-size: 10.5px !important;
-  font-weight: 500;
+  min-height: 0;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  color: var(--lx-text3) !important;
+  background: transparent !important;
+  font-size: 12px !important;
+  font-weight: 400;
 }
+.office-process-card__status svg { display: none; }
+.office-process-card__status[data-status="error"] { color: var(--err) !important; }
+.office-process-card__status[data-status="stopped"] { color: var(--warn) !important; }
 .office-process-card__chevron { color: var(--lx-text3); }
 .office-process-card[data-compact="true"] .office-process-card__head {
   min-height: 28px; gap: 5px; padding: 3px 8px;
@@ -125,6 +139,9 @@
   color: var(--lx-text2);
 }
 .chat-pane .reasoning__head:hover { background: var(--lx-fill); }
+/* 「思考中」三字不折行（2026-11-13 用户反馈） */
+.chat-pane .reasoning__label { white-space: nowrap; flex-shrink: 0; }
+.chat-pane .reasoning__head { overflow: hidden; }
 .chat-pane .reasoning__body,
 .chat-pane .reasoning__preview {
   color: var(--lx-text2);
@@ -282,4 +299,375 @@
   animation: lx-skeleton 1.4s ease-in-out infinite;
   animation-delay: .2s;
   width: 58%;
+}
+
+/* ── 7. 文件成果卡：灵犀 2 列类型渐变网格（.claw-present-files） ───── */
+.office-deliverables {
+  width: 100%;
+  max-width: 880px;
+  margin-top: 12px;
+  container-type: inline-size;
+}
+.office-deliverables__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.office-file-card {
+  --lx-file-tone: #64748b;
+  --lx-line: color-mix(in srgb, var(--fg) 7%, transparent);
+  --lx-line-strong: color-mix(in srgb, var(--fg) 12%, transparent);
+  --lx-fill: color-mix(in srgb, var(--fg) 6%, transparent);
+  --lx-fill-strong: color-mix(in srgb, var(--fg) 10%, transparent);
+  --lx-text2: color-mix(in srgb, var(--fg) 72%, transparent);
+  --lx-text3: color-mix(in srgb, var(--fg) 46%, transparent);
+  position: relative;
+  min-width: 0;
+  height: 56px;
+  overflow: hidden;
+  border: 1px solid var(--lx-line);
+  border-radius: 12px;
+  background:
+    linear-gradient(97.48deg, color-mix(in srgb, var(--lx-file-tone) 7%, transparent), transparent 46.75%),
+    linear-gradient(94.6deg, transparent 40.33%, color-mix(in srgb, var(--lx-file-tone) 6%, transparent) 112.65%),
+    color-mix(in srgb, var(--bg-elev) 72%, transparent);
+  transition:
+    border-color .2s ease,
+    background-color .2s ease,
+    transform .15s ease;
+}
+.office-file-card[data-kind="word"] { --lx-file-tone: #1f69e0; }
+.office-file-card[data-kind="excel"] { --lx-file-tone: #418f1f; }
+.office-file-card[data-kind="ppt"] { --lx-file-tone: #f5670f; }
+.office-file-card[data-kind="pdf"] { --lx-file-tone: #dc3522; }
+.office-file-card[data-kind="image"] { --lx-file-tone: #1f69e0; }
+.office-file-card[data-kind="html"] { --lx-file-tone: #e87722; }
+.office-file-card[data-kind="markdown"] { --lx-file-tone: #6366f1; }
+.office-file-card[data-kind="txt"] { --lx-file-tone: #64748b; }
+.office-file-card:hover,
+.office-file-card:focus-within {
+  border-color: var(--lx-line-strong);
+}
+.office-file-card:active {
+  transform: scale(.995);
+}
+.office-file-card__open {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 58px 14px 18px;
+  border: 0;
+  border-radius: inherit;
+  color: var(--fg);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.office-file-card__open:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.office-file-card__badge {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: #fff;
+  background: var(--lx-file-tone);
+  font-family: var(--font-ui, var(--sans));
+  font-size: 7px;
+  font-weight: 750;
+  letter-spacing: -.02em;
+  line-height: 1;
+  text-transform: uppercase;
+  user-select: none;
+}
+.office-file-card__copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+.office-file-card__name {
+  overflow: hidden;
+  color: var(--fg);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 22px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.office-file-card:hover .office-file-card__name,
+.office-file-card:focus-within .office-file-card__name {
+  color: var(--fg);
+}
+.office-file-card__meta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+.office-file-card__chip {
+  flex: none;
+  border-radius: 999px;
+  padding: 1px 5px;
+  color: var(--lx-text3);
+  background: var(--lx-fill);
+  font-size: 9px;
+  font-weight: 550;
+  line-height: 12px;
+}
+.office-file-card__chip[data-tone="success"] {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
+}
+.office-file-card__chip[data-tone="warning"] {
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+}
+.office-file-card__actions {
+  position: absolute;
+  top: 50%;
+  right: 7px;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding-left: 22px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--bg-elev) 86%, transparent) 26%);
+  transition: opacity .15s ease;
+}
+.office-file-card:hover .office-file-card__actions,
+.office-file-card:focus-within .office-file-card__actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+.office-file-card__actions button {
+  width: 22px;
+  height: 22px;
+}
+.office-file-card[data-missing="true"] .office-file-card__badge {
+  filter: grayscale(1);
+}
+
+/* ── 8. 输入框上方交付停靠条：与正文成果卡共用同一视觉语言 ─────────── */
+.office-delivery-dock {
+  width: min(880px, 100%);
+  margin: 0 auto 8px;
+  container-type: inline-size;
+}
+.office-delivery-dock__head {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 28px;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--lx-text2);
+  background: transparent;
+  cursor: pointer;
+}
+.office-delivery-dock__head:hover { background: var(--lx-fill); }
+.office-delivery-dock__head:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.office-delivery-dock__chevron {
+  flex: none;
+  color: var(--lx-text3);
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.office-delivery-dock__chevron[data-open="true"] { transform: rotate(90deg); }
+.office-delivery-dock__title {
+  color: var(--lx-text2);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.office-delivery-dock__count {
+  min-width: 16px;
+  padding: 0 5px;
+  border-radius: 999px;
+  color: var(--lx-text3);
+  background: var(--lx-fill);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 9px;
+  line-height: 16px;
+  text-align: center;
+}
+.office-delivery-dock__hint {
+  color: color-mix(in srgb, var(--fg) 34%, transparent);
+  font-size: 10px;
+  white-space: nowrap;
+}
+.office-delivery-dock__body { margin-top: 4px; }
+.office-delivery-dock__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.office-file-card--compact {
+  height: 44px;
+  border-radius: 10px;
+}
+.office-file-card--compact .office-file-card__open {
+  gap: 9px;
+  padding: 8px 48px 8px 12px;
+}
+.office-file-card--compact .office-file-card__badge {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  font-size: 6.5px;
+}
+.office-file-card--compact .office-file-card__copy { gap: 0; }
+.office-file-card--compact .office-file-card__name {
+  font-size: 12.5px;
+  line-height: 18px;
+}
+.office-file-card--compact .office-file-card__meta {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+}
+.office-file-card--compact:hover .office-file-card__meta,
+.office-file-card--compact:focus-within .office-file-card__meta {
+  opacity: 0;
+}
+.office-file-card--compact .office-file-card__actions { right: 5px; }
+.office-delivery-dock__more {
+  display: block;
+  margin: 6px auto 0;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--lx-text3);
+  background: transparent;
+  font-size: 10.5px;
+  cursor: pointer;
+}
+.office-delivery-dock__more:hover {
+  color: var(--fg);
+  background: var(--lx-fill);
+}
+
+/* ── 9. 右侧会话产物面板：沿用成果卡类型色与紧凑操作位 ─────────────── */
+.office-file-card--panel {
+  display: flex;
+  width: 100%;
+  min-height: 54px;
+  height: auto;
+  align-items: center;
+  border-radius: 10px;
+}
+.office-file-card--panel > .office-file-card__badge {
+  margin-left: 12px;
+}
+.office-deliverable-panel__thumb {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  margin-left: 12px;
+  overflow: hidden;
+  border-radius: 4px;
+}
+.office-deliverable-panel__open {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 4px 7px 10px;
+  border: 0;
+  color: var(--fg);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.office-deliverable-panel__open:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: 8px;
+}
+.office-deliverable-panel__title-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+.office-file-card--panel .office-file-card__name {
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 550;
+  line-height: 18px;
+}
+.office-deliverable-panel__path {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--lx-text3);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 9px;
+  line-height: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity var(--dur-fast) ease;
+}
+.office-file-card--panel:hover .office-deliverable-panel__path,
+.office-file-card--panel:focus-within .office-deliverable-panel__path {
+  opacity: 1;
+}
+.office-file-card--panel .office-deliverable-panel__version {
+  margin-right: 5px;
+}
+.office-deliverable-panel__actions {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  right: 5px;
+  max-width: calc(100% - 42px);
+  overflow: hidden;
+  padding-left: 24px;
+  transform: translateY(-50%);
+  background: linear-gradient(90deg, transparent, var(--office-panel) 24%);
+}
+.office-deliverable-panel__actions button {
+  width: 20px;
+  height: 20px;
+}
+.office-file-card--panel[data-fresh="true"] {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--lx-line));
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--accent) 72%, transparent);
+}
+
+@media (max-width: 680px) {
+  .office-deliverables__grid { grid-template-columns: minmax(0, 1fr); }
+  .office-delivery-dock__grid { grid-template-columns: minmax(0, 1fr); }
+  .office-delivery-dock__hint { display: none; }
+}
+@container (max-width: 520px) {
+  .office-deliverables__grid { grid-template-columns: minmax(0, 1fr); }
+  .office-delivery-dock__grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .office-file-card,
+  .office-file-card__actions { transition: none; }
+  .office-file-card:active { transform: none; }
 }

@@ -3,7 +3,7 @@ import { loadTasksAutoOpenSubagent, saveTasksAutoOpenSubagent } from "./tasksPre
 
 // 设置中心「办公工作台偏好」卡入口：为 gaea.tasks.autoOpenSubagent 补 load/save。
 // 2026-09-27 用户拍板「右侧面板启动默认隐藏，不要打开办公板块就打开」：默认由
-// 开改关——读取端（本模块与 App 触发端 useTasksAutoOpen）同口径只认显式开启值
+// 开改关——读取端（本模块与 App 触发端 useFleetAutoOpen）同口径只认显式开启值
 // "1"/"true"，未设置/损坏值一律默认关。
 describe("tasksPrefs 新任务自动切任务视图偏好", () => {
   beforeEach(() => {

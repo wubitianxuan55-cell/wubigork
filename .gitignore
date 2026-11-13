@@ -93,6 +93,7 @@ releases/*.exe
 releases/*/*.exe
 releases/*/*.dll
 releases/*-preview.zip
+releases/*/*-preview.zip
 releases/archive/*.exe
 nul
 .tmp/
@@ -114,6 +115,8 @@ backups/
 gaea-v*.exe
 # P2-3：源码包 tarball 出 VCS（历史提交仍可 checkout 找回；磁盘保留，新包不再入库）
 releases/*-source.tar.gz
+releases/*/*-source.tar.gz
+releases/*/gaea-uncommitted-*.zip
 .audit/
 .acl-recovery/
 # 用户/会话级瞬态沙箱（跑分对比 JSON、走查书架等；发版预检 2026-10-18 曾被 ?? temp/ 挡住）

@@ -4,6 +4,7 @@
 // 弹出层内 chip 的样式/文案/title/onClick 逐字保留（行为零变化，功能零删除），
 // 触发钮文案实时显示当前取值（YOLO 激活时红色高亮，风险状态不藏）。
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { Dropdown } from "antd";
 import { Camera, ChevronDown, ClipboardList, FolderGit2, Gauge, Layers, LineChart, Loader, Paperclip, Wand2, Wrench, Zap } from "../../icons";
 import { useT } from "../../lib/i18n";
@@ -30,6 +31,8 @@ export interface ComposerToolbarProps {
   /** 计划模式开/关（v4.420）：由最近一条计划回执推导，点击经 /plan on|off 动词链翻转 */
   planActive?: boolean
   onTogglePlan?: () => void
+  /** 上下文占用状态；落在输入卡底部工具栏右侧，不再单独占一行。 */
+  contextStatus?: ReactNode
 }
 
 // 徽标/悬浮文案走三语字典（zh 原硬编码文案逐字收编）：键映射在模块层，
@@ -46,7 +49,7 @@ const THINK_DESCS: Record<string, DictKey> = {
 export function ComposerToolbar({
   cwd, workspaceName, workspaceMenuOpen, onToggleWorkspaceMenu, workspaceAnchorRef,
   running, pendingPaste, captureBusy, onPickFiles, onScreenshot, onRecordSkill, onOpenTool,
-  permLevel, onSetPermLevel, thinkLevel, onSetThinkLevel, planActive, onTogglePlan,
+  permLevel, onSetPermLevel, thinkLevel, onSetThinkLevel, planActive, onTogglePlan, contextStatus,
 }: ComposerToolbarProps) {
   const t = useT();
   const [paramsOpen, setParamsOpen] = useState(false);
@@ -250,12 +253,15 @@ export function ComposerToolbar({
         </button>
       </div>
 
-      {/* 快捷提示 */}
-      <span className="office-toolbar-hint ml-auto text-fg-faint/40 text-[10px] select-none hidden sm:inline-flex items-center gap-1.5">
-        <span>{t("composer.hintSlash")}</span>
-        <span>{t("composer.hintAt")}</span>
-        {running && <span className="text-warn/60">{t("composer.hintCorrect")}</span>}
-      </span>
+      {/* 右侧状态区：上下文占用常驻；快捷提示降为低优先级辅助，窄窗先隐藏。 */}
+      <div className="office-toolbar-status ml-auto flex min-w-0 shrink-0 items-center gap-2">
+        {contextStatus && <div className="office-toolbar-context">{contextStatus}</div>}
+        <span className="office-toolbar-hint text-fg-faint/40 text-[10px] select-none hidden sm:inline-flex items-center gap-1.5">
+          <span>{t("composer.hintSlash")}</span>
+          <span>{t("composer.hintAt")}</span>
+          {running && <span className="text-warn/60">{t("composer.hintCorrect")}</span>}
+        </span>
+      </div>
     </div>
   )
 }

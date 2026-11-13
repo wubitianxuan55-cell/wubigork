@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN" theme-mode="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>灵犀文件成果卡 · 样式预览</title>
+<link rel="stylesheet" href="file-card.css">
+<style>
+  html, body { margin: 0; padding: 0; background: #fff; color: var(--kd-color-text-primary);
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif; }
+  html[theme-mode="dark"], html[theme-mode="dark"] body { background: #171717; }
+  main { max-width: 980px; margin: 0 auto; padding: 32px 24px 80px; }
+  h1 { font-size: 18px; font-weight: 600; margin: 0 0 4px; }
+  .sub { font-size: 13px; color: var(--kd-color-text-secondary); margin-bottom: 20px; }
+  h2 { font-size: 13px; font-weight: 600; color: var(--kd-color-text-secondary);
+       margin: 32px 0 10px; letter-spacing: .3px; text-transform: uppercase; }
+  .bar { display: flex; gap: 8px; align-items: center; margin-bottom: 24px; }
+  .bar button { height: 30px; padding: 0 14px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--kd-color-line-regular); background: transparent;
+    color: var(--kd-color-text-primary); font-size: 13px; }
+  .bar button[aria-pressed="true"] { background: var(--kd-color-brand-normal); border-color: transparent; color: #fff; }
+  /* 单卡预览容器：模拟正文流，宽 440 */
+  .flow { width: min(440px, 100%); }
+  /* 图片交付物（含水印按钮） */
+  .shot { position: relative; width: min(440px, 100%); border-radius: 12px; overflow: hidden;
+    border: 1px solid var(--kd-color-line-light); }
+  .shot img { display: block; width: 100%; height: auto; }
+  .rowlabel { font-size: 12px; color: var(--kd-color-text-tertiary); margin: 6px 0 10px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>灵犀 · 文件成果卡</h1>
+  <div class="sub">样式逆向自 lingxi-desktop 1.3.36（webBuild 26b61d0a2d85），纯静态复刻，无任何依赖。</div>
+
+  <div class="bar">
+    <button id="t-light" aria-pressed="true">浅色</button>
+    <button id="t-dark" aria-pressed="false">深色</button>
+  </div>
+
+  <h2>1 · 成果卡网格（.claw-present-files —— 2 列，≤640px 单列）</h2>
+  <section class="claw-present-files">
+    <div class="claw-deliver-result">
+      <div class="claw-file-card-view">
+        <div class="file-card-inline file-card-inline--word" title="sandbox:/home/lingxi/workspace/out/季度复盘.docx">
+          <div class="file-card-inline__icon"><span class="file-card-inline__badge">DOCX</span></div>
+          <div class="file-card-inline__name">季度复盘.docx</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="claw-deliver-result">
+      <div class="claw-file-card-view">
+        <div class="file-card-inline file-card-inline--excel" title="sandbox:/home/lingxi/workspace/out/预算表.xlsx">
+          <div class="file-card-inline__icon"><span class="file-card-inline__badge">XLSX</span></div>
+          <div class="file-card-inline__name">预算表.xlsx</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="claw-deliver-result">
+      <div class="claw-file-card-view">
+        <div class="file-card-inline file-card-inline--ppt" title="https://www.kdocs.cn/l/abcdefghijkl?lingxi_file_name=产品发布会.pptx">
+          <div class="file-card-inline__icon"><span class="file-card-inline__badge">PPTX</span></div>
+          <div class="file-card-inline__name">产品发布会.pptx</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="claw-deliver-result">
+      <div class="claw-file-card-view">
+        <div class="file-card-inline file-card-inline--pdf" title="file:///E:/docs/合同扫描件.pdf">
+          <div class="file-card-inline__icon"><span class="file-card-inline__badge">PDF</span></div>
+          <div class="file-card-inline__name">合同扫描件.pdf</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="claw-deliver-result">
+      <div class="claw-file-card-view">
+        <div class="file-card-inline file-card-inline--markdown" title="sandbox:/home/lingxi/workspace/out/调研笔记.md">
+          <div class="file-card-inline__icon"><span class="file-card-inline__badge">MD</span></div>
+          <div class="file-card-inline__name">调研笔记.md</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="claw-deliver-result">
+      <div class="claw-file-card-view">
+        <div class="file-card-inline file-card-inline--html" title="https://www.kdocs.cn/l/zzzz?lingxi_file_name=看板.html">
+          <div class="file-card-inline__icon"><span class="file-card-inline__badge">HTML</span></div>
+          <div class="file-card-inline__name">看板.html</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="claw-deliver-result">
+      <div class="claw-file-card-view">
+        <div class="file-card-inline file-card-inline--folder" title="sandbox:/home/lingxi/workspace/out/图表/">
+          <div class="file-card-inline__icon">
+            <svg class="file-card-inline__folder-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"
+                    fill="currentColor" fill-opacity=".18" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="file-card-inline__name">图表</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="claw-deliver-result">
+      <div class="claw-file-card-view">
+        <div class="file-card-inline file-card-inline--other" title="sandbox:/home/lingxi/workspace/out/data.zip">
+          <div class="file-card-inline__icon"><span class="file-card-inline__badge">ZIP</span></div>
+          <div class="file-card-inline__name">data.zip</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <h2>2 · 正文内联形态（同一组件，max-width 440 / margin 8px 0）</h2>
+  <div class="flow">
+    <div class="file-card-inline file-card-inline--word" title="sandbox:/home/lingxi/workspace/out/会议纪要.docx">
+      <div class="file-card-inline__icon"><span class="file-card-inline__badge">DOCX</span></div>
+      <div class="file-card-inline__name">会议纪要.docx</div>
+    </div>
+    <div class="file-card-inline file-card-inline--txt" title="sandbox:/home/lingxi/workspace/out/日志.txt">
+      <div class="file-card-inline__icon"><span class="file-card-inline__badge">TXT</span></div>
+      <div class="file-card-inline__name">日志.txt</div>
+    </div>
+  </div>
+
+  <h2>3 · 图片交付物 + 「去除水印」（28×28 → hover 86px 药丸）</h2>
+  <div class="shot">
+    <div class="claw-deliver-result">
+      <svg viewBox="0 0 440 240" width="100%" style="display:block">
+        <defs>
+          <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#1f69e033"/><stop offset="1" stop-color="#418f1f33"/>
+          </linearGradient>
+        </defs>
+        <rect width="440" height="240" fill="url(#g)"/>
+        <text x="220" y="126" text-anchor="middle" font-size="14" fill="#6b6b6b">AI 生成图片占位</text>
+      </svg>
+      <button type="button" class="claw-deliver-result__remove-watermark">
+        <svg class="claw-deliver-result__watermark-delete" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M3 5h10M6.5 5V3.5h3V5M4.5 5l.6 8h5.8l.6-8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>去除水印</span>
+      </button>
+    </div>
+  </div>
+  <div class="rowlabel">hover 按钮看展开动画（transition: width .2s ease, padding .2s ease）</div>
+
+  <h2>4 · 阻断态（.claw-deliver-result--artifact-blocked）</h2>
+  <div class="flow">
+    <div class="claw-deliver-result claw-deliver-result--artifact-blocked" aria-disabled="true">
+      <div class="claw-file-card-view">
+        <div class="file-card-inline file-card-inline--pdf" title="sandbox:/home/lingxi/workspace/out/机密.pdf">
+          <div class="file-card-inline__icon"><span class="file-card-inline__badge">PDF</span></div>
+          <div class="file-card-inline__name">机密.pdf（不可打开）</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>5 · 长文件名省略</h2>
+  <div class="flow">
+    <div class="file-card-inline file-card-inline--excel"
+         title="sandbox:/home/lingxi/workspace/out/2026年度华东大区渠道返利与结算明细汇总表（终版）.xlsx">
+      <div class="file-card-inline__icon"><span class="file-card-inline__badge">XLSX</span></div>
+      <div class="file-card-inline__name">2026年度华东大区渠道返利与结算明细汇总表（终版）.xlsx</div>
+    </div>
+  </div>
+</main>
+
+<script>
+  const html = document.documentElement;
+  const lb = document.getElementById('t-light');
+  const db = document.getElementById('t-dark');
+  function setMode(mode) {
+    html.setAttribute('theme-mode', mode);
+    lb.setAttribute('aria-pressed', String(mode === 'light'));
+    db.setAttribute('aria-pressed', String(mode === 'dark'));
+  }
+  lb.addEventListener('click', () => setMode('light'));
+  db.addEventListener('click', () => setMode('dark'));
+  if (location.hash === '#dark') setMode('dark');
+  else if (location.hash === '#light') setMode('light');
+  else if (matchMedia('(prefers-color-scheme: dark)').matches) setMode('dark');
+</script>
+</body>
+</html>

@@ -1,0 +1,288 @@
+.agent-topology {
+  display: flex;
+  min-height: 413px;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.agent-topology-head {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.agent-topology-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg);
+  font-size: 12px;
+  font-weight: 620;
+  white-space: nowrap;
+}
+
+.agent-topology-title > svg {
+  color: var(--fleet-violet, var(--info));
+}
+
+.agent-topology-sub {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg-faint);
+  font-size: 9.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-topology-meta {
+  color: var(--fg-faint);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.agent-topology-scroll {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 18px 10px 10px;
+}
+
+.agent-topology-branch {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-direction: column;
+}
+
+.agent-topology-card {
+  position: relative;
+  display: flex;
+  width: 184px;
+  min-width: 0;
+  flex: none;
+  flex-direction: column;
+  gap: 4px;
+  padding: 7px 9px;
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  color: var(--fg);
+  background:
+    linear-gradient(118deg, color-mix(in srgb, var(--fleet-cyan, var(--info)) 5%, transparent), transparent 58%),
+    var(--bg-elev, var(--md-sys-color-surface-container));
+  font: inherit;
+  text-align: left;
+  box-shadow: none;
+}
+
+.agent-topology-branch.is-root > .agent-topology-card {
+  width: 216px;
+  border-color: color-mix(in srgb, var(--fleet-cyan, var(--info)) 46%, var(--border-soft));
+}
+
+.agent-topology-card.is-interactive {
+  cursor: pointer;
+  transition: border-color 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+}
+
+.agent-topology-card.is-interactive:hover {
+  border-color: color-mix(in srgb, var(--fleet-violet, var(--info)) 50%, var(--border-soft));
+  box-shadow: 0 3px 12px color-mix(in srgb, var(--fg) 8%, transparent);
+  transform: translateY(-1px);
+}
+
+.agent-topology-card[data-status="running"] {
+  border-color: color-mix(in srgb, var(--fleet-cyan, var(--info)) 55%, var(--border-soft));
+}
+
+.agent-topology-card[data-status="error"] {
+  border-color: color-mix(in srgb, var(--err) 55%, var(--border-soft));
+}
+
+.agent-topology-card-top {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+}
+
+.agent-topology-role {
+  padding: 0 5px;
+  border-radius: 4px;
+  color: var(--fleet-cyan, var(--info));
+  background: color-mix(in srgb, var(--fleet-cyan, var(--info)) 10%, transparent);
+  font-size: 8.5px;
+  font-weight: 650;
+}
+
+.agent-topology-branch:not(.is-root) .agent-topology-role {
+  color: var(--fg-dim);
+  background: color-mix(in srgb, var(--fg) 6%, transparent);
+}
+
+.agent-topology-status {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  color: var(--fg-faint);
+  font-size: 8.5px;
+  white-space: nowrap;
+}
+
+.agent-topology-status i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+.agent-topology-status[data-status="running"] i {
+  background: var(--fleet-cyan, var(--info));
+  animation: agent-topology-pulse 1.6s ease-in-out infinite;
+}
+
+.agent-topology-status[data-status="error"] i {
+  background: var(--err);
+}
+
+@keyframes agent-topology-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.agent-topology-name {
+  overflow: hidden;
+  color: var(--fg);
+  font-size: 10.5px;
+  font-weight: 620;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-topology-metrics {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 2px 7px;
+  color: var(--fg-faint);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 8.5px;
+  line-height: 1.35;
+}
+
+.agent-topology-metrics span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-topology-meter {
+  position: relative;
+  display: flex;
+  height: 9px;
+  align-items: center;
+  overflow: hidden;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--fg) 6%, transparent);
+}
+
+.agent-topology-meter > i {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--fleet-cyan, var(--info)), var(--fleet-violet, var(--info)));
+}
+
+.agent-topology-meter > b {
+  position: absolute;
+  right: 3px;
+  color: var(--fg-dim);
+  font-size: 7px;
+  font-weight: 600;
+}
+
+.agent-topology-descend {
+  position: relative;
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 17px;
+}
+
+.agent-topology-stem {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 1px;
+  height: 17px;
+  background: color-mix(in srgb, var(--fg) 20%, transparent);
+}
+
+.agent-topology-children {
+  position: relative;
+  display: flex;
+  width: max-content;
+  max-width: 100%;
+  justify-content: center;
+  gap: 24px;
+  padding-top: 17px;
+}
+
+.agent-topology-children::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 92px;
+  left: 92px;
+  height: 1px;
+  background: color-mix(in srgb, var(--fg) 20%, transparent);
+}
+
+.agent-topology-child {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.agent-topology-child::before {
+  content: "";
+  position: absolute;
+  top: -17px;
+  left: 50%;
+  width: 1px;
+  height: 17px;
+  background: color-mix(in srgb, var(--fg) 20%, transparent);
+}
+
+.agent-topology-card:focus-visible {
+  outline: 2px solid var(--fleet-cyan, var(--info));
+  outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+  .agent-topology-head {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .agent-topology-sub {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-topology-status i,
+  .agent-topology-card {
+    animation: none;
+    transition: none;
+  }
+}

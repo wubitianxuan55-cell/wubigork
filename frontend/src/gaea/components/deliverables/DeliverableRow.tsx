@@ -6,6 +6,7 @@ import { AlertCircle, CheckCircle, Coins, Copy, ExternalLink, FileText, FolderTr
 import { app } from "../../lib/bridge";
 import type { JournalChangeRecord } from "../../lib/types";
 import type { DeliverableAcceptance } from "../../lib/deliverableStatus";
+import { fileBadge, fileCardKind } from "../../lib/fileCard";
 import { normalizeVersionPath } from "../../lib/versionTimeline";
 import { useT } from "../../lib/i18n";
 import { FileThumb } from "../FileThumb";
@@ -39,6 +40,7 @@ export function DeliverableRow({
   const t = useT();
   const { path, turn, versions } = item;
   const ext = extOf(path);
+  const kind = fileCardKind(path);
   // v4.28 B1：时间线展开 key 用归一化路径（与 JournalList target 对齐）
   const normPath = normalizeVersionPath(path);
   // v4.28 B1：vN 次数徽标——versions>1 才显示次数（>1 显示版本徽标与步进器）。
@@ -60,28 +62,27 @@ export function DeliverableRow({
   return (
     <Fragment>
       <div
-        className="group flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors duration-150 hover:bg-(color:--md-sys-color-surface-container-high)"
+        className="office-file-card office-file-card--panel group"
+        data-kind={kind}
         data-fresh={fresh ? "true" : undefined}
-        style={fresh ? { background: "color-mix(in srgb, var(--md-sys-color-primary) 10%, transparent)" } : undefined}
       >
-        <span
-          className="shrink-0 w-8 h-8 rounded-md flex items-center justify-center overflow-hidden"
-          style={{
-            background: "color-mix(in srgb, var(--gaea-glow) 10%, transparent)",
-            color: "var(--gaea-glow)",
-            border: "1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 60%, transparent)",
-          }}
-        >
-          <FileThumb path={path} ext={ext} imgClassName="w-8 h-8 object-cover rounded-md" />
-        </span>
+        {kind === "image" ? (
+          <span className="office-deliverable-panel__thumb" aria-hidden>
+            <FileThumb path={path} ext={ext} imgClassName="w-6 h-6 object-cover rounded-[4px]" />
+          </span>
+        ) : (
+          <span className="office-file-card__badge" aria-hidden>
+            {fileBadge(path, kind)}
+          </span>
+        )}
         <button
           type="button"
           onClick={() => onOpen(path)}
           title={t("msg.clickPreview", { path })}
-          className="min-w-0 flex-1 text-left cursor-pointer"
+          className="office-deliverable-panel__open"
         >
-          <span className="flex items-center gap-1">
-            <span className="truncate text-[12px] font-medium leading-tight" style={{ color: "var(--md-sys-color-text)" }}>
+          <span className="office-deliverable-panel__title-row">
+            <span className="office-file-card__name">
               {baseName(path)}
             </span>
             {fresh && (
@@ -142,7 +143,7 @@ export function DeliverableRow({
               </span>
             )}
           </span>
-          <span className="block truncate text-[10px] font-mono leading-tight transition-opacity duration-150 group-hover:opacity-100 opacity-0" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+          <span className="office-deliverable-panel__path">
             {path}
           </span>
         </button>
@@ -160,7 +161,7 @@ export function DeliverableRow({
             aria-expanded={timelineOpen}
             title={badgeTitle}
             aria-label={t("deliverPanel.timelineAria", { name: baseName(path) })}
-            className="shrink-0 inline-flex cursor-pointer items-center gap-0.5 rounded-full px-1.5 py-px text-[9px] leading-none font-mono transition-colors"
+            className="office-deliverable-panel__version shrink-0 inline-flex cursor-pointer items-center gap-0.5 rounded-full px-1.5 py-px text-[9px] leading-none font-mono transition-colors"
             style={{
               color: "var(--md-sys-color-primary)",
               background: timelineOpen
@@ -173,7 +174,7 @@ export function DeliverableRow({
             {rev ? `v${rev}` : t("deliverPanel.versionsBadge")}
           </button>
         )}
-        <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+        <div className="office-deliverable-panel__actions shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
           {turn != null && onLocateSource && (
             <button
               type="button"

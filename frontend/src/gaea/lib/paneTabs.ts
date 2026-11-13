@@ -25,7 +25,7 @@ export interface PaneTab {
   id: string;
   /** 视图 tab / 文件 tab。 */
   kind: "view" | "file";
-  /** kind=view 时的视图 id（files | deliverables | tasks | browser）。 */
+  /** kind=view 时的视图 id（files | deliverables | browser | git | ui）。 */
   viewId?: string;
   /** kind=file 时的文件相对路径。 */
   path?: string;

@@ -4,6 +4,9 @@
 
 | 状态 | 任务 |
 |------|------|
+| ✅ | **DSH Context / Fleet UX 对齐**（2026-11-13，代码候选）：按 dsh-context v0.84.1 源码重排上下文页、命令/文件/事件卡；输入框仅对话显示；Agent 网络迁编队并改卡片拓扑；右栏任务 Tab 与旧持久化链路退役；相关 161 例、tsc、ESLint、前端生产构建与亮暗 mock 走查通过 |
+| ✅ | **灵犀输出 UI batch3**（2026-11-13，代码候选）：办公交付物改为 2 列灵犀文件成果卡；ContextPill 并入输入卡底栏；新会话空首页隐藏停靠条并改 GAEA 同行标题；输入框同底悬浮；停靠条/右侧产物面板统一类型卡；定向 53+19+15+50 例、ESLint、构建与浅暗主题走查通过 |
+| ✅ | **batch3 桌面构建**（2026-11-13）：完整 Wails 绑定构建成功（1m23.122s），三 DLL 同目录，exe SHA256 `52D605F2…6B965`，正式路径冒烟 200；未装机 |
 | ✅ | DSH-better-sidebar Go 增量复刻 F1：文件工作台 Go 权威层、17 个 Wails 绑定、文件树 CRUD/多选/上传/ZIP/watch、文本 CAS/编码保持/分页、tab 调解、mock 与测试；随 `f49ea150` 提交并进入预览包 |
 | ✅ | 建立长期迭代交接档 `docs/gaea-better-sidebar-go-iteration-2026-11.md`，同步 AGENTS 入口、docs 索引、progress 与 todos |
 | ✅ | F0：`f49ea150` 功能提交 + 独立干净工作树构建（Vite 20.38s / Wails 50.158s）+ 正式路径冒烟 200 + 预览 ZIP/源码 TAR/哈希/包记录/记忆更新 |

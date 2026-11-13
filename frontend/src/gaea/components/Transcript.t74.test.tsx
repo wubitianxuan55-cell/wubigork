@@ -107,7 +107,7 @@ describe("TurnBlock 轮级 memo（T7-4）", () => {
   });
 
   // v4.505：todo_write 不进过程卡——待办有专属面板（useTodoExtractor →
-  // TasksWorkbench 待办区），外部项渲染线同款过滤；纯 todo_write 段不空壳出卡。
+  // 任务待办区），外部项渲染线同款过滤；纯 todo_write 段不空壳出卡。
   it("todo_write 不进过程卡：卡体无该卡、计数只含真实工具", () => {
     const toolMock = vi.mocked(ToolCardModule.ToolCard);
     toolMock.mockClear();

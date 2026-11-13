@@ -48,7 +48,7 @@ describe("paneTabs 右栏 pane tab 状态机（对标 better-sidebar）", () => 
   it("再次开同一视图 → 去重聚焦，不新增 tab", () => {
     const api = usePaneTabsStore.getState();
     api.openView("files", "文件");
-    api.openView("tasks", "任务");
+    api.openView("browser", "浏览器");
     api.openView("files", "文件");
     const s = usePaneTabsStore.getState();
     expect(s.tabs).toHaveLength(2);

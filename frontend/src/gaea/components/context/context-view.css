@@ -1,13 +1,109 @@
-/* context-view.css — 上下文页卡片语言（v4.71 卡片化）
+/* context-view.css — 上下文页观测台卡片语言
  *
- * 规划（自研，不逐像素复刻外部插件）：
- *  - 页面底色 = surface（最低层）；每个独立信息单元抬高一整级 surface：
- *      · ctx-tile  = 统计小卡（8 个统计项各自成卡）
- *      · ctx-card  = 区块大卡（Token/耗时/会话/趋势/事件/文件/Agent）
- *      · ctx-row   = 列表内 cardlet 行（事件/文件/浏览器节点）
- *  - 统一：圆角 10-12px、1px border、顶部 1px 内高光、卡间隙 8-10px；
- *  - 纪律：零硬编码色值，全部走 M3 令牌（--color-* / --md-sys-* 双链回退）。
+ * 结构对齐 dsh-context 0.84.1 的 contextView.tsx：
+ *   lc-cols.lc-head        = StatsContext + 右侧信息列
+ *   lc-cols.lc-head        = Token + Timing
+ *   lc-cols.lc-cols-main   = 左 CurrentComposition + Trend，右 ContextBrowser
+ *   lc-cols                = Events + FileActivity
+ * 视觉对齐 base.css/stats.css：7-9px 栅格、平边卡、浅边界、10px 卡片圆角；
+ * 卡头图标只保留 14px 线性符号，不放色块底座。
+ * 纪律：零硬编码色值，全部走语义令牌。
  */
+
+.ctx-cockpit {
+  --ctx-gap: 8px;
+  scrollbar-gutter: stable;
+  padding: var(--ctx-gap) !important;
+  gap: 0 !important;
+}
+
+.ctx-cockpit .ctx-cols {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--ctx-gap);
+  margin-bottom: var(--ctx-gap);
+  min-width: 0;
+}
+
+.ctx-cockpit .ctx-col {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--ctx-gap);
+}
+
+.ctx-cockpit .ctx-col > .ctx-card {
+  margin-bottom: 0;
+}
+
+.ctx-cockpit .ctx-head-row {
+  container-type: inline-size;
+}
+
+.ctx-cockpit .ctx-head-row > .ctx-col-stats {
+  flex: 3 1 520px;
+  min-width: min(360px, 100%);
+}
+
+.ctx-cockpit .ctx-head-row > .ctx-col-session {
+  flex: 1 1 220px;
+  min-width: min(220px, 100%);
+}
+
+.ctx-cockpit .ctx-head-row .ctx-col > .ctx-card {
+  flex: 1 1 auto;
+}
+
+.ctx-cockpit .ctx-head-row .ctx-col-session > .ctx-card:not(.ctx-summary) {
+  flex: 0 0 auto;
+}
+
+.ctx-cockpit .ctx-head-row .ctx-col-session > .ctx-summary {
+  flex: 1 1 auto;
+  align-content: flex-start;
+}
+
+.ctx-cockpit .ctx-instruments-row > .ctx-card,
+.ctx-cockpit .ctx-audit-row > .ctx-card {
+  flex: 1 1 360px;
+  min-width: min(320px, 100%);
+  margin-bottom: 0;
+}
+
+.ctx-cockpit .ctx-main-row > .ctx-col {
+  flex: 1 1 360px;
+  min-width: min(360px, 100%);
+}
+
+.ctx-cockpit .ctx-col-browser {
+  overflow: hidden;
+}
+
+.ctx-cockpit .ctx-col-browser > .ctx-card {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.ctx-cockpit .ctx-cols[data-context-row="commands"] > .ctx-card,
+.ctx-cockpit .ctx-cols[data-context-row="agent-network"] > .ctx-card {
+  flex: 1 1 100%;
+  min-width: min(360px, 100%);
+  margin-bottom: 0;
+}
+
+@container (min-width: 640px) {
+  .ctx-cockpit .ctx-head-row > .ctx-col-session {
+    flex-basis: 25%;
+    max-width: 320px;
+  }
+}
+
+.ctx-cockpit .ctx-card,
+.ctx-cockpit .ctx-tile {
+  border-color: color-mix(in srgb, var(--fg) 9%, transparent);
+}
 
 .ctx-tile {
   display: flex;
@@ -15,12 +111,15 @@
   justify-content: center;
   gap: 1px;
   min-width: 0;
-  padding: 7px 10px;
-  border-radius: 10px;
+  padding: 6px 9px;
+  border-radius: 8px;
   border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
-  background: var(--color-surface-container, var(--md-sys-color-surface-container));
-  box-shadow: inset 0 1px 0
-    color-mix(in srgb, var(--color-text, var(--md-sys-color-on-surface)) 5%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--color-surface-container-high, var(--md-sys-color-surface-container-high)) 56%,
+    var(--color-surface-container, var(--md-sys-color-surface-container))
+  );
+  box-shadow: none;
   transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 .ctx-tile:hover {
@@ -30,70 +129,52 @@
     var(--color-border, var(--md-sys-color-outline-variant))
   );
   box-shadow: 0 0 0 1px
-      color-mix(in srgb, var(--color-primary, var(--md-sys-color-primary)) 10%, transparent),
-    inset 0 1px 0
-      color-mix(in srgb, var(--color-text, var(--md-sys-color-on-surface)) 5%, transparent);
+    color-mix(in srgb, var(--color-primary, var(--md-sys-color-primary)) 8%, transparent);
 }
 
 .ctx-card {
   position: relative;
-  border-radius: 12px;
+  border-radius: 10px;
   border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
   background: var(--color-surface-container, var(--md-sys-color-surface-container));
-  box-shadow: inset 0 1px 0
-      color-mix(in srgb, var(--color-text, var(--md-sys-color-on-surface)) 5%, transparent),
-    0 1px 2px color-mix(in srgb, var(--color-text, var(--md-sys-color-on-surface)) 2%, transparent);
+  box-shadow: none;
 }
 
-/* 顶部 1px 渐变高光线（Luminous Glass 语法的实底卡版本） */
+.ctx-cockpit .ctx-card {
+  padding: 7px 8px !important;
+}
+
+.ctx-cockpit .ctx-summary {
+  padding: 8px 12px !important;
+}
+
+/* 目标形态是平边观测台，不再叠加顶部装饰高光。 */
 .ctx-card::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 12px;
-  right: 12px;
-  height: 1px;
-  border-radius: 12px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    color-mix(in srgb, var(--color-text, var(--md-sys-color-on-surface)) 9%, transparent) 22%,
-    transparent 78%
-  );
-  pointer-events: none;
+  display: none;
 }
 
-/* 当前上下文 hero 卡：左上轻微主色氛围，不动数据对比度 */
+/* 当前上下文不再做 hero 主色渐变，改为同一卡面。 */
 .ctx-hero {
-  background: linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--color-primary, var(--md-sys-color-primary)) 5%, transparent) 0%,
-      transparent 130px
-    ),
-    var(--color-surface-container, var(--md-sys-color-surface-container));
+  background: var(--color-surface-container, var(--md-sys-color-surface-container));
 }
 
-/* 卡头图标章：24px 圆角方块 + 12px 线性图标（antd 图标体系） */
+/* 卡头图标：只保留 12px 线性符号，去掉色块底座。 */
 .ctx-head-ic {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
-  border-radius: 7px;
-  color: var(--color-primary, var(--md-sys-color-primary));
-  background: color-mix(
-    in srgb,
-    var(--color-primary, var(--md-sys-color-primary)) 12%,
-    transparent
-  );
+  border-radius: 0;
+  color: var(--fg-faint);
+  background: transparent;
 }
 
 /* 列表行 cardlet：独立小卡，替代细分隔线 */
 .ctx-row {
-  border-radius: 9px;
-  padding: 3px 7px;
+  border-radius: 6px;
+  padding: 3px 6px;
   background: color-mix(
     in srgb,
     var(--color-surface-container-high, var(--md-sys-color-surface-container-high)) 26%,
@@ -124,6 +205,960 @@
 /* 底部汇总条：扁长卡 */
 .ctx-summary {
   padding: 8px 12px;
+}
+
+.ctx-cockpit .ctx-card > .flex:first-child {
+  min-height: 18px;
+}
+
+/* StatsContext 的 lc-ledger：顶部 4 KPI + 2 格事件，其后 IO/tool、
+   commands/fleet 各占双列的一侧。 */
+.ctx-stats-ledger {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 6px 28px;
+}
+
+.ctx-core-grid {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.ctx-core-events {
+  display: flex;
+  min-width: 0;
+  min-height: 48px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 6px 9px;
+  border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
+  border-radius: 8px;
+  background: color-mix(
+    in srgb,
+    var(--color-surface-container-high, var(--md-sys-color-surface-container-high)) 56%,
+    var(--color-surface-container, var(--md-sys-color-surface-container))
+  );
+}
+
+.ctx-stat-row {
+  min-width: 0;
+  padding-bottom: 5px;
+  border-bottom: 1px solid color-mix(in srgb, var(--fg) 10%, transparent);
+}
+
+.ctx-stat-row-io {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.ctx-stat-row-tools {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.ctx-stat-row-commands {
+  grid-column: 1;
+  grid-row: 3;
+}
+
+.ctx-fleet-summary {
+  display: flex;
+  min-width: 0;
+  grid-column: 2;
+  grid-row: 3;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  background: color-mix(
+    in srgb,
+    var(--color-surface-container-high, var(--md-sys-color-surface-container-high)) 40%,
+    transparent
+  );
+  font-size: 10.5px;
+}
+
+.ctx-events-list,
+.ctx-files-list {
+  height: 320px;
+  max-height: 320px !important;
+}
+
+.ctx-kind-filters {
+  padding: 1px;
+  border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
+  border-radius: 6px;
+  background: color-mix(
+    in srgb,
+    var(--color-surface-container-high, var(--md-sys-color-surface-container-high)) 46%,
+    transparent
+  );
+}
+
+.ctx-kind-filter {
+  min-height: 22px;
+  padding: 2px 7px;
+  border: 0;
+  border-radius: 5px;
+  color: var(--fg-faint);
+  background: transparent;
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+.ctx-kind-filter:hover {
+  color: var(--fg);
+  background: color-mix(in srgb, var(--fg) 6%, transparent);
+}
+
+.ctx-kind-filter[aria-pressed="true"] {
+  color: var(--accent-fg);
+  background: var(--accent);
+}
+
+.ctx-kind-filter[data-kind="inject"][aria-pressed="true"] {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+}
+
+.ctx-kind-filter[data-kind="compact"][aria-pressed="true"] {
+  color: var(--err);
+  background: color-mix(in srgb, var(--err) 14%, transparent);
+}
+
+.ctx-kind-filter[data-kind="prune"][aria-pressed="true"] {
+  color: var(--md-sys-color-tertiary, var(--info));
+  background: color-mix(in srgb, var(--md-sys-color-tertiary, var(--info)) 14%, transparent);
+}
+
+.ctx-event-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.ctx-event-row:nth-child(even) {
+  background: color-mix(in srgb, var(--fg) 3.5%, transparent);
+}
+
+.ctx-event-row:hover {
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+}
+
+.ctx-event-sign {
+  width: 14px;
+  flex: none;
+  color: var(--ok);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.ctx-event-row[data-kind="compact"] .ctx-event-sign {
+  color: var(--err);
+}
+
+.ctx-event-row[data-kind="prune"] .ctx-event-sign {
+  color: var(--warn);
+}
+
+.ctx-event-row[data-kind="switch"] .ctx-event-sign,
+.ctx-event-row[data-kind="mode"] .ctx-event-sign {
+  color: var(--info);
+}
+
+.ctx-event-kind {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 4px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+  font-size: 9.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ctx-event-row[data-kind="inject"] .ctx-event-kind {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 13%, transparent);
+}
+
+.ctx-event-row[data-kind="compact"] .ctx-event-kind {
+  color: var(--err);
+  background: color-mix(in srgb, var(--err) 13%, transparent);
+}
+
+.ctx-event-row[data-kind="prune"] .ctx-event-kind {
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 13%, transparent);
+}
+
+.ctx-event-label {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--fg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ctx-event-meta {
+  flex: none;
+  color: var(--fg-dim);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ctx-event-delta {
+  min-width: 42px;
+  flex: none;
+  color: var(--warn);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.ctx-event-delta[data-sign="up"] {
+  color: var(--ok);
+}
+
+.ctx-event-time {
+  min-width: 52px;
+  flex: none;
+  color: var(--fg-faint);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.ctx-file-head {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.ctx-file-meta {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-faint);
+  font-size: 10px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.ctx-file-added {
+  color: var(--ok);
+  font-family: var(--font-mono, var(--mono));
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.ctx-file-removed {
+  color: var(--err);
+  font-family: var(--font-mono, var(--mono));
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.ctx-file-chips,
+.ctx-file-sorts {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  padding: 1px;
+  border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
+  border-radius: 6px;
+  background: color-mix(
+    in srgb,
+    var(--color-surface-container-high, var(--md-sys-color-surface-container-high)) 46%,
+    transparent
+  );
+}
+
+.ctx-file-chips {
+  margin-left: auto;
+}
+
+.ctx-file-chip,
+.ctx-file-sort {
+  min-height: 22px;
+  padding: 2px 7px;
+  border: 0;
+  border-radius: 5px;
+  color: var(--fg-faint);
+  background: transparent;
+  font-size: 10.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ctx-file-chip:hover,
+.ctx-file-sort:hover {
+  color: var(--fg);
+  background: color-mix(in srgb, var(--fg) 6%, transparent);
+}
+
+.ctx-file-chip[aria-pressed="true"],
+.ctx-file-sort[aria-pressed="true"] {
+  color: var(--accent-fg);
+  background: var(--accent);
+}
+
+.ctx-file-chip[data-tone="read"][aria-pressed="true"] {
+  color: var(--info);
+  background: color-mix(in srgb, var(--info) 14%, transparent);
+}
+
+.ctx-file-chip[data-tone="write"][aria-pressed="true"] {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+}
+
+.ctx-file-chip[data-tone="search"][aria-pressed="true"] {
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+}
+
+.ctx-file-controls {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 5px;
+}
+
+.ctx-file-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  color: var(--fg);
+  background: transparent;
+}
+
+.ctx-files-list > div:nth-child(even) > .ctx-file-row {
+  background: color-mix(in srgb, var(--fg) 3.5%, transparent);
+}
+
+.ctx-file-row:hover {
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+}
+
+.ctx-file-open {
+  min-width: 0;
+}
+
+.ctx-file-path {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-mono, var(--mono));
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ctx-file-dir {
+  color: var(--fg-faint);
+}
+
+.ctx-file-name {
+  color: var(--fg);
+  font-weight: 540;
+}
+
+.ctx-file-delta {
+  display: inline-flex;
+  flex: none;
+  gap: 3px;
+  font-family: var(--font-mono, var(--mono));
+  font-size: 9px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ctx-file-badges {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+}
+
+.ctx-file-badge {
+  padding: 0 5px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ctx-file-badge[data-kind="read"] {
+  color: var(--info);
+  background: color-mix(in srgb, var(--info) 12%, transparent);
+}
+
+.ctx-file-badge[data-kind="write"] {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+}
+
+.ctx-file-badge[data-kind="move"] {
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+}
+
+.ctx-file-badge[data-kind="dir"] {
+  color: var(--fg-dim);
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+}
+
+.ctx-file-time {
+  color: var(--fg-faint);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* CommandPanel：源码 lc-cmd-body = minmax(200px, 1fr) + minmax(0, 2fr)，
+ * 左摘要/关注/程序分布，右侧可筛选排序的命令日志。 */
+.ctx-cmd-card {
+  display: flex;
+  max-height: 560px;
+  flex-direction: column;
+}
+
+.ctx-cmd-head {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 8px;
+}
+
+.ctx-cmd-head > .ctx-card-title-text {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.ctx-cmd-filters,
+.ctx-cmd-sort {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  padding: 1px;
+  border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
+  border-radius: 6px;
+  background: color-mix(
+    in srgb,
+    var(--color-surface-container-high, var(--md-sys-color-surface-container-high)) 48%,
+    transparent
+  );
+}
+
+.ctx-cmd-filters {
+  margin-left: auto;
+}
+
+.ctx-cmd-filter,
+.ctx-cmd-sort > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 22px;
+  padding: 2px 7px;
+  border: 0;
+  border-radius: 5px;
+  color: var(--fg-dim);
+  background: transparent;
+  font: inherit;
+  font-size: 10.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ctx-cmd-filter:hover,
+.ctx-cmd-sort > button:hover {
+  color: var(--fg);
+  background: color-mix(in srgb, var(--fg) 6%, transparent);
+}
+
+.ctx-cmd-filter b {
+  font-family: var(--font-mono, var(--mono));
+  font-variant-numeric: tabular-nums;
+  opacity: 0.72;
+}
+
+.ctx-cmd-filter[aria-pressed="true"] {
+  color: var(--accent-fg);
+  background: var(--accent);
+}
+
+.ctx-cmd-filter[data-tone="failed"][aria-pressed="true"] {
+  color: var(--err);
+  background: color-mix(in srgb, var(--err) 14%, transparent);
+}
+
+.ctx-cmd-filter[data-tone="slow"][aria-pressed="true"] {
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+}
+
+.ctx-cmd-filter[data-tone="background"][aria-pressed="true"] {
+  color: var(--info);
+  background: color-mix(in srgb, var(--info) 14%, transparent);
+}
+
+.ctx-cmd-sort > button[aria-pressed="true"] {
+  color: var(--accent-fg);
+  background: var(--accent);
+}
+
+.ctx-cmd-body {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: minmax(210px, 1fr) minmax(0, 2fr);
+  gap: 16px;
+}
+
+.ctx-cmd-rail {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ctx-cmd-rail-section {
+  min-width: 0;
+}
+
+.ctx-cmd-rail-title {
+  display: flex;
+  min-height: 23px;
+  align-items: center;
+  margin: 0 0 7px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid color-mix(in srgb, var(--fg) 11%, transparent);
+  color: var(--fg);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.ctx-cmd-kpis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px 9px;
+}
+
+.ctx-cmd-kpi {
+  display: flex;
+  min-width: 0;
+  min-height: 45px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--fg);
+  background: color-mix(
+    in srgb,
+    var(--color-surface-container-high, var(--md-sys-color-surface-container-high)) 54%,
+    transparent
+  );
+  text-align: left;
+  cursor: pointer;
+}
+
+.ctx-cmd-kpi:hover {
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
+}
+
+.ctx-cmd-kpi b {
+  overflow: hidden;
+  font-family: var(--font-mono, var(--mono));
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ctx-cmd-kpi span {
+  color: var(--fg-faint);
+  font-size: 9.5px;
+  white-space: nowrap;
+}
+
+.ctx-cmd-kpi[data-tone="failed"] b {
+  color: var(--err);
+}
+
+.ctx-cmd-kpi[data-tone="background"] b {
+  color: var(--info);
+}
+
+.ctx-cmd-attention {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ctx-cmd-attention > button {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 7px 54px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--fg) 4%, transparent);
+  font: inherit;
+  font-size: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ctx-cmd-attention > button:hover {
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
+}
+
+.ctx-cmd-attention i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+
+.ctx-cmd-attention i[data-tone="repeat"] {
+  background: var(--md-sys-color-tertiary, var(--info));
+}
+
+.ctx-cmd-attention span {
+  color: var(--fg-dim);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ctx-cmd-attention em {
+  overflow: hidden;
+  color: var(--fg-dim);
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ctx-cmd-attention b {
+  color: var(--fg);
+  font-family: var(--font-mono, var(--mono));
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ctx-cmd-programs {
+  min-height: 0;
+  flex: 1;
+}
+
+.ctx-cmd-programs-list {
+  display: flex;
+  max-height: 180px;
+  flex-direction: column;
+  gap: 1px;
+  overflow-y: auto;
+}
+
+.ctx-cmd-program {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 7px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 5px;
+  color: var(--fg);
+  background: transparent;
+  font: inherit;
+  font-size: 10.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ctx-cmd-program:hover,
+.ctx-cmd-program[data-picked="true"] {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.ctx-cmd-program i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.ctx-cmd-program i[data-rank="1"] {
+  background: var(--info);
+}
+
+.ctx-cmd-program i[data-rank="2"] {
+  background: var(--ok);
+}
+
+.ctx-cmd-program i[data-rank="3"],
+.ctx-cmd-program i[data-rank="4"] {
+  background: var(--warn);
+}
+
+.ctx-cmd-program span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ctx-cmd-program b {
+  color: var(--fg-dim);
+  font-family: var(--font-mono, var(--mono));
+  font-variant-numeric: tabular-nums;
+}
+
+.ctx-cmd-main {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.ctx-cmd-controls {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.ctx-cmd-search {
+  min-width: 120px;
+  flex: 1;
+  height: 25px;
+  padding: 3px 8px;
+  border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
+  border-radius: 6px;
+  outline: none;
+  color: var(--fg);
+  background: color-mix(
+    in srgb,
+    var(--color-surface-container-high, var(--md-sys-color-surface-container-high)) 42%,
+    transparent
+  );
+  font-size: 10.5px;
+}
+
+.ctx-cmd-search::placeholder {
+  color: var(--fg-faint);
+}
+
+.ctx-cmd-search:focus {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.ctx-cmd-list {
+  min-height: 120px;
+  max-height: 420px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.ctx-cmd-row {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 4px 7px;
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 10.5px;
+}
+
+.ctx-cmd-row-alt {
+  background: color-mix(in srgb, var(--fg) 3.5%, transparent);
+}
+
+.ctx-cmd-row:hover {
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+}
+
+.ctx-cmd-row-state {
+  width: 12px;
+  flex: none;
+  color: var(--ok);
+  text-align: center;
+  font-weight: 700;
+}
+
+.ctx-cmd-row-state[data-status="failed"] {
+  color: var(--err);
+}
+
+.ctx-cmd-row-state[data-status="killed"] {
+  color: var(--warn);
+}
+
+.ctx-cmd-dot {
+  display: none;
+}
+
+.ctx-cmd-row-main {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+
+.ctx-cmd-stamp {
+  flex: none;
+  color: var(--fg-dim);
+  font-family: var(--font-mono, var(--mono));
+  font-variant-numeric: tabular-nums;
+}
+
+.ctx-cmd-badge {
+  padding: 0 5px;
+  border-radius: 4px;
+  color: var(--info);
+  background: color-mix(in srgb, var(--info) 12%, transparent);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 9px;
+}
+
+.ctx-cmd-exit,
+.ctx-cmd-error {
+  color: var(--err);
+  font-family: var(--font-mono, var(--mono));
+}
+
+.ctx-cmd-duration {
+  margin-left: auto;
+  color: var(--fg-faint);
+  font-family: var(--font-mono, var(--mono));
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ctx-cmd-command {
+  overflow: hidden;
+  margin-top: 1px;
+  color: var(--fg-dim);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 10px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ctx-cmd-error {
+  margin-top: 1px;
+  font-size: 9.5px;
+}
+
+.ctx-cmd-empty {
+  padding: 18px 8px;
+  color: var(--fg-faint);
+  font-size: 10.5px;
+  text-align: center;
+}
+
+@media (min-width: 800px) {
+  .ctx-core-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .ctx-core-events {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 900px) {
+  .ctx-cmd-card {
+    max-height: none;
+  }
+
+  .ctx-cmd-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ctx-cmd-rail {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ctx-cmd-programs {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 620px) {
+  .ctx-cmd-rail {
+    display: none;
+  }
+
+  .ctx-cmd-head {
+    align-items: flex-start;
+  }
+
+  .ctx-cmd-filters {
+    width: 100%;
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 699px) {
+  .ctx-stats-ledger {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ctx-stat-row,
+  .ctx-fleet-summary {
+    grid-column: 1;
+    grid-row: auto;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

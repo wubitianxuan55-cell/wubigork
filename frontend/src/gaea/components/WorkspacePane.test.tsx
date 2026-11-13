@@ -56,7 +56,6 @@ const ctx = {
   onClosePanel: vi.fn(),
   onRefreshPanel: vi.fn(),
   onLocateSource: vi.fn(),
-  onSubagentStarted: vi.fn(),
   onRevealInTree: vi.fn(),
   onAutoWidenPanel: vi.fn(),
 } as unknown as Parameters<typeof WorkspacePane>[0]["context"];
@@ -70,6 +69,7 @@ describe("WorkspacePane pane 工作台（对标 better-sidebar）", () => {
       </ToastProvider>,
     );
     expect(screen.getByText("选择要打开的工作台页面")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "任务" })).toBeNull();
     fireEvent.click(screen.getByText("文件", { exact: true }));
     expect(await screen.findByText("README.md")).toBeTruthy();
   });

@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-CN" theme-mode="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>灵犀对话窗口 · 效果图</title>
+<link rel="stylesheet" href="file-card.css">
+<link rel="stylesheet" href="cards.css">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%; background: #fff; color: var(--kd-color-text-primary);
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  html[theme-mode="dark"], html[theme-mode="dark"] body { background: #171717; }
+  .app { display: flex; height: 100vh; overflow: hidden; }
+  html[theme-mode="dark"] .app { background: #171717; }
+
+  /* 左侧图标条（示意，非逆向产物） */
+  .rail { width: 56px; flex: 0 0 56px; border-right: 1px solid var(--kd-color-line-light);
+    display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 18px 0; }
+  .rail b { width: 28px; height: 28px; border-radius: 8px; background: var(--kd-color-brand-normal);
+    color: #fff; font-size: 13px; display: grid; place-items: center; font-weight: 700; }
+  .rail i { width: 20px; height: 20px; border-radius: 6px; background: var(--kd-color-line-regular); }
+  .rail i.on { background: var(--kd-color-brand-normal); opacity: .5; }
+
+  /* 中间对话区 */
+  .chat { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+  .chat__head { height: 52px; flex: 0 0 52px; display: flex; align-items: center; gap: 8px;
+    padding: 0 20px; border-bottom: 1px solid var(--kd-color-line-light); }
+  .chat__head .t { font-size: 14px; font-weight: 600; }
+  .chat__head .m { font-size: 12px; color: var(--kd-color-text-tertiary);
+    border: 1px solid var(--kd-color-line-regular); border-radius: 999px; padding: 2px 8px; }
+  .chat__main { flex: 1 1 auto; overflow: hidden; padding: 20px 24px 8px; }
+  .chat__foot { flex: 0 0 auto; padding: 8px 24px 20px; }
+  .composer { border: 1px solid var(--kd-color-line-regular); border-radius: 14px;
+    padding: 12px 14px; display: flex; align-items: flex-end; gap: 10px; }
+  .composer .ph { flex: 1; font-size: 14px; color: var(--kd-color-text-tertiary); line-height: 22px; }
+  .composer .send { width: 30px; height: 30px; border-radius: 999px; border: 0;
+    background: var(--kd-color-brand-normal); color: #fff; display: grid; place-items: center; }
+
+  /* 用户气泡（示意） */
+  .u-msg { display: flex; justify-content: flex-end; margin-bottom: 18px; }
+  .u-bubble { max-width: 78%; background: var(--lx-color-state-hover); border-radius: 12px;
+    padding: 10px 14px; font-size: 14px; line-height: 22px; }
+
+  /* 右侧面板占位 */
+  .canvas { flex: 0 0 33%; border-left: 1px solid var(--kd-color-line-light);
+    background: var(--lx-background-group); display: flex; flex-direction: column; }
+  .canvas__head { height: 56px; display: flex; align-items: center; gap: 8px; padding: 0 16px;
+    border-bottom: 1px solid var(--kd-color-line-light); font-size: 13px; font-weight: 600; }
+  .canvas__body { flex: 1; display: grid; place-items: center; padding: 24px; }
+  .doc-mock { width: 100%; height: 100%; background: #fff; border: 1px solid var(--kd-color-line-light);
+    border-radius: 12px; padding: 24px 22px; box-shadow: 0 8px 24px rgba(13,13,13,.06); }
+  html[theme-mode="dark"] .doc-mock { background: #1f1f1f; box-shadow: none; }
+  .doc-mock h3 { margin: 0 0 4px; font-size: 15px; }
+  .doc-mock .rule { height: 1px; background: var(--kd-color-line-regular); margin: 14px 0; }
+  .doc-mock p { margin: 0 0 10px; font-size: 12px; line-height: 20px; color: var(--kd-color-text-secondary); }
+  .doc-mock .ln { height: 8px; border-radius: 999px; background: var(--kd-color-line-light); margin-bottom: 8px; }
+  .doc-mock .ln.s { width: 62%; }
+
+  /* 分区标签（仅效果图用） */
+  .tag { display: inline-block; font-size: 11px; color: var(--kd-color-text-tertiary);
+    border: 1px dashed var(--kd-color-line-regular); border-radius: 6px;
+    padding: 2px 6px; margin: 0 0 10px; }
+  .block { margin-bottom: 20px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+  /* 修正：markdown 段落在复刻页面里默认 margin 过大 */
+  .card .main__list p { margin: 0 0 8px; }
+  .card .main__list p:last-child { margin-bottom: 0; }
+  .claw-tool-card__body pre { margin: 0; }
+  .claw-tool-card__body .lnk { font-size: 13px; line-height: 22px; color: var(--kd-color-text-secondary); }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- 左：图标条 -->
+  <div class="rail">
+    <b>灵</b><i class="on"></i><i></i><i></i><i></i>
+  </div>
+
+  <!-- 中：对话区 -->
+  <div class="chat">
+    <div class="chat__head">
+      <span class="t">季度经营复盘</span>
+      <span class="m">专业模式</span>
+    </div>
+
+    <div class="chat__main">
+      <!-- 用户消息 -->
+      <div class="u-msg">
+        <div class="u-bubble">帮我把 Q2 的经营数据做成复盘文档，再出一份汇报 PPT</div>
+      </div>
+
+      <!-- 过程卡（已展开） -->
+      <div class="block">
+        <span class="tag">过程卡</span>
+        <button class="claw-process-collapse">
+          <svg class="claw-process-collapse__arrow is-expanded" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M6 3.5 10.5 8 6 12.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="claw-process-collapse__text">智能体任务已完成</span>
+        </button>
+        <div class="claw-process-collapsible is-expanded" data-open>
+          <div class="claw-process-collapsible__inner">
+            <div data-tool="bash" style="margin:6px 0">
+              <div class="workbench-step-card">
+                <div class="workbench-step-card__clip">
+                  <pre class="workbench-step-card__code"><span class="workbench-step-card__prompt">$ </span>python build_report.py --dept all --quarter Q2</pre>
+                </div>
+              </div>
+            </div>
+            <div data-tool="edit_file" style="margin:6px 0">
+              <div class="workbench-step-card">
+                <div class="workbench-step-card__clip">
+                  <div class="workbench-step-card__diff">
+                    <div class="workbench-step-card__diff-block workbench-step-card__diff-block--del">
+                      <span class="workbench-step-card__diff-label">−</span>
+                      <pre class="workbench-step-card__diff-text">sheet["Q2"] = raw["Q2"]</pre>
+                    </div>
+                    <div class="workbench-step-card__diff-block workbench-step-card__diff-block--add">
+                      <span class="workbench-step-card__diff-label">+</span>
+                      <pre class="workbench-step-card__diff-text">sheet["Q2"] = raw["Q2"].fillna(0)</pre>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div data-tool="execute_code" style="margin:6px 0">
+              <div class="workbench-step-card workbench-step-card--loading">
+                <div class="workbench-step-card__clip">
+                  <div class="workbench-step-card__skeleton">
+                    <span class="workbench-step-card__skeleton-line workbench-step-card__skeleton-line--long"></span>
+                    <span class="workbench-step-card__skeleton-line"></span>
+                    <span class="workbench-step-card__skeleton-line workbench-step-card__skeleton-line--short"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 思考卡 + 工具卡 两列 -->
+      <div class="block">
+        <div class="row2">
+          <div>
+            <span class="tag">思考卡</span>
+            <div class="card card--completed">
+              <div class="header header--can-fold">
+                <svg class="header__icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.2"/>
+                  <path d="M8 4.8v3.6l2.4 1.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                </svg>
+                <span class="title-text">思考已完成</span>
+                <svg class="header__arrow" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path d="M6 3.5 10.5 8 6 12.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <main class="main" data-open>
+                <div class="main__list">
+                  <div class="ai-reasoning">
+                    <p>先确认真实口径：Q2 的预算表与利润表对不上，以利润表为准；再按部门拆分，结论页在前、明细附后。</p>
+                  </div>
+                </div>
+              </main>
+            </div>
+          </div>
+          <div>
+            <span class="tag">工具卡</span>
+            <div class="claw-tool-card">
+              <div class="claw-tool-card__header claw-tool-card__header--clickable">
+                <svg class="claw-tool-card__icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <rect x="2.2" y="2.8" width="11.6" height="10.4" rx="2" stroke="currentColor" stroke-width="1.2"/>
+                  <path d="M4.6 6.4 6.6 8l-2 1.6M8.4 10h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span class="claw-tool-card__title-text">代码执行 - 生成图表</span>
+                <span class="claw-tool-card__status-text">1.2s</span>
+              </div>
+              <div class="claw-tool-card__body" data-open>
+                <pre class="workbench-step-card__code">df.groupby("dept")["profit"].sum().plot.bar()
+# → chart.png（1280×720）</pre>
+              </div>
+            </div>
+            <div style="height:10px"></div>
+            <div class="claw-tool-card">
+              <div class="claw-tool-card__header claw-tool-card__header--clickable">
+                <svg class="claw-tool-card__icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.2"/>
+                  <path d="M6.5 6.5 10.5 5.5 9.5 9.5 5.5 10.5z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+                </svg>
+                <span class="claw-tool-card__title-text">获取网页</span>
+                <span class="claw-tool-card__status-text">3 个网页</span>
+              </div>
+              <div class="claw-tool-card__body" data-open>
+                <div class="lnk">· kdocs.cn — 已获取</div>
+                <div class="lnk">· wps.cn — 已获取</div>
+                <div class="lnk" style="color:var(--kd-color-text-tertiary)">· example.com — 失败</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 成果卡 -->
+      <div class="block">
+        <span class="tag">文件成果卡（.claw-present-files，2 列网格）</span>
+        <section class="claw-present-files">
+          <div class="claw-deliver-result">
+            <div class="claw-file-card-view">
+              <div class="file-card-inline file-card-inline--word" title="sandbox:/home/lingxi/workspace/out/Q2经营复盘.docx">
+                <div class="file-card-inline__icon"><span class="file-card-inline__badge">DOCX</span></div>
+                <div class="file-card-inline__name">Q2经营复盘.docx</div>
+              </div>
+            </div>
+          </div>
+          <div class="claw-deliver-result">
+            <div class="claw-file-card-view">
+              <div class="file-card-inline file-card-inline--ppt" title="sandbox:/home/lingxi/workspace/out/Q2汇报.pptx">
+                <div class="file-card-inline__icon"><span class="file-card-inline__badge">PPTX</span></div>
+                <div class="file-card-inline__name">Q2汇报.pptx</div>
+              </div>
+            </div>
+          </div>
+          <div class="claw-deliver-result">
+            <div class="claw-file-card-view">
+              <div class="file-card-inline file-card-inline--excel" title="sandbox:/home/lingxi/workspace/out/明细.xlsx">
+                <div class="file-card-inline__icon"><span class="file-card-inline__badge">XLSX</span></div>
+                <div class="file-card-inline__name">部门明细.xlsx</div>
+              </div>
+            </div>
+          </div>
+          <div class="claw-deliver-result">
+            <div class="claw-file-card-view">
+              <div class="file-card-inline file-card-inline--pdf" title="sandbox:/home/lingxi/workspace/out/年报.pdf">
+                <div class="file-card-inline__icon"><span class="file-card-inline__badge">PDF</span></div>
+                <div class="file-card-inline__name">上年年报.pdf</div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- 输入区 -->
+    <div class="chat__foot">
+      <div class="composer">
+        <div class="ph">继续追问，或拖入文件…</div>
+        <button class="send" aria-label="发送">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M8 12.5V3.8M8 3.8 4.4 7.4M8 3.8l3.6 3.6" stroke="currentColor"
+                  stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右：画布面板（WebOffice 占位） -->
+  <div class="canvas">
+    <div class="canvas__head">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <rect x="2.5" y="1.8" width="11" height="12.4" rx="1.6" stroke="currentColor" stroke-width="1.2"/>
+        <path d="M5.2 5h5.6M5.2 8h5.6M5.2 11h3.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+      </svg>
+      Q2经营复盘.docx
+    </div>
+    <div class="canvas__body">
+      <div class="doc-mock">
+        <h3>Q2 经营复盘</h3>
+        <div style="font-size:11px;color:var(--kd-color-text-tertiary)">华东大区 · 2026 Q2</div>
+        <div class="rule"></div>
+        <p><strong>一、整体结论</strong></p>
+        <div class="ln"></div><div class="ln"></div><div class="ln s"></div>
+        <p style="margin-top:14px"><strong>二、分部门拆解</strong></p>
+        <div class="ln"></div><div class="ln s"></div>
+        <div class="rule"></div>
+        <p style="color:var(--kd-color-text-tertiary);font-size:11px">（WebOffice 编辑区示意，实际为 kdocs iframe）</p>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  // 供 headless 截图用：#dark / #light
+  if (location.hash === '#dark') document.documentElement.setAttribute('theme-mode', 'dark');
+</script>
+</body>
+</html>

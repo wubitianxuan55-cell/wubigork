@@ -1,6 +1,6 @@
 // 刀4 组件行为测试：命令执行卡（状态筛选/程序回填/搜索）+ 浏览器 DNA 视图
 // + 助手 kind 筛选 + skill 节点消费。mock 桥同 ContextView.test 模式。
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { ReactElement } from "react";
 import { LocaleProvider } from "../../lib/i18n";
@@ -27,7 +27,8 @@ describe("CommandsCard 命令执行卡", () => {
   it("渲染生命周期行（三态点/退出码/后台徽标）", () => {
     renderT(<CommandsCard commands={CMDS} stats={{ runs: 4, failed: 1, ms: 8000, bg: 1 }} />);
     expect(screen.getByTestId("ctx-commands")).toBeTruthy();
-    expect(screen.getByText("go build ./...")).toBeTruthy();
+    const list = within(screen.getByTestId("ctx-commands-list"));
+    expect(list.getByText("go build ./...")).toBeTruthy();
     // JSX 文本节点拆分：exit 与码值分属两个 text node，用 textContent 匹配
     const exitEl = screen.getByText((_, el) => el?.textContent === "exit 1" && el.tagName === "SPAN");
     expect(exitEl).toBeTruthy();
@@ -40,23 +41,26 @@ describe("CommandsCard 命令执行卡", () => {
   it("状态筛选 failed 只留失败行", () => {
     renderT(<CommandsCard commands={CMDS} />);
     fireEvent.click(screen.getByTestId("ctx-cmd-status-failed"));
-    expect(screen.getByText("go vet ./internal/...")).toBeTruthy();
-    expect(screen.queryByText("go build ./...")).toBeNull();
+    const list = within(screen.getByTestId("ctx-commands-list"));
+    expect(list.getByText("go vet ./internal/...")).toBeTruthy();
+    expect(list.queryByText("go build ./...")).toBeNull();
   });
 
   it("程序分布 chip 回填过滤（go 只留两条）", () => {
     renderT(<CommandsCard commands={CMDS} />);
     fireEvent.click(screen.getByTitle("go ×2"));
-    expect(screen.getByText("go build ./...")).toBeTruthy();
-    expect(screen.getByText("go vet ./internal/...")).toBeTruthy();
-    expect(screen.queryByText("npm run dev")).toBeNull();
+    const list = within(screen.getByTestId("ctx-commands-list"));
+    expect(list.getByText("go build ./...")).toBeTruthy();
+    expect(list.getByText("go vet ./internal/...")).toBeTruthy();
+    expect(list.queryByText("npm run dev")).toBeNull();
   });
 
   it("搜索框过滤", () => {
     renderT(<CommandsCard commands={CMDS} />);
     fireEvent.change(screen.getByTestId("ctx-cmd-search"), { target: { value: "npm" } });
-    expect(screen.getByText("npm run dev")).toBeTruthy();
-    expect(screen.queryByText("go build ./...")).toBeNull();
+    const list = within(screen.getByTestId("ctx-commands-list"));
+    expect(list.getByText("npm run dev")).toBeTruthy();
+    expect(list.queryByText("go build ./...")).toBeNull();
   });
 });
 

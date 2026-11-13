@@ -755,6 +755,10 @@ export function FileActivityTree({ files, onOpenFile, sessionPath, fetchNodeDeta
     }
     return { rows: aggregate(filtered).sort(SORT_CMP[sort]), opIndex: ops };
   }, [files, chip, q, sort]);
+  const shownTotals = useMemo(() => ({
+    added: rows.reduce((sum, row) => sum + Math.max(0, row.added), 0),
+    removed: rows.reduce((sum, row) => sum + Math.max(0, row.removed), 0),
+  }), [rows]);
 
   const togglePath = (path: string) => {
     setExpandedPaths((cur) => {
@@ -774,26 +778,34 @@ export function FileActivityTree({ files, onOpenFile, sessionPath, fetchNodeDeta
   ];
 
   return (
-    <div className="ctx-card p-3" data-testid="ctx-files">
-      <div className="flex items-center gap-1.5">
-        <span className="ctx-head-ic" aria-hidden>
-          <FolderTree size={12} />
-        </span>
-        <span className="text-[12.5px] font-semibold text-fg">{t("contextview.filesTitle")}</span>
-      </div>
-      <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
+    <div className="ctx-card p-3 ctx-files-card" data-testid="ctx-files">
+      <div className="ctx-file-head">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="ctx-head-ic" aria-hidden>
+            <FolderTree size={12} />
+          </span>
+          <span className="text-[12.5px] font-semibold text-fg">{t("contextview.filesTitle")}</span>
+          <span className="ctx-file-meta">
+            {t("contextview.filesCount", { n: rows.length })}
+            {shownTotals.added > 0 && <b className="ctx-file-added">+{fmtTokens(shownTotals.added)}</b>}
+            {shownTotals.removed > 0 && <b className="ctx-file-removed">-{fmtTokens(shownTotals.removed)}</b>}
+          </span>
+        </div>
+        <div className="ctx-file-chips">
         {chips.map((c) => (
           <button
             key={c.key}
             type="button"
             aria-pressed={chip === c.key}
-            className={`cursor-pointer rounded border-0 px-1.5 py-0.5 ${chip === c.key ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"}`}
+            data-tone={c.key}
+            className="ctx-file-chip"
             onClick={() => setChip(c.key)}
           >
             {t(c.labelKey)}
             <span className="ml-1 tabular-nums">{counts[c.key]}</span>
           </button>
         ))}
+        </div>
       </div>
       <input
         type="text"
@@ -803,17 +815,14 @@ export function FileActivityTree({ files, onOpenFile, sessionPath, fetchNodeDeta
         aria-label={t("contextview.filesFilter")}
         className="mt-1.5 h-6 w-full rounded-md border border-border-soft bg-bg-soft px-2 text-[10px] text-fg placeholder:text-fg-faint focus:border-accent focus:outline-none"
       />
-      <div className="mt-1 flex items-center justify-between gap-2">
-        <span className="shrink-0 text-[9.5px] tabular-nums text-fg-faint">
-          {t("contextview.filesCount", { n: rows.length })}
-        </span>
-        <span className="flex items-center gap-1 text-[10px]">
+      <div className="ctx-file-controls">
+        <span className="ctx-file-sorts">
           {SORT_PILLS.map((p) => (
             <button
               key={p.key}
               type="button"
               aria-pressed={sort === p.key}
-              className={`cursor-pointer rounded border-0 px-1.5 py-0.5 ${sort === p.key ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"}`}
+              className="ctx-file-sort"
               onClick={() => pickSort(p.key)}
             >
               {t(p.labelKey)}
@@ -821,7 +830,7 @@ export function FileActivityTree({ files, onOpenFile, sessionPath, fetchNodeDeta
           ))}
         </span>
       </div>
-      <div className="mt-1 flex max-h-64 flex-col gap-1 overflow-y-auto pr-0.5">
+      <div className="ctx-files-list mt-1 flex max-h-64 flex-col gap-1 overflow-y-auto pr-0.5">
         {files.length === 0 && <div className="py-2 text-[10px] text-fg-faint">{t("contextview.noFiles")}</div>}
         {files.length > 0 && rows.length === 0 && (
           <div className="py-2 text-[10px] text-fg-faint">{t("contextview.filesNoMatch")}</div>
@@ -831,51 +840,57 @@ export function FileActivityTree({ files, onOpenFile, sessionPath, fetchNodeDeta
           const clickable = a.read + a.write + a.move > 0;
           const ops = opIndex.get(a.path) ?? [];
           const isOpen = expandedPaths.has(a.path);
+          const slash = Math.max(a.path.lastIndexOf("/"), a.path.lastIndexOf("\\"));
+          const dir = slash >= 0 ? a.path.slice(0, slash + 1) : "";
+          const base = slash >= 0 ? a.path.slice(slash + 1) : a.path;
           return (
             <div key={a.path}>
-              <div className="ctx-row flex w-full items-center gap-1.5 px-2 py-1.5 text-[10px]">
+              <div className="ctx-file-row">
                 <button
                   type="button"
                   data-file={a.path}
                   disabled={!clickable}
                   onClick={() => clickable && open(a.path)}
                   title={clickable ? t("contextview.previewTitle", { path: a.path }) : undefined}
-                  className={`flex min-w-0 flex-1 items-center gap-1.5 border-0 bg-transparent p-0 text-left text-[10px] ${
+                  className={`ctx-file-open flex min-w-0 flex-1 items-center gap-1.5 border-0 bg-transparent p-0 text-left text-[10px] ${
                     clickable ? "cursor-pointer" : "cursor-default"
                   }`}
                 >
                   <FileTypeIcon name={a.path} size={12} />
-                  <span className="truncate font-mono text-fg-dim" title={a.path}>{a.path}</span>
+                  <span className="ctx-file-path" title={a.path}>
+                    {dir && <span className="ctx-file-dir">{dir}</span>}
+                    <span className="ctx-file-name">{base}</span>
+                  </span>
                   {/* v4.81 行级增量徽标（dsh ±added/−removed 同款） */}
                   {(a.added > 0 || a.removed > 0) && (
-                    <span className="shrink-0 font-mono text-[9px] tabular-nums">
-                      {a.added > 0 && <span style={{ color: "#22c55e" }}>+{a.added}</span>} {/* hex-exempt 增量语义色（绿=增） */}
+                    <span className="ctx-file-delta">
+                      {a.added > 0 && <span className="ctx-file-added">+{a.added}</span>}
                       {a.added > 0 && a.removed > 0 && <span className="text-fg-faint">/</span>}
-                      {a.removed > 0 && <span style={{ color: "#ef4444" }}>−{a.removed}</span>} {/* hex-exempt 增量语义色（红=减） */}
+                      {a.removed > 0 && <span className="ctx-file-removed">−{a.removed}</span>}
                     </span>
                   )}
-                  <span className="ml-auto flex shrink-0 items-center gap-1">
+                  <span className="ctx-file-badges">
                     {a.read > 0 && (
-                      <span className={`rounded px-1 text-[9px] tabular-nums ${FILE_ACTION_META.read.cls}`}>
+                      <span className="ctx-file-badge" data-kind="read">
                         {`${t(FILE_ACTION_META.read.labelKey)} ${a.read}`}
                       </span>
                     )}
                     {a.write > 0 && (
-                      <span className={`rounded px-1 text-[9px] tabular-nums ${FILE_ACTION_META.write.cls}`}>
+                      <span className="ctx-file-badge" data-kind="write">
                         {`${t(FILE_ACTION_META.write.labelKey)} ${a.write}`}
                       </span>
                     )}
                     {a.move > 0 && (
-                      <span className={`rounded px-1 text-[9px] tabular-nums ${FILE_ACTION_META.move.cls}`}>
+                      <span className="ctx-file-badge" data-kind="move">
                         {`${t(FILE_ACTION_META.move.labelKey)} ${a.move}`}
                       </span>
                     )}
                     {a.dir > 0 && (
-                      <span className={`rounded px-1 text-[9px] tabular-nums ${FILE_ACTION_META.dir.cls}`}>
+                      <span className="ctx-file-badge" data-kind="dir">
                         {`${t(FILE_ACTION_META.dir.labelKey)} ${a.dir}`}
                       </span>
                     )}
-                    <span className="tabular-nums font-mono text-fg-faint">{new Date(a.latest * 1000).toLocaleTimeString()}</span>
+                    <span className="ctx-file-time">{new Date(a.latest * 1000).toLocaleTimeString()}</span>
                   </span>
                 </button>
                 {ops.length > 0 && (

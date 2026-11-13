@@ -156,7 +156,7 @@ describe("FileActivityTree 文件活动（按文件聚合树）", () => {
     expect(chipBtn("搜索").textContent).toContain("1"); // grep_files；list_dir 是 dir 不计入
     expect(chipBtn("图片").textContent).toContain("0");
     fireEvent.click(chipBtn("写入"));
-    expect(screen.getByText("docs/b.md")).toBeTruthy();
+    expect(screen.getByTitle("docs/b.md")).toBeTruthy();
     expect(container.querySelector('button[data-file="src/a.ts"]')).toBeNull();
     fireEvent.click(chipBtn("全部"));
     expect(container.querySelector('button[data-file="src/a.ts"]')).toBeTruthy();
@@ -179,7 +179,7 @@ describe("FileActivityTree 文件活动（按文件聚合树）", () => {
     expect(screen.getByText(/个文件/).textContent).toContain("4 个文件");
     const input = screen.getByPlaceholderText("按路径过滤…");
     fireEvent.change(input, { target: { value: "docs" } });
-    expect(screen.getByText("docs/b.md")).toBeTruthy();
+    expect(screen.getByTitle("docs/b.md")).toBeTruthy();
     expect(container.querySelector('button[data-file="src/a.ts"]')).toBeNull();
     expect(screen.getByText(/个文件/).textContent).toContain("1 个文件");
     fireEvent.change(input, { target: { value: "zzz-no-hit" } });
@@ -189,7 +189,7 @@ describe("FileActivityTree 文件活动（按文件聚合树）", () => {
   it("行点击打开预览：注入 onOpenFile 生效；纯目录行不触发", () => {
     const onOpen = vi.fn();
     const { container } = renderT(<FileActivityTree files={FILES} onOpenFile={onOpen} />);
-    fireEvent.click(screen.getByText("src/a.ts"));
+    fireEvent.click(container.querySelector('button[data-file="src/a.ts"]') as HTMLElement);
     expect(onOpen).toHaveBeenCalledTimes(1);
     expect(onOpen).toHaveBeenCalledWith("src/a.ts");
     fireEvent.click(container.querySelector('button[data-file="assets"]') as HTMLElement);
@@ -198,8 +198,8 @@ describe("FileActivityTree 文件活动（按文件聚合树）", () => {
 
   it("默认预览链：不传 onOpenFile 时内部走 usePreviewStore", async () => {
     const { usePreviewStore } = await import("../../lib/store");
-    renderT(<FileActivityTree files={FILES} />);
-    fireEvent.click(screen.getByText("src/a.ts"));
+    const { container } = renderT(<FileActivityTree files={FILES} />);
+    fireEvent.click(container.querySelector('button[data-file="src/a.ts"]') as HTMLElement);
     expect(usePreviewStore.getState().previewFile).toBe("src/a.ts");
   });
 

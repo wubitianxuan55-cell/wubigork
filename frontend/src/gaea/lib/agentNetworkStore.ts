@@ -3,7 +3,7 @@
 // error 状态机、显式 reload）。
 //
 // Why: 右栏子代理树的树拓扑数据源此前由 SubagentsPanel 自管 5s 轮询
-// （usePollingGate 门控），TasksWorkbench 另有一份自己的 net 轮询——同一个
+// （usePollingGate 门控），旧任务右栏另有一份自己的 net 轮询——同一个
 // 绑定 N 份请求、N 份状态互相错拍。本模块把轮询收敛为「全局一个轮询器」，
 // 快照广播给所有订阅者；拉取失败保留上一份快照、status 置 error（宁旧勿断），
 // 订阅者可渲染重试入口，live 轮询下个 tick 自动再试自愈。

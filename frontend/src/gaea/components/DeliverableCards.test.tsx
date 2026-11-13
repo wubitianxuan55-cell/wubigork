@@ -70,6 +70,23 @@ describe("DeliverableCards 交付文件卡片", () => {
     expect(container.querySelectorAll("button")).toHaveLength(0);
   });
 
+  it("灵犀成果卡：2 列网格容器 + 按类型着色的后缀徽标，路径保留在可访问名称", () => {
+    const { container } = render(
+      wrap(
+        <DeliverableCards text="已生成：exports/成本测算.xlsx，方案见 .gaea/exports/方案.docx，图表 exports/趋势.png。" />,
+      ),
+    );
+    const cards = container.querySelectorAll<HTMLElement>(".office-file-card");
+    expect(cards).toHaveLength(3);
+    expect(container.querySelector(".office-deliverables__grid")).toBeTruthy();
+    expect(cards[0].getAttribute("data-kind")).toBe("excel");
+    expect(cards[0].querySelector(".office-file-card__badge")?.textContent).toBe("XLSX");
+    expect(cards[1].getAttribute("data-kind")).toBe("word");
+    expect(cards[1].querySelector(".office-file-card__badge")?.textContent).toBe("DOCX");
+    expect(cards[2].getAttribute("data-kind")).toBe("image");
+    expect(screen.getByRole("button", { name: /成本测算\.xlsx — exports\/成本测算\.xlsx/ })).toBeTruthy();
+  });
+
   it("预览内编辑过的文件显示「已更新」徽标", () => {
     useUpdatedFilesStore.setState({ updatedAt: { "exports/成本测算.xlsx": Date.now() } });
     render(wrap(<DeliverableCards text="已生成：exports/成本测算.xlsx" />));

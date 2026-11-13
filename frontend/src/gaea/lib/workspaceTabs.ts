@@ -7,11 +7,10 @@
 // App.tsx 的 Tab 按钮条、CommandPalette 面板项、激活态判定全部从这里派生。
 //
 // v3.0.8 曾把子面板按「文件域 / 成果域 / 运行域」归入主 Tab + 第二级小 Tab
-// 两级体系；v4.27 用户拍板扁平化：删除「资料」「成本库」两个面板，取消
-// 第二级标签，剩余面板全部平铺为一级 Tab（文件 / 产物 / 变更 / 任务 / 分工）；
+// 两级体系；v4.27 用户拍板扁平化为一级 Tab；
 // v4.28 A2 追加「浏览器」观察窗 tab（截图步进流 + 操作时间线）；
-// v4.53 用户拍板化繁为简：产物与变更、任务与分工**直接合并为一个面板**
-// （MergedPanel 上下分区同屏全可见，不是二级标签），6→4。
+// v4.53 用户拍板化繁为简：产物与变更直接合并为一个面板。
+// 2026-11-13：Agent 编队与任务拓扑已迁主区「编队」标签，右栏「任务」退役。
 //
 // How to apply: 新增面板 → 在本文件 WORKSPACE_TABS 追加一项（id/label/icon/
 // keywords/defaultEnabled），再在 lib/sidebarRegistry.ts 的 RENDERERS 补渲染接线；
@@ -19,21 +18,21 @@
 // 与既有行为对齐）。
 
 import type { Icon } from "../icons";
-import { Blocks, ClipboardList, FileText, FolderTree, GitBranch, Globe } from "../icons";
+import { Blocks, FileText, FolderTree, GitBranch, Globe } from "../icons";
 import { readWorkbenchValue, writeWorkbenchValue } from "./workbenchStorage";
 import { loadOptionalLayoutSize, saveLayoutSize } from "./layoutPreferences";
 
 /** 子面板（具体功能页）的稳定 id —— App.tsx 的 rightTab 状态直接消费。
  *  v4.23 起不含 stats（曾迁主区「概览」，v4.72 随 tab 删除）；v4.27 起不含 materials/cost
  *  （资料/成本库标签删除）；v4.28 增 browser（浏览器观察窗）；
- *  v4.53 用户拍板化繁为简：产物与变更、任务与分工**直接合并为一个面板**
- *  （MergedPanel 上下分区同屏全可见，不是二级标签），6→4。
- *  旧存储值经 normalizeWorkspaceTabId 别名收敛（changes→deliverables、
- *  subagents→tasks），非法值回默认「文件」。 */
+ *  v4.53 用户拍板化繁为简：产物与变更合并为一个面板。
+ *  2026-11-13：任务与 Agent 编队迁主区「编队」，右栏任务退役。
+ *  旧存储值经 normalizeWorkspaceTabId 别名收敛（changes→deliverables），
+ *  tasks/subagents 等退役值回默认「文件」。 */
 // v4.86 2b：追加 git（Git 面板最小集，D3 单仓库无 push）——v4.53 合并后首个新一级 Tab。
 // v4.525 工具化：CAD 图纸不再是右侧一级 Tab，改由办公「工具」入口打开临时
 // ToolSheet（docs/gaea-ai-workbench-ui-2026-10.md）；工作台面板回到 6 项。
-export const WORKSPACE_TAB_IDS = ["files", "deliverables", "tasks", "browser", "git", "ui"] as const;
+export const WORKSPACE_TAB_IDS = ["files", "deliverables", "browser", "git", "ui"] as const;
 export type WorkspaceTabId = (typeof WORKSPACE_TAB_IDS)[number];
 
 export interface WorkspaceTabDef {
@@ -48,14 +47,13 @@ export interface WorkspaceTabDef {
   defaultEnabled?: boolean;
 }
 
-/** 单一数据源：右侧面板全部一级 Tab 的声明（v4.53 合并后 4 Tab）。
- *  产物面板 = 会话产物 + 文件变更上下分区；任务面板 = 任务中心 + 分工。
+/** 单一数据源：右侧面板全部一级 Tab 的声明。
+ *  产物面板 = 会话产物 + 文件变更上下分区。
  *  defaultEnabled 全 true：v4.23 行为基线（面板全可见），用户经设置卡片停用
  *  后覆盖。 */
 export const WORKSPACE_TABS: WorkspaceTabDef[] = [
   { id: "files", label: "文件", icon: FolderTree, keywords: ["files", "文件", "工作区", "树"], defaultEnabled: true },
   { id: "deliverables", label: "产物", icon: FileText, keywords: ["deliverables", "产物", "交付", "成果", "变更", "diff", "修改"], defaultEnabled: true },
-  { id: "tasks", label: "任务", icon: ClipboardList, keywords: ["tasks", "任务", "进度", "调度", "分工", "子代理", "团队", "并发"], defaultEnabled: true },
   // v4.28 A2 浏览器观察窗：受控 Edge 的截图步进流 + 操作时间线（被动观察，
   // 不拉起浏览器；「新 browser_* 工具自动弹出」由 App 经 browserPrefs 接线）。
   { id: "browser", label: "浏览器", icon: Globe, keywords: ["browser", "浏览器", "观察", "网页"], defaultEnabled: true },
@@ -64,11 +62,10 @@ export const WORKSPACE_TABS: WorkspaceTabDef[] = [
   { id: "ui", label: "UI", icon: Blocks, keywords: ["genui", "ui", "面板", "交互", "dashboard", "看板"], defaultEnabled: true },
 ];
 
-// v4.53 合并后的旧 id 别名：历史持久化值（裸 tab id / 记录 / 启用集）读入时
-// 一律先过这张表收敛到合并后的宿主 Tab（学 sanitize 精神：旧值可读、不报废）。
+// 历史持久化值只保留仍可安全映射的别名。tasks/subagents 随右栏任务退役，
+// 不再映射到另一个面板，避免旧启用开关误伤文件面板。
 export const LEGACY_TAB_ALIASES: Readonly<Record<string, WorkspaceTabId>> = {
   changes: "deliverables",
-  subagents: "tasks",
 };
 
 /** 字符串 → WorkspaceTabId：先查旧 id 别名（合并前持久化值），再查现行 id。 */

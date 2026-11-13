@@ -1,7 +1,7 @@
 // 编队页（v4.542 刀5，对标 dsh-context Fleet tab）：Agent 家族视图——摘要条、
 // 成员卡树（刀11：每 Agent 卡+费用+任务/消息计数，点击联动事件检查）、
 // 协作泳道（派发→回报时间线）、协作任务（状态筛选+搜索）、事件检查（派发/
-// 回报合并流）、Agent 网络径向图（复用 AgentRadial）。
+// 回报合并流）、Agent 网络卡片拓扑、活跃泳道、协作任务与事件检查。
 // 数据源：GaeaAgentNetwork（谱系树）+ SubagentRuns（实时运行快照，共享单轮
 // 询 store）+ GaeaFamilyEvents（合并流+成员行）。诚实子集：消息级跨
 // transcript 合并流、blocked-by 依赖链需新后端面，本版不造（见拍板池）。
@@ -14,12 +14,14 @@ import { subscribeAgentNetwork } from "../../lib/agentNetworkStore";
 import type { AgentNetwork } from "../../lib/types";
 import type { FamilyAgentKind, FamilyAgentRowView, FamilyEventStreamView } from "../../lib/types/context";
 import type { SubagentRunView } from "../../lib/types/subagent";
-import { AgentRadial } from "./AgentRadial";
+import { AgentTopology } from "./AgentTopology";
+import { ArrowUpRight, ClipboardList, GitBranch, List, Users } from "../../icons";
+import "./fleet-view.css";
 
 type RunStatus = SubagentRunView["status"];
 
-// STATUS_COLOR 与 dsh/子代理既有语义对齐：running 绿（脉冲在 AgentRadial）、
-// queued 灰、completed 深绿、failed 红。
+// STATUS_COLOR 与 dsh/子代理既有语义对齐：running 绿、queued 灰、
+// completed 深绿、failed 红。
 const STATUS_COLOR: Record<RunStatus, string> = {
   running: "var(--md-sys-color-success, #22c55e)",
   queued: "var(--md-sys-color-outline, #9e9e9e)",
@@ -32,7 +34,7 @@ function shortTask(task: string, max = 24): string {
   return one.length > max ? `${one.slice(0, max)}…` : one;
 }
 
-export function Fleet({ running, sessionPath, onViewContext }: {
+export function Fleet({ sessionPath, onViewContext }: {
   running?: boolean;
   sessionPath?: string;
   onViewContext?: (ref: string) => void;
@@ -71,105 +73,143 @@ export function Fleet({ running, sessionPath, onViewContext }: {
     setEventAgent(ref);
     eventsRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, []);
+  const familyAgents = family?.agents ?? [];
+  const agentCount = Math.max(1 + subagentRuns.length, familyAgents.length);
+  const messageCount = family?.events.length ?? 0;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4" data-testid="ctx-fleet">
-      {/* 摘要条 */}
-      <div className="grid grid-cols-4 gap-2" data-testid="fleet-summary">
-        <Summary label={t("fleet.kpiAgents")} value={String(1 + subagentRuns.length)} />
-        <Summary label={t("fleet.kpiRunning")} value={String(meta.running)} accent={meta.running > 0} />
-        <Summary label={t("fleet.kpiTasks")} value={String(subagentRuns.length)} />
-        <Summary label={t("fleet.kpiMessages")} value={String((family?.events ?? []).length)} />
+    <div className="fleet-view" data-testid="ctx-fleet">
+      <header className="fleet-hero" data-testid="fleet-hero">
+        <div className="fleet-hero-copy">
+          <span className="fleet-eyebrow">{t("fleet.heroEyebrow")}</span>
+          <div className="fleet-title-row">
+            <span className="fleet-beacon" aria-hidden><i /><i /><i /></span>
+            <h2>{t("fleet.heroTitle")}</h2>
+          </div>
+          <p>{t("fleet.heroSubtitle")}</p>
+        </div>
+        <dl className="fleet-summary" data-testid="fleet-summary">
+          <Summary label={t("fleet.kpiAgents")} value={String(agentCount)} />
+          <Summary label={t("fleet.kpiRunning")} value={String(meta.running)} tone="running" />
+          <Summary label={t("fleet.kpiTasks")} value={String(subagentRuns.length)} />
+          <Summary label={t("fleet.kpiMessages")} value={String(messageCount)} tone="messages" />
+        </dl>
+      </header>
+
+      <div className="fleet-main-grid" data-testid="fleet-main">
+        <div className="fleet-network-col">
+          {net ? (
+            <AgentTopology network={net} runs={subagentRuns} agents={familyAgents} onViewContext={onViewContext} />
+          ) : (
+            <section className="ctx-card fleet-network-empty">
+              <div className="fleet-card-head">
+                <span className="fleet-card-title"><Users size={14} aria-hidden />{t("fleet.networkTitle")}</span>
+              </div>
+              <div className="fleet-empty-state">
+                <Users size={20} aria-hidden />
+                <span>{t("fleet.empty")}</span>
+              </div>
+            </section>
+          )}
+        </div>
+        <div className="fleet-side-stack">
+          <SwimLanes runs={subagentRuns} family={family} />
+          <TaskPanel runs={subagentRuns} />
+        </div>
       </div>
 
-      {/* 成员卡树（刀11，1:1 上游 Fleet 成员卡）：每 Agent 费用+任务/消息计数 */}
-      {(family?.agents?.length ?? 0) > 0 && (
-        <MemberCards agents={family!.agents!} runs={subagentRuns} onPick={pickMember} picked={eventAgent} />
-      )}
+      <div ref={eventsRef} className="fleet-events-wrap">
+        <EventInspector family={family} runs={subagentRuns} onViewContext={onViewContext} agent={eventAgent} onAgent={setEventAgent} />
+      </div>
 
-      {/* Agent 网络（谱系径向图，复用实时拓扑组件） */}
-      {net && (
-        <section className="ctx-card p-3">
-          <SectionTitle>{t("fleet.networkTitle")}</SectionTitle>
-          <AgentRadial network={net} running={!!running} sessionPath={sessionPath} onViewContext={onViewContext} />
-        </section>
-      )}
-
-      {/* 协作泳道 */}
-      {subagentRuns.length > 0 && <SwimLanes runs={subagentRuns} />}
-
-      {/* 协作任务 + 事件检查 */}
-      {subagentRuns.length > 0 && (
-        <div className="grid grid-cols-1 gap-3 min-[1100px]:grid-cols-2">
-          <TaskPanel runs={subagentRuns} />
-          <div ref={eventsRef}>
-            <EventInspector family={family} runs={subagentRuns} onViewContext={onViewContext} agent={eventAgent} onAgent={setEventAgent} />
-          </div>
-        </div>
-      )}
-
-      {subagentRuns.length === 0 && meta.status !== "loading" && (
-        <p className="py-6 text-center text-[12px] text-fg-dim" data-testid="fleet-empty">{t("fleet.empty")}</p>
+      {familyAgents.length > 1 && (
+        <MemberCards agents={familyAgents} runs={subagentRuns} onPick={pickMember} picked={eventAgent} />
       )}
     </div>
   );
 }
 
-function Summary({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+function Summary({ label, value, tone }: { label: string; value: string; tone?: "running" | "messages" }) {
   return (
-    <div className="rounded-md border border-border-soft bg-panel-2 px-2 py-1.5">
-      <div className="text-[10.5px] text-fg-dim">{label}</div>
-      <div className={`font-mono text-[15px] font-semibold ${accent ? "text-(color:--color-success)" : "text-fg"}`}>{value}</div>
+    <div className="fleet-summary-stat">
+      <dt>{label}</dt>
+      <dd data-tone={tone}>{value}</dd>
     </div>
   );
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h3 className="m-0 mb-1.5 text-[12.5px] font-medium text-fg">{children}</h3>;
+  return <h3 className="fleet-section-title">{children}</h3>;
 }
 
 // ─── 协作泳道 ────────────────────────────────────────────────
 // 每个子代理一条道：派发（createdAt）→ 收尾（updatedAt）的 span 画在同一条
 // 全局时间轴上；父代理道标出每次派发点。任务编号认同一件事：悬停联动同
 // 任务（简化为同 lane 高亮）。
-function SwimLanes({ runs }: { runs: SubagentRunView[] }) {
+function SwimLanes({ runs, family }: { runs: SubagentRunView[]; family: FamilyEventStreamView | null }) {
   const t = useT();
   const [hovered, setHovered] = useState<string | null>(null);
-  const times = runs.flatMap((r) => [Date.parse(r.createdAt), Date.parse(r.updatedAt || r.createdAt)]).filter((x) => Number.isFinite(x));
-  if (times.length === 0) return null;
-  const min = Math.min(...times);
-  const max = Math.max(...times, min + 1);
+  const [query, setQuery] = useState("");
+  const [latest, setLatest] = useState(false);
+  const needle = query.trim().toLowerCase();
+  const visible = runs.filter((run) => needle === "" || `${run.task} ${run.answer ?? ""}`.toLowerCase().includes(needle));
+  const ordered = latest ? [...visible].reverse() : visible;
+  const times = visible.flatMap((r) => [Date.parse(r.createdAt), Date.parse(r.updatedAt || r.createdAt)]).filter((x) => Number.isFinite(x));
+  const min = times.length > 0 ? Math.min(...times) : 0;
+  const max = times.length > 0 ? Math.max(...times, min + 1) : 1;
   const pos = (ts: number): number => ((ts - min) / (max - min)) * 100;
-  // 父代理道：派发点 = 各 run.createdAt（0 偏移开窗给 hover 空间）。
   return (
-    <section className="ctx-card p-3" data-testid="fleet-lanes">
-      <SectionTitle>{t("fleet.lanesTitle")}</SectionTitle>
-      <div className="flex flex-col gap-1">
-        <Lane
-          name={t("fleet.laneParent")}
-          color="var(--md-sys-color-primary, var(--color-primary))"
-          marks={runs.map((r) => ({ at: pos(Date.parse(r.createdAt)), title: `${t("fleet.evDispatch")}: ${shortTask(r.task, 60)}` }))}
-          span={null}
-          dim={hovered !== null}
-        />
-        {runs.map((r) => {
-          const start = pos(Date.parse(r.createdAt));
-          const end = pos(Date.parse(r.updatedAt || r.createdAt));
-          const dim = hovered !== null && hovered !== r.ref;
-          return (
-            <div key={r.ref} onMouseEnter={() => setHovered(r.ref)} onMouseLeave={() => setHovered(null)}>
-              <Lane
-                name={shortTask(r.task)}
-                color={STATUS_COLOR[r.status]}
-                marks={[]}
-                span={{ start, end, status: r.status }}
-                dim={dim}
-                title={`${r.task} · ${t("fleet.laneSpanTip", { from: fmtClock(r.createdAt), to: fmtClock(r.updatedAt || r.createdAt) })}`}
-              />
-            </div>
-          );
-        })}
+    <section className="ctx-card fleet-compact-card fleet-collab-card" data-testid="fleet-lanes">
+      <div className="fleet-card-head">
+        <span className="fleet-card-title"><GitBranch size={14} aria-hidden />{t("fleet.lanesTitle")}</span>
+        <span className="fleet-card-meta">
+          {t("fleet.lanesSummary", { shown: visible.length + 1, total: runs.length + 1, lanes: runs.length + 1 })}
+        </span>
       </div>
+      <div className="fleet-card-tools">
+        <label className="fleet-search">
+          <span className="sr-only">{t("fleet.lanesSearch")}</span>
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("fleet.lanesSearch")} />
+        </label>
+        <div className="fleet-segmented" role="group">
+          <button type="button" aria-pressed={!latest} onClick={() => setLatest(false)}>{t("fleet.first")}</button>
+          <button type="button" aria-pressed={latest} onClick={() => setLatest(true)}>{t("fleet.latest")}</button>
+        </div>
+      </div>
+      {visible.length > 0 ? (
+        <div className="fleet-lane-list">
+          <Lane
+            name={t("fleet.laneParent")}
+            color="var(--fleet-violet)"
+            marks={visible.map((r) => ({ at: pos(Date.parse(r.createdAt)), title: `${t("fleet.evDispatch")}: ${shortTask(r.task, 60)}` }))}
+            span={null}
+            dim={hovered !== null}
+          />
+          {ordered.map((r) => {
+            const start = pos(Date.parse(r.createdAt));
+            const end = pos(Date.parse(r.updatedAt || r.createdAt));
+            const dim = hovered !== null && hovered !== r.ref;
+            return (
+              <div key={r.ref} onMouseEnter={() => setHovered(r.ref)} onMouseLeave={() => setHovered(null)}>
+                <Lane
+                  name={shortTask(r.task)}
+                  color={STATUS_COLOR[r.status]}
+                  marks={[]}
+                  span={{ start, end, status: r.status }}
+                  dim={dim}
+                  title={`${r.task} · ${t("fleet.laneSpanTip", { from: fmtClock(r.createdAt), to: fmtClock(r.updatedAt || r.createdAt) })}`}
+                />
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="fleet-empty-state fleet-empty-state-compact">
+          <List size={18} aria-hidden />
+          <span>{t(runs.length === 0 ? "fleet.noEvents" : "fleet.none")}</span>
+        </div>
+      )}
+      {family?.truncated ? <span className="fleet-card-note">{t("fleet.truncated", { count: family.truncated })}</span> : null}
     </section>
   );
 }
@@ -183,25 +223,19 @@ function Lane({ name, color, marks, span, dim, title }: {
   title?: string;
 }) {
   return (
-    <div className={`flex items-center gap-2 ${dim ? "opacity-40" : "opacity-100"} transition-opacity`} title={title}>
-      <span className="w-40 shrink-0 truncate text-[10.5px] text-fg-dim">{name}</span>
-      <div className="relative h-3.5 flex-1 rounded bg-bg-soft">
+    <div className={`fleet-lane${dim ? " is-dim" : ""}`} title={title}>
+      <span className="fleet-lane-name">{name}</span>
+      <div className="fleet-lane-track">
         {marks.map((m, i) => (
-          <span
-            key={i}
-            title={m.title}
-            className="absolute top-0 h-full w-0.5 -translate-x-1/2"
-            style={{ left: `${m.at}%`, background: color }}
-          />
+          <span key={i} title={m.title} className="fleet-lane-mark" style={{ left: `${m.at}%`, background: color }} />
         ))}
         {span && (
           <span
-            className="absolute top-0.5 h-2.5 rounded-full"
+            className="fleet-lane-span"
             style={{
               left: `${span.start}%`,
               width: `${Math.max(span.end - span.start, 1.5)}%`,
               background: STATUS_COLOR[span.status],
-              opacity: 0.8,
             }}
           />
         )}
@@ -296,17 +330,20 @@ function TaskPanel({ runs }: { runs: SubagentRunView[] }) {
     return true;
   });
   return (
-    <section className="ctx-card p-3" data-testid="fleet-tasks">
-      <div className="mb-1.5 flex flex-wrap items-center gap-1">
-        <SectionTitle>{t("fleet.tasksTitle")}</SectionTitle>
-        <span className="ml-auto flex items-center gap-1">
+    <section className="ctx-card fleet-compact-card fleet-tasks-card" data-testid="fleet-tasks">
+      <div className="fleet-card-head">
+        <span className="fleet-card-title"><ClipboardList size={14} aria-hidden />{t("fleet.tasksTitle")}</span>
+        <span className="fleet-card-meta">{t("fleet.workSummary", { shown: filtered.length, total: runs.length })}</span>
+      </div>
+      <div className="fleet-card-tools">
+        <span className="fleet-segmented">
           {(["all", "running", "queued", "completed", "failed"] as const).map((s) => (
             <button
               key={s}
               type="button"
               aria-pressed={status === s}
               data-testid={`fleet-task-status-${s}`}
-              className={`cursor-pointer rounded border-0 px-1.5 py-0.5 text-[10px] ${status === s ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"}`}
+              className="fleet-filter-chip"
               onClick={() => setStatus(s)}
             >
               {s === "all"
@@ -320,27 +357,34 @@ function TaskPanel({ runs }: { runs: SubagentRunView[] }) {
                       : t("fleet.stFailed")}
             </button>
           ))}
+        </span>
+        <label className="fleet-search">
+          <span className="sr-only">{t("fleet.taskSearch")}</span>
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder={t("fleet.taskSearch")}
-            className="w-28 rounded border border-border-soft bg-transparent px-1.5 py-0.5 text-[10px] text-fg placeholder:text-fg-faint focus:outline-none focus:ring-1 focus:ring-accent/40"
           />
-        </span>
+        </label>
       </div>
-      <ul className="m-0 flex max-h-64 list-none flex-col gap-1.5 overflow-y-auto p-0">
+      <ul className="fleet-task-list">
         {filtered.map((r) => (
-          <li key={r.ref} className="rounded-md border border-border-soft bg-panel-2 p-1.5 text-[10.5px]">
-            <div className="flex items-center gap-1.5">
-              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: STATUS_COLOR[r.status] }} title={r.status} />
-              <span className="min-w-0 flex-1 truncate text-fg" title={r.task}>{shortTask(r.task, 40)}</span>
-              {r.model && <span className="shrink-0 font-mono text-[9.5px] text-fg-dim">{r.model}</span>}
-              <span className="shrink-0 font-mono text-[9.5px] text-fg-dim">×{r.toolCalls}</span>
+          <li key={r.ref} className="fleet-task-row">
+            <div className="fleet-task-main">
+              <span className="fleet-task-dot" style={{ background: STATUS_COLOR[r.status] }} title={r.status} />
+              <span className="fleet-task-title" title={r.task}>{shortTask(r.task, 48)}</span>
+              {r.model && <span className="fleet-task-model">{r.model}</span>}
+              <span className="fleet-task-calls">×{r.toolCalls}</span>
             </div>
-            {r.answer && <div className="mt-0.5 line-clamp-2 text-[10px] text-fg-dim">{r.answer}</div>}
+            {r.answer && <div className="fleet-task-answer">{r.answer}</div>}
           </li>
         ))}
-        {filtered.length === 0 && <li className="py-3 text-center text-[11px] text-fg-dim">{t("fleet.none")}</li>}
+        {filtered.length === 0 && (
+          <li className="fleet-empty-state fleet-empty-state-compact">
+            <ClipboardList size={18} aria-hidden />
+            <span>{t("fleet.none")}</span>
+          </li>
+        )}
       </ul>
     </section>
   );
@@ -361,12 +405,14 @@ function EventInspector({ family, runs, onViewContext, agent, onAgent }: {
   const t = useT();
   const [kind, setKind] = useState<"all" | FamilyAgentKind>("all");
   const [q, setQ] = useState("");
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const taskByRef = useMemo(() => {
     const m = new Map<string, string>();
     for (const r of runs) m.set(r.ref, r.task);
     return m;
   }, [runs]);
   const events = family?.events ?? [];
+  const scoped = events.filter((event) => agent === "all" || event.agent === agent);
   const filtered = events.filter((e) => {
     if (kind !== "all" && e.kind !== kind) return false;
     if (agent !== "all" && e.agent !== agent) return false;
@@ -374,6 +420,13 @@ function EventInspector({ family, runs, onViewContext, agent, onAgent }: {
     if (query && !(e.text ?? "").toLowerCase().includes(query)) return false;
     return true;
   });
+  const counts = {
+    all: scoped.length,
+    message: scoped.filter((event) => event.kind === "message").length,
+    dispatch: scoped.filter((event) => event.kind === "dispatch").length,
+    report: scoped.filter((event) => event.kind === "report").length,
+  };
+  const selected = filtered.find((event) => `${event.agent}-${event.kind}-${event.seq}` === selectedKey) ?? null;
   const agentLabel = (a: string): string =>
     a === "main" ? t("fleet.agentMain") : shortTask(taskByRef.get(a) ?? a, 14);
   const kindColor: Record<FamilyAgentKind, string> = {
@@ -382,77 +435,121 @@ function EventInspector({ family, runs, onViewContext, agent, onAgent }: {
     message: "var(--md-sys-color-outline, #9e9e9e)",
   };
   return (
-    <section className="ctx-card p-3" data-testid="fleet-events">
-      <div className="mb-1.5 flex flex-wrap items-center gap-1">
-        <SectionTitle>{t("fleet.eventsTitle")}</SectionTitle>
+    <section className="ctx-card fleet-events-card" data-testid="fleet-events">
+      <div className="fleet-card-head">
+        <span className="fleet-card-title"><List size={14} aria-hidden />{t("fleet.eventsTitle")}</span>
         {!!family?.truncated && (
-          <span className="text-[10px] text-fg-dim">{t("fleet.truncated", { count: family.truncated })}</span>
+          <span className="fleet-card-note">{t("fleet.truncated", { count: family.truncated })}</span>
         )}
-        <span className="ml-auto flex flex-wrap items-center gap-1">
+        <span className="fleet-card-meta">{t("fleet.eventSummary", { shown: filtered.length, total: events.length })}</span>
+      </div>
+      <div className="fleet-events-tools">
+        <div className="fleet-segmented fleet-event-kinds" role="group">
+          {(["all", "message", "dispatch", "report"] as const).map((key) => (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={kind === key}
+              data-kind={key}
+              onClick={() => {
+                setKind(key);
+                setSelectedKey(null);
+              }}
+            >
+              {key === "all" ? t("fleet.filterAll") : key === "message" ? t("fleet.evMessage") : key === "dispatch" ? t("fleet.evDispatch") : t("fleet.evReport")}
+              <b>{counts[key]}</b>
+            </button>
+          ))}
+        </div>
+        <label className="fleet-search">
+          <span className="sr-only">{t("fleet.eventSearch")}</span>
+          <input
+            value={q}
+            onChange={(event) => {
+              setQ(event.target.value);
+              setSelectedKey(null);
+            }}
+            placeholder={t("fleet.eventSearch")}
+          />
+        </label>
+      </div>
+      <div className="fleet-agent-filter">
           {(["all", ...(family?.refs ?? ["main"])] as const).map((a) => (
             <button
               key={a}
               type="button"
               aria-pressed={agent === a}
-              className={`cursor-pointer rounded border-0 px-1.5 py-0.5 text-[10px] ${agent === a ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"}`}
-              onClick={() => onAgent(a === agent ? "all" : a)}
+              className="fleet-agent-chip"
+              onClick={() => {
+                onAgent(a === agent ? "all" : a);
+                setSelectedKey(null);
+              }}
             >
               {a === "all" ? t("fleet.agentAll") : agentLabel(a)}
             </button>
           ))}
-        </span>
       </div>
-      <div className="mb-1.5 flex flex-wrap items-center gap-1">
-        {(["all", "message", "dispatch", "report"] as const).map((k) => (
-          <button
-            key={k}
-            type="button"
-            aria-pressed={kind === k}
-            className={`cursor-pointer rounded border-0 px-1.5 py-0.5 text-[10px] ${kind === k ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"}`}
-            onClick={() => setKind(k)}
-          >
-            {k === "all" ? t("fleet.filterAll") : k === "message" ? t("fleet.evMessage") : k === "dispatch" ? t("fleet.evDispatch") : t("fleet.evReport")}
-          </button>
-        ))}
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder={t("fleet.taskSearch")}
-          className="ml-auto w-28 rounded border border-border-soft bg-transparent px-1.5 py-0.5 text-[10px] text-fg placeholder:text-fg-faint focus:outline-none focus:ring-1 focus:ring-accent/40"
-        />
-      </div>
-      <ul className="m-0 flex max-h-64 list-none flex-col overflow-y-auto p-0">
-        {filtered.map((e, i) => (
-          <li key={`${e.agent}-${e.kind}-${e.seq}-${i}`} className="ctx-row flex items-start gap-1.5 px-1.5 py-1 text-[10.5px]">
-            <span
-              className="mt-1 h-2 w-2 shrink-0 rounded-sm"
-              style={{ background: kindColor[e.kind] }}
-              title={e.kind}
-            />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <span className="shrink-0 rounded bg-bg-soft px-1 font-mono text-[9px] text-fg-dim">{agentLabel(e.agent)}</span>
-                {e.kind === "message" && e.role && (
-                  <span className="shrink-0 text-[9px] text-fg-faint">{e.role === "user" ? t("fleet.roleUser") : t("fleet.roleAssistant")}</span>
-                )}
-                {e.kind === "dispatch" && <span className="shrink-0 text-[9px] font-medium text-fg-dim">{t("fleet.evDispatch")}</span>}
-                {e.kind === "report" && <span className="shrink-0 text-[9px] font-medium" style={{ color: kindColor.report }}>{t("fleet.evReport")}</span>}
-                <span className="ml-auto shrink-0 font-mono text-[9.5px] text-fg-dim">{fmtClock(new Date(e.ts * 1000).toISOString())}</span>
-              </div>
-              {e.text && (
-                <div
-                  className={`mt-0.5 text-[10px] text-fg-dim ${e.kind === "report" && onViewContext ? "cursor-pointer hover:text-fg hover:underline" : ""}`}
-                  title={e.text}
-                  onClick={e.kind === "report" && onViewContext ? () => onViewContext(e.ref || e.agent) : undefined}
-                >
-                  {e.text}
-                </div>
-              )}
+      <div className="fleet-events-layout">
+        <div className="fleet-event-stream">
+          {filtered.length === 0 ? (
+            <div className="fleet-empty-state">
+              <List size={20} aria-hidden />
+              <span>{t(events.length === 0 ? "fleet.noEvents" : "fleet.none")}</span>
             </div>
-          </li>
-        ))}
-        {filtered.length === 0 && <li className="py-3 text-center text-[11px] text-fg-dim">{t("fleet.none")}</li>}
-      </ul>
+          ) : (
+            <ul className="fleet-event-list">
+              {filtered.map((e) => {
+                const key = `${e.agent}-${e.kind}-${e.seq}`;
+                return (
+                  <li key={key}>
+                    <button
+                      type="button"
+                      data-event-key={key}
+                      aria-pressed={selectedKey === key}
+                      onClick={() => setSelectedKey((current) => current === key ? null : key)}
+                      className="fleet-event-row"
+                    >
+                      <span className="fleet-event-dot" style={{ background: kindColor[e.kind] }} aria-hidden />
+                      <span className="fleet-event-agent">{agentLabel(e.agent)}</span>
+                      <span className="fleet-event-kind">
+                        {e.kind === "message" ? (e.role === "user" ? t("fleet.roleUser") : t("fleet.roleAssistant")) : e.kind === "dispatch" ? t("fleet.evDispatch") : t("fleet.evReport")}
+                      </span>
+                      <span className="fleet-event-text" title={e.text}>{e.text || "—"}</span>
+                      <span className="fleet-event-time">{fmtClock(new Date(e.ts * 1000).toISOString())}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+        <div className="fleet-event-inspector">
+          {selected ? (
+            <>
+              <div className="fleet-event-detail-head">
+                <span className="fleet-event-dot" style={{ background: kindColor[selected.kind] }} aria-hidden />
+                <span className="fleet-event-agent">{agentLabel(selected.agent)}</span>
+                <span className="fleet-event-kind">
+                  {selected.kind === "message" ? (selected.role === "user" ? t("fleet.roleUser") : t("fleet.roleAssistant")) : selected.kind === "dispatch" ? t("fleet.evDispatch") : t("fleet.evReport")}
+                </span>
+                <span className="fleet-event-time">{fmtClock(new Date(selected.ts * 1000).toISOString())}</span>
+              </div>
+              <p className="fleet-event-detail-text">{selected.text || "—"}</p>
+              {selected.kind === "report" && onViewContext && (
+                <button type="button" className="fleet-detail-action" onClick={() => onViewContext(selected.ref || selected.agent)}>
+                  <ArrowUpRight size={12} aria-hidden />
+                  {t("fleet.open")}
+                </button>
+              )}
+            </>
+          ) : (
+            <div className="fleet-empty-state">
+              <List size={20} aria-hidden />
+              <span>{t("fleet.selectEvent")}</span>
+            </div>
+          )}
+        </div>
+      </div>
     </section>
   );
 }

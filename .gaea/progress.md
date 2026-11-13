@@ -1,3 +1,57 @@
+## DSH Context / Fleet UX 对齐 · 2026-11-13（代码候选）
+
+按用户要求不再从截图猜测，回源 `bowenliang123/dsh-context v0.84.1`
+（commit `d81325ec`）的 `contextView.tsx`、`missionPulse.tsx` 与对应 CSS：
+- 上下文页改为“统计 + 信息列 → Token/耗时 → 当前上下文+趋势 / 浏览器 →
+  事件/文件 → 命令”；命令面板补左摘要右日志；输入框仅在办公「对话」显示，
+  历史 `tasks/subagents` 右栏值回退文件。
+- Agent 网络移出上下文，`编队` 改为卡片拓扑图（主 Agent/子 Agent 卡片 +
+  贝塞尔连接），并补 Hero 摘要、跨 Agent 协作、协作任务、事件检查双栏；
+  右栏任务 Tab 从注册表、清单、持久化与自动打开链路退役，自动打开偏好改跳
+  「编队」。
+- 验证：相关 13 文件 161 例绿；`tsc -b`、定向 ESLint 绿；`npm.cmd run build`
+  成功（Vite 24.68s）；mock 亮/暗主题走查通过。未做 Wails 构建/装机。
+
+## 灵犀输出 UI batch3 · 2026-11-13（代码候选）
+
+按 `re-lingxi/out/REPORT-对话窗口UI与文件成果卡.md` +
+`REPORT-思考卡工具卡过程卡.md` 把办公对话输出层继续向灵犀形态收口：
+交付物从纵向列表改为 2 列「文件成果卡」网格（DOC/XLSX/PPT/PDF/图片/HTML/
+Markdown 等类型后缀徽标与淡色渐变），文件名保持主视觉，路径退到 title /
+可访问名称；预览、外部打开、文件定位、复制路径、已更新/草稿/就绪/未生成
+状态全部保留。过程卡状态徽标去底色，只在错误/中断保留语义色；成果卡用
+`container-type:inline-size` 在窄对话区自动单列，避免 Gaea 左栏/右栏挤压时
+继续硬塞两列。验证：DeliverableCards + Message + ProcessCard + ToolCard
+定向 53 例绿、ESLint 0、`npm.cmd run build` 终稿绿（Vite 22.77s）；浏览器
+mock 实机走查浅/暗主题四类型卡均正常。余：跟随模型输出的正文内联 FileChip
+仍沿用既有 compact chip（非成果卡），按需再评估是否收进同一卡片语言。
+
+续刀（同日）：删除 `.office-composer-meta` 独立状态行，把 `ContextPill`
+改为 `ComposerToolbar` 的 `contextStatus` 插槽，剩余上下文百分比、微型
+占用条与点击查看详情均保留，统一落在输入卡底栏右侧；快捷提示同区但窄窗
+优先隐藏。定向 Composer/ContextPill/队列 19 例绿、ESLint 0、前端生产构建
+终稿 Vite 23.61s；浅暗主题 mock 走查确认无输入框上方单独状态行。
+
+首页续刀：`DeliverablesDock` 改为仅在非空会话挂载（`!showCenteredComposer`），
+避免新建会话继承当前会话登记缓存而在空首页显示「交付文件/交互文件」面板；
+空首页欢迎语与主标题三语统一大写品牌（zh「GAEA与你同行」/zh-TW「GAEA與你同行」/
+en「GAEA is with you」）。定向 App 导出/首页依赖 15 例绿、ESLint 0；mock
+实机走查确认空首页无交付停靠条、标题已替换；前端生产构建终稿 Vite 23.40s。
+
+输出面板续刀：抽出 `lib/fileCard` 单源类型映射，输入框上方交付停靠条改为
+默认收起的灵犀单行摘要，展开为 2 列紧凑成果卡；右侧「会话产物」行同步换为
+同款类型徽标卡（图片继续保留缩略图），版本/验收/定位/复制/外开/沉淀成本
+入口原样保留。输入区页脚与运行状态条改为透明，移除顶部分隔线并加强输入卡
+投影，使输入框与上方画布同底悬浮。定向 50 例绿；mock 实机走查确认停靠条、
+右侧面板与悬浮输入框风格一致；前端构建 Vite 25.81s。
+
+桌面构建（同日）：按构建指南前置 UCRT64 GCC、`CGO_ENABLED=1`、系统
+TMP/TEMP，前端生产构建后执行完整绑定 `wails build -s -ldflags "-s -w" -trimpath`
+成功（1m23.122s）。`build/bin/gaea.exe` 63,639,552 B / SHA256
+`52D605F24DF78EA06B16FEA3035EB2F3FBCB5C92B2573D4310C199073EF6B965`，
+三枚语音 DLL 同目录；正式路径冒烟 `/api/health` 200，PID 19132 已回收。
+未装机、未抬起版本。
+
 ## 灵犀 P1 四项全落 · 2026-11-13（装机，拍板=复用系统 Python）
 
 P1-2 xlsx 交付门（xlsx_recalc 暴露 LibreOffice 重算链+xlsx_audit 只读审计

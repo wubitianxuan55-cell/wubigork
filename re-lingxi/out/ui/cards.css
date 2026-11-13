@@ -1,0 +1,492 @@
+/* =============================================================================
+   灵犀：思考卡 / 工具卡 / 过程卡 / 工作台步骤卡 —— 完整样式
+   来源：lingxi-desktop 1.3.36 / webBuild 26b61d0a2d85
+   原始 scope：
+     PMessagePlainCard      data-v-d1f641c3（无箭头） / data-v-43d13d74（有箭头）
+     PClawToolCard          data-v-3b788e79
+     PClawMessageGroup      data-v-fbe4b4b9（折叠条 + collapsible）
+     PWorkbenchStepCard     data-v-a388dd25
+   已剥离 Vue scoped 属性，类名/层级与原版一致。
+   ========================================================================== */
+
+/* -----------------------------------------------------------------------------
+   0. 本组额外变量（原产物由设计系统提供，这里给 fallback）
+   -------------------------------------------------------------------------- */
+:root {
+  --lx-background-group: #fafafa;
+  --lx-color-line-light: rgba(var(--kd-color-gray-10, 13 13 13), .06);
+  --lx-color-fill-regular: rgba(var(--kd-color-gray-10, 13 13 13), .06);
+  --lx-color-text-secondary: rgba(var(--kd-color-gray-7, 107 107 107), 1);
+  --lx-color-text-tertiary: rgba(var(--kd-color-gray-10, 13 13 13), .46);
+  --lx-color-state-hover: rgba(var(--kd-color-gray-10, 13 13 13), .06);
+  --lx-color-state-pressed: rgba(var(--kd-color-gray-10, 13 13 13), .1);
+
+  --kd-color-error-normal: rgba(220, 60, 60, .8);
+  --kd-color-error-light: rgba(227, 77, 89, .08);
+  --kd-color-success-normal: rgba(40, 160, 40, .8);
+  --kd-color-success-light: rgba(0, 168, 112, .08);
+
+  --kd-font-size-sub-base: 13px;
+  --kd-font-line-height-small: 20px;
+}
+html[theme-mode="dark"], .dark {
+  --lx-background-group: #171717;
+}
+
+/* =============================================================================
+   1. 思考卡 / 能力卡基座  .card
+   DOM：
+     <div class="card card--completed?">
+       <div class="header header--can-fold?" @click>
+         [icon] [title-text | spotlight] [arrow]
+       </div>
+       <Transition name="expand-content">
+         <main class="main" v-show="!folded"><div class="main__list">…</div></main>
+       </Transition>
+     </div>
+   ========================================================================== */
+.card {
+  max-height: min(480px, 50vh);
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+}
+
+.header {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  height: 28px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  gap: 8px;
+  color: var(--kd-color-text-secondary, #0d0d0da8);
+  transition: background .15s, border-color .15s;
+}
+.header.header--can-fold { cursor: pointer; }
+.header.header--can-fold:hover { background: var(--lx-color-state-hover); }
+html[theme-mode="dark"] .header.header--can-fold:hover { background: #ffffff14; }
+
+.header__icon {
+  display: flex;
+  align-items: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--kd-color-icon-tertiary, #757575);
+}
+
+/* 未完成：扫光标题；完成：静态标题 */
+.title-spotlight {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--kd-color-text-secondary, #0d0d0da8);
+  font-size: var(--kd-font-size-sub-base);
+}
+.title-text {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--kd-font-size-sub-base);
+  color: var(--kd-color-text-secondary);
+}
+
+/* 仅 43d13d74 变体有箭头 */
+.header__arrow {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--kd-color-text-secondary);
+  transition: transform .2s;
+}
+.header__arrow--folded { transform: rotate(-90deg); }
+
+.main {
+  position: relative;
+  padding: 4px 8px 4px 0;
+  flex: 1;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+/* 折叠过渡：max-height + 位移 + 淡出 */
+.expand-content-enter-active,
+.expand-content-leave-active {
+  transition: all .3s cubic-bezier(.4, 0, .2, 1);
+  overflow: hidden;
+}
+.expand-content-enter-from,
+.expand-content-leave-to {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-10px);
+  padding: 0 16px;
+}
+.expand-content-enter-to,
+.expand-content-leave-from {
+  max-height: 160px;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* -----------------------------------------------------------------------------
+   1.1 思考正文：markdown + .ai-reasoning
+   -------------------------------------------------------------------------- */
+.ai-reasoning {
+  --lx-md-font-size-text: 13px;
+  --lx-md-line-height-text: var(--kd-font-line-height-small, 20px);
+  color: var(--kd-color-text-secondary);
+}
+.ai-reasoning p,
+.ai-reasoning ol,
+.ai-reasoning ul,
+.ai-reasoning section {
+  font-size: 13px;
+  line-height: var(--kd-font-line-height-small, 20px);
+}
+.cowork-share-markdown.ai-reasoning--cloud {
+  margin-left: 8px;
+  color: var(--kd-color-text-tertiary);
+}
+
+/* =============================================================================
+   2. 工具卡  .claw-tool-card
+   DOM：
+     <div class="claw-tool-card">
+       <div class="claw-tool-card__header [--clickable] [.claw-tool-card--highlighted]">
+         [icon] [title-text | spotlight] [status-text] [desc slot]
+       </div>
+       <Transition name="claw-tool-card-expand">
+         <div class="claw-tool-card__body" v-if="可展开且未进工作台">…</div>
+       </Transition>
+     </div>
+   ========================================================================== */
+.claw-tool-card {
+  display: inline-flex;
+  flex-direction: column;
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+  align-items: flex-start;
+  border-radius: 8px;
+  transition: background .15s, border-color .15s;
+  color: var(--kd-color-text-secondary, #0d0d0da8);
+}
+.claw-tool-card--highlighted { background: var(--lx-color-state-pressed); }
+
+.claw-tool-card__header {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  height: 28px;
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+.claw-tool-card__header--clickable { cursor: pointer; }
+.claw-tool-card__header--clickable:hover { background: var(--lx-color-state-hover); }
+
+.claw-tool-card__icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--kd-color-icon-tertiary, #757575);
+  border-radius: 4px;
+}
+.claw-tool-card__icon.image__url__icon { margin: unset; }
+
+.claw-tool-card__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--kd-color-text-secondary, #0d0d0da8);
+  font-size: var(--kd-font-size-sub-base);
+}
+.claw-tool-card__title-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--kd-font-size-sub-base);
+  color: var(--kd-color-text-secondary);
+  margin-right: 4px;
+}
+.claw-tool-card__status-text {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--kd-color-text-tertiary);
+  white-space: nowrap;
+}
+
+.claw-tool-card__body {
+  width: fit-content;
+  box-sizing: border-box;
+  max-width: 100%;
+  align-self: flex-start;
+  padding: 10px 12px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  max-height: min(400px, 45vh);
+}
+
+.claw-tool-card-expand-enter-active,
+.claw-tool-card-expand-leave-active {
+  transition: all .3s cubic-bezier(.4, 0, .2, 1);
+  overflow: hidden;
+}
+.claw-tool-card-expand-enter-from,
+.claw-tool-card-expand-leave-to {
+  max-height: 0;
+  opacity: 0;
+  padding: 0 12px;
+}
+.claw-tool-card-expand-enter-to,
+.claw-tool-card-expand-leave-from {
+  max-height: 450px;
+  opacity: 1;
+}
+
+html[theme-mode="dark"] .claw-tool-card__header--clickable:hover,
+html[theme-mode="dark"] .claw-tool-card--highlighted {
+  background: #ffffff14;
+}
+
+/* 分享场景里的工具卡（外层 .cowork-share-tool） */
+.cowork-share-tool .claw-tool-card__header {
+  max-width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+.cowork-share-tool .claw-tool-card__header:hover { background: var(--lx-color-state-hover); }
+
+/* =============================================================================
+   3. 过程卡：折叠条 + collapsible
+   DOM：
+     <button class="claw-process-collapse">
+       <Arrow class="claw-process-collapse__arrow [is-expanded]"/>
+       <span class="claw-process-collapse__text">…</span>
+     </button>
+     <div class="claw-process-collapsible [is-expanded]">
+       <div class="claw-process-collapsible__inner">
+         <div data-tool="<toolName>">…步骤卡…</div>
+       </div>
+     </div>
+   ========================================================================== */
+.claw-process-collapse {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  text-align: left;
+  color: var(--kd-color-text-secondary);
+  cursor: pointer;
+  font-size: 16px;
+}
+.claw-process-collapse.has-answer { margin-top: 6px; }
+.claw-process-collapse__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.claw-process-collapse__arrow {
+  flex-shrink: 0;
+  transition: transform .3s cubic-bezier(.4, 0, .2, 1);
+}
+.claw-process-collapse__arrow--expanded,
+.claw-process-collapse__arrow.is-expanded { transform: rotate(90deg); }
+
+/* 高度自适应折叠：grid-template-rows 0fr → 1fr */
+.claw-process-collapsible {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows .35s cubic-bezier(.4, 0, .2, 1);
+}
+.claw-process-collapsible.is-expanded { grid-template-rows: 1fr; }
+.claw-process-collapsible__inner {
+  overflow: hidden;
+  min-height: 0;
+  opacity: 0;
+  transition: opacity .2s ease;
+}
+.claw-process-collapsible.is-expanded .claw-process-collapsible__inner {
+  opacity: 1;
+  transition: opacity .2s ease .1s;
+}
+
+/* 过程卡内部：光标点 */
+.claw-cursor-dot { margin: 8px 0; }
+
+/* =============================================================================
+   4. 工作台步骤卡  .workbench-step-card
+   DOM：
+     <article class="workbench-step-card [--loading|--placeholder|--streaming]">
+       <div class="workbench-step-card__clip">
+         [skeleton] | [diff] | [code / stream-code]
+       </div>
+     </article>
+   ========================================================================== */
+.workbench-step-card {
+  box-sizing: border-box;
+  width: 100%;
+  height: 96px;
+  max-height: 96px;
+  background: var(--lx-background-group);
+  border: 1px solid var(--lx-color-line-light);
+  border-radius: 12px;
+  padding: 12px 16px;
+  overflow: hidden;
+}
+.workbench-step-card__clip {
+  max-height: 72px;
+  overflow: hidden;
+  overflow-y: auto;
+  contain: layout paint;
+  scrollbar-width: none;
+}
+.workbench-step-card__clip::-webkit-scrollbar { display: none; }
+.workbench-step-card--streaming .workbench-step-card__clip {
+  overflow: clip;
+  will-change: transform;
+}
+
+.workbench-step-card__body { margin: 0; padding: 0; }
+.workbench-step-card__code {
+  margin: 0;
+  padding: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--lx-color-text-secondary);
+}
+.workbench-step-card__code .hljs {
+  display: inline;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+}
+.workbench-step-card__prompt {
+  display: inline;
+  color: var(--lx-color-text-tertiary);
+  user-select: none;
+}
+
+/* 流式：只位移增量，行高固定防抖 */
+.workbench-step-card__stream-code {
+  display: block;
+  transform-origin: left top;
+  will-change: transform;
+}
+.workbench-step-card__stream-code .workbench-step-card__stream-line {
+  display: block;
+  min-height: 18px;
+}
+.workbench-step-card__stream-code .workbench-step-card__stream-fragment { display: inline; }
+.workbench-step-card__stream-code .workbench-step-card__prompt {
+  color: var(--lx-color-text-tertiary);
+  user-select: none;
+}
+
+/* diff：左竖条 + −/+ 标签 */
+.workbench-step-card__diff { display: flex; flex-direction: column; gap: 4px; }
+.workbench-step-card__diff-block {
+  display: flex;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  border-left: 2px solid transparent;
+}
+.workbench-step-card__diff-block--del {
+  background: var(--kd-color-error-light, rgba(227, 77, 89, .08));
+  border-left-color: var(--kd-color-error-normal, rgba(220, 60, 60, .6));
+}
+.workbench-step-card__diff-block--add {
+  background: var(--kd-color-success-light, rgba(0, 168, 112, .08));
+  border-left-color: var(--kd-color-success-normal, rgba(40, 160, 40, .6));
+}
+.workbench-step-card__diff-label {
+  flex-shrink: 0;
+  width: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  user-select: none;
+}
+.workbench-step-card__diff-block--del .workbench-step-card__diff-label {
+  color: var(--kd-color-error-normal, rgba(220, 60, 60, .8));
+}
+.workbench-step-card__diff-block--add .workbench-step-card__diff-label {
+  color: var(--kd-color-success-normal, rgba(40, 160, 40, .8));
+}
+.workbench-step-card__diff-text {
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--lx-color-text-secondary);
+}
+.workbench-step-card__diff-block--del .workbench-step-card__diff-text {
+  color: var(--lx-color-text-tertiary);
+}
+.workbench-step-card__diff-text code { font: inherit; color: inherit; }
+
+html[theme-mode="dark"] .workbench-step-card__diff-block--del {
+  background: #ff505014;
+  border-left-color: #ff505080;
+}
+html[theme-mode="dark"] .workbench-step-card__diff-block--add {
+  background: #50c85014;
+  border-left-color: #50c85080;
+}
+html[theme-mode="dark"] .workbench-step-card__diff-block--del .workbench-step-card__diff-label { color: #ff6464cc; }
+html[theme-mode="dark"] .workbench-step-card__diff-block--add .workbench-step-card__diff-label { color: #64dc64cc; }
+html[theme-mode="dark"] .workbench-step-card__diff-block--del .workbench-step-card__diff-text { color: #ffffff59; }
+html[theme-mode="dark"] .workbench-step-card__diff-block--add .workbench-step-card__diff-text { color: #ffffffa6; }
+
+/* 骨架：1.4s shimmer 循环 */
+.workbench-step-card__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 2px;
+}
+.workbench-step-card__skeleton-line {
+  display: block;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--lx-color-fill-regular);
+  animation: workbench-step-skeleton 1.4s ease-in-out infinite;
+  width: 78%;
+  animation-delay: .1s;
+}
+.workbench-step-card__skeleton-line--long { width: 92%; animation-delay: 0s; }
+.workbench-step-card__skeleton-line--short { width: 58%; animation-delay: .2s; }
+
+@keyframes workbench-step-skeleton {
+  0%, 100% { opacity: .55; }
+  50%      { opacity: 1; }
+}

@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 // 次区（border-t 分隔，高度随内容、封顶 45%，超出内部滚动）承载第二块；
 // 两块各自保留 v3-panel-head 标题行与计数/动作，壳只负责分区不抢语义。
 //
-// 面板组件本体（DeliverablesPanel/ChangesPanel/TaskCenter/SubagentsPanel）
+// 面板组件本体（DeliverablesPanel/ChangesPanel）
 // 不感知本壳（学既有约定：框架与 tab 内容解耦）。
 
 export function MergedPanel({

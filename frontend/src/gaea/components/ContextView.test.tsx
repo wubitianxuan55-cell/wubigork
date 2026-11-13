@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactElement } from "react";
 import { LocaleProvider } from "../lib/i18n";
@@ -128,6 +128,57 @@ describe("ContextView 上下文页卡片墙（v4.71 卡片化）", () => {
     expect(screen.getByText("耗时统计")).toBeTruthy();
     expect(screen.getByText("模型等待")).toBeTruthy();
     expect(screen.getByText("会话信息")).toBeTruthy();
+  });
+
+  it("布局对齐 dsh-context contextView：统计/信息、Token/耗时、当前+趋势/浏览器、事件/文件、命令", async () => {
+    contextViewMock.mockResolvedValue({
+      ...TIMELINE,
+      commands: [{
+        seq: 41,
+        resultSeq: 42,
+        time: 1750000041,
+        tool: "bash",
+        cmd: "npm test",
+        turn: 2,
+        step: 4,
+        start: 1750000041,
+        end: 1750000042,
+        status: "completed",
+        exit: 0,
+        derived: true,
+      }],
+      commandStats: { runs: 1, failed: 0, ms: 1000, bg: 0 },
+    });
+    const { ContextView } = await import("./ContextView");
+    const { container } = renderT(<ContextView running={false} />);
+    const cockpit = await screen.findByTestId("context-cockpit");
+
+    const rows = Array.from(cockpit.querySelectorAll(":scope > [data-context-row]"))
+      .map((row) => row.getAttribute("data-context-row"));
+    expect(rows.slice(0, 5)).toEqual(["summary", "instruments", "main", "audit", "commands"]);
+
+    const summary = cockpit.querySelector('[data-context-row="summary"]')!;
+    expect(summary.querySelector('[data-testid="stats-kpi-grid"]')).toBeTruthy();
+    expect(summary.textContent).toContain("会话信息");
+
+    const instruments = cockpit.querySelector('[data-context-row="instruments"]')!;
+    expect(instruments.children).toHaveLength(2);
+    expect(instruments.textContent).toContain("Token 统计");
+    expect(instruments.textContent).toContain("耗时统计");
+
+    const main = cockpit.querySelector('[data-context-row="main"]')!;
+    expect(main.children).toHaveLength(2);
+    expect(main.children[0].textContent).toContain("当前上下文");
+    expect(main.children[0].textContent).toContain("上下文趋势");
+    expect(main.children[1].querySelector('[data-testid="ctx-browser"]')).toBeTruthy();
+
+    const audit = cockpit.querySelector('[data-context-row="audit"]')!;
+    expect(audit.textContent).toContain("上下文事件");
+    expect(audit.textContent).toContain("文件活动");
+    // 旧页面把 StatsCard 放在最底部；新结构必须让统计成为首屏第一卡。
+    expect(
+      container.querySelector('[data-testid="stat-tile-turns"]')?.closest('[data-context-row]')?.getAttribute("data-context-row"),
+    ).toBe("summary");
   });
 
   it("当前上下文宽卡：水位、缓存/费用与六分类图例", async () => {
@@ -462,9 +513,10 @@ describe("ContextView 上下文页卡片墙（v4.71 卡片化）", () => {
     renderT(<ContextView running={false} />);
     expect(await screen.findByText("上下文浏览器")).toBeTruthy();
     // 文件行聚合 ±徽标（两次写合并：+15 = 12+3，−5）
-    expect(screen.getByText(/docs\/结论\.md/)).toBeTruthy();
-    expect(screen.getByText("+15")).toBeTruthy();
-    expect(screen.getByText("−5")).toBeTruthy();
+    expect(screen.getByTitle("docs/结论.md")).toBeTruthy();
+    const fileRow = screen.getByTitle("docs/结论.md").closest(".ctx-file-row") as HTMLElement;
+    expect(within(fileRow).getByText("+15")).toBeTruthy();
+    expect(within(fileRow).getByText("−5")).toBeTruthy();
     // 展开操作日志：逐次操作行（含该次 ±12/−0）+ 详情懒加载（seq=23 grep → mock 详情）
     fireEvent.click(screen.getAllByTestId("file-ops-toggle")[0]);
     const opBtns = await screen.findAllByTestId("file-op-detail-btn");
@@ -482,14 +534,14 @@ describe("ContextView 上下文页卡片墙（v4.71 卡片化）", () => {
     renderT(<ContextView running={false} />);
     expect(await screen.findByText("文件活动")).toBeTruthy();
     expect(screen.getByText("2 个文件")).toBeTruthy();
-    expect(screen.getByText("internal/gaea/config/config.go")).toBeTruthy();
-    fireEvent.click(screen.getByText("internal/gaea/config/config.go"));
+    expect(screen.getByTitle("internal/gaea/config/config.go")).toBeTruthy();
+    fireEvent.click(screen.getByTitle("internal/gaea/config/config.go"));
     expect(usePreviewStore.getState().previewFile).toBe("internal/gaea/config/config.go");
   });
 
   it("Agent 网络：径向图渲染 + 订阅共享 store", async () => {
     const { ContextView } = await import("./ContextView");
-    renderT(<ContextView running={false} />);
+    renderT(<ContextView running={false} showAgentNetwork />);
     expect(await screen.findByText("Agent 网络")).toBeTruthy();
     expect(screen.getByText(/1 个 Agent/)).toBeTruthy();
     expect(subscribeAgentNetworkMock).toHaveBeenCalled();
@@ -724,11 +776,11 @@ describe("ContextView v4.412：窗口未知诚实化 + 复用门控", () => {
     expect(reloadAgentNetworkMock).not.toHaveBeenCalled();
   });
 
-  it("缺省仍订阅 Agent 网络（既有消费方零破坏）", async () => {
+  it("缺省不再订阅 Agent 网络（编队标签接管）", async () => {
     const { ContextView } = await import("./ContextView");
     renderT(<ContextView running={false} />);
     await screen.findByText("当前上下文");
-    expect(subscribeAgentNetworkMock).toHaveBeenCalled();
+    expect(subscribeAgentNetworkMock).not.toHaveBeenCalled();
   });
 
   it("spaceOverride 覆盖会话归属空间（原罪无路径可判，显式传值）", async () => {

@@ -47,7 +47,6 @@ import { SubagentThread } from "./components/SubagentThread";
 import { FilePreview } from "./components/FilePreview";
 import { PreviewNavBar } from "./components/PreviewNavBar";
 import { CommandPalette, type PaletteItem } from "./components/CommandPalette";
-import { useRunningBadge } from "./hooks/useRunningBadge";
 import { Skeleton } from "./components/Skeleton";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { SelectionToComposer } from "./components/SelectionToComposer";
@@ -92,7 +91,7 @@ import { useWorkspaceLayout } from "./app/useWorkspaceLayout";
 import { usePreviewPanel } from "./app/usePreviewPanel";
 import { useSessionHandlers } from "./app/useSessionHandlers";
 import { useAppKeyboard } from "./app/useAppKeyboard";
-import { useTasksAutoOpen } from "./app/useTasksAutoOpen";
+import { useFleetAutoOpen } from "./app/useFleetAutoOpen";
 
 export default function App() {
   const toast = useToast();
@@ -235,12 +234,6 @@ export default function App() {
     workspaceResizing, effectiveWorkspaceWidth,
     handleAutoWidenWorkspace, startWorkspaceResize,
   } = useWorkspaceLayout({ initialPanelState, rightTab, currentSessionKey, effectiveSidebarWidth });
-  // C6 运行域活动角标：活跃任务数（queued/running）；任务面板激活时视为已读
-  // 不显示。v4.53 分工并入任务：运行计数角标挂在「任务」单键上，任务面板
-  // （含分工段）激活即视为已读。
-  const runningTasks = useRunningBadge();
-  const runningDomainActive = rightTab === "tasks";
-  const runningBadge = runningDomainActive ? undefined : { tasks: runningTasks };
   // 紧凑模式只读持久值（2026-11-13 顶栏合并：切换钮已撤，余量仅撑 footer 密度与 CompactContext）
   const [compactMode] = useState(() => readWorkbenchValue("gaea.compactMode") === "1");
   const [scrollToTurn, setScrollToTurn] = useState<((turn: number) => void) | null>(null);
@@ -436,12 +429,19 @@ export default function App() {
   const { sessionDeliverables, sessionChanges, freshDeliverablePaths, freshDeliverableCount } = useDeliverables({ state, currentSessionKey, rightTab, openPaneView });
   // 预览浮窗状态机（U2）+ 写后预览实时跟随（U4）→ app/usePreviewAutoFront
   usePreviewAutoFront({ state, currentSessionKey, workspacePanelOpen, previewFile, focusMode });
-  // 新后台任务/子代理运行自动激活任务页 → app/useTasksAutoOpen
-  const { openTasksAuto } = useTasksAutoOpen({ rightTab, openPaneView, currentSessionPath, subagentRuns });
+  // 新后台任务/子代理运行自动切主区「编队」→ app/useFleetAutoOpen
+  const openFleetView = useCallback(() => {
+    setActiveTool(null);
+    setChatTab("fleet");
+  }, []);
+  useFleetAutoOpen({
+    fleetActive: chatTab === "fleet",
+    openFleetView,
+    currentSessionPath,
+    subagentRuns,
+  });
 
-  const tabBadges = runningBadge
-    ? { ...runningBadge, ...(freshDeliverableCount > 0 ? { deliverables: freshDeliverableCount } : {}) }
-    : freshDeliverableCount > 0 ? { deliverables: freshDeliverableCount } : undefined;
+  const tabBadges = freshDeliverableCount > 0 ? { deliverables: freshDeliverableCount } : undefined;
 
   // 编辑后自动回写刷新：docx/xlsx 预览内编辑成功 → 文件树自动刷新（替代手动刷新）
   const updatedAt = useUpdatedFilesStore((s) => s.updatedAt);
@@ -467,13 +467,6 @@ export default function App() {
     scrollToTurn?.(turn);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- setWorkspacePanel 为 hook 返回的稳定 dispatch，deps 原样保留
   }, [scrollToTurn]);
-  // v4.24 A1 新子代理自动展开：分工面板检测到新子代理出现（且用户偏好开启）
-  // 时回调——亮出右栏并切到「任务」面板（v4.53 分工并入任务同屏展示；
-  // 对标 better-sidebar 任务页自动展开侧栏）。pane 语义：开任务视图 tab。
-  const handleSubagentStarted = useCallback(() => {
-    openTasksAuto();
-  }, [openTasksAuto]);
-
   // v4.25 A3 reveal：产物面板「树中定位」→ 亮文件 tab，文件树展开父链+滚动+闪烁。
   // nonce 单调递增，同一文件重复定位也能再触发一次。
   const revealNonceRef = useRef(0);
@@ -545,21 +538,16 @@ export default function App() {
       onClosePanel: () => setWorkspacePanel(false),
       onRefreshPanel: refreshWorkspacePanel,
       onLocateSource: locateDeliverableSource,
-      onSubagentStarted: handleSubagentStarted,
       onRevealInTree: handleRevealInTree,
       revealRequest,
       onAutoWidenPanel: handleAutoWidenWorkspace,
-      openSubagentThread: (p) => {
-        openSubagentThread(p);
-      },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- setWorkspacePanel 为 hook 返回的稳定 dispatch（onClosePanel 内引用），deps 原样保留
     [
       state.meta?.cwd, previewFile, workspaceRefreshKey, currentSessionPath,
       sessionDeliverables, sessionChanges, freshDeliverablePaths,
       openFilePreview, refreshWorkspacePanel, locateDeliverableSource,
-      handleSubagentStarted, handleRevealInTree, revealRequest, handleAutoWidenWorkspace,
-      openSubagentThread, send,
+      handleRevealInTree, revealRequest, handleAutoWidenWorkspace, send,
     ],
   );
 
@@ -603,12 +591,10 @@ export default function App() {
       { id: "cmd-history", group: t("palette.group.commands") ?? "命令", title: t("topbar.history") ?? "历史", icon: <MessageSquare size={15} />, compact: true, keywords: ["history", "历史"], run: () => void openHistory() },
       { id: "cmd-knowledge", group: t("palette.group.commands") ?? "命令", title: t("topbar.knowledge") ?? "知识库", icon: <BookOpen size={15} />, compact: true, keywords: ["knowledge", "知识库"], run: () => void openKnowledge() },
     ];
-    // 右侧面板命令项：由 sidebarRegistry 注册表派生；pane 语义下命令 = 开视图
-    // tab（tasks 不在命令面板，与原行为一致；欢迎卡里可点）。
+    // 右侧面板命令项：由 sidebarRegistry 注册表派生；pane 语义下命令 = 开视图 tab。
     // v4.524 可选卡：未启用面板命令显式标注「（未启用）」，运行即启用并打开
     // （显式检索=用户意图；欢迎网格「管理」是开关的常驻入口）。
     for (const reg of SIDEBAR_REGISTRY) {
-      if (reg.id === "tasks") continue;
       const on = paneEnabled[reg.id];
       const Icon = reg.icon;
       cmds.push({
@@ -695,9 +681,9 @@ export default function App() {
     [sidebarWidth, previewWidth, effectiveWorkspaceWidth, previewMaximized, previewMaxWidth],
   );
   const activeSubagent = subagentTabs.find((t) => t.id === subagentTabId) ?? null;
+  const showOfficeComposer = chatTab === "chat" && !activeSubagent;
   const showCenteredComposer =
-    chatTab === "chat"
-    && !activeSubagent
+    showOfficeComposer
     && state.items.length === 0
     && !state.running
     && state.meta?.ready === true;
@@ -893,6 +879,7 @@ export default function App() {
                       <ContextView
                         running={state.running}
                         sessionPath={currentSessionPath ?? undefined}
+                        showAgentNetwork={false}
                         onViewSubagentContext={(ref) => {
                           setCtxModalRef(ref);
                           setCtxModalOpen(true);
@@ -991,10 +978,17 @@ export default function App() {
             )}
           </main>
 
-          <footer className={`office-composer-footer shrink-0 border-t border-border-soft bg-bg px-8 ${compactMode ? "pt-2 pb-0.5" : "pt-3 pb-1"}`}>
+          {(showOfficeComposer || state.approval || showTodos) && (
+          <footer
+            className={`office-composer-footer shrink-0 border-t border-border-soft bg-bg px-8 ${compactMode ? "pt-2 pb-0.5" : "pt-3 pb-1"} ${
+              showOfficeComposer ? "" : "office-composer-footer--status-only"
+            }`}
+          >
             {/* 波3.5 实弹反馈：交付文件固定停靠条（输入框上方=窗口最下方，查找
-                方便）——会话级登记表驱动，消息流正文卡保留（不抽卡）。 */}
-            <DeliverablesDock />
+                方便）——会话级登记表驱动，消息流正文卡保留（不抽卡）。
+                新建会话空首页不挂载：避免沿用上一会话登记缓存，出现无主
+                「交互文件」面板。进入实际会话内容后才显示。 */}
+            {showOfficeComposer && !showCenteredComposer && <DeliverablesDock />}
             <CompactContext.Provider value={compactMode}>
             {/* 审批是回合中的决策步骤，不是盖住正文的模态窗：放在输入岛上沿，
                 既不遮挡正在阅读的上下文，也不让用户误以为背景不可操作。 */}
@@ -1013,7 +1007,7 @@ export default function App() {
                 onDismiss={() => { if (todoItem) setDismissedTodo(todoItem.id); }}
               />
             )}
-            {showCenteredComposer && (
+            {showOfficeComposer && showCenteredComposer && (
               <>
                 <div className="office-empty-heading">
                   <p className="office-empty-welcome">
@@ -1038,20 +1032,8 @@ export default function App() {
                 </div>
               </>
             )}
+            {showOfficeComposer && (
             <div className="office-composer-stack">
-              {/* 「剩余上下文%」贴在输入岛顶部，保持可见但不占独立操作行。 */}
-              <div className="office-composer-meta">
-                <ContextPill
-                  used={state.context.used}
-                  window={state.context.window}
-                  compactRatio={state.context.compactRatio}
-                  compactLeft={state.context.compactLeft}
-                  onClick={() => {
-                    setCtxModalRef(null);
-                    setCtxModalOpen(true);
-                  }}
-                />
-              </div>
               <RunStatus
                 running={state.running}
                 turnStartAt={state.turnStartAt}
@@ -1072,14 +1054,28 @@ export default function App() {
                   onSetThinkLevel={handleThinkLevelChange}
                   planActive={planActive}
                   onTogglePlan={() => { if (!state.running) void handleSend(planActive ? "/plan off" : "/plan on") }}
+                  contextStatus={
+                    <ContextPill
+                      used={state.context.used}
+                      window={state.context.window}
+                      compactRatio={state.context.compactRatio}
+                      compactLeft={state.context.compactLeft}
+                      onClick={() => {
+                        setCtxModalRef(null);
+                        setCtxModalOpen(true);
+                      }}
+                    />
+                  }
                   onPickFolder={switchFolder}
                   onOpenTool={(tool) => setActiveTool(tool)}
                   disabled={state.meta?.ready === false || state.approval != null}
                 />
               </div>
             </div>
+            )}
             </CompactContext.Provider>
           </footer>
+          )}
         </section>
 
         {/* 主区域预览：点文件后右侧树收起，预览在聊天区右侧展开（宽度可拖） */}

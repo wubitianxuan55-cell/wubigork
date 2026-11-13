@@ -203,6 +203,23 @@ describe("ComposerDragOverlay i18n 冒烟", () => {
 describe("Composer i18n 冒烟", () => {
   afterEach(cleanup);
 
+  it("上下文状态通过插槽进入输入卡底部工具栏，不再生成独立 meta 行", () => {
+    renderT(
+      <Composer
+        running={false}
+        cwd="/ws"
+        onSend={noop}
+        onCancel={() => undefined}
+        onPickFolder={async () => "/ws"}
+        contextStatus={<button type="button" data-testid="ctx-slot">剩余 90%</button>}
+      />,
+    );
+    const slot = screen.getByTestId("ctx-slot");
+    expect(slot.closest(".office-composer-toolbar")).toBeTruthy();
+    expect(slot.closest(".office-toolbar-context")).toBeTruthy();
+    expect(document.querySelector(".office-composer-meta")).toBeNull();
+  });
+
   it("placeholder 走字典：空闲统一任务提示（zh/en）/运行中提示（zh）", () => {
     renderT(
       <Composer running={false} cwd="/ws" onSend={noop} onCancel={() => undefined} onPickFolder={async () => "/ws"} />,

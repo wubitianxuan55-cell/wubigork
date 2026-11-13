@@ -357,7 +357,7 @@ export const TurnBlock = memo(function TurnBlock({
   textOmitMentions?: ReadonlySet<string>;
 }) {
   // v4.505：todo_write 不进过程卡——待办有专属面板（useTodoExtractor →
-  // TasksWorkbench 待办区），外部项渲染线同款过滤（renderOutsideItems）；
+  // 任务待办区），外部项渲染线同款过滤（renderOutsideItems）；
   // 此前只有外部线滤了、过程卡体内漏滤，每轮待办更新以裸 todo_write 卡
   // （展开整包 todos JSON）堆在卡内。纯 todo_write 段不空壳出卡。
   const visibleProcess = useMemo(
@@ -603,15 +603,8 @@ export const ProcessCard = memo(function ProcessCard({
               <InlineReasoning item={it as AssistantItem} metaLines={bare ? it.reasoning.split("\n").filter((l) => l.trim()).length : undefined} />
             </div>,
           );
-          if (it.text) {
-            out.push(
-              <div key={`${it.id}-text`} className="office-process-step" data-kind="text">
-                <div className="px-2.5 py-1.5 rounded-lg bg-bg/60 border border-border-soft/50 text-fg-dim text-[12.5px] leading-relaxed whitespace-pre-wrap">
-                  {it.text}
-                </div>
-              </div>,
-            );
-          }
+          /* batch3 UI：过程流不再渲染中间叙述文本盒（灵犀形态=折叠条+思考+工具
+             步骤三类；最终答复由主回答区承担）——2026-11-13 用户反馈删除。 */
           break;
         case "tool":
           if (it.parentId) break;

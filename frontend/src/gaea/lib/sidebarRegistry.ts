@@ -21,7 +21,6 @@ import { BrowserPanel } from "../components/BrowserPanel";
 import { MergedPanel } from "../components/MergedPanel";
 import { ExplorerView } from "../components/ExplorerView";
 import { usePaneTabsStore } from "./paneTabs";
-import { TasksWorkbench } from "../components/TasksWorkbench";
 import { GenuiPanel } from "../components/GenuiPanel";
 
 import type { SessionChange } from "./changes";
@@ -36,7 +35,7 @@ export interface WorkspacePanelContext {
   selectedFile?: string;
   /** 文件树刷新键（编辑回写后 +1）。 */
   refreshKey: number;
-  /** 当前会话路径（分工面板按会话拉取子代理）。 */
+  /** 当前会话路径（需按会话取数的面板共享）。 */
   currentSessionPath?: string;
   /** 会话产物清单（产物面板）。 */
   sessionDeliverables: SessionDeliverable[];
@@ -53,22 +52,12 @@ export interface WorkspacePanelContext {
   onRefreshPanel: () => void;
   /** 产物定位来源轮次（收起右栏并滚动到对应消息）。 */
   onLocateSource: (turn: number) => void;
-  /** 新子代理出现 → 亮出分工面板（v4.24 A1；是否触发由面板内 autoOpen 偏好决定）。 */
-  onSubagentStarted?: () => void;
   /** 产物行「树中定位」（v4.25 A3 reveal）：亮文件 tab 并高亮该行。 */
   onRevealInTree?: (rel: string) => void;
   /** 树中定位请求体（nonce 变化触发一次：文件树展开父链 + 滚动 + 闪烁）。 */
   revealRequest?: { rel: string; nonce: number } | null;
   /** 打开第一个文件时自动加宽右栏到舒适阅读宽度（v4.27 Codex 式）。 */
   onAutoWidenPanel?: () => void;
-  /** 子代理节点点击 → 主区打开该子代理转录（better-sidebar openSubagent 语义）。 */
-  openSubagentThread?: (p: {
-    sessionPath: string;
-    ref: string;
-    task?: string;
-    model?: string;
-    status: "running" | "completed" | "failed";
-  }) => void;
 }
 
 export interface WorkspaceTabRegistration {
@@ -85,8 +74,8 @@ export interface WorkspaceTabRegistration {
   readonly render: (ctx: WorkspacePanelContext) => ReactNode;
 }
 
-// 渲染接线（面板组件本体零改动；v4.53 起产物/变更、任务/分工经 MergedPanel
-// 上下分区直接合并为一个面板——同屏全可见，无二级标签，零额外点击）。
+// 渲染接线（面板组件本体零改动；v4.53 起产物/变更经 MergedPanel 上下分区
+// 直接合并为一个面板；任务与 Agent 编队已迁主区「编队」）。
 const RENDERERS: Record<WorkspaceTabId, (ctx: WorkspacePanelContext) => ReactNode> = {
   // 行内「打开文件」统一走 pane 文件 tab（better-sidebar：多个文件 tab 并存，
   // 同路径去重激活）。资源管理器与产物视图共用同一入口。
@@ -113,12 +102,6 @@ const RENDERERS: Record<WorkspaceTabId, (ctx: WorkspacePanelContext) => ReactNod
         cwd: ctx.cwd,
         onOpenFile: openPaneFileTab,
       }),
-    }),
-  tasks: (ctx) =>
-    createElement(TasksWorkbench, {
-      sessionPath: ctx.currentSessionPath,
-      onSubagentStarted: ctx.onSubagentStarted,
-      onOpenSubagent: ctx.openSubagentThread,
     }),
   // v4.28 A2 浏览器观察窗：数据自取（GaeaBrowserObserve + Trajectory 过滤
   // browser_* 工具记录），不依赖 ctx —— 被动观察面与工作区/会话路径解耦。

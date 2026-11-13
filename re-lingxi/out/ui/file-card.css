@@ -1,0 +1,409 @@
+/* =============================================================================
+   灵犀「文件成果卡」完整 UI 样式（逆向复刻版）
+   来源：lingxi-desktop 1.3.36 / webBuild 26b61d0a2d85
+   原始 scope：
+     .file-card-inline            data-v-417b521c   （PMessageAIFileCardInline，视觉层）
+     .claw-file-card-view         data-v-cf068db8   （PClawFileCard，定位壳）
+     .claw-deliver-result         data-v-b5a7752b   （PClawDeliverResult，行为层）
+     .claw-present-files          data-v-10413385   （PClawPresentFiles，容器）
+     .message-item                data-v-fbe4b4b9 / data-v-da769498（消息流）
+   说明：已剥离 Vue scoped 属性选择器，类名与层级保持原样，可直接落到任意框架。
+   ========================================================================== */
+
+/* -----------------------------------------------------------------------------
+   0. 设计 token
+   原值来自 kdesign：--kd-color-gray-N 为 RGB 三元组，再包成 rgba 使用。
+   -------------------------------------------------------------------------- */
+:root {
+  /* 灰阶（light） */
+  --kd-color-gray-1: 245, 245, 245;
+  --kd-color-gray-7: 107, 107, 107;
+  --kd-color-gray-9: 51, 51, 51;
+  --kd-color-gray-10: 13, 13, 13;
+
+  /* 语义色 */
+  --kd-color-line-light: rgba(var(--kd-color-gray-10), .06);
+  --kd-color-line-regular: rgba(var(--kd-color-gray-10), .12);
+  --kd-color-fill-light: rgba(var(--kd-color-gray-1), 1);
+  --kd-color-text-primary: rgba(var(--kd-color-gray-10), 1);
+  --kd-color-text-secondary: rgba(var(--kd-color-gray-7), 1);
+  --kd-color-text-tertiary: rgba(var(--kd-color-gray-10), .46);
+  --kd-color-mask-regular: rgba(var(--kd-color-gray-10), .5);
+  --kd-color-mask-heavy: rgba(var(--kd-color-gray-10), .8);
+  --kd-color-brand-normal: rgba(31, 105, 224, 1);   /* brand-6 */
+  --kd-color-icon-primary: rgba(var(--kd-color-gray-10), 1);
+
+  --lx-color-text-white: rgba(245, 245, 245, 1);
+  --lx-color-icon-white-always: #ffffff;
+  --lx-color-state-hover: rgba(var(--kd-color-gray-10), .06);
+}
+
+/* 深色主题：只反转灰阶，语义色由 rgba() 自动跟随 */
+html[theme-mode="dark"],
+.dark {
+  --kd-color-gray-1: 23, 23, 23;
+  --kd-color-gray-7: 138, 138, 138;
+  --kd-color-gray-9: 199, 199, 199;
+  --kd-color-gray-10: 245, 245, 245;
+}
+
+/* -----------------------------------------------------------------------------
+   1. 视觉层：.file-card-inline  （PMessageAIFileCardInline）
+   DOM：
+     <div class="file-card-inline file-card-inline--word" title="<原始 ref>">
+       <div class="file-card-inline__icon">…后缀图标 / 文件夹图标…</div>
+       <div class="file-card-inline__name">文件名</div>
+     </div>
+   -------------------------------------------------------------------------- */
+.file-card-inline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 440px;
+  padding: 16px 20px;
+  border-radius: 12px;
+  border: 1px solid var(--kd-color-line-light);
+  cursor: pointer;
+  margin: 8px 0;
+  transition: background .2s, border-color .2s;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* 类型底色：两层 linear-gradient 叠加，主色 alpha 仅 0d~14，做"斜向通透玻璃" */
+.file-card-inline--word {
+  background:
+    linear-gradient(97.48deg, #1f69e00f, #ffffff0f 46.75%),
+    linear-gradient(94.6deg, #fff0 40.33%, #1f69e00f 112.65%);
+}
+.file-card-inline--excel {
+  background:
+    linear-gradient(97.48deg, #418f1f0f, #ffffff0f 46.75%),
+    linear-gradient(94.6deg, #fff0 40.33%, #418f1f0f 112.65%);
+}
+.file-card-inline--ppt {
+  background:
+    linear-gradient(97.48deg, #f5670f0f, #ffffff0f 46.75%),
+    linear-gradient(95.31deg, #fff0 57.52%, #f5670f0f 110.59%);
+}
+.file-card-inline--pdf {
+  background:
+    linear-gradient(97.48deg, #dc352212, #ffffff0f 46.75%),
+    linear-gradient(94.6deg, #fff0 40.33%, #dc35220f 112.65%);
+}
+.file-card-inline--image {
+  background:
+    linear-gradient(97.48deg, #1f69e00d, #ffffff0f 46.75%),
+    linear-gradient(94.6deg, #fff0 40.33%, #1f69e00d 112.65%);
+}
+.file-card-inline--html {
+  background:
+    linear-gradient(97.48deg, #e8772212, #ffffff0f 46.75%),
+    linear-gradient(94.6deg, #fff0 40.33%, #e877220f 112.65%);
+}
+.file-card-inline--markdown {
+  background:
+    linear-gradient(97.48deg, #6366f112, #ffffff0f 46.75%),
+    linear-gradient(94.6deg, #fff0 40.33%, #6366f10f 112.65%);
+}
+.file-card-inline--txt {
+  background:
+    linear-gradient(97.48deg, #64748b14, #ffffff0f 46.75%),
+    linear-gradient(94.6deg, #fff0 40.33%, #64748b0f 112.65%);
+}
+.file-card-inline--other,
+.file-card-inline--folder {
+  background: var(--kd-color-fill-light);
+}
+
+.file-card-inline:hover,
+.file-card-inline:active {
+  border-color: var(--kd-color-line-regular);
+}
+
+.file-card-inline__icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.file-card-inline__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 22px;
+  color: var(--kd-color-text-primary);
+  min-width: 0;
+}
+
+/* -----------------------------------------------------------------------------
+   1.1 图标：原版用 kdesign 图标组件
+       · 文件 → 24×24 "后缀文字图标"（tJn，text = 扩展名 / "file.ext"）
+       · 目录 → 24×24 FolderIcon，fill = var(--kd-color-brand-normal)
+       下面给出纯 CSS 等价实现（不依赖图标库），类名自取。
+   -------------------------------------------------------------------------- */
+.file-card-inline__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  font-size: 7px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -.2px;
+  color: #fff;
+  background: #64748b;                 /* other / 默认 */
+  text-transform: uppercase;
+  user-select: none;
+}
+.file-card-inline--word  .file-card-inline__badge { background: #1f69e0; }
+.file-card-inline--excel .file-card-inline__badge { background: #418f1f; }
+.file-card-inline--ppt   .file-card-inline__badge { background: #f5670f; }
+.file-card-inline--pdf   .file-card-inline__badge { background: #dc3522; }
+.file-card-inline--html  .file-card-inline__badge { background: #e87722; }
+.file-card-inline--markdown .file-card-inline__badge { background: #6366f1; }
+
+.file-card-inline__folder-icon {
+  width: 24px;
+  height: 24px;
+  color: var(--kd-color-brand-normal);
+}
+
+/* -----------------------------------------------------------------------------
+   2. 定位壳：.claw-file-card-view （PClawFileCard）
+   作用：需要换成"自定义 icon"时，把内层后缀图标隐藏，改为绝对定位图标。
+   -------------------------------------------------------------------------- */
+.claw-file-card-view {
+  position: relative;
+  min-width: 0;
+}
+.claw-file-card-view--replace-icon .file-card-inline__icon {
+  visibility: hidden;
+}
+.claw-deliver-result__file-icon {
+  position: absolute;
+  top: 50%;
+  left: 20px;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+/* -----------------------------------------------------------------------------
+   3. 行为层：.claw-deliver-result （PClawDeliverResult）
+   -------------------------------------------------------------------------- */
+.claw-deliver-result {
+  position: relative;
+}
+.claw-deliver-result--artifact-blocked {
+  cursor: not-allowed;
+}
+
+/* 图片类交付物的「去除水印」按钮：28×28 圆形，hover 向右展开为 86px 药丸 */
+.claw-deliver-result__remove-watermark {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  overflow: hidden;
+  color: var(--lx-color-text-white);
+  --kd-color-icon-primary: var(--lx-color-text-white);
+  background: var(--kd-color-mask-regular);
+  border: 0;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: width .2s ease, padding .2s ease;
+}
+.claw-deliver-result__remove-watermark:hover {
+  justify-content: flex-start;
+  width: 86px;
+  gap: 2px;
+  background: var(--kd-color-mask-heavy);
+}
+.claw-deliver-result__watermark-delete {
+  padding: 6px;
+  --kd-color-icon-primary: var(--lx-color-icon-white-always);
+}
+.claw-deliver-result__remove-watermark span {
+  flex-shrink: 0;
+  font-size: 12px;
+  line-height: 16px;
+}
+html[theme-mode="dark"] .claw-deliver-result__remove-watermark {
+  color: #ffffffd9;
+  background: #323232e6;
+}
+
+/* -----------------------------------------------------------------------------
+   4. 容器：.claw-present-files （PClawPresentFiles）
+   2 列网格；≤640px 单列；非 office 类型统一压成中性灰渐变。
+   -------------------------------------------------------------------------- */
+.claw-present-files {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 4px;
+}
+@media (max-width: 640px) {
+  .claw-present-files { grid-template-columns: minmax(0, 1fr); }
+}
+.claw-present-files .file-card-inline {
+  max-width: none;
+  margin: 0;
+}
+/* 网格内的"非 office 四类 + image"统一走中性灰，避免花哨 */
+.claw-present-files .file-card-inline:not(.file-card-inline--word):not(.file-card-inline--excel):not(.file-card-inline--ppt):not(.file-card-inline--pdf):not(.file-card-inline--image) {
+  background:
+    linear-gradient(97.48deg, #64748b14, #ffffff0f 46.75%),
+    linear-gradient(94.6deg, #fff0 40.33%, #64748b0f 112.65%);
+}
+
+/* -----------------------------------------------------------------------------
+   5. 消息流间距（成果卡是"重块"，额外加大上间距）
+   DOM：<ul class="message-item message-item--assistant"> … </ul>
+   -------------------------------------------------------------------------- */
+.message-item {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;        /* user 侧右对齐 */
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+  width: 100%;
+  user-select: text;
+}
+.message-item--user { justify-content: flex-end; }
+.message-item--assistant { justify-content: flex-start; }
+
+.message-item > :first-child { width: 100%; min-width: 0; max-width: 100%; margin-top: 0; }
+.message-item > :first-child:not(.claw-present-files) { margin-top: 0; }
+
+.message-item--assistant:not(:first-of-type) { margin-top: 4px; }
+.message-item--assistant:not(:first-of-type):has(> .claw-present-files) { margin-top: 16px; }
+.message-item--assistant.message-item--widget { margin: 16px 0; }
+
+/* 同组内其它宽度的卡片 */
+.message-item > .claw-tool-card { width: fit-content; max-width: 100%; min-width: 0; }
+.message-item > .context-compaction-card { width: fit-content; max-width: 100%; margin-top: 8px; }
+.message-item > .hint-capsule { width: fit-content; }
+
+/* -----------------------------------------------------------------------------
+   6. 过程折叠（成果卡上方那条"流程"）
+   -------------------------------------------------------------------------- */
+.claw-process-collapse {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  text-align: left;
+  color: var(--kd-color-text-secondary);
+  cursor: pointer;
+  font-size: 16px;
+}
+.claw-process-collapse__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.claw-process-collapse__arrow {
+  flex-shrink: 0;
+  transition: transform .3s cubic-bezier(.4, 0, .2, 1);
+}
+.claw-process-collapse__arrow--expanded,
+.claw-process-collapse__arrow.is-expanded {
+  transform: rotate(90deg);
+}
+.claw-process-collapsible {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows .35s cubic-bezier(.4, 0, .2, 1);
+}
+.claw-process-collapsible.is-expanded { grid-template-rows: 1fr; }
+.claw-process-collapsible__inner {
+  overflow: hidden;
+  min-height: 0;
+  opacity: 0;
+  transition: opacity .2s ease;
+}
+.claw-process-collapsible.is-expanded .claw-process-collapsible__inner {
+  opacity: 1;
+  transition: opacity .2s ease .1s;
+}
+
+/* -----------------------------------------------------------------------------
+   7. 消息骨架（流式占位）
+   -------------------------------------------------------------------------- */
+.claw-message-group-placeholder {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  min-height: 112px;
+  height: 100%;
+  padding: 20px 16px;
+  border: 1px solid rgba(31, 35, 41, .08);
+  border-radius: 8px;
+  color: var(--kd-color-text-tertiary);
+  font-size: 13px;
+  line-height: 20px;
+}
+.claw-message-group-placeholder__content {
+  position: sticky;
+  top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.claw-message-group-placeholder__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+.claw-message-group-placeholder__line {
+  width: min(420px, 86%);
+  height: 12px;
+  border-radius: 999px;
+  background: var(--kd-color-line-light);
+}
+.claw-message-group-placeholder__line--long { width: min(520px, 100%); }
+.claw-message-group-placeholder__line--short { width: min(240px, 54%); }
+
+/* -----------------------------------------------------------------------------
+   8. 只读 / 分享场景：卡片降级为静态
+   -------------------------------------------------------------------------- */
+.is-static .file-card-inline,
+.cowork-share-files--static .file-card-inline {
+  cursor: default;
+  pointer-events: none;
+}
+.cowork-md-wrap--artifact-blocked .file-card-inline,
+.cowork-md-wrap--artifact-blocked .file-card-inline__wrapper {
+  cursor: not-allowed;
+}
+
+/* -----------------------------------------------------------------------------
+   9. 正文内联文件卡（markdown 里夹带的那张，与成果卡同一组件）
+   markdown 容器里需要恢复指针事件
+   -------------------------------------------------------------------------- */
+.cowork-md-wrap .file-card-inline,
+.cowork-md-wrap .file-card-inline__wrapper {
+  pointer-events: auto;
+  cursor: pointer;
+}

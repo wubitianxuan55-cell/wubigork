@@ -78,6 +78,7 @@ export function ChatTabs({ active, onChange, tabs, labelOverrides, className, ex
             key={t.id}
             type="button"
             role="tab"
+            data-chat-view-tab={t.id}
             aria-selected={selected}
             tabIndex={selected ? 0 : -1}
             className={`relative flex items-center gap-1.5 px-3 py-1.5 text-[12px] rounded-t-md border-0 bg-transparent cursor-pointer transition-colors ${

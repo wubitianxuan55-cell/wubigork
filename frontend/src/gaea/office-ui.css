@@ -142,12 +142,19 @@
 /* ── View tabs（2026-11-13 顶栏合并：标签并入 office-topbar，不再独占一行） ── */
 
 .gaea-app-layout .office-view-tabs {
-  height: auto;
+  align-self: stretch;
+  height: 54px;
   padding: 0 !important;
-  gap: 3px !important;
+  gap: 0 !important;
   background: transparent !important;
   border-bottom: none !important;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.office-view-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 /* 顶栏是 drag-region，标签与动态会话 tab 整组豁免拖拽 */
@@ -158,26 +165,40 @@
 }
 
 .office-view-tabs [role="tab"] {
-  min-height: 32px;
-  padding: 0 11px !important;
-  border-radius: 8px !important;
+  position: relative;
+  min-height: 54px;
+  padding: 0 12px !important;
+  border-radius: 0 !important;
   color: var(--fg-dim) !important;
   font-size: 12px !important;
   font-weight: 520;
+  white-space: nowrap;
 }
 
 .office-view-tabs [role="tab"]:hover {
   color: var(--fg) !important;
-  background: var(--office-panel-raised) !important;
+  background: transparent !important;
 }
 
 .office-view-tabs [role="tab"][aria-selected="true"] {
   color: var(--fg) !important;
-  background: var(--office-accent-wash) !important;
-  box-shadow: inset 0 0 0 1px var(--office-accent-line);
+  background: transparent !important;
+  box-shadow: none !important;
+  font-weight: 620;
 }
 
 .office-view-tabs [role="tab"] > span.absolute {
+  display: block;
+  right: 10px !important;
+  bottom: 0 !important;
+  left: 10px !important;
+  height: 2px !important;
+  border-radius: 2px 2px 0 0 !important;
+  background: var(--accent) !important;
+}
+
+/* 目标截图的主上下文页签是纯文字 + 底缘指示线；动态会话仍保留状态点与关闭。 */
+.office-view-tabs [role="tab"] > svg {
   display: none;
 }
 
@@ -193,9 +214,15 @@
 
 .gaea-app-layout .office-composer-footer {
   padding: 8px clamp(18px, 4vw, 56px) 12px !important;
-  background: var(--bg) !important;
-  border-top: 1px solid var(--office-line) !important;
+  background: transparent !important;
+  border-top: 0 !important;
   backdrop-filter: none !important;
+}
+
+.gaea-app-layout .office-composer-footer--status-only {
+  padding: 0 !important;
+  border-top: 0 !important;
+  background: transparent !important;
 }
 
 .gaea-app-layout .chat-pane.office-chat-empty {
@@ -212,10 +239,6 @@
   transform: translate(-50%, -50%);
   border-top: 0 !important;
   background: transparent !important;
-}
-
-.gaea-app-layout .chat-pane.office-chat-empty .office-composer-meta {
-  display: none;
 }
 
 .office-empty-heading {
@@ -366,17 +389,22 @@
   width: min(872px, 100%);
 }
 
-.office-composer-meta {
-  display: flex;
-  min-height: 22px;
-  align-items: flex-end;
-  justify-content: flex-end;
-  padding: 0 12px 4px;
+.office-toolbar-status {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  margin-left: auto;
 }
 
-.office-composer-meta [data-testid="ctx-pill"] {
-  min-height: 22px;
-  padding: 1px 7px;
+.office-toolbar-context {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.office-toolbar-context [data-testid="ctx-pill"] {
+  min-height: 24px;
+  padding: 0 6px;
   border-color: transparent !important;
   border-radius: 6px !important;
   color: var(--fg-faint) !important;
@@ -384,13 +412,15 @@
   font-size: 10px !important;
 }
 
-.office-composer-meta [data-testid="ctx-pill"]:hover {
+.office-toolbar-context [data-testid="ctx-pill"]:hover {
   color: var(--fg) !important;
   background: var(--office-panel) !important;
 }
 
-.office-composer-meta [data-testid="ctx-pill"] > span:first-child {
-  display: none;
+.office-toolbar-context [data-testid="ctx-pill"] > span:first-child {
+  width: 26px !important;
+  height: 3px !important;
+  background: var(--office-line-strong) !important;
 }
 
 .office-composer-root,
@@ -409,12 +439,18 @@
   background: var(--office-panel) !important;
   box-shadow:
     0 1px 1px color-mix(in srgb, var(--fg) 4%, transparent),
-    0 16px 44px color-mix(in srgb, var(--bg) 17%, transparent) !important;
+    0 3px 10px rgba(0, 0, 0, 0.08),
+    0 20px 56px rgba(0, 0, 0, 0.22) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   transition:
     border-color var(--dur-fast) ease,
     box-shadow var(--dur-fast) ease !important;
+}
+
+.office-run-status {
+  background: transparent !important;
+  border-bottom-color: transparent !important;
 }
 
 .gaea-app-layout .office-composer-card:focus-within {
