@@ -249,6 +249,52 @@ func officeComResolvePath(raw string) (string, error) {
 	return resolved, nil
 }
 
+// officeComDefaultDirName 交互文件的默认落点目录（2026-11-13 二轮实弹反馈：
+// 交互文件固定在工作空间的一个位置，不要乱放——模型每次 office_open 随意给
+// 路径/文件名，交互卡因此出现一堆不同路径的相同文件）。目录名显式中文（工作
+// 区可见、用户好找），与 .gaea/work（过程件）/exports（交付物）互补：COM 实时
+// 交互稿在完成前持续被编辑，放独立目录不污染 exports。
+const officeComDefaultDirName = "交互文件"
+
+// officeComNormalizeOpenPath 归一 office_open 的 path（纯函数，可测）：
+//   - 空 → 默认目录 + "Office-<kind>-<时间戳>.<ext>"（同秒内重复 open 同 kind
+//     =同路径=接着用，不再每次开新副本）；
+//   - 纯文件名（无目录分隔、非绝对）→ 默认目录内归一（模型只给了名字=没想好
+//     放哪，收编到固定位置）；
+//   - 带目录/绝对路径 → 尊重原意，仅走工作区边界校验。
+//
+// 返回（工作区内绝对路径, 是否由本函数改写过）。
+func officeComNormalizeOpenPath(raw, kind string) (string, bool, error) {
+	raw = strings.TrimSpace(raw)
+	ext := map[string]string{"word": ".docx", "excel": ".xlsx", "ppt": ".pptx"}[kind]
+	if raw == "" {
+		name := fmt.Sprintf("Office-%s-%s%s", kind, time.Now().Format("20060102-150405"), ext)
+		p, err := wspath.ResolveRelWithin(gaeaCwd(), filepath.Join(officeComDefaultDirName, name))
+		if err != nil {
+			return "", false, err
+		}
+		return p, true, nil
+	}
+	if filepath.IsAbs(raw) || officeComAbsRe.MatchString(raw) {
+		p, err := officeComResolvePath(raw)
+		return p, false, err
+	}
+	if !strings.ContainsAny(raw, `/\`) {
+		// 纯文件名：收编进默认目录（扩展名缺失时按 kind 补）。
+		name := raw
+		if filepath.Ext(name) == "" {
+			name += ext
+		}
+		p, err := wspath.ResolveRelWithin(gaeaCwd(), filepath.Join(officeComDefaultDirName, name))
+		if err != nil {
+			return "", false, err
+		}
+		return p, true, nil
+	}
+	p, err := officeComResolvePath(raw)
+	return p, false, err
+}
+
 // officeComAppOf 指定 app 或从文件扩展名推断 kind。
 func officeComAppOf(app, path string) (string, error) {
 	if app != "" {
@@ -303,14 +349,16 @@ func (officeComOpenTool) Description() string { return officeComOpenDescription 
 
 const officeComOpenDescription = "在 Word / Excel / PowerPoint（或 WPS，本机装了什么就用什么）里打开文档让用户实时看到 AI 干活：" +
 	"改动逐步出现在窗口里、格式由 Office 自己排版不走样，用户可以同时在里面编辑。已打开的文档直接接着用（文件被占用也能改）；" +
-	"路径不存在的会新建。先调本工具再使用其余 office_ 工具。编辑既有文档的另一种方式是 docx_apply 等无头工具（不打开窗口，适合无人值守批量）；" +
+	"路径不存在的会新建。**落点约定**：path 省略时自动落到工作区「交互文件」目录（Office-word-<时间戳>.docx 命名）；" +
+	"只给文件名（无目录）也会收编进「交互文件」目录；带目录的路径尊重原意。同一文档继续编辑请沿用首次 open 的路径（省略 doc 参数即沿用最近文档），" +
+	"不要每次换文件名另开副本。先调本工具再使用其余 office_ 工具。编辑既有文档的另一种方式是 docx_apply 等无头工具（不打开窗口，适合无人值守批量）；" +
 	"要让用户看到过程或文件正被占用时用本工具族。"
 
 func (officeComOpenTool) Schema() json.RawMessage {
 	return json.RawMessage(`{
   "type":"object",
   "properties":{
-    "path":{"type":"string","description":"文档路径（工作区相对或绝对）。路径不存在则新建该文件；省略则新建未保存文档（此时 app 必填）"},
+    "path":{"type":"string","description":"文档路径（工作区相对或绝对）。路径不存在则新建该文件；省略则自动落到工作区「交互文件」目录（Office-<app>-<时间戳> 命名）；只给文件名也会收编进该目录。同一文档继续编辑请沿用首次路径，不要换名另开副本"},
     "app":{"type":"string","enum":["word","excel","ppt"],"description":"仅在无 path 时必填，或 doc 无扩展名时用于挑选应用"},
     "template":{"type":"string","description":"模板/样例文档路径：复制到 path（path 必须不存在）后打开副本，原模板不动。用户给了模板要沿用其样式时用"},
     "show":{"type":"boolean","description":"true=把文档窗口带到前台（静默场景下调出窗口用）"}
@@ -344,15 +392,37 @@ func (t officeComOpenTool) WritePaths(args json.RawMessage) ([]string, error) {
 		return []string{p}, nil
 	}
 	if strings.TrimSpace(in.Path) != "" {
-		p, err := officeComResolvePath(in.Path)
-		if err != nil {
-			return nil, err
+		// 声明面与 Execute 同判据：path 归一（默认目录/纯文件名收编）后声明。
+		kind0, kerr := officeComAppOf("", in.Path)
+		if kerr != nil {
+			return nil, kerr
+		}
+		p, _, nerr := officeComNormalizeOpenPath(in.Path, kind0)
+		if nerr != nil {
+			return nil, nerr
 		}
 		if _, statErr := os.Stat(p); statErr != nil {
 			return []string{p}, nil // 新建场景：保存时落盘
 		}
+		return nil, nil // 已存在文件=附着打开（open 本身不写盘）
 	}
-	return nil, nil
+	// path 缺省：归一生成默认落点（新建场景，保存时落盘）——与 Execute 同判据。
+	// kind 需要从 args.app 取（缺省路径必填 app——Execute 同守卫）。
+	var appField struct {
+		App string `json:"app"`
+	}
+	if len(args) > 0 {
+		_ = json.Unmarshal(args, &appField)
+	}
+	kind0, kerr := officeComAppOf(appField.App, "")
+	if kerr != nil {
+		return nil, kerr
+	}
+	p, _, nerr := officeComNormalizeOpenPath("", kind0)
+	if nerr != nil {
+		return nil, nerr
+	}
+	return []string{p}, nil
 }
 
 // ContextualTool：会话级操作清单发放。
@@ -373,10 +443,19 @@ func (t officeComOpenTool) execute(ctx context.Context, session string, args jso
 	if err := json.Unmarshal(args, &in); err != nil {
 		return "", fmt.Errorf("参数无效: %w", err)
 	}
+	// 波3.5 二轮实弹：path 归一（默认目录/纯文件名收编/带目录尊重）——
+	// 修「交互卡一堆不同路径的相同文件」。
 	var abs string
-	if strings.TrimSpace(in.Path) != "" {
+	var normalized bool
+	{
 		var err error
-		if abs, err = officeComResolvePath(in.Path); err != nil {
+		// kind 先行：缺省路径需要 kind 生成文件名。
+		kind0, kerr := officeComAppOf(in.App, in.Path)
+		if kerr != nil {
+			return "", kerr
+		}
+		abs, normalized, err = officeComNormalizeOpenPath(in.Path, kind0)
+		if err != nil {
 			return "", err
 		}
 	}
@@ -460,7 +539,13 @@ func (t officeComOpenTool) execute(ctx context.Context, session string, args jso
 		officeCom.silentOpen[officeComKey(kind, docPath)] = docPath
 	}
 	officeCom.mu.Unlock()
-	return comhelper.FormatOpened(doc) + officeCom.officeGuide(session, kind), nil
+	// 归一告知（模型知情=后续 edit/save 沿用同一路径，不再另起炉灶）。
+	normalizedNote := ""
+	if normalized {
+		normalizedNote = fmt.Sprintf("\n落点已归一到工作区默认交互目录：%s（后续 edit/save 省略 doc 即沿用它；用户指定了具体位置时会尊重原意）。",
+			officeComDefaultDirName+`\`+filepath.Base(docPath))
+	}
+	return comhelper.FormatOpened(doc) + normalizedNote + officeCom.officeGuide(session, kind), nil
 }
 
 // ── office_status ────────────────────────────────────────────────────────
