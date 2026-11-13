@@ -43,6 +43,18 @@ func TestDeliveryPromptSectionKeepsChecklist(t *testing.T) {
 	}
 }
 
+func TestDeliveryPromptSectionKeepsTimingRules(t *testing.T) {
+	// 时序禁则（batch2 B1-①，灵犀 deliver_result 前置/后置禁则蒸馏）：
+	// 前置=链接前不铺列表；后置=链接给出后不复述同一路径。
+	sec := DeliveryPromptSection()
+	if !strings.Contains(sec, "给出链接前不要先铺有序/无序列表") {
+		t.Fatalf("交付段缺前置禁则（链接前不铺列表），实际文案：%q", sec)
+	}
+	if !strings.Contains(sec, "不要再以任何形式重复同一交付路径") {
+		t.Fatalf("交付段缺后置禁则（链接后不复述路径），实际文案：%q", sec)
+	}
+}
+
 func TestDeliveryPromptSectionNoEmoji(t *testing.T) {
 	// 与主提示词一致：办公提示词不带表情符号（灵犀 plan 段同规约）。
 	for _, r := range DeliveryPromptSection() {

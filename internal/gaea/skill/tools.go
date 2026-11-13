@@ -163,7 +163,8 @@ func (t *installSkillTool) Description() string {
 	if t.store.HasProjectScope() {
 		scope = "'project' (default) writes to <repo>/.gaea/skills/ (this workspace only); 'global' writes to ~/.gaea/skills/ (every project)."
 	}
-	return "Author and save a new skill — reusable playbook invoked via run_skill or /<name>. Runnable immediately; appears in Skills index on next launch. " + scope
+	return "Author and save a new skill — reusable playbook invoked via run_skill or /<name>. Runnable immediately; appears in Skills index on next launch. " +
+		"Updating an existing skill: call this tool again with the SAME name — it overwrites in place and keeps any state. Never try to 'uninstall then reinstall' to refresh: there is no uninstall tool, and delete-then-recreate loses skill state for nothing. " + scope
 }
 
 func (*installSkillTool) Schema() json.RawMessage {
