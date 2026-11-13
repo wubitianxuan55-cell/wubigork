@@ -113,3 +113,24 @@
 - 装机：提交 2f5aa8e3（10 文件 +86/−242）干净工作树重建（pnpm 20.6s/Vite
   38.24s/wails 1m），装机位 exe sha256 96C46474…（build 11/14 01:24:34）=
   工作树产物，smoke /api/health 200（PID 14820 已回收），工作树已回收。
+
+## 6. 续刀二（完善批）：CAD 直达链收口——cadExt 叶模块 + 快照净化 + 树内走查实证
+
+- **cadExt 叶模块**：isCadFilePath/CAD_FILE_EXTS 抽到零依赖叶（paneTabs 净化要
+  用而 cadOpen 又依赖 paneTabs，反向导入成环；cadOpen 再导出保持 API 不变）。
+- **paneTabs 快照净化**：dwg/dxf 文件 tab 是坏预览（打开链已统一落 CAD 面板），
+  sanitize 丢弃旧快照残留的这类 tab，active 收敛末位；补 2 测试例。
+- **sidebarRegistry 集成测试**：产物行 dwg → 断言不开文件 tab、开 cad 视图 tab
+  + 可选卡自动启用 + 请求总线投递（此前只有单测锁路由函数，无接线级验证）。
+- **mock 树 fixture**：根增 `图纸/`（结构平面图.dxf + 电气-自建房.dwg）；坑=树
+  展开传给 ListDir 的 rel 无尾斜杠，分支须两形态都接。
+- **mock 实机走查（确定性复跑）**：文件树点 结构平面图.dxf → 无坏文件 tab、
+  「CAD 图纸」Tab 激活装载（JS-01 图框/分幅/最近图纸 chip=结构平面图.dxf）、
+  零报错。此前两轮"失败"全是走查姿势竞态：CAD 视图激活后树被切走（后续找
+  树行的点击全落空）+ mock 编辑触发 HMR 重载重置面板开合——非应用 bug。
+- **FileTree 行为实证**：树行左键=onSelect（openFileTab→guard），「预览」主区
+  入口只在右键菜单（FileTree:855），无第二分发通道要拦。
+- 门禁：tsc 绿；定向 8 文件 64 例绿；ESLint 0。
+- 装机：提交 e02e1d4f 干净工作树重建（pnpm 18.5s/Vite 40.31s/wails 54.8s），
+  装机位 exe sha256 4256587E…（build 11/14 01:42:15）=工作树产物，smoke
+  /api/health 200（PID 12608 已回收），工作树已回收。

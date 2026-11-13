@@ -7,6 +7,8 @@ import { LocaleProvider } from "./i18n";
 import { SIDEBAR_REGISTRY, getWorkspaceRegistration, type WorkspacePanelContext } from "./sidebarRegistry";
 import { WORKSPACE_TABS, WORKSPACE_TAB_IDS } from "./workspaceTabs";
 import { resetPaneTabsForTest, usePaneTabsStore } from "./paneTabs";
+import { useCadOpenBus } from "./cadOpen";
+import { usePaneEnabledStore } from "./paneEnabled";
 import { ToastProvider } from "../components/Toast";
 
 const ctx: WorkspacePanelContext = {
@@ -141,6 +143,41 @@ describe("sidebarRegistry 产物行打开接线（better-sidebar pane 文件 tab
     const { tabs, active } = usePaneTabsStore.getState();
     expect(tabs.some((t) => t.kind === "file" && t.path === "/mock/docs/成本测算.xlsx")).toBe(true);
     expect(active).toBe("file:/mock/docs/成本测算.xlsx");
+    expect(onOpenFile).not.toHaveBeenCalled();
+  });
+
+  it("产物行为 dwg 图纸 → 统一路由右栏 CAD 面板（不开坏预览文件 tab；2026-11-14）", async () => {
+    localStorage.setItem("gaea-lang", "zh");
+    resetPaneTabsForTest();
+    useCadOpenBus.setState({ request: null });
+    usePaneEnabledStore.getState().setEnabled("cad", false);
+    const onOpenFile = vi.fn();
+    const deliverCtx: WorkspacePanelContext = {
+      ...ctx,
+      onOpenFile,
+      cwd: "/mock",
+      sessionDeliverables: [{ path: "prod/结构平面图.dwg", sourceId: "c1", turn: 2, versions: 1 }],
+    };
+    render(
+      <LocaleProvider>
+        <ToastProvider>
+          {getWorkspaceRegistration("deliverables").render(deliverCtx)}
+        </ToastProvider>
+      </LocaleProvider>,
+    );
+
+    const row = screen.getAllByRole("button", { name: /结构平面图\.dwg/ })[0];
+    fireEvent.click(row);
+
+    const { tabs, active } = usePaneTabsStore.getState();
+    // 不开文件 tab，开 cad 视图 tab 且可选卡自动启用
+    expect(tabs.some((t) => t.kind === "file" && t.path === "prod/结构平面图.dwg")).toBe(false);
+    const cadTab = tabs.find((t) => t.kind === "view" && t.viewId === "cad");
+    expect(cadTab).toBeTruthy();
+    expect(active).toBe(cadTab!.id);
+    expect(usePaneEnabledStore.getState().enabled.cad).toBe(true);
+    // 请求总线投递（CadPanel 挂载后按 nonce 消费装载）
+    expect(useCadOpenBus.getState().request?.path).toBe("prod/结构平面图.dwg");
     expect(onOpenFile).not.toHaveBeenCalled();
   });
 });

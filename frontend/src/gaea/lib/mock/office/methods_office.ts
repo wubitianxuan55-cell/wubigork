@@ -35,8 +35,18 @@ export const officeMethods: Partial<Omit<OfficeMethods, "PinnedMaterials">> &
       return [
         { name: "internal", isDir: true, size: 0 },
         { name: "desktop", isDir: true, size: 0 },
+        { name: "图纸", isDir: true, size: 0 },
         { name: "README.md", isDir: false, size: 18 },
         { name: "go.mod", isDir: false, size: 42 },
+      ];
+    }
+    // 2026-11-14 CAD 右栏直达走查样例：文件树点 dwg/dxf → 右栏「CAD 图纸」
+    // 面板装载（lib/cadOpen 路由 + CAD 绑定 mock fixture）。树展开的 rel 有带
+    // 尾斜杠与不带两种形态，两种都接。
+    if (rel.replace(/\/+$/, "") === "图纸") {
+      return [
+        { name: "结构平面图.dxf", isDir: false, size: 26756 },
+        { name: "电气-自建房.dwg", isDir: false, size: 7770000 },
       ];
     }
     if (rel === "internal/") {

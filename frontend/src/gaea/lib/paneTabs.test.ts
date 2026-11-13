@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { resetPaneTabsForTest, usePaneTabsStore } from "./paneTabs";
+import { resetPaneTabsForTest, sanitizePaneTabsSnapshot, usePaneTabsStore } from "./paneTabs";
 import { clearRecentFilesForTest, loadRecentFiles } from "./recentFiles";
 
 beforeEach(() => {
@@ -171,5 +171,39 @@ describe("paneTabs 文件树改名/删除调解（Go 工作台）", () => {
     const s = usePaneTabsStore.getState();
     expect(s.tabs.map((tab) => tab.path)).toEqual(["keep.md"]);
     expect(s.active).toBe("file:keep.md");
+  });
+});
+
+describe("paneTabs 快照净化（sanitizePaneTabsSnapshot）", () => {
+  it("非法形状回空；视图 id 白名单外丢弃", () => {
+    expect(sanitizePaneTabsSnapshot(null)).toEqual({ v: 1, tabs: [], active: null, order: [] });
+    expect(sanitizePaneTabsSnapshot({ tabs: "x" }).tabs).toEqual([]);
+    const bad = sanitizePaneTabsSnapshot({
+      tabs: [
+        { id: "view:materials", kind: "view", viewId: "materials", title: "资料" },
+        { id: "view:cad", kind: "view", viewId: "cad", title: "CAD 图纸" },
+      ],
+      active: "view:materials",
+      order: ["view:materials", "view:cad"],
+    });
+    expect(bad.tabs.map((t) => t.id)).toEqual(["view:cad"]);
+    expect(bad.active).toBe("view:cad");
+  });
+
+  it("dwg/dxf 文件 tab 是坏预览（2026-11-14 起统一落 CAD 面板）——净化丢弃，active 收敛", () => {
+    const snap = sanitizePaneTabsSnapshot({
+      tabs: [
+        { id: "view:files", kind: "view", viewId: "files", title: "文件" },
+        { id: "file:prod/结构平面图.dwg", kind: "file", path: "prod/结构平面图.dwg", title: "结构平面图.dwg" },
+        { id: "file:docs/电气图.DXF", kind: "file", path: "docs/电气图.DXF", title: "电气图.DXF" },
+        { id: "file:docs/图纸.pdf", kind: "file", path: "docs/图纸.pdf", title: "图纸.pdf" },
+        { id: "file:docs/报告.md", kind: "file", path: "docs/报告.md", title: "报告.md" },
+      ],
+      active: "file:prod/结构平面图.dwg",
+      order: ["view:files", "file:prod/结构平面图.dwg", "file:docs/电气图.DXF", "file:docs/报告.md"],
+    });
+    // dwg/dxf 丢、视图/pdf/md 留；active 指向被丢 tab → 收敛到末位
+    expect(snap.tabs.map((t) => t.path ?? t.id)).toEqual(["view:files", "docs/图纸.pdf", "docs/报告.md"]);
+    expect(snap.active).toBe("file:docs/报告.md");
   });
 });

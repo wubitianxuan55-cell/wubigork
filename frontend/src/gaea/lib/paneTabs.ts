@@ -17,6 +17,7 @@
 import { create } from "zustand";
 import { normalizePreviewPath } from "./officeTurnProjection";
 import { WORKSPACE_TABS } from "./workspaceTabs";
+import { isCadFilePath } from "./cadExt";
 import { recordRecentFile } from "./recentFiles";
 
 /** 一个 pane tab：视图（如资源管理器/产物/任务/浏览器）或文件。 */
@@ -287,6 +288,10 @@ export function sanitizePaneTabsSnapshot(value: unknown): PaneTabsSnapshot {
       tabs.push({ id: raw.id, kind: "view", viewId: raw.viewId, title: raw.title, ...(meta?.url ? { meta } : {}) });
       seen.add(raw.id);
     } else if (raw.kind === "file" && typeof raw.path === "string" && raw.path !== "") {
+      // dwg/dxf 文件 tab 是坏预览（二进制矢量图纸读不出内容；2026-11-14 起
+      // 打开链统一落右栏 CAD 面板）——旧快照残留的这类 tab 净化时丢弃，
+      // active/order 由下方 seen 过滤自然收敛。
+      if (isCadFilePath(raw.path)) continue;
       tabs.push({ id: raw.id, kind: "file", path: raw.path, title: raw.title });
       seen.add(raw.id);
     }

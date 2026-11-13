@@ -15,19 +15,10 @@ import { WORKSPACE_TABS } from "./workspaceTabs";
 import { usePaneEnabledStore } from "./paneEnabled";
 import { usePaneTabsStore } from "./paneTabs";
 
-/** 右栏 CAD 面板承接的图纸扩展名（pdf 走既有文档预览链，不在此列）。 */
-export const CAD_FILE_EXTS = ["dwg", "dxf"] as const;
-
-function extOf(name: string): string {
-  const i = name.lastIndexOf(".");
-  return i >= 0 ? name.slice(i + 1).toLowerCase() : "";
-}
-
-/** 该路径是否为右栏 CAD 面板承接的图纸文件。 */
-export function isCadFilePath(rel: string): boolean {
-  const name = rel.split(/[\\/]/).pop() || rel;
-  return (CAD_FILE_EXTS as readonly string[]).includes(extOf(name));
-}
+// 扩展名判定在叶模块 cadExt（paneTabs 净化也要用，从这里取避免成环）；
+// 本文件再导出保持既有公共 API 不变。
+export { CAD_FILE_EXTS, isCadFilePath } from "./cadExt";
+import { isCadFilePath as isCadPath } from "./cadExt";
 
 export interface CadOpenRequest {
   path: string;
@@ -61,7 +52,7 @@ function cadTabLabel(): string {
  *  面板未开时本函数只落 store——pane 视图 tab 在 WorkspacePane 渲染，右栏
  *  开合由调用方处理（工作台语境右栏已开；打开链兜底见 usePreviewPanel）。 */
 export function openCadPaneFile(rel: string): void {
-  if (!isCadFilePath(rel)) return;
+  if (!isCadPath(rel)) return;
   if (!usePaneEnabledStore.getState().enabled.cad) {
     usePaneEnabledStore.getState().setEnabled("cad", true);
   }
