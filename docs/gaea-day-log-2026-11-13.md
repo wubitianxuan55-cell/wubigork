@@ -698,3 +698,27 @@
 - 验证：check-docs OK；wails build+冒烟 200+装机 INSTALL OK PID 25684
   （21:02:05>构建时刻）。git 历史 dc8274ba/9335caa9 提交信息中的错误归属
   （codex→编程板块）不重写，ead42804 为更正记录。
+
+## 38. P1-4 dock 撤项定案（21:0x~21:3x，用户实测翻车+灵犀报告定案）
+
+- 用户实测：无法在右侧面板打开 WPS，WPS 文件单独打开。复盘双根因：
+  ①**真凶=目标窗口最小化态**（实测探针抓到 OpusApp 文档窗 rect=(-32000,
+  -32000)=最小化标准位）——SetWindowPos 对最小化窗口只改「还原位置」不解除
+  最小化，SW_RESTORE 后 Dock 精确落位 (1400,150)-(1900,850) 实测通过；
+  ②类名判定没错（wps 文字=OpusApp），但 .docx 默认程序是 LibreOffice 的
+  机器现状会干扰手动复现路径。
+- **用户纠偏「不要傻搞，看看灵犀如何实现」**+编程板块新产
+  `re-lingxi/out/REPORT-右侧面板WPS编辑链路.md`（21:20）定案：灵犀右侧
+  面板=固定挂载点 #lingxi-canvas + **WebOffice JS-SDK kdocs 云 iframe**
+  （本地文件上传服务端换 link_id，enterMode=edit 云端编辑，本地回写走
+  插件保存通道；主进程注入 LingxiBridge=选区/Ctrl+S/脏标记/求值四事件）；
+  符号表 30 717 符号 SetParent/SetWindowPos **零命中**——灵犀无原生窗口
+  嵌入，面板编辑绑金山云=gaea 明确不做清单同族。
+- 处置：**P1-4 dock 档撤项**（revert ec3f4f48+绑定四件套再生回退 751→748，
+  tsc/契约/FilePreview 37 测绿）；plan 文档 P1-4 改判注记+batch2 拍板池③
+  销项。gaea 本地等价已存在：FilePreview 预览+COM 实时档（=灵犀 ui:true
+  语义）+OfficeLiveBadge+office_render 视觉验收。探针 tools/wpsdock 与
+  本段留档防重蹈。
+- 教训入册：蒸馏前先查「上游有没有这个形态」——wpsdock 探针是自己做的
+  实验，不是灵犀的实现；评估报告 §0 的「有条件 4 项」里 dock 根本不在列
+  （灵犀没这东西），是第一批计划自己排进去的。

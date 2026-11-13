@@ -95,7 +95,7 @@
 |---|---|---|---|
 | ① | P2-1 office 工具 MCP 化的 dispatcher 形态 | `connector_exec(server, tool, arguments)` 单 dispatcher（工具清单不炸开）vs `mcp__office__edit` 扁平前缀 | 倾向单 dispatcher（灵犀 §16 实测 `mcp__` 前缀 0 命中，生态也认这个形态）；但决定对外契约，须拍板 |
 | ② | 记忆三层落地（视 B4 评估结论） | core 常驻段引入=改提示词预算面；写入门禁=dream 确认红线扩展 | B4 报告先行 |
-| ③ | P1-4 embed 档（SetParent 真嵌入） | dock 已够用 vs embed 体验 | 真机走查 dock 后再议 |
+| ③ | ~~P1-4 embed 档~~ **已撤**：dock 实测翻车+查灵犀=其面板是 kdocs 云 iframe 非原生嵌入（`REPORT-右侧面板WPS编辑链路.md`），gaea 不做云依赖；本地等价（FilePreview 预览+COM 实时档+OfficeLiveBadge）已存在，2026-11-13 revert（ec3f4f48） | — | 销项 |
 | ④ | P2-2 技能市场/安装契约 | installFromUrl/packSkillZip/setEnabled 三动作+SKILL.md 校验+刷新契约（§14） | 与 B1-② 合并考虑 |
 | ⑤ | xlsx 三条是否进无条件提示词段 | 见 B1-③（推荐维持现状） | 默认销项 |
 

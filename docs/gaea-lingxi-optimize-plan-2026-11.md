@@ -117,6 +117,16 @@
 
 ### P1-4 右侧面板打开本机 WPS
 
+> **❌ 已撤项（2026-11-13 晚，实测翻车+查灵犀定案）**：dock 已实装（338577c9）后用户实测
+> 无法在面板打开 WPS。复盘：①真凶=目标窗口处于最小化态（-32000 坐标），SetWindowPos
+> 不解除最小化只改还原位置；②更根本——**灵犀根本没有窗口停靠**：符号表 30 717 个
+> SetParent/SetWindowPos 零命中，其「右侧面板编辑 WPS」= **kdocs 云 iframe**
+> （WebOffice JS-SDK，本地文件上传服务端换 link_id，`enterMode=edit` 云端编辑，
+> 见 `re-lingxi/out/REPORT-右侧面板WPS编辑链路.md`）——绑金山云，gaea 明确不做。
+> gaea 本地等价物已存在：FilePreview 预览（docx/xlsx/pptx）+ COM 实时档在用户
+> 自己的 WPS 窗口实时上屏（=灵犀 `ui:true` 语义）+ OfficeLiveBadge + office_render
+> 视觉验收。已 revert（ec3f4f48）；探针 `tools/wpsdock` 与本段留档防重蹈。
+
 - 已有探针 `tools/wpsdock`（list/dock/embed/restore，已实测本机 `XLMAIN` 窗口 dpi=96）。
 - 第一步 dock：`internal/office/wpshost/` + `bindings_office.go` 三个绑定 + `frontend/src/gaea/components/OfficePanel.tsx`（ResizeObserver 上报矩形）。
 - 第二步 embed（`SetParent`）默认关闭，开关 `office.panel.embed`。
