@@ -73,17 +73,14 @@
   overflow: hidden;
   border: 1px solid var(--office-output-border);
   border-radius: 14px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--fg) 2%, transparent), transparent 44%),
-    var(--office-output-surface);
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--fg) 3%, transparent);
+  /* 2026-11-13 实弹反馈：底色透明=与对话窗口背景一致（边界由边框+圆角承担，
+     不再垫 surface 色差）；状态色仅留在边框。 */
+  background: transparent;
+  box-shadow: none;
 }
 
 .office-process-card[data-running="true"] {
   border-color: color-mix(in srgb, var(--accent) 24%, var(--office-output-border));
-  background:
-    linear-gradient(100deg, color-mix(in srgb, var(--accent) 5%, transparent), transparent 42%),
-    var(--office-output-surface);
 }
 
 .office-process-card[data-status="error"] {
