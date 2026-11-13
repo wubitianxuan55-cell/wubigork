@@ -388,3 +388,25 @@
 - 验证：42 例绿（Transcript tailProcess 断言+memoryPeek 4 形态+五卡回归）+tsc+
   eslint 干净+构建装机。
 - 卡片视觉与交互的下一轮反馈继续挂用户实弹。
+
+## 22. 五卡二轮实弹四件（14:4x~15:2x）
+
+- 用户二轮实弹反馈四件，当轮修复（c5ee0dbd，exe `adc4bc4e…` 冒烟 200 装机）：
+  1. **过程卡下置撤销**（用户实测后改主意）——tailProcess 标志整体回退，恢复
+     Codex 语义；§21 刀1 撤销（设计决策循环=正常实弹迭代）。
+  2. **过程卡折叠态活尾巴**：折叠不再一行摘要——卡头下动态渲染最近三条内容
+     （工具名/思考首行/阶段，kind 弱区分色点），展开看全部；running 实时同效。
+  3. **交付文件卡滤 .py**：正文卡+登记卡统一排除（脚本属过程件）。
+  4. **提炼记忆提示升级+溢出归档**：notice 文本行 → 结构化 MemorySuggestCard
+     （点击弹窗：memories 最新 N 条+溢出归档合并列表，逐条展开 body、接受/
+     忽略）；Go 溢出归档（dream-pending-overflow.json FIFO 200——被挤出建议
+     不再丢弃，修复「无法弹窗查看」数据丢失；MemorySuggestionsView 加
+     overflow 字段；notice 文案改归档指引）；溢出条目接受走旧路径零新绑定。
+- 另：parseMemoryPeek 抽 lib/memoryPeek（react-refresh 拆分）；
+  isDreamSuggestNotice/dreamSuggestCount 抽 lib/memorySuggest 同口径。
+- 验证：56 例绿（tailProcess 撤销回归+五卡+memoryPeek）+tsc+eslint 干净；Go
+  DreamPending/Suggest/Notice 语义测试更新后全绿；全量构建 44.2s+冒烟 200+
+  **INSTALL OK** exe `adc4bc4ebc0b7fa6…`（不抬版 4.543.0）。
+- 坑重申：**python heredoc 改 Go/TS 源 `\n` 被 bash→python 双层吃成真换行**
+  （本轮实撞 2 次：Transcript split("\n")、dream notice Sprintf %d 缺参）——
+  跨语言源码 patch 一律 Edit 工具（dsh-ops 坑册三犯+本轮两犯=五犯定谳）。
