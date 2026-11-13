@@ -54,6 +54,63 @@ type Config struct {
 	MarkdownConverter MarkdownConverterConfig `toml:"markdown_converter"`
 	// Dream 是自动做梦（轮次后记忆整理）模式开关（v4.377 建议制口径）。
 	Dream DreamConfig `toml:"dream"`
+	// OfficeCom 是 dsh-office COM 实时协同档的体验设置（波3：把波1 硬编码在
+	// office_com_tools.go 顶部的开关上收为 [office_com] 设置段）。零值/缺段 =
+	// 上游 DEFAULTS 口径（见 OfficeComNormalized）。
+	OfficeCom OfficeComConfig `toml:"office_com"`
+}
+
+// OfficeComConfig 是 COM 实时协同档的设置段（internal/app/office_com_tools.go
+// 经 officeComSettings 单点消费）。字段口径对齐上游 dsh-office 设置页。
+type OfficeComConfig struct {
+	// Suite 选择 Office 套件："auto"（默认，装了 MS Office 用它否则 WPS）|
+	// "office"（强制 Microsoft Office）| "wps"（强制 WPS）。非法值归一 auto。
+	Suite string `toml:"suite"` // auto | office | wps
+	// Silent 静默模式：文档后台打开、无窗口完成，回合结束由 settle 收尾
+	// 自动保存关闭（office_com_settle.go）。默认 false（打开即见窗口是本档
+	// 核心体验）。
+	Silent bool `toml:"silent"`
+	// Follow 跟随：Office 窗口滚动到 AI 正在改的位置。默认 true。
+	Follow bool `toml:"follow"`
+	// Typing 逐字写入（像打字）。默认 true。
+	Typing bool `toml:"typing"`
+	// RenderWidth 是 office_render 出图宽度像素（缺省 1100，非法值夹 [600,2000]）。
+	RenderWidth int `toml:"render_width"`
+}
+
+// OfficeComNormalized 返回 COM 档体验设置的生效值（nil 安全 + 非法值归一，
+// 惯例同 DreamMode/BashMode 的取值点而非改写配置）：
+//   - suite：auto/空/缺省/非法 → "auto"，仅显式 "office"/"wps" 保留（大小写不敏感）；
+//   - render_width：0/缺省 → 1100；越界夹回 [600,2000]；
+//   - silent/follow/typing：布尔原样透传（Default() 已按上游口径播 true 的
+//     follow/typing；零值 Config 视同用户显式关闭，不强行回填）。
+func (c *Config) OfficeComNormalized() OfficeComConfig {
+	const defWidth = 1100
+	out := OfficeComConfig{Suite: "auto", Follow: true, Typing: true, RenderWidth: defWidth}
+	if c == nil {
+		return out
+	}
+	oc := c.OfficeCom
+	switch strings.ToLower(strings.TrimSpace(oc.Suite)) {
+	case "office", "wps":
+		out.Suite = strings.ToLower(strings.TrimSpace(oc.Suite))
+	case "auto", "":
+		// auto/缺省：保持 "auto"
+	}
+	out.Silent = oc.Silent
+	out.Follow = oc.Follow
+	out.Typing = oc.Typing
+	switch {
+	case oc.RenderWidth == 0:
+		// 缺省 1100
+	case oc.RenderWidth < 600:
+		out.RenderWidth = 600
+	case oc.RenderWidth > 2000:
+		out.RenderWidth = 2000
+	default:
+		out.RenderWidth = oc.RenderWidth
+	}
+	return out
 }
 
 // SessionConfig 是会话持久化行为配置（3.0 Step 1 回退开关）。
@@ -874,6 +931,9 @@ func Default() *Config {
 		// 自动做梦默认建议制：提炼结果进待确认队列，用户接受才入库
 		//（v4.377 口径：未经确认不写记忆）。
 		Dream: DreamConfig{Mode: "suggest"},
+		// COM 实时协同档（波3）：上游 DEFAULTS 口径——suite=auto、follow=true、
+		// typing=true、render_width=1100；silent 默认关（打开即见窗口是核心体验）。
+		OfficeCom: OfficeComConfig{Suite: "auto", Follow: true, Typing: true, RenderWidth: 1100},
 		// Sandbox on by default: bash is jailed (macOS), network allowed so
 		// builds/downloads work. Set bash = "off" to disable. Network=true here
 		// so an absent [sandbox] in a user's file keeps egress (zero value would

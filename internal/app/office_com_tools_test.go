@@ -66,16 +66,21 @@ func stubJSON(v any) json.RawMessage {
 }
 
 // resetOfficeComForTest 单例复位 + 注入桩（包级单例仅测试操纵；进程生命周期
-// 由管道关闭语义兜底）。
+// 由管道关闭语义兜底）。波3 settle 记账（lastActive/lastSettle/silentOpen）
+// 同点复位，防跨测试串味。
 func resetOfficeComForTest(stub officeComCaller) {
 	officeCom.mu.Lock()
 	officeCom.caller = stub
 	officeCom.currentApp, officeCom.currentDoc = "", ""
 	officeCom.own = nil
+	officeCom.lastActive = time.Time{}
+	officeCom.lastSettle = time.Time{}
+	officeCom.silentOpen = nil
 	officeCom.mu.Unlock()
 	officeCom.toldMu.Lock()
 	officeCom.told = map[string]map[string]bool{}
 	officeCom.toldMu.Unlock()
+	officeComSettling.Store(false)
 }
 
 func docInfoStub(how string, ws string) comhelper.DocInfo {

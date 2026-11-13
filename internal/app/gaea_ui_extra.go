@@ -86,6 +86,19 @@ type SettingsView struct {
 	// 不吃 Agent 段的「空跳过」守卫）。
 	PromptPrefix string `json:"promptPrefix"`
 	PromptSuffix string `json:"promptSuffix"`
+	// OfficeCom 是 dsh-office COM 实时协同档设置段（波3；json tag 与前端
+	// 约定键 office_com 一致，snake_case）。nil=旧前端/未涉及，写回跳过。
+	OfficeCom *OfficeComView `json:"office_com,omitempty"`
+}
+
+// OfficeComView COM 档设置面板视图（office_com 段；键名与 config
+// OfficeComConfig toml 键一致：suite/silent/follow/typing/render_width）。
+type OfficeComView struct {
+	Suite       string `json:"suite"`
+	Silent      bool   `json:"silent"`
+	Follow      bool   `json:"follow"`
+	Typing      bool   `json:"typing"`
+	RenderWidth int    `json:"render_width"`
 }
 
 // GaeaSettings 返回设置面板数据（引擎来自模型中心，agent 参数来自 gaea 配置）。
@@ -134,6 +147,8 @@ func (a *App) GaeaSettings() SettingsView {
 	view.SubagentModels = cfg.Agent.SubagentModels
 	view.PromptPrefix = cfg.Agent.PromptPrefix
 	view.PromptSuffix = cfg.Agent.PromptSuffix
+	oc := cfg.OfficeComNormalized()
+	view.OfficeCom = &OfficeComView{Suite: oc.Suite, Silent: oc.Silent, Follow: oc.Follow, Typing: oc.Typing, RenderWidth: oc.RenderWidth}
 	view.ConfigPath = gaeaConfig.UserConfigPath()
 	if c := gaeaCtrl(); c != nil {
 		view.Bypass = c.PermLevel() != "ask"
@@ -223,6 +238,15 @@ func (a *App) GaeaSaveSettings(view SettingsView) error {
 		// 「空跳过」守卫；上游语义留空则不启用）。
 		cfg.Agent.PromptPrefix = view.PromptPrefix
 		cfg.Agent.PromptSuffix = view.PromptSuffix
+		// 波3 office_com：显式写回（布尔/宽度零值是合法设置，不吃「空跳过」
+		// 守卫；suite 非法值在读侧 OfficeComNormalized 兜底 auto）。
+		if view.OfficeCom != nil {
+			cfg.OfficeCom.Suite = view.OfficeCom.Suite
+			cfg.OfficeCom.Silent = view.OfficeCom.Silent
+			cfg.OfficeCom.Follow = view.OfficeCom.Follow
+			cfg.OfficeCom.Typing = view.OfficeCom.Typing
+			cfg.OfficeCom.RenderWidth = view.OfficeCom.RenderWidth
+		}
 	})
 }
 

@@ -86,4 +86,32 @@ describe('OfficePanel 读取失败防覆盖（v4.362）', () => {
     await waitFor(() => expect(bridgeMocks.SaveSettings).toHaveBeenCalledTimes(1))
     expect((bridgeMocks.SaveSettings.mock.calls[0][0] as { agent: { systemPrompt: string } }).agent.systemPrompt).toBe('你是办公助手')
   })
+
+  // 波3 dsh-office COM 实时协同档：office_com 配置段经既有 Settings/SaveSettings
+  // 通道读写（约定键 suite/silent/follow/typing/render_width）——读取回显 +
+  // 保存负载携带该段。
+  it('office_com 实时编辑节：读取回显草稿，保存负载携带约定键', async () => {
+    settingsMocks.gaeaSettings.mockResolvedValue({
+      ...okSettings,
+      office_com: { suite: 'wps', follow: false, typing: false, silent: true, render_width: 1600 },
+    })
+    render(wrap(<OfficePanel />))
+    await waitFor(() => expect(settingsMocks.gaeaSettings).toHaveBeenCalled())
+
+    // 套件回显 wps；实时编辑节三开关回显（follow=false、typing=false、silent=true）
+    expect(screen.getByText('wps（金山 WPS）')).toBeTruthy()
+    const switches = Array.from(document.querySelectorAll('button[role="switch"]'))
+    // 开关序：沙箱 network（true）→ follow（false）→ typing（false）→ silent（true）
+    expect(switches.length).toBe(4)
+    expect(switches[1]?.getAttribute('aria-checked')).toBe('false')
+    expect(switches[2]?.getAttribute('aria-checked')).toBe('false')
+    expect(switches[3]?.getAttribute('aria-checked')).toBe('true')
+
+    bridgeMocks.SaveSettings.mockResolvedValue(undefined)
+    fireEvent.click(saveButton())
+    await waitFor(() => expect(bridgeMocks.SaveSettings).toHaveBeenCalledTimes(1))
+    expect((bridgeMocks.SaveSettings.mock.calls[0][0] as { office_com?: unknown }).office_com).toEqual({
+      suite: 'wps', follow: false, typing: false, silent: true, render_width: 1600,
+    })
+  })
 })

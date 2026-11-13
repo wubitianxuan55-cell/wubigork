@@ -120,6 +120,9 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 			// 会话自动命名（dsh session-title 蒸馏）：首个成功回合后给无标题
 			// 会话起名（办公本地路由，单飞；与做梦同槽同纪律）。
 			a.maybeAutoTitleAfterTurn()
+			// COM 档回合收尾（dsh settle 蒸馏，波3）：静默文档自动保存关闭 +
+			// card 收尾——无 office_* 活动时零 helper 命令（office_com_settle.go）。
+			a.maybeOfficeComSettle()
 		}
 	})
 	// 构建 controller（单模型 agent）

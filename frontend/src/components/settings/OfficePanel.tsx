@@ -23,6 +23,16 @@ interface DraftView {
   sandboxBash: string
   sandboxNetwork: boolean
   workspaceRoot: string
+  // 波3 dsh-office COM 实时协同档（office_com 配置段，键名与 Go 侧约定：
+  // office_com.suite/silent/follow/typing/render_width，默认
+  // auto/false/true/true/1100——对齐波1 硬编码体验开关）。
+  officeCom: {
+    suite: string
+    follow: boolean
+    typing: boolean
+    silent: boolean
+    renderWidth: number
+  }
 }
 
 const emptyDraft: DraftView = {
@@ -30,6 +40,7 @@ const emptyDraft: DraftView = {
   temperature: 0, subagentTemperature: 0, maxSteps: 0,
   effort: '', subagentEffort: '', permMode: 'ask', permAllow: '', permAsk: '', permDeny: '',
   sandboxBash: 'enforce', sandboxNetwork: true, workspaceRoot: '',
+  officeCom: { suite: 'auto', follow: true, typing: true, silent: false, renderWidth: 1100 },
 }
 
 /** OfficePanel — 办公引擎完整设置（模型 / Agent 参数 / 权限 / 沙箱，持久化到 ~/.config/gaea/config.toml） */
@@ -74,6 +85,10 @@ const OfficePanel: React.FC = () => {
       }
       const perms = (v.permissions || {}) as { mode?: string; allow?: string[]; ask?: string[]; deny?: string[] }
       const sandbox = (v.sandbox || {}) as { bash?: string; network?: boolean; workspaceRoot?: string; allowWrite?: string[] }
+      // office_com 配置段读取（Go 侧就位前缺省=undefined → 前端用同款默认值；
+      // 布尔键与 sandbox.network 同守卫式：显式 false 才算关，缺省=开）。
+      const oc = (v.office_com || {}) as { suite?: string; follow?: boolean; typing?: boolean; silent?: boolean; render_width?: number }
+      const ocWidth = typeof oc.render_width === 'number' && oc.render_width >= 600 && oc.render_width <= 2000 ? oc.render_width : 1100
       setDraft({
         defaultModel: (v.defaultModel as string) || '',
         subagentModel: (v.subagentModel as string) || '',
@@ -90,6 +105,13 @@ const OfficePanel: React.FC = () => {
         sandboxBash: sandbox.bash || 'enforce',
         sandboxNetwork: sandbox.network !== false,
         workspaceRoot: sandbox.workspaceRoot || '',
+        officeCom: {
+          suite: oc.suite || 'auto',
+          follow: oc.follow !== false,
+          typing: oc.typing !== false,
+          silent: oc.silent === true,
+          renderWidth: ocWidth,
+        },
       })
     }).catch(() => {
       setDraft({ ...emptyDraft })
@@ -131,6 +153,15 @@ const OfficePanel: React.FC = () => {
           network: draft.sandboxNetwork,
           workspaceRoot: draft.workspaceRoot,
           allowWrite: ((view.sandbox as { allowWrite?: string[] } | undefined)?.allowWrite) || [],
+        },
+        // 波3 office_com 配置段显式写回（约定键名 suite/silent/follow/typing/
+        // render_width；Go 结构体就位前未知键被 json 解码忽略，无副作用）。
+        office_com: {
+          suite: draft.officeCom.suite,
+          follow: draft.officeCom.follow,
+          typing: draft.officeCom.typing,
+          silent: draft.officeCom.silent,
+          render_width: draft.officeCom.renderWidth,
         },
         // 刀14 promptPrefix/Suffix 原样回传（编辑入口在设置中心「上下文页偏好」
         // 系统提示词组；此处不吃草稿，防整体写回把那里保存的值清零）。
@@ -277,6 +308,44 @@ const OfficePanel: React.FC = () => {
             onChange={(e) => setDraft({ ...draft, workspaceRoot: e.target.value })}
             placeholder={t('settings.office.workspaceRootPh')} />
         ))}
+      </SettingsSection>
+
+      {/* 波3 dsh-office COM 实时协同档（Office 窗口协同五键；随「保存并生效」
+          一并写回 office_com 配置段，键名与 Go 侧约定对齐）。 */}
+      <SettingsSection
+        title={t('settings.office.liveTitle')}
+        desc={t('settings.office.liveDesc')}
+      >
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0 16px' }}>
+          {field(t('settings.office.liveSuite'), (
+            <Select size="small" value={draft.officeCom.suite}
+              onChange={(v) => setDraft({ ...draft, officeCom: { ...draft.officeCom, suite: v } })}
+              options={[
+                { value: 'auto', label: t('settings.office.liveSuiteAuto') },
+                { value: 'office', label: t('settings.office.liveSuiteOffice') },
+                { value: 'wps', label: t('settings.office.liveSuiteWps') },
+              ]} style={selectStyle} />
+          ))}
+          {field(t('settings.office.liveRenderWidth'), (
+            <InputNumber size="small" min={600} max={2000} step={50} value={draft.officeCom.renderWidth}
+              onChange={(v) => setDraft({ ...draft, officeCom: { ...draft.officeCom, renderWidth: typeof v === 'number' && v >= 600 && v <= 2000 ? Math.round(v) : 1100 } })}
+              style={selectStyle} />
+          ), t('settings.office.liveRenderWidthDesc'))}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '0 16px' }}>
+          {field(t('settings.office.liveFollow'), (
+            <Switch size="small" checked={draft.officeCom.follow}
+              onChange={(v) => setDraft({ ...draft, officeCom: { ...draft.officeCom, follow: v } })} />
+          ), t('settings.office.liveFollowDesc'))}
+          {field(t('settings.office.liveTyping'), (
+            <Switch size="small" checked={draft.officeCom.typing}
+              onChange={(v) => setDraft({ ...draft, officeCom: { ...draft.officeCom, typing: v } })} />
+          ), t('settings.office.liveTypingDesc'))}
+          {field(t('settings.office.liveSilent'), (
+            <Switch size="small" checked={draft.officeCom.silent}
+              onChange={(v) => setDraft({ ...draft, officeCom: { ...draft.officeCom, silent: v } })} />
+          ), t('settings.office.liveSilentDesc'))}
+        </div>
       </SettingsSection>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>

@@ -51,4 +51,16 @@ export interface SettingsView {
   // 消费方整体写回时必须原样带上，防他处保存清零）。
   promptPrefix?: string;
   promptSuffix?: string;
+  // 波3 dsh-office COM 实时协同档（2026-11-13）：配置段 office_com 由 Go 侧
+  // 落 config（键 suite/silent/follow/typing/render_width，默认
+  // auto/false/true/true/1100）。前端只经既有 Settings/SaveSettings 通道按
+  // 约定键读写；Go 结构体就位前该段读取缺省=undefined（前端用同款默认值），
+  // 保存负载里的未知键被 Go json 解码忽略（无副作用），收口时对齐。
+  office_com?: {
+    suite?: string; // auto | office | wps
+    follow?: boolean;
+    typing?: boolean;
+    silent?: boolean;
+    render_width?: number; // 600-2000
+  };
 }

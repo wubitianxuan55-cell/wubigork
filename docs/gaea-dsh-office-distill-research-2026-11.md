@@ -135,3 +135,24 @@ omml.ts（218 行）+ helper equations 段的 WPS 预转逻辑，接进 docxedit
 - Microsoft Office 16.0 InstallRoot / Office16 目录：无 → **MS Office 未装**
 - LibreOffice：C:\Program Files\LibreOffice\program\soffice.exe 在
 - csc.exe：C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe 在
+
+## 6.2 波3 范围（2026-11-13 拍板：迷你卡片/跟随/静默/settle 四件，结合现有文件交互落地）
+
+结合拍板：**不启 helper 的 WinForms 迷你卡**（card=false 维持——独立桌面浮窗与壳脱节、
+抢用户桌面焦点），四件全部以 gaea 壳内交互承接：
+
+- **跟随/逐字/静默/套件/渲染宽度 → gaea 设置**：config 顶层 `office_com` 段
+  （suite/silent/follow/typing/render_width，默认=上游 auto/false/true/true/1100），
+  officeComSettings() 单点读 cfg 替代波1 硬编码；设置面板 OfficePanel 加「实时编辑」节。
+- **settle → TurnDone 槽**：gaeaBuildController 事件槽（与自动做梦/会话自动命名同位）
+  挂 maybeOfficeComSettle——card 收尾（"AI 已完成"）+ helper settle（静默后台文档自动
+  保存关闭）→ 逐文档落 Journal 证据卡（office_save 同账）+ emit `office_file_saved`
+  事件。**活动性守卫**：本回合无 office_* 活动且无静默文档时零命令（TurnDone 每回合
+  触发，绝不每回合 ping helper）。
+- **迷你卡片 → 壳内状态条**：officeLiveStore（office_* 工具卡事件流提取活动文档+edit
+  进度 done/total）+ OfficeLiveBadge 胶囊挂 FilePreview 头部（「此文件正在被 AI 实时
+  编辑 · 第 n/m 步」，点击直达预览——openPaneFileOrPreview 同 U2 入口）。
+- **office_file_saved 订阅 → 预览静默重读**：前端订阅（wailsEvents 同 usePreviewProgress
+  模式）→ requestReload（settle 保存的文档开着预览就刷新）。
+- **免费红利确认**：office_save 已随波1 进 OFFICE_WRITE_TOOLS 白名单——U2 写后置前+
+  U4 800ms 防抖静默重读管线对 COM 档保存自动生效，零新代码。

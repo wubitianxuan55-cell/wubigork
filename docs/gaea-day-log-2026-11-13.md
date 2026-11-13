@@ -280,3 +280,37 @@
 - **运行时崩溃事件注记**：本轮 ZCode 运行时进程因内存不足退出一次，两后台子代理
   中断无报告；接管盘点发现两线半成品均已落盘大半（线1 死循环 bug 未及自测、线2
   已自测全绿）——「先查残留再决定重派」避免了整线重跑。
+
+## 17. 波3 收官：设置段+settle 钩子+壳内状态条（12:0x~12:3x）
+
+- **两线并发**（足迹互斥）：线 G（Go：config `office_com` 段〔suite/silent/follow/
+  typing/render_width，默认=上游 auto/false/true/true/1100，OfficeComNormalized 读侧
+  兜底〕+officeComSettings() 单点替代波1 硬编码+settle 钩子）；线 F（前端：
+  officeLiveStore+useOfficeLive+OfficeLiveBadge+OfficePanel「实时编辑」节+三语
+  locale 15 键）。
+- **settle 钩子**（office_com_settle.go）：TurnDone 槽（与做梦/自动命名同位）挂
+  maybeOfficeComSettle——活动性守卫（本回合无 office_* 活动且无静默文档时零 helper
+  命令含不创建 client；失败尝试也 stamp 防 helper 起不来时每回合 ping）→ settle
+  （静默后台文档保存关闭）→ saved 行落 Journal（office_save 同账，closed 不落=无新
+  写盘）→ emit `office_file_saved`（path+rel 双键）→ card 收尾（容错 no-op：本档
+  card 恒 false 壳内条替代）。settle 回执五形态逐字对齐 OfficeHelper.cs:705 实读。
+- **壳内迷你卡**（拍板=不启 helper WinForms 卡，走 gaea 交互）：officeLiveStore
+  （office_* 工具卡事件流提取活动文档+edit 进度 done/total，TTL 5 分钟惰性过期无
+  定时器）+ OfficeLiveBadge 双变体挂 FilePreview 头部（本文件变体「此文件正在被 AI
+  实时编辑」/他文件变体「编辑中 · 第 n/m 步」点击直达预览=U2 同入口）+ office_file_
+  saved 订阅→requestReload（settle 保存开着预览就刷新）。
+- **收口补两处**（子代理未及自测的残留）：①officeLiveStore clampStep——回执计数超出
+  ops 长度时以 ops 封顶（helper 回执恒等 ops 数，荒谬形态防御，clamp 测试钉死）
+  ②SettingsView 补 office_com 桥（线 F 留的接点：前端读写通道用既有
+  GaeaSettings/GaeaSaveSettings，Go 结构体缺段——加 OfficeComView（json tag
+  `office_com` snake_case 与前端 payload 逐字一致）+读侧 Normalized 填充+写侧显式
+  写回（布尔/宽度零值合法不吃空跳过守卫））。
+- **免费红利确认**：office_save 已随波1 进 OFFICE_WRITE_TOOLS——U2 置前+U4 800ms
+  防抖静默重读对 COM 档保存自动生效，零新代码。
+- **验证**：线 G 全绿（settle 三态/settings/config 测试+全 app 套件 149s）；线 F
+  全绿（83 例+tsc+eslint）；集成 test-related 绿（app 145.4s 真跑+config）；冒烟
+  回归过（officeComSettings 改消费点后波1/2 全链含 WPS math 2 equations 不回归）；
+  装机 exe `728e79e6bda11495…` 冒烟 200，**INSTALL OK**（PID 36072，12:27:50）；
+  不抬版本（4.543.0）。
+- **余（挂拍板池）**：preferLive 技能引导回、unseen 保存前总览闭环；真机实弹（用户
+  侧：设置面板改静默开→让 AI 开工作区文档→回合结束看自动保存关闭+预览刷新+证据卡）。

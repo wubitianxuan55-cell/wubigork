@@ -24,6 +24,8 @@ import { XlsxPreview } from "./XlsxPreview";
 import { ScheduleFileCard } from "./ScheduleFileCard";
 import { isScheduleFilePath, parseSchedSummaryDetail } from "../../schedule/gschedSummary";
 import { usePreviewProgress } from "../hooks/usePreviewProgress";
+import { useOfficeLive } from "../hooks/useOfficeLive";
+import { OfficeLiveBadge } from "./OfficeLiveBadge";
 import { useToast } from "./Toast";
 // 3a：CodeMirror 编辑器懒加载 chunk；chunk 加载失败（Suspense 之外的
 // ErrorBoundary）或运行时挂载失败均回落纯 textarea，编辑能力永不丢失。
@@ -87,6 +89,10 @@ export function FilePreview({
   const [loading, setLoading] = useState(false);
   const ocrProgress = usePreviewProgress(relPath);
   const toast = useToast();
+  // 波3 COM 实时编辑接线：喂入（office_* 工具卡 → officeLiveStore）+
+  // office_file_saved 保存跟随（引用计数单例，多实例挂载安全）。只在头部
+  // 加展示，不动滚动/刷新语义（reloadSignal 链路零改动）。
+  useOfficeLive();
   // C5 工作区内联编辑：编辑态 / 草稿 / 脏标记 / 保存状态机 / 放弃确认
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -378,6 +384,9 @@ export function FilePreview({
             {t("officeTurn.autoRefreshed")}
           </span>
         )}
+        {/* 波3 COM 实时编辑胶囊：本文件=「此文件正在被 AI 实时编辑」；他文件=
+            正被编辑文档名+进度，点击打开那份的预览（U2 置前同入口）。 */}
+        <OfficeLiveBadge relPath={relPath} />
         <button
           className={HEAD_BTN}
           onClick={() => app.RevealWorkspacePath(relPath).catch(() => {})}

@@ -12,10 +12,13 @@ package app
 // 与上游工具层的差异（协议层偏离见 comhelper/doc.go）：
 //   - path 参数接受工作区相对路径（上游仅绝对路径）——agent 更顺手，
 //     解析成绝对路径再发 helper。
-//   - 波1 硬编码体验开关（上游设置页 9 项）：suite=auto, follow=true,
-//     typing=true, card=false（迷你卡片挂拍板池第 3 项）, silent=false,
-//     showOnOpen=true, renderWidth=1100, finalCheck=false（保存后自动总览
-//     附图挂波3；模型可用 office_render {overview:true} 手动核对）。
+//   - 体验开关（上游设置页 9 项）：波1 曾硬编码，波3 上收为 gaea 配置
+//     [office_com] 段（internal/gaea/config OfficeComConfig，经
+//     officeComSettings 单点读取）：suite=auto, silent=false, follow=true,
+//     typing=true, render_width=1100 为上游 DEFAULTS 口径；card 恒 false
+//     （迷你卡片由前端壳内状态条替代，波3 拍板不接设置）；showOnOpen=true
+//     缺省不变（silent 模式下缺省改后台）；finalCheck=false（保存后自动总览
+//     附图不做，模型可用 office_render {overview:true} 手动核对）。
 //   - office_render 的成品图以 PNG 路径交付，模型经 vision 工具读取
 //     （doc_render 同款管线——gaea agent 上下文是纯文本，无图片附件通道）。
 //   - 波2 WPS 公式预转 math 腿已带（internal/office/omml 子集直转，fail-soft：
@@ -44,15 +47,38 @@ import (
 	"github.com/gaea/gaea/internal/office/omml"
 )
 
-// ── 波1 硬编码体验开关（接 gaea 设置挂波3）────────────────────────────────
-const (
-	officeComSuite       = "auto"
-	officeComFollow      = true
-	officeComTyping      = true
-	officeComCard        = false // 迷你卡片挂拍板池第 3 项（波二）
-	officeComSilent      = false
-	officeComRenderWidth = 1100
-)
+// ── 体验设置（波3：从 gaea 配置 [office_com] 段单点读取）──────────────────
+
+// officeComPrefs 是 COM 档一次调用快照的体验开关（波1 顶部硬编码常量的
+// 波3 上收——ga.cfg 的 [office_com] 段经 config.OfficeComNormalized 归一后
+// 透传，helper 命令语义不变；类型名不与读取函数 officeComSettings 重名）。
+type officeComPrefs struct {
+	suite       string // auto | office | wps（进 officeCom.call 的 args["suite"]）
+	silent      bool   // 静默模式：后台无窗口完成，回合结束 settle 自动保存关闭
+	follow      bool   // 跟随：窗口滚到 AI 正在改的位置
+	typing      bool   // 逐字写入（像打字）
+	renderWidth int    // office_render 出图宽度像素（600-2000）
+}
+
+// officeComSettings 单点读取体验设置（所有消费点只经此处，禁止散读 ga.cfg）。
+// ga.cfg==nil（测试态/启动早期）回上游 DEFAULTS 口径默认值；card 不在设置内——
+// 迷你卡片由前端壳内状态条替代（2026-11-13 波3 拍板），open/edit 恒发 card=false
+// （helper 侧 cardStarted 恒 false，settle 时的 card 收尾是容错 no-op）。
+func officeComSettings() officeComPrefs {
+	// 上游 DEFAULTS：suite=auto、silent=false、follow=true、typing=true、
+	// render_width=1100（与 config.OfficeComNormalized 的兜底同源口径）。
+	s := officeComPrefs{suite: "auto", follow: true, typing: true, renderWidth: 1100}
+	ga.mu.Lock()
+	cfg := ga.cfg
+	ga.mu.Unlock()
+	if cfg == nil {
+		return s
+	}
+	oc := cfg.OfficeComNormalized()
+	s.suite, s.silent, s.follow, s.typing, s.renderWidth =
+		oc.Suite, oc.Silent, oc.Follow, oc.Typing, oc.RenderWidth
+	return s
+}
 
 // 命令超时（对齐上游 tools.ts 各调用点）。
 const (
@@ -84,6 +110,18 @@ type officeComState struct {
 	// told 每会话已发放过操作清单的应用（按需帮助：不进 schema 省上下文）。
 	toldMu sync.Mutex
 	told   map[string]map[string]bool
+	// ── 波3 settle 收尾记账（office_com_settle.go 消费）─────────────────
+	// lastActive 是 open/edit/save/close 最近一次成功调用的时刻（读/渲染/
+	// 状态不 stamp——它们不产生需要收尾的写面）；lastSettle 是上次 settle
+	// 尝试（含失败）的时刻。maybeOfficeComSettle 只在「lastActive 晚于
+	// lastSettle（本回合内有活动）或存在静默打开文档」时才发 helper 命令
+	//（TurnDone 每回合都触发，无活动必须零 ping helper）。
+	lastActive time.Time
+	lastSettle time.Time
+	// silentOpen 记录静默模式后台打开的文档（key=officeComKey，value=打开时
+	// 的绝对路径）：settle 守卫与证据卡 Target 兜底用。save 后文档仍在后台
+	// 打开不清（另存为时随 current 指向更新）；office_close 成功即清。
+	silentOpen map[string]string
 }
 
 var (
@@ -106,7 +144,8 @@ func (s *officeComState) client() (officeComCaller, error) {
 	return s.caller, nil
 }
 
-// officeComCall 注入 suite 后发命令（与上游 host 包装同位）。
+// officeComCall 注入 suite 后发命令（与上游 host 包装同位）。写面命令
+// （open/edit/save/close）成功返回时 stamp 活动时刻——settle 守卫的记账点。
 func (s *officeComState) call(ctx context.Context, cmd string, args map[string]any, timeout time.Duration) (json.RawMessage, error) {
 	client, err := s.client()
 	if err != nil {
@@ -115,8 +154,17 @@ func (s *officeComState) call(ctx context.Context, cmd string, args map[string]a
 	if args == nil {
 		args = map[string]any{}
 	}
-	args["suite"] = officeComSuite
-	return client.Call(ctx, cmd, args, timeout)
+	args["suite"] = officeComSettings().suite
+	raw, err := client.Call(ctx, cmd, args, timeout)
+	if err == nil {
+		switch cmd {
+		case "open", "edit", "save", "close":
+			s.mu.Lock()
+			s.lastActive = time.Now()
+			s.mu.Unlock()
+		}
+	}
+	return raw, err
 }
 
 // officeComKey 文档去重键（app:文件名小写——路径与窗口名共用文件名收口）。
@@ -359,11 +407,20 @@ func (t officeComOpenTool) execute(ctx context.Context, session string, args jso
 			return "", fmt.Errorf("复制模板失败: %w", err)
 		}
 	}
+	settings := officeComSettings()
+	// show 缺省 true（上游 showOnOpen 默认开：打开即见窗口是本档的核心体验）；
+	// 静默模式下缺省改后台（「后台无窗口完成」是 silent 的本意），模型显式
+	// show=true 才带回前台——schema 的 show 描述（静默场景下调出窗口用）同款
+	// 语义。card 恒 false：迷你卡片由前端壳内状态条替代（波3 拍板，不接设置）。
+	show := in.Show == nil || *in.Show
+	if settings.silent {
+		show = in.Show != nil && *in.Show
+	}
+	silent := settings.silent && !show
 	openArgs := map[string]any{
-		// show 缺省 true（上游 showOnOpen 默认开：打开即见窗口是本档的核心体验）。
-		"app": kind, "show": in.Show == nil || *in.Show,
-		"follow": officeComFollow, "typing": officeComTyping,
-		"card": officeComCard, "silent": officeComSilent,
+		"app": kind, "show": show,
+		"follow": settings.follow, "typing": settings.typing,
+		"card": false, "silent": silent,
 	}
 	if abs != "" {
 		openArgs["path"] = abs
@@ -387,6 +444,15 @@ func (t officeComOpenTool) execute(ctx context.Context, session string, args jso
 			officeCom.own = map[string]bool{}
 		}
 		officeCom.own[officeComKey(kind, *doc.Path)] = true
+	}
+	// 静默记账：本次以 silent=true 后台打开的文档记入 silentOpen（settle 守卫
+	// 与证据卡 Target 兜底用）。记账是 helper Hidden 集的超集——若文档本就开在
+	// 用户可见窗口，OpenQuietly 原地附着不隐藏，settle 侧只动真隐藏文档，无害。
+	if silent {
+		if officeCom.silentOpen == nil {
+			officeCom.silentOpen = map[string]string{}
+		}
+		officeCom.silentOpen[officeComKey(kind, docPath)] = docPath
 	}
 	officeCom.mu.Unlock()
 	return comhelper.FormatOpened(doc) + officeCom.officeGuide(session, kind), nil
@@ -553,10 +619,14 @@ func (t officeComEditTool) execute(ctx context.Context, session string, args jso
 	if err != nil {
 		return "", err
 	}
+	settings := officeComSettings()
 	editArgs := map[string]any{
 		"app": kind, "ops": json.RawMessage(argsOfOps(in.Ops)),
-		"follow": officeComFollow, "typing": officeComTyping,
-		"card": officeComCard, "silent": officeComSilent,
+		"follow": settings.follow, "typing": settings.typing,
+		// card 恒 false（迷你卡片由前端壳内状态条替代）；silent 透传设置——
+		// helper 侧对静默打开（Hidden）或 silent 声明的文档按 quiet 模式编辑
+		//（不滚动跟随、不打字、不弹卡）。
+		"card": false, "silent": settings.silent,
 	}
 	if targetDoc != "" && officeComAbsRe.MatchString(targetDoc) {
 		editArgs["doc"] = targetDoc
@@ -647,7 +717,9 @@ func (t officeComRenderTool) Execute(ctx context.Context, args json.RawMessage) 
 	if err != nil {
 		return "", err
 	}
-	width := officeComRenderWidth
+	// 出图宽度：显式 600-2000 优先，否则用设置缺省（officeComSettings 已归一到
+	// [600,2000]，缺省 1100）。
+	width := officeComSettings().renderWidth
 	if in.Width >= 600 && in.Width <= 2000 {
 		width = in.Width
 	}
@@ -909,6 +981,15 @@ func (t officeComSaveTool) Execute(ctx context.Context, args json.RawMessage) (s
 		officeCom.currentApp, officeCom.currentDoc = kind, saved.Path
 		officeCom.mu.Unlock()
 	}
+	// 静默记账维护：保存后文档仍在后台打开，不清账——另存为/未命名文档首次
+	// 落盘时改键跟随新路径（value 刷成真实落盘路径，settle 证据卡 Target 用）；
+	// 只有 office_close 成功才清（见下）。
+	officeCom.mu.Lock()
+	if _, ok := officeCom.silentOpen[officeComKey(kind, targetDoc)]; ok {
+		delete(officeCom.silentOpen, officeComKey(kind, targetDoc))
+		officeCom.silentOpen[officeComKey(kind, saved.Path)] = saved.Path
+	}
+	officeCom.mu.Unlock()
 	// Journal 证据卡：COM 实时编辑没有基线快照（诚实缺省，不冒充通过）。
 	if rel := officeComJournalRel(saved.Path); rel != "" {
 		appendOfficeEvidence("office_save", rel,
@@ -1046,6 +1127,7 @@ func (t officeComCloseTool) Execute(ctx context.Context, args json.RawMessage) (
 	}
 	officeCom.mu.Lock()
 	delete(officeCom.own, key)
+	delete(officeCom.silentOpen, key) // 静默文档被显式关闭：清收尾记账
 	if officeCom.currentApp == kind && officeCom.currentDoc == targetDoc {
 		officeCom.currentApp, officeCom.currentDoc = "", ""
 	}
