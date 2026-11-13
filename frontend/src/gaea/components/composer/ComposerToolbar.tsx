@@ -22,7 +22,7 @@ export interface ComposerToolbarProps {
   onPickFiles: () => void
   onScreenshot: () => void
   onRecordSkill?: () => void
-  /** 打开办公工具面板（CAD 看图/进度计划）；不是右栏 Tab，是临时 ToolSheet。 */
+  /** 打开办公工具面板（CAD 图纸/进度计划）；2026-11-14 起两者为右栏一级 Tab。 */
   onOpenTool?: (tool: "cad" | "schedule") => void
   permLevel?: string
   onSetPermLevel?: (p: "ask" | "auto" | "yolo") => void
@@ -107,14 +107,14 @@ export function ComposerToolbar({
         {captureBusy ? <Loader size={14} className="animate-spin" /> : <Camera size={14} />}
       </button>
 
-      {/* 工具（CAD 看图/进度计划）：临时 ToolSheet，不是右栏 Tab；与顶栏「工具」
-          下拉同一 activeTool 单源（App 层状态），此处是输入框旁的第二入口 */}
+      {/* 工具（CAD 图纸/进度计划）：右栏一级 Tab（与顶栏「工具」下拉同走
+          onOpenTool 单源，App 层 openToolTab 启用可选卡并开视图 tab） */}
       <Dropdown
         trigger={["click"]}
         placement="topLeft"
         menu={{
           items: [
-            { key: "cad", label: "CAD 看图", icon: <Layers size={13} /> },
+            { key: "cad", label: "CAD 图纸", icon: <Layers size={13} /> },
             { key: "schedule", label: "进度计划", icon: <LineChart size={13} /> },
           ],
           onClick: ({ key }) => {
@@ -125,7 +125,7 @@ export function ComposerToolbar({
         <button
           className="office-toolbar-icon inline-flex items-center justify-center w-[28px] h-[28px] border-0 rounded-md bg-transparent text-fg-dim cursor-pointer transition-[color,background] duration-[var(--dur-fast)] hover:text-fg hover:bg-bg-soft disabled:cursor-default disabled:opacity-40 shrink-0"
           disabled={running || !onOpenTool}
-          title={onOpenTool ? "工具：CAD 看图 / 进度计划" : "工具"}
+          title={onOpenTool ? "工具：CAD 图纸 / 进度计划" : "工具"}
           aria-label="工具"
           data-testid="composer-tools"
         >

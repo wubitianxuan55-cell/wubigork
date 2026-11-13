@@ -3,16 +3,17 @@
 // 矢量文本清单 +「问图纸」（分幅 PNG 喂识图管线，结果可发对话流续问）。
 // 红线（docs/gaea-cad-tool-master-plan-2026-10.md）：三绑定只读零写入；
 // 「问图纸」复用 RecognizeImage 零新绑定；图纸与提取结果不入库。
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Alert, Button, Input, Spin, Tag } from "antd";
 import { useT } from "../../lib/i18n";
+import { useCadOpenBus } from "../../lib/cadOpen";
 import { Layers } from "../../icons";
 import { app } from "../../lib/bridge";
 import type { CadOpenResult, CadRasterResult, CadTextsResult, CadCountResult, CadText } from "../../lib/bridge/cad";
 import { cadRecentList, cadRecentPush, type CadRecent } from "./cadRecent";
-// 解析缓存（§7.3）：ToolSheet 关闭卸载本组件，openRes/raster/texts/count 留在
+// 解析缓存（§7.3）：tab 切走/右栏收起卸载本组件（原 ToolSheet 关闭），openRes/raster/texts/count 留在
 // cadToolCache，重开（最近图纸/重复导入同路径）不重跑解析。
 import {
   cadCacheGet,
@@ -145,7 +146,7 @@ export function CadPanel({ onAsk, variant = "pane", inspectorHost = null }: { on
       setTextsCopied(false);
       setOpenRes(null);
       // 缓存命中：图纸只读，openRes/raster/texts/count 原样回填，零绑定调用
-      // （§7.3 重开不重跑解析——ToolSheet 关开之间不付 CadOpen+分幅渲染的等待）。
+      // （§7.3 重开不重跑解析——tab 切走切回之间不付 CadOpen+分幅渲染的等待）。
       // 代际/路径守卫照常生效（上面已递增代际并指向本 path）。
       const cached = cadCacheGet(path);
       if (cached) {
@@ -224,6 +225,17 @@ export function CadPanel({ onAsk, variant = "pane", inspectorHost = null }: { on
       setError(e instanceof Error ? e.message : String(e));
     }
   }, [load]);
+
+  // 外部打开链（2026-11-14 回归右栏）：文件树/交付卡/Git 行点 dwg/dxf →
+  // lib/cadOpen.openCadPaneFile 开本视图 tab 并投递请求总线，这里按一次性消费
+  // 装载（消费即清请求，卸载重挂不重放旧请求——最近图纸列表仍可一键重开）。
+  // busy/ask 在途时请求暂存总线，忙态翻转后本 effect 重跑再消费，不丢请求。
+  const cadRequest = useCadOpenBus((s) => s.request);
+  useEffect(() => {
+    if (!cadRequest || busy || askBusy) return;
+    useCadOpenBus.setState({ request: null });
+    void load(cadRequest.path, cadRequest.name);
+  }, [cadRequest, busy, askBusy, load]);
 
   const selectSheet = useCallback(
     (idx: number) => {

@@ -33,8 +33,8 @@ describe("workspaceTabs 清单完整性（任务已迁主区编队）", () => {
     expect(ids.sort()).toEqual([...WORKSPACE_TAB_IDS].sort());
   });
 
-  it("清单为 5 Tab；任务与分工已迁主区编队，不含已删除面板", () => {
-    expect(WORKSPACE_TABS.map((t) => t.id)).toEqual(["files", "deliverables", "browser", "git", "ui"]);
+  it("清单为 7 Tab（2026-11-14 CAD 图纸/进度计划回归右栏一级 Tab）；不含已删除面板", () => {
+    expect(WORKSPACE_TABS.map((t) => t.id)).toEqual(["files", "deliverables", "browser", "git", "ui", "cad", "schedule"]);
     expect(WORKSPACE_TABS.some((t) => (t.id as string) === "materials")).toBe(false);
     expect(WORKSPACE_TABS.some((t) => (t.id as string) === "cost")).toBe(false);
     expect(isWorkspaceTabId("materials")).toBe(false); // 旧存储值收敛回默认
@@ -56,6 +56,17 @@ describe("workspaceTabs 清单完整性（任务已迁主区编队）", () => {
     expect(ui).toBeTruthy();
     expect(ui!.label).toBe("UI");
     expect(ui!.defaultEnabled).toBe(true);
+    // 2026-11-14 CAD 图纸回归右栏：可选使用红线沿用（master-plan「可选使用」
+    // ——默认不占右栏位，经欢迎卡管理开关/＋下拉/文件打开链启用）；进度计划
+    // 常规一级 Tab 默认启用。
+    const cad = WORKSPACE_TABS.find((t) => t.id === "cad");
+    expect(cad).toBeTruthy();
+    expect(cad!.label).toBe("CAD 图纸");
+    expect(cad!.defaultEnabled).toBe(false);
+    const schedule = WORKSPACE_TABS.find((t) => t.id === "schedule");
+    expect(schedule).toBeTruthy();
+    expect(schedule!.label).toBe("进度计划");
+    expect(schedule!.defaultEnabled).toBe(true);
   });
 
   it("旧 id 迁移：changes→deliverables；tasks/subagents 退役回 null", () => {
@@ -212,10 +223,12 @@ describe("workspaceTabs 宽度契约（全局键：最后一次拖拽胜出）",
 describe("workspaceTabs 声明式设置启用集（全局键，学 booleanMapOf 净化）", () => {
   afterEach(cleanupStorage);
 
-  it("无记录时为空覆盖（全部按清单 defaultEnabled 启用）", () => {
+  it("无记录时为空覆盖（按清单 defaultEnabled 启用；cad 可选卡默认关）", () => {
     expect(loadEnabledTabs()).toEqual({});
     const resolved = resolveEnabledTabs({});
-    for (const id of WORKSPACE_TAB_IDS) expect(resolved[id]).toBe(true);
+    for (const id of WORKSPACE_TAB_IDS) {
+      expect(resolved[id]).toBe(id === "cad" ? false : true);
+    }
   });
 
   it("保存后读取往返（工作台空间分键）", () => {
@@ -241,8 +254,8 @@ describe("workspaceTabs 声明式设置启用集（全局键，学 booleanMapOf 
     const allOff: WorkspaceEnabledMap = {};
     for (const id of WORKSPACE_TAB_IDS) allOff[id] = false;
     const rescued = resolveEnabledTabs(allOff);
-    // 兜底恢复默认启用集。
-    for (const id of WORKSPACE_TAB_IDS) expect(rescued[id]).toBe(true);
+    // 兜底恢复默认启用集（cad 按清单默认仍为可选关闭，其余全启用）。
+    for (const id of WORKSPACE_TAB_IDS) expect(rescued[id]).toBe(id === "cad" ? false : true);
   });
 
   it("firstEnabledTab 按清单顺序回退到第一个启用面板", () => {

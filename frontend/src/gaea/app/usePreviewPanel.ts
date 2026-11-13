@@ -11,6 +11,7 @@ import {
   loadPreviewMaximized, savePreviewMaximized,
 } from "../lib/layoutPreferences";
 import { setPaneFileOpenHandler } from "../lib/paneFileOpen";
+import { isCadFilePath, openCadPaneFile } from "../lib/cadOpen";
 import { usePaneTabsStore } from "../lib/paneTabs";
 import { SIDEBAR_REGISTRY } from "../lib/sidebarRegistry";
 import { usePreviewStore } from "../lib/store";
@@ -129,6 +130,16 @@ export function usePreviewPanel({ effectiveSidebarWidth, setRightTab, handleWork
   }, [closeFilePreviewRaw, withPreviewDiscard]);
   const openPaneFile = useCallback((rel: string) => {
     if (!rel) return;
+    // dwg/dxf 是二进制矢量图纸：pane 文件 tab 预览只会出乱码/报错，统一落
+    // 右栏「CAD 图纸」面板装载（lib/cadOpen：启用可选卡 + 请求总线 + 视图 tab）。
+    if (isCadFilePath(rel)) {
+      withPreviewDiscard(() => {
+        closeFilePreviewRaw();
+        setWorkspacePanel(true);
+        openCadPaneFile(rel);
+      });
+      return;
+    }
     withPreviewDiscard(() => {
       closeFilePreviewRaw();
       setWorkspacePanel(true);

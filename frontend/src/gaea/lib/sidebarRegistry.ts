@@ -3,7 +3,7 @@
 // Why: 右侧面板此前「元数据（lib/workspaceTabs 清单）」与「渲染接线（App.tsx
 // 渲染分支）」分居两处，面板框架与 tab 内容未解耦——新增面板要同步改清单与
 // App 分支，未来扩展 tab（A2 浏览器观察窗 / A3 编辑器 tab）没有平等挂载点。
-// 本文件把 7 个内置面板以统一形状登记（元数据复用清单 + render 接线），App
+// 本文件把全部内置面板以统一形状登记（元数据复用清单 + render 接线），App
 // 右栏与命令面板一律经注册表派生：内置 tab 与未来扩展能力对等（gaea 无插件
 // 系统，先做代码级注册点，为板块 Manifest 化留缝）。
 //
@@ -12,7 +12,7 @@
 // 卡片 / 命令面板零改动。面板组件本体不感知注册表（学 better-sidebar：框架
 // 与 tab 内容解耦）。用 createElement 而非 JSX：注册表是 .ts 数据模块。
 
-import { createElement } from "react";
+import { Suspense, createElement, lazy } from "react";
 import type { ReactNode } from "react";
 import { DeliverablesPanel, type SessionDeliverable } from "../components/DeliverablesPanel";
 import { ChangesPanel } from "../components/ChangesPanel";
@@ -21,7 +21,13 @@ import { BrowserPanel } from "../components/BrowserPanel";
 import { MergedPanel } from "../components/MergedPanel";
 import { ExplorerView } from "../components/ExplorerView";
 import { usePaneTabsStore } from "./paneTabs";
+import { isCadFilePath, openCadPaneFile } from "./cadOpen";
 import { GenuiPanel } from "../components/GenuiPanel";
+
+// 2026-11-14 CAD/进度计划回归右栏一级 Tab（退役 ToolSheet 承载）：保持既有
+// React.lazy 代码切分——注册表经 lazy 引用面板组件，激活对应视图 tab 才拉 chunk。
+const LazyCadPanel = lazy(() => import("../components/cad/CadPanel").then((m) => ({ default: m.CadPanel })));
+const LazyScheduleTool = lazy(() => import("../components/schedule/ScheduleTool").then((m) => ({ default: m.ScheduleTool })));
 
 import type { SessionChange } from "./changes";
 import type { Icon } from "../icons";
@@ -58,6 +64,10 @@ export interface WorkspacePanelContext {
   revealRequest?: { rel: string; nonce: number } | null;
   /** 打开第一个文件时自动加宽右栏到舒适阅读宽度（v4.27 Codex 式）。 */
   onAutoWidenPanel?: () => void;
+  /** 工具面板回话通道（CAD「问图纸/交 AI 算量」、进度计划「问这个计划」）：
+   *  关右栏收焦点回对话并发送（App 接 send；v4.524 曾以此接 CadPanel，工具化
+   *  期间由 ToolSheet 分支消费，2026-11-14 回归右栏后回到本上下文）。 */
+  onAsk?: (text: string) => void;
 }
 
 export interface WorkspaceTabRegistration {
@@ -114,11 +124,32 @@ const RENDERERS: Record<WorkspaceTabId, (ctx: WorkspacePanelContext) => ReactNod
   }),
   // GenUI 会话面板：数据自取（genuiPanel store，按会话隔离）。
   ui: (ctx) => createElement(GenuiPanel, { sessionPath: ctx.currentSessionPath }),
+  // CAD 图纸面板（pane 变体即本源形态；打开请求经 lib/cadOpen 总线投递，
+  // 文件树/交付卡/Git 行点 dwg/dxf 直达本面板）。
+  cad: (ctx) =>
+    createElement(
+      Suspense,
+      { fallback: createElement("div", { className: "p-4 text-[12px] text-fg-dim" }, "正在加载图纸工具…") },
+      createElement(LazyCadPanel, { variant: "pane", onAsk: ctx.onAsk }),
+    ),
+  // 进度计划工具面：视图/检查器复用 schedule/ 既有件，与 SchedulePage 共享
+  // useScheduleStore（agent schedule_* 写入即时可见）。
+  schedule: (ctx) =>
+    createElement(
+      Suspense,
+      { fallback: createElement("div", { className: "p-4 text-[12px] text-fg-dim" }, "正在加载进度工具…") },
+      createElement(LazyScheduleTool, { onAsk: ctx.onAsk }),
+    ),
 };
 
-/** 打开 pane 文件 tab（行内打开的统一入口）：路径去重、追加到工作台 tab 条。 */
+/** 打开 pane 文件 tab（行内打开的统一入口）：路径去重、追加到工作台 tab 条。
+ *  dwg/dxf 例外：统一落 CAD 图纸面板（lib/cadOpen），不开坏预览 tab。 */
 function openPaneFileTab(rel: string): void {
   if (!rel) return;
+  if (isCadFilePath(rel)) {
+    openCadPaneFile(rel);
+    return;
+  }
   const name = rel.split(/[\\/]/).pop() || rel;
   usePaneTabsStore.getState().openFile(rel, name);
 }

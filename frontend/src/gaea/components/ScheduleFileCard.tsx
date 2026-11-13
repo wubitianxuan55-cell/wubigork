@@ -2,9 +2,8 @@
  * ScheduleFileCard — 办公文件预览中的进度计划摘要卡（v4.121.0 刀12 办公联动）
  *
  * 办公板块预览 .gsched.json 时不再裸吐 JSON 文本：解析为摘要（总工期/关键/
- * 搭接/基线漂移/倒排校核），并提供联动动作——「在进度计划中打开」开进度工具
- * 面板（ToolSheet，不离开对话；工具化边界见 docs/gaea-ai-workbench-ui-2026-10.md
- * §7.4）、「AI 进度周报」把周报指令发进共享工作线程（与进度计划板块左栏同一条
+ * 搭接/基线漂移/倒排校核），并提供联动动作——「在进度计划中打开」开右栏「进度计划」
+ * Tab（2026-11-14 起为右栏一级 Tab，原 ToolSheet 承载退役）、「AI 进度周报」把周报指令发进共享工作线程（与进度计划板块左栏同一条
  * 线程）。
  * v4.139 #15 多工程（设计 §3.5）：「打开」从仅当前计划扩展为任意计划——非当前
  * 计划点击先切指针（GaeaScheduleProjectOpen，原「复制内容为当前计划」语义废弃：
@@ -69,9 +68,9 @@ export function ScheduleFileCard({ relPath, summary, raw }: { relPath: string; s
 
   const jumpToSchedule = () => {
     // 工具化边界（docs/gaea-ai-workbench-ui-2026-10.md §7.4）：进度是动词不是
-    // 房间——产物行「打开」不再跳板块离开对话，改开办公内 ToolSheet（办公 App
-    // 根监听 OPEN_TOOL → setActiveTool("schedule")）；完整工作台经工具面板头部
-    // 「完整工作台」深链接可达（旧 NAVIGATE 板块路由保留不 404）。
+    // 房间——产物行「打开」不跳板块离开对话，改开右栏「进度计划」Tab（办公 App
+    // 根监听 OPEN_TOOL → openToolTab("schedule")；2026-11-14 起右栏一级 Tab）；
+    // 完整工作台经面板头部「完整工作台」深链接可达（旧 NAVIGATE 板块路由保留）。
     emitFrontendEvent(FRONTEND_EVENTS.OPEN_TOOL, { tool: "schedule" });
   };
 

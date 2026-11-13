@@ -18,7 +18,7 @@
 // 与既有行为对齐）。
 
 import type { Icon } from "../icons";
-import { Blocks, FileText, FolderTree, GitBranch, Globe } from "../icons";
+import { Blocks, FileText, FolderTree, GitBranch, Globe, Layers, LineChart } from "../icons";
 import { readWorkbenchValue, writeWorkbenchValue } from "./workbenchStorage";
 import { loadOptionalLayoutSize, saveLayoutSize } from "./layoutPreferences";
 
@@ -30,9 +30,12 @@ import { loadOptionalLayoutSize, saveLayoutSize } from "./layoutPreferences";
  *  旧存储值经 normalizeWorkspaceTabId 别名收敛（changes→deliverables），
  *  tasks/subagents 等退役值回默认「文件」。 */
 // v4.86 2b：追加 git（Git 面板最小集，D3 单仓库无 push）——v4.53 合并后首个新一级 Tab。
-// v4.525 工具化：CAD 图纸不再是右侧一级 Tab，改由办公「工具」入口打开临时
-// ToolSheet（docs/gaea-ai-workbench-ui-2026-10.md）；工作台面板回到 6 项。
-export const WORKSPACE_TAB_IDS = ["files", "deliverables", "browser", "git", "ui"] as const;
+// v4.525 工具化：CAD 图纸曾降级为办公「工具」入口打开的临时 ToolSheet。
+// 2026-11-14 用户拍板回归：CAD 图纸与进度计划重新升为右栏一级 Tab（同时退役
+// 两者的 ToolSheet 承载——「CAD 看图」「进度计划」改右栏标签页，办公板块经
+// 文件链可直接打开 CAD，见 lib/cadOpen.ts）。cad 沿用 v4.524「可选使用」红线
+// defaultEnabled:false（欢迎网格/＋下拉/文件打开链三处入口点击即启用）。
+export const WORKSPACE_TAB_IDS = ["files", "deliverables", "browser", "git", "ui", "cad", "schedule"] as const;
 export type WorkspaceTabId = (typeof WORKSPACE_TAB_IDS)[number];
 
 export interface WorkspaceTabDef {
@@ -60,6 +63,12 @@ export const WORKSPACE_TABS: WorkspaceTabDef[] = [
   // 2b Git 面板最小集（分支/状态/暂存/提交/历史；仓库锚定工作区 cwd）。
   { id: "git", label: "Git", icon: GitBranch, keywords: ["git", "版本", "提交", "分支", "暂存", "diff", "commit", "history"], defaultEnabled: true },
   { id: "ui", label: "UI", icon: Blocks, keywords: ["genui", "ui", "面板", "交互", "dashboard", "看板"], defaultEnabled: true },
+  // 2026-11-14 回归右栏：CAD 图纸识图（解析/图框/问图纸/算量交 AI，cadOpen.ts
+  // 让文件树 dwg/dxf 点击直达本面板）。可选使用红线：默认不占右栏位。
+  { id: "cad", label: "CAD 图纸", icon: Layers, keywords: ["cad", "图纸", "dwg", "dxf", "图框", "看图"], defaultEnabled: false },
+  // 进度计划工具面（横道/单代号/双代号/质量体检 + 问这个计划；完整编制工作台
+  // 仍走 SchedulePage 深链接）。
+  { id: "schedule", label: "进度计划", icon: LineChart, keywords: ["schedule", "进度", "计划", "甘特", "gantt"], defaultEnabled: true },
 ];
 
 // 历史持久化值只保留仍可安全映射的别名。tasks/subagents 随右栏任务退役，

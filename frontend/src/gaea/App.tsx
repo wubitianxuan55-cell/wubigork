@@ -29,9 +29,6 @@ import { ApprovalModal } from "./components/ApprovalModal";
 import { AskCard } from "./components/AskCard";
 import { ToolbarButton } from "./components/ToolbarButton";
 import { ExportMenu, type ExportFormat } from "./components/ExportMenu";
-import { ToolSheet } from "./components/ToolSheet";
-const CadPanel = lazy(() => import("./components/cad/CadPanel").then(m => ({ default: m.CadPanel })));
-const ScheduleTool = lazy(() => import("./components/schedule/ScheduleTool").then(m => ({ default: m.ScheduleTool })));
 const MemoryPanel = lazy(() => import("./components/MemoryPanel").then(m => ({ default: m.MemoryPanel })));
 const HistoryPanel = lazy(() => import("./components/HistoryPanel").then(m => ({ default: m.HistoryPanel })));
 const CapabilitiesPanel = lazy(() => import("./components/CapabilitiesPanel").then(m => ({ default: m.CapabilitiesPanel })));
@@ -194,36 +191,6 @@ export default function App() {
   // 当前激活的 pane 视图（由 WorkspacePane 经 onActiveViewChange 回写；
   // 欢迎卡片态 = null）。pane 打开的文件 tab 归入 files 视图语义。
   const [rightTab, setRightTab] = useState<WorkspaceTabId | null>(null);
-  // 临时工具面板（CAD 看图/进度计划）：不是工作台、不占右栏 Tab；关闭即回对话。
-  const [activeTool, setActiveTool] = useState<"cad" | "schedule" | null>(null);
-  // §7.3 检查器随工具：CAD 打开期间右栏切到图纸「依据」面（文本清单/符号统计）。
-  // 宿主元素经 ref callback 上报为 state——portal 目标变化（右栏开/关）实时反映到
-  // CadPanel（宿主在=portal 进右栏；宿主不在=回落 sheet 内联，行为与合并前一致）。
-  // （开合快照 effect 在 workspacePanelOpen 解构之后，见 setWorkspacePanel 声明处）
-  const [cadInspectorHost, setCadInspectorHost] = useState<HTMLDivElement | null>(null);
-  // 深处组件（产物行/工具卡）请求打开工具面板：FRONTEND_EVENTS.OPEN_TOOL 单通道，
-  // 与 setActiveTool 三入口同源。首页工具 tile（§7.5 刀6）是跨板例外：办公 App
-  // 尚未懒加载挂载时事件无人听 → 挂载效应消费 sessionStorage 标记（OPEN_TOOL_FLAG）
-  // 补开，读后即清（OPEN_STATS_FLAG 同款双通道）；已挂载场景监听顺带清标记，
-  // 杜绝已消费标记残留到下次冷启误开。
-  useEffect(() => {
-    try {
-      const pending = sessionStorage.getItem(OPEN_TOOL_FLAG);
-      if (pending === "cad" || pending === "schedule") {
-        sessionStorage.removeItem(OPEN_TOOL_FLAG);
-        setActiveTool(pending);
-      }
-    } catch { /* sessionStorage 不可用（隐私模式等）静默跳过 */ }
-    const onOpenTool = (ev: Event) => {
-      const tool = (ev as CustomEvent<{ tool?: "cad" | "schedule" }>).detail?.tool;
-      if (tool === "cad" || tool === "schedule") {
-        try { sessionStorage.removeItem(OPEN_TOOL_FLAG); } catch { /* 同上 */ }
-        setActiveTool(tool);
-      }
-    };
-    window.addEventListener(FRONTEND_EVENTS.OPEN_TOOL, onOpenTool);
-    return () => window.removeEventListener(FRONTEND_EVENTS.OPEN_TOOL, onOpenTool);
-  }, []);
   const {
     sidebarCollapsed, sidebarWidth, sidebarResizing, effectiveSidebarWidth,
     toggleSidebar, setExpandedSidebarWidth, startSidebarResize,
@@ -269,24 +236,6 @@ export default function App() {
     previewWidth, previewMaximized, previewResizing, previewMaxWidth,
     togglePreviewMaximize, startPreviewResize,
   } = usePreviewPanel({ effectiveSidebarWidth, setRightTab, handleWorkspacePreviewModeChange });
-
-  // §7.3 工具开合时右栏开合快照：开 CAD 自动亮右栏（检查器要有地方住），关 CAD
-  // 还原打开前的开合态。只在工具「切换沿」动作一次，工具打开期间用户手动收放
-  // 右栏不被抢（收了右栏 → 检查器回落 sheet 内联，行为与合并前一致）。
-  const railOpenBeforeToolRef = useRef<boolean | null>(null);
-  const prevToolRef = useRef<string | null>(null);
-  useEffect(() => {
-    const became = prevToolRef.current !== activeTool;
-    prevToolRef.current = activeTool;
-    if (!became) return;
-    if (activeTool === "cad") {
-      railOpenBeforeToolRef.current = workspacePanelOpen;
-      if (!workspacePanelOpen) setWorkspacePanel(true);
-    } else if (railOpenBeforeToolRef.current !== null) {
-      if (railOpenBeforeToolRef.current !== workspacePanelOpen) setWorkspacePanel(railOpenBeforeToolRef.current);
-      railOpenBeforeToolRef.current = null;
-    }
-  }, [activeTool, workspacePanelOpen, setWorkspacePanel]);
 
   // 统一交付出口：会话成果一键导出（docx/pptx/xlsx/md/pdf 同管线；
   // pdf 经 docx 中转 + LibreOffice 转换）。
@@ -431,7 +380,6 @@ export default function App() {
   usePreviewAutoFront({ state, currentSessionKey, workspacePanelOpen, previewFile, focusMode });
   // 新后台任务/子代理运行自动切主区「编队」→ app/useFleetAutoOpen
   const openFleetView = useCallback(() => {
-    setActiveTool(null);
     setChatTab("fleet");
   }, []);
   useFleetAutoOpen({
@@ -541,6 +489,7 @@ export default function App() {
       onRevealInTree: handleRevealInTree,
       revealRequest,
       onAutoWidenPanel: handleAutoWidenWorkspace,
+      onAsk: send,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- setWorkspacePanel 为 hook 返回的稳定 dispatch（onClosePanel 内引用），deps 原样保留
     [
@@ -575,18 +524,48 @@ export default function App() {
   const paneEnabled = usePaneEnabledStore((s) => s.enabled);
   const setPaneEnabled = usePaneEnabledStore((s) => s.setEnabled);
 
+  // 工具入口统一落点（2026-11-14 用户拍板：CAD 图纸/进度计划从 ToolSheet 临时
+  // 面板改为右栏一级 Tab，退役临时面板承载）：显式点击=用户意图，可选卡停用时
+  // 先启用再打开（与右栏＋下拉「点击即启用」同语义）。
+  const openToolTab = useCallback(
+    (tool: "cad" | "schedule") => {
+      if (!usePaneEnabledStore.getState().enabled[tool]) setPaneEnabled(tool, true);
+      openPaneView(tool);
+    },
+    [openPaneView, setPaneEnabled],
+  );
+
+  // 深处组件（交付卡/工具卡）请求打开工具面板：FRONTEND_EVENTS.OPEN_TOOL 单通道。
+  // 首页工具 tile（§7.5 刀6）是跨板例外：办公 App 尚未懒加载挂载时事件无人听 →
+  // 挂载效应消费 sessionStorage 标记（OPEN_TOOL_FLAG）补开，读后即清；已挂载
+  // 场景监听顺带清标记，杜绝已消费标记残留到下次冷启误开。
+  useEffect(() => {
+    try {
+      const pending = sessionStorage.getItem(OPEN_TOOL_FLAG);
+      if (pending === "cad" || pending === "schedule") {
+        sessionStorage.removeItem(OPEN_TOOL_FLAG);
+        openToolTab(pending);
+      }
+    } catch { /* sessionStorage 不可用（隐私模式等）静默跳过 */ }
+    const onOpenTool = (ev: Event) => {
+      const tool = (ev as CustomEvent<{ tool?: "cad" | "schedule" }>).detail?.tool;
+      if (tool === "cad" || tool === "schedule") {
+        try { sessionStorage.removeItem(OPEN_TOOL_FLAG); } catch { /* 同上 */ }
+        openToolTab(tool);
+      }
+    };
+    window.addEventListener(FRONTEND_EVENTS.OPEN_TOOL, onOpenTool);
+    return () => window.removeEventListener(FRONTEND_EVENTS.OPEN_TOOL, onOpenTool);
+  }, [openToolTab]);
+
   const paletteItems = useMemo<PaletteItem[]>(() => {
     const cmds: PaletteItem[] = [
       { id: "cmd-new", group: t("palette.group.commands") ?? "命令", title: t("topbar.newSession") ?? "新建会话", icon: <SquarePen size={15} />, compact: true, keywords: ["new", "新建"], run: () => void newSessionAndReset() },
-      // 办公域「进度计划」入口：Ctrl+K 打开进度工具面板（ToolSheet，不离开
-      // 对话；设计 docs/gaea-ai-workbench-ui-2026-10.md §7.4——进度是动词不是
-      // 房间）。title 复用既有键 schedCard.tag（zh=进度计划 / zh-TW=進度計畫 /
-      // en=Schedule）。「最近工程列表+打开工作台」不由本命令项承担：办公文件面
-      // RecentFilesBar 复用 lib/recentFiles 单源（.gsched 文件被预览/引用即入列），
-      // 点摘要卡「在进度计划中打开」已达，此处仅作可检索入口；完整编制工作台经
-      // 工具面板头部「完整工作台」深链接（旧 NAVIGATE 板块路由保留）。
-      { id: "cmd-schedule", group: t("palette.group.commands") ?? "命令", title: t("schedCard.tag") ?? "进度计划", icon: <LineChart size={15} />, compact: true, keywords: ["schedule", "进度", "计划", "工具"], run: () => { setActiveTool("schedule"); } },
-      { id: "cmd-tool-cad", group: t("palette.group.commands") ?? "命令", title: "CAD 看图", icon: <Layers size={15} />, compact: true, keywords: ["cad", "图纸", "dwg", "dxf", "图框", "工具"], run: () => setActiveTool("cad") },
+      // 办公域「进度计划/CAD 图纸」入口：2026-11-14 起由下方 SIDEBAR_REGISTRY
+      // 循环统一派生（两者已是右栏一级 Tab，注册表 cmd-cad/cmd-schedule 自带
+      // 未启用标注与「点击即启用」；v4.525~2026-11-13 期间的 ToolSheet 显式
+      // 命令项 cmd-schedule/cmd-tool-cad 随临时面板退役）。完整编制工作台仍经
+      // 进度计划面板头部「完整工作台」深链接（旧 NAVIGATE 板块路由保留）。
       { id: "cmd-memory", group: t("palette.group.commands") ?? "命令", title: t("topbar.memory") ?? "记忆", icon: <Brain size={15} />, compact: true, keywords: ["memory", "记忆"], run: () => { setChatTab("memory"); void openMemory(); } },
       { id: "cmd-history", group: t("palette.group.commands") ?? "命令", title: t("topbar.history") ?? "历史", icon: <MessageSquare size={15} />, compact: true, keywords: ["history", "历史"], run: () => void openHistory() },
       { id: "cmd-knowledge", group: t("palette.group.commands") ?? "命令", title: t("topbar.knowledge") ?? "知识库", icon: <BookOpen size={15} />, compact: true, keywords: ["knowledge", "知识库"], run: () => void openKnowledge() },
@@ -744,7 +723,6 @@ export default function App() {
               className="office-view-tabs min-w-0 no-drag"
               active={subagentTabId ?? chatTab}
               onChange={(id) => {
-                setActiveTool(null);
                 handleChatTabSelect(id);
               }}
               extraTabs={subagentTabs.map((x) => {
@@ -781,18 +759,18 @@ export default function App() {
                 placement="bottomRight"
                 menu={{
                   items: [
-                    { key: "cad", label: "CAD 看图", icon: <Layers size={13} /> },
+                    { key: "cad", label: "CAD 图纸", icon: <Layers size={13} /> },
                     { key: "schedule", label: "进度计划", icon: <LineChart size={13} /> },
                   ],
                   onClick: ({ key }) => {
-                    if (key === "cad" || key === "schedule") setActiveTool(key);
+                    if (key === "cad" || key === "schedule") openToolTab(key);
                   },
                 }}
               >
                 <button
                   type="button"
                   className="toolbar-btn no-drag"
-                  title="工具（CAD 看图 / 进度计划）"
+                  title="工具（CAD 图纸 / 进度计划）"
                   aria-label="工具"
                   data-testid="office-tools-menu"
                 >
@@ -938,44 +916,6 @@ export default function App() {
               </>
             )}
             </CompactContext.Provider>
-            {activeTool === "cad" && (
-              <ToolSheet
-                open
-                title="CAD 看图"
-                subtitle="临时工具面板 · 关闭后解析结果留在产物"
-                testId="tool-sheet-cad"
-                onClose={() => setActiveTool(null)}
-              >
-                <Suspense fallback={<div className="p-4 text-[12px] text-fg-dim">正在加载图纸工具…</div>}>
-                  <CadPanel
-                    variant="sheet"
-                    inspectorHost={cadInspectorHost}
-                    onAsk={(text) => {
-                      setActiveTool(null);
-                      send(text);
-                    }}
-                  />
-                </Suspense>
-              </ToolSheet>
-            )}
-            {activeTool === "schedule" && (
-              <ToolSheet
-                open
-                title="进度计划"
-                subtitle="临时工具面板 · 计划与产物保留，agent 读写即时可见"
-                testId="tool-sheet-schedule"
-                onClose={() => setActiveTool(null)}
-              >
-                <Suspense fallback={<div className="p-4 text-[12px] text-fg-dim">正在加载进度工具…</div>}>
-                  <ScheduleTool
-                    onAsk={(text) => {
-                      setActiveTool(null);
-                      send(text);
-                    }}
-                  />
-                </Suspense>
-              </ToolSheet>
-            )}
           </main>
 
           {(showOfficeComposer || state.approval || showTodos) && (
@@ -1067,7 +1007,7 @@ export default function App() {
                     />
                   }
                   onPickFolder={switchFolder}
-                  onOpenTool={(tool) => setActiveTool(tool)}
+                  onOpenTool={openToolTab}
                   disabled={state.meta?.ready === false || state.approval != null}
                 />
               </div>
@@ -1109,32 +1049,17 @@ export default function App() {
 
         {workspacePanelOpen && (
         <div className="workspace-pane flex flex-col min-w-0 overflow-hidden border-l border-border-soft bg-bg transition-all duration-200">
-          {/* §7.3 检查器随工具：CAD 打开期间右栏整体切到图纸「依据」面（文本清单/
-              符号统计 portal 宿主），关工具回文件工作台——右栏本就是「随当前对象
-              变化的检查器」（设计原则 4）。进度工具不占：TaskInspector 抽屉交互已自洽。 */}
-          {activeTool === "cad" ? (
-            <div
-              className="cad-inspector-rail flex min-h-0 flex-1 flex-col overflow-hidden"
-              data-testid="cad-inspector-rail"
-            >
-              <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border-soft px-3 text-[12px] font-medium text-fg-dim">
-                <Layers size={12} aria-hidden />
-                <span>图纸检查器</span>
-                <span className="ml-auto text-[10px] text-fg-faint">文本清单 · 符号统计</span>
-              </div>
-              <div ref={setCadInspectorHost} className="min-h-0 flex-1 overflow-auto" />
-            </div>
-          ) : (
-            // pane 工作台：空态欢迎卡 → 点卡片开视图 tab；资源管理器内点文件
-            // 新增文件 tab（对标 better-sidebar；内容分发在 WorkspacePane 内）
-            <WorkspacePane
-              context={panelContext}
-              badges={tabBadges}
-              onActiveViewChange={(viewId) => {
-                if (viewId !== rightTab) setRightTab(viewId);
-              }}
-            />
-          )}
+          {/* pane 工作台：空态欢迎卡 → 点卡片开视图 tab；资源管理器内点文件
+              新增文件 tab（对标 better-sidebar；内容分发在 WorkspacePane 内）。
+              2026-11-14：CAD/进度计划同为一级视图 tab，§7.3 检查器 rail 宿主
+              退役——CadPanel pane 变体的依据面（文本清单/符号统计）本就内联。 */}
+          <WorkspacePane
+            context={panelContext}
+            badges={tabBadges}
+            onActiveViewChange={(viewId) => {
+              if (viewId !== rightTab) setRightTab(viewId);
+            }}
+          />
           {/* 宽度拖拽手柄：复用 preview-resizer 悬停/激活样式，absolute 贴左缘 */}
           <div
             className={`preview-resizer ${workspaceResizing ? "is-active" : ""}`}

@@ -80,8 +80,8 @@ export const FRONTEND_EVENTS = {
   /** 打开模型中心「详细统计」抽屉（运行监测「按模型明细」跨板跳转联动，
       已挂载场景；未挂载首次跳转走 OPEN_STATS_FLAG 补开） */
   OPEN_STATS_DRAWER: 'gaea-open-stats-drawer',
-  /** 打开办公板块临时工具面板 ToolSheet（payload { tool: 'cad' | 'schedule' }；
-      发射方=产物行/工具卡等深处组件，消费方=办公 App 根 setActiveTool） */
+  /** 打开办公右栏工具 Tab（CAD 图纸/进度计划；payload { tool: 'cad' | 'schedule' }；
+      发射方=交付卡/工具卡等深处组件，消费方=办公 App 根 openToolTab） */
   OPEN_TOOL: 'gaea-open-tool',
   /** 打开任务收件箱面板（命令面板空态入口；消费方=MainLayout 的常驻
       TaskInboxHost，首页删除后仍无条件可开） */
@@ -91,7 +91,7 @@ export const FRONTEND_EVENTS = {
 /** 「按模型明细」跳转的抽屉补开标记（sessionStorage；模型中心挂载效应消费即清） */
 export const OPEN_STATS_FLAG = 'gaea.stats-drawer-open'
 
-/** 首页工具 tile 打开 ToolSheet 的冷启补开标记（sessionStorage；值为工具名
+/** 首页工具 tile 打开右栏工具 Tab 的冷启补开标记（sessionStorage；值为工具名
  *  'cad' | 'schedule'。办公 App 常驻挂载前事件无人听 → 首次懒加载挂载效应
  *  消费即清；已挂载场景由 OPEN_TOOL 监听顺带清除，杜绝标记残留） */
 export const OPEN_TOOL_FLAG = 'gaea.tool-open'

@@ -64,7 +64,7 @@ export function Composer({
   /** 会话上下文使用状态；由宿主注入，统一落在输入卡底部工具栏内。 */
   contextStatus?: ReactNode;
   onPickFolder: (path?: string) => Promise<string>; disabled?: boolean;
-  /** 打开办公工具面板（CAD 看图/进度计划）；不是右栏 Tab，是临时 ToolSheet。 */
+  /** 打开办公工具面板（CAD 图纸/进度计划）；2026-11-14 起两者为右栏一级 Tab。 */
   onOpenTool?: (tool: "cad" | "schedule") => void;
   /** 卸载时队列未清空（宿主用 key 重挂 = 队列被静默丢弃）——如实上报条数，
    *  宿主可提示「排队 N 条已随切换清空」。可选；办公场景不传零影响。 */

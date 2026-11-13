@@ -38,6 +38,17 @@ describe("sidebarRegistry 注册表完整性（蒸馏 dsh-better-sidebar registe
     expect(ui).toBeTruthy();
     expect(ui!.label).toBe("UI");
     expect(typeof ui!.render).toBe("function");
+    // 2026-11-14 CAD 图纸/进度计划回归右栏（ToolSheet 承载退役）
+    const cad = SIDEBAR_REGISTRY.find((r) => r.id === "cad");
+    expect(cad).toBeTruthy();
+    expect(cad!.label).toBe("CAD 图纸");
+    expect(cad!.defaultEnabled).toBe(false);
+    expect(typeof cad!.render).toBe("function");
+    const schedule = SIDEBAR_REGISTRY.find((r) => r.id === "schedule");
+    expect(schedule).toBeTruthy();
+    expect(schedule!.label).toBe("进度计划");
+    expect(schedule!.defaultEnabled).toBe(true);
+    expect(typeof schedule!.render).toBe("function");
   });
 
   it("元数据复用清单（单一数据源）：label/icon/keywords/defaultEnabled 同源", () => {
@@ -45,8 +56,9 @@ describe("sidebarRegistry 注册表完整性（蒸馏 dsh-better-sidebar registe
       expect(entry.label.trim().length).toBeGreaterThan(0);
       expect(entry.icon).toBeTypeOf("function");
       expect(entry.keywords.length).toBeGreaterThan(0);
-      // v4.23 行为基线：面板全默认启用（CAD 已工具化，不在右栏清单）。
-      expect(entry.defaultEnabled).toBe(true);
+      // v4.23 行为基线：面板默认启用；例外=cad 可选卡（master-plan「可选使用」
+      // 红线，defaultEnabled:false，经管理开关/＋下拉/文件打开链启用）。
+      expect(entry.defaultEnabled).toBe(entry.id === "cad" ? false : true);
       const def = WORKSPACE_TABS.find((t) => t.id === entry.id);
       expect(def).toBeTruthy();
     }
