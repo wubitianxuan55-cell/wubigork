@@ -14,36 +14,45 @@ import (
 func TestOfficeComNormalizeOpenPath(t *testing.T) {
 	ws := isolateOfficeWorkspace(t)
 
-	// 空 → 默认目录 + Office-<kind>-<时间戳>.<ext>
-	p, norm, err := officeComNormalizeOpenPath("", "word")
+	// 空 path + title → 默认目录 + <title>.<ext>（语义名，用户按主题查找）
+	p, norm, err := officeComNormalizeOpenPath("", "word", "季度总结")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !norm {
 		t.Fatal("空 path 应为归一改写")
 	}
-	if !strings.Contains(p, filepath.Join(ws, "交互文件")) || !strings.HasSuffix(p, ".docx") {
-		t.Fatalf("默认落点错: %s", p)
+	if p != filepath.Join(ws, "交互文件", "季度总结.docx") {
+		t.Fatalf("title 语义名落点错: %s", p)
 	}
-	if !strings.Contains(filepath.Base(p), "Office-word-") {
-		t.Fatalf("默认命名错: %s", filepath.Base(p))
+
+	// 空 path + title 含非法字符 → 清洗
+	p1, _, _ := officeComNormalizeOpenPath("", "word", `方案:v2?/终稿`)
+	if strings.ContainsAny(filepath.Base(p1), `:?/`) {
+		t.Fatalf("非法字符应清洗: %s", filepath.Base(p1))
+	}
+
+	// 空 path + 空 title → 回退 Office-<kind>-<日期>
+	p2, _, _ := officeComNormalizeOpenPath("", "word", "")
+	if !strings.Contains(filepath.Base(p2), "Office-word-") {
+		t.Fatalf("无 title 回退命名错: %s", filepath.Base(p2))
 	}
 
 	// 纯文件名 → 收编进默认目录（缺扩展名按 kind 补）
-	p2, norm2, err := officeComNormalizeOpenPath("总结.docx", "word")
+	p2, norm2, err := officeComNormalizeOpenPath("总结.docx", "word", "")
 	if err != nil || !norm2 {
 		t.Fatalf("纯文件名应收编: %v %v", p2, norm2)
 	}
 	if p2 != filepath.Join(ws, "交互文件", "总结.docx") {
 		t.Fatalf("收编落点错: %s", p2)
 	}
-	p3, _, _ := officeComNormalizeOpenPath("表", "excel")
+	p3, _, _ := officeComNormalizeOpenPath("表", "excel", "")
 	if p3 != filepath.Join(ws, "交互文件", "表.xlsx") {
 		t.Fatalf("缺扩展名应按 kind 补: %s", p3)
 	}
 
 	// 带目录相对路径 → 尊重原意（不改写）
-	p4, norm4, err := officeComNormalizeOpenPath(filepath.Join("交付", "正式报告.docx"), "word")
+	p4, norm4, err := officeComNormalizeOpenPath(filepath.Join("交付", "正式报告.docx"), "word", "")
 	if err != nil || norm4 {
 		t.Fatalf("带目录应尊重原意: %v %v", p4, norm4)
 	}
@@ -52,7 +61,7 @@ func TestOfficeComNormalizeOpenPath(t *testing.T) {
 	}
 
 	// 工作区内绝对路径 → 尊重
-	p5, norm5, err := officeComNormalizeOpenPath(filepath.Join(ws, "在案.docx"), "word")
+	p5, norm5, err := officeComNormalizeOpenPath(filepath.Join(ws, "在案.docx"), "word", "")
 	if err != nil || norm5 || p5 != filepath.Join(ws, "同案.docx") && p5 != filepath.Join(ws, "在案.docx") {
 		_ = p5
 	}
@@ -74,13 +83,13 @@ func TestOfficeComOpenWritePathsNormalized(t *testing.T) {
 		t.Fatalf("WritePaths=%v", got)
 	}
 
-	// path 缺省+app → 声明默认落点。
-	got, err = tl.WritePaths(json.RawMessage(`{"app":"excel"}`))
+	// path 缺省+app+title → 声明语义名落点。
+	got, err = tl.WritePaths(json.RawMessage(`{"app":"excel","title":"成本测算"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || !strings.Contains(got[0], filepath.Join(ws, "交互文件")) || !strings.HasSuffix(got[0], ".xlsx") {
-		t.Fatalf("缺省声明=%v", got)
+	if len(got) != 1 || got[0] != filepath.Join(ws, "交互文件", "成本测算.xlsx") {
+		t.Fatalf("title 缺省声明=%v", got)
 	}
 
 	// 已存在文件（附着打开）→ 不声明写路径。

@@ -264,16 +264,25 @@ const officeComDefaultDirName = "交互文件"
 //   - 带目录/绝对路径 → 尊重原意，仅走工作区边界校验。
 //
 // 返回（工作区内绝对路径, 是否由本函数改写过）。
-func officeComNormalizeOpenPath(raw, kind string) (string, bool, error) {
+// 2026-11-13 二轮反馈修正：默认命名用 **title（任务主题语义名）**——时间戳
+// 命名用户无法按主题查找；title 也缺省才回退 Office-<kind>-<日期>.<ext>。
+// 同名已存在=接着用（office_open 附着语义），天然按主题续写。
+func officeComNormalizeOpenPath(raw, kind, title string) (string, bool, error) {
 	raw = strings.TrimSpace(raw)
 	ext := map[string]string{"word": ".docx", "excel": ".xlsx", "ppt": ".pptx"}[kind]
-	if raw == "" {
-		name := fmt.Sprintf("Office-%s-%s%s", kind, time.Now().Format("20060102-150405"), ext)
+	defaultIn := func(name string) (string, bool, error) {
 		p, err := wspath.ResolveRelWithin(gaeaCwd(), filepath.Join(officeComDefaultDirName, name))
 		if err != nil {
 			return "", false, err
 		}
 		return p, true, nil
+	}
+	if raw == "" {
+		// title 语义名优先（清洗文件名非法字符）；同主题文档已存在=附着续写。
+		if t := officeComSafeFileName(title); t != "" {
+			return defaultIn(t + ext)
+		}
+		return defaultIn(fmt.Sprintf("Office-%s-%s%s", kind, time.Now().Format("20060102"), ext))
 	}
 	if filepath.IsAbs(raw) || officeComAbsRe.MatchString(raw) {
 		p, err := officeComResolvePath(raw)
@@ -285,14 +294,28 @@ func officeComNormalizeOpenPath(raw, kind string) (string, bool, error) {
 		if filepath.Ext(name) == "" {
 			name += ext
 		}
-		p, err := wspath.ResolveRelWithin(gaeaCwd(), filepath.Join(officeComDefaultDirName, name))
-		if err != nil {
-			return "", false, err
-		}
-		return p, true, nil
+		return defaultIn(name)
 	}
 	p, err := officeComResolvePath(raw)
 	return p, false, err
+}
+
+// officeComSafeFileName 清洗语义名里的文件名非法字符（Windows 集合+空白收敛
+// 为连字符；超长截 60），返回空串表示无可用语义名。
+func officeComSafeFileName(title string) string {
+	t := strings.TrimSpace(title)
+	if t == "" {
+		return ""
+	}
+	repl := strings.NewReplacer(
+		`\`, "-", "/", "-", ":", "-", "*", "-", "?", "-", `"`, "-", "<", "-", ">", "-", "|", "-",
+	)
+	t = repl.Replace(t)
+	t = strings.Join(strings.Fields(t), "-")
+	if len([]rune(t)) > 60 {
+		t = string([]rune(t)[:60])
+	}
+	return strings.Trim(t, "-.")
 }
 
 // officeComAppOf 指定 app 或从文件扩展名推断 kind。
@@ -349,7 +372,7 @@ func (officeComOpenTool) Description() string { return officeComOpenDescription 
 
 const officeComOpenDescription = "在 Word / Excel / PowerPoint（或 WPS，本机装了什么就用什么）里打开文档让用户实时看到 AI 干活：" +
 	"改动逐步出现在窗口里、格式由 Office 自己排版不走样，用户可以同时在里面编辑。已打开的文档直接接着用（文件被占用也能改）；" +
-	"路径不存在的会新建。**落点约定**：path 省略时自动落到工作区「交互文件」目录（Office-word-<时间戳>.docx 命名）；" +
+	"路径不存在的会新建。**落点约定**：path 省略时自动落到工作区「交互文件」目录并用 title 作语义文件名（如 交互文件/季度总结.docx）——title 请按任务主题起名，方便用户查找；" +
 	"只给文件名（无目录）也会收编进「交互文件」目录；带目录的路径尊重原意。同一文档继续编辑请沿用首次 open 的路径（省略 doc 参数即沿用最近文档），" +
 	"不要每次换文件名另开副本。先调本工具再使用其余 office_ 工具。编辑既有文档的另一种方式是 docx_apply 等无头工具（不打开窗口，适合无人值守批量）；" +
 	"要让用户看到过程或文件正被占用时用本工具族。"
@@ -358,7 +381,8 @@ func (officeComOpenTool) Schema() json.RawMessage {
 	return json.RawMessage(`{
   "type":"object",
   "properties":{
-    "path":{"type":"string","description":"文档路径（工作区相对或绝对）。路径不存在则新建该文件；省略则自动落到工作区「交互文件」目录（Office-<app>-<时间戳> 命名）；只给文件名也会收编进该目录。同一文档继续编辑请沿用首次路径，不要换名另开副本"},
+    "path":{"type":"string","description":"文档路径（工作区相对或绝对）。路径不存在则新建该文件；省略则自动落到工作区「交互文件」目录并用 title 作文件名；只给文件名也会收编进该目录。同一文档继续编辑请沿用首次路径，不要换名另开副本"},
+    "title":{"type":"string","description":"任务主题语义名（如 季度总结/设计方案）——path 省略时作为默认文件名（交互文件/季度总结.docx），方便用户按主题查找文件"},
     "app":{"type":"string","enum":["word","excel","ppt"],"description":"仅在无 path 时必填，或 doc 无扩展名时用于挑选应用"},
     "template":{"type":"string","description":"模板/样例文档路径：复制到 path（path 必须不存在）后打开副本，原模板不动。用户给了模板要沿用其样式时用"},
     "show":{"type":"boolean","description":"true=把文档窗口带到前台（静默场景下调出窗口用）"}
@@ -397,7 +421,13 @@ func (t officeComOpenTool) WritePaths(args json.RawMessage) ([]string, error) {
 		if kerr != nil {
 			return nil, kerr
 		}
-		p, _, nerr := officeComNormalizeOpenPath(in.Path, kind0)
+		var titleField struct {
+			Title string `json:"title"`
+		}
+		if len(args) > 0 {
+			_ = json.Unmarshal(args, &titleField)
+		}
+		p, _, nerr := officeComNormalizeOpenPath(in.Path, kind0, titleField.Title)
 		if nerr != nil {
 			return nil, nerr
 		}
@@ -418,7 +448,13 @@ func (t officeComOpenTool) WritePaths(args json.RawMessage) ([]string, error) {
 	if kerr != nil {
 		return nil, kerr
 	}
-	p, _, nerr := officeComNormalizeOpenPath("", kind0)
+	var titleField2 struct {
+		Title string `json:"title"`
+	}
+	if len(args) > 0 {
+		_ = json.Unmarshal(args, &titleField2)
+	}
+	p, _, nerr := officeComNormalizeOpenPath("", kind0, titleField2.Title)
 	if nerr != nil {
 		return nil, nerr
 	}
@@ -439,6 +475,7 @@ func (t officeComOpenTool) execute(ctx context.Context, session string, args jso
 		App      string `json:"app"`
 		Template string `json:"template"`
 		Show     *bool  `json:"show"`
+		Title    string `json:"title"`
 	}
 	if err := json.Unmarshal(args, &in); err != nil {
 		return "", fmt.Errorf("参数无效: %w", err)
@@ -454,7 +491,7 @@ func (t officeComOpenTool) execute(ctx context.Context, session string, args jso
 		if kerr != nil {
 			return "", kerr
 		}
-		abs, normalized, err = officeComNormalizeOpenPath(in.Path, kind0)
+		abs, normalized, err = officeComNormalizeOpenPath(in.Path, kind0, in.Title)
 		if err != nil {
 			return "", err
 		}
