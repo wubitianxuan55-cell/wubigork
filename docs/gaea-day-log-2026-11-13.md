@@ -646,3 +646,22 @@
   装机 PID 44752 启动>构建）+冒烟 200×2。
 - 余：P1-4 真机停靠走查+embed 档拍板；P1-1/P1-3 实弹挂用户写作场景；
   check-docs 复跑 OK。
+
+## 36. 灵犀逆向收官归档+第二批蒸馏计划（20:3x~21:0x）
+
+- 用户确认另一执行体（codex）逆向已结束。代为归档其在树产物（独立提交保
+  作者归属）：re-distill 文档 §10~§27 增量+蒸馏评估报告（值得 6/有条件 4/
+  不要 6）+plan 文档 B 批注记+re-lingxi B~I 批脚本与报告证据（prompts/
+  sections 131 段 744K 入库；raw-region/region-utf8/part-* 原始 dump 不入库
+  走 .gitignore）。205 文件 +29842 行。
+- 产出第二批计划档 `docs/gaea-lingxi-batch2-plan-2026-11.md`：先对评估报告
+  逐项对账实码（报告全标 [文档] 且早于 P0-4 续批/P1 收官）——**四项销项**
+  （xlsx 三条行为约束=P1-2 已落、pdf/pptx/recalc+audit=P1 已落），实码核实
+  确缺两项立项（交付两条时序禁则/失败语义族）；立项 B1 文案档+B2 失败
+  语义族+B3 装配顺序（现状序已核：主提示词+技能目录→空间段→交付→实时，
+  SingleModelPrompt 红线不动）+B4 记忆三层对照评估（不直接落地，办公记忆
+  确认红线优先）+B5 技能门禁补缺；拍板池五项（MCP dispatcher 倾向单
+  dispatcher=灵犀 §16 实测 mcp__ 前缀 0 命中）。架构约束采纳：云能力独立
+  CLI 不进主进程。
+- docs/README 登记 distill-report（codex 产，此前孤儿）与 batch2-plan 两档。
+- 余：B1~B5 排刀等拍板；dispatcher 形态定 P2-1 契约。

@@ -121,3 +121,6 @@ temp/
 .zcode/
 /dsh-wubi/
 frontend/.vitest-reports/
+re-lingxi/out/prompts/raw-region.txt
+re-lingxi/out/prompts/region-utf8.txt
+re-lingxi/out/prompts/part-*.txt
