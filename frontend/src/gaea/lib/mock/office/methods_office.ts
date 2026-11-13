@@ -23,6 +23,7 @@ import { mockScheduleFiles } from "./schedule";
 import { dagMethods } from "./methods_dag";
 import { opsMethods } from "./methods_ops";
 import { webSearchMethods } from "./methods_websearch";
+import { wpsDockMethods } from "./methods_wpsdock";
 import type { OfficeMethods } from "./types";
 
 const mockWorkspaceUploads = new Map<string, string>();
@@ -721,5 +722,6 @@ export const officeMethods: Partial<Omit<OfficeMethods, "PinnedMaterials">> &
   },
   ...opsMethods,
   ...webSearchMethods,
+  ...wpsDockMethods,
   ...dagMethods,
 };

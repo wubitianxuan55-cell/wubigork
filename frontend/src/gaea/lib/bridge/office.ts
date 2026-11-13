@@ -33,6 +33,18 @@ export interface PptxSlideTextEntry {
   paragraphs: string[];
 }
 
+// WpsDockWindow 是 WpsDockList 的一个 WPS 顶层窗口条目（P1-4 停靠）：只有
+// isDocWin=true 的（类名 XLMAIN/OpusApp）才是可停靠的文档窗口；hwnd 传回
+// WpsDockApply/WpsDockRestore。
+export interface WpsDockWindow {
+  hwnd: number;
+  proc: string;
+  class: string;
+  title: string;
+  visible: boolean;
+  isDocWin: boolean;
+}
+
 export interface OfficeBindings {
   // PptxOutline 读取 pptx 结构化大纲（v4.28 B2）：python-pptx 逐页标题/正文
   // 摘要，配合 pptx 预览的逐页缩略与「针对第 N 页修改」指令。失败结构化。
@@ -150,4 +162,12 @@ export interface OfficeBindings {
   WebSearchSettingsGet(): Promise<Record<string, unknown>>;
   WebSearchSettingsSet(tavilyKey: string, braveKey: string, searxngURL: string): Promise<void>;
   WebSearchTestConnection(): Promise<Record<string, unknown>>;
+
+  // ── P1-4 WPS 面板停靠（dock 档）：把 WPS 文档窗口摆到预览面板矩形上 ──
+  // WpsDockList 列本机 WPS 相关窗口（isDocWin=true 才可停靠）；Apply 坐标为
+  // 屏幕物理像素（前端 DOM rect×DPR 换算）；Restore 还原样式置回顶层。
+  // embed（SetParent）是第二步，默认不做。
+  WpsDockList(): Promise<WpsDockWindow[]>;
+  WpsDockApply(hwnd: number, x: number, y: number, w: number, h: number, borderless: boolean): Promise<string>;
+  WpsDockRestore(hwnd: number): Promise<string>;
 }

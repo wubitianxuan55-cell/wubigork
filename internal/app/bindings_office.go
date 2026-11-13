@@ -250,3 +250,6 @@ func (b *OfficeB) GaeaZipDeliverables(paths []string) (ZipDeliverableResult, err
 func (b *OfficeB) WebSearchSettingsGet() (map[string]interface{}, error) { return b.a.WebSearchSettingsGet() }
 func (b *OfficeB) WebSearchSettingsSet(tavilyKey string, braveKey string, searxngURL string) error { return b.a.WebSearchSettingsSet(tavilyKey, braveKey, searxngURL) }
 func (b *OfficeB) WebSearchTestConnection() (map[string]interface{}, error) { return b.a.WebSearchTestConnection() }
+func (b *OfficeB) WpsDockApply(hwnd uint64, x int, y int, w int, h int, borderless bool) (string, error) { return b.a.WpsDockApply(hwnd, x, y, w, h, borderless) }
+func (b *OfficeB) WpsDockList() ([]WpsWindowInfo, error) { return b.a.WpsDockList() }
+func (b *OfficeB) WpsDockRestore(hwnd uint64) (string, error) { return b.a.WpsDockRestore(hwnd) }

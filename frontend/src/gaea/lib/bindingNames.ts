@@ -748,4 +748,7 @@ export const bindingNames = [
   "WhisperWeixinQRStatus",
   "WhisperWeixinQRStatusWithCode",
   "WhisperWeixinStatus",
+  "WpsDockApply",
+  "WpsDockList",
+  "WpsDockRestore",
 ] as const;

@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 748 名（原生变参 8 名已收窄标注）。
+// 共 751 名（原生变参 8 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -767,7 +767,10 @@ export const bindingSignatures = {
   WhisperWeixinQRStatus: { argc: 1, variadic: false, params: "qrcode string" },
   WhisperWeixinQRStatusWithCode: { argc: 2, variadic: false, params: "qrcode string, verifyCode string" },
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
+  WpsDockApply: { argc: 6, variadic: false, params: "hwnd uint64, x int, y int, w int, h int, borderless bool" },
+  WpsDockList: { argc: 0, variadic: false, params: "" },
+  WpsDockRestore: { argc: 1, variadic: false, params: "hwnd uint64" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 748。
-export const bindingSignatureCount = 748;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 751。
+export const bindingSignatureCount = 751;

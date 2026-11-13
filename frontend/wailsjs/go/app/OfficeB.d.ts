@@ -472,3 +472,9 @@ export function WebSearchSettingsGet():Promise<Record<string, any>>;
 export function WebSearchSettingsSet(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function WebSearchTestConnection():Promise<Record<string, any>>;
+
+export function WpsDockApply(arg1:number,arg2:number,arg3:number,arg4:number,arg5:number,arg6:boolean):Promise<string>;
+
+export function WpsDockList():Promise<Array<app.WpsWindowInfo>>;
+
+export function WpsDockRestore(arg1:number):Promise<string>;
