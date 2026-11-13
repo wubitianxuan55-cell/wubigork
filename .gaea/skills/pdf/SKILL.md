@@ -368,3 +368,33 @@ df.to_excel("报表.xlsx", index=False)
 - For JavaScript libraries (pdf-lib), see REFERENCE.md
 - If you need to fill out a PDF form, follow the instructions in FORMS.md
 - For troubleshooting guides, see REFERENCE.md
+
+## pdf_cli.py 统一命令面（gaea 自研，优先用这个）
+
+17 个子命令一条命令完成，stdout 恒单 JSON `{success, data, message}`（`success:false` 即失败，退出码非 0 即失败）。多数操作能用它就**不要手写 python**——只有它没覆盖的组合才落回上面的代码片段。
+
+```bash
+S=scripts/pdf_cli.py   # 相对技能根（run_skill 后 SKILL_PATH 已就位）
+python $S info 文件.pdf                          # 元数据+页数+页面尺寸
+python $S page-count 文件.pdf
+python $S extract-text 文件.pdf --pages 1-3      # pdfplumber 文本
+python $S extract-table 文件.pdf --pages 2       # 表格→rows 二维数组
+python $S to-md 文件.pdf -o 文件.md              # 扫描件会提示走 OCR
+python $S merge -o 合并.pdf a.pdf b.pdf          # ≥2 个输入
+python $S split 文件.pdf -o 前缀                 # 逐页拆 前缀NN.pdf
+python $S delete-pages 文件.pdf --pages 2-4 -o out.pdf
+python $S rotate 文件.pdf --degrees 90 -o out.pdf [--pages 1-2]
+python $S crop 文件.pdf --left 20 --top 0 --right 20 --bottom 20 -o out.pdf
+python $S watermark 文件.pdf -w 水印.pdf -o out.pdf
+python $S compress 文件.pdf -o out.pdf           # 无损；深度压缩需 qpdf/gs
+python $S encrypt 文件.pdf --password 密码 -o out.pdf
+python $S decrypt 文件.pdf --password 密码 -o out.pdf
+python $S render 文件.pdf --dpi 150 --pages 1-4 -o 前缀   # → 前缀_pNN.png
+python $S extract-images 文件.pdf -o 前缀
+python $S batch page-count a.pdf b.pdf c.pdf     # 同命令多文件，逐文件容错入账
+```
+
+- 页选择统一语法 `1-3,5,8-`（开区间到末页）。
+- 加密文件加 `--password`；`encrypt` 的 `--password` 是**新**密码（源文件可为明文）。
+- 依赖：pypdf + pdfplumber + pypdfium2；缺库时 message 会给出 `pip install <name>`。
+- 交付纪律与表格门禁（公式优先/零错误）见 xlsx 技能；本文只管 PDF 本体。
