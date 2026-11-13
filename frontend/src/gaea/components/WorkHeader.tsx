@@ -115,9 +115,13 @@ export function WorkHeader({ doneSuppressed = false }: { doneSuppressed?: boolea
       ) : (
         <CheckCircle size={12} className="shrink-0 text-ok" />
       )}
-      <span className={`shrink-0 font-medium ${running ? "text-accent" : "text-fg-dim"}`}>
-        {running ? (phaseText || t("work.thinking")) : t("work.done")}
-      </span>
+      {/* 波3.5 实弹反馈：「思考中…」回退文案删除——无实质 phase 时运行态只
+          留图标+用时+步数（思考活动已由过程卡折叠尾巴承担，头部不再重复）。 */}
+      {running && phaseText ? (
+        <span className="shrink-0 font-medium text-accent">{phaseText}</span>
+      ) : !running ? (
+        <span className="shrink-0 font-medium text-fg-dim">{t("work.done")}</span>
+      ) : null}
       <span className="min-w-0 truncate text-fg-faint/80 tabular-nums">
         · {t("work.elapsed", { t: formatElapsed(elapsed) })}
       </span>

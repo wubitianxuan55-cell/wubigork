@@ -37,8 +37,9 @@ describe("WorkHeader 工作态头部行", () => {
     const header = headerOf(view.container);
     expect(header).not.toBeNull();
     expect(header?.getAttribute("data-state")).toBe("running");
-    // 无 phase 回退「思考中…」；无过程条目 → 0 步
-    expect(header?.textContent).toContain("思考中…");
+    // 2026-11-13 实弹反馈：无 phase 时「思考中…」回退文案删除（运行态只有
+    // 图标+用时+步数；思考活动由过程卡折叠尾巴承担）；无过程条目 → 0 步
+    expect(header?.textContent).not.toContain("思考中…");
     expect(header?.textContent).toContain("0 步");
     expect(header?.textContent).toContain("用时");
     // 运行态有 spinner
@@ -66,7 +67,8 @@ describe("WorkHeader 工作态头部行", () => {
       items: [user("u1", "第一问"), phase("p1", "上一轮正在重试"), user("u2", "第二问")],
     });
     const view = mount(<WorkHeader />);
-    expect(headerOf(view.container)?.textContent).toContain("思考中…");
+    // 无 phase（user 边界截断后）→「思考中…」回退文案已删，只留图标+用时+步数。
+    expect(headerOf(view.container)?.textContent).not.toContain("思考中…");
     expect(headerOf(view.container)?.textContent).not.toContain("上一轮正在重试");
   });
 
