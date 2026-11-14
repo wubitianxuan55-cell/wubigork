@@ -453,6 +453,27 @@ TMP/TEMP，前端生产构建后执行完整绑定 `wails build -s -ldflags "-s 
 三枚语音 DLL 同目录；正式路径冒烟 `/api/health` 200，PID 19132 已回收。
 未装机、未抬起版本。
 
+跨端复核、功能提交与预览包（2026-11-14）：实机确认桌面旧布局仍保存
+`composerHeight:104`，会把新输入卡的 112px 输入区+43px 工具栏裁掉。输入卡
+完整高度基线改为 164px，并改用 `composerHeightV2` 新键；功能提交
+`6925ad86` 仅收 5 个 UI 文件。旧 104/225 偏好不再把桌面与网页拉成两套
+高度，新 UI 内主动拖拽后仍会独立持久化。正文中原先被 Markdown 行内代码
+包裹的文件路径（如 `` `进度计划/当前计划.gsched.json` ``）现升级为可点击
+文件 chip；代码围栏保持不可点击，普通内联代码不受影响。提交前 UI 合批
+97 例、改动面 ESLint 与 `git diff --check` 通过；网页版实测输入卡 164px、
+工具栏 43px、4 个正文文件 chip；桌面同尺寸，文件 chip 点击后成功打开
+Markdown 预览。截图：
+`.tmp/ui-review/office-desktop-final.png`、
+`.tmp/ui-review/office-desktop-final-preview.png`。
+
+预览包 `gaea-office-output-ui-20261114-6925ad86`：独立干净工作树
+`.worktrees/pkg-6925ad86` 检出该提交，clean-gate 通过；干净树定向 35/35、
+前端 Vite 31.15s、Wails 1m00.5s、bindings 未跳过。包内 exe 63,878,144 B /
+SHA256 `BAEFC5D355A39063741CF2BA37C1112307F0C36D828864881EC7575AC898AFD4`；
+预览 ZIP 32,942,469 B、源码 TAR 42,925,679 B，正式路径冒烟 `/api/health`
+200（PID 35232 已回收）。`PACKAGE-INFO.md` 与 `SHA256SUMS-6925ad86.txt`
+已入库；exe/三 DLL/ZIP/TAR 按 P2-3 只留盘。本预览包不覆盖装机位，未抬版本。
+
 ## 灵犀 P1 四项全落 · 2026-11-13（装机，拍板=复用系统 Python）
 
 P1-2 xlsx 交付门（xlsx_recalc 暴露 LibreOffice 重算链+xlsx_audit 只读审计
