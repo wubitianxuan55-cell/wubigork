@@ -25,6 +25,10 @@
 - 打包：`gaea-office-cadtab-20261114-c85a9815` 预览包（六刀全量；PACKAGE-INFO
   +SHA256SUMS 入库 4db1c355，exe/三 DLL/源码包/preview zip/uncommitted 快照
   留盘）；包产物=装机位同源 exe E65681B6…（c85a9815 干净树构建），冒烟 200。
+- 包 v2 + DSH 批代提交（用户拍板「dsh的一起提交」）：dsh-context 0.84.1
+  上下文交互续刀 51 文件入库 2eb8d9fd（WorkbenchPrefsPanel 文案 4 例红顺手
+  修齐）；包 v2 全件替换为 2eb8d9fd 构建 exe BFD7CAA2…（冒烟 200），包更新
+  提交 dd7bc61a；快照 tar 作废（已入库无未提交残留）。v1 快照 tar 作废删除（已入库无未提交残留）。
 
 ## dsh-context 0.84.1 上下文交互续刀 · 2026-11-14
 
