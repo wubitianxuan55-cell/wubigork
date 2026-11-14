@@ -1,0 +1,562 @@
+/* schedule/sched-zebra.css — 进度计划板块「纯照斑马外观密度」样式层（A 线）
+ *
+ * 口径：只照斑马（ZPert8）的**专业密度**——实底、细线、紧凑行距、小圆角、零装饰光效。
+ * 不搬 v3 星枢的玻璃模糊层、高光线、外发光：那套是「飘」，斑马的密度感来自「实」。
+ *
+ * 证据（`进度计划/gaea-schedule-zpert8-uiux-re-20261114.md`）：
+ *   line 841  §13.4/§17.2 表格：表头 `#F8FAFC` / 表头字 `#4E5969`、网格线 `#E2E8F0`、
+ *             字号 14px、行高 30px —— 直接落成 --sched-head-bg / --sched-head-ink /
+ *             --sched-grid-line / --sched-font-table / --sched-row-h；
+ *   line 473  工具按钮圆角 4px（office2016/2021 主题）—— 控件档 4px；
+ *   line 364  就地编辑 `padding:0px`（网格内编辑框不撑高行）—— 行内控件只留 2px 手感；
+ *   line 370-371  斑马两代视觉并存：老壳（Office 灰白条、深蓝选中页签、内容白、4px 圆角）
+ *             + 新弹层（14px 字号、圆角、软阴影）。复刻要密度，不要「旧」也不要「飘」：
+ *             常规面一律零抬升，软阴影只留给浮层/菜单一档（--sched-elev-2）；
+ *   line 22/106  交互密度极高（右键 12 项、过滤器族、颜色/线宽、日期弹层、格式刷）
+ *             —— 控件高 24px、组内 gap 4px、按钮 padding 2px 6px、状态栏 24px。
+ *
+ * 硬约束（本文件自守，也由 sched-zebra.css.test.ts 钉住）：
+ *   1. 零光效：不出现玻璃模糊、高光线层、文字阴影、装饰渐变；面一律实底；
+ *   2. 零裸 hex：色值全部 `var(--token, #hex)`，hex 只允许出现在令牌兜底段；
+ *   3. 令牌定义补齐 schedule.css 已引用但缺失的 --sched-radius-* / --sched-elev-* /
+ *      --sched-motion*，并新增斑马密度令牌（字号/行高/控件高/细线/表头）；
+ *   4. 圆角纪律：按钮·输入·页签 4px；面板·弹层 6px；表格与画布 0（斑马网格是方角）；
+ *   5. 只覆盖既有类名，不新增类名、不动 .tsx、不重排 schedule.css。
+ *
+ * 引入顺序：必须排在 schedule.css / display-preset.css / hit.css 之后
+ * （同为单类选择器时靠后胜出；带 `:not()` 的高特异性规则已按原特异性复写）。
+ */
+
+/* ═══ 0. 令牌层 ══════════════════════════════════════════════════════════ */
+:root {
+  /* 几何：斑马只有「控件 4px / 弹层 6px / 表格画布 0」三档（line 473、line 841） */
+  --sched-radius-sm: 4px;
+  --sched-radius-md: 4px;
+  --sched-radius-lg: 6px;
+
+  /* 抬升：常规面零抬升，只有浮层/菜单一档（line 370-371：老壳实底为骨，软阴影只在新弹层） */
+  --sched-elev-1: none;
+  --sched-elev-2: 0 2px 8px rgba(0, 0, 0, 0.14);
+
+  /* 动效：100ms 出手即到——密度感来自「没有等待」（只动颜色类属性） */
+  --sched-motion: 100ms;
+  --sched-motion-ease: ease-out;
+
+  /* 细线 / 网格 / 表头（line 841：表头 #F8FAFC 字 #4E5969、网格线 #E2E8F0） */
+  --sched-hairline: 1px solid var(--md-sys-color-outline-variant, #e2e8f0);
+  --sched-grid-line: var(--md-sys-color-outline-variant, #e2e8f0);
+  --sched-head-bg: var(--md-sys-color-surface-container, #f8fafc);
+  --sched-head-ink: var(--md-sys-color-on-surface-variant, #4e5969);
+
+  /* 字号与行高（line 841：正文 14px / 行高 30px；元信息 12px） */
+  --sched-font-table: 14px;
+  --sched-font-meta: 12px;
+  --sched-row-h: 30px;
+
+  /* 密度补充（line 22/106 高交互密度：控件 24px、组内 gap 4px、按钮 2px 6px） */
+  --sched-ctl-h: 24px;
+  --sched-gap-tight: 4px;
+  --sched-pad-ctl: 2px 6px;
+  --sched-statusbar-h: 24px;
+  --sched-font-ui: 13px;
+  --sched-line: var(--md-sys-color-border, #e5e7eb);
+
+  /* 交互态：hover 一档灰膜、选中 主色 12%、按下 主色 16%，全部零光晕 */
+  --sched-hover-bg: rgba(255, 255, 255, 0.06); /* 暗色缺省档（schedule.css 的 :root 同口径） */
+  --sched-sel-bg: color-mix(in srgb, var(--md-sys-color-primary, #2563eb) 12%, transparent);
+  --sched-press-bg: color-mix(in srgb, var(--md-sys-color-primary, #2563eb) 16%, transparent);
+  --sched-focus-ring: 2px solid var(--md-sys-color-primary, #2563eb);
+  --sched-disabled-opacity: 0.45;
+}
+
+/* 白底档：hover 改走深色灰膜（同一色值在白底/深底不可能同时成立，按档分治而不是取中间灰） */
+:root[data-hl="light"] {
+  --sched-hover-bg: rgba(0, 0, 0, 0.04);
+}
+
+/* ═══ 1. 密度：功能区（ribbon） ═════════════════════════════════════════════ */
+.sched-command-deck .sched-menubar {
+  min-height: 28px;
+  padding: 2px 6px;
+  border-bottom: var(--sched-hairline);
+}
+
+.sched-menu-item {
+  font-size: var(--sched-font-ui);
+  line-height: 20px;
+  padding: 2px 8px;
+  border-radius: var(--sched-radius-sm);
+  transition:
+    background-color var(--sched-motion) var(--sched-motion-ease),
+    border-color var(--sched-motion) var(--sched-motion-ease),
+    color var(--sched-motion) var(--sched-motion-ease);
+}
+
+.sched-ribbon-tabbar .sched-menu-item {
+  min-width: 44px;
+  padding: 3px 10px 4px;
+}
+
+.sched-command-deck .sched-toolbar {
+  min-height: 72px;
+  padding: 9px 6px 3px;
+  gap: 6px;
+}
+
+.sched-ribbon-panel {
+  min-width: 72px;
+  padding: 0 6px 1px;
+}
+
+.sched-ribbon-panel-body {
+  gap: var(--sched-gap-tight);
+}
+
+.sched-ribbon-column {
+  gap: 1px;
+}
+
+.sched-ribbon-group {
+  gap: var(--sched-gap-tight);
+  min-height: 30px;
+  padding: 0 8px 0 0;
+}
+
+.sched-ribbon-group-title {
+  top: -10px;
+  font-size: 10px;
+}
+
+.sched-ribbon-command {
+  min-height: var(--sched-ctl-h);
+  padding: var(--sched-pad-ctl);
+  gap: var(--sched-gap-tight);
+  border-radius: var(--sched-radius-sm);
+  font-size: var(--sched-font-meta);
+  transition:
+    background-color var(--sched-motion) var(--sched-motion-ease),
+    border-color var(--sched-motion) var(--sched-motion-ease),
+    color var(--sched-motion) var(--sched-motion-ease);
+}
+
+/* 大按钮：矮一档但仍留图标+文字的呼吸（斑马 20px / 64px 双档图标口径的落地版） */
+.sched-ribbon-command.is-big {
+  width: 56px;
+  min-height: 52px;
+  padding: 3px 2px;
+  gap: 2px;
+}
+
+.sched-ribbon-command-icon {
+  font-size: 14px;
+}
+
+.sched-ribbon-command.is-big .sched-ribbon-command-icon {
+  font-size: 22px;
+}
+
+.sched-command-search-trigger {
+  min-height: var(--sched-ctl-h);
+  padding: 2px 6px 2px 8px;
+  gap: var(--sched-gap-tight);
+  border-radius: var(--sched-radius-sm);
+  font-size: var(--sched-font-meta);
+}
+
+.sched-command-deck .sched-infobar {
+  padding: 4px 8px;
+  border-top: var(--sched-hairline);
+}
+
+/* ═══ 2. 密度：命令台 / 命令面板 ═════════════════════════════════════════════ */
+.sched-command-palette-search {
+  min-height: 34px;
+  padding: 0 10px;
+  gap: 6px;
+  font-size: var(--sched-font-ui);
+}
+
+.sched-command-palette-item {
+  min-height: 28px;
+  padding: 3px 8px;
+  gap: 10px;
+  border-radius: var(--sched-radius-sm);
+  transition:
+    background-color var(--sched-motion) var(--sched-motion-ease),
+    border-color var(--sched-motion) var(--sched-motion-ease),
+    color var(--sched-motion) var(--sched-motion-ease);
+}
+
+.sched-command-palette-foot {
+  padding: 0 10px;
+  font-size: var(--sched-font-meta);
+  border-top: var(--sched-hairline);
+}
+
+/* 命令面板本体：弹层档圆角 6px + 唯一一档软阴影（原来那圈 24/72px 的散光是「飘」的来源） */
+.sched-command-palette-modal .ant-modal-content {
+  border-radius: var(--sched-radius-lg);
+  box-shadow: var(--sched-elev-2);
+}
+
+/* ═══ 3. 密度：文档条 ═══════════════════════════════════════════════════════ */
+.sched-docbar {
+  gap: 6px;
+  height: 26px;
+  padding: 0 6px;
+  border-bottom: var(--sched-hairline);
+}
+
+.sched-doc-tab {
+  height: 26px;
+  padding: 0 10px;
+  gap: var(--sched-gap-tight);
+  border-radius: var(--sched-radius-sm) var(--sched-radius-sm) 0 0;
+  font-size: var(--sched-font-meta);
+  transition:
+    background-color var(--sched-motion) var(--sched-motion-ease),
+    border-color var(--sched-motion) var(--sched-motion-ease),
+    color var(--sched-motion) var(--sched-motion-ease);
+}
+
+.sched-doc-add {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--sched-radius-sm);
+}
+
+/* ═══ 4. 密度：工作区 ═══════════════════════════════════════════════════════ */
+.sched-workspace {
+  gap: 0;
+}
+
+.sched-workspace-main {
+  min-width: 0;
+}
+
+.sched-gantt {
+  gap: var(--sched-gap-tight);
+}
+
+.sched-gantt-toolbar {
+  min-height: 28px;
+  padding: 2px 6px;
+  gap: 6px;
+}
+
+/* 窗格分隔条：细线级观感（斑马分隔条 2px/网格线色），拖拽热区仍由原 5px 保留 */
+.sched-gantt-split {
+  background: var(--sched-grid-line);
+}
+
+/* ═══ 5. 密度：右舷（预警泊靠窗） ═════════════════════════════════════════════ */
+.sched-dock-head {
+  min-height: 28px;
+  padding: 0 4px 0 8px;
+  gap: var(--sched-gap-tight);
+  border-bottom: var(--sched-hairline);
+}
+
+.sched-dock-tabs button {
+  height: 26px;
+  font-size: var(--sched-font-meta);
+}
+
+.sched-dock-toolbar {
+  padding: 4px 6px;
+  border-bottom: var(--sched-hairline);
+}
+
+.sched-dock-item {
+  padding: 4px 8px;
+  gap: 2px;
+  border-bottom: var(--sched-hairline);
+  transition: background-color var(--sched-motion) var(--sched-motion-ease);
+}
+
+.sched-dock-foot {
+  padding: 4px 6px;
+  border-top: var(--sched-hairline);
+}
+
+/* ═══ 6. 密度：状态栏 ═══════════════════════════════════════════════════════ */
+.sched-statusbar {
+  min-height: var(--sched-statusbar-h);
+  /* 不锁死高度：系统大字号/缩放下让内容撑开，避免 24px 裁字（密度靠 min-height 与字号守住） */
+  gap: 10px;
+  padding: 0 8px;
+  font-size: var(--sched-font-meta);
+  border-top: var(--sched-hairline);
+  transition: background-color var(--sched-motion) var(--sched-motion-ease);
+}
+
+/* ═══ 7. 表格：斑马网格（方角 / 细线 / 表头底色与字色 / 30px 行高） ══════════ */
+.sched-gantt-head,
+.sched-gantt-row.sched-gantt-head {
+  background: var(--sched-head-bg);
+  border-bottom: var(--sched-hairline);
+}
+
+.sched-gantt-cell {
+  font-size: var(--sched-font-table);
+}
+
+/* 表头格：表头底 + 表头字 + 网格线全走令牌（line 841 逐值对应） */
+.sched-gantt-cell.sched-th {
+  background: var(--sched-head-bg);
+  color: var(--sched-head-ink);
+  font-size: var(--sched-font-table);
+  font-weight: 600;
+  border-bottom: var(--sched-hairline);
+}
+
+/* 行：行高 30（inline 同值，这里兜底行内样式缺席的场景）；横线用网格线令牌 */
+.sched-gantt-row {
+  height: var(--sched-row-h);
+  border-bottom: 1px solid var(--sched-grid-line);
+  transition: background-color var(--sched-motion) var(--sched-motion-ease);
+}
+
+/* ═══ 8. 圆角纪律：表格与画布方角、控件 4px、弹层 6px ══════════════════════ */
+.sched-gantt,
+.sched-gantt-tablepane,
+.sched-gantt-canvaspane,
+.sched-gantt-canvas-inner,
+.sched-gantt-tbody,
+.sched-gantt-row,
+.sched-gantt-cell,
+.sched-gantt-head,
+.sched-network-workspace,
+.sched-network-scroll,
+.sched-network-canvas {
+  border-radius: 0;
+}
+
+.sched-ribbon-command,
+.sched-menu-item,
+.sched-doc-tab,
+.sched-doc-add,
+.sched-command-search-trigger,
+.sched-command-palette-item,
+.sched-dock-tabs button {
+  border-radius: var(--sched-radius-sm);
+}
+
+.sched-hit-menu-layer,
+.sched-command-palette-modal .ant-modal-content {
+  border-radius: var(--sched-radius-lg);
+}
+
+/* 右键浮层：6px 弹层圆角 + 唯一一档软阴影（hit.css 的 8px/24px 散光收到 1 档） */
+.sched-hit-menu-layer {
+  padding: 2px;
+  box-shadow: var(--sched-elev-2);
+  transition: background-color var(--sched-motion) var(--sched-motion-ease);
+}
+
+/* 菜单项：与表格同字号、行高 24（斑马右键菜单是「就地」浮层，不吃 28px 的松垮） */
+.sched-hit-menu .ant-menu-item {
+  height: var(--sched-ctl-h);
+  line-height: var(--sched-ctl-h);
+  margin: 0;
+  padding-inline: 8px;
+  border-radius: var(--sched-radius-sm);
+  font-size: var(--sched-font-ui);
+  transition:
+    background-color var(--sched-motion) var(--sched-motion-ease),
+    color var(--sched-motion) var(--sched-motion-ease);
+}
+
+/* ═══ 9. 交互态：hover / 选中 / 按下 / disabled / focus-visible ═════════════
+ * 斑马手感：hover 只加一档灰膜、选中/按下是主色淡底，全部零光晕；
+ * 焦点环一律 outline + 负偏移（栅格内不撑开行高，line 364 的零内边距口径）。
+ * disabled 统一 0.45 + not-allowed，并且 hover 规则全部带 :not(:disabled) —— 禁用后不吃反馈。
+ */
+
+/* 9.1 功能区命令按钮 */
+.sched-ribbon-command:hover:not(:disabled) {
+  background: var(--sched-hover-bg);
+  border-color: var(--sched-grid-line);
+}
+
+.sched-ribbon-command:active:not(:disabled) {
+  background: var(--sched-press-bg);
+}
+
+.sched-ribbon-command.is-active {
+  background: var(--sched-sel-bg);
+  border-color: color-mix(in srgb, var(--md-sys-color-primary, #2563eb) 28%, transparent);
+  color: var(--md-sys-color-primary, #2563eb);
+}
+
+/* 9.2 菜单项（含页签形态） */
+.sched-menu-item:hover:not(:disabled) {
+  background: var(--sched-hover-bg);
+}
+
+.sched-menu-item:active:not(:disabled) {
+  background: var(--sched-press-bg);
+}
+
+.sched-menu-item.is-active {
+  background: var(--sched-sel-bg);
+}
+
+/* 9.3 表格行：hover 灰膜压掉原 rgba(30,111,217,.06) 的蓝雾（同特异性复写） */
+.sched-gantt-row:not(.sched-group-row):hover:not(:disabled) {
+  background: var(--sched-hover-bg);
+}
+
+/* 行选中：主色 12%（原 .sched-row-selected 是 rgba(37,99,235,.1) + !important，同级提升后覆盖） */
+.sched-gantt-row.sched-row-selected {
+  background: var(--sched-sel-bg) !important;
+}
+
+/* 9.4 表头格：只加一层极淡墨膜，保留 --sched-head-bg 的表头底色 */
+.sched-gantt-cell.sched-th:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--sched-head-bg) 96%, var(--sched-head-ink) 4%);
+}
+
+/* 9.5 状态栏 */
+.sched-statusbar:hover:not(:disabled) {
+  background: var(--sched-hover-bg);
+}
+
+/* 9.6 右键浮层容器（热区在条目，容器这条是保底：浮层自身可聚焦时不至于毫无反馈） */
+.sched-hit-menu-layer:hover:not(:disabled) {
+  background: var(--sched-hover-bg);
+}
+
+.sched-hit-menu .ant-menu-item:hover:not(.ant-menu-item-disabled),
+.sched-hit-menu .ant-menu-item-active {
+  background: var(--sched-hover-bg);
+}
+
+.sched-hit-menu .ant-menu-item:active {
+  background: var(--sched-press-bg);
+}
+
+.sched-hit-menu .ant-menu-item-disabled {
+  opacity: var(--sched-disabled-opacity);
+  cursor: not-allowed;
+  background: transparent;
+}
+
+/* 9.7 disabled：六个钩子统一口径（opacity .45 + not-allowed，且无 hover 反馈）。
+   div 型钩子（行/表头格/状态栏/浮层容器）浏览器永不命中 `:disabled`，
+   真正可达的是 `[aria-disabled="true"]` 变体——两个变体都写，语义由组件挂属性点亮。 */
+.sched-ribbon-command:disabled,
+.sched-menu-item:disabled,
+.sched-gantt-row:disabled,
+.sched-gantt-row[aria-disabled="true"],
+.sched-gantt-cell.sched-th:disabled,
+.sched-gantt-cell.sched-th[aria-disabled="true"],
+.sched-statusbar:disabled,
+.sched-statusbar[aria-disabled="true"],
+.sched-hit-menu-layer:disabled,
+.sched-hit-menu-layer[aria-disabled="true"] {
+  opacity: var(--sched-disabled-opacity);
+  cursor: not-allowed;
+  background: transparent;
+  border-color: transparent;
+  color: var(--md-sys-color-on-surface-variant, #4e5969);
+}
+
+/* 9.8 focus-visible：2px 主色环、-2px 负偏移（栅格内不撑高行） */
+.sched-ribbon-command:focus-visible,
+.sched-menu-item:focus-visible,
+.sched-gantt-row:focus-visible,
+.sched-gantt-cell.sched-th:focus-visible,
+.sched-statusbar:focus-visible,
+.sched-hit-menu-layer:focus-visible,
+.sched-hit-menu .ant-menu-item:focus-visible,
+.sched-command-palette-item:focus-visible,
+.sched-doc-tab:focus-visible,
+.sched-dock-item:focus-visible {
+  outline: var(--sched-focus-ring);
+  outline-offset: -2px;
+}
+
+/* 标签型钩子（列显隐菜单的 label 里才是真控件）：焦点留在内层，用 focus-within 反映到整行 */
+.sched-colmenu-item:focus-within,
+.sched-inplace-filter-btn:focus-visible {
+  outline: var(--sched-focus-ring);
+  outline-offset: -2px;
+}
+
+/* 9.9 其余高频小控件：hover 同步一档灰膜（密度一致，不引入第二套手感） */
+.sched-doc-add:hover:not(:disabled),
+.sched-dock-tabs button:hover:not(:disabled),
+.sched-command-search-trigger:hover:not(:disabled) {
+  background: var(--sched-hover-bg);
+}
+
+.sched-dock-tabs button.is-active {
+  background: var(--sched-sel-bg);
+}
+
+.sched-doc-add:disabled,
+.sched-dock-tabs button:disabled,
+.sched-command-search-trigger:disabled,
+.sched-command-palette-item:disabled,
+.sched-doc-tab:disabled,
+.sched-dock-item:disabled {
+  opacity: var(--sched-disabled-opacity);
+  cursor: not-allowed;
+}
+
+/* ═══ 10. 动效降级：系统偏好 + 应用内开关双入口 ════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  .sched-ribbon-command,
+  .sched-menu-item,
+  .sched-doc-tab,
+  .sched-doc-add,
+  .sched-command-palette-item,
+  .sched-command-search-trigger,
+  .sched-gantt-row,
+  .sched-gantt-cell.sched-th,
+  .sched-statusbar,
+  .sched-hit-menu-layer,
+  .sched-hit-menu .ant-menu-item,
+  .sched-dock-item,
+  .sched-dock-tabs button,
+  .sched-gantt-split {
+    transition: none;
+  }
+}
+
+.ui-reduced-motion .sched-ribbon-command,
+.ui-reduced-motion .sched-menu-item,
+.ui-reduced-motion .sched-doc-tab,
+.ui-reduced-motion .sched-doc-add,
+.ui-reduced-motion .sched-command-palette-item,
+.ui-reduced-motion .sched-command-search-trigger,
+.ui-reduced-motion .sched-gantt-row,
+.ui-reduced-motion .sched-gantt-cell.sched-th,
+.ui-reduced-motion .sched-statusbar,
+.ui-reduced-motion .sched-hit-menu-layer,
+.ui-reduced-motion .sched-hit-menu .ant-menu-item,
+.ui-reduced-motion .sched-dock-item,
+.ui-reduced-motion .sched-dock-tabs button,
+.ui-reduced-motion .sched-gantt-split {
+  transition: none;
+}
+
+/* 格式刷激活态：整表进入「应用外观」光标（斑马格式刷同款反馈；不影响行 hover 态） */
+.sched-brush-mode .sched-gantt-tbody,
+.sched-brush-mode .sched-gantt-tbody .sched-gantt-row {
+  cursor: copy;
+}
+
+/* 树形拖动落点提示（斑马拖行手感：2px 主色线=插入位，整行淡色=成为子工作） */
+.sched-gantt-row.sched-drop-before {
+  box-shadow: inset 0 2px 0 var(--md-sys-color-primary, #2563eb);
+}
+.sched-gantt-row.sched-drop-after {
+  box-shadow: inset 0 -2px 0 var(--md-sys-color-primary, #2563eb);
+}
+.sched-gantt-row.sched-drop-inside {
+  background: color-mix(in srgb, var(--md-sys-color-primary) 14%, transparent);
+  outline: 1px dashed color-mix(in srgb, var(--md-sys-color-primary) 60%, transparent);
+  outline-offset: -1px;
+}

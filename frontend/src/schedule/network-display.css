@@ -1,0 +1,128 @@
+/**
+ * schedule/network-display.css — 图面专业密度（ZPert W4）增量样式
+ *
+ * 只服务双代号/单代号网络图的「图上内容」增量元素：矩形事件节点、节点旁六参数、
+ * 起止时间行、单代号节点附加行。约束：
+ *  1. 颜色/圆角一律走既有令牌（--md-sys-color-* / --sched-*），不引入斑马硬编码色值；
+ *  2. 类前缀统一 sched-net-*，不改 schedule.css 里已有的类；
+ *  3. 与既有类同级的覆盖一律写成「双类名」（如 .sched-aoa-node.sched-net-node-rect），
+ *     避免 CSS 打包顺序变化导致覆盖失效。
+ */
+
+/* ── 事件节点形状（斑马 dot_style=rect）───────────────────────────── */
+.sched-aoa-node.sched-net-node-rect {
+  border-radius: 4px;
+}
+
+/* ── 双代号：节点旁六参数（ES/EF/LS/LF/TF/FF）──────────────────────── */
+/* 绝对定位于节点右侧，不参与节点内 flex 排布；pointer-events:none 不抢节点拖拽 */
+.sched-net-sixpara {
+  position: absolute;
+  left: calc(100% + 4px);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: var(--md-sys-color-bg-container, #fff);
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
+  font-size: 9px;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 13;
+}
+.sched-net-sixpara-line {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 起止时间行 ──────────────────────────────────────────────────── */
+/* 双代号：SVG text（箭线第二行） */
+.sched-net-startstop {
+  font-size: 9px;
+  fill: var(--md-sys-color-on-surface-variant, #6b7280);
+}
+/* 单代号：节点附加行 */
+.sched-net-startstop-pdm {
+  margin-top: 2px;
+  text-align: center;
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
+  font-size: 9px;
+  line-height: 1.2;
+}
+
+/* ── 单代号：节点形状与附加行 ─────────────────────────────────────── */
+/* rect=方角；circle 保持既有 8px 圆角（零回归） */
+.sched-pdm-node.sched-net-pdm-rect {
+  border-radius: 2px;
+}
+/* 附加行在框外，需覆盖 .sched-pdm-node 的 overflow:hidden（不改既有文件） */
+.sched-pdm-node.sched-net-pdm-extra {
+  overflow: visible;
+  z-index: 15;
+}
+.sched-net-pdm-extra-body {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  padding: 2px 4px 3px;
+  background: var(--md-sys-color-bg-container, #fff);
+  border: 1px solid var(--md-sys-color-border, #e5e7eb);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  z-index: 11;
+}
+/* 单代号六参数：两列三行——行距 40px 内也能读完，不压住下一行节点 */
+.sched-net-sixpara.sched-net-sixpara-pdm {
+  position: static;
+  transform: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 6px;
+  padding: 0;
+  background: none;
+  z-index: auto;
+}
+
+/* ── 名称排布（斑马 name_pos=横向/纵向）───────────────────────────── */
+/* 单代号节点名称竖排：writing-mode 走竖排，行内仍保持字符直立（不旋转拉丁字母）；
+   auto 时不加类 ⇒ 现行横排逐字不变（零回归） */
+.sched-pdm-name.sched-net-name-vertical {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  margin: 2px auto;
+  max-height: 58px;
+  overflow: hidden;
+}
+/* 横向：强制单行横排（auto 下允许自然换行，显式勾选横向即锁一行） */
+.sched-pdm-name.sched-net-name-horizontal {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── 隐藏非重要关系线的图例状态提示（斑马 is_hide_unimportant_link）─── */
+/* 只做「状态说明」的轻量徽标：不抢关键线路红，也不与波形线绿混淆 */
+.sched-net-hide-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border: 1px dashed var(--md-sys-color-border, #e5e7eb);
+  border-radius: 999px;
+  background: var(--md-sys-color-bg-container, #fff);
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+/* ── 双代号：名称纵向排布（SVG text 已带 rotate(-90)）─────────────── */
+/* 旋转后的文字不再有「箭线上方」的视觉留白，补一点字距避免与箭线粘连 */
+.sched-aoa-taskname.sched-net-name-vertical {
+  letter-spacing: 0.5px;
+}

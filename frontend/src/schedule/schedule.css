@@ -1,4 +1,6 @@
-/* schedule/schedule.css — 进度计划板块样式（横道图/单代号/双代号共用令牌） */
+/* schedule/schedule.css — 进度计划板块样式（横道图/单代号/双代号共用令牌）
+ * 斑马密度对齐：半径/抬升/动效字面量已改走 --sched-radius-* / --sched-elev-* / --sched-motion，
+ * 令牌定义与交互态在 sched-zebra.css（同板块，须在其后引入）；本文件不新增类名、不重排。 */
 
 :root {
   /* 领域编码色（关键红/工作蓝）：禁绑 --md-sys-color-primary/error（主题预设会改色相）。
@@ -45,10 +47,10 @@
   font-size: 13px;
   line-height: 22px;
   padding: 2px 10px;
-  border-radius: 6px;
+  border-radius: var(--sched-radius-sm);
   cursor: pointer;
   color: var(--md-sys-color-on-surface, #374151);
-  transition: background 0.15s;
+  transition: background var(--sched-motion) var(--sched-motion-ease);
 }
 .sched-menu-item:hover,
 .sched-menu-item:focus-visible {
@@ -108,13 +110,41 @@
 .sched-ribbon-tabbar {
   align-items: flex-end;
 }
+.sched-ribbon-tablist {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 0;
+}
+.sched-command-search-trigger {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 2px 6px 2px 9px;
+  border: 1px solid var(--md-sys-color-border, #e5e7eb);
+  border-radius: var(--sched-radius-sm);
+  background: var(--md-sys-color-bg-container, #fff);
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
+  font-size: 11px;
+  cursor: pointer;
+}
+.sched-command-search-trigger:hover {
+  color: var(--md-sys-color-on-surface, #374151);
+  border-color: color-mix(in srgb, var(--md-sys-color-primary, #2563eb) 36%, var(--md-sys-color-border, #e5e7eb));
+}
+.sched-command-search-trigger:focus-visible {
+  outline: 2px solid var(--color-ring, var(--md-sys-color-primary, #2563eb));
+  outline-offset: 1px;
+}
 .sched-ribbon-tabbar .sched-menu-item {
   position: relative;
   min-width: 48px;
   padding: 5px 14px 6px;
   border: 1px solid transparent;
   border-bottom: 0;
-  border-radius: 5px 5px 0 0;
+  border-radius: var(--sched-radius-sm) var(--sched-radius-sm) 0 0;
   color: var(--md-sys-color-on-surface-variant, #6b7280);
   background: transparent;
 }
@@ -142,7 +172,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: var(--sched-radius-sm);
   background: var(--color-primary-container, var(--md-sys-color-primary-container, #134e4a));
   color: var(--color-primary, var(--md-sys-color-primary, #2dd4bf));
   font-size: 12px;
@@ -151,7 +181,7 @@
 }
 .sched-command-deck .sched-menu-item {
   font-weight: 600;
-  border-radius: 5px 5px 0 0;
+  border-radius: var(--sched-radius-sm) var(--sched-radius-sm) 0 0;
 }
 .sched-ribbon-tabs {
   display: flex;
@@ -209,14 +239,14 @@
   min-height: 24px;
   padding: 2px 7px;
   border: 1px solid transparent;
-  border-radius: 5px;
+  border-radius: var(--sched-radius-sm);
   background: transparent;
   color: var(--md-sys-color-on-surface, #374151);
   font-size: 11px;
   line-height: 1.2;
   white-space: nowrap;
   cursor: pointer;
-  transition: background var(--transition-fast, 160ms) ease, border-color var(--transition-fast, 160ms) ease;
+  transition: background var(--sched-motion) var(--sched-motion-ease), border-color var(--sched-motion) var(--sched-motion-ease);
 }
 .sched-ribbon-command:hover:not(:disabled) {
   background: var(--md-sys-color-surface-container, #f0f4f8);
@@ -258,6 +288,168 @@
 .sched-ribbon-command:disabled {
   opacity: 0.42;
   cursor: not-allowed;
+}
+.sched-command-search-trigger kbd,
+.sched-command-palette kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--md-sys-color-border, #e5e7eb);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--md-sys-color-surface-container, #f6f7f9);
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  text-transform: none;
+}
+
+/* ── 命令与快捷键面板（W2） ───────────────────────────────────── */
+.sched-command-palette-wrap .ant-modal {
+  top: 9vh;
+  max-width: calc(100vw - 32px);
+  padding-bottom: 0;
+}
+.sched-command-palette-modal .ant-modal-content {
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--md-sys-color-border, #e5e7eb);
+  border-radius: var(--sched-radius-lg);
+  background: var(--md-sys-color-bg-container, #fff);
+  box-shadow: 0 24px 72px color-mix(in srgb, var(--md-sys-color-shadow, #000) 28%, transparent);
+}
+.sched-command-palette {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  color: var(--md-sys-color-on-surface, #374151);
+}
+.sched-command-palette-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 58px;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--md-sys-color-border, #e5e7eb);
+  font-size: 18px;
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
+}
+.sched-command-palette-search .ant-input {
+  background: transparent;
+  color: var(--md-sys-color-on-surface, #374151);
+  font-size: 15px;
+}
+.sched-command-palette-search .ant-input::placeholder {
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
+}
+.sched-command-palette-list {
+  max-height: 560px;
+  overflow-y: auto;
+  padding: 6px;
+  overscroll-behavior: contain;
+}
+@media (max-height: 900px) {
+  .sched-command-palette-list {
+    max-height: 62vh;
+  }
+}
+.sched-command-palette-group + .sched-command-palette-group {
+  margin-top: 4px;
+  padding-top: 5px;
+  border-top: 1px solid color-mix(in srgb, var(--md-sys-color-border, #e5e7eb) 70%, transparent);
+}
+.sched-command-palette-group-title {
+  padding: 7px 10px 4px;
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.sched-command-palette-item {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--sched-radius-md);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.sched-command-palette-item.is-active {
+  border-color: color-mix(in srgb, var(--md-sys-color-primary, #2563eb) 22%, transparent);
+  background: var(--md-sys-color-primary-container, #dbeafe);
+}
+.sched-command-palette-item:focus-visible {
+  outline: 2px solid var(--color-ring, var(--md-sys-color-primary, #2563eb));
+  outline-offset: -2px;
+}
+.sched-command-palette-item.is-disabled {
+  cursor: not-allowed;
+}
+.sched-command-palette-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sched-command-palette-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.sched-command-palette-item.is-disabled .sched-command-palette-label {
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
+}
+.sched-command-palette-detail {
+  overflow: hidden;
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
+  font-size: 11px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sched-command-palette-item.is-disabled .sched-command-palette-detail {
+  color: var(--md-sys-color-error, #b91c1c);
+}
+.sched-command-palette-shortcuts {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+.sched-command-palette-empty {
+  padding: 36px 18px;
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
+  font-size: 13px;
+  text-align: center;
+}
+.sched-command-palette-foot {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 38px;
+  padding: 0 14px;
+  border-top: 1px solid var(--md-sys-color-border, #e5e7eb);
+  background: var(--md-sys-color-surface-container, #f6f7f9);
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
+  font-size: 11px;
+}
+.sched-command-palette-foot span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.sched-command-palette-foot .sched-dim {
+  margin-left: auto;
 }
 .sched-ribbon-group {
   position: relative;
@@ -302,7 +494,7 @@
   padding: 0 12px;
   border: 1px solid var(--md-sys-color-border, #e5e7eb);
   border-bottom-color: var(--md-sys-color-bg-container, #fff);
-  border-radius: 6px 6px 0 0;
+  border-radius: var(--sched-radius-sm) var(--sched-radius-sm) 0 0;
   background: var(--md-sys-color-bg-container, #fff);
   font-size: 12px;
   font-weight: 600;
@@ -328,7 +520,7 @@
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--sched-radius-sm);
   background: transparent;
   color: var(--md-sys-color-on-surface-variant, #6b7280);
   cursor: pointer;
@@ -617,7 +809,7 @@
   width: 5px;
   cursor: col-resize;
   background: var(--md-sys-color-border, #e5e7eb);
-  transition: background 0.15s;
+  transition: background var(--sched-motion) var(--sched-motion-ease);
 }
 .sched-gantt-split:hover {
   background: var(--sched-normal, #2563eb);
@@ -646,6 +838,88 @@
   cursor: pointer;
   white-space: nowrap;
   padding: 2px 0;
+}
+
+/* W4 图面参数：四个显示开关 + 节点/箭线样式（随 networkStyle 入工程文件） */
+.sched-network-style-controls {
+  width: 360px;
+  max-width: calc(100vw - 48px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  color: var(--md-sys-color-on-surface, #374151);
+}
+.sched-network-style-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+}
+.sched-network-style-heading span {
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
+  font-size: 10px;
+  text-align: right;
+}
+.sched-network-style-heading-second {
+  padding-top: 9px;
+  border-top: 1px solid var(--md-sys-color-border-variant, #f0f1f3);
+}
+.sched-network-style-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.sched-network-style-row {
+  min-width: 0;
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 9px;
+  border: 1px solid var(--md-sys-color-border-variant, #f0f1f3);
+  border-radius: var(--sched-radius-md);
+  background: var(--md-sys-color-surface-container, #f6f7f9);
+  cursor: pointer;
+}
+.sched-network-style-row > span {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sched-network-style-label {
+  font-size: 12px;
+  font-weight: 600;
+}
+.sched-network-style-detail {
+  overflow: hidden;
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
+  font-size: 9px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sched-network-style-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 10px;
+}
+.sched-network-style-fields label {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
+  font-size: 11px;
+}
+.sched-network-style-fields .ant-select,
+.sched-network-style-fields .ant-input-number {
+  width: 100%;
+}
+.sched-network-style-field-wide {
+  grid-column: 1 / -1;
 }
 .sched-gantt-row {
   display: flex;
@@ -812,7 +1086,7 @@
   border-radius: 0 4px 4px 0;
   background: rgba(255, 255, 255, 0.55);
   box-shadow: inset 1px 0 0 rgba(0, 0, 0, 0.4), inset -1px 0 0 rgba(0, 0, 0, 0.4);
-  transition: opacity 0.12s;
+  transition: opacity var(--sched-motion) var(--sched-motion-ease);
 }
 .sched-bar:hover .sched-resize-handle {
   opacity: 1;
@@ -956,7 +1230,7 @@
 /* 导出预览（v4.141）：构建器 SVG 注入 viewBox 等比缩放进弹窗 */
 .sched-export-preview {
   border: 1px solid var(--md-sys-color-border, #e5e7eb);
-  border-radius: 6px;
+  border-radius: var(--sched-radius-sm);
   background: var(--md-sys-color-surface-container, #f6f7f9);
   min-height: 96px;
   max-height: 340px;
@@ -970,7 +1244,7 @@
   width: 100%;
   height: auto;
   background: #fff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--sched-elev-2);
 }
 
 /* ── 网络图共用（单代号/双代号） ──────────────────────────── */
@@ -1065,7 +1339,8 @@
 .sched-network-scroll {
   overflow: auto;
   border: 1px solid var(--md-sys-color-border, #e5e7eb);
-  border-radius: 8px;
+  /* 圆角纪律（斑马密度）：画布/网格是方角，上一轮残留的中档圆角在此归 0 */
+  border-radius: 0;
   flex: 1;
   min-height: 320px;
   position: relative;
@@ -1144,17 +1419,19 @@
   position: absolute;
   background: var(--md-sys-color-bg-container, #fff);
   border: 1.5px solid var(--sched-normal);
-  border-radius: 8px;
+  border-radius: var(--sched-radius-md);
   overflow: hidden;
   cursor: pointer;
   z-index: 12;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--sched-elev-1);
 }
 .sched-pdm-node-critical {
   border-color: var(--sched-critical);
 }
 .sched-pdm-node-selected {
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28);
+  /* 斑马密度口径：选中用 2px 实描边环，不用外扩光晕（零装饰光效） */
+  outline: 2px solid var(--md-sys-color-primary, #2563eb);
+  outline-offset: 0;
 }
 .sched-pdm-name {
   font-size: 12px;
@@ -1424,8 +1701,8 @@
   flex-shrink: 0;
   background: var(--md-sys-color-bg-container, #fff);
   border: 1px solid var(--md-sys-color-border, #e5e7eb);
-  border-radius: 8px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  border-radius: var(--sched-radius-md);
+  box-shadow: var(--sched-elev-1);
   padding: 4px 12px;
   display: flex;
   gap: 16px;
@@ -1507,7 +1784,7 @@
   color: var(--md-sys-color-on-surface, #374151);
   border: 1px solid var(--md-sys-color-border, #e5e7eb);
   background: transparent;
-  border-radius: 6px;
+  border-radius: var(--sched-radius-sm);
   padding: 2px 8px;
   cursor: pointer;
 }
@@ -1526,7 +1803,7 @@
   color: var(--md-sys-color-on-surface-variant, #6b7280);
   border: 1px solid var(--md-sys-color-border, #e5e7eb);
   background: transparent;
-  border-radius: 6px;
+  border-radius: var(--sched-radius-sm);
   cursor: pointer;
 }
 .sched-chat-fold:hover {
@@ -1540,7 +1817,7 @@
   flex-shrink: 0;
   cursor: col-resize;
   background: transparent;
-  transition: background 0.15s;
+  transition: background var(--sched-motion) var(--sched-motion-ease);
 }
 .sched-chat-divider:hover {
   background: rgba(30, 111, 217, 0.25);
@@ -1576,7 +1853,7 @@
   border-radius: 999px;
   padding: 2px 10px;
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
+  transition: border-color var(--sched-motion) var(--sched-motion-ease), color var(--sched-motion) var(--sched-motion-ease);
 }
 .sched-chat-chip:hover:not(:disabled) {
   border-color: var(--sched-normal);
@@ -1639,7 +1916,7 @@
   align-items: center;
   gap: 0;
   border: 1px solid var(--md-sys-color-border, #e5e7eb);
-  border-radius: 6px;
+  border-radius: var(--sched-radius-sm);
   overflow: hidden;
 }
 .sched-aoa-mode-btn {
@@ -1684,6 +1961,23 @@
 .sched-link-chain {
   stroke: var(--sched-critical, #e02020);
   stroke-width: 2;
+}
+
+/* ── W4 横道网络图（斑马 ganttNetwork）：关系线加重 + 中点类型/时距标注 ──
+   只在 networkStyle.mode=ganttNetwork 时由 GanttOverlay 挂 .sched-link-net；
+   普通横道行为零变化。颜色走令牌，不引入斑马色值。 */
+.sched-link-net {
+  stroke: var(--sched-link-strong, var(--md-sys-color-primary, #2563eb));
+  stroke-width: 1.6;
+  opacity: 0.9;
+}
+.sched-link-badge {
+  font-size: 10px;
+  fill: var(--md-sys-color-on-surface-variant, #6b7280);
+  paint-order: stroke;
+  stroke: var(--md-sys-color-surface, #fff);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
 }
 
 /* ── 双工期刀3（v4.152）：工期列单位 chip ──

@@ -14,7 +14,8 @@
  * 完成事件圈右上角（与横道菱形旗同款形状，expFlagSvg 单源导入复用）。
  */
 import type { AoaGraph } from './aoa'
-import { AOA_R, AOA_ROW_H } from './aoa'
+import { AOA_ROW_H } from './aoa'
+import { resolveNetworkGeometry } from './networkDisplay'
 import { edgeSegs, findBridgeArcs, segsToPath, segsToPathSplit, assignChannels, summarySegs } from './aoaLayout'
 import { layerByTopology } from './layout'
 import { wdToDate } from './calendar'
@@ -66,6 +67,8 @@ export function buildAoaExportSvg(project: SchedProject, graph: AoaGraph, meta: 
   // 节点位：x=最早时间×日宽（发布物时标口径），y 沿用引擎重心行布局
   const nodeById = new Map(graph.nodes.map((n) => [n.id, { ...n, x: AOA_LGUT + n.es * dayW }]))
   const netH = Math.max(...graph.nodes.map((n) => n.y)) + AOA_ROW_H / 2 + 46
+  // 节点半径走图面参数（W4）：导出与视图同口径，箭线端点不插进节点/不悬空
+  const nodeRadius = resolveNetworkGeometry(project.networkStyle).nodeRadius
   const chartW = AOA_LGUT + (total + 1) * dayW + M
   const RULER_H = 62
   const notesH = exportNotesBlockH(meta.notes) // 编制说明块占高（无 notes=0，布局不变）
@@ -81,7 +84,7 @@ export function buildAoaExportSvg(project: SchedProject, graph: AoaGraph, meta: 
   }
   const pairSeen = new Map<string, number>()
   // 同行长边通道分配（与视图同口径：长线走行间通道不重合）
-  const channels = assignChannels(graph.edges, nodeById)
+  const channels = assignChannels(graph.edges, nodeById, nodeRadius)
   // 分级横幅（v4.160，与视图同口径）：每 band 一块交替底纹垫底，汇总箭线
   // 走横幅顶通长线（一级/二级图面分区，重庆干休所上报件画法）
   const bandRange = new Map<number, { top: number; bottom: number }>()
@@ -105,11 +108,11 @@ export function buildAoaExportSvg(project: SchedProject, graph: AoaGraph, meta: 
     const a = nodeById.get(e.from)!
     // 汇总箭线横跨子网络界点（时间由二级决定）、走通道的边：波形切点无意义不画
     const chY = channels.get(e.id)
-    const waveFromX = e.kind === 'summary' ? null : a.x + AOA_R + e.dur * dayW
+    const waveFromX = e.kind === 'summary' ? null : a.x + nodeRadius + e.dur * dayW
     // 汇总箭线=横幅顶通长线（归属带取两界点的较大 band=被汇总的分部）
     const g = e.kind === 'summary'
-      ? summarySegs(a, nodeById.get(e.to)!, bandTopY(Math.max(a.band, nodeById.get(e.to)!.band)))
-      : edgeSegs(e, nodeById, { idx, cnt: pairCnt.get(k)! }, waveFromX, chY)
+      ? summarySegs(a, nodeById.get(e.to)!, bandTopY(Math.max(a.band, nodeById.get(e.to)!.band)), nodeRadius)
+      : edgeSegs(e, nodeById, { idx, cnt: pairCnt.get(k)! }, waveFromX, chY, nodeRadius)
     return { e, i, waveFromX, g }
   })
   const bridges = findBridgeArcs(geoms.map((it) => it.g.segs))
@@ -151,10 +154,10 @@ export function buildAoaExportSvg(project: SchedProject, graph: AoaGraph, meta: 
   }
   // 事件节点：圈+编号，上=最早时间、下=最迟时间
   for (const n of nodeById.values()) {
-    net += `<circle class="sched-exp-aoa-node" cx="${n.x}" cy="${n.y}" r="${AOA_R}" fill="white" stroke="${C.border}" stroke-width="1.4"/>`
+    net += `<circle class="sched-exp-aoa-node" cx="${n.x}" cy="${n.y}" r="${nodeRadius}" fill="white" stroke="${C.border}" stroke-width="1.4"/>`
     net += `<text x="${n.x}" y="${n.y + 4}" text-anchor="middle" font-family="${FONT}" font-size="11" font-weight="600" fill="${C.ink}">${n.num}</text>`
-    net += `<text x="${n.x}" y="${n.y - AOA_R - 6}" text-anchor="middle" font-family="${FONT}" font-size="10" fill="${C.dim}">${n.es}</text>`
-    net += `<text x="${n.x}" y="${n.y + AOA_R + 14}" text-anchor="middle" font-family="${FONT}" font-size="10" fill="${C.dim}">${n.ls}</text>`
+    net += `<text x="${n.x}" y="${n.y - nodeRadius - 6}" text-anchor="middle" font-family="${FONT}" font-size="10" fill="${C.dim}">${n.es}</text>`
+    net += `<text x="${n.x}" y="${n.y + nodeRadius + 14}" text-anchor="middle" font-family="${FONT}" font-size="10" fill="${C.dim}">${n.ls}</text>`
   }
   // 里程碑旗标：里程碑实工作箭线的完成事件圈右上角加缩小版小旗（杆高 10，
   // 让开圈上方最早时间文本）；多里程碑共事件按事件去重只画一面
@@ -166,7 +169,7 @@ export function buildAoaExportSvg(project: SchedProject, graph: AoaGraph, meta: 
   }
   for (const nid of mileEnds) {
     const n = nodeById.get(nid)
-    if (n) net += expFlagSvg(n.x + AOA_R + 3, n.y - AOA_R - 2, 10, 6, 5, C.critical)
+    if (n) net += expFlagSvg(n.x + nodeRadius + 3, n.y - nodeRadius - 2, 10, 6, 5, C.critical)
   }
 
   // 工程标尺四行（列=工作日；非工作日不占列，与引擎时标口径一致）

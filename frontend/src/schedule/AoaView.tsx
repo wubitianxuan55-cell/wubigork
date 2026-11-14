@@ -22,16 +22,32 @@
  */
 import React, { useRef, useState, useMemo } from 'react'
 import type { AoaGraph } from './aoa'
-import { AOA_COL_W, AOA_MARGIN, AOA_R, AOA_ROW_H, aoaGraphFromBuild } from './aoa'
+import { AOA_MARGIN, AOA_ROW_H, aoaGraphFromBuild } from './aoa'
 import { applyPins, assignChannels, edgeSegs, findBridgeArcs, pinsToPersist, segsToPathSplit, snapPt, summarySegs } from './aoaLayout'
 import { buildAoaRuler } from './aoaRuler'
+import { computeCpm } from './cpm'
+import { fmtDate } from './gantt/ganttUtil'
 import { beginWindowDrag } from './gantt/useDragGesture'
 import { useAutoFitZoom, useFitView } from './gantt/useFitView'
+import {
+  NETWORK_GEOMETRY_DEFAULTS,
+  resolveNetworkDisplay,
+  resolveNetworkGeometry,
+  sixParaLines,
+  type NetworkGeometry,
+} from './networkDisplay'
+import {
+  applyNetworkLayout,
+  deriveRowPitch,
+  isUnimportantLink,
+  resolveNamePlacement,
+  resolveNetworkLayout,
+} from './networkLayout'
 import { useScheduleStore } from './store'
 import type { AoaPin, SchedTask, SchedRenderMode } from './types'
 import { useWheelZoom } from './wheelZoom'
+import './network-display.css'
 
-const R = AOA_R
 /** 工程标尺行高（v4.161，时间坐标框架：顶=工程日/月/日，底=星期/工程周） */
 const RULER_TOP_H = 54
 const RULER_BOT_H = 34
@@ -49,20 +65,58 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[]; renderMode
   /** 持久点-箭图元（斑马复刻 N1）：缺失时首次手动布点会固化一份 */
   const persistedAoa = useScheduleStore((s) => s.project.aoa)
   /** 逻辑网络图态（斑马 5 模式之一）：无时标装饰、布图锁定 */
-  const isLogic = renderMode === 'logic'
+  const styleMode = useScheduleStore((s) => s.project.networkStyle?.mode)
+  /** 有效显示模式（W4）：调用方显式 renderMode 优先，其次工程落盘的 networkStyle.mode */
+  const displayMode = renderMode ?? styleMode
+  const isLogic = displayMode === 'logic'
+  /**
+   * 时标逻辑图（斑马 5 模式之一，W4 落地口径）：**保留**时间轴与 x=ES 映射，
+   * 但不画工期标签与进度/已完成装饰（关键色保留）——图只讲逻辑与时间位置。
+   */
+  const isTsLogic = displayMode === 'timescaledLogic'
   const setAoa = useScheduleStore((s) => s.setAoa)
   const startDate = useScheduleStore((s) => s.project.startDate)
   const calendar = useScheduleStore((s) => s.project.calendar)
+  /**
+   * 图面样式参数与图上内容四开关（W4）：只认 networkDisplay.ts 的解析结果，
+   * 视图层不再写 `style?.showX ?? true` 这类第二份缺省——四开关全缺省时
+   * 解析结果恰好等于现行渲染口径（节点时间开/工期开/六参数关/起止时间关）。
+   */
+  const networkStyle = useScheduleStore((s) => s.project.networkStyle)
+  const projectTasks = useScheduleStore((s) => s.project.tasks)
+  const projectLinks = useScheduleStore((s) => s.project.links)
+  const geom = useMemo(() => resolveNetworkGeometry(networkStyle), [networkStyle])
+  const flags = useMemo(() => resolveNetworkDisplay(networkStyle), [networkStyle])
   const pins = aoaLayout?.pins ?? {} // 派生放渲染体：selector 必须返回稳定引用（getSnapshot 缓存纪律）
   // 布局开关是视图态（mode 不入文件）：默认 pins 非空→手动
   const [mode, setMode] = useState<'auto' | 'manual'>(() => (Object.keys(pins).length > 0 ? 'manual' : 'auto'))
+  const manual = mode === 'manual'
+  /**
+   * 布图参数（W4 收口，唯一解析入口 networkLayout.ts）：density 紧凑度、
+   * layerHeight1/2 行距夹取与横幅带高、stagger 错层、namePos 名称排布、
+   * hideUnimportantLink 隐藏非重要关系线。
+   */
+  const nlayout = useMemo(() => resolveNetworkLayout(networkStyle), [networkStyle])
+  /**
+   * 自动布图变换：**只动坐标**（拓扑/CPM/编号不变）。缺省零回归——`isDefault`
+   * 时 applyNetworkLayout 原样返回 graph 引用，节点坐标数组逐字相等；错层只在
+   * 自动布局（未手动 pin）时生效，手动坐标不会被挪。
+   */
+  const autoGraph = useMemo(() => applyNetworkLayout(graph, nlayout, { manual }), [graph, nlayout, manual])
+  /** 行距留白（横幅底纹/汇总线行用）：缺省恒 AOA_ROW_H（现行口径），非缺省跟随实际行距 */
+  const rowPad = useMemo(
+    () => (nlayout.isDefault ? AOA_ROW_H : deriveRowPitch(autoGraph.nodes, AOA_ROW_H)),
+    [nlayout.isDefault, autoGraph],
+  )
+  /** 手动拖拽吸附网格：跟随布图参数（缺省=55×56 半格，与旧版逐字一致） */
+  const snapGrid = useMemo(() => ({ gx: nlayout.colW / 2, gy: rowPad / 2 }), [nlayout.colW, rowPad])
   // 拖拽中状态：只动本体（节点跟随+吸附位 tip），提交在 mouseup。
   // 三件套外壳单源 beginWindowDrag（FE7-12）；载荷对象 move 原地推进。
   const [drag, setDrag] = useState<{ anchor: string; x: number; y: number; moved: boolean } | null>(null)
   // 图面尺寸（提前派生供自动适配用）
-  const shownEarly = mode === 'manual' ? applyPins(graph, pins) : graph
-  const wEarly = shownEarly.nodes.length > 0 ? Math.max(...shownEarly.nodes.map((n) => n.x)) + AOA_MARGIN + AOA_COL_W / 2 : 0
-  const hEarly = shownEarly.nodes.length > 0 ? Math.max(...shownEarly.nodes.map((n) => n.y)) + AOA_MARGIN + AOA_ROW_H / 2 : 0
+  const shownEarly = manual ? applyPins(autoGraph, pins) : autoGraph
+  const wEarly = shownEarly.nodes.length > 0 ? Math.max(...shownEarly.nodes.map((n) => n.x)) + AOA_MARGIN + nlayout.colW / 2 : 0
+  const hEarly = shownEarly.nodes.length > 0 ? Math.max(...shownEarly.nodes.map((n) => n.y)) + AOA_MARGIN + rowPad / 2 : 0
   // 缩放/全览（v4.142，对齐单代号刀E 范式）：长计划 110px/天 展开上万像素，
   // 没有缩放根本读不了——首帧自动适配一次，用户手动缩放后不再抢占。
   // 外壳单源 useFitView（FE7-12）：AOA 钳域 [0.1,2]、全览下限 0.3（整图入窗也
@@ -97,14 +151,48 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[]; renderMode
     )
   }
 
-  const manual = mode === 'manual'
-  const shown = manual ? applyPins(graph, pins) : graph
+  const shown = manual ? applyPins(autoGraph, pins) : autoGraph
   // v4.365：nodeById/anchorById/taskName 查找表进 useMemo（原每次渲染重建 Map、
   // taskName 每边线性扫 tasks——O(E×T)/帧）。注意全部 hooks 必须在 early
   // return 之前调用（rules-of-hooks）。
   const nodeById = useMemo(() => new Map(shown.nodes.map((n) => [n.id, n])), [shown])
-  const anchorById = useMemo(() => new Map(graph.nodes.map((n) => [n.id, n.anchor])), [graph])
+  const anchorById = useMemo(() => new Map(autoGraph.nodes.map((n) => [n.id, n.anchor])), [autoGraph])
   const taskNameById = useMemo(() => new Map(tasks.map((t) => [t.id, t.name])), [tasks])
+  /**
+   * 六参数/起止时间要 cpm 行（AOA 图元本身只带事件时间）：**仅当开关打开才算**，
+   * 关闭时零计算——首装口径（六参数/起止时间默认关）下本视图与旧版逐位一致。
+   */
+  const cpmRows = useMemo(() => {
+    if (!flags.showSixPara && !flags.showStartStopTime) return null
+    const r = computeCpm(projectTasks, projectLinks, { calendar, startDate })
+    return r.ok ? r.rows : null
+  }, [flags.showSixPara, flags.showStartStopTime, projectTasks, projectLinks, calendar, startDate])
+  /**
+   * 节点旁六参数（W4）：AOA 的节点是事件、六参数属于工作，故取该事件**第一条出向
+   * 实工作**（无出向则退入向）的 cpm 行，顺序固定走 sixParaLines（ES/EF/LS/LF/TF/FF），
+   * 与单代号视图同一份文案生成器。
+   */
+  const sixParaByNode = useMemo(() => {
+    const map = new Map<string, string[]>()
+    if (!flags.showSixPara || !cpmRows) return map
+    const firstOut = new Map<string, string>()
+    const firstIn = new Map<string, string>()
+    for (const e of shown.edges) {
+      if (e.kind !== 'task' || !e.taskId) continue
+      if (!firstOut.has(e.from)) firstOut.set(e.from, e.taskId)
+      if (!firstIn.has(e.to)) firstIn.set(e.to, e.taskId)
+    }
+    for (const n of shown.nodes) {
+      const taskId = firstOut.get(n.id) ?? firstIn.get(n.id)
+      const row = taskId ? cpmRows[taskId] : undefined
+      if (!row) continue
+      map.set(
+        n.id,
+        sixParaLines({ es: String(row.es), ef: String(row.ef), ls: String(row.ls), lf: String(row.lf), tf: String(row.tf), ff: String(row.ff) }),
+      )
+    }
+    return map
+  }, [flags.showSixPara, cpmRows, shown])
   // v4.365：箭线几何管线（平行边计数/通道分配/分段/过桥弧）进 useMemo——
   // 原 IIFE 内每次渲染全量重算（滚轮缩放/选中态任一变化都付一遍）；几何只
   // 依赖 graph/pins/manual，zoom 走外层 scale 与此无关。
@@ -118,7 +206,7 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[]; renderMode
         r.bottom = Math.max(r.bottom, n.y)
       }
     }
-    const bandTopYOf = (b: number): number => (bandRange.get(b)?.top ?? 0) - AOA_ROW_H / 2
+    const bandTopYOf = (b: number): number => (bandRange.get(b)?.top ?? 0) - rowPad / 2
     const pairCnt = new Map<string, number>()
     for (const e of shown.edges) {
       const k = `${e.from}>${e.to}`
@@ -127,24 +215,26 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[]; renderMode
     const pairSeen = new Map<string, number>()
     // 同行长边通道分配（v4.143 分行）：跨多列的同行边让到行间通道，
     // x 区间重叠者分层，杜绝长线沿节点中心线重合/横穿节点
-    const channels = assignChannels(shown.edges, nodeById)
+    const channels = assignChannels(shown.edges, nodeById, geom.nodeRadius)
     const geoms = shown.edges.map((e, i) => {
       const k = `${e.from}>${e.to}`
       const idx = pairSeen.get(k) ?? 0
       pairSeen.set(k, idx + 1)
-      // 波形切点只对实/虚工作有意义；汇总箭线=横幅顶通长线（v4.160），无波形
+      // 波形切点只对实/虚工作有意义；汇总箭线=横幅顶通长线（v4.160），无波形。
+      // 列宽取 nlayout.colW（= AOA_COL_W × density 系数）：density 改的是「1 天几像素」，
+      // 时标线性不破，波形线的自由时差长度仍等于真实时差。
       const chY = channels.get(e.id)
-      const waveFromX = !manual && !isLogic && e.kind !== 'summary' ? nodeById.get(e.from)!.x + R + e.dur * AOA_COL_W : null
+      const waveFromX = !manual && !isLogic && e.kind !== 'summary' ? nodeById.get(e.from)!.x + geom.nodeRadius + e.dur * nlayout.colW : null
       // 汇总箭线走横幅顶（归属带取两界点的较大 band=被汇总的分部）
       const g = e.kind === 'summary'
-        ? summarySegs(nodeById.get(e.from)!, nodeById.get(e.to)!, bandTopYOf(Math.max(nodeById.get(e.from)!.band, nodeById.get(e.to)!.band)))
-        : edgeSegs(e, nodeById, { idx, cnt: pairCnt.get(k)! }, waveFromX, chY)
+        ? summarySegs(nodeById.get(e.from)!, nodeById.get(e.to)!, bandTopYOf(Math.max(nodeById.get(e.from)!.band, nodeById.get(e.to)!.band)), geom.nodeRadius)
+        : edgeSegs(e, nodeById, { idx, cnt: pairCnt.get(k)! }, waveFromX, chY, geom.nodeRadius)
       return { e, i, waveFromX, g }
     })
     // G1 过桥法：竖段垂直穿越他边横段处画半圆（水平段=时标轴不断）
     const bridges = findBridgeArcs(geoms.map((it) => it.g.segs))
     return { geoms, bridges }
-  }, [shown, manual, nodeById, isLogic])
+  }, [shown, manual, nodeById, isLogic, geom.nodeRadius, nlayout.colW, rowPad])
   /** 恢复自动布局：清空所有手动差量 */
   const resetPins = () => {
     setAoaPins({})
@@ -168,17 +258,38 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[]; renderMode
     return <div className="sched-empty">暂无任务或计划存在循环依赖，无法绘制双代号网络图</div>
   }
   const selectedEdge = selectedId ? graph.edges.find((e) => e.id === graph.taskEdge[selectedId]) : undefined
-  const w = Math.max(...shown.nodes.map((n) => n.x)) + AOA_MARGIN + AOA_COL_W / 2
-  const h = Math.max(...shown.nodes.map((n) => n.y)) + AOA_MARGIN + AOA_ROW_H / 2
+  const w = Math.max(...shown.nodes.map((n) => n.x)) + AOA_MARGIN + nlayout.colW / 2
+  const h = Math.max(...shown.nodes.map((n) => n.y)) + AOA_MARGIN + rowPad / 2
   const taskName = (id: string) => taskNameById.get(id) ?? ''
+  /**
+   * 节点半径 / 线宽 / 箭头（W4 几何参数）：**缺省值不内联任何尺寸**——缺省半径=32px
+   * 与 `.sched-aoa-node` 原本的 32px 一致，缺省线宽不内联则不压掉 CSS 里关键线路
+   * （2.4）与虚工作（0.8）各自的档位，保证旧观感零回归。
+   */
+  const radius = geom.nodeRadius
+  const nodeSizeStyle = radius === NETWORK_GEOMETRY_DEFAULTS.nodeRadius ? undefined : { width: radius * 2, height: radius * 2 }
+  const linkStyle = geom.lineWidth === NETWORK_GEOMETRY_DEFAULTS.lineWidth ? undefined : { strokeWidth: geom.lineWidth }
+  /**
+   * 工作箭线第二行「计划开始 → 计划完成」（W4 起止时间开关）：日期口径沿用横道
+   * 计划开始/完成列的 fmtDate（M/D，按工程日历换算），不另造日期格式。
+   */
+  const startStopText = (taskId: string | undefined): string => {
+    const row = taskId ? cpmRows?.[taskId] : undefined
+    return row ? `${fmtDate(startDate, row.es, calendar)} → ${fmtDate(startDate, row.ef, calendar)}` : ''
+  }
 
   const critCount = graph.edges.filter((e) => e.critical && e.kind === 'task').length
   const dummyCount = graph.edges.filter((e) => e.kind === 'dummy').length
+  /**
+   * 隐藏非重要关系线的计数（斑马 is_hide_unimportant_link）：用于图例提示，
+   * **不新造数据**——数的是本图真实存在、被该开关隐藏的箭线条数。
+   */
+  const hiddenLinkCount = nlayout.hideUnimportantLink ? graph.edges.filter(isUnimportantLink).length : 0
   // 工程标尺（v4.161，时间坐标框架）：auto=时标模式显示（手动布局 x 与时间
   // 解耦，标尺失义不画）；顶部工程日/月/日+底部星期/工程周，月界竖线贯通图面
   const ruler = manual || isLogic
     ? null
-    : buildAoaRuler(Math.max(0, ...graph.nodes.map((n) => n.es)), AOA_COL_W, AOA_MARGIN, startDate, calendar)
+    : buildAoaRuler(Math.max(0, ...graph.nodes.map((n) => n.es)), nlayout.colW, AOA_MARGIN, startDate, calendar)
   const rulerTop = ruler ? RULER_TOP_H : 0
 
   /**
@@ -191,7 +302,9 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[]; renderMode
    */
   const commitPin = (anchor: string, pin: AoaPin) => {
     const next = { ...pins, [anchor]: pin }
-    setAoaPins(pinsToPersist(next, graph))
+    // 剪枝基准=**当前展示的自动位**（含 density/stagger 变换后的坐标）：
+    // 与画面对得上的 pin 才算「无信息量」，否则用户搬回原位也会被反复落盘。
+    setAoaPins(pinsToPersist(next, autoGraph))
     if (!persistedAoa && graph.ok && graph.nodes.length > 0) setAoa(aoaGraphFromBuild(graph))
     if (!manual) setMode('manual')
   }
@@ -207,7 +320,7 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[]; renderMode
     beginWindowDrag({
       move: (st, ev) => {
         const k = zoomRef.current || 1 // 缩放下拖拽：屏幕位移折算回图面坐标
-        const snapped = snapPt(st.orig.x + (ev.clientX - st.startX) / k, st.orig.y + (ev.clientY - st.startY) / k)
+        const snapped = snapPt(st.orig.x + (ev.clientX - st.startX) / k, st.orig.y + (ev.clientY - st.startY) / k, snapGrid)
         st.x = snapped.x
         st.y = snapped.y
         st.moved = st.orig.x !== snapped.x || st.orig.y !== snapped.y
@@ -234,6 +347,12 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[]; renderMode
         <span>节点：上=最早时间 · 下=最迟时间（红圈=关键事件）</span>
         <span>标注：箭线上=工作名称 · 下=工期（「(日历)」=日历天任务）</span>
         <span><i className="lg-line sched-aoa-summary-legend" />一级汇总线（分组横幅顶部通长线，衔接二级子网络）</span>
+        {/* 隐藏非重要关系线（斑马 is_hide_unimportant_link）：开关打开时给出图例状态提示 */}
+        {nlayout.hideUnimportantLink && (
+          <span className="sched-net-hide-hint" data-testid="sched-aoa-hide-hint">
+            已隐藏 {hiddenLinkCount} 条非重要关系线（非关键且非虚工作；关键线路与虚工作拓扑保留）
+          </span>
+        )}
         {/* 布局开关（视图态，不入文件）：手动=自由坐标，时间参数不受影响 */}
         <span className="sched-aoa-mode" data-testid="sched-aoa-mode">
           <button
@@ -294,7 +413,7 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[]; renderMode
         {ruler && (
           <svg width={w} height={RULER_TOP_H} style={{ position: 'absolute', top: 0, left: 0 }} data-testid="sched-aoa-ruler-top">
             <line x1={0} y1={RULER_TOP_H - 1} x2={w} y2={RULER_TOP_H - 1} stroke="var(--md-sys-color-border, #e5e7eb)" />
-            <line x1={AOA_MARGIN} y1={10} x2={w - AOA_COL_W / 2} y2={10} stroke="var(--md-sys-color-border, #e5e7eb)" />
+            <line x1={AOA_MARGIN} y1={10} x2={w - nlayout.colW / 2} y2={10} stroke="var(--md-sys-color-border, #e5e7eb)" />
             <text x={AOA_MARGIN - 6} y={14} textAnchor="end" fontSize="9" fill="var(--md-sys-color-on-surface-variant, #6b7280)">工程日</text>
             <text x={AOA_MARGIN - 6} y={30} textAnchor="end" fontSize="9" fill="var(--md-sys-color-on-surface-variant, #6b7280)">月</text>
             <text x={AOA_MARGIN - 6} y={45} textAnchor="end" fontSize="9" fill="var(--md-sys-color-on-surface-variant, #6b7280)">日</text>
@@ -314,15 +433,10 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[]; renderMode
         )}
         <svg width={w} height={h} style={{ position: 'absolute', top: rulerTop, left: 0 }} data-testid="sched-aoa-graph">
           <defs>
-            <marker id="aoa-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
-              <path d="M0,0 L9,4.5 L0,9 z" fill="var(--sched-link, #94a3b8)" />
-            </marker>
-            <marker id="aoa-arrow-crit" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
-              <path d="M0,0 L9,4.5 L0,9 z" fill="var(--sched-critical, #e02020)" />
-            </marker>
-            <marker id="aoa-arrow-summary" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
-              <path d="M0,0 L9,4.5 L0,9 z" fill="var(--sched-group, #1f2937)" />
-            </marker>
+            {/* 箭头几何（W4）：高度=headHeight，实心/空心走 arrowStyle；缺省(9)=原 9×9 口径 */}
+            {arrowMarker('aoa-arrow', 'var(--sched-link, #94a3b8)', geom)}
+            {arrowMarker('aoa-arrow-crit', 'var(--sched-critical, #e02020)', geom)}
+            {arrowMarker('aoa-arrow-summary', 'var(--sched-group, #1f2937)', geom)}
           </defs>
           {ruler && ruler.monthLines.map((m) => (
             <line key={`ml${m.x}`} x1={m.x} y1={0} x2={m.x} y2={h} stroke="var(--sched-grid, rgba(148,163,184,0.16))" />
@@ -345,9 +459,9 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[]; renderMode
                 key={`band-${b}`}
                 data-testid={`sched-aoa-band-${b}`}
                 x={0}
-                y={r.top - AOA_ROW_H / 2}
+                y={r.top - rowPad / 2}
                 width={w}
-                height={r.bottom - r.top + AOA_ROW_H}
+                height={r.bottom - r.top + rowPad}
                 fill={b % 2 === 0 ? 'rgba(148,163,184,0.06)' : 'rgba(96,165,250,0.08)'}
               />
             ))
@@ -358,10 +472,16 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[]; renderMode
               <>
                 {tints}
                 {geoms.map(({ e, i, waveFromX, g }) => {
+                  // 隐藏非重要关系线（斑马 is_hide_unimportant_link）：非关键实工作箭线
+                  // 整条不画；关键线路、虚工作拓扑、一级汇总线一律保留（图仍读得懂逻辑）
+                  if (nlayout.hideUnimportantLink && isUnimportantLink(e)) return null
                   const dummy = e.kind === 'dummy'
                   const summary = e.kind === 'summary'
                   const cls = `sched-aoa-link${e.critical ? ' sched-aoa-link-critical' : ''}${dummy ? ' sched-aoa-dummy' : ''}${summary ? ' sched-aoa-summary' : ''}`
                   const { d, wave } = segsToPathSplit(g.segs, waveFromX, bridges.get(i))
+                  // 名称排布（斑马 name_pos）：auto=现行落位（零回归）；横向=水平居中；
+                  // 纵向=旋转 −90°。工期/时距标注不受影响（只排布「名称」）。
+                  const np = resolveNamePlacement(g.name, g.segs, nlayout.namePos)
                   return (
                     <g key={e.id}>
                       <path
@@ -369,17 +489,36 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[]; renderMode
                         className={cls}
                         markerEnd={e.critical ? 'url(#aoa-arrow-crit)' : summary ? 'url(#aoa-arrow-summary)' : 'url(#aoa-arrow)'}
                         onClick={() => e.taskId && select(e.taskId)}
-                        style={{ pointerEvents: e.taskId ? 'stroke' : 'none', cursor: e.taskId ? 'pointer' : 'default' }}
+                        style={{ pointerEvents: e.taskId ? 'stroke' : 'none', cursor: e.taskId ? 'pointer' : 'default', ...linkStyle }}
                       />
                       {/* 自由时差波形独立路径（v4.161）：绿色=标杆图例语言 */}
                       {wave && <path d={wave} className="sched-aoa-wave" data-testid="sched-aoa-wave" />}
-                      {e.label && (
+                      {/* 工期/时距标注（W4 开关「工期」；时标逻辑图不画工期标签） */}
+                      {flags.showDuration && !isTsLogic && e.label && (
                         <text x={g.dur.x} y={g.dur.y} textAnchor={g.dur.anchor} className={`sched-aoa-dur${e.critical ? ' sched-net-label-critical' : ''}`}>
                           {e.label}
                         </text>
                       )}
+                      {/* 第二行「计划开始 → 计划完成」（W4 开关「起止时间」，仅实工作箭线） */}
+                      {flags.showStartStopTime && e.kind === 'task' && startStopText(e.taskId) !== '' && (
+                        <text
+                          x={g.dur.x}
+                          y={g.dur.y + 12}
+                          textAnchor={g.dur.anchor}
+                          className="sched-net-startstop"
+                          data-testid="sched-aoa-startstop"
+                        >
+                          {startStopText(e.taskId)}
+                        </text>
+                      )}
                       {e.taskId && (
-                        <text x={g.name.x} y={g.name.y} textAnchor={g.name.anchor} className={`sched-aoa-taskname${summary ? ' sched-aoa-taskname-summary' : ''}`}>
+                        <text
+                          x={np.x}
+                          y={np.y}
+                          textAnchor={np.anchor}
+                          transform={np.rotate ? `rotate(${np.rotate} ${np.x} ${np.y})` : undefined}
+                          className={`sched-aoa-taskname${summary ? ' sched-aoa-taskname-summary' : ''}${np.rotate ? ' sched-net-name-vertical' : ''}`}
+                        >
                           {taskName(e.taskId)}
                         </text>
                       )}
@@ -393,20 +532,37 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[]; renderMode
         {shown.nodes.map((n) => {
           const isDragging = drag?.anchor === n.anchor
           const pos = isDragging && drag ? { x: drag.x, y: drag.y } : { x: n.x, y: n.y }
+          const six = sixParaByNode.get(n.id)
           return (
             <div
               key={n.id}
               data-anchor={n.anchor}
               className="sched-aoa-node-wrap"
-              style={{ left: pos.x - R, top: pos.y - R + rulerTop, cursor: 'grab', opacity: isDragging ? 0.85 : 1 }}
+              style={{ left: pos.x - radius, top: pos.y - radius + rulerTop, cursor: 'grab', opacity: isDragging ? 0.85 : 1 }}
               onMouseDown={(e) => beginDrag(e, n.id)}
               title={isLogic ? '逻辑网络图：布图锁定（x=拓扑深度）' : manual ? '拖动布点（半格吸附）' : '拖动即转入手动布局'}
             >
-              <div className={`sched-aoa-time sched-aoa-time-es${n.es === n.ls ? '' : ' sched-aoa-time-shift'}`}>{n.es}</div>
-              <div className={`sched-aoa-node${n.es === n.ls ? ' sched-aoa-node-crit' : ''}${selectedEdge && (selectedEdge.from === n.id || selectedEdge.to === n.id) ? ' sched-aoa-node-hl' : ''}`}>
+              {/* 节点时间（W4 开关）：上=最早 ES、下=最迟 LS，沿用既有 10px 数字口径 */}
+              {flags.showDotTime && (
+                <div className={`sched-aoa-time sched-aoa-time-es${n.es === n.ls ? '' : ' sched-aoa-time-shift'}`}>{n.es}</div>
+              )}
+              <div
+                className={`sched-aoa-node${n.es === n.ls ? ' sched-aoa-node-crit' : ''}${selectedEdge && (selectedEdge.from === n.id || selectedEdge.to === n.id) ? ' sched-aoa-node-hl' : ''}${geom.dotStyle === 'rect' ? ' sched-net-node-rect' : ''}`}
+                style={nodeSizeStyle}
+              >
                 {n.num}
               </div>
-              <div className="sched-aoa-time sched-aoa-time-ls">{n.ls}</div>
+              {flags.showDotTime && <div className="sched-aoa-time sched-aoa-time-ls">{n.ls}</div>}
+              {/* 节点旁六参数（W4 开关）：贴节点右侧绝对定位，不参与节点内排布 */}
+              {six && (
+                <div className="sched-net-sixpara" data-testid={`sched-net-sixpara-${n.id}`}>
+                  {six.map((line) => (
+                    <span key={line} className="sched-net-sixpara-line">
+                      {line}
+                    </span>
+                  ))}
+                </div>
+              )}
               {isDragging && drag && (
                 <div className="sched-aoa-drag-tip" data-testid="sched-aoa-drag-tip">
                   {drag.x},{drag.y}
@@ -438,4 +594,24 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[]; renderMode
 function nodeFinish(graph: { nodes: { num: number; es: number }[] }): number {
   const last = graph.nodes.reduce((a, b) => (b.num > a.num ? b : a), graph.nodes[0])
   return last?.es ?? 0
+}
+
+/**
+ * 箭线箭头标记（W4 几何参数）：尺寸由 headHeight 派生、填充由 arrowStyle 决定。
+ * 缺省 headHeight=9 时产出与 v4.161 手写标记完全一致的 9×9 / refX 8 / refY 4.5
+ * 与 `M0,0 L9,4.5 L0,9 z`——旧观感零回归的锚点。
+ */
+function arrowMarker(id: string, color: string, geom: NetworkGeometry) {
+  const h = geom.headHeight
+  const hollow = geom.arrowStyle === 'hollow'
+  return (
+    <marker key={id} id={id} markerWidth={h} markerHeight={h} refX={h - 1} refY={h / 2} orient="auto">
+      <path
+        d={`M0,0 L${h},${h / 2} L0,${h} z`}
+        fill={hollow ? 'none' : color}
+        stroke={hollow ? color : undefined}
+        strokeWidth={hollow ? 1.2 : undefined}
+      />
+    </marker>
+  )
 }

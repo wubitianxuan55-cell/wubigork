@@ -1,5 +1,6 @@
 /**
- * chatPrefs.test.ts — 板块工作台偏好纯函数用例（刀11；刀C 增横道双栏字段；v4.138 #14 增自定义列缺省收起）
+ * chatPrefs.test.ts — 板块工作台偏好纯函数用例（刀11；刀C 增横道双栏字段；
+ * v4.138 #14 增自定义列缺省收起；W5 增列筛持久化 ganttColFilters）
  */
 import { describe, expect, it } from 'vitest'
 import { CHAT_PREFS_KEY, clampChatWidth, loadChatPrefs, saveChatPrefs } from './chatPrefs'
@@ -37,6 +38,8 @@ const DEFAULTS = {
   ganttGroup: [],
   ganttViewId: DEFAULT_GANTT_VIEW_ID,
   ganttFilterKind: 'all',
+  ganttDisplayPreset: 'normal',
+  ganttColFilters: {},
 }
 
 describe('clampChatWidth', () => {
@@ -118,5 +121,114 @@ describe('saveChatPrefs', () => {
     saveChatPrefs({ ganttViewId: CUSTOM_GANTT_VIEW_ID, ganttHide: ['progress', 'cost'] }, s)
     expect(loadChatPrefs(s).ganttViewId).toBe(CUSTOM_GANTT_VIEW_ID)
     expect(loadChatPrefs(s).ganttHide).toEqual(['progress', 'cost'])
+  })
+})
+
+describe('ganttColFilters（W5 列筛本机偏好）', () => {
+  it('缺省=`{}`；存量 JSON 无该键 → `{}`，其余字段照旧', () => {
+    expect(loadChatPrefs(fakeStorage()).ganttColFilters).toEqual({})
+    const s = fakeStorage({
+      [CHAT_PREFS_KEY]: '{"collapsed":false,"width":500,"ganttHide":["ls"]}',
+    })
+    const got = loadChatPrefs(s)
+    expect(got.ganttColFilters).toEqual({})
+    expect(got.collapsed).toBe(false)
+    expect(got.width).toBe(500)
+    expect(got.ganttHide).toEqual(['ls'])
+    expect(got.ganttViewId).toBe(CUSTOM_GANTT_VIEW_ID) // 存量 ganttHide 仍是自定义视图
+  })
+
+  it('坏值回落 `{}`：标量 / 未知列键 / 类型冲突 / 空条件都不留下', () => {
+    const scalar = fakeStorage({ [CHAT_PREFS_KEY]: '{"ganttColFilters":"broken"}' })
+    expect(loadChatPrefs(scalar).ganttColFilters).toEqual({})
+    const junk = fakeStorage({
+      [CHAT_PREFS_KEY]: JSON.stringify({
+        ganttColFilters: {
+          ghost: { kind: 'text', text: 'x' }, // 未登记列键
+          name: { kind: 'number', num: 3 }, // kind 与登记类型冲突
+          dur: { kind: 'number', num: NaN }, // 非有限阈值
+          start: { kind: 'date', from: '2026/01/01' }, // 非法日期
+          mode: { kind: 'enum', set: [] }, // 空集
+        },
+      }),
+    })
+    expect(loadChatPrefs(junk).ganttColFilters).toEqual({})
+  })
+
+  it('写入后读回一致（五类条件共存）', () => {
+    const s = fakeStorage()
+    const filters = {
+      name: { kind: 'text' as const, text: '土方' },
+      dur: { kind: 'number' as const, op: 'le' as const, num: 5 },
+      start: { kind: 'date' as const, from: '2026-01-01', to: '2026-03-31' },
+      mode: { kind: 'enum' as const, set: ['manual'] },
+      progress: { kind: 'number' as const, op: 'ge' as const, num: 0, empty: 'nonEmpty' as const },
+    }
+    saveChatPrefs({ ganttColFilters: filters }, s)
+    expect(loadChatPrefs(s).ganttColFilters).toEqual(filters)
+    expect(JSON.parse(s.dump()[CHAT_PREFS_KEY]).ganttColFilters.dur).toEqual({
+      kind: 'number',
+      op: 'le',
+      num: 5,
+    })
+  })
+
+  it('落盘剔除空条件：空对象就写 `{}`，不留垃圾键', () => {
+    const s = fakeStorage()
+    saveChatPrefs(
+      {
+        ganttColFilters: {
+          name: { kind: 'text', text: '   ' },
+          dur: { kind: 'number', op: 'ge', num: NaN },
+        },
+      },
+      s,
+    )
+    expect(JSON.parse(s.dump()[CHAT_PREFS_KEY]).ganttColFilters).toEqual({})
+    expect(loadChatPrefs(s).ganttColFilters).toEqual({})
+  })
+
+  it('字段级隔离：坏列筛不拖累 ganttHide / ganttViewId', () => {
+    const s = fakeStorage({
+      [CHAT_PREFS_KEY]: JSON.stringify({
+        ganttHide: ['progress'],
+        ganttViewId: 'control',
+        ganttColFilters: 'broken',
+      }),
+    })
+    const got = loadChatPrefs(s)
+    expect(got.ganttColFilters).toEqual({})
+    expect(got.ganttHide).toEqual(['progress'])
+    expect(got.ganttViewId).toBe('control')
+  })
+
+  it('部分保存不覆盖已有列筛（与其它字段的合并语义一致）', () => {
+    const s = fakeStorage()
+    saveChatPrefs({ ganttColFilters: { dur: { kind: 'number', op: 'eq', num: 2 } } }, s)
+    saveChatPrefs({ width: 480 }, s)
+    expect(loadChatPrefs(s).ganttColFilters).toEqual({ dur: { kind: 'number', op: 'eq', num: 2 } })
+    // 显式传空对象=清空列筛（清空是用户动作，不是缺省回落）
+    saveChatPrefs({ ganttColFilters: {} }, s)
+    expect(loadChatPrefs(s).ganttColFilters).toEqual({})
+  })
+})
+
+describe('显示预设（W6 护眼/黑白）偏好', () => {
+  it('缺省 normal；写入后读回；脏值回落 normal', () => {
+    const s = fakeStorage()
+    expect(loadChatPrefs(s).ganttDisplayPreset).toBe('normal')
+    saveChatPrefs({ ganttDisplayPreset: 'eyeCare' }, s)
+    expect(loadChatPrefs(s).ganttDisplayPreset).toBe('eyeCare')
+    saveChatPrefs({ ganttDisplayPreset: 'rainbow' as never }, s)
+    expect(loadChatPrefs(s).ganttDisplayPreset).toBe('normal')
+  })
+
+  it('旧 JSON 无该键 → normal，且不拖累其它字段', () => {
+    const s = fakeStorage()
+    s.setItem(CHAT_PREFS_KEY, JSON.stringify({ collapsed: false, width: 500, ganttHide: ['dur'] }))
+    const p = loadChatPrefs(s)
+    expect(p.ganttDisplayPreset).toBe('normal')
+    expect(p.width).toBe(500)
+    expect(p.ganttHide).toContain('dur')
   })
 })

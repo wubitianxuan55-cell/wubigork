@@ -12,7 +12,9 @@ export interface GanttOverlayProps {
   colDates: GanttColDate[]
   dayW: number
   totalH: number
-  linkPaths: { d: string; key: string; lk: string }[]
+  linkPaths: { d: string; key: string; lk: string; label?: string; mx?: number; my?: number }[]
+  /** 横道网络图模式（斑马 `ganttNetwork`）：关系线加粗并在折线中点标注类型+时距 */
+  relationMode?: boolean
   chainLinks: Set<string> | null
   todayCol: number | null
   deadlineCol: number | null
@@ -20,7 +22,7 @@ export interface GanttOverlayProps {
   frontLine: { pts: { x: number; y: number }[]; checkX: number } | null
 }
 
-export const GanttOverlay: React.FC<GanttOverlayProps> = ({ chartW, colDates, dayW, totalH, linkPaths, chainLinks, todayCol, deadlineCol, deadline, frontLine }) => {
+export const GanttOverlay: React.FC<GanttOverlayProps> = ({ chartW, colDates, dayW, totalH, linkPaths, relationMode, chainLinks, todayCol, deadlineCol, deadline, frontLine }) => {
   return (
     <div className="sched-overlay" style={{ left: 0, width: chartW, height: totalH + 40 }}>
       <svg width={chartW} height={totalH + 40} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
@@ -33,12 +35,18 @@ export const GanttOverlay: React.FC<GanttOverlayProps> = ({ chartW, colDates, da
           <rect key={`off${i}`} x={i * dayW} y={0} width={dayW} height={totalH + 40} className="sched-weekend" />
         ))}
         {linkPaths.map((p) => (
-          <path
-            key={p.key}
-            d={p.d}
-            className={`sched-link-line${chainLinks ? (chainLinks.has(p.lk) ? ' sched-link-chain' : ' sched-link-dim') : ''}`}
-            markerEnd="url(#sched-arrow)"
-          />
+          <g key={p.key}>
+            <path
+              d={p.d}
+              className={`sched-link-line${relationMode ? ' sched-link-net' : ''}${chainLinks ? (chainLinks.has(p.lk) ? ' sched-link-chain' : ' sched-link-dim') : ''}`}
+              markerEnd="url(#sched-arrow)"
+            />
+            {relationMode && p.label && p.mx !== undefined && p.my !== undefined && (
+              <text x={p.mx} y={p.my} className="sched-link-badge" textAnchor="middle" dy={-2}>
+                {p.label}
+              </text>
+            )}
+          </g>
         ))}
         {todayCol !== null && <line x1={todayCol * dayW} y1={0} x2={todayCol * dayW} y2={totalH + 40} className="sched-today-line" />}
         {deadlineCol !== null && (

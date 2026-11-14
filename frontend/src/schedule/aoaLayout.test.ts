@@ -112,6 +112,19 @@ describe('snapPt / normalizeAoaLayout / applyPins / prunePins', () => {
   it('snapPt 网格含节点半径口径不变（AOA_R=16 常量迁移）', () => {
     expect(AOA_R).toBe(16)
   })
+
+  // W4 收口：布图参数（density）改了列距/行距后，吸附格必须跟着布图走
+  it('snapPt 网格可注入：注入 gx/gy 按新格吸附，缺省与旧口径逐字一致', () => {
+    // 缺省（不传 grid）= 55×56，与上面一条互为锚点
+    expect(snapPt(52, 30)).toEqual(snapPt(52, 30, undefined))
+    // 0.85 紧凑档：半格 = 110×0.85/2=46.75 与 112×0.85/2=47.6
+    const g = { gx: (AOA_COL_W * 0.85) / 2, gy: (AOA_ROW_H * 0.85) / 2 }
+    expect(snapPt(0, 0, g)).toEqual({ x: 0, y: 0 })
+    expect(snapPt(AOA_COL_W * 0.85, AOA_ROW_H * 0.85, g)).toEqual({ x: AOA_COL_W * 0.85, y: AOA_ROW_H * 0.85 })
+    // 脏网格（0/负/NaN/∞）回落缺省，不产生 NaN
+    expect(snapPt(52, 30, { gx: 0, gy: -1 })).toEqual({ x: 55, y: 56 })
+    expect(snapPt(52, 30, { gx: Number.NaN, gy: Number.POSITIVE_INFINITY })).toEqual({ x: 55, y: 56 })
+  })
 })
 
 // ── 刀H 图例语言（G1 过桥 / G2 标注归位 / G4 波形线）─────────────
@@ -304,6 +317,17 @@ describe('summarySegs 一级汇总线（v4.160 横幅顶通长线）', () => {
   it('两界点同列（退化子网）：退化为直连竖线', () => {
     const g = summarySegs({ x: 150, y: 100 }, { x: 150, y: 300 }, 50)
     expect(g.segs).toEqual([{ x1: 150, y1: 100 + 16, x2: 150, y2: 300 - 16 }])
+  })
+
+  it('节点半径可配（W4）：端点让位随半径走，不插进节点也不悬空', () => {
+    const nodes = nodeMap([['a', 100, 100], ['b', 300, 100]])
+    const g = edgeSegs(edge('a', 'b'), nodes, { idx: 0, cnt: 1 }, null, undefined, 26)
+    expect(g.segs).toEqual([{ x1: 126, y1: 100, x2: 274, y2: 100 }])
+    const s = summarySegs({ x: 150, y: 100 }, { x: 150, y: 300 }, 50, 24)
+    expect(s.segs).toEqual([{ x1: 150, y1: 124, x2: 150, y2: 276 }])
+    // 通道分配同样按半径让位（x 区间收窄 2×(r−AOA_R)）
+    const map = nodeMap([['a', 100, 100], ['b', 900, 100]])
+    expect(assignChannels([edge('a', 'b')], map, 26).get('a>b')).toBe(100 + AOA_ROW_H / 2)
   })
 })
 

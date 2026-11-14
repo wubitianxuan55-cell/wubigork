@@ -15,11 +15,11 @@
  * 增 MPP 导入）+ 工程信息条（工程名/开工/目标竣工/日历/基线/资源 | 视图档位）。
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, Button, Dropdown, Input, Modal, Popover, Select } from 'antd'
+import { Alert, Button, Dropdown, Input, Menu, Modal, Popover, Select } from 'antd'
 import type { MenuProps } from 'antd'
 import {
   AimOutlined, AppstoreOutlined, BgColorsOutlined, CalendarOutlined, CheckOutlined, ClearOutlined, ClusterOutlined, CopyOutlined, DeleteOutlined, DownOutlined, ExportOutlined, FileExcelOutlined, FileImageOutlined, FileOutlined, FileTextOutlined, FontColorsOutlined, FontSizeOutlined, FormatPainterOutlined, FundOutlined, ImportOutlined,
-  FieldTimeOutlined, LineHeightOutlined, MessageOutlined, NodeCollapseOutlined, NodeExpandOutlined, NodeIndexOutlined, PlusOutlined, RedoOutlined, RiseOutlined, SafetyOutlined, SearchOutlined, SettingOutlined, SnippetsOutlined, TableOutlined, TagOutlined, TeamOutlined, ThunderboltOutlined, PartitionOutlined, ToolOutlined, UndoOutlined, UpOutlined, WarningOutlined,
+  FieldTimeOutlined, FilterOutlined, LineHeightOutlined, MessageOutlined, NodeCollapseOutlined, NodeExpandOutlined, NodeIndexOutlined, PlusOutlined, RedoOutlined, RiseOutlined, SafetyOutlined, SearchOutlined, SettingOutlined, SnippetsOutlined, TableOutlined, TagOutlined, TeamOutlined, ThunderboltOutlined, PartitionOutlined, ToolOutlined, UndoOutlined, UpOutlined, WarningOutlined,
 } from '@ant-design/icons'
 import { computeCpm } from '../schedule/cpm'
 import { computeCosts } from '../schedule/cost'
@@ -38,10 +38,14 @@ import {
   type RuntimeScheduleCommand,
 } from '../schedule/commandRegistry'
 import type { GanttGroupField, GanttSort } from '../schedule/ganttGroup'
-import type { SchedTaskStyle, SchedView } from '../schedule/types'
+import type { SchedRenderMode, SchedTaskStyle, SchedView } from '../schedule/types'
 import { taskWarn, warnSummary, type WarnAlgorithm } from '../schedule/warn'
 import type { SchedLink, SchedProject } from '../schedule/types'
 import { useScheduleStore, isGroupRow, initScheduleSync } from '../schedule/store'
+/** W6 收尾：状态栏命中区。命中判定与菜单条目都走既有纯函数层（hitRegion/hitMenu），
+ *  页面只负责挂 `data-hit` 与把条目渲染成浮层——不另写第二份右键菜单。 */
+import { hitRegionOfElement, type HitRegion } from '../schedule/hitRegion'
+import { menuForHit, type HitMenuContext, type HitMenuItem } from '../schedule/hitMenu'
 import { depFreeSlacks, drivingLinkKeys, linkKey } from '../schedule/pathDriver'
 import { TaskInspector, type InspectorDepRow } from '../schedule/TaskInspector'
 import { WhatIfPanel } from '../schedule/WhatIfPanel'
@@ -63,6 +67,8 @@ import { usePreviewStore } from '../gaea/lib/store'
 import { emitFrontendEvent, FRONTEND_EVENTS } from '../events'
 import { ScheduleChatPane } from '../schedule/ChatPane'
 import { clampChatWidth, loadChatPrefs, saveChatPrefs, CHAT_WIDTH_DEFAULT } from '../schedule/chatPrefs'
+import { DISPLAY_PRESETS, normalizePreset, presetClass, type DisplayPreset } from '../schedule/displayPreset'
+import '../schedule/display-preset.css'
 import { GanttView } from '../schedule/GanttView'
 import { DcmaView } from '../schedule/DcmaView'
 import { MonteView } from '../schedule/MonteView'
@@ -73,6 +79,7 @@ import { ProjectsManagePanel } from './schedule/ProjectsManagePanel'
 import { ProjectSettingsPanel } from './schedule/ProjectSettingsPanel'
 import { ScheduleNetworkWorkspace } from './schedule/ScheduleNetworkWorkspace'
 import { ScheduleCommandPalette } from './schedule/ScheduleCommandPalette'
+import { ScheduleNetworkStyleControls } from './schedule/ScheduleNetworkStyleControls'
 import {
   RibbonColumn,
   RibbonCommand,
@@ -80,9 +87,14 @@ import {
   type ScheduleRibbonTabKey,
 } from './schedule/ScheduleRibbon'
 import '../schedule/schedule.css'
+// W6 收尾：状态栏右键菜单浮层复用 hit.css（与横道命中菜单同一套类名/主题令牌）
+import '../schedule/hit.css'
 import '../gaea/styles.css'
 import '../gaea/redesign.css'
 import '../gaea/tailwind.css'
+// 斑马外观密度层（纯照 ZPert8：实底/细线/30px 行高/4px 控件圆角/零光效）：
+// 必须排在 schedule.css、display-preset.css、hit.css 之后，同特异性规则才压得住
+import '../schedule/sched-zebra.css'
 
 const SCHEDULE_RIBBON_TABS: ReadonlyArray<{ key: ScheduleRibbonTabKey; label: string }> = [
   { key: 'file', label: '文件' },
@@ -93,6 +105,42 @@ const SCHEDULE_RIBBON_TABS: ReadonlyArray<{ key: ScheduleRibbonTabKey; label: st
   { key: 'view', label: '视图' },
   { key: 'help', label: '帮助' },
 ]
+
+/**
+ * 浮层 Esc 收起（统一纪律，W6 键盘可达）。
+ *
+ * 页面里有 9 个受控浮层（保存视图/视图管理/分组/查找/列筛选/关系/模板/工程管理/图面样式），
+ * 键盘契约只该有一条实现：任一浮层打开时按 `Esc` → 收起**并把焦点还给打开它之前的元素**。
+ * 为什么焦点要回位：不回位时焦点留在被卸载/隐藏的浮层里，键盘用户会掉回文档根，
+ * 之后的 Tab 从页面开头重来——这就是「能从键盘打开、不能从键盘离开」。
+ * 就地编辑器（`.sched-inplace`）的 Esc 有自己的取消语义，这里不抢。
+ */
+function useLayerEsc(layers: ReadonlyArray<{ open: boolean; close: () => void }>) {
+  const layersRef = useRef(layers)
+  layersRef.current = layers
+  const anyOpen = layers.some((layer) => layer.open)
+  /** 打开前的焦点（开合切换时记一次；同一个浮层开着期间不变） */
+  const returnTo = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    if (!anyOpen) return
+    const atOpen = document.activeElement
+    returnTo.current = atOpen instanceof HTMLElement ? atOpen : null
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key !== 'Escape') return
+      const target = ev.target as HTMLElement | null
+      if (target && typeof target.closest === 'function' && target.closest('.sched-inplace')) return
+      const layer = layersRef.current.find((item) => item.open)
+      if (!layer) return
+      ev.preventDefault()
+      layer.close()
+      const back = returnTo.current
+      if (back && typeof back.focus === 'function') back.focus()
+    }
+    // 捕获阶段先收浮层：antd 自身的 Esc 处理在冒泡阶段
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [anyOpen])
+}
 
 const SchedulePage: React.FC = () => {
   const project = useScheduleStore((s) => s.project)
@@ -112,6 +160,7 @@ const SchedulePage: React.FC = () => {
   const renameCustomView = useScheduleStore((s) => s.renameCustomView)
   const requestCustomView = useScheduleStore((s) => s.requestCustomView)
   const setNetworkMode = useScheduleStore((s) => s.setNetworkMode)
+  const setNetworkStyle = useScheduleStore((s) => s.setNetworkStyle)
   // 大纲/表格命令（一次点亮批1+2+4）：store 动作 + 信号通道
   const promoteTask = useScheduleStore((s) => s.promoteTask)
   const demoteTask = useScheduleStore((s) => s.demoteTask)
@@ -137,14 +186,54 @@ const SchedulePage: React.FC = () => {
   const [outlineMsg, setOutlineMsg] = useState<string | null>(null)
   const [findOpen, setFindOpen] = useState(false)
   const [findText, setFindText] = useState('')
+  /** 列筛选入口（W5）：表头 ▼ 是主入口，功能区这份弹层负责说明与一键清除 */
+  const [colFilterOpen, setColFilterOpen] = useState(false)
+  /** 显示预设（W6）：护眼/黑白只覆盖 --sched-* 领域色，主题令牌不动；本机偏好 */
+  const [displayPreset, setDisplayPreset] = useState<DisplayPreset>(() => loadChatPrefs().ganttDisplayPreset)
+  const changeDisplayPreset = (next: DisplayPreset) => {
+    setDisplayPreset(normalizePreset(next))
+    saveChatPrefs({ ganttDisplayPreset: next })
+  }
   const [groupOpen, setGroupOpen] = useState(false)
   const [groupPick, setGroupPick] = useState<GanttGroupField[]>([])
+  /** 图面样式浮层（W6 键盘可达：改成受控，Esc 才能收起并回焦） */
+  const [styleOpen, setStyleOpen] = useState(false)
   const [relationOpen, setRelationOpen] = useState(false)
   const [templatesOpen, setTemplatesOpen] = useState(false)
   const [commandOpen, setCommandOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
   const [dockOpen, setDockOpen] = useState(true)
   const [ribbonTab, setRibbonTab] = useState<ScheduleRibbonTabKey>('plan')
+  /** ── 功能区页签键盘（W6）：roving tabindex + ←/→/Home/End + Enter/Space ────
+   *  `.sched-menu-item` 在本仓库只有「功能区页签」一种用法，语义是 tablist 而不是菜单：
+   *  页签没有「可关闭对象」，所以 Esc 不在页签上假装关东西；Esc 收起+回焦落在真正
+   *  承载浮层的组件（受控 Popover / 右键菜单 / 命令面板）上，见 useLayerEsc 与
+   *  GanttView/ScheduleCommandPalette。 */
+  const ribbonTabRefs = useRef(new Map<ScheduleRibbonTabKey, HTMLButtonElement>())
+  const focusRibbonTab = (key: ScheduleRibbonTabKey) => ribbonTabRefs.current.get(key)?.focus()
+  const onRibbonTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, key: ScheduleRibbonTabKey) => {
+    const at = SCHEDULE_RIBBON_TABS.findIndex((tab) => tab.key === key)
+    if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+      event.preventDefault()
+      const size = SCHEDULE_RIBBON_TABS.length
+      const next = SCHEDULE_RIBBON_TABS[(at + (event.key === 'ArrowRight' ? 1 : -1) + size) % size]
+      setRibbonTab(next.key) // 自动激活（ARIA tablist 口径），焦点同步跟到新页签
+      focusRibbonTab(next.key)
+      return
+    }
+    if (event.key === 'Home' || event.key === 'End') {
+      event.preventDefault()
+      const next = event.key === 'Home' ? SCHEDULE_RIBBON_TABS[0] : SCHEDULE_RIBBON_TABS[SCHEDULE_RIBBON_TABS.length - 1]
+      setRibbonTab(next.key)
+      focusRibbonTab(next.key)
+      return
+    }
+    if (event.key === 'Enter' || event.key === ' ') {
+      // 页签是 <button>：真浏览器会自己派发 click，这里显式接一次并 preventDefault 防双触发
+      event.preventDefault()
+      setRibbonTab(key)
+    }
+  }
   /** 任务检查器（v4.136 小刀）：inspectId=正在检查的任务；右键菜单「任务检查器」/检查器内点前置名跳转 */
   const [inspectId, setInspectId] = useState<string | null>(null)
   const hydrated = useScheduleStore((s) => s.hydrated)
@@ -165,6 +254,85 @@ const SchedulePage: React.FC = () => {
   /** 工程管理弹层受控开合（菜单「文件 → 工程管理…」与 ⚙ 按钮同一入口） */
   const [manageOpen, setManageOpen] = useState(false)
   const projectList = projects ?? []
+
+  /* ── 底部状态栏命中区（W6 收尾）────────────────────────────────────
+   * 缺口：命中区枚举早就含 `status-bar`（hitRegion）且 `hitMenu.statusBarMenu()`
+   * 已有条目，但页面状态栏没挂 `data-hit`，右键在它上面毫无反应。
+   * 这里只补两件事：给容器挂属性、把右键接到**同一个**统一入口
+   * （`hitRegionOfElement` 上溯 + `menuForHit` 出条目）—— 条目内容仍由纯函数层给。
+   */
+  const [statusMenu, setStatusMenu] = useState<{
+    x: number
+    y: number
+    region: HitRegion
+    items: HitMenuItem[]
+  } | null>(null)
+  /** 状态栏容器（W6：Esc 收起右键菜单后把焦点还给这里，见下方 effect） */
+  const statusBarRef = useRef<HTMLDivElement | null>(null)
+  /** 状态栏菜单上下文：选中行/分组/序号口径与横道右键一致（statusBarMenu 不读 ctx，仍如实给） */
+  const statusMenuCtx = (): HitMenuContext => {
+    const idx = selectedId ? project.tasks.findIndex((t) => t.id === selectedId) : -1
+    const sel = idx >= 0 ? project.tasks[idx] : null
+    return {
+      hasSelection: !!sel,
+      selectedIsGroup: idx >= 0 && isGroupRow(project.tasks, idx),
+      selectedIndex: idx,
+      taskCount: project.tasks.length,
+      selectedIsMilestone: sel?.isMilestone,
+      canUndo: past.length > 0,
+      canRedo: future.length > 0,
+      column: null,
+    }
+  }
+  const onStatusBarContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
+    // 统一命中：`data-hit` 自限深度上溯 + 优先级裁决（与 GanttView.onHitContextMenu 同口径）
+    const region = hitRegionOfElement(e.target as Element | null)
+    if (!region) return
+    const items = menuForHit(region, statusMenuCtx())
+    if (items.length === 0) return
+    e.preventDefault()
+    e.stopPropagation()
+    setStatusMenu({ x: e.clientX, y: e.clientY, region, items })
+  }
+  /** 关菜单：点外面 / Esc / 滚动都收起（命中浮层「别钉在屏幕上」的同款纪律）
+   *  W6：Esc 收起后焦点回状态栏本身（键盘用户不掉回文档根）。 */
+  useEffect(() => {
+    if (!statusMenu) return
+    const close = () => setStatusMenu(null)
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key !== 'Escape') return
+      setStatusMenu(null)
+      statusBarRef.current?.focus?.()
+    }
+    window.addEventListener('mousedown', close)
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('scroll', close, true)
+    return () => {
+      window.removeEventListener('mousedown', close)
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('scroll', close, true)
+    }
+  }, [statusMenu])
+  /** 功能区受控浮层的统一 Esc 收起 + 焦点回位（九个浮层共用一条实现） */
+  useLayerEsc([
+    { open: saveViewOpen, close: () => setSaveViewOpen(false) },
+    { open: manageViewOpen, close: () => setManageViewOpen(false) },
+    { open: groupOpen, close: () => setGroupOpen(false) },
+    { open: findOpen, close: () => setFindOpen(false) },
+    { open: colFilterOpen, close: () => setColFilterOpen(false) },
+    { open: relationOpen, close: () => setRelationOpen(false) },
+    { open: templatesOpen, close: () => setTemplatesOpen(false) },
+    { open: manageOpen, close: () => setManageOpen(false) },
+    { open: styleOpen, close: () => setStyleOpen(false) },
+  ])
+  /** 命中的条目 → antd Menu 项（禁用原因挂 title，用户知道为什么点不动） */
+  const statusMenuItems: MenuProps['items'] = (statusMenu?.items ?? []).map((it) => ({
+    key: it.key,
+    label: it.label,
+    disabled: !it.enabled,
+    title: it.disabledReason,
+    danger: it.danger,
+  }))
 
   const toggleChat = () => setChat(saveChatPrefs({ collapsed: !chat.collapsed }))
 
@@ -199,7 +367,10 @@ const SchedulePage: React.FC = () => {
 
   const cpm = useMemo(() => computeCpm(project.tasks, project.links, { planFinish: planFinishOf(project), calendar: project.calendar, startDate: project.startDate }), [project])
   // 网络显示模式（斑马 display_mode 随文档持久化；netMode 从 networkStyle 派生为单一事实源）
-  const netMode = project.networkStyle?.mode === 'logic' ? 'logic' : 'timescaled'
+  const persistedMode = project.networkStyle?.mode
+  const netMode: SchedRenderMode = persistedMode === 'logic' || persistedMode === 'timescaledLogic' || persistedMode === 'ganttNetwork'
+    ? persistedMode
+    : 'timescaled'
   const aoa = useMemo(() => buildAoa(project.tasks, project.links, { planFinish: planFinishOf(project), persisted: project.aoa, mode: netMode }), [project, netMode])
   // 计划检查（斑马复刻 S1）：项目级只把「循环依赖」带进任务抽屉（其余项目级提示属于整份计划）
   const diags = useMemo(() => checkProject(project, cpm), [project, cpm])
@@ -476,6 +647,7 @@ const SchedulePage: React.FC = () => {
     'edit.copy': copySelectedRow,
     'edit.paste': pasteFromClipboard,
     'edit.find': () => { setRibbonTab('plan'); setView('gantt'); setFindOpen(true) },
+    'edit.column-filter': () => { setView('gantt'); setRibbonTab('plan'); setColFilterOpen(true) },
     'edit.delete': confirmDeleteSelected,
     'edit.clear': () => {
       Modal.confirm({ title: '清空全部任务与搭接？', onOk: () => { clearAll(); setImportMsg(null) } })
@@ -507,7 +679,9 @@ const SchedulePage: React.FC = () => {
     'view.pdm': () => setView('pdm'),
     'view.aoa': () => setView('aoa'),
     'view.timescaled': () => { setNetworkMode('timescaled'); setView('aoa') },
+    'view.timescaledLogic': () => { setNetworkStyle({ mode: 'timescaledLogic' }); setView('aoa') },
     'view.logic': () => { setNetworkMode('logic'); setView('aoa') },
+    'view.ganttNetwork': () => { setNetworkStyle({ mode: 'ganttNetwork' }); setView('gantt') },
     'view.usage': () => setView('usage'),
     'view.dcma': () => setView('dcma'),
     'view.monte': () => setView('monte'),
@@ -524,7 +698,9 @@ const SchedulePage: React.FC = () => {
     'view.pdm': view === 'pdm',
     'view.aoa': view === 'aoa',
     'view.timescaled': view === 'aoa' && netMode === 'timescaled',
+    'view.timescaledLogic': view === 'aoa' && netMode === 'timescaledLogic',
     'view.logic': view === 'aoa' && netMode === 'logic',
+    'view.ganttNetwork': view === 'gantt' && netMode === 'ganttNetwork',
     'view.usage': view === 'usage',
     'view.dcma': view === 'dcma',
     'view.monte': view === 'monte',
@@ -709,7 +885,7 @@ const SchedulePage: React.FC = () => {
           onDoubleClick={resetChatWidth}
         />
       )}
-      <div className="sched-page" style={{ flex: 1, minWidth: 0 }}>
+      <div className={["sched-page", presetClass(displayPreset)].filter(Boolean).join(' ')} data-testid="sched-page" style={{ flex: 1, minWidth: 0 }}>
       {/* ── ZPert 式命令台：菜单行 + 命令面板行 + 文档属性行 ── */}
       <div className="sched-command-deck" data-testid="sched-command-deck">
       <div className="sched-menubar sched-ribbon-tabbar" data-testid="sched-menubar">
@@ -721,6 +897,12 @@ const SchedulePage: React.FC = () => {
               type="button"
               role="tab"
               aria-selected={ribbonTab === tab.key}
+              tabIndex={ribbonTab === tab.key ? 0 : -1}
+              ref={(el) => {
+                if (el) ribbonTabRefs.current.set(tab.key, el)
+                else ribbonTabRefs.current.delete(tab.key)
+              }}
+              onKeyDown={(e) => onRibbonTabKeyDown(e, tab.key)}
               className={`sched-menu-item${ribbonTab === tab.key ? ' is-active' : ''}`}
               onClick={() => setRibbonTab(tab.key)}
               data-testid={`sched-ribbon-tab-${tab.key}`}
@@ -803,6 +985,12 @@ const SchedulePage: React.FC = () => {
           <RibbonCommand big icon={<NodeIndexOutlined />} label="单代号网络图" active={commandActive['view.pdm']}
             title={commandTitle('view.pdm')} onClick={() => runCommand('view.pdm')} />
           <RibbonColumn>
+            <RibbonCommand icon={<NodeIndexOutlined />} label="时标逻辑图" active={commandActive['view.timescaledLogic']}
+              title={commandTitle('view.timescaledLogic')} onClick={() => runCommand('view.timescaledLogic')} />
+            <RibbonCommand icon={<PartitionOutlined />} label="横道网络图" active={commandActive['view.ganttNetwork']}
+              title={commandTitle('view.ganttNetwork')} onClick={() => runCommand('view.ganttNetwork')} />
+          </RibbonColumn>
+          <RibbonColumn>
             <Popover
               trigger="click"
               placement="bottomLeft"
@@ -826,7 +1014,7 @@ const SchedulePage: React.FC = () => {
               }
               title="保存视图"
             >
-              <RibbonCommand icon={<CopyOutlined />} label="保存视图" title="把当前横道列集/分组/排序/筛选存为命名视图" />
+              <RibbonCommand icon={<CopyOutlined />} label="保存视图" title="把当前横道列集/分组/排序/筛选存为命名视图" ariaExpanded={saveViewOpen} />
             </Popover>
             <Popover
               trigger="click"
@@ -877,7 +1065,7 @@ const SchedulePage: React.FC = () => {
               }
               title="视图管理"
             >
-              <RibbonCommand icon={<AppstoreOutlined />} label="视图管理" title="应用/改名/删除已保存的视图" />
+              <RibbonCommand icon={<AppstoreOutlined />} label="视图管理" title="应用/改名/删除已保存的视图" ariaExpanded={manageViewOpen} />
             </Popover>
             <Popover trigger="click" placement="bottomLeft" open={groupOpen} onOpenChange={setGroupOpen}
               content={
@@ -899,7 +1087,7 @@ const SchedulePage: React.FC = () => {
                   <span className="sched-dim" style={{ fontSize: 12 }}>多级分组至多三级（斑马 groupby_setting 口径）</span>
                 </div>
               } title="分组">
-              <RibbonCommand icon={<ClusterOutlined />} label="分组…" title="按维度分组横道表格（工期/总时差/负责人/里程碑/关键/状态/资源…14 维）" />
+              <RibbonCommand icon={<ClusterOutlined />} label="分组…" title="按维度分组横道表格（工期/总时差/负责人/里程碑/关键/状态/资源…14 维）" ariaExpanded={groupOpen} />
             </Popover>
           </RibbonColumn>
         </RibbonGroup>
@@ -922,10 +1110,24 @@ const SchedulePage: React.FC = () => {
                   <Button size="small" onClick={() => { setFindText(''); sendGanttCommand('find', ''); setFindOpen(false) }}>清除过滤</Button>
                 </div>
               } title="查找">
-              <RibbonCommand icon={<SearchOutlined />} label="查找" title={commandTitle('edit.find')} onClick={() => runCommand('edit.find')} />
+              <RibbonCommand icon={<SearchOutlined />} label="查找" title={commandTitle('edit.find')} ariaExpanded={findOpen} onClick={() => runCommand('edit.find')} />
             </Popover>
-            <RibbonCommand icon={<FormatPainterOutlined />} label="格式刷" disabled
-              title="预留：刷式交互需画布命中态配合（外观数据已就位，随交互批接线）" />
+            <RibbonCommand icon={<FormatPainterOutlined />} label="格式刷" disabled={!selected}
+              title={selected ? '取选中工作外观，再点击目标行应用（应用后自动收起）' : '请先选中一条工作'}
+              onClick={() => { setView('gantt'); sendGanttCommand('format-brush') }} />
+            <Popover trigger="click" placement="bottomLeft" open={colFilterOpen} onOpenChange={setColFilterOpen}
+              title="列筛选"
+              content={
+                <div style={{ width: 240, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <span className="sched-dim" style={{ fontSize: 12 }}>
+                    在表格列头点「▼」按列类型筛选：文本包含 / 数值比较 / 日期区间 / 枚举；条件为会话态，不进工程文件。
+                  </span>
+                  <Button size="small" data-testid="sched-colfilter-clear"
+                    onClick={() => { sendGanttCommand('column-filter-clear'); setColFilterOpen(false) }}>清除全部列筛选</Button>
+                </div>
+              }>
+              <RibbonCommand icon={<FilterOutlined />} label="列筛选" title={commandTitle('edit.column-filter')} ariaExpanded={colFilterOpen} onClick={() => runCommand('edit.column-filter')} />
+            </Popover>
             <Popover trigger="click" placement="bottomLeft" title="工作分类"
               content={
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: 200 }}>
@@ -978,8 +1180,28 @@ const SchedulePage: React.FC = () => {
               content={<div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}><span className="sched-dim" style={{ fontSize: 12 }}>作用于选中工作横道条</span>{swatchRow('fill')}</div>}>
               <RibbonCommand icon={<BgColorsOutlined />} label="填充" disabled={!selected} title="设置选中工作横道条填充色" />
             </Popover>
-            <RibbonCommand icon={<LineHeightOutlined />} label="线条宽度" disabled
-              title="预留：图面线条宽度属画布参数（networkStyle 承载位已备，随图面参数刀接线）" />
+            <Popover
+              trigger="click"
+              placement="bottomLeft"
+              open={styleOpen}
+              onOpenChange={setStyleOpen}
+              title="图面样式"
+              content={
+                <ScheduleNetworkStyleControls
+                  style={project.networkStyle}
+                  networkView={view === 'aoa' || view === 'pdm'}
+                  onChange={setNetworkStyle}
+                />
+              }
+            >
+              <RibbonCommand
+                icon={<LineHeightOutlined />}
+                label="图面样式"
+                title="节点时间/工期/六参数/起止时间四开关，以及节点与箭线样式"
+                ariaExpanded={styleOpen}
+                testId="sched-network-style-trigger"
+              />
+            </Popover>
           </RibbonColumn>
         </RibbonGroup>
         <RibbonGroup label="大纲">
@@ -1005,7 +1227,7 @@ const SchedulePage: React.FC = () => {
           <Popover trigger="click" placement="bottomLeft" open={relationOpen} onOpenChange={setRelationOpen} title={`「${selected?.name ?? ''}」前置任务`}
             content={selected ? <PredEditor task={selected} /> : <span className="sched-dim">先选中一个任务</span>}>
             <RibbonCommand big icon={<ToolOutlined />} label="关系" disabled={!!commandReason('task.relation')}
-              title={commandTitle('task.relation')} onClick={() => runCommand('task.relation')} />
+              title={commandTitle('task.relation')} ariaExpanded={relationOpen} onClick={() => runCommand('task.relation')} />
           </Popover>
           <RibbonCommand
             big
@@ -1213,6 +1435,16 @@ const SchedulePage: React.FC = () => {
               title={commandTitle('display.dock')} onClick={() => runCommand('display.dock')} />
             <RibbonCommand icon={<MessageOutlined />} label="AI 助手" active={commandActive['display.chat']}
               title={commandTitle('display.chat')} onClick={() => runCommand('display.chat')} />
+            <label className="sched-preset-picker" title="显示预设：只换 --sched-* 领域色，不换主题令牌">
+              <span className="sched-dim">配色</span>
+              <Select
+                size="small"
+                value={displayPreset}
+                onChange={(v) => changeDisplayPreset(v as DisplayPreset)}
+                options={DISPLAY_PRESETS.map((p) => ({ value: p.id, label: p.label, title: p.desc }))}
+                data-testid="sched-display-preset"
+              />
+            </label>
           </RibbonGroup>
         </div>
       )}
@@ -1222,7 +1454,7 @@ const SchedulePage: React.FC = () => {
           <RibbonGroup label="起步">
             <Popover trigger="click" placement="bottom" open={templatesOpen} onOpenChange={setTemplatesOpen}
               content={<TemplatesPanel cpm={cpm} />} title="项目模板">
-              <button type="button" className="sched-ribbon-command is-big" data-testid="sched-templates-btn">
+              <button type="button" className="sched-ribbon-command is-big" data-testid="sched-templates-btn" aria-expanded={templatesOpen}>
                 <AppstoreOutlined /><span>项目模板</span>
               </button>
             </Popover>
@@ -1303,7 +1535,7 @@ const SchedulePage: React.FC = () => {
         onClose={() => setCommandOpen(false)}
         onBlocked={setOutlineMsg}
       />
-      <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} project={project} cpm={cpm} aoa={aoa} defaultView={view === 'usage' || view === 'dcma' || view === 'monte' || view === 'evm' ? 'gantt' : view} />
+      <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} project={project} cpm={cpm} aoa={aoa} preset={displayPreset} defaultView={view === 'usage' || view === 'dcma' || view === 'monte' || view === 'evm' ? 'gantt' : view} />
       {!cpm.ok && cpm.error && (
         <Alert type="error" showIcon message={cpm.error} description="请修正搭接关系后重试；网络图视图在循环解除前不可用。" />
       )}
@@ -1349,8 +1581,23 @@ const SchedulePage: React.FC = () => {
         onNavigate={(id) => { setInspectId(id); select(id) }}
       />
 
-      {/* 底部状态栏（斑马口径：共 N 项工作总工期 N 天 + 关键/工作制常驻） */}
-      <div className="sched-statusbar">
+      {/* 底部状态栏（斑马口径：共 N 项工作总工期 N 天 + 关键/工作制常驻）
+          W6 收尾：挂 `data-hit="status-bar"` + 右键统一入口（文案/类名/结构不动）
+          W6 键盘/语义：`role="status"` + `aria-live="polite"`——**只播变化的那一格**：
+          `aria-atomic="false"` 显式覆盖 role=status 的默认整段重播，避免每次计数变动
+          都把整条状态栏念一遍（「不逐字播」）。右侧保存指示器是高频文案，单独
+          `aria-live="off"`：它每改一个字都不该打断读屏。 */}
+      <div
+        className="sched-statusbar"
+        data-hit="status-bar"
+        role="status"
+        aria-live="polite"
+        aria-atomic="false"
+        aria-label="进度计划状态"
+        tabIndex={-1}
+        ref={statusBarRef}
+        onContextMenu={onStatusBarContextMenu}
+      >
         <span><span className="sched-sb-strong">{project.tasks.length}</span> 行 · <span className="sched-sb-strong">{project.tasks.filter((t) => t.level === 0).length}</span> 个分组</span>
         <span>工作 <span className="sched-sb-strong">{project.tasks.filter((t) => t.level > 0).length}</span> · 关系 <span className="sched-sb-strong">{project.links.length}</span></span>
         <span>关键工作 <span className="sched-sb-crit">{project.tasks.filter((t) => t.level > 0 && cpm.rows[t.id]?.critical).length}</span> 项</span>
@@ -1365,13 +1612,32 @@ const SchedulePage: React.FC = () => {
           </span>
         )}
         {latest && <span><span className="sched-sb-strong">{latest.date}</span> 检视</span>}
-        <span style={{ marginLeft: 'auto' }} title={syncError ?? currentPath ?? SCHEDULE_FILE_PATH}>
+        <span style={{ marginLeft: 'auto' }} aria-live="off" title={syncError ?? currentPath ?? SCHEDULE_FILE_PATH}>
           {!hydrated ? '读取计划…' : sync === 'dirty' ? '改动待保存…'
             : sync === 'saving' ? '保存中…'
             : sync === 'error' ? <span className="sched-sb-crit">保存失败</span>
             : savedAt ? <>已保存 {savedAt} · <span className="sched-dim">agent 可读写</span></> : '已同步 · agent 可读写'}
         </span>
       </div>
+      {/* 状态栏右键菜单浮层：条目来自 hitMenu.menuForHit('status-bar', ctx)（同一入口），
+          位置跟随命中点（与 GanttView 的 sched-hit-menu-layer 同一套类名/样式） */}
+      {statusMenu && (
+        <div
+          className="sched-hit-menu-layer"
+          data-testid="sched-statusbar-hit-menu"
+          data-hit-region={statusMenu.region}
+          style={{ left: statusMenu.x, top: statusMenu.y }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <Menu
+            className="sched-hit-menu"
+            selectable={false}
+            items={statusMenuItems}
+            onClick={() => setStatusMenu(null)}
+          />
+        </div>
+      )}
       </div>
     </div>
   )

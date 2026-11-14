@@ -223,6 +223,16 @@ export interface SchedNetworkStyle {
   nodeRadius?: number
   /** 箭头头部高度（px） */
   headHeight?: number
+  /**
+   * 图面内容四开关（斑马「图上显示」四勾选：节点时间 / 工期 / 六参数 / 起止时间）。
+   * 缺省值由 `networkDisplay.resolveNetworkDisplay` 给，不落盘时等同斑马首装口径。
+   */
+  showDotTime?: boolean
+  showDuration?: boolean
+  showSixPara?: boolean
+  showStartStopTime?: boolean
+  /** 图面线条宽度（px，斑马「格式 → 线条宽度」；缺省 1.5） */
+  lineWidth?: number
   /** 两层高度（斑马 layer_height1/2，px） */
   layerHeight1?: number
   layerHeight2?: number

@@ -178,6 +178,14 @@ export function normalizeNetworkStyle(raw: unknown): SchedNetworkStyle | undefin
   if (nodeRadius !== undefined) out.nodeRadius = nodeRadius
   const headHeight = clampInt(r.headHeight, 2, 60)
   if (headHeight !== undefined) out.headHeight = headHeight
+  // 图面内容四开关 + 线条宽度（斑马「图上显示」与「格式 → 线条宽度」）
+  if (typeof r.showDotTime === 'boolean') out.showDotTime = r.showDotTime
+  if (typeof r.showDuration === 'boolean') out.showDuration = r.showDuration
+  if (typeof r.showSixPara === 'boolean') out.showSixPara = r.showSixPara
+  if (typeof r.showStartStopTime === 'boolean') out.showStartStopTime = r.showStartStopTime
+  if (typeof r.lineWidth === 'number' && Number.isFinite(r.lineWidth) && r.lineWidth >= 0.5 && r.lineWidth <= 8) {
+    out.lineWidth = r.lineWidth
+  }
   const lh1 = clampInt(r.layerHeight1, 20, 2000)
   if (lh1 !== undefined) out.layerHeight1 = lh1
   const lh2 = clampInt(r.layerHeight2, 20, 2000)

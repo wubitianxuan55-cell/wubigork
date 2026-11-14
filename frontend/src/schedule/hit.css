@@ -1,0 +1,70 @@
+/* schedule/hit.css — 统一右键菜单浮层（ZPert8 W4 命中区 / W5 右键按命中类型追加）
+ *
+ * 口径：`进度计划/gaea-schedule-zpert8-uiux-port-plan-20261114.md` §W4/§W5、
+ * `...uiux-re-20261114.md` §15.3/§16.2。类名统一 `sched-hit-*` 前缀，
+ * 只补 schedule.css 没有的新节点（不改 schedule.css，不动既有类）。
+ *
+ * 颜色/描边一律走 `--md-sys-color-*` 与 `--sched-*` 令牌：亮/暗主题由令牌切换，
+ * 本文件不写死色值。浮层用 position:fixed，坐标由命中点（clientX/clientY）给。
+ */
+
+/* 浮层容器：只负责定位与层级，不吃指针事件以外的东西 */
+.sched-hit-menu-layer {
+  position: fixed;
+  z-index: 1200; /* 高于横道双窗格与覆盖层，低于 antd 全屏 Modal/Drawer */
+  min-width: 168px;
+  max-height: 70vh;
+  overflow: auto;
+  background: var(--md-sys-color-surface-container-high, var(--md-sys-color-surface-container, var(--md-sys-color-surface)));
+  border: 1px solid var(--md-sys-color-border, var(--md-sys-color-outline-variant));
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+  padding: 4px;
+}
+
+/* antd Menu 本体：去边框/去底色，交给浮层容器统一描边 */
+.sched-hit-menu.sched-hit-menu,
+.sched-hit-menu .ant-menu {
+  background: transparent;
+  border-inline-end: 0;
+  border: 0;
+  box-shadow: none;
+}
+
+/* 菜单项：与横道表格同字号，行高比功能区紧凑（右键菜单是「就地」浮层） */
+.sched-hit-menu .ant-menu-item {
+  height: 28px;
+  line-height: 28px;
+  margin: 0;
+  padding-inline: 10px;
+  font-size: 13px;
+  color: var(--md-sys-color-on-surface, inherit);
+  border-radius: 6px;
+}
+
+/* 禁用项：仍然可读（用户要看清“为什么点不动”，原因在 title 上） */
+.sched-hit-menu .ant-menu-item-disabled {
+  color: var(--md-sys-color-on-surface-variant, var(--sched-dim, #8b98ab));
+  opacity: 0.75;
+}
+
+/* 危险项（删除）：走关键红令牌，与横道关键路径同色系 */
+.sched-hit-menu .ant-menu-item-danger {
+  color: var(--sched-critical);
+}
+
+/* 段间分隔：分组（结构/任务/画布/列/分隔条/状态栏）之间一条淡线 */
+.sched-hit-menu .ant-menu-item-divider {
+  margin: 4px 2px;
+  border-color: var(--md-sys-color-outline-variant, var(--sched-grid));
+}
+
+/* 条目文本：不换行、超长省略（原因文案只走 title，不撑宽菜单） */
+.sched-hit-label {
+  display: inline-block;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}

@@ -1,0 +1,140 @@
+/* inplace.css — 就地编辑弹层族样式（W5）
+ *
+ * 类前缀统一 `sched-inplace-*`；颜色一律走主题 CSS 变量（禁 raw hex，
+ * 与 MASTER.md「组件零硬编码色值」同规）。§15.2 的 6 步手感落在这里：
+ * padding:0（不撑高行）、字体继承单元格、左对齐垂直居中、全选、editingFinished 提交。
+ * 本文件只被 InplaceEditField.tsx 引入（schedule.css 不动，避免跨线冲突）。
+ */
+
+/* 单元格只读文本（双击开弹层的锚点内容） */
+.sched-cell-text {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 锚点：包住单元格内容，双击/单击开弹层（不改变单元格视觉） */
+.sched-inplace-anchor {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* 占满父容器变体（数值/文本控件原本 width:100% 的单元格） */
+.sched-inplace-anchor-fw {
+  flex: 1 1 auto;
+  width: 100%;
+}
+
+/* 弹层容器：窄面板、零内边距（斑马 ZQtInplaceEdit{padding:0px}） */
+.sched-inplace {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 200px;
+  padding: 0;
+  /* 字体/字号继承 cells（.sched-gantt-cell 12px），弹层不另立一套排版 */
+  font: inherit;
+  font-size: 12px;
+  line-height: 20px;
+}
+
+/* 编辑器本体：padding 归零、左对齐、垂直居中 */
+.sched-inplace-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.sched-inplace .ant-input,
+.sched-inplace .ant-input-number,
+.sched-inplace .ant-input-number-input,
+.sched-inplace .ant-picker,
+.sched-inplace .ant-picker-input > input {
+  padding: 0;
+  text-align: left;
+  vertical-align: middle;
+  font: inherit;
+  font-size: 12px;
+  line-height: 20px;
+}
+
+/* 日期区间两格不撑破 200px 面板 */
+.sched-inplace .ant-picker-range {
+  width: 100%;
+}
+
+.sched-inplace-hint {
+  color: var(--md-sys-color-on-surface-variant, var(--color-text-secondary, currentColor));
+  font-size: 11px;
+  line-height: 14px;
+  opacity: 0.75;
+}
+
+/* 非法值原位提示（不写回，只报原因） */
+.sched-inplace-error {
+  color: var(--sched-critical, currentColor);
+  font-size: 11px;
+  line-height: 14px;
+}
+
+/* 夹取/截断提示（"已按列规整"） */
+.sched-inplace-adjusted {
+  color: var(--sched-front, currentColor);
+  font-size: 11px;
+  line-height: 14px;
+}
+
+/* 表头列筛按钮（GanttTable 列头用）：默认低对比，生效态高亮 */
+.sched-inplace-filter-btn {
+  border: 0;
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant, currentColor);
+  font-size: 11px;
+  line-height: 12px;
+  padding: 0 2px;
+  margin-left: 2px;
+  cursor: pointer;
+  opacity: 0.55;
+}
+
+.sched-inplace-filter-btn:hover {
+  opacity: 1;
+}
+
+/* 三角用伪元素出，不进表头文本：既有「表头文案」断言与窄列省略都不受影响 */
+.sched-inplace-filter-btn::after {
+  content: '▼';
+}
+
+.sched-inplace-filter-btn.sched-inplace-filter-on {
+  color: var(--sched-normal, currentColor);
+  opacity: 1;
+  font-weight: 600;
+}
+
+/* 列筛编辑器面板 */
+.sched-inplace-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 220px;
+  font-size: 12px;
+}
+
+.sched-inplace-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sched-inplace-filter-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}

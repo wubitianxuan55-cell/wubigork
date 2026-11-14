@@ -1,0 +1,133 @@
+/* schedule/gantt/ruler.css — 双标尺（工程标尺 / 进度标尺）专用样式
+ *
+ * 口径：`进度计划/gaea-schedule-zpert8-uiux-port-plan-20261114.md` §W4（双标尺 +
+ * 刻度线疏密）、`...uiux-re-20261114.md` §5/§18.2。类名统一 `sched-ruler-*` 前缀，
+ * 只补 schedule.css 没有的新元素；沿用 `.sched-ts-month` / `.sched-ts-week` /
+ * `.sched-day-col` / `.sched-day-cell` 这些既有钩子（行为/测试契约不变）。
+ *
+ * 颜色/描边一律走 `--md-sys-color-*` 与 `--sched-*` 令牌（亮/暗主题由令牌切换，
+ * 本文件不写死色值）。行高/总高读 `--sched-ruler-h` / `--sched-ruler-row-h`
+ * —— 由 GanttView 从 `timescale.GANTT_RULER_H` 注入，避免与表头高漂移。
+ */
+
+.sched-ruler {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  /* 单一来源：GanttView 注入 GANTT_RULER_H（缺省值仅作兜底，与常量同值） */
+  height: var(--sched-ruler-h, 40px);
+  /* 不横向溢出：段宽合计 == chartW，取整误差在这里截断 */
+  overflow: hidden;
+  background: var(--md-sys-color-surface-container, var(--md-sys-color-surface));
+  border-bottom: 1px solid var(--md-sys-color-border, var(--md-sys-color-outline-variant));
+}
+
+.sched-ruler .sched-ruler-row {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  height: var(--sched-ruler-row-h, 20px);
+  min-width: 0;
+}
+
+/* 上行：工程标尺主带（年-月跨列段），宽度合计 = chartW */
+.sched-ruler .sched-ts-months {
+  height: var(--sched-ruler-row-h, 20px);
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.sched-ruler .sched-ts-days {
+  height: var(--sched-ruler-row-h, 20px);
+  flex: 0 0 auto;
+}
+
+/* 段内文本：不换行、溢出裁切（窄段自然退化为空串，由 buildRulerModel 决定） */
+.sched-ruler-seg {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: clip;
+}
+
+/* 日层「日号 + 星期」并列：星期退一级字号，不换行不撑高 */
+.sched-ruler-weekday {
+  margin-left: 2px;
+  font-size: 9px;
+  line-height: normal;
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+/* ── 刻度线疏密（RE §7.3：小/大/工程日历/不画）──────────────────
+ * small  = 月界 + 周界，细线（最密，首装口径）
+ * big    = 年界 + 月界，加粗（最疏）
+ * project= 月界工程日历线（虚线，等同「画工程日历线」）
+ * none   = 不画（无 .sched-ruler-tick 节点，样式自然不生效）
+ */
+.sched-ruler-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--md-sys-color-outline-variant, var(--md-sys-color-border));
+  pointer-events: none;
+}
+
+.sched-ruler-tick-week {
+  /* 周边界比月界淡一档，避免压过段文本 */
+  opacity: 0.55;
+}
+
+.sched-ruler-tick-month {
+  background: var(--md-sys-color-outline, var(--md-sys-color-border));
+}
+
+.sched-ruler-tick-year {
+  width: 2px;
+  background: var(--md-sys-color-on-surface-variant, var(--md-sys-color-outline));
+}
+
+.sched-ruler-density-big .sched-ruler-tick-month {
+  width: 2px;
+  background: var(--md-sys-color-on-surface-variant, var(--md-sys-color-outline));
+}
+
+.sched-ruler-density-project .sched-ruler-tick-month,
+.sched-ruler-density-project .sched-ruler-tick-year {
+  width: 0;
+  background: none;
+  border-left: 1px dashed var(--sched-grid);
+}
+
+/* ── 今日线 / 目标竣工线（穿透两行标尺）─────────────────────────
+ * 与画布覆盖层的 .sched-today-line / .sched-deadline-line 同色同虚实，
+ * 只是这里画在标尺行内（覆盖层那条被 sticky 表头遮住）。
+ */
+.sched-ruler-today,
+.sched-ruler-deadline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.sched-ruler-today {
+  border-left: 1.4px dashed var(--sched-critical);
+}
+
+.sched-ruler-deadline {
+  border-left: 1.4px dashed var(--sched-deadline);
+}
+
+/* 窄窗（dayW < 8）：只留月段文本 / 周序号，字号再收一档 */
+.sched-ruler-narrow {
+  font-size: 9px;
+}
+
+.sched-ruler-narrow .sched-ts-month,
+.sched-ruler-narrow .sched-ts-week {
+  font-size: 9px;
+  letter-spacing: -0.2px;
+}

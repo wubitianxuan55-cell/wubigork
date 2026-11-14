@@ -95,8 +95,27 @@ export function inShell(): boolean {
   return inShellEnv()
 }
 
-/** 图面打印：隐藏 iframe 载入 SVG，唤起系统打印（另存为 PDF 可得 PDF） */
-export function printSvg(svg: string): void {
+/** 图面打印：隐藏 iframe 载入 SVG，唤起系统打印（另存为 PDF 可得 PDF）。
+ *
+ * W6 按纸张布图：`opts` 让打印件按真实纸张分页——指定 `pageSize` 后
+ * `@page` 不再留 8mm 边距（页框自负边距），并把 SVG 宽度钉到纸张毫米宽，
+ * 这样「纸堆」里每页恰好落在一张纸上（页间距须为 0，见 paperExport.gap）。 */
+export interface PrintSvgOptions {
+  /** CSS `@page size` 值，如 `'A4 landscape'`；缺省不指定（沿用旧 8mm 页边距口径） */
+  pageSize?: string
+  /** CSS `@page margin`；指定 pageSize 时缺省 `'0'`（页框自带页边距） */
+  margin?: string
+  /** SVG 输出宽度（mm）：按纸张实际尺寸出图；缺省自适应容器宽度 */
+  svgWidthMm?: number
+}
+
+export function printSvg(svg: string, opts?: PrintSvgOptions): void {
+  const pageNote = opts?.pageSize
+    ? `@page{size:${opts.pageSize};margin:${opts.margin ?? '0'}}`
+    : '@page{margin:8mm}'
+  const svgNote = opts?.svgWidthMm
+    ? `svg{width:${opts.svgWidthMm}mm;height:auto;display:block}`
+    : 'svg{max-width:100%;height:auto}'
   const frame = document.createElement('iframe')
   frame.style.position = 'fixed'
   frame.style.right = '0'
@@ -113,5 +132,5 @@ export function printSvg(svg: string): void {
     }
   }
   document.body.appendChild(frame)
-  frame.srcdoc = `<!doctype html><html><head><meta charset="utf-8"><style>@page{margin:8mm}body{margin:0}svg{max-width:100%;height:auto}</style></head><body>${svg}</body></html>`
+  frame.srcdoc = `<!doctype html><html><head><meta charset="utf-8"><style>${pageNote}body{margin:0}${svgNote}</style></head><body>${svg}</body></html>`
 }

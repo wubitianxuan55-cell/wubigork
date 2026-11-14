@@ -1,17 +1,24 @@
 /**
  * chatPrefs.ts — 板块工作台偏好（左栏对话折叠/宽度 + 横道表格窗格宽度/列显隐，
- * 纯函数 + 可注入 storage，刀11；v4.131 刀C 增横道双栏字段）
+ * 纯函数 + 可注入 storage，刀11；v4.131 刀C 增横道双栏字段；
+ * W5 列筛持久化增 ganttColFilters）
  *
  * 键 gaea.schedule.chatPrefs：{"collapsed":boolean,"width":number,
  * "ganttTableW":number,"ganttHide":string[],
  * "ganttSort":{"field":string,"dir":"asc"|"desc"},"ganttGroup":string[],
- * "ganttViewId":string,"ganttFilterKind":string}。
+ * "ganttViewId":string,"ganttFilterKind":string,
+ * "ganttColFilters":{列键:{"kind":"text"|"number"|"date"|"enum",...}}}。
  * 宽度钳位 320~680（窄了输入框挤压、宽了横道图不够用）；表格窗格宽度钳位
  * [行号+名称, 可见列总宽]；W1 新建缺省=「计划编制」7 列，旧 ganttHide 原样
  * 保留并标记自定义视图；字段级容错——坏值回落缺省，单个字段坏不拖累另一个。
+ * 列筛（W5）只存本机偏好：读走 `normalizeColFilters`（未知列键/脏值丢弃），
+ * 写走 `serializeColFilters`（空条件剔除），缺省/旧 JSON 无该键 → `{}`；
+ * 键名与版本不变，存量偏好不需要迁移。
  */
 import { clampTableW, sanitizeHide, GANTT_LEFT_W_FULL } from './ganttCols'
-import type { GanttFilterKind } from './ganttFilter'
+import { normalizeColFilters, serializeColFilters } from './colFilterPrefs'
+import type { ColFilters, GanttFilterKind } from './ganttFilter'
+import { normalizePreset, type DisplayPreset } from './displayPreset'
 import { GANTT_GROUP_OPTIONS, MAX_GANTT_GROUP_DEPTH } from './ganttGroup'
 import {
   BUILTIN_GANTT_VIEWS,
@@ -38,6 +45,10 @@ export interface ChatPrefs {
   ganttViewId: string
   /** 当前筛选档（里程碑视图需要跨会话保持） */
   ganttFilterKind: GanttFilterKind
+  /** 显示预设（W6 护眼/黑白）：只影响 `--sched-*` 领域色，不动主题令牌 */
+  ganttDisplayPreset: DisplayPreset
+  /** 横道列级筛选（W5；缺省 `{}` =无列筛；只存本机偏好，不进项目视图快照） */
+  ganttColFilters: ColFilters
 }
 
 export const CHAT_PREFS_KEY = 'gaea.schedule.chatPrefs'
@@ -64,6 +75,13 @@ const DEFAULTS: ChatPrefs = {
   ganttGroup: [],
   ganttViewId: DEFAULT_GANTT_VIEW_ID,
   ganttFilterKind: 'all',
+  ganttDisplayPreset: 'normal',
+  ganttColFilters: {},
+}
+
+/** 缺省副本（列筛是对象，逐次新建，避免调用方改到共享缺省值） */
+function freshDefaults(): ChatPrefs {
+  return { ...DEFAULTS, ganttColFilters: {} }
 }
 
 function parseSort(o: unknown): ChatPrefs['ganttSort'] {
@@ -105,7 +123,7 @@ export function clampChatWidth(w: number): number {
 }
 
 function parse(raw: string | null): ChatPrefs {
-  if (!raw) return { ...DEFAULTS }
+  if (!raw) return freshDefaults()
   try {
     const o = JSON.parse(raw) as Partial<ChatPrefs>
     const hasLegacyHide = Array.isArray((o as Record<string, unknown>).ganttHide)
@@ -122,20 +140,23 @@ function parse(raw: string | null): ChatPrefs {
       ganttGroup: parseGroup(o.ganttGroup),
       ganttViewId: parseViewId(o.ganttViewId, hasLegacyHide),
       ganttFilterKind: parseFilterKind(o.ganttFilterKind),
+      ganttDisplayPreset: normalizePreset((o as Record<string, unknown>).ganttDisplayPreset as string | undefined),
+      // 旧 JSON 无该键 / 坏值 → 归一为空对象（列筛是会话态数据的落盘副本）
+      ganttColFilters: normalizeColFilters((o as Record<string, unknown>).ganttColFilters),
     }
   } catch {
-    return { ...DEFAULTS }
+    return freshDefaults()
   }
 }
 
 /** 读取偏好（storage 可注入供测试；坏 JSON/坏字段逐项容错） */
 export function loadChatPrefs(storage?: Pick<Storage, 'getItem'>): ChatPrefs {
   const s = storage ?? (typeof localStorage !== 'undefined' ? localStorage : undefined)
-  if (!s) return { ...DEFAULTS }
+  if (!s) return freshDefaults()
   try {
     return parse(s.getItem(CHAT_PREFS_KEY))
   } catch {
-    return { ...DEFAULTS }
+    return freshDefaults()
   }
 }
 
@@ -151,6 +172,13 @@ export function saveChatPrefs(patch: Partial<ChatPrefs>, storage?: Pick<Storage,
     ganttGroup: patch.ganttGroup !== undefined ? parseGroup(patch.ganttGroup) : base.ganttGroup,
     ganttViewId: patch.ganttViewId !== undefined ? parseViewId(patch.ganttViewId, false) : base.ganttViewId,
     ganttFilterKind: patch.ganttFilterKind !== undefined ? parseFilterKind(patch.ganttFilterKind) : base.ganttFilterKind,
+    ganttDisplayPreset: patch.ganttDisplayPreset !== undefined
+      ? normalizePreset(patch.ganttDisplayPreset)
+      : base.ganttDisplayPreset,
+    // 落盘前归一：空条件/未知列键不写进偏好（空对象就写 `{}`，不留垃圾键）
+    ganttColFilters: patch.ganttColFilters !== undefined
+      ? serializeColFilters(patch.ganttColFilters)
+      : base.ganttColFilters,
   }
   const s = storage ?? (typeof localStorage !== 'undefined' ? localStorage : undefined)
   try {

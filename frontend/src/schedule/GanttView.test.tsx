@@ -8,14 +8,17 @@
  * 开启/改名/叶行编辑（清空=删槽键）/分组行留空；W1：9 视图预设与默认
  * 计划编制 7 列/真实列宽。
  */
-import { act, fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { GanttView } from './GanttView'
 import { computeCpm } from './cpm'
 import { useScheduleStore } from './store'
 import { CHAT_PREFS_KEY } from './chatPrefs'
 import { GANTT_LEFT_W_FULL, GANTT_TABLE_W_MIN } from './ganttCols'
+import { hitRegionChain, pickHitRegion } from './hitRegion'
+import { HIT_STRUCTURE_KEYS } from './hitMenu'
 import { BUILTIN_GANTT_VIEWS, DEFAULT_GANTT_VIEW_ID, widthForBuiltinView } from './viewPresets'
+import { GANTT_RULER_H } from './timescale'
 import type { CpmResult, SchedProject } from './types'
 
 const PLAN_VIEW = BUILTIN_GANTT_VIEWS.find((view) => view.id === DEFAULT_GANTT_VIEW_ID)!
@@ -695,5 +698,395 @@ describe('前锋线跟随最新检视', () => {
     useScheduleStore.setState({ project: p, selectedId: null, hydrated: true, sync: 'saved', savedAt: null, syncError: null, past: [], future: [] })
     const { container } = render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} onInspect={() => {}} />)
     expect(container.querySelector('.sched-front-check')).toBeNull()
+  })
+})
+
+// ── W4 双标尺接线（本条为新增守卫，未改动任何既有断言）───────────────────
+describe('W4 双标尺对齐：表头高 = 画布顶部偏移 = timescale.GANTT_RULER_H（常量只定义一次）', () => {
+  beforeEach(() => {
+    localStorage.removeItem(CHAT_PREFS_KEY)
+    useScheduleStore.setState({ project: chainProject(), selectedId: null, hydrated: true, sync: 'saved', syncError: null })
+  })
+
+  it('画布表头/表格表头/画布 --sched-ruler-h 三处同值，标尺两行高度合计 = 该值', () => {
+    const p = chainProject()
+    render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    const canvasHead = document.querySelector('.sched-gantt-canvaspane .sched-gantt-head') as HTMLElement
+    const tableHead = document.querySelector('.sched-gantt-tablepane .sched-gantt-head') as HTMLElement
+    const inner = document.querySelector('.sched-gantt-canvas-inner') as HTMLElement
+    expect(canvasHead.style.height).toBe(`${GANTT_RULER_H}px`)
+    // 表格窗格表头仍是 40px 字面量（GanttTable 不在本线足迹内）——这里守住"两者必须相等"
+    expect(tableHead.style.height).toBe(canvasHead.style.height)
+    // 画布顶部偏移来源：CSS 变量（ruler.css 与后续覆盖层偏移读同一个值）
+    expect(inner.style.getPropertyValue('--sched-ruler-h')).toBe(`${GANTT_RULER_H}px`)
+    // 标尺两行常驻，高度合计 = 表头高
+    const rows = Array.from(canvasHead.querySelectorAll<HTMLElement>('.sched-ruler-row'))
+    expect(rows).toHaveLength(2)
+    expect(rows.reduce((s, el) => s + Number.parseFloat(el.style.height), 0)).toBe(GANTT_RULER_H)
+  })
+})
+
+// ── W4 横道网络图（斑马 ganttNetwork）：关系线加重 + 类型/时距标注 ──────────
+describe('W4 横道网络图：关系线标注只在 ganttNetwork 模式出现', () => {
+  const netProject = (mode: 'timescaled' | 'ganttNetwork'): SchedProject => ({
+    ...chainProject(),
+    networkStyle: { mode },
+  })
+
+  it('ganttNetwork：每条可见依赖线带类型+时距标签，并挂加重类名', () => {
+    const p = netProject('ganttNetwork')
+    useScheduleStore.setState({ project: p, selectedId: null, hydrated: true, sync: 'saved', savedAt: null, syncError: null, past: [], future: [] })
+    const { container } = render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    const badges = Array.from(container.querySelectorAll('.sched-link-badge'))
+    expect(badges.length).toBe(p.links.length)
+    expect(badges.map((b) => b.textContent).join(' ')).toContain('FS')
+    expect(container.querySelectorAll('.sched-link-net').length).toBe(p.links.length)
+  })
+
+  it('timescaled：同一工程不出现标注与加重类名（旧观感零变化）', () => {
+    const p = netProject('timescaled')
+    useScheduleStore.setState({ project: p, selectedId: null, hydrated: true, sync: 'saved', savedAt: null, syncError: null, past: [], future: [] })
+    const { container } = render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    expect(container.querySelector('.sched-link-badge')).toBeNull()
+    expect(container.querySelector('.sched-link-net')).toBeNull()
+  })
+})
+
+// ── W5 列筛接线：表头 ▼ → 可见行收敛 → 清除信号恢复 ───────────────────────
+describe('W5 列级筛选：表头条件作用于可见行，清除信号复原', () => {
+  const dataRows = () =>
+    document.querySelectorAll('[data-testid="sched-gantt-canvas"] .sched-gantt-row:not(.sched-gantt-head)').length
+
+  it('按「工作名称」筛选后横道行收敛，收到 column-filter-clear 后复原', async () => {
+    const p = chainProject()
+    useScheduleStore.setState({ project: p, selectedId: null, hydrated: true, sync: 'saved', savedAt: null, syncError: null, past: [], future: [] })
+    render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    expect(dataRows()).toBe(3)
+    fireEvent.click(screen.getByTestId('sched-colfilter-name'))
+    const input = screen.getByTestId('sched-colfilter-editor-name').querySelector('input') as HTMLInputElement
+    fireEvent.change(input, { target: { value: '垫层' } })
+    await waitFor(() => expect(dataRows()).toBe(1))
+    act(() => { useScheduleStore.getState().sendGanttCommand('column-filter-clear') })
+    await waitFor(() => expect(dataRows()).toBe(3))
+  })
+})
+
+// ── ZPert8 W4 剩余项「命中区顺序」+ W5 剩余项「右键按命中类型追加」───────────
+/**
+ * 口径：`进度计划/gaea-schedule-zpert8-uiux-port-plan-20261114.md` §W4/§W5、
+ * `...uiux-re-20261114.md` §15.3（按 hitType 往同一 vector 追加条目）/§16.2
+ * （统一命中 → 命中对象走对象菜单 / 未命中走空白侧）。
+ * 这里断言的是**接线**：data-hit 挂在哪几层、单一右键入口选中的菜单来源是否正确、
+ * 禁用项是否带原因、真动作是否落到 store。
+ */
+describe('命中区与统一右键（W4/W5 剩余项）', () => {
+  const HIT = 'data-hit'
+  const tableRows = () =>
+    Array.from(
+      screen.getByTestId('sched-gantt-table').querySelectorAll<HTMLElement>('.sched-gantt-tbody .sched-gantt-row'),
+    )
+  const cellsOf = (row: HTMLElement) => Array.from(row.querySelectorAll<HTMLElement>('.sched-gantt-cell'))
+  const menuEl = () => screen.queryByTestId('sched-hit-menu')
+  const menuKeys = () =>
+    Array.from(menuEl()?.querySelectorAll('[data-hit-key]') ?? []).map((el) => el.getAttribute('data-hit-key'))
+  const menuNode = (key: string) => {
+    const el = menuEl()?.querySelector<HTMLElement>(`[data-hit-key="${key}"]`)
+    if (!el) throw new Error(`右键菜单无「${key}」`)
+    return el
+  }
+  const liOf = (key: string) => menuNode(key).closest('li') as HTMLElement
+
+  beforeEach(() => {
+    localStorage.removeItem(CHAT_PREFS_KEY)
+    useScheduleStore.setState({
+      project: chainProject(),
+      selectedId: null,
+      hydrated: true,
+      sync: 'saved',
+      syncError: null,
+      past: [],
+      future: [],
+    })
+  })
+
+  it('data-hit 分层：列头 / 单元格 / 行号格 / 行容器（兜底区）/ 画布 / 分隔条', () => {
+    const p = chainProject()
+    render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    const head = screen.getByTestId('sched-gantt-table').querySelector<HTMLElement>('.sched-gantt-head')!
+    expect(head.getAttribute(HIT)).toBe('column-header')
+    const rows = tableRows()
+    expect(rows.length).toBe(3)
+    // 行容器=行头兜底（优先级最低），单元格的 cell 会把它盖掉
+    expect(rows[0].getAttribute(HIT)).toBe('row-header')
+    const cells = cellsOf(rows[0])
+    expect(cells[0].classList.contains('sched-row-no')).toBe(true)
+    expect(cells[0].getAttribute(HIT)).toBe('row-header')
+    const dataCells = cells.filter((cell) => !cell.classList.contains('sched-row-no'))
+    expect(dataCells.length).toBeGreaterThan(0)
+    expect(dataCells.every((cell) => cell.getAttribute(HIT) === 'cell')).toBe(true)
+    // 画布/分隔条由视图 JSX 直接声明
+    expect(screen.getByTestId('sched-gantt-canvas').getAttribute(HIT)).toBe('canvas')
+    expect(screen.getByTestId('sched-gantt-split').getAttribute(HIT)).toBe('splitter')
+    // 优先级裁决在同一份真实 DOM 上成立：单元格压过行容器
+    expect(pickHitRegion(hitRegionChain(dataCells[0]))).toBe('cell')
+    expect(pickHitRegion(hitRegionChain(rows[0]))).toBe('row-header')
+  })
+
+  it('单元格右键：单一入口弹菜单（不叠行内 Dropdown），结构操作 12 项固定序，首项「添加工作」', () => {
+    const p = chainProject()
+    render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    const rows = tableRows()
+    const dataCell = cellsOf(rows[1]).find((cell) => !cell.classList.contains('sched-row-no'))!
+    fireEvent.contextMenu(dataCell)
+    expect(menuEl()).not.toBeNull()
+    expect(menuEl()!.getAttribute('data-hit-region')).toBe('cell')
+    // 子组件的 antd Dropdown 被根入口在捕获阶段拦下：只有一份菜单
+    expect(document.querySelectorAll('.ant-dropdown').length).toBe(0)
+    expect(menuKeys().slice(0, 12)).toEqual([...HIT_STRUCTURE_KEYS])
+    expect(menuNode('add-work').textContent).toBe('添加工作')
+    // 命中对象 → 先选中（右键行 B）
+    expect(useScheduleStore.getState().selectedId).toBe('B')
+  })
+
+  it('分组行右键：「降级」禁用并带原因（前面没有分组=无处归属），「升级」也禁用', () => {
+    const p = groupProject() // G(土建) 是首个分组行，前面没有别的分组
+    useScheduleStore.setState({ project: p })
+    render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    fireEvent.contextMenu(tableRows()[0])
+    expect(useScheduleStore.getState().selectedId).toBe('G')
+    expect(liOf('demote').className).toContain('ant-menu-item-disabled')
+    expect(menuNode('demote').getAttribute('title')).toBe('降级后无处归属（前面没有分组行）')
+    expect(menuNode('promote').getAttribute('title')).toBe('分组行不支持该操作，请选中一条工作')
+    // 分组行不给工作对象专有项
+    expect(liOf('milestone').className).toContain('ant-menu-item-disabled')
+  })
+
+  it('列头右键：「插入列 / 隐藏该列 / 列设置… / 列宽自适应」，点「隐藏该列」真隐藏', () => {
+    const p = chainProject()
+    render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    const head = screen.getByTestId('sched-gantt-table').querySelector<HTMLElement>('.sched-gantt-head')!
+    const durCell = Array.from(head.children).find((el) => el.textContent?.includes('工期')) as HTMLElement
+    fireEvent.contextMenu(durCell)
+    expect(menuEl()!.getAttribute('data-hit-region')).toBe('column-header')
+    expect(menuKeys()).toEqual(['column.insert', 'column.hide', 'column.settings', 'column.autofit'])
+    expect(menuNode('column.hide').textContent).toBe('隐藏该列')
+    expect(liOf('column.insert').className).toContain('ant-menu-item-disabled')
+    fireEvent.click(menuNode('column.hide'))
+    expect(menuEl()).toBeNull()
+    expect(tablePane().textContent).not.toContain('工期') // 与列菜单同一 toggleCol 路径
+    expect(JSON.parse(localStorage.getItem(CHAT_PREFS_KEY)!).ganttHide).toContain('dur')
+  })
+
+  it('空白画布右键：出画布项（不含结构 12 项），「全览整计划」可点', () => {
+    const p = chainProject()
+    render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    fireEvent.contextMenu(screen.getByTestId('sched-gantt-canvas'))
+    expect(menuEl()!.getAttribute('data-hit-region')).toBe('canvas')
+    expect(menuKeys()).toContain('canvas.fit')
+    expect(menuKeys()).not.toContain('add-work')
+    expect(menuNode('canvas.fit').textContent).toBe('全览整计划')
+    // 没有选中时插入类项禁用并给原因（不假动作）
+    expect(menuNode('canvas.insert-pre').getAttribute('title')).toBe('请先选中一行作为插入参照')
+    expect(liOf('canvas.insert-pre').className).toContain('ant-menu-item-disabled')
+  })
+
+  it('分隔条右键：出「复位表格宽度」，点击=复位全列宽（与双击同一条路径）', () => {
+    const p = chainProject()
+    render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    const split = screen.getByTestId('sched-gantt-split')
+    fireEvent.mouseDown(split, { clientX: 900 })
+    fireEvent.mouseMove(window, { clientX: 600 })
+    fireEvent.mouseUp(window)
+    expect(tablePane().style.width).toBe(`${GANTT_LEFT_W_FULL - DEF_HIDE_W - 300}px`)
+    fireEvent.contextMenu(split)
+    expect(menuEl()!.getAttribute('data-hit-region')).toBe('splitter')
+    expect(menuKeys()).toEqual(['splitter.reset', 'splitter.collapse'])
+    fireEvent.click(menuNode('splitter.reset'))
+    expect(tablePane().style.width).toBe(`${GANTT_LEFT_W_FULL - DEF_HIDE_W}px`)
+  })
+
+  it('未命中任何命中区（视图根节点）→ 不弹菜单；Esc 收起已开的菜单', () => {
+    const p = chainProject()
+    render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    fireEvent.contextMenu(screen.getByTestId('sched-gantt'))
+    expect(menuEl()).toBeNull()
+    fireEvent.contextMenu(tableRows()[0])
+    expect(menuEl()).not.toBeNull()
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(menuEl()).toBeNull()
+  })
+})
+
+// ── v3 交互语义（行为线）：横道表格与右键菜单的键盘可达 ──────────────────
+//
+// 口径：断言用户可见行为与 AT 可读语义——roving tabindex 的真实值、↑/↓ 真的换选中
+// 并搬焦点、Enter 真的开检查器、F2 真的开出名称弹层、右键菜单容器的 role/aria-disabled
+// 与视觉禁用同源、Esc 收起后焦点回到命中的那一行。不测内部 state 名。
+describe('GanttView 键盘可达（v3：行 roving / Enter / F2 / 菜单语义）', () => {
+  const tableRows = () =>
+    Array.from(
+      screen.getByTestId('sched-gantt-table').querySelectorAll<HTMLElement>('.sched-gantt-tbody .sched-gantt-row'),
+    )
+  const dataCellOf = (row: HTMLElement) =>
+    Array.from(row.querySelectorAll<HTMLElement>('.sched-gantt-cell')).find((c) => !c.classList.contains('sched-row-no'))!
+  const menuEl = () => screen.queryByTestId('sched-hit-menu')
+
+  beforeEach(() => {
+    localStorage.removeItem(CHAT_PREFS_KEY)
+    useScheduleStore.setState({
+      project: chainProject(),
+      selectedId: null,
+      hydrated: true,
+      sync: 'saved',
+      syncError: null,
+      past: [],
+      future: [],
+    })
+  })
+
+  it('roving tabindex：无选中时首任务行 0，其余 -1；选中 B 后 B 行独占 0', () => {
+    const p = chainProject()
+    const { unmount } = render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    expect(tableRows().map((r) => r.tabIndex)).toEqual([0, -1, -1])
+    unmount()
+    useScheduleStore.setState({ selectedId: 'B' })
+    render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    expect(tableRows().map((r) => r.tabIndex)).toEqual([-1, 0, -1])
+  })
+
+  it('↓ 移动选中到下一行并让焦点跟过去（表格与画布同步换选中）', () => {
+    const p = chainProject()
+    render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    const first = tableRows()[0]
+    first.focus()
+    fireEvent.keyDown(first, { key: 'ArrowDown' })
+    expect(useScheduleStore.getState().selectedId).toBe('B')
+    expect(document.activeElement).toBe(tableRows()[1])
+    expect(tableRows()[1].className).toContain('sched-row-selected')
+  })
+
+  it('Enter 打开任务检查器（与右键菜单「任务检查器」同一条 onInspect 回调）', () => {
+    const p = chainProject()
+    const onInspect = vi.fn()
+    render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} onInspect={onInspect} />)
+    fireEvent.keyDown(tableRows()[2], { key: 'Enter' })
+    expect(onInspect).toHaveBeenCalledWith('C')
+  })
+
+  it('F2 开名称就地编辑：弹层出现且输入框获焦（与双击同一受控 open）', () => {
+    const p = chainProject()
+    render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    expect(screen.queryByTestId('sched-inplace-name-A')).toBeNull()
+    fireEvent.keyDown(tableRows()[0], { key: 'F2' })
+    const editor = screen.getByTestId('sched-inplace-name-A')
+    expect(document.activeElement).toBe(editor.querySelector('input'))
+  })
+
+  it('右键菜单容器 role=menu/menuitem，禁用项 aria-disabled 与视觉禁用同步', () => {
+    const p = chainProject()
+    render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    fireEvent.contextMenu(dataCellOf(tableRows()[1]))
+    const menu = menuEl()!.querySelector('[role="menu"]')
+    expect(menu).not.toBeNull()
+    const items = Array.from(menuEl()!.querySelectorAll<HTMLElement>('[role="menuitem"]'))
+    expect(items.length).toBeGreaterThan(0)
+    // 「解组 / 格式刷 / 文字颜色 / 粘贴」在无剪贴板上下文里诚实禁用：视觉类与 ARIA 同源
+    const disabledLabels = items
+      .filter((li) => li.getAttribute('aria-disabled') === 'true')
+      .map((li) => li.textContent?.trim())
+    expect(disabledLabels).toContain('解组')
+    expect(disabledLabels).toContain('粘贴')
+    // 可用项不能同时挂 aria-disabled="true"（否则读屏比视觉更严，按键提示会误报）
+    const enabled = items.filter((li) => !li.className.includes('ant-menu-item-disabled'))
+    expect(enabled.every((li) => li.getAttribute('aria-disabled') !== 'true')).toBe(true)
+  })
+
+  it('Esc 收起右键菜单并把焦点还给命中的那一行（键盘用户不掉回文档根）', () => {
+    const p = chainProject()
+    render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    const row = tableRows()[1]
+    row.focus()
+    fireEvent.contextMenu(dataCellOf(row))
+    expect(menuEl()).not.toBeNull()
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(menuEl()).toBeNull()
+    expect(document.activeElement).toBe(row)
+  })
+})
+
+// ── W5 右键真动作：格式刷 / 列宽自适应（斑马 12 项里的两项）────────────────
+describe('W5 右键真动作：格式刷与列宽自适应', () => {
+  const styledProject = (): SchedProject => {
+    const p = chainProject()
+    return { ...p, tasks: p.tasks.map((t) => (t.id === 'A' ? { ...t, style: { color: '#d4380d' } } : t)) } // hex-exempt
+  }
+  const paneW = () => Number.parseFloat((document.querySelector('[data-testid="sched-gantt-table"]') as HTMLElement).style.width)
+
+  it('格式刷：取 A 外观后点 B，B 继承同一 style；刷子自动收起', () => {
+    const p = styledProject()
+    useScheduleStore.setState({ project: p, selectedId: 'A', hydrated: true, sync: 'saved', savedAt: null, syncError: null, past: [], future: [] })
+    const { container } = render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    act(() => { useScheduleStore.getState().sendGanttCommand('format-brush') })
+    expect(container.querySelector('.sched-gantt')?.className).toContain('sched-brush-mode')
+    // 表格窗格第 2 行 = B（链式样板 A/B/C 顺序）
+    const rows = container.querySelectorAll('.sched-gantt-tbody .sched-gantt-row')
+    fireEvent.click(rows[1] as HTMLElement)
+    const b = useScheduleStore.getState().project.tasks.find((t) => t.id === 'B')
+    expect(b?.style?.color).toBe('#d4380d') // hex-exempt
+    expect(container.querySelector('.sched-gantt')?.className).not.toContain('sched-brush-mode')
+  })
+
+  it('列宽自适应：表头右键 → 表格窗格铺开到可见列合计', () => {
+    // 先把表格窗格收窄（模拟用户拖过），自适应才有可见变化
+    localStorage.setItem(CHAT_PREFS_KEY, JSON.stringify({ ganttTableW: 400 }))
+    const p = chainProject()
+    useScheduleStore.setState({ project: p, selectedId: null, hydrated: true, sync: 'saved', savedAt: null, syncError: null, past: [], future: [] })
+    render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    const before = paneW()
+    const head = document.querySelector('[data-testid="sched-gantt-table"] .sched-gantt-head') as HTMLElement
+    fireEvent.contextMenu(head, { clientX: 30, clientY: 10 })
+    const item = document.querySelector('[data-hit-key="column.autofit"]') as HTMLElement
+    expect(item).not.toBeNull()
+    fireEvent.click(item)
+    expect(paneW()).toBeGreaterThan(before)
+  })
+})
+
+// ── 树形拖动（斑马「树形拖动」）：表格行拖拽改行序/层级 ───────────────────
+describe('树形拖动：表格行拖放落到 store.moveRow', () => {
+  it('拖 B 到 A 上方 → 顺序变为 垫层/挖土/浇筑（同级 before）', () => {
+    const p = chainProject()
+    useScheduleStore.setState({ project: p, selectedId: null, hydrated: true, sync: 'saved', savedAt: null, syncError: null, past: [], future: [] })
+    const { container } = render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    const rows = container.querySelectorAll('.sched-gantt-tbody .sched-gantt-row')
+    const dt = { effectAllowed: '', dropEffect: '', setData: vi.fn(), getData: () => 'B' }
+    fireEvent.dragStart(rows[1], { dataTransfer: dt })
+    act(() => { rows[0].dispatchEvent(new MouseEvent('dragover', { bubbles: true, clientY: 2 })) })
+    expect(rows[0].className).toContain('sched-drop-before')
+    act(() => { rows[0].dispatchEvent(new MouseEvent('drop', { bubbles: true, clientY: 2 })) })
+    expect(useScheduleStore.getState().project.tasks.map((t) => t.name)).toEqual(['垫层', '挖土', '浇筑'])
+  })
+
+  it('拖工作到分区行中段 → 变成子工作（inside）', () => {
+    const p: SchedProject = {
+      name: '分组样板', startDate: '2026-09-07',
+      tasks: [
+        { id: 'G1', name: '分区一', duration: 0, level: 0, progress: 0 },
+        { id: 'A', name: '挖土', duration: 2, level: 1, progress: 0 },
+        { id: 'G2', name: '分区二', duration: 0, level: 0, progress: 0 },
+        { id: 'B', name: '垫层', duration: 2, level: 1, progress: 0 },
+      ],
+      links: [],
+    }
+    useScheduleStore.setState({ project: p, selectedId: null, hydrated: true, sync: 'saved', savedAt: null, syncError: null, past: [], future: [] })
+    const { container } = render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    const rows = container.querySelectorAll('.sched-gantt-tbody .sched-gantt-row')
+    const dt = { effectAllowed: '', dropEffect: '', setData: vi.fn(), getData: () => 'B' }
+    fireEvent.dragStart(rows[3], { dataTransfer: dt })
+    act(() => { rows[0].dispatchEvent(new MouseEvent('dragover', { bubbles: true, clientY: 15 })) })
+    expect(rows[0].className).toContain('sched-drop-inside')
+    act(() => { rows[0].dispatchEvent(new MouseEvent('drop', { bubbles: true, clientY: 15 })) })
+    const after = useScheduleStore.getState().project.tasks
+    expect(after.map((t) => `${t.id}:${t.level}`)).toEqual(['G1:0', 'A:1', 'B:1', 'G2:0'])
   })
 })

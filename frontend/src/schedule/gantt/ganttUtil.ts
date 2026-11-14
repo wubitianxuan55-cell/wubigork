@@ -24,9 +24,9 @@ export const DAY_W_MIN = 2
 export const DAY_W_MAX = 40
 export const DAY_W_DEFAULT = 20
 export const ZOOM_FACTOR = 1.35
-/** 周刻度切换阈值：dayW 低于此值时底层刻度由「日」切「周」（MS Project 口径） */
-export const WEEK_TIER_BELOW = 12
-export const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六']
+/** 周刻度切换阈值：dayW 低于此值时底层刻度由「日」切「周」（MS Project 口径）。
+ *  单源已迁 `timescale.ts`（斑马时标内核），这里 re-export 防两处漂移。 */
+export { WEEK_TIER_BELOW_RULER as WEEK_TIER_BELOW, WEEKDAY_LABELS } from '../timescale'
 /** 自定义字段注册表按 key 索引（行渲染 O(1) 取槽类型） */
 export const CUSTOM_FIELD_BY_KEY: Record<string, CustomFieldDef> = Object.fromEntries(CUSTOM_FIELDS.map((f) => [f.key, f]))
 

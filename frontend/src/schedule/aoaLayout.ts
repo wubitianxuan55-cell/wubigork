@@ -19,9 +19,11 @@ import type { AoaLayout, AoaPin } from './types'
 export const AOA_PINS_MAX = 5000
 
 /** 半格吸附（55×37）：拖拽中预览即吸附位，所见即所得杜绝落点跳格 */
-export function snapPt(x: number, y: number): AoaPin {
-  const gx = AOA_COL_W / 2
-  const gy = AOA_ROW_H / 2
+export function snapPt(x: number, y: number, grid?: { gx: number; gy: number }): AoaPin {
+  // 网格可注入（W4 布图参数收口）：density 改了列距/行距时，吸附格跟着布图走，
+  // 否则手动落点与自动位永远差半格、pin 越拖越多。缺省=旧口径 55×56（逐字不变）。
+  const gx = grid && Number.isFinite(grid.gx) && grid.gx > 0 ? grid.gx : AOA_COL_W / 2
+  const gy = grid && Number.isFinite(grid.gy) && grid.gy > 0 ? grid.gy : AOA_ROW_H / 2
   return { x: Math.round(x / gx) * gx, y: Math.round(y / gy) * gy }
 }
 
@@ -132,6 +134,7 @@ export function edgeSegs(
   lane: { idx: number; cnt: number },
   waveFromX?: number | null,
   channelY?: number,
+  radius: number = AOA_R,
 ): EdgeGeom {
   const a = nodeById.get(e.from)!
   const b = nodeById.get(e.to)!
@@ -143,8 +146,8 @@ export function edgeSegs(
     // 同列：竖直边（虚工作常态）；并行时横向微移防重合；文字右移竖排堆叠（名称上/工期下）
     const x = a.x + off
     const up = b.y < a.y
-    const y1 = up ? a.y - AOA_R : a.y + AOA_R
-    const y2 = up ? b.y + AOA_R : b.y - AOA_R
+    const y1 = up ? a.y - radius : a.y + radius
+    const y2 = up ? b.y + radius : b.y - radius
     const my = (y1 + y2) / 2
     return {
       segs: [{ x1: x, y1, x2: x, y2 }],
@@ -153,8 +156,8 @@ export function edgeSegs(
     }
   }
   if (dx > 0) {
-    const x1 = a.x + AOA_R
-    const x2 = b.x - AOA_R
+    const x1 = a.x + radius
+    const x2 = b.x - radius
     if (Math.abs(dy) < 2) {
       // 同行长边走行间通道（v4.143 分行）：跨多列的同行边从节点中心线让到
       // 行间通道（channelY，调用方按 x 区间重叠分配层号防通道互压），
@@ -202,13 +205,13 @@ export function edgeSegs(
     }
   }
   // 后退边（手动布局）：底缘出 → 下方通道 → 底缘入（箭头朝上）
-  const laneY = Math.max(a.y, b.y) + AOA_R + 14 + off
+  const laneY = Math.max(a.y, b.y) + radius + 14 + off
   const mx = (a.x + b.x) / 2
   return {
     segs: [
-      { x1: a.x, y1: a.y + AOA_R, x2: a.x, y2: laneY },
+      { x1: a.x, y1: a.y + radius, x2: a.x, y2: laneY },
       { x1: a.x, y1: laneY, x2: b.x, y2: laneY },
-      { x1: b.x, y1: laneY, x2: b.x, y2: b.y + AOA_R },
+      { x1: b.x, y1: laneY, x2: b.x, y2: b.y + radius },
     ],
     name: { x: mx, y: laneY - 4, anchor: 'middle' },
     dur: { x: mx, y: laneY + 10, anchor: 'middle' },
@@ -225,6 +228,7 @@ export function edgeSegs(
 export function assignChannels(
   edges: AoaEdge[],
   nodeById: Map<string, { x: number; y: number }>,
+  radius: number = AOA_R,
 ): Map<string, number> {
   const longs: { id: string; x1: number; x2: number; y: number }[] = []
   for (const e of edges) {
@@ -233,7 +237,7 @@ export function assignChannels(
     if (!a || !b) continue
     const dx = b.x - a.x
     if (dx > AOA_COL_W * 1.5 && Math.abs(b.y - a.y) < 2) {
-      longs.push({ id: e.id, x1: a.x + AOA_R + 16, x2: b.x - AOA_R - 16, y: a.y })
+      longs.push({ id: e.id, x1: a.x + radius + 16, x2: b.x - radius - 16, y: a.y })
     }
   }
   longs.sort((p, q) => p.x1 - q.x1 || p.x2 - q.x2)
@@ -262,12 +266,13 @@ export function summarySegs(
   a: { x: number; y: number },
   b: { x: number; y: number },
   yTop: number,
+  radius: number = AOA_R,
 ): EdgeGeom {
   if (Math.abs(b.x - a.x) < 2) {
     const x = a.x
     const up = b.y < a.y
-    const y1 = up ? a.y - AOA_R : a.y + AOA_R
-    const y2 = up ? b.y + AOA_R : b.y - AOA_R
+    const y1 = up ? a.y - radius : a.y + radius
+    const y2 = up ? b.y + radius : b.y - radius
     const my = (y1 + y2) / 2
     return {
       segs: [{ x1: x, y1, x2: x, y2 }],

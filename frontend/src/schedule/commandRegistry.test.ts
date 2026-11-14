@@ -13,9 +13,10 @@ const KEY = { ctrlKey: false, altKey: false, shiftKey: false, metaKey: false }
 
 describe('schedule command registry', () => {
   it('命令 ID 稳定唯一，且关键命令可反查', () => {
-    expect(SCHEDULE_COMMANDS).toHaveLength(41)
+    expect(SCHEDULE_COMMANDS).toHaveLength(44)
     expect(new Set(SCHEDULE_COMMANDS.map((command) => command.id)).size).toBe(SCHEDULE_COMMANDS.length)
     expect(scheduleCommand('edit.find')?.label).toBe('查找工作')
+    expect(scheduleCommand('edit.column-filter')?.label).toBe('列筛选')
     expect(scheduleCommand('missing')).toBeUndefined()
   })
 

@@ -4,6 +4,16 @@ import { SearchOutlined } from '@ant-design/icons'
 import type { RuntimeScheduleCommand, ScheduleCommandGroup } from '../../schedule/commandRegistry'
 import { formatShortcut, searchScheduleCommands } from '../../schedule/commandRegistry'
 
+/** 列表区 id：搜索框（combobox）用 aria-controls 指过来，aria-activedescendant 指到活动项 */
+const LISTBOX_ID = 'sched-command-list'
+const optionId = (commandId: string) => `sched-cmd-${commandId}`
+/**
+ * 活动项滚动入视：**不引入动画**——`behavior:'auto'`（瞬时）。显式写死 auto 是因为
+ * 这一处是列表里唯一的滚动点，宁可写死也不给后续改成 `smooth` 留口子；系统开了
+ * 「减少动态效果」（prefers-reduced-motion: reduce）时 auto 同样是正确语义。
+ */
+const ACTIVE_SCROLL = { block: 'nearest', behavior: 'auto' } as const
+
 interface ScheduleCommandPaletteProps {
   open: boolean
   commands: readonly RuntimeScheduleCommand[]
@@ -57,8 +67,11 @@ export const ScheduleCommandPalette: React.FC<ScheduleCommandPaletteProps> = ({
 
   useEffect(() => {
     const active = listRef.current?.querySelector<HTMLElement>('[data-command-active="true"]')
-    active?.scrollIntoView?.({ block: 'nearest' })
+    active?.scrollIntoView?.(ACTIVE_SCROLL)
   }, [activeIndex])
+
+  /** 活动项 id（combobox 的 aria-activedescendant；无结果时不下发，避免悬空引用） */
+  const activeOptionId = filtered[activeIndex] ? optionId(filtered[activeIndex].spec.id) : undefined
 
   const execute = (command: RuntimeScheduleCommand) => {
     if (command.disabledReason) {
@@ -87,6 +100,17 @@ export const ScheduleCommandPalette: React.FC<ScheduleCommandPaletteProps> = ({
       if (filtered.length) setActiveIndex((index) => (index - 1 + filtered.length) % filtered.length)
       return
     }
+    if (event.key === 'Home') {
+      // 列表首项（与 ↑/↓ 同一活动态，不另存一份游标）
+      event.preventDefault()
+      if (filtered.length) setActiveIndex(0)
+      return
+    }
+    if (event.key === 'End') {
+      event.preventDefault()
+      if (filtered.length) setActiveIndex(filtered.length - 1)
+      return
+    }
     if (event.key === 'Enter') {
       event.preventDefault()
       const command = filtered[activeIndex]
@@ -107,7 +131,18 @@ export const ScheduleCommandPalette: React.FC<ScheduleCommandPaletteProps> = ({
       wrapClassName="sched-command-palette-wrap"
       aria-label="进度命令与快捷键"
     >
-      <div className="sched-command-palette" data-testid="sched-command-palette">
+      <div
+        className="sched-command-palette"
+        data-testid="sched-command-palette"
+        onKeyDown={(event) => {
+          // 搜索框自己已处理 Esc（preventDefault）——这里只兜住「焦点落在选项上」的情形
+          if (event.defaultPrevented) return
+          if (event.key === 'Escape') {
+            event.preventDefault()
+            onClose()
+          }
+        }}
+      >
         <div className="sched-command-palette-search">
           <SearchOutlined aria-hidden="true" />
           <Input
@@ -116,6 +151,11 @@ export const ScheduleCommandPalette: React.FC<ScheduleCommandPaletteProps> = ({
             value={query}
             placeholder="搜索命令、功能或快捷键…"
             aria-label="搜索进度命令"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={open}
+            aria-controls={LISTBOX_ID}
+            aria-activedescendant={activeOptionId}
             data-testid="sched-command-search"
             onChange={(event) => {
               setQuery(event.target.value)
@@ -125,7 +165,7 @@ export const ScheduleCommandPalette: React.FC<ScheduleCommandPaletteProps> = ({
           />
           <kbd>esc</kbd>
         </div>
-        <div className="sched-command-palette-list" ref={listRef} role="listbox" aria-label="进度命令">
+        <div className="sched-command-palette-list" ref={listRef} id={LISTBOX_ID} role="listbox" aria-label="进度命令">
           {filtered.length === 0 && (
             <div className="sched-command-palette-empty" data-testid="sched-command-empty">
               没有匹配的命令。试试“查找”“预警”或“网络图”。
@@ -141,6 +181,9 @@ export const ScheduleCommandPalette: React.FC<ScheduleCommandPaletteProps> = ({
                     key={command.spec.id}
                     type="button"
                     role="option"
+                    id={optionId(command.spec.id)}
+                    // 选项不占 Tab 位：焦点始终在搜索框上，由 aria-activedescendant 报活动项
+                    tabIndex={-1}
                     aria-selected={active}
                     aria-disabled={!!command.disabledReason}
                     className={`sched-command-palette-item${active ? ' is-active' : ''}${command.disabledReason ? ' is-disabled' : ''}`}

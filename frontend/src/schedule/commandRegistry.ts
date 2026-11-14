@@ -48,6 +48,7 @@ export const SCHEDULE_COMMANDS: readonly ScheduleCommandSpec[] = [
   { id: 'edit.copy', group: '编辑', label: '复制选中行', detail: '把名称、工期、起止和前置复制为 TSV', keywords: ['拷贝', 'copy'], shortcuts: ['ctrl+c'] },
   { id: 'edit.paste', group: '编辑', label: '粘贴任务行', detail: '把剪贴板中的 TSV 行追加为工作', keywords: ['粘贴', 'paste'], shortcuts: ['ctrl+v'] },
   { id: 'edit.find', group: '编辑', label: '查找工作', detail: '按名称过滤横道表格', keywords: ['搜索', '筛选', 'find', 'search'], shortcuts: ['ctrl+f'] },
+  { id: 'edit.column-filter', group: '编辑', label: '列筛选', detail: '按列类型过滤：文本包含 / 数值比较 / 日期区间 / 枚举', keywords: ['筛选', '过滤', '列', 'filter', 'column'] },
   { id: 'edit.delete', group: '编辑', label: '删除选中项', detail: '删除选中工作或分组及其关系', keywords: ['移除', 'delete', 'remove'], shortcuts: ['delete'] },
   { id: 'edit.clear', group: '编辑', label: '清空全部任务与关系', detail: '清空当前工程内容，可通过撤销恢复', keywords: ['重置', 'clear'] },
 
@@ -68,7 +69,9 @@ export const SCHEDULE_COMMANDS: readonly ScheduleCommandSpec[] = [
   { id: 'view.pdm', group: '视图', label: '单代号网络图', detail: '按工作节点查看逻辑关系', keywords: ['pdm', '节点', 'network'] },
   { id: 'view.aoa', group: '视图', label: '双代号网络图', detail: '保留当前双代号显示模式并打开网络图', keywords: ['aoa', '网络', 'network'] },
   { id: 'view.timescaled', group: '视图', label: '双代号时标网络图', detail: '横轴按最早时间映射的双代号网络图', keywords: ['aoa', '时标', 'network'] },
+  { id: 'view.timescaledLogic', group: '视图', label: '时标逻辑图', detail: '保留时间坐标，隐藏工期装饰，专看逻辑拓扑', keywords: ['aoa', '时标', '逻辑', '网络', 'logic'] },
   { id: 'view.logic', group: '视图', label: '双代号逻辑网络图', detail: '横轴按拓扑深度排列的双代号网络图', keywords: ['aoa', '逻辑', 'network'] },
+  { id: 'view.ganttNetwork', group: '视图', label: '横道网络图', detail: '横道与搭接关系同屏的网络计划视图', keywords: ['横道', '甘特', '网络', 'relationship'] },
   { id: 'view.usage', group: '视图', label: '资源使用', detail: '逐工作日查看资源负载', keywords: ['资源', 'usage'] },
   { id: 'view.dcma', group: '视图', label: '质量体检', detail: '查看 DCMA 计划质量指标', keywords: ['dcma', '检查'] },
   { id: 'view.monte', group: '视图', label: '工期模拟', detail: '查看工期概率区间', keywords: ['蒙特卡洛', 'monte', '模拟'] },

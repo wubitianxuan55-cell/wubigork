@@ -2,11 +2,15 @@
  * ExportDialog — 导出图面弹窗（SchedulePage 菜单「导出图面（PNG/PDF/打印）」）
  * v4.141 导出预览（所见即所得）。瘦身 P3：自 pages/SchedulePage.tsx 分片，正文零改动。
  */
-import React, { useEffect, useState } from 'react'
-import { Button, Checkbox, Input, Modal, Segmented, Space } from 'antd'
+import React, { useEffect, useMemo, useState } from 'react'
+import { Button, Checkbox, Input, InputNumber, Modal, Segmented, Select, Space } from 'antd'
 import { buildGanttExportSvg } from '../../schedule/ganttExport'
 import { buildAoaExportSvg, buildPdmExportSvg } from '../../schedule/networkExport'
 import { printSvg, saveExportBlob, svgToPdfBlob, svgToPngBlob, svgWithViewBox } from '../../schedule/exportArtifact'
+import { buildPaperSvg } from '../../schedule/paperExport'
+import { applyExportPalette } from '../../schedule/exportPalette'
+import type { DisplayPreset } from '../../schedule/displayPreset'
+import { PAPER_MM, type PageOrientation, type PaperKind, type PaperLayout } from '../../schedule/pageLayout'
 import { loadExportMeta, saveExportMeta, todayIso, type ExportMetaPrefs } from '../../schedule/exportMeta'
 import type { AoaGraph } from '../../schedule/aoa'
 import type { CpmResult, SchedProject } from '../../schedule/types'
@@ -24,7 +28,9 @@ export const ExportDialog: React.FC<{
   cpm: CpmResult
   aoa: AoaGraph
   defaultView: 'gantt' | 'pdm' | 'aoa'
-}> = ({ open, onClose, project, cpm, aoa, defaultView }) => {
+  /** 显示预设（W6）：导出件跟随屏上护眼/黑白配色（normal 零改动） */
+  preset: DisplayPreset
+}> = ({ open, onClose, project, cpm, aoa, defaultView, preset }) => {
   const [meta, setMeta] = useState<ExportMetaPrefs>(loadExportMeta)
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -33,6 +39,20 @@ export const ExportDialog: React.FC<{
   const [barLabels, setBarLabels] = useState(true)
   /** 导出预览（v4.141）：构建器产物注入 viewBox 后等比缩放进弹窗，所见即所得 */
   const [previewSvg, setPreviewSvg] = useState<string | null>(null)
+  /**
+   * W6 按纸张布图：勾选后预览与导出都走 paperExport 的多页纸堆。
+   * 会话态（不落偏好）——纸张规格是当次出图决策，不是长期设置。
+   */
+  const [paperOn, setPaperOn] = useState(false)
+  const [paper, setPaper] = useState<PaperKind>('A4')
+  const [orient, setOrient] = useState<PageOrientation>('landscape')
+  const [marginMm, setMarginMm] = useState(10)
+  /** 纸堆读数（页数/缩放/截断）：预览文案与 PNG/PDF 门控共用 */
+  const [sheet, setSheet] = useState<{ pages: number; scale: number; truncated: boolean } | null>(null)
+  const layout = useMemo<PaperLayout>(() => ({ paper, orientation: orient, marginMm }), [paper, orient, marginMm])
+  const pageWmm = orient === 'landscape' ? PAPER_MM[paper].h : PAPER_MM[paper].w
+  /** 纸堆页数超限时 PNG/PDF 不可用（canvas 单图编码上限），打印不受影响 */
+  const tooManyPages = paperOn && !!sheet && sheet.pages > 20
   useEffect(() => {
     if (open) setKind(defaultView) // 每次打开跟随当前视图
   }, [open, defaultView])
@@ -49,13 +69,22 @@ export const ExportDialog: React.FC<{
           : kind === 'aoa'
             ? buildAoaExportSvg(project, aoa, m)
             : buildPdmExportSvg(project, cpm, m)
-        setPreviewSvg(svgWithViewBox(art.svg))
+        const tinted = { ...art, svg: applyExportPalette(art.svg, preset) }
+        if (paperOn) {
+          const sheetOut = buildPaperSvg(tinted, layout, { title: project.name })
+          setPreviewSvg(svgWithViewBox(sheetOut.svg))
+          setSheet({ pages: sheetOut.pages, scale: sheetOut.scale, truncated: sheetOut.truncated })
+        } else {
+          setPreviewSvg(svgWithViewBox(tinted.svg))
+          setSheet(null)
+        }
       } catch {
         setPreviewSvg(null)
+        setSheet(null)
       }
     }, 350)
     return () => window.clearTimeout(t)
-  }, [open, kind, barLabels, meta, project, cpm, aoa])
+  }, [open, kind, barLabels, meta, project, cpm, aoa, paperOn, layout, preset])
 
   const setField = (k: keyof ExportMetaPrefs) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setMeta((p) => ({ ...p, [k]: e.target.value }))
@@ -72,9 +101,15 @@ export const ExportDialog: React.FC<{
           ? buildAoaExportSvg(project, aoa, m)
           : buildPdmExportSvg(project, cpm, m)
       const base = `${project.name || '进度计划'}-${EXPORT_KIND_FILE[kind]}`
-      if (out === 'print') printSvg(art.svg)
-      else if (out === 'png') await saveExportBlob(await svgToPngBlob(art.svg), `${base}.png`)
-      else await saveExportBlob(await svgToPdfBlob(art.svg), `${base}.pdf`)
+      // 按纸张布图：纸堆页间不留缝，打印时每页恰好落在一张纸上
+      const tinted = { ...art, svg: applyExportPalette(art.svg, preset) }
+      const framed = paperOn ? buildPaperSvg(tinted, layout, { title: project.name, gap: 0 }) : null
+      const outSvg = framed ? framed.svg : tinted.svg
+      const suffix = paperOn ? `-${paper}${orient === 'landscape' ? '横' : '竖'}` : ''
+      if (out === 'print') {
+        printSvg(outSvg, framed ? { pageSize: `${paper} ${orient}`, margin: '0', svgWidthMm: pageWmm } : undefined)
+      } else if (out === 'png') await saveExportBlob(await svgToPngBlob(outSvg), `${base}${suffix}.png`)
+      else await saveExportBlob(await svgToPdfBlob(outSvg), `${base}${suffix}.pdf`)
       saveExportMeta(meta)
       setMsg(out === 'print' ? '已唤起系统打印（目标选「另存为 PDF」可得 PDF 文件）' : '已导出')
     } catch (e) {
@@ -92,6 +127,47 @@ export const ExportDialog: React.FC<{
           onChange={(v) => setKind(v as ExportKind)}
           options={(Object.keys(EXPORT_KIND_LABEL) as ExportKind[]).map((k) => ({ value: k, label: EXPORT_KIND_LABEL[k] }))}
         />
+        <Space size={8} wrap>
+          <Checkbox
+            checked={paperOn}
+            onChange={(e) => setPaperOn(e.target.checked)}
+            data-testid="sched-export-paper"
+          >
+            按纸张布图
+          </Checkbox>
+          <Select
+            size="small"
+            value={paper}
+            disabled={!paperOn}
+            onChange={(v) => setPaper(v as PaperKind)}
+            options={[{ value: 'A4', label: 'A4' }, { value: 'A3', label: 'A3' }]}
+            data-testid="sched-export-paper-kind"
+          />
+          <Segmented
+            size="small"
+            value={orient}
+            disabled={!paperOn}
+            onChange={(v) => setOrient(v as PageOrientation)}
+            options={[{ value: 'landscape', label: '横向' }, { value: 'portrait', label: '纵向' }]}
+            data-testid="sched-export-paper-orient"
+          />
+          <InputNumber
+            size="small"
+            min={5}
+            max={30}
+            value={marginMm}
+            disabled={!paperOn}
+            onChange={(v) => v != null && setMarginMm(v)}
+            addonAfter="mm"
+            data-testid="sched-export-paper-margin"
+          />
+          {paperOn && sheet && (
+            <span className="sched-dim" style={{ fontSize: 12 }} data-testid="sched-export-paper-info">
+              共 {sheet.pages} 页 · 缩放 {Math.round(sheet.scale * 100)}%
+              {sheet.truncated ? ' · 已截断（超出 400 页上限）' : ''}
+            </span>
+          )}
+        </Space>
         {/* 预览（v4.141）：构建器 SVG 注入 viewBox 等比缩放，导出前所见即所得 */}
         <div className="sched-export-preview" data-testid="sched-export-preview">
           {previewSvg ? (
@@ -145,8 +221,22 @@ export const ExportDialog: React.FC<{
           />
         </label>
         <Space size={8}>
-          <Button type="primary" loading={busy} data-testid="sched-export-png" onClick={() => void run('png')}>导出 PNG</Button>
-          <Button data-testid="sched-export-pdf" disabled={busy} onClick={() => void run('pdf')}>导出 PDF</Button>
+          {/* 画布单图上限（浏览器 ~32767px）：纸堆超过 20 页时 PNG/PDF 会编码失败，
+              这里提前禁用并给原因，打印仍可走浏览器分页 */}
+          <Button
+            type="primary"
+            loading={busy}
+            data-testid="sched-export-png"
+            disabled={tooManyPages}
+            title={tooManyPages ? '页数过多：PNG 需整图编码（浏览器画布上限 ~32767px），请改用打印或缩小纸张' : undefined}
+            onClick={() => void run('png')}
+          >导出 PNG</Button>
+          <Button
+            data-testid="sched-export-pdf"
+            disabled={busy || tooManyPages}
+            title={tooManyPages ? '页数过多：PDF 走整图编码，请改用打印（浏览器分页）' : undefined}
+            onClick={() => void run('pdf')}
+          >导出 PDF</Button>
           <Button data-testid="sched-export-print" disabled={busy} onClick={() => void run('print')}>打印</Button>
         </Space>
         {msg && <div data-testid="sched-export-msg" style={{ fontSize: 12 }}>{msg}</div>}

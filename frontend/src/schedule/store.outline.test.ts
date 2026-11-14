@@ -121,3 +121,40 @@ describe('store 外观/分类归一（批5）', () => {
     expect(useScheduleStore.getState().project.tasks.find((x) => x.id === 'A')?.category).toBeUndefined()
   })
 })
+
+// 解组（斑马右键 12 项之「解组」）：删分组行，子工作并入上一个分组；首分区拒绝。
+describe('store 解组（W5 右键真动作）', () => {
+  const twoGroups: SchedProject['tasks'] = [
+    { id: 'G1', name: '分区一', duration: 0, level: 0, progress: 0 },
+    { id: 'A', name: '挖土', duration: 3, level: 1, progress: 0 },
+    { id: 'G2', name: '分区二', duration: 0, level: 0, progress: 0 },
+    { id: 'B', name: '吊装', duration: 2, level: 1, progress: 0 },
+  ]
+
+  it('第二个分组：删除分组行，子工作留在原地（并入上一个分组）', () => {
+    resetProject(twoGroups)
+    expect(useScheduleStore.getState().ungroupTask('G2').ok).toBe(true)
+    const ids = useScheduleStore.getState().project.tasks.map((t) => t.id)
+    expect(ids).toEqual(['G1', 'A', 'B'])
+    expect(useScheduleStore.getState().project.tasks.find((t) => t.id === 'B')?.level).toBe(1)
+  })
+
+  it('首个分组：子工作无处归属 → 拒绝并说明；工作行 → 拒绝', () => {
+    resetProject(twoGroups)
+    expect(useScheduleStore.getState().ungroupTask('G1').reason).toContain('无处归属')
+    expect(useScheduleStore.getState().ungroupTask('A').reason).toContain('只有分组行')
+  })
+
+  it('空分组：无子工作 → 拒绝并说明', () => {
+    resetProject([{ id: 'G1', name: '空分区', duration: 0, level: 0, progress: 0 }])
+    expect(useScheduleStore.getState().ungroupTask('G1').reason).toContain('没有工作')
+  })
+
+  it('一次解组一条历史（可撤销回原样）', () => {
+    resetProject(twoGroups)
+    useScheduleStore.getState().ungroupTask('G2')
+    expect(useScheduleStore.getState().past).toHaveLength(1)
+    useScheduleStore.getState().undo()
+    expect(useScheduleStore.getState().project.tasks.map((t) => t.id)).toEqual(['G1', 'A', 'G2', 'B'])
+  })
+})

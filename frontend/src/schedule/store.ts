@@ -12,10 +12,11 @@
  */
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { AoaPin, LinkType, SchedAoaGraph, SchedAssignment, SchedCalendar, SchedLink, SchedProject, SchedResource, SchedTask, SchedTaskStyle, SchedView } from './types'
+import type { AoaPin, LinkType, SchedAoaGraph, SchedAssignment, SchedCalendar, SchedLink, SchedNetworkStyle, SchedProject, SchedResource, SchedTask, SchedTaskStyle, SchedView } from './types'
 import { makeEmptyProject, makeSampleProject } from './sample'
 import { normalizeCalendar } from './calendar'
 import { computeCpm } from './cpm'
+import { planRowMove, type DropZone } from './moveRow'
 import { planFinishOf } from './deadline'
 import {
   archiveScheduleProject,
@@ -226,18 +227,25 @@ interface ScheduleState {
   /** ribbon→视图命令信号（一次点亮批1）：非项目状态，GanttView/AoaView 按 seq 消费。
    *  find=表格查找文本；collapse-all/expand-all=大纲折叠/展开；collapse-selected=折叠选中
    *  分组行；set-group=payload 为分组维度 JSON 数组；smart-layout=AOA 清手动布点回自动排布。 */
-  ganttCommand: { kind: 'find' | 'collapse-all' | 'expand-all' | 'collapse-selected' | 'set-group' | 'smart-layout'; payload?: string; seq: number } | null
-  sendGanttCommand: (kind: 'find' | 'collapse-all' | 'expand-all' | 'collapse-selected' | 'set-group' | 'smart-layout', payload?: string) => void
+  ganttCommand: { kind: 'find' | 'collapse-all' | 'expand-all' | 'collapse-selected' | 'set-group' | 'smart-layout' | 'column-filter' | 'column-filter-clear' | 'format-brush'; payload?: string; seq: number } | null
+  sendGanttCommand: (kind: 'find' | 'collapse-all' | 'expand-all' | 'collapse-selected' | 'set-group' | 'smart-layout' | 'column-filter' | 'column-filter-clear' | 'format-brush', payload?: string) => void
   /** 大纲操作（斑马复刻 C13 预演闸）：升级=叶转分区、降级=分区转叶、上移/下移=行序调整。
    *  拦截文案沿斑马原文（「该工作不能修改为关系！」等），先预演后落盘。 */
   promoteTask: (id: string) => { ok: boolean; reason?: string }
   demoteTask: (id: string) => { ok: boolean; reason?: string }
+  /** 树形拖动（斑马「树形拖动」）：按落点（前/后/内）移动行/整棵子树，违规给原因 */
+  moveRow: (dragId: string, targetId: string, zone: DropZone) => { ok: boolean; reason?: string }
+  /** 解组（斑马右键 12 项之「解组」）：删除分组行，其子工作并入上一个分组；
+   *  首分区无上级可归时拒绝并说明（与降级同一套归属口径）。 */
+  ungroupTask: (id: string) => { ok: boolean; reason?: string }
   moveTask: (id: string, dir: -1 | 1) => { ok: boolean; reason?: string }
   /** 表格粘贴（斑马「粘贴」占位）：TSV 行 [名称, 工期?] → 追加叶任务 */
   pasteRows: (text: string) => { ok: boolean; count?: number; reason?: string }
   /** 网络显示模式（斑马复刻批3：时标网络图/逻辑网络图；持久化进 networkStyle.mode
    *  承载位——斑马 display_mode/pert_mode 随文档走）。 */
   setNetworkMode: (mode: 'timescaled' | 'logic') => void
+  /** 图面参数 patch（W4）：四类显示开关与节点/箭线样式同入口，normalize 后随工程落盘。 */
+  setNetworkStyle: (patch: Partial<SchedNetworkStyle>) => void
 
   loadSample: () => void
   clearAll: () => void
@@ -680,8 +688,7 @@ export const useScheduleStore = create<ScheduleState>()(
         return { ok: true }
       },
 
-      demoteTask: (id) => {
-        const { project } = useScheduleStore.getState()
+      demoteTask: (id) => {        const { project } = useScheduleStore.getState()
         const idx = project.tasks.findIndex((t) => t.id === id)
         if (idx < 0) return { ok: false, reason: '任务不存在' }
         const t = project.tasks[idx]
@@ -694,6 +701,32 @@ export const useScheduleStore = create<ScheduleState>()(
         set((s) => ({
           project: { ...s.project, tasks: s.project.tasks.map((x) => (x.id === id ? { ...x, level: 1 } : x)) },
         }))
+        return { ok: true }
+      },
+
+      moveRow: (dragId, targetId, zone) => {
+        const { project } = useScheduleStore.getState()
+        const plan = planRowMove(project.tasks, dragId, targetId, zone)
+        if (!plan.ok || !plan.tasks) return { ok: false, reason: plan.reason }
+        pushHistory('move-row')
+        set((s) => ({ project: { ...s.project, tasks: plan.tasks! } }))
+        return { ok: true }
+      },
+
+      ungroupTask: (id) => {
+        const { project } = useScheduleStore.getState()
+        const idx = project.tasks.findIndex((t) => t.id === id)
+        if (idx < 0) return { ok: false, reason: '任务不存在' }
+        if (project.tasks[idx].level !== 0) return { ok: false, reason: '只有分组行可以解组（工作行没有下级）' }
+        // 子工作=紧跟其后的连续 level>0 行（两级大纲，遇 level===0 即止）
+        let childCount = 0
+        for (let i = idx + 1; i < project.tasks.length && project.tasks[i].level === 1; i++) childCount++
+        if (childCount === 0) return { ok: false, reason: '该分组下没有工作，无需解组' }
+        // 解组后子工作并入上一个分组；前面没有分组行则无处归属（与降级同一口径）
+        const hasPrevGroup = project.tasks.slice(0, idx).some((x) => x.level === 0)
+        if (!hasPrevGroup) return { ok: false, reason: '解组后子工作无处归属（前面没有分组行）' }
+        pushHistory('outline')
+        set((s) => ({ project: { ...s.project, tasks: s.project.tasks.filter((x) => x.id !== id) } }))
         return { ok: true }
       },
 
@@ -738,6 +771,16 @@ export const useScheduleStore = create<ScheduleState>()(
       setNetworkMode: (mode) => {
         pushHistory('networkStyle')
         set((s) => ({ project: { ...s.project, networkStyle: { ...(s.project.networkStyle ?? {}), mode } } }))
+      },
+
+      setNetworkStyle: (patch) => {
+        pushHistory('networkStyle')
+        set((s) => ({
+          project: {
+            ...s.project,
+            networkStyle: normalizeNetworkStyle({ ...(s.project.networkStyle ?? {}), ...patch }),
+          },
+        }))
       },
 
       removeReview: (at) => {
