@@ -431,3 +431,51 @@ describe('aoaGraphFromBuild：派生图 → 持久图元（首次手动布点时
   })
 })
 
+
+// ── 逻辑网络图模式（斑马 5 模式，一次点亮批3）：x=拓扑深度，与 es 解耦 ──
+describe('buildAoa logic 模式（一次点亮批3）', () => {
+  it('x=拓扑深度：S 第 0 列、事件逐列递进；timescaled 保持 x=es 旧口径', () => {
+    const tasks = [t('A', 3), t('B', 2)]
+    const links = [l('A', 'B')]
+    const logic = buildAoa(tasks, links, { mode: 'logic' })
+    const depthOf = (n: { x: number }) => Math.round((n.x - AOA_MARGIN) / AOA_COL_W)
+    const sL = logic.nodes.find((n) => n.anchor === 'S')!
+    const tL = logic.nodes.find((n) => n.anchor === 'T')!
+    // 深度单调：S 第 0 列，中间事件递进，T 收尾列（列距=拓扑步数，与 es 无关）
+    expect(depthOf(sL)).toBe(0)
+    const mids = logic.nodes.filter((n) => n.anchor !== 'S' && n.anchor !== 'T')
+    expect(mids.length).toBeGreaterThan(0)
+    for (const m of mids) {
+      expect(depthOf(m)).toBeGreaterThan(depthOf(sL))
+      expect(depthOf(m)).toBeLessThan(depthOf(tL))
+    }
+    expect(depthOf(tL)).toBeGreaterThan(0)
+    // 同一拓扑在时标口径：x=es×列宽（旧口径不变）；es=3 的点在逻辑图里收到拓扑列
+    const ts = buildAoa(tasks, links)
+    const sTs = ts.nodes.find((n) => n.anchor === 'S')!
+    const midTs = ts.nodes.find((n) => n.anchor !== 'S' && n.anchor !== 'T')!
+    expect(sTs.x).toBe(AOA_MARGIN)
+    expect(midTs.x).toBe(AOA_MARGIN + midTs.es * AOA_COL_W)
+    const midL = logic.nodes.find((n) => n.anchor === midTs.anchor)!
+    expect(Math.round((midL.x - AOA_MARGIN) / AOA_COL_W)).not.toBe(midTs.es)
+  })
+
+  it('logic 宽度按最大深度收窄（不再被工期拉长）', () => {
+    // 长链 10 天：时标宽=12 列宽，逻辑宽=4 列宽
+    const tasks = [t('A', 10), t('B', 10)]
+    const links = [l('A', 'B')]
+    const ts = buildAoa(tasks, links)
+    const logic = buildAoa(tasks, links, { mode: 'logic' })
+    const tsW = Math.max(...ts.nodes.map((n) => n.x)) + AOA_MARGIN + AOA_COL_W / 2
+    const lgW = Math.max(...logic.nodes.map((n) => n.x)) + AOA_MARGIN + AOA_COL_W / 2
+    expect(tsW).toBeGreaterThan(lgW)
+    expect(lgW).toBeLessThanOrEqual(AOA_MARGIN * 2 + 4 * AOA_COL_W)
+  })
+
+  it('logic 模式环形兜底：不可达节点落 0 列不抛', () => {
+    // AOA 不应有环（引擎拒绝），但派生图对脏输入需不抛——兜底 0 列
+    const tasks = [t('A', 2)]
+    const links = [l('A', 'A')]
+    expect(() => buildAoa(tasks, links, { mode: 'logic' })).not.toThrow()
+  })
+})

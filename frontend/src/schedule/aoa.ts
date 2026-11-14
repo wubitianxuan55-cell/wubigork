@@ -16,7 +16,7 @@
  * 事件时间沿箭线网络正逆推（虚工作工期=0 或时距），关键线路 = 时差为 0 的箭线
  * （虚工作也可能是关键线路的一段，红色虚线显示）。
  */
-import type { SchedAoaArrow, SchedAoaDot, SchedAoaGraph, SchedLink, SchedTask } from './types'
+import type { SchedAoaArrow, SchedAoaDot, SchedAoaGraph, SchedLink, SchedTask, SchedRenderMode } from './types'
 import { layerByTime } from './layout'
 
 export interface AoaNode {
@@ -111,7 +111,7 @@ function effDur(t: SchedTask): number {
 export function buildAoa(
   tasks: SchedTask[],
   links: SchedLink[],
-  opts?: { planFinish?: number | null; persisted?: SchedAoaGraph },
+  opts?: { planFinish?: number | null; persisted?: SchedAoaGraph; mode?: SchedRenderMode },
 ): AoaGraph {
   // 分组行（level 0，汇总口径）不是工作，不进双代号网络图（JGJ/T 121：网络图
   // 只画实际工作）。分组行入图会变成挂在 START/END 上的零工期假箭线，与二级
@@ -436,7 +436,34 @@ export function buildAoa(
   // 行距自适应（比例协调）：时标图宽度被工期锁定，低并行度的长计划行数少，
   // 天然「又矮又长」——宽高比超 AOA_ASPECT_MAX 时按比例放大行距（上限 2×
   // 基础行距，行间呼吸与整图比例两顾；y 仍与时间无耦合，波形语义不受影响）。
-  const w = AOA_MARGIN * 2 + total * AOA_COL_W
+  // ── 逻辑网络图（斑马 5 模式之一；x=拓扑深度分列，与时间解耦——波形线/标尺
+  //  由消费方隐藏，RE timescale/network §15.7 每模式几何基准的 gaea 等价实现）──
+  const logicMode = opts?.mode === 'logic'
+  const logicX = new Map<string, number>()
+  if (logicMode) {
+    const incoming = new Map<string, number>()
+    const outgoing = new Map<string, string[]>()
+    for (const r of raws) {
+      incoming.set(r.to, (incoming.get(r.to) ?? 0) + 1)
+      outgoing.set(r.from, [...(outgoing.get(r.from) ?? []), r.to])
+    }
+    const queue = nodeIds.filter((id) => (incoming.get(id) ?? 0) === 0)
+    for (const id of queue) logicX.set(id, 0)
+    while (queue.length > 0) {
+      const cur = queue.shift()!
+      const d = logicX.get(cur) ?? 0
+      for (const nxt of outgoing.get(cur) ?? []) {
+        if ((logicX.get(nxt) ?? -1) < d + 1) logicX.set(nxt, d + 1)
+        incoming.set(nxt, (incoming.get(nxt) ?? 1) - 1)
+        if ((incoming.get(nxt) ?? 0) === 0) queue.push(nxt)
+      }
+    }
+    // 环/不可达节点兜底 0 列（行序仍走 layerByTime，与时间无耦合）
+    for (const id of nodeIds) if (!logicX.has(id)) logicX.set(id, 0)
+  }
+  const w = logicMode
+    ? AOA_MARGIN * 2 + (Math.max(0, ...logicX.values()) + 1) * AOA_COL_W
+    : AOA_MARGIN * 2 + total * AOA_COL_W
   const hBase = AOA_MARGIN * 2 + rowsTotal * AOA_ROW_H
   const rowH = w <= hBase * AOA_ASPECT_MAX
     ? AOA_ROW_H
@@ -501,7 +528,9 @@ export function buildAoa(
       num: numOf.get(id)!,
       es: nodeEs.get(id)!,
       ls: nodeLs.get(id)!,
-      x: AOA_MARGIN + nodeEs.get(id)! * AOA_COL_W,
+      x: logicMode
+        ? AOA_MARGIN + (logicX.get(id) ?? 0) * AOA_COL_W
+        : AOA_MARGIN + nodeEs.get(id)! * AOA_COL_W,
       y: AOA_MARGIN + rowH / 2 + (rowOf.get(id) ?? 0) * rowH,
       band: nodeBand.get(id) ?? 0,
       anchor: anchors.get(id)!,

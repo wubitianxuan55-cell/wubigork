@@ -269,3 +269,22 @@ describe('AoaView 工程标尺与图面语言（v4.161 对齐标杆）', () => {
     expect(critNodes.length).toBeGreaterThan(0)
   })
 })
+
+// 逻辑网络图（斑马 5 模式，一次点亮批3）：无时标标尺、无波形线，布图锁定
+describe('AoaView 逻辑模式（renderMode=logic）', () => {
+  it('不渲染工程标尺与波形线；拖拽锁定（标题提示）', () => {
+    const p = chainProject()
+    const g = buildAoa(p.tasks, p.links)
+    render(<AoaView graph={g} tasks={p.tasks} renderMode="logic" />)
+    expect(document.querySelector('[data-testid="sched-aoa-ruler-top"]')).toBeNull()
+    expect(document.querySelector('[data-testid="sched-aoa-wave"]')).toBeNull()
+    const wrap = document.querySelector('.sched-aoa-node')?.closest('div[title]') as HTMLElement | null
+    expect(wrap?.getAttribute('title')).toContain('逻辑')
+  })
+
+  it('缺省（timescaled）保留标尺与波形线', () => {
+    const p = chainProject()
+    render(<AoaView graph={buildAoa(p.tasks, p.links)} tasks={p.tasks} />)
+    expect(document.querySelector('[data-testid="sched-aoa-ruler-top"]')).not.toBeNull()
+  })
+})

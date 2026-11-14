@@ -6,7 +6,7 @@
  */
 import React from 'react'
 import type { AoaGraph } from '../../schedule/aoa'
-import type { CpmResult, SchedProject, SchedTask } from '../../schedule/types'
+import type { CpmResult, SchedProject, SchedRenderMode, SchedTask } from '../../schedule/types'
 import { wbsOf } from '../../schedule/ganttGroup'
 import { fmtDate, noOf } from '../../schedule/gantt/ganttUtil'
 import { fmtLinkRefs } from '../../schedule/ganttLinks'
@@ -50,9 +50,11 @@ interface ScheduleNetworkWorkspaceProps {
   project: SchedProject
   cpm: CpmResult
   graph: AoaGraph
+  /** 网络显示模式（斑马 display_mode；默认 timescaled=现行口径） */
+  renderMode?: SchedRenderMode
 }
 
-export const ScheduleNetworkWorkspace: React.FC<ScheduleNetworkWorkspaceProps> = ({ view, project, cpm, graph }) => {
+export const ScheduleNetworkWorkspace: React.FC<ScheduleNetworkWorkspaceProps> = ({ view, project, cpm, graph, renderMode }) => {
   const selectedId = useScheduleStore((state) => state.selectedId)
   const select = useScheduleStore((state) => state.select)
   const wbs = React.useMemo(() => wbsOf(project.tasks), [project.tasks])
@@ -122,7 +124,7 @@ export const ScheduleNetworkWorkspace: React.FC<ScheduleNetworkWorkspaceProps> =
       <div className="sched-network-graphpane">
         {view === 'pdm'
           ? <PdmView project={project} cpm={cpm} />
-          : <AoaView graph={graph} tasks={project.tasks} />}
+          : <AoaView graph={graph} tasks={project.tasks} renderMode={renderMode} />}
       </div>
     </div>
   )

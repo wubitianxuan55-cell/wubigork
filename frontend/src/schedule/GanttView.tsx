@@ -34,7 +34,7 @@ import { useScheduleStore } from './store'
 import { hasCostData } from './costUi'
 import { GANTT_LEFT_W_FULL, clampTableW, visibleCols, visibleLeftW } from './ganttCols'
 import { GANTT_FILTER_DEFAULT, filterGanttRows, type GanttFilter } from './ganttFilter'
-import { buildGanttRows, wbsOf, type GanttGroupField, type GanttSort } from './ganttGroup'
+import { buildGanttRows, wbsOf, GANTT_GROUP_OPTIONS, MAX_GANTT_GROUP_DEPTH, type GanttGroupField, type GanttSort } from './ganttGroup'
 import { applyCustomViewSnapshot } from './views'
 
 import { drivingChain, linkKey } from './pathDriver'
@@ -237,6 +237,37 @@ export const GanttView: React.FC<{
    *  customViewRequest 初值 null，仅 seq 变化时应用；读 store 内最新 project.views
    *  免闭包陈旧。 */
   const customViewRequest = useScheduleStore((s) => s.customViewRequest)
+  /** ribbon 命令信号消费（一次点亮批1）：find/collapse/expand/set-group 直达本组件视图态 */
+  const ganttCommand = useScheduleStore((s) => s.ganttCommand)
+  const cmdSeqRef = useRef(0)
+  React.useEffect(() => {
+    if (!ganttCommand || ganttCommand.seq === cmdSeqRef.current) return
+    cmdSeqRef.current = ganttCommand.seq
+    if (ganttCommand.kind === 'find') {
+      setFilter((current) => ({ ...current, text: ganttCommand.payload ?? '' }))
+    } else if (ganttCommand.kind === 'collapse-all') {
+      setCollapsedKeys(new Set(rows.filter((r) => r.kind === 'group').map((r) => r.key)))
+    } else if (ganttCommand.kind === 'expand-all') {
+      setCollapsedKeys(new Set())
+    } else if (ganttCommand.kind === 'collapse-selected') {
+      // 折叠选中任务所在的组（含选中即组头）；无选中=全收
+      if (!selectedId) {
+        setCollapsedKeys(new Set(rows.filter((r) => r.kind === 'group').map((r) => r.key)))
+        return
+      }
+      let ownerKey: string | null = null
+      for (const r of rows) {
+        if (r.kind === 'group') ownerKey = r.key
+        else if (project.tasks[r.idx]?.id === selectedId) break
+      }
+      if (ownerKey) setCollapsedKeys(new Set([...collapsedKeys, ownerKey]))
+    } else if (ganttCommand.kind === 'set-group') {
+      try {
+        const next = JSON.parse(ganttCommand.payload ?? '[]') as GanttGroupField[]
+        changeGroup(next.filter((g) => GANTT_GROUP_OPTIONS.some((o) => o.value === g)).slice(0, MAX_GANTT_GROUP_DEPTH))
+      } catch { /* 坏 payload 忽略（信号通道容错） */ }
+    }
+  }, [ganttCommand]) // eslint-disable-line react-hooks/exhaustive-deps -- 按 seq 信号触发，闭包内状态均为最新渲染值
   const applyRequestSeq = useRef(0)
   React.useEffect(() => {
     if (!customViewRequest || customViewRequest.seq === applyRequestSeq.current) return

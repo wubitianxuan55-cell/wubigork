@@ -28,7 +28,7 @@ import { buildAoaRuler } from './aoaRuler'
 import { beginWindowDrag } from './gantt/useDragGesture'
 import { useAutoFitZoom, useFitView } from './gantt/useFitView'
 import { useScheduleStore } from './store'
-import type { AoaPin, SchedTask } from './types'
+import type { AoaPin, SchedTask, SchedRenderMode } from './types'
 import { useWheelZoom } from './wheelZoom'
 
 const R = AOA_R
@@ -41,13 +41,15 @@ const RULER_BOT_H = 34
  * 供波形/过桥二次加工）。
  */
 
-export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ graph, tasks }) => {
+export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[]; renderMode?: SchedRenderMode }> = ({ graph, tasks, renderMode }) => {
   const select = useScheduleStore((s) => s.select)
   const selectedId = useScheduleStore((s) => s.selectedId)
   const aoaLayout = useScheduleStore((s) => s.project.aoaLayout)
   const setAoaPins = useScheduleStore((s) => s.setAoaPins)
   /** 持久点-箭图元（斑马复刻 N1）：缺失时首次手动布点会固化一份 */
   const persistedAoa = useScheduleStore((s) => s.project.aoa)
+  /** 逻辑网络图态（斑马 5 模式之一）：无时标装饰、布图锁定 */
+  const isLogic = renderMode === 'logic'
   const setAoa = useScheduleStore((s) => s.setAoa)
   const startDate = useScheduleStore((s) => s.project.startDate)
   const calendar = useScheduleStore((s) => s.project.calendar)
@@ -132,7 +134,7 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
       pairSeen.set(k, idx + 1)
       // 波形切点只对实/虚工作有意义；汇总箭线=横幅顶通长线（v4.160），无波形
       const chY = channels.get(e.id)
-      const waveFromX = !manual && e.kind !== 'summary' ? nodeById.get(e.from)!.x + R + e.dur * AOA_COL_W : null
+      const waveFromX = !manual && !isLogic && e.kind !== 'summary' ? nodeById.get(e.from)!.x + R + e.dur * AOA_COL_W : null
       // 汇总箭线走横幅顶（归属带取两界点的较大 band=被汇总的分部）
       const g = e.kind === 'summary'
         ? summarySegs(nodeById.get(e.from)!, nodeById.get(e.to)!, bandTopYOf(Math.max(nodeById.get(e.from)!.band, nodeById.get(e.to)!.band)))
@@ -142,7 +144,26 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
     // G1 过桥法：竖段垂直穿越他边横段处画半圆（水平段=时标轴不断）
     const bridges = findBridgeArcs(geoms.map((it) => it.g.segs))
     return { geoms, bridges }
-  }, [shown, manual, nodeById])
+  }, [shown, manual, nodeById, isLogic])
+  /** 恢复自动布局：清空所有手动差量 */
+  const resetPins = () => {
+    setAoaPins({})
+    setMode('auto')
+  }
+
+  /** ribbon「智能布图」（一次点亮批1）：清手动布点=回自动排布（斑马「智能布图/重新布局」
+   *  的 gaea 等价物），再全览适配视口。 */
+  const ganttCommand = useScheduleStore((s) => s.ganttCommand)
+  const aoaCmdSeqRef = useRef(0)
+  React.useEffect(() => {
+    if (!ganttCommand || ganttCommand.seq === aoaCmdSeqRef.current) return
+    aoaCmdSeqRef.current = ganttCommand.seq
+    if (ganttCommand.kind === 'smart-layout') {
+      resetPins()
+      fitAoa()
+    }
+  }, [ganttCommand]) // eslint-disable-line react-hooks/exhaustive-deps -- 按 seq 信号触发
+
   if (!graph.ok || graph.nodes.length === 0) {
     return <div className="sched-empty">暂无任务或计划存在循环依赖，无法绘制双代号网络图</div>
   }
@@ -155,7 +176,7 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
   const dummyCount = graph.edges.filter((e) => e.kind === 'dummy').length
   // 工程标尺（v4.161，时间坐标框架）：auto=时标模式显示（手动布局 x 与时间
   // 解耦，标尺失义不画）；顶部工程日/月/日+底部星期/工程周，月界竖线贯通图面
-  const ruler = manual
+  const ruler = manual || isLogic
     ? null
     : buildAoaRuler(Math.max(0, ...graph.nodes.map((n) => n.es)), AOA_COL_W, AOA_MARGIN, startDate, calendar)
   const rulerTop = ruler ? RULER_TOP_H : 0
@@ -174,13 +195,8 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
     if (!persistedAoa && graph.ok && graph.nodes.length > 0) setAoa(aoaGraphFromBuild(graph))
     if (!manual) setMode('manual')
   }
-  /** 恢复自动布局：清空所有手动差量 */
-  const resetPins = () => {
-    setAoaPins({})
-    setMode('auto')
-  }
-
   const beginDrag = (e: React.MouseEvent, nodeId: string) => {
+    if (isLogic) return // 逻辑网络图布图锁定：x=拓扑深度，手动差量坐标系不适用
     const node = nodeById.get(nodeId)
     if (!node) return
     e.preventDefault()
@@ -384,7 +400,7 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
               className="sched-aoa-node-wrap"
               style={{ left: pos.x - R, top: pos.y - R + rulerTop, cursor: 'grab', opacity: isDragging ? 0.85 : 1 }}
               onMouseDown={(e) => beginDrag(e, n.id)}
-              title={manual ? '拖动布点（半格吸附）' : '拖动即转入手动布局'}
+              title={isLogic ? '逻辑网络图：布图锁定（x=拓扑深度）' : manual ? '拖动布点（半格吸附）' : '拖动即转入手动布局'}
             >
               <div className={`sched-aoa-time sched-aoa-time-es${n.es === n.ls ? '' : ' sched-aoa-time-shift'}`}>{n.es}</div>
               <div className={`sched-aoa-node${n.es === n.ls ? ' sched-aoa-node-crit' : ''}${selectedEdge && (selectedEdge.from === n.id || selectedEdge.to === n.id) ? ' sched-aoa-node-hl' : ''}`}>

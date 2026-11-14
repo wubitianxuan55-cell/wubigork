@@ -201,6 +201,21 @@ interface ScheduleState {
   removeCustomView: (id: string) => void
   customViewRequest: { id: string; seq: number } | null
   requestCustomView: (id: string) => void
+  /** ribbon→视图命令信号（一次点亮批1）：非项目状态，GanttView/AoaView 按 seq 消费。
+   *  find=表格查找文本；collapse-all/expand-all=大纲折叠/展开；collapse-selected=折叠选中
+   *  分组行；set-group=payload 为分组维度 JSON 数组；smart-layout=AOA 清手动布点回自动排布。 */
+  ganttCommand: { kind: 'find' | 'collapse-all' | 'expand-all' | 'collapse-selected' | 'set-group' | 'smart-layout'; payload?: string; seq: number } | null
+  sendGanttCommand: (kind: 'find' | 'collapse-all' | 'expand-all' | 'collapse-selected' | 'set-group' | 'smart-layout', payload?: string) => void
+  /** 大纲操作（斑马复刻 C13 预演闸）：升级=叶转分区、降级=分区转叶、上移/下移=行序调整。
+   *  拦截文案沿斑马原文（「该工作不能修改为关系！」等），先预演后落盘。 */
+  promoteTask: (id: string) => { ok: boolean; reason?: string }
+  demoteTask: (id: string) => { ok: boolean; reason?: string }
+  moveTask: (id: string, dir: -1 | 1) => { ok: boolean; reason?: string }
+  /** 表格粘贴（斑马「粘贴」占位）：TSV 行 [名称, 工期?] → 追加叶任务 */
+  pasteRows: (text: string) => { ok: boolean; count?: number; reason?: string }
+  /** 网络显示模式（斑马复刻批3：时标网络图/逻辑网络图；持久化进 networkStyle.mode
+   *  承载位——斑马 display_mode/pert_mode 随文档走）。 */
+  setNetworkMode: (mode: 'timescaled' | 'logic') => void
 
   loadSample: () => void
   clearAll: () => void
@@ -305,7 +320,7 @@ export function resetHistorySession(): void {
 
 export const useScheduleStore = create<ScheduleState>()(
   persist(
-    (set) => ({
+    (set): ScheduleState => ({
       project: makeSampleProject(),
       view: 'gantt',
       selectedId: null,
@@ -599,6 +614,94 @@ export const useScheduleStore = create<ScheduleState>()(
       customViewRequest: null,
       requestCustomView: (id) => {
         set((s) => ({ customViewRequest: { id, seq: (s.customViewRequest?.seq ?? 0) + 1 } }))
+      },
+
+      ganttCommand: null,
+      sendGanttCommand: (kind, payload) => {
+        set((s) => ({ ganttCommand: { kind, payload, seq: (s.ganttCommand?.seq ?? 0) + 1 } }))
+      },
+
+      promoteTask: (id) => {
+        const { project } = useScheduleStore.getState()
+        const idx = project.tasks.findIndex((t) => t.id === id)
+        if (idx < 0) return { ok: false, reason: '任务不存在' }
+        const t = project.tasks[idx]
+        if (t.level === 0) return { ok: false, reason: '已是分组行，无法再升级' }
+        // 斑马 C13 预演：分区/转换先过关系与资源合法性（原文文案）
+        if (project.links.some((l) => l.from === id || l.to === id)) {
+          return { ok: false, reason: '该工作存在搭接关系，无法升级（斑马：该工作不能修改为关系！）' }
+        }
+        if ((project.assignments ?? []).some((a) => a.taskId === id)) {
+          return { ok: false, reason: '该工作已挂资源分配，无法升级（分组行禁挂分配）' }
+        }
+        if ((t.fixedCost ?? 0) > 0) {
+          return { ok: false, reason: '该工作有固定成本，无法升级（分组行成本=子孙汇总）' }
+        }
+        pushHistory('outline')
+        set((s) => ({
+          project: { ...s.project, tasks: s.project.tasks.map((x) => (x.id === id ? { ...x, level: 0 } : x)) },
+        }))
+        return { ok: true }
+      },
+
+      demoteTask: (id) => {
+        const { project } = useScheduleStore.getState()
+        const idx = project.tasks.findIndex((t) => t.id === id)
+        if (idx < 0) return { ok: false, reason: '任务不存在' }
+        const t = project.tasks[idx]
+        if (t.level !== 0) return { ok: false, reason: '已是子工作，无法再降级（两级大纲）' }
+        const prevGroup = project.tasks.slice(0, idx).some((x) => x.level === 0)
+        if (!prevGroup) {
+          return { ok: false, reason: '降级后无处归属（前面没有分组行）——斑马：分区不能降级为非分区的子' }
+        }
+        pushHistory('outline')
+        set((s) => ({
+          project: { ...s.project, tasks: s.project.tasks.map((x) => (x.id === id ? { ...x, level: 1 } : x)) },
+        }))
+        return { ok: true }
+      },
+
+      moveTask: (id, dir) => {
+        const { project } = useScheduleStore.getState()
+        const idx = project.tasks.findIndex((t) => t.id === id)
+        if (idx < 0) return { ok: false, reason: '任务不存在' }
+        const next = idx + dir
+        if (next < 0 || next >= project.tasks.length) return { ok: false, reason: dir < 0 ? '已到表首' : '已到表尾' }
+        // 斑马 C13：分区不能与自己的子工作换位（换位后子先于父，大纲语义破坏）
+        if (project.tasks[idx].level === 0 && dir === 1 && project.tasks[next].level === 1) {
+          return { ok: false, reason: '分区不能与子工作换位（斑马：上移/下移先过关系合法性）' }
+        }
+        pushHistory('outline')
+        const tasks = [...project.tasks]
+        const tmp = tasks[idx]
+        tasks[idx] = tasks[next]
+        tasks[next] = tmp
+        set((s) => ({ project: { ...s.project, tasks } }))
+        return { ok: true }
+      },
+
+      pasteRows: (text) => {
+        const rows = text
+          .split(/\r?\n/)
+          .map((line) => line.split('\t'))
+          .filter((cols) => cols[0]?.trim())
+        if (rows.length === 0) return { ok: false, reason: '剪贴板没有可粘贴的行' }
+        pushHistory('paste')
+        const { project } = useScheduleStore.getState()
+        let seq = project.tasks.filter((t) => t.id.startsWith('pasted-')).length
+        const added = rows.map((cols) => {
+          seq += 1
+          const durRaw = String(cols[1] ?? '').trim()
+          const dur = /^\d+$/.test(durRaw) ? Math.min(3650, Math.max(0, parseInt(durRaw, 10))) : 1
+          return { id: `pasted-${Date.now().toString(36)}-${seq}`, name: cols[0].trim(), duration: dur, level: 1, progress: 0 }
+        })
+        set((s) => ({ project: { ...s.project, tasks: [...s.project.tasks, ...added] } }))
+        return { ok: true, count: added.length }
+      },
+
+      setNetworkMode: (mode) => {
+        pushHistory('networkStyle')
+        set((s) => ({ project: { ...s.project, networkStyle: { ...(s.project.networkStyle ?? {}), mode } } }))
       },
 
       removeReview: (at) => {

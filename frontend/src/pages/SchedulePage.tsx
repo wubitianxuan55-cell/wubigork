@@ -15,7 +15,7 @@
  * 增 MPP 导入）+ 工程信息条（工程名/开工/目标竣工/日历/基线/资源 | 视图档位）。
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, Button, Dropdown, Input, Modal, Popconfirm, Popover, Select } from 'antd'
+import { Alert, Button, Dropdown, Input, Modal, Popover, Select } from 'antd'
 import type { MenuProps } from 'antd'
 import {
   AimOutlined, AppstoreOutlined, BgColorsOutlined, CalendarOutlined, CheckOutlined, ClearOutlined, ClusterOutlined, CopyOutlined, DeleteOutlined, DownOutlined, ExportOutlined, FileExcelOutlined, FileImageOutlined, FileOutlined, FileTextOutlined, FontColorsOutlined, FontSizeOutlined, FormatPainterOutlined, FundOutlined, ImportOutlined,
@@ -27,8 +27,16 @@ import { buildAoa } from '../schedule/aoa'
 import { buildProjectXml, parseProjectXml } from '../schedule/mspdi'
 import { checkProject } from '../schedule/checker'
 import { makeCustomView } from '../schedule/views'
+import { PredEditor } from '../schedule/gantt/PredEditor'
+import { GANTT_GROUP_OPTIONS, MAX_GANTT_GROUP_DEPTH } from '../schedule/ganttGroup'
 import { planFinishOf } from '../schedule/deadline'
 import { latestReview } from '../schedule/reviews'
+import {
+  SCHEDULE_COMMANDS,
+  commandForShortcut,
+  scheduleCommandDisabledReason,
+  type RuntimeScheduleCommand,
+} from '../schedule/commandRegistry'
 import type { GanttGroupField, GanttSort } from '../schedule/ganttGroup'
 import type { SchedView } from '../schedule/types'
 import { taskWarn, warnSummary, type WarnAlgorithm } from '../schedule/warn'
@@ -64,6 +72,7 @@ import { ExportDialog } from './schedule/ExportDialog'
 import { ProjectsManagePanel } from './schedule/ProjectsManagePanel'
 import { ProjectSettingsPanel } from './schedule/ProjectSettingsPanel'
 import { ScheduleNetworkWorkspace } from './schedule/ScheduleNetworkWorkspace'
+import { ScheduleCommandPalette } from './schedule/ScheduleCommandPalette'
 import {
   RibbonColumn,
   RibbonCommand,
@@ -102,6 +111,13 @@ const SchedulePage: React.FC = () => {
   const removeCustomView = useScheduleStore((s) => s.removeCustomView)
   const renameCustomView = useScheduleStore((s) => s.renameCustomView)
   const requestCustomView = useScheduleStore((s) => s.requestCustomView)
+  const setNetworkMode = useScheduleStore((s) => s.setNetworkMode)
+  // 大纲/表格命令（一次点亮批1+2+4）：store 动作 + 信号通道
+  const promoteTask = useScheduleStore((s) => s.promoteTask)
+  const demoteTask = useScheduleStore((s) => s.demoteTask)
+  const moveTask = useScheduleStore((s) => s.moveTask)
+  const pasteRows = useScheduleStore((s) => s.pasteRows)
+  const sendGanttCommand = useScheduleStore((s) => s.sendGanttCommand)
   const clearAll = useScheduleStore((s) => s.clearAll)
   const past = useScheduleStore((s) => s.past)
   const future = useScheduleStore((s) => s.future)
@@ -118,6 +134,14 @@ const SchedulePage: React.FC = () => {
   const [renameViewId, setRenameViewId] = useState<string | null>(null)
   const [renameViewName, setRenameViewName] = useState('')
   const [renameViewErr, setRenameViewErr] = useState<string | null>(null)
+  const [outlineMsg, setOutlineMsg] = useState<string | null>(null)
+  const [findOpen, setFindOpen] = useState(false)
+  const [findText, setFindText] = useState('')
+  const [groupOpen, setGroupOpen] = useState(false)
+  const [groupPick, setGroupPick] = useState<GanttGroupField[]>([])
+  const [relationOpen, setRelationOpen] = useState(false)
+  const [templatesOpen, setTemplatesOpen] = useState(false)
+  const [commandOpen, setCommandOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
   const [dockOpen, setDockOpen] = useState(true)
   const [ribbonTab, setRibbonTab] = useState<ScheduleRibbonTabKey>('plan')
@@ -173,21 +197,10 @@ const SchedulePage: React.FC = () => {
   // 文件同步：水合（文件为准，localStorage 迁移）+ 自动保存 + agent 写入回读
   useEffect(() => { void initScheduleSync() }, [])
 
-  // 撤销/重做快捷键（刀C 余项）：Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z；输入控件聚焦时不抢
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey)) return
-      const el = document.activeElement
-      if (el instanceof HTMLElement && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return
-      const k = e.key.toLowerCase()
-      if (k === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo() } else if (k === 'y') { e.preventDefault(); redo() }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [undo, redo])
-
   const cpm = useMemo(() => computeCpm(project.tasks, project.links, { planFinish: planFinishOf(project), calendar: project.calendar, startDate: project.startDate }), [project])
-  const aoa = useMemo(() => buildAoa(project.tasks, project.links, { planFinish: planFinishOf(project), persisted: project.aoa }), [project])
+  // 网络显示模式（斑马 display_mode 随文档持久化；netMode 从 networkStyle 派生为单一事实源）
+  const netMode = project.networkStyle?.mode === 'logic' ? 'logic' : 'timescaled'
+  const aoa = useMemo(() => buildAoa(project.tasks, project.links, { planFinish: planFinishOf(project), persisted: project.aoa, mode: netMode }), [project, netMode])
   // 计划检查（斑马复刻 S1）：项目级只把「循环依赖」带进任务抽屉（其余项目级提示属于整份计划）
   const diags = useMemo(() => checkProject(project, cpm), [project, cpm])
   // 资源使用/超载（v4.137 #12/#13）：逐工作日负载 vs 可用性（工时资源；个人日历收紧可用性）
@@ -406,6 +419,160 @@ const SchedulePage: React.FC = () => {
     setSaveViewErr(null)
   }
 
+
+  // ── 大纲/表格命令（一次点亮批1+2+4）：统一失败出口=outlineMsg 行内提示 ──
+  const runOutline = (fn: () => { ok: boolean; reason?: string }) => {
+    const res = fn()
+    setOutlineMsg(res.ok ? null : (res.reason ?? '操作失败'))
+  }
+  const copySelectedRow = () => {
+    if (!selected) return
+    const row = cpm.rows[selected.id]
+    const preds = project.links.filter((l) => l.to === selected.id).map((l) => `${l.from}${l.type === 'FS' ? '' : l.type}${l.lag ? (l.lag > 0 ? '+' : '') + l.lag : ''}`).join(',')
+    const tsv = [
+      ['名称', '工期(天)', '开始', '完成', '前置'].join('\t'),
+      [selected.name, String(selected.isMilestone ? 0 : selected.duration), row ? String(row.es) : '', row ? String(row.ef) : '', preds].join('\t'),
+    ].join('\n')
+    void navigator.clipboard?.writeText(tsv).catch(() => setOutlineMsg('剪贴板不可用（浏览器权限）'))
+  }
+  const pasteFromClipboard = () => {
+    void navigator.clipboard?.readText().then((text) => {
+      const res = pasteRows(text)
+      setOutlineMsg(res.ok ? null : (res.reason ?? '粘贴失败'))
+    }).catch(() => setOutlineMsg('剪贴板不可用（浏览器权限）'))
+  }
+
+  // ── 命令注册表 → 运行期 handler（ZPert W2）──────────────────────────
+  // 元数据在 commandRegistry（稳定 ID/分组/快捷键），handler 只在本页注册一次。
+  // 功能区、菜单、命令面板与键盘都经 runCommand 进入同一禁用原因和执行路径。
+  const selectedIndex = selected ? project.tasks.findIndex((task) => task.id === selected.id) : -1
+  const commandAvailability = {
+    hasSelection: !!selected,
+    selectedIsGroup,
+    selectedIndex,
+    taskCount: project.tasks.length,
+    canUndo: past.length > 0,
+    canRedo: future.length > 0,
+  }
+  const confirmDeleteSelected = () => {
+    if (!selected) return
+    Modal.confirm({
+      title: '删除选中项',
+      content: selectedIsGroup ? '分组及其子任务一并删除' : `删除「${selected.name}」及其搭接关系`,
+      onOk: () => removeTask(selected.id),
+    })
+  }
+  const commandActions: Record<string, () => void | Promise<void>> = {
+    'file.manage': () => { setRibbonTab('file'); setManageOpen(true) },
+    'file.import-new': () => pickImport('new', () => newRef.current?.click()),
+    'file.import-xml': () => pickImport('xml', () => fileRef.current?.click()),
+    'file.import-xlsx': () => pickImport('xlsx', () => xlsxRef.current?.click()),
+    'file.import-mpp': () => pickImport('mpp', () => mppRef.current?.click()),
+    'file.export-xml': () => exportXml(),
+    'file.export-xlsx': () => exportXlsx(),
+    'file.export-art': () => setExportOpen(true),
+    'edit.undo': undo,
+    'edit.redo': redo,
+    'edit.copy': copySelectedRow,
+    'edit.paste': pasteFromClipboard,
+    'edit.find': () => { setRibbonTab('plan'); setView('gantt'); setFindOpen(true) },
+    'edit.delete': confirmDeleteSelected,
+    'edit.clear': () => {
+      Modal.confirm({ title: '清空全部任务与搭接？', onOk: () => { clearAll(); setImportMsg(null) } })
+    },
+    'task.add': () => addTask(selectedId ?? undefined),
+    'task.group': addGroup,
+    'task.relation': () => { setRibbonTab('plan'); setRelationOpen(true) },
+    'task.milestone': () => {
+      if (selected) updateTask(selected.id, { isMilestone: !selected.isMilestone })
+    },
+    'task.inspector': () => {
+      if (selected) setInspectId(selected.id)
+    },
+    'outline.collapse': () => { setView('gantt'); sendGanttCommand('collapse-selected') },
+    'outline.expand': () => { setView('gantt'); sendGanttCommand('expand-all') },
+    'outline.promote': () => {
+      if (selected) runOutline(() => promoteTask(selected.id))
+    },
+    'outline.demote': () => {
+      if (selected) runOutline(() => demoteTask(selected.id))
+    },
+    'outline.up': () => {
+      if (selected) runOutline(() => moveTask(selected.id, -1))
+    },
+    'outline.down': () => {
+      if (selected) runOutline(() => moveTask(selected.id, 1))
+    },
+    'view.gantt': () => setView('gantt'),
+    'view.pdm': () => setView('pdm'),
+    'view.aoa': () => setView('aoa'),
+    'view.timescaled': () => { setNetworkMode('timescaled'); setView('aoa') },
+    'view.logic': () => { setNetworkMode('logic'); setView('aoa') },
+    'view.usage': () => setView('usage'),
+    'view.dcma': () => setView('dcma'),
+    'view.monte': () => setView('monte'),
+    'view.evm': () => setView('evm'),
+    'display.dock': () => setDockOpen((open) => !open),
+    'display.chat': toggleChat,
+    'display.smart-layout': () => { setView('aoa'); sendGanttCommand('smart-layout') },
+    'help.commands': () => setCommandOpen(true),
+    'help.templates': () => { setRibbonTab('help'); setTemplatesOpen(true) },
+    'help.sample': () => { loadSample(); setImportMsg(null) },
+  }
+  const commandActive: Record<string, boolean | undefined> = {
+    'view.gantt': view === 'gantt',
+    'view.pdm': view === 'pdm',
+    'view.aoa': view === 'aoa',
+    'view.timescaled': view === 'aoa' && netMode === 'timescaled',
+    'view.logic': view === 'aoa' && netMode === 'logic',
+    'view.usage': view === 'usage',
+    'view.dcma': view === 'dcma',
+    'view.monte': view === 'monte',
+    'view.evm': view === 'evm',
+    'display.dock': dockOpen,
+    'display.chat': !chat.collapsed,
+  }
+  const runtimeCommands: RuntimeScheduleCommand[] = SCHEDULE_COMMANDS.flatMap((spec): RuntimeScheduleCommand[] => {
+    const run = commandActions[spec.id]
+    if (!run) return []
+    return [{
+      spec,
+      run,
+      active: commandActive[spec.id],
+      disabledReason: scheduleCommandDisabledReason(spec.id, commandAvailability),
+    }]
+  })
+  const commandById = new Map(runtimeCommands.map((command) => [command.spec.id, command]))
+  const commandReason = (id: string) => commandById.get(id)?.disabledReason
+  const commandTitle = (id: string, fallback?: string) => commandReason(id) ?? commandById.get(id)?.spec.detail ?? fallback
+  const runCommand = (id: string) => {
+    const command = commandById.get(id)
+    if (!command) return
+    if (command.disabledReason) {
+      setOutlineMsg(command.disabledReason)
+      return
+    }
+    setOutlineMsg(null)
+    void Promise.resolve(command.run()).catch((error: unknown) => {
+      setOutlineMsg(error instanceof Error ? error.message : String(error))
+    })
+  }
+  const runCommandRef = useRef(runCommand)
+  runCommandRef.current = runCommand
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return
+      const element = document.activeElement
+      if (element instanceof HTMLElement && (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA' || element.isContentEditable)) return
+      const spec = commandForShortcut(event)
+      if (!spec) return
+      event.preventDefault()
+      runCommandRef.current(spec.id)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   const importMenuItems: MenuProps['items'] = [
     { key: 'importNew', icon: <ImportOutlined />, label: '导入为新工程…' },
     { key: 'importXml', icon: <ImportOutlined />, label: '导入 XML 替换当前工程…' },
@@ -417,33 +584,35 @@ const SchedulePage: React.FC = () => {
     { key: 'exportXlsx', icon: <FileExcelOutlined />, label: '导出 Excel' },
     { key: 'exportArt', icon: <FileImageOutlined />, label: '导出图面（PNG / PDF / 打印）…' },
   ]
+  const MENU_COMMAND_ID: Record<string, string> = {
+    sample: 'help.sample',
+    importNew: 'file.import-new',
+    importXml: 'file.import-xml',
+    importXlsx: 'file.import-xlsx',
+    importMpp: 'file.import-mpp',
+    exportXml: 'file.export-xml',
+    exportXlsx: 'file.export-xlsx',
+    exportArt: 'file.export-art',
+    manage: 'file.manage',
+    undo: 'edit.undo',
+    redo: 'edit.redo',
+    add: 'task.add',
+    group: 'task.group',
+    milestone: 'task.milestone',
+    inspector: 'task.inspector',
+    del: 'edit.delete',
+    clear: 'edit.clear',
+    gantt: 'view.gantt',
+    pdm: 'view.pdm',
+    aoa: 'view.aoa',
+    usage: 'view.usage',
+    dcma: 'view.dcma',
+    monte: 'view.monte',
+    evm: 'view.evm',
+  }
   const runMenu = (key: string) => {
-    if (key === 'sample') { loadSample(); setImportMsg(null) }
-    else if (key === 'importNew') pickImport('new', () => newRef.current?.click())
-    else if (key === 'importXml') pickImport('xml', () => fileRef.current?.click())
-    else if (key === 'importXlsx') pickImport('xlsx', () => xlsxRef.current?.click())
-    else if (key === 'importMpp') pickImport('mpp', () => mppRef.current?.click())
-    else if (key === 'exportXml') exportXml()
-    else if (key === 'exportXlsx') void exportXlsx()
-    else if (key === 'exportArt') setExportOpen(true)
-    else if (key === 'manage') setManageOpen(true)
-    else if (key === 'undo') undo()
-    else if (key === 'redo') redo()
-    else if (key === 'add') addTask(selectedId ?? undefined)
-    else if (key === 'group') addGroup()
-    else if (key === 'milestone' && selected && !selectedIsGroup) updateTask(selected.id, { isMilestone: !selected.isMilestone })
-    else if (key === 'inspector' && selected && !selectedIsGroup) setInspectId(selected.id)
-    else if (key === 'del' && selected) {
-      Modal.confirm({
-        title: '删除选中项',
-        content: selectedIsGroup ? '分组及其子任务一并删除' : `删除「${selected.name}」及其搭接关系`,
-        onOk: () => removeTask(selected.id),
-      })
-    } else if (key === 'clear') {
-      Modal.confirm({ title: '清空全部任务与搭接？', onOk: () => { clearAll(); setImportMsg(null) } })
-    } else if (key === 'gantt' || key === 'pdm' || key === 'aoa' || key === 'usage' || key === 'dcma' || key === 'monte' || key === 'evm') {
-      setView(key)
-    }
+    const commandId = MENU_COMMAND_ID[key]
+    if (commandId) runCommand(commandId)
   }
   const fileMenuCfg: MenuProps = {
     items: [
@@ -459,10 +628,10 @@ const SchedulePage: React.FC = () => {
   }
   const editMenuCfg: MenuProps = {
     items: [
-      { key: 'undo', icon: <UndoOutlined />, label: '撤销（Ctrl+Z）', disabled: past.length === 0 },
-      { key: 'redo', icon: <RedoOutlined />, label: '重做（Ctrl+Y）', disabled: future.length === 0 },
+      { key: 'undo', icon: <UndoOutlined />, label: '撤销（Ctrl+Z）', disabled: !!commandReason('edit.undo') },
+      { key: 'redo', icon: <RedoOutlined />, label: '重做（Ctrl+Y）', disabled: !!commandReason('edit.redo') },
       { type: 'divider' },
-      { key: 'del', icon: <DeleteOutlined />, label: '删除选中', danger: true, disabled: !selected },
+      { key: 'del', icon: <DeleteOutlined />, label: '删除选中', danger: true, disabled: !!commandReason('edit.delete') },
       { key: 'clear', icon: <ClearOutlined />, label: '清空全部任务与搭接', danger: true },
     ],
     onClick: ({ key }) => runMenu(key),
@@ -505,21 +674,36 @@ const SchedulePage: React.FC = () => {
       <div className="sched-page" style={{ flex: 1, minWidth: 0 }}>
       {/* ── ZPert 式命令台：菜单行 + 命令面板行 + 文档属性行 ── */}
       <div className="sched-command-deck" data-testid="sched-command-deck">
-      <div className="sched-menubar sched-ribbon-tabbar" data-testid="sched-menubar" role="tablist" aria-label="进度计划功能区">
+      <div className="sched-menubar sched-ribbon-tabbar" data-testid="sched-menubar">
         <span className="sched-app-mark" aria-hidden="true">G</span>
-        {SCHEDULE_RIBBON_TABS.map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            role="tab"
-            aria-selected={ribbonTab === tab.key}
-            className={`sched-menu-item${ribbonTab === tab.key ? ' is-active' : ''}`}
-            onClick={() => setRibbonTab(tab.key)}
-            data-testid={`sched-ribbon-tab-${tab.key}`}
-          >
-            {tab.label}
-          </button>
-        ))}
+        <div className="sched-ribbon-tablist" role="tablist" aria-label="进度计划功能区">
+          {SCHEDULE_RIBBON_TABS.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              role="tab"
+              aria-selected={ribbonTab === tab.key}
+              className={`sched-menu-item${ribbonTab === tab.key ? ' is-active' : ''}`}
+              onClick={() => setRibbonTab(tab.key)}
+              data-testid={`sched-ribbon-tab-${tab.key}`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          className="sched-command-search-trigger"
+          title="搜索命令与快捷键（Ctrl+K）"
+          aria-label="搜索命令与快捷键"
+          aria-keyshortcuts="Control+K"
+          data-testid="sched-command-trigger"
+          onClick={() => setCommandOpen(true)}
+        >
+          <SearchOutlined aria-hidden="true" />
+          <span>命令</span>
+          <kbd>Ctrl K</kbd>
+        </button>
       </div>
 
       <input
@@ -572,10 +756,14 @@ const SchedulePage: React.FC = () => {
       {ribbonTab === 'plan' && (
       <div className="sched-toolbar">
         <RibbonGroup label="视图">
-          <RibbonCommand big icon={<PartitionOutlined />} label="时标网络图" disabled title="预留：后续补齐时标网络图后端" />
-          <RibbonCommand big icon={<TableOutlined />} label="横道图" active={view === 'gantt'} onClick={() => setView('gantt')} />
-          <RibbonCommand big icon={<NodeIndexOutlined />} label="逻辑网络图" disabled title="预留：后续补齐逻辑网络图后端" />
-          <RibbonCommand big icon={<NodeIndexOutlined />} label="单代号网络图" active={view === 'pdm'} onClick={() => setView('pdm')} />
+          <RibbonCommand big icon={<PartitionOutlined />} label="时标网络图" active={commandActive['view.timescaled']}
+            title={commandTitle('view.timescaled')} onClick={() => runCommand('view.timescaled')} />
+          <RibbonCommand big icon={<TableOutlined />} label="横道图" active={commandActive['view.gantt']}
+            title={commandTitle('view.gantt')} onClick={() => runCommand('view.gantt')} />
+          <RibbonCommand big icon={<NodeIndexOutlined />} label="逻辑网络图" active={commandActive['view.logic']}
+            title={commandTitle('view.logic')} onClick={() => runCommand('view.logic')} />
+          <RibbonCommand big icon={<NodeIndexOutlined />} label="单代号网络图" active={commandActive['view.pdm']}
+            title={commandTitle('view.pdm')} onClick={() => runCommand('view.pdm')} />
           <RibbonColumn>
             <Popover
               trigger="click"
@@ -653,21 +841,51 @@ const SchedulePage: React.FC = () => {
             >
               <RibbonCommand icon={<AppstoreOutlined />} label="视图管理" title="应用/改名/删除已保存的视图" />
             </Popover>
-            <RibbonCommand icon={<ClusterOutlined />} label="分组…" disabled title="预留：分组入口迁 ribbon（分组能力已在横道工具栏 14 维全接）" />
+            <Popover trigger="click" placement="bottomLeft" open={groupOpen} onOpenChange={setGroupOpen}
+              content={
+                <div style={{ width: 220, display: 'flex', flexDirection: 'column', gap: 4 }} data-testid="sched-group-pick">
+                  {GANTT_GROUP_OPTIONS.map((o) => (
+                    <label key={o.value} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                      <input
+                        type="checkbox"
+                        checked={groupPick.includes(o.value)}
+                        onChange={(e) => {
+                          const next = e.target.checked ? [...groupPick, o.value] : groupPick.filter((g) => g !== o.value)
+                          setGroupPick(next.slice(0, MAX_GANTT_GROUP_DEPTH))
+                          sendGanttCommand('set-group', JSON.stringify(next.slice(0, MAX_GANTT_GROUP_DEPTH)))
+                        }}
+                      />
+                      {o.label}
+                    </label>
+                  ))}
+                  <span className="sched-dim" style={{ fontSize: 12 }}>多级分组至多三级（斑马 groupby_setting 口径）</span>
+                </div>
+              } title="分组">
+              <RibbonCommand icon={<ClusterOutlined />} label="分组…" title="按维度分组横道表格（工期/总时差/负责人/里程碑/关键/状态/资源…14 维）" />
+            </Popover>
           </RibbonColumn>
         </RibbonGroup>
         <RibbonGroup label="编辑">
           <RibbonColumn>
-            <RibbonCommand icon={<CopyOutlined />} label="复制" disabled title="预留：表格复制" />
-            <RibbonCommand icon={<SnippetsOutlined />} label="粘贴" disabled title="预留：表格粘贴" />
-            <Popconfirm title="删除选中项" onConfirm={() => selected && removeTask(selected.id)} disabled={!selected}>
-              <button type="button" className="sched-ribbon-command is-small" disabled={!selected}>
-                <DeleteOutlined /><span>删除</span>
-              </button>
-            </Popconfirm>
+            <RibbonCommand icon={<CopyOutlined />} label="复制" disabled={!!commandReason('edit.copy')}
+              title={commandTitle('edit.copy')} onClick={() => runCommand('edit.copy')} />
+            <RibbonCommand icon={<SnippetsOutlined />} label="粘贴" disabled={!!commandReason('edit.paste')}
+              title={commandTitle('edit.paste')} onClick={() => runCommand('edit.paste')} />
+            <RibbonCommand icon={<DeleteOutlined />} label="删除" disabled={!!commandReason('edit.delete')}
+              title={commandTitle('edit.delete')} onClick={() => runCommand('edit.delete')} />
           </RibbonColumn>
           <RibbonColumn>
-            <RibbonCommand icon={<SearchOutlined />} label="查找" disabled title="预留：表格查找" />
+            <Popover trigger="click" placement="bottomLeft" open={findOpen} onOpenChange={setFindOpen}
+              content={
+                <div style={{ width: 220, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <Input size="small" placeholder="按名称过滤（空=全部）" value={findText} allowClear
+                    onChange={(e) => { setFindText(e.target.value); sendGanttCommand('find', e.target.value) }}
+                    data-testid="sched-find-input" />
+                  <Button size="small" onClick={() => { setFindText(''); sendGanttCommand('find', ''); setFindOpen(false) }}>清除过滤</Button>
+                </div>
+              } title="查找">
+              <RibbonCommand icon={<SearchOutlined />} label="查找" title={commandTitle('edit.find')} onClick={() => runCommand('edit.find')} />
+            </Popover>
             <RibbonCommand icon={<FormatPainterOutlined />} label="格式刷" disabled title="预留：格式刷" />
             <RibbonCommand icon={<TagOutlined />} label="分类" disabled title="预留：工作分类" />
           </RibbonColumn>
@@ -685,31 +903,43 @@ const SchedulePage: React.FC = () => {
         </RibbonGroup>
         <RibbonGroup label="大纲">
           <RibbonColumn>
-            <RibbonCommand icon={<NodeCollapseOutlined />} label="折叠" disabled title="预留：折叠大纲" />
-            <RibbonCommand icon={<NodeExpandOutlined />} label="升级" disabled title="预留：升级大纲" />
-            <RibbonCommand icon={<NodeCollapseOutlined />} label="降级" disabled title="预留：降级大纲" />
+            <RibbonCommand icon={<NodeCollapseOutlined />} label="折叠" disabled={!!commandReason('outline.collapse')}
+              title={commandTitle('outline.collapse')} onClick={() => runCommand('outline.collapse')} />
+            <RibbonCommand icon={<NodeExpandOutlined />} label="升级" disabled={!!commandReason('outline.promote')}
+              title={commandTitle('outline.promote')} onClick={() => runCommand('outline.promote')} />
+            <RibbonCommand icon={<NodeCollapseOutlined />} label="降级" disabled={!!commandReason('outline.demote')}
+              title={commandTitle('outline.demote')} onClick={() => runCommand('outline.demote')} />
           </RibbonColumn>
           <RibbonColumn>
-            <RibbonCommand icon={<UpOutlined />} label="上移" disabled title="预留：上移工作" />
-            <RibbonCommand icon={<DownOutlined />} label="下移" disabled title="预留：下移工作" />
-            <RibbonCommand icon={<SearchOutlined />} label="上钻" disabled title="预留：上钻大纲" />
+            <RibbonCommand icon={<UpOutlined />} label="上移" disabled={!!commandReason('outline.up')}
+              title={commandTitle('outline.up')} onClick={() => runCommand('outline.up')} />
+            <RibbonCommand icon={<DownOutlined />} label="下移" disabled={!!commandReason('outline.down')}
+              title={commandTitle('outline.down')} onClick={() => runCommand('outline.down')} />
+            <RibbonCommand icon={<SearchOutlined />} label="上钻" title="收起全部分组（只看分区行）"
+              onClick={() => { setView('gantt'); sendGanttCommand('collapse-all') }} />
           </RibbonColumn>
         </RibbonGroup>
         <RibbonGroup label="插入">
-          <RibbonCommand big icon={<PlusOutlined />} label="工作" onClick={() => addTask(selectedId ?? undefined)} />
-          <RibbonCommand big icon={<ToolOutlined />} label="关系" disabled title="预留：插入逻辑关系" />
+          <RibbonCommand big icon={<PlusOutlined />} label="工作" title={commandTitle('task.add')} onClick={() => runCommand('task.add')} />
+          <Popover trigger="click" placement="bottomLeft" open={relationOpen} onOpenChange={setRelationOpen} title={`「${selected?.name ?? ''}」前置任务`}
+            content={selected ? <PredEditor task={selected} /> : <span className="sched-dim">先选中一个任务</span>}>
+            <RibbonCommand big icon={<ToolOutlined />} label="关系" disabled={!!commandReason('task.relation')}
+              title={commandTitle('task.relation')} onClick={() => runCommand('task.relation')} />
+          </Popover>
           <RibbonCommand
             big
             icon={<AimOutlined />}
             label={selected?.isMilestone ? '取消里程碑' : '里程碑'}
-            disabled={!selected || selectedIsGroup}
+            disabled={!!commandReason('task.milestone')}
             active={!!selected?.isMilestone}
-            onClick={() => selected && !selectedIsGroup && updateTask(selected.id, { isMilestone: !selected.isMilestone })}
+            title={commandTitle('task.milestone')}
+            onClick={() => runCommand('task.milestone')}
           />
         </RibbonGroup>
         <RibbonGroup label="高级">
           <RibbonColumn>
-            <RibbonCommand icon={<PartitionOutlined />} label="智能布图" disabled title="预留：智能布图" />
+            <RibbonCommand icon={<PartitionOutlined />} label="智能布图" title={commandTitle('display.smart-layout')}
+              onClick={() => runCommand('display.smart-layout')} />
             <RibbonCommand icon={<FileImageOutlined />} label="按纸张" disabled title="预留：按纸张布图" />
             <Popover trigger="click" placement="bottom" content={<ProjectSettingsPanel cpm={cpm} />} title="工程设置">
               <button type="button" className="sched-ribbon-command is-small" data-testid="sched-project-settings-btn">
@@ -718,8 +948,10 @@ const SchedulePage: React.FC = () => {
             </Popover>
           </RibbonColumn>
           <RibbonColumn>
-            <RibbonCommand icon={<WarningOutlined />} label="预警" active={dockOpen} onClick={() => setDockOpen((open) => !open)} />
-            <RibbonCommand icon={<SafetyOutlined />} label="检查" active={dockOpen} onClick={() => setDockOpen((open) => !open)} testId="sched-dock-toggle" />
+            <RibbonCommand icon={<WarningOutlined />} label="预警" active={commandActive['display.dock']}
+              title={commandTitle('display.dock')} onClick={() => runCommand('display.dock')} />
+            <RibbonCommand icon={<SafetyOutlined />} label="检查" active={commandActive['display.dock']}
+              title={commandTitle('display.dock')} onClick={() => runCommand('display.dock')} testId="sched-dock-toggle" />
           </RibbonColumn>
         </RibbonGroup>
       </div>
@@ -775,7 +1007,8 @@ const SchedulePage: React.FC = () => {
               </button>
             </Popover>
             <RibbonCommand big icon={<ToolOutlined />} label="办公预览" onClick={openInOffice} />
-            <RibbonCommand big icon={<MessageOutlined />} label="AI 助手" active={!chat.collapsed} onClick={toggleChat} />
+            <RibbonCommand big icon={<MessageOutlined />} label="AI 助手" active={commandActive['display.chat']}
+              title={commandTitle('display.chat')} onClick={() => runCommand('display.chat')} />
           </RibbonGroup>
           <RibbonGroup label="历史">
             <RibbonColumn>
@@ -784,13 +1017,19 @@ const SchedulePage: React.FC = () => {
                   <UndoOutlined /><span>编辑菜单</span>
                 </button>
               </Dropdown>
-              <RibbonCommand icon={<UndoOutlined />} label="撤销" disabled={past.length === 0} onClick={undo} testId="sched-undo" />
-              <RibbonCommand icon={<RedoOutlined />} label="重做" disabled={future.length === 0} onClick={redo} testId="sched-redo" />
+              <RibbonCommand icon={<UndoOutlined />} label="撤销" disabled={!!commandReason('edit.undo')}
+                title={commandTitle('edit.undo')} onClick={() => runCommand('edit.undo')} testId="sched-undo" />
+              <RibbonCommand icon={<RedoOutlined />} label="重做" disabled={!!commandReason('edit.redo')}
+                title={commandTitle('edit.redo')} onClick={() => runCommand('edit.redo')} testId="sched-redo" />
             </RibbonColumn>
           </RibbonGroup>
         </div>
       )}
 
+      {outlineMsg && (
+        <Alert type="warning" showIcon message={outlineMsg} closable onClose={() => setOutlineMsg(null)}
+          style={{ margin: '4px 12px 0' }} data-testid="sched-outline-msg" />
+      )}
       {ribbonTab === 'resource' && (
         <div className="sched-toolbar">
           <RibbonGroup label="资源">
@@ -799,11 +1038,14 @@ const SchedulePage: React.FC = () => {
                 <TeamOutlined /><span>资源工作表</span>
               </button>
             </Popover>
-            <RibbonCommand big icon={<TableOutlined />} label="资源使用" active={view === 'usage'} onClick={() => setView('usage')} />
+            <RibbonCommand big icon={<TableOutlined />} label="资源使用" active={commandActive['view.usage']}
+              title={commandTitle('view.usage')} onClick={() => runCommand('view.usage')} />
           </RibbonGroup>
           <RibbonGroup label="成本">
-            <RibbonCommand big icon={<ExportOutlined />} label="导出 Excel" onClick={() => void exportXlsx()} />
-            <RibbonCommand big icon={<FileImageOutlined />} label="图面导出" onClick={() => setExportOpen(true)} />
+            <RibbonCommand big icon={<ExportOutlined />} label="导出 Excel" title={commandTitle('file.export-xlsx')}
+              onClick={() => runCommand('file.export-xlsx')} />
+            <RibbonCommand big icon={<FileImageOutlined />} label="图面导出" title={commandTitle('file.export-art')}
+              onClick={() => runCommand('file.export-art')} />
           </RibbonGroup>
           <RibbonGroup label="工程">
             <RibbonCommand icon={<CalendarOutlined />} label="工作日历" onClick={() => undefined} title="工作日历在下方工程信息条打开" />
@@ -827,12 +1069,16 @@ const SchedulePage: React.FC = () => {
             </Popover>
           </RibbonGroup>
           <RibbonGroup label="检查">
-            <RibbonCommand big icon={<SafetyOutlined />} label="计划检查" active={dockOpen} onClick={() => setDockOpen((open) => !open)} testId="sched-dock-toggle" />
-            <RibbonCommand big icon={<SafetyOutlined />} label="质量体检" active={view === 'dcma'} onClick={() => setView('dcma')} />
+            <RibbonCommand big icon={<SafetyOutlined />} label="计划检查" active={commandActive['display.dock']}
+              title={commandTitle('display.dock')} onClick={() => runCommand('display.dock')} testId="sched-dock-toggle" />
+            <RibbonCommand big icon={<SafetyOutlined />} label="质量体检" active={commandActive['view.dcma']}
+              title={commandTitle('view.dcma')} onClick={() => runCommand('view.dcma')} />
           </RibbonGroup>
           <RibbonGroup label="分析">
-            <RibbonCommand icon={<FundOutlined />} label="工期模拟" active={view === 'monte'} onClick={() => setView('monte')} />
-            <RibbonCommand icon={<RiseOutlined />} label="挣值分析" active={view === 'evm'} onClick={() => setView('evm')} />
+            <RibbonCommand icon={<FundOutlined />} label="工期模拟" active={commandActive['view.monte']}
+              title={commandTitle('view.monte')} onClick={() => runCommand('view.monte')} />
+            <RibbonCommand icon={<RiseOutlined />} label="挣值分析" active={commandActive['view.evm']}
+              title={commandTitle('view.evm')} onClick={() => runCommand('view.evm')} />
           </RibbonGroup>
         </div>
       )}
@@ -840,11 +1086,13 @@ const SchedulePage: React.FC = () => {
       {ribbonTab === 'collab' && (
         <div className="sched-toolbar">
           <RibbonGroup label="协作">
-            <RibbonCommand big icon={<MessageOutlined />} label={chat.collapsed ? '展开 AI' : '收起 AI'} active={!chat.collapsed} onClick={toggleChat} />
+            <RibbonCommand big icon={<MessageOutlined />} label={chat.collapsed ? '展开 AI' : '收起 AI'}
+              active={commandActive['display.chat']} title={commandTitle('display.chat')} onClick={() => runCommand('display.chat')} />
             <RibbonCommand big icon={<ToolOutlined />} label="办公预览" onClick={openInOffice} />
           </RibbonGroup>
           <RibbonGroup label="工程">
-            <RibbonCommand big icon={<SettingOutlined />} label="工程管理" onClick={() => setManageOpen(true)} />
+            <RibbonCommand big icon={<SettingOutlined />} label="工程管理" title={commandTitle('file.manage')}
+              onClick={() => runCommand('file.manage')} />
             <RibbonCommand big icon={<FileTextOutlined />} label="切换到计划" onClick={() => setRibbonTab('plan')} />
           </RibbonGroup>
         </div>
@@ -860,21 +1108,30 @@ const SchedulePage: React.FC = () => {
             </Dropdown>
           </RibbonGroup>
           <RibbonGroup label="图模式">
-            <RibbonCommand big icon={<TableOutlined />} label="横道图" active={view === 'gantt'} onClick={() => setView('gantt')} />
-            <RibbonCommand big icon={<NodeIndexOutlined />} label="单代号" active={view === 'pdm'} onClick={() => setView('pdm')} />
-            <RibbonCommand big icon={<PartitionOutlined />} label="双代号" active={view === 'aoa'} onClick={() => setView('aoa')} />
-            <RibbonCommand big icon={<TeamOutlined />} label="资源使用" active={view === 'usage'} onClick={() => setView('usage')} />
+            <RibbonCommand big icon={<TableOutlined />} label="横道图" active={commandActive['view.gantt']}
+              title={commandTitle('view.gantt')} onClick={() => runCommand('view.gantt')} />
+            <RibbonCommand big icon={<NodeIndexOutlined />} label="单代号" active={commandActive['view.pdm']}
+              title={commandTitle('view.pdm')} onClick={() => runCommand('view.pdm')} />
+            <RibbonCommand big icon={<PartitionOutlined />} label="双代号" active={commandActive['view.aoa']}
+              title={commandTitle('view.aoa')} onClick={() => runCommand('view.aoa')} />
+            <RibbonCommand big icon={<TeamOutlined />} label="资源使用" active={commandActive['view.usage']}
+              title={commandTitle('view.usage')} onClick={() => runCommand('view.usage')} />
           </RibbonGroup>
           <RibbonGroup label="分析视图">
             <RibbonColumn>
-              <RibbonCommand icon={<SafetyOutlined />} label="质量体检" active={view === 'dcma'} onClick={() => setView('dcma')} />
-              <RibbonCommand icon={<FundOutlined />} label="工期模拟" active={view === 'monte'} onClick={() => setView('monte')} />
-              <RibbonCommand icon={<RiseOutlined />} label="挣值分析" active={view === 'evm'} onClick={() => setView('evm')} />
+              <RibbonCommand icon={<SafetyOutlined />} label="质量体检" active={commandActive['view.dcma']}
+                title={commandTitle('view.dcma')} onClick={() => runCommand('view.dcma')} />
+              <RibbonCommand icon={<FundOutlined />} label="工期模拟" active={commandActive['view.monte']}
+                title={commandTitle('view.monte')} onClick={() => runCommand('view.monte')} />
+              <RibbonCommand icon={<RiseOutlined />} label="挣值分析" active={commandActive['view.evm']}
+                title={commandTitle('view.evm')} onClick={() => runCommand('view.evm')} />
             </RibbonColumn>
           </RibbonGroup>
           <RibbonGroup label="显示">
-            <RibbonCommand icon={<SafetyOutlined />} label="检查面板" active={dockOpen} onClick={() => setDockOpen((open) => !open)} />
-            <RibbonCommand icon={<MessageOutlined />} label="AI 助手" active={!chat.collapsed} onClick={toggleChat} />
+            <RibbonCommand icon={<SafetyOutlined />} label="检查面板" active={commandActive['display.dock']}
+              title={commandTitle('display.dock')} onClick={() => runCommand('display.dock')} />
+            <RibbonCommand icon={<MessageOutlined />} label="AI 助手" active={commandActive['display.chat']}
+              title={commandTitle('display.chat')} onClick={() => runCommand('display.chat')} />
           </RibbonGroup>
         </div>
       )}
@@ -882,12 +1139,16 @@ const SchedulePage: React.FC = () => {
       {ribbonTab === 'help' && (
         <div className="sched-toolbar">
           <RibbonGroup label="起步">
-            <Popover trigger="click" placement="bottom" content={<TemplatesPanel cpm={cpm} />} title="项目模板">
+            <Popover trigger="click" placement="bottom" open={templatesOpen} onOpenChange={setTemplatesOpen}
+              content={<TemplatesPanel cpm={cpm} />} title="项目模板">
               <button type="button" className="sched-ribbon-command is-big" data-testid="sched-templates-btn">
                 <AppstoreOutlined /><span>项目模板</span>
               </button>
             </Popover>
-            <RibbonCommand big icon={<ThunderboltOutlined />} label="示例工程" onClick={() => { loadSample(); setImportMsg(null) }} />
+            <RibbonCommand big icon={<SearchOutlined />} label="命令与快捷键" title="搜索全部命令（Ctrl+K / F1）"
+              onClick={() => runCommand('help.commands')} testId="sched-shortcuts-help" />
+            <RibbonCommand big icon={<ThunderboltOutlined />} label="示例工程" title={commandTitle('help.sample')}
+              onClick={() => runCommand('help.sample')} />
           </RibbonGroup>
           <RibbonGroup label="文件">
             <Dropdown trigger={['click']} menu={importMenuCfg}>
@@ -955,6 +1216,12 @@ const SchedulePage: React.FC = () => {
           onClose={() => setImportMsg(null)}
         />
       )}
+      <ScheduleCommandPalette
+        open={commandOpen}
+        commands={runtimeCommands}
+        onClose={() => setCommandOpen(false)}
+        onBlocked={setOutlineMsg}
+      />
       <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} project={project} cpm={cpm} aoa={aoa} defaultView={view === 'usage' || view === 'dcma' || view === 'monte' || view === 'evm' ? 'gantt' : view} />
       {!cpm.ok && cpm.error && (
         <Alert type="error" showIcon message={cpm.error} description="请修正搭接关系后重试；网络图视图在循环解除前不可用。" />
@@ -966,7 +1233,7 @@ const SchedulePage: React.FC = () => {
           {view === 'monte' && <MonteView project={project} cpm={cpm} />}
           {view === 'evm' && <EvmView project={project} cpm={cpm} />}
           {view === 'gantt' && <GanttView project={project} cpm={cpm} onInspect={setInspectId} showToolbar={false} />}
-          {(view === 'pdm' || view === 'aoa') && <ScheduleNetworkWorkspace view={view} project={project} cpm={cpm} graph={aoa} />}
+          {(view === 'pdm' || view === 'aoa') && <ScheduleNetworkWorkspace view={view} project={project} cpm={cpm} graph={aoa} renderMode={netMode} />}
           {view === 'usage' && <UsageView usage={usage} />}
         </div>
         <ScheduleDock
