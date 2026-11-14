@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ClipboardEvent, DragEvent, KeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { useT } from "../lib/i18n";
-import { clearLayoutSize, loadOptionalLayoutSize, saveLayoutSize } from "../lib/layoutPreferences";
+import { clearLayoutSize, loadLayoutSize, saveLayoutSize } from "../lib/layoutPreferences";
 import { applyTableConversion, detectTableBlock } from "../lib/tableData";
 import { useComposerInsertStore } from "../lib/store";
 import { SlashMenu } from "./SlashMenu";
@@ -28,7 +28,10 @@ import { ComposerInputRow } from "./composer/ComposerInputRow";
 import { ComposerToolbar } from "./composer/ComposerToolbar";
 import { SkillRecordModal } from "./SkillRecordModal";
 
-const COMPOSER_MIN_HEIGHT = 86;
+// 新输入卡固定含 112px 输入区 + 43px 工具栏。旧版曾允许 86~104px，
+// 桌面端持久化后会裁掉整个工具栏；下限必须覆盖新卡片的完整内容。
+const COMPOSER_MIN_HEIGHT = 164;
+const COMPOSER_DEFAULT_HEIGHT = 164;
 const COMPOSER_MAX_HEIGHT = 360;
 const COMPOSER_MAX_VIEWPORT_RATIO = 0.4;
 const INPUT_HISTORY_KEY = "gaea.inputHistory";
@@ -47,8 +50,8 @@ function composerMaxHeight(): number {
 function clampComposerHeight(h: number): number {
   return Math.min(Math.max(Math.round(h), COMPOSER_MIN_HEIGHT), composerMaxHeight());
 }
-function loadComposerHeight(): number | null {
-  return loadOptionalLayoutSize("composerHeight", clampComposerHeight);
+function loadComposerHeight(): number {
+  return loadLayoutSize("composerHeightV2", COMPOSER_DEFAULT_HEIGHT, clampComposerHeight);
 }
 
 export function Composer({
@@ -327,21 +330,21 @@ export function Composer({
   };
 
   // ── 高度调整 ──
-  const [composerHeight, setComposerHeight] = useState<number | null>(loadComposerHeight);
+  const [composerHeight, setComposerHeight] = useState<number>(loadComposerHeight);
   const [composerResizing, setComposerResizing] = useState(false);
   const [recordOpen, setRecordOpen] = useState(false);
   useEffect(() => {
-    const onResize = () => setComposerHeight((h) => (h === null ? null : clampComposerHeight(h)));
+    const onResize = () => setComposerHeight((h) => clampComposerHeight(h));
     window.addEventListener("resize", onResize); return () => window.removeEventListener("resize", onResize);
   }, []);
-  const saveComposerHeight = (h: number) => saveLayoutSize("composerHeight", h, clampComposerHeight);
-  const resetComposerHeight = () => { setComposerHeight(null); clearLayoutSize("composerHeight"); };
+  const saveComposerHeight = (h: number) => saveLayoutSize("composerHeightV2", h, clampComposerHeight);
+  const resetComposerHeight = () => { setComposerHeight(COMPOSER_DEFAULT_HEIGHT); clearLayoutSize("composerHeightV2"); };
   const onComposerResizeStart = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
     const card = composerCardRef.current; if (!card) return;
     e.preventDefault();
     const startY = e.clientY;
-    const startHeight = composerHeight ?? card.getBoundingClientRect().height;
+    const startHeight = composerHeight || card.getBoundingClientRect().height;
     let nextHeight = clampComposerHeight(startHeight);
     let moved = false;
     setComposerResizing(true); document.body.classList.add("composer-resizing");
@@ -408,7 +411,7 @@ export function Composer({
     if (e.key === "Escape" && running) { e.preventDefault(); handleCancel(); }
   };
 
-  const composerCardStyle = composerHeight === null ? undefined : ({ "--composer-height": `${composerHeight}px` } as CSSProperties);
+  const composerCardStyle = { "--composer-height": `${composerHeight}px` } as CSSProperties;
 
   // ── 项目感知 placeholder ──
   const placeholderText = useMemo(() => {
@@ -477,8 +480,8 @@ export function Composer({
 
       {/* ── 输入卡片（Luminous Glass：玻璃底 + 顶部 1px 高光线 + 聚焦收敛光晕） ── */}
       <div
-        className={`office-composer-card relative border border-border-soft/80 bg-bg-elev/70 backdrop-blur-xl backdrop-saturate-150 rounded-2xl overflow-hidden shadow-[inset_0_1px_0_color-mix(in_srgb,var(--fg)_6%,transparent)] transition-[border-color,box-shadow,background] duration-[var(--dur-base)] focus-within:border-accent/30 focus-within:shadow-[inset_0_1px_0_color-mix(in_srgb,var(--fg)_6%,transparent),0_0_0_1px_var(--accent-soft),0_0_22px_color-mix(in_srgb,var(--accent)_10%,transparent),var(--ds-shadow-composer)] ${composerHeight !== null ? "flex flex-col" : ""} ${composerResizing ? "cursor-ns-resize" : ""}`}
-        style={{ ...(composerHeight !== null ? { height: "var(--composer-height)" } : {}), ...composerCardStyle }}
+        className={`office-composer-card relative flex flex-col border border-border-soft/80 bg-bg-elev/70 backdrop-blur-xl backdrop-saturate-150 rounded-2xl overflow-hidden shadow-[inset_0_1px_0_color-mix(in_srgb,var(--fg)_6%,transparent)] transition-[border-color,box-shadow,background] duration-[var(--dur-base)] focus-within:border-accent/30 focus-within:shadow-[inset_0_1px_0_color-mix(in_srgb,var(--fg)_6%,transparent),0_0_0_1px_var(--accent-soft),0_0_22px_color-mix(in_srgb,var(--accent)_10%,transparent),var(--ds-shadow-composer)] ${composerResizing ? "cursor-ns-resize" : ""}`}
+        style={{ height: "var(--composer-height)", ...composerCardStyle }}
         ref={composerCardRef}
       >
         {/* 顶部 1px 高光线（v3-edge 渐变） */}
@@ -510,7 +513,7 @@ export function Composer({
           placeholder={placeholderText}
           disabled={disabled ?? false}
           running={running}
-          composerHeightFixed={composerHeight !== null}
+          composerHeightFixed
           dragOver={dragOver}
           shiftHeld={shiftHeld}
           queueLen={queueLen}

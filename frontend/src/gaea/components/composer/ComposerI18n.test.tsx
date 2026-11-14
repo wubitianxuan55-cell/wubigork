@@ -201,7 +201,10 @@ describe("ComposerDragOverlay i18n 冒烟", () => {
 });
 
 describe("Composer i18n 冒烟", () => {
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    localStorage.removeItem("gaea.work.layoutPreferences.v1");
+  });
 
   it("上下文状态通过插槽进入输入卡底部工具栏，不再生成独立 meta 行", () => {
     renderT(
@@ -218,6 +221,26 @@ describe("Composer i18n 冒烟", () => {
     expect(slot.closest(".office-composer-toolbar")).toBeTruthy();
     expect(slot.closest(".office-toolbar-context")).toBeTruthy();
     expect(document.querySelector(".office-composer-meta")).toBeNull();
+  });
+
+  it("旧版矮输入框持久化值不再生效，新 UI 使用完整输入卡基线", () => {
+    localStorage.setItem(
+      "gaea.work.layoutPreferences.v1",
+      JSON.stringify({ sizes: { composerHeight: 104, composerHeightV2: 104 } }),
+    );
+    renderT(
+      <Composer
+        running={false}
+        cwd="/ws"
+        onSend={noop}
+        onCancel={() => undefined}
+        onPickFolder={async () => "/ws"}
+      />,
+    );
+    const card = document.querySelector(".office-composer-card") as HTMLElement;
+    expect(card).toBeTruthy();
+    expect(card.style.getPropertyValue("--composer-height")).toBe("164px");
+    expect(card.classList.contains("flex")).toBe(true);
   });
 
   it("placeholder 走字典：空闲统一任务提示（zh/en）/运行中提示（zh）", () => {

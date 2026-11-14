@@ -97,9 +97,18 @@ describe("Markdown 本地文件预览", () => {
     expect(usePreviewStore.getState().previewFile).toBe("报告.docx");
   });
 
-  it("代码块/内联代码里的路径不转成链接", () => {
-    render(<Markdown text={"```\nC:\\AI\\bangong\\内部说明.xlsx\n```\n运行 `C:\\AI\\tools\\fix.bat` 即可。"} />);
-    expect(screen.queryAllByRole("button").length).toBe(0);
+  it("代码围栏里的路径保持纯代码，不转成链接", () => {
+    render(<Markdown text={"```\nC:\\AI\\bangong\\内部说明.xlsx\n```"} />);
+    expect(screen.queryByRole("button", { name: /预览/ })).toBeNull();
+  });
+
+  it("行内代码里的本地文件路径渲染为可点击预览 chip", () => {
+    usePreviewStore.setState({ previewFile: null });
+    render(<Markdown text={"计划文件是 `进度计划/当前计划.gsched.json`，说明见 `招标文件关键信息整理.md`。"} />);
+    const plan = screen.getByRole("button", { name: /预览 当前计划\.gsched\.json/ });
+    expect(screen.getByRole("button", { name: /预览 招标文件关键信息整理\.md/ })).toBeTruthy();
+    fireEvent.click(plan);
+    expect(usePreviewStore.getState().previewFile).toBe("进度计划/当前计划.gsched.json");
   });
 });
 

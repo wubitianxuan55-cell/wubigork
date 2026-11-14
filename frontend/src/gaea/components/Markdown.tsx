@@ -17,7 +17,8 @@
 // 性能：插件恒挂管线（未做 "<字母" 启发式门控）——树级消毒 O(树)，代价
 // 远小于一次 reparse，正确性优先避免启发式漏判。
 
-import { isValidElement, memo, useCallback, useEffect, useRef, useState } from "react";
+import { cloneElement, isValidElement, memo, useCallback, useEffect, useRef, useState } from "react";
+import type { ReactElement, ReactNode } from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -418,48 +419,75 @@ function buildComponents(
   codeLabels: CodeCollapseLabels,
   imageBasePath?: string,
 ): Components {
+  const Code = ({
+    className,
+    children,
+    "data-code-fence": inFence,
+  }: {
+    className?: string;
+    children?: ReactNode;
+    "data-code-fence"?: boolean;
+  }) => {
+    // FE6-05：样板（language- 提取/去尾换行/块级判定）走 extractFence 单源。
+    // 本文件分支语义与前两路并不同构，保留自有分支：mermaid 独占分支；
+    // genui 围栏不带块级闸（inline 亦按围栏体解析）、panelRender="chip"
+    // （panel:true 规格只出占位 chip，面板发布由上方 useEffect 负责）；
+    // 块级代码走 CodeBlockHeader+CodeCollapse+HlCode 文档面板。
+    const { text, lang, isBlock } = extractFence(className, children);
+    if (lang === "mermaid") {
+      return <MermaidBlock code={text} autoExport={autoExportMermaid} />;
+    }
+    if (lang !== undefined && isGenuiFenceLang(lang)) {
+      return (
+        <GenuiMarkdownFence
+          code={text}
+          stateKey={fenceKeyFor?.(text)}
+          panelRender="chip"
+        />
+      );
+    }
+    if (isBlock || inFence) {
+      return (
+        <div className="my-3 rounded-lg border border-border-soft overflow-hidden">
+          <CodeBlockHeader language={lang} text={text} />
+          <CodeCollapse text={text} labels={codeLabels}>
+            <pre className="px-3 py-2.5 font-mono text-[12.5px] leading-[1.55] overflow-auto whitespace-pre text-fg"><HlCode text={text} lang={lang} /></pre>
+          </CodeCollapse>
+        </div>
+      );
+    }
+    // 模型常在正文里用行内代码包裹文件路径。它们看起来已高亮，但此前
+    // remarkFileLinks 按“代码不处理”跳过，导致桌面/网页都不可点击。
+    // 仅当归一化后的整段内联代码确实是一个本地文件时升级为 FileChip；
+    // 普通内联代码和围栏代码仍保持原样。
+    const inline = text.trim();
+    if (!inFence && isLocalFilePath(inline)) {
+      const path = parseFilePathHref(inline) ?? inline;
+      return (
+        <FileChip
+          path={path}
+          onOpen={onOpenFile}
+          title={`点击预览 ${path}`}
+        />
+      );
+    }
+    return <code className="px-1 py-0.5 rounded bg-bg-soft text-fg text-[0.9em] font-mono border border-border-soft/50">{children}</code>;
+  };
+
   return {
     pre: ({ children }) => {
       // md 围栏代码：components.code 已产出完整样式块，pre 透传避免双层
       // 包裹；raw HTML 的 <pre>（子节点非 code 组件产物）给基本等宽样式。
-      if (isValidElement(children)) return <>{children}</>;
+      if (isValidElement(children)) {
+        return <>{cloneElement(children as ReactElement<{ "data-code-fence"?: boolean }>, { "data-code-fence": true })}</>;
+      }
       return (
         <pre className="px-3 py-2.5 font-mono text-[12.5px] leading-[1.55] overflow-auto whitespace-pre text-fg">
           {children}
         </pre>
       );
     },
-    code: ({ className, children }) => {
-      // FE6-05：样板（language- 提取/去尾换行/块级判定）走 extractFence 单源。
-      // 本文件分支语义与前两路并不同构，保留自有分支：mermaid 独占分支；
-      // genui 围栏不带块级闸（inline 亦按围栏体解析）、panelRender="chip"
-      // （panel:true 规格只出占位 chip，面板发布由上方 useEffect 负责）；
-      // 块级代码走 CodeBlockHeader+CodeCollapse+HlCode 文档面板。
-      const { text, lang, isBlock } = extractFence(className, children);
-      if (lang === "mermaid") {
-        return <MermaidBlock code={text} autoExport={autoExportMermaid} />;
-      }
-      if (lang !== undefined && isGenuiFenceLang(lang)) {
-        return (
-          <GenuiMarkdownFence
-            code={text}
-            stateKey={fenceKeyFor?.(text)}
-            panelRender="chip"
-          />
-        );
-      }
-      if (isBlock) {
-        return (
-          <div className="my-3 rounded-lg border border-border-soft overflow-hidden">
-            <CodeBlockHeader language={lang} text={text} />
-            <CodeCollapse text={text} labels={codeLabels}>
-              <pre className="px-3 py-2.5 font-mono text-[12.5px] leading-[1.55] overflow-auto whitespace-pre text-fg"><HlCode text={text} lang={lang} /></pre>
-            </CodeCollapse>
-          </div>
-        );
-      }
-      return <code className="px-1 py-0.5 rounded bg-bg-soft text-fg text-[0.9em] font-mono border border-border-soft/50">{children}</code>;
-    },
+    code: Code,
     a: ({ href, children }) => {
       // 记忆引用键（remarkMemCitations 产出 mem:<name> 链接）：渲染成可点击
       // 溯源徽标（C2 记忆引用可追溯）。

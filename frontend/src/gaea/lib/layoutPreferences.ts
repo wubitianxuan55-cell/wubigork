@@ -5,6 +5,7 @@ export type LayoutSizeKey =
   | "workspaceTreeWidth"
   | "workspacePreviewWidth"
   | "composerHeight"
+  | "composerHeightV2"
   | "drawerWidth"
   | "settingsDrawerWidth";
 
@@ -25,6 +26,7 @@ const LEGACY_SIZE_KEYS: Record<LayoutSizeKey, string[]> = {
   workspaceTreeWidth: ["gaea.workspaceTree.width"],
   workspacePreviewWidth: [],
   composerHeight: ["gaea.composerHeight"],
+  composerHeightV2: [],
   drawerWidth: ["gaea.drawer.width"],
   settingsDrawerWidth: ["gaea.settingsDrawer.width"],
 };
