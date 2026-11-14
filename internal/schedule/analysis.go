@@ -161,3 +161,223 @@ func (p Project) CostNarrative(cpm CpmResult) CostNarrative {
 	}
 	return n
 }
+
+// ── 执行期治理叙事（斑马复刻 S2/S5：检视 + 预警，schedule_analyze 回执 execution 段）──────
+//
+// 口径源=前端 reviews.ts / warn.ts（plan-ask「计划-要求」算法，斑马 cn4:262/:293/:276-277）。
+// Go 侧只做**叙事投影**（agent 读数），不是第二套预警引擎：档位表/完成日口径与前端逐字
+// 同源，两侧注释互为镜像锚——改任何一侧必须同步另一侧并跑两侧测试。
+
+// WarnCounts 预警计数（红灯=突破上级下达的要求完成；压线 0 天=绿灯）。
+type WarnCounts struct {
+	Red   int `json:"red"`
+	Green int `json:"green"`
+	// Unassigned 未设置要求完成的叶任务数（斑马「无级别」，不计入红绿灯）。
+	Unassigned int `json:"unassigned"`
+}
+
+// WarnRow 红灯工作明细行。
+type WarnRow struct {
+	TaskID      string `json:"taskId"`
+	Name        string `json:"name"`
+	// Overdue 超期工作日（计划完成日 − 要求完成日，正=突破）。
+	Overdue int    `json:"overdue"`
+	// Band 滞后五档文本（与前端 warn.ts warnBand 同表：(0,15]/(15,30]/(30,60]/(60,100]/100+）。
+	Band        string `json:"band"`
+	IsMilestone bool   `json:"isMilestone,omitempty"`
+}
+
+// ReviewSnapshot 最新一期检视快照（斑马「当期/累计」两列口径）。
+type ReviewSnapshot struct {
+	// At 检视时间（工作日序号，相对开工日）。
+	At int `json:"at"`
+	// Date ISO 日期（展示与人工校核）。
+	Date string `json:"date,omitempty"`
+	// Percent 整份计划加权完成量（reviews.projectPercent 口径：按有效工期加权，里程碑不进分母）。
+	Percent int `json:"percent"`
+	// PlannedPercent 到该工作日计划应完成（reviews.reviewProgress 口径：按 CPM 行算已跨工期）。
+	PlannedPercent int `json:"plannedPercent"`
+	// GapPercent 实际 − 计划（正=超前，负=滞后）。
+	GapPercent int `json:"gapPercent"`
+	// Frozen 拉直冻结（前端 reviews.straighten 语义）。
+	Frozen bool `json:"frozen,omitempty"`
+}
+
+// ExecutionNarrative 执行期治理叙事。**无任何信号**（零检视且全部叶任务未设要求完成）
+// 时返回 nil——回执不造假零值；CPM 未过时同 nil（一切日期比较服从引擎裁决，同 CostNarrative）。
+type ExecutionNarrative struct {
+	ReviewCount int             `json:"reviewCount"`
+	Latest      *ReviewSnapshot `json:"latest,omitempty"`
+	Warn        WarnCounts      `json:"warn"`
+	// RedRows 红灯明细（overdue 降序、并列保任务表序；上限 10——叙事只给最痛的，
+	// 全量列由前端 warn.ts 承载）。
+	RedRows []WarnRow `json:"redRows,omitempty"`
+}
+
+// execWarnBand 滞后五档（前端 warn.ts warnBand 镜像：只有 >0 的超期有档）。
+func execWarnBand(overdue int) string {
+	switch {
+	case overdue <= 0:
+		return ""
+	case overdue <= 15:
+		return "0-15天"
+	case overdue <= 30:
+		return "15-30天"
+	case overdue <= 60:
+		return "30-60天"
+	case overdue <= 100:
+		return "60-100天"
+	default:
+		return "100天以上"
+	}
+}
+
+// execPlanFinishDay 计划完成日（最后工作日口径，前端 warn.ts planFinishDay 镜像）：
+// cpm 行 EF 是独占边界（ES+工期），有工期 → EF−1；里程碑/零工期 → EF（完成发生在当天）。
+func execPlanFinishDay(t Task, row TaskCpm) int {
+	d := 0
+	if t.Level != 0 && !t.IsMilestone && t.Duration > 0 {
+		d = t.Duration
+	}
+	if d > 0 {
+		return row.EF - 1
+	}
+	return row.EF
+}
+
+// execReviewPercent 某期的任务完成百分比（前端 reviews.reviewPercent 镜像）：
+// 该期回填优先，缺省回落任务当前进度。
+func execReviewPercent(r *Review, t Task) int {
+	if r != nil {
+		if a, ok := r.Actuals[t.ID]; ok && a.Percent != nil {
+			v := *a.Percent
+			if v < 0 { v = 0 }
+			if v > 100 { v = 100 }
+			return v
+		}
+	}
+	v := t.Progress
+	if v < 0 { v = 0 }
+	if v > 100 { v = 100 }
+	return v
+}
+
+// execProjectPercent 整份计划加权完成量（前端 reviews.projectPercent 镜像）：
+// 分母不含里程碑与分组行；全是里程碑时退化为达成率。
+func execProjectPercent(p Project, r *Review) int {
+	weight := 0
+	done := 0
+	milestones := 0
+	milestoneDone := 0
+	for i := range p.Tasks {
+		t := &p.Tasks[i]
+		if t.Level == 0 {
+			continue
+		}
+		if t.IsMilestone {
+			milestones++
+			if execReviewPercent(r, *t) >= 100 {
+				milestoneDone++
+			}
+			continue
+		}
+		d := t.Duration
+		if d < 0 { d = 0 }
+		if d == 0 { continue }
+		weight += d
+		done += d * execReviewPercent(r, *t)
+	}
+	if weight == 0 {
+		if milestones == 0 { return 0 }
+		return int(float64(milestoneDone) / float64(milestones) * 100)
+	}
+	return int(float64(done)/float64(weight) + 0.5)
+}
+
+// ExecutionNarrative 执行期治理叙事主计算（cpm 为 ComputeCpm 结果）。
+func (p Project) ExecutionNarrative(cpm CpmResult) *ExecutionNarrative {
+	if !cpm.OK {
+		return nil
+	}
+	n := &ExecutionNarrative{ReviewCount: len(p.Reviews)}
+	hasSignal := len(p.Reviews) > 0
+	for i := range p.Tasks {
+		t := &p.Tasks[i]
+		if t.Level == 0 {
+			continue // 分组行不参与（前端 leavesOf 口径）
+		}
+		if t.AskFinish == nil || *t.AskFinish < 0 {
+			n.Warn.Unassigned++
+			continue
+		}
+		hasSignal = true
+		row, ok := cpm.Rows[t.ID]
+		if !ok {
+			n.Warn.Unassigned++ // 有要求完成但缺排程行 → 前端 level 'none' 口径
+			continue
+		}
+		overdue := execPlanFinishDay(*t, row) - *t.AskFinish
+		if overdue > 0 {
+			n.Warn.Red++
+			n.RedRows = append(n.RedRows, WarnRow{
+				TaskID: t.ID, Name: t.Name, Overdue: overdue,
+				Band: execWarnBand(overdue), IsMilestone: t.IsMilestone,
+			})
+		} else {
+			n.Warn.Green++
+		}
+	}
+	if len(n.RedRows) > 0 {
+		// overdue 降序、并列保任务表序（前端 sortWarns desc 稳定口径）
+		rows := n.RedRows
+		sort.SliceStable(rows, func(i, j int) bool { return rows[i].Overdue > rows[j].Overdue })
+		if len(rows) > 10 {
+			rows = rows[:10]
+		}
+		n.RedRows = rows
+	}
+	if len(p.Reviews) > 0 {
+		latest := p.Reviews[0]
+		for _, r := range p.Reviews[1:] {
+			if r.At > latest.At {
+				latest = r
+			}
+		}
+		// 当期计划应完成 vs 实际（前端 reviews.reviewProgress 口径：按 CPM 行算已跨工期）
+		total, planned, actual := 0, 0, 0.0
+		for i := range p.Tasks {
+			t := &p.Tasks[i]
+			if t.Level == 0 || t.IsMilestone {
+				continue
+			}
+			d := t.Duration
+			if d < 0 { d = 0 }
+			if d == 0 { continue }
+			total += d
+			if row, ok := cpm.Rows[t.ID]; ok {
+				elapsed := latest.At - row.ES + 1
+				if elapsed < 0 { elapsed = 0 }
+				if elapsed > d { elapsed = d }
+				planned += elapsed
+			}
+			actual += float64(d) * float64(execReviewPercent(&latest, *t)) / 100
+		}
+		plannedPct, actualPct := 0, 0
+		if total > 0 {
+			plannedPct = int(float64(planned)/float64(total)*100 + 0.5)
+			actualPct = int(actual/float64(total)*100 + 0.5)
+		}
+		n.Latest = &ReviewSnapshot{
+			At:             latest.At,
+			Date:           latest.Date,
+			Percent:        execProjectPercent(p, &latest),
+			PlannedPercent: plannedPct,
+			GapPercent:     actualPct - plannedPct,
+			Frozen:         latest.Frozen,
+		}
+	}
+	if !hasSignal {
+		return nil
+	}
+	return n
+}

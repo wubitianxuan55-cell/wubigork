@@ -145,3 +145,142 @@ func TestAnalyzeCdTasks(t *testing.T) {
 		t.Fatalf("cd 行 = %+v", cd)
 	}
 }
+
+// ── 执行期治理叙事（斑马复刻 S2/S5：检视+预警，plan-ask 口径 Go 镜像）────────────
+
+func execNarrativeProject() *Project {
+	// A(3)→B(2) FS：A 完成日=EF−1=2；B es=3、EF=5 → 完成日=4
+	return &Project{
+		Name: "执行治理", StartDate: "2026-01-05",
+		Tasks: []Task{
+			{ID: "A", Name: "挖土", Duration: 3, Level: 1, AskFinish: intPtr(0)},  // 完成日 2，要求 0 → 红灯 2
+			{ID: "B", Name: "吊装", Duration: 2, Level: 1, AskFinish: intPtr(9)},  // 完成日 4，要求 9 → 绿灯 -5
+			{ID: "C", Name: "运输", Duration: 1, Level: 1},                         // 未设置 → unassigned
+			{ID: "G", Name: "分组", Level: 0, AskFinish: intPtr(0)},               // 分组行不参与
+		},
+		Links: []Link{lnk("A", "B", FS, 0)},
+	}
+}
+
+func TestExecutionNarrativeWarnCounts(t *testing.T) {
+	p := execNarrativeProject()
+	cpm, _ := p.Analyze()
+	if !cpm.OK {
+		t.Fatalf("cpm 应通过: %+v", cpm)
+	}
+	n := p.ExecutionNarrative(cpm)
+	if n == nil {
+		t.Fatal("有信号应出叙事")
+	}
+	if n.Warn.Red != 1 || n.Warn.Green != 1 || n.Warn.Unassigned != 1 {
+		t.Fatalf("计数不齐: %+v", n.Warn)
+	}
+	if len(n.RedRows) != 1 || n.RedRows[0].TaskID != "A" {
+		t.Fatalf("红灯行不齐: %+v", n.RedRows)
+	}
+	if n.RedRows[0].Overdue != 2 || n.RedRows[0].Band != "0-15天" {
+		t.Fatalf("红灯口径不齐（完成日=EF−1=2，要求 0 → 2 天）: %+v", n.RedRows[0])
+	}
+}
+
+func TestExecutionNarrativeBandTableMirror(t *testing.T) {
+	// 五档边界与前端 warn.ts warnBand 同表：(0,15]/(15,30]/(30,60]/(60,100]/100+
+	cases := map[int]string{1: "0-15天", 15: "0-15天", 16: "15-30天", 30: "15-30天", 31: "30-60天", 60: "30-60天", 61: "60-100天", 100: "60-100天", 101: "100天以上"}
+	for days, want := range cases {
+		if got := execWarnBand(days); got != want {
+			t.Fatalf("execWarnBand(%d)=%s， want %s", days, got, want)
+		}
+	}
+	if execWarnBand(0) != "" || execWarnBand(-3) != "" {
+		t.Fatal("压线/提前无档")
+	}
+}
+
+func TestExecutionNarrativeMilestoneFinishDay(t *testing.T) {
+	// 里程碑/零工期完成日=EF（=ES，当天完成），不是 EF−1：
+	// A(3)→M FS → M es=3、EF=3，完成日=3；要求 0 → 红灯 3 天。
+	// 若公式误用 EF−1=2 会得 2 天——用例钉死这个口径。
+	p := &Project{
+		Name: "里程碑", StartDate: "2026-01-05",
+		Tasks: []Task{
+			{ID: "A", Name: "挖土", Duration: 3, Level: 1},
+			{ID: "M", Name: "节点", Level: 1, IsMilestone: true, AskFinish: intPtr(0)},
+		},
+		Links: []Link{lnk("A", "M", FS, 0)},
+	}
+	cpm, _ := p.Analyze()
+	n := p.ExecutionNarrative(cpm)
+	if n == nil || n.Warn.Red != 1 {
+		t.Fatalf("里程碑要求早于计划应红灯: %+v", n)
+	}
+	if n.RedRows[0].Overdue != 3 || n.RedRows[0].Band != "0-15天" || !n.RedRows[0].IsMilestone {
+		t.Fatalf("里程碑完成日=EF=3 → 超期 3 天: %+v", n.RedRows)
+	}
+}
+
+func TestExecutionNarrativeNilWithoutSignal(t *testing.T) {
+	// 零检视且无人设要求完成 → nil（不造假零值）；CPM 未过 → nil
+	p := sampleProject()
+	cpm, _ := p.Analyze()
+	if n := p.ExecutionNarrative(cpm); n != nil {
+		t.Fatalf("无信号应返回 nil: %+v", n)
+	}
+	bad := sampleProject()
+	bad.Links = append(bad.Links, lnk("B", "A", FS, 0)) // 循环
+	bcpm, _ := bad.Analyze()
+	if bcpm.OK {
+		t.Fatal("构造循环失败")
+	}
+	if n := bad.ExecutionNarrative(bcpm); n != nil {
+		t.Fatal("CPM 未过应返回 nil")
+	}
+}
+
+func TestExecutionNarrativeLatestReview(t *testing.T) {
+	p := execNarrativeProject()
+	p.Reviews = []Review{
+		{At: 1, Date: "2026-01-06", Actuals: map[string]ReviewActual{"A": {Percent: intPtr(100)}}},
+		{At: 4, Date: "2026-01-09", Frozen: true, Actuals: map[string]ReviewActual{"A": {Percent: intPtr(100)}, "B": {Percent: intPtr(50)}}},
+	}
+	cpm, _ := p.Analyze()
+	n := p.ExecutionNarrative(cpm)
+	if n == nil || n.ReviewCount != 2 || n.Latest == nil {
+		t.Fatalf("叙事不齐: %+v", n)
+	}
+	if n.Latest.At != 4 || !n.Latest.Frozen {
+		t.Fatalf("应取最新一期: %+v", n.Latest)
+	}
+	// 加权完成量（reviews.projectPercent 口径，分母含全部叶）：A(3)100%+B(2)50%+C(1)0%
+	// → (300+100+0)/(3+2+1)=67%
+	if n.Latest.Percent != 67 {
+		t.Fatalf("加权完成量应为 67: %d", n.Latest.Percent)
+	}
+	// 计划应完成：A es=0 全跨 3；B es=3 到 at=4 已跨 2；C es=0 已跨 1 → 6/6=100%
+	if n.Latest.PlannedPercent != 100 {
+		t.Fatalf("计划应完成应为 100: %d", n.Latest.PlannedPercent)
+	}
+	if n.Latest.GapPercent != -33 {
+		t.Fatalf("偏差应为 -33: %d", n.Latest.GapPercent)
+	}
+}
+
+func TestExecutionNarrativeRedRowsSortedAndCapped(t *testing.T) {
+	ask := func(v int) *int { return &v }
+	p := &Project{Name: "排序", StartDate: "2026-01-05"}
+	for i := 0; i < 12; i++ {
+		p.Tasks = append(p.Tasks, Task{ID: string(rune('A' + i)), Name: "T", Duration: 2, Level: 1, AskFinish: ask(0)})
+	}
+	cpm, _ := p.Analyze()
+	n := p.ExecutionNarrative(cpm)
+	if n.Warn.Red != 12 {
+		t.Fatalf("12 项全红灯: %+v", n.Warn)
+	}
+	if len(n.RedRows) != 10 {
+		t.Fatalf("明细应截到 10: %d", len(n.RedRows))
+	}
+	for i := 1; i < len(n.RedRows); i++ {
+		if n.RedRows[i-1].Overdue < n.RedRows[i].Overdue {
+			t.Fatalf("应 overdue 降序: %+v", n.RedRows)
+		}
+	}
+}

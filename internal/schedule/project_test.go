@@ -68,14 +68,28 @@ func TestValidateFieldChecks(t *testing.T) {
 		t.Fatalf("重复 id 应拒绝：%v", err)
 	}
 	p.Tasks[1].ID = "B"
-	// AskFinish 要求完成（斑马复刻 S5）：负值拒绝；0（开工日）与非负值放行。
-	p.Tasks[0].AskFinish = -1
+	// AskFinish 要求完成（斑马复刻 S5）：负值拒绝；nil（未设置）与 0（开工日）放行。
+	neg := -1
+	p.Tasks[0].AskFinish = &neg
 	if err := Validate(&p); err == nil || !strings.Contains(err.Error(), "要求完成") {
 		t.Fatalf("要求完成负值应拒绝：%v", err)
 	}
-	p.Tasks[0].AskFinish = 0
+	zero := 0
+	p.Tasks[0].AskFinish = &zero
 	if err := Validate(&p); err != nil {
 		t.Fatalf("要求完成 0=开工日应放行：%v", err)
+	}
+	// *int 契约：0 经 Marshal/Unmarshal 往返不丢（int+omitempty 会静默清掉合法 0）。
+	raw, err := json.Marshal(&p)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var back Project
+	if err := json.Unmarshal(raw, &back); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if back.Tasks[0].AskFinish == nil || *back.Tasks[0].AskFinish != 0 {
+		t.Fatalf("askFinish=0 往返丢失（omitempty 契约破坏）：%v", back.Tasks[0].AskFinish)
 	}
 }
 

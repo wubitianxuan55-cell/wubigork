@@ -408,7 +408,7 @@ type scheduleAnalyze struct{ workDir string }
 func (scheduleAnalyze) Name() string { return "schedule_analyze" }
 
 func (scheduleAnalyze) Description() string {
-	return "分析工程进度计划：确定性 CPM 引擎裁决 + 规则质检。返回总工期、关键工作链、近关键工作（总时差≤2，缓冲小）、里程碑清单，以及计划检查发现（无任何搭接的孤立任务、无前置的任务——可用 ops auto_chain 一键补缺省串联、空分组、无收口尾巴、无里程碑提醒等）；混排计划附带日历天任务清单（cdTasks：自然日数/等效工作日跨度/锚点日期——汇报口径时先讲这组）。含资源维度时附带成本叙事（costs：total 总成本、topTasks 成本 Top5 任务、byResource 按资源汇总，单位元）与「已分配未定价」发现（工时资源未设费率或成本资源缺金额，成本按 0 计——AI 建议层提醒，非引擎拒绝）。已保存基线时附带漂移对比（baselineDrift：总工期 X→Y、推移/新增/移除、关键链进出），汇报调整效果时先讲这组偏差。已设目标竣工时附带倒排校核（deadlineCheck：可行性裁决、超期/富余量、关键工作清单——超期时压缩对象即关键链）。用于编写/修改后的自检（成功≠正确：先 analyze 再向用户汇报）、进度合理性解读与风险提示、推荐逻辑关系的依据。"
+	return "分析工程进度计划：确定性 CPM 引擎裁决 + 规则质检。返回总工期、关键工作链、近关键工作（总时差≤2，缓冲小）、里程碑清单，以及计划检查发现（无任何搭接的孤立任务、无前置的任务——可用 ops auto_chain 一键补缺省串联、空分组、无收口尾巴、无里程碑提醒等）；混排计划附带日历天任务清单（cdTasks：自然日数/等效工作日跨度/锚点日期——汇报口径时先讲这组）。含资源维度时附带成本叙事（costs：total 总成本、topTasks 成本 Top5 任务、byResource 按资源汇总，单位元）与「已分配未定价」发现（工时资源未设费率或成本资源缺金额，成本按 0 计——AI 建议层提醒，非引擎拒绝）。已保存基线时附带漂移对比（baselineDrift：总工期 X→Y、推移/新增/移除、关键链进出），汇报调整效果时先讲这组偏差。已设目标竣工时附带倒排校核（deadlineCheck：可行性裁决、超期/富余量、关键工作清单——超期时压缩对象即关键链）。有检视或任一任务设置了要求完成时附带执行期治理叙事（execution：reviewCount 检视期数、latest 最新一期加权完成量/计划应完成/偏差百分点、warn 红绿灯与未设置计数、redRows 红灯明细超期天数与五档——plan-ask「计划-要求」口径；滞后时压缩对象先看关键链上的红灯）。用于编写/修改后的自检（成功≠正确：先 analyze 再向用户汇报）、进度合理性解读与风险提示、推荐逻辑关系的依据。"
 }
 
 func (scheduleAnalyze) Schema() json.RawMessage {
@@ -490,6 +490,27 @@ func (s scheduleAnalyze) Execute(ctx context.Context, args json.RawMessage) (str
 			findings = append(findings, fmt.Sprintf("倒排校核：目标竣工 %s（第 %d 工作日）不可达——总工期 %d 天，超 %d 天；需压缩关键线路", d.Deadline, d.TargetWorkdays, d.CurrentDuration, d.Overrun))
 		} else if d.Overrun >= -2 {
 			findings = append(findings, fmt.Sprintf("倒排校核：距目标竣工仅剩 %d 天富余，关键任务拖延即触线", -d.Overrun))
+		}
+	}
+	// 执行期治理叙事（斑马复刻 S2/S5：检视+预警，plan-ask 口径；无信号/CPM 未过时
+	// nil 不出键——回执不造假零值，与 costs/baselineDrift 同纪律）
+	if exec := proj.ExecutionNarrative(cpm); exec != nil {
+		out["execution"] = exec
+		if exec.Latest != nil {
+			gap := exec.Latest.GapPercent
+			switch {
+			case gap < 0:
+				findings = append(findings, fmt.Sprintf("最新检视（第 %d 工作日）：加权完成 %d%%，落后计划 %d 个百分点（计划应完成 %d%%）——滞后项用 execution.redRows 定位后再谈压缩",
+					exec.Latest.At, exec.Latest.Percent, -gap, exec.Latest.PlannedPercent))
+			case gap > 0:
+				findings = append(findings, fmt.Sprintf("最新检视（第 %d 工作日）：加权完成 %d%%，超前计划 %d 个百分点",
+					exec.Latest.At, exec.Latest.Percent, gap))
+			}
+		}
+		if exec.Warn.Red > 0 && len(exec.RedRows) > 0 {
+			worst := exec.RedRows[0]
+			findings = append(findings, fmt.Sprintf("预警红灯 %d 项突破要求完成时间，最痛「%s」超期 %d 天（%s）——按计划-要求口径；预测口径与逐项处置建议在板块任务检查器",
+				exec.Warn.Red, worst.Name, worst.Overdue, worst.Band))
 		}
 	}
 	out["checks"] = findings

@@ -70,8 +70,10 @@ type Task struct {
 	DurationUnit DurationUnit `json:"durationUnit,omitempty"`
 	// AskFinish 要求完成时间（斑马复刻 S5 预警：ask_stop_time 口径=上级下达的
 	// 要求完成；工作日序号，0=开工日。缺省=未下达，预警「无级别」。负值 Validate
-	// fail-closed，镜像前端 store.ts 归一）。
-	AskFinish int `json:"askFinish,omitempty"`
+	// fail-closed，镜像前端 store.ts 归一）。**必须用 *int**：0 是合法值（要求
+	// 开工日完成），int+omitempty 会把它在落盘时静默丢掉（前端 normalize 视 0
+	// 为已设置）——指针形态 nil=未设置、0=合法已设置。
+	AskFinish *int `json:"askFinish,omitempty"`
 	// Custom 自定义字段值（v4.138 #14：固定 5 槽 text1..num2，镜像前端
 	// customFields.ts 注册表；只存有值槽，值 string|number。旧 JSON 零迁移）。
 	Custom map[string]interface{} `json:"custom,omitempty"`

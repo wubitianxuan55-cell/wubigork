@@ -467,3 +467,60 @@ func TestScheduleDualDurationChain(t *testing.T) {
 		t.Fatalf("patch 口径回执 = %v", changes)
 	}
 }
+
+// 执行期治理叙事（斑马复刻 S2/S5）：schedule_analyze 回执 execution 段 + findings 文案。
+func TestScheduleAnalyzeExecutionNarrative(t *testing.T) {
+	dir := t.TempDir()
+	// A(3)→B(2) FS；A 要求完成=0（红灯：完成日 2，超期 2）；B 未设要求完成。
+	// 检视一期 at=3：A 100%、B 50% → 加权 (300+100)/5=80%。
+	schedApply(t, dir, `{"project":{"name":"P","startDate":"2026-09-01",
+		"tasks":[{"id":"a","name":"挖土","level":1,"duration":3,"progress":0,"askFinish":0},
+		         {"id":"b","name":"吊装","level":1,"duration":2,"progress":0}],
+		"links":[{"from":"a","to":"b","type":"FS","lag":0}],
+		"reviews":[{"at":3,"date":"2026-09-04","actuals":{"a":{"percent":100},"b":{"percent":50}}}]}}`)
+	ana, err := scheduleAnalyze{workDir: dir}.Execute(context.Background(), json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatalf("analyze: %v", err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(ana), &m); err != nil {
+		t.Fatalf("analyze 输出非 JSON: %v", err)
+	}
+	exec, ok := m["execution"].(map[string]any)
+	if !ok {
+		t.Fatalf("缺 execution 段: %s", ana)
+	}
+	if exec["reviewCount"].(float64) != 1 {
+		t.Fatalf("reviewCount = %v", exec["reviewCount"])
+	}
+	warn := exec["warn"].(map[string]any)
+	if warn["red"].(float64) != 1 || warn["green"].(float64) != 0 || warn["unassigned"].(float64) != 1 {
+		t.Fatalf("warn 计数不齐: %v", warn)
+	}
+	rows := exec["redRows"].([]any)
+	if len(rows) != 1 || rows[0].(map[string]any)["overdue"].(float64) != 2 {
+		t.Fatalf("红灯行口径（完成日=EF−1=2，要求 0 → 2 天）: %v", rows)
+	}
+	latest := exec["latest"].(map[string]any)
+	// 加权 80%（A3 天全跨+B 半跨）；计划应完成 A3+B1=4/5=80% → 偏差 0
+	if latest["percent"].(float64) != 80 || latest["plannedPercent"].(float64) != 80 || latest["gapPercent"].(float64) != 0 {
+		t.Fatalf("检视快照口径: %v", latest)
+	}
+	if !strings.Contains(ana, "预警红灯 1 项突破要求完成时间") || !strings.Contains(ana, "超期 2 天（0-15天）") {
+		t.Fatalf("缺红灯 finding 文案: %s", ana)
+	}
+	// 无信号计划（零检视、无人设要求完成）→ 回执无 execution 键（不造假零值）
+	schedApply(t, dir, `{"project":{"name":"Q","startDate":"2026-09-01",
+		"tasks":[{"id":"x","name":"挖土","level":1,"duration":2,"progress":0}]}}`)
+	ana2, err := scheduleAnalyze{workDir: dir}.Execute(context.Background(), json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatalf("analyze2: %v", err)
+	}
+	var m2 map[string]any
+	if err := json.Unmarshal([]byte(ana2), &m2); err != nil {
+		t.Fatalf("analyze2 输出非 JSON: %v", err)
+	}
+	if _, exists := m2["execution"]; exists {
+		t.Fatalf("无信号不应出 execution 段: %s", ana2)
+	}
+}
