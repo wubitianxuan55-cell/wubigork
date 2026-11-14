@@ -91,6 +91,28 @@ describe('parseSchedSummary 摘要解析', () => {
     expect(parseSchedSummary(JSON.stringify(project({ baselines: [] })))!.baselineCount).toBe(0)
   })
 
+  it('检视期数与预警计数进摘要（斑马复刻 S5）：红灯/绿灯/未设置计数 + CPM 坏时 warn null', () => {
+    // A: es=0,ef=3（最后工作日=2）→ ask=0 红灯；B: ef=5（最后工作日=4）→ ask=9 绿灯
+    const withAsk = project({
+      tasks: [t('A', 3), t('B', 2)],
+      links: [l('A', 'B')],
+    })
+    withAsk.tasks = [
+      { ...withAsk.tasks[0], askFinish: 0 },
+      { ...withAsk.tasks[1], askFinish: 9 },
+      { id: 'C', name: 'C', duration: 1, level: 1, progress: 0 }, // 未设置 → unassigned
+    ]
+    const s = parseSchedSummary(JSON.stringify(withAsk))
+    expect(s!.reviewCount).toBe(0)
+    expect(s!.warn).toEqual({ red: 1, green: 1, unassigned: 1 })
+    // 带检视：reviewCount = 期数
+    const withReview = project({ reviews: [{ at: 2, date: '2026-01-07', actuals: {} }] })
+    expect(parseSchedSummary(JSON.stringify(withReview))!.reviewCount).toBe(1)
+    // 循环依赖：CPM 不过 → warn null
+    const cyc = project({ links: [l('A', 'B'), l('B', 'A')] })
+    expect(parseSchedSummary(JSON.stringify(cyc))!.warn).toBeNull()
+  })
+
   it('非工程形状（缺 tasks）→ 摘要 null，baselineCount 无从解析', () => {
     expect(parseSchedSummary(JSON.stringify({ baselines: [{ name: 'x', savedAt: '2026-01-05 08:00', duration: 1, rows: {} }] }))).toBeNull()
   })

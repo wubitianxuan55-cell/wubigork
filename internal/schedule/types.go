@@ -68,6 +68,10 @@ type Task struct {
 	// 仅限叶任务非里程碑、数值上限 3650，见 Validate；v4.155 起 FS/SS/FF/SF
 	// 搭接全类型放开）。
 	DurationUnit DurationUnit `json:"durationUnit,omitempty"`
+	// AskFinish 要求完成时间（斑马复刻 S5 预警：ask_stop_time 口径=上级下达的
+	// 要求完成；工作日序号，0=开工日。缺省=未下达，预警「无级别」。负值 Validate
+	// fail-closed，镜像前端 store.ts 归一）。
+	AskFinish int `json:"askFinish,omitempty"`
 	// Custom 自定义字段值（v4.138 #14：固定 5 槽 text1..num2，镜像前端
 	// customFields.ts 注册表；只存有值槽，值 string|number。旧 JSON 零迁移）。
 	Custom map[string]interface{} `json:"custom,omitempty"`

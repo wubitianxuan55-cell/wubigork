@@ -17,6 +17,8 @@ import { computeCpm } from "../../../schedule/cpm";
 import { buildAoa } from "../../../schedule/aoa";
 import { checkProject } from "../../../schedule/checker";
 import { checkDeadline, planFinishOf } from "../../../schedule/deadline";
+import { latestReview } from "../../../schedule/reviews";
+import { taskWarn, type WarnAlgorithm } from "../../../schedule/warn";
 import { computeBaselineDrift } from "../../../schedule/baseline";
 import { depFreeSlacks, drivingLinkKeys, linkKey } from "../../../schedule/pathDriver";
 import type { SchedLink } from "../../../schedule/types";
@@ -55,8 +57,11 @@ export function ScheduleTool({ onAsk }: { onAsk?: (text: string) => void }) {
   const sync = useScheduleStore((s) => s.sync);
   const savedAt = useScheduleStore((s) => s.savedAt);
   const syncError = useScheduleStore((s) => s.syncError);
+  const updateTask = useScheduleStore((s) => s.updateTask);
   /** 任务检查器（复用 SchedulePage 同款：右键/检查器入口 → 抽屉，what-if 挂 slot） */
   const [inspectId, setInspectId] = useState<string | null>(null);
+  // 预警超期算法（斑马两算法，视图态不入文件；与 SchedulePage 同默认）
+  const [warnAlgo, setWarnAlgo] = useState<WarnAlgorithm>("plan-ask");
   const [question, setQuestion] = useState("");
 
   useEffect(() => { void initScheduleSync() }, []);
@@ -79,6 +84,12 @@ export function ScheduleTool({ onAsk }: { onAsk?: (text: string) => void }) {
   const inspectDiags = useMemo(
     () => (inspectId ? diags.filter((d) => d.taskId === inspectId || (!d.taskId && d.code === "cycle")) : []),
     [diags, inspectId],
+  );
+  // 预警（斑马复刻 S5）：与 SchedulePage 同口径，走最新一期检视
+  const latest = useMemo(() => latestReview(project), [project]);
+  const inspectWarn = useMemo(
+    () => (inspectTask && inspectTask.level > 0 ? taskWarn(inspectTask, cpm, latest, warnAlgo) : null),
+    [inspectTask, cpm, latest, warnAlgo],
   );
   const inspectorData = useMemo(() => {
     if (!inspectTask || inspectTask.level === 0) return null;
@@ -185,6 +196,10 @@ export function ScheduleTool({ onAsk }: { onAsk?: (text: string) => void }) {
           <WhatIfPanel project={project} taskId={inspectTask.id} />
         ) : undefined}
         diagnostics={inspectDiags}
+        warn={inspectWarn}
+        warnAlgorithm={warnAlgo}
+        onWarnAlgorithmChange={setWarnAlgo}
+        onPatch={(patch) => { if (inspectTask) updateTask(inspectTask.id, patch) }}
         onClose={() => setInspectId(null)}
         onNavigate={(id) => { setInspectId(id); select(id) }}
       />

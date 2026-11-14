@@ -67,6 +67,16 @@ func TestValidateFieldChecks(t *testing.T) {
 	if err := Validate(&p); err == nil || !strings.Contains(err.Error(), "重复") {
 		t.Fatalf("重复 id 应拒绝：%v", err)
 	}
+	p.Tasks[1].ID = "B"
+	// AskFinish 要求完成（斑马复刻 S5）：负值拒绝；0（开工日）与非负值放行。
+	p.Tasks[0].AskFinish = -1
+	if err := Validate(&p); err == nil || !strings.Contains(err.Error(), "要求完成") {
+		t.Fatalf("要求完成负值应拒绝：%v", err)
+	}
+	p.Tasks[0].AskFinish = 0
+	if err := Validate(&p); err != nil {
+		t.Fatalf("要求完成 0=开工日应放行：%v", err)
+	}
 }
 
 func TestOpsUpsertPatchRemoveLinksMeta(t *testing.T) {

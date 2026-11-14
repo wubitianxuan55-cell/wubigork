@@ -215,3 +215,70 @@ describe('TaskInspector 检查发现（斑马复刻 S1）', () => {
     expect(document.body.querySelector('[data-testid="sched-inspector-diags"]')).toBeNull()
   })
 })
+
+// 斑马复刻 S5：预警状态机（warn.ts 算好传入，本组件按位渲染 + 算法切换 + 要求完成编辑）
+describe('TaskInspector 预警（斑马复刻 S5）', () => {
+  const redWarn = {
+    taskId: 'B', name: '主体施工', isMilestone: false,
+    level: 'red' as const, overdue: 3, band: '0-15天',
+    compareFinish: 7, askFinish: 5, algorithm: 'plan-ask' as const,
+  }
+
+  it('红灯：渲染滞后天数与档位、比对口径；算法切换回调（计划-要求 → 预测-要求）', () => {
+    const onWarnAlgorithmChange = vi.fn()
+    render(<TaskInspector {...baseProps({ warn: redWarn, warnAlgorithm: 'plan-ask', onWarnAlgorithmChange })} />)
+    const box = ui().getByTestId('sched-inspector-warn')
+    expect(ui().getByTestId('sched-warn-red').textContent).toContain('红灯·滞后 3 天')
+    expect(box.textContent).toContain('0-15天')
+    expect(box.textContent).toContain('按计划完成比对要求完成')
+    fireEvent.click(ui().getByText('预测-要求'))
+    expect(onWarnAlgorithmChange).toHaveBeenCalledWith('predict-ask')
+  })
+
+  it('绿灯：提前天数与预测口径文案', () => {
+    render(
+      <TaskInspector
+        {...baseProps({
+          warn: { ...redWarn, level: 'green', overdue: -2, band: null, algorithm: 'predict-ask' },
+          warnAlgorithm: 'predict-ask',
+        })}
+      />,
+    )
+    const box = ui().getByTestId('sched-inspector-warn')
+    expect(ui().getByTestId('sched-warn-green').textContent).toContain('绿灯·未突破（提前 2 天）')
+    expect(box.textContent).toContain('按预测完成比对要求完成')
+  })
+
+  it('无要求时间（level=none）不渲染预警段；要求完成格存在且无红灯字样', () => {
+    render(
+      <TaskInspector
+        {...baseProps({ warn: { ...redWarn, level: 'none', overdue: null, band: null, compareFinish: null } })}
+      />,
+    )
+    expect(document.body.querySelector('[data-testid="sched-inspector-warn"]')).toBeNull()
+    expect(ui().getByTestId('sched-inspector-summary').textContent).toContain('要求完成')
+    expect(ui().getByTestId('sched-inspector-summary').textContent).not.toContain('红灯')
+  })
+
+  it('要求完成编辑：wd5 渲染 09-14（跨周末顺延）；清除回写 undefined 且输入框清空', () => {
+    const onPatch = vi.fn()
+    render(<TaskInspector {...baseProps({ task: mkTask({ askFinish: 5 }), onPatch })} />)
+    const picker = document.body.querySelector('.ant-picker') as HTMLElement
+    const input = picker.querySelector('input') as HTMLInputElement
+    expect(input.value).toBe('2026-09-14')
+    // 清除（allowEmpty 清除钮常驻 DOM，CSS 控显隐）→ onPatch({ askFinish: undefined })
+    const clear = picker.querySelector('.ant-picker-clear')
+    expect(clear).toBeTruthy()
+    fireEvent.click(clear!)
+    expect(onPatch).toHaveBeenCalledWith({ askFinish: undefined })
+    expect(input.value).toBe('')
+    // 选定日期 → 工作日序号的换算（dateToWd）由 calendar.ts/warn.test.ts 唯一口径覆盖；
+    // jsdom 中 rc-picker 打字+Enter 解析不出（吐 null，已知边界），不在此伪造交互。
+  })
+
+  it('只读（无 onPatch）：要求完成显日期文本，无输入框', () => {
+    render(<TaskInspector {...baseProps({ task: mkTask({ askFinish: 4 }) })} />)
+    expect(ui().getByTestId('sched-inspector-summary').textContent).toContain('09-11')
+    expect(document.body.querySelector('.ant-picker')).toBeNull()
+  })
+})

@@ -10,6 +10,8 @@ import { normalizeProject } from './store'
 import { isoOf, wdToDate } from './calendar'
 import { computeBaselineDrift } from './baseline'
 import { checkDeadline, planFinishOf } from './deadline'
+import { latestReview } from './reviews'
+import { warnSummary } from './warn'
 import { SCHEDULE_DEFAULT_REL } from './paths'
 import type { SchedProject } from './types'
 
@@ -45,6 +47,10 @@ export interface GschedSummary {
   baselineCount: number
   /** 倒排校核（未设目标竣工或 CPM 未通过时 null） */
   deadline: { date: string; targetWorkdays: number; feasible: boolean; overrun: number } | null
+  /** 检视期数（斑马复刻 S2；未打点=0） */
+  reviewCount: number
+  /** 预警计数（斑马复刻 S5：红灯=突破要求完成；CPM 未通过时 null。算法=plan-ask 计划-要求） */
+  warn: { red: number; green: number; unassigned: number } | null
 }
 
 /** 解析计划 JSON → 摘要；坏 JSON / 非 Project 形状返回 null */
@@ -77,6 +83,9 @@ function buildSchedSummary(data: SchedProject): GschedSummary {
   const hasSchedule = cpm.ok && leaf.length > 0 && /^\d{4}-\d{2}-\d{2}$/.test(project.startDate)
   const drift = cpm.ok ? computeBaselineDrift(project, cpm) : null
   const dl = cpm.ok ? checkDeadline(project, cpm) : null
+  // 预警计数（斑马复刻 S5）：plan-ask 口径，最新一期检视的预测不参与摘要（agent 侧
+  // 保持「计划 vs 要求」的稳定口径；预测-要求算法留给检查器视图态切换）。
+  const ws = cpm.ok ? warnSummary(project, cpm, latestReview(project), 'plan-ask') : null
   return {
     project,
     ok: cpm.ok,
@@ -92,5 +101,7 @@ function buildSchedSummary(data: SchedProject): GschedSummary {
       : null,
     baselineCount: project.baselines?.length ?? 0,
     deadline: dl ? { date: dl.deadline, targetWorkdays: dl.targetWorkdays, feasible: dl.feasible, overrun: dl.overrun } : null,
+    reviewCount: Array.isArray(project.reviews) ? project.reviews.length : 0,
+    warn: ws ? { red: ws.red, green: ws.green, unassigned: ws.unassigned } : null,
   }
 }

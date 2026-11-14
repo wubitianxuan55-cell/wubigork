@@ -28,6 +28,8 @@ import { buildProjectXml, parseProjectXml } from '../schedule/mspdi'
 import { computeBaselineDrift } from '../schedule/baseline'
 import { checkProject } from '../schedule/checker'
 import { checkDeadline, planFinishOf } from '../schedule/deadline'
+import { latestReview } from '../schedule/reviews'
+import { taskWarn, warnSummary, type WarnAlgorithm } from '../schedule/warn'
 import type { SchedLink, SchedProject } from '../schedule/types'
 import { useScheduleStore, isGroupRow, initScheduleSync } from '../schedule/store'
 import { depFreeSlacks, drivingLinkKeys, linkKey } from '../schedule/pathDriver'
@@ -181,6 +183,18 @@ const SchedulePage: React.FC = () => {
   const inspectDiags = useMemo(
     () => (inspectId ? diags.filter((d) => d.taskId === inspectId || (!d.taskId && d.code === 'cycle')) : []),
     [diags, inspectId],
+  )
+  // 预警（斑马复刻 S5）：两算法视图态切换（斑马「预警超期算法计划-要求/预测-要求」），
+  // 不入文件（同横道前锋线 checkDate 的视图态纪律）；摘要计数走最新一期检视的预测口径。
+  const [warnAlgo, setWarnAlgo] = useState<WarnAlgorithm>('plan-ask')
+  const latest = useMemo(() => latestReview(project), [project])
+  const inspectWarn = useMemo(
+    () => (inspectTask && inspectTask.level > 0 ? taskWarn(inspectTask, cpm, latest, warnAlgo) : null),
+    [inspectTask, cpm, latest, warnAlgo],
+  )
+  const warnRed = useMemo(
+    () => warnSummary(project, cpm, latest, warnAlgo).red,
+    [project, cpm, latest, warnAlgo],
   )
   const inspectorData = useMemo(() => {
     if (!inspectTask || inspectTask.level === 0) return null
@@ -747,6 +761,10 @@ const SchedulePage: React.FC = () => {
           <WhatIfPanel project={project} taskId={inspectTask.id} />
         ) : undefined}
         diagnostics={inspectDiags}
+        warn={inspectWarn}
+        warnAlgorithm={warnAlgo}
+        onWarnAlgorithmChange={setWarnAlgo}
+        onPatch={(patch) => { if (inspectTask) updateTask(inspectTask.id, patch) }}
         onClose={() => setInspectId(null)}
         onNavigate={(id) => { setInspectId(id); select(id) }}
       />
@@ -756,6 +774,11 @@ const SchedulePage: React.FC = () => {
         <span>视图：<span className="sched-sb-strong">{view === 'gantt' ? '横道图' : view === 'pdm' ? '单代号网络图' : view === 'usage' ? '资源使用视图' : view === 'dcma' ? '质量体检' : view === 'monte' ? '蒙特卡洛工期模拟' : view === 'evm' ? '挣值分析' : '双代号网络图'}</span></span>
         <span>共 <span className="sched-sb-strong">{project.tasks.filter((t) => t.level > 0).length}</span> 项工作，总工期 <span className="sched-sb-strong">{cpm.duration}</span> 天（工作日）</span>
         <span>关键工作 <span className="sched-sb-crit">{project.tasks.filter((t) => t.level > 0 && cpm.rows[t.id]?.critical).length}</span> 项</span>
+        {warnRed > 0 && (
+          <span data-testid="sched-statusbar-warn" title="红灯=突破上级下达的要求完成时间（预警超期算法可在任务检查器切换）">
+            预警红灯 <span className="sched-sb-crit">{warnRed}</span> 项
+          </span>
+        )}
         {showCost && (
           <span data-testid="sched-statusbar-cost" title="总成本 = Σ任务（固定成本 + 分配成本），随工期实时重算（元）">
             总成本 <span className="sched-sb-strong">¥{fmtCost(costs.total)}</span>

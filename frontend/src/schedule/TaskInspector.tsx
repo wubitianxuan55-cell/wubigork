@@ -9,11 +9,13 @@
  * 即与 Go calendar.go 镜像的唯一口径）。
  */
 import React, { useMemo } from 'react'
-import { Button, Drawer, Table, Tag, Typography } from 'antd'
+import { Button, DatePicker, Drawer, Segmented, Table, Tag, Typography } from 'antd'
 import type { TableProps } from 'antd'
 import { FlagOutlined, InfoCircleOutlined, LockOutlined, ThunderboltOutlined } from '@ant-design/icons'
-import { isoOf, wdToDate } from './calendar'
+import dayjs from 'dayjs'
+import { dateToWd, isoOf, wdToDate } from './calendar'
 import type { Diagnostic } from './checker'
+import type { TaskWarn, WarnAlgorithm } from './warn'
 import type { SchedCalendar, SchedLink, SchedTask, TaskCpm } from './types'
 
 /** 依赖行（前驱/后继通用）：搭接关系与对侧任务信息由父级按视角算好 */
@@ -46,6 +48,13 @@ export interface TaskInspectorProps {
    * 空/缺省=不渲染该段（干净任务保持抽屉简洁）。
    */
   diagnostics?: Diagnostic[]
+  /** 预警结论（斑马复刻 S5：warn.ts 状态机，父级算好传入；null/缺省=不渲染预警段） */
+  warn?: TaskWarn | null
+  /** 预警超期算法（斑马两算法视图态切换；与 warn 同源传入） */
+  warnAlgorithm?: WarnAlgorithm
+  onWarnAlgorithmChange?: (a: WarnAlgorithm) => void
+  /** 任务字段修补（要求完成 DatePicker 编辑回写；缺省=只读展示） */
+  onPatch?: (patch: Partial<SchedTask>) => void
   onClose: () => void
   onNavigate: (taskId: string) => void
 }
@@ -105,6 +114,10 @@ export const TaskInspector: React.FC<TaskInspectorProps> = ({
   calendar,
   whatIf,
   diagnostics,
+  warn,
+  warnAlgorithm,
+  onWarnAlgorithmChange,
+  onPatch,
   onClose,
   onNavigate,
 }) => {
@@ -130,6 +143,26 @@ export const TaskInspector: React.FC<TaskInspectorProps> = ({
   ])
   summaryCells.push(['进度', `${task?.progress ?? 0}%`])
   summaryCells.push(['关键', row?.critical ? <Tag color="red">关键</Tag> : <Tag>非关键</Tag>])
+  // 要求完成（斑马复刻 S5：ask_stop_time 口径=上级下达的要求完成；DatePicker 直接编辑）
+  const askWd = typeof task?.askFinish === 'number' ? task.askFinish : null
+  summaryCells.push([
+    '要求完成',
+    onPatch ? (
+      <DatePicker
+        size="small"
+        format="YYYY-MM-DD"
+        placeholder="未设置"
+        value={askWd !== null ? dayjs(isoOf(wdToDate(startDate, askWd, calendar))) : null}
+        onChange={(d) => {
+          if (!d) { onPatch({ askFinish: undefined }); return }
+          const wd = dateToWd(startDate, isoOf(d.toDate()), calendar)
+          onPatch({ askFinish: wd === null ? 0 : Math.max(0, wd) })
+        }}
+      />
+    ) : (
+      askWd !== null ? isoOf(wdToDate(startDate, askWd, calendar)) : <span className="sched-dim">未设置</span>
+    ),
+  ])
 
   // 驱动结论（优先级：手动锁定 > 单条驱动 > 多条驱动 > 无前驱 > 前驱均不驱动）
   let verdictIcon: React.ReactNode = <FlagOutlined />
@@ -220,6 +253,45 @@ export const TaskInspector: React.FC<TaskInspectorProps> = ({
               </div>
             ) : (
               <span className="sched-dim">暂无排程数据（未参与计算或存在循环依赖）。</span>
+            )}
+
+            {/* 预警（斑马复刻 S5）：红灯=突破上级下达的要求完成，绿灯=未突破（压线也算绿）；
+                两算法可切（斑马「预警超期算法计划-要求/预测-要求」）；无要求时间不渲染该段 */}
+            {warn && warn.level !== 'none' && (
+              <>
+                {sectionHead('预警')}
+                <div data-testid="sched-inspector-warn" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    {warn.level === 'red' ? (
+                      <Tag color="red" data-testid="sched-warn-red">
+                        {`红灯·滞后 ${warn.overdue} 天${warn.band ? `（${warn.band}）` : ''}`}
+                      </Tag>
+                    ) : (
+                      <Tag color="green" data-testid="sched-warn-green">
+                        {`绿灯·未突破${warn.overdue !== null && warn.overdue < 0 ? `（提前 ${-warn.overdue} 天）` : ''}`}
+                      </Tag>
+                    )}
+                    <span className="sched-dim" style={{ fontSize: 12 }}>
+                      按{warn.algorithm === 'predict-ask' ? '预测' : '计划'}完成比对要求完成
+                      {warn.compareFinish !== null && warn.askFinish !== null
+                        ? `（第 ${warn.compareFinish} / 第 ${warn.askFinish} 工作日）`
+                        : ''}
+                    </span>
+                  </div>
+                  {onWarnAlgorithmChange && warnAlgorithm && (
+                    <Segmented
+                      size="small"
+                      value={warnAlgorithm}
+                      onChange={(v) => onWarnAlgorithmChange(v as WarnAlgorithm)}
+                      options={[
+                        { label: '计划-要求', value: 'plan-ask' as WarnAlgorithm },
+                        { label: '预测-要求', value: 'predict-ask' as WarnAlgorithm },
+                      ]}
+                    />
+                  )}
+                  {warn.note && <span className="sched-dim" style={{ fontSize: 12 }}>{warn.note}</span>}
+                </div>
+              </>
             )}
 
             {/* 前驱任务表 */}

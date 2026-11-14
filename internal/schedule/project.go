@@ -106,6 +106,10 @@ func Validate(p *Project) error {
 		if t.FixedCost < 0 || math.IsNaN(t.FixedCost) || math.IsInf(t.FixedCost, 0) {
 			return fmt.Errorf("任务 %s 固定成本非法（须为非负有限数）：%v", t.ID, t.FixedCost)
 		}
+		// AskFinish 要求完成（斑马复刻 S5）：负值非法（工作日序号，预警比对无意义）。
+		if t.AskFinish < 0 {
+			return fmt.Errorf("任务 %s 要求完成时间非法（须为非负工作日序号）：%d", t.ID, t.AskFinish)
+		}
 	}
 	for _, l := range p.Links {
 		if !seen[l.From] {

@@ -45,6 +45,8 @@ export interface SchedTask {
   fixedCost?: number
   /** 工期单位（v4.150 双工期刀1：缺省/空=wd 工作日；cd=日历天，仅限叶任务非里程碑，数值上限 3650；v4.155 起搭接四型全放开） */
   durationUnit?: DurationUnit
+  /** 要求完成时间（斑马复刻 S5 预警：ask_stop_time 口径=上级下达的要求完成；工作日序号，0=开工日。缺省=未下达，预警「无级别」） */
+  askFinish?: number
   /** 自定义字段值（v4.138 #14：槽位见 customFields.ts 注册表，text|number；只存有值槽，旧文件零迁移） */
   custom?: Partial<Record<string, string | number>>
 }

@@ -106,6 +106,11 @@ export function normalizeProject(p: SchedProject): SchedProject {
         t.durationUnit === 'cd' && t.level !== 0 && !t.isMilestone
           && Number.isInteger(t.duration) && t.duration >= 0 && t.duration <= 3650
           ? 'cd' : undefined,
+      // 要求完成容错（斑马复刻 S5）：非整数/负数丢弃（预警比对无意义）；
+      // 落盘拒绝由 Go Validate fail-closed 承担。
+      askFinish:
+        typeof t.askFinish === 'number' && Number.isInteger(t.askFinish) && t.askFinish >= 0
+          ? t.askFinish : undefined,
     })),
     links: p.links ?? [],
     deadline: typeof p.deadline === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.deadline) ? p.deadline : null,
