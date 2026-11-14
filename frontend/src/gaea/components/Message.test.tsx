@@ -34,45 +34,22 @@ describe("AssistantMessage subagentRef 徽标", () => {
     expect(view.container.textContent).toContain("子代理干完了");
   });
 
-  it("正文操作：复制按钮把正文写入剪贴板并显示「已复制」", async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.assign(navigator, { clipboard: { writeText } });
-    const view = render(wrap(<AssistantMessage item={assistant({ text: "可复制的内容" })} />));
-
-    fireEvent.click(view.getByRole("button", { name: /copy|复制/i }));
-
-    expect(writeText).toHaveBeenCalledWith("可复制的内容");
-    expect(await view.findByText(/copied|已复制/i)).toBeTruthy();
+  it("正文不再渲染复制与沉淀技能按钮", () => {
+    const view = render(wrap(<AssistantMessage item={assistant({ text: "普通回答" })} onFeedback />));
+    expect(view.queryByRole("button", { name: /copy|复制/i })).toBeNull();
+    expect(view.queryByRole("button", { name: /save as skill|沉淀|技能/i })).toBeNull();
   });
 
-  // v4.513 诚实反馈：此前 fire-and-forget + 无条件 setCopied(true)——
-  // Clipboard API 被拒（失焦/权限）时失败仍显示「已复制」。现单源
-  // copyToClipboard（API→execCommand 兜底→真实成败），双路全败=不翻转
-  // 复制态 + toast 可见提示。
-  it("复制双路全败：不显示「已复制」，失败 toast 可见（诚实反馈）", async () => {
-    const writeText = vi.fn().mockRejectedValue(new Error("denied"));
-    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
-    Object.defineProperty(document, "execCommand", { value: vi.fn(() => false), configurable: true });
-    try {
-      const view = render(
-        wrap(
-          <ToastProvider>
-            <AssistantMessage item={assistant({ text: "复制我" })} />
-          </ToastProvider>,
-        ),
-      );
-      fireEvent.click(view.getByRole("button", { name: /copy|复制/i }));
-      await vi.waitFor(() => expect(view.getByText(/复制失败/)).toBeTruthy());
-      expect(view.queryByText(/已复制/)).toBeNull();
-    } finally {
-      Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true });
-      delete (document as Partial<Document>).execCommand;
-    }
+  it("剩余消息操作使用零高度浮层，不制造正文下方空行", () => {
+    const view = render(wrap(<AssistantMessage item={assistant({ text: "普通回答" })} onFeedback />));
+    const actions = view.getByTestId("assistant-message-actions");
+    expect(actions.className).toContain("h-0");
+    expect(actions.querySelector(".absolute")).not.toBeNull();
   });
 
-  it("流式中不渲染复制/沉淀操作（正文未定型）", () => {
+  it("流式中不渲染消息操作（正文未定型）", () => {
     const view = render(wrap(<AssistantMessage item={assistant({ text: "进行中…", streaming: true })} />));
-    expect(view.queryByRole("button", { name: /copy/i })).toBeNull();
+    expect(view.queryByTestId("assistant-message-actions")).toBeNull();
   });
 });
 
@@ -94,7 +71,7 @@ describe("AssistantMessage 重新生成按钮（v4.232）", () => {
     expect(view.queryByRole("button", { name: /regenerate|重新生成/i })).toBeNull();
   });
 
-  it("流式中不渲染（与复制/沉淀同闸）", () => {
+  it("流式中不渲染（与消息操作同闸）", () => {
     const view = render(wrap(
       <AssistantMessage item={assistant({ text: "进行中…", streaming: true })} turnNo={0} canRegenerate onRegenerateTurn={vi.fn()} />,
     ));

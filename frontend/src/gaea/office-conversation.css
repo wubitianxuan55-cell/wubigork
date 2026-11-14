@@ -254,6 +254,29 @@
   margin-top: 2px;
 }
 
+/* 阶段行：Tailwind preflight 把 svg 设为 block，若只靠 inline 文本排版，
+   图标会被挤到独立一行。阶段行统一为单行 flex，图标固定在文字左侧。 */
+.office-phase-line {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.office-phase-line > svg {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.office-phase-line > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 /* ── reasoning card ─────────────────────────────────────────────────── */
 
 .gaea-app-layout .reasoning {

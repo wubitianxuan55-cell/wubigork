@@ -6,7 +6,6 @@ import type { Item } from "../lib/store";
 import { useItems, useTurnStartAt } from "../lib/store";
 import { t, useT } from "../lib/i18n";
 import { AssistantMessage, UserMessage } from "./Message";
-import { SkillCaptureModal } from "./SkillCaptureModal";
 import { StreamingIndicator } from "./StreamingIndicator";
 import { WorkHeader } from "./WorkHeader";
 import { ToolCard } from "./ToolCard";
@@ -205,7 +204,6 @@ function renderOutsideItems(
     onCollapse: () => void;
     dismissedErrors: Set<string>;
     onDismissError: (id: string) => void;
-    captureForId: (id: string) => ((solution: string) => void) | undefined;
     /** v4.232 重新生成：符合条件的那条 assistant 消息 id（当前会话最后一条
      *  且非运行中；undefined=无）。回调 props 恒稳定，不击穿 AssistantMessage memo。 */
     canRegenerateId?: string;
@@ -270,7 +268,6 @@ function renderOutsideItems(
                 return merged.size > 0 ? merged : undefined;
               })()}
               onCollapse={ctx.onCollapse}
-              onCapture={ctx.captureForId(it.id)}
               canRegenerate={ctx.canRegenerateId === it.id}
               onRegenerateTurn={ctx.onRegenerateTurn}
               onFeedback={ctx.onFeedback}
@@ -319,11 +316,11 @@ function renderOutsideItems(
 
 // T7-4 轮级 memo：把每一段的渲染拆进独立 memo 组件。流式只追加/修改最后一轮
 // 时，其余已完成的段（props 引用不变）整体跳过重渲染——避免每 chunk 全量
-// 重建消息树造成的滚动/渲染卡顿。onToggle/onCapture/onRewind 等回调全部
+// 重建消息树造成的滚动/渲染卡顿。onToggle/onRewind 等回调全部
 // 由 Transcript 用 useCallback 稳定化后传入，memo 才能生效。
 export const TurnBlock = memo(function TurnBlock({
   seg, running, isLast, turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse,
-  dismissedErrors, onDismissError, captureForId, turnElsRef, workHeader, turnDoneSuppressed, tailOmitMentions, textOmitMentions, canRegenerateId, onRegenerateTurn, onFeedback,
+  dismissedErrors, onDismissError, turnElsRef, workHeader, turnDoneSuppressed, tailOmitMentions, textOmitMentions, canRegenerateId, onRegenerateTurn, onFeedback,
 }: {
   seg: Segment;
   running: boolean;
@@ -337,7 +334,6 @@ export const TurnBlock = memo(function TurnBlock({
   onCollapse: () => void;
   dismissedErrors: Set<string>;
   onDismissError: (id: string) => void;
-  captureForId: (id: string) => ((solution: string) => void) | undefined;
   canRegenerateId?: string;
   onRegenerateTurn?: (turn: number) => void;
   /** v4.238 回答反馈能力开关（透传 AssistantMessage）。 */
@@ -360,10 +356,12 @@ export const TurnBlock = memo(function TurnBlock({
   // 任务待办区），外部项渲染线同款过滤（renderOutsideItems）；
   // 此前只有外部线滤了、过程卡体内漏滤，每轮待办更新以裸 todo_write 卡
   // （展开整包 todos JSON）堆在卡内。纯 todo_write 段不空壳出卡。
-  const visibleProcess = useMemo(
-    () => seg.processItems.filter((it) => !(it.kind === "tool" && it.name === "todo_write")),
-    [seg.processItems],
-  );
+  const visibleProcess = useMemo(() => {
+    const withoutTodos = seg.processItems.filter(
+      (it) => !(it.kind === "tool" && it.name === "todo_write"),
+    );
+    return withoutTodos.filter((_, index) => !isRedundantThinkingPhase(withoutTodos, index));
+  }, [seg.processItems]);
   const toolCount = visibleProcess.filter((it) => it.kind === "tool" && !it.parentId).length;
   const thoughtCount = visibleProcess.filter((it) => it.kind === "assistant" && it.reasoning).length;
   const hasProcess = visibleProcess.length > 0;
@@ -379,10 +377,10 @@ export const TurnBlock = memo(function TurnBlock({
     () =>
       renderOutsideItems(seg.outsideItems, {
         turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse,
-        dismissedErrors, onDismissError, captureForId, canRegenerateId, onRegenerateTurn, onFeedback,
+        dismissedErrors, onDismissError, canRegenerateId, onRegenerateTurn, onFeedback,
         deliverOmitPaths: tailOmitMentions, textOmitPaths: textOmitMentions, subcalls, setTurnEl,
       }),
-    [seg.outsideItems, turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse, dismissedErrors, onDismissError, captureForId, canRegenerateId, onRegenerateTurn, onFeedback, tailOmitMentions, textOmitMentions, subcalls, setTurnEl],
+    [seg.outsideItems, turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse, dismissedErrors, onDismissError, canRegenerateId, onRegenerateTurn, onFeedback, tailOmitMentions, textOmitMentions, subcalls, setTurnEl],
   );
   // 轮尾无正文段（reasoning-first 回合里工具段在正文之后成为轮尾）：
   // 登记-only 交付卡原来只挂在轮尾段的 AssistantMessage 上，这里整段缺席
@@ -455,6 +453,32 @@ function InlineReasoning({ item, metaLines }: { item: AssistantItem; metaLines?:
   );
 }
 
+const THINKING_PHASE_TEXTS = new Set(["思考中", "思考中…"]);
+
+// processItems 里，模型每轮调用前会先落一条 phase「思考中」，随后才落
+// assistant.reasoning。两者同时展示时，前一条只是状态占位，思考卡已经承担
+// 了同一信息。仅在后续确有 reasoning 时折叠该 phase；首包尚未到达时仍保留，
+// 避免运行态重新变成静默窗口。
+function isRedundantThinkingPhase(items: Item[], index: number): boolean {
+  const item = items[index];
+  if (item.kind !== "phase" || !THINKING_PHASE_TEXTS.has(item.text.trim())) return false;
+  for (let i = index + 1; i < items.length; i++) {
+    const next = items[i];
+    if (next.kind === "phase" || next.kind === "tool" || next.kind === "compaction") return false;
+    if (next.kind === "assistant" && next.reasoning.trim()) return true;
+  }
+  return false;
+}
+
+function ProcessPhaseLine({ text }: { text: string }) {
+  return (
+    <div className="phase office-phase-line">
+      <LxThought width={12} height={12} />
+      <span>{text}</span>
+    </div>
+  );
+}
+
 // T7-4：ProcessCard 也加 memo——流式期间已完成轮的过程卡 props 不变，
 // 无需随每 chunk 重渲染内部工具/思考卡。
 
@@ -518,6 +542,10 @@ export const ProcessCard = memo(function ProcessCard({
   const now = useNow(running);
   const finalElapsedRef = useRef(0);
   useGSAPCollapse(bodyRef, open);
+  const visibleItems = useMemo(
+    () => items.filter((_, index) => !isRedundantThinkingPhase(items, index)),
+    [items],
+  );
 
   useEffect(() => {
     const wasRunning = prevRunningRef.current;
@@ -542,7 +570,7 @@ export const ProcessCard = memo(function ProcessCard({
   // 「已工作 · N 段思考」与卡内「思考」行是同组信息占两行，是消息流
   // 视觉噪音的主要来源。改为一行裸思考块（bare），行数/耗时并进思考行。
   const bare = toolCount === 0 && thoughtCount > 0 &&
-    items.every((it) => it.kind === "assistant");
+    visibleItems.every((it) => it.kind === "assistant");
 
   const labelParts: string[] = [];
   if (elapsedStr) labelParts.push(t("process.worked", { t: elapsedStr }));
@@ -557,7 +585,7 @@ export const ProcessCard = memo(function ProcessCard({
   // 展开查看。running 不自动展开=折叠+三卡尾巴即完整运行视图。
   const recentItems = useMemo(() => {
     const acts: Item[] = [];
-    for (const it of items) {
+    for (const it of visibleItems) {
       if (it.kind === "tool") {
         if (it.parentId) continue;
         acts.push(it);
@@ -568,24 +596,24 @@ export const ProcessCard = memo(function ProcessCard({
       }
     }
     return acts.slice(-3);
-  }, [items]);
+  }, [visibleItems]);
 
   // 状态四态：色 + 图标 + 文字（头部徽标传达）
-  const status = deriveProcessStatus(items, running);
+  const status = deriveProcessStatus(visibleItems, running);
   const statusMeta = status !== "idle" ? PROCESS_STATUS_META[status] : null;
   const StatusIcon = statusMeta?.icon ? STATUS_ICONS[statusMeta.icon] : null;
 
   // v4.26：运行中最新 phase 已上 WorkHeader 工作态头部，卡内不再重复展示
   // （历史 phase 折叠在卡内）；轮完成后头部转耗时行，全部 phase 回到卡内。
   const lastPhaseId = running
-    ? items.reduceRight<string>((acc, it) => acc || (it.kind === "phase" ? it.id : ""), "")
+    ? visibleItems.reduceRight<string>((acc, it) => acc || (it.kind === "phase" ? it.id : ""), "")
     : "";
 
   const body = useMemo(() => {
     const out: React.ReactNode[] = [];
     // v4.26 重复工具折叠（Claude Code "Called slack 3 times" 式）：只折叠
     // 全部完成的连续同名调用；running 的保持独立卡不折叠。
-    const grouped = scanGroups(items, { skipRunning: true });
+    const grouped = scanGroups(visibleItems, { skipRunning: true });
     for (const gi of grouped) {
       if (gi.kind === "group") {
         out.push(
@@ -618,7 +646,7 @@ export const ProcessCard = memo(function ProcessCard({
           if (it.id === lastPhaseId) break;
           out.push(
             <div key={it.id} className="office-process-step" data-kind="phase">
-              <div className="phase"><LxThought width={12} height={12} /><span>{it.text}</span></div>
+              <ProcessPhaseLine text={it.text} />
             </div>,
           );
           break;
@@ -639,7 +667,7 @@ export const ProcessCard = memo(function ProcessCard({
       }
     }
     return out;
-  }, [items, subcallsByParent, lastPhaseId, bare]);
+  }, [visibleItems, subcallsByParent, lastPhaseId, bare]);
 
   // 纯思考段：只渲染裸思考行（无卡头/无耗时角标）；行数摘要见 InlineReasoning。
   if (bare) {
@@ -700,7 +728,7 @@ export const ProcessCard = memo(function ProcessCard({
               </div>
             ) : (
               <div key={it.id} className="office-process-card__recent-row" data-kind="phase">
-                <div className="phase"><LxThought width={12} height={12} /><span>{(it as { text?: string }).text}</span></div>
+                <ProcessPhaseLine text={(it as { text?: string }).text ?? ""} />
               </div>
             ),
           )}
@@ -883,7 +911,6 @@ export function Transcript({
 
   const [dismissedErrors, setDismissedErrors] = useState(new Set<string>());
   const [openTurn, setOpenTurn] = useState<number | null>(null);
-  const [capture, setCapture] = useState<{ task: string; solution: string } | null>(null);
   useEffect(() => {
     if (openTurn === null) return;
     const onDown = (e: MouseEvent) => {
@@ -1033,34 +1060,6 @@ export function Transcript({
     setDismissedErrors((p) => new Set(p).add(id));
   }, []);
 
-  // onCapture 稳定化：同一 assistant id 复用同一闭包（task 文本来自按 items
-  // 重建的映射），AssistantMessage 的 memo 才有效。
-  const captureTaskMapRef = useRef(new Map<string, string>());
-  const captureFnsRef = useRef(new Map<string, (solution: string) => void>());
-  const captureTaskMap = useMemo(() => {
-    const map = new Map<string, string>();
-    let last = "";
-    for (const it of items) {
-      if (it.kind === "user") last = it.text;
-      else if (it.kind === "assistant") map.set(it.id, last);
-    }
-    return map;
-  }, [items]);
-  useEffect(() => {
-    captureTaskMapRef.current = captureTaskMap;
-    if (items.length === 0) captureFnsRef.current.clear();
-  }, [captureTaskMap, items.length]);
-  const captureForId = useCallback((id: string): ((solution: string) => void) | undefined => {
-    const task = captureTaskMapRef.current.get(id);
-    if (!task) return undefined;
-    let fn = captureFnsRef.current.get(id);
-    if (!fn) {
-      fn = (solution: string) => setCapture({ task, solution });
-      captureFnsRef.current.set(id, fn);
-    }
-    return fn;
-  }, []);
-
   const scrollDown = useCallback(() => {
     stick.current = true;
     setShowScrollDown(false);
@@ -1103,7 +1102,6 @@ export function Transcript({
                   onCollapse={scheduleMeasure}
                   dismissedErrors={dismissedErrors}
                   onDismissError={dismissError}
-                  captureForId={captureForId}
                   canRegenerateId={canRegenerateId}
                   onRegenerateTurn={handleRegenerateTurn}
                   onFeedback={onFeedback}
@@ -1130,12 +1128,6 @@ export function Transcript({
           <ArrowDown size={15} />
         </button>
       )}
-      <SkillCaptureModal
-        open={capture !== null}
-        task={capture?.task ?? ""}
-        solution={capture?.solution ?? ""}
-        onClose={() => setCapture(null)}
-      />
     </div>
   );
 }

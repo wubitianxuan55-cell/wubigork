@@ -2,33 +2,16 @@ import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { pushSpeedPt, rollingTokPerSec, RunStatus, SPEED_WINDOW_S, type SpeedPt } from "./AppStatus";
 
-// C5：运行状态行显示上下文窗口占用百分比 + 压缩前预警（75%/90% 两档，
-// 对齐 gaea 压缩触发线 80% / 强制线 90%）；窗口未知时隐藏。
-describe("RunStatus 上下文占用状态行（C5）", () => {
+// 上下文占用已收敛到 ComposerToolbar 的 ContextPill；输入框上方 RunStatus
+// 只保留运行时速度信息，不再重复显示百分比/压缩预警。
+describe("RunStatus 上下文状态去重", () => {
   const base = { running: true, turnStartAt: 0, turnTokens: 0 };
 
-  it("窗口未知（window=0）时隐藏占用段", () => {
-    render(<RunStatus {...base} used={123000} window={0} />);
+  it("不再在输入框上方显示上下文百分比", () => {
+    render(<RunStatus {...base} />);
     expect(screen.queryByText(/%/)).toBeNull();
     expect(screen.queryByText(/接近自动压缩/)).toBeNull();
-  });
-
-  it("占用 60% 仅显示百分比，不预警", () => {
-    render(<RunStatus {...base} used={60000} window={100000} />);
-    expect(screen.getByText("60%")).toBeTruthy();
-    expect(screen.queryByText(/接近自动压缩/)).toBeNull();
-  });
-
-  it("占用 80% 显示「接近自动压缩」预警", () => {
-    render(<RunStatus {...base} used={80000} window={100000} />);
-    expect(screen.getByText("80%")).toBeTruthy();
-    expect(screen.getByText(/接近自动压缩/)).toBeTruthy();
-  });
-
-  it("占用 95% 升级为「即将强制压缩」", () => {
-    render(<RunStatus {...base} used={95000} window={100000} />);
-    expect(screen.getByText(/即将强制压缩/)).toBeTruthy();
-    expect(screen.queryByText(/接近自动压缩/)).toBeNull();
+    expect(screen.queryByText(/上下文窗口占用/)).toBeNull();
   });
 });
 
@@ -83,14 +66,14 @@ describe("RunStatus 滚动 tok/s 速度计", () => {
   });
 
   it("速度 <0.5 tok/s 时底栏不显示速度段", () => {
-    render(<RunStatus running turnStartAt={Date.now() - 5000} turnTokens={0} used={1000} window={100000} />);
+    render(<RunStatus running turnStartAt={Date.now() - 5000} turnTokens={0} />);
     expect(screen.queryByText(/tok\/s/)).toBeNull();
   });
 
   it("停顿期（无实时流）显示回合均速（均 前缀）", () => {
     // turnStartAt 10s 前、已流 500 tokens：实时窗口无样本 → 退化为均速 ~50 tok/s
     render(
-      <RunStatus running turnStartAt={Date.now() - 10000} turnTokens={500} used={1000} window={100000} />,
+      <RunStatus running turnStartAt={Date.now() - 10000} turnTokens={500} />,
     );
     expect(screen.getByText(/均 \d+(\.\d+)? tok\/s/)).toBeTruthy();
   });

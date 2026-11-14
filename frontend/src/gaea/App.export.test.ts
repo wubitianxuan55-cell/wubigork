@@ -27,7 +27,8 @@ describe('App 办公导出 md 分支收口（审计刀B c）', () => {
   })
 
   it('新建会话空首页不挂载交付停靠条，避免旧会话登记缓存串入', () => {
-    expect(src).toContain('{showOfficeComposer && !showCenteredComposer && <DeliverablesDock />}')
+    expect(src).toContain('{showOfficeComposer && !showCenteredComposer && (')
+    expect(src).toContain('<DeliverablesDock items={sessionDeliverables} />')
   })
 
   it('输入区只在对话视图显示，切到上下文/编队等标签时不挂载', () => {

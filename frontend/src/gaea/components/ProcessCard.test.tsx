@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { fireEvent, render } from "@testing-library/react";
 import { ProcessCard, buildSegments } from "./Transcript";
@@ -6,6 +8,7 @@ import { LocaleProvider } from "../lib/i18n";
 import type { Item } from "../lib/store";
 
 const noSubcalls = new Map<string, never>();
+const officeCss = readFileSync(resolve(__dirname, "../office-conversation.css"), "utf8");
 
 const wrap = (node: React.ReactNode) => {
   // ProcessCard 标签走 t()；显式钉住 zh，断言用中文文案（不依赖其他文件的 localStorage 残留）
@@ -71,6 +74,51 @@ describe("ProcessCard 小过程卡 / 展开态初始状态", () => {
     expect(headers[1]?.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(headers[1]!);
     expect(headers[1]?.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("思考卡已有 reasoning 时，不再重复显示 phase「思考中」", () => {
+    const items: Item[] = [
+      { kind: "phase", id: "p1", text: "正在检索记忆" },
+      { kind: "phase", id: "p2", text: "思考中" },
+      { kind: "assistant", id: "a-live", text: "", reasoning: "正在核对数据", streaming: true },
+      { kind: "tool", id: "t-live", name: "read_file", args: "", readOnly: true, status: "running" } as Item,
+    ];
+    const view = render(
+      wrap(
+<ProcessCard items={items} toolCount={1} thoughtCount={1} running subcallsByParent={noSubcalls} />),
+    );
+    const phaseLabels = Array.from(view.container.querySelectorAll(".office-phase-line"))
+      .map((node) => node.textContent?.trim());
+    expect(phaseLabels).toContain("正在检索记忆");
+    expect(phaseLabels).not.toContain("思考中");
+    expect(view.container.querySelector(".reasoning__head")).not.toBeNull();
+  });
+
+  it("首个思考包出现前仍保留 phase「思考中」作为运行反馈", () => {
+    const items: Item[] = [
+      { kind: "phase", id: "p-live", text: "思考中" },
+    ];
+    const view = render(
+      wrap(
+<ProcessCard items={items} toolCount={0} thoughtCount={0} running subcallsByParent={noSubcalls} />),
+    );
+    expect(view.container.querySelector(".office-phase-line")?.textContent).toContain("思考中");
+  });
+
+  it("阶段图标与文字共用左侧单行布局", () => {
+    const items: Item[] = [
+      { kind: "phase", id: "p-inline", text: "正在检索记忆" },
+    ];
+    const view = render(
+      wrap(
+<ProcessCard items={items} toolCount={0} thoughtCount={0} running subcallsByParent={noSubcalls} />),
+    );
+    const line = view.container.querySelector(".office-phase-line");
+    expect(line).not.toBeNull();
+    expect(line?.querySelector(":scope > svg")).not.toBeNull();
+    expect(line?.querySelector(":scope > span")?.textContent).toBe("正在检索记忆");
+    expect(officeCss).toMatch(/\.office-phase-line\s*\{[^}]*display:\s*inline-flex;/s);
+    expect(officeCss).toMatch(/\.office-phase-line\s*>\s*svg\s*\{[^}]*flex:\s*0 0 auto;/s);
   });
 
   it("纯思考段走 bare 模式：无过程卡容器，只渲染裸思考行", () => {

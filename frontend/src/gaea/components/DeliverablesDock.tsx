@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronRight, Copy, ExternalLink, FolderTree } from "../icons";
 import { app } from "../lib/bridge";
-import { deliverablePathKey, ensureTurnRegistry, invalidateTurnCaches } from "../lib/deliverablesTurn";
+import { deliverablePathKey } from "../lib/deliverablesTurn";
 import { fileBadge, fileCardKind } from "../lib/fileCard";
 import { useUpdatedFilesStore } from "../lib/store";
 import { openPaneFileOrPreview } from "../lib/paneFileOpen";
@@ -12,10 +12,8 @@ import { useT } from "../lib/i18n";
 // 下方、输入框上方——消息流里的交付卡跟随正文走，长回合里翻找不方便；停靠
 // 条常驻底部=固定查找入口）。
 //
-// 数据源 = 会话级权威产物登记表（GaeaDeliverableRegistry，updatedAt 倒序、
+// 数据源 = App 的 sessionDeliverables（与右侧「会话产物」同源，按首现顺序、
 // 路径去重）；.py 过滤与 DeliverableCards 同口径（脚本属过程件）。
-// 刷新信号：写后 updatedFilesStore.updatedAt + 30s TTL 重拉（registryCache
-// 失效后 ensureTurnRegistry 自然重取）。
 // 默认收起为单行摘要；展开显示最近 6 张紧凑成果卡，「更多」展开全部。
 // 无条目不占位。卡片点击开预览，悬停外开/定位/复制路径。
 
@@ -29,44 +27,19 @@ function baseName(path: string): string {
 }
 
 const DEFAULT_VISIBLE = 6;
-const REFRESH_DEDUPE_MS = 30_000;
-
-export function DeliverablesDock() {
+export function DeliverablesDock({ items }: { items: ReadonlyArray<{ path: string }> }) {
   const updatedAt = useUpdatedFilesStore((s) => s.updatedAt);
   const toast = useToast();
   const t = useT();
-  const [entries, setEntries] = useState<{ path: string; tool: string; updatedAt: number }[] | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [collapsedUI, setCollapsedUI] = useState(true);
-
-  const refresh = useCallback(async () => {
-    try {
-      const view = await ensureTurnRegistry(Date.now());
-      const list = (view?.entries ?? [])
-        .filter((e) => extOf(e.path) !== ".py")
-        .map((e) => ({ path: e.path, tool: e.tool, updatedAt: e.updatedAt }));
-      setEntries(list);
-    } catch {
-      setEntries((cur) => cur ?? []);
-    }
-  }, []);
-
-  // 首拉 + 写后刷新（30s 去重；updatedAt 变化=有新写盘）。
-  const lastRefreshRef = useRef(0);
-  useEffect(() => {
-    const now = Date.now();
-    if (now - lastRefreshRef.current < REFRESH_DEDUPE_MS && entries !== null) return;
-    lastRefreshRef.current = now;
-    void refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- entries 只用于去重判定
-  }, [updatedAt, refresh]);
-
-  // 会话切换（登记表随会话走）：强制失效重拉。
-  useEffect(() => {
-    invalidateTurnCaches();
-    lastRefreshRef.current = 0;
-    void refresh();
-  }, [refresh]);
+  // 与右侧「会话产物」共用 App 的同一份会话派生列表：文本引用 + 写工具
+  // 显式登记一次算清，既能在会话切换时即时更新，也不会出现正文/右栏已有
+  // 多项文件、输入框上方却因另一份登记表只显示 3 项的数量漂移。
+  const entries = useMemo(
+    () => items.filter((item) => extOf(item.path) !== ".py"),
+    [items],
+  );
 
   const copyPath = async (path: string) => {
     try {
@@ -81,11 +54,11 @@ export function DeliverablesDock() {
     "flex items-center justify-center w-6 h-6 rounded-md border-0 bg-transparent text-(color:--md-sys-color-text-secondary) cursor-pointer hover:text-(color:--md-sys-color-text) hover:bg-(color:--md-sys-color-surface-container-high) transition-colors";
 
   const visible = useMemo(
-    () => (entries ?? []).slice(0, expanded ? undefined : DEFAULT_VISIBLE),
+    () => entries.slice(0, expanded ? undefined : DEFAULT_VISIBLE),
     [entries, expanded],
   );
-  const hiddenCount = (entries?.length ?? 0) - visible.length;
-  if (entries === null || entries.length === 0) return null;
+  const hiddenCount = entries.length - visible.length;
+  if (entries.length === 0) return null;
 
   return (
     <div

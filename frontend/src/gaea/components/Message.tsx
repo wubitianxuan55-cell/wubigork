@@ -1,7 +1,6 @@
 import { memo, useCallback, useId, useLayoutEffect, useMemo, useRef, useState, useEffect } from "react";
-import { Bot, Check, ChevronDown, ChevronRight, Brain, Copy, FileText, RefreshCw, Rollback, ThumbsDown, ThumbsDownFilled, ThumbsUp, ThumbsUpFilled, Wand2 } from "../icons";
+import { Bot, ChevronDown, ChevronRight, Brain, FileText, RefreshCw, Rollback, ThumbsDown, ThumbsDownFilled, ThumbsUp, ThumbsUpFilled } from "../icons";
 import { app } from "../lib/bridge";
-import { copyToClipboard } from "../lib/clipboard";
 import { MemoMarkdown } from "./MemoMarkdown";
 import { useT } from "../lib/i18n";
 import { useCompact } from "../hooks/useCompact";
@@ -228,7 +227,6 @@ export const UserMessage = memo(function UserMessage({
 
 export const AssistantMessage = memo(function AssistantMessage({
   item,
-  onCapture,
   turnNo,
   deliverTail,
   deliverOmitPaths,
@@ -238,7 +236,6 @@ export const AssistantMessage = memo(function AssistantMessage({
 }: {
   item: AssistantItem;
   onCollapse?: () => void;
-  onCapture?: (solution: string) => void;
   /** 本条消息所属轮次（Transcript 的 0-based 用户消息序号）；轮外缺省。
    *  原样下传 DeliverableCards 做登记表「本轮」条目匹配。 */
   turnNo?: number;
@@ -266,10 +263,7 @@ export const AssistantMessage = memo(function AssistantMessage({
 
   const reasoningRunning = !!(streaming && !item.text && item.reasoning);
   const [reasoningOpen, setReasoningOpen] = useState(false);
-  // 复制正文反馈（Codex 式消息操作；复制成功后短暂显示「已复制」）
-  const [copied, setCopied] = useState(false);
   useEffect(() => {
-    setCopied(false);
     setReasoningOpen(false);
   }, [item.id]);
   useGSAPCollapse(reasoningBodyRef, reasoningOpen);
@@ -386,43 +380,15 @@ export const AssistantMessage = memo(function AssistantMessage({
           {/* 交付物附件卡片：正文中的文件引用 + 权威登记表本轮条目，渲染成可点击预览卡片 */}
           {item.text && <DeliverableCards text={item.text} turnNo={turnNo} mergeRegistry={deliverTail} omitPaths={deliverOmitPaths} />}
 
-          {/* 消息操作：复制正文（Codex 式 hover 淡入，复制/评分后驻留）+
-              沉淀为技能（成功对话可复用） */}
+          {/* 其余消息操作浮在正文右上角，不占正文下方固定高度。复制与
+              单条回答“沉淀为技能”已按实弹反馈删除；会话级录制仍在输入卡。 */}
           {item.text && !streaming && (
-            <div className={`mt-1 flex items-center gap-1 transition-opacity duration-150 ${
-              copied || rated ? "opacity-100" : "opacity-0 group-hover/msg:opacity-100 focus-within:opacity-100"
-            }`}>
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-faint/50 text-[10.5px] cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors"
-                onClick={() => {
-                  // v4.513 诚实反馈：成功才翻转「已复制」；失败（含兜底也败）
-                  // toast 可见提示，不再无条件假成功。
-                  void copyToClipboard(item.text).then((ok) => {
-                    if (!ok) {
-                      toast.show(t("msg.copyFail"), "warn");
-                      return;
-                    }
-                    setCopied(true);
-                    window.setTimeout(() => setCopied(false), 1500);
-                  });
-                }}
-                title={t("msg.copy")}
-              >
-                {copied ? <Check size={11} className="text-ok" /> : <Copy size={11} />}
-                {copied ? t("msg.copied") : t("msg.copy")}
-              </button>
-              {onCapture && (
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-faint/50 text-[10.5px] cursor-pointer hover:text-accent hover:bg-bg-soft hover:text-fg transition-colors"
-                  onClick={() => onCapture(item.text)}
-                  title={t("msg.captureSkillTitle")}
-                >
-                  <Wand2 size={11} />
-                  {t("msg.captureSkill")}
-                </button>
-              )}
+            (canRegenerate && onRegenerateTurn && turnNo != null) || onFeedback
+          ) && (
+            <div className="relative h-0" data-testid="assistant-message-actions">
+              <div className={`pointer-events-none absolute right-0 top-0 z-10 flex -translate-y-full items-center gap-1 rounded-md bg-bg/90 px-1 py-0.5 transition-opacity duration-150 ${
+                rated ? "pointer-events-auto opacity-100" : "opacity-0 group-hover/msg:pointer-events-auto group-hover/msg:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100"
+              }`}>
               {canRegenerate && onRegenerateTurn && turnNo != null && (
                 <button
                   type="button"
@@ -458,6 +424,7 @@ export const AssistantMessage = memo(function AssistantMessage({
                   </button>
                 </>
               )}
+              </div>
             </div>
           )}
         </div>

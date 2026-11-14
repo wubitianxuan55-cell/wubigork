@@ -918,7 +918,9 @@ export default function App() {
                 方便）——会话级登记表驱动，消息流正文卡保留（不抽卡）。
                 新建会话空首页不挂载：避免沿用上一会话登记缓存，出现无主
                 「交互文件」面板。进入实际会话内容后才显示。 */}
-            {showOfficeComposer && !showCenteredComposer && <DeliverablesDock />}
+            {showOfficeComposer && !showCenteredComposer && (
+              <DeliverablesDock items={sessionDeliverables} />
+            )}
             <CompactContext.Provider value={compactMode}>
             {/* 审批是回合中的决策步骤，不是盖住正文的模态窗：放在输入岛上沿，
                 既不遮挡正在阅读的上下文，也不让用户误以为背景不可操作。 */}
@@ -968,8 +970,6 @@ export default function App() {
                 running={state.running}
                 turnStartAt={state.turnStartAt}
                 turnTokens={state.turnTokens}
-                used={state.context.used}
-                window={state.context.window}
               />
               <div className="composer-glow office-composer">
                 <Composer

@@ -53,16 +53,12 @@ export function JobDoneNotifier({ jobs }: { jobs: JobView[] }) {
   return null;
 }
 
-// 输入框上方的运行时状态行。
-// C5（蒸馏 codex thread_usage/chatwidget 上下文窗口百分比 + 压缩前预警）：
-// 窗口占用 ≥75% 提示「接近自动压缩」（gaea 压缩触发线 80%），≥90% 升级为
-// 「即将强制压缩」（ForceRatio 90%）；窗口未知（window=0）时隐藏。
-export function RunStatus({ running, turnStartAt, turnTokens, used, window: win }: {
+// 输入框上方的运行时状态行。上下文占用只由输入卡底栏的 ContextPill 承载，
+// 这里不再重复显示百分比、容量或压缩预警，避免同一状态上下各出现一次。
+export function RunStatus({ running, turnStartAt, turnTokens }: {
   running: boolean;
   turnStartAt: number;
   turnTokens: number;
-  used: number;
-  window: number;
 }) {
   // v4.350：仅运行中订阅全局时钟（!running 时组件渲染 null，白订阅纯浪费）
   const now = useNow(running);
@@ -96,14 +92,6 @@ export function RunStatus({ running, turnStartAt, turnTokens, used, window: win 
       : avgSpeed >= 0.5
         ? `均 ${fmtSpd(avgSpeed)} tok/s`
         : "";
-  const slowHint =
-    elapsed >= 20 && used >= 40000
-      ? `处理大上下文中 · ${fmtTokens(used)}`
-      : "";
-  const pct = win > 0 ? Math.min(100, Math.round((used / win) * 100)) : 0;
-  const ctxHint =
-    pct >= 90 ? "即将强制压缩" : pct >= 75 ? "接近自动压缩" : "";
-  const ctxColor = pct >= 90 ? "text-err" : pct >= 75 ? "text-warning" : "text-fg-faint";
   return (
     <div className="office-run-status flex items-center justify-between px-4 py-1.5 text-[11px] select-none border-b border-border-soft/50 bg-bg-soft/30">
       <div className="flex items-center gap-2 text-fg-dim tabular-nums font-mono">
@@ -115,19 +103,6 @@ export function RunStatus({ running, turnStartAt, turnTokens, used, window: win 
             title={tokSpeed >= 0.5 ? "流式输出速度（4s 滚动窗口）" : "回合平均速度（当前处于工具/思考停顿，无实时流）"}
           >
             {spdStr}
-          </span>
-        )}
-        {slowHint && <span className="text-warning/90">{slowHint}</span>}
-        {pct > 0 && (
-          <span className={`inline-flex items-center gap-1 ${ctxColor}`} title={`上下文窗口占用 ${fmtTokens(used)}/${fmtTokens(win)}`}>
-            <span className="inline-block w-10 h-1 rounded-full bg-bg-soft overflow-hidden align-middle">
-              <span
-                className={`block h-full rounded-full transition-all duration-500 ${pct >= 90 ? "bg-err" : pct >= 75 ? "bg-warning" : "bg-info/70"}`}
-                style={{ width: `${pct}%` }}
-              />
-            </span>
-            <span className="font-medium">{pct}%</span>
-            {ctxHint && <span>{ctxHint}</span>}
           </span>
         )}
       </div>
